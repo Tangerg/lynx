@@ -16,11 +16,28 @@ type subInput struct{ Value int }
 type subOutput struct{ Doubled int }
 type parentOutput struct{ Final int }
 
+type constrainedInput struct {
+	Instruction string `json:"instruction" jsonschema:"minLength=3"`
+}
+
+type constrainedOutput struct{ Done bool }
+
 // childAgent doubles its input and binds the result.
 func childAgent() *core.Agent {
 	return agent.New(agent.AgentConfig{Name: "child-agent", Description: "doubles its input", Actions: []agent.Action{agent.NewAction("double", func(_ context.Context, _ *core.ProcessContext, in subInput) (subOutput, error) {
 		return subOutput{Doubled: in.Value * 2}, nil
 	}, core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[subOutput](core.GoalConfig{Description: "doubled"})}})
+}
+
+func constrainedChildAgent() *core.Agent {
+	return agent.New(agent.AgentConfig{
+		Name:        "constrained-child",
+		Description: "runs one constrained instruction",
+		Actions: []agent.Action{agent.NewAction("run", func(_ context.Context, _ *core.ProcessContext, _ constrainedInput) (constrainedOutput, error) {
+			return constrainedOutput{Done: true}, nil
+		}, core.ActionConfig{})},
+		Goals: []*agent.Goal{agent.NewOutputGoal[constrainedOutput](core.GoalConfig{Description: "done"})},
+	})
 }
 
 // TestAsChatTool_RunsChildAndReturnsResult exercises the full loop:
@@ -132,6 +149,33 @@ func TestAsChatTool_NoParentProcessInCtx(t *testing.T) {
 	_, err = tool.Call(t.Context(), `{"Value":1}`)
 	if err == nil || !strings.Contains(err.Error(), "no parent process in ctx") {
 		t.Fatalf("expected no-parent-process error, got %v", err)
+	}
+}
+
+func TestAsChatTool_EnforcesOneTypedInputContract(t *testing.T) {
+	engine := agent.MustNewEngine(runtime.Config{})
+	childDeployment, err := engine.Deploy(t.Context(), constrainedChildAgent())
+	if err != nil {
+		t.Fatal(err)
+	}
+	tool, err := runtime.NewAgentTool[constrainedInput, constrainedOutput](engine, childDeployment)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, arguments := range []string{
+		`{"instruction":"do work","prompt":"legacy"}`,
+		`{"instruction":"x"}`,
+		`{}`,
+		`{"instruction":"do work"} {}`,
+	} {
+		_, err := tool.Call(t.Context(), arguments)
+		if err == nil {
+			t.Errorf("Call(%s): want typed-contract rejection", arguments)
+			continue
+		}
+		if strings.Contains(err.Error(), "no parent process") {
+			t.Errorf("Call(%s) reached Agent execution before input rejection: %v", arguments, err)
+		}
 	}
 }
 

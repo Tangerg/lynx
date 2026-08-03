@@ -10,18 +10,23 @@ import (
 	"github.com/Tangerg/lynx/agent/interaction"
 	"github.com/Tangerg/lynx/agent/toolloop"
 	"github.com/Tangerg/lynx/core/chat"
+	toolcontract "github.com/Tangerg/lynx/tool"
 )
 
 // agentTool adapts one deployed agent to a typed child-process tool.
 type agentTool struct {
 	engine     *Engine
 	deployment *Deployment
-	definition chat.ToolDefinition
-	decode     func(arguments string) (any, error)
+	inner      toolcontract.Tool
 	result     func(child *Process) (any, error)
 }
 
-func (t *agentTool) Definition() chat.ToolDefinition { return t.definition.Clone() }
+func (t *agentTool) Definition() chat.ToolDefinition {
+	if t == nil || t.inner == nil {
+		return chat.ToolDefinition{}
+	}
+	return t.inner.Definition()
+}
 
 // ConcurrencyKey declares AgentTool calls independent: each invocation owns an
 // isolated child process. ToolLoop still commits their results in model order.
@@ -39,11 +44,21 @@ func (t *agentTool) ConcurrencyKey(string) (string, bool) { return "", true }
 func (t *agentTool) CanContinueWithoutInput() bool { return true }
 
 func (t *agentTool) Call(ctx context.Context, arguments string) (string, error) {
-	agentName := t.deployment.agent.Name()
-	in, err := t.decode(arguments)
-	if err != nil {
-		return "", fmt.Errorf("agent tool %q: %w", agentName, err)
+	if t == nil || t.inner == nil {
+		return "", errors.New("runtime: AgentTool is not initialized")
 	}
+	return t.inner.Call(context.WithValue(ctx, agentToolArgumentsKey{}, arguments), arguments)
+}
+
+type agentToolArgumentsKey struct{}
+
+func (t *agentTool) call(ctx context.Context, in any) (string, error) {
+	agentName := t.deployment.agent.Name()
+	arguments, ok := ctx.Value(agentToolArgumentsKey{}).(string)
+	if !ok {
+		return "", fmt.Errorf("agent tool %q: raw arguments are unavailable", agentName)
+	}
+	toolName := t.inner.Definition().Name
 
 	parent, err := t.parentProcess(ctx)
 	if err != nil {
@@ -52,7 +67,7 @@ func (t *agentTool) Call(ctx context.Context, arguments string) (string, error) 
 	if parent == nil {
 		return "", fmt.Errorf("agent tool %q: no parent process in ctx", agentName)
 	}
-	toolCallID, err := nestedToolCallID(ctx, t.definition.Name, arguments, t.deployment.Ref())
+	toolCallID, err := nestedToolCallID(ctx, toolName, arguments, t.deployment.Ref())
 	if err != nil {
 		return "", fmt.Errorf("agent tool %q: %w", agentName, err)
 	}
@@ -61,16 +76,16 @@ func (t *agentTool) Call(ctx context.Context, arguments string) (string, error) 
 		return "", fmt.Errorf("agent tool %q: %w", agentName, relationErr)
 	}
 	if canceled := checkpoint.canceledForCall(toolCallID); canceled != nil {
-		if !canceled.matchesToolCall(toolCallID, t.definition.Name, arguments, t.deployment.Ref()) {
-			return "", fmt.Errorf("%w: process %q canceled nested tool %q, not %q", interaction.ErrSuspensionConflict, parent.ID(), canceled.ToolName, t.definition.Name)
+		if !canceled.matchesToolCall(toolCallID, toolName, arguments, t.deployment.Ref()) {
+			return "", fmt.Errorf("%w: process %q canceled nested tool %q, not %q", interaction.ErrSuspensionConflict, parent.ID(), canceled.ToolName, toolName)
 		}
 		parent.state.clearContinuableSuspension()
 		return "", fmt.Errorf("agent tool %q: %w", agentName, ErrChildProcessCanceled)
 	}
 	relation := checkpoint.relationForCall(toolCallID)
 	if relation != nil {
-		if !relation.matchesToolCall(toolCallID, t.definition.Name, arguments, t.deployment.Ref()) {
-			return "", fmt.Errorf("%w: process %q is resuming nested tool %q, not %q", interaction.ErrSuspensionConflict, parent.ID(), relation.ToolName, t.definition.Name)
+		if !relation.matchesToolCall(toolCallID, toolName, arguments, t.deployment.Ref()) {
+			return "", fmt.Errorf("%w: process %q is resuming nested tool %q, not %q", interaction.ErrSuspensionConflict, parent.ID(), relation.ToolName, toolName)
 		}
 		continuable, err := suspensionContinuable(parent.Suspension())
 		if err != nil {
@@ -167,7 +182,7 @@ func (t *agentTool) suspendForNestedChild(
 	toolCallID string,
 	arguments string,
 ) error {
-	relation, childSuspension, err := nestedRelationForChild(toolCallID, t.definition.Name, arguments, child)
+	relation, childSuspension, err := nestedRelationForChild(toolCallID, t.inner.Definition().Name, arguments, child)
 	if err != nil {
 		return errors.Join(err, t.abortNestedChild(ctx, child))
 	}

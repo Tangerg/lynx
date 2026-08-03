@@ -1,12 +1,11 @@
 package runtime
 
 import (
-	"encoding/json"
+	"context"
 	"errors"
 	"fmt"
 
 	"github.com/Tangerg/lynx/agent/core"
-	"github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/tool"
 )
 
@@ -31,27 +30,9 @@ func newAgentTool[In, Out any](engine *Engine, deployment *Deployment) (tool.Too
 	if any(input) == nil {
 		return nil, fmt.Errorf("runtime.newAgentTool: agent %q: input type must be concrete", agent.Name())
 	}
-	inputSchema, err := tool.Schema[In]()
-	if err != nil {
-		return nil, fmt.Errorf("runtime.newAgentTool: agent %q: derive input schema: %w", agent.Name(), err)
-	}
-	return &agentTool{
+	t := &agentTool{
 		engine:     engine,
 		deployment: deployment,
-		definition: chat.ToolDefinition{
-			Name:        agent.Name(),
-			Description: agent.Description(),
-			InputSchema: json.RawMessage(inputSchema),
-		},
-		decode: func(arguments string) (any, error) {
-			var in In
-			if arguments != "" {
-				if err := json.Unmarshal([]byte(arguments), &in); err != nil {
-					return nil, fmt.Errorf("parse input: %w", err)
-				}
-			}
-			return in, nil
-		},
 		result: func(child *Process) (any, error) {
 			out, ok := core.Result[Out](child)
 			if !ok {
@@ -60,5 +41,16 @@ func newAgentTool[In, Out any](engine *Engine, deployment *Deployment) (tool.Too
 			}
 			return out, nil
 		},
-	}, nil
+	}
+	inner, err := tool.NewFunc[In, string](
+		tool.FuncConfig{Name: agent.Name(), Description: agent.Description()},
+		func(ctx context.Context, in In) (string, error) {
+			return t.call(ctx, any(in))
+		},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("runtime.newAgentTool: agent %q: build typed tool: %w", agent.Name(), err)
+	}
+	t.inner = inner
+	return t, nil
 }
