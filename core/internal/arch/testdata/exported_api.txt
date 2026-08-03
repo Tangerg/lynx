@@ -119,6 +119,7 @@ embedding: func (r Response) MarshalJSON() ([]byte, error)
 embedding: func (r Result) MarshalJSON() ([]byte, error)
 embedding: func (u *Usage) UnmarshalJSON(data []byte) error
 embedding: func (u Usage) MarshalJSON() ([]byte, error)
+embedding: func Float32Vector(source []float64) []float32
 embedding: func NewOptions(model string) (Options, error)
 embedding: func NewRequest(texts []string) (*Request, error)
 embedding: func NewResponse(results []*Result, metadata *ResponseMetadata) (*Response, error)
@@ -355,7 +356,12 @@ vectorstore/filter: func (u *UnaryExpr) End() Position
 vectorstore/filter: func (u *UnaryExpr) Equal(other Expr) bool
 vectorstore/filter: func (u *UnaryExpr) Start() Position
 vectorstore/filter: func And[L Predicate, R Predicate](l L, r R) *BinaryExpr
+vectorstore/filter: func CollectKeyPath(expr Expr) ([]string, error)
+vectorstore/filter: func ConvertListLiteral(list *ListLiteral) (slice any, sample any, err error)
+vectorstore/filter: func DispatchBinary(expr *BinaryExpr, handlers BinaryHandlers) error
+vectorstore/filter: func DispatchUnary( expr *UnaryExpr, onNot func(*UnaryExpr) error, ) error
 vectorstore/filter: func EQ[L IdentifierValue | *IndexExpr, R LiteralValue](l L, r R) *BinaryExpr
+vectorstore/filter: func ExtractValue(expr Expr) (any, error)
 vectorstore/filter: func GE[L IdentifierValue | *IndexExpr, R Number | *Literal](l L, r R) *BinaryExpr
 vectorstore/filter: func GT[L IdentifierValue | *IndexExpr, R Number | *Literal](l L, r R) *BinaryExpr
 vectorstore/filter: func Has[L IdentifierValue | *IndexExpr, R LiteralValue](l L, r R) *BinaryExpr
@@ -366,17 +372,29 @@ vectorstore/filter: func IsNull[L IdentifierValue | *IndexExpr](l L) *BinaryExpr
 vectorstore/filter: func LE[L IdentifierValue | *IndexExpr, R Number | *Literal](l L, r R) *BinaryExpr
 vectorstore/filter: func LT[L IdentifierValue | *IndexExpr, R Number | *Literal](l L, r R) *BinaryExpr
 vectorstore/filter: func Like[L IdentifierValue | *IndexExpr, R string | *Literal](l L, r R) *BinaryExpr
+vectorstore/filter: func LiteralAsKey(lit *Literal) (string, error)
+vectorstore/filter: func LiteralToValue(lit *Literal) (any, error)
+vectorstore/filter: func LogicalOpString(k Operator) (string, error)
 vectorstore/filter: func NE[L IdentifierValue | *IndexExpr, R LiteralValue](l L, r R) *BinaryExpr
 vectorstore/filter: func NewIdent[T IdentifierValue](value T) *Ident
 vectorstore/filter: func NewListLiteral[T ListValue](value T) *ListLiteral
 vectorstore/filter: func NewLiteral[T LiteralValue](value T) *Literal
 vectorstore/filter: func NewLiterals[T LiteralValue](values []T) []*Literal
 vectorstore/filter: func Not[T Predicate](r T) *UnaryExpr
+vectorstore/filter: func NumberIsInteger(lit *Literal) (bool, error)
+vectorstore/filter: func NumberText(lit *Literal) (string, error)
+vectorstore/filter: func NumberToFloat32(lit *Literal) (float32, error)
+vectorstore/filter: func NumberToFloat64(lit *Literal) (float64, error)
+vectorstore/filter: func NumberToInt(lit *Literal) (int, error)
+vectorstore/filter: func NumberToInt64(lit *Literal) (int64, error)
 vectorstore/filter: func Or[L Predicate, R Predicate](l L, r R) *BinaryExpr
 vectorstore/filter: func Parse(input string) (Predicate, error)
+vectorstore/filter: func RequireListLiteral(expr *BinaryExpr) (*ListLiteral, error)
+vectorstore/filter: func RequireStringPatternOnRight(expr *BinaryExpr) (string, error)
 vectorstore/filter: func Validate(expr Predicate) error
 vectorstore/filter: func Visit(predicate Predicate, visitors ...Visitor) error
 vectorstore/filter: type BinaryExpr struct { Left Expr Op Operator Right Expr start Position end Position }
+vectorstore/filter: type BinaryHandlers struct { Logical func(*BinaryExpr) error Comparison func(*BinaryExpr) error In func(*BinaryExpr) error Has func(*BinaryExpr) error Like func(*BinaryExpr) error }
 vectorstore/filter: type Expr interface { Start() Position End() Position Equal(Expr) bool expr() }
 vectorstore/filter: type Formatter struct { formatted string }
 vectorstore/filter: type Ident struct { Value string start Position end Position }
@@ -398,6 +416,15 @@ vectorstore/filter: type Visitor interface { Visit(Predicate) error }
 vectorstore: const ( DefaultTopK = 5 MinSimilarityScore = 0.0 MaxSimilarityScore = 1.0 )
 vectorstore: func (r SearchRequest) Validate() error
 vectorstore: func (r SearchRequest) ValidateMatches(matches []Match) error
+vectorstore: func BatchDocuments( ctx context.Context, batcher Batcher, documents []*document.Document, ) ([][]*document.Document, error)
+vectorstore: func NormalizeCosineDistance(distance float64) float64
+vectorstore: func NormalizeCosineSimilarity(similarity float64) float64
+vectorstore: func NormalizeDistance(distance float64) float64
+vectorstore: func NormalizeInnerProduct(product float64) float64
+vectorstore: func NormalizeNegativeInnerProductDistance(distance float64) float64
+vectorstore: func NormalizeOneMinusInnerProductDistance(distance float64) float64
+vectorstore: func NormalizeScore(value float64) float64
+vectorstore: func ValidateDocuments(documents []*document.Document) error
 vectorstore: type Batcher interface { Batch(context.Context, []*document.Document) ([][]*document.Document, error) }
 vectorstore: type FilterDeleter interface { DeleteWhere(ctx context.Context, predicate filter.Predicate) error }
 vectorstore: type IDDeleter interface { DeleteIDs(ctx context.Context, ids []string) error }
@@ -406,3 +433,4 @@ vectorstore: type Match struct { Document *document.Document `json:"document"` S
 vectorstore: type SearchRequest struct { Query string `json:"query,omitempty"` TopK int `json:"top_k,omitempty"` MinScore float64 `json:"min_score,omitempty"` Filter filter.Predicate `json:"-"` }
 vectorstore: type Searcher interface { Search(ctx context.Context, request SearchRequest) ([]Match, error) }
 vectorstore: var ( ErrEmptyDocuments = errors.New("vectorstore: documents must not be empty") ErrInvalidDocument = errors.New("vectorstore: invalid document") ErrMissingDocumentID = errors.New("vectorstore: document ID is required") ErrDuplicateDocumentID = errors.New("vectorstore: duplicate document ID") ErrMissingFilter = errors.New("vectorstore: filter is required") )
+vectorstore: var ErrInvalidBatcherOutput = errors.New("vectorstore: invalid batcher output")

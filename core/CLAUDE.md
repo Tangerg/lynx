@@ -18,7 +18,7 @@
 - **Tagged value，而非 sealed hierarchy**：Message/Part 使用公开 discriminator 与普通值；未知类型返回可诊断错误，不依赖未导出方法封口。
 - **流式使用 `iter.Seq2`**：不自定义 iterator，不用 channel 冒充拉模型；调用方提前停止、context cancel 和首错终止必须有测试。
 - **一个扩展机制**：跨调用行为只用函数式 middleware/decorator；Core 只保留类型和纯组合，不保留具体 history/logger/safeguard/OTel 实现。
-- **VectorStore 保留应用语义**：公共面仍处理 Document/查询文本，但按 Indexer/Searcher/IDDeleter/FilterDeleter 拆小能力；`SearchRequest` 同时拥有输入与 Match 输出校验。filter 只公开稳定 AST/Visitor/Formatter，scanner、analyzer 与 optimizer 保持私有。
+- **VectorStore 保留应用语义**：公共面仍处理 Document/查询文本，但按 Indexer/Searcher/IDDeleter/FilterDeleter 拆小能力；`SearchRequest` 同时拥有输入与 Match 输出校验，公共 ingestion/score 原语统一 provider 边界。filter 只公开稳定 AST/Visitor/Formatter 及 AST 语义转换原语，scanner、analyzer 与 optimizer 保持私有。
 
 ## 演进纪律
 
