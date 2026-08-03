@@ -153,6 +153,7 @@
 ### 文件与本地搜索
 
 - `read`、`write`、`edit` 的文件参数统一为 `path`，与 `glob`、`grep`、`lsp` 一致；`apply_patch` 的每文件结果也返回 `path`。旧 `file_path` 不保留；
+- `read(path,start_line?,max_lines?)` 使用 1-based `start_line` 和显式行数上限；删除把 0/default 与 1-based 行号混在同一字段里的 `offset`，也不再用无单位 `limit`；
 - `write(path,content)` 只表达创建或完整替换。删除与 `edit` 重叠且会绕开完整读取保护的 `append` 入口；底层 Executor 仍可为非模型消费者保留 append 原语；
 - `grep` 只保留 `before_context_lines` / `after_context_lines`，删除同时表达相同状态的 `context` shortcut；文件过滤使用 `file_glob` / `file_type`，结果上限使用与 `glob` 一致的 `max_results`，`output_mode` 是 `content | files_with_matches | count` 闭集；
 - 六个 filesystem 工具的外层继续拥有 concurrency / mutation-path 等真实附加能力，但 Definition 与 Call 都委托给同一个 typed function contract。未知字段、缺失字段和越界值不再被手写 `json.Unmarshal` 静默接受。
@@ -225,7 +226,7 @@
 | 4 | Manifest、Exposure、模型/状态驱动工具清单 | 完成 |
 | 5 | 工具名、参数和描述的全量收敛 | 完成 |
 | 6 | 删除冗余能力和配置 | 完成（6a、6b、6c） |
-| 7 | 全仓验证、文档收敛和最终审计 | 进行中（7a、7b、7c 完成） |
+| 7 | 全仓验证、文档收敛和最终审计 | 进行中（7a、7b、7c、7d 完成） |
 
 每批必须独立验证、独立提交并推送。实现发现契约需要调整时，先更新本文，再在同一批修改代码和测试。
 
@@ -369,3 +370,11 @@
 - 挂起关系仍需比对模型调用时的原始 JSON，外层只用私有 context key 把该次原始参数传给内部调用；typed 输入继续作为 child process 的领域输入。这个内部调用细节没有进入 `tool.Tool`、Agent 公开 API 或 `app/runtime`，也没有通过重编码参数改变恢复 identity；
 - `agent` 模块在 workspace 与 `GOWORK=off` 下分别通过 test/build/vet；Runtime 钉住已发布的新 Agent module，并用真实 `delegate_task` 验证旧字段、空值、缺字段和尾随值都会在创建 child process 前失败；
 - 边界扫描继续确认 `agent` 对 `app/runtime` 零导入，runtime domain/application 对 adapter/infra/delivery/bootstrap 零反向依赖。Plan、Goal、session、模型选择、安全策略和 Exposure 仍全部停留在产品 Runtime。
+
+### 批次 7d
+
+- 参数单位反查发现 `read(offset,limit)` 把“0 表示默认”和“1-based 行号”放进同一个字段，且两个名称都没有表达行单位；模型入口改为 `read(path,start_line?,max_lines?)`，显式 `start_line=1` 与省略含义一致，旧字段直接拒绝；
+- edit guard 同步读取新参数，并按真实返回范围判定 partial：`start_line>1` 或设置 `max_lines` 才是 partial；从第 1 行读到文件末尾不再被错误标成 partial。这里继续只是 adapter presentation，没有把 session tracker 下沉到 filesystem tool；
+- 根模块的通用同步 `shell` 工具把 `timeout` 改为 `timeout_ms=1..600000`，Definition 与 Call 改由同一个 typed function 拥有；它保留为可注入 `Executor` 的 SDK 工具，Runtime 自己的后台 Shell family 仍负责 session-scoped lifecycle，两者没有在同一模型 manifest 中重复注册；
+- `fakeweather` 示例工具改名为动作优先且明确非真实数据的 `get_synthetic_weather`；`date/include_hourly/include_air_quality` 的 schema 可选性与实现一致，并拒绝未知字段、尾随 JSON 和无效日期格式。示例不再示范“schema 严格、执行宽松”的错误模式；
+- root module 通过完整 test/build/vet；Runtime 钉住已发布的 root module，并用 edit-guard 集成测试覆盖 partial 与显式整文件读取。没有新增跨层接口、兼容字段或第二套 decoder。

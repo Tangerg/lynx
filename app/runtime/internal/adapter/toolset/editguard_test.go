@@ -160,6 +160,37 @@ func TestWriteGuard_NewFileExemptOverwriteGuarded(t *testing.T) {
 	}
 }
 
+func TestWriteGuard_UsesPreciseReadRangeSemantics(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "paged.txt")
+	if err := os.WriteFile(path, []byte("one\ntwo\nthree\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	read, _, write, _ := guardTools(dir)
+
+	if _, err := read.Call(t.Context(), `{"path":"paged.txt","start_line":2}`); err != nil {
+		t.Fatalf("partial read: %v", err)
+	}
+	out, err := write.Call(t.Context(), `{"path":"paged.txt","content":"replacement"}`)
+	if err != nil {
+		t.Fatalf("write after partial read: %v", err)
+	}
+	if !strings.Contains(out, "only read part") {
+		t.Fatalf("write after start_line=2 = %q, want partial-read refusal", out)
+	}
+
+	if _, err := read.Call(t.Context(), `{"path":"paged.txt","start_line":1}`); err != nil {
+		t.Fatalf("full read from explicit first line: %v", err)
+	}
+	out, err = write.Call(t.Context(), `{"path":"paged.txt","content":"replacement"}`)
+	if err != nil {
+		t.Fatalf("write after full read: %v", err)
+	}
+	if strings.Contains(out, "only read part") || strings.Contains(out, "must read") {
+		t.Fatalf("write after start_line=1 with no max_lines was blocked: %q", out)
+	}
+}
+
 func TestEditGuard_ReadStampIsAtomicWithSamePathEdit(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "foo.txt")

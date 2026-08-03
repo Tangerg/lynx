@@ -34,15 +34,15 @@ func withReadTracking(inner toolcontract.Tool, tr *editguardstate.Tracker, workd
 			return out, err
 		}
 		var a struct {
-			Path   string `json:"path"`
-			Offset int    `json:"offset"`
-			Limit  int    `json:"limit"`
+			Path      string `json:"path"`
+			StartLine int    `json:"start_line"`
+			MaxLines  int    `json:"max_lines"`
 		}
 		_ = json.Unmarshal([]byte(arguments), &a)
 		if a.Path != "" {
 			abs := pathidentity.Canonical(workdir, a.Path)
 			if fingerprint, err := fingerprintFile(abs); err == nil {
-				tr.Record(executionctx.SessionID(ctx), abs, fingerprint, a.Offset > 0 || a.Limit > 0)
+				tr.Record(executionctx.SessionID(ctx), abs, fingerprint, a.StartLine > 1 || a.MaxLines > 0)
 			}
 		}
 		return out, nil
