@@ -26,6 +26,7 @@ export const ja: Record<string, string> = {
   "window.action.close": "ウインドウを閉じる",
   "window.action.minimise": "ウインドウをしまう",
   "window.action.maximise": "ウインドウを拡大／縮小",
+  "window.action.restore": "ウインドウを元のサイズに戻す",
   "shell.region.workspace": "エージェントワークスペース",
   "workIndex.identity.none": "ワークスペースなし",
   "workIndex.section.projects": "プロジェクト",

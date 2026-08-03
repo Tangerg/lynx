@@ -12,6 +12,7 @@ function windowBinding() {
     MinimiseWindow: vi.fn(async () => {}),
     ToggleMaximiseWindow: vi.fn(async () => {}),
     CloseWindow: vi.fn(async () => {}),
+    IsWindowMaximised: vi.fn(async () => true),
   };
 }
 
@@ -58,6 +59,11 @@ describe("DesktopHostClient", () => {
     expect(binding.MinimiseWindow).toHaveBeenCalledTimes(1);
     expect(binding.ToggleMaximiseWindow).toHaveBeenCalledTimes(1);
     expect(binding.CloseWindow).toHaveBeenCalledTimes(1);
+  });
+
+  it("reads the window's zoom state, and answers false without a window", async () => {
+    await expect(createDesktopHostClient(windowBinding()).isWindowMaximised()).resolves.toBe(true);
+    await expect(createDesktopHostClient(undefined).isWindowMaximised()).resolves.toBe(false);
   });
 
   it("stays silent when there is no window to command", () => {

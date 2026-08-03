@@ -26,6 +26,7 @@ export const ko: Record<string, string> = {
   "window.action.close": "창 닫기",
   "window.action.minimise": "창 최소화",
   "window.action.maximise": "창 확대/축소",
+  "window.action.restore": "창 복원",
   "shell.region.workspace": "에이전트 작업 공간",
   "workIndex.identity.none": "작업 공간 없음",
   "workIndex.section.projects": "프로젝트",

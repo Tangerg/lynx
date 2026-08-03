@@ -95,6 +95,17 @@ func (h *DesktopHost) CloseWindow() {
 	runtime.Quit(h.window)
 }
 
+// IsWindowMaximised answers which way the zoom control points. The platform
+// draws two different marks — arrows out to fill the screen, arrows in to come
+// back — and a control that shows the same one in both states is telling you
+// what it does half the time.
+func (h *DesktopHost) IsWindowMaximised() bool {
+	if h.window == nil {
+		return false
+	}
+	return runtime.WindowIsMaximised(h.window)
+}
+
 // Bootstrap returns the local runtime connection and immutable plugin sources
 // the frontend needs before it starts loading application plugins.
 func (h *DesktopHost) Bootstrap() (DesktopBootstrap, error) {

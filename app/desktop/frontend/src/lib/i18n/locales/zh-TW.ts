@@ -25,6 +25,7 @@ export const zhTW: Record<string, string> = {
   "window.action.close": "關閉視窗",
   "window.action.minimise": "最小化視窗",
   "window.action.maximise": "縮放視窗",
+  "window.action.restore": "還原視窗",
   "shell.region.workspace": "Agent 工作區",
   "workIndex.identity.none": "未選擇工作區",
   "workIndex.section.projects": "專案",

@@ -60,6 +60,7 @@ export function VisualShellFixture({ state }: { state: VisualWorkIndexState }) {
           closeLabel={t("window.action.close")}
           minimiseLabel={t("window.action.minimise")}
           maximiseLabel={t("window.action.maximise")}
+          maximised={false}
         />
       }
       sidebar={<SidebarPanel />}

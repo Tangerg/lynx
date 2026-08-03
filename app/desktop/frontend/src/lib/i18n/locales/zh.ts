@@ -25,6 +25,7 @@ export const zh: Record<string, string> = {
   "window.action.close": "关闭窗口",
   "window.action.minimise": "最小化窗口",
   "window.action.maximise": "缩放窗口",
+  "window.action.restore": "还原窗口",
   "shell.region.workspace": "Agent 工作区",
   "workIndex.identity.none": "未选择工作区",
   "workIndex.section.projects": "项目",

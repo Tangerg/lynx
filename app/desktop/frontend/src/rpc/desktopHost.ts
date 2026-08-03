@@ -27,6 +27,7 @@ interface DesktopHostBinding {
   MinimiseWindow(): Promise<void>;
   ToggleMaximiseWindow(): Promise<void>;
   CloseWindow(): Promise<void>;
+  IsWindowMaximised(): Promise<boolean>;
 }
 
 export interface DesktopHostClient {
@@ -43,6 +44,9 @@ export interface DesktopHostClient {
   minimiseWindow(): void;
   toggleMaximiseWindow(): void;
   closeWindow(): void;
+  /** Which way the zoom control should point. `false` where there is no window
+   *  to ask, which is also the shape a never-maximised window has. */
+  isWindowMaximised(): Promise<boolean>;
 }
 
 const DesktopBootstrapSchema = z.object({
@@ -87,6 +91,15 @@ export function createDesktopHostClient(binding?: DesktopHostBinding): DesktopHo
     minimiseWindow: () => command((host) => host.MinimiseWindow()),
     toggleMaximiseWindow: () => command((host) => host.ToggleMaximiseWindow()),
     closeWindow: () => command((host) => host.CloseWindow()),
+    async isWindowMaximised() {
+      const host = binding ?? wailsDesktopHostBinding();
+      if (!host) return false;
+      try {
+        return await host.IsWindowMaximised();
+      } catch {
+        return false;
+      }
+    },
   };
 
   function command(run: (host: DesktopHostBinding) => Promise<void>): void {

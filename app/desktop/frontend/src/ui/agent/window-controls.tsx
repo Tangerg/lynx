@@ -9,6 +9,10 @@ interface AgentWindowControlsProps {
   closeLabel: string;
   minimiseLabel: string;
   maximiseLabel: string;
+  /** Which mark the zoom control wears: arrows out to fill the screen, arrows in
+   *  to come back. A control showing the same one in both states is describing
+   *  what it does half the time. */
+  maximised: boolean;
 }
 
 /**
@@ -36,6 +40,7 @@ export function AgentWindowControls({
   closeLabel,
   minimiseLabel,
   maximiseLabel,
+  maximised,
 }: AgentWindowControlsProps) {
   return (
     <div className="group/window flex items-center" data-slot="agent-window-controls">
@@ -51,10 +56,21 @@ export function AgentWindowControls({
         <path d="M3.25 6 H8.75" />
       </WindowControl>
       <WindowControl label={maximiseLabel} onClick={onToggleMaximise} hue="maximise">
-        {/* Two triangles either side of a bottom-left-to-top-right split — the
-            platform's zoom mark. A plain square outline is a different symbol. */}
-        <path d="M3.45 3.45 H7.9 L3.45 7.9 Z" fill="currentColor" stroke="none" />
-        <path d="M8.55 8.55 H4.1 L8.55 4.1 Z" fill="currentColor" stroke="none" />
+        {/* Two triangles either side of a bottom-left-to-top-right split. Pointing
+            out at their own corners they read as "fill the screen"; mirrored to
+            point at each other they read as "come back", and the platform draws
+            that second pair noticeably larger — 68% of the disc against 43%. */}
+        {maximised ? (
+          <>
+            <path d="M5.8 2 V5.8 H2 Z" fill="currentColor" stroke="none" />
+            <path d="M6.2 10 V6.2 H10 Z" fill="currentColor" stroke="none" />
+          </>
+        ) : (
+          <>
+            <path d="M3.45 3.45 H7.9 L3.45 7.9 Z" fill="currentColor" stroke="none" />
+            <path d="M8.55 8.55 H4.1 L8.55 4.1 Z" fill="currentColor" stroke="none" />
+          </>
+        )}
       </WindowControl>
     </div>
   );

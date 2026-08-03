@@ -28,6 +28,7 @@ export const en: Record<string, string> = {
   "window.action.close": "Close window",
   "window.action.minimise": "Minimise window",
   "window.action.maximise": "Zoom window",
+  "window.action.restore": "Restore window",
   "shell.region.workspace": "Agent workspace",
   "workIndex.identity.none": "No workspace",
   "workIndex.section.projects": "Projects",

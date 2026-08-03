@@ -27,6 +27,7 @@ export const es: Record<string, string> = {
   "window.action.close": "Cerrar ventana",
   "window.action.minimise": "Minimizar ventana",
   "window.action.maximise": "Ampliar ventana",
+  "window.action.restore": "Restaurar ventana",
   "shell.region.workspace": "Espacio de trabajo del agente",
   "workIndex.identity.none": "Sin espacio de trabajo",
   "workIndex.section.projects": "Proyectos",
