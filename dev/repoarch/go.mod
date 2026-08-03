@@ -1,4 +1,4 @@
-module github.com/Tangerg/lynx/internal/repoarch
+module github.com/Tangerg/lynx/dev/repoarch
 
 go 1.26.5
 

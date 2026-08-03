@@ -11,14 +11,13 @@ use (
 	./chathistory/neo4j
 	./chathistory/postgres
 	./chathistory/redis
+	./dev/repoarch
 	./documentpipeline
 	./documentpipeline/markdown
 	./documentreaders/html
 	./documentreaders/markdown
 	./documentreaders/pdf
 	./examples/mcp
-	./internal/repoarch
-	./vectorstores/postgres
 	./mcp
 	./models
 	./models/bedrock
@@ -44,6 +43,7 @@ use (
 	./vectorstores/neo4j
 	./vectorstores/opensearch
 	./vectorstores/pinecone
+	./vectorstores/postgres
 	./vectorstores/qdrant
 	./vectorstores/redis
 	./vectorstores/s3vectors
