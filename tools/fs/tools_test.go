@@ -8,9 +8,11 @@ import (
 	"slices"
 	"strings"
 	"testing"
-
-	"github.com/Tangerg/lynx/tools"
 )
+
+type fileMutationReporter interface {
+	MutationPaths(arguments string) ([]string, error)
+}
 
 // Compile-time assertions that every tool constructor returns a value
 // satisfying chat.Tool. (We re-assert here for documentation
@@ -37,7 +39,7 @@ func TestTools_Definitions(t *testing.T) {
 func TestFileToolsReportMutationPaths(t *testing.T) {
 	tests := []struct {
 		name      string
-		tool      tools.FileMutationReporter
+		tool      fileMutationReporter
 		arguments string
 		want      []string
 	}{

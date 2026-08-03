@@ -7,7 +7,6 @@ import (
 
 	"github.com/Tangerg/lynx/core/chat"
 	toolcontract "github.com/Tangerg/lynx/tool"
-	"github.com/Tangerg/lynx/tools"
 	toolschema "github.com/Tangerg/lynx/tools/internal/schema"
 )
 
@@ -26,10 +25,7 @@ type EditResponse struct {
 
 var editToolSchema, _ = toolschema.String(EditRequest{})
 
-var (
-	_ toolcontract.Tool          = (*EditTool)(nil)
-	_ tools.FileMutationReporter = (*EditTool)(nil)
-)
+var _ toolcontract.Tool = (*EditTool)(nil)
 
 // EditTool is the thin LLM-facing adapter for [Executor.Edit]. The
 // match-and-replace logic lives in the executor so a backend upgrade

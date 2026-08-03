@@ -7,7 +7,6 @@ import (
 
 	"github.com/Tangerg/lynx/core/chat"
 	toolcontract "github.com/Tangerg/lynx/tool"
-	"github.com/Tangerg/lynx/tools"
 	toolschema "github.com/Tangerg/lynx/tools/internal/schema"
 )
 
@@ -25,10 +24,7 @@ type WriteResponse struct {
 
 var writeToolSchema, _ = toolschema.String(WriteRequest{})
 
-var (
-	_ toolcontract.Tool          = (*WriteTool)(nil)
-	_ tools.FileMutationReporter = (*WriteTool)(nil)
-)
+var _ toolcontract.Tool = (*WriteTool)(nil)
 
 // WriteTool is the thin LLM-facing adapter for [Executor.Write].
 type WriteTool struct {

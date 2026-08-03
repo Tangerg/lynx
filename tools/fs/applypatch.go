@@ -7,7 +7,6 @@ import (
 
 	"github.com/Tangerg/lynx/core/chat"
 	toolcontract "github.com/Tangerg/lynx/tool"
-	"github.com/Tangerg/lynx/tools"
 	toolschema "github.com/Tangerg/lynx/tools/internal/schema"
 )
 
@@ -33,10 +32,7 @@ type PatchFileResponse struct {
 
 var applyPatchToolSchema, _ = toolschema.String(ApplyPatchRequest{})
 
-var (
-	_ toolcontract.Tool          = (*ApplyPatchTool)(nil)
-	_ tools.FileMutationReporter = (*ApplyPatchTool)(nil)
-)
+var _ toolcontract.Tool = (*ApplyPatchTool)(nil)
 
 // ApplyPatchTool is the thin LLM-facing adapter for [Executor.ApplyPatch].
 type ApplyPatchTool struct {

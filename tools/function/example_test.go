@@ -1,11 +1,11 @@
-package tools_test
+package function_test
 
 import (
 	"context"
 	"fmt"
 
 	"github.com/Tangerg/lynx/tool"
-	"github.com/Tangerg/lynx/tools"
+	"github.com/Tangerg/lynx/tools/function"
 )
 
 func ExampleNew() {
@@ -13,7 +13,7 @@ func ExampleNew() {
 		A int `json:"a"`
 		B int `json:"b"`
 	}
-	add, err := tools.New(tools.Config{
+	add, err := function.New(function.Config{
 		Name:        "add",
 		Description: "add two integers",
 	}, func(_ context.Context, value input) (int, error) {

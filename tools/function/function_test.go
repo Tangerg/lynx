@@ -1,4 +1,4 @@
-package tools_test
+package function_test
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	toolcontract "github.com/Tangerg/lynx/tool"
-	"github.com/Tangerg/lynx/tools"
+	"github.com/Tangerg/lynx/tools/function"
 )
 
 type addInput struct {
@@ -20,7 +20,7 @@ type addInput struct {
 type contextKey struct{}
 
 func TestNewBuildsImmutableTypedFunctionTool(t *testing.T) {
-	tool, err := tools.New(tools.Config{Name: "add", Description: "add two integers"},
+	tool, err := function.New(function.Config{Name: "add", Description: "add two integers"},
 		func(ctx context.Context, input addInput) (int, error) {
 			if got := ctx.Value(contextKey{}); got != "value" {
 				t.Fatalf("context value = %v", got)
@@ -66,27 +66,27 @@ func TestNewRejectsInvalidConstruction(t *testing.T) {
 		run  func() error
 	}{
 		{name: "missing name", run: func() error {
-			_, err := tools.New(tools.Config{}, valid)
+			_, err := function.New(function.Config{}, valid)
 			return err
 		}},
 		{name: "whitespace name", run: func() error {
-			_, err := tools.New(tools.Config{Name: "bad name"}, valid)
+			_, err := function.New(function.Config{Name: "bad name"}, valid)
 			return err
 		}},
 		{name: "nil function", run: func() error {
-			_, err := tools.New[struct{}, string](tools.Config{Name: "nil"}, nil)
+			_, err := function.New[struct{}, string](function.Config{Name: "nil"}, nil)
 			return err
 		}},
 		{name: "scalar input", run: func() error {
-			_, err := tools.New(tools.Config{Name: "scalar"}, func(context.Context, string) (string, error) { return "", nil })
+			_, err := function.New(function.Config{Name: "scalar"}, func(context.Context, string) (string, error) { return "", nil })
 			return err
 		}},
 		{name: "interface input", run: func() error {
-			_, err := tools.New(tools.Config{Name: "interface"}, func(context.Context, any) (string, error) { return "", nil })
+			_, err := function.New(function.Config{Name: "interface"}, func(context.Context, any) (string, error) { return "", nil })
 			return err
 		}},
 		{name: "pointer chain input", run: func() error {
-			_, err := tools.New(tools.Config{Name: "pointers"}, func(context.Context, **addInput) (string, error) { return "", nil })
+			_, err := function.New(function.Config{Name: "pointers"}, func(context.Context, **addInput) (string, error) { return "", nil })
 			return err
 		}},
 	}
@@ -103,7 +103,7 @@ func TestFunctionToolDecodesStrictObjectArguments(t *testing.T) {
 	type optionalInput struct {
 		Value string `json:"value,omitempty"`
 	}
-	tool, err := tools.New(tools.Config{Name: "optional"},
+	tool, err := function.New(function.Config{Name: "optional"},
 		func(_ context.Context, input *optionalInput) (string, error) {
 			if input == nil {
 				t.Fatal("pointer input was not allocated")
@@ -138,7 +138,7 @@ func TestFunctionToolDecodesStrictObjectArguments(t *testing.T) {
 func TestFunctionToolResultEncodingAndErrorIdentity(t *testing.T) {
 	t.Run("defined string is verbatim", func(t *testing.T) {
 		type text string
-		tool, err := tools.New(tools.Config{Name: "text"}, func(context.Context, struct{}) (text, error) {
+		tool, err := function.New(function.Config{Name: "text"}, func(context.Context, struct{}) (text, error) {
 			return "plain", nil
 		})
 		if err != nil {
@@ -153,7 +153,7 @@ func TestFunctionToolResultEncodingAndErrorIdentity(t *testing.T) {
 		type output struct {
 			OK bool `json:"ok"`
 		}
-		composite, err := tools.New(tools.Config{Name: "composite"}, func(context.Context, struct{}) (output, error) {
+		composite, err := function.New(function.Config{Name: "composite"}, func(context.Context, struct{}) (output, error) {
 			return output{OK: true}, nil
 		})
 		if err != nil {
@@ -163,7 +163,7 @@ func TestFunctionToolResultEncodingAndErrorIdentity(t *testing.T) {
 			t.Fatalf("composite Call = %q, %v", got, err)
 		}
 
-		raw, err := tools.New(tools.Config{Name: "raw"}, func(context.Context, struct{}) (json.RawMessage, error) {
+		raw, err := function.New(function.Config{Name: "raw"}, func(context.Context, struct{}) (json.RawMessage, error) {
 			return json.RawMessage(`{"ok":true}`), nil
 		})
 		if err != nil {
@@ -175,7 +175,7 @@ func TestFunctionToolResultEncodingAndErrorIdentity(t *testing.T) {
 	})
 
 	t.Run("empty output stays empty", func(t *testing.T) {
-		tool, err := tools.New(tools.Config{Name: "empty"}, func(context.Context, struct{}) (string, error) {
+		tool, err := function.New(function.Config{Name: "empty"}, func(context.Context, struct{}) (string, error) {
 			return "", nil
 		})
 		if err != nil {
@@ -188,7 +188,7 @@ func TestFunctionToolResultEncodingAndErrorIdentity(t *testing.T) {
 
 	t.Run("function error is preserved", func(t *testing.T) {
 		want := errors.New("failed")
-		tool, err := tools.New(tools.Config{Name: "error"}, func(context.Context, struct{}) (string, error) {
+		tool, err := function.New(function.Config{Name: "error"}, func(context.Context, struct{}) (string, error) {
 			return "partial", want
 		})
 		if err != nil {
@@ -200,20 +200,20 @@ func TestFunctionToolResultEncodingAndErrorIdentity(t *testing.T) {
 	})
 
 	t.Run("encoding error is wrapped", func(t *testing.T) {
-		tool, err := tools.New(tools.Config{Name: "channel"}, func(context.Context, struct{}) (chan int, error) {
+		tool, err := function.New(function.Config{Name: "channel"}, func(context.Context, struct{}) (chan int, error) {
 			return make(chan int), nil
 		})
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err := tool.Call(t.Context(), `{}`); err == nil || !strings.Contains(err.Error(), "encode result") {
+		if _, err := tool.Call(t.Context(), `{}`); err == nil || !strings.Contains(err.Error(), "encode function result") {
 			t.Fatalf("Call error = %v", err)
 		}
 	})
 }
 
 func TestFunctionToolConcurrentCalls(t *testing.T) {
-	tool, err := tools.New(tools.Config{Name: "concurrent"}, func(_ context.Context, input addInput) (int, error) {
+	tool, err := function.New(function.Config{Name: "concurrent"}, func(_ context.Context, input addInput) (int, error) {
 		return input.A + input.B, nil
 	})
 	if err != nil {
