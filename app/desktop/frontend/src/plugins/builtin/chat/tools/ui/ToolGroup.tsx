@@ -10,6 +10,8 @@ interface Props {
   onSelectTool: (id: string) => void;
   expandedIds: Set<string>;
   onToggleExpand: (id: string) => void;
+  /** The turn has moved on to answering; see messageBlockRenderUnits. */
+  superseded?: boolean;
 }
 
 /**
@@ -22,10 +24,10 @@ interface Props {
  * indented children, no enclosing card. Its children are read-only calls, so they
  * are lines too — a card around a stack of lines would put the weight back.
  */
-export function ToolGroup({ tools, onSelectTool, expandedIds, onToggleExpand }: Props) {
+export function ToolGroup({ tools, onSelectTool, expandedIds, onToggleExpand, superseded }: Props) {
   const [pinned, setPinned] = useState<ToolGroupPinnedState>(null);
   const t = useT();
-  const model = toolGroupModel(t, tools, pinned);
+  const model = toolGroupModel(t, tools, pinned, superseded);
 
   return (
     <AgentActivityDisclosure

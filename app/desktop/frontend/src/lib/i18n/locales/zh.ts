@@ -132,6 +132,8 @@ export const zh: Record<string, string> = {
   "tools.overflow.truncated": "已被运行时截断",
   "tools.overflow.outputTruncated": "输出已被运行时截断",
   "tools.group.calls": "{{count}} 次调用",
+  "narrative.wave.label": "处理过程",
+  "narrative.wave.thinking": "思考",
 
   "common.remove": "移除",
   "common.loading": "加载中",

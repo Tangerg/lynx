@@ -125,6 +125,8 @@ export const de: Record<string, string> = {
   "tools.overflow.truncated": "von der Runtime gekürzt",
   "tools.overflow.outputTruncated": "Ausgabe von der Runtime gekürzt",
   "tools.group.calls": "{{count}} Aufrufe",
+  "narrative.wave.label": "Arbeitsschritte",
+  "narrative.wave.thinking": "Überlegung",
 
   "common.remove": "Entfernen",
   "common.loading": "Wird geladen",

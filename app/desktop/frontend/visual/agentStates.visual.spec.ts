@@ -16,6 +16,7 @@ const EXPECTED_ATTENTION: Record<VisualAgentState, string> = {
   "long-content": "finished",
   narrative: "finished",
   "tool-shells": "finished",
+  waves: "running",
 };
 
 // `visual/` sits outside the typecheck's include, so the Record's own exhaustiveness

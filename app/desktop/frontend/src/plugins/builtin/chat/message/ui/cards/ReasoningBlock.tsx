@@ -10,6 +10,10 @@ import { cn } from "@/lib/classNames";
 interface Props {
   text: string;
   status: BlockStatus;
+  /** The turn has started answering. Thinking is then the account of how the answer
+   *  was reached, not the thing to read, so it folds away without waiting for its own
+   *  terminal status — some models keep a reasoning block open while prose streams. */
+  superseded?: boolean;
 }
 
 /** Several times the most characters the collapsed row can ever show — see the
@@ -38,12 +42,12 @@ const PREVIEW_LAYOUT_BOUND = 400;
 //
 // Streaming auto-follow (ResizeObserver pin-to-bottom) + top/bottom gradient
 // fades ported from assistant-ui canonical reasoning component technique.
-export function ReasoningBlock({ text, status }: Props) {
+export function ReasoningBlock({ text, status, superseded = false }: Props) {
   const t = useT();
   const streaming = status === "running";
   const [open, setOpen] = useState(true);
   const [userToggled, setUserToggled] = useState(false);
-  const isOpen = userToggled ? open : streaming;
+  const isOpen = userToggled ? open : streaming && !superseded;
 
   // Flip relative to what the user *sees* (isOpen), not the underlying
   // `open` slot. Before first toggle, `isOpen` follows `streaming` while

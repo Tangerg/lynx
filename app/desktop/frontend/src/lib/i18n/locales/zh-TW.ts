@@ -126,6 +126,8 @@ export const zhTW: Record<string, string> = {
   "tools.overflow.truncated": "已被執行環境截斷",
   "tools.overflow.outputTruncated": "輸出已被執行環境截斷",
   "tools.group.calls": "{{count}} 次呼叫",
+  "narrative.wave.label": "處理過程",
+  "narrative.wave.thinking": "思考",
 
   "common.remove": "移除",
   "common.loading": "載入中",

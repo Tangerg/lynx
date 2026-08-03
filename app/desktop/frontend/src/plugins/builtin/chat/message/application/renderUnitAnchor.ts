@@ -22,6 +22,12 @@ export const BLOCK_ANCHOR_ATTR = "data-block-anchor";
  * into the next. Only blocks with nothing better fall back to the index.
  */
 export function renderUnitAnchor(messageId: string, unit: MessageRenderUnit): string {
+  // A folded wave borrows the identity of what it holds, so opening the wave and then
+  // rendering its members inline (which is what a pin does) does not remount them.
+  if (unit.kind === "wave") {
+    const first = unit.units[0];
+    return first ? `${messageId}:w:${renderUnitAnchor(messageId, first)}` : `${messageId}:w:0`;
+  }
   if (unit.kind === "toolGroup") return `${messageId}:g:${unit.tools[0]?.id ?? "0"}`;
   const { block, index } = unit;
   if (block.kind === "tool") return `${messageId}:t:${block.toolCallId}`;

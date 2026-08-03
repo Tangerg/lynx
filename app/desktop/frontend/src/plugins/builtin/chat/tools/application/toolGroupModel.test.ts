@@ -54,4 +54,15 @@ describe("toolGroupModel", () => {
       count: 2,
     });
   });
+
+  // Once the turn is answering, a settled wave stays shut — including one that
+  // errored, whose row now carries its own flagged edge while closed.
+  it("stops auto-opening once the answer has begun", () => {
+    const failed = [tool(), { ...tool({ name: "grep" }), status: "err" as const }];
+
+    expect(toolGroupModel(t, failed, null).expanded).toBe(true);
+    expect(toolGroupModel(t, failed, null, true).expanded).toBe(false);
+    // A pin is the user's, and outranks both.
+    expect(toolGroupModel(t, failed, true, true).expanded).toBe(true);
+  });
 });

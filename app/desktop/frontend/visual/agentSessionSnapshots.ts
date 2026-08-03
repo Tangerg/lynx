@@ -16,6 +16,7 @@ export const VISUAL_AGENT_STATES = [
   "long-content",
   "narrative",
   "tool-shells",
+  "waves",
 ] as const;
 
 export type VisualAgentState = (typeof VISUAL_AGENT_STATES)[number];
@@ -173,6 +174,85 @@ const SHELL_DENIED: Item = {
   createdAt: CREATED_AT,
   tool: { name: "write", arguments: { file_path: ".env.production" } },
   error: { type: "denied_by_user", detail: "You declined this write." },
+};
+
+// A long turn: two rounds of work, each answered, then a third round still in flight.
+// The two answered rounds fold to one row apiece; the live one stays open. Without a
+// state shaped like this, nothing in the goldens ever showed the fold at all — and the
+// fold is the whole reason a long turn stays readable.
+const WAVE_REASONING_ONE: Item = {
+  type: "reasoning",
+  id: "item_w_reason_1",
+  runId: ROOT_RUN_ID,
+  status: "completed",
+  createdAt: CREATED_AT,
+  text: "Find where the boundary is enforced before changing anything.",
+};
+
+const WAVE_READ: Item = {
+  type: "toolCall",
+  id: "item_w_read",
+  runId: ROOT_RUN_ID,
+  status: "completed",
+  createdAt: CREATED_AT,
+  tool: { name: "read", arguments: { file_path: "app/runtime/internal/session/store.go" } },
+};
+
+const WAVE_GREP: Item = {
+  type: "toolCall",
+  id: "item_w_grep",
+  runId: ROOT_RUN_ID,
+  status: "completed",
+  createdAt: CREATED_AT,
+  tool: { name: "grep", arguments: { pattern: "RunInTx", path: "app/runtime" } },
+};
+
+const WAVE_ANSWER_ONE = message(
+  "agentMessage",
+  "item_w_answer_1",
+  "The transaction seam is `RunInTx`, and every store call already goes through it.",
+);
+
+const WAVE_REASONING_TWO: Item = {
+  type: "reasoning",
+  id: "item_w_reason_2",
+  runId: ROOT_RUN_ID,
+  status: "completed",
+  createdAt: CREATED_AT,
+  text: "So the change is one call site, plus a test that proves the rollback.",
+};
+
+const WAVE_EDIT: Item = {
+  type: "toolCall",
+  id: "item_w_edit",
+  runId: ROOT_RUN_ID,
+  status: "completed",
+  createdAt: CREATED_AT,
+  tool: { name: "edit", arguments: { file_path: "app/runtime/internal/session/store.go" } },
+};
+
+const WAVE_ANSWER_TWO = message(
+  "agentMessage",
+  "item_w_answer_2",
+  "Done — the write now rolls back with the transaction.",
+);
+
+const WAVE_LIVE_REASONING: Item = {
+  type: "reasoning",
+  id: "item_w_reason_3",
+  runId: ROOT_RUN_ID,
+  status: "running",
+  createdAt: CREATED_AT,
+  text: "Now check whether the test suite covers the rollback path.",
+};
+
+const WAVE_LIVE_TOOL: Item = {
+  type: "toolCall",
+  id: "item_w_live",
+  runId: ROOT_RUN_ID,
+  status: "running",
+  createdAt: CREATED_AT,
+  tool: { name: "shell", arguments: { command: "go test ./internal/session/..." } },
 };
 
 function tailEvent(index: number, event: StreamEvent): RunEvent {
@@ -655,6 +735,21 @@ export const AGENT_SESSION_SNAPSHOTS: Readonly<Record<VisualAgentState, AgentSes
     items: [PROMPT, SHELL_READ, SHELL_COMMAND, SHELL_FAILED, SHELL_DENIED, RESPONSE],
     pendingInterruptSets: [],
   },
+
+  waves: {
+    runs: [run("running")],
+    items: [
+      PROMPT,
+      WAVE_REASONING_ONE,
+      WAVE_READ,
+      WAVE_GREP,
+      WAVE_ANSWER_ONE,
+      WAVE_REASONING_TWO,
+      WAVE_EDIT,
+      WAVE_ANSWER_TWO,
+    ],
+    pendingInterruptSets: [],
+  },
 };
 
 export const AGENT_SESSION_TAIL_EVENTS: Readonly<Record<VisualAgentState, RunEvent[]>> = {
@@ -684,6 +779,12 @@ export const AGENT_SESSION_TAIL_EVENTS: Readonly<Record<VisualAgentState, RunEve
   "long-content": [],
   narrative: [],
   "tool-shells": [],
+  // The live round arrives as started items, not as snapshot history: a snapshot holds
+  // only what has reached a terminal state.
+  waves: [
+    tailEvent(1, { type: "item.started", item: WAVE_LIVE_REASONING }),
+    tailEvent(2, { type: "item.started", item: WAVE_LIVE_TOOL }),
+  ],
 };
 
 export const VISUAL_SESSION_ID = SESSION_ID;

@@ -1,4 +1,4 @@
-export { planRenderUnits } from "../presentation/messageRenderUnits";
+export { planRenderUnits, waveSummary } from "../presentation/messageRenderUnits";
 export type { MessageRenderUnit } from "../presentation/messageRenderUnits";
 export {
   summarizeToolGroup,

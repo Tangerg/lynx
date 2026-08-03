@@ -125,6 +125,8 @@ export const fr: Record<string, string> = {
   "tools.overflow.truncated": "tronqué par le runtime",
   "tools.overflow.outputTruncated": "sortie tronquée par le runtime",
   "tools.group.calls": "{{count}} appels",
+  "narrative.wave.label": "Traitement",
+  "narrative.wave.thinking": "réflexion",
 
   "common.remove": "Supprimer",
   "common.loading": "Chargement",

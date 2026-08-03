@@ -24,6 +24,7 @@ const STATE_LABELS: Record<VisualAgentState, string> = {
   "long-content": "Long content",
   narrative: "Narrative",
   "tool-shells": "Tool shells",
+  waves: "Waves",
 };
 
 function StateSidebar({ state }: { state: VisualAgentState }) {

@@ -17,16 +17,21 @@ export function messageCitations(
     }));
 }
 
+/**
+ * The planner's units, with one presentation rule the planner has no business knowing:
+ * a text block that is no longer the last one has stopped streaming whether or not the
+ * fold has caught up, and a caret blinking in the middle of a finished turn is a lie.
+ */
 export function messageBlockRenderUnits(
   blocks: ContentBlock[],
   toolCalls: Record<string, ToolCall>,
 ): MessageRenderUnit[] {
   const lastIndex = blocks.length - 1;
   return planRenderUnits(blocks, toolCalls).map((unit) => {
-    if (unit.kind === "toolGroup") return unit;
+    if (unit.kind !== "block") return unit;
     const { block, index } = unit;
     if (block.kind === "text" && block.status === "running" && index !== lastIndex) {
-      return { kind: "block", block: { ...block, status: "complete" }, index };
+      return { ...unit, block: { ...block, status: "complete" } };
     }
     return unit;
   });

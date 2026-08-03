@@ -137,6 +137,8 @@ export const en: Record<string, string> = {
   "tools.overflow.truncated": "truncated by runtime",
   "tools.overflow.outputTruncated": "output truncated by runtime",
   "tools.group.calls": "{{count}} calls",
+  "narrative.wave.label": "Working",
+  "narrative.wave.thinking": "thinking",
 
   "common.remove": "Remove",
   "common.loading": "Loading",

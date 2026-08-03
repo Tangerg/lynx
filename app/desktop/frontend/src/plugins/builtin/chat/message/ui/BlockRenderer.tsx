@@ -2,6 +2,7 @@
 // approval, question, plan, compaction, search, code, checkpoint) to its React
 // card.
 import type { ContentBlock, Message } from "@/plugins/builtin/agent/public/viewState";
+import type { MessageRenderUnit } from "@/plugins/builtin/agent/public/messagePresentation";
 import type { BlockCtx } from "./blockContext";
 export type { BlockCtx } from "./blockContext";
 import { MarkdownMessage } from "./markdown/MarkdownMessage";
@@ -18,6 +19,7 @@ import { PluginContentBlock } from "@/plugins/host/PluginContentBlock";
 import { messageBlockRenderUnits } from "../application/messageBlockModel";
 import { BLOCK_ANCHOR_ATTR, renderUnitAnchor } from "../application/renderUnitAnchor";
 import { DelegatedNarrative } from "./DelegatedNarrative";
+import { NarrativeWave } from "./NarrativeWave";
 
 /**
  * Render one content block.
@@ -30,7 +32,14 @@ import { DelegatedNarrative } from "./DelegatedNarrative";
  * `CustomContentBlockMap` kinds — third-party plugins + the quarantined
  * preview-blocks (search / code / checkpoint) — which fall through to default.
  */
-export function renderBlock(block: ContentBlock, key: number, ctx: BlockCtx) {
+export function renderBlock(
+  block: ContentBlock,
+  key: number,
+  ctx: BlockCtx,
+  // Whether the turn has already started answering past this block. Only the blocks
+  // that decide their OWN open state read it — see messageBlockRenderUnits.
+  superseded = false,
+) {
   switch (block.kind) {
     case "text":
       // Wrapper is a <div>, not a <p>: react-markdown emits <p> nodes
@@ -79,7 +88,9 @@ export function renderBlock(block: ContentBlock, key: number, ctx: BlockCtx) {
     }
 
     case "reasoning":
-      return <ReasoningBlock key={key} text={block.text} status={block.status} />;
+      return (
+        <ReasoningBlock key={key} text={block.text} status={block.status} superseded={superseded} />
+      );
 
     case "plan":
       // The plan block is a "render the current plan here" marker; the data
@@ -149,21 +160,32 @@ export function renderBlock(block: ContentBlock, key: number, ctx: BlockCtx) {
  * is what makes `renderUnitAnchor`'s identity rule apply to every block kind at
  * once instead of to the two that remembered to ask for it.
  */
+/**
+ * Render one planned unit. Shared by the transcript and by a folded wave, which holds
+ * the same units it would otherwise have rendered inline.
+ */
+export function renderUnit(unit: MessageRenderUnit, ctx: BlockCtx) {
+  if (unit.kind === "wave") return <NarrativeWave units={unit.units} ctx={ctx} />;
+  if (unit.kind === "toolGroup") {
+    return (
+      <ToolGroup
+        tools={unit.tools}
+        onSelectTool={ctx.onSelectTool}
+        expandedIds={ctx.expandedIds}
+        onToggleExpand={ctx.onToggleExpand}
+        superseded={unit.superseded}
+      />
+    );
+  }
+  return renderBlock(unit.block, unit.index, ctx, unit.superseded);
+}
+
 export function renderMessageBlocks(message: Message, ctx: BlockCtx) {
   return messageBlockRenderUnits(message.blocks, ctx.toolCalls).map((unit) => {
     const anchor = renderUnitAnchor(message.id, unit);
     return (
       <div key={anchor} {...{ [BLOCK_ANCHOR_ATTR]: anchor }}>
-        {unit.kind === "toolGroup" ? (
-          <ToolGroup
-            tools={unit.tools}
-            onSelectTool={ctx.onSelectTool}
-            expandedIds={ctx.expandedIds}
-            onToggleExpand={ctx.onToggleExpand}
-          />
-        ) : (
-          renderBlock(unit.block, unit.index, ctx)
-        )}
+        {renderUnit(unit, ctx)}
       </div>
     );
   });

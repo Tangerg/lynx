@@ -15,6 +15,13 @@ const text = (text: string, status: "running" | "complete" = "complete"): Conten
 
 const toolBlock = (toolCallId: string): ContentBlock => ({ kind: "tool", toolCallId });
 
+const reasoning = (status: "running" | "complete" = "complete"): ContentBlock => ({
+  kind: "reasoning",
+  reasoningId: "r1",
+  text: "why",
+  status,
+});
+
 const tool = (id: string, name: string): ToolCall => ({
   id,
   runId: "run_1",
@@ -48,8 +55,8 @@ describe("messageBlockRenderUnits", () => {
     const blocks = [text("first", "running"), text("last", "running")];
 
     expect(messageBlockRenderUnits(blocks, {})).toEqual([
-      { kind: "block", block: text("first", "complete"), index: 0 },
-      { kind: "block", block: text("last", "running"), index: 1 },
+      { kind: "block", block: text("first", "complete"), index: 0, superseded: true },
+      { kind: "block", block: text("last", "running"), index: 1, superseded: false },
     ]);
   });
 
@@ -58,9 +65,39 @@ describe("messageBlockRenderUnits", () => {
     const tools = { a: tool("a", "read"), b: tool("b", "grep") };
 
     expect(messageBlockRenderUnits(blocks, tools)).toEqual([
-      { kind: "toolGroup", tools: [tools.a, tools.b] },
-      { kind: "block", block: text("done"), index: 2 },
+      { kind: "toolGroup", tools: [tools.a, tools.b], superseded: true },
+      { kind: "block", block: text("done"), index: 2, superseded: false },
     ]);
+  });
+
+  // The rule the whole feature rests on: work is superseded by an answer that comes
+  // AFTER it, which is why it is per unit rather than per message.
+  it("marks work the answer already speaks for, and only that work", () => {
+    const superseded = (blocks: ContentBlock[], tools = {}) =>
+      messageBlockRenderUnits(blocks, tools).map((unit) =>
+        unit.kind === "wave" ? "wave" : unit.superseded,
+      );
+
+    // Reasoning, then the answer: the reasoning is behind it.
+    expect(superseded([reasoning(), text("answer")])).toEqual([true, false]);
+
+    // A turn still working has nothing behind it yet.
+    expect(superseded([reasoning("running")])).toEqual([false]);
+
+    // Text still streaming counts as the answer having begun.
+    expect(superseded([reasoning("running"), text("part", "running")])).toEqual([true, false]);
+
+    // Interleaved: only the wave between the two answers folds.
+    const tools = { a: tool("a", "shell") };
+    expect(superseded([text("first"), toolBlock("a"), text("second")], tools)).toEqual([
+      true,
+      true,
+      false,
+    ]);
+
+    // Trailing work after the last answer is the live wave — and the answer itself is
+    // never superseded, because nothing that is text follows it.
+    expect(superseded([text("first"), toolBlock("a")], tools)).toEqual([false, false]);
   });
 });
 
