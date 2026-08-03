@@ -225,7 +225,7 @@
 | 4 | Manifest、Exposure、模型/状态驱动工具清单 | 完成 |
 | 5 | 工具名、参数和描述的全量收敛 | 完成 |
 | 6 | 删除冗余能力和配置 | 完成（6a、6b、6c） |
-| 7 | 全仓验证、文档收敛和最终审计 | 进行中（7a 完成） |
+| 7 | 全仓验证、文档收敛和最终审计 | 进行中（7a、7b 完成） |
 
 每批必须独立验证、独立提交并推送。实现发现契约需要调整时，先更新本文，再在同一批修改代码和测试。
 
@@ -354,3 +354,10 @@
 - `web_search` 精确约束 `max_results=1..20`、recency 闭集和 domain filter 数量，并让空白 query 与描述一致地失败；`web_fetch` 约束 format 闭集并验证绝对 http(s) URL；`http_request` 约束大写 method 闭集与 `timeout_ms=1..120000`，同时修正“method allowlist 属于 host”的不准确描述；
 - 三个独立网络工具 module 都提升到同一已发布严格工具核，并在 `GOWORK=off` 下分别通过 test/build/vet；Runtime 同时钉住新的根模块和三个子模块版本，避免 workspace 掩盖发布依赖漂移；
 - 没有把 provider、allowlist、network safety 或 Runtime policy 下沉到通用 `tool.Func`：通用核只负责所有消费者共同需要的严格 schema/decode/encode，URL 与 provider 业务不变量仍留在各具体工具。
+
+### 批次 7b
+
+- 最终 catalog 反查发现固定内建名称的安全表只做了“表项必须可达”单向校验，遗漏项会静默走 third-party unknown 的 `Exec` fallback；这使 `read_shell_output`、`search_memory`、`search_conversations` 和 `search_tools` 被错误标成任意执行，也使 network 类虽然存在却没有真实内建消费者；
+- 为全部固定内建工具显式分类：Shell 启动/停止为 `exec`，增量输出读取为 `safe`；记忆、会话和工具发现为 `safe`；`web_fetch`、`web_search`、`http_request` 为 `network`。MCP 与 A2A 动态名称继续保守走 unknown `exec`，没有通过字符串前缀猜安全性；
+- catalog guard 现在用 every-optional-subsystem 的真实 Resolver 同时验证两个方向：每个 safety key 必须对应可构造工具，每个内建可构造工具必须有显式 key；测试联合 edit/write 与 apply_patch 两个互斥模型 profile，并覆盖 late-bound `delegate_task` / `create_goal`；
+- approval 文档与 SafetyClass 注释同步真实矩阵：Balanced 自动允许已配置的已知 write/network，Safe 提示所有非 safe，Plan 拒绝所有非 safe；没有更改用户权限策略，只修复此前被错误归类工具走错策略的问题。

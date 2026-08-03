@@ -20,9 +20,9 @@ const (
 // strictness gradient documented on [Mode]:
 //
 //   - ModeYolo     → always pass
-//   - ModeBalanced → prompt only on exec class (shell + unknown)
-//   - ModeSafe     → prompt on every write / exec / unknown tool
-//   - ModePlan     → deny every write / exec / unknown tool outright (read-only)
+//   - ModeBalanced → auto-allow known write/network; prompt on exec and unknown
+//   - ModeSafe     → prompt on every write / network / exec / unknown tool
+//   - ModePlan     → deny every write / network / exec / unknown tool (read-only)
 //
 // Read-only tools ([tool.SafetyClassSafe]) never gate, in any mode. Pure
 // function so transport adapters and tests can audit the matrix without

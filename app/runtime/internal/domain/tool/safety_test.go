@@ -40,6 +40,14 @@ func TestSafetyClassForUsesConservativeDefaults(t *testing.T) {
 		{name: "create_schedule", want: SafetyClassWrite},
 		{name: "write", want: SafetyClassWrite},
 		{name: "shell", want: SafetyClassExec},
+		{name: "read_shell_output", want: SafetyClassSafe},
+		{name: "stop_shell", want: SafetyClassExec},
+		{name: "search_memory", want: SafetyClassSafe},
+		{name: "search_conversations", want: SafetyClassSafe},
+		{name: "search_tools", want: SafetyClassSafe},
+		{name: "web_fetch", want: SafetyClassNetwork},
+		{name: "web_search", want: SafetyClassNetwork},
+		{name: "http_request", want: SafetyClassNetwork},
 		{name: "unknown_tool", want: SafetyClassExec},
 	} {
 		if got := SafetyClassFor(test.name); got != test.want {

@@ -2,6 +2,7 @@ package toolset
 
 import (
 	"context"
+	"slices"
 	"testing"
 
 	toolcontract "github.com/Tangerg/lynx/tool"
@@ -11,9 +12,11 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/goals"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	scheduleapp "github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/agentmemory"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	resultoffload "github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/schedule"
@@ -66,6 +69,18 @@ func (allWiredToolResults) Fetch(context.Context, string, resultoffload.ID) (str
 	return "", false, nil
 }
 
+type allWiredMemorySearch struct{}
+
+func (allWiredMemorySearch) Search(context.Context, agentmemory.Scope, string, string, int) ([]agentmemory.Item, error) {
+	return nil, nil
+}
+
+type allWiredSessionSearch struct{}
+
+func (allWiredSessionSearch) SearchTranscript(context.Context, string, int) ([]transcript.SearchHit, error) {
+	return nil, nil
+}
+
 func toolNameSet(ts []toolcontract.Tool) map[string]bool {
 	names := make(map[string]bool, len(ts))
 	for _, t := range ts {
@@ -110,20 +125,20 @@ func TestCodingResolverIncludesConfiguredConditionalTools(t *testing.T) {
 	}
 }
 
-// TestSafetyTableNamesOnlyToolsThatExist is the completeness guard for the
-// name→safety-class table.
+// TestSafetyTableMatchesBuiltInTools is the two-way completeness guard for the
+// built-in name→safety-class table.
 //
 // That table is the single source of truth for two consumers — the tools.list
 // wire metadata and the approval gate — and it is keyed by NAME, so a name no
 // tool answers to is a safety policy for something nobody can call. It reads as a
-// capability the runtime has: someone auditing what the agent may do sees a
-// classified write tool that does not exist. Nothing checked, and the names come
-// from two modules (the app's own tools plus the SDK's fs / shell families), so
-// finding out meant grepping both.
+// capability the runtime has: a dead key claims a tool exists, while an omitted
+// key silently classifies a known built-in as arbitrary Exec. The names span app
+// adapters and SDK tool modules, so grepping one package cannot enforce either
+// direction.
 //
 // The resolver is built with every optional subsystem wired, because a name is
 // only unreachable if NO configuration reaches it.
-func TestSafetyTableNamesOnlyToolsThatExist(t *testing.T) {
+func TestSafetyTableMatchesBuiltInTools(t *testing.T) {
 	policy, err := approval.New(approval.ModeBalanced, nil, nil)
 	if err != nil {
 		t.Fatalf("approval policy: %v", err)
@@ -136,7 +151,11 @@ func TestSafetyTableNamesOnlyToolsThatExist(t *testing.T) {
 		Goals:           activeGoalState{},
 		Schedules:       allWiredSchedules{},   // backs schedule
 		ToolResults:     allWiredToolResults{}, // backs read_tool_result
+		MemorySearch:    allWiredMemorySearch{},
+		SessionSearch:   allWiredSessionSearch{},
 		Online: OnlineConfig{
+			JinaAPIKey:       "test-jina",
+			TavilyAPIKey:     "test-tavily",
 			HTTPAllowedHosts: []string{"example.com"}, // backs http_request
 		},
 		Interrupt: func(context.Context, string, runs.Interrupt) (interrupts.Resolution, error) {
@@ -172,7 +191,7 @@ func TestSafetyTableNamesOnlyToolsThatExist(t *testing.T) {
 	for name := range toolNameSet(patchTools) {
 		existing[name] = true
 	}
-	// The engine injects task only after it deploys the child Agent.
+	// The engine injects delegate_task only after it deploys the child Agent.
 	existing["delegate_task"] = true
 
 	var unreachable []string
@@ -184,5 +203,19 @@ func TestSafetyTableNamesOnlyToolsThatExist(t *testing.T) {
 	if len(unreachable) > 0 {
 		t.Errorf("the safety table classifies %v, which no built tool answers to — "+
 			"either the tool is gone (drop the name) or it was never built (wire it)", unreachable)
+	}
+	classified := make(map[string]bool)
+	for _, name := range tool.ClassifiedToolNames() {
+		classified[name] = true
+	}
+	var unclassified []string
+	for name := range existing {
+		if !classified[name] {
+			unclassified = append(unclassified, name)
+		}
+	}
+	if len(unclassified) > 0 {
+		slices.Sort(unclassified)
+		t.Errorf("built-in tools %v rely on the unknown-tool Exec fallback — classify each one explicitly", unclassified)
 	}
 }
