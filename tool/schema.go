@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"reflect"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -25,20 +27,39 @@ type schemaNode struct {
 	Required             []string              `json:"required,omitempty"`
 	Items                *schemaNode           `json:"items,omitempty"`
 	Enum                 []string              `json:"enum,omitempty"`
+	MinLength            *int                  `json:"minLength,omitempty"`
+	MaxLength            *int                  `json:"maxLength,omitempty"`
+	Pattern              string                `json:"pattern,omitempty"`
+	Minimum              *float64              `json:"minimum,omitempty"`
+	Maximum              *float64              `json:"maximum,omitempty"`
 	MinItems             *int                  `json:"minItems,omitempty"`
 	MaxItems             *int                  `json:"maxItems,omitempty"`
 	AdditionalProperties any                   `json:"additionalProperties,omitempty"`
+	pattern              *regexp.Regexp
 }
 
 // Schema returns a strict, fully inlined JSON Schema for T. Struct fields use
-// their encoding/json names. The jsonschema tag supports required, enum,
-// minItems, and maxItems; jsonschema_description supplies field descriptions.
+// their encoding/json names. Fields without omitempty or omitzero are required.
+// The jsonschema tag supports required, enum, minLength, maxLength, pattern,
+// minimum, maximum, minItems, and maxItems; jsonschema_description supplies
+// field descriptions.
 func Schema[T any]() (string, error) {
 	typeOf := reflect.TypeFor[T]()
-	node, err := schemaFor(typeOf, make(map[reflect.Type]bool))
+	node, err := schemaForType(typeOf)
 	if err != nil {
-		return "", fmt.Errorf("tool: derive schema for %s: %w", typeOf, err)
+		return "", fmt.Errorf("tool: derive schema for %v: %w", typeOf, err)
 	}
+	return marshalSchema(typeOf, node)
+}
+
+func schemaForType(typeOf reflect.Type) (schemaNode, error) {
+	if typeOf == nil {
+		return schemaNode{}, errors.New("nil type has no JSON schema")
+	}
+	return schemaFor(typeOf, make(map[reflect.Type]bool))
+}
+
+func marshalSchema(typeOf reflect.Type, node schemaNode) (string, error) {
 	encoded, err := json.Marshal(node)
 	if err != nil {
 		return "", fmt.Errorf("tool: marshal schema for %s: %w", typeOf, err)
@@ -141,7 +162,7 @@ func schemaForStruct(typeOf reflect.Type, visiting map[reflect.Type]bool) (schem
 			continue
 		}
 
-		name, explicit, skip := jsonFieldName(field)
+		name, explicit, skip, optional := jsonField(field)
 		if skip {
 			continue
 		}
@@ -169,7 +190,7 @@ func schemaForStruct(typeOf reflect.Type, visiting map[reflect.Type]bool) (schem
 			return schemaNode{}, fmt.Errorf("field %s: %w", field.Name, err)
 		}
 		property.Description = field.Tag.Get("jsonschema_description")
-		required, err := applySchemaTag(&property, field.Tag.Get("jsonschema"))
+		explicitlyRequired, err := applySchemaTag(&property, field.Tag.Get("jsonschema"))
 		if err != nil {
 			return schemaNode{}, fmt.Errorf("field %s: %w", field.Name, err)
 		}
@@ -177,23 +198,28 @@ func schemaForStruct(typeOf reflect.Type, visiting map[reflect.Type]bool) (schem
 			return schemaNode{}, fmt.Errorf("duplicate JSON property %q", name)
 		}
 		node.Properties[name] = property
-		if required {
+		if !optional || explicitlyRequired {
 			node.Required = append(node.Required, name)
 		}
 	}
 	return node, nil
 }
 
-func jsonFieldName(field reflect.StructField) (name string, explicit, skip bool) {
+func jsonField(field reflect.StructField) (name string, explicit, skip, optional bool) {
 	tag := field.Tag.Get("json")
-	name, _, _ = strings.Cut(tag, ",")
+	name, options, _ := strings.Cut(tag, ",")
 	if name == "-" {
-		return "", false, true
+		return "", false, true, false
+	}
+	for option := range strings.SplitSeq(options, ",") {
+		if option == "omitempty" || option == "omitzero" {
+			optional = true
+		}
 	}
 	if name != "" {
-		return name, true, false
+		return name, true, false, optional
 	}
-	return field.Name, false, false
+	return field.Name, false, false, optional
 }
 
 func applySchemaTag(node *schemaNode, tag string) (bool, error) {
@@ -213,7 +239,44 @@ func applySchemaTag(node *schemaNode, tag string) (bool, error) {
 			if !hasValue || value == "" {
 				return false, errors.New("enum requires a value")
 			}
+			if node.Type != "string" {
+				return false, errors.New("enum requires a string field")
+			}
 			node.Enum = append(node.Enum, value)
+		case "minLength":
+			parsed, err := schemaTagInt(key, value, hasValue)
+			if err != nil {
+				return false, err
+			}
+			node.MinLength = &parsed
+		case "maxLength":
+			parsed, err := schemaTagInt(key, value, hasValue)
+			if err != nil {
+				return false, err
+			}
+			node.MaxLength = &parsed
+		case "pattern":
+			if !hasValue || value == "" {
+				return false, errors.New("pattern requires a value")
+			}
+			compiled, err := regexp.Compile(value)
+			if err != nil {
+				return false, fmt.Errorf("pattern must be a valid regular expression: %w", err)
+			}
+			node.Pattern = value
+			node.pattern = compiled
+		case "minimum":
+			parsed, err := schemaTagFloat(key, value, hasValue)
+			if err != nil {
+				return false, err
+			}
+			node.Minimum = &parsed
+		case "maximum":
+			parsed, err := schemaTagFloat(key, value, hasValue)
+			if err != nil {
+				return false, err
+			}
+			node.Maximum = &parsed
 		case "minItems":
 			parsed, err := schemaTagInt(key, value, hasValue)
 			if err != nil {
@@ -229,6 +292,18 @@ func applySchemaTag(node *schemaNode, tag string) (bool, error) {
 		default:
 			return false, fmt.Errorf("unsupported jsonschema option %q", key)
 		}
+	}
+	if (node.MinLength != nil || node.MaxLength != nil || node.Pattern != "") && node.Type != "string" {
+		return false, errors.New("minLength, maxLength, and pattern require a string field")
+	}
+	if node.MinLength != nil && node.MaxLength != nil && *node.MinLength > *node.MaxLength {
+		return false, errors.New("minLength exceeds maxLength")
+	}
+	if (node.Minimum != nil || node.Maximum != nil) && node.Type != "integer" && node.Type != "number" {
+		return false, errors.New("minimum and maximum require a numeric field")
+	}
+	if node.Minimum != nil && node.Maximum != nil && *node.Minimum > *node.Maximum {
+		return false, errors.New("minimum exceeds maximum")
 	}
 	if (node.MinItems != nil || node.MaxItems != nil) && node.Type != "array" {
 		return false, errors.New("minItems and maxItems require an array field")
@@ -246,6 +321,17 @@ func schemaTagInt(key, value string, hasValue bool) (int, error) {
 	parsed, err := strconv.Atoi(value)
 	if err != nil || parsed < 0 {
 		return 0, fmt.Errorf("%s must be a non-negative integer", key)
+	}
+	return parsed, nil
+}
+
+func schemaTagFloat(key, value string, hasValue bool) (float64, error) {
+	if !hasValue {
+		return 0, fmt.Errorf("%s requires a value", key)
+	}
+	parsed, err := strconv.ParseFloat(value, 64)
+	if err != nil || math.IsInf(parsed, 0) || math.IsNaN(parsed) {
+		return 0, fmt.Errorf("%s must be a number", key)
 	}
 	return parsed, nil
 }

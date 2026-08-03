@@ -11,13 +11,14 @@ import (
 
 func TestSchemaDerivesStrictStructContract(t *testing.T) {
 	type option struct {
-		Label string `json:"label" jsonschema:"required"`
+		Label string `json:"label"`
 	}
 	type input struct {
-		Operation string    `json:"operation" jsonschema:"required,enum=list,enum=load" jsonschema_description:"Operation to run."`
+		Operation string    `json:"operation" jsonschema:"enum=list,enum=load,minLength=4,maxLength=4,pattern=^[a-z]+$" jsonschema_description:"Operation to run."`
 		Options   []option  `json:"options,omitempty" jsonschema:"minItems=1,maxItems=4"`
 		Ignored   string    `json:"-"`
 		When      time.Time `json:"when,omitempty"`
+		Score     float64   `json:"score,omitempty" jsonschema:"minimum=-1.5,maximum=2.5"`
 	}
 
 	encoded, err := tool.Schema[input]()
@@ -36,8 +37,13 @@ func TestSchemaDerivesStrictStructContract(t *testing.T) {
 		t.Fatalf("schema includes ignored field: %s", encoded)
 	}
 	operation := properties["operation"].(map[string]any)
-	if operation["description"] != "Operation to run." || len(operation["enum"].([]any)) != 2 {
+	if operation["description"] != "Operation to run." || len(operation["enum"].([]any)) != 2 ||
+		operation["minLength"] != float64(4) || operation["maxLength"] != float64(4) || operation["pattern"] != "^[a-z]+$" {
 		t.Fatalf("operation schema = %#v", operation)
+	}
+	required := schema["required"].([]any)
+	if len(required) != 1 || required[0] != "operation" {
+		t.Fatalf("required = %#v, want [operation]", required)
 	}
 	options := properties["options"].(map[string]any)
 	if options["minItems"] != float64(1) || options["maxItems"] != float64(4) {
@@ -47,6 +53,10 @@ func TestSchemaDerivesStrictStructContract(t *testing.T) {
 	if when["type"] != "string" || when["format"] != "date-time" {
 		t.Fatalf("time schema = %#v", when)
 	}
+	score := properties["score"].(map[string]any)
+	if score["minimum"] != -1.5 || score["maximum"] != 2.5 {
+		t.Fatalf("score schema = %#v", score)
+	}
 }
 
 func TestSchemaSupportsCollectionsAndPointers(t *testing.T) {
@@ -55,6 +65,7 @@ func TestSchemaSupportsCollectionsAndPointers(t *testing.T) {
 		Labels map[string]string `json:"labels"`
 		Limit  *int              `json:"limit,omitempty"`
 		Value  any               `json:"value,omitempty"`
+		Debug  bool              `json:"debug,omitzero"`
 	}
 	if _, err := tool.Schema[*input](); err != nil {
 		t.Fatal(err)
@@ -71,11 +82,23 @@ func TestSchemaRejectsUnsupportedContracts(t *testing.T) {
 	type badTag struct {
 		Value string `json:"value" jsonschema:"minimum=1"`
 	}
+	type badRange struct {
+		Value int `json:"value" jsonschema:"minimum=2,maximum=1"`
+	}
+	type badPattern struct {
+		Value string `json:"value" jsonschema:"pattern=["`
+	}
 	if _, err := tool.Schema[recursive](); err == nil {
 		t.Fatal("recursive schema succeeded")
 	}
 	if _, err := tool.Schema[badTag](); err == nil {
-		t.Fatal("unsupported schema tag succeeded")
+		t.Fatal("constraint on the wrong type succeeded")
+	}
+	if _, err := tool.Schema[badRange](); err == nil {
+		t.Fatal("invalid numeric range succeeded")
+	}
+	if _, err := tool.Schema[badPattern](); err == nil {
+		t.Fatal("invalid pattern succeeded")
 	}
 	if _, err := tool.Schema[chan int](); err == nil {
 		t.Fatal("unsupported Go type succeeded")

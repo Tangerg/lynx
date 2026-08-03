@@ -5,10 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strings"
+	"regexp"
 )
 
 var ErrInvalidToolDefinition = errors.New("chat: invalid tool definition")
+
+var toolNamePattern = regexp.MustCompile(`^[A-Za-z0-9_-]{1,64}$`)
 
 // ToolDefinition is the serializable description exposed to a model. Tool
 // execution belongs to package tool and is deliberately absent here.
@@ -24,10 +26,10 @@ func (d ToolDefinition) Clone() ToolDefinition {
 	return d
 }
 
-// Validate verifies the tool name and JSON-object input schema.
+// Validate verifies the provider-compatible tool name and object input schema.
 func (d ToolDefinition) Validate() error {
-	if d.Name == "" || strings.IndexFunc(d.Name, func(r rune) bool { return r == ' ' || r == '\t' || r == '\n' || r == '\r' }) >= 0 {
-		return fmt.Errorf("%w: name must be non-empty and contain no whitespace", ErrInvalidToolDefinition)
+	if !toolNamePattern.MatchString(d.Name) {
+		return fmt.Errorf("%w: name must match %s", ErrInvalidToolDefinition, toolNamePattern)
 	}
 	var schema map[string]json.RawMessage
 	if len(d.InputSchema) == 0 {
@@ -35,6 +37,10 @@ func (d ToolDefinition) Validate() error {
 	}
 	if err := json.Unmarshal(d.InputSchema, &schema); err != nil || schema == nil {
 		return fmt.Errorf("%w: input schema must be a JSON object", ErrInvalidToolDefinition)
+	}
+	var schemaType string
+	if err := json.Unmarshal(schema["type"], &schemaType); err != nil || schemaType != "object" {
+		return fmt.Errorf("%w: input schema type must be %q", ErrInvalidToolDefinition, "object")
 	}
 	return nil
 }

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/Tangerg/lynx/core/chat"
@@ -45,6 +46,9 @@ func TestToolDefinitionRejectsInvalidValues(t *testing.T) {
 	tests := []chat.ToolDefinition{
 		{},
 		{Name: "bad name", InputSchema: json.RawMessage(`{}`)},
+		{Name: ".bad", InputSchema: json.RawMessage(`{"type":"object"}`)},
+		{Name: "tool", InputSchema: json.RawMessage(`{}`)},
+		{Name: "tool", InputSchema: json.RawMessage(`{"type":"array"}`)},
 		{Name: "tool"},
 		{Name: "tool", InputSchema: json.RawMessage(`{`)},
 		{Name: "tool", InputSchema: json.RawMessage(`[]`)},
@@ -57,6 +61,19 @@ func TestToolDefinitionRejectsInvalidValues(t *testing.T) {
 		if _, err := json.Marshal(definition); !errors.Is(err, chat.ErrInvalidToolDefinition) {
 			t.Errorf("Marshal(%+v) error = %v", definition, err)
 		}
+	}
+}
+
+func TestToolDefinitionAcceptsProviderNameCharset(t *testing.T) {
+	for _, name := range []string{"read", "mcp__read-1", "1_lookup", strings.Repeat("a", 64)} {
+		definition := chat.ToolDefinition{Name: name, InputSchema: json.RawMessage(`{"type":"object"}`)}
+		if err := definition.Validate(); err != nil {
+			t.Errorf("Validate(%q): %v", name, err)
+		}
+	}
+	tooLong := chat.ToolDefinition{Name: strings.Repeat("a", 65), InputSchema: json.RawMessage(`{"type":"object"}`)}
+	if err := tooLong.Validate(); !errors.Is(err, chat.ErrInvalidToolDefinition) {
+		t.Fatalf("Validate(65-byte name) error = %v, want ErrInvalidToolDefinition", err)
 	}
 }
 

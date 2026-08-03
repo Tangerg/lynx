@@ -34,7 +34,7 @@
 - 模型报告判断使用 `report_*`，不得伪装成任意状态修改；
 - 同类参数使用同一名称：文件路径统一 `path`，超时统一 `timeout_ms`，对象标识使用 `process_id` 等限定名；
 - 参数名必须表达值本身，不表达 UI 控件或实现细节；
-- 名称匹配 `^[A-Za-z][A-Za-z0-9_-]{0,63}$`。
+- 内建工具名称匹配 `^[A-Za-z][A-Za-z0-9_-]{0,63}$`；通用 `core/chat` 只执行 provider 共同要求的 `^[A-Za-z0-9_-]{1,64}$`，不得把内建命名风格强加给第三方 MCP 工具。
 
 ## 4. Plan 契约
 
@@ -120,13 +120,13 @@
 
 ## 8. Schema 与结果契约
 
-- input 和 output 都有 schema，并在 Runtime 边界验证；
-- object schema 默认拒绝未知字段；
-- 非 `omitempty` 字段默认 required；pointer 或 `omitempty` 字段默认 optional；
-- schema 支持字符串长度、数值范围、正则、数组范围和组合约束；
-- 可恢复的工具失败是带 code 的模型错误，不再伪装成成功字符串；
-- approval、question 和 lifecycle interrupt 是控制流，不是工具失败；
-- 输出裁剪、offload 和 structured output 校验由统一 settlement 边界负责。
+- 模型工具定义只承载 provider 共同消费的 object input schema；不把 provider 不消费的 output schema 塞进 `core/chat.ToolDefinition`；
+- object schema 默认拒绝未知字段，非 `omitempty` / `omitzero` 字段默认 required；
+- schema 支持 enum、字符串长度、数值范围、正则和数组范围，并由 typed function tool 在调用边界执行同一份约束；
+- 跨字段业务不变量继续由具体工具验证，不为尚不存在的消费者扩张通用 schema DSL；
+- 工具输出保持各模型协议共同支持的文本结果；结构化结果可以编码为 JSON 文本，但在出现至少两个真实 output-schema 消费者前不提升为通用协议；
+- 普通工具错误由 `agent/toolloop` 结算为 `ToolResult.IsError`，不再增加第二套失败类型；approval、question 和 lifecycle interrupt 仍是控制流；
+- 输出裁剪与 offload 由统一 settlement 边界负责，不进入 `tool.Tool`。
 
 ## 9. `agent` 与 `app/runtime` 边界
 
@@ -148,7 +148,7 @@
 | 批次 | 内容 | 状态 |
 |---|---|---|
 | 0 | 固化词汇、契约、删除范围和服务端实施台账 | 完成 |
-| 1 | 工具 Definition、schema、result 和错误基础协议 | 待开始 |
+| 1 | 工具 Definition、schema、result 和错误基础协议 | 完成 |
 | 2 | Plan 领域替换 Todo；session-scoped Plan mode | 待开始 |
 | 3 | `create_goal` 与 idle continuation | 待开始 |
 | 4 | Manifest、Exposure、模型/状态驱动工具清单 | 待开始 |
@@ -168,3 +168,12 @@
 - 确定工具命名、参数、描述、可见性和删除规则。
 - 将本轮实施范围限定为服务端，前端接线延后为独立工作。
 - 将 `agent` / `app/runtime` 抽象充分性与泄露审计纳入每批验收。
+
+### 批次 1
+
+- `core/chat.ToolDefinition` 统一验证 provider 共同接受的名称字符集、64 字符上限和 object input schema；
+- typed function schema 从 Go JSON 语义推导 required / optional，并新增字符串、数值、正则和数组约束；
+- typed function 调用在解码前执行同一份派生 schema，缺字段、未知字段和越界参数成为可恢复的工具错误；
+- 保持 `tool.Tool` 两方法最小接口，复用 `agent/toolloop` 已有的 `ToolResult.IsError` 结算；
+- 否决通用 output schema 和新 error-code SPI：当前 provider 没有共同消费方，引入会造成过度抽象；
+- 参数校验只依赖标准库，根模块继续零外部依赖，`tool` 继续只依赖 Core。

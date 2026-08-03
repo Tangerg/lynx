@@ -169,7 +169,7 @@ func TestRegister_RejectsInvalidSchema(t *testing.T) {
 	require.Error(t, lynxmcp.Register(srv, badSchemaTool{}))
 
 	err := lynxmcp.Register(srv, missingSchemaTypeTool{})
-	require.ErrorContains(t, err, `schema must declare type "object"`)
+	require.ErrorContains(t, err, `input schema type must be "object"`)
 }
 
 func TestRegister_RejectsDuplicateBatchAtomically(t *testing.T) {

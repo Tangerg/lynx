@@ -12,8 +12,8 @@ import (
 )
 
 type addInput struct {
-	A int `json:"a" jsonschema:"required"`
-	B int `json:"b" jsonschema:"required"`
+	A int `json:"a"`
+	B int `json:"b"`
 }
 
 type contextKey struct{}
@@ -118,6 +118,32 @@ func TestFuncDecodesStrictObjectArguments(t *testing.T) {
 	for _, arguments := range []string{`null`, `[]`, `"text"`, `{"unknown":true}`, `{} {}`, `{`} {
 		if _, err := function.Call(t.Context(), arguments); err == nil {
 			t.Errorf("Call(%q) succeeded, want decode error", arguments)
+		}
+	}
+}
+
+func TestFuncValidatesArgumentsAgainstDerivedSchema(t *testing.T) {
+	type constrainedInput struct {
+		Query string `json:"query" jsonschema:"minLength=2,maxLength=5,pattern=^[a-z]+$"`
+		Limit int    `json:"limit,omitempty" jsonschema:"minimum=1,maximum=3"`
+	}
+	function, err := tool.NewFunc(tool.FuncConfig{Name: "constrained"},
+		func(_ context.Context, input constrainedInput) (string, error) { return input.Query, nil },
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, err := function.Call(t.Context(), `{"query":"valid","limit":3}`); err != nil || got != "valid" {
+		t.Fatalf("valid Call = %q, %v", got, err)
+	}
+	for _, arguments := range []string{
+		`{}`,
+		`{"query":"x"}`,
+		`{"query":"TOO"}`,
+		`{"query":"valid","limit":4}`,
+	} {
+		if _, err := function.Call(t.Context(), arguments); err == nil || !strings.Contains(err.Error(), "arguments violate input schema") {
+			t.Errorf("Call(%s) error = %v, want schema violation", arguments, err)
 		}
 	}
 }
