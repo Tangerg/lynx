@@ -16,7 +16,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 	"github.com/Tangerg/lynx/core/chat"
 	toolcontract "github.com/Tangerg/lynx/tool"
-	"github.com/Tangerg/lynx/tools"
 )
 
 // noopObserver satisfies executionObserver. ConcurrencyKey forwarding never touches
@@ -147,7 +146,7 @@ func TestObservedToolStandsInForTheToolItObserves(t *testing.T) {
 	}
 
 	mutating := &observedTool{inner: mutatingTool{}, observation: observation}
-	reporter, ok, err := toolcontract.Capability[tools.FileMutationReporter](mutating)
+	reporter, ok, err := toolcontract.Capability[fileMutationReporter](mutating)
 	if err != nil || !ok {
 		t.Fatal("the observed tool's file-mutation report is unreachable")
 	}
@@ -159,7 +158,7 @@ func TestObservedToolStandsInForTheToolItObserves(t *testing.T) {
 	if _, ok, err := toolcontract.Capability[toolloop.DirectTool](plain); err != nil || ok {
 		t.Fatal("a plain tool became return-direct through observation")
 	}
-	if _, ok, err := toolcontract.Capability[tools.FileMutationReporter](plain); err != nil || ok {
+	if _, ok, err := toolcontract.Capability[fileMutationReporter](plain); err != nil || ok {
 		t.Fatal("a plain tool gained a file-mutation report through observation")
 	}
 	if _, ok, err := toolcontract.Capability[toolloop.ConcurrentTool](plain); err != nil || ok {

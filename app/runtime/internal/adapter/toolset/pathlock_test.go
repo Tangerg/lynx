@@ -11,7 +11,6 @@ import (
 
 	"github.com/Tangerg/lynx/agent/toolloop"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/editguardstate"
-	"github.com/Tangerg/lynx/tools"
 	"github.com/Tangerg/lynx/tools/fs"
 )
 
@@ -103,7 +102,7 @@ func TestAssembledFileToolStillReportsWhatItMutates(t *testing.T) {
 		workdir,
 	)
 
-	reporter, ok, err := toolcontract.Capability[tools.FileMutationReporter](assembled)
+	reporter, ok, err := toolcontract.Capability[fileMutationReporter](assembled)
 	if err != nil || !ok {
 		t.Fatal("the assembled edit tool no longer reports its file mutations")
 	}

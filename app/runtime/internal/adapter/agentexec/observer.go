@@ -16,7 +16,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 	domaintool "github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/core/chat"
-	"github.com/Tangerg/lynx/tools"
 )
 
 // ErrToolDenied is the sentinel the gate hands the observer's OnToolCallEnd
@@ -156,8 +155,14 @@ type executionObserver interface {
 // a second lookup through a live catalog that may have changed since the turn
 // resolved its tools. Its zero value denotes a non-MCP tool.
 type ToolApprovalTarget struct {
-	FileMutations tools.FileMutationReporter
+	FileMutations fileMutationReporter
 	MCP           mcpserver.ToolRef
+}
+
+// fileMutationReporter is owned by the approval consumer. Tool packages opt
+// in structurally by reporting the paths implied by their own arguments.
+type fileMutationReporter interface {
+	MutationPaths(arguments string) ([]string, error)
 }
 
 var toolObservationKey = core.MustDependencyKey[*toolObservation]("lyra.tool_observation")

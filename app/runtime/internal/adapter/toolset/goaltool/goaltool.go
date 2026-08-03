@@ -14,7 +14,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/executionctx"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/goals"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
-	"github.com/Tangerg/lynx/tools"
+	"github.com/Tangerg/lynx/tools/function"
 )
 
 const description = `Report the status of the autonomous goal you are pursuing.
@@ -56,8 +56,8 @@ func New(state State) (toolcontract.Tool, error) {
 	if state == nil {
 		return nil, nil
 	}
-	return tools.New[updateArgs, string](
-		tools.Config{Name: "update_goal", Description: description},
+	return function.New[updateArgs, string](
+		function.Config{Name: "update_goal", Description: description},
 		(&tool{state: state}).update,
 	)
 }

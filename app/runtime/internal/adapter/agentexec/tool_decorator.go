@@ -11,7 +11,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 	"github.com/Tangerg/lynx/core/chat"
 	toolcontract "github.com/Tangerg/lynx/tool"
-	"github.com/Tangerg/lynx/tools"
 )
 
 type mcpToolIdentity interface {
@@ -65,7 +64,7 @@ func (o *observedTool) Call(ctx context.Context, arguments string) (string, erro
 	// Both lookups walk the wrapping chain: the resolved tool arrives already
 	// decorated, so a one-level look would hand the approval gate an empty
 	// target for exactly the tools whose blast radius matters most.
-	mutations, _, err := toolcontract.Capability[tools.FileMutationReporter](o.inner)
+	mutations, _, err := toolcontract.Capability[fileMutationReporter](o.inner)
 	if err != nil {
 		return "", fmt.Errorf("agentexec: inspect tool mutation capability: %w", err)
 	}
@@ -121,7 +120,7 @@ func (o *observedTool) successfulMutationPaths(arguments string, callErr error) 
 	if callErr != nil {
 		return nil
 	}
-	reporter, ok, err := toolcontract.Capability[tools.FileMutationReporter](o.inner)
+	reporter, ok, err := toolcontract.Capability[fileMutationReporter](o.inner)
 	if err != nil || !ok {
 		return nil
 	}

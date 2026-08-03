@@ -21,7 +21,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
-	"github.com/Tangerg/lynx/tools"
+	"github.com/Tangerg/lynx/tools/function"
 )
 
 const (
@@ -30,7 +30,7 @@ const (
 	rejectLabel  = "Reject"
 )
 
-// exitPlanArgs is the model-facing argument shape; [tools.New] derives
+// exitPlanArgs is the model-facing argument shape; [function.New] derives
 // the JSON schema from it and decodes calls back into it, so the advertised
 // schema and parsed value cannot drift. The options mirror [runs.QuestionOptionSpec]
 // with the LLM-facing copy kept here.
@@ -107,8 +107,8 @@ func New(appr ModePolicy, interrupt runs.InterruptFunc) (toolcontract.Tool, erro
 		return nil, nil
 	}
 	t := &tool{approval: appr, interrupt: interrupt}
-	return tools.New[exitPlanArgs, string](
-		tools.Config{
+	return function.New[exitPlanArgs, string](
+		function.Config{
 			Name:        toolName,
 			Description: "Present your plan for approval and leave plan mode. Call this ONLY in plan mode (the read-only stance) once you've investigated and drafted a plan. On approval, plan mode exits and all tools are enabled so you can execute the plan; on rejection you stay in plan mode with the user's feedback. Provide alternative approaches in options when the user should choose between them.",
 		},

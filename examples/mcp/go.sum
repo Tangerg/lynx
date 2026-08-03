@@ -1,13 +1,13 @@
 github.com/Masterminds/semver/v3 v3.5.0 h1:kQceYJfbupGfZOKZQg0kou0DgAKhzDg2NZPAwZ/2OOE=
 github.com/Masterminds/semver/v3 v3.5.0/go.mod h1:4V+yj/TJE1HU9XfppCwVMZq3I84lprf4nC11bSS5beM=
-github.com/Tangerg/lynx v0.0.0-20260803035544-01577f37fa81 h1:pfk2YohXURWI1oZiEhkSsS+K0tH0PM/iksWsoYx9Zo8=
-github.com/Tangerg/lynx v0.0.0-20260803035544-01577f37fa81/go.mod h1:+9o5hYEk9mbZ8778anUF1PjzUBfAd81Z/Bk1J4FK0Cc=
+github.com/Tangerg/lynx v0.0.0-20260803064902-3634caeb703d h1:lrI4qqzZCJ8w6ntBxoXqyfUrBgqggulsh9VTYcFZFBM=
+github.com/Tangerg/lynx v0.0.0-20260803064902-3634caeb703d/go.mod h1:+9o5hYEk9mbZ8778anUF1PjzUBfAd81Z/Bk1J4FK0Cc=
 github.com/Tangerg/lynx/agent v0.0.0-20260802185719-f013cc1eb508 h1:q/OABul6iFib/9Dan2Mxh9h0CwBHJm8TZqY7I+krgDY=
 github.com/Tangerg/lynx/agent v0.0.0-20260802185719-f013cc1eb508/go.mod h1:WbJKQJT2zihBA0HJU1OFZ1FUT4CUbGAr3fPiwfK1mEs=
 github.com/Tangerg/lynx/mcp v0.0.0-20260802185719-f013cc1eb508 h1:jHblvS2OcnFKJTsXcV/gUc330mKrDn5wJkD/b3k8kjA=
 github.com/Tangerg/lynx/mcp v0.0.0-20260802185719-f013cc1eb508/go.mod h1:5xMfxQSal5GSsHy3oZapPW8DcPJ6F/6KLo2tF6V7HwY=
-github.com/Tangerg/lynx/tools v0.0.0-20260802184134-33f15efd41ab h1:xeyPEHZVKxxxZ3kczJDhQTWBpynPAL7HwSor1+qzHJI=
-github.com/Tangerg/lynx/tools v0.0.0-20260802184134-33f15efd41ab/go.mod h1:b1Btdn/gI/8uaFKrb+9SMEpbqgUnK1ahlV887OZZMuc=
+github.com/Tangerg/lynx/tools v0.0.0-20260803065206-38612c03c9cf h1:0w+hgGP3HG6gvbh1dvM02AgblsJ1KCRdFvESboE+AoY=
+github.com/Tangerg/lynx/tools v0.0.0-20260803065206-38612c03c9cf/go.mod h1:tg0vgwFnY2fibCSTZKpgGCtS4RUGgw+rkzIE78NNKgA=
 github.com/bahlo/generic-list-go v0.2.0 h1:5sz/EEAK+ls5wF+NeqDpk5+iNdMDXrh3z3nPnH1Wvgk=
 github.com/bahlo/generic-list-go v0.2.0/go.mod h1:2KvAjgMlE5NNynlg/5iLrrCCZ2+5xWbdbCW3pNTGyYg=
 github.com/buger/jsonparser v1.6.1 h1:I0phFv0PlbLHnM7TZAVjZ2MJ2/eWRTDyuO7GLR98IEs=

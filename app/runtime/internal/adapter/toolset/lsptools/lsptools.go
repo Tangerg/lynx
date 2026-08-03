@@ -7,7 +7,7 @@ import (
 
 	toolcontract "github.com/Tangerg/lynx/tool"
 
-	"github.com/Tangerg/lynx/tools"
+	"github.com/Tangerg/lynx/tools/function"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/codeintel"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/executionctx"
@@ -39,7 +39,7 @@ func Build(ci *codeintel.Analyzer, defaultWorkdir string) ([]toolcontract.Tool, 
 	return []toolcontract.Tool{lsp, diagnostics}, nil
 }
 
-// lspInput is the model-facing argument shape; [tools.New] derives the
+// lspInput is the model-facing argument shape; [function.New] derives the
 // JSON schema from it and decodes calls back into it, so the advertised schema
 // and parsed value cannot drift. Only `operation` is structurally required —
 // which operand each operation needs is validated per-operation in the handler.
@@ -83,8 +83,8 @@ type lspRunner struct {
 
 func newLSPTool(ci *codeintel.Analyzer, defaultWorkdir string) (toolcontract.Tool, error) {
 	t := &lspRunner{analyzer: ci, defaultWorkdir: defaultWorkdir}
-	return tools.New[lspInput, string](
-		tools.Config{Name: "lsp", Description: lspDesc},
+	return function.New[lspInput, string](
+		function.Config{Name: "lsp", Description: lspDesc},
 		t.query,
 	)
 }
@@ -136,8 +136,8 @@ type diagnosticsTool struct {
 
 func newDiagnosticsTool(ci *codeintel.Analyzer, defaultWorkdir string) (toolcontract.Tool, error) {
 	t := &diagnosticsTool{analyzer: ci, defaultWorkdir: defaultWorkdir}
-	return tools.New[lspDiagnosticsInput, string](
-		tools.Config{
+	return function.New[lspDiagnosticsInput, string](
+		function.Config{
 			Name:        "lsp_diagnostics",
 			Description: "Get the language server's current problems (compile errors, warnings) for a file.",
 		},

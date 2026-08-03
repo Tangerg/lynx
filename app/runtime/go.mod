@@ -12,7 +12,7 @@ require (
 	github.com/Tangerg/lynx/models/ollama v0.0.0-20260802195812-555a8da53cc9
 	github.com/Tangerg/lynx/otel v0.0.0-20260731193916-0098789d89e9
 	github.com/Tangerg/lynx/skills v0.0.0-20260731193916-0098789d89e9
-	github.com/Tangerg/lynx/tools v0.0.0-20260802184134-33f15efd41ab
+	github.com/Tangerg/lynx/tools v0.0.0-20260803065206-38612c03c9cf
 	github.com/Tangerg/sse v0.0.5
 	github.com/anthropics/anthropic-sdk-go v1.61.0
 	github.com/fsnotify/fsnotify v1.10.1
@@ -48,7 +48,7 @@ require (
 	cloud.google.com/go/compute/metadata v0.9.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/internal v1.12.0 // indirect
 	github.com/Masterminds/semver/v3 v3.5.0 // indirect
-	github.com/Tangerg/lynx v0.0.0-20260803040853-8594662cd15b
+	github.com/Tangerg/lynx v0.0.0-20260803064902-3634caeb703d
 	github.com/Tangerg/lynx/models/protocol/openai v0.0.0-20260802194415-a15faf3dea2e // indirect
 	github.com/a2aproject/a2a-go/v2 v2.4.0 // indirect
 	github.com/bahlo/generic-list-go v0.2.0 // indirect

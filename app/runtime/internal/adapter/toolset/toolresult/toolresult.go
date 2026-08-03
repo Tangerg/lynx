@@ -21,7 +21,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/executionctx"
 	resultoffload "github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
 	domaintool "github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
-	"github.com/Tangerg/lynx/tools"
+	"github.com/Tangerg/lynx/tools/function"
 )
 
 // defaultReadWindow bounds a read that names no limit, so a naive
@@ -46,7 +46,7 @@ type Store interface {
 	Fetch(ctx context.Context, sessionID string, id resultoffload.ID) (body string, found bool, err error)
 }
 
-// readArgs is the model-facing argument shape; [tools.New] derives the JSON
+// readArgs is the model-facing argument shape; [function.New] derives the JSON
 // schema from it and decodes calls back into it, so the advertised schema and
 // the parsed value cannot drift.
 type readArgs struct {
@@ -68,8 +68,8 @@ func New(store Store) (toolcontract.Tool, error) {
 	if store == nil {
 		return nil, nil
 	}
-	return tools.New[readArgs, string](
-		tools.Config{Name: domaintool.NameReadToolResult, Description: description},
+	return function.New[readArgs, string](
+		function.Config{Name: domaintool.NameReadToolResult, Description: description},
 		(&tool{store: store}).read,
 	)
 }

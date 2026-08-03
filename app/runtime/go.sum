@@ -10,8 +10,8 @@ github.com/Azure/azure-sdk-for-go/sdk/internal v1.12.0 h1:fhqpLE3UEXi9lPaBRpQ6Xu
 github.com/Azure/azure-sdk-for-go/sdk/internal v1.12.0/go.mod h1:7dCRMLwisfRH3dBupKeNCioWYUZ4SS09Z14H+7i8ZoY=
 github.com/Masterminds/semver/v3 v3.5.0 h1:kQceYJfbupGfZOKZQg0kou0DgAKhzDg2NZPAwZ/2OOE=
 github.com/Masterminds/semver/v3 v3.5.0/go.mod h1:4V+yj/TJE1HU9XfppCwVMZq3I84lprf4nC11bSS5beM=
-github.com/Tangerg/lynx v0.0.0-20260803040853-8594662cd15b h1:RGOpyGBKEW+U81WAF7bMF8ruV9GUJnKVs5D7B5h+rlI=
-github.com/Tangerg/lynx v0.0.0-20260803040853-8594662cd15b/go.mod h1:+9o5hYEk9mbZ8778anUF1PjzUBfAd81Z/Bk1J4FK0Cc=
+github.com/Tangerg/lynx v0.0.0-20260803064902-3634caeb703d h1:lrI4qqzZCJ8w6ntBxoXqyfUrBgqggulsh9VTYcFZFBM=
+github.com/Tangerg/lynx v0.0.0-20260803064902-3634caeb703d/go.mod h1:+9o5hYEk9mbZ8778anUF1PjzUBfAd81Z/Bk1J4FK0Cc=
 github.com/Tangerg/lynx/a2a v0.0.0-20260802185719-f013cc1eb508 h1:WHHyAj7/jr32+cv4Whb+1UBOXMgmK/QuKHzU82YoiBE=
 github.com/Tangerg/lynx/a2a v0.0.0-20260802185719-f013cc1eb508/go.mod h1:Yqfch52pYPCZMT3j1oSS4r8HTg2SG0YQVDsu6q/YlWc=
 github.com/Tangerg/lynx/agent v0.0.0-20260802185719-f013cc1eb508 h1:q/OABul6iFib/9Dan2Mxh9h0CwBHJm8TZqY7I+krgDY=
@@ -30,8 +30,8 @@ github.com/Tangerg/lynx/otel v0.0.0-20260731193916-0098789d89e9 h1:vI8NRBW7zxHOT
 github.com/Tangerg/lynx/otel v0.0.0-20260731193916-0098789d89e9/go.mod h1:KtsDr7acVMDsVnLQabepbZZhn5EPR9Vkc5LSuES8+jw=
 github.com/Tangerg/lynx/skills v0.0.0-20260731193916-0098789d89e9 h1:PgHN9qktO7if006DdpIdAT0bffeeFkPhfqceNb1B30E=
 github.com/Tangerg/lynx/skills v0.0.0-20260731193916-0098789d89e9/go.mod h1:lYDEBvA3vQL5p4mg2Lm+kbwFtr5vxPSnG3NLWQmR6oc=
-github.com/Tangerg/lynx/tools v0.0.0-20260802184134-33f15efd41ab h1:xeyPEHZVKxxxZ3kczJDhQTWBpynPAL7HwSor1+qzHJI=
-github.com/Tangerg/lynx/tools v0.0.0-20260802184134-33f15efd41ab/go.mod h1:b1Btdn/gI/8uaFKrb+9SMEpbqgUnK1ahlV887OZZMuc=
+github.com/Tangerg/lynx/tools v0.0.0-20260803065206-38612c03c9cf h1:0w+hgGP3HG6gvbh1dvM02AgblsJ1KCRdFvESboE+AoY=
+github.com/Tangerg/lynx/tools v0.0.0-20260803065206-38612c03c9cf/go.mod h1:tg0vgwFnY2fibCSTZKpgGCtS4RUGgw+rkzIE78NNKgA=
 github.com/Tangerg/sse v0.0.5 h1:EvMwDDqCcxIiUnl02PHVbvNjaaFOHFWqdFdvPNirUk8=
 github.com/Tangerg/sse v0.0.5/go.mod h1:+GPL/425WlIYRig6frpXeEk7GFYgcHaadIufk6pwe0I=
 github.com/a2aproject/a2a-go/v2 v2.4.0 h1:da0iwA6voxLhXIw1B3GSAdrhs5UIa2v6m+v/Fix5qTw=

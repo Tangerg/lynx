@@ -19,7 +19,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/executionctx"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/todopresentation"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
-	"github.com/Tangerg/lynx/tools"
+	"github.com/Tangerg/lynx/tools/function"
 )
 
 const description = `Maintain a structured task list for the current session.
@@ -38,7 +38,7 @@ not a delta). Rules, enforced by the runtime:
   - Completed tasks must not carry blocked_reason or next_action.
 Skip this tool for trivial single-step requests; it is for real multi-step work.`
 
-// writeArgs is the model-facing argument shape; [tools.New] derives the
+// writeArgs is the model-facing argument shape; [function.New] derives the
 // JSON schema from it and decodes calls back into it, so the advertised schema
 // and parsed value cannot drift. The items mirror [todo.Item] with the
 // LLM-facing descriptions kept here (out of the domain type); the handler maps
@@ -88,8 +88,8 @@ func New(store Store) (toolcontract.Tool, error) {
 	if store == nil {
 		return nil, nil
 	}
-	return tools.New[writeArgs, string](
-		tools.Config{Name: "todo_write", Description: description},
+	return function.New[writeArgs, string](
+		function.Config{Name: "todo_write", Description: description},
 		(&tool{store: store}).write,
 	)
 }

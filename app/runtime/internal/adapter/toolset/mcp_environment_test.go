@@ -15,7 +15,7 @@ import (
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	lynxmcp "github.com/Tangerg/lynx/mcp"
-	"github.com/Tangerg/lynx/tools"
+	"github.com/Tangerg/lynx/tools/function"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/mcpconnection"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
@@ -62,8 +62,8 @@ func runStdioMCPServer() {
 	srv := sdkmcp.NewServer(&sdkmcp.Implementation{
 		Name: "lyra-test-stdio-mcp", Version: "v0.1.0",
 	}, nil)
-	ping, err := tools.New[struct{}, string](
-		tools.Config{
+	ping, err := function.New[struct{}, string](
+		function.Config{
 			Name:        "ping",
 			Description: "responds with pong",
 		},
@@ -91,8 +91,8 @@ func TestToolEnvironmentDialsMCPServer(t *testing.T) {
 	mcpServer := sdkmcp.NewServer(&sdkmcp.Implementation{
 		Name: "test-srv", Version: "v0.1.0",
 	}, nil)
-	ping, err := tools.New[struct{}, string](
-		tools.Config{
+	ping, err := function.New[struct{}, string](
+		function.Config{
 			Name:        "ping",
 			Description: "responds with pong",
 		},

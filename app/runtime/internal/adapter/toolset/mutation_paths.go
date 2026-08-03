@@ -7,12 +7,15 @@ import (
 	toolcontract "github.com/Tangerg/lynx/tool"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/component/pathidentity"
-	"github.com/Tangerg/lynx/tools"
 )
+
+type fileMutationReporter interface {
+	MutationPaths(arguments string) ([]string, error)
+}
 
 func mutationPaths(tool toolcontract.Tool, arguments string) ([]string, error) {
 	var paths []string
-	reporter, ok, err := toolcontract.Capability[tools.FileMutationReporter](tool)
+	reporter, ok, err := toolcontract.Capability[fileMutationReporter](tool)
 	if err != nil {
 		return nil, err
 	}
