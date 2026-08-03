@@ -65,14 +65,12 @@ func (p *Process) scopeChat(capability core.ChatCapability) (core.ChatCapability
 		callMiddleware = append(callMiddleware, middleware.CallMiddlewares...)
 		streamMiddleware = append(streamMiddleware, middleware.StreamMiddlewares...)
 	}
-	options := []chatclient.Option{chatclient.WithCallMiddleware(callMiddleware...)}
+	config := chatclient.Config{CallMiddleware: callMiddleware}
 	if !valueIsNil(capability.Streamer) {
-		options = append(options,
-			chatclient.WithStreamer(capability.Streamer),
-			chatclient.WithStreamMiddleware(streamMiddleware...),
-		)
+		config.Streamer = capability.Streamer
+		config.StreamMiddleware = streamMiddleware
 	}
-	client, err := chatclient.New(capability.Model, options...)
+	client, err := chatclient.New(capability.Model, config)
 	if err != nil {
 		return core.ChatCapability{}, err
 	}

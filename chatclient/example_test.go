@@ -13,7 +13,7 @@ func ExampleClient_Call() {
 	model := chat.ModelFunc(func(context.Context, *chat.Request) (*chat.Response, error) {
 		return textResponse("Hello from the model"), nil
 	})
-	client, err := chatclient.New(model, chatclient.WithDefaults(chat.Options{Model: "example"}))
+	client, err := chatclient.New(model, chatclient.Config{Defaults: chat.Options{Model: "example"}})
 	if err != nil {
 		panic(err)
 	}
@@ -41,7 +41,7 @@ func ExampleClient_Stream() {
 			yield(response("stream", chat.FinishReasonStop), nil)
 		}
 	})
-	client, err := chatclient.New(model, chatclient.WithStreamer(streamer))
+	client, err := chatclient.New(model, chatclient.Config{Streamer: streamer})
 	if err != nil {
 		panic(err)
 	}
@@ -79,7 +79,7 @@ func ExampleCallStructured() {
 	model := chat.ModelFunc(func(context.Context, *chat.Request) (*chat.Response, error) {
 		return textResponse(`{"value":42}`), nil
 	})
-	client, err := chatclient.New(model)
+	client, err := chatclient.New(model, chatclient.Config{})
 	if err != nil {
 		panic(err)
 	}

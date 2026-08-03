@@ -25,7 +25,7 @@ func TestEngine_RunChat_TokenUsageAccumulates(t *testing.T) {
 		chat.Usage{InputTokens: 10, OutputTokens: 5},
 		chat.Usage{InputTokens: 20, OutputTokens: 7, ReasoningTokens: &reasoning},
 	)
-	client, _ := chatclient.New(stub)
+	client, _ := chatclient.New(stub, chatclient.Config{})
 	eng, err := New(context.Background(), Config{ChatClient: client})
 	if err != nil {
 		t.Fatal(err)
@@ -61,7 +61,7 @@ func TestEngine_RunChat_PricingFillsCost(t *testing.T) {
 		chat.Usage{InputTokens: 10, OutputTokens: 5},
 		chat.Usage{InputTokens: 20, OutputTokens: 7, ReasoningTokens: &reasoning},
 	)
-	client, _ := chatclient.New(stub)
+	client, _ := chatclient.New(stub, chatclient.Config{})
 	pricing := func(_, _ string, u *chat.Usage) float64 {
 		return float64(u.InputTokens+u.OutputTokens) / 100
 	}
@@ -83,9 +83,9 @@ func TestEngine_RunChat_PricingFillsCost(t *testing.T) {
 }
 
 func TestEngine_TaskDelegationInheritsPerRunModelAndProvider(t *testing.T) {
-	defaultClient, _ := chatclient.New(newNamedStub("default-model"))
+	defaultClient, _ := chatclient.New(newNamedStub("default-model"), chatclient.Config{})
 	selectedModel := newDelegatingAccountingStub("selected-model", chat.Usage{InputTokens: 1, OutputTokens: 1})
-	selectedClient, _ := chatclient.New(selectedModel)
+	selectedClient, _ := chatclient.New(selectedModel, chatclient.Config{})
 	built, err := toolset.Build(t.Context(), toolset.BuildConfig{})
 	if err != nil {
 		t.Fatalf("toolset.Build: %v", err)
@@ -149,7 +149,7 @@ func mustTestSelection(t testing.TB, provider, model string) modelref.Selection 
 
 func TestEngine_TaskDelegationDoesNotStartChildAfterTokenBudgetIsSpent(t *testing.T) {
 	model := newDelegatingAccountingStub("budget-model", chat.Usage{InputTokens: 1, OutputTokens: 1})
-	client, _ := chatclient.New(model)
+	client, _ := chatclient.New(model, chatclient.Config{})
 	engine := mustEngineWith(t, client, toolset.BuildConfig{})
 	defer engine.Close()
 
@@ -170,7 +170,7 @@ func TestEngine_TaskDelegationDoesNotStartChildAfterTokenBudgetIsSpent(t *testin
 
 func TestEngine_TaskDelegationDoesNotStartChildAfterCostBudgetIsSpent(t *testing.T) {
 	model := newDelegatingAccountingStub("cost-model", chat.Usage{InputTokens: 1, OutputTokens: 1})
-	client, _ := chatclient.New(model)
+	client, _ := chatclient.New(model, chatclient.Config{})
 	built, err := toolset.Build(t.Context(), toolset.BuildConfig{})
 	if err != nil {
 		t.Fatalf("toolset.Build: %v", err)
@@ -203,7 +203,7 @@ func TestEngine_TaskDelegationDoesNotStartChildAfterCostBudgetIsSpent(t *testing
 
 func TestEngine_TaskDelegationCountsChildCallsAgainstStepLimit(t *testing.T) {
 	model := newDelegatingAccountingStub("steps-model", chat.Usage{})
-	client, _ := chatclient.New(model)
+	client, _ := chatclient.New(model, chatclient.Config{})
 	engine := mustEngineWith(t, client, toolset.BuildConfig{})
 	defer engine.Close()
 
@@ -232,7 +232,7 @@ func TestEngine_RunChat_StopsOnBudget(t *testing.T) {
 		chat.Usage{InputTokens: 10, OutputTokens: 5},  // round 1 -> total 15
 		chat.Usage{InputTokens: 99, OutputTokens: 99}, // round 2 -> must NOT run
 	)
-	client, _ := chatclient.New(stub)
+	client, _ := chatclient.New(stub, chatclient.Config{})
 	eng, err := New(context.Background(), Config{ChatClient: client})
 	if err != nil {
 		t.Fatal(err)
@@ -261,7 +261,7 @@ func TestEngine_RunChat_StopsOnCostBudget(t *testing.T) {
 		chat.Usage{InputTokens: 10, OutputTokens: 5},  // round 1 -> $15
 		chat.Usage{InputTokens: 99, OutputTokens: 99}, // round 2 -> must NOT run
 	)
-	client, _ := chatclient.New(stub)
+	client, _ := chatclient.New(stub, chatclient.Config{})
 	pricing := func(_, _ string, u *chat.Usage) float64 {
 		return float64(u.InputTokens + u.OutputTokens)
 	}

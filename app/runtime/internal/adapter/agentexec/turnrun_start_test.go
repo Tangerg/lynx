@@ -148,7 +148,7 @@ func newStartFailureEngine(t *testing.T) *Engine {
 	t.Helper()
 
 	model := newStreamingStubModel("unused")
-	client, err := chatclient.New(model)
+	client, err := chatclient.New(model, chatclient.Config{})
 	if err != nil {
 		t.Fatalf("chatclient.New: %v", err)
 	}

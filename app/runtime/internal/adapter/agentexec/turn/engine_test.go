@@ -457,7 +457,7 @@ func TestRehydrateCanceledResumeAdmissionRemainsParked(t *testing.T) {
 // the turn-dispatcher half of per-run model selection.
 func TestStartTurn_ResolvesPerRunClient(t *testing.T) {
 	stub := &stubEngine{runReply: "ok"}
-	sentinel, _ := chatclient.New(newCapturingModel())
+	sentinel, _ := chatclient.New(newCapturingModel(), chatclient.Config{})
 	resolver := &fakeResolver{client: sentinel}
 
 	dispatcher := mustTurn(turn.New(turnDeps(stub, withClientResolver(resolver))))

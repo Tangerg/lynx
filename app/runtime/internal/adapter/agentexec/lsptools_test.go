@@ -14,7 +14,7 @@ import (
 // post-edit diagnostics) is tested in internal/adapter/toolset.
 func TestEngine_RegistersLSPTools(t *testing.T) {
 	stub := newStubModel("nop", `{}`, "")
-	client, _ := chatclient.New(stub)
+	client, _ := chatclient.New(stub, chatclient.Config{})
 	eng := mustEngineWith(t, client, toolset.BuildConfig{})
 	defer eng.Close()
 

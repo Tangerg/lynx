@@ -180,7 +180,7 @@ func BuildClient(spec ClientSpec) (*chatclient.Client, error) {
 		return nil, fmt.Errorf("llm: build %s model: %w", spec.Provider, err)
 	}
 
-	client, err := chatclient.New(classifyModelFailures(m))
+	client, err := chatclient.New(classifyModelFailures(m), chatclient.Config{})
 	if err != nil {
 		return nil, fmt.Errorf("llm: chat client: %w", err)
 	}

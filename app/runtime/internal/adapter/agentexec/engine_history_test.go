@@ -12,7 +12,7 @@ import (
 // have no continuation to restore and therefore leave no process rows behind.
 func TestEngine_RunChat_DoesNotPersistTerminalSnapshot(t *testing.T) {
 	stub := newStreamingStubModel("done")
-	client, _ := chatclient.New(stub)
+	client, _ := chatclient.New(stub, chatclient.Config{})
 	store := newMemoryCheckpointStore()
 	eng, err := New(context.Background(), Config{ChatClient: client, Checkpoints: store, BuildID: testBuildID})
 	if err != nil {
@@ -40,7 +40,7 @@ func TestEngine_RunChat_DoesNotPersistTerminalSnapshot(t *testing.T) {
 // user message of turn 2).
 func TestEngine_RunChat_MultiTurnHistory(t *testing.T) {
 	stub := newHistoryAwareStub()
-	client, _ := chatclient.New(stub)
+	client, _ := chatclient.New(stub, chatclient.Config{})
 	eng, err := New(context.Background(), Config{ChatClient: client})
 	if err != nil {
 		t.Fatal(err)
@@ -77,7 +77,7 @@ func TestEngine_RunChat_MultiTurnHistory(t *testing.T) {
 func TestEngine_RunChat_PersistentHistoryStoreRoundTrip(t *testing.T) {
 	shared := newHistoryStore()
 	stub1 := newHistoryAwareStub()
-	cli1, _ := chatclient.New(stub1)
+	cli1, _ := chatclient.New(stub1, chatclient.Config{})
 	eng1, _ := New(context.Background(), Config{ChatClient: cli1, HistoryStore: shared})
 
 	const sessionID = "shared-sess"
@@ -88,7 +88,7 @@ func TestEngine_RunChat_PersistentHistoryStoreRoundTrip(t *testing.T) {
 	}
 
 	stub2 := newHistoryAwareStub()
-	cli2, _ := chatclient.New(stub2)
+	cli2, _ := chatclient.New(stub2, chatclient.Config{})
 	eng2, _ := New(context.Background(), Config{ChatClient: cli2, HistoryStore: shared})
 
 	if _, err := eng2.runTurnSync(context.Background(), TurnRequest{
@@ -109,7 +109,7 @@ func TestEngine_RunChat_PersistentHistoryStoreRoundTrip(t *testing.T) {
 // creates an ownerless turn that cannot form a valid durable TurnScope.
 func TestEngine_RunChat_RequiresSessionID(t *testing.T) {
 	stub := newHistoryAwareStub()
-	client, _ := chatclient.New(stub)
+	client, _ := chatclient.New(stub, chatclient.Config{})
 	eng, err := New(context.Background(), Config{ChatClient: client})
 	if err != nil {
 		t.Fatal(err)

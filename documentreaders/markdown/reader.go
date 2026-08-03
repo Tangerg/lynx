@@ -25,64 +25,41 @@ const (
 	MetadataSourceName   = "markdown.source"
 )
 
-// Option configures a [Reader].
-type Option func(*Reader)
-
-// WithHeadingSplit makes the reader emit one document per section,
-// splitting on headings of level <= maxLevel (e.g. 2 = split on H1+H2,
-// 1 = split on H1 only). maxLevel must be in [1, 6].
-func WithHeadingSplit(maxLevel int) Option {
-	return func(r *Reader) {
-		r.headingSplitConfigured = true
-		r.headingSplitLevel = maxLevel
-	}
-}
-
-// WithSourceName stamps every emitted document with the given
-// `markdown.source` metadata entry — useful when the underlying io.Reader
-// doesn't carry path information.
-func WithSourceName(name string) Option {
-	return func(r *Reader) { r.sourceName = name }
-}
-
-// WithMetadata adds validated caller-supplied metadata to every emitted
-// document. The map is deep-cloned, and reader-derived markdown.* keys take
-// precedence on conflict.
-func WithMetadata(md coremetadata.Map) Option {
-	return func(r *Reader) {
-		r.extraMetadata = md.Clone()
-	}
+// Config controls Markdown extraction. HeadingSplitLevel emits one document
+// per section split on headings at or above that level (1 = H1, 2 = H1+H2).
+// Zero disables splitting; non-zero values must be in [1, 6]. Metadata is
+// cloned by NewReader, and reader-derived markdown.* keys take precedence.
+type Config struct {
+	HeadingSplitLevel int
+	SourceName        string
+	Metadata          coremetadata.Map
 }
 
 // Reader extracts documents from Markdown.
 type Reader struct {
-	reader                 io.Reader
-	parser                 goldmark.Markdown
-	headingSplitConfigured bool
-	headingSplitLevel      int
-	sourceName             string
-	extraMetadata          coremetadata.Map
+	reader            io.Reader
+	parser            goldmark.Markdown
+	headingSplitLevel int
+	sourceName        string
+	extraMetadata     coremetadata.Map
 }
 
 // NewReader builds a markdown reader over src.
-func NewReader(src io.Reader, opts ...Option) (*Reader, error) {
+func NewReader(src io.Reader, config Config) (*Reader, error) {
 	if isNil(src) {
 		return nil, errors.New("markdown reader: source must not be nil")
 	}
 	r := &Reader{
-		reader: src,
-		parser: goldmark.New(),
-	}
-	for index, opt := range opts {
-		if opt == nil {
-			return nil, fmt.Errorf("markdown reader: option %d is nil", index)
-		}
-		opt(r)
+		reader:            src,
+		parser:            goldmark.New(),
+		headingSplitLevel: config.HeadingSplitLevel,
+		sourceName:        config.SourceName,
+		extraMetadata:     config.Metadata.Clone(),
 	}
 	if err := r.extraMetadata.Validate(); err != nil {
 		return nil, fmt.Errorf("markdown reader: invalid metadata: %w", err)
 	}
-	if r.headingSplitConfigured && (r.headingSplitLevel < 1 || r.headingSplitLevel > 6) {
+	if r.headingSplitLevel < 0 || r.headingSplitLevel > 6 {
 		return nil, fmt.Errorf("markdown reader: heading split level %d is outside [1, 6]", r.headingSplitLevel)
 	}
 	return r, nil

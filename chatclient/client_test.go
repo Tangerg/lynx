@@ -54,39 +54,37 @@ func TestNewRejectsInvalidConstruction(t *testing.T) {
 	negative := int64(-1)
 
 	tests := []struct {
-		name    string
-		model   chat.Model
-		options []Option
-		want    error
+		name   string
+		model  chat.Model
+		config Config
+		want   error
 	}{
 		{name: "nil model", want: ErrNilModel},
 		{name: "typed nil model", model: typedNilModel, want: ErrNilModel},
-		{name: "nil option", model: model, options: []Option{nil}},
-		{name: "invalid defaults", model: model, options: []Option{WithDefaults(chat.Options{MaxTokens: &negative})}, want: chat.ErrInvalidOptions},
-		{name: "nil explicit streamer", model: model, options: []Option{WithStreamer(nil)}},
-		{name: "typed nil explicit streamer", model: model, options: []Option{WithStreamer(typedNilStreamer)}},
+		{name: "invalid defaults", model: model, config: Config{Defaults: chat.Options{MaxTokens: &negative}}, want: chat.ErrInvalidOptions},
+		{name: "typed nil explicit streamer", model: model, config: Config{Streamer: typedNilStreamer}},
 		{
 			name:  "middleware returns typed nil model",
 			model: model,
-			options: []Option{WithCallMiddleware(func(chat.Model) chat.Model {
+			config: Config{CallMiddleware: []chat.CallMiddleware{func(chat.Model) chat.Model {
 				return typedNilModel
-			})},
+			}}},
 		},
 		{
 			name:  "middleware returns typed nil streamer",
 			model: model,
-			options: []Option{
-				WithStreamer(streamOnly{stream: func(context.Context, *chat.Request) iter.Seq2[*chat.Response, error] {
+			config: Config{
+				Streamer: streamOnly{stream: func(context.Context, *chat.Request) iter.Seq2[*chat.Response, error] {
 					return func(func(*chat.Response, error) bool) {}
-				}}),
-				WithStreamMiddleware(func(chat.Streamer) chat.Streamer { return typedNilStreamer }),
+				}},
+				StreamMiddleware: []chat.StreamMiddleware{func(chat.Streamer) chat.Streamer { return typedNilStreamer }},
 			},
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			client, err := New(test.model, test.options...)
+			client, err := New(test.model, test.config)
 			if err == nil || client != nil {
 				t.Fatalf("New() = (%v, %v), want nil client and error", client, err)
 			}
@@ -144,11 +142,6 @@ func TestCallMergesDefaultsAndProtectsCallerRequest(t *testing.T) {
 		Temperature: &temperature,
 		TopP:        &topP,
 	}
-	defaultOption := WithDefaults(defaults)
-	// WithDefaults snapshots at option construction, not when New is called.
-	temperature = 1.5
-	defaults.Stop[0] = "MUTATED"
-
 	model := callOnly{call: func(_ context.Context, received *chat.Request) (*chat.Response, error) {
 		if received == request {
 			t.Fatal("model received caller-owned request pointer")
@@ -183,10 +176,13 @@ func TestCallMergesDefaultsAndProtectsCallerRequest(t *testing.T) {
 
 		return &chat.Response{ID: "response-1"}, nil
 	}}
-	client, err := New(model, defaultOption)
+	client, err := New(model, Config{Defaults: defaults})
 	if err != nil {
 		t.Fatal(err)
 	}
+	// New snapshots configuration-owned reference values.
+	temperature = 1.5
+	defaults.Stop[0] = "MUTATED"
 	response, err := client.Call(context.Background(), request)
 	if err != nil {
 		t.Fatal(err)
@@ -229,7 +225,8 @@ func TestCallRejectsInvalidRequestBeforeModel(t *testing.T) {
 	client, err := New(callOnly{call: func(context.Context, *chat.Request) (*chat.Response, error) {
 		calls.Add(1)
 		return nil, nil
-	}})
+	}}, Config{})
+
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -254,7 +251,7 @@ func TestClientForwardsContextCancellationAndErrors(t *testing.T) {
 			return errorSequence(ctx.Err())
 		}},
 	}
-	client, err := New(model)
+	client, err := New(model, Config{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -354,8 +351,7 @@ func TestCallMiddlewareOrder(t *testing.T) {
 			events = append(events, "model")
 			return &chat.Response{}, nil
 		}},
-		WithCallMiddleware(middleware("outer"), nil),
-		WithCallMiddleware(middleware("inner")),
+		Config{CallMiddleware: []chat.CallMiddleware{middleware("outer"), nil, middleware("inner")}},
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -385,7 +381,7 @@ func TestStreamAutoDiscoversCapabilitySnapshotsRequestAndReleasesOnStop(t *testi
 			}
 		}},
 	}
-	client, err := New(model)
+	client, err := New(model, Config{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -414,7 +410,7 @@ func TestStreamAutoDiscoversCapabilitySnapshotsRequestAndReleasesOnStop(t *testi
 	}
 }
 
-func TestWithStreamerOverridesModelCapability(t *testing.T) {
+func TestConfiguredStreamerOverridesModelCapability(t *testing.T) {
 	modelStreamCalled := false
 	model := callAndStream{
 		callOnly: callOnly{call: successfulCall},
@@ -426,7 +422,7 @@ func TestWithStreamerOverridesModelCapability(t *testing.T) {
 	explicit := streamOnly{stream: func(context.Context, *chat.Request) iter.Seq2[*chat.Response, error] {
 		return oneResponse("explicit")
 	}}
-	client, err := New(model, WithStreamer(explicit))
+	client, err := New(model, Config{Streamer: explicit})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -448,7 +444,8 @@ func TestStreamUnsupportedAndInvalidRequestYieldOneTerminalError(t *testing.T) {
 	client, err := New(callOnly{call: func(context.Context, *chat.Request) (*chat.Response, error) {
 		calls.Add(1)
 		return &chat.Response{}, nil
-	}})
+	}}, Config{})
+
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -505,8 +502,10 @@ func TestStreamMiddlewareOrder(t *testing.T) {
 	}}
 	client, err := New(
 		callOnly{call: successfulCall},
-		WithStreamer(streamer),
-		WithStreamMiddleware(middleware("outer"), nil, middleware("inner")),
+		Config{
+			Streamer:         streamer,
+			StreamMiddleware: []chat.StreamMiddleware{middleware("outer"), nil, middleware("inner")},
+		},
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -532,7 +531,7 @@ func TestClientConfigurationIsSafeForConcurrentCalls(t *testing.T) {
 			calls.Add(1)
 			return &chat.Response{}, nil
 		}},
-		WithDefaults(chat.Options{Temperature: pointer(0.4)}),
+		Config{Defaults: chat.Options{Temperature: pointer(0.4)}},
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -564,9 +563,9 @@ func TestClientConfigurationIsSafeForConcurrentCalls(t *testing.T) {
 func TestNilStreamSequenceBecomesTerminalError(t *testing.T) {
 	client, err := New(
 		callOnly{call: successfulCall},
-		WithStreamer(streamOnly{stream: func(context.Context, *chat.Request) iter.Seq2[*chat.Response, error] {
+		Config{Streamer: streamOnly{stream: func(context.Context, *chat.Request) iter.Seq2[*chat.Response, error] {
 			return nil
-		}}),
+		}}},
 	)
 	if err != nil {
 		t.Fatal(err)

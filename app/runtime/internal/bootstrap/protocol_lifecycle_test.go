@@ -243,7 +243,7 @@ func openProtocolRuntime(t *testing.T, model chat.Model) (*Host, *runtimeserver.
 	if err != nil {
 		t.Fatalf("open persistence: %v", err)
 	}
-	client, err := chatclient.New(model)
+	client, err := chatclient.New(model, chatclient.Config{})
 	if err != nil {
 		_ = stores.Close()
 		t.Fatalf("build chat client: %v", err)

@@ -58,7 +58,7 @@ func newModelEvaluator(config ModelConfig, defaultPrompt string, validate func(R
 	if err := prompt.Execute(&check, promptData{}); err != nil {
 		return nil, fmt.Errorf("%w: validate prompt: %w", ErrInvalidConfig, err)
 	}
-	client, err := chatclient.New(config.Model)
+	client, err := chatclient.New(config.Model, chatclient.Config{})
 	if err != nil {
 		return nil, fmt.Errorf("%w: model: %w", ErrInvalidConfig, err)
 	}

@@ -12,7 +12,7 @@ import (
 
 func TestToolCatalogReturnsSnapshot(t *testing.T) {
 	stub := newStubModel("shell", `{}`, "")
-	client, _ := chatclient.New(stub)
+	client, _ := chatclient.New(stub, chatclient.Config{})
 	eng := mustEngineWith(t, client, toolset.BuildConfig{})
 	defer eng.Close()
 
@@ -31,7 +31,7 @@ func TestToolCatalogReturnsSnapshot(t *testing.T) {
 // configured. Provider-backed tools must NOT appear.
 func TestToolCatalogOfflineOnly(t *testing.T) {
 	stub := newStubModel("shell", `{}`, "")
-	client, _ := chatclient.New(stub)
+	client, _ := chatclient.New(stub, chatclient.Config{})
 	eng := mustEngineWith(t, client, toolset.BuildConfig{})
 	defer eng.Close()
 
@@ -68,7 +68,7 @@ func TestToolCatalogOfflineOnly(t *testing.T) {
 // arrive when their credentials are supplied.
 func TestToolCatalogOnlineEnabled(t *testing.T) {
 	stub := newStubModel("shell", `{}`, "")
-	client, _ := chatclient.New(stub)
+	client, _ := chatclient.New(stub, chatclient.Config{})
 	eng := mustEngineWith(t, client, toolset.BuildConfig{
 		Online: toolset.OnlineConfig{
 			JinaAPIKey:       "test-jina",
@@ -96,7 +96,7 @@ func TestToolCatalogOnlineEnabled(t *testing.T) {
 // extra tool.
 func TestToolCatalogPartialOnline(t *testing.T) {
 	stub := newStubModel("shell", `{}`, "")
-	client, _ := chatclient.New(stub)
+	client, _ := chatclient.New(stub, chatclient.Config{})
 	eng := mustEngineWith(t, client, toolset.BuildConfig{Online: toolset.OnlineConfig{JinaAPIKey: "k"}})
 	defer eng.Close()
 	if got := len(codingTools(t, eng.catalog)); got != 14 {

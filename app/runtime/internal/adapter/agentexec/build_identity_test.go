@@ -20,7 +20,7 @@ const (
 )
 
 func TestNewRequiresContentBuildIdentityForDurableRuntime(t *testing.T) {
-	client, err := chatclient.New(newStreamingStubModel("done"))
+	client, err := chatclient.New(newStreamingStubModel("done"), chatclient.Config{})
 	if err != nil {
 		t.Fatalf("chatclient.New: %v", err)
 	}
@@ -56,7 +56,7 @@ func TestNewRequiresContentBuildIdentityForDurableRuntime(t *testing.T) {
 }
 
 func TestRestoreTurnMissingSnapshotIsStateLoss(t *testing.T) {
-	client, err := chatclient.New(newStreamingStubModel("done"))
+	client, err := chatclient.New(newStreamingStubModel("done"), chatclient.Config{})
 	if err != nil {
 		t.Fatalf("chatclient.New: %v", err)
 	}
@@ -76,7 +76,7 @@ func TestRestoreTurnMissingSnapshotIsStateLoss(t *testing.T) {
 
 func TestRestoreRejectsUsageProjectionThatDriftedFromProcessTree(t *testing.T) {
 	model := newOptionToolStub()
-	client, err := chatclient.New(model, chatclient.WithDefaults(*model.defaults))
+	client, err := chatclient.New(model, chatclient.Config{Defaults: *model.defaults})
 	if err != nil {
 		t.Fatalf("chatclient.New: %v", err)
 	}
@@ -137,7 +137,7 @@ func TestRestoreRejectsUsageProjectionThatDriftedFromProcessTree(t *testing.T) {
 
 func TestWaitingCheckpointCaptureDoesNotReadCheckpointStorage(t *testing.T) {
 	model := newOptionToolStub()
-	client, err := chatclient.New(model, chatclient.WithDefaults(*model.defaults))
+	client, err := chatclient.New(model, chatclient.Config{Defaults: *model.defaults})
 	if err != nil {
 		t.Fatalf("chatclient.New: %v", err)
 	}
@@ -184,7 +184,7 @@ func TestWaitingCheckpointCaptureDoesNotReadCheckpointStorage(t *testing.T) {
 }
 
 func TestTerminalSegmentDoesNotReadCheckpointStorage(t *testing.T) {
-	client, err := chatclient.New(newStreamingStubModel("done"))
+	client, err := chatclient.New(newStreamingStubModel("done"), chatclient.Config{})
 	if err != nil {
 		t.Fatalf("chatclient.New: %v", err)
 	}

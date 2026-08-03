@@ -41,7 +41,7 @@ const samplePage = `<!doctype html>
 </html>`
 
 func TestWholePage(t *testing.T) {
-	r, err := html.NewReader(strings.NewReader(samplePage), html.WithSourceName("test.html"))
+	r, err := html.NewReader(strings.NewReader(samplePage), html.Config{SourceName: "test.html"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -73,7 +73,7 @@ func TestWholePage(t *testing.T) {
 func TestSelector(t *testing.T) {
 	r, err := html.NewReader(
 		strings.NewReader(samplePage),
-		html.WithSelector("article"),
+		html.Config{Selector: "article"},
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -99,12 +99,8 @@ func TestSelector(t *testing.T) {
 }
 
 func TestNewReaderRejectsInvalidConfiguration(t *testing.T) {
-	for _, options := range [][]html.Option{
-		{nil},
-		{html.WithSelector("[")},
-	} {
-		if _, err := html.NewReader(strings.NewReader(samplePage), options...); err == nil {
-			t.Fatalf("NewReader(%v) error = nil", options)
-		}
+	config := html.Config{Selector: "["}
+	if _, err := html.NewReader(strings.NewReader(samplePage), config); err == nil {
+		t.Fatalf("NewReader(%+v) error = nil", config)
 	}
 }

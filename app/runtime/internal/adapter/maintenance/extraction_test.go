@@ -62,7 +62,7 @@ func extractionFixture(t *testing.T, replies ...scriptedReply) (*Extractor, *sql
 		t.Fatal(err)
 	}
 	model := &scriptedModel{replies: replies}
-	client, err := chatclient.New(model)
+	client, err := chatclient.New(model, chatclient.Config{})
 	if err != nil {
 		t.Fatal(err)
 	}

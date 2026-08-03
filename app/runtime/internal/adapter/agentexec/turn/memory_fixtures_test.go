@@ -76,7 +76,7 @@ func buildDispatcher(t *testing.T) (turnDriver, *agentexec.Engine) {
 	t.Helper()
 
 	model := newStubChatModel()
-	client, err := chatclient.New(model, chatclient.WithDefaults(*model.defaults))
+	client, err := chatclient.New(model, chatclient.Config{Defaults: *model.defaults})
 	if err != nil {
 		t.Fatalf("chat client: %v", err)
 	}

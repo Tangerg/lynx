@@ -32,7 +32,7 @@ type (
 )
 
 func main() {
-	chatClient, err := chatclient.New(newStubModel())
+	chatClient, err := chatclient.New(newStubModel(), chatclient.Config{})
 	if err != nil {
 		log.Fatal(err)
 	}

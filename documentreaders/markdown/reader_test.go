@@ -35,7 +35,7 @@ Body of section B.
 `
 
 func TestWholeDocument(t *testing.T) {
-	r, err := markdown.NewReader(strings.NewReader(sample))
+	r, err := markdown.NewReader(strings.NewReader(sample), markdown.Config{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -54,8 +54,7 @@ func TestWholeDocument(t *testing.T) {
 func TestHeadingSplitH2(t *testing.T) {
 	r, err := markdown.NewReader(
 		strings.NewReader(sample),
-		markdown.WithHeadingSplit(2),
-		markdown.WithSourceName("test.md"),
+		markdown.Config{HeadingSplitLevel: 2, SourceName: "test.md"},
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -97,13 +96,12 @@ func TestHeadingSplitH2(t *testing.T) {
 }
 
 func TestNewReaderRejectsInvalidConfiguration(t *testing.T) {
-	for _, options := range [][]markdown.Option{
-		{nil},
-		{markdown.WithHeadingSplit(0)},
-		{markdown.WithHeadingSplit(7)},
+	for _, config := range []markdown.Config{
+		{HeadingSplitLevel: -1},
+		{HeadingSplitLevel: 7},
 	} {
-		if _, err := markdown.NewReader(strings.NewReader(sample), options...); err == nil {
-			t.Fatalf("NewReader(%v) error = nil", options)
+		if _, err := markdown.NewReader(strings.NewReader(sample), config); err == nil {
+			t.Fatalf("NewReader(%+v) error = nil", config)
 		}
 	}
 }

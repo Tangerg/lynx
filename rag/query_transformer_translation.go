@@ -68,7 +68,7 @@ func NewTranslationTransformer(cfg TranslationTransformerConfig) (Transformer, e
 		return nil, err
 	}
 
-	client, err := chatclient.New(cfg.ChatModel)
+	client, err := chatclient.New(cfg.ChatModel, chatclient.Config{})
 	if err != nil {
 		return nil, err
 	}

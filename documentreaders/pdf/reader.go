@@ -25,33 +25,14 @@ const (
 // Read may return successfully decoded documents together with this error.
 var ErrPartialRead = errors.New("pdf reader: one or more pages could not be read")
 
-// Option configures a [Reader].
-type Option func(*Reader)
-
-// WithPerPage switches to per-page emission — one document per PDF page.
-func WithPerPage() Option {
-	return func(r *Reader) { r.perPage = true }
-}
-
-// WithSourceName stamps every emitted document with the given source
-// name (file path, URL, ...).
-func WithSourceName(name string) Option {
-	return func(r *Reader) { r.sourceName = name }
-}
-
-// WithPassword supplies a password used to decrypt the PDF if it is
-// encrypted. The empty string means "no password" (default).
-func WithPassword(pw string) Option {
-	return func(r *Reader) { r.password = pw }
-}
-
-// WithMetadata adds validated caller-supplied metadata to every emitted
-// document. The map is deep-cloned, and reader-derived pdf.* keys take
-// precedence on conflict.
-func WithMetadata(md coremetadata.Map) Option {
-	return func(r *Reader) {
-		r.extraMetadata = md.Clone()
-	}
+// Config controls PDF extraction. PerPage emits one document per readable
+// page. Password is used for encrypted PDFs. Metadata is cloned by NewReader,
+// and reader-derived pdf.* keys take precedence on conflict.
+type Config struct {
+	PerPage    bool
+	SourceName string
+	Password   string
+	Metadata   coremetadata.Map
 }
 
 // Reader extracts documents from PDF.
@@ -68,19 +49,20 @@ type Reader struct {
 // io.ReaderAt because ledongthuc/pdf parses PDF objects via random access.
 // size is the total byte length of the PDF — pass file.Size() (from
 // os.File.Stat) or len(buf) for in-memory data.
-func NewReader(src io.ReaderAt, size int64, opts ...Option) (*Reader, error) {
+func NewReader(src io.ReaderAt, size int64, config Config) (*Reader, error) {
 	if isNil(src) {
 		return nil, errors.New("pdf reader: source must not be nil")
 	}
 	if size <= 0 {
 		return nil, errors.New("pdf reader: size must be positive")
 	}
-	r := &Reader{src: src, size: size}
-	for index, opt := range opts {
-		if opt == nil {
-			return nil, fmt.Errorf("pdf reader: option %d is nil", index)
-		}
-		opt(r)
+	r := &Reader{
+		src:           src,
+		size:          size,
+		perPage:       config.PerPage,
+		sourceName:    config.SourceName,
+		password:      config.Password,
+		extraMetadata: config.Metadata.Clone(),
 	}
 	if err := r.extraMetadata.Validate(); err != nil {
 		return nil, fmt.Errorf("pdf reader: invalid metadata: %w", err)

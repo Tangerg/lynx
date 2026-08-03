@@ -75,8 +75,8 @@ func chatAgent() *core.Agent {
 func TestChatProvider_OverridesEngineClient(t *testing.T) {
 	platformModel := newRecordingModel()
 	overrideModel := newRecordingModel()
-	platformClient, _ := chatclient.New(platformModel)
-	overrideClient, _ := chatclient.New(overrideModel)
+	platformClient, _ := chatclient.New(platformModel, chatclient.Config{})
+	overrideClient, _ := chatclient.New(overrideModel, chatclient.Config{})
 
 	a := chatAgent()
 	engine := agent.MustNewEngine(runtime.Config{Chat: core.ChatCapability{Model: platformClient, Streamer: platformClient}})
@@ -108,7 +108,7 @@ func TestChatProvider_OverridesEngineClient(t *testing.T) {
 // registered (or one that returns nil), the engine's client is used.
 func TestChatProvider_FallsBackToEngine(t *testing.T) {
 	platformModel := newRecordingModel()
-	platformClient, _ := chatclient.New(platformModel)
+	platformClient, _ := chatclient.New(platformModel, chatclient.Config{})
 
 	a := chatAgent()
 	engine := agent.MustNewEngine(runtime.Config{Chat: core.ChatCapability{Model: platformClient, Streamer: platformClient}})
@@ -136,7 +136,7 @@ func TestChatProvider_FallsBackToEngine(t *testing.T) {
 
 func TestChatProvider_TypedNilFallsBackToEngine(t *testing.T) {
 	platformModel := newRecordingModel()
-	platformClient, _ := chatclient.New(platformModel)
+	platformClient, _ := chatclient.New(platformModel, chatclient.Config{})
 	var typedNil *chatclient.Client
 
 	a := chatAgent()
@@ -181,7 +181,7 @@ func (p panickingChatProvider) Chat(core.ProcessView) core.ChatCapability {
 }
 
 func TestChatProvider_RejectsStreamerWithoutModel(t *testing.T) {
-	platformClient, _ := chatclient.New(newRecordingModel())
+	platformClient, _ := chatclient.New(newRecordingModel(), chatclient.Config{})
 	a := chatAgent()
 	engine := agent.MustNewEngine(runtime.Config{Chat: core.ChatCapability{Model: platformClient, Streamer: platformClient}})
 	if _, err := engine.Deploy(t.Context(), a); err != nil {
@@ -204,7 +204,7 @@ func TestChatProvider_RejectsStreamerWithoutModel(t *testing.T) {
 
 func TestChatProvider_PanicFailsProcess(t *testing.T) {
 	cause := errors.New("chat provider sentinel")
-	platformClient, _ := chatclient.New(newRecordingModel())
+	platformClient, _ := chatclient.New(newRecordingModel(), chatclient.Config{})
 	a := chatAgent()
 	engine := agent.MustNewEngine(runtime.Config{Chat: core.ChatCapability{Model: platformClient}})
 	process, err := engine.Run(

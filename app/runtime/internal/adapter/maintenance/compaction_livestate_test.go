@@ -41,7 +41,7 @@ func TestCompactorAppendsLiveStateReminder(t *testing.T) {
 	for range total {
 		_ = store.Write(context.Background(), sessID, chat.NewUserMessage(chat.NewTextPart("msg")))
 	}
-	client, _ := chatclient.New(newTextStubModel("BULLETS"))
+	client, _ := chatclient.New(newTextStubModel("BULLETS"), chatclient.Config{})
 
 	live := func(_ context.Context, id string) LiveStateSnapshot {
 		if id != sessID {
@@ -86,7 +86,7 @@ func TestCompactorSkipsReminderWhenNoLiveState(t *testing.T) {
 	for range total {
 		_ = store.Write(context.Background(), sessID, chat.NewUserMessage(chat.NewTextPart("msg")))
 	}
-	client, _ := chatclient.New(newTextStubModel("BULLETS"))
+	client, _ := chatclient.New(newTextStubModel("BULLETS"), chatclient.Config{})
 
 	live := func(context.Context, string) LiveStateSnapshot { return LiveStateSnapshot{} }
 	c := NewCompactor(store, constClient(client), live, CompactionConfig{MaxMessages: total, KeepRecent: 4})

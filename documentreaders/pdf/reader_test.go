@@ -9,38 +9,29 @@ import (
 
 // PDF parsing correctness is exercised by the upstream
 // github.com/ledongthuc/pdf test suite. The tests here cover only the
-// thin lynx wrapper: option plumbing, input validation, error paths.
+// thin lynx wrapper: configuration, input validation, and error paths.
 // End-to-end byte-level coverage will land with a real PDF fixture
 // under testdata/ in a follow-up.
 
 func TestNewReader_ValidatesInputs(t *testing.T) {
-	if _, err := pdf.NewReader(nil, 100); err == nil {
+	if _, err := pdf.NewReader(nil, 100, pdf.Config{}); err == nil {
 		t.Error("nil src: expected error, got nil")
 	}
-	if _, err := pdf.NewReader(bytes.NewReader([]byte{}), 0); err == nil {
+	if _, err := pdf.NewReader(bytes.NewReader([]byte{}), 0, pdf.Config{}); err == nil {
 		t.Error("zero size: expected error, got nil")
 	}
-	if _, err := pdf.NewReader(bytes.NewReader([]byte{}), -1); err == nil {
+	if _, err := pdf.NewReader(bytes.NewReader([]byte{}), -1, pdf.Config{}); err == nil {
 		t.Error("negative size: expected error, got nil")
 	}
 }
 
-func TestNewReader_AcceptsOptions(t *testing.T) {
-	// Just verify the option plumbing — no parsing here. Pass an empty
+func TestNewReaderAcceptsConfig(t *testing.T) {
+	// Just verify configuration plumbing — no parsing here. Pass an empty
 	// reader so the constructor succeeds; Read() failing is fine.
 	src := bytes.NewReader([]byte("not really a pdf"))
 	if _, err := pdf.NewReader(src, int64(src.Len()),
-		pdf.WithPerPage(),
-		pdf.WithSourceName("ignored.pdf"),
-		pdf.WithPassword("hunter2"),
+		pdf.Config{PerPage: true, SourceName: "ignored.pdf", Password: "hunter2"},
 	); err != nil {
-		t.Fatalf("constructor rejected valid options: %v", err)
-	}
-}
-
-func TestNewReaderRejectsNilOption(t *testing.T) {
-	src := bytes.NewReader([]byte("not really a pdf"))
-	if _, err := pdf.NewReader(src, int64(src.Len()), nil); err == nil {
-		t.Fatal("nil option was accepted")
+		t.Fatalf("constructor rejected valid config: %v", err)
 	}
 }

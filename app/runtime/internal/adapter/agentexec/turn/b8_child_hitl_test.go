@@ -1040,7 +1040,7 @@ func buildB8Dispatcher(
 	hookResolver staticHookResolver,
 ) turnDriver {
 	t.Helper()
-	client, err := chatclient.New(model)
+	client, err := chatclient.New(model, chatclient.Config{})
 	if err != nil {
 		t.Fatalf("chatclient.New: %v", err)
 	}
@@ -1085,7 +1085,7 @@ func buildB8PersistentDispatcher(
 	buildID string,
 ) turnDriver {
 	t.Helper()
-	client, err := chatclient.New(model)
+	client, err := chatclient.New(model, chatclient.Config{})
 	if err != nil {
 		t.Fatalf("chatclient.New: %v", err)
 	}

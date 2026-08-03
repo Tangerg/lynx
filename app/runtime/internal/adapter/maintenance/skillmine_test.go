@@ -56,7 +56,7 @@ func minerFixture(t *testing.T, reply string, config MinerConfig) (*SkillMiner, 
 		t.Fatal(err)
 	}
 	model := newTextStubModel(reply)
-	client, err := chatclient.New(model)
+	client, err := chatclient.New(model, chatclient.Config{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -79,7 +79,7 @@ func minerRevisionFixture(t *testing.T, source skillSource, replies ...scriptedR
 	); err != nil {
 		t.Fatal(err)
 	}
-	client, err := chatclient.New(&scriptedModel{replies: replies})
+	client, err := chatclient.New(&scriptedModel{replies: replies}, chatclient.Config{})
 	if err != nil {
 		t.Fatal(err)
 	}

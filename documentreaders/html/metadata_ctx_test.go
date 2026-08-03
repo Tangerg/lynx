@@ -10,10 +10,10 @@ import (
 	"github.com/Tangerg/lynx/documentreaders/html"
 )
 
-func TestWithMetadata_AppliedToEveryDocument(t *testing.T) {
+func TestConfigMetadataAppliedToEveryDocument(t *testing.T) {
 	metadata := mustMetadata(t, map[string]any{"source": "page.html", "tenant": "acme"})
 	r, err := html.NewReader(strings.NewReader(samplePage),
-		html.WithMetadata(metadata),
+		html.Config{Metadata: metadata},
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -33,10 +33,10 @@ func TestWithMetadata_AppliedToEveryDocument(t *testing.T) {
 	}
 }
 
-func TestWithMetadata_RejectsInvalidMetadataAtConstruction(t *testing.T) {
+func TestConfigMetadataRejectsInvalidValueAtConstruction(t *testing.T) {
 	_, err := html.NewReader(
 		strings.NewReader(samplePage),
-		html.WithMetadata(coremetadata.Map{"broken": []byte("{")}),
+		html.Config{Metadata: coremetadata.Map{"broken": []byte("{")}},
 	)
 	if !errors.Is(err, coremetadata.ErrInvalidValue) {
 		t.Fatalf("NewReader error = %v, want ErrInvalidValue", err)
@@ -53,7 +53,7 @@ func mustMetadata(t *testing.T, values map[string]any) coremetadata.Map {
 }
 
 func TestRead_HonorsContextCancellation(t *testing.T) {
-	r, _ := html.NewReader(strings.NewReader(samplePage))
+	r, _ := html.NewReader(strings.NewReader(samplePage), html.Config{})
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 	if _, err := r.Read(ctx); err == nil {

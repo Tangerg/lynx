@@ -12,7 +12,7 @@
 
 ## 架构心智
 
-- **统一结果**:每个 reader 公开具体 `Read(context.Context)` 方法并返回 Core `Document`;构造用 functional options 配格式专属行为(如按标题切分)。Core 不拥有无消费者的通用 Reader 接口。
+- **统一结果**:每个 reader 公开具体 `Read(context.Context)` 方法并返回 Core `Document`;构造用显式 `Config` 表达格式专属行为(如按标题切分)。Core 不拥有无消费者的通用 Reader 接口。
 - **元数据 key 带 reader 前缀**:各格式的元数据落在自己的命名空间,跨 reader 不冲突。
 - **全量读进内存,不做流式**:面向小文档;大文档的分块由调用方负责。
 - **结构化格式保留层级**:如标题层级构成路径,给 LLM 提供上下文定位。

@@ -96,7 +96,7 @@ func TestSupervisor_Validation(t *testing.T) {
 // returns a final answer directly, confirming the chat client wiring and
 // Parse path produce the typed output.
 func TestSupervisor_EndToEnd(t *testing.T) {
-	client, err := chatclient.New(toolCallingModel{})
+	client, err := chatclient.New(toolCallingModel{}, chatclient.Config{})
 	if err != nil {
 		t.Fatalf("NewClient: %v", err)
 	}

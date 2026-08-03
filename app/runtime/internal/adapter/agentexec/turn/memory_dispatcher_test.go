@@ -172,7 +172,7 @@ func TestNewRequiresApprovalGate(t *testing.T) {
 // way the model sees the ordered text+image user message.
 func TestDispatcher_InjectSteering_PreservesStructuredContent(t *testing.T) {
 	stub := newHistoryAwareStub()
-	client, _ := chatclient.New(stub)
+	client, _ := chatclient.New(stub, chatclient.Config{})
 	store := inmemory.New()
 	eng := buildEngine(t, agentexec.Config{ChatClient: client, HistoryStore: store})
 	dispatcher := mustTurn(turn.New(turnDeps(eng, func(deps *turn.Dependencies) {
@@ -266,7 +266,7 @@ func TestDispatcher_InjectSteering_UnknownTurn(t *testing.T) {
 // (R model), and that the next run segment can attach before Resume drives the
 // continuation to completion.
 func TestDispatcher_ApprovalGate_AllowOnce(t *testing.T) {
-	client, _ := chatclient.New(newStubChatModel())
+	client, _ := chatclient.New(newStubChatModel(), chatclient.Config{})
 	eng := buildEngine(t, agentexec.Config{ChatClient: client})
 	dispatcher := mustTurn(turn.New(turnDeps(eng, withApproval(mustApprovalPolicy(t, approval.ModeBalanced, nil))))) // shell → gate
 
@@ -334,7 +334,7 @@ func TestDispatcher_ApprovalGate_AllowOnce(t *testing.T) {
 func TestDispatcher_ApprovalGate_ResumeAtPendingCall(t *testing.T) {
 	model := &countingStubModel{}
 	model.defaults = &chatmodel.Options{Model: "stub-counting"}
-	client, _ := chatclient.New(model)
+	client, _ := chatclient.New(model, chatclient.Config{})
 	store := inmemory.New()
 	eng := buildEngine(t, agentexec.Config{ChatClient: client, HistoryStore: store})
 	dispatcher := mustTurn(turn.New(turnDeps(eng, withApproval(mustApprovalPolicy(t, approval.ModeBalanced, nil))))) // shell → gate
@@ -398,7 +398,7 @@ func TestDispatcher_ApprovalGate_ResumeAtPendingCall(t *testing.T) {
 // approval gate; canceling it (instead of approving) must surface
 // TurnEnd{Canceled}.
 func TestDispatcher_Cancel_ParkedTurn_DeliversTurnEnd(t *testing.T) {
-	client, _ := chatclient.New(newStubChatModel())
+	client, _ := chatclient.New(newStubChatModel(), chatclient.Config{})
 	eng := buildEngine(t, agentexec.Config{ChatClient: client})
 	dispatcher := mustTurn(turn.New(turnDeps(eng, withApproval(mustApprovalPolicy(t, approval.ModeBalanced, nil)))))
 
@@ -442,7 +442,7 @@ func TestDispatcher_Cancel_ParkedTurn_DeliversTurnEnd(t *testing.T) {
 // recoverable result; the model emits its final reply and the turn
 // still completes.
 func TestDispatcher_ApprovalGate_Deny(t *testing.T) {
-	client, _ := chatclient.New(newStubChatModel())
+	client, _ := chatclient.New(newStubChatModel(), chatclient.Config{})
 	eng := buildEngine(t, agentexec.Config{ChatClient: client})
 	dispatcher := mustTurn(turn.New(turnDeps(eng, withApproval(mustApprovalPolicy(t, approval.ModeBalanced, nil)))))
 
@@ -488,7 +488,7 @@ func TestDispatcher_ApprovalGate_Deny(t *testing.T) {
 // invisible under ModeYolo — the turn never parks (no TreeInterrupted),
 // the tool runs as if no gate were wired.
 func TestDispatcher_ApprovalGate_YoloSkipsEvent(t *testing.T) {
-	client, _ := chatclient.New(newStubChatModel())
+	client, _ := chatclient.New(newStubChatModel(), chatclient.Config{})
 	eng := buildEngine(t, agentexec.Config{ChatClient: client})
 	dispatcher := mustTurn(turn.New(turnDeps(eng, withApproval(mustApprovalPolicy(t, approval.ModeYolo, nil)))))
 

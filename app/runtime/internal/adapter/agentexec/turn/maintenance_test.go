@@ -36,7 +36,7 @@ func TestTurnDelegatesCleanBoundaryMaintenanceAndPublishesCompaction(t *testing.
 	maintenance := &recordingMaintenance{result: turn.BoundaryMaintenanceResult{
 		Compaction: turn.CompactionResult{Compacted: true, MessagesBefore: 12, MessagesAfter: 5},
 	}}
-	client, err := chatclient.New(newCapturingModel())
+	client, err := chatclient.New(newCapturingModel(), chatclient.Config{})
 	if err != nil {
 		t.Fatalf("chatclient.New: %v", err)
 	}

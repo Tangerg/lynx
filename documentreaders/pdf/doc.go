@@ -5,7 +5,7 @@
 //
 //   - Whole-document mode (default): one [*document.Document] holding
 //     the concatenated text of every page.
-//   - Per-page mode (opt in via [WithPerPage]): one document per page,
+//   - Per-page mode (opt in via [Config.PerPage]): one document per page,
 //     with `pdf.page` (1-indexed) and `pdf.pages.total` metadata stamped.
 //
 // Limitations: text-only extraction; tables, columns and exotic font
@@ -14,6 +14,6 @@
 //
 // Example:
 //
-//	r, _ := pdf.NewReader(file, fileSize, pdf.WithPerPage())
+//	r, _ := pdf.NewReader(file, fileSize, pdf.Config{PerPage: true})
 //	docs, _ := r.Read(ctx)
 package pdf

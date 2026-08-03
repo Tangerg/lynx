@@ -13,8 +13,8 @@ var (
 	// ErrNilModel reports that New was called without a synchronous model.
 	ErrNilModel = errors.New("chatclient: nil model")
 	// ErrStreamingUnsupported reports that a Client has no streaming
-	// capability. Pass a model that also implements [chat.Streamer], or use
-	// [WithStreamer] when call and stream capabilities are separate values.
+	// capability. Pass a model that also implements [chat.Streamer], or set
+	// [Config.Streamer] when call and stream capabilities are separate values.
 	ErrStreamingUnsupported = errors.New("chatclient: streaming unsupported")
 )
 
@@ -34,38 +34,29 @@ type Client struct {
 }
 
 // New constructs a Client around model. When model also implements
-// [chat.Streamer], Stream uses that capability automatically. Functional
-// options are reserved for construction-time defaults and composition; a
-// request itself remains an ordinary [chat.Request].
-func New(model chat.Model, options ...Option) (*Client, error) {
+// [chat.Streamer], Stream uses that capability automatically unless config
+// supplies a separate streaming capability.
+func New(model chat.Model, config Config) (*Client, error) {
 	if isNil(model) {
 		return nil, ErrNilModel
 	}
 
-	cfg := config{}
-	for _, option := range options {
-		if option == nil {
-			return nil, errors.New("chatclient: nil option")
-		}
-		if err := option.apply(&cfg); err != nil {
-			return nil, err
-		}
-	}
-	if err := cfg.defaults.Validate(); err != nil {
+	cfg, err := config.snapshot()
+	if err != nil {
 		return nil, err
 	}
 
-	streamer := cfg.streamer
+	streamer := cfg.Streamer
 	if streamer == nil {
 		streamer, _ = model.(chat.Streamer)
 	}
 
-	model = chat.Wrap(model, cfg.callMiddleware...)
+	model = chat.Wrap(model, cfg.CallMiddleware...)
 	if isNil(model) {
 		return nil, errors.New("chatclient: call middleware returned a nil model")
 	}
 	if streamer != nil {
-		streamer = chat.WrapStream(streamer, cfg.streamMiddleware...)
+		streamer = chat.WrapStream(streamer, cfg.StreamMiddleware...)
 		if isNil(streamer) {
 			return nil, errors.New("chatclient: stream middleware returned a nil streamer")
 		}
@@ -74,7 +65,7 @@ func New(model chat.Model, options ...Option) (*Client, error) {
 	return &Client{
 		model:    model,
 		streamer: streamer,
-		defaults: cfg.defaults.Clone(),
+		defaults: cfg.Defaults,
 	}, nil
 }
 

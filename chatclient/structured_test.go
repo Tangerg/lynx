@@ -19,7 +19,7 @@ func TestCallStructuredInjectsInstructionsAndPreservesRequest(t *testing.T) {
 		}
 		return response, nil
 	}}
-	client, err := New(model)
+	client, err := New(model, Config{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -41,7 +41,8 @@ func TestCallStructuredPreservesResponseOnDecodeAndCallErrors(t *testing.T) {
 	decodeResponse := responseWithText(t, "not JSON")
 	client, err := New(callOnly{call: func(context.Context, *chat.Request) (*chat.Response, error) {
 		return decodeResponse, nil
-	}})
+	}}, Config{})
+
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -54,7 +55,8 @@ func TestCallStructuredPreservesResponseOnDecodeAndCallErrors(t *testing.T) {
 	callError := errors.New("provider failed")
 	client, err = New(callOnly{call: func(context.Context, *chat.Request) (*chat.Response, error) {
 		return callResponse, callError
-	}})
+	}}, Config{})
+
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -69,7 +71,8 @@ func TestCallStructuredValidatesBoundariesBeforeModel(t *testing.T) {
 	client, err := New(callOnly{call: func(context.Context, *chat.Request) (*chat.Response, error) {
 		calls.Add(1)
 		return responseWithText(t, `{}`), nil
-	}})
+	}}, Config{})
+
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -98,7 +101,8 @@ func TestCallStructuredValidatesBoundariesBeforeModel(t *testing.T) {
 func TestCallStructuredAllowsDecodeOnlyOutputWithoutUserMessage(t *testing.T) {
 	client, err := New(callOnly{call: func(context.Context, *chat.Request) (*chat.Response, error) {
 		return responseWithText(t, "plain"), nil
-	}})
+	}}, Config{})
+
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -127,7 +131,8 @@ func TestCallStructuredAppendsInstructionsToMediaOnlyUser(t *testing.T) {
 			t.Fatalf("media-only instructions = %q", got)
 		}
 		return responseWithText(t, "ok"), nil
-	}})
+	}}, Config{})
+
 	if err != nil {
 		t.Fatal(err)
 	}

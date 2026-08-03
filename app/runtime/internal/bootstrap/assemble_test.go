@@ -350,7 +350,7 @@ func TestAssemblyDirectToolsDoNotDependOnAgentResolver(t *testing.T) {
 func runtimeConfigWithRequiredDeps(t *testing.T) Config {
 	t.Helper()
 
-	client, err := chatclient.New(newReplyStub("ok"))
+	client, err := chatclient.New(newReplyStub("ok"), chatclient.Config{})
 	if err != nil {
 		t.Fatalf("chat client: %v", err)
 	}

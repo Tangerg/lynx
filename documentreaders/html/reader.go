@@ -24,34 +24,14 @@ const (
 	MetadataSourceName  = "html.source"
 )
 
-// Option configures a [Reader].
-type Option func(*Reader)
-
-// WithSelector makes the reader emit one document per element matched
-// by the CSS selector (e.g. "article", "div.post"). Standard goquery
-// selector syntax applies.
-func WithSelector(selector string) Option {
-	return func(r *Reader) { r.selector = selector }
-}
-
-// WithSourceName stamps every document with the supplied source name.
-func WithSourceName(name string) Option {
-	return func(r *Reader) { r.sourceName = name }
-}
-
-// WithStripWhitespace controls whether consecutive whitespace runs in
-// the extracted text are collapsed to a single space. Default true.
-func WithStripWhitespace(strip bool) Option {
-	return func(r *Reader) { r.stripWhitespace = strip }
-}
-
-// WithMetadata adds validated caller-supplied metadata to every emitted
-// document. The map is deep-cloned, and reader-derived html.* keys take
-// precedence on conflict.
-func WithMetadata(md coremetadata.Map) Option {
-	return func(r *Reader) {
-		r.extraMetadata = md.Clone()
-	}
+// Config controls HTML extraction. By default whitespace runs are collapsed;
+// PreserveWhitespace retains the source spacing instead. Metadata is cloned
+// by NewReader, and reader-derived html.* keys take precedence on conflict.
+type Config struct {
+	Selector           string
+	SourceName         string
+	PreserveWhitespace bool
+	Metadata           coremetadata.Map
 }
 
 // Reader extracts documents from HTML.
@@ -65,16 +45,16 @@ type Reader struct {
 }
 
 // NewReader builds an HTML reader over src.
-func NewReader(src io.Reader, opts ...Option) (*Reader, error) {
+func NewReader(src io.Reader, config Config) (*Reader, error) {
 	if isNil(src) {
 		return nil, errors.New("html reader: source must not be nil")
 	}
-	r := &Reader{reader: src, stripWhitespace: true}
-	for index, opt := range opts {
-		if opt == nil {
-			return nil, fmt.Errorf("html reader: option %d is nil", index)
-		}
-		opt(r)
+	r := &Reader{
+		reader:          src,
+		selector:        config.Selector,
+		sourceName:      config.SourceName,
+		stripWhitespace: !config.PreserveWhitespace,
+		extraMetadata:   config.Metadata.Clone(),
 	}
 	if err := r.extraMetadata.Validate(); err != nil {
 		return nil, fmt.Errorf("html reader: invalid metadata: %w", err)

@@ -36,7 +36,7 @@ func (m *refusingStubModel) Stream(context.Context, *chat.Request) iter.Seq2[*ch
 // terminal planner.
 func TestTurnCompletionCarriesTheProcessFailure(t *testing.T) {
 	want := errors.New("model refused the request")
-	client, err := chatclient.New(&refusingStubModel{err: want})
+	client, err := chatclient.New(&refusingStubModel{err: want}, chatclient.Config{})
 	if err != nil {
 		t.Fatalf("chatclient.New: %v", err)
 	}
