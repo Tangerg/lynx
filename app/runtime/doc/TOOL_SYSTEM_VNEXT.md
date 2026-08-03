@@ -226,7 +226,7 @@
 | 4 | Manifest、Exposure、模型/状态驱动工具清单 | 完成 |
 | 5 | 工具名、参数和描述的全量收敛 | 完成 |
 | 6 | 删除冗余能力和配置 | 完成（6a、6b、6c） |
-| 7 | 全仓验证、文档收敛和最终审计 | 进行中（7a、7b、7c、7d、7e 完成） |
+| 7 | 全仓验证、文档收敛和最终审计 | 进行中（7a、7b、7c、7d、7e、7f 完成） |
 
 每批必须独立验证、独立提交并推送。实现发现契约需要调整时，先更新本文，再在同一批修改代码和测试。
 
@@ -387,3 +387,10 @@
 - `ask_user` schema 与真实 question invariant 对齐：question/label 非空，header 最长 12 字符，options 为 2..4；描述删除 `chip` 等展示控件词，并明确 options 与 multi_select 的使用条件；
 - 网络、Schedule、Goal result 和 `search_tools` 的模型文本删除 `runtime`、`client`、`operator`、MCP/provider 实现措辞，分别改用 configured policy/default、service、built-in 和 authenticated integration 等行为词；三个网络子模块的发布版本同步钉入 Runtime；
 - catalog fitness guard 在 every-optional-subsystem 的真实内建工具集合上永久验证 Definition、object schema、`additionalProperties=false` 和模型契约实现词；第三方 MCP/A2A definition 不受内建文案风格约束。该 guard 与 safety parity 各守一个维度，不合并成新的 registry abstraction。
+
+### 批次 7f
+
+- 现行架构基准把旧 `task` / Todo 改为 `delegate_task` / Plan，端口文档同步真实的 `toolset.PlanStore`、`agentexec.PlanReader` 与 SQLite plan store，不再让已经删除的类型看起来仍是当前设计；
+- `ARCHITECTURE_HYGIENE_PLAN.md` 明确降级为历史实施台账，`doc/inspiration` 总索引明确降级为同类产品对比快照；其中 Todo/Task 等词只保留为历史代码或其他产品原生术语，不再声明 Lynx 当前实现状态；
+- 当前规范只有本文与 `EXECUTION_CENTERED_ARCHITECTURE.md` / `EXTENSIBILITY.md`。历史材料通过醒目链接回到本文，而不是复制一份会再次漂移的“当前工具表”；
+- 排除已标记历史材料、本文删除记录和本轮刻意未修改的前端 generated baseline 后，现行 runtime 文档不再出现 Todo、`task`、`update_plan` 或 `update_goal`。

@@ -28,7 +28,7 @@ Run 生命周期、Agent process 装配、turn 状态机、协议 dispatch 和�
 | 长期知识 | `application/workspace.KnowledgeStore`（写/列表）与 `adapter/agentexec.KnowledgeReader`（提示词读取） | `infra/storage.FileKnowledgeStore` |
 | 自治目标 | `application/goals.Store` 与 `application/goals.State` | SQLite goal store |
 | 计划任务 | `application/schedules.ManagementStore`、`RunNowStore`、`WorkerStore` | SQLite schedule store |
-| 待办 | `todotool.Store`、`agentexec.TodoReader`、session cleanup port | SQLite todo store |
+| 执行计划 | `toolset.PlanStore`、`agentexec.PlanReader`、queries/maintenance 的消费方只读端口 | SQLite plan store |
 | turn steering | `adapter/agentexec/turn.SteeringSink` | conversation/message adapter |
 | turn-boundary maintenance | `adapter/agentexec/turn.BoundaryMaintenance` | `adapter/maintenance.Suite`（组合 compaction / extraction / skill lifecycle workers） |
 | utility chat model validation | `application/models.ChatModelValidator` | `adapter/modelclient` + `infra/llm` |

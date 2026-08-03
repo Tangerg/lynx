@@ -2,7 +2,7 @@
 
 > **这是什么**：对桌面上 6 个同类生产级 coding agent 的源码级对比分析，用统一方法（源码级自析 → 过 lynx 四道筛子 → 只收可搬点子），产出"哪些能力值得吸纳进 lyra"。每个应用一份独立文档；本文件是**跨应用合并排序 backlog + 总索引 + 刻意不吸总表**。
 >
-> **状态**：部分仍 **proposed**（分析产物，未实现）。**已落地（前后端）**：T1 OS 沙箱(C7 隔离运行) · T3 工具搜索 · T4 跨会话记忆(C8) · T5 Goal mode · T7 自进化 skill · T8 压缩后活状态 reminder · T9 models.dev 目录 · T13 doom_loop 守卫；T6 结构化执行 TODO **原已实现**。**仍 open**：T2 凭证经纪人（头号）· T10~T12 · T14~T25。其余落地时每条按"破坏性公开 API 改动须先咨询"走。
+> **状态**：历史对比快照，不再作为当前实现状态或命名规范。各家原生术语（包括 Todo/Task）为保真对照而保留；Lynx 当前取舍、删除范围与唯一 Plan/Goal/Delegated Task 词汇以 [`TOOL_SYSTEM_VNEXT.md`](../TOOL_SYSTEM_VNEXT.md) 为准。
 
 ## 0. 六道对照 + 索引
 

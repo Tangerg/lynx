@@ -127,13 +127,13 @@ payload 一起原子提交；只有 agentexec 能解释 payload 并校验两侧 
 
 ### 3.2 委派树与 HITL
 
-`task` 是 Agent framework 的同步 AgentTool：root process 创建 child process，Runtime
+`delegate_task` 是 Agent framework 的同步 AgentTool：root process 创建 child process，Runtime
 通过显式 child options 传播本 Run 的 provider/model、observer、approval/hooks 和预算
 归属，而不修改 Agent 默认的最小继承策略。
 
 - token/cost/model-call 计入完整 process subtree；
 - cancel root 会递归终止存活 child；
-- `task` 本身是纯编排，不重复审批或执行 tool hooks；child 的真实工具调用逐个 gating；
+- `delegate_task` 本身是纯编排，不重复审批或执行 tool hooks；child 的真实工具调用逐个 gating；
 - child approval/question 产生真实 nested suspension，不编码为普通工具 JSON；
 - Agent 私有 checkpoint 保存 parent pending call 与 child relation；App 在完整 waiting tree
   capture 后，以一个 tree-barrier transaction 同时提交 checkpoint、root-owned Pending 与
@@ -262,7 +262,7 @@ work 由同一 Session 下的 first-class child Run 表达，不再从 child pro
 ### 3.4 Tool、MCP 与 maintenance
 
 `adapter/toolset` 创建内建工具、MCP/A2A/LSP/exec 能力、role resolver、diagnostic catalog
-和 capability closers。Agent Engine 只在部署 subtask 后把唯一的 `task` tool 注回
+和 capability closers。Agent Engine 只在部署 delegated Agent 后把唯一的 `delegate_task` tool 注回
 Resolver；catalog 仍归 toolset。
 
 MCP status/catalog/connection/registry 四片接口定义在真实消费者
@@ -284,7 +284,7 @@ Domain package 只维护需要跨用例保护的不变量。例如：
 - `provider`/`modelrole`：显式 provider+model 选择；
 - `approval`：中断审批语义；
 - `session`/`editguard`：会话隔离语义与编辑安全；
-- `knowledge`、`todo`、`schedule`、`tool`：各自稳定领域规则。
+- `knowledge`、`plan`、`schedule`、`tool`：各自稳定领域规则。
 
 Application package 按完整用例组织。它可以协调多个 Domain port，但不 import 具体
 SQLite、Git、MCP、Agent runtime、concrete chat client 或 protocol DTO；Core chat/media
