@@ -1,6 +1,7 @@
 go 1.26.5
 
 use (
+	.
 	./a2a
 	./agent
 	./app/runtime
