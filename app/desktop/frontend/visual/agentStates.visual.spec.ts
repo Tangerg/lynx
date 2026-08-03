@@ -175,7 +175,7 @@ test("composer keeps one production edge and 6/8 footer inset", async ({ page })
   const material = await composer.evaluate((element) => {
     const probe = document.createElement("div");
     probe.style.boxShadow =
-      "0 0 0 var(--composer-edge-width) color-mix(in oklab, var(--color-text) 18%, transparent), var(--shadow-composer-depth)";
+      "0 0 0 var(--composer-edge-width) color-mix(in oklab, var(--color-text) 14%, transparent), var(--shadow-composer-depth)";
     probe.style.background = "var(--app-composer-surface)";
     probe.style.backdropFilter = "var(--composer-backdrop)";
     document.body.append(probe);

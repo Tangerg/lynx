@@ -581,7 +581,7 @@
   --menu-row-height: 28px;
   --dock-tab-height: 28px;
   --control-edge-width: 1px;
-  --composer-edge-width: 1px;
+  --composer-edge-width: 0.5px;
 
   /* Density — first-paint defaults for `comfortable`. installUiStoreEffects
      recomputes these from the user's pick (lib/density.ts). Chrome-bar heights
@@ -645,7 +645,7 @@
    * ----------------------------------------------------------------------- */
   --shadow-border: 0 0 0 1px color-mix(in srgb, var(--color-text) 9%, transparent);
   --shadow-control: none;
-  --shadow-composer-depth: 0 0 12px -2px var(--shadow-cast), 0 10px 30px -6px var(--shadow-cast);
+  --shadow-composer-depth: 0 0 26px -8px var(--shadow-cast), 0 6px 22px -12px var(--shadow-cast);
   --shadow-popover: 0 6px 20px var(--shadow-cast);
   --shadow-well: none;
   --shadow-raised-chip: none;
@@ -671,7 +671,7 @@
   --app-header-surface: transparent;
   --app-dock-surface: color-mix(in oklab, var(--color-bg) 25%, var(--color-surface));
   --app-card-surface: var(--color-elevated);
-  --app-composer-surface: color-mix(in oklab, var(--app-card-surface) 72%, transparent);
+  --app-composer-surface: color-mix(in oklab, var(--app-content-surface) 86%, transparent);
   --composer-backdrop: blur(20px) saturate(1.4);
   /* Edge GEOMETRY only — offsets and spread, no colour. The colour is the
      shell's live `--shell-boundary` / `--split-boundary`, and it has to be
@@ -1344,10 +1344,16 @@ html.theme-dark {
 
 /* Dock chrome: the tab strip is a dense desktop toolbar, not a second content
    header. Keep its controls close to the pane edge while the view-owned toolbar
-   below retains the standard reading inset. */
+   below retains the standard reading inset.
+   The leading inset is the exception, and it is not density — it is the seam. At
+   6px the selected tab's fill started 6px from the split, so the corner ran
+   plane(255) → 4px of cast → 6px of dock(243) → chip(230): the brightest and the
+   darkest values on that edge with a light sliver wedged between them, which reads
+   as a notch bitten out of the dock rather than as a boundary. 14px gives the dock
+   enough of its own material to be the thing you see there. */
 .agent-context-dock > .agent-surface-header:first-child {
   gap: 4px;
-  padding-inline: 6px;
+  padding-inline: 14px 6px;
 }
 
 .agent-dock-tabs {
@@ -1459,7 +1465,7 @@ html[data-control-treatment="elevated"]
    style token, so focus can answer it: a var() inside a :root-declared token
    resolves at :root, where an element-level state variable does not exist. */
 .agent-composer-glass {
-  --composer-ring: color-mix(in oklab, var(--color-text) 18%, transparent);
+  --composer-ring: color-mix(in oklab, var(--color-text) 14%, transparent);
   background: var(--app-composer-surface);
   -webkit-backdrop-filter: var(--composer-backdrop);
   backdrop-filter: var(--composer-backdrop);

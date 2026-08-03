@@ -85,7 +85,11 @@ export const WORKBENCH_TOKENS: VisualStyleTokens = {
   "dock-tab-height": "28px",
   "surface-header-height": "42px",
   "control-edge-width": "1px",
-  "composer-edge-width": "1px",
+  // Half a pixel: on a 2x panel that is exactly one device pixel, which is what
+  // makes a hairline read as weightless rather than as an outline. At 1px the
+  // composer was the heaviest edge on a screen whose regions separate by 3px of
+  // cast.
+  "composer-edge-width": "0.5px",
 
   // Row states ride the SAME step as the surface ladder, so a hovered row is
   // exactly one rung of separation whatever the scheme and wherever the contrast
@@ -114,7 +118,7 @@ export const WORKBENCH_TOKENS: VisualStyleTokens = {
   // underneath — that, and not the ring, is what makes the ring read as the edge of
   // glass instead of as a stroke around a box. A flat style spells this opaque and
   // gets its bordered input back.
-  "app-composer-surface": "color-mix(in oklab, var(--app-card-surface) 72%, transparent)",
+  "app-composer-surface": "color-mix(in oklab, var(--app-content-surface) 86%, transparent)",
   "composer-backdrop": "blur(20px) saturate(1.4)",
   // The drawer's cast, drawn INSIDE the plane: the plane outranks the drawer on
   // z-index so the drawer can slide under it, which means the drawer cannot cast
@@ -155,11 +159,13 @@ export const WORKBENCH_TOKENS: VisualStyleTokens = {
   "shadow-control": "none",
   // Flush chrome casts nothing — but the composer is not flush. Two layers, and the
   // first has no offset on purpose: an ambient bloom on all four sides is what makes
-  // a 1px ring on translucent glass legible at all (with depth alone below it, the
-  // top and side edges measured 1-2 levels off the plane). The second is the drop.
+  // a half-pixel ring legible at all (with depth alone below it, the top and side
+  // edges measured 1-2 levels off the plane). Calibrated against the reference: its
+  // halo reaches 246 against a 255 plane and fades over ~22px, where a first attempt
+  // at 230 over 11px read as a drop shadow. The second layer is the drop.
   // Depth only; the ring beside it is drawn from `--composer-edge-width` at the
   // callsite, where the colour can answer focus.
-  "shadow-composer-depth": "0 0 12px -2px var(--shadow-cast), 0 10px 30px -6px var(--shadow-cast)",
+  "shadow-composer-depth": "0 0 26px -8px var(--shadow-cast), 0 6px 22px -12px var(--shadow-cast)",
   "shadow-popover": "0 6px 20px var(--shadow-cast)",
   "shadow-well": "none",
   "shadow-raised-chip": "none",
