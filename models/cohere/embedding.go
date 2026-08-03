@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 
 	cohere "github.com/cohere-ai/cohere-go/v2"
-	cohereoption "github.com/cohere-ai/cohere-go/v2/option"
 
 	"github.com/Tangerg/lynx/core/embedding"
 	"github.com/Tangerg/lynx/core/metadata"
@@ -16,7 +16,7 @@ type EmbeddingModelConfig struct {
 	APIKey         string
 	DefaultOptions embedding.Options
 	BaseURL        string
-	RequestOptions []cohereoption.RequestOption
+	HTTPClient     *http.Client
 }
 
 func (c EmbeddingModelConfig) Validate() error {
@@ -41,7 +41,7 @@ var _ embedding.Model = (*EmbeddingModel)(nil)
 // v4 is the only family that supports OutputDimension; older v3 models
 // have a fixed 1024-dim output.
 type EmbeddingModel struct {
-	api            *API
+	api            *api
 	defaultOptions embedding.Options
 }
 
@@ -50,7 +50,7 @@ func NewEmbeddingModel(cfg EmbeddingModelConfig) (*EmbeddingModel, error) {
 		return nil, err
 	}
 
-	api, err := NewAPI(APIConfig{APIKey: cfg.APIKey, BaseURL: cfg.BaseURL, RequestOptions: cfg.RequestOptions})
+	api, err := newAPI(apiConfig{APIKey: cfg.APIKey, BaseURL: cfg.BaseURL, HTTPClient: cfg.HTTPClient})
 	if err != nil {
 		return nil, err
 	}
@@ -137,7 +137,7 @@ func (e *EmbeddingModel) Call(ctx context.Context, req *embedding.Request) (*emb
 		return nil, err
 	}
 
-	apiResp, err := e.api.Embed(ctx, apiReq)
+	apiResp, err := e.api.embed(ctx, apiReq)
 	if err != nil {
 		return nil, err
 	}

@@ -7,12 +7,13 @@ import (
 	"errors"
 	"fmt"
 	"iter"
+	"maps"
 	"mime"
+	"net/http"
 	"slices"
 	"strings"
 
 	openaisdk "github.com/openai/openai-go/v3"
-	"github.com/openai/openai-go/v3/option"
 
 	corechat "github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/core/media"
@@ -20,8 +21,8 @@ import (
 )
 
 const (
-	// RequestExtensionKey identifies an OpenAI Chat Completions request
-	// extension encoded as ChatCompletionNewParams.
+	// RequestExtensionKey identifies provider-owned Chat Completions fields
+	// encoded as [RequestFields].
 	RequestExtensionKey = "openai/request"
 	// ResponseExtensionKey preserves the complete official Chat Completions
 	// response after provider-neutral fields have been mapped.
@@ -36,7 +37,9 @@ const (
 type ChatConfig struct {
 	APIKey         string
 	DefaultOptions corechat.Options
-	RequestOptions []option.RequestOption
+	BaseURL        string
+	HTTPClient     *http.Client
+	Headers        http.Header
 }
 
 // Validate verifies construction-time configuration.
@@ -58,7 +61,7 @@ var (
 // Chat implements OpenAI's Chat Completions protocol and is also the reusable
 // protocol base for provider packages exposing a compatible endpoint.
 type Chat struct {
-	api      *API
+	api      *api
 	defaults corechat.Options
 	dialect  Dialect
 }
@@ -82,9 +85,11 @@ func newChat(config ChatConfig, dialect Dialect) (*Chat, error) {
 	if err := validateProvider(dialect.Provider); err != nil {
 		return nil, fmt.Errorf("openai: dialect.Provider: %w", err)
 	}
-	api, err := NewAPI(APIConfig{
-		APIKey:         config.APIKey,
-		RequestOptions: config.RequestOptions,
+	api, err := newAPI(apiConfig{
+		APIKey:     config.APIKey,
+		BaseURL:    config.BaseURL,
+		HTTPClient: config.HTTPClient,
+		Headers:    config.Headers,
 	})
 	if err != nil {
 		return nil, err
@@ -98,15 +103,11 @@ func newChat(config ChatConfig, dialect Dialect) (*Chat, error) {
 
 // Call performs one non-streaming Chat Completions request.
 func (c *Chat) Call(ctx context.Context, req *corechat.Request) (*corechat.Response, error) {
-	params, err := c.buildRequest(req)
+	params, err := c.buildRequest(req, false)
 	if err != nil {
 		return nil, err
 	}
-	requestOptions, err := c.buildRequestOptions(req, false)
-	if err != nil {
-		return nil, err
-	}
-	response, err := c.api.ChatCompletion(ctx, params, requestOptions...)
+	response, err := c.api.chatCompletion(ctx, params)
 	if err != nil {
 		return nil, err
 	}
@@ -118,18 +119,13 @@ func (c *Chat) Call(ctx context.Context, req *corechat.Request) (*corechat.Respo
 // retained in adapter-local state.
 func (c *Chat) Stream(ctx context.Context, req *corechat.Request) iter.Seq2[*corechat.Response, error] {
 	return func(yield func(*corechat.Response, error) bool) {
-		params, err := c.buildRequest(req)
+		params, err := c.buildRequest(req, true)
 		if err != nil {
 			yield(nil, err)
 			return
 		}
 
-		requestOptions, err := c.buildRequestOptions(req, true)
-		if err != nil {
-			yield(nil, err)
-			return
-		}
-		stream, err := c.api.ChatCompletionStream(ctx, params, requestOptions...)
+		stream, err := c.api.chatCompletionStream(ctx, params)
 		if err != nil {
 			yield(nil, err)
 			return
@@ -148,12 +144,12 @@ func (c *Chat) Stream(ctx context.Context, req *corechat.Request) iter.Seq2[*cor
 			}
 		}
 		if streamErr := stream.Err(); streamErr != nil {
-			yield(nil, streamErr)
+			yield(nil, wrapError(streamErr))
 		}
 	}
 }
 
-func (c *Chat) buildRequest(req *corechat.Request) (*openaisdk.ChatCompletionNewParams, error) {
+func (c *Chat) buildRequest(req *corechat.Request, stream bool) (*openaisdk.ChatCompletionNewParams, error) {
 	if c == nil || c.api == nil {
 		return nil, errors.New("openai: nil Chat")
 	}
@@ -164,13 +160,14 @@ func (c *Chat) buildRequest(req *corechat.Request) (*openaisdk.ChatCompletionNew
 	params := openaisdk.ChatCompletionNewParams{}
 	if !c.dialect.DisableRawRequestExtension {
 		extensionKey := protocolRequestExtensionKey(c.dialect.Provider)
-		decoded, found, err := metadata.Decode[openaisdk.ChatCompletionNewParams](req.Extensions, extensionKey)
+		fields, err := decodeRequestFields(req.Extensions, extensionKey,
+			"model", "messages", "tools", "frequency_penalty", "max_tokens",
+			"max_completion_tokens", "presence_penalty", "stop", "temperature", "top_p",
+		)
 		if err != nil {
-			return nil, fmt.Errorf("openai: extension %q: %w", extensionKey, err)
+			return nil, err
 		}
-		if found {
-			params = decoded
-		}
+		params.SetExtraFields(fields)
 	}
 
 	options := c.defaults.Overlay(req.Options)
@@ -216,23 +213,26 @@ func (c *Chat) buildRequest(req *corechat.Request) (*openaisdk.ChatCompletionNew
 	if err != nil {
 		return nil, err
 	}
-	if c.dialect.Request != nil {
-		if err := c.dialect.Request.PrepareRequest(req, &params); err != nil {
+	if c.dialect.request != nil {
+		if err := c.dialect.request.PrepareRequest(req, &params); err != nil {
 			return nil, fmt.Errorf("openai: request dialect: %w", err)
 		}
 	}
+	if c.dialect.PrepareRequest != nil {
+		compatible := &CompatibleRequest{
+			model:       string(params.Model),
+			stream:      stream,
+			extraFields: maps.Clone(params.ExtraFields()),
+		}
+		if params.Temperature.Valid() {
+			compatible.temperature = &params.Temperature.Value
+		}
+		if err := c.dialect.PrepareRequest(req, compatible); err != nil {
+			return nil, fmt.Errorf("openai: compatible request dialect: %w", err)
+		}
+		params.SetExtraFields(compatible.extraFields)
+	}
 	return &params, nil
-}
-
-func (c *Chat) buildRequestOptions(req *corechat.Request, stream bool) ([]option.RequestOption, error) {
-	if c.dialect.RequestOptions == nil {
-		return nil, nil
-	}
-	requestOptions, err := c.dialect.RequestOptions.PrepareRequestOptions(req, stream)
-	if err != nil {
-		return nil, fmt.Errorf("openai: request option dialect: %w", err)
-	}
-	return requestOptions, nil
 }
 
 func mapToolDefinitions(definitions []corechat.ToolDefinition) ([]openaisdk.ChatCompletionToolUnionParam, error) {
@@ -457,7 +457,7 @@ func mapCompletion(params *openaisdk.ChatCompletionNewParams, response *openaisd
 		Usage:   mapUsage(response.Usage),
 	}
 	for i := range response.Choices {
-		choice, err := mapCompletionChoice(params, response.Choices[i], dialect.Provider, dialect.Response)
+		choice, err := mapCompletionChoice(params, response.Choices[i], dialect.Provider, dialect.response)
 		if err != nil {
 			return nil, fmt.Errorf("openai: choices[%d]: %w", i, err)
 		}
@@ -472,7 +472,7 @@ func mapCompletion(params *openaisdk.ChatCompletionNewParams, response *openaisd
 	return mapped, nil
 }
 
-func mapCompletionChoice(params *openaisdk.ChatCompletionNewParams, choice openaisdk.ChatCompletionChoice, provider string, dialect ResponseDialect) (corechat.Choice, error) {
+func mapCompletionChoice(params *openaisdk.ChatCompletionNewParams, choice openaisdk.ChatCompletionChoice, provider string, dialect responseDialect) (corechat.Choice, error) {
 	mapped := corechat.Choice{
 		Index:        int(choice.Index),
 		FinishReason: normalizeFinishReason(choice.FinishReason),
@@ -485,7 +485,7 @@ func mapCompletionChoice(params *openaisdk.ChatCompletionNewParams, choice opena
 	return mapped, nil
 }
 
-func mapCompletionMessage(params *openaisdk.ChatCompletionNewParams, message openaisdk.ChatCompletionMessage, provider string, dialect ResponseDialect) (*corechat.Message, error) {
+func mapCompletionMessage(params *openaisdk.ChatCompletionNewParams, message openaisdk.ChatCompletionMessage, provider string, dialect responseDialect) (*corechat.Message, error) {
 	parts := make([]corechat.Part, 0, 3+len(message.ToolCalls))
 	if message.Content != "" {
 		parts = append(parts, corechat.NewTextPart(message.Content))
@@ -544,7 +544,13 @@ func mapResponseToolCall(toolCall openaisdk.ChatCompletionMessageToolCallUnion) 
 }
 
 func mapOutputAudio(params *openaisdk.ChatCompletionNewParams, audio openaisdk.ChatCompletionAudio) (*media.Media, error) {
-	mimeType := audioMIME(string(params.Audio.Format))
+	format := string(params.Audio.Format)
+	if format == "" {
+		if audioField, ok := params.ExtraFields()["audio"].(map[string]any); ok {
+			format, _ = audioField["format"].(string)
+		}
+	}
+	mimeType := audioMIME(format)
 	var mapped *media.Media
 	var err error
 	if audio.ID != "" {
@@ -623,7 +629,7 @@ type openAIStreamTool struct {
 
 type openAIStreamState struct {
 	tools       map[int]map[int64]openAIStreamTool
-	dialect     ResponseDialect
+	dialect     responseDialect
 	chunkKey    string
 	refusalKey  string
 	refusalPart string
@@ -632,7 +638,7 @@ type openAIStreamState struct {
 func newOpenAIStreamState(dialect Dialect) *openAIStreamState {
 	return &openAIStreamState{
 		tools:       make(map[int]map[int64]openAIStreamTool),
-		dialect:     dialect.Response,
+		dialect:     dialect.response,
 		chunkKey:    protocolStreamChunkExtensionKey(dialect.Provider),
 		refusalKey:  protocolRefusalDeltaExtensionKey(dialect.Provider),
 		refusalPart: protocolRefusalExtensionKey(dialect.Provider),

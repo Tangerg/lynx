@@ -6,8 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"iter"
-
-	"github.com/openai/openai-go/v3/option"
+	"net/http"
 
 	corechat "github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/models/protocol/openai"
@@ -23,7 +22,7 @@ type OpenAIChatConfig struct {
 	APIKey         string
 	DefaultOptions corechat.Options
 	BaseURL        string
-	RequestOptions []option.RequestOption
+	HTTPClient     *http.Client
 }
 
 var (
@@ -44,15 +43,15 @@ func NewOpenAIChat(config OpenAIChatConfig) (*OpenAIChat, error) {
 	if err := (RequestOptions{}).validate(config.DefaultOptions, nil, false); err != nil {
 		return nil, fmt.Errorf("deepseek: DefaultOptions: %w", err)
 	}
-	requestOptions := append([]option.RequestOption{option.WithBaseURL(cmp.Or(config.BaseURL, BaseURL))}, config.RequestOptions...)
 	dialect := openai.ReasoningContentToolReplayDialect("deepseek")
-	dialect.RequestOptions = requestDialect{defaults: config.DefaultOptions.Clone()}
+	dialect.PrepareRequest = requestDialect{defaults: config.DefaultOptions.Clone()}.prepareRequest
 	dialect.DisableRawRequestExtension = true
 	protocol, err := openai.NewCompatibleChat(
 		openai.ChatConfig{
 			APIKey:         config.APIKey,
 			DefaultOptions: config.DefaultOptions,
-			RequestOptions: requestOptions,
+			BaseURL:        cmp.Or(config.BaseURL, BaseURL),
+			HTTPClient:     config.HTTPClient,
 		},
 		dialect,
 	)

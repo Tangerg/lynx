@@ -1,0 +1,25 @@
+package openai
+
+import (
+	"fmt"
+
+	"github.com/Tangerg/lynx/core/metadata"
+)
+
+// RequestFields contains provider-owned top-level JSON fields that are not
+// represented by Core. Fields owned by Core are rejected instead of allowing
+// an extension to silently override the neutral request.
+type RequestFields map[string]any
+
+func decodeRequestFields(values metadata.Map, key string, reserved ...string) (RequestFields, error) {
+	fields, _, err := metadata.Decode[RequestFields](values, key)
+	if err != nil {
+		return nil, fmt.Errorf("openai: extension %q: %w", key, err)
+	}
+	for _, name := range reserved {
+		if _, exists := fields[name]; exists {
+			return nil, fmt.Errorf("openai: extension %q field %q is owned by Core", key, name)
+		}
+	}
+	return fields, nil
+}

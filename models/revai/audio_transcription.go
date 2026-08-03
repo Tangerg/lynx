@@ -43,7 +43,7 @@ var _ transcription.Model = (*AudioTranscriptionModel)(nil)
 // hints and transcriber selection (machine vs human) all live on the
 // extension-threaded [JobOptions].
 type AudioTranscriptionModel struct {
-	api            *API
+	api            *api
 	defaultOptions transcription.Options
 	pollInterval   time.Duration
 	pollTimeout    time.Duration
@@ -53,7 +53,7 @@ func NewAudioTranscriptionModel(cfg AudioTranscriptionModelConfig) (*AudioTransc
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
-	api, err := NewAPI(APIConfig{APIKey: cfg.APIKey, BaseURL: cfg.BaseURL, HTTPClient: cfg.HTTPClient})
+	api, err := newAPI(apiConfig{APIKey: cfg.APIKey, BaseURL: cfg.BaseURL, HTTPClient: cfg.HTTPClient})
 	if err != nil {
 		return nil, err
 	}
@@ -76,7 +76,7 @@ func (a *AudioTranscriptionModel) Call(ctx context.Context, req *transcription.R
 	if err != nil {
 		return nil, err
 	}
-	jobOptsValue, _, err := metadata.Decode[JobOptions](mergedOpts.Extensions, RequestExtensionKey)
+	jobOptsValue, _, err := metadata.Decode[jobOptions](mergedOpts.Extensions, RequestExtensionKey)
 	jobOpts := &jobOptsValue
 	if err != nil {
 		return nil, err
@@ -89,15 +89,15 @@ func (a *AudioTranscriptionModel) Call(ctx context.Context, req *transcription.R
 		return nil, fmt.Errorf("revai: transcription model must be %q or %q, got %q", ModelMachine, ModelHuman, jobOpts.Transcriber)
 	}
 
-	var job *Job
+	var job *job
 	if jobOpts.MediaURL != "" {
-		job, err = a.api.SubmitURL(ctx, *jobOpts)
+		job, err = a.api.submitURL(ctx, *jobOpts)
 	} else {
 		audio, audioErr := req.Audio.Bytes()
 		if audioErr != nil {
 			return nil, audioErr
 		}
-		job, err = a.api.Upload(ctx, audio, req.Audio.MIME, *jobOpts)
+		job, err = a.api.upload(ctx, audio, req.Audio.MIME, *jobOpts)
 	}
 	if err != nil {
 		return nil, err
@@ -108,7 +108,7 @@ func (a *AudioTranscriptionModel) Call(ctx context.Context, req *transcription.R
 		return nil, err
 	}
 
-	text, err := a.api.GetTranscriptText(ctx, final.ID)
+	text, err := a.api.getTranscriptText(ctx, final.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -140,13 +140,13 @@ func (a *AudioTranscriptionModel) Call(ctx context.Context, req *transcription.R
 	return transcription.NewResponse(result, meta)
 }
 
-func (a *AudioTranscriptionModel) pollUntilDone(ctx context.Context, id string) (*Job, error) {
+func (a *AudioTranscriptionModel) pollUntilDone(ctx context.Context, id string) (*job, error) {
 	deadline, cancel := context.WithTimeout(ctx, a.pollTimeout)
 	defer cancel()
 	ticker := time.NewTicker(a.pollInterval)
 	defer ticker.Stop()
 	for {
-		resp, err := a.api.GetJob(deadline, id)
+		resp, err := a.api.getJob(deadline, id)
 		if err != nil {
 			return nil, err
 		}

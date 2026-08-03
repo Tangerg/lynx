@@ -11,7 +11,7 @@ import (
 	"google.golang.org/genai"
 )
 
-type APIConfig struct {
+type apiConfig struct {
 	APIKey string
 
 	// Backend selects the genai backend. Zero value falls back to
@@ -40,7 +40,7 @@ type APIConfig struct {
 	HTTPClient *http.Client
 }
 
-func (c APIConfig) Validate() error {
+func (c apiConfig) validate() error {
 	// Vertex AI authenticates via ADC / service account, not API key;
 	// every other backend requires the typed APIKey.
 	if c.Backend != genai.BackendVertexAI && c.APIKey == "" {
@@ -49,13 +49,13 @@ func (c APIConfig) Validate() error {
 	return nil
 }
 
-type API struct {
+type api struct {
 	client           *genai.Client
 	interactionsHTTP *resty.Client
 }
 
-func NewAPI(cfg APIConfig) (*API, error) {
-	if err := cfg.Validate(); err != nil {
+func newAPI(cfg apiConfig) (*api, error) {
+	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
 
@@ -93,25 +93,25 @@ func NewAPI(cfg APIConfig) (*API, error) {
 		SetHeader("x-goog-api-key", cfg.APIKey).
 		SetHeader("Content-Type", "application/json")
 
-	return &API{client: client, interactionsHTTP: interactionsHTTP}, nil
+	return &api{client: client, interactionsHTTP: interactionsHTTP}, nil
 }
 
-func (a *API) ChatCompletion(ctx context.Context, modelName string, contents []*genai.Content, config *genai.GenerateContentConfig) (*genai.GenerateContentResponse, error) {
-	return a.client.Models.GenerateContent(ctx, modelName, contents, config)
+func (a *api) chatCompletion(ctx context.Context, modelName string, contents []*genai.Content, config *genai.GenerateContentConfig) (*genai.GenerateContentResponse, error) {
+	return wrapResult(a.client.Models.GenerateContent(ctx, modelName, contents, config))
 }
 
-func (a *API) ChatCompletionStream(ctx context.Context, modelName string, contents []*genai.Content, config *genai.GenerateContentConfig) iter.Seq2[*genai.GenerateContentResponse, error] {
-	return a.client.Models.GenerateContentStream(ctx, modelName, contents, config)
+func (a *api) chatCompletionStream(ctx context.Context, modelName string, contents []*genai.Content, config *genai.GenerateContentConfig) iter.Seq2[*genai.GenerateContentResponse, error] {
+	return wrapSequence(a.client.Models.GenerateContentStream(ctx, modelName, contents, config))
 }
 
-func (a *API) Embedding(ctx context.Context, modelName string, contents []*genai.Content, config *genai.EmbedContentConfig) (*genai.EmbedContentResponse, error) {
-	return a.client.Models.EmbedContent(ctx, modelName, contents, config)
+func (a *api) embedding(ctx context.Context, modelName string, contents []*genai.Content, config *genai.EmbedContentConfig) (*genai.EmbedContentResponse, error) {
+	return wrapResult(a.client.Models.EmbedContent(ctx, modelName, contents, config))
 }
 
-func (a *API) CountTokens(ctx context.Context, modelName string, contents []*genai.Content, config *genai.CountTokensConfig) (*genai.CountTokensResponse, error) {
-	return a.client.Models.CountTokens(ctx, modelName, contents, config)
+func (a *api) countTokens(ctx context.Context, modelName string, contents []*genai.Content, config *genai.CountTokensConfig) (*genai.CountTokensResponse, error) {
+	return wrapResult(a.client.Models.CountTokens(ctx, modelName, contents, config))
 }
 
-func (a *API) ComputeTokens(ctx context.Context, modelName string, contents []*genai.Content, config *genai.ComputeTokensConfig) (*genai.ComputeTokensResponse, error) {
-	return a.client.Models.ComputeTokens(ctx, modelName, contents, config)
+func (a *api) computeTokens(ctx context.Context, modelName string, contents []*genai.Content, config *genai.ComputeTokensConfig) (*genai.ComputeTokensResponse, error) {
+	return wrapResult(a.client.Models.ComputeTokens(ctx, modelName, contents, config))
 }

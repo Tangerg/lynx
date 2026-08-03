@@ -43,7 +43,7 @@ var _ tts.Streamer = (*AudioTTSModel)(nil)
 // "eleven_v3", "eleven_multilingual_v2") which selects the synthesis
 // engine.
 type AudioTTSModel struct {
-	api            *API
+	api            *api
 	defaultOptions tts.Options
 }
 
@@ -52,7 +52,7 @@ func NewAudioTTSModel(cfg AudioTTSModelConfig) (*AudioTTSModel, error) {
 		return nil, err
 	}
 
-	api, err := NewAPI(APIConfig{
+	api, err := newAPI(apiConfig{
 		APIKey:     cfg.APIKey,
 		BaseURL:    cfg.BaseURL,
 		HTTPClient: cfg.HTTPClient,
@@ -67,7 +67,7 @@ func NewAudioTTSModel(cfg AudioTTSModelConfig) (*AudioTTSModel, error) {
 	}, nil
 }
 
-func (a *AudioTTSModel) buildAPIRequest(req *tts.Request) (voiceID, outputFormat string, body *TTSRequest, err error) {
+func (a *AudioTTSModel) buildAPIRequest(req *tts.Request) (voiceID, outputFormat string, body *ttsRequest, err error) {
 	mergedOpts, mergeErr := a.defaultOptions.Merged(req.Options)
 	if mergeErr != nil {
 		return "", "", nil, mergeErr
@@ -77,7 +77,7 @@ func (a *AudioTTSModel) buildAPIRequest(req *tts.Request) (voiceID, outputFormat
 		return "", "", nil, errors.New("elevenlabs: Voice (voice id) is required - set Options.Voice")
 	}
 
-	bodyValue, _, err := metadata.Decode[TTSRequest](mergedOpts.Extensions, SpeechRequestExtensionKey)
+	bodyValue, _, err := metadata.Decode[ttsRequest](mergedOpts.Extensions, SpeechRequestExtensionKey)
 	if err != nil {
 		return "", "", nil, err
 	}
@@ -89,11 +89,11 @@ func (a *AudioTTSModel) buildAPIRequest(req *tts.Request) (voiceID, outputFormat
 		if mergedOpts.Speed < 0.7 || mergedOpts.Speed > 1.2 {
 			return "", "", nil, fmt.Errorf("elevenlabs: speech speed must be between 0.7 and 1.2, got %g", mergedOpts.Speed)
 		}
-		if body.VoiceSettings == nil {
-			body.VoiceSettings = &VoiceSettings{}
+		if body.voiceSettings == nil {
+			body.voiceSettings = &voiceSettings{}
 		}
 		v := mergedOpts.Speed
-		body.VoiceSettings.Speed = &v
+		body.voiceSettings.Speed = &v
 	}
 	if body.OptimizeStreamingLatency != nil && (*body.OptimizeStreamingLatency < 0 || *body.OptimizeStreamingLatency > 4) {
 		return "", "", nil, fmt.Errorf("elevenlabs: optimize_streaming_latency must be between 0 and 4, got %d", *body.OptimizeStreamingLatency)
@@ -167,7 +167,7 @@ func (a *AudioTTSModel) Call(ctx context.Context, req *tts.Request) (*tts.Respon
 		return nil, err
 	}
 
-	audio, hdr, err := a.api.TextToSpeech(ctx, voiceID, outputFormat, body)
+	audio, hdr, err := a.api.textToSpeech(ctx, voiceID, outputFormat, body)
 	if err != nil {
 		return nil, err
 	}
@@ -187,7 +187,7 @@ func (a *AudioTTSModel) Stream(ctx context.Context, req *tts.Request) iter.Seq2[
 			return
 		}
 
-		body_, hdr, err := a.api.TextToSpeechStream(ctx, voiceID, outputFormat, body)
+		body_, hdr, err := a.api.textToSpeechStream(ctx, voiceID, outputFormat, body)
 		if err != nil {
 			yield(nil, err)
 			return

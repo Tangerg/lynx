@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	// RequestExtensionKey stores official Anthropic Messages API parameters in
+	// RequestExtensionKey stores provider-owned top-level Messages API fields in
 	// a Core request for fields without a provider-neutral equivalent.
 	RequestExtensionKey          = "anthropic/request"
 	protocolReasoningKindKey     = "anthropic/reasoning_kind"
@@ -32,13 +32,17 @@ const (
 
 func mapProtocolRequest(defaults corechat.Options, req *corechat.Request, dialect Dialect) (*anthropicsdk.MessageNewParams, error) {
 	extensionKey := protocolRequestExtensionKey(dialect.Provider)
-	params, found, err := metadata.Decode[anthropicsdk.MessageNewParams](req.Extensions, extensionKey)
+	fields, _, err := metadata.Decode[map[string]any](req.Extensions, extensionKey)
 	if err != nil {
 		return nil, fmt.Errorf("anthropic: extension %q: %w", extensionKey, err)
 	}
-	if !found {
-		params = anthropicsdk.MessageNewParams{}
+	for _, name := range []string{"model", "messages", "system", "tools", "max_tokens", "temperature", "top_k", "top_p", "stop_sequences"} {
+		if _, exists := fields[name]; exists {
+			return nil, fmt.Errorf("anthropic: extension %q field %q is owned by Core", extensionKey, name)
+		}
 	}
+	params := anthropicsdk.MessageNewParams{}
+	params.SetExtraFields(fields)
 
 	options := defaults.Overlay(req.Options)
 	if options.Model == "" {
@@ -62,7 +66,7 @@ func mapProtocolRequest(defaults corechat.Options, req *corechat.Request, dialec
 	params.Model = options.Model
 	if options.MaxTokens != nil {
 		params.MaxTokens = *options.MaxTokens
-	} else if !extensionHasField(req.Extensions, extensionKey, "max_tokens") {
+	} else {
 		params.MaxTokens = protocolDefaultMaxTokens
 	}
 	if options.Temperature != nil {
@@ -90,19 +94,6 @@ func mapProtocolRequest(defaults corechat.Options, req *corechat.Request, dialec
 	}
 	params.Tools = append(params.Tools, tools...)
 	return &params, nil
-}
-
-func extensionHasField(extensions metadata.Map, extensionKey, field string) bool {
-	raw, found := extensions[extensionKey]
-	if !found {
-		return false
-	}
-	var object map[string]json.RawMessage
-	if json.Unmarshal(raw, &object) != nil {
-		return false
-	}
-	_, found = object[field]
-	return found
 }
 
 func mapProtocolMessages(messages []corechat.Message, provider string) ([]anthropicsdk.TextBlockParam, []anthropicsdk.MessageParam, error) {

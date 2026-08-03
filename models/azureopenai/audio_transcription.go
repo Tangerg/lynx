@@ -3,8 +3,7 @@ package azureopenai
 import (
 	"context"
 	"errors"
-
-	"github.com/openai/openai-go/v3/option"
+	"net/http"
 
 	"github.com/Tangerg/lynx/core/transcription"
 	"github.com/Tangerg/lynx/models/protocol/openai"
@@ -14,7 +13,7 @@ type AudioTranscriptionModelConfig struct {
 	APIKey         string
 	BaseURL        string
 	DefaultOptions transcription.Options
-	RequestOptions []option.RequestOption
+	HTTPClient     *http.Client
 }
 
 func (c AudioTranscriptionModelConfig) Validate() error {
@@ -41,7 +40,7 @@ func NewAudioTranscriptionModel(cfg AudioTranscriptionModelConfig) (*AudioTransc
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
-	reqOpts, err := buildRequestOptions(cfg.BaseURL, cfg.RequestOptions)
+	baseURL, err := normalizeBaseURL(cfg.BaseURL)
 	if err != nil {
 		return nil, err
 	}
@@ -49,7 +48,8 @@ func NewAudioTranscriptionModel(cfg AudioTranscriptionModelConfig) (*AudioTransc
 		Provider:       "azureopenai",
 		APIKey:         cfg.APIKey,
 		DefaultOptions: cfg.DefaultOptions,
-		RequestOptions: reqOpts,
+		BaseURL:        baseURL,
+		HTTPClient:     cfg.HTTPClient,
 	})
 	if err != nil {
 		return nil, err

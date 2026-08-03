@@ -3,9 +3,6 @@ package llm
 import (
 	"fmt"
 
-	openaisdk "github.com/openai/openai-go/v3"
-	openaiopt "github.com/openai/openai-go/v3/option"
-
 	"github.com/Tangerg/lynx/core/embedding"
 
 	"github.com/Tangerg/lynx/models/alibaba"
@@ -16,6 +13,8 @@ import (
 	openaimodel "github.com/Tangerg/lynx/models/openai"
 	"github.com/Tangerg/lynx/models/zhipu"
 )
+
+const defaultOpenAIEmbeddingModel = "text-embedding-3-small"
 
 // embeddingBuildFunc constructs an embedding adapter for one (key, model, baseURL).
 type embeddingBuildFunc func(spec ClientSpec, opts embedding.Options) (embedding.Model, error)
@@ -32,12 +31,8 @@ type embeddingEntry struct {
 // The credential (key + base URL) comes from the same provider registry the
 // chat clients use — an embedding role names a (provider, model), nothing more.
 var embeddingProviderInfo = map[Provider]embeddingEntry{
-	ProviderOpenAI: {defaultModel: string(openaisdk.EmbeddingModelTextEmbedding3Small), build: func(s ClientSpec, o embedding.Options) (embedding.Model, error) {
-		var reqOpts []openaiopt.RequestOption
-		if s.BaseURL != "" {
-			reqOpts = append(reqOpts, openaiopt.WithBaseURL(s.BaseURL))
-		}
-		return openaimodel.NewEmbeddingModel(openaimodel.EmbeddingModelConfig{APIKey: s.APIKey, DefaultOptions: o, RequestOptions: reqOpts})
+	ProviderOpenAI: {defaultModel: defaultOpenAIEmbeddingModel, build: func(s ClientSpec, o embedding.Options) (embedding.Model, error) {
+		return openaimodel.NewEmbeddingModel(openaimodel.EmbeddingModelConfig{APIKey: s.APIKey, DefaultOptions: o, BaseURL: s.BaseURL})
 	}},
 	ProviderAzureOpenAI: {build: func(s ClientSpec, o embedding.Options) (embedding.Model, error) {
 		return azureopenai.NewEmbeddingModel(azureopenai.EmbeddingModelConfig{APIKey: s.APIKey, BaseURL: s.BaseURL, DefaultOptions: o})

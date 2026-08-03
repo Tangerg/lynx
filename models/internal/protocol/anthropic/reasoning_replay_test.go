@@ -6,8 +6,6 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/anthropics/anthropic-sdk-go/option"
-
 	corechat "github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/models/internal/protocol/anthropic"
 )
@@ -35,7 +33,7 @@ func TestChat_OmitsUnsignedReasoningFromPortableHistory(t *testing.T) {
 	model, err := anthropic.NewChat(anthropic.ChatConfig{
 		APIKey:         "test-key",
 		DefaultOptions: corechat.Options{Model: "claude-test"},
-		RequestOptions: []option.RequestOption{option.WithBaseURL(server.URL)},
+		BaseURL:        server.URL,
 	})
 	if err != nil {
 		t.Fatalf("NewChat: %v", err)

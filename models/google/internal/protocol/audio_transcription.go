@@ -54,7 +54,7 @@ var _ transcription.Model = (*AudioTranscriptionModel)(nil)
 // audio-accepting model returns a transcript when prompted. This adapter uses
 // the stable instruction "Transcribe this audio.".
 type AudioTranscriptionModel struct {
-	api            *API
+	api            *api
 	provider       string
 	defaultOptions transcription.Options
 }
@@ -64,7 +64,7 @@ func NewAudioTranscriptionModel(cfg AudioTranscriptionModelConfig) (*AudioTransc
 		return nil, err
 	}
 
-	api, err := NewAPI(APIConfig{
+	api, err := newAPI(apiConfig{
 		APIKey:     cfg.APIKey,
 		Backend:    cfg.Backend,
 		Project:    cfg.Project,
@@ -157,7 +157,7 @@ func (a *AudioTranscriptionModel) Call(ctx context.Context, req *transcription.R
 		return nil, err
 	}
 
-	apiResp, err := a.api.ChatCompletion(ctx, modelName, contents, cfg)
+	apiResp, err := a.api.chatCompletion(ctx, modelName, contents, cfg)
 	if err != nil {
 		return nil, err
 	}

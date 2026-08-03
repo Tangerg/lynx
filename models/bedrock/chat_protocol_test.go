@@ -44,7 +44,7 @@ func TestChatBuildConverseInput(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	model := &Chat{api: &API{}, defaults: corechat.Options{Model: "anthropic.claude-test"}}
+	model := &Chat{api: &api{}, defaults: corechat.Options{Model: "anthropic.claude-test"}}
 	input, modelName, err := model.buildConverseInput(request)
 	if err != nil {
 		t.Fatal(err)

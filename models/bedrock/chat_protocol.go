@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"iter"
 	"maps"
+	"net/http"
 	"slices"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -32,21 +33,46 @@ const (
 // provider-neutral Core equivalent. Common model, message, tool, and sampling
 // fields are always derived from the Core request and take precedence.
 type ChatRequestOptions struct {
-	AdditionalModelRequestFields      map[string]any                      `json:"additional_model_request_fields,omitempty"`
-	AdditionalModelResponseFieldPaths []string                            `json:"additional_model_response_field_paths,omitempty"`
-	GuardrailConfig                   *types.GuardrailConfiguration       `json:"guardrail_config,omitempty"`
-	StreamGuardrailConfig             *types.GuardrailStreamConfiguration `json:"stream_guardrail_config,omitempty"`
-	OutputConfig                      *types.OutputConfig                 `json:"output_config,omitempty"`
-	PerformanceConfig                 *types.PerformanceConfiguration     `json:"performance_config,omitempty"`
-	RequestMetadata                   map[string]string                   `json:"request_metadata,omitempty"`
-	ServiceTier                       *types.ServiceTier                  `json:"service_tier,omitempty"`
+	AdditionalModelRequestFields      map[string]any          `json:"additional_model_request_fields,omitempty"`
+	AdditionalModelResponseFieldPaths []string                `json:"additional_model_response_field_paths,omitempty"`
+	Guardrail                         *GuardrailOptions       `json:"guardrail,omitempty"`
+	StreamGuardrail                   *StreamGuardrailOptions `json:"stream_guardrail,omitempty"`
+	JSONSchema                        *JSONSchemaOptions      `json:"json_schema,omitempty"`
+	PerformanceLatency                string                  `json:"performance_latency,omitempty"`
+	RequestMetadata                   map[string]string       `json:"request_metadata,omitempty"`
+	ServiceTier                       string                  `json:"service_tier,omitempty"`
+}
+
+// GuardrailOptions configures a Bedrock guardrail without exposing AWS SDK
+// wire types.
+type GuardrailOptions struct {
+	Identifier string `json:"identifier"`
+	Version    string `json:"version"`
+	Trace      string `json:"trace,omitempty"`
+}
+
+// StreamGuardrailOptions adds the streaming processing mode to a guardrail.
+type StreamGuardrailOptions struct {
+	Identifier     string `json:"identifier"`
+	Version        string `json:"version"`
+	Trace          string `json:"trace,omitempty"`
+	ProcessingMode string `json:"processing_mode,omitempty"`
+}
+
+// JSONSchemaOptions constrains Bedrock output to the supplied JSON schema.
+type JSONSchemaOptions struct {
+	Name        string          `json:"name"`
+	Description string          `json:"description,omitempty"`
+	Schema      json.RawMessage `json:"schema"`
 }
 
 // ChatConfig configures the Bedrock Converse Core chat adapter.
 type ChatConfig struct {
 	DefaultOptions corechat.Options
 	Region         string
-	AWSConfig      *aws.Config
+	BaseURL        string
+	HTTPClient     *http.Client
+	Credentials    *Credentials
 }
 
 // Validate verifies construction-time configuration without loading AWS
@@ -65,7 +91,7 @@ var (
 
 // Chat implements Core chat through Bedrock's provider-neutral Converse API.
 type Chat struct {
-	api      *API
+	api      *api
 	defaults corechat.Options
 }
 
@@ -74,7 +100,12 @@ func NewChat(ctx context.Context, cfg ChatConfig) (*Chat, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
-	api, err := NewAPI(ctx, APIConfig{Region: cfg.Region, AWSConfig: cfg.AWSConfig})
+	api, err := newAPI(ctx, apiConfig{
+		Region:      cfg.Region,
+		BaseURL:     cfg.BaseURL,
+		HTTPClient:  cfg.HTTPClient,
+		Credentials: cfg.Credentials,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -87,7 +118,7 @@ func (c *Chat) Call(ctx context.Context, req *corechat.Request) (*corechat.Respo
 	if err != nil {
 		return nil, err
 	}
-	output, err := c.api.Converse(ctx, input)
+	output, err := c.api.converse(ctx, input)
 	if err != nil {
 		return nil, err
 	}
@@ -103,7 +134,7 @@ func (c *Chat) Stream(ctx context.Context, req *corechat.Request) iter.Seq2[*cor
 			yield(nil, err)
 			return
 		}
-		output, err := c.api.ConverseStream(ctx, input)
+		output, err := c.api.converseStream(ctx, input)
 		if err != nil {
 			yield(nil, err)
 			return
@@ -137,13 +168,13 @@ func (c *Chat) buildConverseInput(req *corechat.Request) (*bedrockruntime.Conver
 		ModelId:                           aws.String(prepared.model),
 		AdditionalModelRequestFields:      toDocument(prepared.native.AdditionalModelRequestFields),
 		AdditionalModelResponseFieldPaths: slices.Clone(prepared.native.AdditionalModelResponseFieldPaths),
-		GuardrailConfig:                   prepared.native.GuardrailConfig,
+		GuardrailConfig:                   mapGuardrailOptions(prepared.native.Guardrail),
 		InferenceConfig:                   prepared.inference,
 		Messages:                          prepared.messages,
-		OutputConfig:                      prepared.native.OutputConfig,
-		PerformanceConfig:                 prepared.native.PerformanceConfig,
+		OutputConfig:                      mapOutputOptions(prepared.native.JSONSchema),
+		PerformanceConfig:                 mapPerformanceOptions(prepared.native.PerformanceLatency),
 		RequestMetadata:                   maps.Clone(prepared.native.RequestMetadata),
-		ServiceTier:                       prepared.native.ServiceTier,
+		ServiceTier:                       mapServiceTier(prepared.native.ServiceTier),
 		System:                            prepared.system,
 		ToolConfig:                        prepared.tools,
 	}, prepared.model, nil
@@ -158,13 +189,13 @@ func (c *Chat) buildConverseStreamInput(req *corechat.Request) (*bedrockruntime.
 		ModelId:                           aws.String(prepared.model),
 		AdditionalModelRequestFields:      toDocument(prepared.native.AdditionalModelRequestFields),
 		AdditionalModelResponseFieldPaths: slices.Clone(prepared.native.AdditionalModelResponseFieldPaths),
-		GuardrailConfig:                   prepared.native.StreamGuardrailConfig,
+		GuardrailConfig:                   mapStreamGuardrailOptions(prepared.native.StreamGuardrail),
 		InferenceConfig:                   prepared.inference,
 		Messages:                          prepared.messages,
-		OutputConfig:                      prepared.native.OutputConfig,
-		PerformanceConfig:                 prepared.native.PerformanceConfig,
+		OutputConfig:                      mapOutputOptions(prepared.native.JSONSchema),
+		PerformanceConfig:                 mapPerformanceOptions(prepared.native.PerformanceLatency),
 		RequestMetadata:                   maps.Clone(prepared.native.RequestMetadata),
-		ServiceTier:                       prepared.native.ServiceTier,
+		ServiceTier:                       mapServiceTier(prepared.native.ServiceTier),
 		System:                            prepared.system,
 		ToolConfig:                        prepared.tools,
 	}, prepared.model, nil
@@ -177,6 +208,58 @@ type preparedChatRequest struct {
 	inference *types.InferenceConfiguration
 	tools     *types.ToolConfiguration
 	native    ChatRequestOptions
+}
+
+func mapGuardrailOptions(options *GuardrailOptions) *types.GuardrailConfiguration {
+	if options == nil {
+		return nil
+	}
+	return &types.GuardrailConfiguration{
+		GuardrailIdentifier: aws.String(options.Identifier),
+		GuardrailVersion:    aws.String(options.Version),
+		Trace:               types.GuardrailTrace(options.Trace),
+	}
+}
+
+func mapStreamGuardrailOptions(options *StreamGuardrailOptions) *types.GuardrailStreamConfiguration {
+	if options == nil {
+		return nil
+	}
+	return &types.GuardrailStreamConfiguration{
+		GuardrailIdentifier:  aws.String(options.Identifier),
+		GuardrailVersion:     aws.String(options.Version),
+		Trace:                types.GuardrailTrace(options.Trace),
+		StreamProcessingMode: types.GuardrailStreamProcessingMode(options.ProcessingMode),
+	}
+}
+
+func mapOutputOptions(options *JSONSchemaOptions) *types.OutputConfig {
+	if options == nil {
+		return nil
+	}
+	schema := string(options.Schema)
+	return &types.OutputConfig{TextFormat: &types.OutputFormat{
+		Type: types.OutputFormatTypeJsonSchema,
+		Structure: &types.OutputFormatStructureMemberJsonSchema{Value: types.JsonSchemaDefinition{
+			Name:        aws.String(options.Name),
+			Description: aws.String(options.Description),
+			Schema:      aws.String(schema),
+		}},
+	}}
+}
+
+func mapPerformanceOptions(latency string) *types.PerformanceConfiguration {
+	if latency == "" {
+		return nil
+	}
+	return &types.PerformanceConfiguration{Latency: types.PerformanceConfigLatency(latency)}
+}
+
+func mapServiceTier(tier string) *types.ServiceTier {
+	if tier == "" {
+		return nil
+	}
+	return &types.ServiceTier{Type: types.ServiceTierType(tier)}
 }
 
 func (c *Chat) prepareRequest(req *corechat.Request) (*preparedChatRequest, error) {

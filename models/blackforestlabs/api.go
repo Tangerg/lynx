@@ -12,27 +12,27 @@ import (
 	"github.com/go-resty/resty/v2"
 )
 
-type APIConfig struct {
+type apiConfig struct {
 	APIKey     string
 	BaseURL    string
 	HTTPClient *http.Client
 }
 
-func (c APIConfig) Validate() error {
+func (c apiConfig) validate() error {
 	if c.APIKey == "" {
 		return errors.New("blackforestlabs: APIKey is required")
 	}
 	return nil
 }
 
-type API struct {
+type api struct {
 	http     *resty.Client
 	download *resty.Client
 	baseURL  *url.URL
 }
 
-func NewAPI(cfg APIConfig) (*API, error) {
-	if err := cfg.Validate(); err != nil {
+func newAPI(cfg apiConfig) (*api, error) {
+	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
 	baseURL := cmp.Or(cfg.BaseURL, DefaultBaseURL)
@@ -50,14 +50,14 @@ func NewAPI(cfg APIConfig) (*API, error) {
 	client.SetBaseURL(baseURL).
 		SetHeader("x-key", cfg.APIKey).
 		SetHeader("Content-Type", "application/json")
-	return &API{http: client, download: download, baseURL: parsedBaseURL}, nil
+	return &api{http: client, download: download, baseURL: parsedBaseURL}, nil
 }
 
 // GenerateRequest is the union of fields the various Flux endpoints
 // accept. Each Flux model (flux-pro-1.1, flux-pro-1.1-ultra,
 // flux-kontext-pro, ...) has its own endpoint path; all fields are
 // forwarded and the API rejects unknown ones.
-type GenerateRequest struct {
+type generateRequest struct {
 	Prompt           string `json:"prompt"`
 	ImagePrompt      string `json:"image_prompt,omitempty"`
 	InputImage       string `json:"input_image,omitempty"`
@@ -83,7 +83,7 @@ type GenerateRequest struct {
 
 // AsyncResponse is the body of any POST /v1/<model> call — it returns a
 // task id which the caller polls via GetResult.
-type AsyncResponse struct {
+type asyncResponse struct {
 	ID         string   `json:"id"`
 	PollingURL string   `json:"polling_url"`
 	Cost       *float64 `json:"cost,omitempty"`
@@ -93,7 +93,7 @@ type AsyncResponse struct {
 
 // PollResult is the body of GET /v1/get_result?id=... — Status moves
 // through "Pending" / "Ready" / "Error" / "Content Moderated".
-type PollResult struct {
+type pollResult struct {
 	ID       string         `json:"id"`
 	Status   string         `json:"status"`
 	Progress *float64       `json:"progress,omitempty"`
@@ -107,12 +107,12 @@ type PollResult struct {
 	} `json:"result"`
 }
 
-// Generate posts to /<model> (e.g. "flux-pro-1.1", "flux-kontext-pro").
-func (a *API) Generate(ctx context.Context, model string, req *GenerateRequest) (*AsyncResponse, error) {
+// generate posts to /<model> (e.g. "flux-pro-1.1", "flux-kontext-pro").
+func (a *api) generate(ctx context.Context, model string, req *generateRequest) (*asyncResponse, error) {
 	if req == nil {
 		return nil, errors.New("blackforestlabs: request must not be nil")
 	}
-	var out AsyncResponse
+	var out asyncResponse
 	resp, err := a.http.R().SetContext(ctx).SetBody(req).SetResult(&out).Post("/" + model)
 	if err != nil {
 		return nil, fmt.Errorf("blackforestlabs: request failed: %w", err)
@@ -123,13 +123,13 @@ func (a *API) Generate(ctx context.Context, model string, req *GenerateRequest) 
 	return &out, nil
 }
 
-// GetResult fetches the current task state through the exact polling URL
+// getResult fetches the current task state through the exact polling URL
 // returned by the generation endpoint.
-func (a *API) GetResult(ctx context.Context, pollingURL string) (*PollResult, error) {
+func (a *api) getResult(ctx context.Context, pollingURL string) (*pollResult, error) {
 	if err := a.validateProviderURL(pollingURL); err != nil {
 		return nil, fmt.Errorf("blackforestlabs: invalid polling URL: %w", err)
 	}
-	var out PollResult
+	var out pollResult
 	resp, err := a.http.R().SetContext(ctx).SetResult(&out).Get(pollingURL)
 	if err != nil {
 		return nil, fmt.Errorf("blackforestlabs: poll failed: %w", err)
@@ -140,9 +140,9 @@ func (a *API) GetResult(ctx context.Context, pollingURL string) (*PollResult, er
 	return &out, nil
 }
 
-// DownloadOutput retrieves a short-lived BFL delivery URL without forwarding
+// downloadOutput retrieves a short-lived BFL delivery URL without forwarding
 // the x-key credential to the delivery host.
-func (a *API) DownloadOutput(ctx context.Context, outputURL string) ([]byte, string, error) {
+func (a *api) downloadOutput(ctx context.Context, outputURL string) ([]byte, string, error) {
 	if err := a.validateProviderURL(outputURL); err != nil {
 		return nil, "", fmt.Errorf("blackforestlabs: invalid output URL: %w", err)
 	}
@@ -159,7 +159,7 @@ func (a *API) DownloadOutput(ctx context.Context, outputURL string) ([]byte, str
 	return response.Body(), response.Header().Get("Content-Type"), nil
 }
 
-func (a *API) validateProviderURL(rawURL string) error {
+func (a *api) validateProviderURL(rawURL string) error {
 	parsed, err := url.Parse(rawURL)
 	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
 		return fmt.Errorf("URL must be absolute: %q", rawURL)

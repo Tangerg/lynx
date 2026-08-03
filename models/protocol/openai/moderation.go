@@ -4,11 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 
 	"github.com/openai/openai-go/v3"
-	"github.com/openai/openai-go/v3/option"
 
-	"github.com/Tangerg/lynx/core/metadata"
 	"github.com/Tangerg/lynx/core/moderation"
 )
 
@@ -16,7 +15,8 @@ type ModerationModelConfig struct {
 	Provider       string
 	APIKey         string
 	DefaultOptions moderation.Options
-	RequestOptions []option.RequestOption
+	BaseURL        string
+	HTTPClient     *http.Client
 }
 
 func (c ModerationModelConfig) Validate() error {
@@ -38,7 +38,7 @@ func (c ModerationModelConfig) Validate() error {
 var _ moderation.Model = (*ModerationModel)(nil)
 
 type ModerationModel struct {
-	api            *API
+	api            *api
 	provider       string
 	defaultOptions moderation.Options
 }
@@ -48,9 +48,10 @@ func NewModerationModel(cfg ModerationModelConfig) (*ModerationModel, error) {
 		return nil, err
 	}
 
-	api, err := NewAPI(APIConfig{
-		APIKey:         cfg.APIKey,
-		RequestOptions: cfg.RequestOptions,
+	api, err := newAPI(apiConfig{
+		APIKey:     cfg.APIKey,
+		BaseURL:    cfg.BaseURL,
+		HTTPClient: cfg.HTTPClient,
 	})
 	if err != nil {
 		return nil, err
@@ -69,12 +70,12 @@ func (m *ModerationModel) buildAPIModerationRequest(req *moderation.Request) (*o
 		return nil, err
 	}
 
-	paramsValue, _, err := metadata.Decode[openai.ModerationNewParams](mergedOpts.Extensions, protocolModalityRequestExtensionKey(m.provider, "moderation"))
-
-	params := &paramsValue
+	fields, err := decodeRequestFields(mergedOpts.Extensions, protocolModalityRequestExtensionKey(m.provider, "moderation"), "model", "input")
 	if err != nil {
 		return nil, err
 	}
+	params := &openai.ModerationNewParams{}
+	params.SetExtraFields(fields)
 
 	params.Model = mergedOpts.Model
 	params.Input = openai.ModerationNewParamsInputUnion{
@@ -168,7 +169,7 @@ func (m *ModerationModel) Call(ctx context.Context, req *moderation.Request) (*m
 		return nil, err
 	}
 
-	apiResp, err := m.api.Moderation(ctx, apiReq)
+	apiResp, err := m.api.moderation(ctx, apiReq)
 	if err != nil {
 		return nil, err
 	}

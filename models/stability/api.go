@@ -12,25 +12,25 @@ import (
 	"github.com/go-resty/resty/v2"
 )
 
-type APIConfig struct {
+type apiConfig struct {
 	APIKey     string
 	BaseURL    string
 	HTTPClient *http.Client
 }
 
-func (c APIConfig) Validate() error {
+func (c apiConfig) validate() error {
 	if c.APIKey == "" {
 		return errors.New("stability: APIKey is required")
 	}
 	return nil
 }
 
-type API struct {
+type api struct {
 	http *resty.Client
 }
 
-func NewAPI(cfg APIConfig) (*API, error) {
-	if err := cfg.Validate(); err != nil {
+func newAPI(cfg apiConfig) (*api, error) {
+	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
 
@@ -41,14 +41,14 @@ func NewAPI(cfg APIConfig) (*API, error) {
 	client.SetBaseURL(cmp.Or(cfg.BaseURL, DefaultBaseURL)).
 		SetAuthToken(cfg.APIKey)
 
-	return &API{http: client}, nil
+	return &api{http: client}, nil
 }
 
 // GenerateRequest models the union of fields each v2beta image endpoint
 // accepts. Mode selects the response wrapping: [ResponseModeImage] returns
 // raw bytes; [ResponseModeJSON] returns a base64 envelope with FinishReason
 // + Seed echoed back (required when callers care about those).
-type GenerateRequest struct {
+type generateRequest struct {
 	Prompt         string
 	NegativePrompt string
 	AspectRatio    string
@@ -60,13 +60,13 @@ type GenerateRequest struct {
 	Mode           string
 }
 
-type JSONResponse struct {
+type jsonResponse struct {
 	Image        string `json:"image"`
 	FinishReason string `json:"finish_reason"`
 	Seed         int64  `json:"seed"`
 }
 
-func (a *API) Generate(ctx context.Context, path string, req *GenerateRequest) ([]byte, http.Header, error) {
+func (a *api) generate(ctx context.Context, path string, req *generateRequest) ([]byte, http.Header, error) {
 	if req == nil {
 		return nil, nil, errors.New("stability: request must not be nil")
 	}
@@ -86,7 +86,7 @@ func (a *API) Generate(ctx context.Context, path string, req *GenerateRequest) (
 	return resp.Body(), resp.Header(), nil
 }
 
-func buildFormFields(req *GenerateRequest) map[string]string {
+func buildFormFields(req *generateRequest) map[string]string {
 	out := make(map[string]string, 8)
 	put := func(k, v string) {
 		if v != "" {
@@ -108,8 +108,8 @@ func buildFormFields(req *GenerateRequest) map[string]string {
 	return out
 }
 
-func DecodeJSON(body []byte) (*JSONResponse, error) {
-	var resp JSONResponse
+func DecodeJSON(body []byte) (*jsonResponse, error) {
+	var resp jsonResponse
 	if err := json.Unmarshal(body, &resp); err != nil {
 		return nil, fmt.Errorf("stability: decode json: %w", err)
 	}

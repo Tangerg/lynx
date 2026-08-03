@@ -1,13 +1,11 @@
 package minimax
 
 import (
-	"errors"
 	"fmt"
-
-	openaisdk "github.com/openai/openai-go/v3"
 
 	corechat "github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/core/metadata"
+	"github.com/Tangerg/lynx/models/protocol/openai"
 )
 
 const (
@@ -58,9 +56,7 @@ func (options ChatRequestOptions) validate() error {
 
 // reasoningSplitDialect keeps MiniMax thinking separate from answer content.
 // The official API otherwise embeds thinking in content inside <think> tags.
-type reasoningSplitDialect struct{}
-
-func (reasoningSplitDialect) PrepareRequest(source *corechat.Request, target *openaisdk.ChatCompletionNewParams) error {
+func prepareOpenAIRequest(source *corechat.Request, target *openai.CompatibleRequest) error {
 	extension, found, err := metadata.Decode[ChatRequestOptions](source.Extensions, RequestExtensionKey)
 	if err != nil {
 		return fmt.Errorf("minimax: extension %q: %w", RequestExtensionKey, err)
@@ -74,36 +70,18 @@ func (reasoningSplitDialect) PrepareRequest(source *corechat.Request, target *op
 	if found && extension.ReasoningSplit != nil {
 		reasoningSplit = *extension.ReasoningSplit
 	}
-	extraFields := target.ExtraFields()
-	merged := make(map[string]any, len(extraFields)+1)
-	for key, value := range extraFields {
-		merged[key] = value
-	}
-	merged[reasoningSplitField] = reasoningSplit
-	if found && extension.Thinking != "" {
-		merged["thinking"] = map[string]any{"type": extension.Thinking}
-	}
-	if found && extension.ServiceTier != "" {
-		merged["service_tier"] = extension.ServiceTier
-	}
-	target.SetExtraFields(merged)
-	return nil
-}
-
-type combinedRequestDialect struct {
-	reasoning openaiRequestDialect
-}
-
-type openaiRequestDialect interface {
-	PrepareRequest(source *corechat.Request, target *openaisdk.ChatCompletionNewParams) error
-}
-
-func (dialect combinedRequestDialect) PrepareRequest(source *corechat.Request, target *openaisdk.ChatCompletionNewParams) error {
-	if dialect.reasoning == nil {
-		return errors.New("minimax: reasoning request dialect is required")
-	}
-	if err := dialect.reasoning.PrepareRequest(source, target); err != nil {
+	if err := target.SetExtraField(reasoningSplitField, reasoningSplit); err != nil {
 		return err
 	}
-	return reasoningSplitDialect{}.PrepareRequest(source, target)
+	if found && extension.Thinking != "" {
+		if err := target.SetExtraField("thinking", map[string]any{"type": extension.Thinking}); err != nil {
+			return err
+		}
+	}
+	if found && extension.ServiceTier != "" {
+		if err := target.SetExtraField("service_tier", extension.ServiceTier); err != nil {
+			return err
+		}
+	}
+	return nil
 }

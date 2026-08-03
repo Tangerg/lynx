@@ -43,7 +43,7 @@ var _ tts.Streamer = (*AudioTTSModel)(nil)
 // The official bytes endpoint streams a binary HTTP response. Call buffers it;
 // Stream exposes provider chunks as they arrive.
 type AudioTTSModel struct {
-	api            *API
+	api            *api
 	defaultOptions tts.Options
 }
 
@@ -51,20 +51,20 @@ func NewAudioTTSModel(cfg AudioTTSModelConfig) (*AudioTTSModel, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
-	api, err := NewAPI(APIConfig{APIKey: cfg.APIKey, BaseURL: cfg.BaseURL, HTTPClient: cfg.HTTPClient})
+	api, err := newAPI(apiConfig{APIKey: cfg.APIKey, BaseURL: cfg.BaseURL, HTTPClient: cfg.HTTPClient})
 	if err != nil {
 		return nil, err
 	}
 	return &AudioTTSModel{api: api, defaultOptions: cfg.DefaultOptions.Clone()}, nil
 }
 
-func (a *AudioTTSModel) buildAPIRequest(req *tts.Request) (*SynthesizeRequest, error) {
+func (a *AudioTTSModel) buildAPIRequest(req *tts.Request) (*synthesizeRequest, error) {
 	mergedOpts, err := a.defaultOptions.Merged(req.Options)
 	if err != nil {
 		return nil, err
 	}
 
-	bodyValue, _, err := metadata.Decode[SynthesizeRequest](mergedOpts.Extensions, RequestExtensionKey)
+	bodyValue, _, err := metadata.Decode[synthesizeRequest](mergedOpts.Extensions, RequestExtensionKey)
 
 	body := &bodyValue
 	if err != nil {
@@ -97,7 +97,7 @@ func (a *AudioTTSModel) Call(ctx context.Context, req *tts.Request) (*tts.Respon
 	if err != nil {
 		return nil, err
 	}
-	audio, headers, err := a.api.Synthesize(ctx, body)
+	audio, headers, err := a.api.synthesize(ctx, body)
 	if err != nil {
 		return nil, err
 	}
@@ -144,7 +144,7 @@ func (a *AudioTTSModel) Stream(ctx context.Context, req *tts.Request) iter.Seq2[
 			yield(nil, err)
 			return
 		}
-		body, headers, err := a.api.SynthesizeStream(ctx, request)
+		body, headers, err := a.api.synthesizeStream(ctx, request)
 		if err != nil {
 			yield(nil, err)
 			return
@@ -167,7 +167,7 @@ func (a *AudioTTSModel) Stream(ctx context.Context, req *tts.Request) iter.Seq2[
 	}
 }
 
-func validateSynthesizeRequest(req *SynthesizeRequest) error {
+func validateSynthesizeRequest(req *synthesizeRequest) error {
 	if req.Model != ModelBlizzard {
 		return fmt.Errorf("lmnt: speech model must be %q, got %q", ModelBlizzard, req.Model)
 	}

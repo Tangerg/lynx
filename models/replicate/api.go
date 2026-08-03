@@ -13,27 +13,27 @@ import (
 	"github.com/go-resty/resty/v2"
 )
 
-type APIConfig struct {
+type apiConfig struct {
 	APIKey     string
 	BaseURL    string
 	HTTPClient *http.Client
 }
 
-func (c APIConfig) Validate() error {
+func (c apiConfig) validate() error {
 	if c.APIKey == "" {
 		return errors.New("replicate: APIKey is required")
 	}
 	return nil
 }
 
-type API struct {
+type api struct {
 	http     *resty.Client
 	download *resty.Client
 	baseHost string
 }
 
-func NewAPI(cfg APIConfig) (*API, error) {
-	if err := cfg.Validate(); err != nil {
+func newAPI(cfg apiConfig) (*api, error) {
+	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
 	client := resty.New()
@@ -50,19 +50,19 @@ func NewAPI(cfg APIConfig) (*API, error) {
 	client.SetBaseURL(baseURL).
 		SetAuthToken(cfg.APIKey).
 		SetHeader("Content-Type", "application/json")
-	return &API{http: client, download: download, baseHost: parsedBaseURL.Hostname()}, nil
+	return &api{http: client, download: download, baseHost: parsedBaseURL.Hostname()}, nil
 }
 
 // PredictionRequest contains the caller-controlled body fields shared by both
 // prediction endpoints. CreatePrediction derives version exclusively from the
 // model id so endpoint routing and the immutable version cannot disagree.
-type PredictionRequest struct {
+type predictionRequest struct {
 	Input               map[string]any `json:"input"`
 	Webhook             string         `json:"webhook,omitempty"`
 	WebhookEventsFilter []string       `json:"webhook_events_filter,omitzero"`
 }
 
-func (r PredictionRequest) Validate() error {
+func (r predictionRequest) Validate() error {
 	if r.Input == nil {
 		return errors.New("replicate: prediction input is required")
 	}
@@ -105,7 +105,7 @@ type predictionRequestBody struct {
 // "failed" / "canceled". Output is model-specific: image models
 // usually return []string (URLs) or a single string (URL); text models
 // return []string (token chunks) or string.
-type PredictionResponse struct {
+type predictionResponse struct {
 	ID          string         `json:"id"`
 	Model       string         `json:"model,omitempty"`
 	Version     string         `json:"version,omitempty"`
@@ -130,12 +130,12 @@ type PredictionResponse struct {
 	} `json:"metrics"`
 }
 
-// CreatePrediction submits a generation job. model accepts either
+// createPrediction submits a generation job. model accepts either
 // "owner/name" (official model — routes to /v1/models/.../predictions)
 // or "owner/name:version_hash" (community model — routes to
 // /v1/predictions with version in body). The hash form lets callers
 // pin to a specific community-uploaded snapshot.
-func (a *API) CreatePrediction(ctx context.Context, modelID string, req *PredictionRequest) (*PredictionResponse, error) {
+func (a *api) createPrediction(ctx context.Context, modelID string, req *predictionRequest) (*predictionResponse, error) {
 	if req == nil {
 		return nil, errors.New("replicate: request must not be nil")
 	}
@@ -166,7 +166,7 @@ func (a *API) CreatePrediction(ctx context.Context, modelID string, req *Predict
 		path = fmt.Sprintf("/models/%s/%s/predictions", owner, name)
 	}
 
-	var out PredictionResponse
+	var out predictionResponse
 	resp, err := a.http.R().SetContext(ctx).SetBody(&body).SetResult(&out).Post(path)
 	if err != nil {
 		return nil, fmt.Errorf("replicate: submit failed: %w", err)
@@ -177,11 +177,11 @@ func (a *API) CreatePrediction(ctx context.Context, modelID string, req *Predict
 	return &out, nil
 }
 
-// DownloadOutput fetches a provider-issued prediction file without forwarding
+// downloadOutput fetches a provider-issued prediction file without forwarding
 // the API bearer token. Replicate output-file URLs are independently
 // authorized and ephemeral; sending the account token to a delivery host is
 // both unnecessary and unsafe.
-func (a *API) DownloadOutput(ctx context.Context, rawURL string) ([]byte, string, error) {
+func (a *api) downloadOutput(ctx context.Context, rawURL string) ([]byte, string, error) {
 	parsed, err := url.Parse(rawURL)
 	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
 		return nil, "", fmt.Errorf("replicate: invalid output URL %q", rawURL)
@@ -206,12 +206,12 @@ func (a *API) DownloadOutput(ctx context.Context, rawURL string) ([]byte, string
 	return response.Body(), response.Header().Get("Content-Type"), nil
 }
 
-// GetPrediction polls a prediction's current state.
-func (a *API) GetPrediction(ctx context.Context, id string) (*PredictionResponse, error) {
+// getPrediction polls a prediction's current state.
+func (a *api) getPrediction(ctx context.Context, id string) (*predictionResponse, error) {
 	if id == "" {
 		return nil, errors.New("replicate: prediction id must not be empty")
 	}
-	var out PredictionResponse
+	var out predictionResponse
 	resp, err := a.http.R().SetContext(ctx).SetResult(&out).Get("/predictions/" + id)
 	if err != nil {
 		return nil, fmt.Errorf("replicate: poll failed: %w", err)
@@ -222,12 +222,12 @@ func (a *API) GetPrediction(ctx context.Context, id string) (*PredictionResponse
 	return &out, nil
 }
 
-// CancelPrediction aborts a still-running prediction.
-func (a *API) CancelPrediction(ctx context.Context, id string) (*PredictionResponse, error) {
+// cancelPrediction aborts a still-running prediction.
+func (a *api) cancelPrediction(ctx context.Context, id string) (*predictionResponse, error) {
 	if id == "" {
 		return nil, errors.New("replicate: prediction id must not be empty")
 	}
-	var out PredictionResponse
+	var out predictionResponse
 	resp, err := a.http.R().SetContext(ctx).SetResult(&out).Post("/predictions/" + id + "/cancel")
 	if err != nil {
 		return nil, fmt.Errorf("replicate: cancel failed: %w", err)

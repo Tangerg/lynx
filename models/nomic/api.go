@@ -10,25 +10,25 @@ import (
 	"github.com/go-resty/resty/v2"
 )
 
-type APIConfig struct {
+type apiConfig struct {
 	APIKey     string
 	BaseURL    string
 	HTTPClient *http.Client
 }
 
-func (c APIConfig) Validate() error {
+func (c apiConfig) validate() error {
 	if c.APIKey == "" {
 		return errors.New("nomic: APIKey is required")
 	}
 	return nil
 }
 
-type API struct {
+type api struct {
 	http *resty.Client
 }
 
-func NewAPI(cfg APIConfig) (*API, error) {
-	if err := cfg.Validate(); err != nil {
+func newAPI(cfg apiConfig) (*api, error) {
+	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
 
@@ -44,10 +44,10 @@ func NewAPI(cfg APIConfig) (*API, error) {
 		SetHeader("Content-Type", "application/json").
 		SetHeader("Accept", "application/json")
 
-	return &API{http: client}, nil
+	return &api{http: client}, nil
 }
 
-type EmbeddingRequest struct {
+type embeddingRequest struct {
 	Model          string   `json:"model"`
 	Texts          []string `json:"texts"`
 	TaskType       string   `json:"task_type,omitempty"`
@@ -55,7 +55,7 @@ type EmbeddingRequest struct {
 	LongTextMode   string   `json:"long_text_mode,omitempty"`
 }
 
-type EmbeddingResponse struct {
+type embeddingResponse struct {
 	Embeddings [][]float64 `json:"embeddings"`
 	Model      string      `json:"model"`
 	Usage      struct {
@@ -64,7 +64,7 @@ type EmbeddingResponse struct {
 	} `json:"usage"`
 }
 
-func (a *API) Embedding(ctx context.Context, req *EmbeddingRequest) (*EmbeddingResponse, error) {
+func (a *api) embedding(ctx context.Context, req *embeddingRequest) (*embeddingResponse, error) {
 	if req == nil {
 		return nil, errors.New("nomic: request must not be nil")
 	}
@@ -72,7 +72,7 @@ func (a *API) Embedding(ctx context.Context, req *EmbeddingRequest) (*EmbeddingR
 		return nil, errors.New("nomic: texts must not be empty")
 	}
 
-	var out EmbeddingResponse
+	var out embeddingResponse
 	resp, err := a.http.R().
 		SetContext(ctx).
 		SetBody(req).

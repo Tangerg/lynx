@@ -6,8 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"iter"
-
-	"github.com/openai/openai-go/v3/option"
+	"net/http"
 
 	corechat "github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/models/protocol/openai"
@@ -33,7 +32,7 @@ type OpenAIChatConfig struct {
 	APIKey         string
 	DefaultOptions corechat.Options
 	BaseURL        string
-	RequestOptions []option.RequestOption
+	HTTPClient     *http.Client
 }
 
 // NewOpenAIChat constructs a Core chat adapter for Perplexity.
@@ -44,14 +43,11 @@ func NewOpenAIChat(config OpenAIChatConfig) (*OpenAIChat, error) {
 	if err := validateCoreOptions(config.DefaultOptions); err != nil {
 		return nil, fmt.Errorf("perplexity: DefaultOptions: %w", err)
 	}
-	requestOptions := append([]option.RequestOption{option.WithBaseURL(cmp.Or(config.BaseURL, BaseURL))}, config.RequestOptions...)
-	dialect := sonarDialect{}
 	protocol, err := openai.NewCompatibleChat(
-		openai.ChatConfig{APIKey: config.APIKey, DefaultOptions: config.DefaultOptions, RequestOptions: requestOptions},
+		openai.ChatConfig{APIKey: config.APIKey, DefaultOptions: config.DefaultOptions, BaseURL: cmp.Or(config.BaseURL, BaseURL), HTTPClient: config.HTTPClient},
 		openai.Dialect{
 			Provider:                   "perplexity",
-			Request:                    dialect,
-			RequestOptions:             dialect,
+			PrepareRequest:             prepareRequest,
 			DisableRawRequestExtension: true,
 		},
 	)

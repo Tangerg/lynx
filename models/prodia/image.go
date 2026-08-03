@@ -40,7 +40,7 @@ var _ image.Model = (*ImageModel)(nil)
 // JobRequest.Config map; the typed Width/Height/NegativePrompt/Seed
 // are copied into Config automatically when set.
 type ImageModel struct {
-	api            *API
+	api            *api
 	defaultOptions image.Options
 }
 
@@ -48,7 +48,7 @@ func NewImageModel(cfg ImageModelConfig) (*ImageModel, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
-	api, err := NewAPI(APIConfig{APIKey: cfg.APIKey, BaseURL: cfg.BaseURL, HTTPClient: cfg.HTTPClient})
+	api, err := newAPI(apiConfig{APIKey: cfg.APIKey, BaseURL: cfg.BaseURL, HTTPClient: cfg.HTTPClient})
 	if err != nil {
 		return nil, err
 	}
@@ -63,7 +63,7 @@ func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Respo
 	if err != nil {
 		return nil, err
 	}
-	apiReqValue, _, err := metadata.Decode[JobRequest](mergedOpts.Extensions, ImageRequestExtensionKey)
+	apiReqValue, _, err := metadata.Decode[jobRequest](mergedOpts.Extensions, ImageRequestExtensionKey)
 	apiReq := &apiReqValue
 	if err != nil {
 		return nil, err
@@ -107,7 +107,7 @@ func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Respo
 	default:
 		return nil, errors.New("prodia: image: output_format must be image/jpeg, image/png, or image/webp")
 	}
-	body, hdr, err := i.api.Job(ctx, apiReq, accept)
+	body, hdr, err := i.api.job(ctx, apiReq, accept)
 	if err != nil {
 		return nil, err
 	}

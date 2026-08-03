@@ -49,7 +49,7 @@ func ReasoningDetailsDialect(config ReasoningDetailsConfig) (Dialect, error) {
 		return Dialect{}, errors.New("openai: reasoning details field is required")
 	}
 	codec := reasoningDetailsCodec{config: config}
-	return Dialect{Provider: config.Provider, Request: codec, Response: codec}, nil
+	return Dialect{Provider: config.Provider, request: codec, response: codec}, nil
 }
 
 type reasoningDetailsCodec struct {

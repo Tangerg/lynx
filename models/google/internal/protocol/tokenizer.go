@@ -40,7 +40,7 @@ var _ tokenizer.TextEstimator = (*TextEstimator)(nil)
 // endpoint. Implements [tokenizer.TextEstimator] so it drops into code
 // paths gating on token budgets (RAG chunking, prompt-window checks).
 type TextEstimator struct {
-	api   *API
+	api   *api
 	model string
 }
 
@@ -49,7 +49,7 @@ func NewTextEstimator(cfg TextEstimatorConfig) (*TextEstimator, error) {
 		return nil, err
 	}
 
-	api, err := NewAPI(APIConfig{
+	api, err := newAPI(apiConfig{
 		APIKey:     cfg.APIKey,
 		Backend:    cfg.Backend,
 		Project:    cfg.Project,
@@ -68,7 +68,7 @@ func NewTextEstimator(cfg TextEstimatorConfig) (*TextEstimator, error) {
 // text were sent as a single user message under the configured model.
 func (t *TextEstimator) EstimateText(ctx context.Context, text string) (int, error) {
 	contents := []*genai.Content{genai.NewContentFromText(text, genai.RoleUser)}
-	resp, err := t.api.CountTokens(ctx, t.model, contents, nil)
+	resp, err := t.api.countTokens(ctx, t.model, contents, nil)
 	if err != nil {
 		return 0, err
 	}

@@ -14,25 +14,25 @@ import (
 	"github.com/go-resty/resty/v2"
 )
 
-type APIConfig struct {
+type apiConfig struct {
 	APIKey     string
 	BaseURL    string
 	HTTPClient *http.Client
 }
 
-func (c APIConfig) Validate() error {
+func (c apiConfig) validate() error {
 	if c.APIKey == "" {
 		return errors.New("deepgram: APIKey is required")
 	}
 	return nil
 }
 
-type API struct {
+type api struct {
 	http *resty.Client
 }
 
-func NewAPI(cfg APIConfig) (*API, error) {
-	if err := cfg.Validate(); err != nil {
+func newAPI(cfg apiConfig) (*api, error) {
+	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
 
@@ -43,13 +43,13 @@ func NewAPI(cfg APIConfig) (*API, error) {
 	client.SetBaseURL(cmp.Or(cfg.BaseURL, DefaultBaseURL)).
 		SetHeader("Authorization", "Token "+cfg.APIKey)
 
-	return &API{http: client}, nil
+	return &api{http: client}, nil
 }
 
 // ListenParams holds current query-string options for Deepgram /listen.
 // Extra is available for newly released official query parameters that have
 // not yet acquired a typed field.
-type ListenParams struct {
+type listenParams struct {
 	Model          string
 	Language       string
 	Tier           string
@@ -71,7 +71,7 @@ type ListenParams struct {
 	Extra          url.Values
 }
 
-type ListenResponse struct {
+type listenResponse struct {
 	RequestID string `json:"request_id"`
 	Metadata  struct {
 		TransactionKey string   `json:"transaction_key"`
@@ -107,12 +107,12 @@ type ListenResponse struct {
 	Raw map[string]any `json:"-"`
 }
 
-func (a *API) Listen(ctx context.Context, audio []byte, contentType string, params *ListenParams) (*ListenResponse, error) {
+func (a *api) listen(ctx context.Context, audio []byte, contentType string, params *listenParams) (*listenResponse, error) {
 	if len(audio) == 0 {
 		return nil, errors.New("deepgram: transcription audio must not be empty")
 	}
 
-	var out ListenResponse
+	var out listenResponse
 	resp, err := a.http.R().
 		SetContext(ctx).
 		SetHeader("Content-Type", cmp.Or(contentType, "application/octet-stream")).
@@ -134,7 +134,7 @@ func (a *API) Listen(ctx context.Context, audio []byte, contentType string, para
 
 // SpeakParams holds the query-string knobs Deepgram /speak accepts.
 // See https://developers.deepgram.com/reference/text-to-speech-api.
-type SpeakParams struct {
+type speakParams struct {
 	Model      string // "aura-asteria-en" / "aura-2-thalia-en" etc.
 	Encoding   string // "mp3" / "linear16" / "opus" / "flac" / "aac" / "mulaw" / "alaw"
 	Container  string // "wav" / "none"
@@ -144,10 +144,10 @@ type SpeakParams struct {
 	Extra      url.Values
 }
 
-// Speak posts text to /speak and returns the raw audio bytes plus the
+// speak posts text to /speak and returns the raw audio bytes plus the
 // response headers (request id / content-type live there).
-func (a *API) Speak(ctx context.Context, text string, params *SpeakParams) ([]byte, http.Header, error) {
-	body, headers, err := a.SpeakStream(ctx, text, params)
+func (a *api) speak(ctx context.Context, text string, params *speakParams) ([]byte, http.Header, error) {
+	body, headers, err := a.speakStream(ctx, text, params)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -162,8 +162,8 @@ func (a *API) Speak(ctx context.Context, text string, params *SpeakParams) ([]by
 	return audio, headers, nil
 }
 
-// SpeakStream posts text to /speak and exposes the response body as it arrives.
-func (a *API) SpeakStream(ctx context.Context, text string, params *SpeakParams) (io.ReadCloser, http.Header, error) {
+// speakStream posts text to /speak and exposes the response body as it arrives.
+func (a *api) speakStream(ctx context.Context, text string, params *speakParams) (io.ReadCloser, http.Header, error) {
 	if text == "" {
 		return nil, nil, errors.New("deepgram: speech text must not be empty")
 	}
@@ -193,7 +193,7 @@ func (a *API) SpeakStream(ctx context.Context, text string, params *SpeakParams)
 	return resp.RawBody(), resp.Header(), nil
 }
 
-func buildSpeakQuery(p *SpeakParams) url.Values {
+func buildSpeakQuery(p *speakParams) url.Values {
 	q := url.Values{}
 	if p == nil {
 		return q
@@ -224,7 +224,7 @@ func buildSpeakQuery(p *SpeakParams) url.Values {
 	return q
 }
 
-func buildListenQuery(p *ListenParams) url.Values {
+func buildListenQuery(p *listenParams) url.Values {
 	q := url.Values{}
 	if p == nil {
 		return q

@@ -6,9 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"iter"
+	"net/http"
 	"strings"
-
-	"github.com/openai/openai-go/v3/option"
 
 	corechat "github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/models/protocol/openai"
@@ -35,7 +34,7 @@ type OpenAIChatConfig struct {
 	APIKey         string
 	DefaultOptions corechat.Options
 	BaseURL        string
-	RequestOptions []option.RequestOption
+	HTTPClient     *http.Client
 }
 
 // NewOpenAIChat constructs an OpenAI-wire Core chat adapter for Ollama.
@@ -44,8 +43,7 @@ func NewOpenAIChat(config OpenAIChatConfig) (*OpenAIChat, error) {
 	if apiKey == "" {
 		apiKey = "ollama"
 	}
-	requestOptions := append([]option.RequestOption{option.WithBaseURL(resolveOpenAIBaseURL(config.BaseURL))}, config.RequestOptions...)
-	protocol, err := openai.NewCompatibleChat(openai.ChatConfig{APIKey: apiKey, DefaultOptions: config.DefaultOptions, RequestOptions: requestOptions}, openai.Dialect{Provider: "ollama"})
+	protocol, err := openai.NewCompatibleChat(openai.ChatConfig{APIKey: apiKey, DefaultOptions: config.DefaultOptions, BaseURL: resolveOpenAIBaseURL(config.BaseURL), HTTPClient: config.HTTPClient}, openai.Dialect{Provider: "ollama"})
 	if err != nil {
 		return nil, fmt.Errorf("ollama: construct OpenAI-compatible chat: %w", err)
 	}

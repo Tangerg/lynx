@@ -3,8 +3,7 @@ package azureopenai
 import (
 	"context"
 	"errors"
-
-	"github.com/openai/openai-go/v3/option"
+	"net/http"
 
 	"github.com/Tangerg/lynx/core/embedding"
 	"github.com/Tangerg/lynx/models/protocol/openai"
@@ -14,7 +13,7 @@ type EmbeddingModelConfig struct {
 	APIKey         string
 	BaseURL        string
 	DefaultOptions embedding.Options
-	RequestOptions []option.RequestOption
+	HTTPClient     *http.Client
 }
 
 func (c EmbeddingModelConfig) Validate() error {
@@ -40,7 +39,7 @@ func NewEmbeddingModel(cfg EmbeddingModelConfig) (*EmbeddingModel, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
-	reqOpts, err := buildRequestOptions(cfg.BaseURL, cfg.RequestOptions)
+	baseURL, err := normalizeBaseURL(cfg.BaseURL)
 	if err != nil {
 		return nil, err
 	}
@@ -48,7 +47,8 @@ func NewEmbeddingModel(cfg EmbeddingModelConfig) (*EmbeddingModel, error) {
 		Provider:       "azureopenai",
 		APIKey:         cfg.APIKey,
 		DefaultOptions: cfg.DefaultOptions,
-		RequestOptions: reqOpts,
+		BaseURL:        baseURL,
+		HTTPClient:     cfg.HTTPClient,
 	})
 	if err != nil {
 		return nil, err

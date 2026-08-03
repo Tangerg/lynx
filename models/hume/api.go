@@ -13,25 +13,25 @@ import (
 	"github.com/go-resty/resty/v2"
 )
 
-type APIConfig struct {
+type apiConfig struct {
 	APIKey     string
 	BaseURL    string
 	HTTPClient *http.Client
 }
 
-func (c APIConfig) Validate() error {
+func (c apiConfig) validate() error {
 	if c.APIKey == "" {
 		return errors.New("hume: APIKey is required")
 	}
 	return nil
 }
 
-type API struct {
+type api struct {
 	http *resty.Client
 }
 
-func NewAPI(cfg APIConfig) (*API, error) {
-	if err := cfg.Validate(); err != nil {
+func newAPI(cfg apiConfig) (*api, error) {
+	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
 	client := resty.New()
@@ -41,12 +41,12 @@ func NewAPI(cfg APIConfig) (*API, error) {
 	client.SetBaseURL(cmp.Or(cfg.BaseURL, DefaultBaseURL)).
 		SetHeader("X-Hume-API-Key", cfg.APIKey).
 		SetHeader("Content-Type", "application/json")
-	return &API{http: client}, nil
+	return &api{http: client}, nil
 }
 
 // Voice references a named Octave voice. Provider is "HUME_AI" /
 // "CUSTOM_VOICE" depending on where the voice is stored.
-type Voice struct {
+type voice struct {
 	ID       string `json:"id,omitempty"`
 	Name     string `json:"name,omitempty"`
 	Provider string `json:"provider,omitempty"`
@@ -55,10 +55,10 @@ type Voice struct {
 // Utterance is the per-segment input to TTS. "Description" is the
 // emotion / style cue Octave is famous for (e.g. "calm, professional");
 // it can replace Voice for fully-prompt-driven generation.
-type Utterance struct {
+type utterance struct {
 	Text            string   `json:"text"`
 	Description     string   `json:"description,omitempty"`
-	Voice           *Voice   `json:"voice,omitempty"`
+	voice           *voice   `json:"voice,omitempty"`
 	Speed           *float64 `json:"speed,omitempty"`
 	TrailingSilence *float64 `json:"trailing_silence,omitempty"`
 }
@@ -66,8 +66,8 @@ type Utterance struct {
 // TTSRequest mirrors POST /tts. Format is "mp3" / "wav" / "pcm";
 // SplitUtterances controls whether the response includes per-utterance
 // timing.
-type TTSRequest struct {
-	Utterances            []Utterance    `json:"utterances"`
+type ttsRequest struct {
+	Utterances            []utterance    `json:"utterances"`
 	Context               map[string]any `json:"context,omitzero"`
 	Format                map[string]any `json:"format,omitzero"`
 	IncludeTimestampTypes []string       `json:"include_timestamp_types,omitempty"`
@@ -81,7 +81,7 @@ type TTSRequest struct {
 
 // TTSResponse is the JSON envelope. Generations[0].Audio is the
 // base64-encoded audio bytes.
-type TTSResponse struct {
+type ttsResponse struct {
 	Generations []struct {
 		ID       string `json:"generation_id"`
 		Audio    string `json:"audio"`
@@ -98,7 +98,7 @@ type TTSResponse struct {
 
 // TTSStreamEvent is one JSON-line union member returned by
 // /tts/stream/json. Type is either "audio" or "timestamp".
-type TTSStreamEvent struct {
+type ttsStreamEvent struct {
 	Type            string          `json:"type"`
 	Audio           string          `json:"audio,omitempty"`
 	AudioFormat     string          `json:"audio_format,omitempty"`
@@ -115,7 +115,7 @@ type TTSStreamEvent struct {
 }
 
 // DecodeAudio decodes an audio stream event.
-func (event *TTSStreamEvent) DecodeAudio() ([]byte, error) {
+func (event *ttsStreamEvent) DecodeAudio() ([]byte, error) {
 	if event.Type != "audio" {
 		return nil, fmt.Errorf("hume: stream event type %q has no audio", event.Type)
 	}
@@ -130,7 +130,7 @@ func (event *TTSStreamEvent) DecodeAudio() ([]byte, error) {
 }
 
 // DecodeAudio returns the raw audio bytes from the first generation.
-func (r *TTSResponse) DecodeAudio() ([]byte, error) {
+func (r *ttsResponse) DecodeAudio() ([]byte, error) {
 	if len(r.Generations) == 0 {
 		return nil, errors.New("hume: TTS response has no generations")
 	}
@@ -144,8 +144,8 @@ func (r *TTSResponse) DecodeAudio() ([]byte, error) {
 	return audio, nil
 }
 
-// TTSStream starts the official streamed JSON-lines endpoint.
-func (a *API) TTSStream(ctx context.Context, req *TTSRequest) (io.ReadCloser, error) {
+// ttsStream starts the official streamed JSON-lines endpoint.
+func (a *api) ttsStream(ctx context.Context, req *ttsRequest) (io.ReadCloser, error) {
 	if req == nil {
 		return nil, errors.New("hume: request must not be nil")
 	}
@@ -171,11 +171,11 @@ func (a *API) TTSStream(ctx context.Context, req *TTSRequest) (io.ReadCloser, er
 	return resp.RawBody(), nil
 }
 
-func (a *API) TTS(ctx context.Context, req *TTSRequest) (*TTSResponse, error) {
+func (a *api) tts(ctx context.Context, req *ttsRequest) (*ttsResponse, error) {
 	if req == nil {
 		return nil, errors.New("hume: request must not be nil")
 	}
-	var out TTSResponse
+	var out ttsResponse
 	resp, err := a.http.R().SetContext(ctx).SetBody(req).SetResult(&out).Post("/tts")
 	if err != nil {
 		return nil, fmt.Errorf("hume: request failed: %w", err)

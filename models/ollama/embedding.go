@@ -34,7 +34,7 @@ var _ embedding.Model = (*EmbeddingModel)(nil)
 // embedding model the daemon has pulled: nomic-embed-text, mxbai-embed-large,
 // snowflake-arctic-embed, etc. Use `ollama pull <model>` ahead of time.
 type EmbeddingModel struct {
-	api            *API
+	api            *api
 	defaultOptions embedding.Options
 }
 
@@ -43,7 +43,7 @@ func NewEmbeddingModel(cfg EmbeddingModelConfig) (*EmbeddingModel, error) {
 		return nil, err
 	}
 
-	api, err := NewAPI(APIConfig{
+	api, err := newAPI(apiConfig{
 		BaseURL:    cfg.BaseURL,
 		HTTPClient: cfg.HTTPClient,
 	})
@@ -131,7 +131,7 @@ func (e *EmbeddingModel) Call(ctx context.Context, req *embedding.Request) (*emb
 		return nil, err
 	}
 
-	apiResp, err := e.api.Embed(ctx, apiReq)
+	apiResp, err := e.api.embed(ctx, apiReq)
 	if err != nil {
 		return nil, err
 	}

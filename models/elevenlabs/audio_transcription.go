@@ -36,7 +36,7 @@ var _ transcription.Model = (*AudioTranscriptionModel)(nil)
 // (Scribe model family). Diarization / language / per-word timestamps
 // are reached through the extension-threaded [TranscriptionRequest].
 type AudioTranscriptionModel struct {
-	api            *API
+	api            *api
 	defaultOptions transcription.Options
 }
 
@@ -45,7 +45,7 @@ func NewAudioTranscriptionModel(cfg AudioTranscriptionModelConfig) (*AudioTransc
 		return nil, err
 	}
 
-	api, err := NewAPI(APIConfig{
+	api, err := newAPI(apiConfig{
 		APIKey:     cfg.APIKey,
 		BaseURL:    cfg.BaseURL,
 		HTTPClient: cfg.HTTPClient,
@@ -68,7 +68,7 @@ func (a *AudioTranscriptionModel) Call(ctx context.Context, req *transcription.R
 	if err != nil {
 		return nil, err
 	}
-	apiReqValue, _, err := metadata.Decode[TranscriptionRequest](mergedOpts.Extensions, TranscriptionRequestExtensionKey)
+	apiReqValue, _, err := metadata.Decode[transcriptionRequest](mergedOpts.Extensions, TranscriptionRequestExtensionKey)
 	apiReq := &apiReqValue
 	if err != nil {
 		return nil, err
@@ -88,7 +88,7 @@ func (a *AudioTranscriptionModel) Call(ctx context.Context, req *transcription.R
 		return nil, err
 	}
 
-	apiResp, err := a.api.Transcription(ctx, audio, req.Audio.MIME, apiReq)
+	apiResp, err := a.api.transcription(ctx, audio, req.Audio.MIME, apiReq)
 	if err != nil {
 		return nil, err
 	}
@@ -125,7 +125,7 @@ func (a *AudioTranscriptionModel) Call(ctx context.Context, req *transcription.R
 	return transcription.NewResponse(result, responseMetadata)
 }
 
-func validateTranscriptionRequest(req *TranscriptionRequest) error {
+func validateTranscriptionRequest(req *transcriptionRequest) error {
 	if req.ModelID != ModelScribeV2 && req.ModelID != ModelScribeV1 {
 		return fmt.Errorf("elevenlabs: transcription model must be %q or %q, got %q", ModelScribeV2, ModelScribeV1, req.ModelID)
 	}

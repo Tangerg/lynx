@@ -3,8 +3,7 @@ package azureopenai
 import (
 	"context"
 	"errors"
-
-	"github.com/openai/openai-go/v3/option"
+	"net/http"
 
 	"github.com/Tangerg/lynx/core/image"
 	"github.com/Tangerg/lynx/models/protocol/openai"
@@ -14,7 +13,7 @@ type ImageModelConfig struct {
 	APIKey         string
 	BaseURL        string
 	DefaultOptions image.Options
-	RequestOptions []option.RequestOption
+	HTTPClient     *http.Client
 }
 
 func (c ImageModelConfig) Validate() error {
@@ -39,7 +38,7 @@ func NewImageModel(cfg ImageModelConfig) (*ImageModel, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
-	reqOpts, err := buildRequestOptions(cfg.BaseURL, cfg.RequestOptions)
+	baseURL, err := normalizeBaseURL(cfg.BaseURL)
 	if err != nil {
 		return nil, err
 	}
@@ -47,7 +46,8 @@ func NewImageModel(cfg ImageModelConfig) (*ImageModel, error) {
 		Provider:       "azureopenai",
 		APIKey:         cfg.APIKey,
 		DefaultOptions: cfg.DefaultOptions,
-		RequestOptions: reqOpts,
+		BaseURL:        baseURL,
+		HTTPClient:     cfg.HTTPClient,
 	})
 	if err != nil {
 		return nil, err

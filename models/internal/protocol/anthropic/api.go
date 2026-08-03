@@ -3,61 +3,69 @@ package anthropic
 import (
 	"context"
 	"errors"
-	"slices"
+	"net/http"
 
 	anthropicsdk "github.com/anthropics/anthropic-sdk-go"
 	"github.com/anthropics/anthropic-sdk-go/option"
 	"github.com/anthropics/anthropic-sdk-go/packages/ssestream"
 )
 
-type APIConfig struct {
-	APIKey         string
-	RequestOptions []option.RequestOption
+type apiConfig struct {
+	APIKey     string
+	BaseURL    string
+	HTTPClient *http.Client
+	Headers    http.Header
 }
 
-func (c APIConfig) Validate() error {
+func (c apiConfig) validate() error {
 	if c.APIKey == "" {
 		return errors.New("anthropic: APIKey is required")
 	}
 	return nil
 }
 
-type API struct {
+type api struct {
 	client *anthropicsdk.Client
 }
 
-func NewAPI(cfg APIConfig) (*API, error) {
-	if err := cfg.Validate(); err != nil {
+func newAPI(cfg apiConfig) (*api, error) {
+	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
-
-	// Clone caller's slice and append the API-key option last so it
-	// can't be overridden by an earlier WithAPIKey on the original
-	// slice. Cloning prevents append from mutating the caller's
-	// backing array when capacity allows.
-	options := append(slices.Clone(cfg.RequestOptions), option.WithAPIKey(cfg.APIKey))
+	options := []option.RequestOption{option.WithAPIKey(cfg.APIKey)}
+	if cfg.BaseURL != "" {
+		options = append(options, option.WithBaseURL(cfg.BaseURL))
+	}
+	if cfg.HTTPClient != nil {
+		options = append(options, option.WithHTTPClient(cfg.HTTPClient))
+	}
+	for name, values := range cfg.Headers {
+		for _, value := range values {
+			options = append(options, option.WithHeader(name, value))
+		}
+	}
 	client := anthropicsdk.NewClient(options...)
 
-	return &API{client: &client}, nil
+	return &api{client: &client}, nil
 }
 
-func (a *API) ChatCompletion(ctx context.Context, req *anthropicsdk.MessageNewParams, opts ...option.RequestOption) (*anthropicsdk.Message, error) {
+func (a *api) chatCompletion(ctx context.Context, req *anthropicsdk.MessageNewParams, opts ...option.RequestOption) (*anthropicsdk.Message, error) {
 	if req == nil {
 		return nil, errors.New("anthropic: request must not be nil")
 	}
-	return a.client.Messages.New(ctx, *req, opts...)
+	return wrapResult(a.client.Messages.New(ctx, *req, opts...))
 }
 
-func (a *API) ChatCompletionStream(ctx context.Context, req *anthropicsdk.MessageNewParams, opts ...option.RequestOption) *ssestream.Stream[anthropicsdk.MessageStreamEventUnion] {
+func (a *api) chatCompletionStream(ctx context.Context, req *anthropicsdk.MessageNewParams, opts ...option.RequestOption) *ssestream.Stream[anthropicsdk.MessageStreamEventUnion] {
 	if req == nil {
 		return nil
 	}
 	return a.client.Messages.NewStreaming(ctx, *req, opts...)
 }
 
-func (a *API) CountTokens(ctx context.Context, req *anthropicsdk.MessageCountTokensParams, opts ...option.RequestOption) (*anthropicsdk.MessageTokensCount, error) {
+func (a *api) countTokens(ctx context.Context, req *anthropicsdk.MessageCountTokensParams, opts ...option.RequestOption) (*anthropicsdk.MessageTokensCount, error) {
 	if req == nil {
 		return nil, errors.New("anthropic: request must not be nil")
 	}
-	return a.client.Messages.CountTokens(ctx, *req, opts...)
+	return wrapResult(a.client.Messages.CountTokens(ctx, *req, opts...))
 }

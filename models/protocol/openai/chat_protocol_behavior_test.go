@@ -6,8 +6,6 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/openai/openai-go/v3/option"
-
 	corechat "github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/core/modeltest"
 	lynxopenai "github.com/Tangerg/lynx/models/protocol/openai"
@@ -48,7 +46,7 @@ func newOpenAIBehaviorChat(t *testing.T, baseURL string) *lynxopenai.Chat {
 	adapter, err := lynxopenai.NewChat(lynxopenai.ChatConfig{
 		APIKey:         "test-key",
 		DefaultOptions: corechat.Options{Model: "gpt-5.2"},
-		RequestOptions: []option.RequestOption{option.WithBaseURL(baseURL)},
+		BaseURL:        baseURL,
 	})
 	if err != nil {
 		t.Fatalf("NewChat: %v", err)

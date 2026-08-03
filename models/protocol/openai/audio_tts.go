@@ -6,12 +6,11 @@ import (
 	"fmt"
 	"io"
 	"iter"
+	"net/http"
 
 	"github.com/openai/openai-go/v3"
-	"github.com/openai/openai-go/v3/option"
 	"github.com/openai/openai-go/v3/packages/param"
 
-	"github.com/Tangerg/lynx/core/metadata"
 	tts "github.com/Tangerg/lynx/core/speech"
 )
 
@@ -19,7 +18,8 @@ type AudioTTSModelConfig struct {
 	Provider       string
 	APIKey         string
 	DefaultOptions tts.Options
-	RequestOptions []option.RequestOption
+	BaseURL        string
+	HTTPClient     *http.Client
 }
 
 func (c AudioTTSModelConfig) Validate() error {
@@ -42,7 +42,7 @@ var _ tts.Model = (*AudioTTSModel)(nil)
 var _ tts.Streamer = (*AudioTTSModel)(nil)
 
 type AudioTTSModel struct {
-	api            *API
+	api            *api
 	provider       string
 	defaultOptions tts.Options
 }
@@ -52,9 +52,10 @@ func NewAudioTTSModel(cfg AudioTTSModelConfig) (*AudioTTSModel, error) {
 		return nil, err
 	}
 
-	api, err := NewAPI(APIConfig{
-		APIKey:         cfg.APIKey,
-		RequestOptions: cfg.RequestOptions,
+	api, err := newAPI(apiConfig{
+		APIKey:     cfg.APIKey,
+		BaseURL:    cfg.BaseURL,
+		HTTPClient: cfg.HTTPClient,
 	})
 	if err != nil {
 		return nil, err
@@ -73,18 +74,15 @@ func (a *AudioTTSModel) buildAPITTSRequest(req *tts.Request) (*openai.AudioSpeec
 		return nil, err
 	}
 
-	paramsValue, _, err := metadata.Decode[openai.AudioSpeechNewParams](mergedOpts.Extensions, protocolModalityRequestExtensionKey(a.provider, "speech"))
-
-	params := &paramsValue
+	fields, err := decodeRequestFields(mergedOpts.Extensions, protocolModalityRequestExtensionKey(a.provider, "speech"), "model", "input", "voice", "speed", "response_format", "stream_format")
 	if err != nil {
 		return nil, err
 	}
+	params := &openai.AudioSpeechNewParams{}
+	params.SetExtraFields(fields)
 
 	params.Model = mergedOpts.Model
 	params.Input = req.Text
-	// Each typed option only overrides extension-threaded params when set —
-	// empty strings / zero speed would clobber prior choices, and
-	// Speed=0 is outside the API's 0.25–4.0 range.
 	if mergedOpts.Voice != "" {
 		params.Voice = openai.AudioSpeechNewParamsVoiceUnion{OfString: param.NewOpt(mergedOpts.Voice)}
 	}
@@ -116,7 +114,7 @@ func (a *AudioTTSModel) Call(ctx context.Context, req *tts.Request) (*tts.Respon
 		return nil, err
 	}
 
-	apiResp, err := a.api.AudioTTS(ctx, apiReq)
+	apiResp, err := a.api.audioTTS(ctx, apiReq)
 	if err != nil {
 		return nil, err
 	}
@@ -142,7 +140,7 @@ func (a *AudioTTSModel) Stream(ctx context.Context, req *tts.Request) iter.Seq2[
 			return
 		}
 
-		apiResp, err := a.api.AudioTTS(ctx, apiReq)
+		apiResp, err := a.api.audioTTS(ctx, apiReq)
 		if err != nil {
 			yield(nil, err)
 			return

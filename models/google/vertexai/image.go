@@ -7,7 +7,6 @@ import (
 	"math"
 	"mime"
 	"net/http"
-	"slices"
 	"strings"
 
 	"google.golang.org/genai"
@@ -46,8 +45,12 @@ func (c ImageModelConfig) Validate() error {
 // optional source images for editing. Store it under
 // [ImageRequestExtensionKey].
 type ImageGenerationOptions struct {
-	Config      genai.GenerateContentConfig `json:"config,omitzero"`
-	InputImages []*media.Media              `json:"input_images,omitempty"`
+	InputImages              []*media.Media `json:"input_images,omitempty"`
+	AspectRatio              string         `json:"aspect_ratio,omitempty"`
+	ImageSize                string         `json:"image_size,omitempty"`
+	PersonGeneration         string         `json:"person_generation,omitempty"`
+	ProminentPeople          string         `json:"prominent_people,omitempty"`
+	OutputCompressionQuality *int32         `json:"output_compression_quality,omitempty"`
 }
 
 var _ image.Model = (*ImageModel)(nil)
@@ -100,9 +103,15 @@ func (m *ImageModel) buildRequest(req *image.Request) (string, []*genai.Content,
 	if err != nil {
 		return "", nil, nil, err
 	}
-	config := providerOpts.Config
-	if !slices.Contains(config.ResponseModalities, string(genai.ModalityImage)) {
-		config.ResponseModalities = []string{string(genai.ModalityImage)}
+	config := genai.GenerateContentConfig{
+		ResponseModalities: []string{string(genai.ModalityImage)},
+		ImageConfig: &genai.ImageConfig{
+			AspectRatio:              providerOpts.AspectRatio,
+			ImageSize:                providerOpts.ImageSize,
+			PersonGeneration:         providerOpts.PersonGeneration,
+			ProminentPeople:          genai.ProminentPeople(providerOpts.ProminentPeople),
+			OutputCompressionQuality: providerOpts.OutputCompressionQuality,
+		},
 	}
 	if mergedOpts.Seed != nil {
 		if *mergedOpts.Seed > math.MaxInt32 {

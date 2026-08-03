@@ -7,8 +7,6 @@ import (
 	"testing"
 	"time"
 
-	openaisdk "github.com/openai/openai-go/v3"
-
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/core/chat"
 )
@@ -19,6 +17,15 @@ func (callOnlyModel) Call(context.Context, *chat.Request) (*chat.Response, error
 	return new(chat.Response), nil
 }
 
+type providerError struct {
+	status int
+	header http.Header
+}
+
+func (err *providerError) Error() string           { return "provider error" }
+func (err *providerError) HTTPStatus() int         { return err.status }
+func (err *providerError) HTTPHeader() http.Header { return err.header }
+
 func TestClassifyModelFailuresPreservesOptionalStreamingCapability(t *testing.T) {
 	classified := classifyModelFailures(callOnlyModel{})
 	if _, ok := classified.(chat.Streamer); ok {
@@ -27,9 +34,9 @@ func TestClassifyModelFailuresPreservesOptionalStreamingCapability(t *testing.T)
 }
 
 func TestClassifyModelErrorUsesTypedProviderStatus(t *testing.T) {
-	providerErr := &openaisdk.Error{
-		StatusCode: http.StatusTooManyRequests,
-		Response:   &http.Response{Header: http.Header{"Retry-After": []string{"12"}}},
+	providerErr := &providerError{
+		status: http.StatusTooManyRequests,
+		header: http.Header{"Retry-After": []string{"12"}},
 	}
 	err := classifyModelError(providerErr)
 	var failure *execution.Failure

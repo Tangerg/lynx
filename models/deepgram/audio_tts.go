@@ -42,7 +42,7 @@ var _ tts.Streamer = (*AudioTTSModel)(nil)
 // id, so [tts.Options].Voice is unused and [tts.Options].Model carries
 // the full picker.
 type AudioTTSModel struct {
-	api            *API
+	api            *api
 	defaultOptions tts.Options
 }
 
@@ -51,7 +51,7 @@ func NewAudioTTSModel(cfg AudioTTSModelConfig) (*AudioTTSModel, error) {
 		return nil, err
 	}
 
-	api, err := NewAPI(APIConfig{
+	api, err := newAPI(apiConfig{
 		APIKey:     cfg.APIKey,
 		BaseURL:    cfg.BaseURL,
 		HTTPClient: cfg.HTTPClient,
@@ -66,7 +66,7 @@ func NewAudioTTSModel(cfg AudioTTSModelConfig) (*AudioTTSModel, error) {
 	}, nil
 }
 
-func (a *AudioTTSModel) buildAPIRequest(req *tts.Request) (string, *SpeakParams, error) {
+func (a *AudioTTSModel) buildAPIRequest(req *tts.Request) (string, *speakParams, error) {
 	mergedOpts, err := a.defaultOptions.Merged(req.Options)
 	if err != nil {
 		return "", nil, err
@@ -77,7 +77,7 @@ func (a *AudioTTSModel) buildAPIRequest(req *tts.Request) (string, *SpeakParams,
 		return "", nil, err
 	}
 
-	paramsValue, _, err := metadata.Decode[SpeakParams](mergedOpts.Extensions, SpeechRequestExtensionKey)
+	paramsValue, _, err := metadata.Decode[speakParams](mergedOpts.Extensions, SpeechRequestExtensionKey)
 
 	params := &paramsValue
 	if err != nil {
@@ -147,7 +147,7 @@ func (a *AudioTTSModel) Call(ctx context.Context, req *tts.Request) (*tts.Respon
 		return nil, err
 	}
 
-	audio, hdr, err := a.api.Speak(ctx, text, params)
+	audio, hdr, err := a.api.speak(ctx, text, params)
 	if err != nil {
 		return nil, err
 	}
@@ -168,7 +168,7 @@ func (a *AudioTTSModel) Stream(ctx context.Context, req *tts.Request) iter.Seq2[
 			yield(nil, err)
 			return
 		}
-		body, hdr, err := a.api.SpeakStream(ctx, text, params)
+		body, hdr, err := a.api.speakStream(ctx, text, params)
 		if err != nil {
 			yield(nil, err)
 			return

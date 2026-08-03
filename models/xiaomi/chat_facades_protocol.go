@@ -6,9 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"iter"
-
-	anthropicoption "github.com/anthropics/anthropic-sdk-go/option"
-	openaioption "github.com/openai/openai-go/v3/option"
+	"net/http"
 
 	corechat "github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/models/internal/protocol/anthropic"
@@ -46,7 +44,7 @@ type OpenAIChatConfig struct {
 	APIKey         string
 	DefaultOptions corechat.Options
 	BaseURL        string
-	RequestOptions []openaioption.RequestOption
+	HTTPClient     *http.Client
 }
 
 // NewOpenAIChat constructs an OpenAI-wire Core chat adapter for MiMo.
@@ -54,11 +52,10 @@ func NewOpenAIChat(config OpenAIChatConfig) (*OpenAIChat, error) {
 	if config.APIKey == "" {
 		return nil, errors.New("xiaomi: APIKey is required")
 	}
-	requestOptions := append([]openaioption.RequestOption{openaioption.WithBaseURL(cmp.Or(config.BaseURL, BaseURL))}, config.RequestOptions...)
 	dialect := openai.ReasoningContentToolReplayDialect("xiaomi")
-	dialect.Request = requestDialect{reasoning: dialect.Request}
+	dialect.PrepareRequest = prepareOpenAIRequest
 	dialect.TokenLimitField = openai.TokenLimitMaxCompletionTokens
-	protocol, err := openai.NewCompatibleChat(openai.ChatConfig{APIKey: config.APIKey, DefaultOptions: config.DefaultOptions, RequestOptions: requestOptions}, dialect)
+	protocol, err := openai.NewCompatibleChat(openai.ChatConfig{APIKey: config.APIKey, DefaultOptions: config.DefaultOptions, BaseURL: cmp.Or(config.BaseURL, BaseURL), HTTPClient: config.HTTPClient}, dialect)
 	if err != nil {
 		return nil, fmt.Errorf("xiaomi: construct OpenAI-compatible chat: %w", err)
 	}
@@ -70,7 +67,7 @@ type AnthropicChatConfig struct {
 	APIKey         string
 	DefaultOptions corechat.Options
 	BaseURL        string
-	RequestOptions []anthropicoption.RequestOption
+	HTTPClient     *http.Client
 }
 
 // NewAnthropicChat constructs an Anthropic-wire Core chat adapter for MiMo.
@@ -78,8 +75,7 @@ func NewAnthropicChat(config AnthropicChatConfig) (*AnthropicChat, error) {
 	if config.APIKey == "" {
 		return nil, errors.New("xiaomi: APIKey is required")
 	}
-	requestOptions := append([]anthropicoption.RequestOption{anthropicoption.WithBaseURL(cmp.Or(config.BaseURL, BaseURLAnthropic))}, config.RequestOptions...)
-	protocol, err := anthropic.NewCompatibleChat(anthropic.ChatConfig{APIKey: config.APIKey, DefaultOptions: config.DefaultOptions, RequestOptions: requestOptions}, anthropic.Dialect{Provider: "xiaomi"})
+	protocol, err := anthropic.NewCompatibleChat(anthropic.ChatConfig{APIKey: config.APIKey, DefaultOptions: config.DefaultOptions, BaseURL: cmp.Or(config.BaseURL, BaseURLAnthropic), HTTPClient: config.HTTPClient}, anthropic.Dialect{Provider: "xiaomi"})
 	if err != nil {
 		return nil, fmt.Errorf("xiaomi: construct Anthropic-compatible chat: %w", err)
 	}

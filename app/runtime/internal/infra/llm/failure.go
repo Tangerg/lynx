@@ -10,11 +10,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
-	anthropicsdk "github.com/anthropics/anthropic-sdk-go"
-	openaisdk "github.com/openai/openai-go/v3"
-	"google.golang.org/genai"
-
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/core/chat"
 )
@@ -89,30 +84,14 @@ func classifyModelError(err error) error {
 }
 
 func providerHTTPError(err error) (int, http.Header, bool) {
-	var openAIError *openaisdk.Error
-	if errors.As(err, &openAIError) {
-		return openAIError.StatusCode, responseHeader(openAIError.Response), true
+	var responseError interface {
+		HTTPStatus() int
+		HTTPHeader() http.Header
 	}
-	var anthropicError *anthropicsdk.Error
-	if errors.As(err, &anthropicError) {
-		return anthropicError.StatusCode, responseHeader(anthropicError.Response), true
+	if !errors.As(err, &responseError) {
+		return 0, nil, false
 	}
-	var googleError *genai.APIError
-	if errors.As(err, &googleError) {
-		return googleError.Code, nil, true
-	}
-	var azureError *azcore.ResponseError
-	if errors.As(err, &azureError) {
-		return azureError.StatusCode, responseHeader(azureError.RawResponse), true
-	}
-	return 0, nil, false
-}
-
-func responseHeader(response *http.Response) http.Header {
-	if response == nil {
-		return nil
-	}
-	return response.Header
+	return responseError.HTTPStatus(), responseError.HTTPHeader(), true
 }
 
 func failureKindForHTTPStatus(status int) execution.FailureKind {

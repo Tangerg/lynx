@@ -4,8 +4,7 @@ import (
 	"context"
 	"errors"
 	"iter"
-
-	"github.com/openai/openai-go/v3/option"
+	"net/http"
 
 	corechat "github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/core/embedding"
@@ -37,7 +36,8 @@ const (
 type ChatConfig struct {
 	APIKey         string
 	DefaultOptions corechat.Options
-	RequestOptions []option.RequestOption
+	BaseURL        string
+	HTTPClient     *http.Client
 }
 
 func (c ChatConfig) Validate() error { return c.protocol().Validate() }
@@ -46,7 +46,8 @@ func (c ChatConfig) protocol() openaiprotocol.ChatConfig {
 	return openaiprotocol.ChatConfig{
 		APIKey:         c.APIKey,
 		DefaultOptions: c.DefaultOptions,
-		RequestOptions: c.RequestOptions,
+		BaseURL:        c.BaseURL,
+		HTTPClient:     c.HTTPClient,
 	}
 }
 
@@ -101,13 +102,14 @@ func (c *ResponsesChat) Stream(ctx context.Context, req *corechat.Request) iter.
 type EmbeddingModelConfig struct {
 	APIKey         string
 	DefaultOptions embedding.Options
-	RequestOptions []option.RequestOption
+	BaseURL        string
+	HTTPClient     *http.Client
 }
 
 func (c EmbeddingModelConfig) Validate() error { return c.protocol().Validate() }
 
 func (c EmbeddingModelConfig) protocol() openaiprotocol.EmbeddingModelConfig {
-	return openaiprotocol.EmbeddingModelConfig{Provider: "openai", APIKey: c.APIKey, DefaultOptions: c.DefaultOptions, RequestOptions: c.RequestOptions}
+	return openaiprotocol.EmbeddingModelConfig{Provider: "openai", APIKey: c.APIKey, DefaultOptions: c.DefaultOptions, BaseURL: c.BaseURL, HTTPClient: c.HTTPClient}
 }
 
 type EmbeddingModel struct {
@@ -132,13 +134,14 @@ func (m *EmbeddingModel) Call(ctx context.Context, req *embedding.Request) (*emb
 type AudioTranscriptionModelConfig struct {
 	APIKey         string
 	DefaultOptions transcription.Options
-	RequestOptions []option.RequestOption
+	BaseURL        string
+	HTTPClient     *http.Client
 }
 
 func (c AudioTranscriptionModelConfig) Validate() error { return c.protocol().Validate() }
 
 func (c AudioTranscriptionModelConfig) protocol() openaiprotocol.AudioTranscriptionModelConfig {
-	return openaiprotocol.AudioTranscriptionModelConfig{Provider: "openai", APIKey: c.APIKey, DefaultOptions: c.DefaultOptions, RequestOptions: c.RequestOptions}
+	return openaiprotocol.AudioTranscriptionModelConfig{Provider: "openai", APIKey: c.APIKey, DefaultOptions: c.DefaultOptions, BaseURL: c.BaseURL, HTTPClient: c.HTTPClient}
 }
 
 type AudioTranscriptionModel struct {
@@ -163,13 +166,14 @@ func (m *AudioTranscriptionModel) Call(ctx context.Context, req *transcription.R
 type AudioTranslationModelConfig struct {
 	APIKey         string
 	DefaultOptions transcription.Options
-	RequestOptions []option.RequestOption
+	BaseURL        string
+	HTTPClient     *http.Client
 }
 
 func (c AudioTranslationModelConfig) Validate() error { return c.protocol().Validate() }
 
 func (c AudioTranslationModelConfig) protocol() openaiprotocol.AudioTranslationModelConfig {
-	return openaiprotocol.AudioTranslationModelConfig{Provider: "openai", APIKey: c.APIKey, DefaultOptions: c.DefaultOptions, RequestOptions: c.RequestOptions}
+	return openaiprotocol.AudioTranslationModelConfig{Provider: "openai", APIKey: c.APIKey, DefaultOptions: c.DefaultOptions, BaseURL: c.BaseURL, HTTPClient: c.HTTPClient}
 }
 
 type AudioTranslationModel struct {
@@ -194,13 +198,14 @@ func (m *AudioTranslationModel) Call(ctx context.Context, req *transcription.Req
 type AudioTTSModelConfig struct {
 	APIKey         string
 	DefaultOptions tts.Options
-	RequestOptions []option.RequestOption
+	BaseURL        string
+	HTTPClient     *http.Client
 }
 
 func (c AudioTTSModelConfig) Validate() error { return c.protocol().Validate() }
 
 func (c AudioTTSModelConfig) protocol() openaiprotocol.AudioTTSModelConfig {
-	return openaiprotocol.AudioTTSModelConfig{Provider: "openai", APIKey: c.APIKey, DefaultOptions: c.DefaultOptions, RequestOptions: c.RequestOptions}
+	return openaiprotocol.AudioTTSModelConfig{Provider: "openai", APIKey: c.APIKey, DefaultOptions: c.DefaultOptions, BaseURL: c.BaseURL, HTTPClient: c.HTTPClient}
 }
 
 type AudioTTSModel struct{ protocol *openaiprotocol.AudioTTSModel }
@@ -233,13 +238,14 @@ func (m *AudioTTSModel) Stream(ctx context.Context, req *tts.Request) iter.Seq2[
 type ImageModelConfig struct {
 	APIKey         string
 	DefaultOptions image.Options
-	RequestOptions []option.RequestOption
+	BaseURL        string
+	HTTPClient     *http.Client
 }
 
 func (c ImageModelConfig) Validate() error { return c.protocol().Validate() }
 
 func (c ImageModelConfig) protocol() openaiprotocol.ImageModelConfig {
-	return openaiprotocol.ImageModelConfig{Provider: "openai", APIKey: c.APIKey, DefaultOptions: c.DefaultOptions, RequestOptions: c.RequestOptions}
+	return openaiprotocol.ImageModelConfig{Provider: "openai", APIKey: c.APIKey, DefaultOptions: c.DefaultOptions, BaseURL: c.BaseURL, HTTPClient: c.HTTPClient}
 }
 
 type ImageModel struct{ protocol *openaiprotocol.ImageModel }
@@ -262,13 +268,14 @@ func (m *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Respo
 type ModerationModelConfig struct {
 	APIKey         string
 	DefaultOptions moderation.Options
-	RequestOptions []option.RequestOption
+	BaseURL        string
+	HTTPClient     *http.Client
 }
 
 func (c ModerationModelConfig) Validate() error { return c.protocol().Validate() }
 
 func (c ModerationModelConfig) protocol() openaiprotocol.ModerationModelConfig {
-	return openaiprotocol.ModerationModelConfig{Provider: "openai", APIKey: c.APIKey, DefaultOptions: c.DefaultOptions, RequestOptions: c.RequestOptions}
+	return openaiprotocol.ModerationModelConfig{Provider: "openai", APIKey: c.APIKey, DefaultOptions: c.DefaultOptions, BaseURL: c.BaseURL, HTTPClient: c.HTTPClient}
 }
 
 type ModerationModel struct {

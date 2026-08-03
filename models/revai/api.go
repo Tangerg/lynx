@@ -12,25 +12,25 @@ import (
 	"github.com/go-resty/resty/v2"
 )
 
-type APIConfig struct {
+type apiConfig struct {
 	APIKey     string
 	BaseURL    string
 	HTTPClient *http.Client
 }
 
-func (c APIConfig) Validate() error {
+func (c apiConfig) validate() error {
 	if c.APIKey == "" {
 		return errors.New("revai: APIKey is required")
 	}
 	return nil
 }
 
-type API struct {
+type api struct {
 	http *resty.Client
 }
 
-func NewAPI(cfg APIConfig) (*API, error) {
-	if err := cfg.Validate(); err != nil {
+func newAPI(cfg apiConfig) (*api, error) {
+	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
 	client := resty.New()
@@ -39,13 +39,13 @@ func NewAPI(cfg APIConfig) (*API, error) {
 	}
 	client.SetBaseURL(cmp.Or(cfg.BaseURL, DefaultBaseURL)).
 		SetAuthToken(cfg.APIKey)
-	return &API{http: client}, nil
+	return &api{http: client}, nil
 }
 
 // JobOptions mirrors the JSON the multipart "options" field carries
 // when submitting a transcription job. See
 // https://docs.rev.ai/api/asynchronous/reference/.
-type JobOptions struct {
+type jobOptions struct {
 	MediaURL             string         `json:"media_url,omitempty"`
 	SourceConfig         map[string]any `json:"source_config,omitzero"`
 	Metadata             string         `json:"metadata,omitempty"`
@@ -72,7 +72,7 @@ type JobOptions struct {
 // Job is the body Rev returns for /jobs (and the poll body for
 // /jobs/{id}). Status moves through "in_progress" / "transcribed" /
 // "failed".
-type Job struct {
+type job struct {
 	ID              string  `json:"id"`
 	Status          string  `json:"status"`
 	CreatedOn       string  `json:"created_on"`
@@ -82,10 +82,10 @@ type Job struct {
 	Language        string  `json:"language"`
 }
 
-// SubmitURL queues a job pointing at media_url. Use Upload when the
+// submitURL queues a job pointing at media_url. Use Upload when the
 // caller has bytes instead.
-func (a *API) SubmitURL(ctx context.Context, opts JobOptions) (*Job, error) {
-	var out Job
+func (a *api) submitURL(ctx context.Context, opts jobOptions) (*job, error) {
+	var out job
 	resp, err := a.http.R().
 		SetContext(ctx).
 		SetHeader("Content-Type", "application/json").
@@ -101,9 +101,9 @@ func (a *API) SubmitURL(ctx context.Context, opts JobOptions) (*Job, error) {
 	return &out, nil
 }
 
-// Upload submits a job with the audio bytes as the multipart "media"
+// upload submits a job with the audio bytes as the multipart "media"
 // field plus the options as a JSON "options" field.
-func (a *API) Upload(ctx context.Context, audio []byte, mimeType string, opts JobOptions) (*Job, error) {
+func (a *api) upload(ctx context.Context, audio []byte, mimeType string, opts jobOptions) (*job, error) {
 	if len(audio) == 0 {
 		return nil, errors.New("revai: upload audio must not be empty")
 	}
@@ -112,7 +112,7 @@ func (a *API) Upload(ctx context.Context, audio []byte, mimeType string, opts Jo
 		return nil, fmt.Errorf("revai: encode job options: %w", err)
 	}
 
-	var out Job
+	var out job
 	resp, err := a.http.R().
 		SetContext(ctx).
 		SetMultipartField("media", "audio", cmp.Or(mimeType, "application/octet-stream"), bytes.NewReader(audio)).
@@ -128,8 +128,8 @@ func (a *API) Upload(ctx context.Context, audio []byte, mimeType string, opts Jo
 	return &out, nil
 }
 
-func (a *API) GetJob(ctx context.Context, id string) (*Job, error) {
-	var out Job
+func (a *api) getJob(ctx context.Context, id string) (*job, error) {
+	var out job
 	resp, err := a.http.R().SetContext(ctx).SetResult(&out).Get("/jobs/" + id)
 	if err != nil {
 		return nil, fmt.Errorf("revai: get job failed: %w", err)
@@ -140,9 +140,9 @@ func (a *API) GetJob(ctx context.Context, id string) (*Job, error) {
 	return &out, nil
 }
 
-// GetTranscriptText fetches the plain-text transcript for a finished
+// getTranscriptText fetches the plain-text transcript for a finished
 // job. Rev returns 404 until the job reaches "transcribed".
-func (a *API) GetTranscriptText(ctx context.Context, id string) (string, error) {
+func (a *api) getTranscriptText(ctx context.Context, id string) (string, error) {
 	resp, err := a.http.R().
 		SetContext(ctx).
 		SetHeader("Accept", "text/plain").

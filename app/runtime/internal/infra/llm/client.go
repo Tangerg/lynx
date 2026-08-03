@@ -3,11 +3,6 @@ package llm
 import (
 	"fmt"
 
-	anthropicsdk "github.com/anthropics/anthropic-sdk-go"
-	anthropicopt "github.com/anthropics/anthropic-sdk-go/option"
-	openaisdk "github.com/openai/openai-go/v3"
-	openaiopt "github.com/openai/openai-go/v3/option"
-
 	"github.com/Tangerg/lynx/chatclient"
 	"github.com/Tangerg/lynx/core/chat"
 
@@ -30,6 +25,11 @@ import (
 	"github.com/Tangerg/lynx/models/xai"
 	"github.com/Tangerg/lynx/models/xiaomi"
 	"github.com/Tangerg/lynx/models/zhipu"
+)
+
+const (
+	defaultAnthropicModel = "claude-opus-5"
+	defaultOpenAIModel    = "gpt-5.6-sol"
 )
 
 // ClientSpec is everything needed to build one chat client: which provider
@@ -69,8 +69,8 @@ type providerEntry struct {
 // passthroughs reuse the native OpenAI / Anthropic adapters with a caller URL.
 var providerInfo = map[Provider]providerEntry{
 	// Native wire adapters (base URL optional — defaults to the vendor endpoint).
-	ProviderAnthropic: {defaultModel: string(anthropicsdk.ModelClaudeOpus5), apiKeyEnv: "ANTHROPIC_API_KEY", build: anthropicNative},
-	ProviderOpenAI:    {defaultModel: string(openaisdk.ChatModelGPT5_6Sol), apiKeyEnv: "OPENAI_API_KEY", build: openaiNative},
+	ProviderAnthropic: {defaultModel: defaultAnthropicModel, apiKeyEnv: "ANTHROPIC_API_KEY", build: anthropicNative},
+	ProviderOpenAI:    {defaultModel: defaultOpenAIModel, apiKeyEnv: "OPENAI_API_KEY", build: openaiNative},
 	ProviderGoogle: {defaultModel: google.ModelGemini36Flash, apiKeyEnv: "GOOGLE_API_KEY", build: func(s ClientSpec, o chat.Options) (chat.Model, error) {
 		return google.NewChat(google.ChatConfig{APIKey: s.APIKey, DefaultOptions: o})
 	}},
@@ -139,28 +139,20 @@ var providerInfo = map[Provider]providerEntry{
 // anthropicNative builds the native Anthropic adapter, threading an optional
 // base URL (set for the anthropic-compatible passthrough).
 func anthropicNative(spec ClientSpec, opts chat.Options) (chat.Model, error) {
-	var reqOpts []anthropicopt.RequestOption
-	if spec.BaseURL != "" {
-		reqOpts = append(reqOpts, anthropicopt.WithBaseURL(spec.BaseURL))
-	}
 	return anthropic.NewChat(anthropic.ChatConfig{
 		APIKey:         spec.APIKey,
 		DefaultOptions: opts,
-		RequestOptions: reqOpts,
+		BaseURL:        spec.BaseURL,
 	})
 }
 
 // openaiNative builds the native OpenAI adapter, threading an optional base URL
 // (set for the openai-compatible passthrough).
 func openaiNative(spec ClientSpec, opts chat.Options) (chat.Model, error) {
-	var reqOpts []openaiopt.RequestOption
-	if spec.BaseURL != "" {
-		reqOpts = append(reqOpts, openaiopt.WithBaseURL(spec.BaseURL))
-	}
 	return openai.NewChat(openai.ChatConfig{
 		APIKey:         spec.APIKey,
 		DefaultOptions: opts,
-		RequestOptions: reqOpts,
+		BaseURL:        spec.BaseURL,
 	})
 }
 

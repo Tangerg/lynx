@@ -11,7 +11,11 @@ import (
 )
 
 func TestAudioTTSModel_Call_Mock(t *testing.T) {
-	var requestBody lmnt.SynthesizeRequest
+	var requestBody struct {
+		Text  string `json:"text"`
+		Voice string `json:"voice"`
+		Model string `json:"model"`
+	}
 	srv := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		if request.Header.Get("X-API-Key") != "test-key" {
 			t.Errorf("X-API-Key = %q", request.Header.Get("X-API-Key"))

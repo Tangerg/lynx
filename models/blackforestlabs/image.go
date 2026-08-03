@@ -48,7 +48,7 @@ var _ image.Model = (*ImageModel)(nil)
 // "flux-dev", "flux-kontext-pro", "flux-kontext-max"). BFL is async
 // only — Call submits + polls until ready.
 type ImageModel struct {
-	api            *API
+	api            *api
 	defaultOptions image.Options
 	pollInterval   time.Duration
 	pollTimeout    time.Duration
@@ -58,7 +58,7 @@ func NewImageModel(cfg ImageModelConfig) (*ImageModel, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
-	api, err := NewAPI(APIConfig{
+	api, err := newAPI(apiConfig{
 		APIKey:     cfg.APIKey,
 		BaseURL:    cfg.BaseURL,
 		HTTPClient: cfg.HTTPClient,
@@ -91,7 +91,7 @@ func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Respo
 		return nil, err
 	}
 
-	apiReqValue, _, err := metadata.Decode[GenerateRequest](mergedOpts.Extensions, ImageRequestExtensionKey)
+	apiReqValue, _, err := metadata.Decode[generateRequest](mergedOpts.Extensions, ImageRequestExtensionKey)
 
 	apiReq := &apiReqValue
 	if err != nil {
@@ -117,7 +117,7 @@ func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Respo
 		apiReq.OutputFormat = strings.TrimPrefix(mergedOpts.OutputFormat, "image/")
 	}
 
-	async, err := i.api.Generate(ctx, mergedOpts.Model, apiReq)
+	async, err := i.api.generate(ctx, mergedOpts.Model, apiReq)
 	if err != nil {
 		return nil, err
 	}
@@ -137,7 +137,7 @@ func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Respo
 		return nil, errors.New("blackforestlabs: ready result has no sample URL")
 	}
 
-	data, mimeType, err := i.api.DownloadOutput(ctx, final.Result.Sample)
+	data, mimeType, err := i.api.downloadOutput(ctx, final.Result.Sample)
 	if err != nil {
 		return nil, err
 	}
@@ -185,7 +185,7 @@ func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Respo
 	return image.NewResponse([]*image.Result{result}, meta)
 }
 
-func (i *ImageModel) pollUntilDone(ctx context.Context, pollingURL string) (*PollResult, error) {
+func (i *ImageModel) pollUntilDone(ctx context.Context, pollingURL string) (*pollResult, error) {
 	deadline, cancel := context.WithTimeout(ctx, i.pollTimeout)
 	defer cancel()
 
@@ -193,7 +193,7 @@ func (i *ImageModel) pollUntilDone(ctx context.Context, pollingURL string) (*Pol
 	defer ticker.Stop()
 
 	for {
-		resp, err := i.api.GetResult(deadline, pollingURL)
+		resp, err := i.api.getResult(deadline, pollingURL)
 		if err != nil {
 			return nil, err
 		}

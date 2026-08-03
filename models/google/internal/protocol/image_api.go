@@ -17,7 +17,7 @@ type interactionErrorEnvelope struct {
 	} `json:"error"`
 }
 
-func (a *API) createImageInteraction(ctx context.Context, req *imageInteractionRequest) (*imageInteractionResponse, error) {
+func (a *api) createImageInteraction(ctx context.Context, req *imageInteractionRequest) (*imageInteractionResponse, error) {
 	if a == nil || a.interactionsHTTP == nil {
 		return nil, errors.New("google: image: nil API")
 	}

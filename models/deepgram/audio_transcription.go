@@ -42,7 +42,7 @@ var _ transcription.Model = (*AudioTranscriptionModel)(nil)
 // stashed on the result metadata so callers needing diarization or
 // timestamps can dig in.
 type AudioTranscriptionModel struct {
-	api            *API
+	api            *api
 	defaultOptions transcription.Options
 }
 
@@ -51,7 +51,7 @@ func NewAudioTranscriptionModel(cfg AudioTranscriptionModelConfig) (*AudioTransc
 		return nil, err
 	}
 
-	api, err := NewAPI(APIConfig{
+	api, err := newAPI(apiConfig{
 		APIKey:     cfg.APIKey,
 		BaseURL:    cfg.BaseURL,
 		HTTPClient: cfg.HTTPClient,
@@ -74,7 +74,7 @@ func (a *AudioTranscriptionModel) Call(ctx context.Context, req *transcription.R
 	if err != nil {
 		return nil, err
 	}
-	paramsValue, _, err := metadata.Decode[ListenParams](mergedOpts.Extensions, TranscriptionRequestExtensionKey)
+	paramsValue, _, err := metadata.Decode[listenParams](mergedOpts.Extensions, TranscriptionRequestExtensionKey)
 	params := &paramsValue
 	if err != nil {
 		return nil, err
@@ -96,7 +96,7 @@ func (a *AudioTranscriptionModel) Call(ctx context.Context, req *transcription.R
 
 	contentType := req.Audio.MIME
 
-	apiResp, err := a.api.Listen(ctx, audio, contentType, params)
+	apiResp, err := a.api.listen(ctx, audio, contentType, params)
 	if err != nil {
 		return nil, err
 	}

@@ -7,11 +7,9 @@ import (
 	"strings"
 	"time"
 
-	openaisdk "github.com/openai/openai-go/v3"
-	"github.com/openai/openai-go/v3/option"
-
 	corechat "github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/core/metadata"
+	"github.com/Tangerg/lynx/models/protocol/openai"
 )
 
 const RequestExtensionKey = "perplexity/request"
@@ -98,14 +96,9 @@ type RequestOptions struct {
 	LanguagePreference      string            `json:"language_preference,omitempty"`
 }
 
-type sonarDialect struct{}
-
-func (sonarDialect) PrepareRequest(source *corechat.Request, target *openaisdk.ChatCompletionNewParams) error {
+func prepareRequest(source *corechat.Request, target *openai.CompatibleRequest) error {
 	if err := validateCoreOptions(source.Options); err != nil {
 		return err
-	}
-	if target.FrequencyPenalty.Valid() || target.PresencePenalty.Valid() {
-		return errors.New("frequency_penalty and presence_penalty are not supported by the Sonar API")
 	}
 	if len(source.Tools) != 0 {
 		return errors.New("custom function tools are not supported by the Sonar API; use Perplexity Agent API for tool orchestration")
@@ -125,30 +118,23 @@ func (sonarDialect) PrepareRequest(source *corechat.Request, target *openaisdk.C
 	if err != nil {
 		return err
 	}
-	return options.validate(string(target.Model), true)
-}
-
-func (sonarDialect) PrepareRequestOptions(source *corechat.Request, stream bool) ([]option.RequestOption, error) {
-	request, err := decodeRequestOptions(source)
-	if err != nil {
-		return nil, err
+	if err := options.validate(target.Model(), target.Stream()); err != nil {
+		return err
 	}
-	if err := request.validate(source.Options.Model, stream); err != nil {
-		return nil, err
-	}
-	encoded, err := json.Marshal(request)
+	encoded, err := json.Marshal(options)
 	if err != nil {
-		return nil, fmt.Errorf("encode extension %q: %w", RequestExtensionKey, err)
+		return fmt.Errorf("encode extension %q: %w", RequestExtensionKey, err)
 	}
 	var fields map[string]any
 	if err := json.Unmarshal(encoded, &fields); err != nil {
-		return nil, fmt.Errorf("normalize extension %q: %w", RequestExtensionKey, err)
+		return fmt.Errorf("normalize extension %q: %w", RequestExtensionKey, err)
 	}
-	requestOptions := make([]option.RequestOption, 0, len(fields))
 	for field, value := range fields {
-		requestOptions = append(requestOptions, option.WithJSONSet(field, value))
+		if err := target.SetExtraField(field, value); err != nil {
+			return err
+		}
 	}
-	return requestOptions, nil
+	return nil
 }
 
 func decodeRequestOptions(request *corechat.Request) (RequestOptions, error) {

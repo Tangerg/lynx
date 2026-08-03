@@ -10,25 +10,25 @@ import (
 	"github.com/go-resty/resty/v2"
 )
 
-type APIConfig struct {
+type apiConfig struct {
 	APIKey     string
 	BaseURL    string
 	HTTPClient *http.Client
 }
 
-func (c APIConfig) Validate() error {
+func (c apiConfig) validate() error {
 	if c.APIKey == "" {
 		return errors.New("prodia: APIKey is required")
 	}
 	return nil
 }
 
-type API struct {
+type api struct {
 	http *resty.Client
 }
 
-func NewAPI(cfg APIConfig) (*API, error) {
-	if err := cfg.Validate(); err != nil {
+func newAPI(cfg apiConfig) (*api, error) {
+	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
 	client := resty.New()
@@ -37,22 +37,22 @@ func NewAPI(cfg APIConfig) (*API, error) {
 	}
 	client.SetBaseURL(cmp.Or(cfg.BaseURL, DefaultBaseURL)).
 		SetHeader("Authorization", "Bearer "+cfg.APIKey)
-	return &API{http: client}, nil
+	return &api{http: client}, nil
 }
 
 // JobRequest mirrors POST /job. Prodia routes via a "type" discriminator
 // — typical values: "inference.flux.dev.txt2img.v1", "inference.flux.schnell.txt2img.v1",
 // "inference.sd1.5.txt2img.v1", "inference.sdxl.txt2img.v1".
-type JobRequest struct {
+type jobRequest struct {
 	Type   string         `json:"type"`
 	Config map[string]any `json:"config"`
 }
 
-// Job submits a job and returns the raw image bytes when status is 200.
+// job submits a job and returns the raw image bytes when status is 200.
 // Prodia's v2 endpoint is sync — it blocks until the image is ready
 // (typically 1-5s) and returns the binary directly with content-type
 // image/jpeg or image/png.
-func (a *API) Job(ctx context.Context, req *JobRequest, accept string) ([]byte, http.Header, error) {
+func (a *api) job(ctx context.Context, req *jobRequest, accept string) ([]byte, http.Header, error) {
 	if req == nil {
 		return nil, nil, errors.New("prodia: request must not be nil")
 	}

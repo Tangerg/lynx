@@ -11,7 +11,6 @@ import (
 	"time"
 
 	lumaagents "github.com/lumalabs/luma-agents-go"
-	lumaoption "github.com/lumalabs/luma-agents-go/option"
 
 	"github.com/Tangerg/lynx/core/image"
 	"github.com/Tangerg/lynx/core/media"
@@ -23,7 +22,6 @@ type ImageModelConfig struct {
 	DefaultOptions image.Options
 	BaseURL        string
 	HTTPClient     *http.Client
-	RequestOptions []lumaoption.RequestOption
 	PollInterval   time.Duration
 	PollTimeout    time.Duration
 }
@@ -46,7 +44,7 @@ var _ image.Model = (*ImageModel)(nil)
 // ImageModel implements Luma Agents image generation and editing with the
 // official SDK. Provider output URLs are downloaded before they expire.
 type ImageModel struct {
-	api            *API
+	api            *api
 	defaultOptions image.Options
 	httpClient     *http.Client
 	pollInterval   time.Duration
@@ -57,11 +55,10 @@ func NewImageModel(config ImageModelConfig) (*ImageModel, error) {
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
-	api, err := NewAPI(APIConfig{
-		APIKey:         config.APIKey,
-		BaseURL:        config.BaseURL,
-		HTTPClient:     config.HTTPClient,
-		RequestOptions: config.RequestOptions,
+	api, err := newAPI(apiConfig{
+		APIKey:     config.APIKey,
+		BaseURL:    config.BaseURL,
+		HTTPClient: config.HTTPClient,
 	})
 	if err != nil {
 		return nil, err
@@ -127,7 +124,7 @@ func (model *ImageModel) Call(ctx context.Context, request *image.Request) (*ima
 		}
 	}
 
-	submitted, err := model.api.CreateGeneration(ctx, *params)
+	submitted, err := model.api.createGeneration(ctx, *params)
 	if err != nil {
 		return nil, fmt.Errorf("luma: create generation: %w", err)
 	}
@@ -165,7 +162,7 @@ func (model *ImageModel) pollUntilDone(ctx context.Context, generationID string)
 	ticker := time.NewTicker(model.pollInterval)
 	defer ticker.Stop()
 	for {
-		generation, err := model.api.GetGeneration(deadline, generationID)
+		generation, err := model.api.getGeneration(deadline, generationID)
 		if err != nil {
 			return nil, fmt.Errorf("luma: get generation %q: %w", generationID, err)
 		}

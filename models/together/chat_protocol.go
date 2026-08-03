@@ -6,8 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"iter"
-
-	"github.com/openai/openai-go/v3/option"
+	"net/http"
 
 	corechat "github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/models/protocol/openai"
@@ -34,7 +33,7 @@ type OpenAIChatConfig struct {
 	APIKey         string
 	DefaultOptions corechat.Options
 	BaseURL        string
-	RequestOptions []option.RequestOption
+	HTTPClient     *http.Client
 }
 
 // NewOpenAIChat constructs a Core chat adapter for Together.
@@ -42,9 +41,8 @@ func NewOpenAIChat(config OpenAIChatConfig) (*OpenAIChat, error) {
 	if config.APIKey == "" {
 		return nil, errors.New("together: APIKey is required")
 	}
-	requestOptions := append([]option.RequestOption{option.WithBaseURL(cmp.Or(config.BaseURL, BaseURL))}, config.RequestOptions...)
 	protocol, err := openai.NewCompatibleChat(
-		openai.ChatConfig{APIKey: config.APIKey, DefaultOptions: config.DefaultOptions, RequestOptions: requestOptions},
+		openai.ChatConfig{APIKey: config.APIKey, DefaultOptions: config.DefaultOptions, BaseURL: cmp.Or(config.BaseURL, BaseURL), HTTPClient: config.HTTPClient},
 		openai.ReasoningReplayDialect("together"),
 	)
 	if err != nil {

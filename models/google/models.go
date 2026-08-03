@@ -8,9 +8,6 @@ import (
 	"iter"
 	"net/http"
 
-	"github.com/openai/openai-go/v3/option"
-	"google.golang.org/genai"
-
 	corechat "github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/core/embedding"
 	"github.com/Tangerg/lynx/core/image"
@@ -62,9 +59,6 @@ const (
 type ChatConfig struct {
 	APIKey         string
 	DefaultOptions corechat.Options
-	Backend        genai.Backend
-	Project        string
-	Location       string
 	BaseURL        string
 	HTTPClient     *http.Client
 }
@@ -73,8 +67,8 @@ func (c ChatConfig) Validate() error { return c.protocol().Validate() }
 
 func (c ChatConfig) protocol() googleprotocol.ChatConfig {
 	return googleprotocol.ChatConfig{
-		Provider: "google", APIKey: c.APIKey, DefaultOptions: c.DefaultOptions, Backend: c.Backend,
-		Project: c.Project, Location: c.Location, BaseURL: c.BaseURL, HTTPClient: c.HTTPClient,
+		Provider: "google", APIKey: c.APIKey, DefaultOptions: c.DefaultOptions,
+		BaseURL: c.BaseURL, HTTPClient: c.HTTPClient,
 	}
 }
 
@@ -106,7 +100,7 @@ type OpenAIChatConfig struct {
 	APIKey         string
 	DefaultOptions corechat.Options
 	BaseURL        string
-	RequestOptions []option.RequestOption
+	HTTPClient     *http.Client
 }
 
 type OpenAIChat struct{ protocol *openaiprotocol.Chat }
@@ -115,9 +109,8 @@ func NewOpenAIChat(config OpenAIChatConfig) (*OpenAIChat, error) {
 	if config.APIKey == "" {
 		return nil, errors.New("google: APIKey is required")
 	}
-	requestOptions := append([]option.RequestOption{option.WithBaseURL(cmp.Or(config.BaseURL, BaseURLOpenAI))}, config.RequestOptions...)
 	model, err := openaiprotocol.NewCompatibleChat(
-		openaiprotocol.ChatConfig{APIKey: config.APIKey, DefaultOptions: config.DefaultOptions, RequestOptions: requestOptions},
+		openaiprotocol.ChatConfig{APIKey: config.APIKey, DefaultOptions: config.DefaultOptions, BaseURL: cmp.Or(config.BaseURL, BaseURLOpenAI), HTTPClient: config.HTTPClient},
 		openaiprotocol.Dialect{Provider: "google"},
 	)
 	if err != nil {
@@ -143,9 +136,6 @@ func (c *OpenAIChat) Stream(ctx context.Context, req *corechat.Request) iter.Seq
 type EmbeddingModelConfig struct {
 	APIKey         string
 	DefaultOptions embedding.Options
-	Backend        genai.Backend
-	Project        string
-	Location       string
 	BaseURL        string
 	HTTPClient     *http.Client
 }
@@ -154,8 +144,8 @@ func (c EmbeddingModelConfig) Validate() error { return c.protocol().Validate() 
 
 func (c EmbeddingModelConfig) protocol() googleprotocol.EmbeddingModelConfig {
 	return googleprotocol.EmbeddingModelConfig{
-		Provider: "google", APIKey: c.APIKey, DefaultOptions: c.DefaultOptions, Backend: c.Backend,
-		Project: c.Project, Location: c.Location, BaseURL: c.BaseURL, HTTPClient: c.HTTPClient,
+		Provider: "google", APIKey: c.APIKey, DefaultOptions: c.DefaultOptions,
+		BaseURL: c.BaseURL, HTTPClient: c.HTTPClient,
 	}
 }
 
@@ -181,9 +171,6 @@ func (m *EmbeddingModel) Call(ctx context.Context, req *embedding.Request) (*emb
 type AudioTTSModelConfig struct {
 	APIKey         string
 	DefaultOptions tts.Options
-	Backend        genai.Backend
-	Project        string
-	Location       string
 	BaseURL        string
 	HTTPClient     *http.Client
 }
@@ -192,8 +179,8 @@ func (c AudioTTSModelConfig) Validate() error { return c.protocol().Validate() }
 
 func (c AudioTTSModelConfig) protocol() googleprotocol.AudioTTSModelConfig {
 	return googleprotocol.AudioTTSModelConfig{
-		Provider: "google", APIKey: c.APIKey, DefaultOptions: c.DefaultOptions, Backend: c.Backend,
-		Project: c.Project, Location: c.Location, BaseURL: c.BaseURL, HTTPClient: c.HTTPClient,
+		Provider: "google", APIKey: c.APIKey, DefaultOptions: c.DefaultOptions,
+		BaseURL: c.BaseURL, HTTPClient: c.HTTPClient,
 	}
 }
 
@@ -227,9 +214,6 @@ func (m *AudioTTSModel) Stream(ctx context.Context, req *tts.Request) iter.Seq2[
 type AudioTranscriptionModelConfig struct {
 	APIKey         string
 	DefaultOptions transcription.Options
-	Backend        genai.Backend
-	Project        string
-	Location       string
 	BaseURL        string
 	HTTPClient     *http.Client
 }
@@ -238,8 +222,8 @@ func (c AudioTranscriptionModelConfig) Validate() error { return c.protocol().Va
 
 func (c AudioTranscriptionModelConfig) protocol() googleprotocol.AudioTranscriptionModelConfig {
 	return googleprotocol.AudioTranscriptionModelConfig{
-		Provider: "google", APIKey: c.APIKey, DefaultOptions: c.DefaultOptions, Backend: c.Backend,
-		Project: c.Project, Location: c.Location, BaseURL: c.BaseURL, HTTPClient: c.HTTPClient,
+		Provider: "google", APIKey: c.APIKey, DefaultOptions: c.DefaultOptions,
+		BaseURL: c.BaseURL, HTTPClient: c.HTTPClient,
 	}
 }
 
@@ -320,9 +304,6 @@ func (m *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Respo
 type TextEstimatorConfig struct {
 	APIKey     string
 	Model      string
-	Backend    genai.Backend
-	Project    string
-	Location   string
 	BaseURL    string
 	HTTPClient *http.Client
 }
@@ -331,8 +312,7 @@ func (c TextEstimatorConfig) Validate() error { return c.protocol().Validate() }
 
 func (c TextEstimatorConfig) protocol() googleprotocol.TextEstimatorConfig {
 	return googleprotocol.TextEstimatorConfig{
-		APIKey: c.APIKey, Model: c.Model, Backend: c.Backend, Project: c.Project,
-		Location: c.Location, BaseURL: c.BaseURL, HTTPClient: c.HTTPClient,
+		APIKey: c.APIKey, Model: c.Model, BaseURL: c.BaseURL, HTTPClient: c.HTTPClient,
 	}
 }
 

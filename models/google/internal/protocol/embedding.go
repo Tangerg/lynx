@@ -53,7 +53,7 @@ var _ embedding.Model = (*EmbeddingModel)(nil)
 // input capability; richer multimodal embedding inputs belong in a dedicated
 // protocol rather than being hidden inside text.
 type EmbeddingModel struct {
-	api            *API
+	api            *api
 	provider       string
 	defaultOptions embedding.Options
 }
@@ -63,7 +63,7 @@ func NewEmbeddingModel(cfg EmbeddingModelConfig) (*EmbeddingModel, error) {
 		return nil, err
 	}
 
-	api, err := NewAPI(APIConfig{
+	api, err := newAPI(apiConfig{
 		APIKey:     cfg.APIKey,
 		Backend:    cfg.Backend,
 		Project:    cfg.Project,
@@ -169,7 +169,7 @@ func (e *EmbeddingModel) Call(ctx context.Context, req *embedding.Request) (*emb
 		return nil, err
 	}
 
-	apiResp, err := e.api.Embedding(ctx, modelName, contents, cfg)
+	apiResp, err := e.api.embedding(ctx, modelName, contents, cfg)
 	if err != nil {
 		return nil, err
 	}

@@ -75,7 +75,7 @@ var _ image.Model = (*ImageModel)(nil)
 // GenerateImages endpoint is deliberately not exposed: Google has deprecated
 // Imagen and scheduled it for shutdown on 2026-08-17.
 type ImageModel struct {
-	api            *API
+	api            *api
 	defaultOptions image.Options
 }
 
@@ -84,7 +84,7 @@ func NewImageModel(cfg ImageModelConfig) (*ImageModel, error) {
 		return nil, err
 	}
 
-	api, err := NewAPI(APIConfig{
+	api, err := newAPI(apiConfig{
 		APIKey:     cfg.APIKey,
 		BaseURL:    cfg.BaseURL,
 		HTTPClient: cfg.HTTPClient,

@@ -14,25 +14,25 @@ import (
 	"github.com/go-resty/resty/v2"
 )
 
-type APIConfig struct {
+type apiConfig struct {
 	APIKey     string
 	BaseURL    string
 	HTTPClient *http.Client
 }
 
-func (c APIConfig) Validate() error {
+func (c apiConfig) validate() error {
 	if c.APIKey == "" {
 		return errors.New("elevenlabs: APIKey is required")
 	}
 	return nil
 }
 
-type API struct {
+type api struct {
 	http *resty.Client
 }
 
-func NewAPI(cfg APIConfig) (*API, error) {
-	if err := cfg.Validate(); err != nil {
+func newAPI(cfg apiConfig) (*api, error) {
+	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
 
@@ -44,16 +44,16 @@ func NewAPI(cfg APIConfig) (*API, error) {
 		SetHeader("xi-api-key", cfg.APIKey).
 		SetHeader("Accept", "audio/*")
 
-	return &API{http: client}, nil
+	return &api{http: client}, nil
 }
 
-type TTSRequest struct {
+type ttsRequest struct {
 	EnableLogging                   *bool                            `json:"-"`
 	OptimizeStreamingLatency        *int                             `json:"-"`
 	Text                            string                           `json:"text"`
 	ModelID                         string                           `json:"model_id,omitempty"`
 	LanguageCode                    string                           `json:"language_code,omitempty"`
-	VoiceSettings                   *VoiceSettings                   `json:"voice_settings,omitempty"`
+	voiceSettings                   *voiceSettings                   `json:"voice_settings,omitempty"`
 	Seed                            *int64                           `json:"seed,omitempty"`
 	PreviousText                    string                           `json:"previous_text,omitempty"`
 	NextText                        string                           `json:"next_text,omitempty"`
@@ -61,15 +61,15 @@ type TTSRequest struct {
 	NextRequestIDs                  []string                         `json:"next_request_ids,omitzero"`
 	ApplyTextNormalization          string                           `json:"apply_text_normalization,omitempty"`
 	ApplyLanguageTextNormalization  *bool                            `json:"apply_language_text_normalization,omitempty"`
-	PronunciationDictionaryLocators []PronunciationDictionaryLocator `json:"pronunciation_dictionary_locators,omitzero"`
+	PronunciationDictionaryLocators []pronunciationDictionaryLocator `json:"pronunciation_dictionary_locators,omitzero"`
 }
 
-type PronunciationDictionaryLocator struct {
+type pronunciationDictionaryLocator struct {
 	PronunciationDictionaryID string `json:"pronunciation_dictionary_id"`
 	VersionID                 string `json:"version_id,omitempty"`
 }
 
-type VoiceSettings struct {
+type voiceSettings struct {
 	Stability       *float64 `json:"stability,omitempty"`
 	SimilarityBoost *float64 `json:"similarity_boost,omitempty"`
 	Style           *float64 `json:"style,omitempty"`
@@ -77,10 +77,10 @@ type VoiceSettings struct {
 	Speed           *float64 `json:"speed,omitempty"`
 }
 
-// TextToSpeech buffers the entire audio body into memory and returns it
+// textToSpeech buffers the entire audio body into memory and returns it
 // alongside the response headers (used by callers to surface mime type
 // and request id).
-func (a *API) TextToSpeech(ctx context.Context, voiceID, outputFormat string, body *TTSRequest) ([]byte, http.Header, error) {
+func (a *api) textToSpeech(ctx context.Context, voiceID, outputFormat string, body *ttsRequest) ([]byte, http.Header, error) {
 	resp, err := a.buildAudioRequest(ctx, outputFormat, body).Post("/text-to-speech/" + voiceID)
 	if err != nil {
 		return nil, nil, fmt.Errorf("elevenlabs: request failed: %w", err)
@@ -91,10 +91,10 @@ func (a *API) TextToSpeech(ctx context.Context, voiceID, outputFormat string, bo
 	return resp.Body(), resp.Header(), nil
 }
 
-// TextToSpeechStream opts out of resty's response parsing so callers can
+// textToSpeechStream opts out of resty's response parsing so callers can
 // stream audio chunks directly off the wire. The returned ReadCloser
 // MUST be closed by the caller.
-func (a *API) TextToSpeechStream(ctx context.Context, voiceID, outputFormat string, body *TTSRequest) (io.ReadCloser, http.Header, error) {
+func (a *api) textToSpeechStream(ctx context.Context, voiceID, outputFormat string, body *ttsRequest) (io.ReadCloser, http.Header, error) {
 	req := a.buildAudioRequest(ctx, outputFormat, body).SetDoNotParseResponse(true)
 	resp, err := req.Post("/text-to-speech/" + voiceID + "/stream")
 	if err != nil {
@@ -110,7 +110,7 @@ func (a *API) TextToSpeechStream(ctx context.Context, voiceID, outputFormat stri
 	return resp.RawBody(), resp.Header(), nil
 }
 
-func (a *API) buildAudioRequest(ctx context.Context, outputFormat string, body *TTSRequest) *resty.Request {
+func (a *api) buildAudioRequest(ctx context.Context, outputFormat string, body *ttsRequest) *resty.Request {
 	req := a.http.R().
 		SetContext(ctx).
 		SetHeader("Content-Type", "application/json").
@@ -131,7 +131,7 @@ func (a *API) buildAudioRequest(ctx context.Context, outputFormat string, body *
 // Audio is uploaded as the "file" form field; other parameters are form fields.
 // It intentionally models only synchronous, single-result options representable
 // by Core's transcription protocol.
-type TranscriptionRequest struct {
+type transcriptionRequest struct {
 	ModelID               string
 	LanguageCode          string
 	Diarize               *bool
@@ -149,15 +149,15 @@ type TranscriptionRequest struct {
 }
 
 // TranscriptionResponse models /v1/speech-to-text JSON output.
-type TranscriptionResponse struct {
+type transcriptionResponse struct {
 	LanguageCode        string                `json:"language_code"`
 	LanguageProbability float64               `json:"language_probability"`
 	Text                string                `json:"text"`
-	Words               []TranscriptionWord   `json:"words"`
-	Entities            []TranscriptionEntity `json:"entities,omitempty"`
+	Words               []transcriptionWord   `json:"words"`
+	Entities            []transcriptionEntity `json:"entities,omitempty"`
 }
 
-type TranscriptionWord struct {
+type transcriptionWord struct {
 	Text         string  `json:"text"`
 	Type         string  `json:"type"`
 	Start        float64 `json:"start"`
@@ -166,14 +166,14 @@ type TranscriptionWord struct {
 	ChannelIndex *int    `json:"channel_index,omitempty"`
 }
 
-type TranscriptionEntity struct {
+type transcriptionEntity struct {
 	Text       string `json:"text"`
 	EntityType string `json:"entity_type"`
 	StartChar  int    `json:"start_char"`
 	EndChar    int    `json:"end_char"`
 }
 
-func (a *API) Transcription(ctx context.Context, audio []byte, mimeType string, req *TranscriptionRequest) (*TranscriptionResponse, error) {
+func (a *api) transcription(ctx context.Context, audio []byte, mimeType string, req *transcriptionRequest) (*transcriptionResponse, error) {
 	if len(audio) == 0 {
 		return nil, errors.New("elevenlabs: transcription audio must not be empty")
 	}
@@ -228,7 +228,7 @@ func (a *API) Transcription(ctx context.Context, audio []byte, mimeType string, 
 		}
 	}
 
-	var out TranscriptionResponse
+	var out transcriptionResponse
 	r := a.http.R().
 		SetContext(ctx).
 		SetMultipartField("file", "audio", cmp.Or(mimeType, "application/octet-stream"), bytes.NewReader(audio)).

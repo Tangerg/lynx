@@ -60,7 +60,7 @@ var _ tts.Streamer = (*AudioTTSModel)(nil)
 // little-endian PCM; callers choose their own container at the application
 // boundary.
 type AudioTTSModel struct {
-	api            *API
+	api            *api
 	provider       string
 	defaultOptions tts.Options
 }
@@ -70,7 +70,7 @@ func NewAudioTTSModel(cfg AudioTTSModelConfig) (*AudioTTSModel, error) {
 		return nil, err
 	}
 
-	api, err := NewAPI(APIConfig{
+	api, err := newAPI(apiConfig{
 		APIKey:     cfg.APIKey,
 		Backend:    cfg.Backend,
 		Project:    cfg.Project,
@@ -198,7 +198,7 @@ func (a *AudioTTSModel) Call(ctx context.Context, req *tts.Request) (*tts.Respon
 		return nil, err
 	}
 
-	apiResp, err := a.api.ChatCompletion(ctx, modelName, contents, cfg)
+	apiResp, err := a.api.chatCompletion(ctx, modelName, contents, cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -222,7 +222,7 @@ func (a *AudioTTSModel) Stream(ctx context.Context, req *tts.Request) iter.Seq2[
 			return
 		}
 
-		for chunk, err := range a.api.ChatCompletionStream(ctx, modelName, contents, cfg) {
+		for chunk, err := range a.api.chatCompletionStream(ctx, modelName, contents, cfg) {
 			if err != nil {
 				yield(nil, err)
 				return

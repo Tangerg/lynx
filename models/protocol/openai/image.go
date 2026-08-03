@@ -5,21 +5,21 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 
 	"github.com/openai/openai-go/v3"
-	"github.com/openai/openai-go/v3/option"
 
 	"github.com/Tangerg/lynx/core/image"
 	"github.com/Tangerg/lynx/core/media"
-	"github.com/Tangerg/lynx/core/metadata"
 )
 
 type ImageModelConfig struct {
 	Provider       string
 	APIKey         string
 	DefaultOptions image.Options
-	RequestOptions []option.RequestOption
+	BaseURL        string
+	HTTPClient     *http.Client
 }
 
 func (c ImageModelConfig) Validate() error {
@@ -41,7 +41,7 @@ func (c ImageModelConfig) Validate() error {
 var _ image.Model = (*ImageModel)(nil)
 
 type ImageModel struct {
-	api            *API
+	api            *api
 	provider       string
 	defaultOptions image.Options
 }
@@ -51,9 +51,10 @@ func NewImageModel(cfg ImageModelConfig) (*ImageModel, error) {
 		return nil, err
 	}
 
-	api, err := NewAPI(APIConfig{
-		APIKey:         cfg.APIKey,
-		RequestOptions: cfg.RequestOptions,
+	api, err := newAPI(apiConfig{
+		APIKey:     cfg.APIKey,
+		BaseURL:    cfg.BaseURL,
+		HTTPClient: cfg.HTTPClient,
 	})
 	if err != nil {
 		return nil, err
@@ -81,12 +82,12 @@ func (i *ImageModel) buildAPIImageRequest(req *image.Request) (*openai.ImageGene
 		return nil, errors.New("openai: image: width and height must be set together")
 	}
 
-	paramsValue, _, err := metadata.Decode[openai.ImageGenerateParams](mergedOpts.Extensions, protocolModalityRequestExtensionKey(i.provider, "image"))
-
-	params := &paramsValue
+	fields, err := decodeRequestFields(mergedOpts.Extensions, protocolModalityRequestExtensionKey(i.provider, "image"), "model", "prompt", "output_format", "size")
 	if err != nil {
 		return nil, err
 	}
+	params := &openai.ImageGenerateParams{}
+	params.SetExtraFields(fields)
 
 	params.Model = mergedOpts.Model
 	params.Prompt = req.Prompt
@@ -96,7 +97,7 @@ func (i *ImageModel) buildAPIImageRequest(req *image.Request) (*openai.ImageGene
 	}
 	if mergedOpts.Width != nil && mergedOpts.Height != nil {
 		params.Size = openai.ImageGenerateParamsSize(fmt.Sprintf("%dx%d", *mergedOpts.Width, *mergedOpts.Height))
-	} else if params.Size == "" {
+	} else {
 		params.Size = openai.ImageGenerateParamsSizeAuto
 	}
 
@@ -154,7 +155,7 @@ func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Respo
 		return nil, err
 	}
 
-	apiResp, err := i.api.Image(ctx, apiReq)
+	apiResp, err := i.api.image(ctx, apiReq)
 	if err != nil {
 		return nil, err
 	}

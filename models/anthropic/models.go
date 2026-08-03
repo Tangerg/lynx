@@ -6,9 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"iter"
-
-	"github.com/anthropics/anthropic-sdk-go/option"
-	openaioption "github.com/openai/openai-go/v3/option"
+	"net/http"
 
 	corechat "github.com/Tangerg/lynx/core/chat"
 	anthropicprotocol "github.com/Tangerg/lynx/models/internal/protocol/anthropic"
@@ -27,13 +25,14 @@ const (
 type ChatConfig struct {
 	APIKey         string
 	DefaultOptions corechat.Options
-	RequestOptions []option.RequestOption
+	BaseURL        string
+	HTTPClient     *http.Client
 }
 
 func (c ChatConfig) Validate() error { return c.protocol().Validate() }
 
 func (c ChatConfig) protocol() anthropicprotocol.ChatConfig {
-	return anthropicprotocol.ChatConfig{APIKey: c.APIKey, DefaultOptions: c.DefaultOptions, RequestOptions: c.RequestOptions}
+	return anthropicprotocol.ChatConfig{APIKey: c.APIKey, DefaultOptions: c.DefaultOptions, BaseURL: c.BaseURL, HTTPClient: c.HTTPClient}
 }
 
 type Chat struct{ protocol *anthropicprotocol.Chat }
@@ -64,7 +63,7 @@ type OpenAIChatConfig struct {
 	APIKey         string
 	DefaultOptions corechat.Options
 	BaseURL        string
-	RequestOptions []openaioption.RequestOption
+	HTTPClient     *http.Client
 }
 
 type OpenAIChat struct{ protocol *openaiprotocol.Chat }
@@ -73,9 +72,8 @@ func NewOpenAIChat(config OpenAIChatConfig) (*OpenAIChat, error) {
 	if config.APIKey == "" {
 		return nil, errors.New("anthropic: APIKey is required")
 	}
-	requestOptions := append([]openaioption.RequestOption{openaioption.WithBaseURL(cmp.Or(config.BaseURL, BaseURLOpenAI))}, config.RequestOptions...)
 	model, err := openaiprotocol.NewCompatibleChat(
-		openaiprotocol.ChatConfig{APIKey: config.APIKey, DefaultOptions: config.DefaultOptions, RequestOptions: requestOptions},
+		openaiprotocol.ChatConfig{APIKey: config.APIKey, DefaultOptions: config.DefaultOptions, BaseURL: cmp.Or(config.BaseURL, BaseURLOpenAI), HTTPClient: config.HTTPClient},
 		openaiprotocol.Dialect{Provider: "anthropic"},
 	)
 	if err != nil {
@@ -99,15 +97,16 @@ func (c *OpenAIChat) Stream(ctx context.Context, req *corechat.Request) iter.Seq
 }
 
 type TextEstimatorConfig struct {
-	APIKey         string
-	Model          string
-	RequestOptions []option.RequestOption
+	APIKey     string
+	Model      string
+	BaseURL    string
+	HTTPClient *http.Client
 }
 
 func (c TextEstimatorConfig) Validate() error { return c.protocol().Validate() }
 
 func (c TextEstimatorConfig) protocol() anthropicprotocol.TextEstimatorConfig {
-	return anthropicprotocol.TextEstimatorConfig{APIKey: c.APIKey, Model: c.Model, RequestOptions: c.RequestOptions}
+	return anthropicprotocol.TextEstimatorConfig{APIKey: c.APIKey, Model: c.Model, BaseURL: c.BaseURL, HTTPClient: c.HTTPClient}
 }
 
 type TextEstimator struct {

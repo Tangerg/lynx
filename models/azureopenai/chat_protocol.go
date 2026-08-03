@@ -5,8 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"iter"
-
-	"github.com/openai/openai-go/v3/option"
+	"net/http"
 
 	corechat "github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/models/protocol/openai"
@@ -33,7 +32,7 @@ type ChatConfig struct {
 	APIKey         string
 	BaseURL        string
 	DefaultOptions corechat.Options
-	RequestOptions []option.RequestOption
+	HTTPClient     *http.Client
 }
 
 // NewChat constructs a Core chat adapter for Azure OpenAI's v1 endpoint.
@@ -41,11 +40,11 @@ func NewChat(config ChatConfig) (*Chat, error) {
 	if config.APIKey == "" {
 		return nil, errors.New("azureopenai: APIKey is required")
 	}
-	requestOptions, err := buildRequestOptions(config.BaseURL, config.RequestOptions)
+	baseURL, err := normalizeBaseURL(config.BaseURL)
 	if err != nil {
 		return nil, err
 	}
-	protocol, err := openai.NewCompatibleChat(openai.ChatConfig{APIKey: config.APIKey, DefaultOptions: config.DefaultOptions, RequestOptions: requestOptions}, openai.Dialect{Provider: "azureopenai"})
+	protocol, err := openai.NewCompatibleChat(openai.ChatConfig{APIKey: config.APIKey, DefaultOptions: config.DefaultOptions, BaseURL: baseURL, HTTPClient: config.HTTPClient}, openai.Dialect{Provider: "azureopenai"})
 	if err != nil {
 		return nil, fmt.Errorf("azureopenai: construct chat: %w", err)
 	}

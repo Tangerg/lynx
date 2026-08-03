@@ -4,21 +4,7 @@ import (
 	"errors"
 	"net/url"
 	"strings"
-
-	"github.com/openai/openai-go/v3/option"
 )
-
-func buildRequestOptions(baseURL string, extra []option.RequestOption) ([]option.RequestOption, error) {
-	normalized, err := normalizeBaseURL(baseURL)
-	if err != nil {
-		return nil, err
-	}
-
-	options := make([]option.RequestOption, 0, len(extra)+1)
-	options = append(options, option.WithBaseURL(normalized))
-	options = append(options, extra...)
-	return options, nil
-}
 
 func normalizeBaseURL(baseURL string) (string, error) {
 	if baseURL == "" {

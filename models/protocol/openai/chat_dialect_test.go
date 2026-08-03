@@ -6,8 +6,6 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/openai/openai-go/v3/option"
-
 	corechat "github.com/Tangerg/lynx/core/chat"
 	lynxopenai "github.com/Tangerg/lynx/models/protocol/openai"
 )
@@ -61,7 +59,7 @@ func TestTextReasoningDialects(t *testing.T) {
 			adapter, err := lynxopenai.NewCompatibleChat(lynxopenai.ChatConfig{
 				APIKey:         "test-key",
 				DefaultOptions: corechat.Options{Model: "provider-model"},
-				RequestOptions: []option.RequestOption{option.WithBaseURL(server.URL)},
+				BaseURL:        server.URL,
 			}, test.dialect)
 			if err != nil {
 				t.Fatalf("NewCompatibleChat: %v", err)
@@ -148,7 +146,7 @@ func TestChatTokenLimitFieldMatchesProtocol(t *testing.T) {
 					Model:     "model",
 					MaxTokens: &maxTokens,
 				},
-				RequestOptions: []option.RequestOption{option.WithBaseURL(server.URL)},
+				BaseURL: server.URL,
 			})
 			if err != nil {
 				t.Fatalf("construct: %v", err)

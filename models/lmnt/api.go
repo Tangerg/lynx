@@ -11,25 +11,25 @@ import (
 	"github.com/go-resty/resty/v2"
 )
 
-type APIConfig struct {
+type apiConfig struct {
 	APIKey     string
 	BaseURL    string
 	HTTPClient *http.Client
 }
 
-func (c APIConfig) Validate() error {
+func (c apiConfig) validate() error {
 	if c.APIKey == "" {
 		return errors.New("lmnt: APIKey is required")
 	}
 	return nil
 }
 
-type API struct {
+type api struct {
 	http *resty.Client
 }
 
-func NewAPI(cfg APIConfig) (*API, error) {
-	if err := cfg.Validate(); err != nil {
+func newAPI(cfg apiConfig) (*api, error) {
+	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
 	client := resty.New()
@@ -40,11 +40,11 @@ func NewAPI(cfg APIConfig) (*API, error) {
 		SetHeader("X-API-Key", cfg.APIKey).
 		SetHeader("lmnt-version", CurrentAPIVersion).
 		SetHeader("Content-Type", "application/json")
-	return &API{http: client}, nil
+	return &api{http: client}, nil
 }
 
 // SynthesizeRequest mirrors the current POST /ai/speech/bytes contract.
-type SynthesizeRequest struct {
+type synthesizeRequest struct {
 	Text        string   `json:"text"`
 	Voice       string   `json:"voice"`
 	Debug       *bool    `json:"debug,omitempty"`
@@ -57,9 +57,9 @@ type SynthesizeRequest struct {
 	Seed        *int64   `json:"seed,omitempty"`
 }
 
-// Synthesize returns the official binary response and response headers.
-func (a *API) Synthesize(ctx context.Context, req *SynthesizeRequest) ([]byte, http.Header, error) {
-	body, headers, err := a.SynthesizeStream(ctx, req)
+// synthesize returns the official binary response and response headers.
+func (a *api) synthesize(ctx context.Context, req *synthesizeRequest) ([]byte, http.Header, error) {
+	body, headers, err := a.synthesizeStream(ctx, req)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -74,8 +74,8 @@ func (a *API) Synthesize(ctx context.Context, req *SynthesizeRequest) ([]byte, h
 	return audio, headers, nil
 }
 
-// SynthesizeStream exposes the official binary response as it arrives.
-func (a *API) SynthesizeStream(ctx context.Context, req *SynthesizeRequest) (io.ReadCloser, http.Header, error) {
+// synthesizeStream exposes the official binary response as it arrives.
+func (a *api) synthesizeStream(ctx context.Context, req *synthesizeRequest) (io.ReadCloser, http.Header, error) {
 	if req == nil {
 		return nil, nil, errors.New("lmnt: request must not be nil")
 	}

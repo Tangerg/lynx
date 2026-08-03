@@ -129,7 +129,7 @@ var _ image.Model = (*ImageModel)(nil)
 // override is rejected because Replicate models do not share an input or
 // output contract; construct another adapter with the matching schema instead.
 type ImageModel struct {
-	api            *API
+	api            *api
 	model          string
 	inputSchema    ImageInputSchema
 	defaultOptions image.Options
@@ -141,7 +141,7 @@ func NewImageModel(cfg ImageModelConfig) (*ImageModel, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
-	api, err := NewAPI(APIConfig{
+	api, err := newAPI(apiConfig{
 		APIKey:     cfg.APIKey,
 		BaseURL:    cfg.BaseURL,
 		HTTPClient: cfg.HTTPClient,
@@ -187,7 +187,7 @@ func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Respo
 	}); err != nil {
 		return nil, err
 	}
-	apiReqValue, _, err := metadata.Decode[PredictionRequest](mergedOpts.Extensions, ImageRequestExtensionKey)
+	apiReqValue, _, err := metadata.Decode[predictionRequest](mergedOpts.Extensions, ImageRequestExtensionKey)
 	apiReq := &apiReqValue
 	if err != nil {
 		return nil, err
@@ -216,7 +216,7 @@ func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Respo
 		apiReq.Input[i.inputSchema.OutputFormatKey] = value
 	}
 
-	submit, err := i.api.CreatePrediction(ctx, mergedOpts.Model, apiReq)
+	submit, err := i.api.createPrediction(ctx, mergedOpts.Model, apiReq)
 	if err != nil {
 		return nil, err
 	}
@@ -233,7 +233,7 @@ func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Respo
 
 	results := make([]*image.Result, 0, len(urls))
 	for outputIndex, outputURL := range urls {
-		data, contentType, err := i.api.DownloadOutput(ctx, outputURL)
+		data, contentType, err := i.api.downloadOutput(ctx, outputURL)
 		if err != nil {
 			return nil, fmt.Errorf("replicate: image output[%d]: %w", outputIndex, err)
 		}
@@ -290,7 +290,7 @@ func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Respo
 }
 
 // pollUntilDone blocks until the prediction reaches a terminal status.
-func (i *ImageModel) pollUntilDone(ctx context.Context, id string) (*PredictionResponse, error) {
+func (i *ImageModel) pollUntilDone(ctx context.Context, id string) (*predictionResponse, error) {
 	deadline, cancel := context.WithTimeout(ctx, i.pollTimeout)
 	defer cancel()
 
@@ -298,7 +298,7 @@ func (i *ImageModel) pollUntilDone(ctx context.Context, id string) (*PredictionR
 	defer ticker.Stop()
 
 	for {
-		resp, err := i.api.GetPrediction(deadline, id)
+		resp, err := i.api.getPrediction(deadline, id)
 		if err != nil {
 			return nil, err
 		}

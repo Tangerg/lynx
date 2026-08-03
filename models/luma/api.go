@@ -10,27 +10,25 @@ import (
 	lumaoption "github.com/lumalabs/luma-agents-go/option"
 )
 
-type APIConfig struct {
-	APIKey         string
-	BaseURL        string
-	HTTPClient     *http.Client
-	RequestOptions []lumaoption.RequestOption
+type apiConfig struct {
+	APIKey     string
+	BaseURL    string
+	HTTPClient *http.Client
 }
 
-func (config APIConfig) Validate() error {
+func (config apiConfig) validate() error {
 	if config.APIKey == "" {
 		return errors.New("luma: APIKey is required")
 	}
 	return nil
 }
 
-// API is a narrow wrapper around Luma's official Agents SDK.
-type API struct {
+type api struct {
 	client *lumaagents.Client
 }
 
-func NewAPI(config APIConfig) (*API, error) {
-	if err := config.Validate(); err != nil {
+func newAPI(config apiConfig) (*api, error) {
+	if err := config.validate(); err != nil {
 		return nil, err
 	}
 	requestOptions := []lumaoption.RequestOption{
@@ -40,18 +38,17 @@ func NewAPI(config APIConfig) (*API, error) {
 	if config.HTTPClient != nil {
 		requestOptions = append(requestOptions, lumaoption.WithHTTPClient(config.HTTPClient))
 	}
-	requestOptions = append(requestOptions, config.RequestOptions...)
-	return &API{client: lumaagents.NewClient(requestOptions...)}, nil
+	return &api{client: lumaagents.NewClient(requestOptions...)}, nil
 }
 
-func (api *API) CreateGeneration(ctx context.Context, params lumaagents.GenerationNewParams) (*lumaagents.Generation, error) {
+func (api *api) createGeneration(ctx context.Context, params lumaagents.GenerationNewParams) (*lumaagents.Generation, error) {
 	if api == nil || api.client == nil || api.client.Generations == nil {
 		return nil, errors.New("luma: nil API")
 	}
 	return api.client.Generations.New(ctx, params)
 }
 
-func (api *API) GetGeneration(ctx context.Context, generationID string) (*lumaagents.Generation, error) {
+func (api *api) getGeneration(ctx context.Context, generationID string) (*lumaagents.Generation, error) {
 	if api == nil || api.client == nil || api.client.Generations == nil {
 		return nil, errors.New("luma: nil API")
 	}

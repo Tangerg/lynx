@@ -12,25 +12,25 @@ import (
 	"github.com/go-resty/resty/v2"
 )
 
-type APIConfig struct {
+type apiConfig struct {
 	APIKey     string
 	BaseURL    string
 	HTTPClient *http.Client
 }
 
-func (c APIConfig) Validate() error {
+func (c apiConfig) validate() error {
 	if c.APIKey == "" {
 		return errors.New("gladia: APIKey is required")
 	}
 	return nil
 }
 
-type API struct {
+type api struct {
 	http *resty.Client
 }
 
-func NewAPI(cfg APIConfig) (*API, error) {
-	if err := cfg.Validate(); err != nil {
+func newAPI(cfg apiConfig) (*api, error) {
+	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
 	client := resty.New()
@@ -39,10 +39,10 @@ func NewAPI(cfg APIConfig) (*API, error) {
 	}
 	client.SetBaseURL(cmp.Or(cfg.BaseURL, DefaultBaseURL)).
 		SetHeader("x-gladia-key", cfg.APIKey)
-	return &API{http: client}, nil
+	return &api{http: client}, nil
 }
 
-type UploadResponse struct {
+type uploadResponse struct {
 	AudioURL      string `json:"audio_url"`
 	AudioMetadata struct {
 		ID            string  `json:"id"`
@@ -51,10 +51,10 @@ type UploadResponse struct {
 	} `json:"audio_metadata"`
 }
 
-type TranscriptionRequest struct {
+type transcriptionRequest struct {
 	AudioURL               string          `json:"audio_url"`
 	Model                  string          `json:"model,omitempty"`
-	LanguageConfig         *LanguageConfig `json:"language_config,omitempty"`
+	languageConfig         *languageConfig `json:"language_config,omitempty"`
 	CustomVocabulary       any             `json:"custom_vocabulary,omitempty"`
 	CustomVocabularyConfig map[string]any  `json:"custom_vocabulary_config,omitzero"`
 	Callback               *bool           `json:"callback,omitempty"`
@@ -80,19 +80,19 @@ type TranscriptionRequest struct {
 	CustomMetadata         map[string]any  `json:"custom_metadata,omitzero"`
 }
 
-type LanguageConfig struct {
+type languageConfig struct {
 	Languages     []string `json:"languages,omitzero"`
 	CodeSwitching *bool    `json:"code_switching,omitempty"`
 }
 
-type TranscriptionCreateResponse struct {
+type transcriptionCreateResponse struct {
 	ID        string `json:"id"`
 	ResultURL string `json:"result_url"`
 }
 
 // TranscriptionResult is the body of GET /pre-recorded/{id}. Status moves
 // through "queued" / "processing" / "done" / "error".
-type TranscriptionResult struct {
+type transcriptionResult struct {
 	ID     string `json:"id"`
 	Status string `json:"status"`
 	Result struct {
@@ -108,13 +108,13 @@ type TranscriptionResult struct {
 	Raw       map[string]any `json:"-"`
 }
 
-// Upload posts raw audio bytes to /upload, returning a Gladia-hosted
+// upload posts raw audio bytes to /upload, returning a Gladia-hosted
 // URL the caller passes to /pre-recorded.
-func (a *API) Upload(ctx context.Context, audio []byte, mimeType string) (*UploadResponse, error) {
+func (a *api) upload(ctx context.Context, audio []byte, mimeType string) (*uploadResponse, error) {
 	if len(audio) == 0 {
 		return nil, errors.New("gladia: upload audio must not be empty")
 	}
-	var out UploadResponse
+	var out uploadResponse
 	resp, err := a.http.R().
 		SetContext(ctx).
 		SetMultipartField("audio", "audio", cmp.Or(mimeType, "application/octet-stream"), bytes.NewReader(audio)).
@@ -132,11 +132,11 @@ func (a *API) Upload(ctx context.Context, audio []byte, mimeType string) (*Uploa
 	return &out, nil
 }
 
-func (a *API) CreateTranscription(ctx context.Context, req *TranscriptionRequest) (*TranscriptionCreateResponse, error) {
+func (a *api) createTranscription(ctx context.Context, req *transcriptionRequest) (*transcriptionCreateResponse, error) {
 	if req == nil {
 		return nil, errors.New("gladia: request must not be nil")
 	}
-	var out TranscriptionCreateResponse
+	var out transcriptionCreateResponse
 	resp, err := a.http.R().
 		SetContext(ctx).
 		SetHeader("Content-Type", "application/json").
@@ -152,11 +152,11 @@ func (a *API) CreateTranscription(ctx context.Context, req *TranscriptionRequest
 	return &out, nil
 }
 
-func (a *API) GetTranscription(ctx context.Context, id string) (*TranscriptionResult, error) {
+func (a *api) getTranscription(ctx context.Context, id string) (*transcriptionResult, error) {
 	if id == "" {
 		return nil, errors.New("gladia: transcription id must not be empty")
 	}
-	var out TranscriptionResult
+	var out transcriptionResult
 	resp, err := a.http.R().SetContext(ctx).SetResult(&out).Get("/pre-recorded/" + id)
 	if err != nil {
 		return nil, fmt.Errorf("gladia: poll failed: %w", err)

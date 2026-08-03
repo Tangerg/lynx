@@ -45,7 +45,7 @@ var (
 
 // Chat implements the minimal Core Model and optional Streamer capabilities.
 type Chat struct {
-	api      *API
+	api      *api
 	defaults corechat.Options
 	provider string
 }
@@ -55,7 +55,7 @@ func NewChat(cfg ChatConfig) (*Chat, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
-	api, err := NewAPI(APIConfig{
+	api, err := newAPI(apiConfig{
 		APIKey:     cfg.APIKey,
 		Backend:    cfg.Backend,
 		Project:    cfg.Project,
@@ -75,7 +75,7 @@ func (c *Chat) Call(ctx context.Context, req *corechat.Request) (*corechat.Respo
 	if err != nil {
 		return nil, err
 	}
-	response, err := c.api.ChatCompletion(ctx, modelName, contents, config)
+	response, err := c.api.chatCompletion(ctx, modelName, contents, config)
 	if err != nil {
 		return nil, err
 	}
@@ -93,7 +93,7 @@ func (c *Chat) Stream(ctx context.Context, req *corechat.Request) iter.Seq2[*cor
 			return
 		}
 		mapper := newProtocolResponseMapper(c.provider)
-		for response, streamErr := range c.api.ChatCompletionStream(ctx, modelName, contents, config) {
+		for response, streamErr := range c.api.chatCompletionStream(ctx, modelName, contents, config) {
 			if streamErr != nil {
 				yield(nil, streamErr)
 				return

@@ -57,7 +57,7 @@ var _ transcription.Model = (*AudioTranscriptionModel)(nil)
 // extension-threaded TranscriptRequest and the model will skip the
 // /upload roundtrip.
 type AudioTranscriptionModel struct {
-	api            *API
+	api            *api
 	defaultOptions transcription.Options
 	pollInterval   time.Duration
 	pollTimeout    time.Duration
@@ -68,7 +68,7 @@ func NewAudioTranscriptionModel(cfg AudioTranscriptionModelConfig) (*AudioTransc
 		return nil, err
 	}
 
-	api, err := NewAPI(APIConfig{
+	api, err := newAPI(apiConfig{
 		APIKey:     cfg.APIKey,
 		BaseURL:    cfg.BaseURL,
 		HTTPClient: cfg.HTTPClient,
@@ -102,7 +102,7 @@ func (a *AudioTranscriptionModel) Call(ctx context.Context, req *transcription.R
 	if err != nil {
 		return nil, err
 	}
-	apiReqValue, _, err := metadata.Decode[TranscriptRequest](mergedOpts.Extensions, RequestExtensionKey)
+	apiReqValue, _, err := metadata.Decode[transcriptRequest](mergedOpts.Extensions, RequestExtensionKey)
 	apiReq := &apiReqValue
 	if err != nil {
 		return nil, err
@@ -123,15 +123,15 @@ func (a *AudioTranscriptionModel) Call(ctx context.Context, req *transcription.R
 		if err != nil {
 			return nil, err
 		}
-		var uploaded *UploadResponse
-		uploaded, err = a.api.Upload(ctx, audio)
+		var uploaded *uploadResponse
+		uploaded, err = a.api.upload(ctx, audio)
 		if err != nil {
 			return nil, err
 		}
 		apiReq.AudioURL = uploaded.UploadURL
 	}
 
-	job, err := a.api.CreateTranscript(ctx, apiReq)
+	job, err := a.api.createTranscript(ctx, apiReq)
 	if err != nil {
 		return nil, err
 	}
@@ -147,7 +147,7 @@ func (a *AudioTranscriptionModel) Call(ctx context.Context, req *transcription.R
 // pollUntilDone re-fetches the transcript every [pollInterval] until
 // it reaches "completed" / "error", or the ctx / pollTimeout deadline
 // fires.
-func (a *AudioTranscriptionModel) pollUntilDone(ctx context.Context, id string) (*TranscriptResponse, error) {
+func (a *AudioTranscriptionModel) pollUntilDone(ctx context.Context, id string) (*transcriptResponse, error) {
 	deadlineCtx, cancel := context.WithTimeout(ctx, a.pollTimeout)
 	defer cancel()
 
@@ -157,14 +157,14 @@ func (a *AudioTranscriptionModel) pollUntilDone(ctx context.Context, id string) 
 	// First fetch immediately rather than waiting one tick — short
 	// audio often finishes before our first poll.
 	for {
-		resp, err := a.api.Get(deadlineCtx, id)
+		resp, err := a.api.get(deadlineCtx, id)
 		if err != nil {
 			return nil, err
 		}
 		switch resp.Status {
-		case StatusCompleted:
+		case statusCompleted:
 			return resp, nil
-		case StatusErrored:
+		case statusErrored:
 			return nil, fmt.Errorf("assemblyai: transcription failed: %s", resp.Error)
 		}
 
@@ -176,7 +176,7 @@ func (a *AudioTranscriptionModel) pollUntilDone(ctx context.Context, id string) 
 	}
 }
 
-func (a *AudioTranscriptionModel) buildResponse(apiResp *TranscriptResponse) (*transcription.Response, error) {
+func (a *AudioTranscriptionModel) buildResponse(apiResp *transcriptResponse) (*transcription.Response, error) {
 	resultMeta := &transcription.ResultMetadata{}
 	if err := resultMeta.Set("assemblyai/confidence", apiResp.Confidence); err != nil {
 		return nil, err
@@ -227,7 +227,7 @@ func prioritizedSpeechModels(primary string, fallbacks []string) []string {
 	return models
 }
 
-func validateTranscriptRequest(req *TranscriptRequest) error {
+func validateTranscriptRequest(req *transcriptRequest) error {
 	for index, model := range req.SpeechModels {
 		if model != ModelUniversal3Point5Pro && model != ModelUniversal2 {
 			return fmt.Errorf("assemblyai: speech_models[%d] must be %q or %q, got %q", index, ModelUniversal3Point5Pro, ModelUniversal2, model)

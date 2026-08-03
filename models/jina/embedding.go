@@ -33,7 +33,7 @@ func (c EmbeddingModelConfig) Validate() error {
 var _ embedding.Model = (*EmbeddingModel)(nil)
 
 type EmbeddingModel struct {
-	api            *API
+	api            *api
 	defaultOptions embedding.Options
 }
 
@@ -42,7 +42,7 @@ func NewEmbeddingModel(cfg EmbeddingModelConfig) (*EmbeddingModel, error) {
 		return nil, err
 	}
 
-	api, err := NewAPI(APIConfig{
+	api, err := newAPI(apiConfig{
 		APIKey:     cfg.APIKey,
 		BaseURL:    cfg.BaseURL,
 		HTTPClient: cfg.HTTPClient,
@@ -57,13 +57,13 @@ func NewEmbeddingModel(cfg EmbeddingModelConfig) (*EmbeddingModel, error) {
 	}, nil
 }
 
-func (e *EmbeddingModel) buildAPIRequest(req *embedding.Request) (*EmbeddingRequest, error) {
+func (e *EmbeddingModel) buildAPIRequest(req *embedding.Request) (*embeddingRequest, error) {
 	mergedOpts, err := e.defaultOptions.Merged(req.Options)
 	if err != nil {
 		return nil, err
 	}
 
-	apiReqValue, _, err := metadata.Decode[EmbeddingRequest](mergedOpts.Extensions, EmbeddingRequestExtensionKey)
+	apiReqValue, _, err := metadata.Decode[embeddingRequest](mergedOpts.Extensions, EmbeddingRequestExtensionKey)
 
 	apiReq := &apiReqValue
 	if err != nil {
@@ -86,7 +86,7 @@ func (e *EmbeddingModel) buildAPIRequest(req *embedding.Request) (*EmbeddingRequ
 	return apiReq, nil
 }
 
-func (e *EmbeddingModel) buildResponse(apiResp *EmbeddingResponse, expectedResults int) (*embedding.Response, error) {
+func (e *EmbeddingModel) buildResponse(apiResp *embeddingResponse, expectedResults int) (*embedding.Response, error) {
 	if len(apiResp.Data) == 0 {
 		return nil, errors.New("jina: embedding response has no data")
 	}
@@ -132,7 +132,7 @@ func (e *EmbeddingModel) Call(ctx context.Context, req *embedding.Request) (*emb
 		return nil, err
 	}
 
-	apiResp, err := e.api.Embedding(ctx, apiReq)
+	apiResp, err := e.api.embedding(ctx, apiReq)
 	if err != nil {
 		return nil, err
 	}

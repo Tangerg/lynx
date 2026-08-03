@@ -3,9 +3,9 @@ package anthropic
 import (
 	"context"
 	"errors"
+	"net/http"
 
 	anthropicsdk "github.com/anthropics/anthropic-sdk-go"
-	"github.com/anthropics/anthropic-sdk-go/option"
 
 	"github.com/Tangerg/lynx/tokenizer"
 )
@@ -15,9 +15,10 @@ import (
 // mismatch (Claude 3 model name vs Claude 4 vocab) produces wrong
 // counts.
 type TextEstimatorConfig struct {
-	APIKey         string
-	Model          string
-	RequestOptions []option.RequestOption
+	APIKey     string
+	Model      string
+	BaseURL    string
+	HTTPClient *http.Client
 }
 
 func (c TextEstimatorConfig) Validate() error {
@@ -40,7 +41,7 @@ var _ tokenizer.TextEstimator = (*TextEstimator)(nil)
 // Every estimate is a network round-trip; for high-QPS counting reach
 // for an offline tokenizer instead.
 type TextEstimator struct {
-	api   *API
+	api   *api
 	model string
 }
 
@@ -49,9 +50,10 @@ func NewTextEstimator(cfg TextEstimatorConfig) (*TextEstimator, error) {
 		return nil, err
 	}
 
-	api, err := NewAPI(APIConfig{
-		APIKey:         cfg.APIKey,
-		RequestOptions: cfg.RequestOptions,
+	api, err := newAPI(apiConfig{
+		APIKey:     cfg.APIKey,
+		BaseURL:    cfg.BaseURL,
+		HTTPClient: cfg.HTTPClient,
 	})
 	if err != nil {
 		return nil, err
@@ -63,7 +65,7 @@ func NewTextEstimator(cfg TextEstimatorConfig) (*TextEstimator, error) {
 // EstimateText returns the prompt-token count Anthropic would charge if
 // text were sent as a single user message under the configured model.
 func (t *TextEstimator) EstimateText(ctx context.Context, text string) (int, error) {
-	resp, err := t.api.CountTokens(ctx, &anthropicsdk.MessageCountTokensParams{
+	resp, err := t.api.countTokens(ctx, &anthropicsdk.MessageCountTokensParams{
 		Model: anthropicsdk.Model(t.model),
 		Messages: []anthropicsdk.MessageParam{
 			anthropicsdk.NewUserMessage(anthropicsdk.NewTextBlock(text)),

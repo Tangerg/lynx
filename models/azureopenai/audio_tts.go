@@ -4,8 +4,7 @@ import (
 	"context"
 	"errors"
 	"iter"
-
-	"github.com/openai/openai-go/v3/option"
+	"net/http"
 
 	tts "github.com/Tangerg/lynx/core/speech"
 	"github.com/Tangerg/lynx/models/protocol/openai"
@@ -15,7 +14,7 @@ type AudioTTSModelConfig struct {
 	APIKey         string
 	BaseURL        string
 	DefaultOptions tts.Options
-	RequestOptions []option.RequestOption
+	HTTPClient     *http.Client
 }
 
 func (c AudioTTSModelConfig) Validate() error {
@@ -43,7 +42,7 @@ func NewAudioTTSModel(cfg AudioTTSModelConfig) (*AudioTTSModel, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
-	reqOpts, err := buildRequestOptions(cfg.BaseURL, cfg.RequestOptions)
+	baseURL, err := normalizeBaseURL(cfg.BaseURL)
 	if err != nil {
 		return nil, err
 	}
@@ -51,7 +50,8 @@ func NewAudioTTSModel(cfg AudioTTSModelConfig) (*AudioTTSModel, error) {
 		Provider:       "azureopenai",
 		APIKey:         cfg.APIKey,
 		DefaultOptions: cfg.DefaultOptions,
-		RequestOptions: reqOpts,
+		BaseURL:        baseURL,
+		HTTPClient:     cfg.HTTPClient,
 	})
 	if err != nil {
 		return nil, err

@@ -3,7 +3,6 @@ module github.com/Tangerg/lynx/app/runtime
 go 1.26.5
 
 require (
-	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.22.0
 	github.com/Tangerg/lynx/a2a v0.0.0-20260802185719-f013cc1eb508
 	github.com/Tangerg/lynx/agent v0.0.0-20260803074414-f8db39de4d17
 	github.com/Tangerg/lynx/mcp v0.0.0-20260803074414-f8db39de4d17
@@ -17,14 +16,12 @@ require (
 	github.com/Tangerg/lynx/tools/webfetch v0.0.0-20260803074414-f8db39de4d17
 	github.com/Tangerg/lynx/tools/websearch v0.0.0-20260803074414-f8db39de4d17
 	github.com/Tangerg/sse v0.0.5
-	github.com/anthropics/anthropic-sdk-go v1.61.0
 	github.com/fsnotify/fsnotify v1.10.1
 	github.com/go-chi/chi/v5 v5.3.1
 	github.com/go-chi/cors v1.2.2
 	github.com/go-resty/resty/v2 v2.17.2
 	github.com/google/uuid v1.6.0
 	github.com/modelcontextprotocol/go-sdk v1.7.0
-	github.com/openai/openai-go/v3 v3.49.0
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/sourcegraph/jsonrpc2 v0.2.2
@@ -39,18 +36,21 @@ require (
 	go.opentelemetry.io/otel/sdk/metric v1.44.0
 	go.opentelemetry.io/otel/trace v1.44.0
 	golang.org/x/oauth2 v0.36.0
-	google.golang.org/genai v1.66.0
 	gopkg.in/yaml.v3 v3.0.1
 	modernc.org/sqlite v1.55.0
 )
 
-require github.com/invopop/jsonschema v0.14.0 // indirect
+require (
+	github.com/anthropics/anthropic-sdk-go v1.61.0 // indirect
+	github.com/invopop/jsonschema v0.14.0 // indirect
+	github.com/openai/openai-go/v3 v3.49.0 // indirect
+	google.golang.org/genai v1.66.0 // indirect
+)
 
 require (
 	cloud.google.com/go v0.123.0 // indirect
 	cloud.google.com/go/auth v0.22.0 // indirect
 	cloud.google.com/go/compute/metadata v0.9.0 // indirect
-	github.com/Azure/azure-sdk-for-go/sdk/internal v1.12.0 // indirect
 	github.com/Masterminds/semver/v3 v3.5.0 // indirect
 	github.com/Tangerg/lynx v0.0.0-20260803074414-f8db39de4d17
 	github.com/Tangerg/lynx/models/protocol/openai v0.0.0-20260802194415-a15faf3dea2e // indirect

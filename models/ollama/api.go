@@ -14,7 +14,7 @@ import (
 // providers, Ollama runs locally so the typical config is just the
 // BaseURL of the daemon (default: http://127.0.0.1:11434). There is no
 // API key.
-type APIConfig struct {
+type apiConfig struct {
 	// BaseURL points at the Ollama daemon. Empty falls back to
 	// [DefaultBaseURL]. Pass an env value like
 	// "https://ollama.internal:11434" for remote setups.
@@ -25,19 +25,19 @@ type APIConfig struct {
 	HTTPClient *http.Client
 }
 
-func (c APIConfig) Validate() error {
+func (c apiConfig) validate() error {
 	return nil
 }
 
 // API wraps Ollama's native client. We use the official SDK's typed
 // surface for chat/embed (the SDK is hosted at github.com/ollama/ollama/api
 // in the same repo as the daemon).
-type API struct {
+type api struct {
 	client *ollamaapi.Client
 }
 
-func NewAPI(cfg APIConfig) (*API, error) {
-	if err := cfg.Validate(); err != nil {
+func newAPI(cfg apiConfig) (*api, error) {
+	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
 
@@ -51,21 +51,21 @@ func NewAPI(cfg APIConfig) (*API, error) {
 		httpClient = http.DefaultClient
 	}
 
-	return &API{client: ollamaapi.NewClient(u, httpClient)}, nil
+	return &api{client: ollamaapi.NewClient(u, httpClient)}, nil
 }
 
-// Chat wraps client.Chat. The Ollama SDK uses a streaming callback for
+// chat wraps client.chat. The Ollama SDK uses a streaming callback for
 // both sync and stream paths — Stream=false on the request still goes
 // through the callback but fires exactly once with the complete reply.
-func (a *API) Chat(ctx context.Context, req *ollamaapi.ChatRequest, fn ollamaapi.ChatResponseFunc) error {
+func (a *api) chat(ctx context.Context, req *ollamaapi.ChatRequest, fn ollamaapi.ChatResponseFunc) error {
 	if req == nil {
 		return errors.New("ollama: request must not be nil")
 	}
 	return a.client.Chat(ctx, req, fn)
 }
 
-// Embed wraps client.Embed.
-func (a *API) Embed(ctx context.Context, req *ollamaapi.EmbedRequest) (*ollamaapi.EmbedResponse, error) {
+// embed wraps client.embed.
+func (a *api) embed(ctx context.Context, req *ollamaapi.EmbedRequest) (*ollamaapi.EmbedResponse, error) {
 	if req == nil {
 		return nil, errors.New("ollama: request must not be nil")
 	}

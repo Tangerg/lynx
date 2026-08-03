@@ -38,12 +38,12 @@ var _ tts.Streamer = (*AudioTTSModel)(nil)
 
 // AudioTTSModel wraps Hume's Octave TTS (/v0/tts). Hume's headline
 // feature is emotion-aware synthesis driven by per-utterance
-// "description" cues — those live on the extension-threaded [TTSRequest].
+// "description" cues — those live on the extension-threaded provider request.
 //
 // [tts.Options].Voice maps onto a HUME_AI voice id and
 // [tts.Options].Model selects the official Octave version ("1" or "2").
 type AudioTTSModel struct {
-	api            *API
+	api            *api
 	defaultOptions tts.Options
 }
 
@@ -51,20 +51,20 @@ func NewAudioTTSModel(cfg AudioTTSModelConfig) (*AudioTTSModel, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
-	api, err := NewAPI(APIConfig{APIKey: cfg.APIKey, BaseURL: cfg.BaseURL, HTTPClient: cfg.HTTPClient})
+	api, err := newAPI(apiConfig{APIKey: cfg.APIKey, BaseURL: cfg.BaseURL, HTTPClient: cfg.HTTPClient})
 	if err != nil {
 		return nil, err
 	}
 	return &AudioTTSModel{api: api, defaultOptions: cfg.DefaultOptions.Clone()}, nil
 }
 
-func (a *AudioTTSModel) buildAPIRequest(req *tts.Request, streaming bool) (*TTSRequest, error) {
+func (a *AudioTTSModel) buildAPIRequest(req *tts.Request, streaming bool) (*ttsRequest, error) {
 	mergedOpts, err := a.defaultOptions.Merged(req.Options)
 	if err != nil {
 		return nil, err
 	}
 
-	bodyValue, _, err := metadata.Decode[TTSRequest](mergedOpts.Extensions, SpeechRequestExtensionKey)
+	bodyValue, _, err := metadata.Decode[ttsRequest](mergedOpts.Extensions, SpeechRequestExtensionKey)
 
 	body := &bodyValue
 	if err != nil {
@@ -77,11 +77,11 @@ func (a *AudioTTSModel) buildAPIRequest(req *tts.Request, streaming bool) (*TTSR
 		return nil, errors.New("hume: speech: num_generations greater than 1 cannot be represented by Core's single-result response")
 	}
 	if len(body.Utterances) == 0 {
-		body.Utterances = []Utterance{{}}
+		body.Utterances = []utterance{{}}
 	}
 	body.Utterances[0].Text = req.Text
 	if mergedOpts.Voice != "" {
-		body.Utterances[0].Voice = &Voice{ID: mergedOpts.Voice, Provider: "HUME_AI"}
+		body.Utterances[0].voice = &voice{ID: mergedOpts.Voice, Provider: "HUME_AI"}
 	}
 	if mergedOpts.Speed != 0 {
 		v := mergedOpts.Speed
@@ -96,13 +96,13 @@ func (a *AudioTTSModel) buildAPIRequest(req *tts.Request, streaming bool) (*TTSR
 		}
 		body.Format = map[string]any{"type": mergedOpts.OutputFormat}
 	}
-	if body.Version == ModelOctave2 && body.Utterances[0].Voice == nil {
+	if body.Version == ModelOctave2 && body.Utterances[0].voice == nil {
 		return nil, errors.New("hume: speech: Octave 2 requires Options.Voice or a voice on the first utterance")
 	}
 	if !streaming && body.InstantMode != nil {
 		return nil, errors.New("hume: speech: instant_mode is only supported by streaming endpoints")
 	}
-	if streaming && body.Utterances[0].Voice == nil && body.InstantMode == nil {
+	if streaming && body.Utterances[0].voice == nil && body.InstantMode == nil {
 		instantMode := false
 		body.InstantMode = &instantMode
 	}
@@ -117,14 +117,14 @@ func (a *AudioTTSModel) Call(ctx context.Context, req *tts.Request) (*tts.Respon
 	if err != nil {
 		return nil, err
 	}
-	apiResp, err := a.api.TTS(ctx, body)
+	apiResp, err := a.api.tts(ctx, body)
 	if err != nil {
 		return nil, err
 	}
 	return a.buildResponse(apiResp, body.Version)
 }
 
-func (a *AudioTTSModel) buildResponse(apiResp *TTSResponse, model string) (*tts.Response, error) {
+func (a *AudioTTSModel) buildResponse(apiResp *ttsResponse, model string) (*tts.Response, error) {
 	audio, err := apiResp.DecodeAudio()
 	if err != nil {
 		return nil, err
@@ -176,7 +176,7 @@ func (a *AudioTTSModel) Stream(ctx context.Context, req *tts.Request) iter.Seq2[
 			yield(nil, errors.New("hume: speech stream: include_timestamp_types cannot be represented by Core audio-only stream responses"))
 			return
 		}
-		body, err := a.api.TTSStream(ctx, request)
+		body, err := a.api.ttsStream(ctx, request)
 		if err != nil {
 			yield(nil, err)
 			return
@@ -185,7 +185,7 @@ func (a *AudioTTSModel) Stream(ctx context.Context, req *tts.Request) iter.Seq2[
 
 		decoder := json.NewDecoder(body)
 		for {
-			var event TTSStreamEvent
+			var event ttsStreamEvent
 			if err := decoder.Decode(&event); err != nil {
 				if errors.Is(err, io.EOF) {
 					return
@@ -213,7 +213,7 @@ func (a *AudioTTSModel) Stream(ctx context.Context, req *tts.Request) iter.Seq2[
 	}
 }
 
-func buildStreamResponse(event *TTSStreamEvent, model string) (*tts.Response, error) {
+func buildStreamResponse(event *ttsStreamEvent, model string) (*tts.Response, error) {
 	audio, err := event.DecodeAudio()
 	if err != nil {
 		return nil, err

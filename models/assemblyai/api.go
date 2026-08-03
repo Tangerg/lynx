@@ -11,25 +11,25 @@ import (
 	"github.com/go-resty/resty/v2"
 )
 
-type APIConfig struct {
+type apiConfig struct {
 	APIKey     string
 	BaseURL    string
 	HTTPClient *http.Client
 }
 
-func (c APIConfig) Validate() error {
+func (c apiConfig) validate() error {
 	if c.APIKey == "" {
 		return errors.New("assemblyai: APIKey is required")
 	}
 	return nil
 }
 
-type API struct {
+type api struct {
 	http *resty.Client
 }
 
-func NewAPI(cfg APIConfig) (*API, error) {
-	if err := cfg.Validate(); err != nil {
+func newAPI(cfg apiConfig) (*api, error) {
+	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
 
@@ -40,14 +40,14 @@ func NewAPI(cfg APIConfig) (*API, error) {
 	client.SetBaseURL(cmp.Or(cfg.BaseURL, DefaultBaseURL)).
 		SetHeader("Authorization", cfg.APIKey)
 
-	return &API{http: client}, nil
+	return &api{http: client}, nil
 }
 
-type UploadResponse struct {
+type uploadResponse struct {
 	UploadURL string `json:"upload_url"`
 }
 
-type TranscriptRequest struct {
+type transcriptRequest struct {
 	AudioURL                    string         `json:"audio_url"`
 	SpeechModels                []string       `json:"speech_models"`
 	LanguageCode                string         `json:"language_code,omitempty"`
@@ -83,16 +83,16 @@ type TranscriptRequest struct {
 // TranscriptStatus enumerates the values AssemblyAI puts on
 // [TranscriptResponse].Status. Polling treats Completed and Errored as
 // terminal; anything else keeps the loop spinning.
-type TranscriptStatus = string
+type transcriptStatus = string
 
 const (
-	StatusQueued     TranscriptStatus = "queued"
-	StatusProcessing TranscriptStatus = "processing"
-	StatusCompleted  TranscriptStatus = "completed"
-	StatusErrored    TranscriptStatus = "error"
+	statusQueued     transcriptStatus = "queued"
+	statusProcessing transcriptStatus = "processing"
+	statusCompleted  transcriptStatus = "completed"
+	statusErrored    transcriptStatus = "error"
 )
 
-type TranscriptResponse struct {
+type transcriptResponse struct {
 	ID                 string  `json:"id"`
 	Status             string  `json:"status"`
 	Text               string  `json:"text"`
@@ -119,12 +119,12 @@ type TranscriptResponse struct {
 	Raw map[string]any `json:"-"`
 }
 
-func (a *API) Upload(ctx context.Context, audio []byte) (*UploadResponse, error) {
+func (a *api) upload(ctx context.Context, audio []byte) (*uploadResponse, error) {
 	if len(audio) == 0 {
 		return nil, errors.New("assemblyai: upload audio must not be empty")
 	}
 
-	var out UploadResponse
+	var out uploadResponse
 	resp, err := a.http.R().
 		SetContext(ctx).
 		SetHeader("Content-Type", "application/octet-stream").
@@ -143,12 +143,12 @@ func (a *API) Upload(ctx context.Context, audio []byte) (*UploadResponse, error)
 	return &out, nil
 }
 
-func (a *API) CreateTranscript(ctx context.Context, req *TranscriptRequest) (*TranscriptResponse, error) {
+func (a *api) createTranscript(ctx context.Context, req *transcriptRequest) (*transcriptResponse, error) {
 	if req == nil {
 		return nil, errors.New("assemblyai: request must not be nil")
 	}
 
-	var out TranscriptResponse
+	var out transcriptResponse
 	resp, err := a.http.R().
 		SetContext(ctx).
 		SetHeader("Content-Type", "application/json").
@@ -167,11 +167,11 @@ func (a *API) CreateTranscript(ctx context.Context, req *TranscriptRequest) (*Tr
 	return &out, nil
 }
 
-func (a *API) Get(ctx context.Context, id string) (*TranscriptResponse, error) {
+func (a *api) get(ctx context.Context, id string) (*transcriptResponse, error) {
 	if id == "" {
 		return nil, errors.New("assemblyai: transcript id must not be empty")
 	}
-	var out TranscriptResponse
+	var out transcriptResponse
 	resp, err := a.http.R().
 		SetContext(ctx).
 		SetResult(&out).

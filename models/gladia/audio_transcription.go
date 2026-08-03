@@ -40,7 +40,7 @@ var _ transcription.Model = (*AudioTranscriptionModel)(nil)
 // translation / summarization / NER / subtitles all reach the wire via
 // the extension-threaded [TranscriptionRequest].
 type AudioTranscriptionModel struct {
-	api            *API
+	api            *api
 	defaultOptions transcription.Options
 	pollInterval   time.Duration
 	pollTimeout    time.Duration
@@ -50,7 +50,7 @@ func NewAudioTranscriptionModel(cfg AudioTranscriptionModelConfig) (*AudioTransc
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
-	api, err := NewAPI(APIConfig{APIKey: cfg.APIKey, BaseURL: cfg.BaseURL, HTTPClient: cfg.HTTPClient})
+	api, err := newAPI(apiConfig{APIKey: cfg.APIKey, BaseURL: cfg.BaseURL, HTTPClient: cfg.HTTPClient})
 	if err != nil {
 		return nil, err
 	}
@@ -73,17 +73,17 @@ func (a *AudioTranscriptionModel) Call(ctx context.Context, req *transcription.R
 	if err != nil {
 		return nil, err
 	}
-	apiReqValue, _, err := metadata.Decode[TranscriptionRequest](mergedOpts.Extensions, RequestExtensionKey)
+	apiReqValue, _, err := metadata.Decode[transcriptionRequest](mergedOpts.Extensions, RequestExtensionKey)
 	apiReq := &apiReqValue
 	if err != nil {
 		return nil, err
 	}
 	apiReq.Model = mergedOpts.Model
 	if mergedOpts.Language != "" {
-		if apiReq.LanguageConfig == nil {
-			apiReq.LanguageConfig = &LanguageConfig{}
+		if apiReq.languageConfig == nil {
+			apiReq.languageConfig = &languageConfig{}
 		}
-		apiReq.LanguageConfig.Languages = []string{mergedOpts.Language}
+		apiReq.languageConfig.Languages = []string{mergedOpts.Language}
 	}
 	if err := validateTranscriptionRequest(apiReq); err != nil {
 		return nil, err
@@ -94,15 +94,15 @@ func (a *AudioTranscriptionModel) Call(ctx context.Context, req *transcription.R
 		if err != nil {
 			return nil, err
 		}
-		var uploaded *UploadResponse
-		uploaded, err = a.api.Upload(ctx, audio, req.Audio.MIME)
+		var uploaded *uploadResponse
+		uploaded, err = a.api.upload(ctx, audio, req.Audio.MIME)
 		if err != nil {
 			return nil, err
 		}
 		apiReq.AudioURL = uploaded.AudioURL
 	}
 
-	job, err := a.api.CreateTranscription(ctx, apiReq)
+	job, err := a.api.createTranscription(ctx, apiReq)
 	if err != nil {
 		return nil, err
 	}
@@ -149,28 +149,28 @@ func (a *AudioTranscriptionModel) Call(ctx context.Context, req *transcription.R
 	return transcription.NewResponse(result, meta)
 }
 
-func validateTranscriptionRequest(req *TranscriptionRequest) error {
+func validateTranscriptionRequest(req *transcriptionRequest) error {
 	if req.Model != ModelSolaria3 && req.Model != ModelSolaria1 {
 		return fmt.Errorf("gladia: transcription model must be %q or %q, got %q", ModelSolaria3, ModelSolaria1, req.Model)
 	}
 	if req.Model == ModelSolaria3 {
-		if req.LanguageConfig == nil || len(req.LanguageConfig.Languages) != 1 {
+		if req.languageConfig == nil || len(req.languageConfig.Languages) != 1 {
 			return errors.New("gladia: solaria-3 requires exactly one language_config.languages entry")
 		}
-		if req.LanguageConfig.CodeSwitching != nil && *req.LanguageConfig.CodeSwitching {
+		if req.languageConfig.CodeSwitching != nil && *req.languageConfig.CodeSwitching {
 			return errors.New("gladia: solaria-3 does not support language code switching")
 		}
 	}
 	return nil
 }
 
-func (a *AudioTranscriptionModel) pollUntilDone(ctx context.Context, id string) (*TranscriptionResult, error) {
+func (a *AudioTranscriptionModel) pollUntilDone(ctx context.Context, id string) (*transcriptionResult, error) {
 	deadline, cancel := context.WithTimeout(ctx, a.pollTimeout)
 	defer cancel()
 	ticker := time.NewTicker(a.pollInterval)
 	defer ticker.Stop()
 	for {
-		resp, err := a.api.GetTranscription(deadline, id)
+		resp, err := a.api.getTranscription(deadline, id)
 		if err != nil {
 			return nil, err
 		}

@@ -104,7 +104,7 @@ var (
 // Chat implements Mistral's native Chat Completions protocol, including
 // structured thinking chunks and their multi-turn replay semantics.
 type Chat struct {
-	api      *API
+	api      *api
 	defaults corechat.Options
 }
 
@@ -113,7 +113,7 @@ func NewChat(config ChatConfig) (*Chat, error) {
 	if err := config.validate(); err != nil {
 		return nil, err
 	}
-	api, err := NewAPI(APIConfig{
+	api, err := newAPI(apiConfig{
 		APIKey:     config.APIKey,
 		BaseURL:    cmp.Or(config.BaseURL, DefaultBaseURL),
 		HTTPClient: config.HTTPClient,

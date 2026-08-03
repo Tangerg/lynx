@@ -37,7 +37,7 @@ var responsesReasoningFrameMagic = [4]byte{'O', 'A', 'R', 'I'}
 // ResponsesChat adapts OpenAI's ordered Responses API output to the minimal
 // Core chat Model and Streamer capabilities.
 type ResponsesChat struct {
-	api      *API
+	api      *api
 	defaults corechat.Options
 }
 
@@ -51,7 +51,7 @@ func NewResponsesChat(cfg ChatConfig) (*ResponsesChat, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
-	api, err := NewAPI(APIConfig{APIKey: cfg.APIKey, RequestOptions: cfg.RequestOptions})
+	api, err := newAPI(apiConfig{APIKey: cfg.APIKey, BaseURL: cfg.BaseURL, HTTPClient: cfg.HTTPClient, Headers: cfg.Headers})
 	if err != nil {
 		return nil, err
 	}
@@ -64,7 +64,7 @@ func (c *ResponsesChat) Call(ctx context.Context, req *corechat.Request) (*corec
 	if err != nil {
 		return nil, err
 	}
-	response, err := c.api.ResponseNew(ctx, params)
+	response, err := c.api.responseNew(ctx, params)
 	if err != nil {
 		return nil, err
 	}
@@ -80,7 +80,7 @@ func (c *ResponsesChat) Stream(ctx context.Context, req *corechat.Request) iter.
 			yield(nil, err)
 			return
 		}
-		stream, err := c.api.ResponseNewStream(ctx, params)
+		stream, err := c.api.responseNewStream(ctx, params)
 		if err != nil {
 			yield(nil, err)
 			return
@@ -99,7 +99,7 @@ func (c *ResponsesChat) Stream(ctx context.Context, req *corechat.Request) iter.
 			}
 		}
 		if streamErr := stream.Err(); streamErr != nil {
-			yield(nil, streamErr)
+			yield(nil, wrapError(streamErr))
 		}
 	}
 }

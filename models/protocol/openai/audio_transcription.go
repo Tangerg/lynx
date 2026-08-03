@@ -5,12 +5,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 
 	"github.com/openai/openai-go/v3"
-	"github.com/openai/openai-go/v3/option"
 	"github.com/openai/openai-go/v3/packages/param"
 
-	"github.com/Tangerg/lynx/core/metadata"
 	"github.com/Tangerg/lynx/core/transcription"
 )
 
@@ -18,7 +17,8 @@ type AudioTranscriptionModelConfig struct {
 	Provider       string
 	APIKey         string
 	DefaultOptions transcription.Options
-	RequestOptions []option.RequestOption
+	BaseURL        string
+	HTTPClient     *http.Client
 }
 
 func (c AudioTranscriptionModelConfig) Validate() error {
@@ -40,7 +40,7 @@ func (c AudioTranscriptionModelConfig) Validate() error {
 var _ transcription.Model = (*AudioTranscriptionModel)(nil)
 
 type AudioTranscriptionModel struct {
-	api            *API
+	api            *api
 	provider       string
 	defaultOptions transcription.Options
 }
@@ -50,9 +50,10 @@ func NewAudioTranscriptionModel(cfg AudioTranscriptionModelConfig) (*AudioTransc
 		return nil, err
 	}
 
-	api, err := NewAPI(APIConfig{
-		APIKey:         cfg.APIKey,
-		RequestOptions: cfg.RequestOptions,
+	api, err := newAPI(apiConfig{
+		APIKey:     cfg.APIKey,
+		BaseURL:    cfg.BaseURL,
+		HTTPClient: cfg.HTTPClient,
 	})
 	if err != nil {
 		return nil, err
@@ -71,12 +72,12 @@ func (a *AudioTranscriptionModel) buildAPITranscriptionRequest(req *transcriptio
 		return nil, err
 	}
 
-	paramsValue, _, err := metadata.Decode[openai.AudioTranscriptionNewParams](mergedOpts.Extensions, protocolModalityRequestExtensionKey(a.provider, "transcription"))
-
-	params := &paramsValue
+	fields, err := decodeRequestFields(mergedOpts.Extensions, protocolModalityRequestExtensionKey(a.provider, "transcription"), "model", "file", "language")
 	if err != nil {
 		return nil, err
 	}
+	params := &openai.AudioTranscriptionNewParams{}
+	params.SetExtraFields(fields)
 
 	params.Model = mergedOpts.Model
 	if mergedOpts.Language != "" {
@@ -110,7 +111,7 @@ func (a *AudioTranscriptionModel) Call(ctx context.Context, req *transcription.R
 		return nil, err
 	}
 
-	apiResp, err := a.api.AudioTranscription(ctx, apiReq)
+	apiResp, err := a.api.audioTranscription(ctx, apiReq)
 	if err != nil {
 		return nil, err
 	}

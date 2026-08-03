@@ -5,9 +5,10 @@ go 1.26.5
 require (
 	github.com/Tangerg/lynx/models/protocol/openai v0.0.0-20260802194415-a15faf3dea2e
 	github.com/go-resty/resty/v2 v2.17.2
-	github.com/openai/openai-go/v3 v3.49.0
 	google.golang.org/genai v1.66.0
 )
+
+require github.com/openai/openai-go/v3 v3.49.0 // indirect
 
 require (
 	cloud.google.com/go v0.116.0 // indirect

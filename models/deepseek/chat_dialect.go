@@ -5,10 +5,9 @@ import (
 	"fmt"
 	"regexp"
 
-	"github.com/openai/openai-go/v3/option"
-
 	corechat "github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/core/metadata"
+	"github.com/Tangerg/lynx/models/protocol/openai"
 )
 
 const RequestExtensionKey = "deepseek/request"
@@ -83,27 +82,32 @@ type requestDialect struct {
 	defaults corechat.Options
 }
 
-func (dialect requestDialect) PrepareRequestOptions(request *corechat.Request, stream bool) ([]option.RequestOption, error) {
+func (dialect requestDialect) prepareRequest(request *corechat.Request, target *openai.CompatibleRequest) error {
 	options, _, err := metadata.Decode[RequestOptions](request.Extensions, RequestExtensionKey)
 	if err != nil {
-		return nil, fmt.Errorf("extension %q: %w", RequestExtensionKey, err)
+		return fmt.Errorf("extension %q: %w", RequestExtensionKey, err)
 	}
 	effective := dialect.defaults.Overlay(request.Options)
-	if err := options.validate(effective, request.Tools, stream); err != nil {
-		return nil, err
+	if err := options.validate(effective, request.Tools, target.Stream()); err != nil {
+		return err
 	}
 
-	requestOptions := make([]option.RequestOption, 0, 8)
 	if options.Thinking != nil {
-		requestOptions = append(requestOptions, option.WithJSONSet("thinking", options.Thinking))
+		if err := target.SetExtraField("thinking", options.Thinking); err != nil {
+			return err
+		}
 	}
 	if options.ReasoningEffort != "" {
-		requestOptions = append(requestOptions, option.WithJSONSet("reasoning_effort", options.ReasoningEffort))
+		if err := target.SetExtraField("reasoning_effort", options.ReasoningEffort); err != nil {
+			return err
+		}
 	}
 	if options.ResponseFormat != "" {
-		requestOptions = append(requestOptions, option.WithJSONSet("response_format", map[string]ResponseFormat{
+		if err := target.SetExtraField("response_format", map[string]ResponseFormat{
 			"type": options.ResponseFormat,
-		}))
+		}); err != nil {
+			return err
+		}
 	}
 	if options.ToolChoice != nil {
 		var value any = options.ToolChoice.Mode
@@ -115,23 +119,33 @@ func (dialect requestDialect) PrepareRequestOptions(request *corechat.Request, s
 				},
 			}
 		}
-		requestOptions = append(requestOptions, option.WithJSONSet("tool_choice", value))
+		if err := target.SetExtraField("tool_choice", value); err != nil {
+			return err
+		}
 	}
 	if options.LogProbs != nil {
-		requestOptions = append(requestOptions, option.WithJSONSet("logprobs", *options.LogProbs))
+		if err := target.SetExtraField("logprobs", *options.LogProbs); err != nil {
+			return err
+		}
 	}
 	if options.TopLogProbs != nil {
-		requestOptions = append(requestOptions, option.WithJSONSet("top_logprobs", *options.TopLogProbs))
+		if err := target.SetExtraField("top_logprobs", *options.TopLogProbs); err != nil {
+			return err
+		}
 	}
 	if options.IncludeUsage != nil {
-		requestOptions = append(requestOptions, option.WithJSONSet("stream_options", map[string]bool{
+		if err := target.SetExtraField("stream_options", map[string]bool{
 			"include_usage": *options.IncludeUsage,
-		}))
+		}); err != nil {
+			return err
+		}
 	}
 	if options.UserID != "" {
-		requestOptions = append(requestOptions, option.WithJSONSet("user_id", options.UserID))
+		if err := target.SetExtraField("user_id", options.UserID); err != nil {
+			return err
+		}
 	}
-	return requestOptions, nil
+	return nil
 }
 
 func (options RequestOptions) validate(generation corechat.Options, tools []corechat.ToolDefinition, stream bool) error {

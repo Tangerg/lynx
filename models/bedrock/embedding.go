@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -39,7 +40,9 @@ type EmbeddingRequestOptions struct {
 type EmbeddingModelConfig struct {
 	DefaultOptions embedding.Options
 	Region         string
-	AWSConfig      *aws.Config
+	BaseURL        string
+	HTTPClient     *http.Client
+	Credentials    *Credentials
 }
 
 func (c EmbeddingModelConfig) Validate() error {
@@ -58,7 +61,7 @@ var _ embedding.Model = (*EmbeddingModel)(nil)
 // Titan Text Embeddings V1/V2 and Cohere Embed V3/V4. Titan accepts one input
 // per invocation; Cohere accepts up to 96 texts in one batch.
 type EmbeddingModel struct {
-	api            *API
+	api            *api
 	defaultOptions embedding.Options
 }
 
@@ -66,7 +69,12 @@ func NewEmbeddingModel(ctx context.Context, cfg EmbeddingModelConfig) (*Embeddin
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
-	api, err := NewAPI(ctx, APIConfig{Region: cfg.Region, AWSConfig: cfg.AWSConfig})
+	api, err := newAPI(ctx, apiConfig{
+		Region:      cfg.Region,
+		BaseURL:     cfg.BaseURL,
+		HTTPClient:  cfg.HTTPClient,
+		Credentials: cfg.Credentials,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -376,7 +384,7 @@ func decodeCohereFloatEmbeddings(raw json.RawMessage) ([][]float64, error) {
 }
 
 func (e *EmbeddingModel) invokeEmbedding(ctx context.Context, modelID string, body []byte) ([]byte, error) {
-	output, err := e.api.InvokeModel(ctx, &bedrockruntime.InvokeModelInput{
+	output, err := e.api.invokeModel(ctx, &bedrockruntime.InvokeModelInput{
 		ModelId:     aws.String(modelID),
 		ContentType: aws.String("application/json"),
 		Accept:      aws.String("application/json"),

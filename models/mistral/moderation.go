@@ -35,7 +35,7 @@ var _ moderation.Model = (*ModerationModel)(nil)
 // violence_and_threats / dangerous_and_criminal_content / selfharm /
 // health / financial / law / pii). Category names are preserved exactly.
 type ModerationModel struct {
-	api            *API
+	api            *api
 	defaultOptions moderation.Options
 }
 
@@ -43,7 +43,7 @@ func NewModerationModel(cfg ModerationModelConfig) (*ModerationModel, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
-	api, err := NewAPI(APIConfig{APIKey: cfg.APIKey, BaseURL: cfg.BaseURL, HTTPClient: cfg.HTTPClient})
+	api, err := newAPI(apiConfig{APIKey: cfg.APIKey, BaseURL: cfg.BaseURL, HTTPClient: cfg.HTTPClient})
 	if err != nil {
 		return nil, err
 	}
@@ -59,7 +59,7 @@ func (m *ModerationModel) Call(ctx context.Context, req *moderation.Request) (*m
 		return nil, err
 	}
 
-	apiResp, err := m.api.Moderation(ctx, &ModerationRequest{
+	apiResp, err := m.api.moderation(ctx, &moderationRequest{
 		Model: mergedOpts.Model,
 		Input: req.Texts,
 	})

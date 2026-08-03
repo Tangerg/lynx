@@ -6,8 +6,6 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/anthropics/anthropic-sdk-go/option"
-
 	corechat "github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/core/modeltest"
 	"github.com/Tangerg/lynx/models/internal/protocol/anthropic"
@@ -47,7 +45,7 @@ func newAnthropicBehaviorChat(t *testing.T, baseURL string) *anthropic.Chat {
 	adapter, err := anthropic.NewChat(anthropic.ChatConfig{
 		APIKey:         "test-key",
 		DefaultOptions: corechat.Options{Model: "claude-opus-4-6"},
-		RequestOptions: []option.RequestOption{option.WithBaseURL(baseURL)},
+		BaseURL:        baseURL,
 	})
 	if err != nil {
 		t.Fatalf("NewChat: %v", err)

@@ -4,8 +4,6 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/openai/openai-go/v3/option"
-
 	"github.com/Tangerg/lynx/core/modeltest"
 	"github.com/Tangerg/lynx/core/moderation"
 	"github.com/Tangerg/lynx/models/protocol/openai"
@@ -33,7 +31,7 @@ func TestModerationModel_Call_Mock(t *testing.T) {
 		Provider:       "openai",
 		APIKey:         "test-key",
 		DefaultOptions: opts,
-		RequestOptions: []option.RequestOption{option.WithBaseURL(srv.URL)},
+		BaseURL:        srv.URL,
 	})
 	if err != nil {
 		t.Fatal(err)

@@ -14,7 +14,7 @@ import (
 )
 
 // API is the authenticated transport for Mistral's native endpoints.
-type APIConfig struct {
+type apiConfig struct {
 	APIKey     string
 	BaseURL    string
 	HTTPClient *http.Client
@@ -42,19 +42,19 @@ func (err *APIError) Error() string {
 	return detail
 }
 
-func (c APIConfig) Validate() error {
+func (c apiConfig) validate() error {
 	if c.APIKey == "" {
 		return errors.New("mistral: APIKey is required")
 	}
 	return nil
 }
 
-type API struct {
+type api struct {
 	http *resty.Client
 }
 
-func NewAPI(cfg APIConfig) (*API, error) {
-	if err := cfg.Validate(); err != nil {
+func newAPI(cfg apiConfig) (*api, error) {
+	if err := cfg.validate(); err != nil {
 		return nil, err
 	}
 	client := resty.New()
@@ -65,13 +65,13 @@ func NewAPI(cfg APIConfig) (*API, error) {
 		SetBaseURL(cmp.Or(cfg.BaseURL, DefaultBaseURL)).
 		SetAuthToken(cfg.APIKey).
 		SetHeader("Content-Type", "application/json")
-	return &API{http: client}, nil
+	return &api{http: client}, nil
 }
 
 // ModerationRequest mirrors POST /moderations. Mistral's moderation API
 // takes a free-form `input` (string or array of strings) plus a model
 // id ("mistral-moderation-2603" is current).
-type ModerationRequest struct {
+type moderationRequest struct {
 	Model string   `json:"model"`
 	Input []string `json:"input"`
 }
@@ -80,7 +80,7 @@ type ModerationRequest struct {
 // custom (sexual, hate_and_discrimination, violence_and_threats,
 // dangerous_and_criminal_content, selfharm, health, financial, law,
 // pii) — different from OpenAI's, hence the dedicated endpoint.
-type ModerationResponse struct {
+type moderationResponse struct {
 	ID      string `json:"id"`
 	Model   string `json:"model"`
 	Results []struct {
@@ -89,11 +89,11 @@ type ModerationResponse struct {
 	} `json:"results"`
 }
 
-func (a *API) Moderation(ctx context.Context, req *ModerationRequest) (*ModerationResponse, error) {
+func (a *api) moderation(ctx context.Context, req *moderationRequest) (*moderationResponse, error) {
 	if req == nil {
 		return nil, errors.New("mistral: request must not be nil")
 	}
-	var out ModerationResponse
+	var out moderationResponse
 	resp, err := a.http.R().SetContext(ctx).SetBody(req).SetResult(&out).Post("/moderations")
 	if err != nil {
 		return nil, fmt.Errorf("mistral: request failed: %w", err)
@@ -104,7 +104,7 @@ func (a *API) Moderation(ctx context.Context, req *ModerationRequest) (*Moderati
 	return &out, nil
 }
 
-func (a *API) chatCompletion(ctx context.Context, request *chatCompletionRequest) (*chatCompletionResponse, error) {
+func (a *api) chatCompletion(ctx context.Context, request *chatCompletionRequest) (*chatCompletionResponse, error) {
 	if a == nil || a.http == nil {
 		return nil, errors.New("mistral: nil API")
 	}
@@ -126,7 +126,7 @@ func (a *API) chatCompletion(ctx context.Context, request *chatCompletionRequest
 	return &result, nil
 }
 
-func (a *API) chatCompletionStream(ctx context.Context, request *chatCompletionRequest) (io.ReadCloser, error) {
+func (a *api) chatCompletionStream(ctx context.Context, request *chatCompletionRequest) (io.ReadCloser, error) {
 	if a == nil || a.http == nil {
 		return nil, errors.New("mistral: nil API")
 	}

@@ -9,8 +9,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/openai/openai-go/v3/option"
-
 	corechat "github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/core/media"
 	"github.com/Tangerg/lynx/core/modeltest"
@@ -27,7 +25,7 @@ func TestCompatibleChat_CoreConformance(t *testing.T) {
 				lynxopenai.ChatConfig{
 					APIKey:         "test-key",
 					DefaultOptions: corechat.Options{Model: "gpt-default-must-be-overridden"},
-					RequestOptions: []option.RequestOption{option.WithBaseURL(server.URL)},
+					BaseURL:        server.URL,
 				},
 				lynxopenai.ReasoningContentDialect("test"),
 			)

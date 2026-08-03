@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	openaisdk "github.com/openai/openai-go/v3"
-	"github.com/openai/openai-go/v3/option"
 	"github.com/openai/openai-go/v3/packages/respjson"
 
 	corechat "github.com/Tangerg/lynx/core/chat"
@@ -29,29 +28,50 @@ const (
 	TextReasoning        TextReasoningField = reasoningField
 )
 
-// RequestDialect owns provider-specific request semantics layered on top of
-// the standard OpenAI Chat Completions wire shape. Source is read-only;
-// implementations may mutate only target and must be safe for concurrent use
-// when their Chat is shared.
-type RequestDialect interface {
+type requestDialect interface {
 	PrepareRequest(source *corechat.Request, target *openaisdk.ChatCompletionNewParams) error
 }
 
-// RequestOptionDialect adds provider-owned HTTP request options after the
-// standard Chat Completions body has been serialized. It is intended for
-// officially compatible providers that define additional top-level JSON
-// fields not present in OpenAI's schema.
-type RequestOptionDialect interface {
-	PrepareRequestOptions(source *corechat.Request, stream bool) ([]option.RequestOption, error)
-}
-
-// ResponseDialect owns provider-specific response fields for both complete
-// messages and streaming deltas. Source is read-only; implementations may
-// mutate only target and must be safe for concurrent use when their Chat is
-// shared.
-type ResponseDialect interface {
+type responseDialect interface {
 	FinalizeMessage(source openaisdk.ChatCompletionMessage, target *corechat.Message) error
 	FinalizeDelta(source openaisdk.ChatCompletionChunkChoiceDelta, target *corechat.Message) error
+}
+
+// CompatibleRequest exposes the stable subset of a compatible request that a
+// provider dialect may inspect. Provider-only top-level JSON fields are added
+// with SetExtraField; OpenAI SDK wire types never cross this boundary.
+type CompatibleRequest struct {
+	model       string
+	temperature *float64
+	stream      bool
+	extraFields map[string]any
+}
+
+// Model returns the effective model after Core defaults and request options
+// have been merged.
+func (request *CompatibleRequest) Model() string { return request.model }
+
+// Temperature returns the effective temperature when one was supplied.
+func (request *CompatibleRequest) Temperature() (float64, bool) {
+	if request.temperature == nil {
+		return 0, false
+	}
+	return *request.temperature, true
+}
+
+// Stream reports whether the request will use the streaming endpoint.
+func (request *CompatibleRequest) Stream() bool { return request.stream }
+
+// SetExtraField adds or replaces one provider-owned top-level JSON field.
+func (request *CompatibleRequest) SetExtraField(name string, value any) error {
+	if strings.TrimSpace(name) == "" || strings.TrimSpace(name) != name {
+		return errors.New("openai: extra field name is required and must not have surrounding whitespace")
+	}
+	if request.extraFields == nil {
+		request.extraFields = make(map[string]any)
+	}
+	request.extraFields[name] = value
+	return nil
 }
 
 // Dialect groups the independently typed request and response protocol facets
@@ -59,14 +79,15 @@ type ResponseDialect interface {
 type Dialect struct {
 	// Provider scopes provider-owned response and replay state.
 	Provider        string
-	Request         RequestDialect
-	RequestOptions  RequestOptionDialect
-	Response        ResponseDialect
+	PrepareRequest  func(source *corechat.Request, target *CompatibleRequest) error
 	TokenLimitField TokenLimitField
 	// DisableRawRequestExtension prevents provider adapters from accepting an
 	// arbitrary OpenAI request object when their documented request surface is
 	// narrower than OpenAI's.
 	DisableRawRequestExtension bool
+
+	request  requestDialect
+	response responseDialect
 }
 
 // TokenLimitField identifies the provider's wire field for Core's neutral
@@ -87,7 +108,7 @@ const (
 // treating it as output-only state.
 func ReasoningContentDialect(provider string) Dialect {
 	codec := textReasoningCodec{provider: provider, field: reasoningContentField}
-	return Dialect{Provider: provider, Response: codec}
+	return Dialect{Provider: provider, response: codec}
 }
 
 // ReasoningContentReplayDialect maps reasoning_content and sends it back on
@@ -95,27 +116,27 @@ func ReasoningContentDialect(provider string) Dialect {
 // treats historical reasoning as replayable conversation state.
 func ReasoningContentReplayDialect(provider string) Dialect {
 	codec := textReasoningCodec{provider: provider, field: reasoningContentField, replay: reasoningReplayAlways}
-	return Dialect{Provider: provider, Request: codec, Response: codec}
+	return Dialect{Provider: provider, request: codec, response: codec}
 }
 
 // ReasoningContentToolReplayDialect maps reasoning_content and sends it back
 // only on assistant messages containing tool calls.
 func ReasoningContentToolReplayDialect(provider string) Dialect {
 	codec := textReasoningCodec{provider: provider, field: reasoningContentField, replay: reasoningReplayWithToolCalls}
-	return Dialect{Provider: provider, Request: codec, Response: codec}
+	return Dialect{Provider: provider, request: codec, response: codec}
 }
 
 // ReasoningDialect maps the reasoning extension as output-only state.
 func ReasoningDialect(provider string) Dialect {
 	codec := textReasoningCodec{provider: provider, field: reasoningField}
-	return Dialect{Provider: provider, Response: codec}
+	return Dialect{Provider: provider, response: codec}
 }
 
 // ReasoningReplayDialect maps the reasoning extension and sends it back on
 // every assistant message.
 func ReasoningReplayDialect(provider string) Dialect {
 	codec := textReasoningCodec{provider: provider, field: reasoningField, replay: reasoningReplayAlways}
-	return Dialect{Provider: provider, Request: codec, Response: codec}
+	return Dialect{Provider: provider, request: codec, response: codec}
 }
 
 type reasoningReplay uint8

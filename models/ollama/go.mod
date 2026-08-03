@@ -5,8 +5,9 @@ go 1.26.5
 require (
 	github.com/Tangerg/lynx/models/protocol/openai v0.0.0-20260802194415-a15faf3dea2e
 	github.com/ollama/ollama v0.32.5
-	github.com/openai/openai-go/v3 v3.49.0
 )
+
+require github.com/openai/openai-go/v3 v3.49.0 // indirect
 
 require (
 	github.com/Tangerg/lynx v0.0.0-20260803065639-63b23617676d

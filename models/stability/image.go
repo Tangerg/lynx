@@ -47,7 +47,7 @@ var _ image.Model = (*ImageModel)(nil)
 // [image.Options].Model selects Core, Ultra, or one exact SD 3.5 model;
 // the adapter derives the official endpoint and request model field from it.
 type ImageModel struct {
-	api            *API
+	api            *api
 	defaultOptions image.Options
 }
 
@@ -56,7 +56,7 @@ func NewImageModel(cfg ImageModelConfig) (*ImageModel, error) {
 		return nil, err
 	}
 
-	api, err := NewAPI(APIConfig{
+	api, err := newAPI(apiConfig{
 		APIKey:     cfg.APIKey,
 		BaseURL:    cfg.BaseURL,
 		HTTPClient: cfg.HTTPClient,
@@ -71,7 +71,7 @@ func NewImageModel(cfg ImageModelConfig) (*ImageModel, error) {
 	}, nil
 }
 
-func (i *ImageModel) buildAPIRequest(req *image.Request) (string, *GenerateRequest, error) {
+func (i *ImageModel) buildAPIRequest(req *image.Request) (string, *generateRequest, error) {
 	mergedOpts, err := i.defaultOptions.Merged(req.Options)
 	if err != nil {
 		return "", nil, err
@@ -83,7 +83,7 @@ func (i *ImageModel) buildAPIRequest(req *image.Request) (string, *GenerateReque
 		return "", nil, err
 	}
 
-	apiReqValue, _, err := metadata.Decode[GenerateRequest](mergedOpts.Extensions, RequestExtensionKey)
+	apiReqValue, _, err := metadata.Decode[generateRequest](mergedOpts.Extensions, RequestExtensionKey)
 
 	apiReq := &apiReqValue
 	if err != nil {
@@ -171,7 +171,7 @@ func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Respo
 		return nil, err
 	}
 
-	body, hdr, err := i.api.Generate(ctx, endpoint, apiReq)
+	body, hdr, err := i.api.generate(ctx, endpoint, apiReq)
 	if err != nil {
 		return nil, err
 	}
@@ -192,7 +192,7 @@ func resolveModel(model string) (endpoint, wireModel string, err error) {
 	}
 }
 
-func validateGenerateRequest(req *GenerateRequest) error {
+func validateGenerateRequest(req *generateRequest) error {
 	if req.AspectRatio != "" {
 		switch req.AspectRatio {
 		case "16:9", "1:1", "21:9", "2:3", "3:2", "4:5", "5:4", "9:16", "9:21":

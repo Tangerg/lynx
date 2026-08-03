@@ -5,10 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"iter"
+	"net/http"
 	"strings"
 
 	anthropicsdk "github.com/anthropics/anthropic-sdk-go"
-	"github.com/anthropics/anthropic-sdk-go/option"
 
 	corechat "github.com/Tangerg/lynx/core/chat"
 )
@@ -20,7 +20,9 @@ const protocolDefaultMaxTokens int64 = 4096
 type ChatConfig struct {
 	APIKey         string
 	DefaultOptions corechat.Options
-	RequestOptions []option.RequestOption
+	BaseURL        string
+	HTTPClient     *http.Client
+	Headers        http.Header
 }
 
 // Validate verifies construction-time configuration.
@@ -42,7 +44,7 @@ var (
 // Chat implements Anthropic's Messages protocol and is also the reusable
 // protocol base for provider packages exposing a compatible endpoint.
 type Chat struct {
-	api      *API
+	api      *api
 	defaults corechat.Options
 	dialect  Dialect
 }
@@ -66,9 +68,11 @@ func newChat(config ChatConfig, dialect Dialect) (*Chat, error) {
 	if dialect.Provider == "" || strings.TrimSpace(dialect.Provider) != dialect.Provider || strings.Contains(dialect.Provider, "/") {
 		return nil, errors.New("anthropic: dialect.Provider is required, must not contain '/', and must not have surrounding whitespace")
 	}
-	api, err := NewAPI(APIConfig{
-		APIKey:         config.APIKey,
-		RequestOptions: config.RequestOptions,
+	api, err := newAPI(apiConfig{
+		APIKey:     config.APIKey,
+		BaseURL:    config.BaseURL,
+		HTTPClient: config.HTTPClient,
+		Headers:    config.Headers,
 	})
 	if err != nil {
 		return nil, err
@@ -86,21 +90,13 @@ func (c *Chat) Call(ctx context.Context, req *corechat.Request) (*corechat.Respo
 	if err != nil {
 		return nil, err
 	}
-	response, err := c.api.ChatCompletion(ctx, params)
+	response, err := c.api.chatCompletion(ctx, params)
 	if err != nil {
 		return nil, err
 	}
 	mapped, err := mapProtocolMessage(response, c.dialect.Provider)
 	if err != nil {
 		return nil, err
-	}
-	if c.dialect.Response != nil {
-		if err := c.dialect.Response.FinalizeMessage(response, mapped); err != nil {
-			return nil, fmt.Errorf("anthropic: response dialect: %w", err)
-		}
-		if err := mapped.Validate(); err != nil {
-			return nil, fmt.Errorf("anthropic: response dialect produced invalid response: %w", err)
-		}
 	}
 	return mapped, nil
 }
@@ -114,7 +110,7 @@ func (c *Chat) Stream(ctx context.Context, req *corechat.Request) iter.Seq2[*cor
 			yield(nil, err)
 			return
 		}
-		stream := c.api.ChatCompletionStream(ctx, params)
+		stream := c.api.chatCompletionStream(ctx, params)
 		if stream == nil {
 			yield(nil, errors.New("anthropic: nil stream"))
 			return
@@ -129,22 +125,12 @@ func (c *Chat) Stream(ctx context.Context, req *corechat.Request) iter.Seq2[*cor
 				yield(nil, mapErr)
 				return
 			}
-			if include && c.dialect.Response != nil {
-				if dialectErr := c.dialect.Response.FinalizeEvent(event, response); dialectErr != nil {
-					yield(nil, fmt.Errorf("anthropic: response dialect: %w", dialectErr))
-					return
-				}
-				if validationErr := response.Validate(); validationErr != nil {
-					yield(nil, fmt.Errorf("anthropic: response dialect produced invalid stream response: %w", validationErr))
-					return
-				}
-			}
 			if include && !yield(response, nil) {
 				return
 			}
 		}
 		if streamErr := stream.Err(); streamErr != nil {
-			yield(nil, streamErr)
+			yield(nil, wrapError(streamErr))
 		}
 	}
 }
@@ -159,11 +145,6 @@ func (c *Chat) buildProtocolRequest(req *corechat.Request) (*anthropicsdk.Messag
 	params, err := mapProtocolRequest(c.defaults, req, c.dialect)
 	if err != nil {
 		return nil, err
-	}
-	if c.dialect.Request != nil {
-		if err := c.dialect.Request.PrepareRequest(req, params); err != nil {
-			return nil, fmt.Errorf("anthropic: request dialect: %w", err)
-		}
 	}
 	return params, nil
 }

@@ -94,7 +94,7 @@ var _ tts.Model = (*AudioTTSModel)(nil)
 // never infers fields from a model name: community models have independent,
 // versioned schemas and must be constructed with the matching binding.
 type AudioTTSModel struct {
-	api            *API
+	api            *api
 	model          string
 	inputSchema    SpeechInputSchema
 	defaultOptions tts.Options
@@ -106,7 +106,7 @@ func NewAudioTTSModel(cfg AudioTTSModelConfig) (*AudioTTSModel, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
-	api, err := NewAPI(APIConfig{
+	api, err := newAPI(apiConfig{
 		APIKey:     cfg.APIKey,
 		BaseURL:    cfg.BaseURL,
 		HTTPClient: cfg.HTTPClient,
@@ -151,7 +151,7 @@ func (a *AudioTTSModel) Call(ctx context.Context, req *tts.Request) (*tts.Respon
 		return nil, err
 	}
 
-	apiReqValue, _, err := metadata.Decode[PredictionRequest](mergedOpts.Extensions, SpeechRequestExtensionKey)
+	apiReqValue, _, err := metadata.Decode[predictionRequest](mergedOpts.Extensions, SpeechRequestExtensionKey)
 
 	apiReq := &apiReqValue
 	if err != nil {
@@ -175,7 +175,7 @@ func (a *AudioTTSModel) Call(ctx context.Context, req *tts.Request) (*tts.Respon
 		}
 	}
 
-	submit, err := a.api.CreatePrediction(ctx, mergedOpts.Model, apiReq)
+	submit, err := a.api.createPrediction(ctx, mergedOpts.Model, apiReq)
 	if err != nil {
 		return nil, err
 	}
@@ -190,7 +190,7 @@ func (a *AudioTTSModel) Call(ctx context.Context, req *tts.Request) (*tts.Respon
 		return nil, err
 	}
 
-	audio, contentType, err := a.api.DownloadOutput(ctx, url)
+	audio, contentType, err := a.api.downloadOutput(ctx, url)
 	if err != nil {
 		return nil, err
 	}
@@ -238,7 +238,7 @@ func (a *AudioTTSModel) Call(ctx context.Context, req *tts.Request) (*tts.Respon
 }
 
 // pollUntilDone blocks until the prediction reaches a terminal status.
-func (a *AudioTTSModel) pollUntilDone(ctx context.Context, id string) (*PredictionResponse, error) {
+func (a *AudioTTSModel) pollUntilDone(ctx context.Context, id string) (*predictionResponse, error) {
 	deadline, cancel := context.WithTimeout(ctx, a.pollTimeout)
 	defer cancel()
 
@@ -246,7 +246,7 @@ func (a *AudioTTSModel) pollUntilDone(ctx context.Context, id string) (*Predicti
 	defer ticker.Stop()
 
 	for {
-		resp, err := a.api.GetPrediction(deadline, id)
+		resp, err := a.api.getPrediction(deadline, id)
 		if err != nil {
 			return nil, err
 		}

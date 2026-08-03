@@ -3,10 +3,9 @@ package xiaomi
 import (
 	"fmt"
 
-	openaisdk "github.com/openai/openai-go/v3"
-
 	corechat "github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/core/metadata"
+	"github.com/Tangerg/lynx/models/protocol/openai"
 )
 
 const RequestExtensionKey = "xiaomi/request"
@@ -34,21 +33,8 @@ func (options ChatRequestOptions) validate() error {
 	}
 }
 
-type requestDialect struct {
-	reasoning openAIRequestDialect
-}
-
-type openAIRequestDialect interface {
-	PrepareRequest(source *corechat.Request, target *openaisdk.ChatCompletionNewParams) error
-}
-
-func (dialect requestDialect) PrepareRequest(source *corechat.Request, target *openaisdk.ChatCompletionNewParams) error {
-	if dialect.reasoning != nil {
-		if err := dialect.reasoning.PrepareRequest(source, target); err != nil {
-			return err
-		}
-	}
-	if target.Temperature.Valid() && target.Temperature.Value > 1.5 {
+func prepareOpenAIRequest(source *corechat.Request, target *openai.CompatibleRequest) error {
+	if temperature, ok := target.Temperature(); ok && temperature > 1.5 {
 		return fmt.Errorf("xiaomi: temperature must be between 0 and 1.5")
 	}
 	options, found, err := metadata.Decode[ChatRequestOptions](source.Extensions, RequestExtensionKey)
@@ -64,12 +50,5 @@ func (dialect requestDialect) PrepareRequest(source *corechat.Request, target *o
 	if options.Thinking == "" {
 		return nil
 	}
-	extraFields := target.ExtraFields()
-	merged := make(map[string]any, len(extraFields)+1)
-	for key, value := range extraFields {
-		merged[key] = value
-	}
-	merged["thinking"] = map[string]any{"type": options.Thinking}
-	target.SetExtraFields(merged)
-	return nil
+	return target.SetExtraField("thinking", map[string]any{"type": options.Thinking})
 }

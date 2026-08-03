@@ -5,11 +5,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 
 	"github.com/openai/openai-go/v3"
-	"github.com/openai/openai-go/v3/option"
 
-	"github.com/Tangerg/lynx/core/metadata"
 	"github.com/Tangerg/lynx/core/transcription"
 )
 
@@ -21,7 +20,8 @@ type AudioTranslationModelConfig struct {
 	Provider       string
 	APIKey         string
 	DefaultOptions transcription.Options
-	RequestOptions []option.RequestOption
+	BaseURL        string
+	HTTPClient     *http.Client
 }
 
 func (c AudioTranslationModelConfig) Validate() error {
@@ -51,7 +51,7 @@ var _ transcription.Model = (*AudioTranslationModel)(nil)
 // If the caller needs the original-language transcript instead of a
 // translation, use [AudioTranscriptionModel].
 type AudioTranslationModel struct {
-	api            *API
+	api            *api
 	provider       string
 	defaultOptions transcription.Options
 }
@@ -61,9 +61,10 @@ func NewAudioTranslationModel(cfg AudioTranslationModelConfig) (*AudioTranslatio
 		return nil, err
 	}
 
-	api, err := NewAPI(APIConfig{
-		APIKey:         cfg.APIKey,
-		RequestOptions: cfg.RequestOptions,
+	api, err := newAPI(apiConfig{
+		APIKey:     cfg.APIKey,
+		BaseURL:    cfg.BaseURL,
+		HTTPClient: cfg.HTTPClient,
 	})
 	if err != nil {
 		return nil, err
@@ -87,12 +88,12 @@ func (a *AudioTranslationModel) buildAPITranslationRequest(req *transcription.Re
 		return nil, err
 	}
 
-	paramsValue, _, err := metadata.Decode[openai.AudioTranslationNewParams](mergedOpts.Extensions, protocolModalityRequestExtensionKey(a.provider, "translation"))
-
-	params := &paramsValue
+	fields, err := decodeRequestFields(mergedOpts.Extensions, protocolModalityRequestExtensionKey(a.provider, "translation"), "model", "file")
 	if err != nil {
 		return nil, err
 	}
+	params := &openai.AudioTranslationNewParams{}
+	params.SetExtraFields(fields)
 
 	params.Model = mergedOpts.Model
 	data, err := req.Audio.Bytes()
@@ -113,7 +114,7 @@ func (a *AudioTranslationModel) Call(ctx context.Context, req *transcription.Req
 		return nil, err
 	}
 
-	apiResp, err := a.api.AudioTranslation(ctx, apiReq)
+	apiResp, err := a.api.audioTranslation(ctx, apiReq)
 	if err != nil {
 		return nil, err
 	}

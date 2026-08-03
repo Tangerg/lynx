@@ -6,9 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"iter"
-
-	anthropicoption "github.com/anthropics/anthropic-sdk-go/option"
-	openaioption "github.com/openai/openai-go/v3/option"
+	"net/http"
 
 	corechat "github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/models/internal/protocol/anthropic"
@@ -48,7 +46,7 @@ type OpenAIChatConfig struct {
 	BaseURL        string
 	AppURL         string
 	AppTitle       string
-	RequestOptions []openaioption.RequestOption
+	HTTPClient     *http.Client
 }
 
 // NewOpenAIChat constructs an OpenAI-wire Core chat adapter for OpenRouter.
@@ -56,14 +54,6 @@ func NewOpenAIChat(config OpenAIChatConfig) (*OpenAIChat, error) {
 	if config.APIKey == "" {
 		return nil, errors.New("openrouter: APIKey is required")
 	}
-	requestOptions := []openaioption.RequestOption{openaioption.WithBaseURL(cmp.Or(config.BaseURL, BaseURL))}
-	if config.AppURL != "" {
-		requestOptions = append(requestOptions, openaioption.WithHeader(HeaderReferer, config.AppURL))
-	}
-	if config.AppTitle != "" {
-		requestOptions = append(requestOptions, openaioption.WithHeader(HeaderAppTitle, config.AppTitle))
-	}
-	requestOptions = append(requestOptions, config.RequestOptions...)
 	dialect, err := openai.ReasoningDetailsDialect(openai.ReasoningDetailsConfig{
 		Provider:        "openrouter",
 		TextField:       "reasoning",
@@ -73,7 +63,11 @@ func NewOpenAIChat(config OpenAIChatConfig) (*OpenAIChat, error) {
 	if err != nil {
 		return nil, fmt.Errorf("openrouter: configure reasoning dialect: %w", err)
 	}
-	protocol, err := openai.NewCompatibleChat(openai.ChatConfig{APIKey: config.APIKey, DefaultOptions: config.DefaultOptions, RequestOptions: requestOptions}, dialect)
+	protocol, err := openai.NewCompatibleChat(openai.ChatConfig{
+		APIKey: config.APIKey, DefaultOptions: config.DefaultOptions,
+		BaseURL: cmp.Or(config.BaseURL, BaseURL), HTTPClient: config.HTTPClient,
+		Headers: providerHeaders(config.AppURL, config.AppTitle),
+	}, dialect)
 	if err != nil {
 		return nil, fmt.Errorf("openrouter: construct OpenAI-compatible chat: %w", err)
 	}
@@ -87,7 +81,7 @@ type AnthropicChatConfig struct {
 	BaseURL        string
 	AppURL         string
 	AppTitle       string
-	RequestOptions []anthropicoption.RequestOption
+	HTTPClient     *http.Client
 }
 
 // NewAnthropicChat constructs an Anthropic-wire Core chat adapter for OpenRouter.
@@ -95,19 +89,26 @@ func NewAnthropicChat(config AnthropicChatConfig) (*AnthropicChat, error) {
 	if config.APIKey == "" {
 		return nil, errors.New("openrouter: APIKey is required")
 	}
-	requestOptions := []anthropicoption.RequestOption{anthropicoption.WithBaseURL(cmp.Or(config.BaseURL, BaseURL))}
-	if config.AppURL != "" {
-		requestOptions = append(requestOptions, anthropicoption.WithHeader(HeaderReferer, config.AppURL))
-	}
-	if config.AppTitle != "" {
-		requestOptions = append(requestOptions, anthropicoption.WithHeader(HeaderAppTitle, config.AppTitle))
-	}
-	requestOptions = append(requestOptions, config.RequestOptions...)
-	protocol, err := anthropic.NewCompatibleChat(anthropic.ChatConfig{APIKey: config.APIKey, DefaultOptions: config.DefaultOptions, RequestOptions: requestOptions}, anthropic.Dialect{Provider: "openrouter"})
+	protocol, err := anthropic.NewCompatibleChat(anthropic.ChatConfig{
+		APIKey: config.APIKey, DefaultOptions: config.DefaultOptions,
+		BaseURL: cmp.Or(config.BaseURL, BaseURL), HTTPClient: config.HTTPClient,
+		Headers: providerHeaders(config.AppURL, config.AppTitle),
+	}, anthropic.Dialect{Provider: "openrouter"})
 	if err != nil {
 		return nil, fmt.Errorf("openrouter: construct Anthropic-compatible chat: %w", err)
 	}
 	return &AnthropicChat{protocol: protocol}, nil
+}
+
+func providerHeaders(appURL, appTitle string) http.Header {
+	headers := make(http.Header, 2)
+	if appURL != "" {
+		headers.Set(HeaderReferer, appURL)
+	}
+	if appTitle != "" {
+		headers.Set(HeaderAppTitle, appTitle)
+	}
+	return headers
 }
 
 func (chat *OpenAIChat) Call(ctx context.Context, request *corechat.Request) (*corechat.Response, error) {

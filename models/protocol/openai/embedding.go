@@ -4,19 +4,19 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 
 	"github.com/openai/openai-go/v3"
-	"github.com/openai/openai-go/v3/option"
 
 	"github.com/Tangerg/lynx/core/embedding"
-	"github.com/Tangerg/lynx/core/metadata"
 )
 
 type EmbeddingModelConfig struct {
 	Provider       string
 	APIKey         string
 	DefaultOptions embedding.Options
-	RequestOptions []option.RequestOption
+	BaseURL        string
+	HTTPClient     *http.Client
 }
 
 func (c EmbeddingModelConfig) Validate() error {
@@ -38,7 +38,7 @@ func (c EmbeddingModelConfig) Validate() error {
 var _ embedding.Model = (*EmbeddingModel)(nil)
 
 type EmbeddingModel struct {
-	api            *API
+	api            *api
 	provider       string
 	defaultOptions embedding.Options
 }
@@ -48,9 +48,10 @@ func NewEmbeddingModel(cfg EmbeddingModelConfig) (*EmbeddingModel, error) {
 		return nil, err
 	}
 
-	api, err := NewAPI(APIConfig{
-		APIKey:         cfg.APIKey,
-		RequestOptions: cfg.RequestOptions,
+	api, err := newAPI(apiConfig{
+		APIKey:     cfg.APIKey,
+		BaseURL:    cfg.BaseURL,
+		HTTPClient: cfg.HTTPClient,
 	})
 	if err != nil {
 		return nil, err
@@ -69,12 +70,12 @@ func (e *EmbeddingModel) buildAPIEmbeddingRequest(req *embedding.Request) (*open
 		return nil, err
 	}
 
-	paramsValue, _, err := metadata.Decode[openai.EmbeddingNewParams](mergedOpts.Extensions, protocolModalityRequestExtensionKey(e.provider, "embedding"))
-
-	params := &paramsValue
+	fields, err := decodeRequestFields(mergedOpts.Extensions, protocolModalityRequestExtensionKey(e.provider, "embedding"), "model", "input", "dimensions")
 	if err != nil {
 		return nil, err
 	}
+	params := &openai.EmbeddingNewParams{}
+	params.SetExtraFields(fields)
 
 	params.Model = mergedOpts.Model
 	params.Input = openai.EmbeddingNewParamsInputUnion{
@@ -135,7 +136,7 @@ func (e *EmbeddingModel) Call(ctx context.Context, req *embedding.Request) (*emb
 		return nil, err
 	}
 
-	apiResp, err := e.api.Embedding(ctx, apiReq)
+	apiResp, err := e.api.embedding(ctx, apiReq)
 	if err != nil {
 		return nil, err
 	}

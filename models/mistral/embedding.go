@@ -4,8 +4,7 @@ import (
 	"cmp"
 	"context"
 	"errors"
-
-	"github.com/openai/openai-go/v3/option"
+	"net/http"
 
 	"github.com/Tangerg/lynx/core/embedding"
 	"github.com/Tangerg/lynx/models/protocol/openai"
@@ -15,10 +14,7 @@ type EmbeddingModelConfig struct {
 	APIKey         string
 	DefaultOptions embedding.Options
 	BaseURL        string
-
-	// RequestOptions reach the underlying openai-go client; use
-	// [option.WithHTTPClient] here to customize the HTTP transport.
-	RequestOptions []option.RequestOption
+	HTTPClient     *http.Client
 }
 
 func (c EmbeddingModelConfig) Validate() error {
@@ -43,13 +39,12 @@ func NewEmbeddingModel(cfg EmbeddingModelConfig) (*EmbeddingModel, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
-	baseURL := cmp.Or(cfg.BaseURL, DefaultBaseURL)
-	reqOpts := append([]option.RequestOption{option.WithBaseURL(baseURL)}, cfg.RequestOptions...)
 	protocol, err := openai.NewEmbeddingModel(openai.EmbeddingModelConfig{
 		Provider:       "mistral",
 		APIKey:         cfg.APIKey,
 		DefaultOptions: cfg.DefaultOptions,
-		RequestOptions: reqOpts,
+		BaseURL:        cmp.Or(cfg.BaseURL, DefaultBaseURL),
+		HTTPClient:     cfg.HTTPClient,
 	})
 	if err != nil {
 		return nil, err

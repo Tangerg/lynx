@@ -34,7 +34,7 @@ var (
 
 // Chat implements Core chat over Ollama's native /api/chat endpoint.
 type Chat struct {
-	api      *API
+	api      *api
 	defaults corechat.Options
 }
 
@@ -43,7 +43,7 @@ func NewChat(cfg ChatConfig) (*Chat, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
-	api, err := NewAPI(APIConfig{BaseURL: cfg.BaseURL, HTTPClient: cfg.HTTPClient})
+	api, err := newAPI(apiConfig{BaseURL: cfg.BaseURL, HTTPClient: cfg.HTTPClient})
 	if err != nil {
 		return nil, err
 	}
@@ -61,7 +61,7 @@ func (c *Chat) Call(ctx context.Context, req *corechat.Request) (*corechat.Respo
 		response ollamaapi.ChatResponse
 		received bool
 	)
-	if err := c.api.Chat(ctx, apiReq, func(next ollamaapi.ChatResponse) error {
+	if err := c.api.chat(ctx, apiReq, func(next ollamaapi.ChatResponse) error {
 		response = next
 		received = true
 		return nil
@@ -87,7 +87,7 @@ func (c *Chat) Stream(ctx context.Context, req *corechat.Request) iter.Seq2[*cor
 
 		mapper := newProtocolResponseMapper()
 		consumerStopped := false
-		err = c.api.Chat(ctx, apiReq, func(chunk ollamaapi.ChatResponse) error {
+		err = c.api.chat(ctx, apiReq, func(chunk ollamaapi.ChatResponse) error {
 			mapped, mapErr := mapper.mapResponse(apiReq.Model, chunk)
 			if mapErr != nil {
 				return mapErr

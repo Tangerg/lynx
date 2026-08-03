@@ -3,8 +3,6 @@ package openai_test
 import (
 	"testing"
 
-	"github.com/openai/openai-go/v3/option"
-
 	"github.com/Tangerg/lynx/core/modeltest"
 	tts "github.com/Tangerg/lynx/core/speech"
 	"github.com/Tangerg/lynx/models/protocol/openai"
@@ -25,7 +23,7 @@ func TestAudioTTSModel_Call_Mock(t *testing.T) {
 		Provider:       "openai",
 		APIKey:         "test-key",
 		DefaultOptions: opts,
-		RequestOptions: []option.RequestOption{option.WithBaseURL(srv.URL)},
+		BaseURL:        srv.URL,
 	})
 	if err != nil {
 		t.Fatal(err)

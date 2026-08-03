@@ -36,9 +36,7 @@ func TestNativeClaudeSamplingContract(t *testing.T) {
 
 func TestNativeClaudePreservesExplicitZeroMaxTokens(t *testing.T) {
 	request := validNativeRequest(t)
-	if err := request.SetExtension(RequestExtensionKey, map[string]any{"max_tokens": 0}); err != nil {
-		t.Fatalf("SetExtension: %v", err)
-	}
+	request.Options.MaxTokens = int64Pointer(0)
 	params, err := mapProtocolRequest(corechat.Options{Model: "claude-opus-4-6"}, request, Dialect{Provider: "anthropic"})
 	if err != nil {
 		t.Fatalf("mapProtocolRequest: %v", err)

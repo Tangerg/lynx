@@ -3,10 +3,9 @@ package moonshot
 import (
 	"fmt"
 
-	openaisdk "github.com/openai/openai-go/v3"
-
 	corechat "github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/core/metadata"
+	"github.com/Tangerg/lynx/models/protocol/openai"
 )
 
 const RequestExtensionKey = "moonshot/request"
@@ -94,20 +93,7 @@ func (options ChatRequestOptions) validate(model string) error {
 	return nil
 }
 
-type requestDialect struct {
-	reasoning openAIRequestDialect
-}
-
-type openAIRequestDialect interface {
-	PrepareRequest(source *corechat.Request, target *openaisdk.ChatCompletionNewParams) error
-}
-
-func (dialect requestDialect) PrepareRequest(source *corechat.Request, target *openaisdk.ChatCompletionNewParams) error {
-	if dialect.reasoning != nil {
-		if err := dialect.reasoning.PrepareRequest(source, target); err != nil {
-			return err
-		}
-	}
+func prepareOpenAIRequest(source *corechat.Request, target *openai.CompatibleRequest) error {
 	options, found, err := metadata.Decode[ChatRequestOptions](source.Extensions, RequestExtensionKey)
 	if err != nil {
 		return fmt.Errorf("moonshot: extension %q: %w", RequestExtensionKey, err)
@@ -115,29 +101,33 @@ func (dialect requestDialect) PrepareRequest(source *corechat.Request, target *o
 	if !found {
 		return nil
 	}
-	if err := options.validate(string(target.Model)); err != nil {
+	if err := options.validate(target.Model()); err != nil {
 		return fmt.Errorf("moonshot: extension %q: %w", RequestExtensionKey, err)
 	}
-	extraFields := target.ExtraFields()
-	merged := make(map[string]any, len(extraFields)+5)
-	for key, value := range extraFields {
-		merged[key] = value
-	}
 	if options.Thinking != nil {
-		merged["thinking"] = options.Thinking
+		if err := target.SetExtraField("thinking", options.Thinking); err != nil {
+			return err
+		}
 	}
 	if options.ReasoningEffort != "" {
-		merged["reasoning_effort"] = options.ReasoningEffort
+		if err := target.SetExtraField("reasoning_effort", options.ReasoningEffort); err != nil {
+			return err
+		}
 	}
 	if options.PromptCacheKey != "" {
-		merged["prompt_cache_key"] = options.PromptCacheKey
+		if err := target.SetExtraField("prompt_cache_key", options.PromptCacheKey); err != nil {
+			return err
+		}
 	}
 	if options.SafetyIdentifier != "" {
-		merged["safety_identifier"] = options.SafetyIdentifier
+		if err := target.SetExtraField("safety_identifier", options.SafetyIdentifier); err != nil {
+			return err
+		}
 	}
 	if options.Partial != nil {
-		merged["partial"] = *options.Partial
+		if err := target.SetExtraField("partial", *options.Partial); err != nil {
+			return err
+		}
 	}
-	target.SetExtraFields(merged)
 	return nil
 }
