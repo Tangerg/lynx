@@ -92,8 +92,9 @@ function WindowControl({
       type="button"
       aria-label={label}
       onClick={onClick}
-      // 12px mark on a 20px pitch, target butted edge to edge — the platform's
-      // geometry to the pixel. It is under WCAG 2.2's 24px minimum, and that is
+      // 14px mark on a 20px pitch, target butted edge to edge — the platform's
+      // geometry to the pixel, measured off a real title bar beside ours at the
+      // same scale rather than taken from the 12pt everyone quotes. It is under WCAG 2.2's 24px minimum, and that is
       // the one place here we take the exception rather than the guideline: this
       // cluster is the most recognised control on the desktop, its size and
       // spacing ARE the recognition, and every macOS user hits it all day. The
@@ -109,7 +110,7 @@ function WindowControl({
         // there on the real thing — sampling one shows the edge pixel is the fill
         // colour, and what reads as a ring is the antialiased edge against the bar.
         className={cn(
-          "grid size-3 place-items-center rounded-full",
+          "grid size-3.5 place-items-center rounded-full",
           "bg-[var(--fill)] transition-colors duration-[var(--dur-fast)]",
           "[:root[data-window-inactive]_&]:bg-fg-faint/30",
         )}
@@ -119,7 +120,7 @@ function WindowControl({
           viewBox="0 0 12 12"
           aria-hidden
           className={cn(
-            "size-3 text-black/50 opacity-0 transition-opacity duration-[var(--dur-fast)]",
+            "size-3.5 text-black/50 opacity-0 transition-opacity duration-[var(--dur-fast)]",
             "group-hover/window:opacity-100",
             "[:root[data-window-inactive]_&]:opacity-0",
           )}

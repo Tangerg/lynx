@@ -184,6 +184,25 @@ for (const theme of ["light", "dark"] as const) {
       if (state === "long-content") {
         await page.locator(".shiki-block .shiki").waitFor();
       }
+      // Let the transcript come to rest BEFORE the clock stops. Ready only means
+      // the tree is mounted; use-stick-to-bottom then eases the scroll with
+      // Date.now(), so freezing on the ready boundary strands the transcript at
+      // whatever row that frame happened to reach — invisible while the content
+      // was short enough not to scroll, and a two-pixel shift in every golden
+      // the moment it wasn't.
+      await page.waitForFunction(() => {
+        const scroller = document.querySelector(".msg-scroll-viewport");
+        if (!scroller) return true;
+        const probe = window as unknown as { settle?: { top: number; frames: number } };
+        const settle = (probe.settle ??= { top: -1, frames: 0 });
+        if (scroller.scrollTop === settle.top) settle.frames += 1;
+        else {
+          settle.top = scroller.scrollTop;
+          settle.frames = 0;
+        }
+        return settle.frames >= 5;
+      });
+
       // The fixture keeps Date.now advancing through production bootstrap so
       // use-stick-to-bottom can complete its frame waits. Freeze only after the
       // ready boundary: running reasoning retains its real elapsed-time label,

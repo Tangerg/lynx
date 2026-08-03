@@ -5,6 +5,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { Fragment, useEffect } from "react";
 import { StickToBottom, useStickToBottomContext } from "use-stick-to-bottom";
 import { enterUp } from "@/lib/motion";
+import { useMotionOff } from "@/lib/appearance";
 import { dayKey, formatDay } from "@/lib/i18n/relativeTime";
 import { useT } from "@/lib/i18n";
 import { Loader } from "@/ui";
@@ -90,12 +91,18 @@ export function MessageStream({ messages, ctx, resetKey }: Props) {
   // and keep the smooth catch-up only when idle (re-open / history load).
   // `running` flips only at run boundaries, so this never churns per token.
   const running = useIsCurrentRootRunning();
+  const motionOff = useMotionOff();
 
   const boundaries = dayBoundaries(messages);
 
   if (messages.length === 0) {
     return (
-      <StickToBottom key={resetKey} className="msg-scroll-frame" initial="instant" resize="smooth">
+      <StickToBottom
+        key={resetKey}
+        className="msg-scroll-frame"
+        initial="instant"
+        resize={motionOff ? "instant" : "smooth"}
+      >
         <StickToBottom.Content
           scrollClassName="panel-scroll"
           className="relative mx-auto flex w-full max-w-[var(--content-max)] flex-col gap-7 px-[var(--density-column-gutter)] pt-8 pb-8 sm:px-[var(--density-column-gutter-wide)]"
@@ -112,7 +119,11 @@ export function MessageStream({ messages, ctx, resetKey }: Props) {
       key={resetKey}
       className="panel-scroll msg-scroll"
       initial="instant"
-      resize={running ? "instant" : "smooth"}
+      // A transcript that eases itself into place is motion, and motion is a
+      // preference. The scroll library has no idea the user turned it off, so
+      // the one place that knows tells it — otherwise "reduce motion" leaves
+      // the one surface that moves most still moving.
+      resize={running || motionOff ? "instant" : "smooth"}
     >
       {/* `msg-scroll-viewport` names the element that actually scrolls. The
           library renders it itself, one level inside the class above, so anything

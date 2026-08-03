@@ -1,5 +1,5 @@
 import type { ComponentPropsWithoutRef, ReactNode } from "react";
-import { useId } from "react";
+import { Children, useId } from "react";
 import { cn } from "@/lib/classNames";
 import { Collapsible } from "@/ui/atoms/collapsible";
 import { Pressable } from "@/ui/atoms/pressable";
@@ -119,8 +119,15 @@ export function AgentActivityDisclosure({
             </span>
           )}
         </Pressable>
-        {actions != null && (
-          <div className="flex shrink-0 items-center gap-0.5 pl-0.5">{actions}</div>
+        {/* The row's content is inset from the card edge by the trigger's own
+            padding; the action rail sits OUTSIDE that trigger, so without its own
+            it butted straight against the rounded corner and the card's
+            `overflow-hidden` sliced the button in half. `Children.count` rather
+            than a null check because an empty list is a perfectly ordinary thing
+            for a caller to hand over and is not the same as "no rail" — rendered
+            anyway it left a 2px stub at the edge of every settled row. */}
+        {Children.count(actions) > 0 && (
+          <div className="flex shrink-0 items-center gap-0.5 pl-0.5 pr-2">{actions}</div>
         )}
       </div>
       <Collapsible open={open}>

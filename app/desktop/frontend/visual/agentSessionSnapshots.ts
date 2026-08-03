@@ -97,6 +97,25 @@ const RUNNING_PLAN: Item = {
   ],
 };
 
+// A settled read ahead of the running one, so the two fold into a tool GROUP:
+// a disclosure nested inside a disclosure, auto-open because a child is still
+// working. That is the shape a real working turn spends most of its time in, and
+// until now no fixture rendered it — which is how a nested row overflowing its
+// parent's rounded corner shipped twice.
+const RUNNING_READ: Item = {
+  type: "toolCall",
+  id: "item_running_read",
+  runId: ROOT_RUN_ID,
+  status: "completed",
+  createdAt: CREATED_AT,
+  tool: {
+    name: "read",
+    arguments: {
+      file_path: "/Users/visual/lynx/app/runtime/internal/session/atomicity_and_idempotency.go",
+    },
+  },
+};
+
 const RUNNING_TOOL: Item = {
   type: "toolCall",
   id: "item_running_tool",
@@ -528,7 +547,16 @@ export const AGENT_SESSION_SNAPSHOTS: Readonly<Record<VisualAgentState, AgentSes
       NARRATIVE_TURN_1,
       NARRATIVE_REASONING,
       NARRATIVE_PLAN,
+      // Four adjacent read-only calls, so the transcript photographs a tool GROUP
+      // — a disclosure nested inside a disclosure. Every defect this shape has
+      // shipped (a row overflowing its parent's rounded corner, an inner rail
+      // with nowhere to go) survived because no fixture rendered one.
       narrativeTool("item_n_read", "read", { file_path: "src/checkout/checkout.tsx" }),
+      narrativeTool("item_n_read_2", "read", {
+        file_path:
+          "/Users/visual/lynx/app/desktop/frontend/src/plugins/builtin/chat/tools/ui/ToolGroup.tsx",
+      }),
+      narrativeTool("item_n_read_3", "read", { file_path: "src/checkout/api/pay.ts" }),
       narrativeTool("item_n_grep", "grep", { pattern: "retry|backoff", path: "src" }, "7 matches"),
       narrativeTool(
         "item_n_edit",
@@ -575,14 +603,16 @@ export const AGENT_SESSION_TAIL_EVENTS: Readonly<Record<VisualAgentState, RunEve
   running: [
     tailEvent(1, { type: "item.started", item: RUNNING_REASONING }),
     tailEvent(2, { type: "item.started", item: RUNNING_PLAN }),
-    tailEvent(3, { type: "item.started", item: RUNNING_TOOL }),
-    tailEvent(4, { type: "item.started", item: RUNNING_RESPONSE }),
+    tailEvent(3, { type: "item.started", item: RUNNING_READ }),
+    tailEvent(4, { type: "item.started", item: RUNNING_TOOL }),
+    tailEvent(5, { type: "item.started", item: RUNNING_RESPONSE }),
   ],
   steer: [
     tailEvent(1, { type: "item.started", item: RUNNING_REASONING }),
     tailEvent(2, { type: "item.started", item: RUNNING_PLAN }),
-    tailEvent(3, { type: "item.started", item: RUNNING_TOOL }),
-    tailEvent(4, { type: "item.started", item: RUNNING_RESPONSE }),
+    tailEvent(3, { type: "item.started", item: RUNNING_READ }),
+    tailEvent(4, { type: "item.started", item: RUNNING_TOOL }),
+    tailEvent(5, { type: "item.started", item: RUNNING_RESPONSE }),
   ],
   waiting: [],
   question: [],

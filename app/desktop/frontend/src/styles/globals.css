@@ -963,8 +963,8 @@ html.theme-light .msg-content code {
   /* Drawer width. Live-updated inline on the shell element while dragging the
      seam rail; AgentAppShell restores the persisted value on mount. */
   --sidebar-width: 240px;
-  /* The app's own window controls: three 20px targets from 10px in, whose 12px
-     marks land on the platform's own 20 / 40 / 60. The shell-level drawer control
+  /* The app's own window controls: three 20px targets from 10px in, whose 14px
+     marks centre on the platform's own 20 / 40 / 60. The shell-level drawer control
      starts after this gutter and never changes owner or coordinate. */
   --window-controls-gutter: 78px;
   /* The three marks are the platform's own colours, not the theme's: they mean
@@ -1039,7 +1039,7 @@ html.theme-dark {
 .agent-window-controls {
   position: absolute;
   inset-block-start: 0;
-  /* Three 20px targets butted together, so the first 12px mark lands on the
+  /* Three 20px targets butted together, so the first 14px mark centres on the
      platform's own 20px left margin and the cluster ends inside the gutter. */
   inset-inline-start: 10px;
   z-index: 41;
