@@ -80,7 +80,13 @@ export function AgentRow({
         detail
           ? "h-auto min-h-[var(--density-row-height)] items-start py-2"
           : "h-[var(--density-row-height)]",
-        indent === "nested" ? "px-2 pl-[30px]" : "px-2",
+        // A nested row's label lands on its parent's label, not near it: the
+        // parent's own inset, its glyph, and the gap after it. Spelled as the
+        // sum so a density or icon-ladder change moves both together — the
+        // literal it replaced put children two pixels LEFT of their parent.
+        indent === "nested"
+          ? "px-2 pl-[calc(0.5rem+var(--icon-sm)+var(--density-row-gap))]"
+          : "px-2",
         action && "pr-8",
         className,
       )}

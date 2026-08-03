@@ -184,15 +184,18 @@ for (const theme of ["light", "dark"] as const) {
       if (state === "long-content") {
         await page.locator(".shiki-block .shiki").waitFor();
       }
-      // Let the transcript come to rest BEFORE the clock stops. Ready only means
-      // the tree is mounted; use-stick-to-bottom then eases the scroll with
-      // Date.now(), so freezing on the ready boundary strands the transcript at
-      // whatever row that frame happened to reach — invisible while the content
-      // was short enough not to scroll, and a two-pixel shift in every golden
-      // the moment it wasn't.
+      // Put the transcript where it belongs BEFORE the clock stops, rather than
+      // waiting to see where it lands. Ready only means the tree is mounted;
+      // use-stick-to-bottom then eases the scroll with Date.now(), and the
+      // resting position it eases toward moves under it — `content-visibility`
+      // gives off-screen blocks an estimated height until they are laid out, so
+      // the same transcript settles a pixel apart between two runs and every
+      // row in the frame shifts with it. Every fixture sticks to the bottom, and
+      // the bottom is a hard stop the browser clamps to: assert it.
       await page.waitForFunction(() => {
         const scroller = document.querySelector(".msg-scroll-viewport");
         if (!scroller) return true;
+        scroller.scrollTop = scroller.scrollHeight;
         const probe = window as unknown as { settle?: { top: number; frames: number } };
         const settle = (probe.settle ??= { top: -1, frames: 0 });
         if (scroller.scrollTop === settle.top) settle.frames += 1;

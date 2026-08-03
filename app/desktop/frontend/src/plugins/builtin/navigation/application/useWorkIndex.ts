@@ -6,33 +6,25 @@ import {
   useVisibleAgentSessions,
 } from "@/plugins/builtin/agent/public/session";
 import type { WorkIndex } from "../domain/workIndex";
-import { buildWorkIndexGroups } from "./buildWorkIndex";
+import { buildWorkIndex } from "./buildWorkIndex";
 
-interface UseWorkIndexOptions {
-  fallbackProjectName: string;
-}
-
-export function useWorkIndex({ fallbackProjectName }: UseWorkIndexOptions): WorkIndex {
+export function useWorkIndex(): WorkIndex {
   const projects = useWorkspaceProjects();
   const sessions = useVisibleAgentSessions();
   const activeSessionId = useActiveSessionId();
   const activeCwd = useActiveSessionCwd();
 
-  const groups = useMemo(
-    () =>
-      buildWorkIndexGroups({
-        projects: projects.data,
-        sessions,
-        fallbackProjectName,
-      }),
-    [projects.data, sessions, fallbackProjectName],
+  const content = useMemo(
+    () => buildWorkIndex({ projects: projects.data, sessions }),
+    [projects.data, sessions],
   );
 
   return {
-    groups,
+    groups: content?.groups,
+    recents: content?.recents,
     activeSessionId,
     activeCwd,
-    isLoading: projects.isLoading && !groups,
-    isError: projects.isError && !groups,
+    isLoading: projects.isLoading && !content,
+    isError: projects.isError && !content,
   };
 }

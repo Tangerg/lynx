@@ -30,12 +30,13 @@ export const en: Record<string, string> = {
   "window.action.maximise": "Zoom window",
   "window.action.restore": "Restore window",
   "shell.region.workspace": "Agent workspace",
-  "workIndex.identity.none": "No workspace",
   "workIndex.section.projects": "Projects",
+  "workIndex.section.recent": "Recent",
   "sidebar.action.collapse": "Hide sidebar",
   "sidebar.action.expand": "Expand sidebar",
   "sidebar.action.resize": "Resize the work index",
   "sidebar.action.newSession": "New session",
+  "sidebar.action.tools": "Tools & plugins",
   "sidebar.action.settings": "Settings",
 
   "composer.input.label": "Message composer",
@@ -891,7 +892,6 @@ export const en: Record<string, string> = {
   "projects.empty.sub": "Start a session in a folder to create a workspace group.",
   "projects.error.title": "Couldn’t load projects",
   "projects.error.sub": "Check the Runtime connection, then reopen the work index.",
-  "projects.fallbackName": "Other",
 
   // ── Status bar ──
 

@@ -1,12 +1,10 @@
 import type { AgentSessionSummary } from "@/plugins/builtin/agent/public/session";
 import type { WorkspaceProjectSummary } from "@/plugins/builtin/workspace/public/queries";
-import { basename } from "@/lib/path";
-import type { WorkGroup, WorkProject, WorkSession } from "../domain/workIndex";
+import type { WorkGroup, WorkIndexContent, WorkProject, WorkSession } from "../domain/workIndex";
 
-interface BuildWorkIndexGroupsInput {
+interface BuildWorkIndexInput {
   projects: readonly WorkspaceProjectSummary[] | undefined;
   sessions: readonly AgentSessionSummary[];
-  fallbackProjectName: string;
 }
 
 function compareTimeDesc(a: { time: string }, b: { time: string }): number {
@@ -44,48 +42,33 @@ function toWorkProject(project: WorkspaceProjectSummary): WorkProject {
   };
 }
 
-export function buildWorkIndexGroups({
+export function buildWorkIndex({
   projects,
   sessions,
-  fallbackProjectName,
-}: BuildWorkIndexGroupsInput): WorkGroup[] | undefined {
+}: BuildWorkIndexInput): WorkIndexContent | undefined {
   if (!projects && sessions.length === 0) return undefined;
 
-  const sessionsByCwd = new Map<string, AgentSessionSummary[]>();
+  const byDirectory = new Map<string, AgentSessionSummary[]>();
   for (const session of sessions) {
     const key = session.cwd ?? "";
-    const group = sessionsByCwd.get(key);
-    if (group) group.push(session);
-    else sessionsByCwd.set(key, [session]);
+    const directory = byDirectory.get(key);
+    if (directory) directory.push(session);
+    else byDirectory.set(key, [session]);
   }
 
-  for (const group of sessionsByCwd.values()) group.sort(compareProjectSession);
-
   const groups: WorkGroup[] = (projects ?? []).map((project) => {
-    const sessions = sessionsByCwd.get(project.id) ?? [];
-    sessionsByCwd.delete(project.id);
+    const owned = byDirectory.get(project.id) ?? [];
+    byDirectory.delete(project.id);
     return {
       project: toWorkProject(project),
-      sessions: sessions.map(toWorkSession),
+      sessions: owned.sort(compareProjectSession).map(toWorkSession),
     };
   });
 
-  for (const [cwd, sessions] of sessionsByCwd) {
-    groups.push({
-      project: {
-        id: cwd,
-        name: cwd ? basename(cwd) : fallbackProjectName,
-      },
-      sessions: sessions.map(toWorkSession),
-    });
-  }
+  // Recency alone, unlike a project's list: a section called "Recent" whose top
+  // row is three weeks old because someone pinned it is not a recent list.
+  // Pinning still shows on the row, and it still orders the project it lives in.
+  const recents = [...byDirectory.values()].flat().sort(compareTimeDesc).map(toWorkSession);
 
-  return groups;
-}
-
-export function buildRecentWorkSessions(
-  sessions: readonly AgentSessionSummary[],
-  limit: number,
-): WorkSession[] {
-  return [...sessions].sort(compareTimeDesc).slice(0, limit).map(toWorkSession);
+  return { groups, recents };
 }

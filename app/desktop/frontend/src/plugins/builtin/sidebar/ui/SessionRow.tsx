@@ -9,6 +9,13 @@ import type { WorkSession } from "@/plugins/builtin/navigation/public/workIndex"
 interface Props {
   session: WorkSession;
   active: boolean;
+  /** Nested under a project header, so its label aligns with the folder's. */
+  indented?: boolean;
+  /**
+   * Trailing timestamp. On by default and off inside a project, where the group
+   * is already ordered by it and the indent has taken the width it would need.
+   */
+  showTime?: boolean;
   onSelect: (id: string) => void;
   /** When set, right-click reveals a Rename action (inline title edit). */
   onRename?: (id: string, expectedRevision: number, title: string) => void;
@@ -22,15 +29,17 @@ interface Props {
 
 // Session row — sidebar list item.
 //
-// Two lines: the title, and under it the one thing you would otherwise have to
-// open the session to learn — whether it needs you, and when it last moved. The
-// timestamp used to live only in the accessible label to save horizontal space;
-// giving it its own line costs no width and turns the index into something you
-// can triage from. Accent stays reserved for live state, selection is the soft
-// fill.
+// One line. The title is what you scan for, and the trailing slot answers ONE
+// question at a time: a session that needs you says so, and a session that
+// doesn't falls back to when it last moved. Stacking both (which is what the
+// two-line version did) spent a third of the column's height restating an order
+// the list is already sorted in. Accent stays reserved for live state,
+// selection is the soft fill.
 export function SessionRow({
   session,
   active,
+  indented = false,
+  showTime = true,
   onSelect,
   onRename,
   onFork,
@@ -66,28 +75,13 @@ export function SessionRow({
         aria-current={active ? "page" : undefined}
         aria-label={`${title} — ${accessibleStatus}`}
         active={active}
-        indent="nested"
+        indent={indented ? "nested" : "none"}
         className="font-normal text-fg-muted hover:text-fg data-[active]:text-fg"
-        // Suppressed mid-rename: the second line would push the input off the
-        // row's vertical centre while it is the thing being typed into.
-        detail={
-          renaming ? undefined : (
-            <>
-              {attentionLabel && (
-                <span className={session.attention === "running" ? "text-accent" : "text-warning"}>
-                  {attentionLabel}
-                </span>
-              )}
-              {attentionLabel && " · "}
-              {when}
-            </>
-          )
-        }
         trailing={
           renaming ? undefined : (
             <span className="flex shrink-0 items-center gap-1.5">
               {session.favorite && <Icon name="star" size="xs" className="text-accent" />}
-              {session.attention !== "none" && (
+              {session.attention !== "none" ? (
                 <span
                   className={cn(
                     "h-1.5 w-1.5 shrink-0 rounded-full",
@@ -95,6 +89,12 @@ export function SessionRow({
                   )}
                   title={accessibleStatus}
                 />
+              ) : (
+                showTime && (
+                  <span className="text-ui-2xs leading-none text-fg-faint tabular-nums">
+                    {when}
+                  </span>
+                )
               )}
             </span>
           )

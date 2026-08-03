@@ -1,33 +1,12 @@
-import { Icon } from "@/ui";
-import {
-  AgentSurfaceHeader,
-  AgentWorkIndexBody,
-  AgentWorkIndexIdentity,
-  AgentWorkIndexSection,
-} from "@/ui/agent";
-import { basename } from "@/lib/path";
-import { useT } from "@/lib/i18n";
-import { useActiveSessionCwd } from "@/plugins/builtin/agent/public/session";
+import { AgentSurfaceHeader, AgentWorkIndexBody, AgentWorkIndexSection } from "@/ui/agent";
 import { useWorkIndexItems } from "@/plugins/builtin/navigation/public/workIndex";
 import { PluginBoundary } from "@/plugins/host/PluginBoundary";
 import { Slot } from "@/plugins/host/Slot";
 
-// Where the agent is pointed. Derived from the ACTIVE session's directory rather
-// than tracked separately: there is one answer to "where will the next command
-// run", and reading it off the session that owns the run is the only way it
-// cannot drift from that answer.
-function WorkIndexIdentity() {
-  const t = useT();
-  const cwd = useActiveSessionCwd();
-  return (
-    <AgentWorkIndexIdentity
-      icon={<Icon name={cwd ? "folder-open" : "folder"} size="sm" />}
-      name={cwd ? basename(cwd) : t("workIndex.identity.none")}
-      detail={cwd}
-    />
-  );
-}
-
+// No pinned "where the agent points" block above the index. The active session
+// carries the highlight inside the project that owns it, and the content header
+// already opens with that project's name — a third statement of it, one row
+// above the second, was the loudest thing in the column.
 export function SidebarExpanded() {
   const items = useWorkIndexItems("expanded");
 
@@ -37,8 +16,6 @@ export function SidebarExpanded() {
       <AgentSurfaceHeader divider={false} className="agent-drawer-header">
         <span className="min-w-2 flex-1" />
       </AgentSurfaceHeader>
-
-      <WorkIndexIdentity />
 
       <AgentWorkIndexBody>
         {items.map((item) => {

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { AgentSessionSummary } from "@/plugins/builtin/agent/public/session";
 import type { WorkspaceProjectSummary } from "@/plugins/builtin/workspace/public/queries";
-import { buildRecentWorkSessions, buildWorkIndexGroups } from "./buildWorkIndex";
+import { buildWorkIndex } from "./buildWorkIndex";
 
 function session(
   overrides: Partial<AgentSessionSummary> & Pick<AgentSessionSummary, "id">,
@@ -26,35 +26,49 @@ function project(
   };
 }
 
-describe("buildWorkIndexGroups", () => {
+describe("buildWorkIndex", () => {
   it("returns undefined while both projects and sessions are absent", () => {
-    expect(
-      buildWorkIndexGroups({
-        projects: undefined,
-        sessions: [],
-        fallbackProjectName: "Other",
-      }),
-    ).toBeUndefined();
+    expect(buildWorkIndex({ projects: undefined, sessions: [] })).toBeUndefined();
   });
 
-  it("groups sessions by cwd and keeps unmatched cwd sessions reachable", () => {
-    const groups = buildWorkIndexGroups({
-      projects: [project({ id: "/repo/lynx", name: "lynx", sessionCount: 2 })],
-      sessions: [
-        session({ id: "a", cwd: "/repo/lynx", time: "2026-01-01T00:00:00.000Z" }),
-        session({ id: "b", cwd: "/repo/planet_new", time: "2026-01-02T00:00:00.000Z" }),
-      ],
-      fallbackProjectName: "Other",
+  it("groups sessions under the project that owns their directory", () => {
+    const content = buildWorkIndex({
+      projects: [project({ id: "/repo/lynx", name: "lynx", sessionCount: 1 })],
+      sessions: [session({ id: "a", cwd: "/repo/lynx" })],
     });
 
-    expect(groups?.map((group) => group.project.id)).toEqual(["/repo/lynx", "/repo/planet_new"]);
-    expect(groups?.[0]?.sessions.map((item) => item.id)).toEqual(["a"]);
-    expect(groups?.[1]?.project.name).toBe("planet_new");
-    expect(groups?.[1]?.sessions.map((item) => item.id)).toEqual(["b"]);
+    expect(content?.groups.map((group) => group.project.id)).toEqual(["/repo/lynx"]);
+    expect(content?.groups[0]?.sessions.map((item) => item.id)).toEqual(["a"]);
+    expect(content?.recents).toEqual([]);
+  });
+
+  it("keeps an empty project visible rather than dropping it", () => {
+    const content = buildWorkIndex({
+      projects: [project({ id: "/repo/lynx", name: "lynx" })],
+      sessions: [],
+    });
+
+    expect(content?.groups.map((group) => group.project.id)).toEqual(["/repo/lynx"]);
+    expect(content?.groups[0]?.sessions).toEqual([]);
+  });
+
+  it("sends sessions no project claims to recents, newest first", () => {
+    const content = buildWorkIndex({
+      projects: [project({ id: "/repo/lynx", name: "lynx" })],
+      sessions: [
+        session({ id: "owned", cwd: "/repo/lynx", time: "2026-01-04T00:00:00.000Z" }),
+        session({ id: "scratch", cwd: "/tmp/probe", time: "2026-01-02T00:00:00.000Z" }),
+        session({ id: "loose", cwd: "/tmp/other", time: "2026-01-03T00:00:00.000Z" }),
+        session({ id: "no-directory", time: "2026-01-01T00:00:00.000Z" }),
+      ],
+    });
+
+    expect(content?.groups[0]?.sessions.map((item) => item.id)).toEqual(["owned"]);
+    expect(content?.recents.map((item) => item.id)).toEqual(["loose", "scratch", "no-directory"]);
   });
 
   it("pins favorite sessions inside their project before recency sorting", () => {
-    const groups = buildWorkIndexGroups({
+    const content = buildWorkIndex({
       projects: [project({ id: "/repo/lynx", name: "lynx" })],
       sessions: [
         session({ id: "recent", cwd: "/repo/lynx", time: "2026-01-03T00:00:00.000Z" }),
@@ -66,64 +80,41 @@ describe("buildWorkIndexGroups", () => {
         }),
         session({ id: "middle", cwd: "/repo/lynx", time: "2026-01-02T00:00:00.000Z" }),
       ],
-      fallbackProjectName: "Other",
     });
 
-    expect(groups?.[0]?.sessions.map((item) => item.id)).toEqual(["favorite", "recent", "middle"]);
-  });
-
-  it("uses a fallback group for sessions without cwd", () => {
-    const groups = buildWorkIndexGroups({
-      projects: [],
-      sessions: [session({ id: "chat-only" })],
-      fallbackProjectName: "Other",
-    });
-
-    expect(groups).toEqual([
-      {
-        project: { id: "", name: "Other" },
-        sessions: [
-          {
-            id: "chat-only",
-            revision: 1,
-            title: "chat-only",
-            attention: "none",
-            favorite: undefined,
-            time: "2026-01-01T00:00:00.000Z",
-          },
-        ],
-      },
+    expect(content?.groups[0]?.sessions.map((item) => item.id)).toEqual([
+      "favorite",
+      "recent",
+      "middle",
     ]);
   });
 
-  it("projects source status into work attention", () => {
-    const groups = buildWorkIndexGroups({
+  it("orders recents by time even when one is pinned", () => {
+    const content = buildWorkIndex({
       projects: [],
       sessions: [
-        session({ id: "running", status: "running" }),
-        session({ id: "waiting", status: "waiting" }),
-        session({ id: "idle", status: "idle" }),
+        session({ id: "newer", time: "2026-01-03T00:00:00.000Z" }),
+        session({ id: "pinned", favorite: true, time: "2026-01-01T00:00:00.000Z" }),
       ],
-      fallbackProjectName: "Other",
     });
 
-    expect(groups?.[0]?.sessions.map((item) => [item.id, item.attention])).toEqual([
+    expect(content?.recents.map((item) => item.id)).toEqual(["newer", "pinned"]);
+  });
+
+  it("projects source status into work attention", () => {
+    const content = buildWorkIndex({
+      projects: [],
+      sessions: [
+        session({ id: "running", status: "running", time: "2026-01-03T00:00:00.000Z" }),
+        session({ id: "waiting", status: "waiting", time: "2026-01-02T00:00:00.000Z" }),
+        session({ id: "idle", status: "idle", time: "2026-01-01T00:00:00.000Z" }),
+      ],
+    });
+
+    expect(content?.recents.map((item) => [item.id, item.attention])).toEqual([
       ["running", "running"],
       ["waiting", "waiting"],
       ["idle", "none"],
     ]);
-  });
-});
-
-describe("buildRecentWorkSessions", () => {
-  it("creates a newest-first recent list without mutating the source array", () => {
-    const sessions = [
-      session({ id: "old", time: "2026-01-01T00:00:00.000Z" }),
-      session({ id: "new", time: "2026-01-03T00:00:00.000Z" }),
-      session({ id: "middle", time: "2026-01-02T00:00:00.000Z" }),
-    ];
-
-    expect(buildRecentWorkSessions(sessions, 2).map((item) => item.id)).toEqual(["new", "middle"]);
-    expect(sessions.map((item) => item.id)).toEqual(["old", "new", "middle"]);
   });
 });

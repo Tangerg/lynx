@@ -6,7 +6,12 @@ import {
   AGENT_SESSIONS_KEY,
   type AgentSessionSummary,
 } from "@/plugins/builtin/agent/public/session";
-import { sidebarFooter, sidebarNewSession, sidebarProjects } from "@/plugins/builtin/sidebar";
+import {
+  sidebarActions,
+  sidebarFooter,
+  sidebarProjects,
+  sidebarRecents,
+} from "@/plugins/builtin/sidebar";
 import { builtinVisualStyles } from "@/plugins/builtin/theme/visualStyles";
 import lyraDark from "@/plugins/builtin/theme/themes/lyra-dark";
 import lyraLight from "@/plugins/builtin/theme/themes/lyra-light";
@@ -89,13 +94,16 @@ const SESSIONS: AgentSessionSummary[] = [
     "/Users/visual/runtime",
     "2026-07-27T14:30:00Z",
   ),
+  // No project claims these two, so they are what the Recent section renders:
+  // one started in a scratch directory, one started before a folder was picked.
   session(
-    "visual-shell-runtime-missing",
-    "Inspect missing workspace",
+    "visual-shell-scratch",
+    "Inspect an unregistered checkout",
     "idle",
-    "/Users/visual/missing",
+    "/Users/visual/scratch",
     "2026-07-25T14:30:00Z",
   ),
+  session("visual-shell-adrift", "Draft a release note", "idle", "", "2026-07-24T14:30:00Z"),
 ];
 
 function session(
@@ -182,8 +190,9 @@ export async function installVisualShellFixture(
     defaultAccents,
     lyraDark,
     ...builtinVisualStyles,
-    sidebarNewSession,
+    sidebarActions,
     sidebarProjects,
+    sidebarRecents,
     sidebarFooter,
   ]) {
     const result = await loadPlugin(plugin);

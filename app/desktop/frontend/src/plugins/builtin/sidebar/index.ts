@@ -1,3 +1,4 @@
+export { sidebarActions } from "./actions";
 export { sidebarFooter } from "./footer";
-export { sidebarNewSession } from "./newSession";
 export { sidebarProjects } from "./projects";
+export { sidebarRecents } from "./recents";

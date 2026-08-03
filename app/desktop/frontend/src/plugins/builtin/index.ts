@@ -67,7 +67,7 @@ import providersPane from "./settings/providers";
 import sessionUsage from "./chat/session-usage";
 import shortcuts from "./command/shortcuts";
 import usagePane from "./settings/usage";
-import { sidebarFooter, sidebarNewSession, sidebarProjects } from "./sidebar";
+import { sidebarActions, sidebarFooter, sidebarProjects, sidebarRecents } from "./sidebar";
 import slashHints from "./chat/slash-hints";
 import { completionNotify, statusNotifications, windowTitle } from "./shell/status";
 import { tasksPill } from "./workspace/tasks";
@@ -227,7 +227,7 @@ const kernel: PluginSpec[] = [kernelSidebar, kernelChat, kernelSettings];
 
 // Sidebar internals — the sections that fill the expanded work-index view.
 
-const sidebar: PluginSpec[] = [sidebarNewSession, sidebarProjects, sidebarFooter];
+const sidebar: PluginSpec[] = [sidebarActions, sidebarProjects, sidebarRecents, sidebarFooter];
 
 // Overlays + chrome — toasts, command palette, status bar, welcome screen, …
 

@@ -13,6 +13,5 @@ export {
   AgentWorkIndexBody,
   AgentWorkIndexFooter,
   AgentWorkIndexGroupList,
-  AgentWorkIndexIdentity,
   AgentWorkIndexSection,
 } from "./work-index";

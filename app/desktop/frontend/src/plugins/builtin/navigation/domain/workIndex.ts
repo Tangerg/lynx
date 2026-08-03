@@ -20,8 +20,24 @@ export interface WorkGroup {
   sessions: WorkSession[];
 }
 
+/**
+ * The index splits every session exactly once.
+ *
+ * A session belongs to a project when its directory is one the workspace knows;
+ * everything else — scratch directories, sessions started before a folder was
+ * picked — is recent work with no home yet. Two lists rather than one tree
+ * because the alternative is inventing a project out of a path, which is how a
+ * session in `/tmp` used to open a group called "tmp" that meant nothing.
+ */
+export interface WorkIndexContent {
+  groups: WorkGroup[];
+  recents: WorkSession[];
+}
+
 export interface WorkIndex {
+  /** Both absent until the first answer arrives — distinct from "known empty". */
   groups: WorkGroup[] | undefined;
+  recents: WorkSession[] | undefined;
   activeSessionId: string;
   activeCwd: string | undefined;
   isLoading: boolean;

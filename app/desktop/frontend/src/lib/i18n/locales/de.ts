@@ -29,12 +29,13 @@ export const de: Record<string, string> = {
   "window.action.maximise": "Fenster zoomen",
   "window.action.restore": "Fenster wiederherstellen",
   "shell.region.workspace": "Agent-Arbeitsbereich",
-  "workIndex.identity.none": "Kein Arbeitsbereich",
   "workIndex.section.projects": "Projekte",
+  "workIndex.section.recent": "Zuletzt",
   "sidebar.action.collapse": "Seitenleiste ausblenden",
   "sidebar.action.expand": "Seitenleiste ausklappen",
   "sidebar.action.resize": "Arbeitsindex skalieren",
   "sidebar.action.newSession": "Neue Sitzung",
+  "sidebar.action.tools": "Tools & Plug-ins",
   "sidebar.action.settings": "Einstellungen",
 
   "composer.input.label": "Nachrichteneditor",
@@ -603,7 +604,6 @@ export const de: Record<string, string> = {
   "projects.error.title": "Projekte konnten nicht geladen werden",
   "projects.error.sub":
     "Prüfe die Runtime-Verbindung und öffne anschließend den Arbeitsindex erneut.",
-  "projects.fallbackName": "Andere",
   "convExport.markdown": "Konversation als Markdown exportieren",
   "convExport.json": "Konversation als JSON exportieren",
   "convExport.import": "Konversation aus JSON importieren",

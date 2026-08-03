@@ -1,10 +1,14 @@
 import { useState } from "react";
-import { DataView, SectionLabel, TextButton } from "@/ui";
+import { DataView, SectionLabel } from "@/ui";
 import { AgentWorkIndexGroupList } from "@/ui/agent";
 import { ProjectRow } from "./ui/ProjectRow";
-import { SessionRow } from "./ui/SessionRow";
+import { SessionList } from "./ui/SessionList";
 import { useT } from "@/lib/i18n";
-import type { WorkGroup, WorkProject } from "@/plugins/builtin/navigation/public/workIndex";
+import type {
+  WorkGroup,
+  WorkIndexActions,
+  WorkProject,
+} from "@/plugins/builtin/navigation/public/workIndex";
 import {
   contributeWorkIndexItem,
   useWorkIndex,
@@ -12,44 +16,24 @@ import {
 } from "@/plugins/builtin/navigation/public/workIndex";
 import { definePlugin } from "@/plugins/sdk";
 
-// Sessions shown per expanded project before the "Show more" fold —
-// keeps a busy project from burying the ones below it (Codex's 展开显示).
-const VISIBLE_CAP = 5;
-
-// Project groups need enough separation to remain scannable; rows inside one
-// project stay compact so the folder/session hierarchy reads as one unit.
-const sessionListClasses = "flex flex-col";
-
-// One project node: header + (when open) its capped session list.
+// One project node: header + (when open) its session list.
 function ProjectGroupNode({
   group,
+  actions,
   activeCwd,
   activeSessionId,
   onNewSession,
-  onSelect,
-  onRename,
-  onFork,
-  onDelete,
-  onToggleFavorite,
 }: {
   group: WorkGroup;
+  actions: WorkIndexActions;
   activeCwd: string | undefined;
   activeSessionId: string;
   onNewSession: (project: WorkProject) => void;
-  onSelect: (id: string) => void;
-  onRename: (id: string, expectedRevision: number, title: string) => void;
-  onFork: (id: string) => void;
-  onDelete: (id: string) => void;
-  onToggleFavorite: (id: string, expectedRevision: number, favorite: boolean) => void;
 }) {
-  const t = useT();
   const [open, setOpen] = useState(true);
-  const [showAll, setShowAll] = useState(false);
-  const visible = showAll ? group.sessions : group.sessions.slice(0, VISIBLE_CAP);
-  const hidden = group.sessions.length - visible.length;
 
   return (
-    <div className={sessionListClasses}>
+    <div className="flex flex-col">
       <ProjectRow
         project={group.project}
         // The accent bar marks the group only while it's collapsed — when
@@ -61,32 +45,15 @@ function ProjectGroupNode({
         onNewSession={onNewSession}
       />
       {open && group.sessions.length > 0 && (
-        // A hair of air between two-line rows: without it a row's second line
-        // sits flush against the next row's title and reads as belonging to it.
-        <div className="flex flex-col gap-0.5 pt-0.5">
-          {visible.map((s) => (
-            <SessionRow
-              key={s.id}
-              session={s}
-              active={s.id === activeSessionId}
-              onSelect={onSelect}
-              onRename={onRename}
-              onFork={onFork}
-              onDelete={onDelete}
-              onToggleFavorite={onToggleFavorite}
-            />
-          ))}
-          {(hidden > 0 || showAll) && (
-            <TextButton
-              type="button"
-              size="sm"
-              onClick={() => setShowAll((v) => !v)}
-              className="rounded-xs border-0 bg-transparent px-8 py-1 text-left text-ui-sm text-fg transition-colors hover:bg-hover"
-            >
-              {hidden > 0 ? t("projects.showMore", { count: hidden }) : t("projects.showLess")}
-            </TextButton>
-          )}
-        </div>
+        <SessionList
+          sessions={group.sessions}
+          actions={actions}
+          activeSessionId={activeSessionId}
+          indented
+          // The group is already ordered by recency, and the indent has taken
+          // the width a timestamp would need out of the title.
+          showTime={false}
+        />
       )}
     </div>
   );
@@ -94,12 +61,8 @@ function ProjectGroupNode({
 
 function ProjectsSection() {
   const t = useT();
-  const workIndex = useWorkIndex({ fallbackProjectName: t("projects.fallbackName") });
+  const workIndex = useWorkIndex();
   const actions = useWorkIndexActions();
-
-  const startSessionInFolder = (project: WorkProject): void => {
-    actions.startSessionInFolder(project.id);
-  };
 
   return (
     <>
@@ -124,18 +87,14 @@ function ProjectsSection() {
       >
         {(items) => (
           <AgentWorkIndexGroupList>
-            {items.map((g) => (
+            {items.map((group) => (
               <ProjectGroupNode
-                key={g.project.id}
-                group={g}
+                key={group.project.id}
+                group={group}
+                actions={actions}
                 activeCwd={workIndex.activeCwd}
                 activeSessionId={workIndex.activeSessionId}
-                onNewSession={startSessionInFolder}
-                onSelect={actions.selectSession}
-                onRename={actions.renameSession}
-                onFork={actions.forkSession}
-                onDelete={actions.deleteSession}
-                onToggleFavorite={actions.toggleFavorite}
+                onNewSession={(project) => actions.startSessionInFolder(project.id)}
               />
             ))}
           </AgentWorkIndexGroupList>
