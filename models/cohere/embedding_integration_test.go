@@ -9,15 +9,14 @@ import (
 
 	"github.com/Tangerg/lynx/core/embedding"
 	"github.com/Tangerg/lynx/models/cohere"
-	"github.com/Tangerg/lynx/models/cohere/internal/testutil"
 )
 
 func TestEmbeddingModel_Integration(t *testing.T) {
-	testutil.RunIntegrationEmbedding(t, testutil.IntegrationEmbeddingProbe{
+	runIntegrationEmbedding(t, integrationEmbeddingProbe{
 		Provider: "cohere",
 		Build: func(t *testing.T, key string) embedding.Model {
 			t.Helper()
-			modelID, _ := testutil.LookupEnv("LYNX_TEST_COHERE_MODEL")
+			modelID, _ := lookupEnv("LYNX_TEST_COHERE_MODEL")
 			if modelID == "" {
 				modelID = "embed-v4.0"
 			}

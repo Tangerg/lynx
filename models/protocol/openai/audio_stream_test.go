@@ -1,16 +1,14 @@
-package streamio_test
+package openai
 
 import (
 	"bytes"
 	"testing"
-
-	"github.com/Tangerg/lynx/models/protocol/openai/internal/streamio"
 )
 
 func TestReadYieldsOwnedChunks(t *testing.T) {
 	input := bytes.Repeat([]byte("a"), 16*1024+3)
 	var chunks [][]byte
-	for chunk, err := range streamio.Read(bytes.NewReader(input)) {
+	for chunk, err := range readAudioChunks(bytes.NewReader(input)) {
 		if err != nil {
 			t.Fatal(err)
 		}

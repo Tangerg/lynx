@@ -9,15 +9,14 @@ import (
 
 	"github.com/Tangerg/lynx/core/image"
 	"github.com/Tangerg/lynx/models/luma"
-	"github.com/Tangerg/lynx/models/luma/internal/testutil"
 )
 
 func TestImageModel_Call_Mock(t *testing.T) {
-	var polls testutil.PollCounter
+	var polls pollCounter
 
 	var server *httptest.Server
-	server = testutil.MuxServer(
-		testutil.Route{Method: "POST", Contains: "/generations", Handle: func(w http.ResponseWriter, r *http.Request) {
+	server = muxServer(
+		route{Method: "POST", Contains: "/generations", Handle: func(w http.ResponseWriter, r *http.Request) {
 			if r.Header.Get("Authorization") != "Bearer test-key" {
 				t.Errorf("Authorization = %q", r.Header.Get("Authorization"))
 			}
@@ -25,8 +24,8 @@ func TestImageModel_Call_Mock(t *testing.T) {
 			w.WriteHeader(http.StatusCreated)
 			w.Write([]byte(`{"id":"gen-1","created_at":"2026-07-31T08:00:00Z","model":"uni-1","state":"queued","type":"image","output":[]}`))
 		}},
-		testutil.Route{Method: "GET", Contains: "/generations/", Handle: func(w http.ResponseWriter, r *http.Request) {
-			n := polls.Inc()
+		route{Method: "GET", Contains: "/generations/", Handle: func(w http.ResponseWriter, r *http.Request) {
+			n := polls.inc()
 			state := "processing"
 			output := "[]"
 			if n >= 2 {
@@ -36,7 +35,7 @@ func TestImageModel_Call_Mock(t *testing.T) {
 			w.Header().Set("Content-Type", "application/json")
 			w.Write([]byte(`{"id":"gen-1","created_at":"2026-07-31T08:00:00Z","model":"uni-1","state":"` + state + `","type":"image","output":` + output + `}`))
 		}},
-		testutil.Route{Method: "GET", Contains: "/output.png", Handle: func(w http.ResponseWriter, r *http.Request) {
+		route{Method: "GET", Contains: "/output.png", Handle: func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "image/png")
 			_, _ = w.Write([]byte("PNG"))
 		}},

@@ -7,12 +7,12 @@ import (
 	"fmt"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-resty/resty/v2"
 
 	"github.com/Tangerg/lynx/tools/websearch"
-	"github.com/Tangerg/lynx/tools/websearch/internal/queryparam"
 )
 
 const (
@@ -162,32 +162,56 @@ func (c *Client) SearchNative(ctx context.Context, req *Request) (*Response, err
 // expects. Empty / zero fields are omitted.
 func (r *Request) params() map[string]string {
 	p := map[string]string{}
-	queryparam.AddStr(p, "type", r.Type)
-	queryparam.AddInt(p, "num", r.Num)
-	queryparam.AddInt(p, "count", r.Count)
-	queryparam.AddInt(p, "page", r.Page)
-	queryparam.AddStr(p, "provider", r.Provider)
-	queryparam.AddStr(p, "engine", r.Engine)
-	queryparam.AddStr(p, "gl", r.Gl)
-	queryparam.AddStr(p, "hl", r.Hl)
-	queryparam.AddStr(p, "location", r.Location)
-	queryparam.AddBool(p, "fallback", r.Fallback)
-	queryparam.AddBool(p, "nfpr", r.Nfpr)
-	queryparam.AddCSV(p, "ext", r.Ext)
-	queryparam.AddCSV(p, "filetype", r.Filetype)
-	queryparam.AddCSV(p, "intitle", r.Intitle)
-	queryparam.AddCSV(p, "loc", r.Loc)
-	queryparam.AddCSV(p, "site", r.Site)
-	queryparam.AddStr(p, "respondWith", r.RespondWith)
-	queryparam.AddStr(p, "retainImages", r.RetainImages)
-	queryparam.AddStr(p, "retainLinks", r.RetainLinks)
-	queryparam.AddBool(p, "noCache", r.NoCache)
+	addStringParam(p, "type", r.Type)
+	addIntParam(p, "num", r.Num)
+	addIntParam(p, "count", r.Count)
+	addIntParam(p, "page", r.Page)
+	addStringParam(p, "provider", r.Provider)
+	addStringParam(p, "engine", r.Engine)
+	addStringParam(p, "gl", r.Gl)
+	addStringParam(p, "hl", r.Hl)
+	addStringParam(p, "location", r.Location)
+	addBoolParam(p, "fallback", r.Fallback)
+	addBoolParam(p, "nfpr", r.Nfpr)
+	addCSVParam(p, "ext", r.Ext)
+	addCSVParam(p, "filetype", r.Filetype)
+	addCSVParam(p, "intitle", r.Intitle)
+	addCSVParam(p, "loc", r.Loc)
+	addCSVParam(p, "site", r.Site)
+	addStringParam(p, "respondWith", r.RespondWith)
+	addStringParam(p, "retainImages", r.RetainImages)
+	addStringParam(p, "retainLinks", r.RetainLinks)
+	addBoolParam(p, "noCache", r.NoCache)
 	// Jina caps timeout at 180s; clamp here so callers can't smuggle
 	// values past the limit via the native API.
 	if r.Timeout > 0 && r.Timeout <= 180 {
 		p["timeout"] = strconv.Itoa(r.Timeout)
 	}
 	return p
+}
+
+func addStringParam(params map[string]string, key, value string) {
+	if value != "" {
+		params[key] = value
+	}
+}
+
+func addIntParam(params map[string]string, key string, value int) {
+	if value > 0 {
+		params[key] = strconv.Itoa(value)
+	}
+}
+
+func addBoolParam(params map[string]string, key string, value bool) {
+	if value {
+		params[key] = "true"
+	}
+}
+
+func addCSVParam(params map[string]string, key string, values []string) {
+	if len(values) > 0 {
+		params[key] = strings.Join(values, ",")
+	}
 }
 
 // ============================================================== SPI wrapper

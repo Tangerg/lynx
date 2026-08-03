@@ -5,12 +5,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/go-resty/resty/v2"
 
 	"github.com/Tangerg/lynx/tools/websearch"
-	"github.com/Tangerg/lynx/tools/websearch/internal/queryparam"
 )
 
 const (
@@ -162,21 +162,39 @@ func (c *Client) SearchNative(ctx context.Context, req *Request) (*Response, err
 
 func (r *Request) params() map[string]string {
 	p := map[string]string{"q": r.Q}
-	queryparam.AddInt(p, "count", r.Count)
-	queryparam.AddInt(p, "offset", r.Offset)
-	queryparam.AddStr(p, "country", r.Country)
-	queryparam.AddStr(p, "search_lang", r.SearchLang)
-	queryparam.AddStr(p, "ui_lang", r.UILang)
-	queryparam.AddStr(p, "safesearch", r.Safesearch)
-	queryparam.AddStr(p, "freshness", r.Freshness)
-	queryparam.AddBool(p, "text_decorations", r.TextDecorations)
-	queryparam.AddBool(p, "spellcheck", r.Spellcheck)
-	queryparam.AddStr(p, "result_filter", r.ResultFilter)
-	queryparam.AddStr(p, "goggles_id", r.GogglesID)
-	queryparam.AddStr(p, "units", r.Units)
-	queryparam.AddBool(p, "extra_snippets", r.ExtraSnippets)
-	queryparam.AddBool(p, "summary", r.Summary)
+	addIntParam(p, "count", r.Count)
+	addIntParam(p, "offset", r.Offset)
+	addStringParam(p, "country", r.Country)
+	addStringParam(p, "search_lang", r.SearchLang)
+	addStringParam(p, "ui_lang", r.UILang)
+	addStringParam(p, "safesearch", r.Safesearch)
+	addStringParam(p, "freshness", r.Freshness)
+	addBoolParam(p, "text_decorations", r.TextDecorations)
+	addBoolParam(p, "spellcheck", r.Spellcheck)
+	addStringParam(p, "result_filter", r.ResultFilter)
+	addStringParam(p, "goggles_id", r.GogglesID)
+	addStringParam(p, "units", r.Units)
+	addBoolParam(p, "extra_snippets", r.ExtraSnippets)
+	addBoolParam(p, "summary", r.Summary)
 	return p
+}
+
+func addStringParam(params map[string]string, key, value string) {
+	if value != "" {
+		params[key] = value
+	}
+}
+
+func addIntParam(params map[string]string, key string, value int) {
+	if value > 0 {
+		params[key] = strconv.Itoa(value)
+	}
+}
+
+func addBoolParam(params map[string]string, key string, value bool) {
+	if value {
+		params[key] = "true"
+	}
 }
 
 // ============================================================== SPI wrapper

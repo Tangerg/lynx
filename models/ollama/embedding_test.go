@@ -6,7 +6,6 @@ import (
 
 	"github.com/Tangerg/lynx/core/embedding"
 	"github.com/Tangerg/lynx/models/ollama"
-	"github.com/Tangerg/lynx/models/ollama/internal/testutil"
 )
 
 const ollamaEmbedJSON = `{
@@ -18,7 +17,7 @@ const ollamaEmbedJSON = `{
 }`
 
 func TestEmbeddingModel_Call_Mock(t *testing.T) {
-	srv := testutil.JSONServer(http.StatusOK, ollamaEmbedJSON, func(r *http.Request) {})
+	srv := jsonServer(http.StatusOK, ollamaEmbedJSON, func(r *http.Request) {})
 	t.Cleanup(srv.Close)
 
 	opts, err := embedding.NewOptions("nomic-embed-text")

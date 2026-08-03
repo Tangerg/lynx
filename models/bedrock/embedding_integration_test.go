@@ -7,19 +7,18 @@ import (
 
 	"github.com/Tangerg/lynx/core/embedding"
 	"github.com/Tangerg/lynx/models/bedrock"
-	"github.com/Tangerg/lynx/models/bedrock/internal/testutil"
 )
 
 func TestEmbeddingModel_Integration(t *testing.T) {
-	testutil.RequireKey(t, "bedrock")
-	region := testutil.RequireEnv(t, "AWS_REGION")
+	requireKey(t, "bedrock")
+	region := requireEnv(t, "AWS_REGION")
 
-	modelID, _ := testutil.LookupEnv("LYNX_TEST_BEDROCK_EMBEDDING_MODEL")
+	modelID, _ := lookupEnv("LYNX_TEST_BEDROCK_EMBEDDING_MODEL")
 	if modelID == "" {
 		modelID = "amazon.titan-embed-text-v2:0"
 	}
 
-	testutil.RunIntegrationEmbedding(t, testutil.IntegrationEmbeddingProbe{
+	runIntegrationEmbedding(t, integrationEmbeddingProbe{
 		Provider: "bedrock",
 		Build: func(t *testing.T, _ string) embedding.Model {
 			t.Helper()

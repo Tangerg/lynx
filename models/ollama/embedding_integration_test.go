@@ -7,19 +7,18 @@ import (
 
 	"github.com/Tangerg/lynx/core/embedding"
 	"github.com/Tangerg/lynx/models/ollama"
-	"github.com/Tangerg/lynx/models/ollama/internal/testutil"
 )
 
 func TestEmbeddingModel_Integration(t *testing.T) {
-	testutil.RunIntegrationEmbedding(t, testutil.IntegrationEmbeddingProbe{
+	runIntegrationEmbedding(t, integrationEmbeddingProbe{
 		Provider: "ollama",
 		Build: func(t *testing.T, _ string) embedding.Model {
 			t.Helper()
-			modelID, _ := testutil.LookupEnv("LYNX_TEST_OLLAMA_EMBEDDING_MODEL")
+			modelID, _ := lookupEnv("LYNX_TEST_OLLAMA_EMBEDDING_MODEL")
 			if modelID == "" {
 				modelID = "nomic-embed-text"
 			}
-			baseURL, _ := testutil.LookupEnv("LYNX_TEST_OLLAMA_BASE_URL")
+			baseURL, _ := lookupEnv("LYNX_TEST_OLLAMA_BASE_URL")
 			opts, err := embedding.NewOptions(modelID)
 			if err != nil {
 				t.Fatal(err)

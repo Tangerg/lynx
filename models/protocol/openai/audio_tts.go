@@ -13,7 +13,6 @@ import (
 
 	tts "github.com/Tangerg/lynx/core/speech"
 	"github.com/Tangerg/lynx/models/protocol/openai/internal/options"
-	"github.com/Tangerg/lynx/models/protocol/openai/internal/streamio"
 )
 
 type AudioTTSModelConfig struct {
@@ -148,7 +147,7 @@ func (a *AudioTTSModel) Stream(ctx context.Context, req *tts.Request) iter.Seq2[
 		}
 		defer apiResp.Body.Close()
 
-		for chunk, err := range streamio.Read(apiResp.Body) {
+		for chunk, err := range readAudioChunks(apiResp.Body) {
 			if err != nil {
 				yield(nil, err)
 				return
@@ -161,6 +160,28 @@ func (a *AudioTTSModel) Stream(ctx context.Context, req *tts.Request) iter.Seq2[
 			}
 
 			if !yield(resp, nil) {
+				return
+			}
+		}
+	}
+}
+
+func readAudioChunks(reader io.Reader) iter.Seq2[[]byte, error] {
+	const chunkSize = 16 * 1024
+	return func(yield func([]byte, error) bool) {
+		for {
+			buffer := make([]byte, chunkSize)
+			read, err := reader.Read(buffer)
+			eof := err == io.EOF
+			if eof {
+				err = nil
+			}
+			if read > 0 || err != nil {
+				if !yield(buffer[:read], err) {
+					return
+				}
+			}
+			if eof || err != nil {
 				return
 			}
 		}

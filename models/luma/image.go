@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
@@ -14,7 +15,7 @@ import (
 
 	"github.com/Tangerg/lynx/core/image"
 	"github.com/Tangerg/lynx/core/media"
-	"github.com/Tangerg/lynx/models/luma/internal/options"
+	"github.com/Tangerg/lynx/core/metadata"
 )
 
 type ImageModelConfig struct {
@@ -97,19 +98,15 @@ func (model *ImageModel) Call(ctx context.Context, request *image.Request) (*ima
 	if err != nil {
 		return nil, err
 	}
-	if err := options.RejectUnsupported("luma: image", map[string]bool{
-		"height":          optionsValue.Height != nil,
-		"negative_prompt": optionsValue.NegativePrompt != "",
-		"seed":            optionsValue.Seed != nil,
-		"width":           optionsValue.Width != nil,
-	}); err != nil {
+	if err := rejectUnsupportedOptions(optionsValue); err != nil {
 		return nil, err
 	}
 
-	params, err := options.GetParams[lumaagents.GenerationNewParams](optionsValue.Extensions, ImageRequestExtensionKey)
+	paramsValue, _, err := metadata.Decode[lumaagents.GenerationNewParams](optionsValue.Extensions, ImageRequestExtensionKey)
 	if err != nil {
 		return nil, fmt.Errorf("luma: extension %q: %w", ImageRequestExtensionKey, err)
 	}
+	params := &paramsValue
 	params.Prompt = lumaagents.F(request.Prompt)
 	params.Model = lumaagents.F(lumaagents.Model(optionsValue.Model))
 	if !params.Type.Present {
@@ -139,6 +136,27 @@ func (model *ImageModel) Call(ctx context.Context, request *image.Request) (*ima
 		return nil, err
 	}
 	return model.mapResponse(ctx, completed)
+}
+
+func rejectUnsupportedOptions(options image.Options) error {
+	unsupported := make([]string, 0, 4)
+	if options.Height != nil {
+		unsupported = append(unsupported, "height")
+	}
+	if options.NegativePrompt != "" {
+		unsupported = append(unsupported, "negative_prompt")
+	}
+	if options.Seed != nil {
+		unsupported = append(unsupported, "seed")
+	}
+	if options.Width != nil {
+		unsupported = append(unsupported, "width")
+	}
+	if len(unsupported) == 0 {
+		return nil
+	}
+	slices.Sort(unsupported)
+	return fmt.Errorf("luma: image: unsupported options: %s", strings.Join(unsupported, ", "))
 }
 
 func (model *ImageModel) pollUntilDone(ctx context.Context, generationID string) (*lumaagents.Generation, error) {

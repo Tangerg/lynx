@@ -1,4 +1,4 @@
-package testutil
+package cohere_test
 
 import (
 	"testing"
@@ -7,18 +7,18 @@ import (
 	"github.com/Tangerg/lynx/core/embedding"
 )
 
-// IntegrationEmbeddingProbe is the standard real-API embedding smoke
+// integrationEmbeddingProbe is the standard real-API embedding smoke
 // probe: Call returns 2 results with non-empty embeddings.
-type IntegrationEmbeddingProbe struct {
+type integrationEmbeddingProbe struct {
 	Provider string
 	Build    func(t *testing.T, key string) embedding.Model
 }
 
-func RunIntegrationEmbedding(t *testing.T, p IntegrationEmbeddingProbe) {
+func runIntegrationEmbedding(t *testing.T, p integrationEmbeddingProbe) {
 	t.Helper()
-	key := RequireKey(t, p.Provider)
+	key := requireKey(t, p.Provider)
 	m := p.Build(t, key)
-	ctx, cancel := WithTimeout(t, 30*time.Second)
+	ctx, cancel := withTimeout(t, 30*time.Second)
 	defer cancel()
 
 	req, err := embedding.NewRequest([]string{"the quick brown fox", "jumps over the lazy dog"})

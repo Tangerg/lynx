@@ -9,7 +9,7 @@ import (
 	ollamaapi "github.com/ollama/ollama/api"
 
 	"github.com/Tangerg/lynx/core/embedding"
-	"github.com/Tangerg/lynx/models/ollama/internal/options"
+	"github.com/Tangerg/lynx/core/metadata"
 )
 
 type EmbeddingModelConfig struct {
@@ -63,17 +63,18 @@ func (e *EmbeddingModel) buildAPIRequest(req *embedding.Request) (*ollamaapi.Emb
 		return nil, err
 	}
 
-	apiReq, err := options.GetParams[ollamaapi.EmbedRequest](mergedOpts.Extensions, EmbeddingRequestExtensionKey)
+	apiRequest, _, err := metadata.Decode[ollamaapi.EmbedRequest](mergedOpts.Extensions, EmbeddingRequestExtensionKey)
 	if err != nil {
 		return nil, err
 	}
+	apiReq := &apiRequest
 	apiReq.Model = mergedOpts.Model
 	apiReq.Input = req.Texts
 
 	if mergedOpts.Dimensions != nil {
-		dimensions, err := options.Int("ollama: embedding: dimensions", *mergedOpts.Dimensions)
-		if err != nil {
-			return nil, err
+		dimensions := int(*mergedOpts.Dimensions)
+		if int64(dimensions) != *mergedOpts.Dimensions {
+			return nil, fmt.Errorf("ollama: embedding: dimensions: %d exceeds int", *mergedOpts.Dimensions)
 		}
 		apiReq.Dimensions = dimensions
 	}

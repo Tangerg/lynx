@@ -9,7 +9,7 @@ import (
 	cohereoption "github.com/cohere-ai/cohere-go/v2/option"
 
 	"github.com/Tangerg/lynx/core/embedding"
-	"github.com/Tangerg/lynx/models/cohere/internal/options"
+	"github.com/Tangerg/lynx/core/metadata"
 )
 
 type EmbeddingModelConfig struct {
@@ -67,10 +67,11 @@ func (e *EmbeddingModel) buildAPIRequest(req *embedding.Request) (*cohere.V2Embe
 		return nil, err
 	}
 
-	apiReq, err := options.GetParams[cohere.V2EmbedRequest](mergedOpts.Extensions, EmbeddingRequestExtensionKey)
+	apiRequest, _, err := metadata.Decode[cohere.V2EmbedRequest](mergedOpts.Extensions, EmbeddingRequestExtensionKey)
 	if err != nil {
 		return nil, err
 	}
+	apiReq := &apiRequest
 
 	apiReq.Model = mergedOpts.Model
 	apiReq.Texts = req.Texts
@@ -86,11 +87,11 @@ func (e *EmbeddingModel) buildAPIRequest(req *embedding.Request) (*cohere.V2Embe
 	}
 
 	if mergedOpts.Dimensions != nil {
-		v, err := options.Int("cohere: embedding: dimensions", *mergedOpts.Dimensions)
-		if err != nil {
-			return nil, err
+		value := int(*mergedOpts.Dimensions)
+		if int64(value) != *mergedOpts.Dimensions {
+			return nil, fmt.Errorf("cohere: embedding: dimensions: %d exceeds int", *mergedOpts.Dimensions)
 		}
-		apiReq.OutputDimension = &v
+		apiReq.OutputDimension = &value
 	}
 
 	return apiReq, nil
