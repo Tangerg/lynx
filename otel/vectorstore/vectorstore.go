@@ -1,9 +1,11 @@
-package otel
+// Package vectorstore instruments Core vector-store capabilities with OpenTelemetry.
+package vectorstore
 
 import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 	"strings"
 
 	apiotel "go.opentelemetry.io/otel"
@@ -13,45 +15,47 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/Tangerg/lynx/core/document"
-	"github.com/Tangerg/lynx/core/vectorstore"
+	corevectorstore "github.com/Tangerg/lynx/core/vectorstore"
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
 )
 
-// ErrInvalidVectorStoreConfig reports a missing database-system identity.
-var ErrInvalidVectorStoreConfig = errors.New("otel: invalid vector store config")
+const instrumentationName = "github.com/Tangerg/lynx/otel/vectorstore"
 
-// VectorStoreConfig identifies the database observed by vector-store
+// ErrInvalidConfig reports a missing database-system identity.
+var ErrInvalidConfig = errors.New("otel/vectorstore: invalid config")
+
+// Config identifies the database observed by vector-store
 // instrumentation. System is the OpenTelemetry db.system.name value.
 // Collection and Namespace identify the provider-native storage target.
-type VectorStoreConfig struct {
+type Config struct {
 	System         string
 	Collection     string
 	Namespace      string
 	TracerProvider trace.TracerProvider
 }
 
-// VectorStoreMiddleware instruments vector-store capabilities without changing
+// Middleware instruments vector-store capabilities without changing
 // the capability set of the wrapped value.
-type VectorStoreMiddleware struct {
+type Middleware struct {
 	system     string
 	collection string
 	namespace  string
 	tracer     trace.Tracer
 }
 
-// NewVectorStore constructs vector-store instrumentation. It belongs at the
+// New constructs vector-store instrumentation. It belongs at the
 // composition root; providers remain unaware of OpenTelemetry.
-func NewVectorStore(config VectorStoreConfig) (*VectorStoreMiddleware, error) {
+func New(config Config) (*Middleware, error) {
 	system := strings.ToLower(strings.TrimSpace(config.System))
 	if system == "" {
-		return nil, fmt.Errorf("%w: system is required", ErrInvalidVectorStoreConfig)
+		return nil, fmt.Errorf("%w: system is required", ErrInvalidConfig)
 	}
 
 	tracerProvider := config.TracerProvider
 	if isNilCapability(tracerProvider) {
 		tracerProvider = apiotel.GetTracerProvider()
 	}
-	return &VectorStoreMiddleware{
+	return &Middleware{
 		system:     system,
 		collection: strings.TrimSpace(config.Collection),
 		namespace:  strings.TrimSpace(config.Namespace),
@@ -59,8 +63,21 @@ func NewVectorStore(config VectorStoreConfig) (*VectorStoreMiddleware, error) {
 	}, nil
 }
 
-// Index instruments only the [vectorstore.Indexer] capability.
-func (m *VectorStoreMiddleware) Index(next vectorstore.Indexer) vectorstore.Indexer {
+func isNilCapability(value any) bool {
+	reflected := reflect.ValueOf(value)
+	if !reflected.IsValid() {
+		return true
+	}
+	switch reflected.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
+		return reflected.IsNil()
+	default:
+		return false
+	}
+}
+
+// Index instruments only the [corevectorstore.Indexer] capability.
+func (m *Middleware) Index(next corevectorstore.Indexer) corevectorstore.Indexer {
 	if isNilCapability(next) {
 		return nil
 	}
@@ -76,12 +93,12 @@ func (m *VectorStoreMiddleware) Index(next vectorstore.Indexer) vectorstore.Inde
 	})
 }
 
-// Search instruments only the [vectorstore.Searcher] capability.
-func (m *VectorStoreMiddleware) Search(next vectorstore.Searcher) vectorstore.Searcher {
+// Search instruments only the [corevectorstore.Searcher] capability.
+func (m *Middleware) Search(next corevectorstore.Searcher) corevectorstore.Searcher {
 	if isNilCapability(next) {
 		return nil
 	}
-	return searcherFunc(func(ctx context.Context, request vectorstore.SearchRequest) ([]vectorstore.Match, error) {
+	return searcherFunc(func(ctx context.Context, request corevectorstore.SearchRequest) ([]corevectorstore.Match, error) {
 		ctx, span := m.start(ctx, "search",
 			attribute.Int("db.vector.query.top_k", request.TopK),
 			attribute.Float64("db.vector.query.similarity_threshold", request.MinScore),
@@ -95,8 +112,8 @@ func (m *VectorStoreMiddleware) Search(next vectorstore.Searcher) vectorstore.Se
 	})
 }
 
-// DeleteIDs instruments only the [vectorstore.IDDeleter] capability.
-func (m *VectorStoreMiddleware) DeleteIDs(next vectorstore.IDDeleter) vectorstore.IDDeleter {
+// DeleteIDs instruments only the [corevectorstore.IDDeleter] capability.
+func (m *Middleware) DeleteIDs(next corevectorstore.IDDeleter) corevectorstore.IDDeleter {
 	if isNilCapability(next) {
 		return nil
 	}
@@ -112,8 +129,8 @@ func (m *VectorStoreMiddleware) DeleteIDs(next vectorstore.IDDeleter) vectorstor
 	})
 }
 
-// DeleteWhere instruments only the [vectorstore.FilterDeleter] capability.
-func (m *VectorStoreMiddleware) DeleteWhere(next vectorstore.FilterDeleter) vectorstore.FilterDeleter {
+// DeleteWhere instruments only the [corevectorstore.FilterDeleter] capability.
+func (m *Middleware) DeleteWhere(next corevectorstore.FilterDeleter) corevectorstore.FilterDeleter {
 	if isNilCapability(next) {
 		return nil
 	}
@@ -125,7 +142,7 @@ func (m *VectorStoreMiddleware) DeleteWhere(next vectorstore.FilterDeleter) vect
 	})
 }
 
-func (m *VectorStoreMiddleware) start(
+func (m *Middleware) start(
 	ctx context.Context,
 	operation string,
 	extra ...attribute.KeyValue,
@@ -173,9 +190,9 @@ func (f indexerFunc) Add(ctx context.Context, docs []*document.Document) error {
 	return f(ctx, docs)
 }
 
-type searcherFunc func(context.Context, vectorstore.SearchRequest) ([]vectorstore.Match, error)
+type searcherFunc func(context.Context, corevectorstore.SearchRequest) ([]corevectorstore.Match, error)
 
-func (f searcherFunc) Search(ctx context.Context, request vectorstore.SearchRequest) ([]vectorstore.Match, error) {
+func (f searcherFunc) Search(ctx context.Context, request corevectorstore.SearchRequest) ([]corevectorstore.Match, error) {
 	return f(ctx, request)
 }
 

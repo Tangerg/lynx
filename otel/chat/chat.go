@@ -1,8 +1,5 @@
-// Package otel instruments Lynx protocol capabilities with OpenTelemetry.
-//
-// Instrumentation lives outside Core: applications opt in by composing the
-// returned middleware around a core/chat Model or Streamer.
-package otel
+// Package chat instruments Core chat capabilities with OpenTelemetry.
+package chat
 
 import (
 	"context"
@@ -21,44 +18,44 @@ import (
 	"go.opentelemetry.io/otel/semconv/v1.41.0/genaiconv"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/Tangerg/lynx/core/chat"
+	corechat "github.com/Tangerg/lynx/core/chat"
 )
 
-const instrumentationName = "github.com/Tangerg/lynx/otel"
+const instrumentationName = "github.com/Tangerg/lynx/otel/chat"
 
 var (
-	// ErrInvalidChatConfig reports a missing or malformed provider identity.
-	ErrInvalidChatConfig = errors.New("otel: invalid chat config")
-	// ErrNilChatStream reports a wrapped Streamer that returned a nil sequence.
-	ErrNilChatStream = errors.New("otel: nil chat stream sequence")
+	// ErrInvalidConfig reports a missing or malformed provider identity.
+	ErrInvalidConfig = errors.New("otel/chat: invalid config")
+	// ErrNilStream reports a wrapped Streamer that returned a nil sequence.
+	ErrNilStream = errors.New("otel/chat: nil stream sequence")
 )
 
-// ChatConfig identifies the remote GenAI provider and optionally supplies
+// Config identifies the remote GenAI provider and optionally supplies
 // providers scoped to this middleware. Provider is normalized to lowercase so
 // span and metric dimensions remain stable. The global OpenTelemetry providers
 // are used when TracerProvider or MeterProvider is nil.
-type ChatConfig struct {
+type Config struct {
 	Provider       string
 	TracerProvider trace.TracerProvider
 	MeterProvider  metric.MeterProvider
 }
 
-// ChatMiddleware adds GenAI spans and metrics to synchronous and streaming
+// Middleware adds GenAI spans and metrics to synchronous and streaming
 // chat capabilities. It is immutable after construction and safe for
 // concurrent use.
-type ChatMiddleware struct {
+type Middleware struct {
 	provider string
 	tracer   trace.Tracer
 	duration genaiconv.ClientOperationDuration
 	tokens   genaiconv.ClientTokenUsage
 }
 
-// NewChat constructs chat instrumentation. Provider is required at the
+// New constructs chat instrumentation. Provider is required at the
 // composition root instead of being added to the Core Model contract.
-func NewChat(config ChatConfig) (*ChatMiddleware, error) {
+func New(config Config) (*Middleware, error) {
 	provider := strings.ToLower(strings.TrimSpace(config.Provider))
 	if provider == "" {
-		return nil, fmt.Errorf("%w: provider is required", ErrInvalidChatConfig)
+		return nil, fmt.Errorf("%w: provider is required", ErrInvalidConfig)
 	}
 
 	tracerProvider := config.TracerProvider
@@ -73,14 +70,14 @@ func NewChat(config ChatConfig) (*ChatMiddleware, error) {
 	meter := meterProvider.Meter(instrumentationName)
 	duration, err := genaiconv.NewClientOperationDuration(meter)
 	if err != nil {
-		return nil, fmt.Errorf("%w: create duration histogram: %w", ErrInvalidChatConfig, err)
+		return nil, fmt.Errorf("%w: create duration histogram: %w", ErrInvalidConfig, err)
 	}
 	tokens, err := genaiconv.NewClientTokenUsage(meter)
 	if err != nil {
-		return nil, fmt.Errorf("%w: create token histogram: %w", ErrInvalidChatConfig, err)
+		return nil, fmt.Errorf("%w: create token histogram: %w", ErrInvalidConfig, err)
 	}
 
-	return &ChatMiddleware{
+	return &Middleware{
 		provider: provider,
 		tracer:   tracerProvider.Tracer(instrumentationName),
 		duration: duration,
@@ -88,13 +85,13 @@ func NewChat(config ChatConfig) (*ChatMiddleware, error) {
 	}, nil
 }
 
-// Call is a [chat.CallMiddleware]. It preserves the wrapped model's response
+// Call is a [corechat.CallMiddleware]. It preserves the wrapped model's response
 // and error exactly; observation is a read-only side effect.
-func (m *ChatMiddleware) Call(next chat.Model) chat.Model {
+func (m *Middleware) Call(next corechat.Model) corechat.Model {
 	if isNilCapability(next) {
 		return nil
 	}
-	return chat.ModelFunc(func(ctx context.Context, request *chat.Request) (*chat.Response, error) {
+	return corechat.ModelFunc(func(ctx context.Context, request *corechat.Request) (*corechat.Response, error) {
 		started := time.Now()
 		ctx, span := m.start(ctx, request)
 		response, err := next.Call(ctx, request)
@@ -103,21 +100,21 @@ func (m *ChatMiddleware) Call(next chat.Model) chat.Model {
 	})
 }
 
-// Stream is a [chat.StreamMiddleware]. Instrumentation starts lazily when the
+// Stream is a [corechat.StreamMiddleware]. Instrumentation starts lazily when the
 // caller iterates and ends synchronously on completion, provider failure, or
 // early consumer stop. Invalid deltas are still forwarded unchanged; an
 // accumulation problem is recorded as an event and never becomes a business
 // error.
-func (m *ChatMiddleware) Stream(next chat.Streamer) chat.Streamer {
+func (m *Middleware) Stream(next corechat.Streamer) corechat.Streamer {
 	if isNilCapability(next) {
 		return nil
 	}
-	return chat.StreamerFunc(func(ctx context.Context, request *chat.Request) iter.Seq2[*chat.Response, error] {
-		return func(yield func(*chat.Response, error) bool) {
+	return corechat.StreamerFunc(func(ctx context.Context, request *corechat.Request) iter.Seq2[*corechat.Response, error] {
+		return func(yield func(*corechat.Response, error) bool) {
 			started := time.Now()
 			spanCtx, span := m.start(ctx, request)
 			var (
-				accumulator chat.ResponseAccumulator
+				accumulator corechat.ResponseAccumulator
 				streamErr   error
 				firstToken  bool
 				stopped     bool
@@ -128,11 +125,11 @@ func (m *ChatMiddleware) Stream(next chat.Streamer) chat.Streamer {
 
 			sequence := next.Stream(spanCtx, request)
 			if sequence == nil {
-				streamErr = ErrNilChatStream
+				streamErr = ErrNilStream
 				yield(nil, streamErr)
 				return
 			}
-			sequence(func(chunk *chat.Response, err error) bool {
+			sequence(func(chunk *corechat.Response, err error) bool {
 				if stopped {
 					return false
 				}
@@ -173,9 +170,9 @@ func isNilCapability(value any) bool {
 	}
 }
 
-func (m *ChatMiddleware) start(
+func (m *Middleware) start(
 	ctx context.Context,
-	request *chat.Request,
+	request *corechat.Request,
 ) (context.Context, trace.Span) {
 	model := requestModel(request)
 	name := "chat"
@@ -193,11 +190,11 @@ func (m *ChatMiddleware) start(
 	)
 }
 
-func (m *ChatMiddleware) finish(
+func (m *Middleware) finish(
 	ctx context.Context,
 	span trace.Span,
-	request *chat.Request,
-	response *chat.Response,
+	request *corechat.Request,
+	response *corechat.Response,
 	err error,
 	elapsed time.Duration,
 ) {
@@ -210,10 +207,10 @@ func (m *ChatMiddleware) finish(
 	m.recordMetrics(ctx, request, response, elapsed, err)
 }
 
-func (m *ChatMiddleware) recordMetrics(
+func (m *Middleware) recordMetrics(
 	ctx context.Context,
-	request *chat.Request,
-	response *chat.Response,
+	request *corechat.Request,
+	response *corechat.Response,
 	elapsed time.Duration,
 	err error,
 ) {
@@ -247,7 +244,7 @@ func (m *ChatMiddleware) recordMetrics(
 	}
 }
 
-func requestAttributes(request *chat.Request) []attribute.KeyValue {
+func requestAttributes(request *corechat.Request) []attribute.KeyValue {
 	if request == nil {
 		return nil
 	}
@@ -280,7 +277,7 @@ func requestAttributes(request *chat.Request) []attribute.KeyValue {
 	return attrs
 }
 
-func responseAttributes(response *chat.Response) []attribute.KeyValue {
+func responseAttributes(response *corechat.Response) []attribute.KeyValue {
 	if response == nil {
 		return nil
 	}
@@ -309,7 +306,7 @@ func responseAttributes(response *chat.Response) []attribute.KeyValue {
 	return attrs
 }
 
-func metricAttributes(request *chat.Request, response *chat.Response) []attribute.KeyValue {
+func metricAttributes(request *corechat.Request, response *corechat.Response) []attribute.KeyValue {
 	attrs := make([]attribute.KeyValue, 0, 2)
 	if model := requestModel(request); model != "" {
 		attrs = append(attrs, semconv.GenAIRequestModel(model))
@@ -327,14 +324,14 @@ func metricAttributes(request *chat.Request, response *chat.Response) []attribut
 	return attrs
 }
 
-func requestModel(request *chat.Request) string {
+func requestModel(request *corechat.Request) string {
 	if request == nil {
 		return ""
 	}
 	return request.Options.Model
 }
 
-func hasGeneratedContent(response *chat.Response) bool {
+func hasGeneratedContent(response *corechat.Response) bool {
 	if response == nil {
 		return false
 	}

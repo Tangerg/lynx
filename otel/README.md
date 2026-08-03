@@ -6,16 +6,16 @@ Core 协议能力增加 traces/metrics，并提供把 OTel 三类信号写到
 
 ## Chat instrumentation
 
-根包提供不可变的 `ChatMiddleware`。provider identity 在组合根显式传入，
+`otel/chat` 提供不可变的 `Middleware`。provider identity 在组合根显式传入，
 不要求 `core/chat.Model` 增加 `Metadata`、默认配置或观测方法：
 
 ```go
 import (
 	"github.com/Tangerg/lynx/core/chat"
-	lynxotel "github.com/Tangerg/lynx/otel"
+	otelchat "github.com/Tangerg/lynx/otel/chat"
 )
 
-instrumentation, err := lynxotel.NewChat(lynxotel.ChatConfig{
+instrumentation, err := otelchat.New(otelchat.Config{
 	Provider: "openai",
 })
 if err != nil {
@@ -39,7 +39,7 @@ observedStream := chat.WrapStream(providerStreamer, instrumentation.Stream)
   event，不转换成业务错误。
 - 调用方提前停止迭代时同步结束 span，并依靠底层 Streamer 同步释放资源。
 
-`ChatConfig.TracerProvider` 和 `MeterProvider` 可用于显式注入；为 nil 时在
+`chat.Config.TracerProvider` 和 `MeterProvider` 可用于显式注入；为 nil 时在
 构造阶段取得官方全局 provider。没有安装 SDK provider 时，官方 provider
 为 noop，但 wrapper 自身仍会执行计时、属性读取和流式聚合。
 
@@ -79,13 +79,14 @@ Core 协议代码不变。
 ## Dependency direction
 
 ```text
-core/chat  <--  otel  -->  OpenTelemetry API
-                    \
-                     +-- otel/slog --> OpenTelemetry SDK --> log/slog
+core/chat         <-- otel/chat         --> OpenTelemetry API
+chathistory       <-- otel/chathistory  --> OpenTelemetry API
+core/vectorstore  <-- otel/vectorstore  --> OpenTelemetry API
+                       otel/slog        --> OpenTelemetry SDK --> log/slog
 ```
 
 - Core 用户不引入 `otel` 时，不承担任何 OTel 依赖。
-- `otel` 根包的生产实现只调用官方 API；同一 module 内的 `otel/slog` 和
+- `otel` 目录只是命名空间，不存在根包；各领域 wrapper 只调用官方 API。同一 module 内的 `otel/slog` 和
   测试使用官方 SDK，因此该 module 的 `go.mod` 有 SDK requirement。
 - 本模块不定义 tracer、meter、registry 或 observation 自有抽象。
 - OTLP、Jaeger、Zipkin 等生产 exporter 使用官方实现，不在 Lynx 中复制。

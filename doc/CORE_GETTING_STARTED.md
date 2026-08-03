@@ -10,10 +10,10 @@
 | 定义消息、请求、响应和最小 Model SPI | `core/chat` |
 | 默认参数、middleware、同步/流式调用、模板和结构化输出 | `chatclient` |
 | 最小工具契约、decorator 能力发现和实例 Registry | `tool` |
-| 把 typed function 变成可执行工具 | `tools` |
+| 把 typed function 变成可执行工具 | `tools/function` |
 | 多轮工具执行、普通错误反馈、direct return、暂停/恢复 | `agent/toolloop` |
 | 聊天历史 | `chathistory` |
-| OpenTelemetry | `otel` |
+| OpenTelemetry | `otel/chat`、`otel/chathistory`、`otel/vectorstore`、`otel/slog` |
 
 Provider 只需实现 `chat.Model`；流式能力独立实现 `chat.Streamer`。当前
 OpenAI、Anthropic、Google 和 Ollama 的适配器分别由各 provider 包的

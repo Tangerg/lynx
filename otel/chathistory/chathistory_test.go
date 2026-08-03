@@ -1,10 +1,11 @@
-package otel_test
+package chathistory_test
 
 import (
 	"context"
 	"errors"
 	"testing"
 
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
@@ -12,7 +13,7 @@ import (
 
 	"github.com/Tangerg/lynx/chathistory"
 	"github.com/Tangerg/lynx/core/chat"
-	lynxotel "github.com/Tangerg/lynx/otel"
+	historyotel "github.com/Tangerg/lynx/otel/chathistory"
 )
 
 type historyRecorder struct {
@@ -38,12 +39,12 @@ func (s *historyRecorder) Conversations(context.Context) ([]string, error) {
 	return []string{"one", "two"}, s.err
 }
 
-func newHistoryMiddleware(t *testing.T) (*lynxotel.HistoryMiddleware, *tracetest.SpanRecorder) {
+func newHistoryMiddleware(t *testing.T) (*historyotel.Middleware, *tracetest.SpanRecorder) {
 	t.Helper()
 	recorder := tracetest.NewSpanRecorder()
 	provider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
 	t.Cleanup(func() { _ = provider.Shutdown(context.Background()) })
-	middleware, err := lynxotel.NewHistory(lynxotel.HistoryConfig{
+	middleware, err := historyotel.New(historyotel.Config{
 		System:         "  PostgreSQL  ",
 		TracerProvider: provider,
 	})
@@ -53,8 +54,8 @@ func newHistoryMiddleware(t *testing.T) (*lynxotel.HistoryMiddleware, *tracetest
 	return middleware, recorder
 }
 
-func TestNewHistoryRequiresSystemAndPreservesMissingCapabilities(t *testing.T) {
-	if _, err := lynxotel.NewHistory(lynxotel.HistoryConfig{}); !errors.Is(err, lynxotel.ErrInvalidHistoryConfig) {
+func TestNewRequiresSystemAndPreservesMissingCapabilities(t *testing.T) {
+	if _, err := historyotel.New(historyotel.Config{}); !errors.Is(err, historyotel.ErrInvalidConfig) {
 		t.Fatalf("NewHistory() error = %v", err)
 	}
 	middleware, _ := newHistoryMiddleware(t)
@@ -65,7 +66,7 @@ func TestNewHistoryRequiresSystemAndPreservesMissingCapabilities(t *testing.T) {
 	}
 }
 
-func TestHistoryStorePreservesResultsAndRecordsOperations(t *testing.T) {
+func TestStorePreservesResultsAndRecordsOperations(t *testing.T) {
 	middleware, spans := newHistoryMiddleware(t)
 	wantErr := errors.New("storage failed")
 	store := &historyRecorder{err: wantErr}
@@ -98,7 +99,7 @@ func TestHistoryStorePreservesResultsAndRecordsOperations(t *testing.T) {
 	}
 }
 
-func TestHistoryListerRecordsResultCount(t *testing.T) {
+func TestListerRecordsResultCount(t *testing.T) {
 	middleware, spans := newHistoryMiddleware(t)
 	ids, err := middleware.Conversations(&historyRecorder{}).Conversations(t.Context())
 	if err != nil || len(ids) != 2 {
@@ -107,5 +108,21 @@ func TestHistoryListerRecordsResultCount(t *testing.T) {
 	attrs := spanAttributes(t, spans.Ended()[0])
 	if count := attrs["chat_history.conversation.count"].AsInt64(); count != 2 {
 		t.Fatalf("conversation count = %d, want 2", count)
+	}
+}
+
+func spanAttributes(t *testing.T, span sdktrace.ReadOnlySpan) map[string]attribute.Value {
+	t.Helper()
+	values := make(map[string]attribute.Value, len(span.Attributes()))
+	for _, attr := range span.Attributes() {
+		values[string(attr.Key)] = attr.Value
+	}
+	return values
+}
+
+func assertStringAttr(t *testing.T, attrs map[string]attribute.Value, key, want string) {
+	t.Helper()
+	if got := attrs[key].AsString(); got != want {
+		t.Fatalf("attribute %s = %q, want %q", key, got, want)
 	}
 }

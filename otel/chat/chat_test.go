@@ -1,4 +1,4 @@
-package otel_test
+package chat_test
 
 import (
 	"context"
@@ -15,7 +15,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/Tangerg/lynx/core/chat"
-	lynxotel "github.com/Tangerg/lynx/otel"
+	otelchat "github.com/Tangerg/lynx/otel/chat"
 )
 
 type telemetryRig struct {
@@ -25,7 +25,7 @@ type telemetryRig struct {
 	meters *sdkmetric.MeterProvider
 }
 
-func newRig(t *testing.T, provider string) (*lynxotel.ChatMiddleware, *telemetryRig) {
+func newRig(t *testing.T, provider string) (*otelchat.Middleware, *telemetryRig) {
 	t.Helper()
 	spans := tracetest.NewSpanRecorder()
 	traces := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(spans))
@@ -35,7 +35,7 @@ func newRig(t *testing.T, provider string) (*lynxotel.ChatMiddleware, *telemetry
 		_ = traces.Shutdown(context.Background())
 		_ = meters.Shutdown(context.Background())
 	})
-	middleware, err := lynxotel.NewChat(lynxotel.ChatConfig{
+	middleware, err := otelchat.New(otelchat.Config{
 		Provider:       provider,
 		TracerProvider: traces,
 		MeterProvider:  meters,
@@ -80,8 +80,8 @@ func response(text string, finish chat.FinishReason, input, output int64) *chat.
 	}
 }
 
-func TestNewChatValidatesAndNormalizesProvider(t *testing.T) {
-	if _, err := lynxotel.NewChat(lynxotel.ChatConfig{}); !errors.Is(err, lynxotel.ErrInvalidChatConfig) {
+func TestNewValidatesAndNormalizesProvider(t *testing.T) {
+	if _, err := otelchat.New(otelchat.Config{}); !errors.Is(err, otelchat.ErrInvalidConfig) {
 		t.Fatalf("NewChat error = %v, want ErrInvalidChatConfig", err)
 	}
 
@@ -99,14 +99,14 @@ func TestNewChatValidatesAndNormalizesProvider(t *testing.T) {
 
 	var traces *sdktrace.TracerProvider
 	var meters *sdkmetric.MeterProvider
-	if _, err := lynxotel.NewChat(lynxotel.ChatConfig{
+	if _, err := otelchat.New(otelchat.Config{
 		Provider: "openai", TracerProvider: traces, MeterProvider: meters,
 	}); err != nil {
 		t.Fatalf("typed nil providers must use global defaults: %v", err)
 	}
 }
 
-func TestChatMiddlewarePreservesMissingCapabilities(t *testing.T) {
+func TestMiddlewarePreservesMissingCapabilities(t *testing.T) {
 	middleware, _ := newRig(t, "openai")
 	var model chat.ModelFunc
 	var streamer chat.StreamerFunc
@@ -118,7 +118,7 @@ func TestChatMiddlewarePreservesMissingCapabilities(t *testing.T) {
 	}
 }
 
-func TestChatCallRecordsCurrentGenAISemantics(t *testing.T) {
+func TestCallRecordsCurrentGenAISemantics(t *testing.T) {
 	middleware, rig := newRig(t, "anthropic")
 	want := &chat.Response{
 		ID:    "response-1",
@@ -184,7 +184,7 @@ func TestChatCallRecordsCurrentGenAISemantics(t *testing.T) {
 	assertMetricAttribute(t, metrics, "gen_ai.client.operation.duration", "gen_ai.request.model", "claude-requested")
 }
 
-func TestChatCallPreservesResponseAndError(t *testing.T) {
+func TestCallPreservesResponseAndError(t *testing.T) {
 	middleware, rig := newRig(t, "openai")
 	wantResponse := response("partial", "", 4, 2)
 	wantErr := errors.New("provider failed")
@@ -206,7 +206,7 @@ func TestChatCallPreservesResponseAndError(t *testing.T) {
 	assertMetricAttribute(t, metrics, "gen_ai.client.operation.duration", "error.type", "*errors.errorString")
 }
 
-func TestChatStreamIsLazyAndAggregatesForObservation(t *testing.T) {
+func TestStreamIsLazyAndAggregatesForObservation(t *testing.T) {
 	middleware, rig := newRig(t, "openai")
 	called := false
 	streamer := chat.StreamerFunc(func(context.Context, *chat.Request) iter.Seq2[*chat.Response, error] {
@@ -255,7 +255,7 @@ func TestChatStreamIsLazyAndAggregatesForObservation(t *testing.T) {
 	}
 }
 
-func TestChatStreamEndsSynchronouslyOnConsumerStop(t *testing.T) {
+func TestStreamEndsSynchronouslyOnConsumerStop(t *testing.T) {
 	middleware, rig := newRig(t, "openai")
 	released := false
 	streamer := chat.StreamerFunc(func(context.Context, *chat.Request) iter.Seq2[*chat.Response, error] {
@@ -280,7 +280,7 @@ func TestChatStreamEndsSynchronouslyOnConsumerStop(t *testing.T) {
 	}
 }
 
-func TestChatStreamReportsNilAndProviderErrors(t *testing.T) {
+func TestStreamReportsNilAndProviderErrors(t *testing.T) {
 	t.Run("nil sequence", func(t *testing.T) {
 		middleware, rig := newRig(t, "openai")
 		streamer := chat.StreamerFunc(func(context.Context, *chat.Request) iter.Seq2[*chat.Response, error] { return nil })
@@ -288,7 +288,7 @@ func TestChatStreamReportsNilAndProviderErrors(t *testing.T) {
 		for _, err := range middleware.Stream(streamer).Stream(t.Context(), request("gpt")) {
 			got = err
 		}
-		if !errors.Is(got, lynxotel.ErrNilChatStream) || rig.spans.Ended()[0].Status().Code != codes.Error {
+		if !errors.Is(got, otelchat.ErrNilStream) || rig.spans.Ended()[0].Status().Code != codes.Error {
 			t.Fatalf("error/status = %v/%v", got, rig.spans.Ended()[0].Status())
 		}
 	})
@@ -331,7 +331,7 @@ func TestChatStreamReportsNilAndProviderErrors(t *testing.T) {
 	})
 }
 
-func TestChatStreamDoesNotTurnObservationFailureIntoBusinessFailure(t *testing.T) {
+func TestStreamDoesNotTurnObservationFailureIntoBusinessFailure(t *testing.T) {
 	middleware, rig := newRig(t, "openai")
 	invalid := &chat.Response{Choices: []chat.Choice{{Index: -1, FinishReason: chat.FinishReasonStop}}}
 	streamer := chat.StreamerFunc(func(context.Context, *chat.Request) iter.Seq2[*chat.Response, error] {

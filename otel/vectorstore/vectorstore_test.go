@@ -1,10 +1,11 @@
-package otel_test
+package vectorstore_test
 
 import (
 	"context"
 	"errors"
 	"testing"
 
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
@@ -12,7 +13,7 @@ import (
 
 	"github.com/Tangerg/lynx/core/document"
 	"github.com/Tangerg/lynx/core/vectorstore"
-	lynxotel "github.com/Tangerg/lynx/otel"
+	vectorotel "github.com/Tangerg/lynx/otel/vectorstore"
 )
 
 type indexerFunc func(context.Context, []*document.Document) error
@@ -27,12 +28,12 @@ func (f searcherFunc) Search(ctx context.Context, request vectorstore.SearchRequ
 	return f(ctx, request)
 }
 
-func newVectorStoreMiddleware(t *testing.T) (*lynxotel.VectorStoreMiddleware, *tracetest.SpanRecorder) {
+func newVectorStoreMiddleware(t *testing.T) (*vectorotel.Middleware, *tracetest.SpanRecorder) {
 	t.Helper()
 	recorder := tracetest.NewSpanRecorder()
 	provider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
 	t.Cleanup(func() { _ = provider.Shutdown(context.Background()) })
-	middleware, err := lynxotel.NewVectorStore(lynxotel.VectorStoreConfig{
+	middleware, err := vectorotel.New(vectorotel.Config{
 		System:         "  Qdrant  ",
 		Collection:     "knowledge",
 		Namespace:      "tenant",
@@ -44,17 +45,17 @@ func newVectorStoreMiddleware(t *testing.T) (*lynxotel.VectorStoreMiddleware, *t
 	return middleware, recorder
 }
 
-func TestNewVectorStoreRequiresSystem(t *testing.T) {
-	if _, err := lynxotel.NewVectorStore(lynxotel.VectorStoreConfig{}); !errors.Is(err, lynxotel.ErrInvalidVectorStoreConfig) {
+func TestNewRequiresSystem(t *testing.T) {
+	if _, err := vectorotel.New(vectorotel.Config{}); !errors.Is(err, vectorotel.ErrInvalidConfig) {
 		t.Fatalf("NewVectorStore() error = %v, want ErrInvalidVectorStoreConfig", err)
 	}
 	var provider *sdktrace.TracerProvider
-	if _, err := lynxotel.NewVectorStore(lynxotel.VectorStoreConfig{System: "qdrant", TracerProvider: provider}); err != nil {
+	if _, err := vectorotel.New(vectorotel.Config{System: "qdrant", TracerProvider: provider}); err != nil {
 		t.Fatalf("typed nil tracer provider must use global default: %v", err)
 	}
 }
 
-func TestVectorStoreMiddlewarePreservesMissingCapabilities(t *testing.T) {
+func TestMiddlewarePreservesMissingCapabilities(t *testing.T) {
 	middleware, _ := newVectorStoreMiddleware(t)
 	var indexer indexerFunc
 	var searcher searcherFunc
@@ -74,7 +75,7 @@ func TestVectorStoreMiddlewarePreservesMissingCapabilities(t *testing.T) {
 	}
 }
 
-func TestVectorStoreIndexPreservesNarrowCapabilityAndError(t *testing.T) {
+func TestIndexPreservesNarrowCapabilityAndError(t *testing.T) {
 	middleware, recorder := newVectorStoreMiddleware(t)
 	want := errors.New("write failed")
 	var sawSpan bool
@@ -104,7 +105,7 @@ func TestVectorStoreIndexPreservesNarrowCapabilityAndError(t *testing.T) {
 	}
 }
 
-func TestVectorStoreSearchPreservesMatchesAndRecordsCount(t *testing.T) {
+func TestSearchPreservesMatchesAndRecordsCount(t *testing.T) {
 	middleware, recorder := newVectorStoreMiddleware(t)
 	want := []vectorstore.Match{{Document: &document.Document{ID: "one", Text: "one"}, Score: 0.9}}
 	wrapped := middleware.Search(searcherFunc(func(context.Context, vectorstore.SearchRequest) ([]vectorstore.Match, error) {
@@ -126,5 +127,21 @@ func TestVectorStoreSearchPreservesMatchesAndRecordsCount(t *testing.T) {
 	}
 	if threshold := attrs["db.vector.query.similarity_threshold"].AsFloat64(); threshold != 0 {
 		t.Fatalf("db.vector.query.similarity_threshold = %v, want 0", threshold)
+	}
+}
+
+func spanAttributes(t *testing.T, span sdktrace.ReadOnlySpan) map[string]attribute.Value {
+	t.Helper()
+	values := make(map[string]attribute.Value, len(span.Attributes()))
+	for _, attr := range span.Attributes() {
+		values[string(attr.Key)] = attr.Value
+	}
+	return values
+}
+
+func assertStringAttr(t *testing.T, attrs map[string]attribute.Value, key, want string) {
+	t.Helper()
+	if got := attrs[key].AsString(); got != want {
+		t.Fatalf("attribute %s = %q, want %q", key, got, want)
 	}
 }

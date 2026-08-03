@@ -2,7 +2,7 @@
 
 > Lynx 在应用、integration 和独立 `otel` module 中**直接使用 OpenTelemetry API**，不自造观测抽象。Core 不 import OTel；`otel` wrapper 从外层包装 Core 协议调用。
 >
-> **当前状态（2026-07-14 更新）**：Traces / Metrics / Logs 都是 OTel 信号，dev 统一 sink 到 `log/slog`、生产换 OTLP。`otel.ChatMiddleware`、`otel/slog` 的三个 exporter 与 `app/runtime` startup 组合根已经可用；RAG、MCP、Agent、VectorStore、ChatHistory 的外圈埋点继续直接使用官方 API。Core 的生产代码和 module graph 不依赖 OTel；Chat/Embedding 等能力在独立 `otel` module 或消费方边界包装。
+> **当前状态（2026-07-14 更新）**：Traces / Metrics / Logs 都是 OTel 信号，dev 统一 sink 到 `log/slog`、生产换 OTLP。`otel/chat.Middleware`、`otel/slog` 的三个 exporter 与 `app/runtime` startup 组合根已经可用；RAG、MCP、Agent、VectorStore、ChatHistory 的外圈埋点继续直接使用官方 API。Core 的生产代码和 module graph 不依赖 OTel；Chat/Embedding 等能力在独立 `otel` module 或消费方边界包装。
 
 ---
 
@@ -116,10 +116,10 @@ semconv 已有的概念用 semconv key；没有的用裸 domain（无 `lynx.`/`l
 
 ### 4.1 Chat Model
 
-Model 埋点属于 `otel` wrapper，不属于 Core Client。provider identity 等观测属性在构造 wrapper 时显式传入，不通过 Core Model 强制 `Metadata()`：
+Model 埋点属于 `otel/chat` wrapper，不属于 Core Client。provider identity 等观测属性在构造 wrapper 时显式传入，不通过 Core Model 强制 `Metadata()`：
 
 ```go
-instrumentation, err := lynxotel.NewChat(lynxotel.ChatConfig{
+instrumentation, err := otelchat.New(otelchat.Config{
 	Provider: "openai",
 })
 if err != nil {
@@ -130,7 +130,7 @@ model := chat.Wrap(providerModel, instrumentation.Call)
 streamer := chat.WrapStream(providerStreamer, instrumentation.Stream)
 ```
 
-真实实现位于 `otel/chat.go`：Call/Stream 能力保持分离，构造时可显式注入
+真实实现位于 `otel/chat`：Call/Stream 能力保持分离，构造时可显式注入
 `trace.TracerProvider` / `metric.MeterProvider`，并发安全。Embedding 使用当前
 `core/embedding` 最小能力；需要埋点时同样在 `otel` 或消费方 decorator 包装，Core
 不定义观测接口。
@@ -172,11 +172,11 @@ func (p *Pipeline) Execute(ctx context.Context, q *Query) (*Query, error) {
 ### 4.4 VectorStore
 
 VectorStore provider 只实现存储协议，不 import OTel。需要观测时由组合根使用
-`otel.NewVectorStore` 创建 middleware，再按目标的实际能力分别包装 `Indexer`、
+`otel/vectorstore.New` 创建 middleware，再按目标的实际能力分别包装 `Indexer`、
 `Searcher`、`IDDeleter` 与 `FilterDeleter`；不会把不支持的能力伪装出来。
 
 ```go
-instrumentation, err := lynxotel.NewVectorStore(lynxotel.VectorStoreConfig{
+instrumentation, err := otelvectorstore.New(otelvectorstore.Config{
 	System:     "qdrant",
 	Collection: "knowledge",
 })
@@ -264,14 +264,14 @@ Core 本身不含埋点。调用方不安装 wrapper 时就是直接协议调用
 
 ```go
 func main() {
-	instrumentation, _ := lynxotel.NewChat(lynxotel.ChatConfig{Provider: "openai"})
+	instrumentation, _ := otelchat.New(otelchat.Config{Provider: "openai"})
 	model := chat.Wrap(providerModel, instrumentation.Call)
 	model.Call(ctx, req)
 	// 没有 SDK provider 时不导出 span/metric。
 }
 ```
 
-noop 只表示信号不导出。`ChatMiddleware` 仍执行计时、属性投影以及 stream
+noop 只表示信号不导出。`otel/chat.Middleware` 仍执行计时、属性投影以及 stream
 response 聚合；需要评估热路径成本时必须用 benchmark/pprof 测量，不能把
 “provider noop”推导成“wrapper 零成本”。
 
@@ -427,7 +427,7 @@ otel.SetTracerProvider(tp)
 ### 8.2 已就绪（外圈发射侧）
 
 - [x] `rag/pipeline.go` 五阶段加 span（`rag.pipeline` 父 span + Query/Retrieve/Augment/Generate/Stream 子 span）
-- [x] `otel.NewVectorStore` 从外层为 VectorStore 发射统一的 `db.vector.*` 埋点；25 个 provider 保持纯存储职责，CockroachDB 与 pgvector 仅复用 module-internal PostgreSQL 执行内核，不存在伪 provider alias
+- [x] `otel/vectorstore.New` 从外层为 VectorStore 发射统一的 `db.vector.*` 埋点；25 个 provider 保持纯存储职责，CockroachDB 与 pgvector 仅复用 module-internal PostgreSQL 执行内核，不存在伪 provider alias
 - [x] `mcp/tool.go::Tool.Call` + `mcp/server.go::makeServerHandler` 加 `mcp.tool.call` / `mcp.tool.serve` span
 - [x] `agent/runtime/` tick / action / plan 全套埋点：span（含 HTN / Reactive / GOAP planner）+ metrics（`agent.ticks` / `agent.action.executions` / `agent.action.duration` / `agent.plan.duration` / `agent.process.exits`）
 - [x] `chathistory/{postgres,redis,mongodb,cassandra,neo4j,cosmosdb}` 6 个 provider Read/Write/Clear 加 DB-semconv span
@@ -435,7 +435,7 @@ otel.SetTracerProvider(tp)
 
 ### 8.3 Core 外移状态
 
-- [x] P3-06：新增 `otel.ChatMiddleware`，以独立 Call/Stream middleware 包装目标 `core/chat` 能力
+- [x] P3-06：新增 `otel/chat.Middleware`，以独立 Call/Stream middleware 包装目标 `core/chat` 能力
 - [x] P3-06：删除 `core/model/chat`、`core/model/embedding` 旧 tracing 与 Core 通用 metrics，不建立旧 API adapter
 - [x] P5-01：建立 `core/embedding` 最小能力，Core 不复制旧 wrapper；Embedding 埋点归外圈 decorator
 - [x] P3-07/P3-08：tool/tool-loop 观测归 `tools`、`agent`、MCP/A2A adapter 或外圈 decorator
