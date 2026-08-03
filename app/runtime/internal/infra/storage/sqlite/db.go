@@ -314,6 +314,14 @@ func installCurrentSchema(db *sql.DB, path string) error {
 			revision   INTEGER NOT NULL CHECK (revision > 0),
 			updated_at INTEGER NOT NULL
 		)`,
+		// A session gets an explicit permission row only after entering Plan mode.
+		// The row retains the exact mode to restore on exit and follows the owning
+		// session through the database FK lifecycle.
+		`CREATE TABLE IF NOT EXISTS session_permission_modes (
+			session_id   TEXT    PRIMARY KEY REFERENCES sessions(id) ON DELETE CASCADE,
+			mode         INTEGER NOT NULL,
+			restore_mode INTEGER NOT NULL
+		)`,
 		// One row per terminal Run: the session's Plan as it stood when that Run
 		// ended. session_plans is a latest-value projection with no history, so without
 		// this row "the Plan at Run X" is unknowable — and sessions.rollback and

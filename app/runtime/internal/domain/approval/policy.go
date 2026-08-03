@@ -1,9 +1,11 @@
 // Package approval defines the runtime tool-call approval policy. Two concerns
 // live here:
 //
-//   - Mode: the runtime-wide stance (plan / safe / balanced / yolo) the chat
-//     engine reads at each tool call to decide whether a call runs, is denied,
-//     or must pause for approval. The HITL pause/resume is the R model (the
+//   - Mode: the effective session permission stance the chat engine reads at
+//     each tool call to decide whether a call runs, is denied, or must pause for
+//     approval. safe / balanced / yolo are runtime defaults; Plan mode is a
+//     persisted session overlay entered only through enter_plan_mode. The HITL
+//     pause/resume is the R model: the
 //     executor parks a suspension and the client later supplies one typed
 //     resolution through the application continuation boundary.
 //   - Rules: persistent, fine-grained "remember this decision" rules. A rule
@@ -22,14 +24,16 @@ import (
 
 var (
 	ErrInvalidMode          = errors.New("approval: invalid mode")
+	ErrInvalidSessionMode   = errors.New("approval: invalid session mode")
+	ErrModeStoreUnavailable = errors.New("approval: session mode store unavailable")
 	ErrInvalidQuery         = errors.New("approval: invalid query")
 	ErrInvalidRule          = errors.New("approval: invalid rule")
 	ErrRuleStoreUnavailable = errors.New("approval: rule store unavailable")
 )
 
-// Mode is the runtime-wide permission stance. Set via config or the
-// approval.setMode method; read at each tool call by the chat
-// engine's approval gate.
+// Mode is one effective tool-permission stance. Safe, balanced, and yolo may be
+// configured as runtime defaults. Plan is an internal session-only overlay and
+// is never accepted as a runtime default.
 //
 // Strictness gradient (strictest → loosest):
 //
@@ -50,11 +54,11 @@ const (
 	ModeBalanced
 	// ModeYolo — auto-allow everything (use at your own risk).
 	ModeYolo
-	// ModePlan — the read-only planning stance: every write / exec /
+	// ModePlan — the session-scoped read-only planning stance: every write / exec /
 	// network tool is denied outright (no prompt) so the agent can only
 	// investigate and draft a plan; the model sees the refusal as a tool
 	// error and adapts. The exit_plan_mode tool presents the plan for
-	// approval and flips the stance back to execute (ModeBalanced).
+	// approval and restores the session's exact entry permission mode.
 	ModePlan
 )
 
@@ -65,6 +69,10 @@ func (m Mode) Valid() bool {
 	default:
 		return false
 	}
+}
+
+func (m Mode) defaultValid() bool {
+	return m == ModeSafe || m == ModeBalanced || m == ModeYolo
 }
 
 // Scope is how far a remembered rule reaches.

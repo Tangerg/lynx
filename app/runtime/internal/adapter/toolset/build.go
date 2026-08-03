@@ -13,6 +13,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/askuser"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/codebasesearch"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/editguardstate"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/enterplan"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/exitplan"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/goaltool"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/lsptools"
@@ -43,6 +44,20 @@ type CodebaseIndex interface {
 	Available(ctx context.Context) (bool, error)
 }
 
+// PlanStore is the two real Plan-tool views joined at assembly: set_plan writes
+// the whole value and exit_plan_mode reads the value it presents for approval.
+type PlanStore interface {
+	plantool.Store
+	exitplan.PlanReader
+}
+
+// PlanModePolicy is the narrow session-mode surface used by the enter/exit
+// tools and by resolver visibility. Approval rules are deliberately absent.
+type PlanModePolicy interface {
+	enterplan.ModePolicy
+	exitplan.ModePolicy
+}
+
 // BuildConfig is the tool-environment construction input (the working-directory
 // scope + the capability tables). Driven by the runtime config.
 type BuildConfig struct {
@@ -54,8 +69,8 @@ type BuildConfig struct {
 	// after reconnects; toolset deliberately does not own MCP connections.
 	MCPTools       []toolcontract.Tool
 	A2AAgents      []A2AAgentConfig
-	Plan           plantool.Store      // backs set_plan; nil → the tool is omitted
-	Approval       exitplan.ModePolicy // backs exit_plan_mode (flips the stance on approval); nil → the tool is omitted
+	Plan           PlanStore      // backs set_plan + exit_plan_mode; nil → both are omitted
+	PlanMode       PlanModePolicy // session-scoped Plan mode; nil → enter/exit are omitted
 	Interrupt      runs.InterruptFunc
 	Schedules      ScheduleManagement     // backs the schedule tool; nil → omitted
 	ToolResults    toolresult.Store       // backs read_tool_result (reads offloaded tool output); nil → omitted
@@ -163,10 +178,13 @@ func Build(ctx context.Context, config BuildConfig) (_ Built, err error) {
 		return Built{}, fmt.Errorf("toolset: build ask_user: %w", err)
 	}
 
-	// exit_plan_mode leaves the read-only plan stance: it presents the model's
-	// plan for approval and, on approval, flips the approval stance to execute.
-	// Nil approval policy → nil tool, simply omitted.
-	exitPlanTool, err := exitplan.New(config.Approval, interrupt)
+	// Plan-mode tools mutate only one session. exit_plan_mode reads the canonical
+	// Plan instead of accepting a second model-supplied Plan value.
+	enterPlanTool, err := enterplan.New(config.PlanMode)
+	if err != nil {
+		return Built{}, fmt.Errorf("toolset: build enter_plan_mode: %w", err)
+	}
+	exitPlanTool, err := exitplan.New(config.PlanMode, config.Plan, interrupt)
 	if err != nil {
 		return Built{}, fmt.Errorf("toolset: build exit_plan_mode: %w", err)
 	}
@@ -234,6 +252,7 @@ func Build(ctx context.Context, config BuildConfig) (_ Built, err error) {
 		LSP:             lspTools,
 		Shell:           shellTools,
 		AskUser:         askUserTool,
+		EnterPlan:       enterPlanTool,
 		ExitPlan:        exitPlanTool,
 		Plan:            planTool,
 		Schedule:        scheduleTool,

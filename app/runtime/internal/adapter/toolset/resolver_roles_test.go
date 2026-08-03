@@ -25,6 +25,9 @@ type failingGoalState struct{ err error }
 type rolePlanStore struct{}
 
 func (rolePlanStore) Replace(context.Context, string, []plan.Step) error { return nil }
+func (rolePlanStore) List(context.Context, string) ([]plan.Step, error) {
+	return []plan.Step{{Description: "implement", Status: plan.StatusPending}}, nil
+}
 
 func (s failingGoalState) Active(context.Context, string) (bool, error) { return false, s.err }
 func (failingGoalState) Report(context.Context, goals.ReportCommand) (goals.ReportResult, error) {
@@ -39,14 +42,14 @@ func (availabilityIndex) Search(context.Context, string, string, int) ([]codebas
 	return nil, nil
 }
 
-func TestSubtaskRoleCanAskExitPlanAndDelegateWithoutRootTools(t *testing.T) {
-	policy, err := approval.New(approval.ModeBalanced, nil)
+func TestPlanModeToolsAreRootOnly(t *testing.T) {
+	policy, err := approval.New(approval.ModeBalanced, nil, nil)
 	if err != nil {
 		t.Fatalf("approval policy: %v", err)
 	}
 	built, err := Build(t.Context(), BuildConfig{
 		Workdir:  t.TempDir(),
-		Approval: policy,
+		PlanMode: policy,
 		Plan:     rolePlanStore{},
 		Interrupt: func(context.Context, string, runs.Interrupt) (interrupts.Resolution, error) {
 			return interrupts.Resolution{}, nil
@@ -81,14 +84,14 @@ func TestSubtaskRoleCanAskExitPlanAndDelegateWithoutRootTools(t *testing.T) {
 	for _, tool := range resolvedTools {
 		names[tool.Definition().Name] = true
 	}
-	if !names["ask_user"] || !names["exit_plan_mode"] {
-		t.Fatalf("subtask tools = %v, want ask_user and exit_plan_mode", names)
+	if !names["ask_user"] {
+		t.Fatalf("subtask tools = %v, want ask_user", names)
 	}
 	if !names["task"] || names["schedule"] {
 		t.Fatalf("subtask tools = %v, want bounded task delegation without root-only schedule", names)
 	}
-	if names["set_plan"] {
-		t.Fatalf("subtask tools = %v; a child must not replace the root Agent's Plan", names)
+	if names["enter_plan_mode"] || names["exit_plan_mode"] || names["set_plan"] {
+		t.Fatalf("subtask tools = %v; Plan control belongs only to the root Agent", names)
 	}
 
 	coding, ok, err := built.Resolver.Resolve(t.Context(), domaintool.GroupCoding)
@@ -100,11 +103,15 @@ func TestSubtaskRoleCanAskExitPlanAndDelegateWithoutRootTools(t *testing.T) {
 		t.Fatalf("coding Tools: %v", err)
 	}
 	foundPlan := false
+	foundEnter := false
+	foundExit := false
 	for _, candidate := range codingTools {
 		foundPlan = foundPlan || candidate.Definition().Name == "set_plan"
+		foundEnter = foundEnter || candidate.Definition().Name == "enter_plan_mode"
+		foundExit = foundExit || candidate.Definition().Name == "exit_plan_mode"
 	}
-	if !foundPlan {
-		t.Fatal("coding tools omit root-only set_plan")
+	if !foundPlan || !foundEnter || !foundExit {
+		t.Fatalf("coding tools: set_plan=%v enter=%v exit=%v", foundPlan, foundEnter, foundExit)
 	}
 }
 

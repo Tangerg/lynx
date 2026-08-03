@@ -11,15 +11,15 @@ import (
 // White-box tests: the matching/precedence rules are the heart of the rule
 // engine, so they're exercised directly alongside the policy round-trips.
 
-func TestModeGetSet(t *testing.T) {
+func TestDefaultModeGetSet(t *testing.T) {
 	svc := mustPolicy(t, ModeYolo, nil)
-	if m, _ := svc.Mode(context.Background()); m != ModeYolo {
+	if m, _ := svc.DefaultMode(context.Background()); m != ModeYolo {
 		t.Fatalf("initial mode = %v, want Yolo", m)
 	}
-	if err := svc.SetMode(context.Background(), ModeBalanced); err != nil {
-		t.Fatalf("SetMode: %v", err)
+	if err := svc.SetDefaultMode(context.Background(), ModeBalanced); err != nil {
+		t.Fatalf("SetDefaultMode: %v", err)
 	}
-	if m, _ := svc.Mode(context.Background()); m != ModeBalanced {
+	if m, _ := svc.Mode(context.Background(), "session-1"); m != ModeBalanced {
 		t.Fatalf("mode after set = %v, want Balanced", m)
 	}
 }
@@ -138,15 +138,98 @@ func TestNilStore(t *testing.T) {
 }
 
 func TestPolicyRejectsInvalidMode(t *testing.T) {
-	if _, err := New(Mode(255), nil); !errors.Is(err, ErrInvalidMode) {
+	if _, err := New(Mode(255), nil, nil); !errors.Is(err, ErrInvalidMode) {
 		t.Fatalf("New invalid mode error = %v, want ErrInvalidMode", err)
 	}
-	svc := mustPolicy(t, ModeSafe, nil)
-	if err := svc.SetMode(t.Context(), Mode(255)); !errors.Is(err, ErrInvalidMode) {
-		t.Fatalf("SetMode invalid mode error = %v, want ErrInvalidMode", err)
+	if _, err := New(ModePlan, nil, nil); !errors.Is(err, ErrInvalidMode) {
+		t.Fatalf("New Plan default error = %v, want ErrInvalidMode", err)
 	}
-	if got, err := svc.Mode(t.Context()); err != nil || got != ModeSafe {
+	svc := mustPolicy(t, ModeSafe, nil)
+	if err := svc.SetDefaultMode(t.Context(), Mode(255)); !errors.Is(err, ErrInvalidMode) {
+		t.Fatalf("SetDefaultMode invalid mode error = %v, want ErrInvalidMode", err)
+	}
+	if got, err := svc.Mode(t.Context(), ""); err != nil || got != ModeSafe {
 		t.Fatalf("mode after rejected update = (%v, %v), want safe", got, err)
+	}
+}
+
+type memoryModeStore struct{ states map[string]SessionMode }
+
+func (s *memoryModeStore) GetMode(_ context.Context, sessionID string) (SessionMode, bool, error) {
+	state, found := s.states[sessionID]
+	return state, found, nil
+}
+
+func (s *memoryModeStore) PutMode(_ context.Context, sessionID string, state SessionMode) error {
+	s.states[sessionID] = state
+	return nil
+}
+
+func TestPlanModeIsSessionScopedAndRestoresEntryMode(t *testing.T) {
+	modes := &memoryModeStore{states: make(map[string]SessionMode)}
+	policy, err := New(ModeBalanced, nil, modes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if changed, err := policy.EnterPlanMode(t.Context(), "session-a"); err != nil || !changed {
+		t.Fatalf("EnterPlanMode = %v, %v", changed, err)
+	}
+	if mode, _ := policy.Mode(t.Context(), "session-a"); mode != ModePlan {
+		t.Fatalf("session-a mode = %v, want Plan", mode)
+	}
+	if mode, _ := policy.Mode(t.Context(), "session-b"); mode != ModeBalanced {
+		t.Fatalf("session-b mode = %v, want Balanced", mode)
+	}
+	if err := policy.SetDefaultMode(t.Context(), ModeYolo); err != nil {
+		t.Fatal(err)
+	}
+	if changed, err := policy.EnterPlanMode(t.Context(), "session-a"); err != nil || changed {
+		t.Fatalf("second EnterPlanMode = %v, %v, want unchanged", changed, err)
+	}
+	restored, changed, err := policy.ExitPlanMode(t.Context(), "session-a")
+	if err != nil || !changed || restored != ModeBalanced {
+		t.Fatalf("ExitPlanMode = %v, %v, %v", restored, changed, err)
+	}
+	if mode, _ := policy.Mode(t.Context(), "session-a"); mode != ModeBalanced {
+		t.Fatalf("restored session-a mode = %v, want captured Balanced", mode)
+	}
+	if mode, _ := policy.Mode(t.Context(), "session-b"); mode != ModeYolo {
+		t.Fatalf("session-b mode = %v, want new default Yolo", mode)
+	}
+}
+
+func TestSessionModeValidation(t *testing.T) {
+	tests := []struct {
+		name  string
+		state SessionMode
+		valid bool
+	}{
+		{name: "Plan restores safe", state: SessionMode{Mode: ModePlan, RestoreMode: ModeSafe}, valid: true},
+		{name: "Plan restores balanced", state: SessionMode{Mode: ModePlan, RestoreMode: ModeBalanced}, valid: true},
+		{name: "explicit yolo", state: SessionMode{Mode: ModeYolo}, valid: true},
+		{name: "Plan cannot restore Plan", state: SessionMode{Mode: ModePlan, RestoreMode: ModePlan}},
+		{name: "unknown mode", state: SessionMode{Mode: Mode(255)}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			err := test.state.Validate()
+			if test.valid && err != nil {
+				t.Fatalf("Validate: %v", err)
+			}
+			if !test.valid && !errors.Is(err, ErrInvalidSessionMode) {
+				t.Fatalf("Validate error = %v, want ErrInvalidSessionMode", err)
+			}
+		})
+	}
+}
+
+func TestPlanModeRequiresDurableStore(t *testing.T) {
+	policy := mustPolicy(t, ModeBalanced, nil)
+	if _, err := policy.EnterPlanMode(t.Context(), "session-a"); !errors.Is(err, ErrModeStoreUnavailable) {
+		t.Fatalf("EnterPlanMode error = %v, want ErrModeStoreUnavailable", err)
+	}
+	if _, _, err := policy.ExitPlanMode(t.Context(), "session-a"); !errors.Is(err, ErrModeStoreUnavailable) {
+		t.Fatalf("ExitPlanMode error = %v, want ErrModeStoreUnavailable", err)
 	}
 }
 
@@ -188,7 +271,7 @@ func TestPolicyRejectsMissingRequiredRuleSubject(t *testing.T) {
 
 func mustPolicy(t *testing.T, mode Mode, store RuleStore) *RuntimePolicy {
 	t.Helper()
-	policy, err := New(mode, store)
+	policy, err := New(mode, store, nil)
 	if err != nil {
 		t.Fatalf("New policy: %v", err)
 	}

@@ -186,7 +186,7 @@ func (t *toolGate) ApproveToolCall(ctx context.Context, callID, toolName, argume
 		}
 	}
 
-	mode, err := t.dispatcher.approval.Mode(ctx)
+	mode, err := t.dispatcher.approval.Mode(ctx, t.st.handle.SessionID)
 	if err != nil {
 		return agentexec.ToolApprovalVerdict{Denied: true, DenyReason: "approval mode unavailable"}
 	}

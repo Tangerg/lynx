@@ -64,8 +64,8 @@ type integrationUseCases interface {
 type approvalUseCases interface {
 	ForgetRule(ctx context.Context, id string) error
 	ListRules(ctx context.Context, sessionID string) ([]approval.Rule, error)
-	Mode(ctx context.Context) (approval.Mode, error)
-	SetMode(ctx context.Context, mode approval.Mode) error
+	DefaultMode(ctx context.Context) (approval.Mode, error)
+	SetDefaultMode(ctx context.Context, mode approval.Mode) error
 }
 
 type modelUseCases interface {

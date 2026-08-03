@@ -60,7 +60,7 @@
 - `description` 是非空步骤描述；
 - `status` 只允许 `pending | in_progress | completed`；
 - 最多一个 Step 为 `in_progress`；
-- 工具只修改 Agent 状态，不修改 workspace，也不切换 Plan mode；
+- 工具只修改 session Plan 状态，不修改 workspace，也不切换 Plan mode；
 - Plan 状态逐轮注入上下文，因此不提供 `get_plan`。
 
 ### `exit_plan_mode`
@@ -89,6 +89,8 @@
 - **Unavailable**：当前 Run 不注册。
 
 可见性过滤不是授权。执行时仍按 permission action、session mode 和安全策略重新判定。
+
+`enter_plan_mode` 与 `exit_plan_mode` 是一个例外：两者始终同时对根 coding Agent 可见，执行时分别校验当前 session 状态。Agent 的一次 Prompt 在开始时解析工具 registry，后续 tool rounds 复用该 registry；若按 Plan mode 动态隐藏其中一个，模型进入后同一轮无法退出。Runtime 不把应用状态泄露进 `agent` 核心来制造动态 registry 刷新。
 
 初始 Direct 工具保持精简：文件读取与搜索、一个模型适配的文件修改族、shell、用户提问、Plan、Goal、委派和工具发现。网络、记忆、LSP、Skill、MCP、A2A、Schedule 等默认 Deferred 或按状态出现。
 
@@ -150,7 +152,7 @@
 | 0 | 固化词汇、契约、删除范围和服务端实施台账 | 完成 |
 | 1 | 工具 Definition、schema、result 和错误基础协议 | 完成 |
 | 2a | Plan 领域、持久化、wire、归档和工具替换 | 完成 |
-| 2b | session-scoped Plan mode | 待开始 |
+| 2b | session-scoped Plan mode | 完成 |
 | 3 | `create_goal` 与 idle continuation | 待开始 |
 | 4 | Manifest、Exposure、模型/状态驱动工具清单 | 待开始 |
 | 5 | 工具名、参数和描述的全量收敛 | 待开始 |
@@ -189,3 +191,14 @@
 - `app/runtime` 的根模块依赖提升到已推送的工具 schema 版本，保证 workspace 与 `GOWORK=off` 使用同一份 input contract；
 - 服务端 contract 和 Go wire validator 已重新生成；按本轮范围未修改桌面端 TypeScript、canonical sample 或协议文档，其 drift 留给服务端工具契约稳定后的前端专项；
 - 边界审计确认 Plan 领域留在 `app/runtime`，`agent` 模块没有导入 runtime；tool adapter 仅依赖消费方定义的 `List/Replace` 或只读 `State` 窄端口，没有把 SQLite、delivery DTO、session aggregate 或 runtime Engine 泄露进 Agent 核心。
+
+### 批次 2b
+
+- 将 `safe | balanced | yolo` 收敛为 runtime default permission mode；`plan` 不再是 `approval.getMode/setMode` 可读写的全局值，而是持久化的 session overlay；
+- 新增无参数 `enter_plan_mode`：只收窄当前 session 权限并捕获进入时的精确 mode；重复进入幂等，不覆盖最初恢复值；
+- 将 `exit_plan_mode` 改为无参数：只读取并展示 canonical session Plan，不再接受第二份 `plan` 文本或 `options`，避免“Agent 状态”和“待审批文本”分叉；拒绝保持 Plan mode，批准恢复进入时捕获的 mode；
+- Plan mode 通过 `session_permission_modes` 持久化并由 session foreign key 管理生命周期；默认 mode 在进出期间改变，也不会改变该 session 的精确恢复结果；
+- 三个 Plan 工具只对根 coding Agent 可见，子 Agent 无进入、退出或共享 Plan 写权限；`enter_plan_mode`、`set_plan`、`exit_plan_mode` 均归入无需外层 approval 的 safe control operation，其中退出工具自己拥有一次明确审批；
+- 删除最初尝试的 mode-driven resolver gate：一次 Agent Prompt 不会在 tool rounds 之间重建 registry，保留该 gate 会导致进入后无法退出。两个 mode 工具改为同时可见并在执行边界校验状态，没有为产品状态修改 `agent` 核心；
+- 边界审计确认 permission policy、Plan mode store、Plan tool adapters 和 delivery mapping 全部留在 `app/runtime`；turn 只依赖 `Mode(ctx, sessionID)`，工具只依赖 `EnterPlanMode`、`ExitPlanMode`、`List` 窄端口，SQLite 实现未穿透到 resolver 或 Agent；
+- 服务端 schema 与 Go validator 已重新生成；仍按本轮范围不修改桌面 TypeScript 和 canonical samples，因此完整 drift 测试继续只报告已记录的前端接线差异。

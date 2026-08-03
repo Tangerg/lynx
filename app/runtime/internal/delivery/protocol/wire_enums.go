@@ -21,7 +21,7 @@ var wireEnums = map[reflect.Type][]string{
 	reflect.TypeFor[AgentMemoryScope]():                  {string(AgentMemoryScopeProject), string(AgentMemoryScopeUser)},
 	reflect.TypeFor[AgentMemoryStatus]():                 {string(AgentMemoryStatusActive), string(AgentMemoryStatusPending)},
 	reflect.TypeFor[ApprovalDecision]():                  {string(ApprovalApprove), string(ApprovalDeny)},
-	reflect.TypeFor[ApprovalMode]():                      {string(ApprovalModeSafe), string(ApprovalModeBalanced), string(ApprovalModeYolo), string(ApprovalModePlan)},
+	reflect.TypeFor[ApprovalMode]():                      {string(ApprovalModeSafe), string(ApprovalModeBalanced), string(ApprovalModeYolo)},
 	reflect.TypeFor[ApprovalRisk]():                      {string(ApprovalRiskLow), string(ApprovalRiskMedium), string(ApprovalRiskHigh)},
 	reflect.TypeFor[ApprovalRuleDecision]():              {string(ApprovalRuleDecisionAllow), string(ApprovalRuleDecisionDeny)},
 	reflect.TypeFor[ApprovalRuleScope]():                 {string(ApprovalRuleScopeSession), string(ApprovalRuleScopeProject), string(ApprovalRuleScopeGlobal)},

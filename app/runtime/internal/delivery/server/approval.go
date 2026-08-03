@@ -8,10 +8,10 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 )
 
-// GetApprovalMode returns the current runtime tool-permission stance
+// GetApprovalMode returns the runtime's default tool-permission stance
 // (approval.getMode).
 func (s *Server) GetApprovalMode(ctx context.Context) (*protocol.ApprovalModeResult, error) {
-	m, err := s.approvals.Mode(ctx)
+	m, err := s.approvals.DefaultMode(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -22,14 +22,13 @@ func (s *Server) GetApprovalMode(ctx context.Context) (*protocol.ApprovalModeRes
 	return &protocol.ApprovalModeResult{Mode: mode}, nil
 }
 
-// SetApprovalMode sets the runtime tool-permission stance (approval.setMode).
-// plan is the read-only planning stance.
+// SetApprovalMode sets the runtime's default tool-permission stance (approval.setMode).
 func (s *Server) SetApprovalMode(ctx context.Context, in protocol.SetApprovalModeRequest) (*protocol.ApprovalModeResult, error) {
 	mode, ok := approvalModeFromWire(in.Mode)
 	if !ok {
 		return nil, fmt.Errorf("%w: unknown approval mode %q", protocol.ErrInvalidParams, in.Mode)
 	}
-	if err := s.approvals.SetMode(ctx, mode); err != nil {
+	if err := s.approvals.SetDefaultMode(ctx, mode); err != nil {
 		return nil, err
 	}
 	return &protocol.ApprovalModeResult{Mode: in.Mode}, nil
@@ -120,8 +119,6 @@ func approvalModeToWire(m approval.Mode) (protocol.ApprovalMode, bool) {
 		return protocol.ApprovalModeBalanced, true
 	case approval.ModeYolo:
 		return protocol.ApprovalModeYolo, true
-	case approval.ModePlan:
-		return protocol.ApprovalModePlan, true
 	default:
 		return "", false
 	}
@@ -153,8 +150,6 @@ func approvalModeFromWire(m protocol.ApprovalMode) (approval.Mode, bool) {
 		return approval.ModeBalanced, true
 	case protocol.ApprovalModeYolo:
 		return approval.ModeYolo, true
-	case protocol.ApprovalModePlan:
-		return approval.ModePlan, true
 	}
 	return 0, false
 }

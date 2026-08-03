@@ -214,7 +214,7 @@ func (value SetHookTrustRequest) ValidateWire() error {
 
 func (value SetApprovalModeRequest) ValidateWire() error {
 	return collectWireViolations("SetApprovalModeRequest",
-		closedEnum("mode", string(value.Mode), []string{"safe", "balanced", "yolo", "plan"}, false),
+		closedEnum("mode", string(value.Mode), []string{"safe", "balanced", "yolo"}, false),
 	)
 }
 

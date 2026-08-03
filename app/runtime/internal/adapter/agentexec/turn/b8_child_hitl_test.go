@@ -1035,7 +1035,6 @@ func buildB8Dispatcher(
 	model chat.Model,
 	policy interface {
 		turn.ApprovalGate
-		SetMode(context.Context, approval.Mode) error
 	},
 	hookResolver staticHookResolver,
 ) turnDriver {
@@ -1046,7 +1045,6 @@ func buildB8Dispatcher(
 	}
 	built, err := toolset.Build(t.Context(), toolset.BuildConfig{
 		Workdir:   t.TempDir(),
-		Approval:  policy,
 		Interrupt: suspension.Interrupt,
 	})
 	if err != nil {
@@ -1077,7 +1075,6 @@ func buildB8PersistentDispatcher(
 	model chat.Model,
 	policy interface {
 		turn.ApprovalGate
-		SetMode(context.Context, approval.Mode) error
 	},
 	hookResolver staticHookResolver,
 	store testCheckpointStore,
@@ -1091,7 +1088,6 @@ func buildB8PersistentDispatcher(
 	}
 	built, err := toolset.Build(t.Context(), toolset.BuildConfig{
 		Workdir:   t.TempDir(),
-		Approval:  policy,
 		Interrupt: suspension.Interrupt,
 	})
 	if err != nil {

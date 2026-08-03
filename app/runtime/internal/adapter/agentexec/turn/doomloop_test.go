@@ -116,7 +116,7 @@ func TestDoomLoopIgnoresProgressingPolls(t *testing.T) {
 }
 
 func yoloTestApproval() ApprovalGate {
-	policy, err := approval.New(approval.ModeYolo, nil)
+	policy, err := approval.New(approval.ModeYolo, nil, nil)
 	if err != nil {
 		panic(err)
 	}

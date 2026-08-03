@@ -1,26 +1,22 @@
-// Package exitplan provides the exit_plan_mode tool — the model's way to leave
-// the read-only plan stance. In plan mode (approval ModePlan) write/exec/network
-// tools are denied, so the agent can only investigate and draft a plan; it then
-// calls exit_plan_mode to present the plan for approval. On approval the stance
-// flips to ModeBalanced (execute) and the loop continues with full tools; on
-// rejection it stays in plan mode with the user's feedback. The pattern —
-// a tool that presents the plan, gets approval, and lifts the read-only
-// restriction — is the standard exit-plan-mechanism used by coding agents.
+// Package exitplan exposes the root Agent's exit_plan_mode tool. It reads the
+// canonical session Plan, asks the user to approve that exact value, and only
+// then restores the permission mode captured on entry.
 package exitplan
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"strings"
 
 	toolcontract "github.com/Tangerg/lynx/tool"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/executionctx"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/planpresentation"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
 )
 
 const (
@@ -29,140 +25,126 @@ const (
 	rejectLabel  = "Reject"
 )
 
-// exitPlanArgs is the model-facing argument shape; [toolcontract.NewFunc] derives
-// the JSON schema from it and decodes calls back into it, so the advertised
-// schema and parsed value cannot drift. The options mirror [runs.QuestionOptionSpec]
-// with the LLM-facing copy kept here.
-type exitPlanArgs struct {
-	Plan    string      `json:"plan" jsonschema:"required" jsonschema_description:"The plan to present for approval — a concise, ordered list of the steps you intend to take. Markdown is fine."`
-	Options []optionArg `json:"options,omitempty" jsonschema:"maxItems=2" jsonschema_description:"Optional alternative approaches (up to 2) for the user to choose among. The chosen one is returned to you on approval."`
+const description = `Request approval for the current session Plan and exit Plan mode.
+
+Call this only after set_plan contains the complete proposed Plan. This tool
+reads that stored Plan; it takes no Plan text or alternatives, so the approved
+value cannot differ from the stored session Plan. Approval restores the permission mode
+captured by enter_plan_mode. Rejection keeps the session in read-only Plan mode.`
+
+type exitArgs struct{}
+
+// ModePolicy is the exit tool's complete session-mode view.
+type ModePolicy interface {
+	Mode(ctx context.Context, sessionID string) (approval.Mode, error)
+	ExitPlanMode(ctx context.Context, sessionID string) (restored approval.Mode, changed bool, err error)
 }
 
-type optionArg struct {
-	Label       string `json:"label" jsonschema:"required" jsonschema_description:"The approach shown to the user."`
-	Description string `json:"description,omitempty" jsonschema_description:"Optional one-line explanation of the approach."`
-}
-
-func (a exitPlanArgs) validate() error {
-	if strings.TrimSpace(a.Plan) == "" {
-		return errors.New("plan is required")
-	}
-	if len(a.Options) > 2 {
-		return errors.New("at most two alternative approaches are allowed")
-	}
-	return nil
-}
-
-func (a exitPlanArgs) prompt(arguments string) runs.QuestionPrompt {
-	opts := []runs.QuestionOptionSpec{{Label: approveLabel, Description: "Proceed with this plan"}}
-	for _, o := range a.Options {
-		opts = append(opts, o.toInterrupt())
-	}
-	opts = append(opts, runs.QuestionOptionSpec{Label: rejectLabel, Description: "Don't proceed; refine the plan"})
-	return runs.QuestionPrompt{
-		ToolName:  toolName,
-		Arguments: arguments,
-		Fields: []runs.QuestionFieldSpec{{
-			Prompt:  a.Plan,
-			Header:  "Plan",
-			Options: opts,
-		}},
-	}
-}
-
-func (a exitPlanArgs) arguments() (string, error) {
-	b, err := json.Marshal(a)
-	if err != nil {
-		return "", fmt.Errorf("exit_plan_mode: encode arguments: %w", err)
-	}
-	return string(b), nil
-}
-
-func (o optionArg) toInterrupt() runs.QuestionOptionSpec {
-	return runs.QuestionOptionSpec{Label: o.Label, Description: o.Description}
+// PlanReader is the exit tool's read-only view of the canonical session Plan.
+type PlanReader interface {
+	List(ctx context.Context, sessionID string) ([]plan.Step, error)
 }
 
 type tool struct {
-	approval  ModePolicy
+	modes     ModePolicy
+	plan      PlanReader
 	interrupt runs.InterruptFunc
 }
 
-// ModePolicy is the exit-plan tool's complete view of approval state.
-type ModePolicy interface {
-	Mode(ctx context.Context) (approval.Mode, error)
-	SetMode(ctx context.Context, mode approval.Mode) error
-}
-
-// New builds the exit_plan_mode tool over the approval policy (it flips the
-// stance to execute on approval). A nil policy yields a nil tool (omitted).
-//
-// The toolset composes the interrupt suspension contract from the composition
-// root.
-func New(appr ModePolicy, interrupt runs.InterruptFunc) (toolcontract.Tool, error) {
+// New builds exit_plan_mode. A missing mode policy or Plan reader disables the
+// capability; the interrupt defaults to the runtime's unavailable responder.
+func New(modes ModePolicy, plan PlanReader, interrupt runs.InterruptFunc) (toolcontract.Tool, error) {
+	if modes == nil || plan == nil {
+		return nil, nil
+	}
 	if interrupt == nil {
 		interrupt = runs.InterruptUnavailable
 	}
-	if appr == nil {
-		return nil, nil
-	}
-	t := &tool{approval: appr, interrupt: interrupt}
-	return toolcontract.NewFunc[exitPlanArgs, string](
-		toolcontract.FuncConfig{
-			Name:        toolName,
-			Description: "Present your plan for approval and leave plan mode. Call this ONLY in plan mode (the read-only stance) once you've investigated and drafted a plan. On approval, plan mode exits and all tools are enabled so you can execute the plan; on rejection you stay in plan mode with the user's feedback. Provide alternative approaches in options when the user should choose between them.",
-		},
-		t.exit,
+	return toolcontract.NewFunc[exitArgs, string](
+		toolcontract.FuncConfig{Name: toolName, Description: description},
+		(&tool{modes: modes, plan: plan, interrupt: interrupt}).exit,
 	)
 }
 
-func (t *tool) exit(ctx context.Context, in exitPlanArgs) (string, error) {
-	if err := in.validate(); err != nil {
-		return "", fmt.Errorf("exit_plan_mode: %w", err)
+func (t *tool) exit(ctx context.Context, _ exitArgs) (string, error) {
+	sessionID := executionctx.SessionID(ctx)
+	if sessionID == "" {
+		return "", errors.New("exit_plan_mode: no active session")
 	}
-	mode, err := t.approval.Mode(ctx)
+	mode, err := t.modes.Mode(ctx, sessionID)
 	if err != nil {
 		return "", err
 	}
 	if mode != approval.ModePlan {
-		return "Not in plan mode — nothing to exit. exit_plan_mode only applies in the read-only plan stance.", nil
+		return "", errors.New("exit_plan_mode: current session is not in Plan mode")
 	}
-
-	arguments, err := in.arguments()
+	steps, err := t.plan.List(ctx, sessionID)
 	if err != nil {
 		return "", err
 	}
-	prompt := in.prompt(arguments)
-	pending := runs.Interrupt{Kind: execution.QuestionInterrupt, Question: &prompt}
+	if len(steps) == 0 {
+		return "", errors.New("exit_plan_mode: current Plan is empty; call set_plan before requesting approval")
+	}
+	if err := plan.Validate(steps); err != nil {
+		return "", fmt.Errorf("exit_plan_mode: stored Plan is invalid: %w", err)
+	}
+
+	arguments := `{}`
+	pending := runs.Interrupt{
+		Kind: execution.QuestionInterrupt,
+		Question: &runs.QuestionPrompt{
+			ToolName:  toolName,
+			Arguments: arguments,
+			Fields: []runs.QuestionFieldSpec{{
+				Prompt: planpresentation.Render(steps),
+				Header: "Plan",
+				Options: []runs.QuestionOptionSpec{
+					{Label: approveLabel, Description: "Approve this Plan and allow execution"},
+					{Label: rejectLabel, Description: "Keep Plan mode and revise the Plan"},
+				},
+			}},
+		},
+	}
 	if err := pending.Validate(); err != nil {
 		return "", fmt.Errorf("exit_plan_mode: %w", err)
 	}
-	res, err := t.interrupt(ctx,
+	resolution, err := t.interrupt(
+		ctx,
 		interrupts.InterruptKey(execution.QuestionInterrupt.String(), toolName, arguments),
 		pending,
 	)
 	if err != nil {
 		return "", err
 	}
-	return t.applyChoice(ctx, selectedChoice(res.Answers))
-}
-
-func (t *tool) applyChoice(ctx context.Context, choice string) (string, error) {
-	if choice == "" || choice == rejectLabel {
-		return "Plan not approved. Refine it and call exit_plan_mode again, or keep investigating (read-only).", nil
+	if selectedChoice(resolution.Answers) != approveLabel {
+		return "Plan not approved. The session remains in Plan mode; revise the Plan or continue investigating.", nil
 	}
-	if err := t.approval.SetMode(ctx, approval.ModeBalanced); err != nil {
+	restored, changed, err := t.modes.ExitPlanMode(ctx, sessionID)
+	if err != nil {
 		return "", err
 	}
-	if choice != approveLabel {
-		return "Plan approved — selected approach: " + choice + ". Plan mode exited; all tools are enabled. Execute that approach.", nil
+	if !changed {
+		return "", errors.New("exit_plan_mode: Plan mode ended before approval was applied")
 	}
-	return "Plan approved. Plan mode exited; all tools are enabled. Execute the plan.", nil
+	return fmt.Sprintf("Plan approved. Plan mode exited and permission mode %s was restored. Execute the Plan.", modeName(restored)), nil
 }
 
 func selectedChoice(answers [][]string) string {
-	if len(answers) > 0 && len(answers[0]) > 0 {
-		v := answers[0]
-		return v[0]
+	if len(answers) == 0 || len(answers[0]) == 0 {
+		return ""
 	}
-	return ""
+	return answers[0][0]
+}
+
+func modeName(mode approval.Mode) string {
+	switch mode {
+	case approval.ModeSafe:
+		return "safe"
+	case approval.ModeBalanced:
+		return "balanced"
+	case approval.ModeYolo:
+		return "yolo"
+	default:
+		return "unknown"
+	}
 }

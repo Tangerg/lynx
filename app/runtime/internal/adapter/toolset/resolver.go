@@ -115,7 +115,8 @@ type Deps struct {
 	LSP             []toolcontract.Tool                         // code-intelligence tools
 	Shell           []toolcontract.Tool                         // shell tools (shell / shell_output / shell_kill); nil means omitted
 	AskUser         toolcontract.Tool                           // ask_user HITL tool (both roles)
-	ExitPlan        toolcontract.Tool                           // exit_plan_mode HITL tool (both roles); nil → omitted
+	EnterPlan       toolcontract.Tool                           // enter_plan_mode (coding role only); nil → omitted
+	ExitPlan        toolcontract.Tool                           // exit_plan_mode (coding role only); nil → omitted
 	Plan            toolcontract.Tool                           // set_plan execution-plan tool (coding role only); nil → omitted
 	Schedule        toolcontract.Tool                           // schedule management op-tool (coding role only); nil → omitted
 	ToolResult      toolcontract.Tool                           // read_tool_result offloaded-output reader (both roles); nil → omitted
@@ -158,13 +159,14 @@ func NewResolver(d Deps) (*Resolver, error) {
 		shell:           slices.Clone(d.Shell),
 		staticTools: []staticToolSpec{
 			{tool: d.AskUser, audience: toolAudienceBoth, placement: toolAfterCodebase},
+			{tool: d.EnterPlan, audience: toolAudienceCoding, placement: toolAfterCodebase},
+			{tool: d.ExitPlan, audience: toolAudienceCoding, placement: toolAfterCodebase},
 			{tool: d.Plan, audience: toolAudienceCoding, placement: toolAfterSkill},
 			{tool: d.Schedule, audience: toolAudienceCoding, placement: toolCodingTail},
 			{tool: d.ToolResult, audience: toolAudienceBoth, placement: toolAfterSkill},
 			{tool: d.MemorySearch, audience: toolAudienceBoth, placement: toolAfterSkill},
 			{tool: d.SessionSearch, audience: toolAudienceBoth, placement: toolAfterSkill},
 			{tool: d.SkillPropose, audience: toolAudienceCoding, placement: toolCodingTail},
-			{tool: d.ExitPlan, audience: toolAudienceBoth, placement: toolAfterCodebase},
 			{tool: d.GoalUpdate, audience: toolAudienceCoding, placement: toolCodingTail, requiresGoal: true},
 		},
 		goalActive:      d.GoalActive,

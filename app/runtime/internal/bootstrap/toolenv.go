@@ -54,7 +54,6 @@ func buildToolEnvironment(
 		MCPTools:        mcpTools,
 		A2AAgents:       toolsetA2AAgentConfigs(cfg.A2AAgents),
 		Plan:            cfg.PlanStore,
-		Approval:        approvalPolicy,
 		Interrupt:       suspension.Interrupt,
 		MCPToolDisabled: mcpEnv.policy.ToolDisabled,
 		CodebaseIndex:   codebaseIdx,
@@ -67,6 +66,13 @@ func buildToolEnvironment(
 		// Opt-in per-command OS isolation for the shell tools (off by default).
 		SandboxShell:         cfg.SandboxShell,
 		SandboxReadOnlyPaths: cfg.SandboxReadOnlyPaths,
+	}
+	// Plan mode is usable only when both durable pieces exist: the permission
+	// overlay and the canonical Plan it eventually presents for approval. Keep
+	// the mode tools absent in partial test configurations instead of exposing a
+	// capability that can enter but cannot exit.
+	if cfg.PermissionModeStore != nil && cfg.PlanStore != nil {
+		bc.PlanMode = approvalPolicy
 	}
 	if cfg.ScheduleStore != nil {
 		bc.Schedules = scheduleCoord

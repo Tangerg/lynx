@@ -198,11 +198,9 @@ type errorApprovalPolicy struct {
 	rememberErr error
 }
 
-func (*errorApprovalPolicy) Mode(context.Context) (approval.Mode, error) {
+func (*errorApprovalPolicy) Mode(context.Context, string) (approval.Mode, error) {
 	return approval.ModeSafe, nil
 }
-
-func (*errorApprovalPolicy) SetMode(context.Context, approval.Mode) error { return nil }
 
 func (p *errorApprovalPolicy) Decide(context.Context, approval.Query) (approval.Decision, bool, error) {
 	return "", false, p.decideErr
@@ -227,7 +225,7 @@ func (p suspendedProcessView) Suspension() *interaction.Suspension { return p.va
 
 func newTestApprovalPolicy(t *testing.T, mode approval.Mode) *approval.RuntimePolicy {
 	t.Helper()
-	policy, err := approval.New(mode, approvaltest.NewMemoryStore())
+	policy, err := approval.New(mode, approvaltest.NewMemoryStore(), nil)
 	if err != nil {
 		t.Fatalf("new approval policy: %v", err)
 	}

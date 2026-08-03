@@ -44,6 +44,7 @@ type Bundle struct {
 	MCPServers          *sqlitestore.MCPServerStore
 	ChatHistory         history.Store
 	Plan                *sqlitestore.PlanStore
+	PermissionModes     *sqlitestore.PermissionModeStore
 	Goals               *sqlitestore.GoalStore
 	ApprovalRules       *sqlitestore.ApprovalRuleStore
 	UtilityRole         *sqlitestore.UtilityRoleStore
@@ -89,6 +90,7 @@ func Open() (*Bundle, error) {
 		MCPServers:          sqlitestore.NewMCPServerStore(db),
 		ChatHistory:         sqlitestore.NewMessageStore(db),
 		Plan:                sqlitestore.NewPlanStore(db),
+		PermissionModes:     sqlitestore.NewPermissionModeStore(db),
 		Goals:               sqlitestore.NewGoalStore(db),
 		ApprovalRules:       sqlitestore.NewApprovalRuleStore(db),
 		UtilityRole:         sqlitestore.NewUtilityRoleStore(db),

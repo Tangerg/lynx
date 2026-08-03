@@ -297,8 +297,7 @@
       "enum": [
         "safe",
         "balanced",
-        "yolo",
-        "plan"
+        "yolo"
       ]
     },
     "ApprovalModeResult": {

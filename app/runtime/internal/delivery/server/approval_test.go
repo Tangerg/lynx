@@ -27,9 +27,9 @@ type approvalPolicyFake struct {
 	forgottenRuleIDs []string
 }
 
-func (r *approvalPolicyFake) Mode(context.Context) (approval.Mode, error) { return r.mode, nil }
+func (r *approvalPolicyFake) DefaultMode(context.Context) (approval.Mode, error) { return r.mode, nil }
 
-func (r *approvalPolicyFake) SetMode(_ context.Context, mode approval.Mode) error {
+func (r *approvalPolicyFake) SetDefaultMode(_ context.Context, mode approval.Mode) error {
 	r.set = append(r.set, mode)
 	return nil
 }
@@ -64,7 +64,7 @@ func (f fakeSessionLookup) Get(context.Context, string) (session.Session, error)
 // TestApprovalModeWireRoundTrip checks every engine stance maps to a wire name
 // and back, and that an unknown wire value is rejected (→ invalid_params).
 func TestApprovalModeWireRoundTrip(t *testing.T) {
-	for _, m := range []approval.Mode{approval.ModeSafe, approval.ModeBalanced, approval.ModeYolo, approval.ModePlan} {
+	for _, m := range []approval.Mode{approval.ModeSafe, approval.ModeBalanced, approval.ModeYolo} {
 		wire, ok := approvalModeToWire(m)
 		if !ok {
 			t.Fatalf("domain mode %v has no wire mapping", m)
@@ -83,15 +83,15 @@ func TestApprovalModeWireRoundTrip(t *testing.T) {
 }
 
 func TestApprovalModeHandlersMapToWire(t *testing.T) {
-	rt := &approvalPolicyFake{mode: approval.ModePlan}
+	rt := &approvalPolicyFake{mode: approval.ModeYolo}
 	s := serverWithApprovals(rt, nil)
 
 	got, err := s.GetApprovalMode(context.Background())
 	if err != nil {
 		t.Fatalf("get approval mode: %v", err)
 	}
-	if got.Mode != protocol.ApprovalModePlan {
-		t.Fatalf("mode = %q, want plan", got.Mode)
+	if got.Mode != protocol.ApprovalModeYolo {
+		t.Fatalf("mode = %q, want yolo", got.Mode)
 	}
 
 	got, err = s.SetApprovalMode(context.Background(), protocol.SetApprovalModeRequest{Mode: protocol.ApprovalModeBalanced})

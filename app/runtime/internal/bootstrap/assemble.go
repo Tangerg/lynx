@@ -368,10 +368,10 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 	// exec / MCP / A2A capabilities + the resolver) and injected, so the engine
 	// core builds no capability. ctx flows so a slow MCP/A2A dial can be
 	// canceled during startup.
-	// Approval stance is built early: the toolset's exit_plan_mode tool needs it
-	// (it flips the stance to execute when a plan is approved), and the turn gate
-	// reads it per tool call.
-	approvalPolicy, err := approval.New(cfg.ApprovalMode, cfg.ApprovalRuleStore)
+	// Permission policy is built early because Plan-mode tools and the turn gate
+	// share its narrow session-mode views. The policy owns no Agent execution
+	// state: Plan-mode persistence remains a runtime/session concern.
+	approvalPolicy, err := approval.New(cfg.ApprovalMode, cfg.ApprovalRuleStore, cfg.PermissionModeStore)
 	if err != nil {
 		return nil, fmt.Errorf("runtime: approval policy: %w", err)
 	}

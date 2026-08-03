@@ -42,7 +42,7 @@ type planReader interface {
 // ApprovalGate is the tool-call evaluator's complete approval view. Mode/rules
 // management belongs to separate application and tool consumers.
 type ApprovalGate interface {
-	Mode(ctx context.Context) (approval.Mode, error)
+	Mode(ctx context.Context, sessionID string) (approval.Mode, error)
 	Decide(ctx context.Context, q approval.Query) (approval.Decision, bool, error)
 	Remember(ctx context.Context, req approval.RememberRequest) error
 }
@@ -72,7 +72,8 @@ type Dependencies struct {
 	// complete maintenance sweep.
 	Maintenance BoundaryMaintenance
 
-	// Approval gates every tool call. Required.
+	// Approval gates every tool call using the owning session's effective
+	// permission mode and remembered rules. Required.
 	Approval ApprovalGate
 
 	// ClientResolver resolves an explicit per-turn provider/model client. nil

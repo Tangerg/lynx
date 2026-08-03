@@ -71,13 +71,14 @@ func toolNameSet(ts []toolcontract.Tool) map[string]bool {
 }
 
 func TestCodingResolverIncludesConfiguredConditionalTools(t *testing.T) {
-	policy, err := approval.New(approval.ModeBalanced, nil)
+	policy, err := approval.New(approval.ModeBalanced, nil, nil)
 	if err != nil {
 		t.Fatalf("approval policy: %v", err)
 	}
 	built, err := Build(t.Context(), BuildConfig{
 		Workdir:  t.TempDir(),
-		Approval: policy, // backs exit_plan_mode
+		PlanMode: policy,
+		Plan:     rolePlanStore{},
 		Goals:    activeGoalState{},
 		Interrupt: func(context.Context, string, runs.Interrupt) (interrupts.Resolution, error) {
 			return interrupts.Resolution{}, nil
@@ -97,7 +98,7 @@ func TestCodingResolverIncludesConfiguredConditionalTools(t *testing.T) {
 		t.Fatalf("Tools: %v", err)
 	}
 	names := toolNameSet(resolved)
-	for _, want := range []string{"exit_plan_mode", "update_goal"} {
+	for _, want := range []string{"enter_plan_mode", "exit_plan_mode", "update_goal"} {
 		if !names[want] {
 			t.Errorf("configured coding tools missing %q: %v", want, names)
 		}
@@ -118,14 +119,15 @@ func TestCodingResolverIncludesConfiguredConditionalTools(t *testing.T) {
 // The resolver is built with every optional subsystem wired, because a name is
 // only unreachable if NO configuration reaches it.
 func TestSafetyTableNamesOnlyToolsThatExist(t *testing.T) {
-	policy, err := approval.New(approval.ModeBalanced, nil)
+	policy, err := approval.New(approval.ModeBalanced, nil, nil)
 	if err != nil {
 		t.Fatalf("approval policy: %v", err)
 	}
 	built, err := Build(t.Context(), BuildConfig{
 		Workdir:         t.TempDir(),
 		SkillsGlobalDir: t.TempDir(), // backs skill
-		Approval:        policy,
+		PlanMode:        policy,
+		Plan:            rolePlanStore{},
 		Goals:           activeGoalState{},
 		Schedules:       allWiredSchedules{},      // backs schedule
 		CodebaseIndex:   allWiredCodebaseIndex{},  // backs codebase_search

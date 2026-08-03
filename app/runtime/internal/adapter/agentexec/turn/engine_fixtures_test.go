@@ -58,7 +58,7 @@ func turnDeps(engine testEngine, opts ...func(*turn.Dependencies)) turn.Dependen
 }
 
 func explicitYoloPolicy() turn.ApprovalGate {
-	policy, err := approval.New(approval.ModeYolo, nil)
+	policy, err := approval.New(approval.ModeYolo, nil, nil)
 	if err != nil {
 		panic(err)
 	}
@@ -73,7 +73,7 @@ func withApproval(policy turn.ApprovalGate) func(*turn.Dependencies) {
 
 func mustApprovalPolicy(t testing.TB, mode approval.Mode, store approval.RuleStore) *approval.RuntimePolicy {
 	t.Helper()
-	policy, err := approval.New(mode, store)
+	policy, err := approval.New(mode, store, nil)
 	if err != nil {
 		t.Fatalf("new approval policy: %v", err)
 	}

@@ -22,9 +22,9 @@ type approvalRuleScope struct {
 	projectDir string
 }
 
-func (s *approvalStore) Mode(context.Context) (approval.Mode, error) { return s.mode, nil }
+func (s *approvalStore) DefaultMode(context.Context) (approval.Mode, error) { return s.mode, nil }
 
-func (s *approvalStore) SetMode(_ context.Context, mode approval.Mode) error {
+func (s *approvalStore) SetDefaultMode(_ context.Context, mode approval.Mode) error {
 	s.set = append(s.set, mode)
 	return nil
 }
@@ -55,20 +55,20 @@ func (f fakeSessionLookup) Get(context.Context, string) (session.Session, error)
 	return f.sess, f.err
 }
 
-func TestModeUsesModePorts(t *testing.T) {
+func TestDefaultModeUsesModePorts(t *testing.T) {
 	store := &approvalStore{mode: approval.ModeBalanced}
 	c := New(store, nil)
 
-	got, err := c.Mode(context.Background())
+	got, err := c.DefaultMode(context.Background())
 	if err != nil {
-		t.Fatalf("Mode: %v", err)
+		t.Fatalf("DefaultMode: %v", err)
 	}
 	if got != approval.ModeBalanced {
 		t.Fatalf("mode = %v, want balanced", got)
 	}
 
-	if err := c.SetMode(context.Background(), approval.ModeYolo); err != nil {
-		t.Fatalf("SetMode: %v", err)
+	if err := c.SetDefaultMode(context.Background(), approval.ModeYolo); err != nil {
+		t.Fatalf("SetDefaultMode: %v", err)
 	}
 	if len(store.set) != 1 || store.set[0] != approval.ModeYolo {
 		t.Fatalf("set calls = %+v, want yolo", store.set)

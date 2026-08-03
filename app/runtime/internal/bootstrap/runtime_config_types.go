@@ -154,6 +154,11 @@ type Config struct {
 	// composition root injects the sqlite-backed store.
 	PlanStore PlanStore
 
+	// PermissionModeStore persists session-scoped Plan-mode entry and the exact
+	// permission mode restored on exit. Optional only for tests that do not expose
+	// Plan-mode tools; product composition always supplies SQLite.
+	PermissionModeStore approval.ModeStore
+
 	// GoalStore persists per-session autonomous goals (Goal mode). Optional; nil
 	// disables the feature (no update_goal tool, goals.* report
 	// capability_not_negotiated). The composition root injects the sqlite store.

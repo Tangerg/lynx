@@ -19,8 +19,8 @@ type SessionLookup interface {
 // Policy is the approval-management use case's view of runtime policy. Tool
 // call evaluation has a different, narrower consumer interface in turn.
 type Policy interface {
-	Mode(ctx context.Context) (approval.Mode, error)
-	SetMode(ctx context.Context, mode approval.Mode) error
+	DefaultMode(ctx context.Context) (approval.Mode, error)
+	SetDefaultMode(ctx context.Context, mode approval.Mode) error
 	Rules(ctx context.Context, sessionID, projectDir string) ([]approval.Rule, error)
 	Forget(ctx context.Context, id string) error
 }
@@ -37,14 +37,15 @@ func New(policy Policy, sessions SessionLookup) *Coordinator {
 	return &Coordinator{policy: policy, sessions: sessions}
 }
 
-// Mode returns the current runtime tool-permission stance.
-func (c *Coordinator) Mode(ctx context.Context) (approval.Mode, error) {
-	return c.policy.Mode(ctx)
+// DefaultMode returns the runtime fallback for sessions without an explicit
+// permission mode.
+func (c *Coordinator) DefaultMode(ctx context.Context) (approval.Mode, error) {
+	return c.policy.DefaultMode(ctx)
 }
 
-// SetMode changes the runtime tool-permission stance.
-func (c *Coordinator) SetMode(ctx context.Context, mode approval.Mode) error {
-	return c.policy.SetMode(ctx, mode)
+// SetDefaultMode changes the runtime fallback. Plan mode remains session-only.
+func (c *Coordinator) SetDefaultMode(ctx context.Context, mode approval.Mode) error {
+	return c.policy.SetDefaultMode(ctx, mode)
 }
 
 // ListRules returns the rules visible from a session. Unknown sessions degrade to

@@ -15,7 +15,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/plantool"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
@@ -92,12 +91,12 @@ func buildEngine(t *testing.T, cfg agentexec.Config) *agentexec.Engine {
 	if cfg.BuildID == "" {
 		cfg.BuildID = testProcessBuildID
 	}
-	var plan plantool.Store
+	var plan toolset.PlanStore
 	if cfg.Plan != nil {
 		var ok bool
-		plan, ok = cfg.Plan.(plantool.Store)
+		plan, ok = cfg.Plan.(toolset.PlanStore)
 		if !ok {
-			t.Fatalf("test engine plan source must support set_plan")
+			t.Fatalf("test engine plan source must support canonical Plan reads and replacements")
 		}
 	}
 	built, err := toolset.Build(context.Background(), toolset.BuildConfig{
