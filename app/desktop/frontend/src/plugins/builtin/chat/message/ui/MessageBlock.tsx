@@ -90,10 +90,6 @@ function MessageBlockInner({
                 <span className="shrink-0 font-mono tabular-nums">{stamp}</span>
               </>
             )}
-            <span className="min-w-2 flex-1" />
-            <div className={actionsClass}>
-              <Slot name="message.actions" />
-            </div>
           </div>
           <MessageContextMenu msg={msg}>
             <div
@@ -108,6 +104,17 @@ function MessageBlockInner({
               {content}
             </div>
           </MessageContextMenu>
+          {/* After the message, never in its caption. What you do WITH a turn
+              belongs where the turn ends: in the caption the bar competed with
+              the one line that says who is speaking, and it ran to the far edge
+              of the column where nothing else in the transcript is.
+              Pulled left by the button's own optical inset so the first glyph
+              lands on the text's edge rather than its box doing so. */}
+          <div
+            className={cn(actionsClass, "-ml-[calc((var(--control-height-sm)-var(--icon-sm))/2)]")}
+          >
+            <Slot name="message.actions" />
+          </div>
         </div>
       </CitationContext.Provider>
     </MessageContext.Provider>
@@ -128,6 +135,12 @@ export const MessageBlock = memo(MessageBlockInner);
 // the only view that renders the bar. Hover reveal stays in CSS (`group-hover` /
 // `focus-within`) rather than JS so a hovering pointer never triggers a render;
 // the ancestor carrying `.group` is the message container below.
+// The bar stays IN FLOW in every state, so the turn always reserves the row it
+// may reveal. Hanging the transient states outside the box (`absolute top-full`)
+// looks like it saves the gap and does not: every message carries
+// `content-visibility: auto`, whose paint containment clips anything drawn past
+// its edge, so the bar came out sliced. Reserved space is also the only version
+// where pointing at a turn doesn't move the text under the pointer.
 const ACTIONS_VISIBILITY: Record<MessageActionsVisibility, string> = {
   hidden: "pointer-events-none opacity-0",
   hover: "opacity-0 group-hover:opacity-100 focus-within:opacity-100",

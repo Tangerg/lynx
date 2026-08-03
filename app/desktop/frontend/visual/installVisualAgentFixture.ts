@@ -16,6 +16,12 @@ import {
 import { APPROVAL_MODE_KEY } from "@/plugins/builtin/agent/public/approvalPolicy";
 import { composerBootstrap, composerSend, composerToolbar } from "@/plugins/builtin/chat/composer";
 import narrativeRails from "@/plugins/builtin/chat/narrative-rails";
+import {
+  messageCopy,
+  messageEdit,
+  messageFeedback,
+  messageRegenerate,
+} from "@/plugins/builtin/chat/message-actions";
 import { builtinVisualStyles } from "@/plugins/builtin/theme/visualStyles";
 import lyraDark from "@/plugins/builtin/theme/themes/lyra-dark";
 import lyraLight from "@/plugins/builtin/theme/themes/lyra-light";
@@ -127,6 +133,14 @@ export async function installVisualAgentFixture(
     composerToolbar,
     composerSend,
     narrativeRails,
+    // The per-message action bar. Unregistered, the slot rendered nothing, so
+    // every agent golden framed a transcript with no controls on it — which is
+    // how the bar spent its life in the caption line, running off the far edge
+    // of the reading column, without a single screenshot showing it.
+    messageCopy,
+    messageEdit,
+    messageRegenerate,
+    messageFeedback,
     planProgress,
     toolIcons,
     toolActions,

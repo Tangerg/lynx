@@ -25,6 +25,11 @@ export function MessageActionButton({ role, className, ...props }: MessageAction
     <IconButton
       {...props}
       iconSize="sm"
+      // `sm`, not the `xs` inline-affordance step this bar's new home under the
+      // message would otherwise argue for: xs is 24px nominal and lands at 22
+      // once a view scales its density, and four buttons butted together have no
+      // spacing exemption to fall back on. The four pixels are not worth the
+      // WCAG target-size floor.
       size="sm"
       quiet
       className={cn(role === "user" ? "rounded-full" : "rounded-md", className)}
