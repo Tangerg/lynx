@@ -10,7 +10,6 @@ import (
 	"github.com/Tangerg/lynx/core/chat"
 	skillsrc "github.com/Tangerg/lynx/skills"
 	toolcontract "github.com/Tangerg/lynx/tool"
-	toolschema "github.com/Tangerg/lynx/tools/internal/schema"
 )
 
 const (
@@ -28,7 +27,7 @@ type Request struct {
 	Path string `json:"path,omitempty" jsonschema_description:"Resource path relative to the skill directory, e.g. references/REFERENCE.md or scripts/run.py. Required for load_resource."`
 }
 
-var toolSchema, _ = toolschema.String(Request{})
+var toolSchema, _ = toolcontract.Schema[Request]()
 
 const toolDescription = "Discover and read Agent Skills — reusable, on-demand instruction packs. " +
 	"Call with op=\"list\" to see which skills exist (name + description); when one is relevant, op=\"load\" name=<skill> to pull in its full instructions; " +

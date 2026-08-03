@@ -6,7 +6,6 @@ import (
 	"fmt"
 
 	"github.com/Tangerg/lynx/agent/core"
-	agentschema "github.com/Tangerg/lynx/agent/internal/schema"
 	"github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/tool"
 )
@@ -32,7 +31,7 @@ func newAgentTool[In, Out any](engine *Engine, deployment *Deployment) (tool.Too
 	if any(input) == nil {
 		return nil, fmt.Errorf("runtime.newAgentTool: agent %q: input type must be concrete", agent.Name())
 	}
-	inputSchema, err := agentschema.String(input)
+	inputSchema, err := tool.Schema[In]()
 	if err != nil {
 		return nil, fmt.Errorf("runtime.newAgentTool: agent %q: derive input schema: %w", agent.Name(), err)
 	}

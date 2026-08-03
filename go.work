@@ -30,7 +30,6 @@ use (
 	./rag
 	./skills
 	./tokenizer/tiktoken
-	./tools
 	./tools/httpreq
 	./tools/skills
 	./tools/webfetch

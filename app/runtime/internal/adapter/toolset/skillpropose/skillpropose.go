@@ -19,7 +19,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/skills"
-	"github.com/Tangerg/lynx/tools/function"
 )
 
 const (
@@ -79,8 +78,8 @@ func New(store Authoring, interrupt runs.InterruptFunc) (toolcontract.Tool, erro
 	if interrupt == nil {
 		interrupt = runs.InterruptUnavailable
 	}
-	return function.New[proposeArgs, string](
-		function.Config{Name: toolName, Description: description},
+	return toolcontract.NewFunc[proposeArgs, string](
+		toolcontract.FuncConfig{Name: toolName, Description: description},
 		(&tool{store: store, interrupt: interrupt}).propose,
 	)
 }

@@ -33,7 +33,7 @@ type InputlessContinuationTool interface {
 // It reports itself as a [tool.WrappingTool], so every optional capability of
 // the tool it wraps — scheduling, deferral, a host's own — stays discoverable
 // through it.
-// Nil input remains nil and is rejected by tool.Registry or Runner.Run.
+// Nil input remains nil and is rejected by a Registry or Runner.Run.
 func Direct(tool tool.Tool) tool.Tool {
 	if valueIsNil(tool) {
 		return nil

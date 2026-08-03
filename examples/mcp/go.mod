@@ -5,7 +5,6 @@ go 1.26.5
 require (
 	github.com/Tangerg/lynx/agent v0.0.0-20260802185719-f013cc1eb508
 	github.com/Tangerg/lynx/mcp v0.0.0-20260802185719-f013cc1eb508
-	github.com/Tangerg/lynx/tools v0.0.0-20260803071502-5290fc59b753
 	github.com/modelcontextprotocol/go-sdk v1.7.0
 )
 
@@ -19,7 +18,6 @@ require (
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/google/jsonschema-go v0.4.3 // indirect
 	github.com/google/uuid v1.6.0 // indirect
-	github.com/invopop/jsonschema v0.14.0 // indirect
 	github.com/pb33f/ordered-map/v2 v2.3.1 // indirect
 	github.com/segmentio/asm v1.2.1 // indirect
 	github.com/segmentio/encoding v0.5.4 // indirect

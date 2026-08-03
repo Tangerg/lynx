@@ -14,6 +14,7 @@ import (
 	"github.com/Tangerg/lynx/agent/toolloop"
 	"github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/tool"
+	"github.com/Tangerg/lynx/tools"
 )
 
 type runnerTool struct {
@@ -727,16 +728,16 @@ func newConcurrentRunnerTool(
 	return tool
 }
 
-func newRunnerRegistry(t *testing.T, values ...tool.Tool) *tool.Registry {
+func newRunnerRegistry(t *testing.T, values ...tool.Tool) *tools.Registry {
 	t.Helper()
-	registry, err := tool.NewRegistry(values...)
+	registry, err := tools.NewRegistry(values...)
 	if err != nil {
 		t.Fatalf("NewRegistry: %v", err)
 	}
 	return registry
 }
 
-func newRunnerRequest(t *testing.T, registry *tool.Registry) *chat.Request {
+func newRunnerRequest(t *testing.T, registry *tools.Registry) *chat.Request {
 	t.Helper()
 	request := protocolRequest(t)
 	if registry != nil {

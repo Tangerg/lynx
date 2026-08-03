@@ -1,4 +1,4 @@
-package tool_test
+package tools_test
 
 import (
 	"context"
@@ -8,6 +8,7 @@ import (
 
 	"github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/tool"
+	"github.com/Tangerg/lynx/tools"
 )
 
 type stubTool struct {
@@ -30,7 +31,7 @@ func newStubTool(name string) *stubTool {
 }
 
 func TestRegistryResolveAndDefinitions(t *testing.T) {
-	registry, err := tool.NewRegistry(newStubTool("zeta"), newStubTool("alpha"))
+	registry, err := tools.NewRegistry(newStubTool("zeta"), newStubTool("alpha"))
 	if err != nil {
 		t.Fatalf("NewRegistry: %v", err)
 	}
@@ -58,13 +59,13 @@ func TestRegistryResolveAndDefinitions(t *testing.T) {
 }
 
 func TestRegistryRegisterIsAtomic(t *testing.T) {
-	registry, err := tool.NewRegistry(newStubTool("existing"))
+	registry, err := tools.NewRegistry(newStubTool("existing"))
 	if err != nil {
 		t.Fatalf("NewRegistry: %v", err)
 	}
 
 	err = registry.Register(newStubTool("new"), newStubTool("existing"))
-	if !errors.Is(err, tool.ErrDuplicateTool) {
+	if !errors.Is(err, tools.ErrDuplicateTool) {
 		t.Fatalf("Register duplicate error = %v", err)
 	}
 	if _, ok := registry.Resolve("new"); ok {
@@ -72,7 +73,7 @@ func TestRegistryRegisterIsAtomic(t *testing.T) {
 	}
 
 	err = registry.Register(newStubTool("same"), newStubTool("same"))
-	if !errors.Is(err, tool.ErrDuplicateTool) {
+	if !errors.Is(err, tools.ErrDuplicateTool) {
 		t.Fatalf("Register batch duplicate error = %v", err)
 	}
 }
@@ -91,15 +92,15 @@ func TestRegistryRejectsInvalidTools(t *testing.T) {
 		{name: "invalid definition", value: invalidDefinition},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			registry := &tool.Registry{}
+			registry := &tools.Registry{}
 			if err := registry.Register(test.value); !errors.Is(err, tool.ErrInvalidTool) {
 				t.Fatalf("Register error = %v", err)
 			}
 		})
 	}
 
-	var nilRegistry *tool.Registry
-	if err := nilRegistry.Register(newStubTool("tool")); !errors.Is(err, tool.ErrInvalidRegistry) {
+	var nilRegistry *tools.Registry
+	if err := nilRegistry.Register(newStubTool("tool")); !errors.Is(err, tools.ErrInvalidRegistry) {
 		t.Fatalf("nil Registry.Register error = %v", err)
 	}
 	if value, ok := nilRegistry.Resolve("tool"); ok || value != nil {
@@ -108,7 +109,7 @@ func TestRegistryRejectsInvalidTools(t *testing.T) {
 }
 
 func TestRegistryZeroValue(t *testing.T) {
-	var registry tool.Registry
+	var registry tools.Registry
 	if err := registry.Register(newStubTool("zero")); err != nil {
 		t.Fatalf("zero Registry.Register: %v", err)
 	}

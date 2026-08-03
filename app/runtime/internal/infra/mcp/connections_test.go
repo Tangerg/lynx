@@ -20,7 +20,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 	"github.com/Tangerg/lynx/core/chat"
 	lynxmcp "github.com/Tangerg/lynx/mcp"
-	"github.com/Tangerg/lynx/tools/function"
 )
 
 type catalogTool string
@@ -455,7 +454,7 @@ func TestReconnectQuarantinesNewCrossServerPublicToolNameCollision(t *testing.T)
 
 func addRemoteTool(t *testing.T, server *sdkmcp.Server, name string) {
 	t.Helper()
-	tool, err := function.New[struct{}, string](function.Config{Name: name}, func(context.Context, struct{}) (string, error) {
+	tool, err := toolcontract.NewFunc[struct{}, string](toolcontract.FuncConfig{Name: name}, func(context.Context, struct{}) (string, error) {
 		return name, nil
 	})
 	if err != nil {

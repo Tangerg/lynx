@@ -8,7 +8,6 @@ import (
 
 	"github.com/Tangerg/lynx/core/chat"
 	toolcontract "github.com/Tangerg/lynx/tool"
-	toolschema "github.com/Tangerg/lynx/tools/internal/schema"
 )
 
 // Request is the LLM-facing argument shape. It is a strict subset of
@@ -29,7 +28,7 @@ type Response struct {
 	Duration string `json:"duration"`
 }
 
-var toolSchema, _ = toolschema.String(Request{})
+var toolSchema, _ = toolcontract.Schema[Request]()
 
 var _ toolcontract.Tool = (*Tool)(nil)
 

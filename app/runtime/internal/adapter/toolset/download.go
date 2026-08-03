@@ -16,7 +16,6 @@ import (
 
 	"github.com/go-resty/resty/v2"
 
-	toolschema "github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/schema"
 	"github.com/Tangerg/lynx/app/runtime/internal/component/pathidentity"
 	"github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/tools/httpreq"
@@ -42,7 +41,7 @@ type downloadResponse struct {
 	ContentType string `json:"content_type,omitempty"`
 }
 
-var downloadSchema = toolschema.MustString(downloadRequest{})
+var downloadSchema = toolcontract.MustSchema[downloadRequest]()
 
 type downloadTool struct {
 	workdir string

@@ -7,7 +7,6 @@ import (
 
 	"github.com/Tangerg/lynx/core/chat"
 	toolcontract "github.com/Tangerg/lynx/tool"
-	toolschema "github.com/Tangerg/lynx/tools/internal/schema"
 )
 
 // ApplyPatchRequest is the LLM-facing argument shape for the apply_patch tool.
@@ -30,7 +29,7 @@ type PatchFileResponse struct {
 	MovedFrom string `json:"moved_from,omitempty"`
 }
 
-var applyPatchToolSchema, _ = toolschema.String(ApplyPatchRequest{})
+var applyPatchToolSchema, _ = toolcontract.Schema[ApplyPatchRequest]()
 
 var _ toolcontract.Tool = (*ApplyPatchTool)(nil)
 

@@ -13,7 +13,6 @@ import (
 
 	toolcontract "github.com/Tangerg/lynx/tool"
 
-	toolschema "github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/schema"
 	"github.com/Tangerg/lynx/core/chat"
 )
 
@@ -54,7 +53,7 @@ type sourcegraphLineMatch struct {
 	LineNumber int    `json:"line_number"`
 }
 
-var sourcegraphSchema = toolschema.MustString(sourcegraphRequest{})
+var sourcegraphSchema = toolcontract.MustSchema[sourcegraphRequest]()
 
 type sourcegraphTool struct {
 	streamURL string

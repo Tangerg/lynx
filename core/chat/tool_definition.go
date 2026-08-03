@@ -11,7 +11,7 @@ import (
 var ErrInvalidToolDefinition = errors.New("chat: invalid tool definition")
 
 // ToolDefinition is the serializable description exposed to a model. Tool
-// execution belongs to the tools module and is deliberately absent here.
+// execution belongs to package tool and is deliberately absent here.
 type ToolDefinition struct {
 	Name        string          `json:"name"`
 	Description string          `json:"description,omitempty"`

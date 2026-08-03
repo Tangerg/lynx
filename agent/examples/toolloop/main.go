@@ -9,7 +9,7 @@ import (
 
 	"github.com/Tangerg/lynx/agent/toolloop"
 	"github.com/Tangerg/lynx/core/chat"
-	"github.com/Tangerg/lynx/tool"
+	"github.com/Tangerg/lynx/tools"
 )
 
 type addInput struct {
@@ -43,7 +43,7 @@ func main() {
 }
 
 func run(ctx context.Context, output io.Writer) error {
-	registry, err := tool.NewRegistry(addTool{})
+	registry, err := tools.NewRegistry(addTool{})
 	if err != nil {
 		return err
 	}

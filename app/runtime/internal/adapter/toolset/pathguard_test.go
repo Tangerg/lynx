@@ -9,8 +9,6 @@ import (
 	"testing"
 
 	toolcontract "github.com/Tangerg/lynx/tool"
-
-	"github.com/Tangerg/lynx/tools/function"
 )
 
 type pathGuardArgs struct {
@@ -29,8 +27,8 @@ func (f failingMutationReporter) MutationPaths(string) ([]string, error) {
 func TestWithPathGuardFailsClosedWhenMutationDiscoveryFails(t *testing.T) {
 	cause := errors.New("mutation discovery failed")
 	called := false
-	inner, _ := function.New[pathGuardArgs, string](
-		function.Config{Name: "write", Description: "stub"},
+	inner, _ := toolcontract.NewFunc[pathGuardArgs, string](
+		toolcontract.FuncConfig{Name: "write", Description: "stub"},
 		func(context.Context, pathGuardArgs) (string, error) {
 			called = true
 			return "wrote", nil
@@ -53,8 +51,8 @@ func TestWithPathGuardFailsClosedWhenMutationDiscoveryFails(t *testing.T) {
 // ordinary paths — including non-.git dotfiles — pass through untouched.
 func TestWithPathGuard(t *testing.T) {
 	called := false
-	inner, _ := function.New[pathGuardArgs, string](
-		function.Config{Name: "write", Description: "stub"},
+	inner, _ := toolcontract.NewFunc[pathGuardArgs, string](
+		toolcontract.FuncConfig{Name: "write", Description: "stub"},
 		func(context.Context, pathGuardArgs) (string, error) {
 			called = true
 			return "wrote", nil
@@ -156,8 +154,8 @@ func TestWithPathGuardRejectsSymlinkAliasesIntoGit(t *testing.T) {
 	}
 
 	called := false
-	inner, _ := function.New[pathGuardArgs, string](
-		function.Config{Name: "write", Description: "stub"},
+	inner, _ := toolcontract.NewFunc[pathGuardArgs, string](
+		toolcontract.FuncConfig{Name: "write", Description: "stub"},
 		func(context.Context, pathGuardArgs) (string, error) {
 			called = true
 			return "wrote", nil
@@ -186,8 +184,8 @@ func TestWithPathGuardRejectsSymlinkCycle(t *testing.T) {
 	}
 
 	called := false
-	inner, _ := function.New[pathGuardArgs, string](
-		function.Config{Name: "write", Description: "stub"},
+	inner, _ := toolcontract.NewFunc[pathGuardArgs, string](
+		toolcontract.FuncConfig{Name: "write", Description: "stub"},
 		func(context.Context, pathGuardArgs) (string, error) {
 			called = true
 			return "wrote", nil

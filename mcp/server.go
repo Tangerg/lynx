@@ -12,6 +12,7 @@ import (
 
 	corechat "github.com/Tangerg/lynx/core/chat"
 	toolcontract "github.com/Tangerg/lynx/tool"
+	toolset "github.com/Tangerg/lynx/tools"
 )
 
 // Register installs every [tool.Tool] in tools onto server using
@@ -32,7 +33,7 @@ func Register(server *sdkmcp.Server, tools ...toolcontract.Tool) error {
 		return ErrNilServer
 	}
 
-	registry, err := toolcontract.NewRegistry(tools...)
+	registry, err := toolset.NewRegistry(tools...)
 	if err != nil {
 		return fmt.Errorf("mcp: register tools: %w", err)
 	}

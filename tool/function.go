@@ -23,19 +23,35 @@ type Func[In, Out any] struct {
 	function   func(context.Context, In) (Out, error)
 }
 
-// NewFunc adapts function to a Tool using definition as its explicit contract.
-// In must be a struct or a pointer to a struct; use struct{} for a tool without
-// arguments. Arguments are decoded strictly, so unknown JSON fields fail. A
-// string result is returned verbatim; every other result is encoded as JSON.
-func NewFunc[In, Out any](definition chat.ToolDefinition, function func(context.Context, In) (Out, error)) (*Func[In, Out], error) {
+// FuncConfig describes a typed function tool. NewFunc derives InputSchema from
+// In so the decoder and model-visible contract cannot drift independently.
+type FuncConfig struct {
+	Name        string
+	Description string
+}
+
+// NewFunc adapts function to a Tool. In must be a struct or a pointer to a
+// struct; use struct{} for a tool without arguments. Arguments are decoded
+// strictly, so unknown JSON fields fail. A string result is returned verbatim;
+// every other result is encoded as JSON.
+func NewFunc[In, Out any](config FuncConfig, function func(context.Context, In) (Out, error)) (*Func[In, Out], error) {
+	if err := validateFuncInput(reflect.TypeFor[In]()); err != nil {
+		return nil, fmt.Errorf("%w: %w", ErrInvalidTool, err)
+	}
+	inputSchema, err := Schema[In]()
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", ErrInvalidTool, err)
+	}
+	definition := chat.ToolDefinition{
+		Name:        config.Name,
+		Description: config.Description,
+		InputSchema: json.RawMessage(inputSchema),
+	}
 	if err := definition.Validate(); err != nil {
 		return nil, fmt.Errorf("%w: definition: %w", ErrInvalidTool, err)
 	}
 	if function == nil {
 		return nil, fmt.Errorf("%w: function is nil", ErrInvalidTool)
-	}
-	if err := validateFuncInput(reflect.TypeFor[In]()); err != nil {
-		return nil, fmt.Errorf("%w: %w", ErrInvalidTool, err)
 	}
 	return &Func[In, Out]{
 		definition: definition.Clone(),

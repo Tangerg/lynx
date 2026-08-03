@@ -12,7 +12,6 @@ require (
 	github.com/Tangerg/lynx/models/ollama v0.0.0-20260802195812-555a8da53cc9
 	github.com/Tangerg/lynx/otel v0.0.0-20260731193916-0098789d89e9
 	github.com/Tangerg/lynx/skills v0.0.0-20260731193916-0098789d89e9
-	github.com/Tangerg/lynx/tools v0.0.0-20260803071502-5290fc59b753
 	github.com/Tangerg/lynx/tools/httpreq v0.0.0-20260803071502-5290fc59b753
 	github.com/Tangerg/lynx/tools/skills v0.0.0-20260803071502-5290fc59b753
 	github.com/Tangerg/lynx/tools/webfetch v0.0.0-20260803071502-5290fc59b753
@@ -24,7 +23,6 @@ require (
 	github.com/go-chi/cors v1.2.2
 	github.com/go-resty/resty/v2 v2.17.2
 	github.com/google/uuid v1.6.0
-	github.com/invopop/jsonschema v0.14.0
 	github.com/modelcontextprotocol/go-sdk v1.7.0
 	github.com/openai/openai-go/v3 v3.49.0
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2

@@ -13,8 +13,6 @@ import (
 
 	toolcontract "github.com/Tangerg/lynx/tool"
 
-	"github.com/Tangerg/lynx/tools/function"
-
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/executionctx"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/codebaseindex"
 )
@@ -54,11 +52,11 @@ func New(index SearchIndex) (toolcontract.Tool, error) {
 	if index == nil {
 		return nil, errors.New("codebase_search: index is nil")
 	}
-	return function.New[request, string](definition(), (&tool{index: index}).search)
+	return toolcontract.NewFunc[request, string](definition(), (&tool{index: index}).search)
 }
 
-func definition() function.Config {
-	return function.Config{
+func definition() toolcontract.FuncConfig {
+	return toolcontract.FuncConfig{
 		Name: "codebase_search",
 		Description: "Semantic search over THIS project's code: find the most relevant code by MEANING, not by literal text. " +
 			"Use it to locate where a concept or behavior lives when you don't know the exact name; use grep for exact strings/symbols. " +

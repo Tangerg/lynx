@@ -9,9 +9,10 @@ import (
 	"github.com/Tangerg/lynx/agent/toolloop"
 	"github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/tool"
+	"github.com/Tangerg/lynx/tools"
 )
 
-var _ toolloop.ToolResolver = (*tool.Registry)(nil)
+var _ toolloop.ToolResolver = (*tools.Registry)(nil)
 
 type protocolTool struct {
 	definition chat.ToolDefinition
@@ -34,13 +35,13 @@ func (t *protocolTool) Call(ctx context.Context, arguments string) (string, erro
 	return "ok", nil
 }
 
-func protocolRegistry(t *testing.T) *tool.Registry {
+func protocolRegistry(t *testing.T) *tools.Registry {
 	return protocolRegistryWithCall(t, nil)
 }
 
-func protocolRegistryWithCall(t *testing.T, call func(context.Context, string) (string, error)) *tool.Registry {
+func protocolRegistryWithCall(t *testing.T, call func(context.Context, string) (string, error)) *tools.Registry {
 	t.Helper()
-	registry, err := tool.NewRegistry(&protocolTool{definition: chat.ToolDefinition{
+	registry, err := tools.NewRegistry(&protocolTool{definition: chat.ToolDefinition{
 		Name:        "lookup",
 		Description: "look up a value",
 		InputSchema: json.RawMessage(`{"type":"object"}`),
@@ -76,7 +77,7 @@ func TestRunnerValidatesAdvertisedTools(t *testing.T) {
 		{name: "missing request"},
 		{name: "invalid request", request: &chat.Request{}},
 		{name: "missing resolver", request: requestWithTool},
-		{name: "unresolved tool", request: requestWithTool, resolver: &tool.Registry{}},
+		{name: "unresolved tool", request: requestWithTool, resolver: &tools.Registry{}},
 		{name: "typed nil tool", request: requestWithTool, resolver: typedNilToolResolver{}},
 	} {
 		t.Run(test.name, func(t *testing.T) {

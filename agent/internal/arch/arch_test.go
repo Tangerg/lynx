@@ -25,7 +25,6 @@ var forbiddenFrameworkModulePrefixes = []string{
 	"github.com/Tangerg/lynx/app",
 	"github.com/Tangerg/lynx/a2a",
 	"github.com/Tangerg/lynx/mcp",
-	"github.com/Tangerg/lynx/tools",
 	"github.com/a2aproject/a2a-go",
 	"github.com/modelcontextprotocol/go-sdk",
 }
@@ -175,6 +174,10 @@ func TestFrameworkDoesNotImportApplicationOrTransportModules(t *testing.T) {
 		}
 		for _, imported := range file.Imports {
 			importPath := strings.Trim(imported.Path.Value, `"`)
+			if strings.HasPrefix(importPath, "github.com/Tangerg/lynx/tools/") {
+				rel, _ := filepath.Rel(root, path)
+				t.Errorf("Agent Framework production package imports concrete tool capability %q: %s", importPath, rel)
+			}
 			for _, prefix := range forbiddenFrameworkModulePrefixes {
 				if hasModulePrefix(importPath, prefix) {
 					rel, _ := filepath.Rel(root, path)
@@ -196,6 +199,9 @@ func TestFrameworkModuleDoesNotRequireApplicationOrTransportModules(t *testing.T
 		t.Fatalf("read Agent go.mod: %v", err)
 	}
 	for _, field := range strings.Fields(string(data)) {
+		if strings.HasPrefix(field, "github.com/Tangerg/lynx/tools/") {
+			t.Errorf("Agent module depends on concrete tool capability module %q", field)
+		}
 		for _, prefix := range forbiddenFrameworkModulePrefixes {
 			if hasModulePrefix(field, prefix) {
 				t.Errorf("Agent module depends on application or transport module %q", field)

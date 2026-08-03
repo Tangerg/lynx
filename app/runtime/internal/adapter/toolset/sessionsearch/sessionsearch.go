@@ -13,7 +13,6 @@ import (
 	toolcontract "github.com/Tangerg/lynx/tool"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
-	"github.com/Tangerg/lynx/tools/function"
 )
 
 const (
@@ -56,11 +55,11 @@ func New(search Search) (toolcontract.Tool, error) {
 	if search == nil {
 		return nil, nil
 	}
-	return function.New[request, string](definition(), (&tool{search: search}).run)
+	return toolcontract.NewFunc[request, string](definition(), (&tool{search: search}).run)
 }
 
-func definition() function.Config {
-	return function.Config{
+func definition() toolcontract.FuncConfig {
+	return toolcontract.FuncConfig{
 		Name: "session_search",
 		Description: "Search the full text of your PAST conversations — the transcripts of earlier sessions, what " +
 			"you and the user actually said, across every prior session. Use it to recall whether a topic, decision, " +

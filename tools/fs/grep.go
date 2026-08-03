@@ -7,7 +7,6 @@ import (
 
 	"github.com/Tangerg/lynx/core/chat"
 	toolcontract "github.com/Tangerg/lynx/tool"
-	toolschema "github.com/Tangerg/lynx/tools/internal/schema"
 )
 
 // GrepRequest is the LLM-facing argument shape for the grep tool.
@@ -45,7 +44,7 @@ type GrepResponse struct {
 	Truncated bool            `json:"truncated,omitempty"`
 }
 
-var grepToolSchema, _ = toolschema.String(GrepRequest{})
+var grepToolSchema, _ = toolcontract.Schema[GrepRequest]()
 
 var _ toolcontract.Tool = (*GrepTool)(nil)
 

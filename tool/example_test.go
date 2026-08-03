@@ -1,19 +1,19 @@
-package function_test
+package tool_test
 
 import (
 	"context"
 	"fmt"
 
 	"github.com/Tangerg/lynx/tool"
-	"github.com/Tangerg/lynx/tools/function"
+	"github.com/Tangerg/lynx/tools"
 )
 
-func ExampleNew() {
+func ExampleNewFunc() {
 	type input struct {
 		A int `json:"a"`
 		B int `json:"b"`
 	}
-	add, err := function.New(function.Config{
+	add, err := tool.NewFunc(tool.FuncConfig{
 		Name:        "add",
 		Description: "add two integers",
 	}, func(_ context.Context, value input) (int, error) {
@@ -22,7 +22,7 @@ func ExampleNew() {
 	if err != nil {
 		panic(err)
 	}
-	registry, err := tool.NewRegistry(add)
+	registry, err := tools.NewRegistry(add)
 	if err != nil {
 		panic(err)
 	}

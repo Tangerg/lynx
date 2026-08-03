@@ -15,8 +15,6 @@ import (
 
 	toolcontract "github.com/Tangerg/lynx/tool"
 
-	"github.com/Tangerg/lynx/tools/function"
-
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/executionctx"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/agentmemory"
 )
@@ -55,11 +53,11 @@ func New(search Search) (toolcontract.Tool, error) {
 	if search == nil {
 		return nil, nil
 	}
-	return function.New[request, string](definition(), (&tool{search: search}).run)
+	return toolcontract.NewFunc[request, string](definition(), (&tool{search: search}).run)
 }
 
-func definition() function.Config {
-	return function.Config{
+func definition() toolcontract.FuncConfig {
+	return toolcontract.FuncConfig{
 		Name: "memory_search",
 		Description: "Search your own long-term memory of THIS project — the durable facts, conventions, " +
 			"decisions, and user preferences you have accumulated across past sessions. Use it to recall context " +

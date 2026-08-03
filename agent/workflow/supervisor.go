@@ -8,6 +8,7 @@ import (
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/tool"
+	"github.com/Tangerg/lynx/tools"
 )
 
 // SupervisorConfig configures a [Supervisor] — an LLM-orchestration agent
@@ -61,7 +62,7 @@ func Supervisor[In, Out any](config SupervisorConfig[In, Out]) (*core.Agent, err
 	if config.Parse == nil {
 		return nil, errors.New("workflow.Supervisor: Parse must not be nil")
 	}
-	if _, err := tool.NewRegistry(config.Tools...); err != nil {
+	if _, err := tools.NewRegistry(config.Tools...); err != nil {
 		return nil, fmt.Errorf("workflow.Supervisor: Tools: %w", err)
 	}
 	delegates := append([]tool.Tool(nil), config.Tools...)

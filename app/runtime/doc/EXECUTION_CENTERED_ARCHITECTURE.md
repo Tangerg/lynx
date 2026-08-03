@@ -118,7 +118,7 @@ Bootstrap 和 run-segment 同样只声明各自需要的关闭或 process-lookup
 - provider-neutral 的 token/cost/model-call 聚合计数与 limit；
 - tagged final event。
 
-Runtime 供应 model stream wrapper、`tool.Registry`、limits、cost projection 和 observer；
+Runtime 供应 model stream wrapper、`tools.Registry`、limits、cost projection 和 observer；
 observer 从 model-response boundary 建立 application-owned per-model USD 账本。该账本不进入
 Agent snapshot，而是作为 App-owned `ExecutorCheckpoint` metadata 与 opaque process-tree
 payload 一起原子提交；只有 agentexec 能解释 payload 并校验两侧 usage 聚合。

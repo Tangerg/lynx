@@ -7,10 +7,9 @@ import (
 
 	"github.com/Tangerg/lynx/core/chat"
 	toolcontract "github.com/Tangerg/lynx/tool"
-	toolschema "github.com/Tangerg/lynx/tools/internal/schema"
 )
 
-var toolSchema, _ = toolschema.String(Request{})
+var toolSchema, _ = toolcontract.Schema[Request]()
 
 var _ toolcontract.Tool = (*Tool)(nil)
 

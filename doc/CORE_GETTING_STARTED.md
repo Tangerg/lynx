@@ -9,8 +9,9 @@
 |---|---|
 | 定义消息、请求、响应和最小 Model SPI | `core/chat` |
 | 默认参数、middleware、同步/流式调用、模板和结构化输出 | `chatclient` |
-| 最小工具契约、decorator 能力发现和实例 Registry | `tool` |
-| 把 typed function 变成可执行工具 | `tools/function` |
+| 最小工具契约、decorator 能力发现和 typed/schema 辅助 | `tool` |
+| 实例工具集合与 Registry | `tools` |
+| 把 typed function 变成可执行工具 | `tool` |
 | 多轮工具执行、普通错误反馈、direct return、暂停/恢复 | `agent/toolloop` |
 | 聊天历史 | `chathistory` |
 | OpenTelemetry | `otel/chat`、`otel/chathistory`、`otel/vectorstore`、`otel/slog` |
@@ -72,7 +73,7 @@ type addInput struct {
     B int `json:"b"`
 }
 
-add, err := tools.New(tools.Config{
+add, err := tool.NewFunc(tool.FuncConfig{
     Name:        "add",
     Description: "add two integers",
 }, func(_ context.Context, in addInput) (int, error) {
@@ -81,7 +82,7 @@ add, err := tools.New(tools.Config{
 if err != nil {
     return err
 }
-registry, err := tool.NewRegistry(add)
+registry, err := tools.NewRegistry(add)
 if err != nil {
     return err
 }

@@ -13,7 +13,6 @@ import (
 	"github.com/Tangerg/lynx/agent/toolloop"
 	domaintool "github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/core/chat"
-	"github.com/Tangerg/lynx/tools/function"
 )
 
 // delegatingStubModel exercises the `task` delegation tool. A turn whose
@@ -676,7 +675,7 @@ func (r *fixedToolResolver) Resolve(_ context.Context, role string) (core.ToolGr
 }
 
 func newDirectResultTool() (toolcontract.Tool, error) {
-	tool, err := function.New[struct{}, string](function.Config{
+	tool, err := toolcontract.NewFunc[struct{}, string](toolcontract.FuncConfig{
 		Name:        "finish",
 		Description: "Return a final result directly.",
 	}, func(context.Context, struct{}) (string, error) {

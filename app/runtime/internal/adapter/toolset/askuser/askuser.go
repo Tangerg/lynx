@@ -21,12 +21,11 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
-	"github.com/Tangerg/lynx/tools/function"
 )
 
 const toolName = "ask_user"
 
-// askUserArgs is the model-facing argument shape; [function.New] derives
+// askUserArgs is the model-facing argument shape; [toolcontract.NewFunc] derives
 // the JSON schema from it and decodes calls back into it, so the advertised
 // schema and parsed value cannot drift. The handler maps its LLM-oriented names
 // into the application-owned [runs.QuestionPrompt] contract.
@@ -86,8 +85,8 @@ func New(interrupt runs.InterruptFunc) (toolcontract.Tool, error) {
 		interrupt = runs.InterruptUnavailable
 	}
 	t := &tool{interrupt: interrupt}
-	return function.New[askUserArgs, string](
-		function.Config{
+	return toolcontract.NewFunc[askUserArgs, string](
+		toolcontract.FuncConfig{
 			Name:        toolName,
 			Description: "Ask the user a question and wait for their answer. Use when you need a decision, clarification, or information only the user can provide - not for routine progress updates. Give 2-4 `options` for a multiple-choice question (put the recommended one first); the user may always type a custom answer. Omit `options` for free text, and set `multi_select` when more than one option may apply.",
 		},

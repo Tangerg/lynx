@@ -11,7 +11,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/codebaseindex"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	domaintool "github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
-	"github.com/Tangerg/lynx/tools/function"
+	toolcontract "github.com/Tangerg/lynx/tool"
 )
 
 type availabilityIndex struct {
@@ -54,8 +54,8 @@ func TestSubtaskRoleCanAskExitPlanAndDelegateWithoutRootTools(t *testing.T) {
 			_ = close()
 		}
 	})
-	taskTool, err := function.New(
-		function.Config{Name: "task", Description: "Delegate a bounded child task."},
+	taskTool, err := toolcontract.NewFunc(
+		toolcontract.FuncConfig{Name: "task", Description: "Delegate a bounded child task."},
 		func(context.Context, struct{}) (string, error) { return "", nil },
 	)
 	if err != nil {

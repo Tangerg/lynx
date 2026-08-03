@@ -22,7 +22,6 @@ import (
 	toolcontract "github.com/Tangerg/lynx/tool"
 
 	"github.com/Tangerg/lynx/agent/toolloop"
-	toolschema "github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/schema"
 	"github.com/Tangerg/lynx/core/chat"
 )
 
@@ -40,7 +39,7 @@ type searchArgs struct {
 	Limit int    `json:"limit,omitempty" jsonschema_description:"Max tools to return and load (default 5). Ignored for select:."`
 }
 
-var searchSchema, _ = toolschema.String(searchArgs{})
+var searchSchema, _ = toolcontract.Schema[searchArgs]()
 
 // entry is one searchable withheld tool with its precomputed match terms.
 type entry struct {

@@ -7,7 +7,6 @@ import (
 
 	"github.com/Tangerg/lynx/core/chat"
 	toolcontract "github.com/Tangerg/lynx/tool"
-	toolschema "github.com/Tangerg/lynx/tools/internal/schema"
 )
 
 // ReadRequest is the LLM-facing argument shape for the read tool.
@@ -29,7 +28,7 @@ type ReadResponse struct {
 	Truncated  bool   `json:"truncated,omitempty"`
 }
 
-var readToolSchema, _ = toolschema.String(ReadRequest{})
+var readToolSchema, _ = toolcontract.Schema[ReadRequest]()
 
 var _ toolcontract.Tool = (*ReadTool)(nil)
 

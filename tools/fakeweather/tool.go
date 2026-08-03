@@ -8,7 +8,6 @@ import (
 
 	"github.com/Tangerg/lynx/core/chat"
 	toolcontract "github.com/Tangerg/lynx/tool"
-	toolschema "github.com/Tangerg/lynx/tools/internal/schema"
 )
 
 // Request is the tool input. Date is optional; when empty the tool
@@ -154,7 +153,7 @@ func New(writer io.Writer) *Tool {
 	return &Tool{writer: writer}
 }
 
-var inputSchema, _ = toolschema.String(Request{})
+var inputSchema, _ = toolcontract.Schema[Request]()
 
 func (t *Tool) Definition() chat.ToolDefinition {
 	return chat.ToolDefinition{

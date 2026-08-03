@@ -15,6 +15,7 @@ import (
 	corechat "github.com/Tangerg/lynx/core/chat"
 	lynxmcp "github.com/Tangerg/lynx/mcp"
 	"github.com/Tangerg/lynx/tool"
+	"github.com/Tangerg/lynx/tools"
 )
 
 type echoInput struct {
@@ -174,7 +175,7 @@ func TestRegister_RejectsInvalidSchema(t *testing.T) {
 func TestRegister_RejectsDuplicateBatchAtomically(t *testing.T) {
 	srv := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "x", Version: "v0"}, nil)
 	err := lynxmcp.Register(srv, newConstantTool("duplicate"), newConstantTool("duplicate"))
-	require.ErrorIs(t, err, tool.ErrDuplicateTool)
+	require.ErrorIs(t, err, tools.ErrDuplicateTool)
 
 	require.NoError(t, lynxmcp.Register(srv, newConstantTool("after")))
 	client, cleanup := connectServer(t, t.Context(), srv)

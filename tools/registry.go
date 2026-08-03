@@ -1,4 +1,4 @@
-package tool
+package tools
 
 import (
 	"errors"
@@ -9,19 +9,18 @@ import (
 	"sync"
 
 	"github.com/Tangerg/lynx/core/chat"
+	toolcontract "github.com/Tangerg/lynx/tool"
 )
 
 var (
-	// ErrInvalidTool reports a nil tool or invalid model-visible definition.
-	ErrInvalidTool = errors.New("tool: invalid tool")
 	// ErrDuplicateTool reports an attempt to register a name more than once.
-	ErrDuplicateTool = errors.New("tool: duplicate tool")
+	ErrDuplicateTool = errors.New("tools: duplicate tool")
 	// ErrInvalidRegistry reports an operation on a nil Registry receiver.
-	ErrInvalidRegistry = errors.New("tool: invalid registry")
+	ErrInvalidRegistry = errors.New("tools: invalid registry")
 )
 
 type entry struct {
-	tool       Tool
+	tool       toolcontract.Tool
 	definition chat.ToolDefinition
 }
 
@@ -36,7 +35,7 @@ type Registry struct {
 // NewRegistry constructs a Registry and atomically registers initial. It
 // returns an error without a partially populated registry when any tool is
 // invalid or duplicates another name.
-func NewRegistry(initial ...Tool) (*Registry, error) {
+func NewRegistry(initial ...toolcontract.Tool) (*Registry, error) {
 	registry := &Registry{}
 	if err := registry.Register(initial...); err != nil {
 		return nil, err
@@ -46,7 +45,7 @@ func NewRegistry(initial ...Tool) (*Registry, error) {
 
 // Register atomically adds values. A name may be registered only once;
 // callers must build a new Registry when they need a different tool set.
-func (r *Registry) Register(values ...Tool) error {
+func (r *Registry) Register(values ...toolcontract.Tool) error {
 	if r == nil {
 		return ErrInvalidRegistry
 	}
@@ -57,11 +56,11 @@ func (r *Registry) Register(values ...Tool) error {
 	pending := make(map[string]entry, len(values))
 	for index, value := range values {
 		if nilTool(value) {
-			return fmt.Errorf("%w: tools[%d] is nil", ErrInvalidTool, index)
+			return fmt.Errorf("%w: tools[%d] is nil", toolcontract.ErrInvalidTool, index)
 		}
 		definition := value.Definition().Clone()
 		if err := definition.Validate(); err != nil {
-			return fmt.Errorf("%w: tools[%d] definition: %w", ErrInvalidTool, index, err)
+			return fmt.Errorf("%w: tools[%d] definition: %w", toolcontract.ErrInvalidTool, index, err)
 		}
 		if _, duplicate := pending[definition.Name]; duplicate {
 			return fmt.Errorf("%w: %q appears more than once in batch", ErrDuplicateTool, definition.Name)
@@ -86,7 +85,7 @@ func (r *Registry) Register(values ...Tool) error {
 }
 
 // Resolve returns the executable tool registered under name.
-func (r *Registry) Resolve(name string) (Tool, bool) {
+func (r *Registry) Resolve(name string) (toolcontract.Tool, bool) {
 	if r == nil {
 		return nil, false
 	}
@@ -115,7 +114,7 @@ func (r *Registry) Definitions() []chat.ToolDefinition {
 	return definitions
 }
 
-func nilTool(value Tool) bool {
+func nilTool(value toolcontract.Tool) bool {
 	if value == nil {
 		return true
 	}

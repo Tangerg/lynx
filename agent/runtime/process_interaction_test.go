@@ -15,6 +15,7 @@ import (
 	"github.com/Tangerg/lynx/agent/runtime"
 	"github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/tool"
+	"github.com/Tangerg/lynx/tools"
 )
 
 type managedModel struct {
@@ -111,7 +112,7 @@ func TestManagedInteractionPublishesOwnedBoundariesAndRecordsUsage(t *testing.T)
 	approval := newRuntimeTestTool("approval", func(context.Context) (string, error) {
 		return "approved", nil
 	})
-	registry, err := tool.NewRegistry(approval)
+	registry, err := tools.NewRegistry(approval)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -166,7 +167,7 @@ func TestManagedInteractionHonorsConcurrentToolCallLimit(t *testing.T) {
 			},
 		})
 	}
-	registry, err := tool.NewRegistry(registered...)
+	registry, err := tools.NewRegistry(registered...)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -204,7 +205,7 @@ func TestManagedInteractionHonorsConcurrentToolCallLimit(t *testing.T) {
 
 func TestManagedInteractionRejectsNegativeConcurrentToolCallLimit(t *testing.T) {
 	model := &managedFinalModel{}
-	registry, err := tool.NewRegistry()
+	registry, err := tools.NewRegistry()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -237,7 +238,7 @@ func TestManagedInteractionSuspendsAndResumesPendingToolExactly(t *testing.T) {
 		}
 		return "approved", nil
 	})
-	registry, _ := tool.NewRegistry(approval)
+	registry, _ := tools.NewRegistry(approval)
 	a := managedInteractionAgent(t, "managed-resume", registry, interaction.Limits{})
 	var boundaries []interaction.EventKind
 	listener := event.NewNamedListener("managed-resume-boundaries", func(_ context.Context, value event.Event) {
@@ -357,7 +358,7 @@ func TestPendingSuspensionsReportsConcurrentCallsInModelOrder(t *testing.T) {
 			},
 		})
 	}
-	registry, err := tool.NewRegistry(registered...)
+	registry, err := tools.NewRegistry(registered...)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -433,7 +434,7 @@ func TestPendingSuspensionsReportsConcurrentCallsInModelOrder(t *testing.T) {
 func TestManagedInteractionStopsBeforeContinuationAtStepLimit(t *testing.T) {
 	model := &managedModel{}
 	approval := newRuntimeTestTool("approval", func(context.Context) (string, error) { return "ok", nil })
-	registry, _ := tool.NewRegistry(approval)
+	registry, _ := tools.NewRegistry(approval)
 	a := managedInteractionAgent(t, "managed-steps", registry, interaction.Limits{MaxRounds: 1})
 	engine := agent.MustNewEngine(runtime.Config{Chat: core.ChatCapability{Model: model}})
 	mustDeploy(t, engine, a)
@@ -452,7 +453,7 @@ func TestManagedInteractionStopsBeforeContinuationAtStepLimit(t *testing.T) {
 func TestManagedInteractionStopsBeforeContinuationAtModelCallLimit(t *testing.T) {
 	model := &managedModel{}
 	approval := newRuntimeTestTool("approval", func(context.Context) (string, error) { return "ok", nil })
-	registry, _ := tool.NewRegistry(approval)
+	registry, _ := tools.NewRegistry(approval)
 	a := managedInteractionAgent(t, "managed-model-calls", registry, interaction.Limits{})
 	engine := agent.MustNewEngine(runtime.Config{Chat: core.ChatCapability{Model: model}})
 	mustDeploy(t, engine, a)
@@ -502,7 +503,7 @@ func (m *managedRejectedResponseModel) Calls() int {
 
 func TestManagedInteractionKeepsModelCallCapacityWhenResponseIsRejected(t *testing.T) {
 	model := &managedRejectedResponseModel{}
-	registry, err := tool.NewRegistry()
+	registry, err := tools.NewRegistry()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -599,7 +600,7 @@ func (e managedInteractionExtension) OnEvent(_ context.Context, published event.
 
 func TestManagedInteractionListenerPanicDoesNotFailModelResponse(t *testing.T) {
 	model := &managedFinalModel{}
-	registry, err := tool.NewRegistry()
+	registry, err := tools.NewRegistry()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -644,7 +645,7 @@ func TestManagedInteractionListenerPanicDoesNotFailModelResponse(t *testing.T) {
 
 func TestManagedInteractionRecordsHostCostAndPublishesIt(t *testing.T) {
 	model := &managedFinalModel{}
-	registry, err := tool.NewRegistry()
+	registry, err := tools.NewRegistry()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -688,7 +689,7 @@ func TestManagedInteractionRecordsHostCostAndPublishesIt(t *testing.T) {
 
 func TestManagedInteractionIsolatesProjectorsAndObservers(t *testing.T) {
 	model := &managedFinalModel{}
-	registry, err := tool.NewRegistry()
+	registry, err := tools.NewRegistry()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -746,7 +747,7 @@ func TestManagedInteractionIsolatesProjectorsAndObservers(t *testing.T) {
 
 func TestManagedInteractionContainsCostProjectorPanic(t *testing.T) {
 	model := &managedFinalModel{}
-	registry, err := tool.NewRegistry()
+	registry, err := tools.NewRegistry()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -841,7 +842,7 @@ func TestManagedInteractionRestoresAfterCrashWithoutReplayingCommittedWork(t *te
 		}
 		return "approved", nil
 	})
-	registry, err := tool.NewRegistry(first, approval)
+	registry, err := tools.NewRegistry(first, approval)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -886,7 +887,7 @@ func TestManagedInteractionRestoresAfterCrashWithoutReplayingCommittedWork(t *te
 
 func TestManagedInteractionCancellationAtRequestBoundarySkipsProviderCall(t *testing.T) {
 	model := &managedFinalModel{}
-	registry, err := tool.NewRegistry()
+	registry, err := tools.NewRegistry()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -928,7 +929,7 @@ func TestManagedInteractionCancellationAtRequestBoundarySkipsProviderCall(t *tes
 	}
 }
 
-func managedInteractionAgent(t *testing.T, name string, registry *tool.Registry, limits interaction.Limits) *core.Agent {
+func managedInteractionAgent(t *testing.T, name string, registry *tools.Registry, limits interaction.Limits) *core.Agent {
 	t.Helper()
 	return agent.New(agent.AgentConfig{Name: name, Actions: []agent.Action{agent.NewAction("interact", func(ctx context.Context, pc *core.ProcessContext, _ struct{}) (string, error) {
 		request := &chat.Request{Messages: []chat.Message{chat.NewUserMessage(chat.NewTextPart("run"))}, Tools: registry.Definitions()}
@@ -955,7 +956,7 @@ func TestManagedInteractionInheritsProcessToolRoundLimit(t *testing.T) {
 	approval := newRuntimeTestTool("approval", func(context.Context) (string, error) {
 		return "approved", nil
 	})
-	registry, err := tool.NewRegistry(approval)
+	registry, err := tools.NewRegistry(approval)
 	if err != nil {
 		t.Fatal(err)
 	}

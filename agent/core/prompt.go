@@ -9,6 +9,7 @@ import (
 	"github.com/Tangerg/lynx/agent/interaction"
 	"github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/tool"
+	"github.com/Tangerg/lynx/tools"
 )
 
 // ChatMiddleware carries model middleware applied to process-scoped chat
@@ -74,7 +75,7 @@ func (pc *ProcessContext) Prompt(ctx context.Context, text string, config Prompt
 
 type promptCall struct {
 	request   *chat.Request
-	registry  *tool.Registry
+	registry  *tools.Registry
 	maxRounds int
 }
 
@@ -86,7 +87,7 @@ func (pc *ProcessContext) newPromptCall(ctx context.Context, text string, config
 	if err != nil {
 		return nil, fmt.Errorf("agent: prompt: resolve tools: %w", err)
 	}
-	registry, err := tool.NewRegistry(resolved...)
+	registry, err := tools.NewRegistry(resolved...)
 	if err != nil {
 		return nil, fmt.Errorf("agent: prompt: register tools: %w", err)
 	}

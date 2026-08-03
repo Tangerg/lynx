@@ -10,6 +10,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/toolsearch"
 	"github.com/Tangerg/lynx/core/chat"
 	toolcontract "github.com/Tangerg/lynx/tool"
+	toolset "github.com/Tangerg/lynx/tools"
 )
 
 type mcpTool struct {
@@ -163,7 +164,7 @@ func TestEndToEndPromotionMakesWithheldToolCallable(t *testing.T) {
 	withheld := mcpTool{name: "linear_create_issue", desc: "Create a Linear issue", server: "linear", remote: "create_issue", result: "LIN-42 created"}
 	search := toolsearch.New([]toolcontract.Tool{withheld})
 
-	registry, err := toolcontract.NewRegistry(search, withheld)
+	registry, err := toolset.NewRegistry(search, withheld)
 	if err != nil {
 		t.Fatalf("NewRegistry: %v", err)
 	}

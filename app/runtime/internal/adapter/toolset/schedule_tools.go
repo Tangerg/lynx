@@ -11,7 +11,6 @@ import (
 	scheduleapp "github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/schedule"
-	"github.com/Tangerg/lynx/tools/function"
 )
 
 // scheduleRequest is the single `schedule` tool's argument shape — one
@@ -81,8 +80,8 @@ func newScheduleTool(coordinator ScheduleManagement) (toolcontract.Tool, error) 
 	if coordinator == nil {
 		return nil, nil
 	}
-	return function.New[scheduleRequest, string](
-		function.Config{
+	return toolcontract.NewFunc[scheduleRequest, string](
+		toolcontract.FuncConfig{
 			Name:        "schedule",
 			Description: "Manage cron schedules for background agent runs. op=list returns all; create needs prompt + cron; update patches by id (omitted fields unchanged); delete removes by id.",
 		},

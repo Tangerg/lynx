@@ -11,7 +11,6 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/executionctx"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/exec"
-	"github.com/Tangerg/lynx/tools/function"
 )
 
 // Shell tools over a shared [exec.Shells]: the primary `shell` tool plus
@@ -94,8 +93,8 @@ func Build(shells *exec.Shells, defaultWorkdir string) ([]toolcontract.Tool, err
 	}
 	t := &toolSet{shells: shells, defaultWorkdir: defaultWorkdir}
 
-	shellTool, err := function.New[shellArgs, string](
-		function.Config{
+	shellTool, err := toolcontract.NewFunc[shellArgs, string](
+		toolcontract.FuncConfig{
 			Name: "shell",
 			Description: "Execute a shell command via /bin/sh -c. Returns stdout/stderr, exit code, and duration. " +
 				"Avoid `find`, `grep`, `cat`, `head`, `tail`, `sed`, `awk` here — use the dedicated `glob`, `grep`, `read`, `edit` tools instead; reserve `shell` for operations that genuinely need a shell (build commands, git, package managers, etc.). " +
@@ -107,8 +106,8 @@ func Build(shells *exec.Shells, defaultWorkdir string) ([]toolcontract.Tool, err
 	if err != nil {
 		return nil, fmt.Errorf("shell: build shell tool: %w", err)
 	}
-	outputTool, err := function.New[shellOutputArgs, string](
-		function.Config{
+	outputTool, err := toolcontract.NewFunc[shellOutputArgs, string](
+		toolcontract.FuncConfig{
 			Name:        "shell_output",
 			Description: "Read new output from a background shell (only output since the last read). Reports whether it is still running or has exited. With block, waits until the shell exits (or timeout ms) — wait for a backgrounded command without a sleep poll loop.",
 		},
@@ -117,8 +116,8 @@ func Build(shells *exec.Shells, defaultWorkdir string) ([]toolcontract.Tool, err
 	if err != nil {
 		return nil, fmt.Errorf("shell: build shell_output tool: %w", err)
 	}
-	killTool, err := function.New[shellIDArgs, string](
-		function.Config{
+	killTool, err := toolcontract.NewFunc[shellIDArgs, string](
+		toolcontract.FuncConfig{
 			Name:        "shell_kill",
 			Description: "Stop a background shell.",
 		},

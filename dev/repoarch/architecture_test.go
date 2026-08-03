@@ -230,7 +230,7 @@ func TestIntegrationFamiliesDoNotImportSiblingProviders(t *testing.T) {
 func TestNamespaceRootsStayPackageFree(t *testing.T) {
 	t.Parallel()
 	root := repositoryRoot(t)
-	for _, relative := range []string{"core", "documentreaders", "models", "otel", "tools", "vectorstores"} {
+	for _, relative := range []string{"core", "documentreaders", "models", "otel", "vectorstores"} {
 		entries, err := os.ReadDir(filepath.Join(root, relative))
 		if err != nil {
 			t.Errorf("read namespace root %s: %v", relative, err)
@@ -248,6 +248,8 @@ func TestRetiredLayoutsCannotReturn(t *testing.T) {
 	t.Parallel()
 	root := repositoryRoot(t)
 	for _, relative := range []string{
+		"agent/internal/schema",
+		"app/runtime/internal/adapter/toolset/schema",
 		"chatclient/middleware",
 		"chathistorystores",
 		"documentpipeline/id",
@@ -267,6 +269,11 @@ func TestRetiredLayoutsCannotReturn(t *testing.T) {
 		"otel/chat.go",
 		"otel/chathistory.go",
 		"otel/vectorstore.go",
+		"tool/registry.go",
+		"tools/function",
+		"tools/go.mod",
+		"tools/go.sum",
+		"tools/internal/schema",
 		"vectorstores/cockroachdb",
 		"vectorstores/pgvector",
 		"vectorstores/storetest",
@@ -385,20 +392,17 @@ func allowedRepositoryDependencies(path string) map[string]struct{} {
 		repositoryModulePath + "/models/google",
 		repositoryModulePath + "/models/ollama":
 		return dependencies(repositoryModulePath, repositoryModulePath+"/models/protocol/openai")
-	case repositoryModulePath + "/tools":
-		return dependencies(repositoryModulePath)
 	case repositoryModulePath + "/tools/httpreq",
 		repositoryModulePath + "/tools/webfetch",
 		repositoryModulePath + "/tools/websearch":
-		return dependencies(repositoryModulePath, repositoryModulePath+"/tools")
+		return dependencies(repositoryModulePath)
 	case repositoryModulePath + "/tools/skills":
-		return dependencies(repositoryModulePath, repositoryModulePath+"/skills", repositoryModulePath+"/tools")
+		return dependencies(repositoryModulePath, repositoryModulePath+"/skills")
 	case repositoryModulePath + "/examples/mcp":
 		return dependencies(
 			repositoryModulePath,
 			repositoryModulePath+"/agent",
 			repositoryModulePath+"/mcp",
-			repositoryModulePath+"/tools",
 		)
 	default:
 		return dependencies(repositoryModulePath)
@@ -411,7 +415,7 @@ func rootFamilyLayer(family string) (int, bool) {
 		return 0, true
 	case "chatclient", "chathistory", "documentreaders", "embeddingclient", "tokenizer", "tool":
 		return 1, true
-	case "vectorstores":
+	case "tools", "vectorstores":
 		return 2, true
 	default:
 		return -1, false
