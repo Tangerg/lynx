@@ -15,14 +15,10 @@ require (
 )
 
 require (
-	github.com/Tangerg/lynx v0.0.0-20260803035544-01577f37fa81
-	github.com/bahlo/generic-list-go v0.2.0 // indirect
-	github.com/buger/jsonparser v1.6.1 // indirect
+	github.com/Tangerg/lynx v0.0.0-20260803074414-f8db39de4d17
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/go-logr/logr v1.4.4 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
-	github.com/pb33f/ordered-map/v2 v2.3.1 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
-	go.yaml.in/yaml/v4 v4.0.0-rc.6 // indirect
 	golang.org/x/sys v0.46.0 // indirect
 )
