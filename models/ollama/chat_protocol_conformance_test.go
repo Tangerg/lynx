@@ -12,12 +12,12 @@ import (
 	corechat "github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/core/media"
 	"github.com/Tangerg/lynx/core/metadata"
+	"github.com/Tangerg/lynx/core/modeltest"
 	"github.com/Tangerg/lynx/models/ollama"
-	"github.com/Tangerg/lynx/models/ollama/internal/conformance"
 )
 
 func TestChat_CoreConformance(t *testing.T) {
-	conformance.ChatSuite{
+	modeltest.ChatSuite{
 		New: func(t *testing.T) (corechat.Model, corechat.Streamer) {
 			t.Helper()
 			server := newProtocolChatServer(t)

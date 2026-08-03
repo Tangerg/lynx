@@ -8,8 +8,8 @@ import (
 	"github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/option"
 
+	"github.com/Tangerg/lynx/core/metadata"
 	"github.com/Tangerg/lynx/core/moderation"
-	"github.com/Tangerg/lynx/models/protocol/openai/internal/options"
 )
 
 type ModerationModelConfig struct {
@@ -69,7 +69,9 @@ func (m *ModerationModel) buildAPIModerationRequest(req *moderation.Request) (*o
 		return nil, err
 	}
 
-	params, err := options.GetParams[openai.ModerationNewParams](mergedOpts.Extensions, protocolModalityRequestExtensionKey(m.provider, "moderation"))
+	paramsValue, _, err := metadata.Decode[openai.ModerationNewParams](mergedOpts.Extensions, protocolModalityRequestExtensionKey(m.provider, "moderation"))
+
+	params := &paramsValue
 	if err != nil {
 		return nil, err
 	}

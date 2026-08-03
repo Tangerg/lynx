@@ -5,13 +5,13 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/core/media"
+	"github.com/Tangerg/lynx/core/modeltest"
 	"github.com/Tangerg/lynx/core/transcription"
 	"github.com/Tangerg/lynx/models/azureopenai"
-	"github.com/Tangerg/lynx/models/internal/testutil"
 )
 
 func TestAudioTranscriptionModel_Call_Mock(t *testing.T) {
-	srv := testutil.JSONServer(http.StatusOK, `{"text":"hello world"}`)
+	srv := modeltest.JSONServer(http.StatusOK, `{"text":"hello world"}`)
 	t.Cleanup(srv.Close)
 
 	opts, err := transcription.NewOptions("whisper-deployment")

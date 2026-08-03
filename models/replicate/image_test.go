@@ -9,17 +9,17 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/core/image"
-	"github.com/Tangerg/lynx/models/internal/testutil"
+	"github.com/Tangerg/lynx/core/modeltest"
 	"github.com/Tangerg/lynx/models/replicate"
 )
 
 func TestImageModel_Call_Mock(t *testing.T) {
-	var polls testutil.PollCounter
+	var polls modeltest.PollCounter
 
 	var srv *httptest.Server
-	srv = testutil.MuxServer(
+	srv = modeltest.MuxServer(
 		// POST /v1/models/<owner>/<name>/predictions OR /v1/predictions
-		testutil.Route{Method: "POST", Contains: "/predictions", Handle: func(w http.ResponseWriter, r *http.Request) {
+		modeltest.Route{Method: "POST", Contains: "/predictions", Handle: func(w http.ResponseWriter, r *http.Request) {
 			if r.Header.Get("Authorization") != "Bearer test-key" {
 				t.Errorf("Authorization = %q", r.Header.Get("Authorization"))
 			}
@@ -36,7 +36,7 @@ func TestImageModel_Call_Mock(t *testing.T) {
 			w.Write([]byte(`{"id":"pred-1","status":"starting","urls":{"get":"/v1/predictions/pred-1"}}`))
 		}},
 		// GET /v1/predictions/<id>
-		testutil.Route{Method: "GET", Contains: "/predictions/", Handle: func(w http.ResponseWriter, r *http.Request) {
+		modeltest.Route{Method: "GET", Contains: "/predictions/", Handle: func(w http.ResponseWriter, r *http.Request) {
 			n := polls.Inc()
 			status := "processing"
 			output := "null"
@@ -47,7 +47,7 @@ func TestImageModel_Call_Mock(t *testing.T) {
 			w.Header().Set("Content-Type", "application/json")
 			w.Write([]byte(`{"id":"pred-1","status":"` + status + `","output":` + output + `}`))
 		}},
-		testutil.Route{Method: "GET", Contains: "/img-", Handle: func(w http.ResponseWriter, r *http.Request) {
+		modeltest.Route{Method: "GET", Contains: "/img-", Handle: func(w http.ResponseWriter, r *http.Request) {
 			if authorization := r.Header.Get("Authorization"); authorization != "" {
 				t.Errorf("output download leaked Authorization = %q", authorization)
 			}

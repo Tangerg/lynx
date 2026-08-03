@@ -1,4 +1,4 @@
-package options
+package openai
 
 import (
 	"fmt"
@@ -6,9 +6,7 @@ import (
 	"strings"
 )
 
-// RejectUnsupported returns a deterministic error naming every explicitly set
-// common option that a provider cannot represent.
-func RejectUnsupported(scope string, fields map[string]bool) error {
+func rejectUnsupportedOptions(scope string, fields map[string]bool) error {
 	unsupported := make([]string, 0, len(fields))
 	for field, set := range fields {
 		if set {

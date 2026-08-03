@@ -10,8 +10,8 @@ import (
 	"github.com/openai/openai-go/v3/option"
 
 	"github.com/Tangerg/lynx/core/embedding"
+	"github.com/Tangerg/lynx/core/modeltest"
 	"github.com/Tangerg/lynx/models/protocol/openai"
-	"github.com/Tangerg/lynx/models/protocol/openai/internal/testutil"
 )
 
 func newEmbeddingModel(t *testing.T, baseURL, modelID string) *openai.EmbeddingModel {
@@ -48,7 +48,7 @@ func TestEmbeddingModel_Call_Mock(t *testing.T) {
 	body, _ := json.Marshal(resp)
 
 	var seenURL string
-	srv := testutil.JSONServer(http.StatusOK, string(body), func(r *http.Request) {
+	srv := modeltest.JSONServer(http.StatusOK, string(body), func(r *http.Request) {
 		seenURL = r.URL.Path
 	})
 	t.Cleanup(srv.Close)

@@ -3,7 +3,7 @@ package cassandra
 import (
 	"testing"
 
-	"github.com/Tangerg/lynx/vectorstores/storetest"
+	"github.com/Tangerg/lynx/core/vectorstore/storetest"
 )
 
 func TestStoreConformance(t *testing.T) {

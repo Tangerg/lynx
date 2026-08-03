@@ -14,7 +14,7 @@ import (
 
 	corechat "github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/core/media"
-	"github.com/Tangerg/lynx/models/internal/conformance"
+	"github.com/Tangerg/lynx/core/modeltest"
 	"github.com/Tangerg/lynx/models/internal/protocol/anthropic"
 )
 
@@ -75,7 +75,7 @@ func TestCompatibleChat_DialectFacets(t *testing.T) {
 }
 
 func TestChat_CoreConformance(t *testing.T) {
-	conformance.ChatSuite{
+	modeltest.ChatSuite{
 		New: func(t *testing.T) (corechat.Model, corechat.Streamer) {
 			t.Helper()
 			server := newProtocolChatServer(t)

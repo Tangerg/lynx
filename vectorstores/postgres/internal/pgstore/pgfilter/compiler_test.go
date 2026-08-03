@@ -6,8 +6,8 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
+	"github.com/Tangerg/lynx/core/vectorstore/storetest"
 	"github.com/Tangerg/lynx/vectorstores/postgres/internal/pgstore/pgfilter"
-	"github.com/Tangerg/lynx/vectorstores/storetest"
 )
 
 // TestCompiler_Conformance exercises every AST shape the filter DSL

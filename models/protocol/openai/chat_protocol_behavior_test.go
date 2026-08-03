@@ -9,22 +9,22 @@ import (
 	"github.com/openai/openai-go/v3/option"
 
 	corechat "github.com/Tangerg/lynx/core/chat"
+	"github.com/Tangerg/lynx/core/modeltest"
 	lynxopenai "github.com/Tangerg/lynx/models/protocol/openai"
-	"github.com/Tangerg/lynx/models/protocol/openai/internal/conformance"
 )
 
 func TestChat_BehaviorConformance(t *testing.T) {
-	streamCase := func(t *testing.T) conformance.StreamBehaviorCase {
+	streamCase := func(t *testing.T) modeltest.StreamBehaviorCase {
 		t.Helper()
-		server, lifecycle := conformance.NewBlockingServer(t, writeOpenAIBehaviorChunk)
-		return conformance.StreamBehaviorCase{Streamer: newOpenAIBehaviorChat(t, server.URL), Lifecycle: lifecycle}
+		server, lifecycle := modeltest.NewBlockingServer(t, writeOpenAIBehaviorChunk)
+		return modeltest.StreamBehaviorCase{Streamer: newOpenAIBehaviorChat(t, server.URL), Lifecycle: lifecycle}
 	}
-	conformance.ChatBehaviorSuite{
+	modeltest.ChatBehaviorSuite{
 		Request: newCoreChatRequest,
-		CallCancellation: func(t *testing.T) conformance.CallBehaviorCase {
+		CallCancellation: func(t *testing.T) modeltest.CallBehaviorCase {
 			t.Helper()
-			server, lifecycle := conformance.NewBlockingServer(t, nil)
-			return conformance.CallBehaviorCase{Model: newOpenAIBehaviorChat(t, server.URL), Lifecycle: lifecycle}
+			server, lifecycle := modeltest.NewBlockingServer(t, nil)
+			return modeltest.CallBehaviorCase{Model: newOpenAIBehaviorChat(t, server.URL), Lifecycle: lifecycle}
 		},
 		StreamCancellation: streamCase,
 		EarlyStop:          streamCase,

@@ -7,15 +7,15 @@ import (
 	"github.com/openai/openai-go/v3/option"
 
 	"github.com/Tangerg/lynx/core/media"
+	"github.com/Tangerg/lynx/core/modeltest"
 	"github.com/Tangerg/lynx/core/transcription"
 	"github.com/Tangerg/lynx/models/protocol/openai"
-	"github.com/Tangerg/lynx/models/protocol/openai/internal/testutil"
 )
 
 // Audio translation reuses the transcription.Model interface — input
 // is non-English audio, output is the English translation.
 func TestAudioTranslationModel_Call_Mock(t *testing.T) {
-	srv := testutil.JSONServer(http.StatusOK, `{"text":"good morning"}`)
+	srv := modeltest.JSONServer(http.StatusOK, `{"text":"good morning"}`)
 	t.Cleanup(srv.Close)
 
 	opts, err := transcription.NewOptions("whisper-1")

@@ -5,9 +5,9 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/Tangerg/lynx/core/modeltest"
 	tts "github.com/Tangerg/lynx/core/speech"
 	"github.com/Tangerg/lynx/models/google/internal/protocol"
-	"github.com/Tangerg/lynx/models/google/internal/testutil"
 )
 
 func TestAudioTTSModel_Call_Mock(t *testing.T) {
@@ -21,7 +21,7 @@ func TestAudioTTSModel_Call_Mock(t *testing.T) {
   }],
   "usageMetadata": {"promptTokenCount": 4, "candidatesTokenCount": 0, "totalTokenCount": 4}
 }`
-	srv := testutil.JSONServer(http.StatusOK, body)
+	srv := modeltest.JSONServer(http.StatusOK, body)
 	t.Cleanup(srv.Close)
 
 	opts, err := tts.NewOptions(google.ModelGemini31FlashTTSPreview)

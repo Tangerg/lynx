@@ -6,7 +6,7 @@ require github.com/ClickHouse/clickhouse-go/v2 v2.47.0
 
 require (
 	github.com/ClickHouse/ch-go v0.73.0 // indirect
-	github.com/Tangerg/lynx v0.0.0-20260803042836-a9bc83188d16
+	github.com/Tangerg/lynx v0.0.0-20260803065639-63b23617676d
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/go-faster/city v1.0.1 // indirect
 	github.com/go-faster/errors v0.7.1 // indirect

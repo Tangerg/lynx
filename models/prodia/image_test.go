@@ -5,13 +5,13 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/core/image"
-	"github.com/Tangerg/lynx/models/internal/testutil"
+	"github.com/Tangerg/lynx/core/modeltest"
 	"github.com/Tangerg/lynx/models/prodia"
 )
 
 func TestImageModel_Call_Mock(t *testing.T) {
 	// Prodia /job returns the raw image bytes directly (sync endpoint).
-	srv := testutil.MuxServer(testutil.Route{Method: "POST", Contains: "/job", Handle: func(w http.ResponseWriter, r *http.Request) {
+	srv := modeltest.MuxServer(modeltest.Route{Method: "POST", Contains: "/job", Handle: func(w http.ResponseWriter, r *http.Request) {
 		if got := r.Header.Get("Authorization"); got != "Bearer test-key" {
 			t.Errorf("Authorization = %q", got)
 		}

@@ -7,13 +7,13 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/core/image"
+	"github.com/Tangerg/lynx/core/modeltest"
 	"github.com/Tangerg/lynx/models/protocol/openai"
-	"github.com/Tangerg/lynx/models/protocol/openai/internal/testutil"
 )
 
 func TestImageModel_Call_Integration(t *testing.T) {
-	key := testutil.RequireKey(t, "openai")
-	modelID, _ := testutil.LookupEnv("LYNX_TEST_OPENAI_IMAGE_MODEL")
+	key := modeltest.RequireKey(t, "openai")
+	modelID, _ := modeltest.LookupEnv("LYNX_TEST_OPENAI_IMAGE_MODEL")
 	if modelID == "" {
 		modelID = "dall-e-2" // cheaper than dall-e-3
 	}
@@ -30,7 +30,7 @@ func TestImageModel_Call_Integration(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	ctx, cancel := testutil.WithTimeout(t, 60*time.Second)
+	ctx, cancel := modeltest.WithTimeout(t, 60*time.Second)
 	defer cancel()
 	req, _ := image.NewRequest("a small red square on white background")
 	out, err := m.Call(ctx, req)

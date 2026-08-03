@@ -10,6 +10,7 @@ import (
 
 	"google.golang.org/genai"
 
+	"github.com/Tangerg/lynx/core/metadata"
 	tts "github.com/Tangerg/lynx/core/speech"
 	"github.com/Tangerg/lynx/models/google/internal/options"
 )
@@ -100,7 +101,9 @@ func (a *AudioTTSModel) buildAPITTSRequest(req *tts.Request) (string, []*genai.C
 		return "", nil, nil, err
 	}
 
-	cfg, err := options.GetParams[genai.GenerateContentConfig](mergedOpts.Extensions, protocolKey(a.provider, "speech_request"))
+	cfgValue, _, err := metadata.Decode[genai.GenerateContentConfig](mergedOpts.Extensions, protocolKey(a.provider, "speech_request"))
+
+	cfg := &cfgValue
 	if err != nil {
 		return "", nil, nil, err
 	}

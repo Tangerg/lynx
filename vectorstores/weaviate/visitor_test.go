@@ -7,7 +7,7 @@ import (
 	"github.com/weaviate/weaviate-go-client/v5/weaviate/filters"
 
 	"github.com/Tangerg/lynx/core/vectorstore/filter"
-	"github.com/Tangerg/lynx/vectorstores/storetest"
+	"github.com/Tangerg/lynx/core/vectorstore/storetest"
 	"github.com/Tangerg/lynx/vectorstores/weaviate"
 )
 

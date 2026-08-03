@@ -8,8 +8,8 @@ import (
 
 	"github.com/Tangerg/lynx/core/image"
 	"github.com/Tangerg/lynx/core/metadata"
+	"github.com/Tangerg/lynx/core/modeltest"
 	"github.com/Tangerg/lynx/models/google/internal/protocol"
-	"github.com/Tangerg/lynx/models/google/internal/testutil"
 )
 
 func TestImageModelCallUsesInteractionsAPI(t *testing.T) {
@@ -30,7 +30,7 @@ func TestImageModelCallUsesInteractionsAPI(t *testing.T) {
 			]}
 		]
 	}`
-	srv := testutil.JSONServer(http.StatusOK, body)
+	srv := modeltest.JSONServer(http.StatusOK, body)
 	t.Cleanup(srv.Close)
 
 	opts, err := image.NewOptions(google.ModelGemini31FlashImage)

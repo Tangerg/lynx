@@ -14,6 +14,7 @@ import (
 
 	"github.com/Tangerg/lynx/core/image"
 	"github.com/Tangerg/lynx/core/media"
+	"github.com/Tangerg/lynx/core/metadata"
 	"github.com/Tangerg/lynx/models/google/internal/options"
 )
 
@@ -151,7 +152,9 @@ func (i *ImageModel) buildAPIRequest(req *image.Request) (*imageInteractionReque
 		return nil, err
 	}
 
-	providerOpts, err := options.GetParams[ImageGenerationOptions](mergedOpts.Extensions, ImageRequestExtensionKey)
+	providerOptsValue, _, err := metadata.Decode[ImageGenerationOptions](mergedOpts.Extensions, ImageRequestExtensionKey)
+
+	providerOpts := &providerOptsValue
 	if err != nil {
 		return nil, err
 	}

@@ -538,9 +538,6 @@ func assertNoProviderSiblingImport(t *testing.T, provider providerPackage, path,
 		return
 	}
 	if provider.family == "vectorstores" {
-		if target == "storetest" && strings.HasSuffix(path, "_test.go") {
-			return
-		}
 		if strings.HasPrefix(provider.relative, "postgres/") && strings.HasPrefix(target, "postgres/internal/") {
 			return
 		}
@@ -560,7 +557,7 @@ func assertVectorConformance(t *testing.T, provider providerPackage) {
 	aliases := make(map[string]struct{})
 	for _, spec := range file.Imports {
 		importPath, err := strconv.Unquote(spec.Path.Value)
-		if err != nil || importPath != repositoryModulePath+"/vectorstores/storetest" {
+		if err != nil || importPath != repositoryModulePath+"/core/vectorstore/storetest" {
 			continue
 		}
 		alias := "storetest"
@@ -586,7 +583,7 @@ func assertVectorConformance(t *testing.T, provider providerPackage) {
 		return !found
 	})
 	if !found {
-		t.Errorf("%s must call vectorstores/storetest.Run", provider.importPath)
+		t.Errorf("%s must call core/vectorstore/storetest.Run", provider.importPath)
 	}
 }
 

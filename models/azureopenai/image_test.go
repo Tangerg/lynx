@@ -5,14 +5,14 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/core/image"
+	"github.com/Tangerg/lynx/core/modeltest"
 	"github.com/Tangerg/lynx/models/azureopenai"
-	"github.com/Tangerg/lynx/models/internal/testutil"
 )
 
 const azureImageJSON = `{"created":1700000000,"data":[{"url":"https://cdn.test/img.png"}]}`
 
 func TestImageModel_Call_Mock(t *testing.T) {
-	srv := testutil.JSONServer(http.StatusOK, azureImageJSON)
+	srv := modeltest.JSONServer(http.StatusOK, azureImageJSON)
 	t.Cleanup(srv.Close)
 
 	opts, err := image.NewOptions("dall-e-3-deployment")

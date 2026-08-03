@@ -6,16 +6,16 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/core/embedding"
-	"github.com/Tangerg/lynx/models/internal/testutil"
+	"github.com/Tangerg/lynx/core/modeltest"
 	"github.com/Tangerg/lynx/models/jina"
 )
 
 func TestEmbeddingModel_Integration(t *testing.T) {
-	testutil.RunIntegrationEmbedding(t, testutil.IntegrationEmbeddingProbe{
+	modeltest.RunIntegrationEmbedding(t, modeltest.IntegrationEmbeddingProbe{
 		Provider: "jina",
 		Build: func(t *testing.T, key string) embedding.Model {
 			t.Helper()
-			modelID, _ := testutil.LookupEnv("LYNX_TEST_JINA_MODEL")
+			modelID, _ := modeltest.LookupEnv("LYNX_TEST_JINA_MODEL")
 			if modelID == "" {
 				modelID = jina.ModelEmbeddingsV3
 			}

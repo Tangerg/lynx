@@ -10,8 +10,8 @@ import (
 	"github.com/openai/openai-go/v3/option"
 	"github.com/openai/openai-go/v3/packages/param"
 
+	"github.com/Tangerg/lynx/core/metadata"
 	"github.com/Tangerg/lynx/core/transcription"
-	"github.com/Tangerg/lynx/models/protocol/openai/internal/options"
 )
 
 type AudioTranscriptionModelConfig struct {
@@ -71,7 +71,9 @@ func (a *AudioTranscriptionModel) buildAPITranscriptionRequest(req *transcriptio
 		return nil, err
 	}
 
-	params, err := options.GetParams[openai.AudioTranscriptionNewParams](mergedOpts.Extensions, protocolModalityRequestExtensionKey(a.provider, "transcription"))
+	paramsValue, _, err := metadata.Decode[openai.AudioTranscriptionNewParams](mergedOpts.Extensions, protocolModalityRequestExtensionKey(a.provider, "transcription"))
+
+	params := &paramsValue
 	if err != nil {
 		return nil, err
 	}

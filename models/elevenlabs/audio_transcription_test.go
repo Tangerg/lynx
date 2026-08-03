@@ -5,9 +5,9 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/core/media"
+	"github.com/Tangerg/lynx/core/modeltest"
 	"github.com/Tangerg/lynx/core/transcription"
 	"github.com/Tangerg/lynx/models/elevenlabs"
-	"github.com/Tangerg/lynx/models/internal/testutil"
 )
 
 const elevenSTTJSON = `{
@@ -18,7 +18,7 @@ const elevenSTTJSON = `{
 }`
 
 func TestAudioTranscriptionModel_Call_Mock(t *testing.T) {
-	srv := testutil.JSONServer(http.StatusOK, elevenSTTJSON)
+	srv := modeltest.JSONServer(http.StatusOK, elevenSTTJSON)
 	t.Cleanup(srv.Close)
 
 	opts, err := transcription.NewOptions(elevenlabs.ModelScribeV2)

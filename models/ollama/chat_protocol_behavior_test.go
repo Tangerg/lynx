@@ -7,22 +7,22 @@ import (
 	"testing"
 
 	corechat "github.com/Tangerg/lynx/core/chat"
+	"github.com/Tangerg/lynx/core/modeltest"
 	"github.com/Tangerg/lynx/models/ollama"
-	"github.com/Tangerg/lynx/models/ollama/internal/conformance"
 )
 
 func TestChat_BehaviorConformance(t *testing.T) {
-	streamCase := func(t *testing.T) conformance.StreamBehaviorCase {
+	streamCase := func(t *testing.T) modeltest.StreamBehaviorCase {
 		t.Helper()
-		server, lifecycle := conformance.NewBlockingServer(t, writeOllamaBehaviorChunk)
-		return conformance.StreamBehaviorCase{Streamer: newOllamaBehaviorChat(t, server.URL), Lifecycle: lifecycle}
+		server, lifecycle := modeltest.NewBlockingServer(t, writeOllamaBehaviorChunk)
+		return modeltest.StreamBehaviorCase{Streamer: newOllamaBehaviorChat(t, server.URL), Lifecycle: lifecycle}
 	}
-	conformance.ChatBehaviorSuite{
+	modeltest.ChatBehaviorSuite{
 		Request: newProtocolChatRequest,
-		CallCancellation: func(t *testing.T) conformance.CallBehaviorCase {
+		CallCancellation: func(t *testing.T) modeltest.CallBehaviorCase {
 			t.Helper()
-			server, lifecycle := conformance.NewBlockingServer(t, nil)
-			return conformance.CallBehaviorCase{Model: newOllamaBehaviorChat(t, server.URL), Lifecycle: lifecycle}
+			server, lifecycle := modeltest.NewBlockingServer(t, nil)
+			return modeltest.CallBehaviorCase{Model: newOllamaBehaviorChat(t, server.URL), Lifecycle: lifecycle}
 		},
 		StreamCancellation: streamCase,
 		EarlyStop:          streamCase,

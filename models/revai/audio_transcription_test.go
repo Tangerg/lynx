@@ -7,25 +7,25 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/core/media"
+	"github.com/Tangerg/lynx/core/modeltest"
 	"github.com/Tangerg/lynx/core/transcription"
-	"github.com/Tangerg/lynx/models/internal/testutil"
 	"github.com/Tangerg/lynx/models/revai"
 )
 
 func TestAudioTranscriptionModel_Call_Mock(t *testing.T) {
-	var polls testutil.PollCounter
+	var polls modeltest.PollCounter
 
-	srv := testutil.MuxServer(
+	srv := modeltest.MuxServer(
 		// Order matters: more specific routes first.
-		testutil.Route{Method: "GET", Contains: "/transcript", Handle: func(w http.ResponseWriter, r *http.Request) {
+		modeltest.Route{Method: "GET", Contains: "/transcript", Handle: func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "text/plain")
 			w.Write([]byte("hello world\n"))
 		}},
-		testutil.Route{Method: "POST", Contains: "/jobs", Handle: func(w http.ResponseWriter, r *http.Request) {
+		modeltest.Route{Method: "POST", Contains: "/jobs", Handle: func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
 			w.Write([]byte(`{"id":"job-1","status":"in_progress","duration_seconds":1.0,"language":"en"}`))
 		}},
-		testutil.Route{Method: "GET", Contains: "/jobs/", Handle: func(w http.ResponseWriter, r *http.Request) {
+		modeltest.Route{Method: "GET", Contains: "/jobs/", Handle: func(w http.ResponseWriter, r *http.Request) {
 			// Skip the /transcript variant — already caught above.
 			if strings.HasSuffix(r.URL.Path, "/transcript") {
 				http.NotFound(w, r)

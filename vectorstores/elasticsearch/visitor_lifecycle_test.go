@@ -3,8 +3,8 @@ package elasticsearch_test
 import (
 	"testing"
 
+	"github.com/Tangerg/lynx/core/vectorstore/storetest"
 	"github.com/Tangerg/lynx/vectorstores/elasticsearch"
-	"github.com/Tangerg/lynx/vectorstores/storetest"
 )
 
 func TestVisitorLifecycle(t *testing.T) {

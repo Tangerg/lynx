@@ -9,8 +9,8 @@ import (
 	"iter"
 	"net/http"
 
+	"github.com/Tangerg/lynx/core/metadata"
 	tts "github.com/Tangerg/lynx/core/speech"
-	"github.com/Tangerg/lynx/models/internal/options"
 )
 
 type AudioTTSModelConfig struct {
@@ -64,7 +64,9 @@ func (a *AudioTTSModel) buildAPIRequest(req *tts.Request, streaming bool) (*TTSR
 		return nil, err
 	}
 
-	body, err := options.GetParams[TTSRequest](mergedOpts.Extensions, SpeechRequestExtensionKey)
+	bodyValue, _, err := metadata.Decode[TTSRequest](mergedOpts.Extensions, SpeechRequestExtensionKey)
+
+	body := &bodyValue
 	if err != nil {
 		return nil, err
 	}

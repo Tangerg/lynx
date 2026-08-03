@@ -6,24 +6,24 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/core/media"
+	"github.com/Tangerg/lynx/core/modeltest"
 	"github.com/Tangerg/lynx/core/transcription"
 	"github.com/Tangerg/lynx/models/gladia"
-	"github.com/Tangerg/lynx/models/internal/testutil"
 )
 
 func TestAudioTranscriptionModel_Call_Mock(t *testing.T) {
-	var polls testutil.PollCounter
+	var polls modeltest.PollCounter
 
-	srv := testutil.MuxServer(
-		testutil.Route{Method: "POST", Contains: "/upload", Handle: func(w http.ResponseWriter, r *http.Request) {
+	srv := modeltest.MuxServer(
+		modeltest.Route{Method: "POST", Contains: "/upload", Handle: func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
 			w.Write([]byte(`{"audio_url":"https://cdn.test/audio.bin","audio_metadata":{"id":"a1"}}`))
 		}},
-		testutil.Route{Method: "POST", Contains: "/pre-recorded", Handle: func(w http.ResponseWriter, r *http.Request) {
+		modeltest.Route{Method: "POST", Contains: "/pre-recorded", Handle: func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
 			w.Write([]byte(`{"id":"job-1","result_url":"/v2/pre-recorded/job-1"}`))
 		}},
-		testutil.Route{Method: "GET", Contains: "/pre-recorded/", Handle: func(w http.ResponseWriter, r *http.Request) {
+		modeltest.Route{Method: "GET", Contains: "/pre-recorded/", Handle: func(w http.ResponseWriter, r *http.Request) {
 			n := polls.Inc()
 			status := "processing"
 			text := ""

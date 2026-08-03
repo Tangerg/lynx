@@ -7,8 +7,8 @@ import (
 	"iter"
 	"net/http"
 
+	"github.com/Tangerg/lynx/core/metadata"
 	tts "github.com/Tangerg/lynx/core/speech"
-	"github.com/Tangerg/lynx/models/internal/options"
 	"github.com/Tangerg/lynx/models/internal/streamio"
 )
 
@@ -77,10 +77,11 @@ func (a *AudioTTSModel) buildAPIRequest(req *tts.Request) (voiceID, outputFormat
 		return "", "", nil, errors.New("elevenlabs: Voice (voice id) is required - set Options.Voice")
 	}
 
-	body, err = options.GetParams[TTSRequest](mergedOpts.Extensions, SpeechRequestExtensionKey)
+	bodyValue, _, err := metadata.Decode[TTSRequest](mergedOpts.Extensions, SpeechRequestExtensionKey)
 	if err != nil {
 		return "", "", nil, err
 	}
+	body = &bodyValue
 	body.Text = req.Text
 	body.ModelID = mergedOpts.Model
 

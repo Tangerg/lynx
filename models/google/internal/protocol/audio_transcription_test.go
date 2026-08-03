@@ -5,9 +5,9 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/core/media"
+	"github.com/Tangerg/lynx/core/modeltest"
 	"github.com/Tangerg/lynx/core/transcription"
 	"github.com/Tangerg/lynx/models/google/internal/protocol"
-	"github.com/Tangerg/lynx/models/google/internal/testutil"
 )
 
 func TestAudioTranscriptionModel_Call_Mock(t *testing.T) {
@@ -19,7 +19,7 @@ func TestAudioTranscriptionModel_Call_Mock(t *testing.T) {
   }],
   "usageMetadata": {"promptTokenCount": 10, "candidatesTokenCount": 2, "totalTokenCount": 12}
 }`
-	srv := testutil.JSONServer(http.StatusOK, body)
+	srv := modeltest.JSONServer(http.StatusOK, body)
 	t.Cleanup(srv.Close)
 
 	opts, err := transcription.NewOptions(google.ModelGemini36Flash)

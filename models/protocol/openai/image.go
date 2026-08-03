@@ -12,7 +12,7 @@ import (
 
 	"github.com/Tangerg/lynx/core/image"
 	"github.com/Tangerg/lynx/core/media"
-	"github.com/Tangerg/lynx/models/protocol/openai/internal/options"
+	"github.com/Tangerg/lynx/core/metadata"
 )
 
 type ImageModelConfig struct {
@@ -71,7 +71,7 @@ func (i *ImageModel) buildAPIImageRequest(req *image.Request) (*openai.ImageGene
 	if err != nil {
 		return nil, err
 	}
-	if err := options.RejectUnsupported("openai: image", map[string]bool{
+	if err := rejectUnsupportedOptions("openai: image", map[string]bool{
 		"negative_prompt": mergedOpts.NegativePrompt != "",
 		"seed":            mergedOpts.Seed != nil,
 	}); err != nil {
@@ -81,7 +81,9 @@ func (i *ImageModel) buildAPIImageRequest(req *image.Request) (*openai.ImageGene
 		return nil, errors.New("openai: image: width and height must be set together")
 	}
 
-	params, err := options.GetParams[openai.ImageGenerateParams](mergedOpts.Extensions, protocolModalityRequestExtensionKey(i.provider, "image"))
+	paramsValue, _, err := metadata.Decode[openai.ImageGenerateParams](mergedOpts.Extensions, protocolModalityRequestExtensionKey(i.provider, "image"))
+
+	params := &paramsValue
 	if err != nil {
 		return nil, err
 	}

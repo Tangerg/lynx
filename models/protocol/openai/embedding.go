@@ -9,7 +9,7 @@ import (
 	"github.com/openai/openai-go/v3/option"
 
 	"github.com/Tangerg/lynx/core/embedding"
-	"github.com/Tangerg/lynx/models/protocol/openai/internal/options"
+	"github.com/Tangerg/lynx/core/metadata"
 )
 
 type EmbeddingModelConfig struct {
@@ -69,7 +69,9 @@ func (e *EmbeddingModel) buildAPIEmbeddingRequest(req *embedding.Request) (*open
 		return nil, err
 	}
 
-	params, err := options.GetParams[openai.EmbeddingNewParams](mergedOpts.Extensions, protocolModalityRequestExtensionKey(e.provider, "embedding"))
+	paramsValue, _, err := metadata.Decode[openai.EmbeddingNewParams](mergedOpts.Extensions, protocolModalityRequestExtensionKey(e.provider, "embedding"))
+
+	params := &paramsValue
 	if err != nil {
 		return nil, err
 	}

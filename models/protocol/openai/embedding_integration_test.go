@@ -7,14 +7,14 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/core/embedding"
+	"github.com/Tangerg/lynx/core/modeltest"
 	"github.com/Tangerg/lynx/models/protocol/openai"
-	"github.com/Tangerg/lynx/models/protocol/openai/internal/testutil"
 )
 
 func integrationEmbeddingModel(t *testing.T) *openai.EmbeddingModel {
 	t.Helper()
-	key := testutil.RequireKey(t, "openai")
-	modelID, _ := testutil.LookupEnv("LYNX_TEST_OPENAI_EMBEDDING_MODEL")
+	key := modeltest.RequireKey(t, "openai")
+	modelID, _ := modeltest.LookupEnv("LYNX_TEST_OPENAI_EMBEDDING_MODEL")
 	if modelID == "" {
 		modelID = "text-embedding-3-small"
 	}
@@ -39,7 +39,7 @@ func TestEmbeddingModel_Call_Integration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctx, cancel := testutil.WithTimeout(t, 30*time.Second)
+	ctx, cancel := modeltest.WithTimeout(t, 30*time.Second)
 	defer cancel()
 
 	resp, err := m.Call(ctx, req)

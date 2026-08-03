@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/core/embedding"
-	"github.com/Tangerg/lynx/models/internal/testutil"
+	"github.com/Tangerg/lynx/core/modeltest"
 	"github.com/Tangerg/lynx/models/zhipu"
 )
 
@@ -19,7 +19,7 @@ const zhipuEmbedResponseJSON = `{
 }`
 
 func TestEmbeddingModel(t *testing.T) {
-	testutil.RunEmbeddingContract(t, testutil.EmbeddingContract{
+	modeltest.RunEmbeddingContract(t, modeltest.EmbeddingContract{
 		ModelID:  zhipu.ModelEmbedding3,
 		Response: zhipuEmbedResponseJSON,
 		Build: func(t *testing.T, baseURL string) embedding.Model {

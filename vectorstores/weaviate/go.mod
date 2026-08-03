@@ -10,7 +10,7 @@ require (
 )
 
 require (
-	github.com/Tangerg/lynx v0.0.0-20260803042836-a9bc83188d16
+	github.com/Tangerg/lynx v0.0.0-20260803065639-63b23617676d
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/go-logr/logr v1.4.4 // indirect

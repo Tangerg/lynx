@@ -1,10 +1,6 @@
-// Package options carries the small generic helper vendor adapters share for
-// decoding JSON-safe, extension-threaded provider params.
-//
-// A vendor's Extra metadata holds the JSON representation of its request
-// extension under the package's modality-specific request extension key. GetParams decodes that
-// value into T, returns a fresh zero value when absent, and surfaces malformed
-// or type-incompatible JSON instead of silently discarding it.
+// Package options validates common Core options that Google transports cannot
+// represent. Extension decoding belongs to core/metadata and stays at each
+// protocol boundary.
 //
 // Internal: not part of the public API.
 package options

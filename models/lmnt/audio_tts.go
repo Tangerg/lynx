@@ -7,8 +7,8 @@ import (
 	"iter"
 	"net/http"
 
+	"github.com/Tangerg/lynx/core/metadata"
 	tts "github.com/Tangerg/lynx/core/speech"
-	"github.com/Tangerg/lynx/models/internal/options"
 	"github.com/Tangerg/lynx/models/internal/streamio"
 )
 
@@ -64,7 +64,9 @@ func (a *AudioTTSModel) buildAPIRequest(req *tts.Request) (*SynthesizeRequest, e
 		return nil, err
 	}
 
-	body, err := options.GetParams[SynthesizeRequest](mergedOpts.Extensions, RequestExtensionKey)
+	bodyValue, _, err := metadata.Decode[SynthesizeRequest](mergedOpts.Extensions, RequestExtensionKey)
+
+	body := &bodyValue
 	if err != nil {
 		return nil, err
 	}

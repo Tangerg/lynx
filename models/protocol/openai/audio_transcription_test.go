@@ -7,13 +7,13 @@ import (
 	"github.com/openai/openai-go/v3/option"
 
 	"github.com/Tangerg/lynx/core/media"
+	"github.com/Tangerg/lynx/core/modeltest"
 	"github.com/Tangerg/lynx/core/transcription"
 	"github.com/Tangerg/lynx/models/protocol/openai"
-	"github.com/Tangerg/lynx/models/protocol/openai/internal/testutil"
 )
 
 func TestAudioTranscriptionModel_Call_Mock(t *testing.T) {
-	srv := testutil.JSONServer(http.StatusOK, `{"text":"hello world"}`)
+	srv := modeltest.JSONServer(http.StatusOK, `{"text":"hello world"}`)
 	t.Cleanup(srv.Close)
 
 	opts, err := transcription.NewOptions("whisper-1")

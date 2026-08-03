@@ -10,8 +10,8 @@ import (
 	"github.com/openai/openai-go/v3/option"
 
 	"github.com/Tangerg/lynx/core/chat"
+	"github.com/Tangerg/lynx/core/modeltest"
 	"github.com/Tangerg/lynx/models/protocol/openai"
-	"github.com/Tangerg/lynx/models/protocol/openai/internal/testutil"
 )
 
 func newResponsesModel(t *testing.T, baseURL, modelID string) *openai.ResponsesChat {
@@ -62,7 +62,7 @@ const responsesInterleavedJSON = `{
 
 func TestResponsesChatModel_Call_InterleavedOutput(t *testing.T) {
 	var seenURL string
-	srv := testutil.JSONServer(http.StatusOK, responsesInterleavedJSON, func(r *http.Request) {
+	srv := modeltest.JSONServer(http.StatusOK, responsesInterleavedJSON, func(r *http.Request) {
 		seenURL = r.URL.Path
 	})
 	t.Cleanup(srv.Close)
@@ -132,7 +132,7 @@ func TestResponsesChatModel_Stream_InterleavedDeltas(t *testing.T) {
 	// Build the SSE event sequence by hand. Each event ships exactly one
 	// part delta to lynx — reasoning → text → tool_call → text — and the
 	// final response.completed carries usage + finish reason.
-	events := []testutil.AnthropicEvent{
+	events := []modeltest.AnthropicEvent{
 		{Event: "response.created", Data: `{"type":"response.created","sequence_number":1,"response":{"id":"resp_x","object":"response","model":"gpt-5","created_at":1700000000,"status":"in_progress","error":null,"incomplete_details":null,"instructions":null,"metadata":null,"output":[],"parallel_tool_calls":false,"temperature":1,"tool_choice":"auto","tools":[],"top_p":1}}`},
 
 		// reasoning item: added (id pickup) + text delta + done (signature)
@@ -155,7 +155,7 @@ func TestResponsesChatModel_Stream_InterleavedDeltas(t *testing.T) {
 		// completed: usage + finish reason via final Response.output
 		{Event: "response.completed", Data: `{"type":"response.completed","sequence_number":11,"response":{"id":"resp_x","object":"response","model":"gpt-5","created_at":1700000000,"status":"completed","error":null,"incomplete_details":null,"instructions":null,"metadata":null,"output":[{"type":"reasoning","id":"rs_1","summary":[{"type":"summary_text","text":"想想看"}],"encrypted_content":"enc_xyz","status":"completed"},{"type":"message","id":"msg_1","role":"assistant","status":"completed","content":[{"type":"output_text","text":"先查天气：","annotations":[]}]},{"type":"function_call","id":"fc_1","call_id":"call_w","name":"weather","arguments":"{\"city\":\"BJ\"}","status":"completed"},{"type":"message","id":"msg_2","role":"assistant","status":"completed","content":[{"type":"output_text","text":"等结果。","annotations":[]}]}],"parallel_tool_calls":false,"temperature":1,"tool_choice":"auto","tools":[],"top_p":1,"usage":{"input_tokens":12,"output_tokens":8,"total_tokens":20,"input_tokens_details":{"cached_tokens":0},"output_tokens_details":{"reasoning_tokens":3}}}}`},
 	}
-	srv := testutil.AnthropicSSEServer(events)
+	srv := modeltest.AnthropicSSEServer(events)
 	t.Cleanup(srv.Close)
 
 	m := newResponsesModel(t, srv.URL, "gpt-5")
@@ -259,7 +259,7 @@ func TestResponsesChatReplaysProviderIssuedReasoningItem(t *testing.T) {
 }
 
 func TestResponsesChatRejectsUnsupportedOptions(t *testing.T) {
-	srv := testutil.JSONServer(http.StatusOK, "{}")
+	srv := modeltest.JSONServer(http.StatusOK, "{}")
 	t.Cleanup(srv.Close)
 	m := newResponsesModel(t, srv.URL, "gpt-5")
 	topK := int64(2)

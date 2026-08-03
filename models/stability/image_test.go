@@ -6,14 +6,14 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/core/image"
-	"github.com/Tangerg/lynx/models/internal/testutil"
+	"github.com/Tangerg/lynx/core/modeltest"
 	"github.com/Tangerg/lynx/models/stability"
 )
 
 func TestImageModel_Call_Mock(t *testing.T) {
 	imgB64 := base64.StdEncoding.EncodeToString([]byte("FAKE-PNG-BYTES"))
 	body := `{"image":"` + imgB64 + `","finish_reason":"SUCCESS","seed":42}`
-	srv := testutil.JSONServer(http.StatusOK, body)
+	srv := modeltest.JSONServer(http.StatusOK, body)
 	t.Cleanup(srv.Close)
 
 	opts, err := image.NewOptions(stability.ModelCore)

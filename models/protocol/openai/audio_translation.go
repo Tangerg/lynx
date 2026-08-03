@@ -9,8 +9,8 @@ import (
 	"github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/option"
 
+	"github.com/Tangerg/lynx/core/metadata"
 	"github.com/Tangerg/lynx/core/transcription"
-	"github.com/Tangerg/lynx/models/protocol/openai/internal/options"
 )
 
 // AudioTranslationModelConfig configures the OpenAI /audio/translations
@@ -81,13 +81,15 @@ func (a *AudioTranslationModel) buildAPITranslationRequest(req *transcription.Re
 	if err != nil {
 		return nil, err
 	}
-	if err := options.RejectUnsupported("openai: translation", map[string]bool{
+	if err := rejectUnsupportedOptions("openai: translation", map[string]bool{
 		"language": mergedOpts.Language != "",
 	}); err != nil {
 		return nil, err
 	}
 
-	params, err := options.GetParams[openai.AudioTranslationNewParams](mergedOpts.Extensions, protocolModalityRequestExtensionKey(a.provider, "translation"))
+	paramsValue, _, err := metadata.Decode[openai.AudioTranslationNewParams](mergedOpts.Extensions, protocolModalityRequestExtensionKey(a.provider, "translation"))
+
+	params := &paramsValue
 	if err != nil {
 		return nil, err
 	}

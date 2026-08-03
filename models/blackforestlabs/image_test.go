@@ -7,17 +7,17 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/core/image"
+	"github.com/Tangerg/lynx/core/modeltest"
 	"github.com/Tangerg/lynx/models/blackforestlabs"
-	"github.com/Tangerg/lynx/models/internal/testutil"
 )
 
 func TestImageModel_Call_Mock(t *testing.T) {
-	var polls testutil.PollCounter
+	var polls modeltest.PollCounter
 	var serverURL string
 
-	srv := testutil.MuxServer(
+	srv := modeltest.MuxServer(
 		// POST /v1/<model> returns the async id
-		testutil.Route{Method: "POST", Contains: "flux", Handle: func(w http.ResponseWriter, r *http.Request) {
+		modeltest.Route{Method: "POST", Contains: "flux", Handle: func(w http.ResponseWriter, r *http.Request) {
 			if r.Header.Get("x-key") != "test-key" {
 				t.Errorf("submit x-key = %q", r.Header.Get("x-key"))
 			}
@@ -25,7 +25,7 @@ func TestImageModel_Call_Mock(t *testing.T) {
 			fmt.Fprintf(w, `{"id":"task-1","polling_url":%q}`, serverURL+"/v1/get_result?id=task-1")
 		}},
 		// GET /v1/get_result?id=... polls until Ready
-		testutil.Route{Method: "GET", Contains: "/get_result", Handle: func(w http.ResponseWriter, r *http.Request) {
+		modeltest.Route{Method: "GET", Contains: "/get_result", Handle: func(w http.ResponseWriter, r *http.Request) {
 			if r.Header.Get("x-key") != "test-key" {
 				t.Errorf("poll x-key = %q", r.Header.Get("x-key"))
 			}
@@ -39,7 +39,7 @@ func TestImageModel_Call_Mock(t *testing.T) {
 			w.Header().Set("Content-Type", "application/json")
 			w.Write([]byte(`{"id":"task-1","status":"` + status + `","result":{"sample":"` + sample + `","seed":42,"duration":100}}`))
 		}},
-		testutil.Route{Method: "GET", Contains: "/delivery/img.png", Handle: func(w http.ResponseWriter, r *http.Request) {
+		modeltest.Route{Method: "GET", Contains: "/delivery/img.png", Handle: func(w http.ResponseWriter, r *http.Request) {
 			if value := r.Header.Get("x-key"); value != "" {
 				t.Errorf("download leaked x-key = %q", value)
 			}

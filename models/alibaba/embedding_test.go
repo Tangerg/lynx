@@ -4,8 +4,8 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/core/embedding"
+	"github.com/Tangerg/lynx/core/modeltest"
 	"github.com/Tangerg/lynx/models/alibaba"
-	"github.com/Tangerg/lynx/models/internal/testutil"
 )
 
 const alibabaEmbedResponseJSON = `{
@@ -19,7 +19,7 @@ const alibabaEmbedResponseJSON = `{
 }`
 
 func TestEmbeddingModel(t *testing.T) {
-	testutil.RunEmbeddingContract(t, testutil.EmbeddingContract{
+	modeltest.RunEmbeddingContract(t, modeltest.EmbeddingContract{
 		ModelID:  alibaba.ModelEmbeddingV4,
 		Response: alibabaEmbedResponseJSON,
 		Build: func(t *testing.T, baseURL string) embedding.Model {

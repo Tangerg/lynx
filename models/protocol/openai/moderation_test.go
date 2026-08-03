@@ -6,9 +6,9 @@ import (
 
 	"github.com/openai/openai-go/v3/option"
 
+	"github.com/Tangerg/lynx/core/modeltest"
 	"github.com/Tangerg/lynx/core/moderation"
 	"github.com/Tangerg/lynx/models/protocol/openai"
-	"github.com/Tangerg/lynx/models/protocol/openai/internal/testutil"
 )
 
 const modResponseJSON = `{
@@ -22,7 +22,7 @@ const modResponseJSON = `{
 }`
 
 func TestModerationModel_Call_Mock(t *testing.T) {
-	srv := testutil.JSONServer(http.StatusOK, modResponseJSON)
+	srv := modeltest.JSONServer(http.StatusOK, modResponseJSON)
 	t.Cleanup(srv.Close)
 
 	opts, err := moderation.NewOptions("omni-moderation-latest")

@@ -3,8 +3,8 @@ package couchbase_test
 import (
 	"testing"
 
+	"github.com/Tangerg/lynx/core/vectorstore/storetest"
 	"github.com/Tangerg/lynx/vectorstores/couchbase"
-	"github.com/Tangerg/lynx/vectorstores/storetest"
 )
 
 func TestVisitorLifecycle(t *testing.T) {

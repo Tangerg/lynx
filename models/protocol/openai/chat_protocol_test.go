@@ -13,12 +13,12 @@ import (
 
 	corechat "github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/core/media"
+	"github.com/Tangerg/lynx/core/modeltest"
 	lynxopenai "github.com/Tangerg/lynx/models/protocol/openai"
-	"github.com/Tangerg/lynx/models/protocol/openai/internal/conformance"
 )
 
 func TestCompatibleChat_CoreConformance(t *testing.T) {
-	conformance.ChatSuite{
+	modeltest.ChatSuite{
 		New: func(t *testing.T) (corechat.Model, corechat.Streamer) {
 			t.Helper()
 			server := newCoreChatServer(t)

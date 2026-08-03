@@ -5,15 +5,15 @@ import (
 
 	"github.com/openai/openai-go/v3/option"
 
+	"github.com/Tangerg/lynx/core/modeltest"
 	tts "github.com/Tangerg/lynx/core/speech"
 	"github.com/Tangerg/lynx/models/protocol/openai"
-	"github.com/Tangerg/lynx/models/protocol/openai/internal/testutil"
 )
 
 func TestAudioTTSModel_Call_Mock(t *testing.T) {
 	// OpenAI TTS returns raw audio bytes (not JSON).
 	canned := []byte("FAKE-AUDIO-BYTES-FOR-TEST")
-	srv := testutil.BinaryServer(200, "audio/mpeg", canned)
+	srv := modeltest.BinaryServer(200, "audio/mpeg", canned)
 	t.Cleanup(srv.Close)
 
 	opts, err := tts.NewOptions("tts-1")

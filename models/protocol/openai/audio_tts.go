@@ -11,8 +11,8 @@ import (
 	"github.com/openai/openai-go/v3/option"
 	"github.com/openai/openai-go/v3/packages/param"
 
+	"github.com/Tangerg/lynx/core/metadata"
 	tts "github.com/Tangerg/lynx/core/speech"
-	"github.com/Tangerg/lynx/models/protocol/openai/internal/options"
 )
 
 type AudioTTSModelConfig struct {
@@ -73,7 +73,9 @@ func (a *AudioTTSModel) buildAPITTSRequest(req *tts.Request) (*openai.AudioSpeec
 		return nil, err
 	}
 
-	params, err := options.GetParams[openai.AudioSpeechNewParams](mergedOpts.Extensions, protocolModalityRequestExtensionKey(a.provider, "speech"))
+	paramsValue, _, err := metadata.Decode[openai.AudioSpeechNewParams](mergedOpts.Extensions, protocolModalityRequestExtensionKey(a.provider, "speech"))
+
+	params := &paramsValue
 	if err != nil {
 		return nil, err
 	}

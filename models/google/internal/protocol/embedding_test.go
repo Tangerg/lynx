@@ -5,8 +5,8 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/core/embedding"
+	"github.com/Tangerg/lynx/core/modeltest"
 	"github.com/Tangerg/lynx/models/google/internal/protocol"
-	"github.com/Tangerg/lynx/models/google/internal/testutil"
 )
 
 // genai embed response: { embeddings: [{ values: [...] }, ...] }
@@ -18,7 +18,7 @@ const googleEmbedJSON = `{
 }`
 
 func TestEmbeddingModel_Call_Mock(t *testing.T) {
-	srv := testutil.JSONServer(http.StatusOK, googleEmbedJSON)
+	srv := modeltest.JSONServer(http.StatusOK, googleEmbedJSON)
 	t.Cleanup(srv.Close)
 
 	opts, err := embedding.NewOptions(google.ModelGeminiEmbedding2)

@@ -4,14 +4,14 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/Tangerg/lynx/core/modeltest"
 	tts "github.com/Tangerg/lynx/core/speech"
 	"github.com/Tangerg/lynx/models/deepgram"
-	"github.com/Tangerg/lynx/models/internal/testutil"
 )
 
 func TestAudioTTSModel_Call_Mock(t *testing.T) {
 	// Deepgram /speak returns raw audio bytes.
-	srv := testutil.MuxServer(testutil.Route{Method: "POST", Contains: "/speak", Handle: func(w http.ResponseWriter, r *http.Request) {
+	srv := modeltest.MuxServer(modeltest.Route{Method: "POST", Contains: "/speak", Handle: func(w http.ResponseWriter, r *http.Request) {
 		query := r.URL.Query()
 		if query.Get("encoding") != "linear16" || query.Get("container") != "wav" || query.Get("speed") != "1.2" {
 			t.Errorf("query = %v", query)

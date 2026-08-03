@@ -5,9 +5,9 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/core/media"
+	"github.com/Tangerg/lynx/core/modeltest"
 	"github.com/Tangerg/lynx/core/transcription"
 	"github.com/Tangerg/lynx/models/deepgram"
-	"github.com/Tangerg/lynx/models/internal/testutil"
 )
 
 // Deepgram /listen response shape (simplified — full payload has
@@ -27,7 +27,7 @@ const deepgramSTTJSON = `{
 }`
 
 func TestAudioTranscriptionModel_Call_Mock(t *testing.T) {
-	srv := testutil.JSONServer(http.StatusOK, deepgramSTTJSON)
+	srv := modeltest.JSONServer(http.StatusOK, deepgramSTTJSON)
 	t.Cleanup(srv.Close)
 
 	opts, err := transcription.NewOptions("nova-3")

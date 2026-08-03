@@ -7,19 +7,19 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Tangerg/lynx/core/modeltest"
 	tts "github.com/Tangerg/lynx/core/speech"
-	"github.com/Tangerg/lynx/models/internal/testutil"
 	"github.com/Tangerg/lynx/models/replicate"
 )
 
 func TestAudioTTSModel_Call_Mock(t *testing.T) {
-	var polls testutil.PollCounter
+	var polls modeltest.PollCounter
 
 	// We register the audio download path on the same server — the
 	// poll-success response will point at /audio.bin (same origin).
 	var audioURL string
-	srv := testutil.MuxServer(
-		testutil.Route{Method: "POST", Contains: "/predictions", Handle: func(w http.ResponseWriter, r *http.Request) {
+	srv := modeltest.MuxServer(
+		modeltest.Route{Method: "POST", Contains: "/predictions", Handle: func(w http.ResponseWriter, r *http.Request) {
 			var body struct {
 				Version string         `json:"version"`
 				Input   map[string]any `json:"input"`
@@ -33,7 +33,7 @@ func TestAudioTTSModel_Call_Mock(t *testing.T) {
 			w.Header().Set("Content-Type", "application/json")
 			w.Write([]byte(`{"id":"pred-tts","status":"starting","urls":{"get":"/v1/predictions/pred-tts"}}`))
 		}},
-		testutil.Route{Method: "GET", Contains: "/predictions/", Handle: func(w http.ResponseWriter, r *http.Request) {
+		modeltest.Route{Method: "GET", Contains: "/predictions/", Handle: func(w http.ResponseWriter, r *http.Request) {
 			n := polls.Inc()
 			status := "processing"
 			output := "null"
@@ -44,7 +44,7 @@ func TestAudioTTSModel_Call_Mock(t *testing.T) {
 			w.Header().Set("Content-Type", "application/json")
 			w.Write([]byte(`{"id":"pred-tts","status":"` + status + `","output":` + output + `}`))
 		}},
-		testutil.Route{Method: "GET", Contains: "/audio.bin", Handle: func(w http.ResponseWriter, r *http.Request) {
+		modeltest.Route{Method: "GET", Contains: "/audio.bin", Handle: func(w http.ResponseWriter, r *http.Request) {
 			if authorization := r.Header.Get("Authorization"); authorization != "" {
 				t.Errorf("output download leaked Authorization = %q", authorization)
 			}

@@ -3,14 +3,14 @@ package elevenlabs_test
 import (
 	"testing"
 
+	"github.com/Tangerg/lynx/core/modeltest"
 	tts "github.com/Tangerg/lynx/core/speech"
 	"github.com/Tangerg/lynx/models/elevenlabs"
-	"github.com/Tangerg/lynx/models/internal/testutil"
 )
 
 func TestAudioTTSModel_Call_Mock(t *testing.T) {
 	// ElevenLabs returns raw audio bytes from /text-to-speech.
-	srv := testutil.BinaryServer(200, "audio/mpeg", []byte("FAKE-MP3"))
+	srv := modeltest.BinaryServer(200, "audio/mpeg", []byte("FAKE-MP3"))
 	t.Cleanup(srv.Close)
 
 	opts, err := tts.NewOptions("eleven_v3")

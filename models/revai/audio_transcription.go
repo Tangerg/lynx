@@ -7,8 +7,8 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/Tangerg/lynx/core/metadata"
 	"github.com/Tangerg/lynx/core/transcription"
-	"github.com/Tangerg/lynx/models/internal/options"
 )
 
 type AudioTranscriptionModelConfig struct {
@@ -76,7 +76,8 @@ func (a *AudioTranscriptionModel) Call(ctx context.Context, req *transcription.R
 	if err != nil {
 		return nil, err
 	}
-	jobOpts, err := options.GetParams[JobOptions](mergedOpts.Extensions, RequestExtensionKey)
+	jobOptsValue, _, err := metadata.Decode[JobOptions](mergedOpts.Extensions, RequestExtensionKey)
+	jobOpts := &jobOptsValue
 	if err != nil {
 		return nil, err
 	}

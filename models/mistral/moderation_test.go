@@ -4,8 +4,8 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/Tangerg/lynx/core/modeltest"
 	"github.com/Tangerg/lynx/core/moderation"
-	"github.com/Tangerg/lynx/models/internal/testutil"
 	"github.com/Tangerg/lynx/models/mistral"
 )
 
@@ -19,7 +19,7 @@ const mistralModerationJSON = `{
 }`
 
 func TestModerationModel_Call_Mock(t *testing.T) {
-	srv := testutil.JSONServer(http.StatusOK, mistralModerationJSON)
+	srv := modeltest.JSONServer(http.StatusOK, mistralModerationJSON)
 	t.Cleanup(srv.Close)
 
 	opts, err := moderation.NewOptions("mistral-moderation-latest")

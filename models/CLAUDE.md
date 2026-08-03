@@ -19,6 +19,7 @@
 - **两级 options 合并**:模型默认 + 请求级叠加;provider 专属参数走类型化提取器,不手动 type-assert。
 - **流式逐事件累积**:每 provider 自己的 accumulator 把 SSE delta 拼成 chunk,上层再 stitch 成完整消息 —— 用 `iter.Seq2`,不用 channel。
 - **能力差异按 provider 填空**:reasoning signature(续流必需)有的家有、有的没有,适配层用中性字节承载,不强求统一。
+- **公共契约测试归 Core**：所有 provider 直接复用 `core/modeltest`；provider module 不复制 conformance、HTTP fixture 或 stream helper。扩展参数直接用 `core/metadata.Decode`，只有跨多个本 module provider 的真实校验逻辑才允许留在 `internal`。
 
 ## 模块特有反向不变量
 
@@ -26,6 +27,7 @@
 - ❌ **加 retry layer** —— SDK 自带重试(见 root 共用反向不变量)。
 - ❌ **给 provider 加 OAuth / token refresh** —— 用户填 key,401 让 UI 提示重填。
 - ❌ **把 defaults/metadata 伪装成 Model 能力** —— `core/chat.Model` 只有 `Call`；默认值由 provider 构造配置持有，per-request override 使用普通 `chat.Options` 值。
+- ❌ **复制测试基础设施或包一层 metadata 解码** —— 契约 suite/fixture 只有 `core/modeltest` 一份；provider 边界显式解码自己的扩展类型。
 
 ## 改动前必看(波及面)
 
