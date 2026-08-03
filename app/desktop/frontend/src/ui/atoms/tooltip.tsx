@@ -59,7 +59,14 @@ export function RichTooltip({
     <TooltipPrimitive.Root>
       <TooltipPrimitive.Trigger render={trigger} delay={delay} />
       <TooltipPrimitive.Portal>
-        <TooltipPrimitive.Positioner side={side} sideOffset={sideOffset}>
+        {/* The z-index belongs on the POSITIONER, not on the popup. The
+            positioner carries a transform, which makes it a stacking context, so
+            the popup's own `z-50` only ranks it against its siblings inside that
+            box — and the box itself, at `z-index: auto`, then stacks by DOM order
+            and loses to anything on the page that owns a context. Every tooltip
+            in the app was rendering *behind* the content it described. Menu makes
+            the same move for the same reason. */}
+        <TooltipPrimitive.Positioner className="z-50" side={side} sideOffset={sideOffset}>
           <TooltipPrimitive.Popup role="tooltip" className={cn(FLOATING_TIP, className)}>
             {children}
           </TooltipPrimitive.Popup>

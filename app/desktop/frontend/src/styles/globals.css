@@ -967,13 +967,18 @@ html.theme-light .msg-content code {
      targets from 6px in, whose 12px marks land on 20 / 44 / 68. The shell-level
      drawer control starts after it and never changes owner or coordinate. */
   --window-controls-gutter: 78px;
-  /* The three marks are the platform's colours, not the theme's: they mean the
-     same thing in every app on the desktop, and a window whose close button is
-     the accent hue is a window nobody recognises. They do not follow the scheme
-     for the same reason. */
-  --window-control-close: #ec6a5e;
-  --window-control-minimise: #f4bf50;
-  --window-control-maximise: #61c454;
+  /* The three marks are the platform's own colours and rims, not the theme's:
+     they mean the same thing in every app on the desktop, and a window whose
+     close button is the accent hue — or a hand-picked softer red — is a window
+     nobody recognises at a glance. They do not follow the scheme for the same
+     reason. The rim is what keeps each mark legible on a light chrome bar; the
+     platform draws one and a flat disc reads as a sticker without it. */
+  --window-control-close: #ff5f57;
+  --window-control-close-edge: #e0443e;
+  --window-control-minimise: #febc2e;
+  --window-control-minimise-edge: #dea123;
+  --window-control-maximise: #28c840;
+  --window-control-maximise-edge: #1aab29;
   --window-sidebar-control-span: 36px;
   /* Chrome bar height. Shared by the sidebar header and every content header so
      the two line up across the seam — the single number the macOS traffic-light
