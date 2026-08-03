@@ -101,7 +101,7 @@ export function McpRow({ server }: { server: MCPServerSummary }) {
           onClick={() => setOpen((v) => !v)}
           className="min-w-0 border-0 bg-transparent p-0 text-left"
         >
-          <div className="text-ui-lg font-semibold text-fg truncate">{server.name}</div>
+          <div className="text-ui-md font-semibold text-fg truncate">{server.name}</div>
           <div className="mt-0.5 text-ui-md text-fg-faint truncate">{server.desc}</div>
         </Pressable>
         <div className="rounded-sm bg-surface-2 px-1.5 py-0.5 font-mono text-ui-sm text-fg-faint">

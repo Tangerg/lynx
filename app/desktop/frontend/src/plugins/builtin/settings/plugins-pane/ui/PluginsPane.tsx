@@ -81,7 +81,7 @@ export function PluginsPane() {
             >
               <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2.5 px-3 py-2.5">
                 <div>
-                  <div className="text-ui-lg font-medium text-fg">
+                  <div className="text-ui-md font-medium text-fg">
                     {spec.name}
                     <OriginBadge origin={origin} />
                   </div>
@@ -126,7 +126,7 @@ export function PluginsPane() {
         })}
       </div>
 
-      <div className="mt-4 text-ui-lg leading-body text-fg-muted">
+      <div className="mt-4 text-ui-md leading-body text-fg-muted">
         <Trans
           i18nKey="plugins.sideload"
           values={{

@@ -378,7 +378,7 @@ describe("UI preference DOM synchronization", () => {
     // scaling <html> would drag every rem-based padding and width with it.
     expect(style.fontSize).toBe("");
     expect(style.getPropertyValue("--fs-ui-md")).toBe("17px");
-    expect(style.getPropertyValue("--fs-ui-lg")).toBe("18px");
+    expect(style.getPropertyValue("--fs-prose")).toBe("19px");
     expect(style.getPropertyValue("--fs-ui-sm")).toBe("16px");
 
     useUiStore.getState().setUiFont("");

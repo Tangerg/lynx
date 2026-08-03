@@ -223,7 +223,7 @@ export function ServerForm({ server, onDone, onCancel }: Props) {
       )}
 
       <label className="flex flex-col gap-1.5">
-        <span className="text-ui-lg font-medium text-fg">{t("mcp.form.timeout")}</span>
+        <span className="text-ui-md font-medium text-fg">{t("mcp.form.timeout")}</span>
         <TextField
           type="number"
           min={0}
@@ -246,7 +246,7 @@ export function ServerForm({ server, onDone, onCancel }: Props) {
 
       {server && (
         <div className="flex flex-col gap-1.5">
-          <span className="text-ui-lg font-medium text-fg">{t("mcp.tools.manage")}</span>
+          <span className="text-ui-md font-medium text-fg">{t("mcp.tools.manage")}</span>
           <ToolControls
             server={server.name}
             disabledTools={draft.disabledTools}

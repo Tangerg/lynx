@@ -136,7 +136,7 @@ export function ApprovalCard({
         </span>
       }
     >
-      <div className="mb-1 text-ui-lg font-semibold leading-body text-fg">
+      <div className="mb-1 text-ui-md font-semibold leading-body text-fg">
         {approvalHeadline(t, toolName)}
       </div>
       {/* Shell-prompt command line — only for command-style approvals. Other

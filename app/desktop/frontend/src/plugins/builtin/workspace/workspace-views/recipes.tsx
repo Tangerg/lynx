@@ -37,7 +37,7 @@ function RecipesTab() {
             {rows.map((r) => (
               <div key={r.id} className="px-4 py-2">
                 <div className="flex items-center gap-2">
-                  <span className="truncate font-mono text-ui-lg font-semibold text-accent">
+                  <span className="truncate font-mono text-ui-md font-semibold text-accent">
                     {r.command}
                   </span>
                   {r.argumentHint && (

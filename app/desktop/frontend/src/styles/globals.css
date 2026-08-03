@@ -186,7 +186,7 @@
   --color-info-edge: color-mix(in srgb, var(--tone-info) 38%, transparent);
   --color-accent-edge: color-mix(in srgb, var(--tone-accent) 38%, transparent);
 
-  /* UI type ladder — `text-ui-2xs … text-ui-lg`, plus `text-prose` for reading
+  /* UI type ladder — `text-ui-2xs … text-ui-md`, plus `text-prose` for reading
      text and `text-code` for mono. Every step is derived from a single base size
      at runtime (lib/typography.ts writes the --fs-* vars), so the ladder cannot
      drift the way per-call-site pixel values did. Values must stay `var()`
@@ -212,8 +212,6 @@
   --text-ui-sm--letter-spacing: var(--tracking-ui);
   --text-ui-md: var(--fs-ui-md);
   --text-ui-md--letter-spacing: var(--tracking-ui);
-  --text-ui-lg: var(--fs-ui-lg);
-  --text-ui-lg--letter-spacing: var(--tracking-ui);
   --text-prose: var(--fs-prose);
   --text-prose--letter-spacing: var(--tracking-ui);
   --text-code: var(--fs-code);
@@ -221,7 +219,7 @@
 
   /* Editorial sizes — deliberately NOT derived from the UI base: headings are
      composition, not chrome, and must not grow with a chrome density pick. */
-  --text-display-sm: 16px;
+  --text-display-sm: 18px;
   --text-display-sm--letter-spacing: var(--tracking-ui);
   --text-display-md: 22px;
   --text-display-md--letter-spacing: var(--tracking-display);
@@ -549,7 +547,6 @@
   --fs-ui-xs: 12px;
   --fs-ui-sm: 13px;
   --fs-ui-md: 14px;
-  --fs-ui-lg: 15px;
   --fs-prose: 16px;
   --fs-code: 13px;
 

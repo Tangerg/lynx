@@ -48,7 +48,7 @@ function SkillsTab() {
             {rows.map((s) => (
               <div key={s.id} className="px-4 py-2">
                 <div className="flex items-center gap-2">
-                  <div className="text-ui-lg font-semibold text-fg truncate">{s.name}</div>
+                  <div className="text-ui-md font-semibold text-fg truncate">{s.name}</div>
                   {s.source && (
                     <span className="rounded-sm bg-surface-2 px-1.5 py-px font-mono text-ui-xs text-fg-faint">
                       {s.source}

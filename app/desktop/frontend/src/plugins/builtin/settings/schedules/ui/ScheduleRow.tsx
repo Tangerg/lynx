@@ -69,7 +69,7 @@ export function ScheduleRow({
       <div className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3 rounded-md px-3 py-2.5 transition-colors hover:bg-hover">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <span className="truncate text-ui-lg font-medium text-fg">
+            <span className="truncate text-ui-md font-medium text-fg">
               {schedule.title || t("schedules.untitled")}
             </span>
             <span className="shrink-0 rounded-sm bg-surface-2 px-1.5 py-0.5 font-mono text-ui-sm text-fg-muted">

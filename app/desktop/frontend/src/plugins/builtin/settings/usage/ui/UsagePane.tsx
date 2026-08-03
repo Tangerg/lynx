@@ -38,7 +38,7 @@ function BreakdownSection({
           >
             <div className="flex min-w-0 items-center gap-2">
               {icon?.(b.key)}
-              <span className="truncate text-ui-lg text-fg">{b.key}</span>
+              <span className="truncate text-ui-md text-fg">{b.key}</span>
             </div>
             <div className="flex items-center gap-3 font-mono text-ui-md tabular-nums">
               <span className="text-fg-muted">{fmtTokens(usageTokens(b))}</span>

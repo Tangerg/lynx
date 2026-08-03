@@ -29,7 +29,7 @@ export function ProviderSetupPrompt() {
       <div className="flex items-start gap-3">
         <Icon name="spark" size="md" className="mt-0.5 shrink-0 text-accent" />
         <div className="flex flex-col items-start gap-2">
-          <div className="text-balance text-ui-lg font-semibold text-fg">
+          <div className="text-balance text-ui-md font-semibold text-fg">
             {t("providers.setup.title")}
           </div>
           <p className="m-0 text-pretty text-ui-md leading-prose text-fg-soft">

@@ -64,7 +64,7 @@ export function SystemMessage({
             <Icon name={iconName} size="md" />
           </span>
         )}
-        <div className="min-w-0 flex-1 text-ui-lg">{children}</div>
+        <div className="min-w-0 flex-1 text-ui-md">{children}</div>
       </div>
       {action && (
         <Button variant={action.variant ?? "soft"} size="sm" onClick={action.onClick}>

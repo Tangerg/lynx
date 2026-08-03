@@ -51,7 +51,7 @@ export function EmptyState({ icon, title, sub, action, size, style }: Props) {
       <div
         className={cn(
           "font-medium tracking-normal text-fg",
-          size === "compact" ? "text-xs" : "text-ui-lg",
+          size === "compact" ? "text-ui-xs" : "text-ui-md",
         )}
       >
         {title}

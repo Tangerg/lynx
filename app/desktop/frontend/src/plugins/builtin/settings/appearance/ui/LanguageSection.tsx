@@ -2,7 +2,7 @@
 // segmented control). The binary preference rows (message / streaming style)
 // live with their only consumer, the Personalization pane.
 
-import { DropdownMenu, Icon } from "@/ui";
+import { DropdownMenu, Icon, SelectTrigger } from "@/ui";
 import { useLocale, useT } from "@/lib/i18n";
 import { LOCALE, useExtensionPoint } from "@/plugins/sdk";
 import { selectLocale } from "../application/localeSelection";
@@ -24,12 +24,14 @@ export function LanguageSection() {
           (8 entries today, more via plugins) doesn't fit a single row. */}
       <DropdownMenu.Root>
         <DropdownMenu.Trigger
-          className="inline-flex min-h-[var(--field-height-md)] w-fit min-w-[180px] items-center justify-between gap-2 rounded-[var(--field-radius)] border-[length:var(--control-edge-width)] border-field bg-surface-2 px-3 py-1.5 text-ui-lg font-medium text-fg transition-colors hover:bg-surface-3 data-[popup-open]:bg-surface-3"
-          aria-label={t("settings.language.label")}
-        >
-          <span>{active.label}</span>
-          <Icon name="more" size="xs" className="text-fg-faint -rotate-90" />
-        </DropdownMenu.Trigger>
+          render={
+            <SelectTrigger
+              label={active.label}
+              aria-label={t("settings.language.label")}
+              className="min-w-[180px]"
+            />
+          }
+        />
         <DropdownMenu.Content align="start" sideOffset={4} className="min-w-[180px]">
           {locales.map((l) => (
             <DropdownMenu.Item

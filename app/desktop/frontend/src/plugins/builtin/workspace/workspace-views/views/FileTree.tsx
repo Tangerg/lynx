@@ -32,7 +32,7 @@ function TreeNode({ entry, cwd, depth, selectedPath, onSelectFile }: NodeProps) 
       <Pressable
         type="button"
         className={cn(
-          "flex w-full items-center gap-1.5 rounded-md px-1.5 py-1 text-left text-ui-lg text-fg hover:bg-hover",
+          "flex w-full items-center gap-1.5 rounded-md px-1.5 py-1 text-left text-ui-md text-fg hover:bg-hover",
           selectedPath === entry.path && !isDir && "bg-selected",
         )}
         style={indent}

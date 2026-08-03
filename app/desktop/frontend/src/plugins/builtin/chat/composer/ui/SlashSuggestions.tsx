@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { useT } from "@/lib/i18n";
 import { useSlashCommands } from "@/plugins/sdk";
-import { Pressable } from "@/ui";
+import { FloatingSurface, OptionRow } from "@/ui";
 
 interface Props {
   value: string;
@@ -33,23 +33,18 @@ export function SlashSuggestions({ value, onPick }: Props) {
   if (filtered.length === 0) return null;
 
   return (
-    <div className="mb-2 overflow-hidden rounded-md bg-canvas p-1 shadow-[var(--shadow-popover)] animate-rise-in">
+    <FloatingSurface className="mb-2 p-1">
       <div className="px-2.5 pb-1 pt-1.5 font-mono text-ui-sm font-semibold text-fg-faint">
         {t("composer.slash.heading")}
       </div>
       {filtered.map(({ cmd, spec }) => (
-        <Pressable
-          key={cmd}
-          type="button"
-          onClick={() => onPick(`${cmd} `)}
-          className="grid h-8 w-full grid-cols-[auto_1fr] items-center gap-2.5 rounded-md border-0 bg-transparent px-2.5 text-left text-ui-lg text-fg-soft transition-colors hover:bg-hover hover:text-fg"
-        >
-          <code className="border-0 bg-transparent p-0 font-mono text-ui-md font-semibold text-accent">
+        <OptionRow key={cmd} onClick={() => onPick(`${cmd} `)} className="grid-cols-[auto_1fr]">
+          <code className="border-0 bg-transparent p-0 font-mono font-semibold text-accent">
             {cmd}
           </code>
-          <span className="truncate text-ui-md text-fg-muted">{t(spec.description)}</span>
-        </Pressable>
+          <span className="truncate text-fg-muted">{t(spec.description)}</span>
+        </OptionRow>
       ))}
-    </div>
+    </FloatingSurface>
   );
 }

@@ -112,7 +112,7 @@ export function IconShowcase() {
 
   return (
     <div className="flex flex-col gap-4.5">
-      <p className="m-0 mb-1 text-ui-lg leading-body text-fg-muted">
+      <p className="m-0 mb-1 text-ui-md leading-body text-fg-muted">
         <Trans
           i18nKey="iconGallery.showcase"
           values={{ count: total, pkg: "@lobehub/icons", combo: comboGlyph("Mod+K") }}

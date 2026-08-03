@@ -60,7 +60,7 @@ function FullViewBar({ icon, title, sub, actions, titleStrong }: ViewHeaderProps
       <div className="flex min-w-0 flex-1 items-center gap-2">
         <span
           className={cn(
-            "min-w-0 truncate text-ui-lg font-medium text-fg",
+            "min-w-0 truncate text-ui-md font-medium text-fg",
             // A label title ("Notifications") reads in the UI face; a filename /
             // process title stays mono so paths and identifiers align.
             titleStrong ? "font-sans" : "font-mono",
@@ -73,7 +73,7 @@ function FullViewBar({ icon, title, sub, actions, titleStrong }: ViewHeaderProps
         </span>
         {sub !== undefined && (
           <>
-            <span aria-hidden="true" className="shrink-0 text-ui-lg leading-none text-fg-faint">
+            <span aria-hidden="true" className="shrink-0 text-ui-md leading-none text-fg-faint">
               ·
             </span>
             <span className="min-w-0 truncate font-mono text-ui-md text-fg-muted">{sub}</span>

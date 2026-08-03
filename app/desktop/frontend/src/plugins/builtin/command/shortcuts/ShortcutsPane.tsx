@@ -38,11 +38,11 @@ export function ShortcutsPane() {
 
       <div className="min-h-0 flex-1 overflow-auto rounded-lg border-[0.5px] border-field bg-transparent">
         {filtered.length === 0 ? (
-          <div className="px-3 py-6 text-center text-ui-lg text-fg-faint">
+          <div className="px-3 py-6 text-center text-ui-md text-fg-faint">
             {t("shortcuts.empty")}
           </div>
         ) : (
-          <table className="w-full border-collapse text-left text-ui-lg">
+          <table className="w-full border-collapse text-left text-ui-md">
             <thead className="sticky top-0 bg-sunken text-ui-sm font-semibold text-fg-faint">
               <tr>
                 <th className="px-3 py-1.5">{t("shortcuts.action")}</th>

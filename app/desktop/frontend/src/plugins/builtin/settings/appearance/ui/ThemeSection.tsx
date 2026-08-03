@@ -7,7 +7,7 @@
 import type { ReactNode } from "react";
 import type { Scheme } from "@/lib/appearance";
 import type { ColorThemeSpec } from "@/plugins/sdk";
-import { DropdownMenu, Icon } from "@/ui";
+import { DropdownMenu, Icon, SelectTrigger } from "@/ui";
 import { useT } from "@/lib/i18n";
 import { COLOR_THEME, useExtensionPoint } from "@/plugins/sdk";
 import { SettingRow } from "../../public";
@@ -83,7 +83,7 @@ function ThemeItem({
   return (
     <DropdownMenu.Item className="grid-cols-[24px_minmax(0,1fr)_14px]" onClick={onSelect}>
       {swatch}
-      <span className="truncate text-ui-lg text-fg">{label}</span>
+      <span className="truncate text-ui-md text-fg">{label}</span>
       {active ? <Icon name="check" size="sm" className="text-accent" /> : <span aria-hidden />}
     </DropdownMenu.Item>
   );
@@ -106,13 +106,15 @@ export function ThemeSection() {
     <SettingRow label={t("settings.theme")} sub={t("settings.theme.sub")}>
       <DropdownMenu.Root>
         <DropdownMenu.Trigger
-          className="inline-flex min-h-[var(--field-height-md)] w-fit min-w-[220px] items-center gap-2.5 rounded-[var(--field-radius)] border-[length:var(--control-edge-width)] border-field bg-surface-2 px-3 py-1.5 text-fg transition-colors hover:bg-surface-3 data-[popup-open]:bg-surface-3"
-          aria-label={t("settings.theme")}
-        >
-          {triggerSwatch}
-          <span className="flex-1 truncate text-left text-ui-lg font-medium">{triggerLabel}</span>
-          <Icon name="more" size="xs" className="-rotate-90 text-fg-faint" />
-        </DropdownMenu.Trigger>
+          render={
+            <SelectTrigger
+              label={triggerLabel}
+              leading={triggerSwatch}
+              aria-label={t("settings.theme")}
+              className="min-w-[220px]"
+            />
+          }
+        />
         <DropdownMenu.Content
           align="start"
           sideOffset={4}

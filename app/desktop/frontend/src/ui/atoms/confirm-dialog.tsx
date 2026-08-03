@@ -46,7 +46,7 @@ export function ConfirmDialog({
           data-slot="confirm-dialog"
           className="fixed inset-0 z-[201] m-auto h-fit w-[min(400px,calc(100vw-32px))] rounded-[var(--floating-panel-radius)] bg-canvas p-4 shadow-[var(--shadow-modal)] outline-none data-[open]:animate-rise-in"
         >
-          <DialogPrimitive.Title className="text-ui-lg font-semibold text-fg">
+          <DialogPrimitive.Title className="text-display-sm font-semibold text-fg">
             {title}
           </DialogPrimitive.Title>
           <DialogPrimitive.Description className="mt-1.5 text-ui-md leading-relaxed text-fg-muted">

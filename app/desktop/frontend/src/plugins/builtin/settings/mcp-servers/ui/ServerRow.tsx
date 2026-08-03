@@ -81,7 +81,7 @@ export function ServerRow({ server }: { server: MCPServerSettings }) {
       <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3">
         <StatusDot tone={tone} />
         <div className="flex min-w-0 items-center gap-2">
-          <span className="truncate text-ui-lg font-medium text-fg" title={server.name}>
+          <span className="truncate text-ui-md font-medium text-fg" title={server.name}>
             {server.name}
           </span>
           <TransportBadge transport={server.type} />

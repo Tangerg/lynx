@@ -3,7 +3,7 @@ import { Command } from "cmdk";
 import { useMemo, useState } from "react";
 import { comboGlyph } from "@/lib/combo";
 import { useT } from "@/lib/i18n";
-import { Icon, Kbd } from "@/ui";
+import { FloatingSurface, Icon, Kbd, OptionRow } from "@/ui";
 import { useCommands } from "@/plugins/sdk";
 import { selectAgentSession, useAgentSessions } from "@/plugins/builtin/agent/public/session";
 import { usePaletteStore } from "../../paletteStore";
@@ -45,73 +45,85 @@ export function CommandPalette() {
       label={t("commandPalette.label")}
       className="fixed inset-0 z-50 flex items-start justify-center p-24 [&_[cmdk-overlay]]:fixed [&_[cmdk-overlay]]:inset-0 [&_[cmdk-overlay]]:bg-scrim"
     >
-      <Command className="animate-rise-in relative z-[1] flex w-full max-w-[640px] flex-col overflow-hidden rounded-lg bg-canvas shadow-[var(--shadow-popover)]">
-        <div className="flex items-center gap-2.5 px-4 py-3 text-fg-muted">
-          <Icon name="search" size="md" />
-          <Command.Input
-            value={query}
-            onValueChange={setQuery}
-            placeholder={t("commandPalette.placeholder")}
-            className="flex-1 bg-transparent text-ui-lg text-fg outline-none placeholder:text-fg-faint"
-          />
-          <Kbd>esc</Kbd>
-        </div>
-        <Command.List className="max-h-[400px] overflow-y-auto p-1.5">
-          <Command.Empty className="px-3 py-6 text-center text-ui-md text-fg-faint">
-            {t("commandPalette.empty")}
-          </Command.Empty>
-          {visible.map((command) => (
-            <Command.Item
-              key={command.id}
-              // Search matches the words the user can see, so the keys resolve
-              // before they reach the matcher.
-              value={[
-                t(command.label),
-                command.description ? t(command.description) : "",
-                command.group ? t(command.group) : "",
-                ...(command.keywords ?? []),
-              ].join(" ")}
-              onSelect={() => runPaletteCommand(command, close)}
-              className="flex h-9 items-center gap-2.5 rounded-md px-2.5 text-ui-lg text-fg hover:bg-hover aria-selected:bg-selected transition-colors"
-            >
-              {command.icon && (
-                <Icon name={command.icon as IconName} size="sm" className="shrink-0 text-fg" />
-              )}
-              <div className="flex min-w-0 flex-1 flex-col">
-                <div className="truncate font-medium">{t(command.label)}</div>
-                {command.description && (
-                  <div className="truncate text-ui-sm text-fg-faint">{t(command.description)}</div>
-                )}
-              </div>
-              {command.group && (
-                <span className="text-ui-sm text-fg-faint">{t(command.group)}</span>
-              )}
-              {command.combo && <Kbd>{comboGlyph(command.combo)}</Kbd>}
-            </Command.Item>
-          ))}
-          {sessionMatches.length > 0 && (
-            <Command.Group
-              heading={t("commandPalette.sessions")}
-              className="[&_[cmdk-group-heading]]:px-2.5 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-ui-sm [&_[cmdk-group-heading]]:text-fg-faint"
-            >
-              {sessionMatches.map((session) => (
-                <Command.Item
-                  key={session.id}
-                  value={`session ${session.title} ${session.id}`}
-                  onSelect={() => {
-                    selectAgentSession(session.id);
-                    close();
-                  }}
-                  className="flex h-9 items-center gap-2.5 rounded-md px-2.5 text-ui-lg text-fg hover:bg-hover aria-selected:bg-selected transition-colors"
-                >
-                  <Icon name="chat" size="sm" className="shrink-0 text-fg-faint" />
-                  <div className="min-w-0 flex-1 truncate font-medium">{session.title}</div>
-                </Command.Item>
-              ))}
-            </Command.Group>
-          )}
-        </Command.List>
-      </Command>
+      {/* The ring's floating surface rather than a fourth hand-spelled panel. It WRAPS
+          cmdk's root instead of slotting into it: cmdk renders its own label element
+          beside the children, so there is more than one child for `asChild` to slot onto
+          and it throws. */}
+      <FloatingSurface className="relative z-[1] flex w-full max-w-[640px] flex-col">
+        <Command className="flex min-h-0 flex-col">
+          <div className="flex items-center gap-2.5 px-4 py-3 text-fg-muted">
+            <Icon name="search" size="md" />
+            <Command.Input
+              value={query}
+              onValueChange={setQuery}
+              placeholder={t("commandPalette.placeholder")}
+              className="flex-1 bg-transparent text-ui-md text-fg outline-none placeholder:text-fg-faint"
+            />
+            <Kbd>esc</Kbd>
+          </div>
+          <Command.List className="max-h-[400px] overflow-y-auto p-1.5">
+            <Command.Empty className="px-3 py-6 text-center text-ui-md text-fg-faint">
+              {t("commandPalette.empty")}
+            </Command.Empty>
+            {visible.map((command) => (
+              <Command.Item
+                key={command.id}
+                // Search matches the words the user can see, so the keys resolve
+                // before they reach the matcher.
+                value={[
+                  t(command.label),
+                  command.description ? t(command.description) : "",
+                  command.group ? t(command.group) : "",
+                  ...(command.keywords ?? []),
+                ].join(" ")}
+                onSelect={() => runPaletteCommand(command, close)}
+                asChild
+              >
+                <OptionRow layout="flex" size="lg">
+                  {command.icon && (
+                    <Icon name={command.icon as IconName} size="sm" className="shrink-0 text-fg" />
+                  )}
+                  <div className="flex min-w-0 flex-1 flex-col">
+                    <div className="truncate font-medium">{t(command.label)}</div>
+                    {command.description && (
+                      <div className="truncate text-ui-sm text-fg-faint">
+                        {t(command.description)}
+                      </div>
+                    )}
+                  </div>
+                  {command.group && (
+                    <span className="text-ui-sm text-fg-faint">{t(command.group)}</span>
+                  )}
+                  {command.combo && <Kbd>{comboGlyph(command.combo)}</Kbd>}
+                </OptionRow>
+              </Command.Item>
+            ))}
+            {sessionMatches.length > 0 && (
+              <Command.Group
+                heading={t("commandPalette.sessions")}
+                className="[&_[cmdk-group-heading]]:px-2.5 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-ui-sm [&_[cmdk-group-heading]]:text-fg-faint"
+              >
+                {sessionMatches.map((session) => (
+                  <Command.Item
+                    key={session.id}
+                    value={`session ${session.title} ${session.id}`}
+                    onSelect={() => {
+                      selectAgentSession(session.id);
+                      close();
+                    }}
+                    asChild
+                  >
+                    <OptionRow layout="flex" size="lg">
+                      <Icon name="chat" size="sm" className="shrink-0 text-fg-faint" />
+                      <div className="min-w-0 flex-1 truncate font-medium">{session.title}</div>
+                    </OptionRow>
+                  </Command.Item>
+                ))}
+              </Command.Group>
+            )}
+          </Command.List>
+        </Command>
+      </FloatingSurface>
     </Command.Dialog>
   );
 }

@@ -61,7 +61,7 @@ export function ProviderRow({ p }: { p: ProviderConfiguration }) {
       <div className="grid grid-cols-[24px_minmax(0,1fr)_auto] items-center gap-3">
         <ProviderIcon provider={p.id} size="lg" />
         <div className="min-w-0">
-          <div className="truncate text-ui-lg font-medium capitalize text-fg">{p.id}</div>
+          <div className="truncate text-ui-md font-medium capitalize text-fg">{p.id}</div>
         </div>
         <span
           title={fromEnv ? p.apiKeyMasked : undefined}

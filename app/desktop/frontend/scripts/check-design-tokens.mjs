@@ -59,6 +59,15 @@ const MARKUP_RULES = [
     message: "arbitrary font size — use a `text-ui-*` / `text-display-*` step",
   },
   {
+    // Tailwind's OWN size names, which this rule set had never looked for. They are
+    // fixed rem values, so they do not move with the user's UI size preference — the one
+    // thing the ladder exists to guarantee — and they land off it besides (`text-sm` is
+    // 14px where `text-ui-sm` is 13). Four had slipped in, all inside the design system:
+    // the loader's three status sizes and the compact empty state's title.
+    pattern: /(?<![\w-])(?:[a-z-]+:)*text-(?:xs|sm|base|lg|xl|[2-9]xl)(?![\w-])/g,
+    message: "Tailwind's own font size — use a `text-ui-*` / `text-prose` / `text-display-*` step",
+  },
+  {
     // A shadow spelled out at the call site. Depth is a material, and a material
     // has to answer to the theme: six callsites had drawn their own, and one of
     // them — a selected tab lifted by `inset 0 1px 0 rgba(255,255,255,0.03)` —

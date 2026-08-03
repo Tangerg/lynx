@@ -31,8 +31,13 @@ const INVALID = {
   bare: "outline outline-1 outline-negative",
 } as const;
 
+// The type step is here and not per size: a field is large by height and inset, not by
+// type. With nothing on the ladder between the chrome step and reading text, `lg` used to
+// reach for the step in between and got a field whose text was 1px off everything around
+// it. Only the composer's textarea steps up, and it does so because what is typed there
+// is read back as a message.
 const BASE =
-  "w-full min-w-0 text-fg outline-none transition-colors placeholder:text-fg-faint " +
+  "w-full min-w-0 text-ui-md text-fg outline-none transition-colors placeholder:text-fg-faint " +
   "disabled:cursor-not-allowed disabled:opacity-60";
 
 const SHARED_VARIANTS = {
@@ -49,7 +54,8 @@ const INVALID_COMPOUNDS = [
 const inputStyles = cva(BASE, {
   variants: {
     ...SHARED_VARIANTS,
-    size: { sm: "text-ui-md", md: "text-ui-md", lg: "text-ui-lg" },
+    // Height and inset only — the step lives in BASE.
+    size: { sm: "", md: "", lg: "" },
   },
   compoundVariants: [
     { variant: "boxed", size: "sm", class: "h-[var(--field-height-sm)] px-2" },
@@ -71,8 +77,8 @@ const textAreaStyles = cva(`${BASE} resize-y leading-body`, {
   variants: {
     ...SHARED_VARIANTS,
     size: {
-      sm: "px-2.5 py-1.5 text-ui-md",
-      md: "px-3 py-2 text-ui-md",
+      sm: "px-2.5 py-1.5",
+      md: "px-3 py-2",
       prose: "text-prose leading-prose",
     },
   },

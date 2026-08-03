@@ -85,7 +85,7 @@ function SkillDraftRow({ draft }: { draft: SkillDraft }) {
     <div className="flex items-start gap-3 px-4 py-2.5">
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
-          <div className="truncate text-ui-lg font-semibold text-fg">{draft.name}</div>
+          <div className="truncate text-ui-md font-semibold text-fg">{draft.name}</div>
           <span className="shrink-0 rounded-sm bg-surface-2 px-1.5 py-px font-mono text-ui-xs tabular-nums text-fg-faint">
             {draft.revision.slice(0, 8)}
           </span>

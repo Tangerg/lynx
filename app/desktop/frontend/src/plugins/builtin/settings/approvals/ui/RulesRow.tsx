@@ -38,7 +38,7 @@ export function RulesRow() {
 
   return (
     <div>
-      <div className="text-ui-lg font-medium text-fg">{t("approvals.rules")}</div>
+      <div className="text-ui-md font-medium text-fg">{t("approvals.rules")}</div>
       <div className="mt-1 text-ui-md leading-body text-fg-muted">{t("approvals.rules.sub")}</div>
       <div className="mt-3">
         <DataView

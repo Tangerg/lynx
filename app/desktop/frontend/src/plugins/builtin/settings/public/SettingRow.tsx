@@ -20,7 +20,7 @@ export function SettingRow({
       )}
     >
       <div>
-        <div className="text-ui-lg text-fg">{label}</div>
+        <div className="text-ui-md text-fg">{label}</div>
         <div className="mt-1 text-ui-md leading-body text-fg-muted">{sub}</div>
       </div>
       <div>{children}</div>

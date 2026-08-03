@@ -66,7 +66,7 @@ export function QuestionCard({ status, runId, itemId, questions, answered, answe
         {questions.map((q, index) => (
           <div key={index} className="flex flex-col gap-0.5">
             <div className="text-ui-md leading-snug text-fg-muted">{q.prompt}</div>
-            <div className="text-ui-lg font-medium text-fg">
+            <div className="text-ui-md font-medium text-fg">
               {questionAnswerText(shown, index) || "—"}
             </div>
           </div>
@@ -101,7 +101,7 @@ export function QuestionCard({ status, runId, itemId, questions, answered, answe
                   )}
                 </div>
               )}
-              <div className="text-ui-lg font-semibold leading-body text-fg">{q.prompt}</div>
+              <div className="text-ui-md font-semibold leading-body text-fg">{q.prompt}</div>
 
               {q.type === "choice" && (
                 <div className="grid grid-cols-[minmax(0,1fr)] gap-1.5">

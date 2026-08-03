@@ -89,12 +89,12 @@ export function HooksPane() {
 
   return (
     <div className="flex flex-col gap-4">
-      <p className="text-ui-lg leading-body text-fg-muted">{t("hooks.intro")}</p>
+      <p className="text-ui-md leading-body text-fg-muted">{t("hooks.intro")}</p>
 
       {projectRoot && data?.hasProjectHooks && (
         <Surface className="flex items-center justify-between gap-3">
           <div className="min-w-0">
-            <div className="text-ui-lg font-medium text-fg">{t("hooks.trust")}</div>
+            <div className="text-ui-md font-medium text-fg">{t("hooks.trust")}</div>
             <div className="mt-0.5 text-ui-md leading-body text-fg-muted">
               {t("hooks.trust.sub")}
             </div>

@@ -14,6 +14,14 @@
 // while preserving a readable 14px default. The user may still move the base
 // through the supported range; 14 is only the clean first-paint and preference
 // fallback, not a second fixed-size path.
+//
+// Nothing sits between the base and `prose`. There used to be a step at 1.08
+// (15px), and 65 call sites had reached for it to mean two different things — a
+// dialog or pane TITLE, and a chrome label wanting a little more presence. It
+// could be neither: 1px under reading text and 1px over the chrome reads as
+// whichever of the two it is next to. Neither reference has a step there
+// (ChatGPT runs 11/12/14, Claude 10/11/12/13/14); both put titles in a separate
+// editorial ladder, which is where ours went.
 
 export const UI_FONT_SIZE_DEFAULT_PX = 14;
 export const UI_FONT_SIZE_MIN_PX = 11;
@@ -30,15 +38,7 @@ export const UI_FONT_SIZE_MAX_PX = 18;
  * for Tailwind Merge, and a hand-kept copy there is a step that silently stops
  * applying the day someone adds one here.
  */
-export const UI_TYPE_STEPS = [
-  "ui-2xs",
-  "ui-xs",
-  "ui-sm",
-  "ui-md",
-  "ui-lg",
-  "prose",
-  "code",
-] as const;
+export const UI_TYPE_STEPS = ["ui-2xs", "ui-xs", "ui-sm", "ui-md", "prose", "code"] as const;
 
 export type UiTypeStep = (typeof UI_TYPE_STEPS)[number];
 
@@ -47,20 +47,19 @@ export type UiTypeLadder = Readonly<Record<UiTypeStep, number>>;
 // Ratio + floor per step. The ratios preserve the existing whole-pixel ladder
 // across the supported base range. The floors matter at the small end of the
 // base range: ratio alone would sink `ui-2xs` to 8px at base 11, below the size
-// Geist stays legible at. `ui-lg` and `prose` floor at the base so neither can
-// dip under the chrome they sit above.
+// Geist stays legible at. `prose` floors at the base so it can never dip under the
+// chrome it sits above.
 //
 // `prose` is 1.14 because that is where both desktop references put continuous
 // reading text against the same 14px chrome: ChatGPT's chat body is 16-17px with
 // a 14px UI base, Claude's `.prose` is 16px. The step exists at all because a
 // transcript read at the size of the labels around it has no main and no
-// secondary — which is the whole reason the chrome ladder stops at `ui-lg`.
+// secondary — which is the whole reason the chrome ladder stops at the base.
 const STEPS: Readonly<Record<UiTypeStep, { readonly ratio: number; readonly floorPx: number }>> = {
   "ui-2xs": { ratio: 0.76, floorPx: 9 },
   "ui-xs": { ratio: 0.84, floorPx: 10 },
   "ui-sm": { ratio: 0.92, floorPx: 10 },
   "ui-md": { ratio: 1, floorPx: UI_FONT_SIZE_MIN_PX },
-  "ui-lg": { ratio: 1.08, floorPx: 0 },
   prose: { ratio: 1.14, floorPx: 0 },
   code: { ratio: 0.95, floorPx: 10 },
 };
@@ -101,7 +100,6 @@ export function uiTypeLadderCssVariables(
     "--fs-ui-xs": `${ladder["ui-xs"]}px`,
     "--fs-ui-sm": `${ladder["ui-sm"]}px`,
     "--fs-ui-md": `${ladder["ui-md"]}px`,
-    "--fs-ui-lg": `${ladder["ui-lg"]}px`,
     "--fs-prose": `${ladder.prose}px`,
     "--fs-code": `${ladder.code}px`,
   };

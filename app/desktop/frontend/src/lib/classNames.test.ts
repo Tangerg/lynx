@@ -8,7 +8,7 @@ describe("cn", () => {
   });
 
   it("still resolves conflicts within each property", () => {
-    expect(cn("text-ui-sm", "text-ui-lg")).toBe("text-ui-lg");
+    expect(cn("text-ui-sm", "text-prose")).toBe("text-prose");
     expect(cn("text-fg-muted", "text-fg")).toBe("text-fg");
   });
 });

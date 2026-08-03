@@ -105,7 +105,7 @@ function SettingsPaneFrame({
       <header>
         <h1 className="m-0 text-display-md font-semibold text-fg">{title}</h1>
         {description && (
-          <p className="m-0 mt-1.5 max-w-[60ch] text-ui-lg leading-6 text-fg-muted">
+          <p className="m-0 mt-1.5 max-w-[60ch] text-ui-md leading-6 text-fg-muted">
             {description}
           </p>
         )}
@@ -140,7 +140,7 @@ function SettingsRailHeader({
           press={false}
           data-chrome-focus=""
           onClick={selectWorkspaceChat}
-          className="mb-3 flex h-8 items-center gap-2 rounded-sm border-0 bg-transparent px-2 text-ui-lg font-medium text-fg-muted transition-[background-color,color] duration-[var(--dur-fast)] hover:bg-hover hover:text-fg focus-visible:bg-hover focus-visible:outline-none"
+          className="mb-3 flex h-8 items-center gap-2 rounded-sm border-0 bg-transparent px-2 text-ui-md font-medium text-fg-muted transition-[background-color,color] duration-[var(--dur-fast)] hover:bg-hover hover:text-fg focus-visible:bg-hover focus-visible:outline-none"
         >
           <Icon name="arrow-left" size="md" className="opacity-100" />
           <span>{t("settings.backToApp")}</span>

@@ -2,7 +2,7 @@
 // Empty string reverts a typeface to the native system stack; numeric `null`
 // reverts the size to the ladder's default base.
 import type { SegmentedOption } from "@/ui";
-import { Checkbox, DropdownMenu, Icon, Segmented } from "@/ui";
+import { Checkbox, DropdownMenu, Icon, Segmented, SelectTrigger } from "@/ui";
 import { UI_FONT_SIZE_MAX_PX, UI_FONT_SIZE_MIN_PX } from "@/lib/typography";
 import { useT } from "@/lib/i18n";
 import { useSystemFonts } from "../application/systemFonts";
@@ -36,17 +36,17 @@ function FontPicker({ label, mono, value, onChange, defaultLabel }: FontPickerPr
       />
       <DropdownMenu.Root>
         <DropdownMenu.Trigger
-          disabled={!customEnabled}
-          className={cn(
-            "inline-flex min-h-[var(--field-height-md)] w-fit min-w-[220px] max-w-[280px] items-center justify-between gap-2 rounded-[var(--field-radius)] border-[length:var(--control-edge-width)] border-field bg-surface-2 px-2.5 py-1.5 text-ui-lg text-fg transition-colors hover:bg-surface-3 data-[popup-open]:bg-surface-3",
-            "disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-surface-2",
-            mono && customEnabled && "font-mono text-ui-md",
-          )}
-          style={customEnabled ? { fontFamily: `"${value}"` } : undefined}
-        >
-          <span className="truncate">{triggerLabel}</span>
-          <Icon name="more" size="xs" className="shrink-0 text-fg-faint -rotate-90" />
-        </DropdownMenu.Trigger>
+          render={
+            <SelectTrigger
+              label={triggerLabel}
+              disabled={!customEnabled}
+              // Previewed in the family it names, which is why the trigger carries an
+              // inline font-family: the value IS the sample.
+              style={customEnabled ? { fontFamily: `"${value}"` } : undefined}
+              className={cn("min-w-[220px] max-w-[280px]", mono && customEnabled && "font-mono")}
+            />
+          }
+        />
         <DropdownMenu.Content
           align="start"
           sideOffset={4}

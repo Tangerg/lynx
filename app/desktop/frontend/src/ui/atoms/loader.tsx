@@ -31,10 +31,14 @@ const CONTAINER: Record<LoaderSize, string> = {
   lg: "h-6",
 };
 
+// Ladder steps. These were Tailwind's own named sizes, which are fixed rem values: they
+// do not move with the user's UI size preference, and that is the one thing the ladder
+// exists to guarantee. (Naming those classes here would trip the guard that now forbids
+// them — check-design-tokens reads whole lines, comments included.)
 const TEXT: Record<LoaderSize, string> = {
-  sm: "text-xs",
-  md: "text-sm",
-  lg: "text-base",
+  sm: "text-ui-xs",
+  md: "text-ui-sm",
+  lg: "text-ui-md",
 };
 
 // The live status region: `<output>` carries an implicit role=status +

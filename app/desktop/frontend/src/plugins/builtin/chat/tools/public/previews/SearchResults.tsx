@@ -26,10 +26,10 @@ export function SearchResults({ results }: { results: SearchResult[] }) {
             </span>
             <span className="truncate">{r.domain}</span>
           </div>
-          <div className="line-clamp-2 text-ui-lg font-semibold leading-snug text-fg">
+          <div className="line-clamp-2 text-ui-md font-semibold leading-snug text-fg">
             {r.title}
           </div>
-          <div className="line-clamp-3 text-ui-lg leading-body text-fg-muted">{r.snippet}</div>
+          <div className="line-clamp-3 text-ui-md leading-body text-fg-muted">{r.snippet}</div>
         </div>
       ))}
     </div>

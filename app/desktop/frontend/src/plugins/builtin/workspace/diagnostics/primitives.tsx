@@ -10,7 +10,7 @@ import { useT } from "@/lib/i18n";
 
 export function Empty({ hint }: { hint: string }) {
   const t = useT();
-  return <div className="text-ui-lg text-fg-faint">{t("diagnostics.empty", { hint })}</div>;
+  return <div className="text-ui-md text-fg-faint">{t("diagnostics.empty", { hint })}</div>;
 }
 
 export function Row({

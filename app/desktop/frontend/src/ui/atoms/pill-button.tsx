@@ -22,7 +22,7 @@ const styles = cva(
       },
       size: {
         sm: "h-6.5 px-3 text-ui-sm",
-        md: "h-8 px-3.5 text-ui-lg",
+        md: "h-8 px-3.5 text-ui-md",
       },
     },
     defaultVariants: { variant: "outlined", size: "md" },

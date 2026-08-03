@@ -16,7 +16,7 @@ export function ModeRow({ mode }: { mode: ApprovalMode | undefined }) {
   };
   return (
     <div>
-      <div className="text-ui-lg font-medium text-fg">{t("approvals.mode")}</div>
+      <div className="text-ui-md font-medium text-fg">{t("approvals.mode")}</div>
       <div className="mt-1 text-ui-md leading-body text-fg-muted">{t("approvals.mode.sub")}</div>
       {mode === undefined ? (
         // Until the saved stance loads, show a quiet placeholder rather than
@@ -41,7 +41,7 @@ export function ModeRow({ mode }: { mode: ApprovalMode | undefined }) {
               >
                 <div className="min-w-0 flex-1">
                   <div
-                    className={cn("text-ui-lg", selected ? "font-medium text-accent" : "text-fg")}
+                    className={cn("text-ui-md", selected ? "font-medium text-accent" : "text-fg")}
                   >
                     {t(o.labelKey)}
                   </div>
