@@ -160,6 +160,12 @@ const LONG_RESPONSE = message(
     "}",
     "```",
     "",
+    // A SECOND heading, so this answer has an outline and the end rail is
+    // finally photographed at rest. One heading is the answer's own title and
+    // the rail declines to draw it, which is why every golden until now framed
+    // an empty end gutter — the one place a width regression there could hide.
+    "### Where the boundary is enforced",
+    "",
     "A deliberately long final paragraph verifies wrapping, reading measure, CJK fallback（中文混排）, inline code such as `expectedRevision`, and uninterrupted vertical rhythm without inventing a fixture-only message shape.",
   ].join("\n"),
 );

@@ -3,9 +3,9 @@ import { IconButton } from "@/ui";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/classNames";
 
-// Floating "scroll to bottom" affordance, anchored to the bottom of the
-// transcript column and out of the layout flow. It sits just above where the
-// composer overlaps, so it never covers the last message.
+// Floating "scroll to bottom" affordance, out of the layout flow and anchored to
+// the composer's own top edge — which is where the transcript visibly ends, and
+// the only anchor that stays right as the composer grows.
 //
 // Animates in/out via opacity + translateY rather than mount/unmount, so the
 // user gets a soft reveal instead of a pop-in. When `visible` is false it's still
@@ -26,7 +26,7 @@ export function JumpToBottomButton() {
       onClick={scrollStreamToBottom}
       tabIndex={visible ? 0 : -1}
       className={cn(
-        "absolute bottom-6 left-1/2 -translate-x-1/2 z-[3] grid h-8 w-8 place-items-center rounded-full",
+        "absolute bottom-[calc(100%+0.5rem)] left-1/2 -translate-x-1/2 z-[3] grid h-8 w-8 place-items-center rounded-full",
         "bg-canvas text-fg-soft border-0",
         "shadow-[var(--shadow-popover)] transition-[opacity,translate,scale,background] duration-[var(--dur-fast)]",
         "hover:bg-surface-2 hover:text-fg",

@@ -7,7 +7,7 @@
 // message list must not re-render on every keystroke or every scroll event.
 
 import type { UserInput } from "@/plugins/builtin/chat/composer/public/input";
-import { useEffect, useMemo } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import {
   useActiveConversationMessages,
   useDelegatedConversationRuns,
@@ -36,26 +36,33 @@ interface Props {
   onSend: (input: UserInput) => void;
 }
 
-// The reading column's two flanking gutters.
-//
-// The COLUMN reserves them, not the rails. A rail with nothing to show still
-// holds its width — a gutter that collapses when the current turn has no outline
-// slides the whole transcript sideways as you scroll. It also means the rails'
-// own components carry no breakpoint: where the column can afford a gutter is
-// the column's question, and answering it in two places is how the banners, the
-// stream and the composer ended up centred on three different boxes.
-//
-// The breakpoints are literals because Tailwind reads source text and a
-// container-query variant assembled from a variable emits nothing; the widths
-// are tokens because they are geometry the theme owns.
-const RAIL_START = "w-0 shrink-0 overflow-hidden @min-[560px]:w-[var(--rail-start-width)]";
-const RAIL_END = "w-0 shrink-0 overflow-hidden @min-[900px]:w-[var(--rail-end-width)]";
-const RAIL_GUTTERS =
-  "@min-[560px]:pl-[var(--rail-start-width)] @min-[900px]:pr-[var(--rail-end-width)]";
+// The reading column. Banners, transcript and composer all take this and
+// nothing else, so there is one box in the pane and everything is on its axis.
+const COLUMN = "mx-auto w-full max-w-[var(--content-max)]";
 
-// Column + gutters centre as ONE block, so a rail never drifts away from the text
-// it points at when the pane is wider than the frame.
-const READING_FRAME = "mx-auto w-full max-w-[var(--reading-frame-max)]";
+// The two rails hang off that column's edges, OUT of its flow.
+//
+// They used to be flex siblings, and the column sat at the midpoint of the two
+// gutters instead of the pane's — 76px left of centre, because the outline rail
+// is wider than the turn rail. Reserving the gutters was itself a repair: a rail
+// that collapsed when its turn had no outline used to drag the transcript
+// sideways mid-scroll. Positioned absolutely against the centre line, neither
+// failure is reachable — a rail can appear, disappear or change width and the
+// text does not move, because the text's position never depended on it.
+//
+// One query for both, since the pane must hold the column and a FULL gutter on
+// each side to stay symmetric. The sum is spelled out because Tailwind reads
+// source text and a container variant assembled from a variable emits nothing.
+const RAIL =
+  "absolute inset-y-0 z-[1] hidden w-[var(--reading-rail-width)] flex-col @min-[1128px]:flex";
+const RAIL_START = "right-[calc(50%+var(--content-max)/2)]";
+const RAIL_END = "left-[calc(50%+var(--content-max)/2)]";
+
+// How much of itself the floating composer hides. The transcript pads its tail
+// by this so the last message can always come out from under it — measured,
+// because the composer grows with what you type and with whatever the model row,
+// the attachments and the steer banner are showing.
+const COMPOSER_OVERLAY = "--composer-overlay";
 
 export function ChatStream({ onSend }: Props) {
   const resetKey = useActiveSessionId();
@@ -117,6 +124,26 @@ export function ChatStream({ onSend }: Props) {
   );
 
   const composer = <ComposerSurface onSend={onSend} />;
+  const started = messages.length > 0;
+
+  const paneRef = useRef<HTMLDivElement>(null);
+  const overlayRef = useRef<HTMLDivElement>(null);
+  // Written straight to the element, not held in state: the composer resizes on
+  // the keystroke that wraps a line, and routing that through a render would put
+  // the whole message list on the typing path — the one thing this component is
+  // organised to keep it off.
+  useLayoutEffect(() => {
+    const pane = paneRef.current;
+    const overlay = overlayRef.current;
+    if (!pane || !overlay) return;
+    const observer = new ResizeObserver(() => {
+      pane.style.setProperty(COMPOSER_OVERLAY, `${overlay.offsetHeight}px`);
+    });
+    observer.observe(overlay);
+    return () => observer.disconnect();
+    // The empty state is a different tree with no overlay in it, so the
+    // observer has to be re-attached to the one the first message brings.
+  }, [started]);
 
   const t = useT();
 
@@ -128,7 +155,12 @@ export function ChatStream({ onSend }: Props) {
   // The stream's scroll lives inside MessageStream's own container, so these stay
   // put while the user scrolls messages below them.
   const banners = (
-    <div className="mx-auto w-full max-w-[var(--content-max)] shrink-0 px-[var(--density-column-gutter)] sm:px-[var(--density-column-gutter-wide)]">
+    <div
+      className={cn(
+        COLUMN,
+        "shrink-0 px-[var(--density-column-gutter)] sm:px-[var(--density-column-gutter-wide)]",
+      )}
+    >
       {/* Keyed on the session so the relocate input never carries a
           half-typed path across a session switch. */}
       <CwdMissingBanner key={resetKey} />
@@ -142,18 +174,18 @@ export function ChatStream({ onSend }: Props) {
   // Empty state is a workbench starting point rather than a marketing hero. It
   // stays in the upper reading field so the first action is visible without a
   // large dead canvas, and the sticky-scroll path mounts only after first send.
-  if (messages.length === 0) {
+  if (!started) {
     return (
       <>
         {banners}
         <div className="panel-scroll flex flex-1 flex-col items-center px-[var(--density-column-gutter)] pt-[clamp(72px,16vh,150px)] sm:px-[var(--density-column-gutter-wide)]">
-          <div className="flex w-full max-w-[var(--content-max)] flex-col pb-5">
+          <div className={cn(COLUMN, "flex flex-col pb-5")}>
             <h1 className="max-w-[620px] text-balance text-display-md font-medium text-fg/95">
               {t("welcome.title")}
             </h1>
           </div>
-          <div className="w-full max-w-[var(--content-max)]">{composer}</div>
-          <div className="mt-6 w-full max-w-[var(--content-max)]">
+          <div className={COLUMN}>{composer}</div>
+          <div className={cn(COLUMN, "mt-6")}>
             <Slot name="chat.empty" />
           </div>
         </div>
@@ -162,35 +194,38 @@ export function ChatStream({ onSend }: Props) {
   }
 
   return (
-    // One container for the whole column. A container query and not a viewport
-    // one: what decides whether a rail fits is the width of THIS column, which
-    // the drawer and the dock both change without the window changing at all.
-    // Banners and composer take the rails' gutters from the same query, so the
-    // three stay on one axis instead of each centring on a different box.
-    <div className="@container flex min-h-0 flex-1 flex-col">
-      <div className={cn(READING_FRAME, RAIL_GUTTERS)}>{banners}</div>
-      <div className={cn("relative flex min-h-0 flex-1", READING_FRAME)}>
-        <div className={cn("flex flex-col", RAIL_START)}>
+    // A container query and not a viewport one: what decides whether a rail fits
+    // is the width of THIS pane, which the drawer and the dock both change
+    // without the window changing at all.
+    <div ref={paneRef} className="@container relative flex min-h-0 flex-1 flex-col">
+      {banners}
+      <div className="relative flex min-h-0 flex-1 flex-col">
+        <div className={cn(RAIL, RAIL_START)}>
           <Slot name="chat.rail.start" />
         </div>
-        <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
+        <div className={cn("relative flex min-h-0 flex-1 flex-col", COLUMN)}>
           <ChatErrorBoundary resetKey={resetKey} label={`session:${resetKey}`}>
             <MessageStream messages={messages} ctx={ctx} resetKey={resetKey} />
           </ChatErrorBoundary>
-          <JumpToBottomButton />
         </div>
-        <div className={cn("flex flex-col", RAIL_END)}>
+        <div className={cn(RAIL, RAIL_END)}>
           <Slot name="chat.rail.end" />
         </div>
-      </div>
-      <div
-        className={cn(
-          "relative z-10 shrink-0 bg-[var(--app-content-surface)] px-3 pb-3 pt-2 sm:px-5 sm:pb-4",
-          READING_FRAME,
-          RAIL_GUTTERS,
-        )}
-      >
-        <div className="mx-auto w-full max-w-[var(--content-max)]">{composer}</div>
+
+        {/* The composer floats over the tail of the transcript rather than
+            capping it with a bar: one continuous surface with an input resting
+            on it, which is also why the text has to keep going underneath. The
+            band above it fades that text out instead of slicing it, and only
+            the composer's own box takes the pointer — the fade is scenery. */}
+        <div ref={overlayRef} className="pointer-events-none absolute inset-x-0 bottom-0 z-10">
+          <div className="h-8 bg-gradient-to-b from-transparent to-[var(--app-content-surface)]" />
+          <div className="bg-[var(--app-content-surface)] pb-3 sm:pb-4">
+            <div className={cn("pointer-events-auto relative", COLUMN)}>
+              <JumpToBottomButton />
+              {composer}
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

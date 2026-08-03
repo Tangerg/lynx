@@ -636,22 +636,17 @@
   --app-pane-split-end: 7px 0 22px -10px var(--shadow-cast);
   --seam-line: color-mix(in oklab, var(--color-border) 82%, var(--color-text) 18%);
 
-  /* The reading column and the two gutters flanking it.
-     The gutters are what the narrative rails render into, and they are reserved
-     by the column's own layout rather than by whether a rail currently has
-     anything to show — otherwise the text slides sideways whenever you scroll
-     past a turn with no outline. Sized so the column lands near 600px at the
-     window width the workbench is designed around (drawer + dock both open),
-     which is also the measure the cap protects when the dock is closed. */
-  --rail-start-width: 72px;
-  --rail-end-width: 224px;
+  /* The reading column, and the gutter on either side of it.
+     ONE width for both gutters, and it is not negotiable: the column is what
+     centres in the pane, and gutters of 72 and 224 put every word anyone reads
+     half their difference — 76px — left of the middle of the window. The rails
+     render into these gutters without taking part in the column's layout, so a
+     rail with nothing to show, or one the pane is too narrow to carry, cannot
+     move the text by a pixel. Where the column lands is the column's business
+     alone. Sized so the column holds a comfortable measure at the window width
+     the workbench is designed around, with drawer and dock both open. */
   --content-max: 680px;
-  /* Column plus both gutters. This — not the column alone — is what centres in
-     the pane, so the dots stay the same distance from the text they mark and the
-     outline the same distance on the other side, at every window width. Centring
-     the column on its own instead lets the rails drift to the far edges of a wide
-     pane while the text sits in the middle, pointing at nothing near them. */
-  --reading-frame-max: calc(var(--rail-start-width) + var(--content-max) + var(--rail-end-width));
+  --reading-rail-width: 224px;
 }
 
 /* IMPORTANT: do not set `font-size` on <html>. It anchors `rem` for
