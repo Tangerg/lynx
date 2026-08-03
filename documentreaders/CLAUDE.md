@@ -8,7 +8,7 @@
 ## 定位
 
 - **格式各异 → 统一 Document**:每个 reader 把一种格式解析成 core 的 Document,下游 RAG pipeline 只见统一形态。
-- **每 reader 一个独立子包 + 独立 go.mod**:解析器依赖重,隔离后消费方只拉自己用到的格式。
+- **每 reader 一个独立子包**：`documentreaders` 只是命名空间，不存在根包。纯标准库或仅依赖 Core 的轻量 reader（`text`、`json`）留在根 module；引入重解析器依赖的格式使用独立 go.mod，消费方只拉自己用到的依赖。
 
 ## 架构心智
 
@@ -19,7 +19,8 @@
 
 ## 模块特有反向不变量
 
-- ❌ **让所有 reader 共用一个 go.mod** —— 独立 go.mod 是有意的,避免把重解析器依赖强加给不用它的消费方。
+- ❌ **在 `documentreaders` 根目录新增 Go 包** —— 每个格式必须有明确 owner。
+- ❌ **让重依赖 reader 共用一个 go.mod** —— 独立 go.mod 隔离可选解析库；轻量 reader 不为形式上的一致额外建 module。
 - ❌ **元数据 key 不带前缀** —— 会与其他 reader 撞名,下游按 key 取值会错乱。
 
 ## 改动前必看(波及面)

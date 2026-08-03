@@ -1,4 +1,5 @@
-package documentreaders
+// Package json reads JSON values into documents.
+package json
 
 import (
 	"bytes"
@@ -7,11 +8,12 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"reflect"
 
 	"github.com/Tangerg/lynx/core/document"
 )
 
-// JSONReader parses a JSON payload — either a single object or a top-
+// Reader parses a JSON payload — either a single object or a top-
 // level array — into [*document.Document] entries. Top-level arrays produce one
 // document per element; single objects produce one document whose Text
 // is the raw JSON string.
@@ -20,26 +22,41 @@ import (
 //
 // Example:
 //
-//	r, err := documentreaders.NewJSONReader(strings.NewReader(`[{"id":1},{"id":2}]`))
+//	r, err := json.New(strings.NewReader(`[{"id":1},{"id":2}]`))
 //	docs, err := r.Read(ctx) // 2 documents
-type JSONReader struct {
+type Reader struct {
 	reader io.Reader
 }
 
-func NewJSONReader(reader io.Reader) (*JSONReader, error) {
+// New constructs a JSON Reader from source.
+func New(reader io.Reader) (*Reader, error) {
 	if isNil(reader) {
-		return nil, errors.New("document readers: JSON source must not be nil")
+		return nil, errors.New("JSON reader: source must not be nil")
 	}
-	return &JSONReader{reader: reader}, nil
+	return &Reader{reader: reader}, nil
 }
 
-func (j *JSONReader) Read(ctx context.Context) ([]*document.Document, error) {
+func isNil(value any) bool {
+	reflected := reflect.ValueOf(value)
+	if !reflected.IsValid() {
+		return true
+	}
+	switch reflected.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
+		return reflected.IsNil()
+	default:
+		return false
+	}
+}
+
+// Read consumes the source and converts its top-level value to documents.
+func (j *Reader) Read(ctx context.Context) ([]*document.Document, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 	data, err := io.ReadAll(j.reader)
 	if err != nil {
-		return nil, fmt.Errorf("document readers: read JSON source: %w", err)
+		return nil, fmt.Errorf("JSON reader: read source: %w", err)
 	}
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -50,12 +67,12 @@ func (j *JSONReader) Read(ctx context.Context) ([]*document.Document, error) {
 		return parseJSONArray(ctx, trimmed)
 	}
 	if err := json.Unmarshal(trimmed, new(any)); err != nil {
-		return nil, fmt.Errorf("document readers: decode JSON source: %w", err)
+		return nil, fmt.Errorf("JSON reader: decode source: %w", err)
 	}
 
 	doc, err := document.NewDocument(string(trimmed), nil)
 	if err != nil {
-		return nil, fmt.Errorf("document readers: build JSON document: %w", err)
+		return nil, fmt.Errorf("JSON reader: build document: %w", err)
 	}
 	return []*document.Document{doc}, nil
 }
@@ -63,7 +80,7 @@ func (j *JSONReader) Read(ctx context.Context) ([]*document.Document, error) {
 func parseJSONArray(ctx context.Context, data []byte) ([]*document.Document, error) {
 	var items []json.RawMessage
 	if err := json.Unmarshal(data, &items); err != nil {
-		return nil, fmt.Errorf("document readers: decode JSON array: %w", err)
+		return nil, fmt.Errorf("JSON reader: decode array: %w", err)
 	}
 
 	docs := make([]*document.Document, 0, len(items))
@@ -73,7 +90,7 @@ func parseJSONArray(ctx context.Context, data []byte) ([]*document.Document, err
 		}
 		doc, err := document.NewDocument(string(item), nil)
 		if err != nil {
-			return nil, fmt.Errorf("document readers: build JSON array document %d: %w", index, err)
+			return nil, fmt.Errorf("JSON reader: build array document %d: %w", index, err)
 		}
 		docs = append(docs, doc)
 	}

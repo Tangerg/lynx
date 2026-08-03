@@ -1,4 +1,5 @@
-package documentreaders
+// Package text reads plain text into documents.
+package text
 
 import (
 	"context"
@@ -10,20 +11,19 @@ import (
 	"github.com/Tangerg/lynx/core/document"
 )
 
-// TextReader reads the entire contents of an [io.Reader] and packages
+// Reader reads the entire contents of an [io.Reader] and packages
 // it into one [*document.Document]. Use it for files, in-memory buffers, or
-// network streams that fit comfortably in memory; for very large
-// inputs run a splitter ([transformer_text_splitter.go],
-// [transformer_token_splitter.go]) afterwards.
-type TextReader struct {
+// network streams that fit comfortably in memory.
+type Reader struct {
 	reader io.Reader
 }
 
-func NewTextReader(reader io.Reader) (*TextReader, error) {
+// New constructs a text Reader from source.
+func New(reader io.Reader) (*Reader, error) {
 	if isNil(reader) {
-		return nil, errors.New("document readers: text source must not be nil")
+		return nil, errors.New("text reader: source must not be nil")
 	}
-	return &TextReader{reader: reader}, nil
+	return &Reader{reader: reader}, nil
 }
 
 func isNil(value any) bool {
@@ -39,13 +39,14 @@ func isNil(value any) bool {
 	}
 }
 
-func (t *TextReader) Read(ctx context.Context) ([]*document.Document, error) {
+// Read consumes the source and returns one document containing its text.
+func (t *Reader) Read(ctx context.Context) ([]*document.Document, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 	data, err := io.ReadAll(t.reader)
 	if err != nil {
-		return nil, fmt.Errorf("document readers: read text source: %w", err)
+		return nil, fmt.Errorf("text reader: read source: %w", err)
 	}
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -53,7 +54,7 @@ func (t *TextReader) Read(ctx context.Context) ([]*document.Document, error) {
 
 	doc, err := document.NewDocument(string(data), nil)
 	if err != nil {
-		return nil, fmt.Errorf("document readers: build text document: %w", err)
+		return nil, fmt.Errorf("text reader: build document: %w", err)
 	}
 	return []*document.Document{doc}, nil
 }
