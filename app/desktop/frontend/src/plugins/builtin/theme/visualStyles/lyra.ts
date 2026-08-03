@@ -18,9 +18,9 @@ export const lyraStyle: VisualStyleSpec = {
   traits: { regions: "tool-windows", controls: "quiet" },
   motion: WORKBENCH_MOTION,
   preview: {
-    canvas: "#1e1f22",
-    sidebar: "#2b2d30",
-    dock: "#25272a",
+    canvas: "#1d1f23",
+    sidebar: "#2a2d32",
+    dock: "#24272c",
     edge: "#3a3d42",
     accent: "#3574f0",
   },

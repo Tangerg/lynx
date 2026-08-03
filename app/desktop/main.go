@@ -32,7 +32,7 @@ func desktopApplicationOptions(host *DesktopHost) *options.App {
 		},
 		Bind:             []any{host},
 		OnStartup:        host.attachWindow,
-		BackgroundColour: &options.RGBA{R: 251, G: 251, B: 252, A: 1},
+		BackgroundColour: &options.RGBA{R: 255, G: 255, B: 255, A: 1},
 		// macOS: a real titled window whose title bar is transparent and empty,
 		// with the content running the full height underneath it. The app draws
 		// its own three controls in the gutter it reserves for them and moves

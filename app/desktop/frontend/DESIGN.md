@@ -457,14 +457,28 @@ repeat the hexes, which is how the previous version of it went stale.
 | `canvas` (`--color-bg`) | The reading plane — transcript, view bodies. Darkest surface on dark, brightest on light. |
 | `surface` | Region chrome — the drawer, the dock, the bars that frame the plane. |
 | `card` (`--app-card-surface` → `--color-elevated`) | An object placed on a region: a message, a tool card, the composer. |
-| `sunken` (`--color-sunken`) | A well cut into a surface: code bodies, terminals, diff hunks, text fields, progress tracks. |
-| `surface-2` / `-3` / `-4` | Derived chip rungs above `surface` — badges, inline code, kbd, selected rows. |
+| `sunken` (`--color-sunken`) | A well cut into a surface: code bodies, terminals, diff hunks, text fields, progress tracks, and inline code in prose. |
+| `surface-2` / `-3` / `-4` | Derived chip rungs above `surface` — badges, kbd, selected rows, resting control fills. Mixed out of the CHROME grey, so they belong on chrome; on the plane they read as grime. |
 
-**Why four anchors and not one ladder.** The ladder walks one direction only —
-toward the ink. A card lifts AWAY from the ink on light (white over off-white) and
-TOWARD it on dark, while a well recedes under both. One monotonic mix cannot say
-all three, which is exactly how the card fill, spelled as a ladder step, came out
-grey on light.
+**Why four anchors and not one ladder.** The reading plane is the extreme of its
+scheme — pure white on light, near-black on dark — and an object on it steps IN,
+toward the chrome. On light that reads as a ladder: every region steps down from
+white. On dark it cannot, because the WELL still goes the other way — a card lifts
+UP off the plane while a code body recedes BELOW it. One monotonic mix cannot say
+both, so `elevated` and `sunken` stay anchors.
+
+A card used to be spelled `#ffffff` over an off-white plane, which is the same
+delta pointing the other way — 1.2 L with zero chroma, so the object was held up
+entirely by its cast. Stepping in instead gives it a value AND a hue of its own.
+
+**One hue, chroma by area.** Every neutral sits on the accent's hue, and carries
+chroma in inverse proportion to the area it covers: the plane none, the chrome
+~0.006, a card ~0.008, a well ~0.016 (dark: 0.008 / 0.010 / 0.015). Under roughly
+C 0.005 a grey's hue is not addressable in 8-bit sRGB — one byte swings it 20–40° —
+so a near-neutral ramp cannot pick its own hue, and a hue nobody chose is what
+"dirty grey" means. Chroma is what makes the set read as one material family;
+keeping it low on the large areas is what keeps the same decision from reading as
+a blue tint.
 
 `surface-2/3/4` derive from `surface` via `color-mix(--depth-step)` so the
 contrast preference moves the chip rungs per scheme — they are never pinned
@@ -494,6 +508,11 @@ user-selectable, with green / pink / orange as alternates) is reserved for
 4. Live indicator (streaming dot, running pill, `tab-dot.running`)
 
 Forbidden surfaces for accent: section background, card fill, avatar background, decorative borders, status icons that are not "live". And **no bright accent ring on input focus or click** — inputs/composer strengthen their border quietly instead (the loud halo read as cheap).
+
+"Card fill" here means the accent as a **colour**. The surface anchors sitting on
+the accent's *hue* at C ≤ 0.016 is the neutral algorithm above, not accent usage:
+at that chroma nothing reads as blue, and the alternative is not a purer neutral
+but an unchosen one.
 
 ### Semantic palette
 
@@ -639,7 +658,7 @@ value delta to lean on because they can land over anything.
 | 0 | Region fill only | The reading plane, prose, a message body |
 | 1 | `bg-card` | Message card, tool card, composer, plan card, table |
 | 2 | `bg-sunken` | Code body, terminal, diff hunk, text field, progress track |
-| 3 | `surface-2` / `-3` | Chips, badges, inline code, kbd, selected rows |
+| 3 | `surface-2` / `-3` | Chips, badges, kbd, selected rows — on chrome, not on the plane |
 | 4 | `--shadow-popover` | Floating overlays only — one token, ring plus depth |
 
 Each role owns exactly ONE edge mechanism. A border and a shadow ring on the same

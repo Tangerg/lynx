@@ -9,17 +9,25 @@
 // Cards sit at the same value as the chrome, so an object on the plane reads as
 // lifted while the same object inside a tool window reads as flush. `sunken` is
 // well below the plane and carries every recessed well: code, terminal, diff.
+//
+// ONE HUE, CHROMA BY AREA — the same policy as the light scheme, and the same
+// reason: under roughly C 0.005 a grey's hue is quantisation noise rather than a
+// decision, which is how a neutral ramp comes out reading as grime. Every neutral
+// here sits on 263° with chroma in inverse proportion to area (plane 0.008, chrome
+// 0.010, well 0.015). The moves are single bytes — near-black has little room —
+// but they put both schemes on one family instead of two.
 
 import { defineColorThemePlugin } from "../kit/defineColorThemePlugin";
 
 const c = {
-  // The one accent. Live indicators, progress, primary fills, focus, links.
+  // The one accent. Live indicators, progress, primary fills, focus, links. Its
+  // hue is what every neutral below is tuned to.
   accent: "#3574f0",
 
   // Reading plane, region chrome, and the well beneath both.
-  canvas: "#1e1f22",
-  surface1: "#2b2d30",
-  sunken: "#17181a",
+  canvas: "#1d1f23",
+  surface1: "#2a2d32",
+  sunken: "#15181f",
 
   // surface2/3/4 derive as ink mixes off `surface1` — those are the chip rungs
   // (badge, inline code, kbd, selected row), not region materials.

@@ -235,13 +235,19 @@
   background: var(--color-hover);
 }
 
-/* Inline code — surface-2 chip, no border, mono at the ladder's code step so it
-   reads as data, not prose. */
+/* Inline code — a small well, no border, mono at the ladder's code step so it
+   reads as data, not prose.
+   The WELL and not the `surface-2` chip rung, even though this is chip-sized: the
+   rungs are mixed out of the CHROME grey, and prose sits on the reading plane. On
+   the plane that mix lands both deeper than a whole code block and at the chrome's
+   low chroma, so a two-word chip came out darker AND greyer than the block below
+   it. Chips inside chrome (settings rows, badges) still take the rungs — that is
+   where the rungs' base is the surface behind them. */
 .md code {
   font-family: var(--font-mono);
   font-size: var(--fs-code);
   padding: 1px 6px;
-  background: var(--color-surface-2);
+  background: var(--color-sunken);
   border-radius: var(--shape-2xs);
   color: var(--color-text);
   letter-spacing: 0;

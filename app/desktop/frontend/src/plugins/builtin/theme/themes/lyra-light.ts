@@ -1,12 +1,23 @@
 // Light — the JetBrains tool-window palette, light scheme.
 //
-// Same region algorithm as the dark scheme, mirrored: the reading plane is the
-// brightest surface and the chrome around it steps DOWN. Depth is the value delta
-// plus a directional cast at each seam, never a border.
+// The reading plane is the brightest surface and everything else steps DOWN from
+// it. Depth is the value delta plus a directional cast at each seam, never a
+// border.
 //
-// The card anchor is where the two schemes stop being a single mix. On dark a card
-// lifts toward the ink; here it lifts away from it, to pure white over an off-white
-// plane. That is why `elevated` is an anchor and not a ladder rung.
+// The plane is pure white, so an object ON it is a step IN rather than a step up:
+// a card at #ffffff over an off-white plane was 1.2 L of delta with no hue at all,
+// and a card that faint is held up entirely by its shadow. Objects step toward the
+// chrome, which is also why a card inside the drawer now reads as lifted instead of
+// as a hole punched to white.
+//
+// ONE HUE, CHROMA BY AREA. Every neutral sits on the accent's own hue (263°) and
+// carries chroma in inverse proportion to how much of the screen it covers: the
+// plane none, the chrome 0.006, a card 0.008, a well 0.016. Below roughly C 0.005 a
+// grey's hue is not addressable in 8-bit sRGB — one byte swings it 20–40° — so the
+// old ramp drifted across 248…286° purely as quantisation noise, and a hue nobody
+// chose is what "dirty grey" means. Raising chroma is what makes the family read as
+// material instead of as grime; keeping it low on the large areas is what keeps the
+// same decision from reading as a blue tint.
 //
 // Semantic hues follow the reference language but are one step deeper than it: the
 // reference's greens and ambers land at 3.4–3.9:1 as text on these surfaces, and a
@@ -17,21 +28,26 @@ import { defineColorThemePlugin } from "../kit/defineColorThemePlugin";
 
 const c = {
   // Deeper than the dark scheme's #3574f0 for the same reason as the semantics —
-  // the reference blue reads at 3.8:1 on this chrome. Same hue, AA-clean.
+  // the reference blue reads at 3.8:1 on this chrome. Same hue, AA-clean. Its hue
+  // is the one every neutral above is tuned to.
   accent: "#2b5fd0",
 
-  canvas: "#fbfbfc",
-  surface1: "#f0f1f3",
-  sunken: "#eef0f2",
+  canvas: "#ffffff",
+  card: "#f7faff",
+  surface1: "#eff1f5",
+  sunken: "#eaf0fb",
 
+  // Unchanged by the hue pass: at L24 and C 0.006 the nearest sRGB triple to
+  // 263° is the same byte for byte, and the ink ramp is the one place where a
+  // wider chroma would tint the reading itself.
   inkBright: "#000000",
   ink: "#1e1f22",
   inkSoft: "#3d4147",
   inkMuted: "#5a5d63",
   inkFaint: "#63666d",
 
-  hairline: "#dfe1e5",
-  hairStrong: "#c7cad0",
+  hairline: "#dee1e7",
+  hairStrong: "#c6cad3",
   hairTertiary: "rgb(0 0 0 / 0.07)",
 };
 
@@ -48,7 +64,7 @@ export default defineColorThemePlugin({
   surfaces: {
     bg: c.canvas,
     surface: c.surface1,
-    elevated: "#ffffff",
+    elevated: c.card,
     sunken: c.sunken,
   },
   ink: {

@@ -67,12 +67,14 @@
   --color-card: var(--app-card-surface);
   /* A well is the palette's own recessed material — it means the same thing in
      every style, so this one reads the anchor directly.
-     SIZE picks between this and the chip rungs, and it is not a matter of taste:
-     `surface-2/3` are mixed out of the CHROME grey, so at row size on the reading
-     plane they land far darker than the plane they sit on and read as grime.
-     Anything the size of a row, a block or a panel is a well and takes this;
-     `surface-2/3` are for things smaller than a row — badges, key caps, inline
-     code, avatar tiles, resting control fills. */
+     WHAT IT SITS ON picks between this and the chip rungs, and it is not a matter
+     of taste: `surface-2/3` are mixed out of the CHROME grey, so they are right for
+     anything drawn ON that chrome — a badge in a settings row, a kbd cap in a menu,
+     a resting control fill — and wrong for anything on the reading plane, where
+     that mix lands far darker than the plane behind it AND at the chrome's low
+     chroma, so it reads as grime rather than as material. Size alone does not
+     decide: a two-word inline-code chip on the plane takes the well, the same chip
+     inside a settings pane takes the rung. */
   --color-sunken: var(--color-sunken);
 
   /* Ink ladder */
@@ -356,13 +358,16 @@
      frame it, and -2/-3/-4 are chip rungs derived above `surface` via color-mix()
      so they track --depth-step (the contrast preference) and cannot be pinned by
      a theme.
-     `elevated` and `sunken` are anchors and not rungs: the ladder can only walk
-     toward the ink, while a card lifts AWAY from it on light and TOWARD it on
-     dark, and a well recedes under both. Keep in step with `themes/lyra-*.ts`. */
-  --color-bg: #fbfbfc;
-  --color-surface: #f0f1f3;
-  --color-elevated: #ffffff;
-  --color-sunken: #eef0f2;
+     `elevated` and `sunken` are anchors and not rungs because of the WELL: on
+     light every region now steps down from a white plane, but on dark a card steps
+     UP off the plane while a well still recedes below it, so no single mix can say
+     both. All four sit on the accent's hue with chroma by area — see
+     `themes/lyra-light.ts` for why a near-neutral grey cannot pick its own hue.
+     Keep in step with `themes/lyra-*.ts`. */
+  --color-bg: #ffffff;
+  --color-surface: #eff1f5;
+  --color-elevated: #f7faff;
+  --color-sunken: #eaf0fb;
   --depth-step: 4%;
   --color-surface-2: color-mix(
     in oklab,
@@ -409,8 +414,8 @@
      value plus a directional cast (the visual style owns both), so nothing here
      is ever stretched into a pane divider. Keep in step with
      `themes/lyra-light.ts`. */
-  --color-border: #dfe1e5;
-  --color-border-soft: #c7cad0;
+  --color-border: #dee1e7;
+  --color-border-soft: #c6cad3;
   --color-divider: rgb(0 0 0 / 0.07);
 
   /* Semantic — used sparingly per DESIGN.md §9. Light-scheme first paint; the
@@ -889,10 +894,10 @@ html.theme-dark {
 
   /* The plane is the DARKEST surface and the chrome steps UP from it — an IDE
      puts you inside the editor and frames it with tool windows. */
-  --color-bg: #1e1f22;
-  --color-surface: #2b2d30;
-  --color-elevated: #2b2d30;
-  --color-sunken: #17181a;
+  --color-bg: #1d1f23;
+  --color-surface: #2a2d32;
+  --color-elevated: #2a2d32;
+  --color-sunken: #15181f;
   /* Double the light scheme's step: 4% of a near-white ink moves a near-black
      surface a third as far, in perceived lightness, as 4% of a near-black ink
      moves a near-white one. See `depthStep` in adapters/documentAppearance.ts. */
@@ -927,28 +932,21 @@ html.theme-dark {
   --color-success: #5fad65;
 }
 
-/* Quieter scrollbar on light — the dark thumb tokens overshoot. */
+/* Quieter scrollbar on light — the dark thumb tokens overshoot. An ink wash and
+   not a literal: the three greys here were warm (#d4d4d3 is 90° off the palette's
+   hue), so the one chrome that overlays the reading plane was the one thing on
+   screen from another colour family. */
 html.theme-light .panel-scroll {
-  scrollbar-color: #cdcdcc transparent;
+  scrollbar-color: color-mix(in oklab, var(--color-text) 20%, transparent) transparent;
 }
 html.theme-light .panel-scroll::-webkit-scrollbar-thumb {
-  background: #d4d4d3;
+  background: color-mix(in oklab, var(--color-text) 17%, transparent);
   border: 2px solid transparent;
   background-clip: content-box;
 }
 html.theme-light .panel-scroll::-webkit-scrollbar-thumb:hover {
-  background: #b8b8b7;
+  background: color-mix(in oklab, var(--color-text) 28%, transparent);
   background-clip: content-box;
-}
-
-/* Markdown body overrides — .msg-content keeps the className because migrating
-   every markdownComponents child to Tailwind isn't worth it. Note there is no
-   colour rule here: prose takes the full ink from markdown.css, and a light-only
-   `soft` override used to dim it a second time. */
-html.theme-light .msg-content code {
-  background: var(--color-surface-2);
-  color: var(--color-text);
-  padding: 1px 5px;
 }
 
 /* =========================================================================
