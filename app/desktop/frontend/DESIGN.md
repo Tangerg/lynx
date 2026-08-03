@@ -490,7 +490,14 @@ ink over a near-black surface moves it a third as far, in perceived lightness, a
 
 A hairline is the edge of a **control** — a text field, a chip, the composer.
 Regions do not get one: they separate by value plus `--app-card-edge` /
-`--app-pane-split`, the directional casts the visual style owns. The three-step
+`--app-pane-split`, the directional casts the visual style owns.
+
+There is one other case, and only one: an object that **demands attention** — a
+pending approval, a failed run. It is neither a region nor a control, and it takes
+a 1px `--color-<tone>-edge` over a neutral fill. The fill stays neutral because
+these run 200px tall and a wash at that size is a lot of colour for "please look";
+the small inline notices are the inverse, and tint instead. This is the only place
+the language spends a border on meaning rather than on affordance. The three-step
 ramp (`border` / `border-soft` / `divider`) uses literal hex per theme, because a
 semi-transparent border shifts across surface lifts and reads as approximate.
 

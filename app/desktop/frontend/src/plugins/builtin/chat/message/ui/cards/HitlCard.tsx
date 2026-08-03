@@ -9,12 +9,22 @@ import { cn } from "@/lib/classNames";
 // args; question has per-question selects), so this shell intentionally does
 // NOT try to abstract the bodies.
 
-// Both variants are the same quiet surface card (bg-delta, no grey border).
-// The warning cue lives in the header icon color + a tinted risk badge, not
-// in the container edge.
+// Both variants are the same quiet card material; the difference is the EDGE.
+//
+// A region never gets a line and a card never gets one — but a card that has
+// stopped the run to wait for a decision is neither. It is an object asking to be
+// looked at, and until this variant carried the semantic edge the two entries here
+// were byte-identical: the "warning" a caller passed had no rendering at all, and
+// the whole cue was a header icon's colour. The fill stays neutral rather than
+// tinted because this card runs 200px tall — a wash at that size is a lot of
+// colour for "please look", which is the same reason the small inline notices do
+// tint and this does not.
+//
+// Only the PENDING state reaches this shell (both cards collapse to a settled row
+// once decided), so the edge cannot outlive what it is asking for.
 const VARIANT_CLASS: Record<string, string> = {
   neutral: "bg-card",
-  warning: "bg-card",
+  warning: "border border-warning-edge bg-card",
 };
 
 /** Settled "done" row — shared by approval (approved) + question (answered). */

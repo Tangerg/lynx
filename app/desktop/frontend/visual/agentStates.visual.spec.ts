@@ -38,6 +38,36 @@ test("HITL approval settles through the exact Run and Item identity", async ({ p
   await expect(page.locator("html")).toHaveAttribute("data-visual-resumed-item", "item_approval");
 });
 
+// The edge is the only thing at the container level that says "this stopped the
+// run to ask you something", and it is reached through a variant that spent its
+// whole life rendering nothing — the two entries in the map were byte-identical, so
+// a caller passing `warning` got no cue at all. Assert the tone reaches the box,
+// and that it leaves with the question.
+test("a pending approval carries a warning edge and a settled one carries none", async ({
+  page,
+}) => {
+  await page.goto("/visual/?fixture=agent&theme=light&state=waiting");
+  await page.locator("html[data-visual-ready]").waitFor();
+
+  const shell = page.locator('[data-slot="hitl-shell"]');
+  await expect(shell).toHaveCSS("border-top-width", "1px");
+  // The tone, not merely a line: this box used to be edgeless, and a neutral
+  // hairline here would pass a width-only check while saying nothing.
+  const edge = await shell.evaluate((element) => getComputedStyle(element).borderTopColor);
+  const warning = await page.evaluate(() => {
+    const probe = document.createElement("div");
+    probe.style.color = "var(--color-warning-edge)";
+    document.body.append(probe);
+    const value = getComputedStyle(probe).color;
+    probe.remove();
+    return value;
+  });
+  expect(edge).toBe(warning);
+
+  await page.getByRole("button", { name: /Approve/ }).click();
+  await expect(shell).toHaveCount(0);
+});
+
 test("HITL rejection preserves the same exact interrupt identity", async ({ page }) => {
   await page.goto("/visual/?fixture=agent&theme=light&state=waiting");
   await page.locator("html[data-visual-ready]").waitFor();
