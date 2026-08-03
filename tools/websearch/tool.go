@@ -45,7 +45,7 @@ func (t *Tool) Definition() chat.ToolDefinition { return t.inner.Definition() }
 const webSearchDescription = `Search the web for current information.
 - Returns a ranked list of result items, each with title, URL, and snippet
 - Use this for events, products, prices, releases, people, docs — anything time-sensitive or beyond training data
-- A single call is one API round-trip; pass max_results to cap the size (default 5-10 per provider)
+- A single call is one search request; pass max_results to cap the size (configured default is typically 5-10)
 - Domain filtering: allowed_domains restricts to those sites, blocked_domains excludes them. They are mutually exclusive
 - Recency filter: pass "hour" / "day" / "week" / "month" / "year" when you need fresh results
 

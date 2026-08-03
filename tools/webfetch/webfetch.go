@@ -29,7 +29,7 @@ type Request struct {
 	URL string `json:"url" jsonschema:"minLength=1" jsonschema_description:"Absolute http(s) URL of the page to fetch."`
 
 	// Format selects the response format. "" defaults to markdown.
-	Format ResponseFormat `json:"format,omitempty" jsonschema:"enum=markdown,enum=html,enum=text" jsonschema_description:"Response format: markdown (default and best for LLMs), html, or text."`
+	Format ResponseFormat `json:"format,omitempty" jsonschema:"enum=markdown,enum=html,enum=text" jsonschema_description:"Response format: markdown (default and best for readable structure), html, or text."`
 }
 
 // Validate checks that the request carries enough to act on. Returns

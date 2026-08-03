@@ -41,7 +41,7 @@ func (t *Tool) Definition() chat.ToolDefinition { return t.inner.Definition() }
 const description = `Execute a single HTTP request and return the response.
 - The "url" must be a fully-formed absolute http(s) URL.
 - Method defaults to GET. Write methods (POST/PUT/PATCH/DELETE) only work if the runtime is configured to allow them.
-- The agent operator restricts which hosts and methods are reachable; if you get a "host is not in AllowedHosts" or "method is not in AllowedMethods" error, the request is permanently blocked — don't retry with the same host/method.
+- Configured policy restricts which hosts and methods are reachable. A policy rejection is final for that host and method; do not retry the same request.
 - Response body is capped (default 256 KiB); when truncated, response.truncated == true.
 - For body with JSON content, pass a JSON-encoded string as "body" and set Content-Type via "headers".
 - Use this for arbitrary REST/JSON APIs. Prefer the dedicated web_search / web_fetch tools for general web pages.`

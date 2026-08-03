@@ -55,7 +55,7 @@ type Request struct {
 
 	// MaxResults caps the number of returned results. 0 = use the
 	// provider's default (typically 5-10).
-	MaxResults int `json:"max_results,omitempty" jsonschema:"minimum=1,maximum=20" jsonschema_description:"Maximum results to return, from 1 to 20. Omit to use the provider default (typically 5-10)."`
+	MaxResults int `json:"max_results,omitempty" jsonschema:"minimum=1,maximum=20" jsonschema_description:"Maximum results to return, from 1 to 20. Omit to use the configured search default (typically 5-10)."`
 
 	// AllowedDomains restricts results to these domains. Mutually
 	// exclusive with BlockedDomains on most providers.
