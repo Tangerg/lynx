@@ -61,7 +61,7 @@ func TestResolverOffersSearchToolsOverDeferredCatalog(t *testing.T) {
 		t.Fatal("no tool reports deferred names")
 	}
 	deferred := nameSliceSet(search.DeferredToolNames())
-	for _, want := range []string{"files_read", "files_write", "lsp", "lsp_diagnostics"} {
+	for _, want := range []string{"files_read", "files_write", "lsp"} {
 		if !deferred[want] {
 			t.Errorf("deferred names = %v, missing %q", deferred, want)
 		}
@@ -83,7 +83,7 @@ func TestResolverDefersRuntimeToolsWithoutMCP(t *testing.T) {
 			t.Errorf("initial manifest = %v, missing direct tool %q", advertised, direct)
 		}
 	}
-	for _, deferred := range []string{"lsp", "lsp_diagnostics"} {
+	for _, deferred := range []string{"lsp"} {
 		if advertised[deferred] {
 			t.Errorf("initial manifest = %v, unexpectedly advertised deferred tool %q", advertised, deferred)
 		}

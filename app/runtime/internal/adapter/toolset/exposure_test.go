@@ -108,14 +108,16 @@ func TestResolverInitialManifestSeparatesDirectAndDeferredCapabilities(t *testin
 		EnterPlan:      named("enter_plan_mode"),
 		ExitPlan:       named("exit_plan_mode"),
 		Plan:           named("set_plan"),
-		Schedule:       named("schedule"),
-		ToolResult:     named("read_tool_result"),
-		MemorySearch:   named("memory_search"),
-		SessionSearch:  named("session_search"),
-		SkillPropose:   named("propose_skill"),
-		GoalGet:        named("get_goal"),
-		CodeIntel:      analyzer,
-		ReadTracker:    editguardstate.NewTracker(),
+		ScheduleTools: []toolcontract.Tool{
+			named("list_schedules"), named("create_schedule"), named("delete_schedule"),
+		},
+		ToolResult:    named("read_tool_result"),
+		MemorySearch:  named("memory_search"),
+		SessionSearch: named("session_search"),
+		SkillPropose:  named("propose_skill"),
+		GoalGet:       named("get_goal"),
+		CodeIntel:     analyzer,
+		ReadTracker:   editguardstate.NewTracker(),
 	})
 	if err != nil {
 		t.Fatalf("NewResolver: %v", err)
@@ -150,7 +152,8 @@ func TestResolverInitialManifestSeparatesDirectAndDeferredCapabilities(t *testin
 		}
 	}
 	for _, name := range []string{
-		"web_fetch", "remote_agent", "lsp", "linear_create_issue", "schedule",
+		"web_fetch", "remote_agent", "lsp", "linear_create_issue", "list_schedules",
+		"create_schedule", "delete_schedule",
 		"memory_search", "session_search", "propose_skill",
 	} {
 		if !registered[name] {

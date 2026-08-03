@@ -17,12 +17,12 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/core/chat"
+	toolcontract "github.com/Tangerg/lynx/tool"
 	"github.com/Tangerg/lynx/tools/httpreq"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspacepath"
 	scheduleapp "github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/schedule"
-	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 )
 
 func TestDownloadTool_WritesAndRefusesBlindOverwrite(t *testing.T) {
@@ -201,14 +201,15 @@ func TestFormatJSON_WritesIndentedFile(t *testing.T) {
 	}
 }
 
-func TestScheduleTool_CreateListUpdateDelete(t *testing.T) {
+func TestScheduleTools_CreateListDelete(t *testing.T) {
 	reg := newMemoryScheduleRegistry()
-	tool, err := newScheduleTool(newTestScheduleCoordinator(reg))
+	tools, err := newScheduleTools(newTestScheduleCoordinator(reg))
 	if err != nil {
-		t.Fatalf("newScheduleTool: %v", err)
+		t.Fatalf("newScheduleTools: %v", err)
 	}
+	byName := toolNameMap(tools)
 
-	body, err := tool.Call(t.Context(), `{"op":"create","title":"daily","prompt":"summarize","cron":"0 9 * * *"}`)
+	body, err := byName["create_schedule"].Call(t.Context(), `{"title":"daily","instructions":"summarize","cron":"0 9 * * *"}`)
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
@@ -216,11 +217,11 @@ func TestScheduleTool_CreateListUpdateDelete(t *testing.T) {
 	if err := json.Unmarshal([]byte(body), &created); err != nil {
 		t.Fatalf("unmarshal create: %v", err)
 	}
-	if created.Schedule.ID == "" || created.Schedule.NextRunAt == "" {
+	if created.Schedule.ScheduleID == "" || created.Schedule.NextRunAt == "" || created.Schedule.Instructions != "summarize" {
 		t.Fatalf("created schedule = %+v", created.Schedule)
 	}
 
-	listBody, err := tool.Call(t.Context(), `{"op":"list"}`)
+	listBody, err := byName["list_schedules"].Call(t.Context(), `{}`)
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
@@ -232,74 +233,40 @@ func TestScheduleTool_CreateListUpdateDelete(t *testing.T) {
 		t.Fatalf("list = %+v, want 1 schedule", listed.Schedules)
 	}
 
-	if _, err := tool.Call(t.Context(), `{"op":"update","id":"`+created.Schedule.ID+`","enabled":false}`); err != nil {
-		t.Fatalf("update: %v", err)
-	}
-	stored, _ := reg.Get(t.Context(), created.Schedule.ID)
-	if stored.Enabled || !stored.NextRunAt.IsZero() {
-		t.Fatalf("stored after disable = %+v", stored)
-	}
-
-	if _, err := tool.Call(t.Context(), `{"op":"delete","id":"`+created.Schedule.ID+`"}`); err != nil {
+	if _, err := byName["delete_schedule"].Call(t.Context(), `{"schedule_id":"`+created.Schedule.ScheduleID+`"}`); err != nil {
 		t.Fatalf("delete: %v", err)
 	}
-	if _, err := reg.Get(t.Context(), created.Schedule.ID); !errors.Is(err, schedule.ErrNotFound) {
+	if _, err := reg.Get(t.Context(), created.Schedule.ScheduleID); !errors.Is(err, schedule.ErrNotFound) {
 		t.Fatalf("get deleted err = %v, want ErrNotFound", err)
 	}
 }
 
-func TestScheduleTool_CreateValidatesEntityBeforeNextRun(t *testing.T) {
+func TestScheduleTools_HaveActionSpecificStrictSchemas(t *testing.T) {
 	reg := newMemoryScheduleRegistry()
-	tool, err := newScheduleTool(newTestScheduleCoordinator(reg))
+	tools, err := newScheduleTools(newTestScheduleCoordinator(reg))
 	if err != nil {
-		t.Fatalf("newScheduleTool: %v", err)
+		t.Fatalf("newScheduleTools: %v", err)
 	}
-	_, err = tool.Call(t.Context(), `{"op":"create","cron":"not a cron"}`)
-	if !errors.Is(err, schedule.ErrPromptRequired) {
-		t.Fatalf("create err = %v, want ErrPromptRequired", err)
+	byName := toolNameMap(tools)
+	if _, err := byName["create_schedule"].Call(t.Context(), `{"cron":"0 9 * * *"}`); err == nil {
+		t.Fatal("create without instructions succeeded")
+	}
+	if _, err := byName["list_schedules"].Call(t.Context(), `{"op":"list"}`); err == nil {
+		t.Fatal("list accepted an obsolete op field")
+	}
+	if _, err := byName["delete_schedule"].Call(t.Context(), `{"id":"sch_old"}`); err == nil {
+		t.Fatal("delete accepted obsolete id field")
 	}
 }
 
-func TestScheduleTool_UpdateUsesCurrentSQLiteRevision(t *testing.T) {
-	db, err := sqlite.Open(filepath.Join(t.TempDir(), "runtime.db"))
-	if err != nil {
-		t.Fatalf("open sqlite: %v", err)
-	}
-	t.Cleanup(func() { _ = db.Close() })
-	store := sqlite.NewScheduleStore(db)
-	tool, err := newScheduleTool(newTestScheduleCoordinator(store))
-	if err != nil {
-		t.Fatalf("newScheduleTool: %v", err)
-	}
-
-	body, err := tool.Call(t.Context(), `{"op":"create","prompt":"review","cron":"0 9 * * *"}`)
-	if err != nil {
-		t.Fatalf("create: %v", err)
-	}
-	var created scheduleResponse
-	if err := json.Unmarshal([]byte(body), &created); err != nil {
-		t.Fatalf("decode create: %v", err)
-	}
-	if _, err := tool.Call(t.Context(), `{"op":"update","id":"`+created.Schedule.ID+`","enabled":false}`); err != nil {
-		t.Fatalf("update through sqlite: %v", err)
-	}
-	stored, err := store.Get(t.Context(), created.Schedule.ID)
-	if err != nil {
-		t.Fatalf("get updated: %v", err)
-	}
-	if stored.Enabled || stored.Revision != 2 {
-		t.Fatalf("updated schedule = %+v, want disabled revision 2", stored)
-	}
-}
-
-func TestScheduleTool_CreateRejectsUnavailableCwd(t *testing.T) {
+func TestScheduleTools_CreateRejectsUnavailableWorkdir(t *testing.T) {
 	reg := newMemoryScheduleRegistry()
-	tool, err := newScheduleTool(newTestScheduleCoordinator(reg))
+	tools, err := newScheduleTools(newTestScheduleCoordinator(reg))
 	if err != nil {
-		t.Fatalf("newScheduleTool: %v", err)
+		t.Fatalf("newScheduleTools: %v", err)
 	}
 	missing := filepath.Join(t.TempDir(), "missing")
-	_, err = tool.Call(t.Context(), `{"op":"create","prompt":"summarize","cron":"0 9 * * *","cwd":"`+missing+`"}`)
+	_, err = toolNameMap(tools)["create_schedule"].Call(t.Context(), `{"instructions":"summarize","cron":"0 9 * * *","workdir":"`+missing+`"}`)
 	if !errors.Is(err, schedule.ErrCwdUnavailable) {
 		t.Fatalf("create cwd err = %v, want ErrCwdUnavailable", err)
 	}
@@ -308,12 +275,12 @@ func TestScheduleTool_CreateRejectsUnavailableCwd(t *testing.T) {
 	}
 }
 
-func TestScheduleTool_UnknownOp(t *testing.T) {
-	reg := newMemoryScheduleRegistry()
-	tool, _ := newScheduleTool(newTestScheduleCoordinator(reg))
-	if _, err := tool.Call(t.Context(), `{"op":"nope"}`); err == nil {
-		t.Fatal("unknown op: want error")
+func toolNameMap(tools []toolcontract.Tool) map[string]toolcontract.Tool {
+	out := make(map[string]toolcontract.Tool, len(tools))
+	for _, candidate := range tools {
+		out[candidate.Definition().Name] = candidate
 	}
+	return out
 }
 
 func TestPathGuard_ApplyPatchChecksAllTargets(t *testing.T) {

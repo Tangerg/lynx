@@ -401,7 +401,7 @@ func TestTranscriptStoreReplaceItemUsesExactOptimisticSnapshot(t *testing.T) {
 		CreatedAt: now,
 		Status:    transcript.ItemIncomplete,
 		Kind:      transcript.ToolCall,
-		Tool:      &transcript.ToolInvocation{Name: "task", Arguments: tool.Arguments{}},
+		Tool:      &transcript.ToolInvocation{Name: "delegate_task", Arguments: tool.Arguments{}},
 	}
 	if err := store.AppendItem(t.Context(), original); err != nil {
 		t.Fatalf("seed Item: %v", err)

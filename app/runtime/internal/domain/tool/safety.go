@@ -22,7 +22,7 @@ const (
 // could check.
 //
 // Safe means "no side effect the user needs to approve":
-//   - lsp / lsp_diagnostics are read-only code-intelligence queries — the same
+//   - lsp is a read-only code-intelligence query — the same
 //     class as read/glob/grep.
 //   - skill only reads skill files.
 //   - ask_user has no side effect: it IS a HITL interrupt, so gating it would
@@ -32,7 +32,7 @@ const (
 //     Plan mode unusable or double-prompt.
 //   - propose_skill only stages a draft, and gates promotion behind its own
 //     human-approval interrupt (same double-prompt reasoning as ask_user).
-//   - task is pure orchestration; every child side effect is gated at the child
+//   - delegate_task is pure orchestration; every child side effect is gated at the child
 //     tool.
 //   - create_goal is itself the explicit autonomous-work opt-in the user asked
 //     for; get_goal is read-only; report_goal_outcome only terminates that owned
@@ -42,7 +42,6 @@ var safetyClasses = map[string]SafetyClass{
 	"glob":                SafetyClassSafe,
 	"grep":                SafetyClassSafe,
 	"lsp":                 SafetyClassSafe,
-	"lsp_diagnostics":     SafetyClassSafe,
 	"skill":               SafetyClassSafe,
 	"ask_user":            SafetyClassSafe,
 	"enter_plan_mode":     SafetyClassSafe,
@@ -52,16 +51,18 @@ var safetyClasses = map[string]SafetyClass{
 	"codebase_search":     SafetyClassSafe,
 	"sourcegraph_search":  SafetyClassSafe,
 	NameReadToolResult:    SafetyClassSafe,
-	"task":                SafetyClassSafe,
+	"delegate_task":       SafetyClassSafe,
 	"create_goal":         SafetyClassSafe,
 	"get_goal":            SafetyClassSafe,
 	"report_goal_outcome": SafetyClassSafe,
 
-	"write":       SafetyClassWrite,
-	"edit":        SafetyClassWrite,
-	"apply_patch": SafetyClassWrite,
-	"download":    SafetyClassWrite,
-	"schedule":    SafetyClassWrite,
+	"write":           SafetyClassWrite,
+	"edit":            SafetyClassWrite,
+	"apply_patch":     SafetyClassWrite,
+	"download":        SafetyClassWrite,
+	"create_schedule": SafetyClassWrite,
+	"delete_schedule": SafetyClassWrite,
+	"list_schedules":  SafetyClassSafe,
 }
 
 // SafetyClassFor maps a built-in tool name to its side-effect safety class. It

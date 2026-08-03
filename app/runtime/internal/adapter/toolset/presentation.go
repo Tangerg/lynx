@@ -11,20 +11,20 @@ import (
 )
 
 const (
-	toolNameApplyPatch  = "apply_patch"
-	toolNameAskUser     = "ask_user"
-	toolNameEdit        = "edit"
-	toolNameGlob        = "glob"
-	toolNameGrep        = "grep"
-	toolNameRead        = "read"
-	toolNameShell       = "shell"
-	toolNameShellKill   = "shell_kill"
-	toolNameShellOutput = "shell_output"
-	toolNameTask        = "task"
-	toolNameSetPlan     = "set_plan"
-	toolNameWebFetch    = "web_fetch"
-	toolNameWebSearch   = "web_search"
-	toolNameWrite       = "write"
+	toolNameApplyPatch   = "apply_patch"
+	toolNameAskUser      = "ask_user"
+	toolNameEdit         = "edit"
+	toolNameGlob         = "glob"
+	toolNameGrep         = "grep"
+	toolNameRead         = "read"
+	toolNameShell        = "shell"
+	toolNameShellKill    = "shell_kill"
+	toolNameShellOutput  = "shell_output"
+	toolNameDelegateTask = "delegate_task"
+	toolNameSetPlan      = "set_plan"
+	toolNameWebFetch     = "web_fetch"
+	toolNameWebSearch    = "web_search"
+	toolNameWrite        = "write"
 )
 
 // Presenter owns the client-facing projection of concrete tool schemas. Its
@@ -57,7 +57,7 @@ func (Presenter) Activity(name string) string {
 		return "Searching the web"
 	case toolNameWebFetch:
 		return "Fetching a page"
-	case toolNameTask:
+	case toolNameDelegateTask:
 		return "Delegating to a sub-agent"
 	case toolNameAskUser:
 		return "Waiting for your answer"

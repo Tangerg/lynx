@@ -8,8 +8,8 @@ import (
 )
 
 // TestEngine_RegistersLSPTools verifies the code-intelligence tools are folded
-// into the engine's tool set (so the model can call them): the combined `lsp`
-// query tool + the separate `lsp_diagnostics`. This is a pure wiring check — no
+// into the engine's tool set (so the model can call it): one combined `lsp`
+// operation tool, including diagnostics. This is a pure wiring check — no
 // language server is started. The tool-layer behavior (unsupported file,
 // post-edit diagnostics) is tested in internal/adapter/toolset.
 func TestEngine_RegistersLSPTools(t *testing.T) {
@@ -22,9 +22,10 @@ func TestEngine_RegistersLSPTools(t *testing.T) {
 	for _, tool := range codingTools(t, eng.catalog) {
 		have[tool.Definition().Name] = true
 	}
-	for _, want := range []string{"lsp", "lsp_diagnostics"} {
-		if !have[want] {
-			t.Errorf("tool %q not registered in tool catalog", want)
-		}
+	if !have["lsp"] {
+		t.Error("lsp not registered in tool catalog")
+	}
+	if have["lsp_diagnostics"] {
+		t.Error("lsp_diagnostics must not coexist with lsp(operation=diagnostics)")
 	}
 }

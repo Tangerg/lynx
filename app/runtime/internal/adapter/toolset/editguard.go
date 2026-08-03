@@ -154,7 +154,7 @@ func isExistingFile(path string) bool {
 // withEditDiagnostics wraps a file-mutating tool (write / edit) so a successful
 // edit is immediately type-checked: the code-intelligence analyzer re-analyzes the
 // file and appends any problems the edit INTRODUCED to the tool result, so the
-// model sees the breakage it just caused without a separate lsp_diagnostics call.
+// model sees the breakage it just caused without a separate lsp diagnostics call.
 // The baseline-diff, staleness guard, and best-effort semantics live in
 // [codeintel.Analyzer.DiagnoseEdit]; here we only feed it the edit closure. root is
 // the resolved workspace directory for this resolution; the wrapped tool's path

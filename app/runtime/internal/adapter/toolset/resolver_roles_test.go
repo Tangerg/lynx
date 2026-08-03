@@ -77,13 +77,13 @@ func TestPlanModeToolsAreRootOnly(t *testing.T) {
 		}
 	})
 	taskTool, err := toolcontract.NewFunc(
-		toolcontract.FuncConfig{Name: "task", Description: "Delegate a bounded child task."},
+		toolcontract.FuncConfig{Name: "delegate_task", Description: "Delegate a bounded child task."},
 		func(context.Context, struct{}) (string, error) { return "", nil },
 	)
 	if err != nil {
 		t.Fatalf("build task tool: %v", err)
 	}
-	built.Resolver.UseTaskTool(taskTool)
+	built.Resolver.UseDelegationTool(taskTool)
 
 	group, ok, err := built.Resolver.Resolve(t.Context(), domaintool.GroupSubtask)
 	if err != nil || !ok {
@@ -100,8 +100,8 @@ func TestPlanModeToolsAreRootOnly(t *testing.T) {
 	if !names["ask_user"] {
 		t.Fatalf("subtask tools = %v, want ask_user", names)
 	}
-	if !names["task"] || names["schedule"] {
-		t.Fatalf("subtask tools = %v, want bounded task delegation without root-only schedule", names)
+	if !names["delegate_task"] || names["list_schedules"] || names["create_schedule"] || names["delete_schedule"] {
+		t.Fatalf("subtask tools = %v, want bounded delegation without root-only schedule tools", names)
 	}
 	if names["enter_plan_mode"] || names["exit_plan_mode"] || names["set_plan"] {
 		t.Fatalf("subtask tools = %v; Plan control belongs only to the root Agent", names)

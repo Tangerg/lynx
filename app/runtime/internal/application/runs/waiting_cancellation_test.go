@@ -722,7 +722,7 @@ func waitingCancellationPlan(
 			interrupts.DrainedTool{
 				ItemID:    target.SpawnedByItemID,
 				CallID:    callID,
-				Name:      "task",
+				Name:      "delegate_task",
 				Arguments: "{}",
 			},
 		)
@@ -753,7 +753,7 @@ func waitingCancellationPlan(
 		Kind:      transcript.ToolCall,
 		CreatedAt: createdAt,
 		Tool: &transcript.ToolInvocation{
-			Name:      "task",
+			Name:      "delegate_task",
 			Arguments: tool.Arguments{},
 		},
 	}

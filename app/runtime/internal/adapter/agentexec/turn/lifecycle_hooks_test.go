@@ -29,9 +29,9 @@ func TestSubagentLifecycleHooks(t *testing.T) {
 		project: func(processID string) (agentexec.SubagentProjection, bool) {
 			if processID == "child" {
 				return agentexec.SubagentProjection{
-					Description: "inspect auth",
-					Prompt:      "Find where auth failures are handled.",
-					Reply:       "auth failures are handled in middleware",
+					Summary:      "inspect auth",
+					Instructions: "Find where auth failures are handled.",
+					Reply:        "auth failures are handled in middleware",
 				}, true
 			}
 			return agentexec.SubagentProjection{}, false
@@ -85,9 +85,9 @@ func TestSubagentLifecycleProjectsRestoredChildOnStop(t *testing.T) {
 				return agentexec.SubagentProjection{}, false
 			}
 			return agentexec.SubagentProjection{
-				Description: "inspect auth",
-				Prompt:      "Find where auth failures are handled.",
-				Reply:       "auth failures are handled in middleware",
+				Summary:      "inspect auth",
+				Instructions: "Find where auth failures are handled.",
+				Reply:        "auth failures are handled in middleware",
 			}, true
 		},
 	}

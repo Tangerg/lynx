@@ -114,7 +114,7 @@ func TestExportPreservesRunTreeLineage(t *testing.T) {
 		SessionID: ses.ID, RunID: "run_root", ID: "item_spawn",
 		CreatedAt: time.Unix(1, 0).UTC(), Status: transcript.ItemCompleted,
 		Kind: transcript.ToolCall,
-		Tool: &transcript.ToolInvocation{Name: "task"},
+		Tool: &transcript.ToolInvocation{Name: "delegate_task"},
 	}); err != nil {
 		t.Fatalf("seed spawning item: %v", err)
 	}
@@ -179,7 +179,7 @@ func TestImportRefusesAChildWhoseRootProfileDisallowsChildren(t *testing.T) {
 		Items: []protocol.ArtifactItem{{
 			ID: "item_spawn", RunID: "run_root", Status: protocol.ItemStatusCompleted,
 			CreatedAt: at, Type: protocol.ItemTypeToolCall,
-			Tool: &protocol.ArtifactToolInvocation{Name: "task", Arguments: map[string]any{}},
+			Tool: &protocol.ArtifactToolInvocation{Name: "delegate_task", Arguments: map[string]any{}},
 		}},
 	}
 

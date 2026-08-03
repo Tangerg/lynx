@@ -217,7 +217,7 @@ func mustReducerSelection(provider, model string) modelref.Selection {
 func TestReducerResolvesSpawningItemByExecutorCallIdentity(t *testing.T) {
 	reducer := newReducer(testReducerConfig())
 	first := mustReduce(t, reducer, ToolCallStart{
-		CallID: "canonical-1", SourceCallID: "provider-1", ToolName: "task",
+		CallID: "canonical-1", SourceCallID: "provider-1", ToolName: "delegate_task",
 		Arguments: `{"description":"delegate"}`, SafetyClass: tool.SafetyClassExec,
 	})
 	want := startedItemID(t, first)
@@ -230,13 +230,13 @@ func TestReducerResolvesSpawningItemByExecutorCallIdentity(t *testing.T) {
 		got.Status != transcript.ItemRunning ||
 		got.Kind != transcript.ToolCall ||
 		got.Tool == nil ||
-		got.Tool.Name != "task" ||
+		got.Tool.Name != "delegate_task" ||
 		got.SafetyClass != tool.SafetyClassExec {
 		t.Fatalf("spawningItem = %+v, want the canonical running tool item %q", got, want)
 	}
 
 	mustReduce(t, reducer, ToolCallStart{
-		CallID: "canonical-2", SourceCallID: "provider-1", ToolName: "task", Arguments: `{}`,
+		CallID: "canonical-2", SourceCallID: "provider-1", ToolName: "delegate_task", Arguments: `{}`,
 	})
 	if _, err := reducer.spawningItem("provider-1"); err == nil ||
 		!strings.Contains(err.Error(), "multiple open tool items") {
@@ -730,7 +730,7 @@ func TestReducerConsumesHostCommittedToolResultWithoutDuplicatingTranscriptItem(
 		Continuations: []interrupts.Continuation{{
 			RunID: "run_1",
 			CommittedTools: []interrupts.CommittedTool{{
-				ItemID: "item_child", CallID: "call_child", Name: "task", Arguments: "{}",
+				ItemID: "item_child", CallID: "call_child", Name: "delegate_task", Arguments: "{}",
 				Problem: transcript.Problem{
 					Kind:   transcript.ChildRunCanceledProblem,
 					Scope:  transcript.ToolProblem,
@@ -770,7 +770,7 @@ func TestReducerRejectsReexecutionOrSuccessForHostCommittedTool(t *testing.T) {
 		Continuations: []interrupts.Continuation{{
 			RunID: "run_1",
 			CommittedTools: []interrupts.CommittedTool{{
-				ItemID: "item_child", CallID: "call_child", Name: "task", Arguments: "{}",
+				ItemID: "item_child", CallID: "call_child", Name: "delegate_task", Arguments: "{}",
 				Problem: transcript.Problem{
 					Kind:  transcript.ChildRunCanceledProblem,
 					Scope: transcript.ToolProblem,
@@ -783,7 +783,7 @@ func TestReducerRejectsReexecutionOrSuccessForHostCommittedTool(t *testing.T) {
 		config.Continuation = continuation
 		reducer := newReducer(config)
 		_, err := reducer.reduce(ToolCallStart{
-			CallID: "call_child", ToolName: "task", Arguments: "{}",
+			CallID: "call_child", ToolName: "delegate_task", Arguments: "{}",
 		})
 		if !errors.Is(err, errExecutorProtocol) ||
 			!strings.Contains(err.Error(), "executed again") {

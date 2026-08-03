@@ -35,7 +35,9 @@ func TestSafetyClassForUsesConservativeDefaults(t *testing.T) {
 		name string
 		want SafetyClass
 	}{
-		{name: "task", want: SafetyClassSafe},
+		{name: "delegate_task", want: SafetyClassSafe},
+		{name: "list_schedules", want: SafetyClassSafe},
+		{name: "create_schedule", want: SafetyClassWrite},
 		{name: "write", want: SafetyClassWrite},
 		{name: "shell", want: SafetyClassExec},
 		{name: "unknown_tool", want: SafetyClassExec},

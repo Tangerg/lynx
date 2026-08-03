@@ -138,6 +138,12 @@
 
 `search_tools` 是 Deferred 能力唯一入口，不再是 MCP 专用工具：它同时索引 runtime 内建能力和连接的 integration。`query` 必填且非空，可用自然语言能力描述或 `select:name1,name2` 精确加载；`limit` 可选、范围 `1..20`、默认 `5`，精确选择时忽略。参数使用 typed function 的同一份严格 schema，拒绝未知字段；结果只提升匹配 definition，不改变执行权限。
 
+### 委派、LSP 与 Schedule
+
+- `delegate_task(summary,instructions)` 是唯一 Agent 委派入口。`summary` 是服务端生命周期真正消费的简短身份，`instructions` 是隔离 child Agent 的完整输入；不再使用含糊的名词工具 `task`，也不再暴露只为 UI 存在的 `description` 或模型实现词 `prompt`；
+- `lsp(operation,...)` 是唯一语言服务器入口。`diagnostics` 与 definition/references/implementation/hover/call hierarchy/symbol operations 使用同一个闭集；文件参数统一为 `path`，位置操作同时要求 1-based `line` 与 `character`；
+- Schedule 不再使用 `schedule(op=...)` 的互斥字段总集，而是 `list_schedules({})`、`create_schedule(instructions,cron,...)`、`delete_schedule(schedule_id)` 三个单动作 schema。模型侧删除 update：修改 schedule 必须显式删除并新建，前端/协议自己的 revisioned update use case 不受此工具面收敛影响。
+
 ## 7. 删除与收敛
 
 ### 完全移除
@@ -197,7 +203,7 @@
 | 2b | session-scoped Plan mode | 完成 |
 | 3 | `create_goal` 与 idle continuation | 完成 |
 | 4 | Manifest、Exposure、模型/状态驱动工具清单 | 完成 |
-| 5 | 工具名、参数和描述的全量收敛 | 待开始 |
+| 5 | 工具名、参数和描述的全量收敛 | 进行中（5a 完成） |
 | 6 | 删除冗余能力和配置 | 待开始 |
 | 7 | 全仓验证、文档收敛和最终审计 | 待开始 |
 
@@ -263,3 +269,11 @@
 - 模型选择以临时 `executionctx` 值从 fresh/restore 两个执行入口传播，Resolver 才读取；默认选择由 Bootstrap 组装传入。持久 `TurnScope`、Agent blackboard、通用 Tool 和 Agent Runtime API 均未扩张；
 - 将 `search_tools` 从 MCP catalog 改为完整 Deferred catalog，按 runtime 或 MCP source 分组并公平排序；`query` 和 `limit` 改用 typed function 严格 schema，拒绝缺字段、未知字段与越界值；
 - 继续复用 `agent/toolloop.DeferredTool` 与 `PromoteTools` 的通用 manifest 投影。`agent` 不知道 Plan、Goal、session、model provider、Exposure 策略或 runtime registry；边界变化仅发生在 app adapter/composition root。
+
+### 批次 5a
+
+- 将模型工具 `task(description,prompt)` 彻底替换为 `delegate_task(summary,instructions)`；同批修改 Agent deployment name、安全分类、approval/hook 特例、活动展示、测试模型和 catalog guard，不保留旧名或旧字段；
+- `summary` 与 `instructions` 都由服务端消费并进入 typed `SubagentProjection`，分别驱动 child lifecycle identity 与隔离输入。删除“参数只给前端展示”的旧解释，避免 delivery concern 倒灌 Agent tool contract；
+- 将 `lsp_diagnostics(path)` 合并为 `lsp(operation="diagnostics",path=...)`，完整删除第二个 tool definition 和安全表项；位置操作新增 line/character 同时必填且大于零的业务约束，schema 同步声明 minimum；
+- 将四操作 `schedule(op=...)` 拆为 list/create/delete 三工具，各 schema 只包含真实消费字段；参数统一为 `instructions`、`workdir`、`schedule_id`，返回视图使用同一词汇；删除模型 update port 后，`ScheduleManagement` 同步缩窄为三个真实方法；
+- Resolver 只接收 `[]ScheduleTools` 并按统一 Deferred 策略组装，不知道 Coordinator、revision 或 firing；Agent executor 的 resolver seam 从 `UseTaskTool` 精确更名为 `UseDelegationTool`，仍只传通用 `tool.Tool`。

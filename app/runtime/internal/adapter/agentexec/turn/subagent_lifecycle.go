@@ -130,8 +130,8 @@ func (l *subagentLifecycle) projection(processID string) (agentexec.SubagentProj
 func (l *subagentLifecycle) subagentInput(binding runs.ChildRunBinding, status hooks.SubagentStatus) hooks.SubagentInput {
 	in := hooks.SubagentInput{RunID: binding.RunID, ParentRunID: binding.ParentRunID, Status: status}
 	if projection, ok := l.projection(binding.ProcessID); ok {
-		in.Description = projection.Description
-		in.Prompt = summarizeHookText(projection.Prompt)
+		in.Description = projection.Summary
+		in.Prompt = summarizeHookText(projection.Instructions)
 		if status == hooks.SubagentCompleted {
 			in.Result = summarizeHookText(projection.Reply)
 		}

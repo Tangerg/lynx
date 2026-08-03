@@ -19,7 +19,7 @@ type turnInput struct {
 
 	// Media carries the turn's image attachments, attached to the opening
 	// user message as UserMessage.Media. Nil for a text-only turn (and for
-	// `task` sub-agents, whose prompt is text).
+	// delegated Agents, whose instructions are text).
 	Media []*media.Media
 
 	// Options carries per-run generation tuning. It deliberately does not carry
@@ -94,30 +94,26 @@ func (e *Engine) buildTurnAgent() *core.Agent {
 	})
 }
 
-// taskInput is the argument schema the model fills to call the `task`
-// tool: one self-contained subtask description. Runtime runs it in a fresh
-// sub-agent with isolated context and a recursively delegating coding surface,
-// then hands the sub-agent's final reply back to its parent.
-type taskInput struct {
-	// Description is a short (3-5 word) label for the subtask, shown in the UI
-	// while it runs. Display-only: it rides in the tool-call arguments for the
-	// frontend, not consumed server-side (the sub-agent works from Prompt).
-	Description string `json:"description" jsonschema_description:"Short (3-5 word) description of the subtask, shown in the UI while it runs."`
-	Prompt      string `json:"prompt" jsonschema_description:"The full, self-contained instructions for the sub-agent — it does not see the main conversation, so include everything it needs."`
+// delegateTaskInput is the complete model-facing contract for one delegated
+// task. Both fields are runtime semantics: Summary identifies the child in
+// lifecycle events and Instructions are its isolated input.
+type delegateTaskInput struct {
+	Summary      string `json:"summary" jsonschema:"minLength=1" jsonschema_description:"Concise 3-5 word label that identifies this delegated task."`
+	Instructions string `json:"instructions" jsonschema:"minLength=1" jsonschema_description:"Complete self-contained work instructions. The delegated Agent cannot see the parent conversation, so include every fact it needs."`
 }
 
-// buildSubtaskAgent constructs the agent behind the `task` delegation tool.
+// buildDelegatedAgent constructs the Agent behind delegate_task.
 // It shares the main agent's chat body but has three deliberate differences:
-// its name derives the `task` tool name; [tool.GroupSubtask] exposes
+// its name derives the model-facing tool name; [tool.GroupSubtask] exposes
 // coding tools plus bounded recursive delegation while withholding root-only
 // product tools; and its goal returns only the reply string rather than a
 // TurnOutput blob. Agent Runtime's MaxChildDepth and root-owned tree budget
 // bound recursion, while usage still aggregates through the process subtree.
-func (e *Engine) buildSubtaskAgent() *core.Agent {
+func (e *Engine) buildDelegatedAgent() *core.Agent {
 	subtaskAction := agent.NewAction(
 		"subtask",
-		func(ctx context.Context, processCtx *core.ProcessContext, input taskInput) (string, error) {
-			output, err := e.runTurn(ctx, processCtx, input.Prompt, nil, nil)
+		func(ctx context.Context, processCtx *core.ProcessContext, input delegateTaskInput) (string, error) {
+			output, err := e.runTurn(ctx, processCtx, input.Instructions, nil, nil)
 			if err != nil {
 				return "", err
 			}
@@ -129,10 +125,10 @@ func (e *Engine) buildSubtaskAgent() *core.Agent {
 		core.GoalConfig{Description: "subtask answer produced"},
 	)
 	return agent.New(agent.AgentConfig{
-		Name: "task",
-		Description: "Delegate a self-contained subtask to a fresh sub-agent with coding tools and bounded task delegation. " +
+		Name: "delegate_task",
+		Description: "Delegate one self-contained task to a fresh Agent with coding tools and bounded delegation. " +
 			"Use it for focused, separable work so the current context stays uncluttered. " +
-			"The sub-agent starts with clean context and cannot see its parent conversation, so include everything it needs in the prompt. " +
+			"The delegated Agent starts with clean context and cannot see its parent conversation, so include everything it needs in instructions. " +
 			"It returns one final answer.",
 		Actions: []agent.Action{subtaskAction},
 		Goals:   []*agent.Goal{answerGoal},

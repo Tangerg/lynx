@@ -855,7 +855,7 @@ func newWaitingCancellationSQLiteFixtureAt(
 		Status:    transcript.ItemIncomplete,
 		Kind:      transcript.ToolCall,
 		CreatedAt: createdAt,
-		Tool:      &transcript.ToolInvocation{Name: "task", Arguments: tool.Arguments{}},
+		Tool:      &transcript.ToolInvocation{Name: "delegate_task", Arguments: tool.Arguments{}},
 	}
 	if err := transcriptStore.AppendItem(ctx, parentItem); err != nil {
 		t.Fatalf("seed spawning Item: %v", err)
@@ -1039,7 +1039,7 @@ func newWaitingCancellationSQLiteFixtureAt(
 		ProcessID:    "process_root",
 		RunCreatedAt: createdAt,
 		DrainedTools: []interrupts.DrainedTool{{
-			ItemID: parentItem.ID, CallID: "call_child", Name: "task", Arguments: "{}",
+			ItemID: parentItem.ID, CallID: "call_child", Name: "delegate_task", Arguments: "{}",
 		}},
 	})
 	pending := interrupts.Pending{
@@ -1154,7 +1154,7 @@ func newWaitingCancellationSQLiteFixtureAt(
 		rootContinuation.CommittedTools = []interrupts.CommittedTool{{
 			ItemID:    parentItem.ID,
 			CallID:    "call_child",
-			Name:      "task",
+			Name:      "delegate_task",
 			Arguments: "{}",
 			Problem:   problem,
 		}}

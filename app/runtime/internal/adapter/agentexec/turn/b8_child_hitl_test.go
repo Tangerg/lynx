@@ -172,10 +172,10 @@ func assertChildHITLOutcome(t *testing.T, scenario childHITLScenario, outcome ch
 	if got := recorder.count(hooks.PostToolUse, scenario.childTool); got != 1 {
 		t.Fatalf("PostToolUse(%s) count = %d, want 1", scenario.childTool, got)
 	}
-	if got := recorder.count(hooks.PreToolUse, "task"); got != 0 {
+	if got := recorder.count(hooks.PreToolUse, "delegate_task"); got != 0 {
 		t.Fatalf("PreToolUse(task) count = %d, want 0", got)
 	}
-	if got := recorder.count(hooks.PostToolUse, "task"); got != 0 {
+	if got := recorder.count(hooks.PostToolUse, "delegate_task"); got != 0 {
 		t.Fatalf("PostToolUse(task) count = %d, want 0", got)
 	}
 }
@@ -1134,14 +1134,14 @@ func (m *twoQuestionChildModel) DefaultOptions() chat.Options { return *m.defaul
 
 func (m *twoQuestionChildModel) Call(_ context.Context, request *chat.Request) (*chat.Response, error) {
 	switch {
-	case hasToolCallNamed(request.Messages, "task"):
+	case hasToolCallNamed(request.Messages, "delegate_task"):
 		return makeText("root complete")
 	case countToolCalls(request.Messages, "ask_user") >= 2:
 		return makeText("child complete")
 	case countToolCalls(request.Messages, "ask_user") == 1:
 		return makeToolCall("ask_user", `{"questions":[{"question":"Second question?"}]}`)
 	case userMentions(request.Messages, "delegate"):
-		return makeToolCall("task", `{"prompt":"perform the child work"}`)
+		return makeToolCall("delegate_task", `{"summary":"delegated work","instructions":"perform the child work"}`)
 	default:
 		return makeToolCall("ask_user", `{"questions":[{"question":"First question?"}]}`)
 	}
@@ -1156,19 +1156,19 @@ func (m *parallelQuestionChildModel) DefaultOptions() chat.Options { return *m.d
 
 func (m *parallelQuestionChildModel) Call(_ context.Context, request *chat.Request) (*chat.Response, error) {
 	switch {
-	case hasToolCallNamed(request.Messages, "task"):
+	case hasToolCallNamed(request.Messages, "delegate_task"):
 		return makeText("root complete")
 	case hasToolCallNamed(request.Messages, "ask_user"):
 		return makeText("child complete")
 	case userMentions(request.Messages, "delegate"):
 		message := chat.NewAssistantMessage(
 			chat.NewToolCallPart(chat.ToolCall{
-				ID: "task_1", Name: "task",
-				Arguments: `{"prompt":"perform first child work"}`,
+				ID: "task_1", Name: "delegate_task",
+				Arguments: `{"summary":"delegated work","instructions":"perform first child work"}`,
 			}),
 			chat.NewToolCallPart(chat.ToolCall{
-				ID: "task_2", Name: "task",
-				Arguments: `{"prompt":"perform second child work"}`,
+				ID: "task_2", Name: "delegate_task",
+				Arguments: `{"summary":"delegated work","instructions":"perform second child work"}`,
 			}),
 		)
 		return chat.NewResponse(chat.Choice{
@@ -1188,12 +1188,12 @@ func (m *childToolModel) DefaultOptions() chat.Options { return *m.defaults }
 
 func (m *childToolModel) Call(_ context.Context, request *chat.Request) (*chat.Response, error) {
 	switch {
-	case hasToolCallNamed(request.Messages, "task"):
+	case hasToolCallNamed(request.Messages, "delegate_task"):
 		return makeText("root complete")
 	case hasToolCallNamed(request.Messages, m.childTool):
 		return makeText("child complete")
 	case userMentions(request.Messages, "delegate"):
-		return makeToolCall("task", `{"description":"focused child work","prompt":"perform the child work"}`)
+		return makeToolCall("delegate_task", `{"summary":"focused child work","instructions":"perform the child work"}`)
 	default:
 		return makeToolCall(m.childTool, m.childArguments)
 	}

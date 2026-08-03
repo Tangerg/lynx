@@ -153,11 +153,11 @@ func (t *turnObserver) ApproveToolCall(ctx context.Context, callID, toolName, ar
 }
 
 func (t *toolGate) ApproveToolCall(ctx context.Context, callID, toolName, arguments string, target agentexec.ToolApprovalTarget) agentexec.ToolApprovalVerdict {
-	// task is pure orchestration. Its child tools are independently observed and
-	// gated, while SubagentStart/SubagentStop own the task lifecycle hooks.
-	// Running tool hooks or approval for task itself would double-count the
+	// delegate_task is pure orchestration. Its child tools are independently
+	// observed and gated, while SubagentStart/SubagentStop own its lifecycle hooks.
+	// Running tool hooks or approval for delegation itself would double-count the
 	// orchestration and cannot be replayed faithfully across a child suspension.
-	if toolName == "task" {
+	if toolName == "delegate_task" {
 		return agentexec.ToolApprovalVerdict{}
 	}
 
@@ -503,7 +503,7 @@ func (t *turnObserver) OnToolCallEnd(process agentexec.ProcessRef, callID, toolN
 }
 
 func (t *turnObserver) postToolHook(toolName, output string, err error) {
-	if toolName == "task" || t.st.hooks.Empty() {
+	if toolName == "delegate_task" || t.st.hooks.Empty() {
 		return
 	}
 	_ = t.st.hooks.Run(t.st.ctx, hooks.Input{

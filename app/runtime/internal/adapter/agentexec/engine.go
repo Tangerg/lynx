@@ -47,15 +47,15 @@ type Engine struct {
 // SubagentProjection is Runtime's own typed view of one delegated process: the
 // task it was given and, once it finishes, the answer it produced.
 type SubagentProjection struct {
-	Description string
-	Prompt      string
-	Reply       string
+	Summary      string
+	Instructions string
+	Reply        string
 }
 
 // SubagentProjection reads a delegated process directly rather than off an
 // Agent event. Framework events carry lifecycle identity and nothing of the
 // host's, so this is where Runtime turns a process id back into its own types —
-// with the concrete taskInput in reach, instead of an any that every caller has
+// with the concrete delegateTaskInput in reach, instead of an any that every caller has
 // to re-interrogate.
 //
 // Valid while the engine still owns the process tree, which is true for the
@@ -71,9 +71,9 @@ func (e *Engine) SubagentProjection(processID string) (SubagentProjection, bool)
 	blackboard := process.Blackboard()
 
 	projection := SubagentProjection{}
-	if input, ok := core.Get[taskInput](blackboard, core.DefaultBindingName); ok {
-		projection.Description = input.Description
-		projection.Prompt = input.Prompt
+	if input, ok := core.Get[delegateTaskInput](blackboard, core.DefaultBindingName); ok {
+		projection.Summary = input.Summary
+		projection.Instructions = input.Instructions
 	}
 	// A delegated agent's goal produces the reply text itself, so the reply is
 	// the last string it bound — not an arbitrary trailing object.
@@ -128,15 +128,15 @@ func New(ctx context.Context, config Config) (*Engine, error) {
 	}
 
 	if resolver != nil {
-		taskDeployment, err := agentRuntime.Deploy(ctx, engine.buildSubtaskAgent())
+		delegationDeployment, err := agentRuntime.Deploy(ctx, engine.buildDelegatedAgent())
 		if err != nil {
-			return nil, fmt.Errorf("engine: deploy task agent: %w", err)
+			return nil, fmt.Errorf("engine: deploy delegated agent: %w", err)
 		}
-		taskTool, err := runtime.NewAgentTool[taskInput, string](agentRuntime, taskDeployment)
+		delegationTool, err := runtime.NewAgentTool[delegateTaskInput, string](agentRuntime, delegationDeployment)
 		if err != nil {
-			return nil, fmt.Errorf("engine: build task tool: %w", err)
+			return nil, fmt.Errorf("engine: build delegation tool: %w", err)
 		}
-		resolver.UseTaskTool(taskTool)
+		resolver.UseDelegationTool(delegationTool)
 	}
 
 	engine.agent = engine.buildTurnAgent()

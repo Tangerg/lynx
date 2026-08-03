@@ -82,7 +82,7 @@ func (e *cancellableChildExecutor) TurnEvents(
 			Payload: ToolCallStart{
 				CallID:       "canonical_child",
 				SourceCallID: e.childSource.SpawnCallID,
-				ToolName:     "task",
+				ToolName:     "delegate_task",
 				Arguments:    `{}`,
 			},
 		}) {
@@ -142,7 +142,7 @@ func (e *acknowledgedChildExecutor) TurnEvents(ctx context.Context, _ execution.
 			Payload: ToolCallStart{
 				CallID:       "canonical_call_delegate",
 				SourceCallID: e.childSource.SpawnCallID,
-				ToolName:     "task",
+				ToolName:     "delegate_task",
 				Arguments:    `{}`,
 			},
 		}) {
@@ -1048,7 +1048,7 @@ func TestCoordinatorAtomicallyAdmitsChildRunFromSpawningItem(t *testing.T) {
 			Payload: ToolCallStart{
 				CallID:       "canonical_call_delegate",
 				SourceCallID: childSource.SpawnCallID,
-				ToolName:     "task",
+				ToolName:     "delegate_task",
 				Arguments:    `{"description":"delegate"}`,
 			},
 		},
@@ -1109,7 +1109,7 @@ func TestCoordinatorAtomicallyAdmitsChildRunFromSpawningItem(t *testing.T) {
 		spawningItem.SessionID != "ses_1" ||
 		spawningItem.Status != transcript.ItemRunning ||
 		spawningItem.Tool == nil ||
-		spawningItem.Tool.Name != "task" {
+		spawningItem.Tool.Name != "delegate_task" {
 		t.Fatalf("parent spawning-item commit = %+v", parentCommit)
 	}
 }
@@ -1143,7 +1143,7 @@ func TestCoordinatorPublishesChildSegmentOnItsOwnRunIdentity(t *testing.T) {
 			Payload: ToolCallStart{
 				CallID:       "canonical_call_delegate",
 				SourceCallID: childSource.SpawnCallID,
-				ToolName:     "task",
+				ToolName:     "delegate_task",
 				Arguments:    `{"description":"delegate"}`,
 			},
 		},
@@ -1288,10 +1288,10 @@ func TestCoordinatorKeepsConcurrentSiblingSegmentsIsolated(t *testing.T) {
 	}
 	executor := &fakeExecutor{executorEvents: []ExecutorEvent{
 		{Source: rootSource, Payload: ToolCallStart{
-			CallID: "canonical_a", SourceCallID: childA.SpawnCallID, ToolName: "task", Arguments: `{}`,
+			CallID: "canonical_a", SourceCallID: childA.SpawnCallID, ToolName: "delegate_task", Arguments: `{}`,
 		}},
 		{Source: rootSource, Payload: ToolCallStart{
-			CallID: "canonical_b", SourceCallID: childB.SpawnCallID, ToolName: "task", Arguments: `{}`,
+			CallID: "canonical_b", SourceCallID: childB.SpawnCallID, ToolName: "delegate_task", Arguments: `{}`,
 		}},
 		{Source: childA, Payload: requestA},
 		{Source: childB, Payload: requestB},
@@ -1416,11 +1416,11 @@ func TestCoordinatorProjectsNestedChildrenWithExactLineageAndPostorderTerminal(t
 	}
 	executor := &fakeExecutor{executorEvents: []ExecutorEvent{
 		{Source: rootSource, Payload: ToolCallStart{
-			CallID: "canonical_child", SourceCallID: childSource.SpawnCallID, ToolName: "task", Arguments: `{}`,
+			CallID: "canonical_child", SourceCallID: childSource.SpawnCallID, ToolName: "delegate_task", Arguments: `{}`,
 		}},
 		{Source: childSource, Payload: childRequest},
 		{Source: childSource, Payload: ToolCallStart{
-			CallID: "canonical_grandchild", SourceCallID: grandchildSource.SpawnCallID, ToolName: "task", Arguments: `{}`,
+			CallID: "canonical_grandchild", SourceCallID: grandchildSource.SpawnCallID, ToolName: "delegate_task", Arguments: `{}`,
 		}},
 		{Source: grandchildSource, Payload: grandchildRequest},
 		{Source: grandchildSource, Payload: MessageDelta{Text: "leaf"}},
@@ -1534,11 +1534,11 @@ func TestCoordinatorDrainedStreamClosesNestedChildrenBeforeAncestors(t *testing.
 	}
 	executor := &fakeExecutor{executorEvents: []ExecutorEvent{
 		{Source: rootSource, Payload: ToolCallStart{
-			CallID: "child_call", SourceCallID: childSource.SpawnCallID, ToolName: "task", Arguments: `{}`,
+			CallID: "child_call", SourceCallID: childSource.SpawnCallID, ToolName: "delegate_task", Arguments: `{}`,
 		}},
 		{Source: childSource, Payload: childRequest},
 		{Source: childSource, Payload: ToolCallStart{
-			CallID: "grandchild_call", SourceCallID: grandchildSource.SpawnCallID, ToolName: "task", Arguments: `{}`,
+			CallID: "grandchild_call", SourceCallID: grandchildSource.SpawnCallID, ToolName: "delegate_task", Arguments: `{}`,
 		}},
 		{Source: grandchildSource, Payload: grandchildRequest},
 		// Deliberately drain with all three reducers active.
@@ -1603,7 +1603,7 @@ func TestCoordinatorClosesActiveChildrenBeforeRejectingRootTerminal(t *testing.T
 			Payload: ToolCallStart{
 				CallID:       "canonical_call_delegate",
 				SourceCallID: childSource.SpawnCallID,
-				ToolName:     "task",
+				ToolName:     "delegate_task",
 				Arguments:    `{}`,
 			},
 		},
@@ -1666,7 +1666,7 @@ func TestCoordinatorRecoversFromChildTerminalCommitFailureBeforeClosingRoot(t *t
 	}
 	executor := &fakeExecutor{executorEvents: []ExecutorEvent{
 		{Source: rootSource, Payload: ToolCallStart{
-			CallID: "canonical_call_delegate", SourceCallID: childSource.SpawnCallID, ToolName: "task", Arguments: `{}`,
+			CallID: "canonical_call_delegate", SourceCallID: childSource.SpawnCallID, ToolName: "delegate_task", Arguments: `{}`,
 		}},
 		{Source: childSource, Payload: request},
 		{Source: childSource, Payload: TurnEnd{Reason: execution.OutcomeCompleted}},
@@ -1732,7 +1732,7 @@ func TestCoordinatorRejectsChildWhenAtomicOpeningFails(t *testing.T) {
 			Payload: ToolCallStart{
 				CallID:       "canonical_call_delegate",
 				SourceCallID: childSource.SpawnCallID,
-				ToolName:     "task",
+				ToolName:     "delegate_task",
 				Arguments:    `{}`,
 			},
 		},
@@ -1779,10 +1779,10 @@ func TestCoordinatorClosesAdmittedSiblingWhenNextOpeningRollsBack(t *testing.T) 
 	}
 	executor := &fakeExecutor{executorEvents: []ExecutorEvent{
 		{Source: rootSource, Payload: ToolCallStart{
-			CallID: "call_a", SourceCallID: childA.SpawnCallID, ToolName: "task", Arguments: `{}`,
+			CallID: "call_a", SourceCallID: childA.SpawnCallID, ToolName: "delegate_task", Arguments: `{}`,
 		}},
 		{Source: rootSource, Payload: ToolCallStart{
-			CallID: "call_b", SourceCallID: childB.SpawnCallID, ToolName: "task", Arguments: `{}`,
+			CallID: "call_b", SourceCallID: childB.SpawnCallID, ToolName: "delegate_task", Arguments: `{}`,
 		}},
 		{Source: childA, Payload: requestA},
 		{Source: childB, Payload: requestB},
@@ -1917,15 +1917,15 @@ func TestCoordinatorCommitsCompleteTreeBarrierInDeterministicPostorder(t *testin
 	}
 	executor := &fakeExecutor{executorEvents: []ExecutorEvent{
 		{Source: root, Payload: ToolCallStart{
-			CallID: "call_a", SourceCallID: childA.SpawnCallID, ToolName: "task", Arguments: `{}`,
+			CallID: "call_a", SourceCallID: childA.SpawnCallID, ToolName: "delegate_task", Arguments: `{}`,
 		}},
 		{Source: root, Payload: ToolCallStart{
-			CallID: "call_b", SourceCallID: childB.SpawnCallID, ToolName: "task", Arguments: `{}`,
+			CallID: "call_b", SourceCallID: childB.SpawnCallID, ToolName: "delegate_task", Arguments: `{}`,
 		}},
 		{Source: childA, Payload: requestA},
 		{Source: childB, Payload: requestB},
 		{Source: childA, Payload: ToolCallStart{
-			CallID: "call_grandchild", SourceCallID: grandchild.SpawnCallID, ToolName: "task", Arguments: `{}`,
+			CallID: "call_grandchild", SourceCallID: grandchild.SpawnCallID, ToolName: "delegate_task", Arguments: `{}`,
 		}},
 		{Source: grandchild, Payload: requestGrandchild},
 		// Deliberately report sibling B before the deeper descendant. Durable

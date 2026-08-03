@@ -29,7 +29,7 @@ import (
 
 // Resolver is the engine-scope [core.ToolGroupResolver] for the
 // coding + subtask roles. The working-directory-independent tools (online
-// providers, MCP servers, the `task` delegation tool) are built once at
+// providers, MCP servers, the `delegate_task` tool) are built once at
 // engine construction and captured here; filesystem and skill tools are
 // rebuilt per resolution, while shell and LSP tools read the resolving turn's
 // application context per call. Both paths fall back to defaultWorkdir. That is
@@ -50,7 +50,7 @@ type Resolver struct {
 	readTracker     *editguardstate.Tracker                     // backs the read-before-edit + stale guards on read/edit/write
 	pathLocker      *pathLocker                                 // serializes same-path fs calls across every concurrent turn resolution
 	shell           []toolcontract.Tool                         // shell tools (shell / shell_output / shell_kill) over the exec.Shells; cwd read per-call
-	task            toolcontract.Tool                           // bounded recursive delegation tool; nil until set
+	delegation      toolcontract.Tool                           // bounded recursive delegation tool; nil until set
 	createGoal      toolcontract.Tool                           // root-only Goal entry tool; nil until the Goal Driver exists
 	staticTools     []staticToolSpec                            // built-once tools with one role/placement policy for turn manifests
 	goalActive      func(context.Context, string) (bool, error) // reports whether the session has an active Goal; nil → outcome reporting never offered
@@ -123,7 +123,7 @@ type Deps struct {
 	EnterPlan       toolcontract.Tool                           // enter_plan_mode (coding role only); nil → omitted
 	ExitPlan        toolcontract.Tool                           // exit_plan_mode (coding role only); nil → omitted
 	Plan            toolcontract.Tool                           // set_plan execution-plan tool (coding role only); nil → omitted
-	Schedule        toolcontract.Tool                           // schedule management op-tool (coding role only); nil → omitted
+	ScheduleTools   []toolcontract.Tool                         // schedule management tools (coding role only); nil → omitted
 	ToolResult      toolcontract.Tool                           // read_tool_result offloaded-output reader (both roles); nil → omitted
 	MemorySearch    toolcontract.Tool                           // memory_search agent-memory reader (both roles); nil → omitted
 	SessionSearch   toolcontract.Tool                           // session_search past-transcript reader (both roles); nil → omitted
@@ -145,7 +145,7 @@ type mcpToolIdentity interface {
 }
 
 // NewResolver builds the engine-scoped tool resolver from its
-// working-directory-independent inputs. The `task` delegation and create_goal
+// working-directory-independent inputs. The delegation and create_goal
 // entry tools are injected through explicit seams after their cyclic runtime
 // owners exist; the MCP tool set is seeded + hot-swapped via [Resolver.SetMCPTools].
 func NewResolver(d Deps) (*Resolver, error) {
@@ -169,7 +169,6 @@ func NewResolver(d Deps) (*Resolver, error) {
 			{tool: d.EnterPlan, audience: toolAudienceCoding, placement: toolAfterCodebase},
 			{tool: d.ExitPlan, audience: toolAudienceCoding, placement: toolAfterCodebase},
 			{tool: d.Plan, audience: toolAudienceCoding, placement: toolAfterSkill},
-			{tool: d.Schedule, audience: toolAudienceCoding, placement: toolCodingTail, deferred: true},
 			{tool: d.ToolResult, audience: toolAudienceBoth, placement: toolAfterSkill},
 			{tool: d.MemorySearch, audience: toolAudienceBoth, placement: toolAfterSkill, deferred: true},
 			{tool: d.SessionSearch, audience: toolAudienceBoth, placement: toolAfterSkill, deferred: true},
@@ -184,6 +183,11 @@ func NewResolver(d Deps) (*Resolver, error) {
 		codebaseIndex:   d.CodebaseIndex,
 		downloadAllow:   d.DownloadAllow,
 		mcpToolDisabled: d.MCPToolDisabled,
+	}
+	for _, scheduleTool := range d.ScheduleTools {
+		resolver.staticTools = append(resolver.staticTools, staticToolSpec{
+			tool: scheduleTool, audience: toolAudienceCoding, placement: toolCodingTail, deferred: true,
+		})
 	}
 	return resolver, nil
 }
@@ -214,19 +218,19 @@ func (r *Resolver) appendStaticTools(ctx context.Context, into *resolvedToolset,
 	return nil
 }
 
-// UseTaskTool installs the task delegation tool for both execution roles. The
+// UseDelegationTool installs delegate_task for both execution roles. The
 // agent engine builds this tool after it exists because the tool starts child
 // processes through that engine.
-func (r *Resolver) UseTaskTool(tool toolcontract.Tool) {
+func (r *Resolver) UseDelegationTool(tool toolcontract.Tool) {
 	r.lateMu.Lock()
 	defer r.lateMu.Unlock()
-	r.task = tool
+	r.delegation = tool
 }
 
-func (r *Resolver) taskTool() toolcontract.Tool {
+func (r *Resolver) delegationTool() toolcontract.Tool {
 	r.lateMu.RLock()
 	defer r.lateMu.RUnlock()
-	return r.task
+	return r.delegation
 }
 
 // UseCreateGoalTool installs the root-only autonomous Goal entry tool after
@@ -378,8 +382,8 @@ func (g *toolGroup) Tools(ctx context.Context) ([]toolcontract.Tool, error) {
 	if err := g.resolver.appendStaticTools(ctx, &tools, toolAfterCodebase, g.role); err != nil {
 		return nil, err
 	}
-	if task := g.resolver.taskTool(); task != nil {
-		tools.direct(task)
+	if delegation := g.resolver.delegationTool(); delegation != nil {
+		tools.direct(delegation)
 	}
 	if g.role == domaintool.GroupCoding {
 		// Goal lifecycle entry is late-bound because its application Driver owns

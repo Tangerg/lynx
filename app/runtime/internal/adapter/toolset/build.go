@@ -74,7 +74,7 @@ type BuildConfig struct {
 	Plan           PlanStore      // backs set_plan + exit_plan_mode; nil → both are omitted
 	PlanMode       PlanModePolicy // session-scoped Plan mode; nil → enter/exit are omitted
 	Interrupt      runs.InterruptFunc
-	Schedules      ScheduleManagement     // backs the schedule tool; nil → omitted
+	Schedules      ScheduleManagement     // backs schedule management tools; nil → omitted
 	ToolResults    toolresult.Store       // backs read_tool_result (reads offloaded tool output); nil → omitted
 	SkillAuthoring skillpropose.Authoring // backs propose_skill (staged draft + human-gated promotion); nil/disabled → omitted
 	SkillUsage     skill.UsageRecorder    // records skill loads for the idle-lifecycle curator; nil → use recording off
@@ -198,9 +198,9 @@ func Build(ctx context.Context, config BuildConfig) (_ Built, err error) {
 	if err != nil {
 		return Built{}, fmt.Errorf("toolset: build set_plan: %w", err)
 	}
-	scheduleTool, err := newScheduleTool(config.Schedules)
+	scheduleTools, err := newScheduleTools(config.Schedules)
 	if err != nil {
-		return Built{}, fmt.Errorf("toolset: build schedule tool: %w", err)
+		return Built{}, fmt.Errorf("toolset: build schedule tools: %w", err)
 	}
 	// read_tool_result reads back a tool output the runtime offloaded on
 	// eviction. Working-directory independent (keys off the session id), so built
@@ -262,7 +262,7 @@ func Build(ctx context.Context, config BuildConfig) (_ Built, err error) {
 		EnterPlan:       enterPlanTool,
 		ExitPlan:        exitPlanTool,
 		Plan:            planTool,
-		Schedule:        scheduleTool,
+		ScheduleTools:   scheduleTools,
 		ToolResult:      toolResultTool,
 		MemorySearch:    memorySearchTool,
 		SessionSearch:   sessionSearchTool,

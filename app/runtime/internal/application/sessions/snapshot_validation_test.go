@@ -168,7 +168,7 @@ func TestPortableSnapshotChildInheritsItsRootsProfile(t *testing.T) {
 		Items: []transcript.Item{{
 			SessionID: "ses_1", RunID: "run_root", ID: "item_1", CreatedAt: at,
 			Status: transcript.ItemCompleted, Kind: transcript.ToolCall,
-			Tool: &transcript.ToolInvocation{Name: "task"},
+			Tool: &transcript.ToolInvocation{Name: "delegate_task"},
 		}},
 		Runs: []PortableRun{
 			{

@@ -50,7 +50,7 @@ func TestChildOpeningAtomicallyCommitsRunAndParentSpawningItem(t *testing.T) {
 		Kind:      transcript.ToolCall,
 		CreatedAt: time.Unix(2, 0),
 		Tool: &transcript.ToolInvocation{
-			Name:      "task",
+			Name:      "delegate_task",
 			Arguments: arguments,
 		},
 	}

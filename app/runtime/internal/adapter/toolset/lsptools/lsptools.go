@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	toolcontract "github.com/Tangerg/lynx/tool"
 
@@ -11,10 +12,9 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/executionctx"
 )
 
-// Build exposes the code-intelligence analyzer as the agent's language tools: a
-// single `lsp` tool whose `operation` selects the query, plus a separate
-// `lsp_diagnostics` (a whole-file problem list — a different interaction that
-// benefits from a distinct tool).
+// Build exposes the code-intelligence analyzer as one `lsp` tool whose
+// operation selects the query. Keeping diagnostics in the same operation
+// vocabulary avoids two model-visible names for one language-server capability.
 //
 // The analyzer is working-directory independent — it keys servers by workspace
 // root internally — so these tools are built ONCE and read the turn's cwd off
@@ -30,11 +30,7 @@ func Build(ci *codeintel.Analyzer, defaultWorkdir string) ([]toolcontract.Tool, 
 	if err != nil {
 		return nil, err
 	}
-	diagnostics, err := newDiagnosticsTool(ci, defaultWorkdir)
-	if err != nil {
-		return nil, err
-	}
-	return []toolcontract.Tool{lsp, diagnostics}, nil
+	return []toolcontract.Tool{lsp}, nil
 }
 
 // lspInput is the model-facing argument shape; [toolcontract.NewFunc] derives the
@@ -42,22 +38,29 @@ func Build(ci *codeintel.Analyzer, defaultWorkdir string) ([]toolcontract.Tool, 
 // and parsed value cannot drift. Only `operation` is structurally required —
 // which operand each operation needs is validated per-operation in the handler.
 type lspInput struct {
-	Operation string `json:"operation" jsonschema:"required,enum=definition,enum=references,enum=implementation,enum=hover,enum=incoming_calls,enum=outgoing_calls,enum=document_symbols,enum=workspace_symbols" jsonschema_description:"Which language-server query to run."`
-	FilePath  string `json:"file_path,omitempty" jsonschema_description:"File path, relative to the workspace root (or absolute). Required for every operation except workspace_symbols."`
-	Line      int    `json:"line,omitempty" jsonschema_description:"1-based line of the symbol. Required for definition/references/implementation/hover/incoming_calls/outgoing_calls."`
-	Character int    `json:"character,omitempty" jsonschema_description:"1-based character (column) of the symbol on that line. Required with line."`
+	Operation string `json:"operation" jsonschema:"enum=definition,enum=references,enum=implementation,enum=hover,enum=incoming_calls,enum=outgoing_calls,enum=document_symbols,enum=workspace_symbols,enum=diagnostics" jsonschema_description:"Language-server query to run."`
+	Path      string `json:"path,omitempty" jsonschema_description:"File path, absolute or relative to the workspace root. Required except for workspace_symbols."`
+	Line      int    `json:"line,omitempty" jsonschema:"minimum=1" jsonschema_description:"1-based line of the symbol. Required for position operations."`
+	Character int    `json:"character,omitempty" jsonschema:"minimum=1" jsonschema_description:"1-based character (column) of the symbol. Required for position operations."`
 	Query     string `json:"query,omitempty" jsonschema_description:"Symbol name or substring to search for. Required for workspace_symbols."`
 }
 
 func (in lspInput) validate() error {
 	switch in.Operation {
 	case "definition", "references", "implementation", "hover",
-		"incoming_calls", "outgoing_calls", "document_symbols":
-		if in.FilePath == "" {
-			return fmt.Errorf("lsp %s: file_path is required", in.Operation)
+		"incoming_calls", "outgoing_calls":
+		if in.Path == "" {
+			return fmt.Errorf("lsp %s: path is required", in.Operation)
+		}
+		if in.Line < 1 || in.Character < 1 {
+			return fmt.Errorf("lsp %s: line and character must both be at least 1", in.Operation)
+		}
+	case "document_symbols", "diagnostics":
+		if in.Path == "" {
+			return fmt.Errorf("lsp %s: path is required", in.Operation)
 		}
 	case "workspace_symbols":
-		if in.Query == "" {
+		if strings.TrimSpace(in.Query) == "" {
 			return errors.New("lsp workspace_symbols: query is required")
 		}
 	default:
@@ -67,12 +70,9 @@ func (in lspInput) validate() error {
 }
 
 const lspDesc = "Query the language server (LSP) about code at a position or across the workspace. " +
-	"operation selects: definition (where a symbol is declared) · references (all use sites) · " +
-	"implementation (concrete implementations of an interface / abstract method) · hover (type signature + docs) · " +
-	"incoming_calls (callers of the function at the position) · outgoing_calls (functions the one at the position calls) · " +
-	"document_symbols (symbols declared in a file) · workspace_symbols (search symbols across the workspace by name). " +
-	"Position operations need file_path + line + character (1-based); document_symbols needs file_path; workspace_symbols needs query. " +
-	"(For a file's compile errors / warnings use lsp_diagnostics.)"
+	"Use definition, references, implementation, hover, incoming_calls, or outgoing_calls with path + 1-based line + character; " +
+	"document_symbols or diagnostics with path; workspace_symbols with query. " +
+	"diagnostics returns the current compile errors and warnings for one file."
 
 type lspRunner struct {
 	analyzer       *codeintel.Analyzer
@@ -94,58 +94,22 @@ func (t *lspRunner) query(ctx context.Context, in lspInput) (string, error) {
 	root := executionctx.CWD(ctx, t.defaultWorkdir)
 	switch in.Operation {
 	case "definition":
-		return t.analyzer.Definition(ctx, root, in.FilePath, in.Line, in.Character)
+		return t.analyzer.Definition(ctx, root, in.Path, in.Line, in.Character)
 	case "references":
-		return t.analyzer.References(ctx, root, in.FilePath, in.Line, in.Character)
+		return t.analyzer.References(ctx, root, in.Path, in.Line, in.Character)
 	case "implementation":
-		return t.analyzer.Implementation(ctx, root, in.FilePath, in.Line, in.Character)
+		return t.analyzer.Implementation(ctx, root, in.Path, in.Line, in.Character)
 	case "hover":
-		return t.analyzer.Hover(ctx, root, in.FilePath, in.Line, in.Character)
+		return t.analyzer.Hover(ctx, root, in.Path, in.Line, in.Character)
 	case "incoming_calls":
-		return t.analyzer.IncomingCalls(ctx, root, in.FilePath, in.Line, in.Character)
+		return t.analyzer.IncomingCalls(ctx, root, in.Path, in.Line, in.Character)
 	case "outgoing_calls":
-		return t.analyzer.OutgoingCalls(ctx, root, in.FilePath, in.Line, in.Character)
+		return t.analyzer.OutgoingCalls(ctx, root, in.Path, in.Line, in.Character)
 	case "document_symbols":
-		return t.analyzer.DocumentSymbols(ctx, root, in.FilePath)
+		return t.analyzer.DocumentSymbols(ctx, root, in.Path)
+	case "diagnostics":
+		return t.analyzer.Diagnostics(ctx, root, in.Path)
 	default:
 		return t.analyzer.WorkspaceSymbols(ctx, root, in.Query)
 	}
-}
-
-// newDiagnosticsTool exposes lsp_diagnostics — a file's current problems. Kept
-// separate from the `lsp` query tool: it's a
-// whole-file problem list, not a position/symbol query, and the same engine
-// auto-appends post-edit diagnostics on writes.
-type lspDiagnosticsInput struct {
-	FilePath string `json:"file_path" jsonschema:"required" jsonschema_description:"Path to the file, relative to the workspace root (or absolute)."`
-}
-
-func (in lspDiagnosticsInput) validate() error {
-	if in.FilePath == "" {
-		return errors.New("lsp_diagnostics: file_path is required")
-	}
-	return nil
-}
-
-type diagnosticsTool struct {
-	analyzer       *codeintel.Analyzer
-	defaultWorkdir string
-}
-
-func newDiagnosticsTool(ci *codeintel.Analyzer, defaultWorkdir string) (toolcontract.Tool, error) {
-	t := &diagnosticsTool{analyzer: ci, defaultWorkdir: defaultWorkdir}
-	return toolcontract.NewFunc[lspDiagnosticsInput, string](
-		toolcontract.FuncConfig{
-			Name:        "lsp_diagnostics",
-			Description: "Get the language server's current problems (compile errors, warnings) for a file.",
-		},
-		t.diagnostics,
-	)
-}
-
-func (t *diagnosticsTool) diagnostics(ctx context.Context, in lspDiagnosticsInput) (string, error) {
-	if err := in.validate(); err != nil {
-		return "", err
-	}
-	return t.analyzer.Diagnostics(ctx, executionctx.CWD(ctx, t.defaultWorkdir), in.FilePath)
 }

@@ -1,6 +1,8 @@
 package agentexec
 
 import (
+	"encoding/json"
+	"strings"
 	"testing"
 
 	toolcontract "github.com/Tangerg/lynx/tool"
@@ -26,6 +28,55 @@ func TestToolCatalogReturnsSnapshot(t *testing.T) {
 	}
 }
 
+func TestDelegationToolUsesOnePreciseContract(t *testing.T) {
+	stub := newStubModel("shell", `{}`, "")
+	client, _ := chatclient.New(stub, chatclient.Config{})
+	eng := mustEngineWith(t, client, toolset.BuildConfig{})
+	defer eng.Close()
+
+	var definition = func() (found toolcontract.Tool) {
+		for _, candidate := range codingTools(t, eng.catalog) {
+			if candidate.Definition().Name == "delegate_task" {
+				return candidate
+			}
+		}
+		return nil
+	}()
+	if definition == nil {
+		t.Fatal("delegate_task not registered")
+	}
+	def := definition.Definition()
+	var schema struct {
+		Properties map[string]json.RawMessage `json:"properties"`
+		Required   []string                   `json:"required"`
+	}
+	if err := json.Unmarshal(def.InputSchema, &schema); err != nil {
+		t.Fatalf("decode schema: %v", err)
+	}
+	for _, name := range []string{"summary", "instructions"} {
+		if _, ok := schema.Properties[name]; !ok || !containsString(schema.Required, name) {
+			t.Errorf("delegate_task schema = %s, want required %q", def.InputSchema, name)
+		}
+	}
+	for _, obsolete := range []string{"description", "prompt"} {
+		if _, ok := schema.Properties[obsolete]; ok {
+			t.Errorf("delegate_task schema retains obsolete %q: %s", obsolete, def.InputSchema)
+		}
+	}
+	if strings.Contains(strings.ToLower(def.Description), "ui") {
+		t.Fatalf("delegate_task description leaks presentation concerns: %q", def.Description)
+	}
+}
+
+func containsString(values []string, want string) bool {
+	for _, value := range values {
+		if value == want {
+			return true
+		}
+	}
+	return false
+}
+
 // TestToolCatalogOfflineOnly verifies the assembled catalog exposes the
 // always-on coding tool set when no Online credentials are
 // configured. Provider-backed tools must NOT appear.
@@ -39,18 +90,17 @@ func TestToolCatalogOfflineOnly(t *testing.T) {
 	// 5 filesystem coding tools in the conservative edit/write vocabulary
 	// (download is gated on a host allowlist, so it is
 	// absent in this offline build) + 3 shell tools (shell + its shell_output /
-	// shell_kill companions) + 2 always-on LSP tools (the combined `lsp` query
-	// tool + `lsp_diagnostics`) + the `task` delegation tool + the ask_user HITL
+	// shell_kill companions) + one deferred `lsp` operation tool + the
+	// `delegate_task` tool + the ask_user HITL
 	// tool + search_tools. LSP remains executable but is deferred from the model's
 	// initial manifest.
-	if len(tools) != 13 {
-		t.Fatalf("tool count = %d, want 13 (5 fs + 3 shell + 2 lsp + task + ask_user + search_tools)", len(tools))
+	if len(tools) != 12 {
+		t.Fatalf("tool count = %d, want 12 (5 fs + 3 shell + lsp + delegate_task + ask_user + search_tools)", len(tools))
 	}
 
 	names := toolNames(tools)
 	for _, want := range []string{
-		"read", "write", "edit", "glob", "grep", "shell", "task", "ask_user", "search_tools",
-		"lsp", "lsp_diagnostics",
+		"read", "write", "edit", "glob", "grep", "shell", "delegate_task", "ask_user", "search_tools", "lsp",
 		"shell_output", "shell_kill",
 	} {
 		if !names[want] {
@@ -83,8 +133,8 @@ func TestToolCatalogOnlineEnabled(t *testing.T) {
 	defer eng.Close()
 
 	tools := codingTools(t, eng.catalog)
-	if len(tools) != 17 {
-		t.Fatalf("tool count = %d, want 17 (5 fs + download + 3 shell + 2 lsp + 3 online + task + ask_user + search_tools)", len(tools))
+	if len(tools) != 16 {
+		t.Fatalf("tool count = %d, want 16 (5 fs + download + 3 shell + lsp + 3 online + delegate_task + ask_user + search_tools)", len(tools))
 	}
 	names := toolNames(tools)
 	// HTTPAllowedHosts is set, so download is registered alongside the online tools.
@@ -103,8 +153,8 @@ func TestToolCatalogPartialOnline(t *testing.T) {
 	client, _ := chatclient.New(stub, chatclient.Config{})
 	eng := mustEngineWith(t, client, toolset.BuildConfig{Online: toolset.OnlineConfig{JinaAPIKey: "k"}})
 	defer eng.Close()
-	if got := len(codingTools(t, eng.catalog)); got != 14 {
-		t.Fatalf("tool count = %d, want 14 (5 fs + 3 shell + 2 lsp + jina + task + ask_user + search_tools; no download without an http allowlist)", got)
+	if got := len(codingTools(t, eng.catalog)); got != 13 {
+		t.Fatalf("tool count = %d, want 13 (5 fs + 3 shell + lsp + jina + delegate_task + ask_user + search_tools; no download without an http allowlist)", got)
 	}
 }
 

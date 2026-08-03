@@ -223,7 +223,7 @@ func TestInterruptStoreRoundTripsAppLineageWithoutExecutorTopology(t *testing.T)
 				ProcessID:    "process_root",
 				RunCreatedAt: createdAt,
 				CommittedTools: []interrupts.CommittedTool{{
-					ItemID: "item_spawn_child", CallID: "call_child", Name: "task", Arguments: "{}",
+					ItemID: "item_spawn_child", CallID: "call_child", Name: "delegate_task", Arguments: "{}",
 					Problem: transcript.Problem{
 						Kind:   transcript.ChildRunCanceledProblem,
 						Scope:  transcript.ToolProblem,

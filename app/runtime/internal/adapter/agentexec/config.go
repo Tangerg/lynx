@@ -55,7 +55,7 @@ type CheckpointReader interface {
 // without importing agentexec.
 type ToolResolver interface {
 	core.ToolGroupResolver
-	UseTaskTool(toolcontract.Tool)
+	UseDelegationTool(toolcontract.Tool)
 }
 
 // Config is the engine construction-time bundle. ChatClient is the

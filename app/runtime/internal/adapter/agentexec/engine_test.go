@@ -188,7 +188,7 @@ func TestEngine_RunChat_RecoversFromUnknownTool(t *testing.T) {
 	}
 }
 
-// TestEngine_RunChat_TaskDelegation drives the `task` tool end-to-end:
+// TestEngine_RunChat_TaskDelegation drives `delegate_task` end-to-end:
 // the main agent calls task, which spawns a fresh sub-agent (via
 // NewAgentTool + RunChild), the sub-agent runs its own chat
 // turn and returns an answer, and the main agent incorporates it into
@@ -286,9 +286,9 @@ func TestEngine_ProjectsDelegatedChildCompletionWithExactSubtreeUsage(t *testing
 
 	order := observer.eventOrder()
 	childEnd := slices.Index(order, "child-end:"+child.ID)
-	parentToolEnd := slices.Index(order, "tool-end:"+child.ParentID+":task")
+	parentToolEnd := slices.Index(order, "tool-end:"+child.ParentID+":delegate_task")
 	if childEnd < 0 || parentToolEnd < 0 || childEnd >= parentToolEnd {
-		t.Fatalf("event order = %v, want child terminal before parent task result", order)
+		t.Fatalf("event order = %v, want child terminal before parent delegation result", order)
 	}
 }
 
@@ -350,9 +350,9 @@ func TestEngine_ProjectsNestedDelegationInPostorder(t *testing.T) {
 
 	order := observer.eventOrder()
 	grandchildEnd := slices.Index(order, "child-end:"+second.ID)
-	childToolEnd := slices.Index(order, "tool-end:"+first.ID+":task")
+	childToolEnd := slices.Index(order, "tool-end:"+first.ID+":delegate_task")
 	childEnd := slices.Index(order, "child-end:"+first.ID)
-	rootToolEnd := slices.Index(order, "tool-end:"+first.ParentID+":task")
+	rootToolEnd := slices.Index(order, "tool-end:"+first.ParentID+":delegate_task")
 	if grandchildEnd < 0 ||
 		childToolEnd < 0 ||
 		childEnd < 0 ||
@@ -421,14 +421,14 @@ func TestEngine_ProjectsConcurrentSiblingsWithoutAccountingContamination(t *test
 	order := observer.eventOrder()
 	canonicalCallBySource := make(map[string]string, len(children))
 	for _, start := range observer.starts() {
-		if start.process.ID == children[0].ParentID && start.toolName == "task" {
+		if start.process.ID == children[0].ParentID && start.toolName == "delegate_task" {
 			canonicalCallBySource[start.sourceCallID] = start.callID
 		}
 	}
 	endOrdinalByCall := make(map[string]int, len(children))
 	taskEndCount := 0
 	for _, end := range observer.ends() {
-		if end.process.ID == children[0].ParentID && end.toolName == "task" {
+		if end.process.ID == children[0].ParentID && end.toolName == "delegate_task" {
 			endOrdinalByCall[end.callID] = taskEndCount
 			taskEndCount++
 		}
@@ -437,10 +437,10 @@ func TestEngine_ProjectsConcurrentSiblingsWithoutAccountingContamination(t *test
 		childEnd := slices.Index(order, "child-end:"+child.ID)
 		callID := canonicalCallBySource[child.SpawnCallID]
 		endOrdinal, ok := endOrdinalByCall[callID]
-		parentToolEnd := nthIndex(order, "tool-end:"+child.ParentID+":task", endOrdinal)
+		parentToolEnd := nthIndex(order, "tool-end:"+child.ParentID+":delegate_task", endOrdinal)
 		if callID == "" || !ok || childEnd < 0 || parentToolEnd < 0 || childEnd >= parentToolEnd {
 			t.Fatalf(
-				"sibling event order = %v, child %q (%s → %s) did not end before its task call",
+				"sibling event order = %v, child %q (%s → %s) did not end before its delegation call",
 				order,
 				child.ID,
 				child.SpawnCallID,
@@ -500,7 +500,7 @@ func TestEngine_RunChat_ToolsRunInCwd(t *testing.T) {
 }
 
 // TestEngine_RunChat_SubtaskInheritsCwd proves the working directory reaches
-// `task` sub-agents: the main turn delegates, the sub-agent's shell creates a
+// delegated Agents: the main turn delegates, the child's shell creates a
 // marker with a RELATIVE path, and it must land in the turn's Cwd. The
 // sub-agent runs on a clean blackboard — so its goal is not pre-satisfied by
 // inherited planner state — while the App-owned context carries the cwd.

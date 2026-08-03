@@ -33,7 +33,7 @@ func TestLSPToolUnsupportedFile(t *testing.T) {
 	ci := codeintel.New(nil)
 	t.Cleanup(func() { _ = ci.Close() })
 
-	out, err := lspTool(t, ci).Call(context.Background(), `{"operation":"hover","file_path":"notes.txt","line":1,"character":1}`)
+	out, err := lspTool(t, ci).Call(context.Background(), `{"operation":"hover","path":"notes.txt","line":1,"character":1}`)
 	if err != nil {
 		t.Fatalf("unsupported file should not error: %v", err)
 	}
@@ -55,18 +55,27 @@ func TestLSPToolValidation(t *testing.T) {
 		t.Error("unknown operation must error")
 	}
 	if _, err := lsp.Call(context.Background(), `{"operation":"definition"}`); err == nil {
-		t.Error("definition without file_path must error")
+		t.Error("definition without path must error")
+	}
+	if _, err := lsp.Call(context.Background(), `{"operation":"definition","path":"notes.txt"}`); err == nil {
+		t.Error("position operation without line and character must error")
 	}
 	if _, err := lsp.Call(context.Background(), `{"operation":"workspace_symbols"}`); err == nil {
 		t.Error("workspace_symbols without query must error")
 	}
 	for _, op := range []string{"implementation", "incoming_calls", "outgoing_calls"} {
-		out, err := lsp.Call(context.Background(), `{"operation":"`+op+`","file_path":"notes.txt","line":1,"character":1}`)
+		out, err := lsp.Call(context.Background(), `{"operation":"`+op+`","path":"notes.txt","line":1,"character":1}`)
 		if err != nil {
 			t.Errorf("%s should not error on unsupported file: %v", op, err)
 		}
 		if !strings.Contains(out, "No language server") {
 			t.Errorf("%s output = %q, want a no-server message", op, out)
 		}
+	}
+	if out, err := lsp.Call(context.Background(), `{"operation":"diagnostics","path":"notes.txt"}`); err != nil || !strings.Contains(out, "No language server") {
+		t.Errorf("diagnostics = (%q, %v), want a no-server message", out, err)
+	}
+	if _, err := lsp.Call(context.Background(), `{"operation":"diagnostics","file_path":"notes.txt"}`); err == nil {
+		t.Error("obsolete file_path field must be rejected")
 	}
 }

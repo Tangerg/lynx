@@ -194,7 +194,7 @@ func TestSafetyTableNamesOnlyToolsThatExist(t *testing.T) {
 		existing[name] = true
 	}
 	// The engine injects task only after it deploys the child Agent.
-	existing["task"] = true
+	existing["delegate_task"] = true
 
 	var unreachable []string
 	for _, name := range tool.ClassifiedToolNames() {

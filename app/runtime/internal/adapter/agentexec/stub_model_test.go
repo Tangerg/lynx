@@ -15,7 +15,7 @@ import (
 	"github.com/Tangerg/lynx/core/chat"
 )
 
-// delegatingStubModel exercises the `task` delegation tool. A turn whose
+// delegatingStubModel exercises `delegate_task`. A turn whose
 // user message mentions "delegate" calls task once, then (after the tool
 // result) returns a final answer. A turn that doesn't (the sub-agent's
 // own turn, whose prompt is "do the subtask") returns text directly — so
@@ -34,7 +34,7 @@ func (m *delegatingStubModel) Call(_ context.Context, req *chat.Request) (*chat.
 	case hasToolMessage(req.Messages):
 		return responseWithText("main: subtask done")
 	case mentionsDelegate(req.Messages):
-		return responseWithToolCall("task", `{"prompt":"do the subtask"}`)
+		return responseWithToolCall("delegate_task", `{"summary":"delegated work","instructions":"do the subtask"}`)
 	default:
 		return responseWithText("subtask: result")
 	}
@@ -78,7 +78,7 @@ func (m *delegatingAccountingStub) Call(_ context.Context, req *chat.Request) (*
 	case hasToolMessage(req.Messages):
 		response, err = responseWithText("main: subtask done")
 	case mentionsDelegate(req.Messages):
-		response, err = responseWithToolCall("task", `{"prompt":"do the subtask"}`)
+		response, err = responseWithToolCall("delegate_task", `{"summary":"delegated work","instructions":"do the subtask"}`)
 	default:
 		response, err = responseWithText("subtask: result")
 	}
@@ -122,7 +122,7 @@ func (m *nestedDelegatingStub) Call(_ context.Context, request *chat.Request) (*
 	m.calls++
 	m.mu.Unlock()
 
-	taskOutput := toolResult(request.Messages, "task")
+	taskOutput := toolResult(request.Messages, "delegate_task")
 	var (
 		response *chat.Response
 		err      error
@@ -133,9 +133,9 @@ func (m *nestedDelegatingStub) Call(_ context.Context, request *chat.Request) (*
 	case strings.Contains(taskOutput, "child: result"):
 		response, err = responseWithText("root: result")
 	case userMessagesContain(request.Messages, "nested root"):
-		response, err = responseWithToolCall("task", `{"prompt":"child delegate"}`)
+		response, err = responseWithToolCall("delegate_task", `{"summary":"delegated work","instructions":"child delegate"}`)
 	case userMessagesContain(request.Messages, "child delegate"):
-		response, err = responseWithToolCall("task", `{"prompt":"grandchild leaf"}`)
+		response, err = responseWithToolCall("delegate_task", `{"summary":"delegated work","instructions":"grandchild leaf"}`)
 	default:
 		response, err = responseWithText("grandchild: result")
 	}
@@ -189,10 +189,10 @@ func (m *siblingDelegatingStub) Call(_ context.Context, request *chat.Request) (
 	case userMessagesContain(request.Messages, "run siblings"):
 		message := chat.NewAssistantMessage(
 			chat.NewToolCallPart(chat.ToolCall{
-				ID: "call_a", Name: "task", Arguments: `{"prompt":"sibling A"}`,
+				ID: "call_a", Name: "delegate_task", Arguments: `{"summary":"delegated work","instructions":"sibling A"}`,
 			}),
 			chat.NewToolCallPart(chat.ToolCall{
-				ID: "call_b", Name: "task", Arguments: `{"prompt":"sibling B"}`,
+				ID: "call_b", Name: "delegate_task", Arguments: `{"summary":"delegated work","instructions":"sibling B"}`,
 			}),
 		)
 		response, err = chat.NewResponse(chat.Choice{
@@ -231,7 +231,7 @@ func currentUserText(messages []chat.Message) string {
 }
 
 // cwdDelegatingStubModel is delegatingStubModel's cwd-aware cousin: the main
-// turn delegates via `task`, and the sub-agent (instead of replying text)
+// turn delegates, and the child Agent (instead of replying text)
 // asks shell to create a marker file with a RELATIVE path. The marker lands in
 // whatever working directory the sub-agent's tools run in — so a test can
 // assert the sub-agent inherited the turn's Cwd by checking where the file
@@ -253,12 +253,12 @@ func (m *cwdDelegatingStubModel) Call(_ context.Context, req *chat.Request) (*ch
 		// conversation. The tool-loop middleware strips user messages
 		// between rounds (§invoker.nextRoundRequest), so we use the
 		// assistant tool calls on the wire instead.
-		if hasToolCall(req.Messages, "task") {
+		if hasToolCall(req.Messages, "delegate_task") {
 			return responseWithText("main: subtask done")
 		}
 		return responseWithText("subtask done")
 	case mentionsDelegate(req.Messages):
-		return responseWithToolCall("task", `{"prompt":"create the marker"}`)
+		return responseWithToolCall("delegate_task", `{"summary":"delegated work","instructions":"create the marker"}`)
 	default:
 		// Sub-agent's first round: write a marker via a relative path so
 		// where it lands reflects the inherited working directory.
@@ -327,9 +327,9 @@ func (m *subtaskMemoryStub) DefaultOptions() chat.Options { return *m.defaults }
 
 func (m *subtaskMemoryStub) Call(_ context.Context, req *chat.Request) (*chat.Response, error) {
 	switch {
-	case hasToolCall(req.Messages, "task"):
+	case hasToolCall(req.Messages, "delegate_task"):
 		// Main turn, round 2: echo back whatever the subtask reported.
-		return responseWithText("main: " + toolResult(req.Messages, "task"))
+		return responseWithText("main: " + toolResult(req.Messages, "delegate_task"))
 	case hasToolCall(req.Messages, "shell"):
 		// Sub-agent turn, round 2: the secret is only visible if the child's
 		// history middleware spliced round 1's prompt back in.
@@ -339,7 +339,7 @@ func (m *subtaskMemoryStub) Call(_ context.Context, req *chat.Request) (*chat.Re
 		return responseWithText(subtaskContextLost)
 	case mentionsDelegate(req.Messages):
 		// Main turn, round 1: delegate, planting the secret in the prompt.
-		return responseWithToolCall("task", `{"prompt":"the secret is `+subtaskSecret+`; run a command then echo the secret back to me"}`)
+		return responseWithToolCall("delegate_task", `{"summary":"delegated work","instructions":"the secret is `+subtaskSecret+`; run a command then echo the secret back to me"}`)
 	default:
 		// Sub-agent turn, round 1: run a tool so a round 2 happens.
 		return responseWithToolCall("shell", `{"command":"echo working"}`)
@@ -663,7 +663,7 @@ func (g fixedToolGroup) Tools(context.Context) ([]toolcontract.Tool, error) {
 
 func (*fixedToolResolver) Name() string { return "agentexec-test-tools" }
 
-func (*fixedToolResolver) UseTaskTool(toolcontract.Tool) {}
+func (*fixedToolResolver) UseDelegationTool(toolcontract.Tool) {}
 
 func (r *fixedToolResolver) Resolve(_ context.Context, role string) (core.ToolGroup, bool, error) {
 	switch role {
