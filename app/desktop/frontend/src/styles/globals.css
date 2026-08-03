@@ -668,8 +668,11 @@
    * ----------------------------------------------------------------------- */
   --shadow-border: 0 0 0 1px color-mix(in srgb, var(--color-text) 9%, transparent);
   --shadow-control: none;
-  --shadow-composer-depth: 0 0 26px -8px var(--shadow-cast), 0 6px 22px -12px var(--shadow-cast);
-  --shadow-popover: 0 6px 20px var(--shadow-cast);
+  /* The ladder's `xl`, plus one ambient layer the ladder has no step for: this
+     panel's edge is half a pixel on translucent glass, and with a drop alone the
+     top and side edges measured 1-2 levels off the plane. */
+  --shadow-composer-depth: var(--shadow-xl), 0 0 26px -8px var(--shadow-cast);
+  --shadow-popover: var(--shadow-xl);
   --shadow-well: none;
   --shadow-raised-chip: none;
   --shadow-surface-card: none;

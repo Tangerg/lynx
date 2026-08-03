@@ -72,7 +72,13 @@ function MessageBlockInner({
             turn; the reading measure is the thing you spend the whole turn
             inside, and a 38px gutter was taking it from every code block, diff
             and table below. */}
-        <div className="group relative flex min-w-0 flex-col gap-2">
+        {/* A user turn hugs the trailing edge and takes only the width its words need;
+            an assistant turn is the document and takes the whole measure. Both used to
+            be full-width panels, so the transcript read as two kinds of document
+            alternating instead of a document with asides in it. 77% is the reference's
+            cap and it matters: without one, a pasted paragraph becomes a full-width
+            panel again and the distinction disappears exactly when the turn is long. */}
+        <div className={cn("group relative flex min-w-0 flex-col gap-2", isUser && "items-end")}>
           <div className="flex min-h-5 min-w-0 items-center gap-2 text-ui-xs text-fg-faint">
             <span
               aria-hidden
@@ -97,7 +103,7 @@ function MessageBlockInner({
                 MESSAGE_CONTENT_CLASS,
                 "min-w-0 text-pretty leading-prose",
                 isUser
-                  ? "rounded-bubble bg-card px-4 py-3.5 text-ui-md text-fg"
+                  ? "max-w-[77%] rounded-bubble bg-card px-4 py-3 text-ui-md text-fg"
                   : "text-ui-md text-fg-soft",
               )}
             >

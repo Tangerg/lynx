@@ -117,13 +117,15 @@ export function MessageStream({ messages, ctx, resetKey }: Props) {
           would otherwise have to guess at that nesting. */}
       <StickToBottom.Content
         scrollClassName="panel-scroll msg-scroll-viewport"
-        className={cn(READING_COLUMN, COMPOSER_CLEARANCE, "relative flex flex-col gap-7 pt-8")}
+        className={cn(READING_COLUMN, COMPOSER_CLEARANCE, "relative flex flex-col pt-8")}
       >
         <AnimatePresence initial={false}>
-          {messages.map((m, i) => (
-            <Fragment key={m.id}>
-              {boundaries.has(i) && <DaySeparator createdAt={m.createdAt} />}
-              {/* No `layout` prop — Motion's layout animation re-tweens
+          {messages.map((m, i) => {
+            const sameSpeakerAsPrevious = i > 0 && messages[i - 1]?.role === m.role;
+            return (
+              <Fragment key={m.id}>
+                {boundaries.has(i) && <DaySeparator createdAt={m.createdAt} />}
+                {/* No `layout` prop — Motion's layout animation re-tweens
                   the block on every text delta, making the whole bubble
                   (avatar included) bobble while streaming. enterUp is
                   enough: first paint slides in, then the block grows
@@ -137,45 +139,52 @@ export function MessageStream({ messages, ctx, resetKey }: Props) {
                   `auto` intrinsic-size remembers each message's real height after
                   its first render, so the scroll height stays accurate; the 220px
                   fallback only covers never-yet-rendered messages far below. */}
-              {/* `data-turn-id` is the anchor the narrative rails navigate by.
+                {/* `data-turn-id` is the anchor the narrative rails navigate by.
                   An attribute rather than a registry: the rails need the
                   element's position in the scroller, which only the DOM has. */}
-              <motion.div
-                {...enterUp}
-                data-turn-id={m.id}
-                data-turn-role={m.role}
-                // The gutter lives HERE, not on the scroller's content, and that
-                // is what gives this box slack on either side of its own text.
-                // `content-visibility` brings paint containment with it: anything
-                // drawn past this element's edge is clipped, and the turn's last
-                // row is a strip of round buttons deliberately inset outward so
-                // their glyphs line up with the text. Against a box that hugged
-                // the text they came out sliced.
-                className={cn(
-                  READING_GUTTER,
-                  "[content-visibility:auto] [contain-intrinsic-size:auto_220px]",
-                )}
-              >
-                <MessageBlock
-                  msg={m}
-                  ctx={ctx}
-                  isLast={i === messages.length - 1}
-                  isRunning={running}
-                />
-              </motion.div>
-            </Fragment>
-          ))}
+                <motion.div
+                  {...enterUp}
+                  data-turn-id={m.id}
+                  data-turn-role={m.role}
+                  // The gutter lives HERE, not on the scroller's content, and that
+                  // is what gives this box slack on either side of its own text.
+                  // `content-visibility` brings paint containment with it: anything
+                  // drawn past this element's edge is clipped, and the turn's last
+                  // row is a strip of round buttons deliberately inset outward so
+                  // their glyphs line up with the text. Against a box that hugged
+                  // the text they came out sliced.
+                  className={cn(
+                    READING_GUTTER,
+                    // Two distances, not one. A flat gap made a turn's own blocks sit as
+                    // far apart as two separate turns, so nothing on the page said "these
+                    // belong together" — the reference spends 4px inside a turn and 16px
+                    // between them, and that ratio is what groups a thought, its tool call
+                    // and its answer into one thing you can read as a unit.
+                    i > 0 && (sameSpeakerAsPrevious ? "mt-1" : "mt-4"),
+                    "[content-visibility:auto] [contain-intrinsic-size:auto_220px]",
+                  )}
+                >
+                  <MessageBlock
+                    msg={m}
+                    ctx={ctx}
+                    isLast={i === messages.length - 1}
+                    isRunning={running}
+                  />
+                </motion.div>
+              </Fragment>
+            );
+          })}
         </AnimatePresence>
         {/* Waiting-for-response indicator — the run is live but the assistant
             hasn't opened its turn yet (last message is still the user's). Once
             the assistant message arrives it takes over, so this hides itself. */}
         {running && messages[messages.length - 1]?.role === "user" && (
-          <div className={cn(READING_GUTTER, "flex")}>
+          <div className={cn(READING_GUTTER, "mt-4 flex")}>
             <Loader variant="dots" />
           </div>
         )}
         {!running && (
-          <div className={READING_GUTTER}>
+          <div className={cn(READING_GUTTER, "mt-4")}>
             <RootRunOutcome />
           </div>
         )}

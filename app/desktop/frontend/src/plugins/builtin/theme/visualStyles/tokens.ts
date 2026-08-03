@@ -64,7 +64,10 @@ export const WORKBENCH_TOKENS: VisualStyleTokens = {
   "style-shape-lg": "10px",
   "style-shape-xl": "12px",
   "style-shape-composer": "10px",
-  "style-shape-bubble": "10px",
+  // A bubble is the one object that wears the widest corner. It is small, floated
+  // to one side and quoted rather than read straight through, and at the card radius
+  // a narrow bubble read as a cropped card. The reference uses its 2xl (16px) here.
+  "style-shape-bubble": "16px",
   "button-radius": "var(--shape-sm)",
   "field-radius": "var(--shape-md)",
   "segmented-radius": "var(--shape-md)",
@@ -182,8 +185,8 @@ export const WORKBENCH_TOKENS: VisualStyleTokens = {
   // at 230 over 11px read as a drop shadow. The second layer is the drop.
   // Depth only; the ring beside it is drawn from `--composer-edge-width` at the
   // callsite, where the colour can answer focus.
-  "shadow-composer-depth": "0 0 26px -8px var(--shadow-cast), 0 6px 22px -12px var(--shadow-cast)",
-  "shadow-popover": "0 6px 20px var(--shadow-cast)",
+  "shadow-composer-depth": "var(--shadow-xl), 0 0 26px -8px var(--shadow-cast)",
+  "shadow-popover": "var(--shadow-xl)",
   "shadow-well": "none",
   "shadow-raised-chip": "none",
   "shadow-surface-card": "none",
