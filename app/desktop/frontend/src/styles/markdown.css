@@ -12,12 +12,15 @@
   margin-bottom: 0;
 }
 
-/* Reading text sits one ladder step ABOVE the chrome and takes the full ink: it is
-   the thing being read, so it should not be quieter than the labels around it. */
+/* Reading text sits AT the chrome's own step and takes the full ink. It is the
+   thing being read, so it must not be quieter than the labels around it — but it
+   is also inside a tool window, and a paragraph set larger than the rows beside
+   it reads as a web page dropped into an IDE. Separation comes from the leading
+   and the ink, not from a bigger size. */
 .md p {
   margin: 12px 0;
-  font-size: var(--fs-ui-lg);
-  line-height: var(--leading-relaxed);
+  font-size: var(--fs-ui-md);
+  line-height: var(--leading-prose);
   color: var(--color-text);
   letter-spacing: 0;
 }
@@ -25,10 +28,10 @@
   margin-bottom: 0;
 }
 
-/* Headings — hierarchy via weight + margin, not dramatic size jumps, so
-   LLM-structured replies read as continuous text rather than "page breaks".
-   Sizes are ratios off the ladder's `ui-lg` step: h1 ×1.3, h2 ×1.16, h3/h4 at
-   the step itself, h5/h6 down to body. */
+/* Headings — hierarchy via weight, margin and ink, with only one size step in
+   the whole set. A tool window has no display type: the largest text anywhere in
+   the reference is its body copy, and an LLM that opens with `#` must not be
+   able to plant a 20px headline in the middle of a transcript. */
 .md h1,
 .md h2,
 .md h3,
@@ -37,31 +40,29 @@
 .md h6 {
   font-weight: 600;
   line-height: var(--leading-snug);
-  letter-spacing: -0.015em;
+  letter-spacing: -0.005em;
   color: var(--color-text);
 }
 .md h1 {
-  font-size: calc(var(--fs-ui-lg) * 1.3);
-  margin: 24px 0 12px;
-  line-height: var(--leading-tight);
+  font-size: var(--fs-ui-lg);
+  margin: 24px 0 10px;
 }
 .md h2 {
-  font-size: calc(var(--fs-ui-lg) * 1.16);
+  font-size: var(--fs-ui-md);
   margin: 20px 0 8px;
 }
 .md h3 {
-  font-size: var(--fs-ui-lg);
+  font-size: var(--fs-ui-md);
   margin: 16px 0 8px;
 }
 .md h4 {
-  font-size: var(--fs-ui-lg);
+  font-size: var(--fs-ui-md);
   font-weight: 500;
   margin: 12px 0 6px;
-  color: var(--color-text);
 }
 .md h5,
 .md h6 {
-  font-size: var(--fs-ui-md);
+  font-size: var(--fs-ui-sm);
   font-weight: 500;
   margin: 10px 0 4px;
   color: var(--color-text-soft);
@@ -87,8 +88,8 @@
 .md ol {
   margin: 8px 0;
   padding-left: 20px;
-  font-size: var(--fs-ui-lg);
-  line-height: var(--leading-relaxed);
+  font-size: var(--fs-ui-md);
+  line-height: var(--leading-prose);
   color: var(--color-text);
 }
 .md ul {

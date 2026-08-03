@@ -80,8 +80,9 @@ export default defineColorThemePlugin({
   // language spends colour on the one action that matters and keeps everything
   // else grey. Following `--color-accent` rather than a literal keeps the user's
   // accent pick on the button too.
-  // One shade below the indicator accent, because white on the accent itself
-  // lands at 4.3:1 — the same hue, deep enough to carry label text.
+  // One shade below the indicator accent, because the dark-scheme accents are
+  // tuned to glow against near-black and carry white label text at only
+  // 3.3–4.6:1. The light scheme needs no such step — see lyra-light.
   cta: {
     cta: "var(--color-accent-border)",
     ctaHover: "var(--color-accent-press)",

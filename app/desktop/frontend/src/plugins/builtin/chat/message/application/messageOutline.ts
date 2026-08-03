@@ -1,81 +1,58 @@
-import type { Message, ToolCall } from "@/plugins/builtin/agent/public/viewState";
-import {
-  summarizeToolGroup,
-  toolIntent,
-  type MessageRenderUnit,
-} from "@/plugins/builtin/agent/public/messagePresentation";
-import type { Translate } from "@/lib/i18n";
-import { messageBlockRenderUnits } from "./messageBlockModel";
+import type { Message } from "@/plugins/builtin/agent/public/viewState";
 import { renderUnitAnchor } from "./renderUnitAnchor";
 
 export interface MessageOutlineEntry {
-  /** Matches the rendered block's `BLOCK_ANCHOR_ATTR`. */
+  /** The `BLOCK_ANCHOR_ATTR` of the prose block this heading lives in. */
   anchor: string;
+  /** Position among that block's headings, in document order. */
+  index: number;
+  /** ATX depth, 1–6. Used for indent only; the rail does not renumber. */
+  level: number;
   label: string;
 }
 
-/** First ATX heading in a markdown body — the author's own name for the section
- *  that follows, which beats anything a generic label could say about it. */
-function headingOf(text: string): string | undefined {
-  const match = /^\s{0,3}#{1,6}\s+(.+?)\s*#*\s*$/m.exec(text);
-  return match?.[1]?.trim() || undefined;
+const ATX = /^[ \t]{0,3}(#{1,6})[ \t]+(.+?)[ \t]*#*[ \t]*$/;
+const FENCE = /^[ \t]{0,3}(?:```|~~~)/;
+
+/** ATX headings of one markdown body, in document order.
+ *
+ *  Fenced code is skipped: a shell transcript full of `# comment` lines is the
+ *  single most common thing an answer contains, and every one of them would
+ *  otherwise enter the outline as a section.
+ */
+function headings(text: string): { level: number; label: string }[] {
+  const found: { level: number; label: string }[] = [];
+  let fenced = false;
+  for (const line of text.split("\n")) {
+    if (FENCE.test(line)) {
+      fenced = !fenced;
+      continue;
+    }
+    if (fenced) continue;
+    const match = ATX.exec(line);
+    if (match) found.push({ level: match[1]!.length, label: match[2]!.trim() });
+  }
+  return found;
 }
 
 /**
- * A long answer's table of contents.
+ * The answer's own table of contents.
  *
- * Prose is listed only where it names itself with a heading. A turn typically
- * opens and closes with a paragraph or two of connective text, and an outline
- * that entered "Response" three times for those would push the entries that
- * matter — the plan, the command awaiting approval, the diff — off the rail, and
- * would say nothing about where any of them are.
+ * Headings of the message's prose, and nothing else. The rail used to enumerate
+ * every render unit — each reasoning pass, each tool call — which on a working
+ * turn is a hundred entries of "Thinking / grep / Thinking / read", i.e. a
+ * transcript of the transcript. What a reader wants from a contents list is the
+ * shape of the answer, and the only thing that knows that shape is the author's
+ * own headings.
  */
-export function messageOutline(
-  t: Translate,
-  message: Message,
-  toolCalls: Record<string, ToolCall>,
-): MessageOutlineEntry[] {
+export function messageOutline(message: Message): MessageOutlineEntry[] {
   const entries: MessageOutlineEntry[] = [];
-  for (const unit of messageBlockRenderUnits(message.blocks, toolCalls)) {
-    const label = outlineLabel(t, unit, toolCalls);
-    if (label) entries.push({ anchor: renderUnitAnchor(message.id, unit), label });
-  }
+  message.blocks.forEach((block, blockIndex) => {
+    if (block.kind !== "text") return;
+    const anchor = renderUnitAnchor(message.id, { kind: "block", block, index: blockIndex });
+    headings(block.text).forEach(({ level, label }, index) => {
+      entries.push({ anchor, index, level, label });
+    });
+  });
   return entries;
-}
-
-function outlineLabel(
-  t: Translate,
-  unit: MessageRenderUnit,
-  toolCalls: Record<string, ToolCall>,
-): string | undefined {
-  if (unit.kind === "toolGroup") return summarizeToolGroup(t, unit.tools);
-
-  const { block } = unit;
-  switch (block.kind) {
-    case "text":
-      return headingOf(block.text);
-    case "reasoning":
-      return t("outline.entry.reasoning");
-    case "plan":
-      return t("outline.entry.plan");
-    case "approval":
-      return t("outline.entry.approval");
-    case "question":
-      return t("outline.entry.question");
-    case "compaction":
-      return t("outline.entry.compaction");
-    case "image":
-      return t("outline.entry.image");
-    case "tool": {
-      const tool = toolCalls[block.toolCallId];
-      if (!tool) return undefined;
-      const intent = toolIntent(t, tool);
-      return intent.detail ? `${intent.label} · ${intent.detail}` : intent.label;
-    }
-    // Plugin-contributed blocks name themselves through their own registry entry,
-    // which this model cannot read without becoming a renderer. They stay off the
-    // rail rather than appearing as an unlabelled stop.
-    default:
-      return undefined;
-  }
 }

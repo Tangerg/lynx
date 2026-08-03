@@ -69,11 +69,12 @@ export default defineColorThemePlugin({
     info: c.accent,
     success: "#2a713e",
   },
-  // One shade below the indicator accent, because white on the accent itself
-  // lands at 4.3:1 — the same hue, deep enough to carry label text.
+  // The accent itself. Every light-scheme accent is already tuned for a white
+  // ground and carries white label text at 5.6:1 or better, so the extra shade
+  // the dark scheme needs would only push the primary button toward navy.
   cta: {
-    cta: "var(--color-accent-border)",
-    ctaHover: "var(--color-accent-press)",
+    cta: "var(--color-accent)",
+    ctaHover: "var(--color-accent-border)",
     ctaText: "var(--color-text-on-accent)",
   },
 });

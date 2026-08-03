@@ -5,7 +5,13 @@ import {
   useSidebarWidth,
 } from "@/plugins/builtin/workspace/public/sidebarDrawer";
 import { Icon } from "@/ui";
-import { AgentAppShell, AgentContentCard, AgentStatusPill, AgentSurfaceHeader } from "@/ui/agent";
+import {
+  AgentAppShell,
+  AgentContentCard,
+  AgentStatusPill,
+  AgentSurfaceHeader,
+  AgentWindowControls,
+} from "@/ui/agent";
 import type { VisualWorkIndexState } from "./shellFixtureStates";
 
 const STATE_COPY: Record<VisualWorkIndexState, { title: string; body: string }> = {
@@ -43,6 +49,19 @@ export function VisualShellFixture({ state }: { state: VisualWorkIndexState }) {
       onSidebarToggle={drawer.toggle}
       sidebarExpandLabel={t("sidebar.action.expand")}
       sidebarCollapseLabel={t("sidebar.action.collapse")}
+      // The window's own chrome. Wired to nothing here on purpose: the fixture
+      // has no window, and what needs photographing is the cluster's geometry
+      // against the gutter it shares with the drawer control.
+      windowControls={
+        <AgentWindowControls
+          onClose={() => {}}
+          onMinimise={() => {}}
+          onToggleMaximise={() => {}}
+          closeLabel={t("window.action.close")}
+          minimiseLabel={t("window.action.minimise")}
+          maximiseLabel={t("window.action.maximise")}
+        />
+      }
       sidebar={<SidebarPanel />}
       main={
         <AgentContentCard label="Shell and Work Index visual fixture">

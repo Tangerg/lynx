@@ -117,9 +117,7 @@ export function QuestionCard({ status, runId, itemId, questions, answered, answe
                         }
                         className={cn(
                           "flex flex-col gap-0.5 rounded-md border-[0.5px] border-transparent px-2.5 py-1.5 text-left transition-colors duration-[var(--dur-fast)]",
-                          active
-                            ? "border-accent/60 bg-accent-wash"
-                            : "bg-surface-2 hover:bg-surface-3",
+                          active ? "border-accent/60 bg-accent-wash" : "bg-sunken hover:bg-hover",
                         )}
                       >
                         <span className="text-ui-md font-medium text-fg">{opt.label}</span>

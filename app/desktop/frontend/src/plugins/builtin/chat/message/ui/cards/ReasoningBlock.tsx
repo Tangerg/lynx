@@ -12,6 +12,10 @@ interface Props {
   status: BlockStatus;
 }
 
+/** Several times the most characters the collapsed row can ever show — see the
+ *  `preview` comment. Raising or lowering it changes nothing on screen. */
+const PREVIEW_LAYOUT_BOUND = 400;
+
 // Collapsible "thinking" panel. Auto-opens while the agent streams, then
 // collapses once the reasoning is done. User can toggle anytime to override.
 //
@@ -65,7 +69,17 @@ export function ReasoningBlock({ text, status }: Props) {
   // number is data, so the number can sit in the row's mono meta column with
   // every other duration instead of being sentence-cased into the label.
   const label = streaming ? t("reasoning.thinking") : t("reasoning.thought");
-  const preview = streaming ? "" : truncate(text, 80);
+  // Where the preview ends is the ROW's business, and the row already answers it
+  // in CSS at the real edge of the real column. A character count here was a
+  // second answer to the same question, and a worse one: it stopped short of that
+  // edge, so a reasoning row trailed off mid-row while the tool row beside it —
+  // same component, CSS truncation — ran the full width.
+  //
+  // The slice that remains is a cost bound, not a display policy. It cannot be
+  // observed: the widest this row ever gets is the reading column, which holds
+  // ~110 Latin characters at this size, and a settled 50k-token thought would
+  // otherwise lay out as a 50k-character nowrap line once per collapsed row.
+  const preview = streaming ? "" : text.slice(0, PREVIEW_LAYOUT_BOUND);
 
   // ---- Bounded scroll + auto-follow + fades ----
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -173,7 +187,7 @@ export function ReasoningBlock({ text, status }: Props) {
         />
         <div
           ref={contentRef}
-          className="whitespace-pre-wrap text-ui-sm leading-relaxed text-fg-muted"
+          className="whitespace-pre-wrap text-ui-sm leading-prose text-fg-muted"
         >
           <MarkdownMessage text={text} streaming={streaming} />
           {status === "incomplete" && (
@@ -203,9 +217,4 @@ function formatElapsed(ms: number | null): string | null {
   const m = Math.floor(sec / 60);
   const s = sec % 60;
   return s === 0 ? `${m}m` : `${m}m${s}s`;
-}
-
-function truncate(s: string, n: number): string {
-  if (s.length <= n) return s;
-  return `${s.slice(0, n).trimEnd()}…`;
 }

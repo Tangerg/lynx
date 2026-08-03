@@ -111,7 +111,7 @@ export const WORKBENCH_TOKENS: VisualStyleTokens = {
   // The drawer's cast, drawn INSIDE the plane: the plane outranks the drawer on
   // z-index so the drawer can slide under it, which means the drawer cannot cast
   // onto it from outside.
-  "app-card-edge": "inset 9px 0 22px -14px var(--shadow-cast)",
+  "app-card-edge": "inset 11px 0 24px -10px var(--shadow-cast)",
   // A pane that splits the region it lives in casts across the split instead.
   "app-pane-split": "-7px 0 22px -10px var(--shadow-cast)",
   "app-pane-split-end": "7px 0 22px -10px var(--shadow-cast)",

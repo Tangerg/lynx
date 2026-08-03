@@ -5,6 +5,7 @@ export { AgentContentCard } from "./content-card";
 export { AgentContextDock, AgentDockTabs, type AgentDockTab } from "./context-dock";
 export { AgentRow } from "./navigation-row";
 export { AgentStatusPill } from "./status-pill";
+export { AgentWindowControls } from "./window-controls";
 // AgentDrawerToggle is deliberately NOT re-exported: the shell mounts the one
 // instance itself, and a second one anywhere else is a second collapse control.
 export { AgentSurfaceHeader } from "./surface-header";

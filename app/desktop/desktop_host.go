@@ -1,11 +1,14 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 const localRuntimeEndpoint = "http://127.0.0.1:17171"
@@ -36,6 +39,11 @@ type DesktopBootstrap struct {
 type DesktopHost struct {
 	localTokenPath string
 	pluginRoot     string
+	// The Wails application context, handed over at startup. Held as a field
+	// rather than threaded per call because it is the window's identity, not a
+	// request's: the runtime's window API takes it, and the frontend's calls
+	// arrive over the binding with no context of their own.
+	window context.Context
 }
 
 func newDesktopHost(home string) *DesktopHost {
@@ -52,6 +60,39 @@ func defaultDesktopHost() (*DesktopHost, error) {
 		return nil, fmt.Errorf("desktop host: resolve user home: %w", err)
 	}
 	return newDesktopHost(home), nil
+}
+
+// attachWindow receives the Wails application context at startup. Everything
+// below that drives the window is inert until it has been called.
+func (h *DesktopHost) attachWindow(ctx context.Context) {
+	h.window = ctx
+}
+
+// MinimiseWindow, ToggleMaximiseWindow and CloseWindow back the three controls
+// the app draws itself, since the platform no longer draws any. They are
+// no-ops before startup and in tests, where there is no window to act on.
+func (h *DesktopHost) MinimiseWindow() {
+	if h.window == nil {
+		return
+	}
+	runtime.WindowMinimise(h.window)
+}
+
+func (h *DesktopHost) ToggleMaximiseWindow() {
+	if h.window == nil {
+		return
+	}
+	runtime.WindowToggleMaximise(h.window)
+}
+
+// CloseWindow ends the application. On macOS a single-window app with no dock
+// presence to return to has nothing left to show once its window is gone, so
+// the red control quits rather than orphaning a running process.
+func (h *DesktopHost) CloseWindow() {
+	if h.window == nil {
+		return
+	}
+	runtime.Quit(h.window)
 }
 
 // Bootstrap returns the local runtime connection and immutable plugin sources

@@ -144,7 +144,7 @@ function CodebaseTab() {
             <Pressable
               key={row.id}
               onClick={() => openWorkspaceFile(row.path, row.startLine)}
-              className="w-full rounded-md bg-surface-2 px-3 py-2 text-left transition-colors hover:bg-surface-3"
+              className="w-full rounded-md bg-sunken px-3 py-2 text-left transition-colors hover:bg-hover"
             >
               <div className="flex items-center gap-2">
                 <span className="truncate font-mono text-ui-md text-accent">{row.pathRange}</span>

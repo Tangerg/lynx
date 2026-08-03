@@ -36,11 +36,26 @@ interface Props {
   onSend: (input: UserInput) => void;
 }
 
-// The width each rail occupies, mirrored as padding by everything that has to
-// line up with the reading column but sits outside the rails' own row. Spelled
-// as literals rather than a shared token because Tailwind reads source text: a
-// container-query variant assembled from a variable emits nothing at all.
-const RAIL_GUTTERS = "@min-[560px]:pl-11 @min-[900px]:pr-[186px]";
+// The reading column's two flanking gutters.
+//
+// The COLUMN reserves them, not the rails. A rail with nothing to show still
+// holds its width — a gutter that collapses when the current turn has no outline
+// slides the whole transcript sideways as you scroll. It also means the rails'
+// own components carry no breakpoint: where the column can afford a gutter is
+// the column's question, and answering it in two places is how the banners, the
+// stream and the composer ended up centred on three different boxes.
+//
+// The breakpoints are literals because Tailwind reads source text and a
+// container-query variant assembled from a variable emits nothing; the widths
+// are tokens because they are geometry the theme owns.
+const RAIL_START = "w-0 shrink-0 overflow-hidden @min-[560px]:w-[var(--rail-start-width)]";
+const RAIL_END = "w-0 shrink-0 overflow-hidden @min-[900px]:w-[var(--rail-end-width)]";
+const RAIL_GUTTERS =
+  "@min-[560px]:pl-[var(--rail-start-width)] @min-[900px]:pr-[var(--rail-end-width)]";
+
+// Column + gutters centre as ONE block, so a rail never drifts away from the text
+// it points at when the pane is wider than the frame.
+const READING_FRAME = "mx-auto w-full max-w-[var(--reading-frame-max)]";
 
 export function ChatStream({ onSend }: Props) {
   const resetKey = useActiveSessionId();
@@ -153,20 +168,25 @@ export function ChatStream({ onSend }: Props) {
     // Banners and composer take the rails' gutters from the same query, so the
     // three stay on one axis instead of each centring on a different box.
     <div className="@container flex min-h-0 flex-1 flex-col">
-      <div className={RAIL_GUTTERS}>{banners}</div>
-      <div className="relative flex min-h-0 flex-1">
-        <Slot name="chat.rail.start" />
+      <div className={cn(READING_FRAME, RAIL_GUTTERS)}>{banners}</div>
+      <div className={cn("relative flex min-h-0 flex-1", READING_FRAME)}>
+        <div className={cn("flex flex-col", RAIL_START)}>
+          <Slot name="chat.rail.start" />
+        </div>
         <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
           <ChatErrorBoundary resetKey={resetKey} label={`session:${resetKey}`}>
             <MessageStream messages={messages} ctx={ctx} resetKey={resetKey} />
           </ChatErrorBoundary>
           <JumpToBottomButton />
         </div>
-        <Slot name="chat.rail.end" />
+        <div className={cn("flex flex-col", RAIL_END)}>
+          <Slot name="chat.rail.end" />
+        </div>
       </div>
       <div
         className={cn(
-          "relative z-10 w-full shrink-0 bg-[var(--app-content-surface)] px-3 pb-3 pt-2 sm:px-5 sm:pb-4",
+          "relative z-10 shrink-0 bg-[var(--app-content-surface)] px-3 pb-3 pt-2 sm:px-5 sm:pb-4",
+          READING_FRAME,
           RAIL_GUTTERS,
         )}
       >

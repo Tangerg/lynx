@@ -112,7 +112,7 @@ function TimelineRunHeader({ group }: { group: TimelineRunGroup }) {
   const spawnedByItemId = run.spawnedByItemId;
   const child = parentRunId !== null;
   return (
-    <div className="flex min-h-10 items-center gap-2 rounded-md bg-surface-2 pl-3">
+    <div className="flex min-h-10 items-center gap-2 rounded-md bg-sunken pl-3">
       <Icon name={child ? "bot" : "branch"} size="sm" className="shrink-0 text-fg-muted" />
       <div className="min-w-0 flex-1 py-2">
         <div className="flex min-w-0 items-center gap-2">

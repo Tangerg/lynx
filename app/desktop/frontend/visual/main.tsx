@@ -79,14 +79,21 @@ async function fixtureNode(): Promise<ReactNode> {
     // and style registered: an unregistered theme id resolves to the dark scheme,
     // and unregistered styles leave the shell on globals.css fallbacks — which is
     // to say, the one fixture named for the foundation would photograph anything
-    // but it.
-    const [{ default: lyraLight }, { default: lyraDark }, { builtinVisualStyles }] =
-      await Promise.all([
-        import("@/plugins/builtin/theme/themes/lyra-light"),
-        import("@/plugins/builtin/theme/themes/lyra-dark"),
-        import("@/plugins/builtin/theme/visualStyles"),
-      ]);
-    for (const plugin of [lyraLight, lyraDark, ...builtinVisualStyles]) {
+    // but it. The accents go with them: without their presets the light scheme
+    // cannot map the stored accent to its light-ground shade and falls back to
+    // darkening the dark one, which ships a navy button in every golden.
+    const [
+      { default: lyraLight },
+      { default: lyraDark },
+      { builtinVisualStyles },
+      { defaultAccents },
+    ] = await Promise.all([
+      import("@/plugins/builtin/theme/themes/lyra-light"),
+      import("@/plugins/builtin/theme/themes/lyra-dark"),
+      import("@/plugins/builtin/theme/visualStyles"),
+      import("@/plugins/builtin/defaults"),
+    ]);
+    for (const plugin of [lyraLight, lyraDark, defaultAccents, ...builtinVisualStyles]) {
       await loadPlugin(plugin);
     }
     return <VisualFoundationFixture sidebarOpen={sidebarOpen} />;

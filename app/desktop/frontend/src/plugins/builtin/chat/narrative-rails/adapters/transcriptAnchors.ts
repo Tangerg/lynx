@@ -20,20 +20,52 @@ function turnElements(root: HTMLElement): HTMLElement[] {
   return [...root.querySelectorAll<HTMLElement>(TURN_SELECTOR)];
 }
 
+/** How much of the transcript one turn occupies, as a fraction of its longest
+ *  sibling. This is a measurement, not an estimate: the rail draws the document
+ *  it is a map of. */
+export interface TurnExtent {
+  id: string;
+  share: number;
+}
+
+export interface TranscriptMap {
+  /** The turn currently under the reading line. */
+  visibleTurnId: string | null;
+  /** Every turn, in document order, with its share of the tallest. */
+  turns: TurnExtent[];
+}
+
+const EMPTY: TranscriptMap = { visibleTurnId: null, turns: [] };
+
+function sameMap(a: TranscriptMap, b: TranscriptMap): boolean {
+  if (a.visibleTurnId !== b.visibleTurnId || a.turns.length !== b.turns.length) return false;
+  return a.turns.every((turn, i) => {
+    const other = b.turns[i]!;
+    // Quantised: a streaming answer grows by a pixel a frame, and a rail that
+    // re-rendered on every pixel would repaint sixty times a second to move a
+    // tick by nothing a reader can see.
+    return turn.id === other.id && Math.round(turn.share * 20) === Math.round(other.share * 20);
+  });
+}
+
 /**
- * The turn the reader is currently in.
+ * Where the reader is, and what the transcript looks like from above.
  *
- * Measured from the DOM on scroll rather than tracked in the store, because the
- * question is geometric: which turn's box currently straddles the reading line.
- * The transcript is a single scroller whose children are re-rendered on every
- * streamed token, so a React-side answer would either re-render the whole list
- * to compute it or go stale the moment a block above grew.
+ * Measured from the DOM on scroll rather than tracked in the store, because both
+ * questions are geometric: which turn's box straddles the reading line, and how
+ * tall each turn's box is. The transcript is a single scroller whose children
+ * are re-rendered on every streamed token, so a React-side answer would either
+ * re-render the whole list to compute it or go stale the moment a block above
+ * grew.
+ *
+ * One hook for both, because both come from the same pass over the same boxes —
+ * two hooks would install two scroll listeners and force layout twice a frame.
  *
  * `requestAnimationFrame` coalescing keeps this to one measurement per frame; a
  * bare scroll handler measured 60+ times a second and forced a layout each time.
  */
-export function useVisibleTurnId(): string | null {
-  const [visible, setVisible] = useState<string | null>(null);
+export function useTranscriptMap(): TranscriptMap {
+  const [map, setMap] = useState<TranscriptMap>(EMPTY);
 
   useEffect(() => {
     const root = scroller();
@@ -43,14 +75,32 @@ export function useVisibleTurnId(): string | null {
     const measure = () => {
       frame = 0;
       const line = root.getBoundingClientRect().top + root.clientHeight * READING_LINE;
+      const elements = turnElements(root);
+      const measured = elements.map((element, i) => ({
+        id: element.getAttribute(TURN_ANCHOR_ATTR) ?? "",
+        top: element.getBoundingClientRect().top,
+        // A turn runs until the next one starts; the last runs to the bottom of
+        // the content. The element itself is only the question — its answer is a
+        // sibling, not a child.
+        height:
+          (elements[i + 1]?.getBoundingClientRect().top ?? root.scrollHeight + root.scrollTop) -
+          element.getBoundingClientRect().top,
+      }));
+      const tallest = Math.max(1, ...measured.map((turn) => turn.height));
+
       let current: string | null = null;
-      for (const element of turnElements(root)) {
-        if (element.getBoundingClientRect().top > line) break;
-        current = element.getAttribute(TURN_ANCHOR_ATTR);
+      for (const turn of measured) {
+        if (turn.top > line) break;
+        current = turn.id;
       }
-      // The first turn owns the space above the reading line, so a transcript
-      // scrolled to the very top still highlights something.
-      setVisible(current ?? turnElements(root)[0]?.getAttribute(TURN_ANCHOR_ATTR) ?? null);
+
+      const next: TranscriptMap = {
+        // The first turn owns the space above the reading line, so a transcript
+        // scrolled to the very top still highlights something.
+        visibleTurnId: current ?? measured[0]?.id ?? null,
+        turns: measured.map((turn) => ({ id: turn.id, share: turn.height / tallest })),
+      };
+      setMap((previous) => (sameMap(previous, next) ? previous : next));
     };
     const schedule = () => {
       if (frame === 0) frame = requestAnimationFrame(measure);
@@ -73,7 +123,7 @@ export function useVisibleTurnId(): string | null {
     };
   }, []);
 
-  return visible;
+  return map;
 }
 
 /** Bring an element inside the transcript to the top of the reading area. */
@@ -88,11 +138,23 @@ export function scrollToTurn(id: string): void {
   scrollToAnchored(TURN_ANCHOR_ATTR, id);
 }
 
-/** The message context publishes the attribute its blocks carry; finding one in
- *  the document is this adapter's job, because "where is it" is a question only
- *  the browser can answer. */
-export function scrollToBlock(anchor: string): void {
-  scrollToAnchored(BLOCK_ANCHOR_ATTR, anchor);
+/**
+ * Bring one heading inside a prose block into view.
+ *
+ * The message context publishes the attribute its blocks carry; finding one in
+ * the document is this adapter's job, because "where is it" is a question only
+ * the browser can answer.
+ *
+ * Addressed by position rather than by an id minted onto the element: the
+ * outline and the rendered markdown are two readings of the same document, so
+ * their headings are already in the same order, and an id would be a second
+ * spelling of that fact for both sides to drift apart on.
+ */
+export function scrollToHeading(anchor: string, index: number): void {
+  const root = scroller();
+  const block = root?.querySelector<HTMLElement>(`[${BLOCK_ANCHOR_ATTR}="${CSS.escape(anchor)}"]`);
+  const heading = block?.querySelectorAll<HTMLElement>("h1, h2, h3, h4, h5, h6")[index];
+  scrollIntoTranscript(heading ?? block ?? null);
 }
 
 function scrollToAnchored(attribute: string, value: string): void {

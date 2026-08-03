@@ -19,6 +19,7 @@ import narrativeRails from "@/plugins/builtin/chat/narrative-rails";
 import { builtinVisualStyles } from "@/plugins/builtin/theme/visualStyles";
 import lyraDark from "@/plugins/builtin/theme/themes/lyra-dark";
 import lyraLight from "@/plugins/builtin/theme/themes/lyra-light";
+import { defaultAccents } from "@/plugins/builtin/defaults";
 import planProgress from "@/plugins/builtin/chat/plan-progress";
 import { toolActions, toolIcons } from "@/plugins/builtin/chat/tools/meta";
 import { shellPreview, taskPreview } from "@/plugins/builtin/chat/tools/previews";
@@ -118,6 +119,7 @@ export async function installVisualAgentFixture(
     // scheme, which is why every `agent-light-*` golden was a byte-for-byte copy
     // of its dark twin.
     lyraLight,
+    defaultAccents,
     lyraDark,
     ...builtinVisualStyles,
     agentFold,

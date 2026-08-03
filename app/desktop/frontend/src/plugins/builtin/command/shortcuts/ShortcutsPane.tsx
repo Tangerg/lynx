@@ -43,7 +43,7 @@ export function ShortcutsPane() {
           </div>
         ) : (
           <table className="w-full border-collapse text-left text-ui-lg">
-            <thead className="sticky top-0 bg-surface-2 text-ui-sm font-semibold text-fg-faint">
+            <thead className="sticky top-0 bg-sunken text-ui-sm font-semibold text-fg-faint">
               <tr>
                 <th className="px-3 py-1.5">{t("shortcuts.action")}</th>
                 <th className="w-[160px] px-3 py-1.5 text-right">{t("shortcuts.shortcut")}</th>

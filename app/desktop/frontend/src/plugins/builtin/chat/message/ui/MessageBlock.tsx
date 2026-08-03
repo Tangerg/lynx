@@ -99,7 +99,7 @@ function MessageBlockInner({
             <div
               className={cn(
                 MESSAGE_CONTENT_CLASS,
-                "min-w-0 text-pretty leading-relaxed",
+                "min-w-0 text-pretty leading-prose",
                 isUser
                   ? "rounded-bubble bg-card px-4 py-3.5 text-ui-md text-fg"
                   : "text-ui-md text-fg-soft",

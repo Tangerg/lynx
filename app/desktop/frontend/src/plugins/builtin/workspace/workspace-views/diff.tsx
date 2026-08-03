@@ -61,7 +61,7 @@ function FileCard({
         aria-expanded={!collapsed}
         onClick={onToggle}
         className={cn(
-          "flex h-8 w-full min-w-0 items-center gap-2 border-0 bg-surface-2 px-3",
+          "flex h-8 w-full min-w-0 items-center gap-2 border-0 bg-sunken px-3",
           "text-left font-mono text-ui-sm text-fg-muted transition-colors hover:text-fg",
         )}
       >

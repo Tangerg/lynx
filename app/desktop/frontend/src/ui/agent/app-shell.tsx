@@ -22,6 +22,10 @@ interface AgentAppShellProps {
   sidebarCollapseLabel: string;
   main: ReactNode;
   overlay?: ReactNode;
+  /** The three window controls. Pinned to the window, so they are the shell's to
+   *  place and survive the drawer collapsing; omitted where there is no window
+   *  to control (a browser tab, a visual fixture). */
+  windowControls?: ReactNode;
 }
 
 /**
@@ -44,6 +48,7 @@ export function AgentAppShell({
   sidebarCollapseLabel,
   main,
   overlay,
+  windowControls,
 }: AgentAppShellProps) {
   const shellRef = useRef<HTMLDivElement>(null);
   const hasSidebar = sidebar !== undefined;
@@ -79,6 +84,7 @@ export function AgentAppShell({
       className="agent-shell"
       data-sidebar={hasSidebar && sidebarOpen ? "expanded" : "collapsed"}
     >
+      {windowControls && <div className="agent-window-controls">{windowControls}</div>}
       {hasSidebar && <AgentSidebar label={sidebarLabel}>{sidebar}</AgentSidebar>}
       {hasSidebar && (
         <div className="agent-window-sidebar-control">

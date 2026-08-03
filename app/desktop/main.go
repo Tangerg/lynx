@@ -31,13 +31,24 @@ func desktopApplicationOptions(host *DesktopHost) *options.App {
 			Assets: assets,
 		},
 		Bind:             []any{host},
+		OnStartup:        host.attachWindow,
 		BackgroundColour: &options.RGBA{R: 251, G: 251, B: 252, A: 1},
-		// macOS: hide the native titlebar but keep the native traffic-light
-		// controls (inset over our content) — these are the ONLY window controls;
-		// the app draws none of its own. Window stays draggable from the top
-		// region. Light appearance matches the light-first UI default.
+		// macOS: no title bar at all, so the system draws no window buttons.
+		// The app draws its own three controls in the gutter it already reserves
+		// for them, and moves the window through the draggable chrome bars.
+		//
+		// Dropping NSWindowStyleMaskTitled is what removes the buttons. The
+		// alternative — keeping them and positioning our chrome around them — is
+		// what we had, and it never lined up: their box is the system's, it
+		// changes with the appearance and the toolbar, and nothing in the window
+		// can measure it.
 		Mac: &mac.Options{
-			TitleBar:   mac.TitleBarHiddenInset(),
+			TitleBar: &mac.TitleBar{
+				TitlebarAppearsTransparent: true,
+				HideTitle:                  true,
+				HideTitleBar:               true,
+				FullSizeContent:            true,
+			},
 			Appearance: mac.NSAppearanceNameAqua,
 		},
 	}

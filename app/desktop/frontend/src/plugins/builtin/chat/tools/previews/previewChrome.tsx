@@ -15,7 +15,7 @@ export const TEXT_PREVIEW_CLASS =
 // stacked on it. (Deliberately NOT a bg-fg dark panel: bg-fg inverts per theme,
 // so it would turn bright in dark mode.)
 export const CODE_PREVIEW_CLASS =
-  "max-h-60 overflow-y-auto rounded-sm bg-sunken px-3 py-2.5 font-mono text-ui-md leading-relaxed text-fg-soft";
+  "max-h-60 overflow-y-auto rounded-sm bg-sunken px-3 py-2.5 font-mono text-code leading-relaxed text-fg-soft";
 
 // Rows shown inline in a specialised preview before the "… N more" footer.
 export const INLINE_PREVIEW_ROW_LIMIT = 9;

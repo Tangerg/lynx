@@ -95,7 +95,14 @@ export function AgentActivityDisclosure({
           >
             {leading ?? (icon ? <Icon name={icon} size="sm" /> : null)}
           </span>
-          <span className="shrink-0 truncate text-ui-sm font-medium text-fg-muted">{label}</span>
+          {/* `truncate` needs the box to be allowed to shrink. Pinned at
+              `shrink-0` it kept its full intrinsic width instead, so a long label
+              — a whole shell command, say — ran past the card's rounded corner and
+              was cut mid-glyph with no ellipsis. Shrinking is proportional to base
+              width, so a short verb still holds its ground against a long detail. */}
+          <span className="min-w-0 shrink truncate text-ui-sm font-medium text-fg-muted">
+            {label}
+          </span>
           {detail != null && (
             // The thing acted on — a path, a pattern, a preview line. It takes the
             // remaining width because it is what the eye is scanning for past a

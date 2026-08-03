@@ -18,7 +18,7 @@ function ColorRow({
   onChange: (hex: string) => void;
 }) {
   return (
-    <label className="flex items-center justify-between gap-3 rounded-md bg-surface-2 px-3 py-1.5 transition-colors hover:bg-surface-3">
+    <label className="flex items-center justify-between gap-3 rounded-md bg-sunken px-3 py-1.5 transition-colors hover:bg-hover">
       <span className="text-ui-lg text-fg-muted">{label}</span>
       <span className="relative inline-flex items-center gap-2">
         <span className="font-mono text-ui-md uppercase text-fg">{value}</span>

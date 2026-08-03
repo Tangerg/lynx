@@ -45,7 +45,7 @@ export function CompactionBlock({
         <span className="h-px flex-1 bg-fg/[0.08]" />
       </div>
       {open && summary && (
-        <div className="mx-auto mt-2 max-w-[640px] text-left text-ui-lg leading-relaxed text-fg-muted">
+        <div className="mx-auto mt-2 max-w-[640px] text-left text-ui-md leading-prose text-fg-muted">
           {summary}
         </div>
       )}

@@ -17,17 +17,26 @@
  * current build parser does not understand that platform selector.
  */
 
-/* Fonts: native UI first. Calm desktop density comes from SF Pro / PingFang
-   rather than a webfont trying to imitate platform chrome. Geist Mono stays
-   bundled for code, where stable metrics matter. */
+/* Fonts. Both faces are bundled variable subsets, not platform faces: a tool
+   window has to look the same on every machine it ships to, and the reference
+   this UI is built against is drawn in exactly these two. Latin only — CJK
+   falls through to the platform face, which is what we want for it anyway. */
 @import "tailwindcss";
 
 @font-face {
-  font-family: "Geist Mono";
+  font-family: "Geist";
   font-style: normal;
   font-display: swap;
   font-weight: 100 900;
-  src: url("/fonts/geist-mono.woff2") format("woff2-variations");
+  src: url("/fonts/geist.woff2") format("woff2-variations");
+}
+
+@font-face {
+  font-family: "JetBrains Mono";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url("/fonts/jetbrains-mono.woff2") format("woff2-variations");
 }
 
 /* Scheme variants. `theme-light` / `theme-dark` are written to <html>
@@ -57,7 +66,13 @@
      should follow it without being edited. */
   --color-card: var(--app-card-surface);
   /* A well is the palette's own recessed material — it means the same thing in
-     every style, so this one reads the anchor directly. */
+     every style, so this one reads the anchor directly.
+     SIZE picks between this and the chip rungs, and it is not a matter of taste:
+     `surface-2/3` are mixed out of the CHROME grey, so at row size on the reading
+     plane they land far darker than the plane they sit on and read as grime.
+     Anything the size of a row, a block or a panel is a well and takes this;
+     `surface-2/3` are for things smaller than a row — badges, key caps, inline
+     code, avatar tiles, resting control fills. */
   --color-sunken: var(--color-sunken);
 
   /* Ink ladder */
@@ -169,6 +184,7 @@
   --leading-snug: var(--leading-snug);
   --leading-body: var(--leading-body);
   --leading-relaxed: var(--leading-relaxed);
+  --leading-prose: var(--leading-prose);
 
   --weight-medium: 500;
   --weight-semibold: 600;
@@ -190,13 +206,12 @@
   --radius-bubble: var(--shape-bubble);
   --radius-pill: var(--shape-pill);
 
-  /* Fonts — the OS UI face leads so window chrome, dense rows and CJK all read
-     as one native desktop surface. Geist Mono remains the coding face. */
+  /* Fonts — the platform faces are the CJK fallback, not the lead. */
   --font-sans:
-    -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Hiragino Sans GB", system-ui,
-    "Segoe UI", "Microsoft YaHei", sans-serif;
+    "Geist", -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Hiragino Sans GB",
+    system-ui, "Segoe UI", "Microsoft YaHei", sans-serif;
   --font-mono:
-    "Geist Mono", ui-monospace, "SF Mono", SFMono-Regular, Menlo, "Cascadia Code", Consolas,
+    "JetBrains Mono", ui-monospace, "SF Mono", SFMono-Regular, Menlo, "Cascadia Code", Consolas,
     monospace;
 
   /* Animations — `animate-shimmer` powers Skeleton, `animate-pulse-dot`
@@ -464,7 +479,7 @@
   --fw-medium: 500;
   --fw-semibold: 600;
 
-  /* Leading ladder. Four steps, and they are the ONLY leadings in the app —
+  /* Leading ladder. Five steps, and they are the ONLY leadings in the app —
      line-height is where text breathes, and it had drifted into five arbitrary
      values within 0.2 of each other (1.4 / 1.45 / 1.5 / 1.55 / 1.6) that no reader
      could tell apart while every one of them was a number someone had to pick.
@@ -472,11 +487,16 @@
        tight  display / headings, where size carries the rhythm
        snug   dense chrome: two-line labels, meta rows
        body   default UI text
-       relaxed reading text — composer, message copy, prose */
+       relaxed monospace blocks — code, diffs, command output
+       prose  continuous reading text — message copy, reasoning, composer
+     `prose` sits above `relaxed` rather than replacing it because a diff hunk
+     and a paragraph want opposite things: the diff is scanned column-wise and
+     wants its lines close, the paragraph is read line-wise and wants air. */
   --leading-tight: 1.15;
   --leading-snug: 1.35;
   --leading-body: 1.55;
   --leading-relaxed: 1.65;
+  --leading-prose: 1.8;
 
   /* Visual-style geometry is the base; the user's radius preference is the
      multiplier. Colour themes never write either side of this equation. */
@@ -611,13 +631,27 @@
   --app-dock-surface: color-mix(in oklab, var(--color-bg) 25%, var(--color-surface));
   --app-card-surface: var(--color-elevated);
   --app-surface-divider: transparent;
-  --app-card-edge: inset 9px 0 22px -14px var(--shell-boundary);
+  --app-card-edge: inset 11px 0 24px -10px var(--shell-boundary);
   --app-pane-split: -7px 0 22px -10px var(--shadow-cast);
   --app-pane-split-end: 7px 0 22px -10px var(--shadow-cast);
   --seam-line: color-mix(in oklab, var(--color-border) 82%, var(--color-text) 18%);
 
-  /* Content max-width — the centered reading island. */
-  --content-max: 820px;
+  /* The reading column and the two gutters flanking it.
+     The gutters are what the narrative rails render into, and they are reserved
+     by the column's own layout rather than by whether a rail currently has
+     anything to show — otherwise the text slides sideways whenever you scroll
+     past a turn with no outline. Sized so the column lands near 600px at the
+     window width the workbench is designed around (drawer + dock both open),
+     which is also the measure the cap protects when the dock is closed. */
+  --rail-start-width: 72px;
+  --rail-end-width: 224px;
+  --content-max: 680px;
+  /* Column plus both gutters. This — not the column alone — is what centres in
+     the pane, so the dots stay the same distance from the text they mark and the
+     outline the same distance on the other side, at every window width. Centring
+     the column on its own instead lets the rails drift to the far edges of a wide
+     pane while the text sits in the middle, pointing at nothing near them. */
+  --reading-frame-max: calc(var(--rail-start-width) + var(--content-max) + var(--rail-end-width));
 }
 
 /* IMPORTANT: do not set `font-size` on <html>. It anchors `rem` for
@@ -929,9 +963,17 @@ html.theme-light .msg-content code {
   /* Drawer width. Live-updated inline on the shell element while dragging the
      seam rail; AgentAppShell restores the persisted value on mount. */
   --sidebar-width: 240px;
-  /* macOS traffic lights occupy the first ~66px. The shell-level drawer control
-     starts after one stable gutter and never changes owner or coordinate. */
+  /* The app's own window controls occupy the whole of this gutter: three 24px
+     targets from 6px in, whose 12px marks land on 20 / 44 / 68. The shell-level
+     drawer control starts after it and never changes owner or coordinate. */
   --window-controls-gutter: 78px;
+  /* The three marks are the platform's colours, not the theme's: they mean the
+     same thing in every app on the desktop, and a window whose close button is
+     the accent hue is a window nobody recognises. They do not follow the scheme
+     for the same reason. */
+  --window-control-close: #ec6a5e;
+  --window-control-minimise: #f4bf50;
+  --window-control-maximise: #61c454;
   --window-sidebar-control-span: 36px;
   /* Chrome bar height. Shared by the sidebar header and every content header so
      the two line up across the seam — the single number the macOS traffic-light
@@ -982,6 +1024,23 @@ html.theme-dark {
   inset-block-start: 0;
   inset-inline-start: var(--window-controls-gutter);
   z-index: 40;
+  display: flex;
+  height: var(--surface-header-height);
+  align-items: center;
+  -webkit-app-region: no-drag;
+  --wails-draggable: no-drag;
+}
+
+/* The window controls own the gutter that is named after them. Pinned to the
+   window rather than to the drawer, because they are the window's and must not
+   move — or vanish — when the drawer collapses. */
+.agent-window-controls {
+  position: absolute;
+  inset-block-start: 0;
+  /* Three 24px targets butted together, so the cluster is exactly the gutter and
+     the first 12px mark still lands on the platform's 20px left margin. */
+  inset-inline-start: 6px;
+  z-index: 41;
   display: flex;
   height: var(--surface-header-height);
   align-items: center;

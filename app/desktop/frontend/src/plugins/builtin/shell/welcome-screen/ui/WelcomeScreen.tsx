@@ -73,7 +73,7 @@ function SetupCard() {
           <div className="text-balance text-ui-lg font-semibold text-fg">
             {t("welcome.setup.title")}
           </div>
-          <p className="m-0 text-pretty text-ui-lg leading-relaxed text-fg-soft">
+          <p className="m-0 text-pretty text-ui-md leading-prose text-fg-soft">
             {t("welcome.setup.sub")}
           </p>
           <PillButton variant="solid" onClick={onConfigure} className="mt-0.5 font-semibold">

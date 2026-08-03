@@ -73,8 +73,17 @@
         );
       })();
     </script>
-    <!-- Fonts: the native OS stack (SF Pro / PingFang on macOS) — see
-         globals.css --font-sans. No bundled webfont, no CDN <link>. -->
+    <!-- Fonts are bundled variable subsets served from /fonts — see
+         globals.css. Preloaded because both faces are on the very first frame:
+         without this the window paints once in the CJK fallback and reflows. -->
+    <link rel="preload" href="/fonts/geist.woff2" as="font" type="font/woff2" crossorigin />
+    <link
+      rel="preload"
+      href="/fonts/jetbrains-mono.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
   </head>
   <body>
     <div id="root"></div>

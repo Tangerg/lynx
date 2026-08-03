@@ -13,9 +13,9 @@ export const CommandLog = memo(function CommandLog({
 }) {
   const t = useT();
   return (
-    <div className="flex flex-col gap-2.5 px-3 py-3 font-mono text-ui-md leading-relaxed">
+    <div className="flex flex-col gap-2.5 px-3 py-3 font-mono text-code leading-relaxed">
       {commands.map((c) => (
-        <div key={c.id} className="rounded-md bg-surface-2 px-3 py-2.5">
+        <div key={c.id} className="rounded-md bg-sunken px-3 py-2.5">
           <div className="flex items-baseline gap-2">
             <span className="shrink-0 text-fg-faint">$</span>
             <span className="min-w-0 truncate text-fg" title={c.command}>

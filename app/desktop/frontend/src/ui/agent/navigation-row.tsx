@@ -78,7 +78,7 @@ export function AgentRow({
         // `h-auto` is load-bearing: the size variant ships a fixed `h-`, and
         // without replacing it the second line renders outside the row's fill.
         detail
-          ? "h-auto min-h-[var(--density-row-height)] items-start py-1.5"
+          ? "h-auto min-h-[var(--density-row-height)] items-start py-2"
           : "h-[var(--density-row-height)]",
         indent === "nested" ? "px-2 pl-[30px]" : "px-2",
         action && "pr-8",
@@ -92,13 +92,21 @@ export function AgentRow({
           className={cn("shrink-0 text-fg/95", detail && "mt-px", iconClassName)}
         />
       )}
+      {/* A two-line row breathes on `body` rather than `snug`: stacked lines set
+          at heading leading read as one clipped block, and the index is the
+          surface a user scans longest. */}
       <span className="flex min-w-0 flex-1 flex-col gap-px">
-        <span className="flex min-w-0 items-center gap-2 leading-snug">
+        <span
+          className={cn(
+            "flex min-w-0 items-center gap-2",
+            detail ? "leading-body" : "leading-snug",
+          )}
+        >
           <span className="min-w-0 flex-1 truncate">{children}</span>
           {trailing && <span className={cn("shrink-0", action && RESTING_GLYPH)}>{trailing}</span>}
         </span>
         {detail != null && (
-          <span className="min-w-0 truncate text-ui-xs font-normal leading-snug text-fg-faint">
+          <span className="min-w-0 truncate text-ui-2xs font-normal leading-body text-fg-faint">
             {detail}
           </span>
         )}

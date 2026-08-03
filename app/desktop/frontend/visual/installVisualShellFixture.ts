@@ -10,6 +10,7 @@ import { sidebarFooter, sidebarNewSession, sidebarProjects } from "@/plugins/bui
 import { builtinVisualStyles } from "@/plugins/builtin/theme/visualStyles";
 import lyraDark from "@/plugins/builtin/theme/themes/lyra-dark";
 import lyraLight from "@/plugins/builtin/theme/themes/lyra-light";
+import { defaultAccents } from "@/plugins/builtin/defaults";
 import { installWorkspaceNavigationPort } from "@/plugins/builtin/workspace/adapters/navigationStatePort";
 import {
   WORKSPACE_PROJECTS_KEY,
@@ -178,6 +179,7 @@ export async function installVisualShellFixture(
   for (const plugin of [
     dataProviderPlugin(state),
     lyraLight,
+    defaultAccents,
     lyraDark,
     ...builtinVisualStyles,
     sidebarNewSession,

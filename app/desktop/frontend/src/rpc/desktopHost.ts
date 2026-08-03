@@ -24,11 +24,25 @@ export interface DesktopBootstrap {
 
 interface DesktopHostBinding {
   Bootstrap(): Promise<unknown>;
+  MinimiseWindow(): Promise<void>;
+  ToggleMaximiseWindow(): Promise<void>;
+  CloseWindow(): Promise<void>;
 }
 
 export interface DesktopHostClient {
   /** Returns null in a plain browser where the Wails host is intentionally absent. */
   bootstrap(): Promise<DesktopBootstrap | null>;
+  /**
+   * The three window commands, because the platform draws no controls for them.
+   *
+   * Void and fire-and-forget: each one either moves the window or the window is
+   * not there (a browser tab, a visual fixture), and neither outcome is
+   * something a caller can act on. Failing here must never surface as an error
+   * in the UI — a dead minimise button is not worth a dialog.
+   */
+  minimiseWindow(): void;
+  toggleMaximiseWindow(): void;
+  closeWindow(): void;
 }
 
 const DesktopBootstrapSchema = z.object({
@@ -70,5 +84,16 @@ export function createDesktopHostClient(binding?: DesktopHostBinding): DesktopHo
       })();
       return pending;
     },
+    minimiseWindow: () => command((host) => host.MinimiseWindow()),
+    toggleMaximiseWindow: () => command((host) => host.ToggleMaximiseWindow()),
+    closeWindow: () => command((host) => host.CloseWindow()),
   };
+
+  function command(run: (host: DesktopHostBinding) => Promise<void>): void {
+    const host = binding ?? wailsDesktopHostBinding();
+    if (!host) return;
+    void Promise.resolve(run(host)).catch((error: unknown) => {
+      console.error("[desktop] window command failed:", error);
+    });
+  }
 }
