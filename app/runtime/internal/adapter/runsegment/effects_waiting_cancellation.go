@@ -733,9 +733,6 @@ func normalizeItemSnapshot(item transcript.Item) transcript.Item {
 	if len(item.Content) == 0 {
 		item.Content = nil
 	}
-	if len(item.Steps) == 0 {
-		item.Steps = nil
-	}
 	if item.Question != nil {
 		question := *item.Question
 		question.Fields = slices.Clone(question.Fields)

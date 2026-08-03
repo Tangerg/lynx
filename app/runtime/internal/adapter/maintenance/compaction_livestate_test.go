@@ -10,10 +10,10 @@ import (
 	"github.com/Tangerg/lynx/core/chat"
 )
 
-func TestLiveStateReminderRendersShellsAndTodos(t *testing.T) {
+func TestLiveStateReminderRendersShellsAndPlan(t *testing.T) {
 	msg, ok := liveStateReminder(LiveStateSnapshot{
 		Shells: []RunningShell{{ID: "bg_1", Command: "npm run dev"}},
-		Todos:  []string{"Wire the search index"},
+		Plan:   []string{"Wire the search index"},
 	})
 	if !ok {
 		t.Fatal("non-empty snapshot should render a reminder")
@@ -49,7 +49,7 @@ func TestCompactorAppendsLiveStateReminder(t *testing.T) {
 		}
 		return LiveStateSnapshot{
 			Shells: []RunningShell{{ID: "bg_7", Command: "go test ./..."}},
-			Todos:  []string{"Finish the compaction reminder"},
+			Plan:   []string{"Finish the compaction reminder"},
 		}
 	}
 

@@ -26,10 +26,10 @@ func (c *Coordinator) applyRollback(ctx context.Context, sessionID string, bound
 	if err != nil {
 		return err
 	}
-	// Read the boundary's task list BEFORE the write-set drops the runs after it: the
+	// Read the boundary's Plan BEFORE the write-set drops the runs after it: the
 	// kept run survives, but reading inside the plan would mean the adapter deciding
 	// which boundary the state comes from.
-	todos, err := c.todoBoundary(ctx, boundary.KeepRunID)
+	plan, err := c.planBoundary(ctx, boundary.KeepRunID)
 	if err != nil {
 		return err
 	}
@@ -47,12 +47,12 @@ func (c *Coordinator) applyRollback(ctx context.Context, sessionID string, bound
 				KeepMark:          boundary.KeepMark,
 				DropRunIDs:        dropRunIDs,
 				CheckpointRootIDs: parkedCheckpointRootIDs(parked),
-				Todos:             todos,
+				Plan:              plan,
 			})
 		},
 		func(ctx context.Context) error {
 			// The truncation is committed: the dropped Run subtree is gone and the
-			// boundary's task list is published. Delegated work has no parallel
+			// boundary's Plan is published. Delegated work has no parallel
 			// Session identity to clean up.
 			c.publishAggregateMoved([]string{sessionID}, dropRunIDs)
 			var cleanupErrs []error

@@ -53,7 +53,7 @@ func buildToolEnvironment(
 		LSPServers:      codeintelServerSpecs(cfg.LSPServers),
 		MCPTools:        mcpTools,
 		A2AAgents:       toolsetA2AAgentConfigs(cfg.A2AAgents),
-		Todos:           cfg.TodoStore,
+		Plan:            cfg.PlanStore,
 		Approval:        approvalPolicy,
 		Interrupt:       suspension.Interrupt,
 		MCPToolDisabled: mcpEnv.policy.ToolDisabled,

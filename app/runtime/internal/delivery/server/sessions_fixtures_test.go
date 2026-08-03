@@ -23,8 +23,8 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 	"github.com/Tangerg/lynx/core/chat"
 )
@@ -119,7 +119,7 @@ type stubRuntime struct {
 	hist        *sqlite.TranscriptStore   // durable Item history
 	runs        *sqlite.RunStore          // durable Run records (rollback/fork read runs)
 	toolResults *sqlite.ToolResultStore
-	todos       *sqlite.TodoStore              // session-scoped state: exported, restored, dropped with the session
+	plan        *sqlite.PlanStore              // session-scoped state: exported, restored, dropped with the session
 	interrupts  *sqlite.InterruptStore         // open-interrupt registry (rollback clears dropped)
 	muts        *sqlite.WorkspaceMutationStore // §8.5 recoverable file-rollback log
 	turns       turnRuntime
@@ -163,9 +163,9 @@ func (s stubRuntime) queriesCoordinator() *queries.Coordinator {
 		Runs:       s.runs,
 		Sessions:   s.sess,
 		// The composition root passes the same store to both the write path and the
-		// query one, because features.todos IS "the store exists" — so a harness that
-		// wired only the writes could not reach todos.get at all.
-		Todos: s.todos,
+		// query one, because features.plan IS "the store exists" — so a harness that
+		// wired only the writes could not reach plan.get at all.
+		Plan: s.plan,
 	})
 }
 
@@ -381,16 +381,16 @@ func (s stubLifecycleStores) ReadSnapshot(ctx context.Context, id string) (sessi
 			return sessions.Snapshot{}, err
 		}
 	}
-	var todos []todo.Item
-	if s.rt.todos != nil {
-		todos, err = s.rt.todos.List(ctx, id)
+	var steps []plan.Step
+	if s.rt.plan != nil {
+		steps, err = s.rt.plan.List(ctx, id)
 		if err != nil {
 			return sessions.Snapshot{}, err
 		}
 	}
 	return sessions.Snapshot{
 		Session: ses, Messages: messages, Items: items, Runs: runs,
-		ToolResults: toolResults, Todos: todos,
+		ToolResults: toolResults, Plan: steps,
 	}, nil
 }
 
@@ -478,8 +478,8 @@ func (s stubLifecycleStores) ApplyRestore(ctx context.Context, plan sessions.Res
 	}
 	// Replaced, never deleted-and-reinserted: the revision has to come out greater
 	// than what this session already published.
-	if s.rt.todos != nil {
-		if err := s.rt.todos.Replace(ctx, id, plan.Todos); err != nil {
+	if s.rt.plan != nil {
+		if err := s.rt.plan.Replace(ctx, id, plan.Plan); err != nil {
 			return err
 		}
 	}

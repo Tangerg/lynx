@@ -15,7 +15,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/todotool"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/plantool"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
@@ -92,17 +92,17 @@ func buildEngine(t *testing.T, cfg agentexec.Config) *agentexec.Engine {
 	if cfg.BuildID == "" {
 		cfg.BuildID = testProcessBuildID
 	}
-	var todos todotool.Store
-	if cfg.Todos != nil {
+	var plan plantool.Store
+	if cfg.Plan != nil {
 		var ok bool
-		todos, ok = cfg.Todos.(todotool.Store)
+		plan, ok = cfg.Plan.(plantool.Store)
 		if !ok {
-			t.Fatalf("test engine todo source must support todo_write")
+			t.Fatalf("test engine plan source must support set_plan")
 		}
 	}
 	built, err := toolset.Build(context.Background(), toolset.BuildConfig{
 		Workdir: cfg.Workdir,
-		Todos:   todos,
+		Plan:    plan,
 	})
 	if err != nil {
 		t.Fatalf("toolset.Build: %v", err)

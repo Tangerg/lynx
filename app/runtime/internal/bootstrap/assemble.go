@@ -102,7 +102,7 @@ type Stack struct {
 	ScheduleFiring   *schedules.Firing
 	IdempotencyStore *sqlitestore.IdempotencyStore
 	GitAvailable     bool
-	TodosEnabled     bool
+	PlanEnabled      bool
 }
 
 // Host owns the assembled application tier and its process-level close order
@@ -445,7 +445,7 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 		Maintenance:         turnServices.maintenance,
 		Approval:            approvalPolicy,
 		ClientResolver:      resolver,
-		Todos:               ecfg.Todos,
+		Plan:                ecfg.Plan,
 		ToolPresenter:       toolset.Presenter{},
 		MCPToolAutoApproved: mcpEnv.policy.ToolAutoApproved,
 		Hooks:               cfg.HooksResolver,
@@ -520,7 +520,7 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 		Runs:                cfg.RunStore,
 		ExecutorCheckpoints: cfg.ExecutorCheckpoints,
 		History:             messages.conversation,
-		Todos:               cfg.TodoStore,
+		Plan:                cfg.PlanStore,
 		Approvals:           cfg.ApprovalRuleStore,
 		ToolResults:         cfg.ToolResultStore,
 		Goals:               cfg.GoalStore,
@@ -544,7 +544,7 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 		Interrupts:   cfg.InterruptStore,
 		Transcript:   cfg.TranscriptStore,
 		Runs:         cfg.RunStore,
-		Boundaries:   cfg.TodoStore,
+		Boundaries:   cfg.PlanStore,
 		Snapshots:    sessionStorage,
 		Writes:       sessionStorage,
 		Forgetter:    turnDispatcher,
@@ -676,7 +676,7 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 				Interrupts: cfg.InterruptStore,
 				Runs:       cfg.RunStore,
 				Sessions:   cfg.SessionStore,
-				Todos:      cfg.TodoStore,
+				Plan:       cfg.PlanStore,
 			}),
 			Usage: usage.New(usage.Dependencies{
 				Runs:            cfg.RunStore,
@@ -696,7 +696,7 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 			Goals:              goalDriver,
 			AgentMemory:        agentMemoryCoord,
 			GitAvailable:       checkpointstore.GitAvailable(),
-			TodosEnabled:       cfg.TodoStore != nil,
+			PlanEnabled:        cfg.PlanStore != nil,
 		},
 		lifetime: lifetime,
 	}

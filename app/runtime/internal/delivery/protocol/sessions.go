@@ -165,9 +165,9 @@ type ExportSessionResponse struct {
 // artifact it doesn't recognize; development builds do not migrate old
 // artifacts.
 //
-// v9 makes Question a closed ordered field union and aligns answers by position.
-// Older documents are refused before any write rather than partially decoded.
-const SessionArtifactVersion = 9
+// v10 establishes the single Plan/Step artifact contract. Older documents are
+// refused before any write rather than partially decoded.
+const SessionArtifactVersion = 10
 
 // SessionArtifact is the portable, round-trippable form of a session: its
 // identity plus the full conversation — chat messages (the model's context),
@@ -188,7 +188,7 @@ type SessionArtifact struct {
 	Items       []ArtifactItem       `json:"items"`
 	ToolResults []ArtifactToolResult `json:"toolResults"`
 	// States carries the session-scoped projections a person would notice losing —
-	// today the task list. An archive without them round-trips a conversation and
+	// today the Plan. An archive without them round-trips a conversation and
 	// silently drops the work plan attached to it.
 	//
 	// Only the portable semantic VALUE travels: no revision and no updatedAt. Those
@@ -205,16 +205,16 @@ type SessionArtifact struct {
 // and no read.
 type ArtifactStateType string
 
-const ArtifactStateTodos ArtifactStateType = "todos"
+const ArtifactStatePlan ArtifactStateType = "plan"
 
 // ArtifactState is one session-scoped projection's portable value, discriminated
 // by its key. At most one entry per type: this is a map of keys to values, and a
-// second entry for one key would be two answers to "what was the task list".
+// second entry for one key would be two answers to "what was the Plan".
 // That rule is an aggregate invariant rather than a schema keyword — the same
 // place duplicate item ids are refused.
 type ArtifactState struct {
-	Type  ArtifactStateType `json:"type"`
-	Todos []TodoSnapshot    `json:"todos,omitempty"`
+	Type ArtifactStateType `json:"type"`
+	Plan []PlanSnapshot    `json:"plan,omitempty"`
 }
 
 // ArtifactSession is the durable session identity and user-owned metadata. It
@@ -328,7 +328,6 @@ type ArtifactItem struct {
 	Content         []ArtifactContentBlock  `json:"content,omitempty"`
 	Text            string                  `json:"text,omitempty"`
 	Redacted        bool                    `json:"redacted,omitempty"`
-	Steps           []ArtifactPlanStep      `json:"steps,omitempty"`
 	Question        *ArtifactQuestion       `json:"question,omitempty"`
 	Tool            *ArtifactToolInvocation `json:"tool,omitempty"`
 	SafetyClass     SafetyClass             `json:"safetyClass,omitempty"`
@@ -342,12 +341,6 @@ type ArtifactContentBlock struct {
 	Text string           `json:"text,omitempty"`
 	Mime string           `json:"mime,omitempty"`
 	Data string           `json:"data,omitempty"`
-}
-
-type ArtifactPlanStep struct {
-	ID     string         `json:"id"`
-	Title  string         `json:"title"`
-	Status PlanStepStatus `json:"status"`
 }
 
 type ArtifactQuestion struct {

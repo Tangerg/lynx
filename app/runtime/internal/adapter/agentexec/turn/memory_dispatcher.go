@@ -17,7 +17,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
 	"github.com/Tangerg/lynx/chatclient"
 )
 
@@ -29,14 +29,14 @@ type clientResolver interface {
 	ResolveClient(ctx context.Context, selection modelref.Selection) (*chatclient.Client, error)
 }
 
-// todoReader reads a session's task-list projection — narrow consumer view of the
-// todo store (the turn only reads, never writes). The turn publishes it as
-// state.snapshot after a todo_write so a client renders the task panel, and it
-// reads the whole state rather than the items alone: what identifies one
+// planReader reads a session's Plan projection — a narrow consumer view of the
+// Plan store (the turn only reads, never writes). The turn publishes it as
+// state.snapshot after set_plan so a client renders the Plan, and it
+// reads the whole state rather than Steps alone: what identifies one
 // replacement from the next is the revision, not the contents. nil disables the
 // projection.
-type todoReader interface {
-	State(ctx context.Context, sessionID string) (todo.State, error)
+type planReader interface {
+	State(ctx context.Context, sessionID string) (plan.State, error)
 }
 
 // ApprovalGate is the tool-call evaluator's complete approval view. Mode/rules
@@ -79,9 +79,9 @@ type Dependencies struct {
 	// supports only unset selections, which use the engine default client.
 	ClientResolver clientResolver
 
-	// Todos reads the session's todo list for state.snapshot projection after a
-	// todo_write. nil disables the projection.
-	Todos todoReader
+	// Plan reads the session's Plan for state.snapshot projection after a
+	// set_plan. nil disables the projection.
+	Plan planReader
 
 	// ToolPresenter projects concrete tool activity and results for clients. nil
 	// preserves canonical tool results and uses generic activity text.
@@ -132,7 +132,7 @@ func New(deps Dependencies) (*memoryDispatcher, error) {
 		maintenance:         deps.Maintenance,
 		approval:            deps.Approval,
 		resolver:            deps.ClientResolver,
-		todos:               deps.Todos,
+		plan:                deps.Plan,
 		toolPresenter:       deps.ToolPresenter,
 		mcpToolAutoApproved: deps.MCPToolAutoApproved,
 		hooks:               deps.Hooks,
@@ -150,7 +150,7 @@ type memoryDispatcher struct {
 	maintenance   BoundaryMaintenance // optional — nil = no turn-boundary maintenance
 	approval      ApprovalGate
 	resolver      clientResolver // optional — nil accepts only the default model
-	todos         todoReader     // optional — nil = no state.snapshot{todos} projection
+	plan          planReader     // optional — nil = no state.snapshot{plan} projection
 	toolPresenter ToolPresenter  // optional — nil = generic activity and canonical results
 
 	// mcpToolAutoApproved reports whether an identified MCP tool skips the

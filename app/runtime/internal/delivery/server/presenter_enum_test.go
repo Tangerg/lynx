@@ -12,7 +12,6 @@ func TestPresentersRejectUnknownDomainEnums(t *testing.T) {
 	mustPanic(t, func() { presentItemStatus(transcript.ItemStatus(99)) })
 	mustPanic(t, func() { presentItemKind(transcript.ItemKind(99)) })
 	mustPanic(t, func() { presentContent(transcript.ContentBlock{Kind: transcript.ContentKind(99)}) })
-	mustPanic(t, func() { presentPlanSteps([]transcript.PlanStep{{Status: "future"}}) })
 	mustPanic(t, func() {
 		presentQuestion(transcript.Question{Fields: []transcript.QuestionField{{Kind: transcript.QuestionFieldKind(99)}}})
 	})

@@ -4,7 +4,7 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
 )
 
 type RunEvent interface {
@@ -32,7 +32,7 @@ type ItemCompleted struct {
 // snapshot from a newer one.
 type StateSnapshot struct {
 	SessionID string
-	Todos     []TodoSnapshot
+	Plan      []PlanSnapshot
 	Revision  uint64
 	UpdatedAt time.Time
 }
@@ -76,7 +76,6 @@ const (
 	ReasoningDeltaKind
 	ToolArgumentsDelta
 	ToolOutputDelta
-	PlanDelta
 )
 
 type ItemDelta struct {
@@ -84,13 +83,10 @@ type ItemDelta struct {
 	Index              *int
 	Text               string
 	ArgumentsTextDelta string
-	Steps              []transcript.PlanStep
 }
 
-type TodoSnapshot struct {
-	ID            string
-	Text          string
-	Status        todo.Status
-	BlockedReason string
-	NextAction    string
+type PlanSnapshot struct {
+	ID          string
+	Description string
+	Status      plan.Status
 }

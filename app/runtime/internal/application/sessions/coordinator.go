@@ -23,8 +23,8 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
 )
 
 // SessionStore is the coordinator's consumer view of session persistence: the
@@ -58,13 +58,13 @@ type TranscriptStore interface {
 	List(ctx context.Context, sessionID string) ([]transcript.Item, error)
 }
 
-// TodoBoundaries is the lifecycle coordinator's read view of the task list a Run
+// PlanBoundaries is the lifecycle coordinator's read view of the Plan a Run
 // boundary recorded. Rollback and fork both need "the value as of that run", which
 // the live projection cannot answer: it keeps the latest value and no history. A
-// false ok is "never recorded", not "empty" — see [TodoBoundary]. nil disables it
-// (no task-list state to move with a boundary).
-type TodoBoundaries interface {
-	Boundary(ctx context.Context, runID string) ([]todo.Item, bool, error)
+// false ok is "never recorded", not "empty" — see [PlanBoundary]. nil disables it
+// (no Plan state to move with a boundary).
+type PlanBoundaries interface {
+	Boundary(ctx context.Context, runID string) ([]plan.Step, bool, error)
 }
 
 // RunStore is the lifecycle coordinator's read view of a session's Runs. Every
@@ -82,11 +82,11 @@ type RunStore interface {
 // the plan; the adapter executes it atomically, enriching nothing.
 type WriteSets interface {
 	// ApplyFork branches a child session off the plan's parent, seeds its chat log
-	// with the resolved history prefix and its task list with the boundary value,
+	// with the resolved history prefix and its Plan with the boundary value,
 	// and titles it — atomically — returning the created child.
 	ApplyFork(ctx context.Context, plan ForkPlan) (session.Session, error)
 	// ApplyRollback truncates the chat log to the boundary, drops each
-	// past-boundary run, republishes the boundary's todo projection, and
+	// past-boundary run, republishes the boundary's plan projection, and
 	// terminalizes an abandoned parked run — atomically. Delegated work is
 	// already represented by child Runs in the same session.
 	ApplyRollback(ctx context.Context, plan RollbackPlan) error
@@ -95,7 +95,7 @@ type WriteSets interface {
 	// messages/runs/items) — atomically.
 	ApplyRestore(ctx context.Context, plan RestorePlan) error
 	// ApplyDelete removes all durable state for the addressed session —
-	// transcript, chat log, todos, session approval rules, interrupts, admission
+	// transcript, chat log, plan, session approval rules, interrupts, admission
 	// rows, and the session row — atomically.
 	ApplyDelete(ctx context.Context, plan DeletePlan) error
 	// ApplyTerminal ends a parked run: it persists the terminal transcript
@@ -124,12 +124,12 @@ type Snapshot struct {
 	Items       []transcript.Item
 	Runs        []transcript.Run
 	ToolResults []offload.ToolResultBlob
-	// Todos is the session-scoped task list as a semantic VALUE — items only, no
+	// Plan is the session-scoped Plan as a semantic VALUE — items only, no
 	// revision and no update time. Those are this runtime's ordering tokens: a
 	// snapshot that carried them could hand a restored value a position in the
 	// revision space that the restoring runtime never issued, and a client would
 	// then ignore the newer value as stale.
-	Todos []todo.Item
+	Plan []plan.Step
 }
 
 // WorkspaceCheckpoints is the coordinator's view of a session's working-tree
@@ -204,7 +204,7 @@ type Coordinator struct {
 	interrupts   InterruptStore
 	transcript   TranscriptStore
 	runs         RunStore
-	boundaries   TodoBoundaries
+	boundaries   PlanBoundaries
 	snapshots    SnapshotReader
 	writes       WriteSets
 	forgetter    SessionForgetter
@@ -242,7 +242,7 @@ type Dependencies struct {
 	Interrupts   InterruptStore
 	Transcript   TranscriptStore
 	Runs         RunStore
-	Boundaries   TodoBoundaries
+	Boundaries   PlanBoundaries
 	Snapshots    SnapshotReader
 	Writes       WriteSets
 	Forgetter    SessionForgetter

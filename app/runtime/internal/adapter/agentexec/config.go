@@ -10,7 +10,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/accounting"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/knowledge"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
 	"github.com/Tangerg/lynx/chatclient"
 	history "github.com/Tangerg/lynx/chathistory"
 )
@@ -21,13 +21,13 @@ type KnowledgeReader interface {
 	Get(ctx context.Context, scope knowledge.Scope, dir string) (string, error)
 }
 
-// TodoReader is the execution adapter's read-only view of session todos: the
+// PlanReader is the execution adapter's read-only view of session plan: the
 // items for prompt assembly, and the whole projection — revision included — for
 // the state.snapshot the turn publishes after a replacement.
 // Replacing a list and lifecycle cleanup belong to their direct consumers.
-type TodoReader interface {
-	List(ctx context.Context, sessionID string) ([]todo.Item, error)
-	State(ctx context.Context, sessionID string) (todo.State, error)
+type PlanReader interface {
+	List(ctx context.Context, sessionID string) ([]plan.Step, error)
+	State(ctx context.Context, sessionID string) (plan.State, error)
 }
 
 // AgentMemoryReader is the prompt assembler's view of agent-maintained memory
@@ -103,11 +103,10 @@ type Config struct {
 	// disables per-turn recall (only the pinned core is injected).
 	MemorySearch MemorySearcher
 
-	// Todos optionally supplies the per-session task list backing the
-	// todo_write tool: when set, the tool is registered and the session's
-	// current list is injected into every system prompt. nil disables the
-	// feature (no tool, no injection).
-	Todos TodoReader
+	// Plan optionally supplies the root Agent's per-session execution plan.
+	// The tool resolver owns set_plan visibility; this read-only port only injects
+	// the current plan into system prompts. nil disables plan injection.
+	Plan PlanReader
 
 	// ToolResolver supplies the execution-time role groups and accepts the task
 	// delegation tool that can only be built after the subtask Agent deploys.

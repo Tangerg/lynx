@@ -1373,7 +1373,7 @@
       }
     },
     {
-      "name": "todos.get",
+      "name": "plan.get",
       "paramStructure": "by-name",
       "params": [
         {
@@ -1413,12 +1413,12 @@
       "x-lyra-pagination": "none",
       "x-lyra-stability": "stable",
       "x-lyra-features": [
-        "todos"
+        "plan"
       ],
       "x-lyra-capabilityRules": [
         {
           "requires": [
-            "todos"
+            "plan"
           ]
         }
       ],
@@ -1426,7 +1426,7 @@
         "unevaluatedProperties": false,
         "allOf": [
           {
-            "$ref": "schema.json#/$defs/GetTodosRequest"
+            "$ref": "schema.json#/$defs/GetPlanRequest"
           },
           {
             "type": "object",

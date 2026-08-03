@@ -14,7 +14,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	resultoffload "github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/core/chat"
 )
@@ -555,25 +555,25 @@ func TestSessionImportRejectsAFailedRunWithoutItsFailure(t *testing.T) {
 	}
 }
 
-// The task list is part of what a person would notice losing, so it travels with
+// The plan is part of what a person would notice losing, so it travels with
 // the archive — and it comes back with a revision GREATER than the target
 // session's, because a restore is a new commit of that projection. Restoring it at
 // a lower number would leave a client that had already folded revision N ignoring
 // the imported value as stale.
-func TestSessionExportImportCarriesTheTaskListForward(t *testing.T) {
+func TestSessionExportImportCarriesThePlanForward(t *testing.T) {
 	s, rt := rollbackHarness(t)
-	s.features.todos = true // this composition owns the key, so it may restore it
+	s.features.plan = true // this composition owns the key, so it may restore it
 	ctx := t.Context()
 	ses, err := rt.sess.Create(ctx, "planned", t.TempDir())
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
 	putRun(t, rt, ses.ID, "run1", 1, 0)
-	if err := rt.todos.Replace(ctx, ses.ID, []todo.Item{
-		{Content: "split the outcome", Status: todo.StatusCompleted},
-		{Content: "carry the list", Status: todo.StatusInProgress},
+	if err := rt.plan.Replace(ctx, ses.ID, []plan.Step{
+		{Description: "split the outcome", Status: plan.StatusCompleted},
+		{Description: "carry the list", Status: plan.StatusInProgress},
 	}); err != nil {
-		t.Fatalf("seed todos: %v", err)
+		t.Fatalf("seed plan: %v", err)
 	}
 
 	exported, err := s.ExportSession(ctx, protocol.ExportSessionRequest{SessionID: ses.ID})
@@ -581,31 +581,31 @@ func TestSessionExportImportCarriesTheTaskListForward(t *testing.T) {
 		t.Fatalf("export: %v", err)
 	}
 	states := exported.Artifact.States
-	if len(states) != 1 || states[0].Type != protocol.ArtifactStateTodos || len(states[0].Todos) != 2 {
-		t.Fatalf("artifact states = %+v, want the two-item task list", states)
+	if len(states) != 1 || states[0].Type != protocol.ArtifactStatePlan || len(states[0].Plan) != 2 {
+		t.Fatalf("artifact states = %+v, want the two-step plan", states)
 	}
-	if states[0].Todos[1].Text != "carry the list" || states[0].Todos[1].Status != protocol.TodoStatusInProgress {
-		t.Fatalf("archived todo = %+v, want the in-progress entry verbatim", states[0].Todos[1])
+	if states[0].Plan[1].Description != "carry the list" || states[0].Plan[1].Status != protocol.PlanStatusInProgress {
+		t.Fatalf("archived plan = %+v, want the in-progress entry verbatim", states[0].Plan[1])
 	}
 
 	// The live projection moves on, so the import has something to be newer than.
-	if err := rt.todos.Replace(ctx, ses.ID, []todo.Item{{Content: "something else", Status: todo.StatusPending}}); err != nil {
-		t.Fatalf("advance todos: %v", err)
+	if err := rt.plan.Replace(ctx, ses.ID, []plan.Step{{Description: "something else", Status: plan.StatusPending}}); err != nil {
+		t.Fatalf("advance plan: %v", err)
 	}
-	before, err := rt.todos.State(ctx, ses.ID)
+	before, err := rt.plan.State(ctx, ses.ID)
 	if err != nil {
-		t.Fatalf("read todos: %v", err)
+		t.Fatalf("read plan: %v", err)
 	}
 
 	if _, err := s.ImportSession(ctx, protocol.ImportSessionRequest{Artifact: *exported.Artifact}); err != nil {
 		t.Fatalf("import: %v", err)
 	}
-	after, err := rt.todos.State(ctx, ses.ID)
+	after, err := rt.plan.State(ctx, ses.ID)
 	if err != nil {
-		t.Fatalf("read todos after import: %v", err)
+		t.Fatalf("read plan after import: %v", err)
 	}
-	if len(after.Items) != 2 || after.Items[0].Content != "split the outcome" {
-		t.Fatalf("restored todos = %+v, want the archived list", after.Items)
+	if len(after.Steps) != 2 || after.Steps[0].Description != "split the outcome" {
+		t.Fatalf("restored plan = %+v, want the archived plan", after.Steps)
 	}
 	if after.Revision <= before.Revision {
 		t.Fatalf("restored revision = %d, want greater than the %d it replaced", after.Revision, before.Revision)
@@ -618,7 +618,7 @@ func TestSessionExportImportCarriesTheTaskListForward(t *testing.T) {
 func TestSessionImportRefusesAnUnadvertisedStateKey(t *testing.T) {
 	s, rt := rollbackHarness(t)
 	ctx := t.Context()
-	s.features.todos = false
+	s.features.plan = false
 	ses, err := rt.sess.Create(ctx, "planned", t.TempDir())
 	if err != nil {
 		t.Fatalf("create: %v", err)
@@ -630,8 +630,8 @@ func TestSessionImportRefusesAnUnadvertisedStateKey(t *testing.T) {
 			ID: ses.ID, Title: "planned", Workspace: protocol.WorkspaceRef{Path: ses.Cwd},
 		},
 		States: []protocol.ArtifactState{{
-			Type:  protocol.ArtifactStateTodos,
-			Todos: []protocol.TodoSnapshot{{ID: "0", Text: "plan", Status: protocol.TodoStatusPending}},
+			Type: protocol.ArtifactStatePlan,
+			Plan: []protocol.PlanSnapshot{{ID: "0", Description: "plan", Status: protocol.PlanStatusPending}},
 		}},
 	}
 	_, err = s.ImportSession(ctx, protocol.ImportSessionRequest{Artifact: artifact})
@@ -643,8 +643,8 @@ func TestSessionImportRefusesAnUnadvertisedStateKey(t *testing.T) {
 		t.Fatalf("gap = %+v, want one requirement", gap)
 	}
 	if gap.Requirements[0] != (protocol.CapabilityRequirement{
-		Type: protocol.RequirementStateSnapshot, Name: string(protocol.ArtifactStateTodos),
+		Type: protocol.RequirementStateSnapshot, Name: string(protocol.ArtifactStatePlan),
 	}) {
-		t.Fatalf("requirement = %+v, want the todos state key", gap.Requirements[0])
+		t.Fatalf("requirement = %+v, want the plan state key", gap.Requirements[0])
 	}
 }

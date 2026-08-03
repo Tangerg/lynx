@@ -878,6 +878,7 @@ github.com/RoaringBitmap/roaring/v2 v2.8.0 h1:y1rdtixfXvaITKzkfiKvScI0hlBJHe9sfz
 github.com/RoaringBitmap/roaring/v2 v2.8.0/go.mod h1:FiJcsfkGje/nZBZgCu0ZxCPOKD/hVXDS2dXi7/eUFE0=
 github.com/Shopify/goreferrer v0.0.0-20220729165902-8cddb4f5de06 h1:KkH3I3sJuOLP3TjA/dfr4NAY8bghDwnXiU7cTKxQqo0=
 github.com/Shopify/goreferrer v0.0.0-20220729165902-8cddb4f5de06/go.mod h1:7erjKLwalezA0k99cWs5L11HWOAPNjdUZ6RxH1BXbbM=
+github.com/Tangerg/lynx v0.0.0-20260803181356-41175b546883/go.mod h1:+9o5hYEk9mbZ8778anUF1PjzUBfAd81Z/Bk1J4FK0Cc=
 github.com/Tangerg/lynx/a2a v0.0.0-20260715080233-229e06c8ed2f/go.mod h1:G6Tg+4xNoFfRLk6NIvi5tqbWd1LxAVrv3U05hZtpbM0=
 github.com/Tangerg/lynx/agent v0.0.0-20260715080233-229e06c8ed2f/go.mod h1:hEsoUk+ASyd+lLyasWHUETLuf0nKwD4Qe5fbrxJIAzc=
 github.com/Tangerg/lynx/agent v0.0.0-20260719031314-1e49c2a0f145/go.mod h1:hLd2Gp8/8R6Srd5eHTIoy7ES54vg7bsMbAW4hd+IFro=

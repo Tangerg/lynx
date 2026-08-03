@@ -7,8 +7,8 @@ import (
 	"strings"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/executionctx"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/planpresentation"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/promptsource"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/todopresentation"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/agentmemory"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/knowledge"
 )
@@ -58,28 +58,28 @@ task is ambiguous, ask one focused question rather than guess.`
 // discovered files.
 func (e *Engine) systemPrompt(ctx context.Context) string {
 	prompt := composePrompt(ctx, e.knowledge, e.memory, executionctx.CWD(ctx, e.workdir))
-	return appendTodos(ctx, prompt, e.todos)
+	return appendPlan(ctx, prompt, e.plan)
 }
 
-// appendTodos appends the turn's session todo list to prompt when a todo
-// store is wired and the session has items. Best-effort: a missing session
-// id or a store error silently skips — the list is a convenience for the
+// appendPlan appends the turn's session Plan to the prompt when a Plan reader
+// is wired and the session has Steps. Best-effort: a missing session
+// id or a store error silently skips — the Plan is context for the
 // model, never a correctness input, so it must never derail prompt assembly.
 // Kept off composePrompt so that function stays focused on the knowledge /
-// AGENTS.md cascade (and its direct unit tests need no todo stub).
-func appendTodos(ctx context.Context, prompt string, todos TodoReader) string {
-	if todos == nil {
+// AGENTS.md cascade (and its direct unit tests need no plan stub).
+func appendPlan(ctx context.Context, prompt string, plan PlanReader) string {
+	if plan == nil {
 		return prompt
 	}
 	sessionID := executionctx.SessionID(ctx)
 	if sessionID == "" {
 		return prompt
 	}
-	items, err := todos.List(ctx, sessionID)
-	if err != nil || len(items) == 0 {
+	steps, err := plan.List(ctx, sessionID)
+	if err != nil || len(steps) == 0 {
 		return prompt
 	}
-	return prompt + "\n\n## Current todo list (you maintain this via todo_write)\n\n" + todopresentation.Render(items)
+	return prompt + "\n\n## Current Plan (maintain with set_plan)\n\n" + planpresentation.Render(steps)
 }
 
 // composePrompt is the pure form behind [Engine.systemPrompt],

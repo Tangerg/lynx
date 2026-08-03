@@ -20,9 +20,6 @@ func presentItem(item transcript.Item) protocol.Item {
 			out.Content[i] = presentContent(block)
 		}
 	}
-	if len(item.Steps) > 0 {
-		out.Steps = presentPlanSteps(item.Steps)
-	}
 	if item.Question != nil {
 		question := presentQuestion(*item.Question)
 		out.Question = &question
@@ -55,8 +52,6 @@ func presentItemKind(kind transcript.ItemKind) protocol.ItemType {
 		return protocol.ItemTypeAgentMessage
 	case transcript.Reasoning:
 		return protocol.ItemTypeReasoning
-	case transcript.Plan:
-		return protocol.ItemTypePlan
 	case transcript.QuestionItem:
 		return protocol.ItemTypeQuestion
 	case transcript.ToolCall:
@@ -79,29 +74,6 @@ func presentContent(block transcript.ContentBlock) protocol.ContentBlock {
 		panic("server: unknown transcript content kind")
 	}
 	return protocol.ContentBlock{Type: kind, Text: block.Text, Mime: block.Mime, Data: block.Data}
-}
-
-func presentPlanSteps(steps []transcript.PlanStep) []protocol.PlanStep {
-	out := make([]protocol.PlanStep, len(steps))
-	for i, step := range steps {
-		out[i] = protocol.PlanStep{ID: step.ID, Title: step.Title, Status: presentPlanStepStatus(step.Status)}
-	}
-	return out
-}
-
-func presentPlanStepStatus(status transcript.PlanStepStatus) protocol.PlanStepStatus {
-	switch status {
-	case transcript.PlanStepPending:
-		return protocol.PlanStepPending
-	case transcript.PlanStepRunning:
-		return protocol.PlanStepRunning
-	case transcript.PlanStepCompleted:
-		return protocol.PlanStepCompleted
-	case transcript.PlanStepFailed:
-		return protocol.PlanStepFailed
-	default:
-		panic("server: unknown transcript plan-step status")
-	}
 }
 
 func presentQuestion(question transcript.Question) protocol.Question {
@@ -150,13 +122,11 @@ func presentDelta(delta runs.ItemDelta) protocol.ItemDelta {
 		kind = protocol.DeltaToolArguments
 	case runs.ToolOutputDelta:
 		kind = protocol.DeltaToolOutput
-	case runs.PlanDelta:
-		kind = protocol.DeltaPlan
 	default:
 		panic("server: unknown item delta kind")
 	}
 	return protocol.ItemDelta{
 		Type: kind, Index: delta.Index, Text: delta.Text,
-		ArgumentsTextDelta: delta.ArgumentsTextDelta, Steps: presentPlanSteps(delta.Steps),
+		ArgumentsTextDelta: delta.ArgumentsTextDelta,
 	}
 }

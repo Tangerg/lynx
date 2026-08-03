@@ -10,7 +10,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
 )
 
 func presentRunEvent(event runs.RunEvent) protocol.StreamEvent {
@@ -41,63 +41,61 @@ func presentRunEvent(event runs.RunEvent) protocol.StreamEvent {
 	}
 }
 
-// presentStateSnapshot publishes what a run changed. The stream and todos.get go
+// presentStateSnapshot publishes what a run changed. The stream and plan.get go
 // through one shape, so "recover this key" cannot mean something different from
 // "follow this key".
 func presentStateSnapshot(event runs.StateSnapshot) protocol.StateSnapshot {
-	todos := make([]protocol.TodoSnapshot, 0, len(event.Todos))
-	for _, item := range event.Todos {
-		todos = append(todos, protocol.TodoSnapshot{
-			ID: item.ID, Text: item.Text, Status: presentTodoStatus(item.Status),
-			BlockedReason: item.BlockedReason, NextAction: item.NextAction,
+	plan := make([]protocol.PlanSnapshot, 0, len(event.Plan))
+	for _, step := range event.Plan {
+		plan = append(plan, protocol.PlanSnapshot{
+			ID: step.ID, Description: step.Description, Status: presentPlanStatus(step.Status),
 		})
 	}
 	return protocol.StateSnapshot{
-		Type: protocol.StateTodos, SessionID: event.SessionID,
-		Revision: event.Revision, Todos: todos, UpdatedAt: event.UpdatedAt,
+		Type: protocol.StatePlan, SessionID: event.SessionID,
+		Revision: event.Revision, Plan: plan, UpdatedAt: event.UpdatedAt,
 	}
 }
 
-// presentTodoState is the same projection read cold. It goes through the run-event
+// presentPlanState is the same projection read cold. It goes through the run-event
 // shape so the two cannot describe the list differently: one presenter, one answer.
-func presentTodoState(sessionID string, state todo.State) protocol.StateSnapshot {
+func presentPlanState(sessionID string, state plan.State) protocol.StateSnapshot {
 	return presentStateSnapshot(runs.StateSnapshot{
 		SessionID: sessionID, Revision: state.Revision, UpdatedAt: state.UpdatedAt,
-		Todos: todoSnapshots(state.Items),
+		Plan: planSnapshots(state.Steps),
 	})
 }
 
-// presentTodoSnapshots is the list a portable archive carries: the same items as
+// presentPlanSnapshots is the list a portable archive carries: the same items as
 // the live projection, through the same presenter, with none of the revision or
 // timestamp the archive deliberately leaves behind.
-func presentTodoSnapshots(items []todo.Item) []protocol.TodoSnapshot {
-	return presentStateSnapshot(runs.StateSnapshot{Todos: todoSnapshots(items)}).Todos
+func presentPlanSnapshots(steps []plan.Step) []protocol.PlanSnapshot {
+	return presentStateSnapshot(runs.StateSnapshot{Plan: planSnapshots(steps)}).Plan
 }
 
-// todoSnapshots numbers the items by position, which is what a task list's
+// planSnapshots numbers the items by position, which is what a Plan's
 // identity IS: the model replaces the whole list, so an item is the nth entry
 // rather than a thing with a durable id.
-func todoSnapshots(items []todo.Item) []runs.TodoSnapshot {
-	out := make([]runs.TodoSnapshot, 0, len(items))
-	for index, item := range items {
-		out = append(out, runs.TodoSnapshot{
-			ID: strconv.Itoa(index), Text: item.Content, Status: item.Status,
-			BlockedReason: item.BlockedReason, NextAction: item.NextAction,
+func planSnapshots(steps []plan.Step) []runs.PlanSnapshot {
+	out := make([]runs.PlanSnapshot, 0, len(steps))
+	for index, step := range steps {
+		out = append(out, runs.PlanSnapshot{
+			ID: strconv.Itoa(index), Description: step.Description, Status: step.Status,
 		})
 	}
 	return out
 }
 
-func presentTodoStatus(status todo.Status) protocol.TodoStatus {
+func presentPlanStatus(status plan.Status) protocol.PlanStatus {
 	switch status {
-	case todo.StatusPending:
-		return protocol.TodoStatusPending
-	case todo.StatusInProgress:
-		return protocol.TodoStatusInProgress
-	case todo.StatusCompleted:
-		return protocol.TodoStatusCompleted
+	case plan.StatusPending:
+		return protocol.PlanStatusPending
+	case plan.StatusInProgress:
+		return protocol.PlanStatusInProgress
+	case plan.StatusCompleted:
+		return protocol.PlanStatusCompleted
 	default:
-		panic("server: unknown todo status")
+		panic("server: unknown plan status")
 	}
 }
 

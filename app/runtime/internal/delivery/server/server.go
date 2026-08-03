@@ -136,10 +136,10 @@ type Config struct {
 	// projects this static environment fact; it never probes the process itself.
 	GitAvailable bool
 
-	// TodosEnabled is the composition-root fact for todo_write. Todo persistence
+	// PlanEnabled is the composition-root fact for set_plan. Plan persistence
 	// is consumed by execution, not a delivery handler, so it is supplied here
 	// rather than inferred from an unrelated coordinator.
-	TodosEnabled bool
+	PlanEnabled bool
 }
 
 // Server is the protocol.Runtime implementation exposed via [New].
@@ -232,7 +232,7 @@ type featureAvailability struct {
 	memory      bool
 	git         bool
 	fileWatch   bool
-	todos       bool
+	plan        bool
 	goals       bool
 	agentMemory bool
 	schedules   bool
@@ -317,7 +317,7 @@ func New(cfg Config) (*Server, error) {
 		memory:      cfg.WorkspaceKnowledge.HasMemory(),
 		git:         cfg.GitAvailable,
 		fileWatch:   cfg.WorkspaceWatch.HasFileWatch(),
-		todos:       cfg.TodosEnabled,
+		plan:        cfg.PlanEnabled,
 		goals:       cfg.Goals != nil,
 		agentMemory: cfg.AgentMemory != nil && cfg.AgentMemory.Available(),
 		schedules:   cfg.Schedules.Available() && cfg.ScheduleFiring.Available(),
@@ -438,7 +438,7 @@ func capabilitiesFor(
 		// Only the state keys THIS build both writes and can serve a cold read for: a
 		// client builds a projection for an advertised key, and a key it could not
 		// recover would leave that projection stale with no way back.
-		StateSnapshots: advertisedStateSnapshots(features.todos),
+		StateSnapshots: advertisedStateSnapshots(features.plan),
 		// The two bounds a client cannot discover by trying: what a reconnect can expect
 		// to get back, and how wide one subscription may be.
 		Limits: protocol.RuntimeLimits{
@@ -478,7 +478,7 @@ func capabilitiesFor(
 			protocol.FeatureCheckpoints: features.git,
 			protocol.FeatureMultimodal:  true,
 			protocol.FeatureRelocate:    true,
-			protocol.FeatureTodos:       features.todos,
+			protocol.FeaturePlan:        features.plan,
 			protocol.FeatureCompaction:  true,
 			protocol.FeatureGoals:       features.goals,
 			protocol.FeatureAgentMemory: features.agentMemory,
@@ -499,8 +499,8 @@ func capabilitiesFor(
 // The registry's own scope and writer travel with each entry, unchanged. An SDK reads
 // them to pick its reducer identity — a session-scoped key is one value per session,
 // not one per run — instead of assuming every state belongs to the current run.
-func advertisedStateSnapshots(todos bool) []protocol.StateSnapshotCapability {
-	enabled := map[string]bool{protocol.FeatureTodos: todos}
+func advertisedStateSnapshots(plan bool) []protocol.StateSnapshotCapability {
+	enabled := map[string]bool{protocol.FeaturePlan: plan}
 	out := make([]protocol.StateSnapshotCapability, 0, len(dispatch.WireShapes().StateKeys()))
 	for _, key := range dispatch.WireShapes().StateKeys() {
 		if !enabled[key.Feature] {

@@ -43,7 +43,7 @@ type Bundle struct {
 	Provider            providersvc.Registry
 	MCPServers          *sqlitestore.MCPServerStore
 	ChatHistory         history.Store
-	Todos               *sqlitestore.TodoStore
+	Plan                *sqlitestore.PlanStore
 	Goals               *sqlitestore.GoalStore
 	ApprovalRules       *sqlitestore.ApprovalRuleStore
 	UtilityRole         *sqlitestore.UtilityRoleStore
@@ -88,7 +88,7 @@ func Open() (*Bundle, error) {
 		Provider:            sqlitestore.NewProviderStore(db),
 		MCPServers:          sqlitestore.NewMCPServerStore(db),
 		ChatHistory:         sqlitestore.NewMessageStore(db),
-		Todos:               sqlitestore.NewTodoStore(db),
+		Plan:                sqlitestore.NewPlanStore(db),
 		Goals:               sqlitestore.NewGoalStore(db),
 		ApprovalRules:       sqlitestore.NewApprovalRuleStore(db),
 		UtilityRole:         sqlitestore.NewUtilityRoleStore(db),

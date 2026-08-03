@@ -203,7 +203,7 @@ func registerRunValues(s *Shapes) {
 	// The scope is required and its tag decides everything else about the read, so a
 	// scope with no tag is a request that never said what it wanted.
 	nonEmpty[protocol.ListItemsRequest](s, "scope.type")
-	nonEmpty[protocol.GetTodosRequest](s, "sessionId")
+	nonEmpty[protocol.GetPlanRequest](s, "sessionId")
 	nonEmpty[protocol.SessionUsageRequest](s, "sessionId")
 
 	// An omitted status filter already means "every status", so an empty array is

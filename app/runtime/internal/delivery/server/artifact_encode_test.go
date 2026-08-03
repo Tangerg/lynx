@@ -46,13 +46,6 @@ func TestArtifactFromPortableRejectsUnknownDomainEnums(t *testing.T) {
 			}}},
 		},
 		{
-			name: "plan status",
-			portable: sessions.PortableSnapshot{Items: []transcript.Item{{
-				ID: "item_1", Status: transcript.ItemCompleted, Kind: transcript.Plan,
-				Steps: []transcript.PlanStep{{Status: transcript.PlanStepStatus("future")}},
-			}}},
-		},
-		{
 			name: "question field kind",
 			portable: sessions.PortableSnapshot{Items: []transcript.Item{{
 				ID: "item_1", Status: transcript.ItemCompleted, Kind: transcript.QuestionItem,

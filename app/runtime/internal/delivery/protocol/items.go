@@ -14,12 +14,12 @@ type Items interface {
 	ListItems(ctx context.Context, in ListItemsRequest) (*ListItemsResponse, error)
 }
 
-// Todos is the todos.* method group — the cold read behind the todos state key.
-type Todos interface {
-	// GetTodos returns the session's task-list projection, unchanged from what the
+// Plan is the plan.* method group — the cold read behind the plan state key.
+type Plan interface {
+	// GetPlan returns the session's Plan projection, unchanged from what the
 	// stream publishes. A session with no list yet is the empty state at revision 0;
 	// only a session that does not exist is session_not_found.
-	GetTodos(ctx context.Context, in GetTodosRequest) (*StateSnapshot, error)
+	GetPlan(ctx context.Context, in GetPlanRequest) (*StateSnapshot, error)
 }
 
 // ItemScopeType discriminates [ItemListScope]: which collection of items is being
@@ -110,7 +110,6 @@ const (
 	ItemTypeUserMessage  ItemType = "userMessage"
 	ItemTypeAgentMessage ItemType = "agentMessage"
 	ItemTypeReasoning    ItemType = "reasoning"
-	ItemTypePlan         ItemType = "plan"
 	ItemTypeQuestion     ItemType = "question"
 	ItemTypeToolCall     ItemType = "toolCall"
 	ItemTypeCompaction   ItemType = "compaction"
@@ -137,17 +136,6 @@ const (
 	ContentBlockImage ContentBlockType = "image"
 )
 
-// PlanStepStatus is the lifecycle of one PlanStep (API.md §4.3; "running"
-// everywhere per §2.3).
-type PlanStepStatus string
-
-const (
-	PlanStepPending   PlanStepStatus = "pending"
-	PlanStepRunning   PlanStepStatus = "running"
-	PlanStepCompleted PlanStepStatus = "completed"
-	PlanStepFailed    PlanStepStatus = "failed"
-)
-
 // QuestionFieldType is the input shape of a QuestionField (API.md §4.3).
 type QuestionFieldType string
 
@@ -171,7 +159,6 @@ const (
 //
 //	userMessage / agentMessage → Content
 //	reasoning                  → Text, Redacted
-//	plan                       → Steps
 //	question                   → Question
 //	toolCall                   → Tool, SafetyClass, Error
 //	compaction                 → Summary, DroppedMessages
@@ -185,7 +172,6 @@ type Item struct {
 	Content     []ContentBlock  `json:"content,omitempty"`
 	Text        string          `json:"text,omitempty"`
 	Redacted    bool            `json:"redacted,omitempty"`
-	Steps       []PlanStep      `json:"steps,omitempty"`
 	Question    *Question       `json:"question,omitempty"`
 	Tool        *ToolInvocation `json:"tool,omitempty"`
 	SafetyClass SafetyClass     `json:"safetyClass,omitempty"`
@@ -212,13 +198,6 @@ type ContentBlock struct {
 	Text string           `json:"text,omitempty"`
 	Mime string           `json:"mime,omitempty"`
 	Data string           `json:"data,omitempty"`
-}
-
-// PlanStep is one step of a plan Item (API.md §4.3).
-type PlanStep struct {
-	ID     string         `json:"id"`
-	Title  string         `json:"title"`
-	Status PlanStepStatus `json:"status"` // see PlanStepStatus
 }
 
 // Question is one ordered set of required clarifying fields (API.md §4.3).

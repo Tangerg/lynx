@@ -10,6 +10,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/codebaseindex"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
 	domaintool "github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	toolcontract "github.com/Tangerg/lynx/tool"
 )
@@ -20,6 +21,10 @@ type availabilityIndex struct {
 }
 
 type failingGoalState struct{ err error }
+
+type rolePlanStore struct{}
+
+func (rolePlanStore) Replace(context.Context, string, []plan.Step) error { return nil }
 
 func (s failingGoalState) Active(context.Context, string) (bool, error) { return false, s.err }
 func (failingGoalState) Report(context.Context, goals.ReportCommand) (goals.ReportResult, error) {
@@ -42,6 +47,7 @@ func TestSubtaskRoleCanAskExitPlanAndDelegateWithoutRootTools(t *testing.T) {
 	built, err := Build(t.Context(), BuildConfig{
 		Workdir:  t.TempDir(),
 		Approval: policy,
+		Plan:     rolePlanStore{},
 		Interrupt: func(context.Context, string, runs.Interrupt) (interrupts.Resolution, error) {
 			return interrupts.Resolution{}, nil
 		},
@@ -80,6 +86,25 @@ func TestSubtaskRoleCanAskExitPlanAndDelegateWithoutRootTools(t *testing.T) {
 	}
 	if !names["task"] || names["schedule"] {
 		t.Fatalf("subtask tools = %v, want bounded task delegation without root-only schedule", names)
+	}
+	if names["set_plan"] {
+		t.Fatalf("subtask tools = %v; a child must not replace the root Agent's Plan", names)
+	}
+
+	coding, ok, err := built.Resolver.Resolve(t.Context(), domaintool.GroupCoding)
+	if err != nil || !ok {
+		t.Fatalf("Resolve(coding) = %v, %v", ok, err)
+	}
+	codingTools, err := coding.Tools(t.Context())
+	if err != nil {
+		t.Fatalf("coding Tools: %v", err)
+	}
+	foundPlan := false
+	for _, candidate := range codingTools {
+		foundPlan = foundPlan || candidate.Definition().Name == "set_plan"
+	}
+	if !foundPlan {
+		t.Fatal("coding tools omit root-only set_plan")
 	}
 }
 

@@ -37,13 +37,13 @@ func TestEveryChangeResourceIsPublishable(t *testing.T) {
 // session, and this is where that scope survives being published.
 func TestStateChangeNamesItsKeyAndKeepsSessionScope(t *testing.T) {
 	ev, ok := runtimeEventFor(change.Notice{
-		Resource: change.TodoState, SessionIDs: []string{"ses_1"}, RunIDs: []string{"run_1"},
+		Resource: change.PlanState, SessionIDs: []string{"ses_1"}, RunIDs: []string{"run_1"},
 	})
 	if !ok {
-		t.Fatal("todo state has no runtime event")
+		t.Fatal("plan state has no runtime event")
 	}
-	if ev.Type != protocol.RuntimeStateChanged || ev.Key != protocol.StateTodos {
-		t.Fatalf("event = %s key %q, want state.changed/todos", ev.Type, ev.Key)
+	if ev.Type != protocol.RuntimeStateChanged || ev.Key != protocol.StatePlan {
+		t.Fatalf("event = %s key %q, want state.changed/plan", ev.Type, ev.Key)
 	}
 	if len(ev.RunIDs) != 0 {
 		t.Fatalf("run ids = %v, want none on a session-scoped key", ev.RunIDs)

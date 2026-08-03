@@ -11,8 +11,8 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
 )
 
 // ErrInvalidPortableSnapshot marks a structurally decoded archive that cannot
@@ -29,9 +29,9 @@ type PortableSnapshot struct {
 	Items       []transcript.Item
 	Runs        []PortableRun
 	ToolResults []offload.ToolResultBlob
-	// Todos is the session's task list, carried as a value so an archive restores
+	// Plan is the session's Plan, carried as a value so an archive restores
 	// the work plan attached to the conversation rather than just the conversation.
-	Todos []todo.Item
+	Plan []plan.Step
 }
 
 // PortableSession is the terminal archive identity. It intentionally excludes
@@ -121,10 +121,10 @@ func (p PortableSnapshot) CanonicalSnapshot() (Snapshot, error) {
 		Items:       append([]transcript.Item(nil), p.Items...),
 		ToolResults: append([]offload.ToolResultBlob(nil), p.ToolResults...),
 		Runs:        make([]transcript.Run, 0, len(p.Runs)),
-		Todos:       append([]todo.Item(nil), p.Todos...),
+		Plan:        append([]plan.Step(nil), p.Plan...),
 	}
-	if err := todo.ValidateSnapshot(snapshot.Todos); err != nil {
-		return Snapshot{}, fmt.Errorf("%w: todos: %w", ErrInvalidPortableSnapshot, err)
+	if err := plan.Validate(snapshot.Plan); err != nil {
+		return Snapshot{}, fmt.Errorf("%w: plan: %w", ErrInvalidPortableSnapshot, err)
 	}
 	// A child reads its root's contract, so the roots' profiles are collected before
 	// any run is rebuilt — the archive states each contract exactly once, and a child
@@ -238,7 +238,7 @@ func (snapshot Snapshot) PortableSnapshot() (PortableSnapshot, error) {
 		Messages:    normalized.Messages,
 		Items:       normalized.Items,
 		ToolResults: normalized.ToolResults,
-		Todos:       normalized.Todos,
+		Plan:        normalized.Plan,
 		Runs:        make([]PortableRun, 0, len(normalized.Runs)),
 	}
 	for _, run := range normalized.Runs {

@@ -485,14 +485,14 @@ func (t *turnObserver) OnToolCallEnd(process agentexec.ProcessRef, callID, toolN
 	}
 	t.dispatcher.emitProcessEvent(t.st, process, end)
 
-	// After a successful todo_write, project the model's (whole-replaced) task
-	// list so a client renders the task panel (state.snapshot{todos}); the tool
-	// result itself is model-facing only. Read the canonical list from the
+	// After a successful set_plan, project the model's whole-replaced Plan so a
+	// client renders state.snapshot{plan}; the tool result itself is model-facing
+	// only. Read the canonical Plan from the
 	// store rather than the tool args, so the projection can't drift from the
 	// arg schema.
-	if err == nil && toolName == "todo_write" && t.dispatcher.todos != nil {
-		if state, lerr := t.dispatcher.todos.State(t.st.ctx, t.st.handle.SessionID); lerr == nil {
-			t.dispatcher.emitProcessEvent(t.st, process, runs.TodosUpdated{State: state})
+	if err == nil && toolName == "set_plan" && t.dispatcher.plan != nil {
+		if state, lerr := t.dispatcher.plan.State(t.st.ctx, t.st.handle.SessionID); lerr == nil {
+			t.dispatcher.emitProcessEvent(t.st, process, runs.PlanUpdated{State: state})
 		}
 	}
 

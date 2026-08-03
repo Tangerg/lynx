@@ -12,7 +12,7 @@ func TestCapabilitiesAdvertiseOnlyProducedRunEvents(t *testing.T) {
 	t.Parallel()
 
 	caps := capabilitiesFor(featureAvailability{
-		memory: true, git: true, fileWatch: true, todos: true,
+		memory: true, git: true, fileWatch: true, plan: true,
 		goals: true, agentMemory: true, schedules: true, codebase: true,
 	}, replayLimitsFrom(runs.NewCoordinator(runs.Dependencies{})), protocol.MCPAuthorizationAttemptLimits{RetentionSeconds: 73})
 	want := []protocol.StreamEventType{
@@ -33,7 +33,7 @@ func TestCapabilitiesAdvertiseOnlyProducedRunEvents(t *testing.T) {
 	if caps.Features["clientTools"].Enabled {
 		t.Fatalf("unsupported client tools were advertised: %+v", caps.Features)
 	}
-	for _, feature := range []string{"todos", "goals", "agentMemory", "schedules", "codebase"} {
+	for _, feature := range []string{"plan", "goals", "agentMemory", "schedules", "codebase"} {
 		if !caps.Features[feature].Enabled {
 			t.Fatalf("wired feature %q was not advertised: %+v", feature, caps.Features)
 		}

@@ -75,19 +75,19 @@ func (s *Server) ListItems(ctx context.Context, in protocol.ListItemsRequest) (*
 	}, nil
 }
 
-// GetTodos returns the session's task-list projection — the same shape the run
+// GetPlan returns the session's Plan projection — the same shape the run
 // stream publishes, so a client folding the stream and a client that just asked are
 // holding one value and not two descriptions of it.
 //
 // A session with no list yet answers with the empty state at revision 0. That is a
 // fact rather than a gap: the panel renders empty, and only a session that does not
 // exist is an error.
-func (s *Server) GetTodos(ctx context.Context, in protocol.GetTodosRequest) (*protocol.StateSnapshot, error) {
-	state, err := s.queries.TodoState(ctx, in.SessionID)
+func (s *Server) GetPlan(ctx context.Context, in protocol.GetPlanRequest) (*protocol.StateSnapshot, error) {
+	state, err := s.queries.PlanState(ctx, in.SessionID)
 	if err != nil {
 		return nil, wireItemScopeError(err)
 	}
-	snapshot := presentTodoState(in.SessionID, state)
+	snapshot := presentPlanState(in.SessionID, state)
 	return &snapshot, nil
 }
 

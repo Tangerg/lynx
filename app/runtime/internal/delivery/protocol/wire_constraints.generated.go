@@ -105,8 +105,8 @@ func (value ListRunsRequest) ValidateWire() error {
 	)
 }
 
-func (value GetTodosRequest) ValidateWire() error {
-	return collectWireViolations("GetTodosRequest",
+func (value GetPlanRequest) ValidateWire() error {
+	return collectWireViolations("GetPlanRequest",
 		requiredText("sessionId", value.SessionID),
 	)
 }
@@ -623,15 +623,15 @@ func (value SegmentOutcome) ValidateWire() error {
 
 func (value ArtifactState) ValidateWire() error {
 	return collectWireViolations("ArtifactState",
-		closedEnum("type", string(value.Type), []string{"todos"}, false),
-		requiredWhen(wireFieldEquals(value, "type", "todos"), "todos", value),
+		closedEnum("type", string(value.Type), []string{"plan"}, false),
+		requiredWhen(wireFieldEquals(value, "type", "plan"), "plan", value),
 	)
 }
 
 func (value Item) ValidateWire() error {
 	return collectWireViolations("Item",
 		closedEnum("status", string(value.Status), []string{"running", "completed", "incomplete"}, false),
-		closedEnum("type", string(value.Type), []string{"userMessage", "agentMessage", "reasoning", "plan", "question", "toolCall", "compaction"}, false),
+		closedEnum("type", string(value.Type), []string{"userMessage", "agentMessage", "reasoning", "question", "toolCall", "compaction"}, false),
 		closedEnum("safetyClass", string(value.SafetyClass), []string{"safe", "write", "exec", "network"}, true),
 		requiredWhen(wireFieldEquals(value, "type", "userMessage"), "id", value),
 		requiredWhen(wireFieldEquals(value, "type", "userMessage"), "runId", value),
@@ -639,7 +639,6 @@ func (value Item) ValidateWire() error {
 		requiredWhen(wireFieldEquals(value, "type", "userMessage"), "createdAt", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "userMessage"), "text", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "userMessage"), "redacted", value),
-		forbiddenWhen(wireFieldEquals(value, "type", "userMessage"), "steps", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "userMessage"), "question", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "userMessage"), "tool", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "userMessage"), "safetyClass", value),
@@ -652,7 +651,6 @@ func (value Item) ValidateWire() error {
 		requiredWhen(wireFieldEquals(value, "type", "agentMessage"), "createdAt", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "agentMessage"), "text", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "agentMessage"), "redacted", value),
-		forbiddenWhen(wireFieldEquals(value, "type", "agentMessage"), "steps", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "agentMessage"), "question", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "agentMessage"), "tool", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "agentMessage"), "safetyClass", value),
@@ -664,26 +662,12 @@ func (value Item) ValidateWire() error {
 		requiredWhen(wireFieldEquals(value, "type", "reasoning"), "status", value),
 		requiredWhen(wireFieldEquals(value, "type", "reasoning"), "createdAt", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "reasoning"), "content", value),
-		forbiddenWhen(wireFieldEquals(value, "type", "reasoning"), "steps", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "reasoning"), "question", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "reasoning"), "tool", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "reasoning"), "safetyClass", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "reasoning"), "error", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "reasoning"), "summary", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "reasoning"), "droppedMessages", value),
-		requiredWhen(wireFieldEquals(value, "type", "plan"), "id", value),
-		requiredWhen(wireFieldEquals(value, "type", "plan"), "runId", value),
-		requiredWhen(wireFieldEquals(value, "type", "plan"), "status", value),
-		requiredWhen(wireFieldEquals(value, "type", "plan"), "createdAt", value),
-		forbiddenWhen(wireFieldEquals(value, "type", "plan"), "content", value),
-		forbiddenWhen(wireFieldEquals(value, "type", "plan"), "text", value),
-		forbiddenWhen(wireFieldEquals(value, "type", "plan"), "redacted", value),
-		forbiddenWhen(wireFieldEquals(value, "type", "plan"), "question", value),
-		forbiddenWhen(wireFieldEquals(value, "type", "plan"), "tool", value),
-		forbiddenWhen(wireFieldEquals(value, "type", "plan"), "safetyClass", value),
-		forbiddenWhen(wireFieldEquals(value, "type", "plan"), "error", value),
-		forbiddenWhen(wireFieldEquals(value, "type", "plan"), "summary", value),
-		forbiddenWhen(wireFieldEquals(value, "type", "plan"), "droppedMessages", value),
 		requiredWhen(wireFieldEquals(value, "type", "question"), "id", value),
 		requiredWhen(wireFieldEquals(value, "type", "question"), "runId", value),
 		requiredWhen(wireFieldEquals(value, "type", "question"), "status", value),
@@ -691,7 +675,6 @@ func (value Item) ValidateWire() error {
 		forbiddenWhen(wireFieldEquals(value, "type", "question"), "content", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "question"), "text", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "question"), "redacted", value),
-		forbiddenWhen(wireFieldEquals(value, "type", "question"), "steps", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "question"), "tool", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "question"), "safetyClass", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "question"), "error", value),
@@ -704,7 +687,6 @@ func (value Item) ValidateWire() error {
 		forbiddenWhen(wireFieldEquals(value, "type", "toolCall"), "content", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "toolCall"), "text", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "toolCall"), "redacted", value),
-		forbiddenWhen(wireFieldEquals(value, "type", "toolCall"), "steps", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "toolCall"), "question", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "toolCall"), "summary", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "toolCall"), "droppedMessages", value),
@@ -715,7 +697,6 @@ func (value Item) ValidateWire() error {
 		forbiddenWhen(wireFieldEquals(value, "type", "compaction"), "content", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "compaction"), "text", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "compaction"), "redacted", value),
-		forbiddenWhen(wireFieldEquals(value, "type", "compaction"), "steps", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "compaction"), "question", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "compaction"), "tool", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "compaction"), "safetyClass", value),
@@ -725,26 +706,18 @@ func (value Item) ValidateWire() error {
 
 func (value ItemDelta) ValidateWire() error {
 	return collectWireViolations("ItemDelta",
-		closedEnum("type", string(value.Type), []string{"content", "reasoning", "toolArguments", "toolOutput", "plan"}, false),
+		closedEnum("type", string(value.Type), []string{"content", "reasoning", "toolArguments", "toolOutput"}, false),
 		requiredWhen(wireFieldEquals(value, "type", "content"), "text", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "content"), "argumentsTextDelta", value),
-		forbiddenWhen(wireFieldEquals(value, "type", "content"), "steps", value),
 		requiredWhen(wireFieldEquals(value, "type", "reasoning"), "text", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "reasoning"), "index", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "reasoning"), "argumentsTextDelta", value),
-		forbiddenWhen(wireFieldEquals(value, "type", "reasoning"), "steps", value),
 		requiredWhen(wireFieldEquals(value, "type", "toolArguments"), "argumentsTextDelta", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "toolArguments"), "text", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "toolArguments"), "index", value),
-		forbiddenWhen(wireFieldEquals(value, "type", "toolArguments"), "steps", value),
 		requiredWhen(wireFieldEquals(value, "type", "toolOutput"), "text", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "toolOutput"), "index", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "toolOutput"), "argumentsTextDelta", value),
-		forbiddenWhen(wireFieldEquals(value, "type", "toolOutput"), "steps", value),
-		requiredWhen(wireFieldEquals(value, "type", "plan"), "steps", value),
-		forbiddenWhen(wireFieldEquals(value, "type", "plan"), "text", value),
-		forbiddenWhen(wireFieldEquals(value, "type", "plan"), "index", value),
-		forbiddenWhen(wireFieldEquals(value, "type", "plan"), "argumentsTextDelta", value),
 	)
 }
 
@@ -761,10 +734,10 @@ func (value CapabilityRequirement) ValidateWire() error {
 
 func (value StateSnapshot) ValidateWire() error {
 	return collectWireViolations("StateSnapshot",
-		closedEnum("type", string(value.Type), []string{"todos"}, false),
-		requiredWhen(wireFieldEquals(value, "type", "todos"), "sessionId", value),
-		requiredWhen(wireFieldEquals(value, "type", "todos"), "revision", value),
-		requiredWhen(wireFieldEquals(value, "type", "todos"), "todos", value),
+		closedEnum("type", string(value.Type), []string{"plan"}, false),
+		requiredWhen(wireFieldEquals(value, "type", "plan"), "sessionId", value),
+		requiredWhen(wireFieldEquals(value, "type", "plan"), "revision", value),
+		requiredWhen(wireFieldEquals(value, "type", "plan"), "plan", value),
 	)
 }
 
@@ -1074,7 +1047,7 @@ func (value RuntimeEvent) ValidateWire() error {
 		nonEmptyItems("watchIds", value.WatchIDs),
 		uniqueItems("watchIds", value.WatchIDs),
 		closedEnum("type", string(value.Type), []string{"files.changed", "skills.changed", "mcp.changed", "schedules.changed", "sessions.changed", "runs.changed", "state.changed", "goals.changed", "interrupts.changed", "resync"}, false),
-		closedEnum("key", string(value.Key), []string{"todos"}, true),
+		closedEnum("key", string(value.Key), []string{"plan"}, true),
 		closedEnumItems("topics", value.Topics, []string{"files.changed", "skills.changed", "mcp.changed", "schedules.changed", "sessions.changed", "runs.changed", "state.changed", "goals.changed", "interrupts.changed"}),
 		requiredWhen(wireFieldEquals(value, "type", "files.changed"), "sequence", value),
 		requiredWhen(wireFieldEquals(value, "type", "files.changed"), "paths", value),
@@ -1204,7 +1177,7 @@ func (value ArtifactItem) ValidateWire() error {
 	return collectWireViolations("ArtifactItem",
 		nonNegativeNumber("droppedMessages", value.DroppedMessages),
 		closedEnum("status", string(value.Status), []string{"running", "completed", "incomplete"}, false),
-		closedEnum("type", string(value.Type), []string{"userMessage", "agentMessage", "reasoning", "plan", "question", "toolCall", "compaction"}, false),
+		closedEnum("type", string(value.Type), []string{"userMessage", "agentMessage", "reasoning", "question", "toolCall", "compaction"}, false),
 		closedEnum("safetyClass", string(value.SafetyClass), []string{"safe", "write", "exec", "network"}, true),
 		requiredWhen(wireFieldEquals(value, "type", "userMessage"), "id", value),
 		requiredWhen(wireFieldEquals(value, "type", "userMessage"), "runId", value),
@@ -1212,7 +1185,6 @@ func (value ArtifactItem) ValidateWire() error {
 		requiredWhen(wireFieldEquals(value, "type", "userMessage"), "createdAt", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "userMessage"), "text", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "userMessage"), "redacted", value),
-		forbiddenWhen(wireFieldEquals(value, "type", "userMessage"), "steps", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "userMessage"), "question", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "userMessage"), "tool", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "userMessage"), "safetyClass", value),
@@ -1225,7 +1197,6 @@ func (value ArtifactItem) ValidateWire() error {
 		requiredWhen(wireFieldEquals(value, "type", "agentMessage"), "createdAt", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "agentMessage"), "text", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "agentMessage"), "redacted", value),
-		forbiddenWhen(wireFieldEquals(value, "type", "agentMessage"), "steps", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "agentMessage"), "question", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "agentMessage"), "tool", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "agentMessage"), "safetyClass", value),
@@ -1237,26 +1208,12 @@ func (value ArtifactItem) ValidateWire() error {
 		requiredWhen(wireFieldEquals(value, "type", "reasoning"), "status", value),
 		requiredWhen(wireFieldEquals(value, "type", "reasoning"), "createdAt", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "reasoning"), "content", value),
-		forbiddenWhen(wireFieldEquals(value, "type", "reasoning"), "steps", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "reasoning"), "question", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "reasoning"), "tool", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "reasoning"), "safetyClass", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "reasoning"), "error", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "reasoning"), "summary", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "reasoning"), "droppedMessages", value),
-		requiredWhen(wireFieldEquals(value, "type", "plan"), "id", value),
-		requiredWhen(wireFieldEquals(value, "type", "plan"), "runId", value),
-		requiredWhen(wireFieldEquals(value, "type", "plan"), "status", value),
-		requiredWhen(wireFieldEquals(value, "type", "plan"), "createdAt", value),
-		forbiddenWhen(wireFieldEquals(value, "type", "plan"), "content", value),
-		forbiddenWhen(wireFieldEquals(value, "type", "plan"), "text", value),
-		forbiddenWhen(wireFieldEquals(value, "type", "plan"), "redacted", value),
-		forbiddenWhen(wireFieldEquals(value, "type", "plan"), "question", value),
-		forbiddenWhen(wireFieldEquals(value, "type", "plan"), "tool", value),
-		forbiddenWhen(wireFieldEquals(value, "type", "plan"), "safetyClass", value),
-		forbiddenWhen(wireFieldEquals(value, "type", "plan"), "error", value),
-		forbiddenWhen(wireFieldEquals(value, "type", "plan"), "summary", value),
-		forbiddenWhen(wireFieldEquals(value, "type", "plan"), "droppedMessages", value),
 		requiredWhen(wireFieldEquals(value, "type", "question"), "id", value),
 		requiredWhen(wireFieldEquals(value, "type", "question"), "runId", value),
 		requiredWhen(wireFieldEquals(value, "type", "question"), "status", value),
@@ -1264,7 +1221,6 @@ func (value ArtifactItem) ValidateWire() error {
 		forbiddenWhen(wireFieldEquals(value, "type", "question"), "content", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "question"), "text", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "question"), "redacted", value),
-		forbiddenWhen(wireFieldEquals(value, "type", "question"), "steps", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "question"), "tool", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "question"), "safetyClass", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "question"), "error", value),
@@ -1277,7 +1233,6 @@ func (value ArtifactItem) ValidateWire() error {
 		forbiddenWhen(wireFieldEquals(value, "type", "toolCall"), "content", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "toolCall"), "text", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "toolCall"), "redacted", value),
-		forbiddenWhen(wireFieldEquals(value, "type", "toolCall"), "steps", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "toolCall"), "question", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "toolCall"), "summary", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "toolCall"), "droppedMessages", value),
@@ -1288,7 +1243,6 @@ func (value ArtifactItem) ValidateWire() error {
 		forbiddenWhen(wireFieldEquals(value, "type", "compaction"), "content", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "compaction"), "text", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "compaction"), "redacted", value),
-		forbiddenWhen(wireFieldEquals(value, "type", "compaction"), "steps", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "compaction"), "question", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "compaction"), "tool", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "compaction"), "safetyClass", value),
@@ -1407,8 +1361,8 @@ func (value ArtifactRun) ValidateWire() error {
 
 func (value SessionArtifact) ValidateWire() error {
 	return collectWireViolations("SessionArtifact",
-		minimumNumber("version", value.Version, 9),
-		maximumNumber("version", value.Version, 9),
+		minimumNumber("version", value.Version, 10),
+		maximumNumber("version", value.Version, 10),
 	)
 }
 

@@ -37,7 +37,7 @@ func buildTurnServices(cfg Config, messages messageEnvironment, shells *exec.She
 	compactor := maintenance.NewCompactor(
 		messages.store,
 		resolveUtility,
-		maintenance.NewLiveState(shells, cfg.TodoStore),
+		maintenance.NewLiveState(shells, cfg.PlanStore),
 		maintenance.CompactionConfig{ContextWindow: window},
 	)
 	var extractor *maintenance.Extractor

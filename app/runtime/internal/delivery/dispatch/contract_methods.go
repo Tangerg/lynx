@@ -24,7 +24,7 @@ func buildContract() *Registry {
 	registerSessions(registry)
 	registerRuns(registry)
 	registerInterrupts(registry)
-	registerTodos(registry)
+	registerPlan(registry)
 	registerItems(registry)
 	registerWorkspace(registry)
 	registerRuntimeSubscription(registry)

@@ -11,7 +11,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
 
@@ -295,12 +295,12 @@ type UsageReported struct {
 	ContextTokens int64
 }
 
-// TodosUpdated reports the committed task list after a replacement — read back
+// PlanUpdated reports the committed Plan after a replacement — read back
 // from the store, so what is published is what was written rather than what the
 // tool was asked to write.
-type TodosUpdated struct {
+type PlanUpdated struct {
 	engineEventBase
-	State todo.State
+	State plan.State
 }
 
 type SteerMessage struct {

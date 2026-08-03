@@ -306,7 +306,7 @@ func protocolServer(stack Stack, cwd string) (*runtimeserver.Server, error) {
 		WorkspaceHooks:     stack.WorkspaceHooks,
 		WorkspaceWatch:     stack.WorkspaceWatch,
 		GitAvailable:       stack.GitAvailable,
-		TodosEnabled:       stack.TodosEnabled,
+		PlanEnabled:        stack.PlanEnabled,
 		ServerInfo: protocol.ServerInfo{
 			Name: "conformance-test", Version: "0.0.0-test",
 			DefaultWorkspace: protocol.WorkspaceRef{Path: cwd}, Home: cwd,

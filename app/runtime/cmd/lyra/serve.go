@@ -107,7 +107,7 @@ func buildHTTPServer(stack bootstrap.Stack, srv config.ServerConfig, tokenValue 
 		WorkspaceHooks:     stack.WorkspaceHooks,
 		WorkspaceWatch:     stack.WorkspaceWatch,
 		GitAvailable:       stack.GitAvailable,
-		TodosEnabled:       stack.TodosEnabled,
+		PlanEnabled:        stack.PlanEnabled,
 	})
 	if err != nil {
 		return nil, nil, err

@@ -67,7 +67,7 @@ func (s *Server) refuseUnadvertisedStates(states []protocol.ArtifactState) error
 	if len(states) == 0 {
 		return nil
 	}
-	advertised := advertisedStateSnapshots(s.features.todos)
+	advertised := advertisedStateSnapshots(s.features.plan)
 	var gaps []protocol.CapabilityRequirement
 	for _, state := range states {
 		key := protocol.StateSnapshotType(state.Type)
@@ -161,12 +161,6 @@ func renderSessionMarkdown(ses protocol.Session, items []transcript.Item) string
 			if it.Tool != nil {
 				fmt.Fprintf(&b, "→ **tool** `%s`\n\n", it.Tool.Name)
 			}
-		case protocol.ItemTypePlan:
-			b.WriteString("**Plan:**\n")
-			for _, st := range it.Steps {
-				fmt.Fprintf(&b, "- [%s] %s\n", st.Status, st.Title)
-			}
-			b.WriteString("\n")
 		case protocol.ItemTypeQuestion:
 			if it.Question != nil {
 				b.WriteString("## Question\n\n")

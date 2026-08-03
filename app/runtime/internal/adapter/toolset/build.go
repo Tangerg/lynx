@@ -17,11 +17,11 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/goaltool"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/lsptools"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/memorysearch"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/plantool"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/sessionsearch"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/shell"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/skill"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/skillpropose"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/todotool"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/toolresult"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
@@ -54,7 +54,7 @@ type BuildConfig struct {
 	// after reconnects; toolset deliberately does not own MCP connections.
 	MCPTools       []toolcontract.Tool
 	A2AAgents      []A2AAgentConfig
-	Todos          todotool.Store      // backs todo_write; nil → the tool is omitted
+	Plan           plantool.Store      // backs set_plan; nil → the tool is omitted
 	Approval       exitplan.ModePolicy // backs exit_plan_mode (flips the stance on approval); nil → the tool is omitted
 	Interrupt      runs.InterruptFunc
 	Schedules      ScheduleManagement     // backs the schedule tool; nil → omitted
@@ -171,12 +171,12 @@ func Build(ctx context.Context, config BuildConfig) (_ Built, err error) {
 		return Built{}, fmt.Errorf("toolset: build exit_plan_mode: %w", err)
 	}
 
-	// todo_write maintains the per-session task list. nil config.Todos yields a nil
-	// tool that's simply omitted (feature off). Working-directory independent
-	// (keys off the session id), so built once and given to both roles.
-	todoTool, err := todotool.New(config.Todos)
+	// set_plan maintains the root Agent's per-session execution plan. nil
+	// config.Plan yields a nil tool that's simply omitted (feature off). It is
+	// built once here; the resolver exposes it only to the coding role.
+	planTool, err := plantool.New(config.Plan)
 	if err != nil {
-		return Built{}, fmt.Errorf("toolset: build todo_write: %w", err)
+		return Built{}, fmt.Errorf("toolset: build set_plan: %w", err)
 	}
 	scheduleTool, err := newScheduleTool(config.Schedules)
 	if err != nil {
@@ -235,7 +235,7 @@ func Build(ctx context.Context, config BuildConfig) (_ Built, err error) {
 		Shell:           shellTools,
 		AskUser:         askUserTool,
 		ExitPlan:        exitPlanTool,
-		Todo:            todoTool,
+		Plan:            planTool,
 		Schedule:        scheduleTool,
 		ToolResult:      toolResultTool,
 		MemorySearch:    memorySearchTool,

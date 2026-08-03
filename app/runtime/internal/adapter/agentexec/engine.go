@@ -32,7 +32,7 @@ type Engine struct {
 	knowledge      KnowledgeReader
 	memory         AgentMemoryReader
 	memorySearch   MemorySearcher
-	todos          TodoReader
+	plan           PlanReader
 	workdir        string
 	pricing        accounting.Pricing
 
@@ -115,7 +115,7 @@ func New(ctx context.Context, config Config) (*Engine, error) {
 		memorySearch:           config.MemorySearch,
 		historyStore:           config.HistoryStore,
 		chatMiddleware:         chatMiddleware,
-		todos:                  config.Todos,
+		plan:                   config.Plan,
 		workdir:                config.Workdir,
 		pricing:                config.Pricing,
 		checkpoints:            config.Checkpoints,

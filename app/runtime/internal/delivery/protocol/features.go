@@ -17,7 +17,7 @@ const (
 	FeatureReasoning     = "reasoning"
 	FeatureMultimodal    = "multimodal"
 	FeatureCompaction    = "compaction"
-	FeatureTodos         = "todos"
+	FeaturePlan          = "plan"
 	FeatureGoals         = "goals"
 	FeatureAgentMemory   = "agentMemory"
 	FeatureMemory        = "memory"
@@ -69,7 +69,7 @@ var features = mustFeatures([]Feature{
 	{Key: FeatureReasoning, Stability: StabilityStable},
 	{Key: FeatureMultimodal, Stability: StabilityStable},
 	{Key: FeatureCompaction, Stability: StabilityStable},
-	{Key: FeatureTodos, Stability: StabilityStable},
+	{Key: FeaturePlan, Stability: StabilityStable},
 	{Key: FeatureGoals, Stability: StabilityStable},
 	{Key: FeatureAgentMemory, Stability: StabilityStable},
 	{Key: FeatureMemory, Stability: StabilityStable},

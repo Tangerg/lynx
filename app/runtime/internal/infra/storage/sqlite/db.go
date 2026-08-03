@@ -306,19 +306,18 @@ func installCurrentSchema(db *sql.DB, path string) error {
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_messages_conversation
 			ON messages(conversation_id, seq)`,
-		// revision is assigned by the replacement that produced the list, not by a
-		// clock: the list is replaced wholesale, so a fold cannot tell an older
-		// snapshot from a newer one by content.
-		`CREATE TABLE IF NOT EXISTS todos (
+		// A Plan is one complete ordered value per session. revision is assigned by
+		// the replacement, not a clock, so clients can reject a late older snapshot.
+		`CREATE TABLE IF NOT EXISTS session_plans (
 			session_id TEXT    PRIMARY KEY,
-			items      TEXT    NOT NULL,
-			revision   INTEGER NOT NULL DEFAULT 0,
+			steps      TEXT    NOT NULL,
+			revision   INTEGER NOT NULL CHECK (revision > 0),
 			updated_at INTEGER NOT NULL
 		)`,
-		// One row per terminal Run: the session's task list as it stood when that Run
-		// ended. todos above is a latest-value projection with no history, so without
-		// this row "the list at run X" is unknowable — and sessions.rollback and
-		// sessions.fork both restore/copy a run boundary. It is the state half of what
+		// One row per terminal Run: the session's Plan as it stood when that Run
+		// ended. session_plans is a latest-value projection with no history, so without
+		// this row "the Plan at Run X" is unknowable — and sessions.rollback and
+		// sessions.fork both restore/copy a Run boundary. It is the state half of what
 		// runs.message_mark is for the conversation, written by the same terminal
 		// transition.
 		//
@@ -328,9 +327,9 @@ func installCurrentSchema(db *sql.DB, path string) error {
 		// which is the honest state of an imported Run (the portable Artifact carries
 		// the live value only). Readers leave the live list alone rather than guessing
 		// at empty, the same way an unknown message watermark leaves the log alone.
-		`CREATE TABLE IF NOT EXISTS todo_boundaries (
+		`CREATE TABLE IF NOT EXISTS plan_boundaries (
 			run_id TEXT PRIMARY KEY REFERENCES runs(run_id) ON DELETE CASCADE,
-			items  TEXT NOT NULL
+			steps  TEXT NOT NULL
 		)`,
 		// One autonomous goal per session (Goal mode). The FK is the durable
 		// ownership invariant: a Goal cannot survive or be created after its

@@ -111,8 +111,8 @@ type RunProgress struct {
 type StateSnapshotType string
 
 const (
-	// StateTodos — the session's task list.
-	StateTodos StateSnapshotType = "todos"
+	// StatePlan — the session's Plan.
+	StatePlan StateSnapshotType = "plan"
 )
 
 // StateSnapshot is a persisted latest-value projection a run publishes and a cold
@@ -131,37 +131,35 @@ type StateSnapshot struct {
 	Type      StateSnapshotType `json:"type"`
 	SessionID string            `json:"sessionId"`
 	Revision  uint64            `json:"revision"`
-	Todos     []TodoSnapshot    `json:"todos"`
+	Plan      []PlanSnapshot    `json:"plan"`
 	// UpdatedAt is absent exactly while Revision is 0: nothing was written, so there
 	// is no time at which it was.
 	UpdatedAt time.Time `json:"updatedAt,omitzero"`
 }
 
-// GetTodosRequest is the todos.get body — the cold read the state.snapshot key
+// GetPlanRequest is the plan.get body — the cold read the state.snapshot key
 // declares as its recovery source.
-type GetTodosRequest struct {
+type GetPlanRequest struct {
 	SessionID string `json:"sessionId"`
 }
 
-// TodoSnapshot is one entry of the model's task list, carried by [StateSnapshot].
-// The list is replaced whole each todo_write, so ID is positional — a stable key
+// PlanSnapshot is one Step of the session Plan, carried by [StateSnapshot].
+// The Plan is replaced whole each set_plan, so ID is positional — a stable key
 // within a snapshot, not a durable identity. Status is
 // "pending" | "in_progress" | "completed".
-type TodoSnapshot struct {
-	ID            string     `json:"id"`
-	Text          string     `json:"text"`
-	Status        TodoStatus `json:"status"`
-	BlockedReason string     `json:"blockedReason,omitempty"`
-	NextAction    string     `json:"nextAction,omitempty"`
+type PlanSnapshot struct {
+	ID          string     `json:"id"`
+	Description string     `json:"description"`
+	Status      PlanStatus `json:"status"`
 }
 
-// TodoStatus is the model-maintained checklist lifecycle.
-type TodoStatus string
+// PlanStatus is one Step's execution state.
+type PlanStatus string
 
 const (
-	TodoStatusPending    TodoStatus = "pending"
-	TodoStatusInProgress TodoStatus = "in_progress"
-	TodoStatusCompleted  TodoStatus = "completed"
+	PlanStatusPending    PlanStatus = "pending"
+	PlanStatusInProgress PlanStatus = "in_progress"
+	PlanStatusCompleted  PlanStatus = "completed"
 )
 
 // ItemDeltaType discriminates the ItemDelta union (API.md §5.1).
@@ -172,7 +170,6 @@ const (
 	DeltaReasoning     ItemDeltaType = "reasoning"
 	DeltaToolArguments ItemDeltaType = "toolArguments"
 	DeltaToolOutput    ItemDeltaType = "toolOutput"
-	DeltaPlan          ItemDeltaType = "plan"
 )
 
 // ItemDelta is a tag-discriminated union over incremental updates
@@ -182,12 +179,10 @@ const (
 //	reasoning     → Text
 //	toolArguments → ArgumentsTextDelta (partial JSON text; client repairs)
 //	toolOutput    → Text
-//	plan          → Steps (current full snapshot)
 type ItemDelta struct {
 	Type ItemDeltaType `json:"type"`
 
-	Index              *int       `json:"index,omitempty"`
-	Text               string     `json:"text,omitempty"`
-	ArgumentsTextDelta string     `json:"argumentsTextDelta,omitempty"`
-	Steps              []PlanStep `json:"steps,omitempty"`
+	Index              *int   `json:"index,omitempty"`
+	Text               string `json:"text,omitempty"`
+	ArgumentsTextDelta string `json:"argumentsTextDelta,omitempty"`
 }

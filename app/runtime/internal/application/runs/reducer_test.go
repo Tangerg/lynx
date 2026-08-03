@@ -14,7 +14,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
 
@@ -442,18 +442,18 @@ func TestReducerCanonicalProgressSnapshotsAndOutcomes(t *testing.T) {
 		t.Fatal("usage progress must stay ephemeral")
 	}
 
-	snapshot := mustReduce(t, reducer, TodosUpdated{State: todo.State{
-		Items: []todo.Item{{
-			Content: "write tests", Status: todo.StatusInProgress, NextAction: "run package",
+	snapshot := mustReduce(t, reducer, PlanUpdated{State: plan.State{
+		Steps: []plan.Step{{
+			Description: "write tests", Status: plan.StatusInProgress,
 		}},
 		Revision: 3, UpdatedAt: time.Unix(7, 0).UTC(),
 	}})
 	state, ok := snapshot[0].Event.(StateSnapshot)
-	if !ok || len(state.Todos) != 1 || state.Todos[0].Text != "write tests" || state.Todos[0].Status != todo.StatusInProgress {
-		t.Fatalf("todo snapshot = %#v", snapshot[0].Event)
+	if !ok || len(state.Plan) != 1 || state.Plan[0].Description != "write tests" || state.Plan[0].Status != plan.StatusInProgress {
+		t.Fatalf("plan snapshot = %#v", snapshot[0].Event)
 	}
 	if state.Revision != 3 || state.SessionID != "ses_1" {
-		t.Fatalf("todo snapshot identity = %+v, want session ses_1 at revision 3", state)
+		t.Fatalf("plan snapshot identity = %+v, want session ses_1 at revision 3", state)
 	}
 
 	compaction := mustReduce(t, reducer, CompactBoundary{MessagesBefore: 20, MessagesAfter: 6})
@@ -1028,8 +1028,8 @@ func assertFrozenProfile(t *testing.T, got, want execution.RunProtocolProfile, w
 // that folds by revision — it reads as "the list was cleared".
 func TestSegmentFencesItsFinalStateBeforeFinishing(t *testing.T) {
 	reducer := newReducer(testReducerConfig())
-	mustReduce(t, reducer, TodosUpdated{State: todo.State{
-		Items:    []todo.Item{{Content: "fence this", Status: todo.StatusInProgress}},
+	mustReduce(t, reducer, PlanUpdated{State: plan.State{
+		Steps:    []plan.Step{{Description: "fence this", Status: plan.StatusInProgress}},
 		Revision: 4, UpdatedAt: time.Unix(11, 0).UTC(),
 	}})
 
@@ -1044,7 +1044,7 @@ func TestSegmentFencesItsFinalStateBeforeFinishing(t *testing.T) {
 	if !fenced {
 		t.Fatalf("event before the finish = %#v, want the segment's final state", terminal[len(terminal)-2].Event)
 	}
-	if fence.Revision != 4 || len(fence.Todos) != 1 || fence.SessionID != "ses_1" {
+	if fence.Revision != 4 || len(fence.Plan) != 1 || fence.SessionID != "ses_1" {
 		t.Fatalf("fence = %+v, want session ses_1's revision 4 list", fence)
 	}
 

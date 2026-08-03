@@ -7,7 +7,7 @@
     "reasoning",
     "multimodal",
     "compaction",
-    "todos",
+    "plan",
     "goals",
     "agentMemory",
     "memory",
@@ -264,7 +264,7 @@
       "stability": "stable"
     },
     {
-      "name": "todos.get",
+      "name": "plan.get",
       "kind": "unary",
       "operation": "query",
       "idempotency": "none",
@@ -274,7 +274,7 @@
         "capability_not_negotiated"
       ],
       "features": [
-        "todos"
+        "plan"
       ],
       "stability": "stable"
     },
@@ -1160,6 +1160,7 @@
           "memory.get",
           "memory.list",
           "memory.update",
+          "plan.get",
           "runs.cancel",
           "runs.get",
           "runs.list",
@@ -1183,7 +1184,6 @@
           "skills.library.archive",
           "skills.library.list",
           "skills.library.restore",
-          "todos.get",
           "workspace.changes.list",
           "workspace.diff.get"
         ]
@@ -1396,6 +1396,7 @@
           "goals.start",
           "goals.stop",
           "items.list",
+          "plan.get",
           "runs.start",
           "sessions.delete",
           "sessions.export",
@@ -1403,7 +1404,6 @@
           "sessions.get",
           "sessions.rollback",
           "sessions.update",
-          "todos.get",
           "usage.session"
         ]
       },
@@ -1565,11 +1565,11 @@
       ]
     },
     {
-      "method": "todos.get",
+      "method": "plan.get",
       "rules": [
         {
           "requires": [
-            "todos"
+            "plan"
           ]
         }
       ]
@@ -2090,11 +2090,11 @@
   ],
   "statePolicy": [
     {
-      "key": "todos",
-      "recoveryMethod": "todos.get",
+      "key": "plan",
+      "recoveryMethod": "plan.get",
       "scope": "session",
       "writer": "rootRun",
-      "feature": "todos",
+      "feature": "plan",
       "stability": "stable",
       "payload": {
         "$ref": "schema.json#/$defs/StateSnapshot"
@@ -2531,9 +2531,9 @@
       "discriminator": "type",
       "variants": [
         {
-          "tag": "todos",
+          "tag": "plan",
           "required": [
-            "todos"
+            "plan"
           ]
         }
       ]
@@ -2577,18 +2577,6 @@
           "optional": [
             "text",
             "redacted"
-          ]
-        },
-        {
-          "tag": "plan",
-          "required": [
-            "id",
-            "runId",
-            "status",
-            "createdAt"
-          ],
-          "optional": [
-            "steps"
           ]
         },
         {
@@ -2662,12 +2650,6 @@
           "required": [
             "text"
           ]
-        },
-        {
-          "tag": "plan",
-          "required": [
-            "steps"
-          ]
         }
       ]
     },
@@ -2706,11 +2688,11 @@
       "discriminator": "type",
       "variants": [
         {
-          "tag": "todos",
+          "tag": "plan",
           "required": [
             "sessionId",
             "revision",
-            "todos"
+            "plan"
           ],
           "optional": [
             "updatedAt"
@@ -3282,18 +3264,6 @@
           "optional": [
             "text",
             "redacted"
-          ]
-        },
-        {
-          "tag": "plan",
-          "required": [
-            "id",
-            "runId",
-            "status",
-            "createdAt"
-          ],
-          "optional": [
-            "steps"
           ]
         },
         {
@@ -3937,11 +3907,11 @@
       "rules": [
         {
           "field": "version",
-          "constraint": "minimum(9)"
+          "constraint": "minimum(10)"
         },
         {
           "field": "version",
-          "constraint": "maximum(9)"
+          "constraint": "maximum(10)"
         }
       ]
     },
@@ -4332,7 +4302,7 @@
       ]
     },
     {
-      "type": "GetTodosRequest",
+      "type": "GetPlanRequest",
       "rules": [
         {
           "field": "sessionId",
@@ -5142,10 +5112,6 @@
       "shape": "Item"
     },
     {
-      "file": "item.plan.json",
-      "shape": "Item"
-    },
-    {
       "file": "item.question.json",
       "shape": "Item"
     },
@@ -5167,10 +5133,6 @@
     },
     {
       "file": "delta.toolOutput.json",
-      "shape": "ItemDelta"
-    },
-    {
-      "file": "delta.plan.json",
       "shape": "ItemDelta"
     },
     {

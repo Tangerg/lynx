@@ -447,12 +447,6 @@
         "status": {
           "$ref": "#/$defs/ItemStatus"
         },
-        "steps": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/ArtifactPlanStep"
-          }
-        },
         "summary": {
           "type": "string"
         },
@@ -474,7 +468,6 @@
             "question": false,
             "redacted": false,
             "safetyClass": false,
-            "steps": false,
             "summary": false,
             "text": false,
             "tool": false,
@@ -497,7 +490,6 @@
             "question": false,
             "redacted": false,
             "safetyClass": false,
-            "steps": false,
             "summary": false,
             "text": false,
             "tool": false,
@@ -520,7 +512,6 @@
             "error": false,
             "question": false,
             "safetyClass": false,
-            "steps": false,
             "summary": false,
             "tool": false,
             "type": {
@@ -540,32 +531,8 @@
             "content": false,
             "droppedMessages": false,
             "error": false,
-            "question": false,
             "redacted": false,
             "safetyClass": false,
-            "summary": false,
-            "text": false,
-            "tool": false,
-            "type": {
-              "const": "plan"
-            }
-          },
-          "required": [
-            "createdAt",
-            "id",
-            "runId",
-            "status",
-            "type"
-          ]
-        },
-        {
-          "properties": {
-            "content": false,
-            "droppedMessages": false,
-            "error": false,
-            "redacted": false,
-            "safetyClass": false,
-            "steps": false,
             "summary": false,
             "text": false,
             "tool": false,
@@ -587,7 +554,6 @@
             "droppedMessages": false,
             "question": false,
             "redacted": false,
-            "steps": false,
             "summary": false,
             "text": false,
             "type": {
@@ -609,7 +575,6 @@
             "question": false,
             "redacted": false,
             "safetyClass": false,
-            "steps": false,
             "text": false,
             "tool": false,
             "type": {
@@ -758,25 +723,6 @@
         "maxSteps",
         "maxBudget",
         "canceled"
-      ]
-    },
-    "ArtifactPlanStep": {
-      "type": "object",
-      "properties": {
-        "id": {
-          "type": "string"
-        },
-        "status": {
-          "$ref": "#/$defs/PlanStepStatus"
-        },
-        "title": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "id",
-        "status",
-        "title"
       ]
     },
     "ArtifactProblem": {
@@ -1099,10 +1045,10 @@
     "ArtifactState": {
       "type": "object",
       "properties": {
-        "todos": {
+        "plan": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/TodoSnapshot"
+            "$ref": "#/$defs/PlanSnapshot"
           }
         },
         "type": {
@@ -1113,11 +1059,11 @@
         {
           "properties": {
             "type": {
-              "const": "todos"
+              "const": "plan"
             }
           },
           "required": [
-            "todos",
+            "plan",
             "type"
           ]
         }
@@ -1126,7 +1072,7 @@
     "ArtifactStateType": {
       "type": "string",
       "enum": [
-        "todos"
+        "plan"
       ]
     },
     "ArtifactToolInvocation": {
@@ -2207,6 +2153,18 @@
         "scope"
       ]
     },
+    "GetPlanRequest": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "sessionId"
+      ]
+    },
     "GetRunRequest": {
       "type": "object",
       "properties": {
@@ -2220,18 +2178,6 @@
       ]
     },
     "GetSessionRequest": {
-      "type": "object",
-      "properties": {
-        "sessionId": {
-          "type": "string",
-          "minLength": 1
-        }
-      },
-      "required": [
-        "sessionId"
-      ]
-    },
-    "GetTodosRequest": {
       "type": "object",
       "properties": {
         "sessionId": {
@@ -2814,12 +2760,6 @@
         "status": {
           "$ref": "#/$defs/ItemStatus"
         },
-        "steps": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/PlanStep"
-          }
-        },
         "summary": {
           "type": "string"
         },
@@ -2841,7 +2781,6 @@
             "question": false,
             "redacted": false,
             "safetyClass": false,
-            "steps": false,
             "summary": false,
             "text": false,
             "tool": false,
@@ -2864,7 +2803,6 @@
             "question": false,
             "redacted": false,
             "safetyClass": false,
-            "steps": false,
             "summary": false,
             "text": false,
             "tool": false,
@@ -2887,7 +2825,6 @@
             "error": false,
             "question": false,
             "safetyClass": false,
-            "steps": false,
             "summary": false,
             "tool": false,
             "type": {
@@ -2907,32 +2844,8 @@
             "content": false,
             "droppedMessages": false,
             "error": false,
-            "question": false,
             "redacted": false,
             "safetyClass": false,
-            "summary": false,
-            "text": false,
-            "tool": false,
-            "type": {
-              "const": "plan"
-            }
-          },
-          "required": [
-            "createdAt",
-            "id",
-            "runId",
-            "status",
-            "type"
-          ]
-        },
-        {
-          "properties": {
-            "content": false,
-            "droppedMessages": false,
-            "error": false,
-            "redacted": false,
-            "safetyClass": false,
-            "steps": false,
             "summary": false,
             "text": false,
             "tool": false,
@@ -2954,7 +2867,6 @@
             "droppedMessages": false,
             "question": false,
             "redacted": false,
-            "steps": false,
             "summary": false,
             "text": false,
             "type": {
@@ -2976,7 +2888,6 @@
             "question": false,
             "redacted": false,
             "safetyClass": false,
-            "steps": false,
             "text": false,
             "tool": false,
             "type": {
@@ -3002,12 +2913,6 @@
         "index": {
           "type": "integer"
         },
-        "steps": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/PlanStep"
-          }
-        },
         "text": {
           "type": "string"
         },
@@ -3019,7 +2924,6 @@
         {
           "properties": {
             "argumentsTextDelta": false,
-            "steps": false,
             "type": {
               "const": "content"
             }
@@ -3033,7 +2937,6 @@
           "properties": {
             "argumentsTextDelta": false,
             "index": false,
-            "steps": false,
             "type": {
               "const": "reasoning"
             }
@@ -3046,7 +2949,6 @@
         {
           "properties": {
             "index": false,
-            "steps": false,
             "text": false,
             "type": {
               "const": "toolArguments"
@@ -3061,27 +2963,12 @@
           "properties": {
             "argumentsTextDelta": false,
             "index": false,
-            "steps": false,
             "type": {
               "const": "toolOutput"
             }
           },
           "required": [
             "text",
-            "type"
-          ]
-        },
-        {
-          "properties": {
-            "argumentsTextDelta": false,
-            "index": false,
-            "text": false,
-            "type": {
-              "const": "plan"
-            }
-          },
-          "required": [
-            "steps",
             "type"
           ]
         }
@@ -3093,8 +2980,7 @@
         "content",
         "reasoning",
         "toolArguments",
-        "toolOutput",
-        "plan"
+        "toolOutput"
       ]
     },
     "ItemListScope": {
@@ -3169,7 +3055,6 @@
         "userMessage",
         "agentMessage",
         "reasoning",
-        "plan",
         "question",
         "toolCall",
         "compaction"
@@ -4601,32 +4486,31 @@
         }
       ]
     },
-    "PlanStep": {
+    "PlanSnapshot": {
       "type": "object",
       "properties": {
+        "description": {
+          "type": "string"
+        },
         "id": {
           "type": "string"
         },
         "status": {
-          "$ref": "#/$defs/PlanStepStatus"
-        },
-        "title": {
-          "type": "string"
+          "$ref": "#/$defs/PlanStatus"
         }
       },
       "required": [
+        "description",
         "id",
-        "status",
-        "title"
+        "status"
       ]
     },
-    "PlanStepStatus": {
+    "PlanStatus": {
       "type": "string",
       "enum": [
         "pending",
-        "running",
-        "completed",
-        "failed"
+        "in_progress",
+        "completed"
       ]
     },
     "ProblemData": {
@@ -7149,8 +7033,8 @@
         },
         "version": {
           "type": "integer",
-          "minimum": 9,
-          "maximum": 9
+          "minimum": 10,
+          "maximum": 10
         }
       },
       "required": [
@@ -7392,18 +7276,18 @@
     "StateSnapshot": {
       "type": "object",
       "properties": {
+        "plan": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/PlanSnapshot"
+          }
+        },
         "revision": {
           "type": "integer",
           "minimum": 0
         },
         "sessionId": {
           "type": "string"
-        },
-        "todos": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/TodoSnapshot"
-          }
         },
         "type": {
           "$ref": "#/$defs/StateSnapshotType"
@@ -7417,13 +7301,13 @@
         {
           "properties": {
             "type": {
-              "const": "todos"
+              "const": "plan"
             }
           },
           "required": [
+            "plan",
             "revision",
             "sessionId",
-            "todos",
             "type"
           ]
         }
@@ -7462,7 +7346,7 @@
     "StateSnapshotType": {
       "type": "string",
       "enum": [
-        "todos"
+        "plan"
       ]
     },
     "StateSnapshotWriter": {
@@ -7784,39 +7668,6 @@
       },
       "required": [
         "provider"
-      ]
-    },
-    "TodoSnapshot": {
-      "type": "object",
-      "properties": {
-        "blockedReason": {
-          "type": "string"
-        },
-        "id": {
-          "type": "string"
-        },
-        "nextAction": {
-          "type": "string"
-        },
-        "status": {
-          "$ref": "#/$defs/TodoStatus"
-        },
-        "text": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "id",
-        "status",
-        "text"
-      ]
-    },
-    "TodoStatus": {
-      "type": "string",
-      "enum": [
-        "pending",
-        "in_progress",
-        "completed"
       ]
     },
     "ToolInvocation": {

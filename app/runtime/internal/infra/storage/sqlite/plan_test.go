@@ -7,23 +7,23 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 )
 
-func newTodoStore(t *testing.T) *sqlite.TodoStore {
+func newPlanStore(t *testing.T) *sqlite.PlanStore {
 	t.Helper()
 	db, err := sqlite.Open(filepath.Join(t.TempDir(), "lyra.db"))
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
 	t.Cleanup(func() { _ = db.Close() })
-	return sqlite.NewTodoStore(db)
+	return sqlite.NewPlanStore(db)
 }
 
-func TestTodoStore_RoundTrip(t *testing.T) {
+func TestPlanStore_RoundTrip(t *testing.T) {
 	ctx := context.Background()
-	store := newTodoStore(t)
+	store := newPlanStore(t)
 	const sess = "session-x"
 
 	// Unknown session → empty, not an error.
@@ -35,10 +35,10 @@ func TestTodoStore_RoundTrip(t *testing.T) {
 		t.Fatalf("List(empty) = %v, want none", got)
 	}
 
-	want := []todo.Item{
-		{Content: "plan", Status: todo.StatusCompleted},
-		{Content: "build", Status: todo.StatusInProgress, NextAction: "run focused test"},
-		{Content: "ship", Status: todo.StatusPending, BlockedReason: "waiting on release notes"},
+	want := []plan.Step{
+		{Description: "plan", Status: plan.StatusCompleted},
+		{Description: "build", Status: plan.StatusInProgress},
+		{Description: "ship", Status: plan.StatusPending},
 	}
 	if err := store.Replace(ctx, sess, want); err != nil {
 		t.Fatalf("Replace: %v", err)
@@ -57,11 +57,11 @@ func TestTodoStore_RoundTrip(t *testing.T) {
 	}
 
 	// Replace is a full overwrite, not a merge.
-	if err := store.Replace(ctx, sess, []todo.Item{{Content: "done", Status: todo.StatusCompleted}}); err != nil {
+	if err := store.Replace(ctx, sess, []plan.Step{{Description: "done", Status: plan.StatusCompleted}}); err != nil {
 		t.Fatalf("Replace(shrink): %v", err)
 	}
 	got, _ = store.List(ctx, sess)
-	if len(got) != 1 || got[0].Content != "done" {
+	if len(got) != 1 || got[0].Description != "done" {
 		t.Fatalf("after shrink = %v, want single 'done'", got)
 	}
 
@@ -78,7 +78,7 @@ func TestTodoStore_RoundTrip(t *testing.T) {
 	}
 
 	// Lists are per-session.
-	if err := store.Replace(ctx, "other", []todo.Item{{Content: "x", Status: todo.StatusPending}}); err != nil {
+	if err := store.Replace(ctx, "other", []plan.Step{{Description: "x", Status: plan.StatusPending}}); err != nil {
 		t.Fatalf("Replace(other): %v", err)
 	}
 	if got, _ := store.List(ctx, sess); len(got) != 0 {
@@ -92,29 +92,29 @@ func TestTodoStore_RoundTrip(t *testing.T) {
 	}
 }
 
-// newTodoBoundaryStores pairs the task list with the Run lifecycle, because a
+// newPlanBoundaryStores pairs the Plan with the Run lifecycle, because a
 // boundary is recorded by a Run ending: the two stores share one database so the
 // terminal transition and the list it captures are the same transaction's work.
-func newTodoBoundaryStores(t *testing.T) (*sqlite.TodoStore, *sqlite.RunStore) {
+func newPlanBoundaryStores(t *testing.T) (*sqlite.PlanStore, *sqlite.RunStore) {
 	t.Helper()
 	db, err := sqlite.Open(filepath.Join(t.TempDir(), "lyra.db"))
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
 	t.Cleanup(func() { _ = db.Close() })
-	return sqlite.NewTodoStore(db), sqlite.NewRunStore(db)
+	return sqlite.NewPlanStore(db), sqlite.NewRunStore(db)
 }
 
-// TestTodoBoundaryIsRecordedByTheRunThatEnds is the whole reason this table
+// TestPlanBoundaryIsRecordedByTheRunThatEnds is the whole reason this table
 // exists: the live projection keeps one value and no history, so "the list as of
 // run X" is only answerable if the Run's end recorded it. Each boundary is frozen
 // at that moment — a later replacement does not rewrite what an earlier Run saw.
-func TestTodoBoundaryIsRecordedByTheRunThatEnds(t *testing.T) {
+func TestPlanBoundaryIsRecordedByTheRunThatEnds(t *testing.T) {
 	ctx := t.Context()
-	todos, runs := newTodoBoundaryStores(t)
+	plans, runs := newPlanBoundaryStores(t)
 
-	first := []todo.Item{{Content: "survey the code", Status: todo.StatusCompleted}}
-	if err := todos.Replace(ctx, "ses_A", first); err != nil {
+	first := []plan.Step{{Description: "survey the code", Status: plan.StatusCompleted}}
+	if err := plans.Replace(ctx, "ses_A", first); err != nil {
 		t.Fatalf("Replace: %v", err)
 	}
 	if err := runs.Admit(ctx, runDraft("run_1", "ses_A")); err != nil {
@@ -124,8 +124,8 @@ func TestTodoBoundaryIsRecordedByTheRunThatEnds(t *testing.T) {
 		t.Fatalf("terminalize run_1: %v", err)
 	}
 
-	second := append(slices.Clone(first), todo.Item{Content: "write the fix", Status: todo.StatusInProgress})
-	if err := todos.Replace(ctx, "ses_A", second); err != nil {
+	second := append(slices.Clone(first), plan.Step{Description: "write the fix", Status: plan.StatusInProgress})
+	if err := plans.Replace(ctx, "ses_A", second); err != nil {
 		t.Fatalf("Replace(grow): %v", err)
 	}
 	if err := runs.Admit(ctx, runDraft("run_2", "ses_A")); err != nil {
@@ -135,27 +135,27 @@ func TestTodoBoundaryIsRecordedByTheRunThatEnds(t *testing.T) {
 		t.Fatalf("terminalize run_2: %v", err)
 	}
 
-	got, recorded, err := todos.Boundary(ctx, "run_1")
+	got, recorded, err := plans.Boundary(ctx, "run_1")
 	if err != nil || !recorded {
 		t.Fatalf("Boundary(run_1) = %v, recorded %v, err %v", got, recorded, err)
 	}
-	if len(got) != 1 || got[0].Content != "survey the code" {
+	if len(got) != 1 || got[0].Description != "survey the code" {
 		t.Fatalf("Boundary(run_1) = %+v, want the list as it stood then", got)
 	}
-	got, recorded, err = todos.Boundary(ctx, "run_2")
+	got, recorded, err = plans.Boundary(ctx, "run_2")
 	if err != nil || !recorded || len(got) != 2 {
 		t.Fatalf("Boundary(run_2) = %+v, recorded %v, err %v, want both items", got, recorded, err)
 	}
 }
 
-// TestTodoBoundaryDistinguishesEmptyFromUnrecorded is the distinction a rollback
+// TestPlanBoundaryDistinguishesEmptyFromUnrecorded is the distinction a rollback
 // turns into behavior: a Run that ended before the session had any list recorded
 // an EMPTY one (rolling back there clears the list), while a Run that never
 // recorded a boundary — imported, or already dropped — leaves the caller nothing
 // to restore and must not be read as empty.
-func TestTodoBoundaryDistinguishesEmptyFromUnrecorded(t *testing.T) {
+func TestPlanBoundaryDistinguishesEmptyFromUnrecorded(t *testing.T) {
 	ctx := t.Context()
-	todos, runs := newTodoBoundaryStores(t)
+	plans, runs := newPlanBoundaryStores(t)
 
 	if err := runs.Admit(ctx, runDraft("run_1", "ses_A")); err != nil {
 		t.Fatalf("admit: %v", err)
@@ -163,12 +163,12 @@ func TestTodoBoundaryDistinguishesEmptyFromUnrecorded(t *testing.T) {
 	if err := runs.Terminalize(ctx, finishedRun("run_1", "ses_A", execution.OutcomeCompleted)); err != nil {
 		t.Fatalf("terminalize: %v", err)
 	}
-	got, recorded, err := todos.Boundary(ctx, "run_1")
+	got, recorded, err := plans.Boundary(ctx, "run_1")
 	if err != nil || !recorded || len(got) != 0 {
 		t.Fatalf("Boundary(list never written) = %+v, recorded %v, err %v, want a recorded empty list", got, recorded, err)
 	}
 
-	if _, recorded, err = todos.Boundary(ctx, "run_never_seen"); err != nil || recorded {
+	if _, recorded, err = plans.Boundary(ctx, "run_never_seen"); err != nil || recorded {
 		t.Fatalf("Boundary(unknown run) recorded %v, err %v, want not recorded", recorded, err)
 	}
 
@@ -177,19 +177,19 @@ func TestTodoBoundaryDistinguishesEmptyFromUnrecorded(t *testing.T) {
 	if err := runs.Restore(ctx, finishedRun("run_imported", "ses_B", execution.OutcomeCompleted)); err != nil {
 		t.Fatalf("restore: %v", err)
 	}
-	if _, recorded, err = todos.Boundary(ctx, "run_imported"); err != nil || recorded {
+	if _, recorded, err = plans.Boundary(ctx, "run_imported"); err != nil || recorded {
 		t.Fatalf("Boundary(imported run) recorded %v, err %v, want not recorded", recorded, err)
 	}
 }
 
-// TestTodoBoundaryDiesWithItsRun: the boundary's lifecycle is the Run's, enforced
+// TestPlanBoundaryDiesWithItsRun: the boundary's lifecycle is the Run's, enforced
 // by the schema rather than by every write-set remembering — a rollback that drops
 // a Run cannot leave a boundary addressing a Run that no longer exists.
-func TestTodoBoundaryDiesWithItsRun(t *testing.T) {
+func TestPlanBoundaryDiesWithItsRun(t *testing.T) {
 	ctx := t.Context()
-	todos, runs := newTodoBoundaryStores(t)
+	plans, runs := newPlanBoundaryStores(t)
 
-	if err := todos.Replace(ctx, "ses_A", []todo.Item{{Content: "dropped work", Status: todo.StatusPending}}); err != nil {
+	if err := plans.Replace(ctx, "ses_A", []plan.Step{{Description: "dropped work", Status: plan.StatusPending}}); err != nil {
 		t.Fatalf("Replace: %v", err)
 	}
 	if err := runs.Admit(ctx, runDraft("run_1", "ses_A")); err != nil {
@@ -198,19 +198,19 @@ func TestTodoBoundaryDiesWithItsRun(t *testing.T) {
 	if err := runs.Terminalize(ctx, finishedRun("run_1", "ses_A", execution.OutcomeCompleted)); err != nil {
 		t.Fatalf("terminalize: %v", err)
 	}
-	if _, recorded, err := todos.Boundary(ctx, "run_1"); err != nil || !recorded {
+	if _, recorded, err := plans.Boundary(ctx, "run_1"); err != nil || !recorded {
 		t.Fatalf("Boundary before drop recorded %v, err %v", recorded, err)
 	}
 
 	if err := runs.Delete(ctx, "ses_A", "run_1"); err != nil {
 		t.Fatalf("delete run: %v", err)
 	}
-	if _, recorded, err := todos.Boundary(ctx, "run_1"); err != nil || recorded {
+	if _, recorded, err := plans.Boundary(ctx, "run_1"); err != nil || recorded {
 		t.Fatalf("Boundary after the Run was dropped recorded %v, err %v, want gone", recorded, err)
 	}
 }
 
-// TestTodoStateIsOwnedByItsSession proves session_state_is_owned_by_its_session and
+// TestPlanStateIsOwnedByItsSession proves session_state_is_owned_by_its_session and
 // state_revision_never_goes_backwards, the two halves of a session-scoped state key.
 //
 // The key is declared session-scoped, which means one value per session and one
@@ -223,15 +223,15 @@ func TestTodoBoundaryDiesWithItsRun(t *testing.T) {
 // backwards and the revision must not, because a client folds by revision and would
 // otherwise treat the restored list as the stale one. That is the shape of the bug
 // rollback and import both had.
-func TestTodoStateIsOwnedByItsSession(t *testing.T) {
+func TestPlanStateIsOwnedByItsSession(t *testing.T) {
 	ctx := context.Background()
-	store := newTodoStore(t)
+	store := newPlanStore(t)
 
-	first := []todo.Item{{Content: "mine", Status: todo.StatusInProgress}}
+	first := []plan.Step{{Description: "mine", Status: plan.StatusInProgress}}
 	if err := store.Replace(ctx, "ses_a", first); err != nil {
 		t.Fatalf("replace a: %v", err)
 	}
-	if err := store.Replace(ctx, "ses_b", []todo.Item{{Content: "theirs", Status: todo.StatusPending}}); err != nil {
+	if err := store.Replace(ctx, "ses_b", []plan.Step{{Description: "theirs", Status: plan.StatusPending}}); err != nil {
 		t.Fatalf("replace b: %v", err)
 	}
 
@@ -243,11 +243,11 @@ func TestTodoStateIsOwnedByItsSession(t *testing.T) {
 	if err != nil {
 		t.Fatalf("state b: %v", err)
 	}
-	if len(a.Items) != 1 || a.Items[0].Content != "mine" {
-		t.Fatalf("session a's list = %+v, want only its own item", a.Items)
+	if len(a.Steps) != 1 || a.Steps[0].Description != "mine" {
+		t.Fatalf("session a's list = %+v, want only its own item", a.Steps)
 	}
-	if len(b.Items) != 1 || b.Items[0].Content != "theirs" {
-		t.Fatalf("session b's list = %+v, want only its own item", b.Items)
+	if len(b.Steps) != 1 || b.Steps[0].Description != "theirs" {
+		t.Fatalf("session b's list = %+v, want only its own item", b.Steps)
 	}
 	if a.Revision != b.Revision {
 		t.Fatalf("revisions = %d and %d; each session counts its own writes, so one write each is the same number",
@@ -255,14 +255,14 @@ func TestTodoStateIsOwnedByItsSession(t *testing.T) {
 	}
 
 	// Writing in b again must not move a at all.
-	if err := store.Replace(ctx, "ses_b", []todo.Item{{Content: "theirs, again", Status: todo.StatusCompleted}}); err != nil {
+	if err := store.Replace(ctx, "ses_b", []plan.Step{{Description: "theirs, again", Status: plan.StatusCompleted}}); err != nil {
 		t.Fatalf("replace b again: %v", err)
 	}
 	unmoved, err := store.State(ctx, "ses_a")
 	if err != nil {
 		t.Fatalf("re-read a: %v", err)
 	}
-	if unmoved.Revision != a.Revision || len(unmoved.Items) != 1 || unmoved.Items[0].Content != "mine" {
+	if unmoved.Revision != a.Revision || len(unmoved.Steps) != 1 || unmoved.Steps[0].Description != "mine" {
 		t.Fatalf("session a moved to %+v because session b was written", unmoved)
 	}
 

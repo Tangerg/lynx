@@ -199,7 +199,7 @@ func TestEveryStateKeyHasAShapeFixture(t *testing.T) {
 
 // stateKeyFixtures is the evidence index for the state envelope's keys.
 var stateKeyFixtures = map[string]fixtureRef{
-	"todos": {"internal/delivery/server", "TestStateSnapshotCarriesItsDeclaredTodosPayload"},
+	"plan": {"internal/delivery/server", "TestStateSnapshotCarriesItsDeclaredPlanPayload"},
 }
 
 // TestEveryStateLifecycleClaimHasAFixture is contract §11.4 gate 18: the state
@@ -213,7 +213,7 @@ var stateKeyFixtures = map[string]fixtureRef{
 // other coverage gates use: the claim names the fixture, and the fixture's doc
 // comment names the claim. Three of these four had no dedicated fixture before this
 // gate existed, and the cold read had none at any layer — the same blind spot that
-// left todos.get with no caller on the client.
+// left plan.get with no caller on the client.
 func TestEveryStateLifecycleClaimHasAFixture(t *testing.T) {
 	root := moduleRoot(t)
 
@@ -235,12 +235,12 @@ func TestEveryStateLifecycleClaimHasAFixture(t *testing.T) {
 // layer alone would leave the other free to leak.
 var stateLifecycleFixtures = map[string][]fixtureRef{
 	"state_revision_never_goes_backwards": {
-		{"internal/infra/storage/sqlite", "TestTodoStateIsOwnedByItsSession"},
-		{"internal/delivery/server", "TestTodosQueryAnswersWithTheStreamsOwnSnapshot"},
-		{"internal/bootstrap", "TestApplyRollbackRepublishesBoundaryTodos"},
+		{"internal/infra/storage/sqlite", "TestPlanStateIsOwnedByItsSession"},
+		{"internal/delivery/server", "TestPlanQueryAnswersWithTheStreamsOwnSnapshot"},
+		{"internal/bootstrap", "TestApplyRollbackRepublishesBoundaryPlan"},
 	},
 	"session_state_is_owned_by_its_session": {
-		{"internal/infra/storage/sqlite", "TestTodoStateIsOwnedByItsSession"},
+		{"internal/infra/storage/sqlite", "TestPlanStateIsOwnedByItsSession"},
 		{"internal/delivery/server", "TestStateChangeNamesItsKeyAndKeepsSessionScope"},
 	},
 	"segment_fences_its_final_state": {

@@ -21,11 +21,11 @@ type RunningShell struct {
 // compaction.
 type LiveStateSnapshot struct {
 	Shells []RunningShell
-	Todos  []string // in-progress task descriptions
+	Plan   []string // in-progress task descriptions
 }
 
 func (s LiveStateSnapshot) empty() bool {
-	return len(s.Shells) == 0 && len(s.Todos) == 0
+	return len(s.Shells) == 0 && len(s.Plan) == 0
 }
 
 // LiveStateFunc snapshots a session's active execution state at the moment a
@@ -35,7 +35,7 @@ type LiveStateFunc func(ctx context.Context, sessionID string) LiveStateSnapshot
 
 // liveStateReminder renders snap as a system-reminder message to append after a
 // compaction summary, or reports false when there is nothing active to carry
-// over. The tool names it points at (shell_output / shell_kill / todo_write) are
+// over. The tool names it points at (shell_output / shell_kill / set_plan) are
 // the stable names of the tools that produced the state.
 func liveStateReminder(snap LiveStateSnapshot) (chat.Message, bool) {
 	if snap.empty() {
@@ -50,9 +50,9 @@ func liveStateReminder(snap LiveStateSnapshot) (chat.Message, bool) {
 		}
 		b.WriteByte('\n')
 	}
-	if len(snap.Todos) > 0 {
-		b.WriteString("\nIn-progress tasks from your todo_write list:")
-		for _, task := range snap.Todos {
+	if len(snap.Plan) > 0 {
+		b.WriteString("\nIn-progress tasks from your set_plan list:")
+		for _, task := range snap.Plan {
 			fmt.Fprintf(&b, "\n  - %s", task)
 		}
 		b.WriteByte('\n')

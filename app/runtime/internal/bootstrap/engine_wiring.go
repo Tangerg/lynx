@@ -21,7 +21,7 @@ func prepareEngineConfig(cfg Config) (agentexec.Config, messageEnvironment, erro
 	// engine receives only its read views; accepting a second value through
 	// agentexec.Config would let the prompt and the corresponding application
 	// use case silently observe different state.
-	ecfg.Todos = cfg.TodoStore
+	ecfg.Plan = cfg.PlanStore
 	ecfg.Knowledge = cfg.KnowledgeStore
 	// Guard the concrete-nil before it lands in an interface field: a typed-nil
 	// offloader would read as non-nil and drive the eviction middleware into a

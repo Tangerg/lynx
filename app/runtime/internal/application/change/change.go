@@ -27,12 +27,12 @@ const (
 	Interrupts
 	// Goals — a session's autonomous goal changed.
 	Goals
-	// TodoState — the session-scoped task list projection was committed.
-	TodoState
+	// PlanState — the session-scoped Plan projection was committed.
+	PlanState
 )
 
 // Resources is every Resource, in declaration order.
-var Resources = []Resource{Sessions, Runs, Interrupts, Goals, TodoState}
+var Resources = []Resource{Sessions, Runs, Interrupts, Goals, PlanState}
 
 // Notice is one committed change: the resource, and the members of it a reader can
 // narrow to. Empty ID sets mean "every member of this resource may be stale",

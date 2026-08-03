@@ -29,7 +29,7 @@ Protocol `2026-08-02` (minimum supported `2026-08-02`) · 86 methods
 | `runs.get` | query | unary | none | none | — | `run_not_found`, `capability_not_negotiated` |
 | `runs.list` | query | unary | none | cursor | `subagents` | `capability_not_negotiated` |
 | `interrupts.list` | query | unary | none | cursor | — | `run_not_root`, `capability_not_negotiated` |
-| `todos.get` | query | unary | none | none | `todos` | `session_not_found`, `capability_not_negotiated` |
+| `plan.get` | query | unary | none | none | `plan` | `session_not_found`, `capability_not_negotiated` |
 | `items.list` | query | unary | none | cursor | `subagents` | `session_not_found`, `run_not_found`, `capability_not_negotiated` |
 | `workspaces.resolve` | query | unary | none | none | — | `workspace_unavailable` |
 | `workspaces.list` | query | unary | none | none | — | — |
@@ -216,7 +216,7 @@ publish one namespaced pattern branch without weakening first-party tags.
 
 | tag | required | optional |
 | --- | --- | --- |
-| `todos` | `todos` | — |
+| `plan` | `plan` | — |
 
 ### `Item`
 
@@ -225,7 +225,6 @@ publish one namespaced pattern branch without weakening first-party tags.
 | `userMessage` | `id`, `runId`, `status`, `createdAt` | `content` |
 | `agentMessage` | `id`, `runId`, `status`, `createdAt` | `content` |
 | `reasoning` | `id`, `runId`, `status`, `createdAt` | `text`, `redacted` |
-| `plan` | `id`, `runId`, `status`, `createdAt` | `steps` |
 | `question` | `id`, `runId`, `status`, `createdAt` | `question` |
 | `toolCall` | `id`, `runId`, `status`, `createdAt` | `tool`, `safetyClass`, `error` |
 | `compaction` | `id`, `runId`, `status`, `createdAt` | `summary`, `droppedMessages` |
@@ -238,7 +237,6 @@ publish one namespaced pattern branch without weakening first-party tags.
 | `reasoning` | `text` | — |
 | `toolArguments` | `argumentsTextDelta` | — |
 | `toolOutput` | `text` | — |
-| `plan` | `steps` | — |
 
 ### `CapabilityRequirement`
 
@@ -253,7 +251,7 @@ publish one namespaced pattern branch without weakening first-party tags.
 
 | tag | required | optional |
 | --- | --- | --- |
-| `todos` | `sessionId`, `revision`, `todos` | `updatedAt` |
+| `plan` | `sessionId`, `revision`, `plan` | `updatedAt` |
 
 ### `ItemListScope`
 
@@ -408,7 +406,6 @@ Forbidden on every variant: `durable`.
 | `userMessage` | `id`, `runId`, `status`, `createdAt` | `content` |
 | `agentMessage` | `id`, `runId`, `status`, `createdAt` | `content` |
 | `reasoning` | `id`, `runId`, `status`, `createdAt` | `text`, `redacted` |
-| `plan` | `id`, `runId`, `status`, `createdAt` | `steps` |
 | `question` | `id`, `runId`, `status`, `createdAt` | `question` |
 | `toolCall` | `id`, `runId`, `status`, `createdAt` | `tool`, `safetyClass`, `error` |
 | `compaction` | `id`, `runId`, `status`, `createdAt` | `summary`, `droppedMessages` |
@@ -445,8 +442,8 @@ TypeScript validator from this single registry projection.
 | `UpdateSessionRequest` | `sessionId` | `nonEmpty` |
 | `UpdateSessionRequest` | `expectedRevision` | `positive` |
 | `ImportSessionRequest` | `artifact.session.id` | `nonEmpty` |
-| `SessionArtifact` | `version` | `minimum(9)` |
-| `SessionArtifact` | `version` | `maximum(9)` |
+| `SessionArtifact` | `version` | `minimum(10)` |
+| `SessionArtifact` | `version` | `maximum(10)` |
 | `ArtifactRun` | `messageMark` | `nonNegative` |
 | `ArtifactRunMetrics` | `steps` | `nonNegative` |
 | `ArtifactRunMetrics` | `activeDurationMs` | `nonNegative` |
@@ -511,7 +508,7 @@ TypeScript validator from this single registry projection.
 | `SteerRunRequest` | `expectedSegmentId` | `nonEmpty` |
 | `SteerRunRequest` | `input` | `nonEmptyItems` |
 | `ListItemsRequest` | `scope.type` | `nonEmpty` |
-| `GetTodosRequest` | `sessionId` | `nonEmpty` |
+| `GetPlanRequest` | `sessionId` | `nonEmpty` |
 | `SessionUsageRequest` | `sessionId` | `nonEmpty` |
 | `ListRunsRequest` | `statuses` | `nonEmptyItems` |
 | `ListRunsRequest` | `statuses` | `uniqueItems` |
@@ -631,7 +628,7 @@ available. Refusal is `capability_not_negotiated` — never a silent downgrade.
 | `sessions.export` | always | `sessionExport` |
 | `sessions.import` | always | `sessionExport` |
 | `runs.list` | `includeDescendants` present | `subagents` |
-| `todos.get` | always | `todos` |
+| `plan.get` | always | `plan` |
 | `items.list` | `scope.includeDescendants` present | `subagents` |
 | `workspace.changes.list` | always | `git` |
 | `workspace.diff.get` | always | `git` |
@@ -677,7 +674,7 @@ available. Refusal is `capability_not_negotiated` — never a silent downgrade.
 
 | key | recovery | scope | writer | feature |
 | --- | --- | --- | --- | --- |
-| `todos` | `todos.get` | session | rootRun | `todos` |
+| `plan` | `plan.get` | session | rootRun | `plan` |
 
 ## System invariants
 

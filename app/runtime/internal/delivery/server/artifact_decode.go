@@ -12,7 +12,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
 
@@ -65,7 +65,7 @@ func portableArtifactFromWire(art protocol.SessionArtifact) (sessions.PortableSn
 			Preview: encoded.Preview, Body: encoded.Body, CreatedAt: encoded.CreatedAt,
 		})
 	}
-	todos, err := portableTodosFromArtifact(art.States)
+	plan, err := portablePlanFromArtifact(art.States)
 	if err != nil {
 		return sessions.PortableSnapshot{}, err
 	}
@@ -74,15 +74,15 @@ func portableArtifactFromWire(art protocol.SessionArtifact) (sessions.PortableSn
 			ID: art.Session.ID, Title: art.Session.Title, Cwd: art.Session.Workspace.Path, Model: art.Session.Model,
 			CreatedAt: art.Session.CreatedAt, UpdatedAt: art.Session.UpdatedAt, Favorite: art.Session.Favorite,
 		},
-		Messages: messages, Runs: runs, Items: items, ToolResults: toolResults, Todos: todos,
+		Messages: messages, Runs: runs, Items: items, ToolResults: toolResults, Plan: plan,
 	}, nil
 }
 
-// portableTodosFromArtifact reads the archived task list. The states array is a MAP
+// portablePlanFromArtifact reads the archived Plan. The states array is a MAP
 // of keys to values, so a repeated key is refused rather than resolved by order:
-// two answers to "what was the task list" is not a list the import may pick from.
-func portableTodosFromArtifact(states []protocol.ArtifactState) ([]todo.Item, error) {
-	var todos []todo.Item
+// two answers to "what was the Plan" is not a list the import may pick from.
+func portablePlanFromArtifact(states []protocol.ArtifactState) ([]plan.Step, error) {
+	var steps []plan.Step
 	seen := make(map[protocol.ArtifactStateType]bool, len(states))
 	for index, state := range states {
 		path := fmt.Sprintf("artifact.states[%d]", index)
@@ -91,38 +91,37 @@ func portableTodosFromArtifact(states []protocol.ArtifactState) ([]todo.Item, er
 		}
 		seen[state.Type] = true
 		switch state.Type {
-		case protocol.ArtifactStateTodos:
-			for itemIndex, entry := range state.Todos {
-				status, known := todoStatusFromWire(entry.Status)
+		case protocol.ArtifactStatePlan:
+			for stepIndex, entry := range state.Plan {
+				status, known := planStatusFromWire(entry.Status)
 				if !known {
-					return nil, invalidArtifact(fmt.Sprintf("%s.todos[%d].status", path, itemIndex),
+					return nil, invalidArtifact(fmt.Sprintf("%s.plan[%d].status", path, stepIndex),
 						"unknown value %q", entry.Status)
 				}
-				todos = append(todos, todo.Item{
-					Content: entry.Text, Status: status,
-					BlockedReason: entry.BlockedReason, NextAction: entry.NextAction,
+				steps = append(steps, plan.Step{
+					Description: entry.Description, Status: status,
 				})
 			}
 		default:
 			return nil, invalidArtifact(path+".type", "unknown value %q", state.Type)
 		}
 	}
-	return todos, nil
+	return steps, nil
 }
 
-// todoStatusFromWire maps the archived status back. It is total over the wire enum
+// planStatusFromWire maps the archived status back. It is total over the wire enum
 // so an unknown value is refused instead of silently importing as pending — a task
 // list whose statuses changed on import is a different plan.
-func todoStatusFromWire(status protocol.TodoStatus) (todo.Status, bool) {
+func planStatusFromWire(status protocol.PlanStatus) (plan.Status, bool) {
 	switch status {
-	case protocol.TodoStatusPending:
-		return todo.StatusPending, true
-	case protocol.TodoStatusInProgress:
-		return todo.StatusInProgress, true
-	case protocol.TodoStatusCompleted:
-		return todo.StatusCompleted, true
+	case protocol.PlanStatusPending:
+		return plan.StatusPending, true
+	case protocol.PlanStatusInProgress:
+		return plan.StatusInProgress, true
+	case protocol.PlanStatusCompleted:
+		return plan.StatusCompleted, true
 	default:
-		return todo.StatusPending, false
+		return plan.StatusPending, false
 	}
 }
 
@@ -272,16 +271,6 @@ func portableItemFromArtifact(sessionID, path string, artifact protocol.Artifact
 			out.Content[index] = content
 		}
 	}
-	if len(artifact.Steps) != 0 {
-		out.Steps = make([]transcript.PlanStep, len(artifact.Steps))
-		for index, step := range artifact.Steps {
-			stepStatus, err := portablePlanStepStatus(fmt.Sprintf("%s.steps[%d].status", path, index), step.Status)
-			if err != nil {
-				return transcript.Item{}, err
-			}
-			out.Steps[index] = transcript.PlanStep{ID: step.ID, Title: step.Title, Status: stepStatus}
-		}
-	}
 	if artifact.Question != nil {
 		question, err := portableQuestionFromArtifact(path+".question", *artifact.Question)
 		if err != nil {
@@ -320,8 +309,6 @@ func portableItemKind(path string, value protocol.ItemType) (transcript.ItemKind
 		return transcript.AgentMessage, nil
 	case protocol.ItemTypeReasoning:
 		return transcript.Reasoning, nil
-	case protocol.ItemTypePlan:
-		return transcript.Plan, nil
 	case protocol.ItemTypeQuestion:
 		return transcript.QuestionItem, nil
 	case protocol.ItemTypeToolCall:
@@ -389,21 +376,6 @@ func portableSafetyClass(path string, value protocol.SafetyClass) (tool.SafetyCl
 		return tool.SafetyClassExec, nil
 	case protocol.SafetyClassNetwork:
 		return tool.SafetyClassNetwork, nil
-	default:
-		return "", invalidArtifact(path, "unknown value %q", value)
-	}
-}
-
-func portablePlanStepStatus(path string, value protocol.PlanStepStatus) (transcript.PlanStepStatus, error) {
-	switch value {
-	case protocol.PlanStepPending:
-		return transcript.PlanStepPending, nil
-	case protocol.PlanStepRunning:
-		return transcript.PlanStepRunning, nil
-	case protocol.PlanStepCompleted:
-		return transcript.PlanStepCompleted, nil
-	case protocol.PlanStepFailed:
-		return transcript.PlanStepFailed, nil
 	default:
 		return "", invalidArtifact(path, "unknown value %q", value)
 	}

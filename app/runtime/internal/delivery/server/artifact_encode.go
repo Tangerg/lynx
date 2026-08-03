@@ -57,16 +57,16 @@ func artifactFromPortable(portable sessions.PortableSnapshot) (protocol.SessionA
 
 // artifactStatesFromPortable carries the session-scoped projections that have a
 // value. An empty list is omitted rather than written as an entry with nothing in
-// it: "no task list" and "an empty task list" are the same fact here, and only the
+// it: "no Plan" and "an empty Plan" are the same fact here, and only the
 // live projection's revision distinguishes them — which an archive deliberately
 // does not carry.
 func artifactStatesFromPortable(portable sessions.PortableSnapshot) []protocol.ArtifactState {
-	if len(portable.Todos) == 0 {
+	if len(portable.Plan) == 0 {
 		return nil
 	}
 	return []protocol.ArtifactState{{
-		Type:  protocol.ArtifactStateTodos,
-		Todos: presentTodoSnapshots(portable.Todos),
+		Type: protocol.ArtifactStatePlan,
+		Plan: presentPlanSnapshots(portable.Plan),
 	}}
 }
 
@@ -245,16 +245,6 @@ func artifactItemFromTranscript(item transcript.Item) (protocol.ArtifactItem, er
 			out.Content[index] = protocol.ArtifactContentBlock{Type: contentType, Text: block.Text, Mime: block.Mime, Data: block.Data}
 		}
 	}
-	if len(item.Steps) != 0 {
-		out.Steps = make([]protocol.ArtifactPlanStep, len(item.Steps))
-		for index, step := range item.Steps {
-			stepStatus, err := artifactPlanStepStatus(step.Status)
-			if err != nil {
-				return protocol.ArtifactItem{}, fmt.Errorf("item %q plan step %d: %w", item.ID, index, err)
-			}
-			out.Steps[index] = protocol.ArtifactPlanStep{ID: step.ID, Title: step.Title, Status: stepStatus}
-		}
-	}
 	if item.Question != nil {
 		question, err := artifactQuestionFromDomain(*item.Question)
 		if err != nil {
@@ -293,8 +283,6 @@ func artifactItemType(kind transcript.ItemKind) (protocol.ItemType, error) {
 		return protocol.ItemTypeAgentMessage, nil
 	case transcript.Reasoning:
 		return protocol.ItemTypeReasoning, nil
-	case transcript.Plan:
-		return protocol.ItemTypePlan, nil
 	case transcript.QuestionItem:
 		return protocol.ItemTypeQuestion, nil
 	case transcript.ToolCall:
@@ -358,20 +346,5 @@ func artifactSafetyClass(class tool.SafetyClass) (protocol.SafetyClass, error) {
 		return protocol.SafetyClassNetwork, nil
 	default:
 		return "", fmt.Errorf("unknown value %q", class)
-	}
-}
-
-func artifactPlanStepStatus(status transcript.PlanStepStatus) (protocol.PlanStepStatus, error) {
-	switch status {
-	case transcript.PlanStepPending:
-		return protocol.PlanStepPending, nil
-	case transcript.PlanStepRunning:
-		return protocol.PlanStepRunning, nil
-	case transcript.PlanStepCompleted:
-		return protocol.PlanStepCompleted, nil
-	case transcript.PlanStepFailed:
-		return protocol.PlanStepFailed, nil
-	default:
-		return "", fmt.Errorf("unknown value %q", status)
 	}
 }

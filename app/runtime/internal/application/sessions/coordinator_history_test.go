@@ -29,7 +29,7 @@ func TestResolveForkBoundary(t *testing.T) {
 		t.Fatalf("prefix len = %d, want 2", len(got.Messages))
 	}
 	// The prefix and the state the child inherits must name the same run, or a branch
-	// gets a task list its conversation never produced.
+	// gets a Plan its conversation never produced.
 	if got.RunID != "run_1" {
 		t.Fatalf("boundary run = %q, want run_1", got.RunID)
 	}

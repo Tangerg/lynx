@@ -22,8 +22,8 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
 	sqlite "github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 )
 
@@ -111,7 +111,7 @@ type sessionStores struct {
 	runs        *sqlite.RunStore
 	checkpoints *sqlite.ExecutorCheckpointStore
 	history     *conversation.Messages
-	todos       *sqlite.TodoStore
+	plan        *sqlite.PlanStore
 	approvals   *sqlite.ApprovalRuleStore
 	goals       *sqlite.GoalStore
 }
@@ -127,7 +127,7 @@ func newWriteSetFixture(t *testing.T) (sessionStores, *sqlite.RunStore, *sqlite.
 	t.Cleanup(func() { _ = db.Close() })
 	runs := sqlite.NewRunStore(db)
 	ints := sqlite.NewInterruptStore(db)
-	todos := sqlite.NewTodoStore(db)
+	plan := sqlite.NewPlanStore(db)
 	approvals := sqlite.NewApprovalRuleStore(db)
 	ss := sessionStores{
 		sessions:    sqlite.NewSessionStore(db),
@@ -136,13 +136,13 @@ func newWriteSetFixture(t *testing.T) (sessionStores, *sqlite.RunStore, *sqlite.
 		runs:        runs,
 		checkpoints: sqlite.NewExecutorCheckpointStore(db),
 		history:     conversation.NewMessages(sqlite.NewMessageStore(db)),
-		todos:       todos,
+		plan:        plan,
 		approvals:   approvals,
 		goals:       sqlite.NewGoalStore(db),
 	}
 	ss.SessionStores = persistence.NewSessionStores(persistence.SessionStoresConfig{
 		Sessions: ss.sessions, Transcript: ss.transcript, Interrupts: ss.interrupts,
-		Runs: ss.runs, ExecutorCheckpoints: ss.checkpoints, History: ss.history, Todos: ss.todos,
+		Runs: ss.runs, ExecutorCheckpoints: ss.checkpoints, History: ss.history, Plan: ss.plan,
 		Approvals: ss.approvals, Goals: ss.goals,
 		Tx: func(ctx context.Context, fn func(context.Context) error) error {
 			return sqlite.RunInTx(ctx, db, fn)
@@ -418,8 +418,8 @@ func TestApplyRollbackDropsRunsAndFreesAdmission(t *testing.T) {
 	ss, runs, ints := newWriteSetFixture(t)
 	ctx := context.Background()
 	processID := park(t, ss.sessions, runs, ints, ss.checkpoints, "ses_A", "run_1")
-	if err := ss.todos.Replace(ctx, "ses_A", []todo.Item{{Content: "future work", Status: todo.StatusPending}}); err != nil {
-		t.Fatalf("seed todos: %v", err)
+	if err := ss.plan.Replace(ctx, "ses_A", []plan.Step{{Description: "future work", Status: plan.StatusPending}}); err != nil {
+		t.Fatalf("seed plan: %v", err)
 	}
 	seedGoal(t, ss, "ses_A")
 
@@ -443,15 +443,15 @@ func TestApplyRollbackDropsRunsAndFreesAdmission(t *testing.T) {
 	if err := runs.Admit(ctx, execution.RunDraft{RunID: "run_2", SessionID: "ses_A", SegmentID: "seg_open", CreatedAt: parkCreatedAt.Add(time.Minute)}); err != nil {
 		t.Fatalf("admit after rollback = %v, want the slot freed", err)
 	}
-	// The plan carries no recorded boundary, so the task list is left exactly as it
-	// was: this runtime does not know what the list held at that moment, and clearing
+	// The rollback carries no recorded boundary, so the plan is left exactly as it
+	// was: this runtime does not know what the plan held at that moment, and clearing
 	// it would be a guess dressed as a restore.
-	if got, err := ss.todos.List(ctx, "ses_A"); err != nil || len(got) != 1 {
-		t.Fatalf("todos after rollback = %+v, %v, want the live list untouched", got, err)
+	if got, err := ss.plan.List(ctx, "ses_A"); err != nil || len(got) != 1 {
+		t.Fatalf("plan after rollback = %+v, %v, want the live list untouched", got, err)
 	}
 }
 
-// TestApplyRollbackRepublishesBoundaryTodos: a rollback publishes the list the
+// TestApplyRollbackRepublishesBoundaryPlan: a rollback publishes the list the
 // boundary recorded as a NEW state commit. The revision has to move forward —
 // under a lower one, a client that already folded a later list ignores the
 // rollback as stale and keeps showing work the session no longer has.
@@ -459,37 +459,37 @@ func TestApplyRollbackDropsRunsAndFreesAdmission(t *testing.T) {
 // This is state_revision_never_goes_backwards at its hardest point: the VALUE goes
 // backwards here by design, which is exactly when the temptation to move the
 // revision with it appears.
-func TestApplyRollbackRepublishesBoundaryTodos(t *testing.T) {
+func TestApplyRollbackRepublishesBoundaryPlan(t *testing.T) {
 	ss, runs, ints := newWriteSetFixture(t)
 	ctx := t.Context()
 	processID := park(t, ss.sessions, runs, ints, ss.checkpoints, "ses_A", "run_1")
-	if err := ss.todos.Replace(ctx, "ses_A", []todo.Item{
-		{Content: "work the rollback discards", Status: todo.StatusInProgress},
+	if err := ss.plan.Replace(ctx, "ses_A", []plan.Step{
+		{Description: "work the rollback discards", Status: plan.StatusInProgress},
 	}); err != nil {
-		t.Fatalf("seed todos: %v", err)
+		t.Fatalf("seed plan: %v", err)
 	}
-	before, err := ss.todos.State(ctx, "ses_A")
+	before, err := ss.plan.State(ctx, "ses_A")
 	if err != nil {
-		t.Fatalf("read todos: %v", err)
+		t.Fatalf("read plan: %v", err)
 	}
 
-	boundary := []todo.Item{{Content: "the plan at the boundary", Status: todo.StatusPending}}
+	boundary := []plan.Step{{Description: "the plan at the boundary", Status: plan.StatusPending}}
 	if err := ss.ApplyRollback(ctx, sessions.RollbackPlan{
 		SessionID:         "ses_A",
 		KeepMark:          -1,
 		DropRunIDs:        []string{"run_1"},
 		CheckpointRootIDs: []string{processID},
-		Todos:             sessions.TodoBoundary{Items: boundary, Recorded: true},
+		Plan:              sessions.PlanBoundary{Steps: boundary, Recorded: true},
 	}); err != nil {
 		t.Fatalf("ApplyRollback: %v", err)
 	}
 
-	after, err := ss.todos.State(ctx, "ses_A")
+	after, err := ss.plan.State(ctx, "ses_A")
 	if err != nil {
-		t.Fatalf("read todos: %v", err)
+		t.Fatalf("read plan: %v", err)
 	}
-	if len(after.Items) != 1 || after.Items[0].Content != "the plan at the boundary" {
-		t.Fatalf("todos after rollback = %+v, want the boundary list", after.Items)
+	if len(after.Steps) != 1 || after.Steps[0].Description != "the plan at the boundary" {
+		t.Fatalf("plan after rollback = %+v, want the boundary plan", after.Steps)
 	}
 	if after.Revision <= before.Revision {
 		t.Fatalf("revision after rollback = %d, want greater than %d", after.Revision, before.Revision)
@@ -503,12 +503,12 @@ func TestApplyRollbackClearsToARecordedEmptyBoundary(t *testing.T) {
 	ss, runs, ints := newWriteSetFixture(t)
 	ctx := t.Context()
 	processID := park(t, ss.sessions, runs, ints, ss.checkpoints, "ses_A", "run_1")
-	if err := ss.todos.Replace(ctx, "ses_A", []todo.Item{{Content: "later work", Status: todo.StatusPending}}); err != nil {
-		t.Fatalf("seed todos: %v", err)
+	if err := ss.plan.Replace(ctx, "ses_A", []plan.Step{{Description: "later work", Status: plan.StatusPending}}); err != nil {
+		t.Fatalf("seed plan: %v", err)
 	}
-	before, err := ss.todos.State(ctx, "ses_A")
+	before, err := ss.plan.State(ctx, "ses_A")
 	if err != nil {
-		t.Fatalf("read todos: %v", err)
+		t.Fatalf("read plan: %v", err)
 	}
 
 	if err := ss.ApplyRollback(ctx, sessions.RollbackPlan{
@@ -516,17 +516,17 @@ func TestApplyRollbackClearsToARecordedEmptyBoundary(t *testing.T) {
 		KeepMark:          -1,
 		DropRunIDs:        []string{"run_1"},
 		CheckpointRootIDs: []string{processID},
-		Todos:             sessions.TodoBoundary{Recorded: true},
+		Plan:              sessions.PlanBoundary{Recorded: true},
 	}); err != nil {
 		t.Fatalf("ApplyRollback: %v", err)
 	}
 
-	after, err := ss.todos.State(ctx, "ses_A")
+	after, err := ss.plan.State(ctx, "ses_A")
 	if err != nil {
-		t.Fatalf("read todos: %v", err)
+		t.Fatalf("read plan: %v", err)
 	}
-	if len(after.Items) != 0 {
-		t.Fatalf("todos after rollback = %+v, want cleared to the recorded empty boundary", after.Items)
+	if len(after.Steps) != 0 {
+		t.Fatalf("plan after rollback = %+v, want cleared to the recorded empty boundary", after.Steps)
 	}
 	if after.Revision <= before.Revision {
 		t.Fatalf("revision after rollback = %d, want greater than %d", after.Revision, before.Revision)
@@ -547,7 +547,7 @@ func TestApplyForkBranchesAndSeeds(t *testing.T) {
 	child, err := ss.ApplyFork(ctx, sessions.ForkPlan{
 		ParentID: parent.ID,
 		Messages: []chat.Message{chat.NewUserMessage(chat.NewTextPart("hello"))},
-		Todos:    []todo.Item{{Content: "inherited plan", Status: todo.StatusInProgress}},
+		Plan:     []plan.Step{{Description: "inherited plan", Status: plan.StatusInProgress}},
 		Title:    "Child",
 	})
 	if err != nil {
@@ -565,12 +565,12 @@ func TestApplyForkBranchesAndSeeds(t *testing.T) {
 	}
 	// The branch inherits the plan the copied conversation was following, and the
 	// parent's own list is untouched by its child being created.
-	got, err := ss.todos.List(ctx, child.ID)
-	if err != nil || len(got) != 1 || got[0].Content != "inherited plan" {
-		t.Fatalf("child todos = %+v (err %v), want the boundary list", got, err)
+	got, err := ss.plan.List(ctx, child.ID)
+	if err != nil || len(got) != 1 || got[0].Description != "inherited plan" {
+		t.Fatalf("child plan = %+v (err %v), want the boundary list", got, err)
 	}
-	if got, err := ss.todos.List(ctx, parent.ID); err != nil || len(got) != 0 {
-		t.Fatalf("parent todos = %+v (err %v), want none written by the fork", got, err)
+	if got, err := ss.plan.List(ctx, parent.ID); err != nil || len(got) != 0 {
+		t.Fatalf("parent plan = %+v (err %v), want none written by the fork", got, err)
 	}
 }
 
@@ -594,8 +594,8 @@ func TestApplyDeleteRemovesRunRows(t *testing.T) {
 	if err := ss.checkpoints.SaveCheckpoint(ctx, bootstrapCheckpoint(orphanTree, "ses_A", accounting.Snapshot{})); err != nil {
 		t.Fatalf("seed orphan checkpoint: %v", err)
 	}
-	if err := ss.todos.Replace(ctx, "ses_A", []todo.Item{{Content: "owned", Status: todo.StatusPending}}); err != nil {
-		t.Fatalf("seed todos: %v", err)
+	if err := ss.plan.Replace(ctx, "ses_A", []plan.Step{{Description: "owned", Status: plan.StatusPending}}); err != nil {
+		t.Fatalf("seed plan: %v", err)
 	}
 	if err := ss.approvals.Put(ctx, testApprovalRule(t, approval.ScopeSession, "ses_A", "shell", approval.Allow)); err != nil {
 		t.Fatalf("seed approval: %v", err)
@@ -616,8 +616,8 @@ func TestApplyDeleteRemovesRunRows(t *testing.T) {
 	if _, err := ss.sessions.Get(ctx, "ses_A"); !errors.Is(err, session.ErrNotFound) {
 		t.Fatalf("session survived delete: %v", err)
 	}
-	if got, err := ss.todos.List(ctx, "ses_A"); err != nil || len(got) != 0 {
-		t.Fatalf("todos after delete = %+v, %v, want cleared", got, err)
+	if got, err := ss.plan.List(ctx, "ses_A"); err != nil || len(got) != 0 {
+		t.Fatalf("plan after delete = %+v, %v, want cleared", got, err)
 	}
 	if got, err := ss.approvals.Visible(ctx, "ses_A", ""); err != nil || len(got) != 0 {
 		t.Fatalf("session approvals after delete = %+v, %v, want cleared", got, err)
@@ -635,8 +635,8 @@ func TestApplyRestoreClearsSessionOwnedProjections(t *testing.T) {
 	if err := ss.sessions.Restore(ctx, session.Session{ID: "ses_A", Cwd: "/repo"}); err != nil {
 		t.Fatalf("seed session: %v", err)
 	}
-	if err := ss.todos.Replace(ctx, "ses_A", []todo.Item{{Content: "stale", Status: todo.StatusPending}}); err != nil {
-		t.Fatalf("seed todos: %v", err)
+	if err := ss.plan.Replace(ctx, "ses_A", []plan.Step{{Description: "stale", Status: plan.StatusPending}}); err != nil {
+		t.Fatalf("seed plan: %v", err)
 	}
 	seedGoal(t, ss, "ses_A")
 	sessionRule := testApprovalRule(t, approval.ScopeSession, "ses_A", "shell", approval.Allow)
@@ -651,8 +651,8 @@ func TestApplyRestoreClearsSessionOwnedProjections(t *testing.T) {
 	if err := ss.ApplyRestore(ctx, sessions.RestorePlan{Session: session.Session{ID: "ses_A", Cwd: "/repo"}}); err != nil {
 		t.Fatalf("ApplyRestore: %v", err)
 	}
-	if got, err := ss.todos.List(ctx, "ses_A"); err != nil || len(got) != 0 {
-		t.Fatalf("todos after restore = %+v, %v, want cleared", got, err)
+	if got, err := ss.plan.List(ctx, "ses_A"); err != nil || len(got) != 0 {
+		t.Fatalf("plan after restore = %+v, %v, want cleared", got, err)
 	}
 	if _, ok, err := ss.goals.Get(ctx, "ses_A"); err != nil || ok {
 		t.Fatalf("goal survived the restore: ok=%v err=%v", ok, err)

@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
 )
 
 func itemPair(build func(transcript.ItemStatus) transcript.Item) []RunEvent {
@@ -308,25 +308,24 @@ func (r *reducer) steerMessage(e SteerMessage) []RunEvent {
 	return append(out, events...)
 }
 
-func (r *reducer) todosSnapshot(e TodosUpdated) []RunEvent {
-	snapshot := r.todoState(e.State)
+func (r *reducer) planSnapshot(e PlanUpdated) []RunEvent {
+	snapshot := r.planState(e.State)
 	// Remembered so the segment can fence its final value: a client folding this
 	// stream must reach segment.finished holding the state the segment ended with,
 	// not the state as of whichever change happened to be published last.
-	r.todos = &snapshot
+	r.plan = &snapshot
 	return []RunEvent{snapshot}
 }
 
-func (r *reducer) todoState(state todo.State) StateSnapshot {
-	todos := make([]TodoSnapshot, len(state.Items))
-	for i, item := range state.Items {
-		todos[i] = TodoSnapshot{
-			ID: strconv.Itoa(i), Text: item.Content, Status: item.Status,
-			BlockedReason: item.BlockedReason, NextAction: item.NextAction,
+func (r *reducer) planState(state plan.State) StateSnapshot {
+	current := make([]PlanSnapshot, len(state.Steps))
+	for i, step := range state.Steps {
+		current[i] = PlanSnapshot{
+			ID: strconv.Itoa(i), Description: step.Description, Status: step.Status,
 		}
 	}
 	return StateSnapshot{
-		SessionID: r.cfg.SessionID, Todos: todos,
+		SessionID: r.cfg.SessionID, Plan: current,
 		Revision: state.Revision, UpdatedAt: state.UpdatedAt,
 	}
 }

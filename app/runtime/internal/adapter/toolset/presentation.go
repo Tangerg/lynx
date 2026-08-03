@@ -21,7 +21,7 @@ const (
 	toolNameShellKill   = "shell_kill"
 	toolNameShellOutput = "shell_output"
 	toolNameTask        = "task"
-	toolNameTodoWrite   = "todo_write"
+	toolNameSetPlan     = "set_plan"
 	toolNameWebFetch    = "web_fetch"
 	toolNameWebSearch   = "web_search"
 	toolNameWrite       = "write"
@@ -61,7 +61,7 @@ func (Presenter) Activity(name string) string {
 		return "Delegating to a sub-agent"
 	case toolNameAskUser:
 		return "Waiting for your answer"
-	case toolNameTodoWrite:
+	case toolNameSetPlan:
 		return "Updating the plan"
 	default:
 		return ""

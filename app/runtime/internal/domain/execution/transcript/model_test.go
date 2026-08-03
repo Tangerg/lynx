@@ -14,21 +14,6 @@ func TestItemValidateOwnsPayloadInvariants(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			name: "valid plan",
-			item: transcript.Item{
-				Kind:  transcript.Plan,
-				Steps: []transcript.PlanStep{{Status: transcript.PlanStepPending}},
-			},
-		},
-		{
-			name: "unknown plan status",
-			item: transcript.Item{
-				Kind:  transcript.Plan,
-				Steps: []transcript.PlanStep{{Status: transcript.PlanStepStatus("stalled")}},
-			},
-			wantErr: true,
-		},
-		{
 			name: "tool data on user message",
 			item: transcript.Item{
 				Kind: transcript.UserMessage,

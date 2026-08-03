@@ -22,7 +22,7 @@ func (r *recorder) resources() []change.Resource {
 }
 
 // TestDeleteSessionPublishesEveryProjectionItRemoved: a client told only "sessions
-// changed" would keep a run list, a waiting set and a task list belonging to a
+// changed" would keep a run list, a waiting set and a Plan belonging to a
 // session that no longer exists. The delete cascade removes all of them, so it
 // names all of them.
 func TestDeleteSessionPublishesEveryProjectionItRemoved(t *testing.T) {
@@ -38,7 +38,7 @@ func TestDeleteSessionPublishesEveryProjectionItRemoved(t *testing.T) {
 		t.Fatalf("DeleteSession: %v", err)
 	}
 
-	want := []change.Resource{change.Sessions, change.Runs, change.Interrupts, change.Goals, change.TodoState}
+	want := []change.Resource{change.Sessions, change.Runs, change.Interrupts, change.Goals, change.PlanState}
 	if !slices.Equal(changes.resources(), want) {
 		t.Fatalf("published = %v, want every projection the cascade removed (%v)", changes.resources(), want)
 	}

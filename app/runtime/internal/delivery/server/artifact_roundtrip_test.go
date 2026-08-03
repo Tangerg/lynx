@@ -18,8 +18,8 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
 
@@ -31,13 +31,13 @@ import (
 // is that the document this build writes is the version the contract named. Bumping
 // it is a breaking act, so it should cost a deliberate edit here.
 func TestArtifactVersionIsTheOneVNextFroze(t *testing.T) {
-	if protocol.SessionArtifactVersion != 9 {
-		t.Fatalf("SessionArtifactVersion = %d; ordered questions require artifact v9",
+	if protocol.SessionArtifactVersion != 10 {
+		t.Fatalf("SessionArtifactVersion = %d; plan steps require artifact v10",
 			protocol.SessionArtifactVersion)
 	}
 }
 
-// TestArtifactV9RoundTripsEveryFieldItCarries is the rest of gate 15.
+// TestArtifactV10RoundTripsEveryFieldItCarries is the rest of gate 15.
 //
 // The failure mode a version bump actually has is a field the encoder writes and
 // the decoder drops — the archive still imports, still looks right, and the value is
@@ -50,9 +50,9 @@ func TestArtifactVersionIsTheOneVNextFroze(t *testing.T) {
 //   - the archive survives the trip WHOLE — export, wipe, import, export again, and
 //     the two documents must be identical byte for byte. Any field the decoder
 //     forgets is missing from the second document.
-func TestArtifactV9RoundTripsEveryFieldItCarries(t *testing.T) {
+func TestArtifactV10RoundTripsEveryFieldItCarries(t *testing.T) {
 	s, rt := rollbackHarness(t)
-	s.features.todos = true // this composition owns the key, so it may restore it
+	s.features.plan = true // this composition owns the key, so it may restore it
 	ctx := t.Context()
 	sessionID := seedMaximalSession(t, s, rt)
 
@@ -327,7 +327,7 @@ func carriesAValue(value reflect.Value) bool {
 
 // seedMaximalSession writes a session that reaches every corner of the v9 document:
 // two runs (one completed with full accounting, one failed with its problem), one
-// item per transcript kind, an offloaded tool body, and a task list.
+// item per transcript kind, an offloaded tool body, and a Plan.
 func seedMaximalSession(t *testing.T, s *Server, rt *stubRuntime) string {
 	t.Helper()
 	ctx := t.Context()
@@ -356,11 +356,10 @@ func seedMaximalSession(t *testing.T, s *Server, rt *stubRuntime) string {
 	seedChildRun(t, rt, sessionID)
 	seedOffloadedToolResult(t, rt, sessionID)
 
-	if err := rt.todos.Replace(ctx, sessionID, []todo.Item{
-		{Content: "carry every field", Status: todo.StatusInProgress,
-			BlockedReason: "waiting on the schema", NextAction: "walk the shape"},
+	if err := rt.plan.Replace(ctx, sessionID, []plan.Step{
+		{Description: "carry every field", Status: plan.StatusInProgress},
 	}); err != nil {
-		t.Fatalf("seed todos: %v", err)
+		t.Fatalf("seed plan: %v", err)
 	}
 	return sessionID
 }
@@ -479,13 +478,6 @@ func seedEveryItemKind(t *testing.T, rt *stubRuntime, sessionID string) {
 			ID: "item_reasoning", RunID: "run_done", Kind: transcript.Reasoning,
 			Status: transcript.ItemIncomplete, CreatedAt: time.Unix(4, 0).UTC(),
 			Text: "thinking about it", Redacted: true,
-		},
-		{
-			ID: "item_plan", RunID: "run_done", Kind: transcript.Plan,
-			Status: transcript.ItemCompleted, CreatedAt: time.Unix(5, 0).UTC(),
-			Steps: []transcript.PlanStep{
-				{ID: "step_1", Title: "walk the shape", Status: transcript.PlanStepCompleted},
-			},
 		},
 		{
 			ID: "item_question", RunID: "run_done", Kind: transcript.QuestionItem,

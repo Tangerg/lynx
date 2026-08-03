@@ -206,7 +206,7 @@ func registerItemUnions(s *Shapes) {
 		GoType:        typeOf[protocol.ArtifactState](),
 		Discriminator: "type",
 		Variants: []VariantSpec{
-			{Tag: string(protocol.ArtifactStateTodos), Required: []string{"todos"}},
+			{Tag: string(protocol.ArtifactStatePlan), Required: []string{"plan"}},
 		},
 	})
 
@@ -217,7 +217,6 @@ func registerItemUnions(s *Shapes) {
 			{Tag: string(protocol.ItemTypeUserMessage), Required: commonItemFields, Optional: []string{"content"}},
 			{Tag: string(protocol.ItemTypeAgentMessage), Required: commonItemFields, Optional: []string{"content"}},
 			{Tag: string(protocol.ItemTypeReasoning), Required: commonItemFields, Optional: []string{"text", "redacted"}},
-			{Tag: string(protocol.ItemTypePlan), Required: commonItemFields, Optional: []string{"steps"}},
 			{Tag: string(protocol.ItemTypeQuestion), Required: commonItemFields, Optional: []string{"question"}},
 			{Tag: string(protocol.ItemTypeToolCall), Required: commonItemFields, Optional: []string{"tool", "safetyClass", "error"}},
 			{Tag: string(protocol.ItemTypeCompaction), Required: commonItemFields, Optional: []string{"summary", "droppedMessages"}},
@@ -235,7 +234,6 @@ func registerItemUnions(s *Shapes) {
 			{Tag: string(protocol.DeltaReasoning), Required: []string{"text"}},
 			{Tag: string(protocol.DeltaToolArguments), Required: []string{"argumentsTextDelta"}},
 			{Tag: string(protocol.DeltaToolOutput), Required: []string{"text"}},
-			{Tag: string(protocol.DeltaPlan), Required: []string{"steps"}},
 		},
 	})
 
@@ -261,8 +259,8 @@ func registerItemUnions(s *Shapes) {
 		Discriminator: "type",
 		Variants: []VariantSpec{
 			{
-				Tag:      string(protocol.StateTodos),
-				Required: []string{"sessionId", "revision", "todos"},
+				Tag:      string(protocol.StatePlan),
+				Required: []string{"sessionId", "revision", "plan"},
 				Optional: []string{"updatedAt"},
 			},
 		},
@@ -415,7 +413,6 @@ func registerArtifactUnions(s *Shapes) {
 			{Tag: string(protocol.ItemTypeUserMessage), Required: commonItemFields, Optional: []string{"content"}},
 			{Tag: string(protocol.ItemTypeAgentMessage), Required: commonItemFields, Optional: []string{"content"}},
 			{Tag: string(protocol.ItemTypeReasoning), Required: commonItemFields, Optional: []string{"text", "redacted"}},
-			{Tag: string(protocol.ItemTypePlan), Required: commonItemFields, Optional: []string{"steps"}},
 			{Tag: string(protocol.ItemTypeQuestion), Required: commonItemFields, Optional: []string{"question"}},
 			{Tag: string(protocol.ItemTypeToolCall), Required: commonItemFields, Optional: []string{"tool", "safetyClass", "error"}},
 			{Tag: string(protocol.ItemTypeCompaction), Required: commonItemFields, Optional: []string{"summary", "droppedMessages"}},
@@ -624,17 +621,17 @@ func errorTerminalRule() PresenceRule {
 }
 
 func registerStateKeys(s *Shapes) {
-	// `todos` is the only first-party shared-state key today.
+	// `plan` is the only first-party shared-state key today.
 	//
 	// The event is authoritative and replayable in the process-local segment
 	// window; the persisted projection is independently recoverable through
-	// todos.get. These are three different guarantees and are kept explicit.
+	// plan.get. These are three different guarantees and are kept explicit.
 	s.stateKey(StateKeySpec{
-		Key:            string(protocol.StateTodos),
-		RecoveryMethod: "todos.get",
+		Key:            string(protocol.StatePlan),
+		RecoveryMethod: "plan.get",
 		Scope:          StateScopeSession,
 		Writer:         StateWriterRootRun,
-		Feature:        "todos",
+		Feature:        "plan",
 		Stability:      stable,
 		PayloadType:    typeOf[protocol.StateSnapshot](),
 	})

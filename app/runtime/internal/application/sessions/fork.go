@@ -22,7 +22,7 @@ type ForkSpec struct {
 // ForkBoundary is where a fork branches: the parent history prefix the child is
 // seeded with, and the run that prefix stops at. They travel together because the
 // child's session-scoped state is copied from that same run's boundary — a fork
-// whose conversation and task list came from different runs would hand the branch
+// whose conversation and Plan came from different runs would hand the branch
 // a plan that never went with what it remembers.
 type ForkBoundary struct {
 	Messages []chat.Message
@@ -94,7 +94,7 @@ func ResolveForkBoundary(msgs []chat.Message, runs []transcript.Run, fromRunID s
 }
 
 // Fork creates a child session, seeds it with the resolved parent history prefix
-// and the task list that boundary held, and renames it as ONE atomic write-set
+// and the Plan that boundary held, and renames it as ONE atomic write-set
 // (§8.1). The protocol adapter owns only wire decoding; the boundary semantics
 // live here (the application resolves the boundary; the adapter commits the
 // branch).
@@ -112,21 +112,21 @@ func (c *Coordinator) Fork(ctx context.Context, spec ForkSpec) (session.Session,
 	}
 	// A child starts fresh, so an unrecorded boundary and a recorded empty one seed
 	// the same nothing — the distinction a rollback needs has no branch to make here.
-	todos, err := c.todoBoundary(ctx, boundary.RunID)
+	plan, err := c.planBoundary(ctx, boundary.RunID)
 	if err != nil {
 		return session.Session{}, err
 	}
 	child, err := c.writes.ApplyFork(ctx, ForkPlan{
 		ParentID: spec.ParentID,
 		Messages: boundary.Messages,
-		Todos:    todos.Items,
+		Plan:     plan.Steps,
 		Title:    spec.Title,
 	})
 	if err != nil {
 		return session.Session{}, err
 	}
 	c.publishSessionMoved(child.ID)
-	if len(todos.Items) > 0 {
+	if len(plan.Steps) > 0 {
 		c.publishStateMoved(child.ID)
 	}
 	return child, nil

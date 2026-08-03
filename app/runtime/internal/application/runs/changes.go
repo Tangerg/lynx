@@ -60,5 +60,5 @@ func (c *Coordinator) publishGoalMoved(sessionID string) {
 // own stream carries the snapshot itself (§6.2); this only says "read that key
 // again", for the clients the stream does not reach.
 func (c *Coordinator) publishStateMoved(sessionID string) {
-	c.changed.Notify(change.InSession(change.TodoState, sessionID))
+	c.changed.Notify(change.InSession(change.PlanState, sessionID))
 }

@@ -404,13 +404,13 @@ func (s *RunStore) finish(
 		if n, _ := res.RowsAffected(); n == 0 {
 			return fmt.Errorf("sqlite: %s run: state changed concurrently (was %s)", op, cur)
 		}
-		// The Run's end is also a boundary of the session's task list, and this CAS is
+		// The Run's end is also a boundary of the session's Plan, and this CAS is
 		// the only place a Run can reach terminal — so the boundary is stamped here
 		// rather than by each caller that ends a Run, which is how "no terminal Run
 		// without a recorded boundary" holds by construction. Restore is deliberately
 		// NOT a boundary: an imported Run finished in another runtime, and stamping the
 		// importing session's live list would invent a value that Run never had.
-		return NewTodoStore(s.db).CaptureBoundary(ctx, run.SessionID, run.ID)
+		return NewPlanStore(s.db).CaptureBoundary(ctx, run.SessionID, run.ID)
 	})
 }
 

@@ -210,13 +210,14 @@ const (
 type ItemKind uint8
 
 const (
-	UserMessage ItemKind = iota
-	AgentMessage
-	Reasoning
-	Plan
-	QuestionItem
-	ToolCall
-	Compaction
+	// ItemKind values are durable SQLite discriminants. Removed variants leave
+	// gaps so an existing row is rejected instead of being decoded as another kind.
+	UserMessage  ItemKind = 0
+	AgentMessage ItemKind = 1
+	Reasoning    ItemKind = 2
+	QuestionItem ItemKind = 4
+	ToolCall     ItemKind = 5
+	Compaction   ItemKind = 6
 )
 
 type Item struct {
@@ -230,7 +231,6 @@ type Item struct {
 	Content     []ContentBlock
 	Text        string
 	Redacted    bool
-	Steps       []PlanStep
 	Question    *Question
 	Tool        *ToolInvocation
 	SafetyClass tool.SafetyClass
@@ -289,22 +289,6 @@ type ContentBlock struct {
 	Mime string
 	Data string
 }
-
-type PlanStep struct {
-	ID     string
-	Title  string
-	Status PlanStepStatus
-}
-
-// PlanStepStatus is the lifecycle state of a plan step.
-type PlanStepStatus string
-
-const (
-	PlanStepPending   PlanStepStatus = "pending"
-	PlanStepRunning   PlanStepStatus = "running"
-	PlanStepCompleted PlanStepStatus = "completed"
-	PlanStepFailed    PlanStepStatus = "failed"
-)
 
 type Question struct {
 	Fields []QuestionField
@@ -611,24 +595,6 @@ func (block ContentBlock) Validate() error {
 	return nil
 }
 
-// Validate reports whether the plan-step lifecycle is known.
-func (step PlanStep) Validate() error {
-	if !step.Status.Valid() {
-		return fmt.Errorf("unknown status %q", step.Status)
-	}
-	return nil
-}
-
-// Valid reports whether the status is a defined plan-step lifecycle state.
-func (status PlanStepStatus) Valid() bool {
-	switch status {
-	case PlanStepPending, PlanStepRunning, PlanStepCompleted, PlanStepFailed:
-		return true
-	default:
-		return false
-	}
-}
-
 // Validate reports whether the question can be rendered and answered unambiguously.
 func (question Question) Validate() error {
 	if len(question.Fields) == 0 {
@@ -689,11 +655,6 @@ func (item Item) Validate() error {
 			return fmt.Errorf("content %d: %w", index, err)
 		}
 	}
-	for index, step := range item.Steps {
-		if err := step.Validate(); err != nil {
-			return fmt.Errorf("plan step %d: %w", index, err)
-		}
-	}
 	if item.Question != nil {
 		if err := item.Question.Validate(); err != nil {
 			return err
@@ -707,25 +668,17 @@ func (item Item) Validate() error {
 	case UserMessage, AgentMessage:
 		return item.rejectPayload(
 			payloadField{"text", item.Text != ""}, payloadField{"redacted", item.Redacted},
-			payloadField{"steps", len(item.Steps) != 0}, payloadField{"question", item.Question != nil},
+			payloadField{"question", item.Question != nil},
 			payloadField{"tool", item.Tool != nil}, payloadField{"safetyClass", item.SafetyClass != ""},
 			payloadField{"error", item.Error != nil}, payloadField{"summary", item.Summary != ""},
 			payloadField{"droppedMessages", item.DroppedMessages != 0},
 		)
 	case Reasoning:
 		return item.rejectPayload(
-			payloadField{"content", len(item.Content) != 0}, payloadField{"steps", len(item.Steps) != 0},
+			payloadField{"content", len(item.Content) != 0},
 			payloadField{"question", item.Question != nil}, payloadField{"tool", item.Tool != nil},
 			payloadField{"safetyClass", item.SafetyClass != ""}, payloadField{"error", item.Error != nil},
 			payloadField{"summary", item.Summary != ""}, payloadField{"droppedMessages", item.DroppedMessages != 0},
-		)
-	case Plan:
-		return item.rejectPayload(
-			payloadField{"content", len(item.Content) != 0}, payloadField{"text", item.Text != ""},
-			payloadField{"redacted", item.Redacted}, payloadField{"question", item.Question != nil},
-			payloadField{"tool", item.Tool != nil}, payloadField{"safetyClass", item.SafetyClass != ""},
-			payloadField{"error", item.Error != nil}, payloadField{"summary", item.Summary != ""},
-			payloadField{"droppedMessages", item.DroppedMessages != 0},
 		)
 	case QuestionItem:
 		if item.Question == nil {
@@ -733,7 +686,7 @@ func (item Item) Validate() error {
 		}
 		return item.rejectPayload(
 			payloadField{"content", len(item.Content) != 0}, payloadField{"text", item.Text != ""},
-			payloadField{"redacted", item.Redacted}, payloadField{"steps", len(item.Steps) != 0},
+			payloadField{"redacted", item.Redacted},
 			payloadField{"tool", item.Tool != nil}, payloadField{"safetyClass", item.SafetyClass != ""},
 			payloadField{"error", item.Error != nil}, payloadField{"summary", item.Summary != ""},
 			payloadField{"droppedMessages", item.DroppedMessages != 0},
@@ -747,14 +700,14 @@ func (item Item) Validate() error {
 		}
 		return item.rejectPayload(
 			payloadField{"content", len(item.Content) != 0}, payloadField{"text", item.Text != ""},
-			payloadField{"redacted", item.Redacted}, payloadField{"steps", len(item.Steps) != 0},
+			payloadField{"redacted", item.Redacted},
 			payloadField{"question", item.Question != nil}, payloadField{"summary", item.Summary != ""},
 			payloadField{"droppedMessages", item.DroppedMessages != 0},
 		)
 	case Compaction:
 		return item.rejectPayload(
 			payloadField{"content", len(item.Content) != 0}, payloadField{"text", item.Text != ""},
-			payloadField{"redacted", item.Redacted}, payloadField{"steps", len(item.Steps) != 0},
+			payloadField{"redacted", item.Redacted},
 			payloadField{"question", item.Question != nil}, payloadField{"tool", item.Tool != nil},
 			payloadField{"safetyClass", item.SafetyClass != ""}, payloadField{"error", item.Error != nil},
 		)

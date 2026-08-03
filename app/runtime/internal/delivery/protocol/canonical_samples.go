@@ -39,7 +39,6 @@ var CanonicalSamples = []CanonicalSample{
 	// §4.3 Item union (bare) + ContentBlock.
 	{"item.userMessage.json", reflect.TypeFor[Item]()},
 	{"item.reasoning.json", reflect.TypeFor[Item]()},
-	{"item.plan.json", reflect.TypeFor[Item]()},
 	{"item.question.json", reflect.TypeFor[Item]()},
 	{"item.compaction.json", reflect.TypeFor[Item]()},
 	{"content.image.json", reflect.TypeFor[ContentBlock]()},
@@ -48,7 +47,6 @@ var CanonicalSamples = []CanonicalSample{
 	{"delta.reasoning.json", reflect.TypeFor[ItemDelta]()},
 	{"delta.toolArguments.json", reflect.TypeFor[ItemDelta]()},
 	{"delta.toolOutput.json", reflect.TypeFor[ItemDelta]()},
-	{"delta.plan.json", reflect.TypeFor[ItemDelta]()},
 
 	// §4.2 Run — RunOutcome union, RunRef, Interrupt union, method envelopes.
 	{"outcome.error.json", reflect.TypeFor[RunOutcome]()},

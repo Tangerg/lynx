@@ -28,7 +28,7 @@ domain      (internal/domain/*)      限界上下文：entities + repo ports + d
 Planner-driven Agent process tree · framework-managed interaction · nested child checkpoint 精确
 pause/resume · HITL 审批/提问 · plan 模式 · LSP 代码智能 · read-before/stale 编辑保护 ·
 worktree 与 Git checkpoint · MCP client/server bridge · A2A 远端 agent · Agent Skills ·
-LYRA.md 长期知识与提取 · model-facing todo · per-run provider+model 显式选择 ·
+LYRA.md 长期知识与提取 · model-facing plan · per-run provider+model 显式选择 ·
 token 触发上下文压缩 · OTel trace/metric/log → slog。
 
 ## 跑起来

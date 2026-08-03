@@ -10,8 +10,8 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/change"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
 )
 
 // changeRecorder collects notices from the pump goroutine as well as the request
@@ -110,13 +110,13 @@ func TestStartAndTerminalPublishRunAndSessionChanges(t *testing.T) {
 // itself, and a second window is told to re-read the key.
 //
 // Only subscribers of THIS run see the snapshot event. Everyone else — a second
-// window, a task-list panel on another screen — learns nothing from it, so without
+// window, a Plan panel on another screen — learns nothing from it, so without
 // the notice their list stays whatever it was when they last read, with no way to
 // notice they are behind. The notice is scoped to the session because the key is:
 // naming the run would invite a refetch keyed on something the value is not keyed on.
 func TestCommittedStateChangeReachesOtherWindows(t *testing.T) {
-	exec := &fakeExecutor{events: []ExecutorPayload{TodosUpdated{State: todo.State{
-		Items:    []todo.Item{{Content: "tell the other window", Status: todo.StatusInProgress}},
+	exec := &fakeExecutor{events: []ExecutorPayload{PlanUpdated{State: plan.State{
+		Steps:    []plan.Step{{Description: "tell the other window", Status: plan.StatusInProgress}},
 		Revision: 2, UpdatedAt: time.Date(2026, 7, 29, 1, 2, 3, 0, time.UTC),
 	}}}}
 	changes := &changeRecorder{}
@@ -148,11 +148,11 @@ func TestCommittedStateChangeReachesOtherWindows(t *testing.T) {
 	if !sawSnapshot {
 		t.Fatal("the run stream carried no state snapshot; the fixture proves nothing about the notice beside it")
 	}
-	if got := changes.count(change.TodoState); got == 0 {
+	if got := changes.count(change.PlanState); got == 0 {
 		t.Fatalf("state notices = %d, want the committed projection announced", got)
 	}
 	for _, notice := range changes.notices {
-		if notice.Resource != change.TodoState {
+		if notice.Resource != change.PlanState {
 			continue
 		}
 		if !slices.Equal(notice.SessionIDs, []string{"ses_1"}) {

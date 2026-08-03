@@ -116,7 +116,7 @@ type Deps struct {
 	Shell           []toolcontract.Tool                         // shell tools (shell / shell_output / shell_kill); nil means omitted
 	AskUser         toolcontract.Tool                           // ask_user HITL tool (both roles)
 	ExitPlan        toolcontract.Tool                           // exit_plan_mode HITL tool (both roles); nil → omitted
-	Todo            toolcontract.Tool                           // todo_write task-list tool (both roles); nil → omitted
+	Plan            toolcontract.Tool                           // set_plan execution-plan tool (coding role only); nil → omitted
 	Schedule        toolcontract.Tool                           // schedule management op-tool (coding role only); nil → omitted
 	ToolResult      toolcontract.Tool                           // read_tool_result offloaded-output reader (both roles); nil → omitted
 	MemorySearch    toolcontract.Tool                           // memory_search agent-memory reader (both roles); nil → omitted
@@ -158,7 +158,7 @@ func NewResolver(d Deps) (*Resolver, error) {
 		shell:           slices.Clone(d.Shell),
 		staticTools: []staticToolSpec{
 			{tool: d.AskUser, audience: toolAudienceBoth, placement: toolAfterCodebase},
-			{tool: d.Todo, audience: toolAudienceBoth, placement: toolAfterSkill},
+			{tool: d.Plan, audience: toolAudienceCoding, placement: toolAfterSkill},
 			{tool: d.Schedule, audience: toolAudienceCoding, placement: toolCodingTail},
 			{tool: d.ToolResult, audience: toolAudienceBoth, placement: toolAfterSkill},
 			{tool: d.MemorySearch, audience: toolAudienceBoth, placement: toolAfterSkill},
@@ -316,7 +316,7 @@ func (g *toolGroup) Tools(ctx context.Context) ([]toolcontract.Tool, error) {
 	if skillTool := skill.Build(workdir, g.resolver.skillsGlobalDir, g.resolver.skillUsage); skillTool != nil {
 		tools = append(tools, skillTool)
 	}
-	// Built-once, session-keyed helpers (todo/result/memory/transcript search)
+	// Built-once, session-keyed helpers (plan/result/memory/transcript search)
 	// are projected from the resolver's role and placement policy.
 	var err error
 	tools, err = g.resolver.appendStaticTools(ctx, tools, toolAfterSkill, g.role)

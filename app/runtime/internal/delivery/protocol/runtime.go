@@ -29,7 +29,7 @@ type Runtime interface {
 	Sessions
 	Runs
 	Items
-	Todos
+	Plan
 	RuntimeSubscription
 	Workspace
 	Skills

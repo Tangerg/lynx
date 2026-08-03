@@ -91,11 +91,11 @@ type reducer struct {
 	tools           openTools
 	drained         []interrupts.DrainedTool
 	errProblem      *transcript.Problem
-	// todos is the last state snapshot this segment published, kept so the segment
+	// plan is the last state snapshot this segment published, kept so the segment
 	// can fence its final value before finishing. Nil means this segment never
 	// changed the projection, and a segment that changed nothing has nothing to
 	// fence.
-	todos *StateSnapshot
+	plan *StateSnapshot
 }
 
 type openText struct {
@@ -191,8 +191,8 @@ func (r *reducer) reduce(ev EngineEvent) (reductionBatch, error) {
 		}
 	case SteerMessage:
 		out = r.steerMessage(e)
-	case TodosUpdated:
-		out = r.todosSnapshot(e)
+	case PlanUpdated:
+		out = r.planSnapshot(e)
 	case CompactBoundary:
 		out = r.compaction(e)
 	case TurnInterrupted:
@@ -342,17 +342,17 @@ func (r *reducer) project(events []RunEvent) (reductionBatch, error) {
 // are two reasons for one boundary, and a rule stated in both places is a rule that
 // drifts in one of them.
 func (r *reducer) fenceFinalState(events []RunEvent) []RunEvent {
-	if r.todos == nil {
+	if r.plan == nil {
 		return events
 	}
 	for i, event := range events {
 		if _, finishing := event.(SegmentFinished); !finishing {
 			continue
 		}
-		fence := *r.todos
+		fence := *r.plan
 		// One fence per segment: a resumed segment fences again only if it changes
 		// the projection again.
-		r.todos = nil
+		r.plan = nil
 		return slices.Insert(events, i, RunEvent(fence))
 	}
 	return events

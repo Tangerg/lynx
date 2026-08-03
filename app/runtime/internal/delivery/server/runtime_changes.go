@@ -44,9 +44,9 @@ func runtimeEventFor(notice change.Notice) (protocol.RuntimeEvent, bool) {
 		return protocol.RuntimeEvent{
 			Type: protocol.RuntimeGoalsChanged, SessionIDs: notice.SessionIDs,
 		}, true
-	case change.TodoState:
+	case change.PlanState:
 		return protocol.RuntimeEvent{
-			Type: protocol.RuntimeStateChanged, Key: protocol.StateTodos, SessionIDs: notice.SessionIDs,
+			Type: protocol.RuntimeStateChanged, Key: protocol.StatePlan, SessionIDs: notice.SessionIDs,
 		}, true
 	default:
 		return protocol.RuntimeEvent{}, false

@@ -132,7 +132,7 @@ func TestRemovedProducerPortsDoNotReturnToDomain(t *testing.T) {
 		filepath.Join(root, "internal", "domain", "knowledge"):     {"Store": {}},
 		filepath.Join(root, "internal", "domain", "mcpserver"):     {"Registry": {}},
 		filepath.Join(root, "internal", "domain", "schedule"):      {"Registry": {}},
-		filepath.Join(root, "internal", "domain", "todo"):          {"Store": {}},
+		filepath.Join(root, "internal", "domain", "plan"):          {"Store": {}},
 		filepath.Join(root, "internal", "domain", "tool"):          {"Catalog": {}, "Invoker": {}, "Registry": {}},
 	} {
 		entries, err := os.ReadDir(path)
@@ -201,8 +201,8 @@ func TestDomainDoesNotRenderAgentOrToolPresentation(t *testing.T) {
 			"EstimateTokens": "model token approximation belongs to adapter/agentexec",
 			"NormalizeFacts": "LLM Markdown extraction belongs to adapter/maintenance",
 		},
-		filepath.Join(root, "internal", "domain", "todo"): {
-			"Render": "todo prompt/tool formatting belongs to adapter/todopresentation",
+		filepath.Join(root, "internal", "domain", "plan"): {
+			"Render": "plan prompt/tool formatting belongs to adapter/planpresentation",
 		},
 		filepath.Join(root, "internal", "domain", "skills"): {
 			"ProjectDir": "skill source layout belongs to adapter/promptsource",

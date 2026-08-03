@@ -10,8 +10,8 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/conversation"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
 	sqlitestore "github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 )
 
@@ -25,7 +25,7 @@ type SessionStores struct {
 	runs                *sqlitestore.RunStore
 	executorCheckpoints *sqlitestore.ExecutorCheckpointStore
 	history             *conversation.Messages
-	todos               todoProjection
+	plan                planProjection
 	approvals           approvalRuleCleaner
 	toolResults         *sqlitestore.ToolResultStore
 	goals               goalStore
@@ -40,7 +40,7 @@ type SessionStoresConfig struct {
 	Runs                *sqlitestore.RunStore
 	ExecutorCheckpoints *sqlitestore.ExecutorCheckpointStore
 	History             *conversation.Messages
-	Todos               todoProjection
+	Plan                planProjection
 	Approvals           approvalRuleCleaner
 	ToolResults         *sqlitestore.ToolResultStore
 	Goals               goalStore
@@ -50,15 +50,15 @@ type SessionStoresConfig struct {
 // Transactor runs a complete write-set inside one durable transaction.
 type Transactor func(context.Context, func(context.Context) error) error
 
-// todoProjection is the session-scoped task list this write-set has to move with
+// planProjection is the session-scoped Plan this write-set has to move with
 // the session through its whole lifecycle: read for an archive, replaced by a
 // restore, seeded into a fork, republished at a rollback boundary, dropped with a
 // delete. Replace rather than write-then-set-revision, because the store owns the
 // revision — it is assigned by the write itself, so no caller can hand out two
 // values under one number.
-type todoProjection interface {
-	List(ctx context.Context, sessionID string) ([]todo.Item, error)
-	Replace(ctx context.Context, sessionID string, items []todo.Item) error
+type planProjection interface {
+	List(ctx context.Context, sessionID string) ([]plan.Step, error)
+	Replace(ctx context.Context, sessionID string, items []plan.Step) error
 	DeleteSession(ctx context.Context, sessionID string) error
 }
 
@@ -81,7 +81,7 @@ func NewSessionStores(cfg SessionStoresConfig) *SessionStores {
 		runs:                cfg.Runs,
 		executorCheckpoints: cfg.ExecutorCheckpoints,
 		history:             cfg.History,
-		todos:               cfg.Todos,
+		plan:                cfg.Plan,
 		approvals:           cfg.Approvals,
 		toolResults:         cfg.ToolResults,
 		goals:               cfg.Goals,
@@ -118,16 +118,16 @@ func (s *SessionStores) ReadSnapshot(ctx context.Context, sessionID string) (ses
 				return err
 			}
 		}
-		var todos []todo.Item
-		if s.todos != nil {
-			todos, err = s.todos.List(ctx, sessionID)
+		var plan []plan.Step
+		if s.plan != nil {
+			plan, err = s.plan.List(ctx, sessionID)
 			if err != nil {
 				return err
 			}
 		}
 		snapshot = sessions.Snapshot{
 			Session: ses, Messages: messages, Items: items, Runs: runs,
-			ToolResults: toolResults, Todos: todos,
+			ToolResults: toolResults, Plan: plan,
 		}
 		return nil
 	})
@@ -153,8 +153,8 @@ func (s *SessionStores) ApplyFork(ctx context.Context, plan sessions.ForkPlan) (
 		// A branch that copies the conversation copies the plan it was following. Only
 		// a non-empty list is written: a fresh child with no row already reads as a
 		// session with no list, and writing one would publish an empty list as news.
-		if s.todos != nil && len(plan.Todos) > 0 {
-			if err := s.todos.Replace(ctx, ch.ID, plan.Todos); err != nil {
+		if s.plan != nil && len(plan.Plan) > 0 {
+			if err := s.plan.Replace(ctx, ch.ID, plan.Plan); err != nil {
 				return err
 			}
 		}
@@ -179,9 +179,9 @@ func (s *SessionStores) ApplyRollback(ctx context.Context, plan sessions.Rollbac
 		// The boundary's list is REPUBLISHED, not cleared: a rollback is a new state
 		// commit, so its value has to arrive under a higher revision than whatever the
 		// session already published, and deleting the row would restart that space at
-		// one. An unrecorded boundary is left alone — see sessions.TodoBoundary.
-		if s.todos != nil && plan.Todos.Recorded {
-			if err := s.todos.Replace(ctx, plan.SessionID, plan.Todos.Items); err != nil {
+		// one. An unrecorded boundary is left alone — see sessions.PlanBoundary.
+		if s.plan != nil && plan.Plan.Recorded {
+			if err := s.plan.Replace(ctx, plan.SessionID, plan.Plan.Steps); err != nil {
 				return err
 			}
 		}
@@ -235,8 +235,8 @@ func (s *SessionStores) ApplyRestore(ctx context.Context, plan sessions.RestoreP
 		// revision past whatever this session already published, while the clear left
 		// it with no row — and a fresh row starts at one, which a client holding a
 		// higher revision would ignore as stale.
-		if s.todos != nil {
-			if err := s.todos.Replace(ctx, id, plan.Todos); err != nil {
+		if s.plan != nil {
+			if err := s.plan.Replace(ctx, id, plan.Plan); err != nil {
 				return err
 			}
 		}
@@ -299,8 +299,8 @@ func (s *SessionStores) clearSessionOwnedState(ctx context.Context, sessionID st
 	if err := s.runs.DeleteForSession(ctx, sessionID); err != nil {
 		return err
 	}
-	if s.todos != nil {
-		if err := s.todos.DeleteSession(ctx, sessionID); err != nil {
+	if s.plan != nil {
+		if err := s.plan.DeleteSession(ctx, sessionID); err != nil {
 			return err
 		}
 	}

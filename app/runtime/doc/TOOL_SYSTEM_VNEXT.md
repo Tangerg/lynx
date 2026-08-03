@@ -149,7 +149,8 @@
 |---|---|---|
 | 0 | 固化词汇、契约、删除范围和服务端实施台账 | 完成 |
 | 1 | 工具 Definition、schema、result 和错误基础协议 | 完成 |
-| 2 | Plan 领域替换 Todo；session-scoped Plan mode | 待开始 |
+| 2a | Plan 领域、持久化、wire、归档和工具替换 | 完成 |
+| 2b | session-scoped Plan mode | 待开始 |
 | 3 | `create_goal` 与 idle continuation | 待开始 |
 | 4 | Manifest、Exposure、模型/状态驱动工具清单 | 待开始 |
 | 5 | 工具名、参数和描述的全量收敛 | 待开始 |
@@ -177,3 +178,14 @@
 - 保持 `tool.Tool` 两方法最小接口，复用 `agent/toolloop` 已有的 `ToolResult.IsError` 结算；
 - 否决通用 output schema 和新 error-code SPI：当前 provider 没有共同消费方，引入会造成过度抽象；
 - 参数校验只依赖标准库，根模块继续零外部依赖，`tool` 继续只依赖 Core。
+
+### 批次 2a
+
+- 以 `Plan -> Step{description,status}` 作为唯一多步骤状态模型，完整删除当前服务端中的 Todo 包、store、工具、query、feature 和 wire 名称；
+- `set_plan` 使用必填完整 `steps` 数组做 whole replacement，空数组清空，领域层保证描述非空、状态闭集且最多一个 `in_progress`；
+- `set_plan` 只对根 coding Agent 可见；子 Agent 可读取注入提示中的当前 Plan，但不能替换共享 Plan；
+- Plan 随 session 的 fork、rollback、export/import 和 delete 生命周期移动，独立 revision 保证 state snapshot 单调；artifact 提升到 v10，旧 artifact 直接拒绝，不增加迁移或别名；
+- 删除未被执行路径产生的 transcript plan Item、plan delta 及其第二套 `running/failed` Step 状态，只保留 session Plan 一套语义；
+- `app/runtime` 的根模块依赖提升到已推送的工具 schema 版本，保证 workspace 与 `GOWORK=off` 使用同一份 input contract；
+- 服务端 contract 和 Go wire validator 已重新生成；按本轮范围未修改桌面端 TypeScript、canonical sample 或协议文档，其 drift 留给服务端工具契约稳定后的前端专项；
+- 边界审计确认 Plan 领域留在 `app/runtime`，`agent` 模块没有导入 runtime；tool adapter 仅依赖消费方定义的 `List/Replace` 或只读 `State` 窄端口，没有把 SQLite、delivery DTO、session aggregate 或 runtime Engine 泄露进 Agent 核心。

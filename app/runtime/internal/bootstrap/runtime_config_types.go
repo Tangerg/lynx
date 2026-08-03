@@ -14,9 +14,9 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/codebaseindex"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/schedule"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/todo"
 	sqlitestore "github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 )
 
@@ -35,7 +35,7 @@ type ShutdownResource interface {
 // composition root (the sqlite-backed stores marked "Required" below).
 type Config struct {
 	// Engine is the Agent execution adapter's construction config. The runtime
-	// fills its Checkpoints, Provider, Todos, and ToolResolver.
+	// fills its Checkpoints, Provider, Plan, and ToolResolver.
 	Engine agentexec.Config
 
 	// SkillsGlobalDir is the user-scope Agent Skills directory. Tool resolution
@@ -149,10 +149,10 @@ type Config struct {
 	// sqlite-backed registry and seeds the configured provider into it.
 	ProviderRegistry provider.Registry
 
-	// TodoStore persists per-session todo lists for the todo_write tool.
+	// PlanStore persists per-session plan lists for the set_plan tool.
 	// Optional; nil disables the feature (no tool, no prompt injection). The
 	// composition root injects the sqlite-backed store.
-	TodoStore TodoStore
+	PlanStore PlanStore
 
 	// GoalStore persists per-session autonomous goals (Goal mode). Optional; nil
 	// disables the feature (no update_goal tool, goals.* report
@@ -269,16 +269,16 @@ type LSPServerConfig struct {
 	RootMarkers []string
 }
 
-// TodoStore is the composition-root union shared by prompt assembly, todo_write,
-// the state.snapshot projection, the todos.get read, and session lifecycle
+// PlanStore is the composition-root union shared by prompt assembly, set_plan,
+// the state.snapshot projection, the plan.get read, and session lifecycle
 // cleanup. Boundary is the run-boundary history rollback and fork restore from;
 // capturing a boundary is not here, because no consumer asks for it — a Run
 // reaching terminal is what records one.
-type TodoStore interface {
-	List(ctx context.Context, sessionID string) ([]todo.Item, error)
-	State(ctx context.Context, sessionID string) (todo.State, error)
-	Replace(ctx context.Context, sessionID string, items []todo.Item) error
-	Boundary(ctx context.Context, runID string) ([]todo.Item, bool, error)
+type PlanStore interface {
+	List(ctx context.Context, sessionID string) ([]plan.Step, error)
+	State(ctx context.Context, sessionID string) (plan.State, error)
+	Replace(ctx context.Context, sessionID string, items []plan.Step) error
+	Boundary(ctx context.Context, runID string) ([]plan.Step, bool, error)
 	DeleteSession(ctx context.Context, sessionID string) error
 }
 

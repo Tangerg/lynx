@@ -44,7 +44,7 @@ func RuntimeConfig(cfg config.Config, stores *persistence.Bundle, client *chatcl
 		TranscriptStore:        stores.Transcript,
 		FeedbackStore:          stores.Feedback,
 		ProviderRegistry:       providers,
-		TodoStore:              stores.Todos,
+		PlanStore:              stores.Plan,
 		GoalStore:              stores.Goals,
 		KnowledgeStore:         stores.Memory,
 		Provider:               cfg.Provider,
