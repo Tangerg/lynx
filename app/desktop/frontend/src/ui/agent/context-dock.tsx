@@ -27,10 +27,15 @@ export interface AgentDockTab {
  * own background step.
  */
 export function AgentContextDock({
+  open,
   className,
   style,
   children,
 }: {
+  /** Whether the dock is showing. Declared rather than expressed as a hidden style,
+   *  because how a flanking pane leaves and returns is the shell's geometry and not
+   *  the page's — the same split the drawer already makes. */
+  open: boolean;
   className?: string;
   /** Carries the resizable width, which lives in a custom property so a drag
    *  doesn't re-render the card. */
@@ -38,7 +43,11 @@ export function AgentContextDock({
   children: ReactNode;
 }) {
   return (
-    <aside className={cn("agent-context-dock agent-pane-split", className)} style={style}>
+    <aside
+      data-open={open ? "" : undefined}
+      className={cn("agent-context-dock agent-pane-split", className)}
+      style={style}
+    >
       {children}
     </aside>
   );

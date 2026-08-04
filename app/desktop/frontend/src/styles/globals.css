@@ -1473,6 +1473,15 @@ html.theme-dark {
 
 /* ---------- Context dock ---------- */
 
+/* The right flank leaves and returns on the same curve as the left one.
+   It used to be toggled with `display: none`, which is not a state a transition can
+   start from or land on — so one side of the same window slid and the other blinked.
+   The width comes from the inline column style (see dockWidth.ts); what is declared
+   here is only how it travels, and that its content stops existing for the pointer
+   and for assistive tech once it has finished leaving. `visibility` is delayed by the
+   duration on the way out and immediate on the way back, the same two-line trick the
+   drawer uses, because a panel that goes invisible at frame one has nothing left to
+   animate. */
 .agent-context-dock {
   position: relative;
   display: flex;
@@ -1481,6 +1490,21 @@ html.theme-dark {
   flex-direction: column;
   overflow: hidden;
   background: var(--app-dock-surface);
+  transition:
+    flex-basis var(--dur-drawer) var(--ease-drawer),
+    visibility 0s linear 0s;
+}
+.agent-context-dock:not([data-open]) {
+  visibility: hidden;
+  transition:
+    flex-basis var(--dur-drawer) var(--ease-drawer),
+    visibility 0s linear var(--dur-drawer);
+}
+/* Mid-drag the basis changes every pointer-move, so the travel curve would make the
+   dock chase the cursor a third of a second behind it — the same reason the drawer's
+   gap opts out. */
+.agent-shell[data-resizing] .agent-context-dock {
+  transition: none;
 }
 
 /* A workspace view is a page when it owns the card and content when it sits in

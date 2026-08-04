@@ -29,3 +29,15 @@ export function dockWidthRow(width: number): CSSProperties {
 export const DOCK_COLUMN: CSSProperties = {
   flexBasis: `max(${DOCK_MIN_WIDTH_PX}px, min(var(${DOCK_WIDTH_PROPERTY}), 50%, calc(100% - ${CHAT_MIN_WIDTH_PX}px)))`,
 };
+
+/**
+ * The same column at zero, so opening and closing the dock is a width the reading
+ * plane can follow.
+ *
+ * It used to be `display: none`, which is not a state a transition can leave or
+ * arrive at: the dock appeared and vanished between two frames while the drawer on
+ * the other side of the same window slid. Zero BASIS keeps the element in flow, which
+ * is what gives the conversation column something to reflow against — the mirror of
+ * the drawer's in-flow spacer.
+ */
+export const DOCK_COLUMN_COLLAPSED: CSSProperties = { flexBasis: "0px" };

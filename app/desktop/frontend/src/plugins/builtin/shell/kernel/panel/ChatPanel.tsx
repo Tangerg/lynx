@@ -1,4 +1,4 @@
-import { DOCK_COLUMN, dockWidthRow } from "./dockWidth";
+import { DOCK_COLUMN, DOCK_COLUMN_COLLAPSED, dockWidthRow } from "./dockWidth";
 import type { UserInput } from "@/plugins/builtin/chat/composer/public/input";
 import type { ViewPlacement } from "@/plugins/builtin/workspace/public/viewPlacement";
 import { CatalogPicker, IconButton, type CatalogPickerGroup, type IconName } from "@/ui";
@@ -113,6 +113,9 @@ export function ChatPanel({ onSend }: Props) {
   const t = useT();
 
   if (isLoading && !activeMainView && !dock.open) return null;
+  // One reading of "the dock is showing", used by the resizer, the flank's own state
+  // and the column width — three places that were each spelling it.
+  const dockOpen = dock.open && dock.activeViewId !== null && dock.viewIds.length > 0;
 
   const placementFor = (id: string, placement: "full" | "dock"): ViewPlacement => ({
     placement,
@@ -188,14 +191,16 @@ export function ChatPanel({ onSend }: Props) {
             </AgentSurfaceHeader>
             <ChatStream onSend={onSend} />
           </div>
-          {dock.open && dock.activeViewId && <DockResizer />}
-          {dock.viewIds.length > 0 && (
+          {dockOpen && <DockResizer />}
+          {/* Always mounted, even with nothing open: a pane cannot animate in from a
+              width it did not have on the previous frame, and the first view opened in
+              a session is exactly the case where 0 → 336 has no starting value unless
+              the element was already there at zero. */}
+          {
             <AgentContextDock
+              open={dockOpen}
               className="shrink-0 grow-0"
-              style={{
-                ...DOCK_COLUMN,
-                display: dock.open && dock.activeViewId ? undefined : "none",
-              }}
+              style={dockOpen ? DOCK_COLUMN : DOCK_COLUMN_COLLAPSED}
             >
               <DockHeader tabs={dockTabs} groups={catalog} openViewIds={openViewIds} />
               <div className="relative min-h-0 flex-1">
@@ -217,7 +222,7 @@ export function ChatPanel({ onSend }: Props) {
                 })}
               </div>
             </AgentContextDock>
-          )}
+          }
         </div>
       )}
     </AgentContentCard>
