@@ -17,7 +17,7 @@ import type {
   FileChangesViewModel,
 } from "@/plugins/builtin/workspace/application/fileChangesViewModel";
 import { memo } from "react";
-import { DiffStat } from "@/ui";
+import { DiffStat, SectionLabel } from "@/ui";
 import { AgentRow } from "@/ui/agent";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/classNames";
@@ -33,10 +33,9 @@ export const FilesChanged = memo(function FilesChanged({ view, onSelect }: Props
 
   return (
     <div className="px-1.5">
-      <div className="flex items-center gap-2 px-2 py-2 font-mono text-ui-sm font-semibold text-fg-faint">
-        <span>{t("files.changed", { count: view.fileCount })}</span>
-        <DiffStat added={view.totalAdded} removed={view.totalRemoved} className="ml-auto" />
-      </div>
+      <SectionLabel trailing={<DiffStat added={view.totalAdded} removed={view.totalRemoved} />}>
+        {t("files.changed", { count: view.fileCount })}
+      </SectionLabel>
       {view.rows.map((row) => (
         <FileRow key={row.path} row={row} onSelect={onSelect} />
       ))}

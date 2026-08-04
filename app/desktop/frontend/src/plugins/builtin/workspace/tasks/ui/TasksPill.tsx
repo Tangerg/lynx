@@ -1,5 +1,5 @@
 import { useT } from "@/lib/i18n";
-import { Icon, IconButton, Popover, ProgressBar } from "@/ui";
+import { Icon, IconButton, Popover, ProgressBar, SectionLabel } from "@/ui";
 import { cn } from "@/lib/classNames";
 import type { TaskReadoutStatus, TaskReadoutTask } from "../application/ports/taskReadoutPort";
 import { taskProgressPercent, useTaskReadout } from "../application/taskReadout";
@@ -32,9 +32,7 @@ export function TasksPill() {
         }
       />
       <Popover.Content side="top" align="start" sideOffset={6} className="w-[320px] rounded-xl">
-        <div className="px-3 pt-2 pb-1 text-ui-xs font-semibold text-fg-faint">
-          {t("tasks.header")}
-        </div>
+        <SectionLabel className="px-3 pb-1">{t("tasks.header")}</SectionLabel>
         <div className="max-h-[280px] overflow-y-auto">
           {readout.tasks.map((task) => (
             <TaskRow key={task.id} task={task} />

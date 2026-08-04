@@ -2,7 +2,7 @@
 // slim, centered "⊟ Compacted N earlier messages" divider between turns; when
 // the backend supplies a summary it expands inline on click.
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import { Divider, Icon, TextButton } from "@/ui";
 import { useT } from "@/lib/i18n";
 
@@ -15,6 +15,7 @@ export function CompactionBlock({
 }) {
   const t = useT();
   const [open, setOpen] = useState(false);
+  const panelId = useId();
   const label =
     droppedMessages && droppedMessages > 0
       ? t("compaction.compactedN", { count: droppedMessages })
@@ -30,6 +31,7 @@ export function CompactionBlock({
             type="button"
             onClick={() => setOpen((v) => !v)}
             aria-expanded={open}
+            aria-controls={panelId}
             className="inline-flex items-center gap-1 transition-colors hover:text-fg-muted"
           >
             <Icon name={open ? "chevron-up" : "chevron-down"} size="xs" />
@@ -43,7 +45,10 @@ export function CompactionBlock({
         )}
       </Divider>
       {open && summary && (
-        <div className="mx-auto mt-2 max-w-[640px] text-left text-ui-md leading-prose text-fg-muted">
+        <div
+          id={panelId}
+          className="mx-auto mt-2 max-w-[640px] text-left text-ui-md leading-prose text-fg-muted"
+        >
           {summary}
         </div>
       )}

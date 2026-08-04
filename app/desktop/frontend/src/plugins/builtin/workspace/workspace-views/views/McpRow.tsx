@@ -1,6 +1,6 @@
 import { MCP_SERVERS_PANE } from "@/plugins/builtin/settings/public/panes";
 import type { IconName } from "@/ui";
-import { useState } from "react";
+import { useId, useState } from "react";
 import { Icon, IconButton, Pressable, TextButton } from "@/ui";
 import { useT } from "@/lib/i18n";
 import { openWorkspaceSettingsPane } from "@/plugins/builtin/workspace/public/navigation";
@@ -81,6 +81,7 @@ export function McpRow({ server }: { server: MCPServerSummary }) {
   // Click the row to expand its tool list — the "N tools" badge finally has
   // a detail behind it.
   const [open, setOpen] = useState(false);
+  const panelId = useId();
   return (
     <div>
       <div className="group grid grid-cols-[40px_1fr_auto_auto_auto] items-center gap-3 px-4 py-3 hover:bg-hover transition-colors">
@@ -98,6 +99,7 @@ export function McpRow({ server }: { server: MCPServerSummary }) {
         <Pressable
           type="button"
           aria-expanded={open}
+          aria-controls={panelId}
           onClick={() => setOpen((v) => !v)}
           className="min-w-0 border-0 bg-transparent p-0 text-left"
         >
@@ -125,12 +127,15 @@ export function McpRow({ server }: { server: MCPServerSummary }) {
           className={cn(connecting && "animate-spin")}
         />
       </div>
-      {open &&
-        (server.status === "needsAuth" ? (
-          <McpAuthGuide server={server.id} />
-        ) : (
-          <McpToolList server={server.id} />
-        ))}
+      {open && (
+        <div id={panelId}>
+          {server.status === "needsAuth" ? (
+            <McpAuthGuide server={server.id} />
+          ) : (
+            <McpToolList server={server.id} />
+          )}
+        </div>
+      )}
     </div>
   );
 }

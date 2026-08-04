@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { useT } from "@/lib/i18n";
 import { useSlashCommands } from "@/plugins/sdk";
-import { FloatingSurface, OptionRow } from "@/ui";
+import { FloatingSurface, OptionRow, SectionLabel } from "@/ui";
 
 interface Props {
   value: string;
@@ -34,9 +34,7 @@ export function SlashSuggestions({ value, onPick }: Props) {
 
   return (
     <FloatingSurface className="mb-2 p-1">
-      <div className="px-2.5 pb-1 pt-1.5 font-mono text-ui-sm font-semibold text-fg-faint">
-        {t("composer.slash.heading")}
-      </div>
+      <SectionLabel className="px-2.5 pb-1 pt-1.5">{t("composer.slash.heading")}</SectionLabel>
       {filtered.map(({ cmd, spec }) => (
         <OptionRow key={cmd} onClick={() => onPick(`${cmd} `)} className="grid-cols-[auto_1fr]">
           <code className="border-0 bg-transparent p-0 font-mono font-semibold text-accent">

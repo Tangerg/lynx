@@ -3,8 +3,8 @@
 // features.memory). One entry per scope; each row expands into an inline
 // whole-file editor — memory.update writes the full content back.
 
-import { useRef, useState } from "react";
-import { DataView, Icon, PillButton, Pressable, TextArea } from "@/ui";
+import { useId, useRef, useState } from "react";
+import { Collapsible, DataView, Icon, PillButton, Pressable, TextArea } from "@/ui";
 import { useT } from "@/lib/i18n";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
 import { useActiveSessionCwd } from "@/plugins/builtin/agent/public/session";
@@ -24,6 +24,7 @@ import { useWorkspaceCapability } from "@/plugins/builtin/workspace/application/
 function MemoryRow({ row, cwd }: { row: WorkspaceMemoryRowViewModel; cwd?: string }) {
   const t = useT();
   const [open, setOpen] = useState(false);
+  const panelId = useId();
   // null = pristine (textarea shows row.content); a string = user edits.
   const [draft, setDraft] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -57,6 +58,7 @@ function MemoryRow({ row, cwd }: { row: WorkspaceMemoryRowViewModel; cwd?: strin
       <Pressable
         type="button"
         aria-expanded={open}
+        aria-controls={panelId}
         onClick={() => setOpen((v) => !v)}
         className="grid grid-cols-[14px_minmax(0,1fr)_auto] items-center gap-2 border-0 bg-transparent px-4 py-2 text-left hover:bg-hover"
       >
@@ -70,8 +72,11 @@ function MemoryRow({ row, cwd }: { row: WorkspaceMemoryRowViewModel; cwd?: strin
           {t(row.scopeLabelKey)}
         </span>
       </Pressable>
-      {open && (
-        <div className="flex flex-col gap-2 px-4 pb-3 pl-10">
+      {/* The atom, not `{open && …}`: the transcript's disclosures animate and wire
+          `aria-controls`, and a dock row that snaps open instead is the same control
+          behaving two ways in one app. */}
+      <Collapsible open={open}>
+        <div id={panelId} className="flex flex-col gap-2 px-4 pb-3 pl-10">
           <TextArea
             aria-label={t("memory.aria", { path: row.path })}
             value={draft ?? row.content}
@@ -94,7 +99,7 @@ function MemoryRow({ row, cwd }: { row: WorkspaceMemoryRowViewModel; cwd?: strin
             )}
           </div>
         </div>
-      )}
+      </Collapsible>
     </div>
   );
 }

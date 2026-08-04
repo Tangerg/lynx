@@ -4,7 +4,7 @@
 // servers (mcp.* — live 5-state lifecycle, expandable rows).
 
 import { MCP_SERVERS_PANE } from "@/plugins/builtin/settings/public/panes";
-import { Badge, DataView, Icon, TextButton } from "@/ui";
+import { Badge, DataView, Icon, SectionLabel, TextButton } from "@/ui";
 import { McpRow } from "./views/McpRow";
 import { useT } from "@/lib/i18n";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
@@ -19,7 +19,7 @@ import {
 } from "@/plugins/builtin/workspace/application/toolCatalog";
 
 function SectionHead({ children }: { children: React.ReactNode }) {
-  return <div className="px-4 pt-2 pb-1 text-ui-xs font-semibold text-fg-faint">{children}</div>;
+  return <SectionLabel className="px-4 pb-1">{children}</SectionLabel>;
 }
 
 function BuiltinToolsSection() {

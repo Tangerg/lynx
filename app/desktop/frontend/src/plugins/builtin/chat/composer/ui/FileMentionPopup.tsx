@@ -1,4 +1,4 @@
-import { FloatingSurface, Icon, OptionRow } from "@/ui";
+import { FloatingSurface, Icon, OptionRow, SectionLabel } from "@/ui";
 import {
   MENTION_LISTBOX_ID,
   mentionOptionId,
@@ -29,9 +29,7 @@ export function FileMentionPopup({ items, index, onPick, onHover }: Props) {
       aria-label={t("composer.mention.heading")}
       className="absolute bottom-full left-2 right-2 z-10 mb-2 p-1"
     >
-      <div className="px-2.5 pb-1 pt-1.5 font-mono text-ui-sm font-semibold text-fg-faint">
-        {t("composer.mention.heading")}
-      </div>
+      <SectionLabel className="px-2.5 pb-1 pt-1.5">{t("composer.mention.heading")}</SectionLabel>
       {items.map((path, i) => {
         const slash = path.lastIndexOf("/");
         const dir = slash >= 0 ? path.slice(0, slash + 1) : "";

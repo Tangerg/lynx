@@ -5,9 +5,10 @@
 import type { ReactNode } from "react";
 import type { SpanRow } from "@/lib/observability/stores";
 import { useTelemetryStore } from "@/lib/observability/stores";
-import { Fragment, useCallback, useMemo, useState } from "react";
+import { Fragment, useCallback, useId, useMemo, useState } from "react";
 import { useT } from "@/lib/i18n";
 import { Icon, Pressable } from "@/ui";
+import { cn } from "@/lib/classNames";
 import { Cell, Empty, Row, VirtualList } from "./primitives";
 
 export function TracesPanel() {
@@ -73,19 +74,21 @@ function SpanRowItem({
   open: boolean;
   onToggle: () => void;
 }) {
+  const panelId = useId();
   return (
     <div>
       <Pressable
         type="button"
         onClick={onToggle}
         aria-expanded={open}
+        aria-controls={panelId}
         className="flex min-h-8 w-full items-center gap-3 bg-transparent px-1 font-mono text-ui-md text-fg hover:bg-hover"
       >
         <span className="flex w-4 shrink-0 justify-center">
           <Icon
             name="chevron-down"
             size="xs"
-            className={"text-fg-faint transition-transform " + (open ? "" : "-rotate-90")}
+            className={cn("text-fg-faint transition-transform", !open && "-rotate-90")}
           />
         </span>
         <span className="grow min-w-0 truncate text-left">{span.name}</span>
@@ -99,7 +102,15 @@ function SpanRowItem({
           {span.traceId.slice(0, 12)}
         </span>
       </Pressable>
-      {open && <SpanDetail span={span} />}
+      {/* Wired to its panel, but deliberately NOT animated through `Collapsible`
+          like the transcript's disclosures: these rows live in a VirtualList, and a
+          220ms height transition is 220ms of the virtualiser re-measuring a row
+          that is still moving. */}
+      {open && (
+        <div id={panelId}>
+          <SpanDetail span={span} />
+        </div>
+      )}
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import type { PlanItem } from "@/plugins/builtin/agent/public/viewState";
-import { StepRow, type StepState } from "@/ui";
+import { SectionLabel, StepRow, type StepState } from "@/ui";
 import { useT } from "@/lib/i18n";
 
 // Plan view workspace tab. Same per-item visual as the inline PlanBlock
@@ -16,9 +16,7 @@ export function PlanList({ plan }: { plan: readonly PlanItem[] }) {
   const t = useT();
   return (
     <div className="px-4.5 py-3.5">
-      <div className="mb-3 font-mono text-ui-sm font-semibold text-fg-faint">
-        {t("plan.list.heading")}
-      </div>
+      <SectionLabel className="px-0 pt-0">{t("plan.list.heading")}</SectionLabel>
       {plan.map((p) => (
         <StepRow key={p.id} state={STEP_STATE[p.status]}>
           {p.text}

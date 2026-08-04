@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { IconButton, PillButton, StatusDot, Switch } from "@/ui";
 import {
   type MCPServerSettings,
@@ -35,6 +35,7 @@ export function ServerRow({ server }: { server: MCPServerSettings }) {
   const setEnabled = useSetMCPServerEnabled();
   const authorize = useAuthorizeMCPServer();
   const [editing, setEditing] = useState(false);
+  const panelId = useId();
   const [signingIn, setSigningIn] = useState(false);
   const authorizationController = useRef<AbortController | null>(null);
 
@@ -119,13 +120,14 @@ export function ServerRow({ server }: { server: MCPServerSettings }) {
             active={editing}
             title={t("mcp.edit", { server: server.name })}
             aria-expanded={editing}
+            aria-controls={panelId}
             onClick={() => setEditing((value) => !value)}
           />
         </div>
       </div>
 
       {editing && (
-        <div className="mt-2.5">
+        <div id={panelId} className="mt-2.5">
           <ServerForm
             server={server}
             onDone={() => setEditing(false)}

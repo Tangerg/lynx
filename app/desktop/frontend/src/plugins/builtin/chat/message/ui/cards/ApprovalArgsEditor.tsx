@@ -1,5 +1,5 @@
 import { useT } from "@/lib/i18n";
-import { TextArea, TextButton } from "@/ui";
+import { SectionLabel, TextArea, TextButton } from "@/ui";
 
 export function ApprovalArgsEditor({
   editing,
@@ -18,9 +18,7 @@ export function ApprovalArgsEditor({
   return (
     <div className="mb-2">
       <div className="mb-1 flex items-center gap-2">
-        <span className="font-mono text-ui-xs font-semibold text-fg-faint">
-          {t("approval.args.label")}
-        </span>
+        <SectionLabel className="px-0 py-0">{t("approval.args.label")}</SectionLabel>
         {!editing && (
           <TextButton
             type="button"

@@ -9,7 +9,7 @@
 // highlights, what the panel scrolls to on open), and the diff is always the
 // whole comparison. Structured per-file diff from workspace.diff.get (AUX_API §2.3).
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { DataView, DiffStat, Icon, IconButton, Pressable, ScrollArea, Segmented } from "@/ui";
 import { useT } from "@/lib/i18n";
 import type { DiffLayout } from "./views/DiffView";
@@ -47,6 +47,7 @@ function FileCard({
   onToggle: () => void;
 }) {
   const t = useT();
+  const panelId = useId();
   const header = workspaceDiffFileHeader(file);
   return (
     <section
@@ -59,6 +60,7 @@ function FileCard({
         type="button"
         data-chrome-focus=""
         aria-expanded={!collapsed}
+        aria-controls={panelId}
         onClick={onToggle}
         className={cn(
           "flex h-8 w-full min-w-0 items-center gap-2 border-0 bg-sunken px-3",
@@ -73,12 +75,19 @@ function FileCard({
           className={cn("shrink-0 opacity-50 transition-transform", collapsed && "-rotate-90")}
         />
       </Pressable>
-      {!collapsed &&
-        (file.binary ? (
-          <p className="m-0 px-3 py-2 font-mono text-ui-sm text-fg-faint">{t("diff.binary")}</p>
-        ) : (
-          <DiffView rows={file.rows} layout={layout} path={file.path} />
-        ))}
+      {/* Not wrapped in `Collapsible` like the transcript's disclosures, on purpose:
+          that atom keeps its children mounted after the first open so the close can
+          animate, and a diff body is thousands of rows — a reviewer who opens twenty
+          files would be holding all twenty. Here the body really does unmount. */}
+      {!collapsed && (
+        <div id={panelId}>
+          {file.binary ? (
+            <p className="m-0 px-3 py-2 font-mono text-ui-sm text-fg-faint">{t("diff.binary")}</p>
+          ) : (
+            <DiffView rows={file.rows} layout={layout} path={file.path} />
+          )}
+        </div>
+      )}
     </section>
   );
 }
