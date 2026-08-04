@@ -9,7 +9,7 @@ import (
 
 func newRunningTestState(ctx context.Context, handle Handle, process agentexec.TurnProcess) *turnState {
 	state := newPreparingTurnState(ctx, handle)
-	state.completePreparation(runs.StartTurn{})
+	state.completePreparation(runs.StartExecution{})
 	if _, claimed := state.claimStart(); !claimed {
 		panic("turn test fixture: prepared start was not claimable")
 	}

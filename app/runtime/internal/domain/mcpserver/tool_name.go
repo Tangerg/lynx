@@ -12,9 +12,8 @@ type ToolRef struct {
 func (r ToolRef) PublicName() string { return ToolName(r.Server, r.Tool) }
 
 // ToolName returns the model-facing name for a tool advertised by an MCP
-// server. It matches the name the MCP tool adapter publishes into the model
-// tool list, so the runtime can validate the live public catalog without
-// importing the concrete MCP adapter. Policy uses [ToolRef], not this lossy
+// server. It matches the name published into the model-facing tool list, so
+// callers can validate the live public catalog. Policy uses [ToolRef], not this lossy
 // presentation label.
 func ToolName(server, tool string) string {
 	if server == "" {

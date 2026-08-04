@@ -21,7 +21,7 @@ func TestGoalPtrProjectsMachineReadableReason(t *testing.T) {
 		{goal.ReasonAwaitingInput, protocol.GoalReasonAwaitingInput},
 		{goal.ReasonTerminalOutcomeMissing, protocol.GoalReasonTerminalOutcomeMissing},
 		{goal.ReasonRunNotCompleted, protocol.GoalReasonRunNotCompleted},
-		{goal.ReasonTurnBudgetReached, protocol.GoalReasonTurnBudgetReached},
+		{goal.ReasonRunBudgetReached, protocol.GoalReasonRunBudgetReached},
 		{goal.ReasonCostBudgetReached, protocol.GoalReasonCostBudgetReached},
 		{goal.ReasonStepBudgetReached, protocol.GoalReasonStepBudgetReached},
 		{goal.ReasonBlockedByModel, protocol.GoalReasonBlockedByModel},

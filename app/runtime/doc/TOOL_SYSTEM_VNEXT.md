@@ -85,7 +85,7 @@
 {
   "objective": "Finish and verify the server-side tool migration",
   "budget": {
-    "max_turns": 12,
+    "max_runs": 12,
     "max_cost_usd": 8,
     "max_steps": 80
   }

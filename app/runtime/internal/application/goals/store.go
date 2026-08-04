@@ -22,18 +22,18 @@ type Store interface {
 	List(ctx context.Context) ([]goal.Goal, error)
 }
 
-// TurnStore records one terminal goal-owned Run exactly once. It joins the
+// RunRecorder records one terminal goal-owned Run exactly once. It joins the
 // terminal Run transaction, rather than asking the loop to reconstruct durable
 // accounting after it has observed a streamed terminal event.
-type TurnStore interface {
-	RecordTurn(ctx context.Context, record goal.TurnRecord) error
+type RunRecorder interface {
+	RecordRun(ctx context.Context, record goal.RunRecord) error
 }
 
 // DurableStore is the complete persistence surface the composition root gives
 // to a Run terminalizer. The Driver and State consume the smaller Store slice.
 type DurableStore interface {
 	Store
-	TurnStore
+	RunRecorder
 }
 
 // State is the narrowly exposed autonomous-goal state use case. Tool adapters
@@ -46,7 +46,7 @@ type State struct {
 
 // ReportCommand is a model-originated terminal status report for the active
 // goal. LeaseID is the run's immutable origin stamp; empty is valid for a
-// user-originated turn and targets whichever goal is currently active.
+// user-originated Run and targets whichever goal is currently active.
 type ReportCommand struct {
 	SessionID string
 	LeaseID   string

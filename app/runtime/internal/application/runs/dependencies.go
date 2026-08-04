@@ -8,8 +8,8 @@ func (c *Coordinator) requireUseCaseDependencies() error {
 	switch {
 	case c.executor == nil:
 		return errors.New("runs: segment executor is required")
-	case c.turns == nil:
-		return errors.New("runs: turn control is required")
+	case c.control == nil:
+		return errors.New("runs: execution control is required")
 	case c.sessions == nil:
 		return errors.New("runs: session lifecycle is required")
 	case c.effects == nil:
@@ -28,8 +28,8 @@ func (c *Coordinator) requireUseCaseDependencies() error {
 }
 
 func (c *Coordinator) requireControlDependencies() error {
-	if c.turns == nil {
-		return errors.New("runs: turn control is required")
+	if c.control == nil {
+		return errors.New("runs: execution control is required")
 	}
 	if c.sessions == nil {
 		return errors.New("runs: session lifecycle is required")

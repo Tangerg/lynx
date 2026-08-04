@@ -110,6 +110,12 @@ Bootstrap 和 run-segment 同样只声明各自需要的关闭或 process-lookup
 两方法 consumer interface 使用 Agent execution；steering 与完整的 turn-boundary maintenance
 是两片独立依赖，不再经 Engine 中转。Delivery 不直接驱动 turn control。
 
+这里的 `Turn` 是 Agent 防腐层内部术语，不是应用生命周期。越过适配器边界后只存在
+`ExecutorRef{SessionID, ExecutorID}`、`ExecutionScope`、`ExecutionControl` 和 Segment
+事件；Application/Domain 不保存 `TurnID`，也不暴露 `StartTurn`/`TurnControl`。同理，Goal
+预算统计的是完整 autonomous `Run`，唯一术语是 `MaxRuns`/`Runs`/`RunRecord`；协议、工具
+schema 与持久化不得再使用 `turn` 表示同一概念。
+
 每一轮 action 调用 `ProcessContext.Interact`。Agent framework 拥有：
 
 - model/tool iteration；
@@ -200,7 +206,7 @@ recovery 和 restore 边界同时证明 checkpoint 与 Pending/Run/Session 的 r
 完整 model selection 和 goal lease 一致；restart 还独立核对 cwd/isolation。`Pending.GoalLeaseID` 是
 App-owned continuation fact，保证 resumed root reducer 继续向同一 Goal incarnation 记账。
 同一 lease 同时冻结在 root `Run.GoalLeaseID` admission provenance 中，使 boot/online
-`run_lost` 即使不经过普通 reducer，也能把 exact Goal turn 与 terminal Run 原子提交；child
+`run_lost` 即使不经过普通 reducer，也能把 exact Goal Run 与 terminal Run 原子提交；child
 Run 禁止复制该 root-only lease。
 
 RunLimits 只有一个 App 作者：同一个值进入 Run、Pending continuation、executor checkpoint、restore
@@ -241,13 +247,13 @@ Pending 和 canonical Session，并通过完整 `ExecutorCheckpointExpectation` 
 `RecoveryCommit`，由 `adapter/runrecovery` 在同一 transaction 中把无效 Run 收口为
 `run_lost`、修复 projection、记录 Goal-owned lost root 的 exact turn、删除 Pending，并删除
 所有不在精确 preserved root set 中的 checkpoint aggregate。`RecoveryCommit.Validate` 在任何
-adapter write 前校验 tree/postorder、Item owner、Goal turn、owner-bound deletion 与 retention
+adapter write 前校验 tree/postorder、Item owner、Goal Run、owner-bound deletion 与 retention
 identity；SQLite 和 Bootstrap 都不拥有恢复政策。
 
 在线 cancel 或 checkpoint loss 同样按 tree barrier 语义收口。Application 从 Pending 和 canonical
 Session snapshot 生成 `TerminalPlan.Runs` canonical postorder，`adapter/persistence` 在一个
 transaction 内依次修复 interrupt Items、删除 root checkpoint/Pending、terminalize 每个 child
-再 terminalize root，并记录可选 root Goal turn。root-only 单 Run terminal write-set 已删除。
+再 terminalize root，并记录可选 root Goal Run。root-only 单 Run terminal write-set 已删除。
 
 隔离工作区是当前进程拥有的 scratch copy，不进入 durable checkpoint。进程重启后即使
 opaque payload 可解码，也不能把 executor 恢复到已经消失或重新创建的 world；因此 isolated
@@ -255,7 +261,7 @@ parked tree 由 Application 确定性收口为 `run_lost`，不尝试猜测式�
 
 Session 与 executor process 是两套不同 identity。用户对话及 fork 才是 `Session`；delegated
 work 由同一 Session 下的 first-class child Run 表达，不再从 child process 派生隐藏 Session。
-当前 SQLite `schemaEpoch = 56`，没有旧 `process_states`、`sessions.kind`、双读写或迁移分支。
+当前 SQLite `schemaEpoch = 57`，没有旧 `process_states`、`sessions.kind`、双读写或迁移分支。
 同一 `root_process_id` 的 Session owner 不可被 upsert 改写；普通 lifecycle 的定向删除必须
 同时携带 Session，只有 boot exact-retention 使用全局 unowned cleanup。
 
@@ -318,7 +324,7 @@ Application 依赖 SQLite：用例依赖自己需要的窄读写/事务端口，
 - root terminalization 与 obsolete executor checkpoint 删除在同一事务提交，定向删除同时匹配
   Session owner；
 - parked tree 的全部 child/root terminalization、interrupt Item repair、Pending/checkpoint 删除与
-  root Goal turn 在同一事务提交；
+  root Goal Run 在同一事务提交；
 - Session delete 通过 checkpoint root 的 App-owned `session_id` 元数据删除该 Session 的全部
   checkpoint aggregates；boot 只保留被完整 Interrupted Run/Pending 及 resumability 证明拥有的 roots；
 - 数据库与 filesystem/Git 不能伪装成一个原子事务，跨资源操作使用显式 intent 和补偿；
@@ -327,7 +333,8 @@ Application 依赖 SQLite：用例依赖自己需要的窄读写/事务端口，
 - 一个 Session 至多一个非 terminal Run 由数据库约束兜底，不只靠内存锁；
 - transcript/history 是 projection，不替代 Run aggregate。
 
-当前 SQLite `schemaEpoch = 56`，`runs.goal_lease_id`、`interrupts.goal_lease_id`、
+当前 SQLite `schemaEpoch = 57`，`runs.goal_lease_id`、`interrupts.goal_lease_id`、
+`interrupts.executor_id`、`goal_runs`、Goal JSON 的 `max_runs`/`runs`、
 `mcp_oauth_sessions` 与
 `runs.max_total_tokens` 均属于唯一现行 shape；不读取或迁移任何其他 epoch 的数据库。
 

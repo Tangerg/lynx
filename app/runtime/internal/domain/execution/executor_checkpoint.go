@@ -17,11 +17,10 @@ var ErrExecutorCheckpointNotFound = errors.New("executor checkpoint not found")
 // an executor's opaque continuation state.
 var ErrInvalidExecutorCheckpoint = errors.New("invalid executor checkpoint")
 
-// TurnScope is the immutable application execution context shared by a root
-// turn and every delegated child. It belongs to Runtime rather than Agent:
-// sessions, workspace isolation, and autonomous-goal leases are host concepts,
-// not planner state.
-type TurnScope struct {
+// ExecutionScope is the immutable host context shared by a root execution and
+// every delegated child. Sessions, workspace isolation, and autonomous-goal
+// leases are host facts, not planner state.
+type ExecutionScope struct {
 	SessionID    string
 	Cwd          string
 	WorkspaceCwd string
@@ -31,9 +30,9 @@ type TurnScope struct {
 
 // Validate rejects ambiguous host identities before they cross a durable
 // continuation boundary.
-func (s TurnScope) Validate() error {
+func (s ExecutionScope) Validate() error {
 	if strings.TrimSpace(s.SessionID) == "" {
-		return errors.New("execution: turn scope session ID is required")
+		return errors.New("execution: scope session ID is required")
 	}
 	for _, field := range []struct {
 		name  string
@@ -45,21 +44,21 @@ func (s TurnScope) Validate() error {
 		{name: "goal lease ID", value: s.GoalLeaseID},
 	} {
 		if field.value != strings.TrimSpace(field.value) {
-			return fmt.Errorf("execution: turn scope %s has surrounding whitespace", field.name)
+			return fmt.Errorf("execution: scope %s has surrounding whitespace", field.name)
 		}
 	}
 	return nil
 }
 
 // ExecutorCheckpoint is one root-owned durable continuation aggregate. Payload
-// contains the complete executor tree and is opaque outside the execution
-// adapter; Runtime owns only the aggregate identity and the host metadata needed
+// contains the complete executor tree and is opaque outside its executor
+// implementation; the host owns only the aggregate identity and metadata needed
 // to decide whether and how the continuation may be restored.
 type ExecutorCheckpoint struct {
 	RootProcessID  string
 	Payload        []byte
 	BuildID        string
-	Scope          TurnScope
+	Scope          ExecutionScope
 	ModelSelection modelref.Selection
 	Limits         RunLimits
 	Usage          accounting.Snapshot
@@ -148,7 +147,7 @@ func (c ExecutorCheckpoint) ValidateOwnership(rootProcessID, sessionID string) e
 }
 
 // ValidateFor proves both ownership and every host fact independently known at
-// restore time. This prevents one logical Turn from running executor tools in
+// restore time. This prevents one logical execution from running tools in
 // the checkpoint workspace while hooks or delegated work use the Session's
 // current workspace.
 func (c ExecutorCheckpoint) ValidateFor(expected ExecutorCheckpointExpectation) error {

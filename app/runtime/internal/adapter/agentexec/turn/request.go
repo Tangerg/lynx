@@ -11,7 +11,7 @@ import (
 // turn owns.
 // Runtime collaborators such as clients, observers, and callbacks keep their
 // documented shared concurrency semantics and are attached later.
-func snapshotStartTurn(r runs.StartTurn) runs.StartTurn {
+func snapshotStartTurn(r runs.StartExecution) runs.StartExecution {
 	snapshot := r
 	if r.Options != nil {
 		options := r.Options.Clone()

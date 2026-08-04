@@ -17,7 +17,7 @@ import (
 // persisted turn handle and leaves the restored process parked so the run
 // coordinator can first establish the event owner and atomically accept the
 // continuation; [Resume] delivers the decision only after those gates succeed.
-func (s *controller) Rehydrate(ctx context.Context, request runs.RehydrateTurn) (Handle, error) {
+func (s *controller) Rehydrate(ctx context.Context, request runs.RehydrateExecution) (Handle, error) {
 	if request.ProcessID == "" || strings.TrimSpace(request.ProcessID) != request.ProcessID {
 		return Handle{}, errors.New("turn: process id must be non-empty without surrounding whitespace")
 	}
@@ -30,7 +30,7 @@ func (s *controller) Rehydrate(ctx context.Context, request runs.RehydrateTurn) 
 	if request.ModelSelection.Configured() && s.resolver == nil {
 		return Handle{}, errors.New("turn: explicit model selection requires a client resolver")
 	}
-	turnID := request.TurnID
+	turnID := request.ExecutorID
 	if turnID == "" {
 		turnID = newTurnID()
 	}

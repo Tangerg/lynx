@@ -62,11 +62,11 @@ func TestRehydrateCloseRaceReportsCleanupFailureAfterRelease(t *testing.T) {
 	}
 	engine.controller = controller
 
-	_, err := controller.Rehydrate(t.Context(), runs.RehydrateTurn{
-		SessionID: "ses_1",
-		TurnID:    "turn_1",
-		ProcessID: "proc_1",
-		RootRunID: "run_1",
+	_, err := controller.Rehydrate(t.Context(), runs.RehydrateExecution{
+		SessionID:  "ses_1",
+		ExecutorID: "turn_1",
+		ProcessID:  "proc_1",
+		RootRunID:  "run_1",
 	})
 	if !errors.Is(err, ErrClosed) {
 		t.Fatalf("Rehydrate error = %v, want controller-close", err)
@@ -105,11 +105,11 @@ func TestShutdownReleasesLateRestoredProcessAfterCleanupFailure(t *testing.T) {
 
 	rehydrated := make(chan error, 1)
 	go func() {
-		_, err := controller.Rehydrate(t.Context(), runs.RehydrateTurn{
-			SessionID: "ses_1",
-			TurnID:    "turn_1",
-			ProcessID: "proc_1",
-			RootRunID: "run_1",
+		_, err := controller.Rehydrate(t.Context(), runs.RehydrateExecution{
+			SessionID:  "ses_1",
+			ExecutorID: "turn_1",
+			ProcessID:  "proc_1",
+			RootRunID:  "run_1",
 		})
 		rehydrated <- err
 	}()

@@ -35,7 +35,7 @@ import (
 // the optional coordinator-provider seams asserted below.
 type testRuntime interface {
 	runs.SegmentExecutor
-	runs.TurnControl
+	runs.ExecutionControl
 	RunSegmentEffects(checkpoints runsegment.Checkpoints, publish runsegment.FileChangePublisher) *runsegment.Effects
 }
 
@@ -84,7 +84,7 @@ func serverPending(
 	return interrupts.Pending{
 		RootRunID:    runID,
 		SessionID:    sessionID,
-		TurnID:       turnID,
+		ExecutorID:   turnID,
 		Interrupts:   open,
 		Suspensions:  bindings,
 		Capabilities: capabilities.Normalized(),
@@ -103,11 +103,11 @@ func serverPending(
 type turnRuntime interface {
 	Events(context.Context, turn.Handle) (iter.Seq[runs.ExecutorEvent], error)
 	InjectSteering(context.Context, turn.Handle, []transcript.ContentBlock) error
-	PrepareTurn(context.Context, runs.StartTurn) (turn.Handle, error)
+	PrepareTurn(context.Context, runs.StartExecution) (turn.Handle, error)
 	ActivateTurn(context.Context, turn.Handle) error
 	Resume(context.Context, turn.Handle, []agentexec.SuspensionAnswer, []execution.InterruptKind) error
 	ProcessID(context.Context, turn.Handle) (string, error)
-	Rehydrate(context.Context, runs.RehydrateTurn) (turn.Handle, error)
+	Rehydrate(context.Context, runs.RehydrateExecution) (turn.Handle, error)
 	Cancel(context.Context, turn.Handle) error
 	CancelSubtree(context.Context, turn.Handle, string) error
 }
@@ -189,7 +189,7 @@ func newTestServer(rt testRuntime) *Server {
 	}
 	s.runs = runs.NewCoordinator(runs.Dependencies{
 		Segments:   rt,
-		Turns:      rt,
+		Control:    rt,
 		Sessions:   lifecycle,
 		Effects:    rt.RunSegmentEffects(nil, nil),
 		Runs:       runProjection,
@@ -276,41 +276,41 @@ func (s stubRuntime) turnDispatcher() turnRuntime {
 	return turnStub{}
 }
 
-func (s stubRuntime) TurnEvents(ctx context.Context, ref execution.TurnRef) (iter.Seq[runs.ExecutorEvent], error) {
-	return turn.NewExecutor(s.turnDispatcher()).TurnEvents(ctx, ref)
+func (s stubRuntime) Events(ctx context.Context, ref execution.ExecutorRef) (iter.Seq[runs.ExecutorEvent], error) {
+	return turn.NewExecutor(s.turnDispatcher()).Events(ctx, ref)
 }
 
-func (s stubRuntime) ValidateStart(req runs.StartTurn) error {
+func (s stubRuntime) ValidateStart(req runs.StartExecution) error {
 	return turn.NewExecutor(s.turnDispatcher()).ValidateStart(req)
 }
 
-func (s stubRuntime) PrepareStart(ctx context.Context, req runs.StartTurn) (execution.TurnRef, error) {
+func (s stubRuntime) PrepareStart(ctx context.Context, req runs.StartExecution) (execution.ExecutorRef, error) {
 	return turn.NewExecutor(s.turnDispatcher()).PrepareStart(ctx, req)
 }
 
-func (s stubRuntime) Activate(ctx context.Context, ref execution.TurnRef) error {
+func (s stubRuntime) Activate(ctx context.Context, ref execution.ExecutorRef) error {
 	return turn.NewExecutor(s.turnDispatcher()).Activate(ctx, ref)
 }
 
-func (s stubRuntime) Prepare(ctx context.Context, ref execution.TurnRef) (execution.TurnRef, error) {
+func (s stubRuntime) Prepare(ctx context.Context, ref execution.ExecutorRef) (execution.ExecutorRef, error) {
 	return turn.NewExecutor(s.turnDispatcher()).Prepare(ctx, ref)
 }
 
-func (s stubRuntime) Resume(ctx context.Context, prepared execution.TurnRef, answers []interrupts.SuspensionAnswer, interruptKinds []execution.InterruptKind) error {
+func (s stubRuntime) Resume(ctx context.Context, prepared execution.ExecutorRef, answers []interrupts.SuspensionAnswer, interruptKinds []execution.InterruptKind) error {
 	return turn.NewExecutor(s.turnDispatcher()).Resume(ctx, prepared, answers, interruptKinds)
 }
 
-func (s stubRuntime) Rehydrate(ctx context.Context, req runs.RehydrateTurn) (execution.TurnRef, error) {
+func (s stubRuntime) Rehydrate(ctx context.Context, req runs.RehydrateExecution) (execution.ExecutorRef, error) {
 	return turn.NewExecutor(s.turnDispatcher()).Rehydrate(ctx, req)
 }
 
-func (s stubRuntime) Cancel(ctx context.Context, ref execution.TurnRef) error {
-	return turn.NewExecutor(s.turnDispatcher()).CancelTurn(ctx, ref)
+func (s stubRuntime) Cancel(ctx context.Context, ref execution.ExecutorRef) error {
+	return turn.NewExecutor(s.turnDispatcher()).CancelExecution(ctx, ref)
 }
 
 func (s stubRuntime) CancelSubtree(
 	ctx context.Context,
-	ref execution.TurnRef,
+	ref execution.ExecutorRef,
 	processID string,
 ) error {
 	return turn.NewExecutor(s.turnDispatcher()).CancelSubtree(ctx, ref, processID)
@@ -318,7 +318,7 @@ func (s stubRuntime) CancelSubtree(
 
 func (s stubRuntime) PrepareWaitingSubtreeCancellation(
 	ctx context.Context,
-	ref execution.TurnRef,
+	ref execution.ExecutorRef,
 	processID string,
 ) (runs.PreparedWaitingSubtreeCancellation, error) {
 	return turn.NewExecutor(s.turnDispatcher()).PrepareWaitingSubtreeCancellation(
@@ -328,12 +328,12 @@ func (s stubRuntime) PrepareWaitingSubtreeCancellation(
 	)
 }
 
-func (s stubRuntime) Steer(ctx context.Context, ref execution.TurnRef, input []transcript.ContentBlock) error {
+func (s stubRuntime) Steer(ctx context.Context, ref execution.ExecutorRef, input []transcript.ContentBlock) error {
 	return turn.NewExecutor(s.turnDispatcher()).Steer(ctx, ref, input)
 }
 
-func (s stubRuntime) CancelTurn(ctx context.Context, ref execution.TurnRef) error {
-	return s.turnDispatcher().Cancel(ctx, turn.Handle{SessionID: ref.SessionID, TurnID: ref.TurnID})
+func (s stubRuntime) CancelExecution(ctx context.Context, ref execution.ExecutorRef) error {
+	return s.turnDispatcher().Cancel(ctx, turn.Handle{SessionID: ref.SessionID, TurnID: ref.ExecutorID})
 }
 
 func (s stubRuntime) TurnProcessID(ctx context.Context, handle turn.Handle) (string, error) {
@@ -344,8 +344,8 @@ type stubLifecycleTurns struct {
 	rt *stubRuntime
 }
 
-func (t stubLifecycleTurns) Cancel(ctx context.Context, ref execution.TurnRef) error {
-	return t.rt.CancelTurn(ctx, execution.TurnRef{SessionID: ref.SessionID, TurnID: ref.TurnID})
+func (t stubLifecycleTurns) Cancel(ctx context.Context, ref execution.ExecutorRef) error {
+	return t.rt.CancelExecution(ctx, execution.ExecutorRef{SessionID: ref.SessionID, ExecutorID: ref.ExecutorID})
 }
 
 type stubLifecycleStores struct {
@@ -585,18 +585,18 @@ func (s *stubRuntime) sessionsCoordinatorWithRestorer(checkpoints sessions.Works
 	}
 	stores := stubLifecycleStores{rt: s}
 	return sessions.New(sessions.Dependencies{
-		Sessions:    s.sess,
-		Interrupts:  s.interrupts,
-		Transcript:  s.hist,
-		Runs:        s.runs,
-		Snapshots:   stores,
-		Writes:      stores,
-		Forgetter:   s,
-		Turns:       stubLifecycleTurns{rt: s},
-		Paths:       workspacepath.Resolver{},
-		Checkpoints: checkpoints,
-		Mutations:   s.muts,
-		Admissions:  admissions,
+		Sessions:         s.sess,
+		Interrupts:       s.interrupts,
+		Transcript:       s.hist,
+		Runs:             s.runs,
+		Snapshots:        stores,
+		Writes:           stores,
+		Forgetter:        s,
+		ExecutionCleanup: stubLifecycleTurns{rt: s},
+		Paths:            workspacepath.Resolver{},
+		Checkpoints:      checkpoints,
+		Mutations:        s.muts,
+		Admissions:       admissions,
 	})
 }
 

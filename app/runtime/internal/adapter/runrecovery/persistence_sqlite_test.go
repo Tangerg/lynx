@@ -71,7 +71,7 @@ func TestRecoveryRepairsWholeDurableLifecycle(t *testing.T) {
 		RootProcessID: "orphan_checkpoint",
 		Payload:       []byte(`{"opaque":true}`),
 		BuildID:       "build",
-		Scope:         execution.TurnScope{SessionID: "session"},
+		Scope:         execution.ExecutionScope{SessionID: "session"},
 	}
 	if err := checkpointStore.SaveCheckpoint(ctx, checkpoint); err != nil {
 		t.Fatalf("SaveCheckpoint: %v", err)
@@ -82,7 +82,7 @@ func TestRecoveryRepairsWholeDurableLifecycle(t *testing.T) {
 		Interrupts:          interruptStore,
 		Transcript:          transcriptStore,
 		Messages:            messageStore,
-		GoalTurns:           goalStore,
+		GoalRuns:            goalStore,
 		ExecutorCheckpoints: checkpointStore,
 		Tx: func(ctx context.Context, fn func(context.Context) error) error {
 			return sqlite.RunInTx(ctx, db, fn)
@@ -116,7 +116,7 @@ func TestRecoveryRepairsWholeDurableLifecycle(t *testing.T) {
 		t.Fatalf("orphan checkpoint after recovery = %v", err)
 	}
 	storedGoal, found, err := goalStore.Get(ctx, goalValue.SessionID)
-	if err != nil || !found || storedGoal.Used.Turns != 1 || storedGoal.Status != goal.StatusPaused || storedGoal.Reason.Code != goal.ReasonRunNotCompleted {
+	if err != nil || !found || storedGoal.Used.Runs != 1 || storedGoal.Status != goal.StatusPaused || storedGoal.Reason.Code != goal.ReasonRunNotCompleted {
 		t.Fatalf("Goal after recovery = found:%t value:%+v err:%v", found, storedGoal, err)
 	}
 }
@@ -165,7 +165,7 @@ func TestRecoveryRejectsPartialParkWithoutMutatingIt(t *testing.T) {
 		t.Fatalf("Suspend: %v", err)
 	}
 	pending := interrupts.Pending{
-		RootRunID: "run_partial", SessionID: "session", TurnID: "turn_partial",
+		RootRunID: "run_partial", SessionID: "session", ExecutorID: "turn_partial",
 		Capabilities: execution.RunCapabilities{
 			InterruptKinds: []execution.InterruptKind{execution.QuestionInterrupt},
 		},
@@ -183,14 +183,14 @@ func TestRecoveryRejectsPartialParkWithoutMutatingIt(t *testing.T) {
 	}
 	checkpoint := execution.ExecutorCheckpoint{
 		RootProcessID: "process_root", Payload: []byte(`{"opaque":true}`), BuildID: "build",
-		Scope: execution.TurnScope{SessionID: "session"},
+		Scope: execution.ExecutionScope{SessionID: "session"},
 	}
 	if err := checkpointStore.SaveCheckpoint(ctx, checkpoint); err != nil {
 		t.Fatalf("SaveCheckpoint: %v", err)
 	}
 	persistence, err := New(Config{
 		Sessions: sessionStore, Runs: runStore, Interrupts: interruptStore, Transcript: transcriptStore,
-		Messages: sqlite.NewMessageStore(db), GoalTurns: sqlite.NewGoalStore(db), ExecutorCheckpoints: checkpointStore,
+		Messages: sqlite.NewMessageStore(db), GoalRuns: sqlite.NewGoalStore(db), ExecutorCheckpoints: checkpointStore,
 		Tx: func(ctx context.Context, fn func(context.Context) error) error {
 			return sqlite.RunInTx(ctx, db, fn)
 		},

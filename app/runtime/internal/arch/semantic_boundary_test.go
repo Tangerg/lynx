@@ -176,6 +176,90 @@ func TestRunCapabilitiesStaySemanticInsideTheProtocolBoundary(t *testing.T) {
 	}
 }
 
+func TestExecutorAndGoalVocabularyDoesNotLeakAcrossBoundaries(t *testing.T) {
+	root := moduleRoot(t)
+	executorRefPath := filepath.Join(root, "internal", "domain", "execution", "executor_ref.go")
+	executorRefFile, err := parser.ParseFile(token.NewFileSet(), executorRefPath, nil, 0)
+	if err != nil {
+		t.Fatalf("parse executor reference: %v", err)
+	}
+	if fields := structFields(executorRefFile, "ExecutorRef"); !slices.Equal(fields, []string{"SessionID", "ExecutorID"}) {
+		t.Fatalf("ExecutorRef fields = %v, want durable executor identity", fields)
+	}
+
+	scopePath := filepath.Join(root, "internal", "domain", "execution", "executor_checkpoint.go")
+	scopeFile, err := parser.ParseFile(token.NewFileSet(), scopePath, nil, 0)
+	if err != nil {
+		t.Fatalf("parse execution scope: %v", err)
+	}
+	wantScope := []string{"SessionID", "Cwd", "WorkspaceCwd", "Isolated", "GoalLeaseID"}
+	if fields := structFields(scopeFile, "ExecutionScope"); !slices.Equal(fields, wantScope) {
+		t.Fatalf("ExecutionScope fields = %v, want %v", fields, wantScope)
+	}
+
+	forbiddenNames := map[string]struct{}{
+		"TurnRef": {}, "TurnScope": {}, "StartTurn": {}, "RehydrateTurn": {},
+		"TurnControl": {}, "TurnCanceler": {}, "TurnInterrupted": {},
+		"TurnEnd": {}, "TurnUsage": {}, "TurnRecord": {}, "RecordTurn": {},
+		"GoalTurn": {}, "GoalTurns": {}, "MaxTurns": {},
+	}
+	for _, ring := range []string{"domain", "application"} {
+		err := filepath.WalkDir(filepath.Join(root, "internal", ring), func(path string, entry fs.DirEntry, walkErr error) error {
+			if walkErr != nil {
+				return walkErr
+			}
+			if entry.IsDir() || filepath.Ext(path) != ".go" || strings.HasSuffix(path, "_test.go") {
+				return nil
+			}
+			file, parseErr := parser.ParseFile(token.NewFileSet(), path, nil, 0)
+			if parseErr != nil {
+				return parseErr
+			}
+			ast.Inspect(file, func(node ast.Node) bool {
+				identifier, ok := node.(*ast.Ident)
+				if !ok {
+					return true
+				}
+				if identifier.Name == "TurnID" {
+					t.Errorf("%s leaks adapter-local TurnID", path)
+					return true
+				}
+				if _, forbidden := forbiddenNames[identifier.Name]; forbidden {
+					t.Errorf("%s leaks retired vocabulary %s", path, identifier.Name)
+				}
+				return true
+			})
+			return nil
+		})
+		if err != nil {
+			t.Fatalf("scan %s executor vocabulary: %v", ring, err)
+		}
+	}
+
+	sqliteDir := filepath.Join(root, "internal", "infra", "storage", "sqlite")
+	err = filepath.WalkDir(sqliteDir, func(path string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() || filepath.Ext(path) != ".go" || strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		source, readErr := os.ReadFile(path)
+		if readErr != nil {
+			return readErr
+		}
+		for _, retired := range []string{"turn_id", "goal_turns", "max_turns", `json:"turns"`, "turnBudgetReached"} {
+			if strings.Contains(string(source), retired) {
+				t.Errorf("%s retains retired durable vocabulary %q", path, retired)
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("scan SQLite durable vocabulary: %v", err)
+	}
+}
+
 func TestReplayRetentionDoesNotDependOnAnOuterEncoding(t *testing.T) {
 	root := moduleRoot(t)
 	runs := filepath.Join(root, "internal", "application", "runs")

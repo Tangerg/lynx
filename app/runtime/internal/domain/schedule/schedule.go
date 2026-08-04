@@ -32,8 +32,8 @@ var ErrUnavailable = errors.New("schedule: unavailable")
 // version of the schedule.
 var ErrRevisionConflict = errors.New("schedule: revision conflict")
 
-// Validation sentinels returned by [Schedule.Validate]; the delivery adapter
-// maps them to the protocol's invalid_params.
+// Validation sentinels returned by [Schedule.Validate]; callers can classify
+// invalid fields without parsing error text.
 var (
 	// ErrIDRequired — an update target must identify a stored schedule.
 	ErrIDRequired = errors.New("schedule: id is required")
@@ -51,7 +51,7 @@ var (
 
 // Schedule is a saved prompt fired on a cron trigger. Cwd anchors the headless
 // run's tools (empty → the serve directory); ModelSelection is optional (its
-// zero value uses the runtime default).
+// zero value uses the configured default).
 type Schedule struct {
 	ID             string
 	Title          string
@@ -128,7 +128,7 @@ func (s Schedule) Apply(p Patch) (Schedule, error) {
 
 // Validate checks a schedule draft before it is persisted: a prompt and a
 // parseable cron are required. Create/update call
-// it so the rule lives on the entity, not in the protocol adapter.
+// it so the rule lives on the entity, not at an input boundary.
 func (s Schedule) Validate() error {
 	if s.Prompt == "" {
 		return ErrPromptRequired

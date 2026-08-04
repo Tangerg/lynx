@@ -9,7 +9,7 @@ import (
 )
 
 func TestScopeAccessorsShareOneImmutableTurnValue(t *testing.T) {
-	want := execution.TurnScope{
+	want := execution.ExecutionScope{
 		SessionID:    "session-1",
 		Cwd:          "/sandbox/project",
 		WorkspaceCwd: "/workspace/project",

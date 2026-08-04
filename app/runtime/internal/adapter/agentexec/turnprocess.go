@@ -131,7 +131,7 @@ type turnProcess struct {
 	process          *runtime.Process
 	segment          *runtime.Segment
 	owner            *Engine
-	scope            execution.TurnScope
+	scope            execution.ExecutionScope
 	runCtx           context.Context
 	usage            *usageLedger
 	modelSelection   modelref.Selection

@@ -1,9 +1,7 @@
 package execution
 
-// RunState is the lifecycle position of a Run. It is the single source of truth
-// for "where is this run" that the pre-rewrite code lacked — state was spread
-// across a parked flag, registry membership, and the SDK's process status, with
-// no one place enforcing the legal transitions.
+// RunState is the lifecycle position of a Run and the single authority for its
+// legal transitions.
 //
 // The state machine (see the transition methods below):
 //
@@ -109,10 +107,8 @@ func (s RunState) String() string {
 	}
 }
 
-// Outcome is why a Run reached a terminal state — the single terminal-reason
-// taxonomy that both the executor's terminal decision and the wire RunOutcome
-// resolve against, replacing the pre-rewrite duplication between the turn
-// layer's own end-reason enum and the protocol's RunOutcomeType.
+// Outcome is why a Run reached a terminal state. Execution and presentation
+// both project from this single terminal-reason taxonomy.
 //
 // An interrupt is deliberately NOT an Outcome: parking is the [Interrupted]
 // state, not a terminal reason. A run that ends while parked ends via
@@ -131,8 +127,8 @@ const (
 	// after the current round (the partial reply already streamed). → Failed.
 	OutcomeMaxBudget
 	// OutcomeMaxSteps — the run hit its delegation-tree model-call cap and
-	// stopped cleanly. Distinct from OutcomeMaxBudget so the wire can surface a
-	// dedicated maxSteps terminal. → Failed.
+	// stopped cleanly. Distinct from OutcomeMaxBudget because the exhausted
+	// allowance is a different terminal fact. → Failed.
 	OutcomeMaxSteps
 )
 

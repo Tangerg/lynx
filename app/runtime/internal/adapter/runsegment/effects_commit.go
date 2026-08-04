@@ -205,7 +205,7 @@ func (e *Effects) CommitTreeBarrier(ctx context.Context, barrier runs.TreeBarrie
 		case commit.SessionID != barrier.Pending.SessionID ||
 			commit.Run.SessionID != barrier.Pending.SessionID:
 			return fmt.Errorf("runsegment: tree barrier Run[%d] session mismatch", index)
-		case commit.GoalTurn != nil:
+		case commit.GoalRun != nil:
 			return fmt.Errorf("runsegment: tree barrier Run[%d] carries a terminal goal charge", index)
 		}
 		continuation, exists := continuations[commit.RunID]
@@ -290,12 +290,12 @@ func (e *Effects) applyCommit(ctx context.Context, commit runs.EventCommit) erro
 	if err := e.applyState(ctx, commit); err != nil {
 		return err
 	}
-	if commit.GoalTurn != nil {
-		if e.goalTurns == nil {
-			return errors.New("runsegment: goal-turn persistence is unavailable")
+	if commit.GoalRun != nil {
+		if e.goalRuns == nil {
+			return errors.New("runsegment: Goal Run persistence is unavailable")
 		}
-		if err := e.goalTurns.RecordTurn(ctx, *commit.GoalTurn); err != nil {
-			return fmt.Errorf("runsegment: record goal turn: %w", err)
+		if err := e.goalRuns.RecordRun(ctx, *commit.GoalRun); err != nil {
+			return fmt.Errorf("runsegment: record Goal Run: %w", err)
 		}
 	}
 	return nil

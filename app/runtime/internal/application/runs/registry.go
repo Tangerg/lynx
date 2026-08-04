@@ -15,7 +15,7 @@ type Record struct {
 	SessionID      string
 	Cwd            string
 	CreatedAt      time.Time
-	TurnID         string
+	ExecutorID     string
 	ModelSelection modelref.Selection
 	// Capabilities is the Run's frozen optional behavior, carried on the live
 	// record so an insufficient subscriber is refused before attachment.

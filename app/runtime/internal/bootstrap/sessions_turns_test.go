@@ -17,7 +17,7 @@ func (d cancelDispatcher) Cancel(context.Context, turn.Handle) error { return d.
 
 func TestSessionsTurnsTreatsMissingTurnAsIdempotentCleanup(t *testing.T) {
 	adapter := turn.NewSessionTurnCleanup(cancelDispatcher{err: turn.ErrTurnNotFound})
-	if err := adapter.Cancel(t.Context(), execution.TurnRef{SessionID: "ses_1", TurnID: "turn_1"}); err != nil {
+	if err := adapter.Cancel(t.Context(), execution.ExecutorRef{SessionID: "ses_1", ExecutorID: "turn_1"}); err != nil {
 		t.Fatalf("Cancel error = %v, want nil", err)
 	}
 }
@@ -25,7 +25,7 @@ func TestSessionsTurnsTreatsMissingTurnAsIdempotentCleanup(t *testing.T) {
 func TestSessionsTurnsPreservesCleanupFailure(t *testing.T) {
 	want := errors.New("process cleanup failed")
 	adapter := turn.NewSessionTurnCleanup(cancelDispatcher{err: want})
-	if err := adapter.Cancel(t.Context(), execution.TurnRef{SessionID: "ses_1", TurnID: "turn_1"}); !errors.Is(err, want) {
+	if err := adapter.Cancel(t.Context(), execution.ExecutorRef{SessionID: "ses_1", ExecutorID: "turn_1"}); !errors.Is(err, want) {
 		t.Fatalf("Cancel error = %v, want cleanup failure", err)
 	}
 }

@@ -1,14 +1,7 @@
-// Package codebaseindex is the @codebase semantic-index domain: it embeds a
-// project's code into vectors and answers similarity queries, so client
-// @codebase experiences can find code by meaning rather than by literal text.
-//
-// Storage is sqlite (vectors as float32 BLOBs) + brute-force cosine in Go: a
-// single project is a few thousand chunks, so an exact top-k scan is
-// microseconds — no external vector server. The index is built lazily on first
-// use, persisted across restart, and refreshed incrementally by per-file
-// content hash (only changed files are re-embedded). Embeddings from a different
-// model aren't comparable, so changing the embedding model invalidates a cwd's
-// index (Meta.ModelID guards it).
+// Package codebaseindex models a project's semantic code index. It owns source
+// chunks, embeddings, incremental content identities, index lifecycle, and
+// similarity-query results. Persistence and search strategy are implementation
+// choices outside this package.
 package codebaseindex
 
 import (
@@ -50,9 +43,8 @@ type Hit struct {
 	Score     float64
 }
 
-// Status is the per-cwd index state for the management surface
-// (codebase.status). Truncated reports that the project exceeded the index caps
-// (so the index is partial — "no silent caps").
+// Status is the per-cwd index state. Truncated reports that the project exceeded
+// its index caps, so consumers can distinguish a partial index from a complete one.
 type Status struct {
 	State      State
 	ModelID    string
@@ -74,7 +66,7 @@ type Meta struct {
 }
 
 // Embedder embeds texts into vectors. The interface lives here (consumer side):
-// the runtime supplies an implementation over the configured embedding model.
+// a caller supplies an implementation over the selected embedding model.
 // ID is "provider:model" — it tags the stored vectors so a model change
 // invalidates them.
 type Embedder interface {
@@ -82,7 +74,7 @@ type Embedder interface {
 	ID() string
 }
 
-// Store persists a cwd's index. The sqlite implementation satisfies it.
+// Store persists a cwd's semantic index.
 type Store interface {
 	// Meta returns the cwd's index header; ok=false when never indexed.
 	Meta(ctx context.Context, cwd string) (Meta, bool, error)

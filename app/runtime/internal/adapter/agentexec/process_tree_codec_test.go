@@ -39,7 +39,7 @@ func TestProcessTreeCodecKeepsFrameworkTopologyInsideExecutionAdapter(t *testing
 		RootProcessID: tree.RootID,
 		Payload:       payload,
 		BuildID:       "build",
-		Scope:         execution.TurnScope{SessionID: "session"},
+		Scope:         execution.ExecutionScope{SessionID: "session"},
 	}
 	if err := checkpoint.Validate(); err != nil {
 		t.Fatalf("validate checkpoint: %v", err)

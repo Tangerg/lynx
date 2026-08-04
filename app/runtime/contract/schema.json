@@ -2337,11 +2337,11 @@
           "type": "number",
           "minimum": 0
         },
-        "maxSteps": {
+        "maxRuns": {
           "type": "integer",
           "minimum": 0
         },
-        "maxTurns": {
+        "maxSteps": {
           "type": "integer",
           "minimum": 0
         }
@@ -2370,7 +2370,7 @@
         "awaitingInput",
         "terminalOutcomeMissing",
         "runNotCompleted",
-        "turnBudgetReached",
+        "runBudgetReached",
         "costBudgetReached",
         "stepBudgetReached",
         "blockedByModel"
@@ -2402,17 +2402,17 @@
         "costUsd": {
           "type": "number"
         },
-        "steps": {
+        "runs": {
           "type": "integer"
         },
-        "turns": {
+        "steps": {
           "type": "integer"
         }
       },
       "required": [
         "costUsd",
-        "steps",
-        "turns"
+        "runs",
+        "steps"
       ]
     },
     "GrepMatch": {

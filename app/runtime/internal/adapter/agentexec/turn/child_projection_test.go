@@ -95,7 +95,7 @@ func TestTurnObserverProjectsAdmittedChildOntoExactExecutorSource(t *testing.T) 
 	if _, ok := payloads[4].(runs.ToolCallEnd); !ok {
 		t.Fatalf("payload[4] = %T, want ToolCallEnd", payloads[4])
 	}
-	end, ok := payloads[5].(runs.TurnEnd)
+	end, ok := payloads[5].(runs.SegmentEnded)
 	if !ok {
 		t.Fatalf("payload[5] = %T, want TurnEnd", payloads[5])
 	}

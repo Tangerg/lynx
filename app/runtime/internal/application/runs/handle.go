@@ -9,8 +9,8 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 )
 
-// runCleanupTimeout bounds the request-detached work that tears a run down /
-// cancels its turn, so a stuck store or agent can't wedge cancellation.
+// runCleanupTimeout bounds request-detached Run teardown, so a stuck store or
+// executor cannot wedge cancellation.
 const runCleanupTimeout = 5 * time.Second
 
 // handle is the root segment's process-local ownership record. It holds the
@@ -45,7 +45,7 @@ func (h *handle) committedTerminalRun() (transcript.Run, bool) {
 }
 
 // stop cancels the run context. Called on a true terminal (never on a parked
-// run, whose live turn must stay alive for resume).
+// Run, whose live executor must stay alive for resume).
 func (h *handle) stop() {
 	if h == nil {
 		return

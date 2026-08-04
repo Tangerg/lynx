@@ -101,7 +101,7 @@ func TestRunLimitsRemainTheSingleApplicationPolicy(t *testing.T) {
 		name string
 	}{
 		{path: filepath.Join("internal", "application", "runs", "commands.go"), name: "StartCommand"},
-		{path: filepath.Join("internal", "application", "runs", "ports.go"), name: "StartTurn"},
+		{path: filepath.Join("internal", "application", "runs", "ports.go"), name: "StartExecution"},
 		{path: filepath.Join("internal", "adapter", "agentexec", "turnrun.go"), name: "TurnRequest"},
 	} {
 		path := filepath.Join(root, carrier.path)
@@ -469,7 +469,7 @@ func TestPendingAndRecoveryMutationsCarryTheirOwners(t *testing.T) {
 		"Runs             []transcript.Run",
 		"execution.NewRunTree",
 		"tree.Postorder()",
-		"validateTerminalGoalTurn",
+		"validateTerminalGoalRun",
 	} {
 		if !strings.Contains(string(terminalPlanSource), required) {
 			t.Errorf("parked-tree terminal write-set no longer enforces %q", required)
@@ -480,7 +480,7 @@ func TestPendingAndRecoveryMutationsCarryTheirOwners(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read parked-tree terminal use case: %v", err)
 	}
-	for _, required := range []string{"pending.Continuations", "terminalRuns", "plan.GoalTurn"} {
+	for _, required := range []string{"pending.Continuations", "terminalRuns", "plan.GoalRun"} {
 		if !strings.Contains(string(terminalUseCaseSource), required) {
 			t.Errorf("parked-tree terminal use case no longer owns %q", required)
 		}
@@ -491,7 +491,7 @@ func TestPendingAndRecoveryMutationsCarryTheirOwners(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read recovery commit validator: %v", err)
 	}
-	for _, required := range []string{"func (commit RecoveryCommit) Validate() error", "validateRecoveryGoalTurns", "validatePendingDeletions"} {
+	for _, required := range []string{"func (commit RecoveryCommit) Validate() error", "validateRecoveryGoalRuns", "validatePendingDeletions"} {
 		if !strings.Contains(string(recoverySource), required) {
 			t.Errorf("recovery write-set no longer validates %q", required)
 		}

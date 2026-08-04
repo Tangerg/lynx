@@ -1,13 +1,7 @@
-// Package mcpserver is Lyra's MCP-server registry — the runtime-mutable set
-// of MCP servers Lyra dials for tools, each carrying the transport descriptor
-// a connection needs plus its enablement and per-tool gating.
-//
-// It mirrors the provider registry ([internal/domain/provider]): a persisted,
-// runtime-editable set seeded at startup (from the LYRA_MCP_SERVERS env) and
-// edited at runtime via mcp.servers.create / update / delete. Persisted
-// backends (sqlite) keep runtime edits across restarts. Unlike providers there
-// is no "supported set" to seed — every entry is a user-defined server, so the
-// registry is a plain create/update/delete set, not a seeded catalog.
+// Package mcpserver models user-defined MCP server connections. It owns server
+// identity, transport configuration, enablement, credential-bearing fields,
+// and per-tool policy; connection lifecycle and persistence are outside this
+// package.
 package mcpserver
 
 import (
@@ -17,8 +11,7 @@ import (
 )
 
 // Transport names an MCP server connection mode using the standard
-// `mcpServers` vocabulary. It is shared by persisted and live domain values;
-// only the infrastructure adapter maps it to SDK-specific transport values.
+// `mcpServers` vocabulary. It is shared by persisted and live domain values.
 type Transport string
 
 const (
@@ -37,24 +30,24 @@ type Server struct {
 	Transport Transport
 
 	// Enabled gates whether the server is dialed. A disabled server stays in
-	// the registry (so the UI can list + re-enable it) but contributes no tools.
+	// the registry but contributes no tools.
 	Enabled bool
 
-	// Description is an optional human note shown in the UI.
+	// Description is an optional human note.
 	Description string
 
 	// URL is the Streamable HTTP endpoint. Used when Transport == [TransportStreamableHTTP].
 	URL string
 
 	// Authorization, when set, is sent as the HTTP `Authorization` header
-	// (typically "Bearer <token>") — HTTP transport only. Stored raw, masked at
-	// the wire boundary, never logged. The dedicated bearer wins over any
+	// (typically "Bearer <token>") — HTTP transport only. It is sensitive and
+	// must never be logged or exposed without masking. The dedicated value wins over any
 	// "Authorization" entry in [Server.Headers].
 	Authorization string
 
 	// Headers carries extra static HTTP request headers (e.g. "X-API-Key") sent
-	// on every request — HTTP transport only. Values are stored raw, masked at
-	// the wire boundary, and never logged because arbitrary headers may carry
+	// on every request — HTTP transport only. Values are sensitive and must
+	// never be logged or exposed without masking because arbitrary headers may carry
 	// credentials.
 	Headers map[string]string
 
@@ -65,8 +58,8 @@ type Server struct {
 	Args []string
 
 	// Env REPLACES the subprocess environment (stdio) as a KEY→value map; it does
-	// not extend the parent env. Values are stored raw, masked at the wire
-	// boundary, and never logged. The dial layer flattens it to "KEY=value".
+	// not extend the parent env. Values are sensitive and must never be logged or
+	// exposed without masking.
 	Env map[string]string
 
 	// Dir sets the subprocess working directory; empty inherits the parent's (stdio).
@@ -89,8 +82,7 @@ type Server struct {
 
 // Validate reports whether the server is well-formed for its transport: the
 // chosen transport's required field is set and the other transport's fields
-// are blank at the registry boundary, before runtime-specific dial state is
-// attached.
+// are blank before connection-specific state is attached.
 func (s Server) Validate() error {
 	if s.Name == "" {
 		return errors.New("mcpserver: Name is required")

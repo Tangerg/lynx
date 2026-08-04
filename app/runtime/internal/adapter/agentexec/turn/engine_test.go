@@ -29,7 +29,7 @@ func TestStubEngineDrivesTurn(t *testing.T) {
 	stub := &stubEngine{runReply: "hello from stub"}
 
 	controller := mustTurn(turn.New(turnDeps(stub)))
-	handle, err := controller.StartTurn(context.Background(), runs.StartTurn{
+	handle, err := controller.StartTurn(context.Background(), runs.StartExecution{
 		SessionID: "sess-1",
 		Message:   "hi",
 	})
@@ -49,7 +49,7 @@ func TestStubEngineDrivesTurn(t *testing.T) {
 		switch ev.Payload.(type) {
 		case runs.MessageDelta:
 			sawDelta = true
-		case runs.TurnEnd:
+		case runs.SegmentEnded:
 			sawEnd = true
 		}
 	}
@@ -73,7 +73,7 @@ func TestStartTurnPreservesHookResolutionFailure(t *testing.T) {
 	})))
 	t.Cleanup(func() { shutdownController(t, controller) })
 
-	if _, err := controller.StartTurn(t.Context(), runs.StartTurn{
+	if _, err := controller.StartTurn(t.Context(), runs.StartExecution{
 		SessionID: "sess-hook-error",
 		Message:   "hi",
 		Cwd:       t.TempDir(),
@@ -101,7 +101,7 @@ func TestPromptHookInjectedContextReachesTurn(t *testing.T) {
 	})))
 	t.Cleanup(func() { shutdownController(t, controller) })
 
-	handle, err := controller.StartTurn(t.Context(), runs.StartTurn{
+	handle, err := controller.StartTurn(t.Context(), runs.StartExecution{
 		SessionID: "s", Message: "do the thing", Cwd: t.TempDir(),
 	})
 	if err != nil {
@@ -126,7 +126,7 @@ func TestPromptHookInjectedContextReachesTurn(t *testing.T) {
 func TestController_DiscardsProcessOnTerminal(t *testing.T) {
 	stub := &stubEngine{runReply: "done"}
 	controller := mustTurn(turn.New(turnDeps(stub)))
-	handle, err := controller.StartTurn(context.Background(), runs.StartTurn{SessionID: "s", Message: "hi"})
+	handle, err := controller.StartTurn(context.Background(), runs.StartExecution{SessionID: "s", Message: "hi"})
 	if err != nil {
 		t.Fatalf("StartTurn: %v", err)
 	}
@@ -152,7 +152,7 @@ func TestControllerFailsClosedWhenWaitingCheckpointCommitFails(t *testing.T) {
 		completionErr:    wantErr,
 	}
 	controller := mustTurn(turn.New(turnDeps(stub)))
-	handle, err := controller.StartTurn(t.Context(), runs.StartTurn{
+	handle, err := controller.StartTurn(t.Context(), runs.StartExecution{
 		SessionID: "s",
 		Message:   "hi",
 	})
@@ -164,12 +164,12 @@ func TestControllerFailsClosedWhenWaitingCheckpointCommitFails(t *testing.T) {
 		t.Fatalf("Events: %v", err)
 	}
 	var interrupted bool
-	var terminal *runs.TurnEnd
+	var terminal *runs.SegmentEnded
 	for event := range events {
 		switch event := event.Payload.(type) {
 		case runs.TreeInterrupted:
 			interrupted = true
-		case runs.TurnEnd:
+		case runs.SegmentEnded:
 			value := event
 			terminal = &value
 		}
@@ -196,7 +196,7 @@ func TestStubEngineBudgetStop(t *testing.T) {
 	stub := &stubEngine{runReply: "partial answer", stopReason: agent.InteractionStopBudget}
 	controller := mustTurn(turn.New(turnDeps(stub)))
 
-	handle, err := controller.StartTurn(context.Background(), runs.StartTurn{
+	handle, err := controller.StartTurn(context.Background(), runs.StartExecution{
 		SessionID: "s",
 		Message:   "go",
 		Limits:    execution.RunLimits{MaxTotalTokens: 1},
@@ -209,7 +209,7 @@ func TestStubEngineBudgetStop(t *testing.T) {
 	events, _ := controller.Events(ctx, handle)
 
 	for ev := range events {
-		if end, ok := ev.Payload.(runs.TurnEnd); ok {
+		if end, ok := ev.Payload.(runs.SegmentEnded); ok {
 			if end.Reason != execution.OutcomeMaxBudget {
 				t.Fatalf("TurnEnd reason = %v, want budget_exceeded", end.Reason)
 			}
@@ -227,7 +227,7 @@ func TestStubEngineStepStop(t *testing.T) {
 	stub := &stubEngine{runReply: "partial answer", stopReason: agent.InteractionStopSteps}
 	controller := mustTurn(turn.New(turnDeps(stub)))
 
-	handle, err := controller.StartTurn(context.Background(), runs.StartTurn{
+	handle, err := controller.StartTurn(context.Background(), runs.StartExecution{
 		SessionID: "s",
 		Message:   "go",
 	})
@@ -239,7 +239,7 @@ func TestStubEngineStepStop(t *testing.T) {
 	events, _ := controller.Events(ctx, handle)
 
 	for ev := range events {
-		if end, ok := ev.Payload.(runs.TurnEnd); ok {
+		if end, ok := ev.Payload.(runs.SegmentEnded); ok {
 			if end.Reason != execution.OutcomeMaxSteps {
 				t.Fatalf("TurnEnd reason = %v, want max steps", end.Reason)
 			}
@@ -259,7 +259,7 @@ func TestStubEngineInvalidStopReasonBecomesEngineError(t *testing.T) {
 	}
 	controller := mustTurn(turn.New(turnDeps(stub)))
 
-	handle, err := controller.StartTurn(context.Background(), runs.StartTurn{
+	handle, err := controller.StartTurn(context.Background(), runs.StartExecution{
 		SessionID: "s",
 		Message:   "go",
 	})
@@ -276,7 +276,7 @@ func TestStubEngineInvalidStopReasonBecomesEngineError(t *testing.T) {
 	var sawEnd bool
 	for event := range events {
 		switch value := event.Payload.(type) {
-		case runs.TurnEnd:
+		case runs.SegmentEnded:
 			sawEnd = value.Reason == execution.OutcomeError && value.Problem != nil && value.Problem.Kind == transcript.InternalProblem
 		}
 	}
@@ -291,7 +291,7 @@ func TestStubEngineCancelsCleanly(t *testing.T) {
 	stub := &slowStubEngine{}
 	controller := mustTurn(turn.New(turnDeps(stub)))
 
-	handle, _ := controller.StartTurn(context.Background(), runs.StartTurn{
+	handle, _ := controller.StartTurn(context.Background(), runs.StartExecution{
 		SessionID: "s",
 		Message:   "m",
 	})
@@ -310,7 +310,7 @@ func TestStubEngineCancelsCleanly(t *testing.T) {
 		return
 	}
 	for ev := range events {
-		if end, ok := ev.Payload.(runs.TurnEnd); ok && end.Reason == execution.OutcomeCanceled {
+		if end, ok := ev.Payload.(runs.SegmentEnded); ok && end.Reason == execution.OutcomeCanceled {
 			return
 		}
 	}
@@ -328,11 +328,11 @@ func TestRehydrateResumesRestoredTurn(t *testing.T) {
 	stub := &stubEngine{runReply: "continuation reply"}
 	controller := mustTurn(turn.New(turnDeps(stub)))
 
-	handle, err := controller.Rehydrate(context.Background(), runs.RehydrateTurn{
-		SessionID: "sess-restored",
-		TurnID:    "turn-original",
-		ProcessID: "process-42",
-		RootRunID: "run-root",
+	handle, err := controller.Rehydrate(context.Background(), runs.RehydrateExecution{
+		SessionID:  "sess-restored",
+		ExecutorID: "turn-original",
+		ProcessID:  "process-42",
+		RootRunID:  "run-root",
 	})
 	if err != nil {
 		t.Fatalf("Rehydrate: %v", err)
@@ -363,7 +363,7 @@ func TestRehydrateResumesRestoredTurn(t *testing.T) {
 		switch e := ev.Payload.(type) {
 		case runs.MessageDelta:
 			sawDelta = true
-		case runs.TurnEnd:
+		case runs.SegmentEnded:
 			sawEnd = true
 			if e.Reason != execution.OutcomeCompleted {
 				t.Errorf("TurnEnd reason = %s, want completed", e.Reason)
@@ -385,11 +385,11 @@ func TestRehydrate_ResumeError_ReturnsError(t *testing.T) {
 	stub := &stubEngine{runReply: "x", restoreResumeErr: errors.New("resume boom")}
 	controller := mustTurn(turn.New(turnDeps(stub)))
 
-	handle, err := controller.Rehydrate(context.Background(), runs.RehydrateTurn{
-		SessionID: "sess-restored",
-		TurnID:    "turn-original",
-		ProcessID: "process-99",
-		RootRunID: "run-root",
+	handle, err := controller.Rehydrate(context.Background(), runs.RehydrateExecution{
+		SessionID:  "sess-restored",
+		ExecutorID: "turn-original",
+		ProcessID:  "process-99",
+		RootRunID:  "run-root",
 	})
 	if err != nil {
 		t.Fatalf("Rehydrate: %v", err)
@@ -408,7 +408,7 @@ func TestRehydrate_ResumeError_ReturnsError(t *testing.T) {
 	}
 	var sawEnd bool
 	for ev := range events {
-		if end, ok := ev.Payload.(runs.TurnEnd); ok {
+		if end, ok := ev.Payload.(runs.SegmentEnded); ok {
 			sawEnd = end.Reason == execution.OutcomeError && end.Problem != nil
 		}
 	}
@@ -423,11 +423,11 @@ func TestRehydrate_ResumeError_ReturnsError(t *testing.T) {
 func TestRehydrateCanceledResumeAdmissionRemainsParked(t *testing.T) {
 	stub := &stubEngine{runReply: "continuation reply", restoreResumeErr: context.Canceled}
 	controller := mustTurn(turn.New(turnDeps(stub)))
-	handle, err := controller.Rehydrate(t.Context(), runs.RehydrateTurn{
-		SessionID: "sess-restored",
-		TurnID:    "turn-original",
-		ProcessID: "process-99",
-		RootRunID: "run-root",
+	handle, err := controller.Rehydrate(t.Context(), runs.RehydrateExecution{
+		SessionID:  "sess-restored",
+		ExecutorID: "turn-original",
+		ProcessID:  "process-99",
+		RootRunID:  "run-root",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -461,7 +461,7 @@ func TestStartTurn_ResolvesPerRunClient(t *testing.T) {
 	resolver := &fakeResolver{client: sentinel}
 
 	controller := mustTurn(turn.New(turnDeps(stub, withClientResolver(resolver))))
-	handle, err := controller.StartTurn(context.Background(), runs.StartTurn{
+	handle, err := controller.StartTurn(context.Background(), runs.StartExecution{
 		SessionID:      "s",
 		Message:        "hi",
 		ModelSelection: testModelSelection(t, "some-provider", "some-model"),
@@ -489,12 +489,12 @@ func TestStartTurn_ResolvesPerRunClient(t *testing.T) {
 func TestExplicitModelSelectionRequiresResolverBeforeAdmission(t *testing.T) {
 	controller := mustTurn(turn.New(turnDeps(&stubEngine{})))
 	selection := testModelSelection(t, "openai", "gpt-test")
-	if _, err := controller.PrepareTurn(t.Context(), runs.StartTurn{
+	if _, err := controller.PrepareTurn(t.Context(), runs.StartExecution{
 		SessionID: "session", Message: "hello", ModelSelection: selection,
 	}); err == nil || !strings.Contains(err.Error(), "requires a client resolver") {
 		t.Fatalf("PrepareTurn error = %v, want missing resolver", err)
 	}
-	if _, err := controller.Rehydrate(t.Context(), runs.RehydrateTurn{
+	if _, err := controller.Rehydrate(t.Context(), runs.RehydrateExecution{
 		SessionID: "session", ProcessID: "process", RootRunID: "run-root", ModelSelection: selection,
 	}); err == nil || !strings.Contains(err.Error(), "requires a client resolver") {
 		t.Fatalf("Rehydrate error = %v, want missing resolver", err)
@@ -508,7 +508,7 @@ func TestStartTurn_PassesCwd(t *testing.T) {
 	stub := &stubEngine{runReply: "ok"}
 
 	controller := mustTurn(turn.New(turnDeps(stub)))
-	handle, err := controller.StartTurn(context.Background(), runs.StartTurn{
+	handle, err := controller.StartTurn(context.Background(), runs.StartExecution{
 		SessionID: "s",
 		Message:   "hi",
 		Cwd:       "/work/project-a",
@@ -535,7 +535,7 @@ func TestStartTurn_PassesOptions(t *testing.T) {
 	temp := 0.7
 
 	controller := mustTurn(turn.New(turnDeps(stub)))
-	handle, err := controller.StartTurn(context.Background(), runs.StartTurn{
+	handle, err := controller.StartTurn(context.Background(), runs.StartExecution{
 		SessionID: "s",
 		Message:   "hi",
 		Options:   &corechat.Options{Temperature: &temp},
@@ -577,7 +577,7 @@ func TestStartTurnSnapshotsMutableRequestValues(t *testing.T) {
 	images := []*media.Media{image}
 	interruptKinds := []execution.InterruptKind{execution.ApprovalInterrupt}
 
-	handle, err := controller.StartTurn(context.Background(), runs.StartTurn{
+	handle, err := controller.StartTurn(context.Background(), runs.StartExecution{
 		SessionID:      "session",
 		Message:        "hello",
 		Media:          images,
@@ -628,7 +628,7 @@ func TestStartTurnProcessCreationFailureRemainsDrainableAfterTerminal(t *testing
 	engine := &immediateStartFailureEngine{err: startErr}
 	controller := mustTurn(turn.New(turnDeps(engine)))
 
-	handle, err := controller.StartTurn(context.Background(), runs.StartTurn{
+	handle, err := controller.StartTurn(context.Background(), runs.StartExecution{
 		SessionID: "session",
 		Message:   "hello",
 	})
@@ -649,7 +649,7 @@ func TestStartTurnCancelRacingProcessCreationFailureTerminatesAsCanceled(t *test
 	engine := newBlockedStartFailureEngine(startErr)
 	controller := mustTurn(turn.New(turnDeps(engine)))
 
-	handle, err := controller.StartTurn(context.Background(), runs.StartTurn{
+	handle, err := controller.StartTurn(context.Background(), runs.StartExecution{
 		SessionID: "session",
 		Message:   "hello",
 	})
@@ -669,7 +669,7 @@ func TestStartTurnCancelRacingProcessCreationFailureTerminatesAsCanceled(t *test
 	}
 	var terminals int
 	for event := range events {
-		if end, ok := event.Payload.(runs.TurnEnd); ok {
+		if end, ok := event.Payload.(runs.SegmentEnded); ok {
 			terminals++
 			if end.Reason != execution.OutcomeCanceled || end.Problem != nil {
 				t.Errorf("TurnEnd = %+v, want cancellation without a problem", end)
@@ -701,7 +701,7 @@ func assertCreateFailureEvents(t *testing.T, events iter.Seq[runs.ExecutorEvent]
 	var terminals int
 	for event := range events {
 		switch value := event.Payload.(type) {
-		case runs.TurnEnd:
+		case runs.SegmentEnded:
 			terminals++
 			if value.Reason != execution.OutcomeError || value.Problem == nil || value.Problem.Kind != transcript.InternalProblem {
 				t.Errorf("TurnEnd = %+v, want error with an internal problem", value)

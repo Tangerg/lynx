@@ -33,7 +33,7 @@ func (r planReader) List(context.Context, string) ([]plandomain.Step, error) { r
 
 func planContext(t *testing.T, sessionID string) context.Context {
 	t.Helper()
-	return executionctx.WithScope(t.Context(), execution.TurnScope{SessionID: sessionID})
+	return executionctx.WithScope(t.Context(), execution.ExecutionScope{SessionID: sessionID})
 }
 
 func planPolicy(t *testing.T, mode approval.Mode) *approval.RuntimePolicy {

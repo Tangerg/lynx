@@ -62,7 +62,7 @@ func TestTerminalDiscardFailureIsRecordedUntilCleanupSucceeds(t *testing.T) {
 
 	stub := &stubEngine{runReply: "ok", discardErr: discardErr}
 	controller := mustTurn(turn.New(turnDeps(stub)))
-	handle, err := controller.StartTurn(t.Context(), runs.StartTurn{SessionID: "s", Message: "hi"})
+	handle, err := controller.StartTurn(t.Context(), runs.StartExecution{SessionID: "s", Message: "hi"})
 	if err != nil {
 		t.Fatalf("StartTurn: %v", err)
 	}
@@ -117,7 +117,7 @@ func TestStartTurn_PropagatesEntryTrace(t *testing.T) {
 
 	stub := &stubEngine{runReply: "ok"}
 	controller := mustTurn(turn.New(turnDeps(stub)))
-	handle, err := controller.StartTurn(entryCtx, runs.StartTurn{SessionID: "s", Message: "hi"})
+	handle, err := controller.StartTurn(entryCtx, runs.StartExecution{SessionID: "s", Message: "hi"})
 	if err != nil {
 		t.Fatalf("StartTurn: %v", err)
 	}

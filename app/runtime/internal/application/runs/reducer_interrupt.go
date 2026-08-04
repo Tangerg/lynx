@@ -12,7 +12,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 )
 
-func (r *reducer) interrupt(e TurnInterrupted) ([]RunEvent, error) {
+func (r *reducer) interrupt(e SegmentInterrupted) ([]RunEvent, error) {
 	if err := e.validate(); err != nil {
 		return nil, err
 	}

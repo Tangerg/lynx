@@ -5,8 +5,8 @@
 // this is agent-owned, curated from an append-only fact ledger into discrete,
 // individually addressable items.
 //
-// Which items get injected into an agent prompt, and in what order, is a
-// model-adapter policy. This domain owns the durable memory values, lifecycle,
+// Which items get injected into an agent prompt, and in what order, is a prompt
+// composition policy. This domain owns the durable memory values, lifecycle,
 // and content invariants only.
 package agentmemory
 
@@ -267,8 +267,7 @@ type FactBatch struct {
 
 // Normalize validates the batch identity and canonicalizes already-parsed facts
 // into a unique, trimmed plain-text list while preserving first-seen order.
-// Parsing and rendering a model's Markdown response belong to the extraction
-// adapter.
+// Parsing and rendering a model's Markdown response belong to the caller.
 func (b FactBatch) Normalize() (FactBatch, error) {
 	b.Project = strings.TrimSpace(b.Project)
 	b.SessionID = strings.TrimSpace(b.SessionID)

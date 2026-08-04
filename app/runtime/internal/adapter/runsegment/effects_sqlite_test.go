@@ -223,9 +223,9 @@ func TestCommitOpeningResumesRunTreeAtomically(t *testing.T) {
 				}
 			}
 			pending := interrupts.Pending{
-				RootRunID: "run_root",
-				SessionID: "session_1",
-				TurnID:    "turn_1",
+				RootRunID:  "run_root",
+				SessionID:  "session_1",
+				ExecutorID: "turn_1",
 				Capabilities: execution.RunCapabilities{
 					ChildRuns:      true,
 					InterruptKinds: []execution.InterruptKind{execution.QuestionInterrupt},
@@ -381,10 +381,10 @@ func TestCommitOpeningRollsBackScheduledSession(t *testing.T) {
 	}
 }
 
-// TestCommitEventRecordsGoalTurnWithTerminalRun proves budget accounting is a
+// TestCommitEventRecordsGoalRunWithTerminalRun proves budget accounting is a
 // terminal Run fact, not a best-effort follow-up by the Goal driver. Both the
 // Run state and the Goal aggregate must become visible together.
-func TestCommitEventRecordsGoalTurnWithTerminalRun(t *testing.T) {
+func TestCommitEventRecordsGoalRunWithTerminalRun(t *testing.T) {
 	db, err := sqlite.Open(":memory:")
 	if err != nil {
 		t.Fatalf("open: %v", err)
@@ -398,7 +398,7 @@ func TestCommitEventRecordsGoalTurnWithTerminalRun(t *testing.T) {
 		t.Fatalf("seed goal session: %v", err)
 	}
 	selection := mustEffectSelection(t, "provider", "model")
-	g, err := goal.New("ses_goal", "finish", selection, goal.Budget{MaxTurns: 1}, "lease_goal", created)
+	g, err := goal.New("ses_goal", "finish", selection, goal.Budget{MaxRuns: 1}, "lease_goal", created)
 	if err != nil {
 		t.Fatalf("new goal: %v", err)
 	}
@@ -415,9 +415,9 @@ func TestCommitEventRecordsGoalTurnWithTerminalRun(t *testing.T) {
 	}
 	history := sqlite.NewTranscriptStore(db)
 	effects := sqliteEffects(sqliteOpeningStores{transcript: history}, Config{
-		GoalTurns: goals,
-		RunState:  state,
-		Tx:        func(ctx context.Context, fn func(context.Context) error) error { return sqlite.RunInTx(ctx, db, fn) },
+		GoalRuns: goals,
+		RunState: state,
+		Tx:       func(ctx context.Context, fn func(context.Context) error) error { return sqlite.RunInTx(ctx, db, fn) },
 	})
 	// The watermark is already resolved, so this commit needs no message store.
 	finished := finishedRunRecord(draft.RunID, draft.SessionID, execution.OutcomeCompleted)
@@ -432,7 +432,7 @@ func TestCommitEventRecordsGoalTurnWithTerminalRun(t *testing.T) {
 		RunID: draft.RunID, SessionID: draft.SessionID, State: runs.StateTerminalize,
 		Outcome: execution.OutcomeCompleted,
 		Run:     finished,
-		GoalTurn: &goal.TurnRecord{
+		GoalRun: &goal.RunRecord{
 			SessionID: g.SessionID, LeaseID: g.LeaseID, RunID: draft.RunID,
 			Outcome: execution.OutcomeCompleted, CostUSD: costUSD, Steps: 2, CompletedAt: finished.FinishedAt,
 		},
@@ -443,7 +443,7 @@ func TestCommitEventRecordsGoalTurnWithTerminalRun(t *testing.T) {
 	if err != nil || !found {
 		t.Fatalf("goal after terminal found=%v err=%v", found, err)
 	}
-	if got.Used != (goal.Usage{Turns: 1, CostUSD: 0.25, Steps: 2}) || got.Status != goal.StatusBlocked || got.Reason.Code != goal.ReasonTurnBudgetReached {
+	if got.Used != (goal.Usage{Runs: 1, CostUSD: 0.25, Steps: 2}) || got.Status != goal.StatusBlocked || got.Reason.Code != goal.ReasonRunBudgetReached {
 		t.Fatalf("goal after terminal = %+v", got)
 	}
 	var runState string
@@ -486,7 +486,7 @@ func TestCommitTreeBarrierProducesDurableTriplet(t *testing.T) {
 	checkpointStore := sqlite.NewExecutorCheckpointStore(db)
 	checkpoint := executorCheckpoint(t, tree, execution.ExecutorCheckpoint{
 		BuildID:        checkpointBuildID,
-		Scope:          execution.TurnScope{SessionID: "ses_1"},
+		Scope:          execution.ExecutionScope{SessionID: "ses_1"},
 		ModelSelection: mustEffectSelection(t, "anthropic", "claude"),
 		Usage:          accounting.Snapshot{},
 	})
@@ -552,7 +552,7 @@ func TestCommitTreeBarrierRollsBackCheckpointWhenRunSuspendFails(t *testing.T) {
 		RootID: snapshot.ID, Snapshots: []core.ProcessSnapshot{snapshot},
 	}, execution.ExecutorCheckpoint{
 		BuildID:        checkpointBuildID,
-		Scope:          execution.TurnScope{SessionID: "ses_rollback"},
+		Scope:          execution.ExecutionScope{SessionID: "ses_rollback"},
 		ModelSelection: mustEffectSelection(t, "anthropic", "claude"),
 		Usage:          accounting.Snapshot{},
 	})
@@ -621,7 +621,7 @@ func TestCommitTerminalOwnsExecutorCheckpointDeletion(t *testing.T) {
 				RootID: snapshot.ID, Snapshots: []core.ProcessSnapshot{snapshot},
 			}, execution.ExecutorCheckpoint{
 				BuildID: checkpointBuildID,
-				Scope:   execution.TurnScope{SessionID: "ses_terminal"},
+				Scope:   execution.ExecutionScope{SessionID: "ses_terminal"},
 				Usage:   accounting.Snapshot{},
 			})); err != nil {
 				t.Fatalf("seed checkpoint: %v", err)
@@ -1046,7 +1046,7 @@ func newWaitingCancellationSQLiteFixtureAt(
 	pending := interrupts.Pending{
 		RootRunID:     rootRun.ID,
 		SessionID:     rootRun.SessionID,
-		TurnID:        "turn_1",
+		ExecutorID:    "turn_1",
 		Capabilities:  capabilities,
 		Interrupts:    pendingInterrupts,
 		Suspensions:   pendingSuspensions,
@@ -1085,7 +1085,7 @@ func newWaitingCancellationSQLiteFixtureAt(
 	}
 	originalCheckpoint := executorCheckpoint(t, originalTree, execution.ExecutorCheckpoint{
 		BuildID: "original-build",
-		Scope:   execution.TurnScope{SessionID: rootRun.SessionID},
+		Scope:   execution.ExecutionScope{SessionID: rootRun.SessionID},
 		Usage: accounting.Snapshot{Models: []accounting.ModelUsage{{
 			Model:      "test-model",
 			TokenUsage: accounting.TokenUsage{PromptTokens: 3, CompletionTokens: 2},
@@ -1179,7 +1179,7 @@ func newWaitingCancellationSQLiteFixtureAt(
 	}
 	replacementCheckpoint := executorCheckpoint(t, replacementTree, execution.ExecutorCheckpoint{
 		BuildID: "original-build",
-		Scope:   execution.TurnScope{SessionID: rootRun.SessionID},
+		Scope:   execution.ExecutionScope{SessionID: rootRun.SessionID},
 		Usage: accounting.Snapshot{Models: []accounting.ModelUsage{{
 			Model:      "test-model",
 			TokenUsage: accounting.TokenUsage{PromptTokens: 8, CompletionTokens: 5},

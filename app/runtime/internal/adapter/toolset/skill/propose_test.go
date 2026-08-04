@@ -30,7 +30,7 @@ func TestProposalSchemaRejectsInvalidDomainValuesBeforeSubmission(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctx := executionctx.WithScope(t.Context(), execution.TurnScope{SessionID: "ses_1", Cwd: "/repo"})
+	ctx := executionctx.WithScope(t.Context(), execution.ExecutionScope{SessionID: "ses_1", Cwd: "/repo"})
 	tests := map[string]string{
 		"noncanonical name": `{"name":"Review_Go_API","description":"Review a Go API before implementation.","instructions":"Review it.","scope":"project"}`,
 		"overlong name":     `{"name":"` + strings.Repeat("a", 65) + `","description":"Review a Go API before implementation.","instructions":"Review it.","scope":"project"}`,
@@ -87,7 +87,7 @@ func TestCallStampsHostScopeAndReturnsPendingReference(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctx := executionctx.WithScope(t.Context(), execution.TurnScope{
+	ctx := executionctx.WithScope(t.Context(), execution.ExecutionScope{
 		SessionID: "ses_1", Cwd: "/sandbox", WorkspaceCwd: "/repo", Isolated: true,
 	})
 	out, err := candidate.Call(ctx, `{
@@ -123,7 +123,7 @@ func TestCallRequiresSessionAndValidScope(t *testing.T) {
 	if _, err := candidate.Call(context.Background(), validArguments); err == nil || !strings.Contains(err.Error(), "no active session") {
 		t.Fatalf("no-session error = %v", err)
 	}
-	ctx := executionctx.WithScope(t.Context(), execution.TurnScope{SessionID: "ses_1", Cwd: "/repo"})
+	ctx := executionctx.WithScope(t.Context(), execution.ExecutionScope{SessionID: "ses_1", Cwd: "/repo"})
 	invalidArguments := `{"name":"review-go-api","description":"Review a Go API before implementation.","instructions":"Review it.","scope":"team"}`
 	if _, err := candidate.Call(ctx, invalidArguments); err == nil || !strings.Contains(err.Error(), "scope") {
 		t.Fatalf("invalid-scope error = %v", err)

@@ -29,9 +29,9 @@ func TestDeleteSessionPublishesEveryProjectionItRemoved(t *testing.T) {
 	stores := newMutationStores("")
 	changes := &recorder{}
 	coordinator := New(testDependencies(stores, Dependencies{
-		Turns:   mutationTurns{operations: &stores.operations},
-		Paths:   testCwdResolver{},
-		Changed: changes.publish,
+		ExecutionCleanup: mutationTurns{operations: &stores.operations},
+		Paths:            testCwdResolver{},
+		Changed:          changes.publish,
 	}))
 
 	if err := coordinator.DeleteSession(t.Context(), "ses_1"); err != nil {
@@ -56,9 +56,9 @@ func TestFailedDeleteSessionPublishesNothing(t *testing.T) {
 	stores := newMutationStores("apply.delete")
 	changes := &recorder{}
 	coordinator := New(testDependencies(stores, Dependencies{
-		Turns:   mutationTurns{operations: &stores.operations},
-		Paths:   testCwdResolver{},
-		Changed: changes.publish,
+		ExecutionCleanup: mutationTurns{operations: &stores.operations},
+		Paths:            testCwdResolver{},
+		Changed:          changes.publish,
 	}))
 
 	if err := coordinator.DeleteSession(t.Context(), "ses_1"); !errors.Is(err, errMutationStage) {

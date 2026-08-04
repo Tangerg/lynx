@@ -59,13 +59,13 @@ func runRecord(state execution.RunState, activeSegmentID, spawnedBy string) tran
 func liveCoordinator(t *testing.T, run transcript.Run) (*Coordinator, *Journal) {
 	t.Helper()
 	c := NewCoordinator(Dependencies{
-		Turns: &fakeTurnControl{},
-		Runs:  &fakeRunProjection{runs: map[string]transcript.Run{testRunID: run}},
+		Control: &fakeExecutionControl{},
+		Runs:    &fakeRunProjection{runs: map[string]transcript.Run{testRunID: run}},
 	})
 	hub := newJournal(streamScope{
 		Epoch: c.epoch, RunID: testRunID, SegmentID: testSegmentID,
 	}, c.retention)
-	c.registry.Open(Record{ID: testRunID, SegmentID: testSegmentID, SessionID: "ses_1", TurnID: "turn_1"},
+	c.registry.Open(Record{ID: testRunID, SegmentID: testSegmentID, SessionID: "ses_1", ExecutorID: "turn_1"},
 		&handle{hub: hub})
 	return c, hub
 }

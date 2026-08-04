@@ -68,7 +68,7 @@ type approvalRuleCleaner interface {
 
 type goalStore interface {
 	Clear(ctx context.Context, sessionID string) error
-	RecordTurn(ctx context.Context, record goal.TurnRecord) error
+	RecordRun(ctx context.Context, record goal.RunRecord) error
 }
 
 // NewSessionStores returns the SQLite adapter for session snapshots and
@@ -362,12 +362,12 @@ func (s *SessionStores) ApplyTerminal(ctx context.Context, plan sessions.Termina
 				return fmt.Errorf("persistence: unsupported parked terminal outcome %s", *run.Outcome)
 			}
 		}
-		if plan.GoalTurn != nil {
+		if plan.GoalRun != nil {
 			if s.goals == nil {
-				return errors.New("persistence: goal-turn store is unavailable for a Goal-owned terminal Run")
+				return errors.New("persistence: Goal Run store is unavailable for a Goal-owned terminal Run")
 			}
-			if err := s.goals.RecordTurn(ctx, *plan.GoalTurn); err != nil {
-				return fmt.Errorf("persistence: record Goal turn for Run %q: %w", root.ID, err)
+			if err := s.goals.RecordRun(ctx, *plan.GoalRun); err != nil {
+				return fmt.Errorf("persistence: record Goal Run for Run %q: %w", root.ID, err)
 			}
 		}
 		return nil

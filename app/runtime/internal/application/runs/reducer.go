@@ -46,7 +46,7 @@ type reducerConfig struct {
 	SessionID      string
 	Lineage        execution.RunLineage
 	Cwd            string
-	TurnID         string
+	ExecutorID     string
 	GoalLeaseID    string
 	ModelSelection modelref.Selection
 	CreatedAt      time.Time
@@ -195,17 +195,17 @@ func (r *reducer) reduce(ev EngineEvent) (reductionBatch, error) {
 		out = r.planSnapshot(e)
 	case CompactBoundary:
 		out = r.compaction(e)
-	case TurnInterrupted:
+	case SegmentInterrupted:
 		var err error
 		out, err = r.interrupt(e)
 		if err != nil {
 			return reductionBatch{}, fmt.Errorf("%w: interrupt: %w", errExecutorContract, err)
 		}
-	case TurnEnd:
+	case SegmentEnded:
 		var err error
-		out, err = r.turnEnd(e)
+		out, err = r.segmentEnd(e)
 		if err != nil {
-			return reductionBatch{}, fmt.Errorf("%w: turn end: %w", errExecutorContract, err)
+			return reductionBatch{}, fmt.Errorf("%w: segment end: %w", errExecutorContract, err)
 		}
 	default:
 		return reductionBatch{}, fmt.Errorf("%w: unhandled event %T", errExecutorContract, ev)
@@ -220,7 +220,7 @@ func (r *reducer) synthesizeTerminal() (reductionBatch, error) {
 		return reductionBatch{}, fmt.Errorf("%w: drain tools: %w", errReducerInvariant, err)
 	}
 	out = append(out, drained...)
-	// No TurnEnd arrived, so nothing fresh was reported: the segment's accrual
+	// No SegmentEnded arrived, so nothing fresh was reported: the Segment's accrual
 	// stands as last reported and is committed as-is.
 	var failure *transcript.Problem
 	outcome := execution.OutcomeCanceled
@@ -378,7 +378,7 @@ func (r *reducer) projectOne(event RunEvent) (reduction, error) {
 		commit.State = StateTerminalize
 		if e.Run.Outcome != nil {
 			commit.Outcome = *e.Run.Outcome
-			commit.GoalTurn = r.goalTurn(e.Run)
+			commit.GoalRun = r.goalTurn(e.Run)
 		}
 	case SegmentStarted, SegmentProgressed, ItemStarted, ItemChanged, StateSnapshot:
 		// These events have no standalone EventCommit. SegmentStarted carries a Run
@@ -396,11 +396,11 @@ func (r *reducer) projectOne(event RunEvent) (reduction, error) {
 	return reduction{Event: event, Commit: eventCommit, Nudge: nudge}, nil
 }
 
-func (r *reducer) goalTurn(run transcript.Run) *goal.TurnRecord {
+func (r *reducer) goalTurn(run transcript.Run) *goal.RunRecord {
 	if r.cfg.GoalLeaseID == "" || run.Outcome == nil {
 		return nil
 	}
-	record := &goal.TurnRecord{
+	record := &goal.RunRecord{
 		SessionID:   r.cfg.SessionID,
 		LeaseID:     r.cfg.GoalLeaseID,
 		RunID:       r.cfg.RunID,
@@ -527,8 +527,8 @@ func validateTerminalReduction(reduced reduction) error {
 		return fmt.Errorf("%w: terminal event commit has no terminal run", errReducerInvariant)
 	case commit.Run.Outcome == nil || *commit.Run.Outcome != commit.Outcome:
 		return fmt.Errorf("%w: terminal event commit has an inconsistent outcome", errReducerInvariant)
-	case commit.GoalTurn != nil && (commit.GoalTurn.RunID != commit.RunID || commit.GoalTurn.SessionID != commit.SessionID || commit.GoalTurn.Outcome != commit.Outcome):
-		return fmt.Errorf("%w: terminal event commit has an inconsistent goal turn", errReducerInvariant)
+	case commit.GoalRun != nil && (commit.GoalRun.RunID != commit.RunID || commit.GoalRun.SessionID != commit.SessionID || commit.GoalRun.Outcome != commit.Outcome):
+		return fmt.Errorf("%w: terminal event commit has an inconsistent Goal Run", errReducerInvariant)
 	}
 	if err := commit.Validate(); err != nil {
 		return fmt.Errorf("%w: %w", errReducerInvariant, err)

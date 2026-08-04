@@ -16,7 +16,7 @@ func TestCancellationPlanPartitionsCanonicalSubtree(t *testing.T) {
 	plan, err := newCancellationPlan(
 		"run_a",
 		runs,
-		execution.TurnRef{SessionID: "ses_1", TurnID: "turn_1"},
+		execution.ExecutorRef{SessionID: "ses_1", ExecutorID: "turn_1"},
 		processes,
 		nil,
 	)
@@ -91,7 +91,7 @@ func TestCancellationPlanRejectsInconsistentTreeFacts(t *testing.T) {
 			_, err := newCancellationPlan(
 				"run_a",
 				runs,
-				execution.TurnRef{SessionID: "ses_1", TurnID: "turn_1"},
+				execution.ExecutorRef{SessionID: "ses_1", ExecutorID: "turn_1"},
 				processes,
 				nil,
 			)
@@ -107,7 +107,7 @@ func TestCancellationRejectsLiveOwnerFactDrift(t *testing.T) {
 	root := runForSegment(spec)
 	base := liveSegment{record: Record{
 		ID: spec.RunID, SegmentID: spec.SegmentID, SessionID: spec.SessionID,
-		CreatedAt: spec.CreatedAt, TurnID: spec.TurnID,
+		CreatedAt: spec.CreatedAt, ExecutorID: spec.ExecutorID,
 		ModelSelection: spec.ModelSelection, Capabilities: spec.Capabilities,
 	}}
 	if err := validateCancellationLiveRoot(base, root); err != nil {

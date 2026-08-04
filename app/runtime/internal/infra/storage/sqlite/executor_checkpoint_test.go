@@ -34,7 +34,7 @@ func storedExecutorCheckpoint(rootProcessID, sessionID, payload string) executio
 		RootProcessID: rootProcessID,
 		Payload:       []byte(payload),
 		BuildID:       "sha256:checkpoint-build",
-		Scope: execution.TurnScope{
+		Scope: execution.ExecutionScope{
 			SessionID:   sessionID,
 			Cwd:         "/workspace/" + sessionID,
 			Isolated:    true,

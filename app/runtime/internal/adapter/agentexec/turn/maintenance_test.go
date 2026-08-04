@@ -47,7 +47,7 @@ func TestTurnDelegatesCleanBoundaryMaintenanceAndPublishesCompaction(t *testing.
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	handle, err := controller.PrepareTurn(t.Context(), runs.StartTurn{
+	handle, err := controller.PrepareTurn(t.Context(), runs.StartExecution{
 		SessionID: "session", Message: "hello", Cwd: "/project", ModelSelection: testModelSelection(t, "openai", "gpt-test"),
 	})
 	if err != nil {

@@ -7,10 +7,10 @@ import (
 
 // Goals is the goals.* method group — Goal mode, an autonomous execution loop
 // that drives runs toward an objective until the model signals it complete or
-// blocked (via report_goal_outcome), an opt-in cross-turn budget is spent, or
+// blocked (via report_goal_outcome), an opt-in cross-Run budget is spent, or
 // the user stops it. A session has at most one goal. Starting a goal is the
 // explicit opt-in gate; while it runs, the runtime launches runs back-to-back on
-// its own instead of the user driving each turn.
+// its own instead of the user driving each Run.
 type Goals interface {
 	// StartGoal opens a goal for the session and begins driving it. sessionId +
 	// objective are required; provider/model pair the model each turn runs
@@ -71,22 +71,22 @@ const (
 	GoalReasonAwaitingInput          GoalReasonCode = "awaitingInput"
 	GoalReasonTerminalOutcomeMissing GoalReasonCode = "terminalOutcomeMissing"
 	GoalReasonRunNotCompleted        GoalReasonCode = "runNotCompleted"
-	GoalReasonTurnBudgetReached      GoalReasonCode = "turnBudgetReached"
+	GoalReasonRunBudgetReached       GoalReasonCode = "runBudgetReached"
 	GoalReasonCostBudgetReached      GoalReasonCode = "costBudgetReached"
 	GoalReasonStepBudgetReached      GoalReasonCode = "stepBudgetReached"
 	GoalReasonBlockedByModel         GoalReasonCode = "blockedByModel"
 )
 
-// GoalBudget is the opt-in cross-turn cap. A zero field is unbounded on that axis.
+// GoalBudget is the opt-in cross-Run cap. A zero field is unbounded on that axis.
 type GoalBudget struct {
-	MaxTurns   int     `json:"maxTurns,omitempty"`
+	MaxRuns    int     `json:"maxRuns,omitempty"`
 	MaxCostUsd float64 `json:"maxCostUsd,omitempty"`
 	MaxSteps   int     `json:"maxSteps,omitempty"`
 }
 
 // GoalUsage is what the loop has spent so far.
 type GoalUsage struct {
-	Turns   int     `json:"turns"`
+	Runs    int     `json:"runs"`
 	CostUsd float64 `json:"costUsd"`
 	Steps   int     `json:"steps"`
 }

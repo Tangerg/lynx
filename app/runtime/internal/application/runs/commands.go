@@ -50,18 +50,18 @@ var (
 	// ErrInvalidInterruptResponse reports a response set that does not exactly
 	// cover the open interrupt schema.
 	ErrInvalidInterruptResponse = errors.New("runs: invalid interrupt response")
-	// ErrParkClaimed and ErrTurnNotLive are executor ownership outcomes used by
-	// Resume to distinguish a concurrent claim from a process rehydrate.
-	ErrParkClaimed = errors.New("runs: parked turn already claimed")
-	ErrTurnNotLive = errors.New("runs: turn not live")
-	// ErrTurnStateLost reports that a parked executor turn has no compatible
+	// ErrExecutionClaimed and ErrExecutorNotLive are executor ownership outcomes
+	// used by Resume to distinguish a concurrent claim from rehydration.
+	ErrExecutionClaimed = errors.New("runs: parked execution already claimed")
+	ErrExecutorNotLive  = errors.New("runs: executor not live")
+	// ErrExecutorStateLost reports that a parked execution has no compatible
 	// durable executor checkpoint and the application Run must be recovered lost.
-	ErrTurnStateLost = errors.New("runs: turn state lost")
+	ErrExecutorStateLost = errors.New("runs: executor state lost")
 
-	ErrInputRequired      = errors.New("runs: input required")
-	ErrUnsupportedMedia   = errors.New("runs: unsupported media")
-	ErrInvalidTurnLimit   = errors.New("runs: invalid turn limit")
-	ErrInvalidTurnOptions = errors.New("runs: invalid turn options")
+	ErrInputRequired     = errors.New("runs: input required")
+	ErrUnsupportedMedia  = errors.New("runs: unsupported media")
+	ErrInvalidRunLimit   = errors.New("runs: invalid run limit")
+	ErrInvalidRunOptions = errors.New("runs: invalid run options")
 	// ErrInvalidScheduledStart reports an internal start command that carries
 	// only part of the durable schedule-occurrence identity. A scheduled run
 	// must be all-or-nothing: its Run, Session, and occurrence rows are one
@@ -203,7 +203,7 @@ func (c StartCommand) MaterializeInput() (message string, images []*media.Media,
 type ResumeCommand struct {
 	RunID     string
 	Responses []ResumeResponse
-	// Input is an optional user turn committed with the continuation. It rides the
+	// Input is optional user content committed with the continuation. It rides the
 	// same opening write-set as the resume itself, so "answered the interrupt" and
 	// "said this as well" cannot come apart.
 	Input []transcript.ContentBlock
@@ -324,27 +324,27 @@ type StartResult struct {
 	Events     iter.Seq[Event]
 }
 
-// Validate checks the transport-neutral turn invariants before any session is
-// created or mutated. Adapter-specific model modality checks are performed by
-// TurnControl.ValidateStart in the same pre-admission phase.
-func (r StartTurn) Validate() error {
+// Validate checks the semantic Run-opening invariants before any Session is
+// created or mutated. Executor-specific model modality checks are performed by
+// [ExecutionControl.ValidateStart] in the same pre-admission phase.
+func (r StartExecution) Validate() error {
 	if r.Message == "" && len(r.Media) == 0 {
 		return ErrInputRequired
 	}
 	if err := r.Limits.Validate(); err != nil {
-		return fmt.Errorf("%w: %w", ErrInvalidTurnLimit, err)
+		return fmt.Errorf("%w: %w", ErrInvalidRunLimit, err)
 	}
 	if err := r.ModelSelection.Validate(); err != nil {
-		return fmt.Errorf("runs: turn model selection: %w", err)
+		return fmt.Errorf("runs: model selection: %w", err)
 	}
 	if err := (execution.RunCapabilities{
 		ChildRuns:      r.ChildRunAdmissionEnabled,
 		InterruptKinds: r.InterruptKinds,
 	}).Validate(); err != nil {
-		return fmt.Errorf("runs: turn capabilities: %w", err)
+		return fmt.Errorf("runs: capabilities: %w", err)
 	}
 	if r.GoalLeaseID != strings.TrimSpace(r.GoalLeaseID) {
-		return errors.New("runs: turn goal lease ID has surrounding whitespace")
+		return errors.New("runs: goal lease ID has surrounding whitespace")
 	}
 	return validateOptions(r.Options)
 }
@@ -354,10 +354,10 @@ func validateOptions(options *corechat.Options) error {
 		return nil
 	}
 	if err := options.Validate(); err != nil {
-		return fmt.Errorf("%w: %w", ErrInvalidTurnOptions, err)
+		return fmt.Errorf("%w: %w", ErrInvalidRunOptions, err)
 	}
 	if options.Model != "" {
-		return fmt.Errorf("%w: Options.Model must stay empty; use Provider and Model", ErrInvalidTurnOptions)
+		return fmt.Errorf("%w: Options.Model must stay empty; use Provider and Model", ErrInvalidRunOptions)
 	}
 	return nil
 }

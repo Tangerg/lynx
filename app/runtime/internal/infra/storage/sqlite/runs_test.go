@@ -101,7 +101,7 @@ func pendingForRun(
 	return interrupts.Pending{
 		RootRunID:    runID,
 		SessionID:    sessionID,
-		TurnID:       "turn_" + runID,
+		ExecutorID:   "turn_" + runID,
 		Interrupts:   copied,
 		Suspensions:  bindings,
 		Capabilities: capabilitiesForInterrupts(copied),

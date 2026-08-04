@@ -1,7 +1,7 @@
 // Package knowledge defines Lyra's human-authored long-term knowledge: the
 // user-editable LYRA.md cascade. Agent-maintained memory (the mined fact ledger
 // and its curated items) is a separate bounded context — see package
-// agentmemory. Prompt composition remains in the agent-execution adapter.
+// agentmemory. Prompt composition remains outside both storage domains.
 package knowledge
 
 import (
@@ -10,7 +10,7 @@ import (
 )
 
 // Scope selects which LYRA.md the operation targets. The prompt
-// composes both per turn — user (global) first, then project, so
+// composes both per Run — user (global) first, then project, so
 // project knowledge extends and overrides the global preferences.
 type Scope string
 

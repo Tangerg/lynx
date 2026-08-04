@@ -13,7 +13,7 @@ import (
 // UserPromptSubmit hook before a turn starts. It returns the (possibly
 // context-prefixed) message, or an error wrapping [ErrPromptBlocked] when a hook
 // blocked the prompt.
-func (s *controller) runPromptHooks(ctx context.Context, request runs.StartTurn, st *turnState) (string, error) {
+func (s *controller) runPromptHooks(ctx context.Context, request runs.StartExecution, st *turnState) (string, error) {
 	var blocked bool
 	var reason, inject string
 	add := func(d hooks.Decision) {

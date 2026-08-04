@@ -1534,7 +1534,7 @@ func (value WorkspaceRef) ValidateWire() error {
 
 func (value GoalBudget) ValidateWire() error {
 	return collectWireViolations("GoalBudget",
-		nonNegativeNumber("maxTurns", value.MaxTurns),
+		nonNegativeNumber("maxRuns", value.MaxRuns),
 		nonNegativeNumber("maxCostUsd", value.MaxCostUsd),
 		nonNegativeNumber("maxSteps", value.MaxSteps),
 	)

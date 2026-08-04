@@ -282,7 +282,7 @@ func TestCancelWaitingChildCommitsReducedPendingBeforeRuntimeTransition(t *testi
 			RootRun: plan.root.run,
 		},
 	}
-	coordinator, turns := waitingCancellationCoordinator(t, plan, prepared, effects, &fakeExecutor{})
+	coordinator, control := waitingCancellationCoordinator(t, plan, prepared, effects, &fakeExecutor{})
 
 	result, err := coordinator.Cancel(t.Context(), CancelCommand{
 		RunID:         plan.target.run.ID,
@@ -310,8 +310,8 @@ func TestCancelWaitingChildCommitsReducedPendingBeforeRuntimeTransition(t *testi
 	if len(effects.waitingCancels) != 1 || effects.waitingCancels[0].RemainingPending == nil {
 		t.Fatalf("durable waiting commits = %+v, want one reduced Pending", effects.waitingCancels)
 	}
-	if turns.prepared != plan.turn {
-		t.Fatalf("prepared turn = %+v, want %+v", turns.prepared, plan.turn)
+	if control.prepared != plan.executor {
+		t.Fatalf("prepared turn = %+v, want %+v", control.prepared, plan.executor)
 	}
 }
 
@@ -337,11 +337,11 @@ func TestCancelWaitingChildRecoversCommittedTreeWhenRuntimeApplyFails(t *testing
 			RootRun: plan.root.run,
 		},
 	}
-	coordinator, turns := waitingCancellationCoordinator(t, plan, prepared, effects, &fakeExecutor{})
+	coordinator, control := waitingCancellationCoordinator(t, plan, prepared, effects, &fakeExecutor{})
 	sessions := coordinator.sessions.(*fakeRunSessions)
 	var operations []string
 	sessions.operations = &operations
-	turns.operations = &operations
+	control.operations = &operations
 
 	_, err := coordinator.Cancel(t.Context(), CancelCommand{
 		RunID:         plan.target.run.ID,
@@ -361,11 +361,11 @@ func TestCancelWaitingChildRecoversCommittedTreeWhenRuntimeApplyFails(t *testing
 	if sessions.lostRunID != plan.root.run.ID {
 		t.Fatalf("recovered Run = %q, want root %q", sessions.lostRunID, plan.root.run.ID)
 	}
-	if !reflect.DeepEqual(turns.canceled, []execution.TurnRef{plan.turn}) {
-		t.Fatalf("canceled turns = %+v, want [%+v]", turns.canceled, plan.turn)
+	if !reflect.DeepEqual(control.canceled, []execution.ExecutorRef{plan.executor}) {
+		t.Fatalf("canceled control = %+v, want [%+v]", control.canceled, plan.executor)
 	}
-	if !slices.Equal(operations, []string{"durable.lost", "turn.cancel"}) {
-		t.Fatalf("recovery operations = %v, want durable.lost then turn.cancel", operations)
+	if !slices.Equal(operations, []string{"durable.lost", "execution.cancel"}) {
+		t.Fatalf("recovery operations = %v, want durable.lost then execution.cancel", operations)
 	}
 }
 
@@ -389,10 +389,10 @@ func TestCancelWaitingChildRehydratesParkedTurnAfterProcessRestart(t *testing.T)
 			RootRun: plan.root.run,
 		},
 	}
-	coordinator, turns := waitingCancellationCoordinator(t, plan, prepared, effects, &fakeExecutor{})
-	turns.prepared = execution.TurnRef{}
-	turns.prepareErr = ErrTurnNotLive
-	turns.rehydrated = plan.turn
+	coordinator, control := waitingCancellationCoordinator(t, plan, prepared, effects, &fakeExecutor{})
+	control.prepared = execution.ExecutorRef{}
+	control.prepareErr = ErrExecutorNotLive
+	control.rehydrated = plan.executor
 
 	if _, err := coordinator.Cancel(t.Context(), CancelCommand{
 		RunID:         plan.target.run.ID,
@@ -402,12 +402,12 @@ func TestCancelWaitingChildRehydratesParkedTurnAfterProcessRestart(t *testing.T)
 		t.Fatalf("Cancel rehydrated waiting child: %v", err)
 	}
 	rootContinuation, _ := plan.pending.RootContinuation()
-	if turns.rehydrateReq.SessionID != plan.pending.SessionID ||
-		turns.rehydrateReq.TurnID != plan.pending.TurnID ||
-		turns.rehydrateReq.ProcessID != rootContinuation.ProcessID ||
-		turns.rehydrateReq.Cwd != "/work" ||
-		turns.rehydrateReq.ModelSelection != rootContinuation.ModelSelection {
-		t.Fatalf("rehydrate request = %+v, want durable root continuation", turns.rehydrateReq)
+	if control.rehydrateReq.SessionID != plan.pending.SessionID ||
+		control.rehydrateReq.ExecutorID != plan.pending.ExecutorID ||
+		control.rehydrateReq.ProcessID != rootContinuation.ProcessID ||
+		control.rehydrateReq.Cwd != "/work" ||
+		control.rehydrateReq.ModelSelection != rootContinuation.ModelSelection {
+		t.Fatalf("rehydrate request = %+v, want durable root continuation", control.rehydrateReq)
 	}
 	if prepared.committed != 1 ||
 		prepared.disposition != WaitingSubtreeRemainsInterrupted {
@@ -634,18 +634,18 @@ func waitingCancellationCoordinator(
 	prepared *fakePreparedWaitingCancellation,
 	effects Effects,
 	executor SegmentExecutor,
-) (*Coordinator, *fakeTurnControl) {
+) (*Coordinator, *fakeExecutionControl) {
 	t.Helper()
 	runsByID := make(map[string]transcript.Run)
 	for _, member := range append(slices.Clone(plan.targetSubtree), plan.survivingTree...) {
 		runsByID[member.run.ID] = member.run
 	}
-	turns := &fakeTurnControl{prepared: plan.turn}
-	turns.prepareWaiting = func(
-		ref execution.TurnRef,
+	control := &fakeExecutionControl{prepared: plan.executor}
+	control.prepareWaiting = func(
+		ref execution.ExecutorRef,
 		processID string,
 	) (PreparedWaitingSubtreeCancellation, error) {
-		if ref != plan.turn {
+		if ref != plan.executor {
 			return PreparedWaitingSubtreeCancellation{}, errors.New("prepared the wrong turn")
 		}
 		if processID != plan.target.processID {
@@ -661,7 +661,7 @@ func waitingCancellationCoordinator(
 	}
 	coordinator := NewCoordinator(Dependencies{
 		Segments:   executor,
-		Turns:      turns,
+		Control:    control,
 		Sessions:   sessions,
 		Effects:    effects,
 		Runs:       &fakeRunProjection{runs: runsByID},
@@ -673,7 +673,7 @@ func waitingCancellationCoordinator(
 		NewRunID:     func() string { return "run_unused" },
 		NewSegmentID: func() string { return "seg_continuation" },
 	})
-	return coordinator, turns
+	return coordinator, control
 }
 
 func waitingCancellationPlan(
@@ -736,7 +736,7 @@ func waitingCancellationPlan(
 	plan, err := newCancellationPlan(
 		targetRunID,
 		runValues,
-		execution.TurnRef{SessionID: pending.SessionID, TurnID: pending.TurnID},
+		execution.ExecutorRef{SessionID: pending.SessionID, ExecutorID: pending.ExecutorID},
 		processes,
 		&pending,
 	)

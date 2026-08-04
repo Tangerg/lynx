@@ -16,7 +16,7 @@ func testExecutorCheckpoint(rootProcessID string) execution.ExecutorCheckpoint {
 		RootProcessID:  rootProcessID,
 		Payload:        []byte(`{"root":"` + rootProcessID + `"}`),
 		BuildID:        "build",
-		Scope:          execution.TurnScope{SessionID: "ses_1"},
+		Scope:          execution.ExecutionScope{SessionID: "ses_1"},
 		ModelSelection: selection,
 	}
 }

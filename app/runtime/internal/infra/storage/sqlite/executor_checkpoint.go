@@ -263,7 +263,7 @@ func decodeExecutorPolicy(data string) (execution.ExecutorCheckpoint, error) {
 		}
 		return execution.ExecutorCheckpoint{}, fmt.Errorf("policy trailing JSON: %w", err)
 	}
-	scope := execution.TurnScope{
+	scope := execution.ExecutionScope{
 		SessionID:    wire.Scope.SessionID,
 		Cwd:          wire.Scope.Cwd,
 		WorkspaceCwd: wire.Scope.WorkspaceCwd,

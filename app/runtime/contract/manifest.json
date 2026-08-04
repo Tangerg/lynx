@@ -4888,7 +4888,7 @@
       "type": "GoalBudget",
       "rules": [
         {
-          "field": "maxTurns",
+          "field": "maxRuns",
           "constraint": "nonNegative"
         },
         {

@@ -18,7 +18,7 @@ func TestNewValidates(t *testing.T) {
 	if _, err := New("s", "", modelref.Selection{}, Budget{}, "lease", now); err == nil {
 		t.Fatal("empty objective should error")
 	}
-	if _, err := New("s", "obj", modelref.Selection{}, Budget{MaxTurns: -1}, "lease", now); err == nil {
+	if _, err := New("s", "obj", modelref.Selection{}, Budget{MaxRuns: -1}, "lease", now); err == nil {
 		t.Fatal("negative budget should error")
 	}
 	selection, err := modelref.New("p", "m")
@@ -28,7 +28,7 @@ func TestNewValidates(t *testing.T) {
 	if _, err := New("s", "obj", selection, Budget{}, "", now); err == nil {
 		t.Fatal("empty lease should error")
 	}
-	g, err := New("s", "obj", selection, Budget{MaxTurns: 3}, "lease", now)
+	g, err := New("s", "obj", selection, Budget{MaxRuns: 3}, "lease", now)
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
@@ -90,12 +90,12 @@ func TestValidateSnapshotRejectsMissingConcurrencyIdentity(t *testing.T) {
 
 func TestResumeRejectsSpentBudget(t *testing.T) {
 	now := time.Unix(0, 0)
-	g, err := New("s", "obj", modelref.Selection{}, Budget{MaxTurns: 1}, "lease", now)
+	g, err := New("s", "obj", modelref.Selection{}, Budget{MaxRuns: 1}, "lease", now)
 	if err != nil {
 		t.Fatal(err)
 	}
-	g.AddTurn(0, 0, now)
-	g.Block(ReasonTurnBudgetReached, "", now)
+	g.AddRun(0, 0, now)
+	g.Block(ReasonRunBudgetReached, "", now)
 	if err := g.Resume(now); !errors.Is(err, ErrBudgetExhausted) {
 		t.Fatalf("Resume error = %v, want ErrBudgetExhausted", err)
 	}
@@ -112,9 +112,9 @@ func TestBudgetExceeded(t *testing.T) {
 		limit  BudgetLimit
 		want   bool
 	}{
-		{"unbounded", Budget{}, Usage{Turns: 100, CostUSD: 999, Steps: 999}, BudgetLimitNone, false},
-		{"under", Budget{MaxTurns: 5}, Usage{Turns: 4}, BudgetLimitNone, false},
-		{"turns", Budget{MaxTurns: 5}, Usage{Turns: 5}, BudgetLimitTurns, true},
+		{"unbounded", Budget{}, Usage{Runs: 100, CostUSD: 999, Steps: 999}, BudgetLimitNone, false},
+		{"under", Budget{MaxRuns: 5}, Usage{Runs: 4}, BudgetLimitNone, false},
+		{"Runs", Budget{MaxRuns: 5}, Usage{Runs: 5}, BudgetLimitRuns, true},
 		{"cost", Budget{MaxCostUSD: 1.0}, Usage{CostUSD: 1.0}, BudgetLimitCost, true},
 		{"steps", Budget{MaxSteps: 10}, Usage{Steps: 11}, BudgetLimitSteps, true},
 	}
@@ -128,21 +128,21 @@ func TestBudgetExceeded(t *testing.T) {
 	}
 }
 
-func TestRecordTurnPreservesPriorTerminalReport(t *testing.T) {
+func TestRecordRunPreservesPriorTerminalReport(t *testing.T) {
 	now := time.Unix(0, 0)
-	g, err := New("s", "obj", modelref.Selection{}, Budget{MaxTurns: 1}, "lease", now)
+	g, err := New("s", "obj", modelref.Selection{}, Budget{MaxRuns: 1}, "lease", now)
 	if err != nil {
 		t.Fatal(err)
 	}
 	g.Block(ReasonBlockedByModel, "need a credential", now)
-	g.RecordTurn(TurnRecord{
+	g.RecordRun(RunRecord{
 		SessionID: "s", LeaseID: "lease", RunID: "run_1", Outcome: execution.OutcomeCompleted,
 		CostUSD: 0.25, Steps: 2, CompletedAt: now.Add(time.Second),
 	})
 	if g.Status != StatusBlocked || g.Reason != (Reason{Code: ReasonBlockedByModel, Detail: "need a credential"}) {
 		t.Fatalf("status/reason after terminal record = %q/%+v", g.Status, g.Reason)
 	}
-	if g.Used != (Usage{Turns: 1, CostUSD: 0.25, Steps: 2}) {
+	if g.Used != (Usage{Runs: 1, CostUSD: 0.25, Steps: 2}) {
 		t.Fatalf("usage after terminal record = %+v", g.Used)
 	}
 }
@@ -151,14 +151,14 @@ func TestTransitions(t *testing.T) {
 	now := time.Unix(0, 0)
 	g, _ := New("s", "obj", modelref.Selection{}, Budget{}, "lease", now)
 
-	g.AddTurn(0.5, 2, now)
-	g.AddTurn(0.25, 1, now)
-	if g.Used.Turns != 2 || g.Used.CostUSD != 0.75 || g.Used.Steps != 3 {
+	g.AddRun(0.5, 2, now)
+	g.AddRun(0.25, 1, now)
+	if g.Used.Runs != 2 || g.Used.CostUSD != 0.75 || g.Used.Steps != 3 {
 		t.Fatalf("usage accumulation = %+v", g.Used)
 	}
 
-	g.Block(ReasonTurnBudgetReached, "", now)
-	if g.Status != StatusBlocked || g.Reason != (Reason{Code: ReasonTurnBudgetReached}) {
+	g.Block(ReasonRunBudgetReached, "", now)
+	if g.Status != StatusBlocked || g.Reason != (Reason{Code: ReasonRunBudgetReached}) {
 		t.Fatalf("Block = (%q, %+v)", g.Status, g.Reason)
 	}
 	g.Resume(now)

@@ -572,7 +572,7 @@ TypeScript validator from this single registry projection.
 | `StartGoalRequest` | `sessionId` | `nonEmpty` |
 | `StartGoalRequest` | `objective` | `nonEmpty` |
 | `GoalRequest` | `sessionId` | `nonEmpty` |
-| `GoalBudget` | `maxTurns` | `nonNegative` |
+| `GoalBudget` | `maxRuns` | `nonNegative` |
 | `GoalBudget` | `maxCostUsd` | `nonNegative` |
 | `GoalBudget` | `maxSteps` | `nonNegative` |
 | `ClientInfo` | `name` | `nonEmpty` |

@@ -27,13 +27,13 @@ type GoalStore struct {
 func NewGoalStore(db *sql.DB) *GoalStore { return &GoalStore{db: db} }
 
 type goalBudget struct {
-	MaxTurns   int     `json:"max_turns"`
+	MaxRuns    int     `json:"max_runs"`
 	MaxCostUSD float64 `json:"max_cost_usd"`
 	MaxSteps   int     `json:"max_steps"`
 }
 
 type goalUsed struct {
-	Turns   int     `json:"turns"`
+	Runs    int     `json:"runs"`
 	CostUSD float64 `json:"cost_usd"`
 	Steps   int     `json:"steps"`
 }
@@ -71,11 +71,11 @@ func (s *GoalStore) Save(ctx context.Context, g goal.Goal, expected goal.Version
 	if err := g.ValidateSnapshot(); err != nil {
 		return goal.Goal{}, false, fmt.Errorf("sqlite: validate goal: %w", err)
 	}
-	budget, err := json.Marshal(goalBudget{MaxTurns: g.Budget.MaxTurns, MaxCostUSD: g.Budget.MaxCostUSD, MaxSteps: g.Budget.MaxSteps})
+	budget, err := json.Marshal(goalBudget{MaxRuns: g.Budget.MaxRuns, MaxCostUSD: g.Budget.MaxCostUSD, MaxSteps: g.Budget.MaxSteps})
 	if err != nil {
 		return goal.Goal{}, false, fmt.Errorf("sqlite: encode goal budget: %w", err)
 	}
-	used, err := json.Marshal(goalUsed{Turns: g.Used.Turns, CostUSD: g.Used.CostUSD, Steps: g.Used.Steps})
+	used, err := json.Marshal(goalUsed{Runs: g.Used.Runs, CostUSD: g.Used.CostUSD, Steps: g.Used.Steps})
 	if err != nil {
 		return goal.Goal{}, false, fmt.Errorf("sqlite: encode goal used: %w", err)
 	}
@@ -111,29 +111,29 @@ func (s *GoalStore) Save(ctx context.Context, g goal.Goal, expected goal.Version
 	return g, true, nil
 }
 
-// RecordTurn records a terminal goal-owned Run and applies its aggregate
-// accounting in one transaction. goal_turns is an immutable idempotency ledger:
+// RecordRun records a terminal goal-owned Run and applies its aggregate
+// accounting in one transaction. goal_runs is an immutable idempotency ledger:
 // a repeated terminal delivery for the same Run cannot charge the Goal twice,
 // while a stale lease is retained as history but never mutates a newer goal.
-func (s *GoalStore) RecordTurn(ctx context.Context, record goal.TurnRecord) error {
+func (s *GoalStore) RecordRun(ctx context.Context, record goal.RunRecord) error {
 	if err := record.Validate(); err != nil {
-		return fmt.Errorf("sqlite: record goal turn: %w", err)
+		return fmt.Errorf("sqlite: record Goal Run: %w", err)
 	}
 	return RunInTx(ctx, s.db, func(ctx context.Context) error {
 		res, err := conn(ctx, s.db).ExecContext(ctx,
-			`INSERT INTO goal_turns(run_id, session_id, lease_id, outcome, cost_usd, steps, completed_at)
+			`INSERT INTO goal_runs(run_id, session_id, lease_id, outcome, cost_usd, steps, completed_at)
 			 VALUES (?, ?, ?, ?, ?, ?, ?)
 			 ON CONFLICT(run_id) DO NOTHING`,
 			record.RunID, record.SessionID, record.LeaseID, record.Outcome.String(), record.CostUSD, record.Steps, record.CompletedAt.UTC().UnixNano())
 		if err != nil {
-			return fmt.Errorf("sqlite: record goal turn: %w", err)
+			return fmt.Errorf("sqlite: record Goal Run: %w", err)
 		}
 		inserted, err := rowsAffected(res)
 		if err != nil {
 			return err
 		}
 		if !inserted {
-			return s.validateExistingTurn(ctx, record)
+			return s.validateExistingRun(ctx, record)
 		}
 
 		g, found, err := s.Get(ctx, record.SessionID)
@@ -144,19 +144,19 @@ func (s *GoalStore) RecordTurn(ctx context.Context, record goal.TurnRecord) erro
 			return nil
 		}
 		expected := g.Version()
-		g.RecordTurn(record)
+		g.RecordRun(record)
 		_, applied, err := s.Save(ctx, g, expected)
 		if err != nil {
 			return err
 		}
 		if !applied {
-			return errors.New("sqlite: record goal turn lost goal ownership")
+			return errors.New("sqlite: record Goal Run lost Goal ownership")
 		}
 		return nil
 	})
 }
 
-func (s *GoalStore) validateExistingTurn(ctx context.Context, record goal.TurnRecord) error {
+func (s *GoalStore) validateExistingRun(ctx context.Context, record goal.RunRecord) error {
 	var (
 		sessionID   string
 		leaseID     string
@@ -167,12 +167,12 @@ func (s *GoalStore) validateExistingTurn(ctx context.Context, record goal.TurnRe
 	)
 	err := conn(ctx, s.db).QueryRowContext(ctx,
 		`SELECT session_id, lease_id, outcome, cost_usd, steps, completed_at
-		   FROM goal_turns
+		   FROM goal_runs
 		  WHERE run_id = ?`,
 		record.RunID,
 	).Scan(&sessionID, &leaseID, &outcome, &costUSD, &steps, &completedAt)
 	if err != nil {
-		return fmt.Errorf("sqlite: inspect existing goal turn for Run %q: %w", record.RunID, err)
+		return fmt.Errorf("sqlite: inspect existing Goal Run %q: %w", record.RunID, err)
 	}
 	if sessionID == record.SessionID && leaseID == record.LeaseID &&
 		outcome == record.Outcome.String() && costUSD == record.CostUSD &&
@@ -181,7 +181,7 @@ func (s *GoalStore) validateExistingTurn(ctx context.Context, record goal.TurnRe
 	}
 	return fmt.Errorf(
 		"%w: Run %q is already bound to a different accounting fact",
-		goal.ErrTurnIdentityConflict,
+		goal.ErrRunIdentityConflict,
 		record.RunID,
 	)
 }
@@ -269,8 +269,8 @@ func scanGoal(row scanRow) (goal.Goal, error) {
 	}
 	g.Status = goal.Status(status)
 	g.Reason.Code = goal.ReasonCode(reasonCode)
-	g.Budget = goal.Budget{MaxTurns: budget.MaxTurns, MaxCostUSD: budget.MaxCostUSD, MaxSteps: budget.MaxSteps}
-	g.Used = goal.Usage{Turns: used.Turns, CostUSD: used.CostUSD, Steps: used.Steps}
+	g.Budget = goal.Budget{MaxRuns: budget.MaxRuns, MaxCostUSD: budget.MaxCostUSD, MaxSteps: budget.MaxSteps}
+	g.Used = goal.Usage{Runs: used.Runs, CostUSD: used.CostUSD, Steps: used.Steps}
 	g.CreatedAt = time.Unix(0, createdAt).UTC()
 	g.UpdatedAt = time.Unix(0, updatedAt).UTC()
 	if err := g.ValidateSnapshot(); err != nil {

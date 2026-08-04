@@ -17,7 +17,7 @@ type modelSelectionKey struct{}
 
 // WithScope returns a context carrying scope. The value is immutable and safe
 // to share across the complete delegation tree.
-func WithScope(ctx context.Context, scope execution.TurnScope) context.Context {
+func WithScope(ctx context.Context, scope execution.ExecutionScope) context.Context {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -25,11 +25,11 @@ func WithScope(ctx context.Context, scope execution.TurnScope) context.Context {
 }
 
 // Scope returns the application scope attached at the root turn boundary.
-func Scope(ctx context.Context) (execution.TurnScope, bool) {
+func Scope(ctx context.Context) (execution.ExecutionScope, bool) {
 	if ctx == nil {
-		return execution.TurnScope{}, false
+		return execution.ExecutionScope{}, false
 	}
-	scope, ok := ctx.Value(scopeKey{}).(execution.TurnScope)
+	scope, ok := ctx.Value(scopeKey{}).(execution.ExecutionScope)
 	return scope, ok
 }
 

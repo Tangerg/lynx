@@ -30,7 +30,7 @@ var ErrClosed = errors.New("runs: coordinator closed")
 // pump explains a run end to end; delivery only presents its canonical events.
 type Coordinator struct {
 	executor     SegmentExecutor
-	turns        TurnControl
+	control      ExecutionControl
 	sessions     SessionLifecycle
 	effects      Effects
 	isolation    IsolationProvider // resolves an isolated session's sandbox copy; nil = isolation off
@@ -66,7 +66,7 @@ type Coordinator struct {
 // cases and the segment supervisor they own.
 type Dependencies struct {
 	Segments   SegmentExecutor
-	Turns      TurnControl
+	Control    ExecutionControl
 	Sessions   SessionLifecycle
 	Effects    Effects
 	Runs       RunProjection
@@ -94,7 +94,7 @@ func NewCoordinator(deps Dependencies) *Coordinator {
 	}
 	return &Coordinator{
 		executor:     deps.Segments,
-		turns:        deps.Turns,
+		control:      deps.Control,
 		sessions:     deps.Sessions,
 		effects:      deps.Effects,
 		runs:         deps.Runs,
@@ -146,16 +146,16 @@ func (c *Coordinator) openSegment(reqCtx context.Context, spec segmentSpec) (ite
 	taskCtx, release, ok := c.tasks.Attach(reqCtx)
 	if !ok {
 		if !resume {
-			return nil, c.rejectUnadmittedTurn(reqCtx, spec.turnRef(), ErrClosed)
+			return nil, c.rejectUnadmittedExecution(reqCtx, spec.executorRef(), ErrClosed)
 		}
 		return nil, ErrClosed
 	}
 	runCtx, cancel := context.WithCancel(taskCtx)
-	inner, err := c.executor.TurnEvents(runCtx, spec.turnRef())
+	inner, err := c.executor.Events(runCtx, spec.executorRef())
 	if err != nil {
 		cancel()
 		if !resume {
-			err = c.rejectUnadmittedTurn(taskCtx, spec.turnRef(), err)
+			err = c.rejectUnadmittedExecution(taskCtx, spec.executorRef(), err)
 		}
 		release()
 		return nil, err
@@ -168,7 +168,7 @@ func (c *Coordinator) openSegment(reqCtx context.Context, spec segmentSpec) (ite
 	if err != nil {
 		cancel()
 		if !resume {
-			err = c.rejectUnadmittedTurn(taskCtx, spec.turnRef(), err)
+			err = c.rejectUnadmittedExecution(taskCtx, spec.executorRef(), err)
 		}
 		release()
 		return nil, err
@@ -180,7 +180,7 @@ func (c *Coordinator) openSegment(reqCtx context.Context, spec segmentSpec) (ite
 		if err := live.bindExecutorProcess(route.runID, route.source.ProcessID); err != nil {
 			cancel()
 			if !resume {
-				err = c.rejectUnadmittedTurn(taskCtx, spec.turnRef(), err)
+				err = c.rejectUnadmittedExecution(taskCtx, spec.executorRef(), err)
 			}
 			release()
 			return nil, err
@@ -190,7 +190,7 @@ func (c *Coordinator) openSegment(reqCtx context.Context, spec segmentSpec) (ite
 	if err != nil {
 		cancel()
 		if !resume {
-			err = c.rejectUnadmittedTurn(taskCtx, spec.turnRef(), err)
+			err = c.rejectUnadmittedExecution(taskCtx, spec.executorRef(), err)
 		}
 		release()
 		return nil, err
@@ -204,7 +204,7 @@ func (c *Coordinator) openSegment(reqCtx context.Context, spec segmentSpec) (ite
 		SessionID:      spec.SessionID,
 		Cwd:            spec.Cwd,
 		CreatedAt:      spec.CreatedAt,
-		TurnID:         spec.TurnID,
+		ExecutorID:     spec.ExecutorID,
 		ModelSelection: spec.ModelSelection,
 		Capabilities:   spec.effectiveCapabilities(),
 	}, live)
@@ -328,15 +328,15 @@ func (c *Coordinator) event(runID, segmentID string, reduced reduction) Event {
 	}
 }
 
-// rejectUnadmittedTurn tears down a fresh turn that failed before its opening
+// rejectUnadmittedExecution tears down a fresh execution that failed before its opening
 // write-set committed. The rejection cause and teardown failure are both
 // preserved: hiding the latter would report a clean rejection while leaking an
-// executor turn the application never admitted.
-func (c *Coordinator) rejectUnadmittedTurn(ctx context.Context, ref execution.TurnRef, cause error) error {
+// executor the application never admitted.
+func (c *Coordinator) rejectUnadmittedExecution(ctx context.Context, ref execution.ExecutorRef, cause error) error {
 	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), runCleanupTimeout)
 	defer cancel()
-	if err := c.executor.CancelTurn(cleanupCtx, ref); err != nil {
-		cleanupErr := fmt.Errorf("runs: cancel unadmitted turn %q: %w", ref.TurnID, err)
+	if err := c.executor.CancelExecution(cleanupCtx, ref); err != nil {
+		cleanupErr := fmt.Errorf("runs: cancel unadmitted executor %q: %w", ref.ExecutorID, err)
 		return errors.Join(cause, cleanupErr)
 	}
 	return cause

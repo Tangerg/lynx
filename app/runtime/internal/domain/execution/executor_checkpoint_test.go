@@ -23,7 +23,7 @@ func TestExecutorCheckpointValidatesOnlyApplicationEnvelope(t *testing.T) {
 		RootProcessID: "root",
 		Payload:       []byte(`{"executorOwned":"opaque"}`),
 		BuildID:       "sha256:build",
-		Scope: TurnScope{
+		Scope: ExecutionScope{
 			SessionID:   "session-1",
 			Cwd:         "/workspace/project",
 			Isolated:    true,
@@ -84,7 +84,7 @@ func TestExecutorCheckpointValidatesCrossAggregateOwnership(t *testing.T) {
 		RootProcessID: "process-root",
 		Payload:       []byte("opaque"),
 		BuildID:       "build",
-		Scope: TurnScope{
+		Scope: ExecutionScope{
 			SessionID:    "session-1",
 			Cwd:          "/scratch/project",
 			WorkspaceCwd: "/workspace/project",

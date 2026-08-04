@@ -7,7 +7,7 @@
 // transcript with a still-running row. It also runs the non-durable live
 // workspace nudge and terminal boundary maintenance (checkpoint snapshot,
 // title). The fields only the runtime can resolve — an interrupt's process id
-// from the live turn, a terminal run's message watermark — it fills in itself.
+// from live execution, a terminal Run's message watermark — it fills in itself.
 package runsegment
 
 import (
@@ -43,10 +43,10 @@ type ScheduleFiringStore interface {
 	Accept(ctx context.Context, occurrenceID, runID string) error
 }
 
-// GoalTurnStore records the budget charge for a terminal goal-owned Run. It
+// GoalRunRecorder records the budget charge for a terminal goal-owned Run. It
 // runs in the same transaction as terminalizing that Run.
-type GoalTurnStore interface {
-	RecordTurn(ctx context.Context, record goal.TurnRecord) error
+type GoalRunRecorder interface {
+	RecordRun(ctx context.Context, record goal.RunRecord) error
 }
 
 // InterruptStore is the run-segment write side of the open-interrupt registry.
@@ -131,7 +131,7 @@ type Config struct {
 	Interrupts          InterruptStore
 	Sessions            SessionStore
 	ScheduleFirings     ScheduleFiringStore
-	GoalTurns           GoalTurnStore
+	GoalRuns            GoalRunRecorder
 	Transcript          TranscriptStore
 	ItemReplacer        ItemReplacer
 	ToolResults         ToolResultStore
@@ -151,7 +151,7 @@ type Effects struct {
 	interrupts          InterruptStore
 	sessions            SessionStore
 	scheduleFirings     ScheduleFiringStore
-	goalTurns           GoalTurnStore
+	goalRuns            GoalRunRecorder
 	transcript          TranscriptStore
 	itemReplacer        ItemReplacer
 	toolResults         ToolResultStore
@@ -175,7 +175,7 @@ func New(cfg Config) *Effects {
 		interrupts:          cfg.Interrupts,
 		sessions:            cfg.Sessions,
 		scheduleFirings:     cfg.ScheduleFirings,
-		goalTurns:           cfg.GoalTurns,
+		goalRuns:            cfg.GoalRuns,
 		transcript:          cfg.Transcript,
 		itemReplacer:        cfg.ItemReplacer,
 		toolResults:         cfg.ToolResults,

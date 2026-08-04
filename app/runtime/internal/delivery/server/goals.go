@@ -88,7 +88,7 @@ func mapGoalErr(err error, method string) error {
 }
 
 func budgetFromWire(b protocol.GoalBudget) goal.Budget {
-	return goal.Budget{MaxTurns: b.MaxTurns, MaxCostUSD: b.MaxCostUsd, MaxSteps: b.MaxSteps}
+	return goal.Budget{MaxRuns: b.MaxRuns, MaxCostUSD: b.MaxCostUsd, MaxSteps: b.MaxSteps}
 }
 
 func presentGoal(g goal.Goal) (*protocol.Goal, error) {
@@ -107,8 +107,8 @@ func presentGoal(g goal.Goal) (*protocol.Goal, error) {
 		Reason:    reason,
 		Provider:  g.ModelSelection.Provider(),
 		Model:     g.ModelSelection.Model(),
-		Budget:    protocol.GoalBudget{MaxTurns: g.Budget.MaxTurns, MaxCostUsd: g.Budget.MaxCostUSD, MaxSteps: g.Budget.MaxSteps},
-		Used:      protocol.GoalUsage{Turns: g.Used.Turns, CostUsd: g.Used.CostUSD, Steps: g.Used.Steps},
+		Budget:    protocol.GoalBudget{MaxRuns: g.Budget.MaxRuns, MaxCostUsd: g.Budget.MaxCostUSD, MaxSteps: g.Budget.MaxSteps},
+		Used:      protocol.GoalUsage{Runs: g.Used.Runs, CostUsd: g.Used.CostUSD, Steps: g.Used.Steps},
 		CreatedAt: g.CreatedAt,
 		UpdatedAt: g.UpdatedAt,
 	}
@@ -145,8 +145,8 @@ func presentGoalReason(reason goal.Reason) (*protocol.GoalReason, error) {
 		code = protocol.GoalReasonTerminalOutcomeMissing
 	case goal.ReasonRunNotCompleted:
 		code = protocol.GoalReasonRunNotCompleted
-	case goal.ReasonTurnBudgetReached:
-		code = protocol.GoalReasonTurnBudgetReached
+	case goal.ReasonRunBudgetReached:
+		code = protocol.GoalReasonRunBudgetReached
 	case goal.ReasonCostBudgetReached:
 		code = protocol.GoalReasonCostBudgetReached
 	case goal.ReasonStepBudgetReached:

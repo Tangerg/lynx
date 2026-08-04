@@ -26,7 +26,7 @@ type EventCommit struct {
 	Outcome   execution.Outcome
 	Items     []transcript.Item
 	Run       *transcript.Run
-	GoalTurn  *goal.TurnRecord
+	GoalRun   *goal.RunRecord
 	// ObsoleteCheckpointRootID identifies the executor checkpoint aggregate the
 	// root Run terminal makes obsolete. Child terminal commits leave it empty.
 	ObsoleteCheckpointRootID string
@@ -60,7 +60,7 @@ func (c EventCommit) Validate() error {
 
 	switch c.State {
 	case StateUnchanged:
-		if c.Run != nil || c.GoalTurn != nil || c.ObsoleteCheckpointRootID != "" {
+		if c.Run != nil || c.GoalRun != nil || c.ObsoleteCheckpointRootID != "" {
 			return errors.New("runs: unchanged event commit carries lifecycle facts")
 		}
 		return nil
@@ -68,7 +68,7 @@ func (c EventCommit) Validate() error {
 		if c.Run == nil || c.Run.State != execution.Interrupted {
 			return errors.New("runs: suspend event commit has no interrupted Run")
 		}
-		if c.GoalTurn != nil || c.ObsoleteCheckpointRootID != "" {
+		if c.GoalRun != nil || c.ObsoleteCheckpointRootID != "" {
 			return errors.New("runs: suspend event commit carries terminal facts")
 		}
 	case StateTerminalize:
@@ -95,33 +95,33 @@ func (c EventCommit) Validate() error {
 	if c.State == StateSuspend {
 		return nil
 	}
-	return validateTerminalGoalTurn(*c.Run, c.GoalTurn)
+	return validateTerminalGoalRun(*c.Run, c.GoalRun)
 }
 
-func validateTerminalGoalTurn(run transcript.Run, turn *goal.TurnRecord) error {
+func validateTerminalGoalRun(run transcript.Run, record *goal.RunRecord) error {
 	if run.GoalLeaseID == "" {
-		if turn != nil {
-			return fmt.Errorf("runs: non-Goal Run %q carries a Goal turn", run.ID)
+		if record != nil {
+			return fmt.Errorf("runs: non-Goal Run %q carries a Goal Run", run.ID)
 		}
 		return nil
 	}
 	if !run.Lineage().IsRoot() {
 		return fmt.Errorf("runs: child Run %q carries a root Goal lease", run.ID)
 	}
-	if turn == nil {
-		return fmt.Errorf("runs: Goal-owned terminal Run %q has no Goal turn", run.ID)
+	if record == nil {
+		return fmt.Errorf("runs: Goal-owned terminal Run %q has no Goal Run", run.ID)
 	}
-	if err := turn.Validate(); err != nil {
-		return fmt.Errorf("runs: terminal Goal turn: %w", err)
+	if err := record.Validate(); err != nil {
+		return fmt.Errorf("runs: terminal Goal Run: %w", err)
 	}
 	costUSD := 0.0
 	if run.Metrics.Usage != nil && run.Metrics.Usage.CostUSD != nil {
 		costUSD = *run.Metrics.Usage.CostUSD
 	}
-	if run.Outcome == nil || turn.SessionID != run.SessionID || turn.LeaseID != run.GoalLeaseID ||
-		turn.RunID != run.ID || turn.Outcome != *run.Outcome || turn.CostUSD != costUSD ||
-		turn.Steps != run.Metrics.Steps || !turn.CompletedAt.Equal(run.FinishedAt) {
-		return fmt.Errorf("runs: Goal turn differs from terminal Run %q", run.ID)
+	if run.Outcome == nil || record.SessionID != run.SessionID || record.LeaseID != run.GoalLeaseID ||
+		record.RunID != run.ID || record.Outcome != *run.Outcome || record.CostUSD != costUSD ||
+		record.Steps != run.Metrics.Steps || !record.CompletedAt.Equal(run.FinishedAt) {
+		return fmt.Errorf("runs: Goal Run differs from terminal Run %q", run.ID)
 	}
 	return nil
 }
@@ -129,7 +129,7 @@ func validateTerminalGoalTurn(run transcript.Run, turn *goal.TurnRecord) error {
 func (c EventCommit) isEmpty() bool {
 	return len(c.Items) == 0 &&
 		c.Run == nil &&
-		c.GoalTurn == nil &&
+		c.GoalRun == nil &&
 		c.ObsoleteCheckpointRootID == "" &&
 		c.State == StateUnchanged
 }

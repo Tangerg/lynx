@@ -18,7 +18,7 @@ type SearchHit struct {
 
 // SearchableText returns the conversation text of item to full-text index and
 // whether item is one whose text belongs in session search. Only the
-// human-readable conversation turns — user and agent messages — are indexed;
+// human-readable message exchanges — user and agent messages — are indexed;
 // reasoning, plans, tool calls, questions, and compaction summaries are noise
 // for a "did we discuss X" recall over past sessions. The text is drawn from
 // the item's content blocks, where message text lives (the runs reducer stores

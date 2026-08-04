@@ -60,7 +60,7 @@ func Open(path string) (*sql.DB, error) {
 // schemaEpoch identifies the one storage shape this build understands. It is an
 // epoch rather than a version because nothing connects two values: a database
 // stamped with any other number is refused, never upgraded.
-const schemaEpoch = 56
+const schemaEpoch = 57
 
 func installCurrentSchema(db *sql.DB, path string) error {
 	var epoch int
@@ -189,7 +189,7 @@ func installCurrentSchema(db *sql.DB, path string) error {
 		`CREATE TABLE IF NOT EXISTS interrupts (
 			root_run_id        TEXT    PRIMARY KEY,
 			session_id         TEXT    NOT NULL,
-			turn_id            TEXT    NOT NULL,
+			executor_id        TEXT    NOT NULL,
 			goal_lease_id      TEXT    NOT NULL DEFAULT '',
 			-- Derived from the root Continuation and checked again on decode. It
 			-- exists as a relational key so two pending sets cannot claim the same
@@ -359,8 +359,8 @@ func installCurrentSchema(db *sql.DB, path string) error {
 		)`,
 		// One immutable row per terminal goal-owned Run. This is not a cache of
 		// Goal.Used: it is the idempotency identity that lets terminal Run state
-		// and cross-turn budget accounting commit as one fact.
-		`CREATE TABLE IF NOT EXISTS goal_turns (
+		// and cross-Run budget accounting commit as one fact.
+		`CREATE TABLE IF NOT EXISTS goal_runs (
 				run_id       TEXT    PRIMARY KEY,
 				session_id   TEXT    NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
 				lease_id     TEXT    NOT NULL,
@@ -369,8 +369,8 @@ func installCurrentSchema(db *sql.DB, path string) error {
 			steps        INTEGER NOT NULL,
 			completed_at INTEGER NOT NULL
 		)`,
-		`CREATE INDEX IF NOT EXISTS idx_goal_turns_session
-			ON goal_turns(session_id, lease_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_goal_runs_session
+			ON goal_runs(session_id, lease_id)`,
 		// Persistent fine-grained approval rules (AUX_API §6). id is
 		// deterministic over (scope, scope_key, tool, subject) so re-remembering
 		// the same rule upserts the decision; scope_key is the session id /

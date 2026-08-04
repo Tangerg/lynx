@@ -1,7 +1,7 @@
 // Package transcript defines the canonical execution transcript and the
 // run-timeline boundary invariant used by history, rollback, and fork. The
-// records are transport-neutral domain values; persistence and protocol
-// projection are adapter concerns.
+// records are transport-neutral domain values; persistence and presentation
+// are concerns outside this package.
 package transcript
 
 import (
@@ -13,18 +13,17 @@ import (
 
 // --- run timeline (the rollback / fork boundary invariant) ---
 //
-// A session's runs form a wall-clock timeline: each turn opens with a ROOT run
-// (a runs.start), optionally interleaved with subagent runs it spawns (carrying
+// A Session's Runs form a wall-clock timeline: each root Run opens one execution,
+// optionally interleaved with subagent Runs it spawns (carrying
 // a SpawnedByItemID). A run's resume continuations are NOT separate nodes — they
 // share the run's stable id and collapse into its one record. sessions.rollback
 // and sessions.fork both cut this timeline at a run boundary — keeping a run
 // (with its subagents) and dropping/copying from the next root on. That boundary
-// math is a domain invariant of the run log, so it lives here (wire-free) rather
-// than in the protocol adapter; adapters only map these canonical values and
-// sentinels to their external representation. See
+// math is a domain invariant of the Run log, so it lives here; callers only map
+// these canonical values and sentinels to their external representation. See
 // doc/EXECUTION_CENTERED_ARCHITECTURE.md.
 
-// Boundary-resolution errors. The adapter maps them to protocol errors.
+// Boundary-resolution errors.
 var (
 	// ErrRunNotFound means the boundary run id isn't in the timeline.
 	ErrRunNotFound = errors.New("run not found in timeline")
@@ -37,16 +36,16 @@ var (
 type RunNode struct {
 	ID              string
 	SpawnedByItemID string    // non-empty: a subagent run
-	CreatedAt       time.Time // wall-clock turn order
+	CreatedAt       time.Time // wall-clock Run order
 	Mark            int       // chat history message watermark; -1 when unknown
 }
 
-// IsRoot reports whether the run opens a turn (a runs.start) rather than a
-// subagent run.
+// IsRoot reports whether the Run opens an execution rather than representing a
+// delegated child.
 func (n RunNode) IsRoot() bool { return n.SpawnedByItemID == "" }
 
 // Timeline is the domain view of a session's run log. It owns boundary math for
-// fork/rollback: callers lift wire/store records into [RunNode] values, then
+// fork/rollback: callers lift source records into [RunNode] values, then
 // ask the timeline where the inclusive-keep split lands.
 type Timeline []RunNode
 
@@ -139,7 +138,7 @@ func (tl Timeline) BoundaryAt(runID string, requireRoot bool) (Boundary, error) 
 			}, nil
 		}
 	}
-	// No root run after runID — its turn (incl. subagents) is the latest, so
+	// No root Run after runID — its tree is the latest, so
 	// there is nothing to drop / everything up to it is copied.
 	return Boundary{KeepMark: t[len(t)-1].Mark, KeepRunID: t[len(t)-1].ID}, nil
 }

@@ -14,7 +14,7 @@ func TestTurnInstallsChildAdmissionOnlyWhenExplicitlyEnabled(t *testing.T) {
 		if err != nil {
 			t.Fatalf("New: %v", err)
 		}
-		handle, err := controller.StartTurn(t.Context(), runs.StartTurn{
+		handle, err := controller.StartTurn(t.Context(), runs.StartExecution{
 			SessionID:                "session",
 			Message:                  "hello",
 			ChildRunAdmissionEnabled: enabled,

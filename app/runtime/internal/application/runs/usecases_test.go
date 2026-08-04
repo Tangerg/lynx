@@ -94,26 +94,26 @@ func (f *fakeRunSessions) ApplyRunLost(_ context.Context, _ string, runID string
 	return nil
 }
 
-type fakeTurnControl struct {
-	validated      StartTurn
-	started        StartTurn
-	startTurn      execution.TurnRef
-	prepared       execution.TurnRef
+type fakeExecutionControl struct {
+	validated      StartExecution
+	started        StartExecution
+	startRef       execution.ExecutorRef
+	prepared       execution.ExecutorRef
 	prepareErr     error
-	rehydrated     execution.TurnRef
-	rehydrateReq   RehydrateTurn
+	rehydrated     execution.ExecutorRef
+	rehydrateReq   RehydrateExecution
 	rehydrateErr   error
 	resumeCheck    func()
 	activateCheck  func()
 	activated      bool
 	resumed        bool
-	canceled       []execution.TurnRef
-	steered        []execution.TurnRef
+	canceled       []execution.ExecutorRef
+	steered        []execution.ExecutorRef
 	steerInput     []transcript.ContentBlock
 	operations     *[]string
 	cancelErr      error
-	cancelSubtree  func(execution.TurnRef, string) error
-	prepareWaiting func(execution.TurnRef, string) (PreparedWaitingSubtreeCancellation, error)
+	cancelSubtree  func(execution.ExecutorRef, string) error
+	prepareWaiting func(execution.ExecutorRef, string) (PreparedWaitingSubtreeCancellation, error)
 }
 
 type blockingOpeningEffects struct {
@@ -135,17 +135,17 @@ func (e *blockingOpeningEffects) CommitOpening(
 	return e.fakeEffects.CommitOpening(ctx, opening)
 }
 
-func (f *fakeTurnControl) ValidateStart(req StartTurn) error {
+func (f *fakeExecutionControl) ValidateStart(req StartExecution) error {
 	f.validated = req
 	return nil
 }
 
-func (f *fakeTurnControl) PrepareStart(_ context.Context, req StartTurn) (execution.TurnRef, error) {
+func (f *fakeExecutionControl) PrepareStart(_ context.Context, req StartExecution) (execution.ExecutorRef, error) {
 	f.started = req
-	return f.startTurn, nil
+	return f.startRef, nil
 }
 
-func (f *fakeTurnControl) Activate(context.Context, execution.TurnRef) error {
+func (f *fakeExecutionControl) Activate(context.Context, execution.ExecutorRef) error {
 	if f.activateCheck != nil {
 		f.activateCheck()
 	}
@@ -153,11 +153,11 @@ func (f *fakeTurnControl) Activate(context.Context, execution.TurnRef) error {
 	return nil
 }
 
-func (f *fakeTurnControl) Prepare(context.Context, execution.TurnRef) (execution.TurnRef, error) {
+func (f *fakeExecutionControl) Prepare(context.Context, execution.ExecutorRef) (execution.ExecutorRef, error) {
 	return f.prepared, f.prepareErr
 }
 
-func (f *fakeTurnControl) Resume(context.Context, execution.TurnRef, []interrupts.SuspensionAnswer, []execution.InterruptKind) error {
+func (f *fakeExecutionControl) Resume(context.Context, execution.ExecutorRef, []interrupts.SuspensionAnswer, []execution.InterruptKind) error {
 	if f.resumeCheck != nil {
 		f.resumeCheck()
 	}
@@ -165,22 +165,22 @@ func (f *fakeTurnControl) Resume(context.Context, execution.TurnRef, []interrupt
 	return nil
 }
 
-func (f *fakeTurnControl) Rehydrate(_ context.Context, request RehydrateTurn) (execution.TurnRef, error) {
+func (f *fakeExecutionControl) Rehydrate(_ context.Context, request RehydrateExecution) (execution.ExecutorRef, error) {
 	f.rehydrateReq = request
 	return f.rehydrated, f.rehydrateErr
 }
 
-func (f *fakeTurnControl) CancelTurn(_ context.Context, ref execution.TurnRef) error {
+func (f *fakeExecutionControl) CancelExecution(_ context.Context, ref execution.ExecutorRef) error {
 	if f.operations != nil {
-		*f.operations = append(*f.operations, "turn.cancel")
+		*f.operations = append(*f.operations, "execution.cancel")
 	}
 	f.canceled = append(f.canceled, ref)
 	return f.cancelErr
 }
 
-func (f *fakeTurnControl) CancelSubtree(_ context.Context, ref execution.TurnRef, processID string) error {
+func (f *fakeExecutionControl) CancelSubtree(_ context.Context, ref execution.ExecutorRef, processID string) error {
 	if f.operations != nil {
-		*f.operations = append(*f.operations, "turn.cancel_subtree:"+processID)
+		*f.operations = append(*f.operations, "execution.cancel_subtree:"+processID)
 	}
 	f.canceled = append(f.canceled, ref)
 	if f.cancelSubtree != nil {
@@ -189,30 +189,30 @@ func (f *fakeTurnControl) CancelSubtree(_ context.Context, ref execution.TurnRef
 	return f.cancelErr
 }
 
-func (f *fakeTurnControl) PrepareWaitingSubtreeCancellation(
+func (f *fakeExecutionControl) PrepareWaitingSubtreeCancellation(
 	_ context.Context,
-	ref execution.TurnRef,
+	ref execution.ExecutorRef,
 	processID string,
 ) (PreparedWaitingSubtreeCancellation, error) {
 	if f.prepareWaiting == nil {
-		return PreparedWaitingSubtreeCancellation{}, errors.New("fake turn control: waiting subtree cancellation is not configured")
+		return PreparedWaitingSubtreeCancellation{}, errors.New("fake execution control: waiting subtree cancellation is not configured")
 	}
 	return f.prepareWaiting(ref, processID)
 }
 
-func (f *fakeTurnControl) Steer(_ context.Context, ref execution.TurnRef, input []transcript.ContentBlock) error {
+func (f *fakeExecutionControl) Steer(_ context.Context, ref execution.ExecutorRef, input []transcript.ContentBlock) error {
 	f.steered = append(f.steered, ref)
 	f.steerInput = append([]transcript.ContentBlock(nil), input...)
 	return nil
 }
 
-func newUseCaseCoordinator(exec SegmentExecutor, turns TurnControl, sessions SessionLifecycle, effects Effects) *Coordinator {
+func newUseCaseCoordinator(exec SegmentExecutor, control ExecutionControl, sessions SessionLifecycle, effects Effects) *Coordinator {
 	freshCreatedAt := time.Date(2026, 7, 13, 1, 2, 3, 0, time.UTC)
 	projection := &fakeRunProjection{runs: map[string]transcript.Run{
 		"run_1": runForSegment(testSegment()),
 		"run_new": runForSegment(segmentSpec{
 			RunID: "run_new", SegmentID: "seg_new", SessionID: "ses_1",
-			TurnID: "turn_1", CreatedAt: freshCreatedAt,
+			ExecutorID: "turn_1", CreatedAt: freshCreatedAt,
 		}),
 	}}
 	if fake, ok := sessions.(*fakeRunSessions); ok {
@@ -224,7 +224,7 @@ func newUseCaseCoordinator(exec SegmentExecutor, turns TurnControl, sessions Ses
 	}
 	deps := Dependencies{
 		Segments:     exec,
-		Turns:        turns,
+		Control:      control,
 		Sessions:     sessions,
 		Effects:      effects,
 		Runs:         projection,
@@ -246,7 +246,7 @@ func mustUseCaseSelection(provider, model string) modelref.Selection {
 
 func TestWaitSessionStartableResolvesWorkingTreeBoundary(t *testing.T) {
 	sessions := &fakeRunSessions{sess: session.Session{ID: "ses_1", Cwd: "/work"}}
-	c := newUseCaseCoordinator(&fakeExecutor{}, &fakeTurnControl{}, sessions, &fakeEffects{})
+	c := newUseCaseCoordinator(&fakeExecutor{}, &fakeExecutionControl{}, sessions, &fakeEffects{})
 	release, ok := c.admission.AcquireWorkingTreeMutation("/work")
 	if !ok {
 		t.Fatal("acquire working-tree mutation")
@@ -274,10 +274,10 @@ func TestStartOwnsCompleteAdmissionSequence(t *testing.T) {
 	exec := &fakeExecutor{}
 	effects := &fakeEffects{}
 	sessions := &fakeRunSessions{sess: session.Session{ID: "ses_1", Cwd: "/work"}}
-	turns := &fakeTurnControl{startTurn: execution.TurnRef{SessionID: "ses_1", TurnID: "turn_1"}}
+	control := &fakeExecutionControl{startRef: execution.ExecutorRef{SessionID: "ses_1", ExecutorID: "turn_1"}}
 	activatedAfterOpening := false
-	turns.activateCheck = func() { activatedAfterOpening = effects.opening().Admit != nil }
-	c := newUseCaseCoordinator(exec, turns, sessions, effects)
+	control.activateCheck = func() { activatedAfterOpening = effects.opening().Admit != nil }
+	c := newUseCaseCoordinator(exec, control, sessions, effects)
 
 	result, err := c.Start(context.Background(), StartCommand{
 		SessionID:      "ses_1",
@@ -294,18 +294,18 @@ func TestStartOwnsCompleteAdmissionSequence(t *testing.T) {
 	if result.RunID != "run_new" || result.SegmentID != "seg_new" || result.SessionID != "ses_1" {
 		t.Fatalf("result = %+v", result)
 	}
-	if turns.started.SessionID != "ses_1" || turns.started.Cwd != "/work" || turns.started.WorkspaceCwd != "/work" {
-		t.Fatalf("started turn = %+v", turns.started)
+	if control.started.SessionID != "ses_1" || control.started.Cwd != "/work" || control.started.WorkspaceCwd != "/work" {
+		t.Fatalf("started turn = %+v", control.started)
 	}
 	wantLimits := execution.RunLimits{MaxTotalTokens: 16_384, MaxSteps: 12, MaxBudgetUSD: 3.5}
-	if turns.started.Limits != wantLimits {
-		t.Fatalf("executor limits = %+v, want %+v", turns.started.Limits, wantLimits)
+	if control.started.Limits != wantLimits {
+		t.Fatalf("executor limits = %+v, want %+v", control.started.Limits, wantLimits)
 	}
-	if !turns.validated.ChildRunAdmissionEnabled || !turns.started.ChildRunAdmissionEnabled {
-		t.Fatalf("child admission policy did not reach the executor: validated=%+v started=%+v", turns.validated, turns.started)
+	if !control.validated.ChildRunAdmissionEnabled || !control.started.ChildRunAdmissionEnabled {
+		t.Fatalf("child admission policy did not reach the executor: validated=%+v started=%+v", control.validated, control.started)
 	}
-	if !turns.activated || !activatedAfterOpening {
-		t.Fatalf("activated=%v activatedAfterOpening=%v", turns.activated, activatedAfterOpening)
+	if !control.activated || !activatedAfterOpening {
+		t.Fatalf("activated=%v activatedAfterOpening=%v", control.activated, activatedAfterOpening)
 	}
 	if opening := effects.opening(); opening.Admit == nil || opening.Admit.RunID != "run_new" {
 		t.Fatalf("opening = %+v, want fresh run admission", opening)
@@ -320,8 +320,8 @@ func TestStartSeparatesIsolatedExecutionDirFromPersistentWorkspace(t *testing.T)
 	exec := &fakeExecutor{}
 	effects := &fakeEffects{}
 	sessions := &fakeRunSessions{sess: session.Session{ID: "ses_1", Cwd: "/work", Isolated: true}}
-	turns := &fakeTurnControl{startTurn: execution.TurnRef{SessionID: "ses_1", TurnID: "turn_1"}}
-	c := newUseCaseCoordinator(exec, turns, sessions, effects)
+	control := &fakeExecutionControl{startRef: execution.ExecutorRef{SessionID: "ses_1", ExecutorID: "turn_1"}}
+	c := newUseCaseCoordinator(exec, control, sessions, effects)
 	c.isolation = &stubIsolation{path: "/sandbox/copy"}
 
 	result, err := c.Start(t.Context(), StartCommand{
@@ -333,8 +333,8 @@ func TestStartSeparatesIsolatedExecutionDirFromPersistentWorkspace(t *testing.T)
 	}
 	for range result.Events {
 	}
-	if turns.started.Cwd != "/sandbox/copy" || turns.started.WorkspaceCwd != "/work" || !turns.started.Isolated {
-		t.Fatalf("started turn scope = %+v", turns.started)
+	if control.started.Cwd != "/sandbox/copy" || control.started.WorkspaceCwd != "/work" || !control.started.Isolated {
+		t.Fatalf("started turn scope = %+v", control.started)
 	}
 }
 
@@ -343,14 +343,14 @@ func TestStartDoesNotActivateRejectedAdmission(t *testing.T) {
 	openingErr := errors.New("opening commit failed")
 	effects := &fakeEffects{openingErr: openingErr}
 	sessions := &fakeRunSessions{sess: session.Session{ID: "ses_1", Cwd: "/work"}}
-	turns := &fakeTurnControl{startTurn: execution.TurnRef{SessionID: "ses_1", TurnID: "turn_1"}}
-	c := newUseCaseCoordinator(exec, turns, sessions, effects)
+	control := &fakeExecutionControl{startRef: execution.ExecutorRef{SessionID: "ses_1", ExecutorID: "turn_1"}}
+	c := newUseCaseCoordinator(exec, control, sessions, effects)
 
 	_, err := c.Start(t.Context(), StartCommand{SessionID: "ses_1", Input: []transcript.ContentBlock{{Kind: transcript.TextContent, Text: "hello"}}})
 	if !errors.Is(err, openingErr) {
 		t.Fatalf("Start error = %v, want opening failure", err)
 	}
-	if turns.activated {
+	if control.activated {
 		t.Fatal("rejected admission activated the prepared turn")
 	}
 	if exec.cancels() != 1 {
@@ -367,16 +367,16 @@ func TestStartRejectsPartialScheduledIdentityBeforeSideEffects(t *testing.T) {
 	} {
 		t.Run("partial", func(t *testing.T) {
 			exec := &fakeExecutor{}
-			turns := &fakeTurnControl{}
+			control := &fakeExecutionControl{}
 			effects := &fakeEffects{}
 			sessions := &fakeRunSessions{sess: session.Session{ID: "ses_existing", Cwd: "/work"}}
 			command.Input = []transcript.ContentBlock{{Kind: transcript.TextContent, Text: "hello"}}
-			_, err := newUseCaseCoordinator(exec, turns, sessions, effects).Start(t.Context(), command)
+			_, err := newUseCaseCoordinator(exec, control, sessions, effects).Start(t.Context(), command)
 			if !errors.Is(err, ErrInvalidScheduledStart) {
 				t.Fatalf("Start error = %v, want ErrInvalidScheduledStart", err)
 			}
-			if turns.started.SessionID != "" || len(effects.openings) != 0 {
-				t.Fatalf("partial scheduled identity reached side effects: turn=%+v openings=%d", turns.started, len(effects.openings))
+			if control.started.SessionID != "" || len(effects.openings) != 0 {
+				t.Fatalf("partial scheduled identity reached side effects: turn=%+v openings=%d", control.started, len(effects.openings))
 			}
 		})
 	}
@@ -390,8 +390,8 @@ func TestFastStartReleaseCannotCrossTerminalMaintenance(t *testing.T) {
 	}
 	effects := &fakeEffects{finishStarted: finishStarted, finishRelease: releaseFinish}
 	c := newUseCaseCoordinator(
-		&fakeExecutor{events: []ExecutorPayload{TurnEnd{Reason: execution.OutcomeCompleted}}},
-		&fakeTurnControl{startTurn: execution.TurnRef{SessionID: "ses_1", TurnID: "turn_1"}},
+		&fakeExecutor{events: []ExecutorPayload{SegmentEnded{Reason: execution.OutcomeCompleted}}},
+		&fakeExecutionControl{startRef: execution.ExecutorRef{SessionID: "ses_1", ExecutorID: "turn_1"}},
 		sessions,
 		effects,
 	)
@@ -436,15 +436,15 @@ func TestStartRejectsForeignTurnIdentityAndCleansItUp(t *testing.T) {
 	exec := &fakeExecutor{}
 	effects := &fakeEffects{}
 	sessions := &fakeRunSessions{sess: session.Session{ID: "ses_1", Cwd: "/work"}}
-	turns := &fakeTurnControl{startTurn: execution.TurnRef{SessionID: "ses_foreign", TurnID: "turn_1"}}
-	c := newUseCaseCoordinator(exec, turns, sessions, effects)
+	control := &fakeExecutionControl{startRef: execution.ExecutorRef{SessionID: "ses_foreign", ExecutorID: "turn_1"}}
+	c := newUseCaseCoordinator(exec, control, sessions, effects)
 
 	_, err := c.Start(context.Background(), StartCommand{SessionID: "ses_1", Input: []transcript.ContentBlock{{Kind: transcript.TextContent, Text: "hello"}}})
-	if !errors.Is(err, execution.ErrInvalidTurnRef) {
-		t.Fatalf("Start error = %v, want ErrInvalidTurnRef", err)
+	if !errors.Is(err, execution.ErrInvalidExecutorRef) {
+		t.Fatalf("Start error = %v, want ErrInvalidExecutorRef", err)
 	}
-	if len(turns.canceled) != 1 || turns.canceled[0] != turns.startTurn {
-		t.Fatalf("canceled turns = %+v, want invalid started turn", turns.canceled)
+	if len(control.canceled) != 1 || control.canceled[0] != control.startRef {
+		t.Fatalf("canceled control = %+v, want invalid started turn", control.canceled)
 	}
 	if _, ok := c.registry.Get("run_new"); len(effects.openings) != 0 || ok {
 		t.Fatal("invalid turn identity reached run admission")
@@ -460,10 +460,10 @@ func TestResumeCommitsOpeningBeforeActivation(t *testing.T) {
 			"run_1": testPendingInterrupt("item_1", "proc_1", createdAt),
 		},
 	}
-	turns := &fakeTurnControl{prepared: execution.TurnRef{SessionID: "ses_1", TurnID: "turn_1"}}
+	control := &fakeExecutionControl{prepared: execution.ExecutorRef{SessionID: "ses_1", ExecutorID: "turn_1"}}
 	activatedAfterOpening := false
-	turns.resumeCheck = func() { activatedAfterOpening = effects.opening().Resume != nil }
-	c := newUseCaseCoordinator(&fakeExecutor{}, turns, sessions, effects)
+	control.resumeCheck = func() { activatedAfterOpening = effects.opening().Resume != nil }
+	c := newUseCaseCoordinator(&fakeExecutor{}, control, sessions, effects)
 
 	result, err := c.Resume(context.Background(), ResumeCommand{
 		RunID: "run_1",
@@ -480,8 +480,8 @@ func TestResumeCommitsOpeningBeforeActivation(t *testing.T) {
 	}
 	for range result.Events {
 	}
-	if !turns.resumed || !activatedAfterOpening {
-		t.Fatalf("resumed=%v activatedAfterOpening=%v", turns.resumed, activatedAfterOpening)
+	if !control.resumed || !activatedAfterOpening {
+		t.Fatalf("resumed=%v activatedAfterOpening=%v", control.resumed, activatedAfterOpening)
 	}
 	if opening := effects.opening(); opening.Resume == nil || opening.Resume.RootRunID != "run_1" {
 		t.Fatalf("opening = %+v, want resume run_1", opening)
@@ -500,12 +500,12 @@ func TestResumeRejectsContinuationFactDriftBeforeExecutorPreparation(t *testing.
 			pending.RootRunID: pending,
 		},
 	}
-	turns := &fakeTurnControl{prepared: execution.TurnRef{
-		SessionID: pending.SessionID,
-		TurnID:    pending.TurnID,
+	control := &fakeExecutionControl{prepared: execution.ExecutorRef{
+		SessionID:  pending.SessionID,
+		ExecutorID: pending.ExecutorID,
 	}}
 	effects := &fakeEffects{}
-	coordinator := newUseCaseCoordinator(&fakeExecutor{}, turns, sessions, effects)
+	coordinator := newUseCaseCoordinator(&fakeExecutor{}, control, sessions, effects)
 	contradictory := runForPending(pending)
 	contradictory.Metrics.Steps++
 	coordinator.runs = &fakeRunProjection{runs: map[string]transcript.Run{
@@ -523,8 +523,8 @@ func TestResumeRejectsContinuationFactDriftBeforeExecutorPreparation(t *testing.
 	if err == nil {
 		t.Fatal("Resume accepted cumulative metrics that differ from the durable Run")
 	}
-	if turns.resumed || turns.rehydrateReq.ProcessID != "" || len(effects.openings) != 0 {
-		t.Fatalf("contradictory continuation reached executor/effects: turns=%+v openings=%d", turns, len(effects.openings))
+	if control.resumed || control.rehydrateReq.ProcessID != "" || len(effects.openings) != 0 {
+		t.Fatalf("contradictory continuation reached executor/effects: control=%+v openings=%d", control, len(effects.openings))
 	}
 	if _, found := sessions.pending[pending.RootRunID]; !found {
 		t.Fatal("failed validation consumed the open Pending set")
@@ -540,8 +540,8 @@ func TestResumeAndRootCancelShareOneApplicationAdmissionBoundary(t *testing.T) {
 			"run_1": pending,
 		},
 	}
-	turns := &fakeTurnControl{
-		prepared: execution.TurnRef{SessionID: "ses_1", TurnID: "turn_1"},
+	control := &fakeExecutionControl{
+		prepared: execution.ExecutorRef{SessionID: "ses_1", ExecutorID: "turn_1"},
 	}
 	openingStarted := make(chan struct{}, 1)
 	releaseOpening := make(chan struct{})
@@ -550,7 +550,7 @@ func TestResumeAndRootCancelShareOneApplicationAdmissionBoundary(t *testing.T) {
 		started:     openingStarted,
 		release:     releaseOpening,
 	}
-	c := newUseCaseCoordinator(&fakeExecutor{}, turns, sessions, effects)
+	c := newUseCaseCoordinator(&fakeExecutor{}, control, sessions, effects)
 	c.runs = &fakeRunProjection{runs: map[string]transcript.Run{
 		"run_1": runForPending(pending),
 	}}
@@ -599,7 +599,7 @@ func TestResumeAndRootCancelShareOneApplicationAdmissionBoundary(t *testing.T) {
 	}
 	for range outcome.result.Events {
 	}
-	if !turns.resumed {
+	if !control.resumed {
 		t.Fatal("winning resume did not activate its continuation")
 	}
 }
@@ -622,8 +622,8 @@ func TestResumeWithInputCommitsTheUserTurnWithTheContinuation(t *testing.T) {
 				"run_1": testPendingInterrupt("item_1", "proc_1", createdAt),
 			},
 		}
-		turns := &fakeTurnControl{prepared: execution.TurnRef{SessionID: "ses_1", TurnID: "turn_1"}}
-		return effects, newUseCaseCoordinator(&fakeExecutor{}, turns, sessions, effects)
+		control := &fakeExecutionControl{prepared: execution.ExecutorRef{SessionID: "ses_1", ExecutorID: "turn_1"}}
+		return effects, newUseCaseCoordinator(&fakeExecutor{}, control, sessions, effects)
 	}
 	approve := []ResumeResponse{{
 		ItemID: "item_1", Kind: ApprovalResponseKind,
@@ -688,11 +688,11 @@ func TestResumeRecoversLostProcessSnapshotBeforeReturning(t *testing.T) {
 		},
 		operations: &operations,
 	}
-	turns := &fakeTurnControl{
-		prepareErr:   ErrTurnNotLive,
-		rehydrateErr: ErrTurnStateLost,
+	control := &fakeExecutionControl{
+		prepareErr:   ErrExecutorNotLive,
+		rehydrateErr: ErrExecutorStateLost,
 	}
-	c := newUseCaseCoordinator(&fakeExecutor{}, turns, sessions, &fakeEffects{})
+	c := newUseCaseCoordinator(&fakeExecutor{}, control, sessions, &fakeEffects{})
 
 	_, err := c.Resume(t.Context(), ResumeCommand{
 		RunID: "run_1",
@@ -704,7 +704,7 @@ func TestResumeRecoversLostProcessSnapshotBeforeReturning(t *testing.T) {
 			Approval: &ApprovalResponse{Approved: true},
 		}},
 	})
-	if !errors.Is(err, ErrRunNotFound) || !errors.Is(err, ErrTurnStateLost) {
+	if !errors.Is(err, ErrRunNotFound) || !errors.Is(err, ErrExecutorStateLost) {
 		t.Fatalf("Resume error = %v, want run not found wrapping turn state lost", err)
 	}
 	if sessions.lostRunID != "run_1" || sessions.lostAt.IsZero() {
@@ -713,8 +713,8 @@ func TestResumeRecoversLostProcessSnapshotBeforeReturning(t *testing.T) {
 	if len(operations) != 1 || operations[0] != "durable.lost" {
 		t.Fatalf("operations = %v, want one durable lost commit", operations)
 	}
-	if turns.rehydrateReq.Cwd != "/work" {
-		t.Fatalf("rehydrate cwd = %q, want /work", turns.rehydrateReq.Cwd)
+	if control.rehydrateReq.Cwd != "/work" {
+		t.Fatalf("rehydrate cwd = %q, want /work", control.rehydrateReq.Cwd)
 	}
 	if hasActiveSession(c, "ses_1") {
 		t.Fatal("failed resume leaked its run admission")
@@ -740,14 +740,14 @@ func TestResumeRehydrateRestoresChildSourceProjection(t *testing.T) {
 			pending.RootRunID: pending,
 		},
 	}
-	turns := &fakeTurnControl{
-		prepareErr: ErrTurnNotLive,
-		rehydrated: execution.TurnRef{
-			SessionID: pending.SessionID,
-			TurnID:    pending.TurnID,
+	control := &fakeExecutionControl{
+		prepareErr: ErrExecutorNotLive,
+		rehydrated: execution.ExecutorRef{
+			SessionID:  pending.SessionID,
+			ExecutorID: pending.ExecutorID,
 		},
 	}
-	c := newUseCaseCoordinator(&fakeExecutor{}, turns, sessions, &fakeEffects{})
+	c := newUseCaseCoordinator(&fakeExecutor{}, control, sessions, &fakeEffects{})
 	segmentIDs := []string{"segment_root", "segment_grandchild", "segment_a", "segment_b"}
 	c.newSegmentID = func() string {
 		next := segmentIDs[0]
@@ -775,24 +775,24 @@ func TestResumeRehydrateRestoresChildSourceProjection(t *testing.T) {
 	}
 	for range result.Events {
 	}
-	if !turns.rehydrateReq.ChildRunAdmissionEnabled {
-		t.Fatalf("rehydrate request = %+v, want child source projection enabled", turns.rehydrateReq)
+	if !control.rehydrateReq.ChildRunAdmissionEnabled {
+		t.Fatalf("rehydrate request = %+v, want child source projection enabled", control.rehydrateReq)
 	}
-	if turns.rehydrateReq.ProcessID != "process_root" {
-		t.Fatalf("rehydrate process = %q, want process_root", turns.rehydrateReq.ProcessID)
+	if control.rehydrateReq.ProcessID != "process_root" {
+		t.Fatalf("rehydrate process = %q, want process_root", control.rehydrateReq.ProcessID)
 	}
-	if turns.rehydrateReq.GoalLeaseID != pending.GoalLeaseID {
-		t.Fatalf("rehydrate goal lease = %q, want %q", turns.rehydrateReq.GoalLeaseID, pending.GoalLeaseID)
+	if control.rehydrateReq.GoalLeaseID != pending.GoalLeaseID {
+		t.Fatalf("rehydrate goal lease = %q, want %q", control.rehydrateReq.GoalLeaseID, pending.GoalLeaseID)
 	}
 	wantChildRuns := map[string]ChildRunBinding{
 		"process_grandchild": {ProcessID: "process_grandchild", RunID: "run_grandchild", ParentRunID: "run_a"},
 		"process_a":          {ProcessID: "process_a", RunID: "run_a", ParentRunID: "run_1"},
 		"process_b":          {ProcessID: "process_b", RunID: "run_b", ParentRunID: "run_1"},
 	}
-	if len(turns.rehydrateReq.ChildRuns) != len(wantChildRuns) {
-		t.Fatalf("rehydrate child Runs = %+v, want %+v", turns.rehydrateReq.ChildRuns, wantChildRuns)
+	if len(control.rehydrateReq.ChildRuns) != len(wantChildRuns) {
+		t.Fatalf("rehydrate child Runs = %+v, want %+v", control.rehydrateReq.ChildRuns, wantChildRuns)
 	}
-	for _, binding := range turns.rehydrateReq.ChildRuns {
+	for _, binding := range control.rehydrateReq.ChildRuns {
 		if want, ok := wantChildRuns[binding.ProcessID]; !ok || binding != want {
 			t.Fatalf("rehydrate child Run binding = %+v, want one of %+v", binding, wantChildRuns)
 		}
@@ -810,14 +810,14 @@ func TestResumeRehydrateRestoresChildAdmissionBeforeAnyChildExists(t *testing.T)
 			pending.RootRunID: pending,
 		},
 	}
-	turns := &fakeTurnControl{
-		prepareErr: ErrTurnNotLive,
-		rehydrated: execution.TurnRef{
-			SessionID: pending.SessionID,
-			TurnID:    pending.TurnID,
+	control := &fakeExecutionControl{
+		prepareErr: ErrExecutorNotLive,
+		rehydrated: execution.ExecutorRef{
+			SessionID:  pending.SessionID,
+			ExecutorID: pending.ExecutorID,
 		},
 	}
-	c := newUseCaseCoordinator(&fakeExecutor{}, turns, sessions, &fakeEffects{})
+	c := newUseCaseCoordinator(&fakeExecutor{}, control, sessions, &fakeEffects{})
 
 	result, err := c.Resume(t.Context(), ResumeCommand{
 		RunID:              pending.RootRunID,
@@ -838,8 +838,8 @@ func TestResumeRehydrateRestoresChildAdmissionBeforeAnyChildExists(t *testing.T)
 	if len(pending.Continuations) != 1 {
 		t.Fatalf("test fixture has %d continuations, want one root only", len(pending.Continuations))
 	}
-	if !turns.rehydrateReq.ChildRunAdmissionEnabled {
-		t.Fatalf("rehydrate request = %+v, want frozen child policy restored", turns.rehydrateReq)
+	if !control.rehydrateReq.ChildRunAdmissionEnabled {
+		t.Fatalf("rehydrate request = %+v, want frozen child policy restored", control.rehydrateReq)
 	}
 }
 
@@ -854,8 +854,8 @@ func TestResumeRefusesIsolatedRunAfterSandboxProcessEnded(t *testing.T) {
 	}
 	// The process that owned the sandbox copy is gone (Prepare reports the turn as
 	// not live), so a rehydrate would run against the real project tree.
-	turns := &fakeTurnControl{prepareErr: ErrTurnNotLive}
-	c := newUseCaseCoordinator(&fakeExecutor{}, turns, sessions, &fakeEffects{})
+	control := &fakeExecutionControl{prepareErr: ErrExecutorNotLive}
+	c := newUseCaseCoordinator(&fakeExecutor{}, control, sessions, &fakeEffects{})
 
 	_, err := c.Resume(t.Context(), ResumeCommand{
 		RunID: "run_1",
@@ -867,11 +867,11 @@ func TestResumeRefusesIsolatedRunAfterSandboxProcessEnded(t *testing.T) {
 			Approval: &ApprovalResponse{Approved: true},
 		}},
 	})
-	if !errors.Is(err, ErrRunNotFound) || !errors.Is(err, ErrTurnStateLost) {
+	if !errors.Is(err, ErrRunNotFound) || !errors.Is(err, ErrExecutorStateLost) {
 		t.Fatalf("Resume error = %v, want run not found wrapping turn state lost", err)
 	}
-	if turns.rehydrateReq.ProcessID != "" || len(turns.rehydrateReq.ChildRuns) != 0 {
-		t.Fatalf("isolated run was rehydrated against %+v, want no rehydrate", turns.rehydrateReq)
+	if control.rehydrateReq.ProcessID != "" || len(control.rehydrateReq.ChildRuns) != 0 {
+		t.Fatalf("isolated run was rehydrated against %+v, want no rehydrate", control.rehydrateReq)
 	}
 	if sessions.lostRunID != "run_1" || len(operations) != 1 || operations[0] != "durable.lost" {
 		t.Fatalf("lost recovery = %q ops=%v, want run_1 marked lost", sessions.lostRunID, operations)
@@ -896,7 +896,7 @@ func testPendingInterrupt(itemID, processID string, runCreatedAt time.Time) inte
 	return interrupts.Pending{
 		RootRunID:  "run_1",
 		SessionID:  "ses_1",
-		TurnID:     "turn_1",
+		ExecutorID: "turn_1",
 		Interrupts: interruptValues,
 		Capabilities: execution.RunCapabilities{
 			InterruptKinds: []execution.InterruptKind{execution.ApprovalInterrupt},
@@ -954,9 +954,9 @@ func TestCancelParkedRunUsesApplicationAdmission(t *testing.T) {
 		},
 		operations: &operations,
 	}
-	turns := &fakeTurnControl{operations: &operations}
+	control := &fakeExecutionControl{operations: &operations}
 	c := NewCoordinator(Dependencies{
-		Turns: turns, Sessions: sessions,
+		Control: control, Sessions: sessions,
 		Runs: &fakeRunProjection{runs: map[string]transcript.Run{
 			"run_1": runForPending(pending),
 		}},
@@ -970,13 +970,13 @@ func TestCancelParkedRunUsesApplicationAdmission(t *testing.T) {
 	if result.Run.ID != "run_1" || result.Run.State != execution.Canceled {
 		t.Fatalf("Cancel result = %+v, want canceled run_1", result)
 	}
-	if sessions.canceledRunID != "run_1" || len(turns.canceled) != 1 {
-		t.Fatalf("durable cancel=%q turn cancels=%v", sessions.canceledRunID, turns.canceled)
+	if sessions.canceledRunID != "run_1" || len(control.canceled) != 1 {
+		t.Fatalf("durable cancel=%q turn cancels=%v", sessions.canceledRunID, control.canceled)
 	}
 	if sessions.cancelReason != "user stopped" || sessions.canceledAt.IsZero() {
 		t.Fatalf("cancel reason/time = %q/%v, want user reason and terminal time", sessions.cancelReason, sessions.canceledAt)
 	}
-	if len(operations) != 2 || operations[0] != "durable.cancel" || operations[1] != "turn.cancel" {
+	if len(operations) != 2 || operations[0] != "durable.cancel" || operations[1] != "execution.cancel" {
 		t.Fatalf("cancel operations = %v, want durable commit before process cleanup", operations)
 	}
 	if hasActiveSession(c, "ses_1") {
@@ -987,7 +987,7 @@ func TestCancelParkedRunUsesApplicationAdmission(t *testing.T) {
 func TestCancelFinishedRunReportsFinishedInsteadOfNotFound(t *testing.T) {
 	finished := runRecord(execution.Completed, "", "")
 	c := NewCoordinator(Dependencies{
-		Turns:      &fakeTurnControl{},
+		Control:    &fakeExecutionControl{},
 		Sessions:   &fakeRunSessions{},
 		Runs:       &fakeRunProjection{runs: map[string]transcript.Run{"run_1": finished}},
 		Admissions: new(admission.Gate),
@@ -1001,7 +1001,7 @@ func TestCancelFinishedRunReportsFinishedInsteadOfNotFound(t *testing.T) {
 
 func TestCancelUnknownRunReportsNotFound(t *testing.T) {
 	c := NewCoordinator(Dependencies{
-		Turns:      &fakeTurnControl{},
+		Control:    &fakeExecutionControl{},
 		Sessions:   &fakeRunSessions{},
 		Runs:       &fakeRunProjection{},
 		Admissions: new(admission.Gate),
@@ -1016,7 +1016,7 @@ func TestCancelUnknownRunReportsNotFound(t *testing.T) {
 func TestCancelChildRunRequiresExplicitAuthority(t *testing.T) {
 	child := runRecord(execution.Running, "seg_child", "item_parent")
 	c := NewCoordinator(Dependencies{
-		Turns:      &fakeTurnControl{},
+		Control:    &fakeExecutionControl{},
 		Sessions:   &fakeRunSessions{},
 		Runs:       &fakeRunProjection{runs: map[string]transcript.Run{"run_1": child}},
 		Admissions: new(admission.Gate),
@@ -1045,9 +1045,9 @@ func TestCancelRunningChildCommitsExactSubtreeBoundaryAndKeepsRootRunning(t *tes
 		cancelRequested: make(chan struct{}),
 		finishRoot:      make(chan struct{}),
 	}
-	turns := &fakeTurnControl{}
-	turns.cancelSubtree = func(ref execution.TurnRef, processID string) error {
-		if ref != (execution.TurnRef{SessionID: "ses_1", TurnID: "turn_1"}) {
+	control := &fakeExecutionControl{}
+	control.cancelSubtree = func(ref execution.ExecutorRef, processID string) error {
+		if ref != (execution.ExecutorRef{SessionID: "ses_1", ExecutorID: "turn_1"}) {
 			return errors.New("subtree cancellation addressed the wrong turn")
 		}
 		if processID != childSource.ProcessID {
@@ -1062,7 +1062,7 @@ func TestCancelRunningChildCommitsExactSubtreeBoundaryAndKeepsRootRunning(t *tes
 	}}
 	coordinator := NewCoordinator(Dependencies{
 		Segments:     executor,
-		Turns:        turns,
+		Control:      control,
 		Sessions:     &fakeRunSessions{},
 		Effects:      effects,
 		Runs:         projection,
@@ -1203,9 +1203,9 @@ func TestCancelParkedRunReportsTurnCleanupFailureAfterDurableCommit(t *testing.T
 	sessions := &fakeRunSessions{pending: map[string]interrupts.Pending{
 		"run_1": pending,
 	}}
-	turns := &fakeTurnControl{cancelErr: cleanupErr}
+	control := &fakeExecutionControl{cancelErr: cleanupErr}
 	c := NewCoordinator(Dependencies{
-		Turns: turns, Sessions: sessions,
+		Control: control, Sessions: sessions,
 		Runs: &fakeRunProjection{runs: map[string]transcript.Run{
 			"run_1": runForPending(pending),
 		}},
@@ -1225,9 +1225,9 @@ func TestCancelLiveRunReportsTurnCleanupFailureAndStillTerminalizes(t *testing.T
 	cleanupErr := errors.New("turn cleanup failed")
 	executor := &fakeExecutor{block: true, cancelErr: cleanupErr}
 	effects := &fakeEffects{}
-	turns := &fakeTurnControl{}
+	control := &fakeExecutionControl{}
 	c := NewCoordinator(Dependencies{
-		Segments: executor, Turns: turns, Sessions: &fakeRunSessions{}, Effects: effects,
+		Segments: executor, Control: control, Sessions: &fakeRunSessions{}, Effects: effects,
 		Runs: &fakeRunProjection{runs: map[string]transcript.Run{
 			"run_1": runForSegment(testSegment()),
 		}},
@@ -1257,9 +1257,9 @@ func TestCancelLiveRunJoinsTerminalMaintenance(t *testing.T) {
 	releaseFinish := make(chan struct{})
 	executor := &fakeExecutor{block: true}
 	effects := &fakeEffects{finishStarted: finishStarted, finishRelease: releaseFinish}
-	turns := &fakeTurnControl{startTurn: execution.TurnRef{SessionID: "ses_1", TurnID: "turn_1"}}
+	control := &fakeExecutionControl{startRef: execution.ExecutorRef{SessionID: "ses_1", ExecutorID: "turn_1"}}
 	sessions := &fakeRunSessions{sess: session.Session{ID: "ses_1", Cwd: "/work"}}
-	c := newUseCaseCoordinator(executor, turns, sessions, effects)
+	c := newUseCaseCoordinator(executor, control, sessions, effects)
 	result, err := c.Start(t.Context(), StartCommand{
 		SessionID: "ses_1",
 		Input:     []transcript.ContentBlock{{Kind: transcript.TextContent, Text: "hello"}},
@@ -1310,12 +1310,12 @@ func TestCancelLiveRunJoinsTerminalMaintenance(t *testing.T) {
 func TestCancelLosesToACommittedNaturalTerminal(t *testing.T) {
 	terminalStarted := make(chan struct{}, 1)
 	releaseTerminal := make(chan struct{})
-	executor := &fakeExecutor{events: []ExecutorPayload{TurnEnd{
+	executor := &fakeExecutor{events: []ExecutorPayload{SegmentEnded{
 		Reason: execution.OutcomeCompleted,
 	}}}
 	effects := &fakeEffects{terminalStarted: terminalStarted, terminalRelease: releaseTerminal}
 	c := NewCoordinator(Dependencies{
-		Segments: executor, Turns: &fakeTurnControl{}, Sessions: &fakeRunSessions{}, Effects: effects,
+		Segments: executor, Control: &fakeExecutionControl{}, Sessions: &fakeRunSessions{}, Effects: effects,
 		Runs: &fakeRunProjection{runs: map[string]transcript.Run{
 			"run_1": runForSegment(testSegment()),
 		}},
@@ -1386,14 +1386,14 @@ func TestCancelLetsCommittedInterruptOwnDurableFirstTeardown(t *testing.T) {
 		suspendRelease: releaseSuspend,
 	}
 	var operations []string
-	turns := &fakeTurnControl{operations: &operations}
+	control := &fakeExecutionControl{operations: &operations}
 	sessions := &fakeRunSessions{operations: &operations}
 	spec := testSegment()
 	spec.Capabilities = execution.RunCapabilities{
 		InterruptKinds: []execution.InterruptKind{execution.ApprovalInterrupt},
 	}
 	c := NewCoordinator(Dependencies{
-		Segments: executor, Turns: turns, Sessions: sessions, Effects: effects,
+		Segments: executor, Control: control, Sessions: sessions, Effects: effects,
 		Runs: &fakeRunProjection{runs: map[string]transcript.Run{
 			"run_1": runForSegment(spec),
 		}},
@@ -1433,7 +1433,7 @@ func TestCancelLetsCommittedInterruptOwnDurableFirstTeardown(t *testing.T) {
 	if executor.cancels() != 0 {
 		t.Fatalf("pump executor cancellations = %d, want parked owner to remain intact until durable cancel", executor.cancels())
 	}
-	if len(operations) != 2 || operations[0] != "durable.cancel" || operations[1] != "turn.cancel" {
+	if len(operations) != 2 || operations[0] != "durable.cancel" || operations[1] != "execution.cancel" {
 		t.Fatalf("cancel operations = %v, want durable cancel before parked turn cleanup", operations)
 	}
 }
@@ -1443,9 +1443,9 @@ func TestCancelTreatsAlreadyGoneTurnAsIdempotentSuccess(t *testing.T) {
 	sessions := &fakeRunSessions{pending: map[string]interrupts.Pending{
 		"run_1": pending,
 	}}
-	turns := &fakeTurnControl{cancelErr: ErrTurnNotLive}
+	control := &fakeExecutionControl{cancelErr: ErrExecutorNotLive}
 	c := NewCoordinator(Dependencies{
-		Turns: turns, Sessions: sessions,
+		Control: control, Sessions: sessions,
 		Runs: &fakeRunProjection{runs: map[string]transcript.Run{
 			"run_1": runForPending(pending),
 		}},
@@ -1458,9 +1458,9 @@ func TestCancelTreatsAlreadyGoneTurnAsIdempotentSuccess(t *testing.T) {
 }
 
 func TestSteerHidesExecutorHandle(t *testing.T) {
-	turns := &fakeTurnControl{}
+	control := &fakeExecutionControl{}
 	c, _ := liveCoordinator(t, runRecord(execution.Running, testSegmentID, ""))
-	c.turns = turns
+	c.control = control
 
 	if err := c.Steer(context.Background(), SteerCommand{
 		RunID:             testRunID,
@@ -1472,19 +1472,19 @@ func TestSteerHidesExecutorHandle(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("Steer: %v", err)
 	}
-	if len(turns.steered) != 1 || turns.steered[0] != (execution.TurnRef{SessionID: "ses_1", TurnID: "turn_1"}) {
-		t.Fatalf("steered refs = %+v", turns.steered)
+	if len(control.steered) != 1 || control.steered[0] != (execution.ExecutorRef{SessionID: "ses_1", ExecutorID: "turn_1"}) {
+		t.Fatalf("steered refs = %+v", control.steered)
 	}
-	if len(turns.steerInput) != 2 ||
-		turns.steerInput[0].Text != "wait" ||
-		turns.steerInput[1].Kind != transcript.ImageContent {
-		t.Fatalf("steer input = %+v", turns.steerInput)
+	if len(control.steerInput) != 2 ||
+		control.steerInput[0].Text != "wait" ||
+		control.steerInput[1].Kind != transcript.ImageContent {
+		t.Fatalf("steer input = %+v", control.steerInput)
 	}
 }
 
 func TestStartRejectsInvalidInputBeforeSessionCreation(t *testing.T) {
 	sessions := &fakeRunSessions{}
-	c := newUseCaseCoordinator(&fakeExecutor{}, &fakeTurnControl{}, sessions, &fakeEffects{})
+	c := newUseCaseCoordinator(&fakeExecutor{}, &fakeExecutionControl{}, sessions, &fakeEffects{})
 
 	_, err := c.Start(context.Background(), StartCommand{})
 	if !errors.Is(err, ErrInputRequired) {
@@ -1517,7 +1517,7 @@ func TestStartRefusesASessionThatAlreadyHasARunAndNamesIt(t *testing.T) {
 				sess:   session.Session{ID: "ses_1", Cwd: "/work"},
 				active: &transcript.Run{ID: "run_active", SessionID: "ses_1", State: tt.state},
 			}
-			c := newUseCaseCoordinator(&fakeExecutor{}, &fakeTurnControl{}, sessions, effects)
+			c := newUseCaseCoordinator(&fakeExecutor{}, &fakeExecutionControl{}, sessions, effects)
 
 			_, err := c.Start(context.Background(), StartCommand{
 				SessionID:      "ses_1",

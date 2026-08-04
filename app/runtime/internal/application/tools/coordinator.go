@@ -1,6 +1,6 @@
 // Package tools is the application coordinator for the runtime's diagnostic
 // tool catalog: listing every tool the runtime exposes and invoking one
-// directly, outside a chat turn.
+// directly, outside a model Run.
 package tools
 
 import (
@@ -11,7 +11,7 @@ import (
 
 // Registry is the directly invocable diagnostic-tool catalog. It is deliberately
 // distinct from the agent's full tool set: every entry must be safe to run
-// outside a turn and must honor the supplied workspace root.
+// outside a Run and must honor the supplied workspace root.
 type Registry interface {
 	List(ctx context.Context) ([]toolsvc.Tool, error)
 	Invoke(ctx context.Context, root, name, arguments string) (toolsvc.Result, error)
@@ -43,7 +43,7 @@ func New(registry Registry, roots Roots) *Coordinator {
 	return &Coordinator{registry: registry, roots: roots}
 }
 
-// List returns every tool that can be invoked directly outside a turn.
+// List returns every tool that can be invoked directly outside a Run.
 func (c *Coordinator) List(ctx context.Context) ([]toolsvc.Tool, error) {
 	return c.registry.List(ctx)
 }

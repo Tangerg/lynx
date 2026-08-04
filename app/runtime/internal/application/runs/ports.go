@@ -20,17 +20,17 @@ import (
 // the consumer side — and satisfied structurally by the runtime / delivery /
 // adapter implementations the composition root injects.
 //
-// The application drives execution through engine-neutral [SegmentExecutor]
-// and [TurnControl] ports: it observes the application-owned [EngineEvent] sum
-// type and addresses turns through durable [execution.TurnRef] values, so neither
-// lifecycle nor Delivery depends on agent-SDK handle types.
+// The application drives execution through implementation-neutral
+// [SegmentExecutor] and [ExecutionControl] ports. It observes the
+// application-owned [EngineEvent] family and addresses work through durable
+// [execution.ExecutorRef] values.
 
-// TurnCanceler tears down a live or parked turn by its durable identity. It is a
+// ExecutionCanceler tears down a live or parked execution by durable identity. It is a
 // shared capability both the pump ([SegmentExecutor]) and the control surface
-// ([TurnControl]) need; naming it once keeps the adapter from implementing the
+// ([ExecutionControl]) need; naming it once keeps the adapter from implementing the
 // same teardown under two method names.
-type TurnCanceler interface {
-	CancelTurn(ctx context.Context, ref execution.TurnRef) error
+type ExecutionCanceler interface {
+	CancelExecution(ctx context.Context, ref execution.ExecutorRef) error
 }
 
 // WaitingSubtreeDisposition is the application decision applied after a
@@ -63,11 +63,11 @@ type PreparedWaitingSubtreeCancellation struct {
 	Mutation           WaitingSubtreeMutation
 }
 
-// SegmentExecutor is what the run pump needs to observe and cancel the agent
-// turn backing a run segment. The concrete agent-execution adapter implements it.
+// SegmentExecutor is what the run pump needs to observe and cancel the
+// execution backing a Run Segment.
 type SegmentExecutor interface {
-	TurnEvents(ctx context.Context, ref execution.TurnRef) (iter.Seq[ExecutorEvent], error)
-	TurnCanceler
+	Events(ctx context.Context, ref execution.ExecutorRef) (iter.Seq[ExecutorEvent], error)
+	ExecutionCanceler
 }
 
 // SessionLifecycle is the run use cases' narrow view of session persistence,
@@ -103,13 +103,13 @@ type ItemProjection interface {
 	Item(ctx context.Context, itemID string) (transcript.Item, bool, error)
 }
 
-// StartTurn is the protocol-neutral command the run use case sends to the
-// executor adapter after resolving the session and its working directory.
-type StartTurn struct {
+// StartExecution is the semantic command the run use case sends after resolving
+// the Session and its working directory.
+type StartExecution struct {
 	SessionID string
 	Message   string
 	Media     []*media.Media
-	// Cwd is the turn's EXECUTION directory — the sandbox copy for an isolated
+	// Cwd is the execution directory — the sandbox copy for an isolated
 	// run, else the session's project directory. The durable run record keeps the
 	// project directory; only the executor sees the copy.
 	Cwd string
@@ -131,13 +131,13 @@ type StartTurn struct {
 	GoalLeaseID string
 }
 
-// RehydrateTurn describes rebuilding a parked executor turn from its durable
+// RehydrateExecution describes rebuilding a parked execution from its durable
 // checkpoint after executor-local state was lost.
-type RehydrateTurn struct {
-	SessionID string
-	TurnID    string
-	ProcessID string
-	RootRunID string
+type RehydrateExecution struct {
+	SessionID  string
+	ExecutorID string
+	ProcessID  string
+	RootRunID  string
 	// ChildRuns restores the App identities of already-admitted child executor
 	// members so product lifecycle hooks never need Framework topology.
 	ChildRuns                []ChildRunBinding
@@ -158,32 +158,31 @@ type IsolationProvider interface {
 	Workspace(ctx context.Context, sessionID, projectRoot string) (string, error)
 }
 
-// TurnControl is the run use cases' engine-neutral control surface. Validation
-// happens before session creation; the adapter translates durable references
-// into its concrete turn identity.
-type TurnControl interface {
-	ValidateStart(StartTurn) error
-	PrepareStart(ctx context.Context, req StartTurn) (execution.TurnRef, error)
-	Activate(ctx context.Context, ref execution.TurnRef) error
-	Prepare(ctx context.Context, ref execution.TurnRef) (execution.TurnRef, error)
-	Resume(ctx context.Context, ref execution.TurnRef, answers []interrupts.SuspensionAnswer, interruptKinds []execution.InterruptKind) error
-	Rehydrate(ctx context.Context, req RehydrateTurn) (execution.TurnRef, error)
-	TurnCanceler
+// ExecutionControl is the run use cases' implementation-neutral control
+// surface. Validation happens before Session creation.
+type ExecutionControl interface {
+	ValidateStart(StartExecution) error
+	PrepareStart(ctx context.Context, req StartExecution) (execution.ExecutorRef, error)
+	Activate(ctx context.Context, ref execution.ExecutorRef) error
+	Prepare(ctx context.Context, ref execution.ExecutorRef) (execution.ExecutorRef, error)
+	Resume(ctx context.Context, ref execution.ExecutorRef, answers []interrupts.SuspensionAnswer, interruptKinds []execution.InterruptKind) error
+	Rehydrate(ctx context.Context, req RehydrateExecution) (execution.ExecutorRef, error)
+	ExecutionCanceler
 	// CancelSubtree terminates exactly the addressed executor process and its
-	// descendants while the owning turn continues. processID is an opaque
+	// descendants while the owning execution continues. processID is an opaque
 	// identity previously observed through ExecutorSource; the adapter must
 	// prove that it belongs to ref before crossing the executor side effect.
-	CancelSubtree(ctx context.Context, ref execution.TurnRef, processID string) error
-	// PrepareWaitingSubtreeCancellation claims a parked App turn and computes an
+	CancelSubtree(ctx context.Context, ref execution.ExecutorRef, processID string) error
+	// PrepareWaitingSubtreeCancellation claims a parked execution and computes an
 	// executor transition plan without changing live execution or retaining an
 	// executor lock. The returned capability owns the App claim until Commit or
 	// Abort.
 	PrepareWaitingSubtreeCancellation(
 		ctx context.Context,
-		ref execution.TurnRef,
+		ref execution.ExecutorRef,
 		processID string,
 	) (PreparedWaitingSubtreeCancellation, error)
-	Steer(ctx context.Context, ref execution.TurnRef, input []transcript.ContentBlock) error
+	Steer(ctx context.Context, ref execution.ExecutorRef, input []transcript.ContentBlock) error
 }
 
 // Nudge is a non-durable live workspace change notification the pump forwards to
@@ -305,8 +304,8 @@ type segmentSpec struct {
 	SegmentID string
 	SessionID string
 	Cwd       string
-	// TurnID is the executor's durable turn identity recorded on the live run.
-	TurnID           string
+	// ExecutorID is the durable execution identity recorded on the live Run.
+	ExecutorID       string
 	ModelSelection   modelref.Selection
 	GoalLeaseID      string
 	ScheduledSession *session.Session
@@ -341,8 +340,8 @@ type segmentSpec struct {
 	CommitOpening func(context.Context, OpeningCommit) error
 }
 
-func (s segmentSpec) turnRef() execution.TurnRef {
-	return execution.TurnRef{SessionID: s.SessionID, TurnID: s.TurnID}
+func (s segmentSpec) executorRef() execution.ExecutorRef {
+	return execution.ExecutorRef{SessionID: s.SessionID, ExecutorID: s.ExecutorID}
 }
 
 // priorMetrics is what the Run had already consumed when this segment opened: a

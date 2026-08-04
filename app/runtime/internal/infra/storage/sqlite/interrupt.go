@@ -115,11 +115,11 @@ func (s *InterruptStore) Open(ctx context.Context, p interrupts.Pending) error {
 		return fmt.Errorf("sqlite: open interrupt: %w", err)
 	}
 	_, err = conn(ctx, s.db).ExecContext(ctx,
-		`INSERT INTO interrupts(root_run_id, session_id, turn_id, goal_lease_id, root_process_id, payload, continuations, suspension_bindings, capabilities, created_at)
+		`INSERT INTO interrupts(root_run_id, session_id, executor_id, goal_lease_id, root_process_id, payload, continuations, suspension_bindings, capabilities, created_at)
 		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		p.RootRunID,
 		p.SessionID,
-		p.TurnID,
+		p.ExecutorID,
 		p.GoalLeaseID,
 		root.ProcessID,
 		string(payload),
@@ -142,7 +142,7 @@ func (s *InterruptStore) Open(ctx context.Context, p interrupts.Pending) error {
 	return nil
 }
 
-const interruptColumns = `root_run_id, session_id, turn_id, goal_lease_id, root_process_id, payload, continuations, suspension_bindings, capabilities, created_at`
+const interruptColumns = `root_run_id, session_id, executor_id, goal_lease_id, root_process_id, payload, continuations, suspension_bindings, capabilities, created_at`
 
 func (s *InterruptStore) List(ctx context.Context, sessionID string) ([]interrupts.Pending, error) {
 	return s.list(ctx, sessionID, "", 0, "", 0)
@@ -305,7 +305,7 @@ func scanPending(row scanRow) (interrupts.Pending, error) {
 	if err := row.Scan(
 		&p.RootRunID,
 		&p.SessionID,
-		&p.TurnID,
+		&p.ExecutorID,
 		&p.GoalLeaseID,
 		&rootProcessID,
 		&payload,

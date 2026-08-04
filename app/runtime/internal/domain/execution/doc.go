@@ -5,8 +5,7 @@
 //
 // # Ubiquitous language
 //
-// These words have ONE meaning across the runtime; they are the vocabulary the
-// rewrite converges every layer onto (delivery, application, adapters):
+// These words have one meaning throughout the execution context:
 //
 //   - Session   — a durable conversation with an agent. Owns working-tree
 //     binding, title, default model, and fork/subtask lineage. A Session may
@@ -20,23 +19,16 @@
 //     first segment; each resume after an interrupt opens a NEW segment. A Run
 //     has one RunID and one-or-more Segments ([SegmentID]). Reconnect/replay and
 //     the per-response event stream are per-Segment; lifecycle is per-Run.
-//   - Step      — one model/tool round inside a segment. The wire surfaces it as
-//     a count (steps / maxSteps); it is not a first-class identity.
-//   - Process   — the agent-execution adapter's backing process. Its [ProcessID]
-//     is a recovery handle (the durable snapshot key that survives restart), NOT
-//     a domain identity: the domain keys on RunID.
-//
-// "Turn" is deliberately retired from the architecture language. What the old
-// kernel called a turn is a Run; what it streamed per start/resume is a Segment;
-// a single model/tool round is a Step.
+//   - Step      — one model/tool round inside a Segment. It is counted but has no
+//     first-class identity.
+//   - Process   — one executor member. Its [ProcessID] is a recovery and routing
+//     handle, while durable product lifecycle keys on RunID.
 //
 // # What lives here
 //
-// This package holds only what the runtime must PROTECT: the Run state machine
-// and its legal transitions ([RunState]), the terminal-reason taxonomy
-// ([Outcome]) that executor and presentation resolve against, and the identity
-// value types and their stability contracts. It is pure: no I/O, no storage,
-// no wire types, no agent SDK — outer rings depend inward on this vocabulary.
+// This package protects the Run state machine and its legal transitions
+// ([RunState]), the terminal-reason taxonomy ([Outcome]), and the identity value
+// types and their stability contracts. It performs no I/O.
 //
 // # Co-located sub-contexts
 //

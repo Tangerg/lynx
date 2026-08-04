@@ -24,7 +24,7 @@ func (f *fakeStore) Fetch(_ context.Context, session string, id resultoffload.ID
 }
 
 func sessionCtx(session string) context.Context {
-	return executionctx.WithScope(context.Background(), execution.TurnScope{SessionID: session})
+	return executionctx.WithScope(context.Background(), execution.ExecutionScope{SessionID: session})
 }
 
 func TestNew_NilStoreOmitted(t *testing.T) {

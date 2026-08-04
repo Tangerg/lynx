@@ -28,7 +28,7 @@ type ExecutorSource struct {
 func (source ExecutorSource) Child() bool { return source.ParentID != "" }
 
 // Validate rejects malformed or self-referential process identity. An entirely
-// empty source is reserved for a root turn that failed before the executor
+// empty source is reserved for a root execution that failed before the executor
 // created its process.
 func (source ExecutorSource) Validate() error {
 	if source.ProcessID != strings.TrimSpace(source.ProcessID) {
@@ -228,18 +228,18 @@ func (barrier TreeInterrupted) validateFor(
 	return nil
 }
 
-// TurnInterrupted is the source-Run reducer input derived from a
+// SegmentInterrupted is the source-Run reducer input derived from a
 // [TreeInterrupted] barrier. Executor adapters never emit it directly.
-type TurnInterrupted struct {
+type SegmentInterrupted struct {
 	engineEventBase
 	Interrupts []Interrupt
 	// Duration is how long this segment executed before parking. A parked Run
 	// still reports what it consumed, so the executor stamps it here for the same
-	// reason it stamps it on TurnEnd.
+	// reason it stamps it on SegmentEnded.
 	Duration time.Duration
 }
 
-func (e TurnInterrupted) validate() error {
+func (e SegmentInterrupted) validate() error {
 	if len(e.Interrupts) == 0 {
 		return errors.New("runs: executor emitted an empty interrupt")
 	}
@@ -251,7 +251,7 @@ func (e TurnInterrupted) validate() error {
 	return nil
 }
 
-type TurnEnd struct {
+type SegmentEnded struct {
 	engineEventBase
 	Reason execution.Outcome
 	// Problem is present exactly when Reason is OutcomeError. It is already a
@@ -264,15 +264,15 @@ type TurnEnd struct {
 	// can still carry usage. Absent is NOT zero: reading a missing report as
 	// "spent nothing" made a canceled Run's committed metering fall back below
 	// what its own progress events had already published.
-	Usage    *TurnUsage
+	Usage    *SegmentUsage
 	Duration time.Duration
 }
 
-// TurnUsage is one authoritative accounting report for a segment. The three
+// SegmentUsage is one authoritative accounting report for a segment. The three
 // numbers are produced together by the executor's observer, so they travel
 // together: a report that had tokens but no per-model split would be a different
 // report, not this one with a field missing.
-type TurnUsage struct {
+type SegmentUsage struct {
 	Tokens  accounting.TokenUsage
 	ByModel []accounting.ModelUsage
 	CostUSD float64

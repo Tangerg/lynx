@@ -110,10 +110,10 @@ type TerminalPlan struct {
 	Runs             []transcript.Run
 	Items            []transcript.Item
 	CheckpointRootID string
-	// GoalTurn is present exactly when the root Run was admitted by an autonomous Goal.
+	// GoalRun is present exactly when the root Run was admitted by an autonomous Goal.
 	// Keeping it in the same write-set makes every terminal path—not only the
 	// normal reducer path—charge the lease atomically with the Run transition.
-	GoalTurn *goal.TurnRecord
+	GoalRun *goal.RunRecord
 }
 
 // RootRun returns the root terminal projection. A valid plan always has one.
@@ -177,30 +177,30 @@ func (plan TerminalPlan) Validate() error {
 			return fmt.Errorf("sessions: terminal plan Item %q: %w", item.ID, err)
 		}
 	}
-	return validateTerminalGoalTurn(root, plan.GoalTurn)
+	return validateTerminalGoalRun(root, plan.GoalRun)
 }
 
-func validateTerminalGoalTurn(run transcript.Run, turn *goal.TurnRecord) error {
+func validateTerminalGoalRun(run transcript.Run, record *goal.RunRecord) error {
 	if run.GoalLeaseID == "" {
-		if turn != nil {
-			return fmt.Errorf("sessions: terminal plan non-Goal Run %q carries a Goal turn", run.ID)
+		if record != nil {
+			return fmt.Errorf("sessions: terminal plan non-Goal Run %q carries a Goal Run", run.ID)
 		}
 		return nil
 	}
-	if turn == nil {
-		return fmt.Errorf("sessions: terminal plan Goal-owned Run %q has no Goal turn", run.ID)
+	if record == nil {
+		return fmt.Errorf("sessions: terminal plan Goal-owned Run %q has no Goal Run", run.ID)
 	}
-	if err := turn.Validate(); err != nil {
-		return fmt.Errorf("sessions: terminal plan Goal turn: %w", err)
+	if err := record.Validate(); err != nil {
+		return fmt.Errorf("sessions: terminal plan Goal Run: %w", err)
 	}
 	costUSD := 0.0
 	if run.Metrics.Usage != nil && run.Metrics.Usage.CostUSD != nil {
 		costUSD = *run.Metrics.Usage.CostUSD
 	}
-	if run.Outcome == nil || turn.SessionID != run.SessionID || turn.LeaseID != run.GoalLeaseID ||
-		turn.RunID != run.ID || turn.Outcome != *run.Outcome || turn.CostUSD != costUSD ||
-		turn.Steps != run.Metrics.Steps || !turn.CompletedAt.Equal(run.FinishedAt) {
-		return fmt.Errorf("sessions: terminal plan Goal turn differs from Run %q", run.ID)
+	if run.Outcome == nil || record.SessionID != run.SessionID || record.LeaseID != run.GoalLeaseID ||
+		record.RunID != run.ID || record.Outcome != *run.Outcome || record.CostUSD != costUSD ||
+		record.Steps != run.Metrics.Steps || !record.CompletedAt.Equal(run.FinishedAt) {
+		return fmt.Errorf("sessions: terminal plan Goal Run differs from Run %q", run.ID)
 	}
 	return nil
 }

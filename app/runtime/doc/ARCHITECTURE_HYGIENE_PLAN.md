@@ -906,10 +906,32 @@ Acceptance:
 | 32. Semantic content and explicit storage codecs | Completed | 2026-08-04 | 2026-08-04 | Content is media-semantic inside the runtime; Delivery owns MIME/base64 wire decoding, SQLite owns explicit transcript/interrupt rows, and schema epoch 55 rejects the former implicit aggregate encoding. |
 | 33. Run capability vocabulary closure | Completed | 2026-08-04 | 2026-08-04 | Domain, Application, adapters, and SQLite use `RunCapabilities`; the versioned Delivery DTO alone retains `RunProtocolProfile`, with one explicit mapping boundary and schema epoch 56. |
 | 34. Semantic replay retention and interrupt integrity | Completed | 2026-08-04 | 2026-08-04 | Replay memory is charged from the closed event family rather than JSON encoding; pending approvals now require a valid tool, risk, and not-yet-executed invocation. |
+| 35. Execution identity and Goal Run vocabulary closure | Completed | 2026-08-04 | 2026-08-04 | Domain/Application use `ExecutorRef`, `ExecutionScope`, `ExecutionControl`, and Goal `Run` accounting exclusively; adapter-local `Turn` no longer crosses inward, SQLite uses `executor_id`/`goal_runs`/`max_runs`, server contracts were regenerated, and semantic-boundary fitness tests pin the retired vocabulary. |
 
 Allowed status values: `Pending`, `In progress`, `Completed`, `Blocked`, `Revised`.
 
 ## 7. Progress log
+
+### 2026-08-04 — Batch 35 completed
+
+- Replaced the Agent adapter's leaked Turn handle vocabulary in Domain and
+  Application with `ExecutorRef{SessionID, ExecutorID}`, `ExecutionScope`,
+  `ExecutionControl`, `StartExecution`, and Segment-scoped events. The concrete
+  `adapter/agentexec/turn` package keeps its native `TurnID` internally and maps
+  it explicitly at the adapter boundary.
+- Unified autonomous Goal accounting on the existing product lifecycle unit:
+  one completed autonomous `Run`. Domain, Application, tool schema, server API,
+  reason codes, generated server contracts, and persistence now use `MaxRuns`,
+  `Runs`, `RunRecord`, `runBudgetReached`, `max_runs`, and `goal_runs`; no
+  compatibility aliases or dual read/write paths remain.
+- Advanced the migration-free SQLite shape to epoch 57, removed concrete
+  storage/adapter descriptions from Domain package documentation, and added an
+  AST/source fitness rule that rejects retired Turn handles and Goal Turn
+  vocabulary in inner rings and durable storage.
+- Server-owned focused suites, Domain/Application/adapter/SQLite tests, and the
+  server contract generator pass. The full contract drift gate intentionally
+  remains blocked only by deferred frontend `goal.json` and generated TypeScript
+  bindings, which this server-only batch does not modify.
 
 ### 2026-08-04 — Batch 34 completed
 

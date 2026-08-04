@@ -61,7 +61,7 @@ func activeGoal(session string) goalstate.Goal {
 }
 
 func sessionCtx(session string) context.Context {
-	return executionctx.WithScope(context.Background(), execution.TurnScope{SessionID: session})
+	return executionctx.WithScope(context.Background(), execution.ExecutionScope{SessionID: session})
 }
 
 func newGetter(t *testing.T, store goals.Store) *getter {
@@ -165,7 +165,7 @@ func TestReportGoalOutcomeSupersededStampRefused(t *testing.T) {
 	store.put(current)
 
 	// The run carries the lease it was launched under, since superseded.
-	ctx := executionctx.WithScope(context.Background(), execution.TurnScope{
+	ctx := executionctx.WithScope(context.Background(), execution.ExecutionScope{
 		SessionID:   "s1",
 		GoalLeaseID: "lease-stale",
 	})
@@ -196,15 +196,15 @@ func TestGetGoalReturnsActionableViewWithoutOwnershipInternals(t *testing.T) {
 	store := newMemStore()
 	g := activeGoal("s1")
 	g.Revision = 42
-	g.Budget = goalstate.Budget{MaxTurns: 3}
-	g.Used = goalstate.Usage{Turns: 1, Steps: 5}
+	g.Budget = goalstate.Budget{MaxRuns: 3}
+	g.Used = goalstate.Usage{Runs: 1, Steps: 5}
 	store.put(g)
 
 	result, err := newGetter(t, store).get(sessionCtx("s1"), getArgs{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result.Goal == nil || result.Goal.Objective != "obj" || result.Goal.Budget.MaxTurns != 3 || result.Goal.Usage.Steps != 5 {
+	if result.Goal == nil || result.Goal.Objective != "obj" || result.Goal.Budget.MaxRuns != 3 || result.Goal.Usage.Steps != 5 {
 		t.Fatalf("goal view = %+v", result.Goal)
 	}
 	if result.Goal.SessionID != "s1" || result.Goal.Status != "active" {
@@ -241,7 +241,7 @@ func TestCreateGoalUsesCurrentSessionAndExplicitBudget(t *testing.T) {
 	starter := &fakeStarter{}
 	result, err := (&creator{goals: starter}).create(sessionCtx("s1"), createArgs{
 		Objective: "  finish the migration  ",
-		Budget:    &createBudget{MaxTurns: 4, MaxCostUSD: 2.5, MaxSteps: 20},
+		Budget:    &createBudget{MaxRuns: 4, MaxCostUSD: 2.5, MaxSteps: 20},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -252,7 +252,7 @@ func TestCreateGoalUsesCurrentSessionAndExplicitBudget(t *testing.T) {
 	if starter.selection.Configured() {
 		t.Fatal("create_goal must use the runtime's surrounding model default")
 	}
-	if starter.budget != (goalstate.Budget{MaxTurns: 4, MaxCostUSD: 2.5, MaxSteps: 20}) {
+	if starter.budget != (goalstate.Budget{MaxRuns: 4, MaxCostUSD: 2.5, MaxSteps: 20}) {
 		t.Fatalf("budget = %+v", starter.budget)
 	}
 	if result.Goal == nil || !strings.Contains(result.Message, "after the current Run") {
@@ -285,7 +285,7 @@ func TestGoalToolContractsUseOnePreciseVocabulary(t *testing.T) {
 		t.Fatalf("report name = %q", got)
 	}
 	createSchema := string(create.Definition().InputSchema)
-	for _, want := range []string{`"objective"`, `"budget"`, `"max_turns"`, `"max_cost_usd"`, `"max_steps"`} {
+	for _, want := range []string{`"objective"`, `"budget"`, `"max_runs"`, `"max_cost_usd"`, `"max_steps"`} {
 		if !strings.Contains(createSchema, want) {
 			t.Errorf("create_goal schema %s missing %s", createSchema, want)
 		}

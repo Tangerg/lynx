@@ -1,5 +1,5 @@
-// Package accounting holds token and cost accounting value objects shared by
-// turn execution, delivery, and pricing adapters.
+// Package accounting holds token and cost accounting value objects for model
+// execution and pricing.
 package accounting
 
 import (
@@ -26,10 +26,8 @@ func (t TokenUsage) Total() int64 {
 	return t.PromptTokens + t.CompletionTokens
 }
 
-// Add folds another token roll-up into this one — used to accumulate per-round
-// usage into a turn total + per-model breakdown. The caller (the agent-execution
-// adapter, which owns the SDK invocation type) maps a model round to a
-// [TokenUsage], keeping this domain value free of the agent SDK.
+// Add folds another model-call roll-up into this one for cumulative execution
+// totals and per-model breakdowns.
 func (t *TokenUsage) Add(u TokenUsage) {
 	t.PromptTokens += u.PromptTokens
 	t.CompletionTokens += u.CompletionTokens
@@ -38,7 +36,7 @@ func (t *TokenUsage) Add(u TokenUsage) {
 	t.CacheWriteTokens += u.CacheWriteTokens
 }
 
-// ModelUsage is one model's slice of a turn's tokens and cost.
+// ModelUsage is one model's slice of an execution's tokens and cost.
 type ModelUsage struct {
 	Model string
 	TokenUsage

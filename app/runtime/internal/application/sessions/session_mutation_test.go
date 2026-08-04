@@ -54,9 +54,9 @@ func TestDeleteSessionStopsBeforeProcessCleanupOnApplyFailure(t *testing.T) {
 func TestDeleteSessionQuiescesGoalOnlyAfterDurableCommit(t *testing.T) {
 	stores := newMutationStores("")
 	coordinator := New(testDependencies(stores, Dependencies{
-		Turns: mutationTurns{operations: &stores.operations},
-		Paths: testCwdResolver{},
-		Goals: mutationGoalGuard{operations: &stores.operations},
+		ExecutionCleanup: mutationTurns{operations: &stores.operations},
+		Paths:            testCwdResolver{},
+		Goals:            mutationGoalGuard{operations: &stores.operations},
 	}))
 
 	if err := coordinator.DeleteSession(t.Context(), "ses_1"); err != nil {
@@ -71,9 +71,9 @@ func TestDeleteSessionQuiescesGoalOnlyAfterDurableCommit(t *testing.T) {
 func TestDeleteSessionDoesNotQuiesceGoalWhenDurableCommitFails(t *testing.T) {
 	stores := newMutationStores("apply.delete")
 	coordinator := New(testDependencies(stores, Dependencies{
-		Turns: mutationTurns{operations: &stores.operations},
-		Paths: testCwdResolver{},
-		Goals: mutationGoalGuard{operations: &stores.operations},
+		ExecutionCleanup: mutationTurns{operations: &stores.operations},
+		Paths:            testCwdResolver{},
+		Goals:            mutationGoalGuard{operations: &stores.operations},
 	}))
 
 	if err := coordinator.DeleteSession(t.Context(), "ses_1"); !errors.Is(err, errMutationStage) {
@@ -88,9 +88,9 @@ func TestDeleteSessionCleansUpAfterGoalQuiesceFailure(t *testing.T) {
 	quiesceErr := errors.New("goal quiesce failed")
 	stores := newMutationStores("")
 	coordinator := New(testDependencies(stores, Dependencies{
-		Turns: mutationTurns{operations: &stores.operations},
-		Paths: testCwdResolver{},
-		Goals: mutationGoalGuard{operations: &stores.operations, quiesceErr: quiesceErr},
+		ExecutionCleanup: mutationTurns{operations: &stores.operations},
+		Paths:            testCwdResolver{},
+		Goals:            mutationGoalGuard{operations: &stores.operations, quiesceErr: quiesceErr},
 	}))
 
 	err := coordinator.DeleteSession(t.Context(), "ses_1")
@@ -129,9 +129,9 @@ func TestDeleteSessionReportsEveryPostCommitCleanupFailure(t *testing.T) {
 	stores := newMutationStores("")
 	checkpoints := &mutationCheckpoints{operations: &stores.operations, err: checkpointErr}
 	coordinator := New(testDependencies(stores, Dependencies{
-		Turns:       mutationTurns{operations: &stores.operations, err: turnErr},
-		Paths:       testCwdResolver{},
-		Checkpoints: checkpoints,
+		ExecutionCleanup: mutationTurns{operations: &stores.operations, err: turnErr},
+		Paths:            testCwdResolver{},
+		Checkpoints:      checkpoints,
 	}))
 
 	err := coordinator.DeleteSession(t.Context(), "ses_1")
@@ -151,10 +151,10 @@ func TestDeleteSessionDiscardsIsolatedSandboxCopyPostCommit(t *testing.T) {
 	sandboxErr := errors.New("sandbox discard failed")
 	stores := newMutationStores("")
 	coordinator := New(testDependencies(stores, Dependencies{
-		Turns:       mutationTurns{operations: &stores.operations},
-		Paths:       testCwdResolver{},
-		Checkpoints: &mutationCheckpoints{operations: &stores.operations},
-		Sandbox:     &mutationSandbox{operations: &stores.operations, err: sandboxErr},
+		ExecutionCleanup: mutationTurns{operations: &stores.operations},
+		Paths:            testCwdResolver{},
+		Checkpoints:      &mutationCheckpoints{operations: &stores.operations},
+		Sandbox:          &mutationSandbox{operations: &stores.operations, err: sandboxErr},
 	}))
 
 	err := coordinator.DeleteSession(t.Context(), "ses_1")
@@ -176,8 +176,8 @@ func TestRollbackReportsParkedTurnCleanupFailure(t *testing.T) {
 	turnErr := errors.New("turn cleanup failed")
 	stores := newMutationStores("")
 	coordinator := New(testDependencies(stores, Dependencies{
-		Turns: mutationTurns{operations: &stores.operations, err: turnErr},
-		Paths: testCwdResolver{},
+		ExecutionCleanup: mutationTurns{operations: &stores.operations, err: turnErr},
+		Paths:            testCwdResolver{},
 	}))
 	boundary := transcript.Boundary{Dropped: []transcript.RunNode{{ID: "run_1"}}}
 
@@ -235,8 +235,8 @@ func TestRestoreSessionRejectsUnresolvableCwdBeforeMutation(t *testing.T) {
 	stores.pending = map[string][]interrupts.Pending{}
 	want := errors.New("missing workspace")
 	coordinator := New(testDependencies(stores, Dependencies{
-		Turns: mutationTurns{operations: &stores.operations},
-		Paths: testCwdResolver{err: want},
+		ExecutionCleanup: mutationTurns{operations: &stores.operations},
+		Paths:            testCwdResolver{err: want},
 	}))
 
 	_, err := coordinator.restoreSession(t.Context(), Snapshot{Session: session.Session{ID: "ses_1", Cwd: "relative"}}, false)
@@ -286,7 +286,7 @@ func newMutationStores(fail string) *mutationStores {
 		fail: fail,
 		pending: map[string][]interrupts.Pending{
 			"ses_1": {{
-				RootRunID: "run_1", SessionID: "ses_1", TurnID: "turn_1",
+				RootRunID: "run_1", SessionID: "ses_1", ExecutorID: "turn_1",
 				Continuations: []interrupts.Continuation{{RunID: "run_1", ProcessID: "proc_1"}},
 			}},
 		},
@@ -380,7 +380,7 @@ type mutationTurns struct {
 	err        error
 }
 
-func (t mutationTurns) Cancel(context.Context, execution.TurnRef) error {
+func (t mutationTurns) Cancel(context.Context, execution.ExecutorRef) error {
 	*t.operations = append(*t.operations, "turn.cancel")
 	return t.err
 }
@@ -391,7 +391,7 @@ type observingTurns struct {
 	bounded  bool
 }
 
-func (t *observingTurns) Cancel(ctx context.Context, _ execution.TurnRef) error {
+func (t *observingTurns) Cancel(ctx context.Context, _ execution.ExecutorRef) error {
 	t.calls++
 	t.canceled = ctx.Err() != nil
 	_, t.bounded = ctx.Deadline()

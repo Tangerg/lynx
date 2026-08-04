@@ -10,11 +10,11 @@ import (
 
 func TestLiveChildCancellationReleasesClaimWhenExecutorTeardownFails(t *testing.T) {
 	plan := runningChildCancellationPlan()
-	plan.turn = execution.TurnRef{SessionID: "session", TurnID: "turn_root"}
+	plan.executor = execution.ExecutorRef{SessionID: "session", ExecutorID: "turn_root"}
 	teardownErr := errors.New("subtree teardown failed")
-	turns := &fakeTurnControl{
-		cancelSubtree: func(ref execution.TurnRef, processID string) error {
-			if ref != (execution.TurnRef{SessionID: "session", TurnID: "turn_root"}) {
+	control := &fakeExecutionControl{
+		cancelSubtree: func(ref execution.ExecutorRef, processID string) error {
+			if ref != (execution.ExecutorRef{SessionID: "session", ExecutorID: "turn_root"}) {
 				t.Fatalf("CancelSubtree turn = %+v, want session/turn_root", ref)
 			}
 			if processID != plan.target.processID {
@@ -27,7 +27,7 @@ func TestLiveChildCancellationReleasesClaimWhenExecutorTeardownFails(t *testing.
 			return teardownErr
 		},
 	}
-	coordinator := NewCoordinator(Dependencies{Turns: turns})
+	coordinator := NewCoordinator(Dependencies{Control: control})
 	live := &handle{done: make(chan struct{})}
 
 	_, err := coordinator.cancelLiveChild(

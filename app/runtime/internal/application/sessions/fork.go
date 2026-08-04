@@ -47,8 +47,8 @@ func ResolveForkBoundary(msgs []chat.Message, runs []transcript.Run, fromRunID s
 		}
 	}
 
-	// A root run and the subagents it spawned are one turn boundary. A terminal
-	// subagent inside an active root does not make that active turn portable, so
+	// A root Run and the subagents it spawned are one Run boundary. A terminal
+	// subagent inside an active root does not make that active Run portable, so
 	// include a group only when every run in it is terminal.
 	terminal := make([]transcript.RunNode, 0, len(ordered))
 	targetTerminal := fromRunID == ""

@@ -464,7 +464,7 @@ func (e *Effects) validateWaitingSubtreeCancellation(
 		for _, continuation := range commit.RemainingPending.Continuations {
 			dispositionRunIDs = append(dispositionRunIDs, continuation.RunID)
 		}
-		if commit.RemainingPending.TurnID != commit.ExpectedPending.TurnID ||
+		if commit.RemainingPending.ExecutorID != commit.ExpectedPending.ExecutorID ||
 			commit.RemainingPending.GoalLeaseID != commit.ExpectedPending.GoalLeaseID ||
 			!commit.RemainingPending.CreatedAt.Equal(commit.ExpectedPending.CreatedAt) ||
 			!reflect.DeepEqual(
@@ -501,7 +501,7 @@ func (e *Effects) validateWaitingSubtreeCancellation(
 	for index, event := range commit.OpeningEvents {
 		if event.State != runs.StateUnchanged ||
 			event.Run != nil ||
-			event.GoalTurn != nil ||
+			event.GoalRun != nil ||
 			event.SessionID != commit.SessionID {
 			return fmt.Errorf(
 				"runsegment: waiting cancellation opening event[%d] is not an item-only projection",

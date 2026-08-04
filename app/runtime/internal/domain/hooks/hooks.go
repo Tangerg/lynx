@@ -1,6 +1,6 @@
 // Package hooks is Lyra's user-configurable lifecycle hooks: at fixed points in
-// a turn (before/after a tool, at prompt submit, session start, compaction,
-// turn end, and when waiting on the user) the runtime runs user-authored hooks
+// a Run (before/after a tool, at prompt submit, Session start, compaction,
+// Run end, and when waiting on the user) the runtime runs user-authored hooks
 // and lets them observe, block, or rewrite what happens next.
 //
 // Design — why subprocess, not an embedded script VM (see doc): a hook is an
@@ -36,10 +36,10 @@ const (
 	// PostToolUse fires after a tool produced its result — a hook may inject
 	// context for the model (e.g. lint output). Matched by tool name.
 	PostToolUse Event = "PostToolUse"
-	// UserPromptSubmit fires when a user message opens a turn — a hook may
+	// UserPromptSubmit fires when a user message opens a Run — a hook may
 	// inject context or block the prompt.
 	UserPromptSubmit Event = "UserPromptSubmit"
-	// SessionStart fires on the first turn of a session — a hook may inject
+	// SessionStart fires on the first Run of a Session — a hook may inject
 	// session-scoped context.
 	SessionStart Event = "SessionStart"
 	// SubagentStart fires after a delegated sub-agent Run is durably admitted.
@@ -47,10 +47,10 @@ const (
 	// SubagentStop fires when a delegated sub-agent Run reaches a terminal
 	// state.
 	SubagentStop Event = "SubagentStop"
-	// PreCompact fires before turn-boundary compaction — a hook may inject
+	// PreCompact fires before Run-boundary compaction — a hook may inject
 	// guidance or veto the compaction.
 	PreCompact Event = "PreCompact"
-	// Stop fires at turn end (any terminal) — observe-only (notify / chain).
+	// Stop fires at Run end (any terminal) — observe-only (notify / chain).
 	Stop Event = "Stop"
 	// Notification fires when a run parks waiting on the user (HITL interrupt)
 	// — observe-only (route to Slack / desktop / etc.).

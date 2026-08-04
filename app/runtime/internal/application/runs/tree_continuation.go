@@ -19,7 +19,7 @@ import (
 type treeContinuation struct {
 	rootRunID     string
 	sessionID     string
-	turnID        string
+	executorID    string
 	goalLeaseID   string
 	interrupts    []transcript.Interrupt
 	continuations []interrupts.Continuation
@@ -33,7 +33,7 @@ func treeContinuationFromPending(pending interrupts.Pending) (*treeContinuation,
 	continuation := &treeContinuation{
 		rootRunID:     pending.RootRunID,
 		sessionID:     pending.SessionID,
-		turnID:        pending.TurnID,
+		executorID:    pending.ExecutorID,
 		goalLeaseID:   pending.GoalLeaseID,
 		interrupts:    slices.Clone(pending.Interrupts),
 		continuations: slices.Clone(pending.Continuations),
@@ -54,8 +54,8 @@ func (continuation *treeContinuation) validate() error {
 		return errors.New("runs: tree continuation root Run id is required")
 	case strings.TrimSpace(continuation.sessionID) == "":
 		return errors.New("runs: tree continuation Session id is required")
-	case strings.TrimSpace(continuation.turnID) == "":
-		return errors.New("runs: tree continuation Turn id is required")
+	case strings.TrimSpace(continuation.executorID) == "":
+		return errors.New("runs: tree continuation executor ID is required")
 	case continuation.goalLeaseID != strings.TrimSpace(continuation.goalLeaseID):
 		return errors.New("runs: tree continuation goal lease id has surrounding whitespace")
 	case len(continuation.continuations) == 0:

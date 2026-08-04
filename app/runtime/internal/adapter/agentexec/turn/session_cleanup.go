@@ -21,8 +21,8 @@ func NewSessionTurnCleanup(controller sessionTurnCanceler) SessionTurnCleanup {
 	return SessionTurnCleanup{controller: controller}
 }
 
-func (t SessionTurnCleanup) Cancel(ctx context.Context, ref execution.TurnRef) error {
-	err := t.controller.Cancel(ctx, Handle{SessionID: ref.SessionID, TurnID: ref.TurnID})
+func (t SessionTurnCleanup) Cancel(ctx context.Context, ref execution.ExecutorRef) error {
+	err := t.controller.Cancel(ctx, Handle{SessionID: ref.SessionID, TurnID: ref.ExecutorID})
 	if errors.Is(err, ErrTurnNotFound) {
 		return nil
 	}

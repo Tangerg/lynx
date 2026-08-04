@@ -64,7 +64,7 @@ func bootstrapCheckpoint(
 		RootProcessID: tree.RootID,
 		Payload:       payload,
 		BuildID:       bootstrapCheckpointBuildID,
-		Scope:         execution.TurnScope{SessionID: sessionID},
+		Scope:         execution.ExecutionScope{SessionID: sessionID},
 		Usage:         usage,
 	}
 }
@@ -75,9 +75,9 @@ func bootstrapPending(
 ) interrupts.Pending {
 	question := &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Continue?"}}}
 	return interrupts.Pending{
-		RootRunID: runID,
-		SessionID: sessionID,
-		TurnID:    "turn_" + runID,
+		RootRunID:  runID,
+		SessionID:  sessionID,
+		ExecutorID: "turn_" + runID,
 		Capabilities: execution.RunCapabilities{
 			InterruptKinds: []execution.InterruptKind{execution.QuestionInterrupt},
 		},
@@ -381,12 +381,12 @@ func TestApplyTerminalChargesGoalOwnedParkAtomically(t *testing.T) {
 		UpdatedAt:   finishedAt,
 		MessageMark: 0,
 	}
-	turn := goal.TurnRecord{
+	turn := goal.RunRecord{
 		SessionID: "ses_A", LeaseID: leaseID, RunID: terminal.ID,
 		Outcome: outcome, CostUSD: costUSD, Steps: 4, CompletedAt: finishedAt,
 	}
 	if err := ss.ApplyTerminal(ctx, sessions.TerminalPlan{
-		Runs: []transcript.Run{terminal}, CheckpointRootID: processID, GoalTurn: &turn,
+		Runs: []transcript.Run{terminal}, CheckpointRootID: processID, GoalRun: &turn,
 	}); err != nil {
 		t.Fatalf("ApplyTerminal: %v", err)
 	}
@@ -395,7 +395,7 @@ func TestApplyTerminalChargesGoalOwnedParkAtomically(t *testing.T) {
 	if err != nil || !found {
 		t.Fatalf("get Goal: found=%t err=%v", found, err)
 	}
-	if storedGoal.Used != (goal.Usage{Turns: 1, CostUSD: costUSD, Steps: 4}) ||
+	if storedGoal.Used != (goal.Usage{Runs: 1, CostUSD: costUSD, Steps: 4}) ||
 		storedGoal.Status != goal.StatusPaused ||
 		storedGoal.Reason.Code != goal.ReasonRunNotCompleted {
 		t.Fatalf("Goal after terminal park = %+v", storedGoal)

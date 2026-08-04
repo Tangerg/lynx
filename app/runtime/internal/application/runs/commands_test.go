@@ -9,7 +9,7 @@ import (
 	corechat "github.com/Tangerg/lynx/core/chat"
 )
 
-func TestStartTurnValidateDelegatesCoreOptions(t *testing.T) {
+func TestStartExecutionValidateDelegatesCoreOptions(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -29,9 +29,9 @@ func TestStartTurnValidateDelegatesCoreOptions(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
-			err := (StartTurn{Message: "hello", Options: &test.options}).Validate()
-			if !errors.Is(err, ErrInvalidTurnOptions) {
-				t.Fatalf("Validate() error = %v, want ErrInvalidTurnOptions", err)
+			err := (StartExecution{Message: "hello", Options: &test.options}).Validate()
+			if !errors.Is(err, ErrInvalidRunOptions) {
+				t.Fatalf("Validate() error = %v, want ErrInvalidRunOptions", err)
 			}
 			if !errors.Is(err, corechat.ErrInvalidOptions) {
 				t.Fatalf("Validate() error = %v, want wrapped chat.ErrInvalidOptions", err)
@@ -40,24 +40,24 @@ func TestStartTurnValidateDelegatesCoreOptions(t *testing.T) {
 	}
 }
 
-func TestStartTurnValidateKeepsModelSelectionOutsideOptions(t *testing.T) {
+func TestStartExecutionValidateKeepsModelSelectionOutsideOptions(t *testing.T) {
 	t.Parallel()
 
-	err := (StartTurn{
+	err := (StartExecution{
 		Message: "hello",
 		Options: &corechat.Options{
 			Model: "model-inside-options",
 		},
 	}).Validate()
-	if !errors.Is(err, ErrInvalidTurnOptions) {
-		t.Fatalf("Validate() error = %v, want ErrInvalidTurnOptions", err)
+	if !errors.Is(err, ErrInvalidRunOptions) {
+		t.Fatalf("Validate() error = %v, want ErrInvalidRunOptions", err)
 	}
 }
 
-func TestStartTurnValidateRejectsNonCanonicalAdmissionPolicy(t *testing.T) {
+func TestStartExecutionValidateRejectsNonCanonicalAdmissionPolicy(t *testing.T) {
 	t.Parallel()
 
-	for name, turn := range map[string]StartTurn{
+	for name, turn := range map[string]StartExecution{
 		"negative token limit": {
 			Message: "hello", Limits: execution.RunLimits{MaxTotalTokens: -1},
 		},

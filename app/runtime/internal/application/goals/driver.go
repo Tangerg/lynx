@@ -1,6 +1,6 @@
 // Package goals owns the autonomous-execution loop (Goal mode): given a
 // session's objective, it launches runs back-to-back until the model signals the
-// goal complete or blocked (through report_goal_outcome), an opt-in cross-turn
+// goal complete or blocked (through report_goal_outcome), an opt-in cross-Run
 // budget is spent, or the user stops it. It mirrors application/schedules — a
 // headless application component that drives the runs Coordinator — but is
 // event-driven per goal rather than cron-timed, and consumes each run's terminal
@@ -74,14 +74,14 @@ type SessionExists interface {
 }
 
 // PromptInput is the semantic context required to construct one autonomous
-// model turn. The model-facing instruction belongs to an execution adapter;
-// application/goals only declares when a first or continuing turn is needed.
+// model Run. The model-facing instruction belongs to an execution adapter;
+// application/goals only declares when a first or continuing Run is needed.
 type PromptInput struct {
 	Objective  string
 	Continuing bool
 }
 
-// PromptBuilder renders an autonomous-turn instruction for the execution
+// PromptBuilder renders an autonomous-Run instruction for the execution
 // adapter selected by the composition root.
 type PromptBuilder func(PromptInput) string
 

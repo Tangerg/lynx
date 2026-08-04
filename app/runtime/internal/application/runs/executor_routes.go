@@ -49,7 +49,7 @@ func (c *Coordinator) openingRoutes(
 	}
 	rootReducer := newReducer(reducerConfig{
 		RunID: spec.RunID, SegmentID: spec.SegmentID, SessionID: spec.SessionID,
-		Cwd: spec.Cwd, TurnID: spec.TurnID, ModelSelection: spec.ModelSelection,
+		Cwd: spec.Cwd, ExecutorID: spec.ExecutorID, ModelSelection: spec.ModelSelection,
 		GoalLeaseID: spec.GoalLeaseID,
 		CreatedAt:   spec.CreatedAt, UserInput: spec.Input,
 		Metrics: spec.priorMetrics(), Limits: spec.effectiveLimits(),
@@ -144,7 +144,7 @@ func (c *Coordinator) resumedExecutorRoutes(
 		}
 		route.reducer = newReducer(reducerConfig{
 			RunID: route.runID, SegmentID: route.segmentID, SessionID: spec.SessionID,
-			Lineage: route.lineage, Cwd: spec.Cwd, TurnID: spec.TurnID,
+			Lineage: route.lineage, Cwd: spec.Cwd, ExecutorID: spec.ExecutorID,
 			GoalLeaseID: goalLeaseID, ModelSelection: route.modelSelection,
 			CreatedAt: member.RunCreatedAt, UserInput: userInput,
 			Metrics: member.Metrics, Limits: member.Limits,
@@ -411,14 +411,14 @@ func validateRouteReductionBatch(
 				return err
 			}
 		}
-		if commit.GoalTurn != nil &&
-			(commit.GoalTurn.RunID != route.runID || commit.GoalTurn.SessionID != sessionID) {
+		if commit.GoalRun != nil &&
+			(commit.GoalRun.RunID != route.runID || commit.GoalRun.SessionID != sessionID) {
 			return fmt.Errorf(
-				"%w: route %q carries a goal turn for run %q in session %q",
+				"%w: route %q carries a Goal Run for run %q in session %q",
 				errReducerInvariant,
 				route.runID,
-				commit.GoalTurn.RunID,
-				commit.GoalTurn.SessionID,
+				commit.GoalRun.RunID,
+				commit.GoalRun.SessionID,
 			)
 		}
 		return nil
@@ -570,7 +570,7 @@ func (c *Coordinator) openChildRun(
 		SessionID:      spec.SessionID,
 		Lineage:        child.lineage,
 		Cwd:            spec.Cwd,
-		TurnID:         spec.TurnID,
+		ExecutorID:     spec.ExecutorID,
 		ModelSelection: child.modelSelection,
 		CreatedAt:      startedAt,
 		Limits:         child.limits,

@@ -23,7 +23,7 @@ type InputSchema struct {
 	object string
 }
 
-// NewInputSchema converts a schema supplied by the MCP SDK into an owned,
+// NewInputSchema converts a supplied MCP schema into an owned,
 // canonical value.
 func NewInputSchema(value any) (InputSchema, error) {
 	if value == nil {
@@ -85,7 +85,7 @@ func (s InputSchema) String() string {
 	return s.object
 }
 
-// Map projects the immutable schema to the MCP delivery contract. Each call
+// Map projects the immutable schema to a fresh MCP tool contract. Each call
 // returns a fresh object graph and preserves JSON numbers exactly.
 func (s InputSchema) Map() map[string]any {
 	decoder := json.NewDecoder(bytes.NewBufferString(s.String()))

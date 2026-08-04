@@ -11,7 +11,7 @@ import (
 // landed publishes its session's goal invalidation.
 //
 // The wrapper exists because a goal changes from many places — the lifecycle
-// commands, each autonomous turn's disposition, the model's reported outcome, the
+// commands, each autonomous Run's disposition, the model's reported outcome, the
 // boot reconcile — and all of them go through these three writes. Publishing at the
 // write is what makes "a client is told whenever a goal moves" true by construction
 // instead of by every caller remembering; it is also why the 4-second poll this

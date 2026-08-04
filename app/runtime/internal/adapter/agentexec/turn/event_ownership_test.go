@@ -33,7 +33,7 @@ func TestCancelBetweenParkAndInterruptPublishClosesSafely(t *testing.T) {
 
 	var endCount int
 	for ev := range st.events {
-		if end, ok := ev.Payload.(runs.TurnEnd); ok {
+		if end, ok := ev.Payload.(runs.SegmentEnded); ok {
 			endCount++
 			if end.Reason != execution.OutcomeCanceled {
 				t.Fatalf("runs.TurnEnd reason = %s, want canceled", end.Reason)

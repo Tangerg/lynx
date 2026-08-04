@@ -9,9 +9,9 @@ import (
 )
 
 // DeleteSession atomically removes all durable session state (the atomic
-// write-set), then tears down process-local parked turns and the resume gate,
+// write-set), then tears down process-local parked executions and the resume gate,
 // and finally drops the session's working-tree checkpoints. The open interrupts
-// are read up front so the abandoned turns can be canceled after the durable
+// are read up front so the abandoned executions can be canceled after the durable
 // state is gone. Checkpoint cleanup runs last, after the durable delete has
 // already succeeded; all post-commit cleanup failures are returned together.
 func (c *Coordinator) DeleteSession(ctx context.Context, sessionID string) error {
@@ -46,10 +46,10 @@ func (c *Coordinator) DeleteSession(ctx context.Context, sessionID string) error
 			c.publishAggregateMoved([]string{sessionID}, nil)
 			var cleanupErrs []error
 			for _, item := range pending {
-				if err := c.cancelTurn(ctx, RunTurnBinding{
-					RunID:     item.RootRunID,
-					SessionID: item.SessionID,
-					TurnID:    item.TurnID,
+				if err := c.cancelExecution(ctx, RunExecutionBinding{
+					RunID:      item.RootRunID,
+					SessionID:  item.SessionID,
+					ExecutorID: item.ExecutorID,
 				}); err != nil {
 					cleanupErrs = append(cleanupErrs, err)
 				}

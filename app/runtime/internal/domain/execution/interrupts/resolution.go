@@ -5,8 +5,8 @@ import "github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 // Resolution is the human's structured answer to a HITL interrupt — the payload
 // runs.resume delivers back into the parked tool call (tool approval, plan
 // review, or an ask_user question). Defined in this leaf package so every HITL
-// participant — engine, turn loop, protocol adapter, ask_user tool — shares one
-// vocabulary without importing each other.
+// participant shares one vocabulary without importing another participant's
+// implementation.
 type Resolution struct {
 	Approved  bool
 	Arguments string

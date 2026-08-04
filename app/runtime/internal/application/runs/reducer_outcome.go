@@ -10,7 +10,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 )
 
-func (r *reducer) turnEnd(e TurnEnd) ([]RunEvent, error) {
+func (r *reducer) segmentEnd(e SegmentEnded) ([]RunEvent, error) {
 	if e.Reason != execution.OutcomeError && e.Problem != nil {
 		return nil, errors.New("non-error outcome carries a problem")
 	}
@@ -91,7 +91,7 @@ func (r *reducer) metrics() transcript.RunMetrics {
 	return metrics
 }
 
-func (r *reducer) applyUsage(reported TurnUsage) error {
+func (r *reducer) applyUsage(reported SegmentUsage) error {
 	if reported.Steps < r.step {
 		return fmt.Errorf(
 			"cumulative model-call count regressed from %d to %d",
@@ -99,7 +99,7 @@ func (r *reducer) applyUsage(reported TurnUsage) error {
 			reported.Steps,
 		)
 	}
-	next, err := validatedTurnUsage(reported)
+	next, err := validatedSegmentUsage(reported)
 	if err != nil {
 		return err
 	}
@@ -128,7 +128,7 @@ func (r *reducer) finishedRun(outcome execution.Outcome, failure *transcript.Pro
 	return SegmentFinished{Run: run}, nil
 }
 
-func turnUsage(reported TurnUsage) *transcript.Usage {
+func transcriptUsage(reported SegmentUsage) *transcript.Usage {
 	usage := &transcript.Usage{ModelUsage: modelUsageFrom(
 		reported.Tokens.PromptTokens,
 		reported.Tokens.CompletionTokens,
@@ -153,7 +153,7 @@ func turnUsage(reported TurnUsage) *transcript.Usage {
 	return usage
 }
 
-func validatedTurnUsage(reported TurnUsage) (*transcript.Usage, error) {
+func validatedSegmentUsage(reported SegmentUsage) (*transcript.Usage, error) {
 	if reported.Steps < 0 {
 		return nil, fmt.Errorf("model-call count %d is negative", reported.Steps)
 	}
@@ -189,7 +189,7 @@ func validatedTurnUsage(reported TurnUsage) (*transcript.Usage, error) {
 			)
 		}
 	}
-	return turnUsage(reported), nil
+	return transcriptUsage(reported), nil
 }
 
 func validateUsageMonotonic(previous, next *transcript.Usage) error {

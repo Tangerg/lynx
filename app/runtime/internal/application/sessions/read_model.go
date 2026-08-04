@@ -40,7 +40,7 @@ type View struct {
 }
 
 // Activities resolves activity for the requested sessions in one use-case
-// read. It centralizes the precedence between a live turn and a durable
+// read. It centralizes the precedence between a live execution and a durable
 // interrupt so Delivery only projects the resolved state.
 func (c *Coordinator) Activities(ctx context.Context, sessionIDs []string) (map[string]Activity, error) {
 	activities := make(map[string]Activity, len(sessionIDs))

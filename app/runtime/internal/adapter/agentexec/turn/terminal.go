@@ -69,7 +69,7 @@ func (s *controller) emitFinishedTurn(st *turnState, reason execution.Outcome) {
 	dur := st.segmentElapsed()
 	finishTurnSpan(st.span, reason, accounting.TokenUsage{}, false, "")
 	recordTurnDuration(st.ctx, reason, st.model, dur)
-	s.emitRootEvent(st, runs.TurnEnd{Reason: reason, Duration: dur})
+	s.emitRootEvent(st, runs.SegmentEnded{Reason: reason, Duration: dur})
 }
 
 // finishFailedTurn closes an emergency error path with one self-contained
@@ -84,7 +84,7 @@ func (s *controller) finishFailedTurn(st *turnState, problem transcript.Problem,
 		}
 		finishTurnSpan(st.span, execution.OutcomeError, accounting.TokenUsage{}, false, errMsg)
 		recordTurnDuration(st.ctx, execution.OutcomeError, st.model, dur)
-		s.emitRootEvent(st, runs.TurnEnd{Reason: execution.OutcomeError, Problem: &problem, Duration: dur})
+		s.emitRootEvent(st, runs.SegmentEnded{Reason: execution.OutcomeError, Problem: &problem, Duration: dur})
 		s.fireStop(st, errMsg)
 	})
 }
@@ -137,9 +137,9 @@ func (s *controller) emitTurnEnd(st *turnState, completion agentexec.TurnComplet
 
 	finishTurnSpan(st.span, plan.reason, out.Usage, plan.withUsage, plan.errMsg)
 	recordTurnDuration(st.ctx, plan.reason, st.model, duration)
-	end := runs.TurnEnd{Reason: plan.reason, Problem: plan.problem, Duration: duration}
+	end := runs.SegmentEnded{Reason: plan.reason, Problem: plan.problem, Duration: duration}
 	if plan.withUsage {
-		end.Usage = &runs.TurnUsage{
+		end.Usage = &runs.SegmentUsage{
 			Tokens:  out.Usage,
 			ByModel: out.UsageByModel,
 			CostUSD: out.CostUSD,
@@ -165,13 +165,13 @@ func (t *turnObserver) OnChildProcessEnd(completion agentexec.ChildCompletion) {
 	if duration < 0 {
 		duration = 0
 	}
-	end := runs.TurnEnd{
+	end := runs.SegmentEnded{
 		Reason:   plan.reason,
 		Problem:  plan.problem,
 		Duration: duration,
 	}
 	if plan.withUsage || len(completion.UsageByModel) > 0 {
-		end.Usage = &runs.TurnUsage{
+		end.Usage = &runs.SegmentUsage{
 			Tokens:  completion.Usage,
 			ByModel: completion.UsageByModel,
 			CostUSD: completion.CostUSD,

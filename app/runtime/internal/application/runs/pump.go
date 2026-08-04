@@ -22,11 +22,11 @@ import (
 // subscribers. A client that acts on an event (reads the transcript after a
 // terminal, resumes the instant it sees an interrupt) therefore never observes
 // state the store does not yet hold, and a terminal frees the persisted admission
-// slot before the in-memory one. A projection commit failure aborts the turn
+// slot before the in-memory one. A projection commit failure aborts execution
 // rather than publishing an event the persisted record cannot back. The interrupt
 // commit additionally linearizes against cancel (a cancel that wins the race
 // skips the commit). Non-authoritative previews publish directly. A parked run
-// leaves its live turn alive for resume; a true terminal cancels it.
+// leaves its executor alive for resume; a true terminal cancels it.
 func (c *Coordinator) pump(
 	ctx context.Context,
 	ownerCtx context.Context,
@@ -39,11 +39,11 @@ func (c *Coordinator) pump(
 	publisher := treePublisher{coordinator: c, rootSpec: spec, live: live}
 	rootFinished := false
 	rootParked := false
-	abortTurn := false
+	abortExecution := false
 	commitCtx := ownerCtx
 	defer close(live.done)
 	fail := func(err error) {
-		abortTurn = true
+		abortExecution = true
 		if ctx.Err() == nil && ownerCtx.Err() == nil {
 			trace.SpanFromContext(ctx).RecordError(err)
 			routes.abortUnfinished()
@@ -61,7 +61,7 @@ func (c *Coordinator) pump(
 			// every unfinished child in the same canonical postorder used by
 			// normal publication, then root. Each reducer decides
 			// error-vs-canceled from its state. This runs before executor teardown:
-			// a slow or broken CancelTurn must never consume the only budget
+			// a slow or broken CancelExecution must never consume the only budget
 			// available for persisted terminal boundaries.
 			terminalCtx, cancelTerminal := context.WithTimeout(context.WithoutCancel(ownerCtx), runCleanupTimeout)
 			commitCtx = terminalCtx
@@ -111,13 +111,13 @@ func (c *Coordinator) pump(
 		}
 		// A committed park transfers teardown to Cancel's persisted parked-run
 		// path. Cancel first removes the open interrupt and terminalizes the Run,
-		// then releases the parked executor turn. Tearing it down here merely
+		// then releases the parked executor. Tearing it down here merely
 		// because requestCancel canceled ctx would reverse that transaction order
 		// and leave a persisted interrupt pointing at a missing process on crash.
-		if !rootParked && (ctx.Err() != nil || abortTurn) {
+		if !rootParked && (ctx.Err() != nil || abortExecution) {
 			teardownCtx, cancelTeardown := context.WithTimeout(context.WithoutCancel(ownerCtx), runCleanupTimeout)
-			if err := c.executor.CancelTurn(teardownCtx, spec.turnRef()); err != nil && !errors.Is(err, ErrTurnNotLive) {
-				live.completionErr = fmt.Errorf("runs: tear down turn %q: %w", spec.TurnID, err)
+			if err := c.executor.CancelExecution(teardownCtx, spec.executorRef()); err != nil && !errors.Is(err, ErrExecutorNotLive) {
+				live.completionErr = fmt.Errorf("runs: tear down executor %q: %w", spec.ExecutorID, err)
 				recordRunCleanupError(teardownCtx, live.completionErr)
 			}
 			cancelTeardown()
@@ -125,7 +125,7 @@ func (c *Coordinator) pump(
 		releaseMaintenance, maintenanceHeld := c.admission.BeginMaintenance(spec.RunID)
 		entry, tracked := c.registry.Get(spec.RunID)
 		if tracked {
-			// A parked run keeps its live turn alive for resume — only cancel +
+			// A parked Run keeps its executor alive for resume — only cancel +
 			// stop on a true terminal. The registry entry remains addressable until
 			// the complete join boundary so a repeated Cancel can still wait.
 			if !rootParked && entry.handle != nil {
@@ -267,7 +267,7 @@ func (c *Coordinator) pump(
 			fail(fmt.Errorf("runs: unsupported executor payload %T", ev.Payload))
 			return
 		}
-		if _, interrupts := engineEvent.(TurnInterrupted); interrupts {
+		if _, interrupts := engineEvent.(SegmentInterrupted); interrupts {
 			fail(errors.New("runs: executor emitted a per-Run interrupt instead of a tree barrier"))
 			return
 		}
@@ -306,14 +306,14 @@ func (c *Coordinator) pump(
 		rootFinished = rootFinished || publication.finished
 		rootParked = rootParked || publication.parked
 		if rootParked {
-			// Interrupt segment done; leave the turn parked for resume.
+			// Interrupt Segment done; leave the executor parked for resume.
 			return
 		}
 		if rootFinished {
 			// A committed terminal is the last event this run can durably back: stop
-			// before consuming any further buffered event. A cancel that races a turn
-			// in the act of parking can emit a TurnInterrupted after the terminal
-			// TurnEnd; processing it would try to Suspend an already-terminalized run.
+			// before consuming any further buffered event. A cancel that races an
+			// execution while it parks can emit SegmentInterrupted after SegmentEnded;
+			// processing it would try to Suspend an already-terminalized Run.
 			// The pump owns persisted run-state integrity, so it enforces "nothing after
 			// a terminal" here rather than trusting the upstream event ordering.
 			return
@@ -329,7 +329,7 @@ type reductionPublication struct {
 
 func engineEventEndsSegment(event EngineEvent) bool {
 	switch event.(type) {
-	case TurnEnd:
+	case SegmentEnded:
 		return true
 	default:
 		return false
@@ -374,7 +374,7 @@ func (p treePublisher) publish(
 		// Commit before publish: an event's atomic projection commit (for a terminal,
 		// recording the run + terminalizing the run-state) lands before the event
 		// is delivered or retained for replay, so a subscriber never observes an
-		// event the store doesn't yet back. A commit failure aborts the turn (as
+		// event the store doesn't yet back. A commit failure aborts execution (as
 		// the interrupt path does) rather than publishing an unbacked event.
 		if reduced.Commit != nil {
 			if reduced.Commit.State == StateTerminalize && route.source.ParentID == "" {
@@ -392,7 +392,7 @@ func (p treePublisher) publish(
 			for _, item := range reduced.Commit.Items {
 				p.live.recordChildCancellationItem(route.runID, item)
 			}
-			goalCharged = goalCharged || reduced.Commit.GoalTurn != nil
+			goalCharged = goalCharged || reduced.Commit.GoalRun != nil
 		}
 		if reduced.Event.Terminal() {
 			publication.finished = true
@@ -449,7 +449,7 @@ func (p treePublisher) publishTreeBarrier(
 	pending := interrupts.Pending{
 		RootRunID:    routes.root.runID,
 		SessionID:    p.rootSpec.SessionID,
-		TurnID:       p.rootSpec.TurnID,
+		ExecutorID:   p.rootSpec.ExecutorID,
 		GoalLeaseID:  p.rootSpec.GoalLeaseID,
 		Capabilities: routes.root.capabilities,
 		CreatedAt:    boundaryAt,
@@ -464,7 +464,7 @@ func (p treePublisher) publishTreeBarrier(
 			for index, suspension := range direct {
 				values[index] = suspension.Interrupt
 			}
-			events, err = route.reducer.interrupt(TurnInterrupted{
+			events, err = route.reducer.interrupt(SegmentInterrupted{
 				Interrupts: values,
 				Duration:   route.activeDuration(boundaryAt),
 			})

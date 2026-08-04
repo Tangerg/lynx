@@ -59,9 +59,9 @@ func singleRunPending(
 	t.Helper()
 	question := &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Continue?"}}}
 	return interrupts.Pending{
-		RootRunID: runID,
-		SessionID: sessionID,
-		TurnID:    "turn_" + runID,
+		RootRunID:  runID,
+		SessionID:  sessionID,
+		ExecutorID: "turn_" + runID,
 		Capabilities: execution.RunCapabilities{
 			InterruptKinds: []execution.InterruptKind{execution.QuestionInterrupt},
 		},

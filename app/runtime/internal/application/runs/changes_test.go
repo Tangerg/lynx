@@ -63,11 +63,11 @@ func TestStartAndTerminalPublishRunAndSessionChanges(t *testing.T) {
 	exec := &fakeExecutor{}
 	effects := &fakeEffects{}
 	sessions := &fakeRunSessions{sess: session.Session{ID: "ses_1", Cwd: "/work"}}
-	turns := &fakeTurnControl{startTurn: execution.TurnRef{SessionID: "ses_1", TurnID: "turn_1"}}
+	control := &fakeExecutionControl{startRef: execution.ExecutorRef{SessionID: "ses_1", ExecutorID: "turn_1"}}
 	changes := &changeRecorder{}
 	c := NewCoordinator(Dependencies{
 		Segments:     exec,
-		Turns:        turns,
+		Control:      control,
 		Sessions:     sessions,
 		Effects:      effects,
 		Now:          func() time.Time { return time.Date(2026, 7, 29, 1, 2, 3, 0, time.UTC) },
@@ -122,7 +122,7 @@ func TestCommittedStateChangeReachesOtherWindows(t *testing.T) {
 	changes := &changeRecorder{}
 	c := NewCoordinator(Dependencies{
 		Segments:     exec,
-		Turns:        &fakeTurnControl{startTurn: execution.TurnRef{SessionID: "ses_1", TurnID: "turn_1"}},
+		Control:      &fakeExecutionControl{startRef: execution.ExecutorRef{SessionID: "ses_1", ExecutorID: "turn_1"}},
 		Sessions:     &fakeRunSessions{sess: session.Session{ID: "ses_1", Cwd: "/work"}},
 		Effects:      &fakeEffects{},
 		Now:          func() time.Time { return time.Date(2026, 7, 29, 1, 2, 3, 0, time.UTC) },

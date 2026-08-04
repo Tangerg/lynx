@@ -339,7 +339,7 @@ func registerScheduleValues(s *Shapes) {
 	s.valueConstraint(FieldConstraintSpec{
 		GoType: typeOf[protocol.GoalBudget](),
 		Constraints: []FieldConstraint{
-			{Field: "maxTurns", Kind: ConstraintNonNegative},
+			{Field: "maxRuns", Kind: ConstraintNonNegative},
 			{Field: "maxCostUsd", Kind: ConstraintNonNegative},
 			{Field: "maxSteps", Kind: ConstraintNonNegative},
 		},

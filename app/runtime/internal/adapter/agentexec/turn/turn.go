@@ -19,7 +19,7 @@ import (
 // segment to a suspension point — a HITL interrupt (park) or a terminal
 // state. Later segments are driven by [controller.Resume] through the
 // shared [drive] loop. st.ctx (the turn's own lifetime) bounds the run.
-func (s *controller) runTurn(request runs.StartTurn, st *turnState) {
+func (s *controller) runTurn(request runs.StartExecution, st *turnState) {
 	// Resolve a per-turn client when the Run picked a provider+model. Preparation
 	// has already rejected an explicit selection without a resolver.
 	var client *chatclient.Client

@@ -102,7 +102,7 @@ func TestApplyRunCancelProjectsTerminalTranscript(t *testing.T) {
 	stores := coordinatorStores{
 		interrupts: &coordinatorInterrupts{pending: map[string]interrupts.Pending{
 			"run_1": {
-				RootRunID: "run_1", SessionID: "ses_1", TurnID: "turn_1",
+				RootRunID: "run_1", SessionID: "ses_1", ExecutorID: "turn_1",
 				Capabilities: execution.RunCapabilities{
 					InterruptKinds: []execution.InterruptKind{execution.QuestionInterrupt},
 				},
@@ -175,7 +175,7 @@ func TestApplyRunLostProjectsTerminalTranscript(t *testing.T) {
 	stores := coordinatorStores{
 		interrupts: &coordinatorInterrupts{pending: map[string]interrupts.Pending{
 			"run_1": {
-				RootRunID: "run_1", SessionID: "ses_1", TurnID: "turn_1", GoalLeaseID: "lease_1",
+				RootRunID: "run_1", SessionID: "ses_1", ExecutorID: "turn_1", GoalLeaseID: "lease_1",
 				Capabilities: execution.RunCapabilities{
 					InterruptKinds: []execution.InterruptKind{execution.ApprovalInterrupt},
 				},
@@ -246,11 +246,11 @@ func TestApplyRunLostProjectsTerminalTranscript(t *testing.T) {
 	if applied.CheckpointRootID != "proc_1" || !appliedRoot.FinishedAt.Equal(finishedAt) || appliedRoot.MessageMark != 1 {
 		t.Fatalf("terminal plan = %+v", applied)
 	}
-	if applied.GoalTurn == nil || applied.GoalTurn.SessionID != "ses_1" ||
-		applied.GoalTurn.LeaseID != "lease_1" || applied.GoalTurn.RunID != "run_1" ||
-		applied.GoalTurn.Outcome != execution.OutcomeError || applied.GoalTurn.CostUSD != costUSD ||
-		applied.GoalTurn.Steps != 4 || !applied.GoalTurn.CompletedAt.Equal(finishedAt) {
-		t.Fatalf("terminal Goal turn = %+v", applied.GoalTurn)
+	if applied.GoalRun == nil || applied.GoalRun.SessionID != "ses_1" ||
+		applied.GoalRun.LeaseID != "lease_1" || applied.GoalRun.RunID != "run_1" ||
+		applied.GoalRun.Outcome != execution.OutcomeError || applied.GoalRun.CostUSD != costUSD ||
+		applied.GoalRun.Steps != 4 || !applied.GoalRun.CompletedAt.Equal(finishedAt) {
+		t.Fatalf("terminal Goal Run = %+v", applied.GoalRun)
 	}
 }
 
@@ -262,7 +262,7 @@ func TestApplyRunLostTerminalizesWholeParkedTreeInPostorder(t *testing.T) {
 		SpawnedByItemID: "item_spawn", ParentRunID: "run_root", RootRunID: "run_root",
 	}
 	pending := interrupts.Pending{
-		RootRunID: "run_root", SessionID: "ses_1", TurnID: "turn_1",
+		RootRunID: "run_root", SessionID: "ses_1", ExecutorID: "turn_1",
 		Capabilities: execution.RunCapabilities{
 			ChildRuns: true, InterruptKinds: []execution.InterruptKind{execution.QuestionInterrupt},
 		},
@@ -359,7 +359,7 @@ func TestApplyRunLostRejectsContinuationFactDriftBeforeTerminalCommit(t *testing
 		InterruptKinds: []execution.InterruptKind{execution.QuestionInterrupt},
 	}
 	pending := interrupts.Pending{
-		RootRunID: "run_root", SessionID: "ses_1", TurnID: "turn_1",
+		RootRunID: "run_root", SessionID: "ses_1", ExecutorID: "turn_1",
 		Capabilities: capabilities,
 		Interrupts:   []transcript.Interrupt{interrupt},
 		Suspensions: []interrupts.SuspensionBinding{{

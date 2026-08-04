@@ -1,35 +1,21 @@
-// Package provider is Lyra's LLM-provider registry — the runtime-mutable
-// set of providers Lyra can talk to, each carrying the credentials a turn
-// needs to build a client. It's the credentials + enablement layer; the
-// per-model metadata (which models a provider offers, pricing, capabilities)
-// is reference data read from the models module's catalog, not stored here.
-//
-// The registry is seeded at startup with the supported provider ids (so
-// providers.list always reports the full supported set), and a provider
-// becomes "enabled" once it has an API key — set from config at boot or via
-// providers.update at runtime. The SQLite registry keeps runtime edits
-// across restarts.
-//
-// Deliberately a data-only registry (credentials + enablement + CRUD): model
-// metadata/pricing live in the models catalog and per-turn client construction
-// in the composition root, so there is no richer domain behavior to add — keep
-// domain logic out of this registry.
+// Package provider models the credentials and enablement registry used by model
+// execution. Model metadata, pricing, capabilities, and client construction are
+// separate concerns; this package owns only provider identity, configuration,
+// provenance, and registry operations.
 package provider
 
 import (
 	"context"
 )
 
-// Provider is one registry entry: a provider id plus the credentials a turn
-// uses to build its client. The id doubles as the adapter type Lyra resolves
-// (anthropic / openai / moonshot / deepseek) and the key into the models
-// catalog.
+// Provider is one registry entry: a stable provider id plus the credentials a
+// Run uses to build its client. The id also keys model reference data.
 type Provider struct {
 	// ID is the provider id — lowercase, e.g. "anthropic", "deepseek".
 	ID string
 
-	// APIKey is the raw provider key. Stored as-is (the registry persists
-	// it like config.yaml does); masked at the wire boundary, never logged.
+	// APIKey is the raw provider key. It is sensitive and must never be logged or
+	// exposed without masking.
 	APIKey string
 
 	// BaseURL optionally overrides the provider's default API endpoint.
@@ -37,16 +23,12 @@ type Provider struct {
 
 	// KeySource is the provenance of APIKey — where the effective credential
 	// came from. The bare registry leaves it zero ([KeyNone] / [KeyStored] is
-	// derivable from APIKey); the env-fallback decorator ([WithEnvKeys]) is what
-	// distinguishes a stored key from one read from the environment, so the wire
-	// can show "from env". Not persisted — it's resolved per read.
+	// derivable from APIKey); [WithEnvKeys] distinguishes a stored key from one
+	// read from the environment. It is resolved per read rather than persisted.
 	KeySource KeySource
 }
 
-// KeySource is where a provider's effective API key came from. It rides on the
-// wire (Provider.keySource) so the UI can tell a stored key (set via
-// providers.update, editable + persisted) from one picked up from the
-// environment (read-only, shown as "from env").
+// KeySource is where a provider's effective API key came from.
 type KeySource string
 
 const (
@@ -60,8 +42,7 @@ const (
 )
 
 // Enabled reports whether the provider is usable — i.e. it has an API key.
-// A seeded-but-unconfigured provider is listed (so the UI can offer it) but
-// not enabled until a key is set.
+// A seeded-but-unconfigured provider is listed but not enabled until a key is set.
 func (p Provider) Enabled() bool { return p.APIKey != "" }
 
 // Patch is an atomic partial update to a provider's persisted configuration.

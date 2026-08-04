@@ -22,8 +22,8 @@ const (
 	QuestionInterrupt
 )
 
-// Valid reports whether k is a kind the runtime can persist and surface.
-// Delivery maps client protocol values into this closed vocabulary.
+// Valid reports whether k is a kind the system can persist and surface.
+// Input boundaries map client values into this closed vocabulary.
 func (k InterruptKind) Valid() bool {
 	return k == ApprovalInterrupt || k == QuestionInterrupt
 }

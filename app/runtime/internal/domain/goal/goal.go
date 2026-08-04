@@ -2,7 +2,7 @@
 // goal per session that drives runs toward an objective until the model signals
 // it complete or blocked, an opt-in budget is spent, or the user stops it.
 // The use case driving Runs owns the loop; this package holds the entity,
-// its status vocabulary, and the cross-turn budget accounting. A goal is
+// its status vocabulary, and the cross-Run budget accounting. A goal is
 // deliberately session-scoped, not run-scoped: it spans the
 // many runs the loop launches, so it lives outside the per-run execution.RunState
 // machine (which has no paused state and terminalizes a lost run on restart).
@@ -45,28 +45,28 @@ func (s Status) Valid() bool {
 	}
 }
 
-// Budget is the opt-in cross-turn cap. A zero field is unbounded on that axis;
+// Budget is the opt-in cross-Run cap. A zero field is unbounded on that axis;
 // an all-zero Budget lets the loop run until the model declares done or the user
 // stops it (the entry gate makes that an explicit choice).
 type Budget struct {
-	MaxTurns   int     // total autonomous turns
-	MaxCostUSD float64 // summed USD across turns
-	MaxSteps   int     // summed model calls across turns
+	MaxRuns    int     // total autonomous Runs
+	MaxCostUSD float64 // summed USD across Runs
+	MaxSteps   int     // summed model calls across Runs
 }
 
 // Validate reports whether every configured budget ceiling is finite and
 // non-negative.
 func (b Budget) Validate() error {
-	if b.MaxTurns < 0 || b.MaxSteps < 0 || b.MaxCostUSD < 0 ||
+	if b.MaxRuns < 0 || b.MaxSteps < 0 || b.MaxCostUSD < 0 ||
 		math.IsNaN(b.MaxCostUSD) || math.IsInf(b.MaxCostUSD, 0) {
 		return errors.New("goal: budget limits must be finite and non-negative")
 	}
 	return nil
 }
 
-// Usage accumulates what the loop has spent across its turns so far.
+// Usage accumulates what the loop has spent across its Runs so far.
 type Usage struct {
-	Turns   int
+	Runs    int
 	CostUSD float64
 	Steps   int
 }
@@ -81,23 +81,23 @@ type Version struct {
 	Revision int64
 }
 
-// BudgetLimit identifies the cross-turn cap that stopped a goal.
+// BudgetLimit identifies the cross-Run cap that stopped a goal.
 type BudgetLimit uint8
 
 const (
 	BudgetLimitNone BudgetLimit = iota
-	BudgetLimitTurns
+	BudgetLimitRuns
 	BudgetLimitCost
 	BudgetLimitSteps
 )
 
 // Exceeded reports the first budget limit u has reached, or (BudgetLimitNone,
-// false) when the goal is still within budget. Checked after each turn commits
+// false) when the goal is still within budget. Checked after each Run commits
 // its usage.
 func (b Budget) Exceeded(u Usage) (limit BudgetLimit, exceeded bool) {
 	switch {
-	case b.MaxTurns > 0 && u.Turns >= b.MaxTurns:
-		return BudgetLimitTurns, true
+	case b.MaxRuns > 0 && u.Runs >= b.MaxRuns:
+		return BudgetLimitRuns, true
 	case b.MaxCostUSD > 0 && u.CostUSD >= b.MaxCostUSD:
 		return BudgetLimitCost, true
 	case b.MaxSteps > 0 && u.Steps >= b.MaxSteps:
@@ -120,7 +120,7 @@ const (
 	ReasonAwaitingInput          ReasonCode = "awaitingInput"
 	ReasonTerminalOutcomeMissing ReasonCode = "terminalOutcomeMissing"
 	ReasonRunNotCompleted        ReasonCode = "runNotCompleted"
-	ReasonTurnBudgetReached      ReasonCode = "turnBudgetReached"
+	ReasonRunBudgetReached       ReasonCode = "runBudgetReached"
 	ReasonCostBudgetReached      ReasonCode = "costBudgetReached"
 	ReasonStepBudgetReached      ReasonCode = "stepBudgetReached"
 	ReasonBlockedByModel         ReasonCode = "blockedByModel"
@@ -136,7 +136,7 @@ func (code ReasonCode) Valid() bool {
 		ReasonAwaitingInput,
 		ReasonTerminalOutcomeMissing,
 		ReasonRunNotCompleted,
-		ReasonTurnBudgetReached,
+		ReasonRunBudgetReached,
 		ReasonCostBudgetReached,
 		ReasonStepBudgetReached,
 		ReasonBlockedByModel:
@@ -161,7 +161,7 @@ type Goal struct {
 	Objective      string
 	Status         Status
 	Reason         Reason             // why it is paused or blocked; zero while active
-	ModelSelection modelref.Selection // model the loop runs each turn against
+	ModelSelection modelref.Selection // model the loop runs each Run against
 	Budget         Budget
 	Used           Usage
 	// LeaseID names the currently valid driving-loop incarnation. It is generated
@@ -179,16 +179,16 @@ var (
 	errObjectiveRequired = errors.New("goal: objective is required")
 	errInvalidSnapshot   = errors.New("goal: invalid snapshot")
 	// ErrBudgetExhausted rejects a resume that would start work beyond the
-	// durable cross-turn budget. Changing a budget is a separate intent, never
+	// durable cross-Run budget. Changing a budget is a separate intent, never
 	// an implicit side effect of resuming a blocked goal.
 	ErrBudgetExhausted = errors.New("goal: budget exhausted")
 	// ErrNotResumable rejects a lifecycle transition from a terminal/transient
 	// status. A complete goal is cleared rather than revived.
 	ErrNotResumable = errors.New("goal: status is not resumable")
-	// ErrTurnIdentityConflict reports an attempt to reuse one Run identity for a
+	// ErrRunIdentityConflict reports an attempt to reuse one Run identity for a
 	// different immutable Goal accounting fact. Exact retries are idempotent;
 	// conflicting retries are corruption and must never be silently accepted.
-	ErrTurnIdentityConflict = errors.New("goal: turn identity conflict")
+	ErrRunIdentityConflict = errors.New("goal: Run identity conflict")
 )
 
 // New builds a new active goal for sessionID. A lease is part of the aggregate
@@ -244,7 +244,7 @@ func (g Goal) ValidateSnapshot() error {
 	if err := g.Budget.Validate(); err != nil {
 		return fmt.Errorf("%w: %w", errInvalidSnapshot, err)
 	}
-	if g.Used.Turns < 0 || g.Used.CostUSD < 0 || g.Used.Steps < 0 ||
+	if g.Used.Runs < 0 || g.Used.CostUSD < 0 || g.Used.Steps < 0 ||
 		math.IsNaN(g.Used.CostUSD) || math.IsInf(g.Used.CostUSD, 0) {
 		return fmt.Errorf("%w: usage must be finite and non-negative", errInvalidSnapshot)
 	}
@@ -261,18 +261,18 @@ func (g Goal) ValidateSnapshot() error {
 	return nil
 }
 
-// AddTurn folds one completed turn's usage into the accumulator.
-func (g *Goal) AddTurn(costUSD float64, steps int, now time.Time) {
-	g.Used.Turns++
+// AddRun folds one completed Run's usage into the accumulator.
+func (g *Goal) AddRun(costUSD float64, steps int, now time.Time) {
+	g.Used.Runs++
 	g.Used.CostUSD += costUSD
 	g.Used.Steps += steps
 	g.UpdatedAt = now
 }
 
-// TurnRecord is the immutable accounting fact emitted when one goal-owned Run
+// RunRecord is the immutable accounting fact emitted when one goal-owned Run
 // terminalizes. RunID makes the store-level recording idempotent; LeaseID keeps
 // a straggling Run from charging a later goal incarnation.
-type TurnRecord struct {
+type RunRecord struct {
 	SessionID   string
 	LeaseID     string
 	RunID       string
@@ -284,7 +284,7 @@ type TurnRecord struct {
 
 // Validate reports whether this immutable Goal accounting fact is complete and
 // numerically representable before it reaches the idempotency ledger.
-func (record TurnRecord) Validate() error {
+func (record RunRecord) Validate() error {
 	for _, identity := range []struct {
 		name  string
 		value string
@@ -294,39 +294,39 @@ func (record TurnRecord) Validate() error {
 		{name: "Run ID", value: record.RunID},
 	} {
 		if strings.TrimSpace(identity.value) == "" {
-			return fmt.Errorf("goal: turn %s is required", identity.name)
+			return fmt.Errorf("goal: Run %s is required", identity.name)
 		}
 		if identity.value != strings.TrimSpace(identity.value) {
-			return fmt.Errorf("goal: turn %s has surrounding whitespace", identity.name)
+			return fmt.Errorf("goal: Run %s has surrounding whitespace", identity.name)
 		}
 	}
 	if _, ok := execution.ParseOutcome(record.Outcome.String()); !ok {
-		return fmt.Errorf("goal: turn has unknown outcome %d", record.Outcome)
+		return fmt.Errorf("goal: Run has unknown outcome %d", record.Outcome)
 	}
 	if record.CostUSD < 0 || math.IsNaN(record.CostUSD) || math.IsInf(record.CostUSD, 0) {
-		return errors.New("goal: turn cost must be a finite non-negative number")
+		return errors.New("goal: Run cost must be a finite non-negative number")
 	}
 	if record.Steps < 0 {
-		return errors.New("goal: turn steps must not be negative")
+		return errors.New("goal: Run steps must not be negative")
 	}
 	if record.CompletedAt.IsZero() {
-		return errors.New("goal: turn completion time is required")
+		return errors.New("goal: Run completion time is required")
 	}
 	return nil
 }
 
-// RecordTurn folds one terminal Run into the matching goal lease. It always
+// RecordRun folds one terminal Run into the matching goal lease. It always
 // records work the lease actually performed; a model report may already have
 // changed Active to Complete or Blocked before the Run terminalizes, and that
-// transition must not erase the turn's cost. Only an active goal derives a new
+// transition must not erase the Run's cost. Only an active goal derives a new
 // lifecycle state from the terminal outcome or budget — an earlier explicit
 // stop/report remains authoritative.
 //
 // The persistence adapter invokes this within the same transaction that
 // terminalizes the Run, so a completed Run and its budget charge cannot
 // diverge.
-func (g *Goal) RecordTurn(record TurnRecord) {
-	g.AddTurn(record.CostUSD, record.Steps, record.CompletedAt)
+func (g *Goal) RecordRun(record RunRecord) {
+	g.AddRun(record.CostUSD, record.Steps, record.CompletedAt)
 	if g.Status != StatusActive {
 		return
 	}
@@ -384,8 +384,8 @@ func (g *Goal) Resume(now time.Time) error {
 
 func reasonForBudgetLimit(limit BudgetLimit) ReasonCode {
 	switch limit {
-	case BudgetLimitTurns:
-		return ReasonTurnBudgetReached
+	case BudgetLimitRuns:
+		return ReasonRunBudgetReached
 	case BudgetLimitCost:
 		return ReasonCostBudgetReached
 	case BudgetLimitSteps:

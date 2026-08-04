@@ -73,7 +73,7 @@ func (commit RecoveryCommit) Validate() error {
 		}
 		replacedItems[replacement.Expected.ID] = struct{}{}
 	}
-	if err := validateRecoveryGoalTurns(commit.GoalTurns, lostByID); err != nil {
+	if err := validateRecoveryGoalRuns(commit.GoalRuns, lostByID); err != nil {
 		return err
 	}
 	if err := validatePendingDeletions(commit.DeletePending, lostByID); err != nil {
@@ -116,38 +116,38 @@ func validateRecoveryItemReplacement(replacement ItemReplacement, finishedAt tim
 	return nil
 }
 
-func validateRecoveryGoalTurns(turns []goal.TurnRecord, lostByID map[string]transcript.Run) error {
+func validateRecoveryGoalRuns(records []goal.RunRecord, lostByID map[string]transcript.Run) error {
 	expected := make(map[string]transcript.Run)
 	for _, run := range lostByID {
 		if run.Lineage().IsRoot() && run.GoalLeaseID != "" {
 			expected[run.ID] = run
 		}
 	}
-	seen := make(map[string]struct{}, len(turns))
-	for index, turn := range turns {
-		if err := turn.Validate(); err != nil {
-			return fmt.Errorf("runs: recovery commit Goal turn[%d]: %w", index, err)
+	seen := make(map[string]struct{}, len(records))
+	for index, record := range records {
+		if err := record.Validate(); err != nil {
+			return fmt.Errorf("runs: recovery commit Goal Run[%d]: %w", index, err)
 		}
-		if _, duplicate := seen[turn.RunID]; duplicate {
-			return fmt.Errorf("runs: recovery commit repeats Goal turn for Run %q", turn.RunID)
+		if _, duplicate := seen[record.RunID]; duplicate {
+			return fmt.Errorf("runs: recovery commit repeats Goal Run for Run %q", record.RunID)
 		}
-		seen[turn.RunID] = struct{}{}
-		run, found := expected[turn.RunID]
+		seen[record.RunID] = struct{}{}
+		run, found := expected[record.RunID]
 		if !found || run.Outcome == nil {
-			return fmt.Errorf("runs: recovery commit Goal turn names unowned Run %q", turn.RunID)
+			return fmt.Errorf("runs: recovery commit Goal Run names unowned Run %q", record.RunID)
 		}
 		cost := 0.0
 		if run.Metrics.Usage != nil && run.Metrics.Usage.CostUSD != nil {
 			cost = *run.Metrics.Usage.CostUSD
 		}
-		if turn.SessionID != run.SessionID || turn.LeaseID != run.GoalLeaseID ||
-			turn.Outcome != *run.Outcome || turn.CostUSD != cost ||
-			turn.Steps != run.Metrics.Steps || !turn.CompletedAt.Equal(run.FinishedAt) {
-			return fmt.Errorf("runs: recovery commit Goal turn differs from lost Run %q", run.ID)
+		if record.SessionID != run.SessionID || record.LeaseID != run.GoalLeaseID ||
+			record.Outcome != *run.Outcome || record.CostUSD != cost ||
+			record.Steps != run.Metrics.Steps || !record.CompletedAt.Equal(run.FinishedAt) {
+			return fmt.Errorf("runs: recovery commit Goal Run differs from lost Run %q", run.ID)
 		}
 	}
 	if len(seen) != len(expected) {
-		return fmt.Errorf("runs: recovery commit has %d Goal turns, want %d", len(seen), len(expected))
+		return fmt.Errorf("runs: recovery commit has %d Goal Runs, want %d", len(seen), len(expected))
 	}
 	return nil
 }

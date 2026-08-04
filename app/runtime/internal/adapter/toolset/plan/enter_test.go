@@ -61,7 +61,7 @@ func TestEnterUsesCurrentSession(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctx := executionctx.WithScope(t.Context(), execution.TurnScope{SessionID: "session-1"})
+	ctx := executionctx.WithScope(t.Context(), execution.ExecutionScope{SessionID: "session-1"})
 	result, err := tool.Call(ctx, `{}`)
 	if err != nil {
 		t.Fatal(err)
@@ -79,7 +79,7 @@ func TestAlreadyEnteredIsIdempotent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctx := executionctx.WithScope(t.Context(), execution.TurnScope{SessionID: "session-1"})
+	ctx := executionctx.WithScope(t.Context(), execution.ExecutionScope{SessionID: "session-1"})
 	result, err := tool.Call(ctx, `{}`)
 	if err != nil || !strings.Contains(result, "already in Plan mode") {
 		t.Fatalf("Call = %q, %v", result, err)

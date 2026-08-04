@@ -39,7 +39,7 @@ func (f *executorFakeController) CancelSubtree(_ context.Context, h Handle, proc
 func (*executorFakeController) InjectSteering(context.Context, Handle, []transcript.ContentBlock) error {
 	return nil
 }
-func (*executorFakeController) PrepareTurn(context.Context, runs.StartTurn) (Handle, error) {
+func (*executorFakeController) PrepareTurn(context.Context, runs.StartExecution) (Handle, error) {
 	return Handle{}, nil
 }
 func (*executorFakeController) ActivateTurn(context.Context, Handle) error { return nil }
@@ -47,28 +47,28 @@ func (*executorFakeController) Resume(context.Context, Handle, []agentexec.Suspe
 	return nil
 }
 func (*executorFakeController) ProcessID(context.Context, Handle) (string, error) { return "", nil }
-func (*executorFakeController) Rehydrate(context.Context, runs.RehydrateTurn) (Handle, error) {
+func (*executorFakeController) Rehydrate(context.Context, runs.RehydrateExecution) (Handle, error) {
 	return Handle{}, nil
 }
 
-// TestExecutorTranslatesTurnReference verifies the application-owned durable
+// TestExecutorTranslatesReference verifies the application-owned durable
 // identity is translated into the controller's concrete handle.
-func TestExecutorTranslatesTurnReference(t *testing.T) {
+func TestExecutorTranslatesReference(t *testing.T) {
 	ctx := context.Background()
 	handle := Handle{SessionID: "ses_1", TurnID: "run_1"}
-	ref := execution.TurnRef{SessionID: handle.SessionID, TurnID: handle.TurnID}
+	ref := execution.ExecutorRef{SessionID: handle.SessionID, ExecutorID: handle.TurnID}
 	disp := &executorFakeController{events: func(func(runs.ExecutorEvent) bool) {}}
 	exec := NewExecutor(disp)
 
-	seq, err := exec.TurnEvents(ctx, ref)
+	seq, err := exec.Events(ctx, ref)
 	if err != nil {
-		t.Fatalf("TurnEvents: %v", err)
+		t.Fatalf("Events: %v", err)
 	}
 	if seq == nil || disp.eventsHandle != handle {
 		t.Fatalf("events handle=%+v seq nil=%v", disp.eventsHandle, seq == nil)
 	}
 
-	if err := exec.CancelTurn(ctx, ref); err != nil {
+	if err := exec.CancelExecution(ctx, ref); err != nil {
 		t.Fatalf("CancelTurn: %v", err)
 	}
 	if disp.cancelHandle != handle {
@@ -84,7 +84,7 @@ func TestExecutorTranslatesTurnReference(t *testing.T) {
 
 func TestExecutorMapsLostProcessSnapshot(t *testing.T) {
 	err := mapControlError(agentexec.ErrExecutorCheckpointLost)
-	if !errors.Is(err, runs.ErrTurnStateLost) || !errors.Is(err, agentexec.ErrExecutorCheckpointLost) {
+	if !errors.Is(err, runs.ErrExecutorStateLost) || !errors.Is(err, agentexec.ErrExecutorCheckpointLost) {
 		t.Fatalf("mapControlError = %v, want both turn-state and snapshot-loss identities", err)
 	}
 }
@@ -92,20 +92,20 @@ func TestExecutorMapsLostProcessSnapshot(t *testing.T) {
 func TestExecutorMapsMissingTurnOnBothCancelPorts(t *testing.T) {
 	controller := &executorFakeController{cancelErr: ErrTurnNotFound}
 	executor := NewExecutor(controller)
-	ref := execution.TurnRef{SessionID: "ses_1", TurnID: "turn_1"}
+	ref := execution.ExecutorRef{SessionID: "ses_1", ExecutorID: "turn_1"}
 
 	tests := []struct {
 		name   string
 		cancel func() error
 	}{
-		{name: "segment", cancel: func() error { return executor.CancelTurn(t.Context(), ref) }},
+		{name: "segment", cancel: func() error { return executor.CancelExecution(t.Context(), ref) }},
 		{name: "subtree", cancel: func() error {
 			return executor.CancelSubtree(t.Context(), ref, "process_child")
 		}},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			if err := test.cancel(); !errors.Is(err, runs.ErrTurnNotLive) || !errors.Is(err, ErrTurnNotFound) {
+			if err := test.cancel(); !errors.Is(err, runs.ErrExecutorNotLive) || !errors.Is(err, ErrTurnNotFound) {
 				t.Fatalf("cancel error = %v, want both turn-not-live identities", err)
 			}
 		})

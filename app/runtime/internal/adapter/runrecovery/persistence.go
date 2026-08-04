@@ -38,8 +38,8 @@ type MessageCounter interface {
 	Count(ctx context.Context, sessionID string) (int, error)
 }
 
-type GoalTurnStore interface {
-	RecordTurn(ctx context.Context, record goal.TurnRecord) error
+type GoalRunRecorder interface {
+	RecordRun(ctx context.Context, record goal.RunRecord) error
 }
 
 type ExecutorCheckpointStore interface {
@@ -54,7 +54,7 @@ type Config struct {
 	Interrupts          InterruptStore
 	Transcript          TranscriptStore
 	Messages            MessageCounter
-	GoalTurns           GoalTurnStore
+	GoalRuns            GoalRunRecorder
 	ExecutorCheckpoints ExecutorCheckpointStore
 	Tx                  Transactor
 }
@@ -67,7 +67,7 @@ type Persistence struct {
 	interrupts          InterruptStore
 	transcript          TranscriptStore
 	messages            MessageCounter
-	goalTurns           GoalTurnStore
+	goalRuns            GoalRunRecorder
 	executorCheckpoints ExecutorCheckpointStore
 	tx                  Transactor
 }
@@ -95,7 +95,7 @@ func New(config Config) (*Persistence, error) {
 			interrupts:          config.Interrupts,
 			transcript:          config.Transcript,
 			messages:            config.Messages,
-			goalTurns:           config.GoalTurns,
+			goalRuns:            config.GoalRuns,
 			executorCheckpoints: config.ExecutorCheckpoints,
 			tx:                  config.Tx,
 		}, nil
@@ -140,12 +140,12 @@ func (p *Persistence) CommitRecovery(ctx context.Context, commit runs.RecoveryCo
 				return fmt.Errorf("runrecovery: recover lost Run %q: %w", lost.ID, err)
 			}
 		}
-		for _, turn := range commit.GoalTurns {
-			if p.goalTurns == nil {
-				return errors.New("runrecovery: Goal turn store is unavailable for a Goal-owned lost Run")
+		for _, record := range commit.GoalRuns {
+			if p.goalRuns == nil {
+				return errors.New("runrecovery: Goal Run store is unavailable for a Goal-owned lost Run")
 			}
-			if err := p.goalTurns.RecordTurn(ctx, turn); err != nil {
-				return fmt.Errorf("runrecovery: record goal turn for Run %q: %w", turn.RunID, err)
+			if err := p.goalRuns.RecordRun(ctx, record); err != nil {
+				return fmt.Errorf("runrecovery: record Goal Run for Run %q: %w", record.RunID, err)
 			}
 		}
 		for _, pending := range commit.DeletePending {

@@ -12,7 +12,7 @@ import (
 // Cancel handles both live and parked runs under the same run/session admission
 // rules and returns the exact terminal Run committed by the winning write-set.
 // The durable abandon write-set is authoritative and commits before a parked
-// turn is torn down. Process cleanup errors are returned unless the turn already
+// executor is torn down. Cleanup errors are returned unless the executor already
 // disappeared, which is the idempotent completion race.
 func (c *Coordinator) Cancel(ctx context.Context, cmd CancelCommand) (CancelResult, error) {
 	if err := c.requireControlDependencies(); err != nil {
@@ -70,11 +70,11 @@ func (c *Coordinator) Cancel(ctx context.Context, cmd CancelCommand) (CancelResu
 		if err := entry.handle.wait(cleanupCtx); err != nil {
 			return CancelResult{}, err
 		}
-		return c.cancelKnownParkedRun(cleanupCtx, cmd, plan.root.run, plan.turn)
+		return c.cancelKnownParkedRun(cleanupCtx, cmd, plan.root.run, plan.executor)
 	}
 	// The pump owns every non-parked live teardown. requestCancel has stopped its
 	// stream context; joining the handle returns that single owner's complete
-	// cleanup boundary without racing a second CancelTurn from this goroutine.
+	// cleanup boundary without racing a second CancelExecution from this goroutine.
 	if err := entry.handle.wait(cleanupCtx); err != nil {
 		return CancelResult{}, err
 	}
@@ -108,9 +108,9 @@ func (c *Coordinator) cancelLiveChild(
 	}
 	cleanupCtx, cancel := live.cleanupContext(ctx)
 	defer cancel()
-	if err := c.turns.CancelSubtree(
+	if err := c.control.CancelSubtree(
 		cleanupCtx,
-		plan.turn,
+		plan.executor,
 		plan.target.processID,
 	); err != nil {
 		live.abortChildCancellation(attempt, err)
@@ -148,7 +148,7 @@ func (c *Coordinator) cancelLiveChild(
 
 // cancelWaitingChild removes one complete child subtree from an executor tree
 // parked at a human boundary. It first reserves the Session + working tree,
-// claims the App turn lifecycle, and obtains an immutable Agent transition plan
+// claims the execution lifecycle, and obtains an immutable transition plan
 // that retains no runtime ownership. The application projections and replacement
 // executor checkpoint commit in one transaction; only after that durable boundary may
 // App apply the planned live transition.
@@ -226,9 +226,9 @@ func (c *Coordinator) cancelWaitingChild(
 		)
 	}
 
-	turn, err := c.prepareTurn(cleanupCtx, plan.pending, sess.Cwd, sess.Isolated)
+	ref, err := c.prepareExecution(cleanupCtx, plan.pending, sess.Cwd, sess.Isolated)
 	if err != nil {
-		if errors.Is(err, ErrTurnStateLost) {
+		if errors.Is(err, ErrExecutorStateLost) {
 			lostErr := c.sessions.ApplyRunLost(
 				cleanupCtx,
 				plan.pending.SessionID,
@@ -245,19 +245,19 @@ func (c *Coordinator) cancelWaitingChild(
 		}
 		return CancelResult{}, err
 	}
-	if turn != plan.turn {
+	if ref != plan.executor {
 		return CancelResult{}, fmt.Errorf(
-			"runs: prepared turn %q/%q differs from waiting cancellation turn %q/%q",
-			turn.SessionID,
-			turn.TurnID,
-			plan.turn.SessionID,
-			plan.turn.TurnID,
+			"runs: prepared executor %q/%q differs from waiting cancellation executor %q/%q",
+			ref.SessionID,
+			ref.ExecutorID,
+			plan.executor.SessionID,
+			plan.executor.ExecutorID,
 		)
 	}
 
-	prepared, err := c.turns.PrepareWaitingSubtreeCancellation(
+	prepared, err := c.control.PrepareWaitingSubtreeCancellation(
 		cleanupCtx,
-		turn,
+		ref,
 		plan.target.processID,
 	)
 	if err != nil {
@@ -290,7 +290,7 @@ func (c *Coordinator) cancelWaitingChild(
 				err,
 			)
 			// The database transaction is already authoritative. Release the App
-			// claim before asking the turn adapter to tear down its obsolete live
+			// claim before asking execution control to tear down its obsolete live
 			// tree, then fail the durable tree closed as run_lost. This recovery is
 			// application policy; Agent Runtime remains unaware of the transaction.
 			prepared.Mutation.Abort()
@@ -318,7 +318,7 @@ func (c *Coordinator) cancelWaitingChild(
 		SegmentID:      segmentID,
 		SessionID:      plan.pending.SessionID,
 		Cwd:            sess.Cwd,
-		TurnID:         turn.TurnID,
+		ExecutorID:     ref.ExecutorID,
 		ModelSelection: rootContinuation.ModelSelection,
 		GoalLeaseID:    transformation.continuation.goalLeaseID,
 		CreatedAt:      rootContinuation.RunCreatedAt,
@@ -380,10 +380,10 @@ func (c *Coordinator) recoverCommittedWaitingCancellation(
 			err,
 		)
 	}
-	if err := c.turns.CancelTurn(recoveryCtx, plan.turn); err != nil {
+	if err := c.control.CancelExecution(recoveryCtx, plan.executor); err != nil {
 		return fmt.Errorf(
-			"runs: release obsolete turn %q after root Run %q was recovered lost: %w",
-			plan.turn.TurnID,
+			"runs: release obsolete executor %q after root Run %q was recovered lost: %w",
+			plan.executor.ExecutorID,
 			plan.root.run.ID,
 			err,
 		)
@@ -520,25 +520,25 @@ func (c *Coordinator) cancelParkedRun(ctx context.Context, cmd CancelCommand, ru
 			cmd.RunID, run.SessionID, pending.SessionID,
 		)
 	}
-	return c.cancelClaimedParkedRun(ctx, cmd, execution.TurnRef{
-		SessionID: pending.SessionID,
-		TurnID:    pending.TurnID,
+	return c.cancelClaimedParkedRun(ctx, cmd, execution.ExecutorRef{
+		SessionID:  pending.SessionID,
+		ExecutorID: pending.ExecutorID,
 	})
 }
 
 // cancelKnownParkedRun is used only after the live handle proves its interrupt
-// transaction committed. The handle's segment binding is therefore the exact
-// turn that transaction parked; resolving it again would introduce a second,
+// transaction committed. The handle's Segment binding is therefore the exact
+// executor that transaction parked; resolving it again would introduce a second,
 // weaker source of identity between two halves of one command.
 func (c *Coordinator) cancelKnownParkedRun(
 	ctx context.Context,
 	cmd CancelCommand,
 	run transcript.Run,
-	ref execution.TurnRef,
+	ref execution.ExecutorRef,
 ) (CancelResult, error) {
 	if ref.SessionID != run.SessionID {
 		return CancelResult{}, fmt.Errorf(
-			"runs: run %q belongs to session %q but its live turn belongs to %q",
+			"runs: Run %q belongs to Session %q but its live executor belongs to %q",
 			cmd.RunID, run.SessionID, ref.SessionID,
 		)
 	}
@@ -550,7 +550,7 @@ func (c *Coordinator) cancelKnownParkedRun(
 	return c.cancelClaimedParkedRun(ctx, cmd, ref)
 }
 
-func (c *Coordinator) cancelClaimedParkedRun(ctx context.Context, cmd CancelCommand, ref execution.TurnRef) (CancelResult, error) {
+func (c *Coordinator) cancelClaimedParkedRun(ctx context.Context, cmd CancelCommand, ref execution.ExecutorRef) (CancelResult, error) {
 	terminal, err := c.sessions.ApplyRunCancel(ctx, ref.SessionID, cmd.RunID, cmd.Reason, c.now().UTC())
 	if err != nil {
 		return CancelResult{}, err
@@ -559,8 +559,8 @@ func (c *Coordinator) cancelClaimedParkedRun(ctx context.Context, cmd CancelComm
 	// ends the run and drops the interrupt, and it is reached from here and from a
 	// resume that finds the park unresumable. Signaling here too would be a second
 	// author for one commit.
-	if err := c.turns.CancelTurn(ctx, ref); err != nil && !errors.Is(err, ErrTurnNotLive) {
-		return CancelResult{}, fmt.Errorf("runs: clean up canceled parked run %q turn: %w", cmd.RunID, err)
+	if err := c.control.CancelExecution(ctx, ref); err != nil && !errors.Is(err, ErrExecutorNotLive) {
+		return CancelResult{}, fmt.Errorf("runs: clean up canceled parked Run %q executor: %w", cmd.RunID, err)
 	}
 	return rootCancelResult(terminal)
 }

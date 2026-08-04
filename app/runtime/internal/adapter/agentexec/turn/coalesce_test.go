@@ -27,7 +27,7 @@ func TestCoalesceTextDeltas_MergesConsecutive(t *testing.T) {
 func TestCoalesceTextDeltas_SpillsAtKindBoundary(t *testing.T) {
 	ch := make(chan runs.ExecutorEvent, 8)
 	ch <- rootExecutorEvent(runs.MessageDelta{Text: "b"})
-	ch <- rootExecutorEvent(runs.TurnEnd{Reason: execution.OutcomeCompleted})
+	ch <- rootExecutorEvent(runs.SegmentEnded{Reason: execution.OutcomeCompleted})
 	ch <- rootExecutorEvent(runs.MessageDelta{Text: "c"}) // past the boundary — must NOT be merged in
 	var spill *runs.ExecutorEvent
 	got := coalesceTextDeltas(rootExecutorEvent(runs.MessageDelta{Text: "a"}), ch, &spill)
@@ -37,7 +37,7 @@ func TestCoalesceTextDeltas_SpillsAtKindBoundary(t *testing.T) {
 	if spill == nil {
 		t.Fatal("spill is nil, want runs.TurnEnd")
 	}
-	if _, ok := spill.Payload.(runs.TurnEnd); !ok {
+	if _, ok := spill.Payload.(runs.SegmentEnded); !ok {
 		t.Fatalf("spill = %#v, want runs.TurnEnd parked for the next yield", spill)
 	}
 	if len(ch) != 1 {

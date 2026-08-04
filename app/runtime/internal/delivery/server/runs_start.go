@@ -96,9 +96,9 @@ func wireRunStartErr(err error) error {
 		return fmt.Errorf("%w: input must contain a user text or image block", protocol.ErrInvalidParams)
 	case errors.Is(err, modelref.ErrIncomplete):
 		return protocol.ErrInvalidParams
-	case errors.Is(err, runs.ErrInvalidTurnLimit):
+	case errors.Is(err, runs.ErrInvalidRunLimit):
 		return fmt.Errorf("%w: %w", protocol.ErrInvalidParams, err)
-	case errors.Is(err, runs.ErrInvalidTurnOptions):
+	case errors.Is(err, runs.ErrInvalidRunOptions):
 		return fmt.Errorf("%w: %w", protocol.ErrInvalidParams, err)
 	case errors.Is(err, runs.ErrUnsupportedMedia):
 		return fmt.Errorf("%w: %w", protocol.ErrInvalidParams, err)

@@ -102,7 +102,7 @@ func runChildHITLScenario(t *testing.T, scenario childHITLScenario) (childHITLOu
 		childArguments: scenario.childArguments,
 	}, policy, staticHookResolver{bound: bound})
 
-	handle, err := controller.StartTurn(t.Context(), runs.StartTurn{
+	handle, err := controller.StartTurn(t.Context(), runs.StartExecution{
 		SessionID:      "sess-b8-" + strings.ReplaceAll(scenario.name, " ", "-"),
 		Message:        "delegate this work",
 		Cwd:            t.TempDir(),
@@ -145,7 +145,7 @@ func runChildHITLScenario(t *testing.T, scenario childHITLScenario) (childHITLOu
 			if event.ToolName == scenario.childTool {
 				outcome.childEvents++
 			}
-		case runs.TurnEnd:
+		case runs.SegmentEnded:
 			outcome.endReason = event.Reason
 		}
 	}
@@ -191,7 +191,7 @@ func TestChildCanSuspendTwiceOnTheSameRun(t *testing.T) {
 		defaults: &chat.Options{Model: "b8-two-questions"},
 	}, policy, staticHookResolver{bound: bound})
 
-	handle, err := controller.StartTurn(t.Context(), runs.StartTurn{
+	handle, err := controller.StartTurn(t.Context(), runs.StartExecution{
 		SessionID:      "sess-b8-two-questions",
 		Message:        "delegate this work",
 		Cwd:            t.TempDir(),
@@ -228,7 +228,7 @@ func TestChildCanSuspendTwiceOnTheSameRun(t *testing.T) {
 			); err != nil {
 				t.Fatalf("Resume %d: %v", interruptCount, err)
 			}
-		case runs.TurnEnd:
+		case runs.SegmentEnded:
 			endReason = event.Reason
 		}
 	}
@@ -253,7 +253,7 @@ func TestCompleteAnswerSetDrivesParallelChildSuspensionsWithoutSecondBarrier(t *
 		mustApprovalPolicy(t, approval.ModeBalanced, nil),
 		staticHookResolver{},
 	)
-	handle, err := controller.StartTurn(t.Context(), runs.StartTurn{
+	handle, err := controller.StartTurn(t.Context(), runs.StartExecution{
 		SessionID:      "sess-b8-parallel-questions",
 		Message:        "delegate this work",
 		Cwd:            t.TempDir(),
@@ -296,7 +296,7 @@ func TestCompleteAnswerSetDrivesParallelChildSuspensionsWithoutSecondBarrier(t *
 			); err != nil {
 				t.Fatalf("Resume complete answer set: %v", err)
 			}
-		case runs.TurnEnd:
+		case runs.SegmentEnded:
 			endReason = event.Reason
 		}
 	}
@@ -339,7 +339,7 @@ func TestRestartResumesCompleteSiblingAnswerSetWithoutReplayingBarrier(t *testin
 		sqlite.NewMessageStore(firstDatabase),
 		buildID,
 	)
-	original, err := first.StartTurn(t.Context(), runs.StartTurn{
+	original, err := first.StartTurn(t.Context(), runs.StartExecution{
 		SessionID:      sess.ID,
 		Message:        "delegate this work",
 		Cwd:            cwd,
@@ -382,12 +382,12 @@ func TestRestartResumesCompleteSiblingAnswerSetWithoutReplayingBarrier(t *testin
 		sqlite.NewMessageStore(restoredDatabase),
 		buildID,
 	)
-	restoredHandle, err := restored.Rehydrate(t.Context(), runs.RehydrateTurn{
-		SessionID: original.SessionID,
-		TurnID:    original.TurnID,
-		ProcessID: processID,
-		RootRunID: "run-root",
-		Cwd:       cwd,
+	restoredHandle, err := restored.Rehydrate(t.Context(), runs.RehydrateExecution{
+		SessionID:  original.SessionID,
+		ExecutorID: original.TurnID,
+		ProcessID:  processID,
+		RootRunID:  "run-root",
+		Cwd:        cwd,
 	})
 	if err != nil {
 		t.Fatalf("Rehydrate: %v", err)
@@ -422,7 +422,7 @@ func TestRestartResumesCompleteSiblingAnswerSetWithoutReplayingBarrier(t *testin
 		case runs.TreeInterrupted:
 			persistTreeBarrier(t, payload)
 			replayedBarriers++
-		case runs.TurnEnd:
+		case runs.SegmentEnded:
 			endReason = payload.Reason
 		}
 	}
@@ -453,7 +453,7 @@ func TestCompleteAnswerSetDoesNotPersistDuringLiveContinuation(t *testing.T) {
 		inmemory.New(),
 		buildID,
 	)
-	handle, err := controller.StartTurn(t.Context(), runs.StartTurn{
+	handle, err := controller.StartTurn(t.Context(), runs.StartExecution{
 		SessionID:      "sess-b8-parallel-checkpoint-failure",
 		Message:        "delegate this work",
 		Cwd:            t.TempDir(),
@@ -485,7 +485,7 @@ func TestCompleteAnswerSetDoesNotPersistDuringLiveContinuation(t *testing.T) {
 			); err != nil {
 				t.Fatalf("Resume complete answer set: %v", err)
 			}
-		case runs.TurnEnd:
+		case runs.SegmentEnded:
 			terminalCount++
 			if payload.Reason != execution.OutcomeCompleted || payload.Problem != nil {
 				t.Fatalf("TurnEnd = %+v, want completed without hidden checkpoint I/O", payload)
@@ -520,7 +520,7 @@ func TestCompleteAnswerSetEncodingFailurePrecedesAnyContinuationSideEffect(t *te
 		inmemory.New(),
 		buildID,
 	)
-	handle, err := controller.StartTurn(t.Context(), runs.StartTurn{
+	handle, err := controller.StartTurn(t.Context(), runs.StartExecution{
 		SessionID:      "sess-b8-parallel-encoding-failure",
 		Message:        "delegate this work",
 		Cwd:            t.TempDir(),
@@ -552,7 +552,7 @@ func TestCompleteAnswerSetEncodingFailurePrecedesAnyContinuationSideEffect(t *te
 			if err == nil || !strings.Contains(err.Error(), "unknown remember scope") {
 				t.Fatalf("Resume encoding error = %v, want invalid remember scope", err)
 			}
-		case runs.TurnEnd:
+		case runs.SegmentEnded:
 			terminalCount++
 			if payload.Reason != execution.OutcomeError || payload.Problem == nil {
 				t.Fatalf("TurnEnd = %+v, want canonical error terminal", payload)
@@ -593,7 +593,7 @@ func TestRestartRestoresParkedChildWithoutReplayingPreHook(t *testing.T) {
 		}, hooks.NewRunner(firstHooks, nil)),
 	}, store, historyStore, buildID)
 
-	original, err := first.StartTurn(t.Context(), runs.StartTurn{
+	original, err := first.StartTurn(t.Context(), runs.StartExecution{
 		SessionID:      "sess-b8-restart",
 		Message:        "delegate this work",
 		Cwd:            cwd,
@@ -639,11 +639,11 @@ func TestRestartRestoresParkedChildWithoutReplayingPreHook(t *testing.T) {
 			{Event: hooks.SubagentStop, Command: "record", Source: "test"},
 		}, hooks.NewRunner(restoredHooks, nil)),
 	}, store, historyStore, buildID)
-	restoredHandle, err := restored.Rehydrate(t.Context(), runs.RehydrateTurn{
-		SessionID: original.SessionID,
-		TurnID:    original.TurnID,
-		ProcessID: processID,
-		RootRunID: "run-root",
+	restoredHandle, err := restored.Rehydrate(t.Context(), runs.RehydrateExecution{
+		SessionID:  original.SessionID,
+		ExecutorID: original.TurnID,
+		ProcessID:  processID,
+		RootRunID:  "run-root",
 		ChildRuns: []runs.ChildRunBinding{{
 			ProcessID:   barrier.Suspensions[0].ProcessID,
 			RunID:       "run-child",
@@ -676,7 +676,7 @@ func TestRestartRestoresParkedChildWithoutReplayingPreHook(t *testing.T) {
 			if event.ToolName == "shell" {
 				leakedChildEvents++
 			}
-		case runs.TurnEnd:
+		case runs.SegmentEnded:
 			endReason = event.Reason
 		}
 	}
@@ -737,7 +737,7 @@ func TestCancelParkedChildCleansWholeProcessTree(t *testing.T) {
 	controller := buildB8PersistentController(
 		t, model, policy, staticHookResolver{}, store, inmemory.New(), buildID,
 	)
-	handle, err := controller.StartTurn(t.Context(), runs.StartTurn{
+	handle, err := controller.StartTurn(t.Context(), runs.StartExecution{
 		SessionID:      "sess-b8-child-cancel",
 		Message:        "delegate this work",
 		Cwd:            t.TempDir(),
@@ -767,7 +767,7 @@ func TestCancelParkedChildCleansWholeProcessTree(t *testing.T) {
 			if err := controller.Cancel(t.Context(), handle); err != nil {
 				t.Fatalf("Cancel: %v", err)
 			}
-		case runs.TurnEnd:
+		case runs.SegmentEnded:
 			terminalCount++
 			endReason = event.Reason
 		}
@@ -806,7 +806,7 @@ func TestRehydrateRejectsCorruptCheckpointPayload(t *testing.T) {
 	first := buildB8PersistentController(
 		t, model, policy, staticHookResolver{}, store, historyStore, buildID,
 	)
-	handle, err := first.StartTurn(t.Context(), runs.StartTurn{
+	handle, err := first.StartTurn(t.Context(), runs.StartExecution{
 		SessionID:      "sess-b8-child-missing",
 		Message:        "delegate this work",
 		Cwd:            t.TempDir(),
@@ -841,12 +841,12 @@ func TestRehydrateRejectsCorruptCheckpointPayload(t *testing.T) {
 	restored := buildB8PersistentController(
 		t, model, policy, staticHookResolver{}, store, historyStore, buildID,
 	)
-	_, err = restored.Rehydrate(t.Context(), runs.RehydrateTurn{
-		SessionID: handle.SessionID,
-		TurnID:    handle.TurnID,
-		ProcessID: rootID,
-		RootRunID: "run-root",
-		Cwd:       t.TempDir(),
+	_, err = restored.Rehydrate(t.Context(), runs.RehydrateExecution{
+		SessionID:  handle.SessionID,
+		ExecutorID: handle.TurnID,
+		ProcessID:  rootID,
+		RootRunID:  "run-root",
+		Cwd:        t.TempDir(),
 	})
 	if !errors.Is(err, agentexec.ErrExecutorCheckpointLost) {
 		t.Fatalf("Rehydrate error = %v, want executor checkpoint lost", err)
@@ -863,7 +863,7 @@ func TestChildApproveCancelRaceHasOneTerminal(t *testing.T) {
 	controller := buildB8Controller(t, model, policy, staticHookResolver{})
 
 	for index := range 20 {
-		handle, err := controller.StartTurn(t.Context(), runs.StartTurn{
+		handle, err := controller.StartTurn(t.Context(), runs.StartExecution{
 			SessionID:      "sess-b8-race-" + string(rune('a'+index)),
 			Message:        "delegate this work",
 			Cwd:            t.TempDir(),
@@ -922,7 +922,7 @@ func TestChildApproveCancelRaceHasOneTerminal(t *testing.T) {
 				if event.ToolName == "shell" {
 					leakedChildEvents++
 				}
-			case runs.TurnEnd:
+			case runs.SegmentEnded:
 				terminalCount++
 			}
 		}
@@ -946,7 +946,7 @@ func TestCompleteSiblingAnswerSetCancelRaceHasOneTerminalAndNoSecondBarrier(t *t
 	)
 
 	for index := range 20 {
-		handle, err := controller.StartTurn(t.Context(), runs.StartTurn{
+		handle, err := controller.StartTurn(t.Context(), runs.StartExecution{
 			SessionID:      fmt.Sprintf("sess-b8-parallel-race-%d", index),
 			Message:        "delegate this work",
 			Cwd:            t.TempDir(),
@@ -1011,7 +1011,7 @@ func TestCompleteSiblingAnswerSetCancelRaceHasOneTerminalAndNoSecondBarrier(t *t
 						cancelErr,
 					)
 				}
-			case runs.TurnEnd:
+			case runs.SegmentEnded:
 				terminalCount++
 				if payload.Reason != execution.OutcomeCompleted &&
 					payload.Reason != execution.OutcomeCanceled {

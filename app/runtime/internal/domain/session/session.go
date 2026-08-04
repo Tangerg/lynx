@@ -1,5 +1,5 @@
 // Package session models Lyra's conversation identity — the Session entity and
-// the pure derivations over it (Fork and the editable Patch). Every multi-turn
+// the pure derivations over it (Fork and the editable Patch). Every multi-Run
 // interaction lives under a Session. Persistence is a
 // consumer concern: each coordinator/adapter defines the narrow store port it
 // needs (list/resume/branch/discard), so this package holds no persistence
@@ -59,8 +59,8 @@ func (p Patch) Normalize() (Patch, error) {
 }
 
 // Session is the persistent identity of a conversation. Lyra tracks
-// every turn (chat exchange) against one Session id; restarting the
-// runtime restores the Session from storage and lets a turn continue
+// every Run against one Session id; restarting the
+// runtime restores the Session from storage and lets execution continue
 // where it left off.
 //
 // Branching is a first-class operation — Sessions form a tree (any

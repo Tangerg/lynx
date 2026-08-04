@@ -2,7 +2,7 @@ package agentexec
 
 import "github.com/Tangerg/lynx/app/runtime/internal/application/goals"
 
-// GoalPrompt renders the model-facing instruction for an autonomous goal turn.
+// GoalPrompt renders the model-facing instruction for an autonomous Goal Run.
 // Goal lifecycle decisions stay in application/goals; this execution adapter
 // owns the wording and the report_goal_outcome contract presented to the model.
 func GoalPrompt(input goals.PromptInput) string {

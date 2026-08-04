@@ -40,7 +40,7 @@ type CheckpointResumability interface {
 type RecoveryCommit struct {
 	LostRuns                   []transcript.Run
 	ItemReplacements           []ItemReplacement
-	GoalTurns                  []goal.TurnRecord
+	GoalRuns                   []goal.RunRecord
 	DeletePending              []PendingDeletion
 	PreservedCheckpointRootIDs []string
 }
@@ -183,7 +183,7 @@ func (r *Recovery) Reconcile(ctx context.Context) (int, error) {
 			if lostRoot.ID != tree.root.ID || lostRoot.Outcome == nil {
 				return 0, fmt.Errorf("runs: recovered tree %q has no terminal root", tree.root.ID)
 			}
-			turn := goal.TurnRecord{
+			record := goal.RunRecord{
 				SessionID:   lostRoot.SessionID,
 				LeaseID:     lostRoot.GoalLeaseID,
 				RunID:       lostRoot.ID,
@@ -192,9 +192,9 @@ func (r *Recovery) Reconcile(ctx context.Context) (int, error) {
 				CompletedAt: lostRoot.FinishedAt,
 			}
 			if lostRoot.Metrics.Usage != nil && lostRoot.Metrics.Usage.CostUSD != nil {
-				turn.CostUSD = *lostRoot.Metrics.Usage.CostUSD
+				record.CostUSD = *lostRoot.Metrics.Usage.CostUSD
 			}
-			commit.GoalTurns = append(commit.GoalTurns, turn)
+			commit.GoalRuns = append(commit.GoalRuns, record)
 		}
 		reconciled += len(lostRuns)
 	}

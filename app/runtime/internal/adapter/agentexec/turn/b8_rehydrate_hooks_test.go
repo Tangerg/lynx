@@ -27,8 +27,8 @@ func TestRehydrateRestoresCwdAndToolHooks(t *testing.T) {
 	})))
 	t.Cleanup(func() { shutdownController(t, controller) })
 
-	handle, err := controller.Rehydrate(t.Context(), runs.RehydrateTurn{
-		SessionID: "sess", TurnID: "turn", ProcessID: "process", RootRunID: "run-root", Cwd: cwd,
+	handle, err := controller.Rehydrate(t.Context(), runs.RehydrateExecution{
+		SessionID: "sess", ExecutorID: "turn", ProcessID: "process", RootRunID: "run-root", Cwd: cwd,
 	})
 	if err != nil {
 		t.Fatalf("Rehydrate: %v", err)
@@ -57,12 +57,12 @@ func TestRehydratePreservesHookResolutionFailure(t *testing.T) {
 	})))
 	t.Cleanup(func() { shutdownController(t, controller) })
 
-	if _, err := controller.Rehydrate(t.Context(), runs.RehydrateTurn{
-		SessionID: "sess",
-		TurnID:    "turn",
-		ProcessID: "process",
-		RootRunID: "run-root",
-		Cwd:       t.TempDir(),
+	if _, err := controller.Rehydrate(t.Context(), runs.RehydrateExecution{
+		SessionID:  "sess",
+		ExecutorID: "turn",
+		ProcessID:  "process",
+		RootRunID:  "run-root",
+		Cwd:        t.TempDir(),
 	}); !errors.Is(err, wantErr) {
 		t.Fatalf("Rehydrate error = %v, want %v", err, wantErr)
 	}

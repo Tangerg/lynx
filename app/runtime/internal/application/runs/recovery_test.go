@@ -154,27 +154,27 @@ func TestRecoveryChargesLostGoalOwnedRootToItsAdmissionLease(t *testing.T) {
 	if _, err := recovery.Reconcile(t.Context()); err != nil {
 		t.Fatalf("Reconcile: %v", err)
 	}
-	if len(store.commit.GoalTurns) != 1 {
-		t.Fatalf("goal turns = %+v, want one", store.commit.GoalTurns)
+	if len(store.commit.GoalRuns) != 1 {
+		t.Fatalf("Goal Runs = %+v, want one", store.commit.GoalRuns)
 	}
-	turn := store.commit.GoalTurns[0]
+	turn := store.commit.GoalRuns[0]
 	if turn.SessionID != run.SessionID || turn.LeaseID != run.GoalLeaseID ||
 		turn.RunID != run.ID || turn.Outcome != execution.OutcomeError ||
 		turn.CostUSD != cost || turn.Steps != run.Metrics.Steps ||
 		!turn.CompletedAt.Equal(finishedAt) {
-		t.Fatalf("goal turn = %+v", turn)
+		t.Fatalf("Goal Run = %+v", turn)
 	}
 
 	missingCharge := store.commit
-	missingCharge.GoalTurns = nil
+	missingCharge.GoalRuns = nil
 	if err := missingCharge.Validate(); err == nil {
 		t.Fatal("RecoveryCommit.Validate accepted a lost goal-owned Run without its charge")
 	}
 	mismatchedCharge := store.commit
-	mismatchedCharge.GoalTurns = append([]goal.TurnRecord(nil), store.commit.GoalTurns...)
-	mismatchedCharge.GoalTurns[0].LeaseID = "other-lease"
+	mismatchedCharge.GoalRuns = append([]goal.RunRecord(nil), store.commit.GoalRuns...)
+	mismatchedCharge.GoalRuns[0].LeaseID = "other-lease"
 	if err := mismatchedCharge.Validate(); err == nil {
-		t.Fatal("RecoveryCommit.Validate accepted a Goal turn from another lease")
+		t.Fatal("RecoveryCommit.Validate accepted a Goal Run from another lease")
 	}
 	foreignDeletion := store.commit
 	foreignDeletion.DeletePending = append(
@@ -464,7 +464,7 @@ func coherentRecoveryPark(t *testing.T) (transcript.Run, interrupts.Pending, tra
 	pending := interrupts.Pending{
 		RootRunID:  run.ID,
 		SessionID:  run.SessionID,
-		TurnID:     "turn_root",
+		ExecutorID: "turn_root",
 		Interrupts: []transcript.Interrupt{interrupt},
 		Capabilities: execution.RunCapabilities{
 			InterruptKinds: []execution.InterruptKind{execution.QuestionInterrupt},

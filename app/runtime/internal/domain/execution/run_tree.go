@@ -11,8 +11,8 @@ import (
 // complete tree under the declared root.
 var ErrInvalidRunTree = errors.New("execution: invalid run tree")
 
-// RunTreeMember is the identity-only input used to assemble a RunTree. Runtime
-// state, persistence records, executor processes, and protocol values do not
+// RunTreeMember is the identity-only input used to assemble a RunTree. Host
+// state, persistence records, executor processes, and presentation values do not
 // belong here: topology is the one fact shared by all of those representations.
 type RunTreeMember struct {
 	RunID   string

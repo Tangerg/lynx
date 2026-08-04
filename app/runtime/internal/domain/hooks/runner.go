@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-// DefaultTimeout bounds a single hook command — a hook must not wedge the turn
+// DefaultTimeout bounds a single hook command — a hook must not wedge execution
 // it gates. A hook that exceeds it is killed and treated as a non-blocking error
 // (the action proceeds), so a hung hook degrades to "no hook" rather than a
 // frozen agent.
@@ -22,8 +22,8 @@ const DefaultTimeout = 30 * time.Second
 // contract as Claude Code.
 const blockExitCode = 2
 
-// CommandRequest is the shell-command work a hook adapter executes. The domain
-// prepares stdin + timeout; the adapter owns how the command runs.
+// CommandRequest is the shell-command work a [CommandRunner] executes. The
+// domain prepares stdin and timeout; the runner owns how the command runs.
 type CommandRequest struct {
 	Command string
 	Cwd     string
@@ -31,7 +31,7 @@ type CommandRequest struct {
 	Timeout time.Duration
 }
 
-// CommandResult is the process-level outcome returned by the hook adapter.
+// CommandResult is the process-level outcome returned by [CommandRunner].
 type CommandResult struct {
 	Decision CommandDecision
 	Stderr   string
@@ -52,7 +52,7 @@ const (
 )
 
 // CommandDecision is the typed control information returned by a hook command.
-// Its JSON process spelling belongs to the hook adapter, never this domain.
+// Its process encoding belongs to the command runner, never this domain.
 type CommandDecision struct {
 	Verdict          CommandVerdict
 	Reason           string
@@ -71,7 +71,7 @@ type Runner struct {
 	commands CommandRunner
 	// onError, when set, is called for a hook that failed to run (spawn error,
 	// timeout, or a non-blocking non-zero exit) so the caller can record it on
-	// the turn's span (ctx carries it). nil = swallow. The hooks domain never
+	// the Run's span (ctx carries it). nil = swallow. The hooks domain never
 	// imports OTel; observability is the caller's, via this ctx-carrying hook.
 	onError func(ctx context.Context, source string, err error)
 }

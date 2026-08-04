@@ -45,21 +45,21 @@ func (*blockingRunRuntime) SessionByID(context.Context, string) (session.Session
 	return session.Session{ID: "ses_1", Cwd: "/work"}, nil
 }
 
-func (*blockingRunRuntime) TurnEvents(ctx context.Context, _ execution.TurnRef) (iter.Seq[runs.ExecutorEvent], error) {
+func (*blockingRunRuntime) Events(ctx context.Context, _ execution.ExecutorRef) (iter.Seq[runs.ExecutorEvent], error) {
 	return func(func(runs.ExecutorEvent) bool) { <-ctx.Done() }, nil
 }
 
-func (*blockingRunRuntime) CancelTurn(context.Context, execution.TurnRef) error { return nil }
-func (*blockingRunRuntime) CancelSubtree(context.Context, execution.TurnRef, string) error {
+func (*blockingRunRuntime) CancelExecution(context.Context, execution.ExecutorRef) error { return nil }
+func (*blockingRunRuntime) CancelSubtree(context.Context, execution.ExecutorRef, string) error {
 	return nil
 }
 
-func (*blockingRunRuntime) PrepareStart(_ context.Context, req runs.StartTurn) (execution.TurnRef, error) {
+func (*blockingRunRuntime) PrepareStart(_ context.Context, req runs.StartExecution) (execution.ExecutorRef, error) {
 	handle := turn.Handle{SessionID: req.SessionID, TurnID: "turn_blocking"}
-	return execution.TurnRef{SessionID: handle.SessionID, TurnID: handle.TurnID}, nil
+	return execution.ExecutorRef{SessionID: handle.SessionID, ExecutorID: handle.TurnID}, nil
 }
 
-func (*blockingRunRuntime) Activate(context.Context, execution.TurnRef) error { return nil }
+func (*blockingRunRuntime) Activate(context.Context, execution.ExecutorRef) error { return nil }
 
 // RunSegmentEffects writes the Run to the real table. Item history is stubbed —
 // these tests are about the live stream — but the Run record cannot be: addressing

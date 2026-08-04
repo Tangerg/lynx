@@ -26,14 +26,14 @@ import (
 // Production consumers each use smaller ports; these integration tests exercise
 // the complete turn lifecycle.
 type turnDriver interface {
-	StartTurn(context.Context, runs.StartTurn) (turn.Handle, error)
-	PrepareTurn(context.Context, runs.StartTurn) (turn.Handle, error)
+	StartTurn(context.Context, runs.StartExecution) (turn.Handle, error)
+	PrepareTurn(context.Context, runs.StartExecution) (turn.Handle, error)
 	ActivateTurn(context.Context, turn.Handle) error
 	Events(context.Context, turn.Handle) (iter.Seq[runs.ExecutorEvent], error)
 	InjectSteering(context.Context, turn.Handle, []transcript.ContentBlock) error
 	Resume(context.Context, turn.Handle, []agentexec.SuspensionAnswer, []execution.InterruptKind) error
 	ProcessID(context.Context, turn.Handle) (string, error)
-	Rehydrate(context.Context, runs.RehydrateTurn) (turn.Handle, error)
+	Rehydrate(context.Context, runs.RehydrateExecution) (turn.Handle, error)
 	Cancel(context.Context, turn.Handle) error
 	BeginShutdown()
 	AwaitShutdown(context.Context) error
@@ -156,7 +156,7 @@ func eventNames(events []runs.EngineEvent) []string {
 			out[i] = "ToolCallEnd"
 		case runs.UsageReported:
 			out[i] = "UsageReported"
-		case runs.TurnEnd:
+		case runs.SegmentEnded:
 			out[i] = "TurnEnd"
 		default:
 			out[i] = "?"

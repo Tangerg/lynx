@@ -79,7 +79,7 @@ func (d *Driver) ensureDriveLocked(ctx context.Context, sessionID, leaseID strin
 	return nil
 }
 
-// drive runs autonomous turns until the goal leaves active. Cancellation (Stop /
+// drive runs autonomous Runs until the goal leaves active. Cancellation (Stop /
 // shutdown) leaves the goal's stored status untouched — Stop already paused it;
 // a shutdown leaves it active so the boot reconcile degrades it to paused rather
 // than resuming and burning budget.
@@ -99,12 +99,12 @@ func (d *Driver) drive(ctx context.Context, sessionID, leaseID string) error {
 		// cheap backstop — a supersession (Stop/Start/Resume) is already caught above
 		// by ctx cancellation or by the status leaving active — that guards a future
 		// regression where a transition stops canceling the loop. The load-bearing
-		// lease guard is the re-read in runTurn: it prevents adopting and
-		// clobbering a foreign incarnation mid-turn.
+		// lease guard is the re-read in driveRun: it prevents adopting and
+		// clobbering a foreign incarnation mid-Run.
 		if !ok || g.Status != goal.StatusActive || g.LeaseID != leaseID {
 			return nil
 		}
-		disposition, err := d.runTurn(ctx, &g)
+		disposition, err := d.driveRun(ctx, &g)
 		if err != nil {
 			return err
 		}
@@ -114,22 +114,22 @@ func (d *Driver) drive(ctx context.Context, sessionID, leaseID string) error {
 	}
 }
 
-// runTurn launches one autonomous run, waits for it to finish, folds its usage
-// in, and decides what to do next — all under a goal.turn span. The returned
-// disposition is empty when a cancellation or vanished goal means no turn
+// driveRun launches one autonomous run, waits for it to finish, folds its usage
+// in, and decides what to do next — all under a goal.run span. The returned
+// disposition is empty when a cancellation or vanished goal means no Run
 // completed, so nothing is metered.
-func (d *Driver) runTurn(ctx context.Context, g *goal.Goal) (disposition turnDisposition, err error) {
-	ctx, span := driverTracer.Start(ctx, "goal.turn", trace.WithAttributes(
+func (d *Driver) driveRun(ctx context.Context, g *goal.Goal) (disposition runDisposition, err error) {
+	ctx, span := driverTracer.Start(ctx, "goal.run", trace.WithAttributes(
 		attribute.String("goal.session", g.SessionID),
-		attribute.Int("goal.turn", g.Used.Turns+1),
+		attribute.Int("goal.run_ordinal", g.Used.Runs+1),
 	))
 	defer span.End()
-	// Meter each turn under its own span (this defer runs before span.End) so the
-	// exemplar links to the turn; a "" disposition (canceled / vanished goal) is
-	// not a completed turn and is not counted.
+	// Meter each Run under its own span (this defer runs before span.End) so the
+	// exemplar links to the Run; a "" disposition (canceled / vanished goal) is
+	// not a completed Run and is not counted.
 	defer func() {
 		if disposition != "" {
-			recordGoalTurn(ctx, disposition)
+			recordGoalRun(ctx, disposition)
 		}
 	}()
 
@@ -150,7 +150,7 @@ func (d *Driver) runTurn(ctx context.Context, g *goal.Goal) (disposition turnDis
 		}
 		// WaitSessionStartable is intentionally not a reservation. Another Run
 		// or working-tree mutation may win between the observation and Start;
-		// wait for its real boundary and retry without spending a Goal turn.
+		// wait for its real boundary and retry without spending a Goal Run.
 		if err := d.runs.WaitSessionStartable(ctx, g.SessionID); err != nil {
 			if ctx.Err() != nil {
 				return "", nil
@@ -194,7 +194,7 @@ func (d *Driver) runTurn(ctx context.Context, g *goal.Goal) (disposition turnDis
 		}
 	}
 
-	// Re-read: the model may have reported completed/blocked mid-turn.
+	// Re-read: the model may have reported completed/blocked mid-Run.
 	reread, ok, err := d.goals.Get(ctx, g.SessionID)
 	if err != nil {
 		if ctx.Err() != nil {
@@ -258,7 +258,7 @@ func (d *Driver) runTurn(ctx context.Context, g *goal.Goal) (disposition turnDis
 		attribute.Float64("goal.cost_usd", turnCost(finished)),
 		attribute.Int("goal.steps", turnSteps(finished)),
 	)
-	// The terminal Run transaction has already recorded this turn's usage (and
+	// The terminal Run transaction has already recorded this Run's usage (and
 	// derived any pause/block) under the goal lease. Do not reconstruct that
 	// durable fact from the stream: a failed post-hoc checkpoint can otherwise
 	// start an extra run against an undercounted budget.
@@ -277,7 +277,7 @@ func (d *Driver) command(g goal.Goal) runs.StartCommand {
 			Kind: transcript.TextContent,
 			Text: d.prompt(PromptInput{
 				Objective:  g.Objective,
-				Continuing: g.Used.Turns > 0,
+				Continuing: g.Used.Runs > 0,
 			}),
 		}},
 		// GoalLeaseID stamps the run with the incarnation that launched it, so
@@ -302,7 +302,7 @@ func drainTerminal(events iter.Seq[runs.Event]) *transcript.Run {
 }
 
 // outcomeOf reads a terminal run's outcome. A SegmentFinished without one
-// violates the Run contract and must not be treated as a successful turn.
+// violates the Run contract and must not be treated as a successful Run.
 func outcomeOf(run *transcript.Run) (execution.Outcome, error) {
 	if run.Outcome == nil {
 		return 0, errTerminalOutcomeMissing
@@ -321,14 +321,14 @@ func turnSteps(run *transcript.Run) int { return run.Metrics.Steps }
 
 // pauseOwned persists a loop-originated pause against the newest revision of
 // the lease it owns. A CAS miss is resolved from the authoritative row: a
-// concurrent complete/blocked transition determines the turn disposition
+// concurrent complete/blocked transition determines the Run disposition
 // instead of being mislabeled as paused.
 func (d *Driver) pauseOwned(
 	ctx context.Context,
 	current *goal.Goal,
 	code goal.ReasonCode,
 	detail string,
-) (turnDisposition, error) {
+) (runDisposition, error) {
 	for current.Status == goal.StatusActive {
 		expected := current.Version()
 		candidate := *current
@@ -356,7 +356,7 @@ func (d *Driver) pauseOwned(
 // settleOwned maps the authoritative state of the current lease to the loop
 // outcome. Complete is transient, so this method also owns its conditional
 // clear and resolves any CAS miss before returning.
-func (d *Driver) settleOwned(ctx context.Context, current *goal.Goal) (turnDisposition, error) {
+func (d *Driver) settleOwned(ctx context.Context, current *goal.Goal) (runDisposition, error) {
 	for {
 		switch current.Status {
 		case goal.StatusActive:

@@ -22,28 +22,28 @@ func testReducerConfig() reducerConfig {
 	now := time.Date(2026, 7, 13, 1, 2, 3, 0, time.UTC)
 	return reducerConfig{
 		RunID: "run_1", SegmentID: "seg_1", SessionID: "ses_1", Cwd: "/work",
-		TurnID: "turn_1", ModelSelection: mustReducerSelection("anthropic", "claude"), CreatedAt: now,
+		ExecutorID: "turn_1", ModelSelection: mustReducerSelection("anthropic", "claude"), CreatedAt: now,
 		Now: func() time.Time { return now },
 	}
 }
 
-func TestReducerTerminalIncludesGoalTurnRecord(t *testing.T) {
+func TestReducerTerminalIncludesGoalRunRecord(t *testing.T) {
 	config := testReducerConfig()
 	config.GoalLeaseID = "goal_lease"
 	reducer := newReducer(config)
 	mustReduce(t, reducer, ToolCallStart{CallID: "call_1", ToolName: "inspect", Arguments: `{}`})
 	mustReduce(t, reducer, ToolCallEnd{CallID: "call_1", Result: testToolResult(t, "ok")})
-	reductions := mustReduce(t, reducer, TurnEnd{
+	reductions := mustReduce(t, reducer, SegmentEnded{
 		Reason: execution.OutcomeCompleted,
-		Usage:  &TurnUsage{CostUSD: 0.75, Steps: 1},
+		Usage:  &SegmentUsage{CostUSD: 0.75, Steps: 1},
 	})
 	commit := reductions[len(reductions)-1].Commit
-	if commit == nil || commit.GoalTurn == nil {
-		t.Fatal("terminal commit did not carry goal turn accounting")
+	if commit == nil || commit.GoalRun == nil {
+		t.Fatal("terminal commit did not carry Goal Run accounting")
 	}
-	want := goal.TurnRecord{SessionID: "ses_1", LeaseID: "goal_lease", RunID: "run_1", Outcome: execution.OutcomeCompleted, CostUSD: 0.75, Steps: 1, CompletedAt: config.Now()}
-	if got := *commit.GoalTurn; got != want {
-		t.Fatalf("GoalTurn = %+v", got)
+	want := goal.RunRecord{SessionID: "ses_1", LeaseID: "goal_lease", RunID: "run_1", Outcome: execution.OutcomeCompleted, CostUSD: 0.75, Steps: 1, CompletedAt: config.Now()}
+	if got := *commit.GoalRun; got != want {
+		t.Fatalf("GoalRun = %+v", got)
 	}
 }
 
@@ -54,9 +54,9 @@ func TestReducerStepsCountModelCallsRatherThanParallelTools(t *testing.T) {
 	mustReduce(t, reducer, ToolCallStart{CallID: "call_2", ToolName: "inspect", Arguments: `{}`})
 	mustReduce(t, reducer, ToolCallEnd{CallID: "call_2", Result: testToolResult(t, "two")})
 	mustReduce(t, reducer, ToolCallEnd{CallID: "call_1", Result: testToolResult(t, "one")})
-	finished := mustReduce(t, reducer, TurnEnd{
+	finished := mustReduce(t, reducer, SegmentEnded{
 		Reason: execution.OutcomeCompleted,
-		Usage:  &TurnUsage{Steps: 1},
+		Usage:  &SegmentUsage{Steps: 1},
 	})
 	run := finished[len(finished)-1].Event.(SegmentFinished).Run
 	if run.Metrics.Steps != 1 {
@@ -78,9 +78,9 @@ func TestReducerTreatsExecutorAccountingAsCumulativeAcrossResume(t *testing.T) {
 		TokenUsage: accounting.TokenUsage{PromptTokens: 15},
 		Steps:      3,
 	})
-	finished := mustReduce(t, reducer, TurnEnd{
+	finished := mustReduce(t, reducer, SegmentEnded{
 		Reason: execution.OutcomeCompleted,
-		Usage: &TurnUsage{
+		Usage: &SegmentUsage{
 			Tokens: accounting.TokenUsage{PromptTokens: 15},
 			Steps:  3,
 		},
@@ -362,7 +362,7 @@ func TestReducerParksConcurrentToolsWithoutLosingCompletedResults(t *testing.T) 
 		t.Fatalf("later completion escaped paused prefix: %+v", reduced)
 	}
 
-	parked := mustReduce(t, reducer, TurnInterrupted{Interrupts: []Interrupt{{
+	parked := mustReduce(t, reducer, SegmentInterrupted{Interrupts: []Interrupt{{
 		Kind: execution.ApprovalInterrupt,
 		Approval: &ApprovalPrompt{
 			CallID: "call-1", ToolName: "approval", Arguments: `{"path":"a"}`, SafetyClass: "write", Risk: "medium",
@@ -399,7 +399,7 @@ func TestReducerCarriesLaterPausedCallIdentityAcrossSequentialResumes(t *testing
 	secondID := startedItemID(t, mustReduce(t, first, ToolCallStart{
 		CallID: "call-2", ToolName: "approval", Arguments: `{"path":"b"}`, SafetyClass: "write",
 	}))
-	firstCommit := mustReduce(t, first, TurnInterrupted{Interrupts: []Interrupt{{
+	firstCommit := mustReduce(t, first, SegmentInterrupted{Interrupts: []Interrupt{{
 		Kind: execution.ApprovalInterrupt,
 		Approval: &ApprovalPrompt{
 			CallID: "call-1", ToolName: "approval", Arguments: `{"path":"a"}`, SafetyClass: "write", Risk: "medium",
@@ -431,7 +431,7 @@ func TestReducerCarriesLaterPausedCallIdentityAcrossSequentialResumes(t *testing
 	}
 	mustReduce(t, resumed, ToolCallEnd{CallID: "call-1", Result: testToolResult(t, "approved")})
 
-	secondCommit := mustReduce(t, resumed, TurnInterrupted{Interrupts: []Interrupt{{
+	secondCommit := mustReduce(t, resumed, SegmentInterrupted{Interrupts: []Interrupt{{
 		Kind: execution.ApprovalInterrupt,
 		Approval: &ApprovalPrompt{
 			CallID: "call-2", ToolName: "approval", Arguments: `{"path":"b"}`, SafetyClass: "write", Risk: "medium",
@@ -481,9 +481,9 @@ func TestReducerCanonicalProgressSnapshotsAndOutcomes(t *testing.T) {
 	// The segment's last state snapshot is republished immediately before the
 	// segment finishes, so whoever receives the finish has received the final value
 	// — see reducer.fenceFinalState.
-	terminal := mustReduce(t, reducer, TurnEnd{
+	terminal := mustReduce(t, reducer, SegmentEnded{
 		Reason: execution.OutcomeMaxBudget, Duration: 1500 * time.Millisecond,
-		Usage: &TurnUsage{
+		Usage: &SegmentUsage{
 			Tokens: accounting.TokenUsage{
 				PromptTokens:     1200,
 				CompletionTokens: 80,
@@ -517,7 +517,7 @@ func TestReducerClassifiesErrorsWithoutLeakingProviderDetails(t *testing.T) {
 	for _, test := range cases {
 		t.Run(test.name, func(t *testing.T) {
 			reducer := newReducer(testReducerConfig())
-			terminal := mustReduce(t, reducer, TurnEnd{Reason: execution.OutcomeError, Problem: &test.problem})
+			terminal := mustReduce(t, reducer, SegmentEnded{Reason: execution.OutcomeError, Problem: &test.problem})
 			finished := terminal[len(terminal)-1].Event.(SegmentFinished)
 			problem := finished.Run.Error
 			if problem == nil || *problem != (transcript.Problem{
@@ -533,10 +533,10 @@ func TestReducerClassifiesErrorsWithoutLeakingProviderDetails(t *testing.T) {
 func TestReducerRejectsIncoherentTerminalProblems(t *testing.T) {
 	tests := []struct {
 		name  string
-		event TurnEnd
+		event SegmentEnded
 	}{
-		{name: "error without problem", event: TurnEnd{Reason: execution.OutcomeError}},
-		{name: "completed with problem", event: TurnEnd{Reason: execution.OutcomeCompleted, Problem: &transcript.Problem{Kind: transcript.InternalProblem}}},
+		{name: "error without problem", event: SegmentEnded{Reason: execution.OutcomeError}},
+		{name: "completed with problem", event: SegmentEnded{Reason: execution.OutcomeCompleted, Problem: &transcript.Problem{Kind: transcript.InternalProblem}}},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -594,7 +594,7 @@ func TestReducerResumeReusesInterruptedItems(t *testing.T) {
 
 func TestReducerProjectsParkAsOneAtomicWriteSetBeforeFirstInterruptEvent(t *testing.T) {
 	reducer := newReducer(testReducerConfig())
-	batch := mustReduceBatch(t, reducer, TurnInterrupted{Interrupts: []Interrupt{
+	batch := mustReduceBatch(t, reducer, SegmentInterrupted{Interrupts: []Interrupt{
 		{Kind: execution.ApprovalInterrupt, Approval: &ApprovalPrompt{
 			ToolName: "shell", Arguments: `{}`, SafetyClass: "exec", Risk: "high",
 		}},
@@ -634,8 +634,8 @@ func TestReducerRejectsExecutorProtocolViolations(t *testing.T) {
 		event EngineEvent
 	}{
 		{name: "unknown event", event: unsupportedEngineEvent{}},
-		{name: "invalid terminal outcome", event: TurnEnd{Reason: execution.Outcome(255)}},
-		{name: "malformed interrupt", event: TurnInterrupted{Interrupts: []Interrupt{{Kind: execution.InterruptKind(9)}}}},
+		{name: "invalid terminal outcome", event: SegmentEnded{Reason: execution.Outcome(255)}},
+		{name: "malformed interrupt", event: SegmentInterrupted{Interrupts: []Interrupt{{Kind: execution.InterruptKind(9)}}}},
 	}
 
 	for _, test := range tests {
@@ -1021,7 +1021,7 @@ func TestReducerReportsFrozenRunCapabilitiesOnEverySegment(t *testing.T) {
 	}
 	assertFrozenCapabilities(t, started.Run.Capabilities, frozen, "segment.started")
 
-	batch := mustReduceBatch(t, reducer, TurnInterrupted{Interrupts: []Interrupt{
+	batch := mustReduceBatch(t, reducer, SegmentInterrupted{Interrupts: []Interrupt{
 		{Kind: execution.ApprovalInterrupt, Approval: &ApprovalPrompt{
 			ToolName: "shell", Arguments: `{}`, SafetyClass: "exec", Risk: "high",
 		}},
@@ -1059,7 +1059,7 @@ func TestSegmentFencesItsFinalStateBeforeFinishing(t *testing.T) {
 		Revision: 4, UpdatedAt: time.Unix(11, 0).UTC(),
 	}})
 
-	terminal := mustReduce(t, reducer, TurnEnd{Reason: execution.OutcomeCompleted})
+	terminal := mustReduce(t, reducer, SegmentEnded{Reason: execution.OutcomeCompleted})
 	if len(terminal) < 2 {
 		t.Fatalf("terminal batch = %d events, want the fence and the finish", len(terminal))
 	}
@@ -1075,7 +1075,7 @@ func TestSegmentFencesItsFinalStateBeforeFinishing(t *testing.T) {
 	}
 
 	untouched := newReducer(testReducerConfig())
-	quiet := mustReduce(t, untouched, TurnEnd{Reason: execution.OutcomeCompleted})
+	quiet := mustReduce(t, untouched, SegmentEnded{Reason: execution.OutcomeCompleted})
 	for _, reduced := range quiet {
 		if snapshot, ok := reduced.Event.(StateSnapshot); ok {
 			t.Fatalf("a segment that changed no state published %+v", snapshot)

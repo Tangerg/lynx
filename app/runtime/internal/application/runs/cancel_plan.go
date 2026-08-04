@@ -31,7 +31,7 @@ type cancellationPlan struct {
 	targetSubtree        []cancellationRun
 	survivingTree        []cancellationRun
 	treeState            execution.RunState
-	turn                 execution.TurnRef
+	executor             execution.ExecutorRef
 	pending              interrupts.Pending
 	hasPending           bool
 	spawningItem         transcript.Item
@@ -84,7 +84,7 @@ func (c *Coordinator) cancellationPlanFor(
 	live, liveFound := c.registry.Get(rootRunID)
 
 	var (
-		turn      execution.TurnRef
+		executor  execution.ExecutorRef
 		processes map[string]string
 	)
 	switch root.State {
@@ -125,7 +125,7 @@ func (c *Coordinator) cancellationPlanFor(
 		if err := validateCancellationLiveRoot(live, root); err != nil {
 			return cancellationPlan{}, liveSegment{}, false, err
 		}
-		turn = execution.TurnRef{SessionID: live.record.SessionID, TurnID: live.record.TurnID}
+		executor = execution.ExecutorRef{SessionID: live.record.SessionID, ExecutorID: live.record.ExecutorID}
 		processes = live.handle.executorProcessSnapshot()
 	case execution.Interrupted:
 		if !pendingFound {
@@ -141,7 +141,7 @@ func (c *Coordinator) cancellationPlanFor(
 				err,
 			)
 		}
-		turn = execution.TurnRef{SessionID: pending.SessionID, TurnID: pending.TurnID}
+		executor = execution.ExecutorRef{SessionID: pending.SessionID, ExecutorID: pending.ExecutorID}
 		processes = make(map[string]string, len(pending.Continuations))
 		for _, continuation := range pending.Continuations {
 			processes[continuation.RunID] = continuation.ProcessID
@@ -156,12 +156,12 @@ func (c *Coordinator) cancellationPlanFor(
 			if err := validateCancellationLiveRoot(live, root); err != nil {
 				return cancellationPlan{}, liveSegment{}, false, err
 			}
-			if live.record.TurnID != pending.TurnID {
+			if live.record.ExecutorID != pending.ExecutorID {
 				return cancellationPlan{}, liveSegment{}, false, fmt.Errorf(
-					"runs: interrupted tree %q live turn %q differs from pending turn %q",
+					"runs: interrupted tree %q live executor %q differs from pending executor %q",
 					rootRunID,
-					live.record.TurnID,
-					pending.TurnID,
+					live.record.ExecutorID,
+					pending.ExecutorID,
 				)
 			}
 		}
@@ -179,7 +179,7 @@ func (c *Coordinator) cancellationPlanFor(
 		pendingCopy := pending
 		pendingPlan = &pendingCopy
 	}
-	plan, err := newCancellationPlan(cmd.RunID, runs, turn, processes, pendingPlan)
+	plan, err := newCancellationPlan(cmd.RunID, runs, executor, processes, pendingPlan)
 	if err != nil {
 		return cancellationPlan{}, liveSegment{}, false, err
 	}
@@ -360,8 +360,8 @@ func validateCancellationLiveRoot(live liveSegment, root transcript.Run) error {
 			root.SessionID,
 			live.record.SessionID,
 		)
-	case live.record.TurnID == "":
-		return fmt.Errorf("runs: cancellation root %q live owner has no turn id", root.ID)
+	case live.record.ExecutorID == "":
+		return fmt.Errorf("runs: cancellation root %q live owner has no executor ID", root.ID)
 	case live.record.SegmentID != root.ActiveSegmentID:
 		return fmt.Errorf(
 			"runs: cancellation root %q durable segment %q differs from live owner %q",
@@ -383,7 +383,7 @@ func validateCancellationLiveRoot(live liveSegment, root transcript.Run) error {
 func newCancellationPlan(
 	targetRunID string,
 	runs []transcript.Run,
-	turn execution.TurnRef,
+	executor execution.ExecutorRef,
 	processes map[string]string,
 	pending *interrupts.Pending,
 ) (cancellationPlan, error) {
@@ -402,9 +402,9 @@ func newCancellationPlan(
 			rootRunID,
 		)
 	}
-	if err := turn.ValidateFor(root.SessionID); err != nil {
+	if err := executor.ValidateFor(root.SessionID); err != nil {
 		return cancellationPlan{}, fmt.Errorf(
-			"runs: build cancellation plan for tree %q: turn: %w",
+			"runs: build cancellation plan for tree %q: executor: %w",
 			rootRunID,
 			err,
 		)
@@ -513,7 +513,7 @@ func newCancellationPlan(
 		root:                 bindings[rootRunID],
 		target:               bindings[targetRunID],
 		treeState:            root.State,
-		turn:                 turn,
+		executor:             executor,
 		hasPending:           pending != nil,
 		completePostorderIDs: tree.Postorder(),
 	}

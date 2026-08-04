@@ -259,7 +259,7 @@ func TestWaitingChildCancellationAndResumeHaveOneApplicationOwner(t *testing.T) 
 			started:     started,
 			release:     release,
 		}
-		coordinator, turns := waitingCancellationCoordinator(
+		coordinator, control := waitingCancellationCoordinator(
 			t,
 			plan,
 			prepared,
@@ -314,10 +314,10 @@ func TestWaitingChildCancellationAndResumeHaveOneApplicationOwner(t *testing.T) 
 		}
 		for range outcome.result.Events {
 		}
-		if !turns.resumed || len(baseEffects.openings) != 1 {
+		if !control.resumed || len(baseEffects.openings) != 1 {
 			t.Fatalf(
 				"winning Resume = activated:%t openings:%d, want true/1",
-				turns.resumed,
+				control.resumed,
 				len(baseEffects.openings),
 			)
 		}

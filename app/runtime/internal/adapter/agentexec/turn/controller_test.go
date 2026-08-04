@@ -31,7 +31,7 @@ import (
 func TestController_StartTurn_EmitsExpectedEvents(t *testing.T) {
 	controller, _ := buildController(t)
 
-	handle, err := controller.StartTurn(context.Background(), runs.StartTurn{
+	handle, err := controller.StartTurn(context.Background(), runs.StartExecution{
 		SessionID: "sess-1",
 		Message:   "say lyra via shell",
 	})
@@ -90,7 +90,7 @@ func TestController_StartTurn_EmitsExpectedEvents(t *testing.T) {
 			if !strings.Contains(e.Text, "lyra") {
 				t.Errorf("MessageDelta.Text missing 'lyra': %q", e.Text)
 			}
-		case runs.TurnEnd:
+		case runs.SegmentEnded:
 			if e.Reason != execution.OutcomeCompleted {
 				t.Errorf("TurnEnd.Reason = %s, want completed", e.Reason)
 			}
@@ -131,7 +131,7 @@ func awaitTurnForgotten(t *testing.T, controller turnDriver, handle turn.Handle)
 
 func TestControllerCloseCancelsLiveTurnsAndRejectsAdmission(t *testing.T) {
 	controller := mustTurn(turn.New(turnDeps(&slowStubEngine{})))
-	handle, err := controller.StartTurn(context.Background(), runs.StartTurn{
+	handle, err := controller.StartTurn(context.Background(), runs.StartExecution{
 		SessionID: "sess-close",
 		Message:   "wait",
 	})
@@ -146,7 +146,7 @@ func TestControllerCloseCancelsLiveTurnsAndRejectsAdmission(t *testing.T) {
 	shutdownController(t, controller)
 	var endReason execution.Outcome
 	for ev := range events {
-		if end, ok := ev.Payload.(runs.TurnEnd); ok {
+		if end, ok := ev.Payload.(runs.SegmentEnded); ok {
 			endReason = end.Reason
 		}
 	}
@@ -156,7 +156,7 @@ func TestControllerCloseCancelsLiveTurnsAndRejectsAdmission(t *testing.T) {
 	if _, err := controller.Events(context.Background(), handle); !errors.Is(err, turn.ErrTurnNotFound) {
 		t.Fatalf("Events after Close = %v, want ErrTurnNotFound", err)
 	}
-	if _, err := controller.StartTurn(context.Background(), runs.StartTurn{SessionID: "new", Message: "no"}); !errors.Is(err, turn.ErrClosed) {
+	if _, err := controller.StartTurn(context.Background(), runs.StartExecution{SessionID: "new", Message: "no"}); !errors.Is(err, turn.ErrClosed) {
 		t.Fatalf("StartTurn after Close = %v, want ErrClosed", err)
 	}
 	shutdownController(t, controller)
@@ -183,7 +183,7 @@ func TestController_InjectSteering_PreservesStructuredContent(t *testing.T) {
 	})))
 
 	// Turn 1.
-	handle, _ := controller.StartTurn(context.Background(), runs.StartTurn{
+	handle, _ := controller.StartTurn(context.Background(), runs.StartExecution{
 		SessionID: "sess-steer",
 		Message:   "hi",
 	})
@@ -214,7 +214,7 @@ func TestController_InjectSteering_PreservesStructuredContent(t *testing.T) {
 
 	// Start a second turn so a steer that missed the live source is observable
 	// through the terminal history fallback.
-	handle2, _ := controller.StartTurn(context.Background(), runs.StartTurn{
+	handle2, _ := controller.StartTurn(context.Background(), runs.StartExecution{
 		SessionID: "sess-steer",
 		Message:   "go on",
 	})
@@ -273,7 +273,7 @@ func TestController_ApprovalGate_AllowOnce(t *testing.T) {
 	eng := buildEngine(t, agentexec.Config{ChatClient: client})
 	controller := mustTurn(turn.New(turnDeps(eng, withApproval(mustApprovalPolicy(t, approval.ModeBalanced, nil))))) // shell → gate
 
-	handle, _ := controller.StartTurn(context.Background(), runs.StartTurn{
+	handle, _ := controller.StartTurn(context.Background(), runs.StartExecution{
 		SessionID:      "sess-approve",
 		Message:        "echo lyra",
 		InterruptKinds: []execution.InterruptKind{execution.ApprovalInterrupt},
@@ -315,7 +315,7 @@ func TestController_ApprovalGate_AllowOnce(t *testing.T) {
 	}
 	var endReason execution.Outcome
 	for ev := range events {
-		if end, ok := ev.Payload.(runs.TurnEnd); ok {
+		if end, ok := ev.Payload.(runs.SegmentEnded); ok {
 			endReason = end.Reason
 		}
 	}
@@ -342,7 +342,7 @@ func TestController_ApprovalGate_ResumeAtPendingCall(t *testing.T) {
 	eng := buildEngine(t, agentexec.Config{ChatClient: client, HistoryStore: store})
 	controller := mustTurn(turn.New(turnDeps(eng, withApproval(mustApprovalPolicy(t, approval.ModeBalanced, nil))))) // shell → gate
 
-	handle, _ := controller.StartTurn(context.Background(), runs.StartTurn{
+	handle, _ := controller.StartTurn(context.Background(), runs.StartExecution{
 		SessionID:      "sess-rmodel",
 		Message:        "echo lyra",
 		InterruptKinds: []execution.InterruptKind{execution.ApprovalInterrupt},
@@ -361,7 +361,7 @@ func TestController_ApprovalGate_ResumeAtPendingCall(t *testing.T) {
 			); err != nil {
 				t.Errorf("Resume: %v", err)
 			}
-		case runs.TurnEnd:
+		case runs.SegmentEnded:
 			endReason = e.Reason
 		}
 	}
@@ -405,7 +405,7 @@ func TestController_Cancel_ParkedTurn_DeliversTurnEnd(t *testing.T) {
 	eng := buildEngine(t, agentexec.Config{ChatClient: client})
 	controller := mustTurn(turn.New(turnDeps(eng, withApproval(mustApprovalPolicy(t, approval.ModeBalanced, nil)))))
 
-	handle, _ := controller.StartTurn(context.Background(), runs.StartTurn{
+	handle, _ := controller.StartTurn(context.Background(), runs.StartExecution{
 		SessionID:      "sess-cancel-parked",
 		Message:        "echo lyra",
 		InterruptKinds: []execution.InterruptKind{execution.ApprovalInterrupt},
@@ -424,7 +424,7 @@ func TestController_Cancel_ParkedTurn_DeliversTurnEnd(t *testing.T) {
 			if err := controller.Cancel(context.Background(), handle); err != nil {
 				t.Errorf("Cancel: %v", err)
 			}
-		case runs.TurnEnd:
+		case runs.SegmentEnded:
 			sawEnd = true
 			endReason = e.Reason
 		}
@@ -449,7 +449,7 @@ func TestController_ApprovalGate_Deny(t *testing.T) {
 	eng := buildEngine(t, agentexec.Config{ChatClient: client})
 	controller := mustTurn(turn.New(turnDeps(eng, withApproval(mustApprovalPolicy(t, approval.ModeBalanced, nil)))))
 
-	handle, _ := controller.StartTurn(context.Background(), runs.StartTurn{
+	handle, _ := controller.StartTurn(context.Background(), runs.StartExecution{
 		SessionID:      "sess-deny",
 		Message:        "echo lyra",
 		InterruptKinds: []execution.InterruptKind{execution.ApprovalInterrupt},
@@ -475,7 +475,7 @@ func TestController_ApprovalGate_Deny(t *testing.T) {
 			if result, ok := e.Result.String(); ok && strings.Contains(result, "denied") {
 				sawDenial = true
 			}
-		case runs.TurnEnd:
+		case runs.SegmentEnded:
 			endReason = e.Reason
 		}
 	}
@@ -495,7 +495,7 @@ func TestController_ApprovalGate_YoloSkipsEvent(t *testing.T) {
 	eng := buildEngine(t, agentexec.Config{ChatClient: client})
 	controller := mustTurn(turn.New(turnDeps(eng, withApproval(mustApprovalPolicy(t, approval.ModeYolo, nil)))))
 
-	handle, _ := controller.StartTurn(context.Background(), runs.StartTurn{
+	handle, _ := controller.StartTurn(context.Background(), runs.StartExecution{
 		SessionID: "sess-yolo",
 		Message:   "echo lyra",
 	})
@@ -512,27 +512,27 @@ func TestController_ApprovalGate_YoloSkipsEvent(t *testing.T) {
 func TestController_StartTurn_Validation(t *testing.T) {
 	controller, _ := buildController(t)
 
-	if _, err := controller.StartTurn(context.Background(), runs.StartTurn{Message: "x"}); err == nil {
+	if _, err := controller.StartTurn(context.Background(), runs.StartExecution{Message: "x"}); err == nil {
 		t.Error("missing SessionID should error")
 	}
-	if _, err := controller.StartTurn(context.Background(), runs.StartTurn{SessionID: "s"}); err == nil {
+	if _, err := controller.StartTurn(context.Background(), runs.StartExecution{SessionID: "s"}); err == nil {
 		t.Error("missing Message should error")
 	}
-	if _, err := controller.StartTurn(context.Background(), runs.StartTurn{SessionID: "s", Message: "x", Limits: execution.RunLimits{MaxSteps: -1}}); !errors.Is(err, runs.ErrInvalidTurnLimit) {
+	if _, err := controller.StartTurn(context.Background(), runs.StartExecution{SessionID: "s", Message: "x", Limits: execution.RunLimits{MaxSteps: -1}}); !errors.Is(err, runs.ErrInvalidRunLimit) {
 		t.Fatalf("negative MaxSteps err = %v, want ErrInvalidTurnLimit", err)
 	}
-	if _, err := controller.StartTurn(context.Background(), runs.StartTurn{SessionID: "s", Message: "x", Limits: execution.RunLimits{MaxBudgetUSD: -0.01}}); !errors.Is(err, runs.ErrInvalidTurnLimit) {
+	if _, err := controller.StartTurn(context.Background(), runs.StartExecution{SessionID: "s", Message: "x", Limits: execution.RunLimits{MaxBudgetUSD: -0.01}}); !errors.Is(err, runs.ErrInvalidRunLimit) {
 		t.Fatalf("negative MaxCostUSD err = %v, want ErrInvalidTurnLimit", err)
 	}
-	if _, err := controller.StartTurn(context.Background(), runs.StartTurn{SessionID: "s", Message: "x", Limits: execution.RunLimits{MaxTotalTokens: -1}}); !errors.Is(err, runs.ErrInvalidTurnLimit) {
+	if _, err := controller.StartTurn(context.Background(), runs.StartExecution{SessionID: "s", Message: "x", Limits: execution.RunLimits{MaxTotalTokens: -1}}); !errors.Is(err, runs.ErrInvalidRunLimit) {
 		t.Fatalf("negative MaxTotalTokens err = %v, want ErrInvalidTurnLimit", err)
 	}
 	opts := &chatmodel.Options{Model: "should-not-select-model-here"}
-	if _, err := controller.StartTurn(context.Background(), runs.StartTurn{SessionID: "s", Message: "x", Options: opts}); !errors.Is(err, runs.ErrInvalidTurnOptions) {
+	if _, err := controller.StartTurn(context.Background(), runs.StartExecution{SessionID: "s", Message: "x", Options: opts}); !errors.Is(err, runs.ErrInvalidRunOptions) {
 		t.Fatalf("Options.Model err = %v, want ErrInvalidTurnOptions", err)
 	}
 	maxTokens := int64(0)
-	if _, err := controller.StartTurn(context.Background(), runs.StartTurn{SessionID: "s", Message: "x", Options: &chatmodel.Options{MaxTokens: &maxTokens}}); !errors.Is(err, runs.ErrInvalidTurnOptions) {
+	if _, err := controller.StartTurn(context.Background(), runs.StartExecution{SessionID: "s", Message: "x", Options: &chatmodel.Options{MaxTokens: &maxTokens}}); !errors.Is(err, runs.ErrInvalidRunOptions) {
 		t.Fatalf("MaxTokens=0 err = %v, want ErrInvalidTurnOptions", err)
 	}
 }

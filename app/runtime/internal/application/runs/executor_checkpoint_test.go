@@ -21,7 +21,7 @@ func testExecutorCheckpoint() execution.ExecutorCheckpoint {
 		RootProcessID:  "process_root",
 		Payload:        []byte(`{"root":"process_root"}`),
 		BuildID:        "build",
-		Scope:          execution.TurnScope{SessionID: "ses_1"},
+		Scope:          execution.ExecutionScope{SessionID: "ses_1"},
 		ModelSelection: mustCheckpointSelection("openai", "model"),
 	}
 }

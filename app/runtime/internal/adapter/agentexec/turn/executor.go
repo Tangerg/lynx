@@ -21,11 +21,11 @@ import (
 type executorControl interface {
 	Events(context.Context, Handle) (iter.Seq[runs.ExecutorEvent], error)
 	InjectSteering(context.Context, Handle, []transcript.ContentBlock) error
-	PrepareTurn(context.Context, runs.StartTurn) (Handle, error)
+	PrepareTurn(context.Context, runs.StartExecution) (Handle, error)
 	ActivateTurn(context.Context, Handle) error
 	Resume(context.Context, Handle, []agentexec.SuspensionAnswer, []execution.InterruptKind) error
 	ProcessID(context.Context, Handle) (string, error)
-	Rehydrate(context.Context, runs.RehydrateTurn) (Handle, error)
+	Rehydrate(context.Context, runs.RehydrateExecution) (Handle, error)
 	Cancel(context.Context, Handle) error
 	CancelSubtree(context.Context, Handle, string) error
 }
@@ -38,12 +38,9 @@ type waitingSubtreeControl interface {
 	) (runs.PreparedWaitingSubtreeCancellation, error)
 }
 
-// Executor adapts a turn controller to the application's run executor port
-// (application/runs.SegmentExecutor): it drives, observes, and cancels the agent turn
-// backing a run segment. The application holds the run lifecycle and drives
-// execution through this port, so both durable turn identity and observed
-// events are normalized into the application-owned families. Construct
-// via [NewExecutor]; the composition root injects it into the run coordinator.
+// Executor adapts the internal turn controller to the Run execution ports. It
+// maps adapter-local Handles to [execution.ExecutorRef] and observations to the
+// application-owned event family.
 type Executor struct {
 	controller executorControl
 }
@@ -56,7 +53,7 @@ func NewExecutor(controller executorControl) *Executor {
 // TurnEvents subscribes to a live turn addressed by its durable application
 // identity; each rich turn event is translated into the engine-neutral event
 // contract.
-func (e *Executor) TurnEvents(ctx context.Context, ref execution.TurnRef) (iter.Seq[runs.ExecutorEvent], error) {
+func (e *Executor) Events(ctx context.Context, ref execution.ExecutorRef) (iter.Seq[runs.ExecutorEvent], error) {
 	seq, err := e.controller.Events(ctx, concreteHandle(ref))
 	if err != nil {
 		return nil, err
@@ -64,8 +61,8 @@ func (e *Executor) TurnEvents(ctx context.Context, ref execution.TurnRef) (iter.
 	return seq, nil
 }
 
-// CancelTurn stops a live or parked turn by durable identity.
-func (e *Executor) CancelTurn(ctx context.Context, ref execution.TurnRef) error {
+// CancelExecution stops a live or parked turn by durable identity.
+func (e *Executor) CancelExecution(ctx context.Context, ref execution.ExecutorRef) error {
 	return mapControlError(e.controller.Cancel(ctx, concreteHandle(ref)))
 }
 
@@ -73,7 +70,7 @@ func (e *Executor) CancelTurn(ctx context.Context, ref execution.TurnRef) error 
 // turn. The controller validates process ownership before calling Agent Runtime.
 func (e *Executor) CancelSubtree(
 	ctx context.Context,
-	ref execution.TurnRef,
+	ref execution.ExecutorRef,
 	processID string,
 ) error {
 	return mapControlError(e.controller.CancelSubtree(ctx, concreteHandle(ref), processID))
@@ -81,7 +78,7 @@ func (e *Executor) CancelSubtree(
 
 func (e *Executor) PrepareWaitingSubtreeCancellation(
 	ctx context.Context,
-	ref execution.TurnRef,
+	ref execution.ExecutorRef,
 	processID string,
 ) (runs.PreparedWaitingSubtreeCancellation, error) {
 	controller, ok := e.controller.(waitingSubtreeControl)
@@ -101,7 +98,7 @@ func (e *Executor) PrepareWaitingSubtreeCancellation(
 
 // ValidateStart applies application-owned turn invariants plus the adapter's
 // model-catalog modality check before a run resolves or creates a session.
-func (e *Executor) ValidateStart(request runs.StartTurn) error {
+func (e *Executor) ValidateStart(request runs.StartExecution) error {
 	if err := request.Validate(); err != nil {
 		return err
 	}
@@ -115,30 +112,30 @@ func (e *Executor) ValidateStart(request runs.StartTurn) error {
 
 // PrepareStart creates a fresh executor turn without entering the model/tool
 // engine. The application activates it only after durable run admission.
-func (e *Executor) PrepareStart(ctx context.Context, request runs.StartTurn) (execution.TurnRef, error) {
+func (e *Executor) PrepareStart(ctx context.Context, request runs.StartExecution) (execution.ExecutorRef, error) {
 	handle, err := e.controller.PrepareTurn(ctx, request)
 	if err != nil {
-		return execution.TurnRef{}, err
+		return execution.ExecutorRef{}, err
 	}
-	return neutralTurn(handle), nil
+	return executorRef(handle), nil
 }
 
 // Activate crosses the fresh turn's model/tool side-effect boundary.
-func (e *Executor) Activate(ctx context.Context, ref execution.TurnRef) error {
+func (e *Executor) Activate(ctx context.Context, ref execution.ExecutorRef) error {
 	return mapControlError(e.controller.ActivateTurn(ctx, concreteHandle(ref)))
 }
 
 // Prepare claims a process-local parked turn without delivering its decision.
-func (e *Executor) Prepare(ctx context.Context, ref execution.TurnRef) (execution.TurnRef, error) {
+func (e *Executor) Prepare(ctx context.Context, ref execution.ExecutorRef) (execution.ExecutorRef, error) {
 	handle := concreteHandle(ref)
 	if _, err := e.controller.ProcessID(ctx, handle); err != nil {
-		return execution.TurnRef{}, mapControlError(err)
+		return execution.ExecutorRef{}, mapControlError(err)
 	}
-	return neutralTurn(handle), nil
+	return executorRef(handle), nil
 }
 
 // Resume activates an already-attached continuation.
-func (e *Executor) Resume(ctx context.Context, ref execution.TurnRef, answers []interrupts.SuspensionAnswer, interruptKinds []execution.InterruptKind) error {
+func (e *Executor) Resume(ctx context.Context, ref execution.ExecutorRef, answers []interrupts.SuspensionAnswer, interruptKinds []execution.InterruptKind) error {
 	executorAnswers := make([]agentexec.SuspensionAnswer, len(answers))
 	for index, answer := range answers {
 		executorAnswers[index] = agentexec.SuspensionAnswer{
@@ -151,26 +148,26 @@ func (e *Executor) Resume(ctx context.Context, ref execution.TurnRef, answers []
 }
 
 // Rehydrate rebuilds a parked turn from its durable executor checkpoint.
-func (e *Executor) Rehydrate(ctx context.Context, request runs.RehydrateTurn) (execution.TurnRef, error) {
+func (e *Executor) Rehydrate(ctx context.Context, request runs.RehydrateExecution) (execution.ExecutorRef, error) {
 	handle, err := e.controller.Rehydrate(ctx, request)
 	if err != nil {
-		return execution.TurnRef{}, mapControlError(err)
+		return execution.ExecutorRef{}, mapControlError(err)
 	}
-	return neutralTurn(handle), nil
+	return executorRef(handle), nil
 }
 
 // Steer injects structured user content into a live turn addressed by neutral
 // identity.
-func (e *Executor) Steer(ctx context.Context, ref execution.TurnRef, input []transcript.ContentBlock) error {
+func (e *Executor) Steer(ctx context.Context, ref execution.ExecutorRef, input []transcript.ContentBlock) error {
 	return mapControlError(e.controller.InjectSteering(ctx, concreteHandle(ref), input))
 }
 
-func concreteHandle(ref execution.TurnRef) Handle {
-	return Handle{SessionID: ref.SessionID, TurnID: ref.TurnID}
+func concreteHandle(ref execution.ExecutorRef) Handle {
+	return Handle{SessionID: ref.SessionID, TurnID: ref.ExecutorID}
 }
 
-func neutralTurn(handle Handle) execution.TurnRef {
-	return execution.TurnRef{SessionID: handle.SessionID, TurnID: handle.TurnID}
+func executorRef(handle Handle) execution.ExecutorRef {
+	return execution.ExecutorRef{SessionID: handle.SessionID, ExecutorID: handle.TurnID}
 }
 
 func mapControlError(err error) error {
@@ -179,11 +176,11 @@ func mapControlError(err error) error {
 	}
 	switch {
 	case errors.Is(err, agentexec.ErrExecutorCheckpointLost):
-		return fmt.Errorf("%w: %w", runs.ErrTurnStateLost, err)
+		return fmt.Errorf("%w: %w", runs.ErrExecutorStateLost, err)
 	case errors.Is(err, ErrParkClaimed):
-		return fmt.Errorf("%w: %w", runs.ErrParkClaimed, err)
+		return fmt.Errorf("%w: %w", runs.ErrExecutionClaimed, err)
 	case errors.Is(err, ErrTurnNotFound):
-		return fmt.Errorf("%w: %w", runs.ErrTurnNotLive, err)
+		return fmt.Errorf("%w: %w", runs.ErrExecutorNotLive, err)
 	default:
 		return err
 	}

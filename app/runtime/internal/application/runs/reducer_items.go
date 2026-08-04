@@ -256,7 +256,7 @@ func (r *reducer) completeTool(ref *openTool, e ToolCallEnd) ([]RunEvent, error)
 // Run's resulting total. The report is remembered rather than only forwarded:
 // it is what the Run commits if the segment ends without a fresh one.
 func (r *reducer) usageProgress(e UsageReported) ([]RunEvent, error) {
-	if err := r.applyUsage(TurnUsage{
+	if err := r.applyUsage(SegmentUsage{
 		Tokens:  e.TokenUsage,
 		ByModel: e.ByModel,
 		CostUSD: e.CostUSD,

@@ -283,7 +283,7 @@ func prepareWaitingCancellationTransformation(
 	continuation := &treeContinuation{
 		rootRunID:     plan.pending.RootRunID,
 		sessionID:     plan.pending.SessionID,
-		turnID:        plan.pending.TurnID,
+		executorID:    plan.pending.ExecutorID,
 		goalLeaseID:   plan.pending.GoalLeaseID,
 		interrupts:    slices.Clone(remainingInterrupts),
 		continuations: slices.Clone(continuations),

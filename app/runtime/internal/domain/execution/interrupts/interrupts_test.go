@@ -52,9 +52,9 @@ func TestPendingValidateRequiresOneCanonicalConnectedTree(t *testing.T) {
 		{
 			name: "pending identity is not canonical",
 			mutate: func(p *Pending) {
-				p.TurnID = " turn_1"
+				p.ExecutorID = " turn_1"
 			},
-			want: "pending turn id has surrounding whitespace",
+			want: "pending executor ID has surrounding whitespace",
 		},
 		{
 			name: "continuation identity is not canonical",
@@ -109,9 +109,9 @@ func TestPendingValidateRequiresOneCanonicalConnectedTree(t *testing.T) {
 func validTreePending() Pending {
 	createdAt := time.Date(2026, 7, 30, 12, 0, 0, 0, time.UTC)
 	return Pending{
-		RootRunID: "run_root",
-		SessionID: "session_1",
-		TurnID:    "turn_1",
+		RootRunID:  "run_root",
+		SessionID:  "session_1",
+		ExecutorID: "turn_1",
 		Capabilities: execution.RunCapabilities{
 			ChildRuns:      true,
 			InterruptKinds: []execution.InterruptKind{execution.ApprovalInterrupt},

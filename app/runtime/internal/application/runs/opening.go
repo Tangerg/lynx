@@ -11,7 +11,7 @@ import (
 )
 
 // Start validates and resolves the session, claims the session and working
-// tree, starts the executor turn, mints run identity, and hands the prepared
+// tree, starts execution, mints Run identity, and hands the prepared
 // segment to the package's existing lifecycle supervisor.
 func (c *Coordinator) Start(ctx context.Context, cmd StartCommand) (StartResult, error) {
 	if err := c.requireUseCaseDependencies(); err != nil {
@@ -24,7 +24,7 @@ func (c *Coordinator) Start(ctx context.Context, cmd StartCommand) (StartResult,
 	if err != nil {
 		return StartResult{}, err
 	}
-	draft := StartTurn{
+	draft := StartExecution{
 		Message:                  message,
 		Media:                    media,
 		ModelSelection:           cmd.ModelSelection,
@@ -37,7 +37,7 @@ func (c *Coordinator) Start(ctx context.Context, cmd StartCommand) (StartResult,
 	if err := draft.Validate(); err != nil {
 		return StartResult{}, err
 	}
-	if err := c.turns.ValidateStart(draft); err != nil {
+	if err := c.control.ValidateStart(draft); err != nil {
 		return StartResult{}, err
 	}
 
@@ -59,11 +59,11 @@ func (c *Coordinator) Start(ctx context.Context, cmd StartCommand) (StartResult,
 	draft.Cwd = execCwd
 	draft.WorkspaceCwd = sess.Cwd
 	draft.Isolated = isolated
-	turn, err := c.turns.PrepareStart(ctx, draft)
+	ref, err := c.control.PrepareStart(ctx, draft)
 	if err != nil {
 		return StartResult{}, err
 	}
-	if err := c.validateStartedTurn(ctx, turn, sess.ID); err != nil {
+	if err := c.validatePreparedExecution(ctx, ref, sess.ID); err != nil {
 		return StartResult{}, err
 	}
 
@@ -82,7 +82,7 @@ func (c *Coordinator) Start(ctx context.Context, cmd StartCommand) (StartResult,
 		SegmentID:        segmentID,
 		SessionID:        sess.ID,
 		Cwd:              sess.Cwd,
-		TurnID:           turn.TurnID,
+		ExecutorID:       ref.ExecutorID,
 		ModelSelection:   cmd.ModelSelection,
 		GoalLeaseID:      cmd.GoalLeaseID,
 		ScheduledSession: scheduled,
@@ -95,7 +95,7 @@ func (c *Coordinator) Start(ctx context.Context, cmd StartCommand) (StartResult,
 		Capabilities:     cmd.Capabilities,
 		admission:        &runAdmission,
 		Activate: func(activateCtx context.Context) error {
-			return c.turns.Activate(activateCtx, turn)
+			return c.control.Activate(activateCtx, ref)
 		},
 	})
 	if err != nil {
@@ -168,7 +168,7 @@ func (c *Coordinator) activeRunConflict(ctx context.Context, sessionID string) (
 	return &ActiveRunConflict{RunID: run.ID, Status: run.State.Status()}, nil
 }
 
-// executionCwd resolves where a session's turn tools operate: the sandbox copy
+// executionCwd resolves where a Session's tools operate: the sandbox copy
 // for an isolated session (created on first use), else the project directory.
 // It fails closed when isolation is requested but unavailable — an isolated run
 // must never fall back to the real tree.
@@ -186,12 +186,12 @@ func (c *Coordinator) executionCwd(ctx context.Context, sess session.Session) (c
 	return copyDir, true, nil
 }
 
-func (c *Coordinator) validateStartedTurn(ctx context.Context, ref execution.TurnRef, sessionID string) error {
+func (c *Coordinator) validatePreparedExecution(ctx context.Context, ref execution.ExecutorRef, sessionID string) error {
 	if err := ref.ValidateFor(sessionID); err != nil {
 		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), runCleanupTimeout)
 		defer cancel()
-		if cleanupErr := c.turns.CancelTurn(cleanupCtx, ref); cleanupErr != nil {
-			return errors.Join(err, fmt.Errorf("runs: cancel invalid started turn: %w", cleanupErr))
+		if cleanupErr := c.control.CancelExecution(cleanupCtx, ref); cleanupErr != nil {
+			return errors.Join(err, fmt.Errorf("runs: cancel invalid started executor: %w", cleanupErr))
 		}
 		return err
 	}

@@ -315,7 +315,7 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 		Interrupts:          cfg.InterruptStore,
 		Transcript:          cfg.TranscriptStore,
 		Messages:            messages.conversation,
-		GoalTurns:           cfg.GoalStore,
+		GoalRuns:            cfg.GoalStore,
 		ExecutorCheckpoints: cfg.ExecutorCheckpoints,
 		Tx:                  runrecovery.Transactor(cfg.Transactor),
 	})
@@ -385,7 +385,7 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 		Interrupts:          cfg.InterruptStore,
 		Sessions:            cfg.SessionStore,
 		ScheduleFirings:     cfg.ScheduleStore,
-		GoalTurns:           cfg.GoalStore,
+		GoalRuns:            cfg.GoalStore,
 		Transcript:          cfg.TranscriptStore,
 		ItemReplacer:        cfg.TranscriptStore,
 		ToolResults:         cfg.ToolResultStore,
@@ -429,21 +429,21 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 		EmbeddingStore:     cfg.EmbeddingRoleStore,
 	})
 	sessionDeps := sessions.Dependencies{
-		Sessions:     cfg.SessionStore,
-		Interrupts:   cfg.InterruptStore,
-		Transcript:   cfg.TranscriptStore,
-		Runs:         cfg.RunStore,
-		Boundaries:   cfg.PlanStore,
-		Snapshots:    sessionStorage,
-		Writes:       sessionStorage,
-		Forgetter:    turnDispatcher,
-		Turns:        turn.NewSessionTurnCleanup(turnDispatcher),
-		Paths:        workspacepath.Resolver{},
-		DefaultModel: cfg.Model,
-		Checkpoints:  checkpointstore.NewSessionCheckpoints(checkpoints),
-		Mutations:    cfg.WorkspaceMutationStore,
-		Admissions:   admissions,
-		Changed:      changes.Publish,
+		Sessions:         cfg.SessionStore,
+		Interrupts:       cfg.InterruptStore,
+		Transcript:       cfg.TranscriptStore,
+		Runs:             cfg.RunStore,
+		Boundaries:       cfg.PlanStore,
+		Snapshots:        sessionStorage,
+		Writes:           sessionStorage,
+		Forgetter:        turnDispatcher,
+		ExecutionCleanup: turn.NewSessionTurnCleanup(turnDispatcher),
+		Paths:            workspacepath.Resolver{},
+		DefaultModel:     cfg.Model,
+		Checkpoints:      checkpointstore.NewSessionCheckpoints(checkpoints),
+		Mutations:        cfg.WorkspaceMutationStore,
+		Admissions:       admissions,
+		Changed:          changes.Publish,
 	}
 	// Set only when present so a nil *Isolator never reaches the coordinator as a
 	// non-nil interface (which would defeat its own nil check).
@@ -461,7 +461,7 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 	sessionCoord := sessions.New(sessionDeps)
 	runDeps := runs.Dependencies{
 		Segments:   runExecutor,
-		Turns:      runExecutor,
+		Control:    runExecutor,
 		Sessions:   sessionCoord,
 		Effects:    runEffects,
 		Runs:       cfg.RunStore,

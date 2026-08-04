@@ -1,13 +1,13 @@
 // Package conversation is the LLM message-context domain: the
-// chat.Message[] history fed to the model each turn, keyed by session.
+// chat.Message[] history fed to model executions, keyed by Session.
 // It wraps the same persistence the chat-history middleware loads and saves,
 // and owns the operations that read, seed,
 // count, truncate, and inject into that history.
 //
 // This is one of the three distinct "histories" (see
 // doc/EXECUTION_CENTERED_ARCHITECTURE.md): conversation (here) is what the LLM sees; knowledge is LYRA.md;
-// transcript is the UI items+runs timeline. The engine drives turns; these
-// messages own the out-of-turn history operations.
+// transcript is the UI Items+Runs timeline. Execution drives Runs; these
+// messages own history operations outside active execution.
 package conversation
 
 import (
@@ -41,16 +41,14 @@ type Messages struct {
 	store Store
 }
 
-// NewMessages builds the message histories over store — the chat history
-// backend (sqlite MessageStore in production, in-memory for tests). The chat
-// history middleware loads/saves the same store during a turn; this type is the
-// out-of-turn read/edit surface (fork, rollback, steering, messages.list).
+// NewMessages builds message histories over store. Active execution and
+// independent fork, rollback, steering, and read operations share this history.
 func NewMessages(store Store) *Messages {
 	return &Messages{store: store}
 }
 
 // Read returns sessionID's persisted message history — the same messages the
-// chat history middleware loads at the start of each turn. Empty (nil, nil) for
+// chat history middleware loads at the start of each execution. Empty (nil, nil) for
 // an unknown / never-used session.
 func (m *Messages) Read(ctx context.Context, sessionID string) ([]chat.Message, error) {
 	if sessionID == "" {
@@ -65,7 +63,7 @@ func (m *Messages) Read(ctx context.Context, sessionID string) ([]chat.Message, 
 
 // Seed writes messages into sessionID's history. Used by sessions.fork to copy a
 // slice of the parent's history into a freshly created child so the child's
-// next turn continues from the fork point. No-op for an empty slice. The store
+// next execution continues from the fork point. No-op for an empty slice. The store
 // appends, so seed a fresh session only (seeding one with existing history
 // would concatenate).
 func (m *Messages) Seed(ctx context.Context, sessionID string, messages []chat.Message) error {
@@ -135,8 +133,8 @@ func (m *Messages) Clear(ctx context.Context, sessionID string) error {
 
 // AppendUserMessage appends a validated user message to sessionID's history. It
 // becomes part of the conversation the chat history middleware loads at the
-// start of the next turn. The runtime uses this to preserve structured steering
-// content that misses the current turn's final continuation round.
+// start of the next execution. This preserves structured steering content that
+// misses the current execution's final continuation round.
 func (m *Messages) AppendUserMessage(ctx context.Context, sessionID string, message chat.Message) error {
 	if sessionID == "" {
 		return errSessionIDRequired

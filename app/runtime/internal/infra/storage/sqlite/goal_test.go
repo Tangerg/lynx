@@ -26,39 +26,39 @@ func newGoalStore(t *testing.T) (*sqlite.GoalStore, *sqlite.SessionStore) {
 	return sqlite.NewGoalStore(db), sqlite.NewSessionStore(db)
 }
 
-func TestGoalStoreRecordTurnIsIdempotentAndBlocksAtBudget(t *testing.T) {
+func TestGoalStoreRecordRunIsIdempotentAndBlocksAtBudget(t *testing.T) {
 	store, sessions := newGoalStore(t)
-	const sessionID = "ses_goal_turn"
+	const sessionID = "ses_goal_run"
 	seedSession(t, sessions, sessionID)
 	now := time.Date(2026, 7, 25, 10, 0, 0, 0, time.UTC)
-	g, err := goal.New(sessionID, "finish", modelref.Selection{}, goal.Budget{MaxTurns: 1}, "lease_goal_turn", now)
+	g, err := goal.New(sessionID, "finish", modelref.Selection{}, goal.Budget{MaxRuns: 1}, "lease_goal_run", now)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if _, applied, err := store.Save(t.Context(), g, goal.Version{}); err != nil || !applied {
 		t.Fatalf("Save = (%v, %v), want true, nil", applied, err)
 	}
-	record := goal.TurnRecord{
-		SessionID: sessionID, LeaseID: g.LeaseID, RunID: "run_goal_turn",
+	record := goal.RunRecord{
+		SessionID: sessionID, LeaseID: g.LeaseID, RunID: "run_goal_run",
 		Outcome: execution.OutcomeCompleted, CostUSD: 0.25, Steps: 3, CompletedAt: now.Add(time.Minute),
 	}
-	if err := store.RecordTurn(t.Context(), record); err != nil {
-		t.Fatalf("RecordTurn: %v", err)
+	if err := store.RecordRun(t.Context(), record); err != nil {
+		t.Fatalf("RecordRun: %v", err)
 	}
-	if err := store.RecordTurn(t.Context(), record); err != nil {
-		t.Fatalf("repeat RecordTurn: %v", err)
+	if err := store.RecordRun(t.Context(), record); err != nil {
+		t.Fatalf("repeat RecordRun: %v", err)
 	}
 	conflict := record
 	conflict.LeaseID = "another_lease"
-	if err := store.RecordTurn(t.Context(), conflict); !errors.Is(err, goal.ErrTurnIdentityConflict) {
-		t.Fatalf("conflicting RecordTurn = %v, want ErrTurnIdentityConflict", err)
+	if err := store.RecordRun(t.Context(), conflict); !errors.Is(err, goal.ErrRunIdentityConflict) {
+		t.Fatalf("conflicting RecordRun = %v, want ErrRunIdentityConflict", err)
 	}
 	got, found, err := store.Get(t.Context(), sessionID)
 	if err != nil || !found {
 		t.Fatalf("Get = (%v, %v), want found", found, err)
 	}
-	if got.Used != (goal.Usage{Turns: 1, CostUSD: 0.25, Steps: 3}) || got.Status != goal.StatusBlocked || got.Reason.Code != goal.ReasonTurnBudgetReached {
-		t.Fatalf("goal after idempotent RecordTurn = %+v", got)
+	if got.Used != (goal.Usage{Runs: 1, CostUSD: 0.25, Steps: 3}) || got.Status != goal.StatusBlocked || got.Reason.Code != goal.ReasonRunBudgetReached {
+		t.Fatalf("goal after idempotent RecordRun = %+v", got)
 	}
 }
 
@@ -110,11 +110,11 @@ func TestGoalStore_RoundTrip(t *testing.T) {
 	}
 
 	now := time.Unix(1_700_000_000, 0).UTC()
-	g, err := goal.New(sess, "ship the feature", testModelSelection(t, "anthropic", "claude"), goal.Budget{MaxTurns: 5, MaxCostUSD: 2.5}, "lease-round-trip", now)
+	g, err := goal.New(sess, "ship the feature", testModelSelection(t, "anthropic", "claude"), goal.Budget{MaxRuns: 5, MaxCostUSD: 2.5}, "lease-round-trip", now)
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	g.AddTurn(0.4, 3, now)
+	g.AddRun(0.4, 3, now)
 	if _, applied, err := store.Save(ctx, g, goal.Version{}); err != nil || !applied {
 		t.Fatalf("Save: applied=%v err=%v", applied, err)
 	}
@@ -124,8 +124,8 @@ func TestGoalStore_RoundTrip(t *testing.T) {
 		t.Fatalf("Get = (%v, %v), want (true, nil)", ok, err)
 	}
 	if got.Objective != "ship the feature" || got.Status != goal.StatusActive ||
-		got.Budget.MaxTurns != 5 || got.Budget.MaxCostUSD != 2.5 ||
-		got.Used.Turns != 1 || got.Used.CostUSD != 0.4 || got.Used.Steps != 3 ||
+		got.Budget.MaxRuns != 5 || got.Budget.MaxCostUSD != 2.5 ||
+		got.Used.Runs != 1 || got.Used.CostUSD != 0.4 || got.Used.Steps != 3 ||
 		got.ModelSelection.Provider() != "anthropic" || got.ModelSelection.Model() != "claude" {
 		t.Fatalf("round-trip mismatch: %+v", got)
 	}
@@ -224,7 +224,7 @@ func TestGoalStore_CompareAndSwap(t *testing.T) {
 
 	// A same-lease mutation advances revision and rejects the prior revision.
 	blocked := paused
-	blocked.Block(goal.ReasonTurnBudgetReached, "", now)
+	blocked.Block(goal.ReasonRunBudgetReached, "", now)
 	if blocked, applied, err = store.Save(ctx, blocked, paused.Version()); err != nil || !applied {
 		t.Fatalf("same-lease update: applied=%v err=%v", applied, err)
 	}
@@ -320,12 +320,12 @@ func TestGoalStoreCascadesWithSessionDeletion(t *testing.T) {
 	if _, applied, err := store.Save(t.Context(), g, goal.Version{}); err != nil || !applied {
 		t.Fatalf("seed goal: applied=%v err=%v", applied, err)
 	}
-	record := goal.TurnRecord{
+	record := goal.RunRecord{
 		SessionID: sessionID, LeaseID: g.LeaseID, RunID: "run-reusable-after-delete",
 		Outcome: execution.OutcomeCompleted, CompletedAt: time.Unix(1, 0),
 	}
-	if err := store.RecordTurn(t.Context(), record); err != nil {
-		t.Fatalf("record old goal turn: %v", err)
+	if err := store.RecordRun(t.Context(), record); err != nil {
+		t.Fatalf("record old Goal Run: %v", err)
 	}
 
 	if err := sessions.Delete(t.Context(), sessionID); err != nil {
@@ -344,11 +344,11 @@ func TestGoalStoreCascadesWithSessionDeletion(t *testing.T) {
 	}
 	record.LeaseID = recreated.LeaseID
 	record.CompletedAt = time.Unix(3, 0)
-	if err := store.RecordTurn(t.Context(), record); err != nil {
+	if err := store.RecordRun(t.Context(), record); err != nil {
 		t.Fatalf("reuse terminal identity after session deletion: %v", err)
 	}
 	got, ok, err := store.Get(t.Context(), sessionID)
-	if err != nil || !ok || got.Used.Turns != 1 {
+	if err != nil || !ok || got.Used.Runs != 1 {
 		t.Fatalf("recreated goal accounting = %+v, present=%v err=%v", got.Used, ok, err)
 	}
 }

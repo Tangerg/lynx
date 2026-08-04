@@ -9,7 +9,7 @@ import (
 
 // applyRollback truncates the chat history log to the boundary watermark and drops each run's
 // durable record + dangling interrupt as ONE atomic write-set (§8.1), then cancels
-// any in-process parked turns that were abandoned. Delegated work is represented
+// any in-process parked executions that were abandoned. Delegated work is represented
 // by first-class child Runs in this same session, so there is no parallel hidden
 // Session tree to infer or purge. A keepMark < 0 (unknown watermark —
 // chain terminal still in-flight / pre-watermark) leaves the log untouched
@@ -20,9 +20,9 @@ func (c *Coordinator) applyRollback(ctx context.Context, sessionID string, bound
 		return nil
 	}
 	dropRunIDs := boundary.DroppedRunIDs()
-	// Read the parked turns BEFORE the write-set consumes their interrupts — the
-	// in-process turns still need canceling once the durable records are gone.
-	parked, err := c.parkedTurns(ctx, dropRunIDs)
+	// Read the parked executions BEFORE the write-set consumes their interrupts — the
+	// in-process executions still need canceling once the durable records are gone.
+	parked, err := c.parkedExecutions(ctx, dropRunIDs)
 	if err != nil {
 		return err
 	}
@@ -57,7 +57,7 @@ func (c *Coordinator) applyRollback(ctx context.Context, sessionID string, bound
 			c.publishAggregateMoved([]string{sessionID}, dropRunIDs)
 			var cleanupErrs []error
 			for _, r := range parked {
-				if err := c.cancelTurn(ctx, r); err != nil {
+				if err := c.cancelExecution(ctx, r); err != nil {
 					cleanupErrs = append(cleanupErrs, err)
 				}
 			}
@@ -66,7 +66,7 @@ func (c *Coordinator) applyRollback(ctx context.Context, sessionID string, bound
 	)
 }
 
-func parkedCheckpointRootIDs(parked []RunTurnBinding) []string {
+func parkedCheckpointRootIDs(parked []RunExecutionBinding) []string {
 	ids := make([]string, 0, len(parked))
 	for _, binding := range parked {
 		if binding.CheckpointRootID != "" {

@@ -6,9 +6,8 @@ import (
 )
 
 // FailureKind classifies an execution failure without depending on provider
-// error text. Adapters translate concrete transport and SDK errors at their
-// boundary; the application projects this stable vocabulary to its transcript
-// and wire problem types.
+// error text. Integrations translate concrete failures at their boundary; the
+// application projects this stable vocabulary into its own records.
 type FailureKind uint8
 
 const (

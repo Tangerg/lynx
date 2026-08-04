@@ -26,7 +26,7 @@ func (f *fakeOffloader) Stage(_ context.Context, stage offload.ToolResultStage) 
 }
 
 func sessionCtx(session string) context.Context {
-	return executionctx.WithScope(context.Background(), execution.TurnScope{SessionID: session})
+	return executionctx.WithScope(context.Background(), execution.ExecutionScope{SessionID: session})
 }
 
 func newObservationWith(store toolResultOffloader, threshold int) *toolObservation {

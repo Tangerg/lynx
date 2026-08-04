@@ -134,7 +134,7 @@ func (r TurnRequest) snapshot() TurnRequest {
 // turn to the chat history middleware's keyed conversation.
 func (e *Engine) StartTurn(ctx context.Context, request TurnRequest) (TurnProcess, error) {
 	request = request.snapshot()
-	scope := execution.TurnScope{
+	scope := execution.ExecutionScope{
 		SessionID:    request.SessionID,
 		Cwd:          request.Cwd,
 		WorkspaceCwd: request.WorkspaceCwd,

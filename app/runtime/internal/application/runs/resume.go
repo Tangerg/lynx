@@ -9,7 +9,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 )
 
-// Resume claims the parked run's session, prepares or rehydrates its turn,
+// Resume claims the parked Run's Session, prepares or rehydrates its executor,
 // attaches and durably accepts a continuation segment, and only then activates
 // the user's resolution.
 func (c *Coordinator) Resume(ctx context.Context, cmd ResumeCommand) (StartResult, error) {
@@ -53,13 +53,13 @@ func (c *Coordinator) Resume(ctx context.Context, cmd ResumeCommand) (StartResul
 		return StartResult{}, err
 	}
 
-	// Resume inherits the copy cwd + isolation from the parked turn's Runtime
+	// Resume inherits the copy cwd and isolation from the parked execution scope,
 	// scope, so no execution-cwd resolution is needed here. A rehydrate (process
-	// gone) of an isolated run is refused as lost — see prepareTurn — because the
+	// gone) of an isolated Run is refused as lost — see prepareExecution — because the
 	// sandbox copy died with the process.
-	turn, err := c.prepareTurn(ctx, pending, sess.Cwd, sess.Isolated)
+	ref, err := c.prepareExecution(ctx, pending, sess.Cwd, sess.Isolated)
 	if err != nil {
-		if errors.Is(err, ErrTurnStateLost) {
+		if errors.Is(err, ErrExecutorStateLost) {
 			cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), runCleanupTimeout)
 			cleanupErr := c.sessions.ApplyRunLost(cleanupCtx, pending.SessionID, cmd.RunID, c.now().UTC())
 			cancel()
@@ -86,7 +86,7 @@ func (c *Coordinator) Resume(ctx context.Context, cmd ResumeCommand) (StartResul
 		SegmentID:      segmentID,
 		SessionID:      pending.SessionID,
 		Cwd:            sess.Cwd,
-		TurnID:         turn.TurnID,
+		ExecutorID:     ref.ExecutorID,
 		ModelSelection: rootContinuation.ModelSelection,
 		GoalLeaseID:    pending.GoalLeaseID,
 		CreatedAt:      createdAt,
@@ -97,7 +97,7 @@ func (c *Coordinator) Resume(ctx context.Context, cmd ResumeCommand) (StartResul
 			// The RUN's frozen kinds, not this request's: the caller has already been
 			// checked to cover them, and taking the declaration here would let each
 			// resume change what the next segment may park on.
-			return c.turns.Resume(activateCtx, turn, answers, pending.Capabilities.InterruptKinds)
+			return c.control.Resume(activateCtx, ref, answers, pending.Capabilities.InterruptKinds)
 		},
 	})
 	if err != nil {
@@ -122,41 +122,41 @@ func (c *Coordinator) Resume(ctx context.Context, cmd ResumeCommand) (StartResul
 	return result, nil
 }
 
-func (c *Coordinator) prepareTurn(ctx context.Context, pending interrupts.Pending, cwd string, isolated bool) (execution.TurnRef, error) {
-	turn, err := c.turns.Prepare(ctx, execution.TurnRef{SessionID: pending.SessionID, TurnID: pending.TurnID})
+func (c *Coordinator) prepareExecution(ctx context.Context, pending interrupts.Pending, cwd string, isolated bool) (execution.ExecutorRef, error) {
+	ref, err := c.control.Prepare(ctx, execution.ExecutorRef{SessionID: pending.SessionID, ExecutorID: pending.ExecutorID})
 	if err == nil {
-		if err := turn.ValidateFor(pending.SessionID); err != nil {
-			return execution.TurnRef{}, err
+		if err := ref.ValidateFor(pending.SessionID); err != nil {
+			return execution.ExecutorRef{}, err
 		}
-		return turn, nil
+		return ref, nil
 	}
-	if errors.Is(err, ErrParkClaimed) {
-		return execution.TurnRef{}, ErrInterruptNotOpen
+	if errors.Is(err, ErrExecutionClaimed) {
+		return execution.ExecutorRef{}, ErrInterruptNotOpen
 	}
-	if !errors.Is(err, ErrTurnNotLive) {
-		return execution.TurnRef{}, err
+	if !errors.Is(err, ErrExecutorNotLive) {
+		return execution.ExecutorRef{}, err
 	}
-	// The parked turn is not live in this process, so its executor died — for an
-	// isolated run that means its sandbox copy, which lives only in this process's
-	// Isolator, died with it. Rehydrating would rebuild the turn against the
+	// The parked execution is not live in this process, so its executor died. For
+	// an isolated Run that means its sandbox copy, which is process-local, died
+	// with it. Rehydrating would rebuild execution against the
 	// project directory (the only cwd we still have), running the resumed model
 	// and its memory extraction on the REAL tree — the exact pollution isolation
 	// exists to prevent. Fail closed: the run's world is gone, so it is lost, not
-	// resumable. Reusing ErrTurnStateLost routes it through the same durable
+	// resumable. ErrExecutorStateLost routes it through the same durable
 	// lost-run cleanup as a missing executor checkpoint.
 	if isolated {
-		return execution.TurnRef{}, fmt.Errorf("%w: an isolated run cannot resume after its sandbox process ended", ErrTurnStateLost)
+		return execution.ExecutorRef{}, fmt.Errorf("%w: an isolated run cannot resume after its sandbox process ended", ErrExecutorStateLost)
 	}
 	root, ok := pending.RootContinuation()
 	if !ok {
-		return execution.TurnRef{}, errors.Join(
+		return execution.ExecutorRef{}, errors.Join(
 			ErrRunNotFound,
 			errors.New("runs: interrupt has no root continuation"),
 		)
 	}
-	turn, err = c.turns.Rehydrate(ctx, RehydrateTurn{
+	ref, err = c.control.Rehydrate(ctx, RehydrateExecution{
 		SessionID:                pending.SessionID,
-		TurnID:                   pending.TurnID,
+		ExecutorID:               pending.ExecutorID,
 		ProcessID:                root.ProcessID,
 		RootRunID:                pending.RootRunID,
 		ChildRuns:                childRunBindingsFromPending(pending),
@@ -169,12 +169,12 @@ func (c *Coordinator) prepareTurn(ctx context.Context, pending interrupts.Pendin
 		ChildRunAdmissionEnabled: pending.Capabilities.ChildRuns,
 	})
 	if err != nil {
-		return execution.TurnRef{}, errors.Join(ErrRunNotFound, err)
+		return execution.ExecutorRef{}, errors.Join(ErrRunNotFound, err)
 	}
-	if err := turn.ValidateFor(pending.SessionID); err != nil {
-		return execution.TurnRef{}, err
+	if err := ref.ValidateFor(pending.SessionID); err != nil {
+		return execution.ExecutorRef{}, err
 	}
-	return turn, nil
+	return ref, nil
 }
 
 func childRunBindingsFromPending(pending interrupts.Pending) []ChildRunBinding {

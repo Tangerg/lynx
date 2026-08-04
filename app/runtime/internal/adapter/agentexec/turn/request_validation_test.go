@@ -29,12 +29,12 @@ func TestStartTurnValidateDelegatesCoreOptions(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
-			err := (runs.StartTurn{
+			err := (runs.StartExecution{
 				SessionID: "session",
 				Message:   "hello",
 				Options:   &test.options,
 			}).Validate()
-			if !errors.Is(err, runs.ErrInvalidTurnOptions) {
+			if !errors.Is(err, runs.ErrInvalidRunOptions) {
 				t.Fatalf("Validate() error = %v, want ErrInvalidTurnOptions", err)
 			}
 			if !errors.Is(err, corechat.ErrInvalidOptions) {

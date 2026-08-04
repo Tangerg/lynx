@@ -8,7 +8,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 )
 
-func (s *controller) StartTurn(ctx context.Context, request runs.StartTurn) (Handle, error) {
+func (s *controller) StartTurn(ctx context.Context, request runs.StartExecution) (Handle, error) {
 	handle, err := s.PrepareTurn(ctx, request)
 	if err != nil {
 		return Handle{}, err
@@ -26,7 +26,7 @@ func (s *controller) StartTurn(ctx context.Context, request runs.StartTurn) (Han
 // PrepareTurn establishes all reversible turn state but deliberately does not
 // launch the engine. The application can now durably admit its Run before
 // ActivateTurn crosses the model/tool side-effect boundary.
-func (s *controller) PrepareTurn(ctx context.Context, request runs.StartTurn) (Handle, error) {
+func (s *controller) PrepareTurn(ctx context.Context, request runs.StartExecution) (Handle, error) {
 	if request.SessionID == "" {
 		return Handle{}, errors.New("turn: SessionID is required")
 	}

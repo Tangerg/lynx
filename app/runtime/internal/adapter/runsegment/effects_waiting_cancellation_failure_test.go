@@ -106,7 +106,7 @@ func (store failingWaitingTranscriptStore) AppendItem(
 func TestCommitWaitingSubtreeCancellationRejectsStalePendingWithoutMutation(t *testing.T) {
 	fixture := newWaitingCancellationSQLiteFixture(t)
 	changedPending := fixture.commit.ExpectedPending
-	changedPending.TurnID = "turn_replaced"
+	changedPending.ExecutorID = "turn_replaced"
 	if _, found, err := fixture.interrupts.Consume(fixture.ctx, changedPending.SessionID, changedPending.RootRunID); err != nil || !found {
 		t.Fatalf("consume original Pending fixture: found=%t err=%v", found, err)
 	}

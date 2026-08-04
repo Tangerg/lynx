@@ -23,9 +23,9 @@ import (
 // Continuations is the application state required to reopen every surviving Run
 // with a fresh Segment, including after process restart.
 type Pending struct {
-	RootRunID string
-	SessionID string
-	TurnID    string
+	RootRunID  string
+	SessionID  string
+	ExecutorID string
 	// GoalLeaseID is the root Run's autonomous-goal incarnation. It is an
 	// application continuation fact, not executor payload: a resumed Segment
 	// needs it to keep terminal budget accounting attached to the same Goal.
@@ -72,7 +72,7 @@ type SuspensionBinding struct {
 
 // SuspensionAnswer is one validated decision bound to the exact executor
 // boundary that must consume it. InterruptItemID keeps the application item
-// identity attached until the TurnControl adapter boundary; ProcessID and
+// identity attached until the execution-control boundary; ProcessID and
 // SuspensionID prevent execution from guessing which parked branch it answers.
 type SuspensionAnswer struct {
 	InterruptItemID string
@@ -141,10 +141,10 @@ func (p Pending) Validate() error {
 		return errors.New("interrupts: pending session id is required")
 	case p.SessionID != strings.TrimSpace(p.SessionID):
 		return errors.New("interrupts: pending session id has surrounding whitespace")
-	case strings.TrimSpace(p.TurnID) == "":
-		return errors.New("interrupts: pending turn id is required")
-	case p.TurnID != strings.TrimSpace(p.TurnID):
-		return errors.New("interrupts: pending turn id has surrounding whitespace")
+	case strings.TrimSpace(p.ExecutorID) == "":
+		return errors.New("interrupts: pending executor ID is required")
+	case p.ExecutorID != strings.TrimSpace(p.ExecutorID):
+		return errors.New("interrupts: pending executor ID has surrounding whitespace")
 	case p.GoalLeaseID != strings.TrimSpace(p.GoalLeaseID):
 		return errors.New("interrupts: pending goal lease id has surrounding whitespace")
 	case p.CreatedAt.IsZero():

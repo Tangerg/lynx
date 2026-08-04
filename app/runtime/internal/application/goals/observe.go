@@ -10,34 +10,34 @@ import (
 )
 
 // The autonomous loop is a request-detached background driver — without a span
-// per turn and a disposition metric it runs blind. The loop's ctx keeps the
+// per Run and a disposition metric it runs blind. The loop's ctx keeps the
 // starting request's trace values (taskgroup.Attach → context.WithoutCancel), so
-// each goal.turn span nests under the goals.start trace (full-link). No-op until
+// each goal.run span nests under the goals.start trace (full-link). No-op until
 // a TracerProvider / MeterProvider is installed.
 const observeScope = "lynx/lyra/goal"
 
 var driverTracer = otel.Tracer(observeScope)
 
-// turnDisposition labels how one autonomous turn ended — the span attribute and
-// metric dimension. dispContinue means the loop launches another turn; the other
-// three are terminal. The zero value means the turn never completed and is not
+// runDisposition labels how one autonomous Run ended — the span attribute and
+// metric dimension. dispContinue means the loop launches another Run; the other
+// three are terminal. The zero value means the Run never completed and is not
 // metered.
-type turnDisposition string
+type runDisposition string
 
 const (
-	dispContinue turnDisposition = "continue"
-	dispComplete turnDisposition = "complete"
-	dispBlocked  turnDisposition = "blocked"
-	dispPaused   turnDisposition = "paused"
+	dispContinue runDisposition = "continue"
+	dispComplete runDisposition = "complete"
+	dispBlocked  runDisposition = "blocked"
+	dispPaused   runDisposition = "paused"
 )
 
-var loadGoalTurns = sync.OnceValue(func() metric.Int64Counter {
+var loadGoalRuns = sync.OnceValue(func() metric.Int64Counter {
 	// A creation error yields a usable no-op counter, so it's safe to drop.
-	counter, _ := otel.Meter(observeScope).Int64Counter("goal.turns",
-		metric.WithDescription("Autonomous goal turns, by disposition (continue/complete/blocked/paused)."))
+	counter, _ := otel.Meter(observeScope).Int64Counter("goal.runs",
+		metric.WithDescription("Autonomous Goal Runs, by disposition (continue/complete/blocked/paused)."))
 	return counter
 })
 
-func recordGoalTurn(ctx context.Context, disposition turnDisposition) {
-	loadGoalTurns().Add(ctx, 1, metric.WithAttributes(attribute.String("goal.disposition", string(disposition))))
+func recordGoalRun(ctx context.Context, disposition runDisposition) {
+	loadGoalRuns().Add(ctx, 1, metric.WithAttributes(attribute.String("goal.disposition", string(disposition))))
 }

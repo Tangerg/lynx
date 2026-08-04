@@ -50,7 +50,7 @@ type createArgs struct {
 }
 
 type createBudget struct {
-	MaxTurns   int     `json:"max_turns,omitempty" jsonschema:"minimum=0" jsonschema_description:"Maximum autonomous Runs. Zero or omitted means no turn limit."`
+	MaxRuns    int     `json:"max_runs,omitempty" jsonschema:"minimum=0" jsonschema_description:"Maximum autonomous Runs. Zero or omitted means no Run limit."`
 	MaxCostUSD float64 `json:"max_cost_usd,omitempty" jsonschema:"minimum=0" jsonschema_description:"Maximum accumulated model cost in USD. Zero or omitted means no cost limit."`
 	MaxSteps   int     `json:"max_steps,omitempty" jsonschema:"minimum=0" jsonschema_description:"Maximum accumulated model steps. Zero or omitted means no step limit."`
 }
@@ -117,13 +117,13 @@ type goalView struct {
 }
 
 type budgetView struct {
-	MaxTurns   int     `json:"max_turns,omitempty"`
+	MaxRuns    int     `json:"max_runs,omitempty"`
 	MaxCostUSD float64 `json:"max_cost_usd,omitempty"`
 	MaxSteps   int     `json:"max_steps,omitempty"`
 }
 
 type usageView struct {
-	Turns   int     `json:"turns"`
+	Runs    int     `json:"runs"`
 	CostUSD float64 `json:"cost_usd"`
 	Steps   int     `json:"steps"`
 }
@@ -175,7 +175,7 @@ func (t *creator) create(ctx context.Context, args createArgs) (goalResult, erro
 	var budget goalstate.Budget
 	if args.Budget != nil {
 		budget = goalstate.Budget{
-			MaxTurns:   args.Budget.MaxTurns,
+			MaxRuns:    args.Budget.MaxRuns,
 			MaxCostUSD: args.Budget.MaxCostUSD,
 			MaxSteps:   args.Budget.MaxSteps,
 		}
@@ -278,12 +278,12 @@ func viewOf(g goalstate.Goal) goalView {
 		Provider:  g.ModelSelection.Provider(),
 		Model:     g.ModelSelection.Model(),
 		Budget: budgetView{
-			MaxTurns:   g.Budget.MaxTurns,
+			MaxRuns:    g.Budget.MaxRuns,
 			MaxCostUSD: g.Budget.MaxCostUSD,
 			MaxSteps:   g.Budget.MaxSteps,
 		},
 		Usage: usageView{
-			Turns:   g.Used.Turns,
+			Runs:    g.Used.Runs,
 			CostUSD: g.Used.CostUSD,
 			Steps:   g.Used.Steps,
 		},
@@ -313,8 +313,8 @@ func reasonText(reason goalstate.Reason) string {
 			return "the Run ended before completing the Goal"
 		}
 		return "the Run ended: " + reason.Detail
-	case goalstate.ReasonTurnBudgetReached:
-		return "reached the turn budget"
+	case goalstate.ReasonRunBudgetReached:
+		return "reached the Run budget"
 	case goalstate.ReasonCostBudgetReached:
 		return "reached the cost budget"
 	case goalstate.ReasonStepBudgetReached:

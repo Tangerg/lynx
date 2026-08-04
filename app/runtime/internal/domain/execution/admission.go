@@ -34,7 +34,7 @@ type RunDraft struct {
 	// GoalLeaseID is the autonomous-goal incarnation that admitted this root
 	// Run. It is durable admission provenance so crash recovery can terminalize
 	// the Run and charge the exact lease in one transaction. Child Runs leave it
-	// empty because the root is the single goal turn.
+	// empty because the root is the single Goal Run.
 	GoalLeaseID string
 	// Limits is the allowance this Run is admitted under. It is recorded with the
 	// admission and never changes: a resume answers an interrupt, it does not

@@ -32,7 +32,7 @@ func testTreeContinuation(pending interrupts.Pending) *treeContinuation {
 	return &treeContinuation{
 		rootRunID:     pending.RootRunID,
 		sessionID:     pending.SessionID,
-		turnID:        pending.TurnID,
+		executorID:    pending.ExecutorID,
 		goalLeaseID:   pending.GoalLeaseID,
 		interrupts:    slices.Clone(pending.Interrupts),
 		continuations: slices.Clone(pending.Continuations),
@@ -72,9 +72,9 @@ type cancellableChildExecutor struct {
 	finishRoot      chan struct{}
 }
 
-func (e *cancellableChildExecutor) TurnEvents(
+func (e *cancellableChildExecutor) Events(
 	ctx context.Context,
-	_ execution.TurnRef,
+	_ execution.ExecutorRef,
 ) (iter.Seq[ExecutorEvent], error) {
 	return func(yield func(ExecutorEvent) bool) {
 		if !yield(ExecutorEvent{
@@ -102,7 +102,7 @@ func (e *cancellableChildExecutor) TurnEvents(
 		}
 		if !yield(ExecutorEvent{
 			Source:  e.childSource,
-			Payload: TurnEnd{Reason: execution.OutcomeCanceled},
+			Payload: SegmentEnded{Reason: execution.OutcomeCanceled},
 		}) {
 			return
 		}
@@ -126,16 +126,16 @@ func (e *cancellableChildExecutor) TurnEvents(
 		}
 		yield(ExecutorEvent{
 			Source:  e.rootSource,
-			Payload: TurnEnd{Reason: execution.OutcomeCompleted},
+			Payload: SegmentEnded{Reason: execution.OutcomeCompleted},
 		})
 	}, nil
 }
 
-func (*cancellableChildExecutor) CancelTurn(context.Context, execution.TurnRef) error {
+func (*cancellableChildExecutor) CancelExecution(context.Context, execution.ExecutorRef) error {
 	return nil
 }
 
-func (e *acknowledgedChildExecutor) TurnEvents(ctx context.Context, _ execution.TurnRef) (iter.Seq[ExecutorEvent], error) {
+func (e *acknowledgedChildExecutor) Events(ctx context.Context, _ execution.ExecutorRef) (iter.Seq[ExecutorEvent], error) {
 	return func(yield func(ExecutorEvent) bool) {
 		if !yield(ExecutorEvent{
 			Source: e.rootSource,
@@ -157,22 +157,22 @@ func (e *acknowledgedChildExecutor) TurnEvents(ctx context.Context, _ execution.
 		close(e.childStarted)
 		if !yield(ExecutorEvent{
 			Source:  e.childSource,
-			Payload: TurnEnd{Reason: execution.OutcomeCompleted},
+			Payload: SegmentEnded{Reason: execution.OutcomeCompleted},
 		}) {
 			return
 		}
 		yield(ExecutorEvent{
 			Source:  e.rootSource,
-			Payload: TurnEnd{Reason: execution.OutcomeCompleted},
+			Payload: SegmentEnded{Reason: execution.OutcomeCompleted},
 		})
 	}, nil
 }
 
-func (*acknowledgedChildExecutor) CancelTurn(context.Context, execution.TurnRef) error {
+func (*acknowledgedChildExecutor) CancelExecution(context.Context, execution.ExecutorRef) error {
 	return nil
 }
 
-func (f *fakeExecutor) TurnEvents(ctx context.Context, _ execution.TurnRef) (iter.Seq[ExecutorEvent], error) {
+func (f *fakeExecutor) Events(ctx context.Context, _ execution.ExecutorRef) (iter.Seq[ExecutorEvent], error) {
 	if f.startErr != nil {
 		return nil, f.startErr
 	}
@@ -199,7 +199,7 @@ func (f *fakeExecutor) TurnEvents(ctx context.Context, _ execution.TurnRef) (ite
 	}, nil
 }
 
-func (f *fakeExecutor) CancelTurn(context.Context, execution.TurnRef) error {
+func (f *fakeExecutor) CancelExecution(context.Context, execution.ExecutorRef) error {
 	if f.cancelStarted != nil {
 		close(f.cancelStarted)
 	}
@@ -410,7 +410,7 @@ func testCoordinator(executor SegmentExecutor, effects Effects) *Coordinator {
 func testSegment() segmentSpec {
 	return segmentSpec{
 		RunID: "run_1", SegmentID: "seg_1", SessionID: "ses_1",
-		TurnID: "turn_1", ModelSelection: mustSelection("openai", "model"),
+		ExecutorID: "turn_1", ModelSelection: mustSelection("openai", "model"),
 		CreatedAt: time.Date(2026, 7, 13, 1, 2, 3, 0, time.UTC),
 	}
 }
@@ -567,7 +567,7 @@ func TestCoordinatorPreservesUnadmittedTurnCleanupFailure(t *testing.T) {
 func TestCoordinatorCommitsCanonicalOpeningAndTerminal(t *testing.T) {
 	executor := &fakeExecutor{events: []ExecutorPayload{
 		MessageDelta{Text: "hello"},
-		TurnEnd{Reason: execution.OutcomeCompleted},
+		SegmentEnded{Reason: execution.OutcomeCompleted},
 	}}
 	effects := &fakeEffects{}
 	coordinator := testCoordinator(executor, effects)
@@ -606,7 +606,7 @@ func TestCoordinatorCommitsCanonicalOpeningAndTerminal(t *testing.T) {
 }
 
 func TestCoordinatorHoldsSessionAdmissionThroughTerminalMaintenance(t *testing.T) {
-	executor := &fakeExecutor{events: []ExecutorPayload{TurnEnd{Reason: execution.OutcomeCompleted}}}
+	executor := &fakeExecutor{events: []ExecutorPayload{SegmentEnded{Reason: execution.OutcomeCompleted}}}
 	started := make(chan struct{}, 1)
 	release := make(chan struct{})
 	effects := &fakeEffects{finishStarted: started, finishRelease: release}
@@ -656,7 +656,7 @@ func hasActiveSession(c *Coordinator, sessionID string) bool {
 
 func TestCoordinatorCommitsProcessCreationFailureInCanonicalOrder(t *testing.T) {
 	executor := &fakeExecutor{events: []ExecutorPayload{
-		TurnEnd{Reason: execution.OutcomeError, Problem: &transcript.Problem{Kind: transcript.InternalProblem, Scope: transcript.RunProblem, Detail: "the run failed due to an internal error"}},
+		SegmentEnded{Reason: execution.OutcomeError, Problem: &transcript.Problem{Kind: transcript.InternalProblem, Scope: transcript.RunProblem, Detail: "the run failed due to an internal error"}},
 	}}
 	effects := &fakeEffects{}
 	coordinator := testCoordinator(executor, effects)
@@ -730,10 +730,10 @@ func TestCoordinatorResumesCompleteRunTreeInOneCanonicalOpening(t *testing.T) {
 		ProcessID: "process_b", ParentID: "process_root", SpawnCallID: "spawn_b",
 	}
 	executor := &fakeExecutor{executorEvents: []ExecutorEvent{
-		{Source: grandchildSource, Payload: TurnEnd{Reason: execution.OutcomeCompleted}},
-		{Source: childASource, Payload: TurnEnd{Reason: execution.OutcomeCompleted}},
-		{Source: childBSource, Payload: TurnEnd{Reason: execution.OutcomeCompleted}},
-		{Source: rootSource, Payload: TurnEnd{Reason: execution.OutcomeCompleted}},
+		{Source: grandchildSource, Payload: SegmentEnded{Reason: execution.OutcomeCompleted}},
+		{Source: childASource, Payload: SegmentEnded{Reason: execution.OutcomeCompleted}},
+		{Source: childBSource, Payload: SegmentEnded{Reason: execution.OutcomeCompleted}},
+		{Source: rootSource, Payload: SegmentEnded{Reason: execution.OutcomeCompleted}},
 	}}
 	effects := &fakeEffects{}
 	coordinator := testCoordinator(executor, effects)
@@ -815,9 +815,9 @@ func resumedTreePending(createdAt time.Time) interrupts.Pending {
 		}
 	}
 	return interrupts.Pending{
-		RootRunID: "run_1",
-		SessionID: "ses_1",
-		TurnID:    "turn_1",
+		RootRunID:  "run_1",
+		SessionID:  "ses_1",
+		ExecutorID: "turn_1",
 		Capabilities: execution.RunCapabilities{
 			ChildRuns:      true,
 			InterruptKinds: []execution.InterruptKind{execution.QuestionInterrupt},
@@ -939,7 +939,7 @@ func TestCoordinatorTreeActivationFailureTerminalizesInCanonicalPostorder(t *tes
 }
 
 func TestCoordinatorMalformedInterruptAbortsExecutorAndTerminalizes(t *testing.T) {
-	executor := &fakeExecutor{events: []ExecutorPayload{TurnInterrupted{Interrupts: []Interrupt{{Kind: execution.InterruptKind(9)}}}}}
+	executor := &fakeExecutor{events: []ExecutorPayload{SegmentInterrupted{Interrupts: []Interrupt{{Kind: execution.InterruptKind(9)}}}}}
 	effects := &fakeEffects{}
 	coordinator := testCoordinator(executor, effects)
 
@@ -966,7 +966,7 @@ func TestCoordinatorProtocolViolationAbortsExecutorAndTerminalizes(t *testing.T)
 		event EngineEvent
 	}{
 		{name: "unknown event", event: unsupportedEngineEvent{}},
-		{name: "invalid terminal outcome", event: TurnEnd{Reason: execution.Outcome(255)}},
+		{name: "invalid terminal outcome", event: SegmentEnded{Reason: execution.Outcome(255)}},
 	}
 
 	for _, test := range tests {
@@ -1052,8 +1052,8 @@ func TestCoordinatorAtomicallyAdmitsChildRunFromSpawningItem(t *testing.T) {
 			},
 		},
 		{Source: childSource, Payload: request},
-		{Source: childSource, Payload: TurnEnd{Reason: execution.OutcomeCompleted}},
-		{Source: rootSource, Payload: TurnEnd{Reason: execution.OutcomeCompleted}},
+		{Source: childSource, Payload: SegmentEnded{Reason: execution.OutcomeCompleted}},
+		{Source: rootSource, Payload: SegmentEnded{Reason: execution.OutcomeCompleted}},
 	}}
 	effects := &fakeEffects{}
 	coordinator := testCoordinator(executor, effects)
@@ -1121,7 +1121,7 @@ func TestCoordinatorPublishesChildSegmentOnItsOwnRunIdentity(t *testing.T) {
 		ParentID:    rootSource.ProcessID,
 		SpawnCallID: "provider_call_delegate",
 	}
-	finalUsage := TurnUsage{
+	finalUsage := SegmentUsage{
 		Tokens: accounting.TokenUsage{
 			PromptTokens:     13,
 			CompletionTokens: 5,
@@ -1148,7 +1148,7 @@ func TestCoordinatorPublishesChildSegmentOnItsOwnRunIdentity(t *testing.T) {
 		},
 		{Source: childSource, Payload: request},
 		{Source: childSource, Payload: MessageDelta{Text: "child reply"}},
-		{Source: childSource, Payload: TurnEnd{
+		{Source: childSource, Payload: SegmentEnded{
 			Reason: execution.OutcomeCompleted,
 			Usage:  &finalUsage,
 		}},
@@ -1156,7 +1156,7 @@ func TestCoordinatorPublishesChildSegmentOnItsOwnRunIdentity(t *testing.T) {
 			CallID:     "canonical_call_delegate",
 			OutputText: "child reply",
 		}},
-		{Source: rootSource, Payload: TurnEnd{Reason: execution.OutcomeCompleted}},
+		{Source: rootSource, Payload: SegmentEnded{Reason: execution.OutcomeCompleted}},
 	}}
 	effects := &fakeEffects{}
 	coordinator := testCoordinator(executor, effects)
@@ -1271,8 +1271,8 @@ func TestCoordinatorKeepsConcurrentSiblingSegmentsIsolated(t *testing.T) {
 		ParentID:    rootSource.ProcessID,
 		SpawnCallID: "provider_call_b",
 	}
-	childUsage := func(model string, prompt int64) *TurnUsage {
-		return &TurnUsage{
+	childUsage := func(model string, prompt int64) *SegmentUsage {
+		return &SegmentUsage{
 			Tokens: accounting.TokenUsage{PromptTokens: prompt, CompletionTokens: 1},
 			ByModel: []accounting.ModelUsage{{
 				Model: model,
@@ -1296,17 +1296,17 @@ func TestCoordinatorKeepsConcurrentSiblingSegmentsIsolated(t *testing.T) {
 		{Source: childB, Payload: requestB},
 		{Source: childA, Payload: MessageDelta{Text: "alpha"}},
 		{Source: childB, Payload: MessageDelta{Text: "beta"}},
-		{Source: childB, Payload: TurnEnd{
+		{Source: childB, Payload: SegmentEnded{
 			Reason: execution.OutcomeCompleted,
 			Usage:  childUsage("model-b", 7),
 		}},
-		{Source: childA, Payload: TurnEnd{
+		{Source: childA, Payload: SegmentEnded{
 			Reason: execution.OutcomeCompleted,
 			Usage:  childUsage("model-a", 5),
 		}},
 		{Source: rootSource, Payload: ToolCallEnd{CallID: "canonical_a", OutputText: "alpha"}},
 		{Source: rootSource, Payload: ToolCallEnd{CallID: "canonical_b", OutputText: "beta"}},
-		{Source: rootSource, Payload: TurnEnd{Reason: execution.OutcomeCompleted}},
+		{Source: rootSource, Payload: SegmentEnded{Reason: execution.OutcomeCompleted}},
 	}}
 	effects := &fakeEffects{}
 	coordinator := testCoordinator(executor, effects)
@@ -1399,8 +1399,8 @@ func TestCoordinatorProjectsNestedChildrenWithExactLineageAndPostorderTerminal(t
 		ParentID:    childSource.ProcessID,
 		SpawnCallID: "provider_call_grandchild",
 	}
-	usage := func(prompt int64, calls int) *TurnUsage {
-		return &TurnUsage{
+	usage := func(prompt int64, calls int) *SegmentUsage {
+		return &SegmentUsage{
 			Tokens: accounting.TokenUsage{PromptTokens: prompt, CompletionTokens: int64(calls)},
 			ByModel: []accounting.ModelUsage{{
 				Model: "model",
@@ -1423,7 +1423,7 @@ func TestCoordinatorProjectsNestedChildrenWithExactLineageAndPostorderTerminal(t
 		}},
 		{Source: grandchildSource, Payload: grandchildRequest},
 		{Source: grandchildSource, Payload: MessageDelta{Text: "leaf"}},
-		{Source: grandchildSource, Payload: TurnEnd{
+		{Source: grandchildSource, Payload: SegmentEnded{
 			Reason: execution.OutcomeCompleted,
 			Usage:  usage(3, 1),
 		}},
@@ -1431,14 +1431,14 @@ func TestCoordinatorProjectsNestedChildrenWithExactLineageAndPostorderTerminal(t
 			CallID: "canonical_grandchild", OutputText: "leaf",
 		}},
 		{Source: childSource, Payload: MessageDelta{Text: "branch"}},
-		{Source: childSource, Payload: TurnEnd{
+		{Source: childSource, Payload: SegmentEnded{
 			Reason: execution.OutcomeCompleted,
 			Usage:  usage(9, 3),
 		}},
 		{Source: rootSource, Payload: ToolCallEnd{
 			CallID: "canonical_child", OutputText: "branch",
 		}},
-		{Source: rootSource, Payload: TurnEnd{Reason: execution.OutcomeCompleted}},
+		{Source: rootSource, Payload: SegmentEnded{Reason: execution.OutcomeCompleted}},
 	}}
 	effects := &fakeEffects{}
 	coordinator := testCoordinator(executor, effects)
@@ -1610,7 +1610,7 @@ func TestCoordinatorClosesActiveChildrenBeforeRejectingRootTerminal(t *testing.T
 		// A correct executor publishes the child's terminal boundary first.
 		// This deliberately violates that ordering to prove the application
 		// closes the durable tree instead of leaving an active child orphan.
-		{Source: rootSource, Payload: TurnEnd{Reason: execution.OutcomeCompleted}},
+		{Source: rootSource, Payload: SegmentEnded{Reason: execution.OutcomeCompleted}},
 	}}
 	effects := &fakeEffects{}
 	coordinator := testCoordinator(executor, effects)
@@ -1668,7 +1668,7 @@ func TestCoordinatorRecoversFromChildTerminalCommitFailureBeforeClosingRoot(t *t
 			CallID: "canonical_call_delegate", SourceCallID: childSource.SpawnCallID, ToolName: "delegate_task", Arguments: `{}`,
 		}},
 		{Source: childSource, Payload: request},
-		{Source: childSource, Payload: TurnEnd{Reason: execution.OutcomeCompleted}},
+		{Source: childSource, Payload: SegmentEnded{Reason: execution.OutcomeCompleted}},
 	}}
 	// Child segment.started is part of the atomic opening transaction, so the
 	// first CommitEvent attempt is the child's requested completed terminal.
@@ -2092,7 +2092,7 @@ func TestCoordinatorTreeBarrierCommitFailurePublishesNoInterruptedFact(t *testin
 
 func TestCoordinatorCommitsSyntheticTerminalBeforeCancelTurn(t *testing.T) {
 	executor := &fakeExecutor{
-		events:        []ExecutorPayload{TurnInterrupted{Interrupts: []Interrupt{{Kind: execution.InterruptKind(9)}}}},
+		events:        []ExecutorPayload{SegmentInterrupted{Interrupts: []Interrupt{{Kind: execution.InterruptKind(9)}}}},
 		cancelStarted: make(chan struct{}),
 		releaseCancel: make(chan struct{}),
 	}
@@ -2221,8 +2221,8 @@ func TestCoordinatorStartAfterClosePreservesCleanupFailure(t *testing.T) {
 func TestCoordinatorCancelContextSurvivesRequestContext(t *testing.T) {
 	executor := &fakeExecutor{block: true}
 	coordinator := testCoordinator(executor, &fakeEffects{})
-	turns := &fakeTurnControl{}
-	coordinator.turns = turns
+	control := &fakeExecutionControl{}
+	coordinator.control = control
 	coordinator.sessions = &fakeRunSessions{}
 	coordinator.runs = &fakeRunProjection{runs: map[string]transcript.Run{
 		"run_1": runForSegment(testSegment()),
@@ -2243,8 +2243,8 @@ func TestCoordinatorCancelContextSurvivesRequestContext(t *testing.T) {
 	if executor.cancels() != 1 {
 		t.Fatalf("pump executor cancellations = %d, want one", executor.cancels())
 	}
-	if len(turns.canceled) != 0 {
-		t.Fatalf("control-surface cancellations = %+v, want pump-only ownership", turns.canceled)
+	if len(control.canceled) != 0 {
+		t.Fatalf("control-surface cancellations = %+v, want pump-only ownership", control.canceled)
 	}
 	requireCoordinatorShutdown(t, coordinator)
 	for _, ok := next(); ok; _, ok = next() { // drain whatever remains

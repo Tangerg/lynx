@@ -8,7 +8,7 @@ import (
 
 // rescanDebounce bounds how long a freshly-reconciled corpus is trusted before
 // the next Search re-diffs the filesystem — collapses rapid successive searches
-// in one turn to a single scan while still catching edits between turns.
+// in one Run to a single scan while still catching edits between Runs.
 const rescanDebounce = 5 * time.Second
 
 // defaultTopK is the result count when a caller doesn't specify one.

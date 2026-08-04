@@ -15,17 +15,17 @@ import (
 
 const turnCleanupTimeout = 5 * time.Second
 
-// RunTurnBinding identifies a parked turn that a session mutation must tear
-// down after its durable write-set commits.
-type RunTurnBinding struct {
+// RunExecutionBinding identifies a parked executor that a Session mutation
+// must tear down after its durable write-set commits.
+type RunExecutionBinding struct {
 	RunID            string
 	SessionID        string
-	TurnID           string
+	ExecutorID       string
 	CheckpointRootID string
 }
 
-func (r RunTurnBinding) ref() execution.TurnRef {
-	return execution.TurnRef{SessionID: r.SessionID, TurnID: r.TurnID}
+func (r RunExecutionBinding) executorRef() execution.ExecutorRef {
+	return execution.ExecutorRef{SessionID: r.SessionID, ExecutorID: r.ExecutorID}
 }
 
 // ListOpenInterrupts exposes the run-admission read needed by application/runs.
@@ -230,7 +230,7 @@ func (c *Coordinator) terminalizeParkedRun(ctx context.Context, sessionID, runID
 	}
 	plan := TerminalPlan{Runs: terminalRuns, Items: items, CheckpointRootID: root.ProcessID}
 	if rootRun.GoalLeaseID != "" {
-		turn := goal.TurnRecord{
+		record := goal.RunRecord{
 			SessionID:   rootRun.SessionID,
 			LeaseID:     rootRun.GoalLeaseID,
 			RunID:       rootRun.ID,
@@ -239,9 +239,9 @@ func (c *Coordinator) terminalizeParkedRun(ctx context.Context, sessionID, runID
 			CompletedAt: rootRun.FinishedAt,
 		}
 		if rootRun.Metrics.Usage != nil && rootRun.Metrics.Usage.CostUSD != nil {
-			turn.CostUSD = *rootRun.Metrics.Usage.CostUSD
+			record.CostUSD = *rootRun.Metrics.Usage.CostUSD
 		}
-		plan.GoalTurn = &turn
+		plan.GoalRun = &record
 	}
 	if err := plan.Validate(); err != nil {
 		return transcript.Run{}, err
@@ -262,15 +262,15 @@ func (c *Coordinator) terminalizeParkedRun(ctx context.Context, sessionID, runID
 		change.InSession(change.Interrupts, sessionID, runID),
 		change.InSession(change.Sessions, sessionID),
 	}
-	if plan.GoalTurn != nil {
+	if plan.GoalRun != nil {
 		notices = append(notices, change.InSession(change.Goals, sessionID))
 	}
 	c.changed.Notify(notices...)
 	return rootRun, nil
 }
 
-func (c *Coordinator) parkedTurns(ctx context.Context, runIDs []string) ([]RunTurnBinding, error) {
-	var out []RunTurnBinding
+func (c *Coordinator) parkedExecutions(ctx context.Context, runIDs []string) ([]RunExecutionBinding, error) {
+	var out []RunExecutionBinding
 	for _, runID := range runIDs {
 		if c.interrupts == nil {
 			return nil, errors.New("sessions: interrupt store is unavailable")
@@ -286,24 +286,24 @@ func (c *Coordinator) parkedTurns(ctx context.Context, runIDs []string) ([]RunTu
 		if !ok {
 			return nil, fmt.Errorf("sessions: parked run %q has no root continuation", pending.RootRunID)
 		}
-		out = append(out, RunTurnBinding{
+		out = append(out, RunExecutionBinding{
 			RunID:            pending.RootRunID,
 			SessionID:        pending.SessionID,
-			TurnID:           pending.TurnID,
+			ExecutorID:       pending.ExecutorID,
 			CheckpointRootID: root.ProcessID,
 		})
 	}
 	return out, nil
 }
 
-func (c *Coordinator) cancelTurn(ctx context.Context, r RunTurnBinding) error {
-	if c.turns == nil {
+func (c *Coordinator) cancelExecution(ctx context.Context, r RunExecutionBinding) error {
+	if c.executionCleanup == nil {
 		return nil
 	}
 	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), turnCleanupTimeout)
 	defer cancel()
-	if err := c.turns.Cancel(cleanupCtx, r.ref()); err != nil {
-		return fmt.Errorf("sessions: cancel turn %q for run %q: %w", r.TurnID, r.RunID, err)
+	if err := c.executionCleanup.Cancel(cleanupCtx, r.executorRef()); err != nil {
+		return fmt.Errorf("sessions: cancel executor %q for Run %q: %w", r.ExecutorID, r.RunID, err)
 	}
 	return nil
 }

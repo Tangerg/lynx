@@ -817,7 +817,7 @@ func TestEngine_RestoreChat_PreservesOptionsFromSnapshot(t *testing.T) {
 	temp := 0.42
 	maxTokens := int64(321)
 	observer := &hitlApprovalObserver{}
-	wantScope := execution.TurnScope{
+	wantScope := execution.ExecutionScope{
 		SessionID:    "session-restore",
 		Cwd:          "/sandbox/restore",
 		WorkspaceCwd: "/workspace/restore",
