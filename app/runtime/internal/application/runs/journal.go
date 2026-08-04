@@ -34,8 +34,10 @@ type Retention struct {
 	MaxBytes  int
 }
 
-// DefaultRetention is the window this runtime enforces and advertises.
-var DefaultRetention = Retention{MaxEvents: 2048, MaxBytes: 16 << 20}
+// DefaultRetention returns the window this runtime enforces and advertises.
+func DefaultRetention() Retention {
+	return Retention{MaxEvents: 2048, MaxBytes: 16 << 20}
+}
 
 // Replay refusals. They are two rather than one because the client's next move
 // differs: an invalid cursor is a cursor that never addressed this stream, so

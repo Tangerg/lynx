@@ -434,7 +434,7 @@ func capabilitiesFor(
 		// The subscribable topics, read from the one closed list the subscribe request
 		// is validated against. A second list here is how discovery comes to offer a
 		// topic the runtime then refuses.
-		RuntimeTopics: protocol.RuntimeTopics,
+		RuntimeTopics: protocol.RuntimeTopics(),
 		// Only the state keys THIS build both writes and can serve a cold read for: a
 		// client builds a projection for an advertised key, and a key it could not
 		// recover would leave that projection stale with no way back.

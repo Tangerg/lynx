@@ -138,6 +138,70 @@ func TestCrossRingAdapterConstructorsReturnConcreteImplementations(t *testing.T)
 	}
 }
 
+// TestExportedCatalogsAreNotMutableGlobals keeps closed vocabularies and
+// default construction values from becoming process-wide writable state. A
+// caller may mutate its own snapshot, never the fact another boundary reads.
+func TestExportedCatalogsAreNotMutableGlobals(t *testing.T) {
+	root := moduleRoot(t)
+	walkErr := filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if entry.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		file, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
+		if err != nil {
+			return err
+		}
+		for _, declaration := range file.Decls {
+			general, ok := declaration.(*ast.GenDecl)
+			if !ok || general.Tok != token.VAR {
+				continue
+			}
+			for _, spec := range general.Specs {
+				values, ok := spec.(*ast.ValueSpec)
+				if !ok {
+					continue
+				}
+				for index, name := range values.Names {
+					if !ast.IsExported(name.Name) {
+						continue
+					}
+					mutable := isMutableCatalogType(values.Type)
+					if index < len(values.Values) {
+						mutable = mutable || isMutableCatalogValue(values.Values[index])
+					} else if len(values.Values) == 1 {
+						mutable = mutable || isMutableCatalogValue(values.Values[0])
+					}
+					if mutable {
+						relative, _ := filepath.Rel(root, path)
+						t.Errorf("%s: exported var %s is mutable package state; return a caller-owned value instead", relative, name.Name)
+					}
+				}
+			}
+		}
+		return nil
+	})
+	if walkErr != nil {
+		t.Fatalf("walk runtime: %v", walkErr)
+	}
+}
+
+func isMutableCatalogType(expression ast.Expr) bool {
+	switch expression.(type) {
+	case *ast.ArrayType, *ast.MapType, *ast.StructType:
+		return true
+	default:
+		return false
+	}
+}
+
+func isMutableCatalogValue(expression ast.Expr) bool {
+	_, mutable := expression.(*ast.CompositeLit)
+	return mutable
+}
+
 func receiverTypeName(expression ast.Expr) string {
 	switch typed := expression.(type) {
 	case *ast.Ident:

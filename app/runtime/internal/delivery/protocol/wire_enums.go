@@ -96,14 +96,15 @@ func WireEnum(t reflect.Type) ([]string, bool) {
 // the topic list rather than written twice — that duplication is exactly what having
 // one set of strings prevents.
 func runtimeEventValues() []string {
-	out := make([]string, 0, len(RuntimeTopics)+1)
+	out := make([]string, 0, len(RuntimeTopics())+1)
 	out = append(out, runtimeTopicValues()...)
 	return append(out, string(RuntimeResync))
 }
 
 func runtimeTopicValues() []string {
-	out := make([]string, 0, len(RuntimeTopics))
-	for _, topic := range RuntimeTopics {
+	topics := RuntimeTopics()
+	out := make([]string, 0, len(topics))
+	for _, topic := range topics {
 		out = append(out, string(topic))
 	}
 	return out

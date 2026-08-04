@@ -31,8 +31,11 @@ const (
 	PlanState
 )
 
-// Resources is every Resource, in declaration order.
-var Resources = []Resource{Sessions, Runs, Interrupts, Goals, PlanState}
+// Resources returns every Resource in declaration order. The returned slice is
+// caller-owned so validation code cannot mutate the application's vocabulary.
+func Resources() []Resource {
+	return []Resource{Sessions, Runs, Interrupts, Goals, PlanState}
+}
 
 // Notice is one committed change: the resource, and the members of it a reader can
 // narrow to. Empty ID sets mean "every member of this resource may be stale",

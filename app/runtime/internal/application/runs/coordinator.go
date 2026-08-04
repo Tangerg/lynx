@@ -90,7 +90,7 @@ func NewCoordinator(deps Dependencies) *Coordinator {
 		deps.Now = time.Now
 	}
 	if deps.Retention == (Retention{}) {
-		deps.Retention = DefaultRetention
+		deps.Retention = DefaultRetention()
 	}
 	return &Coordinator{
 		executor:     deps.Segments,

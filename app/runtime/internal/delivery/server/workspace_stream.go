@@ -139,7 +139,7 @@ func (h *workspaceHub) publishTo(sub *workspaceSubscription, ev protocol.Runtime
 func (*workspaceHub) sendLocked(sub *workspaceSubscription, ev protocol.RuntimeEvent) {
 	if ev.Type != protocol.RuntimeResync {
 		topic := protocol.RuntimeTopic(ev.Type)
-		if !slices.Contains(protocol.RuntimeTopics, topic) {
+		if !slices.Contains(protocol.RuntimeTopics(), topic) {
 			// An invalid producer signal has no trustworthy narrowing scope. Preserve
 			// client correctness by invalidating everything this subscription holds;
 			// the encoder must never silently discard an internal shape violation.
@@ -180,7 +180,7 @@ func (sub *workspaceSubscription) offerLocked(ev protocol.RuntimeEvent) bool {
 
 func (sub *workspaceSubscription) resyncEvent() protocol.RuntimeEvent {
 	topics := make([]protocol.RuntimeTopic, 0, len(sub.topics))
-	for _, topic := range protocol.RuntimeTopics {
+	for _, topic := range protocol.RuntimeTopics() {
 		if sub.topics[topic] {
 			topics = append(topics, topic)
 		}
@@ -224,7 +224,7 @@ func clearEmptyRuntimeScopes(ev *protocol.RuntimeEvent) {
 // narrows what an earlier one had already widened.
 func (sub *workspaceSubscription) stallLocked(ev protocol.RuntimeEvent) {
 	if sub.stalledTopics == nil {
-		sub.stalledTopics = make(map[protocol.RuntimeTopic]bool, len(protocol.RuntimeTopics))
+		sub.stalledTopics = make(map[protocol.RuntimeTopic]bool, len(protocol.RuntimeTopics()))
 	}
 	if ev.Type == protocol.RuntimeResync {
 		for _, topic := range ev.Topics {
@@ -258,7 +258,7 @@ func (sub *workspaceSubscription) flushStalledLocked() bool {
 	// part of the wire, and a set that reshuffles per delivery is a fixture nobody
 	// can pin down.
 	topics := make([]protocol.RuntimeTopic, 0, len(sub.stalledTopics))
-	for _, topic := range protocol.RuntimeTopics {
+	for _, topic := range protocol.RuntimeTopics() {
 		if sub.stalledTopics[topic] {
 			topics = append(topics, topic)
 		}

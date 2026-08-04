@@ -13,12 +13,12 @@ import (
 // hand-written. A resource with no mapping would be a committed change no client is
 // ever told about — silent, and invisible to every other test.
 func TestEveryChangeResourceIsPublishable(t *testing.T) {
-	for _, resource := range change.Resources {
+	for _, resource := range change.Resources() {
 		ev, ok := runtimeEventFor(change.Notice{Resource: resource, SessionIDs: []string{"ses_1"}})
 		if !ok {
 			t.Fatalf("resource %d has no runtime event", resource)
 		}
-		if !slices.Contains(protocol.RuntimeTopics, protocol.RuntimeTopic(ev.Type)) {
+		if !slices.Contains(protocol.RuntimeTopics(), protocol.RuntimeTopic(ev.Type)) {
 			t.Fatalf("resource %d maps to %q, which is not a subscribable topic", resource, ev.Type)
 		}
 		if !slices.Equal(ev.SessionIDs, []string{"ses_1"}) {

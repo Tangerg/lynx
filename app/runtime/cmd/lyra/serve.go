@@ -34,7 +34,7 @@ func run(ctx context.Context, errw io.Writer) (err error) {
 	// it first — transport → supervisor → reconciler → engine/persistence.
 	srv := cfg.Server
 	if len(srv.CORSOrigins) == 0 {
-		srv.CORSOrigins = lyrahttp.DefaultCORSOrigins
+		srv.CORSOrigins = lyrahttp.DefaultCORSOrigins()
 	}
 	if srv.Listen == "" {
 		return errors.New("server.listen is empty (set config server.listen or LYRA_SERVER_LISTEN)")

@@ -7,15 +7,18 @@ import (
 	"github.com/go-chi/cors"
 )
 
-// DefaultCORSOrigins is the allowlist baked in for the runtime HTTP server
+// DefaultCORSOrigins returns the allowlist baked in for the runtime HTTP server
 // when the operator hasn't supplied CORS origins. Covers the Web frontend
-// shells we ship with + the dev servers we use day to day.
-var DefaultCORSOrigins = []string{
-	"tauri://localhost",
-	"http://tauri.localhost",
-	"http://localhost:1420", // Tauri dev
-	"http://localhost:5173", // Vite default
-	"http://localhost:3000", // Next.js / CRA
+// shells we ship with + the dev servers we use day to day. Each caller owns its
+// result, so server configuration cannot mutate the package default.
+func DefaultCORSOrigins() []string {
+	return []string{
+		"tauri://localhost",
+		"http://tauri.localhost",
+		"http://localhost:1420", // Tauri dev
+		"http://localhost:5173", // Vite default
+		"http://localhost:3000", // Next.js / CRA
+	}
 }
 
 // corsMiddleware builds the CORS layer from the origin allowlist. An empty

@@ -13,6 +13,15 @@ import (
 	lyrahttp "github.com/Tangerg/lynx/app/runtime/internal/delivery/transport/http"
 )
 
+func TestDefaultCORSOriginsReturnsCallerOwnedConfiguration(t *testing.T) {
+	origins := lyrahttp.DefaultCORSOrigins()
+	original := origins[0]
+	origins[0] = "https://mutated.invalid"
+	if lyrahttp.DefaultCORSOrigins()[0] != original {
+		t.Fatal("mutating one default origin list changed another caller's configuration")
+	}
+}
+
 // newGatedServer builds a test server with the local-token gate +
 // CORS allowlist set. Token is "test-token", origins is "http://app".
 func newGatedServer(t *testing.T) *httptest.Server {

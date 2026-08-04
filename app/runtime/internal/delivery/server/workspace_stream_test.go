@@ -15,8 +15,9 @@ import (
 // allTopics is what a hub test subscribes to: the fan-out is the subject, not the
 // per-subscription filter.
 func allTopics() map[protocol.RuntimeTopic]bool {
-	out := make(map[protocol.RuntimeTopic]bool, len(protocol.RuntimeTopics))
-	for _, topic := range protocol.RuntimeTopics {
+	topics := protocol.RuntimeTopics()
+	out := make(map[protocol.RuntimeTopic]bool, len(topics))
+	for _, topic := range topics {
 		out[topic] = true
 	}
 	return out

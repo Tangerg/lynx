@@ -679,6 +679,32 @@ Acceptance:
   standalone build/vet, static analysis, lint, and dead-code analysis pass;
   the known deferred frontend contract/sample drift may remain.
 
+### Batch 24 — Immutable runtime catalogs
+
+Status: **Completed**
+
+Scope:
+
+- Replace exported mutable runtime-topic, canonical-sample, change-resource,
+  CORS-origin, and replay-retention globals with same-concept query functions
+  that return caller-owned slices or values.
+- Keep capability advertisement, subscription validation, wire-enum
+  generation, contract generation, change projection, and replay enforcement on
+  the same catalogs without sharing writable backing state.
+- Add behavior tests for caller ownership and an architecture fitness test that
+  rejects future exported composite-literal vars.
+
+Acceptance:
+
+- Mutating any returned catalog/default cannot change what another runtime
+  boundary validates, advertises, generates, or enforces.
+- No exported slice, map, or struct-literal variable remains in production
+  `app/runtime`; typed error sentinels and private immutable-by-convention tables
+  remain allowed.
+- Focused normal/race tests, architecture fitness tests, runtime-wide compile,
+  standalone build/vet, static analysis, lint, and dead-code analysis pass;
+  the known deferred frontend contract/sample drift may remain.
+
 ## 6. Progress
 
 | Batch | Status | Started | Completed | Evidence |
@@ -706,10 +732,27 @@ Acceptance:
 | 21. Agent-memory domain closure | Completed | 2026-08-04 | 2026-08-04 | Domain/Application/SQLite/Delivery normal and race tests, runtime-wide compile, standalone build/vet, `staticcheck`, `golangci-lint`, `deadcode -test`, schema-constraint tests, and full regression classification passed. |
 | 22. Ambiguous-default closure | Completed | 2026-08-04 | 2026-08-04 | Knowledge and transcript Domain/Application/Storage/Delivery normal and race tests, runtime-wide compile, standalone build/vet, static analysis, lint, dead-code analysis, and full regression classification passed. |
 | 23. Composition-boundary ownership | Completed | 2026-08-04 | 2026-08-04 | Adapter/Bootstrap/Agent execution normal and race tests, architecture constructor fitness tests, runtime-wide compile, standalone build/vet, static analysis, lint, dead-code analysis, and full regression classification passed. |
+| 24. Immutable runtime catalogs | Completed | 2026-08-04 | 2026-08-04 | Catalog ownership tests, architecture mutable-global fitness test, focused normal/race tests, runtime-wide compile, standalone build/vet, static analysis, lint, dead-code analysis, and full regression classification passed. |
 
 Allowed status values: `Pending`, `In progress`, `Completed`, `Blocked`, `Revised`.
 
 ## 7. Progress log
+
+### 2026-08-04 — Batch 24 completed
+
+- Replaced exported writable `RuntimeTopics`, `CanonicalSamples`, `Resources`,
+  `DefaultCORSOrigins`, and `DefaultRetention` values with functions bearing
+  the same domain term and returning an independent snapshot/value. No aliasing
+  remains between caller configuration and canonical package facts.
+- Updated capability discovery, runtime subscription validation/resync,
+  wire-enum generation, contract sample generation, change projection, HTTP
+  startup, and replay defaults to consume the immutable query surface.
+- Added mutable-slice ownership tests plus an AST fitness rule that refuses any
+  future exported composite-literal `var` in production runtime code.
+- Re-ran the structural scans: no empty production directory, TODO/FIXME/HACK
+  marker, removed composition name, constant `fmt.Errorf`, or exported mutable
+  composite catalog remains. The ignored, user-owned empty `app/runtime/LYRA.md`
+  knowledge file is intentionally outside source hygiene and was preserved.
 
 ### 2026-08-04 — Batch 23 completed
 

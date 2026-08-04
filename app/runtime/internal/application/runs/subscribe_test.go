@@ -305,8 +305,8 @@ func TestSubscribeReportsAMissingLiveStreamAsAnInternalFault(t *testing.T) {
 
 func TestReplayRetentionIsWhatTheCoordinatorEnforces(t *testing.T) {
 	c := NewCoordinator(Dependencies{})
-	if c.ReplayRetention() != DefaultRetention {
-		t.Fatalf("retention = %+v, want %+v", c.ReplayRetention(), DefaultRetention)
+	if c.ReplayRetention() != DefaultRetention() {
+		t.Fatalf("retention = %+v, want %+v", c.ReplayRetention(), DefaultRetention())
 	}
 	custom := Retention{MaxEvents: 8, MaxBytes: 64}
 	if got := NewCoordinator(Dependencies{Retention: custom}).ReplayRetention(); got != custom {

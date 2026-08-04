@@ -24,7 +24,7 @@ const samplesDir = "../../../../desktop/frontend/src/rpc/samples"
 // (frontend rpc/samples.test.ts) pins the SAME files against the hand-written
 // wire types, so the two together pin one contract.
 func TestWireGoldenRoundTrip(t *testing.T) {
-	for _, s := range CanonicalSamples {
+	for _, s := range CanonicalSamples() {
 		t.Run(s.File, func(t *testing.T) {
 			raw, err := os.ReadFile(filepath.Join(samplesDir, s.File))
 			if err != nil {
@@ -68,8 +68,9 @@ func TestEveryCanonicalSampleIsBound(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read samples: %v", err)
 	}
-	bound := make(map[string]bool, len(CanonicalSamples))
-	for _, sample := range CanonicalSamples {
+	samples := CanonicalSamples()
+	bound := make(map[string]bool, len(samples))
+	for _, sample := range samples {
 		if bound[sample.File] {
 			t.Errorf("%s is bound twice", sample.File)
 		}

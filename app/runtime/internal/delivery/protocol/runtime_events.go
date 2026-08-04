@@ -55,13 +55,16 @@ const (
 	TopicInterruptsChanged = RuntimeTopic(RuntimeInterruptsChanged)
 )
 
-// RuntimeTopics is the closed subscribable set, in declaration order. It is the one
-// list: discovery advertises from it, the subscribe request is validated against it,
-// and the published enum is generated from it.
-var RuntimeTopics = []RuntimeTopic{
-	TopicFilesChanged, TopicSkillsChanged, TopicMCPChanged, TopicSchedulesChanged,
-	TopicSessionsChanged, TopicRunsChanged, TopicStateChanged, TopicGoalsChanged,
-	TopicInterruptsChanged,
+// RuntimeTopics returns the closed subscribable set in declaration order. It is
+// the one list discovery advertises, subscription validates against, and enum
+// generation projects. Each caller owns its result, so no consumer can rewrite
+// the protocol vocabulary for another.
+func RuntimeTopics() []RuntimeTopic {
+	return []RuntimeTopic{
+		TopicFilesChanged, TopicSkillsChanged, TopicMCPChanged, TopicSchedulesChanged,
+		TopicSessionsChanged, TopicRunsChanged, TopicStateChanged, TopicGoalsChanged,
+		TopicInterruptsChanged,
+	}
 }
 
 // RuntimeSubscriptionLimits caps one subscription. Both are fixed rather than

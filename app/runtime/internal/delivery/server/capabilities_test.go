@@ -48,8 +48,9 @@ func TestCapabilitiesAdvertiseOnlyProducedRunEvents(t *testing.T) {
 	if replay.Scope != protocol.ReplayScopeProcessRootSegment {
 		t.Fatalf("replay scope = %q, want %q", replay.Scope, protocol.ReplayScopeProcessRootSegment)
 	}
-	if replay.MaxEvents != runs.DefaultRetention.MaxEvents || replay.MaxBytes != runs.DefaultRetention.MaxBytes {
-		t.Fatalf("replay limits = %+v, want the enforced %+v", replay, runs.DefaultRetention)
+	defaultRetention := runs.DefaultRetention()
+	if replay.MaxEvents != defaultRetention.MaxEvents || replay.MaxBytes != defaultRetention.MaxBytes {
+		t.Fatalf("replay limits = %+v, want the enforced %+v", replay, defaultRetention)
 	}
 	if got := caps.Limits.MCPAuthorizationAttempts.RetentionSeconds; got != 73 {
 		t.Fatalf("MCP authorization attempt retention = %d, want the enforcing coordinator's 73", got)

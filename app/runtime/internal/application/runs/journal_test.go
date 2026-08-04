@@ -19,7 +19,7 @@ const (
 )
 
 func testJournal() *Journal {
-	return newJournal(streamScope{Epoch: testEpoch, RunID: testRunID, SegmentID: testSegmentID}, DefaultRetention)
+	return newJournal(streamScope{Epoch: testEpoch, RunID: testRunID, SegmentID: testSegmentID}, DefaultRetention())
 }
 
 // ev builds a payload-only event. The Journal assigns its position, so a test
@@ -223,7 +223,7 @@ func TestJournal_ForeignEpochOutranksAForeignScope(t *testing.T) {
 
 func TestJournal_EvictionBoundsTheWindowByCount(t *testing.T) {
 	j := newJournal(streamScope{Epoch: testEpoch, RunID: testRunID, SegmentID: testSegmentID},
-		Retention{MaxEvents: 2, MaxBytes: DefaultRetention.MaxBytes})
+		Retention{MaxEvents: 2, MaxBytes: DefaultRetention().MaxBytes})
 	for range 4 {
 		j.Append(ev(true))
 	}
@@ -317,7 +317,7 @@ func TestJournalReplayableLosslessLiveLossyUnderOverflow(t *testing.T) {
 // state it could not tell was wrong.
 func TestJournal_StalledAuthoritativeConsumerIsDisconnected(t *testing.T) {
 	j := newJournal(streamScope{Epoch: testEpoch, RunID: testRunID, SegmentID: testSegmentID},
-		Retention{MaxEvents: 3, MaxBytes: DefaultRetention.MaxBytes})
+		Retention{MaxEvents: 3, MaxBytes: DefaultRetention().MaxBytes})
 	attached := j.Tail()
 	defer attached.Cancel()
 
@@ -469,7 +469,7 @@ func TestJournal_EarlyRangeStopDetaches(t *testing.T) {
 }
 
 func TestJournalSubscriber_ReusesRoutineQueueAndReleasesBursts(t *testing.T) {
-	subscriber := newJournalSubscriber(nil, DefaultRetention)
+	subscriber := newJournalSubscriber(nil, DefaultRetention())
 	subscriber.enqueue(ev(false), 0)
 	if _, ok := subscriber.next(); !ok {
 		t.Fatal("routine event was not delivered")
@@ -501,7 +501,7 @@ func TestJournalSubscriber_ReusesRoutineQueueAndReleasesBursts(t *testing.T) {
 }
 
 func TestJournalSubscriber_AbortReleasesQueuedEvents(t *testing.T) {
-	subscriber := newJournalSubscriber(nil, DefaultRetention)
+	subscriber := newJournalSubscriber(nil, DefaultRetention())
 	subscriber.enqueue(ev(true), 1)
 	subscriber.abort()
 
