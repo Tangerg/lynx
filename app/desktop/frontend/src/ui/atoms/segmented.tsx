@@ -1,4 +1,7 @@
+import { useId } from "react";
+import { motion } from "motion/react";
 import { cn } from "@/lib/classNames";
+import { selectionTransition } from "@/lib/motion";
 import { TabsPrimitive } from "@/ui/primitives";
 
 export interface SegmentedOption<T> {
@@ -24,6 +27,10 @@ export function Segmented<T extends string | number>({
   mono = false,
   className,
 }: SegmentedProps<T>) {
+  // Per instance: two segmented controls on one row (the diff header has exactly
+  // that) would otherwise share one layout identity and hand the chip back and
+  // forth between them.
+  const chipId = useId();
   return (
     <TabsPrimitive.Root
       value={String(value)}
@@ -47,16 +54,32 @@ export function Segmented<T extends string | number>({
             key={String(opt.value)}
             value={String(opt.value)}
             className={cn(
-              "h-[var(--control-height-xs)] rounded-[var(--segment-radius)] border-[length:var(--control-edge-width)] border-transparent bg-transparent px-2 text-ui-sm font-medium",
-              "text-fg-muted transition-[background-color,border-color,box-shadow,color] duration-[var(--dur-color)] ease-out",
+              "relative h-[var(--control-height-xs)] rounded-[var(--segment-radius)] border-0 bg-transparent px-2 text-ui-sm font-medium",
+              "text-fg-muted transition-colors duration-[var(--dur-color)] ease-out",
               mono && "font-mono",
               "hover:text-fg",
-              "data-[active]:border-field data-[active]:bg-canvas data-[active]:text-fg",
-              "data-[active]:shadow-[var(--shadow-raised-chip)]",
+              "data-[active]:text-fg",
               "focus-visible:outline-none",
             )}
           >
-            {opt.label}
+            {/* The chip TRAVELS. It used to be the active segment's own fill, which
+                means it could only appear and disappear — the one thing a CSS
+                transition cannot do is move a property from one element to another,
+                and a lifted chip that teleports is the giveaway that a control was
+                painted rather than built. macOS slides its own. */}
+            {String(opt.value) === String(value) && (
+              <motion.span
+                aria-hidden
+                layoutId={chipId}
+                transition={selectionTransition}
+                className={cn(
+                  "absolute inset-0 rounded-[var(--segment-radius)]",
+                  "border-[length:var(--control-edge-width)] border-field bg-canvas",
+                  "shadow-[var(--shadow-raised-chip)]",
+                )}
+              />
+            )}
+            <span className="relative">{opt.label}</span>
           </TabsPrimitive.Tab>
         ))}
       </TabsPrimitive.List>

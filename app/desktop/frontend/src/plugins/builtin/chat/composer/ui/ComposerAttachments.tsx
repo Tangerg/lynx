@@ -1,6 +1,8 @@
 import type { ComposerImage, PastedText } from "@/plugins/builtin/chat/composer/public/attachments";
 import type { IconName } from "@/ui";
 import type { ComposerAttachmentSourceSpec } from "@/plugins/sdk";
+import { AnimatePresence, motion } from "motion/react";
+import { chipPresence } from "@/lib/motion";
 import { Chip, Icon, IconButton, Tooltip } from "@/ui";
 import { useT } from "@/lib/i18n";
 
@@ -24,18 +26,30 @@ export function ComposerAttachments({
   return (
     <>
       <PluginAttachments sources={sources} />
+      {/* These arrive and leave because the USER put them there and took them away,
+          which is the one thing presence animation is for. Removing one used to jump
+          every chip after it left by a whole cell in a single frame, with nothing
+          saying the one under the pointer had been the thing that went. */}
       {images.length > 0 && (
         <div className="flex flex-wrap gap-2 pb-1 pt-1">
-          {images.map((img) => (
-            <ImageThumb key={img.id} image={img} onRemove={() => onRemoveImage(img.id)} />
-          ))}
+          <AnimatePresence initial={false}>
+            {images.map((img) => (
+              <motion.div key={img.id} {...chipPresence} layout>
+                <ImageThumb image={img} onRemove={() => onRemoveImage(img.id)} />
+              </motion.div>
+            ))}
+          </AnimatePresence>
         </div>
       )}
       {pastes.length > 0 && (
         <div className="flex flex-wrap gap-1.5 pb-1 pt-1">
-          {pastes.map((p) => (
-            <PasteChip key={p.id} paste={p} onRemove={() => onRemovePaste(p.id)} />
-          ))}
+          <AnimatePresence initial={false}>
+            {pastes.map((p) => (
+              <motion.div key={p.id} {...chipPresence} layout>
+                <PasteChip paste={p} onRemove={() => onRemovePaste(p.id)} />
+              </motion.div>
+            ))}
+          </AnimatePresence>
         </div>
       )}
     </>

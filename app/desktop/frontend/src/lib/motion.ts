@@ -14,7 +14,7 @@ import { motionScale, visualStyleMotion } from "./appearance";
 // current scale on every access. Framer-motion samples it once per animation
 // start, so the cost is negligible and the user sees the new scale immediately
 // after toggling.
-function scaled(duration: "mediumMs" | "disclosureMs"): Transition {
+function scaled(duration: "fastMs" | "mediumMs" | "disclosureMs"): Transition {
   const t = {} as Transition;
   Object.defineProperty(t, "duration", {
     enumerable: true,
@@ -32,6 +32,32 @@ export const disclosureTransition: Transition = scaled("disclosureMs");
 
 /** Small content entrance: shorter than structural disclosure motion. */
 const contentEnterTransition: Transition = scaled("mediumMs");
+
+/**
+ * A selection travelling from one place to another — the segmented control's chip.
+ *
+ * The only kind of motion CSS genuinely cannot express: the lifted chip is a fill on
+ * whichever segment is active, and a transition animates a property WITHIN one
+ * element, never between two. So a chip either appeared where it landed or you built
+ * a separate absolutely-positioned indicator and measured its offsets by hand, which
+ * is what `layoutId` does correctly and for free.
+ */
+export const selectionTransition: Transition = scaled("fastMs");
+
+/**
+ * Something the user just added or took away — an attachment chip, a paste.
+ *
+ * Scale from just under, not a slide: a chip has no direction to come from, and the
+ * exit matters more than the entrance. Without one, removing an attachment made the
+ * chips after it jump left in a single frame with nothing to say the one you clicked
+ * had been the thing that left.
+ */
+export const chipPresence = {
+  initial: { opacity: 0, scale: 0.92 },
+  animate: { opacity: 1, scale: 1 },
+  exit: { opacity: 0, scale: 0.92 },
+  transition: selectionTransition,
+};
 
 // Soft enter from a few px below — for new chat messages.
 export const enterUp = {
