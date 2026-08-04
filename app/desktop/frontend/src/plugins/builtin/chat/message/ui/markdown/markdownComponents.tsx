@@ -43,7 +43,7 @@ function CitationBadge({ n, label }: { n: number; label: string }) {
       className="max-w-[360px] px-3 py-2.5"
       trigger={
         <sup
-          className="cite-marker cursor-help rounded-2xs bg-surface-2 px-1.5 py-px text-ui-sm font-medium text-fg-muted transition-colors hover:bg-accent hover:text-on-accent"
+          className="cite-marker cursor-help rounded-2xs bg-surface-2 px-1.5 py-px text-ui-sm font-medium text-fg-muted transition-colors hover:bg-cta hover:text-cta-text"
           data-citation={n}
         >
           {label}

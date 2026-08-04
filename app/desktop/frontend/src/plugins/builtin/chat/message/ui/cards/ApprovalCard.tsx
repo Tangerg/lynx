@@ -1,6 +1,7 @@
 import type { BlockStatus } from "@/plugins/builtin/agent/public/viewState";
 import { useState } from "react";
-import { Button, Checkbox, Divider, Icon, Segmented } from "@/ui";
+import type { Tone } from "@/lib/tone";
+import { Badge, Button, Checkbox, Divider, Icon, Segmented } from "@/ui";
 import { HitlCardShell, HitlSettledRow } from "./HitlCard";
 import { useT } from "@/lib/i18n";
 import { approvalHeadline } from "./approvalHeadline";
@@ -14,7 +15,6 @@ import {
   type ApprovalRisk,
   type ApprovalTone,
 } from "@/plugins/builtin/agent/public/messagePresentation";
-import { cn } from "@/lib/classNames";
 import { useApprovalArgsEditor } from "../../application/approvalArgsEditor";
 import { useApprovalCardActions } from "../../application/approvalCardActions";
 import { ApprovalArgsEditor } from "./ApprovalArgsEditor";
@@ -125,16 +125,7 @@ export function ApprovalCard({
       icon="shield"
       iconClassName="text-warning"
       label={t("approval.required")}
-      trailing={
-        <span
-          className={cn(
-            "rounded-sm px-1.5 py-px text-ui-xs font-medium",
-            approvalRiskToneClass(riskView.tone),
-          )}
-        >
-          {t(riskView.labelKey)}
-        </span>
-      }
+      trailing={<Badge tone={approvalBadgeTone(riskView.tone)}>{t(riskView.labelKey)}</Badge>}
     >
       <div className="mb-1 text-ui-md font-semibold leading-body text-fg">
         {approvalHeadline(t, toolName)}
@@ -183,15 +174,13 @@ export function ApprovalCard({
             {t("approval.grants")}
           </span>
           {scopeViews.map((view) => (
-            <span
+            <Badge
               key={view.scope}
-              className={cn(
-                "inline-flex items-center rounded-sm px-1.5 py-px font-mono text-ui-xs font-semibold",
-                approvalScopeToneClass(view.tone),
-              )}
+              tone={approvalBadgeTone(view.tone)}
+              className="font-mono font-semibold"
             >
               {view.scope}
-            </span>
+            </Badge>
           ))}
           {target && (
             <span className="inline-flex items-center gap-1 rounded-sm bg-surface-2 px-1.5 py-px font-mono text-ui-sm text-fg-muted">
@@ -200,14 +189,12 @@ export function ApprovalCard({
             </span>
           )}
           {reversibilityView && (
-            <span
-              className={cn(
-                "inline-flex items-center gap-1 rounded-sm px-1.5 py-px font-mono text-ui-xs font-semibold",
-                approvalReversibilityToneClass(reversibilityView.tone),
-              )}
+            <Badge
+              tone={approvalBadgeTone(reversibilityView.tone)}
+              className="font-mono font-semibold"
             >
               {t(reversibilityView.labelKey)}
-            </span>
+            </Badge>
           )}
         </div>
       )}
@@ -255,23 +242,13 @@ export function ApprovalCard({
 // Tinted pill fills — no inset ring borders (§ light Geist recipe). Tone rides
 // the semantic bg/text token alone.
 //
-// The neutral fallback, once. Three sibling functions answered the same question
-// two different ways — two of them at a hand-picked 6% ink, one at the rung — so
-// "no tone" looked like two different states depending on which row you read.
-const NEUTRAL_PILL = "bg-surface-2 text-fg-muted";
-function approvalRiskToneClass(tone: ApprovalTone): string {
-  if (tone === "danger") return "bg-negative-wash text-negative";
-  if (tone === "warning") return "bg-warning-wash text-warning";
-  return NEUTRAL_PILL;
-}
-
-function approvalScopeToneClass(tone: ApprovalTone): string {
-  if (tone === "danger") return "bg-negative-wash text-negative";
-  if (tone === "warning") return "bg-warning-wash text-warning";
-  return NEUTRAL_PILL;
-}
-
-function approvalReversibilityToneClass(tone: ApprovalTone): string {
-  if (tone === "danger") return "bg-negative-wash text-negative";
-  return NEUTRAL_PILL;
+// Risk, scope, reversibility — three words carrying a state, which is `Badge`. The
+// atom exists because fourteen callsites paired a fill with an ink by hand, and three
+// of the fourteen were here: `approvalRiskToneClass`, `approvalScopeToneClass` and
+// `approvalReversibilityToneClass` were byte-identical but for one branch, which is
+// what a duplicated table looks like just before the copies drift apart.
+function approvalBadgeTone(tone: ApprovalTone): Tone | undefined {
+  if (tone === "danger") return "negative";
+  if (tone === "warning") return "warning";
+  return undefined;
 }

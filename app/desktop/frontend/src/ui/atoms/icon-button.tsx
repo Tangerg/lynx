@@ -97,7 +97,7 @@ export function IconButton({
           <Icon name={icon} size={iconSize} />
         )}
         {badge !== undefined && badge !== "" && badge !== 0 && (
-          <span className="absolute -top-0.5 -right-0.5 grid h-3.5 min-w-3.5 place-items-center rounded-full bg-accent px-0.5 font-mono text-ui-2xs font-semibold text-on-accent">
+          <span className="absolute -top-0.5 -right-0.5 grid h-3.5 min-w-3.5 place-items-center rounded-full bg-cta px-0.5 font-mono text-ui-2xs font-semibold text-cta-text">
             {badge}
           </span>
         )}
