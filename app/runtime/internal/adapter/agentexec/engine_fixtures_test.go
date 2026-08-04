@@ -391,7 +391,7 @@ func (m *optionToolStub) Call(_ context.Context, req *chat.Request) (*chat.Respo
 	if hasToolMessage(req.Messages) {
 		return responseWithText("restored ok")
 	}
-	return responseWithToolCall("shell", `{"command":"echo lyra"}`)
+	return responseWithToolCall("shell", `{"command":"echo lyra","description":"Print lyra"}`)
 }
 
 func (m *optionToolStub) Stream(ctx context.Context, req *chat.Request) iter.Seq2[*chat.Response, error] {

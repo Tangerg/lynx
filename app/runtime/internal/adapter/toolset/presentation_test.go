@@ -10,13 +10,27 @@ import (
 
 func TestPresenterActivity(t *testing.T) {
 	presenter := Presenter{}
-	if got := presenter.Activity(toolNameWebSearch); got != "Searching the web" {
+	if got := presenter.Activity(toolNameWebSearch, tool.Arguments{}); got != "Searching the web" {
 		t.Fatalf("web search activity = %q", got)
 	}
-	if got := presenter.Activity(toolNameProposeSkill); got != "Proposing a Skill" {
+	if got := presenter.Activity(toolNameProposeSkill, tool.Arguments{}); got != "Proposing a Skill" {
 		t.Fatalf("propose Skill activity = %q", got)
 	}
-	if got := presenter.Activity("external_tool"); got != "" {
+	shellArguments, err := tool.ParseArguments(`{"command":"go test ./...","description":"Run server tests"}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := presenter.Activity(toolNameShell, shellArguments); got != "Run server tests" {
+		t.Fatalf("shell activity = %q", got)
+	}
+	delegationArguments, err := tool.ParseArguments(`{"summary":"Review tool contracts"}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := presenter.Activity(toolNameDelegateTask, delegationArguments); got != "Delegating: Review tool contracts" {
+		t.Fatalf("delegation activity = %q", got)
+	}
+	if got := presenter.Activity("external_tool", tool.Arguments{}); got != "" {
 		t.Fatalf("unknown activity = %q, want empty", got)
 	}
 }

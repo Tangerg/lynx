@@ -4,13 +4,16 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
 
-func (s *memoryDispatcher) toolActivity(toolName string) string {
+func (s *memoryDispatcher) toolActivity(toolName, rawArguments string) string {
 	if toolName == "" {
 		return ""
 	}
 	if s.toolPresenter != nil {
-		if activity := s.toolPresenter.Activity(toolName); activity != "" {
-			return activity
+		arguments, err := tool.ParseArguments(rawArguments)
+		if err == nil {
+			if activity := s.toolPresenter.Activity(toolName, arguments); activity != "" {
+				return activity
+			}
 		}
 	}
 	return "Calling " + toolName

@@ -31,7 +31,7 @@ func TestApproveToolCall_RememberedShortCircuit(t *testing.T) {
 	}
 
 	// Remembered allow → verdict runs (no interrupt, not denied).
-	shellArguments := `{"command":"go test"}`
+	shellArguments := `{"command":"go test","description":"Run tests"}`
 	if err := appr.Remember(ctx, approval.RememberRequest{
 		Scope: approval.ScopeSession, SessionID: "s1", Tool: "shell",
 		Arguments: mustToolArguments(t, shellArguments), Decision: approval.Allow,
@@ -109,7 +109,7 @@ func TestApproveToolCallSurfacesApprovalPolicyFailures(t *testing.T) {
 		want := errors.New("rule store unavailable")
 		observer := approvalObserver(&errorApprovalPolicy{decideErr: want})
 		verdict := observer.ApproveToolCall(
-			t.Context(), "call_1", "shell", `{"command":"go test"}`, agentexec.ToolApprovalTarget{},
+			t.Context(), "call_1", "shell", `{"command":"go test","description":"Run tests"}`, agentexec.ToolApprovalTarget{},
 		)
 		if !errors.Is(verdict.Interrupt, want) {
 			t.Fatalf("approval verdict = %+v, want decision error", verdict)
@@ -118,7 +118,7 @@ func TestApproveToolCallSurfacesApprovalPolicyFailures(t *testing.T) {
 
 	t.Run("remember restored response", func(t *testing.T) {
 		want := errors.New("rule write unavailable")
-		const arguments = `{"command":"go test"}`
+		const arguments = `{"command":"go test","description":"Run tests"}`
 		prompt, err := json.Marshal(map[string]any{
 			"kind": "approval",
 			"approval": map[string]any{
@@ -148,7 +148,7 @@ func TestApproveToolCallSurfacesApprovalPolicyFailures(t *testing.T) {
 
 	t.Run("do not remember resumed doom loop", func(t *testing.T) {
 		want := errors.New("rule write unavailable")
-		const arguments = `{"command":"go test"}`
+		const arguments = `{"command":"go test","description":"Run tests"}`
 		prompt, err := json.Marshal(map[string]any{
 			"kind": "approval",
 			"approval": map[string]any{

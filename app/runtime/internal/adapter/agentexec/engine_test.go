@@ -35,7 +35,7 @@ import (
 // → observedTool → executionObserver is wired end-to-end without any
 // real LLM in the loop.
 func TestEngine_RunChat_ToolCallObserved(t *testing.T) {
-	stub := newStubModel("shell", `{"command":"echo lyra"}`, "I ran echo and got lyra.")
+	stub := newStubModel("shell", `{"command":"echo lyra","description":"Print lyra"}`, "I ran echo and got lyra.")
 	client, err := chatclient.New(stub, chatclient.Config{})
 	if err != nil {
 		t.Fatalf("chat client: %v", err)
@@ -95,7 +95,7 @@ func TestEngine_RunChat_ToolCallObserved(t *testing.T) {
 // engine still drives the tool loop, just without firing any
 // notifications.
 func TestEngine_RunChat_NoObserver(t *testing.T) {
-	stub := newStubModel("shell", `{"command":"echo lyra"}`, "done")
+	stub := newStubModel("shell", `{"command":"echo lyra","description":"Print lyra"}`, "done")
 	client, _ := chatclient.New(stub, chatclient.Config{Defaults: *stub.defaults})
 	eng := mustEngineWith(t, client, toolset.BuildConfig{})
 	defer eng.Close()
@@ -476,7 +476,7 @@ func TestEngine_RunChat_ToolsRunInCwd(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(dir, "sentinel.txt"), []byte("x"), 0o644); err != nil {
 		t.Fatalf("seed sentinel: %v", err)
 	}
-	stub := newStubModel("shell", `{"command":"ls"}`, "done")
+	stub := newStubModel("shell", `{"command":"ls","description":"List workspace files"}`, "done")
 	client, _ := chatclient.New(stub, chatclient.Config{})
 	eng := mustEngineWith(t, client, toolset.BuildConfig{})
 	defer eng.Close()
@@ -686,7 +686,7 @@ func TestEngine_RunChat_ArtificialStopsPreservePartialText(t *testing.T) {
 }
 
 func TestEngine_RunChat_LongToolDoesNotTripModelIdleTimeout(t *testing.T) {
-	stub := newStubModel("shell", `{"command":"sleep 0.08; echo complete"}`, "done")
+	stub := newStubModel("shell", `{"command":"sleep 0.08; echo complete","description":"Wait then print complete"}`, "done")
 	client, err := chatclient.New(stub, chatclient.Config{})
 	if err != nil {
 		t.Fatal(err)
@@ -705,7 +705,7 @@ func TestEngine_RunChat_LongToolDoesNotTripModelIdleTimeout(t *testing.T) {
 }
 
 func TestEngine_RunChat_ToolTimeoutIsNotModelIdleTimeout(t *testing.T) {
-	stub := newStubModel("shell", `{"command":"sleep 0.08","timeout_ms":10}`, "recovered")
+	stub := newStubModel("shell", `{"command":"sleep 0.08","description":"Wait briefly","timeout_ms":10}`, "recovered")
 	client, err := chatclient.New(stub, chatclient.Config{})
 	if err != nil {
 		t.Fatal(err)

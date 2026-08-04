@@ -3,6 +3,7 @@ package shell
 import (
 	"context"
 	"encoding/json"
+	"slices"
 	"strings"
 	"testing"
 
@@ -44,7 +45,7 @@ func TestShell_CompletesInline(t *testing.T) {
 	cleanupShells(t, shells)
 	shell := shellTool(t, shells, "shell")
 
-	out, err := shell.Call(context.Background(), `{"command":"printf hello"}`)
+	out, err := shell.Call(context.Background(), `{"command":"printf hello","description":"Print hello"}`)
 	if err != nil {
 		t.Fatalf("shell err = %v", err)
 	}
@@ -68,10 +69,9 @@ func TestShellContractRejectsRemovedArguments(t *testing.T) {
 	output := shellTool(t, shells, "read_shell_output")
 
 	for _, arguments := range []string{
-		`{"command":"true","description":"Run true"}`,
-		`{"command":"true","timeout":1000}`,
-		`{"command":"true","timeout_ms":0}`,
-		`{"command":"true","run_in_background":true,"auto_background_after_seconds":1}`,
+		`{"command":"true","description":"Run true","timeout":1000}`,
+		`{"command":"true","description":"Run true","timeout_ms":0}`,
+		`{"command":"true","description":"Run true","run_in_background":true,"auto_background_after_seconds":1}`,
 	} {
 		if _, err := shell.Call(t.Context(), arguments); err == nil {
 			t.Fatalf("shell accepted removed arguments: %s", arguments)
@@ -85,6 +85,45 @@ func TestShellContractRejectsRemovedArguments(t *testing.T) {
 	}
 }
 
+func TestShellRequiresConciseDescription(t *testing.T) {
+	shells := exec.NewShells(nil, false)
+	cleanupShells(t, shells)
+	shell := shellTool(t, shells, "shell")
+
+	for _, arguments := range []string{
+		`{"command":"true"}`,
+		`{"command":"true","description":"   "}`,
+		`{"command":"true","description":" Run tests"}`,
+		`{"command":"true","description":"Run tests "}`,
+		`{"command":"true","description":"` + strings.Repeat("x", 121) + `"}`,
+	} {
+		if _, err := shell.Call(t.Context(), arguments); err == nil {
+			t.Fatalf("shell accepted invalid description: %s", arguments)
+		}
+	}
+}
+
+func TestShellDescriptionSchemaIsRequiredAndBounded(t *testing.T) {
+	shells := exec.NewShells(nil, false)
+	cleanupShells(t, shells)
+	shell := shellTool(t, shells, "shell")
+	encoded := shell.Definition().InputSchema
+	var schema struct {
+		Required   []string `json:"required"`
+		Properties map[string]struct {
+			MinLength int `json:"minLength"`
+			MaxLength int `json:"maxLength"`
+		} `json:"properties"`
+	}
+	if err := json.Unmarshal(encoded, &schema); err != nil {
+		t.Fatal(err)
+	}
+	description, ok := schema.Properties["description"]
+	if !ok || !slices.Contains(schema.Required, "description") || description.MinLength != 1 || description.MaxLength != 120 {
+		t.Fatalf("description schema = required %v property %+v", schema.Required, description)
+	}
+}
+
 // TestShell_RunInBackground checks the explicit-background path: the command
 // returns a shell id immediately, and read_shell_output reads its output.
 func TestShell_RunInBackground(t *testing.T) {
@@ -93,7 +132,7 @@ func TestShell_RunInBackground(t *testing.T) {
 	shell := shellTool(t, shells, "shell")
 	output := shellTool(t, shells, "read_shell_output")
 
-	out, err := shell.Call(context.Background(), `{"command":"printf hi","run_in_background":true}`)
+	out, err := shell.Call(context.Background(), `{"command":"printf hi","description":"Print hi","run_in_background":true}`)
 	if err != nil || !strings.Contains(out, "shell bg_1") {
 		t.Fatalf("shell(bg) = %q err=%v, want a background notice with bg_1", out, err)
 	}
@@ -121,7 +160,7 @@ func TestReadShellOutput_Wait(t *testing.T) {
 	shell := shellTool(t, shells, "shell")
 	output := shellTool(t, shells, "read_shell_output")
 
-	out, err := shell.Call(context.Background(), `{"command":"sleep 0.3; printf done","run_in_background":true}`)
+	out, err := shell.Call(context.Background(), `{"command":"sleep 0.3; printf done","description":"Wait then print done","run_in_background":true}`)
 	if err != nil || !strings.Contains(out, "shell bg_1") {
 		t.Fatalf("shell(bg) = %q err=%v", out, err)
 	}
@@ -143,7 +182,7 @@ func TestReadShellOutput_WaitTimeout(t *testing.T) {
 	shell := shellTool(t, shells, "shell")
 	output := shellTool(t, shells, "read_shell_output")
 
-	if _, err := shell.Call(context.Background(), `{"command":"sleep 30","run_in_background":true}`); err != nil {
+	if _, err := shell.Call(context.Background(), `{"command":"sleep 30","description":"Keep a background shell running","run_in_background":true}`); err != nil {
 		t.Fatalf("shell(bg) err=%v", err)
 	}
 	read, err := output.Call(context.Background(), `{"shell_id":"bg_1","wait":true,"timeout_ms":1000}`)
@@ -163,7 +202,7 @@ func TestShell_AutoBackground(t *testing.T) {
 	cleanupShells(t, shells)
 	shell := shellTool(t, shells, "shell")
 
-	out, err := shell.Call(context.Background(), `{"command":"sleep 30","auto_background_after_seconds":1}`)
+	out, err := shell.Call(context.Background(), `{"command":"sleep 30","description":"Wait in the background","auto_background_after_seconds":1}`)
 	if err != nil || !strings.Contains(out, "shell bg_1") {
 		t.Fatalf("shell(auto-bg) = %q err=%v, want a background notice with bg_1", out, err)
 	}

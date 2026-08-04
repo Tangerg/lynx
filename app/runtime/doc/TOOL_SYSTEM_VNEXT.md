@@ -171,7 +171,7 @@
 
 ### Shell、记忆与会话检索
 
-- `shell(command,timeout_ms?,run_in_background?,auto_background_after_seconds?)` 是唯一命令启动入口；工具参数不再承载只供 UI 展示的 description。后台句柄统一称 Shell，并只通过 `shell_id` 标识；
+- `shell(command,description,timeout_ms?,run_in_background?,auto_background_after_seconds?)` 是唯一命令启动入口；`description` 是服务端 activity 真正消费的、最多 120 字符的动作短语，不是无消费者的 UI 标签。后台句柄统一称 Shell，并只通过 `shell_id` 标识；
 - `read_shell_output(shell_id,wait?,timeout_ms?)` 增量读取一个后台 Shell 的输出；`wait=true` 使用完成事件等待，`timeout_ms` 只限制本次等待。`stop_shell(shell_id)` 只终止该 Shell；旧 `shell_output`、`shell_kill`、`block`、无单位 `timeout` 不保留；
 - `search_memory(query,limit?)` 检索当前项目经过蒸馏的长期记忆；`search_conversations(query,limit?)` 检索过往会话原始 transcript。两者名称和描述显式区分 corpus，`limit` 均为 `1..20`，不再用 `memory_search` / `session_search` 这一组名词-动作倒置名称。
 
@@ -504,3 +504,10 @@
 - ToolCall 领域 invariant 明确为：running 只有开始时间，completed/incomplete 必须有不早于开始的结束时间，其他 Item 禁止携带 ToolCall 结束时间。实时 DTO 与 artifact DTO 的存在性规则、非负持续时间约束由同一 contract registry 生成；
 - artifact 提升到 v11，导入同时核验 `startedAt == createdAt` 以及 `durationMs == finishedAt - startedAt`，不为旧 artifact 猜测执行边界，也不保留兼容字段；
 - 时间事实停留在 transcript / runs / delivery：通用 Agent ToolCall 协议仍只表达模型请求，没有被 app/runtime 的持久化生命周期污染。本轮只更新服务端 Go 契约；桌面 TypeScript 与 canonical samples 继续留给约定的前端专项。
+
+### 批次 10b
+
+- `shell` 新增必填 `description`，语义严格限定为描述命令目的的简短动作短语，长度 `1..120`，拒绝空白和首尾空白；工具 definition 明确要求不复述原命令、不预言执行结果，避免模型把它写成第二份命令或状态字段；
+- Turn 的 `ToolPresenter.Activity` 从只接收工具名改为同时接收 canonical arguments；Shell activity 直接消费 `description`，因此该字段既保留在 ToolCall 参数里供后续客户端投影，也在服务端执行生命周期中有真实消费者；
+- `delegate_task` 不新增同义的 `description/label`，而是复用现有、已限定为 3–5 个词的 `summary` 生成 activity。其他工具也没有新增通用 `displayName`：path、query、Skill name 和 Schedule title 各有不同领域语义，强行抽成一个展示字段会制造重复事实；
+- 参数解析仍停留在 Turn 的 consumer-side presenter seam，具体 Shell / delegation schema 停留在 toolset / Agent adapter；通用 `tool.Tool`、运行领域和 delivery DTO 没有获得 UI metadata 接口。本批继续只改服务端，前端如何优先渲染 `description` 留给后续接线专项。

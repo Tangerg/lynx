@@ -454,7 +454,7 @@ func seedFailedRun(t *testing.T, rt *stubRuntime, sessionID string) {
 // item can populate all of it.
 func seedEveryItemKind(t *testing.T, rt *stubRuntime, sessionID string) {
 	t.Helper()
-	arguments, err := tool.ArgumentsFromMap(map[string]any{"command": "ls"})
+	arguments, err := tool.ArgumentsFromMap(map[string]any{"command": "ls", "description": "List workspace files"})
 	if err != nil {
 		t.Fatalf("tool arguments: %v", err)
 	}

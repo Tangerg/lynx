@@ -436,7 +436,7 @@ func (t *turnObserver) OnToolCallStart(process agentexec.ProcessRef, callID, sou
 		SourceCallID: sourceCallID,
 		ToolName:     toolName,
 		Arguments:    arguments,
-		Activity:     t.dispatcher.toolActivity(toolName),
+		Activity:     t.dispatcher.toolActivity(toolName, arguments),
 		SafetyClass:  tool.SafetyClassFor(toolName),
 	})
 }

@@ -31,20 +31,20 @@ func TestChildToolsShareRootHITLAndHookContract(t *testing.T) {
 		{
 			name:             "approval with human edited arguments",
 			childTool:        "shell",
-			childArguments:   `{"command":"echo original"}`,
+			childArguments:   `{"command":"echo original","description":"Print original"}`,
 			interruptKinds:   []execution.InterruptKind{execution.ApprovalInterrupt},
 			wantInterrupt:    new(execution.ApprovalInterrupt),
-			resolution:       interrupts.Resolution{Approved: true, Arguments: `{"command":"echo human"}`},
-			rewriteArguments: `{"command":"echo hook"}`,
+			resolution:       interrupts.Resolution{Approved: true, Arguments: `{"command":"echo human","description":"Print human"}`},
+			rewriteArguments: `{"command":"echo hook","description":"Print hook"}`,
 		},
 		{
 			name:             "approval denial",
 			childTool:        "shell",
-			childArguments:   `{"command":"echo original"}`,
+			childArguments:   `{"command":"echo original","description":"Print original"}`,
 			interruptKinds:   []execution.InterruptKind{execution.ApprovalInterrupt},
 			wantInterrupt:    new(execution.ApprovalInterrupt),
 			resolution:       interrupts.Resolution{Approved: false, Reason: "not this time"},
-			rewriteArguments: `{"command":"echo hook"}`,
+			rewriteArguments: `{"command":"echo hook","description":"Print hook"}`,
 		},
 		{
 			name:           "safe child tool",
@@ -579,12 +579,12 @@ func TestRestartRestoresParkedChildWithoutReplayingPreHook(t *testing.T) {
 	model := &childToolModel{
 		defaults:       &chat.Options{Model: "b8-child-restart"},
 		childTool:      "shell",
-		childArguments: `{"command":"echo original"}`,
+		childArguments: `{"command":"echo original","description":"Print original"}`,
 	}
 	policy := mustApprovalPolicy(t, approval.ModeBalanced, nil)
 
 	firstHooks := &hookCommandRecorder{
-		rewriteTool: "shell", rewriteArguments: `{"command":"echo first-hook"}`,
+		rewriteTool: "shell", rewriteArguments: `{"command":"echo first-hook","description":"Print first hook"}`,
 	}
 	first := buildB8PersistentDispatcher(t, model, policy, staticHookResolver{
 		bound: hooks.NewBound([]hooks.Hook{
@@ -629,7 +629,7 @@ func TestRestartRestoresParkedChildWithoutReplayingPreHook(t *testing.T) {
 	}
 
 	restoredHooks := &hookCommandRecorder{
-		rewriteTool: "shell", rewriteArguments: `{"command":"echo must-not-run"}`,
+		rewriteTool: "shell", rewriteArguments: `{"command":"echo must-not-run","description":"Print forbidden output"}`,
 	}
 	restored := buildB8PersistentDispatcher(t, model, policy, staticHookResolver{
 		bound: hooks.NewBound([]hooks.Hook{
@@ -658,7 +658,7 @@ func TestRestartRestoresParkedChildWithoutReplayingPreHook(t *testing.T) {
 	if err != nil {
 		t.Fatalf("restored Events: %v", err)
 	}
-	const humanArguments = `{"command":"echo human-after-restart"}`
+	const humanArguments = `{"command":"echo human-after-restart","description":"Print after restart"}`
 	if err := restored.Resume(
 		t.Context(),
 		restoredHandle,
@@ -731,7 +731,7 @@ func TestCancelParkedChildCleansWholeProcessTree(t *testing.T) {
 	model := &childToolModel{
 		defaults:       &chat.Options{Model: "b8-child-cancel"},
 		childTool:      "shell",
-		childArguments: `{"command":"echo must-not-run"}`,
+		childArguments: `{"command":"echo must-not-run","description":"Print forbidden output"}`,
 	}
 	policy := mustApprovalPolicy(t, approval.ModeBalanced, nil)
 	dispatcher := buildB8PersistentDispatcher(
@@ -800,7 +800,7 @@ func TestRehydrateRejectsCorruptCheckpointPayload(t *testing.T) {
 	model := &childToolModel{
 		defaults:       &chat.Options{Model: "b8-child-missing"},
 		childTool:      "shell",
-		childArguments: `{"command":"echo original"}`,
+		childArguments: `{"command":"echo original","description":"Print original"}`,
 	}
 	policy := mustApprovalPolicy(t, approval.ModeBalanced, nil)
 	first := buildB8PersistentDispatcher(
@@ -857,7 +857,7 @@ func TestChildApproveCancelRaceHasOneTerminal(t *testing.T) {
 	model := &childToolModel{
 		defaults:       &chat.Options{Model: "b8-child-race"},
 		childTool:      "shell",
-		childArguments: `{"command":"echo race"}`,
+		childArguments: `{"command":"echo race","description":"Print race"}`,
 	}
 	policy := mustApprovalPolicy(t, approval.ModeBalanced, nil)
 	dispatcher := buildB8Dispatcher(t, model, policy, staticHookResolver{})

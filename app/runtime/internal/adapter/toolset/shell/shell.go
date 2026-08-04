@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	toolcontract "github.com/Tangerg/lynx/tool"
@@ -33,6 +34,7 @@ const defaultAutoBackgroundSeconds = 60
 
 type shellArgs struct {
 	Command                    string `json:"command" jsonschema:"minLength=1" jsonschema_description:"Shell command line, run by /bin/sh -c. Each call starts a fresh shell; directory changes, variables, and shell options do not persist."`
+	Description                string `json:"description" jsonschema:"minLength=1,maxLength=120" jsonschema_description:"Concise action phrase shown while the command runs, such as Run backend tests. Describe the command's purpose; do not copy the command or predict its result."`
 	TimeoutMS                  int    `json:"timeout_ms,omitempty" jsonschema:"minimum=1" jsonschema_description:"Hard execution timeout in milliseconds. Omit for no hard timeout."`
 	RunInBackground            bool   `json:"run_in_background,omitempty" jsonschema_description:"Return immediately with a shell_id while the command keeps running. Use for servers and watchers."`
 	AutoBackgroundAfterSeconds int    `json:"auto_background_after_seconds,omitempty" jsonschema:"minimum=1" jsonschema_description:"Move a foreground command to the background after this many seconds. Defaults to 60."`
@@ -41,6 +43,12 @@ type shellArgs struct {
 func (a shellArgs) validate() error {
 	if a.Command == "" {
 		return errors.New("shell: command is required")
+	}
+	if strings.TrimSpace(a.Description) == "" {
+		return errors.New("shell: description is required")
+	}
+	if strings.TrimSpace(a.Description) != a.Description {
+		return errors.New("shell: description must not have surrounding whitespace")
 	}
 	if a.RunInBackground && a.AutoBackgroundAfterSeconds > 0 {
 		return errors.New("shell: auto_background_after_seconds cannot be used when run_in_background=true")
@@ -102,6 +110,7 @@ func Build(shells *exec.Shells, defaultWorkdir string) ([]toolcontract.Tool, err
 		toolcontract.FuncConfig{
 			Name: "shell",
 			Description: "Execute a shell command via /bin/sh -c. Returns stdout/stderr, exit code, and duration. " +
+				"Set description to a concise action label that explains the command's purpose while it runs. " +
 				"Avoid `find`, `grep`, `cat`, `head`, `tail`, `sed`, `awk` here — use the dedicated `glob`, `grep`, `read`, `edit` tools instead; reserve `shell` for operations that genuinely need a shell (build commands, git, package managers, etc.). " +
 				"Each invocation starts a fresh shell — `cd`, exported variables, and shell options do not persist between calls. " +
 				"A command still running after auto_background_after_seconds (default 60) is moved to the background; continue with read_shell_output or stop_shell. Set run_in_background to background it immediately.",

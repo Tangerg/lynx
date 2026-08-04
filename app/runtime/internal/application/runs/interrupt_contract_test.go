@@ -25,7 +25,7 @@ func TestResolveResumeResponsesValidatesExactTypedCoverage(t *testing.T) {
 		ItemID: "item_approval",
 		Kind:   ApprovalResponseKind,
 		Approval: &ApprovalResponse{
-			Approved: true, Arguments: `{"command":"echo edited"}`, RememberScope: approval.ScopeSession,
+			Approved: true, Arguments: `{"command":"echo edited","description":"Print edited"}`, RememberScope: approval.ScopeSession,
 		},
 	}})
 	if err != nil {
@@ -35,7 +35,7 @@ func TestResolveResumeResponsesValidatesExactTypedCoverage(t *testing.T) {
 		t.Fatalf("approval answers = %#v", answers)
 	}
 	resolution := answers[0].Resolution
-	if !resolution.Approved || resolution.Arguments != `{"command":"echo edited"}` || resolution.RememberScope != approval.ScopeSession {
+	if !resolution.Approved || resolution.Arguments != `{"command":"echo edited","description":"Print edited"}` || resolution.RememberScope != approval.ScopeSession {
 		t.Fatalf("approval resolution = %#v", resolution)
 	}
 	deniedAnswers, err := resolveResumeResponses(approvalPending, []ResumeResponse{{

@@ -263,7 +263,7 @@ func TestReducerOwnsOpeningUserInput(t *testing.T) {
 
 func TestReducerPreservesRawToolResultsAndExplicitFileNudges(t *testing.T) {
 	reducer := newReducer(testReducerConfig())
-	mustReduce(t, reducer, ToolCallStart{CallID: "shell_1", ToolName: "shell", Arguments: `{"command":"echo hi"}`})
+	mustReduce(t, reducer, ToolCallStart{CallID: "shell_1", ToolName: "shell", Arguments: `{"command":"echo hi","description":"Print hi"}`})
 	raw := map[string]any{"stdout": "hi\n", "stderr": "oops", "exit_code": 0}
 	reduced := mustReduce(t, reducer, ToolCallEnd{
 		CallID: "shell_1", Result: testToolResult(t, raw), OutputText: "hi\n\noops",
@@ -554,7 +554,7 @@ func TestReducerResumeReusesInterruptedItems(t *testing.T) {
 	config.Continuation = testTreeContinuation(interrupts.Pending{
 		RootRunID: "run_1", SessionID: "ses_1",
 		Interrupts: []transcript.Interrupt{
-			{ItemID: "item_approval", RunID: "run_1", Kind: execution.ApprovalInterrupt, Approval: &transcript.Approval{Tool: transcript.ToolInvocation{Name: "shell", Arguments: testToolArguments(t, map[string]any{"command": "go test"})}}},
+			{ItemID: "item_approval", RunID: "run_1", Kind: execution.ApprovalInterrupt, Approval: &transcript.Approval{Tool: transcript.ToolInvocation{Name: "shell", Arguments: testToolArguments(t, map[string]any{"command": "go test", "description": "Run tests"})}}},
 			{ItemID: "item_question", RunID: "run_1", Kind: execution.QuestionInterrupt, Question: question},
 		},
 	})
@@ -565,7 +565,7 @@ func TestReducerResumeReusesInterruptedItems(t *testing.T) {
 		t.Fatalf("resumed question completion = %#v", opening[len(opening)-1].Event)
 	}
 
-	started := mustReduce(t, reducer, ToolCallStart{CallID: "call_1", ToolName: "shell", Arguments: `{"command":"go test"}`})
+	started := mustReduce(t, reducer, ToolCallStart{CallID: "call_1", ToolName: "shell", Arguments: `{"command":"go test","description":"Run tests"}`})
 	var itemID string
 	for _, reduction := range started {
 		if event, ok := reduction.Event.(ItemStarted); ok {
@@ -577,7 +577,7 @@ func TestReducerResumeReusesInterruptedItems(t *testing.T) {
 	}
 	mustReduce(t, reducer, ToolCallEnd{CallID: "call_1", Result: testToolResult(t, "ok")})
 
-	second := mustReduce(t, reducer, ToolCallStart{CallID: "call_2", ToolName: "shell", Arguments: `{"command":"go vet"}`})
+	second := mustReduce(t, reducer, ToolCallStart{CallID: "call_2", ToolName: "shell", Arguments: `{"command":"go vet","description":"Vet server packages"}`})
 	var secondID string
 	for _, reduction := range second {
 		if event, ok := reduction.Event.(ItemStarted); ok {
@@ -662,7 +662,7 @@ func TestReducerRejectsMalformedToolArguments(t *testing.T) {
 	t.Run("effective end arguments", func(t *testing.T) {
 		reducer := newReducer(testReducerConfig())
 		mustReduce(t, reducer, ToolCallStart{
-			CallID: "call_1", ToolName: "shell", Arguments: `{"command":"go test"}`,
+			CallID: "call_1", ToolName: "shell", Arguments: `{"command":"go test","description":"Run tests"}`,
 		})
 		_, err := reducer.reduce(ToolCallEnd{CallID: "call_1", Arguments: "null"})
 		if !errors.Is(err, errExecutorProtocol) || !errors.Is(err, tool.ErrInvalidArguments) {

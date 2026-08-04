@@ -410,7 +410,7 @@ func TestSessionStatesDoNotQueryInterruptsForActiveRun(t *testing.T) {
 
 func TestListInterruptsProjectsToWire(t *testing.T) {
 	created := time.Date(2026, 7, 5, 11, 0, 0, 0, time.UTC)
-	arguments, err := tool.ArgumentsFromMap(map[string]any{"command": "go test ./..."})
+	arguments, err := tool.ArgumentsFromMap(map[string]any{"command": "go test ./...", "description": "Run server tests"})
 	if err != nil {
 		t.Fatalf("tool arguments: %v", err)
 	}

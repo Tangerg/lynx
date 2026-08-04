@@ -34,9 +34,13 @@ const (
 type Presenter struct{}
 
 // Activity returns concise progress text for a known concrete tool.
-func (Presenter) Activity(name string) string {
+func (Presenter) Activity(name string, arguments tool.Arguments) string {
 	switch strings.ToLower(name) {
 	case toolNameShell:
+		if args, ok := decodeArguments[shellActivityArguments](arguments, "description"); ok &&
+			args.Description != "" && args.Description == strings.TrimSpace(args.Description) {
+			return args.Description
+		}
 		return "Running command"
 	case toolNameReadShellOutput:
 		return "Reading command output"
@@ -59,6 +63,10 @@ func (Presenter) Activity(name string) string {
 	case toolNameWebFetch:
 		return "Fetching a page"
 	case toolNameDelegateTask:
+		if args, ok := decodeArguments[delegationActivityArguments](arguments, "summary"); ok &&
+			args.Summary != "" && args.Summary == strings.TrimSpace(args.Summary) {
+			return "Delegating: " + args.Summary
+		}
 		return "Delegating to a sub-agent"
 	case toolNameAskUser:
 		return "Waiting for your answer"
@@ -69,6 +77,14 @@ func (Presenter) Activity(name string) string {
 	default:
 		return ""
 	}
+}
+
+type shellActivityArguments struct {
+	Description string `json:"description"`
+}
+
+type delegationActivityArguments struct {
+	Summary string `json:"summary"`
 }
 
 // Present projects a known tool's canonical arguments and result into the

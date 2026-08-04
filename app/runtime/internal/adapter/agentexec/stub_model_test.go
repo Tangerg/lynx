@@ -262,7 +262,7 @@ func (m *cwdDelegatingStubModel) Call(_ context.Context, req *chat.Request) (*ch
 	default:
 		// Sub-agent's first round: write a marker via a relative path so
 		// where it lands reflects the inherited working directory.
-		return responseWithToolCall("shell", `{"command":"touch subtask_was_here.txt"}`)
+		return responseWithToolCall("shell", `{"command":"touch subtask_was_here.txt","description":"Create the subtask marker"}`)
 	}
 }
 
@@ -342,7 +342,7 @@ func (m *subtaskMemoryStub) Call(_ context.Context, req *chat.Request) (*chat.Re
 		return responseWithToolCall("delegate_task", `{"summary":"delegated work","instructions":"the secret is `+subtaskSecret+`; run a command then echo the secret back to me"}`)
 	default:
 		// Sub-agent turn, round 1: run a tool so a round 2 happens.
-		return responseWithToolCall("shell", `{"command":"echo working"}`)
+		return responseWithToolCall("shell", `{"command":"echo working","description":"Print working"}`)
 	}
 }
 
@@ -555,7 +555,7 @@ func (m *usageStubModel) Call(_ context.Context, req *chat.Request) (*chat.Respo
 	if hasToolMessage(req.Messages) {
 		resp, err = responseWithTextAndUsage("done", m.round2Usage)
 	} else {
-		resp, err = responseWithToolCallAndUsage("shell", `{"command":"echo lyra"}`, m.round1Usage)
+		resp, err = responseWithToolCallAndUsage("shell", `{"command":"echo lyra","description":"Print lyra"}`, m.round1Usage)
 	}
 	// Stamp the served model so per-model usage roll-up is exercised.
 	if resp != nil {
@@ -711,7 +711,7 @@ func (m *partialStopStubModel) Call(_ context.Context, request *chat.Request) (*
 	}
 	message := chat.NewAssistantMessage(
 		chat.NewTextPart("partial answer"),
-		chat.NewToolCallPart(chat.ToolCall{ID: "call_1", Name: "shell", Arguments: `{"command":"echo partial"}`}),
+		chat.NewToolCallPart(chat.ToolCall{ID: "call_1", Name: "shell", Arguments: `{"command":"echo partial","description":"Print partial"}`}),
 	)
 	response, err := chat.NewResponse(chat.Choice{
 		Index:        0,

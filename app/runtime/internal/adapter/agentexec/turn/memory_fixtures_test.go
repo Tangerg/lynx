@@ -183,7 +183,7 @@ func (m *stubChatModel) Call(_ context.Context, req *chatmodel.Request) (*chatmo
 	if hasToolMsg(req.Messages) {
 		return makeText("I ran echo and got lyra.")
 	}
-	return makeToolCall("shell", `{"command":"echo lyra"}`)
+	return makeToolCall("shell", `{"command":"echo lyra","description":"Print lyra"}`)
 }
 
 func (m *stubChatModel) Stream(ctx context.Context, req *chatmodel.Request) iter.Seq2[*chatmodel.Response, error] {
@@ -203,7 +203,7 @@ func (m *countingStubModel) Call(_ context.Context, req *chatmodel.Request) (*ch
 	if hasToolMsg(req.Messages) {
 		return makeText("I ran echo and got lyra.")
 	}
-	return makeToolCall("shell", `{"command":"echo lyra"}`)
+	return makeToolCall("shell", `{"command":"echo lyra","description":"Print lyra"}`)
 }
 
 func (m *countingStubModel) Stream(ctx context.Context, req *chatmodel.Request) iter.Seq2[*chatmodel.Response, error] {

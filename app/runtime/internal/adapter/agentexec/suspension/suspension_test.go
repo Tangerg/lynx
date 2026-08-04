@@ -79,7 +79,7 @@ func TestDecodePromptDiscriminatesAndRejectsGuesses(t *testing.T) {
 
 func TestResolutionCodecUsesAgentWireVocabulary(t *testing.T) {
 	raw, err := EncodeResolution(interrupts.Resolution{
-		Approved: true, Arguments: `{"command":"go test"}`, Answers: [][]string{{"yes"}},
+		Approved: true, Arguments: `{"command":"go test","description":"Run tests"}`, Answers: [][]string{{"yes"}},
 		RememberScope: approval.ScopeSession,
 	})
 	if err != nil {

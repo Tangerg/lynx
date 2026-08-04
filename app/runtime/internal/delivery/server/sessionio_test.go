@@ -43,7 +43,7 @@ func TestSessionExportImport_RoundTrip(t *testing.T) {
 	}
 	putRun(t, rt, ses.ID, "run1", 1, 2)
 	putUserItem(t, rt, ses.ID, "run1", "item1", "hello")
-	arguments, err := tool.ArgumentsFromMap(map[string]any{"command": "ls"})
+	arguments, err := tool.ArgumentsFromMap(map[string]any{"command": "ls", "description": "List workspace files"})
 	if err != nil {
 		t.Fatalf("tool arguments: %v", err)
 	}

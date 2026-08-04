@@ -71,6 +71,9 @@ func TestDispatcher_StartTurn_EmitsExpectedEvents(t *testing.T) {
 			if !strings.Contains(e.Arguments, "echo lyra") {
 				t.Errorf("ToolCallStart.Arguments missing command: %q", e.Arguments)
 			}
+			if e.Activity != "Print lyra" {
+				t.Errorf("ToolCallStart.Activity = %q, want shell description", e.Activity)
+			}
 		case runs.ToolCallEnd:
 			if e.Problem != nil {
 				t.Errorf("ToolCallEnd.Problem = %+v, want nil", e.Problem)

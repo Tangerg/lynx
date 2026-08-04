@@ -12,7 +12,7 @@ import (
 func TestRehydrateRestoresCwdAndToolHooks(t *testing.T) {
 	const (
 		cwd       = "/restored/worktree"
-		rewritten = `{"command":"echo restored"}`
+		rewritten = `{"command":"echo restored","description":"Print restored"}`
 	)
 	recorder := &hookCommandRecorder{rewriteTool: "shell", rewriteArguments: rewritten}
 	bound := hooks.NewBound([]hooks.Hook{
@@ -20,7 +20,7 @@ func TestRehydrateRestoresCwdAndToolHooks(t *testing.T) {
 	}, hooks.NewRunner(recorder, nil))
 	engine := &stubEngine{
 		restoreGateTool:      "shell",
-		restoreGateArguments: `{"command":"echo original"}`,
+		restoreGateArguments: `{"command":"echo original","description":"Print original"}`,
 	}
 	dispatcher := mustTurn(turn.New(turnDeps(engine, func(deps *turn.Dependencies) {
 		deps.Hooks = staticHookResolver{bound: bound}

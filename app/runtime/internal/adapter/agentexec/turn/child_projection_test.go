@@ -44,8 +44,8 @@ func TestTurnObserverProjectsAdmittedChildOntoExactExecutorSource(t *testing.T) 
 		Steps:         1,
 		ContextTokens: 8,
 	})
-	observer.OnToolCallStart(child.ProcessRef, "child-call", "provider-call", "shell", `{"command":"pwd"}`)
-	observer.OnToolCallEnd(child.ProcessRef, "child-call", "shell", `{"command":"pwd"}`, "/workspace", nil, nil, nil)
+	observer.OnToolCallStart(child.ProcessRef, "child-call", "provider-call", "shell", `{"command":"pwd","description":"Print the working directory"}`)
+	observer.OnToolCallEnd(child.ProcessRef, "child-call", "shell", `{"command":"pwd","description":"Print the working directory"}`, "/workspace", nil, nil, nil)
 	observer.OnChildProcessEnd(agentexec.ChildCompletion{
 		Process:    child,
 		Status:     core.StatusCompleted,

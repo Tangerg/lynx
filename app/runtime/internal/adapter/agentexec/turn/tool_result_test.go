@@ -10,7 +10,12 @@ import (
 
 type testToolPresenter struct{}
 
-func (testToolPresenter) Activity(string) string { return "Presenting tool" }
+func (testToolPresenter) Activity(_ string, arguments tool.Arguments) string {
+	if activity, ok := arguments.Map()["activity"].(string); ok {
+		return activity
+	}
+	return "Presenting tool"
+}
 
 func (testToolPresenter) Present(_ string, _ tool.Arguments, _ tool.Result) (tool.Result, string) {
 	return tool.StringResult("presented"), "plain output"
@@ -59,11 +64,17 @@ func TestDecodeToolResultUsesInjectedPresenter(t *testing.T) {
 
 func TestToolActivityUsesPresenterAndGenericFallback(t *testing.T) {
 	presented := &memoryDispatcher{toolPresenter: testToolPresenter{}}
-	if got := presented.toolActivity("custom"); got != "Presenting tool" {
+	if got := presented.toolActivity("custom", `{}`); got != "Presenting tool" {
 		t.Fatalf("presented activity = %q", got)
 	}
+	if got := presented.toolActivity("custom", `{"activity":"Inspecting arguments"}`); got != "Inspecting arguments" {
+		t.Fatalf("argument-aware activity = %q", got)
+	}
+	if got := presented.toolActivity("custom", `{"activity":`); got != "Calling custom" {
+		t.Fatalf("invalid-argument activity = %q, want generic fallback", got)
+	}
 	generic := new(memoryDispatcher)
-	if got := generic.toolActivity("custom"); got != "Calling custom" {
+	if got := generic.toolActivity("custom", `{}`); got != "Calling custom" {
 		t.Fatalf("generic activity = %q", got)
 	}
 }

@@ -63,6 +63,6 @@ type BoundaryMaintenanceResult struct {
 // only execution lifecycle translation; concrete tool names and schemas remain
 // in the tool catalog adapter that implements this interface.
 type ToolPresenter interface {
-	Activity(toolName string) string
+	Activity(toolName string, arguments tool.Arguments) string
 	Present(toolName string, arguments tool.Arguments, result tool.Result) (tool.Result, string)
 }

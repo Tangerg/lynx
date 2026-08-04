@@ -1368,7 +1368,7 @@ func TestCancelLetsCommittedInterruptOwnDurableFirstTeardown(t *testing.T) {
 	releaseSuspend := make(chan struct{})
 	executor := &fakeExecutor{events: []ExecutorPayload{
 		ToolCallStart{
-			CallID: "call_1", ToolName: "shell", Arguments: `{"command":"pwd"}`,
+			CallID: "call_1", ToolName: "shell", Arguments: `{"command":"pwd","description":"Print the working directory"}`,
 			SafetyClass: "write",
 		},
 		TreeInterrupted{Checkpoint: testExecutorCheckpoint(), Suspensions: []ProcessSuspension{{
@@ -1376,7 +1376,7 @@ func TestCancelLetsCommittedInterruptOwnDurableFirstTeardown(t *testing.T) {
 			Interrupt: Interrupt{
 				Kind: execution.ApprovalInterrupt,
 				Approval: &ApprovalPrompt{
-					CallID: "call_1", ToolName: "shell", Arguments: `{"command":"pwd"}`,
+					CallID: "call_1", ToolName: "shell", Arguments: `{"command":"pwd","description":"Print the working directory"}`,
 					SafetyClass: "write",
 				},
 			},

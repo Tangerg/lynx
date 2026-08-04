@@ -19,7 +19,7 @@ import (
 func TestServiceRememberDecide(t *testing.T) {
 	ctx := context.Background()
 	svc := newPolicy(t)
-	build := parseArguments(t, `{"command":"npm run build"}`)
+	build := parseArguments(t, `{"command":"npm run build","description":"Build the project"}`)
 	if err := svc.Remember(ctx, approval.RememberRequest{
 		Scope: approval.ScopeSession, SessionID: "s1", Tool: "shell", Arguments: build, Decision: approval.Allow,
 	}); err != nil {
@@ -30,7 +30,7 @@ func TestServiceRememberDecide(t *testing.T) {
 		t.Fatalf("matching call = (%v,%v,%v), want (allow,true,nil)", d, ok, err)
 	}
 	// A different command isn't covered by the remembered one.
-	if _, ok, err := svc.Decide(ctx, approval.Query{SessionID: "s1", Tool: "shell", Arguments: parseArguments(t, `{"command":"rm -rf /"}`)}); err != nil || ok {
+	if _, ok, err := svc.Decide(ctx, approval.Query{SessionID: "s1", Tool: "shell", Arguments: parseArguments(t, `{"command":"rm -rf /","description":"Remove root files"}`)}); err != nil || ok {
 		if err != nil {
 			t.Fatalf("decide different command: %v", err)
 		}
@@ -91,7 +91,7 @@ func TestRememberRejectsUnkeyable(t *testing.T) {
 	svc := newPolicy(t)
 	err := svc.Remember(ctx, approval.RememberRequest{
 		Scope: approval.ScopeProject, ProjectDir: "", Tool: "shell",
-		Arguments: parseArguments(t, `{"command":"go test"}`), Decision: approval.Allow,
+		Arguments: parseArguments(t, `{"command":"go test","description":"Run tests"}`), Decision: approval.Allow,
 	})
 	if !errors.Is(err, approval.ErrInvalidRule) {
 		t.Fatalf("unkeyable rule error = %v, want ErrInvalidRule", err)

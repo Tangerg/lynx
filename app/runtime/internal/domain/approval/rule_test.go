@@ -29,10 +29,10 @@ func TestQuerySubject(t *testing.T) {
 		tool, arguments, want string
 		wantError             bool
 	}{
-		{tool: "shell", arguments: `{"command":"npm run build"}`, want: "npm run build"},
+		{tool: "shell", arguments: `{"command":"npm run build","description":"Build the project"}`, want: "npm run build"},
 		// A backgrounded command is still the `shell` tool (run_in_background is one
 		// of its arguments, not a tool of its own), so it keeps the command subject.
-		{tool: "shell", arguments: `{"command":"sleep 1","run_in_background":true}`, want: "sleep 1"},
+		{tool: "shell", arguments: `{"command":"sleep 1","description":"Wait briefly","run_in_background":true}`, want: "sleep 1"},
 		{tool: "edit", arguments: `{"path":"src/a.go","old":"x"}`, want: "src/a.go"},
 		{tool: "read", arguments: `{"path":"go.mod"}`, want: "go.mod"},
 		{tool: "write", arguments: `{"path":"out.txt"}`, want: "out.txt"},
@@ -78,7 +78,7 @@ func TestRuleMatchesSubject(t *testing.T) {
 // TestDecidePrecedence: the most specific matching rule wins — scope dominates
 // (session > project > global), then subject (exact > glob > any).
 func TestDecidePrecedence(t *testing.T) {
-	q := Query{SessionID: "s1", ProjectDir: "/p", Tool: "shell", Arguments: mustArguments(t, `{"command":"rm -rf /"}`)}
+	q := Query{SessionID: "s1", ProjectDir: "/p", Tool: "shell", Arguments: mustArguments(t, `{"command":"rm -rf /","description":"Remove root files"}`)}
 
 	// A broad session allow vs a narrow (exact-subject) session deny → deny wins.
 	rules := []Rule{
@@ -107,7 +107,7 @@ func TestDecidePrecedence(t *testing.T) {
 // TestDecideConflictDeny: two equally-specific rules disagree → deny wins (a
 // remembered deny must not be overridden by an equally-specific allow).
 func TestDecideConflictDeny(t *testing.T) {
-	q := Query{SessionID: "s1", Tool: "shell", Arguments: mustArguments(t, `{"command":"go test"}`)}
+	q := Query{SessionID: "s1", Tool: "shell", Arguments: mustArguments(t, `{"command":"go test","description":"Run tests"}`)}
 	rules := []Rule{
 		mustRule(t, ScopeSession, "s1", "shell", "", Allow),
 		mustRule(t, ScopeSession, "s1", "shell", "", Deny),
@@ -121,7 +121,7 @@ func TestDecideConflictDeny(t *testing.T) {
 func TestNilStore(t *testing.T) {
 	ctx := context.Background()
 	svc := mustPolicy(t, ModeSafe, nil)
-	arguments := mustArguments(t, `{"command":"go test"}`)
+	arguments := mustArguments(t, `{"command":"go test","description":"Run tests"}`)
 	if err := svc.Remember(ctx, RememberRequest{Scope: ScopeGlobal, Tool: "shell", Arguments: arguments, Decision: Allow}); !errors.Is(err, ErrRuleStoreUnavailable) {
 		t.Fatalf("Remember on nil store error = %v, want ErrRuleStoreUnavailable", err)
 	}
