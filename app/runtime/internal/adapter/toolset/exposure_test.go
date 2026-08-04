@@ -62,7 +62,7 @@ func TestResolverRegistersExactlyOneMutationVocabulary(t *testing.T) {
 				t.Fatalf("Build: %v", err)
 			}
 			closeBuiltToolset(t, built)
-			group, ok, err := built.Resolver.Resolve(t.Context(), domaintool.GroupCoding)
+			group, ok, err := built.Resolver.Resolve(t.Context(), domaintool.GroupRoot)
 			if err != nil || !ok {
 				t.Fatalf("Resolve = (%v, %v)", ok, err)
 			}
@@ -115,6 +115,7 @@ func TestResolverInitialManifestSeparatesDirectAndDeferredCapabilities(t *testin
 		MemorySearch:  named("search_memory"),
 		SessionSearch: named("search_conversations"),
 		GoalGet:       named("get_goal"),
+		ProposeSkill:  named("propose_skill"),
 		CodeIntel:     analyzer,
 		ReadTracker:   editguardstate.NewTracker(),
 	})
@@ -124,7 +125,7 @@ func TestResolverInitialManifestSeparatesDirectAndDeferredCapabilities(t *testin
 	resolver.SetMCPTools([]toolcontract.Tool{
 		mcpToolStub{name: "linear_create_issue", server: "linear", remote: "create_issue"},
 	})
-	group, ok, err := resolver.Resolve(t.Context(), domaintool.GroupCoding)
+	group, ok, err := resolver.Resolve(t.Context(), domaintool.GroupRoot)
 	if err != nil || !ok {
 		t.Fatalf("Resolve = (%v, %v)", ok, err)
 	}
@@ -153,7 +154,7 @@ func TestResolverInitialManifestSeparatesDirectAndDeferredCapabilities(t *testin
 	for _, name := range []string{
 		"web_fetch", "remote_agent", "lsp", "linear_create_issue", "list_schedules",
 		"create_schedule", "delete_schedule",
-		"search_memory", "search_conversations",
+		"search_memory", "search_conversations", "propose_skill",
 	} {
 		if !registered[name] {
 			t.Errorf("deferred tool %q missing from Run registry: %v", name, registered)

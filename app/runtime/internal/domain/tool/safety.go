@@ -35,6 +35,9 @@ const (
 //   - create_goal is itself the explicit autonomous-work opt-in the user asked
 //     for; get_goal is read-only; report_goal_outcome only terminates that owned
 //     loop. Gating those control operations would duplicate the intent gate.
+//   - propose_skill only records the reusable workflow the user explicitly
+//     requested as a pending proposal; it cannot activate the Skill. Gating the
+//     submission would duplicate intent without protecting an active capability.
 var safetyClasses = map[string]SafetyClass{
 	"read":                 SafetyClassSafe,
 	"glob":                 SafetyClassSafe,
@@ -57,6 +60,7 @@ var safetyClasses = map[string]SafetyClass{
 	"create_goal":          SafetyClassSafe,
 	"get_goal":             SafetyClassSafe,
 	"report_goal_outcome":  SafetyClassSafe,
+	"propose_skill":        SafetyClassSafe,
 
 	"write":           SafetyClassWrite,
 	"edit":            SafetyClassWrite,

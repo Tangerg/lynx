@@ -61,8 +61,8 @@ type TurnOutput struct {
 // memory store for system-prompt composition without an extra
 // parameter passed through every turn.
 //
-// The Action declares [tool.GroupCoding] so the runtime resolves the
-// coding tool group at dispatch time; the body calls
+// The Action declares [tool.GroupRoot] so the runtime resolves the root tool
+// group at dispatch time; the body calls
 // [core.ProcessContext.Interact], the framework-managed interaction boundary.
 // Runtime owns model/tool iteration, checkpointing, suspension, usage, and
 // limits; the app supplies its prompt, streaming projection, pricing, and
@@ -81,14 +81,14 @@ func (e *Engine) buildTurnAgent() *core.Agent {
 		func(ctx context.Context, processCtx *core.ProcessContext, input turnInput) (TurnOutput, error) {
 			return e.runTurn(ctx, processCtx, input.Message, input.Media, input.Options)
 		},
-		core.ActionConfig{ToolGroups: []string{tool.GroupCoding}},
+		core.ActionConfig{ToolGroups: []string{tool.GroupRoot}},
 	)
 	replyGoal := agent.NewOutputGoal[TurnOutput](
 		core.GoalConfig{Description: "single-turn reply produced"},
 	)
 	return agent.New(agent.AgentConfig{
 		Name:        "chat-agent",
-		Description: "Single-turn LLM chat with the default coding tool set.",
+		Description: "Single-turn LLM chat with the root Agent tool set.",
 		Actions:     []agent.Action{chatAction},
 		Goals:       []*agent.Goal{replyGoal},
 	})
@@ -104,14 +104,14 @@ type delegateTaskInput struct {
 
 // buildDelegatedAgent constructs the Agent behind delegate_task.
 // It shares the main agent's chat body but has three deliberate differences:
-// its name derives the model-facing tool name; [tool.GroupSubtask] exposes
-// coding tools plus bounded recursive delegation while withholding root-only
+// its name derives the model-facing tool name; [tool.GroupDelegated] exposes
+// task tools plus bounded recursive delegation while withholding root-only
 // product tools; and its goal returns only the reply string rather than a
 // TurnOutput blob. Agent Runtime's MaxChildDepth and root-owned tree budget
 // bound recursion, while usage still aggregates through the process subtree.
 func (e *Engine) buildDelegatedAgent() *core.Agent {
-	subtaskAction := agent.NewAction(
-		"subtask",
+	delegatedTaskAction := agent.NewAction(
+		"delegated_task",
 		func(ctx context.Context, processCtx *core.ProcessContext, input delegateTaskInput) (string, error) {
 			output, err := e.runTurn(ctx, processCtx, input.Instructions, nil, nil)
 			if err != nil {
@@ -119,10 +119,10 @@ func (e *Engine) buildDelegatedAgent() *core.Agent {
 			}
 			return output.Reply, nil
 		},
-		core.ActionConfig{ToolGroups: []string{tool.GroupSubtask}},
+		core.ActionConfig{ToolGroups: []string{tool.GroupDelegated}},
 	)
 	answerGoal := agent.NewOutputGoal[string](
-		core.GoalConfig{Description: "subtask answer produced"},
+		core.GoalConfig{Description: "delegated task answer produced"},
 	)
 	return agent.New(agent.AgentConfig{
 		Name: "delegate_task",
@@ -130,7 +130,7 @@ func (e *Engine) buildDelegatedAgent() *core.Agent {
 			"Use it for focused, separable work so the current context stays uncluttered. " +
 			"The delegated Agent starts with clean context and cannot see its parent conversation, so include everything it needs in instructions. " +
 			"It returns one final answer.",
-		Actions: []agent.Action{subtaskAction},
+		Actions: []agent.Action{delegatedTaskAction},
 		Goals:   []*agent.Goal{answerGoal},
 	})
 }

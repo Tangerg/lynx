@@ -25,8 +25,8 @@ import (
 // lives in package executionctx — the resolver, per-tool packages, and prompt
 // composition all read it inward without coupling to each other.
 
-// Resolver is the engine-scope [core.ToolGroupResolver] for the
-// coding + subtask roles. The working-directory-independent tools (online
+// Resolver is the engine-scope [core.ToolGroupResolver] for the root and
+// delegated roles. The working-directory-independent tools (online
 // providers, MCP servers, the `delegate_task` tool) are built once at
 // engine construction and captured here; filesystem and skill tools are
 // rebuilt per resolution, while shell and LSP tools read the resolving turn's
@@ -69,11 +69,11 @@ type toolAudience uint8
 
 const (
 	toolAudienceBoth toolAudience = iota
-	toolAudienceCoding
+	toolAudienceRoot
 )
 
 func (a toolAudience) includes(role string) bool {
-	return a == toolAudienceBoth || role == domaintool.GroupCoding
+	return a == toolAudienceBoth || role == domaintool.GroupRoot
 }
 
 type toolPlacement uint8
@@ -81,7 +81,7 @@ type toolPlacement uint8
 const (
 	toolAfterSkill toolPlacement = iota
 	toolAfterCodebase
-	toolCodingTail
+	toolRootTail
 )
 
 // staticToolSpec is the policy table for built-once per-turn tools. A turn
@@ -109,15 +109,16 @@ type Deps struct {
 	LSP            []toolcontract.Tool                         // code-intelligence tools
 	Shell          []toolcontract.Tool                         // shell tools (shell / read_shell_output / stop_shell); nil means omitted
 	AskUser        toolcontract.Tool                           // ask_user HITL tool (both roles)
-	EnterPlan      toolcontract.Tool                           // enter_plan_mode (coding role only); nil → omitted
-	ExitPlan       toolcontract.Tool                           // exit_plan_mode (coding role only); nil → omitted
-	Plan           toolcontract.Tool                           // set_plan execution-plan tool (coding role only); nil → omitted
-	ScheduleTools  []toolcontract.Tool                         // schedule management tools (coding role only); nil → omitted
+	EnterPlan      toolcontract.Tool                           // enter_plan_mode (root role only); nil → omitted
+	ExitPlan       toolcontract.Tool                           // exit_plan_mode (root role only); nil → omitted
+	Plan           toolcontract.Tool                           // set_plan execution-plan tool (root role only); nil → omitted
+	ScheduleTools  []toolcontract.Tool                         // schedule management tools (root role only); nil → omitted
 	ToolResult     toolcontract.Tool                           // read_tool_result offloaded-output reader (both roles); nil → omitted
 	MemorySearch   toolcontract.Tool                           // search_memory agent-memory reader (both roles); nil → omitted
 	SessionSearch  toolcontract.Tool                           // search_conversations past-transcript reader (both roles); nil → omitted
-	GoalGet        toolcontract.Tool                           // get_goal state reader (coding role only); nil → omitted
-	GoalReport     toolcontract.Tool                           // report_goal_outcome loop signal (coding role only); nil → omitted
+	GoalGet        toolcontract.Tool                           // get_goal state reader (root role only); nil → omitted
+	GoalReport     toolcontract.Tool                           // report_goal_outcome loop signal (root role only); nil → omitted
+	ProposeSkill   toolcontract.Tool                           // propose_skill pending submission (root role only); nil → omitted
 	GoalActive     func(context.Context, string) (bool, error) // reports an active Goal for the session; nil → outcome reporting never offered
 	CodeIntel      *codeintel.Analyzer                         // backs the post-edit diagnostics wrap
 	ReadTracker    *editguardstate.Tracker                     // backs the read/edit/write guards
@@ -151,14 +152,15 @@ func NewResolver(d Deps) (*Resolver, error) {
 		shell:          slices.Clone(d.Shell),
 		staticTools: []staticToolSpec{
 			{tool: d.AskUser, audience: toolAudienceBoth, placement: toolAfterCodebase},
-			{tool: d.EnterPlan, audience: toolAudienceCoding, placement: toolAfterCodebase},
-			{tool: d.ExitPlan, audience: toolAudienceCoding, placement: toolAfterCodebase},
-			{tool: d.Plan, audience: toolAudienceCoding, placement: toolAfterSkill},
+			{tool: d.EnterPlan, audience: toolAudienceRoot, placement: toolAfterCodebase},
+			{tool: d.ExitPlan, audience: toolAudienceRoot, placement: toolAfterCodebase},
+			{tool: d.Plan, audience: toolAudienceRoot, placement: toolAfterSkill},
 			{tool: d.ToolResult, audience: toolAudienceBoth, placement: toolAfterSkill},
 			{tool: d.MemorySearch, audience: toolAudienceBoth, placement: toolAfterSkill, deferred: true},
 			{tool: d.SessionSearch, audience: toolAudienceBoth, placement: toolAfterSkill, deferred: true},
-			{tool: d.GoalGet, audience: toolAudienceCoding, placement: toolCodingTail},
-			{tool: d.GoalReport, audience: toolAudienceCoding, placement: toolCodingTail, requiresActiveGoal: true},
+			{tool: d.ProposeSkill, audience: toolAudienceRoot, placement: toolAfterSkill, deferred: true},
+			{tool: d.GoalGet, audience: toolAudienceRoot, placement: toolRootTail},
+			{tool: d.GoalReport, audience: toolAudienceRoot, placement: toolRootTail, requiresActiveGoal: true},
 		},
 		goalActive:      d.GoalActive,
 		codeIntel:       d.CodeIntel,
@@ -168,7 +170,7 @@ func NewResolver(d Deps) (*Resolver, error) {
 	}
 	for _, scheduleTool := range d.ScheduleTools {
 		resolver.staticTools = append(resolver.staticTools, staticToolSpec{
-			tool: scheduleTool, audience: toolAudienceCoding, placement: toolCodingTail, deferred: true,
+			tool: scheduleTool, audience: toolAudienceRoot, placement: toolRootTail, deferred: true,
 		})
 	}
 	return resolver, nil
@@ -282,11 +284,11 @@ func mcpToolRef(tool toolcontract.Tool) (mcpserver.ToolRef, bool) {
 	return mcpserver.ToolRef{Server: server, Tool: remote}, true
 }
 
-func (*Resolver) Name() string { return "coding-tools" }
+func (*Resolver) Name() string { return "agent-tools" }
 
 func (r *Resolver) Resolve(_ context.Context, role string) (core.ToolGroup, bool, error) {
 	switch role {
-	case domaintool.GroupCoding, domaintool.GroupSubtask:
+	case domaintool.GroupRoot, domaintool.GroupDelegated:
 		return &toolGroup{resolver: r, role: role}, true, nil
 	default:
 		return nil, false, nil // unknown role — the runtime skips to the next resolver
@@ -306,7 +308,7 @@ func (r *Resolver) workdirTools(workdir string) workdirToolFamilies {
 // toolGroup resolves its tool slice lazily at Tools() time so it can read the
 // per-process working directory. Both execution roles receive task delegation;
 // Agent Runtime's tree-wide budget and max-child-depth remain the authorities
-// for bounded recursion. Root-only product tools stay on ToolRoleCoding.
+// for bounded recursion. Root-only product tools stay on GroupRoot.
 type toolGroup struct {
 	resolver *Resolver
 	role     string
@@ -331,7 +333,7 @@ func (g *toolGroup) Tools(ctx context.Context) ([]toolcontract.Tool, error) {
 	tools.direct(g.resolver.shell...)
 	// Skill tools are working-directory scoped (project skills live under the
 	// turn's cwd), so they are built per resolution like filesystem tools and are
-	// available to both coding and subtask roles. No tools when no skills exist.
+	// available to both root and delegated roles. No tools when no skills exist.
 	skillTools, err := skill.Build(workdir, g.resolver.skillsUserDir, g.resolver.skillUsage)
 	if err != nil {
 		return nil, fmt.Errorf("toolset: resolve skill tools: %w", err)
@@ -350,7 +352,7 @@ func (g *toolGroup) Tools(ctx context.Context) ([]toolcontract.Tool, error) {
 	if delegation := g.resolver.delegationTool(); delegation != nil {
 		tools.direct(delegation)
 	}
-	if g.role == domaintool.GroupCoding {
+	if g.role == domaintool.GroupRoot {
 		// Goal lifecycle entry is late-bound because its application Driver owns
 		// Runs, while the resolver itself was needed to build the Agent executor.
 		// Keep only the generic tool at this seam; no Driver or runtime state enters
@@ -360,7 +362,7 @@ func (g *toolGroup) Tools(ctx context.Context) ([]toolcontract.Tool, error) {
 		}
 		// The remaining schedule and Goal state capabilities are
 		// product-root operations rather than generic child execution tools.
-		if err := g.resolver.appendStaticTools(ctx, &tools, toolCodingTail, g.role); err != nil {
+		if err := g.resolver.appendStaticTools(ctx, &tools, toolRootTail, g.role); err != nil {
 			return nil, err
 		}
 	}

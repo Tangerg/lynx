@@ -42,6 +42,15 @@ func CWD(ctx context.Context, fallback string) string {
 	return fallback
 }
 
+// WorkspaceCWD returns the persistent session workspace, falling back when the
+// turn is unattached. Unlike [CWD], it never points at an isolated scratch copy.
+func WorkspaceCWD(ctx context.Context, fallback string) string {
+	if scope, ok := Scope(ctx); ok && scope.WorkspaceCwd != "" {
+		return scope.WorkspaceCwd
+	}
+	return fallback
+}
+
 // Isolated reports whether the running turn is in an isolated session
 // so shell execution applies the host's OS jail.
 func Isolated(ctx context.Context) bool {

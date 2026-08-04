@@ -15,7 +15,7 @@ import (
 	"github.com/Tangerg/lynx/chathistory/inmemory"
 )
 
-// Engine is the Agent SDK execution boundary. It deploys the root/subtask Agent
+// Engine is the Agent SDK execution boundary. It deploys the root and delegated Agents
 // definitions and creates or restores their process trees. Prompt inputs stay
 // here because the deployed actions consume them; application maintenance,
 // integration control, tool catalogs, and resource shutdown are owned by their

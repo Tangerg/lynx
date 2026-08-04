@@ -10,10 +10,11 @@ import (
 
 func TestScopeAccessorsShareOneImmutableTurnValue(t *testing.T) {
 	want := execution.TurnScope{
-		SessionID:   "session-1",
-		Cwd:         "/workspace/project",
-		Isolated:    true,
-		GoalLeaseID: "lease-1",
+		SessionID:    "session-1",
+		Cwd:          "/sandbox/project",
+		WorkspaceCwd: "/workspace/project",
+		Isolated:     true,
+		GoalLeaseID:  "lease-1",
 	}
 	ctx := WithScope(context.Background(), want)
 
@@ -25,6 +26,9 @@ func TestScopeAccessorsShareOneImmutableTurnValue(t *testing.T) {
 	}
 	if got := CWD(ctx, "/fallback"); got != want.Cwd {
 		t.Fatalf("CWD = %q, want %q", got, want.Cwd)
+	}
+	if got := WorkspaceCWD(ctx, "/fallback"); got != want.WorkspaceCwd {
+		t.Fatalf("WorkspaceCWD = %q, want %q", got, want.WorkspaceCwd)
 	}
 	if !Isolated(ctx) {
 		t.Fatal("Isolated = false, want true")
@@ -41,6 +45,9 @@ func TestMissingScopeUsesHostFallbacks(t *testing.T) {
 	}
 	if got := CWD(ctx, "/fallback"); got != "/fallback" {
 		t.Fatalf("CWD = %q, want fallback", got)
+	}
+	if got := WorkspaceCWD(ctx, "/fallback"); got != "/fallback" {
+		t.Fatalf("WorkspaceCWD = %q, want fallback", got)
 	}
 	if SessionID(ctx) != "" || Isolated(ctx) {
 		t.Fatal("missing scope produced session or isolation")

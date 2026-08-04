@@ -25,6 +25,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/skillproposal"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/goaltool"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/proposeskill"
 	checkpointstore "github.com/Tangerg/lynx/app/runtime/internal/adapter/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspacepath"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/admission"
@@ -239,6 +240,7 @@ type toolEnvironmentBuilder func(
 	*schedules.Coordinator,
 	*goals.State,
 	*skillauthoring.Store,
+	proposeskill.Submitter,
 ) (toolEnvironment, error)
 
 // Assembly owns configuration resources before construction begins.
@@ -414,7 +416,7 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 		skillproposal.NewLibraries(skillStore),
 		skillChanges.Publish,
 	)
-	built, err := buildTools(ctx, cfg, ecfg, approvalPolicy, mcpEnv, memorySearcher, scheduleCoord, goalState, skillStore)
+	built, err := buildTools(ctx, cfg, ecfg, approvalPolicy, mcpEnv, memorySearcher, scheduleCoord, goalState, skillStore, workspaceSkills)
 	lifetime.toolClosers = slices.Clone(built.closers)
 	if err != nil {
 		return nil, err

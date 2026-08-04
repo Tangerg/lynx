@@ -667,7 +667,7 @@ func (*fixedToolResolver) UseDelegationTool(toolcontract.Tool) {}
 
 func (r *fixedToolResolver) Resolve(_ context.Context, role string) (core.ToolGroup, bool, error) {
 	switch role {
-	case domaintool.GroupCoding, domaintool.GroupSubtask:
+	case domaintool.GroupRoot, domaintool.GroupDelegated:
 		return fixedToolGroup{tool: r.tool}, true, nil
 	default:
 		return nil, false, nil

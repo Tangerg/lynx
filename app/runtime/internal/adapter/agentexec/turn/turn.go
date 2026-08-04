@@ -63,6 +63,7 @@ func (s *memoryDispatcher) runTurn(request runs.StartTurn, st *turnState) {
 		ModelSelection: request.ModelSelection,
 		Media:          request.Media,
 		Cwd:            request.Cwd,
+		WorkspaceCwd:   request.WorkspaceCwd,
 		Isolated:       request.Isolated,
 		GoalLeaseID:    request.GoalLeaseID,
 		Limits:         request.Limits,

@@ -21,7 +21,7 @@ func resolveCodingTools(t *testing.T, mcpTools []toolcontract.Tool) []toolcontra
 	closeBuiltToolset(t, built)
 	built.Resolver.SetMCPTools(mcpTools)
 
-	group, ok, err := built.Resolver.Resolve(t.Context(), domaintool.GroupCoding)
+	group, ok, err := built.Resolver.Resolve(t.Context(), domaintool.GroupRoot)
 	if err != nil || !ok {
 		t.Fatalf("Resolve(coding) = %v, %v", ok, err)
 	}

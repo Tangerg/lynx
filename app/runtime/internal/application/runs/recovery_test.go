@@ -216,6 +216,7 @@ func TestRecoveryPreservesOnlyCoherentInterruptedTree(t *testing.T) {
 		RootProcessID:  "process_root",
 		SessionID:      run.SessionID,
 		Cwd:            "/workspace",
+		WorkspaceCwd:   "/workspace",
 		GoalLeaseID:    pending.GoalLeaseID,
 		ModelSelection: run.ModelSelection,
 		Limits:         run.Limits,

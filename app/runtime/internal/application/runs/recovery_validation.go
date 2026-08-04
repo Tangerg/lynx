@@ -109,6 +109,7 @@ func validateRecoveryParkedTree(
 		RootProcessID:  rootContinuation.ProcessID,
 		SessionID:      pending.SessionID,
 		Cwd:            sess.Cwd,
+		WorkspaceCwd:   sess.Cwd,
 		Isolated:       false,
 		GoalLeaseID:    pending.GoalLeaseID,
 		ModelSelection: rootContinuation.ModelSelection,

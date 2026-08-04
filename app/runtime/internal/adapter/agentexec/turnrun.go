@@ -49,6 +49,10 @@ type TurnRequest struct {
 	// tree. Empty falls back to the engine's default workdir.
 	Cwd string
 
+	// WorkspaceCwd is the persistent Session workspace. It remains the original
+	// project directory when Cwd is an isolated scratch copy.
+	WorkspaceCwd string
+
 	// Isolated marks a turn running in an isolated session: Cwd is a sandbox
 	// copy and the shell must be OS-jailed.
 	Isolated bool
@@ -131,10 +135,11 @@ func (r TurnRequest) snapshot() TurnRequest {
 func (e *Engine) StartTurn(ctx context.Context, request TurnRequest) (TurnProcess, error) {
 	request = request.snapshot()
 	scope := execution.TurnScope{
-		SessionID:   request.SessionID,
-		Cwd:         request.Cwd,
-		Isolated:    request.Isolated,
-		GoalLeaseID: request.GoalLeaseID,
+		SessionID:    request.SessionID,
+		Cwd:          request.Cwd,
+		WorkspaceCwd: request.WorkspaceCwd,
+		Isolated:     request.Isolated,
+		GoalLeaseID:  request.GoalLeaseID,
 	}
 	if err := scope.Validate(); err != nil {
 		return nil, fmt.Errorf("engine: start chat: %w", err)
@@ -320,11 +325,12 @@ type RestoreTurnRequest struct {
 	// It must match the application checkpoint exactly.
 	ModelSelection modelref.Selection
 
-	// Cwd and Isolated are the Session facts independently resolved by the
+	// Cwd, WorkspaceCwd, and Isolated are the Session facts independently resolved by the
 	// application. They must match the checkpoint so executor tools, lifecycle
 	// hooks, and delegated work cannot rehydrate into different workspaces.
-	Cwd      string
-	Isolated bool
+	Cwd          string
+	WorkspaceCwd string
+	Isolated     bool
 	// GoalLeaseID binds autonomous-goal tool context to the same application
 	// lease whose terminal accounting will consume the resumed Segment.
 	GoalLeaseID string
@@ -385,6 +391,7 @@ func (e *Engine) RestoreTurn(ctx context.Context, rootProcessID string, request 
 		RootProcessID:  rootProcessID,
 		SessionID:      request.SessionID,
 		Cwd:            request.Cwd,
+		WorkspaceCwd:   request.WorkspaceCwd,
 		Isolated:       request.Isolated,
 		GoalLeaseID:    request.GoalLeaseID,
 		ModelSelection: request.ModelSelection,

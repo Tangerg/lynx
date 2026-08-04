@@ -19,9 +19,13 @@
 | 多步骤工作的有序执行状态 | Plan | Todo、Checklist、Task List |
 | Plan 中的一项 | Step | Todo、Task、Item |
 | 跨多个 Run 自主追求的目标 | Goal | Mission、Long Task |
-| 委派给子 Agent 的工作 | Delegated Task | Process、Plan Step |
+| 委派给其他 Agent 的工作 | Delegated Task | Process、Plan Step、Subtask |
 | 后台命令执行句柄 | Shell | Process、Task、Job |
 | 定时执行定义 | Schedule | Cron Task、Scheduled Job |
+| 可复用的 Agent 指令集合 | Skill | Prompt Template、Recipe |
+| 等待人工评审的不可变 Skill 内容 | Skill Proposal | Skill Draft、Candidate |
+| Proposal 评审通过/拒绝 | Approve / Reject | Promote、Publish、Discard |
+| Skill 所属范围 | project / user | global、workspace-global |
 
 `Plan mode` 是编写和审批同一个 Plan 的 session-scoped 只读状态，不是第二种 Plan。Plan 在退出 Plan mode 后继续承担执行进度记录。
 
@@ -91,7 +95,7 @@
 - `objective` 是必填的自然语言最终状态，不是 Plan、下一步或 UI 标题；
 - `budget` 整体可选，只有用户明确给出限制时才传；三个限制均独立可选，零值/缺省表示该维度不设上限；
 - 工具不接受 provider/model：自然语言入口使用 Runtime 周围的默认模型选择，避免把当前执行 Checkpoint 的模型字段复制进工具 context；
-- 工具只在根 coding Agent 中出现，且描述明确禁止从普通 coding 请求推断自主执行授权；
+- 工具只在根 Agent 中出现，且描述明确禁止从普通请求推断自主执行授权；
 - 调用时 Driver 持久化 Goal，并把唯一 loop 加入受 Host 管理的 task group。loop 通过 admission 的可取消事件等待当前 Run 连同 terminal maintenance 完全释放 session，并等待同 working tree 的 destructive mutation 结束，再竞争下一次 Run admission；不在工具调用栈内同步嵌套 Run，也不轮询或创建无所有者 goroutine；
 - `WaitSessionStartable` 只是观察而非 reservation；若观察后被其他 Run 或 working-tree mutation 抢先，进程内 Gate 返回可识别的 `ErrRunAdmissionBusy`，Goal Driver 才重新等待。普通 `ErrSessionBusy` 或 durable conflict 不会被无限重试，而是按真实启动失败处理。
 
@@ -111,7 +115,7 @@
 - `outcome` 必填，只允许 `completed | blocked`，不再复用可任意修改状态的 `status` 参数；
 - `reason` 仅在 `blocked` 时必填且必须是具体阻塞条件，`completed` 时省略；
 - `completed` 只表示完整 objective 已实现并验证，不表示单个 Run、Plan 或部分步骤结束；
-- 工具只在 active Goal 的根 coding Run 开始构造工具清单时出现；`create_goal` 和 `get_goal` 在启用 Goal 能力的普通根 Run 中可见；三个工具均不提供给子 Agent。
+- 工具只在 active Goal 的根 Run 开始构造工具清单时出现；`create_goal` 和 `get_goal` 在启用 Goal 能力的普通根 Run 中可见；三个工具均不提供给委派 Agent。
 
 暂停、恢复、停止和预算调整属于用户或系统控制，不进入 `report_goal_outcome`。
 
@@ -128,7 +132,7 @@
 
 可见性过滤不是授权。执行时仍按 permission action、session mode 和安全策略重新判定。
 
-`enter_plan_mode` 与 `exit_plan_mode` 是一个例外：两者始终同时对根 coding Agent 可见，执行时分别校验当前 session 状态。Agent 的一次 Prompt 在开始时解析工具 registry，后续 tool rounds 复用该 registry；若按 Plan mode 动态隐藏其中一个，模型进入后同一轮无法退出。Runtime 不把应用状态泄露进 `agent` 核心来制造动态 registry 刷新。
+`enter_plan_mode` 与 `exit_plan_mode` 是一个例外：两者始终同时对根 Agent 可见，执行时分别校验当前 session 状态。Agent 的一次 Prompt 在开始时解析工具 registry，后续 tool rounds 复用该 registry；若按 Plan mode 动态隐藏其中一个，模型进入后同一轮无法退出。Runtime 不把应用状态泄露进 `agent` 核心来制造动态 registry 刷新。
 
 初始 Direct 工具保持精简：文件读取与搜索、一个模型适配的文件修改族、shell、用户提问、Plan、Goal、委派和工具发现。网络、记忆、LSP、Skill、MCP、A2A、Schedule 等默认 Deferred 或按状态出现。
 
@@ -145,14 +149,15 @@
 | 文件读取与搜索 | `read`、`glob`、`grep` | Direct |
 | 文件修改 | `apply_patch` **或** `edit` + `write` | 按模型 profile 互斥 Direct |
 | Shell 生命周期 | `shell`、`read_shell_output`、`stop_shell` | Direct |
-| Plan | `enter_plan_mode`、`set_plan`、`exit_plan_mode` | 根 coding Agent Direct |
+| Plan | `enter_plan_mode`、`set_plan`、`exit_plan_mode` | 根 Agent Direct |
 | Goal | `create_goal`、`get_goal`、`report_goal_outcome` | 根 Agent；report 仅 active Goal |
-| 编排与交互 | `delegate_task`、`ask_user` | 根/受限子角色按 resolver policy |
+| 编排与交互 | `delegate_task`、`ask_user` | 根/委派 Agent 按 resolver policy |
 | 工具渐进披露 | `search_tools`、`read_tool_result` | 有 deferred/offloaded 资源时出现 |
 | 代码智能 | `lsp` | Deferred |
 | 网络 | `web_search`、`web_fetch`、`http_request` | 配置可用时 Deferred |
 | 记忆与历史 | `search_memory`、`search_conversations` | 对应资源可用时 Deferred |
-| Skill 读取 | `list_skills`、`load_skill`、`read_skill_resource` | Deferred |
+| Skill 读取 | `list_skills`、`load_skill`、`read_skill_resource` | 根/委派 Agent Deferred |
+| Skill 提案 | `propose_skill` | 仅根 Agent、Deferred；只在用户明确要求保存工作流时调用 |
 | Schedule | `list_schedules`、`create_schedule`、`delete_schedule` | Schedule subsystem 可用时 Deferred |
 | 外部集成 | 动态 MCP / A2A 工具 | 连接可用时 Deferred |
 
@@ -182,7 +187,29 @@
 
 - `list_skills({})` 只列出当前 workspace 可见 Skill 的 name + description；`load_skill(name)` 只加载一个 Skill 的完整指令；`read_skill_resource(name,path)` 只读取已加载指令引用的 bundled resource，绝不执行脚本；
 - 三个工具都保持 Deferred，并由同一个 working-directory-scoped source 提供数据，但各自拥有严格的单动作 schema。删除 `skill(op=list|load|load_resource,name?,path?)` 及其条件必填、忽略字段和 dispatch 分支；
-- Skill usage 只在 `load_skill` 真正加载 global library Skill 时记录；list 与 resource read 不伪装成一次 instruction use。
+- Skill usage 只在 `load_skill` 真正加载 user library Skill 时记录；list 与 resource read 不伪装成一次 instruction use。
+
+### Skill Proposal 与 `propose_skill`
+
+```json
+{
+  "name": "review-go-api",
+  "description": "Review a Go API before implementation. Use when a design changes exported behavior.",
+  "instructions": "Read the design, inspect consumers, and report compatibility risks.",
+  "scope": "project"
+}
+```
+
+- `propose_skill` 是 Skill 自然语言创作的唯一模型入口，只在用户明确要求保存、创建或沉淀一个可复用工作流时调用；“这个流程看起来有用”不构成授权；
+- 参数只包含模型真正决定的 `name / description / instructions / scope`。`scope` 是闭集：`project` 仅属于当前 workspace，`user` 跨 workspace 属于当前用户；
+- `name` 是稳定的 lowercase-hyphenated identifier；`description` 同时说明“做什么”和“何时使用”；`instructions` 是未来 Agent 可独立执行的完整指令，不携带本次进度、瞬时环境或 secret；
+- session、cwd、origin 由执行上下文补齐，绝不作为模型参数。前台工具固定写入 `origin=requested`；后台 Miner 固定写入 `origin=mined`；
+- 工具只提交不可变 Proposal，并返回 `pending_review + scope + name + revision`。它不 interrupt、不 approve、不 activate，也不复用前端交互作为调用前置条件；
+- Proposal 按内容寻址并存入目标 library 的 `_proposals/<revision>/SKILL.md`。`revision` 同时覆盖 scope、name 和完整文件内容，评审操作不会误作用于后来变化的内容；
+- 服务端评审面唯一使用 `skills.proposals.list / approve / reject`。list 必须带 workspace 并返回完整 description、instructions、scope、origin、source session 和 revises；approve/reject 必须携带 workspace、scope、name、revision；
+- `Draft / promote / discard / global` 已从 Skill 领域、存储、应用和服务端协议移除，不提供别名或兼容转换；
+- 显式用户创作与自动 Miner 共享应用层 `SubmitSkillProposal`，但触发策略不同：工具只响应明确用户意图；Miner 只在复杂轨迹达到 cadence 时自主蒸馏，并默认提交 user Proposal。两者都不能直接激活 Skill；
+- Tool adapter 只依赖单方法 `Submitter`，Miner 也只依赖同一单方法应用能力；project/user 文件布局由 adapter 路由，Application 不认识 `.lyra`，Agent 核心只接收通用 `tool.Tool`。
 
 ## 7. 删除与收敛
 
@@ -190,14 +217,15 @@
 
 - `download` 及其专属组装、路径写入与 allowlist 派生；通用 HTTP allowlist 继续只服务 `http_request`；
 - `sourcegraph_search` 及 Sourcegraph endpoint/token 配置；
-- 内建 `propose_skill`，由 Skill authoring 工作流取代；
+- 旧的组合式 Skill authoring 路径（stage + HITL + promote/discard）；
+- `SkillDraft`、`_drafts`、`skills.drafts.*` 以及 promote/discard 术语；
 - Todo 领域、工具、store、wire 和 UI 术语。
 
 ### 从模型工具面移除
 
 - `codebase_search`；代码索引仅在仍有前端消费方时保留；
-- 共享 session Plan store 的子 Agent 写入口；
-- 普通子 Agent 的递归委派入口。
+- 共享 session Plan store 的委派 Agent 写入口；
+- 普通委派 Agent 的递归委派入口。
 
 ### 合并或拆分
 
@@ -247,6 +275,9 @@
 | 5 | 工具名、参数和描述的全量收敛 | 完成 |
 | 6 | 删除冗余能力和配置 | 完成（6a、6b、6c） |
 | 7 | 全仓验证、文档收敛和最终审计 | 完成（7a—7g） |
+| 8a | Skill Proposal 领域、双作用域存储、应用用例与服务端评审协议 | 完成 |
+| 8b | 根 Agent 自然语言 `propose_skill` 与统一 Miner 提交链 | 完成 |
+| 8c | 桌面前端 Proposal 接线与新 canonical samples | 延后到前端专项 |
 
 每批必须独立验证、独立提交并推送。实现发现契约需要调整时，先更新本文，再在同一批修改代码和测试。
 
@@ -274,7 +305,7 @@
 
 - 以 `Plan -> Step{description,status}` 作为唯一多步骤状态模型，完整删除当前服务端中的 Todo 包、store、工具、query、feature 和 wire 名称；
 - `set_plan` 使用必填完整 `steps` 数组做 whole replacement，空数组清空，领域层保证描述非空、状态闭集且最多一个 `in_progress`；
-- `set_plan` 只对根 coding Agent 可见；子 Agent 可读取注入提示中的当前 Plan，但不能替换共享 Plan；
+- `set_plan` 只对根 Agent 可见；委派 Agent 可读取注入提示中的当前 Plan，但不能替换共享 Plan；
 - Plan 随 session 的 fork、rollback、export/import 和 delete 生命周期移动，独立 revision 保证 state snapshot 单调；artifact 提升到 v10，旧 artifact 直接拒绝，不增加迁移或别名；
 - 删除未被执行路径产生的 transcript plan Item、plan delta 及其第二套 `running/failed` Step 状态，只保留 session Plan 一套语义；
 - `app/runtime` 的根模块依赖提升到已推送的工具 schema 版本，保证 workspace 与 `GOWORK=off` 使用同一份 input contract；
@@ -287,7 +318,7 @@
 - 新增无参数 `enter_plan_mode`：只收窄当前 session 权限并捕获进入时的精确 mode；重复进入幂等，不覆盖最初恢复值；
 - 将 `exit_plan_mode` 改为无参数：只读取并展示 canonical session Plan，不再接受第二份 `plan` 文本或 `options`，避免“Agent 状态”和“待审批文本”分叉；拒绝保持 Plan mode，批准恢复进入时捕获的 mode；
 - Plan mode 通过 `session_permission_modes` 持久化并由 session foreign key 管理生命周期；默认 mode 在进出期间改变，也不会改变该 session 的精确恢复结果；
-- 三个 Plan 工具只对根 coding Agent 可见，子 Agent 无进入、退出或共享 Plan 写权限；`enter_plan_mode`、`set_plan`、`exit_plan_mode` 均归入无需外层 approval 的 safe control operation，其中退出工具自己拥有一次明确审批；
+- 三个 Plan 工具只对根 Agent 可见，委派 Agent 无进入、退出或共享 Plan 写权限；`enter_plan_mode`、`set_plan`、`exit_plan_mode` 均归入无需外层 approval 的 safe control operation，其中退出工具自己拥有一次明确审批；
 - 删除最初尝试的 mode-driven resolver gate：一次 Agent Prompt 不会在 tool rounds 之间重建 registry，保留该 gate 会导致进入后无法退出。两个 mode 工具改为同时可见并在执行边界校验状态，没有为产品状态修改 `agent` 核心；
 - 边界审计确认 permission policy、Plan mode store、Plan tool adapters 和 delivery mapping 全部留在 `app/runtime`；turn 只依赖 `Mode(ctx, sessionID)`，工具只依赖 `EnterPlanMode`、`ExitPlanMode`、`List` 窄端口，SQLite 实现未穿透到 resolver 或 Agent；
 - 服务端 schema 与 Go validator 已重新生成；仍按本轮范围不修改桌面 TypeScript 和 canonical samples，因此完整 drift 测试继续只报告已记录的前端接线差异。
@@ -297,10 +328,10 @@
 - 将旧 `update_goal(status="complete|blocked")` 完整替换为 `report_goal_outcome(outcome="completed|blocked", reason?)`；工具名称、参数、enum、描述、Goal prompt、注释、安全分类和测试使用同一套报告语义，不保留别名或兼容字段；
 - 新增 `create_goal(objective,budget?)` 和无参数 `get_goal`。`create_goal` 只响应用户明确的跨 Run 自主执行请求；`get_goal` 返回模型可操作的 Goal 投影，并剔除 lease/revision 内部机制；
 - `create_goal` 通过 Goal Driver 的 `Start` 窄端口持久化并启动受 task group 所有的 loop；Goal Run 在 runs `WaitSessionStartable` 观察到当前 Run、pending opening、terminal maintenance 和 working-tree mutation 全部释放后才开始，且只对 Gate 标记的可恢复 admission 竞争重试；
-- `get_goal` 始终对启用 Goal 的根 coding Agent 可见；`report_goal_outcome` 只在该 session 存在 active Goal 时可见；`create_goal` 在 Driver 构造完成后晚绑定到根 resolver。子 Agent 不获得任何 Goal 生命周期或状态报告能力；
+- `get_goal` 始终对启用 Goal 的根 Agent 可见；`report_goal_outcome` 只在该 session 存在 active Goal 时可见；`create_goal` 在 Driver 构造完成后晚绑定到根 resolver。委派 Agent 不获得任何 Goal 生命周期或状态报告能力；
 - 晚绑定 seam 只传递通用 `tool.Tool`。Resolver 不持有 Driver，`agentexec.ToolResolver` 不新增 Goal 方法，`agent` 模块不知道 Goal、session admission 或 Runtime lifecycle；`create/get/report/active gate` 分别消费 `Starter/Reader/Reporter/ActiveReader` 单方法接口，只有 tool family 的 BuildConfig 组合为 `State`；没有引入 Bootstrap proxy、store facade、unowned goroutine 或复制的 Run 状态；
 - admission/runs 只新增通用的 Run-startable 事件等待与可恢复 Gate 竞争分类，不知道 Goal。Goal application 只依赖 `WaitSessionStartable/Start/Cancel` Run 用例接口，不读取 Gate、registry 或 delivery DTO；边界扫描继续确认 `agent` 对 `app/runtime` 零导入，domain/application 对 adapter/infra/delivery/bootstrap 零反向依赖；
-- 聚焦测试覆盖当前 Run 释放后启动、terminal maintenance 等待、context 取消、admission 丢失竞争重试、终态 CAS、Schema 词汇、根/子角色可见性和安全表可达性。
+- 聚焦测试覆盖当前 Run 释放后启动、terminal maintenance 等待、context 取消、admission 丢失竞争重试、终态 CAS、Schema 词汇、根/委派角色可见性和安全表可达性。
 
 ### 批次 4
 
@@ -343,7 +374,7 @@
 
 - 将三操作 `skill(op=...)` 完整拆为 `list_skills({})`、`load_skill(name)`、`read_skill_resource(name,path)`；删除 `op`、条件必填参数、operation constants、dispatch switch 和仅服务旧总集的 errors；
 - `tools/skills` 继续只依赖只读 `skills.ResourceSource`，一个具体 `toolSet` 直接承载三个 typed function，没有新增 registry、operation framework 或 runtime-facing interface；
-- Runtime 的 working-directory adapter 返回三工具切片并统一标为 Deferred，Resolver 只展开通用 `[]tool.Tool`；usage recorder 仍通过 Source decorator 只观察成功的 global `Load`，没有进入模型契约；
+- Runtime 的 working-directory adapter 返回三工具切片并统一标为 Deferred，Resolver 只展开通用 `[]tool.Tool`；usage recorder 仍通过 Source decorator 只观察成功的 user `Load`，没有进入模型契约；
 - 安全表以三个真实名称替换旧 `skill`，catalog completeness guard 同时约束可达性；通用 Agent、ToolDefinition 与 Skill repository 接口均未增加 app/runtime 概念。
 
 ### 批次 6a
@@ -363,10 +394,9 @@
 
 ### 批次 6c
 
-- 从服务端模型工具面完整删除 `propose_skill` package、definition、schema、HITL interrupt adapter、BuildConfig/Deps 字段、Deferred exposure、安全分类和专属测试；不保留旧名称、隐藏注册或兼容入口；
-- 前台 coding Agent 不再承担“何时值得沉淀 Skill”的元决策，也不再通过一个工具同时 stage、提问和 promote。该组合能力与已有 post-turn trajectory miner、draft review API 和 Skill lifecycle 管理重复，并把产品级 authoring workflow 混进 coding manifest；
-- 保留 `skills.Draft` 领域、`infra/skillauthoring.Store`、后台 SkillMiner、usage curator，以及客户端 `list/promote/reject` draft contract：后台从真实轨迹生成或修订候选，静态验证后只 stage；用户通过显式管理工作流审核并晋升，不赋予模型自发布路径；
-- Toolset 现在只消费 Skill 的 read source 与 load usage recorder，不再持有 `Promote/DiscardDraft` 写端口或 authoring store。Bootstrap 仍在 composition root 构造一个 store，并分别把窄能力交给 maintenance、workspace application 和 read-usage adapter，没有把 store、draft handle 或 HITL DTO 泄露进 `agent`。
+- 当时从服务端模型工具面删除了旧 `propose_skill`：该实现把 stage、HITL interrupt、promote/discard 合在一次工具调用中，既重复后台 Miner，又让模型拥有不清晰的发布路径；
+- 同批保留后台 SkillMiner、usage curator 与客户端评审面，Toolset 暂时只消费只读 Skill source 与 usage recorder；
+- **本批结论已被批次 8 的新需求取代。** 当前实现保留同名但全新单一职责的 `propose_skill`：只响应用户明确创作意图并提交 Proposal，不再恢复旧 HITL 或发布行为；旧 Draft/promote/discard 领域仍然彻底删除。
 
 ### 批次 7a
 
@@ -421,4 +451,23 @@
 - 完整 `app/runtime go test ./...` 只失败于 `internal/arch` 与 `internal/delivery/protocol`：桌面 TypeScript generated contract 未反映 Plan/GetPlan 与 artifact v10，canonical samples 仍是 Todo/artifact v9，另有旧 plan delta/item samples 已无 server binding。它们完全落在用户指定的下一轮前端专项范围，本轮没有越界生成或修改；
 - 生产 Go 源码扫描确认旧工具名、旧参数名和 `weather_query` 均无模型入口；固定内建 catalog 的 safety/strict-schema/implementation-word 三组 fitness checks 全部通过；
 - 最终边界扫描再次确认 `agent` 对 `app/runtime` 零导入，runtime domain/application 对 adapter/infra/delivery/bootstrap 零反向依赖；没有为收尾新增 facade、胖接口、通用 manifest 状态或兼容 decoder；
-- 删除结论保持不变：`download`、`sourcegraph_search`、Agent `codebase_search`、`propose_skill` 与 Todo 全部移除；client codebase index 与后台 Skill authoring 因仍有非模型真实消费者而保留。服务端 Tool System vNext 至此完成。
+- 当时的删除结论包含 `propose_skill`；该单点结论已由批次 8 取代。`download`、`sourcegraph_search`、Agent `codebase_search` 与 Todo 的删除结论不变；client codebase index 与后台 Skill authoring 继续因非模型真实消费者而保留。
+
+### 批次 8a
+
+- 将 Skill authoring 的规范词汇统一为 `Proposal / Submit / Approve / Reject / project / user`，完整删除 `Draft / SaveDraft / Promote / Discard / global` 及其 store、application、wire 和 RPC 名称，不保留兼容别名；
+- `skills.ProposalRef{scope,name,revision}` 绑定 scope、name 与完整渲染内容的 SHA-256，project/user store 都在 `_proposals` 保存不可变内容；评审 list 返回完整指令和 provenance，不再让用户只凭摘要审批；
+- 新增 adapter-owned `skillproposal.Libraries`，以 workspace root 路由 project library、以配置 root 路由 user library。Application 只接收已解析 root 和领域 Proposal，不认识 `.lyra/skills` 文件布局；
+- 服务端评审协议改为 `skills.proposals.list / approve / reject`，请求显式携带 workspace 和 scope，旧 `skills.drafts.*` 直接消失；本轮只生成 Go contract 和 validator，桌面 TypeScript 与 canonical samples 按约定留给前端专项；
+- SkillMiner 改为消费应用层单方法 `SubmitSkillProposal`，固定提交 `scope=user, origin=mined`，不再直连 `skillauthoring.Store`。前台与后台共享持久化不变量，但不共享触发策略。
+
+### 批次 8b
+
+- 新建根 Agent Deferred 工具 `propose_skill(name,description,instructions,scope)`；四个字段均严格校验，scope 仅允许 `project | user`，未知字段由 typed function schema 拒绝；
+- definition 明确规定“只有用户明确要求保存工作流才调用”，并明确 Proposal 仍待评审、不会 activate/publish/run；one-off fact、普通进度、瞬时修复和 secret 都是反例；
+- session、cwd 与 `origin=requested` 只从 execution context 注入；模型 schema 不出现 host identity、provenance、review decision 或文件路径；返回值只含 `pending_review` 与不可变 ref；
+- Resolver 将工具设为 root-only + Deferred，委派 Agent 不注册；safety 归类为 Safe，因为它只记录用户明确要求的待评审内容且无法激活能力，额外 approval 会重复同一意图门；
+- 工具角色词汇同步收敛为 `root / delegated`；删除把根角色称作 `coding`、把委派角色称作 `subtask` 的内部常量与 resolver 名称，使通用场景与策略名称保持一致；
+- Tool adapter 只定义单方法 `Submitter`，Bootstrap 在 composition root 把 `workspace.Skills` 赋给它；Resolver 与 Agent 只看通用 `tool.Tool`，没有引入 application coordinator、store、delivery DTO 或 Skill filesystem layout；
+- 隔离审计发现原有 `TurnScope.Cwd` 在 isolated Run 中指向短命 scratch copy，不能作为 project Proposal 的持久 workspace identity；执行上下文因此治本式拆为 execution Cwd 与 `WorkspaceCwd`，fresh/restore/checkpoint 全链路保持两者。文件与 Shell 继续使用 execution Cwd，Proposal 使用 persistent workspace，避免把 Skill 写进随后销毁的 sandbox；
+- 参数、角色、Deferred manifest、provenance、双作用域路由、安全表和 catalog completeness 均有聚焦测试；服务端 build/vet 通过，完整 test 仅保留明确延后的桌面 generated contract/sample 漂移。

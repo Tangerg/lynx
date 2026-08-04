@@ -22,10 +22,11 @@ var ErrInvalidExecutorCheckpoint = errors.New("invalid executor checkpoint")
 // sessions, workspace isolation, and autonomous-goal leases are host concepts,
 // not planner state.
 type TurnScope struct {
-	SessionID   string
-	Cwd         string
-	Isolated    bool
-	GoalLeaseID string
+	SessionID    string
+	Cwd          string
+	WorkspaceCwd string
+	Isolated     bool
+	GoalLeaseID  string
 }
 
 // Validate rejects ambiguous host identities before they cross a durable
@@ -40,6 +41,7 @@ func (s TurnScope) Validate() error {
 	}{
 		{name: "session ID", value: s.SessionID},
 		{name: "working dir", value: s.Cwd},
+		{name: "workspace dir", value: s.WorkspaceCwd},
 		{name: "goal lease ID", value: s.GoalLeaseID},
 	} {
 		if field.value != strings.TrimSpace(field.value) {
@@ -71,6 +73,7 @@ type ExecutorCheckpointExpectation struct {
 	RootProcessID  string
 	SessionID      string
 	Cwd            string
+	WorkspaceCwd   string
 	Isolated       bool
 	GoalLeaseID    string
 	ModelSelection modelref.Selection
@@ -155,6 +158,9 @@ func (c ExecutorCheckpoint) ValidateFor(expected ExecutorCheckpointExpectation) 
 	if expected.Cwd != strings.TrimSpace(expected.Cwd) {
 		return fmt.Errorf("%w: expected working dir has surrounding whitespace", ErrInvalidExecutorCheckpoint)
 	}
+	if expected.WorkspaceCwd != strings.TrimSpace(expected.WorkspaceCwd) {
+		return fmt.Errorf("%w: expected workspace dir has surrounding whitespace", ErrInvalidExecutorCheckpoint)
+	}
 	if err := expected.ModelSelection.Validate(); err != nil {
 		return fmt.Errorf("%w: expected model selection: %w", ErrInvalidExecutorCheckpoint, err)
 	}
@@ -170,6 +176,14 @@ func (c ExecutorCheckpoint) ValidateFor(expected ExecutorCheckpointExpectation) 
 			ErrInvalidExecutorCheckpoint,
 			c.Scope.Cwd,
 			expected.Cwd,
+		)
+	}
+	if c.Scope.WorkspaceCwd != expected.WorkspaceCwd {
+		return fmt.Errorf(
+			"%w: workspace dir %q does not match owner %q",
+			ErrInvalidExecutorCheckpoint,
+			c.Scope.WorkspaceCwd,
+			expected.WorkspaceCwd,
 		)
 	}
 	if c.Scope.Isolated != expected.Isolated {

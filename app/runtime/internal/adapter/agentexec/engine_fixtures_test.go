@@ -76,7 +76,7 @@ func mustEngineWith(t *testing.T, client *chatclient.Client, bc toolset.BuildCon
 
 func codingTools(t *testing.T, resolver *toolset.Resolver) []toolcontract.Tool {
 	t.Helper()
-	group, ok, err := resolver.Resolve(t.Context(), tool.GroupCoding)
+	group, ok, err := resolver.Resolve(t.Context(), tool.GroupRoot)
 	if err != nil || !ok {
 		t.Fatalf("Resolve(coding) = %v, %v", ok, err)
 	}
@@ -129,6 +129,7 @@ func expectationForCheckpoint(
 		RootProcessID:  checkpoint.RootProcessID,
 		SessionID:      checkpoint.Scope.SessionID,
 		Cwd:            checkpoint.Scope.Cwd,
+		WorkspaceCwd:   checkpoint.Scope.WorkspaceCwd,
 		Isolated:       checkpoint.Scope.Isolated,
 		GoalLeaseID:    checkpoint.Scope.GoalLeaseID,
 		ModelSelection: checkpoint.ModelSelection,

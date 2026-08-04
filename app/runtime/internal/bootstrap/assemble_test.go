@@ -15,6 +15,7 @@ import (
 	"github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/proposeskill"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/goals"
 	scheduleapp "github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
 	"github.com/Tangerg/lynx/app/runtime/internal/component/shutdown"
@@ -184,8 +185,9 @@ func TestAssemblyFailureReclaimsToolsAndOwnedResources(t *testing.T) {
 		scheduleCoord *scheduleapp.Coordinator,
 		goalState *goals.State,
 		skillStore *skillauthoring.Store,
+		skillProposals proposeskill.Submitter,
 	) (toolEnvironment, error) {
-		built, err := buildToolEnvironment(ctx, cfg, ecfg, policy, mcpEnv, searcher, scheduleCoord, goalState, skillStore)
+		built, err := buildToolEnvironment(ctx, cfg, ecfg, policy, mcpEnv, searcher, scheduleCoord, goalState, skillStore, skillProposals)
 		if err != nil {
 			return toolEnvironment{}, err
 		}
@@ -225,6 +227,7 @@ func TestAssemblyBuilderFailureReclaimsReturnedAcquisitions(t *testing.T) {
 		*scheduleapp.Coordinator,
 		*goals.State,
 		*skillauthoring.Store,
+		proposeskill.Submitter,
 	) (toolEnvironment, error) {
 		return toolEnvironment{
 			closers: []ShutdownResource{shutdown.New(func(context.Context) error {
@@ -268,8 +271,9 @@ func TestAssemblyFailureRetainsRetryableCleanupOwner(t *testing.T) {
 		scheduleCoord *scheduleapp.Coordinator,
 		goalState *goals.State,
 		skillStore *skillauthoring.Store,
+		skillProposals proposeskill.Submitter,
 	) (toolEnvironment, error) {
-		built, err := buildToolEnvironment(ctx, cfg, ecfg, policy, mcpEnv, searcher, scheduleCoord, goalState, skillStore)
+		built, err := buildToolEnvironment(ctx, cfg, ecfg, policy, mcpEnv, searcher, scheduleCoord, goalState, skillStore, skillProposals)
 		if err != nil {
 			return toolEnvironment{}, err
 		}
@@ -322,8 +326,9 @@ func TestAssemblyDirectToolsDoNotDependOnAgentResolver(t *testing.T) {
 		scheduleCoord *scheduleapp.Coordinator,
 		goalState *goals.State,
 		skillStore *skillauthoring.Store,
+		skillProposals proposeskill.Submitter,
 	) (toolEnvironment, error) {
-		built, err := buildToolEnvironment(ctx, cfg, ecfg, policy, mcpEnv, searcher, scheduleCoord, goalState, skillStore)
+		built, err := buildToolEnvironment(ctx, cfg, ecfg, policy, mcpEnv, searcher, scheduleCoord, goalState, skillStore, skillProposals)
 		if err != nil {
 			return toolEnvironment{}, err
 		}

@@ -2,10 +2,10 @@
 package tool
 
 const (
-	// GroupCoding is the complete coding surface used by a root chat agent.
-	GroupCoding = "coding"
-	// GroupSubtask is the bounded coding surface used by delegated agents.
-	GroupSubtask = "subtask"
+	// GroupRoot is the complete product-tool surface used by the root Agent.
+	GroupRoot = "root"
+	// GroupDelegated is the bounded surface used by delegated Agents.
+	GroupDelegated = "delegated"
 
 	// NameReadToolResult is the model-facing name of the tool that reads an
 	// offloaded result back into the conversation.

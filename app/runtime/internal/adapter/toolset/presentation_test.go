@@ -13,6 +13,9 @@ func TestPresenterActivity(t *testing.T) {
 	if got := presenter.Activity(toolNameWebSearch); got != "Searching the web" {
 		t.Fatalf("web search activity = %q", got)
 	}
+	if got := presenter.Activity(toolNameProposeSkill); got != "Proposing a Skill" {
+		t.Fatalf("propose Skill activity = %q", got)
+	}
 	if got := presenter.Activity("external_tool"); got != "" {
 		t.Fatalf("unknown activity = %q, want empty", got)
 	}

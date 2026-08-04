@@ -818,10 +818,11 @@ func TestEngine_RestoreChat_PreservesOptionsFromSnapshot(t *testing.T) {
 	maxTokens := int64(321)
 	observer := &hitlApprovalObserver{}
 	wantScope := execution.TurnScope{
-		SessionID:   "session-restore",
-		Cwd:         "/workspace/restore",
-		Isolated:    true,
-		GoalLeaseID: "goal-lease-restore",
+		SessionID:    "session-restore",
+		Cwd:          "/sandbox/restore",
+		WorkspaceCwd: "/workspace/restore",
+		Isolated:     true,
+		GoalLeaseID:  "goal-lease-restore",
 	}
 	wantProvider := "selected-provider"
 	wantSelection := mustTestSelection(t, wantProvider, "selected-model")
@@ -836,6 +837,7 @@ func TestEngine_RestoreChat_PreservesOptionsFromSnapshot(t *testing.T) {
 		Message:        "echo lyra",
 		ModelSelection: wantSelection,
 		Cwd:            wantScope.Cwd,
+		WorkspaceCwd:   wantScope.WorkspaceCwd,
 		Isolated:       wantScope.Isolated,
 		GoalLeaseID:    wantScope.GoalLeaseID,
 		Limits:         wantLimits,
@@ -890,6 +892,7 @@ func TestEngine_RestoreChat_PreservesOptionsFromSnapshot(t *testing.T) {
 		SessionID:      "another-session",
 		ModelSelection: wantSelection,
 		Cwd:            wantScope.Cwd,
+		WorkspaceCwd:   wantScope.WorkspaceCwd,
 		Isolated:       wantScope.Isolated,
 		GoalLeaseID:    wantScope.GoalLeaseID,
 		Limits:         wantLimits,
@@ -901,6 +904,7 @@ func TestEngine_RestoreChat_PreservesOptionsFromSnapshot(t *testing.T) {
 		SessionID:      wantScope.SessionID,
 		ModelSelection: mustTestSelection(t, "another-provider", wantSelection.Model()),
 		Cwd:            wantScope.Cwd,
+		WorkspaceCwd:   wantScope.WorkspaceCwd,
 		Isolated:       wantScope.Isolated,
 		GoalLeaseID:    wantScope.GoalLeaseID,
 		Limits:         wantLimits,
@@ -912,6 +916,7 @@ func TestEngine_RestoreChat_PreservesOptionsFromSnapshot(t *testing.T) {
 		SessionID:      wantScope.SessionID,
 		ModelSelection: mustTestSelection(t, wantSelection.Provider(), "another-model"),
 		Cwd:            wantScope.Cwd,
+		WorkspaceCwd:   wantScope.WorkspaceCwd,
 		Isolated:       wantScope.Isolated,
 		GoalLeaseID:    wantScope.GoalLeaseID,
 		Limits:         wantLimits,
@@ -934,6 +939,7 @@ func TestEngine_RestoreChat_PreservesOptionsFromSnapshot(t *testing.T) {
 		SessionID:      wantScope.SessionID,
 		ModelSelection: wantSelection,
 		Cwd:            wantScope.Cwd,
+		WorkspaceCwd:   wantScope.WorkspaceCwd,
 		Isolated:       wantScope.Isolated,
 		GoalLeaseID:    "another-goal-lease",
 		Limits:         wantLimits,
@@ -946,6 +952,7 @@ func TestEngine_RestoreChat_PreservesOptionsFromSnapshot(t *testing.T) {
 		SessionID:      wantScope.SessionID,
 		ModelSelection: wantSelection,
 		Cwd:            wantScope.Cwd,
+		WorkspaceCwd:   wantScope.WorkspaceCwd,
 		Isolated:       wantScope.Isolated,
 		GoalLeaseID:    wantScope.GoalLeaseID,
 		Limits:         wantLimits,

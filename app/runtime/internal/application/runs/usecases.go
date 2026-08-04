@@ -59,6 +59,7 @@ func (c *Coordinator) Start(ctx context.Context, cmd StartCommand) (StartResult,
 		return StartResult{}, err
 	}
 	draft.Cwd = execCwd
+	draft.WorkspaceCwd = sess.Cwd
 	draft.Isolated = isolated
 	turn, err := c.turns.PrepareStart(ctx, draft)
 	if err != nil {
@@ -934,6 +935,7 @@ func (c *Coordinator) prepareTurn(ctx context.Context, pending interrupts.Pendin
 		ChildRuns:                childRunBindingsFromPending(pending),
 		ModelSelection:           root.ModelSelection,
 		Cwd:                      cwd,
+		WorkspaceCwd:             cwd,
 		Isolated:                 isolated,
 		GoalLeaseID:              pending.GoalLeaseID,
 		Limits:                   root.Limits,

@@ -294,7 +294,7 @@ func TestStartOwnsCompleteAdmissionSequence(t *testing.T) {
 	if result.RunID != "run_new" || result.SegmentID != "seg_new" || result.SessionID != "ses_1" {
 		t.Fatalf("result = %+v", result)
 	}
-	if turns.started.SessionID != "ses_1" || turns.started.Cwd != "/work" {
+	if turns.started.SessionID != "ses_1" || turns.started.Cwd != "/work" || turns.started.WorkspaceCwd != "/work" {
 		t.Fatalf("started turn = %+v", turns.started)
 	}
 	wantLimits := execution.RunLimits{MaxTotalTokens: 16_384, MaxSteps: 12, MaxBudgetUSD: 3.5}
@@ -313,6 +313,28 @@ func TestStartOwnsCompleteAdmissionSequence(t *testing.T) {
 		t.Fatalf("opening limits = %+v, want %+v", opening.Admit.Limits, wantLimits)
 	} else if opening.SessionModel == nil || opening.SessionModel.SessionID != "ses_1" || opening.SessionModel.Model != "model" {
 		t.Fatalf("opening session model = %+v, want ses_1/model", opening.SessionModel)
+	}
+}
+
+func TestStartSeparatesIsolatedExecutionDirFromPersistentWorkspace(t *testing.T) {
+	exec := &fakeExecutor{}
+	effects := &fakeEffects{}
+	sessions := &fakeRunSessions{sess: session.Session{ID: "ses_1", Cwd: "/work", Isolated: true}}
+	turns := &fakeTurnControl{startTurn: execution.TurnRef{SessionID: "ses_1", TurnID: "turn_1"}}
+	c := newUseCaseCoordinator(exec, turns, sessions, effects)
+	c.isolation = &stubIsolation{path: "/sandbox/copy"}
+
+	result, err := c.Start(t.Context(), StartCommand{
+		SessionID: "ses_1",
+		Input:     []transcript.ContentBlock{{Kind: transcript.TextContent, Text: "hello"}},
+	})
+	if err != nil {
+		t.Fatalf("Start: %v", err)
+	}
+	for range result.Events {
+	}
+	if turns.started.Cwd != "/sandbox/copy" || turns.started.WorkspaceCwd != "/work" || !turns.started.Isolated {
+		t.Fatalf("started turn scope = %+v", turns.started)
 	}
 }
 

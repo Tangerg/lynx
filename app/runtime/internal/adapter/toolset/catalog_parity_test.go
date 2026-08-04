@@ -23,6 +23,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/schedule"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/skills"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
 
@@ -84,6 +85,12 @@ func (allWiredSessionSearch) SearchTranscript(context.Context, string, int) ([]t
 	return nil, nil
 }
 
+type allWiredSkillProposals struct{}
+
+func (allWiredSkillProposals) SubmitSkillProposal(_ context.Context, _ string, proposal skills.Proposal) (skills.ProposalRef, error) {
+	return skills.NewProposalRef(proposal.Scope, proposal.Name, []byte(proposal.Instructions)), nil
+}
+
 func toolNameSet(ts []toolcontract.Tool) map[string]bool {
 	names := make(map[string]bool, len(ts))
 	for _, t := range ts {
@@ -140,7 +147,7 @@ func TestCodingResolverIncludesConfiguredConditionalTools(t *testing.T) {
 	closeBuiltToolset(t, built)
 	wireCreateGoal(t, built.Resolver)
 
-	group, ok, err := built.Resolver.Resolve(t.Context(), tool.GroupCoding)
+	group, ok, err := built.Resolver.Resolve(t.Context(), tool.GroupRoot)
 	if err != nil || !ok {
 		t.Fatalf("Resolve(coding) = %v, %v", ok, err)
 	}
@@ -175,15 +182,16 @@ func TestSafetyTableMatchesBuiltInTools(t *testing.T) {
 		t.Fatalf("approval policy: %v", err)
 	}
 	built, err := Build(t.Context(), BuildConfig{
-		Workdir:         t.TempDir(),
-		SkillsUserDir: t.TempDir(), // backs skill
-		PlanMode:        policy,
-		Plan:            rolePlanStore{},
-		Goals:           activeGoalState{},
-		Schedules:       allWiredSchedules{},   // backs schedule
-		ToolResults:     allWiredToolResults{}, // backs read_tool_result
-		MemorySearch:    allWiredMemorySearch{},
-		SessionSearch:   allWiredSessionSearch{},
+		Workdir:                t.TempDir(),
+		SkillsUserDir:          t.TempDir(), // backs skill
+		PlanMode:               policy,
+		Plan:                   rolePlanStore{},
+		Goals:                  activeGoalState{},
+		Schedules:              allWiredSchedules{},   // backs schedule
+		ToolResults:            allWiredToolResults{}, // backs read_tool_result
+		MemorySearch:           allWiredMemorySearch{},
+		SessionSearch:          allWiredSessionSearch{},
+		SkillProposalSubmitter: allWiredSkillProposals{},
 		Online: OnlineConfig{
 			JinaAPIKey:       "test-jina",
 			TavilyAPIKey:     "test-tavily",
@@ -199,7 +207,7 @@ func TestSafetyTableMatchesBuiltInTools(t *testing.T) {
 	closeBuiltToolset(t, built)
 	wireCreateGoal(t, built.Resolver)
 
-	group, ok, err := built.Resolver.Resolve(t.Context(), tool.GroupCoding)
+	group, ok, err := built.Resolver.Resolve(t.Context(), tool.GroupRoot)
 	if err != nil || !ok {
 		t.Fatalf("Resolve(coding) = %v, %v", ok, err)
 	}

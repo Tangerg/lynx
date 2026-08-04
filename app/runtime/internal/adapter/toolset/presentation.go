@@ -22,6 +22,7 @@ const (
 	toolNameStopShell       = "stop_shell"
 	toolNameDelegateTask    = "delegate_task"
 	toolNameSetPlan         = "set_plan"
+	toolNameProposeSkill    = "propose_skill"
 	toolNameWebFetch        = "web_fetch"
 	toolNameWebSearch       = "web_search"
 	toolNameWrite           = "write"
@@ -63,6 +64,8 @@ func (Presenter) Activity(name string) string {
 		return "Waiting for your answer"
 	case toolNameSetPlan:
 		return "Updating the plan"
+	case toolNameProposeSkill:
+		return "Proposing a Skill"
 	default:
 		return ""
 	}

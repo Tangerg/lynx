@@ -101,6 +101,7 @@ func (s *memoryDispatcher) Rehydrate(ctx context.Context, request runs.Rehydrate
 		SessionID:      request.SessionID,
 		ModelSelection: request.ModelSelection,
 		Cwd:            request.Cwd,
+		WorkspaceCwd:   request.WorkspaceCwd,
 		Isolated:       request.Isolated,
 		GoalLeaseID:    request.GoalLeaseID,
 		Limits:         request.Limits,

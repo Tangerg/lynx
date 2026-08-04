@@ -85,15 +85,17 @@ func TestExecutorCheckpointValidatesCrossAggregateOwnership(t *testing.T) {
 		Payload:       []byte("opaque"),
 		BuildID:       "build",
 		Scope: TurnScope{
-			SessionID: "session-1",
-			Cwd:       "/workspace/project",
+			SessionID:    "session-1",
+			Cwd:          "/scratch/project",
+			WorkspaceCwd: "/workspace/project",
 		},
 		ModelSelection: checkpointSelection(t, "anthropic", "claude"),
 	}
 	expected := ExecutorCheckpointExpectation{
 		RootProcessID:  "process-root",
 		SessionID:      "session-1",
-		Cwd:            "/workspace/project",
+		Cwd:            "/scratch/project",
+		WorkspaceCwd:   "/workspace/project",
 		ModelSelection: checkpointSelection(t, "anthropic", "claude"),
 	}
 	if err := checkpoint.ValidateFor(expected); err != nil {
@@ -104,6 +106,7 @@ func TestExecutorCheckpointValidatesCrossAggregateOwnership(t *testing.T) {
 		"root":       func(value *ExecutorCheckpointExpectation) { value.RootProcessID = "other-root" },
 		"session":    func(value *ExecutorCheckpointExpectation) { value.SessionID = "other-session" },
 		"cwd":        func(value *ExecutorCheckpointExpectation) { value.Cwd = "/other/workspace" },
+		"workspace":  func(value *ExecutorCheckpointExpectation) { value.WorkspaceCwd = "/other/workspace" },
 		"isolation":  func(value *ExecutorCheckpointExpectation) { value.Isolated = true },
 		"goal lease": func(value *ExecutorCheckpointExpectation) { value.GoalLeaseID = "other-lease" },
 		"provider": func(value *ExecutorCheckpointExpectation) {

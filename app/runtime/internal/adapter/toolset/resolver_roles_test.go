@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/Tangerg/lynx/agent/toolloop"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/goals"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
@@ -71,9 +72,9 @@ func TestPlanModeToolsAreRootOnly(t *testing.T) {
 	}
 	built.Resolver.UseDelegationTool(taskTool)
 
-	group, ok, err := built.Resolver.Resolve(t.Context(), domaintool.GroupSubtask)
+	group, ok, err := built.Resolver.Resolve(t.Context(), domaintool.GroupDelegated)
 	if err != nil || !ok {
-		t.Fatalf("Resolve(subtask) = %v, %v", ok, err)
+		t.Fatalf("Resolve(delegated) = %v, %v", ok, err)
 	}
 	resolvedTools, err := group.Tools(t.Context())
 	if err != nil {
@@ -84,33 +85,33 @@ func TestPlanModeToolsAreRootOnly(t *testing.T) {
 		names[tool.Definition().Name] = true
 	}
 	if !names["ask_user"] {
-		t.Fatalf("subtask tools = %v, want ask_user", names)
+		t.Fatalf("delegated tools = %v, want ask_user", names)
 	}
 	if !names["delegate_task"] || names["list_schedules"] || names["create_schedule"] || names["delete_schedule"] {
-		t.Fatalf("subtask tools = %v, want bounded delegation without root-only schedule tools", names)
+		t.Fatalf("delegated tools = %v, want bounded delegation without root-only schedule tools", names)
 	}
 	if names["enter_plan_mode"] || names["exit_plan_mode"] || names["set_plan"] {
-		t.Fatalf("subtask tools = %v; Plan control belongs only to the root Agent", names)
+		t.Fatalf("delegated tools = %v; Plan control belongs only to the root Agent", names)
 	}
 
-	coding, ok, err := built.Resolver.Resolve(t.Context(), domaintool.GroupCoding)
+	root, ok, err := built.Resolver.Resolve(t.Context(), domaintool.GroupRoot)
 	if err != nil || !ok {
-		t.Fatalf("Resolve(coding) = %v, %v", ok, err)
+		t.Fatalf("Resolve(root) = %v, %v", ok, err)
 	}
-	codingTools, err := coding.Tools(t.Context())
+	rootTools, err := root.Tools(t.Context())
 	if err != nil {
-		t.Fatalf("coding Tools: %v", err)
+		t.Fatalf("root Tools: %v", err)
 	}
 	foundPlan := false
 	foundEnter := false
 	foundExit := false
-	for _, candidate := range codingTools {
+	for _, candidate := range rootTools {
 		foundPlan = foundPlan || candidate.Definition().Name == "set_plan"
 		foundEnter = foundEnter || candidate.Definition().Name == "enter_plan_mode"
 		foundExit = foundExit || candidate.Definition().Name == "exit_plan_mode"
 	}
 	if !foundPlan || !foundEnter || !foundExit {
-		t.Fatalf("coding tools: set_plan=%v enter=%v exit=%v", foundPlan, foundEnter, foundExit)
+		t.Fatalf("root tools: set_plan=%v enter=%v exit=%v", foundPlan, foundEnter, foundExit)
 	}
 }
 
@@ -136,8 +137,8 @@ func TestGoalToolsAreRootOnlyAndOutcomeRequiresActiveGoal(t *testing.T) {
 		role string
 		want map[string]bool
 	}{
-		{role: domaintool.GroupCoding, want: map[string]bool{"create_goal": true, "get_goal": true, "report_goal_outcome": true}},
-		{role: domaintool.GroupSubtask, want: map[string]bool{}},
+		{role: domaintool.GroupRoot, want: map[string]bool{"create_goal": true, "get_goal": true, "report_goal_outcome": true}},
+		{role: domaintool.GroupDelegated, want: map[string]bool{}},
 	} {
 		group, ok, err := built.Resolver.Resolve(t.Context(), tc.role)
 		if err != nil || !ok {
@@ -160,7 +161,7 @@ func TestGoalToolsAreRootOnlyAndOutcomeRequiresActiveGoal(t *testing.T) {
 		t.Fatalf("Build(inactive): %v", err)
 	}
 	closeBuiltToolset(t, inactive)
-	group, _, err := inactive.Resolver.Resolve(t.Context(), domaintool.GroupCoding)
+	group, _, err := inactive.Resolver.Resolve(t.Context(), domaintool.GroupRoot)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -171,6 +172,46 @@ func TestGoalToolsAreRootOnlyAndOutcomeRequiresActiveGoal(t *testing.T) {
 	names := toolNameSet(resolved)
 	if !names["get_goal"] || names["report_goal_outcome"] {
 		t.Fatalf("inactive Goal tools = %v", names)
+	}
+}
+
+func TestProposeSkillIsRootOnlyAndDeferred(t *testing.T) {
+	built, err := Build(t.Context(), BuildConfig{
+		Workdir:                t.TempDir(),
+		SkillProposalSubmitter: allWiredSkillProposals{},
+	})
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+	closeBuiltToolset(t, built)
+
+	for _, tc := range []struct {
+		role string
+		want bool
+	}{
+		{role: domaintool.GroupRoot, want: true},
+		{role: domaintool.GroupDelegated, want: false},
+	} {
+		group, ok, err := built.Resolver.Resolve(t.Context(), tc.role)
+		if err != nil || !ok {
+			t.Fatalf("Resolve(%s) = %v, %v", tc.role, ok, err)
+		}
+		resolved, err := group.Tools(t.Context())
+		if err != nil {
+			t.Fatalf("Tools(%s): %v", tc.role, err)
+		}
+		if got := toolNameSet(resolved)["propose_skill"]; got != tc.want {
+			t.Errorf("role %s propose_skill present=%v, want %v", tc.role, got, tc.want)
+		}
+		manifest, err := toolloop.Advertise(resolved)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, definition := range manifest {
+			if definition.Name == "propose_skill" {
+				t.Errorf("role %s advertised deferred propose_skill", tc.role)
+			}
+		}
 	}
 }
 
@@ -185,12 +226,31 @@ func TestToolGroupPreservesActiveGoalLookupFailure(t *testing.T) {
 	}
 	closeBuiltToolset(t, built)
 
-	group, ok, err := built.Resolver.Resolve(t.Context(), domaintool.GroupCoding)
+	group, ok, err := built.Resolver.Resolve(t.Context(), domaintool.GroupRoot)
 	if err != nil || !ok {
-		t.Fatalf("Resolve(coding) = %v, %v", ok, err)
+		t.Fatalf("Resolve(root) = %v, %v", ok, err)
 	}
 	if _, err := group.Tools(t.Context()); !errors.Is(err, wantErr) {
 		t.Fatalf("Tools error = %v, want %v", err, wantErr)
+	}
+}
+
+func TestResolverAcceptsOnlyCanonicalRoleNames(t *testing.T) {
+	built, err := Build(t.Context(), BuildConfig{Workdir: t.TempDir()})
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+	closeBuiltToolset(t, built)
+
+	for _, role := range []string{"root", "delegated"} {
+		if _, ok, err := built.Resolver.Resolve(t.Context(), role); err != nil || !ok {
+			t.Errorf("Resolve(%q) = ok %v, err %v", role, ok, err)
+		}
+	}
+	for _, obsolete := range []string{"coding", "subtask"} {
+		if _, ok, err := built.Resolver.Resolve(t.Context(), obsolete); err != nil || ok {
+			t.Errorf("Resolve(obsolete %q) = ok %v, err %v", obsolete, ok, err)
+		}
 	}
 }
 

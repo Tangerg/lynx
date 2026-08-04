@@ -112,7 +112,11 @@ type StartTurn struct {
 	// Cwd is the turn's EXECUTION directory — the sandbox copy for an isolated
 	// run, else the session's project directory. The durable run record keeps the
 	// project directory; only the executor sees the copy.
-	Cwd            string
+	Cwd string
+	// WorkspaceCwd is the persistent Session workspace. It differs from Cwd only
+	// for an isolated Run and is used by product capabilities that must outlive
+	// the scratch copy.
+	WorkspaceCwd   string
 	Isolated       bool
 	ModelSelection modelref.Selection
 	Limits         execution.RunLimits
@@ -139,6 +143,7 @@ type RehydrateTurn struct {
 	ChildRuns                []ChildRunBinding
 	ModelSelection           modelref.Selection
 	Cwd                      string
+	WorkspaceCwd             string
 	Isolated                 bool
 	GoalLeaseID              string
 	Limits                   execution.RunLimits

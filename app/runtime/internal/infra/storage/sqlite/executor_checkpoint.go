@@ -34,10 +34,11 @@ type executorUsageWire struct {
 }
 
 type executorScopeWire struct {
-	SessionID   string `json:"session_id"`
-	Cwd         string `json:"cwd"`
-	Isolated    bool   `json:"isolated"`
-	GoalLeaseID string `json:"goal_lease_id"`
+	SessionID    string `json:"session_id"`
+	Cwd          string `json:"cwd"`
+	WorkspaceCwd string `json:"workspace_cwd"`
+	Isolated     bool   `json:"isolated"`
+	GoalLeaseID  string `json:"goal_lease_id"`
 }
 
 type executorLimitsWire struct {
@@ -232,10 +233,11 @@ func encodeExecutorPolicy(checkpoint execution.ExecutorCheckpoint) ([]byte, erro
 	}
 	return json.Marshal(executorPolicyWire{
 		Scope: executorScopeWire{
-			SessionID:   checkpoint.Scope.SessionID,
-			Cwd:         checkpoint.Scope.Cwd,
-			Isolated:    checkpoint.Scope.Isolated,
-			GoalLeaseID: checkpoint.Scope.GoalLeaseID,
+			SessionID:    checkpoint.Scope.SessionID,
+			Cwd:          checkpoint.Scope.Cwd,
+			WorkspaceCwd: checkpoint.Scope.WorkspaceCwd,
+			Isolated:     checkpoint.Scope.Isolated,
+			GoalLeaseID:  checkpoint.Scope.GoalLeaseID,
 		},
 		Provider: checkpoint.ModelSelection.Provider(),
 		Model:    checkpoint.ModelSelection.Model(),
@@ -262,10 +264,11 @@ func decodeExecutorPolicy(data string) (execution.ExecutorCheckpoint, error) {
 		return execution.ExecutorCheckpoint{}, fmt.Errorf("policy trailing JSON: %w", err)
 	}
 	scope := execution.TurnScope{
-		SessionID:   wire.Scope.SessionID,
-		Cwd:         wire.Scope.Cwd,
-		Isolated:    wire.Scope.Isolated,
-		GoalLeaseID: wire.Scope.GoalLeaseID,
+		SessionID:    wire.Scope.SessionID,
+		Cwd:          wire.Scope.Cwd,
+		WorkspaceCwd: wire.Scope.WorkspaceCwd,
+		Isolated:     wire.Scope.Isolated,
+		GoalLeaseID:  wire.Scope.GoalLeaseID,
 	}
 	if err := scope.Validate(); err != nil {
 		return execution.ExecutorCheckpoint{}, err
