@@ -79,21 +79,6 @@ func (c *Coordinator) Activities(ctx context.Context, sessionIDs []string) (map[
 	return activities, nil
 }
 
-// ListViews resolves every user-facing session as one application read model.
-// Callers that only want a page ask for one — resolving a view touches the
-// filesystem and the live-run registry per session, so the whole list is a real
-// cost, not a slice to be narrowed afterward.
-func (c *Coordinator) ListViews(ctx context.Context) ([]View, error) {
-	if c.sessions == nil {
-		return nil, errors.New("sessions: session store is unavailable")
-	}
-	values, err := c.sessions.List(ctx)
-	if err != nil {
-		return nil, err
-	}
-	return c.views(ctx, values)
-}
-
 // viewPageMethod names the query a page cursor belongs to, so a cursor minted by
 // another read is rejected instead of continuing this one.
 const viewPageMethod = "sessions.list"

@@ -4,6 +4,7 @@
 package arch
 
 import (
+	"errors"
 	"go/ast"
 	"go/parser"
 	"go/token"
@@ -250,6 +251,54 @@ func TestRemovedStutteringVocabularyDoesNotReturn(t *testing.T) {
 		}
 		forbidTopLevelNames(t, path, banned)
 	}
+}
+
+// TestRuntimeResponsibilityFilesStayFocused keeps the cleanup from collapsing
+// back into catch-all files. These are not arbitrary size limits: each file is
+// named for one lifecycle responsibility, and the forbidden declarations are
+// independently meaningful use cases or process-ownership phases.
+func TestRuntimeResponsibilityFilesStayFocused(t *testing.T) {
+	root := moduleRoot(t)
+	runs := filepath.Join(root, "internal", "application", "runs")
+	for path, banned := range map[string]map[string]string{
+		filepath.Join(runs, "opening.go"): {
+			"Resume": "resume belongs to resume.go", "Cancel": "cancellation belongs to cancellation.go", "Steer": "steering belongs to steering.go",
+		},
+		filepath.Join(runs, "resume.go"): {
+			"Start": "fresh opening belongs to opening.go", "Cancel": "cancellation belongs to cancellation.go", "Steer": "steering belongs to steering.go",
+		},
+		filepath.Join(runs, "cancellation.go"): {
+			"Start": "fresh opening belongs to opening.go", "Resume": "resume belongs to resume.go", "Steer": "steering belongs to steering.go",
+		},
+		filepath.Join(runs, "steering.go"): {
+			"Start": "fresh opening belongs to opening.go", "Resume": "resume belongs to resume.go", "Cancel": "cancellation belongs to cancellation.go",
+		},
+		filepath.Join(root, "internal", "bootstrap", "assemble.go"): {
+			"Host": "process lifetime belongs to host.go", "hostLifetime": "process lifetime belongs to host.go",
+			"RecoverStartup": "process startup lifetime belongs to host.go", "closeHostLifetime": "process lifetime belongs to host.go",
+			"shutdownResources": "resource close mechanics belong to resources.go", "closePendingResources": "resource close mechanics belong to resources.go",
+		},
+	} {
+		forbidTopLevelNames(t, path, banned)
+	}
+	if _, err := os.Stat(filepath.Join(runs, "usecases.go")); err == nil {
+		t.Error("application/runs/usecases.go returned; keep independently named use cases in their focused files")
+	} else if !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("inspect removed runs/usecases.go: %v", err)
+	}
+}
+
+// TestRemovedRedundantEntrypointsDoNotReturn keeps one callable surface per
+// capability. Exported methods escape dead-code analysis, so the architecture
+// suite records the two removed APIs explicitly.
+func TestRemovedRedundantEntrypointsDoNotReturn(t *testing.T) {
+	root := moduleRoot(t)
+	forbidTopLevelNames(t, filepath.Join(root, "internal", "application", "sessions"), map[string]string{
+		"ListViews": "the bounded ListViewPage read is the canonical session-list entrypoint",
+	})
+	forbidPackageFunctions(t, filepath.Join(root, "internal", "adapter", "workspacepath", "resolver.go"), map[string]string{
+		"ResolveExistingDir": "the Resolver method is the canonical port implementation",
+	})
 }
 
 // TestDomainHooksStayPure keeps the hooks bounded context free of filesystem +
@@ -1511,6 +1560,28 @@ func forbidTopLevelNames(t *testing.T, dir string, banned map[string]string) {
 	})
 	if walkErr != nil {
 		t.Fatalf("walk %s: %v", dir, walkErr)
+	}
+}
+
+// forbidPackageFunctions rejects package functions while allowing a method
+// with the same name. It is used when the method is the canonical port surface
+// and a convenience function would duplicate that capability.
+func forbidPackageFunctions(t *testing.T, path string, banned map[string]string) {
+	t.Helper()
+	root := moduleRoot(t)
+	f, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
+	if err != nil {
+		t.Fatalf("parse %s: %v", path, err)
+	}
+	for _, declaration := range f.Decls {
+		fn, ok := declaration.(*ast.FuncDecl)
+		if !ok || fn.Recv != nil {
+			continue
+		}
+		if reason, forbidden := banned[fn.Name.Name]; forbidden {
+			rel, _ := filepath.Rel(root, path)
+			t.Errorf("%s: redundant package function %s returned; %s", rel, fn.Name.Name, reason)
+		}
 	}
 }
 

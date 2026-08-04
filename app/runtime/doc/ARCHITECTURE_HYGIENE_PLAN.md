@@ -568,6 +568,37 @@ Acceptance:
 - Focused behavior tests, architecture checks, vet, static analysis, lint, and
   dead-code analysis pass without changing frontend files.
 
+### Batch 20 — Responsibility and entrypoint convergence
+
+Status: **Completed**
+
+Scope:
+
+- Separate Bootstrap object-graph construction, Host process lifetime, and
+  resource-close mechanics into `assemble.go`, `host.go`, and `resources.go`.
+- Replace Runs' catch-all `usecases.go` with focused Start, Resume, Cancel,
+  Steer, and dependency-validation files while preserving one package and its
+  transactional/state-machine boundaries.
+- Remove the unused unbounded `sessions.ListViews` read; the bounded
+  `ListViewPage` query is the one session-list entrypoint.
+- Remove the package-level `workspacepath.ResolveExistingDir` convenience
+  function; the `Resolver` method is the one port implementation.
+- Retain cohesive large cancellation, transcript, SQLite Run, and contract-shape
+  implementations where splitting would scatter one invariant rather than
+  separate responsibilities.
+
+Acceptance:
+
+- Bootstrap lifetime and resource-closing declarations cannot return to the
+  assembly file, and Runs' independent commands cannot return to a catch-all
+  use-case file.
+- There is one callable entrypoint for bounded session listing and existing-dir
+  resolution; no compatibility wrapper remains.
+- Runtime-wide compile/test, focused race tests, architecture checks, vet,
+  static analysis, lint, dead-code analysis, formatting, and empty-directory /
+  removed-source scans pass, aside from the known deferred frontend contract
+  fixture drift.
+
 ## 6. Progress
 
 | Batch | Status | Started | Completed | Evidence |
@@ -591,10 +622,33 @@ Acceptance:
 | 17. Admission and protocol fail-closed closure | Completed | 2026-07-24 | 2026-07-24 | `go build ./...`; `go vet ./...`; `go test ./...`; focused `go test -race` for admission/runs/sessions/delivery; frontend typecheck, lint, and 811 tests passed. |
 | 18. Composition-input and transparent-alias closure | Completed | 2026-08-04 | 2026-08-04 | Runtime-wide compile, focused tests, dependency/alias fitness tests, `go vet`, `staticcheck`, `golangci-lint`, `deadcode -test`, and exact alias scans passed; the full architecture suite retained only the known stale frontend-contract failures. |
 | 19. Canonical runtime vocabulary | Completed | 2026-08-04 | 2026-08-04 | Runtime-wide compile, focused behavior tests, dependency/vocabulary/activity fitness tests, `go vet`, `staticcheck`, `golangci-lint`, `deadcode -test`, formatting, and exact removed-name scans passed. |
+| 20. Responsibility and entrypoint convergence | Completed | 2026-08-04 | 2026-08-04 | Runtime-wide compile; focused normal/race tests; architecture checks; standalone build/vet; `staticcheck`; `golangci-lint`; `deadcode -test`; formatting and exact-source scans passed. Full tests retain only the known deferred frontend contract/sample drift. |
 
 Allowed status values: `Pending`, `In progress`, `Completed`, `Blocked`, `Revised`.
 
 ## 7. Progress log
+
+### 2026-08-04 — Batch 20 completed
+
+- Split Bootstrap by responsibility: `assemble.go` owns object-graph
+  construction and validation, `host.go` owns process lifetime and startup
+  recovery, and `resources.go` owns close ordering and pending-resource cleanup.
+- Replaced Runs' catch-all `usecases.go` with focused opening, resume,
+  cancellation, steering, and dependency files. Cancellation remains one
+  cohesive state machine rather than being fragmented by file-size pressure.
+- Removed the unused unbounded `sessions.ListViews` query and the package-level
+  `workspacepath.ResolveExistingDir` convenience function. The bounded page
+  query and the `Resolver` method are now the single entrypoints; no wrappers or
+  compatibility paths remain.
+- Added architecture fitness checks that prohibit the removed entrypoints and
+  prevent lifecycle/resource declarations or independent Run commands from
+  accumulating in catch-all files. Updated the continuation-fact guard to name
+  its new owning file.
+- Runtime-wide compilation, focused normal and race tests, architecture checks,
+  standalone build/vet, `staticcheck`, `golangci-lint`, `deadcode -test`,
+  formatting, empty-directory scans, and exact removed-source scans pass. The
+  full suite fails only on the already-recorded frontend generated-contract and
+  protocol-sample drift deferred to the frontend wiring round.
 
 ### 2026-08-04 — Batch 19 completed
 

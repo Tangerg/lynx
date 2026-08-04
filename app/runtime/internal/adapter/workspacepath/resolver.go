@@ -40,7 +40,14 @@ type Resolver struct{}
 // ResolveExistingDir verifies path exists as a directory and returns its
 // canonical identity.
 func (Resolver) ResolveExistingDir(path string) (string, error) {
-	return ResolveExistingDir(path)
+	info, err := os.Stat(path)
+	if err != nil {
+		return "", err
+	}
+	if !info.IsDir() {
+		return "", ErrNotDirectory
+	}
+	return Canonical(path), nil
 }
 
 // ResolveInRoot lexically confines a client path to root and returns its
@@ -124,19 +131,6 @@ func nearestProjectRoot(cwd string) (string, error) {
 			return cwd, nil
 		}
 	}
-}
-
-// ResolveExistingDir is the functional form used by outer adapters that do not
-// need to hold a resolver port value.
-func ResolveExistingDir(path string) (string, error) {
-	info, err := os.Stat(path)
-	if err != nil {
-		return "", err
-	}
-	if !info.IsDir() {
-		return "", ErrNotDirectory
-	}
-	return Canonical(path), nil
 }
 
 func pathInside(root, path string) bool {

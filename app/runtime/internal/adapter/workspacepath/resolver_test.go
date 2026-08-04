@@ -74,7 +74,8 @@ func TestResolverRejectsSymlinkEscape(t *testing.T) {
 
 func TestResolveExistingDir(t *testing.T) {
 	dir := t.TempDir()
-	got, err := workspacepath.ResolveExistingDir(filepath.Join(dir, "."))
+	resolver := workspacepath.Resolver{}
+	got, err := resolver.ResolveExistingDir(filepath.Join(dir, "."))
 	if err != nil || got != workspacepath.Canonical(dir) {
 		t.Fatalf("ResolveExistingDir = %q, %v", got, err)
 	}
@@ -82,10 +83,10 @@ func TestResolveExistingDir(t *testing.T) {
 	if err := os.WriteFile(file, []byte("x"), 0o644); err != nil {
 		t.Fatalf("write file: %v", err)
 	}
-	if _, err := workspacepath.ResolveExistingDir(file); !errors.Is(err, workspacepath.ErrNotDirectory) {
+	if _, err := resolver.ResolveExistingDir(file); !errors.Is(err, workspacepath.ErrNotDirectory) {
 		t.Fatalf("file error = %v, want ErrNotDirectory", err)
 	}
-	if _, err := workspacepath.ResolveExistingDir(filepath.Join(dir, "missing")); err == nil {
+	if _, err := resolver.ResolveExistingDir(filepath.Join(dir, "missing")); err == nil {
 		t.Fatal("missing directory must fail")
 	}
 }

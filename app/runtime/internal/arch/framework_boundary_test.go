@@ -535,7 +535,7 @@ func TestParkedContinuationFactsAreCrossCheckedAtEveryLifecycleBoundary(t *testi
 		filepath.Join("internal", "application", "runs", "cancel_plan.go"): {
 			"validatePendingRunTree(*pending, activeRuns)",
 		},
-		filepath.Join("internal", "application", "runs", "usecases.go"): {
+		filepath.Join("internal", "application", "runs", "resume.go"): {
 			"validatePendingRunTree(pending, parkedRuns)",
 		},
 		filepath.Join("internal", "application", "runs", "recovery_validation.go"): {
