@@ -109,25 +109,25 @@ func offloadedSnapshot(result string) Snapshot {
 // no presence rule can condition on. So they are checked where the archive
 // becomes a session — before anything is written.
 func TestPortableSnapshotRefusesABrokenRunLineage(t *testing.T) {
-	profile := execution.RunProtocolProfile{}
+	capabilities := execution.RunCapabilities{}
 	root := func() PortableRun {
 		return PortableRun{
 			SessionID: "ses_1", ID: "run_root", Outcome: execution.OutcomeCompleted,
-			ProtocolProfile: &profile,
+			Capabilities: &capabilities,
 		}
 	}
 	for name, runs := range map[string][]PortableRun{
-		// A root with no profile is an archive that lost the contract its run
-		// published under. Defaulting it to empty would import a different run.
-		"root without a protocol profile": {
+		// A root with no capabilities is an archive that lost an admitted fact.
+		// Defaulting it to empty would import a different Run.
+		"root without capabilities": {
 			{SessionID: "ses_1", ID: "run_root", Outcome: execution.OutcomeCompleted},
 		},
 		// A child reads its root's contract; one of its own is a second statement of
 		// something the archive already says once.
-		"child with its own protocol profile": {root(), {
+		"child with its own capabilities": {root(), {
 			SessionID: "ses_1", ID: "run_child", Outcome: execution.OutcomeCompleted,
 			SpawnedByItemID: "item_1", ParentRunID: "run_root", RootRunID: "run_root",
-			ProtocolProfile: &profile,
+			Capabilities: &capabilities,
 		}},
 		"child naming itself as its own root": {root(), {
 			SessionID: "ses_1", ID: "run_child", Outcome: execution.OutcomeCompleted,
@@ -152,10 +152,10 @@ func TestPortableSnapshotRefusesABrokenRunLineage(t *testing.T) {
 	}
 }
 
-// A child inherits its root's contract rather than carrying one, so the restored
-// run must come out holding the ROOT's profile — not an empty one.
-func TestPortableSnapshotChildInheritsItsRootsProfile(t *testing.T) {
-	profile := execution.RunProtocolProfile{
+// A child inherits rather than restating its root's capabilities, so the
+// restored Run must carry the root value rather than an empty set.
+func TestPortableSnapshotChildInheritsRootCapabilities(t *testing.T) {
+	capabilities := execution.RunCapabilities{
 		ChildRuns:      true,
 		InterruptKinds: []execution.InterruptKind{execution.ApprovalInterrupt},
 	}
@@ -174,8 +174,8 @@ func TestPortableSnapshotChildInheritsItsRootsProfile(t *testing.T) {
 		Runs: []PortableRun{
 			{
 				SessionID: "ses_1", ID: "run_root", Outcome: execution.OutcomeCompleted,
-				ProtocolProfile: &profile,
-				CreatedAt:       at, FinishedAt: at, UpdatedAt: at,
+				Capabilities: &capabilities,
+				CreatedAt:    at, FinishedAt: at, UpdatedAt: at,
 			},
 			{
 				SessionID: "ses_1", ID: "run_child", Outcome: execution.OutcomeCompleted,
@@ -189,8 +189,8 @@ func TestPortableSnapshotChildInheritsItsRootsProfile(t *testing.T) {
 		t.Fatalf("CanonicalSnapshot: %v", err)
 	}
 	for _, run := range snapshot.Runs {
-		if !run.ProtocolProfile.ChildRuns || len(run.ProtocolProfile.InterruptKinds) != 1 {
-			t.Fatalf("run %q profile = %+v, want the root's", run.ID, run.ProtocolProfile)
+		if !run.Capabilities.ChildRuns || len(run.Capabilities.InterruptKinds) != 1 {
+			t.Fatalf("run %q capabilities = %+v, want the root's", run.ID, run.Capabilities)
 		}
 	}
 }

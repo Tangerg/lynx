@@ -188,7 +188,7 @@ func normalizeRunSnapshot(run transcript.Run) transcript.Run {
 	if len(run.Interrupts) == 0 {
 		run.Interrupts = nil
 	}
-	run.ProtocolProfile = normalizeProtocolProfile(run.ProtocolProfile)
+	run.Capabilities = normalizeCapabilities(run.Capabilities)
 	if run.Metrics.Usage != nil && len(run.Metrics.Usage.ByModel) == 0 {
 		usage := *run.Metrics.Usage
 		usage.ByModel = nil

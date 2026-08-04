@@ -99,12 +99,12 @@ func pendingForRun(
 		}
 	}
 	return interrupts.Pending{
-		RootRunID:       runID,
-		SessionID:       sessionID,
-		TurnID:          "turn_" + runID,
-		Interrupts:      copied,
-		Suspensions:     bindings,
-		ProtocolProfile: protocolProfileForInterrupts(copied),
+		RootRunID:    runID,
+		SessionID:    sessionID,
+		TurnID:       "turn_" + runID,
+		Interrupts:   copied,
+		Suspensions:  bindings,
+		Capabilities: capabilitiesForInterrupts(copied),
 		Continuations: []interrupts.Continuation{{
 			RunID:        runID,
 			ProcessID:    processID,
@@ -114,12 +114,12 @@ func pendingForRun(
 	}
 }
 
-func protocolProfileForInterrupts(values []transcript.Interrupt) execution.RunProtocolProfile {
-	profile := execution.RunProtocolProfile{}
+func capabilitiesForInterrupts(values []transcript.Interrupt) execution.RunCapabilities {
+	capabilities := execution.RunCapabilities{}
 	for _, value := range values {
-		profile.InterruptKinds = append(profile.InterruptKinds, value.Kind)
+		capabilities.InterruptKinds = append(capabilities.InterruptKinds, value.Kind)
 	}
-	return profile.Normalized()
+	return capabilities.Normalized()
 }
 
 // TestParkCommitsInterruptAndSuspendAtomically proves the §8.3 pairing the
@@ -219,15 +219,15 @@ func TestRunAdmitEnforcesOneActivePerSession(t *testing.T) {
 // TestRunAdmitSharesOneRootAdmissionAcrossTheTree proves the durable B1
 // foundation: one Session admits one non-terminal root tree, not one row. Child
 // and grandchild Runs may execute under that root, retain their immutable
-// topology, and materialize the root-owned protocol profile without storing an
+// topology, and materialize the root-owned run capabilities without storing an
 // independently mutable copy.
 func TestRunAdmitSharesOneRootAdmissionAcrossTheTree(t *testing.T) {
 	ctx := t.Context()
 	store, _ := newRunStores(t)
-	profile := execution.RunProtocolProfile{ChildRuns: true}
+	capabilities := execution.RunCapabilities{ChildRuns: true}
 
 	root := runDraft("run_root", "ses_A")
-	root.ProtocolProfile = profile
+	root.Capabilities = capabilities
 	if err := store.Admit(ctx, root); err != nil {
 		t.Fatalf("admit root: %v", err)
 	}
@@ -262,8 +262,8 @@ func TestRunAdmitSharesOneRootAdmissionAcrossTheTree(t *testing.T) {
 		}
 		if run.ParentRunID != want.parentID ||
 			run.RootRunID != "run_root" ||
-			run.ProtocolProfile.ChildRuns != profile.ChildRuns {
-			t.Fatalf("run %s = %+v, want parent %s, root run_root, inherited profile", want.id, run, want.parentID)
+			run.Capabilities.ChildRuns != capabilities.ChildRuns {
+			t.Fatalf("run %s = %+v, want parent %s, root run_root, inherited capabilities", want.id, run, want.parentID)
 		}
 	}
 
@@ -318,14 +318,14 @@ func TestRunAdmitRejectsAChildOutsideItsDurableTree(t *testing.T) {
 			want: "belongs to session",
 		},
 		{
-			name: "child-owned profile",
+			name: "child-owned capabilities",
 			draft: execution.RunDraft{
-				RunID: "run_child_profile", SessionID: "ses_A", SegmentID: "seg_open",
+				RunID: "run_child_capabilities", SessionID: "ses_A", SegmentID: "seg_open",
 				SpawnedByItemID: "item_spawn", ParentRunID: "run_root_a", RootRunID: "run_root_a",
-				ProtocolProfile: execution.RunProtocolProfile{ChildRuns: true},
-				CreatedAt:       runCreatedAt,
+				Capabilities: execution.RunCapabilities{ChildRuns: true},
+				CreatedAt:    runCreatedAt,
 			},
-			want: "protocol profile is owned by root",
+			want: "capabilities are owned by root",
 		},
 	}
 
@@ -731,32 +731,32 @@ func runIDs(runs []transcript.Run) []string {
 	return out
 }
 
-// TestRunProtocolProfileIsImmutable proves the invariant
-// `run_protocol_profile_is_immutable` at the runs.admission boundary: the
-// admission INSERT is the profile's only writer, so parking, resuming and
-// terminalizing the run all read back the contract it was admitted under.
+// TestRunCapabilitiesAreImmutable proves the invariant
+// `run_capabilities_are_immutable` at the runs.admission boundary: the
+// admission INSERT is the capability set's only writer, so parking, resuming and
+// terminalizing the Run all read back the capabilities admitted with it.
 //
 // It is checked at the store rather than above it because that is where the
 // guarantee lives: no statement other than the INSERT names the column, and a
 // later transition that started writing one would break this and nothing else.
-func TestRunProtocolProfileIsImmutable(t *testing.T) {
+func TestRunCapabilitiesAreImmutable(t *testing.T) {
 	ctx := context.Background()
 	store, interruptStore := newRunStores(t)
 
-	admitted := execution.RunProtocolProfile{
+	admitted := execution.RunCapabilities{
 		ChildRuns:      true,
 		InterruptKinds: []execution.InterruptKind{execution.ApprovalInterrupt, execution.QuestionInterrupt},
 	}
 	draft := runDraft("run_1", "ses_A")
-	draft.ProtocolProfile = admitted
+	draft.Capabilities = admitted
 	if err := store.Admit(ctx, draft); err != nil {
 		t.Fatalf("admit: %v", err)
 	}
 
-	// A park hands the store a whole Run record, including a profile — the store
-	// must ignore it rather than let the segment restate the contract.
+	// A park hands the store a whole Run record, including capabilities — the store
+	// must ignore it rather than let the segment restate the value.
 	parked := parkedRun("run_1", "ses_A")
-	parked.ProtocolProfile = execution.RunProtocolProfile{}
+	parked.Capabilities = execution.RunCapabilities{}
 	pending := pendingForRun(
 		"run_1",
 		"ses_A",
@@ -764,40 +764,40 @@ func TestRunProtocolProfileIsImmutable(t *testing.T) {
 		parked.Interrupts,
 		time.Unix(5, 0).UTC(),
 	)
-	pending.ProtocolProfile = admitted
+	pending.Capabilities = admitted
 	if err := interruptStore.Open(ctx, pending); err != nil {
 		t.Fatalf("open interrupt: %v", err)
 	}
 	if err := store.Suspend(ctx, parked); err != nil {
 		t.Fatalf("suspend: %v", err)
 	}
-	assertRunProfile(t, store, "run_1", admitted, "after park")
+	assertRunCapabilities(t, store, "run_1", admitted, "after park")
 
-	// The park's own row carries the profile onward, which is where a continuation
-	// reads it: the resume never sees the runs row before it reopens the segment.
+	// The Pending hand-off carries capabilities onward for the continuation: resume
+	// never reads a replacement from the request before reopening the segment.
 	pending, found, err := interruptStore.Get(ctx, "run_1")
 	if err != nil || !found {
 		t.Fatalf("get interrupt: %v (found=%v)", err, found)
 	}
-	if pending.ProtocolProfile.ChildRuns != admitted.ChildRuns ||
-		!slices.Equal(pending.ProtocolProfile.InterruptKinds, admitted.InterruptKinds) {
-		t.Fatalf("park hand-off profile = %v, want %v", pending.ProtocolProfile, admitted)
+	if pending.Capabilities.ChildRuns != admitted.ChildRuns ||
+		!slices.Equal(pending.Capabilities.InterruptKinds, admitted.InterruptKinds) {
+		t.Fatalf("park hand-off capabilities = %v, want %v", pending.Capabilities, admitted)
 	}
 
 	if err := store.Resume(ctx, "ses_A", execution.RunResumeDraft{RunID: "run_1", SegmentID: "seg_next"}, time.Now().UTC()); err != nil {
 		t.Fatalf("resume: %v", err)
 	}
-	assertRunProfile(t, store, "run_1", admitted, "after resume")
+	assertRunCapabilities(t, store, "run_1", admitted, "after resume")
 
 	finished := finishedRun("run_1", "ses_A", execution.OutcomeCompleted)
-	finished.ProtocolProfile = execution.RunProtocolProfile{}
+	finished.Capabilities = execution.RunCapabilities{}
 	if err := store.Terminalize(ctx, finished); err != nil {
 		t.Fatalf("terminalize: %v", err)
 	}
-	assertRunProfile(t, store, "run_1", admitted, "after terminal")
+	assertRunCapabilities(t, store, "run_1", admitted, "after terminal")
 }
 
-func assertRunProfile(t *testing.T, store *sqlite.RunStore, runID string, want execution.RunProtocolProfile, when string) {
+func assertRunCapabilities(t *testing.T, store *sqlite.RunStore, runID string, want execution.RunCapabilities, when string) {
 	t.Helper()
 	runs, err := store.ListRuns(context.Background(), "ses_A")
 	if err != nil {
@@ -807,9 +807,9 @@ func assertRunProfile(t *testing.T, store *sqlite.RunStore, runID string, want e
 		if run.ID != runID {
 			continue
 		}
-		if run.ProtocolProfile.ChildRuns != want.ChildRuns ||
-			!slices.Equal(run.ProtocolProfile.InterruptKinds, want.InterruptKinds) {
-			t.Fatalf("profile %s = %v, want %v", when, run.ProtocolProfile, want)
+		if run.Capabilities.ChildRuns != want.ChildRuns ||
+			!slices.Equal(run.Capabilities.InterruptKinds, want.InterruptKinds) {
+			t.Fatalf("capabilities %s = %v, want %v", when, run.Capabilities, want)
 		}
 		return
 	}

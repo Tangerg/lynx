@@ -33,10 +33,9 @@ type Pending struct {
 	Interrupts    []transcript.Interrupt
 	Suspensions   []SuspensionBinding
 	Continuations []Continuation
-	// ProtocolProfile is the Run's frozen protocol contract, here for the same
-	// reason and by the same guarantee as on the root Run. A continuation refuses
-	// callers that cannot cover it and reuses its admitted interrupt kinds.
-	ProtocolProfile execution.RunProtocolProfile
+	// Capabilities is the Run's frozen optional behavior. A continuation refuses
+	// callers that lack it and reuses its admitted interrupt kinds.
+	Capabilities execution.RunCapabilities
 	// CreatedAt orders open sets. It is the barrier commit time, not any one
 	// suspension's creation time.
 	CreatedAt time.Time
@@ -161,8 +160,8 @@ func (p Pending) Validate() error {
 			len(p.Interrupts),
 		)
 	}
-	if err := p.ProtocolProfile.Validate(); err != nil {
-		return fmt.Errorf("interrupts: pending protocol profile: %w", err)
+	if err := p.Capabilities.Validate(); err != nil {
+		return fmt.Errorf("interrupts: pending capabilities: %w", err)
 	}
 
 	runIDs := make(map[string]struct{}, len(p.Continuations))
@@ -206,8 +205,8 @@ func (p Pending) Validate() error {
 	if err != nil {
 		return fmt.Errorf("interrupts: continuation tree: %w", err)
 	}
-	if len(p.Continuations) > 1 && !p.ProtocolProfile.ChildRuns {
-		return errors.New("interrupts: pending tree has child Runs but its protocol profile forbids them")
+	if len(p.Continuations) > 1 && !p.Capabilities.ChildRuns {
+		return errors.New("interrupts: pending tree has child Runs but its capabilities forbid them")
 	}
 	canonicalRunIDs := tree.Postorder()
 	for index, continuation := range p.Continuations {
@@ -229,9 +228,9 @@ func (p Pending) Validate() error {
 		if _, exists := runIDs[interrupt.RunID]; !exists {
 			return fmt.Errorf("interrupts: interrupt item %q names unknown run %q", interrupt.ItemID, interrupt.RunID)
 		}
-		if !slices.Contains(p.ProtocolProfile.InterruptKinds, interrupt.Kind) {
+		if !slices.Contains(p.Capabilities.InterruptKinds, interrupt.Kind) {
 			return fmt.Errorf(
-				"interrupts: interrupt item %q has kind %s outside the frozen protocol profile",
+				"interrupts: interrupt item %q has kind %s outside the frozen capabilities",
 				interrupt.ItemID,
 				interrupt.Kind,
 			)

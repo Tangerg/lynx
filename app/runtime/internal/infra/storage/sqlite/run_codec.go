@@ -1,9 +1,12 @@
 package sqlite
 
 import (
+	"bytes"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
@@ -11,12 +14,11 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 )
 
-// The Run row's JSON columns. Token accounting, a failure classification and the
-// negotiated protocol profile are read and written whole with the row, never
-// queried across, so they stay one value each rather than a dozen columns — the same call the goals table makes
-// for its budget. They are declared here, with explicit names, because the
-// durable encoding is this adapter's to choose: the domain values carry no tags,
-// and renaming a Go field must not silently invalidate stored rows.
+// The Run row's JSON columns. Token accounting, a failure classification, and
+// frozen capabilities are read and written whole with the row, never queried
+// across, so they remain focused values instead of expanding into incidental
+// columns. Their explicit adapter rows keep Go field names from defining the
+// durable format.
 type runUsageRow struct {
 	InputTokens      int64                     `json:"inputTokens,omitzero"`
 	OutputTokens     int64                     `json:"outputTokens,omitzero"`
@@ -78,51 +80,64 @@ func (row runAccountingRow) values() (transcript.RunMetrics, execution.RunLimits
 	return metrics, limits, nil
 }
 
-// runProtocolProfileRow is the Run's frozen protocol contract. Interrupt kinds
-// are stored under their canonical names rather than their ordinals, so inserting
-// a kind into the middle of the enum cannot silently re-label stored rows.
-type runProtocolProfileRow struct {
+// runCapabilitiesRow is the Run's frozen optional behavior. Interrupt kinds are
+// stored under their canonical names rather than ordinals, so inserting a kind
+// into the enum cannot silently re-label stored rows.
+type runCapabilitiesRow struct {
 	ChildRuns      bool     `json:"childRuns,omitempty"`
-	InterruptTypes []string `json:"interruptTypes,omitempty"`
+	InterruptKinds []string `json:"interruptKinds,omitempty"`
 }
 
-// encodeRunProtocolProfile returns the empty string for the Minimal Profile. The
-// column then holds "" for a Run that negotiated nothing, which decodes back to
-// the same empty profile — one representation, not a null and an empty object.
-func encodeRunProtocolProfile(profile execution.RunProtocolProfile) (string, error) {
-	if profile.IsEmpty() {
+// encodeRunCapabilities returns the empty string for no optional capabilities,
+// keeping one representation instead of both null and an empty object.
+func encodeRunCapabilities(capabilities execution.RunCapabilities) (string, error) {
+	if err := capabilities.Validate(); err != nil {
+		return "", fmt.Errorf("encode run capabilities: %w", err)
+	}
+	if capabilities.IsEmpty() {
 		return "", nil
 	}
-	row := runProtocolProfileRow{ChildRuns: profile.ChildRuns}
-	for _, kind := range profile.InterruptKinds {
-		row.InterruptTypes = append(row.InterruptTypes, kind.String())
+	row := runCapabilitiesRow{ChildRuns: capabilities.ChildRuns}
+	for _, kind := range capabilities.InterruptKinds {
+		row.InterruptKinds = append(row.InterruptKinds, kind.String())
 	}
 	encoded, err := json.Marshal(row)
 	if err != nil {
-		return "", fmt.Errorf("encode run protocol profile: %w", err)
+		return "", fmt.Errorf("encode run capabilities: %w", err)
 	}
 	return string(encoded), nil
 }
 
-func decodeRunProtocolProfile(encoded string) (execution.RunProtocolProfile, error) {
+func decodeRunCapabilities(encoded string) (execution.RunCapabilities, error) {
 	if encoded == "" {
-		return execution.RunProtocolProfile{}, nil
+		return execution.RunCapabilities{}, nil
 	}
-	var row runProtocolProfileRow
-	if err := json.Unmarshal([]byte(encoded), &row); err != nil {
-		return execution.RunProtocolProfile{}, fmt.Errorf("decode run protocol profile: %w", err)
+	var row runCapabilitiesRow
+	decoder := json.NewDecoder(bytes.NewReader([]byte(encoded)))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&row); err != nil {
+		return execution.RunCapabilities{}, fmt.Errorf("decode run capabilities: %w", err)
 	}
-	profile := execution.RunProtocolProfile{ChildRuns: row.ChildRuns}
-	for _, name := range row.InterruptTypes {
+	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
+		if err == nil {
+			err = errors.New("multiple JSON values")
+		}
+		return execution.RunCapabilities{}, fmt.Errorf("decode run capabilities: %w", err)
+	}
+	capabilities := execution.RunCapabilities{ChildRuns: row.ChildRuns}
+	for _, name := range row.InterruptKinds {
 		kind, ok := execution.ParseInterruptKind(name)
 		if !ok {
 			// A stored kind this build cannot raise would let the Run park on
 			// something nothing answers. Refusing the row is the honest outcome.
-			return execution.RunProtocolProfile{}, fmt.Errorf("decode run protocol profile: unknown interrupt type %q", name)
+			return execution.RunCapabilities{}, fmt.Errorf("decode run capabilities: unknown interrupt kind %q", name)
 		}
-		profile.InterruptKinds = append(profile.InterruptKinds, kind)
+		capabilities.InterruptKinds = append(capabilities.InterruptKinds, kind)
 	}
-	return profile.Normalized(), nil
+	if err := capabilities.Validate(); err != nil {
+		return execution.RunCapabilities{}, fmt.Errorf("decode run capabilities: %w", err)
+	}
+	return capabilities, nil
 }
 
 type runProblemRow struct {
@@ -246,8 +261,8 @@ func scanRunRow(row scanRow, pendingPolicy pendingReadPolicy) (transcript.Run, e
 		model               string
 		usage               string
 		problem             string
-		ownProfile          string
-		rootProfile         sql.NullString
+		ownCapabilities     string
+		rootCapabilities    sql.NullString
 		durationNs          int64
 		startedAt           int64
 		finishedAt          int64
@@ -259,30 +274,30 @@ func scanRunRow(row scanRow, pendingPolicy pendingReadPolicy) (transcript.Run, e
 		&run.SpawnedByItemID, &run.ParentRunID, &run.RootRunID,
 		&coarse, &run.ActiveSegmentID, &outcome,
 		&provider, &model, &run.GoalLeaseID, &run.Detail, &run.Metrics.Steps, &durationNs, &usage, &problem,
-		&run.Limits.MaxTotalTokens, &run.Limits.MaxSteps, &run.Limits.MaxBudgetUSD, &ownProfile, &rootProfile,
+		&run.Limits.MaxTotalTokens, &run.Limits.MaxSteps, &run.Limits.MaxBudgetUSD, &ownCapabilities, &rootCapabilities,
 		&run.MessageMark, &startedAt, &finishedAt, &updatedAt, &interruptsSuspended,
 	); err != nil {
 		return transcript.Run{}, fmt.Errorf("scan run row: %w", err)
 	}
-	profile := ownProfile
+	capabilities := ownCapabilities
 	if run.Lineage().IsChild() {
-		if ownProfile != "" {
-			return transcript.Run{}, fmt.Errorf("child run %q stores a protocol profile of its own", run.ID)
+		if ownCapabilities != "" {
+			return transcript.Run{}, fmt.Errorf("child run %q stores capabilities of its own", run.ID)
 		}
-		if !rootProfile.Valid {
+		if !rootCapabilities.Valid {
 			return transcript.Run{}, fmt.Errorf(
 				"child run %q references missing root %q",
 				run.ID,
 				run.RootRunID,
 			)
 		}
-		profile = rootProfile.String
+		capabilities = rootCapabilities.String
 	}
-	profileValue, err := decodeRunProtocolProfile(profile)
+	capabilitiesValue, err := decodeRunCapabilities(capabilities)
 	if err != nil {
 		return transcript.Run{}, fmt.Errorf("run %q: %w", run.ID, err)
 	}
-	run.ProtocolProfile = profileValue
+	run.Capabilities = capabilitiesValue
 	selection, err := modelref.New(provider, model)
 	if err != nil {
 		return transcript.Run{}, fmt.Errorf("decode run %q model selection: %w", run.ID, err)

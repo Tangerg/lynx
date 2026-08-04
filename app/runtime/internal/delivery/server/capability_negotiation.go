@@ -10,7 +10,7 @@ import (
 
 // Capability negotiation: what a request is entitled to, resolved once.
 //
-// runs.start freezes the answer onto the new Run as its protocol profile;
+// runs.start freezes the answer onto the new Run as its capabilities;
 // runs.resume and runs.subscribe hand the same answer to the application, which
 // refuses a caller that cannot cover what the Run already publishes. Both readings
 // come from this one function, so "what you may ask for" and "what you must be
@@ -25,17 +25,17 @@ import (
 // child events could appear in it, and a client whose interrupt type was quietly
 // discarded would be handed a wait it never said it could answer.
 //
-// Absent capabilities are the Minimal Profile, not an error — §8.3 makes "send a
+// Absent capabilities map to the Minimal Profile, not an error — §8.3 makes "send a
 // message, watch the reply, reload the history" a complete client.
-func (s *Server) negotiateCapabilities(ctx context.Context) (execution.RunProtocolProfile, error) {
+func (s *Server) negotiateCapabilities(ctx context.Context) (execution.RunCapabilities, error) {
 	caps, ok := protocol.ClientCapabilitiesFrom(ctx)
 	if !ok {
-		return execution.RunProtocolProfile{}, nil
+		return execution.RunCapabilities{}, nil
 	}
 
 	advertised := s.capabilities().Features
 
-	var profile execution.RunProtocolProfile
+	var capabilities execution.RunCapabilities
 	for key, preference := range caps.Features {
 		if !preference.Enabled {
 			// Declining a feature is always honorable, including one this build has
@@ -44,19 +44,19 @@ func (s *Server) negotiateCapabilities(ctx context.Context) (execution.RunProtoc
 		}
 		published, known := protocol.LookupFeature(key)
 		if !known || !advertised[key].Enabled {
-			return execution.RunProtocolProfile{}, protocol.NewCapabilityGap(protocol.CapabilityRequirement{
+			return execution.RunCapabilities{}, protocol.NewCapabilityGap(protocol.CapabilityRequirement{
 				Type: protocol.RequirementFeature, Name: key,
 			})
 		}
 		// Only a feature that changes what the Run PUBLISHES belongs on the Run: the
-		// profile exists so a later subscriber can be told what it must understand,
+		// capability set exists so a later subscriber can be told what it must understand,
 		// and a feature invisible in the stream demands nothing of it.
 		if published.RequiredByRunProtocol {
 			switch key {
 			case protocol.FeatureSubagents:
-				profile.ChildRuns = true
+				capabilities.ChildRuns = true
 			default:
-				return execution.RunProtocolProfile{}, fmt.Errorf(
+				return execution.RunCapabilities{}, fmt.Errorf(
 					"server: required Run protocol feature %q has no application policy mapping",
 					key,
 				)
@@ -67,7 +67,7 @@ func (s *Server) negotiateCapabilities(ctx context.Context) (execution.RunProtoc
 	for _, declared := range caps.InterruptTypes {
 		kind, backed := interruptKindFromWire(declared)
 		if backed {
-			profile.InterruptKinds = append(profile.InterruptKinds, kind)
+			capabilities.InterruptKinds = append(capabilities.InterruptKinds, kind)
 			continue
 		}
 		if declared == protocol.InterruptToolResult {
@@ -75,14 +75,14 @@ func (s *Server) negotiateCapabilities(ctx context.Context) (execution.RunProtoc
 			// runtime can only produce it with features.clientTools. Both gaps are named:
 			// the type the caller asked for and the feature that would make it possible,
 			// because fixing only one of them changes nothing.
-			return execution.RunProtocolProfile{}, protocol.NewCapabilityGap(
+			return execution.RunCapabilities{}, protocol.NewCapabilityGap(
 				protocol.CapabilityRequirement{Type: protocol.RequirementInterruptType, Name: string(declared)},
 				protocol.CapabilityRequirement{Type: protocol.RequirementFeature, Name: protocol.FeatureClientTools},
 			)
 		}
-		return execution.RunProtocolProfile{}, fmt.Errorf("%w: unknown interruptTypes value %q", protocol.ErrInvalidParams, declared)
+		return execution.RunCapabilities{}, fmt.Errorf("%w: unknown interruptTypes value %q", protocol.ErrInvalidParams, declared)
 	}
-	return profile.Normalized(), nil
+	return capabilities.Normalized(), nil
 }
 
 // missingFeatureRequirements is the server-side entry point for a gate whose
@@ -113,21 +113,19 @@ func (s *Server) requestCanUseFeature(ctx context.Context, feature string) bool 
 	return len(s.missingFeatureRequirements(ctx, feature)) == 0
 }
 
-// profileGap turns a Run's uncovered profile into the requirements a caller would
-// have to declare. It is the same list in both directions: what the Run publishes,
-// spoken as what the caller is missing.
+// capabilityGap maps the complete missing semantic set to protocol requirements.
 //
 // Every gap at once, because a caller told about one at a time cannot get itself into
 // a state where the call succeeds.
-func profileGap(gap execution.RunProtocolProfile) *protocol.CapabilityGap {
+func capabilityGap(missing execution.RunCapabilities) *protocol.CapabilityGap {
 	requirements := make([]protocol.CapabilityRequirement, 0,
-		1+len(gap.InterruptKinds))
-	if gap.ChildRuns {
+		1+len(missing.InterruptKinds))
+	if missing.ChildRuns {
 		requirements = append(requirements, protocol.CapabilityRequirement{
 			Type: protocol.RequirementFeature, Name: protocol.FeatureSubagents,
 		})
 	}
-	for _, kind := range gap.InterruptKinds {
+	for _, kind := range missing.InterruptKinds {
 		requirements = append(requirements, protocol.CapabilityRequirement{
 			Type: protocol.RequirementInterruptType, Name: string(presentInterruptType(kind)),
 		})
@@ -149,7 +147,7 @@ func interruptKindFromWire(kind protocol.InterruptType) (execution.InterruptKind
 	}
 }
 
-// presentInterruptType is the same mapping read outward, for a profile or an
+// presentInterruptType is the same mapping read outward, for a protocol profile or an
 // interrupt on its way to the wire.
 func presentInterruptType(kind execution.InterruptKind) protocol.InterruptType {
 	switch kind {

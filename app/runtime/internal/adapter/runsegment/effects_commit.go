@@ -219,8 +219,8 @@ func (e *Effects) CommitTreeBarrier(ctx context.Context, barrier runs.TreeBarrie
 			commit.Run.Limits != continuation.Limits {
 			return fmt.Errorf("runsegment: tree barrier Run[%d] differs from its continuation", index)
 		}
-		if !commit.Run.ProtocolProfile.Equal(barrier.Pending.ProtocolProfile) {
-			return fmt.Errorf("runsegment: tree barrier Run[%d] protocol profile differs from Pending", index)
+		if !commit.Run.Capabilities.Equal(barrier.Pending.Capabilities) {
+			return fmt.Errorf("runsegment: tree barrier Run[%d] run capabilities differ from Pending", index)
 		}
 		if commit.RunID == barrier.Pending.RootRunID {
 			if commit.Run.GoalLeaseID != barrier.Pending.GoalLeaseID {

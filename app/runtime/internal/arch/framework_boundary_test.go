@@ -517,20 +517,20 @@ func TestParkedContinuationFactsAreCrossCheckedAtEveryLifecycleBoundary(t *testi
 	root := moduleRoot(t)
 	checks := map[string][]string{
 		filepath.Join("internal", "domain", "execution", "interrupts", "interrupts.go"): {
-			"p.ProtocolProfile.Validate()",
-			"p.ProtocolProfile.ChildRuns",
-			"slices.Contains(p.ProtocolProfile.InterruptKinds, interrupt.Kind)",
+			"p.Capabilities.Validate()",
+			"p.Capabilities.ChildRuns",
+			"slices.Contains(p.Capabilities.InterruptKinds, interrupt.Kind)",
 		},
 		filepath.Join("internal", "adapter", "runsegment", "effects_commit.go"): {
 			"commit.Run.Metrics.Equal(continuation.Metrics)",
 			"commit.Run.Limits != continuation.Limits",
-			"commit.Run.ProtocolProfile.Equal(barrier.Pending.ProtocolProfile)",
+			"commit.Run.Capabilities.Equal(barrier.Pending.Capabilities)",
 			"commit.Run.GoalLeaseID != barrier.Pending.GoalLeaseID",
 		},
 		filepath.Join("internal", "adapter", "runsegment", "effects_waiting_cancellation.go"): {
 			"run.Metrics.Equal(continuation.Metrics)",
 			"run.Limits != continuation.Limits",
-			"commit.RootRun.ProtocolProfile.Equal(commit.ExpectedPending.ProtocolProfile)",
+			"commit.RootRun.Capabilities.Equal(commit.ExpectedPending.Capabilities)",
 		},
 		filepath.Join("internal", "application", "runs", "cancel_plan.go"): {
 			"validatePendingRunTree(*pending, activeRuns)",
@@ -540,7 +540,7 @@ func TestParkedContinuationFactsAreCrossCheckedAtEveryLifecycleBoundary(t *testi
 		},
 		filepath.Join("internal", "application", "runs", "recovery_validation.go"): {
 			"validateContinuationRunFacts(root.ID, active, continuation)",
-			"pending.ProtocolProfile.Equal(tree.root.ProtocolProfile)",
+			"pending.Capabilities.Equal(tree.root.Capabilities)",
 		},
 		filepath.Join("internal", "application", "runs", "continuation_validation.go"): {
 			"run.Metrics.Equal(continuation.Metrics)",
@@ -550,7 +550,7 @@ func TestParkedContinuationFactsAreCrossCheckedAtEveryLifecycleBoundary(t *testi
 		filepath.Join("internal", "application", "sessions", "interrupt.go"): {
 			"run.Metrics.Equal(continuation.Metrics)",
 			"run.Limits != continuation.Limits",
-			"pending.ProtocolProfile.Equal(rootAdmission.ProtocolProfile)",
+			"pending.Capabilities.Equal(rootAdmission.Capabilities)",
 		},
 	}
 	for relative, required := range checks {

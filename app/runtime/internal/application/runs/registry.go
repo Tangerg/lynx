@@ -17,11 +17,10 @@ type Record struct {
 	CreatedAt      time.Time
 	TurnID         string
 	ModelSelection modelref.Selection
-	// ProtocolProfile is the Run's frozen protocol contract, carried on the live
-	// record so a subscriber can be refused before it is attached to a stream it
-	// could not follow.
-	ProtocolProfile execution.RunProtocolProfile
-	CancelReason    string
+	// Capabilities is the Run's frozen optional behavior, carried on the live
+	// record so an insufficient subscriber is refused before attachment.
+	Capabilities execution.RunCapabilities
+	CancelReason string
 }
 
 // liveSegment is the coordinator's process-local state for a currently active
@@ -85,7 +84,7 @@ func (r *registry) MarkCancel(id, reason string) (liveSegment, bool) {
 }
 
 func cloneRecord(record Record) Record {
-	record.ProtocolProfile = record.ProtocolProfile.Clone()
+	record.Capabilities = record.Capabilities.Clone()
 	return record
 }
 

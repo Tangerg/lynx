@@ -66,16 +66,15 @@ type Run struct {
 	// and a cross-process rehydrate have to apply the same caps the first segment
 	// did.
 	Limits execution.RunLimits
-	// ProtocolProfile is the protocol contract this Run was created under, frozen
-	// at admission and reported unchanged for the Run's whole life — a subscriber
-	// that reconnects mid-Run has to learn what the Run may publish, and it must be
-	// the same answer the first segment gave.
-	ProtocolProfile execution.RunProtocolProfile
-	Interrupts      []Interrupt
-	CreatedAt       time.Time
-	FinishedAt      time.Time
-	UpdatedAt       time.Time
-	MessageMark     int
+	// Capabilities is the optional behavior enabled at admission and retained for
+	// the Run's whole life. A continuation may exercise the same child-Run and
+	// interrupt behavior; it cannot renegotiate either.
+	Capabilities execution.RunCapabilities
+	Interrupts   []Interrupt
+	CreatedAt    time.Time
+	FinishedAt   time.Time
+	UpdatedAt    time.Time
+	MessageMark  int
 }
 
 // RunMetrics is what a Run has consumed, accumulated over all of its segments.
@@ -458,7 +457,7 @@ func (run Run) Validate() error {
 	if err := run.Limits.Validate(); err != nil {
 		return err
 	}
-	if err := run.ProtocolProfile.Validate(); err != nil {
+	if err := run.Capabilities.Validate(); err != nil {
 		return err
 	}
 	if run.State.IsTerminal() {

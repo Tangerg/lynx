@@ -287,7 +287,7 @@ func prepareWaitingCancellationTransformation(
 		goalLeaseID:   plan.pending.GoalLeaseID,
 		interrupts:    slices.Clone(remainingInterrupts),
 		continuations: slices.Clone(continuations),
-		profile:       plan.pending.ProtocolProfile,
+		capabilities:  plan.pending.Capabilities,
 	}
 	if err := continuation.validate(); err != nil {
 		return waitingCancellationTransformation{}, fmt.Errorf(

@@ -273,15 +273,15 @@ func TestSubscribeRefusesACallerThatCouldNotFollowTheRun(t *testing.T) {
 	c := NewCoordinator(Dependencies{
 		Runs: &fakeRunProjection{runs: map[string]transcript.Run{testRunID: run}},
 	})
-	profile := execution.RunProtocolProfile{InterruptKinds: []execution.InterruptKind{execution.ApprovalInterrupt}}
+	capabilities := execution.RunCapabilities{InterruptKinds: []execution.InterruptKind{execution.ApprovalInterrupt}}
 	hub := newJournal(streamScope{Epoch: c.epoch, RunID: testRunID, SegmentID: testSegmentID}, c.retention)
 	c.registry.Open(Record{
-		ID: testRunID, SegmentID: testSegmentID, SessionID: "ses_1", ProtocolProfile: profile,
+		ID: testRunID, SegmentID: testSegmentID, SessionID: "ses_1", Capabilities: capabilities,
 	}, &handle{hub: hub})
 
 	_, err := c.Subscribe(t.Context(), SubscribeRequest{RunID: testRunID, SegmentID: testSegmentID})
-	if _, ok := errors.AsType[*execution.ProfileNotCovered](err); !ok {
-		t.Fatalf("Subscribe err = %v, want ProfileNotCovered", err)
+	if _, ok := errors.AsType[*execution.InsufficientCapabilities](err); !ok {
+		t.Fatalf("Subscribe err = %v, want InsufficientCapabilities", err)
 	}
 }
 

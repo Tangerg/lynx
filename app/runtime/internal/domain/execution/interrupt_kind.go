@@ -4,9 +4,9 @@ package execution
 // produce — why it is [Interrupted], and what shape of answer resumes it.
 //
 // It lives beside the state it explains because three rings need the same
-// answer: the durable interrupt record, the protocol profile a Run is admitted
-// under (which kinds it may ever produce), and the executor deciding whether to
-// park at all. Spelling it once is what lets a Run's frozen profile be handed
+// answer: the durable interrupt record, the Run capabilities that constrain
+// which kinds may be produced, and the executor deciding whether to park at all.
+// Spelling it once is what lets the frozen capability set be handed
 // straight to the executor; two enums with the same members would need a
 // mapping table between them, and a kind added to one would be a kind the other
 // silently could not represent.

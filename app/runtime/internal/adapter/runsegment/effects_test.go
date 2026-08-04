@@ -62,7 +62,7 @@ func singleRunPending(
 		RootRunID: runID,
 		SessionID: sessionID,
 		TurnID:    "turn_" + runID,
-		ProtocolProfile: execution.RunProtocolProfile{
+		Capabilities: execution.RunCapabilities{
 			InterruptKinds: []execution.InterruptKind{execution.QuestionInterrupt},
 		},
 		Interrupts: []transcript.Interrupt{{
@@ -307,13 +307,13 @@ func TestCommitTreeBarrierRecordsPendingSetAndSuspends(t *testing.T) {
 			State:     runs.StateSuspend,
 			Run: &transcript.Run{
 				SessionID: "ses_1", ID: "run_1", State: execution.Interrupted,
-				ModelSelection:  pending.Continuations[0].ModelSelection,
-				Interrupts:      pending.Interrupts,
-				Metrics:         transcript.RunMetrics{Steps: 2},
-				ProtocolProfile: pending.ProtocolProfile,
-				CreatedAt:       runCreatedAt,
-				UpdatedAt:       barrierCreatedAt,
-				MessageMark:     transcript.UnknownMessageMark,
+				ModelSelection: pending.Continuations[0].ModelSelection,
+				Interrupts:     pending.Interrupts,
+				Metrics:        transcript.RunMetrics{Steps: 2},
+				Capabilities:   pending.Capabilities,
+				CreatedAt:      runCreatedAt,
+				UpdatedAt:      barrierCreatedAt,
+				MessageMark:    transcript.UnknownMessageMark,
 			},
 			Items: []transcript.Item{{
 				SessionID: "ses_1", RunID: "run_1", ID: "int_1",
@@ -455,9 +455,9 @@ func TestCommitTreeBarrierRejectsRunContinuationFactDriftBeforeTransaction(t *te
 			},
 		},
 		{
-			name: "frozen protocol profile",
+			name: "frozen run capabilities",
 			mutate: func(_ *interrupts.Pending, run *transcript.Run) {
-				run.ProtocolProfile.ChildRuns = true
+				run.Capabilities.ChildRuns = true
 			},
 		},
 		{
@@ -479,17 +479,17 @@ func TestCommitTreeBarrierRejectsRunContinuationFactDriftBeforeTransaction(t *te
 			pending.Continuations[0].Metrics = transcript.RunMetrics{Steps: 2}
 			pending.Continuations[0].Limits = execution.RunLimits{MaxSteps: 5}
 			run := transcript.Run{
-				SessionID:       pending.SessionID,
-				ID:              pending.RootRunID,
-				ModelSelection:  pending.Continuations[0].ModelSelection,
-				GoalLeaseID:     pending.GoalLeaseID,
-				State:           execution.Interrupted,
-				Interrupts:      pending.Interrupts,
-				Metrics:         pending.Continuations[0].Metrics,
-				Limits:          pending.Continuations[0].Limits,
-				ProtocolProfile: pending.ProtocolProfile,
-				CreatedAt:       createdAt,
-				MessageMark:     transcript.UnknownMessageMark,
+				SessionID:      pending.SessionID,
+				ID:             pending.RootRunID,
+				ModelSelection: pending.Continuations[0].ModelSelection,
+				GoalLeaseID:    pending.GoalLeaseID,
+				State:          execution.Interrupted,
+				Interrupts:     pending.Interrupts,
+				Metrics:        pending.Continuations[0].Metrics,
+				Limits:         pending.Continuations[0].Limits,
+				Capabilities:   pending.Capabilities,
+				CreatedAt:      createdAt,
+				MessageMark:    transcript.UnknownMessageMark,
 			}
 			test.mutate(&pending, &run)
 			checkpoint := testExecutorCheckpoint("proc_1")

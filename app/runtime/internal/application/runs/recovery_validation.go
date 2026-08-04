@@ -47,9 +47,9 @@ func validateRecoveryParkedTree(
 			tree.root.GoalLeaseID,
 		)
 	}
-	if !pending.ProtocolProfile.Equal(tree.root.ProtocolProfile) {
+	if !pending.Capabilities.Equal(tree.root.Capabilities) {
 		return false, fmt.Errorf(
-			"runs: validate recovery Run tree %q: Pending protocol profile differs from root Run admission",
+			"runs: validate recovery Run tree %q: Pending run capabilities differ from root Run admission",
 			tree.root.ID,
 		)
 	}
@@ -146,9 +146,9 @@ func validateRecoveryContinuation(
 			active.ID,
 			active.State,
 		)
-	case !active.ProtocolProfile.Equal(root.ProtocolProfile):
+	case !active.Capabilities.Equal(root.Capabilities):
 		return fmt.Errorf(
-			"runs: validate recovery Run tree %q: Run %q protocol profile differs from root admission",
+			"runs: validate recovery Run tree %q: Run %q run capabilities differ from root admission",
 			root.ID,
 			active.ID,
 		)

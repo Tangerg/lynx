@@ -199,14 +199,14 @@ func (c *Coordinator) openSegment(reqCtx context.Context, spec segmentSpec) (ite
 		panic("runs: committed opening without a pending admission")
 	}
 	c.registry.Open(Record{
-		ID:              spec.RunID,
-		SegmentID:       spec.SegmentID,
-		SessionID:       spec.SessionID,
-		Cwd:             spec.Cwd,
-		CreatedAt:       spec.CreatedAt,
-		TurnID:          spec.TurnID,
-		ModelSelection:  spec.ModelSelection,
-		ProtocolProfile: spec.effectiveProfile(),
+		ID:             spec.RunID,
+		SegmentID:      spec.SegmentID,
+		SessionID:      spec.SessionID,
+		Cwd:            spec.Cwd,
+		CreatedAt:      spec.CreatedAt,
+		TurnID:         spec.TurnID,
+		ModelSelection: spec.ModelSelection,
+		Capabilities:   spec.effectiveCapabilities(),
 	}, live)
 	// The opening subscription attaches before any event is appended, so tail-only
 	// and "from the beginning" are the same stream here — there is no beginning yet.
@@ -259,14 +259,14 @@ func (c *Coordinator) commitOpening(ctx context.Context, spec segmentSpec, route
 		}
 	} else {
 		opening.Admit = &execution.RunDraft{
-			RunID:           spec.RunID,
-			SessionID:       spec.SessionID,
-			SegmentID:       spec.SegmentID,
-			ModelSelection:  spec.ModelSelection,
-			GoalLeaseID:     spec.GoalLeaseID,
-			Limits:          spec.Limits,
-			ProtocolProfile: spec.ProtocolProfile,
-			CreatedAt:       spec.CreatedAt,
+			RunID:          spec.RunID,
+			SessionID:      spec.SessionID,
+			SegmentID:      spec.SegmentID,
+			ModelSelection: spec.ModelSelection,
+			GoalLeaseID:    spec.GoalLeaseID,
+			Limits:         spec.Limits,
+			Capabilities:   spec.Capabilities,
+			CreatedAt:      spec.CreatedAt,
 		}
 		opening.ScheduledSession = spec.ScheduledSession
 		opening.SessionModel = spec.SessionModel
@@ -350,7 +350,7 @@ func (c *Coordinator) rejectUnadmittedTurn(ctx context.Context, ref execution.Tu
 // Refusals name what the caller should do instead: [ErrRunNotFound],
 // [transcript.ErrNotRoot], [ErrRunWaiting], [ErrRunFinished],
 // [ErrStaleSegment], [ErrReplayCursorInvalid], [ErrReplayUnavailable], and
-// [execution.ProfileNotCovered] when the caller could not follow what this run
+// [execution.InsufficientCapabilities] when the caller could not follow what this run
 // publishes — the same rule a resume applies, kept here rather than at each
 // caller so the two entry points into an existing Run cannot disagree about it.
 func (c *Coordinator) Subscribe(ctx context.Context, req SubscribeRequest) (Subscription, error) {
@@ -358,8 +358,8 @@ func (c *Coordinator) Subscribe(ctx context.Context, req SubscribeRequest) (Subs
 	if err != nil {
 		return Subscription{}, err
 	}
-	if gap := live.record.ProtocolProfile.Uncovered(req.Caller); !gap.IsEmpty() {
-		return Subscription{}, &execution.ProfileNotCovered{RunID: req.RunID, Gap: gap}
+	if gap := live.record.Capabilities.MissingFrom(req.CallerCapabilities); !gap.IsEmpty() {
+		return Subscription{}, &execution.InsufficientCapabilities{RunID: req.RunID, Missing: gap}
 	}
 	attached, err := live.handle.hub.attach(req.Cursor)
 	if err != nil {

@@ -416,14 +416,14 @@ func statusFilter(statuses []execution.RunStatus) string {
 // storage rather than a rule this read has to remember.
 //
 // caller is what the requesting client declared it can follow. A set whose Run
-// publishes more than that is REFUSED — [execution.ErrProfileNotCovered] — rather
+// publishes more than that is REFUSED — [execution.ErrInsufficientCapabilities] — rather
 // than returned with the parts the caller understands: a client that answered a
 // trimmed set would leave the rest of it open forever, and the run would stay
 // waiting on interrupts the client believes it resolved.
 //
 // rootRunID must name a root. A child id is [transcript.ErrNotRoot], because the
 // set it belongs to exists — under the root — and an empty page would say otherwise.
-func (c *Coordinator) ListPendingInterruptPage(ctx context.Context, sessionID, rootRunID string, caller execution.RunProtocolProfile, cursor string, limit int) (keyset.Page[interrupts.Pending], error) {
+func (c *Coordinator) ListPendingInterruptPage(ctx context.Context, sessionID, rootRunID string, caller execution.RunCapabilities, cursor string, limit int) (keyset.Page[interrupts.Pending], error) {
 	filters := []string{sessionID, rootRunID}
 	afterCreatedAt, afterID, err := timeAndIDAnchor(cursor, interruptPageMethod, filters)
 	if err != nil {
@@ -444,8 +444,8 @@ func (c *Coordinator) ListPendingInterruptPage(ctx context.Context, sessionID, r
 		return []string{strconv.FormatInt(pending.CreatedAt.UnixNano(), 10), pending.RootRunID}
 	})
 	for _, pending := range page.Rows {
-		if gap := pending.ProtocolProfile.Uncovered(caller); !gap.IsEmpty() {
-			return keyset.Page[interrupts.Pending]{}, &execution.ProfileNotCovered{RunID: pending.RootRunID, Gap: gap}
+		if gap := pending.Capabilities.MissingFrom(caller); !gap.IsEmpty() {
+			return keyset.Page[interrupts.Pending]{}, &execution.InsufficientCapabilities{RunID: pending.RootRunID, Missing: gap}
 		}
 	}
 	return page, nil

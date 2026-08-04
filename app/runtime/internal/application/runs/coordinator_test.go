@@ -36,7 +36,7 @@ func testTreeContinuation(pending interrupts.Pending) *treeContinuation {
 		goalLeaseID:   pending.GoalLeaseID,
 		interrupts:    slices.Clone(pending.Interrupts),
 		continuations: slices.Clone(pending.Continuations),
-		profile:       pending.ProtocolProfile,
+		capabilities:  pending.Capabilities,
 	}
 }
 
@@ -420,8 +420,8 @@ func runForSegment(spec segmentSpec) transcript.Run {
 		ID: spec.RunID, SessionID: spec.SessionID, State: execution.Running,
 		ActiveSegmentID: spec.SegmentID, ModelSelection: spec.ModelSelection,
 		GoalLeaseID: spec.GoalLeaseID, Limits: spec.Limits,
-		ProtocolProfile: spec.ProtocolProfile,
-		CreatedAt:       spec.CreatedAt, UpdatedAt: spec.CreatedAt,
+		Capabilities: spec.Capabilities,
+		CreatedAt:    spec.CreatedAt, UpdatedAt: spec.CreatedAt,
 		MessageMark: transcript.UnknownMessageMark,
 	}
 }
@@ -818,7 +818,7 @@ func resumedTreePending(createdAt time.Time) interrupts.Pending {
 		RootRunID: "run_1",
 		SessionID: "ses_1",
 		TurnID:    "turn_1",
-		ProtocolProfile: execution.RunProtocolProfile{
+		Capabilities: execution.RunCapabilities{
 			ChildRuns:      true,
 			InterruptKinds: []execution.InterruptKind{execution.QuestionInterrupt},
 		},
@@ -1092,7 +1092,7 @@ func TestCoordinatorAtomicallyAdmitsChildRunFromSpawningItem(t *testing.T) {
 		draft.RootRunID != "run_1" ||
 		draft.SegmentID != "seg_child" ||
 		draft.ModelSelection != testSegment().ModelSelection ||
-		!draft.ProtocolProfile.IsEmpty() ||
+		!draft.Capabilities.IsEmpty() ||
 		!draft.CreatedAt.Equal(startedAt) {
 		t.Fatalf("child admission draft = %+v", draft)
 	}
@@ -1164,7 +1164,7 @@ func TestCoordinatorPublishesChildSegmentOnItsOwnRunIdentity(t *testing.T) {
 	coordinator.newSegmentID = func() string { return "seg_child" }
 	spec := testSegment()
 	spec.Limits = execution.RunLimits{MaxSteps: 20, MaxBudgetUSD: 3}
-	spec.ProtocolProfile = execution.RunProtocolProfile{
+	spec.Capabilities = execution.RunCapabilities{
 		ChildRuns: true,
 	}
 
@@ -1213,7 +1213,7 @@ func TestCoordinatorPublishesChildSegmentOnItsOwnRunIdentity(t *testing.T) {
 	if childStarted.Run.Lineage() != lineage ||
 		childStarted.Run.ActiveSegmentID != "seg_child" ||
 		childStarted.Run.Limits != spec.Limits ||
-		childStarted.Run.ProtocolProfile.String() != spec.ProtocolProfile.String() {
+		childStarted.Run.Capabilities.String() != spec.Capabilities.String() {
 		t.Fatalf("child opening run = %+v, want independent inherited segment state", childStarted.Run)
 	}
 	if childCompleted == nil ||
@@ -1956,7 +1956,7 @@ func TestCoordinatorCommitsCompleteTreeBarrierInDeterministicPostorder(t *testin
 	}
 
 	spec := testSegment()
-	spec.ProtocolProfile = execution.RunProtocolProfile{
+	spec.Capabilities = execution.RunCapabilities{
 		ChildRuns:      true,
 		InterruptKinds: []execution.InterruptKind{execution.QuestionInterrupt},
 	}

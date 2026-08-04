@@ -353,9 +353,9 @@ func TestRecoveryRejectsContinuationFactDriftWithoutProbingCheckpoint(t *testing
 			},
 		},
 		{
-			name: "frozen protocol profile",
+			name: "frozen run capabilities",
 			mutate: func(run *transcript.Run, _ *interrupts.Pending) {
-				run.ProtocolProfile.ChildRuns = true
+				run.Capabilities.ChildRuns = true
 			},
 		},
 	}
@@ -393,8 +393,8 @@ func TestRecoveryRejectsContinuationFactDriftWithoutProbingCheckpoint(t *testing
 // that policy as a second source of truth.
 func TestRecoveryRejectsChildProtocolDriftWithoutProbingCheckpoint(t *testing.T) {
 	root, pending, item := coherentRecoveryPark(t)
-	root.ProtocolProfile.ChildRuns = true
-	pending.ProtocolProfile.ChildRuns = true
+	root.Capabilities.ChildRuns = true
+	pending.Capabilities.ChildRuns = true
 	lineage := execution.RunLineage{
 		SpawnedByItemID: "item_spawn",
 		ParentRunID:     root.ID,
@@ -406,8 +406,8 @@ func TestRecoveryRejectsChildProtocolDriftWithoutProbingCheckpoint(t *testing.T)
 		ParentRunID:     lineage.ParentRunID,
 		RootRunID:       lineage.RootRunID,
 		ModelSelection:  root.ModelSelection,
-		// This is a valid profile in isolation but contradicts the root admission.
-		ProtocolProfile: execution.RunProtocolProfile{
+		// This is a valid capabilities in isolation but contradicts the root admission.
+		Capabilities: execution.RunCapabilities{
 			InterruptKinds: []execution.InterruptKind{execution.QuestionInterrupt},
 		},
 		CreatedAt: root.CreatedAt, MessageMark: transcript.UnknownMessageMark,
@@ -436,7 +436,7 @@ func TestRecoveryRejectsChildProtocolDriftWithoutProbingCheckpoint(t *testing.T)
 	}
 
 	if _, err := recovery.Reconcile(t.Context()); err == nil {
-		t.Fatal("Reconcile accepted a child Run protocol profile that differs from root admission")
+		t.Fatal("Reconcile accepted a child Run run capabilities that differs from root admission")
 	}
 	if store.commits != 0 || checkpointCalls != 0 {
 		t.Fatalf("recovery mutated or probed after child policy drift: commits=%d checkpointCalls=%d", store.commits, checkpointCalls)
@@ -458,15 +458,15 @@ func coherentRecoveryPark(t *testing.T) (transcript.Run, interrupts.Pending, tra
 	run := transcript.Run{
 		ID: "run_root", SessionID: "session", State: execution.Interrupted,
 		ModelSelection: selection, Interrupts: []transcript.Interrupt{interrupt},
-		ProtocolProfile: execution.RunProtocolProfile{InterruptKinds: []execution.InterruptKind{execution.QuestionInterrupt}},
-		CreatedAt:       createdAt, UpdatedAt: createdAt.Add(time.Second), MessageMark: transcript.UnknownMessageMark,
+		Capabilities: execution.RunCapabilities{InterruptKinds: []execution.InterruptKind{execution.QuestionInterrupt}},
+		CreatedAt:    createdAt, UpdatedAt: createdAt.Add(time.Second), MessageMark: transcript.UnknownMessageMark,
 	}
 	pending := interrupts.Pending{
 		RootRunID:  run.ID,
 		SessionID:  run.SessionID,
 		TurnID:     "turn_root",
 		Interrupts: []transcript.Interrupt{interrupt},
-		ProtocolProfile: execution.RunProtocolProfile{
+		Capabilities: execution.RunCapabilities{
 			InterruptKinds: []execution.InterruptKind{execution.QuestionInterrupt},
 		},
 		Suspensions: []interrupts.SuspensionBinding{{

@@ -5155,8 +5155,8 @@
       ]
     },
     {
-      "key": "run_protocol_profile_is_immutable",
-      "why": "A Run publishes under the contract it was created with. If a later segment could restate it, a subscriber that reconnected on the strength of the first answer would be folding a stream whose rules had changed under it.",
+      "key": "run_capabilities_are_immutable",
+      "why": "A Run may exercise only the optional behavior enabled at admission. If a later segment could restate it, continuation and subscription checks would no longer describe the same Run.",
       "boundaries": [
         "runs.admission"
       ]
@@ -5171,7 +5171,7 @@
     },
     {
       "key": "parked_continuation_matches_run_facts",
-      "why": "A continuation is a hand-off of the admitted Run, not a second author. If its model, cumulative accounting, limits, lineage, creation time, goal lease or protocol contract differs, resume or teardown would rewrite history.",
+      "why": "A continuation is a hand-off of the admitted Run, not a second author. If its model, cumulative accounting, limits, lineage, creation time, goal lease or capabilities differ, resume or teardown would rewrite history.",
       "boundaries": [
         "runsegment.opening",
         "runsegment.event",

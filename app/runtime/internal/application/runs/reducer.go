@@ -59,13 +59,12 @@ type reducerConfig struct {
 	// Limits is the allowance in force for the whole Run, frozen at admission and
 	// carried unchanged through every continuation.
 	Limits execution.RunLimits
-	// ProtocolProfile is the Run's frozen protocol contract, carried the same way:
-	// every Run record this reducer commits reports the contract the Run was
-	// admitted under, including the records a continuation writes.
-	ProtocolProfile execution.RunProtocolProfile
-	Continuation    *treeContinuation
-	Now             func() time.Time
-	CancelReason    func() string
+	// Capabilities is the Run's frozen optional behavior. Every record this reducer
+	// commits carries the admission value, including continuation records.
+	Capabilities execution.RunCapabilities
+	Continuation *treeContinuation
+	Now          func() time.Time
+	CancelReason func() string
 }
 
 // reducer is the per-segment state machine that turns executor events into the

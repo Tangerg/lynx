@@ -23,7 +23,7 @@ type treeContinuation struct {
 	goalLeaseID   string
 	interrupts    []transcript.Interrupt
 	continuations []interrupts.Continuation
-	profile       execution.RunProtocolProfile
+	capabilities  execution.RunCapabilities
 }
 
 func treeContinuationFromPending(pending interrupts.Pending) (*treeContinuation, error) {
@@ -37,7 +37,7 @@ func treeContinuationFromPending(pending interrupts.Pending) (*treeContinuation,
 		goalLeaseID:   pending.GoalLeaseID,
 		interrupts:    slices.Clone(pending.Interrupts),
 		continuations: slices.Clone(pending.Continuations),
-		profile:       pending.ProtocolProfile,
+		capabilities:  pending.Capabilities,
 	}
 	if err := continuation.validate(); err != nil {
 		return nil, err

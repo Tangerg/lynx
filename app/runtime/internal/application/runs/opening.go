@@ -30,8 +30,8 @@ func (c *Coordinator) Start(ctx context.Context, cmd StartCommand) (StartResult,
 		ModelSelection:           cmd.ModelSelection,
 		Limits:                   cmd.Limits,
 		Options:                  cmd.Options,
-		InterruptKinds:           cmd.ProtocolProfile.InterruptKinds,
-		ChildRunAdmissionEnabled: cmd.ProtocolProfile.ChildRuns,
+		InterruptKinds:           cmd.Capabilities.InterruptKinds,
+		ChildRunAdmissionEnabled: cmd.Capabilities.ChildRuns,
 		GoalLeaseID:              cmd.GoalLeaseID,
 	}
 	if err := draft.Validate(); err != nil {
@@ -92,7 +92,7 @@ func (c *Coordinator) Start(ctx context.Context, cmd StartCommand) (StartResult,
 		OpeningUserText:  openingUserText,
 		Input:            cmd.Input,
 		Limits:           cmd.Limits,
-		ProtocolProfile:  cmd.ProtocolProfile,
+		Capabilities:     cmd.Capabilities,
 		admission:        &runAdmission,
 		Activate: func(activateCtx context.Context) error {
 			return c.turns.Activate(activateCtx, turn)

@@ -143,7 +143,7 @@ func TestRecoveryRejectsPartialParkWithoutMutatingIt(t *testing.T) {
 	checkpointStore := sqlite.NewExecutorCheckpointStore(db)
 	if err := runStore.Admit(ctx, execution.RunDraft{
 		RunID: "run_partial", SessionID: "session", SegmentID: "segment", CreatedAt: createdAt,
-		ProtocolProfile: execution.RunProtocolProfile{
+		Capabilities: execution.RunCapabilities{
 			InterruptKinds: []execution.InterruptKind{execution.QuestionInterrupt},
 		},
 	}); err != nil {
@@ -156,7 +156,7 @@ func TestRecoveryRejectsPartialParkWithoutMutatingIt(t *testing.T) {
 	}
 	if err := runStore.Suspend(ctx, transcript.Run{
 		ID: "run_partial", SessionID: "session", State: execution.Interrupted,
-		ProtocolProfile: execution.RunProtocolProfile{
+		Capabilities: execution.RunCapabilities{
 			InterruptKinds: []execution.InterruptKind{execution.QuestionInterrupt},
 		},
 		Interrupts: []transcript.Interrupt{interrupt}, CreatedAt: createdAt,
@@ -166,7 +166,7 @@ func TestRecoveryRejectsPartialParkWithoutMutatingIt(t *testing.T) {
 	}
 	pending := interrupts.Pending{
 		RootRunID: "run_partial", SessionID: "session", TurnID: "turn_partial",
-		ProtocolProfile: execution.RunProtocolProfile{
+		Capabilities: execution.RunCapabilities{
 			InterruptKinds: []execution.InterruptKind{execution.QuestionInterrupt},
 		},
 		Interrupts: []transcript.Interrupt{interrupt},

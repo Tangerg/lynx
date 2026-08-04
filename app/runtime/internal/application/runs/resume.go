@@ -26,8 +26,8 @@ func (c *Coordinator) Resume(ctx context.Context, cmd ResumeCommand) (StartResul
 	if err := pending.Validate(); err != nil {
 		return StartResult{}, fmt.Errorf("runs: invalid pending interrupt set: %w", err)
 	}
-	if gap := pending.ProtocolProfile.Uncovered(cmd.CallerCapabilities); !gap.IsEmpty() {
-		return StartResult{}, &execution.ProfileNotCovered{RunID: cmd.RunID, Gap: gap}
+	if gap := pending.Capabilities.MissingFrom(cmd.CallerCapabilities); !gap.IsEmpty() {
+		return StartResult{}, &execution.InsufficientCapabilities{RunID: cmd.RunID, Missing: gap}
 	}
 	answers, err := resolveResumeResponses(pending, cmd.Responses)
 	if err != nil {
@@ -97,7 +97,7 @@ func (c *Coordinator) Resume(ctx context.Context, cmd ResumeCommand) (StartResul
 			// The RUN's frozen kinds, not this request's: the caller has already been
 			// checked to cover them, and taking the declaration here would let each
 			// resume change what the next segment may park on.
-			return c.turns.Resume(activateCtx, turn, answers, pending.ProtocolProfile.InterruptKinds)
+			return c.turns.Resume(activateCtx, turn, answers, pending.Capabilities.InterruptKinds)
 		},
 	})
 	if err != nil {
@@ -166,7 +166,7 @@ func (c *Coordinator) prepareTurn(ctx context.Context, pending interrupts.Pendin
 		Isolated:                 isolated,
 		GoalLeaseID:              pending.GoalLeaseID,
 		Limits:                   root.Limits,
-		ChildRunAdmissionEnabled: pending.ProtocolProfile.ChildRuns,
+		ChildRunAdmissionEnabled: pending.Capabilities.ChildRuns,
 	})
 	if err != nil {
 		return execution.TurnRef{}, errors.Join(ErrRunNotFound, err)

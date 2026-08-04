@@ -447,12 +447,12 @@ func (p treePublisher) publishTreeBarrier(
 	}
 
 	pending := interrupts.Pending{
-		RootRunID:       routes.root.runID,
-		SessionID:       p.rootSpec.SessionID,
-		TurnID:          p.rootSpec.TurnID,
-		GoalLeaseID:     p.rootSpec.GoalLeaseID,
-		ProtocolProfile: routes.root.protocolProfile,
-		CreatedAt:       boundaryAt,
+		RootRunID:    routes.root.runID,
+		SessionID:    p.rootSpec.SessionID,
+		TurnID:       p.rootSpec.TurnID,
+		GoalLeaseID:  p.rootSpec.GoalLeaseID,
+		Capabilities: routes.root.capabilities,
+		CreatedAt:    boundaryAt,
 	}
 	reductions := make([]treeBarrierReduction, 0, len(ordered))
 	commits := make([]EventCommit, 0, len(ordered))

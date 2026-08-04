@@ -229,7 +229,7 @@ func TestWaitingChildCancellationAndResumeHaveOneApplicationOwner(t *testing.T) 
 
 		if _, err := coordinator.Resume(t.Context(), ResumeCommand{
 			RunID:              plan.root.run.ID,
-			CallerCapabilities: plan.pending.ProtocolProfile,
+			CallerCapabilities: plan.pending.Capabilities,
 			Responses:          waitingQuestionResponses(plan.pending),
 		}); !errors.Is(err, ErrSessionBusy) {
 			t.Fatalf("losing Resume error = %v, want ErrSessionBusy", err)
@@ -285,7 +285,7 @@ func TestWaitingChildCancellationAndResumeHaveOneApplicationOwner(t *testing.T) 
 		go func() {
 			result, err := coordinator.Resume(t.Context(), ResumeCommand{
 				RunID:              plan.root.run.ID,
-				CallerCapabilities: plan.pending.ProtocolProfile,
+				CallerCapabilities: plan.pending.Capabilities,
 				Responses:          waitingQuestionResponses(plan.pending),
 			})
 			resumeDone <- resumeAttemptOutcome{result: result, err: err}

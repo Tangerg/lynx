@@ -78,7 +78,7 @@ func bootstrapPending(
 		RootRunID: runID,
 		SessionID: sessionID,
 		TurnID:    "turn_" + runID,
-		ProtocolProfile: execution.RunProtocolProfile{
+		Capabilities: execution.RunCapabilities{
 			InterruptKinds: []execution.InterruptKind{execution.QuestionInterrupt},
 		},
 		Interrupts: []transcript.Interrupt{{
@@ -205,7 +205,7 @@ func parkWithGoalLease(
 	if err := runs.Admit(ctx, execution.RunDraft{
 		RunID: runID, SessionID: sessionID, SegmentID: "seg_open",
 		GoalLeaseID: goalLeaseID,
-		ProtocolProfile: execution.RunProtocolProfile{
+		Capabilities: execution.RunCapabilities{
 			InterruptKinds: []execution.InterruptKind{execution.QuestionInterrupt},
 		},
 		CreatedAt: parkCreatedAt,
@@ -215,7 +215,7 @@ func parkWithGoalLease(
 	if err := runs.Suspend(ctx, transcript.Run{
 		SessionID: sessionID, ID: runID, State: execution.Interrupted,
 		GoalLeaseID: goalLeaseID,
-		ProtocolProfile: execution.RunProtocolProfile{
+		Capabilities: execution.RunCapabilities{
 			InterruptKinds: []execution.InterruptKind{execution.QuestionInterrupt},
 		},
 		Interrupts: []transcript.Interrupt{{

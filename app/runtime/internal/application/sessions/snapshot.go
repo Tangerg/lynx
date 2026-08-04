@@ -145,9 +145,9 @@ func validateSnapshotRunTree(runs []transcript.Run, items map[string]transcript.
 		if !root.Lineage().IsRoot() {
 			return fmt.Errorf("sessions: snapshot child run %q names child %q as its root", run.ID, run.RootRunID)
 		}
-		if !root.ProtocolProfile.ChildRuns {
+		if !root.Capabilities.ChildRuns {
 			return fmt.Errorf(
-				"sessions: snapshot child run %q belongs to root %q whose protocol profile disallows child runs",
+				"sessions: snapshot child run %q belongs to root %q whose run capabilities disallow child runs",
 				run.ID,
 				root.ID,
 			)

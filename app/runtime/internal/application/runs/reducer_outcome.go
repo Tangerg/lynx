@@ -70,7 +70,7 @@ func (r *reducer) runRecord(state execution.RunState) transcript.Run {
 		ActiveSegmentID: activeSegment,
 		Metrics:         r.metrics(),
 		Limits:          r.cfg.Limits,
-		ProtocolProfile: r.cfg.ProtocolProfile,
+		Capabilities:    r.cfg.Capabilities,
 		CreatedAt:       r.cfg.CreatedAt,
 		UpdatedAt:       r.now(),
 		MessageMark:     transcript.UnknownMessageMark,

@@ -72,9 +72,9 @@ func serverPending(
 		}
 	}
 	bindings := make([]interrupts.SuspensionBinding, len(open))
-	profile := execution.RunProtocolProfile{}
+	capabilities := execution.RunCapabilities{}
 	for index, interrupt := range open {
-		profile.InterruptKinds = append(profile.InterruptKinds, interrupt.Kind)
+		capabilities.InterruptKinds = append(capabilities.InterruptKinds, interrupt.Kind)
 		bindings[index] = interrupts.SuspensionBinding{
 			InterruptItemID: interrupt.ItemID,
 			ProcessID:       processID,
@@ -82,12 +82,12 @@ func serverPending(
 		}
 	}
 	return interrupts.Pending{
-		RootRunID:       runID,
-		SessionID:       sessionID,
-		TurnID:          turnID,
-		Interrupts:      open,
-		Suspensions:     bindings,
-		ProtocolProfile: profile.Normalized(),
+		RootRunID:    runID,
+		SessionID:    sessionID,
+		TurnID:       turnID,
+		Interrupts:   open,
+		Suspensions:  bindings,
+		Capabilities: capabilities.Normalized(),
 		Continuations: []interrupts.Continuation{{
 			RunID:        runID,
 			ProcessID:    processID,

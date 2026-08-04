@@ -101,11 +101,11 @@ func TestExportPreservesRunTreeLineage(t *testing.T) {
 	outcome := execution.OutcomeCompleted
 	if err := rt.runs.Restore(ctx, transcript.Run{
 		SessionID: ses.ID, ID: "run_root", State: execution.Completed,
-		Outcome:         &outcome,
-		ProtocolProfile: execution.RunProtocolProfile{ChildRuns: true},
-		CreatedAt:       time.Unix(1, 0).UTC(),
-		FinishedAt:      time.Unix(1, 0).UTC(),
-		UpdatedAt:       time.Unix(1, 0).UTC(),
+		Outcome:      &outcome,
+		Capabilities: execution.RunCapabilities{ChildRuns: true},
+		CreatedAt:    time.Unix(1, 0).UTC(),
+		FinishedAt:   time.Unix(1, 0).UTC(),
+		UpdatedAt:    time.Unix(1, 0).UTC(),
 	}); err != nil {
 		t.Fatalf("seed root run: %v", err)
 	}
@@ -143,7 +143,7 @@ func TestExportPreservesRunTreeLineage(t *testing.T) {
 		t.Fatalf("exported child = %+v, want complete lineage", child)
 	}
 	if child.ProtocolProfile != nil {
-		t.Fatalf("exported child profile = %+v, want root-owned absence", child.ProtocolProfile)
+		t.Fatalf("exported child protocol profile = %+v, want root-owned absence", child.ProtocolProfile)
 	}
 }
 
@@ -186,7 +186,7 @@ func TestImportRefusesAChildWhoseRootProfileDisallowsChildren(t *testing.T) {
 
 	_, err := s.ImportSession(t.Context(), protocol.ImportSessionRequest{Artifact: artifact})
 	if !errors.Is(err, protocol.ErrInvalidParams) ||
-		!strings.Contains(err.Error(), "protocol profile disallows child runs") {
+		!strings.Contains(err.Error(), "run capabilities disallow child runs") {
 		t.Fatalf("import error = %v, want invalid child/profile aggregate", err)
 	}
 }
@@ -393,7 +393,7 @@ func seedCompletedRun(t *testing.T, rt *stubRuntime, sessionID string) {
 			Steps:          2,
 			ActiveDuration: 1500 * time.Millisecond,
 		},
-		ProtocolProfile: execution.RunProtocolProfile{
+		Capabilities: execution.RunCapabilities{
 			ChildRuns:      true,
 			InterruptKinds: []execution.InterruptKind{execution.ApprovalInterrupt},
 		},
@@ -438,7 +438,7 @@ func seedFailedRun(t *testing.T, rt *stubRuntime, sessionID string) {
 			RetryAfterSeconds: 30,
 		},
 		Metrics: transcript.RunMetrics{Steps: 1, ActiveDuration: 500 * time.Millisecond},
-		ProtocolProfile: execution.RunProtocolProfile{
+		Capabilities: execution.RunCapabilities{
 			InterruptKinds: []execution.InterruptKind{execution.QuestionInterrupt},
 		},
 		CreatedAt: time.Unix(4, 0).UTC(), FinishedAt: time.Unix(5, 0).UTC(),

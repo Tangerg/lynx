@@ -111,8 +111,8 @@ func (c *Coordinator) terminalizeParkedRun(ctx context.Context, sessionID, runID
 	if !rootFound || !rootAdmission.Lineage().IsRoot() {
 		return transcript.Run{}, fmt.Errorf("sessions: terminalize parked Run tree %q: root Run is missing", runID)
 	}
-	if !pending.ProtocolProfile.Equal(rootAdmission.ProtocolProfile) {
-		return transcript.Run{}, fmt.Errorf("sessions: terminalize parked Run tree %q: Pending protocol profile differs from root Run admission", runID)
+	if !pending.Capabilities.Equal(rootAdmission.Capabilities) {
+		return transcript.Run{}, fmt.Errorf("sessions: terminalize parked Run tree %q: Pending run capabilities differ from root Run admission", runID)
 	}
 	targetRunIDs := make(map[string]struct{}, len(pending.Continuations))
 	for _, continuation := range pending.Continuations {
@@ -141,7 +141,7 @@ func (c *Coordinator) terminalizeParkedRun(ctx context.Context, sessionID, runID
 			run.Lineage() != continuation.Lineage || run.ModelSelection != continuation.ModelSelection ||
 			!run.CreatedAt.Equal(continuation.RunCreatedAt) ||
 			!run.Metrics.Equal(continuation.Metrics) || run.Limits != continuation.Limits ||
-			!run.ProtocolProfile.Equal(rootAdmission.ProtocolProfile) {
+			!run.Capabilities.Equal(rootAdmission.Capabilities) {
 			return transcript.Run{}, fmt.Errorf(
 				"sessions: terminalize parked Run tree %q: Run %q differs from its continuation",
 				runID,

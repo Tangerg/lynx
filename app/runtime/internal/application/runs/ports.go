@@ -318,10 +318,10 @@ type segmentSpec struct {
 	// Limits is the allowance the Run is admitted under, frozen for the whole Run
 	// — a continuation carries the first segment's caps rather than renegotiating.
 	Limits execution.RunLimits
-	// ProtocolProfile is the protocol contract negotiated for a FRESH Run. A
-	// continuation leaves it zero and reads the Run's own from Continuation: the
-	// profile is the Run's, and a resume request has no say in it.
-	ProtocolProfile execution.RunProtocolProfile
+	// Capabilities is the optional behavior admitted for a fresh Run. A
+	// continuation leaves it zero and reads the Run's frozen value from
+	// Continuation; a resume request has no say in it.
+	Capabilities execution.RunCapabilities
 	// Continuation is present only when fresh Segments reopen a parked executor
 	// tree. It is independent from an open human interrupt: a host-settled
 	// checkpoint can continue after its final external boundary was removed.
@@ -366,12 +366,11 @@ func (s segmentSpec) effectiveLimits() execution.RunLimits {
 	return root.Limits
 }
 
-// effectiveProfile is the protocol contract in force, by the same rule: the
-// profile belongs to the Run, so a continuation reports the one the park recorded
-// and never the declaration of the request that resumed it.
-func (s segmentSpec) effectiveProfile() execution.RunProtocolProfile {
+// effectiveCapabilities returns the Run-owned value in force. A continuation
+// reuses what the park recorded and never the request that resumed it.
+func (s segmentSpec) effectiveCapabilities() execution.RunCapabilities {
 	if s.Continuation == nil {
-		return s.ProtocolProfile
+		return s.Capabilities
 	}
-	return s.Continuation.profile
+	return s.Continuation.capabilities
 }

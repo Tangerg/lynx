@@ -134,7 +134,7 @@ func portableRunFromArtifact(path string, artifact protocol.ArtifactRun) (sessio
 	if err != nil {
 		return sessions.PortableRun{}, err
 	}
-	profile, err := portableProfileFromArtifact(path+".protocolProfile", artifact.ProtocolProfile)
+	capabilities, err := portableCapabilitiesFromArtifact(path+".protocolProfile", artifact.ProtocolProfile)
 	if err != nil {
 		return sessions.PortableRun{}, err
 	}
@@ -142,26 +142,26 @@ func portableRunFromArtifact(path string, artifact protocol.ArtifactRun) (sessio
 		SessionID: artifact.SessionID, ID: artifact.ID, SpawnedByItemID: artifact.SpawnedByItemID,
 		ParentRunID: artifact.ParentRunID, RootRunID: artifact.RootRunID,
 		Provider: artifact.Provider, Model: artifact.Model, Outcome: outcome,
-		Error:           problem,
-		Metrics:         portableMetricsFromArtifact(artifact.Metrics),
-		Limits:          portableLimitsFromArtifact(artifact.Limits),
-		ProtocolProfile: profile,
-		Detail:          artifact.Outcome.Detail,
-		CreatedAt:       artifact.CreatedAt, FinishedAt: artifact.FinishedAt,
+		Error:        problem,
+		Metrics:      portableMetricsFromArtifact(artifact.Metrics),
+		Limits:       portableLimitsFromArtifact(artifact.Limits),
+		Capabilities: capabilities,
+		Detail:       artifact.Outcome.Detail,
+		CreatedAt:    artifact.CreatedAt, FinishedAt: artifact.FinishedAt,
 		UpdatedAt: artifact.UpdatedAt, MessageMark: artifact.MessageMark,
 	}, nil
 }
 
-// portableProfileFromArtifact restores the run's frozen contract, or nothing when
+// portableCapabilitiesFromArtifact restores the run's frozen contract, or nothing when
 // the archive carried none — which only a child may do, and the aggregate check
 // enforces. An interrupt type this runtime cannot raise is refused rather than
 // dropped: importing the run without it would silently rewrite the contract the
 // archive recorded.
-func portableProfileFromArtifact(path string, profile *protocol.RunProtocolProfile) (*execution.RunProtocolProfile, error) {
+func portableCapabilitiesFromArtifact(path string, profile *protocol.RunProtocolProfile) (*execution.RunCapabilities, error) {
 	if profile == nil {
 		return nil, nil
 	}
-	var out execution.RunProtocolProfile
+	var out execution.RunCapabilities
 	for _, feature := range profile.RequiredFeatures {
 		switch feature {
 		case protocol.RunProtocolFeatureSubagents:

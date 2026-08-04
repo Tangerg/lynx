@@ -119,8 +119,8 @@ func (s *Server) ListInterrupts(ctx context.Context, in protocol.ListInterruptsR
 // wireInterruptPageError maps the read's two refusals. Both name something the
 // caller can act on: declare the capabilities, or ask under the root.
 func wireInterruptPageError(err error) error {
-	if uncovered, ok := errors.AsType[*execution.ProfileNotCovered](err); ok {
-		return profileGap(uncovered.Gap)
+	if uncovered, ok := errors.AsType[*execution.InsufficientCapabilities](err); ok {
+		return capabilityGap(uncovered.Missing)
 	}
 	switch {
 	case errors.Is(err, transcript.ErrNotRoot):
@@ -149,8 +149,8 @@ func (s *Server) SubscribeRun(ctx context.Context, in protocol.SubscribeRunReque
 		SegmentID: in.SegmentID,
 		// The application's cursor is prefix-free; the evt_ framing is this layer's
 		// (§11.2). TrimPrefix leaves an absent id untouched, which is the tail-only case.
-		Cursor: strings.TrimPrefix(transport.LastEventIDFrom(ctx), protocol.IDPrefixEvent),
-		Caller: caller,
+		Cursor:             strings.TrimPrefix(transport.LastEventIDFrom(ctx), protocol.IDPrefixEvent),
+		CallerCapabilities: caller,
 	})
 	if err != nil {
 		return nil, nil, wireLiveSegmentError(err)
@@ -169,8 +169,8 @@ func (s *Server) SubscribeRun(ctx context.Context, in protocol.SubscribeRunReque
 // into run_not_found: "the run is waiting", "the run finished", "you are holding
 // the wrong segment" and "your cursor is too old" have four different remedies.
 func wireLiveSegmentError(err error) error {
-	if uncovered, ok := errors.AsType[*execution.ProfileNotCovered](err); ok {
-		return profileGap(uncovered.Gap)
+	if uncovered, ok := errors.AsType[*execution.InsufficientCapabilities](err); ok {
+		return capabilityGap(uncovered.Missing)
 	}
 	switch {
 	case errors.Is(err, runs.ErrRunNotFound):

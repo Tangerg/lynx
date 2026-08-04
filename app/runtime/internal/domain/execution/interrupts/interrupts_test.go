@@ -112,7 +112,7 @@ func validTreePending() Pending {
 		RootRunID: "run_root",
 		SessionID: "session_1",
 		TurnID:    "turn_1",
-		ProtocolProfile: execution.RunProtocolProfile{
+		Capabilities: execution.RunCapabilities{
 			ChildRuns:      true,
 			InterruptKinds: []execution.InterruptKind{execution.ApprovalInterrupt},
 		},

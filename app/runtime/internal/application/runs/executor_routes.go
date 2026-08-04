@@ -26,7 +26,7 @@ type executorRoute struct {
 	lineage          execution.RunLineage
 	modelSelection   modelref.Selection
 	limits           execution.RunLimits
-	protocolProfile  execution.RunProtocolProfile
+	capabilities     execution.RunCapabilities
 	reducer          *reducer
 	segmentStartedAt time.Time
 	segmentFinished  bool
@@ -53,17 +53,17 @@ func (c *Coordinator) openingRoutes(
 		GoalLeaseID: spec.GoalLeaseID,
 		CreatedAt:   spec.CreatedAt, UserInput: spec.Input,
 		Metrics: spec.priorMetrics(), Limits: spec.effectiveLimits(),
-		ProtocolProfile: spec.effectiveProfile(),
-		Now:             c.now, CancelReason: cancellationReason(cancelReason, spec.RunID),
+		Capabilities: spec.effectiveCapabilities(),
+		Now:          c.now, CancelReason: cancellationReason(cancelReason, spec.RunID),
 	})
 	root := &executorRoute{
-		runID:           spec.RunID,
-		segmentID:       spec.SegmentID,
-		rootRunID:       spec.RunID,
-		modelSelection:  spec.ModelSelection,
-		limits:          spec.effectiveLimits(),
-		protocolProfile: spec.effectiveProfile(),
-		reducer:         rootReducer,
+		runID:          spec.RunID,
+		segmentID:      spec.SegmentID,
+		rootRunID:      spec.RunID,
+		modelSelection: spec.ModelSelection,
+		limits:         spec.effectiveLimits(),
+		capabilities:   spec.effectiveCapabilities(),
+		reducer:        rootReducer,
 	}
 	return &executorRoutes{
 		root:           root,
@@ -133,7 +133,7 @@ func (c *Coordinator) resumedExecutorRoutes(
 			lineage:          member.Lineage,
 			modelSelection:   member.ModelSelection,
 			limits:           member.Limits,
-			protocolProfile:  continuation.profile,
+			capabilities:     continuation.capabilities,
 			segmentStartedAt: time.Time{},
 		}
 		userInput := []transcript.ContentBlock(nil)
@@ -148,7 +148,7 @@ func (c *Coordinator) resumedExecutorRoutes(
 			GoalLeaseID: goalLeaseID, ModelSelection: route.modelSelection,
 			CreatedAt: member.RunCreatedAt, UserInput: userInput,
 			Metrics: member.Metrics, Limits: member.Limits,
-			ProtocolProfile: continuation.profile, Continuation: continuation,
+			Capabilities: continuation.capabilities, Continuation: continuation,
 			Now: c.now, CancelReason: cancellationReason(cancelReason, route.runID),
 		})
 		routes.byProcess[source.ProcessID] = route
@@ -556,27 +556,27 @@ func (c *Coordinator) openChildRun(
 	}
 	startedAt := request.StartedAt.UTC()
 	child := &executorRoute{
-		runID:           childRunID,
-		segmentID:       childSegmentID,
-		rootRunID:       parent.rootRunID,
-		lineage:         lineage,
-		modelSelection:  parent.modelSelection,
-		limits:          parent.limits,
-		protocolProfile: parent.protocolProfile,
+		runID:          childRunID,
+		segmentID:      childSegmentID,
+		rootRunID:      parent.rootRunID,
+		lineage:        lineage,
+		modelSelection: parent.modelSelection,
+		limits:         parent.limits,
+		capabilities:   parent.capabilities,
 	}
 	child.reducer = newReducer(reducerConfig{
-		RunID:           child.runID,
-		SegmentID:       child.segmentID,
-		SessionID:       spec.SessionID,
-		Lineage:         child.lineage,
-		Cwd:             spec.Cwd,
-		TurnID:          spec.TurnID,
-		ModelSelection:  child.modelSelection,
-		CreatedAt:       startedAt,
-		Limits:          child.limits,
-		ProtocolProfile: child.protocolProfile,
-		Now:             c.now,
-		CancelReason:    cancellationReason(live.CancelReasonFor, child.runID),
+		RunID:          child.runID,
+		SegmentID:      child.segmentID,
+		SessionID:      spec.SessionID,
+		Lineage:        child.lineage,
+		Cwd:            spec.Cwd,
+		TurnID:         spec.TurnID,
+		ModelSelection: child.modelSelection,
+		CreatedAt:      startedAt,
+		Limits:         child.limits,
+		Capabilities:   child.capabilities,
+		Now:            c.now,
+		CancelReason:   cancellationReason(live.CancelReasonFor, child.runID),
 	})
 	if err := live.bindExecutorProcess(child.runID, source.ProcessID); err != nil {
 		return nil, reductionBatch{}, err

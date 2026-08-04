@@ -60,7 +60,7 @@ func Open(path string) (*sql.DB, error) {
 // schemaEpoch identifies the one storage shape this build understands. It is an
 // epoch rather than a version because nothing connects two values: a database
 // stamped with any other number is refused, never upgraded.
-const schemaEpoch = 55
+const schemaEpoch = 56
 
 func installCurrentSchema(db *sql.DB, path string) error {
 	var epoch int
@@ -132,7 +132,7 @@ func installCurrentSchema(db *sql.DB, path string) error {
 		// and a read composes them, because two copies of one park would be two
 		// answers to "what is this run waiting on".
 		//
-		// protocol_profile is the negotiated contract the Run publishes under. The
+		// The capabilities column is the optional behavior admitted for the Run. The
 		// admission INSERT is its ONLY writer: no later statement names the column,
 		// which is how "frozen for the Run's whole life" is kept by construction
 		// rather than by a check that could be forgotten.
@@ -161,7 +161,7 @@ func installCurrentSchema(db *sql.DB, path string) error {
 			max_total_tokens         INTEGER NOT NULL DEFAULT 0,
 			max_steps          INTEGER NOT NULL DEFAULT 0,
 			max_budget_usd     REAL    NOT NULL DEFAULT 0,
-			protocol_profile   TEXT    NOT NULL DEFAULT '',
+			capabilities       TEXT    NOT NULL DEFAULT '',
 			message_mark       INTEGER NOT NULL DEFAULT -1,
 			started_at         INTEGER NOT NULL,
 			finished_at        INTEGER NOT NULL DEFAULT 0,
@@ -199,7 +199,7 @@ func installCurrentSchema(db *sql.DB, path string) error {
 			payload            TEXT    NOT NULL,
 			continuations      TEXT    NOT NULL,
 			suspension_bindings TEXT   NOT NULL,
-			protocol_profile   TEXT    NOT NULL DEFAULT '',
+			capabilities       TEXT    NOT NULL DEFAULT '',
 			created_at         INTEGER NOT NULL
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_interrupts_session

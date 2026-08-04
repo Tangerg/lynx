@@ -40,12 +40,12 @@ type RunDraft struct {
 	// admission and never changes: a resume answers an interrupt, it does not
 	// renegotiate the budget the Run was accepted with.
 	Limits RunLimits
-	// ProtocolProfile is the protocol contract negotiated for this Run. Like
-	// Limits it is fixed here — and unlike Limits, the admission is its ONLY
+	// Capabilities is the optional behavior enabled for this Run. Like Limits it
+	// is fixed here — and unlike Limits, admission is its ONLY
 	// writer: no later transition mentions it, which is how "immutable for the
 	// Run's whole life" is kept by construction rather than by a check.
-	ProtocolProfile RunProtocolProfile
-	CreatedAt       time.Time
+	Capabilities RunCapabilities
+	CreatedAt    time.Time
 }
 
 // Lineage returns the draft's immutable root/child identity as one value for

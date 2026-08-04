@@ -212,10 +212,10 @@ Continuation 也不是一份可独立修改的恢复配置，而是 Run admissio
 `ParentProcessID/SpawnCallID`。恢复 route 的 parent relation 完全来自 `RunLineage`；child 首次
 live event 到达时再验证 executor `ParentID/SpawnCallID`，验证通过后冻结该 transient source，
 后续 topology 漂移直接失败。SQLite 因此没有第二份 executor tree。
-`RunProtocolProfile` 只有一种 canonical 表示；Pending 子树只有在 profile 允许 child Run 时合法，
+`RunCapabilities` 只有一种 canonical 表示；Pending 子树只有在 capabilities 允许 child Run 时合法，
 每个 durable interrupt kind 也必须已协商。tree barrier 写入、Resume、waiting-subtree cancellation、
 boot recovery 和在线 parked-tree cancel/loss 都逐 Run 证明 lineage、creation time、完整 model
-selection、cumulative metrics、frozen limits 与 profile 和 Run 记录同值；root 还必须同一 Goal lease。任一矛盾都在 executor probe 或
+selection、cumulative metrics、frozen limits 与 capabilities 和 Run 记录同值；root 还必须同一 Goal lease。任一矛盾都在 executor probe 或
 transaction 前 fail closed，不能通过 resume 把旧 accounting 回退、重新谈判 budget，或改写协议。
 parked Run 存在时，`ClaimIdleSession` 禁止修改 Session cwd/isolation；能消费 Pending 的
 lifecycle write-set 使用另一条 `ClaimSessionMutation`，不把两类授权混为一个“通用 mutation”。
@@ -255,7 +255,7 @@ parked tree 由 Application 确定性收口为 `run_lost`，不尝试猜测式�
 
 Session 与 executor process 是两套不同 identity。用户对话及 fork 才是 `Session`；delegated
 work 由同一 Session 下的 first-class child Run 表达，不再从 child process 派生隐藏 Session。
-当前 SQLite `schemaEpoch = 55`，没有旧 `process_states`、`sessions.kind`、双读写或迁移分支。
+当前 SQLite `schemaEpoch = 56`，没有旧 `process_states`、`sessions.kind`、双读写或迁移分支。
 同一 `root_process_id` 的 Session owner 不可被 upsert 改写；普通 lifecycle 的定向删除必须
 同时携带 Session，只有 boot exact-retention 使用全局 unowned cleanup。
 
@@ -327,7 +327,7 @@ Application 依赖 SQLite：用例依赖自己需要的窄读写/事务端口，
 - 一个 Session 至多一个非 terminal Run 由数据库约束兜底，不只靠内存锁；
 - transcript/history 是 projection，不替代 Run aggregate。
 
-当前 SQLite `schemaEpoch = 55`，`runs.goal_lease_id`、`interrupts.goal_lease_id`、
+当前 SQLite `schemaEpoch = 56`，`runs.goal_lease_id`、`interrupts.goal_lease_id`、
 `mcp_oauth_sessions` 与
 `runs.max_total_tokens` 均属于唯一现行 shape；不读取或迁移任何其他 epoch 的数据库。
 

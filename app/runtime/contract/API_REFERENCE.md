@@ -687,11 +687,11 @@ enforced by a validator — a frame-local check cannot see the whole system.
   - maintained by: `runs.admission`, `runsegment.opening`
 - **`terminal_run_explains_how_it_ended`** — A Run row that claims a terminal state without the outcome — and, when that outcome is a failure, the failure itself — cannot answer why the run ended, and no later write will supply it.
   - maintained by: `runsegment.event`, `runs.recovery`, `sessions.import`
-- **`run_protocol_profile_is_immutable`** — A Run publishes under the contract it was created with. If a later segment could restate it, a subscriber that reconnected on the strength of the first answer would be folding a stream whose rules had changed under it.
+- **`run_capabilities_are_immutable`** — A Run may exercise only the optional behavior enabled at admission. If a later segment could restate it, continuation and subscription checks would no longer describe the same Run.
   - maintained by: `runs.admission`
 - **`parked_tree_has_exactly_one_open_interrupt_set`** — A Run tree parked without one complete pending set cannot be resumed atomically; clients would observe only part of a barrier that can never move.
   - maintained by: `runsegment.event`, `runs.recovery`
-- **`parked_continuation_matches_run_facts`** — A continuation is a hand-off of the admitted Run, not a second author. If its model, cumulative accounting, limits, lineage, creation time, goal lease or protocol contract differs, resume or teardown would rewrite history.
+- **`parked_continuation_matches_run_facts`** — A continuation is a hand-off of the admitted Run, not a second author. If its model, cumulative accounting, limits, lineage, creation time, goal lease or capabilities differ, resume or teardown would rewrite history.
   - maintained by: `runsegment.opening`, `runsegment.event`, `runsegment.waiting_subtree_cancel`, `runs.recovery`, `sessions.parked_terminal`
 - **`dropped_run_leaves_nothing_behind`** — A dropped Run's items, interrupts, checkpoints and admission slot must go with it, or the session keeps an invisible run holding its only slot.
   - maintained by: `sessions.rollback`, `sessions.delete`

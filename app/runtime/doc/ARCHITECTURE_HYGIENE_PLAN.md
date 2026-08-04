@@ -713,7 +713,7 @@ Scope:
 
 - Make wire-enum and system-invariant catalogs return deep caller-owned
   snapshots, including nested boundary slices.
-- Clone mutable Run protocol profiles at registry ingress and egress, and
+- Clone mutable `RunCapabilities` at registry ingress and egress, and
   remove the unused Run-list surfaces that exposed additional state.
 - Replace the process-global fixed `LYRA.md.tmp` convention with a unique
   same-directory temporary file, durable close, and atomic replacement.
@@ -904,10 +904,25 @@ Acceptance:
 | 30. Delivery projection vocabulary closure | Completed | 2026-08-04 | 2026-08-04 | All server projection helpers use `presentX`, inbound mappers alone retain `FromWire`, duplicate model-usage mapping was removed, and server/architecture/build/vet checks passed. |
 | 31. Concrete tool semantics ownership | Completed | 2026-08-04 | 2026-08-04 | Tool safety, approval-subject extraction, and offload reader naming moved to toolset/composition; Domain and architecture tests no longer know the built-in catalog. |
 | 32. Semantic content and explicit storage codecs | Completed | 2026-08-04 | 2026-08-04 | Content is media-semantic inside the runtime; Delivery owns MIME/base64 wire decoding, SQLite owns explicit transcript/interrupt rows, and schema epoch 55 rejects the former implicit aggregate encoding. |
+| 33. Run capability vocabulary closure | Completed | 2026-08-04 | 2026-08-04 | Domain, Application, adapters, and SQLite use `RunCapabilities`; the versioned Delivery DTO alone retains `RunProtocolProfile`, with one explicit mapping boundary and schema epoch 56. |
 
 Allowed status values: `Pending`, `In progress`, `Completed`, `Blocked`, `Revised`.
 
 ## 7. Progress log
+
+### 2026-08-04 — Batch 33 completed
+
+- Replaced the inward-leaking `RunProtocolProfile` vocabulary with the semantic
+  `RunCapabilities` value and standardized aggregate fields on `Capabilities` or
+  `CallerCapabilities`. Resume, subscribe, pending reads, recovery, and portable
+  snapshots now name the same concept the same way.
+- Kept `RunProtocolProfile` only as the versioned Delivery DTO and made its
+  conversion to `RunCapabilities` an explicit server-boundary operation. Domain,
+  Application, adapters, and SQLite contain no protocol-profile identifiers.
+- Renamed the SQLite columns and JSON row vocabulary to `capabilities` and
+  `interruptKinds`, advanced directly to epoch 56, and added an architecture
+  fitness rule that prevents the protocol terminology or former column from
+  leaking inward again.
 
 ### 2026-08-04 — Batch 32 completed
 
@@ -1031,8 +1046,8 @@ Allowed status values: `Pending`, `In progress`, `Completed`, `Blocked`, `Revise
 - Closed the remaining shallow-copy leaks in generated wire enums and system
   invariants. Every public catalog query now returns a deep caller-owned
   snapshot rather than a new outer slice that still aliases nested state.
-- Added an explicit clone operation to `RunProtocolProfile` and made the Run
-  registry clone profiles on both ingress and egress. Removed the unused
+- Added an explicit clone operation to `RunCapabilities` and made the Run
+  registry clone capability sets on both ingress and egress. Removed the unused
   registry/coordinator list APIs instead of maintaining another mutable-state
   exposure solely for symmetry.
 - Reworked human-authored knowledge replacement around a unique temporary file

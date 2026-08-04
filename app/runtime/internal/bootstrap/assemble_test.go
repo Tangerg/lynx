@@ -493,19 +493,19 @@ func TestAssemblyRecoversParkedRunWithIncompatibleDeployment(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("ensure session: %v", err)
 	}
-	profile := execution.RunProtocolProfile{
+	profile := execution.RunCapabilities{
 		InterruptKinds: []execution.InterruptKind{execution.QuestionInterrupt},
 	}
 	if err := cfg.RunStore.Admit(ctx, execution.RunDraft{
 		RunID: runID, SessionID: sessionID, SegmentID: "seg_open",
-		ProtocolProfile: profile, CreatedAt: createdAt,
+		Capabilities: profile, CreatedAt: createdAt,
 	}); err != nil {
 		t.Fatalf("admit: %v", err)
 	}
 	if err := cfg.RunStore.Suspend(ctx, transcript.Run{
 		SessionID: sessionID, ID: runID, State: execution.Interrupted,
-		ProtocolProfile: profile,
-		Interrupts:      open, CreatedAt: createdAt, MessageMark: transcript.UnknownMessageMark,
+		Capabilities: profile,
+		Interrupts:   open, CreatedAt: createdAt, MessageMark: transcript.UnknownMessageMark,
 	}); err != nil {
 		t.Fatalf("suspend: %v", err)
 	}

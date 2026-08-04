@@ -58,7 +58,7 @@ func TestStartRunRefusesCapabilitiesThisBuildDoesNotHave(t *testing.T) {
 func TestNegotiationMapsSubagentsToChildRunPolicy(t *testing.T) {
 	s, _ := rollbackHarness(t)
 
-	profile, err := s.negotiateCapabilities(withClientCapabilities(protocol.ClientCapabilities{
+	capabilities, err := s.negotiateCapabilities(withClientCapabilities(protocol.ClientCapabilities{
 		Features: map[string]protocol.FeaturePreference{
 			protocol.FeatureSubagents: {Enabled: true},
 		},
@@ -66,10 +66,10 @@ func TestNegotiationMapsSubagentsToChildRunPolicy(t *testing.T) {
 	if err != nil {
 		t.Fatalf("negotiate: %v", err)
 	}
-	if !profile.ChildRuns {
-		t.Fatalf("profile = %+v, want child runs enabled", profile)
+	if !capabilities.ChildRuns {
+		t.Fatalf("capabilities = %+v, want child runs enabled", capabilities)
 	}
-	wire := presentProtocolProfile(profile)
+	wire := presentRunProtocolProfile(capabilities)
 	want := []protocol.RunProtocolFeature{protocol.RunProtocolFeatureSubagents}
 	if !slices.Equal(wire.RequiredFeatures, want) {
 		t.Fatalf("wire requiredFeatures = %v, want %v", wire.RequiredFeatures, want)
@@ -99,7 +99,7 @@ func TestEveryRequiredRunFeatureHasAnApplicationPolicyMapping(t *testing.T) {
 			continue
 		}
 		t.Run(feature.Key, func(t *testing.T) {
-			profile, err := s.negotiateCapabilities(withClientCapabilities(protocol.ClientCapabilities{
+			capabilities, err := s.negotiateCapabilities(withClientCapabilities(protocol.ClientCapabilities{
 				Features: map[string]protocol.FeaturePreference{
 					feature.Key: {Enabled: true},
 				},
@@ -107,7 +107,7 @@ func TestEveryRequiredRunFeatureHasAnApplicationPolicyMapping(t *testing.T) {
 			if err != nil {
 				t.Fatalf("negotiate required Run feature %q: %v", feature.Key, err)
 			}
-			if profile.IsEmpty() {
+			if capabilities.IsEmpty() {
 				t.Fatalf("required Run feature %q produced the Minimal Profile", feature.Key)
 			}
 		})
@@ -121,7 +121,7 @@ func TestEveryRequiredRunFeatureHasAnApplicationPolicyMapping(t *testing.T) {
 func TestNegotiationDeclinedFeatureIsNotARefusal(t *testing.T) {
 	s, _ := rollbackHarness(t)
 
-	profile, err := s.negotiateCapabilities(withClientCapabilities(protocol.ClientCapabilities{
+	capabilities, err := s.negotiateCapabilities(withClientCapabilities(protocol.ClientCapabilities{
 		Features: map[string]protocol.FeaturePreference{
 			protocol.FeatureSubagents:   {Enabled: false},
 			protocol.FeatureMultimodal:  {Enabled: true},
@@ -134,39 +134,39 @@ func TestNegotiationDeclinedFeatureIsNotARefusal(t *testing.T) {
 	}
 	// multimodal is advertised but does not reshape the run's stream, so it is not
 	// part of what a later subscriber has to understand.
-	if profile.ChildRuns {
+	if capabilities.ChildRuns {
 		t.Fatal("declined subagents unexpectedly enabled child runs")
 	}
 	want := []execution.InterruptKind{execution.ApprovalInterrupt, execution.QuestionInterrupt}
-	if len(profile.InterruptKinds) != len(want) {
-		t.Fatalf("interruptKinds = %v, want %v", profile.InterruptKinds, want)
+	if len(capabilities.InterruptKinds) != len(want) {
+		t.Fatalf("interruptKinds = %v, want %v", capabilities.InterruptKinds, want)
 	}
 }
 
 // TestNegotiationWithoutCapabilitiesIsTheMinimalProfile pins §8.3: a client that
-// declares nothing is a complete client, and the empty profile is the meaning
+// declares nothing is a complete client, and the empty capability set means
 // "creates no child, publishes no suspension, never parks on a human" — not a
 // missing declaration to be filled in later.
 func TestNegotiationWithoutCapabilitiesIsTheMinimalProfile(t *testing.T) {
 	s, _ := rollbackHarness(t)
 
-	profile, err := s.negotiateCapabilities(context.Background())
+	capabilities, err := s.negotiateCapabilities(context.Background())
 	if err != nil {
 		t.Fatalf("negotiate: %v", err)
 	}
-	if !profile.IsEmpty() {
-		t.Fatalf("profile = %v, want the empty Minimal Profile", profile)
+	if !capabilities.IsEmpty() {
+		t.Fatalf("capabilities = %v, want the empty Minimal Profile", capabilities)
 	}
 	// It reaches the wire as two empty arrays: `null` would report a known
 	// contract as unknown.
-	wire := presentProtocolProfile(profile)
+	wire := presentRunProtocolProfile(capabilities)
 	if wire.RequiredFeatures == nil || wire.InterruptTypes == nil {
-		t.Fatalf("wire profile = %+v, want allocated empty sets", wire)
+		t.Fatalf("wire capabilities = %+v, want allocated empty sets", wire)
 	}
 }
 
-// TestResumeRunRefusesACallerThatCannotFollowTheRun proves the profile is the
-// RUN's and not the request's: a caller declaring less than the run was created
+// TestResumeRunRefusesACallerThatCannotFollowTheRun proves capabilities belong to
+// the Run and not the request: a caller declaring less than the Run was created
 // with is refused, and the interrupt stays open for a caller that can answer it.
 // The alternative the contract rules out is worse than an error — the run would
 // continue while publishing interrupts this caller can never resolve.
@@ -189,7 +189,7 @@ func TestResumeRunRefusesACallerThatCannotFollowTheRun(t *testing.T) {
 		time.Unix(1, 0).UTC(),
 	)
 	pending.Continuations[0].ModelSelection = mustResumeSelection(t, "openai", "gpt")
-	pending.ProtocolProfile = execution.RunProtocolProfile{
+	pending.Capabilities = execution.RunCapabilities{
 		InterruptKinds: []execution.InterruptKind{execution.ApprovalInterrupt, execution.QuestionInterrupt},
 	}
 	if err := rt.interrupts.Open(ctx, pending); err != nil {

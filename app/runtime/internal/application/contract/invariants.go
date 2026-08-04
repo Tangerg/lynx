@@ -89,10 +89,10 @@ var systemInvariants = []SystemInvariantSpec{{
 		"ended, and no later write will supply it.",
 	Boundaries: []TransactionBoundary{BoundarySegmentEvent, BoundaryRunRecovery, BoundarySessionImport},
 }, {
-	Key: "run_protocol_profile_is_immutable",
-	Why: "A Run publishes under the contract it was created with. If a later " +
-		"segment could restate it, a subscriber that reconnected on the strength of " +
-		"the first answer would be folding a stream whose rules had changed under it.",
+	Key: "run_capabilities_are_immutable",
+	Why: "A Run may exercise only the optional behavior enabled at admission. If " +
+		"a later segment could restate it, continuation and subscription checks would " +
+		"no longer describe the same Run.",
 	Boundaries: []TransactionBoundary{BoundaryRunAdmission},
 }, {
 	Key: "parked_tree_has_exactly_one_open_interrupt_set",
@@ -103,7 +103,7 @@ var systemInvariants = []SystemInvariantSpec{{
 	Key: "parked_continuation_matches_run_facts",
 	Why: "A continuation is a hand-off of the admitted Run, not a second author. " +
 		"If its model, cumulative accounting, limits, lineage, creation time, goal " +
-		"lease or protocol contract differs, resume or teardown would rewrite history.",
+		"lease or capabilities differ, resume or teardown would rewrite history.",
 	Boundaries: []TransactionBoundary{
 		BoundarySegmentOpening,
 		BoundarySegmentEvent,

@@ -993,24 +993,24 @@ func completedToolNames(reductions []reduction) []string {
 	return names
 }
 
-// TestReducerReportsTheRunsFrozenProfileOnEverySegment pins what a resumed
-// segment publishes about the Run's contract: the profile the Run was admitted
-// with, taken from the park's hand-off, not the empty one a fresh segment would
-// have and not anything the resuming request declared.
+// TestReducerReportsFrozenRunCapabilitiesOnEverySegment pins what a resumed
+// segment reports about the Run: the capabilities admitted with it, taken from
+// the park's hand-off rather than an empty fresh-segment value or the resuming
+// request.
 //
 // The opening event is checked as well as the park, because segment.started is
 // where a reconnecting client learns what the Run may publish — a continuation
-// announcing a Minimal Profile would tell it to expect fewer frames than the Run
+// announcing a minimal capability set would tell it to expect fewer frames than the Run
 // can produce.
-func TestReducerReportsTheRunsFrozenProfileOnEverySegment(t *testing.T) {
-	frozen := execution.RunProtocolProfile{
+func TestReducerReportsFrozenRunCapabilitiesOnEverySegment(t *testing.T) {
+	frozen := execution.RunCapabilities{
 		ChildRuns:      true,
 		InterruptKinds: []execution.InterruptKind{execution.ApprovalInterrupt},
 	}
 	config := testReducerConfig()
-	config.ProtocolProfile = frozen
+	config.Capabilities = frozen
 	config.Continuation = testTreeContinuation(interrupts.Pending{
-		RootRunID: "run_1", SessionID: "ses_1", ProtocolProfile: frozen,
+		RootRunID: "run_1", SessionID: "ses_1", Capabilities: frozen,
 	})
 
 	reducer := newReducer(config)
@@ -1019,7 +1019,7 @@ func TestReducerReportsTheRunsFrozenProfileOnEverySegment(t *testing.T) {
 	if !ok {
 		t.Fatalf("opening event = %#v, want SegmentStarted", opening[0].Event)
 	}
-	assertFrozenProfile(t, started.Run.ProtocolProfile, frozen, "segment.started")
+	assertFrozenCapabilities(t, started.Run.Capabilities, frozen, "segment.started")
 
 	batch := mustReduceBatch(t, reducer, TurnInterrupted{Interrupts: []Interrupt{
 		{Kind: execution.ApprovalInterrupt, Approval: &ApprovalPrompt{
@@ -1029,13 +1029,13 @@ func TestReducerReportsTheRunsFrozenProfileOnEverySegment(t *testing.T) {
 	if batch.parkCommit.Run == nil {
 		t.Fatal("park commit carries no run record")
 	}
-	assertFrozenProfile(t, batch.parkCommit.Run.ProtocolProfile, frozen, "parked run record")
+	assertFrozenCapabilities(t, batch.parkCommit.Run.Capabilities, frozen, "parked run record")
 }
 
-func assertFrozenProfile(t *testing.T, got, want execution.RunProtocolProfile, where string) {
+func assertFrozenCapabilities(t *testing.T, got, want execution.RunCapabilities, where string) {
 	t.Helper()
 	if got.ChildRuns != want.ChildRuns || !slices.Equal(got.InterruptKinds, want.InterruptKinds) {
-		t.Fatalf("%s profile = %v, want %v", where, got, want)
+		t.Fatalf("%s capabilities = %v, want %v", where, got, want)
 	}
 }
 

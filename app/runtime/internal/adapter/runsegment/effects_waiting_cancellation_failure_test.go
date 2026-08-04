@@ -163,8 +163,8 @@ func TestCommitWaitingSubtreeCancellationRejectsRunContinuationFactDriftWithoutM
 		"frozen limits": func(commit *runs.WaitingSubtreeCancellationCommit) {
 			commit.TerminalRuns[0].Limits.MaxSteps++
 		},
-		"root protocol profile": func(commit *runs.WaitingSubtreeCancellationCommit) {
-			commit.RootRun.ProtocolProfile.ChildRuns = false
+		"root run capabilities": func(commit *runs.WaitingSubtreeCancellationCommit) {
+			commit.RootRun.Capabilities.ChildRuns = false
 		},
 	} {
 		t.Run(name, func(t *testing.T) {

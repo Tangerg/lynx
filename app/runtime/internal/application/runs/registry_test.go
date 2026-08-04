@@ -42,22 +42,22 @@ func TestRegistryCancelReason(t *testing.T) {
 	}
 }
 
-func TestRegistryOwnsRunProtocolProfile(t *testing.T) {
+func TestRegistryOwnsRunCapabilities(t *testing.T) {
 	var registry registry
-	profile := execution.RunProtocolProfile{
+	capabilities := execution.RunCapabilities{
 		InterruptKinds: []execution.InterruptKind{execution.ApprovalInterrupt},
 	}
-	registry.Open(Record{ID: "run_1", ProtocolProfile: profile}, nil)
-	profile.InterruptKinds[0] = execution.QuestionInterrupt
+	registry.Open(Record{ID: "run_1", Capabilities: capabilities}, nil)
+	capabilities.InterruptKinds[0] = execution.QuestionInterrupt
 
 	first, ok := registry.Get("run_1")
-	if !ok || first.record.ProtocolProfile.InterruptKinds[0] != execution.ApprovalInterrupt {
-		t.Fatalf("stored profile followed caller mutation: %+v", first.record.ProtocolProfile)
+	if !ok || first.record.Capabilities.InterruptKinds[0] != execution.ApprovalInterrupt {
+		t.Fatalf("stored capabilities followed caller mutation: %+v", first.record.Capabilities)
 	}
-	first.record.ProtocolProfile.InterruptKinds[0] = execution.QuestionInterrupt
+	first.record.Capabilities.InterruptKinds[0] = execution.QuestionInterrupt
 
 	second, ok := registry.Get("run_1")
-	if !ok || second.record.ProtocolProfile.InterruptKinds[0] != execution.ApprovalInterrupt {
-		t.Fatalf("Get leaked stored profile ownership: %+v", second.record.ProtocolProfile)
+	if !ok || second.record.Capabilities.InterruptKinds[0] != execution.ApprovalInterrupt {
+		t.Fatalf("Get leaked stored capabilities ownership: %+v", second.record.Capabilities)
 	}
 }

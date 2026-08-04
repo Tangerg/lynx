@@ -226,7 +226,7 @@ func TestCommitOpeningResumesRunTreeAtomically(t *testing.T) {
 				RootRunID: "run_root",
 				SessionID: "session_1",
 				TurnID:    "turn_1",
-				ProtocolProfile: execution.RunProtocolProfile{
+				Capabilities: execution.RunCapabilities{
 					ChildRuns:      true,
 					InterruptKinds: []execution.InterruptKind{execution.QuestionInterrupt},
 				},
@@ -471,7 +471,7 @@ func TestCommitTreeBarrierProducesDurableTriplet(t *testing.T) {
 	if err := state.Admit(ctx, execution.RunDraft{
 		RunID: "run_1", SessionID: "ses_1", SegmentID: "seg_open",
 		ModelSelection: mustEffectSelection(t, "anthropic", "claude"),
-		ProtocolProfile: execution.RunProtocolProfile{
+		Capabilities: execution.RunCapabilities{
 			InterruptKinds: []execution.InterruptKind{execution.QuestionInterrupt},
 		},
 		CreatedAt: createdAt,
@@ -519,9 +519,9 @@ func TestCommitTreeBarrierProducesDurableTriplet(t *testing.T) {
 			}},
 			Run: &transcript.Run{
 				SessionID: "ses_1", ID: "run_1", State: execution.Interrupted,
-				ModelSelection:  pending.Continuations[0].ModelSelection,
-				ProtocolProfile: pending.ProtocolProfile,
-				Interrupts:      open, CreatedAt: createdAt, UpdatedAt: parkedAt, MessageMark: -1,
+				ModelSelection: pending.Continuations[0].ModelSelection,
+				Capabilities:   pending.Capabilities,
+				Interrupts:     open, CreatedAt: createdAt, UpdatedAt: parkedAt, MessageMark: -1,
 			},
 		}},
 	}); err != nil {
@@ -835,14 +835,14 @@ func newWaitingCancellationSQLiteFixtureAt(
 		RootRunID:       "run_root",
 	}
 	state := sqlite.NewRunStore(db)
-	profile := execution.RunProtocolProfile{
+	capabilities := execution.RunCapabilities{
 		ChildRuns:      true,
 		InterruptKinds: []execution.InterruptKind{execution.QuestionInterrupt},
 	}
 	if err := state.Admit(ctx, execution.RunDraft{
 		RunID: "run_root", SessionID: "session_1", SegmentID: "segment_root",
-		ProtocolProfile: profile,
-		CreatedAt:       createdAt,
+		Capabilities: capabilities,
+		CreatedAt:    createdAt,
 	}); err != nil {
 		t.Fatalf("admit root: %v", err)
 	}
@@ -903,7 +903,7 @@ func newWaitingCancellationSQLiteFixtureAt(
 		createdAt,
 		[]transcript.Interrupt{grandchildQuestion},
 	)
-	grandchildRun.ProtocolProfile = profile
+	grandchildRun.Capabilities = capabilities
 	grandchildRun.UpdatedAt = finishedAt
 	childQuestion := treeQuestion("item_child_question", "run_child")
 	childRun := interruptedTreeRun(
@@ -913,7 +913,7 @@ func newWaitingCancellationSQLiteFixtureAt(
 		createdAt,
 		[]transcript.Interrupt{childQuestion},
 	)
-	childRun.ProtocolProfile = profile
+	childRun.Capabilities = capabilities
 	childRun.UpdatedAt = finishedAt
 	var siblingRun transcript.Run
 	if survivingBoundary {
@@ -925,7 +925,7 @@ func newWaitingCancellationSQLiteFixtureAt(
 			createdAt,
 			[]transcript.Interrupt{siblingQuestion},
 		)
-		siblingRun.ProtocolProfile = profile
+		siblingRun.Capabilities = capabilities
 		siblingRun.UpdatedAt = finishedAt
 	}
 	rootRun := interruptedTreeRun(
@@ -935,7 +935,7 @@ func newWaitingCancellationSQLiteFixtureAt(
 		createdAt,
 		nil,
 	)
-	rootRun.ProtocolProfile = profile
+	rootRun.Capabilities = capabilities
 	rootRun.UpdatedAt = finishedAt
 	grandchildQuestionItem := transcript.Item{
 		SessionID:  rootRun.SessionID,
@@ -1044,14 +1044,14 @@ func newWaitingCancellationSQLiteFixtureAt(
 		}},
 	})
 	pending := interrupts.Pending{
-		RootRunID:       rootRun.ID,
-		SessionID:       rootRun.SessionID,
-		TurnID:          "turn_1",
-		ProtocolProfile: profile,
-		Interrupts:      pendingInterrupts,
-		Suspensions:     pendingSuspensions,
-		Continuations:   pendingContinuations,
-		CreatedAt:       finishedAt,
+		RootRunID:     rootRun.ID,
+		SessionID:     rootRun.SessionID,
+		TurnID:        "turn_1",
+		Capabilities:  capabilities,
+		Interrupts:    pendingInterrupts,
+		Suspensions:   pendingSuspensions,
+		Continuations: pendingContinuations,
+		CreatedAt:     finishedAt,
 	}
 	if err := pending.Validate(); err != nil {
 		t.Fatalf("pending fixture: %v", err)

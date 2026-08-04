@@ -46,8 +46,8 @@ func validatePendingRunTree(pending interrupts.Pending, values []transcript.Run)
 	if root.GoalLeaseID != pending.GoalLeaseID {
 		return fmt.Errorf("runs: validate parked Run tree %q: root Run goal lease differs from Pending", pending.RootRunID)
 	}
-	if !root.ProtocolProfile.Equal(pending.ProtocolProfile) {
-		return fmt.Errorf("runs: validate parked Run tree %q: root Run protocol profile differs from Pending", pending.RootRunID)
+	if !root.Capabilities.Equal(pending.Capabilities) {
+		return fmt.Errorf("runs: validate parked Run tree %q: root Run run capabilities differ from Pending", pending.RootRunID)
 	}
 	if len(active) != len(pending.Continuations) {
 		return fmt.Errorf(
@@ -69,9 +69,9 @@ func validatePendingRunTree(pending interrupts.Pending, values []transcript.Run)
 		if err := validateContinuationRunFacts(pending.RootRunID, run, continuation); err != nil {
 			return err
 		}
-		if !run.ProtocolProfile.Equal(root.ProtocolProfile) {
+		if !run.Capabilities.Equal(root.Capabilities) {
 			return fmt.Errorf(
-				"runs: validate parked Run tree %q: Run %q protocol profile differs from root admission",
+				"runs: validate parked Run tree %q: Run %q run capabilities differ from root admission",
 				pending.RootRunID,
 				run.ID,
 			)

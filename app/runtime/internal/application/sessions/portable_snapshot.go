@@ -63,19 +63,19 @@ type PortableRun struct {
 	Error       *transcript.Problem
 	Metrics     transcript.RunMetrics
 	Limits      execution.RunLimits
-	// ProtocolProfile is a POINTER because absence is a distinct fact: an empty
-	// profile is the Minimal Profile — a meaning — while a missing one is a run that
-	// never said. A root must carry it; a child must not, and inherits its root's.
-	ProtocolProfile *execution.RunProtocolProfile
-	Detail          string
-	CreatedAt       time.Time
-	FinishedAt      time.Time
-	UpdatedAt       time.Time
-	MessageMark     int
+	// Capabilities is a pointer because an empty set is a known minimal Run while
+	// nil means the archive omitted the root-owned fact. A root must carry it; a
+	// child must not and inherits its root's value.
+	Capabilities *execution.RunCapabilities
+	Detail       string
+	CreatedAt    time.Time
+	FinishedAt   time.Time
+	UpdatedAt    time.Time
+	MessageMark  int
 }
 
-// rootID is the run that owns this run's protocol contract: itself when it is a
-// root, its RootRunID when it is a child.
+// rootID is the Run that owns this Run's capabilities: itself for a root and
+// RootRunID for a child.
 func (p PortableRun) rootID() string {
 	if p.RootRunID != "" {
 		return p.RootRunID
@@ -83,8 +83,8 @@ func (p PortableRun) rootID() string {
 	return p.ID
 }
 
-// validateLineage checks the identity rules a schema cannot: a root carries the
-// protocol contract it published under, a child carries none of its own, and a
+// validateLineage checks the identity rules a schema cannot: a root carries its
+// capabilities, a child carries none of its own, and a
 // child's edges name other runs in the same session rather than itself.
 //
 // These are not shape rules — JSON Schema cannot compare two fields, and "root"
@@ -100,13 +100,13 @@ func (p PortableRun) validateLineage() error {
 		return err
 	}
 	if lineage.IsRoot() {
-		if p.ProtocolProfile == nil {
-			return fmt.Errorf("root run %q carries no protocol profile", p.ID)
+		if p.Capabilities == nil {
+			return fmt.Errorf("root run %q carries no capabilities", p.ID)
 		}
 		return nil
 	}
-	if p.ProtocolProfile != nil {
-		return fmt.Errorf("child run %q carries a protocol profile of its own", p.ID)
+	if p.Capabilities != nil {
+		return fmt.Errorf("child run %q carries capabilities of its own", p.ID)
 	}
 	return nil
 }
@@ -126,20 +126,19 @@ func (p PortableSnapshot) CanonicalSnapshot() (Snapshot, error) {
 	if err := plan.Validate(snapshot.Plan); err != nil {
 		return Snapshot{}, fmt.Errorf("%w: plan: %w", ErrInvalidPortableSnapshot, err)
 	}
-	// A child reads its root's contract, so the roots' profiles are collected before
-	// any run is rebuilt — the archive states each contract exactly once, and a child
-	// that could carry its own would be a second statement of it.
-	profiles := make(map[string]execution.RunProtocolProfile, len(p.Runs))
+	// A child reads its root's capabilities, so root values are collected before
+	// any Run is rebuilt. The archive states each value exactly once.
+	capabilitySets := make(map[string]execution.RunCapabilities, len(p.Runs))
 	for _, portable := range p.Runs {
-		if portable.ProtocolProfile != nil {
-			profiles[portable.ID] = *portable.ProtocolProfile
+		if portable.Capabilities != nil {
+			capabilitySets[portable.ID] = *portable.Capabilities
 		}
 	}
 	for _, portable := range p.Runs {
 		if err := portable.validateLineage(); err != nil {
 			return Snapshot{}, fmt.Errorf("%w: %w", ErrInvalidPortableSnapshot, err)
 		}
-		if _, known := profiles[portable.rootID()]; !known {
+		if _, known := capabilitySets[portable.rootID()]; !known {
 			return Snapshot{}, fmt.Errorf("%w: run %q names root %q, which this archive does not contain",
 				ErrInvalidPortableSnapshot, portable.ID, portable.rootID())
 		}
@@ -164,7 +163,7 @@ func (p PortableSnapshot) CanonicalSnapshot() (Snapshot, error) {
 			Error:           portable.Error,
 			Metrics:         portable.Metrics,
 			Limits:          portable.Limits,
-			ProtocolProfile: profiles[portable.rootID()],
+			Capabilities:    capabilitySets[portable.rootID()],
 			Detail:          portable.Detail,
 			CreatedAt:       portable.CreatedAt,
 			FinishedAt:      portable.FinishedAt,
@@ -264,8 +263,8 @@ func (snapshot Snapshot) PortableSnapshot() (PortableSnapshot, error) {
 			MessageMark:     run.MessageMark,
 		}
 		if run.Lineage().IsRoot() {
-			profile := run.ProtocolProfile
-			portableRun.ProtocolProfile = &profile
+			capabilities := run.Capabilities
+			portableRun.Capabilities = &capabilities
 		}
 		portable.Runs = append(portable.Runs, portableRun)
 	}

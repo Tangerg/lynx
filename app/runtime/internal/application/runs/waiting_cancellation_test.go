@@ -703,7 +703,7 @@ func waitingCancellationPlan(
 			CreatedAt:       continuation.RunCreatedAt,
 			UpdatedAt:       pending.CreatedAt,
 			ModelSelection:  continuation.ModelSelection,
-			ProtocolProfile: pending.ProtocolProfile,
+			Capabilities:    pending.Capabilities,
 			MessageMark:     transcript.UnknownMessageMark,
 		}
 		processes[continuation.RunID] = continuation.ProcessID

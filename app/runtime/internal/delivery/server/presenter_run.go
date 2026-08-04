@@ -49,7 +49,7 @@ func presentRun(run transcript.Run) protocol.RunRef {
 		ActiveSegmentID: run.ActiveSegmentID,
 		Metrics:         presentMetrics(run.Metrics),
 		Limits:          presentLimits(run.Limits),
-		ProtocolProfile: presentProtocolProfile(run.ProtocolProfile),
+		ProtocolProfile: presentRunProtocolProfile(run.Capabilities),
 	}
 }
 
@@ -70,18 +70,18 @@ func presentCancelResult(result runs.CancelResult) *protocol.CancelRunResponse {
 	}
 }
 
-// presentProtocolProfile publishes the contract the run was created under. Both
-// sets are allocated even when empty: an empty profile is the Minimal Profile —
-// a meaning — and `null` would report the run's known contract as unknown.
-func presentProtocolProfile(profile execution.RunProtocolProfile) protocol.RunProtocolProfile {
+// presentRunProtocolProfile maps the Run's capabilities to the external
+// protocol contract. Both sets are allocated even when empty: the Minimal
+// Profile is known, not null.
+func presentRunProtocolProfile(capabilities execution.RunCapabilities) protocol.RunProtocolProfile {
 	out := protocol.RunProtocolProfile{
 		RequiredFeatures: make([]protocol.RunProtocolFeature, 0, 1),
-		InterruptTypes:   make([]protocol.InterruptType, 0, len(profile.InterruptKinds)),
+		InterruptTypes:   make([]protocol.InterruptType, 0, len(capabilities.InterruptKinds)),
 	}
-	if profile.ChildRuns {
+	if capabilities.ChildRuns {
 		out.RequiredFeatures = append(out.RequiredFeatures, protocol.RunProtocolFeatureSubagents)
 	}
-	for _, kind := range profile.InterruptKinds {
+	for _, kind := range capabilities.InterruptKinds {
 		out.InterruptTypes = append(out.InterruptTypes, presentInterruptType(kind))
 	}
 	return out

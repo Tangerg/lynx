@@ -234,7 +234,7 @@ func TestCoordinatorReadsDelegateToProjections(t *testing.T) {
 		t.Fatalf("threaded runs = %v, want only the run the page's items belong to", runs.requested)
 	}
 
-	pending, err := c.ListPendingInterruptPage(ctx, "ses_2", "", execution.RunProtocolProfile{}, "", 0)
+	pending, err := c.ListPendingInterruptPage(ctx, "ses_2", "", execution.RunCapabilities{}, "", 0)
 	if err != nil || len(pending.Rows) != 1 || ints.session != "ses_2" {
 		t.Fatalf("ListPendingInterruptPage pending=%d session=%q err=%v", len(pending.Rows), ints.session, err)
 	}
@@ -522,7 +522,7 @@ func parked(sessionID string, ids ...string) []interrupts.Pending {
 }
 
 // TestListPendingInterruptPageRefusesACallerThatCannotFollowTheRun is the deferred
-// half of the profile rule: a waiting set belongs to a run with a frozen contract,
+// half of the capabilities rule: a waiting set belongs to a run with a frozen contract,
 // and a caller that cannot follow that contract is refused the set — never handed
 // the parts it happens to understand.
 //
@@ -532,7 +532,7 @@ func parked(sessionID string, ids ...string) []interrupts.Pending {
 func TestListPendingInterruptPageRefusesACallerThatCannotFollowTheRun(t *testing.T) {
 	ctx := context.Background()
 	waiting := parked("ses_1", "run_1")
-	waiting[0].ProtocolProfile = execution.RunProtocolProfile{
+	waiting[0].Capabilities = execution.RunCapabilities{
 		InterruptKinds: []execution.InterruptKind{execution.ApprovalInterrupt, execution.QuestionInterrupt},
 	}
 	c := New(Dependencies{
@@ -542,14 +542,14 @@ func TestListPendingInterruptPageRefusesACallerThatCannotFollowTheRun(t *testing
 		Sessions:   &fakeSessions{},
 	})
 
-	answersOnlyApprovals := execution.RunProtocolProfile{
+	answersOnlyApprovals := execution.RunCapabilities{
 		InterruptKinds: []execution.InterruptKind{execution.ApprovalInterrupt},
 	}
-	if _, err := c.ListPendingInterruptPage(ctx, "ses_1", "", answersOnlyApprovals, "", 0); !errors.Is(err, execution.ErrProfileNotCovered) {
-		t.Fatalf("partial caller err = %v, want ErrProfileNotCovered", err)
+	if _, err := c.ListPendingInterruptPage(ctx, "ses_1", "", answersOnlyApprovals, "", 0); !errors.Is(err, execution.ErrInsufficientCapabilities) {
+		t.Fatalf("partial caller err = %v, want ErrInsufficientCapabilities", err)
 	}
 
-	full := execution.RunProtocolProfile{
+	full := execution.RunCapabilities{
 		InterruptKinds: []execution.InterruptKind{execution.ApprovalInterrupt, execution.QuestionInterrupt},
 	}
 	page, err := c.ListPendingInterruptPage(ctx, "ses_1", "", full, "", 0)
@@ -578,7 +578,7 @@ func TestListPendingInterruptPageFiltersByRootAndRefusesAChild(t *testing.T) {
 		Sessions:   &fakeSessions{},
 	})
 
-	page, err := c.ListPendingInterruptPage(ctx, "", "run_1", execution.RunProtocolProfile{}, "", 0)
+	page, err := c.ListPendingInterruptPage(ctx, "", "run_1", execution.RunCapabilities{}, "", 0)
 	if err != nil {
 		t.Fatalf("root-filtered page: %v", err)
 	}
@@ -586,17 +586,17 @@ func TestListPendingInterruptPageFiltersByRootAndRefusesAChild(t *testing.T) {
 		t.Fatalf("filtered page = %+v (asked %q), want only run_1's set", page.Rows, ints.rootRun)
 	}
 
-	if _, err := c.ListPendingInterruptPage(ctx, "", "run_child", execution.RunProtocolProfile{}, "", 0); !errors.Is(err, transcript.ErrNotRoot) {
+	if _, err := c.ListPendingInterruptPage(ctx, "", "run_child", execution.RunCapabilities{}, "", 0); !errors.Is(err, transcript.ErrNotRoot) {
 		t.Fatalf("child filter err = %v, want transcript.ErrNotRoot", err)
 	}
 
 	// The filter is part of the cursor's identity: the same anchor against a
 	// different filter names a position in a collection it never enumerated.
-	unfiltered, err := c.ListPendingInterruptPage(ctx, "", "", execution.RunProtocolProfile{}, "", 1)
+	unfiltered, err := c.ListPendingInterruptPage(ctx, "", "", execution.RunCapabilities{}, "", 1)
 	if err != nil {
 		t.Fatalf("unfiltered page: %v", err)
 	}
-	if _, err := c.ListPendingInterruptPage(ctx, "", "run_1", execution.RunProtocolProfile{}, unfiltered.NextCursor, 1); !errors.Is(err, keyset.ErrInvalidCursor) {
+	if _, err := c.ListPendingInterruptPage(ctx, "", "run_1", execution.RunCapabilities{}, unfiltered.NextCursor, 1); !errors.Is(err, keyset.ErrInvalidCursor) {
 		t.Fatalf("cross-filter cursor err = %v, want ErrInvalidCursor", err)
 	}
 }
@@ -736,7 +736,7 @@ func TestListRunPageRefusesACursorFromAnotherQuery(t *testing.T) {
 
 	// The interrupt page is scoped the same way and ordered by a timestamp too, so
 	// only the query namespace tells the two apart.
-	interruptPage, err := c.ListPendingInterruptPage(ctx, "ses_1", "", execution.RunProtocolProfile{}, "", 2)
+	interruptPage, err := c.ListPendingInterruptPage(ctx, "ses_1", "", execution.RunCapabilities{}, "", 2)
 	if err != nil {
 		t.Fatalf("interrupt page: %v", err)
 	}
@@ -766,7 +766,7 @@ func TestListPendingInterruptPagePagesOldestFirst(t *testing.T) {
 		Sessions:   &fakeSessions{},
 	})
 
-	first, err := c.ListPendingInterruptPage(ctx, "ses_1", "", execution.RunProtocolProfile{}, "", 2)
+	first, err := c.ListPendingInterruptPage(ctx, "ses_1", "", execution.RunCapabilities{}, "", 2)
 	if err != nil {
 		t.Fatalf("first page: %v", err)
 	}
@@ -777,7 +777,7 @@ func TestListPendingInterruptPagePagesOldestFirst(t *testing.T) {
 		t.Fatalf("first page = %+v, want two pending sets and a cursor", first.Rows)
 	}
 
-	second, err := c.ListPendingInterruptPage(ctx, "ses_1", "", execution.RunProtocolProfile{}, first.NextCursor, 2)
+	second, err := c.ListPendingInterruptPage(ctx, "ses_1", "", execution.RunCapabilities{}, first.NextCursor, 2)
 	if err != nil {
 		t.Fatalf("second page: %v", err)
 	}
@@ -787,7 +787,7 @@ func TestListPendingInterruptPagePagesOldestFirst(t *testing.T) {
 	if len(second.Rows) != 1 || second.Rows[0].RootRunID != "run_3" || second.NextCursor != "" {
 		t.Fatalf("second page = %+v, want the tail and no cursor", second.Rows)
 	}
-	if _, err := c.ListPendingInterruptPage(ctx, "ses_1", "", execution.RunProtocolProfile{}, first.NextCursor+"x", 2); !errors.Is(err, keyset.ErrInvalidCursor) {
+	if _, err := c.ListPendingInterruptPage(ctx, "ses_1", "", execution.RunCapabilities{}, first.NextCursor+"x", 2); !errors.Is(err, keyset.ErrInvalidCursor) {
 		t.Fatalf("damaged cursor err = %v, want ErrInvalidCursor", err)
 	}
 
@@ -797,7 +797,7 @@ func TestListPendingInterruptPagePagesOldestFirst(t *testing.T) {
 	if err != nil {
 		t.Fatalf("run page: %v", err)
 	}
-	if _, err := c.ListPendingInterruptPage(ctx, "ses_1", "", execution.RunProtocolProfile{}, runPage.NextCursor, 2); !errors.Is(err, keyset.ErrInvalidCursor) {
+	if _, err := c.ListPendingInterruptPage(ctx, "ses_1", "", execution.RunCapabilities{}, runPage.NextCursor, 2); !errors.Is(err, keyset.ErrInvalidCursor) {
 		t.Fatalf("run cursor on the interrupt page err = %v, want ErrInvalidCursor", err)
 	}
 }

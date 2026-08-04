@@ -200,8 +200,8 @@ func (e *Effects) validateWaitingSubtreeCancellation(
 	if commit.RootRun.GoalLeaseID != commit.ExpectedPending.GoalLeaseID {
 		return errors.New("runsegment: waiting cancellation root Run goal lease differs from Pending")
 	}
-	if !commit.RootRun.ProtocolProfile.Equal(commit.ExpectedPending.ProtocolProfile) {
-		return errors.New("runsegment: waiting cancellation root Run protocol profile differs from Pending")
+	if !commit.RootRun.Capabilities.Equal(commit.ExpectedPending.Capabilities) {
+		return errors.New("runsegment: waiting cancellation root Run run capabilities differ from Pending")
 	}
 	if err := validateWaitingRunContinuationFacts(commit.RootRun, rootContinuation); err != nil {
 		return fmt.Errorf("runsegment: waiting cancellation root Run: %w", err)
@@ -320,8 +320,8 @@ func (e *Effects) validateWaitingSubtreeCancellation(
 			return fmt.Errorf("runsegment: canceled Run[%d] frozen limits mismatch", index)
 		case !run.CreatedAt.Equal(continuation.RunCreatedAt):
 			return fmt.Errorf("runsegment: canceled Run[%d] creation time mismatch", index)
-		case !run.ProtocolProfile.Equal(commit.ExpectedPending.ProtocolProfile):
-			return fmt.Errorf("runsegment: canceled Run[%d] protocol profile mismatch", index)
+		case !run.Capabilities.Equal(commit.ExpectedPending.Capabilities):
+			return fmt.Errorf("runsegment: canceled Run[%d] run capabilities mismatch", index)
 		case run.GoalLeaseID != "":
 			return fmt.Errorf("runsegment: canceled child Run[%d] carries a root Goal lease", index)
 		case run.State != execution.Canceled ||
@@ -468,8 +468,8 @@ func (e *Effects) validateWaitingSubtreeCancellation(
 			commit.RemainingPending.GoalLeaseID != commit.ExpectedPending.GoalLeaseID ||
 			!commit.RemainingPending.CreatedAt.Equal(commit.ExpectedPending.CreatedAt) ||
 			!reflect.DeepEqual(
-				normalizeProtocolProfile(commit.RemainingPending.ProtocolProfile),
-				normalizeProtocolProfile(commit.ExpectedPending.ProtocolProfile),
+				normalizeCapabilities(commit.RemainingPending.Capabilities),
+				normalizeCapabilities(commit.ExpectedPending.Capabilities),
 			) {
 			return errors.New("runsegment: reduced waiting cancellation changed immutable pending facts")
 		}
@@ -654,7 +654,7 @@ func normalizePendingSnapshot(pending interrupts.Pending) interrupts.Pending {
 	pending.Suspensions = slices.Clone(pending.Suspensions)
 	pending.Continuations = slices.Clone(pending.Continuations)
 	pending.CreatedAt = timeFromUnixNano(pending.CreatedAt)
-	pending.ProtocolProfile = normalizeProtocolProfile(pending.ProtocolProfile)
+	pending.Capabilities = normalizeCapabilities(pending.Capabilities)
 	for index := range pending.Continuations {
 		pending.Continuations[index] = normalizeContinuationSnapshot(
 			pending.Continuations[index],
@@ -717,12 +717,12 @@ func normalizeContinuationSnapshot(
 	return continuation
 }
 
-func normalizeProtocolProfile(profile execution.RunProtocolProfile) execution.RunProtocolProfile {
-	profile = profile.Normalized()
-	if len(profile.InterruptKinds) == 0 {
-		profile.InterruptKinds = nil
+func normalizeCapabilities(capabilities execution.RunCapabilities) execution.RunCapabilities {
+	capabilities = capabilities.Normalized()
+	if len(capabilities.InterruptKinds) == 0 {
+		capabilities.InterruptKinds = nil
 	}
-	return profile
+	return capabilities
 }
 
 func sameItemSnapshot(left, right transcript.Item) bool {

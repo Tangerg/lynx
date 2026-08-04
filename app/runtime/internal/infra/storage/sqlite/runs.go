@@ -73,12 +73,12 @@ func (s *RunStore) Admit(ctx context.Context, draft execution.RunDraft) error {
 	if err := draft.Limits.Validate(); err != nil {
 		return fmt.Errorf("sqlite: admit run %q: %w", draft.RunID, err)
 	}
-	if err := draft.ProtocolProfile.Validate(); err != nil {
+	if err := draft.Capabilities.Validate(); err != nil {
 		return fmt.Errorf("sqlite: admit run %q: %w", draft.RunID, err)
 	}
-	if lineage.IsChild() && !draft.ProtocolProfile.IsEmpty() {
+	if lineage.IsChild() && !draft.Capabilities.IsEmpty() {
 		return fmt.Errorf(
-			"sqlite: admit child run %q: protocol profile is owned by root %q",
+			"sqlite: admit child run %q: capabilities are owned by root %q",
 			draft.RunID,
 			draft.RootRunID,
 		)
@@ -86,13 +86,13 @@ func (s *RunStore) Admit(ctx context.Context, draft execution.RunDraft) error {
 	if lineage.IsChild() && draft.GoalLeaseID != "" {
 		return fmt.Errorf("sqlite: admit child run %q: goal lease is owned by root %q", draft.RunID, draft.RootRunID)
 	}
-	profile, err := encodeRunProtocolProfile(draft.ProtocolProfile)
+	capabilities, err := encodeRunCapabilities(draft.Capabilities)
 	if err != nil {
 		return fmt.Errorf("sqlite: admit run %q: %w", draft.RunID, err)
 	}
 	now := draft.CreatedAt.UTC().UnixNano()
-	// This is the profile's only writer, here and in Restore. Suspend / Resume /
-	// finish deliberately do not name the column: the Run's contract cannot change
+	// This is the capability set's only writer, here and in Restore. Suspend,
+	// resume, and finish deliberately do not name the column: the value cannot change
 	// after admission, and the way to guarantee that is to have nothing able to
 	// change it.
 	return RunInTx(ctx, s.db, func(ctx context.Context) error {
@@ -113,14 +113,14 @@ func (s *RunStore) Admit(ctx context.Context, draft execution.RunDraft) error {
 			`INSERT INTO runs(
 			   run_id, session_id, spawned_by_item_id, parent_run_id, root_run_id,
 			   state, active_segment_id, provider, model, goal_lease_id, max_total_tokens, max_steps, max_budget_usd,
-			   protocol_profile, message_mark, started_at, updated_at)
+			   capabilities, message_mark, started_at, updated_at)
 			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			draft.RunID, draft.SessionID,
 			draft.SpawnedByItemID, draft.ParentRunID, draft.RootRunID,
 			runStateRunning, draft.SegmentID,
 			draft.ModelSelection.Provider(), draft.ModelSelection.Model(),
 			draft.GoalLeaseID,
-			draft.Limits.MaxTotalTokens, draft.Limits.MaxSteps, draft.Limits.MaxBudgetUSD, profile,
+			draft.Limits.MaxTotalTokens, draft.Limits.MaxSteps, draft.Limits.MaxBudgetUSD, capabilities,
 			transcript.UnknownMessageMark, now, now)
 		// Two constraints can reject this INSERT and they mean opposite things: the
 		// primary key says the id is spoken for, the partial index says the Session
@@ -447,13 +447,13 @@ func (s *RunStore) Restore(ctx context.Context, run transcript.Run) error {
 	if err != nil {
 		return fmt.Errorf("sqlite: restore run %q: %w", run.ID, err)
 	}
-	profileOwner := run.ProtocolProfile
+	capabilitiesOwner := run.Capabilities
 	if run.Lineage().IsChild() {
-		// A child materializes its root's profile on reads but owns no mutable copy
+		// A child materializes its root's capabilities on reads but owns no copy
 		// on disk. The root row is the single durable author.
-		profileOwner = execution.RunProtocolProfile{}
+		capabilitiesOwner = execution.RunCapabilities{}
 	}
-	profile, err := encodeRunProtocolProfile(profileOwner)
+	capabilities, err := encodeRunCapabilities(capabilitiesOwner)
 	if err != nil {
 		return fmt.Errorf("sqlite: restore run %q: %w", run.ID, err)
 	}
@@ -462,7 +462,7 @@ func (s *RunStore) Restore(ctx context.Context, run transcript.Run) error {
 		   run_id, session_id, spawned_by_item_id, parent_run_id, root_run_id,
 		   state, outcome, provider, model, goal_lease_id,
 		   detail, steps, active_duration_ns, usage, problem, max_total_tokens, max_steps, max_budget_usd,
-		   protocol_profile, message_mark, started_at, finished_at, updated_at)
+		   capabilities, message_mark, started_at, finished_at, updated_at)
 		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		run.ID, run.SessionID,
 		run.SpawnedByItemID, run.ParentRunID, run.RootRunID,
@@ -470,7 +470,7 @@ func (s *RunStore) Restore(ctx context.Context, run transcript.Run) error {
 		run.ModelSelection.Provider(), run.ModelSelection.Model(),
 		run.GoalLeaseID,
 		run.Detail, metrics.steps, metrics.durationNs, metrics.usage, problem,
-		run.Limits.MaxTotalTokens, run.Limits.MaxSteps, run.Limits.MaxBudgetUSD, profile, run.MessageMark,
+		run.Limits.MaxTotalTokens, run.Limits.MaxSteps, run.Limits.MaxBudgetUSD, capabilities, run.MessageMark,
 		run.CreatedAt.UTC().UnixNano(), run.FinishedAt.UTC().UnixNano(), runUpdatedAt(run))
 	if isPrimaryKeyViolation(err) {
 		// A Run id belongs to one Session for its whole lifetime. An import that
@@ -697,10 +697,10 @@ func placeholders(n int) string {
 const runColumns = `r.run_id, r.session_id, r.spawned_by_item_id, r.parent_run_id, r.root_run_id,
 	r.state, r.active_segment_id, r.outcome,
 	r.provider, r.model, r.goal_lease_id, r.detail, r.steps, r.active_duration_ns, r.usage, r.problem,
-	r.max_total_tokens, r.max_steps, r.max_budget_usd, r.protocol_profile, tree_root.protocol_profile,
+	r.max_total_tokens, r.max_steps, r.max_budget_usd, r.capabilities, tree_root.capabilities,
 	r.message_mark, r.started_at, r.finished_at, r.updated_at, i.payload`
 
-// runReadJoins materializes the root-owned protocol profile and pending set for
+// runReadJoins materializes the root-owned capabilities and pending set for
 // every Run in the tree. scanRun filters the aggregate payload by source Run ID,
 // so a suspended sibling reads an empty direct-interrupt list rather than
 // claiming another Run's questions.

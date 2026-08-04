@@ -102,12 +102,11 @@ type StartCommand struct {
 	ModelSelection       modelref.Selection
 	Limits               execution.RunLimits
 	Options              *corechat.Options
-	// ProtocolProfile is the protocol contract negotiated for this Run, already
-	// resolved against what this build advertises. It is an input rather than
-	// something the use case derives: what a client declared is a wire fact, and
-	// the use case's job is to freeze it onto the Run.
-	ProtocolProfile execution.RunProtocolProfile
-	Input           []transcript.ContentBlock
+	// Capabilities is the optional behavior enabled for this Run, already resolved
+	// by the caller against what this build can execute. The use case freezes it at
+	// admission rather than deriving or renegotiating it later.
+	Capabilities execution.RunCapabilities
+	Input        []transcript.ContentBlock
 	// GoalLeaseID stamps a Goal-mode autonomous run with the goal incarnation
 	// that launched it, so the Run's reported outcome only affects that Goal
 	// (see the goals application store's lease-and-revision CAS). Empty for ordinary runs.
@@ -208,11 +207,10 @@ type ResumeCommand struct {
 	// same opening write-set as the resume itself, so "answered the interrupt" and
 	// "said this as well" cannot come apart.
 	Input []transcript.ContentBlock
-	// CallerCapabilities is what THIS request declares it can handle. A resume does
-	// not renegotiate the Run's frozen profile — it is only checked against it, so a
-	// caller that could not follow the Run's stream is refused rather than served a
-	// quietly reduced one.
-	CallerCapabilities execution.RunProtocolProfile
+	// CallerCapabilities is what this request can handle. A resume does not
+	// renegotiate the Run's frozen capabilities; a caller missing any of them is
+	// refused rather than served reduced behavior.
+	CallerCapabilities execution.RunCapabilities
 }
 
 type ResumeResponseKind string
@@ -266,8 +264,8 @@ type CancelCommand struct {
 	RunID  string
 	Reason string
 	// AllowChildRun is the caller's already-negotiated authority to address a
-	// child directly. It is false for the Minimal Profile and while the runtime
-	// has no child-run producer.
+	// child directly. It is false for the minimal capability set and while the
+	// runtime has no child-run producer.
 	AllowChildRun bool
 }
 
@@ -301,10 +299,9 @@ type SubscribeRequest struct {
 	// Cursor is the opaque position the caller last folded, empty for a fresh
 	// attach. Empty is tail-only — history comes from the transcript reads.
 	Cursor string
-	// Caller is what THIS request declares it can handle, checked against the
-	// Run's frozen profile. A subscriber that could not follow the stream is
-	// refused rather than served a quietly reduced one.
-	Caller execution.RunProtocolProfile
+	// CallerCapabilities is what this request can handle. It must cover the Run's
+	// frozen capabilities before the subscriber attaches to the stream.
+	CallerCapabilities execution.RunCapabilities
 }
 
 // Subscription is an attached caller's view of a live segment.
@@ -340,11 +337,11 @@ func (r StartTurn) Validate() error {
 	if err := r.ModelSelection.Validate(); err != nil {
 		return fmt.Errorf("runs: turn model selection: %w", err)
 	}
-	if err := (execution.RunProtocolProfile{
+	if err := (execution.RunCapabilities{
 		ChildRuns:      r.ChildRunAdmissionEnabled,
 		InterruptKinds: r.InterruptKinds,
 	}).Validate(); err != nil {
-		return fmt.Errorf("runs: turn protocol profile: %w", err)
+		return fmt.Errorf("runs: turn capabilities: %w", err)
 	}
 	if r.GoalLeaseID != strings.TrimSpace(r.GoalLeaseID) {
 		return errors.New("runs: turn goal lease ID has surrounding whitespace")

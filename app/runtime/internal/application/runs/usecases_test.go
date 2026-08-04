@@ -280,11 +280,11 @@ func TestStartOwnsCompleteAdmissionSequence(t *testing.T) {
 	c := newUseCaseCoordinator(exec, turns, sessions, effects)
 
 	result, err := c.Start(context.Background(), StartCommand{
-		SessionID:       "ses_1",
-		ModelSelection:  mustUseCaseSelection("provider", "model"),
-		Limits:          execution.RunLimits{MaxTotalTokens: 16_384, MaxSteps: 12, MaxBudgetUSD: 3.5},
-		ProtocolProfile: execution.RunProtocolProfile{ChildRuns: true},
-		Input:           []transcript.ContentBlock{{Kind: transcript.TextContent, Text: "hello"}},
+		SessionID:      "ses_1",
+		ModelSelection: mustUseCaseSelection("provider", "model"),
+		Limits:         execution.RunLimits{MaxTotalTokens: 16_384, MaxSteps: 12, MaxBudgetUSD: 3.5},
+		Capabilities:   execution.RunCapabilities{ChildRuns: true},
+		Input:          []transcript.ContentBlock{{Kind: transcript.TextContent, Text: "hello"}},
 	})
 	if err != nil {
 		t.Fatalf("Start: %v", err)
@@ -467,7 +467,7 @@ func TestResumeCommitsOpeningBeforeActivation(t *testing.T) {
 
 	result, err := c.Resume(context.Background(), ResumeCommand{
 		RunID: "run_1",
-		CallerCapabilities: execution.RunProtocolProfile{
+		CallerCapabilities: execution.RunCapabilities{
 			InterruptKinds: []execution.InterruptKind{execution.ApprovalInterrupt},
 		},
 		Responses: []ResumeResponse{{
@@ -514,7 +514,7 @@ func TestResumeRejectsContinuationFactDriftBeforeExecutorPreparation(t *testing.
 
 	_, err := coordinator.Resume(t.Context(), ResumeCommand{
 		RunID:              pending.RootRunID,
-		CallerCapabilities: pending.ProtocolProfile,
+		CallerCapabilities: pending.Capabilities,
 		Responses: []ResumeResponse{{
 			ItemID: "item_1", Kind: ApprovalResponseKind,
 			Approval: &ApprovalResponse{Approved: true},
@@ -563,7 +563,7 @@ func TestResumeAndRootCancelShareOneApplicationAdmissionBoundary(t *testing.T) {
 	go func() {
 		result, err := c.Resume(t.Context(), ResumeCommand{
 			RunID: "run_1",
-			CallerCapabilities: execution.RunProtocolProfile{
+			CallerCapabilities: execution.RunCapabilities{
 				InterruptKinds: []execution.InterruptKind{execution.ApprovalInterrupt},
 			},
 			Responses: []ResumeResponse{{
@@ -633,7 +633,7 @@ func TestResumeWithInputCommitsTheUserTurnWithTheContinuation(t *testing.T) {
 	effects, c := newResumeCase()
 	withInput, err := c.Resume(context.Background(), ResumeCommand{
 		RunID: "run_1", Responses: approve,
-		CallerCapabilities: execution.RunProtocolProfile{
+		CallerCapabilities: execution.RunCapabilities{
 			InterruptKinds: []execution.InterruptKind{execution.ApprovalInterrupt},
 		},
 		Input: []transcript.ContentBlock{{Kind: transcript.TextContent, Text: "also skip the tests"}},
@@ -665,7 +665,7 @@ func TestResumeWithInputCommitsTheUserTurnWithTheContinuation(t *testing.T) {
 	_, c = newResumeCase()
 	without, err := c.Resume(context.Background(), ResumeCommand{
 		RunID: "run_1", Responses: approve,
-		CallerCapabilities: execution.RunProtocolProfile{
+		CallerCapabilities: execution.RunCapabilities{
 			InterruptKinds: []execution.InterruptKind{execution.ApprovalInterrupt},
 		},
 	})
@@ -696,7 +696,7 @@ func TestResumeRecoversLostProcessSnapshotBeforeReturning(t *testing.T) {
 
 	_, err := c.Resume(t.Context(), ResumeCommand{
 		RunID: "run_1",
-		CallerCapabilities: execution.RunProtocolProfile{
+		CallerCapabilities: execution.RunCapabilities{
 			InterruptKinds: []execution.InterruptKind{execution.ApprovalInterrupt},
 		},
 		Responses: []ResumeResponse{{
@@ -732,7 +732,7 @@ func TestResumeRecoversLostProcessSnapshotBeforeReturning(t *testing.T) {
 func TestResumeRehydrateRestoresChildSourceProjection(t *testing.T) {
 	createdAt := time.Date(2026, 7, 30, 12, 0, 0, 0, time.UTC)
 	pending := resumedTreePending(createdAt)
-	pending.ProtocolProfile.ChildRuns = true
+	pending.Capabilities.ChildRuns = true
 	pending.GoalLeaseID = "goal-lease-1"
 	sessions := &fakeRunSessions{
 		sess: session.Session{ID: pending.SessionID, Cwd: "/work"},
@@ -756,7 +756,7 @@ func TestResumeRehydrateRestoresChildSourceProjection(t *testing.T) {
 	}
 	result, err := c.Resume(t.Context(), ResumeCommand{
 		RunID:              pending.RootRunID,
-		CallerCapabilities: pending.ProtocolProfile,
+		CallerCapabilities: pending.Capabilities,
 		Responses: []ResumeResponse{
 			{
 				ItemID:   "item_grandchild",
@@ -802,7 +802,7 @@ func TestResumeRehydrateRestoresChildSourceProjection(t *testing.T) {
 func TestResumeRehydrateRestoresChildAdmissionBeforeAnyChildExists(t *testing.T) {
 	createdAt := time.Date(2026, 7, 30, 12, 0, 0, 0, time.UTC)
 	pending := testPendingInterrupt("item_1", "process_root", createdAt)
-	pending.ProtocolProfile.ChildRuns = true
+	pending.Capabilities.ChildRuns = true
 	pending.Continuations[0].ModelSelection = mustUseCaseSelection("openai", "model")
 	sessions := &fakeRunSessions{
 		sess: session.Session{ID: pending.SessionID, Cwd: "/work"},
@@ -821,7 +821,7 @@ func TestResumeRehydrateRestoresChildAdmissionBeforeAnyChildExists(t *testing.T)
 
 	result, err := c.Resume(t.Context(), ResumeCommand{
 		RunID:              pending.RootRunID,
-		CallerCapabilities: pending.ProtocolProfile,
+		CallerCapabilities: pending.Capabilities,
 		Responses: []ResumeResponse{{
 			ItemID: "item_1",
 			Kind:   ApprovalResponseKind,
@@ -859,7 +859,7 @@ func TestResumeRefusesIsolatedRunAfterSandboxProcessEnded(t *testing.T) {
 
 	_, err := c.Resume(t.Context(), ResumeCommand{
 		RunID: "run_1",
-		CallerCapabilities: execution.RunProtocolProfile{
+		CallerCapabilities: execution.RunCapabilities{
 			InterruptKinds: []execution.InterruptKind{execution.ApprovalInterrupt},
 		},
 		Responses: []ResumeResponse{{
@@ -898,7 +898,7 @@ func testPendingInterrupt(itemID, processID string, runCreatedAt time.Time) inte
 		SessionID:  "ses_1",
 		TurnID:     "turn_1",
 		Interrupts: interruptValues,
-		ProtocolProfile: execution.RunProtocolProfile{
+		Capabilities: execution.RunCapabilities{
 			InterruptKinds: []execution.InterruptKind{execution.ApprovalInterrupt},
 		},
 		Suspensions: []interrupts.SuspensionBinding{{
@@ -939,7 +939,7 @@ func runForContinuation(
 		State:           execution.Interrupted,
 		Metrics:         continuation.Metrics,
 		Limits:          continuation.Limits,
-		ProtocolProfile: pending.ProtocolProfile,
+		Capabilities:    pending.Capabilities,
 		CreatedAt:       continuation.RunCreatedAt,
 		MessageMark:     transcript.UnknownMessageMark,
 	}
@@ -1098,7 +1098,7 @@ func TestCancelRunningChildCommitsExactSubtreeBoundaryAndKeepsRootRunning(t *tes
 		ActiveSegmentID: childDraft.SegmentID,
 		ModelSelection:  childDraft.ModelSelection,
 		Limits:          childDraft.Limits,
-		ProtocolProfile: childDraft.ProtocolProfile,
+		Capabilities:    childDraft.Capabilities,
 		CreatedAt:       childDraft.CreatedAt,
 		UpdatedAt:       childDraft.CreatedAt,
 		MessageMark:     transcript.UnknownMessageMark,
@@ -1389,7 +1389,7 @@ func TestCancelLetsCommittedInterruptOwnDurableFirstTeardown(t *testing.T) {
 	turns := &fakeTurnControl{operations: &operations}
 	sessions := &fakeRunSessions{operations: &operations}
 	spec := testSegment()
-	spec.ProtocolProfile = execution.RunProtocolProfile{
+	spec.Capabilities = execution.RunCapabilities{
 		InterruptKinds: []execution.InterruptKind{execution.ApprovalInterrupt},
 	}
 	c := NewCoordinator(Dependencies{

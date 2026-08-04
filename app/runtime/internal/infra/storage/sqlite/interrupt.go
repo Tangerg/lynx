@@ -110,12 +110,12 @@ func (s *InterruptStore) Open(ctx context.Context, p interrupts.Pending) error {
 	if err != nil {
 		return fmt.Errorf("sqlite: encode interrupt suspension bindings: %w", err)
 	}
-	profile, err := encodeRunProtocolProfile(p.ProtocolProfile)
+	capabilities, err := encodeRunCapabilities(p.Capabilities)
 	if err != nil {
 		return fmt.Errorf("sqlite: open interrupt: %w", err)
 	}
 	_, err = conn(ctx, s.db).ExecContext(ctx,
-		`INSERT INTO interrupts(root_run_id, session_id, turn_id, goal_lease_id, root_process_id, payload, continuations, suspension_bindings, protocol_profile, created_at)
+		`INSERT INTO interrupts(root_run_id, session_id, turn_id, goal_lease_id, root_process_id, payload, continuations, suspension_bindings, capabilities, created_at)
 		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		p.RootRunID,
 		p.SessionID,
@@ -125,7 +125,7 @@ func (s *InterruptStore) Open(ctx context.Context, p interrupts.Pending) error {
 		string(payload),
 		string(continuations),
 		string(suspensions),
-		profile,
+		capabilities,
 		p.CreatedAt.UnixNano(),
 	)
 	if isUniqueViolation(err) {
@@ -142,7 +142,7 @@ func (s *InterruptStore) Open(ctx context.Context, p interrupts.Pending) error {
 	return nil
 }
 
-const interruptColumns = `root_run_id, session_id, turn_id, goal_lease_id, root_process_id, payload, continuations, suspension_bindings, protocol_profile, created_at`
+const interruptColumns = `root_run_id, session_id, turn_id, goal_lease_id, root_process_id, payload, continuations, suspension_bindings, capabilities, created_at`
 
 func (s *InterruptStore) List(ctx context.Context, sessionID string) ([]interrupts.Pending, error) {
 	return s.list(ctx, sessionID, "", 0, "", 0)
@@ -299,7 +299,7 @@ func scanPending(row scanRow) (interrupts.Pending, error) {
 		rootProcessID string
 		continuations string
 		suspensions   string
-		profile       string
+		capabilities  string
 		createdNs     int64
 	)
 	if err := row.Scan(
@@ -311,7 +311,7 @@ func scanPending(row scanRow) (interrupts.Pending, error) {
 		&payload,
 		&continuations,
 		&suspensions,
-		&profile,
+		&capabilities,
 		&createdNs,
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -335,7 +335,7 @@ func scanPending(row scanRow) (interrupts.Pending, error) {
 		return interrupts.Pending{}, fmt.Errorf("sqlite: decode interrupt suspension bindings: %w", err)
 	}
 	p.Suspensions = suspensionBindingsFromRows(bindingValues)
-	if p.ProtocolProfile, err = decodeRunProtocolProfile(profile); err != nil {
+	if p.Capabilities, err = decodeRunCapabilities(capabilities); err != nil {
 		return interrupts.Pending{}, err
 	}
 	p.CreatedAt = time.Unix(0, createdNs).UTC()

@@ -41,8 +41,8 @@ func (s *Server) ResumeRun(ctx context.Context, in protocol.ResumeRunRequest) (*
 		// caller can still follow it.
 		CallerCapabilities: caller,
 	})
-	if uncovered, ok := errors.AsType[*execution.ProfileNotCovered](err); ok {
-		return nil, nil, profileGap(uncovered.Gap)
+	if uncovered, ok := errors.AsType[*execution.InsufficientCapabilities](err); ok {
+		return nil, nil, capabilityGap(uncovered.Missing)
 	}
 	if answerError, ok := errors.AsType[*runs.QuestionAnswerError](err); ok {
 		return nil, nil, questionAnswerParamsError(in.Responses, answerError)

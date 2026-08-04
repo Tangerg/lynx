@@ -103,7 +103,7 @@ func TestApplyRunCancelProjectsTerminalTranscript(t *testing.T) {
 		interrupts: &coordinatorInterrupts{pending: map[string]interrupts.Pending{
 			"run_1": {
 				RootRunID: "run_1", SessionID: "ses_1", TurnID: "turn_1",
-				ProtocolProfile: execution.RunProtocolProfile{
+				Capabilities: execution.RunCapabilities{
 					InterruptKinds: []execution.InterruptKind{execution.QuestionInterrupt},
 				},
 				Interrupts: []transcript.Interrupt{{
@@ -123,7 +123,7 @@ func TestApplyRunCancelProjectsTerminalTranscript(t *testing.T) {
 			Messages: []chat.Message{chat.NewUserMessage(chat.NewTextPart("hello")), chat.NewAssistantMessage(chat.NewTextPart("hi"))},
 			Runs: []transcript.Run{{
 				ID: "run_1", SessionID: "ses_1", State: execution.Interrupted,
-				ProtocolProfile: execution.RunProtocolProfile{
+				Capabilities: execution.RunCapabilities{
 					InterruptKinds: []execution.InterruptKind{execution.QuestionInterrupt},
 				},
 				Interrupts: []transcript.Interrupt{{ItemID: "item_1", ItemOccurredAt: createdAt, Kind: execution.QuestionInterrupt}},
@@ -176,7 +176,7 @@ func TestApplyRunLostProjectsTerminalTranscript(t *testing.T) {
 		interrupts: &coordinatorInterrupts{pending: map[string]interrupts.Pending{
 			"run_1": {
 				RootRunID: "run_1", SessionID: "ses_1", TurnID: "turn_1", GoalLeaseID: "lease_1",
-				ProtocolProfile: execution.RunProtocolProfile{
+				Capabilities: execution.RunCapabilities{
 					InterruptKinds: []execution.InterruptKind{execution.ApprovalInterrupt},
 				},
 				Interrupts: []transcript.Interrupt{{
@@ -200,7 +200,7 @@ func TestApplyRunLostProjectsTerminalTranscript(t *testing.T) {
 			Runs: []transcript.Run{{
 				ID: "run_1", SessionID: "ses_1", State: execution.Interrupted,
 				GoalLeaseID: "lease_1",
-				ProtocolProfile: execution.RunProtocolProfile{
+				Capabilities: execution.RunCapabilities{
 					InterruptKinds: []execution.InterruptKind{execution.ApprovalInterrupt},
 				},
 				Metrics: transcript.RunMetrics{Steps: 4, Usage: &transcript.Usage{
@@ -263,7 +263,7 @@ func TestApplyRunLostTerminalizesWholeParkedTreeInPostorder(t *testing.T) {
 	}
 	pending := interrupts.Pending{
 		RootRunID: "run_root", SessionID: "ses_1", TurnID: "turn_1",
-		ProtocolProfile: execution.RunProtocolProfile{
+		Capabilities: execution.RunCapabilities{
 			ChildRuns: true, InterruptKinds: []execution.InterruptKind{execution.QuestionInterrupt},
 		},
 		Interrupts: []transcript.Interrupt{{
@@ -290,12 +290,12 @@ func TestApplyRunLostTerminalizesWholeParkedTreeInPostorder(t *testing.T) {
 			Runs: []transcript.Run{
 				{
 					ID: "run_root", SessionID: "ses_1", State: execution.Interrupted,
-					ProtocolProfile: pending.ProtocolProfile,
-					CreatedAt:       createdAt, MessageMark: transcript.UnknownMessageMark,
+					Capabilities: pending.Capabilities,
+					CreatedAt:    createdAt, MessageMark: transcript.UnknownMessageMark,
 				},
 				{
 					ID: "run_child", SessionID: "ses_1", State: execution.Interrupted,
-					ProtocolProfile: pending.ProtocolProfile,
+					Capabilities:    pending.Capabilities,
 					SpawnedByItemID: childLineage.SpawnedByItemID,
 					ParentRunID:     childLineage.ParentRunID, RootRunID: childLineage.RootRunID,
 					CreatedAt: createdAt, MessageMark: transcript.UnknownMessageMark,
@@ -311,7 +311,7 @@ func TestApplyRunLostTerminalizesWholeParkedTreeInPostorder(t *testing.T) {
 	}
 	corruptSnapshot := stores.snapshot
 	corruptSnapshot.Runs = append([]transcript.Run(nil), stores.snapshot.Runs...)
-	corruptSnapshot.Runs[1].ProtocolProfile = execution.RunProtocolProfile{
+	corruptSnapshot.Runs[1].Capabilities = execution.RunCapabilities{
 		InterruptKinds: []execution.InterruptKind{execution.QuestionInterrupt},
 	}
 	corruptApplied := TerminalPlan{}
@@ -321,7 +321,7 @@ func TestApplyRunLostTerminalizesWholeParkedTreeInPostorder(t *testing.T) {
 		terminal:   &corruptApplied,
 	}
 	if err := newCoordinator(corruptStores, nil).ApplyRunLost(t.Context(), "ses_1", "run_root", finishedAt); err == nil {
-		t.Fatal("ApplyRunLost accepted a child Run protocol profile that differs from root admission")
+		t.Fatal("ApplyRunLost accepted a child Run run capabilities that differs from root admission")
 	}
 	if len(corruptApplied.Runs) != 0 {
 		t.Fatalf("child policy drift reached terminal commit: %+v", corruptApplied)
@@ -355,13 +355,13 @@ func TestApplyRunLostRejectsContinuationFactDriftBeforeTerminalCommit(t *testing
 		ItemID: "item_question", ItemOccurredAt: createdAt, RunID: "run_root",
 		Kind: execution.QuestionInterrupt, Question: question,
 	}
-	profile := execution.RunProtocolProfile{
+	capabilities := execution.RunCapabilities{
 		InterruptKinds: []execution.InterruptKind{execution.QuestionInterrupt},
 	}
 	pending := interrupts.Pending{
 		RootRunID: "run_root", SessionID: "ses_1", TurnID: "turn_1",
-		ProtocolProfile: profile,
-		Interrupts:      []transcript.Interrupt{interrupt},
+		Capabilities: capabilities,
+		Interrupts:   []transcript.Interrupt{interrupt},
 		Suspensions: []interrupts.SuspensionBinding{{
 			InterruptItemID: interrupt.ItemID,
 			ProcessID:       "process_root",
@@ -379,7 +379,7 @@ func TestApplyRunLostRejectsContinuationFactDriftBeforeTerminalCommit(t *testing
 		snapshot: Snapshot{
 			Runs: []transcript.Run{{
 				ID: "run_root", SessionID: "ses_1", State: execution.Interrupted,
-				Metrics: transcript.RunMetrics{Steps: 1}, ProtocolProfile: profile,
+				Metrics: transcript.RunMetrics{Steps: 1}, Capabilities: capabilities,
 				CreatedAt: createdAt, MessageMark: transcript.UnknownMessageMark,
 			}},
 			Items: []transcript.Item{{

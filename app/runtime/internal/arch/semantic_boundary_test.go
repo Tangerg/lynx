@@ -118,3 +118,60 @@ func TestSQLiteOwnsTranscriptAndInterruptPayloadShapes(t *testing.T) {
 		}
 	}
 }
+
+func TestRunCapabilitiesStaySemanticInsideTheProtocolBoundary(t *testing.T) {
+	root := moduleRoot(t)
+	capabilitiesPath := filepath.Join(root, "internal", "domain", "execution", "run_capabilities.go")
+	capabilitiesFile, err := parser.ParseFile(token.NewFileSet(), capabilitiesPath, nil, 0)
+	if err != nil {
+		t.Fatalf("parse Run capabilities: %v", err)
+	}
+	wantFields := []string{"ChildRuns", "InterruptKinds"}
+	if fields := structFields(capabilitiesFile, "RunCapabilities"); !slices.Equal(fields, wantFields) {
+		t.Fatalf("RunCapabilities fields = %v, want semantic behavior %v", fields, wantFields)
+	}
+
+	for _, relative := range []string{
+		filepath.Join("internal", "domain"),
+		filepath.Join("internal", "application"),
+		filepath.Join("internal", "adapter", "runsegment"),
+		filepath.Join("internal", "infra", "storage", "sqlite"),
+	} {
+		err := filepath.WalkDir(filepath.Join(root, relative), func(path string, entry fs.DirEntry, walkErr error) error {
+			if walkErr != nil {
+				return walkErr
+			}
+			if entry.IsDir() || filepath.Ext(path) != ".go" {
+				return nil
+			}
+			source, readErr := os.ReadFile(path)
+			if readErr != nil {
+				return readErr
+			}
+			for _, leaked := range []string{"RunProtocolProfile", "ProtocolProfile", "protocol_profile"} {
+				if strings.Contains(string(source), leaked) {
+					t.Errorf("%s leaks protocol vocabulary %q inward", path, leaked)
+				}
+			}
+			return nil
+		})
+		if err != nil {
+			t.Fatalf("scan %s Run capability vocabulary: %v", relative, err)
+		}
+	}
+
+	protocolSource, err := os.ReadFile(filepath.Join(root, "internal", "delivery", "protocol", "runs.go"))
+	if err != nil {
+		t.Fatalf("read Run protocol: %v", err)
+	}
+	if !strings.Contains(string(protocolSource), "type RunProtocolProfile struct") {
+		t.Error("Delivery no longer owns the versioned RunProtocolProfile wire shape")
+	}
+	codecSource, err := os.ReadFile(filepath.Join(root, "internal", "infra", "storage", "sqlite", "run_codec.go"))
+	if err != nil {
+		t.Fatalf("read Run capability codec: %v", err)
+	}
+	if strings.Contains(string(codecSource), `json:"interruptTypes`) || !strings.Contains(string(codecSource), `json:"interruptKinds`) {
+		t.Error("SQLite Run capability codec uses protocol interruptTypes instead of semantic interruptKinds")
+	}
+}
