@@ -20,7 +20,7 @@ func registerMCP(r *Registry) {
 		Errors:          []string{protocol.ErrMCPServerAlreadyExists.Error()},
 		CapabilityRules: requires(protocol.FeatureMCP),
 		Stability:       stable,
-	}, func(d *Dispatcher, ctx context.Context, in protocol.CreateMCPServerRequest) (*protocol.McpServer, error) {
+	}, func(d *Dispatcher, ctx context.Context, in protocol.MCPServerCandidate) (*protocol.McpServer, error) {
 		return d.api.CreateMCPServer(ctx, in)
 	})
 

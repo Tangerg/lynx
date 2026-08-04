@@ -10,7 +10,7 @@ import (
 // second configuration collection with a transient status collection.
 type MCP interface {
 	ListMCPServers(ctx context.Context) (*Page[McpServer], error)
-	CreateMCPServer(ctx context.Context, in CreateMCPServerRequest) (*McpServer, error)
+	CreateMCPServer(ctx context.Context, in MCPServerCandidate) (*McpServer, error)
 	UpdateMCPServer(ctx context.Context, in UpdateMCPServerRequest) (*McpServer, error)
 	DeleteMCPServer(ctx context.Context, server string) error
 	TestMCPServer(ctx context.Context, in MCPServerCandidate) (*McpTestResult, error)
@@ -152,9 +152,6 @@ type MCPServerCandidate struct {
 	DisabledTools    []string           `json:"disabledTools,omitempty"`
 	AutoApproveTools []string           `json:"autoApproveTools,omitempty"`
 }
-
-// CreateMCPServerRequest — mcp.servers.create body.
-type CreateMCPServerRequest = MCPServerCandidate
 
 // UpdateMCPServerRequest — mcp.servers.update body. Omitted members preserve
 // their current value; present empty strings, collections, and zeroes clear it.

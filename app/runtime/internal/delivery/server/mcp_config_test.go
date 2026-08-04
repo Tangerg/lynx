@@ -164,7 +164,7 @@ func TestCreateMCPServerPropagatesExistenceLookupError(t *testing.T) {
 	registry := &mcpRegistryFake{servers: map[string]mcpserver.Server{}, getErr: lookupErr}
 	s := serverWithMCP(integrations.Config{MCPRegistry: registry})
 
-	_, err := s.CreateMCPServer(context.Background(), protocol.CreateMCPServerRequest{
+	_, err := s.CreateMCPServer(context.Background(), protocol.MCPServerCandidate{
 		Name: "linear", Enabled: true,
 		Connection: protocol.McpConnectionInput{
 			Type: protocol.McpTransportStreamableHTTP,
@@ -183,7 +183,7 @@ func TestCreateMCPServerRejectsNegativeTimeout(t *testing.T) {
 	registry := &mcpRegistryFake{}
 	s := serverWithMCP(integrations.Config{MCPRegistry: registry})
 
-	_, err := s.CreateMCPServer(context.Background(), protocol.CreateMCPServerRequest{
+	_, err := s.CreateMCPServer(context.Background(), protocol.MCPServerCandidate{
 		Name: "linear", TimeoutSeconds: -1,
 		Connection: protocol.McpConnectionInput{
 			Type: protocol.McpTransportStreamableHTTP,
@@ -202,7 +202,7 @@ func TestCreateMCPServerRejectsInvalidHTTPEndpointBeforePersistence(t *testing.T
 	registry := &mcpRegistryFake{}
 	s := serverWithMCP(integrations.Config{MCPRegistry: registry})
 
-	_, err := s.CreateMCPServer(t.Context(), protocol.CreateMCPServerRequest{
+	_, err := s.CreateMCPServer(t.Context(), protocol.MCPServerCandidate{
 		Name: "linear",
 		Connection: protocol.McpConnectionInput{
 			Type: protocol.McpTransportStreamableHTTP,

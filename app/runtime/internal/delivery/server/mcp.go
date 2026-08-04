@@ -30,7 +30,7 @@ func (s *Server) ListMCPServers(ctx context.Context) (*protocol.Page[protocol.Mc
 }
 
 // CreateMCPServer creates and returns one unified MCP server resource.
-func (s *Server) CreateMCPServer(ctx context.Context, in protocol.CreateMCPServerRequest) (*protocol.McpServer, error) {
+func (s *Server) CreateMCPServer(ctx context.Context, in protocol.MCPServerCandidate) (*protocol.McpServer, error) {
 	input, err := mcpServerInputFromCandidate(in)
 	if err != nil {
 		return nil, err

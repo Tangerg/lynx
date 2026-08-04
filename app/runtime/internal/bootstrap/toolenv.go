@@ -3,11 +3,9 @@ package bootstrap
 import (
 	"context"
 	"fmt"
-	"slices"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/suspension"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/codeintel"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/mcpconnection"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/skill"
@@ -56,10 +54,10 @@ func buildToolEnvironment(
 		Workdir:         cfg.Engine.Workdir,
 		DefaultModel:    defaultModel,
 		SkillsUserDir:   cfg.SkillsUserDir,
-		Online:          toolset.OnlineConfig(cfg.Online),
-		LSPServers:      codeintelServerSpecs(cfg.LSPServers),
+		Online:          cfg.Online,
+		LSPServers:      cfg.LSPServers,
 		MCPTools:        mcpTools,
-		A2AAgents:       toolsetA2AAgentConfigs(cfg.A2AAgents),
+		A2AAgents:       cfg.A2AAgents,
 		Plan:            cfg.PlanStore,
 		Interrupt:       suspension.Interrupt,
 		MCPToolDisabled: mcpEnv.policy.ToolDisabled,
@@ -112,37 +110,4 @@ func buildToolEnvironment(
 	environment.tools = built
 	environment.closers = append(environment.closers, shutdownClosers(built.Closers)...)
 	return environment, nil
-}
-
-func toolsetA2AAgentConfigs(in []A2AAgentConfig) []toolset.A2AAgentConfig {
-	if len(in) == 0 {
-		return nil
-	}
-	out := make([]toolset.A2AAgentConfig, len(in))
-	for i, agent := range in {
-		out[i] = toolset.A2AAgentConfig{
-			Name:              agent.Name,
-			CardURL:           agent.CardURL,
-			AllowedRPCOrigins: slices.Clone(agent.AllowedRPCOrigins),
-		}
-	}
-	return out
-}
-
-func codeintelServerSpecs(in []LSPServerConfig) []codeintel.ServerSpec {
-	if len(in) == 0 {
-		return nil
-	}
-	out := make([]codeintel.ServerSpec, len(in))
-	for i, server := range in {
-		out[i] = codeintel.ServerSpec{
-			Name:        server.Name,
-			Command:     server.Command,
-			Args:        server.Args,
-			LanguageID:  server.LanguageID,
-			Extensions:  server.Extensions,
-			RootMarkers: server.RootMarkers,
-		}
-	}
-	return out
 }

@@ -6,7 +6,8 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/mcpconnection"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/codeintel"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/goals"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/integrations"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
@@ -17,6 +18,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/schedule"
+	"github.com/Tangerg/lynx/app/runtime/internal/infra/mcp"
 	sqlitestore "github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 )
 
@@ -74,9 +76,9 @@ type Config struct {
 	// Tool-environment inputs; the runtime reads these to assemble the tool
 	// environment via toolset.Build and inject only its role resolver into the
 	// Agent execution adapter.
-	Online     OnlineConfig
-	A2AAgents  []A2AAgentConfig
-	LSPServers []LSPServerConfig
+	Online     toolset.OnlineConfig
+	A2AAgents  []toolset.A2AAgentConfig
+	LSPServers []codeintel.ServerSpec
 
 	// SandboxShell opts the shell tools into per-command OS isolation (an
 	// in-place jail rooted at the command's cwd: workspace-write only, network
@@ -101,7 +103,7 @@ type Config struct {
 	// MCPOAuthSessions persists refreshing OAuth credentials independently of
 	// the domain registry shape. Required: without it desktop sign-in would be
 	// process-local and every restart would unnecessarily re-authorize.
-	MCPOAuthSessions mcpconnection.OAuthSessionStore
+	MCPOAuthSessions mcp.OAuthSessionStore
 
 	// SessionStore persists Lyra sessions. Required; the composition root injects
 	// the sqlite-backed store (tests use a sqlite :memory: DB) and threads it to
@@ -243,33 +245,6 @@ type Config struct {
 	// cascade) commit atomically. Required; the composition root wires the single
 	// SQLite backend's transactor into the sessions coordinator.
 	Transactor Transactor
-}
-
-// OnlineConfig holds credentials for optional network-reaching tools. Empty
-// fields leave the corresponding tool disabled.
-type OnlineConfig struct {
-	JinaAPIKey       string
-	TavilyAPIKey     string
-	HTTPAllowedHosts []string
-}
-
-// A2AAgentConfig identifies one remote Agent-to-Agent endpoint the runtime
-// should expose as a delegation tool.
-type A2AAgentConfig struct {
-	Name              string
-	CardURL           string
-	AllowedRPCOrigins []string
-}
-
-// LSPServerConfig is one optional language-server table entry. Empty
-// LSPServers means the runtime falls back to its built-in table.
-type LSPServerConfig struct {
-	Name        string
-	Command     string
-	Args        []string
-	LanguageID  string
-	Extensions  []string
-	RootMarkers []string
 }
 
 // PlanStore is the composition-root union shared by prompt assembly, set_plan,

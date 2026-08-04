@@ -2,10 +2,13 @@ package bootstrap
 
 import (
 	"path/filepath"
+	"slices"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/codeintel"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/persistence"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/pricing"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
 	"github.com/Tangerg/lynx/app/runtime/internal/config"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	providersvc "github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
@@ -28,11 +31,11 @@ func RuntimeConfig(cfg config.Config, stores *persistence.Bundle, client *chatcl
 		AgentMemoryStore:       stores.AgentMemory,
 		IdempotencyStore:       stores.Idempotency,
 		UtilityRoleStore:       stores.UtilityRole,
-		Online:                 OnlineConfig(cfg.Online),
+		Online:                 toolset.OnlineConfig(cfg.Online),
 		MCPRegistry:            stores.MCPServers,
 		MCPOAuthSessions:       stores.MCPServers,
-		A2AAgents:              runtimeA2AAgents(cfg.A2AAgents),
-		LSPServers:             runtimeLSPServers(cfg.LSPServers),
+		A2AAgents:              toolsetA2AAgents(cfg.A2AAgents),
+		LSPServers:             codeintelServers(cfg.LSPServers),
 		SandboxShell:           cfg.SandboxShell,
 		SandboxReadOnlyPaths:   cfg.SandboxReadOnlyPaths,
 		SandboxDir:             filepath.Join(stores.Home, "sandbox"),
@@ -63,4 +66,37 @@ func RuntimeConfig(cfg config.Config, stores *persistence.Bundle, client *chatcl
 		ApprovalMode:           approval.ModeBalanced,
 		ApprovalRuleStore:      stores.ApprovalRules,
 	}
+}
+
+func toolsetA2AAgents(in []config.A2AAgentConfig) []toolset.A2AAgentConfig {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]toolset.A2AAgentConfig, len(in))
+	for i, agent := range in {
+		out[i] = toolset.A2AAgentConfig{
+			Name:              agent.Name,
+			CardURL:           agent.CardURL,
+			AllowedRPCOrigins: slices.Clone(agent.AllowedRPCOrigins),
+		}
+	}
+	return out
+}
+
+func codeintelServers(in []config.LSPServerConfig) []codeintel.ServerSpec {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]codeintel.ServerSpec, len(in))
+	for i, server := range in {
+		out[i] = codeintel.ServerSpec{
+			Name:        server.Name,
+			Command:     server.Command,
+			Args:        slices.Clone(server.Args),
+			LanguageID:  server.LanguageID,
+			Extensions:  slices.Clone(server.Extensions),
+			RootMarkers: slices.Clone(server.RootMarkers),
+		}
+	}
+	return out
 }

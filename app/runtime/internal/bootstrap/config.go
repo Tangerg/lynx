@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"slices"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/config"
 	mcpserversvc "github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
@@ -100,37 +99,4 @@ func runtimeMCPTransport(transport string) (mcpserversvc.Transport, error) {
 	default:
 		return "", fmt.Errorf("unknown transport %q", transport)
 	}
-}
-
-func runtimeA2AAgents(in []config.A2AAgentConfig) []A2AAgentConfig {
-	if len(in) == 0 {
-		return nil
-	}
-	out := make([]A2AAgentConfig, len(in))
-	for i, agent := range in {
-		out[i] = A2AAgentConfig{
-			Name:              agent.Name,
-			CardURL:           agent.CardURL,
-			AllowedRPCOrigins: slices.Clone(agent.AllowedRPCOrigins),
-		}
-	}
-	return out
-}
-
-func runtimeLSPServers(in []config.LSPServerConfig) []LSPServerConfig {
-	if len(in) == 0 {
-		return nil
-	}
-	out := make([]LSPServerConfig, len(in))
-	for i, server := range in {
-		out[i] = LSPServerConfig{
-			Name:        server.Name,
-			Command:     server.Command,
-			Args:        server.Args,
-			LanguageID:  server.LanguageID,
-			Extensions:  server.Extensions,
-			RootMarkers: server.RootMarkers,
-		}
-	}
-	return out
 }

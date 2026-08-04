@@ -512,6 +512,33 @@ Acceptance:
 - Delivery persistence and presentation never serialize an unrecognized
   domain enum as a valid ordinary wire value.
 
+### Batch 18 — Composition-input and transparent-alias closure
+
+Status: **Completed**
+
+Scope:
+
+- Remove Adapter aliases that make one ring appear to own an Infra interface;
+  the composition root names the real owner directly.
+- Remove Bootstrap-only Online/A2A/LSP DTOs and their second mapping pass;
+  Bootstrap stores the final Adapter construction inputs it actually composes.
+- Use one `MCPServerCandidate` concept for both create and test instead of an
+  action-specific alias for the same value.
+- Keep only the deliberate JSON-RPC aliases at the transport boundary and
+  enforce that exception mechanically.
+
+Acceptance:
+
+- Production contains no transparent alias outside `delivery/transport`'s
+  explicit JSON-RPC boundary set.
+- Config-source values are projected once into their consuming Adapter inputs;
+  `toolenv` does no field-for-field DTO relay.
+- MCP create and test share the same canonical candidate type without changing
+  their JSON shape.
+- Focused build/test, architecture, static analysis, and exact-source scans pass;
+  only the already-recorded frontend contract-fixture drift may remain in the
+  full repository test.
+
 ## 6. Progress
 
 | Batch | Status | Started | Completed | Evidence |
@@ -533,10 +560,28 @@ Acceptance:
 | 15. Protocol, static-config, and content-codec closure | Completed | 2026-07-23 | 2026-07-23 | Workspace and standalone build/vet/test; focused race suite; architecture test; `staticcheck`; `golangci-lint`; exact-symbol scans; and `deadcode -test ./...` all passed. |
 | 16. Prompt and content-convention boundary closure | Completed | 2026-07-23 | 2026-07-23 | Workspace/standalone build, vet, and test; focused race suite; `staticcheck`; `golangci-lint`; `deadcode -test`; architecture tests; and exact-source scans passed. |
 | 17. Admission and protocol fail-closed closure | Completed | 2026-07-24 | 2026-07-24 | `go build ./...`; `go vet ./...`; `go test ./...`; focused `go test -race` for admission/runs/sessions/delivery; frontend typecheck, lint, and 811 tests passed. |
+| 18. Composition-input and transparent-alias closure | Completed | 2026-08-04 | 2026-08-04 | Runtime-wide compile, focused tests, dependency/alias fitness tests, `go vet`, `staticcheck`, `golangci-lint`, `deadcode -test`, and exact alias scans passed; the full architecture suite retained only the known stale frontend-contract failures. |
 
 Allowed status values: `Pending`, `In progress`, `Completed`, `Blocked`, `Revised`.
 
 ## 7. Progress log
+
+### 2026-08-04 — Batch 18 completed
+
+- Removed the MCP adapter's transparent OAuth-store alias; Bootstrap now names
+  the Infra-owned consumer interface directly, as a composition root should.
+- Removed Bootstrap's duplicate Online/A2A/LSP DTO layer. Source config is
+  projected once into the final Toolset/Codeintel construction types, and
+  `toolenv` passes those values without another field-copy relay.
+- Removed `CreateMCPServerRequest`: create and test now use the one canonical
+  `MCPServerCandidate` value already emitted by contract generation.
+- Added a fitness test that permits transparent aliases only for the exact five
+  external JSON-RPC transport types. Also fixed the sole pre-existing
+  `staticcheck` finding in schedule deletion.
+- Runtime-wide compile, focused tests, dependency/alias fitness tests, `go vet`,
+  `staticcheck`, `golangci-lint`, `deadcode -test`, and exact-source scans pass.
+  The full architecture suite still fails only on the frontend generated
+  contract drift deliberately deferred by the server-only implementation round.
 
 ### 2026-07-24 — Batch 17 completed
 

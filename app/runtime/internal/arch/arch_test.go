@@ -164,6 +164,59 @@ func TestRemovedProducerPortsDoNotReturnToDomain(t *testing.T) {
 	}
 }
 
+// TestTransparentAliasesStayAtTheTransportBoundary prevents one ring from
+// pretending to own another ring's type through a transparent alias. The only
+// deliberate aliases are the transport package's JSON-RPC vocabulary: they
+// make the external codec types the shared wire boundary without duplicating
+// the protocol implementation or leaking its import across every transport.
+func TestTransparentAliasesStayAtTheTransportBoundary(t *testing.T) {
+	root := moduleRoot(t)
+	allowed := map[string]struct{}{
+		filepath.Join("delivery", "transport", "transport.go:Message"):  {},
+		filepath.Join("delivery", "transport", "transport.go:Request"):  {},
+		filepath.Join("delivery", "transport", "transport.go:Response"): {},
+		filepath.Join("delivery", "transport", "transport.go:ID"):       {},
+		filepath.Join("delivery", "transport", "transport.go:Error"):    {},
+	}
+	internal := filepath.Join(root, "internal")
+	err := filepath.WalkDir(internal, func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if entry.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		file, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
+		if err != nil {
+			return err
+		}
+		rel, err := filepath.Rel(internal, path)
+		if err != nil {
+			return err
+		}
+		for _, declaration := range file.Decls {
+			general, ok := declaration.(*ast.GenDecl)
+			if !ok || general.Tok != token.TYPE {
+				continue
+			}
+			for _, spec := range general.Specs {
+				typeSpec := spec.(*ast.TypeSpec)
+				if !typeSpec.Assign.IsValid() {
+					continue
+				}
+				key := rel + ":" + typeSpec.Name.Name
+				if _, ok := allowed[key]; !ok {
+					t.Errorf("%s declares transparent alias %s; use the owning type directly or define a semantic boundary type", rel, typeSpec.Name.Name)
+				}
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("scan transparent aliases: %v", err)
+	}
+}
+
 // TestDomainHooksStayPure keeps the hooks bounded context free of filesystem +
 // process I/O: hooks is a pure policy domain (precedence / merge / trust rules),
 // and its I/O belongs to the composition-side subprocess adapter.

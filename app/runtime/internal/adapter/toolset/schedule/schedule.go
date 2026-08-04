@@ -138,7 +138,7 @@ func (t *family) delete(ctx context.Context, in deleteScheduleArgs) (scheduleDel
 	if err := t.coordinator.Delete(ctx, in.ScheduleID); err != nil {
 		return scheduleDeleteResponse{}, fmt.Errorf("delete_schedule: %w", err)
 	}
-	return scheduleDeleteResponse{ScheduleID: in.ScheduleID}, nil
+	return scheduleDeleteResponse(in), nil
 }
 
 func viewSchedule(sc scheduledomain.Schedule) scheduleView {
