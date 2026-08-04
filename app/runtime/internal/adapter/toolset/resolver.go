@@ -343,8 +343,9 @@ func (g *toolGroup) Tools(ctx context.Context) ([]toolcontract.Tool, error) {
 	if err := g.resolver.appendStaticTools(ctx, &tools, toolAfterSkill, g.role); err != nil {
 		return nil, err
 	}
-	// Both roles can ask the user and leave plan mode. A child question parks
-	// through the same nested suspension tree as a child approval.
+	// Both roles can ask the user; Plan-mode controls in this placement remain
+	// root-only. A child question parks through the same nested suspension tree
+	// as a child approval.
 	if err := g.resolver.appendStaticTools(ctx, &tools, toolAfterCodebase, g.role); err != nil {
 		return nil, err
 	}
