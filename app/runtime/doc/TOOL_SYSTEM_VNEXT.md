@@ -134,11 +134,11 @@
 
 `enter_plan_mode` 与 `exit_plan_mode` 是一个例外：两者始终同时对根 Agent 可见，执行时分别校验当前 session 状态。Agent 的一次 Prompt 在开始时解析工具 registry，后续 tool rounds 复用该 registry；若按 Plan mode 动态隐藏其中一个，模型进入后同一轮无法退出。Runtime 不把应用状态泄露进 `agent` 核心来制造动态 registry 刷新。
 
-初始 Direct 工具保持精简：文件读取与搜索、一个模型适配的文件修改族、shell、用户提问、Plan、Goal、委派和工具发现。网络、记忆、LSP、Skill、MCP、A2A、Schedule 等默认 Deferred 或按状态出现。
+初始 Direct 工具保持精简：文件读取与搜索、唯一的文件修改工具 `apply_patch`、shell、用户提问、Plan、Goal、委派和工具发现。网络、记忆、LSP、Skill、MCP、A2A、Schedule 等默认 Deferred 或按状态出现。
 
-同一 Run 不得同时注册 `apply_patch` 与 `edit`/`write`，避免模型即使通过工具搜索也加载出两套重叠修改语言。模型 id 属于现代 GPT（排除 GPT-4 与 OSS）或 Grok 时使用 `apply_patch`，不依赖它经由原厂、OpenRouter 或兼容端点接入；Anthropic/Claude、Moonshot/Kimi、GPT-4、OSS 和未知模型保守使用 `edit` + `write`。
+所有模型使用同一个 `apply_patch` 修改契约。它完整覆盖创建、修改、删除、移动和多文件原子修改；服务端不再注册语义重叠的 `edit` / `write`，也不通过 provider 或 model id 猜测工具方言。工具可用性由能力和角色决定，模型选择只决定实际推理模型。
 
-模型选择不进入持久化 `TurnScope`。fresh Run 在执行入口把显式选择写入临时 `executionctx`，恢复 Run 从已有 checkpoint 的独立 `ModelSelection` 字段重建同一临时值；Resolver 在没有显式值时使用 Runtime default。这避免了 checkpoint 字段重复，也没有把模型或 Exposure 注入 `agent` 模块。
+模型选择不进入持久化 `TurnScope`。fresh Run 在执行入口把显式选择写入临时 `executionctx`，恢复 Run 从已有 checkpoint 的独立 `ModelSelection` 字段重建同一临时值。Resolver 不读取它来改变工具名称、schema 或行为；这避免模型目录变化悄然改变 Agent 能力。
 
 `search_tools` 是 Deferred 能力唯一入口，不再是 MCP 专用工具：它同时索引 runtime 内建能力和连接的 integration。`query` 必填且非空，可用自然语言能力描述或 `select:name1,name2` 精确加载；`limit` 可选、范围 `1..20`、默认 `5`，精确选择时忽略。参数使用 typed function 的同一份严格 schema，拒绝未知字段；结果只提升匹配 definition，不改变执行权限。
 
@@ -147,7 +147,7 @@
 | 能力 | 保留的模型工具 | 可见性规则 |
 |---|---|---|
 | 文件读取与搜索 | `read`、`glob`、`grep` | Direct |
-| 文件修改 | `apply_patch` **或** `edit` + `write` | 按模型 profile 互斥 Direct |
+| 文件修改 | `apply_patch` | 所有模型 Direct |
 | Shell 生命周期 | `shell`、`read_shell_output`、`stop_shell` | Direct |
 | Plan | `enter_plan_mode`、`set_plan`、`exit_plan_mode` | 根 Agent Direct |
 | Goal | `create_goal`、`get_goal`、`report_goal_outcome` | 根 Agent；report 仅 active Goal |
@@ -347,7 +347,7 @@
 
 - 将 resolver 的 Run 工具组装收敛为两个真实集合：Direct 进入初始 manifest，Deferred 保持可执行并由 `search_tools` 加载；资源或状态不可用的工具仍直接不注册。没有引入四态 enum、Hidden 空实现、第二个 registry 或 app-specific `tool.Tool` 字段；
 - 初始清单保留文件读/搜、单一文件修改族、shell、提问、Plan/Goal、委派、结果回读和工具发现；将 network、LSP、Skill、MCP、A2A、memory/session search、Schedule 与 Skill authoring 统一转为 Deferred；
-- 按每个 Run 的实际模型选择 mutation vocabulary：现代 OpenAI GPT/Codex 与 xAI/Grok 只注册 `apply_patch`，Claude/Kimi/GPT-4/OSS/未知模型只注册 `edit` + `write`。测试同时约束映射策略和“一次 Run 永不共存两族”；
+- **本条已由批次 11 取代。** 当时按模型选择 mutation vocabulary；现行实现对所有模型只注册 `apply_patch`，不再维护模型 id 映射；
 - 模型选择以临时 `executionctx` 值从 fresh/restore 两个执行入口传播，Resolver 才读取；默认选择由 Bootstrap 组装传入。持久 `TurnScope`、Agent blackboard、通用 Tool 和 Agent Runtime API 均未扩张；
 - 将 `search_tools` 从 MCP catalog 改为完整 Deferred catalog，按 runtime 或 MCP source 分组并公平排序；`query` 和 `limit` 改用 typed function 严格 schema，拒绝缺字段、未知字段与越界值；
 - 继续复用 `agent/toolloop.DeferredTool` 与 `PromoteTools` 的通用 manifest 投影。`agent` 不知道 Plan、Goal、session、model provider、Exposure 策略或 runtime registry；边界变化仅发生在 app adapter/composition root。
@@ -420,7 +420,7 @@
 
 - 最终 catalog 反查发现固定内建名称的安全表只做了“表项必须可达”单向校验，遗漏项会静默走 third-party unknown 的 `Exec` fallback；这使 `read_shell_output`、`search_memory`、`search_conversations` 和 `search_tools` 被错误标成任意执行，也使 network 类虽然存在却没有真实内建消费者；
 - 为全部固定内建工具显式分类：Shell 启动/停止为 `exec`，增量输出读取为 `safe`；记忆、会话和工具发现为 `safe`；`web_fetch`、`web_search`、`http_request` 为 `network`。MCP 与 A2A 动态名称继续保守走 unknown `exec`，没有通过字符串前缀猜安全性；
-- catalog guard 现在用 every-optional-subsystem 的真实 Resolver 同时验证两个方向：每个 safety key 必须对应可构造工具，每个内建可构造工具必须有显式 key；测试联合 edit/write 与 apply_patch 两个互斥模型 profile，并覆盖 late-bound `delegate_task` / `create_goal`；
+- catalog guard 现在用 every-optional-subsystem 的真实 Resolver 同时验证两个方向：每个 safety key 必须对应可构造工具，每个内建可构造工具必须有显式 key；**当时**测试联合两个模型 profile，现已由批次 11 收敛为唯一 `apply_patch` profile，并继续覆盖 late-bound `delegate_task` / `create_goal`；
 - approval 文档与 SafetyClass 注释同步真实矩阵：Balanced 自动允许已配置的已知 write/network，Safe 提示所有非 safe，Plan 拒绝所有非 safe；没有更改用户权限策略，只修复此前被错误归类工具走错策略的问题。
 
 ### 批次 7c
@@ -520,3 +520,12 @@
 - Plan、Goal、Schedule、Skill、memory、conversation search、tool discovery 和 offloaded-result 工具补齐服务端 canonical activity。未知 MCP/A2A 工具继续走通用工具名降级，不猜测第三方参数语义；
 - `delegate_task.summary` 的 schema 现在落实 `1..80` 字符且禁止首尾空白，保持其 3–5 词动作标签语义；`propose_skill.name` 的 schema 与 Skill 领域规则对齐为最多 64 字符的 lowercase-hyphenated identifier，description 上限同步为领域已有的 1024 字符。约束在 typed-tool 解码阶段生效，不再等进入 Agent/Skill 领域后才失败；
 - Presenter 仍是 toolset adapter 内的 client-facing projection，没有把具体工具名、参数结构或 activity 规则泄露到 `agentexec/turn`、通用 Agent runtime、领域对象或 delivery DTO。本批仍只修改服务端，未改桌面前端接线。
+
+### 批次 11
+
+- 将 Runtime 内建工具身份收敛到无执行依赖的 `toolset/catalog`；Runtime 自有构造器、安全等级、标准策略例外、activity、结果展示和成功调用投影都引用该身份，不再维护 `toolName*`、delegation/offload 私有别名和独立 safety switch；
+- 根 toolset 的 descriptor catalog 成为跨切面行为单源。Presenter 与 Semantics 只查询 descriptor；每个可构造内建工具必须有 descriptor，每个 descriptor 必须有可构造工具，未知 MCP/A2A 名称仍 fail-closed 为 Exec 且使用通用展示；
+- breaking change 删除 `edit` / `write` 的 Runtime 注册、resolver 分支、私有 guard、presentation 和测试 profile。所有模型只获得 `apply_patch`，继续完整复用 read-before-mutation、stale-read、path lock、protected path、auto-format 和 post-mutation diagnostics；
+- 删除按 provider/model 字符串推断 mutation dialect 的 `useApplyPatch`，同步移除 Toolset `DefaultModel` 构造参数。模型目录新增或改名不会再悄然改变工具 vocabulary；
+- 架构 fitness test 禁止 Runtime 自有构造器重新写入字面量 `Name`，并禁止 resolver/workdir 恢复 `edit/write` 或模型方言分支。SDK 模块自有 definition 通过双向 catalog parity test 锁定，不把 app/runtime 包反向泄露到通用工具模块；
+- 本轮仍只修改服务端。前端对新工具 API、`apply_patch` 唯一修改面和 activity/result projection 的接线继续作为下一专项处理。

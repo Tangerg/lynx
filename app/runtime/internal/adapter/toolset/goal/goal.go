@@ -12,6 +12,7 @@ import (
 	toolcontract "github.com/Tangerg/lynx/tool"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/executionctx"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/catalog"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/goals"
 	goalstate "github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
@@ -136,7 +137,7 @@ func NewCreate(starter Starter) (toolcontract.Tool, error) {
 		return nil, nil
 	}
 	return toolcontract.NewFunc[createArgs, goalResult](
-		toolcontract.FuncConfig{Name: "create_goal", Description: createDescription},
+		toolcontract.FuncConfig{Name: catalog.CreateGoal, Description: createDescription},
 		(&creator{goals: starter}).create,
 	)
 }
@@ -147,7 +148,7 @@ func NewGet(reader Reader) (toolcontract.Tool, error) {
 		return nil, nil
 	}
 	return toolcontract.NewFunc[getArgs, goalResult](
-		toolcontract.FuncConfig{Name: "get_goal", Description: getDescription},
+		toolcontract.FuncConfig{Name: catalog.GetGoal, Description: getDescription},
 		(&getter{goals: reader}).get,
 	)
 }
@@ -158,7 +159,7 @@ func NewReport(reporter Reporter) (toolcontract.Tool, error) {
 		return nil, nil
 	}
 	return toolcontract.NewFunc[reportArgs, string](
-		toolcontract.FuncConfig{Name: "report_goal_outcome", Description: reportDescription},
+		toolcontract.FuncConfig{Name: catalog.ReportGoalOutcome, Description: reportDescription},
 		(&outcomeReporter{goals: reporter}).report,
 	)
 }

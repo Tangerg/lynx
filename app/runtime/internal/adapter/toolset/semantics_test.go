@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/delegation"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/catalog"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
@@ -17,15 +17,15 @@ func TestSemanticsSafetyClassFailsClosed(t *testing.T) {
 		name string
 		want tool.SafetyClass
 	}{
-		{name: delegation.Name, want: tool.SafetyClassSafe},
-		{name: toolNameListSchedules, want: tool.SafetyClassSafe},
-		{name: toolNameCreateSchedule, want: tool.SafetyClassWrite},
-		{name: toolNameWrite, want: tool.SafetyClassWrite},
-		{name: toolNameShell, want: tool.SafetyClassExec},
-		{name: toolNameReadShellOutput, want: tool.SafetyClassSafe},
-		{name: toolNameStopShell, want: tool.SafetyClassExec},
-		{name: toolNameWebFetch, want: tool.SafetyClassNetwork},
-		{name: toolNameHTTPRequest, want: tool.SafetyClassNetwork},
+		{name: catalog.DelegateTask, want: tool.SafetyClassSafe},
+		{name: catalog.ListSchedules, want: tool.SafetyClassSafe},
+		{name: catalog.CreateSchedule, want: tool.SafetyClassWrite},
+		{name: catalog.ApplyPatch, want: tool.SafetyClassWrite},
+		{name: catalog.Shell, want: tool.SafetyClassExec},
+		{name: catalog.ReadShellOutput, want: tool.SafetyClassSafe},
+		{name: catalog.StopShell, want: tool.SafetyClassExec},
+		{name: catalog.WebFetch, want: tool.SafetyClassNetwork},
+		{name: catalog.HTTPRequest, want: tool.SafetyClassNetwork},
 		{name: "unknown_tool", want: tool.SafetyClassExec},
 	} {
 		if got := semantics.SafetyClass(test.name); got != test.want {
@@ -42,13 +42,12 @@ func TestSemanticsApprovalSubject(t *testing.T) {
 		want      string
 		wantError bool
 	}{
-		{name: toolNameShell, arguments: `{"command":"npm run build"}`, want: "npm run build"},
-		{name: toolNameEdit, arguments: `{"path":"src/a.go"}`, want: "src/a.go"},
-		{name: toolNameRead, arguments: `{"path":"go.mod"}`, want: "go.mod"},
-		{name: toolNameWrite, arguments: `{"path":"out.txt"}`, want: "out.txt"},
-		{name: toolNameGrep, arguments: `{"pattern":"foo"}`},
-		{name: toolNameStopShell, arguments: `{"shell_id":"s1"}`},
-		{name: toolNameShell, arguments: `{"timeout_ms":5}`, wantError: true},
+		{name: catalog.Shell, arguments: `{"command":"npm run build"}`, want: "npm run build"},
+		{name: catalog.Read, arguments: `{"path":"go.mod"}`, want: "go.mod"},
+		{name: catalog.ApplyPatch, arguments: `{"patch":"diff"}`},
+		{name: catalog.Grep, arguments: `{"pattern":"foo"}`},
+		{name: catalog.StopShell, arguments: `{"shell_id":"s1"}`},
+		{name: catalog.Shell, arguments: `{"timeout_ms":5}`, wantError: true},
 	} {
 		arguments, err := tool.ParseArguments(test.arguments)
 		if err != nil {
@@ -69,20 +68,20 @@ func TestSemanticsApprovalSubject(t *testing.T) {
 
 func TestSemanticsShellCommand(t *testing.T) {
 	semantics := Semantics{}
-	if got := semantics.ShellCommand(toolNameShell, `{"command":"rm -rf /"}`); got != "rm -rf /" {
+	if got := semantics.ShellCommand(catalog.Shell, `{"command":"rm -rf /"}`); got != "rm -rf /" {
 		t.Fatalf("ShellCommand = %q, want command", got)
 	}
-	if got := semantics.ShellCommand(toolNameWrite, `{"command":"rm -rf /"}`); got != "" {
+	if got := semantics.ShellCommand(catalog.ApplyPatch, `{"command":"rm -rf /"}`); got != "" {
 		t.Fatalf("non-shell command = %q, want empty", got)
 	}
 }
 
 func TestSemanticsDelegationUsesChildLifecyclePolicy(t *testing.T) {
 	semantics := Semantics{}
-	if semantics.UsesStandardPolicy(delegation.Name) {
+	if semantics.UsesStandardPolicy(catalog.DelegateTask) {
 		t.Fatal("delegation entered ordinary tool-call policy")
 	}
-	for _, name := range []string{toolNameRead, "extension_tool"} {
+	for _, name := range []string{catalog.Read, "extension_tool"} {
 		if !semantics.UsesStandardPolicy(name) {
 			t.Errorf("ordinary tool %q bypassed standard policy", name)
 		}
@@ -92,7 +91,7 @@ func TestSemanticsDelegationUsesChildLifecyclePolicy(t *testing.T) {
 func TestSemanticsProjectsSuccessfulPlanReplacement(t *testing.T) {
 	want := plan.State{Revision: 7, Steps: []plan.Step{{Description: "verify", Status: plan.StatusInProgress}}}
 	semantics := NewSemantics(fixedPlanState{state: want})
-	event, err := semantics.ProjectOutcome(t.Context(), "session_1", toolNameSetPlan, true)
+	event, err := semantics.ProjectOutcome(t.Context(), "session_1", catalog.SetPlan, true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -104,8 +103,8 @@ func TestSemanticsProjectsSuccessfulPlanReplacement(t *testing.T) {
 		name      string
 		succeeded bool
 	}{
-		{name: toolNameSetPlan},
-		{name: toolNameRead, succeeded: true},
+		{name: catalog.SetPlan},
+		{name: catalog.Read, succeeded: true},
 	} {
 		event, err := semantics.ProjectOutcome(t.Context(), "session_1", test.name, test.succeeded)
 		if err != nil || event != nil {

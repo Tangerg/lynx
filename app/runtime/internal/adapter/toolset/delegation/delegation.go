@@ -5,11 +5,9 @@ import (
 
 	"github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/core"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/catalog"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
-
-// Name is the model-facing identity of the built-in task delegation tool.
-const Name = "delegate_task"
 
 // Input is the complete model-facing contract for one delegated task. Summary
 // identifies the child in lifecycle projections; Instructions are the child's
@@ -38,7 +36,7 @@ func NewAgent(execute Execute) *core.Agent {
 		core.GoalConfig{Description: "delegated task answer produced"},
 	)
 	return agent.New(agent.AgentConfig{
-		Name: Name,
+		Name: catalog.DelegateTask,
 		Description: "Delegate one self-contained task to a fresh Agent with coding tools and bounded delegation. " +
 			"Use it for focused, separable work so the current context stays uncluttered. " +
 			"The delegated Agent starts with clean context and cannot see its parent conversation, so include everything it needs in instructions. " +

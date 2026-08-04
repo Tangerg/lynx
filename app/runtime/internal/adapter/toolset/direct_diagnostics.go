@@ -10,6 +10,7 @@ import (
 
 	toolcontract "github.com/Tangerg/lynx/tool"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/catalog"
 	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/component/pathidentity"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
@@ -34,7 +35,7 @@ func directTools(root string) []toolcontract.Tool {
 // security jail, so this adapter owns the direct-call trust boundary.
 func normalizeDirectArguments(root, name, arguments string) (string, error) {
 	switch name {
-	case "read":
+	case catalog.Read:
 		request, err := decodeDirectArguments[fs.ReadRequest](arguments)
 		if err != nil {
 			return "", fmt.Errorf("toolset: decode direct read arguments: %w", err)
@@ -45,7 +46,7 @@ func normalizeDirectArguments(root, name, arguments string) (string, error) {
 		}
 		request.Path = path
 		return encodeDirectArguments(request)
-	case "glob":
+	case catalog.Glob:
 		request, err := decodeDirectArguments[fs.GlobRequest](arguments)
 		if err != nil {
 			return "", fmt.Errorf("toolset: decode direct glob arguments: %w", err)
@@ -61,7 +62,7 @@ func normalizeDirectArguments(root, name, arguments string) (string, error) {
 			request.Path = path
 		}
 		return encodeDirectArguments(request)
-	case "grep":
+	case catalog.Grep:
 		request, err := decodeDirectArguments[fs.GrepRequest](arguments)
 		if err != nil {
 			return "", fmt.Errorf("toolset: decode direct grep arguments: %w", err)

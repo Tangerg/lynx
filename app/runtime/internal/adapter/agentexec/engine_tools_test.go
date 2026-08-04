@@ -10,6 +10,7 @@ import (
 	"github.com/Tangerg/lynx/chatclient"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/catalog"
 )
 
 func TestToolCatalogReturnsSnapshot(t *testing.T) {
@@ -36,7 +37,7 @@ func TestDelegationToolUsesOnePreciseContract(t *testing.T) {
 
 	var definition = func() (found toolcontract.Tool) {
 		for _, candidate := range codingTools(t, eng.catalog) {
-			if candidate.Definition().Name == "delegate_task" {
+			if candidate.Definition().Name == catalog.DelegateTask {
 				return candidate
 			}
 		}
@@ -107,27 +108,27 @@ func TestToolCatalogOfflineOnly(t *testing.T) {
 	defer eng.Close()
 
 	tools := codingTools(t, eng.catalog)
-	// 5 filesystem coding tools in the conservative edit/write vocabulary
+	// Four filesystem tools (read, glob, grep, and apply_patch)
 	// + 3 shell tools (shell + its read_shell_output /
 	// stop_shell companions) + one deferred `lsp` operation tool + the
 	// `delegate_task` tool + the ask_user HITL
 	// tool + search_tools. LSP remains executable but is deferred from the model's
 	// initial manifest.
-	if len(tools) != 12 {
-		t.Fatalf("tool count = %d, want 12 (5 fs + 3 shell + lsp + delegate_task + ask_user + search_tools)", len(tools))
+	if len(tools) != 11 {
+		t.Fatalf("tool count = %d, want 11 (4 fs + 3 shell + lsp + delegate_task + ask_user + search_tools)", len(tools))
 	}
 
 	names := toolNames(tools)
 	for _, want := range []string{
-		"read", "write", "edit", "glob", "grep", "shell", "delegate_task", "ask_user", "search_tools", "lsp",
-		"read_shell_output", "stop_shell",
+		catalog.Read, catalog.Glob, catalog.Grep, catalog.ApplyPatch, catalog.Shell, catalog.DelegateTask,
+		catalog.AskUser, catalog.SearchTools, catalog.LSP, catalog.ReadShellOutput, catalog.StopShell,
 	} {
 		if !names[want] {
 			t.Errorf("missing tool %q in %v", want, names)
 		}
 	}
-	if names["apply_patch"] {
-		t.Fatal("one Run must not register apply_patch together with edit/write")
+	if names["edit"] || names["write"] {
+		t.Fatal("Runtime must expose only apply_patch for filesystem mutation")
 	}
 	for _, never := range []string{"web_fetch", "web_search", "http_request"} {
 		if names[never] {
@@ -151,8 +152,8 @@ func TestToolCatalogOnlineEnabled(t *testing.T) {
 	defer eng.Close()
 
 	tools := codingTools(t, eng.catalog)
-	if len(tools) != 15 {
-		t.Fatalf("tool count = %d, want 15 (5 fs + 3 shell + lsp + 3 online + delegate_task + ask_user + search_tools)", len(tools))
+	if len(tools) != 14 {
+		t.Fatalf("tool count = %d, want 14 (4 fs + 3 shell + lsp + 3 online + delegate_task + ask_user + search_tools)", len(tools))
 	}
 	names := toolNames(tools)
 	for _, want := range []string{"web_fetch", "web_search", "http_request"} {
@@ -170,8 +171,8 @@ func TestToolCatalogPartialOnline(t *testing.T) {
 	client, _ := chatclient.New(stub, chatclient.Config{})
 	eng := mustEngineWith(t, client, toolset.BuildConfig{Online: toolset.OnlineConfig{JinaAPIKey: "k"}})
 	defer eng.Close()
-	if got := len(codingTools(t, eng.catalog)); got != 13 {
-		t.Fatalf("tool count = %d, want 13 (5 fs + 3 shell + lsp + jina + delegate_task + ask_user + search_tools)", got)
+	if got := len(codingTools(t, eng.catalog)); got != 12 {
+		t.Fatalf("tool count = %d, want 12 (4 fs + 3 shell + lsp + jina + delegate_task + ask_user + search_tools)", got)
 	}
 }
 

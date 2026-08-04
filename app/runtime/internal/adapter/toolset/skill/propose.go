@@ -9,6 +9,7 @@ import (
 	toolcontract "github.com/Tangerg/lynx/tool"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/executionctx"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/catalog"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/skills"
 )
 
@@ -52,7 +53,7 @@ func NewProposal(proposals ProposalSubmitter, defaultWorkspacePath string) (tool
 		return nil, nil
 	}
 	return toolcontract.NewFunc[proposalArgs, proposalResult](
-		toolcontract.FuncConfig{Name: "propose_skill", Description: proposalDescription},
+		toolcontract.FuncConfig{Name: catalog.ProposeSkill, Description: proposalDescription},
 		(&proposer{proposals: proposals, defaultWorkspacePath: defaultWorkspacePath}).run,
 	)
 }

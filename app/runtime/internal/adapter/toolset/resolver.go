@@ -16,7 +16,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/discovery"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/skill"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	domaintool "github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
 
@@ -37,14 +36,13 @@ type Resolver struct {
 	lateMu sync.RWMutex
 
 	defaultWorkdir string
-	defaultModel   modelref.Selection
 	skillsUserDir  string                                      // user-scope skills dir; merged under each Run's project skills
 	skillUsage     skill.UsageRecorder                         // records skill loads for the idle-lifecycle curator; nil → off
 	online         []toolcontract.Tool                         // working-directory-independent network tools
 	a2a            []toolcontract.Tool                         // working-directory-independent remote A2A agents
 	lsp            []toolcontract.Tool                         // code-intelligence tools; cwd read per-call (analyzer keys servers by root)
-	codeIntel      *codeintel.Analyzer                         // backs the write/edit diagnostics wrap (rebuilt per resolution with the Run's cwd)
-	readTracker    *readTracker                                // backs the read-before-edit + stale guards on read/edit/write
+	codeIntel      *codeintel.Analyzer                         // backs post-patch diagnostics (rebuilt per resolution with the Run's cwd)
+	readTracker    *readTracker                                // backs the read-before-patch and stale-read guards
 	pathLocker     *pathLocker                                 // serializes same-path fs calls across every concurrent Run resolution
 	shell          []toolcontract.Tool                         // shell tools (shell / read_shell_output / stop_shell) over the exec.Shells; cwd read per-call
 	delegation     toolcontract.Tool                           // bounded recursive delegation tool; nil until set
@@ -100,7 +98,6 @@ type staticToolSpec struct {
 // A2A, and code-intelligence capabilities are also built once and held.
 type resolverDeps struct {
 	DefaultWorkdir string
-	DefaultModel   modelref.Selection
 	SkillsUserDir  string
 	SkillUsage     skill.UsageRecorder
 	Online         []toolcontract.Tool                         // network tools (webfetch/websearch/httpreq)
@@ -119,8 +116,8 @@ type resolverDeps struct {
 	GoalReport     toolcontract.Tool                           // report_goal_outcome loop signal (root role only); nil → omitted
 	ProposeSkill   toolcontract.Tool                           // propose_skill pending submission (root role only); nil → omitted
 	GoalActive     func(context.Context, string) (bool, error) // reports an active Goal for the session; nil → outcome reporting never offered
-	CodeIntel      *codeintel.Analyzer                         // backs the post-edit diagnostics wrap
-	ReadTracker    *readTracker                                // backs the read/edit/write guards
+	CodeIntel      *codeintel.Analyzer                         // backs post-mutation diagnostics
+	ReadTracker    *readTracker                                // backs the read-before-patch and stale-read guards
 	// MCPToolDisabled reports whether an identified MCP tool is hidden.
 	MCPToolDisabled func(mcpserver.ToolRef) bool
 }
@@ -142,7 +139,6 @@ func newResolver(d resolverDeps) (*Resolver, error) {
 	}
 	resolver := &Resolver{
 		defaultWorkdir: d.DefaultWorkdir,
-		defaultModel:   d.DefaultModel,
 		skillsUserDir:  d.SkillsUserDir,
 		skillUsage:     d.SkillUsage,
 		online:         slices.Clone(d.Online),
@@ -318,12 +314,7 @@ func (g *toolGroup) Tools(ctx context.Context) ([]toolcontract.Tool, error) {
 	workdirTools := g.resolver.workdirTools(workdir)
 	var tools resolvedToolset
 	tools.direct(workdirTools.readSearch...)
-	selection := executionctx.ModelSelection(ctx, g.resolver.defaultModel)
-	if useApplyPatch(selection) {
-		tools.direct(workdirTools.applyPatch)
-	} else {
-		tools.direct(workdirTools.editWrite...)
-	}
+	tools.direct(workdirTools.applyPatch)
 	tools.deferTools(g.resolver.online...)
 	mcpTools := g.resolver.mcpTools()
 	tools.deferTools(mcpTools...)

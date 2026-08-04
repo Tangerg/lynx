@@ -1,10 +1,9 @@
 package toolset
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
-	"strconv"
-	"strings"
 	"testing"
 
 	toolcontract "github.com/Tangerg/lynx/tool"
@@ -13,7 +12,7 @@ import (
 	"github.com/Tangerg/lynx/tools/fs"
 )
 
-func TestPathLockUsesCanonicalConcurrencyKey(t *testing.T) {
+func TestPathLockUsesOneCanonicalMutationIdentity(t *testing.T) {
 	workdir := t.TempDir()
 	realPath := filepath.Join(workdir, "real.txt")
 	if err := os.WriteFile(realPath, []byte("content"), 0o600); err != nil {
@@ -24,23 +23,16 @@ func TestPathLockUsesCanonicalConcurrencyKey(t *testing.T) {
 	}
 
 	executor := fs.NewLocalExecutor(workdir)
-	locker := newPathLocker()
-	tracker := newReadTracker()
-	read := withPathLock(withReadTracking(fs.NewReadTool(executor), tracker, workdir), locker, workdir)
-	edit := editMutation(fs.NewEditTool(executor), nil, tracker, locker, workdir)
-
-	relativeKey := concurrentKey(t, read, pathArguments("real.txt"))
-	absoluteKey := concurrentKey(t, edit, pathArguments(realPath))
-	if relativeKey != absoluteKey {
-		t.Fatalf("same-file keys = %q, %q; want one canonical identity", relativeKey, absoluteKey)
+	readPaths, err := resolvedMutationPaths(fs.NewReadTool(executor), readArguments(realPath), workdir)
+	if err != nil {
+		t.Fatal(err)
 	}
-	if !strings.HasPrefix(relativeKey, fileResourceKeyPrefix) {
-		t.Fatalf("canonical key = %q, want %q prefix", relativeKey, fileResourceKeyPrefix)
+	mutationPaths, err := resolvedMutationPaths(fs.NewApplyPatchTool(executor), patchArguments(t, "real.txt", "content", "next"), workdir)
+	if err != nil {
+		t.Fatal(err)
 	}
-
-	otherKey := concurrentKey(t, read, pathArguments("other.txt"))
-	if otherKey == relativeKey {
-		t.Fatalf("distinct files share concurrency key %q", otherKey)
+	if len(readPaths) != 1 || len(mutationPaths) != 1 || readPaths[0] != mutationPaths[0] {
+		t.Fatalf("same-file identities = %v, %v; want one canonical path", readPaths, mutationPaths)
 	}
 }
 
@@ -56,14 +48,16 @@ func TestPathLockUsesPhysicalIdentityForSymlinkAlias(t *testing.T) {
 	}
 
 	executor := fs.NewLocalExecutor(workdir)
-	locker := newPathLocker()
-	tracker := newReadTracker()
-	read := withPathLock(withReadTracking(fs.NewReadTool(executor), tracker, workdir), locker, workdir)
-	write := writeMutation(fs.NewWriteTool(executor), nil, tracker, locker, workdir)
-	realKey := concurrentKey(t, read, pathArguments(realPath))
-	aliasKey := concurrentKey(t, write, pathArguments(aliasPath))
-	if realKey != aliasKey {
-		t.Fatalf("symlink alias keys = %q, %q; want one physical identity", realKey, aliasKey)
+	realPaths, err := resolvedMutationPaths(fs.NewReadTool(executor), readArguments(realPath), workdir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	aliasPaths, err := resolvedMutationPaths(fs.NewApplyPatchTool(executor), patchArguments(t, "alias.txt", "content", "next"), workdir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(realPaths) != 1 || len(aliasPaths) != 1 || realPaths[0] != aliasPaths[0] {
+		t.Fatalf("symlink alias identities = %v, %v; want one physical path", realPaths, aliasPaths)
 	}
 }
 
@@ -93,8 +87,8 @@ func TestAssembledFileToolStillReportsWhatItMutates(t *testing.T) {
 	if err := os.WriteFile(target, []byte("content"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	assembled := editMutation(
-		fs.NewEditTool(fs.NewLocalExecutor(workdir)),
+	assembled := guardedMutation(
+		fs.NewApplyPatchTool(fs.NewLocalExecutor(workdir)),
 		nil,
 		newReadTracker(),
 		newPathLocker(),
@@ -103,30 +97,18 @@ func TestAssembledFileToolStillReportsWhatItMutates(t *testing.T) {
 
 	reporter, ok, err := toolcontract.Capability[fileMutationReporter](assembled)
 	if err != nil || !ok {
-		t.Fatal("the assembled edit tool no longer reports its file mutations")
+		t.Fatal("the assembled mutation tool no longer reports its file mutations")
 	}
-	paths, err := reporter.MutationPaths(pathArguments("real.txt"))
+	paths, err := reporter.MutationPaths(patchArguments(t, "real.txt", "content", "next"))
 	if err != nil {
 		t.Fatalf("MutationPaths: %v", err)
 	}
 	if len(paths) != 1 || filepath.Base(paths[0]) != "real.txt" {
-		t.Fatalf("MutationPaths = %v, want the edited file", paths)
+		t.Fatalf("MutationPaths = %v, want the patched file", paths)
 	}
 }
 
-func concurrentKey(t *testing.T, tool toolcontract.Tool, arguments string) string {
-	t.Helper()
-	policy, ok, err := toolcontract.Capability[toolloop.ConcurrentTool](tool)
-	if err != nil || !ok {
-		t.Fatalf("tool %q does not expose concurrency policy", tool.Definition().Name)
-	}
-	key, concurrent := policy.ConcurrencyKey(arguments)
-	if !concurrent {
-		t.Fatalf("tool %q unexpectedly remained exclusive", tool.Definition().Name)
-	}
-	return key
-}
-
-func pathArguments(path string) string {
-	return `{"path":` + strconv.Quote(path) + `}`
+func readArguments(path string) string {
+	encoded, _ := json.Marshal(map[string]string{"path": path})
+	return string(encoded)
 }

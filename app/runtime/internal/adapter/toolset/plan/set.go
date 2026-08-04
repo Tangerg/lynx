@@ -8,6 +8,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/executionctx"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/planpresentation"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/catalog"
 	plandomain "github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
 )
 
@@ -44,7 +45,7 @@ func newSet(store writer) (toolcontract.Tool, error) {
 		return nil, nil
 	}
 	return toolcontract.NewFunc[setArgs, string](
-		toolcontract.FuncConfig{Name: "set_plan", Description: setDescription},
+		toolcontract.FuncConfig{Name: catalog.SetPlan, Description: setDescription},
 		(&setter{store: store}).set,
 	)
 }

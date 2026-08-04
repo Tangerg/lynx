@@ -9,7 +9,7 @@ import (
 )
 
 // decorate replaces Call while preserving the inner capability declarations
-// — the shared spine of the read/edit guards and post-edit diagnostics.
+// — the shared spine of read/mutation guards and post-mutation diagnostics.
 func decorate(inner toolcontract.Tool, call func(ctx context.Context, arguments string) (string, error)) toolcontract.Tool {
 	return &decorated{inner: inner, call: call}
 }
@@ -29,7 +29,7 @@ func (d *decorated) Call(ctx context.Context, arguments string) (string, error) 
 }
 
 // Unwrap exposes the wrapped tool so its optional tool-loop declarations — a
-// keyed file tool's per-path conflict class, where its edits land, a
+// keyed file tool's per-path conflict class, where its mutations land, a
 // return-direct policy — survive the whole decorator stack. Only Call is
 // overridden here.
 func (d *decorated) Unwrap() toolcontract.Tool { return d.inner }

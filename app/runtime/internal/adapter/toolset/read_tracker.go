@@ -5,17 +5,15 @@ import (
 	"sync"
 )
 
-// readTracker records the file content each session has read. An edit or write is
-// admitted only when the file is still at that content and, for a replacement,
-// the session read the complete file.
+// readTracker records the file content each session has read. A mutation is
+// admitted only while the file still has that content.
 type readTracker struct {
 	mu   sync.Mutex
 	seen map[string]map[string]readStamp
 }
 
 type readStamp struct {
-	hash    contentFingerprint
-	partial bool
+	hash contentFingerprint
 }
 
 type contentFingerprint [32]byte
@@ -26,15 +24,15 @@ func newReadTracker() *readTracker {
 	return &readTracker{seen: map[string]map[string]readStamp{}}
 }
 
-func (t *readTracker) record(session, path string, fingerprint contentFingerprint, partial bool) {
-	t.put(session, path, readStamp{hash: fingerprint, partial: partial})
+func (t *readTracker) record(session, path string, fingerprint contentFingerprint) {
+	t.put(session, path, readStamp{hash: fingerprint})
 }
 
 func (t *readTracker) refresh(session, path string, fingerprint contentFingerprint) {
 	t.put(session, path, readStamp{hash: fingerprint})
 }
 
-func (t *readTracker) check(session, path string, current contentFingerprint, requireFull bool) guardVerdict {
+func (t *readTracker) check(session, path string, current contentFingerprint) guardVerdict {
 	st, ok := t.get(session, path)
 	if !ok {
 		return readRequired
@@ -42,10 +40,7 @@ func (t *readTracker) check(session, path string, current contentFingerprint, re
 	if current != st.hash {
 		return contentChanged
 	}
-	if requireFull && st.partial {
-		return fullReadRequired
-	}
-	return editAllowed
+	return mutationAllowed
 }
 
 func (t *readTracker) put(session, path string, st readStamp) {
@@ -69,10 +64,9 @@ func (t *readTracker) get(session, path string) (readStamp, bool) {
 type guardVerdict uint8
 
 const (
-	editAllowed guardVerdict = iota
+	mutationAllowed guardVerdict = iota
 	readRequired
 	contentChanged
-	fullReadRequired
 )
 
-func (r guardVerdict) allowed() bool { return r == editAllowed }
+func (r guardVerdict) allowed() bool { return r == mutationAllowed }

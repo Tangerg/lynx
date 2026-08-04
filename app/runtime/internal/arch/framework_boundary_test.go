@@ -306,8 +306,8 @@ func TestSubagentHooksUseApplicationRunIdentity(t *testing.T) {
 
 // TestToolsetDoesNotDependOnAgentexec prevents peer adapters from recreating a
 // consumer port under the execution adapter and then importing it backwards.
-// Shared tool vocabulary belongs to domain/tool; the HITL capability belongs to
-// the runs consumer contract.
+// Generic tool vocabulary belongs to domain/tool, concrete identities stay in
+// toolset/catalog, and the HITL capability belongs to the runs consumer contract.
 func TestToolsetDoesNotDependOnAgentexec(t *testing.T) {
 	root := moduleRoot(t)
 	legacy := filepath.Join(root, "internal", "adapter", "agentexec", "toolport")
@@ -365,6 +365,76 @@ func TestAgentexecDoesNotOwnConcreteToolContracts(t *testing.T) {
 	})
 	if err != nil {
 		t.Fatalf("scan agent execution source: %v", err)
+	}
+}
+
+// TestRuntimeOwnedToolNamesComeFromCatalog prevents constructors from opening a
+// second identity source beside toolset/catalog. Dynamically discovered MCP and
+// A2A names remain values; only authored string literals in Name fields are
+// forbidden here.
+func TestRuntimeOwnedToolNamesComeFromCatalog(t *testing.T) {
+	root := moduleRoot(t)
+	dir := filepath.Join(root, "internal", "adapter", "toolset")
+	err := filepath.WalkDir(dir, func(path string, entry os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() || filepath.Ext(path) != ".go" || strings.HasSuffix(path, "_test.go") ||
+			strings.HasPrefix(path, filepath.Join(dir, "catalog")+string(filepath.Separator)) {
+			return nil
+		}
+		file, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
+		if err != nil {
+			return err
+		}
+		ast.Inspect(file, func(node ast.Node) bool {
+			pair, ok := node.(*ast.KeyValueExpr)
+			if !ok {
+				return true
+			}
+			key, ok := pair.Key.(*ast.Ident)
+			if !ok || key.Name != "Name" {
+				return true
+			}
+			literal, authored := pair.Value.(*ast.BasicLit)
+			if !authored || literal.Kind != token.STRING {
+				return true
+			}
+			relative, _ := filepath.Rel(root, path)
+			t.Errorf("%s authors Name %s; use toolset/catalog for a built-in identity", relative, literal.Value)
+			return true
+		})
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("scan toolset identities: %v", err)
+	}
+}
+
+// TestFilesystemMutationVocabularyIsModelIndependent pins one precise model
+// contract: every Run receives apply_patch, without model-id heuristics or a
+// parallel edit/write family.
+func TestFilesystemMutationVocabularyIsModelIndependent(t *testing.T) {
+	root := moduleRoot(t)
+	for _, relative := range []string{
+		"internal/adapter/toolset/build.go",
+		"internal/adapter/toolset/exposure.go",
+		"internal/adapter/toolset/resolver.go",
+		"internal/adapter/toolset/workdir.go",
+	} {
+		path := filepath.Join(root, relative)
+		source, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("read %s: %v", relative, err)
+		}
+		for _, forbidden := range []string{
+			"useApplyPatch", "editWrite", "NewEditTool", "NewWriteTool",
+			"ModelSelection", "DefaultModel", "gpt-", "grok", "claude", "kimi",
+		} {
+			if strings.Contains(string(source), forbidden) {
+				t.Errorf("%s contains mutation-dialect branch %q", relative, forbidden)
+			}
+		}
 	}
 }
 

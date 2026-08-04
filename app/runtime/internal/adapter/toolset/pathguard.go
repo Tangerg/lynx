@@ -12,18 +12,18 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/component/pathidentity"
 )
 
-// protectedDirs are directory names the agent must never write into, even
-// when they sit inside the workspace. Writing under .git (a hook, the
+// protectedDirs are directory names the agent must never modify, even when
+// they sit inside the workspace. Mutating .git (a hook, the
 // config) is a remote-code-execution / repo-hijack vector, so the VCS
 // metadata directory is carved read-only regardless of approval mode — the
 // standard invariant enforced on writable roots. A model that needs
 // to change version-control state uses the shell/git tooling, not a raw
-// file write. Kept as a list so other state dirs can join if a need arises.
+// file mutation. Kept as a list so other state dirs can join if needed.
 var protectedDirs = []string{".git"}
 
-// withPathGuard wraps a file-mutating tool (write / edit) so a write whose
+// withPathGuard wraps a file-mutating tool so a target whose
 // resolved path lies inside a [protectedDirs] directory is refused with a
-// model-facing message instead of executed. Like the read/edit guards the
+// model-facing message instead of executed. Like the read/mutation guards, the
 // refusal is a normal result (not an error), so the model adapts rather
 // than the run aborting. Resolution uses the canonical physical path, so a
 // traversal or symlink that lands in a protected directory is caught too. Apply it as
@@ -50,7 +50,7 @@ func withPathGuard(inner toolcontract.Tool, workdir string) toolcontract.Tool {
 	})
 }
 
-// guardMutationPath decides whether a write to path (relative to workdir) is
+// guardMutationPath decides whether a mutation of path (relative to workdir) is
 // allowed, returning ok=false plus a model-facing refusal otherwise. A path is
 // refused when it cannot be resolved, lands inside a [protectedDirs] directory,
 // or — for an isolated session — escapes the workspace copy. Pure (no ctx) so

@@ -10,7 +10,7 @@ import (
 
 	toolcontract "github.com/Tangerg/lynx/tool"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/executionctx"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/catalog"
 	goaladapter "github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/goal"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/goals"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
@@ -88,12 +88,26 @@ func (allWiredSkillProposals) SubmitSkillProposal(_ context.Context, _ string, p
 	return skills.NewProposalRef(proposal.Scope, proposal.Name, []byte(proposal.Instructions)), nil
 }
 
-func toolNameSet(ts []toolcontract.Tool) map[string]bool {
+func definitionNames(ts []toolcontract.Tool) map[string]bool {
 	names := make(map[string]bool, len(ts))
 	for _, t := range ts {
 		names[t.Definition().Name] = true
 	}
 	return names
+}
+
+func builtInNames() []string {
+	return []string{
+		catalog.ApplyPatch, catalog.AskUser, catalog.CreateGoal, catalog.CreateSchedule,
+		catalog.DeleteSchedule, catalog.DelegateTask, catalog.EnterPlanMode,
+		catalog.ExitPlanMode, catalog.GetGoal, catalog.Glob, catalog.Grep,
+		catalog.HTTPRequest, catalog.ListSchedules, catalog.ListSkills,
+		catalog.LoadSkill, catalog.LSP, catalog.ProposeSkill, catalog.Read,
+		catalog.ReadShellOutput, catalog.ReadSkillResource, catalog.ReadToolResult,
+		catalog.ReportGoalOutcome, catalog.SearchConversations, catalog.SearchMemory,
+		catalog.SearchTools, catalog.SetPlan, catalog.Shell, catalog.StopShell,
+		catalog.WebFetch, catalog.WebSearch,
+	}
 }
 
 func assertBuiltInToolContract(t *testing.T, candidate toolcontract.Tool) {
@@ -153,7 +167,7 @@ func TestRootResolverIncludesConfiguredConditionalTools(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Tools: %v", err)
 	}
-	names := toolNameSet(resolved)
+	names := definitionNames(resolved)
 	for _, want := range []string{"enter_plan_mode", "exit_plan_mode", "create_goal", "get_goal", "report_goal_outcome"} {
 		if !names[want] {
 			t.Errorf("configured root tools missing %q: %v", want, names)
@@ -161,20 +175,18 @@ func TestRootResolverIncludesConfiguredConditionalTools(t *testing.T) {
 	}
 }
 
-// TestSafetyTableMatchesBuiltInTools is the two-way completeness guard for the
-// built-in name→safety-class table.
+// TestDescriptorCatalogMatchesBuiltInTools is the two-way completeness guard for the
+// built-in descriptor catalog.
 //
-// That table is the single source of truth for two consumers — the tools.list
-// wire metadata and the approval gate — and it is keyed by NAME, so a name no
-// tool answers to is a safety policy for something nobody can call. It reads as a
-// capability the runtime has: a dead key claims a tool exists, while an omitted
-// key silently classifies a known built-in as arbitrary Exec. The names span app
-// adapters and SDK tool modules, so grepping one package cannot enforce either
-// direction.
+// The catalog is the single cross-cutting source for safety, policy exceptions,
+// activity, presentation, and outcome projection. A dead key claims a tool
+// exists, while an omitted key silently sends a known built-in through unknown-
+// tool fallbacks. Definitions span Runtime adapters and SDK tool modules, so
+// grepping one package cannot enforce either direction.
 //
 // The resolver is built with every optional subsystem wired, because a name is
 // only unreachable if NO configuration reaches it.
-func TestSafetyTableMatchesBuiltInTools(t *testing.T) {
+func TestDescriptorCatalogMatchesBuiltInTools(t *testing.T) {
 	policy, err := approval.New(approval.ModeBalanced, nil, nil)
 	if err != nil {
 		t.Fatalf("approval policy: %v", err)
@@ -214,57 +226,46 @@ func TestSafetyTableMatchesBuiltInTools(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Tools: %v", err)
 	}
-	existing := toolNameSet(resolved)
-	// A Run receives exactly one mutation vocabulary. Union the other supported
-	// profile before checking the global safety table, which necessarily covers
-	// both vocabularies.
-	patchModel, err := modelref.New("openai", "gpt-5")
-	if err != nil {
-		t.Fatal(err)
-	}
-	patchTools, err := group.Tools(executionctx.WithModelSelection(t.Context(), patchModel))
-	if err != nil {
-		t.Fatalf("Tools(apply_patch profile): %v", err)
-	}
-	for name := range toolNameSet(patchTools) {
-		existing[name] = true
-	}
+	existing := definitionNames(resolved)
 	checkedContracts := make(map[string]bool)
-	for _, profile := range [][]toolcontract.Tool{resolved, patchTools} {
-		for _, candidate := range profile {
-			name := candidate.Definition().Name
-			if checkedContracts[name] {
-				continue
-			}
-			checkedContracts[name] = true
-			assertBuiltInToolContract(t, candidate)
+	for _, candidate := range resolved {
+		name := candidate.Definition().Name
+		if checkedContracts[name] {
+			continue
 		}
+		checkedContracts[name] = true
+		assertBuiltInToolContract(t, candidate)
 	}
 	// The engine injects delegate_task only after it deploys the child Agent.
-	existing["delegate_task"] = true
+	existing[catalog.DelegateTask] = true
 
+	declared := make(map[string]bool)
 	var unreachable []string
-	for _, name := range classifiedToolNames() {
+	for _, name := range builtInNames() {
+		if declared[name] {
+			t.Errorf("built-in identity %q is declared more than once", name)
+		}
+		declared[name] = true
+		if _, ok := descriptorFor(name); !ok {
+			t.Errorf("built-in identity %q has no descriptor", name)
+		}
 		if !existing[name] {
 			unreachable = append(unreachable, name)
 		}
 	}
 	if len(unreachable) > 0 {
-		t.Errorf("the safety table classifies %v, which no built tool answers to — "+
+		slices.Sort(unreachable)
+		t.Errorf("the descriptor catalog classifies %v, which no built tool answers to — "+
 			"either the tool is gone (drop the name) or it was never built (wire it)", unreachable)
-	}
-	classified := make(map[string]bool)
-	for _, name := range classifiedToolNames() {
-		classified[name] = true
 	}
 	var unclassified []string
 	for name := range existing {
-		if !classified[name] {
+		if !declared[name] {
 			unclassified = append(unclassified, name)
 		}
 	}
 	if len(unclassified) > 0 {
 		slices.Sort(unclassified)
-		t.Errorf("built-in tools %v rely on the unknown-tool Exec fallback — classify each one explicitly", unclassified)
+		t.Errorf("built-in tools %v rely on unknown-tool fallbacks — describe each one explicitly", unclassified)
 	}
 }

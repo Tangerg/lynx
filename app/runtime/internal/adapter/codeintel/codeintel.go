@@ -1,9 +1,9 @@
 // Package codeintel adapts language-server connections (infra/lsp) into
 // model-facing code intelligence: root-relative, 1-based locations; plain
-// messages for unsupported file types; and new-problems-after-edit diagnostics.
+// messages for unsupported file types; and new-problems-after-mutation diagnostics.
 //
 // It is the single owner of the LSP protocol types at the tool adapter boundary:
-// tool assembly builds lsp_* tools and edit diagnostics over this analyzer
+// tool assembly builds the lsp tool and mutation diagnostics over this analyzer
 // rather than importing infra/lsp directly.
 package codeintel
 
@@ -234,21 +234,21 @@ func (a *Analyzer) Diagnostics(ctx context.Context, root, file string) (string, 
 	return formatDiagnostics(file, diags), nil
 }
 
-// DiagnoseEdit runs apply (a file mutation on file, relative to root)
+// DiagnoseMutation runs apply (a file mutation on file, relative to root)
 // between a before/after diagnostics snapshot and appends any problems the
-// edit INTRODUCED to apply's output — the highest-value LSP integration:
+// mutation introduced to apply's output — the highest-value LSP integration:
 // the model sees the breakage it just caused without a separate lookup.
 //
-// Only NEW problems surface: a baseline taken BEFORE the edit is subtracted
-// from the post-edit set, keyed position-independently so a pre-existing
+// Only new problems surface: a baseline taken before the mutation is subtracted
+// from the post-mutation set, keyed position-independently so a pre-existing
 // problem that merely shifted lines (or that the server re-reported from
-// cache) is never blamed on the edit. The bias is deliberately toward
+// cache) is never blamed on the mutation. The bias is deliberately toward
 // under-reporting.
 //
 // Best-effort throughout: an empty / unsupported path, an apply error, or
 // any language-server trouble passes apply's result through untouched — an
-// edit never fails because of code intelligence. Nil receiver → apply only.
-func (a *Analyzer) DiagnoseEdit(ctx context.Context, root, file string, apply func() (string, error)) (string, error) {
+// mutation never fails because of code intelligence. Nil receiver → apply only.
+func (a *Analyzer) DiagnoseMutation(ctx context.Context, root, file string, apply func() (string, error)) (string, error) {
 	check := a != nil && file != "" && a.Supported(file)
 
 	// Baseline BEFORE the edit (best effort: a brand-new file has none).
@@ -259,12 +259,12 @@ func (a *Analyzer) DiagnoseEdit(ctx context.Context, root, file string, apply fu
 
 	out, err := apply()
 	if err != nil || !check {
-		return out, err // edit failed (nothing to diagnose) or unsupported
+		return out, err // mutation failed (nothing to diagnose) or unsupported
 	}
 
 	after, derr := a.servers.Diagnostics(ctx, root, file)
 	if derr != nil {
-		return out, nil // never fail an edit on language-server trouble
+		return out, nil // never fail a mutation on language-server trouble
 	}
 	section := diagnosticsSection(file, newProblems(baseline, after))
 	if section == "" {

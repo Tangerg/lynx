@@ -10,32 +10,28 @@ import (
 // all anchored at workdir. These are the only tools whose behavior depends on
 // the working directory, so they are rebuilt per resolution (cheap structs)
 // rather than captured once. The filesystem tools need no credentials. (The
-// shell tool is built over the
-// shared exec.Shells in shell.Build, not here — it reads cwd per call like
-// read_shell_output.)
+// shell family is built over shared exec.Shells in shell.Build, not here; it
+// reads cwd per call.)
 //
-// write and edit are wrapped so a successful edit is type-checked by the
+// apply_patch is wrapped so a successful mutation is type-checked by the
 // code-intelligence analyzer and any new problems are folded into the tool
-// result (see withEditDiagnostics). ci may be nil — the wrap is then a no-op.
+// result. ci may be nil — the wrap is then a no-op.
 // locker is owner-scoped: resolver-owned builds reuse one locker so
-// read/check/write stays atomic across concurrent Runs, not merely across the
+// read/check/mutate stays atomic across concurrent Runs, not merely across the
 // tools resolved for one Run.
 type workdirSet struct {
 	readSearch []toolcontract.Tool
-	editWrite  []toolcontract.Tool
 	applyPatch toolcontract.Tool
 }
 
 func buildWorkdir(workdir string, ci *codeintel.Analyzer, tracker *readTracker, locker *pathLocker) workdirSet {
 	fsExec := fs.NewLocalExecutor(workdir)
 
-	// Mutation guard stack, innermost → outermost: auto-format the applied
+	// Guard stack, innermost → outermost: auto-format the applied
 	// change; diagnostics type-check it; read/staleness guard gates before the
 	// change and refreshes the read stamp after; per-path lock serializes
-	// concurrent writes to the same file; path guard refuses protected dirs.
-	write := writeMutation(fs.NewWriteTool(fsExec), ci, tracker, locker, workdir)
-	edit := editMutation(fs.NewEditTool(fsExec), ci, tracker, locker, workdir)
-	applyPatch := editMutation(fs.NewApplyPatchTool(fsExec), ci, tracker, locker, workdir)
+	// concurrent mutations to the same file; path guard refuses protected dirs.
+	applyPatch := guardedMutation(fs.NewApplyPatchTool(fsExec), ci, tracker, locker, workdir)
 
 	families := workdirSet{
 		readSearch: []toolcontract.Tool{
@@ -43,36 +39,16 @@ func buildWorkdir(workdir string, ci *codeintel.Analyzer, tracker *readTracker, 
 			fs.NewGlobTool(fsExec),
 			fs.NewGrepTool(fsExec),
 		},
-		editWrite:  []toolcontract.Tool{edit, write},
 		applyPatch: applyPatch,
 	}
 	return families
 }
 
-func writeMutation(tool toolcontract.Tool, ci *codeintel.Analyzer, tracker *readTracker, locker *pathLocker, workdir string) toolcontract.Tool {
+func guardedMutation(tool toolcontract.Tool, ci *codeintel.Analyzer, tracker *readTracker, locker *pathLocker, workdir string) toolcontract.Tool {
 	return withPathGuard(
 		withPathLock(
-			withWriteGuard(
-				withEditDiagnostics(
-					withAutoFormat(tool, workdir),
-					ci,
-					workdir,
-				),
-				tracker,
-				workdir,
-			),
-			locker,
-			workdir,
-		),
-		workdir,
-	)
-}
-
-func editMutation(tool toolcontract.Tool, ci *codeintel.Analyzer, tracker *readTracker, locker *pathLocker, workdir string) toolcontract.Tool {
-	return withPathGuard(
-		withPathLock(
-			withEditGuard(
-				withEditDiagnostics(
+			withMutationGuard(
+				withMutationDiagnostics(
 					withAutoFormat(tool, workdir),
 					ci,
 					workdir,

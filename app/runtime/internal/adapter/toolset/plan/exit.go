@@ -9,6 +9,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/executionctx"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/planpresentation"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/catalog"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
@@ -17,7 +18,6 @@ import (
 )
 
 const (
-	toolName     = "exit_plan_mode"
 	approveLabel = "Approve"
 	rejectLabel  = "Reject"
 )
@@ -45,7 +45,7 @@ func newExit(modes exitPolicy, plan reader, interrupt runs.InterruptFunc) (toolc
 		interrupt = runs.InterruptUnavailable
 	}
 	return toolcontract.NewFunc[exitArgs, string](
-		toolcontract.FuncConfig{Name: toolName, Description: exitDescription},
+		toolcontract.FuncConfig{Name: catalog.ExitPlanMode, Description: exitDescription},
 		(&exiter{modes: modes, plan: plan, interrupt: interrupt}).exit,
 	)
 }
@@ -77,7 +77,7 @@ func (t *exiter) exit(ctx context.Context, _ exitArgs) (string, error) {
 	pending := runs.Interrupt{
 		Kind: execution.QuestionInterrupt,
 		Question: &runs.QuestionPrompt{
-			ToolName:  toolName,
+			ToolName:  catalog.ExitPlanMode,
 			Arguments: arguments,
 			Fields: []runs.QuestionFieldSpec{{
 				Prompt: planpresentation.Render(steps),
@@ -94,7 +94,7 @@ func (t *exiter) exit(ctx context.Context, _ exitArgs) (string, error) {
 	}
 	resolution, err := t.interrupt(
 		ctx,
-		interrupts.InterruptKey(execution.QuestionInterrupt.String(), toolName, arguments),
+		interrupts.InterruptKey(execution.QuestionInterrupt.String(), catalog.ExitPlanMode, arguments),
 		pending,
 	)
 	if err != nil {

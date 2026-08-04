@@ -149,7 +149,7 @@ func TestGoalToolsAreRootOnlyAndOutcomeRequiresActiveGoal(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Tools(%s): %v", tc.role, err)
 		}
-		names := toolNameSet(resolved)
+		names := definitionNames(resolved)
 		for _, name := range []string{"create_goal", "get_goal", "report_goal_outcome"} {
 			if names[name] != tc.want[name] {
 				t.Errorf("role %s tool %s present=%v, want %v", tc.role, name, names[name], tc.want[name])
@@ -172,7 +172,7 @@ func TestGoalToolsAreRootOnlyAndOutcomeRequiresActiveGoal(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	names := toolNameSet(resolved)
+	names := definitionNames(resolved)
 	if !names["get_goal"] || names["report_goal_outcome"] {
 		t.Fatalf("inactive Goal tools = %v", names)
 	}
@@ -204,7 +204,7 @@ func TestProposeSkillIsRootOnlyAndDeferred(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Tools(%s): %v", tc.role, err)
 		}
-		if got := toolNameSet(resolved)["propose_skill"]; got != tc.want {
+		if got := definitionNames(resolved)["propose_skill"]; got != tc.want {
 			t.Errorf("role %s propose_skill present=%v, want %v", tc.role, got, tc.want)
 		}
 		manifest, err := toolloop.Advertise(resolved)

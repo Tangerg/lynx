@@ -11,6 +11,7 @@ import (
 	toolcontract "github.com/Tangerg/lynx/tool"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/executionctx"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/catalog"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/exec"
 )
 
@@ -108,10 +109,10 @@ func Build(shells *exec.Shells, defaultWorkdir string) ([]toolcontract.Tool, err
 
 	shellTool, err := toolcontract.NewFunc[shellArgs, string](
 		toolcontract.FuncConfig{
-			Name: "shell",
+			Name: catalog.Shell,
 			Description: "Execute a shell command via /bin/sh -c. Returns stdout/stderr, exit code, and duration. " +
 				"Set description to a concise action label that explains the command's purpose while it runs. " +
-				"Avoid `find`, `grep`, `cat`, `head`, `tail`, `sed`, `awk` here — use the dedicated `glob`, `grep`, `read`, `edit` tools instead; reserve `shell` for operations that genuinely need a shell (build commands, git, package managers, etc.). " +
+				"Avoid `find`, `grep`, `cat`, `head`, `tail`, `sed`, `awk` here — use the dedicated `glob`, `grep`, and `read` tools instead; use `apply_patch` for file changes. Reserve `shell` for operations that genuinely need a shell (build commands, git, package managers, etc.). " +
 				"Each invocation starts a fresh shell — `cd`, exported variables, and shell options do not persist between calls. " +
 				"A command still running after auto_background_after_seconds (default 60) is moved to the background; continue with read_shell_output or stop_shell. Set run_in_background to background it immediately.",
 		},
@@ -122,7 +123,7 @@ func Build(shells *exec.Shells, defaultWorkdir string) ([]toolcontract.Tool, err
 	}
 	outputTool, err := toolcontract.NewFunc[shellOutputArgs, string](
 		toolcontract.FuncConfig{
-			Name:        "read_shell_output",
+			Name:        catalog.ReadShellOutput,
 			Description: "Read only the new output produced by a background shell since the previous read and report whether it is still running. Set wait=true to wait event-first for exit instead of sleep polling; bound that wait with timeout_ms for servers or watchers.",
 		},
 		t.output,
@@ -132,7 +133,7 @@ func Build(shells *exec.Shells, defaultWorkdir string) ([]toolcontract.Tool, err
 	}
 	killTool, err := toolcontract.NewFunc[shellIDArgs, string](
 		toolcontract.FuncConfig{
-			Name:        "stop_shell",
+			Name:        catalog.StopShell,
 			Description: "Stop one background shell by the shell_id returned from shell.",
 		},
 		t.kill,

@@ -5,7 +5,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
-	tooloffload "github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/offload"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/catalog"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/conversation"
 )
 
@@ -32,7 +32,7 @@ func prepareEngineConfig(cfg Config) (agentexec.Config, messageEnvironment, erro
 	if cfg.ToolResultStore != nil {
 		ecfg.ToolResultStore = cfg.ToolResultStore
 		ecfg.ToolResultThreshold = cfg.ToolResultThreshold
-		ecfg.ToolResultReaderName = tooloffload.Name
+		ecfg.ToolResultReaderName = catalog.ReadToolResult
 	}
 	messages, err := buildMessageEnvironment(&ecfg)
 	return ecfg, messages, err

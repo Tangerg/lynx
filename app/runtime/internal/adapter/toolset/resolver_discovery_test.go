@@ -6,6 +6,7 @@ import (
 	"github.com/Tangerg/lynx/agent/toolloop"
 	toolcontract "github.com/Tangerg/lynx/tool"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/catalog"
 	domaintool "github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
 
@@ -78,7 +79,7 @@ func TestResolverDefersRuntimeToolsWithoutMCP(t *testing.T) {
 	for _, definition := range manifest {
 		advertised[definition.Name] = true
 	}
-	for _, direct := range []string{"read", "glob", "grep", "edit", "write", "shell", "search_tools"} {
+	for _, direct := range []string{catalog.Read, catalog.Glob, catalog.Grep, catalog.ApplyPatch, catalog.Shell, catalog.SearchTools} {
 		if !advertised[direct] {
 			t.Errorf("initial manifest = %v, missing direct tool %q", advertised, direct)
 		}

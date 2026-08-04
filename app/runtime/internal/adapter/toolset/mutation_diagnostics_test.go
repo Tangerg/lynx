@@ -13,10 +13,10 @@ import (
 	toolcontract "github.com/Tangerg/lynx/tool"
 )
 
-// TestWithEditDiagnostics_AppendsProblems verifies the highest-value LSP
-// integration: a successful write to a Go file with a compile error gets the
+// TestMutationDiagnosticsAppendsProblems verifies the highest-value LSP
+// integration: a successful mutation of a Go file with a compile error gets the
 // language server's diagnostics folded into the tool result. Runs real gopls.
-func TestWithEditDiagnostics_AppendsProblems(t *testing.T) {
+func TestMutationDiagnosticsAppendsProblems(t *testing.T) {
 	if _, err := exec.LookPath("gopls"); err != nil {
 		t.Skip("gopls not installed; skipping LSP integration test")
 	}
@@ -27,22 +27,21 @@ func TestWithEditDiagnostics_AppendsProblems(t *testing.T) {
 	ci := codeintel.New(nil)
 	t.Cleanup(func() { _ = ci.Close() })
 
-	// A stub "write" tool that writes path+content under root (stands in for the
-	// real fs write tool — we're testing the decorator, not fs).
-	type writeArgs struct {
+	// This stub isolates the decorator from the concrete filesystem adapter.
+	type mutationArgs struct {
 		Path    string `json:"path"`
 		Content string `json:"content"`
 	}
-	inner, _ := toolcontract.NewFunc[writeArgs, string](
-		toolcontract.FuncConfig{Name: "write", Description: "stub"},
-		func(_ context.Context, a writeArgs) (string, error) {
+	inner, _ := toolcontract.NewFunc[mutationArgs, string](
+		toolcontract.FuncConfig{Name: "test_mutation", Description: "stub"},
+		func(_ context.Context, a mutationArgs) (string, error) {
 			if err := os.WriteFile(filepath.Join(root, a.Path), []byte(a.Content), 0o644); err != nil {
 				return "", err
 			}
 			return "wrote " + a.Path, nil
 		},
 	)
-	wrapped := withEditDiagnostics(inner, ci, root)
+	wrapped := withMutationDiagnostics(inner, ci, root)
 	args := `{"path":"oops.go","content":"package main\n\nfunc main() {\n\tundefinedXYZ()\n}\n"}`
 
 	// Cold gopls may need more than one settle window; the file content is
@@ -52,7 +51,7 @@ func TestWithEditDiagnostics_AppendsProblems(t *testing.T) {
 	for time.Now().Before(deadline) {
 		o, err := wrapped.Call(context.Background(), args)
 		if err != nil {
-			t.Fatalf("wrapped write: %v", err)
+			t.Fatalf("wrapped mutation: %v", err)
 		}
 		if !strings.HasPrefix(o, "wrote oops.go") {
 			t.Fatalf("inner result lost: %q", o)

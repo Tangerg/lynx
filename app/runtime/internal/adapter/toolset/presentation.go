@@ -6,45 +6,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/pmezard/go-difflib/difflib"
-
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/delegation"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/offload"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
-)
-
-const (
-	toolNameApplyPatch          = "apply_patch"
-	toolNameAskUser             = "ask_user"
-	toolNameCreateGoal          = "create_goal"
-	toolNameCreateSchedule      = "create_schedule"
-	toolNameDeleteSchedule      = "delete_schedule"
-	toolNameEdit                = "edit"
-	toolNameEnterPlanMode       = "enter_plan_mode"
-	toolNameExitPlanMode        = "exit_plan_mode"
-	toolNameGetGoal             = "get_goal"
-	toolNameGlob                = "glob"
-	toolNameGrep                = "grep"
-	toolNameHTTPRequest         = "http_request"
-	toolNameListSchedules       = "list_schedules"
-	toolNameListSkills          = "list_skills"
-	toolNameLoadSkill           = "load_skill"
-	toolNameLSP                 = "lsp"
-	toolNameRead                = "read"
-	toolNameReadSkillResource   = "read_skill_resource"
-	toolNameShell               = "shell"
-	toolNameReadShellOutput     = "read_shell_output"
-	toolNameReadToolResult      = offload.Name
-	toolNameReportGoalOutcome   = "report_goal_outcome"
-	toolNameSearchMemory        = "search_memory"
-	toolNameSearchConversations = "search_conversations"
-	toolNameSearchTools         = "search_tools"
-	toolNameStopShell           = "stop_shell"
-	toolNameSetPlan             = "set_plan"
-	toolNameProposeSkill        = "propose_skill"
-	toolNameWebFetch            = "web_fetch"
-	toolNameWebSearch           = "web_search"
-	toolNameWrite               = "write"
 )
 
 // Presenter owns the client-facing projection of concrete tool schemas. Its
@@ -54,104 +16,72 @@ type Presenter struct{}
 
 // Activity returns concise progress text for a known concrete tool.
 func (Presenter) Activity(name string, arguments tool.Arguments) string {
-	switch strings.ToLower(name) {
-	case toolNameShell:
-		if args, ok := decodeArguments[shellActivityArguments](arguments, "description"); ok &&
-			isConciseActivityText(args.Description, 120) {
-			return args.Description
-		}
-		return "Running command"
-	case toolNameReadShellOutput:
-		return "Reading command output"
-	case toolNameStopShell:
-		return "Stopping command"
-	case toolNameRead:
-		return "Reading file"
-	case toolNameWrite:
-		return "Writing file"
-	case toolNameEdit:
-		return "Editing file"
-	case toolNameApplyPatch:
-		return "Applying a patch"
-	case toolNameGrep:
-		return "Searching"
-	case toolNameGlob:
-		return "Finding files"
-	case toolNameWebSearch:
-		return "Searching the web"
-	case toolNameWebFetch:
-		return "Fetching a page"
-	case delegation.Name:
-		if args, ok := decodeArguments[delegationActivityArguments](arguments, "summary"); ok &&
-			isConciseActivityText(args.Summary, 80) {
-			return "Delegating: " + args.Summary
-		}
-		return "Delegating to a sub-agent"
-	case toolNameAskUser:
-		return "Waiting for your answer"
-	case toolNameEnterPlanMode:
-		return "Entering Plan mode"
-	case toolNameSetPlan:
-		return "Updating the Plan"
-	case toolNameExitPlanMode:
-		return "Requesting Plan approval"
-	case toolNameCreateGoal:
-		return "Starting an autonomous Goal"
-	case toolNameGetGoal:
-		return "Inspecting the autonomous Goal"
-	case toolNameReportGoalOutcome:
-		return "Reporting a Goal outcome"
-	case toolNameListSchedules:
-		return "Listing schedules"
-	case toolNameCreateSchedule:
-		if args, ok := decodeArguments[scheduleActivityArguments](arguments, "title"); ok &&
-			isConciseActivityText(args.Title, 120) {
-			return "Creating schedule: " + args.Title
-		}
-		return "Creating a schedule"
-	case toolNameDeleteSchedule:
-		return "Deleting a schedule"
-	case toolNameListSkills:
-		return "Listing Skills"
-	case toolNameLoadSkill:
-		if args, ok := decodeArguments[skillActivityArguments](arguments, "name"); ok &&
-			isConciseActivityText(args.Name, 80) {
-			return "Loading Skill: " + args.Name
-		}
-		return "Loading a Skill"
-	case toolNameReadSkillResource:
-		return "Reading a Skill resource"
-	case toolNameProposeSkill:
-		if args, ok := decodeArguments[skillActivityArguments](arguments, "name"); ok &&
-			isConciseActivityText(args.Name, 64) {
-			return "Proposing Skill: " + args.Name
-		}
-		return "Proposing a Skill"
-	case toolNameLSP:
-		if args, ok := decodeArguments[lspActivityArguments](arguments, "operation"); ok {
-			if activity := lspActivity(args.Operation); activity != "" {
-				return activity
-			}
-		}
-		return "Querying the language server"
-	case toolNameSearchMemory:
-		return "Searching project memory"
-	case toolNameSearchConversations:
-		return "Searching earlier conversations"
-	case toolNameSearchTools:
-		return "Loading additional tools"
-	case toolNameReadToolResult:
-		return "Reading omitted tool output"
-	case toolNameHTTPRequest:
-		if args, ok := decodeArguments[httpActivityArguments](arguments, "url"); ok {
-			if method := httpMethod(args.Method); method != "" {
-				return "Sending " + method + " request"
-			}
-		}
-		return "Sending an HTTP request"
-	default:
+	descriptor, ok := descriptorFor(name)
+	if !ok {
 		return ""
 	}
+	if descriptor.activity != nil {
+		return descriptor.activity(arguments)
+	}
+	return descriptor.activityText
+}
+
+func shellToolActivity(arguments tool.Arguments) string {
+	if args, ok := decodeArguments[shellActivityArguments](arguments, "description"); ok &&
+		isConciseActivityText(args.Description, 120) {
+		return args.Description
+	}
+	return "Running command"
+}
+
+func delegationToolActivity(arguments tool.Arguments) string {
+	if args, ok := decodeArguments[delegationActivityArguments](arguments, "summary"); ok &&
+		isConciseActivityText(args.Summary, 80) {
+		return "Delegating: " + args.Summary
+	}
+	return "Delegating to a sub-agent"
+}
+
+func createScheduleActivity(arguments tool.Arguments) string {
+	if args, ok := decodeArguments[scheduleActivityArguments](arguments, "title"); ok &&
+		isConciseActivityText(args.Title, 120) {
+		return "Creating schedule: " + args.Title
+	}
+	return "Creating a schedule"
+}
+
+func loadSkillActivity(arguments tool.Arguments) string {
+	if args, ok := decodeArguments[skillActivityArguments](arguments, "name"); ok &&
+		isConciseActivityText(args.Name, 80) {
+		return "Loading Skill: " + args.Name
+	}
+	return "Loading a Skill"
+}
+
+func proposeSkillActivity(arguments tool.Arguments) string {
+	if args, ok := decodeArguments[skillActivityArguments](arguments, "name"); ok &&
+		isConciseActivityText(args.Name, 64) {
+		return "Proposing Skill: " + args.Name
+	}
+	return "Proposing a Skill"
+}
+
+func lspToolActivity(arguments tool.Arguments) string {
+	if args, ok := decodeArguments[lspActivityArguments](arguments, "operation"); ok {
+		if activity := lspActivity(args.Operation); activity != "" {
+			return activity
+		}
+	}
+	return "Querying the language server"
+}
+
+func httpToolActivity(arguments tool.Arguments) string {
+	if args, ok := decodeArguments[httpActivityArguments](arguments, "url"); ok {
+		if method := httpMethod(args.Method); method != "" {
+			return "Sending " + method + " request"
+		}
+	}
+	return "Sending an HTTP request"
 }
 
 type shellActivityArguments struct {
@@ -225,22 +155,27 @@ func httpMethod(method string) string {
 // client transcript shape. The second result is optional plain output for
 // clients that render command text separately.
 func (Presenter) Present(name string, arguments tool.Arguments, result tool.Result) (tool.Result, string) {
-	switch strings.ToLower(name) {
-	case toolNameShell:
-		return presentCommandResult(result)
-	case toolNameEdit:
-		return presentEditResult(arguments, result), ""
-	case toolNameWrite:
-		return presentWriteResult(arguments, result), ""
-	case toolNameApplyPatch:
-		return presentApplyPatchResult(result), ""
-	case toolNameGrep, toolNameGlob:
-		return presentSearchResult(result), ""
-	case toolNameWebSearch:
-		return presentWebSearchResult(result), ""
-	default:
+	descriptor, ok := descriptorFor(name)
+	if !ok || descriptor.presentation == nil {
 		return result, ""
 	}
+	return descriptor.presentation(arguments, result)
+}
+
+func presentCommand(_ tool.Arguments, result tool.Result) (tool.Result, string) {
+	return presentCommandResult(result)
+}
+
+func presentSearch(_ tool.Arguments, result tool.Result) (tool.Result, string) {
+	return presentSearchResult(result), ""
+}
+
+func presentWebSearch(_ tool.Arguments, result tool.Result) (tool.Result, string) {
+	return presentWebSearchResult(result), ""
+}
+
+func presentApplyPatch(_ tool.Arguments, result tool.Result) (tool.Result, string) {
+	return presentApplyPatchResult(result), ""
 }
 
 type commandResult struct {
@@ -366,16 +301,6 @@ func presentWebSearchResult(result tool.Result) tool.Result {
 	return projectResult(result, webSearchPresentation{Results: items})
 }
 
-type editArguments struct {
-	Path      string `json:"path"`
-	OldString string `json:"old_string"`
-	NewString string `json:"new_string"`
-}
-
-type writeArguments struct {
-	Path string `json:"path"`
-}
-
 type changePresentation struct {
 	Changes []presentedChange `json:"changes"`
 }
@@ -393,35 +318,6 @@ type presentedChange struct {
 	Path   string       `json:"path"`
 	Status changeStatus `json:"status"`
 	From   string       `json:"from,omitempty"`
-	Diff   []diffRow    `json:"diff,omitempty"`
-}
-
-type diffRowType string
-
-const (
-	diffRowAdded   diffRowType = "added"
-	diffRowContext diffRowType = "context"
-	diffRowDeleted diffRowType = "deleted"
-)
-
-type diffRow struct {
-	Type      diffRowType `json:"type"`
-	LeftLine  int         `json:"leftLine,omitempty"`
-	RightLine int         `json:"rightLine,omitempty"`
-	Code      string      `json:"code"`
-}
-
-func presentEditResult(arguments tool.Arguments, result tool.Result) tool.Result {
-	if _, ok := decodeResult[changePresentation](result, "changes"); ok {
-		return result
-	}
-	args, ok := decodeArguments[editArguments](arguments, "path")
-	if !ok || args.Path == "" {
-		return result
-	}
-	change := presentedChange{Path: args.Path, Status: changeModified}
-	change.Diff = editDiff(args.OldString, args.NewString)
-	return projectResult(result, changePresentation{Changes: []presentedChange{change}})
 }
 
 type applyPatchResult struct {
@@ -457,19 +353,6 @@ func presentApplyPatchResult(result tool.Result) tool.Result {
 		})
 	}
 	return projectResult(result, changePresentation{Changes: changes})
-}
-
-func presentWriteResult(arguments tool.Arguments, result tool.Result) tool.Result {
-	if _, ok := decodeResult[changePresentation](result, "changes"); ok {
-		return result
-	}
-	args, ok := decodeArguments[writeArguments](arguments, "path")
-	if !ok || args.Path == "" {
-		return result
-	}
-	return projectResult(result, changePresentation{Changes: []presentedChange{{
-		Path: args.Path, Status: changeModified,
-	}}})
 }
 
 func decodeResult[T any](result tool.Result, knownFields ...string) (T, bool) {
@@ -512,50 +395,4 @@ func projectResult[T presentationValue](original tool.Result, value T) tool.Resu
 		return original
 	}
 	return projected
-}
-
-func editDiff(oldText, newText string) []diffRow {
-	if oldText == newText {
-		return nil
-	}
-	oldLines, newLines := splitPresentationLines(oldText), splitPresentationLines(newText)
-	matcher := difflib.NewMatcher(oldLines, newLines)
-	rows := []diffRow{}
-	left, right := 1, 1
-	for _, operation := range matcher.GetOpCodes() {
-		switch operation.Tag {
-		case 'e':
-			for i := operation.I1; i < operation.I2; i++ {
-				rows = append(rows, diffRow{Type: diffRowContext, LeftLine: left, RightLine: right, Code: oldLines[i]})
-				left++
-				right++
-			}
-		case 'd', 'r':
-			for i := operation.I1; i < operation.I2; i++ {
-				rows = append(rows, diffRow{Type: diffRowDeleted, LeftLine: left, Code: oldLines[i]})
-				left++
-			}
-			if operation.Tag != 'r' {
-				continue
-			}
-			fallthrough
-		case 'i':
-			for i := operation.J1; i < operation.J2; i++ {
-				rows = append(rows, diffRow{Type: diffRowAdded, RightLine: right, Code: newLines[i]})
-				right++
-			}
-		}
-	}
-	return rows
-}
-
-func splitPresentationLines(text string) []string {
-	if text == "" {
-		return nil
-	}
-	lines := strings.Split(text, "\n")
-	if lines[len(lines)-1] == "" {
-		return lines[:len(lines)-1]
-	}
-	return lines
 }

@@ -13,7 +13,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/agentmemory"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/skillauthoring"
 )
 
@@ -38,10 +37,6 @@ func buildToolEnvironment(
 	skillStore *skillauthoring.Store,
 	skillProposals skill.ProposalSubmitter,
 ) (toolEnvironment, error) {
-	defaultModel, err := modelref.New(cfg.Provider, cfg.Model)
-	if err != nil {
-		return toolEnvironment{}, fmt.Errorf("runtime: default tool model: %w", err)
-	}
 	mcpPool, mcpTools, err := mcpconnection.Open(ctx, mcpEnv.servers, cfg.MCPOAuthSessions)
 	if err != nil {
 		return toolEnvironment{}, fmt.Errorf("runtime: open MCP connections: %w", err)
@@ -53,7 +48,6 @@ func buildToolEnvironment(
 	bc := toolset.BuildConfig{
 		Workdir:         ecfg.Workdir,
 		UserHome:        ecfg.UserHome,
-		DefaultModel:    defaultModel,
 		SkillsUserDir:   cfg.SkillsUserDir,
 		Online:          cfg.Online,
 		LSPServers:      cfg.LSPServers,

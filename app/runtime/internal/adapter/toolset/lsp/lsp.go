@@ -11,6 +11,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/codeintel"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/executionctx"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/catalog"
 )
 
 // Build exposes the code-intelligence analyzer as one `lsp` tool whose
@@ -92,7 +93,7 @@ type lspRunner struct {
 func newLSPTool(ci *codeintel.Analyzer, defaultWorkdir string) (toolcontract.Tool, error) {
 	t := &lspRunner{analyzer: ci, defaultWorkdir: defaultWorkdir}
 	return toolcontract.NewFunc[lspInput, string](
-		toolcontract.FuncConfig{Name: "lsp", Description: lspDesc},
+		toolcontract.FuncConfig{Name: catalog.LSP, Description: lspDesc},
 		t.query,
 	)
 }

@@ -8,80 +8,27 @@ import (
 	toolcontract "github.com/Tangerg/lynx/tool"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/codeintel"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/catalog"
 	domaintool "github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
 
-func TestUseApplyPatchMatchesNativeAgentDialects(t *testing.T) {
-	tests := []struct {
-		name     string
-		provider string
-		model    string
-		want     bool
-	}{
-		{name: "Codex modern GPT", provider: "openai", model: "gpt-5.6-codex", want: true},
-		{name: "Grok", provider: "xai", model: "grok-4.5", want: true},
-		{name: "provider-independent GPT dialect", provider: "openrouter", model: "openai/gpt-5", want: true},
-		{name: "legacy GPT-4", provider: "openai", model: "gpt-4.1"},
-		{name: "OpenAI OSS", provider: "openai", model: "gpt-oss-120b"},
-		{name: "Claude", provider: "anthropic", model: "claude-opus-4-1"},
-		{name: "Kimi", provider: "moonshot", model: "kimi-k2"},
-		{name: "runtime default not configured"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			selection, err := modelref.New(tt.provider, tt.model)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if got := useApplyPatch(selection); got != tt.want {
-				t.Fatalf("useApplyPatch(%q, %q) = %v, want %v", tt.provider, tt.model, got, tt.want)
-			}
-		})
-	}
-}
-
 func TestResolverRegistersExactlyOneMutationVocabulary(t *testing.T) {
-	for _, tc := range []struct {
-		name     string
-		provider string
-		model    string
-		patch    bool
-	}{
-		{name: "Codex", provider: "openai", model: "gpt-5", patch: true},
-		{name: "Claude", provider: "anthropic", model: "claude-sonnet", patch: false},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			selection, err := modelref.New(tc.provider, tc.model)
-			if err != nil {
-				t.Fatal(err)
-			}
-			built, err := Build(t.Context(), BuildConfig{
-				Workdir: t.TempDir(), UserHome: t.TempDir(), DefaultModel: selection,
-			})
-			if err != nil {
-				t.Fatalf("Build: %v", err)
-			}
-			closeBuiltToolset(t, built)
-			group, ok, err := built.Resolver.Resolve(t.Context(), domaintool.GroupRoot)
-			if err != nil || !ok {
-				t.Fatalf("Resolve = (%v, %v)", ok, err)
-			}
-			resolved, err := group.Tools(t.Context())
-			if err != nil {
-				t.Fatalf("Tools: %v", err)
-			}
-			names := toolNameSet(resolved)
-			if tc.patch {
-				if !names["apply_patch"] || names["edit"] || names["write"] {
-					t.Fatalf("Codex mutation vocabulary = %v", names)
-				}
-				return
-			}
-			if names["apply_patch"] || !names["edit"] || !names["write"] {
-				t.Fatalf("edit/write mutation vocabulary = %v", names)
-			}
-		})
+	built, err := Build(t.Context(), BuildConfig{Workdir: t.TempDir(), UserHome: t.TempDir()})
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+	closeBuiltToolset(t, built)
+	group, ok, err := built.Resolver.Resolve(t.Context(), domaintool.GroupRoot)
+	if err != nil || !ok {
+		t.Fatalf("Resolve = (%v, %v)", ok, err)
+	}
+	resolved, err := group.Tools(t.Context())
+	if err != nil {
+		t.Fatalf("Tools: %v", err)
+	}
+	names := definitionNames(resolved)
+	if !names[catalog.ApplyPatch] || names["edit"] || names["write"] {
+		t.Fatalf("mutation vocabulary = %v, want apply_patch only", names)
 	}
 }
 
@@ -101,22 +48,22 @@ func TestResolverInitialManifestSeparatesDirectAndDeferredCapabilities(t *testin
 	t.Cleanup(func() { _ = analyzer.Close() })
 	resolver, err := newResolver(resolverDeps{
 		DefaultWorkdir: t.TempDir(),
-		Online:         []toolcontract.Tool{named("web_fetch")},
+		Online:         []toolcontract.Tool{named(catalog.WebFetch)},
 		A2A:            []toolcontract.Tool{named("remote_agent")},
-		LSP:            []toolcontract.Tool{named("lsp")},
-		Shell:          []toolcontract.Tool{named("shell")},
-		AskUser:        named("ask_user"),
-		EnterPlan:      named("enter_plan_mode"),
-		ExitPlan:       named("exit_plan_mode"),
-		Plan:           named("set_plan"),
+		LSP:            []toolcontract.Tool{named(catalog.LSP)},
+		Shell:          []toolcontract.Tool{named(catalog.Shell)},
+		AskUser:        named(catalog.AskUser),
+		EnterPlan:      named(catalog.EnterPlanMode),
+		ExitPlan:       named(catalog.ExitPlanMode),
+		Plan:           named(catalog.SetPlan),
 		ScheduleTools: []toolcontract.Tool{
-			named("list_schedules"), named("create_schedule"), named("delete_schedule"),
+			named(catalog.ListSchedules), named(catalog.CreateSchedule), named(catalog.DeleteSchedule),
 		},
-		ToolResult:    named("read_tool_result"),
-		MemorySearch:  named("search_memory"),
-		SessionSearch: named("search_conversations"),
-		GoalGet:       named("get_goal"),
-		ProposeSkill:  named("propose_skill"),
+		ToolResult:    named(catalog.ReadToolResult),
+		MemorySearch:  named(catalog.SearchMemory),
+		SessionSearch: named(catalog.SearchConversations),
+		GoalGet:       named(catalog.GetGoal),
+		ProposeSkill:  named(catalog.ProposeSkill),
 		CodeIntel:     analyzer,
 		ReadTracker:   newReadTracker(),
 	})
@@ -134,7 +81,7 @@ func TestResolverInitialManifestSeparatesDirectAndDeferredCapabilities(t *testin
 	if err != nil {
 		t.Fatalf("Tools: %v", err)
 	}
-	registered := toolNameSet(resolved)
+	registered := definitionNames(resolved)
 	manifest, err := toolloop.Advertise(resolved)
 	if err != nil {
 		t.Fatalf("Advertise: %v", err)
@@ -144,9 +91,9 @@ func TestResolverInitialManifestSeparatesDirectAndDeferredCapabilities(t *testin
 		advertised[definition.Name] = true
 	}
 	for _, name := range []string{
-		"read", "glob", "grep", "edit", "write", "shell", "ask_user",
-		"enter_plan_mode", "exit_plan_mode", "set_plan", "read_tool_result",
-		"get_goal", "search_tools",
+		catalog.Read, catalog.Glob, catalog.Grep, catalog.ApplyPatch, catalog.Shell, catalog.AskUser,
+		catalog.EnterPlanMode, catalog.ExitPlanMode, catalog.SetPlan, catalog.ReadToolResult,
+		catalog.GetGoal, catalog.SearchTools,
 	} {
 		if !advertised[name] {
 			t.Errorf("direct tool %q missing from initial manifest: %v", name, advertised)

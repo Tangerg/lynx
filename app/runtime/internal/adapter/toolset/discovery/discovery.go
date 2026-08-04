@@ -20,6 +20,7 @@ import (
 	toolcontract "github.com/Tangerg/lynx/tool"
 
 	"github.com/Tangerg/lynx/agent/toolloop"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/catalog"
 	"github.com/Tangerg/lynx/core/chat"
 )
 
@@ -95,7 +96,7 @@ func New(withheld []toolcontract.Tool) (*Search, error) {
 	}
 	inner, err := toolcontract.NewFunc(
 		toolcontract.FuncConfig{
-			Name:        "search_tools",
+			Name:        catalog.SearchTools,
 			Description: t.buildDescription(),
 		},
 		t.search,

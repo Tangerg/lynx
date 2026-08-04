@@ -11,6 +11,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/suspension"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/catalog"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval/approvaltest"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
@@ -44,14 +45,14 @@ func TestApproveToolCall_RememberedShortCircuit(t *testing.T) {
 	}
 
 	// Remembered deny → verdict denies (no interrupt).
-	writeArguments := `{"path":"main.go"}`
+	patchArguments := `{"patch":"--- a/main.go\n+++ b/main.go\n@@ -1 +1 @@\n-old\n+new\n"}`
 	if err := appr.Remember(ctx, approval.RememberRequest{
-		Scope: approval.ScopeSession, SessionID: "s1", Tool: "write",
-		Subject: "main.go", Decision: approval.Deny,
+		Scope: approval.ScopeSession, SessionID: "s1", Tool: catalog.ApplyPatch,
+		Decision: approval.Deny,
 	}); err != nil {
-		t.Fatalf("remember write deny: %v", err)
+		t.Fatalf("remember apply_patch deny: %v", err)
 	}
-	if v := obs.ApproveToolCall(ctx, "c2", "write", writeArguments, agentexec.ToolApprovalTarget{}); v.Interrupt != nil || !v.Denied {
+	if v := obs.ApproveToolCall(ctx, "c2", catalog.ApplyPatch, patchArguments, agentexec.ToolApprovalTarget{}); v.Interrupt != nil || !v.Denied {
 		t.Fatalf("remembered deny = %+v, want a denied verdict", v)
 	}
 }

@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/executionctx"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/catalog"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	resultoffload "github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
 )
@@ -42,8 +43,8 @@ func TestNewUsesCanonicalName(t *testing.T) {
 	if err != nil || tool == nil {
 		t.Fatalf("New = (%v, %v), want a tool", tool, err)
 	}
-	if got := tool.Definition().Name; got != Name {
-		t.Fatalf("tool name = %q, want %q", got, Name)
+	if got := tool.Definition().Name; got != catalog.ReadToolResult {
+		t.Fatalf("tool name = %q, want %q", got, catalog.ReadToolResult)
 	}
 }
 

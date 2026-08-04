@@ -17,6 +17,7 @@ import (
 	toolcontract "github.com/Tangerg/lynx/tool"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/executionctx"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/catalog"
 	resultoffload "github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
 )
 
@@ -24,8 +25,6 @@ import (
 // read_tool_result returns a readable window instead of re-inflating a huge body
 // into context (which would defeat the eviction it is recovering from).
 const (
-	// Name is the model-facing retrieval capability paired with result eviction.
-	Name              = "read_tool_result"
 	defaultReadWindow = 20_000
 )
 
@@ -65,7 +64,7 @@ func New(store Store) (toolcontract.Tool, error) {
 		return nil, nil
 	}
 	return toolcontract.NewFunc[readArgs, string](
-		toolcontract.FuncConfig{Name: Name, Description: description},
+		toolcontract.FuncConfig{Name: catalog.ReadToolResult, Description: description},
 		(&reader{store: store}).read,
 	)
 }

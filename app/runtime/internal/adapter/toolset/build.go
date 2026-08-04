@@ -21,7 +21,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/skill"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/a2a"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/exec"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/sandbox"
@@ -39,7 +38,6 @@ import (
 type BuildConfig struct {
 	Workdir       string
 	UserHome      string
-	DefaultModel  modelref.Selection
 	SkillsUserDir string
 	Online        OnlineConfig
 	LSPServers    []codeintel.ServerSpec
@@ -213,7 +211,6 @@ func Build(ctx context.Context, config BuildConfig) (_ Built, err error) {
 	resolver, err := newResolver(resolverDeps{
 		SkillUsage:      config.SkillUsage,
 		DefaultWorkdir:  config.Workdir,
-		DefaultModel:    config.DefaultModel,
 		SkillsUserDir:   config.SkillsUserDir,
 		Online:          online,
 		A2A:             connections.a2aTools,

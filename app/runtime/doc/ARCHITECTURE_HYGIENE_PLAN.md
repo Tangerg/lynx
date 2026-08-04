@@ -912,6 +912,7 @@ Acceptance:
 | 38. Run write-set ownership closure | Completed | 2026-08-04 | 2026-08-04 | Opening, tree-barrier, and waiting-subtree invariants are application-owned; runsegment retains only store availability, optimistic snapshot claiming, transaction I/O, and compensation. Full build/vet/test, focused race tests, static analysis, lint, dead-code analysis, formatting, and architecture checks passed. |
 | 39. Concrete tool contract ownership | Completed | 2026-08-04 | 2026-08-04 | Delegation schema/description, Goal outcome prompt, special policy, and Plan outcome projection moved to toolset; agentexec contains no built-in tool identities and consumes one neutral semantics port. Full build/vet/test, focused race tests, static analysis, lint, dead-code analysis, and architecture checks passed. |
 | 40. Run pump responsibility closure | Completed | 2026-08-04 | 2026-08-04 | The monolithic pump became one concrete single-goroutine state owner with focused event, synthesis, teardown, and boundary methods; batch publication moved to its own cohesive file. Full build/vet/test, focused race tests, static analysis, lint, dead-code analysis, and architecture checks passed. |
+| 41. Tool identity and mutation vocabulary closure | Completed | 2026-08-04 | 2026-08-04 | Built-in identities and cross-cutting metadata are catalog-owned; all models use only `apply_patch`; model-id dialect inference and the `edit`/`write` Runtime family were removed. Full build/vet/test, focused race tests, static analysis, lint, dead-code analysis, formatting, and architecture checks passed. |
 
 Allowed status values: `Pending`, `In progress`, `Completed`, `Blocked`, `Revised`.
 
@@ -970,6 +971,27 @@ Allowed status values: `Pending`, `In progress`, `Completed`, `Blocked`, `Revise
   methods, preserving serialized ownership of routes and reducers. `go build
   ./...`, `go vet ./...`, `go test ./...`, focused `-race`, `staticcheck`,
   `golangci-lint`, and `deadcode -test` passed.
+
+### 2026-08-04 — Batch 41 completed
+
+- Added one stable `toolset/catalog` identity vocabulary and one descriptor
+  catalog for safety, policy exceptions, activity, result presentation, and
+  successful-call outcome projection. Runtime-owned constructors, Semantics,
+  Presenter, direct diagnostics, and Bootstrap now consume those identities;
+  former `toolName*` and package-local identity aliases were removed.
+- Removed the model-id mutation dialect heuristic and the Toolset default-model
+  dependency. Every Run now receives only `apply_patch`; the Runtime no longer
+  registers or maintains `edit` / `write` guards, presentation, resolver
+  branches, or profile tests.
+- Retargeted read-before-change, stale-read, path-lock, protected-path,
+  auto-format, and code-intelligence diagnostics tests to the surviving
+  `apply_patch` path. Renamed residual edit-specific private vocabulary to
+  mutation semantics and removed the unused direct diff dependency.
+- Added fitness checks that reject authored Runtime tool-name literals and
+  model-specific mutation branches. Updated the normative tool-system document
+  to record the breaking single-vocabulary decision. Full build, vet, test,
+  focused race tests, `staticcheck`, `golangci-lint`, `deadcode -test`,
+  formatting, and diff checks passed.
 
 ### 2026-08-04 — Batch 37 completed
 

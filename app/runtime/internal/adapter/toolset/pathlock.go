@@ -13,7 +13,7 @@ import (
 const fileResourceKeyPrefix = "file:"
 
 // pathLocker serializes file tool calls that target the same resolved path.
-// Separate runs can execute concurrently, so two write/edit calls must not
+// Separate runs can execute concurrently, so two mutations must not
 // interleave, and a tracked read must stamp the exact state it read.
 // Keyed by resolved abs path and ref-counted so the map doesn't grow unbounded;
 // glob / grep / LSP / MCP tools are unaffected. The runtime resolver owns one
@@ -102,7 +102,7 @@ type pathLocked struct {
 
 func (t *pathLocked) Definition() chat.ToolDefinition { return t.inner.Definition() }
 
-// Unwrap exposes the locked tool so everything it declares — where its edits
+// Unwrap exposes the locked tool so everything it declares — where its mutations
 // land, whether it ends the round — stays reachable through the lock. Only the
 // scheduling key below is this wrapper's own, and declaring it here is what
 // makes it win over the inner tool's.
