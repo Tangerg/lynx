@@ -12,6 +12,7 @@ import {
   RouterProvider,
 } from "@tanstack/react-router";
 import { lookupExtensionPoint, ROUTE } from "@/plugins/sdk";
+import { Devtools } from "@/Devtools";
 
 const rootRoute = createRootRoute({
   component: () => <Outlet />,
@@ -51,5 +52,13 @@ export function AppRouter() {
   // `rebuildRouter()` host API, which we'll add only when there's a real
   // need (sideloaded routes are not on the current roadmap).
   const router = buildRouter();
-  return <RouterProvider router={router} />;
+  return (
+    <>
+      <RouterProvider router={router} />
+      {/* Beside the provider rather than inside it: RouterProvider renders the
+          matched route tree, so it has no slot to put this in. The router goes
+          down as a prop instead. Compiles to nothing in a build. */}
+      <Devtools router={router} />
+    </>
+  );
 }
