@@ -336,9 +336,8 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 		Maintenance:         executionServices.maintenance,
 		Approval:            approvalPolicy,
 		ClientResolver:      resolver,
-		Plan:                ecfg.Plan,
 		ToolPresenter:       toolset.Presenter{},
-		ToolSemantics:       toolset.Semantics{},
+		ToolSemantics:       toolset.NewSemantics(cfg.PlanStore),
 		MCPToolAutoApproved: mcpEnv.policy.ToolAutoApproved,
 		Hooks:               cfg.HooksResolver,
 	})
@@ -507,7 +506,7 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 	// paused rather than silently resuming and burning budget.
 	var goalDriver *goals.Driver
 	if cfg.GoalStore != nil {
-		goalDriver = goals.NewDriverWithMutations(goalStore, runCoord, cfg.SessionStore, goalMutations, agentexec.GoalPrompt)
+		goalDriver = goals.NewDriverWithMutations(goalStore, runCoord, cfg.SessionStore, goalMutations, goal.Prompt)
 		lifetime.goals = goalDriver
 		if err := goalDriver.Reconcile(ctx); err != nil {
 			return nil, fmt.Errorf("runtime: reconcile goals: %w", err)

@@ -1,9 +1,13 @@
 package toolset
 
 import (
+	"context"
 	"errors"
 	"testing"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/delegation"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
 
@@ -13,7 +17,7 @@ func TestSemanticsSafetyClassFailsClosed(t *testing.T) {
 		name string
 		want tool.SafetyClass
 	}{
-		{name: toolNameDelegateTask, want: tool.SafetyClassSafe},
+		{name: delegation.Name, want: tool.SafetyClassSafe},
 		{name: toolNameListSchedules, want: tool.SafetyClassSafe},
 		{name: toolNameCreateSchedule, want: tool.SafetyClassWrite},
 		{name: toolNameWrite, want: tool.SafetyClassWrite},
@@ -71,4 +75,50 @@ func TestSemanticsShellCommand(t *testing.T) {
 	if got := semantics.ShellCommand(toolNameWrite, `{"command":"rm -rf /"}`); got != "" {
 		t.Fatalf("non-shell command = %q, want empty", got)
 	}
+}
+
+func TestSemanticsDelegationUsesChildLifecyclePolicy(t *testing.T) {
+	semantics := Semantics{}
+	if semantics.UsesStandardPolicy(delegation.Name) {
+		t.Fatal("delegation entered ordinary tool-call policy")
+	}
+	for _, name := range []string{toolNameRead, "extension_tool"} {
+		if !semantics.UsesStandardPolicy(name) {
+			t.Errorf("ordinary tool %q bypassed standard policy", name)
+		}
+	}
+}
+
+func TestSemanticsProjectsSuccessfulPlanReplacement(t *testing.T) {
+	want := plan.State{Revision: 7, Steps: []plan.Step{{Description: "verify", Status: plan.StatusInProgress}}}
+	semantics := NewSemantics(fixedPlanState{state: want})
+	event, err := semantics.ProjectOutcome(t.Context(), "session_1", toolNameSetPlan, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	updated, ok := event.(runs.PlanUpdated)
+	if !ok || updated.State.Revision != want.Revision || len(updated.State.Steps) != 1 {
+		t.Fatalf("projected event = %#v, want PlanUpdated %#v", event, want)
+	}
+	for _, test := range []struct {
+		name      string
+		succeeded bool
+	}{
+		{name: toolNameSetPlan},
+		{name: toolNameRead, succeeded: true},
+	} {
+		event, err := semantics.ProjectOutcome(t.Context(), "session_1", test.name, test.succeeded)
+		if err != nil || event != nil {
+			t.Errorf("ProjectOutcome(%q, %t) = (%#v, %v), want no event", test.name, test.succeeded, event, err)
+		}
+	}
+}
+
+type fixedPlanState struct {
+	state plan.State
+	err   error
+}
+
+func (s fixedPlanState) State(context.Context, string) (plan.State, error) {
+	return s.state, s.err
 }

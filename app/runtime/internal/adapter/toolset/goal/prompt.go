@@ -1,11 +1,11 @@
-package agentexec
+package goal
 
 import "github.com/Tangerg/lynx/app/runtime/internal/application/goals"
 
-// GoalPrompt renders the model-facing instruction for an autonomous Goal Run.
-// Goal lifecycle decisions stay in application/goals; this execution adapter
-// owns the wording and the report_goal_outcome contract presented to the model.
-func GoalPrompt(input goals.PromptInput) string {
+// Prompt renders the model-facing instruction for an autonomous Goal Run. Goal
+// lifecycle decisions stay in Application; this package owns the wording and
+// the outcome-reporting tool contract it names.
+func Prompt(input goals.PromptInput) string {
 	prefix := input.Objective
 	if input.Continuing {
 		prefix = "Continue toward the goal: " + input.Objective

@@ -14,7 +14,7 @@ func approvalDenialMessage(denial approval.Denial, toolName string) string {
 		}
 		return "denied by a PreToolUse hook"
 	case approval.DenialPlanMode:
-		return fmt.Sprintf("plan mode is active (read-only): %s is not permitted. Investigate with read-only tools, then call exit_plan_mode to present your plan for approval.", toolName)
+		return fmt.Sprintf("plan mode is active (read-only): %s is not permitted. Continue investigating with read-only tools or request Plan approval before making changes.", toolName)
 	case approval.DenialRememberedRule:
 		return "tool call denied by a remembered rule"
 	default:

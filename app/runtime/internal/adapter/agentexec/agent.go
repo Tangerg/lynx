@@ -66,8 +66,8 @@ type TurnOutput struct {
 // [core.ProcessContext.Interact], the framework-managed interaction boundary.
 // Runtime owns model/tool iteration, checkpointing, suspension, usage, and
 // limits; the app supplies its prompt, streaming projection, pricing, and
-// product tool policy. The model can therefore call read / write / edit / glob /
-// grep / shell freely within one turn without an app-owned loop.
+// product tool policy. The model can therefore use the resolved tools freely
+// within one turn without an application-owned iteration loop.
 //
 // The body uses Stream rather than Call so each text chunk surfaces
 // to [executionObserver.OnMessageDelta] as it arrives — transport
@@ -91,46 +91,5 @@ func (e *Engine) buildTurnAgent() *core.Agent {
 		Description: "Single-turn LLM chat with the root Agent tool set.",
 		Actions:     []agent.Action{chatAction},
 		Goals:       []*agent.Goal{replyGoal},
-	})
-}
-
-// delegateTaskInput is the complete model-facing contract for one delegated
-// task. Both fields are runtime semantics: Summary identifies the child in
-// lifecycle events and Instructions are its isolated input.
-type delegateTaskInput struct {
-	Summary      string `json:"summary" jsonschema:"minLength=1,maxLength=80,pattern=^[^[:space:]](.*[^[:space:]])?$" jsonschema_description:"Concise 3-5 word action label, at most 80 characters, that identifies this delegated task. Do not include leading or trailing whitespace."`
-	Instructions string `json:"instructions" jsonschema:"minLength=1" jsonschema_description:"Complete self-contained work instructions. The delegated Agent cannot see the parent conversation, so include every fact it needs."`
-}
-
-// buildDelegatedAgent constructs the Agent behind delegate_task.
-// It shares the main agent's chat body but has three deliberate differences:
-// its name derives the model-facing tool name; [tool.GroupDelegated] exposes
-// task tools plus bounded recursive delegation while withholding root-only
-// product tools; and its goal returns only the reply string rather than a
-// TurnOutput blob. Agent Runtime's MaxChildDepth and root-owned tree budget
-// bound recursion, while usage still aggregates through the process subtree.
-func (e *Engine) buildDelegatedAgent() *core.Agent {
-	delegatedTaskAction := agent.NewAction(
-		"delegated_task",
-		func(ctx context.Context, processCtx *core.ProcessContext, input delegateTaskInput) (string, error) {
-			output, err := e.runTurn(ctx, processCtx, input.Instructions, nil, nil)
-			if err != nil {
-				return "", err
-			}
-			return output.Reply, nil
-		},
-		core.ActionConfig{ToolGroups: []string{tool.GroupDelegated}},
-	)
-	answerGoal := agent.NewOutputGoal[string](
-		core.GoalConfig{Description: "delegated task answer produced"},
-	)
-	return agent.New(agent.AgentConfig{
-		Name: "delegate_task",
-		Description: "Delegate one self-contained task to a fresh Agent with coding tools and bounded delegation. " +
-			"Use it for focused, separable work so the current context stays uncluttered. " +
-			"The delegated Agent starts with clean context and cannot see its parent conversation, so include everything it needs in instructions. " +
-			"It returns one final answer.",
-		Actions: []agent.Action{delegatedTaskAction},
-		Goals:   []*agent.Goal{answerGoal},
 	})
 }

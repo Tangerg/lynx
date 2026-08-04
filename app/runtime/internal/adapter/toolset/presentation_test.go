@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/delegation"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
 
@@ -20,8 +21,8 @@ func TestPresenterActivity(t *testing.T) {
 		{name: "web search", toolName: toolNameWebSearch, arguments: `{}`, want: "Searching the web"},
 		{name: "shell description", toolName: toolNameShell, arguments: `{"command":"go test ./...","description":"Run server tests"}`, want: "Run server tests"},
 		{name: "shell invalid description", toolName: toolNameShell, arguments: `{"description":" Run server tests"}`, want: "Running command"},
-		{name: "delegation summary", toolName: toolNameDelegateTask, arguments: `{"summary":"Review tool contracts"}`, want: "Delegating: Review tool contracts"},
-		{name: "long delegation summary", toolName: toolNameDelegateTask, arguments: `{"summary":"` + strings.Repeat("a", 81) + `"}`, want: "Delegating to a sub-agent"},
+		{name: "delegation summary", toolName: delegation.Name, arguments: `{"summary":"Review tool contracts"}`, want: "Delegating: Review tool contracts"},
+		{name: "long delegation summary", toolName: delegation.Name, arguments: `{"summary":"` + strings.Repeat("a", 81) + `"}`, want: "Delegating to a sub-agent"},
 		{name: "enter Plan mode", toolName: toolNameEnterPlanMode, arguments: `{}`, want: "Entering Plan mode"},
 		{name: "set Plan", toolName: toolNameSetPlan, arguments: `{}`, want: "Updating the Plan"},
 		{name: "exit Plan mode", toolName: toolNameExitPlanMode, arguments: `{}`, want: "Requesting Plan approval"},

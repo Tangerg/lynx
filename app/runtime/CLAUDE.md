@@ -14,7 +14,7 @@
 - **Clean Arch 同心环,依赖一律向内**(domain 是核心;application 只依赖 domain、consumer ports、中立 Core chat/media 值契约与无领域语义 component 原语;adapter 实现 application/domain port 并包 infra;delivery 驱动 application/adapter):**目录名 = 环名**,由 `internal/arch` 的测试机器强制 —— 任何向外的依赖边都是回归。
   - **delivery**:协议契约 —— wire 类型、JSON-RPC 方法路由、transport envelope I/O。
   - **adapter**:能力适配器,实现 application/domain 的 port、包装外部能力;`adapter/agentexec` 部署 Agent definition、装 system prompt/per-run model/process options、启动或恢复 process tree,`adapter/toolset` 单独组装工具/MCP/A2A/LSP/exec 能力,`adapter/{maintenance,runsegment,modelclient …}` 各司一域。
-  - **具体工具语义归 toolset**:`agentexec/turn` 只经其自定义的窄 presenter port 消费 activity/result projection,不得硬编码 shell/edit/web 等工具名、参数字段或私有返回结构。
+  - **具体工具语义归 toolset**:`agentexec/turn` 只经其自定义的窄 presentation/semantics ports 消费 activity、result、approval/hook policy 与成功调用后的状态投影,不得硬编码具体工具名、参数字段、私有返回结构或工具专属后置分支。
   - **application**:用例协调层 —— Run/Session/能力/workspace/schedules 生命周期的编排;`application/runs` 拥有 Run 从 Start 到 Terminal 的完整流程(admission / journal / pump / cancel),engine 与 wire 中立,consumer-side port 定义在此。
   - **domain**:限界上下文,一域一包(会话 / 知识 / transcript / 审批 / 工具 / provider / execution …),零外向依赖,纯 entities + 领域服务 + port。
   - **infra**:技术设施(driven adapter),零领域、只实现 domain port(存储 / git / LSP / 影子 git / 进程执行 / MCP / A2A)。

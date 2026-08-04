@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/core/chat"
@@ -71,6 +72,12 @@ type ToolPresenter interface {
 // domain facts used by approval and transcript projection.
 type ToolSemantics interface {
 	SafetyClass(toolName string) tool.SafetyClass
+	UsesStandardPolicy(toolName string) bool
 	ApprovalSubject(toolName string, arguments tool.Arguments) (string, error)
 	ShellCommand(toolName, arguments string) string
+	ProjectOutcome(
+		ctx context.Context,
+		sessionID, toolName string,
+		succeeded bool,
+	) (runs.EngineEvent, error)
 }

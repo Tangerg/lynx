@@ -21,13 +21,11 @@ type KnowledgeReader interface {
 	Get(ctx context.Context, scope knowledge.Scope, dir string) (string, error)
 }
 
-// PlanReader is the execution adapter's read-only view of session plan: the
-// items for prompt assembly, and the whole projection — revision included — for
-// the state.snapshot the turn publishes after a replacement.
-// Replacing a list and lifecycle cleanup belong to their direct consumers.
+// PlanReader is the prompt assembler's read-only view of the current session
+// Plan. Replacement, client projection, and lifecycle cleanup belong to their
+// direct consumers.
 type PlanReader interface {
 	List(ctx context.Context, sessionID string) ([]plan.Step, error)
-	State(ctx context.Context, sessionID string) (plan.State, error)
 }
 
 // AgentMemoryReader is the prompt assembler's view of agent-maintained memory
@@ -107,9 +105,9 @@ type Config struct {
 	// disables per-turn recall (only the pinned core is injected).
 	MemorySearch MemorySearcher
 
-	// Plan optionally supplies the root Agent's per-session execution plan.
-	// The tool resolver owns set_plan visibility; this read-only port only injects
-	// the current plan into system prompts. nil disables plan injection.
+	// Plan optionally supplies the root Agent's per-session execution plan. This
+	// read-only port only injects the current Plan into system prompts. nil
+	// disables Plan injection.
 	Plan PlanReader
 
 	// ToolResolver supplies the execution-time role groups and accepts the task
@@ -136,7 +134,7 @@ type Config struct {
 
 	// ToolResultStore backs tool-result eviction: a single tool output larger
 	// than ToolResultThreshold is offloaded here and replaced in history by a
-	// head+tail preview the model can read back via read_tool_result. nil
+	// head+tail preview the model can read back through ToolResultReaderName. nil
 	// disables eviction (results always flow to history in full).
 	ToolResultStore toolResultOffloader
 

@@ -337,6 +337,37 @@ func TestToolsetDoesNotDependOnAgentexec(t *testing.T) {
 	}
 }
 
+// TestAgentexecDoesNotOwnConcreteToolContracts keeps model-facing tool names,
+// schemas, special gate policy, and tool-specific outcome projection in
+// toolset. Agent execution resolves generic tools and translates their lifecycle
+// through its consumer-owned semantics port.
+func TestAgentexecDoesNotOwnConcreteToolContracts(t *testing.T) {
+	root := moduleRoot(t)
+	dir := filepath.Join(root, "internal", "adapter", "agentexec")
+	forbidden := []string{`"delegate_task"`, `"set_plan"`, `"exit_plan_mode"`, `"report_goal_outcome"`}
+	err := filepath.WalkDir(dir, func(path string, entry os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() || filepath.Ext(path) != ".go" || strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		source, readErr := os.ReadFile(path)
+		if readErr != nil {
+			return readErr
+		}
+		for _, name := range forbidden {
+			if strings.Contains(string(source), name) {
+				t.Errorf("agent execution source %s owns concrete tool name %s", path, name)
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("scan agent execution source: %v", err)
+	}
+}
+
 // TestInnerRingCommentsDoNotNameOuterArchitecture prevents documentation from
 // rebuilding a reverse dependency in the reader's mental model after imports
 // have been cleaned up. Comments describe owned semantics and inward ports,

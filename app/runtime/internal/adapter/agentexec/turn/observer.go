@@ -153,11 +153,7 @@ func (t *turnObserver) ApproveToolCall(ctx context.Context, callID, toolName, ar
 }
 
 func (t *toolGate) ApproveToolCall(ctx context.Context, callID, toolName, arguments string, target agentexec.ToolApprovalTarget) agentexec.ToolApprovalVerdict {
-	// delegate_task is pure orchestration. Its child tools are independently
-	// observed and gated, while SubagentStart/SubagentStop own its lifecycle hooks.
-	// Running tool hooks or approval for delegation itself would double-count the
-	// orchestration and cannot be replayed faithfully across a child suspension.
-	if toolName == "delegate_task" {
+	if !t.controller.toolUsesStandardPolicy(toolName) {
 		return agentexec.ToolApprovalVerdict{}
 	}
 
@@ -484,15 +480,16 @@ func (t *turnObserver) OnToolCallEnd(process agentexec.ProcessRef, callID, toolN
 	}
 	t.controller.emitProcessEvent(t.st, process, end)
 
-	// After a successful set_plan, project the model's whole-replaced Plan so a
-	// client renders state.snapshot{plan}; the tool result itself is model-facing
-	// only. Read the canonical Plan from the
-	// store rather than the tool args, so the projection can't drift from the
-	// arg schema.
-	if err == nil && toolName == "set_plan" && t.controller.plan != nil {
-		if state, lerr := t.controller.plan.State(t.st.ctx, t.st.handle.SessionID); lerr == nil {
-			t.controller.emitProcessEvent(t.st, process, runs.PlanUpdated{State: state})
-		}
+	projected, projectionErr := t.controller.projectToolOutcome(
+		t.st.ctx,
+		t.st.handle.SessionID,
+		toolName,
+		err == nil,
+	)
+	if projectionErr != nil {
+		t.st.span.RecordError(fmt.Errorf("turn: project tool %q outcome: %w", toolName, projectionErr))
+	} else if projected != nil {
+		t.controller.emitProcessEvent(t.st, process, projected)
 	}
 
 	// PostToolUse hooks (observe-only in v1): fire after the result so a user
@@ -502,7 +499,7 @@ func (t *turnObserver) OnToolCallEnd(process agentexec.ProcessRef, callID, toolN
 }
 
 func (t *turnObserver) postToolHook(toolName, output string, err error) {
-	if toolName == "delegate_task" || t.st.hooks.Empty() {
+	if !t.controller.toolUsesStandardPolicy(toolName) || t.st.hooks.Empty() {
 		return
 	}
 	_ = t.st.hooks.Run(t.st.ctx, hooks.Input{

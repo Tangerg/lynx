@@ -8,6 +8,7 @@ import (
 
 	"github.com/pmezard/go-difflib/difflib"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/delegation"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/offload"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
@@ -39,7 +40,6 @@ const (
 	toolNameSearchConversations = "search_conversations"
 	toolNameSearchTools         = "search_tools"
 	toolNameStopShell           = "stop_shell"
-	toolNameDelegateTask        = "delegate_task"
 	toolNameSetPlan             = "set_plan"
 	toolNameProposeSkill        = "propose_skill"
 	toolNameWebFetch            = "web_fetch"
@@ -81,7 +81,7 @@ func (Presenter) Activity(name string, arguments tool.Arguments) string {
 		return "Searching the web"
 	case toolNameWebFetch:
 		return "Fetching a page"
-	case toolNameDelegateTask:
+	case delegation.Name:
 		if args, ok := decodeArguments[delegationActivityArguments](arguments, "summary"); ok &&
 			isConciseActivityText(args.Summary, 80) {
 			return "Delegating: " + args.Summary

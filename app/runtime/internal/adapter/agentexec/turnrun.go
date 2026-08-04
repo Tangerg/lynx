@@ -58,8 +58,8 @@ type TurnRequest struct {
 	Isolated bool
 
 	// GoalLeaseID stamps a Goal-mode autonomous run with its goal incarnation.
-	// report_goal_outcome uses it to signal only that incarnation. Empty for ordinary
-	// runs.
+	// The Goal outcome signal uses it to address only that incarnation. Empty for
+	// ordinary runs.
 	GoalLeaseID string
 
 	// Limits are the immutable cumulative ceilings for the complete delegation

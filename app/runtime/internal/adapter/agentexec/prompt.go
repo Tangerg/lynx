@@ -78,7 +78,7 @@ func appendPlan(ctx context.Context, prompt string, plan PlanReader) string {
 	if err != nil || len(steps) == 0 {
 		return prompt
 	}
-	return prompt + "\n\n## Current Plan (maintain with set_plan)\n\n" + planpresentation.Render(steps)
+	return prompt + "\n\n## Current Plan\n\n" + planpresentation.Render(steps)
 }
 
 // composePrompt is the pure form behind [Engine.systemPrompt],

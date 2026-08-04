@@ -910,6 +910,7 @@ Acceptance:
 | 36. Cursor namespace and maintenance boundary closure | Completed | 2026-08-04 | 2026-08-04 | Semantic cursor namespaces, Execution/Run maintenance vocabulary, Delivery test-boundary isolation, comment cleanup, architecture fitness checks, workspace/standalone build and vet, server suites, focused race tests, static analysis, lint, dead-code analysis, and residue scans passed. |
 | 37. Remaining semantic boundary closure | Completed | 2026-08-04 | 2026-08-04 | `bootstrap.Stack` exposes the idempotency consumer port, inner queries use lookup/value semantics, inner-ring comments are layer-neutral, and focused architecture guards plus workspace/standalone/race/static verification passed. |
 | 38. Run write-set ownership closure | Completed | 2026-08-04 | 2026-08-04 | Opening, tree-barrier, and waiting-subtree invariants are application-owned; runsegment retains only store availability, optimistic snapshot claiming, transaction I/O, and compensation. Full build/vet/test, focused race tests, static analysis, lint, dead-code analysis, formatting, and architecture checks passed. |
+| 39. Concrete tool contract ownership | Completed | 2026-08-04 | 2026-08-04 | Delegation schema/description, Goal outcome prompt, special policy, and Plan outcome projection moved to toolset; agentexec contains no built-in tool identities and consumes one neutral semantics port. Full build/vet/test, focused race tests, static analysis, lint, dead-code analysis, and architecture checks passed. |
 
 Allowed status values: `Pending`, `In progress`, `Completed`, `Blocked`, `Revised`.
 
@@ -933,6 +934,25 @@ Allowed status values: `Pending`, `In progress`, `Completed`, `Blocked`, `Revise
 - `go build ./...`, `go vet ./...`, `go test ./...`, focused `-race` tests,
   `staticcheck`, `golangci-lint`, `deadcode -test`, formatting, and
   `git diff --check` passed.
+
+### 2026-08-04 — Batch 39 completed
+
+- Moved the delegated-task input schema, description, Agent definition, and
+  model-facing name into `toolset/delegation`. `agentexec` now supplies only the
+  child interaction callback and reads the toolset-owned typed input when it
+  projects child state.
+- Replaced `turn`'s literal delegation and Plan branches with the required
+  `ToolSemantics` port. The port now owns standard-policy participation and
+  successful-call outcome projection; the Plan projection reads canonical
+  state in toolset instead of making execution know `set_plan` or its result.
+- Moved the autonomous Goal prompt beside the Goal tool family and removed
+  concrete tool guidance from the generic execution prompt and approval
+  wording. The Agent Plan reader consequently shrank to the one `List` method
+  prompt assembly actually consumes.
+- Added an architecture fitness check that rejects built-in Goal, Plan, and
+  delegation names anywhere in production `agentexec`. `go build ./...`,
+  `go vet ./...`, `go test ./...`, focused `-race` tests, `staticcheck`,
+  `golangci-lint`, and `deadcode -test` passed.
 
 ### 2026-08-04 — Batch 37 completed
 

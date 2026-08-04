@@ -1,16 +1,33 @@
 package toolset
 
 import (
+	"context"
 	"fmt"
 	"slices"
 	"strings"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/delegation"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
 
 // Semantics interprets concrete built-in calls for runtime policy. Unknown
 // tools are treated as arbitrary execution and carry no remembered-rule subject.
-type Semantics struct{}
+type Semantics struct {
+	plans planStateReader
+}
+
+type planStateReader interface {
+	State(ctx context.Context, sessionID string) (plan.State, error)
+}
+
+// NewSemantics binds projections that require canonical tool-owned state. A
+// nil Plan reader disables only the successful Plan replacement projection;
+// safety, approval, and hook policy remain available.
+func NewSemantics(plans planStateReader) Semantics {
+	return Semantics{plans: plans}
+}
 
 var safetyClassByName = map[string]tool.SafetyClass{
 	toolNameRead:                tool.SafetyClassSafe,
@@ -30,7 +47,7 @@ var safetyClassByName = map[string]tool.SafetyClass{
 	toolNameExitPlanMode:        tool.SafetyClassSafe,
 	toolNameSetPlan:             tool.SafetyClassSafe,
 	toolNameReadToolResult:      tool.SafetyClassSafe,
-	toolNameDelegateTask:        tool.SafetyClassSafe,
+	delegation.Name:             tool.SafetyClassSafe,
 	toolNameCreateGoal:          tool.SafetyClassSafe,
 	toolNameGetGoal:             tool.SafetyClassSafe,
 	toolNameReportGoalOutcome:   tool.SafetyClassSafe,
@@ -57,6 +74,14 @@ func (Semantics) SafetyClass(name string) tool.SafetyClass {
 		return class
 	}
 	return tool.SafetyClassExec
+}
+
+// UsesStandardPolicy reports whether a call enters the ordinary approval and
+// PreToolUse/PostToolUse pipeline. Delegation is orchestration: every child
+// tool is independently evaluated, while the parent call is represented by
+// child lifecycle events and cannot be replayed as an ordinary tool gate.
+func (Semantics) UsesStandardPolicy(name string) bool {
+	return name != delegation.Name
 }
 
 // ApprovalSubject returns the stable identity used by remembered approval
@@ -92,6 +117,24 @@ func (Semantics) ShellCommand(name, rawArguments string) string {
 	}
 	command, _ := arguments.StringField("command")
 	return command
+}
+
+// ProjectOutcome returns the application event implied by a completed tool
+// call. It reads canonical state rather than decoding a private tool result, so
+// the client projection cannot drift from the state the tool actually wrote.
+func (s Semantics) ProjectOutcome(
+	ctx context.Context,
+	sessionID, name string,
+	succeeded bool,
+) (runs.EngineEvent, error) {
+	if !succeeded || name != toolNameSetPlan || s.plans == nil {
+		return nil, nil
+	}
+	state, err := s.plans.State(ctx, sessionID)
+	if err != nil {
+		return nil, fmt.Errorf("toolset: project Plan replacement: %w", err)
+	}
+	return runs.PlanUpdated{State: state}, nil
 }
 
 func classifiedToolNames() []string {
