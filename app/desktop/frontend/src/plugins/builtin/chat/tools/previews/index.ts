@@ -13,7 +13,13 @@ export { grep } from "./grep";
 // Specialised previews — one file per tool family.
 export { askUserPreview } from "./askUser";
 export { globPreview } from "./glob";
+export { goalPreview } from "./goal";
+export { httpPreviews } from "./http";
 export { lspPreviews } from "./lsp";
+export { planPreview } from "./plan";
+export { recallPreviews } from "./recall";
+export { schedulePreview } from "./schedule";
 export { skillPreview } from "./skill";
 export { taskPreview } from "./task";
+export { toolSearchPreviewPlugin } from "./toolSearch";
 export { webSearchPreview } from "./webSearch";

@@ -149,10 +149,12 @@ describe("toolFields — runtime wire shapes", () => {
     expect(f.removed).toBe(1);
   });
 
-  it("read: passes the content through as the result body", () => {
-    expect(toolFields(tool("read", { path: "a.go" }, { content: "package main" })).result).toBe(
-      "package main",
-    );
+  it("read: passes the content through and reports how long the file is", () => {
+    expect(
+      toolFields(tool("read", { path: "a.go" }, { content: "package main", total_lines: 412 })),
+    ).toMatchObject({ result: "package main", lines: 412 });
+    // A runtime that reports no length gets no chip, rather than a "0 lines" one.
+    expect(toolFields(tool("read", { path: "a.go" }, { content: "x" })).lines).toBeUndefined();
   });
 });
 

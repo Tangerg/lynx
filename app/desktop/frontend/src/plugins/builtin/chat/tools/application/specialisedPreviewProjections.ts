@@ -1,4 +1,4 @@
-import { parseJsonResult } from "./toolResultParsing";
+import { parseJsonResult, resultLines } from "./toolResultParsing";
 
 export interface SkillPreviewEntry {
   name: string;
@@ -81,4 +81,187 @@ function domainOf(url: string): string {
   } catch {
     return url;
   }
+}
+
+// ── Text-returning tools ─────────────────────────────────────────────────────
+//
+// These four answer in prose the model reads, not JSON, so their projection is a
+// parse of that prose. Each parser is anchored on the ONE piece of structure the
+// runtime actually emits and degrades to "no structure found" otherwise, so a
+// wording change on the backend costs a plain-text preview rather than a wrong one.
+
+/** `search_memory`: `N. content`, one entry per recalled item, content may wrap. */
+export function projectRecalledMemories(result: string | undefined): string[] {
+  const entries: string[] = [];
+  for (const line of resultLines(result)) {
+    const start = /^\d+\.\s+(.*)$/.exec(line);
+    if (start) entries.push(start[1]!);
+    else if (entries.length > 0) entries[entries.length - 1] += `\n${line}`;
+  }
+  return entries;
+}
+
+export interface ConversationHit {
+  speaker: string;
+  day: string;
+  snippet: string;
+}
+
+/** `search_conversations`: `N. [speaker · YYYY-MM-DD] snippet`. */
+export function projectConversationHits(result: string | undefined): ConversationHit[] {
+  const hits: ConversationHit[] = [];
+  for (const line of resultLines(result)) {
+    const parsed = /^\d+\.\s+\[([^·\]]+)·\s*([^\]]+)\]\s*(.*)$/.exec(line);
+    if (parsed) {
+      hits.push({ speaker: parsed[1]!.trim(), day: parsed[2]!.trim(), snippet: parsed[3]! });
+    } else if (hits.length > 0) {
+      hits[hits.length - 1]!.snippet += `\n${line}`;
+    }
+  }
+  return hits;
+}
+
+export interface ToolSearchGroup {
+  source: string;
+  names: string[];
+}
+
+/** `search_tools`: prose, then `Not loaded:` and `  [source] a, b, c` per source. */
+export function projectToolSearchGroups(result: string | undefined): ToolSearchGroup[] {
+  const groups: ToolSearchGroup[] = [];
+  for (const line of resultLines(result)) {
+    const parsed = /^\s*\[([^\]]+)\]\s*(.+)$/.exec(line);
+    if (!parsed) continue;
+    const names = parsed[2]!
+      .split(",")
+      .map((name) => name.trim())
+      .filter(Boolean);
+    if (names.length > 0) groups.push({ source: parsed[1]!.trim(), names });
+  }
+  return groups;
+}
+
+export interface PlanUpdateStep {
+  status: "done" | "active" | "pending";
+  text: string;
+}
+
+const PLAN_MARK: Record<string, PlanUpdateStep["status"]> = {
+  "[x]": "done",
+  "[~]": "active",
+  "[ ]": "pending",
+};
+
+/** `set_plan`: `Plan updated:` then one `[x] | [~] | [ ] description` per step. */
+export function projectPlanUpdate(result: string | undefined): PlanUpdateStep[] {
+  const steps: PlanUpdateStep[] = [];
+  for (const line of resultLines(result)) {
+    const status = PLAN_MARK[line.slice(0, 3)];
+    if (status) steps.push({ status, text: line.slice(3).trim() });
+  }
+  return steps;
+}
+
+// ── JSON-returning tools ─────────────────────────────────────────────────────
+
+export interface GoalPreview {
+  objective: string;
+  status: string;
+  reason: string;
+  turns: { used: number; max: number };
+  cost: { used: number; max: number };
+  steps: { used: number; max: number };
+  message: string;
+}
+
+/** The goal family answers `{goal: {...}, message?}` with snake_case fields. */
+export function projectGoalPreview(result: string | undefined): GoalPreview | undefined {
+  const parsed = parseJsonResult(result);
+  const goal = parsed?.goal;
+  if (typeof goal !== "object" || goal === null) return undefined;
+  const g = record(goal);
+  const budget = record(g.budget);
+  const usage = record(g.usage);
+  return {
+    objective: text(g.objective),
+    status: text(g.status),
+    reason: text(g.reason),
+    turns: { used: count(usage.turns), max: count(budget.max_turns) },
+    cost: { used: count(usage.cost_usd), max: count(budget.max_cost_usd) },
+    steps: { used: count(usage.steps), max: count(budget.max_steps) },
+    message: text(parsed?.message),
+  };
+}
+
+export interface SchedulePreview {
+  id: string;
+  title: string;
+  cron: string;
+  instructions: string;
+  enabled: boolean;
+  nextRunAt: string;
+  lastRunAt: string;
+}
+
+/** `list_schedules` answers `{schedules: [...]}`, `create_schedule` `{schedule: {...}}`
+ *  — one reader, because a preview showing one row and a preview showing many
+ *  differ only in how many rows they got. */
+export function projectSchedulePreviews(result: string | undefined): SchedulePreview[] {
+  const parsed = parseJsonResult(result);
+  const many = parsed?.schedules;
+  const rows = Array.isArray(many) ? many : parsed?.schedule ? [parsed.schedule] : [];
+  return rows.map((row) => {
+    const s = record(row);
+    return {
+      id: text(s.schedule_id),
+      title: text(s.title),
+      cron: text(s.cron),
+      instructions: text(s.instructions),
+      enabled: s.enabled !== false,
+      nextRunAt: text(s.next_run_at),
+      lastRunAt: text(s.last_run_at),
+    };
+  });
+}
+
+export interface HttpPreview {
+  status: number;
+  duration: string;
+  truncated: boolean;
+  headers: [string, string][];
+  body: string;
+}
+
+/** `http_request` answers `{status, headers, body, truncated, duration}`. */
+export function projectHttpPreview(result: string | undefined): HttpPreview | undefined {
+  const parsed = parseJsonResult(result);
+  if (typeof parsed?.status !== "number") return undefined;
+  const headers = record(parsed.headers);
+  return {
+    status: parsed.status,
+    duration: text(parsed.duration),
+    truncated: parsed.truncated === true,
+    headers: Object.entries(headers).map(([name, value]) => [name, text(value)]),
+    body: text(parsed.body),
+  };
+}
+
+export interface FetchedPage {
+  content: string;
+  format: string;
+}
+
+/** `web_fetch` answers `{content, format}` — markdown by default. */
+export function projectFetchedPage(result: string | undefined): FetchedPage | undefined {
+  const parsed = parseJsonResult(result);
+  if (typeof parsed?.content !== "string") return undefined;
+  return { content: parsed.content, format: text(parsed.format) || "text" };
+}
+
+function text(value: unknown): string {
+  return typeof value === "string" ? value : "";
+}
+
+function count(value: unknown): number {
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
 }

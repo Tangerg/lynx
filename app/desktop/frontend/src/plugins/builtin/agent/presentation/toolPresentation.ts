@@ -78,6 +78,9 @@ export function toolMetaItems(t: Translate, tool: ToolCall): ToolMetaItem[] {
   if (tool.hits != null) {
     items.push({ id: "hits", label: t("tool.meta.matches", { count: tool.hits }), tone: "muted" });
   }
+  if (tool.lines != null) {
+    items.push({ id: "lines", label: t("tool.meta.lines", { count: tool.lines }), tone: "muted" });
+  }
   if (tool.exitCode != null && tool.exitCode !== 0) {
     items.push({
       id: "exit",

@@ -61,3 +61,47 @@ export function shellToolPreviews(component: ToolPreviewComponent): ToolPreviewC
 export function webSearchToolPreview(component: ToolPreviewComponent): ToolPreviewContribution[] {
   return toolPreviews(component, ["web_search"]);
 }
+
+// Searching the agent's own history: project memory and earlier conversations.
+// Two shapes, one family — both answer "here is what I already knew".
+export function recallToolPreviews(
+  memory: ToolPreviewComponent,
+  conversations: ToolPreviewComponent,
+): ToolPreviewContribution[] {
+  return [
+    { key: "search_memory", component: memory },
+    { key: "search_conversations", component: conversations },
+  ];
+}
+
+export function toolSearchPreview(component: ToolPreviewComponent): ToolPreviewContribution[] {
+  return toolPreviews(component, ["search_tools"]);
+}
+
+// Only set_plan gets a preview: enter/exit answer in one sentence, and
+// exit_plan_mode's row is dropped whenever its question card is present.
+export function planToolPreview(component: ToolPreviewComponent): ToolPreviewContribution[] {
+  return toolPreviews(component, ["set_plan"]);
+}
+
+// The three goal operations answer the same { goal, message } envelope, so one
+// preview reads all three — what differs is which of them wrote it.
+export function goalToolPreviews(component: ToolPreviewComponent): ToolPreviewContribution[] {
+  return toolPreviews(component, ["create_goal", "get_goal", "report_goal_outcome"]);
+}
+
+// Creating answers with one schedule, listing with many; the preview renders rows
+// either way. delete_schedule answers `{schedule_id}` — a receipt, not a view.
+export function scheduleToolPreviews(component: ToolPreviewComponent): ToolPreviewContribution[] {
+  return toolPreviews(component, ["create_schedule", "list_schedules"]);
+}
+
+export function httpToolPreviews(
+  request: ToolPreviewComponent,
+  fetch: ToolPreviewComponent,
+): ToolPreviewContribution[] {
+  return [
+    { key: "http_request", component: request },
+    { key: "web_fetch", component: fetch },
+  ];
+}

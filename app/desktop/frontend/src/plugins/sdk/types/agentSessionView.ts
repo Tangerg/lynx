@@ -42,6 +42,10 @@ export interface ToolCall {
   /** fileEdit-category: how many files this one call touched. A count, not a
    *  sentence — the meta chip words it in the reader's language. */
   files?: number;
+  /** read-category: how long the file is (`result.total_lines`). The row reports the
+   *  size of what it opened, so a 4000-line read and a 12-line one are not the same
+   *  glance. */
+  lines?: number;
   /** command-category (`shell`) exit code, from result.exitCode (§4.4.2).
    *  Surfaced for visibility; a non-zero exit is shown but does NOT force the
    *  status red (exit≠0 isn't always failure — e.g. grep "no match"). Real

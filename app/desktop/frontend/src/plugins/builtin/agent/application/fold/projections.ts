@@ -323,7 +323,11 @@ function categoryFields(
       // key when absent so a completed Item without it doesn't clobber the
       // toolOutput-delta preview (same guard as command / search).
       const content = asString(result?.content);
-      return content !== undefined ? { result: content } : {};
+      const lines = asNumber(result?.total_lines);
+      return {
+        ...(content !== undefined ? { result: content } : {}),
+        ...(lines !== undefined ? { lines } : {}),
+      };
     }
     default:
       // Best-effort JSON result → a pretty string the inspector renders as a
