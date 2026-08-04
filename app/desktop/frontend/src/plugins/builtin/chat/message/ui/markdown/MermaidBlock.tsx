@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useDebounce } from "use-debounce";
+import { useDebouncedValue } from "@tanstack/react-pacer";
 import { LightboxDialog, Pressable } from "@/ui";
 import { measureMermaidRender } from "@/lib/metrics";
 import { useT } from "@/lib/i18n";
@@ -50,7 +50,7 @@ export function MermaidBlock({ code }: Props) {
   // named two of the inputs and missed the rest: a contrast change moves
   // --color-surface-2 through --depth-step, and the diagram kept the old grey.
   const tokenRevision = useTokenRevision();
-  const [debouncedCode] = useDebounce(code, 300);
+  const [debouncedCode] = useDebouncedValue(code, { wait: 300 });
   const isSettling = code !== debouncedCode;
 
   // Lazy-loaded renderer. Stays null until the import resolves; the

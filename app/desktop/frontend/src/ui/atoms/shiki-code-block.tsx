@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useDebounce } from "use-debounce";
+import { useDebouncedValue } from "@tanstack/react-pacer";
 import { Icon } from "@/ui/icons";
 import { copyText } from "@/lib/clipboard";
 import { measureShikiHighlight } from "@/lib/metrics";
@@ -31,7 +31,7 @@ export function ShikiCodeBlock({ lang, code, file }: Props) {
   const t = useT();
   const shikiTheme = useShikiTheme();
 
-  const [debouncedCode] = useDebounce(code, 120);
+  const [debouncedCode] = useDebouncedValue(code, { wait: 120 });
   const isSettling = code !== debouncedCode;
 
   // Seed from cache synchronously so a re-mount (scroll away/back, theme

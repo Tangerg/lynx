@@ -5,7 +5,7 @@
 // total > matches.length means "narrow the query", never "that's all").
 
 import { useState } from "react";
-import { useDebounce } from "use-debounce";
+import { useDebouncedValue } from "@tanstack/react-pacer";
 import { DataView, Pressable, SearchField } from "@/ui";
 import { useT } from "@/lib/i18n";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
@@ -25,7 +25,7 @@ function SearchTab() {
   const [input, setInput] = useState("");
   // Debounce keystrokes so each distinct query hits the backend once — every
   // params object is its own react-query cache entry.
-  const [query] = useDebounce(input.trim(), 300);
+  const [query] = useDebouncedValue(input.trim(), { wait: 300 });
   const { data, isLoading, isError } = useWorkspaceGrep(
     query ? { query, cwd, limit: WORKSPACE_SEARCH_MATCH_LIMIT } : undefined,
   );

@@ -56,6 +56,7 @@
     "@opentelemetry/sdk-logs": "^0.221.0",
     "@opentelemetry/sdk-metrics": "^2.10.0",
     "@opentelemetry/sdk-trace-web": "^2.10.0",
+    "@tanstack/react-pacer": "^0.22.1",
     "@tanstack/react-query": "^5.101.4",
     "@tanstack/react-router": "^1.170.18",
     "@tanstack/react-virtual": "^3.14.9",
@@ -90,7 +91,6 @@
     "streamdown": "^2.5.0",
     "tailwind-merge": "^3.6.0",
     "unist-util-visit": "^5.1.0",
-    "use-debounce": "^10.1.1",
     "use-stick-to-bottom": "^1.1.6",
     "zod": "^4.4.3",
     "zustand": "^5.0.14"

@@ -47,6 +47,14 @@ function flattenAttrs(
 }
 
 // Generic batcher: collect items, flush them through `drain` once per window.
+//
+// Deliberately not Pacer's `Batcher`, which is otherwise the same shape: it
+// clears and restarts its timer on every `addItem`, so the window follows the
+// LAST item. A telemetry buffer has to bound latency from the FIRST one —
+// while a run streams, spans and logs arrive closer together than the window,
+// and a debounced batch would not flush until the run went quiet. The
+// Diagnostics view would sit empty for exactly as long as there was something
+// to watch.
 class Batcher<T> {
   private buf: T[] = [];
   private timer: ReturnType<typeof setTimeout> | null = null;
