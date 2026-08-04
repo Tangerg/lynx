@@ -126,7 +126,6 @@ export const zhTW: Record<string, string> = {
   "tools.overflow.truncated": "已被執行環境截斷",
   "tools.overflow.outputTruncated": "輸出已被執行環境截斷",
   "tools.group.calls": "{{count}} 次呼叫",
-  "narrative.wave.steps": "{{count}} 步處理",
 
   "common.remove": "移除",
   "common.loading": "載入中",
@@ -365,7 +364,7 @@ export const zhTW: Record<string, string> = {
   "agent.runOutcome.canceled": "已取消",
   "agent.runOutcome.maxSteps": "已達最大步驟數",
   "agent.runOutcome.maxBudget": "已達預算上限",
-  "agent.runTree.steps": "{{count}} 步",
+  "agent.steps": "{{count}} 步",
   "agent.runTree.action.audit": "開啟完整執行稽核",
   "agent.runTree.action.cancel": "取消此次執行",
   "agent.runTree.material.empty": "尚無敘事內容。",

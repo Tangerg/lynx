@@ -458,11 +458,16 @@
 
   /* Ink — near-black with the palette's own cool cast rather than a neutral grey.
      Keep in step with `themes/lyra-light.ts`. */
+  /* Four inks, and they have to be four STEPS. `faint` used to sit 9 units under
+     `muted`, a quarter of the distance every other step takes — so a timestamp and
+     a tool's label were the same grey and the ladder was really three inks wearing
+     four names. Even steps of ~0x1d per channel are what makes the tertiary layer
+     read as tertiary. */
   --color-text: #1e1f22;
   --color-text-bright: #000000;
   --color-text-soft: #3d4147;
   --color-text-muted: #5a5d63;
-  --color-text-faint: #63666d;
+  --color-text-faint: #74777f;
   --color-text-on-accent: #ffffff;
   /* Ink on a solid `--color-warning` fill (the active search hit). Amber is
      light in both schemes, so this stays dark where on-accent flips. */
@@ -674,6 +679,11 @@
      CSS-controlled animations + the motion/react presets that read
      the scale via lib/motion.ts. */
   --motion-scale: 1;
+  /* A colour answering a pointer is not an animation — it is feedback, and 150ms
+     of it is long enough to feel like lag on a desktop pointer that is already
+     somewhere else. Separate from `--dur-fast` (which also carries transforms and
+     opacity, where 150ms reads as motion rather than delay). */
+  --dur-color-base: 100ms;
   --dur-instant-base: 80ms;
   --dur-fast-base: 150ms;
   --dur-med-base: 200ms;
@@ -692,6 +702,7 @@
      apps; reach for it as `active:scale-[var(--press-scale)]`. */
   --press-scale: 0.98;
 
+  --dur-color: calc(var(--dur-color-base) * var(--motion-scale));
   --dur-fast: calc(var(--dur-fast-base) * var(--motion-scale));
   --dur-med: calc(var(--dur-med-base) * var(--motion-scale));
   --dur-disclosure: calc(var(--dur-disclosure-base) * var(--motion-scale));

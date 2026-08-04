@@ -67,7 +67,7 @@ export function AgentDockTabs({ tabs, ariaLabel }: { tabs: AgentDockTab[]; ariaL
               data-active={tab.active ? "" : undefined}
               className={cn(
                 "group flex h-[var(--dock-tab-height)] min-w-0 shrink-0 items-center rounded-[var(--dock-tab-radius)]",
-                "text-fg-muted transition-[background-color,color] duration-[var(--dur-fast)] ease-out",
+                "text-fg-muted transition-[background-color,color] duration-[var(--dur-color)] ease-out",
                 "hover:bg-hover hover:text-fg focus-within:text-fg",
                 "data-[active]:bg-selected data-[active]:text-fg",
               )}

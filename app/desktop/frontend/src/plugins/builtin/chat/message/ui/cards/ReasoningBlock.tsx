@@ -177,7 +177,6 @@ export function ReasoningBlock({ text, status, superseded = false }: Props) {
       }
       open={isOpen}
       onToggle={toggle}
-      className="my-1.5"
       // The rule replaces the card: it marks the aside's extent down the margin
       // instead of boxing it, so a long chain of thought does not become the
       // largest object in the turn. `border-field` and not `border-divider` — a

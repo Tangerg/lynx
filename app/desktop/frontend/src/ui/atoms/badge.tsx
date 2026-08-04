@@ -10,7 +10,13 @@ import { cn } from "@/lib/classNames";
 // paired a fill with an ink by hand, and they disagreed — negative alone was
 // spelled at five alphas across the tree. The tone picks the pair; the caller
 // picks the words.
-const styles = cva("inline-flex shrink-0 items-center gap-1 font-medium", {
+// Fully round, always. A word carrying a state is the one thing here that is not a
+// container, and rounding it completely is how it stops reading as a small one — the
+// reference sheets agree on this even where they disagree about every other radius
+// (Nova is half pills; JetBrains keeps its status chips round inside a 6px world).
+// Horizontal padding is a step wider than a square chip would need, because the
+// curve eats the first and last few pixels of the inset.
+const styles = cva("inline-flex shrink-0 items-center gap-1 rounded-pill font-medium", {
   variants: {
     tone: {
       neutral: "bg-surface-2 text-fg-muted",
@@ -21,12 +27,11 @@ const styles = cva("inline-flex shrink-0 items-center gap-1 font-medium", {
       info: "bg-info-badge text-info",
     },
     size: {
-      sm: "rounded-sm px-1.5 py-px text-ui-xs",
-      md: "rounded-sm px-2 py-0.5 text-ui-sm",
+      sm: "px-2 py-px text-ui-xs",
+      md: "px-2.5 py-0.5 text-ui-sm",
     },
-    shape: { square: "", pill: "rounded-pill" },
   },
-  defaultVariants: { tone: "neutral", size: "sm", shape: "square" },
+  defaultVariants: { tone: "neutral", size: "sm" },
 });
 
 export type BadgeProps = Omit<VariantProps<typeof styles>, "tone"> & {
@@ -36,9 +41,9 @@ export type BadgeProps = Omit<VariantProps<typeof styles>, "tone"> & {
   title?: string;
 };
 
-export function Badge({ tone, size, shape, className, children, title }: BadgeProps) {
+export function Badge({ tone, size, className, children, title }: BadgeProps) {
   return (
-    <span title={title} className={cn(styles({ tone, size, shape }), className)}>
+    <span title={title} className={cn(styles({ tone, size }), className)}>
       {children}
     </span>
   );

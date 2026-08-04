@@ -101,10 +101,13 @@ function MessageBlockInner({
             <div
               className={cn(
                 MESSAGE_CONTENT_CLASS,
-                "min-w-0 text-pretty leading-prose",
-                isUser
-                  ? "max-w-[77%] rounded-bubble bg-card px-4 py-3 text-prose text-fg"
-                  : "text-prose text-fg-soft",
+                "min-w-0 text-pretty leading-prose text-prose text-fg",
+                // The human's words get their own material. `bg-card` made a user
+                // turn the same fill as a tool card, so the one thing on the page
+                // that is not the agent wore the agent's skin; the accent at wash
+                // strength says "you" once, quietly, and is the only tint in the
+                // reading column.
+                isUser && "max-w-[77%] rounded-bubble bg-accent-wash px-4 py-3",
               )}
             >
               {content}

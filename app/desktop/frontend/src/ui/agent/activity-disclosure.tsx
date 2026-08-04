@@ -99,7 +99,10 @@ export function AgentActivityDisclosure({
       data-tone={tone}
       data-shell={shell}
       className={cn(
-        "group/activity my-1 min-w-0 overflow-hidden",
+        // No outer margin. What distance this row keeps from the one above it
+        // depends on what that one WAS, which is a fact only the renderer walking
+        // the sequence has (see renderUnitRhythm).
+        "group/activity min-w-0 overflow-hidden",
         shell === "line"
           ? // A radius even with no fill: the hover wash needs a shape, and a
             // full-bleed rectangle sliding under the cursor is what makes a quiet
@@ -120,7 +123,7 @@ export function AgentActivityDisclosure({
           onClick={onToggle}
           className={cn(
             "flex min-w-0 flex-1 items-center gap-2 px-3 py-1.5 text-left",
-            "transition-colors duration-[var(--dur-fast)] hover:bg-hover",
+            "transition-colors duration-[var(--dur-color)] hover:bg-hover",
             shell === "line" ? "min-h-7" : "min-h-8",
           )}
         >
@@ -140,7 +143,15 @@ export function AgentActivityDisclosure({
             aria-hidden
             className={cn(
               "grid shrink-0 place-items-center",
-              framed ? `size-5 rounded-[var(--shape-sm)] ${TRAY_CLASS[tone]}` : "size-4",
+              // A framed icon gets the tray; a bare one gets a 16px box. But that box
+              // is the shell's answer for ONE mark — a caller handing over its own
+              // `leading` owns the size as well, and a folded wave's mark is a strip of
+              // glyphs that the fixed box cropped to the first one and a half.
+              framed
+                ? `size-5 rounded-[var(--shape-sm)] ${TRAY_CLASS[tone]}`
+                : leading
+                  ? ""
+                  : "size-4",
               // A quiet row's glyph is quiet too: at full ink, a column of reads
               // pulls the eye as hard as the one command that changed something.
               shell === "line" && tone === "neutral" ? "text-fg-faint" : TONE_CLASS[tone],
@@ -159,9 +170,11 @@ export function AgentActivityDisclosure({
           {detail != null && (
             // The thing acted on — a path, a pattern, a preview line. It takes the
             // remaining width because it is what the eye is scanning for past a
-            // column of identical verbs. Which VOICE it speaks in stays with the
-            // caller: a path is data and sets itself in mono, a sentence is not.
-            <span className="min-w-0 flex-1 truncate text-ui-xs leading-snug text-fg">
+            // column of identical verbs, and it stays one ink ABOVE the verb for the
+            // same reason. But one ink below the answer: at full `text-fg` it was
+            // darker than the prose it precedes, so a tool's file path outranked the
+            // sentence the reader actually came for.
+            <span className="min-w-0 flex-1 truncate text-ui-xs leading-snug text-fg-soft">
               {detail}
             </span>
           )}

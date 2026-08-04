@@ -5,6 +5,7 @@ import type { ContentBlock, Message } from "@/plugins/builtin/agent/public/viewS
 import type { MessageRenderUnit } from "@/plugins/builtin/agent/public/messagePresentation";
 import type { BlockCtx } from "./blockContext";
 export type { BlockCtx } from "./blockContext";
+import { cn } from "@/lib/classNames";
 import { MarkdownMessage } from "./markdown/MarkdownMessage";
 import {
   ApprovalCard,
@@ -18,6 +19,7 @@ import { ToolCard, ToolGroup } from "@/plugins/builtin/chat/tools/public/renderi
 import { PluginContentBlock } from "@/plugins/host/PluginContentBlock";
 import { messageBlockRenderUnits } from "../application/messageBlockModel";
 import { BLOCK_ANCHOR_ATTR, renderUnitAnchor } from "../application/renderUnitAnchor";
+import { unitIndentClass, unitSeamClass } from "../application/renderUnitRhythm";
 import { DelegatedNarrative } from "./DelegatedNarrative";
 import { NarrativeWave } from "./NarrativeWave";
 
@@ -153,19 +155,21 @@ export function renderBlock(
 /**
  * Render a message's blocks, each in an anchored wrapper.
  *
- * The wrapper is a bare `<div>` and adds no spacing of its own: block cards carry
- * their own margins and the markdown body its own rhythm, so this is layout-inert.
- * It exists so the narrative outline can scroll to a block without every card
- * having to learn about anchors — and it is where the React key now lives, which
- * is what makes `renderUnitAnchor`'s identity rule apply to every block kind at
- * once instead of to the two that remembered to ask for it.
+ * The wrapper carries the vertical rhythm, and this is the only place that can: a
+ * seam is a relationship between two units, so no card can know its own distance
+ * from a neighbour it has never heard of (see renderUnitRhythm — cards used to try,
+ * with eight different answers). It also exists so the narrative outline can scroll
+ * to a block without every card learning about anchors, and it is where the React
+ * key lives, which is what makes `renderUnitAnchor`'s identity rule apply to every
+ * block kind at once instead of to the two that remembered to ask for it.
  */
 /**
  * Render one planned unit. Shared by the transcript and by a folded wave, which holds
  * the same units it would otherwise have rendered inline.
  */
 export function renderUnit(unit: MessageRenderUnit, ctx: BlockCtx) {
-  if (unit.kind === "wave") return <NarrativeWave units={unit.units} ctx={ctx} />;
+  if (unit.kind === "wave")
+    return <NarrativeWave units={unit.units} ctx={ctx} renderUnit={renderUnit} />;
   if (unit.kind === "toolGroup") {
     return (
       <ToolGroup
@@ -181,10 +185,15 @@ export function renderUnit(unit: MessageRenderUnit, ctx: BlockCtx) {
 }
 
 export function renderMessageBlocks(message: Message, ctx: BlockCtx) {
-  return messageBlockRenderUnits(message.blocks, ctx.toolCalls).map((unit) => {
+  const units = messageBlockRenderUnits(message.blocks, ctx.toolCalls);
+  return units.map((unit, index) => {
     const anchor = renderUnitAnchor(message.id, unit);
     return (
-      <div key={anchor} {...{ [BLOCK_ANCHOR_ATTR]: anchor }}>
+      <div
+        key={anchor}
+        {...{ [BLOCK_ANCHOR_ATTR]: anchor }}
+        className={cn(unitSeamClass(units[index - 1], unit), unitIndentClass(unit))}
+      >
         {renderUnit(unit, ctx)}
       </div>
     );

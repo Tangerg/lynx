@@ -21,7 +21,7 @@ export function CompactionBlock({
       : t("compaction.compacted");
 
   return (
-    <div className="my-3">
+    <div>
       {/* The rules come from the Divider atom; this used to draw its own pair, at a
           third alpha for the same idea. Clickable when a summary is available. */}
       <Divider>

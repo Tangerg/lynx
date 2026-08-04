@@ -20,6 +20,7 @@ import {
   useAgentToolCalls,
   useCurrentRootContextTokens,
   useCurrentRootOutcome,
+  useCurrentRootMetrics,
   useCurrentRootPlan,
   useCurrentRootRunId,
   useCurrentRootSegmentId,
@@ -99,6 +100,7 @@ export function installAgentStatePorts(): () => void {
   const disposeViewState = configureAgentSessionViewPort({
     useCurrentRootAttention,
     useCurrentRootOutcome,
+    useCurrentRootMetrics,
     useCurrentRootRunId,
     useCurrentRootSegmentId,
     useCurrentRootPlan,

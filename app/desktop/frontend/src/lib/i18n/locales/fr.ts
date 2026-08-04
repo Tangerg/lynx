@@ -125,7 +125,6 @@ export const fr: Record<string, string> = {
   "tools.overflow.truncated": "tronqué par le runtime",
   "tools.overflow.outputTruncated": "sortie tronquée par le runtime",
   "tools.group.calls": "{{count}} appels",
-  "narrative.wave.steps": "{{count}} étapes",
 
   "common.remove": "Supprimer",
   "common.loading": "Chargement",
@@ -369,7 +368,7 @@ export const fr: Record<string, string> = {
   "agent.runOutcome.canceled": "Annulé",
   "agent.runOutcome.maxSteps": "Nombre maximal d’étapes atteint",
   "agent.runOutcome.maxBudget": "Limite de budget atteinte",
-  "agent.runTree.steps": "{{count}} étape(s)",
+  "agent.steps": "{{count}} étapes",
   "agent.runTree.action.audit": "Ouvrir l’audit complet",
   "agent.runTree.action.cancel": "Annuler cette exécution",
   "agent.runTree.material.empty": "Aucun contenu narratif pour le moment.",

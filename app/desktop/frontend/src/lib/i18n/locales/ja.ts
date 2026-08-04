@@ -124,7 +124,6 @@ export const ja: Record<string, string> = {
   "tools.overflow.truncated": "ランタイムにより切り詰められました",
   "tools.overflow.outputTruncated": "出力がランタイムにより切り詰められました",
   "tools.group.calls": "{{count}} 件の呼び出し",
-  "narrative.wave.steps": "{{count}} ステップ",
 
   "common.remove": "削除",
   "common.loading": "読み込み中",
@@ -363,7 +362,7 @@ export const ja: Record<string, string> = {
   "agent.runOutcome.canceled": "キャンセル済み",
   "agent.runOutcome.maxSteps": "最大ステップ数に到達",
   "agent.runOutcome.maxBudget": "予算上限に到達",
-  "agent.runTree.steps": "{{count}} ステップ",
+  "agent.steps": "{{count}} ステップ",
   "agent.runTree.action.audit": "完全な実行監査を開く",
   "agent.runTree.action.cancel": "この実行をキャンセル",
   "agent.runTree.material.empty": "ナラティブはまだありません。",

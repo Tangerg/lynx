@@ -58,7 +58,7 @@ export function QuestionCard({ status, runId, itemId, questions, answered, answe
     const shown = settled.answers;
     if (!shown) return <HitlSettledRow label={t("question.settled.answered")} />;
     return (
-      <Surface className="my-2 flex flex-col gap-2">
+      <Surface className="flex flex-col gap-2">
         <div className="flex items-center gap-1.5 font-mono text-ui-xs font-medium text-fg-faint">
           <Icon name="check" size="xs" />
           <span>{t("question.settled.answered")}</span>

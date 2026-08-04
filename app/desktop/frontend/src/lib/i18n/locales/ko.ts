@@ -124,7 +124,6 @@ export const ko: Record<string, string> = {
   "tools.overflow.truncated": "런타임에서 잘렸습니다",
   "tools.overflow.outputTruncated": "런타임에서 출력이 잘렸습니다",
   "tools.group.calls": "호출 {{count}}회",
-  "narrative.wave.steps": "{{count}}단계",
 
   "common.remove": "제거",
   "common.loading": "불러오는 중",
@@ -361,7 +360,7 @@ export const ko: Record<string, string> = {
   "agent.runOutcome.canceled": "취소됨",
   "agent.runOutcome.maxSteps": "최대 단계 수에 도달함",
   "agent.runOutcome.maxBudget": "예산 한도에 도달함",
-  "agent.runTree.steps": "{{count}}단계",
+  "agent.steps": "{{count}}단계",
   "agent.runTree.action.audit": "전체 실행 감사 열기",
   "agent.runTree.action.cancel": "이 실행 취소",
   "agent.runTree.material.empty": "아직 내러티브 내용이 없습니다.",

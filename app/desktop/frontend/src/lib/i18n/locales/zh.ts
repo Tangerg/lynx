@@ -132,7 +132,6 @@ export const zh: Record<string, string> = {
   "tools.overflow.truncated": "已被运行时截断",
   "tools.overflow.outputTruncated": "输出已被运行时截断",
   "tools.group.calls": "{{count}} 次调用",
-  "narrative.wave.steps": "{{count}} 步处理",
 
   "common.remove": "移除",
   "common.loading": "加载中",
@@ -497,7 +496,7 @@ export const zh: Record<string, string> = {
   "agent.runOutcome.canceled": "已取消",
   "agent.runOutcome.maxSteps": "已达到最大步骤数",
   "agent.runOutcome.maxBudget": "已达到预算上限",
-  "agent.runTree.steps": "{{count}} 步",
+  "agent.steps": "{{count}} 步",
   "agent.runTree.action.audit": "打开完整运行审计",
   "agent.runTree.action.cancel": "取消此次运行",
   "agent.runTree.material.empty": "暂无叙事内容。",

@@ -46,7 +46,7 @@ export function delegatedRunCardModel(
     statusLabel: t(statusView.labelKey),
     dotTone: statusView.dotTone,
     detail: agentRunDetail(run),
-    stepsLabel: t("agent.runTree.steps", { count: agentRunStepCount(run) }),
+    stepsLabel: t("agent.steps", { count: agentRunStepCount(run) }),
     // Exempt from the answer-supersedes-work rule on purpose: a delegated run that is
     // waiting has an interrupt somebody has to act on, and folding away a request for
     // a decision because the parent started talking is how a turn deadlocks in

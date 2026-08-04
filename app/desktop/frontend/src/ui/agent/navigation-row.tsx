@@ -76,7 +76,7 @@ export function AgentRow({
         // the type had abandoned it, not because it was generous.
         "w-full justify-start rounded-[var(--surface-card-radius)] text-left text-ui-md font-medium",
         "gap-[var(--density-row-gap)]",
-        "text-fg transition-[background-color,color] duration-[var(--dur-fast)]",
+        "text-fg transition-[background-color,color] duration-[var(--dur-color)]",
         "hover:bg-hover hover:text-fg focus-visible:bg-hover",
         // Selection reads through the FILL alone, which is what this atom always
         // claimed and never did: it also bumped the weight, so the resting rows

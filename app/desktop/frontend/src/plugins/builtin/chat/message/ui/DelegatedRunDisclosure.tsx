@@ -96,7 +96,6 @@ export function DelegatedRunDisclosure({
             ? "warning"
             : "neutral"
       }
-      className="my-1.5"
     >
       {hasMaterial ? (
         children

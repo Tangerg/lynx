@@ -58,7 +58,7 @@ export function HitlCardShell({
   "data-slot": slot = "hitl-shell",
 }: ShellProps) {
   return (
-    <div data-slot={slot} className={cn("my-2 rounded-lg p-3", VARIANT_CLASS[variant])}>
+    <div data-slot={slot} className={cn("rounded-lg p-3", VARIANT_CLASS[variant])}>
       <div className="mb-1.5 flex items-center gap-2 text-ui-md font-medium text-fg">
         <Icon name={icon} size="sm" className={iconClassName} />
         <span>{label}</span>

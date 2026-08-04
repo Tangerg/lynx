@@ -22,7 +22,7 @@ export const PlanBlock = memo(function PlanBlock({ plan }: { plan: PlanItem[] })
   const t = useT();
   const done = plan.filter((p) => p.status === "done").length;
   return (
-    <div className="my-3 overflow-hidden rounded-[var(--surface-card-radius)] bg-card">
+    <div className="overflow-hidden rounded-[var(--surface-card-radius)] bg-card">
       <div className="flex items-center gap-2.5 px-3 py-2.5">
         <Icon name="list" size="sm" className="shrink-0 text-fg-muted" />
         <span className="shrink-0 text-ui-sm font-semibold text-fg">{t("plan.title")}</span>

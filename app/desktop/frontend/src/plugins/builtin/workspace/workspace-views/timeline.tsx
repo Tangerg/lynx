@@ -122,9 +122,7 @@ function TimelineRunHeader({ group }: { group: TimelineRunGroup }) {
           <span title={run.id} className="truncate font-mono text-ui-xs text-fg-faint">
             {run.id}
           </span>
-          <Badge tone={status.tone} shape="pill">
-            {t(status.labelKey)}
-          </Badge>
+          <Badge tone={status.tone}>{t(status.labelKey)}</Badge>
         </div>
         <div className="mt-0.5 flex min-w-0 gap-2 text-ui-xs text-fg-muted">
           {status.detail && (
@@ -138,7 +136,7 @@ function TimelineRunHeader({ group }: { group: TimelineRunGroup }) {
             </span>
           )}
           <span className="ml-auto shrink-0 font-mono tabular-nums">
-            {t("agent.runTree.steps", { count: status.stepCount })}
+            {t("agent.steps", { count: status.stepCount })}
           </span>
         </div>
       </div>

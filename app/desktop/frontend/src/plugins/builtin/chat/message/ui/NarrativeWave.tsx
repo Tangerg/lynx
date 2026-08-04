@@ -9,33 +9,57 @@
 // The `line` shell, because a fold over process is process: a card here would make the
 // thing being hidden heavier than the answer it sits above.
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import type { MessageRenderUnit } from "@/plugins/builtin/agent/public/messagePresentation";
 import { waveStepCount } from "@/plugins/builtin/agent/public/messagePresentation";
 import { AgentActivityDisclosure } from "@/ui/agent";
+import { Icon } from "@/ui";
 import { useT } from "@/lib/i18n";
+import { unitSeamClass } from "../application/renderUnitRhythm";
 import type { BlockCtx } from "./blockContext";
-import { renderUnit } from "./BlockRenderer";
+import { waveGlyphs } from "./narrativeWaveGlyphs";
 
-export function NarrativeWave({ units, ctx }: { units: MessageRenderUnit[]; ctx: BlockCtx }) {
+interface Props {
+  units: MessageRenderUnit[];
+  ctx: BlockCtx;
+  /** The transcript's own unit dispatcher, injected rather than imported: a fold is
+   *  one CASE of that dispatch, so importing it back would close a cycle. Same
+   *  arrangement DelegatedNarrative uses for the same reason. */
+  renderUnit: (unit: MessageRenderUnit, ctx: BlockCtx) => ReactNode;
+}
+
+export function NarrativeWave({ units, ctx, renderUnit }: Props) {
   const t = useT();
   const [open, setOpen] = useState(false);
+  const glyphs = waveGlyphs(units, ctx.toolCalls);
 
   return (
     <AgentActivityDisclosure
-      icon="history"
       shell="line"
+      // The marks of what is inside, not a generic "history" glyph — a folded row is
+      // the one row whose leading mark has something to say, because its label cannot.
+      leading={
+        <span className="flex items-center gap-1">
+          {glyphs.map((glyph, index) => (
+            <Icon key={index} name={glyph} size="xs" />
+          ))}
+        </span>
+      }
       // The count IS the label. A word for what this is would have to be a tense, and
       // the only tense available is past — the wave exists because an answer followed
-      // it — while the glyph beside it already says "what happened".
-      label={t("narrative.wave.steps", { count: waveStepCount(units) })}
+      // it — while the marks beside it already say what happened.
+      label={t("agent.steps", { count: waveStepCount(units) })}
       open={open}
       onToggle={() => setOpen((value) => !value)}
     >
       {/* Each member already knows it is superseded — this wave exists BECAUSE an
-          answer followed it — so nothing inside springs open when the wave does. */}
+          answer followed it — so nothing inside springs open when the wave does.
+          Same seam owner as the transcript: a fold holds the rows it would otherwise
+          have shown inline, so it has to space them the same way. */}
       {units.map((unit, index) => (
-        <div key={index}>{renderUnit(unit, ctx)}</div>
+        <div key={index} className={unitSeamClass(units[index - 1], unit)}>
+          {renderUnit(unit, ctx)}
+        </div>
       ))}
     </AgentActivityDisclosure>
   );

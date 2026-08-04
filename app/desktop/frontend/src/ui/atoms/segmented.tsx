@@ -48,7 +48,7 @@ export function Segmented<T extends string | number>({
             value={String(opt.value)}
             className={cn(
               "h-[var(--control-height-xs)] rounded-[var(--segment-radius)] border-[length:var(--control-edge-width)] border-transparent bg-transparent px-2 text-ui-sm font-medium",
-              "text-fg-muted transition-[background-color,border-color,box-shadow,color] duration-[var(--dur-fast)] ease-out",
+              "text-fg-muted transition-[background-color,border-color,box-shadow,color] duration-[var(--dur-color)] ease-out",
               mono && "font-mono",
               "hover:text-fg",
               "data-[active]:border-field data-[active]:bg-canvas data-[active]:text-fg",

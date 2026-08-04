@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import type {
   AgentProblem,
+  AgentRunMetrics,
   AgentRunOutcome,
   AgentSessionView,
   Message,
@@ -61,6 +62,10 @@ export function useCurrentRootAttention(): AgentRootAttention {
 
 export function useCurrentRootOutcome(): AgentRunOutcome | null {
   return useActiveAgentView((view) => selectCurrentRootRun(view)?.outcome ?? null);
+}
+
+export function useCurrentRootMetrics(): AgentRunMetrics | null {
+  return useActiveAgentView((view) => selectCurrentRootRun(view)?.metrics ?? null);
 }
 
 export function useCurrentRootRunId(): string | null {
