@@ -6,7 +6,7 @@ import { formatClock } from "@/lib/i18n/relativeTime";
 import { useActiveConversationMessages } from "@/plugins/builtin/agent/public/conversation";
 import type { Message } from "@/plugins/builtin/agent/public/viewState";
 import { Pressable, RichTooltip } from "@/ui";
-import { scrollToTurn, useTranscriptMap } from "../adapters/transcriptAnchors";
+import { foldExchanges, scrollToTurn, useTranscriptMap } from "../adapters/transcriptAnchors";
 
 /** How far the pointer's reach carries, in marks. Beyond this a mark is at its
  *  resting length. Three is enough to read as a swell and short enough that the
@@ -35,9 +35,12 @@ const TRACK = FLOOR + SHARE + MAGNIFY;
 /**
  * A map of the conversation, one mark per question asked.
  *
- * Only user turns get a mark. A conversation's shape is the questions in it; an
- * assistant turn is the answer to the mark above it, and giving both a mark
- * would double the rail's length while halving what each one tells you.
+ * One mark per exchange — a question and everything that answers it. A conversation's
+ * shape is the questions in it; an assistant turn is the answer to the mark above it,
+ * and giving both a mark would double the rail's length while halving what each one
+ * tells you. The mark stays lit for the whole exchange, answer included, which is the
+ * bug this once had: the highlight went out the moment you scrolled past the question
+ * into its own answer.
  *
  * The marks are rules, not dots, and their resting length is the share of the
  * transcript that exchange occupies — measured, not guessed. Equal dots say only
@@ -52,7 +55,10 @@ export function TurnRail() {
   const messages = useActiveConversationMessages();
   const { visibleTurnId, turns: extents } = useTranscriptMap();
   const [reached, setReached] = useState<number | null>(null);
-  const turns = messages.filter((message) => message.role === "user");
+  // The same fold the measurement uses, so a mark exists for every exchange the
+  // reading line can name. Derived from messages rather than from the measured
+  // extents so the rail is drawn on first paint, before any layout has happened.
+  const turns = foldExchanges(messages);
   if (turns.length < 2) return null;
 
   const shareOf = (id: string) => extents.find((extent) => extent.id === id)?.share ?? 0;

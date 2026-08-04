@@ -3,6 +3,9 @@ import { useEffect, useState } from "react";
 /** Written by the transcript on every rendered turn; read here to place the
  *  rails against what is actually on screen. */
 export const TURN_ANCHOR_ATTR = "data-turn-id";
+/** Also written by the transcript. What makes an exchange's boundary findable
+ *  from the DOM without the rail having to know the conversation model. */
+const TURN_ROLE_ATTR = "data-turn-role";
 const TURN_SELECTOR = `[${TURN_ANCHOR_ATTR}]`;
 
 /** Where the reading line sits, as a fraction of the scroller's height. A turn
@@ -19,18 +22,56 @@ function turnElements(root: HTMLElement): HTMLElement[] {
   return [...root.querySelectorAll<HTMLElement>(TURN_SELECTOR)];
 }
 
-/** How much of the transcript one turn occupies, as a fraction of its longest
- *  sibling. This is a measurement, not an estimate: the rail draws the document
- *  it is a map of. */
+/** How much of the transcript one EXCHANGE occupies, as a fraction of the longest
+ *  one. This is a measurement, not an estimate: the rail draws the document it is a
+ *  map of. */
 export interface TurnExtent {
   id: string;
   share: number;
 }
 
+/** One anchored turn as the DOM reports it, before exchanges are folded out. */
+export interface AnchoredTurn {
+  id: string;
+  role: string | null;
+  top: number;
+}
+
+/**
+ * Fold anchored messages into exchanges — a question and everything that answers it.
+ *
+ * The rail's unit has always been the exchange (one mark per question, the answer
+ * belongs to the mark above it) while this module's unit was the message, and that
+ * mismatch was three bugs at once: the highlight went out as soon as you scrolled
+ * from a question into its answer, because the id under the reading line was the
+ * assistant's and no mark carried it; every mark rested at the floor length, because
+ * a question's "share of the transcript" was measured as the height of its own
+ * bubble; and a compaction note between two turns counted as a turn of its own.
+ *
+ * A user anchor opens an exchange and everything after it belongs to that one. A
+ * transcript that opens with something else (a restored assistant turn, a compaction
+ * note) still gets a first exchange, so nothing is left unattributed.
+ *
+ * Generic over `{id, role}` so the rail can fold its MESSAGES with the same function
+ * that folds these anchors. Two callers applying one rule cannot disagree about where
+ * an exchange begins; two callers each filtering for `role === "user"` could, and did
+ * — at the head of a restored transcript the measurement named an exchange the rail
+ * had no mark for.
+ */
+export function foldExchanges<T extends { id: string; role: string | null }>(
+  turns: readonly T[],
+): T[] {
+  const exchanges: T[] = [];
+  for (const turn of turns) {
+    if (turn.role === "user" || exchanges.length === 0) exchanges.push(turn);
+  }
+  return exchanges;
+}
+
 export interface TranscriptMap {
-  /** The turn currently under the reading line. */
+  /** The exchange currently under the reading line, named by its question. */
   visibleTurnId: string | null;
-  /** Every turn, in document order, with its share of the tallest. */
+  /** Every exchange, in document order, with its share of the tallest. */
   turns: TurnExtent[];
 }
 
@@ -73,17 +114,27 @@ export function useTranscriptMap(): TranscriptMap {
     let frame = 0;
     const measure = () => {
       frame = 0;
-      const line = root.getBoundingClientRect().top + root.clientHeight * READING_LINE;
-      const elements = turnElements(root);
-      const measured = elements.map((element, i) => ({
+      const rootTop = root.getBoundingClientRect().top;
+      const line = rootTop + root.clientHeight * READING_LINE;
+      // The content's own bottom, in the same viewport coordinates as every
+      // `getBoundingClientRect().top` below. The previous expression subtracted a
+      // viewport offset from `scrollHeight + scrollTop`, which is content space —
+      // so the last exchange measured thousands of pixels tall, it won `tallest`,
+      // and every other mark's share rounded to nothing. That is why a rail whose
+      // whole point is proportional marks drew ten identical stubs.
+      const contentBottom = rootTop + root.scrollHeight - root.scrollTop;
+      const anchored = turnElements(root).map((element) => ({
         id: element.getAttribute(TURN_ANCHOR_ATTR) ?? "",
+        role: element.getAttribute(TURN_ROLE_ATTR),
         top: element.getBoundingClientRect().top,
-        // A turn runs until the next one starts; the last runs to the bottom of
-        // the content. The element itself is only the question — its answer is a
-        // sibling, not a child.
-        height:
-          (elements[i + 1]?.getBoundingClientRect().top ?? root.scrollHeight + root.scrollTop) -
-          element.getBoundingClientRect().top,
+      }));
+      const exchanges = foldExchanges(anchored);
+      const measured = exchanges.map((exchange, i) => ({
+        id: exchange.id,
+        top: exchange.top,
+        // An exchange runs until the next question starts; the last runs to the
+        // bottom of the content.
+        height: (exchanges[i + 1]?.top ?? contentBottom) - exchange.top,
       }));
       const tallest = Math.max(1, ...measured.map((turn) => turn.height));
 
@@ -94,7 +145,7 @@ export function useTranscriptMap(): TranscriptMap {
       }
 
       const next: TranscriptMap = {
-        // The first turn owns the space above the reading line, so a transcript
+        // The first exchange owns the space above the reading line, so a transcript
         // scrolled to the very top still highlights something.
         visibleTurnId: current ?? measured[0]?.id ?? null,
         turns: measured.map((turn) => ({ id: turn.id, share: turn.height / tallest })),
