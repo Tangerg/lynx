@@ -144,6 +144,7 @@ func prepareWaitingCancellationTransformation(
 		settled := item
 		settled.Status = transcript.ItemIncomplete
 		if settled.Kind == transcript.ToolCall {
+			settled.FinishedAt = finishedAt.UTC()
 			settled.Error = &transcript.Problem{
 				Kind:   transcript.ToolFailedProblem,
 				Scope:  transcript.ToolProblem,

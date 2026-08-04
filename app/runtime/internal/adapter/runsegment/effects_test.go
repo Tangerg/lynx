@@ -136,6 +136,7 @@ func TestCommitEventBindsOffloadedResultWithTranscriptItem(t *testing.T) {
 		Items: []transcript.Item{{
 			SessionID: "ses_1", RunID: "run_1", ID: "item_1",
 			Kind: transcript.ToolCall, Status: transcript.ItemCompleted,
+			CreatedAt: time.Unix(1, 0).UTC(), FinishedAt: time.Unix(2, 0).UTC(),
 			Tool: &transcript.ToolInvocation{Name: "shell", Result: &preview, Offload: ref},
 		}},
 	})
@@ -168,6 +169,7 @@ func TestCommitEventDiscardsStagedOffloadAfterCommitFailure(t *testing.T) {
 		Items: []transcript.Item{{
 			SessionID: "ses_1", RunID: "run_1", ID: "item_1",
 			Kind: transcript.ToolCall, Status: transcript.ItemCompleted,
+			CreatedAt: time.Unix(1, 0).UTC(), FinishedAt: time.Unix(2, 0).UTC(),
 			Tool: &transcript.ToolInvocation{Name: "shell", Result: &preview, Offload: ref},
 		}},
 	})

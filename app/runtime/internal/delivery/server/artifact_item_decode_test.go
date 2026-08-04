@@ -82,8 +82,10 @@ func TestSessionImportMapsApplicationArchiveValidationToInvalidParams(t *testing
 
 func TestPortableArtifactDecoderPreservesCanonicalToolResult(t *testing.T) {
 	artifact := validArtifact()
+	at := time.Unix(1, 0).UTC()
 	artifact.Items[0] = protocol.ArtifactItem{
 		ID: "item_1", RunID: "run_1", Status: "completed", Type: "toolCall",
+		CreatedAt: at, StartedAt: at, FinishedAt: at, DurationMs: valuePtr(int64(0)),
 		Tool: &protocol.ArtifactToolInvocation{Name: "shell", Arguments: map[string]any{}, Result: map[string]any{"stdout": "raw"}},
 	}
 	portable, err := portableArtifactFromWire(artifact)
@@ -94,5 +96,41 @@ func TestPortableArtifactDecoderPreservesCanonicalToolResult(t *testing.T) {
 	value, ok := result.(map[string]any)
 	if !ok || value["stdout"] != "raw" {
 		t.Fatalf("tool result = %#v, want the unpresented canonical result", result)
+	}
+}
+
+func TestPortableArtifactDecoderRejectsInconsistentToolTiming(t *testing.T) {
+	startedAt := time.Unix(1, 0).UTC()
+	finishedAt := startedAt.Add(1500 * time.Millisecond)
+	valid := func() protocol.SessionArtifact {
+		artifact := validArtifact()
+		artifact.Items[0] = protocol.ArtifactItem{
+			ID: "item_1", RunID: "run_1", Status: protocol.ItemStatusCompleted,
+			CreatedAt: startedAt, StartedAt: startedAt, FinishedAt: finishedAt,
+			DurationMs: valuePtr(int64(1500)), Type: protocol.ItemTypeToolCall,
+			Tool: &protocol.ArtifactToolInvocation{Name: "shell", Arguments: map[string]any{}},
+		}
+		return artifact
+	}
+	tests := []struct {
+		name   string
+		mutate func(*protocol.ArtifactItem)
+	}{
+		{name: "start differs from creation", mutate: func(item *protocol.ArtifactItem) {
+			item.StartedAt = item.StartedAt.Add(time.Millisecond)
+		}},
+		{name: "duration differs from boundaries", mutate: func(item *protocol.ArtifactItem) {
+			item.DurationMs = valuePtr(int64(1499))
+		}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			artifact := valid()
+			test.mutate(&artifact.Items[0])
+			_, err := portableArtifactFromWire(artifact)
+			if !errors.Is(err, protocol.ErrInvalidParams) {
+				t.Fatalf("portableArtifactFromWire error = %v, want invalid_params", err)
+			}
+		})
 	}
 }

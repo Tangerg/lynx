@@ -226,7 +226,7 @@ publish one namespaced pattern branch without weakening first-party tags.
 | `agentMessage` | `id`, `runId`, `status`, `createdAt` | `content` |
 | `reasoning` | `id`, `runId`, `status`, `createdAt` | `text`, `redacted` |
 | `question` | `id`, `runId`, `status`, `createdAt` | `question` |
-| `toolCall` | `id`, `runId`, `status`, `createdAt` | `tool`, `safetyClass`, `error` |
+| `toolCall` | `id`, `runId`, `status`, `createdAt`, `startedAt` | `finishedAt`, `durationMs`, `tool`, `safetyClass`, `error` |
 | `compaction` | `id`, `runId`, `status`, `createdAt` | `summary`, `droppedMessages` |
 
 ### `ItemDelta`
@@ -407,7 +407,7 @@ Forbidden on every variant: `durable`.
 | `agentMessage` | `id`, `runId`, `status`, `createdAt` | `content` |
 | `reasoning` | `id`, `runId`, `status`, `createdAt` | `text`, `redacted` |
 | `question` | `id`, `runId`, `status`, `createdAt` | `question` |
-| `toolCall` | `id`, `runId`, `status`, `createdAt` | `tool`, `safetyClass`, `error` |
+| `toolCall` | `id`, `runId`, `status`, `createdAt`, `startedAt` | `finishedAt`, `durationMs`, `tool`, `safetyClass`, `error` |
 | `compaction` | `id`, `runId`, `status`, `createdAt` | `summary`, `droppedMessages` |
 
 ### `ArtifactContentBlock`
@@ -442,8 +442,8 @@ TypeScript validator from this single registry projection.
 | `UpdateSessionRequest` | `sessionId` | `nonEmpty` |
 | `UpdateSessionRequest` | `expectedRevision` | `positive` |
 | `ImportSessionRequest` | `artifact.session.id` | `nonEmpty` |
-| `SessionArtifact` | `version` | `minimum(10)` |
-| `SessionArtifact` | `version` | `maximum(10)` |
+| `SessionArtifact` | `version` | `minimum(11)` |
+| `SessionArtifact` | `version` | `maximum(11)` |
 | `ArtifactRun` | `messageMark` | `nonNegative` |
 | `ArtifactRunMetrics` | `steps` | `nonNegative` |
 | `ArtifactRunMetrics` | `activeDurationMs` | `nonNegative` |
@@ -460,7 +460,9 @@ TypeScript validator from this single registry projection.
 | `ArtifactModelUsage` | `reasoningTokens` | `nonNegative` |
 | `ArtifactModelUsage` | `costUsd` | `nonNegative` |
 | `ArtifactItem` | `droppedMessages` | `nonNegative` |
+| `ArtifactItem` | `durationMs` | `nonNegative` |
 | `ArtifactProblem` | `retryAfterSeconds` | `positive` |
+| `Item` | `durationMs` | `nonNegative` |
 | `RunProtocolProfile` | `requiredFeatures` | `uniqueItems` |
 | `RunProtocolProfile` | `interruptTypes` | `uniqueItems` |
 | `StartRunRequest` | `sessionId` | `nonEmpty` |

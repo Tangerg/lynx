@@ -226,7 +226,10 @@ type Item struct {
 	RunID     string
 	Status    ItemStatus
 	CreatedAt time.Time
-	Kind      ItemKind
+	// FinishedAt is the terminal boundary of a ToolCall. Tool execution starts
+	// when its Item is created; other Item kinds do not use this field.
+	FinishedAt time.Time
+	Kind       ItemKind
 
 	Content     []ContentBlock
 	Text        string
@@ -663,6 +666,9 @@ func (item Item) Validate() error {
 	if item.Tool != nil && item.Tool.Name == "" {
 		return errors.New("tool name is required")
 	}
+	if item.Kind != ToolCall && !item.FinishedAt.IsZero() {
+		return errors.New("finished at is only valid for tool calls")
+	}
 
 	switch item.Kind {
 	case UserMessage, AgentMessage:
@@ -694,6 +700,22 @@ func (item Item) Validate() error {
 	case ToolCall:
 		if item.Tool == nil {
 			return errors.New("tool invocation is required")
+		}
+		if item.CreatedAt.IsZero() {
+			return errors.New("tool call start time is required")
+		}
+		switch item.Status {
+		case ItemRunning:
+			if !item.FinishedAt.IsZero() {
+				return errors.New("running tool call must not have a finish time")
+			}
+		case ItemCompleted, ItemIncomplete:
+			if item.FinishedAt.IsZero() {
+				return errors.New("terminal tool call finish time is required")
+			}
+			if item.FinishedAt.Before(item.CreatedAt) {
+				return errors.New("tool call finish time precedes start time")
+			}
 		}
 		if item.SafetyClass != "" && !item.SafetyClass.Valid() {
 			return fmt.Errorf("unknown safety class %q", item.SafetyClass)

@@ -31,13 +31,13 @@ import (
 // is that the document this build writes is the version the contract named. Bumping
 // it is a breaking act, so it should cost a deliberate edit here.
 func TestArtifactVersionIsTheOneVNextFroze(t *testing.T) {
-	if protocol.SessionArtifactVersion != 10 {
-		t.Fatalf("SessionArtifactVersion = %d; plan steps require artifact v10",
+	if protocol.SessionArtifactVersion != 11 {
+		t.Fatalf("SessionArtifactVersion = %d; tool-call timing requires artifact v11",
 			protocol.SessionArtifactVersion)
 	}
 }
 
-// TestArtifactV10RoundTripsEveryFieldItCarries is the rest of gate 15.
+// TestArtifactV11RoundTripsEveryFieldItCarries is the rest of gate 15.
 //
 // The failure mode a version bump actually has is a field the encoder writes and
 // the decoder drops — the archive still imports, still looks right, and the value is
@@ -50,7 +50,7 @@ func TestArtifactVersionIsTheOneVNextFroze(t *testing.T) {
 //   - the archive survives the trip WHOLE — export, wipe, import, export again, and
 //     the two documents must be identical byte for byte. Any field the decoder
 //     forgets is missing from the second document.
-func TestArtifactV10RoundTripsEveryFieldItCarries(t *testing.T) {
+func TestArtifactV11RoundTripsEveryFieldItCarries(t *testing.T) {
 	s, rt := rollbackHarness(t)
 	s.features.plan = true // this composition owns the key, so it may restore it
 	ctx := t.Context()
@@ -112,9 +112,10 @@ func TestExportPreservesRunTreeLineage(t *testing.T) {
 	}
 	if err := rt.hist.AppendItem(ctx, transcript.Item{
 		SessionID: ses.ID, RunID: "run_root", ID: "item_spawn",
-		CreatedAt: time.Unix(1, 0).UTC(), Status: transcript.ItemCompleted,
-		Kind: transcript.ToolCall,
-		Tool: &transcript.ToolInvocation{Name: "delegate_task"},
+		CreatedAt: time.Unix(1, 0).UTC(), FinishedAt: time.Unix(1, 0).UTC(),
+		Status: transcript.ItemCompleted,
+		Kind:   transcript.ToolCall,
+		Tool:   &transcript.ToolInvocation{Name: "delegate_task"},
 	}); err != nil {
 		t.Fatalf("seed spawning item: %v", err)
 	}
@@ -178,7 +179,8 @@ func TestImportRefusesAChildWhoseRootProfileDisallowsChildren(t *testing.T) {
 		},
 		Items: []protocol.ArtifactItem{{
 			ID: "item_spawn", RunID: "run_root", Status: protocol.ItemStatusCompleted,
-			CreatedAt: at, Type: protocol.ItemTypeToolCall,
+			CreatedAt: at, StartedAt: at, FinishedAt: at, DurationMs: valuePtr(int64(0)),
+			Type: protocol.ItemTypeToolCall,
 			Tool: &protocol.ArtifactToolInvocation{Name: "delegate_task", Arguments: map[string]any{}},
 		}},
 	}
@@ -496,12 +498,14 @@ func seedEveryItemKind(t *testing.T, rt *stubRuntime, sessionID string) {
 		{
 			ID: "item_tool", RunID: "run_done", Kind: transcript.ToolCall,
 			Status: transcript.ItemCompleted, CreatedAt: time.Unix(7, 0).UTC(),
+			FinishedAt:  time.UnixMilli(7250).UTC(),
 			SafetyClass: tool.SafetyClassExec,
 			Tool:        &transcript.ToolInvocation{Name: "shell", Arguments: arguments, Result: &result},
 		},
 		{
 			ID: "item_failed", RunID: "run_failed", Kind: transcript.ToolCall,
 			Status: transcript.ItemIncomplete, CreatedAt: time.Unix(8, 0).UTC(),
+			FinishedAt: time.UnixMilli(8500).UTC(),
 			Error: &transcript.Problem{
 				Kind: transcript.ToolFailedProblem, Scope: transcript.ToolProblem,
 				Detail: "exit 1", DocURL: "https://example.invalid/tools",
@@ -539,7 +543,7 @@ func seedOffloadedToolResult(t *testing.T, rt *stubRuntime, sessionID string) {
 	if err := rt.hist.AppendItem(ctx, transcript.Item{
 		SessionID: sessionID, RunID: "run_done", ID: "item_offload",
 		Kind: transcript.ToolCall, Status: transcript.ItemCompleted,
-		CreatedAt: time.Unix(10, 0).UTC(),
+		CreatedAt: time.Unix(10, 0).UTC(), FinishedAt: time.Unix(11, 0).UTC(),
 		Tool: &transcript.ToolInvocation{
 			Name: "vendor_tool", Result: &previewValue, Offload: &offload.Ref{ID: id},
 		},

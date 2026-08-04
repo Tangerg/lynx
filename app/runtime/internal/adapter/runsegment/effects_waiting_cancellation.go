@@ -296,6 +296,7 @@ func (e *Effects) validateWaitingSubtreeCancellation(
 		)
 	}
 	seen := make(map[string]struct{}, len(commit.TerminalRuns))
+	finishedAtByRunID := make(map[string]time.Time, len(commit.TerminalRuns))
 	for index, run := range commit.TerminalRuns {
 		expectedRunID := canceledRunIDs[index]
 		continuation := continuationByRunID[expectedRunID]
@@ -334,6 +335,7 @@ func (e *Effects) validateWaitingSubtreeCancellation(
 			return fmt.Errorf("runsegment: waiting cancellation repeats Run %q", run.ID)
 		}
 		seen[run.ID] = struct{}{}
+		finishedAtByRunID[run.ID] = run.FinishedAt
 	}
 
 	expectedTerminalItems := make(map[string]transcript.Interrupt)
@@ -400,6 +402,7 @@ func (e *Effects) validateWaitingSubtreeCancellation(
 		expectedReplacement := item.Expected
 		expectedReplacement.Status = transcript.ItemIncomplete
 		if expectedReplacement.Kind == transcript.ToolCall {
+			expectedReplacement.FinishedAt = finishedAtByRunID[interrupt.RunID]
 			expectedReplacement.Error = item.Replacement.Error
 			if expectedReplacement.Error == nil ||
 				expectedReplacement.Error.Kind != transcript.ToolFailedProblem ||

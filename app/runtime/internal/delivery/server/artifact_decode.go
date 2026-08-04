@@ -256,6 +256,18 @@ func portableItemFromArtifact(sessionID, path string, artifact protocol.Artifact
 		Error:   problem,
 		Summary: artifact.Summary, DroppedMessages: artifact.DroppedMessages,
 	}
+	if kind == transcript.ToolCall {
+		if !artifact.StartedAt.Equal(artifact.CreatedAt) {
+			return transcript.Item{}, invalidArtifact(path+".startedAt", "must equal createdAt")
+		}
+		if status != transcript.ItemRunning {
+			expectedDuration := artifact.FinishedAt.Sub(artifact.StartedAt).Milliseconds()
+			if artifact.DurationMs == nil || *artifact.DurationMs != expectedDuration {
+				return transcript.Item{}, invalidArtifact(path+".durationMs", "must equal finishedAt minus startedAt in milliseconds")
+			}
+			out.FinishedAt = artifact.FinishedAt
+		}
+	}
 	safetyClass, err := portableSafetyClass(path+".safetyClass", artifact.SafetyClass)
 	if err != nil {
 		return transcript.Item{}, err

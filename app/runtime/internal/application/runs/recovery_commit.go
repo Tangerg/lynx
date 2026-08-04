@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
@@ -57,18 +58,18 @@ func (commit RecoveryCommit) Validate() error {
 
 	replacedItems := make(map[string]struct{}, len(commit.ItemReplacements))
 	for index, replacement := range commit.ItemReplacements {
-		if err := validateRecoveryItemReplacement(replacement); err != nil {
-			return fmt.Errorf("runs: recovery commit Item replacement[%d]: %w", index, err)
-		}
-		if _, duplicate := replacedItems[replacement.Expected.ID]; duplicate {
-			return fmt.Errorf("runs: recovery commit repeats Item replacement %q", replacement.Expected.ID)
-		}
 		owner, found := lostByID[replacement.Expected.RunID]
 		if !found || replacement.Expected.SessionID != owner.SessionID {
 			return fmt.Errorf(
 				"runs: recovery commit Item %q is not owned by a lost Run",
 				replacement.Expected.ID,
 			)
+		}
+		if err := validateRecoveryItemReplacement(replacement, owner.FinishedAt); err != nil {
+			return fmt.Errorf("runs: recovery commit Item replacement[%d]: %w", index, err)
+		}
+		if _, duplicate := replacedItems[replacement.Expected.ID]; duplicate {
+			return fmt.Errorf("runs: recovery commit repeats Item replacement %q", replacement.Expected.ID)
 		}
 		replacedItems[replacement.Expected.ID] = struct{}{}
 	}
@@ -84,7 +85,7 @@ func (commit RecoveryCommit) Validate() error {
 	return nil
 }
 
-func validateRecoveryItemReplacement(replacement ItemReplacement) error {
+func validateRecoveryItemReplacement(replacement ItemReplacement, finishedAt time.Time) error {
 	expected := replacement.Expected
 	actual := replacement.Replacement
 	if err := expected.Validate(); err != nil {
@@ -102,6 +103,7 @@ func validateRecoveryItemReplacement(replacement ItemReplacement) error {
 	want := expected
 	want.Status = transcript.ItemIncomplete
 	if want.Kind == transcript.ToolCall {
+		want.FinishedAt = finishedAt
 		want.Error = &transcript.Problem{
 			Kind:   transcript.ToolFailedProblem,
 			Scope:  transcript.ToolProblem,

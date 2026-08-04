@@ -496,3 +496,11 @@
 - 将仅由父包使用的 `editguardstate` 折回 `toolset`，`Tracker / Fingerprint / Result` 全部私有化为 read-tracker invariant，删除为绕包边界产生的导出面；
 - 把混装 format、Schedule、path guard 的 `new_tools_test.go` 拆回对应职责测试文件；内部 `tool/createTool/pathLockedTool/decoratedTool` 等无信息量名称改成行为或职责名；
 - 明确保留 `memorysearch / sessionsearch / askuser` 的独立边界：它们虽然表面共享 search 或 interrupt 动词，但没有共同状态源和变化轴，合并会造成虚假内聚。
+
+### 批次 10a
+
+- 为 transcript 的 ToolCall Item 增加唯一的终止事实 `FinishedAt`；执行开始仍由 Item 的 `CreatedAt` 定义，实时协议显式投影为 `startedAt`，终态再投影 `finishedAt` 与派生的 `durationMs`。没有把三个可变时间字段同时持久化，避免边界时间与持续时间互相漂移；
+- reducer 在收到 `ToolCallEnd` 时立即盖章，而不是等并发调用按模型顺序 flush 时才计时，因此 transcript 顺序仍按模型调用顺序，耗时却保留真实完成边界；取消、挂起、重启恢复和不可恢复的 parked Run 也在各自终止事务中补齐同一事实；
+- ToolCall 领域 invariant 明确为：running 只有开始时间，completed/incomplete 必须有不早于开始的结束时间，其他 Item 禁止携带 ToolCall 结束时间。实时 DTO 与 artifact DTO 的存在性规则、非负持续时间约束由同一 contract registry 生成；
+- artifact 提升到 v11，导入同时核验 `startedAt == createdAt` 以及 `durationMs == finishedAt - startedAt`，不为旧 artifact 猜测执行边界，也不保留兼容字段；
+- 时间事实停留在 transcript / runs / delivery：通用 Agent ToolCall 协议仍只表达模型请求，没有被 app/runtime 的持久化生命周期污染。本轮只更新服务端 Go 契约；桌面 TypeScript 与 canonical samples 继续留给约定的前端专项。

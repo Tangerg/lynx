@@ -304,7 +304,10 @@ func TestReducerPreservesRawToolResultsAndExplicitFileNudges(t *testing.T) {
 }
 
 func TestReducerCommitsConcurrentToolCompletionsInModelOrder(t *testing.T) {
-	reducer := newReducer(testReducerConfig())
+	config := testReducerConfig()
+	now := config.CreatedAt
+	config.Now = func() time.Time { return now }
+	reducer := newReducer(config)
 	for _, event := range []ToolCallStart{
 		{CallID: "call-1", ToolName: "first", Arguments: `{"value":1}`},
 		{CallID: "call-2", ToolName: "second", Arguments: `{"value":2}`},
@@ -313,13 +316,18 @@ func TestReducerCommitsConcurrentToolCompletionsInModelOrder(t *testing.T) {
 		mustReduce(t, reducer, event)
 	}
 
+	now = now.Add(time.Second)
+	thirdFinishedAt := now
 	if reduced := mustReduce(t, reducer, ToolCallEnd{CallID: "call-3", Result: testToolResult(t, "three")}); len(reduced) != 0 {
 		t.Fatalf("third completion escaped ordering barrier: %+v", reduced)
 	}
+	now = now.Add(time.Second)
 	first := mustReduce(t, reducer, ToolCallEnd{CallID: "call-1", Result: testToolResult(t, "one")})
 	if got := completedToolNames(first); !slices.Equal(got, []string{"first"}) {
 		t.Fatalf("first completion batch = %v, want [first]", got)
 	}
+	now = now.Add(time.Second)
+	secondFinishedAt := now
 	remaining := mustReduce(t, reducer, ToolCallEnd{
 		CallID: "call-2", Arguments: `{"value":20}`, Result: testToolResult(t, "two"),
 	})
@@ -329,6 +337,15 @@ func TestReducerCommitsConcurrentToolCompletionsInModelOrder(t *testing.T) {
 	second := completedItem(t, remaining)
 	if second.Tool.Arguments.Map()["value"] != json.Number("20") {
 		t.Fatalf("effective arguments = %#v, want value 20", second.Tool.Arguments)
+	}
+	var terminalTools []transcript.Item
+	for _, event := range remaining {
+		if completed, ok := event.Event.(ItemCompleted); ok {
+			terminalTools = append(terminalTools, completed.Item)
+		}
+	}
+	if len(terminalTools) != 2 || terminalTools[0].FinishedAt != secondFinishedAt || terminalTools[1].FinishedAt != thirdFinishedAt {
+		t.Fatalf("completion times = %+v, want second=%s third=%s", terminalTools, secondFinishedAt, thirdFinishedAt)
 	}
 }
 

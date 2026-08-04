@@ -28,7 +28,20 @@ func presentItem(item transcript.Item) protocol.Item {
 		tool := presentTool(*item.Tool)
 		out.Tool = &tool
 	}
+	if item.Kind == transcript.ToolCall {
+		out.StartedAt = item.CreatedAt
+		out.FinishedAt = item.FinishedAt
+		out.DurationMs = presentToolDurationMs(item)
+	}
 	return out
+}
+
+func presentToolDurationMs(item transcript.Item) *int64 {
+	if item.FinishedAt.IsZero() {
+		return nil
+	}
+	duration := item.FinishedAt.Sub(item.CreatedAt).Milliseconds()
+	return &duration
 }
 
 func presentItemStatus(status transcript.ItemStatus) protocol.ItemStatus {

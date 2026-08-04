@@ -44,7 +44,11 @@ func (r *reducer) interrupt(e TurnInterrupted) ([]RunEvent, error) {
 			out = append(out, completed...)
 			continue
 		}
-		out = append(out, incompleteToolItem(r.cfg.RunID, ref))
+		incomplete, err := r.incompleteToolItem(ref)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, incomplete)
 	}
 
 	pending := make([]transcript.Interrupt, 0, len(e.Interrupts))
@@ -99,7 +103,11 @@ func (r *reducer) suspend(duration time.Duration) ([]RunEvent, error) {
 			out = append(out, completed...)
 			continue
 		}
-		out = append(out, incompleteToolItem(r.cfg.RunID, ref))
+		incomplete, err := r.incompleteToolItem(ref)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, incomplete)
 	}
 	r.segmentDuration = duration
 	return append(out, SegmentFinished{Run: r.runRecord(execution.Interrupted)}), nil
@@ -213,13 +221,17 @@ func (r *reducer) removeDrained(itemID string) {
 	})
 }
 
-func incompleteToolItem(runID string, ref *openTool) ItemCompleted {
+func (r *reducer) incompleteToolItem(ref *openTool) (ItemCompleted, error) {
+	finishedAt := r.now()
+	if finishedAt.Before(ref.createdAt) {
+		return ItemCompleted{}, fmt.Errorf("tool call %q finish time precedes start time", ref.callID)
+	}
 	return ItemCompleted{Item: transcript.Item{
-		ID: ref.id, RunID: runID, Status: transcript.ItemIncomplete,
-		Kind: transcript.ToolCall, CreatedAt: ref.createdAt,
+		ID: ref.id, RunID: r.cfg.RunID, Status: transcript.ItemIncomplete,
+		Kind: transcript.ToolCall, CreatedAt: ref.createdAt, FinishedAt: finishedAt,
 		Tool:        newToolInvocation(ref.name, ref.arguments, nil),
 		SafetyClass: ref.safetyClass,
-	}}
+	}}, nil
 }
 
 func (r *reducer) questionInterrupt(in Interrupt) (transcript.Item, transcript.Interrupt) {
@@ -290,7 +302,11 @@ func (r *reducer) drainTools() ([]RunEvent, error) {
 			out = append(out, completed...)
 			continue
 		}
-		out = append(out, incompleteToolItem(r.cfg.RunID, ref))
+		incomplete, err := r.incompleteToolItem(ref)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, incomplete)
 	}
 	return out, nil
 }

@@ -168,6 +168,11 @@ type Item struct {
 	Status    ItemStatus `json:"status"`
 	CreatedAt time.Time  `json:"createdAt"`
 	Type      ItemType   `json:"type"`
+	// ToolCall execution timing. StartedAt is present from the first running
+	// frame; FinishedAt and DurationMs appear together on terminal frames.
+	StartedAt  time.Time `json:"startedAt,omitzero"`
+	FinishedAt time.Time `json:"finishedAt,omitzero"`
+	DurationMs *int64    `json:"durationMs,omitempty"`
 
 	Content     []ContentBlock  `json:"content,omitempty"`
 	Text        string          `json:"text,omitempty"`

@@ -95,7 +95,7 @@ func registerArtifactValues(s *Shapes) {
 	nonNegative[protocol.ArtifactModelUsage](s,
 		"inputTokens", "outputTokens", "cacheReadTokens", "cacheWriteTokens", "reasoningTokens", "costUsd",
 	)
-	nonNegative[protocol.ArtifactItem](s, "droppedMessages")
+	nonNegative[protocol.ArtifactItem](s, "droppedMessages", "durationMs")
 	s.valueConstraint(FieldConstraintSpec{
 		GoType:      typeOf[protocol.ArtifactProblem](),
 		Constraints: []FieldConstraint{{Field: "retryAfterSeconds", Kind: ConstraintPositive}},
@@ -103,6 +103,7 @@ func registerArtifactValues(s *Shapes) {
 }
 
 func registerRunValues(s *Shapes) {
+	nonNegative[protocol.Item](s, "durationMs")
 	s.valueConstraint(FieldConstraintSpec{
 		GoType: typeOf[protocol.RunProtocolProfile](),
 		Constraints: []FieldConstraint{

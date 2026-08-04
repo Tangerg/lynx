@@ -290,6 +290,7 @@ func recoverLostTree(
 			replacement := item
 			replacement.Status = transcript.ItemIncomplete
 			if replacement.Kind == transcript.ToolCall {
+				replacement.FinishedAt = finishedAt.UTC()
 				replacement.Error = &transcript.Problem{
 					Kind: transcript.ToolFailedProblem, Scope: transcript.ToolProblem,
 					Detail: "tool call interrupted because the run was lost on restart",

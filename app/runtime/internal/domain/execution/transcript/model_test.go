@@ -3,6 +3,7 @@ package transcript_test
 import (
 	"math"
 	"testing"
+	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 )
@@ -26,6 +27,53 @@ func TestItemValidateOwnsPayloadInvariants(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			err := test.item.Validate()
 			if (err != nil) != test.wantErr {
+				t.Fatalf("Validate() error = %v, want error %t", err, test.wantErr)
+			}
+		})
+	}
+}
+
+func TestToolCallTimingLifecycle(t *testing.T) {
+	startedAt := time.Date(2026, 8, 4, 10, 0, 0, 0, time.UTC)
+	finishedAt := startedAt.Add(1500 * time.Millisecond)
+	toolCall := func(status transcript.ItemStatus) transcript.Item {
+		return transcript.Item{
+			Kind: transcript.ToolCall, Status: status, CreatedAt: startedAt,
+			Tool: &transcript.ToolInvocation{Name: "shell"},
+		}
+	}
+
+	tests := []struct {
+		name    string
+		item    transcript.Item
+		wantErr bool
+	}{
+		{name: "running has only start", item: toolCall(transcript.ItemRunning)},
+		{name: "completed has finish", item: func() transcript.Item {
+			item := toolCall(transcript.ItemCompleted)
+			item.FinishedAt = finishedAt
+			return item
+		}()},
+		{name: "terminal missing finish", item: toolCall(transcript.ItemIncomplete), wantErr: true},
+		{name: "running has finish", item: func() transcript.Item {
+			item := toolCall(transcript.ItemRunning)
+			item.FinishedAt = finishedAt
+			return item
+		}(), wantErr: true},
+		{name: "finish precedes start", item: func() transcript.Item {
+			item := toolCall(transcript.ItemCompleted)
+			item.FinishedAt = startedAt.Add(-time.Millisecond)
+			return item
+		}(), wantErr: true},
+		{name: "non-tool has finish", item: transcript.Item{
+			Kind: transcript.AgentMessage, Status: transcript.ItemCompleted,
+			CreatedAt: startedAt, FinishedAt: finishedAt,
+		}, wantErr: true},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if err := test.item.Validate(); (err != nil) != test.wantErr {
 				t.Fatalf("Validate() error = %v, want error %t", err, test.wantErr)
 			}
 		})

@@ -395,13 +395,14 @@ func TestTranscriptStoreReplaceItemUsesExactOptimisticSnapshot(t *testing.T) {
 	store := sqlite.NewTranscriptStore(db)
 	now := time.Date(2026, 7, 30, 1, 2, 3, 0, time.UTC)
 	original := transcript.Item{
-		SessionID: "ses_a",
-		RunID:     "run_1",
-		ID:        "item_child",
-		CreatedAt: now,
-		Status:    transcript.ItemIncomplete,
-		Kind:      transcript.ToolCall,
-		Tool:      &transcript.ToolInvocation{Name: "delegate_task", Arguments: tool.Arguments{}},
+		SessionID:  "ses_a",
+		RunID:      "run_1",
+		ID:         "item_child",
+		CreatedAt:  now,
+		FinishedAt: now,
+		Status:     transcript.ItemIncomplete,
+		Kind:       transcript.ToolCall,
+		Tool:       &transcript.ToolInvocation{Name: "delegate_task", Arguments: tool.Arguments{}},
 	}
 	if err := store.AppendItem(t.Context(), original); err != nil {
 		t.Fatalf("seed Item: %v", err)

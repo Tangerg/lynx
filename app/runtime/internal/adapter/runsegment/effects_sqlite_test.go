@@ -849,13 +849,14 @@ func newWaitingCancellationSQLiteFixtureAt(
 	}
 	transcriptStore := sqlite.NewTranscriptStore(db)
 	parentItem := transcript.Item{
-		SessionID: "session_1",
-		ID:        childLineage.SpawnedByItemID,
-		RunID:     childLineage.ParentRunID,
-		Status:    transcript.ItemIncomplete,
-		Kind:      transcript.ToolCall,
-		CreatedAt: createdAt,
-		Tool:      &transcript.ToolInvocation{Name: "delegate_task", Arguments: tool.Arguments{}},
+		SessionID:  "session_1",
+		ID:         childLineage.SpawnedByItemID,
+		RunID:      childLineage.ParentRunID,
+		Status:     transcript.ItemIncomplete,
+		Kind:       transcript.ToolCall,
+		CreatedAt:  createdAt,
+		FinishedAt: createdAt,
+		Tool:       &transcript.ToolInvocation{Name: "delegate_task", Arguments: tool.Arguments{}},
 	}
 	if err := transcriptStore.AppendItem(ctx, parentItem); err != nil {
 		t.Fatalf("seed spawning Item: %v", err)

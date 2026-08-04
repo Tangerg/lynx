@@ -167,7 +167,8 @@ func TestPortableSnapshotChildInheritsItsRootsProfile(t *testing.T) {
 		// The spawning item is a TOOL CALL: a child run is the execution of one.
 		Items: []transcript.Item{{
 			SessionID: "ses_1", RunID: "run_root", ID: "item_1", CreatedAt: at,
-			Status: transcript.ItemCompleted, Kind: transcript.ToolCall,
+			FinishedAt: at,
+			Status:     transcript.ItemCompleted, Kind: transcript.ToolCall,
 			Tool: &transcript.ToolInvocation{Name: "delegate_task"},
 		}},
 		Runs: []PortableRun{

@@ -259,6 +259,11 @@ func artifactItemFromTranscript(item transcript.Item) (protocol.ArtifactItem, er
 		}
 		out.Tool = &tool
 	}
+	if item.Kind == transcript.ToolCall {
+		out.StartedAt = item.CreatedAt
+		out.FinishedAt = item.FinishedAt
+		out.DurationMs = presentToolDurationMs(item)
+	}
 	return out, nil
 }
 

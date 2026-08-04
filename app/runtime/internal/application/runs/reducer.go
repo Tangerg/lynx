@@ -110,6 +110,7 @@ type openTool struct {
 	order        int
 	id           string
 	createdAt    time.Time
+	finishedAt   time.Time
 	name         string
 	arguments    tool.Arguments
 	safetyClass  tool.SafetyClass

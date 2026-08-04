@@ -187,6 +187,11 @@ func (r *reducer) toolEnd(e ToolCallEnd) ([]RunEvent, error) {
 		copy.Problem = &problem
 	}
 	copy.MutatedPaths = slices.Clone(e.MutatedPaths)
+	finishedAt := r.now()
+	if finishedAt.Before(ref.createdAt) {
+		return nil, fmt.Errorf("tool call %q finish time precedes start time", e.CallID)
+	}
+	ref.finishedAt = finishedAt
 	ref.end = &copy
 	return r.flushEndedTools()
 }
@@ -231,7 +236,7 @@ func (r *reducer) completeTool(ref *openTool, e ToolCallEnd) ([]RunEvent, error)
 	invocation.Offload = e.Offload
 	item := transcript.Item{
 		ID: ref.id, RunID: r.cfg.RunID, Status: transcript.ItemCompleted,
-		Kind: transcript.ToolCall, CreatedAt: ref.createdAt,
+		Kind: transcript.ToolCall, CreatedAt: ref.createdAt, FinishedAt: ref.finishedAt,
 		Tool:        invocation,
 		SafetyClass: ref.safetyClass,
 	}

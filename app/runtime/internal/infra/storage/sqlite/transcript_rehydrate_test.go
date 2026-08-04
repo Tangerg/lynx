@@ -4,6 +4,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	resultoffload "github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
@@ -23,12 +24,16 @@ func openTranscriptAndBlobs(t *testing.T) (*sqlite.TranscriptStore, *sqlite.Tool
 
 func toolItem(sessionID, id, result string, ref *resultoffload.Ref) transcript.Item {
 	value := tool.StringResult(result)
+	at := time.Unix(1, 0).UTC()
 	return transcript.Item{
-		SessionID: sessionID,
-		ID:        id,
-		RunID:     "run-1",
-		Kind:      transcript.ToolCall,
-		Tool:      &transcript.ToolInvocation{Name: "shell", Result: &value, Offload: ref},
+		SessionID:  sessionID,
+		ID:         id,
+		RunID:      "run-1",
+		Kind:       transcript.ToolCall,
+		Status:     transcript.ItemCompleted,
+		CreatedAt:  at,
+		FinishedAt: at,
+		Tool:       &transcript.ToolInvocation{Name: "shell", Result: &value, Offload: ref},
 	}
 }
 

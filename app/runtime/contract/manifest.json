@@ -2597,9 +2597,12 @@
             "id",
             "runId",
             "status",
-            "createdAt"
+            "createdAt",
+            "startedAt"
           ],
           "optional": [
+            "finishedAt",
+            "durationMs",
             "tool",
             "safetyClass",
             "error"
@@ -3284,9 +3287,12 @@
             "id",
             "runId",
             "status",
-            "createdAt"
+            "createdAt",
+            "startedAt"
           ],
           "optional": [
+            "finishedAt",
+            "durationMs",
             "tool",
             "safetyClass",
             "error"
@@ -3362,6 +3368,124 @@
     }
   ],
   "objectConstraints": [
+    {
+      "type": "Item",
+      "rules": [
+        {
+          "when": [
+            {
+              "field": "type",
+              "operator": "equals",
+              "value": "toolCall"
+            },
+            {
+              "field": "status",
+              "operator": "equals",
+              "value": "running"
+            }
+          ],
+          "forbidden": [
+            "finishedAt",
+            "durationMs"
+          ]
+        },
+        {
+          "when": [
+            {
+              "field": "type",
+              "operator": "equals",
+              "value": "toolCall"
+            },
+            {
+              "field": "status",
+              "operator": "equals",
+              "value": "completed"
+            }
+          ],
+          "required": [
+            "finishedAt",
+            "durationMs"
+          ]
+        },
+        {
+          "when": [
+            {
+              "field": "type",
+              "operator": "equals",
+              "value": "toolCall"
+            },
+            {
+              "field": "status",
+              "operator": "equals",
+              "value": "incomplete"
+            }
+          ],
+          "required": [
+            "finishedAt",
+            "durationMs"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "ArtifactItem",
+      "rules": [
+        {
+          "when": [
+            {
+              "field": "type",
+              "operator": "equals",
+              "value": "toolCall"
+            },
+            {
+              "field": "status",
+              "operator": "equals",
+              "value": "running"
+            }
+          ],
+          "forbidden": [
+            "finishedAt",
+            "durationMs"
+          ]
+        },
+        {
+          "when": [
+            {
+              "field": "type",
+              "operator": "equals",
+              "value": "toolCall"
+            },
+            {
+              "field": "status",
+              "operator": "equals",
+              "value": "completed"
+            }
+          ],
+          "required": [
+            "finishedAt",
+            "durationMs"
+          ]
+        },
+        {
+          "when": [
+            {
+              "field": "type",
+              "operator": "equals",
+              "value": "toolCall"
+            },
+            {
+              "field": "status",
+              "operator": "equals",
+              "value": "incomplete"
+            }
+          ],
+          "required": [
+            "finishedAt",
+            "durationMs"
+          ]
+        }
+      ]
+    },
     {
       "type": "AgentMemoryListRequest",
       "rules": [
@@ -3907,11 +4031,11 @@
       "rules": [
         {
           "field": "version",
-          "constraint": "minimum(10)"
+          "constraint": "minimum(11)"
         },
         {
           "field": "version",
-          "constraint": "maximum(10)"
+          "constraint": "maximum(11)"
         }
       ]
     },
@@ -4001,6 +4125,10 @@
         {
           "field": "droppedMessages",
           "constraint": "nonNegative"
+        },
+        {
+          "field": "durationMs",
+          "constraint": "nonNegative"
         }
       ]
     },
@@ -4010,6 +4138,15 @@
         {
           "field": "retryAfterSeconds",
           "constraint": "positive"
+        }
+      ]
+    },
+    {
+      "type": "Item",
+      "rules": [
+        {
+          "field": "durationMs",
+          "constraint": "nonNegative"
         }
       ]
     },

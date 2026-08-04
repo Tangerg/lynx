@@ -198,6 +198,7 @@ func registerItemUnions(s *Shapes) {
 	// each variant repeats them: a variant declares the WHOLE frame it permits,
 	// which is what lets the field-coverage check be exhaustive.
 	commonItemFields := []string{"id", "runId", "status", "createdAt"}
+	toolItemFields := slices.Concat(commonItemFields, []string{"startedAt"})
 	// The archive's session-scoped state values, keyed the same way the live stream
 	// keys them. One variant today, declared as a union because the KEY is the
 	// discriminator: a reader must branch on it rather than guess from which field
@@ -218,7 +219,7 @@ func registerItemUnions(s *Shapes) {
 			{Tag: string(protocol.ItemTypeAgentMessage), Required: commonItemFields, Optional: []string{"content"}},
 			{Tag: string(protocol.ItemTypeReasoning), Required: commonItemFields, Optional: []string{"text", "redacted"}},
 			{Tag: string(protocol.ItemTypeQuestion), Required: commonItemFields, Optional: []string{"question"}},
-			{Tag: string(protocol.ItemTypeToolCall), Required: commonItemFields, Optional: []string{"tool", "safetyClass", "error"}},
+			{Tag: string(protocol.ItemTypeToolCall), Required: toolItemFields, Optional: []string{"finishedAt", "durationMs", "tool", "safetyClass", "error"}},
 			{Tag: string(protocol.ItemTypeCompaction), Required: commonItemFields, Optional: []string{"summary", "droppedMessages"}},
 		},
 	})
@@ -406,6 +407,7 @@ func registerArtifactUnions(s *Shapes) {
 	})
 
 	commonItemFields := []string{"id", "runId", "status", "createdAt"}
+	toolItemFields := slices.Concat(commonItemFields, []string{"startedAt"})
 	s.union(UnionSpec{
 		GoType:        typeOf[protocol.ArtifactItem](),
 		Discriminator: "type",
@@ -414,7 +416,7 @@ func registerArtifactUnions(s *Shapes) {
 			{Tag: string(protocol.ItemTypeAgentMessage), Required: commonItemFields, Optional: []string{"content"}},
 			{Tag: string(protocol.ItemTypeReasoning), Required: commonItemFields, Optional: []string{"text", "redacted"}},
 			{Tag: string(protocol.ItemTypeQuestion), Required: commonItemFields, Optional: []string{"question"}},
-			{Tag: string(protocol.ItemTypeToolCall), Required: commonItemFields, Optional: []string{"tool", "safetyClass", "error"}},
+			{Tag: string(protocol.ItemTypeToolCall), Required: toolItemFields, Optional: []string{"finishedAt", "durationMs", "tool", "safetyClass", "error"}},
 			{Tag: string(protocol.ItemTypeCompaction), Required: commonItemFields, Optional: []string{"summary", "droppedMessages"}},
 		},
 	})
@@ -451,6 +453,34 @@ func registerDiffUnions(s *Shapes) {
 }
 
 func registerObjectConstraints(s *Shapes) {
+	for _, target := range []reflect.Type{
+		typeOf[protocol.Item](),
+		typeOf[protocol.ArtifactItem](),
+	} {
+		s.constraint(ObjectConstraintSpec{
+			GoType: target,
+			Rules: []PresenceRule{{
+				When: []FieldCondition{
+					{Field: "type", Operator: OperatorEquals, Value: string(protocol.ItemTypeToolCall)},
+					{Field: "status", Operator: OperatorEquals, Value: string(protocol.ItemStatusRunning)},
+				},
+				Forbidden: []string{"finishedAt", "durationMs"},
+			}, {
+				When: []FieldCondition{
+					{Field: "type", Operator: OperatorEquals, Value: string(protocol.ItemTypeToolCall)},
+					{Field: "status", Operator: OperatorEquals, Value: string(protocol.ItemStatusCompleted)},
+				},
+				Required: []string{"finishedAt", "durationMs"},
+			}, {
+				When: []FieldCondition{
+					{Field: "type", Operator: OperatorEquals, Value: string(protocol.ItemTypeToolCall)},
+					{Field: "status", Operator: OperatorEquals, Value: string(protocol.ItemStatusIncomplete)},
+				},
+				Required: []string{"finishedAt", "durationMs"},
+			}},
+		})
+	}
+
 	for _, target := range []reflect.Type{
 		typeOf[protocol.AgentMemoryListRequest](),
 		typeOf[protocol.AgentMemoryAddRequest](),

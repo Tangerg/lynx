@@ -746,12 +746,13 @@ func waitingCancellationPlan(
 		t.Fatalf("waiting cancellation plan: %v", err)
 	}
 	plan.spawningItem = transcript.Item{
-		ID:        target.SpawnedByItemID,
-		SessionID: pending.SessionID,
-		RunID:     target.ParentRunID,
-		Status:    transcript.ItemIncomplete,
-		Kind:      transcript.ToolCall,
-		CreatedAt: createdAt,
+		ID:         target.SpawnedByItemID,
+		SessionID:  pending.SessionID,
+		RunID:      target.ParentRunID,
+		Status:     transcript.ItemIncomplete,
+		Kind:       transcript.ToolCall,
+		CreatedAt:  createdAt,
+		FinishedAt: createdAt,
 		Tool: &transcript.ToolInvocation{
 			Name:      "delegate_task",
 			Arguments: tool.Arguments{},

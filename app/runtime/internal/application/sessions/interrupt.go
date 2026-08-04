@@ -205,14 +205,17 @@ func (c *Coordinator) terminalizeParkedRun(ctx context.Context, sessionID, runID
 			return transcript.Run{}, fmt.Errorf("sessions: terminalize parked Run tree %q: interrupt Item %q is not Running in Run %q", runID, item.ID, ownerRunID)
 		}
 		item.Status = transcript.ItemIncomplete
-		if outcome == execution.OutcomeError && item.Kind == transcript.ToolCall {
-			item.Error = &transcript.Problem{
-				Kind:  transcript.ToolFailedProblem,
-				Scope: transcript.ToolProblem,
-				// Distinct from a tool that ran and failed, and from one cut off by a
-				// restart: this call was still awaiting its approval or answer when the
-				// run it belonged to was declared unresumable.
-				Detail: "tool call abandoned because its run could not be resumed",
+		if item.Kind == transcript.ToolCall {
+			item.FinishedAt = finishedAt.UTC()
+			if outcome == execution.OutcomeError {
+				item.Error = &transcript.Problem{
+					Kind:  transcript.ToolFailedProblem,
+					Scope: transcript.ToolProblem,
+					// Distinct from a tool that ran and failed, and from one cut off by a
+					// restart: this call was still awaiting its approval or answer when the
+					// run it belonged to was declared unresumable.
+					Detail: "tool call abandoned because its run could not be resumed",
+				}
 			}
 		}
 		items = append(items, item)

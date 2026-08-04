@@ -165,9 +165,9 @@ type ExportSessionResponse struct {
 // artifact it doesn't recognize; development builds do not migrate old
 // artifacts.
 //
-// v10 establishes the single Plan/Step artifact contract. Older documents are
-// refused before any write rather than partially decoded.
-const SessionArtifactVersion = 10
+// v11 adds explicit ToolCall execution timing. Older documents are refused
+// before any write rather than inventing missing start and finish facts.
+const SessionArtifactVersion = 11
 
 // SessionArtifact is the portable, round-trippable form of a session: its
 // identity plus the full conversation — chat messages (the model's context),
@@ -319,11 +319,14 @@ type ArtifactModelUsage struct {
 // Item response DTO: archive tool results remain canonical rather than being
 // transformed for a particular client presentation.
 type ArtifactItem struct {
-	ID        string     `json:"id"`
-	RunID     string     `json:"runId"`
-	Status    ItemStatus `json:"status"`
-	CreatedAt time.Time  `json:"createdAt"`
-	Type      ItemType   `json:"type"`
+	ID         string     `json:"id"`
+	RunID      string     `json:"runId"`
+	Status     ItemStatus `json:"status"`
+	CreatedAt  time.Time  `json:"createdAt"`
+	Type       ItemType   `json:"type"`
+	StartedAt  time.Time  `json:"startedAt,omitzero"`
+	FinishedAt time.Time  `json:"finishedAt,omitzero"`
+	DurationMs *int64     `json:"durationMs,omitempty"`
 
 	Content         []ArtifactContentBlock  `json:"content,omitempty"`
 	Text            string                  `json:"text,omitempty"`

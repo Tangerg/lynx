@@ -425,8 +425,16 @@
           "type": "integer",
           "minimum": 0
         },
+        "durationMs": {
+          "type": "integer",
+          "minimum": 0
+        },
         "error": {
           "$ref": "#/$defs/ArtifactProblem"
+        },
+        "finishedAt": {
+          "type": "string",
+          "format": "date-time"
         },
         "id": {
           "type": "string"
@@ -442,6 +450,10 @@
         },
         "safetyClass": {
           "$ref": "#/$defs/SafetyClass"
+        },
+        "startedAt": {
+          "type": "string",
+          "format": "date-time"
         },
         "status": {
           "$ref": "#/$defs/ItemStatus"
@@ -463,10 +475,13 @@
         {
           "properties": {
             "droppedMessages": false,
+            "durationMs": false,
             "error": false,
+            "finishedAt": false,
             "question": false,
             "redacted": false,
             "safetyClass": false,
+            "startedAt": false,
             "summary": false,
             "text": false,
             "tool": false,
@@ -485,10 +500,13 @@
         {
           "properties": {
             "droppedMessages": false,
+            "durationMs": false,
             "error": false,
+            "finishedAt": false,
             "question": false,
             "redacted": false,
             "safetyClass": false,
+            "startedAt": false,
             "summary": false,
             "text": false,
             "tool": false,
@@ -508,9 +526,12 @@
           "properties": {
             "content": false,
             "droppedMessages": false,
+            "durationMs": false,
             "error": false,
+            "finishedAt": false,
             "question": false,
             "safetyClass": false,
+            "startedAt": false,
             "summary": false,
             "tool": false,
             "type": {
@@ -529,9 +550,12 @@
           "properties": {
             "content": false,
             "droppedMessages": false,
+            "durationMs": false,
             "error": false,
+            "finishedAt": false,
             "redacted": false,
             "safetyClass": false,
+            "startedAt": false,
             "summary": false,
             "text": false,
             "tool": false,
@@ -563,6 +587,7 @@
             "createdAt",
             "id",
             "runId",
+            "startedAt",
             "status",
             "type"
           ]
@@ -570,10 +595,13 @@
         {
           "properties": {
             "content": false,
+            "durationMs": false,
             "error": false,
+            "finishedAt": false,
             "question": false,
             "redacted": false,
             "safetyClass": false,
+            "startedAt": false,
             "text": false,
             "tool": false,
             "type": {
@@ -587,6 +615,74 @@
             "status",
             "type"
           ]
+        }
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "running"
+              },
+              "type": {
+                "const": "toolCall"
+              }
+            },
+            "required": [
+              "status",
+              "type"
+            ]
+          },
+          "then": {
+            "properties": {
+              "durationMs": false,
+              "finishedAt": false
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "completed"
+              },
+              "type": {
+                "const": "toolCall"
+              }
+            },
+            "required": [
+              "status",
+              "type"
+            ]
+          },
+          "then": {
+            "required": [
+              "durationMs",
+              "finishedAt"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "incomplete"
+              },
+              "type": {
+                "const": "toolCall"
+              }
+            },
+            "required": [
+              "status",
+              "type"
+            ]
+          },
+          "then": {
+            "required": [
+              "durationMs",
+              "finishedAt"
+            ]
+          }
         }
       ]
     },
@@ -2738,8 +2834,16 @@
         "droppedMessages": {
           "type": "integer"
         },
+        "durationMs": {
+          "type": "integer",
+          "minimum": 0
+        },
         "error": {
           "$ref": "#/$defs/ProblemData"
+        },
+        "finishedAt": {
+          "type": "string",
+          "format": "date-time"
         },
         "id": {
           "type": "string"
@@ -2755,6 +2859,10 @@
         },
         "safetyClass": {
           "$ref": "#/$defs/SafetyClass"
+        },
+        "startedAt": {
+          "type": "string",
+          "format": "date-time"
         },
         "status": {
           "$ref": "#/$defs/ItemStatus"
@@ -2776,10 +2884,13 @@
         {
           "properties": {
             "droppedMessages": false,
+            "durationMs": false,
             "error": false,
+            "finishedAt": false,
             "question": false,
             "redacted": false,
             "safetyClass": false,
+            "startedAt": false,
             "summary": false,
             "text": false,
             "tool": false,
@@ -2798,10 +2909,13 @@
         {
           "properties": {
             "droppedMessages": false,
+            "durationMs": false,
             "error": false,
+            "finishedAt": false,
             "question": false,
             "redacted": false,
             "safetyClass": false,
+            "startedAt": false,
             "summary": false,
             "text": false,
             "tool": false,
@@ -2821,9 +2935,12 @@
           "properties": {
             "content": false,
             "droppedMessages": false,
+            "durationMs": false,
             "error": false,
+            "finishedAt": false,
             "question": false,
             "safetyClass": false,
+            "startedAt": false,
             "summary": false,
             "tool": false,
             "type": {
@@ -2842,9 +2959,12 @@
           "properties": {
             "content": false,
             "droppedMessages": false,
+            "durationMs": false,
             "error": false,
+            "finishedAt": false,
             "redacted": false,
             "safetyClass": false,
+            "startedAt": false,
             "summary": false,
             "text": false,
             "tool": false,
@@ -2876,6 +2996,7 @@
             "createdAt",
             "id",
             "runId",
+            "startedAt",
             "status",
             "type"
           ]
@@ -2883,10 +3004,13 @@
         {
           "properties": {
             "content": false,
+            "durationMs": false,
             "error": false,
+            "finishedAt": false,
             "question": false,
             "redacted": false,
             "safetyClass": false,
+            "startedAt": false,
             "text": false,
             "tool": false,
             "type": {
@@ -2900,6 +3024,74 @@
             "status",
             "type"
           ]
+        }
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "running"
+              },
+              "type": {
+                "const": "toolCall"
+              }
+            },
+            "required": [
+              "status",
+              "type"
+            ]
+          },
+          "then": {
+            "properties": {
+              "durationMs": false,
+              "finishedAt": false
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "completed"
+              },
+              "type": {
+                "const": "toolCall"
+              }
+            },
+            "required": [
+              "status",
+              "type"
+            ]
+          },
+          "then": {
+            "required": [
+              "durationMs",
+              "finishedAt"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "incomplete"
+              },
+              "type": {
+                "const": "toolCall"
+              }
+            },
+            "required": [
+              "status",
+              "type"
+            ]
+          },
+          "then": {
+            "required": [
+              "durationMs",
+              "finishedAt"
+            ]
+          }
         }
       ]
     },
@@ -7032,8 +7224,8 @@
         },
         "version": {
           "type": "integer",
-          "minimum": 10,
-          "maximum": 10
+          "minimum": 11,
+          "maximum": 11
         }
       },
       "required": [
