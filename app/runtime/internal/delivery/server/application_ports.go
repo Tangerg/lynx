@@ -162,10 +162,10 @@ type workspaceKnowledgeUseCases interface {
 type workspaceSkillUseCases interface {
 	ArchiveSkill(ctx context.Context, name string) error
 	ListManagedSkills(ctx context.Context) ([]skills.Entry, error)
-	ListSkillDrafts(ctx context.Context) ([]skills.DraftInfo, error)
+	ListSkillProposals(ctx context.Context, cwd string) ([]skills.ProposalInfo, error)
 	ListSkills(ctx context.Context, cwd string) ([]workspaceapp.SkillInfo, error)
-	PromoteSkillDraft(ctx context.Context, handle skills.DraftHandle) error
-	RejectSkillDraft(ctx context.Context, handle skills.DraftHandle) error
+	ApproveSkillProposal(ctx context.Context, cwd string, ref skills.ProposalRef) error
+	RejectSkillProposal(ctx context.Context, cwd string, ref skills.ProposalRef) error
 	RestoreSkill(ctx context.Context, name string) error
 }
 

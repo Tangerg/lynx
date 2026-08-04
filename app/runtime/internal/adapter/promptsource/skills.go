@@ -25,29 +25,29 @@ func ProjectSkillDir(workdir string) string {
 }
 
 // MergeSkillSource builds the merged skill source: projectDir layered over
-// globalDir, the project copy winning on name collisions. Returns nil when
+// userDir, the project copy winning on name collisions. Returns nil when
 // neither directory exists, so a session that ships no skills gets no skill tool
 // at all rather than one that always lists nothing.
 //
-// decorateGlobal, when non-nil, wraps the GLOBAL source only (e.g. to record
+// decorateUser, when non-nil, wraps the USER source only (e.g. to record
 // loads for the idle-lifecycle curator). It must not wrap the project source:
-// only the global library is authored/curated, and merge resolves a shadowed
-// name to the project copy, so decorating the global source records exactly the
-// global-resolved loads and nothing else.
+// only the user library is auto-curated, and merge resolves a shadowed
+// name to the project copy, so decorating the user source records exactly the
+// user-resolved loads and nothing else.
 //
 // Building a source just wraps an os.DirFS, so this is cheap enough to call per
 // tool resolution (the engine rebuilds the skill tool per turn cwd).
-func MergeSkillSource(projectDir, globalDir string, decorateGlobal func(sdk.ResourceSource) sdk.ResourceSource) sdk.ResourceSource {
+func MergeSkillSource(projectDir, userDir string, decorateUser func(sdk.ResourceSource) sdk.ResourceSource) sdk.ResourceSource {
 	var sources []sdk.ResourceSource
 	if dirExists(projectDir) {
 		sources = append(sources, sdk.Dir(projectDir))
 	}
-	if dirExists(globalDir) {
-		global := sdk.Dir(globalDir)
-		if decorateGlobal != nil {
-			global = decorateGlobal(global)
+	if dirExists(userDir) {
+		user := sdk.Dir(userDir)
+		if decorateUser != nil {
+			user = decorateUser(user)
 		}
-		sources = append(sources, global)
+		sources = append(sources, user)
 	}
 	if len(sources) == 0 {
 		return nil
@@ -56,10 +56,10 @@ func MergeSkillSource(projectDir, globalDir string, decorateGlobal func(sdk.Reso
 }
 
 // ListSkills enumerates the skills visible from projectDir layered over
-// globalDir, project winning on a name collision (the same precedence
+// userDir, project winning on a name collision (the same precedence
 // MergeSkillSource gives the model). A missing directory contributes nothing
 // rather than erroring. Result is sorted by name.
-func ListSkills(ctx context.Context, projectDir, globalDir string) ([]workspaceapp.SkillInfo, error) {
+func ListSkills(ctx context.Context, projectDir, userDir string) ([]workspaceapp.SkillInfo, error) {
 	seen := make(map[string]struct{})
 	var out []workspaceapp.SkillInfo
 	add := func(dir string, scope workspaceapp.SkillScope) error {
@@ -82,7 +82,7 @@ func ListSkills(ctx context.Context, projectDir, globalDir string) ([]workspacea
 	if err := add(projectDir, workspaceapp.SkillScopeProject); err != nil {
 		return nil, err
 	}
-	if err := add(globalDir, workspaceapp.SkillScopeGlobal); err != nil {
+	if err := add(userDir, workspaceapp.SkillScopeUser); err != nil {
 		return nil, err
 	}
 	slices.SortFunc(out, func(a, b workspaceapp.SkillInfo) int { return strings.Compare(a.Name, b.Name) })

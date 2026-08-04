@@ -11,30 +11,30 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/skills"
 )
 
-// renderDraft encodes a domain proposal into the SKILL.md storage format. The
+// renderProposal encodes a domain proposal into the SKILL.md storage format. The
 // YAML framing belongs beside the file store; the domain only owns the proposal
 // values and lifecycle rules.
-func renderDraft(draft skills.Draft) ([]byte, error) {
+func renderProposal(proposal skills.Proposal) ([]byte, error) {
 	frontmatter, err := yaml.Marshal(skillspec.Frontmatter{
-		Name:        draft.Name,
-		Description: draft.Description,
-		Metadata:    draftProvenance(draft),
+		Name:        proposal.Name,
+		Description: proposal.Description,
+		Metadata:    proposalProvenance(proposal),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("skillauthoring: render frontmatter: %w", err)
 	}
-	return []byte("---\n" + string(frontmatter) + "---\n\n" + strings.TrimSpace(draft.Body) + "\n"), nil
+	return []byte("---\n" + string(frontmatter) + "---\n\n" + strings.TrimSpace(proposal.Instructions) + "\n"), nil
 }
 
-func draftProvenance(draft skills.Draft) map[string]string {
+func proposalProvenance(proposal skills.Proposal) map[string]string {
 	metadata := make(map[string]string, 2)
-	if draft.CreatedBy != "" {
-		metadata[metadataCreatedBy] = draft.CreatedBy
+	if proposal.Origin != "" {
+		metadata[metadataOrigin] = string(proposal.Origin)
 	}
-	if draft.SourceSession != "" {
-		metadata[metadataSourceSession] = draft.SourceSession
+	if proposal.SourceSession != "" {
+		metadata[metadataSourceSession] = proposal.SourceSession
 	}
-	if draft.Revises {
+	if proposal.Revises {
 		metadata[metadataRevises] = metadataTrue
 	}
 	if len(metadata) == 0 {

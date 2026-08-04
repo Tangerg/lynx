@@ -163,10 +163,11 @@ func (value SkillNameRequest) ValidateWire() error {
 	)
 }
 
-func (value SkillDraftRef) ValidateWire() error {
-	return collectWireViolations("SkillDraftRef",
+func (value SkillProposalRef) ValidateWire() error {
+	return collectWireViolations("SkillProposalRef",
 		requiredText("name", value.Name),
 		requiredText("revision", value.Revision),
+		closedEnum("scope", string(value.Scope), []string{"project", "user"}, false),
 	)
 }
 

@@ -176,7 +176,7 @@ func TestSafetyTableMatchesBuiltInTools(t *testing.T) {
 	}
 	built, err := Build(t.Context(), BuildConfig{
 		Workdir:         t.TempDir(),
-		SkillsGlobalDir: t.TempDir(), // backs skill
+		SkillsUserDir: t.TempDir(), // backs skill
 		PlanMode:        policy,
 		Plan:            rolePlanStore{},
 		Goals:           activeGoalState{},

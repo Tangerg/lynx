@@ -149,27 +149,27 @@ func registerSkills(r *Registry) {
 	})
 
 	Query(r, MethodMeta{
-		Name:            "skills.drafts.list",
+		Name:            "skills.proposals.list",
 		CapabilityRules: requires(protocol.FeatureSkills),
 		Stability:       stable,
-	}, func(d *Dispatcher, ctx context.Context, _ struct{}) (*protocol.Page[protocol.SkillDraft], error) {
-		return d.api.ListSkillDrafts(ctx)
+	}, func(d *Dispatcher, ctx context.Context, in protocol.WorkspaceQuery) (*protocol.Page[protocol.SkillProposal], error) {
+		return d.api.ListSkillProposals(ctx, in)
 	})
 
 	CommandAck(r, MethodMeta{
-		Name:            "skills.drafts.promote",
+		Name:            "skills.proposals.approve",
 		CapabilityRules: requires(protocol.FeatureSkills),
 		Stability:       stable,
-	}, func(d *Dispatcher, ctx context.Context, in protocol.SkillDraftRef) error {
-		return d.api.PromoteSkillDraft(ctx, in)
+	}, func(d *Dispatcher, ctx context.Context, in protocol.SkillProposalRef) error {
+		return d.api.ApproveSkillProposal(ctx, in)
 	})
 
 	CommandAck(r, MethodMeta{
-		Name:            "skills.drafts.reject",
+		Name:            "skills.proposals.reject",
 		CapabilityRules: requires(protocol.FeatureSkills),
 		Stability:       stable,
-	}, func(d *Dispatcher, ctx context.Context, in protocol.SkillDraftRef) error {
-		return d.api.RejectSkillDraft(ctx, in)
+	}, func(d *Dispatcher, ctx context.Context, in protocol.SkillProposalRef) error {
+		return d.api.RejectSkillProposal(ctx, in)
 	})
 
 	Query(r, MethodMeta{

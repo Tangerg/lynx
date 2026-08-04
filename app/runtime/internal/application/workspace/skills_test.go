@@ -49,9 +49,9 @@ func TestManagedSkillsWithoutCuratorReportUnavailable(t *testing.T) {
 
 func TestSkillMutationsNotifyOnlyAfterSuccessfulCommit(t *testing.T) {
 	curator := &fakeSkillCurator{}
-	drafts := &fakeSkillDrafts{}
+	proposals := &fakeSkillProposals{}
 	notifications := 0
-	c := NewSkills(NewContext("", "", testPaths{}), nil, curator, drafts, func(struct{}) { notifications++ })
+	c := NewSkills(NewContext("", "", testPaths{}), nil, curator, proposals, func(struct{}) { notifications++ })
 
 	if err := c.ArchiveSkill(context.Background(), "lint"); err != nil {
 		t.Fatal(err)
@@ -59,19 +59,28 @@ func TestSkillMutationsNotifyOnlyAfterSuccessfulCommit(t *testing.T) {
 	if err := c.RestoreSkill(context.Background(), "lint"); err != nil {
 		t.Fatal(err)
 	}
-	if err := c.PromoteSkillDraft(context.Background(), skills.DraftHandle{Name: "lint", Revision: "r1"}); err != nil {
+	proposal := skills.Proposal{Scope: skills.ScopeProject, Name: "lint", Description: "Lint the current project before final verification.", Instructions: "Run the linter."}
+	ref, err := c.SubmitSkillProposal(context.Background(), "/repo", proposal)
+	if err != nil {
 		t.Fatal(err)
 	}
-	if notifications != 3 {
-		t.Fatalf("notifications = %d, want 3", notifications)
+	if err := c.ApproveSkillProposal(context.Background(), "/repo", ref); err != nil {
+		t.Fatal(err)
+	}
+	if notifications != 4 {
+		t.Fatalf("notifications = %d, want 4", notifications)
 	}
 
 	curator.archiveErr = errors.New("disk unavailable")
 	if err := c.ArchiveSkill(context.Background(), "lint"); err == nil {
 		t.Fatal("ArchiveSkill error = nil, want failure")
 	}
-	if notifications != 3 {
-		t.Fatalf("failed mutation notifications = %d, want 3", notifications)
+	proposals.approveErr = errors.New("disk unavailable")
+	if err := c.ApproveSkillProposal(context.Background(), "/repo", ref); err == nil {
+		t.Fatal("ApproveSkillProposal error = nil, want failure")
+	}
+	if notifications != 4 {
+		t.Fatalf("failed mutation notifications = %d, want 4", notifications)
 	}
 }
 

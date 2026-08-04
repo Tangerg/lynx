@@ -9,6 +9,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/maintenance"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/agentmemory"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/exec"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/skillauthoring"
@@ -19,7 +20,7 @@ type turnServices struct {
 	maintenance turn.BoundaryMaintenance
 }
 
-func buildTurnServices(cfg Config, messages messageEnvironment, shells *exec.Shells, skillStore *skillauthoring.Store, resolveUtility func(context.Context) *chatclient.Client, embedder func(context.Context) (agentmemory.Embedder, error)) turnServices {
+func buildTurnServices(cfg Config, messages messageEnvironment, shells *exec.Shells, skillStore *skillauthoring.Store, skillProposals *workspace.Skills, resolveUtility func(context.Context) *chatclient.Client, embedder func(context.Context) (agentmemory.Embedder, error)) turnServices {
 	services := turnServices{
 		steering:    cfg.Steering,
 		maintenance: cfg.Maintenance,
@@ -49,8 +50,8 @@ func buildTurnServices(cfg Config, messages messageEnvironment, shells *exec.She
 	if skillStore.Enabled() {
 		miner = maintenance.NewSkillMiner(
 			messages.store,
-			skillStore,
-			skillspec.Dir(cfg.SkillsGlobalDir),
+			skillProposals,
+			skillspec.Dir(cfg.SkillsUserDir),
 			resolveUtility,
 			maintenance.MinerConfig{},
 		)

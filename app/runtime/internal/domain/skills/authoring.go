@@ -12,170 +12,170 @@ import (
 )
 
 var (
-	// ErrConflict reports that the destination lifecycle state already contains
-	// a different skill. Promotion and archival never destroy either side to
-	// force a move; the caller must resolve the conflict explicitly. It is a
-	// domain-lifecycle outcome (not a storage-tech error), so it lives here where
-	// every layer — including delivery — can classify it.
-	ErrConflict = errors.New("skills: destination already exists")
-	// ErrDraftChanged reports that staged bytes no longer match the handle a
-	// promotion or discard was issued against. Neither the draft nor the active
-	// library is touched.
-	ErrDraftChanged = errors.New("skills: staged draft content changed")
-	// ErrNotFound reports a requested draft or lifecycle entry that is absent.
-	// It is a product outcome, not a filesystem sentinel, so Application and
-	// Delivery can classify it without importing io/fs.
-	ErrNotFound = errors.New("skills: entry not found")
+	ErrConflict        = errors.New("skills: destination already exists")
+	ErrProposalChanged = errors.New("skills: proposal content changed")
+	ErrNotFound        = errors.New("skills: entry not found")
 )
 
-// CreatedByAgent marks a skill whose content an agent authored through the
-// background trajectory-mining draft flow, as distinct from a hand-written
-// one. Only agent-authored skills are subject to automatic idle
-// curation; a human-authored skill is never auto-archived.
-const CreatedByAgent = "agent"
+// Scope identifies the Skill library that owns a proposal or active Skill.
+type Scope string
 
-// Lifecycle is a skill's curator state in the management surface.
+const (
+	ScopeProject Scope = "project"
+	ScopeUser    Scope = "user"
+)
+
+func (s Scope) Validate() error {
+	switch s {
+	case ScopeProject, ScopeUser:
+		return nil
+	default:
+		return fmt.Errorf("skills: invalid scope %q", s)
+	}
+}
+
+// ProposalOrigin identifies why the runtime created a proposal.
+type ProposalOrigin string
+
+const (
+	ProposalOriginRequested ProposalOrigin = "requested"
+	ProposalOriginMined     ProposalOrigin = "mined"
+)
+
+func (o ProposalOrigin) Validate() error {
+	switch o {
+	case ProposalOriginRequested, ProposalOriginMined:
+		return nil
+	default:
+		return fmt.Errorf("skills: invalid proposal origin %q", o)
+	}
+}
+
+// Lifecycle is the managed user library state of an approved Skill.
 type Lifecycle string
 
 const (
-	// Active skills are discovered + loadable by the agent.
-	Active Lifecycle = "active"
-	// Archived skills are preserved but not loaded; a human can restore them.
+	Active   Lifecycle = "active"
 	Archived Lifecycle = "archived"
 )
 
-// Entry is one skill in the management view: its identity + curator state.
+// Entry describes one approved Skill in the managed user library.
 type Entry struct {
 	Name        string
 	Description string
 	Lifecycle   Lifecycle
 }
 
-// Draft is a staged skill candidate: the required frontmatter fields plus the
-// SKILL.md body. It is never visible to the model until a human approves its
-// promotion into the active skill set.
-type Draft struct {
-	Name        string
-	Description string
-	Body        string
-
-	// CreatedBy records who authored the draft's content (e.g. [CreatedByAgent]);
-	// empty for a human-hand-authored skill. SourceSession is the session it was
-	// mined from, or empty. The skill-authoring adapter persists both as
-	// frontmatter metadata so the curator can gate automatic archival on
-	// provenance.
-	CreatedBy     string
-	SourceSession string
-
-	// Revises marks this draft as a new version of the already-active skill of
-	// the same name — a feedback-driven refinement rather than a new skill.
-	// Promotion of a revising draft replaces the active skill (archiving the old
-	// version) instead of conflicting. Its file-store representation is an
-	// infrastructure concern.
-	Revises bool
-}
-
-// DraftHandle identifies the immutable bytes staged for one proposal. Name is
-// the eventual active skill identity; Revision binds that name to the rendered
-// SKILL.md. Approval and publication carry this value so a same-name proposal
-// cannot substitute different bytes while a human decision is pending.
-type DraftHandle struct {
-	Name     string
-	Revision string
-}
-
-// NewDraftHandle returns the content-addressed identity for rendered SKILL.md
-// bytes. Equal proposals intentionally receive the same handle, making a
-// suspended tool replay idempotent.
-func NewDraftHandle(name string, content []byte) DraftHandle {
-	payload := make([]byte, 0, len(name)+1+len(content))
-	payload = append(payload, name...)
-	payload = append(payload, 0)
-	payload = append(payload, content...)
-	digest := sha256.Sum256(payload)
-	return DraftHandle{Name: name, Revision: hex.EncodeToString(digest[:])}
-}
-
-// Validate rejects malformed or path-like handles before a store uses them.
-func (h DraftHandle) Validate() error {
-	if err := (skillspec.Frontmatter{Name: h.Name, Description: "draft handle"}).Validate(); err != nil {
-		return fmt.Errorf("draft handle name: %w", err)
-	}
-	if len(h.Revision) != sha256.Size*2 {
-		return errors.New("draft handle revision must be a SHA-256 digest")
-	}
-	if _, err := hex.DecodeString(h.Revision); err != nil {
-		return fmt.Errorf("draft handle revision: %w", err)
-	}
-	return nil
-}
-
-// Matches reports whether content is the exact rendered proposal represented
-// by h.
-func (h DraftHandle) Matches(content []byte) bool {
-	return h == NewDraftHandle(h.Name, content)
-}
-
-// DraftInfo describes one staged proposal for the offline review surface: its
-// content-addressed handle plus the human-facing description and provenance
-// read back from the rendered SKILL.md frontmatter. It is what a reviewer sees
-// before deciding to promote or reject a draft the agent mined.
-type DraftInfo struct {
-	Handle        DraftHandle
+// Proposal is immutable Skill content awaiting an explicit review decision.
+// Scope identifies the target library; Origin and SourceSession are runtime
+// provenance and must never be accepted from model-authored tool arguments.
+type Proposal struct {
+	Scope         Scope
+	Name          string
 	Description   string
-	CreatedBy     string
+	Instructions  string
+	Origin        ProposalOrigin
 	SourceSession string
 	Revises       bool
 }
 
-// Validate checks a proposed skill against the SKILL.md spec — the same
-// name/description rules the read-only loader enforces ([skillspec.Frontmatter]),
-// plus a non-empty body — so a draft can never promote into a skill the loader
-// would then reject.
-func (d Draft) Validate() error {
-	if err := (skillspec.Frontmatter{Name: d.Name, Description: d.Description}).Validate(); err != nil {
+// ProposalRef binds one review decision to the exact immutable proposal bytes
+// in one Skill scope.
+type ProposalRef struct {
+	Scope    Scope
+	Name     string
+	Revision string
+}
+
+// NewProposalRef derives the stable reference for exact proposal content.
+func NewProposalRef(scope Scope, name string, content []byte) ProposalRef {
+	payload := make([]byte, 0, len(scope)+len(name)+len(content)+2)
+	payload = append(payload, scope...)
+	payload = append(payload, 0)
+	payload = append(payload, name...)
+	payload = append(payload, 0)
+	payload = append(payload, content...)
+	digest := sha256.Sum256(payload)
+	return ProposalRef{Scope: scope, Name: name, Revision: hex.EncodeToString(digest[:])}
+}
+
+// Validate checks whether the reference can identify a stored proposal.
+func (r ProposalRef) Validate() error {
+	if err := r.Scope.Validate(); err != nil {
 		return err
 	}
-	if strings.TrimSpace(d.Body) == "" {
-		return errors.New("skill body is required")
+	if err := (skillspec.Frontmatter{Name: r.Name, Description: "proposal reference"}).Validate(); err != nil {
+		return fmt.Errorf("proposal reference name: %w", err)
+	}
+	if len(r.Revision) != sha256.Size*2 {
+		return errors.New("proposal reference revision must be a SHA-256 digest")
+	}
+	if _, err := hex.DecodeString(r.Revision); err != nil {
+		return fmt.Errorf("proposal reference revision: %w", err)
 	}
 	return nil
 }
 
-// dangerousSkillPattern flags a handful of instructions a proposed skill should
-// essentially never contain. Conservative and near-zero false positive.
+// Matches reports whether content produces this exact reference.
+func (r ProposalRef) Matches(content []byte) bool {
+	return r == NewProposalRef(r.Scope, r.Name, content)
+}
+
+// ProposalInfo contains the complete immutable content and provenance a human
+// needs to review before approving or rejecting a proposal.
+type ProposalInfo struct {
+	Ref           ProposalRef
+	Description   string
+	Instructions  string
+	Origin        ProposalOrigin
+	SourceSession string
+	Revises       bool
+}
+
+// Validate checks proposal scope, provenance, frontmatter, and instructions.
+func (p Proposal) Validate() error {
+	if err := p.Scope.Validate(); err != nil {
+		return err
+	}
+	if p.Origin != "" {
+		if err := p.Origin.Validate(); err != nil {
+			return err
+		}
+	}
+	if err := (skillspec.Frontmatter{Name: p.Name, Description: p.Description}).Validate(); err != nil {
+		return err
+	}
+	if strings.TrimSpace(p.Instructions) == "" {
+		return errors.New("skill instructions are required")
+	}
+	return nil
+}
+
 var dangerousSkillPattern = []*regexp.Regexp{
 	regexp.MustCompile(`(?i)\brm\s+-[a-z]*r[a-z]*f[a-z]*\s+(/|~|\$\{?HOME\}?)(\s|$)`),
 	regexp.MustCompile(`(?i)\brm\s+-[a-z]*f[a-z]*r[a-z]*\s+(/|~|\$\{?HOME\}?)(\s|$)`),
 	regexp.MustCompile(`(?i)--no-preserve-root`),
-	regexp.MustCompile(`:\s*\(\s*\)\s*\{\s*:\s*\|\s*:\s*&\s*\}\s*;\s*:`),           // fork bomb
-	regexp.MustCompile(`(?i)\b(curl|wget)\b[^\n|]*\|\s*(sudo\s+)?(sh|bash|zsh)\b`), // pipe remote script into a shell
+	regexp.MustCompile(`:\s*\(\s*\)\s*\{\s*:\s*\|\s*:\s*&\s*\}\s*;\s*:`),
+	regexp.MustCompile(`(?i)\b(curl|wget)\b[^\n|]*\|\s*(sudo\s+)?(sh|bash|zsh)\b`),
 	regexp.MustCompile(`(?i)\bmkfs(\.\w+)?\b`),
 	regexp.MustCompile(`(?i)\bdd\b[^\n|]*\bof=/dev/`),
 }
 
-// DraftSafetyIssue is the domain classification produced by a conservative
-// static scan. Presentation of an issue belongs to the adapter that rejects a
-// draft for its own consumer.
-type DraftSafetyIssue uint8
+// ProposalSafetyIssue classifies built-in proposal safety checks.
+type ProposalSafetyIssue uint8
 
 const (
-	DraftSafe DraftSafetyIssue = iota
-	DraftDangerousInstruction
+	ProposalSafe ProposalSafetyIssue = iota
+	ProposalDangerousInstruction
 )
 
-// SafetyIssue is a CONSERVATIVE static check over a proposed skill's content.
-// It is explicitly NOT a security boundary — a skill is prose the agent reads,
-// not code that runs, and the check is trivially evadable — it only refuses a
-// draft that spells out an obviously-catastrophic instruction (rm -rf of a
-// root/home path, --no-preserve-root, a fork bomb, curl|sh, a device wipe)
-// before it reaches the human promotion gate.
-func (d Draft) SafetyIssue() DraftSafetyIssue {
-	content := d.Name + "\n" + d.Description + "\n" + d.Body
+// SafetyIssue reports whether proposal content contains a known destructive instruction.
+func (p Proposal) SafetyIssue() ProposalSafetyIssue {
+	content := p.Name + "\n" + p.Description + "\n" + p.Instructions
 	for _, re := range dangerousSkillPattern {
 		if re.MatchString(content) {
-			return DraftDangerousInstruction
+			return ProposalDangerousInstruction
 		}
 	}
-	return DraftSafe
+	return ProposalSafe
 }

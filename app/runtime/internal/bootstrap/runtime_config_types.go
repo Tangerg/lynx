@@ -38,10 +38,10 @@ type Config struct {
 	// fills its Checkpoints, Provider, Plan, and ToolResolver.
 	Engine agentexec.Config
 
-	// SkillsGlobalDir is the user-scope Agent Skills directory. Tool resolution
+	// SkillsUserDir is the user-scope Agent Skills directory. Tool resolution
 	// and workspace discovery consume it directly; it is not Agent execution
 	// state.
-	SkillsGlobalDir string
+	SkillsUserDir string
 
 	// Turn-boundary collaborators. nil selects the in-house/default binding:
 	// conversation steering and the complete maintenance suite (skill mining,

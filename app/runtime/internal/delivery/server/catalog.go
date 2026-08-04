@@ -59,11 +59,11 @@ func (s *Server) ListDiscoveredSkills(ctx context.Context, in protocol.Workspace
 	}
 	out := make([]protocol.Skill, 0, len(found))
 	for _, skill := range found {
-		source, ok := skillSourceWire(skill.Scope)
+		source, ok := workspaceSkillScopeWire(skill.Scope)
 		if !ok {
 			return nil, fmt.Errorf("skills.discovered.list: unsupported skill scope %q", skill.Scope)
 		}
-		out = append(out, protocol.Skill{Name: skill.Name, Description: skill.Description, Source: source})
+		out = append(out, protocol.Skill{Name: skill.Name, Description: skill.Description, Scope: source})
 	}
 	return protocol.NewPage(out), nil
 }
@@ -106,12 +106,12 @@ func (s *Server) ListAgentDocs(ctx context.Context, in protocol.WorkspaceQuery) 
 	return protocol.NewPage(out), nil
 }
 
-func skillSourceWire(scope workspaceapp.SkillScope) (protocol.SkillSource, bool) {
+func workspaceSkillScopeWire(scope workspaceapp.SkillScope) (protocol.SkillScope, bool) {
 	switch scope {
 	case workspaceapp.SkillScopeProject:
-		return protocol.SkillSourceProject, true
-	case workspaceapp.SkillScopeGlobal:
-		return protocol.SkillSourceGlobal, true
+		return protocol.SkillScopeProject, true
+	case workspaceapp.SkillScopeUser:
+		return protocol.SkillScopeUser, true
 	default:
 		return "", false
 	}

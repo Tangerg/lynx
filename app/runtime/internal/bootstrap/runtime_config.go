@@ -16,8 +16,8 @@ import (
 // process adapters.
 func RuntimeConfig(cfg config.Config, stores *persistence.Bundle, client *chatclient.Client, providers providersvc.Registry, hooks HookResolver, buildID string) Config {
 	return Config{
-		Resources:       []ShutdownResource{stores},
-		SkillsGlobalDir: filepath.Join(stores.Home, "skills"),
+		Resources:     []ShutdownResource{stores},
+		SkillsUserDir: filepath.Join(stores.Home, "skills"),
 		Engine: agentexec.Config{
 			BuildID:      buildID,
 			ChatClient:   client,

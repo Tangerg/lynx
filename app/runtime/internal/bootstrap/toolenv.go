@@ -53,7 +53,7 @@ func buildToolEnvironment(
 	bc := toolset.BuildConfig{
 		Workdir:         cfg.Engine.Workdir,
 		DefaultModel:    defaultModel,
-		SkillsGlobalDir: cfg.SkillsGlobalDir,
+		SkillsUserDir:   cfg.SkillsUserDir,
 		Online:          toolset.OnlineConfig(cfg.Online),
 		LSPServers:      codeintelServerSpecs(cfg.LSPServers),
 		MCPTools:        mcpTools,

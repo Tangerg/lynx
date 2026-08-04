@@ -24,7 +24,7 @@ type UsageRecorder interface {
 }
 
 // Build assembles the working-directory-scoped skill tools over the merged skill
-// source (project <workdir>/.lyra/skills layered over the global dir, project
+// source (project <workdir>/.lyra/skills layered over the user dir, project
 // winning). It returns nil when neither directory exists, so a session that
 // ships no skills gets no skill tools at all. When recorder is non-nil, loading
 // a skill records a use so the curator can tell active skills from idle ones.
@@ -32,18 +32,18 @@ type UsageRecorder interface {
 // Rebuilt per resolution like fs/shell, because the project directory depends on
 // the turn's working directory; the merged source just wraps os.DirFS, so the
 // cost is negligible.
-func Build(workdir, globalDir string, recorder UsageRecorder) ([]toolcontract.Tool, error) {
-	var decorateGlobal func(skillspec.ResourceSource) skillspec.ResourceSource
+func Build(workdir, userDir string, recorder UsageRecorder) ([]toolcontract.Tool, error) {
+	var decorateUser func(skillspec.ResourceSource) skillspec.ResourceSource
 	if recorder != nil {
-		// Wrap only the global source: the curator governs the global library, and
+		// Wrap only the user source: the curator governs the user library, and
 		// merge resolves a shadowed name to the project copy, so this records
-		// exactly the global-resolved loads (a project skill never touches the
-		// global usage record).
-		decorateGlobal = func(global skillspec.ResourceSource) skillspec.ResourceSource {
-			return recordingSource{ResourceSource: global, recorder: recorder}
+		// exactly the user-resolved loads (a project skill never touches the
+		// user-library usage record).
+		decorateUser = func(user skillspec.ResourceSource) skillspec.ResourceSource {
+			return recordingSource{ResourceSource: user, recorder: recorder}
 		}
 	}
-	source := promptsource.MergeSkillSource(promptsource.ProjectSkillDir(workdir), globalDir, decorateGlobal)
+	source := promptsource.MergeSkillSource(promptsource.ProjectSkillDir(workdir), userDir, decorateUser)
 	if source == nil {
 		return nil, nil
 	}
@@ -54,7 +54,7 @@ func Build(workdir, globalDir string, recorder UsageRecorder) ([]toolcontract.To
 	return tools, nil
 }
 
-// recordingSource records a use each time a (global-library) skill loads, then
+// recordingSource records a use each time a user-library Skill loads, then
 // delegates. The record is best-effort: a usage-write failure never fails the
 // skill load.
 type recordingSource struct {

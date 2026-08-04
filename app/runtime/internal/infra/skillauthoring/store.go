@@ -1,6 +1,6 @@
-// Package skillauthoring owns the governed write side of the global Agent
-// Skills library. Drafts are immutable and content-addressed; lifecycle moves
-// never overwrite an existing directory.
+// Package skillauthoring owns the governed write side of one Agent Skills
+// library. Proposals are immutable and content-addressed; lifecycle moves never
+// overwrite an existing directory.
 package skillauthoring
 
 import (
@@ -19,76 +19,82 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/skills"
 )
 
-// Store serializes writes to one global skills root. The same instance must be
-// shared by the proposal tool and lifecycle curator so in-process operations
-// have one order; no-clobber directory renames preserve data across processes.
+// Store serializes writes to one scoped skills root. The same instance must be
+// shared by every in-process consumer of that root; no-clobber directory
+// renames preserve data across processes.
 type Store struct {
-	root string
-	mu   sync.RWMutex
+	root  string
+	scope skills.Scope
+	mu    sync.RWMutex
 }
 
-// NewStore roots the authoring store at the global skills directory. An empty
-// root disables authoring and causes write operations to fail explicitly.
-func NewStore(root string) *Store { return &Store{root: root} }
+// NewStore roots the authoring store at one project or user Skill library. An
+// empty root or invalid scope disables authoring.
+func NewStore(root string, scope skills.Scope) *Store { return &Store{root: root, scope: scope} }
 
 // Enabled reports whether a skills root is configured.
-func (s *Store) Enabled() bool { return s != nil && s.root != "" }
-
-// SaveDraft validates and stages draft under its content-addressed handle. It
-// is idempotent: replaying the same proposal returns the same handle and bytes.
-func (s *Store) SaveDraft(ctx context.Context, draft skills.Draft) (skills.DraftHandle, error) {
-	if !s.Enabled() {
-		return skills.DraftHandle{}, errors.New("skillauthoring: no skills root configured")
-	}
-	if err := draft.Validate(); err != nil {
-		return skills.DraftHandle{}, err
-	}
-	if issue := draft.SafetyIssue(); issue != skills.DraftSafe {
-		return skills.DraftHandle{}, draftSafetyError(draft.Name, issue)
-	}
-	content, err := renderDraft(draft)
-	if err != nil {
-		return skills.DraftHandle{}, err
-	}
-	handle := skills.NewDraftHandle(draft.Name, content)
-	if err := contextError(ctx, "save draft"); err != nil {
-		return skills.DraftHandle{}, err
-	}
-
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	root, err := s.openRoot()
-	if err != nil {
-		return skills.DraftHandle{}, err
-	}
-	defer root.Close()
-
-	draftDir := s.draftDir(handle)
-	if existing, found, readErr := readSkill(root, draftDir); readErr != nil {
-		return skills.DraftHandle{}, readErr
-	} else if found {
-		if !bytes.Equal(existing, content) {
-			return skills.DraftHandle{}, fmt.Errorf("%w: digest collision for revision %q", skills.ErrDraftChanged, handle.Revision)
-		}
-		return handle, nil
-	}
-
-	if err := root.MkdirAll(draftsSubdir, 0o755); err != nil {
-		return skills.DraftHandle{}, fmt.Errorf("skillauthoring: create draft area: %w", err)
-	}
-	if err := stageDraft(ctx, root, draftDir, content); err != nil {
-		return skills.DraftHandle{}, err
-	}
-	return handle, nil
+func (s *Store) Enabled() bool {
+	return s != nil && s.root != "" && s.scope.Validate() == nil
 }
 
-// Promote publishes exactly the immutable draft represented by handle. A
-// different active skill is a conflict UNLESS the draft is marked as a revision
+// SubmitProposal validates and stages proposal under its content-addressed
+// reference. Replaying the same proposal is idempotent.
+func (s *Store) SubmitProposal(ctx context.Context, proposal skills.Proposal) (skills.ProposalRef, error) {
+	if !s.Enabled() {
+		return skills.ProposalRef{}, errors.New("skillauthoring: no scoped skills root configured")
+	}
+	if err := proposal.Validate(); err != nil {
+		return skills.ProposalRef{}, err
+	}
+	if proposal.Scope != s.scope {
+		return skills.ProposalRef{}, fmt.Errorf("skillauthoring: proposal scope %q does not match store scope %q", proposal.Scope, s.scope)
+	}
+	if issue := proposal.SafetyIssue(); issue != skills.ProposalSafe {
+		return skills.ProposalRef{}, proposalSafetyError(proposal.Name, issue)
+	}
+	content, err := renderProposal(proposal)
+	if err != nil {
+		return skills.ProposalRef{}, err
+	}
+	ref := skills.NewProposalRef(s.scope, proposal.Name, content)
+	if err := contextError(ctx, "save proposal"); err != nil {
+		return skills.ProposalRef{}, err
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	root, err := s.openRoot()
+	if err != nil {
+		return skills.ProposalRef{}, err
+	}
+	defer root.Close()
+
+	proposalDir := s.proposalDir(ref)
+	if existing, found, readErr := readSkill(root, proposalDir); readErr != nil {
+		return skills.ProposalRef{}, readErr
+	} else if found {
+		if !bytes.Equal(existing, content) {
+			return skills.ProposalRef{}, fmt.Errorf("%w: digest collision for revision %q", skills.ErrProposalChanged, ref.Revision)
+		}
+		return ref, nil
+	}
+
+	if err := root.MkdirAll(proposalsSubdir, 0o755); err != nil {
+		return skills.ProposalRef{}, fmt.Errorf("skillauthoring: create proposal area: %w", err)
+	}
+	if err := stageProposal(ctx, root, proposalDir, content); err != nil {
+		return skills.ProposalRef{}, err
+	}
+	return ref, nil
+}
+
+// ApproveProposal publishes exactly the immutable proposal represented by handle. A
+// different active skill is a conflict UNLESS the proposal is marked as a revision
 // (frontmatter revises: "true"), in which case it replaces the active skill via
 // [Store.replaceActive]. An identical active skill is an idempotent replay and
-// the redundant draft is removed.
-func (s *Store) Promote(ctx context.Context, handle skills.DraftHandle) error {
-	if err := s.validateHandle(handle); err != nil {
+// the redundant proposal is removed.
+func (s *Store) ApproveProposal(ctx context.Context, ref skills.ProposalRef) error {
+	if err := s.validateRef(ref); err != nil {
 		return err
 	}
 	s.mu.Lock()
@@ -99,94 +105,94 @@ func (s *Store) Promote(ctx context.Context, handle skills.DraftHandle) error {
 	}
 	defer root.Close()
 
-	content, found, err := s.readDraft(root, handle)
+	content, found, err := s.readProposal(root, ref)
 	if err != nil {
 		return err
 	}
 	if !found {
-		return fmt.Errorf("skillauthoring: no draft %q at revision %q: %w", handle.Name, handle.Revision, skills.ErrNotFound)
+		return fmt.Errorf("skillauthoring: no proposal %q at revision %q: %w", ref.Name, ref.Revision, skills.ErrNotFound)
 	}
-	if err := validateSkill(handle.Name, content); err != nil {
+	if err := validateSkill(ref.Name, content); err != nil {
 		return err
 	}
 	// A revision replaces the active skill of the same name (archiving the old
 	// version) rather than conflicting; it also handles its own archive slot, so
 	// it runs before the archived-conflict guard below.
-	if revises, err := draftRevises(content); err != nil {
+	if revises, err := proposalRevises(content); err != nil {
 		return err
 	} else if revises {
-		return s.replaceActive(ctx, root, handle, content, s.draftDir(handle))
+		return s.replaceActive(ctx, root, ref, content, s.proposalDir(ref))
 	}
-	if _, statErr := root.Lstat(s.archiveDir(handle.Name)); statErr == nil {
-		return fmt.Errorf("%w: archived skill %q", skills.ErrConflict, handle.Name)
+	if _, statErr := root.Lstat(s.archiveDir(ref.Name)); statErr == nil {
+		return fmt.Errorf("%w: archived skill %q", skills.ErrConflict, ref.Name)
 	} else if !errors.Is(statErr, fs.ErrNotExist) {
-		return fmt.Errorf("skillauthoring: inspect archived skill %q: %w", handle.Name, statErr)
+		return fmt.Errorf("skillauthoring: inspect archived skill %q: %w", ref.Name, statErr)
 	}
 
-	activeDir := s.activeDir(handle.Name)
+	activeDir := s.activeDir(ref.Name)
 	if active, exists, readErr := readSkill(root, activeDir); readErr != nil {
 		return readErr
 	} else if exists {
 		if !bytes.Equal(active, content) {
-			return fmt.Errorf("%w: active skill %q", skills.ErrConflict, handle.Name)
+			return fmt.Errorf("%w: active skill %q", skills.ErrConflict, ref.Name)
 		}
-		if err := root.RemoveAll(s.draftDir(handle)); err != nil {
-			return fmt.Errorf("skillauthoring: remove replayed draft %q: %w", handle.Name, err)
+		if err := root.RemoveAll(s.proposalDir(ref)); err != nil {
+			return fmt.Errorf("skillauthoring: remove replayed proposal %q: %w", ref.Name, err)
 		}
 		return nil
 	}
 	if _, statErr := root.Lstat(activeDir); statErr == nil {
-		return fmt.Errorf("%w: active path %q", skills.ErrConflict, handle.Name)
+		return fmt.Errorf("%w: active path %q", skills.ErrConflict, ref.Name)
 	} else if !errors.Is(statErr, fs.ErrNotExist) {
-		return fmt.Errorf("skillauthoring: inspect active skill %q: %w", handle.Name, statErr)
+		return fmt.Errorf("skillauthoring: inspect active skill %q: %w", ref.Name, statErr)
 	}
-	if err := contextError(ctx, "promote draft"); err != nil {
+	if err := contextError(ctx, "approve proposal"); err != nil {
 		return err
 	}
-	if err := root.Rename(s.draftDir(handle), activeDir); err != nil {
+	if err := root.Rename(s.proposalDir(ref), activeDir); err != nil {
 		active, exists, readErr := readSkill(root, activeDir)
 		if readErr != nil {
-			return fmt.Errorf("skillauthoring: inspect promotion outcome for %q: %w", handle.Name, errors.Join(err, readErr))
+			return fmt.Errorf("skillauthoring: inspect approval outcome for %q: %w", ref.Name, errors.Join(err, readErr))
 		}
 		if exists && bytes.Equal(active, content) {
-			if removeErr := root.RemoveAll(s.draftDir(handle)); removeErr != nil && !errors.Is(removeErr, fs.ErrNotExist) {
-				return fmt.Errorf("skillauthoring: remove replayed draft %q: %w", handle.Name, removeErr)
+			if removeErr := root.RemoveAll(s.proposalDir(ref)); removeErr != nil && !errors.Is(removeErr, fs.ErrNotExist) {
+				return fmt.Errorf("skillauthoring: remove replayed proposal %q: %w", ref.Name, removeErr)
 			}
 			return nil
 		}
 		if _, statErr := root.Lstat(activeDir); statErr == nil {
-			return fmt.Errorf("%w: active skill %q", skills.ErrConflict, handle.Name)
+			return fmt.Errorf("%w: active skill %q", skills.ErrConflict, ref.Name)
 		}
-		return fmt.Errorf("skillauthoring: promote draft %q: %w", handle.Name, err)
+		return fmt.Errorf("skillauthoring: approve proposal %q: %w", ref.Name, err)
 	}
 	return nil
 }
 
-// draftRevises reports whether staged content is marked as a revision of the
+// proposalRevises reports whether staged content is marked as a revision of the
 // active skill of the same name (frontmatter metadata revises: "true").
-func draftRevises(content []byte) (bool, error) {
+func proposalRevises(content []byte) (bool, error) {
 	front, _, err := skillspec.Parse(content)
 	if err != nil {
-		return false, fmt.Errorf("skillauthoring: parse draft frontmatter: %w", err)
+		return false, fmt.Errorf("skillauthoring: parse proposal frontmatter: %w", err)
 	}
 	return front.Metadata[metadataRevises] == metadataTrue, nil
 }
 
-// replaceActive installs a revising draft as the active skill, archiving the
+// replaceActive installs a revising proposal as the active skill, archiving the
 // version it supersedes. It OVERWRITES any older archived version of the same
 // name — the single-slot history the module keeps by design (no per-version
 // archive; that would be the semver theater the skill model rejects). An
 // identical active skill is an idempotent no-op; a revision whose target has
 // since vanished simply installs as the current version.
-func (s *Store) replaceActive(ctx context.Context, root *os.Root, handle skills.DraftHandle, content []byte, draftDir string) error {
-	activeDir := s.activeDir(handle.Name)
+func (s *Store) replaceActive(ctx context.Context, root *os.Root, ref skills.ProposalRef, content []byte, proposalDir string) error {
+	activeDir := s.activeDir(ref.Name)
 	active, exists, err := readSkill(root, activeDir)
 	if err != nil {
 		return err
 	}
 	if exists && bytes.Equal(active, content) {
-		if err := root.RemoveAll(draftDir); err != nil {
-			return fmt.Errorf("skillauthoring: remove replayed draft %q: %w", handle.Name, err)
+		if err := root.RemoveAll(proposalDir); err != nil {
+			return fmt.Errorf("skillauthoring: remove replayed proposal %q: %w", ref.Name, err)
 		}
 		return nil
 	}
@@ -194,12 +200,12 @@ func (s *Store) replaceActive(ctx context.Context, root *os.Root, handle skills.
 		return err
 	}
 	if exists {
-		if err := s.archiveActive(root, handle.Name); err != nil {
+		if err := s.archiveActive(root, ref.Name); err != nil {
 			return err
 		}
 	}
-	if err := root.Rename(draftDir, activeDir); err != nil {
-		return fmt.Errorf("skillauthoring: install revised skill %q: %w", handle.Name, err)
+	if err := root.Rename(proposalDir, activeDir); err != nil {
+		return fmt.Errorf("skillauthoring: install revised skill %q: %w", ref.Name, err)
 	}
 	return nil
 }
@@ -388,17 +394,17 @@ func entries(ctx context.Context, dir string, lifecycle skills.Lifecycle) ([]ski
 	return out, nil
 }
 
-// ListDrafts enumerates the staged proposals under _drafts/, each identified by
+// ListProposals enumerates the staged proposals under _proposals/, each identified by
 // its content-addressed handle and described by its rendered frontmatter
 // (including provenance). A directory whose contents no longer hash to its name
 // is skipped as corrupt/tampered; unparseable staged content is skipped rather
 // than failing the whole listing. Ordering follows the sorted revision dirs.
 // Returns empty when authoring is disabled or nothing is staged.
-func (s *Store) ListDrafts(ctx context.Context) ([]skills.DraftInfo, error) {
+func (s *Store) ListProposals(ctx context.Context) ([]skills.ProposalInfo, error) {
 	if !s.Enabled() {
 		return nil, nil
 	}
-	if err := contextError(ctx, "list drafts"); err != nil {
+	if err := contextError(ctx, "list proposals"); err != nil {
 		return nil, err
 	}
 	s.mu.RLock()
@@ -409,39 +415,44 @@ func (s *Store) ListDrafts(ctx context.Context) ([]skills.DraftInfo, error) {
 	}
 	defer root.Close()
 
-	dirEntries, err := fs.ReadDir(root.FS(), draftsSubdir)
+	dirEntries, err := fs.ReadDir(root.FS(), proposalsSubdir)
 	if errors.Is(err, fs.ErrNotExist) {
 		return nil, nil
 	}
 	if err != nil {
-		return nil, fmt.Errorf("skillauthoring: list drafts: %w", err)
+		return nil, fmt.Errorf("skillauthoring: list proposals: %w", err)
 	}
-	var out []skills.DraftInfo
+	var out []skills.ProposalInfo
 	for _, entry := range dirEntries {
 		// Skip the transient .stage-* staging dirs and any non-directory entry.
 		if !entry.IsDir() || strings.HasPrefix(entry.Name(), ".") {
 			continue
 		}
 		revision := entry.Name()
-		content, found, err := readSkill(root, filepath.Join(draftsSubdir, revision))
+		content, found, err := readSkill(root, filepath.Join(proposalsSubdir, revision))
 		if err != nil {
 			return nil, err
 		}
 		if !found {
 			continue
 		}
-		front, _, err := skillspec.Parse(content)
+		front, instructions, err := skillspec.Parse(content)
 		if err != nil {
 			continue
 		}
-		handle := skills.NewDraftHandle(front.Name, content)
-		if handle.Revision != revision {
+		origin := skills.ProposalOrigin(front.Metadata[metadataOrigin])
+		if origin != "" && origin.Validate() != nil {
 			continue
 		}
-		out = append(out, skills.DraftInfo{
-			Handle:        handle,
+		ref := skills.NewProposalRef(s.scope, front.Name, content)
+		if ref.Revision != revision {
+			continue
+		}
+		out = append(out, skills.ProposalInfo{
+			Ref:           ref,
 			Description:   front.Description,
-			CreatedBy:     front.Metadata[metadataCreatedBy],
+			Instructions:  instructions,
+			Origin:        origin,
 			SourceSession: front.Metadata[metadataSourceSession],
 			Revises:       front.Metadata[metadataRevises] == metadataTrue,
 		})
@@ -449,13 +460,13 @@ func (s *Store) ListDrafts(ctx context.Context) ([]skills.DraftInfo, error) {
 	return out, nil
 }
 
-// DiscardDraft removes only the immutable draft represented by handle. A
-// missing draft is already discarded; changed bytes are never deleted.
-func (s *Store) DiscardDraft(ctx context.Context, handle skills.DraftHandle) error {
-	if err := s.validateHandle(handle); err != nil {
+// RejectProposal removes only the immutable proposal represented by handle. A
+// missing proposal is already discarded; changed bytes are never deleted.
+func (s *Store) RejectProposal(ctx context.Context, ref skills.ProposalRef) error {
+	if err := s.validateRef(ref); err != nil {
 		return err
 	}
-	if err := contextError(ctx, "discard draft"); err != nil {
+	if err := contextError(ctx, "reject proposal"); err != nil {
 		return err
 	}
 	s.mu.Lock()
@@ -466,16 +477,16 @@ func (s *Store) DiscardDraft(ctx context.Context, handle skills.DraftHandle) err
 	}
 	defer root.Close()
 
-	draftDir := s.draftDir(handle)
-	_, found, err := s.readDraft(root, handle)
+	proposalDir := s.proposalDir(ref)
+	_, found, err := s.readProposal(root, ref)
 	if err != nil {
 		return err
 	}
 	if !found {
 		return nil
 	}
-	if err := root.RemoveAll(draftDir); err != nil {
-		return fmt.Errorf("skillauthoring: discard draft %q: %w", handle.Name, err)
+	if err := root.RemoveAll(proposalDir); err != nil {
+		return fmt.Errorf("skillauthoring: reject proposal %q: %w", ref.Name, err)
 	}
 	return nil
 }
@@ -491,15 +502,18 @@ func (s *Store) openRoot() (*os.Root, error) {
 	return root, nil
 }
 
-func (s *Store) validateHandle(handle skills.DraftHandle) error {
+func (s *Store) validateRef(ref skills.ProposalRef) error {
 	if !s.Enabled() {
-		return errors.New("skillauthoring: no skills root configured")
+		return errors.New("skillauthoring: no scoped skills root configured")
 	}
-	if err := handle.Validate(); err != nil {
-		return fmt.Errorf("skillauthoring: invalid draft handle: %w", err)
+	if err := ref.Validate(); err != nil {
+		return fmt.Errorf("skillauthoring: invalid proposal reference: %w", err)
 	}
-	if !validName(handle.Name) {
-		return fmt.Errorf("skillauthoring: invalid skill name %q", handle.Name)
+	if ref.Scope != s.scope {
+		return fmt.Errorf("skillauthoring: proposal scope %q does not match store scope %q", ref.Scope, s.scope)
+	}
+	if !validName(ref.Name) {
+		return fmt.Errorf("skillauthoring: invalid skill name %q", ref.Name)
 	}
 	return nil
 }
@@ -510,8 +524,8 @@ func (s *Store) archiveDir(name string) string {
 	return filepath.Join(archivedSubdir, name)
 }
 
-func (s *Store) draftDir(handle skills.DraftHandle) string {
-	return filepath.Join(draftsSubdir, handle.Revision)
+func (s *Store) proposalDir(ref skills.ProposalRef) string {
+	return filepath.Join(proposalsSubdir, ref.Revision)
 }
 
 func (s *Store) lifecycleDir(lifecycle skills.Lifecycle, name string) (string, error) {
@@ -525,38 +539,41 @@ func (s *Store) lifecycleDir(lifecycle skills.Lifecycle, name string) (string, e
 	}
 }
 
-func (s *Store) readDraft(root *os.Root, handle skills.DraftHandle) ([]byte, bool, error) {
-	content, found, err := readSkill(root, s.draftDir(handle))
+func (s *Store) readProposal(root *os.Root, ref skills.ProposalRef) ([]byte, bool, error) {
+	content, found, err := readSkill(root, s.proposalDir(ref))
 	if err != nil || !found {
 		return content, found, err
 	}
-	if !handle.Matches(content) {
-		return nil, false, fmt.Errorf("%w: %q revision %q", skills.ErrDraftChanged, handle.Name, handle.Revision)
+	if !ref.Matches(content) {
+		return nil, false, fmt.Errorf("%w: %q revision %q", skills.ErrProposalChanged, ref.Name, ref.Revision)
 	}
 	return content, true, nil
 }
 
 func validateSkill(name string, content []byte) error {
-	frontmatter, body, err := skillspec.Parse(content)
+	frontmatter, instructions, err := skillspec.Parse(content)
 	if err != nil {
 		return fmt.Errorf("skillauthoring: parse skill %q: %w", name, err)
 	}
-	draft := skills.Draft{Name: frontmatter.Name, Description: frontmatter.Description, Body: body}
-	if err := draft.Validate(); err != nil {
+	if err := (skillspec.Frontmatter{Name: frontmatter.Name, Description: frontmatter.Description}).Validate(); err != nil {
 		return fmt.Errorf("skillauthoring: validate skill %q: %w", name, err)
+	}
+	if strings.TrimSpace(instructions) == "" {
+		return fmt.Errorf("skillauthoring: validate skill %q: skill instructions are required", name)
 	}
 	if frontmatter.Name != name {
 		return fmt.Errorf("skillauthoring: skill name mismatch: frontmatter %q, path %q", frontmatter.Name, name)
 	}
-	if issue := draft.SafetyIssue(); issue != skills.DraftSafe {
-		return draftSafetyError(name, issue)
+	proposal := skills.Proposal{Name: frontmatter.Name, Description: frontmatter.Description, Instructions: instructions}
+	if issue := proposal.SafetyIssue(); issue != skills.ProposalSafe {
+		return proposalSafetyError(name, issue)
 	}
 	return nil
 }
 
-func draftSafetyError(name string, issue skills.DraftSafetyIssue) error {
+func proposalSafetyError(name string, issue skills.ProposalSafetyIssue) error {
 	switch issue {
-	case skills.DraftDangerousInstruction:
+	case skills.ProposalDangerousInstruction:
 		return fmt.Errorf("skillauthoring: reject skill %q: dangerous instruction", name)
 	default:
 		return fmt.Errorf("skillauthoring: reject skill %q: unknown safety issue", name)

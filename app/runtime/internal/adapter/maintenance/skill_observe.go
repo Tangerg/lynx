@@ -21,8 +21,8 @@ const skillObserveScope = "lynx/lyra/skill"
 
 var loadMinedSkills = sync.OnceValue(func() metric.Int64Counter {
 	// A creation error yields a usable no-op counter, so it's safe to drop.
-	counter, _ := otel.Meter(skillObserveScope).Int64Counter("skill.drafts.mined",
-		metric.WithDescription("Skill drafts the miner staged, by kind (new/revise)."))
+	counter, _ := otel.Meter(skillObserveScope).Int64Counter("skill.proposals.mined",
+		metric.WithDescription("Skill proposals the miner submitted, by kind (new/revise)."))
 	return counter
 })
 

@@ -32,19 +32,18 @@ description: How to run the test suite for this Go module. Use when asked to run
 ---
 Run ` + "`go test ./...`" + ` from the module root.`
 
-type fakeDraftStore struct {
-	enabled bool
-	saved   []skills.Draft
+type fakeProposalSubmitter struct {
+	proposals []skills.Proposal
+	cwds      []string
 }
 
-func (s *fakeDraftStore) Enabled() bool { return s.enabled }
-
-func (s *fakeDraftStore) SaveDraft(_ context.Context, draft skills.Draft) (skills.DraftHandle, error) {
-	s.saved = append(s.saved, draft)
-	return skills.DraftHandle{}, nil
+func (s *fakeProposalSubmitter) SubmitSkillProposal(_ context.Context, cwd string, proposal skills.Proposal) (skills.ProposalRef, error) {
+	s.cwds = append(s.cwds, cwd)
+	s.proposals = append(s.proposals, proposal)
+	return skills.NewProposalRef(proposal.Scope, proposal.Name, []byte(proposal.Instructions)), nil
 }
 
-func minerFixture(t *testing.T, reply string, config MinerConfig) (*SkillMiner, *fakeDraftStore, *textStubModel) {
+func minerFixture(t *testing.T, reply string, config MinerConfig) (*SkillMiner, *fakeProposalSubmitter, *textStubModel) {
 	t.Helper()
 	messages := inmemory.New()
 	if err := messages.Write(t.Context(), "ses_1",
@@ -60,15 +59,15 @@ func minerFixture(t *testing.T, reply string, config MinerConfig) (*SkillMiner, 
 	if err != nil {
 		t.Fatal(err)
 	}
-	store := &fakeDraftStore{enabled: true}
-	miner := NewSkillMiner(messages, store, nil, constClient(client), config)
-	return miner, store, model
+	proposals := &fakeProposalSubmitter{}
+	miner := NewSkillMiner(messages, proposals, nil, constClient(client), config)
+	return miner, proposals, model
 }
 
 // minerRevisionFixture drives the 2-phase refinement path: a scripted model
 // returns phase-one then (optionally) phase-two replies, and source supplies the
 // real current skill bodies for the read-before-write guard.
-func minerRevisionFixture(t *testing.T, source skillSource, replies ...scriptedReply) (*SkillMiner, *fakeDraftStore) {
+func minerRevisionFixture(t *testing.T, source skillSource, replies ...scriptedReply) (*SkillMiner, *fakeProposalSubmitter) {
 	t.Helper()
 	messages := inmemory.New()
 	if err := messages.Write(t.Context(), "ses_1",
@@ -83,26 +82,26 @@ func minerRevisionFixture(t *testing.T, source skillSource, replies ...scriptedR
 	if err != nil {
 		t.Fatal(err)
 	}
-	store := &fakeDraftStore{enabled: true}
-	miner := NewSkillMiner(messages, store, source, constClient(client), MinerConfig{ComplexityThreshold: 1, Cadence: 1})
-	return miner, store
+	proposals := &fakeProposalSubmitter{}
+	miner := NewSkillMiner(messages, proposals, source, constClient(client), MinerConfig{ComplexityThreshold: 1, Cadence: 1})
+	return miner, proposals
 }
 
 func TestSkillMinerBelowComplexityThresholdDoesNotMine(t *testing.T) {
-	miner, store, model := minerFixture(t, sampleSkillMD, MinerConfig{ComplexityThreshold: 5, Cadence: 1})
+	miner, proposals, model := minerFixture(t, sampleSkillMD, MinerConfig{ComplexityThreshold: 5, Cadence: 1})
 	if err := miner.MaybeMine(t.Context(), "ses_1", "/repo", 4); err != nil {
 		t.Fatal(err)
 	}
 	if model.calls != 0 {
 		t.Fatalf("below-threshold turn called the model %d times", model.calls)
 	}
-	if len(store.saved) != 0 {
-		t.Fatalf("below-threshold turn saved %d drafts", len(store.saved))
+	if len(proposals.proposals) != 0 {
+		t.Fatalf("below-threshold turn submitted %d proposals", len(proposals.proposals))
 	}
 }
 
 func TestSkillMinerCadenceGatesMining(t *testing.T) {
-	miner, store, model := minerFixture(t, sampleSkillMD, MinerConfig{ComplexityThreshold: 2, Cadence: 2})
+	miner, proposals, model := minerFixture(t, sampleSkillMD, MinerConfig{ComplexityThreshold: 2, Cadence: 2})
 	// A routine turn must not advance the cadence counter.
 	if err := miner.MaybeMine(t.Context(), "ses_1", "/repo", 1); err != nil {
 		t.Fatal(err)
@@ -111,8 +110,8 @@ func TestSkillMinerCadenceGatesMining(t *testing.T) {
 	if err := miner.MaybeMine(t.Context(), "ses_1", "/repo", 5); err != nil {
 		t.Fatal(err)
 	}
-	if len(store.saved) != 0 {
-		t.Fatalf("mined before the cadence was due: %d drafts", len(store.saved))
+	if len(proposals.proposals) != 0 {
+		t.Fatalf("mined before the cadence was due: %d proposals", len(proposals.proposals))
 	}
 	// Second complex turn: cadence is due — mine once.
 	if err := miner.MaybeMine(t.Context(), "ses_1", "/repo", 5); err != nil {
@@ -121,68 +120,74 @@ func TestSkillMinerCadenceGatesMining(t *testing.T) {
 	if model.calls != 1 {
 		t.Fatalf("expected one mining call on the cadence turn, got %d", model.calls)
 	}
-	if len(store.saved) != 1 {
-		t.Fatalf("expected one saved draft on the cadence turn, got %d", len(store.saved))
+	if len(proposals.proposals) != 1 {
+		t.Fatalf("expected one proposal on the cadence turn, got %d", len(proposals.proposals))
 	}
 }
 
-func TestSkillMinerStampsProvenanceOnSavedDraft(t *testing.T) {
-	miner, store, _ := minerFixture(t, sampleSkillMD, MinerConfig{ComplexityThreshold: 1, Cadence: 1})
+func TestSkillMinerSubmitsUserProposalWithMinedProvenance(t *testing.T) {
+	miner, proposals, _ := minerFixture(t, sampleSkillMD, MinerConfig{ComplexityThreshold: 1, Cadence: 1})
 	if err := miner.MaybeMine(t.Context(), "ses_1", "/repo", 3); err != nil {
 		t.Fatal(err)
 	}
-	if len(store.saved) != 1 {
-		t.Fatalf("expected one saved draft, got %d", len(store.saved))
+	if len(proposals.proposals) != 1 {
+		t.Fatalf("expected one proposal, got %d", len(proposals.proposals))
 	}
-	draft := store.saved[0]
-	if draft.Name != "run-project-tests" {
-		t.Errorf("draft name = %q", draft.Name)
+	proposal := proposals.proposals[0]
+	if proposal.Name != "run-project-tests" {
+		t.Errorf("proposal name = %q", proposal.Name)
 	}
-	if draft.CreatedBy != skills.CreatedByAgent {
-		t.Errorf("draft CreatedBy = %q, want %q", draft.CreatedBy, skills.CreatedByAgent)
+	if proposal.Scope != skills.ScopeUser {
+		t.Errorf("proposal Scope = %q, want %q", proposal.Scope, skills.ScopeUser)
 	}
-	if draft.SourceSession != "ses_1" {
-		t.Errorf("draft SourceSession = %q, want %q", draft.SourceSession, "ses_1")
+	if proposal.Origin != skills.ProposalOriginMined {
+		t.Errorf("proposal Origin = %q, want %q", proposal.Origin, skills.ProposalOriginMined)
 	}
-	if !strings.Contains(draft.Body, "go test") {
-		t.Errorf("draft body missing distilled procedure: %q", draft.Body)
+	if proposal.SourceSession != "ses_1" {
+		t.Errorf("proposal SourceSession = %q, want %q", proposal.SourceSession, "ses_1")
+	}
+	if !strings.Contains(proposal.Instructions, "go test") {
+		t.Errorf("proposal instructions missing distilled procedure: %q", proposal.Instructions)
+	}
+	if len(proposals.cwds) != 1 || proposals.cwds[0] != "/repo" {
+		t.Errorf("proposal cwd = %+v", proposals.cwds)
 	}
 }
 
-func TestSkillMinerNoSkillProducesNoDraft(t *testing.T) {
-	miner, store, model := minerFixture(t, "NO_SKILL", MinerConfig{ComplexityThreshold: 1, Cadence: 1})
+func TestSkillMinerNoSkillProducesNoProposal(t *testing.T) {
+	miner, proposals, model := minerFixture(t, "NO_SKILL", MinerConfig{ComplexityThreshold: 1, Cadence: 1})
 	if err := miner.MaybeMine(t.Context(), "ses_1", "/repo", 3); err != nil {
 		t.Fatal(err)
 	}
 	if model.calls != 1 {
 		t.Fatalf("expected the model to be consulted once, got %d", model.calls)
 	}
-	if len(store.saved) != 0 {
-		t.Fatalf("NO_SKILL still saved %d drafts", len(store.saved))
+	if len(proposals.proposals) != 0 {
+		t.Fatalf("NO_SKILL still submitted %d proposals", len(proposals.proposals))
 	}
 }
 
 func TestSkillMinerUnparseableReplyIsDroppedNotErrored(t *testing.T) {
-	miner, store, _ := minerFixture(t, "here is a skill but no frontmatter block", MinerConfig{ComplexityThreshold: 1, Cadence: 1})
+	miner, proposals, _ := minerFixture(t, "here is a skill but no frontmatter block", MinerConfig{ComplexityThreshold: 1, Cadence: 1})
 	if err := miner.MaybeMine(t.Context(), "ses_1", "/repo", 3); err != nil {
 		t.Fatalf("unparseable reply surfaced an error: %v", err)
 	}
-	if len(store.saved) != 0 {
-		t.Fatalf("unparseable reply saved %d drafts", len(store.saved))
+	if len(proposals.proposals) != 0 {
+		t.Fatalf("unparseable reply submitted %d proposals", len(proposals.proposals))
 	}
 }
 
 func TestSkillMinerFencedReplyStillParses(t *testing.T) {
 	fenced := "```markdown\n" + sampleSkillMD + "\n```"
-	miner, store, _ := minerFixture(t, fenced, MinerConfig{ComplexityThreshold: 1, Cadence: 1})
+	miner, proposals, _ := minerFixture(t, fenced, MinerConfig{ComplexityThreshold: 1, Cadence: 1})
 	if err := miner.MaybeMine(t.Context(), "ses_1", "/repo", 3); err != nil {
 		t.Fatal(err)
 	}
-	if len(store.saved) != 1 {
-		t.Fatalf("fenced SKILL.md did not yield a draft: %d saved", len(store.saved))
+	if len(proposals.proposals) != 1 {
+		t.Fatalf("fenced SKILL.md did not yield a proposal: %d submitted", len(proposals.proposals))
 	}
-	if store.saved[0].Name != "run-project-tests" {
-		t.Errorf("fenced draft name = %q", store.saved[0].Name)
+	if proposals.proposals[0].Name != "run-project-tests" {
+		t.Errorf("fenced proposal name = %q", proposals.proposals[0].Name)
 	}
 }
 
@@ -194,50 +199,50 @@ func TestSkillMinerRevisionLoadsRealBodyAndMarksRevises(t *testing.T) {
 		},
 	}}
 	corrected := "---\nname: run-tests\ndescription: Run the suite. Use when asked to run tests.\n---\nUse `go test ./...`."
-	miner, store := minerRevisionFixture(t, source,
+	miner, proposals := minerRevisionFixture(t, source,
 		scriptedReply{text: "REVISE: run-tests"},
 		scriptedReply{text: corrected},
 	)
 	if err := miner.MaybeMine(t.Context(), "ses_1", "/repo", 3); err != nil {
 		t.Fatal(err)
 	}
-	if len(store.saved) != 1 {
-		t.Fatalf("expected one revision draft, got %d", len(store.saved))
+	if len(proposals.proposals) != 1 {
+		t.Fatalf("expected one revision proposal, got %d", len(proposals.proposals))
 	}
-	d := store.saved[0]
+	d := proposals.proposals[0]
 	if d.Name != "run-tests" {
 		t.Errorf("revision name = %q, want run-tests (a revision must not rename)", d.Name)
 	}
 	if !d.Revises {
-		t.Error("revision draft not marked Revises")
+		t.Error("revision proposal not marked Revises")
 	}
-	if d.CreatedBy != skills.CreatedByAgent {
-		t.Errorf("revision CreatedBy = %q", d.CreatedBy)
+	if d.Origin != skills.ProposalOriginMined {
+		t.Errorf("revision Origin = %q", d.Origin)
 	}
-	if !strings.Contains(d.Body, "go test") {
-		t.Errorf("revision body did not incorporate the correction: %q", d.Body)
+	if !strings.Contains(d.Instructions, "go test") {
+		t.Errorf("revision instructions did not incorporate the correction: %q", d.Instructions)
 	}
 }
 
 func TestSkillMinerRevisionUnknownSkillSkipsWithoutPhaseTwo(t *testing.T) {
 	// Only a phase-one reply is scripted: if the miner tried a phase-two call for
 	// an unloadable skill, the scripted model would be exhausted and error.
-	miner, store := minerRevisionFixture(t, fakeSkillSource{}, scriptedReply{text: "REVISE: ghost"})
+	miner, proposals := minerRevisionFixture(t, fakeSkillSource{}, scriptedReply{text: "REVISE: ghost"})
 	if err := miner.MaybeMine(t.Context(), "ses_1", "/repo", 3); err != nil {
 		t.Fatalf("unknown revision target should skip, got %v", err)
 	}
-	if len(store.saved) != 0 {
-		t.Fatalf("revised a non-existent skill: %d drafts", len(store.saved))
+	if len(proposals.proposals) != 0 {
+		t.Fatalf("revised a non-existent Skill: %d proposals", len(proposals.proposals))
 	}
 }
 
-func TestSkillMinerDisabledStoreNoOps(t *testing.T) {
-	miner, store, model := minerFixture(t, sampleSkillMD, MinerConfig{ComplexityThreshold: 1, Cadence: 1})
-	store.enabled = false
+func TestSkillMinerWithoutProposalSubmitterNoOps(t *testing.T) {
+	miner, proposals, model := minerFixture(t, sampleSkillMD, MinerConfig{ComplexityThreshold: 1, Cadence: 1})
+	miner.proposals = nil
 	if err := miner.MaybeMine(t.Context(), "ses_1", "/repo", 9); err != nil {
 		t.Fatal(err)
 	}
-	if model.calls != 0 || len(store.saved) != 0 {
-		t.Fatalf("disabled store still mined: calls=%d saved=%d", model.calls, len(store.saved))
+	if model.calls != 0 || len(proposals.proposals) != 0 {
+		t.Fatalf("missing submitter still mined: calls=%d proposals=%d", model.calls, len(proposals.proposals))
 	}
 }

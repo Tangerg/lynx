@@ -37,21 +37,21 @@ import (
 type Resolver struct {
 	lateMu sync.RWMutex
 
-	defaultWorkdir  string
-	defaultModel    modelref.Selection
-	skillsGlobalDir string                                      // user-scope skills dir; merged under each turn's project skills
-	skillUsage      skill.UsageRecorder                         // records skill loads for the idle-lifecycle curator; nil → off
-	online          []toolcontract.Tool                         // working-directory-independent network tools
-	a2a             []toolcontract.Tool                         // working-directory-independent remote A2A agents
-	lsp             []toolcontract.Tool                         // code-intelligence tools; cwd read per-call (analyzer keys servers by root)
-	codeIntel       *codeintel.Analyzer                         // backs the write/edit diagnostics wrap (rebuilt per resolution with the turn's cwd)
-	readTracker     *editguardstate.Tracker                     // backs the read-before-edit + stale guards on read/edit/write
-	pathLocker      *pathLocker                                 // serializes same-path fs calls across every concurrent turn resolution
-	shell           []toolcontract.Tool                         // shell tools (shell / read_shell_output / stop_shell) over the exec.Shells; cwd read per-call
-	delegation      toolcontract.Tool                           // bounded recursive delegation tool; nil until set
-	createGoal      toolcontract.Tool                           // root-only Goal entry tool; nil until the Goal Driver exists
-	staticTools     []staticToolSpec                            // built-once tools with one role/placement policy for turn manifests
-	goalActive      func(context.Context, string) (bool, error) // reports whether the session has an active Goal; nil → outcome reporting never offered
+	defaultWorkdir string
+	defaultModel   modelref.Selection
+	skillsUserDir  string                                      // user-scope skills dir; merged under each turn's project skills
+	skillUsage     skill.UsageRecorder                         // records skill loads for the idle-lifecycle curator; nil → off
+	online         []toolcontract.Tool                         // working-directory-independent network tools
+	a2a            []toolcontract.Tool                         // working-directory-independent remote A2A agents
+	lsp            []toolcontract.Tool                         // code-intelligence tools; cwd read per-call (analyzer keys servers by root)
+	codeIntel      *codeintel.Analyzer                         // backs the write/edit diagnostics wrap (rebuilt per resolution with the turn's cwd)
+	readTracker    *editguardstate.Tracker                     // backs the read-before-edit + stale guards on read/edit/write
+	pathLocker     *pathLocker                                 // serializes same-path fs calls across every concurrent turn resolution
+	shell          []toolcontract.Tool                         // shell tools (shell / read_shell_output / stop_shell) over the exec.Shells; cwd read per-call
+	delegation     toolcontract.Tool                           // bounded recursive delegation tool; nil until set
+	createGoal     toolcontract.Tool                           // root-only Goal entry tool; nil until the Goal Driver exists
+	staticTools    []staticToolSpec                            // built-once tools with one role/placement policy for turn manifests
+	goalActive     func(context.Context, string) (bool, error) // reports whether the session has an active Goal; nil → outcome reporting never offered
 
 	// mcp is the working-directory-independent MCP tool set, held behind an
 	// atomic pointer so a reconnect (B3b-2) can hot-swap the live set without
@@ -100,27 +100,27 @@ type staticToolSpec struct {
 // shell and LSP tools are built once but read the turn's cwd per call. Online,
 // A2A, and code-intelligence capabilities are also built once and held.
 type Deps struct {
-	DefaultWorkdir  string
-	DefaultModel    modelref.Selection
-	SkillsGlobalDir string
-	SkillUsage      skill.UsageRecorder
-	Online          []toolcontract.Tool                         // network tools (webfetch/websearch/httpreq)
-	A2A             []toolcontract.Tool                         // remote A2A delegation tools
-	LSP             []toolcontract.Tool                         // code-intelligence tools
-	Shell           []toolcontract.Tool                         // shell tools (shell / read_shell_output / stop_shell); nil means omitted
-	AskUser         toolcontract.Tool                           // ask_user HITL tool (both roles)
-	EnterPlan       toolcontract.Tool                           // enter_plan_mode (coding role only); nil → omitted
-	ExitPlan        toolcontract.Tool                           // exit_plan_mode (coding role only); nil → omitted
-	Plan            toolcontract.Tool                           // set_plan execution-plan tool (coding role only); nil → omitted
-	ScheduleTools   []toolcontract.Tool                         // schedule management tools (coding role only); nil → omitted
-	ToolResult      toolcontract.Tool                           // read_tool_result offloaded-output reader (both roles); nil → omitted
-	MemorySearch    toolcontract.Tool                           // search_memory agent-memory reader (both roles); nil → omitted
-	SessionSearch   toolcontract.Tool                           // search_conversations past-transcript reader (both roles); nil → omitted
-	GoalGet         toolcontract.Tool                           // get_goal state reader (coding role only); nil → omitted
-	GoalReport      toolcontract.Tool                           // report_goal_outcome loop signal (coding role only); nil → omitted
-	GoalActive      func(context.Context, string) (bool, error) // reports an active Goal for the session; nil → outcome reporting never offered
-	CodeIntel       *codeintel.Analyzer                         // backs the post-edit diagnostics wrap
-	ReadTracker     *editguardstate.Tracker                     // backs the read/edit/write guards
+	DefaultWorkdir string
+	DefaultModel   modelref.Selection
+	SkillsUserDir  string
+	SkillUsage     skill.UsageRecorder
+	Online         []toolcontract.Tool                         // network tools (webfetch/websearch/httpreq)
+	A2A            []toolcontract.Tool                         // remote A2A delegation tools
+	LSP            []toolcontract.Tool                         // code-intelligence tools
+	Shell          []toolcontract.Tool                         // shell tools (shell / read_shell_output / stop_shell); nil means omitted
+	AskUser        toolcontract.Tool                           // ask_user HITL tool (both roles)
+	EnterPlan      toolcontract.Tool                           // enter_plan_mode (coding role only); nil → omitted
+	ExitPlan       toolcontract.Tool                           // exit_plan_mode (coding role only); nil → omitted
+	Plan           toolcontract.Tool                           // set_plan execution-plan tool (coding role only); nil → omitted
+	ScheduleTools  []toolcontract.Tool                         // schedule management tools (coding role only); nil → omitted
+	ToolResult     toolcontract.Tool                           // read_tool_result offloaded-output reader (both roles); nil → omitted
+	MemorySearch   toolcontract.Tool                           // search_memory agent-memory reader (both roles); nil → omitted
+	SessionSearch  toolcontract.Tool                           // search_conversations past-transcript reader (both roles); nil → omitted
+	GoalGet        toolcontract.Tool                           // get_goal state reader (coding role only); nil → omitted
+	GoalReport     toolcontract.Tool                           // report_goal_outcome loop signal (coding role only); nil → omitted
+	GoalActive     func(context.Context, string) (bool, error) // reports an active Goal for the session; nil → outcome reporting never offered
+	CodeIntel      *codeintel.Analyzer                         // backs the post-edit diagnostics wrap
+	ReadTracker    *editguardstate.Tracker                     // backs the read/edit/write guards
 	// MCPToolDisabled reports whether an identified MCP tool is hidden.
 	MCPToolDisabled func(mcpserver.ToolRef) bool
 }
@@ -141,14 +141,14 @@ func NewResolver(d Deps) (*Resolver, error) {
 		return nil, errors.New("toolset.NewResolver: ReadTracker is nil")
 	}
 	resolver := &Resolver{
-		defaultWorkdir:  d.DefaultWorkdir,
-		defaultModel:    d.DefaultModel,
-		skillsGlobalDir: d.SkillsGlobalDir,
-		skillUsage:      d.SkillUsage,
-		online:          slices.Clone(d.Online),
-		a2a:             slices.Clone(d.A2A),
-		lsp:             slices.Clone(d.LSP),
-		shell:           slices.Clone(d.Shell),
+		defaultWorkdir: d.DefaultWorkdir,
+		defaultModel:   d.DefaultModel,
+		skillsUserDir:  d.SkillsUserDir,
+		skillUsage:     d.SkillUsage,
+		online:         slices.Clone(d.Online),
+		a2a:            slices.Clone(d.A2A),
+		lsp:            slices.Clone(d.LSP),
+		shell:          slices.Clone(d.Shell),
 		staticTools: []staticToolSpec{
 			{tool: d.AskUser, audience: toolAudienceBoth, placement: toolAfterCodebase},
 			{tool: d.EnterPlan, audience: toolAudienceCoding, placement: toolAfterCodebase},
@@ -332,7 +332,7 @@ func (g *toolGroup) Tools(ctx context.Context) ([]toolcontract.Tool, error) {
 	// Skill tools are working-directory scoped (project skills live under the
 	// turn's cwd), so they are built per resolution like filesystem tools and are
 	// available to both coding and subtask roles. No tools when no skills exist.
-	skillTools, err := skill.Build(workdir, g.resolver.skillsGlobalDir, g.resolver.skillUsage)
+	skillTools, err := skill.Build(workdir, g.resolver.skillsUserDir, g.resolver.skillUsage)
 	if err != nil {
 		return nil, fmt.Errorf("toolset: resolve skill tools: %w", err)
 	}

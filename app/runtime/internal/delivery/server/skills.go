@@ -10,7 +10,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/skills"
 )
 
-// ListManagedSkills returns the global self-authored skill library —
+// ListManagedSkills returns the user self-authored Skill library —
 // active and archived skills, each tagged with its lifecycle
 // (skills.library.list). The library is small, so it comes back in one page
 // (same as skills.discovered.list). capability_not_negotiated when the library
@@ -72,73 +72,122 @@ func (s *Server) RestoreSkill(ctx context.Context, in protocol.SkillNameRequest)
 	return nil
 }
 
-// ListSkillDrafts returns the agent-mined skill proposals awaiting
-// review (skills.drafts.list). The draft area is small, so it comes back in one
-// page. capability_not_negotiated when authoring is disabled.
-func (s *Server) ListSkillDrafts(ctx context.Context) (*protocol.Page[protocol.SkillDraft], error) {
-	drafts, err := s.workspaceSkills.ListSkillDrafts(ctx)
+// ListSkillProposals returns complete project and user proposals awaiting
+// review (skills.proposals.list).
+func (s *Server) ListSkillProposals(ctx context.Context, in protocol.WorkspaceQuery) (*protocol.Page[protocol.SkillProposal], error) {
+	proposals, err := s.workspaceSkills.ListSkillProposals(ctx, in.Workspace.Path)
 	if err != nil {
-		return nil, mapSkillDraftErr(err, "skills.drafts.list")
+		return nil, mapSkillProposalErr(err, "skills.proposals.list")
 	}
-	out := make([]protocol.SkillDraft, 0, len(drafts))
-	for _, d := range drafts {
-		out = append(out, protocol.SkillDraft{
-			Name:          d.Handle.Name,
-			Revision:      d.Handle.Revision,
-			Description:   d.Description,
-			CreatedBy:     d.CreatedBy,
-			SourceSession: d.SourceSession,
+	out := make([]protocol.SkillProposal, 0, len(proposals))
+	for _, proposal := range proposals {
+		scope, ok := proposalScopeWire(proposal.Ref.Scope)
+		if !ok {
+			return nil, fmt.Errorf("skills.proposals.list: unsupported scope %q", proposal.Ref.Scope)
+		}
+		origin, ok := proposalOriginWire(proposal.Origin)
+		if !ok {
+			return nil, fmt.Errorf("skills.proposals.list: unsupported origin %q", proposal.Origin)
+		}
+		out = append(out, protocol.SkillProposal{
+			Name:          proposal.Ref.Name,
+			Revision:      proposal.Ref.Revision,
+			Scope:         scope,
+			Description:   proposal.Description,
+			Instructions:  proposal.Instructions,
+			Origin:        origin,
+			SourceSession: proposal.SourceSession,
+			Revises:       proposal.Revises,
 		})
 	}
 	return protocol.NewPage(out), nil
 }
 
-// PromoteSkillDraft publishes a reviewed draft into the active library
-// (skills.drafts.promote). The application use case publishes the refresh nudge
-// after the active library changes.
-func (s *Server) PromoteSkillDraft(ctx context.Context, in protocol.SkillDraftRef) error {
-	handle, err := skillDraftHandle(in)
+// ApproveSkillProposal activates exactly the reviewed immutable proposal.
+func (s *Server) ApproveSkillProposal(ctx context.Context, in protocol.SkillProposalRef) error {
+	ref, err := skillProposalRef(in)
 	if err != nil {
 		return err
 	}
-	if err := s.workspaceSkills.PromoteSkillDraft(ctx, handle); err != nil {
-		return mapSkillDraftErr(err, "skills.drafts.promote")
-	}
-	return nil
+	return mapSkillProposalErr(
+		s.workspaceSkills.ApproveSkillProposal(ctx, in.Workspace.Path, ref),
+		"skills.proposals.approve",
+	)
 }
 
-// RejectSkillDraft discards a reviewed draft (skills.drafts.reject).
-func (s *Server) RejectSkillDraft(ctx context.Context, in protocol.SkillDraftRef) error {
-	handle, err := skillDraftHandle(in)
+// RejectSkillProposal removes exactly the reviewed immutable proposal.
+func (s *Server) RejectSkillProposal(ctx context.Context, in protocol.SkillProposalRef) error {
+	ref, err := skillProposalRef(in)
 	if err != nil {
 		return err
 	}
-	return mapSkillDraftErr(s.workspaceSkills.RejectSkillDraft(ctx, handle), "skills.drafts.reject")
+	return mapSkillProposalErr(
+		s.workspaceSkills.RejectSkillProposal(ctx, in.Workspace.Path, ref),
+		"skills.proposals.reject",
+	)
 }
 
-// skillDraftHandle validates the wire ref and reconstructs the content-addressed
-// draft handle. Name and Revision are both required.
-func skillDraftHandle(in protocol.SkillDraftRef) (skills.DraftHandle, error) {
-	if in.Name == "" || in.Revision == "" {
-		return skills.DraftHandle{}, fmt.Errorf("%w: name and revision are required", protocol.ErrInvalidParams)
+func skillProposalRef(in protocol.SkillProposalRef) (skills.ProposalRef, error) {
+	scope, ok := proposalScopeDomain(in.Scope)
+	if !ok {
+		return skills.ProposalRef{}, fmt.Errorf("%w: scope must be project or user", protocol.ErrInvalidParams)
 	}
-	return skills.DraftHandle{Name: in.Name, Revision: in.Revision}, nil
+	ref := skills.ProposalRef{Scope: scope, Name: in.Name, Revision: in.Revision}
+	if err := ref.Validate(); err != nil {
+		return skills.ProposalRef{}, fmt.Errorf("%w: %w", protocol.ErrInvalidParams, err)
+	}
+	return ref, nil
 }
 
-func mapSkillDraftErr(err error, method string) error {
+func proposalScopeWire(scope skills.Scope) (protocol.SkillScope, bool) {
+	switch scope {
+	case skills.ScopeProject:
+		return protocol.SkillScopeProject, true
+	case skills.ScopeUser:
+		return protocol.SkillScopeUser, true
+	default:
+		return "", false
+	}
+}
+
+func proposalScopeDomain(scope protocol.SkillScope) (skills.Scope, bool) {
+	switch scope {
+	case protocol.SkillScopeProject:
+		return skills.ScopeProject, true
+	case protocol.SkillScopeUser:
+		return skills.ScopeUser, true
+	default:
+		return "", false
+	}
+}
+
+func proposalOriginWire(origin skills.ProposalOrigin) (protocol.SkillProposalOrigin, bool) {
+	switch origin {
+	case "":
+		return "", true
+	case skills.ProposalOriginRequested:
+		return protocol.SkillProposalOriginRequested, true
+	case skills.ProposalOriginMined:
+		return protocol.SkillProposalOriginMined, true
+	default:
+		return "", false
+	}
+}
+
+func mapSkillProposalErr(err error, method string) error {
 	switch {
 	case err == nil:
 		return nil
-	case errors.Is(err, workspace.ErrSkillDraftsUnavailable):
+	case errors.Is(err, workspace.ErrSkillProposalsUnavailable):
 		return capabilityNotNegotiated(method)
 	case errors.Is(err, skills.ErrConflict):
-		return fmt.Errorf("%w: a skill with that name already exists", protocol.ErrInvalidParams)
-	case errors.Is(err, skills.ErrDraftChanged):
-		return fmt.Errorf("%w: the staged draft changed", protocol.ErrInvalidParams)
+		return fmt.Errorf("%w: a Skill with that name already exists", protocol.ErrInvalidParams)
+	case errors.Is(err, skills.ErrProposalChanged):
+		return fmt.Errorf("%w: the stored proposal changed", protocol.ErrInvalidParams)
 	case errors.Is(err, skills.ErrNotFound):
-		return fmt.Errorf("%w: no such draft", protocol.ErrInvalidParams)
+		return fmt.Errorf("%w: no such proposal", protocol.ErrInvalidParams)
 	default:
-		return err
+		return wireWorkspaceError(err)
 	}
 }
 

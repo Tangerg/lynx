@@ -16,14 +16,14 @@ import (
 )
 
 type workspaceTestConfig struct {
-	Memory  workspaceapp.KnowledgeStore
-	Skills  workspaceapp.SkillCatalog
-	Curator workspaceapp.SkillCurator
-	Drafts  workspaceapp.SkillDrafts
-	Hooks   workspaceapp.HookInspector
-	Trust   workspaceapp.HookTrustStore
-	Recipes workspaceapp.RecipeLister
-	Watcher workspaceapp.GitStateWatcher
+	Memory    workspaceapp.KnowledgeStore
+	Skills    workspaceapp.SkillCatalog
+	Curator   workspaceapp.SkillCurator
+	Proposals workspaceapp.SkillProposals
+	Hooks     workspaceapp.HookInspector
+	Trust     workspaceapp.HookTrustStore
+	Recipes   workspaceapp.RecipeLister
+	Watcher   workspaceapp.GitStateWatcher
 }
 
 type workspaceSurfaces struct {
@@ -49,7 +49,7 @@ func newWorkspaceSurfaces(cwd string, cfg workspaceTestConfig) workspaceSurfaces
 		vcs:       workspaceapp.NewVCS(roots, workspaceadapter.VCS{}),
 		discovery: workspaceapp.NewDiscovery(roots, nil, nil, cfg.Recipes),
 		knowledge: workspaceapp.NewKnowledge(roots, cfg.Memory),
-		skills:    workspaceapp.NewSkills(roots, cfg.Skills, cfg.Curator, cfg.Drafts, nil),
+		skills:    workspaceapp.NewSkills(roots, cfg.Skills, cfg.Curator, cfg.Proposals, nil),
 		hooks:     workspaceapp.NewHooks(roots, cfg.Hooks, cfg.Trust),
 		watch:     workspaceapp.NewGitWatch(roots, watcher),
 	}
@@ -268,19 +268,19 @@ func (f fakeRecipeLister) List(context.Context, string) ([]workspaceapp.Recipe, 
 }
 
 // TestListDiscoveredSkills maps discovered skills onto the wire,
-// carrying each one's scope through Source, and defaults cwd to the serve dir.
+// carrying each one's scope through the wire, and defaults cwd to the serve dir.
 func TestListDiscoveredSkills(t *testing.T) {
 	dir := t.TempDir()
 	s := newWorkspaceServerWithConfig(dir, workspaceTestConfig{Skills: fakeSkillCatalog{skills: []workspaceapp.SkillInfo{
 		{Name: "pdf", Description: "PDF tools", Scope: "project"},
-		{Name: "web", Description: "web tools", Scope: "global"},
+		{Name: "web", Description: "web tools", Scope: "user"},
 	}}})
 	got, err := s.ListDiscoveredSkills(context.Background(), protocol.WorkspaceQuery{})
 	if err != nil {
 		t.Fatalf("listSkills: %v", err)
 	}
-	if len(got.Data) != 2 || got.Data[0].Name != "pdf" || got.Data[0].Source != "project" || got.Data[1].Source != "global" {
-		t.Fatalf("skills = %+v, want pdf(project) + web(global)", got.Data)
+	if len(got.Data) != 2 || got.Data[0].Name != "pdf" || got.Data[0].Scope != "project" || got.Data[1].Scope != "user" {
+		t.Fatalf("skills = %+v, want pdf(project) + web(user)", got.Data)
 	}
 }
 

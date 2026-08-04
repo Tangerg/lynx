@@ -74,10 +74,10 @@ func (s *Store) RecordUse(ctx context.Context, name string, now time.Time) error
 	return writeUsage(root, usage)
 }
 
-// SweepIdle archives agent-authored skills idle past archiveAfter, returning the
-// names it archived. It is provenance-gated: only skills whose frontmatter
-// created_by is [skills.CreatedByAgent] are ever auto-curated — a human-authored
-// skill is left untouched. Archiving moves the skill to _archive (never deletes)
+// SweepIdle archives Agent-authored skills idle past archiveAfter, returning the
+// names it archived. A valid proposal origin is the provenance gate; a
+// human-authored Skill has none and is never auto-curated. Archiving moves the
+// Skill to _archive (never deletes)
 // and drops its usage record, so a later restore starts with a fresh grace floor
 // rather than being re-archived on the next sweep. A skill with no record yet is
 // seeded at now (persisted), giving it the full archiveAfter grace anchored from
@@ -119,7 +119,7 @@ func (s *Store) SweepIdle(ctx context.Context, now time.Time, archiveAfter time.
 		if err != nil {
 			continue
 		}
-		if front.Metadata[metadataCreatedBy] != skills.CreatedByAgent {
+		if skills.ProposalOrigin(front.Metadata[metadataOrigin]).Validate() != nil {
 			continue // provenance gate: only agent-authored skills auto-curate
 		}
 		record := usage[name]
@@ -145,7 +145,7 @@ func (s *Store) SweepIdle(ctx context.Context, now time.Time, archiveAfter time.
 }
 
 // activeSkillNames lists the active skill directories directly under the store
-// root — every directory that isn't the reserved _drafts/_archive area or a
+// root — every directory that isn't the reserved _proposals/_archive area or a
 // dotfile.
 func activeSkillNames(root *os.Root) ([]string, error) {
 	entries, err := fs.ReadDir(root.FS(), ".")

@@ -22,6 +22,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/promptsource"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/runrecovery"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/runsegment"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/skillproposal"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/goaltool"
 	checkpointstore "github.com/Tangerg/lynx/app/runtime/internal/adapter/workspace"
@@ -48,6 +49,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/agentmemory"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/codebaseindex"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/skills"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/skillauthoring"
 	sqlitestore "github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 )
@@ -395,7 +397,23 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 		Store: cfg.ScheduleStore,
 		Paths: workspacepath.Resolver{},
 	})
-	skillStore := skillauthoring.NewStore(cfg.SkillsGlobalDir)
+	home, _ := os.UserHomeDir()
+	workspaceContext := workspace.NewContext(cfg.DefaultCwd, home, workspacepath.Resolver{})
+	// One signal covers every committed Skill-library mutation, including
+	// proposal submission and review decisions.
+	skillChanges := &signal.Signal[struct{}]{}
+	skillStore := skillauthoring.NewStore(cfg.SkillsUserDir, skills.ScopeUser)
+	var skillCurator workspace.SkillCurator
+	if skillStore.Enabled() {
+		skillCurator = skillStore
+	}
+	workspaceSkills := workspace.NewSkills(
+		workspaceContext,
+		promptsource.NewWorkspaceSkills(cfg.SkillsUserDir),
+		skillCurator,
+		skillproposal.NewLibraries(skillStore),
+		skillChanges.Publish,
+	)
 	built, err := buildTools(ctx, cfg, ecfg, approvalPolicy, mcpEnv, memorySearcher, scheduleCoord, goalState, skillStore)
 	lifetime.toolClosers = slices.Clone(built.closers)
 	if err != nil {
@@ -410,7 +428,7 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 	// Built after the tool environment so the compactor's live-state reminder can
 	// read the same background-shell set the shell tools run over (built.Shells);
 	// turnServices is not consumed until the dispatcher config below.
-	turnServices := buildTurnServices(cfg, messages, built.tools.Shells, skillStore, utilityClient, liveEmbedder.ResolveMemory)
+	turnServices := buildTurnServices(cfg, messages, built.tools.Shells, skillStore, workspaceSkills, utilityClient, liveEmbedder.ResolveMemory)
 
 	eng, err := agentexec.New(ctx, ecfg)
 	if err != nil {
@@ -452,8 +470,6 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 		return nil, fmt.Errorf("runtime: turn dispatcher: %w", err)
 	}
 	lifetime.dispatcher = turnDispatcher
-	home, _ := os.UserHomeDir()
-	workspaceContext := workspace.NewContext(cfg.DefaultCwd, home, workspacepath.Resolver{})
 	toolRegistry := toolset.NewDiagnosticRegistry()
 
 	// File checkpoints (shadow git) enable run-boundary snapshots + file
@@ -506,10 +522,6 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 	// mcpStatus bridges the integrations coordinator's MCP reconnect/authorize
 	// transitions to the delivery workspace stream the Server observes.
 	mcpStatus := &signal.Signal[integrations.MCPServerStatus]{}
-	// skillChanges bridges successful skill-library curation and draft promotion
-	// to the delivery workspace stream.
-	skillChanges := &signal.Signal[struct{}]{}
-
 	admissions := &admission.Gate{}
 	sessionStorage := persistence.NewSessionStores(persistence.SessionStoresConfig{
 		Sessions:            cfg.SessionStore,
@@ -635,24 +647,12 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 			built.tools.Resolver.UseCreateGoalTool(createGoalTool)
 		}
 	}
-	// Same discipline for the skill library: leave the ports interface-nil when
-	// authoring is disabled (empty skills dir), so the coordinator's nil-gate
-	// reports capability_not_negotiated instead of the store's bare disabled error.
-	var skillCurator workspace.SkillCurator
-	var skillDrafts workspace.SkillDrafts
-	if skillStore.Enabled() {
-		skillCurator = skillStore
-		skillDrafts = skillStore
-	}
 	workspaceFiles := workspace.NewFiles(workspaceContext, checkpointstore.Reads{})
 	workspaceVCS := workspace.NewVCS(workspaceContext, checkpointstore.VCS{})
 	workspaceDiscovery := workspace.NewDiscovery(
 		workspaceContext, sessionCoord, promptsource.AgentDocs{}, promptsource.NewWorkspaceRecipes(cfg.RecipesGlobalDir),
 	)
 	workspaceKnowledge := workspace.NewKnowledge(workspaceContext, cfg.KnowledgeStore)
-	workspaceSkills := workspace.NewSkills(
-		workspaceContext, promptsource.NewWorkspaceSkills(cfg.SkillsGlobalDir), skillCurator, skillDrafts, skillChanges.Publish,
-	)
 	workspaceHooks := workspace.NewHooks(workspaceContext, cfg.HooksResolver, cfg.HookTrustStore)
 	workspaceWatch := workspace.NewGitWatch(workspaceContext, checkpointstore.GitWatcher{})
 	// The @codebase semantic index is its own use-case coordinator (nil index =

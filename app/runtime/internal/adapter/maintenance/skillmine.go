@@ -21,13 +21,13 @@ const (
 	// turn is routine and never triggers a mining attempt.
 	defaultMinerComplexityThreshold = 8
 	// defaultMinerCadence mines at most once per this many complex turns per
-	// session, bounding the extra LLM call and avoiding draft spam.
+	// session, bounding the extra LLM call and avoiding proposal spam.
 	defaultMinerCadence = 3
 	// minerMinMessages skips mining a conversation too short to hold a reusable
 	// procedure.
 	minerMinMessages = 4
 
-	// minedNew / minedRevise are the mined-draft kinds, carried as the skill.kind
+	// minedNew / minedRevise are the mined proposal kinds, carried as the skill.kind
 	// metric label; consts so a typo can't silently ship a wrong dimension.
 	minedNew    = "new"
 	minedRevise = "revise"
@@ -54,12 +54,10 @@ func (c MinerConfig) normalized() MinerConfig {
 	return c
 }
 
-// draftStore is the miner's narrow view of the skill-authoring store: it stages
-// a proposed draft under the governed _drafts/ area, where it stays invisible to
-// the model until a human promotes it. The miner never publishes a skill.
-type draftStore interface {
-	Enabled() bool
-	SaveDraft(ctx context.Context, draft skills.Draft) (skills.DraftHandle, error)
+// proposalSubmitter is the miner's narrow application boundary. The miner can
+// submit immutable content for review but cannot activate or reject it.
+type proposalSubmitter interface {
+	SubmitSkillProposal(ctx context.Context, cwd string, proposal skills.Proposal) (skills.ProposalRef, error)
 }
 
 // skillSource loads the current on-disk body of an active skill. The miner uses
@@ -71,20 +69,20 @@ type skillSource interface {
 	Load(ctx context.Context, name string) (*skillspec.Skill, error)
 }
 
-// SkillMiner distills a complex turn's trajectory into a proposed skill draft.
+// SkillMiner distills a complex turn's trajectory into a Skill proposal.
 // It runs at the turn boundary — after a clean finish, before compaction — and
 // takes the Hermes learning-loop's "mine automatically" idea but grounds it in
-// the governed B4 write path: every proposal lands in _drafts/ behind the
-// mandatory human promotion gate, stamped with agent provenance. The agent
+// the governed authoring path: every proposal stays behind the mandatory human
+// approval gate and carries mined provenance. The Agent
 // never publishes a skill on its own. Mining is a direct, middleware-free LLM
 // call (like [Extractor]), never a forked agent.
 type SkillMiner struct {
-	history messageReader
-	store   draftStore
-	source  skillSource
-	client  ClientFunc
-	config  MinerConfig
-	minMsgs int
+	history   messageReader
+	proposals proposalSubmitter
+	source    skillSource
+	client    ClientFunc
+	config    MinerConfig
+	minMsgs   int
 
 	// mu guards complexTurns, the per-session count of complex turns since the
 	// last mining attempt. In-memory and reset on restart: it bounds cost, not a
@@ -94,12 +92,12 @@ type SkillMiner struct {
 }
 
 // NewSkillMiner builds the turn-boundary skill miner over the conversation
-// history reader, the authoring store, the active-skill source (for the
+// history reader, the proposal use case, the active-Skill source (for the
 // read-before-write refinement guard), and the utility-model client resolver.
-func NewSkillMiner(history messageReader, store draftStore, source skillSource, client ClientFunc, config MinerConfig) *SkillMiner {
+func NewSkillMiner(history messageReader, proposals proposalSubmitter, source skillSource, client ClientFunc, config MinerConfig) *SkillMiner {
 	return &SkillMiner{
 		history:      history,
-		store:        store,
+		proposals:    proposals,
 		source:       source,
 		client:       client,
 		config:       config.normalized(),
@@ -108,13 +106,13 @@ func NewSkillMiner(history messageReader, store draftStore, source skillSource, 
 	}
 }
 
-// MaybeMine distills the session's recent trajectory into a proposed skill
-// draft when the just-finished turn was complex enough and the per-session
+// MaybeMine distills the session's recent trajectory into a Skill proposal
+// when the just-finished turn was complex enough and the per-session
 // cadence is due. A distillation that yields no reusable skill, an unparseable
 // or invalid document, or an obviously-dangerous one is dropped silently
 // (return nil) — only a real read/save/LLM failure surfaces as an error.
 func (m *SkillMiner) MaybeMine(ctx context.Context, sessionID, cwd string, toolCalls int) error {
-	if m == nil || m.store == nil || !m.store.Enabled() || sessionID == "" || cwd == "" {
+	if m == nil || m.proposals == nil || sessionID == "" || cwd == "" {
 		return nil
 	}
 	if toolCalls < m.config.ComplexityThreshold {
@@ -138,22 +136,23 @@ func (m *SkillMiner) MaybeMine(ctx context.Context, sessionID, cwd string, toolC
 		return nil
 	}
 	if name, ok := reviseTarget(verdict); ok {
-		return m.mineRevision(ctx, name, messages, sessionID)
+		return m.mineRevision(ctx, name, messages, sessionID, cwd)
 	}
-	return m.mineNew(ctx, verdict, sessionID)
+	return m.mineNew(ctx, verdict, sessionID, cwd)
 }
 
-// mineNew stages a freshly distilled skill as a new (non-revising) draft.
-func (m *SkillMiner) mineNew(ctx context.Context, document, sessionID string) error {
+// mineNew submits a freshly distilled Skill as a non-revising proposal.
+func (m *SkillMiner) mineNew(ctx context.Context, document, sessionID, cwd string) error {
 	front, body, err := skillspec.Parse([]byte(unfence(document)))
 	if err != nil {
 		return nil
 	}
-	return m.saveDraft(ctx, skills.Draft{
+	return m.submitProposal(ctx, cwd, skills.Proposal{
+		Scope:         skills.ScopeUser,
 		Name:          front.Name,
 		Description:   front.Description,
-		Body:          body,
-		CreatedBy:     skills.CreatedByAgent,
+		Instructions:  body,
+		Origin:        skills.ProposalOriginMined,
 		SourceSession: sessionID,
 	}, minedNew)
 }
@@ -162,9 +161,9 @@ func (m *SkillMiner) mineNew(ctx context.Context, document, sessionID string) er
 // The read-before-write guard: it loads the skill's REAL current body and feeds
 // it to the model, so the revision edits the actual file rather than a body
 // inferred from the transcript. A skill that can't be loaded (absent/invalid) is
-// skipped. The draft keeps the target name and is marked as a revision so
-// promotion replaces the active skill.
-func (m *SkillMiner) mineRevision(ctx context.Context, name string, messages []chat.Message, sessionID string) error {
+// skipped. The proposal keeps the target name and is marked as a revision so
+// approval replaces the active Skill.
+func (m *SkillMiner) mineRevision(ctx context.Context, name string, messages []chat.Message, sessionID, cwd string) error {
 	if m.source == nil {
 		return nil
 	}
@@ -186,29 +185,28 @@ func (m *SkillMiner) mineRevision(ctx context.Context, name string, messages []c
 	if err != nil {
 		return nil
 	}
-	return m.saveDraft(ctx, skills.Draft{
+	return m.submitProposal(ctx, cwd, skills.Proposal{
+		Scope:         skills.ScopeUser,
 		Name:          name, // a revision is OF this skill; never let the model rename it
 		Description:   front.Description,
-		Body:          body,
-		CreatedBy:     skills.CreatedByAgent,
+		Instructions:  body,
+		Origin:        skills.ProposalOriginMined,
 		SourceSession: sessionID,
 		Revises:       true,
 	}, minedRevise)
 }
 
-// saveDraft validates + scans a distilled draft and stages it. An unusable or
-// obviously-dangerous draft is dropped silently; only a real store failure is an
-// error. Validation and the static scan ensure an auto-mined draft reaches the
-// same baseline required by the reviewed promotion workflow.
-func (m *SkillMiner) saveDraft(ctx context.Context, draft skills.Draft, kind string) error {
-	if err := draft.Validate(); err != nil {
+// submitProposal validates and scans mined content before crossing the shared
+// application boundary. The authoring store repeats these checks defensively.
+func (m *SkillMiner) submitProposal(ctx context.Context, cwd string, proposal skills.Proposal, kind string) error {
+	if err := proposal.Validate(); err != nil {
 		return nil
 	}
-	if draft.SafetyIssue() != skills.DraftSafe {
+	if proposal.SafetyIssue() != skills.ProposalSafe {
 		return nil
 	}
-	if _, err := m.store.SaveDraft(ctx, draft); err != nil {
-		return fmt.Errorf("skill mining: save draft %q: %w", draft.Name, err)
+	if _, err := m.proposals.SubmitSkillProposal(ctx, cwd, proposal); err != nil {
+		return fmt.Errorf("skill mining: submit proposal %q: %w", proposal.Name, err)
 	}
 	recordMinedSkill(ctx, kind)
 	return nil
@@ -229,7 +227,7 @@ func reviseTarget(text string) (string, bool) {
 // due advances the session's complex-turn counter and reports whether a mining
 // attempt is now due, resetting the counter when it fires. Resetting on the
 // attempt (not on a successful save) is deliberate: the cadence bounds LLM
-// calls, and every due attempt makes one whether or not it yields a draft. The
+// calls, and every due attempt makes one whether or not it yields a proposal. The
 // reset DELETES the key (a missing key reads back as 0), so a session self-evicts
 // from the map when it fires — bounding the map instead of retaining every
 // session for the process lifetime.
@@ -247,7 +245,7 @@ func (m *SkillMiner) due(sessionID string) bool {
 // skillMinerPrompt distills the Hermes prompt wisdom (H-Skill-4): prefer a
 // reusable, class-level procedure; refuse the well-known anti-patterns. The
 // model returns a complete SKILL.md or the exact sentinel NO_SKILL.
-const skillMinerPrompt = `You are mining a coding-agent conversation for a REUSABLE skill worth saving for future sessions.
+const skillMinerPrompt = `You are mining an Agent conversation for a REUSABLE skill worth saving for future sessions.
 
 A skill is a class-level, reusable procedure — "how to do X in this kind of project" — not a narration of this one task. Only propose a skill when the conversation demonstrates a non-obvious, repeatable procedure a future agent would benefit from. Prefer a general, umbrella skill covering a class of tasks over a narrow one-off, and write it to apply the next time a similar task arises.
 

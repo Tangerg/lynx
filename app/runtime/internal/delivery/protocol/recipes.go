@@ -14,7 +14,7 @@ type Recipes interface {
 // input, and sends the result as a turn — the runtime only discovers them.
 
 // RecipeScope is where a discovered Recipe came from: project (<cwd>/.lyra/
-// recipes) or global (<LYRA_HOME>/recipes). Mirrors SkillSource's values but is
+// recipes) or global (<LYRA_HOME>/recipes). Mirrors SkillScope's values but is
 // a distinct domain (left separate rather than DRY-coupled — under rule-of-three).
 type RecipeScope string
 

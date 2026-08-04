@@ -2452,9 +2452,16 @@
       }
     },
     {
-      "name": "skills.drafts.list",
+      "name": "skills.proposals.list",
       "paramStructure": "by-name",
       "params": [
+        {
+          "name": "workspace",
+          "required": true,
+          "schema": {
+            "$ref": "schema.json#/$defs/WorkspaceRef"
+          }
+        },
         {
           "name": "_meta",
           "schema": {
@@ -2465,7 +2472,7 @@
       "result": {
         "name": "result",
         "schema": {
-          "$ref": "schema.json#/$defs/PageOfSkillDraft"
+          "$ref": "schema.json#/$defs/PageOfSkillProposal"
         }
       },
       "errors": [
@@ -2493,7 +2500,7 @@
         "unevaluatedProperties": false,
         "allOf": [
           {
-            "type": "object"
+            "$ref": "schema.json#/$defs/WorkspaceQuery"
           },
           {
             "type": "object",
@@ -2507,9 +2514,16 @@
       }
     },
     {
-      "name": "skills.drafts.promote",
+      "name": "skills.proposals.approve",
       "paramStructure": "by-name",
       "params": [
+        {
+          "name": "workspace",
+          "required": true,
+          "schema": {
+            "$ref": "schema.json#/$defs/WorkspaceRef"
+          }
+        },
         {
           "name": "name",
           "required": true,
@@ -2524,6 +2538,13 @@
           "schema": {
             "type": "string",
             "minLength": 1
+          }
+        },
+        {
+          "name": "scope",
+          "required": true,
+          "schema": {
+            "$ref": "schema.json#/$defs/SkillScope"
           }
         },
         {
@@ -2564,7 +2585,7 @@
         "unevaluatedProperties": false,
         "allOf": [
           {
-            "$ref": "schema.json#/$defs/SkillDraftRef"
+            "$ref": "schema.json#/$defs/SkillProposalRef"
           },
           {
             "type": "object",
@@ -2578,9 +2599,16 @@
       }
     },
     {
-      "name": "skills.drafts.reject",
+      "name": "skills.proposals.reject",
       "paramStructure": "by-name",
       "params": [
+        {
+          "name": "workspace",
+          "required": true,
+          "schema": {
+            "$ref": "schema.json#/$defs/WorkspaceRef"
+          }
+        },
         {
           "name": "name",
           "required": true,
@@ -2595,6 +2623,13 @@
           "schema": {
             "type": "string",
             "minLength": 1
+          }
+        },
+        {
+          "name": "scope",
+          "required": true,
+          "schema": {
+            "$ref": "schema.json#/$defs/SkillScope"
           }
         },
         {
@@ -2635,7 +2670,7 @@
         "unevaluatedProperties": false,
         "allOf": [
           {
-            "$ref": "schema.json#/$defs/SkillDraftRef"
+            "$ref": "schema.json#/$defs/SkillProposalRef"
           },
           {
             "type": "object",

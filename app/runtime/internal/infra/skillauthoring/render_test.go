@@ -9,44 +9,44 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/skills"
 )
 
-func TestRenderDraftEmitsProvenanceMetadata(t *testing.T) {
-	draft := skills.Draft{
+func TestRenderProposalEmitsProvenanceMetadata(t *testing.T) {
+	proposal := skills.Proposal{Scope: skills.ScopeUser,
 		Name:          "run-project-tests",
 		Description:   "How to run the test suite. Use when asked to run tests.",
-		Body:          "Run `go test ./...` from the module root.",
-		CreatedBy:     skills.CreatedByAgent,
+		Instructions:  "Run `go test ./...` from the module root.",
+		Origin:        skills.ProposalOriginMined,
 		SourceSession: "ses_1",
 	}
-	content, err := renderDraft(draft)
+	content, err := renderProposal(proposal)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	front, body, err := skillspec.Parse(content)
+	front, instructions, err := skillspec.Parse(content)
 	if err != nil {
-		t.Fatalf("rendered draft does not parse: %v", err)
+		t.Fatalf("rendered proposal does not parse: %v", err)
 	}
-	if front.Name != draft.Name || front.Description != draft.Description {
+	if front.Name != proposal.Name || front.Description != proposal.Description {
 		t.Fatalf("frontmatter round-trip mismatch: %+v", front)
 	}
-	if got := front.Metadata[metadataCreatedBy]; got != skills.CreatedByAgent {
-		t.Errorf("metadata[%q] = %q, want %q", metadataCreatedBy, got, skills.CreatedByAgent)
+	if got := front.Metadata[metadataOrigin]; got != string(skills.ProposalOriginMined) {
+		t.Errorf("metadata[%q] = %q, want %q", metadataOrigin, got, skills.ProposalOriginMined)
 	}
 	if got := front.Metadata[metadataSourceSession]; got != "ses_1" {
 		t.Errorf("metadata[%q] = %q, want %q", metadataSourceSession, got, "ses_1")
 	}
-	if !strings.Contains(body, "go test") {
-		t.Errorf("body round-trip lost the instruction: %q", body)
+	if !strings.Contains(instructions, "go test") {
+		t.Errorf("instructions round-trip lost the instruction: %q", instructions)
 	}
 }
 
-func TestRenderDraftEmitsRevisesMarker(t *testing.T) {
-	content, err := renderDraft(skills.Draft{
-		Name:        "run-project-tests",
-		Description: "A revised version of an existing skill.",
-		Body:        "Run `go test ./...` from the module root.",
-		CreatedBy:   skills.CreatedByAgent,
-		Revises:     true,
+func TestRenderProposalEmitsRevisesMarker(t *testing.T) {
+	content, err := renderProposal(skills.Proposal{Scope: skills.ScopeUser,
+		Name:         "run-project-tests",
+		Description:  "A revised version of an existing skill.",
+		Instructions: "Run `go test ./...` from the module root.",
+		Origin:       skills.ProposalOriginMined,
+		Revises:      true,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -60,11 +60,11 @@ func TestRenderDraftEmitsRevisesMarker(t *testing.T) {
 	}
 }
 
-func TestRenderDraftOmitsEmptyProvenance(t *testing.T) {
-	content, err := renderDraft(skills.Draft{
-		Name:        "no-provenance",
-		Description: "A hand-authored draft carries no provenance.",
-		Body:        "do the thing",
+func TestRenderProposalOmitsEmptyProvenance(t *testing.T) {
+	content, err := renderProposal(skills.Proposal{Scope: skills.ScopeUser,
+		Name:         "no-provenance",
+		Description:  "A hand-authored proposal carries no provenance.",
+		Instructions: "do the thing",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -81,19 +81,19 @@ func TestRenderDraftOmitsEmptyProvenance(t *testing.T) {
 	}
 }
 
-func TestRenderDraftIsDeterministic(t *testing.T) {
-	draft := skills.Draft{
+func TestRenderProposalIsDeterministic(t *testing.T) {
+	proposal := skills.Proposal{Scope: skills.ScopeUser,
 		Name:          "stable",
 		Description:   "deterministic render keeps content-addressing stable",
-		Body:          "step one",
-		CreatedBy:     skills.CreatedByAgent,
+		Instructions:  "step one",
+		Origin:        skills.ProposalOriginMined,
 		SourceSession: "ses_9",
 	}
-	first, err := renderDraft(draft)
+	first, err := renderProposal(proposal)
 	if err != nil {
 		t.Fatal(err)
 	}
-	second, err := renderDraft(draft)
+	second, err := renderProposal(proposal)
 	if err != nil {
 		t.Fatal(err)
 	}

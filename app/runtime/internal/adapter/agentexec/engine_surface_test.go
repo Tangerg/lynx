@@ -35,7 +35,7 @@ func TestEngineConfigHasNoApplicationOrResourceProxies(t *testing.T) {
 		"MCPConnectionCommands",
 		"MCPRegistryCommands",
 		"Closers",
-		"SkillsGlobalDir",
+		"SkillsUserDir",
 	} {
 		if _, ok := configType.FieldByName(field); ok {
 			t.Errorf("Config still exposes %s; it belongs to the direct consumer or Host", field)

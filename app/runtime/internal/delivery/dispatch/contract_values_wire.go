@@ -264,7 +264,7 @@ func registerWorkspaceValues(s *Shapes) {
 
 func registerIntegrationValues(s *Shapes) {
 	nonEmpty[protocol.SkillNameRequest](s, "name")
-	nonEmpty[protocol.SkillDraftRef](s, "name", "revision")
+	nonEmpty[protocol.SkillProposalRef](s, "name", "revision")
 	nonEmpty[protocol.SetHookTrustRequest](s, "projectRoot")
 	nonEmpty[protocol.ListApprovalRulesRequest](s, "sessionId")
 	nonEmpty[protocol.ForgetApprovalRuleRequest](s, "id")

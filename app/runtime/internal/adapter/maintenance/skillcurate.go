@@ -37,8 +37,9 @@ type skillSweeper interface {
 }
 
 // SkillCurator runs the idle-lifecycle sweep at the turn boundary, rate-limited
-// to at most once per SweepEvery. The skill library is global, so the sweep is
-// global — not per session; the first turn after start triggers it (lastSweep is
+// to at most once per SweepEvery. The managed Skill library is user-scoped, so
+// the sweep is process-wide rather than per session; the first turn after start
+// triggers it (lastSweep is
 // zero), which stands in for an explicit boot sweep without a startup-time
 // filesystem mutation.
 type SkillCurator struct {

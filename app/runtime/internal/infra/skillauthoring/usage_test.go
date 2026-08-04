@@ -7,12 +7,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/skills"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/skillauthoring"
 )
 
 func TestRecordUseAccumulatesUsage(t *testing.T) {
 	root := t.TempDir()
-	store := skillauthoring.NewStore(root)
+	store := skillauthoring.NewStore(root, skills.ScopeUser)
 	base := time.Unix(1_000_000, 0)
 	if err := store.RecordUse(t.Context(), "run-tests", base); err != nil {
 		t.Fatalf("RecordUse: %v", err)
@@ -42,7 +43,7 @@ func TestRecordUseAccumulatesUsage(t *testing.T) {
 }
 
 func TestRecordUseDisabledStoreNoOps(t *testing.T) {
-	store := skillauthoring.NewStore("")
+	store := skillauthoring.NewStore("", skills.ScopeUser)
 	if err := store.RecordUse(t.Context(), "x", time.Unix(1, 0)); err != nil {
 		t.Fatalf("disabled RecordUse: %v", err)
 	}

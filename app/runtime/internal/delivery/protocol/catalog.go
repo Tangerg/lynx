@@ -9,9 +9,9 @@ type Skills interface {
 	ListManagedSkills(ctx context.Context) (*Page[ManagedSkill], error)
 	ArchiveSkill(ctx context.Context, in SkillNameRequest) error
 	RestoreSkill(ctx context.Context, in SkillNameRequest) error
-	ListSkillDrafts(ctx context.Context) (*Page[SkillDraft], error)
-	PromoteSkillDraft(ctx context.Context, in SkillDraftRef) error
-	RejectSkillDraft(ctx context.Context, in SkillDraftRef) error
+	ListSkillProposals(ctx context.Context, in WorkspaceQuery) (*Page[SkillProposal], error)
+	ApproveSkillProposal(ctx context.Context, in SkillProposalRef) error
+	RejectSkillProposal(ctx context.Context, in SkillProposalRef) error
 }
 
 // AgentDocs is the agentDocs.* method group.
@@ -19,20 +19,19 @@ type AgentDocs interface {
 	ListAgentDocs(ctx context.Context, in WorkspaceQuery) (*Page[AgentDoc], error)
 }
 
-// SkillSource is where a discovered Skill came from (API.md §4.10): project
-// (<cwd>/.lyra/skills) or global (<LYRA_HOME>/skills).
-type SkillSource string
+// SkillScope identifies the project or user library that owns a Skill.
+type SkillScope string
 
 const (
-	SkillSourceProject SkillSource = "project"
-	SkillSourceGlobal  SkillSource = "global"
+	SkillScopeProject SkillScope = "project"
+	SkillScopeUser    SkillScope = "user"
 )
 
 // Skill is one entry in skills.discovered.list (API.md §4.10).
 type Skill struct {
-	Name        string      `json:"name"`
-	Description string      `json:"description,omitempty"`
-	Source      SkillSource `json:"source,omitempty"` // see SkillSource
+	Name        string     `json:"name"`
+	Description string     `json:"description,omitempty"`
+	Scope       SkillScope `json:"scope"`
 }
 
 // SkillLifecycle is a managed skill's curator state (skills.library.list):
@@ -44,9 +43,9 @@ const (
 	SkillLifecycleArchived SkillLifecycle = "archived"
 )
 
-// ManagedSkill is one entry in the global self-authored skill library
+// ManagedSkill is one entry in the user-scoped self-authored Skill library
 // (skills.library.list), tagged with its curator lifecycle. Distinct from
-// [Skill] (the agent's project+global discovery view): this is the management
+// [Skill] (the Agent's project+user discovery view): this is the management
 // surface, which also lists archived skills.
 type ManagedSkill struct {
 	Name        string         `json:"name"`

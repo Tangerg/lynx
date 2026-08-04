@@ -52,11 +52,11 @@ type PlanModePolicy interface {
 // BuildConfig is the tool-environment construction input (the working-directory
 // scope + the capability tables). Driven by the runtime config.
 type BuildConfig struct {
-	Workdir         string
-	DefaultModel    modelref.Selection
-	SkillsGlobalDir string
-	Online          OnlineConfig
-	LSPServers      []codeintel.ServerSpec
+	Workdir       string
+	DefaultModel  modelref.Selection
+	SkillsUserDir string
+	Online        OnlineConfig
+	LSPServers    []codeintel.ServerSpec
 	// MCPTools is the initial live MCP catalog. Its owner updates the resolver
 	// after reconnects; toolset deliberately does not own MCP connections.
 	MCPTools    []toolcontract.Tool
@@ -224,7 +224,7 @@ func Build(ctx context.Context, config BuildConfig) (_ Built, err error) {
 		SkillUsage:      config.SkillUsage,
 		DefaultWorkdir:  config.Workdir,
 		DefaultModel:    config.DefaultModel,
-		SkillsGlobalDir: config.SkillsGlobalDir,
+		SkillsUserDir:   config.SkillsUserDir,
 		Online:          online,
 		A2A:             connections.a2aTools,
 		LSP:             lspTools,

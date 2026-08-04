@@ -466,7 +466,7 @@
       "stability": "stable"
     },
     {
-      "name": "skills.drafts.list",
+      "name": "skills.proposals.list",
       "kind": "unary",
       "operation": "query",
       "idempotency": "none",
@@ -480,7 +480,7 @@
       "stability": "stable"
     },
     {
-      "name": "skills.drafts.promote",
+      "name": "skills.proposals.approve",
       "kind": "unary",
       "operation": "command",
       "idempotency": "replayResponse",
@@ -494,7 +494,7 @@
       "stability": "stable"
     },
     {
-      "name": "skills.drafts.reject",
+      "name": "skills.proposals.reject",
       "kind": "unary",
       "operation": "command",
       "idempotency": "replayResponse",
@@ -1178,12 +1178,12 @@
           "sessions.rollback",
           "sessions.update",
           "skills.discovered.list",
-          "skills.drafts.list",
-          "skills.drafts.promote",
-          "skills.drafts.reject",
           "skills.library.archive",
           "skills.library.list",
           "skills.library.restore",
+          "skills.proposals.approve",
+          "skills.proposals.list",
+          "skills.proposals.reject",
           "workspace.changes.list",
           "workspace.diff.get"
         ]
@@ -1667,7 +1667,7 @@
       ]
     },
     {
-      "method": "skills.drafts.list",
+      "method": "skills.proposals.list",
       "rules": [
         {
           "requires": [
@@ -1677,7 +1677,7 @@
       ]
     },
     {
-      "method": "skills.drafts.promote",
+      "method": "skills.proposals.approve",
       "rules": [
         {
           "requires": [
@@ -1687,7 +1687,7 @@
       ]
     },
     {
-      "method": "skills.drafts.reject",
+      "method": "skills.proposals.reject",
       "rules": [
         {
           "requires": [
@@ -4429,7 +4429,7 @@
       ]
     },
     {
-      "type": "SkillDraftRef",
+      "type": "SkillProposalRef",
       "rules": [
         {
           "field": "name",
@@ -5384,8 +5384,8 @@
       "shape": "ManagedSkill"
     },
     {
-      "file": "skillDraft.json",
-      "shape": "SkillDraft"
+      "file": "skillProposal.json",
+      "shape": "SkillProposal"
     },
     {
       "file": "agentDoc.json",

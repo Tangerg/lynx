@@ -25,8 +25,8 @@ func readSkill(root *os.Root, dir string) ([]byte, bool, error) {
 }
 
 // writeFile creates path (which must not exist) and writes+fsyncs content. It
-// backs both draft staging and the usage sidecar, so its messages name the
-// operation neutrally; callers add the "draft"/"usage" context.
+// backs both proposal staging and the usage sidecar, so its messages name the
+// operation neutrally; callers add the proposal/usage context.
 func writeFile(root *os.Root, path string, content []byte) (err error) {
 	file, err := root.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
 	if err != nil {
@@ -42,20 +42,20 @@ func writeFile(root *os.Root, path string, content []byte) (err error) {
 	return nil
 }
 
-func stageDraft(ctx context.Context, root *os.Root, destination string, content []byte) (err error) {
-	temporary := filepath.Join(draftsSubdir, ".stage-"+rand.Text())
+func stageProposal(ctx context.Context, root *os.Root, destination string, content []byte) (err error) {
+	temporary := filepath.Join(proposalsSubdir, ".stage-"+rand.Text())
 	if err := root.Mkdir(temporary, 0o755); err != nil {
-		return fmt.Errorf("skillauthoring: create draft staging directory: %w", err)
+		return fmt.Errorf("skillauthoring: create proposal staging directory: %w", err)
 	}
 	defer func() {
 		if cleanupErr := root.RemoveAll(temporary); cleanupErr != nil && !errors.Is(cleanupErr, fs.ErrNotExist) {
-			err = errors.Join(err, fmt.Errorf("skillauthoring: clean draft staging directory: %w", cleanupErr))
+			err = errors.Join(err, fmt.Errorf("skillauthoring: clean proposal staging directory: %w", cleanupErr))
 		}
 	}()
 	if err := writeFile(root, filepath.Join(temporary, skillFile), content); err != nil {
 		return err
 	}
-	if err := contextError(ctx, "publish draft"); err != nil {
+	if err := contextError(ctx, "publish proposal"); err != nil {
 		return err
 	}
 	if err := root.Rename(temporary, destination); err != nil {
@@ -63,7 +63,7 @@ func stageDraft(ctx context.Context, root *os.Root, destination string, content 
 		if readErr == nil && found && bytes.Equal(existing, content) {
 			return nil
 		}
-		return fmt.Errorf("skillauthoring: publish draft %q: %w", filepath.Base(destination), errors.Join(err, readErr))
+		return fmt.Errorf("skillauthoring: publish proposal %q: %w", filepath.Base(destination), errors.Join(err, readErr))
 	}
 	return nil
 }

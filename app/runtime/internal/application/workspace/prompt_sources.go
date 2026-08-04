@@ -34,7 +34,7 @@ type SkillScope string
 
 const (
 	SkillScopeProject SkillScope = "project"
-	SkillScopeGlobal  SkillScope = "global"
+	SkillScopeUser    SkillScope = "user"
 )
 
 // SkillInfo is one skill visible to a workspace, including the source layer

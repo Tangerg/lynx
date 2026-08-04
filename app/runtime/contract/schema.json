@@ -4365,13 +4365,13 @@
         "data"
       ]
     },
-    "PageOfSkillDraft": {
+    "PageOfSkillProposal": {
       "type": "object",
       "properties": {
         "data": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/SkillDraft"
+            "$ref": "#/$defs/SkillProposal"
           }
         },
         "nextCursor": {
@@ -7101,53 +7101,13 @@
         "name": {
           "type": "string"
         },
-        "source": {
-          "$ref": "#/$defs/SkillSource"
-        }
-      },
-      "required": [
-        "name"
-      ]
-    },
-    "SkillDraft": {
-      "type": "object",
-      "properties": {
-        "createdBy": {
-          "type": "string"
-        },
-        "description": {
-          "type": "string"
-        },
-        "name": {
-          "type": "string"
-        },
-        "revision": {
-          "type": "string"
-        },
-        "sourceSession": {
-          "type": "string"
+        "scope": {
+          "$ref": "#/$defs/SkillScope"
         }
       },
       "required": [
         "name",
-        "revision"
-      ]
-    },
-    "SkillDraftRef": {
-      "type": "object",
-      "properties": {
-        "name": {
-          "type": "string",
-          "minLength": 1
-        },
-        "revision": {
-          "type": "string",
-          "minLength": 1
-        }
-      },
-      "required": [
-        "name",
-        "revision"
+        "scope"
       ]
     },
     "SkillLifecycle": {
@@ -7169,11 +7129,79 @@
         "name"
       ]
     },
-    "SkillSource": {
+    "SkillProposal": {
+      "type": "object",
+      "properties": {
+        "description": {
+          "type": "string"
+        },
+        "instructions": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "origin": {
+          "$ref": "#/$defs/SkillProposalOrigin"
+        },
+        "revises": {
+          "type": "boolean"
+        },
+        "revision": {
+          "type": "string"
+        },
+        "scope": {
+          "$ref": "#/$defs/SkillScope"
+        },
+        "sourceSession": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "description",
+        "instructions",
+        "name",
+        "revision",
+        "scope"
+      ]
+    },
+    "SkillProposalOrigin": {
+      "type": "string",
+      "enum": [
+        "requested",
+        "mined"
+      ]
+    },
+    "SkillProposalRef": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "revision": {
+          "type": "string",
+          "minLength": 1
+        },
+        "scope": {
+          "$ref": "#/$defs/SkillScope"
+        },
+        "workspace": {
+          "$ref": "#/$defs/WorkspaceRef"
+        }
+      },
+      "required": [
+        "name",
+        "revision",
+        "scope",
+        "workspace"
+      ]
+    },
+    "SkillScope": {
       "type": "string",
       "enum": [
         "project",
-        "global"
+        "user"
       ]
     },
     "Stability": {

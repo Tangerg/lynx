@@ -44,9 +44,9 @@ Protocol `2026-08-02` (minimum supported `2026-08-02`) · 86 methods
 | `skills.library.list` | query | unary | none | none | `skills` | `capability_not_negotiated` |
 | `skills.library.archive` | command | unary | replayResponse | none | `skills` | `capability_not_negotiated` |
 | `skills.library.restore` | command | unary | replayResponse | none | `skills` | `capability_not_negotiated` |
-| `skills.drafts.list` | query | unary | none | none | `skills` | `capability_not_negotiated` |
-| `skills.drafts.promote` | command | unary | replayResponse | none | `skills` | `capability_not_negotiated` |
-| `skills.drafts.reject` | command | unary | replayResponse | none | `skills` | `capability_not_negotiated` |
+| `skills.proposals.list` | query | unary | none | none | `skills` | `capability_not_negotiated` |
+| `skills.proposals.approve` | command | unary | replayResponse | none | `skills` | `capability_not_negotiated` |
+| `skills.proposals.reject` | command | unary | replayResponse | none | `skills` | `capability_not_negotiated` |
 | `recipes.list` | query | unary | none | none | — | `workspace_unavailable` |
 | `agentDocs.list` | query | unary | none | none | — | `workspace_unavailable` |
 | `mcp.servers.list` | query | unary | none | none | `mcp` | `capability_not_negotiated` |
@@ -526,8 +526,8 @@ TypeScript validator from this single registry projection.
 | `CodebaseSearchRequest` | `limit` | `nonNegative` |
 | `UsageSummaryRequest` | `sinceDays` | `nonNegative` |
 | `SkillNameRequest` | `name` | `nonEmpty` |
-| `SkillDraftRef` | `name` | `nonEmpty` |
-| `SkillDraftRef` | `revision` | `nonEmpty` |
+| `SkillProposalRef` | `name` | `nonEmpty` |
+| `SkillProposalRef` | `revision` | `nonEmpty` |
 | `SetHookTrustRequest` | `projectRoot` | `nonEmpty` |
 | `ListApprovalRulesRequest` | `sessionId` | `nonEmpty` |
 | `ForgetApprovalRuleRequest` | `id` | `nonEmpty` |
@@ -637,9 +637,9 @@ available. Refusal is `capability_not_negotiated` — never a silent downgrade.
 | `skills.library.list` | always | `skills` |
 | `skills.library.archive` | always | `skills` |
 | `skills.library.restore` | always | `skills` |
-| `skills.drafts.list` | always | `skills` |
-| `skills.drafts.promote` | always | `skills` |
-| `skills.drafts.reject` | always | `skills` |
+| `skills.proposals.list` | always | `skills` |
+| `skills.proposals.approve` | always | `skills` |
+| `skills.proposals.reject` | always | `skills` |
 | `mcp.servers.list` | always | `mcp` |
 | `mcp.servers.create` | always | `mcp` |
 | `mcp.servers.update` | always | `mcp` |

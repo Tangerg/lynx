@@ -18,10 +18,10 @@ import (
 // ErrMemoryUnavailable reports that this runtime was built without a knowledge store.
 var ErrMemoryUnavailable = errors.New("workspace: memory unavailable")
 
-// ErrSkillDraftsUnavailable reports that this runtime was built without a skill
-// authoring store, so the offline draft-review surface is not negotiated.
+// ErrSkillProposalsUnavailable reports that this runtime was built without a
+// Skill proposal store, so authoring and review are not negotiated.
 // Delivery maps it to capability_not_negotiated.
-var ErrSkillDraftsUnavailable = errors.New("workspace: skill drafts unavailable")
+var ErrSkillProposalsUnavailable = errors.New("workspace: skill proposals unavailable")
 
 // ErrSkillLibraryUnavailable reports that this runtime was built without the
 // skill-library curator. Library mutations must fail explicitly rather than
@@ -35,12 +35,12 @@ var ErrSkillLibraryUnavailable = errors.New("workspace: skill library unavailabl
 var ErrFileWatchUnavailable = errors.New("workspace: file watch unavailable")
 
 // SkillCatalog enumerates the skills visible from a working directory (project
-// over global). The composition root supplies promptsource-backed discovery.
+// over user). The composition root supplies promptsource-backed discovery.
 type SkillCatalog interface {
 	ListSkills(ctx context.Context, workdir string) ([]SkillInfo, error)
 }
 
-// SkillCurator manages the global self-authored skill library: listing every
+// SkillCurator manages the user self-authored Skill library: listing every
 // skill with its lifecycle and moving one between active and archived (never
 // deleting). The composition root supplies the file-backed authoring store; nil
 // disables the management surface.
@@ -50,17 +50,13 @@ type SkillCurator interface {
 	Restore(ctx context.Context, name string) error
 }
 
-// SkillDrafts is the offline review surface for agent-mined skill proposals:
-// enumerate the pending drafts, promote one into the active library, or discard
-// (reject) it. The method set matches the file-backed authoring store the
-// composition root supplies; nil disables the surface (the review methods report
-// [ErrSkillDraftsUnavailable] rather than silently no-op, so the client can
-// negotiate the capability off). Distinct from [SkillCurator] — reviewing
-// proposals is a different capability from curating the active library.
-type SkillDrafts interface {
-	ListDrafts(ctx context.Context) ([]skills.DraftInfo, error)
-	Promote(ctx context.Context, handle skills.DraftHandle) error
-	DiscardDraft(ctx context.Context, handle skills.DraftHandle) error
+// SkillProposals stores immutable proposals in either the project or user Skill
+// library. projectRoot is already resolved by the application boundary.
+type SkillProposals interface {
+	SubmitProposal(ctx context.Context, projectRoot string, proposal skills.Proposal) (skills.ProposalRef, error)
+	ListProposals(ctx context.Context, projectRoot string) ([]skills.ProposalInfo, error)
+	ApproveProposal(ctx context.Context, projectRoot string, ref skills.ProposalRef) error
+	RejectProposal(ctx context.Context, projectRoot string, ref skills.ProposalRef) error
 }
 
 // HookInspector resolves the lifecycle hooks discovered for a cwd plus the
@@ -161,12 +157,12 @@ type Skills struct {
 	context       *Context
 	skills        SkillCatalog
 	curator       SkillCurator
-	drafts        SkillDrafts
+	proposals     SkillProposals
 	skillsChanged func(struct{})
 }
 
-func NewSkills(context *Context, skills SkillCatalog, curator SkillCurator, drafts SkillDrafts, skillsChanged func(struct{})) *Skills {
-	return &Skills{context: context, skills: skills, curator: curator, drafts: drafts, skillsChanged: skillsChanged}
+func NewSkills(context *Context, skills SkillCatalog, curator SkillCurator, proposals SkillProposals, skillsChanged func(struct{})) *Skills {
+	return &Skills{context: context, skills: skills, curator: curator, proposals: proposals, skillsChanged: skillsChanged}
 }
 
 // Hooks owns lifecycle-hook inspection and trust decisions.
@@ -276,7 +272,7 @@ func (c *Knowledge) UpdateMemory(ctx context.Context, scope knowledge.Scope, cwd
 	return c.memory.Update(ctx, scope, root, content)
 }
 
-// ListSkills enumerates the skills visible from cwd (project over global) for
+// ListSkills enumerates the Skills visible from cwd (project over user) for
 // skills.discovered.list.
 func (c *Skills) ListSkills(ctx context.Context, cwd string) ([]SkillInfo, error) {
 	root, err := c.context.root(cwd)
@@ -289,7 +285,7 @@ func (c *Skills) ListSkills(ctx context.Context, cwd string) ([]SkillInfo, error
 	return c.skills.ListSkills(ctx, root)
 }
 
-// ListManagedSkills returns the global self-authored skill library — active and
+// ListManagedSkills returns the user self-authored Skill library — active and
 // archived skills, each tagged with its lifecycle (skills.library.list).
 // Reports [ErrSkillLibraryUnavailable] when no curator is wired.
 func (c *Skills) ListManagedSkills(ctx context.Context) ([]skills.Entry, error) {
@@ -327,24 +323,59 @@ func (c *Skills) RestoreSkill(ctx context.Context, name string) error {
 	return nil
 }
 
-// ListSkillDrafts enumerates the agent-mined skill proposals awaiting offline
-// review (skills.drafts.list). Reports [ErrSkillDraftsUnavailable] when no
-// authoring store is wired.
-func (c *Skills) ListSkillDrafts(ctx context.Context) ([]skills.DraftInfo, error) {
-	if c.drafts == nil {
-		return nil, ErrSkillDraftsUnavailable
+// SubmitSkillProposal submits immutable content to the requested project or
+// user review queue. It never activates the Skill.
+func (c *Skills) SubmitSkillProposal(ctx context.Context, cwd string, proposal skills.Proposal) (skills.ProposalRef, error) {
+	if c.proposals == nil {
+		return skills.ProposalRef{}, ErrSkillProposalsUnavailable
 	}
-	return c.drafts.ListDrafts(ctx)
+	root, err := c.context.root(cwd)
+	if err != nil {
+		return skills.ProposalRef{}, err
+	}
+	ref, err := c.proposals.SubmitProposal(ctx, root, proposal)
+	if err != nil {
+		return skills.ProposalRef{}, err
+	}
+	c.notifySkillsChanged()
+	return ref, nil
 }
 
-// PromoteSkillDraft publishes a reviewed draft into the active skill library
-// (skills.drafts.promote). Reports [ErrSkillDraftsUnavailable] when no authoring
-// store is wired.
-func (c *Skills) PromoteSkillDraft(ctx context.Context, handle skills.DraftHandle) error {
-	if c.drafts == nil {
-		return ErrSkillDraftsUnavailable
+func (c *Skills) ListSkillProposals(ctx context.Context, cwd string) ([]skills.ProposalInfo, error) {
+	if c.proposals == nil {
+		return nil, ErrSkillProposalsUnavailable
 	}
-	if err := c.drafts.Promote(ctx, handle); err != nil {
+	root, err := c.context.root(cwd)
+	if err != nil {
+		return nil, err
+	}
+	return c.proposals.ListProposals(ctx, root)
+}
+
+func (c *Skills) ApproveSkillProposal(ctx context.Context, cwd string, ref skills.ProposalRef) error {
+	if c.proposals == nil {
+		return ErrSkillProposalsUnavailable
+	}
+	root, err := c.context.root(cwd)
+	if err != nil {
+		return err
+	}
+	if err := c.proposals.ApproveProposal(ctx, root, ref); err != nil {
+		return err
+	}
+	c.notifySkillsChanged()
+	return nil
+}
+
+func (c *Skills) RejectSkillProposal(ctx context.Context, cwd string, ref skills.ProposalRef) error {
+	if c.proposals == nil {
+		return ErrSkillProposalsUnavailable
+	}
+	root, err := c.context.root(cwd)
+	if err != nil {
+		return err
+	}
+	if err := c.proposals.RejectProposal(ctx, root, ref); err != nil {
 		return err
 	}
 	c.notifySkillsChanged()
@@ -355,15 +386,6 @@ func (c *Skills) notifySkillsChanged() {
 	if c.skillsChanged != nil {
 		c.skillsChanged(struct{}{})
 	}
-}
-
-// RejectSkillDraft discards a reviewed draft (skills.drafts.reject). Reports
-// [ErrSkillDraftsUnavailable] when no authoring store is wired.
-func (c *Skills) RejectSkillDraft(ctx context.Context, handle skills.DraftHandle) error {
-	if c.drafts == nil {
-		return ErrSkillDraftsUnavailable
-	}
-	return c.drafts.DiscardDraft(ctx, handle)
 }
 
 // ListRecipes enumerates the prompt recipes visible from cwd — project recipes

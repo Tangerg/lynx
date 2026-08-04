@@ -72,19 +72,19 @@ func writeSkill(t *testing.T, root, name, desc string) {
 	}
 }
 
-// TestBuild_MergesProjectOverGlobal proves the engine's skill tool
-// layers <workdir>/.lyra/skills over the global dir, with the project copy
+// TestBuild_MergesProjectOverUser proves the engine's skill tool
+// layers <workdir>/.lyra/skills over the user dir, with the project copy
 // winning on a name collision.
-func TestBuild_MergesProjectOverGlobal(t *testing.T) {
+func TestBuild_MergesProjectOverUser(t *testing.T) {
 	workdir := t.TempDir()
-	global := t.TempDir()
+	user := t.TempDir()
 
 	writeSkill(t, promptsource.ProjectSkillDir(workdir), "shared", "PROJECT copy")
 	writeSkill(t, promptsource.ProjectSkillDir(workdir), "proj-only", "project only")
-	writeSkill(t, global, "shared", "GLOBAL copy")
-	writeSkill(t, global, "glob-only", "global only")
+	writeSkill(t, user, "shared", "USER copy")
+	writeSkill(t, user, "user-only", "user only")
 
-	tools, err := Build(workdir, global, nil)
+	tools, err := Build(workdir, user, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -100,7 +100,7 @@ func TestBuild_MergesProjectOverGlobal(t *testing.T) {
 	if err != nil {
 		t.Fatalf("list: %v", err)
 	}
-	for _, want := range []string{"shared", "proj-only", "glob-only"} {
+	for _, want := range []string{"shared", "proj-only", "user-only"} {
 		if !strings.Contains(list, "<name>"+want+"</name>") {
 			t.Errorf("list missing %q:\n%s", want, list)
 		}
@@ -116,7 +116,7 @@ func TestBuild_MergesProjectOverGlobal(t *testing.T) {
 }
 
 // TestBuild_AbsentWhenNoDirs proves the tool is omitted entirely when
-// neither the project nor the global skills directory exists — no empty skill
+// neither the project nor the user Skills directory exists — no empty Skill
 // tool cluttering the model's tool list.
 func TestBuild_AbsentWhenNoDirs(t *testing.T) {
 	tools, err := Build(t.TempDir(), filepath.Join(t.TempDir(), "missing"), nil)
