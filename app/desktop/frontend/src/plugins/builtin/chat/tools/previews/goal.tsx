@@ -57,9 +57,9 @@ function GoalToolPreview({ tool }: ToolPreviewProps) {
       )}
       <div className="mt-2.5 flex flex-col gap-1.5">
         <BudgetAxis
-          label={t("goal.budget.turns")}
-          used={goal.turns.used}
-          max={goal.turns.max}
+          label={t("goal.budget.runs")}
+          used={goal.runs.used}
+          max={goal.runs.max}
           format={(value) => String(value)}
         />
         <BudgetAxis
@@ -96,7 +96,7 @@ function BudgetAxis({
   format,
 }: {
   label: string;
-  used: GoalPreview["turns"]["used"];
+  used: GoalPreview["runs"]["used"];
   max: number;
   format: (value: number) => string;
 }) {

@@ -253,12 +253,12 @@ export function registerDefaultDataProviders(host: ContributingHost): void {
                 ? { code: goal.reason.code, detail: goal.reason.detail ?? "" }
                 : null,
               budget: {
-                maxTurns: goal.budget.maxTurns ?? 0,
+                maxRuns: goal.budget.maxRuns ?? 0,
                 maxCostUsd: goal.budget.maxCostUsd ?? 0,
                 maxSteps: goal.budget.maxSteps ?? 0,
               },
               used: {
-                turns: goal.used.turns,
+                runs: goal.used.runs,
                 costUsd: goal.used.costUsd,
                 steps: goal.used.steps,
               },

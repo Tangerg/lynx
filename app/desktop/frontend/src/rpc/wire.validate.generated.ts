@@ -1024,23 +1024,23 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
   }, ["budget", "createdAt", "objective", "sessionId", "status", "updatedAt", "used"]),
   GoalBudget: object({
     maxCostUsd: allOf([numeric(), minimum(0)]),
+    maxRuns: allOf([integer(), minimum(0)]),
     maxSteps: allOf([integer(), minimum(0)]),
-    maxTurns: allOf([integer(), minimum(0)]),
   }, []),
   GoalReason: object({
     code: ref(() => CHECKS.GoalReasonCode),
     detail: text(),
   }, ["code"]),
-  GoalReasonCode: enumOf(["stoppedByUser", "runtimeRestarted", "runStartFailed", "awaitingInput", "terminalOutcomeMissing", "runNotCompleted", "turnBudgetReached", "costBudgetReached", "stepBudgetReached", "blockedByModel"]),
+  GoalReasonCode: enumOf(["stoppedByUser", "runtimeRestarted", "runStartFailed", "awaitingInput", "terminalOutcomeMissing", "runNotCompleted", "runBudgetReached", "costBudgetReached", "stepBudgetReached", "blockedByModel"]),
   GoalRequest: object({
     sessionId: allOf([text(), minLength(1)]),
   }, ["sessionId"]),
   GoalStatus: enumOf(["active", "paused", "blocked"]),
   GoalUsage: object({
     costUsd: numeric(),
+    runs: integer(),
     steps: integer(),
-    turns: integer(),
-  }, ["costUsd", "steps", "turns"]),
+  }, ["costUsd", "runs", "steps"]),
   GrepMatch: object({
     lineNumber: integer(),
     path: text(),

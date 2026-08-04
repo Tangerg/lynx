@@ -139,7 +139,7 @@ export const fr: Record<string, string> = {
   "goal.status.active": "En cours",
   "goal.status.paused": "En pause",
   "goal.status.blocked": "Bloqué",
-  "goal.budget.turns": "Tours",
+  "goal.budget.runs": "Tours",
   "goal.budget.cost": "Coût",
   "goal.budget.steps": "Étapes",
   "goal.budget.uncapped": "sans limite",

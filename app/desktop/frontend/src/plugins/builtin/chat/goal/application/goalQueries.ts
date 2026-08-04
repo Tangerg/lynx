@@ -10,13 +10,13 @@ export type GoalStatus = "active" | "paused" | "blocked";
 
 // A zero field is uncapped on that axis (matches the wire's omit-when-zero).
 export interface GoalBudget {
-  maxTurns: number;
+  maxRuns: number;
   maxCostUsd: number;
   maxSteps: number;
 }
 
 export interface GoalUsage {
-  turns: number;
+  runs: number;
   costUsd: number;
   steps: number;
 }
@@ -37,7 +37,7 @@ export type GoalStopCode =
   | "awaitingInput"
   | "terminalOutcomeMissing"
   | "runNotCompleted"
-  | "turnBudgetReached"
+  | "runBudgetReached"
   | "costBudgetReached"
   | "stepBudgetReached"
   | "blockedByModel";

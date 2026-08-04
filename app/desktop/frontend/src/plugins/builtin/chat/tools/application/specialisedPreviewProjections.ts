@@ -168,7 +168,7 @@ export interface GoalPreview {
   objective: string;
   status: string;
   reason: string;
-  turns: { used: number; max: number };
+  runs: { used: number; max: number };
   cost: { used: number; max: number };
   steps: { used: number; max: number };
   message: string;
@@ -186,7 +186,7 @@ export function projectGoalPreview(result: string | undefined): GoalPreview | un
     objective: text(g.objective),
     status: text(g.status),
     reason: text(g.reason),
-    turns: { used: count(usage.turns), max: count(budget.max_turns) },
+    runs: { used: count(usage.runs), max: count(budget.max_runs) },
     cost: { used: count(usage.cost_usd), max: count(budget.max_cost_usd) },
     steps: { used: count(usage.steps), max: count(budget.max_steps) },
     message: text(parsed?.message),

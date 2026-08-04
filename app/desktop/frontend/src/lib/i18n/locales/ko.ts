@@ -138,7 +138,7 @@ export const ko: Record<string, string> = {
   "goal.status.active": "진행 중",
   "goal.status.paused": "일시 중지",
   "goal.status.blocked": "차단됨",
-  "goal.budget.turns": "턴",
+  "goal.budget.runs": "턴",
   "goal.budget.cost": "비용",
   "goal.budget.steps": "스텝",
   "goal.budget.uncapped": "제한 없음",

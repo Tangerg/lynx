@@ -125,13 +125,13 @@ describe("structured tool results", () => {
   it("reads a goal's objective, status and both sides of every budget axis", () => {
     expect(
       projectGoalPreview(
-        '{"goal":{"session_id":"ses_1","objective":"Ship the retry fix","status":"active","budget":{"max_turns":20,"max_cost_usd":5},"usage":{"turns":7,"cost_usd":1.25,"steps":31}},"message":"Goal started."}',
+        '{"goal":{"session_id":"ses_1","objective":"Ship the retry fix","status":"active","budget":{"max_runs":20,"max_cost_usd":5},"usage":{"runs":7,"cost_usd":1.25,"steps":31}},"message":"Goal started."}',
       ),
     ).toEqual({
       objective: "Ship the retry fix",
       status: "active",
       reason: "",
-      turns: { used: 7, max: 20 },
+      runs: { used: 7, max: 20 },
       cost: { used: 1.25, max: 5 },
       // An omitted max is uncapped on that axis, which the preview renders as no bar
       // rather than as a full one.

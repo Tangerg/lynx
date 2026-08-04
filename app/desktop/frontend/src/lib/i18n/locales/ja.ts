@@ -138,7 +138,7 @@ export const ja: Record<string, string> = {
   "goal.status.active": "実行中",
   "goal.status.paused": "一時停止",
   "goal.status.blocked": "ブロック中",
-  "goal.budget.turns": "ターン",
+  "goal.budget.runs": "ターン",
   "goal.budget.cost": "コスト",
   "goal.budget.steps": "ステップ",
   "goal.budget.uncapped": "無制限",
