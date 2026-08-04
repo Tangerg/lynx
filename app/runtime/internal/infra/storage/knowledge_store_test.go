@@ -2,8 +2,10 @@ package storage_test
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/knowledge"
@@ -54,6 +56,60 @@ func TestFileMemoryService_PersistsAcrossInstances(t *testing.T) {
 	got, _ := second.Get(context.Background(), knowledge.ScopeUser, "")
 	if got != "remember me" {
 		t.Errorf("after restart got %q", got)
+	}
+}
+
+func TestFileMemoryService_ConcurrentInstancesUseIndependentTemporaryFiles(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("LYRA_HOME", home)
+	first, err := storage.NewFileKnowledgeStore()
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := storage.NewFileKnowledgeStore()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// A fixed sibling used by an older implementation must not be a reserved path.
+	legacyTemporary := filepath.Join(home, "LYRA.md.tmp")
+	if err := os.Mkdir(legacyTemporary, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	wantBodies := make(map[string]struct{}, 32)
+	writeErrors := make(chan error, 32)
+	var writes sync.WaitGroup
+	for index := range 32 {
+		store := first
+		if index%2 != 0 {
+			store = second
+		}
+		body := fmt.Sprintf("knowledge from writer %02d", index)
+		wantBodies[body] = struct{}{}
+		writes.Go(func() {
+			if err := store.Update(t.Context(), knowledge.ScopeUser, "", body); err != nil {
+				writeErrors <- err
+			}
+		})
+	}
+	writes.Wait()
+	close(writeErrors)
+	for err := range writeErrors {
+		t.Errorf("concurrent Update: %v", err)
+	}
+	if t.Failed() {
+		return
+	}
+	body, err := first.Get(t.Context(), knowledge.ScopeUser, "")
+	if err != nil {
+		t.Fatalf("read final knowledge: %v", err)
+	}
+	if _, ok := wantBodies[body]; !ok {
+		t.Fatalf("final knowledge = %q, want one complete writer value", body)
+	}
+	if info, err := os.Stat(legacyTemporary); err != nil || !info.IsDir() {
+		t.Fatalf("legacy temporary path changed: info=%v err=%v", info, err)
 	}
 }
 

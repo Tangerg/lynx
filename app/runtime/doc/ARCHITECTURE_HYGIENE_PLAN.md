@@ -705,6 +705,28 @@ Acceptance:
   standalone build/vet, static analysis, lint, and dead-code analysis pass;
   the known deferred frontend contract/sample drift may remain.
 
+### Batch 25 — Mutable-value and atomic-write ownership
+
+Status: **Completed**
+
+Scope:
+
+- Make wire-enum and system-invariant catalogs return deep caller-owned
+  snapshots, including nested boundary slices.
+- Clone mutable Run protocol profiles at registry ingress and egress, and
+  remove the unused Run-list surfaces that exposed additional state.
+- Replace the process-global fixed `LYRA.md.tmp` convention with a unique
+  same-directory temporary file, durable close, and atomic replacement.
+
+Acceptance:
+
+- A caller cannot mutate canonical wire enums, nested system invariants, or a
+  live Run's interrupt profile through an input or returned slice.
+- Concurrent knowledge-store instances never contend for or reserve one fixed
+  temporary path, and the final `LYRA.md` is always one complete write.
+- Focused normal and race tests for the affected catalogs, Run registry, and
+  filesystem storage pass.
+
 ## 6. Progress
 
 | Batch | Status | Started | Completed | Evidence |
@@ -733,10 +755,25 @@ Acceptance:
 | 22. Ambiguous-default closure | Completed | 2026-08-04 | 2026-08-04 | Knowledge and transcript Domain/Application/Storage/Delivery normal and race tests, runtime-wide compile, standalone build/vet, static analysis, lint, dead-code analysis, and full regression classification passed. |
 | 23. Composition-boundary ownership | Completed | 2026-08-04 | 2026-08-04 | Adapter/Bootstrap/Agent execution normal and race tests, architecture constructor fitness tests, runtime-wide compile, standalone build/vet, static analysis, lint, dead-code analysis, and full regression classification passed. |
 | 24. Immutable runtime catalogs | Completed | 2026-08-04 | 2026-08-04 | Catalog ownership tests, architecture mutable-global fitness test, focused normal/race tests, runtime-wide compile, standalone build/vet, static analysis, lint, dead-code analysis, and full regression classification passed. |
+| 25. Mutable-value and atomic-write ownership | Completed | 2026-08-04 | 2026-08-04 | Deep-ownership tests plus focused normal/race suites for contracts, protocol enums, Run registry, execution profiles, and filesystem storage passed. |
 
 Allowed status values: `Pending`, `In progress`, `Completed`, `Blocked`, `Revised`.
 
 ## 7. Progress log
+
+### 2026-08-04 — Batch 25 completed
+
+- Closed the remaining shallow-copy leaks in generated wire enums and system
+  invariants. Every public catalog query now returns a deep caller-owned
+  snapshot rather than a new outer slice that still aliases nested state.
+- Added an explicit clone operation to `RunProtocolProfile` and made the Run
+  registry clone profiles on both ingress and egress. Removed the unused
+  registry/coordinator list APIs instead of maintaining another mutable-state
+  exposure solely for symmetry.
+- Reworked human-authored knowledge replacement around a unique temporary file
+  in the target directory, followed by sync, close, and atomic rename. The
+  fixed `LYRA.md.tmp` path is no longer a shared multi-instance lock or
+  collision point; concurrent writers are verified under the race detector.
 
 ### 2026-08-04 — Batch 24 completed
 

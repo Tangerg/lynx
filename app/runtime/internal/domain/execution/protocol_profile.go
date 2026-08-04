@@ -56,6 +56,12 @@ type RunProtocolProfile struct {
 	InterruptKinds []InterruptKind
 }
 
+// Clone returns an ownership-isolated copy of the protocol contract.
+func (p RunProtocolProfile) Clone() RunProtocolProfile {
+	p.InterruptKinds = slices.Clone(p.InterruptKinds)
+	return p
+}
+
 // Validate reports whether the profile is in its one durable representation.
 // Profiles cross process and persistence boundaries, so accepting multiple
 // spellings of the same set would make equality depend on where a value was

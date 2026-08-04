@@ -110,11 +110,28 @@ func (s *FileKnowledgeStore) Update(_ context.Context, scope knowledge.Scope, di
 		return fmt.Errorf("memory store: mkdir: %w", err)
 	}
 
-	tmp := path + ".tmp"
-	if err := os.WriteFile(tmp, []byte(content), 0o644); err != nil {
-		return fmt.Errorf("memory store: write tmp: %w", err)
+	tmp, err := os.CreateTemp(filepath.Dir(path), "."+memoryFileName+"-*")
+	if err != nil {
+		return fmt.Errorf("memory store: create temporary file: %w", err)
 	}
-	if err := os.Rename(tmp, path); err != nil {
+	tmpPath := tmp.Name()
+	defer func() { _ = os.Remove(tmpPath) }()
+	if err := tmp.Chmod(0o644); err != nil {
+		_ = tmp.Close()
+		return fmt.Errorf("memory store: set temporary file mode: %w", err)
+	}
+	if _, err := tmp.WriteString(content); err != nil {
+		_ = tmp.Close()
+		return fmt.Errorf("memory store: write temporary file: %w", err)
+	}
+	if err := tmp.Sync(); err != nil {
+		_ = tmp.Close()
+		return fmt.Errorf("memory store: sync temporary file: %w", err)
+	}
+	if err := tmp.Close(); err != nil {
+		return fmt.Errorf("memory store: close temporary file: %w", err)
+	}
+	if err := os.Rename(tmpPath, path); err != nil {
 		return fmt.Errorf("memory store: rename: %w", err)
 	}
 	return nil

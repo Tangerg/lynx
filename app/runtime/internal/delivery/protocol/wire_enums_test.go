@@ -51,6 +51,24 @@ func TestWireEnumsAreComplete(t *testing.T) {
 	}
 }
 
+func TestWireEnumReturnsCallerOwnedValues(t *testing.T) {
+	goType := reflect.TypeFor[RunStatus]()
+	first, ok := WireEnum(goType)
+	if !ok || len(first) == 0 {
+		t.Fatal("RunStatus has no registered wire values")
+	}
+	want := first[0]
+	first[0] = "rewritten-by-caller"
+
+	second, ok := WireEnum(goType)
+	if !ok || len(second) == 0 {
+		t.Fatal("RunStatus disappeared after caller mutation")
+	}
+	if second[0] != want {
+		t.Fatalf("WireEnum leaked registry ownership: got %q, want %q", second[0], want)
+	}
+}
+
 // constantsByType reads every `type X string` in the package's non-test files and
 // the string constants declared with that type, in source order.
 func constantsByType(t *testing.T) map[string][]string {

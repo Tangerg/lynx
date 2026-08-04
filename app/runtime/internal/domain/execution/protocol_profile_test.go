@@ -43,3 +43,12 @@ func TestRunProtocolProfileHasOneDurableRepresentation(t *testing.T) {
 		t.Fatal("Equal ignored the child-Run contract")
 	}
 }
+
+func TestRunProtocolProfileCloneOwnsInterruptKinds(t *testing.T) {
+	original := RunProtocolProfile{InterruptKinds: []InterruptKind{ApprovalInterrupt}}
+	cloned := original.Clone()
+	cloned.InterruptKinds[0] = QuestionInterrupt
+	if original.InterruptKinds[0] != ApprovalInterrupt {
+		t.Fatal("Clone shares interrupt-kind storage with the source profile")
+	}
+}

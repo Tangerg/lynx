@@ -1,6 +1,9 @@
 package protocol
 
-import "reflect"
+import (
+	"reflect"
+	"slices"
+)
 
 // A wire enum is a named string type with a closed value set. Reflection can see
 // that a field's type is RunStatus; it can never see that RunStatus has exactly
@@ -89,7 +92,7 @@ var wireEnums = map[reflect.Type][]string{
 // both read the set, neither owns it.
 func WireEnum(t reflect.Type) ([]string, bool) {
 	values, ok := wireEnums[t]
-	return values, ok
+	return slices.Clone(values), ok
 }
 
 // runtimeEventValues is the event vocabulary: every topic, plus resync. Derived from

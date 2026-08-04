@@ -1,8 +1,6 @@
 package runs
 
 import (
-	"slices"
-	"strings"
 	"sync"
 	"time"
 
@@ -48,7 +46,7 @@ type registry struct {
 func (r *registry) Open(record Record, handle *handle) {
 	r.mu.Lock()
 	r.initLocked()
-	r.runs[record.ID] = liveSegment{record: record, handle: handle}
+	r.runs[record.ID] = liveSegment{record: cloneRecord(record), handle: handle}
 	r.mu.Unlock()
 }
 
@@ -68,6 +66,7 @@ func (r *registry) Get(id string) (liveSegment, bool) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	segment, ok := r.runs[id]
+	segment.record = cloneRecord(segment.record)
 	return segment, ok
 }
 
@@ -81,24 +80,13 @@ func (r *registry) MarkCancel(id, reason string) (liveSegment, bool) {
 	}
 	segment.record.CancelReason = reason
 	r.runs[id] = segment
+	segment.record = cloneRecord(segment.record)
 	return segment, true
 }
 
-// List snapshots active run records.
-func (r *registry) List() []Record {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	out := make([]Record, 0, len(r.runs))
-	for _, segment := range r.runs {
-		out = append(out, segment.record)
-	}
-	slices.SortFunc(out, func(left, right Record) int {
-		if order := left.CreatedAt.Compare(right.CreatedAt); order != 0 {
-			return order
-		}
-		return strings.Compare(left.ID, right.ID)
-	})
-	return out
+func cloneRecord(record Record) Record {
+	record.ProtocolProfile = record.ProtocolProfile.Clone()
+	return record
 }
 
 func (r *registry) initLocked() {

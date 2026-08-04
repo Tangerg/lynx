@@ -424,11 +424,6 @@ func (c *Coordinator) addressLiveSegment(ctx context.Context, runID, segmentID s
 	return live, nil
 }
 
-// List snapshots the records of the currently-live runs.
-func (c *Coordinator) List() []Record {
-	return c.registry.List()
-}
-
 // BeginShutdown prevents new runs and cancels every in-flight pump.
 func (c *Coordinator) BeginShutdown() { c.tasks.Cancel() }
 

@@ -1,27 +1,11 @@
 package runs
 
 import (
-	"slices"
 	"testing"
 	"time"
+
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 )
-
-func TestRegistryListIsStableByCreationAndRunIdentity(t *testing.T) {
-	var registry registry
-	createdAt := time.Unix(42, 0).UTC()
-	registry.Open(Record{ID: "run_b", CreatedAt: createdAt}, nil)
-	registry.Open(Record{ID: "run_c", CreatedAt: createdAt.Add(time.Second)}, nil)
-	registry.Open(Record{ID: "run_a", CreatedAt: createdAt}, nil)
-
-	records := registry.List()
-	ids := make([]string, len(records))
-	for index, record := range records {
-		ids[index] = record.ID
-	}
-	if want := []string{"run_a", "run_b", "run_c"}; !slices.Equal(ids, want) {
-		t.Fatalf("List IDs = %v, want %v", ids, want)
-	}
-}
 
 func TestRegistryRemovesCompletedRun(t *testing.T) {
 	var r registry
@@ -55,5 +39,25 @@ func TestRegistryCancelReason(t *testing.T) {
 	}
 	if _, ok := r.MarkCancel("missing", "x"); ok {
 		t.Fatal("mark cancel must miss unknown runs")
+	}
+}
+
+func TestRegistryOwnsRunProtocolProfile(t *testing.T) {
+	var registry registry
+	profile := execution.RunProtocolProfile{
+		InterruptKinds: []execution.InterruptKind{execution.ApprovalInterrupt},
+	}
+	registry.Open(Record{ID: "run_1", ProtocolProfile: profile}, nil)
+	profile.InterruptKinds[0] = execution.QuestionInterrupt
+
+	first, ok := registry.Get("run_1")
+	if !ok || first.record.ProtocolProfile.InterruptKinds[0] != execution.ApprovalInterrupt {
+		t.Fatalf("stored profile followed caller mutation: %+v", first.record.ProtocolProfile)
+	}
+	first.record.ProtocolProfile.InterruptKinds[0] = execution.QuestionInterrupt
+
+	second, ok := registry.Get("run_1")
+	if !ok || second.record.ProtocolProfile.InterruptKinds[0] != execution.ApprovalInterrupt {
+		t.Fatalf("Get leaked stored profile ownership: %+v", second.record.ProtocolProfile)
 	}
 }

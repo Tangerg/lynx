@@ -70,7 +70,11 @@ type SystemInvariantSpec struct {
 // adding it here; contract §11.4 gate 8 refuses one with no integration fixture,
 // and a fixture that covers no declared key.
 func SystemInvariants() []SystemInvariantSpec {
-	return slices.Clone(systemInvariants)
+	out := slices.Clone(systemInvariants)
+	for index := range out {
+		out[index].Boundaries = slices.Clone(out[index].Boundaries)
+	}
+	return out
 }
 
 var systemInvariants = []SystemInvariantSpec{{
