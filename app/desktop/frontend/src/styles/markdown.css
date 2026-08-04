@@ -256,12 +256,19 @@
    reading text was a three-pixel drop mid-sentence. `calc(1em - 1px)` is
    ChatGPT's own rule for code inside chat (`chat-code-font-size - 1px`). Fenced
    blocks keep the absolute step — those are a data surface, not a sentence. */
+/* The accent at chip strength, not `--color-sunken`.
+   Measured, not preferred: sunken is a cool tint mixed at ~7% saturation, which is
+   under the level at which an eye reads a hue at all — a page full of these counted
+   as grey next to a reference whose identical device sits at ~12%. It is also the
+   highest-frequency coloured element in a transcript, so it carries most of the
+   difference between a page that looks alive and one that looks washed. Ink stays
+   `--color-text`: accent ink here would read as a link, which a symbol name is not. */
 .md code {
   font-family: var(--font-mono);
   font-size: calc(1em - 1px);
   padding: 1px 6px;
-  background: var(--color-sunken);
-  border-radius: var(--shape-2xs);
+  background: var(--color-accent-badge);
+  border-radius: var(--shape-xs);
   color: var(--color-text);
   letter-spacing: 0;
 }

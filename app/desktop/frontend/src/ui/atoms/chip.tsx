@@ -23,7 +23,11 @@ export function Chip({ icon, children, title, onClose }: Props) {
   const t = useT();
   return (
     <Tooltip label={title}>
-      <span className="group inline-flex h-[var(--control-height-sm)] items-center gap-1.5 rounded-pill border-[length:var(--control-edge-width)] border-field bg-surface-2 pl-2.5 pr-1 text-ui-sm font-normal text-fg-muted">
+      {/* Accent at chip strength, not the neutral tray. A chip names something the
+          user brought INTO the turn — a file, a symbol, an attachment — and that is
+          the same act the accent already stands for everywhere else. Grey made it
+          read as chrome the app had generated. */}
+      <span className="group inline-flex h-[var(--control-height-sm)] items-center gap-1.5 rounded-pill border-[length:var(--control-edge-width)] border-field bg-accent-badge pl-2.5 pr-1 text-ui-sm font-normal text-fg-soft">
         {icon && <Icon name={icon} size="xs" />}
         <span className="max-w-[220px] truncate font-mono">{children}</span>
         {onClose && (

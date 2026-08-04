@@ -164,17 +164,22 @@
      for negative alone (5 / 6 / 10 / 12 / 15 / 25). Reach for these, never for a
      bare `bg-negative/12`.
      Both mix from `--tone-*`, the SIGNAL tone, not from the pinned semantic — see
-     :root for why a tint mixed from an ink comes out as dirt. */
+     :root for why a tint mixed from an ink comes out as dirt.
+     `badge` is 18% because that is where the hue becomes visible AS a hue: over
+     white it renders at ~12.5% saturation, and the reference sheet's identical chip
+     measures 12.5%. At the 15% it used to be it came out at 10.6% — close enough to
+     `--color-sunken`'s 6.8% that a page full of soft chips counted as grey, which is
+     most of why this UI read as washed out however the rhythm was set. */
   --color-negative-wash: color-mix(in srgb, var(--tone-negative) 10%, transparent);
   --color-warning-wash: color-mix(in srgb, var(--tone-warning) 10%, transparent);
   --color-success-wash: color-mix(in srgb, var(--tone-success) 10%, transparent);
   --color-info-wash: color-mix(in srgb, var(--tone-info) 10%, transparent);
   --color-accent-wash: color-mix(in srgb, var(--tone-accent) 10%, transparent);
-  --color-negative-badge: color-mix(in srgb, var(--tone-negative) 15%, transparent);
-  --color-warning-badge: color-mix(in srgb, var(--tone-warning) 15%, transparent);
-  --color-success-badge: color-mix(in srgb, var(--tone-success) 15%, transparent);
-  --color-info-badge: color-mix(in srgb, var(--tone-info) 15%, transparent);
-  --color-accent-badge: color-mix(in srgb, var(--tone-accent) 15%, transparent);
+  --color-negative-badge: color-mix(in srgb, var(--tone-negative) 18%, transparent);
+  --color-warning-badge: color-mix(in srgb, var(--tone-warning) 18%, transparent);
+  --color-success-badge: color-mix(in srgb, var(--tone-success) 18%, transparent);
+  --color-info-badge: color-mix(in srgb, var(--tone-info) 18%, transparent);
+  --color-accent-badge: color-mix(in srgb, var(--tone-accent) 18%, transparent);
   /* The third intensity: the EDGE of something that demands attention. A region
      never gets a line and a card never gets one, but an approval, an error or a
      dead connection is neither — it is an object asking to be looked at, and the

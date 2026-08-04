@@ -80,11 +80,20 @@ function MessageBlockInner({
             panel again and the distinction disappears exactly when the turn is long. */}
         <div className={cn("group relative flex min-w-0 flex-col gap-2", isUser && "items-end")}>
           <div className="flex min-h-5 min-w-0 items-center gap-2 text-ui-xs text-fg-faint">
+            {/* The turn's mark, and the one place the accent gets to be solid rather
+                than a wash. It is the only object that repeats at every turn, so it is
+                what the eye uses to find where a turn begins while scrolling — at 18px
+                of bare accent glyph it was the same weight as the words beside it and
+                did no finding at all. The reference sets a filled block here for the
+                same reason. A square (rounded) for the agent and a circle for the
+                person: one is a system, the other is somebody. */}
             <span
               aria-hidden
               className={cn(
-                "grid size-[18px] shrink-0 place-items-center rounded-full",
-                isUser ? "bg-surface-2 text-fg-muted" : "text-accent",
+                "grid size-5 shrink-0 place-items-center",
+                isUser
+                  ? "rounded-full bg-surface-2 text-fg-muted"
+                  : "rounded-[var(--shape-xs)] bg-cta text-cta-text",
               )}
             >
               <Icon name={isUser ? "user" : "sparkle"} size="xs" />
