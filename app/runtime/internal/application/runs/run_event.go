@@ -11,6 +11,10 @@ type RunEvent interface {
 	runEvent()
 	Replayable() bool
 	Terminal() bool
+	// retainedBytes reports the approximate heap retained by this value. Keeping
+	// it on the closed event family makes retention accounting a compile-time
+	// obligation whenever a new event variant is introduced.
+	retainedBytes() int
 }
 
 type SegmentStarted struct{ Run transcript.Run }
@@ -60,6 +64,14 @@ func (ItemStarted) Terminal() bool       { return false }
 func (ItemChanged) Terminal() bool       { return false }
 func (ItemCompleted) Terminal() bool     { return false }
 func (StateSnapshot) Terminal() bool     { return false }
+
+func (event SegmentStarted) retainedBytes() int  { return retainedRunBytes(event.Run) }
+func (SegmentProgressed) retainedBytes() int     { return 0 }
+func (event SegmentFinished) retainedBytes() int { return retainedRunBytes(event.Run) }
+func (event ItemStarted) retainedBytes() int     { return retainedItemBytes(event.Item) }
+func (ItemChanged) retainedBytes() int           { return 0 }
+func (event ItemCompleted) retainedBytes() int   { return retainedItemBytes(event.Item) }
+func (event StateSnapshot) retainedBytes() int   { return retainedStateSnapshotBytes(event) }
 
 type RunProgress struct {
 	Step          *int

@@ -5,7 +5,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
 
 func TestSequenceOrderIsAClosedVocabulary(t *testing.T) {
@@ -184,6 +186,29 @@ func TestQuestionValidateRejectsUnanswerableShapes(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			if err := test.value.Validate(); (err != nil) != test.wantErr {
+				t.Fatalf("Validate() error = %v, want error %t", err, test.wantErr)
+			}
+		})
+	}
+}
+
+func TestApprovalValidateRequiresAPendingRiskClassifiedTool(t *testing.T) {
+	result := tool.StringResult("already ran")
+	tests := []struct {
+		name     string
+		approval transcript.Approval
+		wantErr  bool
+	}{
+		{name: "pending", approval: transcript.Approval{Tool: transcript.ToolInvocation{Name: "shell"}, Risk: tool.RiskHigh}},
+		{name: "missing tool", approval: transcript.Approval{Risk: tool.RiskHigh}, wantErr: true},
+		{name: "padded tool", approval: transcript.Approval{Tool: transcript.ToolInvocation{Name: " shell"}, Risk: tool.RiskHigh}, wantErr: true},
+		{name: "missing risk", approval: transcript.Approval{Tool: transcript.ToolInvocation{Name: "shell"}}, wantErr: true},
+		{name: "completed result", approval: transcript.Approval{Tool: transcript.ToolInvocation{Name: "shell", Result: &result}, Risk: tool.RiskHigh}, wantErr: true},
+		{name: "offloaded result", approval: transcript.Approval{Tool: transcript.ToolInvocation{Name: "shell", Offload: &offload.Ref{ID: "BLOB234"}}, Risk: tool.RiskHigh}, wantErr: true},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if err := test.approval.Validate(); (err != nil) != test.wantErr {
 				t.Fatalf("Validate() error = %v, want error %t", err, test.wantErr)
 			}
 		})

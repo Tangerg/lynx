@@ -122,7 +122,7 @@ func validTreePending() Pending {
 				RunID: "run_grandchild",
 				Kind:  execution.ApprovalInterrupt,
 				Approval: &transcript.Approval{
-					Tool: transcript.ToolInvocation{Name: "shell"},
+					Tool: transcript.ToolInvocation{Name: "shell"}, Risk: "medium",
 				},
 			},
 			{
@@ -130,7 +130,7 @@ func validTreePending() Pending {
 				RunID: "run_b",
 				Kind:  execution.ApprovalInterrupt,
 				Approval: &transcript.Approval{
-					Tool: transcript.ToolInvocation{Name: "write"},
+					Tool: transcript.ToolInvocation{Name: "write"}, Risk: "medium",
 				},
 			},
 		},

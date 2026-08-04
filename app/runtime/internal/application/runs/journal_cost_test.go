@@ -7,30 +7,10 @@ import (
 	"testing"
 )
 
-// What the replay window actually costs (Batch D1).
-//
-// The window's budget is a published number: discovery tells a client it may
-// replay up to Retention.MaxEvents / MaxBytes, and the client chooses replay over
-// a cold read on the strength of it. Until now the number was argued in a comment
-// and asserted by a unit test that only checked eviction arithmetic — nothing
-// measured what the budget buys or what it charges the process.
-//
-// Two costs are separate and both matter:
-//
-//   - HEAP. The budget counts SERIALIZED payload length, but the window retains
-//     live Go values. The two are not the same number, so "16 MiB of replay" is a
-//     claim about bytes on the wire, not about the resident set. This file pins
-//     the ratio between them so a payload shape whose in-memory footprint runs
-//     away from its JSON length cannot do so unnoticed.
-//   - CPU. Charging an event means serializing it, and that happens under the
-//     journal's own lock — the same lock Append holds to assign positions and fan
-//     out. A multi-megabyte tool result therefore pays a full marshal inside the
-//     critical section of the run's only stream.
-//
-// These are benchmarks and one measurement test, not thresholds: a number that
-// fails CI on a slower machine teaches everyone to ignore it. The test asserts
-// only the invariant (the ratio stays within an order of magnitude); the
-// benchmarks report, and `go test -bench` is where a tuning decision reads them.
+// These measurements keep the replay window's retained-memory estimate honest.
+// Benchmarks report accounting cost without turning machine speed into a CI
+// threshold; the test only rejects a representation whose heap grows far beyond
+// its charge.
 
 // heapInUse settles the allocator and reports the bytes it is holding. Two GC
 // cycles because the first can leave finalizable garbage the second reclaims.
@@ -42,18 +22,16 @@ func heapInUse() uint64 {
 	return stats.HeapAlloc
 }
 
-// TestRetentionByteBudgetTracksHeap measures what a FULL window at the advertised
-// byte budget actually holds, and fails if serialized length has stopped
-// predicting it.
+// TestRetentionByteBudgetTracksHeap measures what a full window at the
+// advertised byte budget actually holds.
 //
 // The budget is the only thing bounding the window's memory, so it has to remain
 // a usable proxy for the memory. A shape that serialized to 1 byte and retained a
 // megabyte would satisfy every existing test while making the advertised number
 // meaningless.
 func TestRetentionByteBudgetTracksHeap(t *testing.T) {
-	// A small window with the real event shape: the ratio is a property of the
-	// payload, not of the budget's size, and a 16 MiB fill would make the test's own
-	// allocations the thing being measured.
+	// A small window with the real event shape avoids making the test's own
+	// allocations the dominant measurement.
 	const (
 		payload   = 64 << 10
 		maxBytes  = 4 << 20
@@ -85,16 +63,15 @@ func TestRetentionByteBudgetTracksHeap(t *testing.T) {
 	t.Logf("window: %d events, charged %d bytes, heap held %d bytes (%.2fx charged)",
 		events, charged, held, float64(held)/float64(charged))
 	if held > int64(charged)*10 {
-		t.Fatalf("heap held %d bytes for a %d-byte window: serialized length no longer "+
-			"predicts the window's memory, so the advertised budget bounds nothing",
+		t.Fatalf("heap held %d bytes for a %d-byte window: retention accounting "+
+			"no longer predicts the window's memory",
 			held, charged)
 	}
 }
 
 // BenchmarkJournalAppendReplayable is what one replayable event costs to publish,
-// by payload size. The existing BenchmarkJournalAppendDrain publishes a
-// non-replayable event, which is never charged and so never serialized — it
-// measures the fan-out and none of the retention.
+// by payload size. The non-replayable append benchmark measures fan-out without
+// retention accounting.
 func BenchmarkJournalAppendReplayable(b *testing.B) {
 	sizes := []struct {
 		name  string
@@ -122,12 +99,8 @@ func BenchmarkJournalAppendReplayable(b *testing.B) {
 	}
 }
 
-// BenchmarkJournalReplayAttach is what one reconnect costs: the backlog is copied
-// and then charged again, event by event, on the attaching goroutine.
-//
-// This is the cost a reconnect storm multiplies — every client that drops and
-// comes back pays it — and it is the one place the window's size turns directly
-// into work rather than into residency.
+// BenchmarkJournalReplayAttach is what one reconnect costs when the already
+// charged backlog is copied into a subscriber queue.
 func BenchmarkJournalReplayAttach(b *testing.B) {
 	const payload = 64 << 10
 	for _, depth := range []int{16, 64} {
@@ -146,9 +119,7 @@ func BenchmarkJournalReplayAttach(b *testing.B) {
 			j.mu.Unlock()
 			from := cursorAt(oldest)
 
-			// No SetBytes: an attach is not a throughput. It once re-serialized the
-			// whole backlog, and a MB/s column made that look like work being done
-			// rather than work being repeated. B/op is the number that mattered.
+			// No SetBytes: an attach is not throughput. B/op is the useful signal.
 			b.Logf("backlog: %d events, %d bytes", retained-1, (retained-1)*payload)
 			b.ReportAllocs()
 			for b.Loop() {

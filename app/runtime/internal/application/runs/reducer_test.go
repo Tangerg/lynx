@@ -100,7 +100,7 @@ func TestReducerRejectsInconsistentOrRegressingAccounting(t *testing.T) {
 		config := testReducerConfig()
 		config.Metrics.Steps = 2
 		_, err := newReducer(config).reduce(UsageReported{Steps: 1})
-		if !errors.Is(err, errExecutorProtocol) {
+		if !errors.Is(err, errExecutorContract) {
 			t.Fatalf("error = %v, want executor protocol violation", err)
 		}
 	})
@@ -115,7 +115,7 @@ func TestReducerRejectsInconsistentOrRegressingAccounting(t *testing.T) {
 			TokenUsage: accounting.TokenUsage{PromptTokens: 9},
 			Steps:      2,
 		})
-		if !errors.Is(err, errExecutorProtocol) {
+		if !errors.Is(err, errExecutorContract) {
 			t.Fatalf("error = %v, want executor protocol violation", err)
 		}
 	})
@@ -130,7 +130,7 @@ func TestReducerRejectsInconsistentOrRegressingAccounting(t *testing.T) {
 			}},
 			Steps: 1,
 		})
-		if !errors.Is(err, errExecutorProtocol) {
+		if !errors.Is(err, errExecutorContract) {
 			t.Fatalf("error = %v, want executor protocol violation", err)
 		}
 	})
@@ -365,7 +365,7 @@ func TestReducerParksConcurrentToolsWithoutLosingCompletedResults(t *testing.T) 
 	parked := mustReduce(t, reducer, TurnInterrupted{Interrupts: []Interrupt{{
 		Kind: execution.ApprovalInterrupt,
 		Approval: &ApprovalPrompt{
-			CallID: "call-1", ToolName: "approval", Arguments: `{"path":"a"}`, SafetyClass: "write",
+			CallID: "call-1", ToolName: "approval", Arguments: `{"path":"a"}`, SafetyClass: "write", Risk: "medium",
 		},
 	}}})
 	commit := parked[0].Commit
@@ -402,7 +402,7 @@ func TestReducerCarriesLaterPausedCallIdentityAcrossSequentialResumes(t *testing
 	firstCommit := mustReduce(t, first, TurnInterrupted{Interrupts: []Interrupt{{
 		Kind: execution.ApprovalInterrupt,
 		Approval: &ApprovalPrompt{
-			CallID: "call-1", ToolName: "approval", Arguments: `{"path":"a"}`, SafetyClass: "write",
+			CallID: "call-1", ToolName: "approval", Arguments: `{"path":"a"}`, SafetyClass: "write", Risk: "medium",
 		},
 	}}})[0].Commit
 	if firstCommit == nil || firstCommit.Run == nil ||
@@ -434,7 +434,7 @@ func TestReducerCarriesLaterPausedCallIdentityAcrossSequentialResumes(t *testing
 	secondCommit := mustReduce(t, resumed, TurnInterrupted{Interrupts: []Interrupt{{
 		Kind: execution.ApprovalInterrupt,
 		Approval: &ApprovalPrompt{
-			CallID: "call-2", ToolName: "approval", Arguments: `{"path":"b"}`, SafetyClass: "write",
+			CallID: "call-2", ToolName: "approval", Arguments: `{"path":"b"}`, SafetyClass: "write", Risk: "medium",
 		},
 	}}})[0].Commit
 	if got := secondCommit.Run.Interrupts[0].ItemID; got != secondID {
@@ -541,7 +541,7 @@ func TestReducerRejectsIncoherentTerminalProblems(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			_, err := newReducer(testReducerConfig()).reduce(test.event)
-			if !errors.Is(err, errExecutorProtocol) {
+			if !errors.Is(err, errExecutorContract) {
 				t.Fatalf("reduce error = %v, want executor protocol violation", err)
 			}
 		})
@@ -556,7 +556,7 @@ func TestReducerResumeReusesInterruptedItems(t *testing.T) {
 	config.Continuation = testTreeContinuation(interrupts.Pending{
 		RootRunID: "run_1", SessionID: "ses_1",
 		Interrupts: []transcript.Interrupt{
-			{ItemID: "item_approval", ItemOccurredAt: approvalAt, RunID: "run_1", Kind: execution.ApprovalInterrupt, Approval: &transcript.Approval{Tool: transcript.ToolInvocation{Name: "shell", Arguments: testToolArguments(t, map[string]any{"command": "go test", "description": "Run tests"})}}},
+			{ItemID: "item_approval", ItemOccurredAt: approvalAt, RunID: "run_1", Kind: execution.ApprovalInterrupt, Approval: &transcript.Approval{Tool: transcript.ToolInvocation{Name: "shell", Arguments: testToolArguments(t, map[string]any{"command": "go test", "description": "Run tests"})}, Risk: "medium"}},
 			{ItemID: "item_question", ItemOccurredAt: questionAt, RunID: "run_1", Kind: execution.QuestionInterrupt, Question: question},
 		},
 	})
@@ -596,7 +596,7 @@ func TestReducerProjectsParkAsOneAtomicWriteSetBeforeFirstInterruptEvent(t *test
 	reducer := newReducer(testReducerConfig())
 	batch := mustReduceBatch(t, reducer, TurnInterrupted{Interrupts: []Interrupt{
 		{Kind: execution.ApprovalInterrupt, Approval: &ApprovalPrompt{
-			ToolName: "shell", Arguments: `{}`, SafetyClass: "exec",
+			ToolName: "shell", Arguments: `{}`, SafetyClass: "exec", Risk: "high",
 		}},
 		{Kind: execution.QuestionInterrupt, Question: &QuestionPrompt{
 			ToolName: "ask_user", Arguments: `{"questions":[{"question":"Continue?"}]}`,
@@ -641,7 +641,7 @@ func TestReducerRejectsExecutorProtocolViolations(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			_, err := newReducer(testReducerConfig()).reduce(test.event)
-			if !errors.Is(err, errExecutorProtocol) {
+			if !errors.Is(err, errExecutorContract) {
 				t.Fatalf("reduce %T error = %v, want executor protocol violation", test.event, err)
 			}
 		})
@@ -654,7 +654,7 @@ func TestReducerRejectsMalformedToolArguments(t *testing.T) {
 		_, err := reducer.reduce(ToolCallStart{
 			CallID: "call_1", ToolName: "shell", Arguments: `{"command":`,
 		})
-		if !errors.Is(err, errExecutorProtocol) || !errors.Is(err, tool.ErrInvalidArguments) {
+		if !errors.Is(err, errExecutorContract) || !errors.Is(err, tool.ErrInvalidArguments) {
 			t.Fatalf("tool start error = %v, want executor protocol + invalid arguments", err)
 		}
 		if len(reducer.tools) != 0 || reducer.step != 0 {
@@ -668,7 +668,7 @@ func TestReducerRejectsMalformedToolArguments(t *testing.T) {
 			CallID: "call_1", ToolName: "shell", Arguments: `{"command":"go test","description":"Run tests"}`,
 		})
 		_, err := reducer.reduce(ToolCallEnd{CallID: "call_1", Arguments: "null"})
-		if !errors.Is(err, errExecutorProtocol) || !errors.Is(err, tool.ErrInvalidArguments) {
+		if !errors.Is(err, errExecutorContract) || !errors.Is(err, tool.ErrInvalidArguments) {
 			t.Fatalf("tool end error = %v, want executor protocol + invalid arguments", err)
 		}
 	})
@@ -687,7 +687,7 @@ func TestReducerRejectsInvalidToolLifecycle(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			_, err := newReducer(testReducerConfig()).reduce(test.event)
-			if !errors.Is(err, errExecutorProtocol) || !strings.Contains(err.Error(), test.want) {
+			if !errors.Is(err, errExecutorContract) || !strings.Contains(err.Error(), test.want) {
 				t.Fatalf("reduce error = %v, want executor protocol containing %q", err, test.want)
 			}
 		})
@@ -698,7 +698,7 @@ func TestReducerRejectsInvalidToolLifecycle(t *testing.T) {
 		start := ToolCallStart{CallID: "call_1", ToolName: "shell", Arguments: `{}`}
 		mustReduce(t, reducer, start)
 		_, err := reducer.reduce(start)
-		if !errors.Is(err, errExecutorProtocol) || !strings.Contains(err.Error(), "started more than once") {
+		if !errors.Is(err, errExecutorContract) || !strings.Contains(err.Error(), "started more than once") {
 			t.Fatalf("duplicate start error = %v", err)
 		}
 	})
@@ -811,7 +811,7 @@ func TestReducerRejectsReexecutionOrSuccessForHostCommittedTool(t *testing.T) {
 		_, err := reducer.reduce(ToolCallStart{
 			CallID: "call_child", ToolName: "delegate_task", Arguments: "{}",
 		})
-		if !errors.Is(err, errExecutorProtocol) ||
+		if !errors.Is(err, errExecutorContract) ||
 			!strings.Contains(err.Error(), "executed again") {
 			t.Fatalf("ToolCallStart error = %v, want committed-call reexecution violation", err)
 		}
@@ -821,7 +821,7 @@ func TestReducerRejectsReexecutionOrSuccessForHostCommittedTool(t *testing.T) {
 		config.Continuation = continuation
 		reducer := newReducer(config)
 		_, err := reducer.reduce(ToolCallEnd{CallID: "call_child", Arguments: "{}"})
-		if !errors.Is(err, errExecutorProtocol) ||
+		if !errors.Is(err, errExecutorContract) ||
 			!strings.Contains(err.Error(), "successful result") {
 			t.Fatalf("ToolCallEnd error = %v, want committed-call success violation", err)
 		}
@@ -1023,7 +1023,7 @@ func TestReducerReportsFrozenRunCapabilitiesOnEverySegment(t *testing.T) {
 
 	batch := mustReduceBatch(t, reducer, TurnInterrupted{Interrupts: []Interrupt{
 		{Kind: execution.ApprovalInterrupt, Approval: &ApprovalPrompt{
-			ToolName: "shell", Arguments: `{}`, SafetyClass: "exec",
+			ToolName: "shell", Arguments: `{}`, SafetyClass: "exec", Risk: "high",
 		}},
 	}})
 	if batch.parkCommit.Run == nil {

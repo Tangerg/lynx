@@ -17,11 +17,9 @@ import (
 	"github.com/Tangerg/lynx/core/chat"
 )
 
-// ErrToolDenied is the sentinel the gate hands the observer's OnToolCallEnd
-// when a tool call is denied by the approval verdict (vs. failing during
-// execution). Lets the wire layer render a "denied" terminal distinct from a
-// generic tool failure (and from a green success). errors.Is-matchable.
-var ErrToolDenied = errors.New("engine.ErrToolDenied: tool call denied by user")
+// ErrToolDenied marks a call the approval gate denied before execution.
+// Observers use errors.Is to distinguish it from a tool execution failure.
+var ErrToolDenied = errors.New("agentexec: tool call denied by user")
 
 // ProcessRef identifies the process that produced an observation. Root and
 // child processes share one engine, but they do not share presentation

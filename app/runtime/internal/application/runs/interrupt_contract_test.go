@@ -16,7 +16,7 @@ func TestResolveResumeResponsesValidatesExactTypedCoverage(t *testing.T) {
 		ItemID: "item_approval",
 		Kind:   execution.ApprovalInterrupt,
 		Approval: &transcript.Approval{
-			Tool: transcript.ToolInvocation{Name: "shell"}, Rememberable: true,
+			Tool: transcript.ToolInvocation{Name: "shell"}, Risk: "medium", Rememberable: true,
 		},
 	}}, Suspensions: []interrupts.SuspensionBinding{{
 		InterruptItemID: "item_approval", ProcessID: "process_approval", SuspensionID: "suspension_approval",
@@ -102,7 +102,7 @@ func TestResolveResumeResponsesValidatesExactTypedCoverage(t *testing.T) {
 		{name: "one-off approval cannot be remembered", pending: interrupts.Pending{
 			Interrupts: []transcript.Interrupt{{
 				ItemID: "item_one_off", Kind: execution.ApprovalInterrupt,
-				Approval: &transcript.Approval{Tool: transcript.ToolInvocation{Name: "shell"}},
+				Approval: &transcript.Approval{Tool: transcript.ToolInvocation{Name: "shell"}, Risk: "medium"},
 			}},
 			Suspensions: []interrupts.SuspensionBinding{{
 				InterruptItemID: "item_one_off", ProcessID: "process_one_off", SuspensionID: "suspension_one_off",
@@ -129,14 +129,14 @@ func TestResolveResumeResponsesPreservesCompleteBarrierInCanonicalOrder(t *testi
 				ItemID: "item_a",
 				Kind:   execution.ApprovalInterrupt,
 				Approval: &transcript.Approval{
-					Tool: transcript.ToolInvocation{Name: "shell"},
+					Tool: transcript.ToolInvocation{Name: "shell"}, Risk: "medium",
 				},
 			},
 			{
 				ItemID: "item_b",
 				Kind:   execution.ApprovalInterrupt,
 				Approval: &transcript.Approval{
-					Tool: transcript.ToolInvocation{Name: "write"},
+					Tool: transcript.ToolInvocation{Name: "write"}, Risk: "medium",
 				},
 			},
 		},

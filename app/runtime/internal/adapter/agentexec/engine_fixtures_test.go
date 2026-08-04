@@ -316,7 +316,7 @@ func (o *hitlApprovalObserver) ApproveToolCall(ctx context.Context, _, toolName,
 	pending := runs.Interrupt{
 		Kind: execution.ApprovalInterrupt,
 		Approval: &runs.ApprovalPrompt{
-			ToolName: toolName, Arguments: arguments, SafetyClass: tool.SafetyClassExec,
+			ToolName: toolName, Arguments: arguments, SafetyClass: tool.SafetyClassExec, Risk: tool.RiskHigh,
 		},
 	}
 	res, err := suspension.Interrupt(ctx,

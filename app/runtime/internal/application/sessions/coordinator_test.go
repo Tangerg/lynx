@@ -170,7 +170,7 @@ func TestApplyRunLostProjectsTerminalTranscript(t *testing.T) {
 	finishedAt := time.Date(2026, 7, 16, 2, 3, 4, 0, time.UTC)
 	createdAt := finishedAt.Add(-time.Minute)
 	costUSD := 0.75
-	approval := &transcript.Approval{Tool: transcript.ToolInvocation{Name: "shell"}}
+	approval := &transcript.Approval{Tool: transcript.ToolInvocation{Name: "shell"}, Risk: "medium"}
 	var applied TerminalPlan
 	stores := coordinatorStores{
 		interrupts: &coordinatorInterrupts{pending: map[string]interrupts.Pending{

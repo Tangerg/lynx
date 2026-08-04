@@ -32,8 +32,8 @@ func ev(replayable bool) Event {
 	return Event{RunID: testRunID, SegmentID: testSegmentID, Payload: SegmentProgressed{}}
 }
 
-// sized builds a replayable event whose serialized payload is at least n bytes, so a
-// byte-budget test measures the real charge rather than a fabricated one.
+// sized builds a replayable event that retains n bytes of text, so a byte-budget
+// test measures the real event shape rather than a fabricated charge.
 func sized(n int) Event {
 	return Event{
 		RunID: testRunID, SegmentID: testSegmentID,

@@ -175,3 +175,57 @@ func TestRunCapabilitiesStaySemanticInsideTheProtocolBoundary(t *testing.T) {
 		t.Error("SQLite Run capability codec uses protocol interruptTypes instead of semantic interruptKinds")
 	}
 }
+
+func TestReplayRetentionDoesNotDependOnAnOuterEncoding(t *testing.T) {
+	root := moduleRoot(t)
+	runs := filepath.Join(root, "internal", "application", "runs")
+	for _, name := range []string{"journal.go", "journal_retention.go"} {
+		path := filepath.Join(runs, name)
+		file, err := parser.ParseFile(token.NewFileSet(), path, nil, parser.ImportsOnly)
+		if err != nil {
+			t.Fatalf("parse %s: %v", name, err)
+		}
+		for _, imported := range file.Imports {
+			if strings.Trim(imported.Path.Value, `"`) == "encoding/json" {
+				t.Errorf("%s derives retained memory from JSON encoding", name)
+			}
+		}
+	}
+
+	eventPath := filepath.Join(runs, "run_event.go")
+	eventFile, err := parser.ParseFile(token.NewFileSet(), eventPath, nil, 0)
+	if err != nil {
+		t.Fatalf("parse RunEvent: %v", err)
+	}
+	methods := interfaceMethods(eventFile, "RunEvent")
+	if !slices.Contains(methods, "retainedBytes") {
+		t.Fatal("RunEvent no longer makes retention accounting mandatory for every event variant")
+	}
+}
+
+func interfaceMethods(file *ast.File, name string) []string {
+	for _, declaration := range file.Decls {
+		general, ok := declaration.(*ast.GenDecl)
+		if !ok || general.Tok != token.TYPE {
+			continue
+		}
+		for _, specification := range general.Specs {
+			typeSpec := specification.(*ast.TypeSpec)
+			if typeSpec.Name.Name != name {
+				continue
+			}
+			contract, ok := typeSpec.Type.(*ast.InterfaceType)
+			if !ok {
+				return nil
+			}
+			var methods []string
+			for _, field := range contract.Methods.List {
+				for _, method := range field.Names {
+					methods = append(methods, method.Name)
+				}
+			}
+			return methods
+		}
+	}
+	return nil
+}

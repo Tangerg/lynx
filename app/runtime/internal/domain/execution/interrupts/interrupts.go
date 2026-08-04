@@ -409,9 +409,15 @@ func validateInterrupt(interrupt transcript.Interrupt) error {
 		if interrupt.Approval == nil || interrupt.Question != nil {
 			return errors.New("approval interrupt requires only an approval payload")
 		}
+		if err := interrupt.Approval.Validate(); err != nil {
+			return err
+		}
 	case execution.QuestionInterrupt:
 		if interrupt.Question == nil || interrupt.Approval != nil {
 			return errors.New("question interrupt requires only a question payload")
+		}
+		if err := interrupt.Question.Validate(); err != nil {
+			return err
 		}
 	default:
 		return fmt.Errorf("unknown interrupt kind %d", interrupt.Kind)

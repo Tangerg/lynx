@@ -905,10 +905,27 @@ Acceptance:
 | 31. Concrete tool semantics ownership | Completed | 2026-08-04 | 2026-08-04 | Tool safety, approval-subject extraction, and offload reader naming moved to toolset/composition; Domain and architecture tests no longer know the built-in catalog. |
 | 32. Semantic content and explicit storage codecs | Completed | 2026-08-04 | 2026-08-04 | Content is media-semantic inside the runtime; Delivery owns MIME/base64 wire decoding, SQLite owns explicit transcript/interrupt rows, and schema epoch 55 rejects the former implicit aggregate encoding. |
 | 33. Run capability vocabulary closure | Completed | 2026-08-04 | 2026-08-04 | Domain, Application, adapters, and SQLite use `RunCapabilities`; the versioned Delivery DTO alone retains `RunProtocolProfile`, with one explicit mapping boundary and schema epoch 56. |
+| 34. Semantic replay retention and interrupt integrity | Completed | 2026-08-04 | 2026-08-04 | Replay memory is charged from the closed event family rather than JSON encoding; pending approvals now require a valid tool, risk, and not-yet-executed invocation. |
 
 Allowed status values: `Pending`, `In progress`, `Completed`, `Blocked`, `Revised`.
 
 ## 7. Progress log
+
+### 2026-08-04 — Batch 34 completed
+
+- Replaced JSON serialization as the replay window's memory proxy with explicit
+  retained-memory accounting over the closed `RunEvent` family. Every new event
+  variant must now implement the private accounting obligation; text, media,
+  tool values, plan snapshots, nested interrupts, and slice/map backing storage
+  are charged without importing a delivery or persistence encoding.
+- Made approval integrity one end-to-end invariant. Application approval
+  prompts and durable transcript approvals require a recognized risk level;
+  durable approvals additionally reject blank/padded tool names and invocations
+  that already carry a result or offload reference. Question payloads are also
+  validated when a pending interrupt set is admitted.
+- Removed the adapter's stale framework-qualified denial message, the orphaned
+  hook-output comment, and the ambiguous `executor protocol` error name. Added
+  architecture coverage preventing replay accounting from returning to JSON.
 
 ### 2026-08-04 — Batch 33 completed
 

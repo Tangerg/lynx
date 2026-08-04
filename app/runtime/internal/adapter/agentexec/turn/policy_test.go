@@ -124,7 +124,7 @@ func TestApproveToolCallSurfacesApprovalPolicyFailures(t *testing.T) {
 		prompt, err := json.Marshal(map[string]any{
 			"kind": "approval",
 			"approval": map[string]any{
-				"callId": "call_1", "toolName": "shell", "arguments": arguments, "safetyClass": "exec", "rememberable": true,
+				"callId": "call_1", "toolName": "shell", "arguments": arguments, "safetyClass": "exec", "risk": "high", "rememberable": true,
 			},
 		})
 		if err != nil {
@@ -154,7 +154,7 @@ func TestApproveToolCallSurfacesApprovalPolicyFailures(t *testing.T) {
 		prompt, err := json.Marshal(map[string]any{
 			"kind": "approval",
 			"approval": map[string]any{
-				"callId": "call_1", "toolName": "shell", "arguments": arguments, "safetyClass": "exec",
+				"callId": "call_1", "toolName": "shell", "arguments": arguments, "safetyClass": "exec", "risk": "high",
 			},
 		})
 		if err != nil {

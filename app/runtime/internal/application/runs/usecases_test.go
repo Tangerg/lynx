@@ -886,7 +886,7 @@ func approvalInterrupt(itemID string, occurredAt time.Time) []transcript.Interru
 		ItemID: itemID, ItemOccurredAt: occurredAt,
 		RunID: "run_1", Kind: execution.ApprovalInterrupt,
 		Approval: &transcript.Approval{
-			Tool: transcript.ToolInvocation{Name: "shell"},
+			Tool: transcript.ToolInvocation{Name: "shell"}, Risk: "medium",
 		},
 	}}
 }
@@ -1376,7 +1376,7 @@ func TestCancelLetsCommittedInterruptOwnDurableFirstTeardown(t *testing.T) {
 				Kind: execution.ApprovalInterrupt,
 				Approval: &ApprovalPrompt{
 					CallID: "call_1", ToolName: "shell", Arguments: `{"command":"pwd","description":"Print the working directory"}`,
-					SafetyClass: "write",
+					SafetyClass: "write", Risk: "medium",
 				},
 			},
 		}}},

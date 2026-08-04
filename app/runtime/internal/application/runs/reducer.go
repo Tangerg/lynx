@@ -17,7 +17,7 @@ import (
 )
 
 var (
-	errExecutorProtocol = errors.New("runs: executor protocol violation")
+	errExecutorContract = errors.New("runs: executor contract violation")
 	errReducerInvariant = errors.New("runs: reducer invariant violation")
 )
 
@@ -175,19 +175,19 @@ func (r *reducer) reduce(ev EngineEvent) (reductionBatch, error) {
 		var err error
 		out, err = r.toolStart(e)
 		if err != nil {
-			return reductionBatch{}, fmt.Errorf("%w: tool call start: %w", errExecutorProtocol, err)
+			return reductionBatch{}, fmt.Errorf("%w: tool call start: %w", errExecutorContract, err)
 		}
 	case ToolCallEnd:
 		var err error
 		out, err = r.toolEnd(e)
 		if err != nil {
-			return reductionBatch{}, fmt.Errorf("%w: tool call end: %w", errExecutorProtocol, err)
+			return reductionBatch{}, fmt.Errorf("%w: tool call end: %w", errExecutorContract, err)
 		}
 	case UsageReported:
 		var err error
 		out, err = r.usageProgress(e)
 		if err != nil {
-			return reductionBatch{}, fmt.Errorf("%w: usage report: %w", errExecutorProtocol, err)
+			return reductionBatch{}, fmt.Errorf("%w: usage report: %w", errExecutorContract, err)
 		}
 	case SteerMessage:
 		out = r.steerMessage(e)
@@ -199,16 +199,16 @@ func (r *reducer) reduce(ev EngineEvent) (reductionBatch, error) {
 		var err error
 		out, err = r.interrupt(e)
 		if err != nil {
-			return reductionBatch{}, fmt.Errorf("%w: interrupt: %w", errExecutorProtocol, err)
+			return reductionBatch{}, fmt.Errorf("%w: interrupt: %w", errExecutorContract, err)
 		}
 	case TurnEnd:
 		var err error
 		out, err = r.turnEnd(e)
 		if err != nil {
-			return reductionBatch{}, fmt.Errorf("%w: turn end: %w", errExecutorProtocol, err)
+			return reductionBatch{}, fmt.Errorf("%w: turn end: %w", errExecutorContract, err)
 		}
 	default:
-		return reductionBatch{}, fmt.Errorf("%w: unhandled event %T", errExecutorProtocol, ev)
+		return reductionBatch{}, fmt.Errorf("%w: unhandled event %T", errExecutorContract, ev)
 	}
 	return r.project(out)
 }

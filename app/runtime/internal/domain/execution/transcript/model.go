@@ -413,6 +413,25 @@ type Approval struct {
 	Rememberable bool
 }
 
+// Validate reports whether an approval describes one pending tool invocation.
+// A result or offload reference would mean the invocation already ran, while a
+// missing risk cannot support an informed decision.
+func (approval Approval) Validate() error {
+	switch {
+	case strings.TrimSpace(approval.Tool.Name) == "":
+		return errors.New("approval tool name is required")
+	case approval.Tool.Name != strings.TrimSpace(approval.Tool.Name):
+		return errors.New("approval tool name has surrounding whitespace")
+	case approval.Tool.Result != nil:
+		return errors.New("approval tool must not carry a result")
+	case approval.Tool.Offload != nil:
+		return errors.New("approval tool must not carry an offload reference")
+	case !approval.Risk.Valid():
+		return fmt.Errorf("approval has unknown risk %q", approval.Risk)
+	}
+	return nil
+}
+
 // Validate reports whether a Run's lifecycle facts agree with its state.
 //
 // A Run carries its terminal facts — outcome, result, detail, finish time, and

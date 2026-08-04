@@ -184,7 +184,7 @@ func TestResumeRunRefusesACallerThatCannotFollowTheRun(t *testing.T) {
 		[]transcript.Interrupt{{
 			ItemID:   "item_1",
 			Kind:     execution.ApprovalInterrupt,
-			Approval: &transcript.Approval{Tool: transcript.ToolInvocation{Name: "shell"}},
+			Approval: &transcript.Approval{Tool: transcript.ToolInvocation{Name: "shell"}, Risk: "medium"},
 		}},
 		time.Unix(1, 0).UTC(),
 	)

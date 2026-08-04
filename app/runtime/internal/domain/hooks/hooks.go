@@ -211,9 +211,6 @@ func (h Hook) matches(in Input) bool {
 	return err == nil && ok
 }
 
-// hookOutput is the optional JSON a hook prints to stdout to control the
-// outcome beyond the exit code.
-
 // fold merges one hook's outcome into the running decision. block latches (the
 // first denying hook owns the reason); ask is a softer escalation; injected
 // context concatenates; the first rewrite wins (deterministic).

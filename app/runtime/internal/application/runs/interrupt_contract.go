@@ -118,7 +118,7 @@ func (p ApprovalPrompt) validate() error {
 	if !p.SafetyClass.Valid() {
 		return fmt.Errorf("runs: unknown approval safety class %q", p.SafetyClass)
 	}
-	if p.Risk != "" && !p.Risk.Valid() {
+	if !p.Risk.Valid() {
 		return fmt.Errorf("runs: unknown approval risk %q", p.Risk)
 	}
 	return nil

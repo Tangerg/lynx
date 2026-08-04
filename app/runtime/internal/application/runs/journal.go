@@ -1,7 +1,6 @@
 package runs
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"iter"
@@ -120,14 +119,12 @@ func newJournal(scope streamScope, retention Retention) *Journal {
 // sequence order, publication order and replay order are one order rather than
 // three that agree by convention.
 func (j *Journal) Append(ev Event) {
-	// Charging serializes the payload — milliseconds for a multi-megabyte tool
-	// result — and it needs nothing from this Journal. So it happens before the
-	// lock: inside, it would hold the run's ONLY stream for the length of a
-	// marshal, and position assignment and every subscriber's enqueue wait behind
-	// that lock.
+	// Charging walks the event's retained values and needs nothing from this
+	// Journal. Keep it before the lock so position assignment and subscriber
+	// fan-out never wait behind accounting work.
 	size := 0
 	if ev.Replayable() {
-		size = retainedSize(ev)
+		size = retainedBytes(ev)
 	}
 
 	j.mu.Lock()
@@ -306,27 +303,6 @@ func (j *Journal) attachLocked(backlog []chargedEvent, head string) subscription
 		Cancel:     cancel,
 		HeadCursor: head,
 	}
-}
-
-// retainedSize is what the replay window charges for one event: the length of its
-// serialized payload.
-//
-// The window exists to bound memory, and the dominant term in every
-// replayable event is the content it carries — item text, tool output, base64
-// image data — which serializing measures directly. It is measured rather than
-// estimated per event type because an estimate returns zero for whatever field
-// nobody remembered to add, and a budget that silently stops counting is a budget
-// that stops bounding. A payload that cannot be serialized measures zero and is
-// still bounded by the event count.
-//
-// Called exactly ONCE per event, at publication. It used to be called again on
-// eviction and again for every backlog event on every replay attach — a
-// reconnect re-serialized the whole window to recompute numbers the window had
-// already charged, which measured at 4.67 MB per attach on a 4 MiB backlog.
-// [chargedEvent] carries the answer instead.
-func retainedSize(ev Event) int {
-	payload, _ := json.Marshal(ev.Payload)
-	return len(payload)
 }
 
 // chargedEvent is an event together with what the byte budget charged for it.
