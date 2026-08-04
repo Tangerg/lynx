@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import type { Tone } from "@/lib/tone";
 import { useEffect, useRef, useState } from "react";
-import { Badge, EmptyState, Icon, IconButton } from "@/ui";
+import { Badge, DiffStat, EmptyState, Icon, IconButton } from "@/ui";
 import { WorkspaceViewLayout } from "./views/WorkspaceViewLayout";
 import { copyText } from "@/lib/clipboard";
 import { cn } from "@/lib/classNames";
@@ -114,13 +114,11 @@ function RunSummaryTab() {
           >
             <Icon name="filetext" size="xs" className="text-fg-faint" />
             <span className="truncate text-fg">{f.path}</span>
-            {(f.added != null || f.removed != null) && (
-              <span className="ml-auto text-ui-sm">
-                <span className="text-success">+{f.added ?? 0}</span>
-                {" / "}
-                <span className="text-negative">-{f.removed ?? 0}</span>
-              </span>
-            )}
+            <DiffStat
+              added={f.added ?? 0}
+              removed={f.removed ?? 0}
+              className="ml-auto text-ui-sm"
+            />
           </div>
         ))}
       </Section>

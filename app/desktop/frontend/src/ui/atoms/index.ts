@@ -11,6 +11,7 @@ export { ColorPickerInput } from "./color-picker-input";
 export type { ColorPickerInputProps } from "./color-picker-input";
 export { ConfirmDialog } from "./confirm-dialog";
 export { DataView } from "./data-view";
+export { DiffStat } from "./diff-stat";
 export { Divider } from "./divider";
 export { EmptyState } from "./empty-state";
 export { ExternalLink } from "./external-link";

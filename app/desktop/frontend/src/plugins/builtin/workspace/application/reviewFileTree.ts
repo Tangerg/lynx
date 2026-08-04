@@ -9,7 +9,17 @@
 
 import type { WorkspaceFileDiff } from "./workspaceQueries";
 
-export interface ReviewTreeFileNode {
+/** How much a node changed. Carried on both node kinds so a row never has to walk
+ *  its own children to say what it is worth. */
+export interface ReviewTreeStat {
+  added: number;
+  removed: number;
+  /** A binary file has no line counts at all — distinct from a pair of zeroes,
+   *  which would claim it was touched and changed nothing. */
+  binary: boolean;
+}
+
+export interface ReviewTreeFileNode extends ReviewTreeStat {
   kind: "file";
   /** Final path segment — what the row shows. */
   name: string;
@@ -18,7 +28,7 @@ export interface ReviewTreeFileNode {
   path: string;
 }
 
-export interface ReviewTreeDirectoryNode {
+export interface ReviewTreeDirectoryNode extends ReviewTreeStat {
   kind: "directory";
   /** Display name; a compressed chain reads as `parent/child`. */
   name: string;
@@ -33,6 +43,22 @@ interface MutableDirectory {
   path: string;
   directories: Map<string, MutableDirectory>;
   files: ReviewTreeFileNode[];
+}
+
+/** A directory's own worth is the sum of what is under it — the aggregate both
+ *  reference sheets put on a container row, and the only figure a collapsed
+ *  directory can honestly show. Binary children contribute no lines but do make
+ *  the total binary-tainted, so the flag rides up rather than being lost. */
+function rollUp(children: readonly ReviewTreeStat[]): ReviewTreeStat {
+  let added = 0;
+  let removed = 0;
+  let binary = false;
+  for (const child of children) {
+    added += child.added;
+    removed += child.removed;
+    binary ||= child.binary;
+  }
+  return { added, removed, binary: binary && added === 0 && removed === 0 };
 }
 
 function directory(name: string, path: string): MutableDirectory {
@@ -58,6 +84,9 @@ function compress(node: ReviewTreeDirectoryNode): ReviewTreeDirectoryNode {
       name: `${current.name}/${onlyChild.name}`,
       path: onlyChild.path,
       children: onlyChild.children,
+      added: onlyChild.added,
+      removed: onlyChild.removed,
+      binary: onlyChild.binary,
     };
   }
   return current;
@@ -66,12 +95,14 @@ function compress(node: ReviewTreeDirectoryNode): ReviewTreeDirectoryNode {
 function finalize(node: MutableDirectory): ReviewTreeNode[] {
   const directories: ReviewTreeDirectoryNode[] = [];
   for (const child of node.directories.values()) {
+    const children = finalize(child);
     directories.push(
       compress({
         kind: "directory",
         name: child.name,
         path: child.path,
-        children: finalize(child),
+        children,
+        ...rollUp(children),
       }),
     );
   }
@@ -100,7 +131,14 @@ export function buildReviewFileTree(files: readonly WorkspaceFileDiff[]): Review
       }
       parent = child;
     }
-    parent.files.push({ kind: "file", name, path: file.path });
+    parent.files.push({
+      kind: "file",
+      name,
+      path: file.path,
+      added: file.added ?? 0,
+      removed: file.removed ?? 0,
+      binary: file.binary === true,
+    });
   }
   return finalize(root);
 }

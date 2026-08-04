@@ -1,15 +1,27 @@
 // Working-tree file list — the content body of the Files workspace view.
-// Each row shows a file path, its change type (A/D/M), and ± line counts.
-// Binary files show a "bin" badge instead of fake ±0 (AUX_API §2.2).
+//
+// Two lines per row, and which half goes on which line matters: the basename is what
+// you scan for and takes the strong line, the directory is what you check once you
+// have found it and sits under. One line of full path put the identifying part at the
+// far end of a truncating column, so a list of files under the same deep directory
+// read as one repeated prefix.
+//
+// The row is `AgentRow` rather than a local one. Seven views in this dock had written
+// their own, which is why not one of them had a second line, a figure column or a
+// hover action: the row that already knows how to carry all three had four consumers,
+// every one of them in the left sidebar.
+//
 // Selecting a row sets the shared activeFile state and opens the Diff view.
 import type {
   FileChangeRowViewModel,
   FileChangesViewModel,
 } from "@/plugins/builtin/workspace/application/fileChangesViewModel";
 import { memo } from "react";
-import { Icon, Pressable } from "@/ui";
+import { DiffStat } from "@/ui";
+import { AgentRow } from "@/ui/agent";
 import { useT } from "@/lib/i18n";
 import { cn } from "@/lib/classNames";
+import { splitFilePath } from "@/lib/path";
 
 interface Props {
   view: FileChangesViewModel;
@@ -23,8 +35,7 @@ export const FilesChanged = memo(function FilesChanged({ view, onSelect }: Props
     <div className="px-1.5">
       <div className="flex items-center gap-2 px-2 py-2 font-mono text-ui-sm font-semibold text-fg-faint">
         <span>{t("files.changed", { count: view.fileCount })}</span>
-        <span className="ml-auto text-success">+{view.totalAdded}</span>
-        <span className="text-negative">−{view.totalRemoved}</span>
+        <DiffStat added={view.totalAdded} removed={view.totalRemoved} className="ml-auto" />
       </div>
       {view.rows.map((row) => (
         <FileRow key={row.path} row={row} onSelect={onSelect} />
@@ -41,32 +52,33 @@ const FileRow = memo(function FileRow({
   onSelect: (p: string) => void;
 }) {
   const t = useT();
+  const { directory, name } = splitFilePath(row.path);
   return (
-    <Pressable
-      type="button"
-      data-chrome-focus=""
+    <AgentRow
+      icon="file"
+      active={row.active}
       aria-pressed={row.active}
+      title={row.path}
       onClick={() => onSelect(row.path)}
-      className={cn(
-        "flex h-8 w-full items-center gap-2 rounded-md border-0 bg-transparent px-2 text-left font-mono text-ui-md text-fg hover:bg-hover focus-visible:bg-hover transition-colors",
-        row.active && "bg-selected",
-      )}
+      detail={directory || undefined}
+      trailing={
+        <span className="flex items-center gap-2 text-ui-xs">
+          {/* The change letter stays a letter. It is the only mark on the row that
+              says WHAT happened rather than how much, and it says it in one glyph
+              the row has no width to spell out. */}
+          <span className={cn("text-ui-2xs font-semibold", row.tag.className)}>
+            {row.tag.letter}
+          </span>
+          {row.lineStats.kind === "binary" ? (
+            <DiffStat added={0} removed={0} binary={t("files.binary")} />
+          ) : (
+            <DiffStat added={row.lineStats.added} removed={row.lineStats.removed} />
+          )}
+        </span>
+      }
+      className="font-mono"
     >
-      <Icon name="file" size="xs" className="shrink-0" />
-      <span className={cn("shrink-0 text-ui-2xs font-semibold", row.tag.className)}>
-        {row.tag.letter}
-      </span>
-      <span className="flex-1 truncate">{row.path}</span>
-      {row.lineStats.kind === "binary" ? (
-        <span className="rounded-sm bg-surface-2 px-1 text-ui-2xs text-fg-faint">
-          {t("files.binary")}
-        </span>
-      ) : (
-        <span className="flex shrink-0 gap-1.5 text-ui-xs">
-          <span className="text-success">+{row.lineStats.added}</span>
-          <span className="text-negative">−{row.lineStats.removed}</span>
-        </span>
-      )}
-    </Pressable>
+      {name}
+    </AgentRow>
   );
 });

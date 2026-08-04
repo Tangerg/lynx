@@ -10,7 +10,7 @@
 // whole comparison. Structured per-file diff from workspace.diff.get (AUX_API §2.3).
 
 import { useEffect, useRef, useState } from "react";
-import { DataView, Icon, IconButton, Pressable, ScrollArea, Segmented } from "@/ui";
+import { DataView, DiffStat, Icon, IconButton, Pressable, ScrollArea, Segmented } from "@/ui";
 import { useT } from "@/lib/i18n";
 import type { DiffLayout } from "./views/DiffView";
 import { DiffView } from "./views/DiffView";
@@ -66,12 +66,7 @@ function FileCard({
         )}
       >
         <span className="min-w-0 flex-1 truncate">{header.displayPath}</span>
-        {header.added !== undefined && (
-          <span className="shrink-0 tabular-nums text-success">+{header.added}</span>
-        )}
-        {header.removed !== undefined && (
-          <span className="shrink-0 tabular-nums text-negative">−{header.removed}</span>
-        )}
+        <DiffStat added={header.added ?? 0} removed={header.removed ?? 0} />
         <Icon
           name="chevron-down"
           size="sm"
@@ -128,9 +123,7 @@ function ReviewPanel() {
 
   const sub = view.subtext ? (
     <>
-      <span className="text-success">+{view.subtext.added}</span>
-      <span className="mx-1">·</span>
-      <span className="text-negative">−{view.subtext.removed}</span>
+      <DiffStat added={view.subtext.added} removed={view.subtext.removed} />
       <span className="mx-2">·</span>
       <span>{t("diff.fileCount", { count: view.subtext.fileCount })}</span>
     </>

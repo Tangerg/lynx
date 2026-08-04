@@ -9,7 +9,7 @@
 
 import { useState } from "react";
 import type { KeyboardEvent, ReactNode } from "react";
-import { Icon, IconButton, Pressable, ScrollArea, TextField } from "@/ui";
+import { DiffStat, Icon, IconButton, Pressable, ScrollArea, TextField } from "@/ui";
 import { cn } from "@/lib/classNames";
 import { useT } from "@/lib/i18n";
 import type { WorkspaceFileDiff } from "@/plugins/builtin/workspace/application/workspaceQueries";
@@ -33,9 +33,11 @@ function TreeRows({
   depth,
   selectedPath,
   collapsedPaths,
+  binaryLabel,
   onToggleDirectory,
   onSelectFile,
 }: {
+  binaryLabel: string;
   nodes: ReviewTreeNode[];
   depth: number;
   selectedPath: string;
@@ -54,6 +56,13 @@ function TreeRows({
           selected={node.path === selectedPath}
           leading={<Icon name="file" size="sm" className="shrink-0 opacity-70" />}
           label={node.name}
+          trailing={
+            <DiffStat
+              added={node.added}
+              removed={node.removed}
+              binary={node.binary ? binaryLabel : undefined}
+            />
+          }
           onClick={() => onSelectFile(node.path)}
         />
       );
@@ -74,6 +83,13 @@ function TreeRows({
           label={node.name}
           labelClassName="text-fg-muted"
           expanded={open}
+          trailing={
+            <DiffStat
+              added={node.added}
+              removed={node.removed}
+              binary={node.binary ? binaryLabel : undefined}
+            />
+          }
           onClick={() => onToggleDirectory(node.path)}
         />
         {open && (
@@ -82,6 +98,7 @@ function TreeRows({
             depth={depth + 1}
             selectedPath={selectedPath}
             collapsedPaths={collapsedPaths}
+            binaryLabel={binaryLabel}
             onToggleDirectory={onToggleDirectory}
             onSelectFile={onSelectFile}
           />
@@ -98,6 +115,7 @@ function TreeRow({
   label,
   labelClassName,
   expanded,
+  trailing,
   onClick,
 }: {
   depth: number;
@@ -106,6 +124,8 @@ function TreeRow({
   label: string;
   labelClassName?: string;
   expanded?: boolean;
+  /** The row's figure, right-aligned in a column of its own. */
+  trailing?: ReactNode;
   onClick: () => void;
 }) {
   return (
@@ -127,7 +147,8 @@ function TreeRow({
       title={label}
     >
       {leading}
-      <span className={cn("min-w-0 truncate", labelClassName)}>{label}</span>
+      <span className={cn("min-w-0 flex-1 truncate", labelClassName)}>{label}</span>
+      {trailing}
     </Pressable>
   );
 }
@@ -203,6 +224,7 @@ export function ReviewFileTree({
             nodes={nodes}
             depth={0}
             selectedPath={selectedPath}
+            binaryLabel={t("files.binary")}
             collapsedPaths={filtering ? NOTHING_COLLAPSED : collapsedPaths}
             onToggleDirectory={toggleDirectory}
             onSelectFile={onSelectFile}
