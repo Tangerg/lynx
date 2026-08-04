@@ -92,9 +92,9 @@ type Starter interface {
 	Start(ctx context.Context, sessionID, objective string, selection modelref.Selection, budget goalstate.Budget) (goalstate.Goal, error)
 }
 
-type createTool struct{ goals Starter }
-type getTool struct{ goals Reader }
-type reportTool struct{ goals Reporter }
+type creator struct{ goals Starter }
+type getter struct{ goals Reader }
+type outcomeReporter struct{ goals Reporter }
 
 type goalResult struct {
 	Goal    *goalView `json:"goal"`
@@ -137,7 +137,7 @@ func NewCreate(starter Starter) (toolcontract.Tool, error) {
 	}
 	return toolcontract.NewFunc[createArgs, goalResult](
 		toolcontract.FuncConfig{Name: "create_goal", Description: createDescription},
-		(&createTool{goals: starter}).create,
+		(&creator{goals: starter}).create,
 	)
 }
 
@@ -148,7 +148,7 @@ func NewGet(reader Reader) (toolcontract.Tool, error) {
 	}
 	return toolcontract.NewFunc[getArgs, goalResult](
 		toolcontract.FuncConfig{Name: "get_goal", Description: getDescription},
-		(&getTool{goals: reader}).get,
+		(&getter{goals: reader}).get,
 	)
 }
 
@@ -159,11 +159,11 @@ func NewReport(reporter Reporter) (toolcontract.Tool, error) {
 	}
 	return toolcontract.NewFunc[reportArgs, string](
 		toolcontract.FuncConfig{Name: "report_goal_outcome", Description: reportDescription},
-		(&reportTool{goals: reporter}).report,
+		(&outcomeReporter{goals: reporter}).report,
 	)
 }
 
-func (t *createTool) create(ctx context.Context, args createArgs) (goalResult, error) {
+func (t *creator) create(ctx context.Context, args createArgs) (goalResult, error) {
 	sessionID := executionctx.SessionID(ctx)
 	if sessionID == "" {
 		return goalResult{Message: "No active session; a Goal must belong to a session."}, nil
@@ -204,7 +204,7 @@ func (t *createTool) create(ctx context.Context, args createArgs) (goalResult, e
 	}, nil
 }
 
-func (t *getTool) get(ctx context.Context, _ getArgs) (goalResult, error) {
+func (t *getter) get(ctx context.Context, _ getArgs) (goalResult, error) {
 	sessionID := executionctx.SessionID(ctx)
 	if sessionID == "" {
 		return goalResult{Message: "No active session; there is no session Goal to inspect."}, nil
@@ -220,7 +220,7 @@ func (t *getTool) get(ctx context.Context, _ getArgs) (goalResult, error) {
 	return goalResult{Goal: &view}, nil
 }
 
-func (t *reportTool) report(ctx context.Context, args reportArgs) (string, error) {
+func (t *outcomeReporter) report(ctx context.Context, args reportArgs) (string, error) {
 	sessionID := executionctx.SessionID(ctx)
 	if sessionID == "" {
 		return "No active session; cannot report a Goal outcome.", nil

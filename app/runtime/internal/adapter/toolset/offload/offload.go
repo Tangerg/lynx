@@ -50,7 +50,7 @@ type readArgs struct {
 	LimitBytes  int    `json:"limit_bytes,omitempty" jsonschema:"minimum=1,maximum=20000" jsonschema_description:"Maximum bytes to return. Defaults to 20000 and cannot exceed 20000."`
 }
 
-type tool struct {
+type reader struct {
 	store Store
 }
 
@@ -65,11 +65,11 @@ func New(store Store) (toolcontract.Tool, error) {
 	}
 	return toolcontract.NewFunc[readArgs, string](
 		toolcontract.FuncConfig{Name: domaintool.NameReadToolResult, Description: description},
-		(&tool{store: store}).read,
+		(&reader{store: store}).read,
 	)
 }
 
-func (t *tool) read(ctx context.Context, a readArgs) (string, error) {
+func (t *reader) read(ctx context.Context, a readArgs) (string, error) {
 	sessionID := executionctx.SessionID(ctx)
 	if sessionID == "" {
 		return "error: no active session — cannot read a stored tool result", nil

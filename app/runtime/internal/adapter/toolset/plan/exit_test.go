@@ -1,4 +1,4 @@
-package exitplan
+package plan
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
+	plandomain "github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
 )
 
 type modeStore struct {
@@ -27,9 +27,9 @@ func (s *modeStore) PutMode(_ context.Context, sessionID string, state approval.
 	return nil
 }
 
-type planReader struct{ steps []plan.Step }
+type planReader struct{ steps []plandomain.Step }
 
-func (r planReader) List(context.Context, string) ([]plan.Step, error) { return r.steps, nil }
+func (r planReader) List(context.Context, string) ([]plandomain.Step, error) { return r.steps, nil }
 
 func planContext(t *testing.T, sessionID string) context.Context {
 	t.Helper()
@@ -48,8 +48,8 @@ func planPolicy(t *testing.T, mode approval.Mode) *approval.RuntimePolicy {
 func TestNewRequiresModeAndPlanPorts(t *testing.T) {
 	policy := planPolicy(t, approval.ModeBalanced)
 	for _, build := range []func() (any, error){
-		func() (any, error) { return New(nil, planReader{}, nil) },
-		func() (any, error) { return New(policy, nil, nil) },
+		func() (any, error) { return newExit(nil, planReader{}, nil) },
+		func() (any, error) { return newExit(policy, nil, nil) },
 	} {
 		got, err := build()
 		if err != nil {
@@ -62,7 +62,7 @@ func TestNewRequiresModeAndPlanPorts(t *testing.T) {
 }
 
 func TestDefinitionHasNoSecondPlanInput(t *testing.T) {
-	tool, err := New(planPolicy(t, approval.ModeBalanced), planReader{}, nil)
+	tool, err := newExit(planPolicy(t, approval.ModeBalanced), planReader{}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -80,7 +80,7 @@ func TestDefinitionHasNoSecondPlanInput(t *testing.T) {
 
 func TestExitRequiresSessionAndPlanMode(t *testing.T) {
 	policy := planPolicy(t, approval.ModeBalanced)
-	tool, err := New(policy, planReader{steps: []plan.Step{{Description: "inspect", Status: plan.StatusPending}}}, nil)
+	tool, err := newExit(policy, planReader{steps: []plandomain.Step{{Description: "inspect", Status: plandomain.StatusPending}}}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -97,7 +97,7 @@ func TestExitRejectsEmptyCanonicalPlan(t *testing.T) {
 	if _, err := policy.EnterPlanMode(t.Context(), "session-1"); err != nil {
 		t.Fatal(err)
 	}
-	tool, err := New(policy, planReader{}, nil)
+	tool, err := newExit(policy, planReader{}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -118,7 +118,7 @@ func TestRejectionKeepsPlanMode(t *testing.T) {
 		}
 		return interrupts.Resolution{Answers: [][]string{{rejectLabel}}}, nil
 	}
-	tool, err := New(policy, planReader{steps: []plan.Step{{Description: "inspect", Status: plan.StatusInProgress}}}, interrupt)
+	tool, err := newExit(policy, planReader{steps: []plandomain.Step{{Description: "inspect", Status: plandomain.StatusInProgress}}}, interrupt)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -146,7 +146,7 @@ func TestApprovalRestoresModeCapturedOnEntry(t *testing.T) {
 		}
 		return interrupts.Resolution{Answers: [][]string{{approveLabel}}}, nil
 	}
-	tool, err := New(policy, planReader{steps: []plan.Step{{Description: "implement", Status: plan.StatusPending}}}, interrupt)
+	tool, err := newExit(policy, planReader{steps: []plandomain.Step{{Description: "implement", Status: plandomain.StatusPending}}}, interrupt)
 	if err != nil {
 		t.Fatal(err)
 	}

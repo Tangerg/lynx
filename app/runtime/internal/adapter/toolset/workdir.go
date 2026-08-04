@@ -2,7 +2,6 @@ package toolset
 
 import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/codeintel"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/editguardstate"
 	toolcontract "github.com/Tangerg/lynx/tool"
 	"github.com/Tangerg/lynx/tools/fs"
 )
@@ -27,7 +26,7 @@ type workdirSet struct {
 	applyPatch toolcontract.Tool
 }
 
-func buildWorkdir(workdir string, ci *codeintel.Analyzer, tracker *editguardstate.Tracker, locker *pathLocker) workdirSet {
+func buildWorkdir(workdir string, ci *codeintel.Analyzer, tracker *readTracker, locker *pathLocker) workdirSet {
 	fsExec := fs.NewLocalExecutor(workdir)
 
 	// Mutation guard stack, innermost → outermost: auto-format the applied
@@ -50,7 +49,7 @@ func buildWorkdir(workdir string, ci *codeintel.Analyzer, tracker *editguardstat
 	return families
 }
 
-func writeMutation(tool toolcontract.Tool, ci *codeintel.Analyzer, tracker *editguardstate.Tracker, locker *pathLocker, workdir string) toolcontract.Tool {
+func writeMutation(tool toolcontract.Tool, ci *codeintel.Analyzer, tracker *readTracker, locker *pathLocker, workdir string) toolcontract.Tool {
 	return withPathGuard(
 		withPathLock(
 			withWriteGuard(
@@ -69,7 +68,7 @@ func writeMutation(tool toolcontract.Tool, ci *codeintel.Analyzer, tracker *edit
 	)
 }
 
-func editMutation(tool toolcontract.Tool, ci *codeintel.Analyzer, tracker *editguardstate.Tracker, locker *pathLocker, workdir string) toolcontract.Tool {
+func editMutation(tool toolcontract.Tool, ci *codeintel.Analyzer, tracker *readTracker, locker *pathLocker, workdir string) toolcontract.Tool {
 	return withPathGuard(
 		withPathLock(
 			withEditGuard(

@@ -15,7 +15,7 @@ import (
 )
 
 func withAutoFormat(inner toolcontract.Tool, workdir string) toolcontract.Tool {
-	return wrapTool(inner, func(ctx context.Context, arguments string) (string, error) {
+	return decorate(inner, func(ctx context.Context, arguments string) (string, error) {
 		paths, err := resolvedMutationPaths(inner, arguments, workdir)
 		if err != nil {
 			return "", fmt.Errorf("inspect mutation paths before formatting: %w", err)

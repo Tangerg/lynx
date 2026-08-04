@@ -1,7 +1,4 @@
-// Package plantool exposes the root Agent's set_plan tool over a narrow Plan
-// persistence view. Plan invariants stay in the domain; model-visible naming,
-// schema, and response text stay here.
-package plantool
+package plan
 
 import (
 	"context"
@@ -11,10 +8,10 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/executionctx"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/planpresentation"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
+	plandomain "github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
 )
 
-const description = `Set the current session's execution plan.
+const setDescription = `Set the current session's execution plan.
 
 Use this for non-trivial multi-step work and whenever the plan or progress
 changes. Pass the complete ordered list every time; this call replaces the
@@ -32,30 +29,22 @@ type stepArg struct {
 	Status      string `json:"status" jsonschema:"enum=pending,enum=in_progress,enum=completed" jsonschema_description:"pending = not started; in_progress = active work; completed = fully done."`
 }
 
-func (a setArgs) steps() []plan.Step {
-	steps := make([]plan.Step, len(a.Steps))
+func (a setArgs) steps() []plandomain.Step {
+	steps := make([]plandomain.Step, len(a.Steps))
 	for index, step := range a.Steps {
-		steps[index] = plan.Step{Description: step.Description, Status: plan.Status(step.Status)}
+		steps[index] = plandomain.Step{Description: step.Description, Status: plandomain.Status(step.Status)}
 	}
 	return steps
 }
 
-// Store is the set_plan tool's complete persistence need. Session lifecycle
-// cleanup and archive behavior belong to their own consumers.
-type Store interface {
-	Replace(ctx context.Context, sessionID string, steps []plan.Step) error
-}
+type setter struct{ store writer }
 
-type setter struct{ store Store }
-
-// New builds set_plan. A nil store disables the capability and returns a nil
-// tool so composition can omit it.
-func New(store Store) (toolcontract.Tool, error) {
+func newSet(store writer) (toolcontract.Tool, error) {
 	if store == nil {
 		return nil, nil
 	}
 	return toolcontract.NewFunc[setArgs, string](
-		toolcontract.FuncConfig{Name: "set_plan", Description: description},
+		toolcontract.FuncConfig{Name: "set_plan", Description: setDescription},
 		(&setter{store: store}).set,
 	)
 }
@@ -66,7 +55,7 @@ func (s *setter) set(ctx context.Context, args setArgs) (string, error) {
 		return "", errors.New("set_plan: no active session")
 	}
 	steps := args.steps()
-	if err := plan.Validate(steps); err != nil {
+	if err := plandomain.Validate(steps); err != nil {
 		return "", err
 	}
 	if err := s.store.Replace(ctx, sessionID, steps); err != nil {

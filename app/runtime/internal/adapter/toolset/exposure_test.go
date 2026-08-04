@@ -8,7 +8,6 @@ import (
 	toolcontract "github.com/Tangerg/lynx/tool"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/codeintel"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/editguardstate"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	domaintool "github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
@@ -98,7 +97,7 @@ func TestResolverInitialManifestSeparatesDirectAndDeferredCapabilities(t *testin
 	}
 	analyzer := codeintel.New(nil)
 	t.Cleanup(func() { _ = analyzer.Close() })
-	resolver, err := NewResolver(Deps{
+	resolver, err := newResolver(resolverDeps{
 		DefaultWorkdir: t.TempDir(),
 		Online:         []toolcontract.Tool{named("web_fetch")},
 		A2A:            []toolcontract.Tool{named("remote_agent")},
@@ -117,10 +116,10 @@ func TestResolverInitialManifestSeparatesDirectAndDeferredCapabilities(t *testin
 		GoalGet:       named("get_goal"),
 		ProposeSkill:  named("propose_skill"),
 		CodeIntel:     analyzer,
-		ReadTracker:   editguardstate.NewTracker(),
+		ReadTracker:   newReadTracker(),
 	})
 	if err != nil {
-		t.Fatalf("NewResolver: %v", err)
+		t.Fatalf("newResolver: %v", err)
 	}
 	resolver.SetMCPTools([]toolcontract.Tool{
 		mcpToolStub{name: "linear_create_issue", server: "linear", remote: "create_issue"},

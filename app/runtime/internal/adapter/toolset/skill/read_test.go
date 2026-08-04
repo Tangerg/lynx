@@ -75,7 +75,7 @@ func writeSkill(t *testing.T, root, name, desc string) {
 // TestBuild_MergesProjectOverUser proves the engine's skill tool
 // layers <workdir>/.lyra/skills over the user dir, with the project copy
 // winning on a name collision.
-func TestBuild_MergesProjectOverUser(t *testing.T) {
+func TestBuildReadersMergesProjectOverUser(t *testing.T) {
 	workdir := t.TempDir()
 	user := t.TempDir()
 
@@ -84,7 +84,7 @@ func TestBuild_MergesProjectOverUser(t *testing.T) {
 	writeSkill(t, user, "shared", "USER copy")
 	writeSkill(t, user, "user-only", "user only")
 
-	tools, err := Build(workdir, user, nil)
+	tools, err := BuildReaders(workdir, user, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -118,8 +118,8 @@ func TestBuild_MergesProjectOverUser(t *testing.T) {
 // TestBuild_AbsentWhenNoDirs proves the tool is omitted entirely when
 // neither the project nor the user Skills directory exists — no empty Skill
 // tool cluttering the model's tool list.
-func TestBuild_AbsentWhenNoDirs(t *testing.T) {
-	tools, err := Build(t.TempDir(), filepath.Join(t.TempDir(), "missing"), nil)
+func TestBuildReadersAbsentWhenNoDirs(t *testing.T) {
+	tools, err := BuildReaders(t.TempDir(), filepath.Join(t.TempDir(), "missing"), nil)
 	if err != nil {
 		t.Fatal(err)
 	}

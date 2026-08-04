@@ -10,7 +10,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/codeintel"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/mcpconnection"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/proposeskill"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/skill"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/goals"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/agentmemory"
@@ -38,7 +38,7 @@ func buildToolEnvironment(
 	scheduleCoord *schedules.Coordinator,
 	goalState *goals.State,
 	skillStore *skillauthoring.Store,
-	skillProposals proposeskill.Submitter,
+	skillProposals skill.ProposalSubmitter,
 ) (toolEnvironment, error) {
 	defaultModel, err := modelref.New(cfg.Provider, cfg.Model)
 	if err != nil {
@@ -65,8 +65,8 @@ func buildToolEnvironment(
 		MCPToolDisabled: mcpEnv.policy.ToolDisabled,
 		// The authoring store records skill loads for the idle-lifecycle curator; a
 		// disabled store no-ops RecordUse.
-		SkillUsage:             skillStore,
-		SkillProposalSubmitter: skillProposals,
+		SkillUsage:     skillStore,
+		SkillProposals: skillProposals,
 		// Opt-in per-command OS isolation for the shell tools (off by default).
 		SandboxShell:         cfg.SandboxShell,
 		SandboxReadOnlyPaths: cfg.SandboxReadOnlyPaths,

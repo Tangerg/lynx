@@ -1,4 +1,5 @@
-package toolset
+// Package schedule exposes recurring Agent Run schedule management tools.
+package schedule
 
 import (
 	"context"
@@ -9,7 +10,7 @@ import (
 
 	scheduleapp "github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/schedule"
+	scheduledomain "github.com/Tangerg/lynx/app/runtime/internal/domain/schedule"
 )
 
 type createScheduleArgs struct {
@@ -51,24 +52,23 @@ type scheduleView struct {
 	CreatedAt    string `json:"created_at,omitempty"`
 }
 
-// ScheduleManagement is the schedule family's narrow application use case.
+// Management is the schedule family's narrow application use case.
 // It intentionally does not expose delivery's revisioned Update or firing APIs.
-type ScheduleManagement interface {
-	List(ctx context.Context) ([]schedule.Schedule, error)
-	Create(ctx context.Context, cmd scheduleapp.CreateCommand) (schedule.Schedule, error)
+type Management interface {
+	List(ctx context.Context) ([]scheduledomain.Schedule, error)
+	Create(ctx context.Context, cmd scheduleapp.CreateCommand) (scheduledomain.Schedule, error)
 	Delete(ctx context.Context, id string) error
 }
 
-type scheduleFamily struct{ coordinator ScheduleManagement }
+type family struct{ coordinator Management }
 
-// buildSchedules builds one tool per schedule action. Each schema therefore
-// contains only fields that action can consume. nil coordinator disables the
-// complete model-facing family.
-func buildSchedules(coordinator ScheduleManagement) ([]toolcontract.Tool, error) {
+// Build constructs one tool per schedule action. Each schema therefore contains
+// only fields that action can consume. A nil coordinator disables the family.
+func Build(coordinator Management) ([]toolcontract.Tool, error) {
 	if coordinator == nil {
 		return nil, nil
 	}
-	t := &scheduleFamily{coordinator: coordinator}
+	t := &family{coordinator: coordinator}
 	list, err := toolcontract.NewFunc[struct{}, scheduleListResponse](
 		toolcontract.FuncConfig{
 			Name:        "list_schedules",
@@ -103,7 +103,7 @@ func buildSchedules(coordinator ScheduleManagement) ([]toolcontract.Tool, error)
 	return []toolcontract.Tool{list, create, deleteSchedule}, nil
 }
 
-func (t *scheduleFamily) list(ctx context.Context, _ struct{}) (scheduleListResponse, error) {
+func (t *family) list(ctx context.Context, _ struct{}) (scheduleListResponse, error) {
 	items, err := t.coordinator.List(ctx)
 	if err != nil {
 		return scheduleListResponse{}, fmt.Errorf("list_schedules: %w", err)
@@ -115,7 +115,7 @@ func (t *scheduleFamily) list(ctx context.Context, _ struct{}) (scheduleListResp
 	return scheduleListResponse{Schedules: views}, nil
 }
 
-func (t *scheduleFamily) create(ctx context.Context, in createScheduleArgs) (scheduleResponse, error) {
+func (t *family) create(ctx context.Context, in createScheduleArgs) (scheduleResponse, error) {
 	selection, err := modelref.New(in.Provider, in.Model)
 	if err != nil {
 		return scheduleResponse{}, fmt.Errorf("create_schedule: %w", err)
@@ -134,14 +134,14 @@ func (t *scheduleFamily) create(ctx context.Context, in createScheduleArgs) (sch
 	return scheduleResponse{Schedule: viewSchedule(created)}, nil
 }
 
-func (t *scheduleFamily) delete(ctx context.Context, in deleteScheduleArgs) (scheduleDeleteResponse, error) {
+func (t *family) delete(ctx context.Context, in deleteScheduleArgs) (scheduleDeleteResponse, error) {
 	if err := t.coordinator.Delete(ctx, in.ScheduleID); err != nil {
 		return scheduleDeleteResponse{}, fmt.Errorf("delete_schedule: %w", err)
 	}
 	return scheduleDeleteResponse{ScheduleID: in.ScheduleID}, nil
 }
 
-func viewSchedule(sc schedule.Schedule) scheduleView {
+func viewSchedule(sc scheduledomain.Schedule) scheduleView {
 	return scheduleView{
 		ScheduleID:   sc.ID,
 		Title:        sc.Title,

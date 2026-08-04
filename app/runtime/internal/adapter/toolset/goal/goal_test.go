@@ -64,21 +64,21 @@ func sessionCtx(session string) context.Context {
 	return executionctx.WithScope(context.Background(), execution.TurnScope{SessionID: session})
 }
 
-func newGetTool(t *testing.T, store goals.Store) *getTool {
+func newGetter(t *testing.T, store goals.Store) *getter {
 	t.Helper()
-	return &getTool{goals: goals.NewState(store)}
+	return &getter{goals: goals.NewState(store)}
 }
 
-func newReportTool(t *testing.T, store goals.Store) *reportTool {
+func newReporter(t *testing.T, store goals.Store) *outcomeReporter {
 	t.Helper()
-	return &reportTool{goals: goals.NewState(store)}
+	return &outcomeReporter{goals: goals.NewState(store)}
 }
 
 func TestReportGoalOutcomeCompleted(t *testing.T) {
 	store := newMemStore()
 	store.put(activeGoal("s1"))
 
-	out, err := newReportTool(t, store).report(sessionCtx("s1"), reportArgs{Outcome: "completed"})
+	out, err := newReporter(t, store).report(sessionCtx("s1"), reportArgs{Outcome: "completed"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -93,7 +93,7 @@ func TestReportGoalOutcomeCompleted(t *testing.T) {
 func TestReportGoalOutcomeBlockedRequiresReason(t *testing.T) {
 	store := newMemStore()
 	store.put(activeGoal("s1"))
-	tl := newReportTool(t, store)
+	tl := newReporter(t, store)
 
 	out, _ := tl.report(sessionCtx("s1"), reportArgs{Outcome: "blocked"})
 	if !strings.Contains(out, "reason") {
@@ -117,7 +117,7 @@ func TestReportGoalOutcomeCompletedRejectsReason(t *testing.T) {
 	store := newMemStore()
 	store.put(activeGoal("s1"))
 	reason := "partial caveat"
-	out, err := newReportTool(t, store).report(sessionCtx("s1"), reportArgs{Outcome: "completed", Reason: &reason})
+	out, err := newReporter(t, store).report(sessionCtx("s1"), reportArgs{Outcome: "completed", Reason: &reason})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -131,7 +131,7 @@ func TestReportGoalOutcomeCompletedRejectsReason(t *testing.T) {
 
 func TestReportGoalOutcomeNoActiveGoal(t *testing.T) {
 	store := newMemStore() // no goal for s1
-	out, err := newReportTool(t, store).report(sessionCtx("s1"), reportArgs{Outcome: "completed"})
+	out, err := newReporter(t, store).report(sessionCtx("s1"), reportArgs{Outcome: "completed"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -146,7 +146,7 @@ func TestReportGoalOutcomeDoesNotTouchPausedGoal(t *testing.T) {
 	g.Pause(goalstate.ReasonStoppedByUser, "", time.Unix(0, 0))
 	store.put(g)
 
-	out, _ := newReportTool(t, store).report(sessionCtx("s1"), reportArgs{Outcome: "completed"})
+	out, _ := newReporter(t, store).report(sessionCtx("s1"), reportArgs{Outcome: "completed"})
 	if !strings.Contains(out, "No active Goal") {
 		t.Fatalf("paused goal should be untouchable via report_goal_outcome, got %q", out)
 	}
@@ -170,7 +170,7 @@ func TestReportGoalOutcomeSupersededStampRefused(t *testing.T) {
 		GoalLeaseID: "lease-stale",
 	})
 
-	out, err := newReportTool(t, store).report(ctx, reportArgs{Outcome: "completed"})
+	out, err := newReporter(t, store).report(ctx, reportArgs{Outcome: "completed"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -183,7 +183,7 @@ func TestReportGoalOutcomeSupersededStampRefused(t *testing.T) {
 }
 
 func TestReportGoalOutcomeNoSession(t *testing.T) {
-	out, err := newReportTool(t, newMemStore()).report(context.Background(), reportArgs{Outcome: "completed"})
+	out, err := newReporter(t, newMemStore()).report(context.Background(), reportArgs{Outcome: "completed"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -200,7 +200,7 @@ func TestGetGoalReturnsActionableViewWithoutOwnershipInternals(t *testing.T) {
 	g.Used = goalstate.Usage{Turns: 1, Steps: 5}
 	store.put(g)
 
-	result, err := newGetTool(t, store).get(sessionCtx("s1"), getArgs{})
+	result, err := newGetter(t, store).get(sessionCtx("s1"), getArgs{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -213,7 +213,7 @@ func TestGetGoalReturnsActionableViewWithoutOwnershipInternals(t *testing.T) {
 }
 
 func TestGetGoalReturnsNullWhenAbsent(t *testing.T) {
-	result, err := newGetTool(t, newMemStore()).get(sessionCtx("s1"), getArgs{})
+	result, err := newGetter(t, newMemStore()).get(sessionCtx("s1"), getArgs{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -239,7 +239,7 @@ func (s *fakeStarter) Start(_ context.Context, sessionID, objective string, sele
 
 func TestCreateGoalUsesCurrentSessionAndExplicitBudget(t *testing.T) {
 	starter := &fakeStarter{}
-	result, err := (&createTool{goals: starter}).create(sessionCtx("s1"), createArgs{
+	result, err := (&creator{goals: starter}).create(sessionCtx("s1"), createArgs{
 		Objective: "  finish the migration  ",
 		Budget:    &createBudget{MaxTurns: 4, MaxCostUSD: 2.5, MaxSteps: 20},
 	})

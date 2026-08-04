@@ -209,7 +209,7 @@
 - 服务端评审面唯一使用 `skills.proposals.list / approve / reject`。list 必须带 workspace 并返回完整 description、instructions、scope、origin、source session 和 revises；approve/reject 必须携带 workspace、scope、name、revision；
 - `Draft / promote / discard / global` 已从 Skill 领域、存储、应用和服务端协议移除，不提供别名或兼容转换；
 - 显式用户创作与自动 Miner 共享应用层 `SubmitSkillProposal`，但触发策略不同：工具只响应明确用户意图；Miner 只在复杂轨迹达到 cadence 时自主蒸馏，并默认提交 user Proposal。两者都不能直接激活 Skill；
-- Tool adapter 只依赖单方法 `Submitter`，Miner 也只依赖同一单方法应用能力；project/user 文件布局由 adapter 路由，Application 不认识 `.lyra`，Agent 核心只接收通用 `tool.Tool`。
+- Tool adapter 只依赖单方法 `ProposalSubmitter`，Miner 也只依赖同一单方法应用能力；project/user 文件布局由 adapter 路由，Application 不认识 `.lyra`，Agent 核心只接收通用 `tool.Tool`。
 
 ## 7. 删除与收敛
 
@@ -262,6 +262,14 @@
 
 判断一个抽象是否合理时同时回答三问：是否已有两个真实消费者、是否消除了一个实际变化轴、是否迫使无关消费者理解产品概念。前两项都否定则是过度抽象；最后一项肯定则是边界泄露。
 
+### `toolset` 代码组织
+
+- `toolset` 已经隐含模型工具语境，子包必须按能力命名为 `goal / plan / skill / lsp / offload / discovery` 等，不再使用 `goaltool / lsptools / toolresult / toolsearch` 这类重复后缀或前缀；
+- 同一领域、同一状态源并共同构成生命周期的模型工具放在一个包中，但仍保持独立工具名和严格单动作 schema。Plan 的 enter/set/exit 属于一个 `plan` 包，Skill 的 read/propose 属于一个 `skill` 包，Schedule 的 list/create/delete 属于一个 `schedule` 包；
+- 父包只保留组装、Resolver、Exposure 以及跨文件工具的 guard/decorator。只被父包消费的 read tracker 不建立子包，也不为制造包边界导出类型；
+- 不能因为动词相似就机械合并。`search_memory` 与 `search_conversations` 使用不同 corpus、不同 application port 和不同结果语义，继续分包；`ask_user` 与 Plan approval 同为 interrupt，但业务授权与生命周期不同，也继续分包；
+- 一个子包必须对应真实独立能力或生命周期，目录为空、只剩转发、或必须以 `Impl/Tool/Tools` 才能解释职责时，应删除、折回父包或重新命名。
+
 ## 10. 实施批次
 
 | 批次 | 内容 | 状态 |
@@ -278,6 +286,8 @@
 | 8a | Skill Proposal 领域、双作用域存储、应用用例与服务端评审协议 | 完成 |
 | 8b | 根 Agent 自然语言 `propose_skill` 与统一 Miner 提交链 | 完成 |
 | 8c | 桌面前端 Proposal 接线与新 canonical samples | 延后到前端专项 |
+| 9a | Toolset 包名、文件名、角色残留词与空目录清洗 | 完成 |
+| 9b | Plan/Skill/Schedule 协作包收敛、私有 tracker 回收与测试就近组织 | 完成 |
 
 每批必须独立验证、独立提交并推送。实现发现契约需要调整时，先更新本文，再在同一批修改代码和测试。
 
@@ -440,7 +450,7 @@
 
 ### 批次 7f
 
-- 现行架构基准把旧 `task` / Todo 改为 `delegate_task` / Plan，端口文档同步真实的 `toolset.PlanStore`、`agentexec.PlanReader` 与 SQLite plan store，不再让已经删除的类型看起来仍是当前设计；
+- 现行架构基准把旧 `task` / Todo 改为 `delegate_task` / Plan，端口文档同步真实的 `toolset/plan.Store`、`agentexec.PlanReader` 与 SQLite plan store，不再让已经删除的类型看起来仍是当前设计；
 - `ARCHITECTURE_HYGIENE_PLAN.md` 明确降级为历史实施台账，`doc/inspiration` 总索引明确降级为同类产品对比快照；其中 Todo/Task 等词只保留为历史代码或其他产品原生术语，不再声明 Lynx 当前实现状态；
 - 当前规范只有本文与 `EXECUTION_CENTERED_ARCHITECTURE.md` / `EXTENSIBILITY.md`。历史材料通过醒目链接回到本文，而不是复制一份会再次漂移的“当前工具表”；
 - 排除已标记历史材料、本文删除记录和本轮刻意未修改的前端 generated baseline 后，现行 runtime 文档不再出现 Todo、`task`、`update_plan` 或 `update_goal`。
@@ -468,6 +478,21 @@
 - session、cwd 与 `origin=requested` 只从 execution context 注入；模型 schema 不出现 host identity、provenance、review decision 或文件路径；返回值只含 `pending_review` 与不可变 ref；
 - Resolver 将工具设为 root-only + Deferred，委派 Agent 不注册；safety 归类为 Safe，因为它只记录用户明确要求的待评审内容且无法激活能力，额外 approval 会重复同一意图门；
 - 工具角色词汇同步收敛为 `root / delegated`；删除把根角色称作 `coding`、把委派角色称作 `subtask` 的内部常量与 resolver 名称，使通用场景与策略名称保持一致；
-- Tool adapter 只定义单方法 `Submitter`，Bootstrap 在 composition root 把 `workspace.Skills` 赋给它；Resolver 与 Agent 只看通用 `tool.Tool`，没有引入 application coordinator、store、delivery DTO 或 Skill filesystem layout；
+- Skill adapter 只定义单方法 `ProposalSubmitter`，Bootstrap 在 composition root 把 `workspace.Skills` 赋给它；Resolver 与 Agent 只看通用 `tool.Tool`，没有引入 application coordinator、store、delivery DTO 或 Skill filesystem layout；
 - 隔离审计发现原有 `TurnScope.Cwd` 在 isolated Run 中指向短命 scratch copy，不能作为 project Proposal 的持久 workspace identity；执行上下文因此治本式拆为 execution Cwd 与 `WorkspaceCwd`，fresh/restore/checkpoint 全链路保持两者。文件与 Shell 继续使用 execution Cwd，Proposal 使用 persistent workspace，避免把 Skill 写进随后销毁的 sandbox；
 - 参数、角色、Deferred manifest、provenance、双作用域路由、安全表和 catalog completeness 均有聚焦测试；服务端 build/vet 通过，完整 test 仅保留明确延后的桌面 generated contract/sample 漂移。
+
+### 批次 9a
+
+- 删除此前功能移除和目录迁移遗留的空目录；将 `goaltool / lsptools / toolresult / toolsearch` 分别改为能力名 `goal / lsp / offload / discovery`，不保留旧 import path；
+- 根 `toolset` 文件按职责改为 `online / schedule / workdir / connections`，内部构造函数同步删除 `Tools` 重复词；测试 helper 中残留的 `coding` 统一为 `root`；
+- `search_tools` 的模型名称保持不变；代码包名 `discovery` 表达 progressive disclosure 职责，避免出现 `toolset/toolsearch.Tool` 三重重复。
+
+### 批次 9b
+
+- 将 `enterplan / plantool / exitplan` 合并为 `plan` 包和一个 `Build` 入口；三工具继续拥有独立 schema，但共享同一 `Store` 和 `ModePolicy`，从结构上保证退出审批读取的就是 `set_plan` 维护的 canonical Plan；
+- 将 `proposeskill` 合入 `skill` 包，读取工具与 Proposal 写入口按 `BuildReaders / NewProposal` 表达不同构造时机；同一 Skill 能力不再分散在两个相邻包；
+- 将根包中的 Schedule schema 和 list/create/delete 实现整体迁入 `schedule` 能力包，以单一 `Build(Management)` 入口返回完整工具族；根 `toolset` 不再承载该领域的模型契约；
+- 将仅由父包使用的 `editguardstate` 折回 `toolset`，`Tracker / Fingerprint / Result` 全部私有化为 read-tracker invariant，删除为绕包边界产生的导出面；
+- 把混装 format、Schedule、path guard 的 `new_tools_test.go` 拆回对应职责测试文件；内部 `tool/createTool/pathLockedTool/decoratedTool` 等无信息量名称改成行为或职责名；
+- 明确保留 `memorysearch / sessionsearch / askuser` 的独立边界：它们虽然表面共享 search 或 interrupt 动词，但没有共同状态源和变化轴，合并会造成虚假内聚。

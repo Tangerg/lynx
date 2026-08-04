@@ -1,6 +1,4 @@
-// Package skill provides progressive-disclosure tools for the SKILL.md skills
-// visible from a turn's working directory. It is working-directory scoped, so
-// the tools are rebuilt per resolution.
+// Package skill provides Skill reading and proposal capabilities.
 package skill
 
 import (
@@ -23,16 +21,17 @@ type UsageRecorder interface {
 	RecordUse(ctx context.Context, name string, now time.Time) error
 }
 
-// Build assembles the working-directory-scoped skill tools over the merged skill
-// source (project <workdir>/.lyra/skills layered over the user dir, project
-// winning). It returns nil when neither directory exists, so a session that
-// ships no skills gets no skill tools at all. When recorder is non-nil, loading
-// a skill records a use so the curator can tell active skills from idle ones.
+// BuildReaders assembles the working-directory-scoped reading tools over the
+// merged skill source (project <workdir>/.lyra/skills layered over the user dir,
+// project winning). It returns nil when neither directory exists, so a session
+// that ships no skills gets no skill tools at all. When recorder is non-nil,
+// loading a skill records a use so the curator can tell active skills from idle
+// ones.
 //
 // Rebuilt per resolution like fs/shell, because the project directory depends on
 // the turn's working directory; the merged source just wraps os.DirFS, so the
 // cost is negligible.
-func Build(workdir, userDir string, recorder UsageRecorder) ([]toolcontract.Tool, error) {
+func BuildReaders(workdir, userDir string, recorder UsageRecorder) ([]toolcontract.Tool, error) {
 	var decorateUser func(skillspec.ResourceSource) skillspec.ResourceSource
 	if recorder != nil {
 		// Wrap only the user source: the curator governs the user library, and

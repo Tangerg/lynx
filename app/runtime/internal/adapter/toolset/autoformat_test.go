@@ -9,6 +9,31 @@ import (
 	"testing"
 )
 
+func TestFormatJSONWritesIndentedFile(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "data.json")
+	if err := os.WriteFile(path, []byte(`{"b":1,"a":2}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := formatJSON(path, 0o600); err != nil {
+		t.Fatalf("formatJSON: %v", err)
+	}
+	got, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("ReadFile: %v", err)
+	}
+	want := "{\n  \"b\": 1,\n  \"a\": 2\n}\n"
+	if string(got) != want {
+		t.Fatalf("formatted JSON = %q, want %q", got, want)
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("Stat: %v", err)
+	}
+	if info.Mode().Perm() != 0o600 {
+		t.Fatalf("mode = %v, want 0600", info.Mode().Perm())
+	}
+}
+
 func TestFormatPathIgnoresDeletedFile(t *testing.T) {
 	if err := formatPath(t.Context(), filepath.Join(t.TempDir(), "deleted.go")); err != nil {
 		t.Fatalf("format deleted file: %v", err)

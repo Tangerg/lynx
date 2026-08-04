@@ -62,9 +62,6 @@ func (allWiredSchedules) List(context.Context) ([]schedule.Schedule, error) { re
 func (allWiredSchedules) Create(context.Context, scheduleapp.CreateCommand) (schedule.Schedule, error) {
 	return schedule.Schedule{}, nil
 }
-func (allWiredSchedules) UpdateLatest(context.Context, string, schedule.Patch) (schedule.Schedule, error) {
-	return schedule.Schedule{}, nil
-}
 func (allWiredSchedules) Delete(context.Context, string) error { return nil }
 
 type allWiredToolResults struct{}
@@ -182,16 +179,16 @@ func TestSafetyTableMatchesBuiltInTools(t *testing.T) {
 		t.Fatalf("approval policy: %v", err)
 	}
 	built, err := Build(t.Context(), BuildConfig{
-		Workdir:                t.TempDir(),
-		SkillsUserDir:          t.TempDir(), // backs skill
-		PlanMode:               policy,
-		Plan:                   rolePlanStore{},
-		Goals:                  activeGoalState{},
-		Schedules:              allWiredSchedules{},   // backs schedule
-		ToolResults:            allWiredToolResults{}, // backs read_tool_result
-		MemorySearch:           allWiredMemorySearch{},
-		SessionSearch:          allWiredSessionSearch{},
-		SkillProposalSubmitter: allWiredSkillProposals{},
+		Workdir:        t.TempDir(),
+		SkillsUserDir:  t.TempDir(), // backs skill
+		PlanMode:       policy,
+		Plan:           rolePlanStore{},
+		Goals:          activeGoalState{},
+		Schedules:      allWiredSchedules{},   // backs schedule
+		ToolResults:    allWiredToolResults{}, // backs read_tool_result
+		MemorySearch:   allWiredMemorySearch{},
+		SessionSearch:  allWiredSessionSearch{},
+		SkillProposals: allWiredSkillProposals{},
 		Online: OnlineConfig{
 			JinaAPIKey:       "test-jina",
 			TavilyAPIKey:     "test-tavily",

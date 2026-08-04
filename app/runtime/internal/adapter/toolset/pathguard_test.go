@@ -2,6 +2,7 @@ package toolset
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -9,7 +10,56 @@ import (
 	"testing"
 
 	toolcontract "github.com/Tangerg/lynx/tool"
+
+	"github.com/Tangerg/lynx/core/chat"
 )
+
+type patchPathStub struct {
+	called *bool
+}
+
+func (p *patchPathStub) Definition() chat.ToolDefinition {
+	return chat.ToolDefinition{Name: "apply_patch", InputSchema: json.RawMessage(`{"type":"object"}`)}
+}
+
+func (p *patchPathStub) Call(context.Context, string) (string, error) {
+	*p.called = true
+	return "patched", nil
+}
+
+func (p *patchPathStub) MutationPaths(string) ([]string, error) {
+	return []string{"ok.txt", ".git/config"}, nil
+}
+
+func TestPathGuardApplyPatchChecksAllTargets(t *testing.T) {
+	called := false
+	tool := withPathGuard(&patchPathStub{called: &called}, "/work")
+	patch := `--- a/ok.txt
++++ b/ok.txt
+@@ -1 +1 @@
+-old
++new
+--- a/.git/config
++++ b/.git/config
+@@ -1 +1 @@
+-old
++new
+`
+	arguments, err := json.Marshal(map[string]string{"patch": patch})
+	if err != nil {
+		t.Fatal(err)
+	}
+	out, err := tool.Call(t.Context(), string(arguments))
+	if err != nil {
+		t.Fatalf("call: %v", err)
+	}
+	if called {
+		t.Fatal("inner tool ran despite protected path in patch")
+	}
+	if !strings.Contains(out, "Refused") {
+		t.Fatalf("out = %q, want refusal", out)
+	}
+}
 
 type pathGuardArgs struct {
 	Path string `json:"path"`

@@ -14,7 +14,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/codeintel"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/executionctx"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/discovery"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/editguardstate"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/skill"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
@@ -45,7 +44,7 @@ type Resolver struct {
 	a2a            []toolcontract.Tool                         // working-directory-independent remote A2A agents
 	lsp            []toolcontract.Tool                         // code-intelligence tools; cwd read per-call (analyzer keys servers by root)
 	codeIntel      *codeintel.Analyzer                         // backs the write/edit diagnostics wrap (rebuilt per resolution with the turn's cwd)
-	readTracker    *editguardstate.Tracker                     // backs the read-before-edit + stale guards on read/edit/write
+	readTracker    *readTracker                                // backs the read-before-edit + stale guards on read/edit/write
 	pathLocker     *pathLocker                                 // serializes same-path fs calls across every concurrent turn resolution
 	shell          []toolcontract.Tool                         // shell tools (shell / read_shell_output / stop_shell) over the exec.Shells; cwd read per-call
 	delegation     toolcontract.Tool                           // bounded recursive delegation tool; nil until set
@@ -95,11 +94,11 @@ type staticToolSpec struct {
 	requiresActiveGoal bool
 }
 
-// Deps bundles the working-directory-independent inputs the resolver captures
+// resolverDeps bundles the working-directory-independent inputs the resolver captures
 // at construction. Filesystem and skill tools are rebuilt per resolution;
 // shell and LSP tools are built once but read the turn's cwd per call. Online,
 // A2A, and code-intelligence capabilities are also built once and held.
-type Deps struct {
+type resolverDeps struct {
 	DefaultWorkdir string
 	DefaultModel   modelref.Selection
 	SkillsUserDir  string
@@ -121,7 +120,7 @@ type Deps struct {
 	ProposeSkill   toolcontract.Tool                           // propose_skill pending submission (root role only); nil → omitted
 	GoalActive     func(context.Context, string) (bool, error) // reports an active Goal for the session; nil → outcome reporting never offered
 	CodeIntel      *codeintel.Analyzer                         // backs the post-edit diagnostics wrap
-	ReadTracker    *editguardstate.Tracker                     // backs the read/edit/write guards
+	ReadTracker    *readTracker                                // backs the read/edit/write guards
 	// MCPToolDisabled reports whether an identified MCP tool is hidden.
 	MCPToolDisabled func(mcpserver.ToolRef) bool
 }
@@ -130,16 +129,16 @@ type mcpToolIdentity interface {
 	MCPToolIdentity() (sourceName, remoteName string)
 }
 
-// NewResolver builds the engine-scoped tool resolver from its
+// newResolver builds the engine-scoped tool resolver from its
 // working-directory-independent inputs. The delegation and create_goal
 // entry tools are injected through explicit seams after their cyclic runtime
 // owners exist; the MCP tool set is seeded + hot-swapped via [Resolver.SetMCPTools].
-func NewResolver(d Deps) (*Resolver, error) {
+func newResolver(d resolverDeps) (*Resolver, error) {
 	if d.CodeIntel == nil {
-		return nil, errors.New("toolset.NewResolver: CodeIntel is nil")
+		return nil, errors.New("toolset: resolver code intelligence is nil")
 	}
 	if d.ReadTracker == nil {
-		return nil, errors.New("toolset.NewResolver: ReadTracker is nil")
+		return nil, errors.New("toolset: resolver read tracker is nil")
 	}
 	resolver := &Resolver{
 		defaultWorkdir: d.DefaultWorkdir,
@@ -334,7 +333,7 @@ func (g *toolGroup) Tools(ctx context.Context) ([]toolcontract.Tool, error) {
 	// Skill tools are working-directory scoped (project skills live under the
 	// turn's cwd), so they are built per resolution like filesystem tools and are
 	// available to both root and delegated roles. No tools when no skills exist.
-	skillTools, err := skill.Build(workdir, g.resolver.skillsUserDir, g.resolver.skillUsage)
+	skillTools, err := skill.BuildReaders(workdir, g.resolver.skillsUserDir, g.resolver.skillUsage)
 	if err != nil {
 		return nil, fmt.Errorf("toolset: resolve skill tools: %w", err)
 	}

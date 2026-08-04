@@ -89,26 +89,26 @@ func withPathLock(inner toolcontract.Tool, locker *pathLocker, workdir string) t
 	if locker == nil {
 		return inner
 	}
-	return &pathLockedTool{inner: inner, locker: locker, workdir: workdir}
+	return &pathLocked{inner: inner, locker: locker, workdir: workdir}
 }
 
-// pathLockedTool owns the full same-file execution contract: its scheduling
+// pathLocked owns the full same-file execution contract: its scheduling
 // key and runtime lock are derived from the same canonical path function.
-type pathLockedTool struct {
+type pathLocked struct {
 	inner   toolcontract.Tool
 	locker  *pathLocker
 	workdir string
 }
 
-func (t *pathLockedTool) Definition() chat.ToolDefinition { return t.inner.Definition() }
+func (t *pathLocked) Definition() chat.ToolDefinition { return t.inner.Definition() }
 
 // Unwrap exposes the locked tool so everything it declares — where its edits
 // land, whether it ends the round — stays reachable through the lock. Only the
 // scheduling key below is this wrapper's own, and declaring it here is what
 // makes it win over the inner tool's.
-func (t *pathLockedTool) Unwrap() toolcontract.Tool { return t.inner }
+func (t *pathLocked) Unwrap() toolcontract.Tool { return t.inner }
 
-func (t *pathLockedTool) Call(ctx context.Context, arguments string) (string, error) {
+func (t *pathLocked) Call(ctx context.Context, arguments string) (string, error) {
 	paths, err := resolvedMutationPaths(t.inner, arguments, t.workdir)
 	if err != nil {
 		return "", err
@@ -123,7 +123,7 @@ func (t *pathLockedTool) Call(ctx context.Context, arguments string) (string, er
 	return t.inner.Call(ctx, arguments)
 }
 
-func (t *pathLockedTool) ConcurrencyKey(arguments string) (key string, concurrent bool) {
+func (t *pathLocked) ConcurrencyKey(arguments string) (key string, concurrent bool) {
 	// Read the declaration through the wrapping chain: the tool underneath is
 	// itself decorated, and a one-level look would silently make every guarded
 	// file tool exclusive.

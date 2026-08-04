@@ -1,4 +1,4 @@
-package plantool
+package plan
 
 import (
 	"context"
@@ -7,18 +7,18 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/executionctx"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
+	plandomain "github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
 )
 
-type stubStore struct{ steps []plan.Step }
+type stubStore struct{ steps []plandomain.Step }
 
-func (s *stubStore) Replace(_ context.Context, _ string, steps []plan.Step) error {
+func (s *stubStore) Replace(_ context.Context, _ string, steps []plandomain.Step) error {
 	s.steps = steps
 	return nil
 }
 
 func TestNewNilStoreOmitsTool(t *testing.T) {
-	tool, err := New(nil)
+	tool, err := newSet(nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -28,7 +28,7 @@ func TestNewNilStoreOmitsTool(t *testing.T) {
 }
 
 func TestSetPlanDefinition(t *testing.T) {
-	tool, err := New(&stubStore{})
+	tool, err := newSet(&stubStore{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -44,7 +44,7 @@ func TestSetPlanDefinition(t *testing.T) {
 }
 
 func TestSetPlanRequiresSession(t *testing.T) {
-	tool, err := New(&stubStore{})
+	tool, err := newSet(&stubStore{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -54,7 +54,7 @@ func TestSetPlanRequiresSession(t *testing.T) {
 }
 
 func TestSetPlanRejectsBadArguments(t *testing.T) {
-	tool, err := New(&stubStore{})
+	tool, err := newSet(&stubStore{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -71,7 +71,7 @@ func TestSetPlanRejectsBadArguments(t *testing.T) {
 
 func TestSetPlanReplacesAndClearsTheSessionPlan(t *testing.T) {
 	store := &stubStore{}
-	tool, err := New(store)
+	tool, err := newSet(store)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -96,7 +96,7 @@ func TestSetPlanReplacesAndClearsTheSessionPlan(t *testing.T) {
 
 func TestSetArgsMapsSteps(t *testing.T) {
 	steps := (setArgs{Steps: []stepArg{{Description: "debug failing test", Status: "in_progress"}}}).steps()
-	want := []plan.Step{{Description: "debug failing test", Status: plan.StatusInProgress}}
+	want := []plandomain.Step{{Description: "debug failing test", Status: plandomain.StatusInProgress}}
 	if len(steps) != 1 || steps[0] != want[0] {
 		t.Fatalf("steps = %+v, want %+v", steps, want)
 	}

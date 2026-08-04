@@ -25,7 +25,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/skillproposal"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/goal"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/proposeskill"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/skill"
 	checkpointstore "github.com/Tangerg/lynx/app/runtime/internal/adapter/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspacepath"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/admission"
@@ -240,7 +240,7 @@ type toolEnvironmentBuilder func(
 	*schedules.Coordinator,
 	*goals.State,
 	*skillauthoring.Store,
-	proposeskill.Submitter,
+	skill.ProposalSubmitter,
 ) (toolEnvironment, error)
 
 // Assembly owns configuration resources before construction begins.

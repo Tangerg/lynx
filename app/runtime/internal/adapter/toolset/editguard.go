@@ -10,12 +10,11 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/codeintel"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/executionctx"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/editguardstate"
 	"github.com/Tangerg/lynx/app/runtime/internal/component/pathidentity"
 )
 
 // The read/edit/write guards: the LLM-facing presentation of the
-// [editguardstate.Tracker] invariant (read-before-edit + staleness). These
+// readTracker invariant (read-before-edit + staleness). These
 // wrappers parse the tool's arguments,
 // resolve the path against the turn's working directory, read the session id off
 // the blackboard, and turn a refused check into a model-facing message. They are
@@ -24,11 +23,11 @@ import (
 
 // withReadTracking wraps the read tool to stamp every successfully read file,
 // marking it partial when only a line range was requested.
-func withReadTracking(inner toolcontract.Tool, tr *editguardstate.Tracker, workdir string) toolcontract.Tool {
+func withReadTracking(inner toolcontract.Tool, tr *readTracker, workdir string) toolcontract.Tool {
 	if tr == nil {
 		return inner
 	}
-	return wrapTool(inner, func(ctx context.Context, arguments string) (string, error) {
+	return decorate(inner, func(ctx context.Context, arguments string) (string, error) {
 		out, err := inner.Call(ctx, arguments)
 		if err != nil {
 			return out, err
@@ -42,7 +41,7 @@ func withReadTracking(inner toolcontract.Tool, tr *editguardstate.Tracker, workd
 		if a.Path != "" {
 			abs := pathidentity.Canonical(workdir, a.Path)
 			if fingerprint, err := fingerprintFile(abs); err == nil {
-				tr.Record(executionctx.SessionID(ctx), abs, fingerprint, a.StartLine > 1 || a.MaxLines > 0)
+				tr.record(executionctx.SessionID(ctx), abs, fingerprint, a.StartLine > 1 || a.MaxLines > 0)
 			}
 		}
 		return out, nil
@@ -51,11 +50,11 @@ func withReadTracking(inner toolcontract.Tool, tr *editguardstate.Tracker, workd
 
 // withEditGuard wraps the edit tool: it requires the file to have been read and
 // unchanged since, then refreshes the stamp after a successful edit.
-func withEditGuard(inner toolcontract.Tool, tr *editguardstate.Tracker, workdir string) toolcontract.Tool {
+func withEditGuard(inner toolcontract.Tool, tr *readTracker, workdir string) toolcontract.Tool {
 	if tr == nil {
 		return inner
 	}
-	return wrapTool(inner, func(ctx context.Context, arguments string) (string, error) {
+	return decorate(inner, func(ctx context.Context, arguments string) (string, error) {
 		paths, err := mutationPaths(inner, arguments)
 		if err != nil {
 			return "", fmt.Errorf("inspect mutation paths before edit: %w", err)
@@ -69,7 +68,7 @@ func withEditGuard(inner toolcontract.Tool, tr *editguardstate.Tracker, workdir 
 			if err != nil {
 				continue
 			}
-			if verdict := tr.Check(executionctx.SessionID(ctx), abs, fingerprint, false); !verdict.Allowed() {
+			if verdict := tr.check(executionctx.SessionID(ctx), abs, fingerprint, false); !verdict.allowed() {
 				return editGuardMessage(verdict, path, "editing"), nil
 			}
 		}
@@ -80,7 +79,7 @@ func withEditGuard(inner toolcontract.Tool, tr *editguardstate.Tracker, workdir 
 		for _, path := range paths {
 			abs := pathidentity.Canonical(workdir, path)
 			if fingerprint, err := fingerprintFile(abs); err == nil {
-				tr.Refresh(executionctx.SessionID(ctx), abs, fingerprint)
+				tr.refresh(executionctx.SessionID(ctx), abs, fingerprint)
 			}
 		}
 		return out, nil
@@ -90,11 +89,11 @@ func withEditGuard(inner toolcontract.Tool, tr *editguardstate.Tracker, workdir 
 // withWriteGuard wraps the write tool: overwriting an EXISTING file requires a
 // full, current read (a new file is exempt because there is nothing to
 // clobber). The stamp is refreshed after a successful write.
-func withWriteGuard(inner toolcontract.Tool, tr *editguardstate.Tracker, workdir string) toolcontract.Tool {
+func withWriteGuard(inner toolcontract.Tool, tr *readTracker, workdir string) toolcontract.Tool {
 	if tr == nil {
 		return inner
 	}
-	return wrapTool(inner, func(ctx context.Context, arguments string) (string, error) {
+	return decorate(inner, func(ctx context.Context, arguments string) (string, error) {
 		var a struct {
 			Path string `json:"path"`
 		}
@@ -104,7 +103,7 @@ func withWriteGuard(inner toolcontract.Tool, tr *editguardstate.Tracker, workdir
 			if isExistingFile(abs) {
 				fingerprint, err := fingerprintFile(abs)
 				if err == nil {
-					if verdict := tr.Check(executionctx.SessionID(ctx), abs, fingerprint, true); !verdict.Allowed() {
+					if verdict := tr.check(executionctx.SessionID(ctx), abs, fingerprint, true); !verdict.allowed() {
 						return editGuardMessage(verdict, a.Path, "overwriting"), nil
 					}
 				}
@@ -117,32 +116,32 @@ func withWriteGuard(inner toolcontract.Tool, tr *editguardstate.Tracker, workdir
 		if a.Path != "" {
 			abs := pathidentity.Canonical(workdir, a.Path)
 			if fingerprint, err := fingerprintFile(abs); err == nil {
-				tr.Refresh(executionctx.SessionID(ctx), abs, fingerprint)
+				tr.refresh(executionctx.SessionID(ctx), abs, fingerprint)
 			}
 		}
 		return out, nil
 	})
 }
 
-func editGuardMessage(verdict editguardstate.Result, path, verb string) string {
+func editGuardMessage(verdict guardVerdict, path, verb string) string {
 	switch verdict {
-	case editguardstate.ResultReadRequired:
+	case readRequired:
 		return fmt.Sprintf("You must read %s before %s it. Use the read tool first.", path, verb)
-	case editguardstate.ResultChanged:
+	case contentChanged:
 		return fmt.Sprintf("%s changed since you last read it (edited by the user or a tool). Read it again before %s it.", path, verb)
-	case editguardstate.ResultFullReadRequired:
+	case fullReadRequired:
 		return fmt.Sprintf("You only read part of %s. Read the whole file before %s it.", path, verb)
 	default:
 		return fmt.Sprintf("Cannot %s %s until its current contents have been read.", verb, path)
 	}
 }
 
-func fingerprintFile(path string) (editguardstate.Fingerprint, error) {
+func fingerprintFile(path string) (contentFingerprint, error) {
 	content, err := os.ReadFile(path)
 	if err != nil {
-		return editguardstate.Fingerprint{}, err
+		return contentFingerprint{}, err
 	}
-	return editguardstate.FingerprintOf(content), nil
+	return fingerprintOf(content), nil
 }
 
 func isExistingFile(path string) bool {
@@ -163,7 +162,7 @@ func withEditDiagnostics(inner toolcontract.Tool, ci *codeintel.Analyzer, root s
 	if ci == nil {
 		return inner
 	}
-	return wrapTool(inner, func(ctx context.Context, arguments string) (string, error) {
+	return decorate(inner, func(ctx context.Context, arguments string) (string, error) {
 		paths, err := mutationPaths(inner, arguments)
 		if err != nil {
 			return "", fmt.Errorf("inspect mutation paths before diagnostics: %w", err)

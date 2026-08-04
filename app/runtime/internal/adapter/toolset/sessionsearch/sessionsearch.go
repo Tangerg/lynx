@@ -1,7 +1,4 @@
-// Package sessionsearch is the search_conversations tool: full-text recall over the
-// agent's past conversation transcripts. It is the "did we discuss X before"
-// layer — a different corpus from search_memory (curated project memory) and
-// source code: raw prior-session conversation, keyword-ranked.
+// Package sessionsearch exposes search_conversations over prior transcripts.
 package sessionsearch
 
 import (
@@ -38,7 +35,7 @@ type Search interface {
 	SearchTranscript(ctx context.Context, query string, limit int) ([]transcript.SearchHit, error)
 }
 
-type tool struct {
+type searcher struct {
 	search Search
 }
 
@@ -49,7 +46,7 @@ func New(search Search) (toolcontract.Tool, error) {
 	if search == nil {
 		return nil, nil
 	}
-	return toolcontract.NewFunc[request, string](definition(), (&tool{search: search}).run)
+	return toolcontract.NewFunc[request, string](definition(), (&searcher{search: search}).run)
 }
 
 func definition() toolcontract.FuncConfig {
@@ -61,7 +58,7 @@ func definition() toolcontract.FuncConfig {
 	}
 }
 
-func (t *tool) run(ctx context.Context, req request) (string, error) {
+func (t *searcher) run(ctx context.Context, req request) (string, error) {
 	req, err := req.normalize()
 	if err != nil {
 		return "", fmt.Errorf("search_conversations: %w", err)

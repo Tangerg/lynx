@@ -1,7 +1,4 @@
-// Package exitplan exposes the root Agent's exit_plan_mode tool. It reads the
-// canonical session Plan, asks the user to approve that exact value, and only
-// then restores the permission mode captured on entry.
-package exitplan
+package plan
 
 import (
 	"context"
@@ -16,7 +13,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
+	plandomain "github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
 )
 
 const (
@@ -25,7 +22,7 @@ const (
 	rejectLabel  = "Reject"
 )
 
-const description = `Request approval for the current session Plan and exit Plan mode.
+const exitDescription = `Request approval for the current session Plan and exit Plan mode.
 
 Call this only after set_plan contains the complete proposed Plan. This tool
 reads that stored Plan; it takes no Plan text or alternatives, so the approved
@@ -34,26 +31,13 @@ captured by enter_plan_mode. Rejection keeps the session in read-only Plan mode.
 
 type exitArgs struct{}
 
-// ModePolicy is the exit tool's complete session-mode view.
-type ModePolicy interface {
-	Mode(ctx context.Context, sessionID string) (approval.Mode, error)
-	ExitPlanMode(ctx context.Context, sessionID string) (restored approval.Mode, changed bool, err error)
-}
-
-// PlanReader is the exit tool's read-only view of the canonical session Plan.
-type PlanReader interface {
-	List(ctx context.Context, sessionID string) ([]plan.Step, error)
-}
-
-type tool struct {
-	modes     ModePolicy
-	plan      PlanReader
+type exiter struct {
+	modes     exitPolicy
+	plan      reader
 	interrupt runs.InterruptFunc
 }
 
-// New builds exit_plan_mode. A missing mode policy or Plan reader disables the
-// capability; the interrupt defaults to the runtime's unavailable responder.
-func New(modes ModePolicy, plan PlanReader, interrupt runs.InterruptFunc) (toolcontract.Tool, error) {
+func newExit(modes exitPolicy, plan reader, interrupt runs.InterruptFunc) (toolcontract.Tool, error) {
 	if modes == nil || plan == nil {
 		return nil, nil
 	}
@@ -61,12 +45,12 @@ func New(modes ModePolicy, plan PlanReader, interrupt runs.InterruptFunc) (toolc
 		interrupt = runs.InterruptUnavailable
 	}
 	return toolcontract.NewFunc[exitArgs, string](
-		toolcontract.FuncConfig{Name: toolName, Description: description},
-		(&tool{modes: modes, plan: plan, interrupt: interrupt}).exit,
+		toolcontract.FuncConfig{Name: toolName, Description: exitDescription},
+		(&exiter{modes: modes, plan: plan, interrupt: interrupt}).exit,
 	)
 }
 
-func (t *tool) exit(ctx context.Context, _ exitArgs) (string, error) {
+func (t *exiter) exit(ctx context.Context, _ exitArgs) (string, error) {
 	sessionID := executionctx.SessionID(ctx)
 	if sessionID == "" {
 		return "", errors.New("exit_plan_mode: no active session")
@@ -85,7 +69,7 @@ func (t *tool) exit(ctx context.Context, _ exitArgs) (string, error) {
 	if len(steps) == 0 {
 		return "", errors.New("exit_plan_mode: current Plan is empty; call set_plan before requesting approval")
 	}
-	if err := plan.Validate(steps); err != nil {
+	if err := plandomain.Validate(steps); err != nil {
 		return "", fmt.Errorf("exit_plan_mode: stored Plan is invalid: %w", err)
 	}
 

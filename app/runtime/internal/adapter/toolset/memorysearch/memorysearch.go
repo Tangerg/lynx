@@ -1,9 +1,4 @@
-// Package memorysearch provides the search_memory tool — keyword + semantic
-// search over the agent's own curated memory for the current project. One tool,
-// one package. It is working-directory scoped (it searches the turn's project,
-// read from application context) but cwd-independent to build, so a single instance
-// serves every session. It is offered whenever agent memory is enabled; keyword
-// search works even when no embedding model is configured.
+// Package memorysearch exposes search_memory over curated project memory.
 package memorysearch
 
 import (
@@ -42,7 +37,7 @@ type Search interface {
 	Search(ctx context.Context, scope agentmemory.Scope, project, query string, topK int) ([]agentmemory.Item, error)
 }
 
-type tool struct {
+type searcher struct {
 	search Search
 }
 
@@ -53,7 +48,7 @@ func New(search Search) (toolcontract.Tool, error) {
 	if search == nil {
 		return nil, nil
 	}
-	return toolcontract.NewFunc[request, string](definition(), (&tool{search: search}).run)
+	return toolcontract.NewFunc[request, string](definition(), (&searcher{search: search}).run)
 }
 
 func definition() toolcontract.FuncConfig {
@@ -66,7 +61,7 @@ func definition() toolcontract.FuncConfig {
 	}
 }
 
-func (t *tool) run(ctx context.Context, req request) (string, error) {
+func (t *searcher) run(ctx context.Context, req request) (string, error) {
 	req, err := req.normalize()
 	if err != nil {
 		return "", fmt.Errorf("search_memory: %w", err)

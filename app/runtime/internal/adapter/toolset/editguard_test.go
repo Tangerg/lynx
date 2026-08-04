@@ -11,7 +11,6 @@ import (
 
 	toolcontract "github.com/Tangerg/lynx/tool"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/editguardstate"
 	"github.com/Tangerg/lynx/tools/fs"
 )
 
@@ -19,8 +18,8 @@ import (
 // guards over dir. The tests pass no code-intelligence analyzer, so the
 // diagnostics wrap is a no-op. They drive the tools with a plain context, so
 // turnSession resolves to "" and every call shares one session bucket.
-func guardTools(dir string) (read, edit, write toolcontract.Tool, tr *editguardstate.Tracker) {
-	tr = editguardstate.NewTracker()
+func guardTools(dir string) (read, edit, write toolcontract.Tool, tr *readTracker) {
+	tr = newReadTracker()
 	ex := fs.NewLocalExecutor(dir)
 	read = withReadTracking(fs.NewReadTool(ex), tr, dir)
 	edit = withEditGuard(withEditDiagnostics(fs.NewEditTool(ex), nil, dir), tr, dir)
@@ -29,7 +28,7 @@ func guardTools(dir string) (read, edit, write toolcontract.Tool, tr *editguards
 }
 
 func guardToolsWithFormat(dir string) (read, edit toolcontract.Tool) {
-	tr := editguardstate.NewTracker()
+	tr := newReadTracker()
 	ex := fs.NewLocalExecutor(dir)
 	read = withReadTracking(fs.NewReadTool(ex), tr, dir)
 	edit = withEditGuard(withEditDiagnostics(withAutoFormat(fs.NewEditTool(ex), dir), nil, dir), tr, dir)
@@ -197,13 +196,13 @@ func TestEditGuard_ReadStampIsAtomicWithSamePathEdit(t *testing.T) {
 	if err := os.WriteFile(path, []byte("before"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	tracker := editguardstate.NewTracker()
+	tracker := newReadTracker()
 	locker := newPathLocker()
 	executor := fs.NewLocalExecutor(dir)
 	readStarted := make(chan struct{})
 	releaseRead := make(chan struct{})
 	baseRead := fs.NewReadTool(executor)
-	blockingRead := wrapTool(baseRead, func(ctx context.Context, arguments string) (string, error) {
+	blockingRead := decorate(baseRead, func(ctx context.Context, arguments string) (string, error) {
 		out, err := baseRead.Call(ctx, arguments)
 		close(readStarted)
 		<-releaseRead
@@ -259,7 +258,7 @@ func TestPathLockWaitHonorsContextCancellation(t *testing.T) {
 	readStarted := make(chan struct{})
 	releaseRead := make(chan struct{})
 	baseRead := fs.NewReadTool(executor)
-	blockingRead := wrapTool(baseRead, func(ctx context.Context, arguments string) (string, error) {
+	blockingRead := decorate(baseRead, func(ctx context.Context, arguments string) (string, error) {
 		out, err := baseRead.Call(ctx, arguments)
 		close(readStarted)
 		<-releaseRead

@@ -9,15 +9,12 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/codeintel"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/askuser"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/editguardstate"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/enterplan"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/exitplan"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/goal"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/lsp"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/memorysearch"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/offload"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/plantool"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/proposeskill"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/plan"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/schedule"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/sessionsearch"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/shell"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/skill"
@@ -36,20 +33,6 @@ import (
 // composition root. Tool capability construction therefore stays outside Agent
 // execution (doc/EXECUTION_CENTERED_ARCHITECTURE.md).
 
-// PlanStore is the two real Plan-tool views joined at assembly: set_plan writes
-// the whole value and exit_plan_mode reads the value it presents for approval.
-type PlanStore interface {
-	plantool.Store
-	exitplan.PlanReader
-}
-
-// PlanModePolicy is the narrow session-mode surface used by the enter/exit
-// tools and by resolver visibility. Approval rules are deliberately absent.
-type PlanModePolicy interface {
-	enterplan.ModePolicy
-	exitplan.ModePolicy
-}
-
 // BuildConfig is the tool-environment construction input (the working-directory
 // scope + the capability tables). Driven by the runtime config.
 type BuildConfig struct {
@@ -60,16 +43,16 @@ type BuildConfig struct {
 	LSPServers    []codeintel.ServerSpec
 	// MCPTools is the initial live MCP catalog. Its owner updates the resolver
 	// after reconnects; toolset deliberately does not own MCP connections.
-	MCPTools               []toolcontract.Tool
-	A2AAgents              []A2AAgentConfig
-	Plan                   PlanStore      // backs set_plan + exit_plan_mode; nil → both are omitted
-	PlanMode               PlanModePolicy // session-scoped Plan mode; nil → enter/exit are omitted
-	Interrupt              runs.InterruptFunc
-	Schedules              ScheduleManagement     // backs schedule management tools; nil → omitted
-	ToolResults            offload.Store          // backs read_tool_result (reads offloaded tool output); nil → omitted
-	SkillUsage             skill.UsageRecorder    // records skill loads for the idle-lifecycle curator; nil → use recording off
-	SkillProposalSubmitter proposeskill.Submitter // backs root-only propose_skill; nil → omitted
-	Goals                  goal.State             // backs get_goal + report_goal_outcome and its active gate; nil → omitted
+	MCPTools       []toolcontract.Tool
+	A2AAgents      []A2AAgentConfig
+	Plan           plan.Store      // backs set_plan + exit_plan_mode; nil → both are omitted
+	PlanMode       plan.ModePolicy // session-scoped Plan mode; nil → enter/exit are omitted
+	Interrupt      runs.InterruptFunc
+	Schedules      schedule.Management     // backs schedule management tools; nil → omitted
+	ToolResults    offload.Store           // backs read_tool_result (reads offloaded tool output); nil → omitted
+	SkillUsage     skill.UsageRecorder     // records skill loads for the idle-lifecycle curator; nil → use recording off
+	SkillProposals skill.ProposalSubmitter // backs root-only propose_skill; nil → omitted
+	Goals          goal.State              // backs get_goal + report_goal_outcome and its active gate; nil → omitted
 
 	// MemorySearch backs search_memory (keyword + semantic search over the
 	// agent's curated project memory). nil omits the tool.
@@ -125,7 +108,7 @@ func Build(ctx context.Context, config BuildConfig) (_ Built, err error) {
 		return Built{}, fmt.Errorf("toolset: build lsp tools: %w", err)
 	}
 
-	tracker := editguardstate.NewTracker()
+	tracker := newReadTracker()
 
 	// OS command isolation for the shell tools. Build the confiner whenever the
 	// host supports it — isolated sessions jail their shell even when the global
@@ -160,25 +143,13 @@ func Build(ctx context.Context, config BuildConfig) (_ Built, err error) {
 		return Built{}, fmt.Errorf("toolset: build ask_user: %w", err)
 	}
 
-	// Plan-mode tools mutate only one session. exit_plan_mode reads the canonical
-	// Plan instead of accepting a second model-supplied Plan value.
-	enterPlanTool, err := enterplan.New(config.PlanMode)
+	// Plan mode and Plan state form one lifecycle. The family keeps
+	// exit_plan_mode bound to the exact store maintained by set_plan.
+	planFamily, err := plan.Build(config.PlanMode, config.Plan, interrupt)
 	if err != nil {
-		return Built{}, fmt.Errorf("toolset: build enter_plan_mode: %w", err)
+		return Built{}, fmt.Errorf("toolset: build Plan family: %w", err)
 	}
-	exitPlanTool, err := exitplan.New(config.PlanMode, config.Plan, interrupt)
-	if err != nil {
-		return Built{}, fmt.Errorf("toolset: build exit_plan_mode: %w", err)
-	}
-
-	// set_plan maintains the root Agent's per-session execution plan. nil
-	// config.Plan yields a nil tool that's simply omitted (feature off). It is
-	// built once here; the resolver exposes it only to the root role.
-	planTool, err := plantool.New(config.Plan)
-	if err != nil {
-		return Built{}, fmt.Errorf("toolset: build set_plan: %w", err)
-	}
-	scheduleTools, err := buildSchedules(config.Schedules)
+	scheduleTools, err := schedule.Build(config.Schedules)
 	if err != nil {
 		return Built{}, fmt.Errorf("toolset: build schedule tools: %w", err)
 	}
@@ -215,7 +186,7 @@ func Build(ctx context.Context, config BuildConfig) (_ Built, err error) {
 		return Built{}, fmt.Errorf("toolset: build report_goal_outcome: %w", err)
 	}
 	goalActive := goalActiveReader(config.Goals)
-	proposeSkillTool, err := proposeskill.New(config.SkillProposalSubmitter, config.Workdir)
+	proposeSkillTool, err := skill.NewProposal(config.SkillProposals, config.Workdir)
 	if err != nil {
 		return Built{}, fmt.Errorf("toolset: build propose_skill: %w", err)
 	}
@@ -226,7 +197,7 @@ func Build(ctx context.Context, config BuildConfig) (_ Built, err error) {
 		return Built{}, err
 	}
 
-	resolver, err := NewResolver(Deps{
+	resolver, err := newResolver(resolverDeps{
 		SkillUsage:      config.SkillUsage,
 		DefaultWorkdir:  config.Workdir,
 		DefaultModel:    config.DefaultModel,
@@ -236,9 +207,9 @@ func Build(ctx context.Context, config BuildConfig) (_ Built, err error) {
 		LSP:             lspTools,
 		Shell:           shellTools,
 		AskUser:         askUserTool,
-		EnterPlan:       enterPlanTool,
-		ExitPlan:        exitPlanTool,
-		Plan:            planTool,
+		EnterPlan:       planFamily.Enter,
+		ExitPlan:        planFamily.Exit,
+		Plan:            planFamily.Set,
 		ScheduleTools:   scheduleTools,
 		ToolResult:      toolResultTool,
 		MemorySearch:    memorySearchTool,

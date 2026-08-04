@@ -177,8 +177,8 @@ func TestGoalToolsAreRootOnlyAndOutcomeRequiresActiveGoal(t *testing.T) {
 
 func TestProposeSkillIsRootOnlyAndDeferred(t *testing.T) {
 	built, err := Build(t.Context(), BuildConfig{
-		Workdir:                t.TempDir(),
-		SkillProposalSubmitter: allWiredSkillProposals{},
+		Workdir:        t.TempDir(),
+		SkillProposals: allWiredSkillProposals{},
 	})
 	if err != nil {
 		t.Fatalf("Build: %v", err)

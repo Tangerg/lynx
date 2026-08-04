@@ -1,4 +1,4 @@
-package proposeskill
+package skill
 
 import (
 	"context"
@@ -23,7 +23,7 @@ func (s *recordingSubmitter) SubmitSkillProposal(_ context.Context, cwd string, 
 }
 
 func TestNewNilSubmitterOmitsTool(t *testing.T) {
-	candidate, err := New(nil, "/fallback")
+	candidate, err := NewProposal(nil, "/fallback")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -33,7 +33,7 @@ func TestNewNilSubmitterOmitsTool(t *testing.T) {
 }
 
 func TestDefinitionUsesOnePreciseProposalVocabulary(t *testing.T) {
-	candidate, err := New(&recordingSubmitter{}, "/fallback")
+	candidate, err := NewProposal(&recordingSubmitter{}, "/fallback")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -56,7 +56,7 @@ func TestDefinitionUsesOnePreciseProposalVocabulary(t *testing.T) {
 
 func TestCallStampsHostScopeAndReturnsPendingReference(t *testing.T) {
 	submitter := &recordingSubmitter{}
-	candidate, err := New(submitter, "/fallback")
+	candidate, err := NewProposal(submitter, "/fallback")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -78,7 +78,7 @@ func TestCallStampsHostScopeAndReturnsPendingReference(t *testing.T) {
 	if submitter.proposal.Scope != skills.ScopeProject || submitter.proposal.Origin != skills.ProposalOriginRequested || submitter.proposal.SourceSession != "ses_1" {
 		t.Fatalf("proposal provenance = %+v", submitter.proposal)
 	}
-	var got result
+	var got proposalResult
 	if err := json.Unmarshal([]byte(out), &got); err != nil {
 		t.Fatalf("decode result %q: %v", out, err)
 	}
@@ -88,7 +88,7 @@ func TestCallStampsHostScopeAndReturnsPendingReference(t *testing.T) {
 }
 
 func TestCallRequiresSessionAndValidScope(t *testing.T) {
-	candidate, err := New(&recordingSubmitter{}, "/fallback")
+	candidate, err := NewProposal(&recordingSubmitter{}, "/fallback")
 	if err != nil {
 		t.Fatal(err)
 	}

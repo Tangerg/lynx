@@ -1,4 +1,4 @@
-package editguardstate
+package toolset
 
 import "testing"
 
@@ -7,42 +7,42 @@ import "testing"
 // read fails a full-overwrite check, and Refresh permits consecutive edits.
 func TestTracker(t *testing.T) {
 	path := "/workspace/foo.go"
-	one := FingerprintOf([]byte("one"))
-	two := FingerprintOf([]byte("two"))
-	tr := NewTracker()
+	one := fingerprintOf([]byte("one"))
+	two := fingerprintOf([]byte("two"))
+	tr := newReadTracker()
 	const sess = "s1"
 
 	// Never read → a structured read-required verdict.
-	if got := tr.Check(sess, path, one, false); got != ResultReadRequired || got.Allowed() {
+	if got := tr.check(sess, path, one, false); got != readRequired || got.allowed() {
 		t.Fatalf("unread Check = %v, want missing", got)
 	}
 
 	// Read (full) → passes; a session boundary is respected.
-	tr.Record(sess, path, one, false)
-	if got := tr.Check(sess, path, one, false); got != ResultAllowed || !got.Allowed() {
+	tr.record(sess, path, one, false)
+	if got := tr.check(sess, path, one, false); got != editAllowed || !got.allowed() {
 		t.Fatalf("read Check = %v, want ok", got)
 	}
-	if got := tr.Check("other", path, one, false); got != ResultReadRequired {
+	if got := tr.check("other", path, one, false); got != readRequired {
 		t.Fatalf("cross-session Check = %v, want missing (per-session isolation)", got)
 	}
 
 	// Changed content → stale.
-	if got := tr.Check(sess, path, two, false); got != ResultChanged {
+	if got := tr.check(sess, path, two, false); got != contentChanged {
 		t.Fatalf("changed Check = %v, want stale", got)
 	}
 
 	// Refresh re-stamps the current content → passes again.
-	tr.Refresh(sess, path, two)
-	if got := tr.Check(sess, path, two, false); got != ResultAllowed {
+	tr.refresh(sess, path, two)
+	if got := tr.check(sess, path, two, false); got != editAllowed {
 		t.Fatalf("post-refresh Check = %v, want ok", got)
 	}
 
 	// A partial read fails only the full-overwrite check (requireFull).
-	tr.Record(sess, path, two, true)
-	if got := tr.Check(sess, path, two, true); got != ResultFullReadRequired {
+	tr.record(sess, path, two, true)
+	if got := tr.check(sess, path, two, true); got != fullReadRequired {
 		t.Fatalf("partial full-overwrite Check = %v, want partial", got)
 	}
-	if got := tr.Check(sess, path, two, false); got != ResultAllowed {
+	if got := tr.check(sess, path, two, false); got != editAllowed {
 		t.Fatalf("partial edit Check = %v, want ok (partial read allows an edit)", got)
 	}
 }

@@ -1,12 +1,4 @@
-// Package askuser provides the ask_user tool — the model's channel to ask the
-// human a question mid-turn. It uses the same runtime interrupt model as tool
-// approval and plan review (one shared flow): the call parks via the runtime
-// interrupt abstraction, the question surfaces to the client, and on resume the
-// human's answer returns as the tool result so the model continues.
-//
-// One tool, one package — it depends only on the runtime interrupt abstraction
-// and the shared [interrupts.Resolution] vocabulary, so it is a plain
-// build-time tool (assembled in toolset.Build, not injected by the engine).
+// Package askuser exposes ask_user over the runtime's resumable question flow.
 package askuser
 
 import (
@@ -75,7 +67,7 @@ func (a askUserArgs) arguments() (string, error) {
 	return string(b), nil
 }
 
-type tool struct {
+type asker struct {
 	interrupt runs.InterruptFunc
 }
 
@@ -84,7 +76,7 @@ func New(interrupt runs.InterruptFunc) (toolcontract.Tool, error) {
 	if interrupt == nil {
 		interrupt = runs.InterruptUnavailable
 	}
-	t := &tool{interrupt: interrupt}
+	t := &asker{interrupt: interrupt}
 	return toolcontract.NewFunc[askUserArgs, string](
 		toolcontract.FuncConfig{
 			Name:        toolName,
@@ -94,7 +86,7 @@ func New(interrupt runs.InterruptFunc) (toolcontract.Tool, error) {
 	)
 }
 
-func (t *tool) ask(ctx context.Context, a askUserArgs) (string, error) {
+func (t *asker) ask(ctx context.Context, a askUserArgs) (string, error) {
 	if err := a.validate(); err != nil {
 		return "", fmt.Errorf("ask_user: %w", err)
 	}

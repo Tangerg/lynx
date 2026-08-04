@@ -35,7 +35,7 @@ var protectedDirs = []string{".git"}
 // the real project tree. Non-isolated turns keep the existing behavior (absolute
 // paths anywhere are allowed — that is the point of the fs tools).
 func withPathGuard(inner toolcontract.Tool, workdir string) toolcontract.Tool {
-	return wrapTool(inner, func(ctx context.Context, arguments string) (string, error) {
+	return decorate(inner, func(ctx context.Context, arguments string) (string, error) {
 		isolated := executionctx.Isolated(ctx)
 		paths, err := mutationPaths(inner, arguments)
 		if err != nil {

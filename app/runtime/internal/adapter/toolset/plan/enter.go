@@ -1,6 +1,4 @@
-// Package enterplan exposes the root Agent's enter_plan_mode tool. Entering
-// only narrows one session's permissions; it neither creates nor edits a Plan.
-package enterplan
+package plan
 
 import (
 	"context"
@@ -11,7 +9,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/executionctx"
 )
 
-const description = `Enter read-only Plan mode for the current session.
+const enterDescription = `Enter read-only Plan mode for the current session.
 
 Use this when the user asks you to investigate, design, or propose a Plan before
 making changes. It blocks write, command, and network tools only for this
@@ -21,25 +19,19 @@ requires no approval because it only reduces permissions.`
 
 type enterArgs struct{}
 
-// ModePolicy is the enter tool's complete session-mode mutation.
-type ModePolicy interface {
-	EnterPlanMode(ctx context.Context, sessionID string) (changed bool, err error)
-}
+type enterer struct{ modes enterPolicy }
 
-type tool struct{ modes ModePolicy }
-
-// New builds enter_plan_mode. A nil policy disables the capability.
-func New(modes ModePolicy) (toolcontract.Tool, error) {
+func newEnter(modes enterPolicy) (toolcontract.Tool, error) {
 	if modes == nil {
 		return nil, nil
 	}
 	return toolcontract.NewFunc[enterArgs, string](
-		toolcontract.FuncConfig{Name: "enter_plan_mode", Description: description},
-		(&tool{modes: modes}).enter,
+		toolcontract.FuncConfig{Name: "enter_plan_mode", Description: enterDescription},
+		(&enterer{modes: modes}).enter,
 	)
 }
 
-func (t *tool) enter(ctx context.Context, _ enterArgs) (string, error) {
+func (t *enterer) enter(ctx context.Context, _ enterArgs) (string, error) {
 	sessionID := executionctx.SessionID(ctx)
 	if sessionID == "" {
 		return "", errors.New("enter_plan_mode: no active session")
