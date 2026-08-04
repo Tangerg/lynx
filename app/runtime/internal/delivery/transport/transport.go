@@ -27,7 +27,7 @@ type Request = jsonrpc.Request
 type Response = jsonrpc.Response
 
 // ID is an opaque JSON-RPC id (nil, int64, or string per spec).
-// Lyra's API.md §1 narrows this to string only — the dispatcher
+// Lyra's API.md §1 narrows this to string only — the router
 // rejects non-string ids at the boundary.
 type ID = jsonrpc.ID
 

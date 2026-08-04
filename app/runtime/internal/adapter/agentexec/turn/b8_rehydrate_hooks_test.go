@@ -22,18 +22,18 @@ func TestRehydrateRestoresCwdAndToolHooks(t *testing.T) {
 		restoreGateTool:      "shell",
 		restoreGateArguments: `{"command":"echo original","description":"Print original"}`,
 	}
-	dispatcher := mustTurn(turn.New(turnDeps(engine, func(deps *turn.Dependencies) {
+	controller := mustTurn(turn.New(turnDeps(engine, func(deps *turn.Dependencies) {
 		deps.Hooks = staticHookResolver{bound: bound}
 	})))
-	t.Cleanup(func() { shutdownDispatcher(t, dispatcher) })
+	t.Cleanup(func() { shutdownController(t, controller) })
 
-	handle, err := dispatcher.Rehydrate(t.Context(), runs.RehydrateTurn{
+	handle, err := controller.Rehydrate(t.Context(), runs.RehydrateTurn{
 		SessionID: "sess", TurnID: "turn", ProcessID: "process", RootRunID: "run-root", Cwd: cwd,
 	})
 	if err != nil {
 		t.Fatalf("Rehydrate: %v", err)
 	}
-	t.Cleanup(func() { _ = dispatcher.Cancel(t.Context(), handle) })
+	t.Cleanup(func() { _ = controller.Cancel(t.Context(), handle) })
 
 	engine.mu.Lock()
 	verdict := engine.restoreGateVerdict
@@ -52,12 +52,12 @@ func TestRehydrateRestoresCwdAndToolHooks(t *testing.T) {
 func TestRehydratePreservesHookResolutionFailure(t *testing.T) {
 	wantErr := errors.New("hook trust unavailable")
 	engine := &stubEngine{}
-	dispatcher := mustTurn(turn.New(turnDeps(engine, func(deps *turn.Dependencies) {
+	controller := mustTurn(turn.New(turnDeps(engine, func(deps *turn.Dependencies) {
 		deps.Hooks = staticHookResolver{err: wantErr}
 	})))
-	t.Cleanup(func() { shutdownDispatcher(t, dispatcher) })
+	t.Cleanup(func() { shutdownController(t, controller) })
 
-	if _, err := dispatcher.Rehydrate(t.Context(), runs.RehydrateTurn{
+	if _, err := controller.Rehydrate(t.Context(), runs.RehydrateTurn{
 		SessionID: "sess",
 		TurnID:    "turn",
 		ProcessID: "process",

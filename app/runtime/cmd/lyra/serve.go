@@ -67,7 +67,7 @@ func run(ctx context.Context, errw io.Writer) (err error) {
 }
 
 // buildHTTPServer assembles the HTTP+SSE server from the resolved settings.
-func buildHTTPServer(stack bootstrap.Stack, srv config.ServerConfig, tokenValue string) (*lyrahttp.Server, *server.Server, error) {
+func buildHTTPServer(stack bootstrap.Stack, srv config.Server, tokenValue string) (*lyrahttp.Server, *server.Server, error) {
 	info := lyrahttp.ServerInfoOrDefault()
 	info.Version = resolvedVersion()
 	if home, err := os.UserHomeDir(); err == nil {

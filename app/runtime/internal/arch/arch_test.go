@@ -217,6 +217,41 @@ func TestTransparentAliasesStayAtTheTransportBoundary(t *testing.T) {
 	}
 }
 
+// TestRemovedStutteringVocabularyDoesNotReturn records the package-qualified
+// names retired by the runtime vocabulary cleanup. Each replacement names the
+// role once (turn.Handle, dispatch.Router, sessions.Activity, config.Settings)
+// or corrects the concept (the turn Controller is not the JSON-RPC Router).
+// Exact names keep this guard semantic instead of applying a brittle generic
+// prefix rule to wire types such as protocol.ProtocolRange.
+func TestRemovedStutteringVocabularyDoesNotReturn(t *testing.T) {
+	root := moduleRoot(t)
+	reason := "use the package's canonical, non-stuttering vocabulary"
+	for path, names := range map[string][]string{
+		filepath.Join(root, "internal", "adapter", "agentexec", "turn"): {
+			"TurnHandle", "memoryDispatcher", "ErrDispatcherClosed",
+		},
+		filepath.Join(root, "internal", "adapter", "mcpconnection"): {"Connections"},
+		filepath.Join(root, "internal", "application", "models"):    {"ModelDetails"},
+		filepath.Join(root, "internal", "application", "sessions"): {
+			"SessionStore", "SessionForgetter", "SessionAdmissions", "SessionAdmission",
+			"SessionState", "SessionView",
+		},
+		filepath.Join(root, "internal", "application", "workspace"): {
+			"ResolvedWorkspace", "WorkspaceSummary", "WorkspaceCatalog",
+		},
+		filepath.Join(root, "internal", "config"): {
+			"Config", "ServerConfig", "OnlineConfig", "MCPServerConfig", "LSPServerConfig", "A2AAgentConfig",
+		},
+		filepath.Join(root, "internal", "delivery", "dispatch"): {"Dispatcher"},
+	} {
+		banned := make(map[string]string, len(names))
+		for _, name := range names {
+			banned[name] = reason
+		}
+		forbidTopLevelNames(t, path, banned)
+	}
+}
+
 // TestDomainHooksStayPure keeps the hooks bounded context free of filesystem +
 // process I/O: hooks is a pure policy domain (precedence / merge / trust rules),
 // and its I/O belongs to the composition-side subprocess adapter.

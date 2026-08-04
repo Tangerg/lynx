@@ -13,7 +13,7 @@ import (
 // UserPromptSubmit hook before a turn starts. It returns the (possibly
 // context-prefixed) message, or an error wrapping [ErrPromptBlocked] when a hook
 // blocked the prompt.
-func (s *memoryDispatcher) runPromptHooks(ctx context.Context, request runs.StartTurn, st *turnState) (string, error) {
+func (s *controller) runPromptHooks(ctx context.Context, request runs.StartTurn, st *turnState) (string, error) {
 	var blocked bool
 	var reason, inject string
 	add := func(d hooks.Decision) {
@@ -47,7 +47,7 @@ func (s *memoryDispatcher) runPromptHooks(ctx context.Context, request runs.Star
 
 // firstTurnForSession reports whether this is the first turn the process has
 // opened for sessionID (and records it); the SessionStart fire-once gate.
-func (s *memoryDispatcher) firstTurnForSession(sessionID string) bool {
+func (s *controller) firstTurnForSession(sessionID string) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if _, ok := s.seenSessions[sessionID]; ok {
@@ -60,7 +60,7 @@ func (s *memoryDispatcher) firstTurnForSession(sessionID string) bool {
 // ForgetSession drops sessionID's SessionStart fire-once marker on session
 // delete, so the gate set doesn't leak one entry per session over the process
 // lifetime. See ForgetSession.
-func (s *memoryDispatcher) ForgetSession(sessionID string) {
+func (s *controller) ForgetSession(sessionID string) {
 	s.mu.Lock()
 	delete(s.seenSessions, sessionID)
 	s.mu.Unlock()

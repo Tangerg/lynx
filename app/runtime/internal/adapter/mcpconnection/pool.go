@@ -17,24 +17,24 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/mcp"
 )
 
-// Connections owns the live MCP pool and implements the application ports that
+// Pool owns the live MCP connections and implements the application ports that
 // operate on it. The domain is intentionally passed through as Server values;
 // conversion into process, environment, and transport details happens here.
-type Connections struct {
+type Pool struct {
 	inner *mcp.Connections
 }
 
 var (
-	_ integrations.MCPStatusReader       = (*Connections)(nil)
-	_ integrations.MCPToolCatalog        = (*Connections)(nil)
-	_ integrations.MCPConnectionCommands = (*Connections)(nil)
-	_ integrations.MCPRegistryCommands   = (*Connections)(nil)
+	_ integrations.MCPStatusReader       = (*Pool)(nil)
+	_ integrations.MCPToolCatalog        = (*Pool)(nil)
+	_ integrations.MCPConnectionCommands = (*Pool)(nil)
+	_ integrations.MCPRegistryCommands   = (*Pool)(nil)
 )
 
 // Open establishes the enabled MCP connections present at runtime startup.
 // Unreachable but valid servers remain in the pool as failed, matching the
 // infrastructure pool's normal boot semantics.
-func Open(ctx context.Context, servers []mcpserver.Server, oauthSessions mcp.OAuthSessionStore) (*Connections, []toolcontract.Tool, error) {
+func Open(ctx context.Context, servers []mcpserver.Server, oauthSessions mcp.OAuthSessionStore) (*Pool, []toolcontract.Tool, error) {
 	configs, err := configsFromServers(servers)
 	if err != nil {
 		return nil, nil, err
@@ -43,17 +43,17 @@ func Open(ctx context.Context, servers []mcpserver.Server, oauthSessions mcp.OAu
 	if err != nil {
 		return nil, nil, err
 	}
-	return &Connections{inner: inner}, toolset, nil
+	return &Pool{inner: inner}, toolset, nil
 }
 
-func (c *Connections) Statuses() []mcpserver.ConnectionStatus {
+func (c *Pool) Statuses() []mcpserver.ConnectionStatus {
 	if c == nil || c.inner == nil {
 		return nil
 	}
 	return c.inner.Statuses()
 }
 
-func (c *Connections) Tools(ctx context.Context, server string) ([]mcpserver.ToolInfo, error) {
+func (c *Pool) Tools(ctx context.Context, server string) ([]mcpserver.ToolInfo, error) {
 	if c == nil || c.inner == nil {
 		return nil, nil
 	}
@@ -61,21 +61,21 @@ func (c *Connections) Tools(ctx context.Context, server string) ([]mcpserver.Too
 	return items, mapError(err)
 }
 
-func (c *Connections) Reconnect(ctx context.Context, name string) error {
+func (c *Pool) Reconnect(ctx context.Context, name string) error {
 	if c == nil || c.inner == nil {
 		return mcpserver.ErrUnknownServer
 	}
 	return mapError(c.inner.Reconnect(ctx, name))
 }
 
-func (c *Connections) Authorize(ctx context.Context, name string) error {
+func (c *Pool) Authorize(ctx context.Context, name string) error {
 	if c == nil || c.inner == nil {
 		return mcpserver.ErrUnknownServer
 	}
 	return mapError(c.inner.Authorize(ctx, name))
 }
 
-func (c *Connections) Probe(ctx context.Context, server mcpserver.Server) error {
+func (c *Pool) Probe(ctx context.Context, server mcpserver.Server) error {
 	if c == nil || c.inner == nil {
 		return mcpserver.ErrUnknownServer
 	}
@@ -86,7 +86,7 @@ func (c *Connections) Probe(ctx context.Context, server mcpserver.Server) error 
 	return mapError(c.inner.Probe(ctx, cfg))
 }
 
-func (c *Connections) Configure(ctx context.Context, server mcpserver.Server) error {
+func (c *Pool) Configure(ctx context.Context, server mcpserver.Server) error {
 	if c == nil || c.inner == nil {
 		return mcpserver.ErrUnknownServer
 	}
@@ -97,7 +97,7 @@ func (c *Connections) Configure(ctx context.Context, server mcpserver.Server) er
 	return mapError(c.inner.Configure(ctx, cfg))
 }
 
-func (c *Connections) Detach(name string) error {
+func (c *Pool) Detach(name string) error {
 	if c == nil || c.inner == nil {
 		return mcp.ErrConnectionsUnavailable
 	}
@@ -106,7 +106,7 @@ func (c *Connections) Detach(name string) error {
 
 // SetToolSink wires live connection changes to the resolver's atomically
 // replaceable MCP tool catalog.
-func (c *Connections) SetToolSink(sink func([]toolcontract.Tool)) {
+func (c *Pool) SetToolSink(sink func([]toolcontract.Tool)) {
 	if c == nil || c.inner == nil {
 		return
 	}
@@ -114,7 +114,7 @@ func (c *Connections) SetToolSink(sink func([]toolcontract.Tool)) {
 }
 
 // Shutdown releases every live connection under the caller's shutdown budget.
-func (c *Connections) Shutdown(ctx context.Context) error {
+func (c *Pool) Shutdown(ctx context.Context) error {
 	if c == nil || c.inner == nil {
 		return nil
 	}

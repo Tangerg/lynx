@@ -10,7 +10,7 @@ import (
 )
 
 type closeOnRestoreEngine struct {
-	dispatcher *memoryDispatcher
+	controller *controller
 	process    agentexec.TurnProcess
 }
 
@@ -23,7 +23,7 @@ func (*closeOnRestoreEngine) SubagentProjection(string) (agentexec.SubagentProje
 }
 
 func (e *closeOnRestoreEngine) RestoreTurn(context.Context, string, agentexec.RestoreTurnRequest) (agentexec.TurnProcess, error) {
-	e.dispatcher.BeginShutdown()
+	e.controller.BeginShutdown()
 	return e.process, nil
 }
 
@@ -55,34 +55,34 @@ func TestRehydrateCloseRaceReportsCleanupFailureAfterRelease(t *testing.T) {
 	engine := &closeOnRestoreEngine{
 		process: process,
 	}
-	dispatcher := &memoryDispatcher{
+	controller := &controller{
 		engine:       engine,
 		turns:        map[string]*turnState{},
 		seenSessions: map[string]struct{}{},
 	}
-	engine.dispatcher = dispatcher
+	engine.controller = controller
 
-	_, err := dispatcher.Rehydrate(t.Context(), runs.RehydrateTurn{
+	_, err := controller.Rehydrate(t.Context(), runs.RehydrateTurn{
 		SessionID: "ses_1",
 		TurnID:    "turn_1",
 		ProcessID: "proc_1",
 		RootRunID: "run_1",
 	})
-	if !errors.Is(err, ErrDispatcherClosed) {
-		t.Fatalf("Rehydrate error = %v, want dispatcher-close", err)
+	if !errors.Is(err, ErrClosed) {
+		t.Fatalf("Rehydrate error = %v, want controller-close", err)
 	}
-	if err := dispatcher.AwaitShutdown(t.Context()); !errors.Is(err, discardErr) {
+	if err := controller.AwaitShutdown(t.Context()); !errors.Is(err, discardErr) {
 		t.Fatalf("join failed shutdown cleanup = %v, want discard failure", err)
 	}
-	if _, err := dispatcher.findTurn("turn_1"); err != nil {
+	if _, err := controller.findTurn("turn_1"); err != nil {
 		t.Fatalf("failed restored-process cleanup lost turn: %v", err)
 	}
 
 	process.discardErr = nil
-	if err := dispatcher.AwaitShutdown(t.Context()); err != nil {
+	if err := controller.AwaitShutdown(t.Context()); err != nil {
 		t.Fatalf("retry restored-process cleanup: %v", err)
 	}
-	if _, err := dispatcher.findTurn("turn_1"); !errors.Is(err, ErrTurnNotFound) {
+	if _, err := controller.findTurn("turn_1"); !errors.Is(err, ErrTurnNotFound) {
 		t.Fatalf("successful restored-process cleanup retained turn: %v", err)
 	}
 }
@@ -97,7 +97,7 @@ func TestShutdownReleasesLateRestoredProcessAfterCleanupFailure(t *testing.T) {
 		release: make(chan struct{}),
 		process: process,
 	}
-	dispatcher := &memoryDispatcher{
+	controller := &controller{
 		engine:       engine,
 		turns:        map[string]*turnState{},
 		seenSessions: map[string]struct{}{},
@@ -105,7 +105,7 @@ func TestShutdownReleasesLateRestoredProcessAfterCleanupFailure(t *testing.T) {
 
 	rehydrated := make(chan error, 1)
 	go func() {
-		_, err := dispatcher.Rehydrate(t.Context(), runs.RehydrateTurn{
+		_, err := controller.Rehydrate(t.Context(), runs.RehydrateTurn{
 			SessionID: "ses_1",
 			TurnID:    "turn_1",
 			ProcessID: "proc_1",
@@ -115,8 +115,8 @@ func TestShutdownReleasesLateRestoredProcessAfterCleanupFailure(t *testing.T) {
 	}()
 	<-engine.entered
 
-	dispatcher.BeginShutdown()
-	target := dispatcher.shutdownTargets[0]
+	controller.BeginShutdown()
+	target := controller.shutdownTargets[0]
 	lifecycleChanged := target.state.lifecycleChange()
 	attempt := target.step.Begin(t.Context())
 	// The first shutdown cancellation must finish its no-process transition
@@ -125,21 +125,21 @@ func TestShutdownReleasesLateRestoredProcessAfterCleanupFailure(t *testing.T) {
 	<-lifecycleChanged
 	close(engine.release)
 
-	if err := <-rehydrated; !errors.Is(err, ErrDispatcherClosed) {
-		t.Fatalf("Rehydrate error = %v, want dispatcher closed", err)
+	if err := <-rehydrated; !errors.Is(err, ErrClosed) {
+		t.Fatalf("Rehydrate error = %v, want controller closed", err)
 	}
 	if err := attempt.Wait(t.Context()); !errors.Is(err, discardErr) {
 		t.Fatalf("late-publication shutdown = %v, want discard failure", err)
 	}
-	if _, err := dispatcher.findTurn("turn_1"); err != nil {
+	if _, err := controller.findTurn("turn_1"); err != nil {
 		t.Fatalf("failed late cleanup lost turn: %v", err)
 	}
 
 	process.discardErr = nil
-	if err := dispatcher.AwaitShutdown(t.Context()); err != nil {
+	if err := controller.AwaitShutdown(t.Context()); err != nil {
 		t.Fatalf("retry late cleanup: %v", err)
 	}
-	if _, err := dispatcher.findTurn("turn_1"); !errors.Is(err, ErrTurnNotFound) {
+	if _, err := controller.findTurn("turn_1"); !errors.Is(err, ErrTurnNotFound) {
 		t.Fatalf("successful late cleanup retained turn: %v", err)
 	}
 }

@@ -17,18 +17,18 @@ import (
 
 // LoadConfig loads the app config and resolves provider defaults plus env-key
 // overrides used by the runtime process.
-func LoadConfig() (config.Config, error) {
+func LoadConfig() (config.Settings, error) {
 	cfg, err := config.Load()
 	if err != nil {
-		return config.Config{}, err
+		return config.Settings{}, err
 	}
 	return resolveProviderConfig(cfg)
 }
 
-func resolveProviderConfig(cfg config.Config) (config.Config, error) {
+func resolveProviderConfig(cfg config.Settings) (config.Settings, error) {
 	provider := llm.Provider(cfg.Provider)
 	if !provider.IsSupported() {
-		return config.Config{}, fmt.Errorf("config: unknown provider %q (see providers.list for the supported set)", cfg.Provider)
+		return config.Settings{}, fmt.Errorf("config: unknown provider %q (see providers.list for the supported set)", cfg.Provider)
 	}
 	if cfg.Model == "" {
 		cfg.Model = provider.DefaultModel()
@@ -38,14 +38,14 @@ func resolveProviderConfig(cfg config.Config) (config.Config, error) {
 		cfg.APIKey = envKey
 	}
 	if cfg.APIKey == "" {
-		return config.Config{}, errors.New("config: apiKey is empty — set it in config/config.yaml or " + apiKeyEnv)
+		return config.Settings{}, errors.New("config: apiKey is empty — set it in config/config.yaml or " + apiKeyEnv)
 	}
 	return cfg, nil
 }
 
 // DefaultClient builds the provider/model client used when a turn does not
 // choose a per-run model.
-func DefaultClient(cfg config.Config) (*chatclient.Client, error) {
+func DefaultClient(cfg config.Settings) (*chatclient.Client, error) {
 	return llm.BuildClient(llm.ClientSpec{
 		Provider: llm.Provider(cfg.Provider),
 		Model:    cfg.Model,
@@ -63,7 +63,7 @@ func ProviderRegistry(reg providersvc.Registry) providersvc.Registry {
 // It rejects an unknown transport instead of preserving an invalid string for a
 // later dial attempt; configuration is an input boundary, not a best-effort
 // transport pass-through.
-func MCPServers(in []config.MCPServerConfig) ([]mcpserversvc.Server, error) {
+func MCPServers(in []config.MCPServer) ([]mcpserversvc.Server, error) {
 	if len(in) == 0 {
 		return nil, nil
 	}

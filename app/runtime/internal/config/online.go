@@ -11,14 +11,14 @@ import (
 // loadOnline reads the optional provider-tool credentials. yaml under
 // `online:`; the LYRA_* env vars take precedence over yaml, matching
 // the overall source ordering (env over file).
-func loadOnline(v *viper.Viper) OnlineConfig {
+func loadOnline(v *viper.Viper) Online {
 	jina := cmp.Or(os.Getenv("LYRA_JINA_API_KEY"), v.GetString("online.jinaApiKey"))
 	tavily := cmp.Or(os.Getenv("LYRA_TAVILY_API_KEY"), v.GetString("online.tavilyApiKey"))
 	hosts := v.GetStringSlice("online.httpAllowedHosts")
 	if env := os.Getenv("LYRA_HTTP_ALLOWED_HOSTS"); env != "" {
 		hosts = splitHosts(env)
 	}
-	return OnlineConfig{
+	return Online{
 		JinaAPIKey:       jina,
 		TavilyAPIKey:     tavily,
 		HTTPAllowedHosts: hosts,

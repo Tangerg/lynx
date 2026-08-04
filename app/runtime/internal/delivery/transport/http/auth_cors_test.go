@@ -96,7 +96,7 @@ func TestAuthGateWrongToken(t *testing.T) {
 }
 
 // TestAuthGateCorrectToken — correct bearer goes through to the
-// dispatcher. We only care that the token gate was cleared.
+// router. We only care that the token gate was cleared.
 func TestAuthGateCorrectToken(t *testing.T) {
 	ts := newGatedServer(t)
 	defer ts.Close()

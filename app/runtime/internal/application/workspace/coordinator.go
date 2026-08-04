@@ -133,12 +133,12 @@ func NewVCS(context *Context, git GitReader) *VCS { return &VCS{context: context
 // Discovery owns project, recipe, and instruction-document discovery.
 type Discovery struct {
 	context    *Context
-	workspaces WorkspaceCatalog
+	workspaces Catalog
 	agentDocs  AgentDocFinder
 	recipes    RecipeLister
 }
 
-func NewDiscovery(context *Context, workspaces WorkspaceCatalog, agentDocs AgentDocFinder, recipes RecipeLister) *Discovery {
+func NewDiscovery(context *Context, workspaces Catalog, agentDocs AgentDocFinder, recipes RecipeLister) *Discovery {
 	return &Discovery{context: context, workspaces: workspaces, agentDocs: agentDocs, recipes: recipes}
 }
 

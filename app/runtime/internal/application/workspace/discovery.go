@@ -11,15 +11,15 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 )
 
-// ResolvedWorkspace is the current filesystem identity of one workspace ref.
-type ResolvedWorkspace struct {
+// Resolved is the current filesystem identity of one workspace ref.
+type Resolved struct {
 	Path        string
 	ProjectRoot string
 	Missing     bool
 }
 
-// WorkspaceSummary is a distinct workspace identity derived from user-facing sessions.
-type WorkspaceSummary struct {
+// Summary is a distinct workspace identity derived from user-facing sessions.
+type Summary struct {
 	Name         string
 	Path         string
 	ProjectRoot  string
@@ -28,34 +28,34 @@ type WorkspaceSummary struct {
 	LastActiveAt time.Time
 }
 
-// WorkspaceCatalog supplies the user-facing sessions and their current workspace
+// Catalog supplies the user-facing sessions and their current workspace
 // identities. The session coordinator is the production implementation.
-type WorkspaceCatalog interface {
+type Catalog interface {
 	List(ctx context.Context) ([]session.Session, error)
 	InspectWorkspace(cwd string) (session.WorkspaceIdentity, error)
 }
 
 // ResolveWorkspace returns the canonical live identity for path, using the
 // host-provided default when path is empty.
-func (c *Discovery) ResolveWorkspace(path string) (ResolvedWorkspace, error) {
+func (c *Discovery) ResolveWorkspace(path string) (Resolved, error) {
 	if c.workspaces == nil {
-		return ResolvedWorkspace{}, errors.New("workspace: workspace catalog is not configured")
+		return Resolved{}, errors.New("workspace: workspace catalog is not configured")
 	}
 	if path == "" {
 		path = c.context.defaultCwd
 	}
 	identity, err := c.workspaces.InspectWorkspace(path)
 	if err != nil {
-		return ResolvedWorkspace{}, err
+		return Resolved{}, err
 	}
-	return ResolvedWorkspace{
+	return Resolved{
 		Path: identity.Cwd, ProjectRoot: identity.ProjectRoot, Missing: identity.Missing,
 	}, nil
 
 }
 
 // ListWorkspaces returns each non-empty session workspace once, newest-active first.
-func (c *Discovery) ListWorkspaces(ctx context.Context) ([]WorkspaceSummary, error) {
+func (c *Discovery) ListWorkspaces(ctx context.Context) ([]Summary, error) {
 	if c.workspaces == nil {
 		return nil, errors.New("workspace: workspace catalog is not configured")
 	}
@@ -76,15 +76,15 @@ func (c *Discovery) ListWorkspaces(ctx context.Context) ([]WorkspaceSummary, err
 	return workspaces, nil
 }
 
-func workspacesFromSessions(sessions []session.Session) []WorkspaceSummary {
-	byPath := map[string]*WorkspaceSummary{}
+func workspacesFromSessions(sessions []session.Session) []Summary {
+	byPath := map[string]*Summary{}
 	for _, session := range sessions {
 		if session.Cwd == "" {
 			continue
 		}
 		workspace := byPath[session.Cwd]
 		if workspace == nil {
-			workspace = &WorkspaceSummary{Path: session.Cwd, Name: filepath.Base(session.Cwd)}
+			workspace = &Summary{Path: session.Cwd, Name: filepath.Base(session.Cwd)}
 			byPath[session.Cwd] = workspace
 		}
 		workspace.SessionCount++
@@ -92,11 +92,11 @@ func workspacesFromSessions(sessions []session.Session) []WorkspaceSummary {
 			workspace.LastActiveAt = session.UpdatedAt
 		}
 	}
-	workspaces := make([]WorkspaceSummary, 0, len(byPath))
+	workspaces := make([]Summary, 0, len(byPath))
 	for _, workspace := range byPath {
 		workspaces = append(workspaces, *workspace)
 	}
-	slices.SortFunc(workspaces, func(a, b WorkspaceSummary) int { return b.LastActiveAt.Compare(a.LastActiveAt) })
+	slices.SortFunc(workspaces, func(a, b Summary) int { return b.LastActiveAt.Compare(a.LastActiveAt) })
 	return workspaces
 }
 

@@ -118,7 +118,7 @@ func MethodProblemTypes() []string {
 }
 
 // ProblemCodes is the published business error surface: every problem type this
-// dispatcher can send, with the code it is sent with.
+// router can send, with the code it is sent with.
 //
 // The generator reads it instead of keeping its own table. That table existed, and
 // it was a verbatim copy — so a new error had to be remembered in two places, and
@@ -297,7 +297,7 @@ func methodNotFound(method string) *transport.Error {
 }
 
 // badEnvelope is returned for malformed JSON-RPC envelopes (non-string
-// id, wrong shape) at the dispatcher boundary.
+// id, wrong shape) at the router boundary.
 func badEnvelope(detail string) *transport.Error {
 	return problemError(protocol.ErrInvalidRequest, detail)
 }

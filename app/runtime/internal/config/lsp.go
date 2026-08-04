@@ -10,8 +10,8 @@ import (
 // `lsp.servers`. Absent → nil (the engine falls back to lsp.DefaultServers()).
 // mapstructure matches keys case-insensitively, so the yaml keys are
 // name/command/args/languageId/extensions/rootMarkers.
-func loadLSPServers(v *viper.Viper) ([]LSPServerConfig, error) {
-	var servers []LSPServerConfig
+func loadLSPServers(v *viper.Viper) ([]LSPServer, error) {
+	var servers []LSPServer
 	if err := v.UnmarshalKey("lsp.servers", &servers); err != nil {
 		return nil, fmt.Errorf("config: lsp.servers: %w", err)
 	}

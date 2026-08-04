@@ -57,7 +57,7 @@ type hookResolver interface {
 	For(ctx context.Context, cwd string) (*hooks.Bound, error)
 }
 
-// Dependencies names the collaborators needed by the in-process dispatcher.
+// Dependencies names the collaborators needed by the in-process controller.
 // Engine and Approval are required; optional collaborators document their
 // nil behavior on the field.
 type Dependencies struct {
@@ -96,14 +96,14 @@ type Dependencies struct {
 	Hooks hookResolver
 }
 
-// New builds the concrete in-process dispatcher. The dispatcher is
+// New builds the concrete in-process controller. The controller is
 // single-process — it holds in-memory state about live turns and
 // fans events out to subscribers via per-turn channels.
 //
 // The implementation is split across files by concern:
 //   - request.go        — Start/Rehydrate request shapes + validation
 //   - event.go          — turn event model + terminal reason vocabulary
-//   - memory_dispatcher.go       — in-process dispatcher construction + shared state
+//   - controller.go              — in-process controller construction + shared state
 //   - turn_start.go     — start-turn admission into the agent engine
 //   - turn_control.go   — cancel/resume interrupt control
 //   - rehydrate.go      — cross-restart parked-turn resume
@@ -120,14 +120,14 @@ type Dependencies struct {
 //
 // Consumers define the narrow control ports they need; delivery never drives
 // this adapter directly.
-func New(deps Dependencies) (*memoryDispatcher, error) {
+func New(deps Dependencies) (*controller, error) {
 	if deps.Engine == nil {
 		return nil, errors.New("turn: engine is required")
 	}
 	if deps.Approval == nil {
 		return nil, errors.New("turn: approval gate is required")
 	}
-	return &memoryDispatcher{
+	return &controller{
 		engine:              deps.Engine,
 		steering:            deps.Steering,
 		maintenance:         deps.Maintenance,
@@ -142,10 +142,10 @@ func New(deps Dependencies) (*memoryDispatcher, error) {
 	}, nil
 }
 
-// memoryDispatcher is the single-process turn implementation. It
+// controller is the single-process turn implementation. It
 // tracks live turns in a map keyed by turn id; state lives in
 // process memory and does not survive restart.
-type memoryDispatcher struct {
+type controller struct {
 	engine        engineDep
 	steering      SteeringSink
 	maintenance   BoundaryMaintenance // optional — nil = no turn-boundary maintenance
@@ -188,7 +188,7 @@ type shutdownTarget struct {
 	step  *shutdown.Step
 }
 
-func (s *memoryDispatcher) register(st *turnState) bool {
+func (s *controller) register(st *turnState) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.closed {
@@ -198,16 +198,16 @@ func (s *memoryDispatcher) register(st *turnState) bool {
 	return true
 }
 
-func (s *memoryDispatcher) isClosed() bool {
+func (s *controller) isClosed() bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.closed
 }
 
 // BeginShutdown rejects future turns and starts cancellation for the complete
-// live-turn set. The dispatcher, not the delivery run registry, is authoritative
+// live-turn set. The controller, not the delivery run registry, is authoritative
 // because parked turns remain live after their streaming segment has ended.
-func (s *memoryDispatcher) BeginShutdown() {
+func (s *controller) BeginShutdown() {
 	s.shutdownOnce.Do(func() {
 		s.mu.Lock()
 		s.closed = true
@@ -241,7 +241,7 @@ func (s *memoryDispatcher) BeginShutdown() {
 // AwaitShutdown joins the turns canceled by [BeginShutdown]. Its caller owns
 // the deadline, so a timeout remains visible and a later await can finish the
 // same shutdown rather than burying work behind a one-shot result.
-func (s *memoryDispatcher) AwaitShutdown(ctx context.Context) error {
+func (s *controller) AwaitShutdown(ctx context.Context) error {
 	if ctx == nil {
 		return errors.New("turn: shutdown context is required")
 	}
@@ -271,7 +271,7 @@ func (s *memoryDispatcher) AwaitShutdown(ctx context.Context) error {
 // particular, a Restore that publishes its process after the first Cancel wakes
 // this loop and makes the same shutdown owner retry against the now-actionable
 // process.
-func (s *memoryDispatcher) shutdownTurn(ctx context.Context, state *turnState) error {
+func (s *controller) shutdownTurn(ctx context.Context, state *turnState) error {
 	for {
 		select {
 		case <-state.done:

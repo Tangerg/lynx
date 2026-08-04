@@ -11,11 +11,11 @@ import (
 
 func TestPreparedTurnDoesNotEnterEngineBeforeActivation(t *testing.T) {
 	engine := &stubEngine{}
-	dispatcher, err := turn.New(turnDeps(engine))
+	controller, err := turn.New(turnDeps(engine))
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	handle, err := dispatcher.PrepareTurn(t.Context(), runs.StartTurn{
+	handle, err := controller.PrepareTurn(t.Context(), runs.StartTurn{
 		SessionID: "session", Message: "hello",
 	})
 	if err != nil {
@@ -25,11 +25,11 @@ func TestPreparedTurnDoesNotEnterEngineBeforeActivation(t *testing.T) {
 		t.Fatalf("engine calls before activation = %d, want 0", got)
 	}
 
-	events, err := dispatcher.Events(context.Background(), handle)
+	events, err := controller.Events(context.Background(), handle)
 	if err != nil {
 		t.Fatalf("Events: %v", err)
 	}
-	if err := dispatcher.ActivateTurn(t.Context(), handle); err != nil {
+	if err := controller.ActivateTurn(t.Context(), handle); err != nil {
 		t.Fatalf("ActivateTurn: %v", err)
 	}
 	for range events {
@@ -41,21 +41,21 @@ func TestPreparedTurnDoesNotEnterEngineBeforeActivation(t *testing.T) {
 
 func TestCancelPreparedTurnNeverEntersEngineAndTerminatesStream(t *testing.T) {
 	engine := &stubEngine{}
-	dispatcher, err := turn.New(turnDeps(engine))
+	controller, err := turn.New(turnDeps(engine))
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	handle, err := dispatcher.PrepareTurn(t.Context(), runs.StartTurn{
+	handle, err := controller.PrepareTurn(t.Context(), runs.StartTurn{
 		SessionID: "session", Message: "hello",
 	})
 	if err != nil {
 		t.Fatalf("PrepareTurn: %v", err)
 	}
-	events, err := dispatcher.Events(context.Background(), handle)
+	events, err := controller.Events(context.Background(), handle)
 	if err != nil {
 		t.Fatalf("Events: %v", err)
 	}
-	if err := dispatcher.Cancel(t.Context(), handle); err != nil {
+	if err := controller.Cancel(t.Context(), handle); err != nil {
 		t.Fatalf("Cancel: %v", err)
 	}
 

@@ -18,10 +18,10 @@ import (
 // the handler map, the replay-protected set, and a per-handler capability check —
 // so adding a method meant remembering four edits and a reviewer had to diff four
 // files to see what a method actually was. A registration states all of it once,
-// and the dispatcher routes straight off this table; there is no second one to
+// and the router routes straight off this table; there is no second one to
 // fall out of step with.
 //
-// It is a package-level value built from method EXPRESSIONS (func(*Dispatcher, …))
+// It is a package-level value built from method EXPRESSIONS (func(*Router, …))
 // rather than bound methods, so it needs no Runtime to exist. That is what lets a
 // build-time tool read the contract — names, kinds, retry semantics, capability
 // rules — without standing up a runtime to ask.
@@ -39,14 +39,14 @@ type Method struct {
 	// typed call, and the reply. Built by the query, command, and subscription
 	// registration factories so no
 	// registration can assemble the steps in the wrong order or skip one.
-	handle func(*Dispatcher, context.Context, *transport.Request) HandleResult
+	handle func(*Router, context.Context, *transport.Request) HandleResult
 }
 
 func newRegistry() *Registry {
 	return &Registry{byName: make(map[string]*Method)}
 }
 
-func (r *Registry) add(meta MethodMeta, handle func(*Dispatcher, context.Context, *transport.Request) HandleResult) {
+func (r *Registry) add(meta MethodMeta, handle func(*Router, context.Context, *transport.Request) HandleResult) {
 	if err := meta.validate(); err != nil {
 		panic("dispatch: invalid method registration: " + err.Error())
 	}
@@ -68,7 +68,7 @@ func (r *Registry) Lookup(name string) (*Method, bool) {
 	return &snapshot, true
 }
 
-// lookup is the dispatcher's allocation-free read of immutable registry state.
+// lookup is the router's allocation-free read of immutable registry state.
 // Public tooling uses Lookup's defensive snapshot; routing never exposes this
 // pointer outside the package.
 func (r *Registry) lookup(name string) (*Method, bool) {
@@ -125,7 +125,7 @@ func (r *Registry) StreamMethods() []string {
 func Query[Params, Result any](
 	registry *Registry,
 	meta MethodMeta,
-	call func(*Dispatcher, context.Context, Params) (Result, error),
+	call func(*Router, context.Context, Params) (Result, error),
 ) {
 	meta.Kind = KindUnary
 	meta.Operation = OperationQuery
@@ -138,7 +138,7 @@ func Query[Params, Result any](
 func Command[Params, Result any](
 	registry *Registry,
 	meta MethodMeta,
-	call func(*Dispatcher, context.Context, Params) (Result, error),
+	call func(*Router, context.Context, Params) (Result, error),
 ) {
 	meta.Kind = KindUnary
 	meta.Operation = OperationCommand
@@ -149,7 +149,7 @@ func Command[Params, Result any](
 func registerUnary[Params, Result any](
 	registry *Registry,
 	meta MethodMeta,
-	call func(*Dispatcher, context.Context, Params) (Result, error),
+	call func(*Router, context.Context, Params) (Result, error),
 ) {
 	meta.Params = reflect.TypeFor[Params]()
 	meta.Result = reflect.TypeFor[Result]()
@@ -158,7 +158,7 @@ func registerUnary[Params, Result any](
 		panic(fmt.Sprintf("dispatch: %s has invalid pagination shapes: %v", meta.Name, err))
 	}
 	meta.Pagination = pagination
-	registry.add(meta, func(d *Dispatcher, ctx context.Context, msg *transport.Request) HandleResult {
+	registry.add(meta, func(d *Router, ctx context.Context, msg *transport.Request) HandleResult {
 		in, bad := decode[Params](msg)
 		if bad != nil {
 			return responseError(msg.ID, bad)
@@ -229,13 +229,13 @@ func paginationOf(params, result reflect.Type) (PaginationKind, error) {
 func CommandAck[Params any](
 	registry *Registry,
 	meta MethodMeta,
-	call func(*Dispatcher, context.Context, Params) error,
+	call func(*Router, context.Context, Params) error,
 ) {
 	meta.Kind = KindUnary
 	meta.Operation = OperationCommand
 	meta.Idempotency = IdempotencyReplayResponse
 	meta.Params = reflect.TypeFor[Params]()
-	registry.add(meta, func(d *Dispatcher, ctx context.Context, msg *transport.Request) HandleResult {
+	registry.add(meta, func(d *Router, ctx context.Context, msg *transport.Request) HandleResult {
 		in, bad := decode[Params](msg)
 		if bad != nil {
 			return responseError(msg.ID, bad)
@@ -257,7 +257,7 @@ func CommandAck[Params any](
 func Subscription[Params, Ack, Event any](
 	registry *Registry,
 	meta MethodMeta,
-	call func(*Dispatcher, context.Context, Params) (Ack, iter.Seq[Event], error),
+	call func(*Router, context.Context, Params) (Ack, iter.Seq[Event], error),
 	framer func(context.Context) func(Event) (StreamFrame, bool),
 ) {
 	meta.Kind = KindStream
@@ -272,7 +272,7 @@ func Subscription[Params, Ack, Event any](
 func RunStreamCommand[Params, Ack, Event any](
 	registry *Registry,
 	meta MethodMeta,
-	call func(*Dispatcher, context.Context, Params) (Ack, iter.Seq[Event], error),
+	call func(*Router, context.Context, Params) (Ack, iter.Seq[Event], error),
 	framer func(context.Context) func(Event) (StreamFrame, bool),
 ) {
 	meta.Kind = KindStream
@@ -284,13 +284,13 @@ func RunStreamCommand[Params, Ack, Event any](
 func registerStream[Params, Ack, Event any](
 	registry *Registry,
 	meta MethodMeta,
-	call func(*Dispatcher, context.Context, Params) (Ack, iter.Seq[Event], error),
+	call func(*Router, context.Context, Params) (Ack, iter.Seq[Event], error),
 	framer func(context.Context) func(Event) (StreamFrame, bool),
 ) {
 	meta.Params = reflect.TypeFor[Params]()
 	meta.Result = reflect.TypeFor[Ack]()
 	meta.Event = reflect.TypeFor[Event]()
-	registry.add(meta, func(d *Dispatcher, ctx context.Context, msg *transport.Request) HandleResult {
+	registry.add(meta, func(d *Router, ctx context.Context, msg *transport.Request) HandleResult {
 		in, bad := decode[Params](msg)
 		if bad != nil {
 			return responseError(msg.ID, bad)
@@ -319,7 +319,7 @@ func runtimeEventFramer(context.Context) func(protocol.RuntimeEvent) (StreamFram
 }
 
 // dispatchRequest routes the request to its registered method.
-func (d *Dispatcher) dispatchRequest(ctx context.Context, msg *transport.Request) HandleResult {
+func (d *Router) dispatchRequest(ctx context.Context, msg *transport.Request) HandleResult {
 	method, ok := contract.lookup(msg.Method)
 	if !ok {
 		return responseError(msg.ID, methodNotFound(msg.Method))
@@ -329,7 +329,7 @@ func (d *Dispatcher) dispatchRequest(ctx context.Context, msg *transport.Request
 
 // Contract exposes the registered method surface to build-time tooling. The
 // generator reads it instead of a hand-kept list, which is what makes "the
-// artifacts match the dispatcher" true by construction rather than by review.
+// artifacts match the router" true by construction rather than by review.
 func Contract() *Registry { return contract }
 
 // WireShapes exposes the registered union / constraint / state-key contract to

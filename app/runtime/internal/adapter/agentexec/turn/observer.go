@@ -33,7 +33,7 @@ const doomLoopThreshold = 3
 // notifications onto the turn's event channel. Approval policy lives in
 // toolGate so event projection cannot accidentally own a pre-execution rule.
 type turnObserver struct {
-	dispatcher       *memoryDispatcher
+	controller       *controller
 	st               *turnState
 	projectChildRuns bool
 	childRunsMu      sync.RWMutex
@@ -51,7 +51,7 @@ func (t *turnObserver) projects(process agentexec.ProcessRef) bool {
 // confirms the durable transaction.
 func (t *turnObserver) admitChild(ctx context.Context, child agentexec.ChildProcess) error {
 	request, confirmation := runs.NewChildOpeningRequest(child.StartedAt)
-	if !t.dispatcher.emitProcessEvent(t.st, child.ProcessRef, request) {
+	if !t.controller.emitProcessEvent(t.st, child.ProcessRef, request) {
 		switch {
 		case ctx != nil && ctx.Err() != nil:
 			return fmt.Errorf("turn: request child process %q opening: %w", child.ID, ctx.Err())
@@ -128,7 +128,7 @@ func (t *turnObserver) childRun(processID string) (runs.ChildRunBinding, bool) {
 // standing policy, remembered decisions, HITL suspension, and the doom-loop
 // brake. It deliberately does not project tool events or post-tool hooks.
 type toolGate struct {
-	dispatcher *memoryDispatcher
+	controller *controller
 	st         *turnState
 }
 
@@ -149,7 +149,7 @@ type toolGate struct {
 // adapter-generated lifecycle ID. It identifies the same logical call when the
 // suspended action is re-entered on resume.
 func (t *turnObserver) ApproveToolCall(ctx context.Context, callID, toolName, arguments string, target agentexec.ToolApprovalTarget) agentexec.ToolApprovalVerdict {
-	return (&toolGate{dispatcher: t.dispatcher, st: t.st}).ApproveToolCall(ctx, callID, toolName, arguments, target)
+	return (&toolGate{controller: t.controller, st: t.st}).ApproveToolCall(ctx, callID, toolName, arguments, target)
 }
 
 func (t *toolGate) ApproveToolCall(ctx context.Context, callID, toolName, arguments string, target agentexec.ToolApprovalTarget) agentexec.ToolApprovalVerdict {
@@ -186,7 +186,7 @@ func (t *toolGate) ApproveToolCall(ctx context.Context, callID, toolName, argume
 		}
 	}
 
-	mode, err := t.dispatcher.approval.Mode(ctx, t.st.handle.SessionID)
+	mode, err := t.controller.approval.Mode(ctx, t.st.handle.SessionID)
 	if err != nil {
 		return agentexec.ToolApprovalVerdict{Denied: true, DenyReason: "approval mode unavailable"}
 	}
@@ -210,7 +210,7 @@ func (t *toolGate) ApproveToolCall(ctx context.Context, callID, toolName, argume
 			}
 		}
 		query := approval.Query{SessionID: sessionID, ProjectDir: t.st.cwd, Tool: toolName, Arguments: rememberedArguments}
-		d, ok, err := t.dispatcher.approval.Decide(ctx, query)
+		d, ok, err := t.controller.approval.Decide(ctx, query)
 		if err != nil {
 			return agentexec.ToolApprovalVerdict{
 				Interrupt: fmt.Errorf("turn: evaluate remembered approval for tool %q: %w", toolName, err),
@@ -219,8 +219,8 @@ func (t *toolGate) ApproveToolCall(ctx context.Context, callID, toolName, argume
 		autoApproved := false
 		// A per-server auto-approve whitelist skips the prompt only after
 		// standing rules, so an explicit remembered deny is never overridden.
-		if t.dispatcher.mcpToolAutoApproved != nil && target.MCP != (mcpserver.ToolRef{}) {
-			autoApproved = t.dispatcher.mcpToolAutoApproved(target.MCP)
+		if t.controller.mcpToolAutoApproved != nil && target.MCP != (mcpserver.ToolRef{}) {
+			autoApproved = t.controller.mcpToolAutoApproved(target.MCP)
 		}
 		plan = plan.ResolvePromptShortcuts(approval.StandingDecision{Decision: d, Matched: ok}, autoApproved)
 	}
@@ -311,7 +311,7 @@ func (t *toolGate) rememberApproval(ctx context.Context, toolName string, argume
 	if resolution.RememberScope == "" {
 		return nil
 	}
-	if err := t.dispatcher.approval.Remember(ctx, approval.RememberRequest{
+	if err := t.controller.approval.Remember(ctx, approval.RememberRequest{
 		Scope:      resolution.RememberScope,
 		SessionID:  t.st.handle.SessionID,
 		ProjectDir: t.st.cwd,
@@ -431,12 +431,12 @@ func (t *turnObserver) OnToolCallStart(process agentexec.ProcessRef, callID, sou
 	if !t.projects(process) {
 		return
 	}
-	t.dispatcher.emitProcessEvent(t.st, process, runs.ToolCallStart{
+	t.controller.emitProcessEvent(t.st, process, runs.ToolCallStart{
 		CallID:       callID,
 		SourceCallID: sourceCallID,
 		ToolName:     toolName,
 		Arguments:    arguments,
-		Activity:     t.dispatcher.toolActivity(toolName, arguments),
+		Activity:     t.controller.toolActivity(toolName, arguments),
 		SafetyClass:  tool.SafetyClassFor(toolName),
 	})
 }
@@ -464,7 +464,7 @@ func (t *turnObserver) OnToolCallEnd(process agentexec.ProcessRef, callID, toolN
 	if !process.Child() {
 		t.st.recordToolOutcome(toolName, arguments, output)
 	}
-	result, outputText := decodeToolResult(t.dispatcher.toolPresenter, toolName, arguments, output)
+	result, outputText := decodeToolResult(t.controller.toolPresenter, toolName, arguments, output)
 	end := runs.ToolCallEnd{
 		CallID:       callID,
 		Arguments:    arguments,
@@ -483,16 +483,16 @@ func (t *turnObserver) OnToolCallEnd(process agentexec.ProcessRef, callID, toolN
 			Kind: transcript.ToolFailedProblem, Scope: transcript.ToolProblem, Detail: err.Error(),
 		}
 	}
-	t.dispatcher.emitProcessEvent(t.st, process, end)
+	t.controller.emitProcessEvent(t.st, process, end)
 
 	// After a successful set_plan, project the model's whole-replaced Plan so a
 	// client renders state.snapshot{plan}; the tool result itself is model-facing
 	// only. Read the canonical Plan from the
 	// store rather than the tool args, so the projection can't drift from the
 	// arg schema.
-	if err == nil && toolName == "set_plan" && t.dispatcher.plan != nil {
-		if state, lerr := t.dispatcher.plan.State(t.st.ctx, t.st.handle.SessionID); lerr == nil {
-			t.dispatcher.emitProcessEvent(t.st, process, runs.PlanUpdated{State: state})
+	if err == nil && toolName == "set_plan" && t.controller.plan != nil {
+		if state, lerr := t.controller.plan.State(t.st.ctx, t.st.handle.SessionID); lerr == nil {
+			t.controller.emitProcessEvent(t.st, process, runs.PlanUpdated{State: state})
 		}
 	}
 
@@ -516,7 +516,7 @@ func (t *turnObserver) OnMessageDelta(process agentexec.ProcessRef, text string)
 	if !t.projects(process) {
 		return
 	}
-	t.dispatcher.emitProcessEvent(t.st, process, runs.MessageDelta{
+	t.controller.emitProcessEvent(t.st, process, runs.MessageDelta{
 		Text: text,
 	})
 }
@@ -529,7 +529,7 @@ func (t *turnObserver) OnReasoningDelta(process agentexec.ProcessRef, text strin
 	if !t.projects(process) {
 		return
 	}
-	t.dispatcher.emitProcessEvent(t.st, process, runs.ReasoningDelta{
+	t.controller.emitProcessEvent(t.st, process, runs.ReasoningDelta{
 		Text: text,
 	})
 }
@@ -541,7 +541,7 @@ func (t *turnObserver) OnUsage(process agentexec.ProcessRef, progress agentexec.
 	if !t.projects(process) {
 		return
 	}
-	t.dispatcher.emitProcessEvent(t.st, process, runs.UsageReported{
+	t.controller.emitProcessEvent(t.st, process, runs.UsageReported{
 		TokenUsage:    progress.Usage,
 		ByModel:       progress.UsageByModel,
 		CostUSD:       progress.CostUSD,

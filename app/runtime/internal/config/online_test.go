@@ -25,7 +25,7 @@ online:
 	}
 
 	got := loadOnline(v)
-	want := OnlineConfig{
+	want := Online{
 		JinaAPIKey:       "jina-env",
 		TavilyAPIKey:     "tavily-env",
 		HTTPAllowedHosts: []string{"api.github.com", "*.example.com"},

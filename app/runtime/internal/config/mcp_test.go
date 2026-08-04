@@ -11,7 +11,7 @@ func TestParseMCPServers(t *testing.T) {
 	cases := []struct {
 		name    string
 		in      string
-		want    []MCPServerConfig
+		want    []MCPServer
 		wantErr bool
 	}{
 		{
@@ -22,7 +22,7 @@ func TestParseMCPServers(t *testing.T) {
 		{
 			name: "single http entry",
 			in:   "github=https://mcp.github.com/",
-			want: []MCPServerConfig{{
+			want: []MCPServer{{
 				Name:      "github",
 				Transport: MCPTransportStreamableHTTP,
 				Endpoint:  "https://mcp.github.com/",
@@ -31,7 +31,7 @@ func TestParseMCPServers(t *testing.T) {
 		{
 			name: "single stdio entry",
 			in:   "fs=stdio:npx -y @modelcontextprotocol/server-filesystem /workspace",
-			want: []MCPServerConfig{{
+			want: []MCPServer{{
 				Name:      "fs",
 				Transport: MCPTransportStdio,
 				Command:   "npx",
@@ -41,7 +41,7 @@ func TestParseMCPServers(t *testing.T) {
 		{
 			name: "stdio with single-word command",
 			in:   "time=stdio:mcp-server-time",
-			want: []MCPServerConfig{{
+			want: []MCPServer{{
 				Name:      "time",
 				Transport: MCPTransportStdio,
 				Command:   "mcp-server-time",
@@ -51,7 +51,7 @@ func TestParseMCPServers(t *testing.T) {
 		{
 			name: "mixed http + stdio with whitespace",
 			in:   " github = https://mcp.github.com/ , fs = stdio:npx mcp-server-fs ",
-			want: []MCPServerConfig{
+			want: []MCPServer{
 				{Name: "github", Transport: MCPTransportStreamableHTTP, Endpoint: "https://mcp.github.com/"},
 				{Name: "fs", Transport: MCPTransportStdio, Command: "npx", Args: []string{"mcp-server-fs"}},
 			},
@@ -114,7 +114,7 @@ func TestParseMCPServers_AuthFromEnv(t *testing.T) {
 	if err != nil {
 		t.Fatalf("parse: %v", err)
 	}
-	byName := map[string]MCPServerConfig{}
+	byName := map[string]MCPServer{}
 	for _, s := range got {
 		byName[s.Name] = s
 	}

@@ -132,7 +132,7 @@ type CarriedSpec struct {
 
 // NotificationSpec declares one downstream JSON-RPC notification and the exact
 // params shape it carries. Notifications are not callable methods, so they belong
-// to the wire-shape registry rather than the request dispatcher.
+// to the wire-shape registry rather than the request router.
 type NotificationSpec struct {
 	Name       string
 	ParamsType reflect.Type

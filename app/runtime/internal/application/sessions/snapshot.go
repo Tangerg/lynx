@@ -13,7 +13,7 @@ import (
 // held, so Delivery cannot accidentally pair one revision's archive with a
 // later revision's session view.
 type ExportResult struct {
-	Session  SessionView
+	Session  View
 	Snapshot PortableSnapshot
 	Items    []transcript.Item
 }
@@ -42,7 +42,7 @@ func (c *Coordinator) ExportSession(ctx context.Context, sessionID string) (Expo
 	if err != nil {
 		return ExportResult{}, fmt.Errorf("sessions: prepare portable snapshot: %w", err)
 	}
-	view, err := c.view(ctx, snapshot.Session, SessionIdle)
+	view, err := c.view(ctx, snapshot.Session, ActivityIdle)
 	if err != nil {
 		return ExportResult{}, err
 	}

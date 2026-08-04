@@ -11,7 +11,7 @@ func registerLifecycle(r *Registry) {
 	// runtime.discover takes no params; struct{} makes an unexpected field a
 	// decode failure rather than something silently ignored.
 	Query(r, MethodMeta{Name: "runtime.discover", Stability: stable},
-		func(d *Dispatcher, ctx context.Context, _ struct{}) (*protocol.DiscoverResponse, error) {
+		func(d *Router, ctx context.Context, _ struct{}) (*protocol.DiscoverResponse, error) {
 			return d.api.Discover(ctx)
 		})
 }
@@ -30,7 +30,7 @@ func registerRuns(r *Registry) {
 			protocol.ErrCapabilityNotNeg.Error(),
 		},
 		Stability: stable,
-	}, func(d *Dispatcher, ctx context.Context, in protocol.StartRunRequest) (*protocol.StartRunResponse, iter.Seq[protocol.RunEvent], error) {
+	}, func(d *Router, ctx context.Context, in protocol.StartRunRequest) (*protocol.StartRunResponse, iter.Seq[protocol.RunEvent], error) {
 		return d.api.StartRun(ctx, in)
 	}, runEventFramer)
 
@@ -42,7 +42,7 @@ func registerRuns(r *Registry) {
 			protocol.ErrCapabilityNotNeg.Error(),
 		},
 		Stability: stable,
-	}, func(d *Dispatcher, ctx context.Context, in protocol.ResumeRunRequest) (*protocol.ResumeRunResponse, iter.Seq[protocol.RunEvent], error) {
+	}, func(d *Router, ctx context.Context, in protocol.ResumeRunRequest) (*protocol.ResumeRunResponse, iter.Seq[protocol.RunEvent], error) {
 		return d.api.ResumeRun(ctx, in)
 	}, runEventFramer)
 
@@ -66,7 +66,7 @@ func registerRuns(r *Registry) {
 			protocol.ErrCapabilityNotNeg.Error(),
 		},
 		Stability: stable,
-	}, func(d *Dispatcher, ctx context.Context, in protocol.SubscribeRunRequest) (*protocol.SubscribeRunResponse, iter.Seq[protocol.RunEvent], error) {
+	}, func(d *Router, ctx context.Context, in protocol.SubscribeRunRequest) (*protocol.SubscribeRunResponse, iter.Seq[protocol.RunEvent], error) {
 		return d.api.SubscribeRun(ctx, in)
 	}, runEventFramer)
 
@@ -79,7 +79,7 @@ func registerRuns(r *Registry) {
 			protocol.ErrCapabilityNotNeg.Error(),
 		},
 		Stability: stable,
-	}, func(d *Dispatcher, ctx context.Context, in protocol.CancelRunRequest) (*protocol.CancelRunResponse, error) {
+	}, func(d *Router, ctx context.Context, in protocol.CancelRunRequest) (*protocol.CancelRunResponse, error) {
 		return d.api.CancelRun(ctx, in)
 	})
 
@@ -98,7 +98,7 @@ func registerRuns(r *Registry) {
 			protocol.ErrStaleSegment.Error(),
 		},
 		Stability: stable,
-	}, func(d *Dispatcher, ctx context.Context, in protocol.SteerRunRequest) error {
+	}, func(d *Router, ctx context.Context, in protocol.SteerRunRequest) error {
 		return d.api.SteerRun(ctx, in)
 	})
 
@@ -111,7 +111,7 @@ func registerRuns(r *Registry) {
 			protocol.ErrCapabilityNotNeg.Error(),
 		},
 		Stability: stable,
-	}, func(d *Dispatcher, ctx context.Context, in protocol.GetRunRequest) (*protocol.RunRef, error) {
+	}, func(d *Router, ctx context.Context, in protocol.GetRunRequest) (*protocol.RunRef, error) {
 		return d.api.GetRun(ctx, in)
 	})
 
@@ -127,7 +127,7 @@ func registerRuns(r *Registry) {
 			Requires: []string{protocol.FeatureSubagents},
 		}},
 		Stability: stable,
-	}, func(d *Dispatcher, ctx context.Context, in protocol.ListRunsRequest) (*protocol.Page[protocol.RunRef], error) {
+	}, func(d *Router, ctx context.Context, in protocol.ListRunsRequest) (*protocol.Page[protocol.RunRef], error) {
 		return d.api.ListRuns(ctx, in)
 	})
 }
@@ -146,7 +146,7 @@ func registerInterrupts(r *Registry) {
 			protocol.ErrCapabilityNotNeg.Error(),
 		},
 		Stability: stable,
-	}, func(d *Dispatcher, ctx context.Context, in protocol.ListInterruptsRequest) (*protocol.Page[protocol.PendingInterruptSet], error) {
+	}, func(d *Router, ctx context.Context, in protocol.ListInterruptsRequest) (*protocol.Page[protocol.PendingInterruptSet], error) {
 		return d.api.ListInterrupts(ctx, in)
 	})
 }
@@ -160,7 +160,7 @@ func registerPlan(r *Registry) {
 		Errors:          []string{protocol.ErrSessionNotFound.Error()},
 		CapabilityRules: requires(protocol.FeaturePlan),
 		Stability:       stable,
-	}, func(d *Dispatcher, ctx context.Context, in protocol.GetPlanRequest) (*protocol.StateSnapshot, error) {
+	}, func(d *Router, ctx context.Context, in protocol.GetPlanRequest) (*protocol.StateSnapshot, error) {
 		return d.api.GetPlan(ctx, in)
 	})
 }
@@ -181,7 +181,7 @@ func registerItems(r *Registry) {
 			Requires: []string{protocol.FeatureSubagents},
 		}},
 		Stability: stable,
-	}, func(d *Dispatcher, ctx context.Context, in protocol.ListItemsRequest) (*protocol.ListItemsResponse, error) {
+	}, func(d *Router, ctx context.Context, in protocol.ListItemsRequest) (*protocol.ListItemsResponse, error) {
 		return d.api.ListItems(ctx, in)
 	})
 }

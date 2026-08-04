@@ -40,24 +40,24 @@ func TestTurnDelegatesCleanBoundaryMaintenanceAndPublishesCompaction(t *testing.
 	if err != nil {
 		t.Fatalf("chatclient.New: %v", err)
 	}
-	dispatcher, err := turn.New(turnDeps(engine, func(deps *turn.Dependencies) {
+	controller, err := turn.New(turnDeps(engine, func(deps *turn.Dependencies) {
 		deps.Maintenance = maintenance
 		deps.ClientResolver = &fakeResolver{client: client}
 	}))
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	handle, err := dispatcher.PrepareTurn(t.Context(), runs.StartTurn{
+	handle, err := controller.PrepareTurn(t.Context(), runs.StartTurn{
 		SessionID: "session", Message: "hello", Cwd: "/project", ModelSelection: testModelSelection(t, "openai", "gpt-test"),
 	})
 	if err != nil {
 		t.Fatalf("PrepareTurn: %v", err)
 	}
-	events, err := dispatcher.Events(context.Background(), handle)
+	events, err := controller.Events(context.Background(), handle)
 	if err != nil {
 		t.Fatalf("Events: %v", err)
 	}
-	if err := dispatcher.ActivateTurn(t.Context(), handle); err != nil {
+	if err := controller.ActivateTurn(t.Context(), handle); err != nil {
 		t.Fatalf("ActivateTurn: %v", err)
 	}
 

@@ -4,7 +4,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
 
-func (s *memoryDispatcher) toolActivity(toolName, rawArguments string) string {
+func (s *controller) toolActivity(toolName, rawArguments string) string {
 	if toolName == "" {
 		return ""
 	}

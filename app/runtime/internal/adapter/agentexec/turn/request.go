@@ -27,10 +27,10 @@ func snapshotStartTurn(r runs.StartTurn) runs.StartTurn {
 	return snapshot
 }
 
-// TurnHandle uniquely identifies an in-flight turn. Returned by
+// Handle uniquely identifies an in-flight turn. Returned by
 // StartTurn and used to address subsequent operations
 // (steering injection, cancellation).
-type TurnHandle struct {
+type Handle struct {
 	SessionID string
 	TurnID    string
 

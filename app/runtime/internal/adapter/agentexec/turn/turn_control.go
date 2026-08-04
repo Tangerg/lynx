@@ -20,7 +20,7 @@ import (
 // process here instead would clobber its status — dropping a continuation a
 // racing Resume just started (the approved tool never runs) — and publish a
 // duplicate ProcessKilled alongside markCancelled.
-func (s *memoryDispatcher) Cancel(ctx context.Context, handle TurnHandle) error {
+func (s *controller) Cancel(ctx context.Context, handle Handle) error {
 	state, err := s.findTurn(handle.TurnID)
 	if err != nil {
 		return err
@@ -55,9 +55,9 @@ func (s *memoryDispatcher) Cancel(ctx context.Context, handle TurnHandle) error 
 // CancelSubtree terminates one descendant process tree without claiming the
 // turn's root lifecycle. The root process handle is stable for the turn; its
 // implementation proves target ownership before Agent Runtime mutates anything.
-func (s *memoryDispatcher) CancelSubtree(
+func (s *controller) CancelSubtree(
 	ctx context.Context,
-	handle TurnHandle,
+	handle Handle,
 	processID string,
 ) error {
 	state, err := s.findTurn(handle.TurnID)
@@ -92,9 +92,9 @@ func (s *memoryDispatcher) CancelSubtree(
 // adapter for an immutable execution-transition plan. The returned application
 // capability owns only the App lifecycle claim until Commit or Abort; Agent
 // runtime retains no resource while the App transaction runs.
-func (s *memoryDispatcher) PrepareWaitingSubtreeCancellation(
+func (s *controller) PrepareWaitingSubtreeCancellation(
 	ctx context.Context,
-	handle TurnHandle,
+	handle Handle,
 	processID string,
 ) (runs.PreparedWaitingSubtreeCancellation, error) {
 	state, err := s.findTurn(handle.TurnID)
@@ -151,7 +151,7 @@ func (s *memoryDispatcher) PrepareWaitingSubtreeCancellation(
 			Interrupt:    interrupt,
 		}
 	}
-	mutation := &preparedWaitingSubtreeCancellation{dispatcher: s, state: state, plan: plan}
+	mutation := &preparedWaitingSubtreeCancellation{controller: s, state: state, plan: plan}
 	return runs.PreparedWaitingSubtreeCancellation{
 		CanceledProcessIDs: plan.CanceledProcessIDs(),
 		PendingSuspensions: projected,
@@ -163,7 +163,7 @@ func (s *memoryDispatcher) PrepareWaitingSubtreeCancellation(
 type preparedWaitingSubtreeCancellation struct {
 	mu sync.Mutex
 
-	dispatcher *memoryDispatcher
+	controller *controller
 	state      *turnState
 	plan       agentexec.WaitingSubtreeCancellationPlan
 	settled    bool
@@ -210,7 +210,7 @@ func (prepared *preparedWaitingSubtreeCancellation) Commit(
 		)
 		prepared.state.commitWaitingMutation(true)
 		prepared.state.lifecycleMu.Unlock()
-		finishErr := prepared.dispatcher.finishExecutionError(
+		finishErr := prepared.controller.finishExecutionError(
 			prepared.state,
 			problemFromError(continuationErr),
 			continuationErr,
@@ -224,7 +224,7 @@ func (prepared *preparedWaitingSubtreeCancellation) Commit(
 		return nil
 	}
 	prepared.state.lifecycleMu.Unlock()
-	go prepared.dispatcher.drive(prepared.state)
+	go prepared.controller.drive(prepared.state)
 	return nil
 }
 
@@ -258,7 +258,7 @@ func cancelTurnProcess(ctx context.Context, process agentexec.TurnProcess) error
 // delivers the bool decision to the agent process, and drives the continuation
 // segment onto the same event channel. Returns [ErrTurnNotFound] when the turn
 // isn't parked (unknown / already resumed / terminal).
-func (s *memoryDispatcher) Resume(ctx context.Context, handle TurnHandle, answers []agentexec.SuspensionAnswer, interruptKinds []execution.InterruptKind) error {
+func (s *controller) Resume(ctx context.Context, handle Handle, answers []agentexec.SuspensionAnswer, interruptKinds []execution.InterruptKind) error {
 	state, err := s.findTurn(handle.TurnID)
 	if err != nil {
 		return err
@@ -279,7 +279,7 @@ func (s *memoryDispatcher) Resume(ctx context.Context, handle TurnHandle, answer
 // drive and returns nil. Shared by [Resume] (same-process) and [Rehydrate]
 // (cross-restart) so the resume tail — deliver, on-error-finish, else-drive —
 // stays identical.
-func (s *memoryDispatcher) resumeAndDrive(
+func (s *controller) resumeAndDrive(
 	admissionCtx context.Context,
 	state *turnState,
 	answers []agentexec.SuspensionAnswer,

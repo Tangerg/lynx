@@ -20,24 +20,24 @@ import (
 const hangBound = 30 * time.Second
 
 func TestShutdownIsBoundedAndCanFinishJoiningLater(t *testing.T) {
-	st := newRestoringTurnState(t.Context(), TurnHandle{SessionID: "ses_1", TurnID: "turn_1"})
-	dispatcher := &memoryDispatcher{
+	st := newRestoringTurnState(t.Context(), Handle{SessionID: "ses_1", TurnID: "turn_1"})
+	controller := &controller{
 		turns:        map[string]*turnState{st.handle.TurnID: st},
 		seenSessions: map[string]struct{}{},
 	}
 
 	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Millisecond)
 	defer cancel()
-	err := shutdownDispatcher(ctx, dispatcher)
+	err := shutdownController(ctx, controller)
 	if !errors.Is(err, ErrShutdownTimeout) {
 		t.Fatalf("shutdown error = %v, want ErrShutdownTimeout", err)
 	}
-	if !dispatcher.isClosed() {
+	if !controller.isClosed() {
 		t.Fatal("timed-out shutdown did not reject future admission")
 	}
 
 	close(st.done)
-	if err := shutdownDispatcher(t.Context(), dispatcher); err != nil {
+	if err := shutdownController(t.Context(), controller); err != nil {
 		t.Fatalf("second shutdown after teardown = %v, want nil", err)
 	}
 }
@@ -46,13 +46,13 @@ func TestShutdownDeadlineCoversCancellationWork(t *testing.T) {
 	release := make(chan struct{})
 	st := newRunningTestState(
 		t.Context(),
-		TurnHandle{SessionID: "ses_1", TurnID: "turn_1"},
+		Handle{SessionID: "ses_1", TurnID: "turn_1"},
 		&blockingCancelProcess{release: release},
 	)
 	if !st.parkIfLive() {
 		t.Fatal("failed to park test turn")
 	}
-	dispatcher := &memoryDispatcher{
+	controller := &controller{
 		turns:        map[string]*turnState{st.handle.TurnID: st},
 		seenSessions: map[string]struct{}{},
 	}
@@ -60,7 +60,7 @@ func TestShutdownDeadlineCoversCancellationWork(t *testing.T) {
 	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Millisecond)
 	defer cancel()
 	result := make(chan error, 1)
-	go func() { result <- shutdownDispatcher(ctx, dispatcher) }()
+	go func() { result <- shutdownController(ctx, controller) }()
 
 	select {
 	case err := <-result:
@@ -124,28 +124,28 @@ func TestShutdownReportsProcessCancellationFailure(t *testing.T) {
 	release := make(chan struct{})
 	close(release)
 	process := &blockingCancelProcess{release: release, err: cancelErr}
-	st := newRunningTestState(t.Context(), TurnHandle{SessionID: "ses_1", TurnID: "turn_1"}, process)
+	st := newRunningTestState(t.Context(), Handle{SessionID: "ses_1", TurnID: "turn_1"}, process)
 	if !st.parkIfLive() {
 		t.Fatal("failed to park test turn")
 	}
-	dispatcher := &memoryDispatcher{
+	controller := &controller{
 		turns:        map[string]*turnState{st.handle.TurnID: st},
 		seenSessions: map[string]struct{}{},
 	}
 
-	err := shutdownDispatcher(t.Context(), dispatcher)
+	err := shutdownController(t.Context(), controller)
 	if !errors.Is(err, cancelErr) {
 		t.Fatalf("shutdown error = %v, want process cancellation failure", err)
 	}
 	if channelClosed(st.done) {
 		t.Fatal("failed cancellation released the turn")
 	}
-	if _, err := dispatcher.findTurn(st.handle.TurnID); err != nil {
+	if _, err := controller.findTurn(st.handle.TurnID); err != nil {
 		t.Fatalf("failed cancellation lost retry ownership: %v", err)
 	}
 
 	process.err = nil
-	if err := shutdownDispatcher(t.Context(), dispatcher); err != nil {
+	if err := shutdownController(t.Context(), controller); err != nil {
 		t.Fatalf("retry shutdown after transient cancellation failure: %v", err)
 	}
 	if !channelClosed(st.done) {
@@ -162,27 +162,27 @@ func TestCancelRetainsTerminalTurnAfterBackgroundDiscardFailure(t *testing.T) {
 		discardErr: discardErr,
 		discarded:  make(chan struct{}, 2),
 	}
-	st := newRunningTestState(t.Context(), TurnHandle{SessionID: "ses_1", TurnID: "turn_1"}, process)
+	st := newRunningTestState(t.Context(), Handle{SessionID: "ses_1", TurnID: "turn_1"}, process)
 	if !st.parkIfLive() {
 		t.Fatal("failed to park test turn")
 	}
-	dispatcher := &memoryDispatcher{
+	controller := &controller{
 		turns:        map[string]*turnState{st.handle.TurnID: st},
 		seenSessions: map[string]struct{}{},
 	}
 
-	if err := dispatcher.Cancel(t.Context(), st.handle); err != nil {
+	if err := controller.Cancel(t.Context(), st.handle); err != nil {
 		t.Fatalf("Cancel: %v", err)
 	}
 	<-process.discarded
 	if channelClosed(st.done) {
 		t.Fatal("discard failure released the terminal turn")
 	}
-	if _, err := dispatcher.findTurn(st.handle.TurnID); err != nil {
+	if _, err := controller.findTurn(st.handle.TurnID); err != nil {
 		t.Fatalf("discard failure lost registry ownership: %v", err)
 	}
 	process.discardErr = nil
-	if err := dispatcher.Cancel(t.Context(), st.handle); err != nil {
+	if err := controller.Cancel(t.Context(), st.handle); err != nil {
 		t.Fatalf("retry terminal cleanup: %v", err)
 	}
 	if !channelClosed(st.done) {
@@ -194,7 +194,7 @@ func TestShutdownTimeoutKeepsLaterCancellationFailures(t *testing.T) {
 	stalledRelease := make(chan struct{})
 	stalled := newRunningTestState(
 		t.Context(),
-		TurnHandle{SessionID: "ses_1", TurnID: "turn_a"},
+		Handle{SessionID: "ses_1", TurnID: "turn_a"},
 		&blockingCancelProcess{release: stalledRelease},
 	)
 	if !stalled.parkIfLive() {
@@ -205,13 +205,13 @@ func TestShutdownTimeoutKeepsLaterCancellationFailures(t *testing.T) {
 	close(release)
 	failed := newRunningTestState(
 		t.Context(),
-		TurnHandle{SessionID: "ses_2", TurnID: "turn_b"},
+		Handle{SessionID: "ses_2", TurnID: "turn_b"},
 		&blockingCancelProcess{release: release, err: cancelErr},
 	)
 	if !failed.parkIfLive() {
 		t.Fatal("failed to park cancellation-error turn")
 	}
-	dispatcher := &memoryDispatcher{
+	controller := &controller{
 		turns: map[string]*turnState{
 			stalled.handle.TurnID: stalled,
 			failed.handle.TurnID:  failed,
@@ -221,7 +221,7 @@ func TestShutdownTimeoutKeepsLaterCancellationFailures(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(t.Context(), 20*time.Millisecond)
 	defer cancel()
-	err := shutdownDispatcher(ctx, dispatcher)
+	err := shutdownController(ctx, controller)
 	if !errors.Is(err, ErrShutdownTimeout) {
 		t.Fatalf("shutdown error = %v, want ErrShutdownTimeout", err)
 	}
@@ -237,7 +237,7 @@ func TestShutdownTimeoutKeepsLaterCancellationFailures(t *testing.T) {
 	}
 }
 
-func shutdownDispatcher(ctx context.Context, dispatcher *memoryDispatcher) error {
-	dispatcher.BeginShutdown()
-	return dispatcher.AwaitShutdown(ctx)
+func shutdownController(ctx context.Context, controller *controller) error {
+	controller.BeginShutdown()
+	return controller.AwaitShutdown(ctx)
 }

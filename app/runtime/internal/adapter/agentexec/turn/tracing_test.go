@@ -61,27 +61,27 @@ func TestTerminalDiscardFailureIsRecordedUntilCleanupSucceeds(t *testing.T) {
 	_, exporter := installTurnTraceCapture(t)
 
 	stub := &stubEngine{runReply: "ok", discardErr: discardErr}
-	dispatcher := mustTurn(turn.New(turnDeps(stub)))
-	handle, err := dispatcher.StartTurn(t.Context(), runs.StartTurn{SessionID: "s", Message: "hi"})
+	controller := mustTurn(turn.New(turnDeps(stub)))
+	handle, err := controller.StartTurn(t.Context(), runs.StartTurn{SessionID: "s", Message: "hi"})
 	if err != nil {
 		t.Fatalf("StartTurn: %v", err)
 	}
-	events, err := dispatcher.Events(t.Context(), handle)
+	events, err := controller.Events(t.Context(), handle)
 	if err != nil {
 		t.Fatalf("Events: %v", err)
 	}
 	for range events {
 	}
-	if err := dispatcher.Cancel(t.Context(), handle); err != nil &&
+	if err := controller.Cancel(t.Context(), handle); err != nil &&
 		!errors.Is(err, turn.ErrTurnNotFound) &&
 		!errors.Is(err, discardErr) {
 		t.Fatalf("join terminal cleanup: %v", err)
 	}
 	stub.lastProcess.Load().discardErr = nil
-	if err := dispatcher.Cancel(t.Context(), handle); err != nil {
+	if err := controller.Cancel(t.Context(), handle); err != nil {
 		t.Fatalf("retry terminal cleanup: %v", err)
 	}
-	if err := dispatcher.Cancel(t.Context(), handle); !errors.Is(err, turn.ErrTurnNotFound) {
+	if err := controller.Cancel(t.Context(), handle); !errors.Is(err, turn.ErrTurnNotFound) {
 		t.Fatalf("Cancel after joined terminal cleanup = %v, want ErrTurnNotFound", err)
 	}
 
@@ -116,8 +116,8 @@ func TestStartTurn_PropagatesEntryTrace(t *testing.T) {
 	wantTrace := entry.SpanContext().TraceID()
 
 	stub := &stubEngine{runReply: "ok"}
-	dispatcher := mustTurn(turn.New(turnDeps(stub)))
-	handle, err := dispatcher.StartTurn(entryCtx, runs.StartTurn{SessionID: "s", Message: "hi"})
+	controller := mustTurn(turn.New(turnDeps(stub)))
+	handle, err := controller.StartTurn(entryCtx, runs.StartTurn{SessionID: "s", Message: "hi"})
 	if err != nil {
 		t.Fatalf("StartTurn: %v", err)
 	}
@@ -127,7 +127,7 @@ func TestStartTurn_PropagatesEntryTrace(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	events, _ := dispatcher.Events(ctx, handle)
+	events, _ := controller.Events(ctx, handle)
 	for range events { // drain to TurnEnd
 	}
 

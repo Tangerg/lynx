@@ -22,11 +22,11 @@ import (
 //
 // The turn owns its own synchronization: mu guards the cross-goroutine
 // mutable state (the backing process, lifecycle phase, the steering queue),
-// reached only through the methods below, so the dispatcher mutex is left to
+// reached only through the methods below, so the controller mutex is left to
 // guard just the live-turn registry. The remaining fields are set once at
 // the entry point and read without locking thereafter.
 type turnState struct {
-	handle TurnHandle
+	handle Handle
 	events chan runs.ExecutorEvent
 	done   chan struct{}
 	cancel context.CancelFunc
@@ -235,13 +235,13 @@ func (st *turnState) requestCancellation() cancellationAction {
 }
 
 // newPreparingTurnState builds a fresh start state before prompt hooks finish.
-func newPreparingTurnState(ctx context.Context, handle TurnHandle) *turnState {
+func newPreparingTurnState(ctx context.Context, handle Handle) *turnState {
 	return newTurnState(ctx, handle, turnPreparing)
 }
 
 // newRestoringTurnState builds a state whose process publication is owned by
 // Rehydrate.
-func newRestoringTurnState(ctx context.Context, handle TurnHandle) *turnState {
+func newRestoringTurnState(ctx context.Context, handle Handle) *turnState {
 	return newTurnState(ctx, handle, turnRestoring)
 }
 
@@ -253,7 +253,7 @@ func newRestoringTurnState(ctx context.Context, handle TurnHandle) *turnState {
 // so the engine's spans chain onto the same trace. The turn span is layered on
 // in StartTurn / Rehydrate. Shared by both entry points so they produce an
 // identically-initialized turn.
-func newTurnState(ctx context.Context, handle TurnHandle, phase turnPhase) *turnState {
+func newTurnState(ctx context.Context, handle Handle, phase turnPhase) *turnState {
 	lifeCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
 	return &turnState{
 		handle:           handle,

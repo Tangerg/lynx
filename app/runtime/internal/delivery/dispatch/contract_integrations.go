@@ -11,7 +11,7 @@ func registerMCP(r *Registry) {
 		Name:            "mcp.servers.list",
 		CapabilityRules: requires(protocol.FeatureMCP),
 		Stability:       stable,
-	}, func(d *Dispatcher, ctx context.Context, _ struct{}) (*protocol.Page[protocol.McpServer], error) {
+	}, func(d *Router, ctx context.Context, _ struct{}) (*protocol.Page[protocol.McpServer], error) {
 		return d.api.ListMCPServers(ctx)
 	})
 
@@ -20,7 +20,7 @@ func registerMCP(r *Registry) {
 		Errors:          []string{protocol.ErrMCPServerAlreadyExists.Error()},
 		CapabilityRules: requires(protocol.FeatureMCP),
 		Stability:       stable,
-	}, func(d *Dispatcher, ctx context.Context, in protocol.MCPServerCandidate) (*protocol.McpServer, error) {
+	}, func(d *Router, ctx context.Context, in protocol.MCPServerCandidate) (*protocol.McpServer, error) {
 		return d.api.CreateMCPServer(ctx, in)
 	})
 
@@ -29,7 +29,7 @@ func registerMCP(r *Registry) {
 		Errors:          []string{protocol.ErrMCPServerNotFound.Error()},
 		CapabilityRules: requires(protocol.FeatureMCP),
 		Stability:       stable,
-	}, func(d *Dispatcher, ctx context.Context, in protocol.UpdateMCPServerRequest) (*protocol.McpServer, error) {
+	}, func(d *Router, ctx context.Context, in protocol.UpdateMCPServerRequest) (*protocol.McpServer, error) {
 		return d.api.UpdateMCPServer(ctx, in)
 	})
 
@@ -38,7 +38,7 @@ func registerMCP(r *Registry) {
 		Errors:          []string{protocol.ErrMCPServerNotFound.Error()},
 		CapabilityRules: requires(protocol.FeatureMCP),
 		Stability:       stable,
-	}, func(d *Dispatcher, ctx context.Context, in protocol.MCPServerRequest) error {
+	}, func(d *Router, ctx context.Context, in protocol.MCPServerRequest) error {
 		return d.api.DeleteMCPServer(ctx, in.Server)
 	})
 
@@ -47,7 +47,7 @@ func registerMCP(r *Registry) {
 		Name:            "mcp.servers.test",
 		CapabilityRules: requires(protocol.FeatureMCP),
 		Stability:       stable,
-	}, func(d *Dispatcher, ctx context.Context, in protocol.MCPServerCandidate) (*protocol.McpTestResult, error) {
+	}, func(d *Router, ctx context.Context, in protocol.MCPServerCandidate) (*protocol.McpTestResult, error) {
 		return d.api.TestMCPServer(ctx, in)
 	})
 
@@ -55,7 +55,7 @@ func registerMCP(r *Registry) {
 		Name:            "mcp.tools.list",
 		CapabilityRules: requires(protocol.FeatureMCP),
 		Stability:       stable,
-	}, func(d *Dispatcher, ctx context.Context, in protocol.MCPListToolsRequest) (*protocol.Page[protocol.McpTool], error) {
+	}, func(d *Router, ctx context.Context, in protocol.MCPListToolsRequest) (*protocol.Page[protocol.McpTool], error) {
 		return d.api.ListMCPTools(ctx, in)
 	})
 
@@ -64,7 +64,7 @@ func registerMCP(r *Registry) {
 		Errors:          []string{protocol.ErrMCPServerNotFound.Error(), protocol.ErrMCPServerDisabled.Error()},
 		CapabilityRules: requires(protocol.FeatureMCP),
 		Stability:       stable,
-	}, func(d *Dispatcher, ctx context.Context, in protocol.MCPServerRequest) error {
+	}, func(d *Router, ctx context.Context, in protocol.MCPServerRequest) error {
 		return d.api.ReconnectMCPServer(ctx, in.Server)
 	})
 
@@ -73,7 +73,7 @@ func registerMCP(r *Registry) {
 		Errors:          []string{protocol.ErrMCPServerNotFound.Error(), protocol.ErrMCPServerDisabled.Error()},
 		CapabilityRules: requires(protocol.FeatureMCP),
 		Stability:       stable,
-	}, func(d *Dispatcher, ctx context.Context, in protocol.CreateMCPAuthorizationAttemptRequest) (*protocol.McpAuthorizationAttempt, error) {
+	}, func(d *Router, ctx context.Context, in protocol.CreateMCPAuthorizationAttemptRequest) (*protocol.McpAuthorizationAttempt, error) {
 		return d.api.CreateMCPAuthorizationAttempt(ctx, in.Server)
 	})
 
@@ -82,33 +82,33 @@ func registerMCP(r *Registry) {
 		Errors:          []string{protocol.ErrMCPAuthorizationAttemptNotFound.Error()},
 		CapabilityRules: requires(protocol.FeatureMCP),
 		Stability:       stable,
-	}, func(d *Dispatcher, ctx context.Context, in protocol.MCPAuthorizationAttemptRequest) (*protocol.McpAuthorizationAttempt, error) {
+	}, func(d *Router, ctx context.Context, in protocol.MCPAuthorizationAttemptRequest) (*protocol.McpAuthorizationAttempt, error) {
 		return d.api.GetMCPAuthorizationAttempt(ctx, in.AttemptID)
 	})
 }
 
 func registerApproval(r *Registry) {
 	Query(r, MethodMeta{Name: "approval.getMode", Stability: stable},
-		func(d *Dispatcher, ctx context.Context, _ struct{}) (*protocol.ApprovalModeResult, error) {
+		func(d *Router, ctx context.Context, _ struct{}) (*protocol.ApprovalModeResult, error) {
 			return d.api.GetApprovalMode(ctx)
 		})
 
 	Command(r, MethodMeta{
 		Name:      "approval.setMode",
 		Stability: stable,
-	}, func(d *Dispatcher, ctx context.Context, in protocol.SetApprovalModeRequest) (*protocol.ApprovalModeResult, error) {
+	}, func(d *Router, ctx context.Context, in protocol.SetApprovalModeRequest) (*protocol.ApprovalModeResult, error) {
 		return d.api.SetApprovalMode(ctx, in)
 	})
 
 	Query(r, MethodMeta{Name: "approval.listRules", Stability: stable},
-		func(d *Dispatcher, ctx context.Context, in protocol.ListApprovalRulesRequest) (*protocol.ListApprovalRulesResult, error) {
+		func(d *Router, ctx context.Context, in protocol.ListApprovalRulesRequest) (*protocol.ListApprovalRulesResult, error) {
 			return d.api.ListApprovalRules(ctx, in)
 		})
 
 	CommandAck(r, MethodMeta{
 		Name:      "approval.forgetRule",
 		Stability: stable,
-	}, func(d *Dispatcher, ctx context.Context, in protocol.ForgetApprovalRuleRequest) error {
+	}, func(d *Router, ctx context.Context, in protocol.ForgetApprovalRuleRequest) error {
 		return d.api.ForgetApprovalRule(ctx, in)
 	})
 }
@@ -118,7 +118,7 @@ func registerSchedules(r *Registry) {
 		Name:            "schedules.list",
 		CapabilityRules: requires(protocol.FeatureSchedules),
 		Stability:       stable,
-	}, func(d *Dispatcher, ctx context.Context, in protocol.PageQuery) (*protocol.Page[protocol.Schedule], error) {
+	}, func(d *Router, ctx context.Context, in protocol.PageQuery) (*protocol.Page[protocol.Schedule], error) {
 		return d.api.ListSchedules(ctx, in)
 	})
 
@@ -126,7 +126,7 @@ func registerSchedules(r *Registry) {
 		Name:            "schedules.create",
 		CapabilityRules: requires(protocol.FeatureSchedules),
 		Stability:       stable,
-	}, func(d *Dispatcher, ctx context.Context, in protocol.CreateScheduleRequest) (*protocol.Schedule, error) {
+	}, func(d *Router, ctx context.Context, in protocol.CreateScheduleRequest) (*protocol.Schedule, error) {
 		return d.api.CreateSchedule(ctx, in)
 	})
 
@@ -135,7 +135,7 @@ func registerSchedules(r *Registry) {
 		Errors:          []string{protocol.ErrRevisionConflict.Error()},
 		CapabilityRules: requires(protocol.FeatureSchedules),
 		Stability:       stable,
-	}, func(d *Dispatcher, ctx context.Context, in protocol.UpdateScheduleRequest) (*protocol.Schedule, error) {
+	}, func(d *Router, ctx context.Context, in protocol.UpdateScheduleRequest) (*protocol.Schedule, error) {
 		return d.api.UpdateSchedule(ctx, in)
 	})
 
@@ -143,7 +143,7 @@ func registerSchedules(r *Registry) {
 		Name:            "schedules.delete",
 		CapabilityRules: requires(protocol.FeatureSchedules),
 		Stability:       stable,
-	}, func(d *Dispatcher, ctx context.Context, in protocol.DeleteScheduleRequest) error {
+	}, func(d *Router, ctx context.Context, in protocol.DeleteScheduleRequest) error {
 		return d.api.DeleteSchedule(ctx, in)
 	})
 
@@ -151,7 +151,7 @@ func registerSchedules(r *Registry) {
 		Name:            "schedules.runNow",
 		CapabilityRules: requires(protocol.FeatureSchedules),
 		Stability:       stable,
-	}, func(d *Dispatcher, ctx context.Context, in protocol.RunScheduleNowRequest) (*protocol.RunScheduleNowResponse, error) {
+	}, func(d *Router, ctx context.Context, in protocol.RunScheduleNowRequest) (*protocol.RunScheduleNowResponse, error) {
 		return d.api.RunScheduleNow(ctx, in)
 	})
 }
@@ -162,7 +162,7 @@ func registerGoals(r *Registry) {
 		Errors:          []string{protocol.ErrSessionNotFound.Error()},
 		CapabilityRules: requires(protocol.FeatureGoals),
 		Stability:       stable,
-	}, func(d *Dispatcher, ctx context.Context, in protocol.StartGoalRequest) (*protocol.Goal, error) {
+	}, func(d *Router, ctx context.Context, in protocol.StartGoalRequest) (*protocol.Goal, error) {
 		return d.api.StartGoal(ctx, in)
 	})
 
@@ -174,7 +174,7 @@ func registerGoals(r *Registry) {
 		ResultNullable:  true,
 		CapabilityRules: requires(protocol.FeatureGoals),
 		Stability:       stable,
-	}, func(d *Dispatcher, ctx context.Context, in protocol.GoalRequest) (*protocol.Goal, error) {
+	}, func(d *Router, ctx context.Context, in protocol.GoalRequest) (*protocol.Goal, error) {
 		return d.api.GetGoal(ctx, in)
 	})
 
@@ -183,7 +183,7 @@ func registerGoals(r *Registry) {
 		Errors:          []string{protocol.ErrSessionNotFound.Error()},
 		CapabilityRules: requires(protocol.FeatureGoals),
 		Stability:       stable,
-	}, func(d *Dispatcher, ctx context.Context, in protocol.GoalRequest) (*protocol.Goal, error) {
+	}, func(d *Router, ctx context.Context, in protocol.GoalRequest) (*protocol.Goal, error) {
 		return d.api.StopGoal(ctx, in)
 	})
 
@@ -192,7 +192,7 @@ func registerGoals(r *Registry) {
 		Errors:          []string{protocol.ErrSessionNotFound.Error()},
 		CapabilityRules: requires(protocol.FeatureGoals),
 		Stability:       stable,
-	}, func(d *Dispatcher, ctx context.Context, in protocol.GoalRequest) (*protocol.Goal, error) {
+	}, func(d *Router, ctx context.Context, in protocol.GoalRequest) (*protocol.Goal, error) {
 		return d.api.ResumeGoal(ctx, in)
 	})
 }
@@ -203,7 +203,7 @@ func registerCodebase(r *Registry) {
 		Errors:          []string{protocol.ErrWorkspaceUnavailable.Error()},
 		CapabilityRules: requires(protocol.FeatureCodebase),
 		Stability:       stable,
-	}, func(d *Dispatcher, ctx context.Context, in protocol.CodebaseSearchRequest) (*protocol.CodebaseSearchResult, error) {
+	}, func(d *Router, ctx context.Context, in protocol.CodebaseSearchRequest) (*protocol.CodebaseSearchResult, error) {
 		return d.api.CodebaseSearch(ctx, in)
 	})
 
@@ -212,7 +212,7 @@ func registerCodebase(r *Registry) {
 		Errors:          []string{protocol.ErrWorkspaceUnavailable.Error()},
 		CapabilityRules: requires(protocol.FeatureCodebase),
 		Stability:       stable,
-	}, func(d *Dispatcher, ctx context.Context, in protocol.CodebaseStatusRequest) (*protocol.CodebaseStatus, error) {
+	}, func(d *Router, ctx context.Context, in protocol.CodebaseStatusRequest) (*protocol.CodebaseStatus, error) {
 		return d.api.CodebaseStatus(ctx, in)
 	})
 
@@ -221,7 +221,7 @@ func registerCodebase(r *Registry) {
 		Errors:          []string{protocol.ErrWorkspaceUnavailable.Error()},
 		CapabilityRules: requires(protocol.FeatureCodebase),
 		Stability:       stable,
-	}, func(d *Dispatcher, ctx context.Context, in protocol.CodebaseReindexRequest) (*protocol.CodebaseReindexResponse, error) {
+	}, func(d *Router, ctx context.Context, in protocol.CodebaseReindexRequest) (*protocol.CodebaseReindexResponse, error) {
 		return d.api.CodebaseReindex(ctx, in)
 	})
 }

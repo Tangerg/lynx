@@ -6,15 +6,15 @@ import "errors"
 // targets a non-existent or already-finished turn.
 var ErrTurnNotFound = errors.New("turn: turn not found")
 
-// ErrDispatcherClosed reports admission after the process-scoped dispatcher
+// ErrClosed reports admission after the process-scoped controller
 // has begun shutdown.
-var ErrDispatcherClosed = errors.New("turn: dispatcher closed")
+var ErrClosed = errors.New("turn: controller closed")
 
 // ErrTurnAlreadyActivated reports a duplicate attempt to activate a prepared
 // turn. Activation is an ownership transfer and may happen exactly once.
 var ErrTurnAlreadyActivated = errors.New("turn: turn already activated")
 
-// ErrShutdownTimeout reports that dispatcher shutdown canceled every turn but
+// ErrShutdownTimeout reports that controller shutdown canceled every turn but
 // at least one turn did not finish its terminal teardown within the deadline.
 var ErrShutdownTimeout = errors.New("turn: shutdown timeout")
 

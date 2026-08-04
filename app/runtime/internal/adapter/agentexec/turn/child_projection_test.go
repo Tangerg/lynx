@@ -13,13 +13,13 @@ import (
 )
 
 func TestTurnObserverProjectsAdmittedChildOntoExactExecutorSource(t *testing.T) {
-	state := newPreparingTurnState(t.Context(), TurnHandle{
+	state := newPreparingTurnState(t.Context(), Handle{
 		SessionID: "session",
 		TurnID:    "turn",
 	})
 	t.Cleanup(state.cancel)
 	observer := &turnObserver{
-		dispatcher:       &memoryDispatcher{},
+		controller:       &controller{},
 		st:               state,
 		projectChildRuns: true,
 	}
@@ -126,13 +126,13 @@ func TestTurnObserverDoesNotProjectUnadmittedSDKChildren(t *testing.T) {
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			state := newPreparingTurnState(t.Context(), TurnHandle{
+			state := newPreparingTurnState(t.Context(), Handle{
 				SessionID: "session",
 				TurnID:    "turn",
 			})
 			t.Cleanup(state.cancel)
 			observer := &turnObserver{
-				dispatcher:       &memoryDispatcher{},
+				controller:       &controller{},
 				st:               state,
 				projectChildRuns: test.enabled,
 			}

@@ -14,7 +14,7 @@ import (
 // TurnEnd misreports the outcome as canceled). The turn-lifetime ctx is the
 // escape hatch: a canceled turn stops blocking producers even when no consumer
 // is left to drain.
-func (s *memoryDispatcher) emitRootEvent(st *turnState, payload runs.EngineEvent) bool {
+func (s *controller) emitRootEvent(st *turnState, payload runs.EngineEvent) bool {
 	var source agentexec.ProcessRef
 	if process := st.process(); process != nil {
 		source = agentexec.ProcessRef{ID: process.ID()}
@@ -23,7 +23,7 @@ func (s *memoryDispatcher) emitRootEvent(st *turnState, payload runs.EngineEvent
 }
 
 // emitProcessEvent preserves the concrete executor process that produced payload.
-func (s *memoryDispatcher) emitProcessEvent(st *turnState, process agentexec.ProcessRef, payload runs.ExecutorPayload) bool {
+func (s *controller) emitProcessEvent(st *turnState, process agentexec.ProcessRef, payload runs.ExecutorPayload) bool {
 	event := runs.ExecutorEvent{
 		Source: runs.ExecutorSource{
 			ProcessID: process.ID, ParentID: process.ParentID, SpawnCallID: process.SpawnCallID,

@@ -52,8 +52,8 @@ func TestDoomLoopBrakesRepeatedNoProgressCall(t *testing.T) {
 	ctx := core.WithProcessView(t.Context(), suspendedProcessView{})
 	// Yolo passes the base read call, so only the doom-loop brake can stop it.
 	obs := &turnObserver{
-		dispatcher: &memoryDispatcher{approval: yoloTestApproval()},
-		st:         &turnState{handle: TurnHandle{SessionID: "s1"}},
+		controller: &controller{approval: yoloTestApproval()},
+		st:         &turnState{handle: Handle{SessionID: "s1"}},
 	}
 	args := `{"path":"x.go"}`
 
@@ -102,8 +102,8 @@ func TestDoomLoopBrakesRepeatedNoProgressCall(t *testing.T) {
 func TestDoomLoopIgnoresProgressingPolls(t *testing.T) {
 	ctx := core.WithProcessView(t.Context(), suspendedProcessView{})
 	obs := &turnObserver{
-		dispatcher: &memoryDispatcher{approval: yoloTestApproval()},
-		st:         &turnState{handle: TurnHandle{SessionID: "s1"}},
+		controller: &controller{approval: yoloTestApproval()},
+		st:         &turnState{handle: Handle{SessionID: "s1"}},
 	}
 	args := `{"id":"bg-1"}`
 

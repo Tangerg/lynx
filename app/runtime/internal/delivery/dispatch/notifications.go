@@ -37,7 +37,7 @@ func EncodeRuntimeEvent(ev protocol.RuntimeEvent) (transport.Message, error) {
 
 // Client notifications currently have no public methods. Unknown
 // notifications are intentionally ignored as required by JSON-RPC.
-func (d *Dispatcher) handleNotification(context.Context, *transport.Request) {}
+func (d *Router) handleNotification(context.Context, *transport.Request) {}
 
 // runEventToFrameFor returns the per-request encoder for RunEvent stream
 // notifications. Every authoritative event goes out; a client's opt-out only

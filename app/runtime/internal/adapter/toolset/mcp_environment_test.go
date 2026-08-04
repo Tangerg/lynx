@@ -230,14 +230,14 @@ func fileExists(p string) bool {
 // replacing the old all-or-nothing boot. (A malformed config stays fatal, as
 // the sibling Rejects* tests assert.)
 func TestToolEnvironmentToleratesUnreachableMCP(t *testing.T) {
-	_, connections := mustMCPToolEnvironment(t, []mcpserver.Server{
+	_, pool := mustMCPToolEnvironment(t, []mcpserver.Server{
 		{Name: "down", Transport: mcpserver.TransportStreamableHTTP, URL: "http://127.0.0.1:1/mcp"},
 	})
-	statuses := connections.Statuses()
+	statuses := pool.Statuses()
 	if len(statuses) != 1 || statuses[0].Name != "down" || statuses[0].State != mcpserver.ConnectionFailed {
 		t.Fatalf("statuses = %+v, want [down failed]", statuses)
 	}
-	tools, err := connections.Tools(context.Background(), "")
+	tools, err := pool.Tools(context.Background(), "")
 	if err != nil {
 		t.Fatalf("MCPTools: %v", err)
 	}
@@ -252,44 +252,44 @@ func TestToolEnvironmentToleratesUnreachableMCP(t *testing.T) {
 // mcpserver.ErrUnknownServer. (A successful reconnect's tool hot-swap rides the same
 // code path as boot, which the stdio integration test already exercises.)
 func TestToolEnvironmentReconnectsMCP(t *testing.T) {
-	_, connections := mustMCPToolEnvironment(t, []mcpserver.Server{
+	_, pool := mustMCPToolEnvironment(t, []mcpserver.Server{
 		{Name: "down", Transport: mcpserver.TransportStreamableHTTP, URL: "http://127.0.0.1:1/mcp"},
 	})
-	if err := connections.Reconnect(context.Background(), "down"); err == nil {
+	if err := pool.Reconnect(context.Background(), "down"); err == nil {
 		t.Fatal("reconnect of an unreachable server must return the dial error")
 	}
-	st := connections.Statuses()
+	st := pool.Statuses()
 	if len(st) != 1 || st[0].State != mcpserver.ConnectionFailed {
 		t.Fatalf("statuses = %+v, want [down failed]", st)
 	}
-	if tools, _ := connections.Tools(context.Background(), ""); len(tools) != 0 {
+	if tools, _ := pool.Tools(context.Background(), ""); len(tools) != 0 {
 		t.Fatalf("MCPTools = %+v, want empty after a failed reconnect", tools)
 	}
 
-	if err := connections.Reconnect(context.Background(), "ghost"); !errors.Is(err, mcpserver.ErrUnknownServer) {
+	if err := pool.Reconnect(context.Background(), "ghost"); !errors.Is(err, mcpserver.ErrUnknownServer) {
 		t.Fatalf("reconnect unknown = %v, want mcpserver.ErrUnknownServer", err)
 	}
 }
 
-func mustMCPToolEnvironment(t *testing.T, servers []mcpserver.Server) (toolset.Built, *mcpconnection.Connections) {
+func mustMCPToolEnvironment(t *testing.T, servers []mcpserver.Server) (toolset.Built, *mcpconnection.Pool) {
 	t.Helper()
-	connections, mcpTools, err := mcpconnection.Open(t.Context(), servers, nil)
+	pool, mcpTools, err := mcpconnection.Open(t.Context(), servers, nil)
 	if err != nil {
-		t.Fatalf("Open MCP connections: %v", err)
+		t.Fatalf("Open MCP pool: %v", err)
 	}
 	built, err := toolset.Build(t.Context(), toolset.BuildConfig{MCPTools: mcpTools})
 	if err != nil {
-		_ = connections.Shutdown(context.WithoutCancel(t.Context()))
+		_ = pool.Shutdown(context.WithoutCancel(t.Context()))
 		t.Fatalf("Build toolset: %v", err)
 	}
-	connections.SetToolSink(built.Resolver.SetMCPTools)
+	pool.SetToolSink(built.Resolver.SetMCPTools)
 	t.Cleanup(func() {
 		for index := len(built.Closers) - 1; index >= 0; index-- {
 			if closeFn := built.Closers[index]; closeFn != nil {
 				_ = closeFn()
 			}
 		}
-		_ = connections.Shutdown(context.WithoutCancel(t.Context()))
+		_ = pool.Shutdown(context.WithoutCancel(t.Context()))
 	})
-	return built, connections
+	return built, pool
 }

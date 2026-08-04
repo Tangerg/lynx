@@ -16,7 +16,7 @@ func TestModelToWire(t *testing.T) {
 	info := models.Model{
 		ID:       "claude-x",
 		Provider: "anthropic",
-		Details: &models.ModelDetails{
+		Details: &models.Details{
 			DisplayName:      "Claude X",
 			Deprecated:       true,
 			KnowledgeCutoff:  time.Date(2025, 3, 1, 0, 0, 0, 0, time.UTC),
@@ -82,7 +82,7 @@ func TestModelToWire_TextOnly(t *testing.T) {
 	m := modelToWire(models.Model{
 		ID:       "tiny",
 		Provider: "openai",
-		Details:  &models.ModelDetails{InputModalities: []string{"text"}},
+		Details:  &models.Details{InputModalities: []string{"text"}},
 	})
 	if m.Capabilities.Multimodal {
 		t.Error("text-only model must not be multimodal")

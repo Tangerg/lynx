@@ -37,15 +37,15 @@ import (
 // application coordinators or their unrelated methods.
 
 type sessionUseCases interface {
-	CreateView(ctx context.Context, title, cwd string) (sessions.SessionView, error)
+	CreateView(ctx context.Context, title, cwd string) (sessions.View, error)
 	DeleteSession(ctx context.Context, sessionID string) error
-	ForkView(ctx context.Context, spec sessions.ForkSpec) (sessions.SessionView, error)
-	ListViewPage(ctx context.Context, cursor string, limit int) (keyset.Page[sessions.SessionView], error)
+	ForkView(ctx context.Context, spec sessions.ForkSpec) (sessions.View, error)
+	ListViewPage(ctx context.Context, cursor string, limit int) (keyset.Page[sessions.View], error)
 	ExportSession(ctx context.Context, sessionID string) (sessions.ExportResult, error)
-	RestorePortableSession(ctx context.Context, snapshot sessions.PortableSnapshot) (sessions.SessionView, error)
+	RestorePortableSession(ctx context.Context, snapshot sessions.PortableSnapshot) (sessions.View, error)
 	Rollback(ctx context.Context, spec sessions.RollbackSpec) (sessions.RollbackResult, error)
-	UpdateView(ctx context.Context, id string, patch session.Patch) (sessions.SessionView, error)
-	View(ctx context.Context, id string) (sessions.SessionView, error)
+	UpdateView(ctx context.Context, id string, patch session.Patch) (sessions.View, error)
+	View(ctx context.Context, id string) (sessions.View, error)
 }
 
 type integrationUseCases interface {
@@ -147,9 +147,9 @@ type workspaceVCSUseCases interface {
 
 type workspaceDiscoveryUseCases interface {
 	ListAgentDocs(ctx context.Context, cwd string) ([]workspaceapp.AgentDoc, error)
-	ListWorkspaces(ctx context.Context) ([]workspaceapp.WorkspaceSummary, error)
+	ListWorkspaces(ctx context.Context) ([]workspaceapp.Summary, error)
 	ListRecipes(ctx context.Context, cwd string) ([]workspaceapp.Recipe, error)
-	ResolveWorkspace(path string) (workspaceapp.ResolvedWorkspace, error)
+	ResolveWorkspace(path string) (workspaceapp.Resolved, error)
 }
 
 type workspaceKnowledgeUseCases interface {

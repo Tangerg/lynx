@@ -42,7 +42,7 @@ type DroppedRun struct {
 }
 
 type RollbackResult struct {
-	Session SessionView
+	Session View
 	Dropped []DroppedRun
 }
 
@@ -147,7 +147,7 @@ func (c *Coordinator) Rollback(ctx context.Context, spec RollbackSpec) (Rollback
 			return result, err
 		}
 	}
-	result.Session, err = c.view(ctx, ses, SessionIdle)
+	result.Session, err = c.view(ctx, ses, ActivityIdle)
 	if err != nil {
 		return result, err
 	}

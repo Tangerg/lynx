@@ -13,7 +13,7 @@ import (
 // provider enabled by a stored key is left untouched — runtime edits win over
 // the config file. An environment key is never copied into storage; only a
 // missing configured endpoint is seeded beside it.
-func SeedConfiguredProvider(ctx context.Context, svc providersvc.Registry, cfg config.Config) error {
+func SeedConfiguredProvider(ctx context.Context, svc providersvc.Registry, cfg config.Settings) error {
 	id := cfg.Provider
 	existing, ok, err := svc.Get(ctx, id)
 	if err != nil {
@@ -38,7 +38,7 @@ func SeedConfiguredProvider(ctx context.Context, svc providersvc.Registry, cfg c
 // persisted via models.setUtilityRole is left untouched — runtime edits win
 // over the config file. An empty / identical-to-main UtilityModel seeds
 // nothing (maintenance then runs on the main model).
-func SeedUtilityRole(ctx context.Context, store UtilityRoleStore, cfg config.Config) error {
+func SeedUtilityRole(ctx context.Context, store UtilityRoleStore, cfg config.Settings) error {
 	role, err := store.LoadUtilityRole(ctx)
 	if err != nil {
 		return err

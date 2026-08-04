@@ -10,7 +10,7 @@ import (
 func TestEmitProcessEventPreservesExecutorIdentity(t *testing.T) {
 	state := newTurnState(
 		t.Context(),
-		TurnHandle{SessionID: "session_1", TurnID: "turn_1"},
+		Handle{SessionID: "session_1", TurnID: "turn_1"},
 		turnRunning,
 	)
 	t.Cleanup(state.cancel)
@@ -21,8 +21,8 @@ func TestEmitProcessEventPreservesExecutorIdentity(t *testing.T) {
 		SpawnCallID: "call_delegate",
 	}
 	payload := runs.MessageDelta{Text: "delegated output"}
-	dispatcher := new(memoryDispatcher)
-	if !dispatcher.emitProcessEvent(state, process, payload) {
+	controller := new(controller)
+	if !controller.emitProcessEvent(state, process, payload) {
 		t.Fatal("emitProcessEvent() = false, want delivered event")
 	}
 

@@ -13,21 +13,21 @@ func TestCancelBetweenParkAndInterruptPublishClosesSafely(t *testing.T) {
 	close(release)
 	st := newRunningTestState(
 		t.Context(),
-		TurnHandle{SessionID: "ses_1", TurnID: "turn_1"},
+		Handle{SessionID: "ses_1", TurnID: "turn_1"},
 		&blockingCancelProcess{release: release},
 	)
 	if !st.parkIfLive() {
 		t.Fatal("failed to park test turn")
 	}
-	dispatcher := &memoryDispatcher{
+	controller := &controller{
 		turns:        map[string]*turnState{st.handle.TurnID: st},
 		seenSessions: map[string]struct{}{},
 	}
 
-	if err := dispatcher.Cancel(t.Context(), st.handle); err != nil {
+	if err := controller.Cancel(t.Context(), st.handle); err != nil {
 		t.Fatalf("Cancel: %v", err)
 	}
-	if dispatcher.emitProcessEvent(st, agentexec.ProcessRef{ID: "proc_1"}, runs.TreeInterrupted{}) {
+	if controller.emitProcessEvent(st, agentexec.ProcessRef{ID: "proc_1"}, runs.TreeInterrupted{}) {
 		t.Fatal("late interrupt was delivered after the terminal closed the stream")
 	}
 

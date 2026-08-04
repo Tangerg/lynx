@@ -88,7 +88,7 @@ func providerMetadata(value llm.Provider) modelsapp.ProviderMetadata {
 }
 
 func catalogModel(providerID string, entry catalog.Model) modelsapp.Model {
-	details := &modelsapp.ModelDetails{
+	details := &modelsapp.Details{
 		DisplayName: entry.DisplayName, ContextWindow: int(entry.Limits.ContextWindow), MaxInputTokens: int(entry.Limits.MaxInputTokens),
 		MaxOutputTokens: int(entry.Limits.MaxOutputTokens), KnowledgeCutoff: entry.KnowledgeCutoff, Deprecated: entry.Deprecated,
 		Reasoning: entry.Reasoning.Supported, ReasoningLevels: slices.Clone(entry.Reasoning.Levels), ReasoningDefault: entry.Reasoning.DefaultLevel,

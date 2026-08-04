@@ -8,7 +8,7 @@ import (
 
 func registerSessions(r *Registry) {
 	Query(r, MethodMeta{Name: "sessions.list", Stability: stable},
-		func(d *Dispatcher, ctx context.Context, in protocol.PageQuery) (*protocol.Page[protocol.Session], error) {
+		func(d *Router, ctx context.Context, in protocol.PageQuery) (*protocol.Page[protocol.Session], error) {
 			return d.api.ListSessions(ctx, in)
 		})
 
@@ -16,7 +16,7 @@ func registerSessions(r *Registry) {
 		Name:      "sessions.get",
 		Errors:    []string{protocol.ErrSessionNotFound.Error()},
 		Stability: stable,
-	}, func(d *Dispatcher, ctx context.Context, in protocol.GetSessionRequest) (*protocol.Session, error) {
+	}, func(d *Router, ctx context.Context, in protocol.GetSessionRequest) (*protocol.Session, error) {
 		return d.api.GetSession(ctx, in.SessionID)
 	})
 
@@ -24,7 +24,7 @@ func registerSessions(r *Registry) {
 		Name:      "sessions.create",
 		Errors:    []string{protocol.ErrWorkspaceUnavailable.Error()},
 		Stability: stable,
-	}, func(d *Dispatcher, ctx context.Context, in protocol.CreateSessionRequest) (*protocol.Session, error) {
+	}, func(d *Router, ctx context.Context, in protocol.CreateSessionRequest) (*protocol.Session, error) {
 		return d.api.CreateSession(ctx, in)
 	})
 
@@ -43,7 +43,7 @@ func registerSessions(r *Registry) {
 			Requires: []string{protocol.FeatureRelocate},
 		}},
 		Stability: stable,
-	}, func(d *Dispatcher, ctx context.Context, in protocol.UpdateSessionRequest) (*protocol.Session, error) {
+	}, func(d *Router, ctx context.Context, in protocol.UpdateSessionRequest) (*protocol.Session, error) {
 		return d.api.UpdateSession(ctx, in)
 	})
 
@@ -51,7 +51,7 @@ func registerSessions(r *Registry) {
 		Name:      "sessions.delete",
 		Errors:    []string{protocol.ErrSessionNotFound.Error()},
 		Stability: stable,
-	}, func(d *Dispatcher, ctx context.Context, in protocol.DeleteSessionRequest) error {
+	}, func(d *Router, ctx context.Context, in protocol.DeleteSessionRequest) error {
 		return d.api.DeleteSession(ctx, in.SessionID)
 	})
 
@@ -62,7 +62,7 @@ func registerSessions(r *Registry) {
 			protocol.ErrRunNotFound.Error(),
 		},
 		Stability: stable,
-	}, func(d *Dispatcher, ctx context.Context, in protocol.ForkSessionRequest) (*protocol.Session, error) {
+	}, func(d *Router, ctx context.Context, in protocol.ForkSessionRequest) (*protocol.Session, error) {
 		return d.api.ForkSession(ctx, in)
 	})
 
@@ -89,7 +89,7 @@ func registerSessions(r *Registry) {
 			},
 		},
 		Stability: stable,
-	}, func(d *Dispatcher, ctx context.Context, in protocol.RollbackSessionRequest) (*protocol.RollbackSessionResponse, error) {
+	}, func(d *Router, ctx context.Context, in protocol.RollbackSessionRequest) (*protocol.RollbackSessionResponse, error) {
 		return d.api.RollbackSession(ctx, in)
 	})
 
@@ -98,7 +98,7 @@ func registerSessions(r *Registry) {
 		Errors:          []string{protocol.ErrSessionNotFound.Error()},
 		CapabilityRules: requires(protocol.FeatureSessionExport),
 		Stability:       stable,
-	}, func(d *Dispatcher, ctx context.Context, in protocol.ExportSessionRequest) (*protocol.ExportSessionResponse, error) {
+	}, func(d *Router, ctx context.Context, in protocol.ExportSessionRequest) (*protocol.ExportSessionResponse, error) {
 		return d.api.ExportSession(ctx, in)
 	})
 
@@ -106,7 +106,7 @@ func registerSessions(r *Registry) {
 		Name:            "sessions.import",
 		CapabilityRules: requires(protocol.FeatureSessionExport),
 		Stability:       stable,
-	}, func(d *Dispatcher, ctx context.Context, in protocol.ImportSessionRequest) (*protocol.ImportSessionResponse, error) {
+	}, func(d *Router, ctx context.Context, in protocol.ImportSessionRequest) (*protocol.ImportSessionResponse, error) {
 		return d.api.ImportSession(ctx, in)
 	})
 }

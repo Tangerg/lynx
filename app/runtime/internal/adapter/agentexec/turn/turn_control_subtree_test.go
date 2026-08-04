@@ -66,14 +66,14 @@ func (process *subtreeTurnProcess) PlanWaitingSubtreeCancellation(
 
 func TestCancelSubtreeDoesNotClaimTheTurnLifecycle(t *testing.T) {
 	process := &subtreeTurnProcess{}
-	handle := TurnHandle{SessionID: "session", TurnID: "turn"}
+	handle := Handle{SessionID: "session", TurnID: "turn"}
 	state := newRunningTestState(t.Context(), handle, process)
-	dispatcher := &memoryDispatcher{
+	controller := &controller{
 		turns:        map[string]*turnState{handle.TurnID: state},
 		seenSessions: map[string]struct{}{},
 	}
 
-	if err := dispatcher.CancelSubtree(t.Context(), handle, "process_child"); err != nil {
+	if err := controller.CancelSubtree(t.Context(), handle, "process_child"); err != nil {
 		t.Fatalf("CancelSubtree: %v", err)
 	}
 	if len(process.targets) != 1 || process.targets[0] != "process_child" {
@@ -82,7 +82,7 @@ func TestCancelSubtreeDoesNotClaimTheTurnLifecycle(t *testing.T) {
 	if process.rootCanceled {
 		t.Fatal("subtree cancellation called root Cancel")
 	}
-	if _, err := dispatcher.findTurn(handle.TurnID); err != nil {
+	if _, err := controller.findTurn(handle.TurnID); err != nil {
 		t.Fatalf("subtree cancellation released the owning turn: %v", err)
 	}
 	if state.released() {
@@ -129,17 +129,17 @@ func TestPrepareWaitingCancellationProjectsTypedBoundaryAndReleasesClaimOnAbort(
 		}},
 	}
 	process := &subtreeTurnProcess{plan: plan}
-	handle := TurnHandle{SessionID: "session", TurnID: "turn"}
+	handle := Handle{SessionID: "session", TurnID: "turn"}
 	state := newRunningTestState(t.Context(), handle, process)
 	if !state.parkIfLive() {
 		t.Fatal("test turn did not park")
 	}
-	dispatcher := &memoryDispatcher{
+	controller := &controller{
 		turns:        map[string]*turnState{handle.TurnID: state},
 		seenSessions: map[string]struct{}{},
 	}
 
-	prepared, err := dispatcher.PrepareWaitingSubtreeCancellation(
+	prepared, err := controller.PrepareWaitingSubtreeCancellation(
 		t.Context(),
 		handle,
 		"process_child",
@@ -165,19 +165,19 @@ func TestPreparedWaitingCancellationContinuationFailureDoesNotReenterLifecycleLo
 	discardErr := errors.New("discard failed")
 	discarded := make(chan struct{}, 2)
 	process := &subtreeTurnProcess{discardErr: discardErr, discarded: discarded}
-	handle := TurnHandle{SessionID: "session", TurnID: "turn"}
+	handle := Handle{SessionID: "session", TurnID: "turn"}
 	state := newRunningTestState(t.Context(), handle, process)
 	if !state.parkIfLive() || !state.claimWaitingMutation() {
 		t.Fatal("test turn did not enter waiting mutation phase")
 	}
-	dispatcher := &memoryDispatcher{
+	controller := &controller{
 		turns:        map[string]*turnState{handle.TurnID: state},
 		seenSessions: map[string]struct{}{},
 	}
 	continueErr := errors.New("continue failed")
 	plan := &stubWaitingSubtreePlan{continueErr: continueErr}
 	prepared := &preparedWaitingSubtreeCancellation{
-		dispatcher: dispatcher,
+		controller: controller,
 		state:      state,
 		plan:       plan,
 	}
@@ -218,11 +218,11 @@ func TestPreparedWaitingCancellationContinuationFailureDoesNotReenterLifecycleLo
 
 	shutdownCtx, cancel := context.WithTimeout(t.Context(), time.Second)
 	defer cancel()
-	if err := dispatcher.AwaitShutdown(shutdownCtx); !errors.Is(err, discardErr) {
+	if err := controller.AwaitShutdown(shutdownCtx); !errors.Is(err, discardErr) {
 		t.Fatalf("shutdown error = %v, want process teardown failure", err)
 	}
 	process.discardErr = nil
-	if err := dispatcher.AwaitShutdown(shutdownCtx); err != nil {
+	if err := controller.AwaitShutdown(shutdownCtx); err != nil {
 		t.Fatalf("retry shutdown after teardown recovery: %v", err)
 	}
 	if !state.released() {
@@ -232,19 +232,19 @@ func TestPreparedWaitingCancellationContinuationFailureDoesNotReenterLifecycleLo
 
 func TestPreparedWaitingCancellationRuntimeApplyFailureReleasesClaimOnAbort(t *testing.T) {
 	process := &subtreeTurnProcess{}
-	handle := TurnHandle{SessionID: "session", TurnID: "turn"}
+	handle := Handle{SessionID: "session", TurnID: "turn"}
 	state := newRunningTestState(t.Context(), handle, process)
 	if !state.parkIfLive() || !state.claimWaitingMutation() {
 		t.Fatal("test turn did not enter waiting mutation phase")
 	}
-	dispatcher := &memoryDispatcher{
+	controller := &controller{
 		turns:        map[string]*turnState{handle.TurnID: state},
 		seenSessions: map[string]struct{}{},
 	}
 	applyErr := errors.New("runtime apply failed")
 	plan := &stubWaitingSubtreePlan{applyErr: applyErr}
 	prepared := &preparedWaitingSubtreeCancellation{
-		dispatcher: dispatcher,
+		controller: controller,
 		state:      state,
 		plan:       plan,
 	}

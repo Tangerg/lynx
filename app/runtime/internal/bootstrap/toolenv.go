@@ -22,7 +22,7 @@ import (
 // generic toolset does not expose application integration ports.
 type toolEnvironment struct {
 	tools   toolset.Built
-	mcp     *mcpconnection.Connections
+	mcp     *mcpconnection.Pool
 	closers []ShutdownResource
 }
 
@@ -42,13 +42,13 @@ func buildToolEnvironment(
 	if err != nil {
 		return toolEnvironment{}, fmt.Errorf("runtime: default tool model: %w", err)
 	}
-	mcpConnections, mcpTools, err := mcpconnection.Open(ctx, mcpEnv.servers, cfg.MCPOAuthSessions)
+	mcpPool, mcpTools, err := mcpconnection.Open(ctx, mcpEnv.servers, cfg.MCPOAuthSessions)
 	if err != nil {
 		return toolEnvironment{}, fmt.Errorf("runtime: open MCP connections: %w", err)
 	}
 	environment := toolEnvironment{
-		mcp:     mcpConnections,
-		closers: []ShutdownResource{mcpConnections},
+		mcp:     mcpPool,
+		closers: []ShutdownResource{mcpPool},
 	}
 	bc := toolset.BuildConfig{
 		Workdir:         cfg.Engine.Workdir,
@@ -106,7 +106,7 @@ func buildToolEnvironment(
 	if err != nil {
 		return environment, fmt.Errorf("runtime: build tools: %w", err)
 	}
-	mcpConnections.SetToolSink(built.Resolver.SetMCPTools)
+	mcpPool.SetToolSink(built.Resolver.SetMCPTools)
 	environment.tools = built
 	environment.closers = append(environment.closers, shutdownClosers(built.Closers)...)
 	return environment, nil

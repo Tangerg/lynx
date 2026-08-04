@@ -15,49 +15,49 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 )
 
-// executorDispatcher is the turn control slice the application run adapter
-// needs. It lives at the consumer because the concrete dispatcher owns no
+// executorControl is the turn control slice the application run adapter
+// needs. It lives at the consumer because the concrete controller owns no
 // reusable abstraction boundary.
-type executorDispatcher interface {
-	Events(context.Context, TurnHandle) (iter.Seq[runs.ExecutorEvent], error)
-	InjectSteering(context.Context, TurnHandle, []transcript.ContentBlock) error
-	PrepareTurn(context.Context, runs.StartTurn) (TurnHandle, error)
-	ActivateTurn(context.Context, TurnHandle) error
-	Resume(context.Context, TurnHandle, []agentexec.SuspensionAnswer, []execution.InterruptKind) error
-	ProcessID(context.Context, TurnHandle) (string, error)
-	Rehydrate(context.Context, runs.RehydrateTurn) (TurnHandle, error)
-	Cancel(context.Context, TurnHandle) error
-	CancelSubtree(context.Context, TurnHandle, string) error
+type executorControl interface {
+	Events(context.Context, Handle) (iter.Seq[runs.ExecutorEvent], error)
+	InjectSteering(context.Context, Handle, []transcript.ContentBlock) error
+	PrepareTurn(context.Context, runs.StartTurn) (Handle, error)
+	ActivateTurn(context.Context, Handle) error
+	Resume(context.Context, Handle, []agentexec.SuspensionAnswer, []execution.InterruptKind) error
+	ProcessID(context.Context, Handle) (string, error)
+	Rehydrate(context.Context, runs.RehydrateTurn) (Handle, error)
+	Cancel(context.Context, Handle) error
+	CancelSubtree(context.Context, Handle, string) error
 }
 
-type waitingSubtreeDispatcher interface {
+type waitingSubtreeControl interface {
 	PrepareWaitingSubtreeCancellation(
 		context.Context,
-		TurnHandle,
+		Handle,
 		string,
 	) (runs.PreparedWaitingSubtreeCancellation, error)
 }
 
-// Executor adapts a turn dispatcher to the application's run executor port
+// Executor adapts a turn controller to the application's run executor port
 // (application/runs.SegmentExecutor): it drives, observes, and cancels the agent turn
 // backing a run segment. The application holds the run lifecycle and drives
 // execution through this port, so both durable turn identity and observed
 // events are normalized into the application-owned families. Construct
 // via [NewExecutor]; the composition root injects it into the run coordinator.
 type Executor struct {
-	dispatcher executorDispatcher
+	controller executorControl
 }
 
-// NewExecutor returns an Executor over the turn dispatcher.
-func NewExecutor(dispatcher executorDispatcher) *Executor {
-	return &Executor{dispatcher: dispatcher}
+// NewExecutor returns an Executor over the turn controller.
+func NewExecutor(controller executorControl) *Executor {
+	return &Executor{controller: controller}
 }
 
 // TurnEvents subscribes to a live turn addressed by its durable application
 // identity; each rich turn event is translated into the engine-neutral event
 // contract.
 func (e *Executor) TurnEvents(ctx context.Context, ref execution.TurnRef) (iter.Seq[runs.ExecutorEvent], error) {
-	seq, err := e.dispatcher.Events(ctx, concreteHandle(ref))
+	seq, err := e.controller.Events(ctx, concreteHandle(ref))
 	if err != nil {
 		return nil, err
 	}
@@ -66,17 +66,17 @@ func (e *Executor) TurnEvents(ctx context.Context, ref execution.TurnRef) (iter.
 
 // CancelTurn stops a live or parked turn by durable identity.
 func (e *Executor) CancelTurn(ctx context.Context, ref execution.TurnRef) error {
-	return mapControlError(e.dispatcher.Cancel(ctx, concreteHandle(ref)))
+	return mapControlError(e.controller.Cancel(ctx, concreteHandle(ref)))
 }
 
 // CancelSubtree stops one descendant process tree without canceling its owning
-// turn. The dispatcher validates process ownership before calling Agent Runtime.
+// turn. The controller validates process ownership before calling Agent Runtime.
 func (e *Executor) CancelSubtree(
 	ctx context.Context,
 	ref execution.TurnRef,
 	processID string,
 ) error {
-	return mapControlError(e.dispatcher.CancelSubtree(ctx, concreteHandle(ref), processID))
+	return mapControlError(e.controller.CancelSubtree(ctx, concreteHandle(ref), processID))
 }
 
 func (e *Executor) PrepareWaitingSubtreeCancellation(
@@ -84,11 +84,11 @@ func (e *Executor) PrepareWaitingSubtreeCancellation(
 	ref execution.TurnRef,
 	processID string,
 ) (runs.PreparedWaitingSubtreeCancellation, error) {
-	dispatcher, ok := e.dispatcher.(waitingSubtreeDispatcher)
+	controller, ok := e.controller.(waitingSubtreeControl)
 	if !ok {
 		return runs.PreparedWaitingSubtreeCancellation{}, errors.New("turn executor: waiting subtree cancellation is unavailable")
 	}
-	prepared, err := dispatcher.PrepareWaitingSubtreeCancellation(
+	prepared, err := controller.PrepareWaitingSubtreeCancellation(
 		ctx,
 		concreteHandle(ref),
 		processID,
@@ -116,7 +116,7 @@ func (e *Executor) ValidateStart(request runs.StartTurn) error {
 // PrepareStart creates a fresh executor turn without entering the model/tool
 // engine. The application activates it only after durable run admission.
 func (e *Executor) PrepareStart(ctx context.Context, request runs.StartTurn) (execution.TurnRef, error) {
-	handle, err := e.dispatcher.PrepareTurn(ctx, request)
+	handle, err := e.controller.PrepareTurn(ctx, request)
 	if err != nil {
 		return execution.TurnRef{}, err
 	}
@@ -125,13 +125,13 @@ func (e *Executor) PrepareStart(ctx context.Context, request runs.StartTurn) (ex
 
 // Activate crosses the fresh turn's model/tool side-effect boundary.
 func (e *Executor) Activate(ctx context.Context, ref execution.TurnRef) error {
-	return mapControlError(e.dispatcher.ActivateTurn(ctx, concreteHandle(ref)))
+	return mapControlError(e.controller.ActivateTurn(ctx, concreteHandle(ref)))
 }
 
 // Prepare claims a process-local parked turn without delivering its decision.
 func (e *Executor) Prepare(ctx context.Context, ref execution.TurnRef) (execution.TurnRef, error) {
 	handle := concreteHandle(ref)
-	if _, err := e.dispatcher.ProcessID(ctx, handle); err != nil {
+	if _, err := e.controller.ProcessID(ctx, handle); err != nil {
 		return execution.TurnRef{}, mapControlError(err)
 	}
 	return neutralTurn(handle), nil
@@ -147,12 +147,12 @@ func (e *Executor) Resume(ctx context.Context, ref execution.TurnRef, answers []
 			Resolution:   answer.Resolution,
 		}
 	}
-	return mapControlError(e.dispatcher.Resume(ctx, concreteHandle(ref), executorAnswers, interruptKinds))
+	return mapControlError(e.controller.Resume(ctx, concreteHandle(ref), executorAnswers, interruptKinds))
 }
 
 // Rehydrate rebuilds a parked turn from its durable executor checkpoint.
 func (e *Executor) Rehydrate(ctx context.Context, request runs.RehydrateTurn) (execution.TurnRef, error) {
-	handle, err := e.dispatcher.Rehydrate(ctx, request)
+	handle, err := e.controller.Rehydrate(ctx, request)
 	if err != nil {
 		return execution.TurnRef{}, mapControlError(err)
 	}
@@ -162,14 +162,14 @@ func (e *Executor) Rehydrate(ctx context.Context, request runs.RehydrateTurn) (e
 // Steer injects structured user content into a live turn addressed by neutral
 // identity.
 func (e *Executor) Steer(ctx context.Context, ref execution.TurnRef, input []transcript.ContentBlock) error {
-	return mapControlError(e.dispatcher.InjectSteering(ctx, concreteHandle(ref), input))
+	return mapControlError(e.controller.InjectSteering(ctx, concreteHandle(ref), input))
 }
 
-func concreteHandle(ref execution.TurnRef) TurnHandle {
-	return TurnHandle{SessionID: ref.SessionID, TurnID: ref.TurnID}
+func concreteHandle(ref execution.TurnRef) Handle {
+	return Handle{SessionID: ref.SessionID, TurnID: ref.TurnID}
 }
 
-func neutralTurn(handle TurnHandle) execution.TurnRef {
+func neutralTurn(handle Handle) execution.TurnRef {
 	return execution.TurnRef{SessionID: handle.SessionID, TurnID: handle.TurnID}
 }
 

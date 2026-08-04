@@ -10,11 +10,11 @@ import (
 func TestTurnInstallsChildAdmissionOnlyWhenExplicitlyEnabled(t *testing.T) {
 	for _, enabled := range []bool{false, true} {
 		engine := &stubEngine{}
-		dispatcher, err := turn.New(turnDeps(engine))
+		controller, err := turn.New(turnDeps(engine))
 		if err != nil {
 			t.Fatalf("New: %v", err)
 		}
-		handle, err := dispatcher.StartTurn(t.Context(), runs.StartTurn{
+		handle, err := controller.StartTurn(t.Context(), runs.StartTurn{
 			SessionID:                "session",
 			Message:                  "hello",
 			ChildRunAdmissionEnabled: enabled,
@@ -22,7 +22,7 @@ func TestTurnInstallsChildAdmissionOnlyWhenExplicitlyEnabled(t *testing.T) {
 		if err != nil {
 			t.Fatalf("StartTurn enabled=%v: %v", enabled, err)
 		}
-		events, err := dispatcher.Events(t.Context(), handle)
+		events, err := controller.Events(t.Context(), handle)
 		if err != nil {
 			t.Fatalf("Events enabled=%v: %v", enabled, err)
 		}

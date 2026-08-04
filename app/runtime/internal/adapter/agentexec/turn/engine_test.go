@@ -21,15 +21,15 @@ import (
 	"github.com/Tangerg/lynx/core/media"
 )
 
-// TestStubEngineDrivesTurn — confirms the turn dispatcher runs a full
+// TestStubEngineDrivesTurn — confirms the turn controller runs a full
 // turn against a stub engine, no real engine involved. If turn
 // ever regrows a hard *agentexec.Engine dependency, this test stops
 // compiling.
 func TestStubEngineDrivesTurn(t *testing.T) {
 	stub := &stubEngine{runReply: "hello from stub"}
 
-	dispatcher := mustTurn(turn.New(turnDeps(stub)))
-	handle, err := dispatcher.StartTurn(context.Background(), runs.StartTurn{
+	controller := mustTurn(turn.New(turnDeps(stub)))
+	handle, err := controller.StartTurn(context.Background(), runs.StartTurn{
 		SessionID: "sess-1",
 		Message:   "hi",
 	})
@@ -39,7 +39,7 @@ func TestStubEngineDrivesTurn(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	events, err := dispatcher.Events(ctx, handle)
+	events, err := controller.Events(ctx, handle)
 	if err != nil {
 		t.Fatalf("Events: %v", err)
 	}
@@ -68,12 +68,12 @@ func TestStubEngineDrivesTurn(t *testing.T) {
 func TestStartTurnPreservesHookResolutionFailure(t *testing.T) {
 	wantErr := errors.New("hook trust unavailable")
 	stub := &stubEngine{runReply: "must not run"}
-	dispatcher := mustTurn(turn.New(turnDeps(stub, func(deps *turn.Dependencies) {
+	controller := mustTurn(turn.New(turnDeps(stub, func(deps *turn.Dependencies) {
 		deps.Hooks = staticHookResolver{err: wantErr}
 	})))
-	t.Cleanup(func() { shutdownDispatcher(t, dispatcher) })
+	t.Cleanup(func() { shutdownController(t, controller) })
 
-	if _, err := dispatcher.StartTurn(t.Context(), runs.StartTurn{
+	if _, err := controller.StartTurn(t.Context(), runs.StartTurn{
 		SessionID: "sess-hook-error",
 		Message:   "hi",
 		Cwd:       t.TempDir(),
@@ -96,12 +96,12 @@ func TestPromptHookInjectedContextReachesTurn(t *testing.T) {
 		[]hooks.Hook{{Event: hooks.UserPromptSubmit, Inject: "remember: use tabs", Source: "test"}},
 		hooks.NewRunner(nil, nil), // declarative inject needs no command runner
 	)
-	dispatcher := mustTurn(turn.New(turnDeps(stub, func(deps *turn.Dependencies) {
+	controller := mustTurn(turn.New(turnDeps(stub, func(deps *turn.Dependencies) {
 		deps.Hooks = staticHookResolver{bound: bound}
 	})))
-	t.Cleanup(func() { shutdownDispatcher(t, dispatcher) })
+	t.Cleanup(func() { shutdownController(t, controller) })
 
-	handle, err := dispatcher.StartTurn(t.Context(), runs.StartTurn{
+	handle, err := controller.StartTurn(t.Context(), runs.StartTurn{
 		SessionID: "s", Message: "do the thing", Cwd: t.TempDir(),
 	})
 	if err != nil {
@@ -109,7 +109,7 @@ func TestPromptHookInjectedContextReachesTurn(t *testing.T) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	events, _ := dispatcher.Events(ctx, handle)
+	events, _ := controller.Events(ctx, handle)
 	for range events { //nolint:revive // drain to terminal
 	}
 
@@ -119,23 +119,23 @@ func TestPromptHookInjectedContextReachesTurn(t *testing.T) {
 	}
 }
 
-// TestDispatcher_DiscardsProcessOnTerminal verifies terminal teardown removes
+// TestController_DiscardsProcessOnTerminal verifies terminal teardown removes
 // the in-memory process tree and any previously parked checkpoint. Terminal
 // event delivery is deliberately independent from cleanup, so the test
 // explicitly joins that cleanup before inspecting its postcondition.
-func TestDispatcher_DiscardsProcessOnTerminal(t *testing.T) {
+func TestController_DiscardsProcessOnTerminal(t *testing.T) {
 	stub := &stubEngine{runReply: "done"}
-	dispatcher := mustTurn(turn.New(turnDeps(stub)))
-	handle, err := dispatcher.StartTurn(context.Background(), runs.StartTurn{SessionID: "s", Message: "hi"})
+	controller := mustTurn(turn.New(turnDeps(stub)))
+	handle, err := controller.StartTurn(context.Background(), runs.StartTurn{SessionID: "s", Message: "hi"})
 	if err != nil {
 		t.Fatalf("StartTurn: %v", err)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	events, _ := dispatcher.Events(ctx, handle)
+	events, _ := controller.Events(ctx, handle)
 	for range events { //nolint:revive // drain to terminal (channel closes at terminalization)
 	}
-	joinTurnCleanup(t, dispatcher, handle)
+	joinTurnCleanup(t, controller, handle)
 	process := stub.lastProcess.Load()
 	if process == nil {
 		t.Fatal("stub engine never produced a process")
@@ -145,21 +145,21 @@ func TestDispatcher_DiscardsProcessOnTerminal(t *testing.T) {
 	}
 }
 
-func TestDispatcherFailsClosedWhenWaitingCheckpointCommitFails(t *testing.T) {
+func TestControllerFailsClosedWhenWaitingCheckpointCommitFails(t *testing.T) {
 	wantErr := errors.New("checkpoint commit failed")
 	stub := &stubEngine{
 		completionStatus: core.StatusWaiting,
 		completionErr:    wantErr,
 	}
-	dispatcher := mustTurn(turn.New(turnDeps(stub)))
-	handle, err := dispatcher.StartTurn(t.Context(), runs.StartTurn{
+	controller := mustTurn(turn.New(turnDeps(stub)))
+	handle, err := controller.StartTurn(t.Context(), runs.StartTurn{
 		SessionID: "s",
 		Message:   "hi",
 	})
 	if err != nil {
 		t.Fatalf("StartTurn: %v", err)
 	}
-	events, err := dispatcher.Events(t.Context(), handle)
+	events, err := controller.Events(t.Context(), handle)
 	if err != nil {
 		t.Fatalf("Events: %v", err)
 	}
@@ -174,7 +174,7 @@ func TestDispatcherFailsClosedWhenWaitingCheckpointCommitFails(t *testing.T) {
 			terminal = &value
 		}
 	}
-	joinTurnCleanup(t, dispatcher, handle)
+	joinTurnCleanup(t, controller, handle)
 	if interrupted {
 		t.Fatal("turn exposed an interrupt without a durable checkpoint")
 	}
@@ -194,9 +194,9 @@ func TestDispatcherFailsClosedWhenWaitingCheckpointCommitFails(t *testing.T) {
 // "model finished".
 func TestStubEngineBudgetStop(t *testing.T) {
 	stub := &stubEngine{runReply: "partial answer", stopReason: agent.InteractionStopBudget}
-	dispatcher := mustTurn(turn.New(turnDeps(stub)))
+	controller := mustTurn(turn.New(turnDeps(stub)))
 
-	handle, err := dispatcher.StartTurn(context.Background(), runs.StartTurn{
+	handle, err := controller.StartTurn(context.Background(), runs.StartTurn{
 		SessionID: "s",
 		Message:   "go",
 		Limits:    execution.RunLimits{MaxTotalTokens: 1},
@@ -206,7 +206,7 @@ func TestStubEngineBudgetStop(t *testing.T) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	events, _ := dispatcher.Events(ctx, handle)
+	events, _ := controller.Events(ctx, handle)
 
 	for ev := range events {
 		if end, ok := ev.Payload.(runs.TurnEnd); ok {
@@ -225,9 +225,9 @@ func TestStubEngineBudgetStop(t *testing.T) {
 // partial reply, never an error with a client-facing problem attached.
 func TestStubEngineStepStop(t *testing.T) {
 	stub := &stubEngine{runReply: "partial answer", stopReason: agent.InteractionStopSteps}
-	dispatcher := mustTurn(turn.New(turnDeps(stub)))
+	controller := mustTurn(turn.New(turnDeps(stub)))
 
-	handle, err := dispatcher.StartTurn(context.Background(), runs.StartTurn{
+	handle, err := controller.StartTurn(context.Background(), runs.StartTurn{
 		SessionID: "s",
 		Message:   "go",
 	})
@@ -236,7 +236,7 @@ func TestStubEngineStepStop(t *testing.T) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	events, _ := dispatcher.Events(ctx, handle)
+	events, _ := controller.Events(ctx, handle)
 
 	for ev := range events {
 		if end, ok := ev.Payload.(runs.TurnEnd); ok {
@@ -257,9 +257,9 @@ func TestStubEngineInvalidStopReasonBecomesEngineError(t *testing.T) {
 		runReply:   "invalid",
 		stopReason: agent.InteractionStopReason("budget+steps"),
 	}
-	dispatcher := mustTurn(turn.New(turnDeps(stub)))
+	controller := mustTurn(turn.New(turnDeps(stub)))
 
-	handle, err := dispatcher.StartTurn(context.Background(), runs.StartTurn{
+	handle, err := controller.StartTurn(context.Background(), runs.StartTurn{
 		SessionID: "s",
 		Message:   "go",
 	})
@@ -268,7 +268,7 @@ func TestStubEngineInvalidStopReasonBecomesEngineError(t *testing.T) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	events, err := dispatcher.Events(ctx, handle)
+	events, err := controller.Events(ctx, handle)
 	if err != nil {
 		t.Fatalf("Events: %v", err)
 	}
@@ -289,19 +289,19 @@ func TestStubEngineInvalidStopReasonBecomesEngineError(t *testing.T) {
 // turn without needing a real engine.
 func TestStubEngineCancelsCleanly(t *testing.T) {
 	stub := &slowStubEngine{}
-	dispatcher := mustTurn(turn.New(turnDeps(stub)))
+	controller := mustTurn(turn.New(turnDeps(stub)))
 
-	handle, _ := dispatcher.StartTurn(context.Background(), runs.StartTurn{
+	handle, _ := controller.StartTurn(context.Background(), runs.StartTurn{
 		SessionID: "s",
 		Message:   "m",
 	})
-	if err := dispatcher.Cancel(context.Background(), handle); err != nil {
+	if err := controller.Cancel(context.Background(), handle); err != nil {
 		t.Fatalf("Cancel: %v", err)
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	events, err := dispatcher.Events(ctx, handle)
+	events, err := controller.Events(ctx, handle)
 	if err != nil {
 		// Cancel raced ahead and tore the turn down (parked-turn teardown, or
 		// the drive goroutine finishing) before we subscribed — Events then
@@ -326,9 +326,9 @@ func TestStubEngineCancelsCleanly(t *testing.T) {
 // decision and streams the continuation on the already-observable handle.
 func TestRehydrateResumesRestoredTurn(t *testing.T) {
 	stub := &stubEngine{runReply: "continuation reply"}
-	dispatcher := mustTurn(turn.New(turnDeps(stub)))
+	controller := mustTurn(turn.New(turnDeps(stub)))
 
-	handle, err := dispatcher.Rehydrate(context.Background(), runs.RehydrateTurn{
+	handle, err := controller.Rehydrate(context.Background(), runs.RehydrateTurn{
 		SessionID: "sess-restored",
 		TurnID:    "turn-original",
 		ProcessID: "process-42",
@@ -346,11 +346,11 @@ func TestRehydrateResumesRestoredTurn(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	events, err := dispatcher.Events(ctx, handle)
+	events, err := controller.Events(ctx, handle)
 	if err != nil {
 		t.Fatalf("Events: %v", err)
 	}
-	if err := dispatcher.Resume(
+	if err := controller.Resume(
 		ctx,
 		handle,
 		nil,
@@ -383,9 +383,9 @@ func TestRehydrateResumesRestoredTurn(t *testing.T) {
 // Resume emits an error TurnEnd before returning its error.
 func TestRehydrate_ResumeError_ReturnsError(t *testing.T) {
 	stub := &stubEngine{runReply: "x", restoreResumeErr: errors.New("resume boom")}
-	dispatcher := mustTurn(turn.New(turnDeps(stub)))
+	controller := mustTurn(turn.New(turnDeps(stub)))
 
-	handle, err := dispatcher.Rehydrate(context.Background(), runs.RehydrateTurn{
+	handle, err := controller.Rehydrate(context.Background(), runs.RehydrateTurn{
 		SessionID: "sess-restored",
 		TurnID:    "turn-original",
 		ProcessID: "process-99",
@@ -394,11 +394,11 @@ func TestRehydrate_ResumeError_ReturnsError(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Rehydrate: %v", err)
 	}
-	events, err := dispatcher.Events(context.Background(), handle)
+	events, err := controller.Events(context.Background(), handle)
 	if err != nil {
 		t.Fatalf("Events: %v", err)
 	}
-	if err := dispatcher.Resume(
+	if err := controller.Resume(
 		context.Background(),
 		handle,
 		nil,
@@ -415,15 +415,15 @@ func TestRehydrate_ResumeError_ReturnsError(t *testing.T) {
 	if !sawEnd {
 		t.Fatal("terminal stream did not contain an error TurnEnd")
 	}
-	if _, evErr := dispatcher.Events(context.Background(), handle); evErr == nil {
+	if _, evErr := controller.Events(context.Background(), handle); evErr == nil {
 		t.Error("Events resolved a turn that should have been torn down")
 	}
 }
 
 func TestRehydrateCanceledResumeAdmissionRemainsParked(t *testing.T) {
 	stub := &stubEngine{runReply: "continuation reply", restoreResumeErr: context.Canceled}
-	dispatcher := mustTurn(turn.New(turnDeps(stub)))
-	handle, err := dispatcher.Rehydrate(t.Context(), runs.RehydrateTurn{
+	controller := mustTurn(turn.New(turnDeps(stub)))
+	handle, err := controller.Rehydrate(t.Context(), runs.RehydrateTurn{
 		SessionID: "sess-restored",
 		TurnID:    "turn-original",
 		ProcessID: "process-99",
@@ -432,12 +432,12 @@ func TestRehydrateCanceledResumeAdmissionRemainsParked(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	events, err := dispatcher.Events(t.Context(), handle)
+	events, err := controller.Events(t.Context(), handle)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if err := dispatcher.Resume(t.Context(), handle, nil, nil); !errors.Is(err, context.Canceled) {
+	if err := controller.Resume(t.Context(), handle, nil, nil); !errors.Is(err, context.Canceled) {
 		t.Fatalf("first Resume = %v, want context cancellation", err)
 	}
 	process := stub.lastProcess.Load()
@@ -445,7 +445,7 @@ func TestRehydrateCanceledResumeAdmissionRemainsParked(t *testing.T) {
 		t.Fatal("restored process was not retained")
 	}
 	process.resumeErr = nil
-	if err := dispatcher.Resume(t.Context(), handle, nil, nil); err != nil {
+	if err := controller.Resume(t.Context(), handle, nil, nil); err != nil {
 		t.Fatalf("retry Resume: %v", err)
 	}
 	for range events {
@@ -454,14 +454,14 @@ func TestRehydrateCanceledResumeAdmissionRemainsParked(t *testing.T) {
 
 // TestStartTurn_ResolvesPerRunClient verifies a turn carrying a Model passes
 // the resolver's client through to the engine's TurnRequest.ChatClient —
-// the turn-dispatcher half of per-run model selection.
+// the turn-controller half of per-run model selection.
 func TestStartTurn_ResolvesPerRunClient(t *testing.T) {
 	stub := &stubEngine{runReply: "ok"}
 	sentinel, _ := chatclient.New(newCapturingModel(), chatclient.Config{})
 	resolver := &fakeResolver{client: sentinel}
 
-	dispatcher := mustTurn(turn.New(turnDeps(stub, withClientResolver(resolver))))
-	handle, err := dispatcher.StartTurn(context.Background(), runs.StartTurn{
+	controller := mustTurn(turn.New(turnDeps(stub, withClientResolver(resolver))))
+	handle, err := controller.StartTurn(context.Background(), runs.StartTurn{
 		SessionID:      "s",
 		Message:        "hi",
 		ModelSelection: testModelSelection(t, "some-provider", "some-model"),
@@ -471,7 +471,7 @@ func TestStartTurn_ResolvesPerRunClient(t *testing.T) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	events, _ := dispatcher.Events(ctx, handle)
+	events, _ := controller.Events(ctx, handle)
 	for range events { // drain to TurnEnd
 	}
 
@@ -487,14 +487,14 @@ func TestStartTurn_ResolvesPerRunClient(t *testing.T) {
 }
 
 func TestExplicitModelSelectionRequiresResolverBeforeAdmission(t *testing.T) {
-	dispatcher := mustTurn(turn.New(turnDeps(&stubEngine{})))
+	controller := mustTurn(turn.New(turnDeps(&stubEngine{})))
 	selection := testModelSelection(t, "openai", "gpt-test")
-	if _, err := dispatcher.PrepareTurn(t.Context(), runs.StartTurn{
+	if _, err := controller.PrepareTurn(t.Context(), runs.StartTurn{
 		SessionID: "session", Message: "hello", ModelSelection: selection,
 	}); err == nil || !strings.Contains(err.Error(), "requires a client resolver") {
 		t.Fatalf("PrepareTurn error = %v, want missing resolver", err)
 	}
-	if _, err := dispatcher.Rehydrate(t.Context(), runs.RehydrateTurn{
+	if _, err := controller.Rehydrate(t.Context(), runs.RehydrateTurn{
 		SessionID: "session", ProcessID: "process", RootRunID: "run-root", ModelSelection: selection,
 	}); err == nil || !strings.Contains(err.Error(), "requires a client resolver") {
 		t.Fatalf("Rehydrate error = %v, want missing resolver", err)
@@ -503,12 +503,12 @@ func TestExplicitModelSelectionRequiresResolverBeforeAdmission(t *testing.T) {
 
 // TestStartTurn_PassesCwd verifies the session's working directory flows
 // from runs.StartTurn.Cwd through to the engine's TurnRequest.Cwd —
-// the turn-dispatcher half of per-session tool working directories.
+// the turn-controller half of per-session tool working directories.
 func TestStartTurn_PassesCwd(t *testing.T) {
 	stub := &stubEngine{runReply: "ok"}
 
-	dispatcher := mustTurn(turn.New(turnDeps(stub)))
-	handle, err := dispatcher.StartTurn(context.Background(), runs.StartTurn{
+	controller := mustTurn(turn.New(turnDeps(stub)))
+	handle, err := controller.StartTurn(context.Background(), runs.StartTurn{
 		SessionID: "s",
 		Message:   "hi",
 		Cwd:       "/work/project-a",
@@ -518,7 +518,7 @@ func TestStartTurn_PassesCwd(t *testing.T) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	events, _ := dispatcher.Events(ctx, handle)
+	events, _ := controller.Events(ctx, handle)
 	for range events { // drain to TurnEnd
 	}
 
@@ -534,8 +534,8 @@ func TestStartTurn_PassesOptions(t *testing.T) {
 	stub := &stubEngine{runReply: "ok"}
 	temp := 0.7
 
-	dispatcher := mustTurn(turn.New(turnDeps(stub)))
-	handle, err := dispatcher.StartTurn(context.Background(), runs.StartTurn{
+	controller := mustTurn(turn.New(turnDeps(stub)))
+	handle, err := controller.StartTurn(context.Background(), runs.StartTurn{
 		SessionID: "s",
 		Message:   "hi",
 		Options:   &corechat.Options{Temperature: &temp},
@@ -545,7 +545,7 @@ func TestStartTurn_PassesOptions(t *testing.T) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	events, _ := dispatcher.Events(ctx, handle)
+	events, _ := controller.Events(ctx, handle)
 	for range events { // drain to TurnEnd
 	}
 
@@ -559,7 +559,7 @@ func TestStartTurn_PassesOptions(t *testing.T) {
 
 func TestStartTurnSnapshotsMutableRequestValues(t *testing.T) {
 	engine := newDelayedCaptureEngine()
-	dispatcher := mustTurn(turn.New(turnDeps(engine)))
+	controller := mustTurn(turn.New(turnDeps(engine)))
 
 	image, err := media.NewBytes("image/png", []byte{1, 2, 3})
 	if err != nil {
@@ -577,7 +577,7 @@ func TestStartTurnSnapshotsMutableRequestValues(t *testing.T) {
 	images := []*media.Media{image}
 	interruptKinds := []execution.InterruptKind{execution.ApprovalInterrupt}
 
-	handle, err := dispatcher.StartTurn(context.Background(), runs.StartTurn{
+	handle, err := controller.StartTurn(context.Background(), runs.StartTurn{
 		SessionID:      "session",
 		Message:        "hello",
 		Media:          images,
@@ -598,7 +598,7 @@ func TestStartTurnSnapshotsMutableRequestValues(t *testing.T) {
 	interruptKinds[0] = execution.QuestionInterrupt
 	close(engine.release)
 
-	events, err := dispatcher.Events(context.Background(), handle)
+	events, err := controller.Events(context.Background(), handle)
 	if err != nil {
 		t.Fatalf("Events: %v", err)
 	}
@@ -626,18 +626,18 @@ func TestStartTurnSnapshotsMutableRequestValues(t *testing.T) {
 func TestStartTurnProcessCreationFailureRemainsDrainableAfterTerminal(t *testing.T) {
 	startErr := errors.New("create process failed")
 	engine := &immediateStartFailureEngine{err: startErr}
-	dispatcher := mustTurn(turn.New(turnDeps(engine)))
+	controller := mustTurn(turn.New(turnDeps(engine)))
 
-	handle, err := dispatcher.StartTurn(context.Background(), runs.StartTurn{
+	handle, err := controller.StartTurn(context.Background(), runs.StartTurn{
 		SessionID: "session",
 		Message:   "hello",
 	})
 	if err != nil {
 		t.Fatalf("StartTurn: %v", err)
 	}
-	waitForTurnRemoval(t, dispatcher, handle)
+	waitForTurnRemoval(t, controller, handle)
 
-	events, err := dispatcher.Events(context.Background(), handle)
+	events, err := controller.Events(context.Background(), handle)
 	if err != nil {
 		t.Fatalf("Events after terminal create failure: %v", err)
 	}
@@ -647,9 +647,9 @@ func TestStartTurnProcessCreationFailureRemainsDrainableAfterTerminal(t *testing
 func TestStartTurnCancelRacingProcessCreationFailureTerminatesAsCanceled(t *testing.T) {
 	startErr := errors.New("create process failed")
 	engine := newBlockedStartFailureEngine(startErr)
-	dispatcher := mustTurn(turn.New(turnDeps(engine)))
+	controller := mustTurn(turn.New(turnDeps(engine)))
 
-	handle, err := dispatcher.StartTurn(context.Background(), runs.StartTurn{
+	handle, err := controller.StartTurn(context.Background(), runs.StartTurn{
 		SessionID: "session",
 		Message:   "hello",
 	})
@@ -657,13 +657,13 @@ func TestStartTurnCancelRacingProcessCreationFailureTerminatesAsCanceled(t *test
 		t.Fatalf("StartTurn: %v", err)
 	}
 	<-engine.entered
-	if err := dispatcher.Cancel(context.Background(), handle); err != nil {
+	if err := controller.Cancel(context.Background(), handle); err != nil {
 		t.Fatalf("Cancel: %v", err)
 	}
 	close(engine.release)
-	waitForTurnRemoval(t, dispatcher, handle)
+	waitForTurnRemoval(t, controller, handle)
 
-	events, err := dispatcher.Events(context.Background(), handle)
+	events, err := controller.Events(context.Background(), handle)
 	if err != nil {
 		t.Fatalf("Events after cancel/create failure race: %v", err)
 	}
@@ -681,12 +681,12 @@ func TestStartTurnCancelRacingProcessCreationFailureTerminatesAsCanceled(t *test
 	}
 }
 
-func waitForTurnRemoval(t *testing.T, dispatcher turnDriver, handle turn.TurnHandle) {
+func waitForTurnRemoval(t *testing.T, controller turnDriver, handle turn.Handle) {
 	t.Helper()
 
 	deadline := time.Now().Add(2 * time.Second)
 	for time.Now().Before(deadline) {
-		_, err := dispatcher.ProcessID(context.Background(), handle)
+		_, err := controller.ProcessID(context.Background(), handle)
 		if errors.Is(err, turn.ErrTurnNotFound) {
 			return
 		}

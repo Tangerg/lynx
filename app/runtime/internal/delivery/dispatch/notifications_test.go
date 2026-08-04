@@ -22,7 +22,7 @@ func TestEncodeRuntimeEventRejectsAnInvalidOutputShape(t *testing.T) {
 }
 
 func TestHandleNotificationSuppressesMetadataErrors(t *testing.T) {
-	d := &Dispatcher{}
+	d := &Router{}
 	msg := &transport.Request{
 		Method: "client.unknown",
 		Params: json.RawMessage(`{"_meta":null}`),

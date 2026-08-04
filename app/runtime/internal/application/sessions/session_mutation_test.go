@@ -303,7 +303,7 @@ func (s *mutationStores) record(stage string) error {
 	return nil
 }
 
-func (s *mutationStores) Session() SessionStore                                { return s }
+func (s *mutationStores) Session() Store                                       { return s }
 func (s *mutationStores) Interrupts() InterruptStore                           { return s.ints }
 func (s *mutationStores) Transcript() TranscriptStore                          { return emptyTranscript{} }
 func (s *mutationStores) Runs() RunStore                                       { return emptyTranscript{} }

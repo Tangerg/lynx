@@ -114,9 +114,9 @@ func TestReplayPreservesCompletedRunResponse(t *testing.T) {
 	if err != nil {
 		t.Fatalf("encode response: %v", err)
 	}
-	dispatcher := &Dispatcher{api: &replayRuntime{subscribeErr: protocol.ErrRunNotFound}}
+	router := &Router{api: &replayRuntime{subscribeErr: protocol.ErrRunNotFound}}
 
-	got := dispatcher.replay(context.Background(), request, payload)
+	got := router.replay(context.Background(), request, payload)
 	if got.Response == nil || got.Response.Error != nil {
 		t.Fatalf("replay response = %+v, want cached success", got.Response)
 	}
@@ -130,7 +130,7 @@ func TestReplayPreservesCompletedRunResponse(t *testing.T) {
 
 func TestReplayClaimSerializesConcurrentMutation(t *testing.T) {
 	runtime := &blockingCancelRuntime{started: make(chan struct{}), release: make(chan struct{})}
-	dispatcher := New(runtime, Config{})
+	router := New(runtime, Config{})
 	ctx := transport.WithIdempotencyKey(context.Background(), "cancel-once")
 	first, err := transport.NewCall("first", "runs.cancel", protocol.CancelRunRequest{RunID: "run_1"})
 	if err != nil {
@@ -141,9 +141,9 @@ func TestReplayClaimSerializesConcurrentMutation(t *testing.T) {
 		t.Fatalf("build second request: %v", err)
 	}
 	results := make(chan HandleResult, 2)
-	go func() { results <- dispatcher.Handle(ctx, first) }()
+	go func() { results <- router.Handle(ctx, first) }()
 	<-runtime.started
-	go func() { results <- dispatcher.Handle(ctx, second) }()
+	go func() { results <- router.Handle(ctx, second) }()
 	close(runtime.release)
 
 	var replayedResults []string
@@ -173,7 +173,7 @@ func TestCompletionFailureRetriesPersistenceWithoutRepeatingMutation(t *testing.
 	runtime := &countingCancelRuntime{}
 	store := &flakyCompletionStore{Store: newMemoryIdempotencyStore()}
 	store.failures.Store(1)
-	dispatcher := New(runtime, Config{IdempotencyStore: store})
+	router := New(runtime, Config{IdempotencyStore: store})
 	ctx := transport.WithIdempotencyKey(t.Context(), "cancel-once")
 	request := func(id string, runID string) *transport.Request {
 		req, err := transport.NewCall(id, "runs.cancel", protocol.CancelRunRequest{RunID: runID})
@@ -183,7 +183,7 @@ func TestCompletionFailureRetriesPersistenceWithoutRepeatingMutation(t *testing.
 		return req
 	}
 
-	first := dispatcher.Handle(ctx, request("first", "run_1"))
+	first := router.Handle(ctx, request("first", "run_1"))
 	var firstErr *transport.Error
 	if first.Response != nil {
 		firstErr, _ = errors.AsType[*transport.Error](first.Response.Error)
@@ -192,11 +192,11 @@ func TestCompletionFailureRetriesPersistenceWithoutRepeatingMutation(t *testing.
 		firstErr.Code != protocol.CodeIdempotencyInProgress {
 		t.Fatalf("first response = %+v, want idempotency_in_progress", first.Response)
 	}
-	second := dispatcher.Handle(ctx, request("second", "run_1"))
+	second := router.Handle(ctx, request("second", "run_1"))
 	if second.Response == nil || second.Response.Error != nil {
 		t.Fatalf("second response = %+v, want recovered success", second.Response)
 	}
-	third := dispatcher.Handle(ctx, request("third", "run_1"))
+	third := router.Handle(ctx, request("third", "run_1"))
 	if third.Response == nil || third.Response.Error != nil {
 		t.Fatalf("third response = %+v, want durable replay", third.Response)
 	}
@@ -208,12 +208,12 @@ func TestCompletionFailureRetriesPersistenceWithoutRepeatingMutation(t *testing.
 func TestPendingCompletionStillRejectsKeyReuse(t *testing.T) {
 	store := &flakyCompletionStore{Store: newMemoryIdempotencyStore()}
 	store.failures.Store(1)
-	dispatcher := New(&countingCancelRuntime{}, Config{IdempotencyStore: store})
+	router := New(&countingCancelRuntime{}, Config{IdempotencyStore: store})
 	ctx := transport.WithIdempotencyKey(t.Context(), "bound-key")
 	first, _ := transport.NewCall("first", "runs.cancel", protocol.CancelRunRequest{RunID: "run_1"})
-	dispatcher.Handle(ctx, first)
+	router.Handle(ctx, first)
 	conflict, _ := transport.NewCall("second", "runs.cancel", protocol.CancelRunRequest{RunID: "run_2"})
-	result := dispatcher.Handle(ctx, conflict)
+	result := router.Handle(ctx, conflict)
 	var conflictErr *transport.Error
 	if result.Response != nil {
 		conflictErr, _ = errors.AsType[*transport.Error](result.Response.Error)

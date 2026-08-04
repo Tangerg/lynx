@@ -26,8 +26,8 @@ func TestApproveToolCall_RememberedShortCircuit(t *testing.T) {
 	ctx := context.Background()
 	appr := newTestApprovalPolicy(t, approval.ModeSafe)
 	obs := &turnObserver{
-		dispatcher: &memoryDispatcher{approval: appr},
-		st:         &turnState{handle: TurnHandle{SessionID: "s1"}},
+		controller: &controller{approval: appr},
+		st:         &turnState{handle: Handle{SessionID: "s1"}},
 	}
 
 	// Remembered allow → verdict runs (no interrupt, not denied).
@@ -69,11 +69,11 @@ func TestApproveToolCall_MCPAutoApprove(t *testing.T) {
 		t.Fatalf("fixture public names do not collide: %q != %q", autoApproved.PublicName(), colliding.PublicName())
 	}
 	obs := &turnObserver{
-		dispatcher: &memoryDispatcher{
+		controller: &controller{
 			approval:            appr,
 			mcpToolAutoApproved: func(ref mcpserver.ToolRef) bool { return ref == autoApproved },
 		},
-		st: &turnState{handle: TurnHandle{SessionID: "s1"}},
+		st: &turnState{handle: Handle{SessionID: "s1"}},
 	}
 
 	// Whitelisted MCP tool → passes without an interrupt (no standing rule).
@@ -91,7 +91,7 @@ func TestApproveToolCall_MCPAutoApprove(t *testing.T) {
 	// A remembered DENY on the same tool wins — the whitelist is consulted only
 	// AFTER rules, so an explicit deny is never silently overridden. (A
 	// non-whitelisted tool still gates; that prompt path needs real HITL
-	// plumbing and is covered by the TestDispatcher_ApprovalGate_* integration
+	// plumbing and is covered by the TestController_ApprovalGate_* integration
 	// tests, not this bare-construction unit test.)
 	if err := appr.Remember(ctx, approval.RememberRequest{
 		Scope: approval.ScopeSession, SessionID: "s1", Tool: autoApproved.PublicName(),
@@ -188,8 +188,8 @@ func TestApproveToolCallRejectsMalformedGatedArguments(t *testing.T) {
 
 func approvalObserver(policy ApprovalGate) *turnObserver {
 	return &turnObserver{
-		dispatcher: &memoryDispatcher{approval: policy},
-		st:         &turnState{handle: TurnHandle{SessionID: "s1"}},
+		controller: &controller{approval: policy},
+		st:         &turnState{handle: Handle{SessionID: "s1"}},
 	}
 }
 

@@ -81,11 +81,11 @@ func (s *crudSessionStore) Patch(_ context.Context, id string, patch session.Pat
 type crudStores struct {
 	// session is the port, not the fake: one test pages through a store that seeks,
 	// and the harness has no reason to care which fake it is holding.
-	session    SessionStore
+	session    Store
 	interrupts InterruptStore
 }
 
-func (s *crudStores) Session() SessionStore { return s.session }
+func (s *crudStores) Session() Store { return s.session }
 func (s *crudStores) Interrupts() InterruptStore {
 	if s.interrupts != nil {
 		return s.interrupts
@@ -138,7 +138,7 @@ func TestCoordinatorSessionCRUD(t *testing.T) {
 func TestViewUsesConfiguredDefaultModel(t *testing.T) {
 	c := New(Dependencies{Paths: testCwdResolver{}, DefaultModel: "claude-opus-4-8"})
 
-	view, err := c.view(t.Context(), session.Session{ID: "ses_1", Cwd: "/repo"}, SessionIdle)
+	view, err := c.view(t.Context(), session.Session{ID: "ses_1", Cwd: "/repo"}, ActivityIdle)
 	if err != nil {
 		t.Fatalf("view: %v", err)
 	}

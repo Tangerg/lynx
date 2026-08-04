@@ -539,6 +539,35 @@ Acceptance:
   only the already-recorded frontend contract-fixture drift may remain in the
   full repository test.
 
+### Batch 19 — Canonical runtime vocabulary
+
+Status: **Completed**
+
+Scope:
+
+- Remove package-name repetition from internal identifiers: `turn.Handle`,
+  `dispatch.Router`, `sessions.View`, `workspace.Summary`, and `models.Details`.
+- Name values by what they mean rather than a generic state/config suffix:
+  session `Activity`, config `Settings`, and focused config source records.
+- Rename the Agent turn's in-process `memoryDispatcher` to an unexported
+  `controller`; it controls a turn lifecycle and is not the Delivery JSON-RPC
+  router. Keeping it private avoids widening the Adapter surface.
+- Rename MCP `Connections` to `Pool` and remove stale filenames/comments that
+  preserve an obsolete implementation term.
+- Keep public wire vocabulary stable, including `protocol.ProtocolRange`, RPC
+  method names, JSON members, and generated frontend type names.
+
+Acceptance:
+
+- Runtime-wide compilation finds no old identifier; exact source scans and a
+  vocabulary fitness test prevent the removed names from returning.
+- Session activity has one term through Application and its Delivery projection;
+  Delivery does not regain the activity-precedence decision.
+- Turn control and request routing use distinct, accurate concepts (the private
+  turn `controller` versus `dispatch.Router`).
+- Focused behavior tests, architecture checks, vet, static analysis, lint, and
+  dead-code analysis pass without changing frontend files.
+
 ## 6. Progress
 
 | Batch | Status | Started | Completed | Evidence |
@@ -561,10 +590,34 @@ Acceptance:
 | 16. Prompt and content-convention boundary closure | Completed | 2026-07-23 | 2026-07-23 | Workspace/standalone build, vet, and test; focused race suite; `staticcheck`; `golangci-lint`; `deadcode -test`; architecture tests; and exact-source scans passed. |
 | 17. Admission and protocol fail-closed closure | Completed | 2026-07-24 | 2026-07-24 | `go build ./...`; `go vet ./...`; `go test ./...`; focused `go test -race` for admission/runs/sessions/delivery; frontend typecheck, lint, and 811 tests passed. |
 | 18. Composition-input and transparent-alias closure | Completed | 2026-08-04 | 2026-08-04 | Runtime-wide compile, focused tests, dependency/alias fitness tests, `go vet`, `staticcheck`, `golangci-lint`, `deadcode -test`, and exact alias scans passed; the full architecture suite retained only the known stale frontend-contract failures. |
+| 19. Canonical runtime vocabulary | Completed | 2026-08-04 | 2026-08-04 | Runtime-wide compile, focused behavior tests, dependency/vocabulary/activity fitness tests, `go vet`, `staticcheck`, `golangci-lint`, `deadcode -test`, formatting, and exact removed-name scans passed. |
 
 Allowed status values: `Pending`, `In progress`, `Completed`, `Blocked`, `Revised`.
 
 ## 7. Progress log
+
+### 2026-08-04 — Batch 19 completed
+
+- Replaced package-stuttering identifiers with one canonical vocabulary:
+  `turn.Handle`, `dispatch.Router`, `sessions.Store/View/Activity/Admission`,
+  `workspace.Resolved/Summary/Catalog`, `models.Details`, and
+  `mcpconnection.Pool`.
+- Recast loaded process configuration as `config.Settings` with focused
+  `Server`, `Online`, `MCPServer`, `A2AAgent`, and `LSPServer` source records;
+  the generic `types.go` became `settings.go`.
+- Renamed the Agent turn's `memoryDispatcher` implementation and file to a
+  private `controller`. It remains concrete and type-inferred outside the
+  package, so the cleanup did not widen the Adapter API. Delivery request
+  routing now consistently uses `dispatch.Router` and `router` fields.
+- Session read models carry `Activity` rather than a generic `State`, and
+  Delivery's `sessionActivityToWire` only projects that application decision.
+  JSON members and RPC/generated wire vocabulary did not change.
+- Renamed implementation files to match their roles (`controller.go`,
+  `pool.go`, `router.go`) and added a fitness test for every removed term while
+  deliberately retaining the public wire name `protocol.ProtocolRange`.
+- Runtime-wide compile, focused behavior tests, dependency/vocabulary/activity
+  fitness tests, `go vet`, `staticcheck`, `golangci-lint`, `deadcode -test`,
+  formatting, and exact removed-name scans all pass.
 
 ### 2026-08-04 — Batch 18 completed
 

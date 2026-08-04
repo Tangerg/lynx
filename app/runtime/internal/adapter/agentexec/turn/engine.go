@@ -9,7 +9,7 @@ import (
 	"github.com/Tangerg/lynx/core/chat"
 )
 
-// engineDep is the dispatcher's consumer-side view of Agent execution. The
+// engineDep is the controller's consumer-side view of Agent execution. The
 // concrete agentexec.Engine remains behind this two-method process boundary;
 // steering and maintenance are separate dependencies because they have
 // different owners and lifecycles.
@@ -32,7 +32,7 @@ type CompactionResult struct {
 }
 
 // BoundaryMaintenance owns the best-effort housekeeping that follows a clean
-// turn. The dispatcher supplies immutable turn facts, records the returned
+// turn. The controller supplies immutable turn facts, records the returned
 // failures on the turn span, and publishes a compaction boundary; the
 // implementation owns the workers' ordering and conditional work.
 type BoundaryMaintenance interface {

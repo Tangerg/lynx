@@ -20,11 +20,11 @@ import (
 // the failing continuation Start is what's under test.
 type resumeOKTurns struct{ turnRuntime }
 
-func (resumeOKTurns) Resume(context.Context, turn.TurnHandle, []agentexec.SuspensionAnswer, []execution.InterruptKind) error {
+func (resumeOKTurns) Resume(context.Context, turn.Handle, []agentexec.SuspensionAnswer, []execution.InterruptKind) error {
 	return nil
 }
-func (resumeOKTurns) Cancel(context.Context, turn.TurnHandle) error { return nil }
-func (resumeOKTurns) ProcessID(_ context.Context, handle turn.TurnHandle) (string, error) {
+func (resumeOKTurns) Cancel(context.Context, turn.Handle) error { return nil }
+func (resumeOKTurns) ProcessID(_ context.Context, handle turn.Handle) (string, error) {
 	return handle.TurnID, nil
 }
 

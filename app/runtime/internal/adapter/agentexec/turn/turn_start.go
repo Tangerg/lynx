@@ -8,17 +8,17 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 )
 
-func (s *memoryDispatcher) StartTurn(ctx context.Context, request runs.StartTurn) (TurnHandle, error) {
+func (s *controller) StartTurn(ctx context.Context, request runs.StartTurn) (Handle, error) {
 	handle, err := s.PrepareTurn(ctx, request)
 	if err != nil {
-		return TurnHandle{}, err
+		return Handle{}, err
 	}
 	if err := s.ActivateTurn(ctx, handle); err != nil {
 		cleanupErr := s.Cancel(ctx, handle)
 		if errors.Is(cleanupErr, ErrTurnNotFound) {
 			cleanupErr = nil
 		}
-		return TurnHandle{}, errors.Join(err, cleanupErr)
+		return Handle{}, errors.Join(err, cleanupErr)
 	}
 	return handle, nil
 }
@@ -26,22 +26,22 @@ func (s *memoryDispatcher) StartTurn(ctx context.Context, request runs.StartTurn
 // PrepareTurn establishes all reversible turn state but deliberately does not
 // launch the engine. The application can now durably admit its Run before
 // ActivateTurn crosses the model/tool side-effect boundary.
-func (s *memoryDispatcher) PrepareTurn(ctx context.Context, request runs.StartTurn) (TurnHandle, error) {
+func (s *controller) PrepareTurn(ctx context.Context, request runs.StartTurn) (Handle, error) {
 	if request.SessionID == "" {
-		return TurnHandle{}, errors.New("turn: SessionID is required")
+		return Handle{}, errors.New("turn: SessionID is required")
 	}
 	request = snapshotStartTurn(request)
 	if err := request.Validate(); err != nil {
-		return TurnHandle{}, err
+		return Handle{}, err
 	}
 	if request.ModelSelection.Configured() && s.resolver == nil {
-		return TurnHandle{}, errors.New("turn: explicit model selection requires a client resolver")
+		return Handle{}, errors.New("turn: explicit model selection requires a client resolver")
 	}
 	if s.isClosed() {
-		return TurnHandle{}, ErrDispatcherClosed
+		return Handle{}, ErrClosed
 	}
 
-	handle := TurnHandle{
+	handle := Handle{
 		SessionID: request.SessionID,
 		TurnID:    newTurnID(),
 	}
@@ -67,7 +67,7 @@ func (s *memoryDispatcher) PrepareTurn(ctx context.Context, request runs.StartTu
 			state.cancel()
 			state.span.RecordError(err)
 			state.span.End()
-			return TurnHandle{}, fmt.Errorf("turn: resolve lifecycle hooks: %w", err)
+			return Handle{}, fmt.Errorf("turn: resolve lifecycle hooks: %w", err)
 		}
 		state.hooks = resolved
 	}
@@ -77,7 +77,7 @@ func (s *memoryDispatcher) PrepareTurn(ctx context.Context, request runs.StartTu
 			state.cancel()
 			state.span.RecordError(err)
 			state.span.End()
-			return TurnHandle{}, err
+			return Handle{}, err
 		}
 		request.Message = msg
 	}
@@ -90,14 +90,14 @@ func (s *memoryDispatcher) PrepareTurn(ctx context.Context, request runs.StartTu
 	if !s.register(state) {
 		state.cancel()
 		state.span.End()
-		return TurnHandle{}, ErrDispatcherClosed
+		return Handle{}, ErrClosed
 	}
 
 	return handle, nil
 }
 
 // ActivateTurn launches a prepared turn exactly once.
-func (s *memoryDispatcher) ActivateTurn(_ context.Context, handle TurnHandle) error {
+func (s *controller) ActivateTurn(_ context.Context, handle Handle) error {
 	state, err := s.findTurn(handle.TurnID)
 	if err != nil {
 		return err

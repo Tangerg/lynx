@@ -96,13 +96,13 @@ func runChildHITLScenario(t *testing.T, scenario childHITLScenario) (childHITLOu
 		{Event: hooks.PostToolUse, Command: "record", Source: "test"},
 	}, hooks.NewRunner(recorder, nil))
 	policy := mustApprovalPolicy(t, approval.ModeBalanced, nil)
-	dispatcher := buildB8Dispatcher(t, &childToolModel{
+	controller := buildB8Controller(t, &childToolModel{
 		defaults:       &chat.Options{Model: "b8-child-hitl"},
 		childTool:      scenario.childTool,
 		childArguments: scenario.childArguments,
 	}, policy, staticHookResolver{bound: bound})
 
-	handle, err := dispatcher.StartTurn(t.Context(), runs.StartTurn{
+	handle, err := controller.StartTurn(t.Context(), runs.StartTurn{
 		SessionID:      "sess-b8-" + strings.ReplaceAll(scenario.name, " ", "-"),
 		Message:        "delegate this work",
 		Cwd:            t.TempDir(),
@@ -111,7 +111,7 @@ func runChildHITLScenario(t *testing.T, scenario childHITLScenario) (childHITLOu
 	if err != nil {
 		t.Fatalf("StartTurn: %v", err)
 	}
-	events, err := dispatcher.Events(t.Context(), handle)
+	events, err := controller.Events(t.Context(), handle)
 	if err != nil {
 		t.Fatalf("Events: %v", err)
 	}
@@ -133,7 +133,7 @@ func runChildHITLScenario(t *testing.T, scenario childHITLScenario) (childHITLOu
 			if toolName != scenario.childTool {
 				t.Fatalf("interrupt tool = %q, want child %q (task must not be gated)", toolName, scenario.childTool)
 			}
-			if err := dispatcher.Resume(
+			if err := controller.Resume(
 				t.Context(),
 				handle,
 				answersForBarrier(event, scenario.resolution),
@@ -187,11 +187,11 @@ func TestChildCanSuspendTwiceOnTheSameRun(t *testing.T) {
 		{Event: hooks.PostToolUse, Command: "record", Source: "test"},
 	}, hooks.NewRunner(recorder, nil))
 	policy := mustApprovalPolicy(t, approval.ModeBalanced, nil)
-	dispatcher := buildB8Dispatcher(t, &twoQuestionChildModel{
+	controller := buildB8Controller(t, &twoQuestionChildModel{
 		defaults: &chat.Options{Model: "b8-two-questions"},
 	}, policy, staticHookResolver{bound: bound})
 
-	handle, err := dispatcher.StartTurn(t.Context(), runs.StartTurn{
+	handle, err := controller.StartTurn(t.Context(), runs.StartTurn{
 		SessionID:      "sess-b8-two-questions",
 		Message:        "delegate this work",
 		Cwd:            t.TempDir(),
@@ -200,7 +200,7 @@ func TestChildCanSuspendTwiceOnTheSameRun(t *testing.T) {
 	if err != nil {
 		t.Fatalf("StartTurn: %v", err)
 	}
-	events, err := dispatcher.Events(t.Context(), handle)
+	events, err := controller.Events(t.Context(), handle)
 	if err != nil {
 		t.Fatalf("Events: %v", err)
 	}
@@ -220,7 +220,7 @@ func TestChildCanSuspendTwiceOnTheSameRun(t *testing.T) {
 				Approved: true,
 				Answers:  [][]string{{"answer"}},
 			}
-			if err := dispatcher.Resume(
+			if err := controller.Resume(
 				t.Context(),
 				handle,
 				answersForBarrier(event, resolution),
@@ -247,13 +247,13 @@ func TestChildCanSuspendTwiceOnTheSameRun(t *testing.T) {
 }
 
 func TestCompleteAnswerSetDrivesParallelChildSuspensionsWithoutSecondBarrier(t *testing.T) {
-	dispatcher := buildB8Dispatcher(
+	controller := buildB8Controller(
 		t,
 		&parallelQuestionChildModel{defaults: &chat.Options{Model: "b8-parallel-questions"}},
 		mustApprovalPolicy(t, approval.ModeBalanced, nil),
 		staticHookResolver{},
 	)
-	handle, err := dispatcher.StartTurn(t.Context(), runs.StartTurn{
+	handle, err := controller.StartTurn(t.Context(), runs.StartTurn{
 		SessionID:      "sess-b8-parallel-questions",
 		Message:        "delegate this work",
 		Cwd:            t.TempDir(),
@@ -262,7 +262,7 @@ func TestCompleteAnswerSetDrivesParallelChildSuspensionsWithoutSecondBarrier(t *
 	if err != nil {
 		t.Fatalf("StartTurn: %v", err)
 	}
-	events, err := dispatcher.Events(t.Context(), handle)
+	events, err := controller.Events(t.Context(), handle)
 	if err != nil {
 		t.Fatalf("Events: %v", err)
 	}
@@ -288,7 +288,7 @@ func TestCompleteAnswerSetDrivesParallelChildSuspensionsWithoutSecondBarrier(t *
 					},
 				}
 			}
-			if err := dispatcher.Resume(
+			if err := controller.Resume(
 				t.Context(),
 				handle,
 				answers,
@@ -330,7 +330,7 @@ func TestRestartResumesCompleteSiblingAnswerSetWithoutReplayingBarrier(t *testin
 	}
 	policy := mustApprovalPolicy(t, approval.ModeBalanced, nil)
 	firstCheckpoints := sqlite.NewExecutorCheckpointStore(firstDatabase)
-	first := buildB8PersistentDispatcher(
+	first := buildB8PersistentController(
 		t,
 		model,
 		policy,
@@ -373,7 +373,7 @@ func TestRestartResumesCompleteSiblingAnswerSetWithoutReplayingBarrier(t *testin
 		t.Fatalf("reopen database: %v", err)
 	}
 	t.Cleanup(func() { _ = restoredDatabase.Close() })
-	restored := buildB8PersistentDispatcher(
+	restored := buildB8PersistentController(
 		t,
 		model,
 		policy,
@@ -442,7 +442,7 @@ func TestCompleteAnswerSetDoesNotPersistDuringLiveContinuation(t *testing.T) {
 		failAt:              2,
 		err:                 errors.New("unexpected executor-owned checkpoint write"),
 	}
-	dispatcher := buildB8PersistentDispatcher(
+	controller := buildB8PersistentController(
 		t,
 		&parallelQuestionChildModel{
 			defaults: &chat.Options{Model: "b8-parallel-checkpoint-failure"},
@@ -453,7 +453,7 @@ func TestCompleteAnswerSetDoesNotPersistDuringLiveContinuation(t *testing.T) {
 		inmemory.New(),
 		buildID,
 	)
-	handle, err := dispatcher.StartTurn(t.Context(), runs.StartTurn{
+	handle, err := controller.StartTurn(t.Context(), runs.StartTurn{
 		SessionID:      "sess-b8-parallel-checkpoint-failure",
 		Message:        "delegate this work",
 		Cwd:            t.TempDir(),
@@ -462,7 +462,7 @@ func TestCompleteAnswerSetDoesNotPersistDuringLiveContinuation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("StartTurn: %v", err)
 	}
-	events, err := dispatcher.Events(t.Context(), handle)
+	events, err := controller.Events(t.Context(), handle)
 	if err != nil {
 		t.Fatalf("Events: %v", err)
 	}
@@ -477,7 +477,7 @@ func TestCompleteAnswerSetDoesNotPersistDuringLiveContinuation(t *testing.T) {
 			if len(payload.Suspensions) != 2 {
 				t.Fatalf("barrier suspensions = %#v, want two", payload.Suspensions)
 			}
-			if err := dispatcher.Resume(
+			if err := controller.Resume(
 				t.Context(),
 				handle,
 				questionAnswersForBarrier(payload, "checkpoint-failure"),
@@ -509,7 +509,7 @@ func TestCompleteAnswerSetEncodingFailurePrecedesAnyContinuationSideEffect(t *te
 		testCheckpointStore: newMemoryCheckpointStore(),
 		failAt:              -1,
 	}
-	dispatcher := buildB8PersistentDispatcher(
+	controller := buildB8PersistentController(
 		t,
 		&parallelQuestionChildModel{
 			defaults: &chat.Options{Model: "b8-parallel-encoding-failure"},
@@ -520,7 +520,7 @@ func TestCompleteAnswerSetEncodingFailurePrecedesAnyContinuationSideEffect(t *te
 		inmemory.New(),
 		buildID,
 	)
-	handle, err := dispatcher.StartTurn(t.Context(), runs.StartTurn{
+	handle, err := controller.StartTurn(t.Context(), runs.StartTurn{
 		SessionID:      "sess-b8-parallel-encoding-failure",
 		Message:        "delegate this work",
 		Cwd:            t.TempDir(),
@@ -529,7 +529,7 @@ func TestCompleteAnswerSetEncodingFailurePrecedesAnyContinuationSideEffect(t *te
 	if err != nil {
 		t.Fatalf("StartTurn: %v", err)
 	}
-	events, err := dispatcher.Events(t.Context(), handle)
+	events, err := controller.Events(t.Context(), handle)
 	if err != nil {
 		t.Fatalf("Events: %v", err)
 	}
@@ -543,7 +543,7 @@ func TestCompleteAnswerSetEncodingFailurePrecedesAnyContinuationSideEffect(t *te
 			barrierCount++
 			answers := questionAnswersForBarrier(payload, "encoding-failure")
 			answers[len(answers)-1].Resolution.RememberScope = approval.Scope("unknown")
-			err := dispatcher.Resume(
+			err := controller.Resume(
 				t.Context(),
 				handle,
 				answers,
@@ -586,7 +586,7 @@ func TestRestartRestoresParkedChildWithoutReplayingPreHook(t *testing.T) {
 	firstHooks := &hookCommandRecorder{
 		rewriteTool: "shell", rewriteArguments: `{"command":"echo first-hook","description":"Print first hook"}`,
 	}
-	first := buildB8PersistentDispatcher(t, model, policy, staticHookResolver{
+	first := buildB8PersistentController(t, model, policy, staticHookResolver{
 		bound: hooks.NewBound([]hooks.Hook{
 			{Event: hooks.PreToolUse, Command: "record", Source: "test"},
 			{Event: hooks.PostToolUse, Command: "record", Source: "test"},
@@ -631,7 +631,7 @@ func TestRestartRestoresParkedChildWithoutReplayingPreHook(t *testing.T) {
 	restoredHooks := &hookCommandRecorder{
 		rewriteTool: "shell", rewriteArguments: `{"command":"echo must-not-run","description":"Print forbidden output"}`,
 	}
-	restored := buildB8PersistentDispatcher(t, model, policy, staticHookResolver{
+	restored := buildB8PersistentController(t, model, policy, staticHookResolver{
 		bound: hooks.NewBound([]hooks.Hook{
 			{Event: hooks.PreToolUse, Command: "record", Source: "test"},
 			{Event: hooks.PostToolUse, Command: "record", Source: "test"},
@@ -734,10 +734,10 @@ func TestCancelParkedChildCleansWholeProcessTree(t *testing.T) {
 		childArguments: `{"command":"echo must-not-run","description":"Print forbidden output"}`,
 	}
 	policy := mustApprovalPolicy(t, approval.ModeBalanced, nil)
-	dispatcher := buildB8PersistentDispatcher(
+	controller := buildB8PersistentController(
 		t, model, policy, staticHookResolver{}, store, inmemory.New(), buildID,
 	)
-	handle, err := dispatcher.StartTurn(t.Context(), runs.StartTurn{
+	handle, err := controller.StartTurn(t.Context(), runs.StartTurn{
 		SessionID:      "sess-b8-child-cancel",
 		Message:        "delegate this work",
 		Cwd:            t.TempDir(),
@@ -746,7 +746,7 @@ func TestCancelParkedChildCleansWholeProcessTree(t *testing.T) {
 	if err != nil {
 		t.Fatalf("StartTurn: %v", err)
 	}
-	events, err := dispatcher.Events(t.Context(), handle)
+	events, err := controller.Events(t.Context(), handle)
 	if err != nil {
 		t.Fatalf("Events: %v", err)
 	}
@@ -760,11 +760,11 @@ func TestCancelParkedChildCleansWholeProcessTree(t *testing.T) {
 		case runs.TreeInterrupted:
 			persistTreeBarrier(t, event, store)
 			interruptsSeen++
-			processID, err = dispatcher.ProcessID(t.Context(), handle)
+			processID, err = controller.ProcessID(t.Context(), handle)
 			if err != nil {
 				t.Fatalf("ProcessID: %v", err)
 			}
-			if err := dispatcher.Cancel(t.Context(), handle); err != nil {
+			if err := controller.Cancel(t.Context(), handle); err != nil {
 				t.Fatalf("Cancel: %v", err)
 			}
 		case runs.TurnEnd:
@@ -775,7 +775,7 @@ func TestCancelParkedChildCleansWholeProcessTree(t *testing.T) {
 	if interruptsSeen != 1 || terminalCount != 1 || endReason != execution.OutcomeCanceled {
 		t.Fatalf("interrupts/terminals/reason = %d/%d/%q", interruptsSeen, terminalCount, endReason)
 	}
-	if err := dispatcher.Cancel(t.Context(), handle); err != nil && !errors.Is(err, turn.ErrTurnNotFound) {
+	if err := controller.Cancel(t.Context(), handle); err != nil && !errors.Is(err, turn.ErrTurnNotFound) {
 		t.Fatalf("join terminal cleanup: %v", err)
 	}
 	ids, err := store.List(t.Context())
@@ -803,7 +803,7 @@ func TestRehydrateRejectsCorruptCheckpointPayload(t *testing.T) {
 		childArguments: `{"command":"echo original","description":"Print original"}`,
 	}
 	policy := mustApprovalPolicy(t, approval.ModeBalanced, nil)
-	first := buildB8PersistentDispatcher(
+	first := buildB8PersistentController(
 		t, model, policy, staticHookResolver{}, store, historyStore, buildID,
 	)
 	handle, err := first.StartTurn(t.Context(), runs.StartTurn{
@@ -838,7 +838,7 @@ func TestRehydrateRejectsCorruptCheckpointPayload(t *testing.T) {
 		t.Fatalf("corrupt opaque checkpoint payload: %v", err)
 	}
 
-	restored := buildB8PersistentDispatcher(
+	restored := buildB8PersistentController(
 		t, model, policy, staticHookResolver{}, store, historyStore, buildID,
 	)
 	_, err = restored.Rehydrate(t.Context(), runs.RehydrateTurn{
@@ -860,10 +860,10 @@ func TestChildApproveCancelRaceHasOneTerminal(t *testing.T) {
 		childArguments: `{"command":"echo race","description":"Print race"}`,
 	}
 	policy := mustApprovalPolicy(t, approval.ModeBalanced, nil)
-	dispatcher := buildB8Dispatcher(t, model, policy, staticHookResolver{})
+	controller := buildB8Controller(t, model, policy, staticHookResolver{})
 
 	for index := range 20 {
-		handle, err := dispatcher.StartTurn(t.Context(), runs.StartTurn{
+		handle, err := controller.StartTurn(t.Context(), runs.StartTurn{
 			SessionID:      "sess-b8-race-" + string(rune('a'+index)),
 			Message:        "delegate this work",
 			Cwd:            t.TempDir(),
@@ -872,7 +872,7 @@ func TestChildApproveCancelRaceHasOneTerminal(t *testing.T) {
 		if err != nil {
 			t.Fatalf("iteration %d StartTurn: %v", index, err)
 		}
-		events, err := dispatcher.Events(t.Context(), handle)
+		events, err := controller.Events(t.Context(), handle)
 		if err != nil {
 			t.Fatalf("iteration %d Events: %v", index, err)
 		}
@@ -895,7 +895,7 @@ func TestChildApproveCancelRaceHasOneTerminal(t *testing.T) {
 				go func() {
 					defer wg.Done()
 					<-start
-					resumeErr = dispatcher.Resume(
+					resumeErr = controller.Resume(
 						t.Context(),
 						handle,
 						answersForBarrier(event, interrupts.Resolution{Approved: true}),
@@ -905,7 +905,7 @@ func TestChildApproveCancelRaceHasOneTerminal(t *testing.T) {
 				go func() {
 					defer wg.Done()
 					<-start
-					cancelErr = dispatcher.Cancel(t.Context(), handle)
+					cancelErr = controller.Cancel(t.Context(), handle)
 				}()
 				close(start)
 				wg.Wait()
@@ -936,7 +936,7 @@ func TestChildApproveCancelRaceHasOneTerminal(t *testing.T) {
 }
 
 func TestCompleteSiblingAnswerSetCancelRaceHasOneTerminalAndNoSecondBarrier(t *testing.T) {
-	dispatcher := buildB8Dispatcher(
+	controller := buildB8Controller(
 		t,
 		&parallelQuestionChildModel{
 			defaults: &chat.Options{Model: "b8-parallel-answer-cancel-race"},
@@ -946,7 +946,7 @@ func TestCompleteSiblingAnswerSetCancelRaceHasOneTerminalAndNoSecondBarrier(t *t
 	)
 
 	for index := range 20 {
-		handle, err := dispatcher.StartTurn(t.Context(), runs.StartTurn{
+		handle, err := controller.StartTurn(t.Context(), runs.StartTurn{
 			SessionID:      fmt.Sprintf("sess-b8-parallel-race-%d", index),
 			Message:        "delegate this work",
 			Cwd:            t.TempDir(),
@@ -955,7 +955,7 @@ func TestCompleteSiblingAnswerSetCancelRaceHasOneTerminalAndNoSecondBarrier(t *t
 		if err != nil {
 			t.Fatalf("iteration %d StartTurn: %v", index, err)
 		}
-		events, err := dispatcher.Events(t.Context(), handle)
+		events, err := controller.Events(t.Context(), handle)
 		if err != nil {
 			t.Fatalf("iteration %d Events: %v", index, err)
 		}
@@ -981,7 +981,7 @@ func TestCompleteSiblingAnswerSetCancelRaceHasOneTerminalAndNoSecondBarrier(t *t
 				go func() {
 					defer wg.Done()
 					<-start
-					resumeErr = dispatcher.Resume(
+					resumeErr = controller.Resume(
 						t.Context(),
 						handle,
 						answers,
@@ -991,7 +991,7 @@ func TestCompleteSiblingAnswerSetCancelRaceHasOneTerminalAndNoSecondBarrier(t *t
 				go func() {
 					defer wg.Done()
 					<-start
-					cancelErr = dispatcher.Cancel(t.Context(), handle)
+					cancelErr = controller.Cancel(t.Context(), handle)
 				}()
 				close(start)
 				wg.Wait()
@@ -1030,7 +1030,7 @@ func TestCompleteSiblingAnswerSetCancelRaceHasOneTerminalAndNoSecondBarrier(t *t
 	}
 }
 
-func buildB8Dispatcher(
+func buildB8Controller(
 	t *testing.T,
 	model chat.Model,
 	policy interface {
@@ -1060,17 +1060,17 @@ func buildB8Dispatcher(
 	if err != nil {
 		t.Fatalf("agentexec.New: %v", err)
 	}
-	dispatcher, err := turn.New(turnDeps(engine, withApproval(policy), func(deps *turn.Dependencies) {
+	controller, err := turn.New(turnDeps(engine, withApproval(policy), func(deps *turn.Dependencies) {
 		deps.Hooks = hookResolver
 	}))
 	if err != nil {
 		t.Fatalf("turn.New: %v", err)
 	}
-	t.Cleanup(func() { shutdownDispatcher(t, dispatcher) })
-	return dispatcher
+	t.Cleanup(func() { shutdownController(t, controller) })
+	return controller
 }
 
-func buildB8PersistentDispatcher(
+func buildB8PersistentController(
 	t *testing.T,
 	model chat.Model,
 	policy interface {
@@ -1104,16 +1104,16 @@ func buildB8PersistentDispatcher(
 	if err != nil {
 		t.Fatalf("agentexec.New: %v", err)
 	}
-	dispatcher, err := turn.New(turnDeps(engine, withApproval(policy), func(deps *turn.Dependencies) {
+	controller, err := turn.New(turnDeps(engine, withApproval(policy), func(deps *turn.Dependencies) {
 		deps.Hooks = hookResolver
 	}))
 	if err != nil {
 		t.Fatalf("turn.New: %v", err)
 	}
 	t.Cleanup(func() {
-		shutdownDispatcher(t, dispatcher)
+		shutdownController(t, controller)
 	})
-	return dispatcher
+	return controller
 }
 
 type childToolModel struct {

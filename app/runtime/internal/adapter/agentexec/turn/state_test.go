@@ -3,7 +3,7 @@ package turn
 import "testing"
 
 func TestSetRestoredProcessRejectsInvalidPhaseWithoutPublishing(t *testing.T) {
-	state := newRestoringTurnState(t.Context(), TurnHandle{})
+	state := newRestoringTurnState(t.Context(), Handle{})
 	state.phase = turnTerminal
 
 	func() {

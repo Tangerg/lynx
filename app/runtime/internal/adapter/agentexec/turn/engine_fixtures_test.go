@@ -163,7 +163,7 @@ func (cp *stubTurnProcess) Discard(_ context.Context) error {
 	return cp.discardErr
 }
 
-// stubEngine satisfies the turn dispatcher's engine dependency without touching
+// stubEngine satisfies the turn controller's engine dependency without touching
 // the real engine, conversation history, or MCP wiring.
 type stubEngine struct {
 	runTurnCalls     atomic.Int32

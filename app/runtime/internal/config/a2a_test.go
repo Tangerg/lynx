@@ -12,19 +12,19 @@ func TestParseA2AAgents(t *testing.T) {
 	tests := []struct {
 		name    string
 		in      string
-		want    []A2AAgentConfig
+		want    []A2AAgent
 		wantErr bool
 	}{
 		{name: "empty", in: "", want: nil},
 		{
 			name: "single",
 			in:   "weather=https://weather.example.com",
-			want: []A2AAgentConfig{{Name: "weather", CardURL: "https://weather.example.com"}},
+			want: []A2AAgent{{Name: "weather", CardURL: "https://weather.example.com"}},
 		},
 		{
 			name: "multiple with spaces",
 			in:   " weather=https://w.example.com , planner=http://localhost:9001 ",
-			want: []A2AAgentConfig{
+			want: []A2AAgent{
 				{Name: "weather", CardURL: "https://w.example.com"},
 				{Name: "planner", CardURL: "http://localhost:9001"},
 			},
@@ -32,7 +32,7 @@ func TestParseA2AAgents(t *testing.T) {
 		{
 			name: "url with query string splits on first =",
 			in:   "search=https://s.example.com/agent?key=abc",
-			want: []A2AAgentConfig{{Name: "search", CardURL: "https://s.example.com/agent?key=abc"}},
+			want: []A2AAgent{{Name: "search", CardURL: "https://s.example.com/agent?key=abc"}},
 		},
 		{name: "missing =", in: "https://no-name.example.com", wantErr: true},
 		{name: "empty name", in: "=https://x.example.com", wantErr: true},
@@ -60,7 +60,7 @@ func TestParseA2AAgents(t *testing.T) {
 }
 
 func TestAddA2ARPCOrigins(t *testing.T) {
-	agents := []A2AAgentConfig{
+	agents := []A2AAgent{
 		{Name: "weather", CardURL: "https://cards.example"},
 		{Name: "planner", CardURL: "https://planner.example"},
 	}
@@ -78,7 +78,7 @@ func TestAddA2ARPCOrigins(t *testing.T) {
 }
 
 func TestAddA2ARPCOriginsRejectsInvalidMappings(t *testing.T) {
-	agents := []A2AAgentConfig{{Name: "weather", CardURL: "https://cards.example"}}
+	agents := []A2AAgent{{Name: "weather", CardURL: "https://cards.example"}}
 	for _, raw := range []string{
 		"unknown=https://rpc.example",
 		"weather=",

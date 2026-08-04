@@ -33,7 +33,7 @@ func idempotencyOf(method string) IdempotencyPolicy {
 	return registered.Meta.Idempotency
 }
 
-func (d *Dispatcher) dispatchReplayProtected(ctx context.Context, req *transport.Request) HandleResult {
+func (d *Router) dispatchReplayProtected(ctx context.Context, req *transport.Request) HandleResult {
 	key := transport.IdempotencyKeyFrom(ctx)
 	policy := idempotencyOf(req.Method)
 	if key == "" || !policy.Replays() {
@@ -112,13 +112,13 @@ func (d *Dispatcher) dispatchReplayProtected(ctx context.Context, req *transport
 	return result
 }
 
-func (d *Dispatcher) completeReplay(ctx context.Context, record idempotency.Record) error {
+func (d *Router) completeReplay(ctx context.Context, record idempotency.Record) error {
 	writeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), idempotencyStoreWriteTimeout)
 	defer cancel()
 	return d.store.Complete(writeCtx, record)
 }
 
-func (d *Dispatcher) pendingCompletion(key string) (idempotency.Record, bool) {
+func (d *Router) pendingCompletion(key string) (idempotency.Record, bool) {
 	d.pendingMu.Lock()
 	defer d.pendingMu.Unlock()
 	record, ok := d.pending[key]
@@ -126,7 +126,7 @@ func (d *Dispatcher) pendingCompletion(key string) (idempotency.Record, bool) {
 	return record, ok
 }
 
-func (d *Dispatcher) rememberPendingCompletion(record idempotency.Record) {
+func (d *Router) rememberPendingCompletion(record idempotency.Record) {
 	record.Payload = bytes.Clone(record.Payload)
 	d.pendingMu.Lock()
 	if d.pending == nil {
@@ -136,7 +136,7 @@ func (d *Dispatcher) rememberPendingCompletion(record idempotency.Record) {
 	d.pendingMu.Unlock()
 }
 
-func (d *Dispatcher) forgetPendingCompletion(key, fingerprint string) {
+func (d *Router) forgetPendingCompletion(key, fingerprint string) {
 	d.pendingMu.Lock()
 	if d.pending[key].Fingerprint == fingerprint {
 		delete(d.pending, key)
@@ -144,7 +144,7 @@ func (d *Dispatcher) forgetPendingCompletion(key, fingerprint string) {
 	d.pendingMu.Unlock()
 }
 
-func (d *Dispatcher) replayLock(key string) *sync.Mutex {
+func (d *Router) replayLock(key string) *sync.Mutex {
 	sum := sha256.Sum256([]byte(key))
 	return &d.replayLocks[int(sum[0])%len(d.replayLocks)]
 }
@@ -171,7 +171,7 @@ func requestFingerprint(req *transport.Request) (string, error) {
 	return hex.EncodeToString(hash.Sum(nil)), nil
 }
 
-func (d *Dispatcher) replay(ctx context.Context, req *transport.Request, payload []byte) HandleResult {
+func (d *Router) replay(ctx context.Context, req *transport.Request, payload []byte) HandleResult {
 	message, err := transport.DecodeMessage(payload)
 	if err != nil {
 		return responseError(req.ID, errorToRPC(fmt.Errorf("idempotency: decode stored response: %w", err)))

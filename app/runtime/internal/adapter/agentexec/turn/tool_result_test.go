@@ -63,7 +63,7 @@ func TestDecodeToolResultUsesInjectedPresenter(t *testing.T) {
 }
 
 func TestToolActivityUsesPresenterAndGenericFallback(t *testing.T) {
-	presented := &memoryDispatcher{toolPresenter: testToolPresenter{}}
+	presented := &controller{toolPresenter: testToolPresenter{}}
 	if got := presented.toolActivity("custom", `{}`); got != "Presenting tool" {
 		t.Fatalf("presented activity = %q", got)
 	}
@@ -73,7 +73,7 @@ func TestToolActivityUsesPresenterAndGenericFallback(t *testing.T) {
 	if got := presented.toolActivity("custom", `{"activity":`); got != "Calling custom" {
 		t.Fatalf("invalid-argument activity = %q, want generic fallback", got)
 	}
-	generic := new(memoryDispatcher)
+	generic := new(controller)
 	if got := generic.toolActivity("custom", `{}`); got != "Calling custom" {
 		t.Fatalf("generic activity = %q", got)
 	}

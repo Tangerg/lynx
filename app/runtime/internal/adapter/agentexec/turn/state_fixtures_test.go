@@ -7,7 +7,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 )
 
-func newRunningTestState(ctx context.Context, handle TurnHandle, process agentexec.TurnProcess) *turnState {
+func newRunningTestState(ctx context.Context, handle Handle, process agentexec.TurnProcess) *turnState {
 	state := newPreparingTurnState(ctx, handle)
 	state.completePreparation(runs.StartTurn{})
 	if _, claimed := state.claimStart(); !claimed {

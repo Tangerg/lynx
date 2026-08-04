@@ -18,7 +18,7 @@ import (
 
 // cleanupTurnOwned releases a terminal turn exactly once after the Agent
 // runtime confirms that it relinquished process ownership.
-func (s *memoryDispatcher) cleanupTurnOwned(ctx context.Context, st *turnState) error {
+func (s *controller) cleanupTurnOwned(ctx context.Context, st *turnState) error {
 	if st.released() {
 		return nil
 	}
@@ -57,15 +57,15 @@ func discardProcess(ctx context.Context, process agentexec.TurnProcess) error {
 // Cancel and a failed Resume — where no drive
 // goroutine will run [emitTurnEnd]. The clean path goes through
 // emitTurnEnd (which carries usage) followed by terminal cleanup in [drive].
-func (s *memoryDispatcher) finishTurn(st *turnState, reason execution.Outcome) error {
+func (s *controller) finishTurn(st *turnState, reason execution.Outcome) error {
 	return s.completeTurn(st, func() { s.emitFinishedTurn(st, reason) })
 }
 
-func (s *memoryDispatcher) finishTurnOwned(ctx context.Context, st *turnState, reason execution.Outcome) error {
+func (s *controller) finishTurnOwned(ctx context.Context, st *turnState, reason execution.Outcome) error {
 	return s.completeTurnOwned(ctx, st, func() { s.emitFinishedTurn(st, reason) })
 }
 
-func (s *memoryDispatcher) emitFinishedTurn(st *turnState, reason execution.Outcome) {
+func (s *controller) emitFinishedTurn(st *turnState, reason execution.Outcome) {
 	dur := st.segmentElapsed()
 	finishTurnSpan(st.span, reason, accounting.TokenUsage{}, false, "")
 	recordTurnDuration(st.ctx, reason, st.model, dur)
@@ -75,7 +75,7 @@ func (s *memoryDispatcher) emitFinishedTurn(st *turnState, reason execution.Outc
 // finishFailedTurn closes an emergency error path with one self-contained
 // terminal event. The raw error stays local to tracing and stop hooks; the
 // EngineEvent contract carries only the stable application problem.
-func (s *memoryDispatcher) finishFailedTurn(st *turnState, problem transcript.Problem, err error) error {
+func (s *controller) finishFailedTurn(st *turnState, problem transcript.Problem, err error) error {
 	return s.completeTurn(st, func() {
 		dur := st.segmentElapsed()
 		errMsg := "turn failed"
@@ -95,20 +95,20 @@ func (s *memoryDispatcher) finishFailedTurn(st *turnState, problem transcript.Pr
 // the operation's stable problem is surfaced. The returned error is teardown
 // only, so synchronous callers can join it with the operation error without
 // losing either fact.
-func (s *memoryDispatcher) finishExecutionError(st *turnState, problem transcript.Problem, err error) error {
+func (s *controller) finishExecutionError(st *turnState, problem transcript.Problem, err error) error {
 	if st.cancelRequested() {
 		return s.finishTurn(st, execution.OutcomeCanceled)
 	}
 	return s.finishFailedTurn(st, problem, err)
 }
 
-func (s *memoryDispatcher) completeTurn(st *turnState, emitTerminal func()) error {
+func (s *controller) completeTurn(st *turnState, emitTerminal func()) error {
 	st.lifecycleMu.Lock()
 	defer st.lifecycleMu.Unlock()
 	return s.completeTurnOwned(st.ctx, st, emitTerminal)
 }
 
-func (s *memoryDispatcher) completeTurnOwned(ctx context.Context, st *turnState, emitTerminal func()) error {
+func (s *controller) completeTurnOwned(ctx context.Context, st *turnState, emitTerminal func()) error {
 	if st.beginTerminal() {
 		emitTerminal()
 		st.closeEvents()
@@ -123,7 +123,7 @@ func (s *memoryDispatcher) completeTurnOwned(ctx context.Context, st *turnState,
 	return nil
 }
 
-func (s *memoryDispatcher) cleanupTurn(ctx context.Context, st *turnState) error {
+func (s *controller) cleanupTurn(ctx context.Context, st *turnState) error {
 	st.lifecycleMu.Lock()
 	defer st.lifecycleMu.Unlock()
 	return s.cleanupTurnOwned(ctx, st)
@@ -131,7 +131,7 @@ func (s *memoryDispatcher) cleanupTurn(ctx context.Context, st *turnState) error
 
 // emitTurnEnd maps the process segment's immutable completion onto the
 // transport-shape TurnEnd.
-func (s *memoryDispatcher) emitTurnEnd(st *turnState, completion agentexec.TurnCompletion, duration time.Duration) {
+func (s *controller) emitTurnEnd(st *turnState, completion agentexec.TurnCompletion, duration time.Duration) {
 	plan := planTurnEnd(completion)
 	out := completion.Output
 
@@ -178,7 +178,7 @@ func (t *turnObserver) OnChildProcessEnd(completion agentexec.ChildCompletion) {
 			Steps:   completion.Steps,
 		}
 	}
-	t.dispatcher.emitProcessEvent(t.st, completion.Process.ProcessRef, end)
+	t.controller.emitProcessEvent(t.st, completion.Process.ProcessRef, end)
 }
 
 func planChildTurnEnd(completion agentexec.ChildCompletion) turnEndPlan {
@@ -212,7 +212,7 @@ func planChildTurnEnd(completion agentexec.ChildCompletion) turnEndPlan {
 }
 
 // fireStop runs the Stop lifecycle hooks for a terminated turn (observe-only).
-func (s *memoryDispatcher) fireStop(st *turnState, detail string) {
+func (s *controller) fireStop(st *turnState, detail string) {
 	if st.hooks.Empty() {
 		return
 	}

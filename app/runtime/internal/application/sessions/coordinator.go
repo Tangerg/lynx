@@ -27,12 +27,12 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 )
 
-// SessionStore is the coordinator's consumer view of session persistence: the
+// Store is the coordinator's consumer view of session persistence: the
 // session-aggregate reads/create and the atomic multi-field Patch. Patch is
 // single-domain (all on the session row), so it stays an
 // aggregate store method; the multi-store write-sets (fork, rollback, restore,
 // delete) go through [WriteSets].
-type SessionStore interface {
+type Store interface {
 	List(ctx context.Context) ([]session.Session, error)
 	ListPage(ctx context.Context, afterFavorite bool, afterUpdatedAt int64, afterID string, limit int) ([]session.Session, error)
 	Get(ctx context.Context, id string) (session.Session, error)
@@ -109,9 +109,9 @@ type SnapshotReader interface {
 	ReadSnapshot(ctx context.Context, sessionID string) (Snapshot, error)
 }
 
-// SessionForgetter releases process-local executor state after a session is
+// Forgetter releases process-local executor state after a session is
 // removed from durable storage.
-type SessionForgetter interface {
+type Forgetter interface {
 	ForgetSession(sessionID string)
 }
 
@@ -200,14 +200,14 @@ type Turns interface {
 // run. Stateless beyond its collaborators and the in-process admission gates;
 // safe to share.
 type Coordinator struct {
-	sessions     SessionStore
+	sessions     Store
 	interrupts   InterruptStore
 	transcript   TranscriptStore
 	runs         RunStore
 	boundaries   PlanBoundaries
 	snapshots    SnapshotReader
 	writes       WriteSets
-	forgetter    SessionForgetter
+	forgetter    Forgetter
 	turns        Turns
 	paths        CwdResolver
 	defaultModel string
@@ -226,7 +226,7 @@ type Coordinator struct {
 	mutations WorkspaceMutations
 	// admissions is shared with Runs and owns the process-local session and
 	// working-tree facts.
-	admissions SessionAdmissions
+	admissions Admissions
 	// changed tells clients a committed session mutation moved something they hold.
 	// Every notice is published from a post-commit boundary, never from the commit
 	// itself: a signal for a transaction that then rolled back would send every
@@ -238,14 +238,14 @@ type Coordinator struct {
 // mutations cross one cohesive WriteSets transaction; reads and process-local
 // cleanup are independent ports rather than accessor methods on a store bag.
 type Dependencies struct {
-	Sessions     SessionStore
+	Sessions     Store
 	Interrupts   InterruptStore
 	Transcript   TranscriptStore
 	Runs         RunStore
 	Boundaries   PlanBoundaries
 	Snapshots    SnapshotReader
 	Writes       WriteSets
-	Forgetter    SessionForgetter
+	Forgetter    Forgetter
 	Turns        Turns
 	Paths        CwdResolver
 	DefaultModel string
@@ -253,7 +253,7 @@ type Dependencies struct {
 	Sandbox      SandboxDiscarder
 	Goals        GoalMutationGuard
 	Mutations    WorkspaceMutations
-	Admissions   SessionAdmissions
+	Admissions   Admissions
 	// Changed publishes post-commit invalidations for the session projections a
 	// mutation moved. nil disables them (no runtime change stream wired).
 	Changed change.Publish

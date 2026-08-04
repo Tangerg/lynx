@@ -60,7 +60,7 @@ func (s *Server) serveRPC(w http.ResponseWriter, r *http.Request) {
 	// non-streaming methods (they don't read it).
 	ctx := transport.WithLastEventID(r.Context(), strings.TrimSpace(r.Header.Get("Last-Event-Id")))
 	ctx = transport.WithIdempotencyKey(ctx, strings.TrimSpace(r.Header.Get("Idempotency-Key")))
-	res := s.dispatcher.Handle(ctx, msg)
+	res := s.router.Handle(ctx, msg)
 
 	// Surface the body's method (if any) for the X-Method header.
 	// Only Request envelopes carry Method; Responses don't.

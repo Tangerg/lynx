@@ -12,27 +12,27 @@ import (
 
 // bootstrapRuntime builds the composition Host (the application Stack + its
 // process-level close order) for the server process.
-func bootstrapRuntime(ctx context.Context) (_ *bootstrap.Host, _ config.Config, err error) {
+func bootstrapRuntime(ctx context.Context) (_ *bootstrap.Host, _ config.Settings, err error) {
 	return bootstrapRuntimeWithBuildID(ctx, bootstrap.ExecutableBuildID)
 }
 
-func bootstrapRuntimeWithBuildID(ctx context.Context, buildIdentity func() (string, error)) (_ *bootstrap.Host, _ config.Config, err error) {
+func bootstrapRuntimeWithBuildID(ctx context.Context, buildIdentity func() (string, error)) (_ *bootstrap.Host, _ config.Settings, err error) {
 	buildID, err := buildIdentity()
 	if err != nil {
-		return nil, config.Config{}, err
+		return nil, config.Settings{}, err
 	}
 	cfg, err := bootstrap.LoadConfig()
 	if err != nil {
-		return nil, config.Config{}, err
+		return nil, config.Settings{}, err
 	}
 	client, err := bootstrap.DefaultClient(cfg)
 	if err != nil {
-		return nil, config.Config{}, err
+		return nil, config.Settings{}, err
 	}
 
 	stores, err := persistence.Open()
 	if err != nil {
-		return nil, config.Config{}, err
+		return nil, config.Settings{}, err
 	}
 	owned := true
 	defer func() {
@@ -54,22 +54,22 @@ func bootstrapRuntimeWithBuildID(ctx context.Context, buildIdentity func() (stri
 	// to "stored" — while a required custom endpoint is still persisted by itself.
 	// Other supported providers stay unconfigured until the user sets their keys.
 	if err = bootstrap.SeedConfiguredProvider(ctx, providers, cfg); err != nil {
-		return nil, config.Config{}, err
+		return nil, config.Settings{}, err
 	}
 	// Seed the config-file utility model into its store on first run, so the
 	// cheaper maintenance model is honored out of the box; a persisted
 	// models.setUtilityRole for the same role wins (runtime edits over config).
 	if err = bootstrap.SeedUtilityRole(ctx, stores.UtilityRole, cfg); err != nil {
-		return nil, config.Config{}, err
+		return nil, config.Settings{}, err
 	}
 	// Seed env-sourced MCP servers (LYRA_MCP_SERVERS) into the registry on
 	// first run; a persisted mcp.servers resource with the same name wins.
 	mcpServers, err := bootstrap.MCPServers(cfg.MCPServers)
 	if err != nil {
-		return nil, config.Config{}, err
+		return nil, config.Settings{}, err
 	}
 	if err = bootstrap.SeedMCPServers(ctx, stores.MCPServers, mcpServers); err != nil {
-		return nil, config.Config{}, err
+		return nil, config.Settings{}, err
 	}
 
 	hookResolver := bootstrap.NewHookResolver(stores.Trust)
@@ -85,7 +85,7 @@ func bootstrapRuntimeWithBuildID(ctx context.Context, buildIdentity func() (stri
 	}()
 	host, err := bootstrap.BuildAssembly(ctx, assembly)
 	if err != nil {
-		return nil, config.Config{}, err
+		return nil, config.Settings{}, err
 	}
 	return host, cfg, nil
 }

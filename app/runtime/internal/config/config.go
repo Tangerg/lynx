@@ -24,7 +24,7 @@ import (
 // model selection, and provider-specific API-key env fallback live in the
 // composition root because they depend on the LLM adapter catalog, not on
 // config-source parsing.
-func Load() (Config, error) {
+func Load() (Settings, error) {
 	v := viper.New()
 	v.SetConfigName("config")
 	v.SetConfigType("yaml")
@@ -46,14 +46,14 @@ func Load() (Config, error) {
 
 	if err := v.ReadInConfig(); err != nil {
 		if _, ok := errors.AsType[viper.ConfigFileNotFoundError](err); !ok {
-			return Config{}, fmt.Errorf("config: read config file: %w", err)
+			return Settings{}, fmt.Errorf("config: read config file: %w", err)
 		}
 		// No config file — defaults + env only.
 	}
 
 	provider := v.GetString("provider")
 	if provider == "" {
-		return Config{}, errors.New("config: provider is required — set `provider:` in config/config.yaml or LYRA_PROVIDER (see providers.list for the supported set)")
+		return Settings{}, errors.New("config: provider is required — set `provider:` in config/config.yaml or LYRA_PROVIDER (see providers.list for the supported set)")
 	}
 
 	model := v.GetString("model")
@@ -64,24 +64,24 @@ func Load() (Config, error) {
 
 	servers, err := parseMCPServers(os.Getenv("LYRA_MCP_SERVERS"))
 	if err != nil {
-		return Config{}, fmt.Errorf("config: LYRA_MCP_SERVERS: %w", err)
+		return Settings{}, fmt.Errorf("config: LYRA_MCP_SERVERS: %w", err)
 	}
 
 	a2aAgents, err := parseA2AAgents(os.Getenv("LYRA_A2A_AGENTS"))
 	if err != nil {
-		return Config{}, fmt.Errorf("config: LYRA_A2A_AGENTS: %w", err)
+		return Settings{}, fmt.Errorf("config: LYRA_A2A_AGENTS: %w", err)
 	}
 	a2aAgents, err = addA2ARPCOrigins(a2aAgents, os.Getenv("LYRA_A2A_RPC_ORIGINS"))
 	if err != nil {
-		return Config{}, fmt.Errorf("config: LYRA_A2A_RPC_ORIGINS: %w", err)
+		return Settings{}, fmt.Errorf("config: LYRA_A2A_RPC_ORIGINS: %w", err)
 	}
 
 	lspServers, err := loadLSPServers(v)
 	if err != nil {
-		return Config{}, err
+		return Settings{}, err
 	}
 
-	return Config{
+	return Settings{
 		Provider:     provider,
 		Model:        model,
 		APIKey:       apiKey,
@@ -97,7 +97,7 @@ func Load() (Config, error) {
 		SandboxShell:         v.GetBool("sandbox.shell"),
 		SandboxReadOnlyPaths: v.GetStringSlice("sandbox.readOnlyPaths"),
 
-		Server: ServerConfig{
+		Server: Server{
 			Listen:         v.GetString("server.listen"),
 			NoLocalToken:   v.GetBool("server.noLocalToken"),
 			LocalTokenPath: v.GetString("server.localTokenPath"),

@@ -20,7 +20,7 @@ type coordinatorStores struct {
 
 type testStores interface {
 	WriteSets
-	Session() SessionStore
+	Session() Store
 	Interrupts() InterruptStore
 	Transcript() TranscriptStore
 	Runs() RunStore
@@ -28,7 +28,7 @@ type testStores interface {
 	ForgetSession(string)
 }
 
-func (s coordinatorStores) Session() SessionStore       { return nil }
+func (s coordinatorStores) Session() Store              { return nil }
 func (s coordinatorStores) Interrupts() InterruptStore  { return s.interrupts }
 func (s coordinatorStores) Transcript() TranscriptStore { return emptyTranscript{} }
 func (s coordinatorStores) Runs() RunStore              { return emptyTranscript{} }
@@ -157,7 +157,7 @@ func newCoordinator(stores testStores, turns Turns) *Coordinator {
 	return newCoordinatorWithAdmissions(stores, turns, new(testClaimer))
 }
 
-func newCoordinatorWithAdmissions(stores testStores, turns Turns, admissions SessionAdmissions) *Coordinator {
+func newCoordinatorWithAdmissions(stores testStores, turns Turns, admissions Admissions) *Coordinator {
 	return New(testDependencies(stores, Dependencies{
 		Turns: turns, Paths: testCwdResolver{}, Admissions: admissions,
 	}))

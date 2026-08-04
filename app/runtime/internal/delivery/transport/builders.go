@@ -12,7 +12,7 @@ import (
 // don't have to construct envelopes by hand or reach into internal/jsonrpc2.
 
 // NewCall builds a Request with the given string ID + marshaled params.
-// API.md §1.1: envelope ids are strings (the dispatcher rejects
+// API.md §1.1: envelope ids are strings (the router rejects
 // non-string ids at the boundary).
 func NewCall(id string, method string, params any) (*Request, error) {
 	raw, err := marshalParams(params)

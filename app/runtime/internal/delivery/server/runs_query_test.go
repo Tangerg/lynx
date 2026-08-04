@@ -390,8 +390,8 @@ func TestSessionStatesPreservesInterruptReadFailure(t *testing.T) {
 	want := errors.New("interrupt store unavailable")
 	reader := &fakeInterruptReader{err: want}
 	coordinator := sessions.New(sessions.Dependencies{Interrupts: reader, Admissions: new(admission.Gate)})
-	if _, err := coordinator.SessionStates(t.Context(), []string{"ses_1", "ses_2"}); !errors.Is(err, want) {
-		t.Fatalf("SessionStates error = %v, want interrupt read failure", err)
+	if _, err := coordinator.Activities(t.Context(), []string{"ses_1", "ses_2"}); !errors.Is(err, want) {
+		t.Fatalf("Activities error = %v, want interrupt read failure", err)
 	}
 }
 
@@ -402,9 +402,9 @@ func TestSessionStatesDoNotQueryInterruptsForActiveRun(t *testing.T) {
 		t.Fatal("AcquireSession rejected an empty registry")
 	}
 	coordinator := sessions.New(sessions.Dependencies{Interrupts: reader, Admissions: gate})
-	states, err := coordinator.SessionStates(t.Context(), []string{"ses_1"})
-	if err != nil || states["ses_1"] != sessions.SessionRunning {
-		t.Fatalf("SessionStates = (%q, %v), want running", states["ses_1"], err)
+	activities, err := coordinator.Activities(t.Context(), []string{"ses_1"})
+	if err != nil || activities["ses_1"] != sessions.ActivityRunning {
+		t.Fatalf("Activities = (%q, %v), want running", activities["ses_1"], err)
 	}
 }
 

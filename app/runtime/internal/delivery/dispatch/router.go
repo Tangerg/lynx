@@ -11,10 +11,10 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/transport"
 )
 
-// Dispatcher routes inbound JSON-RPC messages to typed Runtime methods and
+// Router routes inbound JSON-RPC messages to typed Runtime methods and
 // coordinates replay-protected mutations. Request-scoped metadata is carried
 // on ctx; durable replay records live in store.
-type Dispatcher struct {
+type Router struct {
 	api         protocol.Runtime
 	store       idempotency.Store
 	replayLocks [64]sync.Mutex
@@ -22,26 +22,26 @@ type Dispatcher struct {
 	pending     map[string]idempotency.Record
 }
 
-// Config supplies optional Dispatcher dependencies. A nil IdempotencyStore
+// Config supplies optional Router dependencies. A nil IdempotencyStore
 // selects the process-local replay store.
 type Config struct {
 	IdempotencyStore idempotency.Store
 }
 
-// New builds a Dispatcher bound to the given Runtime. The returned
-// Dispatcher is safe for parallel Handle calls.
-func New(api protocol.Runtime, config Config) *Dispatcher {
+// New builds a Router bound to the given Runtime. The returned
+// Router is safe for parallel Handle calls.
+func New(api protocol.Runtime, config Config) *Router {
 	store := config.IdempotencyStore
 	if store == nil {
 		store = newMemoryIdempotencyStore()
 	}
-	dispatcher := &Dispatcher{
+	router := &Router{
 		api: api, store: store, pending: make(map[string]idempotency.Record),
 	}
-	return dispatcher
+	return router
 }
 
-// HandleResult holds what the dispatcher returns after processing one
+// HandleResult holds what the router returns after processing one
 // inbound message.
 type HandleResult struct {
 	// Response is the synchronous JSON-RPC reply. nil when the input
@@ -60,7 +60,7 @@ type HandleResult struct {
 }
 
 // Handle is the entry point — every inbound transport.Message goes through here.
-func (d *Dispatcher) Handle(ctx context.Context, msg transport.Message) HandleResult {
+func (d *Router) Handle(ctx context.Context, msg transport.Message) HandleResult {
 	req, ok := msg.(*transport.Request)
 	if !ok || req == nil {
 		return responseError(transport.ID{}, badEnvelope("expected a JSON-RPC request"))

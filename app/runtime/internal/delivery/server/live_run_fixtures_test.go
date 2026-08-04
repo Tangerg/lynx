@@ -55,7 +55,7 @@ func (*blockingRunRuntime) CancelSubtree(context.Context, execution.TurnRef, str
 }
 
 func (*blockingRunRuntime) PrepareStart(_ context.Context, req runs.StartTurn) (execution.TurnRef, error) {
-	handle := turn.TurnHandle{SessionID: req.SessionID, TurnID: "turn_blocking"}
+	handle := turn.Handle{SessionID: req.SessionID, TurnID: "turn_blocking"}
 	return execution.TurnRef{SessionID: handle.SessionID, TurnID: handle.TurnID}, nil
 }
 

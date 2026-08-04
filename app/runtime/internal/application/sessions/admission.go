@@ -6,10 +6,10 @@ import (
 	"sync"
 )
 
-// SessionAdmissions is the session lifecycle's view of the shared run and
+// Admissions is the session lifecycle's view of the shared run and
 // working-tree admission state. A file rollback's `git reset --hard` must see
 // both a sibling's segment admission and its already-live run on the same cwd.
-type SessionAdmissions interface {
+type Admissions interface {
 	AcquireSession(sessionID string) (release func(), ok bool)
 	AcquireWorkingTreeMutation(cwd string) (release func(), ok bool)
 	ActiveSessions() map[string]bool
@@ -28,15 +28,15 @@ func (a WorkingTreeAdmission) Release() {
 	}
 }
 
-// SessionAdmission is a held single-writer slot. Release is idempotent across
+// Admission is a held single-writer slot. Release is idempotent across
 // value copies.
-type SessionAdmission struct {
+type Admission struct {
 	SessionID string
 	release   *releaseOnce
 }
 
 // Release drops the held single-writer slot.
-func (a SessionAdmission) Release() {
+func (a Admission) Release() {
 	if a.release != nil {
 		a.release.run()
 	}
@@ -55,8 +55,8 @@ func (r *releaseOnce) run() {
 
 // heldSessionAdmission builds a slot whose Release drops its owned
 // single-writer claim exactly once.
-func heldSessionAdmission(sessionID string, release func()) SessionAdmission {
-	return SessionAdmission{
+func heldSessionAdmission(sessionID string, release func()) Admission {
+	return Admission{
 		SessionID: sessionID,
 		release:   newReleaseOnce(release),
 	}
@@ -70,27 +70,27 @@ func heldWorkingTreeAdmission(release func()) WorkingTreeAdmission {
 // writer nor a parked Run. Use it for operations whose result cannot remain
 // coherent with an existing executor continuation, such as export, import, or
 // editing execution workspace policy.
-func (c *Coordinator) ClaimIdleSession(ctx context.Context, sessionID string) (SessionAdmission, error) {
+func (c *Coordinator) ClaimIdleSession(ctx context.Context, sessionID string) (Admission, error) {
 	if c.admissions == nil {
-		return SessionAdmission{}, errors.New("sessions: admission gate is unavailable")
+		return Admission{}, errors.New("sessions: admission gate is unavailable")
 	}
 	release, ok := c.admissions.AcquireSession(sessionID)
 	if !ok {
-		return SessionAdmission{}, ErrSessionBusy
+		return Admission{}, ErrSessionBusy
 	}
 	admission := heldSessionAdmission(sessionID, release)
 	if c.interrupts == nil {
 		admission.Release()
-		return SessionAdmission{}, errors.New("sessions: interrupt store is unavailable")
+		return Admission{}, errors.New("sessions: interrupt store is unavailable")
 	}
 	open, err := c.interrupts.List(ctx, sessionID)
 	if err != nil {
 		admission.Release()
-		return SessionAdmission{}, err
+		return Admission{}, err
 	}
 	if len(open) > 0 {
 		admission.Release()
-		return SessionAdmission{}, ErrSessionBusy
+		return Admission{}, ErrSessionBusy
 	}
 	return admission, nil
 }
@@ -98,13 +98,13 @@ func (c *Coordinator) ClaimIdleSession(ctx context.Context, sessionID string) (S
 // ClaimSessionMutation reserves a Session for a lifecycle write-set that
 // explicitly consumes or terminalizes any parked Run it finds. It deliberately
 // does not reject open interrupts; callers must own that disposition atomically.
-func (c *Coordinator) ClaimSessionMutation(sessionID string) (SessionAdmission, error) {
+func (c *Coordinator) ClaimSessionMutation(sessionID string) (Admission, error) {
 	if c.admissions == nil {
-		return SessionAdmission{}, errors.New("sessions: admission gate is unavailable")
+		return Admission{}, errors.New("sessions: admission gate is unavailable")
 	}
 	release, ok := c.admissions.AcquireSession(sessionID)
 	if !ok {
-		return SessionAdmission{}, ErrSessionBusy
+		return Admission{}, ErrSessionBusy
 	}
 	return heldSessionAdmission(sessionID, release), nil
 }

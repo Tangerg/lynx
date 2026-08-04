@@ -17,9 +17,9 @@ import (
 
 // runTurn starts the turn's agent process and drives its first run
 // segment to a suspension point — a HITL interrupt (park) or a terminal
-// state. Later segments are driven by [memoryDispatcher.Resume] through the
+// state. Later segments are driven by [controller.Resume] through the
 // shared [drive] loop. st.ctx (the turn's own lifetime) bounds the run.
-func (s *memoryDispatcher) runTurn(request runs.StartTurn, st *turnState) {
+func (s *controller) runTurn(request runs.StartTurn, st *turnState) {
 	// Resolve a per-turn client when the Run picked a provider+model. Preparation
 	// has already rejected an explicit selection without a resolver.
 	var client *chatclient.Client
@@ -38,7 +38,7 @@ func (s *memoryDispatcher) runTurn(request runs.StartTurn, st *turnState) {
 	}
 
 	observer := &turnObserver{
-		dispatcher:       s,
+		controller:       s,
 		st:               st,
 		projectChildRuns: request.ChildRunAdmissionEnabled,
 	}
@@ -102,10 +102,10 @@ func (s *memoryDispatcher) runTurn(request runs.StartTurn, st *turnState) {
 // drive consumes one typed run-segment completion. When the process parks
 // on a HITL interrupt (StatusWaiting) it surfaces a [TurnInterrupted]
 // and leaves the turn registered (events channel open) for
-// [memoryDispatcher.Resume]. On a terminal state it drains steering, runs
+// [controller.Resume]. On a terminal state it drains steering, runs
 // post-turn maintenance on a clean completion, emits [TurnEnd], and tears the
 // turn down.
-func (s *memoryDispatcher) drive(st *turnState) {
+func (s *controller) drive(st *turnState) {
 	process := st.process()
 	completion := process.Await()
 
@@ -134,11 +134,11 @@ func (s *memoryDispatcher) drive(st *turnState) {
 
 // handleWaiting decides what to do when the process parks at StatusWaiting. If
 // the pending interrupt's kind is one this turn's client can answer, it
-// surfaces it via [memoryDispatcher.emitInterrupt] and the turn waits for
-// [memoryDispatcher.Resume]. Otherwise the client could never answer it, so rather
+// surfaces it via [controller.emitInterrupt] and the turn waits for
+// [controller.Resume]. Otherwise the client could never answer it, so rather
 // than leave a deadlocked interrupt (API.md §6.2) the turn auto-denies and the
 // continuation runs to a real terminal.
-func (s *memoryDispatcher) handleWaiting(st *turnState, process agentexec.TurnProcess) {
+func (s *controller) handleWaiting(st *turnState, process agentexec.TurnProcess) {
 	// Canceled while the process was parking: Cancel cancels st.ctx but skips
 	// killing a process that still read Running, so a turn that parks just
 	// afterwards lands here with a dead ctx. Don't surface an interrupt nobody
@@ -192,8 +192,8 @@ func (s *memoryDispatcher) handleWaiting(st *turnState, process agentexec.TurnPr
 
 // emitInterrupt marks the turn parked and surfaces the pending HITL
 // request as a [TurnInterrupted] event. The turn stays registered with
-// its events channel open; [memoryDispatcher.Resume] drives the next segment.
-func (s *memoryDispatcher) emitInterrupt(
+// its events channel open; [controller.Resume] drives the next segment.
+func (s *controller) emitInterrupt(
 	st *turnState,
 	process agentexec.TurnProcess,
 ) {
@@ -271,7 +271,7 @@ func typedInterrupt(prompt []byte) (runs.Interrupt, bool) {
 // fired compaction emits [CompactBoundary] with before/after message counts;
 // other maintenance output stays internal. Failures are recorded on the active
 // turn span and never alter the completed reply.
-func (s *memoryDispatcher) postTurnMaintenance(ctx context.Context, st *turnState, sessionID string) {
+func (s *controller) postTurnMaintenance(ctx context.Context, st *turnState, sessionID string) {
 	if s.maintenance == nil {
 		return
 	}

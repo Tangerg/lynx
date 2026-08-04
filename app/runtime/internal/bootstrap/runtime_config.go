@@ -17,7 +17,7 @@ import (
 
 // RuntimeConfig assembles the runtime Config from already-opened
 // process adapters.
-func RuntimeConfig(cfg config.Config, stores *persistence.Bundle, client *chatclient.Client, providers providersvc.Registry, hooks HookResolver, buildID string) Config {
+func RuntimeConfig(cfg config.Settings, stores *persistence.Bundle, client *chatclient.Client, providers providersvc.Registry, hooks HookResolver, buildID string) Config {
 	return Config{
 		Resources:     []ShutdownResource{stores},
 		SkillsUserDir: filepath.Join(stores.Home, "skills"),
@@ -68,7 +68,7 @@ func RuntimeConfig(cfg config.Config, stores *persistence.Bundle, client *chatcl
 	}
 }
 
-func toolsetA2AAgents(in []config.A2AAgentConfig) []toolset.A2AAgentConfig {
+func toolsetA2AAgents(in []config.A2AAgent) []toolset.A2AAgentConfig {
 	if len(in) == 0 {
 		return nil
 	}
@@ -83,7 +83,7 @@ func toolsetA2AAgents(in []config.A2AAgentConfig) []toolset.A2AAgentConfig {
 	return out
 }
 
-func codeintelServers(in []config.LSPServerConfig) []codeintel.ServerSpec {
+func codeintelServers(in []config.LSPServer) []codeintel.ServerSpec {
 	if len(in) == 0 {
 		return nil
 	}

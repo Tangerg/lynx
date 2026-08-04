@@ -9,19 +9,19 @@ import (
 )
 
 type sessionTurnCanceler interface {
-	Cancel(context.Context, TurnHandle) error
+	Cancel(context.Context, Handle) error
 }
 
-type sessionTurnCleanup struct{ dispatcher sessionTurnCanceler }
+type sessionTurnCleanup struct{ controller sessionTurnCanceler }
 
 // NewSessionTurnCleanup adapts Agent turn cancellation to the narrow cleanup
 // port consumed by the session lifecycle.
-func NewSessionTurnCleanup(dispatcher sessionTurnCanceler) sessions.Turns {
-	return sessionTurnCleanup{dispatcher: dispatcher}
+func NewSessionTurnCleanup(controller sessionTurnCanceler) sessions.Turns {
+	return sessionTurnCleanup{controller: controller}
 }
 
 func (t sessionTurnCleanup) Cancel(ctx context.Context, ref execution.TurnRef) error {
-	err := t.dispatcher.Cancel(ctx, TurnHandle{SessionID: ref.SessionID, TurnID: ref.TurnID})
+	err := t.controller.Cancel(ctx, Handle{SessionID: ref.SessionID, TurnID: ref.TurnID})
 	if errors.Is(err, ErrTurnNotFound) {
 		return nil
 	}

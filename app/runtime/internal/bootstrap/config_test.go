@@ -10,7 +10,7 @@ import (
 )
 
 func TestMCPServersProjectsConfig(t *testing.T) {
-	got, err := MCPServers([]config.MCPServerConfig{{
+	got, err := MCPServers([]config.MCPServer{{
 		Name:          "fs",
 		Transport:     config.MCPTransportStreamableHTTP,
 		Endpoint:      "https://mcp.example",
@@ -41,7 +41,7 @@ func TestMCPServersProjectsConfig(t *testing.T) {
 }
 
 func TestMCPServersRejectsInvalidTransport(t *testing.T) {
-	_, err := MCPServers([]config.MCPServerConfig{{
+	_, err := MCPServers([]config.MCPServer{{
 		Name: "unknown", Transport: "websocket", Endpoint: "wss://mcp.example",
 	}})
 	if err == nil {
@@ -55,13 +55,13 @@ func TestSeedConfiguredProvider(t *testing.T) {
 	tests := []struct {
 		name   string
 		stored map[string]provider.Provider
-		cfg    config.Config
+		cfg    config.Settings
 		want   provider.Provider
 	}{
 		{
 			name:   "new provider is configured",
 			stored: map[string]provider.Provider{},
-			cfg:    config.Config{Provider: "anthropic", APIKey: "sk-new", BaseURL: "https://api"},
+			cfg:    config.Settings{Provider: "anthropic", APIKey: "sk-new", BaseURL: "https://api"},
 			want:   provider.Provider{ID: "anthropic", APIKey: "sk-new", BaseURL: "https://api"},
 		},
 		{
@@ -69,7 +69,7 @@ func TestSeedConfiguredProvider(t *testing.T) {
 			stored: map[string]provider.Provider{
 				"anthropic": {ID: "anthropic", APIKey: "sk-stored", BaseURL: "https://stored"},
 			},
-			cfg:  config.Config{Provider: "anthropic", APIKey: "sk-new", BaseURL: "https://api"},
+			cfg:  config.Settings{Provider: "anthropic", APIKey: "sk-new", BaseURL: "https://api"},
 			want: provider.Provider{ID: "anthropic", APIKey: "sk-stored", BaseURL: "https://stored"},
 		},
 	}
@@ -94,7 +94,7 @@ func TestSeedConfiguredProvider(t *testing.T) {
 func TestSeedConfiguredProviderKeepsEnvironmentKeyOutOfStorageButPersistsEndpoint(t *testing.T) {
 	inner := &providerRegistry{stored: map[string]provider.Provider{}}
 	registry := provider.WithEnvKeys(inner, map[string]string{"openai-compatible": "sk-env"})
-	cfg := config.Config{
+	cfg := config.Settings{
 		Provider: "openai-compatible",
 		APIKey:   "sk-env",
 		BaseURL:  "https://gateway.example.test",

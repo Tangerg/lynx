@@ -17,24 +17,24 @@ import (
 // persisted turn handle and leaves the restored process parked so the run
 // coordinator can first establish the event owner and atomically accept the
 // continuation; [Resume] delivers the decision only after those gates succeed.
-func (s *memoryDispatcher) Rehydrate(ctx context.Context, request runs.RehydrateTurn) (TurnHandle, error) {
+func (s *controller) Rehydrate(ctx context.Context, request runs.RehydrateTurn) (Handle, error) {
 	if request.ProcessID == "" || strings.TrimSpace(request.ProcessID) != request.ProcessID {
-		return TurnHandle{}, errors.New("turn: process id must be non-empty without surrounding whitespace")
+		return Handle{}, errors.New("turn: process id must be non-empty without surrounding whitespace")
 	}
 	if err := runs.ValidateChildRunBindings(request.RootRunID, request.ChildRuns); err != nil {
-		return TurnHandle{}, fmt.Errorf("turn: restore child Run bindings: %w", err)
+		return Handle{}, fmt.Errorf("turn: restore child Run bindings: %w", err)
 	}
 	if s.isClosed() {
-		return TurnHandle{}, ErrDispatcherClosed
+		return Handle{}, ErrClosed
 	}
 	if request.ModelSelection.Configured() && s.resolver == nil {
-		return TurnHandle{}, errors.New("turn: explicit model selection requires a client resolver")
+		return Handle{}, errors.New("turn: explicit model selection requires a client resolver")
 	}
 	turnID := request.TurnID
 	if turnID == "" {
 		turnID = newTurnID()
 	}
-	handle := TurnHandle{SessionID: request.SessionID, TurnID: turnID}
+	handle := Handle{SessionID: request.SessionID, TurnID: turnID}
 	state := newRestoringTurnState(ctx, handle)
 	state.cwd = request.Cwd
 	if s.hooks != nil {
@@ -42,7 +42,7 @@ func (s *memoryDispatcher) Rehydrate(ctx context.Context, request runs.Rehydrate
 		state.hooks, err = s.hooks.For(state.ctx, request.Cwd)
 		if err != nil {
 			state.cancel()
-			return TurnHandle{}, fmt.Errorf("turn: resolve lifecycle hooks while restoring process %q: %w", request.ProcessID, err)
+			return Handle{}, fmt.Errorf("turn: resolve lifecycle hooks while restoring process %q: %w", request.ProcessID, err)
 		}
 	}
 	// Re-resolve the parked run's per-run client from the persisted
@@ -53,11 +53,11 @@ func (s *memoryDispatcher) Rehydrate(ctx context.Context, request runs.Rehydrate
 		c, err := s.resolver.ResolveClient(state.ctx, request.ModelSelection)
 		if err != nil {
 			state.cancel()
-			return TurnHandle{}, err
+			return Handle{}, err
 		}
 		if c == nil {
 			state.cancel()
-			return TurnHandle{}, errors.New("turn: client resolver returned nil for an explicit model selection")
+			return Handle{}, errors.New("turn: client resolver returned nil for an explicit model selection")
 		}
 		client = c
 		state.model = request.ModelSelection.Model()
@@ -67,14 +67,14 @@ func (s *memoryDispatcher) Rehydrate(ctx context.Context, request runs.Rehydrate
 	state.modelSelection = request.ModelSelection
 	state.ctx, state.span = startTurnSpan(state.ctx, handle.SessionID, handle.TurnID, state.model)
 	observer := &turnObserver{
-		dispatcher:       s,
+		controller:       s,
 		st:               state,
 		projectChildRuns: request.ChildRunAdmissionEnabled,
 	}
 	if err := observer.restoreChildRuns(request.ChildRuns); err != nil {
 		state.cancel()
 		state.span.End()
-		return TurnHandle{}, err
+		return Handle{}, err
 	}
 	var admitChild agentexec.AdmitChildFunc
 	if request.ChildRunAdmissionEnabled {
@@ -94,7 +94,7 @@ func (s *memoryDispatcher) Rehydrate(ctx context.Context, request runs.Rehydrate
 	if !s.register(state) {
 		state.cancel()
 		state.span.End()
-		return TurnHandle{}, ErrDispatcherClosed
+		return Handle{}, ErrClosed
 	}
 
 	process, err := s.engine.RestoreTurn(state.ctx, request.ProcessID, agentexec.RestoreTurnRequest{
@@ -111,14 +111,14 @@ func (s *memoryDispatcher) Rehydrate(ctx context.Context, request runs.Rehydrate
 		ChatClient:     client,
 	})
 	if err != nil {
-		return TurnHandle{}, errors.Join(
+		return Handle{}, errors.Join(
 			err,
 			s.finishExecutionError(state, problemFromError(err), err),
 		)
 	}
 	if process == nil {
 		err := errors.New("turn: engine returned a nil restored process")
-		return TurnHandle{}, errors.Join(
+		return Handle{}, errors.Join(
 			err,
 			s.finishExecutionError(state, internalRunProblem(), err),
 		)
@@ -127,7 +127,7 @@ func (s *memoryDispatcher) Rehydrate(ctx context.Context, request runs.Rehydrate
 		if err := subagents.confirmRoot(process.ID()); err != nil {
 			state.setRestoredProcess(process)
 			state.cancel()
-			return TurnHandle{}, errors.Join(
+			return Handle{}, errors.Join(
 				err,
 				cancelTurnProcess(state.ctx, process),
 				s.finishExecutionError(state, internalRunProblem(), err),
@@ -139,22 +139,22 @@ func (s *memoryDispatcher) Rehydrate(ctx context.Context, request runs.Rehydrate
 		// BeginShutdown captured this registered state before RestoreTurn crossed
 		// the process-publication boundary. The shutdown owner is waiting on the
 		// lifecycle notification and now owns teardown.
-		return TurnHandle{}, ErrDispatcherClosed
+		return Handle{}, ErrClosed
 	}
 	if !live {
-		// A normal Cancel (not dispatcher shutdown) won while RestoreTurn was in
+		// A normal Cancel (not controller shutdown) won while RestoreTurn was in
 		// flight. Process publication makes cancellation actionable, so this
-		// publisher transfers the handoff to dispatcher-owned work.
+		// publisher transfers the handoff to controller-owned work.
 		if s.cleanupTasks.Start(ctx, func(ctx context.Context) {
 			if cancelErr := s.Cancel(ctx, handle); cancelErr != nil && !errors.Is(cancelErr, ErrTurnNotFound) {
 				recordTurnCleanupError(state, cancelErr)
 			}
 		}) {
-			return TurnHandle{}, ErrParkClaimed
+			return Handle{}, ErrParkClaimed
 		}
 		// Shutdown already owns every registered turn and will observe the
 		// process-publication lifecycle signal.
-		return TurnHandle{}, errors.Join(ErrParkClaimed, ErrDispatcherClosed)
+		return Handle{}, errors.Join(ErrParkClaimed, ErrClosed)
 	}
 
 	return handle, nil

@@ -14,12 +14,12 @@ import (
 //
 //	HTTP:  name=https://mcp.example.com/   (or http://)
 //	stdio: name=stdio:command arg1 arg2    (whitespace-split argv)
-func parseMCPServers(raw string) ([]MCPServerConfig, error) {
+func parseMCPServers(raw string) ([]MCPServer, error) {
 	if raw == "" {
 		return nil, nil
 	}
 	parts := strings.Split(raw, ",")
-	out := make([]MCPServerConfig, 0, len(parts))
+	out := make([]MCPServer, 0, len(parts))
 	for _, p := range parts {
 		p = strings.TrimSpace(p)
 		if p == "" {
@@ -49,14 +49,14 @@ func parseMCPServers(raw string) ([]MCPServerConfig, error) {
 
 // parseMCPServerValue dispatches by prefix. `stdio:` is a Lyra convention —
 // anything else must look like an HTTP(S) URL.
-func parseMCPServerValue(name, value string) (MCPServerConfig, error) {
+func parseMCPServerValue(name, value string) (MCPServer, error) {
 	if rest, ok := strings.CutPrefix(value, "stdio:"); ok {
 		rest = strings.TrimSpace(rest)
 		if rest == "" {
-			return MCPServerConfig{}, errors.New("stdio: command is empty")
+			return MCPServer{}, errors.New("stdio: command is empty")
 		}
 		fields := strings.Fields(rest)
-		return MCPServerConfig{
+		return MCPServer{
 			Name:      name,
 			Transport: MCPTransportStdio,
 			Command:   fields[0],
@@ -64,9 +64,9 @@ func parseMCPServerValue(name, value string) (MCPServerConfig, error) {
 		}, nil
 	}
 	if !strings.HasPrefix(value, "http://") && !strings.HasPrefix(value, "https://") {
-		return MCPServerConfig{}, fmt.Errorf("expected http(s):// URL or stdio: prefix, got %q", value)
+		return MCPServer{}, fmt.Errorf("expected http(s):// URL or stdio: prefix, got %q", value)
 	}
-	return MCPServerConfig{
+	return MCPServer{
 		Name:      name,
 		Transport: MCPTransportStreamableHTTP,
 		Endpoint:  value,

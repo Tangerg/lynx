@@ -1,16 +1,16 @@
 package config
 
-// ServerConfig holds the runtime HTTP transport settings.
-type ServerConfig struct {
+// Server holds the runtime HTTP transport settings.
+type Server struct {
 	Listen         string
 	NoLocalToken   bool
 	LocalTokenPath string
 	CORSOrigins    []string // empty → server falls back to the built-in dev allowlist
 }
 
-// OnlineConfig holds credentials for optional network-reaching tools. Empty
+// Online holds credentials for optional network-reaching tools. Empty
 // fields leave the corresponding tool disabled.
-type OnlineConfig struct {
+type Online struct {
 	JinaAPIKey       string
 	TavilyAPIKey     string
 	HTTPAllowedHosts []string
@@ -22,9 +22,9 @@ const (
 	MCPTransportStreamableHTTP = "streamableHttp"
 )
 
-// MCPServerConfig is one MCP server entry parsed from LYRA_MCP_SERVERS. It is
+// MCPServer is one MCP server entry parsed from LYRA_MCP_SERVERS. It is
 // the config package's source DTO; runtime maps it into its registry model.
-type MCPServerConfig struct {
+type MCPServer struct {
 	Name          string
 	Transport     string
 	Endpoint      string
@@ -33,9 +33,9 @@ type MCPServerConfig struct {
 	Authorization string
 }
 
-// LSPServerConfig is one optional language-server table entry loaded from yaml.
+// LSPServer is one optional language-server table entry loaded from yaml.
 // Empty LSPServers means the runtime falls back to its built-in table.
-type LSPServerConfig struct {
+type LSPServer struct {
 	Name        string
 	Command     string
 	Args        []string
@@ -44,15 +44,15 @@ type LSPServerConfig struct {
 	RootMarkers []string
 }
 
-// A2AAgentConfig is one remote Agent-to-Agent endpoint loaded from config.
-type A2AAgentConfig struct {
+// A2AAgent is one remote Agent-to-Agent endpoint loaded from config.
+type A2AAgent struct {
 	Name              string
 	CardURL           string
 	AllowedRPCOrigins []string
 }
 
-// Config is the loaded runtime configuration.
-type Config struct {
+// Settings is the loaded runtime configuration.
+type Settings struct {
 	Provider string
 	Model    string
 	APIKey   string
@@ -74,21 +74,21 @@ type Config struct {
 	UtilityModel string
 
 	// Online optionally enables provider-backed tools.
-	Online OnlineConfig
+	Online Online
 
 	// MCPServers is the parsed list of external MCP servers dialed at startup.
 	// Sourced from LYRA_MCP_SERVERS.
-	MCPServers []MCPServerConfig
+	MCPServers []MCPServer
 
 	// A2AAgents is the parsed list of remote A2A agents dialed at startup.
 	// Sourced from LYRA_A2A_AGENTS; optional cross-origin RPC trust is supplied
 	// separately by LYRA_A2A_RPC_ORIGINS.
-	A2AAgents []A2AAgentConfig
+	A2AAgents []A2AAgent
 
 	// LSPServers is the optional language-server table from yaml `lsp.servers`.
 	// Empty leaves the engine on its built-in defaults (gopls + typescript);
 	// when set it replaces them wholesale.
-	LSPServers []LSPServerConfig
+	LSPServers []LSPServer
 
 	// ToolResultOffloadThreshold is the byte size above which a single tool
 	// result is offloaded out of the conversation and replaced by a head+tail
@@ -113,11 +113,11 @@ type Config struct {
 	SandboxReadOnlyPaths []string
 
 	// Server holds the HTTP serve settings.
-	Server ServerConfig
+	Server Server
 }
 
 // DefaultToolResultOffloadThreshold is the default byte size above which a
-// single tool result is offloaded (see [Config.ToolResultOffloadThreshold]).
+// single tool result is offloaded (see [Settings.ToolResultOffloadThreshold]).
 // ~50k bytes (≈ characters for ASCII tool output) is well past a normal result
 // yet small enough that one giant file read or command dump stops re-inflating
 // every later request.

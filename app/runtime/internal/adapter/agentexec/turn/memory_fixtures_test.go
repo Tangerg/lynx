@@ -22,42 +22,42 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 )
 
-// turnDriver is the external-package test's view of a constructed dispatcher.
+// turnDriver is the external-package test's view of a constructed controller.
 // Production consumers each use smaller ports; these integration tests exercise
 // the complete turn lifecycle.
 type turnDriver interface {
-	StartTurn(context.Context, runs.StartTurn) (turn.TurnHandle, error)
-	PrepareTurn(context.Context, runs.StartTurn) (turn.TurnHandle, error)
-	ActivateTurn(context.Context, turn.TurnHandle) error
-	Events(context.Context, turn.TurnHandle) (iter.Seq[runs.ExecutorEvent], error)
-	InjectSteering(context.Context, turn.TurnHandle, []transcript.ContentBlock) error
-	Resume(context.Context, turn.TurnHandle, []agentexec.SuspensionAnswer, []execution.InterruptKind) error
-	ProcessID(context.Context, turn.TurnHandle) (string, error)
-	Rehydrate(context.Context, runs.RehydrateTurn) (turn.TurnHandle, error)
-	Cancel(context.Context, turn.TurnHandle) error
+	StartTurn(context.Context, runs.StartTurn) (turn.Handle, error)
+	PrepareTurn(context.Context, runs.StartTurn) (turn.Handle, error)
+	ActivateTurn(context.Context, turn.Handle) error
+	Events(context.Context, turn.Handle) (iter.Seq[runs.ExecutorEvent], error)
+	InjectSteering(context.Context, turn.Handle, []transcript.ContentBlock) error
+	Resume(context.Context, turn.Handle, []agentexec.SuspensionAnswer, []execution.InterruptKind) error
+	ProcessID(context.Context, turn.Handle) (string, error)
+	Rehydrate(context.Context, runs.RehydrateTurn) (turn.Handle, error)
+	Cancel(context.Context, turn.Handle) error
 	BeginShutdown()
 	AwaitShutdown(context.Context) error
 	ForgetSession(string)
 }
 
-func shutdownDispatcher(t testing.TB, dispatcher interface {
+func shutdownController(t testing.TB, controller interface {
 	BeginShutdown()
 	AwaitShutdown(context.Context) error
 }) {
 	t.Helper()
-	dispatcher.BeginShutdown()
+	controller.BeginShutdown()
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	if err := dispatcher.AwaitShutdown(ctx); err != nil {
-		t.Fatalf("shutdown turn dispatcher: %v", err)
+	if err := controller.AwaitShutdown(ctx); err != nil {
+		t.Fatalf("shutdown turn controller: %v", err)
 	}
 }
 
-func joinTurnCleanup(t testing.TB, dispatcher interface {
-	Cancel(context.Context, turn.TurnHandle) error
-}, handle turn.TurnHandle) {
+func joinTurnCleanup(t testing.TB, controller interface {
+	Cancel(context.Context, turn.Handle) error
+}, handle turn.Handle) {
 	t.Helper()
-	err := dispatcher.Cancel(context.Background(), handle)
+	err := controller.Cancel(context.Background(), handle)
 	if err != nil && !errors.Is(err, turn.ErrTurnNotFound) {
 		t.Fatalf("join terminal turn cleanup: %v", err)
 	}
@@ -72,7 +72,7 @@ func testModelSelection(t testing.TB, provider, model string) modelref.Selection
 	return selection
 }
 
-func buildDispatcher(t *testing.T) (turnDriver, *agentexec.Engine) {
+func buildController(t *testing.T) (turnDriver, *agentexec.Engine) {
 	t.Helper()
 
 	model := newStubChatModel()
@@ -261,9 +261,9 @@ func (m *historyAwareStub) Stream(ctx context.Context, req *chatmodel.Request) i
 	return func(yield func(*chatmodel.Response, error) bool) { yield(resp, err) }
 }
 
-func mustTurn(dispatcher turnDriver, err error) turnDriver {
+func mustTurn(controller turnDriver, err error) turnDriver {
 	if err != nil {
 		panic(err)
 	}
-	return dispatcher
+	return controller
 }

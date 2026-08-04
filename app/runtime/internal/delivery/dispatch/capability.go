@@ -19,7 +19,7 @@ import (
 // convenience: the contract's own drift gate demands the two be equivalent, and
 // reading one from the other makes them equivalent by construction rather than by
 // a test that has to be remembered.
-func (d *Dispatcher) enforceCapabilities(ctx context.Context, meta MethodMeta, params json.RawMessage) *transport.Error {
+func (d *Router) enforceCapabilities(ctx context.Context, meta MethodMeta, params json.RawMessage) *transport.Error {
 	if len(meta.CapabilityRules) == 0 {
 		return nil
 	}
@@ -54,7 +54,7 @@ func (d *Dispatcher) enforceCapabilities(ctx context.Context, meta MethodMeta, p
 // cannot use. Discovery answers server support; request metadata answers opt-in.
 // A discovery failure is reported rather than swallowed: a gate that cannot read
 // the feature set must not decide the call is allowed.
-func (d *Dispatcher) missingFeatureRequirements(
+func (d *Router) missingFeatureRequirements(
 	ctx context.Context,
 	required []string,
 ) ([]protocol.CapabilityRequirement, error) {

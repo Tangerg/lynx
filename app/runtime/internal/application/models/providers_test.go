@@ -103,7 +103,7 @@ func TestListModelsPrefersRemoteModelsAndEnrichesKnownEntries(t *testing.T) {
 	}}
 	catalog := testCatalog{
 		metadata: []ProviderMetadata{{ID: "ollama", ProbeModels: true}},
-		models:   map[string][]Model{"ollama": {{ID: "known", Provider: "ollama", Details: &ModelDetails{DisplayName: "Known"}}}},
+		models:   map[string][]Model{"ollama": {{ID: "known", Provider: "ollama", Details: &Details{DisplayName: "Known"}}}},
 	}
 	lister := &fakeLister{ids: []string{"known", "local"}}
 	c := New(Config{Providers: registry, Catalog: catalog, Lister: lister})
@@ -120,7 +120,7 @@ func TestListModelsPrefersRemoteModelsAndEnrichesKnownEntries(t *testing.T) {
 func TestListModelsFallsBackToStaticCatalogWhenProbeCannotAnswer(t *testing.T) {
 	catalog := testCatalog{
 		metadata: []ProviderMetadata{{ID: "ollama", ProbeModels: true}},
-		models:   map[string][]Model{"ollama": {{ID: "fallback", Provider: "ollama", Details: &ModelDetails{}}}},
+		models:   map[string][]Model{"ollama": {{ID: "fallback", Provider: "ollama", Details: &Details{}}}},
 	}
 	c := New(Config{
 		Providers: &testProviderRegistry{},
@@ -139,7 +139,7 @@ func TestListModelsSkipsRemoteProbeForStaticProvider(t *testing.T) {
 	c := New(Config{
 		Catalog: testCatalog{
 			metadata: []ProviderMetadata{{ID: "anthropic"}},
-			models:   map[string][]Model{"anthropic": {{ID: "cataloged", Provider: "anthropic", Details: &ModelDetails{}}}},
+			models:   map[string][]Model{"anthropic": {{ID: "cataloged", Provider: "anthropic", Details: &Details{}}}},
 		},
 		Lister: lister,
 	})

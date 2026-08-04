@@ -13,7 +13,7 @@ type cancelDispatcher struct {
 	err error
 }
 
-func (d cancelDispatcher) Cancel(context.Context, turn.TurnHandle) error { return d.err }
+func (d cancelDispatcher) Cancel(context.Context, turn.Handle) error { return d.err }
 
 func TestSessionsTurnsTreatsMissingTurnAsIdempotentCleanup(t *testing.T) {
 	adapter := turn.NewSessionTurnCleanup(cancelDispatcher{err: turn.ErrTurnNotFound})

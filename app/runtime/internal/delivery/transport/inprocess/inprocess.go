@@ -12,7 +12,7 @@
 //
 //  2. Through Transport. Wrap the api in an InProcessTransport and treat it like
 //     any other transport. Messages are dispatched through
-//     delivery/dispatch.Dispatcher so codepaths stay uniform with HTTP.
+//     delivery/dispatch.Router so codepaths stay uniform with HTTP.
 package inprocess
 
 import (
@@ -33,15 +33,15 @@ var errTransportClosed = errors.New("inprocess: transport closed")
 // messageHandler is the dispatch surface this transport needs: route
 // one inbound message, return the synchronous reply plus any stream.
 // Defined here (consumer side) so the transport depends on the single
-// method it calls rather than the concrete *dispatch.Dispatcher.
+// method it calls rather than the concrete *dispatch.Router.
 type messageHandler interface {
 	Handle(ctx context.Context, msg transport.Message) dispatch.HandleResult
 }
 
-// Transport routes in-process JSON-RPC messages through a dispatch.Dispatcher;
+// Transport routes in-process JSON-RPC messages through a dispatch.Router;
 // responses and notifications come back via the Recv channel.
 type Transport struct {
-	dispatcher messageHandler
+	router messageHandler
 
 	in   chan transport.Message // outbound from Runtime's POV -> inbound to client
 	once sync.Once
@@ -74,7 +74,7 @@ func (t *Transport) reserve() bool {
 
 // Config bundles the inputs for NewTransport.
 type Config struct {
-	// Runtime is the protocol implementation the dispatcher routes to.
+	// Runtime is the protocol implementation the router routes to.
 	// Required.
 	Runtime protocol.Runtime
 
@@ -94,10 +94,10 @@ func NewTransport(cfg Config) (*Transport, error) {
 		cfg.RecvBuffer = 64
 	}
 	return &Transport{
-		dispatcher: dispatch.New(cfg.Runtime, dispatch.Config{}),
-		in:         make(chan transport.Message, cfg.RecvBuffer),
-		close:      make(chan struct{}),
-		done:       make(chan struct{}),
+		router: dispatch.New(cfg.Runtime, dispatch.Config{}),
+		in:     make(chan transport.Message, cfg.RecvBuffer),
+		close:  make(chan struct{}),
+		done:   make(chan struct{}),
 	}, nil
 }
 
@@ -115,7 +115,7 @@ func (t *Transport) Send(ctx context.Context, msg transport.Message) error {
 			release()
 		}
 	}()
-	res := t.dispatcher.Handle(callCtx, msg)
+	res := t.router.Handle(callCtx, msg)
 	if res.Response != nil {
 		if !t.reserve() {
 			return errTransportClosed

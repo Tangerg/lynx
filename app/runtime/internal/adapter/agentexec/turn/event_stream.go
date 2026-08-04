@@ -8,7 +8,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 )
 
-func (s *memoryDispatcher) Events(ctx context.Context, handle TurnHandle) (iter.Seq[runs.ExecutorEvent], error) {
+func (s *controller) Events(ctx context.Context, handle Handle) (iter.Seq[runs.ExecutorEvent], error) {
 	state, err := s.findTurn(handle.TurnID)
 	if err == nil {
 		if !state.claimEvents() {

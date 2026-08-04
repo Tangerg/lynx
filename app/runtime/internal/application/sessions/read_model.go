@@ -11,41 +11,41 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 )
 
-// SessionState is the resolved session activity view used by read adapters.
+// Activity is the resolved session activity view used by read adapters.
 // Running is process-local admission state; Waiting is a durable open HITL
 // interrupt; Idle means neither. This precedence is application policy.
-type SessionState string
+type Activity string
 
 const (
-	SessionRunning SessionState = "running"
-	SessionWaiting SessionState = "waiting"
-	SessionIdle    SessionState = "idle"
+	ActivityRunning Activity = "running"
+	ActivityWaiting Activity = "waiting"
+	ActivityIdle    Activity = "idle"
 )
 
-// SessionView is the complete application read model for a user-facing
+// View is the complete application read model for a user-facing
 // session. It deliberately contains only values Delivery may project; live
 // lineage and other aggregate-only state stay inside the session domain.
-type SessionView struct {
+type View struct {
 	ID          string
 	Title       string
 	Cwd         string
 	ProjectRoot string
 	CwdMissing  bool
 	Model       string
-	State       SessionState
+	Activity    Activity
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 	Favorite    bool
 	Revision    uint64
 }
 
-// SessionStates resolves activity for the requested sessions in one use-case
+// Activities resolves activity for the requested sessions in one use-case
 // read. It centralizes the precedence between a live turn and a durable
 // interrupt so Delivery only projects the resolved state.
-func (c *Coordinator) SessionStates(ctx context.Context, sessionIDs []string) (map[string]SessionState, error) {
-	states := make(map[string]SessionState, len(sessionIDs))
+func (c *Coordinator) Activities(ctx context.Context, sessionIDs []string) (map[string]Activity, error) {
+	activities := make(map[string]Activity, len(sessionIDs))
 	if len(sessionIDs) == 0 {
-		return states, nil
+		return activities, nil
 	}
 	if c.admissions == nil {
 		return nil, errors.New("sessions: admission gate is unavailable")
@@ -54,14 +54,14 @@ func (c *Coordinator) SessionStates(ctx context.Context, sessionIDs []string) (m
 	hasIdle := false
 	for _, id := range sessionIDs {
 		if active[id] {
-			states[id] = SessionRunning
+			activities[id] = ActivityRunning
 		} else {
-			states[id] = SessionIdle
+			activities[id] = ActivityIdle
 			hasIdle = true
 		}
 	}
 	if !hasIdle || c.interrupts == nil {
-		return states, nil
+		return activities, nil
 	}
 	filter := ""
 	if len(sessionIDs) == 1 {
@@ -72,18 +72,18 @@ func (c *Coordinator) SessionStates(ctx context.Context, sessionIDs []string) (m
 		return nil, err
 	}
 	for _, interrupt := range pending {
-		if states[interrupt.SessionID] == SessionIdle {
-			states[interrupt.SessionID] = SessionWaiting
+		if activities[interrupt.SessionID] == ActivityIdle {
+			activities[interrupt.SessionID] = ActivityWaiting
 		}
 	}
-	return states, nil
+	return activities, nil
 }
 
 // ListViews resolves every user-facing session as one application read model.
 // Callers that only want a page ask for one — resolving a view touches the
 // filesystem and the live-run registry per session, so the whole list is a real
 // cost, not a slice to be narrowed afterward.
-func (c *Coordinator) ListViews(ctx context.Context) ([]SessionView, error) {
+func (c *Coordinator) ListViews(ctx context.Context) ([]View, error) {
 	if c.sessions == nil {
 		return nil, errors.New("sessions: session store is unavailable")
 	}
@@ -104,34 +104,34 @@ const viewPageLimit = 100
 // ListViewPage resolves one page of user-facing sessions, continuing after
 // cursor. The page is bounded by the query, so only the sessions being returned
 // are resolved against the filesystem and the live-run registry.
-func (c *Coordinator) ListViewPage(ctx context.Context, cursor string, limit int) (keyset.Page[SessionView], error) {
+func (c *Coordinator) ListViewPage(ctx context.Context, cursor string, limit int) (keyset.Page[View], error) {
 	if c.sessions == nil {
-		return keyset.Page[SessionView]{}, errors.New("sessions: session store is unavailable")
+		return keyset.Page[View]{}, errors.New("sessions: session store is unavailable")
 	}
 	anchor, err := keyset.Decode(cursor, viewPageMethod, nil)
 	if err != nil {
-		return keyset.Page[SessionView]{}, err
+		return keyset.Page[View]{}, err
 	}
 	var afterFavorite bool
 	var afterUpdatedAt int64
 	var afterID string
 	if len(anchor) > 0 {
 		if len(anchor) != 3 {
-			return keyset.Page[SessionView]{}, keyset.ErrInvalidCursor
+			return keyset.Page[View]{}, keyset.ErrInvalidCursor
 		}
 		afterFavorite = anchor[0] == "1"
 		if afterUpdatedAt, err = strconv.ParseInt(anchor[1], 10, 64); err != nil {
-			return keyset.Page[SessionView]{}, keyset.ErrInvalidCursor
+			return keyset.Page[View]{}, keyset.ErrInvalidCursor
 		}
 		afterID = anchor[2]
 	}
 	size, err := keyset.Limit(limit, viewPageLimit)
 	if err != nil {
-		return keyset.Page[SessionView]{}, err
+		return keyset.Page[View]{}, err
 	}
 	values, err := c.sessions.ListPage(ctx, afterFavorite, afterUpdatedAt, afterID, size+1)
 	if err != nil {
-		return keyset.Page[SessionView]{}, err
+		return keyset.Page[View]{}, err
 	}
 	bounded := keyset.PageOf(values, size, viewPageMethod, nil, func(value session.Session) []string {
 		favorite := "0"
@@ -142,71 +142,71 @@ func (c *Coordinator) ListViewPage(ctx context.Context, cursor string, limit int
 	})
 	views, err := c.views(ctx, bounded.Rows)
 	if err != nil {
-		return keyset.Page[SessionView]{}, err
+		return keyset.Page[View]{}, err
 	}
-	return keyset.Page[SessionView]{Rows: views, NextCursor: bounded.NextCursor}, nil
+	return keyset.Page[View]{Rows: views, NextCursor: bounded.NextCursor}, nil
 }
 
 // View resolves one session's complete application read model.
-func (c *Coordinator) View(ctx context.Context, id string) (SessionView, error) {
+func (c *Coordinator) View(ctx context.Context, id string) (View, error) {
 	if c.sessions == nil {
-		return SessionView{}, errors.New("sessions: session store is unavailable")
+		return View{}, errors.New("sessions: session store is unavailable")
 	}
 	value, err := c.sessions.Get(ctx, id)
 	if err != nil {
-		return SessionView{}, err
+		return View{}, err
 	}
 	views, err := c.views(ctx, []session.Session{value})
 	if err != nil {
-		return SessionView{}, err
+		return View{}, err
 	}
 	return views[0], nil
 }
 
 // CreateView admits a fresh session and returns its fully resolved read model.
-func (c *Coordinator) CreateView(ctx context.Context, title, cwd string) (SessionView, error) {
+func (c *Coordinator) CreateView(ctx context.Context, title, cwd string) (View, error) {
 	value, err := c.Create(ctx, title, cwd)
 	if err != nil {
-		return SessionView{}, err
+		return View{}, err
 	}
-	return c.view(ctx, value, SessionIdle)
+	return c.view(ctx, value, ActivityIdle)
 }
 
 // UpdateView applies an edit and returns its fully resolved read model.
-func (c *Coordinator) UpdateView(ctx context.Context, id string, patch session.Patch) (SessionView, error) {
+func (c *Coordinator) UpdateView(ctx context.Context, id string, patch session.Patch) (View, error) {
 	value, err := c.Update(ctx, id, patch)
 	if err != nil {
-		return SessionView{}, err
+		return View{}, err
 	}
-	states, err := c.SessionStates(ctx, []string{value.ID})
+	activities, err := c.Activities(ctx, []string{value.ID})
 	if err != nil {
-		return SessionView{}, err
+		return View{}, err
 	}
-	return c.view(ctx, value, states[value.ID])
+	return c.view(ctx, value, activities[value.ID])
 }
 
 // ForkView branches a session and returns the child session's fully resolved
 // read model.
-func (c *Coordinator) ForkView(ctx context.Context, spec ForkSpec) (SessionView, error) {
+func (c *Coordinator) ForkView(ctx context.Context, spec ForkSpec) (View, error) {
 	value, err := c.Fork(ctx, spec)
 	if err != nil {
-		return SessionView{}, err
+		return View{}, err
 	}
-	return c.view(ctx, value, SessionIdle)
+	return c.view(ctx, value, ActivityIdle)
 }
 
-func (c *Coordinator) views(ctx context.Context, values []session.Session) ([]SessionView, error) {
+func (c *Coordinator) views(ctx context.Context, values []session.Session) ([]View, error) {
 	ids := make([]string, len(values))
 	for index, value := range values {
 		ids[index] = value.ID
 	}
-	states, err := c.SessionStates(ctx, ids)
+	activities, err := c.Activities(ctx, ids)
 	if err != nil {
 		return nil, err
 	}
-	views := make([]SessionView, 0, len(values))
+	views := make([]View, 0, len(values))
 	for _, value := range values {
-		view, err := c.view(ctx, value, states[value.ID])
+		view, err := c.view(ctx, value, activities[value.ID])
 		if err != nil {
 			return nil, err
 		}
@@ -215,26 +215,26 @@ func (c *Coordinator) views(ctx context.Context, values []session.Session) ([]Se
 	return views, nil
 }
 
-func (c *Coordinator) view(ctx context.Context, value session.Session, state SessionState) (SessionView, error) {
+func (c *Coordinator) view(ctx context.Context, value session.Session, activity Activity) (View, error) {
 	if c.paths == nil {
-		return SessionView{}, errors.New("sessions: workspace inspector is unavailable")
+		return View{}, errors.New("sessions: workspace inspector is unavailable")
 	}
 	workspace, err := c.paths.Inspect(value.Cwd)
 	if err != nil {
-		return SessionView{}, fmt.Errorf("sessions: inspect workspace %q: %w", value.Cwd, err)
+		return View{}, fmt.Errorf("sessions: inspect workspace %q: %w", value.Cwd, err)
 	}
 	model := value.Model
 	if model == "" {
 		model = c.defaultModel
 	}
-	return SessionView{
+	return View{
 		ID:          value.ID,
 		Title:       value.Title,
 		Cwd:         workspace.Cwd,
 		ProjectRoot: workspace.ProjectRoot,
 		CwdMissing:  workspace.Missing,
 		Model:       model,
-		State:       state,
+		Activity:    activity,
 		CreatedAt:   value.StartedAt,
 		UpdatedAt:   value.UpdatedAt,
 		Favorite:    value.Favorite,

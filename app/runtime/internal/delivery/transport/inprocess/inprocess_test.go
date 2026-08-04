@@ -45,7 +45,7 @@ func (fakeRuntime) Discover(context.Context) (*protocol.DiscoverResponse, error)
 
 // TestInProcessRoundtrip confirms a Request sent to the InProcess
 // transport surfaces as a Response on the Recv channel — proves the
-// dispatcher + transport wiring is correctly bidirectional.
+// router + transport wiring is correctly bidirectional.
 func TestInProcessRoundtrip(t *testing.T) {
 	tp, err := inprocess.NewTransport(inprocess.Config{Runtime: fakeRuntime{}})
 	if err != nil {
@@ -79,7 +79,7 @@ func TestInProcessRoundtrip(t *testing.T) {
 }
 
 // TestInProcessUnknownMethod confirms unknown methods get -32601 +
-// the dispatcher's standard envelope. Covers the failure path.
+// the router's standard envelope. Covers the failure path.
 func TestInProcessUnknownMethod(t *testing.T) {
 	tp, err := inprocess.NewTransport(inprocess.Config{Runtime: fakeRuntime{}})
 	if err != nil {
@@ -88,7 +88,7 @@ func TestInProcessUnknownMethod(t *testing.T) {
 	t.Cleanup(func() { shutdownTransport(t, tp) })
 
 	// A method the fakeRuntime doesn't declare falls through to
-	// the dispatcher's default branch.
+	// the router's default branch.
 	bogus, _ := transport.NewCall("1", "totally.bogus", nil)
 	_ = tp.Send(context.Background(), bogus)
 
@@ -142,7 +142,7 @@ func TestInProcessCloseCancelsAndJoinsActiveCall(t *testing.T) {
 	select {
 	case <-api.started:
 	case <-time.After(time.Second):
-		t.Fatal("dispatcher call did not start")
+		t.Fatal("router call did not start")
 	}
 	shutdownTransport(t, tp)
 	select {

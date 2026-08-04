@@ -98,15 +98,15 @@ func serverPending(
 // consumers do not share this surface: turn.Executor, session cleanup, and
 // run-segment persistence each declare their own smaller ports.
 type turnRuntime interface {
-	Events(context.Context, turn.TurnHandle) (iter.Seq[runs.ExecutorEvent], error)
-	InjectSteering(context.Context, turn.TurnHandle, []transcript.ContentBlock) error
-	PrepareTurn(context.Context, runs.StartTurn) (turn.TurnHandle, error)
-	ActivateTurn(context.Context, turn.TurnHandle) error
-	Resume(context.Context, turn.TurnHandle, []agentexec.SuspensionAnswer, []execution.InterruptKind) error
-	ProcessID(context.Context, turn.TurnHandle) (string, error)
-	Rehydrate(context.Context, runs.RehydrateTurn) (turn.TurnHandle, error)
-	Cancel(context.Context, turn.TurnHandle) error
-	CancelSubtree(context.Context, turn.TurnHandle, string) error
+	Events(context.Context, turn.Handle) (iter.Seq[runs.ExecutorEvent], error)
+	InjectSteering(context.Context, turn.Handle, []transcript.ContentBlock) error
+	PrepareTurn(context.Context, runs.StartTurn) (turn.Handle, error)
+	ActivateTurn(context.Context, turn.Handle) error
+	Resume(context.Context, turn.Handle, []agentexec.SuspensionAnswer, []execution.InterruptKind) error
+	ProcessID(context.Context, turn.Handle) (string, error)
+	Rehydrate(context.Context, runs.RehydrateTurn) (turn.Handle, error)
+	Cancel(context.Context, turn.Handle) error
+	CancelSubtree(context.Context, turn.Handle, string) error
 }
 
 // stubRuntime is the delivery session/lifecycle test double: it provides the run
@@ -131,7 +131,7 @@ type stubRuntime struct {
 // own in-memory stores (stubRuntime). Fakes that never drive a lifecycle
 // write-set may omit it, leaving s.sessions nil.
 type sessionsCoordinatorProvider interface {
-	sessionsCoordinator(admissions sessions.SessionAdmissions) *sessions.Coordinator
+	sessionsCoordinator(admissions sessions.Admissions) *sessions.Coordinator
 }
 
 // queriesCoordinatorProvider is the parallel seam for the read coordinator: a
@@ -254,14 +254,14 @@ func (s stubRuntime) TruncateMessages(_ context.Context, id string, keepN int) e
 // a turn, so no method is implemented unless a specific case needs it.
 type turnStub struct{ turnRuntime }
 
-func (turnStub) Cancel(context.Context, turn.TurnHandle) error { return nil }
+func (turnStub) Cancel(context.Context, turn.Handle) error { return nil }
 
 type recordingTurns struct {
 	turnRuntime
-	canceled []turn.TurnHandle
+	canceled []turn.Handle
 }
 
-func (r *recordingTurns) Cancel(_ context.Context, h turn.TurnHandle) error {
+func (r *recordingTurns) Cancel(_ context.Context, h turn.Handle) error {
 	r.canceled = append(r.canceled, h)
 	return nil
 }
@@ -330,10 +330,10 @@ func (s stubRuntime) Steer(ctx context.Context, ref execution.TurnRef, input []t
 }
 
 func (s stubRuntime) CancelTurn(ctx context.Context, ref execution.TurnRef) error {
-	return s.turnDispatcher().Cancel(ctx, turn.TurnHandle{SessionID: ref.SessionID, TurnID: ref.TurnID})
+	return s.turnDispatcher().Cancel(ctx, turn.Handle{SessionID: ref.SessionID, TurnID: ref.TurnID})
 }
 
-func (s stubRuntime) TurnProcessID(ctx context.Context, handle turn.TurnHandle) (string, error) {
+func (s stubRuntime) TurnProcessID(ctx context.Context, handle turn.Handle) (string, error) {
 	return s.turnDispatcher().ProcessID(ctx, handle)
 }
 
@@ -349,7 +349,7 @@ type stubLifecycleStores struct {
 	rt *stubRuntime
 }
 
-func (s stubLifecycleStores) Session() sessions.SessionStore { return s.rt.sess }
+func (s stubLifecycleStores) Session() sessions.Store { return s.rt.sess }
 
 func (s stubLifecycleStores) Interrupts() sessions.InterruptStore { return s.rt.interrupts }
 
@@ -566,7 +566,7 @@ func (stubTitleGenerator) Generate(context.Context, string) (string, error) { re
 // composition root does — delivery drives every lifecycle write-set through it.
 // File restore stays disabled (nil restorer); the checkpoint tests rebuild it
 // with a real restorer via [stubRuntime.sessionsCoordinatorWithRestorer].
-func (s *stubRuntime) sessionsCoordinator(admissions sessions.SessionAdmissions) *sessions.Coordinator {
+func (s *stubRuntime) sessionsCoordinator(admissions sessions.Admissions) *sessions.Coordinator {
 	gate, ok := admissions.(*admission.Gate)
 	if !ok {
 		panic("test runtime requires admission.Gate")
@@ -575,8 +575,8 @@ func (s *stubRuntime) sessionsCoordinator(admissions sessions.SessionAdmissions)
 	return s.sessionsCoordinatorWithRestorer(nil, admissions)
 }
 
-func (s *stubRuntime) sessionsCoordinatorWithRestorer(checkpoints sessions.WorkspaceCheckpoints, shared ...sessions.SessionAdmissions) *sessions.Coordinator {
-	admissions := sessions.SessionAdmissions(&admission.Gate{})
+func (s *stubRuntime) sessionsCoordinatorWithRestorer(checkpoints sessions.WorkspaceCheckpoints, shared ...sessions.Admissions) *sessions.Coordinator {
+	admissions := sessions.Admissions(&admission.Gate{})
 	if len(shared) > 0 && shared[0] != nil {
 		admissions = shared[0]
 	}

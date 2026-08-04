@@ -28,7 +28,7 @@ func LastEventIDFrom(ctx context.Context) string {
 }
 
 // WithIdempotencyKey carries the transport-level Idempotency-Key metadata to
-// the dispatcher without polluting business request DTOs.
+// the router without polluting business request DTOs.
 func WithIdempotencyKey(ctx context.Context, key string) context.Context {
 	if key == "" {
 		return ctx

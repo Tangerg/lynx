@@ -14,7 +14,7 @@
 //	GET /v2/health/ready      Dependency readiness
 //
 // See docs/{API,TRANSPORT}.md for the wire details. The middleware here wraps
-// each request in an OTel span and sets the X-Method header — the dispatcher
+// each request in an OTel span and sets the X-Method header — the router
 // itself stays transport-agnostic.
 package http
 
@@ -37,15 +37,15 @@ import (
 // messageHandler is the dispatch surface this transport needs: route
 // one inbound message, return the synchronous reply plus any stream.
 // Defined here (consumer side) so the transport depends on the single
-// method it calls rather than the concrete *dispatch.Dispatcher — the
-// dispatcher's per-conn state stays its own concern, and tests can
+// method it calls rather than the concrete *dispatch.Router — the
+// router's per-conn state stays its own concern, and tests can
 // inject a fake without standing up a Runtime.
 type messageHandler interface {
 	Handle(ctx context.Context, msg transport.Message) dispatch.HandleResult
 }
 
 // Server is the HTTP transport. One instance per process — a thin
-// adapter over the dispatcher: it decodes a POST, dispatches, and either
+// adapter over the router: it decodes a POST, dispatches, and either
 // writes one application/json reply or (for streaming methods) streams
 // the call's event sequence as text/event-stream (TRANSPORT §6.4). It
 // holds no per-run state — the event hubs + replay live in the runtime.
@@ -57,7 +57,7 @@ type Server struct {
 	corsOrigins  []string
 	healthProbes []*healthProbeRunner
 
-	dispatcher messageHandler
+	router messageHandler
 
 	httpServer   *http.Server
 	handlerCtx   context.Context
@@ -101,7 +101,7 @@ type Config struct {
 	HealthProbes []HealthProbe
 
 	// IdempotencyStore persists first responses for Idempotency-Key replay. nil
-	// uses the dispatcher's process-local store (appropriate for tests).
+	// uses the router's process-local store (appropriate for tests).
 	IdempotencyStore idempotency.Store
 }
 
@@ -139,7 +139,7 @@ func NewServer(cfg Config) (*Server, error) {
 		localToken:   cfg.LocalToken,
 		corsOrigins:  slices.Clone(cfg.CORSOrigins),
 		healthProbes: newHealthProbeRunners(cfg.HealthProbes),
-		dispatcher: dispatch.New(cfg.Runtime, dispatch.Config{
+		router: dispatch.New(cfg.Runtime, dispatch.Config{
 			IdempotencyStore: cfg.IdempotencyStore,
 		}),
 		handlerCtx:   handlerCtx,

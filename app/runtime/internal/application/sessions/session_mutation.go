@@ -103,23 +103,23 @@ func (c *Coordinator) withGoalMutation(
 // session view before releasing the mutation admission. A restoration must not
 // expose a separately-read view because another mutation could otherwise
 // interleave between the durable write and Delivery's response.
-func (c *Coordinator) restoreSession(ctx context.Context, snapshot Snapshot, present bool) (SessionView, error) {
+func (c *Coordinator) restoreSession(ctx context.Context, snapshot Snapshot, present bool) (View, error) {
 	normalized, err := snapshot.NormalizeForRestore()
 	if err != nil {
-		return SessionView{}, err
+		return View{}, err
 	}
 	snapshot = normalized
 	admission, err := c.ClaimIdleSession(ctx, snapshot.Session.ID)
 	if err != nil {
-		return SessionView{}, err
+		return View{}, err
 	}
 	defer admission.Release()
 	cwd, err := c.resolveSessionCwd(snapshot.Session.Cwd)
 	if err != nil {
-		return SessionView{}, err
+		return View{}, err
 	}
 	snapshot.Session.Cwd = cwd
-	var view SessionView
+	var view View
 	err = c.withGoalMutation(
 		ctx,
 		[]string{snapshot.Session.ID},
@@ -142,7 +142,7 @@ func (c *Coordinator) restoreSession(ctx context.Context, snapshot Snapshot, pre
 			}
 			if present {
 				var viewErr error
-				view, viewErr = c.view(ctx, snapshot.Session, SessionIdle)
+				view, viewErr = c.view(ctx, snapshot.Session, ActivityIdle)
 				postCommitErrs = append(postCommitErrs, viewErr)
 			}
 			return errors.Join(postCommitErrs...)
@@ -154,10 +154,10 @@ func (c *Coordinator) restoreSession(ctx context.Context, snapshot Snapshot, pre
 // RestorePortableSession rebuilds and restores one transport-neutral archive.
 // Archive decoding belongs to adapters; aggregate reconstruction and invariant
 // enforcement belong here with the restore use case.
-func (c *Coordinator) RestorePortableSession(ctx context.Context, portable PortableSnapshot) (SessionView, error) {
+func (c *Coordinator) RestorePortableSession(ctx context.Context, portable PortableSnapshot) (View, error) {
 	snapshot, err := portable.CanonicalSnapshot()
 	if err != nil {
-		return SessionView{}, err
+		return View{}, err
 	}
 	return c.restoreSession(ctx, snapshot, true)
 }

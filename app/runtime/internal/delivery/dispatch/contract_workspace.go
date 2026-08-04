@@ -12,12 +12,12 @@ func registerWorkspace(r *Registry) {
 		Name:      "workspaces.resolve",
 		Errors:    []string{protocol.ErrWorkspaceUnavailable.Error()},
 		Stability: stable,
-	}, func(d *Dispatcher, ctx context.Context, in protocol.ResolveWorkspaceRequest) (*protocol.WorkspaceInfo, error) {
+	}, func(d *Router, ctx context.Context, in protocol.ResolveWorkspaceRequest) (*protocol.WorkspaceInfo, error) {
 		return d.api.ResolveWorkspace(ctx, in)
 	})
 
 	Query(r, MethodMeta{Name: "workspaces.list", Stability: stable},
-		func(d *Dispatcher, ctx context.Context, _ struct{}) (*protocol.Page[protocol.WorkspaceSummary], error) {
+		func(d *Router, ctx context.Context, _ struct{}) (*protocol.Page[protocol.WorkspaceSummary], error) {
 			return d.api.ListWorkspaces(ctx)
 		})
 
@@ -31,7 +31,7 @@ func registerWorkspace(r *Registry) {
 		},
 		CapabilityRules: requires(protocol.FeatureGit),
 		Stability:       stable,
-	}, func(d *Dispatcher, ctx context.Context, in protocol.WorkspaceQuery) (*protocol.Page[protocol.WorkspaceFileChange], error) {
+	}, func(d *Router, ctx context.Context, in protocol.WorkspaceQuery) (*protocol.Page[protocol.WorkspaceFileChange], error) {
 		return d.api.ListWorkspaceFileChanges(ctx, in)
 	})
 
@@ -44,7 +44,7 @@ func registerWorkspace(r *Registry) {
 		},
 		CapabilityRules: requires(protocol.FeatureGit),
 		Stability:       stable,
-	}, func(d *Dispatcher, ctx context.Context, in protocol.GetDiffRequest) (*protocol.Diff, error) {
+	}, func(d *Router, ctx context.Context, in protocol.GetDiffRequest) (*protocol.Diff, error) {
 		return d.api.GetWorkspaceDiff(ctx, in)
 	})
 
@@ -55,7 +55,7 @@ func registerWorkspace(r *Registry) {
 			protocol.ErrPathOutsideRoot.Error(),
 		},
 		Stability: stable,
-	}, func(d *Dispatcher, ctx context.Context, in protocol.GetFileHeadRequest) (*protocol.FileHead, error) {
+	}, func(d *Router, ctx context.Context, in protocol.GetFileHeadRequest) (*protocol.FileHead, error) {
 		return d.api.GetWorkspaceFileHead(ctx, in)
 	})
 
@@ -66,7 +66,7 @@ func registerWorkspace(r *Registry) {
 			protocol.ErrPathOutsideRoot.Error(),
 		},
 		Stability: stable,
-	}, func(d *Dispatcher, ctx context.Context, in protocol.GrepRequest) (*protocol.GrepResult, error) {
+	}, func(d *Router, ctx context.Context, in protocol.GrepRequest) (*protocol.GrepResult, error) {
 		return d.api.GrepWorkspace(ctx, in)
 	})
 
@@ -77,7 +77,7 @@ func registerWorkspace(r *Registry) {
 			protocol.ErrPathOutsideRoot.Error(),
 		},
 		Stability: stable,
-	}, func(d *Dispatcher, ctx context.Context, in protocol.ListFilesRequest) (*protocol.Page[protocol.FileEntry], error) {
+	}, func(d *Router, ctx context.Context, in protocol.ListFilesRequest) (*protocol.Page[protocol.FileEntry], error) {
 		return d.api.ListWorkspaceFiles(ctx, in)
 	})
 
@@ -88,7 +88,7 @@ func registerWorkspace(r *Registry) {
 			protocol.ErrPathOutsideRoot.Error(),
 		},
 		Stability: stable,
-	}, func(d *Dispatcher, ctx context.Context, in protocol.ReadFileRequest) (*protocol.FileContent, error) {
+	}, func(d *Router, ctx context.Context, in protocol.ReadFileRequest) (*protocol.FileContent, error) {
 		return d.api.ReadWorkspaceFile(ctx, in)
 	})
 
@@ -109,7 +109,7 @@ func registerRuntimeSubscription(r *Registry) {
 			Requires: []string{protocol.FeatureFileWatch},
 		}},
 		Stability: stable,
-	}, func(d *Dispatcher, ctx context.Context, in protocol.RuntimeSubscribeRequest) (*protocol.RuntimeSubscribeResponse, iter.Seq[protocol.RuntimeEvent], error) {
+	}, func(d *Router, ctx context.Context, in protocol.RuntimeSubscribeRequest) (*protocol.RuntimeSubscribeResponse, iter.Seq[protocol.RuntimeEvent], error) {
 		return d.api.SubscribeRuntime(ctx, in)
 	}, runtimeEventFramer)
 }
@@ -120,7 +120,7 @@ func registerSkills(r *Registry) {
 		Errors:          []string{protocol.ErrWorkspaceUnavailable.Error()},
 		CapabilityRules: requires(protocol.FeatureSkills),
 		Stability:       stable,
-	}, func(d *Dispatcher, ctx context.Context, in protocol.WorkspaceQuery) (*protocol.Page[protocol.Skill], error) {
+	}, func(d *Router, ctx context.Context, in protocol.WorkspaceQuery) (*protocol.Page[protocol.Skill], error) {
 		return d.api.ListDiscoveredSkills(ctx, in)
 	})
 
@@ -128,7 +128,7 @@ func registerSkills(r *Registry) {
 		Name:            "skills.library.list",
 		CapabilityRules: requires(protocol.FeatureSkills),
 		Stability:       stable,
-	}, func(d *Dispatcher, ctx context.Context, _ struct{}) (*protocol.Page[protocol.ManagedSkill], error) {
+	}, func(d *Router, ctx context.Context, _ struct{}) (*protocol.Page[protocol.ManagedSkill], error) {
 		return d.api.ListManagedSkills(ctx)
 	})
 
@@ -136,7 +136,7 @@ func registerSkills(r *Registry) {
 		Name:            "skills.library.archive",
 		CapabilityRules: requires(protocol.FeatureSkills),
 		Stability:       stable,
-	}, func(d *Dispatcher, ctx context.Context, in protocol.SkillNameRequest) error {
+	}, func(d *Router, ctx context.Context, in protocol.SkillNameRequest) error {
 		return d.api.ArchiveSkill(ctx, in)
 	})
 
@@ -144,7 +144,7 @@ func registerSkills(r *Registry) {
 		Name:            "skills.library.restore",
 		CapabilityRules: requires(protocol.FeatureSkills),
 		Stability:       stable,
-	}, func(d *Dispatcher, ctx context.Context, in protocol.SkillNameRequest) error {
+	}, func(d *Router, ctx context.Context, in protocol.SkillNameRequest) error {
 		return d.api.RestoreSkill(ctx, in)
 	})
 
@@ -152,7 +152,7 @@ func registerSkills(r *Registry) {
 		Name:            "skills.proposals.list",
 		CapabilityRules: requires(protocol.FeatureSkills),
 		Stability:       stable,
-	}, func(d *Dispatcher, ctx context.Context, in protocol.WorkspaceQuery) (*protocol.Page[protocol.SkillProposal], error) {
+	}, func(d *Router, ctx context.Context, in protocol.WorkspaceQuery) (*protocol.Page[protocol.SkillProposal], error) {
 		return d.api.ListSkillProposals(ctx, in)
 	})
 
@@ -160,7 +160,7 @@ func registerSkills(r *Registry) {
 		Name:            "skills.proposals.approve",
 		CapabilityRules: requires(protocol.FeatureSkills),
 		Stability:       stable,
-	}, func(d *Dispatcher, ctx context.Context, in protocol.SkillProposalRef) error {
+	}, func(d *Router, ctx context.Context, in protocol.SkillProposalRef) error {
 		return d.api.ApproveSkillProposal(ctx, in)
 	})
 
@@ -168,7 +168,7 @@ func registerSkills(r *Registry) {
 		Name:            "skills.proposals.reject",
 		CapabilityRules: requires(protocol.FeatureSkills),
 		Stability:       stable,
-	}, func(d *Dispatcher, ctx context.Context, in protocol.SkillProposalRef) error {
+	}, func(d *Router, ctx context.Context, in protocol.SkillProposalRef) error {
 		return d.api.RejectSkillProposal(ctx, in)
 	})
 
@@ -176,7 +176,7 @@ func registerSkills(r *Registry) {
 		Name:      "recipes.list",
 		Errors:    []string{protocol.ErrWorkspaceUnavailable.Error()},
 		Stability: stable,
-	}, func(d *Dispatcher, ctx context.Context, in protocol.WorkspaceQuery) (*protocol.Page[protocol.Recipe], error) {
+	}, func(d *Router, ctx context.Context, in protocol.WorkspaceQuery) (*protocol.Page[protocol.Recipe], error) {
 		return d.api.ListRecipes(ctx, in)
 	})
 
@@ -184,7 +184,7 @@ func registerSkills(r *Registry) {
 		Name:      "agentDocs.list",
 		Errors:    []string{protocol.ErrWorkspaceUnavailable.Error()},
 		Stability: stable,
-	}, func(d *Dispatcher, ctx context.Context, in protocol.WorkspaceQuery) (*protocol.Page[protocol.AgentDoc], error) {
+	}, func(d *Router, ctx context.Context, in protocol.WorkspaceQuery) (*protocol.Page[protocol.AgentDoc], error) {
 		return d.api.ListAgentDocs(ctx, in)
 	})
 }
@@ -194,14 +194,14 @@ func registerHooks(r *Registry) {
 		Name:      "hooks.list",
 		Errors:    []string{protocol.ErrWorkspaceUnavailable.Error()},
 		Stability: stable,
-	}, func(d *Dispatcher, ctx context.Context, in protocol.ListHooksRequest) (*protocol.HooksListResult, error) {
+	}, func(d *Router, ctx context.Context, in protocol.ListHooksRequest) (*protocol.HooksListResult, error) {
 		return d.api.ListHooks(ctx, in)
 	})
 
 	CommandAck(r, MethodMeta{
 		Name:      "hooks.setTrust",
 		Stability: stable,
-	}, func(d *Dispatcher, ctx context.Context, in protocol.SetHookTrustRequest) error {
+	}, func(d *Router, ctx context.Context, in protocol.SetHookTrustRequest) error {
 		return d.api.SetHookTrust(ctx, in)
 	})
 }

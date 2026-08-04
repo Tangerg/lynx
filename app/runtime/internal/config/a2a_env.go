@@ -11,12 +11,12 @@ import (
 // AgentCard is resolved from. Empty input yields nil. The name becomes the
 // delegation tool's name; the first '=' separates it from the URL, so query
 // strings in the URL are preserved.
-func parseA2AAgents(raw string) ([]A2AAgentConfig, error) {
+func parseA2AAgents(raw string) ([]A2AAgent, error) {
 	if raw == "" {
 		return nil, nil
 	}
 	parts := strings.Split(raw, ",")
-	out := make([]A2AAgentConfig, 0, len(parts))
+	out := make([]A2AAgent, 0, len(parts))
 	seen := make(map[string]struct{}, len(parts))
 	for _, p := range parts {
 		p = strings.TrimSpace(p)
@@ -36,7 +36,7 @@ func parseA2AAgents(raw string) ([]A2AAgentConfig, error) {
 			return nil, fmt.Errorf("entry %q: agent %q is configured more than once", p, name)
 		}
 		seen[name] = struct{}{}
-		out = append(out, A2AAgentConfig{Name: name, CardURL: url})
+		out = append(out, A2AAgent{Name: name, CardURL: url})
 	}
 	if len(out) == 0 {
 		return nil, nil
@@ -47,11 +47,11 @@ func parseA2AAgents(raw string) ([]A2AAgentConfig, error) {
 // addA2ARPCOrigins applies the optional LYRA_A2A_RPC_ORIGINS map to parsed
 // agents. The shape is "name=origin|origin,name=origin"; names must already
 // exist in LYRA_A2A_AGENTS so a misspelling cannot silently weaken nothing.
-func addA2ARPCOrigins(agents []A2AAgentConfig, raw string) ([]A2AAgentConfig, error) {
+func addA2ARPCOrigins(agents []A2AAgent, raw string) ([]A2AAgent, error) {
 	if raw == "" {
 		return agents, nil
 	}
-	out := make([]A2AAgentConfig, len(agents))
+	out := make([]A2AAgent, len(agents))
 	for i, agent := range agents {
 		out[i] = agent
 		out[i].AllowedRPCOrigins = slices.Clone(agent.AllowedRPCOrigins)

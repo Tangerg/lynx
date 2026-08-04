@@ -139,13 +139,13 @@ func (s *Server) ForkSession(ctx context.Context, in protocol.ForkSessionRequest
 // sessionViewToWire projects the complete Application read model into the
 // selected protocol shape. It intentionally performs no filesystem, live-run,
 // or model-default lookup.
-func sessionViewToWire(view sessions.SessionView) protocol.Session {
+func sessionViewToWire(view sessions.View) protocol.Session {
 	return protocol.Session{
 		ID:        view.ID,
 		Title:     view.Title,
 		Workspace: workspaceInfoToWire(view.Cwd, view.ProjectRoot, view.CwdMissing),
 		Model:     view.Model,
-		Status:    sessionStateToWire(view.State),
+		Status:    sessionActivityToWire(view.Activity),
 		CreatedAt: view.CreatedAt,
 		UpdatedAt: view.UpdatedAt,
 		Favorite:  view.Favorite,
@@ -153,14 +153,13 @@ func sessionViewToWire(view sessions.SessionView) protocol.Session {
 	}
 }
 
-// sessionStatus picks the wire status from the two live signals: running wins
-// (an active run is the loudest state), then waiting (an open HITL interrupt),
-// else idle.
-func sessionStateToWire(state sessions.SessionState) protocol.SessionStatus {
-	switch state {
-	case sessions.SessionRunning:
+// sessionActivityToWire projects the application-resolved activity without
+// reproducing its running/waiting precedence in Delivery.
+func sessionActivityToWire(activity sessions.Activity) protocol.SessionStatus {
+	switch activity {
+	case sessions.ActivityRunning:
 		return protocol.SessionStatusRunning
-	case sessions.SessionWaiting:
+	case sessions.ActivityWaiting:
 		return protocol.SessionStatusWaiting
 	default:
 		return protocol.SessionStatusIdle

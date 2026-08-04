@@ -12,52 +12,52 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 )
 
-type executorFakeDispatcher struct {
-	eventsHandle TurnHandle
+type executorFakeController struct {
+	eventsHandle Handle
 	events       iter.Seq[runs.ExecutorEvent]
-	cancelHandle TurnHandle
+	cancelHandle Handle
 	cancelErr    error
 	subtreeID    string
 }
 
-func (f *executorFakeDispatcher) Events(_ context.Context, h TurnHandle) (iter.Seq[runs.ExecutorEvent], error) {
+func (f *executorFakeController) Events(_ context.Context, h Handle) (iter.Seq[runs.ExecutorEvent], error) {
 	f.eventsHandle = h
 	return f.events, nil
 }
 
-func (f *executorFakeDispatcher) Cancel(_ context.Context, h TurnHandle) error {
+func (f *executorFakeController) Cancel(_ context.Context, h Handle) error {
 	f.cancelHandle = h
 	return f.cancelErr
 }
 
-func (f *executorFakeDispatcher) CancelSubtree(_ context.Context, h TurnHandle, processID string) error {
+func (f *executorFakeController) CancelSubtree(_ context.Context, h Handle, processID string) error {
 	f.cancelHandle = h
 	f.subtreeID = processID
 	return f.cancelErr
 }
 
-func (*executorFakeDispatcher) InjectSteering(context.Context, TurnHandle, []transcript.ContentBlock) error {
+func (*executorFakeController) InjectSteering(context.Context, Handle, []transcript.ContentBlock) error {
 	return nil
 }
-func (*executorFakeDispatcher) PrepareTurn(context.Context, runs.StartTurn) (TurnHandle, error) {
-	return TurnHandle{}, nil
+func (*executorFakeController) PrepareTurn(context.Context, runs.StartTurn) (Handle, error) {
+	return Handle{}, nil
 }
-func (*executorFakeDispatcher) ActivateTurn(context.Context, TurnHandle) error { return nil }
-func (*executorFakeDispatcher) Resume(context.Context, TurnHandle, []agentexec.SuspensionAnswer, []execution.InterruptKind) error {
+func (*executorFakeController) ActivateTurn(context.Context, Handle) error { return nil }
+func (*executorFakeController) Resume(context.Context, Handle, []agentexec.SuspensionAnswer, []execution.InterruptKind) error {
 	return nil
 }
-func (*executorFakeDispatcher) ProcessID(context.Context, TurnHandle) (string, error) { return "", nil }
-func (*executorFakeDispatcher) Rehydrate(context.Context, runs.RehydrateTurn) (TurnHandle, error) {
-	return TurnHandle{}, nil
+func (*executorFakeController) ProcessID(context.Context, Handle) (string, error) { return "", nil }
+func (*executorFakeController) Rehydrate(context.Context, runs.RehydrateTurn) (Handle, error) {
+	return Handle{}, nil
 }
 
 // TestExecutorTranslatesTurnReference verifies the application-owned durable
-// identity is translated into the dispatcher's concrete handle.
+// identity is translated into the controller's concrete handle.
 func TestExecutorTranslatesTurnReference(t *testing.T) {
 	ctx := context.Background()
-	handle := TurnHandle{SessionID: "ses_1", TurnID: "run_1"}
+	handle := Handle{SessionID: "ses_1", TurnID: "run_1"}
 	ref := execution.TurnRef{SessionID: handle.SessionID, TurnID: handle.TurnID}
-	disp := &executorFakeDispatcher{events: func(func(runs.ExecutorEvent) bool) {}}
+	disp := &executorFakeController{events: func(func(runs.ExecutorEvent) bool) {}}
 	exec := NewExecutor(disp)
 
 	seq, err := exec.TurnEvents(ctx, ref)
@@ -90,8 +90,8 @@ func TestExecutorMapsLostProcessSnapshot(t *testing.T) {
 }
 
 func TestExecutorMapsMissingTurnOnBothCancelPorts(t *testing.T) {
-	dispatcher := &executorFakeDispatcher{cancelErr: ErrTurnNotFound}
-	executor := NewExecutor(dispatcher)
+	controller := &executorFakeController{cancelErr: ErrTurnNotFound}
+	executor := NewExecutor(controller)
 	ref := execution.TurnRef{SessionID: "ses_1", TurnID: "turn_1"}
 
 	tests := []struct {

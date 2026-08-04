@@ -21,13 +21,13 @@ type ProviderMetadata struct {
 type Model struct {
 	ID       string
 	Provider string
-	Details  *ModelDetails
+	Details  *Details
 }
 
-// ModelDetails is the static capability and commercial metadata known for a
+// Details is the static capability and commercial metadata known for a
 // model. A nil Details means a provider endpoint reported an otherwise unknown
 // model id, so callers can still select it without inventing capabilities.
-type ModelDetails struct {
+type Details struct {
 	DisplayName      string
 	ContextWindow    int
 	MaxInputTokens   int
