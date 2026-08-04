@@ -435,7 +435,8 @@ func TestAssemblyRecoversParkedRunWithIncompatibleDeployment(t *testing.T) {
 	parkedAt := createdAt.Add(time.Second)
 	question := &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Continue?"}}}
 	open := []transcript.Interrupt{{
-		ItemID: "item_park", RunID: runID, Kind: execution.QuestionInterrupt, Question: question,
+		ItemID: "item_park", ItemOccurredAt: parkedAt,
+		RunID: runID, Kind: execution.QuestionInterrupt, Question: question,
 	}}
 
 	if _, err := cfg.SessionStore.Ensure(ctx, session.Session{
@@ -462,7 +463,7 @@ func TestAssemblyRecoversParkedRunWithIncompatibleDeployment(t *testing.T) {
 	if err := cfg.TranscriptStore.AppendItem(ctx, transcript.Item{
 		ID: "item_park", RunID: runID, SessionID: sessionID,
 		Kind: transcript.QuestionItem, Status: transcript.ItemRunning,
-		Question: question, CreatedAt: parkedAt,
+		Question: question, OccurredAt: parkedAt,
 	}); err != nil {
 		t.Fatalf("put transcript item: %v", err)
 	}

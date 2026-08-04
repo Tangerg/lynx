@@ -38,6 +38,18 @@ func TestItemValidateOwnsPayloadInvariants(t *testing.T) {
 			},
 			wantErr: true,
 		},
+		{
+			name:    "missing occurrence time",
+			item:    transcript.Item{Kind: transcript.UserMessage, Status: transcript.ItemCompleted},
+			wantErr: true,
+		},
+		{
+			name: "message has occurrence time",
+			item: transcript.Item{
+				Kind: transcript.UserMessage, Status: transcript.ItemCompleted,
+				OccurredAt: time.Unix(1, 0).UTC(),
+			},
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -54,7 +66,7 @@ func TestToolCallTimingLifecycle(t *testing.T) {
 	finishedAt := startedAt.Add(1500 * time.Millisecond)
 	toolCall := func(status transcript.ItemStatus) transcript.Item {
 		return transcript.Item{
-			Kind: transcript.ToolCall, Status: status, CreatedAt: startedAt,
+			Kind: transcript.ToolCall, Status: status, OccurredAt: startedAt,
 			Tool: &transcript.ToolInvocation{Name: "shell"},
 		}
 	}
@@ -83,7 +95,7 @@ func TestToolCallTimingLifecycle(t *testing.T) {
 		}(), wantErr: true},
 		{name: "non-tool has finish", item: transcript.Item{
 			Kind: transcript.AgentMessage, Status: transcript.ItemCompleted,
-			CreatedAt: startedAt, FinishedAt: finishedAt,
+			OccurredAt: startedAt, FinishedAt: finishedAt,
 		}, wantErr: true},
 	}
 

@@ -230,7 +230,7 @@ func artifactItemFromTranscript(item transcript.Item) (protocol.ArtifactItem, er
 		return protocol.ArtifactItem{}, fmt.Errorf("item %q safety class: %w", item.ID, err)
 	}
 	out := protocol.ArtifactItem{
-		ID: item.ID, RunID: item.RunID, Status: status, CreatedAt: item.CreatedAt,
+		ID: item.ID, RunID: item.RunID, Status: status,
 		Type: kind, Text: item.Text, Redacted: item.Redacted,
 		SafetyClass: safetyClass, Error: problem,
 		Summary: item.Summary, DroppedMessages: item.DroppedMessages,
@@ -260,9 +260,11 @@ func artifactItemFromTranscript(item transcript.Item) (protocol.ArtifactItem, er
 		out.Tool = &tool
 	}
 	if item.Kind == transcript.ToolCall {
-		out.StartedAt = item.CreatedAt
+		out.StartedAt = item.OccurredAt
 		out.FinishedAt = item.FinishedAt
 		out.DurationMs = presentToolDurationMs(item)
+	} else {
+		out.CreatedAt = item.OccurredAt
 	}
 	return out, nil
 }

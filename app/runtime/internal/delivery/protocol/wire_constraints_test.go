@@ -343,6 +343,41 @@ func TestValidateWireTreeComposesNestedConstraints(t *testing.T) {
 	)
 }
 
+func TestItemTimingVocabularyIsVariantExclusive(t *testing.T) {
+	t.Parallel()
+
+	at := time.Date(2026, 8, 4, 10, 0, 0, 0, time.UTC)
+	message := Item{
+		ID: "item_message", RunID: "run_1", Status: ItemStatusCompleted,
+		Type: ItemTypeUserMessage, CreatedAt: at,
+	}
+	if err := message.ValidateWire(); err != nil {
+		t.Fatalf("message timing: %v", err)
+	}
+	message.StartedAt = at
+	assertConstraintField(t, message.ValidateWire(), "Item", "startedAt")
+
+	toolCall := Item{
+		ID: "item_tool", RunID: "run_1", Status: ItemStatusRunning,
+		Type: ItemTypeToolCall, StartedAt: at,
+	}
+	if err := toolCall.ValidateWire(); err != nil {
+		t.Fatalf("tool-call timing: %v", err)
+	}
+	toolCall.CreatedAt = at
+	assertConstraintField(t, toolCall.ValidateWire(), "Item", "createdAt")
+
+	artifactToolCall := ArtifactItem{
+		ID: "item_tool", RunID: "run_1", Status: ItemStatusRunning,
+		Type: ItemTypeToolCall, StartedAt: at,
+	}
+	if err := artifactToolCall.ValidateWire(); err != nil {
+		t.Fatalf("artifact tool-call timing: %v", err)
+	}
+	artifactToolCall.CreatedAt = at
+	assertConstraintField(t, artifactToolCall.ValidateWire(), "ArtifactItem", "createdAt")
+}
+
 func TestPublishedLimitWireConstraints(t *testing.T) {
 	t.Parallel()
 

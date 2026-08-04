@@ -194,11 +194,12 @@ func runOutcomeVariants() []VariantSpec {
 }
 
 func registerItemUnions(s *Shapes) {
-	// The common fields (id / runId / status / createdAt) are on every variant, so
-	// each variant repeats them: a variant declares the WHOLE frame it permits,
-	// which is what lets the field-coverage check be exhaustive.
-	commonItemFields := []string{"id", "runId", "status", "createdAt"}
-	toolItemFields := slices.Concat(commonItemFields, []string{"startedAt"})
+	// Identity/status are shared. Time is intentionally variant-specific:
+	// ToolCall uses startedAt, while every other item uses createdAt. A variant
+	// declares the WHOLE frame it permits, making the two terms mutually exclusive.
+	itemIdentityFields := []string{"id", "runId", "status"}
+	createdItemFields := slices.Concat(itemIdentityFields, []string{"createdAt"})
+	toolItemFields := slices.Concat(itemIdentityFields, []string{"startedAt"})
 	// The archive's session-scoped state values, keyed the same way the live stream
 	// keys them. One variant today, declared as a union because the KEY is the
 	// discriminator: a reader must branch on it rather than guess from which field
@@ -215,12 +216,12 @@ func registerItemUnions(s *Shapes) {
 		GoType:        typeOf[protocol.Item](),
 		Discriminator: "type",
 		Variants: []VariantSpec{
-			{Tag: string(protocol.ItemTypeUserMessage), Required: commonItemFields, Optional: []string{"content"}},
-			{Tag: string(protocol.ItemTypeAgentMessage), Required: commonItemFields, Optional: []string{"content"}},
-			{Tag: string(protocol.ItemTypeReasoning), Required: commonItemFields, Optional: []string{"text", "redacted"}},
-			{Tag: string(protocol.ItemTypeQuestion), Required: commonItemFields, Optional: []string{"question"}},
+			{Tag: string(protocol.ItemTypeUserMessage), Required: createdItemFields, Optional: []string{"content"}},
+			{Tag: string(protocol.ItemTypeAgentMessage), Required: createdItemFields, Optional: []string{"content"}},
+			{Tag: string(protocol.ItemTypeReasoning), Required: createdItemFields, Optional: []string{"text", "redacted"}},
+			{Tag: string(protocol.ItemTypeQuestion), Required: createdItemFields, Optional: []string{"question"}},
 			{Tag: string(protocol.ItemTypeToolCall), Required: toolItemFields, Optional: []string{"finishedAt", "durationMs", "tool", "safetyClass", "error"}},
-			{Tag: string(protocol.ItemTypeCompaction), Required: commonItemFields, Optional: []string{"summary", "droppedMessages"}},
+			{Tag: string(protocol.ItemTypeCompaction), Required: createdItemFields, Optional: []string{"summary", "droppedMessages"}},
 		},
 	})
 
@@ -406,18 +407,19 @@ func registerArtifactUnions(s *Shapes) {
 		},
 	})
 
-	commonItemFields := []string{"id", "runId", "status", "createdAt"}
-	toolItemFields := slices.Concat(commonItemFields, []string{"startedAt"})
+	itemIdentityFields := []string{"id", "runId", "status"}
+	createdItemFields := slices.Concat(itemIdentityFields, []string{"createdAt"})
+	toolItemFields := slices.Concat(itemIdentityFields, []string{"startedAt"})
 	s.union(UnionSpec{
 		GoType:        typeOf[protocol.ArtifactItem](),
 		Discriminator: "type",
 		Variants: []VariantSpec{
-			{Tag: string(protocol.ItemTypeUserMessage), Required: commonItemFields, Optional: []string{"content"}},
-			{Tag: string(protocol.ItemTypeAgentMessage), Required: commonItemFields, Optional: []string{"content"}},
-			{Tag: string(protocol.ItemTypeReasoning), Required: commonItemFields, Optional: []string{"text", "redacted"}},
-			{Tag: string(protocol.ItemTypeQuestion), Required: commonItemFields, Optional: []string{"question"}},
+			{Tag: string(protocol.ItemTypeUserMessage), Required: createdItemFields, Optional: []string{"content"}},
+			{Tag: string(protocol.ItemTypeAgentMessage), Required: createdItemFields, Optional: []string{"content"}},
+			{Tag: string(protocol.ItemTypeReasoning), Required: createdItemFields, Optional: []string{"text", "redacted"}},
+			{Tag: string(protocol.ItemTypeQuestion), Required: createdItemFields, Optional: []string{"question"}},
 			{Tag: string(protocol.ItemTypeToolCall), Required: toolItemFields, Optional: []string{"finishedAt", "durationMs", "tool", "safetyClass", "error"}},
-			{Tag: string(protocol.ItemTypeCompaction), Required: commonItemFields, Optional: []string{"summary", "droppedMessages"}},
+			{Tag: string(protocol.ItemTypeCompaction), Required: createdItemFields, Optional: []string{"summary", "droppedMessages"}},
 		},
 	})
 

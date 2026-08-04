@@ -85,7 +85,7 @@ func TestPortableArtifactDecoderPreservesCanonicalToolResult(t *testing.T) {
 	at := time.Unix(1, 0).UTC()
 	artifact.Items[0] = protocol.ArtifactItem{
 		ID: "item_1", RunID: "run_1", Status: "completed", Type: "toolCall",
-		CreatedAt: at, StartedAt: at, FinishedAt: at, DurationMs: valuePtr(int64(0)),
+		StartedAt: at, FinishedAt: at, DurationMs: valuePtr(int64(0)),
 		Tool: &protocol.ArtifactToolInvocation{Name: "shell", Arguments: map[string]any{}, Result: map[string]any{"stdout": "raw"}},
 	}
 	portable, err := portableArtifactFromWire(artifact)
@@ -106,7 +106,7 @@ func TestPortableArtifactDecoderRejectsInconsistentToolTiming(t *testing.T) {
 		artifact := validArtifact()
 		artifact.Items[0] = protocol.ArtifactItem{
 			ID: "item_1", RunID: "run_1", Status: protocol.ItemStatusCompleted,
-			CreatedAt: startedAt, StartedAt: startedAt, FinishedAt: finishedAt,
+			StartedAt: startedAt, FinishedAt: finishedAt,
 			DurationMs: valuePtr(int64(1500)), Type: protocol.ItemTypeToolCall,
 			Tool: &protocol.ArtifactToolInvocation{Name: "shell", Arguments: map[string]any{}},
 		}
@@ -116,8 +116,8 @@ func TestPortableArtifactDecoderRejectsInconsistentToolTiming(t *testing.T) {
 		name   string
 		mutate func(*protocol.ArtifactItem)
 	}{
-		{name: "start differs from creation", mutate: func(item *protocol.ArtifactItem) {
-			item.StartedAt = item.StartedAt.Add(time.Millisecond)
+		{name: "tool call carries createdAt", mutate: func(item *protocol.ArtifactItem) {
+			item.CreatedAt = startedAt
 		}},
 		{name: "duration differs from boundaries", mutate: func(item *protocol.ArtifactItem) {
 			item.DurationMs = valuePtr(int64(1499))

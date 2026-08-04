@@ -43,12 +43,12 @@ func TestChildOpeningAtomicallyCommitsRunAndParentSpawningItem(t *testing.T) {
 		t.Fatalf("parse arguments: %v", err)
 	}
 	spawningItem := transcript.Item{
-		SessionID: "session_1",
-		RunID:     "run_root",
-		ID:        "item_delegate",
-		Status:    transcript.ItemRunning,
-		Kind:      transcript.ToolCall,
-		CreatedAt: time.Unix(2, 0),
+		SessionID:  "session_1",
+		RunID:      "run_root",
+		ID:         "item_delegate",
+		Status:     transcript.ItemRunning,
+		Kind:       transcript.ToolCall,
+		OccurredAt: time.Unix(2, 0),
 		Tool: &transcript.ToolInvocation{
 			Name:      "delegate_task",
 			Arguments: arguments,
@@ -99,7 +99,7 @@ func TestChildOpeningAtomicallyCommitsRunAndParentSpawningItem(t *testing.T) {
 	})
 	rolledBackItem := spawningItem
 	rolledBackItem.ID = "item_rollback"
-	rolledBackItem.CreatedAt = time.Unix(4, 0)
+	rolledBackItem.OccurredAt = time.Unix(4, 0)
 	rolledBackChild := child
 	rolledBackChild.RunID = "run_rollback"
 	rolledBackChild.SegmentID = "segment_rollback"

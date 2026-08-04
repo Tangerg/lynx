@@ -24,7 +24,7 @@ func (r *reducer) appendText(text string) []RunEvent {
 		r.text = &openText{id: r.nextItemID(), createdAt: r.now()}
 		out = append(out, ItemStarted{Item: transcript.Item{
 			ID: r.text.id, RunID: r.cfg.RunID, Status: transcript.ItemRunning,
-			Kind: transcript.AgentMessage, CreatedAt: r.text.createdAt,
+			Kind: transcript.AgentMessage, OccurredAt: r.text.createdAt,
 		}})
 	}
 	r.text.buf.WriteString(text)
@@ -41,7 +41,7 @@ func (r *reducer) appendReasoning(text string) []RunEvent {
 		r.reasoning = &openText{id: r.nextItemID(), createdAt: r.now()}
 		out = append(out, ItemStarted{Item: transcript.Item{
 			ID: r.reasoning.id, RunID: r.cfg.RunID, Status: transcript.ItemRunning,
-			Kind: transcript.Reasoning, CreatedAt: r.reasoning.createdAt,
+			Kind: transcript.Reasoning, OccurredAt: r.reasoning.createdAt,
 		}})
 	}
 	r.reasoning.buf.WriteString(text)
@@ -57,7 +57,7 @@ func (r *reducer) closeText() []RunEvent {
 	}
 	event := ItemCompleted{Item: transcript.Item{
 		ID: r.text.id, RunID: r.cfg.RunID, Status: transcript.ItemCompleted,
-		Kind: transcript.AgentMessage, CreatedAt: r.text.createdAt,
+		Kind: transcript.AgentMessage, OccurredAt: r.text.createdAt,
 		Content: []transcript.ContentBlock{{Kind: transcript.TextContent, Text: r.text.buf.String()}},
 	}}
 	r.text = nil
@@ -70,7 +70,7 @@ func (r *reducer) closeReasoning() []RunEvent {
 	}
 	event := ItemCompleted{Item: transcript.Item{
 		ID: r.reasoning.id, RunID: r.cfg.RunID, Status: transcript.ItemCompleted,
-		Kind: transcript.Reasoning, CreatedAt: r.reasoning.createdAt,
+		Kind: transcript.Reasoning, OccurredAt: r.reasoning.createdAt,
 		Text: r.reasoning.buf.String(),
 	}}
 	r.reasoning = nil
@@ -107,9 +107,10 @@ func (r *reducer) toolStart(e ToolCallStart) ([]RunEvent, error) {
 	out = append(out, SegmentProgressed{Progress: RunProgress{
 		Step: &step, ToolName: e.ToolName, Activity: e.Activity,
 	}})
+	identity := r.reuseOrCreateToolItem(e.CallID, e.ToolName, arguments)
 	ref := &openTool{
 		callID: e.CallID, sourceCallID: e.SourceCallID, order: r.toolOrder,
-		id: r.reuseOrNextItemID(e.CallID, e.ToolName, arguments), createdAt: r.now(),
+		id: identity.id, startedAt: identity.occurredAt,
 		name: e.ToolName, arguments: arguments, safetyClass: e.SafetyClass,
 	}
 	r.tools.add(ref)
@@ -126,7 +127,7 @@ func (r *reducer) toolStart(e ToolCallStart) ([]RunEvent, error) {
 func (r *reducer) runningToolItem(ref *openTool) transcript.Item {
 	return transcript.Item{
 		ID: ref.id, RunID: r.cfg.RunID, Status: transcript.ItemRunning,
-		Kind: transcript.ToolCall, CreatedAt: ref.createdAt,
+		Kind: transcript.ToolCall, OccurredAt: ref.startedAt,
 		Tool:        newToolInvocation(ref.name, ref.arguments, nil),
 		SafetyClass: ref.safetyClass,
 	}
@@ -188,7 +189,7 @@ func (r *reducer) toolEnd(e ToolCallEnd) ([]RunEvent, error) {
 	}
 	copy.MutatedPaths = slices.Clone(e.MutatedPaths)
 	finishedAt := r.now()
-	if finishedAt.Before(ref.createdAt) {
+	if finishedAt.Before(ref.startedAt) {
 		return nil, fmt.Errorf("tool call %q finish time precedes start time", e.CallID)
 	}
 	ref.finishedAt = finishedAt
@@ -236,7 +237,7 @@ func (r *reducer) completeTool(ref *openTool, e ToolCallEnd) ([]RunEvent, error)
 	invocation.Offload = e.Offload
 	item := transcript.Item{
 		ID: ref.id, RunID: r.cfg.RunID, Status: transcript.ItemCompleted,
-		Kind: transcript.ToolCall, CreatedAt: ref.createdAt, FinishedAt: ref.finishedAt,
+		Kind: transcript.ToolCall, OccurredAt: ref.startedAt, FinishedAt: ref.finishedAt,
 		Tool:        invocation,
 		SafetyClass: ref.safetyClass,
 	}
@@ -279,7 +280,7 @@ func (r *reducer) compaction(e CompactBoundary) []RunEvent {
 	return itemPair(func(status transcript.ItemStatus) transcript.Item {
 		return transcript.Item{
 			ID: id, RunID: r.cfg.RunID, Status: status,
-			Kind: transcript.Compaction, CreatedAt: now, DroppedMessages: dropped,
+			Kind: transcript.Compaction, OccurredAt: now, DroppedMessages: dropped,
 		}
 	})
 }
@@ -294,7 +295,7 @@ func (r *reducer) openUserMessage() []RunEvent {
 	return itemPair(func(status transcript.ItemStatus) transcript.Item {
 		return transcript.Item{
 			ID: id, RunID: r.cfg.RunID, Status: status,
-			Kind: transcript.UserMessage, CreatedAt: now, Content: input,
+			Kind: transcript.UserMessage, OccurredAt: now, Content: input,
 		}
 	})
 }
@@ -306,7 +307,7 @@ func (r *reducer) steerMessage(e SteerMessage) []RunEvent {
 	events := itemPair(func(status transcript.ItemStatus) transcript.Item {
 		return transcript.Item{
 			ID: id, RunID: r.cfg.RunID, Status: status,
-			Kind: transcript.UserMessage, CreatedAt: now,
+			Kind: transcript.UserMessage, OccurredAt: now,
 			Content: content,
 		}
 	})

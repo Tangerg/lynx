@@ -1103,6 +1103,21 @@ func TestStartCommandHasOneInputRepresentation(t *testing.T) {
 	}
 }
 
+// TestTranscriptItemUsesOneNeutralDomainTimestamp keeps wire vocabulary out of
+// the durable union. Delivery maps OccurredAt to createdAt for message-like
+// variants and startedAt for ToolCall; the domain must not store both names or
+// call a ToolCall start a creation time.
+func TestTranscriptItemUsesOneNeutralDomainTimestamp(t *testing.T) {
+	root := moduleRoot(t)
+	path := filepath.Join(root, "internal", "domain", "execution", "transcript", "model.go")
+	if got := namedStructFieldTypeOptional(t, path, "Item", "OccurredAt"); got != "time.Time" {
+		t.Errorf("transcript.Item.OccurredAt = %q, want time.Time", got)
+	}
+	if got := namedStructFieldTypeOptional(t, path, "Item", "CreatedAt"); got != "" {
+		t.Errorf("transcript.Item.CreatedAt = %q; variant-specific time belongs to Delivery", got)
+	}
+}
+
 // TestDeliveryPortsDoNotKeepFormerTestOrchestrationMethods prevents a test
 // setup convenience from widening the production consumer ports. Admission
 // probes, raw restore, and registry lookups belong to their owning application

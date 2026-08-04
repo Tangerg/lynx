@@ -65,7 +65,7 @@ func singleRunPending(
 			InterruptKinds: []execution.InterruptKind{execution.QuestionInterrupt},
 		},
 		Interrupts: []transcript.Interrupt{{
-			ItemID:   itemID,
+			ItemID: itemID, ItemOccurredAt: barrierCreatedAt,
 			RunID:    runID,
 			Kind:     execution.QuestionInterrupt,
 			Question: question,
@@ -99,8 +99,10 @@ func TestCommitEventPersistsTranscriptAndTerminalizes(t *testing.T) {
 		SessionID: "ses_1",
 		State:     runs.StateTerminalize,
 		Outcome:   execution.OutcomeCompleted,
-		Items:     []transcript.Item{{SessionID: "ses_1", RunID: "run_1", ID: "item_1"}},
-		Run:       finishedRunRecord("run_1", "ses_1", execution.OutcomeCompleted),
+		Items: []transcript.Item{{
+			SessionID: "ses_1", RunID: "run_1", ID: "item_1", OccurredAt: time.Unix(1, 0).UTC(),
+		}},
+		Run: finishedRunRecord("run_1", "ses_1", execution.OutcomeCompleted),
 	})
 	if err != nil {
 		t.Fatalf("CommitEvent: %v", err)
@@ -136,7 +138,7 @@ func TestCommitEventBindsOffloadedResultWithTranscriptItem(t *testing.T) {
 		Items: []transcript.Item{{
 			SessionID: "ses_1", RunID: "run_1", ID: "item_1",
 			Kind: transcript.ToolCall, Status: transcript.ItemCompleted,
-			CreatedAt: time.Unix(1, 0).UTC(), FinishedAt: time.Unix(2, 0).UTC(),
+			OccurredAt: time.Unix(1, 0).UTC(), FinishedAt: time.Unix(2, 0).UTC(),
 			Tool: &transcript.ToolInvocation{Name: "shell", Result: &preview, Offload: ref},
 		}},
 	})
@@ -169,7 +171,7 @@ func TestCommitEventDiscardsStagedOffloadAfterCommitFailure(t *testing.T) {
 		Items: []transcript.Item{{
 			SessionID: "ses_1", RunID: "run_1", ID: "item_1",
 			Kind: transcript.ToolCall, Status: transcript.ItemCompleted,
-			CreatedAt: time.Unix(1, 0).UTC(), FinishedAt: time.Unix(2, 0).UTC(),
+			OccurredAt: time.Unix(1, 0).UTC(), FinishedAt: time.Unix(2, 0).UTC(),
 			Tool: &transcript.ToolInvocation{Name: "shell", Result: &preview, Offload: ref},
 		}},
 	})
@@ -228,7 +230,9 @@ func TestCommitOpeningAdmitsAndProjectsInOneTransaction(t *testing.T) {
 		Events: []runs.EventCommit{{
 			RunID:     "run_1",
 			SessionID: "ses_1",
-			Items:     []transcript.Item{{SessionID: "ses_1", RunID: "run_1", ID: "item_1"}},
+			Items: []transcript.Item{{
+				SessionID: "ses_1", RunID: "run_1", ID: "item_1", OccurredAt: time.Unix(1, 0).UTC(),
+			}},
 		}},
 	})
 	if err != nil {
@@ -260,7 +264,9 @@ func TestCommitOpeningConsumesInterruptAndResumes(t *testing.T) {
 		Events: []runs.EventCommit{{
 			RunID:     "run_1",
 			SessionID: "ses_1",
-			Items:     []transcript.Item{{SessionID: "ses_1", RunID: "run_1", ID: "item_1"}},
+			Items: []transcript.Item{{
+				SessionID: "ses_1", RunID: "run_1", ID: "item_1", OccurredAt: now,
+			}},
 		}},
 	})
 	if err != nil {
@@ -286,10 +292,8 @@ func TestCommitTreeBarrierRecordsPendingSetAndSuspends(t *testing.T) {
 		runCreatedAt, barrierCreatedAt,
 	)
 	pending.Continuations[0].DrainedTools = []interrupts.DrainedTool{{
-		ItemID:    "tool_1",
-		CallID:    "call_1",
-		Name:      "ask_user",
-		Arguments: "{}",
+		ItemID: "tool_1", ItemOccurredAt: barrierCreatedAt,
+		CallID: "call_1", Name: "ask_user", Arguments: "{}",
 	}}
 	pending.Continuations[0].Metrics = transcript.RunMetrics{Steps: 2}
 
@@ -313,7 +317,7 @@ func TestCommitTreeBarrierRecordsPendingSetAndSuspends(t *testing.T) {
 			Items: []transcript.Item{{
 				SessionID: "ses_1", RunID: "run_1", ID: "int_1",
 				Kind: transcript.QuestionItem, Status: transcript.ItemRunning,
-				Question: pending.Interrupts[0].Question,
+				OccurredAt: barrierCreatedAt, Question: pending.Interrupts[0].Question,
 			}},
 		}},
 	})

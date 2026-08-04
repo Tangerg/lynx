@@ -881,11 +881,10 @@ func TestResumeRefusesIsolatedRunAfterSandboxProcessEnded(t *testing.T) {
 	}
 }
 
-func approvalInterrupt(itemID string) []transcript.Interrupt {
+func approvalInterrupt(itemID string, occurredAt time.Time) []transcript.Interrupt {
 	return []transcript.Interrupt{{
-		ItemID: itemID,
-		RunID:  "run_1",
-		Kind:   execution.ApprovalInterrupt,
+		ItemID: itemID, ItemOccurredAt: occurredAt,
+		RunID: "run_1", Kind: execution.ApprovalInterrupt,
 		Approval: &transcript.Approval{
 			Tool: transcript.ToolInvocation{Name: "shell"},
 		},
@@ -893,7 +892,7 @@ func approvalInterrupt(itemID string) []transcript.Interrupt {
 }
 
 func testPendingInterrupt(itemID, processID string, runCreatedAt time.Time) interrupts.Pending {
-	interruptValues := approvalInterrupt(itemID)
+	interruptValues := approvalInterrupt(itemID, runCreatedAt)
 	return interrupts.Pending{
 		RootRunID:  "run_1",
 		SessionID:  "ses_1",

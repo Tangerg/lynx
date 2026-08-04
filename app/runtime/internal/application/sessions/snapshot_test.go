@@ -21,7 +21,7 @@ func portableSnapshot() Snapshot {
 		}},
 		Items: []transcript.Item{{
 			SessionID: "ses_1", ID: "item_1", RunID: "run_1",
-			Status: transcript.ItemCompleted, Kind: transcript.UserMessage,
+			Status: transcript.ItemCompleted, Kind: transcript.UserMessage, OccurredAt: time.Unix(1, 0),
 		}},
 	}
 }

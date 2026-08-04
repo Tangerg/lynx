@@ -22,6 +22,17 @@ func openTranscriptAndBlobs(t *testing.T) (*sqlite.TranscriptStore, *sqlite.Tool
 	return sqlite.NewTranscriptStore(db), sqlite.NewToolResultStore(db)
 }
 
+func TestTranscriptStoreRejectsMissingOccurrenceTime(t *testing.T) {
+	store, _ := openTranscriptAndBlobs(t)
+	err := store.AppendItem(t.Context(), transcript.Item{
+		SessionID: "ses_1", RunID: "run_1", ID: "item_1",
+		Kind: transcript.UserMessage, Status: transcript.ItemCompleted,
+	})
+	if err == nil || !strings.Contains(err.Error(), "occurred at is required") {
+		t.Fatalf("AppendItem error = %v, want missing occurrence time", err)
+	}
+}
+
 func toolItem(sessionID, id, result string, ref *resultoffload.Ref) transcript.Item {
 	value := tool.StringResult(result)
 	at := time.Unix(1, 0).UTC()
@@ -31,7 +42,7 @@ func toolItem(sessionID, id, result string, ref *resultoffload.Ref) transcript.I
 		RunID:      "run-1",
 		Kind:       transcript.ToolCall,
 		Status:     transcript.ItemCompleted,
-		CreatedAt:  at,
+		OccurredAt: at,
 		FinishedAt: at,
 		Tool:       &transcript.ToolInvocation{Name: "shell", Result: &value, Offload: ref},
 	}

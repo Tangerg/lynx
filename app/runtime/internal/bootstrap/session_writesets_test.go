@@ -82,7 +82,7 @@ func bootstrapPending(
 			InterruptKinds: []execution.InterruptKind{execution.QuestionInterrupt},
 		},
 		Interrupts: []transcript.Interrupt{{
-			ItemID:   itemID,
+			ItemID: itemID, ItemOccurredAt: parkCreatedAt,
 			RunID:    runID,
 			Kind:     execution.QuestionInterrupt,
 			Question: question,
@@ -219,7 +219,8 @@ func parkWithGoalLease(
 			InterruptKinds: []execution.InterruptKind{execution.QuestionInterrupt},
 		},
 		Interrupts: []transcript.Interrupt{{
-			ItemID: "item_" + runID, RunID: runID, Kind: execution.QuestionInterrupt,
+			ItemID: "item_" + runID, ItemOccurredAt: parkCreatedAt,
+			RunID: runID, Kind: execution.QuestionInterrupt,
 			Question: &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Continue?"}}},
 		}},
 		CreatedAt:   parkCreatedAt,
@@ -726,7 +727,7 @@ func TestApplyRestoreRollsBackOnTranscriptIdentityConflict(t *testing.T) {
 		t.Fatalf("seed source run: %v", err)
 	}
 	if err := ss.transcript.AppendItem(ctx, transcript.Item{
-		SessionID: "ses_A", RunID: "run_shared", ID: "item_shared", CreatedAt: now,
+		SessionID: "ses_A", RunID: "run_shared", ID: "item_shared", OccurredAt: now,
 	}); err != nil {
 		t.Fatalf("seed source item: %v", err)
 	}

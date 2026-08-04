@@ -805,9 +805,8 @@ func TestCoordinatorResumesCompleteRunTreeInOneCanonicalOpening(t *testing.T) {
 func resumedTreePending(createdAt time.Time) interrupts.Pending {
 	question := func(itemID, runID string) transcript.Interrupt {
 		return transcript.Interrupt{
-			ItemID: itemID,
-			RunID:  runID,
-			Kind:   execution.QuestionInterrupt,
+			ItemID: itemID, ItemOccurredAt: createdAt,
+			RunID: runID, Kind: execution.QuestionInterrupt,
 			Question: &transcript.Question{
 				Fields: []transcript.QuestionField{{
 					Prompt: "Continue?", Kind: transcript.QuestionText,

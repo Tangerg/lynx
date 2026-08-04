@@ -1,6 +1,8 @@
 package server
 
 import (
+	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 
@@ -11,21 +13,40 @@ func TestPresentToolCallTiming(t *testing.T) {
 	startedAt := time.Date(2026, 8, 4, 10, 0, 0, 0, time.UTC)
 	running := presentItem(transcript.Item{
 		ID: "item_1", RunID: "run_1", Kind: transcript.ToolCall,
-		Status: transcript.ItemRunning, CreatedAt: startedAt,
+		Status: transcript.ItemRunning, OccurredAt: startedAt,
 		Tool: &transcript.ToolInvocation{Name: "shell"},
 	})
-	if running.StartedAt != startedAt || !running.FinishedAt.IsZero() || running.DurationMs != nil {
+	if !running.CreatedAt.IsZero() || running.StartedAt != startedAt || !running.FinishedAt.IsZero() || running.DurationMs != nil {
 		t.Fatalf("running timing = started %s finished %s duration %v", running.StartedAt, running.FinishedAt, running.DurationMs)
 	}
 
 	finishedAt := startedAt.Add(1250 * time.Millisecond)
 	completed := presentItem(transcript.Item{
 		ID: "item_1", RunID: "run_1", Kind: transcript.ToolCall,
-		Status: transcript.ItemCompleted, CreatedAt: startedAt, FinishedAt: finishedAt,
+		Status: transcript.ItemCompleted, OccurredAt: startedAt, FinishedAt: finishedAt,
 		Tool: &transcript.ToolInvocation{Name: "shell"},
 	})
-	if completed.StartedAt != startedAt || completed.FinishedAt != finishedAt ||
+	if !completed.CreatedAt.IsZero() || completed.StartedAt != startedAt || completed.FinishedAt != finishedAt ||
 		completed.DurationMs == nil || *completed.DurationMs != 1250 {
 		t.Fatalf("completed timing = started %s finished %s duration %v", completed.StartedAt, completed.FinishedAt, completed.DurationMs)
+	}
+	encoded, err := json.Marshal(completed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if body := string(encoded); strings.Contains(body, `"createdAt"`) || !strings.Contains(body, `"startedAt"`) {
+		t.Fatalf("tool-call wire timing is not exclusive: %s", body)
+	}
+
+	message := presentItem(transcript.Item{
+		ID: "item_2", RunID: "run_1", Kind: transcript.AgentMessage,
+		Status: transcript.ItemCompleted, OccurredAt: startedAt,
+	})
+	encoded, err = json.Marshal(message)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if body := string(encoded); !strings.Contains(body, `"createdAt"`) || strings.Contains(body, `"startedAt"`) {
+		t.Fatalf("message wire timing is not exclusive: %s", body)
 	}
 }

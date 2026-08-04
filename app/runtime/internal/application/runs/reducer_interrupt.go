@@ -59,7 +59,7 @@ func (r *reducer) interrupt(e TurnInterrupted) ([]RunEvent, error) {
 		case execution.ApprovalInterrupt:
 			if matchedItem, ok := approvalItems[index]; ok {
 				item = matchedItem
-				interrupt = approvalTranscriptInterrupt(r.cfg.RunID, item.ID, *in.Approval, *item.Tool)
+				interrupt = approvalTranscriptInterrupt(item, *in.Approval)
 			} else {
 				var err error
 				item, interrupt, err = r.approvalInterrupt(in)
@@ -121,7 +121,7 @@ func (r *reducer) approvalInterrupt(in Interrupt) (transcript.Item, transcript.I
 	if err != nil {
 		return transcript.Item{}, transcript.Interrupt{}, err
 	}
-	return item, approvalTranscriptInterrupt(r.cfg.RunID, item.ID, *in.Approval, *item.Tool), nil
+	return item, approvalTranscriptInterrupt(item, *in.Approval), nil
 }
 
 func (r *reducer) approvalItem(prompt ApprovalPrompt, ref *openTool) (transcript.Item, error) {
@@ -129,28 +129,31 @@ func (r *reducer) approvalItem(prompt ApprovalPrompt, ref *openTool) (transcript
 	if err != nil {
 		return transcript.Item{}, fmt.Errorf("approval tool %q arguments: %w", prompt.ToolName, err)
 	}
-	id, createdAt := "", r.now()
+	var id string
+	var startedAt time.Time
 	if ref != nil {
-		id, createdAt = ref.id, ref.createdAt
+		id, startedAt = ref.id, ref.startedAt
 	} else {
-		id = r.reuseOrNextItemID(prompt.CallID, prompt.ToolName, arguments)
+		identity := r.reuseOrCreateToolItem(prompt.CallID, prompt.ToolName, arguments)
+		id, startedAt = identity.id, identity.occurredAt
 		r.removeDrained(id)
 	}
 	return transcript.Item{
 		ID: id, RunID: r.cfg.RunID, Status: transcript.ItemRunning,
-		Kind: transcript.ToolCall, CreatedAt: createdAt,
+		Kind: transcript.ToolCall, OccurredAt: startedAt,
 		Tool:        newToolInvocation(prompt.ToolName, arguments, nil),
 		SafetyClass: prompt.SafetyClass,
 	}, nil
 }
 
-func approvalTranscriptInterrupt(runID, itemID string, prompt ApprovalPrompt, tool transcript.ToolInvocation) transcript.Interrupt {
+func approvalTranscriptInterrupt(item transcript.Item, prompt ApprovalPrompt) transcript.Interrupt {
 	return transcript.Interrupt{
-		ItemID: itemID,
-		RunID:  runID,
-		Kind:   execution.ApprovalInterrupt,
+		ItemID:         item.ID,
+		ItemOccurredAt: item.OccurredAt,
+		RunID:          item.RunID,
+		Kind:           execution.ApprovalInterrupt,
 		Approval: &transcript.Approval{
-			Tool: tool, Risk: prompt.Risk, Reason: prompt.Reason, Rememberable: prompt.Rememberable,
+			Tool: *item.Tool, Risk: prompt.Risk, Reason: prompt.Reason, Rememberable: prompt.Rememberable,
 		},
 	}
 }
@@ -193,7 +196,8 @@ func drainedToolRefs(open []*openTool, matched map[*openTool]int) []interrupts.D
 		_, activeApproval := matched[ref]
 		if ref.end == nil && !activeApproval {
 			drained = append(drained, interrupts.DrainedTool{
-				ItemID: ref.id, CallID: ref.callID, Name: ref.name, Arguments: ref.arguments.Canonical(),
+				ItemID: ref.id, ItemOccurredAt: ref.startedAt,
+				CallID: ref.callID, Name: ref.name, Arguments: ref.arguments.Canonical(),
 			})
 		}
 	}
@@ -223,12 +227,12 @@ func (r *reducer) removeDrained(itemID string) {
 
 func (r *reducer) incompleteToolItem(ref *openTool) (ItemCompleted, error) {
 	finishedAt := r.now()
-	if finishedAt.Before(ref.createdAt) {
+	if finishedAt.Before(ref.startedAt) {
 		return ItemCompleted{}, fmt.Errorf("tool call %q finish time precedes start time", ref.callID)
 	}
 	return ItemCompleted{Item: transcript.Item{
 		ID: ref.id, RunID: r.cfg.RunID, Status: transcript.ItemIncomplete,
-		Kind: transcript.ToolCall, CreatedAt: ref.createdAt, FinishedAt: finishedAt,
+		Kind: transcript.ToolCall, OccurredAt: ref.startedAt, FinishedAt: finishedAt,
 		Tool:        newToolInvocation(ref.name, ref.arguments, nil),
 		SafetyClass: ref.safetyClass,
 	}}, nil
@@ -242,10 +246,11 @@ func (r *reducer) questionInterrupt(in Interrupt) (transcript.Item, transcript.I
 	id := r.nextItemID()
 	item := transcript.Item{
 		ID: id, RunID: r.cfg.RunID, Status: transcript.ItemRunning,
-		Kind: transcript.QuestionItem, CreatedAt: r.now(), Question: &question,
+		Kind: transcript.QuestionItem, OccurredAt: r.now(), Question: &question,
 	}
 	return item, transcript.Interrupt{
-		ItemID: id, RunID: r.cfg.RunID, Kind: execution.QuestionInterrupt, Question: &question,
+		ItemID: id, ItemOccurredAt: item.OccurredAt,
+		RunID: r.cfg.RunID, Kind: execution.QuestionInterrupt, Question: &question,
 	}
 }
 

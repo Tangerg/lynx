@@ -165,9 +165,10 @@ type ExportSessionResponse struct {
 // artifact it doesn't recognize; development builds do not migrate old
 // artifacts.
 //
-// v11 adds explicit ToolCall execution timing. Older documents are refused
-// before any write rather than inventing missing start and finish facts.
-const SessionArtifactVersion = 11
+// v12 gives each item variant one timestamp vocabulary: ToolCall uses startedAt;
+// every other item uses createdAt. Older documents are refused before any write
+// rather than accepting two names for one ToolCall instant.
+const SessionArtifactVersion = 12
 
 // SessionArtifact is the portable, round-trippable form of a session: its
 // identity plus the full conversation — chat messages (the model's context),
@@ -322,7 +323,7 @@ type ArtifactItem struct {
 	ID         string     `json:"id"`
 	RunID      string     `json:"runId"`
 	Status     ItemStatus `json:"status"`
-	CreatedAt  time.Time  `json:"createdAt"`
+	CreatedAt  time.Time  `json:"createdAt,omitzero"`
 	Type       ItemType   `json:"type"`
 	StartedAt  time.Time  `json:"startedAt,omitzero"`
 	FinishedAt time.Time  `json:"finishedAt,omitzero"`

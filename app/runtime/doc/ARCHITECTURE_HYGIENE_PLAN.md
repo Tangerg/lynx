@@ -751,6 +751,39 @@ Acceptance:
   occurrence, and Bootstrap rejects either missing composition path.
 - Focused normal and race tests plus the composition-boundary fitness test pass.
 
+### Batch 27 — Item timestamp vocabulary closure
+
+Status: **Completed**
+
+Scope:
+
+- Replace the durable transcript Item's misleading `CreatedAt` with the neutral
+  `OccurredAt` fact and rename open ToolCall state to `startedAt`.
+- Make live and artifact unions expose exactly one variant-specific timestamp:
+  ToolCall uses `startedAt`; all other Item kinds use `createdAt`.
+- Map variant time explicitly in Delivery, require the occurrence timestamp at
+  Domain and SQLite boundaries, and retain `finishedAt` / `durationMs` only for
+  ToolCall terminal frames.
+- Carry the original Item occurrence through durable interrupt and drained-tool
+  continuation hand-offs, so resume completes or reopens the same Item without
+  consulting a new clock.
+- Rename the generic history timestamp column to `occurred_at`, advance the
+  incompatible SQLite schema epoch to 53, and advance the artifact schema to
+  v12 without a migration or compatibility decoder.
+
+Acceptance:
+
+- A live or archived ToolCall cannot carry `createdAt`; a non-ToolCall cannot
+  carry `startedAt`; JSON presentation and generated union validators prove the
+  exclusivity.
+- Domain and storage reject a transcript Item with no occurrence timestamp,
+  and ToolCall duration is derived only from `OccurredAt` to `FinishedAt`.
+- A cold-restart continuation preserves Question and ToolCall occurrence
+  identity; SQLite rejects an attempted timestamp rewrite of an existing Item.
+- Server-side contract artifacts and Go validators describe artifact v12 and
+  the exclusive timing union; focused normal/race tests and architecture
+  fitness checks pass. Frontend generated artifacts remain deferred by scope.
+
 ## 6. Progress
 
 | Batch | Status | Started | Completed | Evidence |
@@ -781,10 +814,31 @@ Acceptance:
 | 24. Immutable runtime catalogs | Completed | 2026-08-04 | 2026-08-04 | Catalog ownership tests, architecture mutable-global fitness test, focused normal/race tests, runtime-wide compile, standalone build/vet, static analysis, lint, dead-code analysis, and full regression classification passed. |
 | 25. Mutable-value and atomic-write ownership | Completed | 2026-08-04 | 2026-08-04 | Deep-ownership tests plus focused normal/race suites for contracts, protocol enums, Run registry, execution profiles, and filesystem storage passed. |
 | 26. Process-path composition ownership | Completed | 2026-08-04 | 2026-08-04 | Executable, Agent prompt, Workspace, Runs, Schedules, Bootstrap, and Delivery tests plus the ambient-path architecture fitness rule passed. |
+| 27. Item timestamp vocabulary closure | Completed | 2026-08-04 | 2026-08-04 | Domain/Application/SQLite/Delivery normal and race tests, generated Go validators, server contract artifacts, JSON exclusivity assertions, and timestamp architecture fitness checks passed. |
 
 Allowed status values: `Pending`, `In progress`, `Completed`, `Blocked`, `Revised`.
 
 ## 7. Progress log
+
+### 2026-08-04 — Batch 27 completed
+
+- Replaced transcript Item's ambiguous `CreatedAt` state with `OccurredAt`, and
+  renamed the reducer's open ToolCall boundary to `startedAt`. Delivery is now
+  the only layer that selects the external time term from the Item variant.
+- Changed live Item and portable ArtifactItem unions so ToolCall requires
+  `startedAt` and forbids `createdAt`, while every other variant does the
+  reverse. Terminal ToolCalls still require `finishedAt` and the derived
+  non-negative `durationMs`.
+- Advanced the artifact format directly to v12 and the SQLite schema epoch to
+  53; `history_items.occurred_at` is the sole relational timestamp. No old
+  field, old column, migration, dual decoder, or compatibility alias remains.
+- Closed the restart edge exposed by immutable occurrence identity: Pending
+  interrupts and drained-tool hand-offs now retain the referenced Item's
+  original occurrence, and reducer resume paths reuse that fact for both
+  Question completion and ToolCall reopening.
+- Regenerated the server contract artifacts and Go wire validators only. The
+  intentionally untouched frontend generated types, validators, and samples
+  remain the known follow-up drift for the dedicated frontend wiring round.
 
 ### 2026-08-04 — Batch 26 completed
 

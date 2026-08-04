@@ -166,7 +166,7 @@ func TestPortableSnapshotChildInheritsItsRootsProfile(t *testing.T) {
 		// archive naming an item it does not contain is a tree that cannot be walked.
 		// The spawning item is a TOOL CALL: a child run is the execution of one.
 		Items: []transcript.Item{{
-			SessionID: "ses_1", RunID: "run_root", ID: "item_1", CreatedAt: at,
+			SessionID: "ses_1", RunID: "run_root", ID: "item_1", OccurredAt: at,
 			FinishedAt: at,
 			Status:     transcript.ItemCompleted, Kind: transcript.ToolCall,
 			Tool: &transcript.ToolInvocation{Name: "delegate_task"},

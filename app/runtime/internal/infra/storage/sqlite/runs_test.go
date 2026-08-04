@@ -67,7 +67,8 @@ func parkedRun(runID, sessionID string) transcript.Run {
 	return transcript.Run{
 		SessionID: sessionID, ID: runID, State: execution.Interrupted,
 		Interrupts: []transcript.Interrupt{{
-			ItemID: "itm_" + runID, RunID: runID, Kind: execution.QuestionInterrupt,
+			ItemID: "itm_" + runID, ItemOccurredAt: runCreatedAt,
+			RunID: runID, Kind: execution.QuestionInterrupt,
 			Question: &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "continue?"}}},
 		}},
 		Metrics:     transcript.RunMetrics{Steps: 1},
@@ -88,6 +89,9 @@ func pendingForRun(
 	bindings := make([]interrupts.SuspensionBinding, len(copied))
 	for index := range copied {
 		copied[index].RunID = runID
+		if copied[index].ItemOccurredAt.IsZero() {
+			copied[index].ItemOccurredAt = createdAt
+		}
 		bindings[index] = interrupts.SuspensionBinding{
 			InterruptItemID: copied[index].ItemID,
 			ProcessID:       processID,
@@ -683,12 +687,12 @@ func TestPageRunTreeItemsUsesDurableParentEdges(t *testing.T) {
 	}
 	for index, runID := range []string{root.ID, child.ID, grandchild.ID, sibling.ID} {
 		if err := transcripts.AppendItem(ctx, transcript.Item{
-			SessionID: root.SessionID,
-			ID:        "item_" + runID,
-			RunID:     runID,
-			Status:    transcript.ItemCompleted,
-			Kind:      transcript.UserMessage,
-			CreatedAt: time.Unix(0, int64(index+1)).UTC(),
+			SessionID:  root.SessionID,
+			ID:         "item_" + runID,
+			RunID:      runID,
+			Status:     transcript.ItemCompleted,
+			Kind:       transcript.UserMessage,
+			OccurredAt: time.Unix(0, int64(index+1)).UTC(),
 		}); err != nil {
 			t.Fatalf("append %s item: %v", runID, err)
 		}

@@ -221,13 +221,13 @@ const (
 )
 
 type Item struct {
-	SessionID string
-	ID        string
-	RunID     string
-	Status    ItemStatus
-	CreatedAt time.Time
+	SessionID  string
+	ID         string
+	RunID      string
+	Status     ItemStatus
+	OccurredAt time.Time
 	// FinishedAt is the terminal boundary of a ToolCall. Tool execution starts
-	// when its Item is created; other Item kinds do not use this field.
+	// at OccurredAt; other Item kinds do not use this field.
 	FinishedAt time.Time
 	Kind       ItemKind
 
@@ -245,7 +245,7 @@ type Item struct {
 
 // SequencedItem pairs a history Item with its position in the session's durable
 // append order — the total order a paged read continues along, and the only one
-// that is exact: creation timestamps tie, and an imported transcript can carry
+// that is exact: occurrence timestamps tie, and an imported transcript can carry
 // backdated ones.
 //
 // The position sits beside the Item rather than inside it because the store
@@ -374,6 +374,10 @@ type Problem struct {
 // Interrupt is one thing a person has to answer before execution continues.
 type Interrupt struct {
 	ItemID string
+	// ItemOccurredAt preserves the identity timestamp of the Running Item this
+	// interrupt references. A continuation completes or reopens that same Item;
+	// it must not manufacture a new occurrence when the Run resumes.
+	ItemOccurredAt time.Time
 	// RunID is the Run that RAISED this interrupt — not the Run that owns the set
 	// it belongs to. The two are the same only while a tree is a single Run: a set
 	// is owned by the root and consumed as a whole, while each interrupt was raised
@@ -659,6 +663,9 @@ func (item Item) Validate() error {
 	if item.DroppedMessages < 0 {
 		return errors.New("dropped messages must not be negative")
 	}
+	if item.OccurredAt.IsZero() {
+		return errors.New("occurred at is required")
+	}
 	if err := item.Error.ValidateFor(ToolProblem); err != nil {
 		return fmt.Errorf("tool problem: %w", err)
 	}
@@ -710,9 +717,6 @@ func (item Item) Validate() error {
 		if item.Tool == nil {
 			return errors.New("tool invocation is required")
 		}
-		if item.CreatedAt.IsZero() {
-			return errors.New("tool call start time is required")
-		}
 		switch item.Status {
 		case ItemRunning:
 			if !item.FinishedAt.IsZero() {
@@ -722,7 +726,7 @@ func (item Item) Validate() error {
 			if item.FinishedAt.IsZero() {
 				return errors.New("terminal tool call finish time is required")
 			}
-			if item.FinishedAt.Before(item.CreatedAt) {
+			if item.FinishedAt.Before(item.OccurredAt) {
 				return errors.New("tool call finish time precedes start time")
 			}
 		}

@@ -77,6 +77,22 @@ func TestPendingValidateRequiresOneCanonicalConnectedTree(t *testing.T) {
 			},
 			want: "item id has surrounding whitespace",
 		},
+		{
+			name: "interrupt item occurrence is missing",
+			mutate: func(p *Pending) {
+				p.Interrupts[0].ItemOccurredAt = time.Time{}
+			},
+			want: "item occurrence time is required",
+		},
+		{
+			name: "drained tool item occurrence is missing",
+			mutate: func(p *Pending) {
+				p.Continuations[0].DrainedTools = []DrainedTool{{
+					ItemID: "item_open", CallID: "call_open", Name: "shell", Arguments: "{}",
+				}}
+			},
+			want: "item occurrence time is required",
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -102,17 +118,17 @@ func validTreePending() Pending {
 		},
 		Interrupts: []transcript.Interrupt{
 			{
-				ItemID: "item_grandchild",
-				RunID:  "run_grandchild",
-				Kind:   execution.ApprovalInterrupt,
+				ItemID: "item_grandchild", ItemOccurredAt: createdAt,
+				RunID: "run_grandchild",
+				Kind:  execution.ApprovalInterrupt,
 				Approval: &transcript.Approval{
 					Tool: transcript.ToolInvocation{Name: "shell"},
 				},
 			},
 			{
-				ItemID: "item_b",
-				RunID:  "run_b",
-				Kind:   execution.ApprovalInterrupt,
+				ItemID: "item_b", ItemOccurredAt: createdAt,
+				RunID: "run_b",
+				Kind:  execution.ApprovalInterrupt,
 				Approval: &transcript.Approval{
 					Tool: transcript.ToolInvocation{Name: "write"},
 				},

@@ -720,10 +720,8 @@ func waitingCancellationPlan(
 		pending.Continuations[index].DrainedTools = append(
 			pending.Continuations[index].DrainedTools,
 			interrupts.DrainedTool{
-				ItemID:    target.SpawnedByItemID,
-				CallID:    callID,
-				Name:      "delegate_task",
-				Arguments: "{}",
+				ItemID: target.SpawnedByItemID, ItemOccurredAt: createdAt,
+				CallID: callID, Name: "delegate_task", Arguments: "{}",
 			},
 		)
 	}
@@ -751,7 +749,7 @@ func waitingCancellationPlan(
 		RunID:      target.ParentRunID,
 		Status:     transcript.ItemIncomplete,
 		Kind:       transcript.ToolCall,
-		CreatedAt:  createdAt,
+		OccurredAt: createdAt,
 		FinishedAt: createdAt,
 		Tool: &transcript.ToolInvocation{
 			Name:      "delegate_task",
@@ -768,11 +766,11 @@ func waitingCancellationPlan(
 			continue
 		}
 		item := transcript.Item{
-			ID:        interrupt.ItemID,
-			SessionID: pending.SessionID,
-			RunID:     interrupt.RunID,
-			Status:    transcript.ItemRunning,
-			CreatedAt: createdAt,
+			ID:         interrupt.ItemID,
+			SessionID:  pending.SessionID,
+			RunID:      interrupt.RunID,
+			Status:     transcript.ItemRunning,
+			OccurredAt: createdAt,
 		}
 		switch interrupt.Kind {
 		case execution.QuestionInterrupt:

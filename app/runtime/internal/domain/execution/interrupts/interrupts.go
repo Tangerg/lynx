@@ -86,9 +86,10 @@ type SuspensionAnswer struct {
 // The continuation re-binds the re-fired tool to this original item identity
 // instead of minting a duplicate.
 type DrainedTool struct {
-	ItemID string
-	CallID string
-	Name   string
+	ItemID         string
+	ItemOccurredAt time.Time
+	CallID         string
+	Name           string
 	// Arguments is the canonical JSON used for resume correlation.
 	Arguments string
 }
@@ -336,6 +337,9 @@ func (c Continuation) Validate() error {
 		if err := validateToolIdentity(tool.ItemID, tool.CallID, tool.Name, tool.Arguments); err != nil {
 			return fmt.Errorf("drained tool[%d]: %w", index, err)
 		}
+		if tool.ItemOccurredAt.IsZero() {
+			return fmt.Errorf("drained tool[%d]: item occurrence time is required", index)
+		}
 		if _, duplicate := openItems[tool.ItemID]; duplicate {
 			return fmt.Errorf("drained tool item %q is duplicated", tool.ItemID)
 		}
@@ -394,6 +398,9 @@ func validateToolIdentity(itemID, callID, name, arguments string) error {
 func validateInterrupt(interrupt transcript.Interrupt) error {
 	if err := validateRequiredIdentity("item id", interrupt.ItemID); err != nil {
 		return err
+	}
+	if interrupt.ItemOccurredAt.IsZero() {
+		return errors.New("item occurrence time is required")
 	}
 	if err := validateRequiredIdentity("run id", interrupt.RunID); err != nil {
 		return err

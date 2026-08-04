@@ -2597,7 +2597,6 @@
             "id",
             "runId",
             "status",
-            "createdAt",
             "startedAt"
           ],
           "optional": [
@@ -3287,7 +3286,6 @@
             "id",
             "runId",
             "status",
-            "createdAt",
             "startedAt"
           ],
           "optional": [
@@ -4031,11 +4029,11 @@
       "rules": [
         {
           "field": "version",
-          "constraint": "minimum(11)"
+          "constraint": "minimum(12)"
         },
         {
           "field": "version",
-          "constraint": "maximum(11)"
+          "constraint": "maximum(12)"
         }
       ]
     },

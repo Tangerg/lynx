@@ -55,7 +55,7 @@ func serverPending(
 	}
 	if len(open) == 0 {
 		open = []transcript.Interrupt{{
-			ItemID:   "interrupt_" + runID,
+			ItemID: "interrupt_" + runID, ItemOccurredAt: createdAt,
 			RunID:    runID,
 			Kind:     execution.QuestionInterrupt,
 			Question: &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Continue?"}}},
@@ -65,6 +65,9 @@ func serverPending(
 		for index := range open {
 			if open[index].RunID == "" {
 				open[index].RunID = runID
+			}
+			if open[index].ItemOccurredAt.IsZero() {
+				open[index].ItemOccurredAt = createdAt
 			}
 		}
 	}

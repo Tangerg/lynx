@@ -9,7 +9,7 @@ import (
 func presentItem(item transcript.Item) protocol.Item {
 	out := protocol.Item{
 		ID: item.ID, RunID: item.RunID, Status: presentItemStatus(item.Status),
-		CreatedAt: item.CreatedAt, Type: presentItemKind(item.Kind),
+		Type: presentItemKind(item.Kind),
 		Text: item.Text, Redacted: item.Redacted,
 		SafetyClass: presentSafetyClass(item.SafetyClass), Error: presentProblem(item.Error),
 		Summary: item.Summary, DroppedMessages: item.DroppedMessages,
@@ -29,9 +29,11 @@ func presentItem(item transcript.Item) protocol.Item {
 		out.Tool = &tool
 	}
 	if item.Kind == transcript.ToolCall {
-		out.StartedAt = item.CreatedAt
+		out.StartedAt = item.OccurredAt
 		out.FinishedAt = item.FinishedAt
 		out.DurationMs = presentToolDurationMs(item)
+	} else {
+		out.CreatedAt = item.OccurredAt
 	}
 	return out
 }
@@ -40,7 +42,7 @@ func presentToolDurationMs(item transcript.Item) *int64 {
 	if item.FinishedAt.IsZero() {
 		return nil
 	}
-	duration := item.FinishedAt.Sub(item.CreatedAt).Milliseconds()
+	duration := item.FinishedAt.Sub(item.OccurredAt).Milliseconds()
 	return &duration
 }
 

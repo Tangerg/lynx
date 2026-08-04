@@ -4,6 +4,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
@@ -11,11 +12,12 @@ import (
 
 func msgItem(sessionID, id string, kind transcript.ItemKind, text string) transcript.Item {
 	return transcript.Item{
-		SessionID: sessionID,
-		ID:        id,
-		RunID:     "run-1",
-		Kind:      kind,
-		Content:   []transcript.ContentBlock{{Kind: transcript.TextContent, Text: text}},
+		SessionID:  sessionID,
+		ID:         id,
+		RunID:      "run-1",
+		Kind:       kind,
+		OccurredAt: time.Unix(1, 0).UTC(),
+		Content:    []transcript.ContentBlock{{Kind: transcript.TextContent, Text: text}},
 	}
 }
 

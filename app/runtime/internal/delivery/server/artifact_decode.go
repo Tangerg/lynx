@@ -238,6 +238,9 @@ func portableUsageFromArtifact(artifact *protocol.ArtifactUsage) *transcript.Usa
 }
 
 func portableItemFromArtifact(sessionID, path string, artifact protocol.ArtifactItem) (transcript.Item, error) {
+	if err := artifact.ValidateWire(); err != nil {
+		return transcript.Item{}, invalidArtifact(path, "%v", err)
+	}
 	status, err := portableItemStatus(path+".status", artifact.Status)
 	if err != nil {
 		return transcript.Item{}, err
@@ -252,14 +255,12 @@ func portableItemFromArtifact(sessionID, path string, artifact protocol.Artifact
 	}
 	out := transcript.Item{
 		SessionID: sessionID, ID: artifact.ID, RunID: artifact.RunID, Status: status, Kind: kind,
-		CreatedAt: artifact.CreatedAt, Text: artifact.Text, Redacted: artifact.Redacted,
+		OccurredAt: artifact.CreatedAt, Text: artifact.Text, Redacted: artifact.Redacted,
 		Error:   problem,
 		Summary: artifact.Summary, DroppedMessages: artifact.DroppedMessages,
 	}
 	if kind == transcript.ToolCall {
-		if !artifact.StartedAt.Equal(artifact.CreatedAt) {
-			return transcript.Item{}, invalidArtifact(path+".startedAt", "must equal createdAt")
-		}
+		out.OccurredAt = artifact.StartedAt
 		if status != transcript.ItemRunning {
 			expectedDuration := artifact.FinishedAt.Sub(artifact.StartedAt).Milliseconds()
 			if artifact.DurationMs == nil || *artifact.DurationMs != expectedDuration {

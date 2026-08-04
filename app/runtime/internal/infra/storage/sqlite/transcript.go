@@ -29,6 +29,9 @@ func (s *TranscriptStore) AppendItem(ctx context.Context, item transcript.Item) 
 	if item.ID == "" {
 		return errors.New("sqlite: history item id is required")
 	}
+	if err := item.Validate(); err != nil {
+		return fmt.Errorf("sqlite: history item %q: %w", item.ID, err)
+	}
 	var offloadID offload.ID
 	if item.Tool != nil && item.Tool.Offload != nil {
 		if err := item.Tool.Offload.Validate(); err != nil {
@@ -53,15 +56,16 @@ func (s *TranscriptStore) AppendItem(ctx context.Context, item transcript.Item) 
 	return RunInTx(ctx, s.db, func(ctx context.Context) error {
 		q := conn(ctx, s.db)
 		res, err := q.ExecContext(ctx,
-			`INSERT INTO history_items(session_id, run_id, item_id, created_at, payload, offload_id)
+			`INSERT INTO history_items(session_id, run_id, item_id, occurred_at, payload, offload_id)
 			 VALUES (?, ?, ?, ?, ?, ?)
 			 ON CONFLICT(item_id) DO UPDATE SET
 			   payload = excluded.payload,
 			   offload_id = excluded.offload_id
 			 WHERE history_items.session_id = excluded.session_id
 			   AND history_items.run_id = excluded.run_id
+			   AND history_items.occurred_at = excluded.occurred_at
 			   AND (history_items.offload_id = '' OR history_items.offload_id = excluded.offload_id)`,
-			item.SessionID, item.RunID, item.ID, item.CreatedAt.UnixNano(), string(payload), offloadID,
+			item.SessionID, item.RunID, item.ID, item.OccurredAt.UnixNano(), string(payload), offloadID,
 		)
 		if err != nil {
 			if offloadID != "" {
@@ -81,7 +85,7 @@ func (s *TranscriptStore) AppendItem(ctx context.Context, item transcript.Item) 
 		if changed, err := res.RowsAffected(); err != nil {
 			return fmt.Errorf("sqlite: inspect history item write: %w", err)
 		} else if changed != 1 {
-			return fmt.Errorf("%w: item %q already belongs to another session, run, or offload identity", transcript.ErrIdentityConflict, item.ID)
+			return fmt.Errorf("%w: item %q already belongs to another session, run, occurrence, or offload identity", transcript.ErrIdentityConflict, item.ID)
 		}
 		if searchable {
 			return s.indexForSearch(ctx, item, searchText)
@@ -97,7 +101,7 @@ func (s *TranscriptStore) Item(ctx context.Context, itemID string) (transcript.I
 		return transcript.Item{}, false, errors.New("sqlite: history item id is required")
 	}
 	row := conn(ctx, s.db).QueryRowContext(ctx,
-		`SELECT session_id, run_id, item_id, created_at, payload, offload_id,
+		`SELECT session_id, run_id, item_id, occurred_at, payload, offload_id,
 		        (SELECT body FROM tool_result_blobs WHERE id = history_items.offload_id
 		          AND session_id = history_items.session_id AND item_id = history_items.item_id)
 		   FROM history_items
@@ -169,13 +173,13 @@ func scanTranscriptItem(row scanRow) (transcript.Item, error) {
 		payload      string
 		rawOffloadID string
 		offloaded    sql.NullString
-		createdAt    int64
+		occurredAt   int64
 	)
 	if err := row.Scan(
 		&sessionID,
 		&runID,
 		&itemID,
-		&createdAt,
+		&occurredAt,
 		&payload,
 		&rawOffloadID,
 		&offloaded,
@@ -189,7 +193,7 @@ func scanTranscriptItem(row scanRow) (transcript.Item, error) {
 	item.SessionID = sessionID
 	item.RunID = runID
 	item.ID = itemID
-	item.CreatedAt = time.Unix(0, createdAt).UTC()
+	item.OccurredAt = time.Unix(0, occurredAt).UTC()
 	if rawOffloadID == "" {
 		return item, nil
 	}
@@ -232,7 +236,7 @@ func (s *TranscriptStore) indexForSearch(ctx context.Context, item transcript.It
 	if _, err := q.ExecContext(ctx,
 		`INSERT INTO transcript_search(rowid, text, session_id, run_id, item_id, kind, created_at)
 		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
-		seq, text, item.SessionID, item.RunID, item.ID, int(item.Kind), item.CreatedAt.UnixNano(),
+		seq, text, item.SessionID, item.RunID, item.ID, int(item.Kind), item.OccurredAt.UnixNano(),
 	); err != nil {
 		return fmt.Errorf("sqlite: index history item for search: %w", err)
 	}
@@ -354,7 +358,7 @@ func (s *TranscriptStore) pageItems(ctx context.Context, scope, subject string, 
 	if limit < 0 {
 		return nil, errors.New("sqlite: history page limit must not be negative")
 	}
-	query := `SELECT h.seq, h.session_id, h.run_id, h.item_id, h.created_at, h.payload, h.offload_id, b.body
+	query := `SELECT h.seq, h.session_id, h.run_id, h.item_id, h.occurred_at, h.payload, h.offload_id, b.body
 		 FROM history_items AS h
 		 LEFT JOIN tool_result_blobs AS b
 		   ON b.id = h.offload_id AND b.session_id = h.session_id AND b.item_id = h.item_id
@@ -383,8 +387,8 @@ func (s *TranscriptStore) pageItems(ctx context.Context, scope, subject string, 
 	for rows.Next() {
 		var session, runID, itemID, payload, rawOffloadID string
 		var offloadedBody sql.NullString
-		var sequence, createdAt int64
-		if err := rows.Scan(&sequence, &session, &runID, &itemID, &createdAt, &payload, &rawOffloadID, &offloadedBody); err != nil {
+		var sequence, occurredAt int64
+		if err := rows.Scan(&sequence, &session, &runID, &itemID, &occurredAt, &payload, &rawOffloadID, &offloadedBody); err != nil {
 			return nil, fmt.Errorf("sqlite: scan history item: %w", err)
 		}
 		var item transcript.Item
@@ -394,7 +398,7 @@ func (s *TranscriptStore) pageItems(ctx context.Context, scope, subject string, 
 		item.SessionID = session
 		item.RunID = runID
 		item.ID = itemID
-		item.CreatedAt = time.Unix(0, createdAt).UTC()
+		item.OccurredAt = time.Unix(0, occurredAt).UTC()
 		if rawOffloadID != "" {
 			id, err := offload.ParseID(rawOffloadID)
 			if err != nil {

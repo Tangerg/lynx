@@ -163,11 +163,13 @@ const (
 //	toolCall                   → Tool, SafetyClass, Error
 //	compaction                 → Summary, DroppedMessages
 type Item struct {
-	ID        string     `json:"id"`
-	RunID     string     `json:"runId"`
-	Status    ItemStatus `json:"status"`
-	CreatedAt time.Time  `json:"createdAt"`
-	Type      ItemType   `json:"type"`
+	ID     string     `json:"id"`
+	RunID  string     `json:"runId"`
+	Status ItemStatus `json:"status"`
+	// CreatedAt belongs to non-ToolCall variants. A ToolCall starts at StartedAt;
+	// the union contract forbids carrying both names for the same instant.
+	CreatedAt time.Time `json:"createdAt,omitzero"`
+	Type      ItemType  `json:"type"`
 	// ToolCall execution timing. StartedAt is present from the first running
 	// frame; FinishedAt and DurationMs appear together on terminal frames.
 	StartedAt  time.Time `json:"startedAt,omitzero"`

@@ -55,7 +55,7 @@ func TestSessionExportImport_RoundTrip(t *testing.T) {
 	}
 	if err := rt.hist.AppendItem(ctx, transcript.Item{
 		SessionID: ses.ID, RunID: "run1", ID: "item2",
-		CreatedAt:  time.Unix(2, 0).UTC(),
+		OccurredAt: time.Unix(2, 0).UTC(),
 		FinishedAt: time.Unix(3, 0).UTC(),
 		Status:     transcript.ItemCompleted,
 		Kind:       transcript.ToolCall,
@@ -153,7 +153,7 @@ func TestSessionExportImportCarriesOffloadedToolResultsAcrossDatabases(t *testin
 	previewValue := tool.StringResult(preview)
 	item := transcript.Item{
 		SessionID: ses.ID, RunID: "run_offload", ID: "item_offload",
-		CreatedAt: time.Unix(2, 0).UTC(), FinishedAt: time.Unix(3, 0).UTC(),
+		OccurredAt: time.Unix(2, 0).UTC(), FinishedAt: time.Unix(3, 0).UTC(),
 		Status: transcript.ItemCompleted, Kind: transcript.ToolCall,
 		Tool: &transcript.ToolInvocation{Name: "vendor_tool", Result: &previewValue, Offload: ref},
 	}
@@ -368,7 +368,8 @@ func TestCancelParkedRunProducesPortableTerminalSnapshot(t *testing.T) {
 		SessionID: ses.ID, ID: "run_parked", State: execution.Interrupted,
 		ProtocolProfile: profile,
 		Interrupts: []transcript.Interrupt{{
-			ItemID: "item_question", RunID: "run_parked", Kind: execution.QuestionInterrupt,
+			ItemID: "item_question", ItemOccurredAt: parkedAt,
+			RunID: "run_parked", Kind: execution.QuestionInterrupt,
 			Question: &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Continue?"}}},
 		}},
 		CreatedAt: parkedAt, MessageMark: transcript.UnknownMessageMark,
@@ -378,7 +379,8 @@ func TestCancelParkedRunProducesPortableTerminalSnapshot(t *testing.T) {
 	if err := rt.hist.AppendItem(ctx, transcript.Item{
 		ID: "item_question", RunID: "run_parked", SessionID: ses.ID,
 		Kind: transcript.QuestionItem, Status: transcript.ItemRunning,
-		Question: &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Continue?"}}},
+		OccurredAt: parkedAt,
+		Question:   &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Continue?"}}},
 	}); err != nil {
 		t.Fatalf("open interrupt item: %v", err)
 	}

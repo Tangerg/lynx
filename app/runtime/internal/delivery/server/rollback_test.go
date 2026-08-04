@@ -66,7 +66,7 @@ func putRun(t *testing.T, rt *stubRuntime, sessionID, runID string, atUnix int64
 func putUserItem(t *testing.T, rt *stubRuntime, sessionID, runID, itemID, text string) {
 	t.Helper()
 	if err := rt.hist.AppendItem(t.Context(), transcript.Item{
-		SessionID: sessionID, RunID: runID, ID: itemID, CreatedAt: time.Unix(1, 0).UTC(),
+		SessionID: sessionID, RunID: runID, ID: itemID, OccurredAt: time.Unix(1, 0).UTC(),
 		Status: transcript.ItemCompleted, Kind: transcript.UserMessage,
 		Content: []transcript.ContentBlock{{Kind: transcript.TextContent, Text: text}},
 	}); err != nil {

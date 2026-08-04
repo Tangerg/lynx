@@ -268,12 +268,12 @@ func TestCommitWaitingSubtreeCancellationRollsBackEveryPreCommitFailure(t *testi
 					RunID:     fixture.rootRun.ID,
 					SessionID: fixture.rootRun.SessionID,
 					Items: []transcript.Item{{
-						ID:        "item_root_continuation",
-						SessionID: fixture.rootRun.SessionID,
-						RunID:     fixture.rootRun.ID,
-						Status:    transcript.ItemCompleted,
-						Kind:      transcript.UserMessage,
-						CreatedAt: fixture.rootRun.UpdatedAt,
+						ID:         "item_root_continuation",
+						SessionID:  fixture.rootRun.SessionID,
+						RunID:      fixture.rootRun.ID,
+						Status:     transcript.ItemCompleted,
+						Kind:       transcript.UserMessage,
+						OccurredAt: fixture.rootRun.UpdatedAt,
 						Content: []transcript.ContentBlock{{
 							Kind: transcript.TextContent,
 							Text: "continue",

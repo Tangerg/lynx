@@ -109,7 +109,7 @@ type openTool struct {
 	sourceCallID string
 	order        int
 	id           string
-	createdAt    time.Time
+	startedAt    time.Time
 	finishedAt   time.Time
 	name         string
 	arguments    tool.Arguments

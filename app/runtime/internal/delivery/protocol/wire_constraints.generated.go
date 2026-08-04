@@ -697,8 +697,8 @@ func (value Item) ValidateWire() error {
 		requiredWhen(wireFieldEquals(value, "type", "toolCall"), "id", value),
 		requiredWhen(wireFieldEquals(value, "type", "toolCall"), "runId", value),
 		requiredWhen(wireFieldEquals(value, "type", "toolCall"), "status", value),
-		requiredWhen(wireFieldEquals(value, "type", "toolCall"), "createdAt", value),
 		requiredWhen(wireFieldEquals(value, "type", "toolCall"), "startedAt", value),
+		forbiddenWhen(wireFieldEquals(value, "type", "toolCall"), "createdAt", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "toolCall"), "content", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "toolCall"), "text", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "toolCall"), "redacted", value),
@@ -1266,8 +1266,8 @@ func (value ArtifactItem) ValidateWire() error {
 		requiredWhen(wireFieldEquals(value, "type", "toolCall"), "id", value),
 		requiredWhen(wireFieldEquals(value, "type", "toolCall"), "runId", value),
 		requiredWhen(wireFieldEquals(value, "type", "toolCall"), "status", value),
-		requiredWhen(wireFieldEquals(value, "type", "toolCall"), "createdAt", value),
 		requiredWhen(wireFieldEquals(value, "type", "toolCall"), "startedAt", value),
+		forbiddenWhen(wireFieldEquals(value, "type", "toolCall"), "createdAt", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "toolCall"), "content", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "toolCall"), "text", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "toolCall"), "redacted", value),
@@ -1408,8 +1408,8 @@ func (value ArtifactRun) ValidateWire() error {
 
 func (value SessionArtifact) ValidateWire() error {
 	return collectWireViolations("SessionArtifact",
-		minimumNumber("version", value.Version, 11),
-		maximumNumber("version", value.Version, 11),
+		minimumNumber("version", value.Version, 12),
+		maximumNumber("version", value.Version, 12),
 	)
 }
 

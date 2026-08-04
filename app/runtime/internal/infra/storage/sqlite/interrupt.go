@@ -24,10 +24,11 @@ type InterruptStore struct {
 }
 
 type drainedToolRow struct {
-	ItemID    string `json:"itemId"`
-	CallID    string `json:"callId"`
-	Name      string `json:"name"`
-	Arguments string `json:"arguments"`
+	ItemID         string `json:"itemId"`
+	ItemOccurredAt int64  `json:"itemOccurredAt"`
+	CallID         string `json:"callId"`
+	Name           string `json:"name"`
+	Arguments      string `json:"arguments"`
 }
 
 type committedToolRow struct {
@@ -361,7 +362,10 @@ func decodeInterruptJSON(encoded string, target any) error {
 func drainedToolRows(tools []interrupts.DrainedTool) []drainedToolRow {
 	rows := make([]drainedToolRow, len(tools))
 	for index, tool := range tools {
-		rows[index] = drainedToolRow{ItemID: tool.ItemID, CallID: tool.CallID, Name: tool.Name, Arguments: tool.Arguments}
+		rows[index] = drainedToolRow{
+			ItemID: tool.ItemID, ItemOccurredAt: tool.ItemOccurredAt.UnixNano(),
+			CallID: tool.CallID, Name: tool.Name, Arguments: tool.Arguments,
+		}
 	}
 	return rows
 }
@@ -369,7 +373,10 @@ func drainedToolRows(tools []interrupts.DrainedTool) []drainedToolRow {
 func drainedToolsFromRows(rows []drainedToolRow) []interrupts.DrainedTool {
 	tools := make([]interrupts.DrainedTool, len(rows))
 	for index, row := range rows {
-		tools[index] = interrupts.DrainedTool{ItemID: row.ItemID, CallID: row.CallID, Name: row.Name, Arguments: row.Arguments}
+		tools[index] = interrupts.DrainedTool{
+			ItemID: row.ItemID, ItemOccurredAt: time.Unix(0, row.ItemOccurredAt).UTC(),
+			CallID: row.CallID, Name: row.Name, Arguments: row.Arguments,
+		}
 	}
 	return tools
 }

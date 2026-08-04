@@ -550,30 +550,33 @@ func TestReducerRejectsIncoherentTerminalProblems(t *testing.T) {
 
 func TestReducerResumeReusesInterruptedItems(t *testing.T) {
 	question := &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Continue?"}}}
+	approvalAt := time.Unix(1, 0).UTC()
+	questionAt := time.Unix(2, 0).UTC()
 	config := testReducerConfig()
 	config.Continuation = testTreeContinuation(interrupts.Pending{
 		RootRunID: "run_1", SessionID: "ses_1",
 		Interrupts: []transcript.Interrupt{
-			{ItemID: "item_approval", RunID: "run_1", Kind: execution.ApprovalInterrupt, Approval: &transcript.Approval{Tool: transcript.ToolInvocation{Name: "shell", Arguments: testToolArguments(t, map[string]any{"command": "go test", "description": "Run tests"})}}},
-			{ItemID: "item_question", RunID: "run_1", Kind: execution.QuestionInterrupt, Question: question},
+			{ItemID: "item_approval", ItemOccurredAt: approvalAt, RunID: "run_1", Kind: execution.ApprovalInterrupt, Approval: &transcript.Approval{Tool: transcript.ToolInvocation{Name: "shell", Arguments: testToolArguments(t, map[string]any{"command": "go test", "description": "Run tests"})}}},
+			{ItemID: "item_question", ItemOccurredAt: questionAt, RunID: "run_1", Kind: execution.QuestionInterrupt, Question: question},
 		},
 	})
 	reducer := newReducer(config)
 	opening := mustOpen(t, reducer)
 	completed, ok := opening[len(opening)-1].Event.(ItemCompleted)
-	if !ok || completed.Item.ID != "item_question" || completed.Item.Question != question {
+	if !ok || completed.Item.ID != "item_question" || completed.Item.Question != question ||
+		!completed.Item.OccurredAt.Equal(questionAt) {
 		t.Fatalf("resumed question completion = %#v", opening[len(opening)-1].Event)
 	}
 
 	started := mustReduce(t, reducer, ToolCallStart{CallID: "call_1", ToolName: "shell", Arguments: `{"command":"go test","description":"Run tests"}`})
-	var itemID string
+	var startedItem transcript.Item
 	for _, reduction := range started {
 		if event, ok := reduction.Event.(ItemStarted); ok {
-			itemID = event.Item.ID
+			startedItem = event.Item
 		}
 	}
-	if itemID != "item_approval" {
-		t.Fatalf("resumed tool item id = %q, want item_approval", itemID)
+	if startedItem.ID != "item_approval" || !startedItem.OccurredAt.Equal(approvalAt) {
+		t.Fatalf("resumed tool item = %+v, want original identity and occurrence", startedItem)
 	}
 	mustReduce(t, reducer, ToolCallEnd{CallID: "call_1", Result: testToolResult(t, "ok")})
 
@@ -702,13 +705,14 @@ func TestReducerRejectsInvalidToolLifecycle(t *testing.T) {
 }
 
 func TestReducerUsesCanonicalArgumentsForResumeIdentity(t *testing.T) {
+	itemOccurredAt := time.Unix(1, 0).UTC()
 	config := testReducerConfig()
 	config.Continuation = testTreeContinuation(interrupts.Pending{
 		RootRunID: "run_1", SessionID: "ses_1",
 		Continuations: []interrupts.Continuation{{
 			RunID: "run_1",
 			DrainedTools: []interrupts.DrainedTool{{
-				ItemID: "item_original", CallID: "old_call", Name: "lookup",
+				ItemID: "item_original", ItemOccurredAt: itemOccurredAt, CallID: "old_call", Name: "lookup",
 				Arguments: `{"b":2,"a":{"enabled":true}}`,
 			}},
 		}},
@@ -721,6 +725,11 @@ func TestReducerUsesCanonicalArgumentsForResumeIdentity(t *testing.T) {
 	if got := startedItemID(t, started); got != "item_original" {
 		t.Fatalf("resumed item id = %q, want canonical match item_original", got)
 	}
+	for _, reduction := range started {
+		if event, ok := reduction.Event.(ItemStarted); ok && !event.Item.OccurredAt.Equal(itemOccurredAt) {
+			t.Fatalf("resumed item occurrence = %s, want %s", event.Item.OccurredAt, itemOccurredAt)
+		}
+	}
 }
 
 func TestReducerRejectsMalformedDurableResumeArguments(t *testing.T) {
@@ -730,7 +739,7 @@ func TestReducerRejectsMalformedDurableResumeArguments(t *testing.T) {
 		Continuations: []interrupts.Continuation{{
 			RunID: "run_1",
 			DrainedTools: []interrupts.DrainedTool{{
-				ItemID: "item_broken", Name: "lookup", Arguments: "[]",
+				ItemID: "item_broken", ItemOccurredAt: time.Unix(1, 0).UTC(), Name: "lookup", Arguments: "[]",
 			}},
 		}},
 	})

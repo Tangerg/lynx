@@ -128,7 +128,7 @@ func TestCommitOpeningResumeCommitsWholeWriteSet(t *testing.T) {
 			RunID:     "run_1",
 			SessionID: "ses_1",
 			Items: []transcript.Item{{
-				SessionID: "ses_1", RunID: "run_1", ID: "item_resumed", CreatedAt: created,
+				SessionID: "ses_1", RunID: "run_1", ID: "item_resumed", OccurredAt: created,
 				Status: transcript.ItemCompleted, Kind: transcript.UserMessage,
 				Content: []transcript.ContentBlock{{Kind: transcript.TextContent, Text: "go on"}},
 			}},
@@ -295,9 +295,8 @@ func TestCommitOpeningResumesRunTreeAtomically(t *testing.T) {
 
 func treeQuestion(itemID, runID string) transcript.Interrupt {
 	return transcript.Interrupt{
-		ItemID: itemID,
-		RunID:  runID,
-		Kind:   execution.QuestionInterrupt,
+		ItemID: itemID, ItemOccurredAt: time.Unix(1, 0).UTC(),
+		RunID: runID, Kind: execution.QuestionInterrupt,
 		Question: &transcript.Question{
 			Fields: []transcript.QuestionField{{
 				Prompt: "Continue?", Kind: transcript.QuestionText,
@@ -516,7 +515,7 @@ func TestCommitTreeBarrierProducesDurableTriplet(t *testing.T) {
 			Items: []transcript.Item{{
 				SessionID: "ses_1", ID: "item_question", RunID: "run_1",
 				Status: transcript.ItemRunning, Kind: transcript.QuestionItem,
-				Question: question, CreatedAt: parkedAt,
+				Question: question, OccurredAt: parkedAt,
 			}},
 			Run: &transcript.Run{
 				SessionID: "ses_1", ID: "run_1", State: execution.Interrupted,
@@ -739,7 +738,7 @@ func TestCommitWaitingSubtreeCancellationCommitsCompleteWriteSet(t *testing.T) {
 
 func TestCommitWaitingSubtreeCancellationRollsBackCheckpointAndApplicationFacts(t *testing.T) {
 	fixture := newWaitingCancellationSQLiteFixture(t)
-	fixture.commit.ParentItem.Expected.CreatedAt = fixture.parentItem.CreatedAt.Add(time.Second)
+	fixture.commit.ParentItem.Expected.OccurredAt = fixture.parentItem.OccurredAt.Add(time.Second)
 
 	if _, err := fixture.effects.CommitWaitingSubtreeCancellation(
 		fixture.ctx,
@@ -854,7 +853,7 @@ func newWaitingCancellationSQLiteFixtureAt(
 		RunID:      childLineage.ParentRunID,
 		Status:     transcript.ItemIncomplete,
 		Kind:       transcript.ToolCall,
-		CreatedAt:  createdAt,
+		OccurredAt: createdAt,
 		FinishedAt: createdAt,
 		Tool:       &transcript.ToolInvocation{Name: "delegate_task", Arguments: tool.Arguments{}},
 	}
@@ -939,22 +938,22 @@ func newWaitingCancellationSQLiteFixtureAt(
 	rootRun.ProtocolProfile = profile
 	rootRun.UpdatedAt = finishedAt
 	grandchildQuestionItem := transcript.Item{
-		SessionID: rootRun.SessionID,
-		ID:        grandchildQuestion.ItemID,
-		RunID:     grandchildQuestion.RunID,
-		Status:    transcript.ItemRunning,
-		CreatedAt: createdAt,
-		Kind:      transcript.QuestionItem,
-		Question:  grandchildQuestion.Question,
+		SessionID:  rootRun.SessionID,
+		ID:         grandchildQuestion.ItemID,
+		RunID:      grandchildQuestion.RunID,
+		Status:     transcript.ItemRunning,
+		OccurredAt: createdAt,
+		Kind:       transcript.QuestionItem,
+		Question:   grandchildQuestion.Question,
 	}
 	childQuestionItem := transcript.Item{
-		SessionID: rootRun.SessionID,
-		ID:        childQuestion.ItemID,
-		RunID:     childQuestion.RunID,
-		Status:    transcript.ItemRunning,
-		CreatedAt: createdAt,
-		Kind:      transcript.QuestionItem,
-		Question:  childQuestion.Question,
+		SessionID:  rootRun.SessionID,
+		ID:         childQuestion.ItemID,
+		RunID:      childQuestion.RunID,
+		Status:     transcript.ItemRunning,
+		OccurredAt: createdAt,
+		Kind:       transcript.QuestionItem,
+		Question:   childQuestion.Question,
 	}
 	originalItems := []transcript.Item{
 		parentItem,
@@ -964,13 +963,13 @@ func newWaitingCancellationSQLiteFixtureAt(
 	if survivingBoundary {
 		siblingQuestion := siblingRun.Interrupts[0]
 		originalItems = append(originalItems, transcript.Item{
-			SessionID: rootRun.SessionID,
-			ID:        siblingQuestion.ItemID,
-			RunID:     siblingQuestion.RunID,
-			Status:    transcript.ItemRunning,
-			CreatedAt: createdAt,
-			Kind:      transcript.QuestionItem,
-			Question:  siblingQuestion.Question,
+			SessionID:  rootRun.SessionID,
+			ID:         siblingQuestion.ItemID,
+			RunID:      siblingQuestion.RunID,
+			Status:     transcript.ItemRunning,
+			OccurredAt: createdAt,
+			Kind:       transcript.QuestionItem,
+			Question:   siblingQuestion.Question,
 		})
 	}
 	for _, item := range originalItems[1:] {
@@ -1040,7 +1039,8 @@ func newWaitingCancellationSQLiteFixtureAt(
 		ProcessID:    "process_root",
 		RunCreatedAt: createdAt,
 		DrainedTools: []interrupts.DrainedTool{{
-			ItemID: parentItem.ID, CallID: "call_child", Name: "delegate_task", Arguments: "{}",
+			ItemID: parentItem.ID, ItemOccurredAt: parentItem.OccurredAt,
+			CallID: "call_child", Name: "delegate_task", Arguments: "{}",
 		}},
 	})
 	pending := interrupts.Pending{
@@ -1319,7 +1319,7 @@ func TestCommitOpeningRefusesASecondOpenRun(t *testing.T) {
 			RunID:     "run_2",
 			SessionID: "ses_1",
 			Items: []transcript.Item{{
-				SessionID: "ses_1", RunID: "run_2", ID: "item_second", CreatedAt: created,
+				SessionID: "ses_1", RunID: "run_2", ID: "item_second", OccurredAt: created,
 				Status: transcript.ItemCompleted, Kind: transcript.UserMessage,
 				Content: []transcript.ContentBlock{{Kind: transcript.TextContent, Text: "me too"}},
 			}},

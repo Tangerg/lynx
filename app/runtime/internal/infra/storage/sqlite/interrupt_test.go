@@ -38,7 +38,7 @@ func TestInterruptStore_OpenGetListDelete(t *testing.T) {
 			InterruptKinds: []execution.InterruptKind{execution.QuestionInterrupt},
 		},
 		Interrupts: []transcript.Interrupt{{
-			ItemID: "item_question", RunID: "run_1", Kind: execution.QuestionInterrupt,
+			ItemID: "item_question", ItemOccurredAt: time.Unix(2, 0).UTC(), RunID: "run_1", Kind: execution.QuestionInterrupt,
 			Question: &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Choose"}}},
 		}},
 		Suspensions: []interrupts.SuspensionBinding{{
@@ -67,7 +67,9 @@ func TestInterruptStore_OpenGetListDelete(t *testing.T) {
 	if err != nil || !ok {
 		t.Fatalf("Get: ok=%v err=%v", ok, err)
 	}
-	if got.SessionID != "ses_a" || got.GoalLeaseID != p.GoalLeaseID || len(got.Interrupts) != 1 || got.Interrupts[0].ItemID != "item_question" || !got.CreatedAt.Equal(time.Unix(5, 0).UTC()) {
+	if got.SessionID != "ses_a" || got.GoalLeaseID != p.GoalLeaseID || len(got.Interrupts) != 1 ||
+		got.Interrupts[0].ItemID != "item_question" || !got.Interrupts[0].ItemOccurredAt.Equal(time.Unix(2, 0).UTC()) ||
+		!got.CreatedAt.Equal(time.Unix(5, 0).UTC()) {
 		t.Fatalf("Get returned %+v", got)
 	}
 	// Per-run model selection round-trips (T1.4 — cross-restart rehydrate rebuilds
@@ -120,7 +122,7 @@ func TestInterruptStore_ConsumeIsAtomic(t *testing.T) {
 			InterruptKinds: []execution.InterruptKind{execution.ApprovalInterrupt},
 		},
 		Interrupts: []transcript.Interrupt{{
-			ItemID: "item_approval", RunID: "run_1", Kind: execution.ApprovalInterrupt,
+			ItemID: "item_approval", ItemOccurredAt: time.Unix(2, 0).UTC(), RunID: "run_1", Kind: execution.ApprovalInterrupt,
 			Approval: &transcript.Approval{Risk: tool.RiskHigh},
 		}},
 		Suspensions: []interrupts.SuspensionBinding{{
@@ -162,7 +164,7 @@ func TestInterruptStoreRejectsForeignSessionMutation(t *testing.T) {
 			InterruptKinds: []execution.InterruptKind{execution.QuestionInterrupt},
 		},
 		Interrupts: []transcript.Interrupt{{
-			ItemID: "item_question", RunID: "run_1", Kind: execution.QuestionInterrupt,
+			ItemID: "item_question", ItemOccurredAt: time.Unix(2, 0).UTC(), RunID: "run_1", Kind: execution.QuestionInterrupt,
 			Question: &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Continue?"}}},
 		}},
 		Suspensions: []interrupts.SuspensionBinding{{
@@ -203,7 +205,7 @@ func TestInterruptStoreRoundTripsAppLineageWithoutExecutorTopology(t *testing.T)
 			ChildRuns: true, InterruptKinds: []execution.InterruptKind{execution.QuestionInterrupt},
 		},
 		Interrupts: []transcript.Interrupt{{
-			ItemID: "item_child", RunID: "run_child", Kind: execution.QuestionInterrupt,
+			ItemID: "item_child", ItemOccurredAt: time.Unix(2, 0).UTC(), RunID: "run_child", Kind: execution.QuestionInterrupt,
 			Question: &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Continue?"}}},
 		}},
 		Suspensions: []interrupts.SuspensionBinding{{
@@ -217,6 +219,10 @@ func TestInterruptStoreRoundTripsAppLineageWithoutExecutorTopology(t *testing.T)
 				ProcessID:    "process_child",
 				Lineage:      lineage,
 				RunCreatedAt: createdAt,
+				DrainedTools: []interrupts.DrainedTool{{
+					ItemID: "item_open", ItemOccurredAt: createdAt.Add(time.Second),
+					CallID: "call_open", Name: "shell", Arguments: "{}",
+				}},
 			},
 			{
 				RunID:        "run_root",
@@ -242,7 +248,8 @@ func TestInterruptStoreRoundTripsAppLineageWithoutExecutorTopology(t *testing.T)
 		t.Fatalf("Get: found=%v err=%v", found, err)
 	}
 	child := got.Continuations[0]
-	if child.Lineage != lineage || child.ProcessID != "process_child" {
+	if child.Lineage != lineage || child.ProcessID != "process_child" || len(child.DrainedTools) != 1 ||
+		!child.DrainedTools[0].ItemOccurredAt.Equal(createdAt.Add(time.Second)) {
 		t.Fatalf("child continuation = %+v, want lineage %+v", child, lineage)
 	}
 	root, found := got.RootContinuation()
@@ -268,7 +275,7 @@ func TestInterruptStoreRejectsUnknownExecutorTopologyFields(t *testing.T) {
 			InterruptKinds: []execution.InterruptKind{execution.QuestionInterrupt},
 		},
 		Interrupts: []transcript.Interrupt{{
-			ItemID: "item_question", RunID: "run_root", Kind: execution.QuestionInterrupt,
+			ItemID: "item_question", ItemOccurredAt: time.Unix(2, 0).UTC(), RunID: "run_root", Kind: execution.QuestionInterrupt,
 			Question: &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Continue?"}}},
 		}},
 		Suspensions: []interrupts.SuspensionBinding{{
@@ -322,7 +329,7 @@ func TestInterruptStoreExecutorRootHasOnePendingOwner(t *testing.T) {
 				InterruptKinds: []execution.InterruptKind{execution.QuestionInterrupt},
 			},
 			Interrupts: []transcript.Interrupt{{
-				ItemID: "item_" + runID, RunID: runID,
+				ItemID: "item_" + runID, ItemOccurredAt: time.Unix(2, 0).UTC(), RunID: runID,
 				Kind: execution.QuestionInterrupt, Question: &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "continue?"}}},
 			}},
 			Suspensions: []interrupts.SuspensionBinding{{

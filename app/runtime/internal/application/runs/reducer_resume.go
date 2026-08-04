@@ -5,6 +5,7 @@ import (
 	"maps"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
@@ -13,9 +14,9 @@ import (
 )
 
 type resumeBinding struct {
-	callItems map[string]string
-	toolItems map[string]string
-	byName    map[string]string
+	callItems map[string]resumableItem
+	toolItems map[string]resumableItem
+	byName    map[string]resumableItem
 	questions []resumedQuestion
 	drained   []interrupts.DrainedTool
 	committed map[string]interrupts.CommittedTool
@@ -24,23 +25,30 @@ type resumeBinding struct {
 }
 
 type resumedQuestion struct {
-	itemID   string
-	question *transcript.Question
+	itemID     string
+	occurredAt time.Time
+	question   *transcript.Question
+}
+
+type resumableItem struct {
+	id         string
+	occurredAt time.Time
 }
 
 func resumeBindingFrom(continuation treeContinuation, runID string) *resumeBinding {
-	calls := map[string]string{}
-	items := map[string]string{}
-	byName := map[string]string{}
-	addItem := func(callID, name, arguments, itemID string) {
+	calls := map[string]resumableItem{}
+	items := map[string]resumableItem{}
+	byName := map[string]resumableItem{}
+	addItem := func(callID, name, arguments, itemID string, occurredAt time.Time) {
+		identity := resumableItem{id: itemID, occurredAt: occurredAt}
 		if callID != "" {
-			calls[callID] = itemID
+			calls[callID] = identity
 		}
-		items[resumeKey(name, arguments)] = itemID
+		items[resumeKey(name, arguments)] = identity
 		if _, duplicate := byName[name]; duplicate {
-			byName[name] = ""
+			byName[name] = resumableItem{}
 		} else {
-			byName[name] = itemID
+			byName[name] = identity
 		}
 	}
 
@@ -52,10 +60,12 @@ func resumeBindingFrom(continuation treeContinuation, runID string) *resumeBindi
 		switch in.Kind {
 		case execution.ApprovalInterrupt:
 			if in.Approval != nil && in.Approval.Tool.Name != "" {
-				addItem("", in.Approval.Tool.Name, argumentIdentity(in.Approval.Tool.Arguments), in.ItemID)
+				addItem("", in.Approval.Tool.Name, argumentIdentity(in.Approval.Tool.Arguments), in.ItemID, in.ItemOccurredAt)
 			}
 		case execution.QuestionInterrupt:
-			questions = append(questions, resumedQuestion{itemID: in.ItemID, question: in.Question})
+			questions = append(questions, resumedQuestion{
+				itemID: in.ItemID, occurredAt: in.ItemOccurredAt, question: in.Question,
+			})
 		}
 	}
 	var drained []interrupts.DrainedTool
@@ -68,7 +78,7 @@ func resumeBindingFrom(continuation treeContinuation, runID string) *resumeBindi
 				if err != nil {
 					return &resumeBinding{err: fmt.Errorf("resume drained tool %q arguments: %w", tool.Name, err)}
 				}
-				addItem(tool.CallID, tool.Name, argumentIdentity(arguments), tool.ItemID)
+				addItem(tool.CallID, tool.Name, argumentIdentity(arguments), tool.ItemID, tool.ItemOccurredAt)
 			}
 		}
 		for _, tool := range member.CommittedTools {
@@ -93,23 +103,23 @@ func resumeKey(toolName, arguments string) string { return toolName + "\x00" + a
 
 func argumentIdentity(arguments tool.Arguments) string { return arguments.Canonical() }
 
-func (r *reducer) reuseOrNextItemID(callID, toolName string, arguments tool.Arguments) string {
+func (r *reducer) reuseOrCreateToolItem(callID, toolName string, arguments tool.Arguments) resumableItem {
 	if r.resume != nil {
-		if id, ok := r.resume.callItems[callID]; callID != "" && ok {
-			r.resume.consumeToolItem(id)
-			return id
+		if item, ok := r.resume.callItems[callID]; callID != "" && ok {
+			r.resume.consumeToolItem(item.id)
+			return item
 		}
 		key := resumeKey(toolName, argumentIdentity(arguments))
-		if id, ok := r.resume.toolItems[key]; ok {
-			r.resume.consumeToolItem(id)
-			return id
+		if item, ok := r.resume.toolItems[key]; ok {
+			r.resume.consumeToolItem(item.id)
+			return item
 		}
-		if id, ok := r.resume.byName[toolName]; ok && id != "" {
-			r.resume.consumeToolItem(id)
-			return id
+		if item, ok := r.resume.byName[toolName]; ok && item.id != "" {
+			r.resume.consumeToolItem(item.id)
+			return item
 		}
 	}
-	return r.nextItemID()
+	return resumableItem{id: r.nextItemID(), occurredAt: r.now()}
 }
 
 func (b *resumeBinding) consumeToolItem(id string) {
@@ -117,9 +127,9 @@ func (b *resumeBinding) consumeToolItem(id string) {
 		return
 	}
 	b.consumed[id] = struct{}{}
-	maps.DeleteFunc(b.callItems, func(_ string, candidate string) bool { return candidate == id })
-	maps.DeleteFunc(b.toolItems, func(_ string, candidate string) bool { return candidate == id })
-	maps.DeleteFunc(b.byName, func(_ string, candidate string) bool { return candidate == id })
+	maps.DeleteFunc(b.callItems, func(_ string, candidate resumableItem) bool { return candidate.id == id })
+	maps.DeleteFunc(b.toolItems, func(_ string, candidate resumableItem) bool { return candidate.id == id })
+	maps.DeleteFunc(b.byName, func(_ string, candidate resumableItem) bool { return candidate.id == id })
 }
 
 func (b *resumeBinding) remainingDrainedTools() []interrupts.DrainedTool {
@@ -211,7 +221,7 @@ func (r *reducer) resumeQuestionCompletions() []RunEvent {
 	for _, question := range r.resume.questions {
 		out = append(out, ItemCompleted{Item: transcript.Item{
 			ID: question.itemID, RunID: r.cfg.RunID, Status: transcript.ItemCompleted,
-			Kind: transcript.QuestionItem, CreatedAt: r.now(), Question: question.question,
+			Kind: transcript.QuestionItem, OccurredAt: question.occurredAt, Question: question.question,
 		}})
 	}
 	r.resume.questions = nil

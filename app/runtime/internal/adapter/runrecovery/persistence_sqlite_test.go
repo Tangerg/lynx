@@ -61,7 +61,7 @@ func TestRecoveryRepairsWholeDurableLifecycle(t *testing.T) {
 	}
 	item := transcript.Item{
 		ID: "item_running", SessionID: "session", RunID: "run_lost",
-		Kind: transcript.QuestionItem, Status: transcript.ItemRunning, CreatedAt: createdAt,
+		Kind: transcript.QuestionItem, Status: transcript.ItemRunning, OccurredAt: createdAt,
 		Question: &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Continue?"}}},
 	}
 	if err := transcriptStore.AppendItem(ctx, item); err != nil {

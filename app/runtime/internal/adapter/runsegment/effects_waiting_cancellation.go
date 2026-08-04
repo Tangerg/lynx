@@ -661,6 +661,9 @@ func normalizePendingSnapshot(pending interrupts.Pending) interrupts.Pending {
 		)
 	}
 	for index := range pending.Interrupts {
+		pending.Interrupts[index].ItemOccurredAt = timeFromUnixNano(
+			pending.Interrupts[index].ItemOccurredAt,
+		)
 		source := pending.Interrupts[index].Question
 		if source == nil {
 			continue
@@ -693,6 +696,11 @@ func normalizeContinuationSnapshot(
 	continuation interrupts.Continuation,
 ) interrupts.Continuation {
 	continuation.RunCreatedAt = timeFromUnixNano(continuation.RunCreatedAt)
+	for index := range continuation.DrainedTools {
+		continuation.DrainedTools[index].ItemOccurredAt = timeFromUnixNano(
+			continuation.DrainedTools[index].ItemOccurredAt,
+		)
+	}
 	if len(continuation.DrainedTools) == 0 {
 		continuation.DrainedTools = nil
 	}
@@ -732,7 +740,7 @@ func sameInterruptSnapshot(left, right transcript.Interrupt) bool {
 }
 
 func normalizeItemSnapshot(item transcript.Item) transcript.Item {
-	item.CreatedAt = timeFromUnixNano(item.CreatedAt)
+	item.OccurredAt = timeFromUnixNano(item.OccurredAt)
 	if len(item.Content) == 0 {
 		item.Content = nil
 	}

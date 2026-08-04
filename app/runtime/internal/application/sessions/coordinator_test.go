@@ -107,7 +107,8 @@ func TestApplyRunCancelProjectsTerminalTranscript(t *testing.T) {
 					InterruptKinds: []execution.InterruptKind{execution.QuestionInterrupt},
 				},
 				Interrupts: []transcript.Interrupt{{
-					ItemID: "item_1", RunID: "run_1", Kind: execution.QuestionInterrupt, Question: question,
+					ItemID: "item_1", ItemOccurredAt: createdAt,
+					RunID: "run_1", Kind: execution.QuestionInterrupt, Question: question,
 				}},
 				Suspensions: []interrupts.SuspensionBinding{{
 					InterruptItemID: "item_1", ProcessID: "proc_1", SuspensionID: "suspension_1",
@@ -125,12 +126,12 @@ func TestApplyRunCancelProjectsTerminalTranscript(t *testing.T) {
 				ProtocolProfile: execution.RunProtocolProfile{
 					InterruptKinds: []execution.InterruptKind{execution.QuestionInterrupt},
 				},
-				Interrupts: []transcript.Interrupt{{ItemID: "item_1", Kind: execution.QuestionInterrupt}},
+				Interrupts: []transcript.Interrupt{{ItemID: "item_1", ItemOccurredAt: createdAt, Kind: execution.QuestionInterrupt}},
 				CreatedAt:  createdAt, MessageMark: -1,
 			}},
 			Items: []transcript.Item{{
 				ID: "item_1", RunID: "run_1", SessionID: "ses_1",
-				Kind: transcript.QuestionItem, Status: transcript.ItemRunning, CreatedAt: createdAt,
+				Kind: transcript.QuestionItem, Status: transcript.ItemRunning, OccurredAt: createdAt,
 				Question: question,
 			}},
 		},
@@ -179,7 +180,8 @@ func TestApplyRunLostProjectsTerminalTranscript(t *testing.T) {
 					InterruptKinds: []execution.InterruptKind{execution.ApprovalInterrupt},
 				},
 				Interrupts: []transcript.Interrupt{{
-					ItemID: "item_1", RunID: "run_1", Kind: execution.ApprovalInterrupt, Approval: approval,
+					ItemID: "item_1", ItemOccurredAt: createdAt,
+					RunID: "run_1", Kind: execution.ApprovalInterrupt, Approval: approval,
 				}},
 				Suspensions: []interrupts.SuspensionBinding{{
 					InterruptItemID: "item_1", ProcessID: "proc_1", SuspensionID: "suspension_1",
@@ -204,12 +206,12 @@ func TestApplyRunLostProjectsTerminalTranscript(t *testing.T) {
 				Metrics: transcript.RunMetrics{Steps: 4, Usage: &transcript.Usage{
 					ModelUsage: transcript.ModelUsage{CostUSD: &costUSD},
 				}},
-				Interrupts: []transcript.Interrupt{{ItemID: "item_1", Kind: execution.ApprovalInterrupt}},
+				Interrupts: []transcript.Interrupt{{ItemID: "item_1", ItemOccurredAt: createdAt, Kind: execution.ApprovalInterrupt}},
 				CreatedAt:  createdAt, MessageMark: -1,
 			}},
 			Items: []transcript.Item{{
 				ID: "item_1", RunID: "run_1", SessionID: "ses_1",
-				Kind: transcript.ToolCall, Status: transcript.ItemRunning, CreatedAt: createdAt,
+				Kind: transcript.ToolCall, Status: transcript.ItemRunning, OccurredAt: createdAt,
 				Tool: &transcript.ToolInvocation{Name: "shell"},
 			}},
 		},
@@ -265,7 +267,8 @@ func TestApplyRunLostTerminalizesWholeParkedTreeInPostorder(t *testing.T) {
 			ChildRuns: true, InterruptKinds: []execution.InterruptKind{execution.QuestionInterrupt},
 		},
 		Interrupts: []transcript.Interrupt{{
-			ItemID: "item_question", RunID: "run_child", Kind: execution.QuestionInterrupt, Question: question,
+			ItemID: "item_question", ItemOccurredAt: createdAt,
+			RunID: "run_child", Kind: execution.QuestionInterrupt, Question: question,
 		}},
 		Suspensions: []interrupts.SuspensionBinding{{
 			InterruptItemID: "item_question", ProcessID: "proc_child", SuspensionID: "suspension_child",
@@ -301,7 +304,7 @@ func TestApplyRunLostTerminalizesWholeParkedTreeInPostorder(t *testing.T) {
 			Items: []transcript.Item{{
 				ID: "item_question", SessionID: "ses_1", RunID: "run_child",
 				Kind: transcript.QuestionItem, Status: transcript.ItemRunning,
-				Question: question, CreatedAt: createdAt,
+				Question: question, OccurredAt: createdAt,
 			}},
 		},
 		terminal: &applied,
@@ -349,7 +352,7 @@ func TestApplyRunLostRejectsContinuationFactDriftBeforeTerminalCommit(t *testing
 	createdAt := time.Date(2026, 7, 18, 2, 0, 0, 0, time.UTC)
 	question := &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Continue?"}}}
 	interrupt := transcript.Interrupt{
-		ItemID: "item_question", RunID: "run_root",
+		ItemID: "item_question", ItemOccurredAt: createdAt, RunID: "run_root",
 		Kind: execution.QuestionInterrupt, Question: question,
 	}
 	profile := execution.RunProtocolProfile{
@@ -382,7 +385,7 @@ func TestApplyRunLostRejectsContinuationFactDriftBeforeTerminalCommit(t *testing
 			Items: []transcript.Item{{
 				ID: interrupt.ItemID, SessionID: "ses_1", RunID: "run_root",
 				Kind: transcript.QuestionItem, Status: transcript.ItemRunning,
-				Question: question, CreatedAt: createdAt,
+				Question: question, OccurredAt: createdAt,
 			}},
 		},
 		terminal: &applied,

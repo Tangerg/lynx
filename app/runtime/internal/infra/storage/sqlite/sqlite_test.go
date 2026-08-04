@@ -311,9 +311,9 @@ func TestTranscriptStore_RoundTrip(t *testing.T) {
 	now := time.Now().UTC()
 
 	for _, it := range []transcript.Item{
-		{SessionID: "ses_a", RunID: "run_1", ID: "i1", CreatedAt: now, Status: transcript.ItemCompleted, Kind: transcript.UserMessage, Content: []transcript.ContentBlock{{Kind: transcript.TextContent, Text: "one"}}},
-		{SessionID: "ses_a", RunID: "run_1", ID: "i2", CreatedAt: now, Status: transcript.ItemCompleted, Kind: transcript.AgentMessage, Content: []transcript.ContentBlock{{Kind: transcript.TextContent, Text: "two"}}},
-		{SessionID: "ses_b", RunID: "run_9", ID: "i9", CreatedAt: now, Status: transcript.ItemCompleted, Kind: transcript.Reasoning, Text: "other"},
+		{SessionID: "ses_a", RunID: "run_1", ID: "i1", OccurredAt: now, Status: transcript.ItemCompleted, Kind: transcript.UserMessage, Content: []transcript.ContentBlock{{Kind: transcript.TextContent, Text: "one"}}},
+		{SessionID: "ses_a", RunID: "run_1", ID: "i2", OccurredAt: now, Status: transcript.ItemCompleted, Kind: transcript.AgentMessage, Content: []transcript.ContentBlock{{Kind: transcript.TextContent, Text: "two"}}},
+		{SessionID: "ses_b", RunID: "run_9", ID: "i9", OccurredAt: now, Status: transcript.ItemCompleted, Kind: transcript.Reasoning, Text: "other"},
 	} {
 		err = store.AppendItem(ctx, it)
 		if err != nil {
@@ -345,7 +345,7 @@ func TestTranscriptStoreRejectsIdentityReparenting(t *testing.T) {
 		t.Fatalf("seed run: %v", err)
 	}
 	if err := store.AppendItem(ctx, transcript.Item{
-		SessionID: "ses_a", RunID: "run_shared", ID: "item_shared", CreatedAt: now,
+		SessionID: "ses_a", RunID: "run_shared", ID: "item_shared", OccurredAt: now,
 	}); err != nil {
 		t.Fatalf("seed item: %v", err)
 	}
@@ -356,9 +356,14 @@ func TestTranscriptStoreRejectsIdentityReparenting(t *testing.T) {
 		t.Fatalf("re-parent run error = %v, want ErrIdentityConflict", err)
 	}
 	if err := store.AppendItem(ctx, transcript.Item{
-		SessionID: "ses_b", RunID: "run_other", ID: "item_shared", CreatedAt: now,
+		SessionID: "ses_b", RunID: "run_other", ID: "item_shared", OccurredAt: now,
 	}); !errors.Is(err, transcript.ErrIdentityConflict) {
 		t.Fatalf("re-parent item error = %v, want ErrIdentityConflict", err)
+	}
+	if err := store.AppendItem(ctx, transcript.Item{
+		SessionID: "ses_a", RunID: "run_shared", ID: "item_shared", OccurredAt: now.Add(time.Second),
+	}); !errors.Is(err, transcript.ErrIdentityConflict) {
+		t.Fatalf("move item occurrence error = %v, want ErrIdentityConflict", err)
 	}
 
 	itemsA, err := store.List(ctx, "ses_a")
@@ -398,7 +403,7 @@ func TestTranscriptStoreReplaceItemUsesExactOptimisticSnapshot(t *testing.T) {
 		SessionID:  "ses_a",
 		RunID:      "run_1",
 		ID:         "item_child",
-		CreatedAt:  now,
+		OccurredAt: now,
 		FinishedAt: now,
 		Status:     transcript.ItemIncomplete,
 		Kind:       transcript.ToolCall,
@@ -452,7 +457,7 @@ func TestTranscriptStoreKeepsOffloadRelationshipsImmutableAndOneToOne(t *testing
 	now := time.Now().UTC()
 	preview := tool.StringResult("preview")
 	original := transcript.Item{
-		SessionID: "ses_a", RunID: "run_1", ID: "item_1", CreatedAt: now,
+		SessionID: "ses_a", RunID: "run_1", ID: "item_1", OccurredAt: now,
 		Kind: transcript.ToolCall,
 		Tool: &transcript.ToolInvocation{
 			Name: "shell", Result: &preview, Offload: &resultoffload.Ref{ID: "BLOB234"},
