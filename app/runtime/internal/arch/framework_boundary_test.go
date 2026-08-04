@@ -368,6 +368,35 @@ func TestAgentexecDoesNotOwnConcreteToolContracts(t *testing.T) {
 	}
 }
 
+// TestSegmentPumpKeepsOneGoroutineOwner prevents event routing, reducers, and
+// terminal synthesis from being fanned out after they were consolidated under
+// one concrete state owner. Parallelism belongs upstream in executor processes;
+// Run projection order remains serial here.
+func TestSegmentPumpKeepsOneGoroutineOwner(t *testing.T) {
+	path := filepath.Join(moduleRoot(t), "internal", "application", "runs", "pump.go")
+	file, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
+	if err != nil {
+		t.Fatalf("parse Run pump: %v", err)
+	}
+	found := false
+	for _, declaration := range file.Decls {
+		function, ok := declaration.(*ast.FuncDecl)
+		if !ok || function.Body == nil || receiverName(function.Recv) != "segmentPump" {
+			continue
+		}
+		found = true
+		ast.Inspect(function.Body, func(node ast.Node) bool {
+			if _, startsWorker := node.(*ast.GoStmt); startsWorker {
+				t.Errorf("segmentPump.%s starts a second goroutine", function.Name.Name)
+			}
+			return true
+		})
+	}
+	if !found {
+		t.Fatal("Run pump no longer has a concrete segmentPump state owner")
+	}
+}
+
 // TestInnerRingCommentsDoNotNameOuterArchitecture prevents documentation from
 // rebuilding a reverse dependency in the reader's mental model after imports
 // have been cleaned up. Comments describe owned semantics and inward ports,

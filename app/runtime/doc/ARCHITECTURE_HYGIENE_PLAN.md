@@ -911,6 +911,7 @@ Acceptance:
 | 37. Remaining semantic boundary closure | Completed | 2026-08-04 | 2026-08-04 | `bootstrap.Stack` exposes the idempotency consumer port, inner queries use lookup/value semantics, inner-ring comments are layer-neutral, and focused architecture guards plus workspace/standalone/race/static verification passed. |
 | 38. Run write-set ownership closure | Completed | 2026-08-04 | 2026-08-04 | Opening, tree-barrier, and waiting-subtree invariants are application-owned; runsegment retains only store availability, optimistic snapshot claiming, transaction I/O, and compensation. Full build/vet/test, focused race tests, static analysis, lint, dead-code analysis, formatting, and architecture checks passed. |
 | 39. Concrete tool contract ownership | Completed | 2026-08-04 | 2026-08-04 | Delegation schema/description, Goal outcome prompt, special policy, and Plan outcome projection moved to toolset; agentexec contains no built-in tool identities and consumes one neutral semantics port. Full build/vet/test, focused race tests, static analysis, lint, dead-code analysis, and architecture checks passed. |
+| 40. Run pump responsibility closure | Completed | 2026-08-04 | 2026-08-04 | The monolithic pump became one concrete single-goroutine state owner with focused event, synthesis, teardown, and boundary methods; batch publication moved to its own cohesive file. Full build/vet/test, focused race tests, static analysis, lint, dead-code analysis, and architecture checks passed. |
 
 Allowed status values: `Pending`, `In progress`, `Completed`, `Blocked`, `Revised`.
 
@@ -952,6 +953,22 @@ Allowed status values: `Pending`, `In progress`, `Completed`, `Blocked`, `Revise
 - Added an architecture fitness check that rejects built-in Goal, Plan, and
   delegation names anywhere in production `agentexec`. `go build ./...`,
   `go vet ./...`, `go test ./...`, focused `-race` tests, `staticcheck`,
+  `golangci-lint`, and `deadcode -test` passed.
+
+### 2026-08-04 — Batch 40 completed
+
+- Replaced the 293-line `Coordinator.pump` body with a concrete `segmentPump`
+  state owner. The loop now delegates child admission, tree interruption,
+  ordinary engine events, terminal synthesis, executor teardown, and
+  run-boundary maintenance to focused methods without adding an interface,
+  lock, worker, or callback graph.
+- Moved reduction publication and tree-barrier transaction assembly to
+  `publication.go`. This separates event-loop lifecycle from commit-before-
+  publish mechanics while retaining the same application package and direct
+  concrete collaboration.
+- Added a fitness test that rejects any goroutine launched by `segmentPump`
+  methods, preserving serialized ownership of routes and reducers. `go build
+  ./...`, `go vet ./...`, `go test ./...`, focused `-race`, `staticcheck`,
   `golangci-lint`, and `deadcode -test` passed.
 
 ### 2026-08-04 — Batch 37 completed
