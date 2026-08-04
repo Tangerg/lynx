@@ -34,6 +34,7 @@ type Engine struct {
 	memorySearch   MemorySearcher
 	plan           PlanReader
 	workdir        string
+	userHome       string
 	pricing        accounting.Pricing
 
 	toolResultStore     toolResultOffloader
@@ -117,6 +118,7 @@ func New(ctx context.Context, config Config) (*Engine, error) {
 		chatMiddleware:         chatMiddleware,
 		plan:                   config.Plan,
 		workdir:                config.Workdir,
+		userHome:               config.UserHome,
 		pricing:                config.Pricing,
 		checkpoints:            config.Checkpoints,
 		buildID:                config.BuildID,

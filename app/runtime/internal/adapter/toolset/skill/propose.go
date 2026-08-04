@@ -42,18 +42,18 @@ type ProposalSubmitter interface {
 }
 
 type proposer struct {
-	proposals  ProposalSubmitter
-	defaultCwd string
+	proposals            ProposalSubmitter
+	defaultWorkspacePath string
 }
 
 // NewProposal builds propose_skill. A nil submitter omits the capability.
-func NewProposal(proposals ProposalSubmitter, defaultCwd string) (toolcontract.Tool, error) {
+func NewProposal(proposals ProposalSubmitter, defaultWorkspacePath string) (toolcontract.Tool, error) {
 	if proposals == nil {
 		return nil, nil
 	}
 	return toolcontract.NewFunc[proposalArgs, proposalResult](
 		toolcontract.FuncConfig{Name: "propose_skill", Description: proposalDescription},
-		(&proposer{proposals: proposals, defaultCwd: defaultCwd}).run,
+		(&proposer{proposals: proposals, defaultWorkspacePath: defaultWorkspacePath}).run,
 	)
 }
 
@@ -62,7 +62,7 @@ func (t *proposer) run(ctx context.Context, input proposalArgs) (proposalResult,
 	if sessionID == "" {
 		return proposalResult{}, errors.New("propose_skill: no active session")
 	}
-	cwd := strings.TrimSpace(executionctx.WorkspaceCWD(ctx, t.defaultCwd))
+	cwd := strings.TrimSpace(executionctx.WorkspaceCWD(ctx, t.defaultWorkspacePath))
 	if cwd == "" {
 		return proposalResult{}, errors.New("propose_skill: no active workspace")
 	}

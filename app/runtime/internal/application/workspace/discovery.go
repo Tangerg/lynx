@@ -42,7 +42,7 @@ func (c *Discovery) ResolveWorkspace(path string) (Resolved, error) {
 		return Resolved{}, errors.New("workspace: workspace catalog is not configured")
 	}
 	if path == "" {
-		path = c.context.defaultCwd
+		path = c.context.defaultWorkspacePath
 	}
 	identity, err := c.workspaces.InspectWorkspace(path)
 	if err != nil {
@@ -130,13 +130,13 @@ func (c *Discovery) ListAgentDocs(ctx context.Context, cwd string) ([]AgentDoc, 
 	if c.agentDocs == nil {
 		return nil, errors.New("workspace: agent document finder is not configured")
 	}
-	files, err := c.agentDocs.DiscoverAgentDocs(ctx, root, c.context.home)
+	files, err := c.agentDocs.DiscoverAgentDocs(ctx, root, c.context.userHome)
 	if err != nil {
 		return nil, err
 	}
 	docs := make([]AgentDoc, 0, len(files))
 	for _, file := range files {
-		docs = append(docs, AgentDoc{Path: file.Path, Scope: agentDocScope(file.Path, root, c.context.home)})
+		docs = append(docs, AgentDoc{Path: file.Path, Scope: agentDocScope(file.Path, root, c.context.userHome)})
 	}
 	return docs, nil
 }

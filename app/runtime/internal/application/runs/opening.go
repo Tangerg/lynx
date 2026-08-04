@@ -41,7 +41,7 @@ func (c *Coordinator) Start(ctx context.Context, cmd StartCommand) (StartResult,
 		return StartResult{}, err
 	}
 
-	sess, scheduled, err := c.resolveSession(ctx, cmd.SessionID, cmd.NewSessionID, cmd.DefaultCwd, cmd.NewSessionTitle)
+	sess, scheduled, err := c.resolveSession(ctx, cmd.SessionID, cmd.NewSessionID, cmd.DefaultWorkspacePath, cmd.NewSessionTitle)
 	if err != nil {
 		return StartResult{}, err
 	}
@@ -117,16 +117,16 @@ func (c *Coordinator) Start(ctx context.Context, cmd StartCommand) (StartResult,
 	}, nil
 }
 
-func (c *Coordinator) resolveSession(ctx context.Context, id, newID, defaultCwd, title string) (session.Session, *session.Session, error) {
+func (c *Coordinator) resolveSession(ctx context.Context, id, newID, defaultWorkspacePath, title string) (session.Session, *session.Session, error) {
 	if newID != "" {
-		sess, err := c.sessions.PrepareScheduled(ctx, newID, title, defaultCwd)
+		sess, err := c.sessions.PrepareScheduled(ctx, newID, title, defaultWorkspacePath)
 		if err != nil {
 			return session.Session{}, nil, err
 		}
 		return sess, &sess, nil
 	}
 	if id == "" {
-		sess, err := c.sessions.Create(ctx, title, defaultCwd)
+		sess, err := c.sessions.Create(ctx, title, defaultWorkspacePath)
 		return sess, nil, err
 	}
 	sess, err := c.sessions.Get(ctx, id)

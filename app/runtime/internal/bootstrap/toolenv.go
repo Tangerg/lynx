@@ -51,7 +51,7 @@ func buildToolEnvironment(
 		closers: []ShutdownResource{mcpPool},
 	}
 	bc := toolset.BuildConfig{
-		Workdir:         cfg.Engine.Workdir,
+		Workdir:         ecfg.Workdir,
 		DefaultModel:    defaultModel,
 		SkillsUserDir:   cfg.SkillsUserDir,
 		Online:          cfg.Online,

@@ -34,7 +34,7 @@ func TestRunLauncherUsesApplicationRunEntry(t *testing.T) {
 	if handle.SessionID != "ses_scheduled" || handle.RunID != "run_scheduled" || fired != "sch_1" {
 		t.Fatalf("handle=%+v fired=%q", handle, fired)
 	}
-	if useCases.cmd.DefaultCwd != "/default" || useCases.cmd.NewSessionTitle != "" {
+	if useCases.cmd.DefaultWorkspacePath != "/default" || useCases.cmd.NewSessionTitle != "" {
 		t.Fatalf("command defaults = %+v", useCases.cmd)
 	}
 	if len(useCases.cmd.Input) != 1 || useCases.cmd.Input[0].Text != "summarize" || useCases.cmd.ModelSelection.Provider() != "p" || useCases.cmd.ModelSelection.Model() != "m" {

@@ -43,7 +43,7 @@ func (e *Engine) recalledMemories(ctx context.Context, query string) (chat.Messa
 	if e.memorySearch == nil || strings.TrimSpace(query) == "" {
 		return chat.Message{}, false
 	}
-	project := resolveCwd(executionctx.CWD(ctx, e.workdir))
+	project := strings.TrimSpace(executionctx.CWD(ctx, e.workdir))
 	if project == "" {
 		return chat.Message{}, false
 	}

@@ -253,10 +253,11 @@ func openProtocolRuntime(t *testing.T, model chat.Model) (*Host, *runtimeserver.
 		stores,
 		client,
 		stores.Provider,
-		NewHookResolver(stores.Trust),
+		NewHookResolver(stores.Home, stores.Trust),
 		"sha256:0000000000000000000000000000000000000000000000000000000000000000",
 	)
-	cfg.DefaultCwd = stores.Home
+	cfg.UserHome = stores.Home
+	cfg.DefaultWorkspacePath = stores.Home
 	cfg.Maintenance = noBoundaryMaintenance{}
 
 	assembly := NewAssembly(cfg)

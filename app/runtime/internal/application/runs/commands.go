@@ -95,15 +95,15 @@ func invalidInputBlock(index int, field, detail string, cause error) error {
 type StartCommand struct {
 	// RunID and NewSessionID are set only by a durable scheduled occurrence.
 	// They make re-dispatch after a crash resume the same logical run/session.
-	RunID           string
-	NewSessionID    string
-	ScheduleFiring  string
-	SessionID       string
-	DefaultCwd      string
-	NewSessionTitle string
-	ModelSelection  modelref.Selection
-	Limits          execution.RunLimits
-	Options         *corechat.Options
+	RunID                string
+	NewSessionID         string
+	ScheduleFiring       string
+	SessionID            string
+	DefaultWorkspacePath string
+	NewSessionTitle      string
+	ModelSelection       modelref.Selection
+	Limits               execution.RunLimits
+	Options              *corechat.Options
 	// ProtocolProfile is the protocol contract negotiated for this Run, already
 	// resolved against what this build advertises. It is an input rather than
 	// something the use case derives: what a client declared is a wire fact, and

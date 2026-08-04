@@ -102,14 +102,18 @@ type GitStateWatcher interface {
 // workspace use cases. It owns no feature adapter: each capability below takes
 // this small context plus only the port it actually needs.
 type Context struct {
-	defaultCwd string
-	home       string
-	paths      Paths
+	defaultWorkspacePath string
+	userHome             string
+	paths                Paths
 }
 
 // NewContext constructs the shared workspace identity resolver.
-func NewContext(defaultCwd, home string, paths Paths) *Context {
-	return &Context{defaultCwd: defaultCwd, home: home, paths: paths}
+func NewContext(defaultWorkspacePath, userHome string, paths Paths) *Context {
+	return &Context{
+		defaultWorkspacePath: defaultWorkspacePath,
+		userHome:             userHome,
+		paths:                paths,
+	}
 }
 
 // Files owns root-scoped file browser operations.

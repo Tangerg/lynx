@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"os/signal"
 	"syscall"
 	"time"
@@ -23,7 +22,7 @@ func run(ctx context.Context, errw io.Writer) (err error) {
 	shutdownObs := observability.Setup(resolvedVersion())
 	defer func() { err = errors.Join(err, shutdownObs(context.WithoutCancel(ctx))) }()
 
-	host, cfg, err := bootstrapRuntime(ctx)
+	host, cfg, paths, err := bootstrapRuntime(ctx)
 	if err != nil {
 		return err
 	}
@@ -58,7 +57,7 @@ func run(ctx context.Context, errw io.Writer) (err error) {
 	if token != nil {
 		tokenValue = token.Value
 	}
-	httpServer, api, err := buildHTTPServer(host.Stack, srv, tokenValue)
+	httpServer, api, err := buildHTTPServer(host.Stack, srv, tokenValue, paths)
 	if err != nil {
 		return err
 	}
@@ -67,13 +66,11 @@ func run(ctx context.Context, errw io.Writer) (err error) {
 }
 
 // buildHTTPServer assembles the HTTP+SSE server from the resolved settings.
-func buildHTTPServer(stack bootstrap.Stack, srv config.Server, tokenValue string) (*lyrahttp.Server, *server.Server, error) {
+func buildHTTPServer(stack bootstrap.Stack, srv config.Server, tokenValue string, paths runtimePaths) (*lyrahttp.Server, *server.Server, error) {
 	info := lyrahttp.ServerInfoOrDefault()
 	info.Version = resolvedVersion()
-	if home, err := os.UserHomeDir(); err == nil {
-		info.DefaultWorkspace = protocol.WorkspaceRef{Path: home}
-		info.Home = home
-	}
+	info.DefaultWorkspace = protocol.WorkspaceRef{Path: paths.defaultWorkspacePath}
+	info.Home = paths.userHome
 
 	api, err := server.New(server.Config{
 		Sessions:     stack.Sessions,

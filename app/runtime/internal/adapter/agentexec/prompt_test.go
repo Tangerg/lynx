@@ -2,6 +2,8 @@ package agentexec
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -12,7 +14,7 @@ import (
 // TestComposeSystemPrompt_BaseOnly verifies a nil memory store
 // yields the base prompt verbatim (no markdown headers).
 func TestComposeSystemPrompt_BaseOnly(t *testing.T) {
-	got := composePrompt(context.Background(), nil, nil, "")
+	got := composePrompt(context.Background(), nil, nil, "", "")
 	if !strings.Contains(got, "You are Lyra") {
 		t.Errorf("base prompt missing identity, got %q", got)
 	}
@@ -28,7 +30,7 @@ func TestComposeSystemPrompt_WithMemory(t *testing.T) {
 		user:    "prefer terse output",
 		project: "build with `make test`",
 	}
-	got := composePrompt(context.Background(), store, nil, "")
+	got := composePrompt(context.Background(), store, nil, "", "")
 	if !strings.Contains(got, "## User preferences") {
 		t.Error("user section missing")
 	}
@@ -47,7 +49,7 @@ func TestComposeSystemPrompt_WithMemory(t *testing.T) {
 // don't produce empty markdown headers.
 func TestComposeSystemPrompt_SkipsEmptyScopes(t *testing.T) {
 	store := &stubKnowledgeStore{project: "only project"}
-	got := composePrompt(context.Background(), store, nil, "")
+	got := composePrompt(context.Background(), store, nil, "", "")
 	if strings.Contains(got, "## User preferences") {
 		t.Error("empty user scope should be skipped")
 	}
@@ -61,7 +63,7 @@ func TestComposeSystemPrompt_SkipsEmptyScopes(t *testing.T) {
 // cwd), not a directory fixed at construction time.
 func TestComposePrompt_ProjectMemoryFollowsCwd(t *testing.T) {
 	store := &stubKnowledgeStore{project: "project body"}
-	composePrompt(context.Background(), store, nil, "/projects/alpha")
+	composePrompt(context.Background(), store, nil, "/projects/alpha", "")
 	if store.projectDir != "/projects/alpha" {
 		t.Fatalf("project memory read dir = %q, want /projects/alpha", store.projectDir)
 	}
@@ -70,11 +72,27 @@ func TestComposePrompt_ProjectMemoryFollowsCwd(t *testing.T) {
 func TestComposePromptPlacesCuratedMemoryBelowHumanProjectKnowledge(t *testing.T) {
 	store := &stubKnowledgeStore{user: "global", project: "human project rule"}
 	memory := stubAgentMemory{content: "agent learned fact"}
-	got := composePrompt(context.Background(), store, memory, "/projects/alpha")
+	got := composePrompt(context.Background(), store, memory, "/projects/alpha", "")
 	curatedIndex := strings.Index(got, "## Pinned memory")
 	projectIndex := strings.Index(got, "## Project knowledge")
 	if curatedIndex < 0 || projectIndex < 0 || curatedIndex > projectIndex {
 		t.Fatalf("prompt precedence is wrong:\n%s", got)
+	}
+}
+
+func TestComposePromptUsesInjectedUserHomeForAgentDocs(t *testing.T) {
+	userHome := t.TempDir()
+	workspace := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(userHome, ".lyra"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(userHome, ".lyra", "AGENTS.md"), []byte("injected home rule"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	got := composePrompt(t.Context(), nil, nil, workspace, userHome)
+	if !strings.Contains(got, "injected home rule") {
+		t.Fatalf("prompt did not use injected user home:\n%s", got)
 	}
 }
 

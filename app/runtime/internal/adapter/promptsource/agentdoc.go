@@ -30,10 +30,9 @@ import (
 // found, root = cwd (single-level scan). Symlinked / case-folded duplicate paths
 // are deduped by absolute path.
 //
-// ctx cancels long walks; cwd / home are absolute (callers resolve via
-// os.UserHomeDir / os.Getwd before calling). Missing files are never an error —
-// discovery is best-effort. The agent-execution adapter renders the resulting
-// values.
+// ctx cancels long walks; cwd / home are absolute composition inputs. Missing
+// files are never an error — discovery is best-effort. The agent-execution
+// adapter renders the resulting values.
 func DiscoverAgentDocs(ctx context.Context, cwd, home string) ([]workspaceapp.AgentDocFile, error) {
 	if cwd == "" {
 		return nil, errors.New("promptsource: cwd is required")

@@ -15,7 +15,7 @@ func (t failingHookTrust) IsTrusted(context.Context, string) (bool, error) {
 func TestNewHookResolverPreservesTrustStoreFailure(t *testing.T) {
 	t.Setenv("HOME", t.TempDir())
 	wantErr := errors.New("trust store unavailable")
-	resolver := NewHookResolver(failingHookTrust{err: wantErr})
+	resolver := NewHookResolver(t.TempDir(), failingHookTrust{err: wantErr})
 
 	if _, err := resolver.For(context.Background(), t.TempDir()); !errors.Is(err, wantErr) {
 		t.Fatalf("For error = %v, want %v", err, wantErr)

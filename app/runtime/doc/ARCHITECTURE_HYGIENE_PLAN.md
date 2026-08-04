@@ -727,6 +727,30 @@ Acceptance:
 - Focused normal and race tests for the affected catalogs, Run registry, and
   filesystem storage pass.
 
+### Batch 26 — Process-path composition ownership
+
+Status: **Completed**
+
+Scope:
+
+- Resolve User Home once at the executable composition root and fail startup
+  when it is unavailable instead of silently constructing divergent defaults.
+- Replace every `DefaultCwd` field and local with the exact
+  `DefaultWorkspacePath` term; keep User Home and the default-workspace product
+  choice distinct even when the current policy gives them the same path.
+- Inject the same path snapshot into hooks, workspace use cases, scheduled Run
+  starts, Agent prompt/recall, tool fallback workspaces, and server metadata.
+- Remove Agent prompt's ambient `os.UserHomeDir` and `os.Getwd` fallbacks.
+
+Acceptance:
+
+- Production Bootstrap, Agent execution, and Delivery server code cannot query
+  ambient User Home or process cwd; an architecture fitness test guards the
+  composition boundary.
+- The removed `DefaultCwd` / `defaultCwd` vocabulary has no Go identifier
+  occurrence, and Bootstrap rejects either missing composition path.
+- Focused normal and race tests plus the composition-boundary fitness test pass.
+
 ## 6. Progress
 
 | Batch | Status | Started | Completed | Evidence |
@@ -756,10 +780,25 @@ Acceptance:
 | 23. Composition-boundary ownership | Completed | 2026-08-04 | 2026-08-04 | Adapter/Bootstrap/Agent execution normal and race tests, architecture constructor fitness tests, runtime-wide compile, standalone build/vet, static analysis, lint, dead-code analysis, and full regression classification passed. |
 | 24. Immutable runtime catalogs | Completed | 2026-08-04 | 2026-08-04 | Catalog ownership tests, architecture mutable-global fitness test, focused normal/race tests, runtime-wide compile, standalone build/vet, static analysis, lint, dead-code analysis, and full regression classification passed. |
 | 25. Mutable-value and atomic-write ownership | Completed | 2026-08-04 | 2026-08-04 | Deep-ownership tests plus focused normal/race suites for contracts, protocol enums, Run registry, execution profiles, and filesystem storage passed. |
+| 26. Process-path composition ownership | Completed | 2026-08-04 | 2026-08-04 | Executable, Agent prompt, Workspace, Runs, Schedules, Bootstrap, and Delivery tests plus the ambient-path architecture fitness rule passed. |
 
 Allowed status values: `Pending`, `In progress`, `Completed`, `Blocked`, `Revised`.
 
 ## 7. Progress log
+
+### 2026-08-04 — Batch 26 completed
+
+- Introduced one executable-owned runtime-path snapshot. User Home resolution
+  now fails closed, and the same values reach Bootstrap construction and HTTP
+  server metadata instead of being queried independently at five boundaries.
+- Replaced the misleading `DefaultCwd` vocabulary throughout Run opening,
+  schedules, workspace context, Delivery mapping, and Skill proposals with
+  `DefaultWorkspacePath`. This is a deliberate breaking rename with no alias or
+  compatibility field.
+- Made Bootstrap the sole source for Agent `Workdir` and `UserHome`, removing
+  per-prompt User Home and process-cwd lookups. Added behavior tests for the
+  injected AGENTS.md home plus a fitness test that rejects ambient path queries
+  from Bootstrap, Agent execution, or Delivery server code.
 
 ### 2026-08-04 — Batch 25 completed
 

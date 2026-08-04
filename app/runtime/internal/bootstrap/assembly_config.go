@@ -198,11 +198,14 @@ type Config struct {
 	// store.
 	ScheduleStore ScheduleStore
 
-	// DefaultCwd is the serving process's default working directory. The
-	// scheduled-run launcher uses it only when a saved schedule leaves Cwd empty.
-	// It is supplied by the outer process composition root because it is a
-	// process/environment choice, not schedule policy.
-	DefaultCwd string
+	// UserHome is the process user's home directory. It anchors home-scoped
+	// instruction discovery and is resolved once by the outer process root.
+	UserHome string
+
+	// DefaultWorkspacePath is the workspace selected when a request or saved
+	// schedule does not name one. It is a product default supplied by the outer
+	// process root, not the server process's current working directory.
+	DefaultWorkspacePath string
 
 	// EmbeddingRoleStore persists the embedding-model role the @codebase index
 	// uses (models.setEmbeddingRole). nil disables persistence. CodebaseStore

@@ -18,15 +18,15 @@ type RunUseCases interface {
 // schedule-specific defaults; the runs coordinator owns session creation,
 // admission, execution, and lifecycle.
 type RunLauncher struct {
-	runs       RunUseCases
-	defaultCwd string
-	fired      func(scheduleID string)
+	runs                 RunUseCases
+	defaultWorkspacePath string
+	fired                func(scheduleID string)
 }
 
 // NewRunLauncher builds the scheduled-run execution strategy. fired is an
 // optional outward notification emitted after the run is accepted.
-func NewRunLauncher(runUseCases RunUseCases, defaultCwd string, fired func(string)) RunLauncher {
-	return RunLauncher{runs: runUseCases, defaultCwd: defaultCwd, fired: fired}
+func NewRunLauncher(runUseCases RunUseCases, defaultWorkspacePath string, fired func(string)) RunLauncher {
+	return RunLauncher{runs: runUseCases, defaultWorkspacePath: defaultWorkspacePath, fired: fired}
 }
 
 // StartScheduledRun starts one schedule through the same Application Runs entry
@@ -35,17 +35,17 @@ func (l RunLauncher) StartScheduledRun(ctx context.Context, occurrence schedule.
 	sc := occurrence.Schedule
 	cwd := sc.Cwd
 	if cwd == "" {
-		cwd = l.defaultCwd
+		cwd = l.defaultWorkspacePath
 	}
 	fireCtx, cancel := context.WithCancel(ctx)
 	result, err := l.runs.Start(fireCtx, runs.StartCommand{
-		RunID:           occurrence.RunID,
-		NewSessionID:    occurrence.SessionID,
-		ScheduleFiring:  occurrence.ID,
-		DefaultCwd:      cwd,
-		NewSessionTitle: sc.Title,
-		ModelSelection:  sc.ModelSelection,
-		Input:           []transcript.ContentBlock{{Kind: transcript.TextContent, Text: sc.Prompt}},
+		RunID:                occurrence.RunID,
+		NewSessionID:         occurrence.SessionID,
+		ScheduleFiring:       occurrence.ID,
+		DefaultWorkspacePath: cwd,
+		NewSessionTitle:      sc.Title,
+		ModelSelection:       sc.ModelSelection,
+		Input:                []transcript.ContentBlock{{Kind: transcript.TextContent, Text: sc.Prompt}},
 	})
 	cancel()
 	if err != nil {

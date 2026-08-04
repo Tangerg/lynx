@@ -2,7 +2,6 @@ package agentexec
 
 import (
 	"context"
-	"os"
 	"path/filepath"
 	"strings"
 
@@ -57,7 +56,7 @@ task is ambiguous, ask one focused question rather than guess.`
 // Engines built without either memory source simply yield the base prompt +
 // discovered files.
 func (e *Engine) systemPrompt(ctx context.Context) string {
-	prompt := composePrompt(ctx, e.knowledge, e.memory, executionctx.CWD(ctx, e.workdir))
+	prompt := composePrompt(ctx, e.knowledge, e.memory, executionctx.CWD(ctx, e.workdir), e.userHome)
 	return appendPlan(ctx, prompt, e.plan)
 }
 
@@ -85,7 +84,7 @@ func appendPlan(ctx context.Context, prompt string, plan PlanReader) string {
 // composePrompt is the pure form behind [Engine.systemPrompt],
 // exposed unexported so the unit tests (which build stub memory stores without
 // a full Engine) can exercise the cascade directly.
-func composePrompt(ctx context.Context, mem KnowledgeReader, memory AgentMemoryReader, cwd string) string {
+func composePrompt(ctx context.Context, mem KnowledgeReader, memory AgentMemoryReader, cwd, userHome string) string {
 	var b strings.Builder
 	b.WriteString(basePrompt)
 
@@ -102,7 +101,7 @@ func composePrompt(ctx context.Context, mem KnowledgeReader, memory AgentMemoryR
 		// approved memory is surfaced per turn by relevance (the recall block), so a
 		// growing corpus never bloats every prompt.
 		var pinned []agentmemory.Item
-		if project := resolveCwd(cwd); project != "" {
+		if project := strings.TrimSpace(cwd); project != "" {
 			items, _ := memory.Items(ctx, agentmemory.ScopeProject, filepath.Clean(project))
 			pinned = appendPinned(pinned, items)
 		}
@@ -122,11 +121,11 @@ func composePrompt(ctx context.Context, mem KnowledgeReader, memory AgentMemoryR
 		}
 	}
 
-	// AGENTS.md cascade — best-effort, silent on error so a missing
-	// file or unreadable home dir never derails a turn.
-	if dir := resolveCwd(cwd); dir != "" {
-		home, _ := os.UserHomeDir()
-		if files, err := promptsource.DiscoverAgentDocs(ctx, dir, home); err == nil {
+	// AGENTS.md cascade — best-effort, silent on error so a missing or unreadable
+	// instruction file never derails a turn. User home is injected by the process
+	// composition root rather than rediscovered inside every prompt assembly.
+	if dir := strings.TrimSpace(cwd); dir != "" {
+		if files, err := promptsource.DiscoverAgentDocs(ctx, dir, userHome); err == nil {
 			if rendered := renderAgentDocs(files, agentDocPromptMaxBytes); rendered != "" {
 				b.WriteString("\n\n## Project context (from AGENTS.md cascade)\n\n")
 				b.WriteString(rendered)
@@ -145,18 +144,4 @@ func appendPinned(dst, src []agentmemory.Item) []agentmemory.Item {
 		}
 	}
 	return dst
-}
-
-// resolveCwd falls back to the process cwd when the turn carried no
-// working directory. Returns "" only when both sources fail — in
-// which case agentdoc discovery silently skips.
-func resolveCwd(cwd string) string {
-	if cwd != "" {
-		return cwd
-	}
-	cwd, err := os.Getwd()
-	if err != nil {
-		return ""
-	}
-	return cwd
 }

@@ -81,6 +81,11 @@ type Config struct {
 	// path) — fine for tests, not recommended for production.
 	Workdir string
 
+	// UserHome anchors the home-scoped AGENTS.md instruction cascade. The
+	// process composition root resolves it once; the execution adapter never
+	// consults ambient user-home state on its own. Empty omits the home layer.
+	UserHome string
+
 	// HistoryStore optionally supplies a persistent chat-history
 	// backend (the sqlite MessageStore, redis-backed, ...). When nil the
 	// engine falls back to lynx's in-process [in-memory history store]

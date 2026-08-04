@@ -27,7 +27,7 @@ type Paths interface {
 func (c *Context) root(cwd string) (string, error) {
 	root := cwd
 	if root == "" {
-		root = c.defaultCwd
+		root = c.defaultWorkspacePath
 	}
 	if c.paths == nil {
 		return "", fmt.Errorf("%w: path resolver is not configured", ErrCwdUnavailable)
@@ -40,7 +40,7 @@ func (c *Context) root(cwd string) (string, error) {
 }
 
 // ResolveRoot returns the effective, existing working directory for a workspace
-// request. Empty cwd selects the host-provided default working directory.
+// request. Empty cwd selects the host-provided default workspace.
 func (c *Context) ResolveRoot(cwd string) (string, error) {
 	return c.root(cwd)
 }

@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"slices"
 	"sync"
 	"time"
@@ -278,8 +277,7 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 		Store: cfg.ScheduleStore,
 		Paths: workspacepath.Resolver{},
 	})
-	home, _ := os.UserHomeDir()
-	workspaceContext := workspace.NewContext(cfg.DefaultCwd, home, workspacepath.Resolver{})
+	workspaceContext := workspace.NewContext(cfg.DefaultWorkspacePath, cfg.UserHome, workspacepath.Resolver{})
 	// One signal covers every committed Skill-library mutation, including
 	// proposal submission and review decisions.
 	skillChanges := &signal.Signal[struct{}]{}
@@ -488,7 +486,7 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 	scheduleFires := &signal.Signal[string]{}
 	scheduleFiring := schedules.NewFiring(
 		cfg.ScheduleStore,
-		schedules.NewRunLauncher(runCoord, cfg.DefaultCwd, scheduleFires.Publish),
+		schedules.NewRunLauncher(runCoord, cfg.DefaultWorkspacePath, scheduleFires.Publish),
 	)
 
 	approvalsCoord := approvals.New(approvalPolicy, cfg.SessionStore)
@@ -593,6 +591,12 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 }
 
 func validateAssemblyConfig(cfg Config) error {
+	if cfg.UserHome == "" {
+		return errors.New("runtime: UserHome is required")
+	}
+	if cfg.DefaultWorkspacePath == "" {
+		return errors.New("runtime: DefaultWorkspacePath is required")
+	}
 	if cfg.Engine.ChatClient == nil {
 		return errors.New("runtime: Engine.ChatClient is required")
 	}

@@ -528,6 +528,24 @@ func TestDeliveryDoesNotWireApplicationCollaborators(t *testing.T) {
 	})
 }
 
+// TestAmbientRuntimePathsStayAtProcessComposition prevents inner runtime rings
+// from independently rediscovering the user home or process cwd. Those values
+// are one process snapshot: Bootstrap and adapters consume explicit inputs so
+// hooks, prompts, workspace reads, schedules, and server metadata cannot drift.
+func TestAmbientRuntimePathsStayAtProcessComposition(t *testing.T) {
+	root := moduleRoot(t)
+	for _, dir := range []string{
+		filepath.Join(root, "internal", "bootstrap"),
+		filepath.Join(root, "internal", "adapter", "agentexec"),
+		filepath.Join(root, "internal", "delivery", "server"),
+	} {
+		forbidQualifiedCalls(t, dir, map[string]string{
+			"os.UserHomeDir": "the process composition root owns the user-home snapshot",
+			"os.Getwd":       "the process composition root owns the default workspace",
+		})
+	}
+}
+
 // TestDeliveryDoesNotBypassWorkspaceUseCases keeps filesystem path handling,
 // file/Git reads, and prompt-source discovery behind application/workspace.
 // Delivery may project their values to protocol, but must not reach a concrete

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/persistence"
@@ -10,13 +11,38 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/config"
 )
 
-// bootstrapRuntime builds the composition Host (the application Stack + its
-// process-level close order) for the server process.
-func bootstrapRuntime(ctx context.Context) (_ *bootstrap.Host, _ config.Settings, err error) {
-	return bootstrapRuntimeWithBuildID(ctx, bootstrap.ExecutableBuildID)
+// runtimePaths is the process composition root's single snapshot of the host
+// paths shared by Bootstrap and Delivery. The default workspace is a product
+// choice; it currently starts at the user's home, but remains named separately
+// so consumers do not confuse that choice with home-scoped configuration.
+type runtimePaths struct {
+	userHome             string
+	defaultWorkspacePath string
 }
 
-func bootstrapRuntimeWithBuildID(ctx context.Context, buildIdentity func() (string, error)) (_ *bootstrap.Host, _ config.Settings, err error) {
+func resolveRuntimePaths() (runtimePaths, error) {
+	userHome, err := os.UserHomeDir()
+	if err != nil {
+		return runtimePaths{}, fmt.Errorf("runtime: locate user home: %w", err)
+	}
+	return runtimePaths{
+		userHome:             userHome,
+		defaultWorkspacePath: userHome,
+	}, nil
+}
+
+// bootstrapRuntime builds the composition Host (the application Stack + its
+// process-level close order) for the server process.
+func bootstrapRuntime(ctx context.Context) (_ *bootstrap.Host, _ config.Settings, _ runtimePaths, err error) {
+	paths, err := resolveRuntimePaths()
+	if err != nil {
+		return nil, config.Settings{}, runtimePaths{}, err
+	}
+	host, cfg, err := bootstrapRuntimeWithBuildID(ctx, paths, bootstrap.ExecutableBuildID)
+	return host, cfg, paths, err
+}
+
+func bootstrapRuntimeWithBuildID(ctx context.Context, paths runtimePaths, buildIdentity func() (string, error)) (_ *bootstrap.Host, _ config.Settings, err error) {
 	buildID, err := buildIdentity()
 	if err != nil {
 		return nil, config.Settings{}, err
@@ -72,12 +98,11 @@ func bootstrapRuntimeWithBuildID(ctx context.Context, buildIdentity func() (stri
 		return nil, config.Settings{}, err
 	}
 
-	hookResolver := bootstrap.NewHookResolver(stores.Trust)
+	hookResolver := bootstrap.NewHookResolver(paths.userHome, stores.Trust)
 
 	runtimeCfg := bootstrap.ComposeConfig(cfg, stores, client, providers, hookResolver, buildID)
-	if cwd, cwdErr := os.UserHomeDir(); cwdErr == nil {
-		runtimeCfg.DefaultCwd = cwd
-	}
+	runtimeCfg.UserHome = paths.userHome
+	runtimeCfg.DefaultWorkspacePath = paths.defaultWorkspacePath
 	assembly := bootstrap.NewAssembly(runtimeCfg)
 	owned = false
 	defer func() {

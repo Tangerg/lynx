@@ -37,6 +37,20 @@ func TestNewRequiresRuntimeDependencies(t *testing.T) {
 		want string
 	}{
 		{
+			name: "user home",
+			edit: func(cfg *Config) {
+				cfg.UserHome = ""
+			},
+			want: "runtime: UserHome is required",
+		},
+		{
+			name: "default workspace path",
+			edit: func(cfg *Config) {
+				cfg.DefaultWorkspacePath = ""
+			},
+			want: "runtime: DefaultWorkspacePath is required",
+		},
+		{
 			name: "chat client",
 			edit: func(cfg *Config) {
 				cfg.Engine.ChatClient = nil
@@ -370,6 +384,8 @@ func runtimeConfigWithRequiredDeps(t *testing.T) Config {
 	checkpoints := sqlitestore.NewExecutorCheckpointStore(db)
 	mcpServers := sqlitestore.NewMCPServerStore(db)
 	return Config{
+		UserHome:             t.TempDir(),
+		DefaultWorkspacePath: t.TempDir(),
 		Engine: agentexec.Config{
 			ChatClient:   client,
 			BuildID:      "sha256:0000000000000000000000000000000000000000000000000000000000000000",
@@ -387,6 +403,23 @@ func runtimeConfigWithRequiredDeps(t *testing.T) Config {
 		Transactor: func(ctx context.Context, fn func(context.Context) error) error {
 			return sqlitestore.RunInTx(ctx, db, fn)
 		},
+	}
+}
+
+func TestPrepareEngineConfigUsesCompositionRootPaths(t *testing.T) {
+	cfg := runtimeConfigWithRequiredDeps(t)
+	cfg.Engine.Workdir = "/stale-engine-workdir"
+	cfg.Engine.UserHome = "/stale-engine-home"
+
+	engineConfig, _, err := prepareEngineConfig(cfg)
+	if err != nil {
+		t.Fatalf("prepareEngineConfig: %v", err)
+	}
+	if engineConfig.Workdir != cfg.DefaultWorkspacePath {
+		t.Fatalf("Engine.Workdir = %q, want composition default %q", engineConfig.Workdir, cfg.DefaultWorkspacePath)
+	}
+	if engineConfig.UserHome != cfg.UserHome {
+		t.Fatalf("Engine.UserHome = %q, want composition home %q", engineConfig.UserHome, cfg.UserHome)
 	}
 }
 

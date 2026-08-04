@@ -3,7 +3,6 @@ package bootstrap
 import (
 	"context"
 	"fmt"
-	"os"
 
 	"go.opentelemetry.io/otel/trace"
 
@@ -15,9 +14,9 @@ type HookTrust interface {
 	IsTrusted(ctx context.Context, projectRoot string) (bool, error)
 }
 
-// NewHookResolver builds the runtime hook resolver from process-local user config.
-func NewHookResolver(trust HookTrust) *adapterhooks.Resolver {
-	userHome, _ := os.UserHomeDir()
+// NewHookResolver builds the runtime hook resolver from the composition root's
+// user-home snapshot and the durable project trust policy.
+func NewHookResolver(userHome string, trust HookTrust) *adapterhooks.Resolver {
 	return adapterhooks.NewResolver(userHome,
 		func(ctx context.Context, projectRoot string) (bool, error) {
 			if trust == nil {
