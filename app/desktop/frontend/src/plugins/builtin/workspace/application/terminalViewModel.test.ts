@@ -8,7 +8,6 @@ const command = (over: Partial<WorkspaceCommandActivity>): WorkspaceCommandActiv
   command: "npm test",
   status: "succeeded",
   output: "",
-  outputTruncated: false,
   ...over,
 });
 

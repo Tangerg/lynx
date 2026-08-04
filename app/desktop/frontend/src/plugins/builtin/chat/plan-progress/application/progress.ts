@@ -1,26 +1,25 @@
-import type { PlanItem } from "@/plugins/builtin/agent/public/viewState";
+import type { PlanStep } from "@/plugins/builtin/agent/public/plan";
 
 export interface PlanProgress {
   visible: boolean;
   total: number;
   done: number;
   percent: number;
-  current: PlanItem | null;
+  current: PlanStep | null;
 }
 
 export function planProgress(
-  plan: PlanItem[],
+  steps: readonly PlanStep[],
   runId: string | null,
   dismissedRunId: string | null,
 ): PlanProgress {
-  const total = plan.length;
-  const done = plan.filter((item) => item.status === "done").length;
-  const current = currentPlanItem(plan);
-  const hasOpenWork = plan.some((item) => item.status !== "done");
+  const total = steps.length;
+  const done = steps.filter((step) => step.status === "done").length;
+  const current = currentPlanStep(steps);
   const dismissed = runId !== null && runId === dismissedRunId;
 
   return {
-    visible: hasOpenWork && current !== null && !dismissed,
+    visible: done < total && current !== null && !dismissed,
     total,
     done,
     percent: total > 0 ? Math.round((done / total) * 100) : 0,
@@ -28,10 +27,10 @@ export function planProgress(
   };
 }
 
-export function currentPlanItem(plan: PlanItem[]): PlanItem | null {
+export function currentPlanStep(steps: readonly PlanStep[]): PlanStep | null {
   return (
-    plan.find((item) => item.status === "doing") ??
-    plan.find((item) => item.status === "todo") ??
+    steps.find((step) => step.status === "active") ??
+    steps.find((step) => step.status === "pending") ??
     null
   );
 }

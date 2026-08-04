@@ -17,8 +17,10 @@ const MAX_GREP_MATCHES = 4;
 
 function GrepPreview({ tool, onOpenView }: ToolPreviewProps) {
   const t = useT();
-  const { shown, overflow, truncated } = useGrepToolPreview(tool, MAX_GREP_MATCHES);
-  // §7.5 no-silent-caps: surface both our preview cap and server truncation.
+  const { shown, overflow } = useGrepToolPreview(tool, MAX_GREP_MATCHES);
+  // §7.5 no-silent-caps: surface our own preview cap. The runtime's search
+  // presentation drops grep's `truncated`, so a server-side cap is no longer a
+  // state a tool result can report.
   return (
     <div className={TEXT_PREVIEW_CLASS}>
       <div className="font-mono text-ui-sm leading-body">
@@ -38,7 +40,6 @@ function GrepPreview({ tool, onOpenView }: ToolPreviewProps) {
             … {t("tools.overflow.matches", { count: overflow })}
           </div>
         )}
-        {truncated && <div className="pt-1 text-fg-faint">… {t("tools.overflow.truncated")}</div>}
       </div>
       <PreviewFoot label="tools.preview.viewMatches" onClick={onOpenView} />
     </div>

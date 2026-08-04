@@ -2,16 +2,18 @@
 // map a v2 Item (or its pieces) into the shapes the chat UI renders. The
 // stateful folds that place these into AgentSessionView live in `fold.ts`.
 
-import type { Item, ItemStatus, PlanStep, Question, ToolInvocation } from "@/rpc";
+import type { Item, ItemStatus, Question, ToolInvocation } from "@/rpc";
 import type { ContentBlock as WireContentBlock } from "@/rpc";
 import type { BlockStatus, ContentBlock, QuestionItem } from "@/plugins/sdk/types/contentBlock";
-import type {
-  PlanItem,
-  ToolCall,
-  ToolCallStatus,
-  ToolDiffRow,
-} from "@/plugins/sdk/types/agentSessionView";
+import type { ToolCall, ToolCallStatus, ToolDiffRow } from "@/plugins/sdk/types/agentSessionView";
 import { toolCategory } from "../../domain/toolCategory";
+
+/** When an Item came into being. A toolCall spans time and names its endpoints
+ *  `startedAt` / `finishedAt`; every other Item is instantaneous and carries
+ *  `createdAt`. Readers that only need "when" should not have to know which. */
+export function itemStartedAt(item: Item): string {
+  return item.type === "toolCall" ? item.startedAt : item.createdAt;
+}
 
 export function blockStatus(status: ItemStatus): BlockStatus {
   if (status === "running") return "running";
@@ -45,27 +47,12 @@ export function userContentBlocks(content: WireContentBlock[] | undefined): Cont
   return blocks;
 }
 
-const PLAN_STATUS: Record<PlanStep["status"], PlanItem["status"]> = {
-  completed: "done",
-  running: "doing",
-  pending: "todo",
-  failed: "todo",
-};
-// Like `contentText`, tolerate a body-less started shell: the `steps` /
-// `question` / `tool` fields are absent on the `item.started` shell of a
-// plan / question / toolCall and arrive whole on item.completed (plan/tool
-// also stream via item.delta). Default the missing field so the shell folds
-// to an empty block that later events patch — not a throw the reducer's
-// try/catch swallows, leaving the block permanently unrendered.
-export function mapPlan(steps: PlanStep[] | undefined): PlanItem[] {
-  return (steps ?? []).map((s, i) => ({
-    id: i + 1,
-    pid: s.id,
-    status: PLAN_STATUS[s.status],
-    text: s.title,
-  }));
-}
-
+// Like `contentText`, tolerate a body-less started shell: the `question` / `tool`
+// fields are absent on the `item.started` shell of a question / toolCall and
+// arrive whole on item.completed (tool also streams via item.delta). Default the
+// missing field so the shell folds to an empty block that later events patch —
+// not a throw the reducer's try/catch swallows, leaving the block permanently
+// unrendered.
 export function mapQuestion(q: Question | undefined): QuestionItem[] {
   return (q?.fields ?? []).map((f) =>
     f.type === "choice"
@@ -181,36 +168,45 @@ function nameLabel(tool: ToolInvocation): string | undefined {
   const a = tool.arguments ?? {};
   switch (tool.name) {
     case "lsp": {
-      // One operation-dispatched tool: operation + file_path/line/character,
-      // or query for workspace_symbols (backend internal/kernel/toolset/lsptools).
+      // One operation-dispatched tool: operation + path/line/character, or query
+      // for workspace_symbols. There is no separate lsp_diagnostics — diagnostics
+      // is one of this tool's operations, and the runtime asserts the two never
+      // coexist.
       const op = asString(a.operation);
       if (op === "workspace_symbols") return asString(a.query);
-      const file = asString(a.file_path);
-      if (op === "document_symbols") return file;
-      return file ? `${file}:${a.line ?? "?"}:${a.character ?? "?"}` : undefined;
-    }
-    case "lsp_diagnostics":
-      return asString(a.file_path);
-    case "skill": {
-      const op = asString(a.op);
-      const name = asString(a.name);
-      return op ? (name ? `${op} ${name}` : op) : undefined;
+      const path = asString(a.path);
+      if (op === "document_symbols" || op === "diagnostics") return path;
+      return path ? `${path}:${a.line ?? "?"}:${a.character ?? "?"}` : undefined;
     }
     case "ask_user": {
       // Structured questions[] — label off the first question's text.
       const first = Array.isArray(a.questions) ? asRecord(a.questions[0]) : undefined;
       return firstLine(first?.question);
     }
-    case "shell_output":
-    case "shell_kill":
+    case "read_shell_output":
+    case "stop_shell":
       return asString(a.shell_id);
+    case "load_skill":
+    case "propose_skill":
+      return asString(a.name);
+    case "read_skill_resource": {
+      const name = asString(a.name);
+      const path = asString(a.path);
+      return name && path ? `${name}/${path}` : (name ?? path);
+    }
+    case "search_memory":
+    case "search_conversations":
+    case "search_tools":
+      return asString(a.query);
+    case "web_fetch":
+    case "http_request":
+      return asString(a.url);
     default:
       return undefined;
   }
 }
 
-/** Human-readable label for a tool invocation (the toolCall row title).
- *  `undefined` on a body-less toolCall started shell (see `mapPlan`). */
+/** Human-readable label for a tool invocation (the toolCall row title). */
 export function toolLabel(tool: ToolInvocation | undefined): string {
   if (!tool) return "tool";
   const byName = nameLabel(tool);
@@ -218,9 +214,13 @@ export function toolLabel(tool: ToolInvocation | undefined): string {
   const a = tool.arguments ?? {};
   switch (toolCategory(tool.name)) {
     case "command":
-      return asString(a.command) || tool.name || "command";
+      // `description` is required by the shell tool and is an action phrase ("Run
+      // backend tests"); the command itself rides beside it as the row's mono
+      // detail. A title spelled as the command line puts data in the slot meant
+      // for intent, and repeats verbatim what the detail already shows.
+      return asString(a.description) || asString(a.command) || tool.name || "command";
     case "fileEdit": {
-      const path = asString(a.file_path) ?? asString(a.path);
+      const path = asString(a.path);
       if (path) return path;
       const single = asString(asRecord(editChanges(tool.result)[0])?.path);
       // No single path to show: leave the tool's own name, which is how every
@@ -235,19 +235,31 @@ export function toolLabel(tool: ToolInvocation | undefined): string {
     case "webSearch":
       return asString(a.query) || "search";
     case "read":
-      return asString(a.file_path) || asString(a.path) || tool.name;
+      return asString(a.path) || tool.name;
     case "subagent":
-      return firstLine(a.prompt) || firstLine(a.task) || tool.name;
+      // delegate_task requires a 3-5 word `summary` precisely so the parent row can
+      // name the delegated work without quoting the whole brief.
+      return asString(a.summary) || firstLine(a.instructions) || tool.name;
     default:
       return tool.name || "tool";
   }
 }
 
-/** Derive view ToolCall fields from a (possibly completed) toolCall Item.
- *  `undefined` on a body-less toolCall started shell (see `mapPlan`). */
+/** Derive view ToolCall fields from a (possibly completed) toolCall Item. */
 export function toolFields(tool: ToolInvocation | undefined): Partial<ToolCall> {
   if (!tool) return {};
   const result = asRecord(tool.result);
+  const operation = asString(tool.arguments?.operation);
+  return {
+    ...(operation !== undefined ? { operation } : {}),
+    ...categoryFields(tool, result),
+  };
+}
+
+function categoryFields(
+  tool: ToolInvocation,
+  result: Record<string, unknown> | undefined,
+): Partial<ToolCall> {
   switch (toolCategory(tool.name)) {
     case "command": {
       // The authoritative, persisted output lands on the result at item.completed
@@ -257,25 +269,23 @@ export function toolFields(tool: ToolInvocation | undefined): Partial<ToolCall> 
       // item.delta{toolOutput} stream is only a live preview accumulating
       // into `result` while running; absent output here (the started shell)
       // omits the key so that preview stands until completed reconciles it.
-      // Three wire dialects: the §4.4.2 convention `{exitCode, output}`, the
-      // runtime's raw shell response `{exit_code, stdout, stderr}` — stderr
-      // appended after stdout so failures aren't silently blank — and the
+      //
+      // Two shapes, not three: the runtime's presenter merges stdout/stderr and
+      // projects every shell result to `{ output, exitCode }` before it reaches
+      // the wire, so the raw `{stdout, stderr, exit_code}` dialect this used to
+      // also accept can no longer arrive. What remains is that envelope and the
       // plain-string ack of run_in_background ("Started background shell …").
-      const stdout = asString(result?.stdout);
-      const stderr = asString(result?.stderr);
-      const merged =
-        asString(result?.output) ??
-        (stdout !== undefined || stderr !== undefined
-          ? [stdout, stderr].filter(Boolean).join("\n")
-          : asString(tool.result));
-      const exitCode = [result?.exitCode, result?.exit_code].find(
-        (v): v is number => typeof v === "number",
-      );
+      const merged = asString(result?.output) ?? asString(tool.result);
       return {
-        exitCode,
-        ...(merged !== undefined
-          ? { result: merged, outputTruncated: result?.outputTruncated === true }
+        exitCode: asNumber(result?.exitCode),
+        // The command itself: a row titles itself with the human `description`
+        // now, and this is the line the reader actually verifies. It is not in
+        // `args` — a command call bakes its key argument into the label rather
+        // than streaming arg text.
+        ...(asString(tool.arguments?.command) !== undefined
+          ? { command: asString(tool.arguments?.command) }
           : {}),
+        ...(merged !== undefined ? { result: merged } : {}),
       };
     }
     case "fileEdit": {
@@ -286,17 +296,12 @@ export function toolFields(tool: ToolInvocation | undefined): Partial<ToolCall> 
       };
     }
     case "search":
-      // grep returns ONE of matches/files/counts (output_mode); glob returns
-      // paths. `hits` (§4.4.2) kept first for convention-shaped runtimes.
-      // The raw result rides along so the grep/glob previews can render the
-      // call's own rows instead of re-querying.
+      // The runtime's presenter folds grep's matches/files/counts and glob's paths
+      // into one `hits: [{path, snippet?, lineNumber?}]` envelope, so this reads the
+      // single projected shape. The raw result rides along so the grep/glob previews
+      // can render the call's own rows instead of re-querying.
       return {
-        hits:
-          asArrayLength(result?.hits) ??
-          asArrayLength(result?.matches) ??
-          asArrayLength(result?.files) ??
-          asArrayLength(result?.counts) ??
-          asArrayLength(result?.paths),
+        hits: asArrayLength(result?.hits),
         ...(tool.result !== undefined
           ? {
               result: typeof tool.result === "string" ? tool.result : JSON.stringify(tool.result),

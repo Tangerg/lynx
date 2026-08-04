@@ -12,7 +12,6 @@ import type { StateUpdate } from "./types";
 import type {
   AgentSessionView,
   Message,
-  PlanItem,
   TimelineEntry,
 } from "@/plugins/sdk/types/agentSessionView";
 import type {
@@ -66,14 +65,6 @@ export function patchBlocksWhere<B extends ContentBlock>(
         ? { ...m, blocks: m.blocks.map((b) => (predicate(b) ? patch(b) : b)) }
         : m,
     ),
-  });
-}
-
-/** Replace the run plan wholesale. */
-export function setRunPlan(runId: string, items: PlanItem[]): StateUpdate {
-  return (state) => ({
-    ...state,
-    plansByRunId: { ...state.plansByRunId, [runId]: items },
   });
 }
 

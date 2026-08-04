@@ -22,7 +22,7 @@ export interface WorkspaceSkillRowViewModel {
   id: string;
   name: string;
   description: string;
-  source: string;
+  scope: "project" | "user";
 }
 
 export interface WorkspaceRecipeCatalogEntry {
@@ -122,7 +122,7 @@ export function workspaceSkillsViewModel(
       id: skill.name,
       name: skill.name,
       description: skill.description,
-      source: skill.source,
+      scope: skill.scope,
     })),
   );
 }

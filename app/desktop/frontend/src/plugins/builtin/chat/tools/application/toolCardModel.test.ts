@@ -16,6 +16,7 @@ const tool = ({ runId = "run_1", ...overrides }: Partial<ToolCall> = {}): ToolCa
   fn: "shell",
   args: "go test ./...",
   status: "ok",
+  safetyClass: "exec",
   ...overrides,
 });
 
@@ -53,12 +54,17 @@ describe("toolCardModel", () => {
   // it is a table in the presentation ring rather than a condition in the card — so
   // this is where it has to be pinned.
   it("gives a glance a line, a product a card, and trouble an edge", () => {
-    expect(toolCardModel(t, tool({ name: "read", status: "ok" })).shell).toBe("line");
-    expect(toolCardModel(t, tool({ name: "lsp_diagnostics", status: "ok" })).shell).toBe("line");
+    const read = { name: "read", safetyClass: "safe" } as const;
+    expect(toolCardModel(t, tool({ ...read, status: "ok" })).shell).toBe("line");
+    expect(toolCardModel(t, tool({ name: "lsp", safetyClass: "safe", status: "ok" })).shell).toBe(
+      "line",
+    );
     expect(toolCardModel(t, tool({ name: "shell", status: "ok" })).shell).toBe("card");
-    expect(toolCardModel(t, tool({ name: "edit", status: "running" })).shell).toBe("card");
+    expect(
+      toolCardModel(t, tool({ name: "edit", safetyClass: "write", status: "running" })).shell,
+    ).toBe("card");
     // A read that FAILED is not a glance any more.
-    expect(toolCardModel(t, tool({ name: "read", status: "err" })).shell).toBe("flagged");
+    expect(toolCardModel(t, tool({ ...read, status: "err" })).shell).toBe("flagged");
   });
 
   it("tells a refused call apart from a finished one", () => {

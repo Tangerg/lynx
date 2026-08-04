@@ -49,7 +49,7 @@ import {
   WORKSPACE_READ_FILE_KEY,
   WORKSPACE_SKILLS_KEY,
   WORKSPACE_MANAGED_SKILLS_KEY,
-  WORKSPACE_SKILL_DRAFTS_KEY,
+  WORKSPACE_SKILL_PROPOSALS_KEY,
   WORKSPACE_AGENT_MEMORY_KEY,
 } from "@/plugins/builtin/workspace/public/queries";
 import type { DataProviderSpec, ContributingHost } from "@/plugins/sdk";
@@ -157,7 +157,7 @@ export function registerDefaultDataProviders(host: ContributingHost): void {
         (s) => ({
           name: s.name,
           description: s.description ?? "",
-          source: s.source ?? "",
+          scope: s.scope,
         }),
       );
     },
@@ -172,15 +172,23 @@ export function registerDefaultDataProviders(host: ContributingHost): void {
       })),
   });
   contribute({
-    key: WORKSPACE_SKILL_DRAFTS_KEY,
-    fetcher: async () =>
-      (await pageData(client().skills.listDrafts()).catch(emptyListIfUngated)).map((d) => ({
-        name: d.name,
-        revision: d.revision,
-        description: d.description ?? "",
-        createdBy: d.createdBy ?? "",
-        sourceSession: d.sourceSession ?? "",
-      })),
+    key: WORKSPACE_SKILL_PROPOSALS_KEY,
+    fetcher: async () => {
+      const resources = await workspace();
+      return (await pageData(resources.skills.listProposals()).catch(emptyListIfUngated)).map(
+        (p) => ({
+          name: p.name,
+          revision: p.revision,
+          scope: p.scope,
+          description: p.description,
+          instructions: p.instructions,
+          // Absent means the agent decided on its own to distil this.
+          origin: p.origin ?? "mined",
+          revises: p.revises === true,
+          sourceSession: p.sourceSession ?? "",
+        }),
+      );
+    },
   });
   contribute({
     key: WORKSPACE_BUILTIN_TOOLS_KEY,
@@ -241,7 +249,9 @@ export function registerDefaultDataProviders(host: ContributingHost): void {
               sessionId: goal.sessionId,
               objective: goal.objective,
               status: goal.status,
-              reason: goal.reason ?? "",
+              stop: goal.reason
+                ? { code: goal.reason.code, detail: goal.reason.detail ?? "" }
+                : null,
               budget: {
                 maxTurns: goal.budget.maxTurns ?? 0,
                 maxCostUsd: goal.budget.maxCostUsd ?? 0,

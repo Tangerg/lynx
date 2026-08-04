@@ -1,8 +1,8 @@
 // Reducer — built-in v2 StreamEvent behaviour. Covers segment.started /
 // segment.finished (completed / error / interrupt) + item.started / item.delta
 // / item.completed folding into message bubbles + tool calls. `custom`
-// dispatch lives in reducer.custom.test.ts; shared-state / plan accumulator
-// tests in reducer.aggregates.test.ts.
+// dispatch lives in reducer.custom.test.ts; shared-state tests in
+// reducer.aggregates.test.ts.
 
 import { beforeEach, describe, expect, it } from "vitest";
 import type { Item, StreamEvent } from "@/rpc";
@@ -11,7 +11,7 @@ import { loadPlugin } from "@/plugins/sdk/definePlugin";
 import { foldTestEvent as reduce, runFinished } from "./reducer.fixtures";
 import { reduceDurableItem } from "./reducer";
 import { EMPTY_AGENT_SESSION_VIEW } from "@/plugins/sdk/types/agentSessionView";
-import { selectCurrentRootRun, selectRunPlan, selectVisibleProblem } from "../view/runTree";
+import { selectCurrentRootRun, selectVisibleProblem } from "../view/runTree";
 
 // Builders. Items are partial — only the fields the fold reads matter; the
 // cast keeps the test terse without re-stating the full wire shape.
@@ -224,9 +224,9 @@ describe("reducer — item fold", () => {
     expect(s.messages[0]!.role).toBe("user");
   });
 
-  it("body-less item.started shells fold without crashing (tool / question / plan)", () => {
+  it("body-less item.started shells fold without crashing (tool / question)", () => {
     // The runtime's started shell may carry only ItemBase fields — the body
-    // (tool / question / steps) streams in later or lands whole on completed.
+    // (tool / question) streams in later or lands whole on completed.
     // Each must fold to an empty block, not throw (which the reducer's
     // try/catch would swallow, silently dropping the block forever).
     let s: AgentSessionView = EMPTY_AGENT_SESSION_VIEW;
@@ -238,8 +238,6 @@ describe("reducer — item fold", () => {
       itemId: "q1",
       questions: [],
     });
-    s = reduce(s, started(item({ id: "p1", type: "plan" }))); // no `steps`
-    expect(selectRunPlan(s, "run_1")).toEqual([]);
   });
 
   it("rejects item.completed with a non-terminal Item status", () => {

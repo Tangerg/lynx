@@ -1,7 +1,7 @@
 import type { Item, ItemDelta } from "@/rpc";
 import type { AgentSessionView, TimelineEntry } from "@/plugins/sdk/types/agentSessionView";
-import { appendTimelineEntry, setRunPlan } from "@/plugins/sdk";
-import { blockStatus, mapPlan } from "./projections";
+import { appendTimelineEntry } from "@/plugins/sdk";
+import { blockStatus } from "./projections";
 import {
   appendUserMessage,
   foldCompaction,
@@ -58,8 +58,6 @@ export function onItemStarted(
     }
     case "question":
       return foldQuestion(state, item, blockStatus(item.status));
-    case "plan":
-      return setRunPlan(item.runId, mapPlan(item.steps))(state);
     case "compaction":
       return foldCompaction(state, item);
   }
@@ -97,8 +95,6 @@ export function onItemDelta(
         ...tool,
         result: (tool.result ?? "") + delta.text,
       }));
-    case "plan":
-      return setRunPlan(source.runId, mapPlan(delta.steps))(state);
   }
 }
 
@@ -132,8 +128,6 @@ export function onItemCompleted(
     }
     case "question":
       return foldQuestion(state, item, blockStatus(item.status));
-    case "plan":
-      return setRunPlan(item.runId, mapPlan(item.steps))(state);
     case "compaction":
       return foldCompaction(state, item);
   }

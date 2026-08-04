@@ -14,7 +14,7 @@ export function askUserToolPreview(component: ToolPreviewComponent): ToolPreview
 }
 
 export function diffToolPreviews(component: ToolPreviewComponent): ToolPreviewContribution[] {
-  return toolPreviews(component, ["edit", "write"]);
+  return toolPreviews(component, ["edit", "write", "apply_patch"]);
 }
 
 export function fileToolPreview(component: ToolPreviewComponent): ToolPreviewContribution[] {
@@ -29,29 +29,33 @@ export function grepToolPreview(component: ToolPreviewComponent): ToolPreviewCon
   return toolPreviews(component, ["grep"]);
 }
 
-export function lspToolPreviews(
-  lsp: ToolPreviewComponent,
-  diagnostics: ToolPreviewComponent,
-): ToolPreviewContribution[] {
-  return [
-    { key: "lsp", component: lsp },
-    { key: "lsp_diagnostics", component: diagnostics },
-  ];
+// One operation-dispatched tool: diagnostics is an `operation` of `lsp`, and the
+// runtime asserts no separate lsp_diagnostics coexists with it. The preview reads
+// the operation to decide which face to wear.
+export function lspToolPreview(component: ToolPreviewComponent): ToolPreviewContribution[] {
+  return toolPreviews(component, ["lsp"]);
 }
 
-export function skillToolPreview(component: ToolPreviewComponent): ToolPreviewContribution[] {
-  return toolPreviews(component, ["skill"]);
+// The Skill family: a catalog listing, a loaded Skill's instructions, one bundled
+// resource, and a proposal's own body — all name+text results the same list renders.
+export function skillToolPreviews(component: ToolPreviewComponent): ToolPreviewContribution[] {
+  return toolPreviews(component, [
+    "list_skills",
+    "load_skill",
+    "read_skill_resource",
+    "propose_skill",
+  ]);
 }
 
-export function taskToolPreview(component: ToolPreviewComponent): ToolPreviewContribution[] {
-  return toolPreviews(component, ["task"]);
+export function delegationToolPreview(component: ToolPreviewComponent): ToolPreviewContribution[] {
+  return toolPreviews(component, ["delegate_task"]);
 }
 
 // The whole shell family returns terminal-style plain text. Backgrounding is an
-// ARGUMENT of `shell` (run_in_background), not a tool of its own — shell_output /
-// shell_kill are how you then read and stop it.
+// ARGUMENT of `shell` (run_in_background), not a tool of its own — read_shell_output
+// / stop_shell are how you then read and stop it.
 export function shellToolPreviews(component: ToolPreviewComponent): ToolPreviewContribution[] {
-  return toolPreviews(component, ["shell", "shell_output", "shell_kill"]);
+  return toolPreviews(component, ["shell", "read_shell_output", "stop_shell"]);
 }
 
 export function webSearchToolPreview(component: ToolPreviewComponent): ToolPreviewContribution[] {

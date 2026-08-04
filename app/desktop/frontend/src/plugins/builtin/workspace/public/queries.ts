@@ -11,7 +11,7 @@ export {
   WORKSPACE_READ_FILE_KEY,
   WORKSPACE_SKILLS_KEY,
   WORKSPACE_MANAGED_SKILLS_KEY,
-  WORKSPACE_SKILL_DRAFTS_KEY,
+  WORKSPACE_SKILL_PROPOSALS_KEY,
   WORKSPACE_AGENT_MEMORY_KEY,
   useWorkspaceAgentDocs,
   useWorkspaceBuiltinTools,
@@ -26,7 +26,7 @@ export {
   useWorkspaceRecipes,
   useWorkspaceSkills,
   useManagedSkills,
-  useSkillDrafts,
+  useSkillProposals,
   useAgentMemory,
 } from "../application/workspaceQueries";
 export {
@@ -53,7 +53,7 @@ export {
   type WorkspaceMemoryScope,
   type WorkspaceSkill,
   type ManagedSkill,
-  type SkillDraft,
+  type SkillProposal,
   type AgentMemoryEntry,
   type AgentMemoryQuery,
 } from "../application/workspaceQueries";

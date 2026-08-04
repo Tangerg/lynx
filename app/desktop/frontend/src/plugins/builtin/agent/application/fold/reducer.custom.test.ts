@@ -80,10 +80,14 @@ describe("reducer — custom StreamEvent fallback", () => {
     const targetId = seeded.messages[0]!.id;
     const host = createHost("plug", []);
     host.events.onCustom<{ id: string }>("custom.tag", (v) =>
-      appendBlockToMessage(v.id, { kind: "plan" }),
+      appendBlockToMessage(v.id, { kind: "image", mime: "image/png", data: "iVBOR" }),
     );
 
     const next = reduce(seeded, custom("custom.tag", { id: targetId }));
-    expect(next.messages[0]!.blocks.at(-1)).toEqual({ kind: "plan" });
+    expect(next.messages[0]!.blocks.at(-1)).toEqual({
+      kind: "image",
+      mime: "image/png",
+      data: "iVBOR",
+    });
   });
 });

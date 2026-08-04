@@ -1,7 +1,6 @@
 export {
   ApprovalCard,
   MessageBlock,
-  PlanBlock,
   QuestionCard,
   ReasoningBlock,
   RootRunOutcome,

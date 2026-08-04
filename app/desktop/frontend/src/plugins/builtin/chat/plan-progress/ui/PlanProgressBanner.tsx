@@ -1,21 +1,21 @@
-import type { PlanItem } from "@/plugins/builtin/agent/public/viewState";
 import type { MouseEvent } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useState } from "react";
-import { IconButton, StepMark, type StepState } from "@/ui";
+import { IconButton, StepMark } from "@/ui";
 import { AgentActivityDisclosure } from "@/ui/agent";
 import { disclosureTransition } from "@/lib/motion";
 import { useT } from "@/lib/i18n";
-import { useCurrentRootPlan, useCurrentRootRunId } from "@/plugins/builtin/agent/public/run";
+import { useCurrentRootRunId } from "@/plugins/builtin/agent/public/run";
+import { useSessionPlan, type PlanStep } from "@/plugins/builtin/agent/public/plan";
 import { planProgress } from "../application/progress";
 
 export function PlanProgressBanner() {
   const t = useT();
-  const plan = useCurrentRootPlan();
+  const steps = useSessionPlan();
   const runId = useCurrentRootRunId();
   const [dismissedRunId, setDismissedRunId] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
-  const progress = planProgress(plan, runId, dismissedRunId);
+  const progress = planProgress(steps, runId, dismissedRunId);
 
   useEffect(() => {
     setExpanded(false);
@@ -37,7 +37,7 @@ export function PlanProgressBanner() {
           className="mt-1.5 mb-1"
         >
           <AgentActivityDisclosure
-            leading={<StepMark state={STEP_STATE[progress.current.status]} />}
+            leading={<StepMark state={progress.current.status} />}
             // A banner, not an entry in the transcript: it stands above the stream
             // and has to hold its own edge against whatever scrolls under it.
             shell="card"
@@ -86,10 +86,10 @@ export function PlanProgressBanner() {
             }
           >
             <ul className="flex flex-col gap-0.5">
-              {plan.map((item) => (
-                <li key={item.id} className="flex items-center gap-2 py-0.5">
-                  <StepMark state={STEP_STATE[item.status]} />
-                  <span className={itemTextClass(item.status)}>{item.text}</span>
+              {steps.map((step) => (
+                <li key={step.id} className="flex items-center gap-2 py-0.5">
+                  <StepMark state={step.status} />
+                  <span className={stepTextClass(step.status)}>{step.text}</span>
                 </li>
               ))}
             </ul>
@@ -100,17 +100,11 @@ export function PlanProgressBanner() {
   );
 }
 
-const STEP_STATE: Record<PlanItem["status"], StepState> = {
-  done: "done",
-  doing: "active",
-  todo: "pending",
-};
-
-function itemTextClass(status: PlanItem["status"]) {
+function stepTextClass(status: PlanStep["status"]) {
   if (status === "done") {
     return "min-w-0 flex-1 truncate text-ui-md leading-body text-fg-faint line-through decoration-line-soft";
   }
-  if (status === "doing") {
+  if (status === "active") {
     return "min-w-0 flex-1 truncate text-ui-md font-semibold leading-body text-fg";
   }
   return "min-w-0 flex-1 truncate text-ui-md leading-body text-fg-soft";

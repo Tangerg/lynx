@@ -137,12 +137,12 @@ describe("useAgentSession run timing guards", () => {
         ({
           items: { list: vi.fn(() => autoPage([])) },
           interrupts: { list: vi.fn(() => autoPage([])) },
-          todos: {
+          plan: {
             get: vi.fn().mockResolvedValue({
-              type: "todos",
+              type: "plan",
               sessionId: SID,
               revision: 0,
-              todos: [],
+              plan: [],
             }),
           },
           runs: {
@@ -266,12 +266,12 @@ describe("useAgentSession durable recovery", () => {
       client: () =>
         ({
           items: { list: vi.fn(() => autoPage([])) },
-          todos: {
+          plan: {
             get: vi.fn().mockResolvedValue({
-              type: "todos",
+              type: "plan",
               sessionId: RID,
               revision: 0,
-              todos: [],
+              plan: [],
               updatedAt: "2026-07-29T00:00:00Z",
             }),
           },
@@ -416,12 +416,12 @@ describe("useAgentSession durable recovery", () => {
         ({
           items: { list: vi.fn(() => autoPage([])) },
           interrupts: { list: vi.fn(() => autoPage([])) },
-          todos: {
+          plan: {
             get: vi.fn().mockResolvedValue({
-              type: "todos",
+              type: "plan",
               sessionId: RID,
               revision: 0,
-              todos: [],
+              plan: [],
             }),
           },
           runs: {

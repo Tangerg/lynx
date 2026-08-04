@@ -32,6 +32,7 @@ import type { AgentSessionView, Message } from "@/plugins/sdk/types/agentSession
 import { loadPlugin } from "@/plugins/sdk/definePlugin";
 import { foldTestEvent as reduce } from "./reducer.fixtures";
 import { appendToTurn } from "./fold";
+import { itemStartedAt } from "./projections";
 import { EMPTY_AGENT_SESSION_VIEW } from "@/plugins/sdk/types/agentSessionView";
 
 beforeEach(async () => {
@@ -146,7 +147,7 @@ describe("reducer — render convergence across delivery modes", () => {
     // The synthesized turn is dated by the Item that opened it — the runtime's
     // clock, the same one every message beside it carries. The fold reads no
     // clock of its own.
-    expect(streaming.messages[1]!.createdAt).toBe(r1.createdAt);
+    expect(streaming.messages[1]!.createdAt).toBe(itemStartedAt(r1));
 
     // Sanity: the fold actually built the turn we described — one user bubble +
     // one assistant turn holding reasoning / text / tool / text, in order.

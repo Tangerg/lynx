@@ -3,6 +3,7 @@
 // gone and how a goal surfaces instead is undecided. The KEY stays because the
 // provider and the invalidation are both live wiring on the runtime side of the
 // seam — what a future surface attaches to, not scaffolding for it.
+
 export const GOAL_KEY = "goal";
 
 export type GoalStatus = "active" | "paused" | "blocked";
@@ -20,11 +21,38 @@ export interface GoalUsage {
   steps: number;
 }
 
+/**
+ * Why the loop stopped, when it has.
+ *
+ * The runtime states this as a closed code plus an optional detail, where it used to
+ * be one free-form sentence — so a surface can word it in the reader's language
+ * instead of echoing whatever the backend wrote. Spelled in this context's own words
+ * like `GoalStatus` beside it: a read model that published the wire enum would make
+ * every consumer of this key a consumer of the protocol.
+ */
+export type GoalStopCode =
+  | "stoppedByUser"
+  | "runtimeRestarted"
+  | "runStartFailed"
+  | "awaitingInput"
+  | "terminalOutcomeMissing"
+  | "runNotCompleted"
+  | "turnBudgetReached"
+  | "costBudgetReached"
+  | "stepBudgetReached"
+  | "blockedByModel";
+
+export interface GoalStop {
+  code: GoalStopCode;
+  detail: string;
+}
+
 export interface GoalReadModel {
   sessionId: string;
   objective: string;
   status: GoalStatus;
-  reason: string;
+  /** Absent while the goal is still running. */
+  stop: GoalStop | null;
   budget: GoalBudget;
   used: GoalUsage;
 }

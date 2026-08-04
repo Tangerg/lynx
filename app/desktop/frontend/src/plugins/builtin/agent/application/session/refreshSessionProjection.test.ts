@@ -12,10 +12,10 @@ function snapshot(revision: number): AgentSessionSnapshot {
     runs: [],
     pendingInterruptSets: [],
     state: {
-      type: "todos",
+      type: "plan",
       sessionId: SESSION_ID,
       revision,
-      todos: [],
+      plan: [],
     },
   };
 }
@@ -58,7 +58,7 @@ describe("refreshAgentSessionProjection", () => {
     read.resolve(snapshot(1));
     await expect(refreshing).resolves.toMatchObject({
       commandError: null,
-      shared: { todos: { revision: 1 } },
+      shared: { plan: { revision: 1 } },
     });
   });
 
@@ -77,11 +77,11 @@ describe("refreshAgentSessionProjection", () => {
     const newerRefresh = refreshAgentSessionProjection(SESSION_ID);
     newer.resolve(snapshot(2));
     await expect(newerRefresh).resolves.toMatchObject({
-      shared: { todos: { revision: 2 } },
+      shared: { plan: { revision: 2 } },
     });
     older.resolve(snapshot(1));
     await expect(olderRefresh).resolves.toBeNull();
-    expect(useAgentStore.getState().sessions[SESSION_ID]!.view.shared.todos).toMatchObject({
+    expect(useAgentStore.getState().sessions[SESSION_ID]!.view.shared.plan).toMatchObject({
       revision: 2,
     });
   });

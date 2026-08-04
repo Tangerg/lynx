@@ -9,12 +9,20 @@
       "id": "item_02",
       "runId": "run_01",
       "status": "completed",
-      "createdAt": "2026-07-07T10:00:04Z",
+      "startedAt": "2026-07-07T10:00:04Z",
+      "finishedAt": "2026-07-07T10:00:05Z",
+      "durationMs": 1200,
       "type": "toolCall",
       "tool": {
         "name": "shell",
-        "arguments": { "command": "ls -la" },
-        "result": { "exitCode": 0, "output": "total 0\n" }
+        "arguments": {
+          "command": "ls -la",
+          "description": "List the working tree"
+        },
+        "result": {
+          "exitCode": 0,
+          "output": "total 0\n"
+        }
       },
       "safetyClass": "exec"
     }

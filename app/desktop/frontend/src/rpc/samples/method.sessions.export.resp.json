@@ -1,7 +1,7 @@
 {
   "format": "json",
   "artifact": {
-    "version": 9,
+    "version": 12,
     "session": {
       "id": "ses_01",
       "title": "Refactor the runtime protocol",
@@ -39,12 +39,15 @@
         "id": "item_01",
         "runId": "run_01",
         "status": "completed",
-        "createdAt": "2026-07-07T10:00:04Z",
+        "startedAt": "2026-07-07T10:00:04Z",
+        "finishedAt": "2026-07-07T10:00:05Z",
+        "durationMs": 1200,
         "type": "toolCall",
         "tool": {
           "name": "shell",
           "arguments": {
-            "command": "ls -la"
+            "command": "ls -la",
+            "description": "List the working tree"
           },
           "result": "total 0\n"
         },

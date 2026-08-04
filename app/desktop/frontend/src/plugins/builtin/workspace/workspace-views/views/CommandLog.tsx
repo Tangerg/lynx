@@ -34,10 +34,7 @@ export const CommandLog = memo(function CommandLog({
             )}
           </div>
           {c.output ? (
-            <pre className="mt-1.5 whitespace-pre-wrap break-words text-fg-muted">
-              {c.output}
-              {c.outputTruncated ? `\n${t("commandLog.truncated")}` : ""}
-            </pre>
+            <pre className="mt-1.5 whitespace-pre-wrap break-words text-fg-muted">{c.output}</pre>
           ) : null}
         </div>
       ))}

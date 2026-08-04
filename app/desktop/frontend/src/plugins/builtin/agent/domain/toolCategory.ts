@@ -2,34 +2,36 @@
 // UI talks about it (a command, a file edit, a search, a delegation).
 //
 // This is the agent context's vocabulary: `shell`, `edit`, `grep`, `web_search`,
-// `task` are the runtime's tool names, and what they mean is this context's
-// business. It lived in the kernel's plugin-contract types, where nothing in the
-// kernel used it and this context re-exported it through its own facade — the
-// rule in one place and its owner merely forwarding.
+// `delegate_task` are the runtime's tool names, and what they mean is this
+// context's business. It lived in the kernel's plugin-contract types, where
+// nothing in the kernel used it and this context re-exported it through its own
+// facade — the rule in one place and its owner merely forwarding.
 
 export type ToolCategory =
-  | "command" // shell → { command } + { output, exitCode? }, or a plain-string ack when backgrounded
-  | "fileEdit" // edit / write → { file_path } + { changes: FileEdit[] }
+  | "command" // shell → { command, description } + { output, exitCode? }, or a plain-string ack when backgrounded
+  | "fileEdit" // edit / write / apply_patch → { path } + { changes: FileEdit[] }
   | "search" // grep / glob → { pattern } + { hits: SearchHit[] }
   | "webSearch" // web_search → { query } + { results: WebSearchResult[] }
-  | "read" // read → { file_path, offset?, limit? } + { content, start_line, … }
-  | "subagent" // task → { description, prompt } + a plain-string reply
+  | "read" // read → { path, start_line?, max_lines? } + { content, start_line, … }
+  | "subagent" // delegate_task → { summary, instructions } + a plain-string reply
   | "generic"; // MCP "<server>_<tool>" / anything unknown → JSON tree
 
 const TOOL_CATEGORY: Record<string, ToolCategory> = {
   shell: "command",
   edit: "fileEdit",
   write: "fileEdit",
+  // The runtime projects a patch into the same { changes } envelope an edit
+  // produces, so it renders through the same diff path.
+  apply_patch: "fileEdit",
   grep: "search",
   glob: "search",
   web_search: "webSearch",
   read: "read",
-  task: "subagent", // the runtime's delegation tool (spawns a child run, returns its reply)
+  delegate_task: "subagent", // the runtime's delegation tool (spawns a child run, returns its reply)
 };
-// lsp / lsp_diagnostics / skill / ask_user / shell_output / shell_kill stay
-// "generic" on purpose: their labels, icons, and previews key on the tool NAME
-// (projections.toolLabel + TOOL_ICON + TOOL_PREVIEW), and their results are
-// plain text the generic field projection already passes through.
+// Everything else stays "generic" on purpose: their labels, icons, and previews key
+// on the tool NAME (projections.nameLabel + TOOL_ICON + TOOL_PREVIEW), and their
+// results are plain text the generic field projection already passes through.
 
 export function toolCategory(name: string): ToolCategory {
   return TOOL_CATEGORY[name] ?? "generic";

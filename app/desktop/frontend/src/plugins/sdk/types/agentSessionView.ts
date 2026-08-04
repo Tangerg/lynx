@@ -48,19 +48,26 @@ export interface ToolCall {
    *  failures set the toolCall Item's `error`. */
   exitCode?: number;
   result?: string;
-  /** command-category: the runtime capped `result.output` (stdout+stderr) at a
-   *  size limit. UI shows a "truncated — open in terminal for full" affordance. */
-  outputTruncated?: boolean;
+  /** command-category: the shell command this call ran (`arguments.command`). The
+   *  label is the human `description` the runtime requires, so the command needs a
+   *  field of its own — it is the line a reader verifies. */
+  command?: string;
   /** Human-readable failure reason from the toolCall Item's `error`
    *  (ProblemData.detail ?? type, API.md §8.1 channel b). Set when status="err". */
   error?: string;
-}
-
-export interface PlanItem {
-  id: number;
-  pid: string;
-  status: "done" | "doing" | "todo";
-  text: string;
+  /** The `operation` argument of an operation-dispatched tool (`lsp`), when it has
+   *  one. Read from the call's arguments rather than from `args`, which is empty
+   *  whenever the label already names the target. */
+  operation?: string;
+  /** The runtime's side-effect class for this call (toolCall Item safetyClass).
+   *  Absent for a tool the runtime has no class for; treated as unknown, which
+   *  reads as "not a read" — the same fail-conservative default the approval gate
+   *  applies. This is what replaced a hand-maintained read-only tool list here. */
+  safetyClass?: "safe" | "write" | "exec" | "network";
+  /** How long the call took, measured by the runtime (toolCall Item durationMs).
+   *  Absent while the call is still running — a client-side stopwatch would be
+   *  measuring its own render loop, not the tool. */
+  durationMs?: number;
 }
 
 export interface Message {
@@ -192,7 +199,6 @@ export interface PendingInterruptGroup {
 export interface AgentSessionView {
   messages: Message[];
   toolCalls: Record<string, ToolCall>;
-  plansByRunId: Record<string, PlanItem[]>;
   runsById: Record<string, AgentRunView>;
   commandError: AgentProblem | null;
   dismissedProblemRunId: string | null;
@@ -218,7 +224,6 @@ export interface AgentSessionView {
 export const EMPTY_AGENT_SESSION_VIEW: AgentSessionView = {
   messages: [],
   toolCalls: {},
-  plansByRunId: {},
   runsById: {},
   commandError: null,
   dismissedProblemRunId: null,

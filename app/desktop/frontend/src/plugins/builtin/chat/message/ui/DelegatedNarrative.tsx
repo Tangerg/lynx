@@ -3,7 +3,6 @@ import { useMemo } from "react";
 import type { Message } from "@/plugins/builtin/agent/public/viewState";
 import type { DelegatedRunNarrative } from "@/plugins/builtin/agent/public/conversation";
 import { cancelActiveSessionRun } from "@/plugins/builtin/agent/public/run";
-import { PlanBlock } from "./cards";
 import { MessageContext } from "@/plugins/sdk/messageContext";
 import { useCitationSources } from "@/plugins/sdk";
 import { openTimelineView } from "@/plugins/builtin/workspace/public/deeplinks";
@@ -29,10 +28,6 @@ export function DelegatedNarrative({
   ctx,
   renderMessageBlocks,
 }: Props) {
-  const childCtx: BlockCtx = { ...ctx, plan: narrative.plan };
-  const hasPlanMarker = narrative.messages.some((message) =>
-    message.blocks.some((block) => block.kind === "plan"),
-  );
   const hasMaterial = narrative.messages.some((message) => message.blocks.length > 0);
 
   return (
@@ -40,19 +35,18 @@ export function DelegatedNarrative({
       run={narrative.run}
       ordinal={ordinal}
       siblingCount={siblingCount}
-      hasMaterial={hasMaterial || narrative.plan.length > 0}
+      hasMaterial={hasMaterial}
       onCancel={() => {
         cancelActiveSessionRun(narrative.run.id);
       }}
       onOpenAudit={openTimelineView}
     >
-      {narrative.plan.length > 0 && !hasPlanMarker && <PlanBlock plan={narrative.plan} />}
       <div className="grid gap-2">
         {narrative.messages.map((message) => (
           <DelegatedMessage
             key={message.id}
             message={message}
-            ctx={childCtx}
+            ctx={ctx}
             renderMessageBlocks={renderMessageBlocks}
           />
         ))}

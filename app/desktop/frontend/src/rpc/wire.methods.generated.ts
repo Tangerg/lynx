@@ -41,9 +41,9 @@ import type {
   GetDiffRequest,
   GetFileHeadRequest,
   GetMemoryRequest,
+  GetPlanRequest,
   GetRunRequest,
   GetSessionRequest,
-  GetTodosRequest,
   Goal,
   GoalRequest,
   GrepRequest,
@@ -83,7 +83,7 @@ import type {
   PageOfSchedule,
   PageOfSession,
   PageOfSkill,
-  PageOfSkillDraft,
+  PageOfSkillProposal,
   PageOfToolSpec,
   PageOfWorkspaceFileChange,
   PageOfWorkspaceSummary,
@@ -106,8 +106,8 @@ import type {
   SessionUsageRequest,
   SetApprovalModeRequest,
   SetHookTrustRequest,
-  SkillDraftRef,
   SkillNameRequest,
+  SkillProposalRef,
   StartGoalRequest,
   StartRunRequest,
   StartRunResponse,
@@ -135,7 +135,7 @@ const FEATURES = [
   "reasoning",
   "multimodal",
   "compaction",
-  "todos",
+  "plan",
   "goals",
   "agentMemory",
   "memory",
@@ -176,7 +176,7 @@ const METHOD_NAMES = [
   "runs.get",
   "runs.list",
   "interrupts.list",
-  "todos.get",
+  "plan.get",
   "items.list",
   "workspaces.resolve",
   "workspaces.list",
@@ -191,9 +191,9 @@ const METHOD_NAMES = [
   "skills.library.list",
   "skills.library.archive",
   "skills.library.restore",
-  "skills.drafts.list",
-  "skills.drafts.promote",
-  "skills.drafts.reject",
+  "skills.proposals.list",
+  "skills.proposals.approve",
+  "skills.proposals.reject",
   "recipes.list",
   "agentDocs.list",
   "mcp.servers.list",
@@ -283,7 +283,7 @@ const VALUE_METHOD_NAMES = [
   "runs.get",
   "runs.list",
   "interrupts.list",
-  "todos.get",
+  "plan.get",
   "items.list",
   "workspaces.resolve",
   "workspaces.list",
@@ -296,7 +296,7 @@ const VALUE_METHOD_NAMES = [
   "runtime.subscribe",
   "skills.discovered.list",
   "skills.library.list",
-  "skills.drafts.list",
+  "skills.proposals.list",
   "recipes.list",
   "agentDocs.list",
   "mcp.servers.list",
@@ -469,7 +469,7 @@ export const WIRE_METHOD_POLICY = {
     idempotency: "none",
     pagination: "cursor",
   },
-  "todos.get": {
+  "plan.get": {
     operation: "query",
     response: "unary",
     idempotency: "none",
@@ -559,19 +559,19 @@ export const WIRE_METHOD_POLICY = {
     idempotency: "replayResponse",
     pagination: "none",
   },
-  "skills.drafts.list": {
+  "skills.proposals.list": {
     operation: "query",
     response: "unary",
     idempotency: "none",
     pagination: "none",
   },
-  "skills.drafts.promote": {
+  "skills.proposals.approve": {
     operation: "command",
     response: "unary",
     idempotency: "replayResponse",
     pagination: "none",
   },
-  "skills.drafts.reject": {
+  "skills.proposals.reject": {
     operation: "command",
     response: "unary",
     idempotency: "replayResponse",
@@ -938,8 +938,8 @@ export const WIRE_CAPABILITY_POLICY: {
   "runs.list": [
     { when: [{ field: "includeDescendants", operator: "present" }], requires: ["subagents"] },
   ],
-  "todos.get": [
-    { requires: ["todos"] },
+  "plan.get": [
+    { requires: ["plan"] },
   ],
   "items.list": [
     { when: [{ field: "scope.includeDescendants", operator: "present" }], requires: ["subagents"] },
@@ -965,13 +965,13 @@ export const WIRE_CAPABILITY_POLICY: {
   "skills.library.restore": [
     { requires: ["skills"] },
   ],
-  "skills.drafts.list": [
+  "skills.proposals.list": [
     { requires: ["skills"] },
   ],
-  "skills.drafts.promote": [
+  "skills.proposals.approve": [
     { requires: ["skills"] },
   ],
-  "skills.drafts.reject": [
+  "skills.proposals.reject": [
     { requires: ["skills"] },
   ],
   "mcp.servers.list": [
@@ -1083,7 +1083,7 @@ export interface WireShapes {
   "runs.get": { params: GetRunRequest; result: RunRef };
   "runs.list": { params: ListRunsRequest; result: PageOfRunRef };
   "interrupts.list": { params: ListInterruptsRequest; result: PageOfPendingInterruptSet };
-  "todos.get": { params: GetTodosRequest; result: StateSnapshot };
+  "plan.get": { params: GetPlanRequest; result: StateSnapshot };
   "items.list": { params: ListItemsRequest; result: ListItemsResponse };
   "workspaces.resolve": { params: ResolveWorkspaceRequest; result: WorkspaceInfo };
   "workspaces.list": { params: Record<string, never>; result: PageOfWorkspaceSummary };
@@ -1098,9 +1098,9 @@ export interface WireShapes {
   "skills.library.list": { params: Record<string, never>; result: PageOfManagedSkill };
   "skills.library.archive": { params: SkillNameRequest };
   "skills.library.restore": { params: SkillNameRequest };
-  "skills.drafts.list": { params: Record<string, never>; result: PageOfSkillDraft };
-  "skills.drafts.promote": { params: SkillDraftRef };
-  "skills.drafts.reject": { params: SkillDraftRef };
+  "skills.proposals.list": { params: WorkspaceQuery; result: PageOfSkillProposal };
+  "skills.proposals.approve": { params: SkillProposalRef };
+  "skills.proposals.reject": { params: SkillProposalRef };
   "recipes.list": { params: WorkspaceQuery; result: PageOfRecipe };
   "agentDocs.list": { params: WorkspaceQuery; result: PageOfAgentDoc };
   "mcp.servers.list": { params: Record<string, never>; result: PageOfMcpServer };

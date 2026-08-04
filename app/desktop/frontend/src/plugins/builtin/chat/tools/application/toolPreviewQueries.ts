@@ -1,6 +1,4 @@
 import type { ToolCall } from "@/plugins/builtin/agent/public/viewState";
-import type { Translate } from "@/lib/i18n";
-import { useT } from "@/lib/i18n";
 import {
   useWorkspaceDiff,
   useWorkspaceFileHead,
@@ -38,48 +36,31 @@ interface GrepPreviewRow {
   text: string;
 }
 
-function inlineGrepRows(
-  t: Translate,
-  result: string | undefined,
-): { rows: GrepPreviewRow[]; truncated: boolean } | undefined {
-  const parsed = parseJsonResult(result);
-  if (!parsed) return undefined;
-  const rec = (value: unknown): Record<string, unknown> =>
-    typeof value === "object" && value !== null ? (value as Record<string, unknown>) : {};
-  const truncated = parsed.truncated === true;
-  if (Array.isArray(parsed.matches)) {
+// The runtime projects every grep shape — matches, file names, per-file counts — into
+// one `hits: [{path, snippet?, lineNumber?}]` envelope, so a call's own rows come from
+// that and nothing has to guess which output mode produced them.
+function inlineGrepRows(result: string | undefined): GrepPreviewRow[] | undefined {
+  const hits = parseJsonResult(result)?.hits;
+  if (!Array.isArray(hits)) return undefined;
+  return hits.map((hit) => {
+    const record = typeof hit === "object" && hit !== null ? (hit as Record<string, unknown>) : {};
+    const path = String(record.path ?? "");
+    const line = record.lineNumber;
     return {
-      rows: parsed.matches.map((match) => ({
-        loc: `${String(rec(match).path ?? "")}:${String(rec(match).line ?? "")}`,
-        text: String(rec(match).text ?? ""),
-      })),
-      truncated,
+      loc: typeof line === "number" ? `${path}:${line}` : path,
+      text: String(record.snippet ?? ""),
     };
-  }
-  if (Array.isArray(parsed.files)) {
-    return { rows: parsed.files.map((file) => ({ loc: String(file), text: "" })), truncated };
-  }
-  if (Array.isArray(parsed.counts)) {
-    return {
-      rows: parsed.counts.map((count) => ({
-        loc: String(rec(count).path ?? ""),
-        text: t("tool.meta.matches", { count: Number(rec(count).count ?? 0) }),
-      })),
-      truncated,
-    };
-  }
-  return undefined;
+  });
 }
 
 export function useGrepToolPreview(tool: ToolCall, maxMatches: number) {
-  const t = useT();
-  const inline = inlineGrepRows(t, tool.result);
+  const inline = inlineGrepRows(tool.result);
   const cwd = useActiveSessionCwd();
   const query =
     !inline && tool.name === "grep" && tool.fn && tool.fn !== "search" ? tool.fn : undefined;
   const { data } = useWorkspaceGrep(query ? { query, cwd, limit: maxMatches } : undefined);
   const rows =
-    inline?.rows ??
+    inline ??
     (data?.matches ?? []).map((match) => ({
       loc: `${match.path}:${match.lineNumber}`,
       text: match.text,
@@ -88,6 +69,5 @@ export function useGrepToolPreview(tool: ToolCall, maxMatches: number) {
   return {
     shown,
     overflow: inline ? rows.length - shown.length : (data?.total ?? 0) - shown.length,
-    truncated: inline?.truncated ?? false,
   };
 }

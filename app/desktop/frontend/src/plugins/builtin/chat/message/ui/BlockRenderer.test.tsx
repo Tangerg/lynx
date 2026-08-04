@@ -61,7 +61,6 @@ describe("delegated Run rendering", () => {
     const parentTool = tool("task-root");
     const nestedTool = { ...tool("task-child"), runId: "child-run" };
     const ctx: BlockCtx = {
-      plan: [],
       toolCalls: {
         [parentTool.id]: parentTool,
         [nestedTool.id]: nestedTool,
@@ -71,14 +70,12 @@ describe("delegated Run rendering", () => {
           {
             run: run("child-run", "root-run", "root-run", parentTool.id),
             messages: [message("child-message", "child-run", nestedTool.id)],
-            plan: [],
           },
         ],
         [nestedTool.id]: [
           {
             run: run("nested-run", "child-run", "root-run", nestedTool.id),
             messages: [],
-            plan: [],
           },
         ],
       },
@@ -102,14 +99,12 @@ describe("delegated Run rendering", () => {
     agentRunCommands.cancel.mockClear();
     const parentTool = tool("task-root");
     const ctx: BlockCtx = {
-      plan: [],
       toolCalls: { [parentTool.id]: parentTool },
       delegatedRunsByItemId: {
         [parentTool.id]: [
           {
             run: run("child-run", "root-run", "root-run", parentTool.id, "running"),
             messages: [],
-            plan: [],
           },
         ],
       },

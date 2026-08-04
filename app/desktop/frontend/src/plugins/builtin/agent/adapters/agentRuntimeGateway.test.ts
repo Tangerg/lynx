@@ -78,12 +78,12 @@ describe("agentRuntimeGateway", () => {
             items: { list: vi.fn(() => autoPage([])) },
             runs: { list: listRuns },
             interrupts: { list: vi.fn(() => autoPage([])) },
-            todos: {
+            plan: {
               get: vi.fn().mockResolvedValue({
-                type: "todos",
+                type: "plan",
                 sessionId: "ses_1",
                 revision: 0,
-                todos: [],
+                plan: [],
               }),
             },
           }) as unknown as LyraClient,

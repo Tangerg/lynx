@@ -83,7 +83,6 @@ export {
   appendTimelineEntry,
   compose,
   patchBlocksWhere,
-  setRunPlan,
 } from "./state";
 
 // Shared cross-plugin state slices.

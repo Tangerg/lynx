@@ -3,11 +3,9 @@ import type {
   AgentRunView,
   AgentSessionView,
   Message,
-  PlanItem,
   RunUsage,
 } from "@/plugins/sdk/types/agentSessionView";
 
-const EMPTY_PLAN: PlanItem[] = [];
 const EMPTY_MESSAGES: Message[] = [];
 const EMPTY_USAGE: RunUsage = {
   inputTokens: 0,
@@ -23,7 +21,6 @@ export interface AgentRunTreeNode {
 export interface DelegatedRunNarrative {
   run: AgentRunView;
   messages: Message[];
-  plan: PlanItem[];
 }
 
 export type DelegatedRunNarrativesByItemId = Record<string, DelegatedRunNarrative[]>;
@@ -67,17 +64,6 @@ export function selectRun(
   return runId ? (view.runsById[runId] ?? null) : null;
 }
 
-export function selectRunPlan(
-  view: AgentSessionView,
-  runId: string | null | undefined,
-): PlanItem[] {
-  return runId ? (view.plansByRunId[runId] ?? EMPTY_PLAN) : EMPTY_PLAN;
-}
-
-export function selectCurrentRootPlan(view: AgentSessionView): PlanItem[] {
-  return selectRunPlan(view, selectCurrentRootRun(view)?.id);
-}
-
 /**
  * The main Session narrative: optimistic local messages plus material owned by
  * every root Run, in projection order. Descendant material is selected
@@ -100,7 +86,6 @@ export function selectDelegatedRunNarratives(
     const narrative: DelegatedRunNarrative = {
       run,
       messages: view.messages.filter((message) => message.runId === run.id),
-      plan: selectRunPlan(view, run.id),
     };
     (byItemId[run.spawnedByItemId] ??= []).push(narrative);
   }

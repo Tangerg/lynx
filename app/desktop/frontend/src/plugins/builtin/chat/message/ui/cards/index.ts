@@ -6,4 +6,3 @@ export { CompactionBlock } from "./CompactionBlock";
 export { ImageBlock } from "./ImageBlock";
 export { QuestionCard } from "./QuestionCard";
 export { ReasoningBlock } from "./ReasoningBlock";
-export { PlanBlock } from "./PlanBlock";

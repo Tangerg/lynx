@@ -20,7 +20,7 @@ describe("unitVoice", () => {
 
   it("reads text as prose and everything asking for the reader as a panel", () => {
     expect(unitVoice(block("text"))).toBe("prose");
-    for (const kind of ["approval", "question", "plan", "compaction", "image"] as const) {
+    for (const kind of ["approval", "question", "compaction", "image"] as const) {
       expect(unitVoice(block(kind))).toBe("panel");
     }
   });

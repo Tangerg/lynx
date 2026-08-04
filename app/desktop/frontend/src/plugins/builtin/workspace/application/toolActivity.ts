@@ -14,7 +14,6 @@ export interface WorkspaceCommandActivity {
   command: string;
   status: "running" | "succeeded" | "failed" | "blocked";
   output: string;
-  outputTruncated: boolean;
   exitCode?: number;
 }
 
@@ -33,10 +32,9 @@ export function workspaceToolActivityFromAgentTool(tool: ToolCall): WorkspaceToo
 function workspaceCommandActivityFromAgentTool(tool: ToolCall): WorkspaceCommandActivity {
   return {
     id: tool.id,
-    command: tool.fn,
+    command: tool.command ?? tool.fn,
     status: workspaceCommandStatus(tool.status),
     output: tool.result ?? "",
-    outputTruncated: tool.outputTruncated ?? false,
     exitCode: tool.exitCode,
   };
 }

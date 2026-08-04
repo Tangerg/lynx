@@ -106,7 +106,7 @@ const gateway: AgentRuntimeGateway = {
 
 async function loadOptionalSessionState(sessionId: string) {
   try {
-    return await getContainer().client().todos.get(asSessionId(sessionId));
+    return await getContainer().client().plan.get(asSessionId(sessionId));
   } catch (error) {
     if (isErrorType(error, "capability_not_negotiated")) return undefined;
     throw error;

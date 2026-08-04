@@ -6,13 +6,13 @@
   "event": {
     "type": "state.snapshot",
     "state": {
-      "type": "todos",
+      "type": "plan",
       "sessionId": "ses_01",
       "revision": 4,
-      "todos": [
+      "plan": [
         {
           "id": "1",
-          "text": "read the file",
+          "description": "read the file",
           "status": "in_progress"
         }
       ],

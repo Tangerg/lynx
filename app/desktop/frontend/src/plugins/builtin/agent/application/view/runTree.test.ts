@@ -108,15 +108,11 @@ describe("delegated narratives", () => {
         [root, childB, nested, childA],
         [message("a", childA.id), message("b", childB.id), message("nested", nested.id)],
       ),
-      plansByRunId: {
-        [childA.id]: [{ id: 1, pid: "a", status: "doing" as const, text: "Child plan" }],
-      },
     };
 
     const narratives = selectDelegatedRunNarratives(projection);
     expect(narratives["task-root"]?.map((item) => item.run.id)).toEqual(["child-a", "child-b"]);
-    expect(narratives["task-root"]?.[0]?.messages.map((item) => item.id)).toEqual(["a"]);
-    expect(narratives["task-root"]?.[0]?.plan.map((item) => item.text)).toEqual(["Child plan"]);
+    expect(narratives["task-root"]?.[0]?.messages.map((message) => message.id)).toEqual(["a"]);
     expect(narratives["task-child"]?.map((item) => item.run.id)).toEqual(["nested"]);
   });
 });

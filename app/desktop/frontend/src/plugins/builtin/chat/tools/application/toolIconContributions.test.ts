@@ -12,8 +12,8 @@ describe("tool icon contributions", () => {
   it("maps built-in tool keys to their domain glyphs", () => {
     expect(DEFAULT_TOOL_ICONS).toMatchObject({
       shell: "terminal",
-      shell_output: "list",
-      shell_kill: "stop",
+      read_shell_output: "list",
+      stop_shell: "stop",
       read: "eye",
       write: "file-plus",
       edit: "edit",
@@ -22,10 +22,12 @@ describe("tool icon contributions", () => {
       web_search: "globe",
       web_fetch: "download",
       lsp: "code",
-      lsp_diagnostics: "bug",
-      skill: "sparkle",
-      task: "spark",
+      list_skills: "sparkle",
+      load_skill: "sparkle",
+      propose_skill: "sparkle",
+      delegate_task: "spark",
       ask_user: "question",
+      set_plan: "list",
     });
   });
 
@@ -33,8 +35,8 @@ describe("tool icon contributions", () => {
     expect(entries(defaultToolIconContributions())).toEqual(DEFAULT_TOOL_ICONS);
   });
 
-  it("falls back by tool family before using the generic tool glyph", () => {
-    expect(defaultToolIconFor("lsp_references")).toBe("code");
-    expect(defaultToolIconFor("unknown_tool")).toBe("tool");
+  it("falls back to the generic tool glyph for a name it does not know", () => {
+    expect(defaultToolIconFor("lsp")).toBe("code");
+    expect(defaultToolIconFor("acme_do_thing")).toBe("tool");
   });
 });

@@ -9,7 +9,7 @@
 // in the generated validator and in schema.json.
 
 // The wire version this runtime serves; a client states it in request metadata.
-export const PROTOCOL_VERSION = "2026-08-02";
+export const PROTOCOL_VERSION = "2026-08-04";
 
 // The methods the runtime sends downstream. A client only ever subscribes.
 export const NOTIFICATIONS_RUN_EVENT = "notifications.run.event";
@@ -86,7 +86,7 @@ export interface AgentMemoryUpdateRequest {
 
 export type ApprovalDecision = "approve" | "deny";
 
-export type ApprovalMode = "safe" | "balanced" | "yolo" | "plan";
+export type ApprovalMode = "safe" | "balanced" | "yolo";
 
 export interface ApprovalModeResult {
   mode: ApprovalMode;
@@ -115,9 +115,8 @@ export type ArtifactItem =
   | { type: "userMessage"; content?: ArtifactContentBlock[]; createdAt: string; id: string; runId: string; status: ItemStatus }
   | { type: "agentMessage"; content?: ArtifactContentBlock[]; createdAt: string; id: string; runId: string; status: ItemStatus }
   | { type: "reasoning"; createdAt: string; id: string; redacted?: boolean; runId: string; status: ItemStatus; text?: string }
-  | { type: "plan"; createdAt: string; id: string; runId: string; status: ItemStatus; steps?: ArtifactPlanStep[] }
   | { type: "question"; createdAt: string; id: string; question?: ArtifactQuestion; runId: string; status: ItemStatus }
-  | { type: "toolCall"; createdAt: string; error?: ArtifactProblem; id: string; runId: string; safetyClass?: SafetyClass; status: ItemStatus; tool?: ArtifactToolInvocation }
+  | { type: "toolCall"; durationMs?: number; error?: ArtifactProblem; finishedAt?: string; id: string; runId: string; safetyClass?: SafetyClass; startedAt: string; status: ItemStatus; tool?: ArtifactToolInvocation }
   | { type: "compaction"; createdAt: string; droppedMessages?: number; id: string; runId: string; status: ItemStatus; summary?: string };
 
 export interface ArtifactModelUsage {
@@ -137,12 +136,6 @@ export type ArtifactOutcome =
   | { type: "canceled"; detail?: string };
 
 export type ArtifactOutcomeType = "completed" | "error" | "maxSteps" | "maxBudget" | "canceled";
-
-export interface ArtifactPlanStep {
-  id: string;
-  status: PlanStepStatus;
-  title: string;
-}
 
 export interface ArtifactProblem {
   detail?: string;
@@ -208,9 +201,9 @@ export interface ArtifactSession {
 }
 
 export type ArtifactState =
-  | { type: "todos"; todos: TodoSnapshot[] };
+  | { type: "plan"; plan: PlanSnapshot[] };
 
-export type ArtifactStateType = "todos";
+export type ArtifactStateType = "plan";
 
 export interface ArtifactToolInvocation {
   arguments: Record<string, unknown>;
@@ -498,15 +491,15 @@ export interface GetMemoryRequest {
   workspace?: WorkspaceRef;
 }
 
+export interface GetPlanRequest {
+  sessionId: string;
+}
+
 export interface GetRunRequest {
   runId: string;
 }
 
 export interface GetSessionRequest {
-  sessionId: string;
-}
-
-export interface GetTodosRequest {
   sessionId: string;
 }
 
@@ -516,7 +509,7 @@ export interface Goal {
   model?: string;
   objective: string;
   provider?: string;
-  reason?: string;
+  reason?: GoalReason;
   sessionId: string;
   status: GoalStatus;
   updatedAt: string;
@@ -528,6 +521,13 @@ export interface GoalBudget {
   maxSteps?: number;
   maxTurns?: number;
 }
+
+export interface GoalReason {
+  code: GoalReasonCode;
+  detail?: string;
+}
+
+export type GoalReasonCode = "stoppedByUser" | "runtimeRestarted" | "runStartFailed" | "awaitingInput" | "terminalOutcomeMissing" | "runNotCompleted" | "turnBudgetReached" | "costBudgetReached" | "stepBudgetReached" | "blockedByModel";
 
 export interface GoalRequest {
   sessionId: string;
@@ -629,19 +629,17 @@ export type Item =
   | { type: "userMessage"; content?: ContentBlock[]; createdAt: string; id: string; runId: string; status: ItemStatus }
   | { type: "agentMessage"; content?: ContentBlock[]; createdAt: string; id: string; runId: string; status: ItemStatus }
   | { type: "reasoning"; createdAt: string; id: string; redacted?: boolean; runId: string; status: ItemStatus; text?: string }
-  | { type: "plan"; createdAt: string; id: string; runId: string; status: ItemStatus; steps?: PlanStep[] }
   | { type: "question"; createdAt: string; id: string; question?: Question; runId: string; status: ItemStatus }
-  | { type: "toolCall"; createdAt: string; error?: ProblemData; id: string; runId: string; safetyClass?: SafetyClass; status: ItemStatus; tool?: ToolInvocation }
+  | { type: "toolCall"; durationMs?: number; error?: ProblemData; finishedAt?: string; id: string; runId: string; safetyClass?: SafetyClass; startedAt: string; status: ItemStatus; tool?: ToolInvocation }
   | { type: "compaction"; createdAt: string; droppedMessages?: number; id: string; runId: string; status: ItemStatus; summary?: string };
 
 export type ItemDelta =
   | { type: "content"; index?: number; text: string }
   | { type: "reasoning"; text: string }
   | { type: "toolArguments"; argumentsTextDelta: string }
-  | { type: "toolOutput"; text: string }
-  | { type: "plan"; steps: PlanStep[] };
+  | { type: "toolOutput"; text: string };
 
-export type ItemDeltaType = "content" | "reasoning" | "toolArguments" | "toolOutput" | "plan";
+export type ItemDeltaType = "content" | "reasoning" | "toolArguments" | "toolOutput";
 
 export type ItemListScope =
   | { type: "session"; sessionId: string }
@@ -653,7 +651,7 @@ export type ItemScopeType = "session" | "run";
 
 export type ItemStatus = "running" | "completed" | "incomplete";
 
-export type ItemType = "userMessage" | "agentMessage" | "reasoning" | "plan" | "question" | "toolCall" | "compaction";
+export type ItemType = "userMessage" | "agentMessage" | "reasoning" | "question" | "toolCall" | "compaction";
 
 export interface ListApprovalRulesRequest {
   sessionId: string;
@@ -892,7 +890,7 @@ export type PageOfSession = Page<Session>;
 
 export type PageOfSkill = Page<Skill>;
 
-export type PageOfSkillDraft = Page<SkillDraft>;
+export type PageOfSkillProposal = Page<SkillProposal>;
 
 export type PageOfToolSpec = Page<ToolSpec>;
 
@@ -912,13 +910,13 @@ export interface PendingInterruptSet {
   sessionId: string;
 }
 
-export interface PlanStep {
+export interface PlanSnapshot {
+  description: string;
   id: string;
-  status: PlanStepStatus;
-  title: string;
+  status: PlanStatus;
 }
 
-export type PlanStepStatus = "pending" | "running" | "completed" | "failed";
+export type PlanStatus = "pending" | "in_progress" | "completed";
 
 export type ProblemData =
   | { type: "agent_stuck"; detail?: string; docUrl?: string }
@@ -1293,20 +1291,7 @@ export interface SetHookTrustRequest {
 export interface Skill {
   description?: string;
   name: string;
-  source?: SkillSource;
-}
-
-export interface SkillDraft {
-  createdBy?: string;
-  description?: string;
-  name: string;
-  revision: string;
-  sourceSession?: string;
-}
-
-export interface SkillDraftRef {
-  name: string;
-  revision: string;
+  scope: SkillScope;
 }
 
 export type SkillLifecycle = "active" | "archived";
@@ -1315,7 +1300,27 @@ export interface SkillNameRequest {
   name: string;
 }
 
-export type SkillSource = "project" | "global";
+export interface SkillProposal {
+  description: string;
+  instructions: string;
+  name: string;
+  origin?: SkillProposalOrigin;
+  revises?: boolean;
+  revision: string;
+  scope: SkillScope;
+  sourceSession?: string;
+}
+
+export type SkillProposalOrigin = "requested" | "mined";
+
+export interface SkillProposalRef {
+  name: string;
+  revision: string;
+  scope: SkillScope;
+  workspace: WorkspaceRef;
+}
+
+export type SkillScope = "project" | "user";
 
 export type Stability = "stable" | "experimental";
 
@@ -1345,7 +1350,7 @@ export interface StartRunResponse {
 }
 
 export type StateSnapshot =
-  | { type: "todos"; revision: number; sessionId: string; todos: TodoSnapshot[]; updatedAt?: string };
+  | { type: "plan"; plan: PlanSnapshot[]; revision: number; sessionId: string; updatedAt?: string };
 
 export interface StateSnapshotCapability {
   key: StateSnapshotType;
@@ -1356,7 +1361,7 @@ export interface StateSnapshotCapability {
 
 export type StateSnapshotScope = "session" | "run";
 
-export type StateSnapshotType = "todos";
+export type StateSnapshotType = "plan";
 
 export type StateSnapshotWriter = "rootRun" | "anyRun";
 
@@ -1399,16 +1404,6 @@ export type SuppressibleRunEventType = "segment.progress" | "item.delta";
 export interface TestProviderRequest {
   provider: string;
 }
-
-export interface TodoSnapshot {
-  blockedReason?: string;
-  id: string;
-  nextAction?: string;
-  status: TodoStatus;
-  text: string;
-}
-
-export type TodoStatus = "pending" | "in_progress" | "completed";
 
 export interface ToolInvocation {
   arguments: Record<string, unknown>;
@@ -1557,13 +1552,13 @@ export const WIRE_ENUMS = {
   AgentMemoryScope: ["project", "user"],
   AgentMemoryStatus: ["active", "pending"],
   ApprovalDecision: ["approve", "deny"],
-  ApprovalMode: ["safe", "balanced", "yolo", "plan"],
+  ApprovalMode: ["safe", "balanced", "yolo"],
   ApprovalRisk: ["low", "medium", "high"],
   ApprovalRuleDecision: ["allow", "deny"],
   ApprovalRuleScope: ["session", "project", "global"],
   ArtifactOutcomeType: ["completed", "error", "maxSteps", "maxBudget", "canceled"],
   ArtifactProblemType: ["internalError", "runLost", "agentStuck", "rateLimited", "invalidApiKey", "timeout", "providerUnavailable", "providerRejected", "deniedByUser", "toolFailed", "childRunCanceled"],
-  ArtifactStateType: ["todos"],
+  ArtifactStateType: ["plan"],
   CancelRunResponseType: ["root", "child"],
   CapabilityRequirementType: ["feature", "interruptType", "runtimeTopic", "stateSnapshot"],
   CodebaseState: ["none", "indexing", "ready", "error"],
@@ -1575,23 +1570,24 @@ export const WIRE_ENUMS = {
   FeedbackRating: ["positive", "negative"],
   FileEntryType: ["file", "dir", "symlink"],
   FileStatus: ["added", "modified", "deleted", "renamed", "untracked"],
+  GoalReasonCode: ["stoppedByUser", "runtimeRestarted", "runStartFailed", "awaitingInput", "terminalOutcomeMissing", "runNotCompleted", "turnBudgetReached", "costBudgetReached", "stepBudgetReached", "blockedByModel"],
   GoalStatus: ["active", "paused", "blocked"],
   HookEvent: ["PreToolUse", "PostToolUse", "UserPromptSubmit", "SessionStart", "SubagentStart", "SubagentStop", "PreCompact", "Stop", "Notification"],
   HookScope: ["global", "project"],
   InterruptResponseType: ["approval", "answer", "toolResult"],
   InterruptType: ["approval", "question", "toolResult"],
-  ItemDeltaType: ["content", "reasoning", "toolArguments", "toolOutput", "plan"],
+  ItemDeltaType: ["content", "reasoning", "toolArguments", "toolOutput"],
   ItemOrder: ["asc", "desc"],
   ItemScopeType: ["session", "run"],
   ItemStatus: ["running", "completed", "incomplete"],
-  ItemType: ["userMessage", "agentMessage", "reasoning", "plan", "question", "toolCall", "compaction"],
+  ItemType: ["userMessage", "agentMessage", "reasoning", "question", "toolCall", "compaction"],
   McpAuthorizationAttemptStatusType: ["pending", "succeeded", "failed", "canceled"],
   McpSecretChangeType: ["set", "clear"],
   McpServerStateType: ["disabled", "disconnected", "connecting", "connected", "failed", "needsAuth"],
   McpTransport: ["stdio", "streamableHttp"],
   MemoryScope: ["cwd", "projectRoot", "home"],
   Modality: ["text", "image", "audio", "video", "pdf"],
-  PlanStepStatus: ["pending", "running", "completed", "failed"],
+  PlanStatus: ["pending", "in_progress", "completed"],
   ProviderConfigChangeType: ["set", "clear"],
   ProviderKeySource: ["stored", "env"],
   QuestionFieldType: ["text", "choice"],
@@ -1608,14 +1604,14 @@ export const WIRE_ENUMS = {
   SegmentOutcomeType: ["interrupt", "suspended", "completed", "error", "maxSteps", "maxBudget", "canceled"],
   SessionStatus: ["running", "waiting", "idle"],
   SkillLifecycle: ["active", "archived"],
-  SkillSource: ["project", "global"],
+  SkillProposalOrigin: ["requested", "mined"],
+  SkillScope: ["project", "user"],
   Stability: ["stable", "experimental"],
   StateSnapshotScope: ["session", "run"],
-  StateSnapshotType: ["todos"],
+  StateSnapshotType: ["plan"],
   StateSnapshotWriter: ["rootRun", "anyRun"],
   StreamEventType: ["segment.started", "segment.progress", "segment.finished", "item.started", "item.delta", "item.completed", "state.snapshot", "custom"],
   SuppressibleRunEventType: ["segment.progress", "item.delta"],
-  TodoStatus: ["pending", "in_progress", "completed"],
   WorkspaceAvailability: ["available", "missing"],
 } as const;
 

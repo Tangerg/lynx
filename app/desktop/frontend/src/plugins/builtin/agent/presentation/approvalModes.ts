@@ -12,7 +12,6 @@ export interface ApprovalModeOption {
 }
 
 export const APPROVAL_MODES: ApprovalModeOption[] = [
-  { value: "plan", labelKey: "approvals.mode.plan", descKey: "approvals.mode.plan.desc" },
   { value: "safe", labelKey: "approvals.mode.safe", descKey: "approvals.mode.safe.desc" },
   {
     value: "balanced",

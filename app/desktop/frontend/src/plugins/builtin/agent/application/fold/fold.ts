@@ -358,7 +358,7 @@ export function writeToolCall(
           item.runId,
           item.id,
           { kind: "tool", toolCallId: item.id },
-          item.createdAt,
+          item.startedAt,
         )
       : state;
   const prev = withBlock.toolCalls[item.id];
@@ -387,6 +387,8 @@ export function writeToolCall(
     // Surface the tool-level failure reason (§8.1 channel b) so an "err" tool
     // tells the user *why*, not just that it went red.
     error: item.error ? (errorDetail(item.error) ?? item.error.type) : undefined,
+    durationMs: item.durationMs,
+    safetyClass: item.safetyClass,
     ...toolFields(item.tool),
   };
   return { state: { ...withBlock, toolCalls: { ...withBlock.toolCalls, [item.id]: tool } }, tool };

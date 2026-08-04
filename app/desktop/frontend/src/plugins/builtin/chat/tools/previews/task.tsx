@@ -1,4 +1,4 @@
-// task (sub-agent) preview family — the result is the sub-agent's final reply.
+// delegate_task (sub-agent) preview — the result is the sub-agent's final reply.
 // The child run itself streams on the same tree (spawnedByItemId); this preview
 // is the parent-side summary of what came back.
 
@@ -8,7 +8,7 @@ import { PreviewPlaceholder } from "@/plugins/builtin/chat/tools/public/previews
 import { definePlugin } from "@/plugins/sdk";
 import { TOOL_PREVIEW } from "@/plugins/sdk/kernelPoints";
 import { resultLines } from "@/plugins/builtin/chat/tools/application/toolResultParsing";
-import { taskToolPreview } from "@/plugins/builtin/chat/tools/application/toolPreviewContributions";
+import { delegationToolPreview } from "@/plugins/builtin/chat/tools/application/toolPreviewContributions";
 import { INLINE_PREVIEW_ROW_LIMIT, PreviewOverflow, TEXT_PREVIEW_CLASS } from "./previewChrome";
 
 function TaskPreview({ tool, onOpenView }: ToolPreviewProps) {
@@ -35,7 +35,7 @@ export const taskPreview = definePlugin({
   name: "lyra.builtin.task-preview",
   version: "1.0.0",
   setup({ host }) {
-    for (const preview of taskToolPreview(TaskPreview)) {
+    for (const preview of delegationToolPreview(TaskPreview)) {
       host.extensions.contribute(TOOL_PREVIEW, preview.component, { key: preview.key });
     }
   },

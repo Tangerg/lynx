@@ -131,13 +131,16 @@ function planWithinWave(
 
   for (const item of positioned) {
     const tool = toolOf(item.block, toolCalls);
-    if (tool && isReadOnlyTool(tool.name)) {
-      reads.push(item);
-      continue;
-    }
-    // A question's own tool call is rendered by the question card, not twice.
+    // A question's own tool call is rendered by the question card, not twice. Checked
+    // ahead of the grouping: these tools are side-effect-free (they ARE the
+    // interrupt), so they read as glances and would otherwise be folded into a group
+    // instead of dropped.
     if (tool && hasQuestion && isQuestionTool(tool.name)) {
       flushReads();
+      continue;
+    }
+    if (tool && isReadOnlyTool(tool)) {
+      reads.push(item);
       continue;
     }
     flushReads();

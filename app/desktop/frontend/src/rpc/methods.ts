@@ -80,8 +80,8 @@ import type {
   SessionArtifact,
   Skill,
   ManagedSkill,
-  SkillDraft,
-  SkillDraftRef,
+  SkillProposal,
+  SkillProposalRef,
   AgentMemoryItem,
   AgentMemoryList,
   AgentMemoryScope,
@@ -197,8 +197,15 @@ export interface WorkspaceMethods {
   hooks: {
     list: () => Promise<HooksListResult>;
   };
+  // Discovery and the proposal review queue are both workspace-scoped, so both
+  // live on the bound client. `SkillProposalRef` carries a workspace of its own:
+  // taking it from the binding rather than the caller is what stops a decision
+  // from naming one workspace while the list it was read from named another.
   skills: {
     listDiscovered: () => Promise<Page<Skill>>;
+    listProposals: () => Promise<Page<SkillProposal>>;
+    approveProposal: (ref: Omit<SkillProposalRef, "workspace">) => MutationPromise<void>;
+    rejectProposal: (ref: Omit<SkillProposalRef, "workspace">) => MutationPromise<void>;
   };
   agentDocs: {
     list: () => Promise<Page<AgentDoc>>;
@@ -287,8 +294,8 @@ export interface Methods {
       },
     ) => AutoPagingPromise<Page<RunRef>>;
   };
-  todos: {
-    // The cold read the todos state key declares (§5.6). A session with no list yet
+  plan: {
+    // The cold read the plan state key declares (§5.6). A session with no plan yet
     // answers with the empty state at revision 0 — the same shape the stream pushes.
     get: (sessionId: SessionId) => Promise<StateSnapshot>;
   };
@@ -332,21 +339,14 @@ export interface Methods {
   hooks: {
     setTrust: (projectRoot: string, trusted: boolean) => MutationPromise<void>;
   };
-  // Self-authored skill management (§7.7). listDiscovered is the agent's
-  // project+global discovery view; the library surface adds archived skills and
-  // archive/restore (never deleting); the drafts surface is the offline HITL
-  // review queue for agent-mined proposals — promote publishes one into the
-  // active library, reject discards it. listDrafts/promote/reject are
-  // capability-gated (reject with capability_not_negotiated when authoring is
-  // disabled). promoteDraft/rejectDraft carry the content-addressed ref so a
-  // decision acts on the exact revision that was reviewed.
+  // Self-authored skill management (§7.7). The library surface adds archived
+  // skills and archive/restore (never deleting); it is workspace-independent
+  // because a managed skill is addressed by name alone. The workspace-scoped
+  // half — discovery and the proposal review queue — lives on the bound client.
   skills: {
     listLibrary: () => Promise<Page<ManagedSkill>>;
     archive: (name: string) => MutationPromise<void>;
     restore: (name: string) => MutationPromise<void>;
-    listDrafts: () => Promise<Page<SkillDraft>>;
-    promoteDraft: (ref: SkillDraftRef) => MutationPromise<void>;
-    rejectDraft: (ref: SkillDraftRef) => MutationPromise<void>;
   };
   mcp: {
     // One resource carries durable configuration and live state. Create and
@@ -499,6 +499,9 @@ function bindWorkspace(call: WireCall, ref: WorkspaceRef): WorkspaceMethods {
     },
     skills: {
       listDiscovered: () => call("skills.discovered.list", { workspace }),
+      listProposals: () => call("skills.proposals.list", { workspace }),
+      approveProposal: (ref) => call("skills.proposals.approve", { ...ref, workspace }),
+      rejectProposal: (ref) => call("skills.proposals.reject", { ...ref, workspace }),
     },
     agentDocs: {
       list: () => call("agentDocs.list", { workspace }),
@@ -668,8 +671,8 @@ export function createMethods(client: RpcClient, options: MethodsOptions = {}): 
       get: (runId) => call("runs.get", { runId }),
       list: (query) => call("runs.list", query ?? {}),
     },
-    todos: {
-      get: (sessionId) => call("todos.get", { sessionId }),
+    plan: {
+      get: (sessionId) => call("plan.get", { sessionId }),
     },
     runtimeEvents: {
       subscribe: async (params, signal) => {
@@ -703,9 +706,6 @@ export function createMethods(client: RpcClient, options: MethodsOptions = {}): 
       listLibrary: () => call("skills.library.list", {}),
       archive: (name) => call("skills.library.archive", { name }),
       restore: (name) => call("skills.library.restore", { name }),
-      listDrafts: () => call("skills.drafts.list", {}),
-      promoteDraft: (ref) => call("skills.drafts.promote", ref),
-      rejectDraft: (ref) => call("skills.drafts.reject", ref),
     },
     mcp: {
       list: () => call("mcp.servers.list", {}),

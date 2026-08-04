@@ -1,4 +1,4 @@
-import type { PlanItem, ToolCall } from "@/plugins/builtin/agent/public/viewState";
+import type { ToolCall } from "@/plugins/builtin/agent/public/viewState";
 import type { DelegatedRunNarrativesByItemId } from "@/plugins/builtin/agent/public/conversation";
 
 /**
@@ -6,7 +6,6 @@ import type { DelegatedRunNarrativesByItemId } from "@/plugins/builtin/agent/pub
  * workspace-owned disclosure state and presentation preferences join them.
  */
 export interface BlockCtx {
-  plan: PlanItem[];
   toolCalls: Record<string, ToolCall>;
   delegatedRunsByItemId: DelegatedRunNarrativesByItemId;
   onSelectTool: (id: string) => void;

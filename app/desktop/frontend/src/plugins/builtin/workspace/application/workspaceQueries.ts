@@ -25,7 +25,8 @@ export interface BuiltinToolSummary {
 export interface WorkspaceSkill {
   name: string;
   description: string;
-  source: string;
+  /** Which library it was discovered in — project-local or the user's own. */
+  scope: "project" | "user";
 }
 
 // One entry in the global self-authored skill library (skills.library.list),
@@ -38,14 +39,18 @@ export interface ManagedSkill {
   lifecycle: "active" | "archived";
 }
 
-// One agent-mined skill proposal awaiting offline review (skills.drafts.list).
-// name+revision is the content-addressed handle a promote/reject decision
-// carries; createdBy/sourceSession is the provenance shown to the reviewer.
-export interface SkillDraft {
+// One skill proposal awaiting offline review (skills.proposals.list).
+// name+revision+scope is the handle an approve/reject decision carries;
+// origin and sourceSession are the provenance shown to the reviewer, and
+// `revises` says an approval would overwrite a Skill that already loads.
+export interface SkillProposal {
   name: string;
   revision: string;
+  scope: "project" | "user";
   description: string;
-  createdBy: string;
+  instructions: string;
+  origin: "requested" | "mined";
+  revises: boolean;
   sourceSession: string;
 }
 
@@ -184,7 +189,7 @@ export const WORKSPACE_FILES_CHANGED_KEY = "files-changed";
 export const WORKSPACE_DIFF_KEY = "diff";
 export const WORKSPACE_SKILLS_KEY = "skills";
 export const WORKSPACE_MANAGED_SKILLS_KEY = "managed-skills";
-export const WORKSPACE_SKILL_DRAFTS_KEY = "skill-drafts";
+export const WORKSPACE_SKILL_PROPOSALS_KEY = "skill-proposals";
 export const WORKSPACE_AGENT_MEMORY_KEY = "agent-memory";
 export const WORKSPACE_MEMORY_KEY = "memory";
 export const WORKSPACE_BUILTIN_TOOLS_KEY = "builtin-tools";
@@ -216,7 +221,7 @@ export const useWorkspaceBuiltinTools = createDataQuery<BuiltinToolSummary[]>(
 );
 export const useWorkspaceSkills = createDataQuery<WorkspaceSkill[]>(WORKSPACE_SKILLS_KEY);
 export const useManagedSkills = createDataQuery<ManagedSkill[]>(WORKSPACE_MANAGED_SKILLS_KEY);
-export const useSkillDrafts = createDataQuery<SkillDraft[]>(WORKSPACE_SKILL_DRAFTS_KEY);
+export const useSkillProposals = createDataQuery<SkillProposal[]>(WORKSPACE_SKILL_PROPOSALS_KEY);
 export const useAgentMemory = createParameterizedDataQuery<AgentMemoryQuery, AgentMemoryEntry[]>(
   WORKSPACE_AGENT_MEMORY_KEY,
 );

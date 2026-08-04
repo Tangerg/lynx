@@ -18,7 +18,6 @@ export type {
   PendingInterrupt,
   PendingInterruptGroup,
   PendingInterruptKind,
-  PlanItem,
   RunUsage,
   TimelineEntry,
   TimelineEntryKind,

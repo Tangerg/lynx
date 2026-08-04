@@ -1,35 +1,42 @@
 import type { Translate } from "@/lib/i18n";
-import type { PlanItem } from "@/plugins/builtin/agent/public/viewState";
+import { useSessionPlan, type PlanStep } from "@/plugins/builtin/agent/public/plan";
+import { useWorkspaceCapability } from "./workspaceCapabilities";
+
+export type PlanState = "unavailable" | "empty" | "ready";
 
 export interface PlanViewModel {
-  items: readonly PlanItem[];
-  doneCount: number;
-  totalCount: number;
-  isEmpty: boolean;
+  steps: readonly PlanStep[];
+  done: number;
+  total: number;
+  state: PlanState;
 }
 
-export function planViewModel(items: readonly PlanItem[]): PlanViewModel {
-  let doneCount = 0;
-  for (const item of items) {
-    if (item.status === "done") {
-      doneCount += 1;
-    }
+export function usePlanView(): PlanViewModel {
+  // Gated by features.plan so a runtime without it shows an explicit
+  // "unavailable" state rather than a perpetually-empty tab.
+  return planViewModel(useWorkspaceCapability("plan"), useSessionPlan());
+}
+
+export function planViewModel(enabled: boolean, steps: readonly PlanStep[]): PlanViewModel {
+  let done = 0;
+  for (const step of steps) {
+    if (step.status === "done") done += 1;
   }
 
   return {
-    items,
-    doneCount,
-    totalCount: items.length,
-    isEmpty: items.length === 0,
+    steps,
+    done,
+    total: steps.length,
+    state: !enabled ? "unavailable" : steps.length === 0 ? "empty" : "ready",
   };
 }
 
 export function planSubtext(
   t: Translate,
-  { doneCount, totalCount }: Pick<PlanViewModel, "doneCount" | "totalCount">,
+  { done, total }: Pick<PlanViewModel, "done" | "total">,
 ): string | undefined {
-  if (totalCount === 0) {
+  if (total === 0) {
     return undefined;
   }
-  return t("plan.complete", { done: doneCount, total: totalCount });
+  return t("plan.complete", { done, total });
 }

@@ -1,4 +1,4 @@
-// terminal preview — the shell family (shell / shell_output / shell_kill), all
+// terminal preview — the shell family (shell / read_shell_output / stop_shell), all
 // terminal-style plain text.
 
 import { useT } from "@/lib/i18n";
@@ -39,10 +39,9 @@ function ShellPreview({ tool, onOpenView }: ToolPreviewProps) {
             idle="tools.preview.idle.noOutput"
           />
         )}
-        {(hiddenLines > 0 || tool.outputTruncated) && (
+        {hiddenLines > 0 && (
           <div className="text-fg-faint">
-            {hiddenLines > 0 && `… ${t("tools.overflow.lines", { count: hiddenLines })}`}
-            {tool.outputTruncated && ` · ${t("tools.overflow.outputTruncated")}`}
+            {`… ${t("tools.overflow.lines", { count: hiddenLines })}`}
           </div>
         )}
       </div>

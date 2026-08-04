@@ -55,19 +55,23 @@ describe("toolPresentation", () => {
     ]);
   });
 
-  // A capped output used to be invisible until you opened the row and wondered
-  // whether that really was the end of it.
-  it("says when the runtime capped the output", () => {
-    expect(toolMetaItems(t, tool({ outputTruncated: true })).map((item) => item.id)).toEqual([
-      "truncated",
+  // The runtime measures the call; a sub-second read reporting "0.1s" is noise on
+  // every row, so the number only appears once it can explain a wait.
+  it("reports a measured duration, and only once it is worth reading", () => {
+    expect(toolMetaItems(t, tool({ durationMs: 4200 })).map((item) => item.id)).toEqual([
+      "duration",
     ]);
+    expect(toolMetaItems(t, tool({ durationMs: 120 }))).toEqual([]);
     expect(toolMetaItems(t, tool({}))).toEqual([]);
   });
 
-  it("keeps read-only grouping conservative", () => {
-    expect(isReadOnlyTool("read")).toBe(true);
-    expect(isReadOnlyTool("lsp_diagnostics")).toBe(true);
-    expect(isReadOnlyTool("edit")).toBe(false);
+  // The runtime's own safety class, not a list of tool names kept here: a tool
+  // renamed on the backend used to silently change weight in the transcript.
+  it("takes read-only from the runtime's safety class", () => {
+    expect(isReadOnlyTool(tool({ name: "read", safetyClass: "safe" }))).toBe(true);
+    expect(isReadOnlyTool(tool({ name: "edit", safetyClass: "write" }))).toBe(false);
+    // Unclassified (an MCP tool the runtime has no class for) is not a read.
+    expect(isReadOnlyTool(tool({ name: "acme_do_thing" }))).toBe(false);
   });
 
   it("summarizes grouped tools by display bucket", () => {
@@ -75,7 +79,7 @@ describe("toolPresentation", () => {
       tool({ id: "read", name: "read" }),
       tool({ id: "grep", name: "grep" }),
       tool({ id: "glob", name: "glob" }),
-      tool({ id: "lsp", name: "lsp_diagnostics" }),
+      tool({ id: "lsp", name: "lsp" }),
     ];
     expect(summarizeToolGroup(t, tools)).toBe("1 read · 2 search · 1 lookup");
   });

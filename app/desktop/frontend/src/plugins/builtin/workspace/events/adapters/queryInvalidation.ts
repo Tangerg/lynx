@@ -15,7 +15,7 @@ import {
   WORKSPACE_FILES_CHANGED_KEY,
   WORKSPACE_MANAGED_SKILLS_KEY,
   WORKSPACE_SKILLS_KEY,
-  WORKSPACE_SKILL_DRAFTS_KEY,
+  WORKSPACE_SKILL_PROPOSALS_KEY,
 } from "@/plugins/builtin/workspace/public/queries";
 import {
   workspaceInvalidations,
@@ -37,7 +37,7 @@ const QUERY_KEYS: Record<
   sessionUsage: AGENT_SESSION_USAGE_KEY,
   skills: WORKSPACE_SKILLS_KEY,
   managedSkills: WORKSPACE_MANAGED_SKILLS_KEY,
-  skillDrafts: WORKSPACE_SKILL_DRAFTS_KEY,
+  skillProposals: WORKSPACE_SKILL_PROPOSALS_KEY,
 };
 
 export function invalidateWorkspaceTargets(

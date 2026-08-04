@@ -12,4 +12,4 @@
 export { MessageBlock } from "./MessageBlock";
 export { RootRunOutcome } from "./RootRunOutcome";
 export { renderBlock, type BlockCtx } from "./BlockRenderer";
-export { ApprovalCard, QuestionCard, ReasoningBlock, PlanBlock } from "./cards";
+export { ApprovalCard, QuestionCard, ReasoningBlock } from "./cards";

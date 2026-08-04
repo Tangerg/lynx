@@ -72,7 +72,6 @@ describe("openWorkspaceViewForTool", () => {
           fn: "npm test",
           status: "err",
           result: "failed",
-          outputTruncated: true,
           exitCode: 1,
         }),
         t2: toolCall({ id: "t2", name: "read", fn: "src/app.ts" }),
@@ -83,7 +82,6 @@ describe("openWorkspaceViewForTool", () => {
         command: "npm test",
         status: "failed",
         output: "failed",
-        outputTruncated: true,
         exitCode: 1,
       },
     ]);

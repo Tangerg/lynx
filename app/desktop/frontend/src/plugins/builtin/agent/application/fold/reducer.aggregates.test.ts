@@ -103,27 +103,27 @@ describe("reducer — timeline accumulator", () => {
 });
 
 describe("reducer — shared state", () => {
-  const todos = (revision: number, text: string): StreamEvent => ({
+  const plan = (revision: number, description: string): StreamEvent => ({
     type: "state.snapshot",
     state: {
-      type: "todos",
+      type: "plan",
       sessionId: "ses_1",
       revision,
-      todos: [{ id: "1", text, status: "pending" }],
+      plan: [{ id: "1", description, status: "pending" }],
     },
   });
 
   it("a state snapshot replaces its own key wholesale", () => {
-    const s = reduce(EMPTY_AGENT_SESSION_VIEW, todos(1, "first"));
-    expect(s.shared.todos).toMatchObject({ revision: 1, todos: [{ text: "first" }] });
+    const s = reduce(EMPTY_AGENT_SESSION_VIEW, plan(1, "first"));
+    expect(s.shared.plan).toMatchObject({ revision: 1, plan: [{ description: "first" }] });
   });
 
   // The list is replaced whole, so contents cannot say which snapshot is later — an
   // older one arriving late would look exactly like progress being undone.
   it("an older revision does not overwrite a newer one", () => {
-    let s = reduce(EMPTY_AGENT_SESSION_VIEW, todos(4, "current"));
-    s = reduce(s, todos(2, "stale"));
-    expect(s.shared.todos).toMatchObject({ revision: 4, todos: [{ text: "current" }] });
+    let s = reduce(EMPTY_AGENT_SESSION_VIEW, plan(4, "current"));
+    s = reduce(s, plan(2, "stale"));
+    expect(s.shared.plan).toMatchObject({ revision: 4, plan: [{ description: "current" }] });
   });
 });
 

@@ -7,7 +7,6 @@ export interface SkillPreviewEntry {
 
 export interface GlobPreviewModel {
   paths: string[];
-  truncated: boolean;
 }
 
 export interface WebSearchPreviewResult {
@@ -44,18 +43,9 @@ export function projectAskUserAnswer(result: string | undefined): string {
 }
 
 export function projectGlobPreview(result: string | undefined): GlobPreviewModel {
-  const parsed = parseJsonResult(result);
-  const arr = [parsed?.hits, parsed?.matches, parsed?.files, parsed?.paths].find(Array.isArray);
-  if (!arr) return { paths: [], truncated: parsed?.truncated === true };
-  return {
-    paths: (arr as unknown[]).map(hitPath).filter((path) => path.length > 0),
-    truncated: parsed?.truncated === true,
-  };
-}
-
-export function projectLspOperation(args: string | undefined): string {
-  const parsed = parseJsonResult(args);
-  return typeof parsed?.operation === "string" ? parsed.operation : "";
+  const hits = parseJsonResult(result)?.hits;
+  if (!Array.isArray(hits)) return { paths: [] };
+  return { paths: hits.map(hitPath).filter((path) => path.length > 0) };
 }
 
 export function projectWebSearchPreview(result: string | undefined): WebSearchPreviewResult[] {

@@ -22,13 +22,18 @@ const reasoning = (status: "running" | "complete" = "complete"): ContentBlock =>
   status,
 });
 
-const tool = (id: string, name: string): ToolCall => ({
+const tool = (
+  id: string,
+  name: string,
+  safetyClass: ToolCall["safetyClass"] = "safe",
+): ToolCall => ({
   id,
   runId: "run_1",
   name,
   fn: name,
   args: "",
   status: "ok",
+  safetyClass,
 });
 
 describe("messageCitations", () => {
@@ -88,7 +93,7 @@ describe("messageBlockRenderUnits", () => {
     expect(superseded([reasoning("running"), text("part", "running")])).toEqual([true, false]);
 
     // Interleaved: only the wave between the two answers folds.
-    const tools = { a: tool("a", "shell") };
+    const tools = { a: tool("a", "shell", "exec") };
     expect(superseded([text("first"), toolBlock("a"), text("second")], tools)).toEqual([
       true,
       true,

@@ -28,13 +28,12 @@ beforeEach(async () => {
   await loadPlugin(spec);
 });
 
-// A `shell` tool (§4.4.2): identity `name`, `arguments.command`, and the
-// settled `result` ({ output, exitCode, outputTruncated }) on completion. The
-// `result` fields land in `result`, not on the tool root (domain-neutral
-// envelope, API.md §4.4).
+// A `shell` tool (§4.4.2): identity `name`, `arguments.{command,description}`, and
+// the settled `result` ({ output, exitCode }) on completion. The `result` fields land
+// in `result`, not on the tool root (domain-neutral envelope, API.md §4.4).
 const cmd = (result: Record<string, unknown>) => ({
   name: "shell",
-  arguments: { command: "pwd" },
+  arguments: { command: "pwd", description: "Print the working directory" },
   ...(Object.keys(result).length > 0 ? { result } : {}),
 });
 
@@ -88,7 +87,9 @@ describe("reducer — commandExecution output durability", () => {
     expect(s.toolCalls["t1"]?.result).toBe("/Users/tangerg\n");
   });
 
-  it("outputTruncated rides through to the view when the runtime caps output", () => {
+  // The row titles itself with the human `description`, so the command has to reach
+  // the view by another route or the one line a reader verifies is nowhere.
+  it("carries the command itself alongside the description-derived label", () => {
     const s = reduce(
       EMPTY_AGENT_SESSION_VIEW,
       completed(
@@ -96,11 +97,14 @@ describe("reducer — commandExecution output durability", () => {
           id: "t1",
           status: "completed",
           type: "toolCall",
-          tool: cmd({ output: "first 64KB…\n", exitCode: 0, outputTruncated: true }),
+          tool: cmd({ output: "/Users/tangerg\n", exitCode: 0 }),
         }),
       ),
     );
-    expect(s.toolCalls["t1"]?.result).toBe("first 64KB…\n");
-    expect(s.toolCalls["t1"]?.outputTruncated).toBe(true);
+    expect(s.toolCalls["t1"]).toMatchObject({
+      fn: "Print the working directory",
+      command: "pwd",
+      result: "/Users/tangerg\n",
+    });
   });
 });

@@ -1,6 +1,7 @@
 import type { Translate } from "@/lib/i18n";
 import type { ToolCall } from "@/plugins/sdk/types/agentSessionView";
 import type { ActivityShell } from "@/lib/activityShell";
+import { fmtDuration } from "@/lib/format";
 
 export interface ToolIntent {
   label: string;
@@ -24,14 +25,21 @@ const TOOL_LABEL_KEYS: Record<string, string> = {
   read: "tool.label.read",
   edit: "tool.label.edit",
   write: "tool.label.write",
+  apply_patch: "tool.label.applyPatch",
   grep: "tool.label.grep",
   glob: "tool.label.glob",
   lsp: "tool.label.lsp",
+  // The Plan-mode trio and the catalog reads have no identifying argument to put
+  // in a title, so without an entry here a row reads as the raw snake_case name.
+  enter_plan_mode: "tool.label.enterPlanMode",
+  set_plan: "tool.label.setPlan",
+  exit_plan_mode: "tool.label.exitPlanMode",
+  list_skills: "tool.label.listSkills",
+  list_schedules: "tool.label.listSchedules",
+  read_tool_result: "tool.label.readToolResult",
 };
 
-const TOOL_DETAIL_KEYS = ["command", "file_path", "path", "query", "pattern"] as const;
-
-const READ_ONLY_TOOLS = new Set(["read", "grep", "glob", "lsp"]);
+const TOOL_DETAIL_KEYS = ["path", "query", "pattern", "url"] as const;
 
 export function toolIntent(t: Translate, tool: ToolCall): ToolIntent {
   const parsed = parseToolArgs(tool.args);
@@ -42,7 +50,9 @@ export function toolIntent(t: Translate, tool: ToolCall): ToolIntent {
   const labelKey = tool.fn === tool.name ? TOOL_LABEL_KEYS[tool.name] : undefined;
   return {
     label: labelKey ? t(labelKey) : tool.fn,
-    detail: parsed ? toolDetail(parsed) : undefined,
+    // A shell call's command comes from its own field; everything else falls back
+    // to whatever identifying argument its arg text happens to carry.
+    detail: tool.command ?? (parsed ? toolDetail(parsed) : undefined),
   };
 }
 
@@ -75,11 +85,11 @@ export function toolMetaItems(t: Translate, tool: ToolCall): ToolMetaItem[] {
       tone: "negative",
     });
   }
-  // The runtime capped the output. Without this the row for a truncated command
-  // and the row for a complete one are the same row, and the only way to find out
-  // is to open it and wonder whether that really was the end.
-  if (tool.outputTruncated) {
-    items.push({ id: "truncated", label: t("tool.meta.truncated"), tone: "muted" });
+  // The runtime measures this; a client stopwatch would time its own render loop.
+  // Sub-second calls are omitted: "0.1s" on a dozen reads is noise, and the number
+  // only earns its place once it answers "why did that take so long".
+  if (tool.durationMs != null && tool.durationMs >= 1000) {
+    items.push({ id: "duration", label: fmtDuration(tool.durationMs), tone: "muted" });
   }
   if (tool.status === "running") {
     items.push({ id: "live", label: t("tool.meta.live"), tone: "muted" });
@@ -87,8 +97,17 @@ export function toolMetaItems(t: Translate, tool: ToolCall): ToolMetaItem[] {
   return items;
 }
 
-export function isReadOnlyTool(name: string): boolean {
-  return READ_ONLY_TOOLS.has(name) || name.startsWith("lsp_");
+/**
+ * Whether a call had no side effect the user would need to approve.
+ *
+ * The runtime's own answer, stamped on the toolCall Item — the same table the
+ * approval gate consults, so the row's weight and the gate's decision cannot
+ * disagree. This used to be a hand-kept list of tool names here, which is a second
+ * answer to a question the protocol already answers, and it went stale the moment
+ * a tool was renamed.
+ */
+export function isReadOnlyTool(tool: ToolCall): boolean {
+  return tool.safetyClass === "safe";
 }
 
 /**
@@ -102,15 +121,14 @@ export function isReadOnlyTool(name: string): boolean {
  * The state cases come first, because a read that FAILED is no longer a glance —
  * it is the thing you opened the transcript to find.
  *
- * When the runtime carries a tool category of its own, only the second line
- * changes: `isReadOnlyTool(tool.name)` becomes that field. Nothing above or below
- * it, and no component, has to move.
+ * The read/produce split reads the runtime's own safety class, so a tool added or
+ * renamed on the backend arrives correctly weighted with no table to update here.
  */
 export function toolActivityShell(tool: ToolCall): ActivityShell {
   if (tool.status === "err" || tool.status === "denied" || tool.status === "requires-action") {
     return "flagged";
   }
-  return isReadOnlyTool(tool.name) ? "line" : "card";
+  return isReadOnlyTool(tool) ? "line" : "card";
 }
 
 export function toolGroupNeedsAttention(tools: readonly ToolCall[]): boolean {
@@ -123,7 +141,7 @@ export function summarizeToolGroup(t: Translate, tools: readonly ToolCall[]): st
   let lookup = 0;
   for (const tool of tools) {
     if (tool.name === "read") read++;
-    else if (tool.name === "lsp" || tool.name.startsWith("lsp_")) lookup++;
+    else if (tool.name === "lsp") lookup++;
     else search++;
   }
 

@@ -18,20 +18,25 @@ const reasoning = (status: "running" | "complete" = "complete"): ContentBlock =>
 
 const toolBlock = (toolCallId: string): ContentBlock => ({ kind: "tool", toolCallId });
 
-const tool = (id: string, name: string): ToolCall => ({
+const tool = (
+  id: string,
+  name: string,
+  safetyClass: ToolCall["safetyClass"] = "safe",
+): ToolCall => ({
   id,
   runId: "run_1",
   name,
   fn: name,
   args: "",
   status: "ok",
+  safetyClass,
 });
 
 const TOOLS: Record<string, ToolCall> = {
   read: tool("read", "read"),
   grep: tool("grep", "grep"),
-  shell: tool("shell", "shell"),
-  edit: tool("edit", "edit"),
+  shell: tool("shell", "shell", "exec"),
+  edit: tool("edit", "edit", "write"),
 };
 
 /** Shape only — what nests inside what, which is the whole of this planner's job. */
@@ -159,9 +164,9 @@ describe("planRenderUnits · read-only grouping", () => {
   });
 
   it("groups lsp lookups", () => {
-    const tools = { lsp: tool("lsp", "lsp"), diag: tool("diag", "lsp_diagnostics") };
-    expect(planRenderUnits([tb("lsp"), tb("diag")], tools)).toEqual([
-      { kind: "toolGroup", tools: [tools.lsp, tools.diag], superseded: false },
+    const tools = { one: tool("one", "lsp"), two: tool("two", "lsp") };
+    expect(planRenderUnits([tb("one"), tb("two")], tools)).toEqual([
+      { kind: "toolGroup", tools: [tools.one, tools.two], superseded: false },
     ]);
   });
 

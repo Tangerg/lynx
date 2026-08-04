@@ -1,29 +1,36 @@
-import type { PlanItem } from "@/plugins/builtin/agent/public/viewState";
+import type { PlanStep } from "@/plugins/builtin/agent/public/plan";
 import { describe, expect, it } from "vitest";
-import { currentPlanItem, planProgress } from "./progress";
+import { currentPlanStep, planProgress } from "./progress";
 
-const item = (id: number, text: string, status: PlanItem["status"]): PlanItem => ({
-  id,
-  pid: `step-${id}`,
+const step = (id: number, text: string, status: PlanStep["status"]): PlanStep => ({
+  id: `step-${id}`,
   text,
   status,
 });
 
 describe("planProgress", () => {
-  it("prefers the in-flight item over the next todo", () => {
-    const plan = [item(1, "done", "done"), item(2, "todo", "todo"), item(3, "doing", "doing")];
+  it("prefers the in-flight step over the next pending one", () => {
+    const plan = [
+      step(1, "done", "done"),
+      step(2, "pending", "pending"),
+      step(3, "active", "active"),
+    ];
 
-    expect(currentPlanItem(plan)?.text).toBe("doing");
+    expect(currentPlanStep(plan)?.text).toBe("active");
   });
 
-  it("falls back to the next todo when nothing is in flight", () => {
-    const plan = [item(1, "done", "done"), item(2, "next", "todo")];
+  it("falls back to the next pending step when nothing is in flight", () => {
+    const plan = [step(1, "done", "done"), step(2, "next", "pending")];
 
-    expect(currentPlanItem(plan)?.text).toBe("next");
+    expect(currentPlanStep(plan)?.text).toBe("next");
   });
 
   it("summarizes completion and hides dismissed or completed plans", () => {
-    const plan = [item(1, "done", "done"), item(2, "current", "doing"), item(3, "next", "todo")];
+    const plan = [
+      step(1, "done", "done"),
+      step(2, "current", "active"),
+      step(3, "next", "pending"),
+    ];
 
     expect(planProgress(plan, "run-1", null)).toMatchObject({
       visible: true,
@@ -33,6 +40,6 @@ describe("planProgress", () => {
       current: plan[1],
     });
     expect(planProgress(plan, "run-1", "run-1").visible).toBe(false);
-    expect(planProgress([item(1, "done", "done")], "run-1", null).visible).toBe(false);
+    expect(planProgress([step(1, "done", "done")], "run-1", null).visible).toBe(false);
   });
 });

@@ -2,7 +2,6 @@
 // workspace.files.search query and GlobResponse carries the paths inline, so it gets its
 // own preview rather than riding the grep one.
 
-import { useT } from "@/lib/i18n";
 import type { ToolPreviewProps } from "@/plugins/sdk";
 import { PreviewFoot } from "@/plugins/builtin/chat/tools/public/previews/PreviewFoot";
 import { PreviewPlaceholder } from "@/plugins/builtin/chat/tools/public/previews/PreviewPlaceholder";
@@ -13,8 +12,7 @@ import { globToolPreview } from "@/plugins/builtin/chat/tools/application/toolPr
 import { INLINE_PREVIEW_ROW_LIMIT, PreviewOverflow, TEXT_PREVIEW_CLASS } from "./previewChrome";
 
 function GlobPreview({ tool, onOpenView }: ToolPreviewProps) {
-  const t = useT();
-  const { paths, truncated } = projectGlobPreview(tool.result);
+  const { paths } = projectGlobPreview(tool.result);
   return (
     <div className={TEXT_PREVIEW_CLASS}>
       {paths.length === 0 && (
@@ -33,7 +31,6 @@ function GlobPreview({ tool, onOpenView }: ToolPreviewProps) {
         </div>
       ))}
       <PreviewOverflow count={paths.length - INLINE_PREVIEW_ROW_LIMIT} />
-      {truncated && <div className="text-fg-faint">… {t("tools.overflow.truncated")}</div>}
       <PreviewFoot label="tools.preview.viewDetails" onClick={onOpenView} />
     </div>
   );

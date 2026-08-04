@@ -50,7 +50,7 @@ describe("workspace catalog view models", () => {
   it("gates skills rows when the runtime capability is off", () => {
     expect(
       workspaceSkillsViewModel(
-        [{ name: "review", description: "Review code", source: "project" }],
+        [{ name: "review", description: "Review code", scope: "project" as const }],
         false,
       ),
     ).toMatchObject({
@@ -63,10 +63,10 @@ describe("workspace catalog view models", () => {
   it("projects skills, recipes, and agent docs into stable rows", () => {
     expect(
       workspaceSkillsViewModel(
-        [{ name: "review", description: "Review code", source: "project" }],
+        [{ name: "review", description: "Review code", scope: "project" as const }],
         true,
       ).rows,
-    ).toEqual([{ id: "review", name: "review", description: "Review code", source: "project" }]);
+    ).toEqual([{ id: "review", name: "review", description: "Review code", scope: "project" }]);
 
     expect(
       workspaceRecipesViewModel([

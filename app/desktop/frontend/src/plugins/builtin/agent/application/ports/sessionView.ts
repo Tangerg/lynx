@@ -9,7 +9,6 @@ import type {
   AgentRunOutcome,
   AgentSessionView,
   Message,
-  PlanItem,
   RunUsage,
   TimelineEntry,
   ToolCall,
@@ -74,7 +73,6 @@ export interface AgentSessionViewPort {
   useCurrentRootMetrics(): AgentRunMetrics | null;
   useCurrentRootRunId(): string | null;
   useCurrentRootSegmentId(): string | null;
-  useCurrentRootPlan(): PlanItem[];
   useToolCalls(): Record<string, ToolCall>;
   useSessionTimeline(): TimelineEntry[];
   useRootNarrativeMessages(): Message[];

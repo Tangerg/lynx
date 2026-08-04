@@ -2,7 +2,6 @@ import type {
   AgentProblem,
   AgentRunMetrics,
   AgentRunOutcome,
-  PlanItem,
   TimelineEntry,
   ToolCall,
 } from "@/plugins/sdk/types/agentSessionView";
@@ -23,10 +22,6 @@ export function useCurrentRootOutcome(): AgentRunOutcome | null {
 
 export function useCurrentRootMetrics(): AgentRunMetrics | null {
   return agentSessionView().useCurrentRootMetrics();
-}
-
-export function useCurrentRootPlan(): PlanItem[] {
-  return agentSessionView().useCurrentRootPlan();
 }
 
 export function useActiveSessionToolCalls(): Record<string, ToolCall> {

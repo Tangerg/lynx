@@ -11,7 +11,7 @@ export type WorkspaceInvalidationTarget =
   | "sessions"
   | "skills"
   | "managedSkills"
-  | "skillDrafts";
+  | "skillProposals";
 
 // The change signals this app can fold, as a closed set. It is spelled here rather
 // than imported from the wire so this layer stays protocol-free — and the assignment
@@ -48,7 +48,7 @@ export function workspaceInvalidations(ev: WorkspaceEventLike): WorkspaceInvalid
     case "files.changed":
       return ["filesChanged", "diff"];
     case "skills.changed":
-      return ["skills", "managedSkills", "skillDrafts"];
+      return ["skills", "managedSkills", "skillProposals"];
     case "mcp.changed":
       return ["mcpServers", "mcpTools"];
     case "schedules.changed":

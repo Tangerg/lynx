@@ -147,9 +147,9 @@ describe("smoke: v2 end-to-end happy path", () => {
           id: asItemId("item_tool"),
           runId: asRunId("run_1"),
           status: "running",
-          createdAt: "2026-06-03T00:00:00Z",
+          startedAt: "2026-06-03T00:00:00Z",
           type: "toolCall",
-          tool: { name: "shell", arguments: { command: "ls" } },
+          tool: { name: "shell", arguments: { command: "ls", description: "List files" } },
         },
       });
       // R-model HITL: the segment ENDS with an interrupt for the tool approval.

@@ -5,14 +5,12 @@ import type {
   AgentRunOutcome,
   AgentSessionView,
   Message,
-  PlanItem,
   RunUsage,
   TimelineEntry,
   ToolCall,
 } from "@/plugins/sdk/types/agentSessionView";
 import { EMPTY_AGENT_SESSION_VIEW } from "@/plugins/sdk/types/agentSessionView";
 import {
-  selectCurrentRootPlan,
   selectCurrentRootRun,
   selectDelegatedRunNarratives,
   selectRootNarrativeMessages,
@@ -82,11 +80,6 @@ export function useCurrentRootUsage(): RunUsage {
 
 export function useCurrentRootContextTokens(): number | undefined {
   return useCurrentRoot()?.progress?.contextTokens;
-}
-
-export function useCurrentRootPlan(): PlanItem[] {
-  const view = useActiveAgentView((current) => current);
-  return useMemo(() => selectCurrentRootPlan(view), [view]);
 }
 
 export function useAgentToolCalls(): Record<string, ToolCall> {

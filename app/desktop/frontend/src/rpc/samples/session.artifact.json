@@ -1,5 +1,5 @@
 {
-  "version": 9,
+  "version": 12,
   "session": {
     "id": "ses_01",
     "title": "Refactor the runtime protocol",
@@ -37,12 +37,15 @@
       "id": "item_01",
       "runId": "run_01",
       "status": "completed",
-      "createdAt": "2026-07-07T10:00:04Z",
+      "startedAt": "2026-07-07T10:00:04Z",
+      "finishedAt": "2026-07-07T10:00:05Z",
+      "durationMs": 1200,
       "type": "toolCall",
       "tool": {
         "name": "shell",
         "arguments": {
-          "command": "ls -la"
+          "command": "ls -la",
+          "description": "List the working tree"
         },
         "result": "total 0\n"
       },
@@ -54,23 +57,23 @@
       "id": "BLOB234",
       "itemId": "item_01",
       "toolName": "shell",
-      "preview": "total 0\n\u2026[result offloaded; use read_tool_result with BLOB234]\u2026",
+      "preview": "total 0\n…[result offloaded; use read_tool_result with BLOB234]…",
       "body": "total 0\n",
       "createdAt": "2026-07-07T10:00:05Z"
     }
   ],
   "states": [
     {
-      "type": "todos",
-      "todos": [
+      "type": "plan",
+      "plan": [
         {
           "id": "0",
-          "text": "Split the run outcome",
+          "description": "Split the run outcome",
           "status": "completed"
         },
         {
           "id": "1",
-          "text": "Carry the task list through export",
+          "description": "Carry the plan through export",
           "status": "in_progress"
         }
       ]

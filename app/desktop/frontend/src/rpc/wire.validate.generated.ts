@@ -42,7 +42,6 @@ export type WireTypeName =
   | "ArtifactModelUsage"
   | "ArtifactOutcome"
   | "ArtifactOutcomeType"
-  | "ArtifactPlanStep"
   | "ArtifactProblem"
   | "ArtifactProblemType"
   | "ArtifactQuestion"
@@ -109,11 +108,13 @@ export type WireTypeName =
   | "GetDiffRequest"
   | "GetFileHeadRequest"
   | "GetMemoryRequest"
+  | "GetPlanRequest"
   | "GetRunRequest"
   | "GetSessionRequest"
-  | "GetTodosRequest"
   | "Goal"
   | "GoalBudget"
+  | "GoalReason"
+  | "GoalReasonCode"
   | "GoalRequest"
   | "GoalStatus"
   | "GoalUsage"
@@ -193,14 +194,14 @@ export type WireTypeName =
   | "PageOfSchedule"
   | "PageOfSession"
   | "PageOfSkill"
-  | "PageOfSkillDraft"
+  | "PageOfSkillProposal"
   | "PageOfToolSpec"
   | "PageOfWorkspaceFileChange"
   | "PageOfWorkspaceSummary"
   | "PageQuery"
   | "PendingInterruptSet"
-  | "PlanStep"
-  | "PlanStepStatus"
+  | "PlanSnapshot"
+  | "PlanStatus"
   | "ProblemData"
   | "ProtocolRange"
   | "Provider"
@@ -260,11 +261,12 @@ export type WireTypeName =
   | "SetApprovalModeRequest"
   | "SetHookTrustRequest"
   | "Skill"
-  | "SkillDraft"
-  | "SkillDraftRef"
   | "SkillLifecycle"
   | "SkillNameRequest"
-  | "SkillSource"
+  | "SkillProposal"
+  | "SkillProposalOrigin"
+  | "SkillProposalRef"
+  | "SkillScope"
   | "Stability"
   | "StartGoalRequest"
   | "StartRunRequest"
@@ -282,8 +284,6 @@ export type WireTypeName =
   | "SubscriptionLimits"
   | "SuppressibleRunEventType"
   | "TestProviderRequest"
-  | "TodoSnapshot"
-  | "TodoStatus"
   | "ToolInvocation"
   | "ToolSpec"
   | "UpdateMCPServerRequest"
@@ -390,7 +390,7 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     pinned: flag(),
   }, ["id"]),
   ApprovalDecision: enumOf(["approve", "deny"]),
-  ApprovalMode: enumOf(["safe", "balanced", "yolo", "plan"]),
+  ApprovalMode: enumOf(["safe", "balanced", "yolo"]),
   ApprovalModeResult: object({
     mode: ref(() => CHECKS.ApprovalMode),
   }, ["mode"]),
@@ -429,14 +429,16 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
       content: array(ref(() => CHECKS.ArtifactContentBlock)),
       createdAt: text(),
       droppedMessages: allOf([integer(), minimum(0)]),
+      durationMs: allOf([integer(), minimum(0)]),
       error: ref(() => CHECKS.ArtifactProblem),
+      finishedAt: text(),
       id: text(),
       question: ref(() => CHECKS.ArtifactQuestion),
       redacted: flag(),
       runId: text(),
       safetyClass: ref(() => CHECKS.SafetyClass),
+      startedAt: text(),
       status: ref(() => CHECKS.ItemStatus),
-      steps: array(ref(() => CHECKS.ArtifactPlanStep)),
       summary: text(),
       text: text(),
       tool: ref(() => CHECKS.ArtifactToolInvocation),
@@ -445,11 +447,13 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     oneOf([
       fields({
         droppedMessages: absent(),
+        durationMs: absent(),
         error: absent(),
+        finishedAt: absent(),
         question: absent(),
         redacted: absent(),
         safetyClass: absent(),
-        steps: absent(),
+        startedAt: absent(),
         summary: absent(),
         text: absent(),
         tool: absent(),
@@ -457,11 +461,13 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
       }, ["createdAt", "id", "runId", "status", "type"]),
       fields({
         droppedMessages: absent(),
+        durationMs: absent(),
         error: absent(),
+        finishedAt: absent(),
         question: absent(),
         redacted: absent(),
         safetyClass: absent(),
-        steps: absent(),
+        startedAt: absent(),
         summary: absent(),
         text: absent(),
         tool: absent(),
@@ -470,10 +476,12 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
       fields({
         content: absent(),
         droppedMessages: absent(),
+        durationMs: absent(),
         error: absent(),
+        finishedAt: absent(),
         question: absent(),
         safetyClass: absent(),
-        steps: absent(),
+        startedAt: absent(),
         summary: absent(),
         tool: absent(),
         type: literal("reasoning"),
@@ -481,22 +489,12 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
       fields({
         content: absent(),
         droppedMessages: absent(),
+        durationMs: absent(),
         error: absent(),
-        question: absent(),
+        finishedAt: absent(),
         redacted: absent(),
         safetyClass: absent(),
-        summary: absent(),
-        text: absent(),
-        tool: absent(),
-        type: literal("plan"),
-      }, ["createdAt", "id", "runId", "status", "type"]),
-      fields({
-        content: absent(),
-        droppedMessages: absent(),
-        error: absent(),
-        redacted: absent(),
-        safetyClass: absent(),
-        steps: absent(),
+        startedAt: absent(),
         summary: absent(),
         text: absent(),
         tool: absent(),
@@ -504,26 +502,52 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
       }, ["createdAt", "id", "runId", "status", "type"]),
       fields({
         content: absent(),
+        createdAt: absent(),
         droppedMessages: absent(),
         question: absent(),
         redacted: absent(),
-        steps: absent(),
         summary: absent(),
         text: absent(),
         type: literal("toolCall"),
-      }, ["createdAt", "id", "runId", "status", "type"]),
+      }, ["id", "runId", "startedAt", "status", "type"]),
       fields({
         content: absent(),
+        durationMs: absent(),
         error: absent(),
+        finishedAt: absent(),
         question: absent(),
         redacted: absent(),
         safetyClass: absent(),
-        steps: absent(),
+        startedAt: absent(),
         text: absent(),
         tool: absent(),
         type: literal("compaction"),
       }, ["createdAt", "id", "runId", "status", "type"]),
     ]),
+    ifThen(
+      fields({
+        status: literal("running"),
+        type: literal("toolCall"),
+      }, ["status", "type"]),
+      fields({
+        durationMs: absent(),
+        finishedAt: absent(),
+      }, []),
+    ),
+    ifThen(
+      fields({
+        status: literal("completed"),
+        type: literal("toolCall"),
+      }, ["status", "type"]),
+      fields({}, ["durationMs", "finishedAt"]),
+    ),
+    ifThen(
+      fields({
+        status: literal("incomplete"),
+        type: literal("toolCall"),
+      }, ["status", "type"]),
+      fields({}, ["durationMs", "finishedAt"]),
+    ),
   ]),
   ArtifactModelUsage: object({
     cacheReadTokens: allOf([integer(), minimum(0)]),
@@ -572,11 +596,6 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     ),
   ]),
   ArtifactOutcomeType: enumOf(["completed", "error", "maxSteps", "maxBudget", "canceled"]),
-  ArtifactPlanStep: object({
-    id: text(),
-    status: ref(() => CHECKS.PlanStepStatus),
-    title: text(),
-  }, ["id", "status", "title"]),
   ArtifactProblem: object({
     detail: text(),
     docUrl: text(),
@@ -671,16 +690,16 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
   }, ["createdAt", "id", "model", "title", "updatedAt", "workspace"]),
   ArtifactState: allOf([
     object({
-      todos: array(ref(() => CHECKS.TodoSnapshot)),
+      plan: array(ref(() => CHECKS.PlanSnapshot)),
       type: ref(() => CHECKS.ArtifactStateType),
     }, []),
     oneOf([
       fields({
-        type: literal("todos"),
-      }, ["todos", "type"]),
+        type: literal("plan"),
+      }, ["plan", "type"]),
     ]),
   ]),
-  ArtifactStateType: enumOf(["todos"]),
+  ArtifactStateType: enumOf(["plan"]),
   ArtifactToolInvocation: object({
     arguments: record(anything()),
     name: text(),
@@ -982,13 +1001,13 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     scope: ref(() => CHECKS.MemoryScope),
     workspace: ref(() => CHECKS.WorkspaceRef),
   }, ["scope"]),
+  GetPlanRequest: object({
+    sessionId: allOf([text(), minLength(1)]),
+  }, ["sessionId"]),
   GetRunRequest: object({
     runId: allOf([text(), minLength(1)]),
   }, ["runId"]),
   GetSessionRequest: object({
-    sessionId: allOf([text(), minLength(1)]),
-  }, ["sessionId"]),
-  GetTodosRequest: object({
     sessionId: allOf([text(), minLength(1)]),
   }, ["sessionId"]),
   Goal: object({
@@ -997,7 +1016,7 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     model: text(),
     objective: text(),
     provider: text(),
-    reason: text(),
+    reason: ref(() => CHECKS.GoalReason),
     sessionId: text(),
     status: ref(() => CHECKS.GoalStatus),
     updatedAt: text(),
@@ -1008,6 +1027,11 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     maxSteps: allOf([integer(), minimum(0)]),
     maxTurns: allOf([integer(), minimum(0)]),
   }, []),
+  GoalReason: object({
+    code: ref(() => CHECKS.GoalReasonCode),
+    detail: text(),
+  }, ["code"]),
+  GoalReasonCode: enumOf(["stoppedByUser", "runtimeRestarted", "runStartFailed", "awaitingInput", "terminalOutcomeMissing", "runNotCompleted", "turnBudgetReached", "costBudgetReached", "stepBudgetReached", "blockedByModel"]),
   GoalRequest: object({
     sessionId: allOf([text(), minLength(1)]),
   }, ["sessionId"]),
@@ -1161,14 +1185,16 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
       content: array(ref(() => CHECKS.ContentBlock)),
       createdAt: text(),
       droppedMessages: integer(),
+      durationMs: allOf([integer(), minimum(0)]),
       error: ref(() => CHECKS.ProblemData),
+      finishedAt: text(),
       id: text(),
       question: ref(() => CHECKS.Question),
       redacted: flag(),
       runId: text(),
       safetyClass: ref(() => CHECKS.SafetyClass),
+      startedAt: text(),
       status: ref(() => CHECKS.ItemStatus),
-      steps: array(ref(() => CHECKS.PlanStep)),
       summary: text(),
       text: text(),
       tool: ref(() => CHECKS.ToolInvocation),
@@ -1177,11 +1203,13 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     oneOf([
       fields({
         droppedMessages: absent(),
+        durationMs: absent(),
         error: absent(),
+        finishedAt: absent(),
         question: absent(),
         redacted: absent(),
         safetyClass: absent(),
-        steps: absent(),
+        startedAt: absent(),
         summary: absent(),
         text: absent(),
         tool: absent(),
@@ -1189,11 +1217,13 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
       }, ["createdAt", "id", "runId", "status", "type"]),
       fields({
         droppedMessages: absent(),
+        durationMs: absent(),
         error: absent(),
+        finishedAt: absent(),
         question: absent(),
         redacted: absent(),
         safetyClass: absent(),
-        steps: absent(),
+        startedAt: absent(),
         summary: absent(),
         text: absent(),
         tool: absent(),
@@ -1202,10 +1232,12 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
       fields({
         content: absent(),
         droppedMessages: absent(),
+        durationMs: absent(),
         error: absent(),
+        finishedAt: absent(),
         question: absent(),
         safetyClass: absent(),
-        steps: absent(),
+        startedAt: absent(),
         summary: absent(),
         tool: absent(),
         type: literal("reasoning"),
@@ -1213,22 +1245,12 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
       fields({
         content: absent(),
         droppedMessages: absent(),
+        durationMs: absent(),
         error: absent(),
-        question: absent(),
+        finishedAt: absent(),
         redacted: absent(),
         safetyClass: absent(),
-        summary: absent(),
-        text: absent(),
-        tool: absent(),
-        type: literal("plan"),
-      }, ["createdAt", "id", "runId", "status", "type"]),
-      fields({
-        content: absent(),
-        droppedMessages: absent(),
-        error: absent(),
-        redacted: absent(),
-        safetyClass: absent(),
-        steps: absent(),
+        startedAt: absent(),
         summary: absent(),
         text: absent(),
         tool: absent(),
@@ -1236,68 +1258,83 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
       }, ["createdAt", "id", "runId", "status", "type"]),
       fields({
         content: absent(),
+        createdAt: absent(),
         droppedMessages: absent(),
         question: absent(),
         redacted: absent(),
-        steps: absent(),
         summary: absent(),
         text: absent(),
         type: literal("toolCall"),
-      }, ["createdAt", "id", "runId", "status", "type"]),
+      }, ["id", "runId", "startedAt", "status", "type"]),
       fields({
         content: absent(),
+        durationMs: absent(),
         error: absent(),
+        finishedAt: absent(),
         question: absent(),
         redacted: absent(),
         safetyClass: absent(),
-        steps: absent(),
+        startedAt: absent(),
         text: absent(),
         tool: absent(),
         type: literal("compaction"),
       }, ["createdAt", "id", "runId", "status", "type"]),
     ]),
+    ifThen(
+      fields({
+        status: literal("running"),
+        type: literal("toolCall"),
+      }, ["status", "type"]),
+      fields({
+        durationMs: absent(),
+        finishedAt: absent(),
+      }, []),
+    ),
+    ifThen(
+      fields({
+        status: literal("completed"),
+        type: literal("toolCall"),
+      }, ["status", "type"]),
+      fields({}, ["durationMs", "finishedAt"]),
+    ),
+    ifThen(
+      fields({
+        status: literal("incomplete"),
+        type: literal("toolCall"),
+      }, ["status", "type"]),
+      fields({}, ["durationMs", "finishedAt"]),
+    ),
   ]),
   ItemDelta: allOf([
     object({
       argumentsTextDelta: text(),
       index: integer(),
-      steps: array(ref(() => CHECKS.PlanStep)),
       text: text(),
       type: ref(() => CHECKS.ItemDeltaType),
     }, []),
     oneOf([
       fields({
         argumentsTextDelta: absent(),
-        steps: absent(),
         type: literal("content"),
       }, ["text", "type"]),
       fields({
         argumentsTextDelta: absent(),
         index: absent(),
-        steps: absent(),
         type: literal("reasoning"),
       }, ["text", "type"]),
       fields({
         index: absent(),
-        steps: absent(),
         text: absent(),
         type: literal("toolArguments"),
       }, ["argumentsTextDelta", "type"]),
       fields({
         argumentsTextDelta: absent(),
         index: absent(),
-        steps: absent(),
         type: literal("toolOutput"),
       }, ["text", "type"]),
-      fields({
-        argumentsTextDelta: absent(),
-        index: absent(),
-        text: absent(),
-        type: literal("plan"),
-      }, ["steps", "type"]),
     ]),
   ]),
-  ItemDeltaType: enumOf(["content", "reasoning", "toolArguments", "toolOutput", "plan"]),
+  ItemDeltaType: enumOf(["content", "reasoning", "toolArguments", "toolOutput"]),
   ItemListScope: allOf([
     object({
       includeDescendants: flag(),
@@ -1320,7 +1357,7 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
   ItemOrder: enumOf(["asc", "desc"]),
   ItemScopeType: enumOf(["session", "run"]),
   ItemStatus: enumOf(["running", "completed", "incomplete"]),
-  ItemType: enumOf(["userMessage", "agentMessage", "reasoning", "plan", "question", "toolCall", "compaction"]),
+  ItemType: enumOf(["userMessage", "agentMessage", "reasoning", "question", "toolCall", "compaction"]),
   ListApprovalRulesRequest: object({
     sessionId: allOf([text(), minLength(1)]),
   }, ["sessionId"]),
@@ -1723,8 +1760,8 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     data: array(ref(() => CHECKS.Skill)),
     nextCursor: text(),
   }, ["data"]),
-  PageOfSkillDraft: object({
-    data: array(ref(() => CHECKS.SkillDraft)),
+  PageOfSkillProposal: object({
+    data: array(ref(() => CHECKS.SkillProposal)),
     nextCursor: text(),
   }, ["data"]),
   PageOfToolSpec: object({
@@ -1752,12 +1789,12 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     }, ["createdAt", "interrupts", "rootRunId", "sessionId"]),
     fields({}, ["createdAt", "interrupts", "rootRunId", "sessionId"]),
   ]),
-  PlanStep: object({
+  PlanSnapshot: object({
+    description: text(),
     id: text(),
-    status: ref(() => CHECKS.PlanStepStatus),
-    title: text(),
-  }, ["id", "status", "title"]),
-  PlanStepStatus: enumOf(["pending", "running", "completed", "failed"]),
+    status: ref(() => CHECKS.PlanStatus),
+  }, ["description", "id", "status"]),
+  PlanStatus: enumOf(["pending", "in_progress", "completed"]),
   ProblemData: allOf([
     object({
       activeRun: ref(() => CHECKS.ActiveRunRef),
@@ -2709,7 +2746,7 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     session: ref(() => CHECKS.ArtifactSession),
     states: array(ref(() => CHECKS.ArtifactState)),
     toolResults: array(ref(() => CHECKS.ArtifactToolResult)),
-    version: allOf([integer(), minimum(9), maximum(9)]),
+    version: allOf([integer(), minimum(12), maximum(12)]),
   }, ["items", "messages", "runs", "session", "toolResults", "version"]),
   SessionStatus: enumOf(["running", "waiting", "idle"]),
   SessionUsageRequest: object({
@@ -2725,24 +2762,30 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
   Skill: object({
     description: text(),
     name: text(),
-    source: ref(() => CHECKS.SkillSource),
-  }, ["name"]),
-  SkillDraft: object({
-    createdBy: text(),
-    description: text(),
-    name: text(),
-    revision: text(),
-    sourceSession: text(),
-  }, ["name", "revision"]),
-  SkillDraftRef: object({
-    name: allOf([text(), minLength(1)]),
-    revision: allOf([text(), minLength(1)]),
-  }, ["name", "revision"]),
+    scope: ref(() => CHECKS.SkillScope),
+  }, ["name", "scope"]),
   SkillLifecycle: enumOf(["active", "archived"]),
   SkillNameRequest: object({
     name: allOf([text(), minLength(1)]),
   }, ["name"]),
-  SkillSource: enumOf(["project", "global"]),
+  SkillProposal: object({
+    description: text(),
+    instructions: text(),
+    name: text(),
+    origin: ref(() => CHECKS.SkillProposalOrigin),
+    revises: flag(),
+    revision: text(),
+    scope: ref(() => CHECKS.SkillScope),
+    sourceSession: text(),
+  }, ["description", "instructions", "name", "revision", "scope"]),
+  SkillProposalOrigin: enumOf(["requested", "mined"]),
+  SkillProposalRef: object({
+    name: allOf([text(), minLength(1)]),
+    revision: allOf([text(), minLength(1)]),
+    scope: ref(() => CHECKS.SkillScope),
+    workspace: ref(() => CHECKS.WorkspaceRef),
+  }, ["name", "revision", "scope", "workspace"]),
+  SkillScope: enumOf(["project", "user"]),
   Stability: enumOf(["stable", "experimental"]),
   StartGoalRequest: object({
     budget: ref(() => CHECKS.GoalBudget),
@@ -2768,16 +2811,16 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
   }, ["runId", "segmentId", "userItemId"]),
   StateSnapshot: allOf([
     object({
+      plan: array(ref(() => CHECKS.PlanSnapshot)),
       revision: allOf([integer(), minimum(0)]),
       sessionId: text(),
-      todos: array(ref(() => CHECKS.TodoSnapshot)),
       type: ref(() => CHECKS.StateSnapshotType),
       updatedAt: text(),
     }, []),
     oneOf([
       fields({
-        type: literal("todos"),
-      }, ["revision", "sessionId", "todos", "type"]),
+        type: literal("plan"),
+      }, ["plan", "revision", "sessionId", "type"]),
     ]),
   ]),
   StateSnapshotCapability: object({
@@ -2787,7 +2830,7 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
     writer: ref(() => CHECKS.StateSnapshotWriter),
   }, ["key", "recoveryMethod", "scope", "writer"]),
   StateSnapshotScope: enumOf(["session", "run"]),
-  StateSnapshotType: enumOf(["todos"]),
+  StateSnapshotType: enumOf(["plan"]),
   StateSnapshotWriter: enumOf(["rootRun", "anyRun"]),
   SteerRunRequest: object({
     expectedSegmentId: allOf([text(), minLength(1)]),
@@ -2930,14 +2973,6 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
   TestProviderRequest: object({
     provider: allOf([text(), minLength(1)]),
   }, ["provider"]),
-  TodoSnapshot: object({
-    blockedReason: text(),
-    id: text(),
-    nextAction: text(),
-    status: ref(() => CHECKS.TodoStatus),
-    text: text(),
-  }, ["id", "status", "text"]),
-  TodoStatus: enumOf(["pending", "in_progress", "completed"]),
   ToolInvocation: object({
     arguments: record(anything()),
     name: text(),
@@ -3078,7 +3113,7 @@ const METHOD_RESULTS: Record<WireMethodName, WireCheck> = {
   "runs.get": ref(() => CHECKS.RunRef),
   "runs.list": ref(() => CHECKS.PageOfRunRef),
   "interrupts.list": ref(() => CHECKS.PageOfPendingInterruptSet),
-  "todos.get": ref(() => CHECKS.StateSnapshot),
+  "plan.get": ref(() => CHECKS.StateSnapshot),
   "items.list": ref(() => CHECKS.ListItemsResponse),
   "workspaces.resolve": ref(() => CHECKS.WorkspaceInfo),
   "workspaces.list": ref(() => CHECKS.PageOfWorkspaceSummary),
@@ -3093,9 +3128,9 @@ const METHOD_RESULTS: Record<WireMethodName, WireCheck> = {
   "skills.library.list": ref(() => CHECKS.PageOfManagedSkill),
   "skills.library.archive": object({}, []),
   "skills.library.restore": object({}, []),
-  "skills.drafts.list": ref(() => CHECKS.PageOfSkillDraft),
-  "skills.drafts.promote": object({}, []),
-  "skills.drafts.reject": object({}, []),
+  "skills.proposals.list": ref(() => CHECKS.PageOfSkillProposal),
+  "skills.proposals.approve": object({}, []),
+  "skills.proposals.reject": object({}, []),
   "recipes.list": ref(() => CHECKS.PageOfRecipe),
   "agentDocs.list": ref(() => CHECKS.PageOfAgentDoc),
   "mcp.servers.list": ref(() => CHECKS.PageOfMcpServer),

@@ -12,7 +12,7 @@ import {
   useActiveConversationMessages,
   useDelegatedConversationRuns,
 } from "@/plugins/builtin/agent/public/conversation";
-import { useActiveSessionToolCalls, useCurrentRootPlan } from "@/plugins/builtin/agent/public/run";
+import { useActiveSessionToolCalls } from "@/plugins/builtin/agent/public/run";
 import { useActiveSessionId } from "@/plugins/builtin/agent/public/session";
 import { cn } from "@/lib/classNames";
 import { useT } from "@/lib/i18n";
@@ -63,7 +63,6 @@ export function ChatStream({ onSend }: Props) {
   const resetKey = useActiveSessionId();
   const messages = useActiveConversationMessages();
   const delegatedRunsByItemId = useDelegatedConversationRuns();
-  const plan = useCurrentRootPlan();
   const toolCalls = useActiveSessionToolCalls();
 
   const expandedToolIds = useExpandedWorkspaceToolIds();
@@ -95,11 +94,10 @@ export function ChatStream({ onSend }: Props) {
   // MessageBlock) would kick every message in the stream into a fresh
   // render path on every token delta. Memoised, the ref only changes
   // when one of the underlying slices actually changes, so pure text
-  // streaming (no tool / plan churn) keeps non-tail messages off the
+  // streaming (no tool churn) keeps non-tail messages off the
   // render path entirely.
   const ctx = useMemo(
     () => ({
-      plan,
       toolCalls,
       delegatedRunsByItemId,
       onSelectTool: selectTool,
@@ -107,15 +105,7 @@ export function ChatStream({ onSend }: Props) {
       onToggleExpand: toggleExpandedTool,
       typewriter,
     }),
-    [
-      plan,
-      toolCalls,
-      delegatedRunsByItemId,
-      selectTool,
-      expandedToolIds,
-      toggleExpandedTool,
-      typewriter,
-    ],
+    [toolCalls, delegatedRunsByItemId, selectTool, expandedToolIds, toggleExpandedTool, typewriter],
   );
 
   const composer = <ComposerSurface onSend={onSend} />;

@@ -36,7 +36,6 @@ export interface BuiltinContentBlockMap {
   text: { kind: "text"; text: string; status: BlockStatus; itemId?: string };
   image: { kind: "image"; mime: string; data: string };
   reasoning: { kind: "reasoning"; reasoningId: string; text: string; status: BlockStatus };
-  plan: { kind: "plan" };
   tool: { kind: "tool"; toolCallId: string };
   approval: {
     kind: "approval";

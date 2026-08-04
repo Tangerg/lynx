@@ -1,4 +1,5 @@
 import type { Item, RunEvent } from "@/rpc";
+import { itemStartedAt } from "./projections";
 
 export interface AgentFoldSource {
   runId: string;
@@ -21,7 +22,7 @@ export function durableItemSource(item: Item): AgentFoldSource {
     runId: item.runId,
     segmentId: null,
     eventId: `history:${item.id}:completed`,
-    timestamp: item.createdAt,
+    timestamp: itemStartedAt(item),
   };
 }
 

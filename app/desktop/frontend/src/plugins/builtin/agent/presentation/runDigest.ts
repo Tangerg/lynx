@@ -60,7 +60,7 @@ function argPath(args: string): string {
   if (t[0] === "{") {
     try {
       const o = JSON.parse(t) as Record<string, unknown>;
-      const p = o.file_path ?? o.path ?? o.file ?? o.filename;
+      const p = o.path;
       if (typeof p === "string") return p;
     } catch {
       /* not JSON — fall through */
@@ -135,8 +135,9 @@ export function deriveLatestRun(source: RunDigestSource): RunDigest | null {
     const category = toolCategory(tool.name);
     if (category === "command") {
       digest.commands.push({
-        // fn IS the command string (toolLabel surfaces arguments.command).
-        cmd: tool.fn,
+        // The command, not the row's human label: a digest pasted into a PR has to
+        // say what actually ran.
+        cmd: tool.command ?? tool.fn,
         // ok = clean exit; running = still in flight (must not flag it red);
         // err / denied did not run to a clean result.
         status: tool.status === "ok" ? "ok" : tool.status === "running" ? "running" : "err",

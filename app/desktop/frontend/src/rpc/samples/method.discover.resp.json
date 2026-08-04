@@ -1,7 +1,7 @@
 {
   "protocol": {
-    "current": "2026-08-02",
-    "minSupported": "2026-08-02"
+    "current": "2026-08-04",
+    "minSupported": "2026-08-04"
   },
   "serverInfo": {
     "name": "lyra",
@@ -32,8 +32,8 @@
     ],
     "stateSnapshots": [
       {
-        "key": "todos",
-        "recoveryMethod": "todos.get",
+        "key": "plan",
+        "recoveryMethod": "plan.get",
         "scope": "session",
         "writer": "rootRun"
       }
@@ -112,7 +112,7 @@
         "clientOptIn": false,
         "requiredByRunProtocol": false
       },
-      "todos": {
+      "plan": {
         "enabled": true,
         "stability": "stable",
         "clientOptIn": false,

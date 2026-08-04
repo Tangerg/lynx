@@ -1,20 +1,12 @@
 // Message block dispatcher — maps each ContentBlock (text, tool, reasoning,
-// approval, question, plan, compaction, search, code, checkpoint) to its React
-// card.
+// approval, question, compaction, search, code, checkpoint) to its React card.
 import type { ContentBlock, Message } from "@/plugins/builtin/agent/public/viewState";
 import type { MessageRenderUnit } from "@/plugins/builtin/agent/public/messagePresentation";
 import type { BlockCtx } from "./blockContext";
 export type { BlockCtx } from "./blockContext";
 import { cn } from "@/lib/classNames";
 import { MarkdownMessage } from "./markdown/MarkdownMessage";
-import {
-  ApprovalCard,
-  CompactionBlock,
-  ImageBlock,
-  PlanBlock,
-  QuestionCard,
-  ReasoningBlock,
-} from "./cards";
+import { ApprovalCard, CompactionBlock, ImageBlock, QuestionCard, ReasoningBlock } from "./cards";
 import { ToolCard, ToolGroup } from "@/plugins/builtin/chat/tools/public/rendering";
 import { PluginContentBlock } from "@/plugins/host/PluginContentBlock";
 import { messageBlockRenderUnits } from "../application/messageBlockModel";
@@ -27,7 +19,7 @@ import { NarrativeWave } from "./NarrativeWave";
  * Render one content block.
  *
  * Every `BuiltinContentBlockMap` kind — the enumerable, protocol-first-class
- * blocks (text / tool / reasoning / plan / approval / question) — is rendered
+ * blocks (text / tool / reasoning / approval / question) — is rendered
  * directly by this module from its own `cards/` + `markdown/` sub-modules. No
  * registry hop: the message module owns the rendering of the blocks the fold
  * produces. `CONTENT_BLOCK` registry / `PluginContentBlock` is reserved for
@@ -93,11 +85,6 @@ export function renderBlock(
       return (
         <ReasoningBlock key={key} text={block.text} status={block.status} superseded={superseded} />
       );
-
-    case "plan":
-      // The plan block is a "render the current plan here" marker; the data
-      // rides view.plan (threaded through ctx), updated by the fold in place.
-      return <PlanBlock key={key} plan={ctx.plan} />;
 
     case "approval":
       // Identity key, NOT the block index: HITL cards hold per-interrupt

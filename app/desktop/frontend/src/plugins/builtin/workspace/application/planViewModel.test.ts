@@ -1,46 +1,52 @@
 import { describe, expect, it } from "vitest";
 import { t } from "@/lib/i18n";
-import type { PlanItem } from "@/plugins/builtin/agent/public/viewState";
+import type { PlanStep } from "@/plugins/builtin/agent/public/plan";
 import { planSubtext, planViewModel } from "./planViewModel";
 
-const item = (over: Partial<PlanItem>): PlanItem => ({
-  id: 1,
-  pid: "p1",
-  status: "todo",
+const step = (over: Partial<PlanStep>): PlanStep => ({
+  id: "p1",
+  status: "pending",
   text: "Inspect workspace",
   ...over,
 });
 
 describe("planViewModel", () => {
-  it("counts completed plan items without reordering the plan", () => {
-    const first = item({ id: 1, pid: "p1", status: "done" });
-    const second = item({ id: 2, pid: "p2", status: "doing" });
-    const third = item({ id: 3, pid: "p3", status: "todo" });
+  it("counts completed steps without reordering the plan", () => {
+    const first = step({ id: "p1", status: "done" });
+    const second = step({ id: "p2", status: "active" });
+    const third = step({ id: "p3", status: "pending" });
 
-    expect(planViewModel([first, second, third])).toEqual({
-      items: [first, second, third],
-      doneCount: 1,
-      totalCount: 3,
-      isEmpty: false,
+    expect(planViewModel(true, [first, second, third])).toEqual({
+      steps: [first, second, third],
+      done: 1,
+      total: 3,
+      state: "ready",
     });
   });
 
   it("projects an empty plan", () => {
-    expect(planViewModel([])).toEqual({
-      items: [],
-      doneCount: 0,
-      totalCount: 0,
-      isEmpty: true,
+    expect(planViewModel(true, [])).toEqual({
+      steps: [],
+      done: 0,
+      total: 0,
+      state: "empty",
     });
+  });
+
+  // A runtime that never negotiated features.plan has no plan to be empty OF, and
+  // saying "no plan yet" there reads as "the agent hasn't planned", not "this build
+  // cannot".
+  it("reports an ungated runtime as unavailable rather than empty", () => {
+    expect(planViewModel(false, []).state).toBe("unavailable");
   });
 });
 
 describe("planSubtext", () => {
   it("omits header subtext for an empty plan", () => {
-    expect(planSubtext(t, { doneCount: 0, totalCount: 0 })).toBeUndefined();
+    expect(planSubtext(t, { done: 0, total: 0 })).toBeUndefined();
   });
 
   it("builds completion subtext", () => {
-    expect(planSubtext(t, { doneCount: 2, totalCount: 3 })).toBe("2 of 3 complete");
+    expect(planSubtext(t, { done: 2, total: 3 })).toBe("2 of 3 complete");
   });
 });

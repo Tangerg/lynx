@@ -9,7 +9,6 @@ export {
   useActiveSessionRunTree,
   useActiveSessionTimeline,
   useActiveSessionToolCalls,
-  useCurrentRootPlan,
   useCurrentRootMetrics,
   useCurrentRootOutcome,
   useCurrentRootRunId,

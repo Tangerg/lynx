@@ -160,26 +160,17 @@ describe("reducer — source-owned Run tree", () => {
       createdAt: "2026-06-03T00:02:01.000Z",
       content: [],
     } as Item;
-    const childPlan = {
-      id: "child_plan",
-      runId: child.id,
-      type: "plan",
-      status: "running",
-      createdAt: "2026-06-03T00:02:02.000Z",
-      steps: [{ id: "step_1", title: "Child task", status: "running" }],
-    } as Item;
     const rootTool = {
       id: "root_tool",
       runId: root.id,
       type: "toolCall",
       status: "running",
-      createdAt: "2026-06-03T00:02:03.000Z",
-      tool: { name: "shell", arguments: { command: "pwd" } },
+      startedAt: "2026-06-03T00:02:03.000Z",
+      tool: { name: "shell", arguments: { command: "pwd", description: "Print the cwd" } },
     } as Item;
 
     view = reduceRunEvent(view, itemStarted("evt_child_message", childMessage, "seg_child"));
     view = reduceRunEvent(view, itemStarted("evt_root_message", rootMessage, "seg_root"));
-    view = reduceRunEvent(view, itemStarted("evt_child_plan", childPlan, "seg_child"));
     view = reduceRunEvent(view, itemStarted("evt_root_tool", rootTool, "seg_root"));
 
     expect(view.messages.map(({ runId }) => runId)).toEqual(["child", "root"]);
@@ -187,11 +178,11 @@ describe("reducer — source-owned Run tree", () => {
       child: "turn:child_message",
       root: "turn:root_message",
     });
-    expect(view.plansByRunId.child).toEqual([
-      { id: 1, pid: "step_1", status: "doing", text: "Child task" },
-    ]);
-    expect(view.plansByRunId.root).toBeUndefined();
-    expect(view.toolCalls.root_tool).toMatchObject({ runId: "root", fn: "pwd" });
+    expect(view.toolCalls.root_tool).toMatchObject({
+      runId: "root",
+      fn: "Print the cwd",
+      command: "pwd",
+    });
     expect(
       view.timeline.find((entry) => entry.id === "timeline:evt_root_tool:tool-start"),
     ).toMatchObject({ runId: "root", refId: "root_tool" });

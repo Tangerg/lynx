@@ -98,7 +98,6 @@ function exportLocalJson(): void {
     sessionId: sid,
     exportedAt: new Date().toISOString(),
     messages: view.messages,
-    plan: view.plan,
     timeline: view.timeline,
     toolCalls: view.toolCalls,
   };

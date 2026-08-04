@@ -4,22 +4,16 @@
 //
 // reducer.events.test.ts covers multi-event fold scenarios (how a stream
 // builds bubbles/turns); this file pins each handler's minimal per-type effect
-// and the branches those scenarios don't reach: the `plan` item on all three
-// phases (started / delta / completed), the item.delta `plan` branch, deltas
-// that target nothing, and segment.started's usage reset. Kept deliberately narrow
-// — one event, one contract — so a regression names the exact handler.
+// and the branches those scenarios don't reach: deltas that target nothing, and
+// segment.started's usage reset. Kept deliberately narrow — one event, one
+// contract — so a regression names the exact handler.
 
 import { beforeEach, describe, expect, it } from "vitest";
 import type { Item, StreamEvent } from "@/rpc";
 import { loadPlugin } from "@/plugins/sdk/definePlugin";
 import { foldTestEvent as reduce, runFinished } from "./reducer.fixtures";
 import { EMPTY_AGENT_SESSION_VIEW } from "@/plugins/sdk/types/agentSessionView";
-import {
-  selectCurrentRootRun,
-  selectRun,
-  selectRunPlan,
-  selectVisibleProblem,
-} from "../view/runTree";
+import { selectCurrentRootRun, selectRun, selectVisibleProblem } from "../view/runTree";
 
 // Terse builders (mirror reducer.events.test.ts). Items are partial — only the
 // fields the fold reads matter; the cast keeps the wire shape from bloating.
@@ -32,7 +26,6 @@ function item(partial: Record<string, unknown>): Item {
   } as Item;
 }
 const started = (i: Item): StreamEvent => ({ type: "item.started", item: i });
-const completed = (i: Item): StreamEvent => ({ type: "item.completed", item: i });
 const delta = (itemId: string, d: Record<string, unknown>): StreamEvent =>
   ({ type: "item.delta", itemId, delta: d }) as StreamEvent;
 const runStarted = (id: string, sessionId: string): StreamEvent => ({
@@ -44,7 +37,7 @@ const runProgress = (progress: Record<string, unknown>): StreamEvent =>
 const snapshot = (revision: number): StreamEvent =>
   ({
     type: "state.snapshot",
-    state: { type: "todos", sessionId: "ses_1", revision, todos: [] },
+    state: { type: "plan", sessionId: "ses_1", revision, plan: [] },
   }) as StreamEvent;
 
 beforeEach(async () => {
@@ -117,70 +110,14 @@ describe("handler contract — run.*", () => {
     expect(out).toBe(s);
   });
 
-  it("segment.finished{completed} settles running without disturbing messages / plan / shared", () => {
+  it("segment.finished{completed} settles running without disturbing messages / shared", () => {
     let s = reduce(EMPTY_AGENT_SESSION_VIEW, runStarted("r1", "s1"));
     s = reduce(s, started(item({ id: "a", type: "agentMessage", content: [] })));
     s = reduce(s, snapshot(1));
-    s = reduce(
-      s,
-      started(
-        item({ id: "p", type: "plan", steps: [{ id: "s1", title: "X", status: "running" }] }),
-      ),
-    );
     const out = reduce(s, runFinished({ type: "completed" }, { steps: 2, activeDurationMs: 0 }));
     expect(selectRun(out, "r1")?.status).toBe("finished");
     expect(out.messages).toEqual(s.messages);
-    expect(out.plansByRunId).toEqual(s.plansByRunId);
     expect(out.shared).toEqual(s.shared);
-  });
-});
-
-describe("handler contract — item.* plan branch (started / delta / completed)", () => {
-  const planSteps = [
-    { id: "s1", title: "Read the code", status: "running" },
-    { id: "s2", title: "Write the fix", status: "pending" },
-    { id: "s3", title: "Run tests", status: "completed" },
-  ];
-  // mapPlan: PlanStep{id,title,status} → PlanItem{id:i+1, pid, text:title, status}
-  // with pending/failed→todo, running→doing, completed→done.
-  const expectedPlan = [
-    { id: 1, pid: "s1", status: "doing", text: "Read the code" },
-    { id: 2, pid: "s2", status: "todo", text: "Write the fix" },
-    { id: 3, pid: "s3", status: "done", text: "Run tests" },
-  ];
-
-  it("item.started{plan} maps wire steps into state.plan (not the message stream)", () => {
-    const s = reduce(
-      EMPTY_AGENT_SESSION_VIEW,
-      started(item({ id: "p1", type: "plan", steps: planSteps })),
-    );
-    expect(selectRunPlan(s, "run_1")).toEqual(expectedPlan);
-    expect(s.messages).toHaveLength(0);
-  });
-
-  it("item.delta{type:'plan'} replaces the plan wholesale (the mid-run update branch)", () => {
-    let s = reduce(
-      EMPTY_AGENT_SESSION_VIEW,
-      started(item({ id: "p1", type: "plan", steps: planSteps })),
-    );
-    s = reduce(
-      s,
-      delta("p1", {
-        type: "plan",
-        steps: [{ id: "s1", title: "Read the code", status: "completed" }],
-      }),
-    );
-    expect(selectRunPlan(s, "run_1")).toEqual([
-      { id: 1, pid: "s1", status: "done", text: "Read the code" },
-    ]);
-  });
-
-  it("item.completed{plan} settles the final plan", () => {
-    const s = reduce(
-      EMPTY_AGENT_SESSION_VIEW,
-      completed(item({ id: "p1", type: "plan", status: "complete", steps: planSteps })),
-    );
-    expect(selectRunPlan(s, "run_1")).toEqual(expectedPlan);
   });
 });
 
@@ -210,7 +147,7 @@ describe("handler contract — state.*", () => {
     let s = reduce(EMPTY_AGENT_SESSION_VIEW, runStarted("r1", "s1"));
     s = reduce(s, snapshot(1));
     const out = reduce(s, snapshot(2));
-    expect(out.shared.todos).toMatchObject({ revision: 2 });
+    expect(out.shared.plan).toMatchObject({ revision: 2 });
     expect(out.runsById).toBe(s.runsById);
     expect(out.messages).toBe(s.messages);
   });

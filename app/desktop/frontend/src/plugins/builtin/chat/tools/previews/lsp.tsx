@@ -1,5 +1,6 @@
-// lsp preview family — the runtime exposes ONE `lsp` tool (operation in the
-// args) plus a separate `lsp_diagnostics`.
+// lsp preview family — the runtime exposes ONE `lsp` tool and dispatches on its
+// `operation` argument; diagnostics is one of those operations, not a tool of its
+// own (the runtime asserts the two never coexist).
 
 import type { ToolPreviewProps } from "@/plugins/sdk";
 import { PreviewFoot } from "@/plugins/builtin/chat/tools/public/previews/PreviewFoot";
@@ -7,9 +8,8 @@ import { PreviewPlaceholder } from "@/plugins/builtin/chat/tools/public/previews
 import { cn } from "@/lib/classNames";
 import { definePlugin } from "@/plugins/sdk";
 import { TOOL_PREVIEW } from "@/plugins/sdk/kernelPoints";
-import { projectLspOperation } from "@/plugins/builtin/chat/tools/application/specialisedPreviewProjections";
 import { resultLines } from "@/plugins/builtin/chat/tools/application/toolResultParsing";
-import { lspToolPreviews } from "@/plugins/builtin/chat/tools/application/toolPreviewContributions";
+import { lspToolPreview } from "@/plugins/builtin/chat/tools/application/toolPreviewContributions";
 import { INLINE_PREVIEW_ROW_LIMIT, PreviewOverflow, TEXT_PREVIEW_CLASS } from "./previewChrome";
 
 // Result is one line per hit: `path:line:col` (locations) or
@@ -106,22 +106,19 @@ function LspDiagnosticsPreview({ tool, onOpenView }: ToolPreviewProps) {
   );
 }
 
-// Pick the hover renderer for hover, locations for every other operation;
-// default to locations when the operation isn't visible (args are suppressed
-// once the call has a label — see projections.argsText).
+// One renderer per shape the result takes: prose for hover, severity-tinted lines
+// for diagnostics, locations for everything else.
 function LspPreview(props: ToolPreviewProps) {
-  return projectLspOperation(props.tool.args) === "hover" ? (
-    <LspHoverPreview {...props} />
-  ) : (
-    <LspLocationsPreview {...props} />
-  );
+  if (props.tool.operation === "hover") return <LspHoverPreview {...props} />;
+  if (props.tool.operation === "diagnostics") return <LspDiagnosticsPreview {...props} />;
+  return <LspLocationsPreview {...props} />;
 }
 
 export const lspPreviews = definePlugin({
   name: "lyra.builtin.lsp-previews",
   version: "1.0.0",
   setup({ host }) {
-    for (const preview of lspToolPreviews(LspPreview, LspDiagnosticsPreview)) {
+    for (const preview of lspToolPreview(LspPreview)) {
       host.extensions.contribute(TOOL_PREVIEW, preview.component, { key: preview.key });
     }
   },

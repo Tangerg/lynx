@@ -1,7 +1,7 @@
 import type { AgentSessionView, Message } from "@/plugins/sdk/types/agentSessionView";
 import { describe, expect, it } from "vitest";
 import { EMPTY_AGENT_SESSION_VIEW } from "@/plugins/sdk/types/agentSessionView";
-import { appendBlockToLatestAssistant, appendBlockToMessage, compose, setRunPlan } from "./state";
+import { appendBlockToLatestAssistant, appendBlockToMessage, compose } from "./state";
 
 // Helpers to construct messages without typing the whole shape every time.
 const msg = (id: string, role: Message["role"] = "assistant"): Message => ({
@@ -16,6 +16,8 @@ const stateWith = (messages: Message[]): AgentSessionView => ({
   ...EMPTY_AGENT_SESSION_VIEW,
   messages,
 });
+
+const IMAGE_BLOCK = { kind: "image", mime: "image/png", data: "iVBOR" } as const;
 
 describe("appendBlockToMessage", () => {
   it("appends to the matching message id", () => {
@@ -36,7 +38,7 @@ describe("appendBlockToMessage", () => {
 
 describe("appendBlockToLatestAssistant", () => {
   it("targets the most-recent assistant message", () => {
-    const update = appendBlockToLatestAssistant({ kind: "plan" });
+    const update = appendBlockToLatestAssistant(IMAGE_BLOCK);
     const next = update(
       stateWith([
         msg("u1", "user"),
@@ -48,28 +50,20 @@ describe("appendBlockToLatestAssistant", () => {
 
     expect(next.messages[1]!.blocks).toHaveLength(0);
     expect(next.messages[3]!.blocks).toHaveLength(1);
-    expect(next.messages[3]!.blocks[0]).toEqual({ kind: "plan" });
+    expect(next.messages[3]!.blocks[0]).toEqual(IMAGE_BLOCK);
   });
 
   it("is a no-op when no assistant messages exist", () => {
-    const update = appendBlockToLatestAssistant({ kind: "plan" });
+    const update = appendBlockToLatestAssistant(IMAGE_BLOCK);
     const initial = stateWith([msg("u1", "user")]);
     expect(update(initial)).toBe(initial);
-  });
-});
-
-describe("setRunPlan", () => {
-  it("replaces only the named Run's plan", () => {
-    const update = setRunPlan("run_1", [{ id: 1, pid: "T-1", status: "doing", text: "x" }]);
-    const next = update(stateWith([]));
-    expect(next.plansByRunId.run_1).toEqual([{ id: 1, pid: "T-1", status: "doing", text: "x" }]);
   });
 });
 
 describe("compose", () => {
   it("applies updates left-to-right", () => {
     const update = compose(
-      setRunPlan("run_1", [{ id: 1, pid: "T-1", status: "todo", text: "a" }]),
+      appendBlockToLatestAssistant(IMAGE_BLOCK),
       appendBlockToLatestAssistant({
         kind: "text",
         text: "building",
@@ -77,8 +71,7 @@ describe("compose", () => {
       }),
     );
     const next = update(stateWith([msg("assistant")]));
-    expect(next.plansByRunId.run_1).toHaveLength(1);
-    expect(next.messages[0]?.blocks).toHaveLength(1);
+    expect(next.messages[0]?.blocks.map((block) => block.kind)).toEqual(["image", "text"]);
   });
 
   it("returns the original state when called with zero updates", () => {

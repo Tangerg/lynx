@@ -73,7 +73,6 @@ export type {
   ItemStatus,
   ItemType,
   ContentBlock,
-  PlanStep,
   Question,
   QuestionField,
   QuestionOption,
@@ -105,10 +104,10 @@ export type {
   // File browse
   FileEntry,
   FileContent,
-  // Approval control / compaction / todos (B9/B10/B11)
+  // Approval control / compaction / plan (B9/B10/B11)
   ApprovalMode,
   ApprovalRule,
-  TodoSnapshot,
+  PlanSnapshot,
   // Usage / error / context / tools
   Usage,
   ModelUsage,

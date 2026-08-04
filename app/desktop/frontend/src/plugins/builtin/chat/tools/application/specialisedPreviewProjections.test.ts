@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   projectAskUserAnswer,
   projectGlobPreview,
-  projectLspOperation,
   projectSkillPreview,
   projectWebSearchPreview,
 } from "./specialisedPreviewProjections";
@@ -34,20 +33,14 @@ describe("specialised preview projections", () => {
     );
   });
 
-  it("uses the same glob key priority as match counting", () => {
-    expect(projectGlobPreview('{"hits":[{"path":"src/a.ts"}],"truncated":true}')).toEqual({
-      paths: ["src/a.ts"],
-      truncated: true,
+  // The runtime's search presentation folds every grep/glob output mode into one
+  // `hits` envelope before it reaches the wire, so there is one key to read and no
+  // priority left to get wrong.
+  it("reads paths from the runtime's single hits envelope", () => {
+    expect(projectGlobPreview('{"hits":[{"path":"src/a.ts"},{"path":"src/b.ts"}]}')).toEqual({
+      paths: ["src/a.ts", "src/b.ts"],
     });
-    expect(projectGlobPreview('{"files":["src/b.ts"]}')).toEqual({
-      paths: ["src/b.ts"],
-      truncated: false,
-    });
-  });
-
-  it("reads the lsp operation from partial preview args", () => {
-    expect(projectLspOperation('{"operation":"hover"}')).toBe("hover");
-    expect(projectLspOperation("{")).toBe("");
+    expect(projectGlobPreview('{"files":["src/b.ts"]}')).toEqual({ paths: [] });
   });
 
   it("projects web search results without depending on UI types", () => {
