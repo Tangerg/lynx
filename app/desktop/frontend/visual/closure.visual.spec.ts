@@ -117,13 +117,11 @@ test("motion preference and OS reduced motion share one final authority", async 
     motion: "full",
   });
 
-  // The drawer PANEL, not its spacer: the spacer's width is a delayed jump on
-  // purpose (animating the measurement the reading plane wraps against re-wraps
-  // every visible paragraph per frame), so the thing carrying the duration is the
-  // transform that travels.
+  // The drawer PANEL — `left` and `width` travel together, `visibility` is the
+  // discrete third entry that waits for them.
   const drawer = page.locator(".agent-drawer");
   // The shipped visual style declares a 240ms drawer (WORKBENCH_MOTION.drawerMs).
-  await expect(drawer).toHaveCSS("transition-duration", "0.24s, 0s");
+  await expect(drawer).toHaveCSS("transition-duration", "0.24s, 0.24s, 0s");
 
   await page.emulateMedia({ reducedMotion: "reduce" });
   await expect(drawer).toHaveCSS("transition-duration", "0.001s");

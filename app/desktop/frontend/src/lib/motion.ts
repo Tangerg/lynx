@@ -51,6 +51,11 @@ export const selectionTransition: Transition = scaled("fastMs");
  * exit matters more than the entrance. Without one, removing an attachment made the
  * chips after it jump left in a single frame with nothing to say the one you clicked
  * had been the thing that left.
+ *
+ * Presence ONLY. Pair it with `layout` and the survivors would slide into the gap
+ * instead of jumping — for the price of a measurement on every render of whatever
+ * holds them, and the composer re-renders on every keystroke. A nicety on the rare
+ * interaction is not worth a cost on the constant one.
  */
 export const chipPresence = {
   initial: { opacity: 0, scale: 0.92 },

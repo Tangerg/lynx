@@ -27,14 +27,17 @@ export function ComposerAttachments({
     <>
       <PluginAttachments sources={sources} />
       {/* These arrive and leave because the USER put them there and took them away,
-          which is the one thing presence animation is for. Removing one used to jump
-          every chip after it left by a whole cell in a single frame, with nothing
-          saying the one under the pointer had been the thing that went. */}
+          which is the one thing presence animation is for.
+          Presence only — no `layout`. `value` is a prop, so this whole subtree
+          re-renders on every keystroke, and `layout` measures its element on every
+          render: a chip in the composer would have cost a getBoundingClientRect and a
+          projection pass per character typed. MessageStream records the same lesson
+          one file over, for the same library, and I added it here anyway. */}
       {images.length > 0 && (
         <div className="flex flex-wrap gap-2 pb-1 pt-1">
           <AnimatePresence initial={false}>
             {images.map((img) => (
-              <motion.div key={img.id} {...chipPresence} layout>
+              <motion.div key={img.id} {...chipPresence}>
                 <ImageThumb image={img} onRemove={() => onRemoveImage(img.id)} />
               </motion.div>
             ))}
@@ -45,7 +48,7 @@ export function ComposerAttachments({
         <div className="flex flex-wrap gap-1.5 pb-1 pt-1">
           <AnimatePresence initial={false}>
             {pastes.map((p) => (
-              <motion.div key={p.id} {...chipPresence} layout>
+              <motion.div key={p.id} {...chipPresence}>
                 <PasteChip paste={p} onRemove={() => onRemovePaste(p.id)} />
               </motion.div>
             ))}
