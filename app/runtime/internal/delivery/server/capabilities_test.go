@@ -14,7 +14,7 @@ func TestCapabilitiesAdvertiseOnlyProducedRunEvents(t *testing.T) {
 	caps := capabilitiesFor(featureAvailability{
 		memory: true, git: true, fileWatch: true, plan: true,
 		goals: true, agentMemory: true, schedules: true, codebase: true,
-	}, replayLimitsFrom(runs.NewCoordinator(runs.Dependencies{})), protocol.MCPAuthorizationAttemptLimits{RetentionSeconds: 73})
+	}, replayLimitsFrom(runs.NewCoordinator(runs.Dependencies{})), protocol.IdempotencyLimits{RetentionSeconds: 86_400}, protocol.MCPAuthorizationAttemptLimits{RetentionSeconds: 73})
 	want := []protocol.StreamEventType{
 		protocol.StreamSegmentStarted,
 		protocol.StreamSegmentProgress,
@@ -53,7 +53,10 @@ func TestCapabilitiesAdvertiseOnlyProducedRunEvents(t *testing.T) {
 		t.Fatalf("replay limits = %+v, want the enforced %+v", replay, defaultRetention)
 	}
 	if got := caps.Limits.MCPAuthorizationAttempts.RetentionSeconds; got != 73 {
-		t.Fatalf("MCP authorization attempt retention = %d, want the enforcing coordinator's 73", got)
+		t.Fatalf("MCP authorization attempt retention = %d, want 73", got)
+	}
+	if got := caps.Limits.Idempotency.RetentionSeconds; got != 86_400 {
+		t.Fatalf("idempotency retention = %d, want 86400", got)
 	}
 }
 
@@ -71,6 +74,7 @@ func TestCapabilitiesAdvertiseThePublishedVocabulary(t *testing.T) {
 	caps := capabilitiesFor(
 		featureAvailability{},
 		replayLimitsFrom(runs.NewCoordinator(runs.Dependencies{})),
+		protocol.IdempotencyLimits{RetentionSeconds: 86_400},
 		protocol.MCPAuthorizationAttemptLimits{RetentionSeconds: 73},
 	)
 	for _, feature := range protocol.FeatureKeys() {

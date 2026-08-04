@@ -108,7 +108,7 @@ func TestReportGoalOutcomeBlockedRequiresReason(t *testing.T) {
 	if !strings.Contains(out, "blocked") {
 		t.Fatalf("output = %q", out)
 	}
-	if got := store.goals["s1"]; got.Status != goalstate.StatusBlocked || got.Reason != (goalstate.Reason{Cause: goalstate.ReasonBlockedByModel, Detail: "needs a key"}) {
+	if got := store.goals["s1"]; got.Status != goalstate.StatusBlocked || got.Reason != (goalstate.Reason{Code: goalstate.ReasonBlockedByModel, Detail: "needs a key"}) {
 		t.Fatalf("stored = (%q, %+v)", got.Status, got.Reason)
 	}
 }

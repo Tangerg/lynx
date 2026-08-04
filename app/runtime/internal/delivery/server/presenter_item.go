@@ -121,8 +121,12 @@ func presentQuestion(question transcript.Question) protocol.Question {
 }
 
 func presentTool(tool transcript.ToolInvocation) protocol.ToolInvocation {
+	var result any
+	if tool.Result != nil {
+		result = tool.Result.Any()
+	}
 	return protocol.ToolInvocation{
-		Name: tool.Name, Arguments: tool.Arguments.Map(), Result: presentToolResult(tool),
+		Name: tool.Name, Arguments: tool.Arguments.Map(), Result: result,
 	}
 }
 

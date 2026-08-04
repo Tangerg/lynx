@@ -33,8 +33,7 @@ import (
 )
 
 // Every interface below is defined by Delivery — the consuming side. They keep
-// the transport dependent on exactly the use cases it drives, not on concrete
-// application coordinators or their unrelated methods.
+// the protocol boundary dependent on exactly the use cases it drives.
 
 type sessionUseCases interface {
 	CreateView(ctx context.Context, title, cwd string) (sessions.View, error)

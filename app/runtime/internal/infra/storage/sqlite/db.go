@@ -60,7 +60,7 @@ func Open(path string) (*sql.DB, error) {
 // schemaEpoch identifies the one storage shape this build understands. It is an
 // epoch rather than a version because nothing connects two values: a database
 // stamped with any other number is refused, never upgraded.
-const schemaEpoch = 53
+const schemaEpoch = 54
 
 func installCurrentSchema(db *sql.DB, path string) error {
 	var epoch int
@@ -346,7 +346,7 @@ func installCurrentSchema(db *sql.DB, path string) error {
 			session_id TEXT    PRIMARY KEY REFERENCES sessions(id) ON DELETE CASCADE,
 			objective  TEXT    NOT NULL,
 			status     TEXT    NOT NULL,
-			reason_cause  INTEGER NOT NULL DEFAULT 0,
+			reason_code   TEXT    NOT NULL DEFAULT '',
 			reason_detail TEXT    NOT NULL DEFAULT '',
 			provider   TEXT    NOT NULL DEFAULT '',
 			model      TEXT    NOT NULL DEFAULT '',

@@ -237,9 +237,9 @@ type QuestionOption struct {
 // ToolInvocation is the domain-neutral tool envelope (API.md §4.4). The
 // core knows exactly ONE tool shape — not a union: Name is identity,
 // Arguments is the parsed JSON object, Result is best-effort JSON output.
-// Runtime storage treats Result as opaque. Delivery may project known tools
-// into stable ergonomic JSON shapes keyed by Name (§4.4.2); unknown tools pass
-// through unchanged, so adding a tool requires no protocol union change.
+// Result is normalized before transcript persistence and delivery forwards its
+// canonical JSON value unchanged. Adding a tool requires no protocol union
+// change.
 //
 // Hard constraints (§4.4.1):
 //   - Arguments is ALWAYS a JSON object, never a JSON string (no double

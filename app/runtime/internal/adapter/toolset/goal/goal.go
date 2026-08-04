@@ -295,7 +295,7 @@ func viewOf(g goalstate.Goal) goalView {
 // reasonText is adapter-owned presentation. Keeping it here avoids making
 // application or domain packages depend on model-facing prose.
 func reasonText(reason goalstate.Reason) string {
-	switch reason.Cause {
+	switch reason.Code {
 	case goalstate.ReasonNone:
 		return ""
 	case goalstate.ReasonStoppedByUser:

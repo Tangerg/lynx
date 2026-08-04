@@ -397,7 +397,7 @@ func TestApplyTerminalChargesGoalOwnedParkAtomically(t *testing.T) {
 	}
 	if storedGoal.Used != (goal.Usage{Turns: 1, CostUSD: costUSD, Steps: 4}) ||
 		storedGoal.Status != goal.StatusPaused ||
-		storedGoal.Reason.Cause != goal.ReasonRunNotCompleted {
+		storedGoal.Reason.Code != goal.ReasonRunNotCompleted {
 		t.Fatalf("Goal after terminal park = %+v", storedGoal)
 	}
 	storedRun, found, err := runs.Run(ctx, terminal.ID)

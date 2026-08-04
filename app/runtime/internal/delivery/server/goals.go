@@ -96,11 +96,15 @@ func goalPtr(g goal.Goal) (*protocol.Goal, error) {
 	if !ok {
 		return nil, fmt.Errorf("goals: unsupported status %q", g.Status)
 	}
+	reason, err := goalReasonWire(g.Reason)
+	if err != nil {
+		return nil, err
+	}
 	w := protocol.Goal{
 		SessionID: g.SessionID,
 		Objective: g.Objective,
 		Status:    status,
-		Reason:    goalReason(g.Reason),
+		Reason:    reason,
 		Provider:  g.ModelSelection.Provider(),
 		Model:     g.ModelSelection.Model(),
 		Budget:    protocol.GoalBudget{MaxTurns: g.Budget.MaxTurns, MaxCostUsd: g.Budget.MaxCostUSD, MaxSteps: g.Budget.MaxSteps},
@@ -124,40 +128,33 @@ func goalStatusWire(status goal.Status) (protocol.GoalStatus, bool) {
 	}
 }
 
-// goalReason owns the current wire's human-readable reason. The goal entity
-// persists a typed cause plus an optional safe model/domain detail; infrastructure
-// diagnostics never enter durable state or protocol output.
-func goalReason(reason goal.Reason) string {
-	switch reason.Cause {
+func goalReasonWire(reason goal.Reason) (*protocol.GoalReason, error) {
+	var code protocol.GoalReasonCode
+	switch reason.Code {
 	case goal.ReasonNone:
-		return ""
+		return nil, nil
 	case goal.ReasonStoppedByUser:
-		return "stopped by the user"
+		code = protocol.GoalReasonStoppedByUser
 	case goal.ReasonRuntimeRestarted:
-		return "the runtime restarted — resume to continue"
+		code = protocol.GoalReasonRuntimeRestarted
 	case goal.ReasonRunStartFailed:
-		return "could not start the next run"
+		code = protocol.GoalReasonRunStartFailed
 	case goal.ReasonAwaitingInput:
-		return "the run is waiting for your input"
+		code = protocol.GoalReasonAwaitingInput
 	case goal.ReasonTerminalOutcomeMissing:
-		return "the run ended without a terminal outcome"
+		code = protocol.GoalReasonTerminalOutcomeMissing
 	case goal.ReasonRunNotCompleted:
-		if reason.Detail == "" {
-			return "the run ended before completing the goal"
-		}
-		return "the run ended (" + reason.Detail + ")"
+		code = protocol.GoalReasonRunNotCompleted
 	case goal.ReasonTurnBudgetReached:
-		return "reached the turn budget"
+		code = protocol.GoalReasonTurnBudgetReached
 	case goal.ReasonCostBudgetReached:
-		return "reached the cost budget"
+		code = protocol.GoalReasonCostBudgetReached
 	case goal.ReasonStepBudgetReached:
-		return "reached the step budget"
+		code = protocol.GoalReasonStepBudgetReached
 	case goal.ReasonBlockedByModel:
-		if reason.Detail != "" {
-			return reason.Detail
-		}
-		return "the model reported that it is blocked"
+		code = protocol.GoalReasonBlockedByModel
 	default:
-		return "the goal stopped"
+		return nil, fmt.Errorf("goals: unsupported reason code %q", reason.Code)
 	}
+	return &protocol.GoalReason{Code: code, Detail: reason.Detail}, nil
 }

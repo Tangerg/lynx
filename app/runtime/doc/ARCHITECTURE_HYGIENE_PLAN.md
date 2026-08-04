@@ -816,6 +816,37 @@ Acceptance:
 - Focused normal/race tests, runtime-wide build/vet, standalone module checks,
   static analysis, lint, dead-code analysis, and final structural scans pass.
 
+### Batch 29 — Delivery semantic boundary closure
+
+Status: **Completed**
+
+Scope:
+
+- Keep runtime-event observation private to Delivery, move file-change notices
+  into the Workspace application vocabulary, and use `Runs` consistently for
+  the Run use-case dependency.
+- Replace Goal's ordinal `ReasonCause` and Delivery-authored English sentence
+  with a durable semantic `ReasonCode` plus optional detail, and expose the same
+  closed vocabulary as `GoalReason { code, detail? }` on the wire.
+- Persist Goal reason codes as text, advance the incompatible SQLite schema
+  epoch to 54, and advance the single supported protocol version to
+  `2026-08-04` without a migration, alias, or compatibility decoder.
+- Inject the enforced idempotency replay limit into Delivery construction
+  instead of reading a component implementation constant from the server.
+- Remove the single-function tool-presentation file and stale comments that
+  claimed Delivery reshaped tool results or named concrete inner adapters.
+
+Acceptance:
+
+- `delivery/server.Server` exports only `protocol.Runtime` plus `Close`, and
+  production server code imports no concrete adapter, infrastructure,
+  composition, or idempotency implementation package.
+- Goal stopping context remains typed from Domain through SQLite and protocol;
+  Delivery contains no user-facing reason prose and rejects unpublished codes.
+- The Go-side contract, protocol documentation, build, vet, focused behavior
+  tests, and architecture fitness checks pass. Frontend generated bindings and
+  canonical samples remain the explicitly deferred integration block.
+
 ## 6. Progress
 
 | Batch | Status | Started | Completed | Evidence |
@@ -848,10 +879,34 @@ Acceptance:
 | 26. Process-path composition ownership | Completed | 2026-08-04 | 2026-08-04 | Executable, Agent prompt, Workspace, Runs, Schedules, Bootstrap, and Delivery tests plus the ambient-path architecture fitness rule passed. |
 | 27. Item timestamp vocabulary closure | Completed | 2026-08-04 | 2026-08-04 | Domain/Application/SQLite/Delivery normal and race tests, generated Go validators, server contract artifacts, JSON exclusivity assertions, and timestamp architecture fitness checks passed. |
 | 28. Ambient path ownership closure | Completed | 2026-08-04 | 2026-08-04 | Explicit-path boundary tests, runtime-wide ambient-path fitness scan, focused normal/race suites, build/vet, static analysis, lint, dead-code analysis, and structural residue scans passed. |
+| 29. Delivery semantic boundary closure | Completed | 2026-08-04 | 2026-08-04 | Runtime event/export and server dependency fitness checks, Goal reason projection/storage tests, Go contract generation, runtime-wide build/vet, and focused server/domain/application/storage tests passed; full drift remains limited to deferred frontend bindings and canonical samples. |
 
 Allowed status values: `Pending`, `In progress`, `Completed`, `Blocked`, `Revised`.
 
 ## 7. Progress log
+
+### 2026-08-04 — Batch 29 completed
+
+- Closed Delivery's event ingress: runtime sources are constructor-only,
+  file-change notices belong to `application/workspace`, and the concrete
+  Server has no exported event-injection or capability method outside its
+  protocol contract.
+- Standardized the Run use-case dependency as `Runs` from Bootstrap through
+  Delivery and removed the last coordinator-oriented production comments.
+- Replaced Goal's ordinal cause with a stable string reason code across Domain,
+  application, model-facing tools, SQLite, and protocol. The API now returns
+  structured reason context and leaves localization to clients.
+- Advanced SQLite to epoch 54 and the protocol to `2026-08-04`; regenerated
+  only Go/server artifacts and updated the canonical protocol prose. No legacy
+  column, decoder, dual shape, or compatibility branch remains.
+- Removed Delivery's idempotency-component dependency, the redundant tool
+  presentation file, and stale claims about tool-result reshaping. Added fitness
+  checks for concrete Server exports, Workspace event ownership, typed Goal
+  reasons, and server dependency boundaries.
+- Runtime-wide build and vet plus focused architecture, Domain, application,
+  adapter, storage, Delivery, Bootstrap, and command tests pass. Full contract
+  drift is intentionally deferred only for frontend-generated bindings and
+  canonical samples, which this server-only batch does not edit.
 
 ### 2026-08-04 — Batch 28 completed
 

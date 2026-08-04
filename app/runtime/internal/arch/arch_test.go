@@ -1039,6 +1039,38 @@ func TestDeliveryDoesNotAuthorDomainText(t *testing.T) {
 	}
 }
 
+// TestGoalReasonStaysMachineReadable prevents Delivery from collapsing typed
+// stopping context back into one localized sentence. The client needs the code
+// for behavior and localization, while detail remains independently available.
+func TestGoalReasonStaysMachineReadable(t *testing.T) {
+	reason, ok := reflect.TypeFor[protocol.Goal]().FieldByName("Reason")
+	if !ok {
+		t.Fatal("protocol.Goal no longer exposes stopping context")
+	}
+	if want := reflect.TypeFor[*protocol.GoalReason](); reason.Type != want {
+		t.Errorf("protocol.Goal.Reason = %s, want %s", reason.Type, want)
+	}
+	root := moduleRoot(t)
+	forbidTopLevelNames(t, filepath.Join(root, "internal", "delivery", "server"), map[string]string{
+		"goalReason": "a plain-text reason loses the stable code and client localization boundary",
+	})
+}
+
+// TestDeliveryServerDependsOnUseCaseBoundaries prevents concrete execution,
+// persistence, or composition types from entering the protocol implementation.
+// Adapter imports remain available to other delivery packages where a transport
+// integration genuinely needs them; the server itself translates only between
+// protocol values and application/domain ports.
+func TestDeliveryServerDependsOnUseCaseBoundaries(t *testing.T) {
+	root := moduleRoot(t)
+	forbidExternalImports(t, filepath.Join(root, "internal", "delivery", "server"), []string{
+		"github.com/Tangerg/lynx/app/runtime/internal/adapter",
+		"github.com/Tangerg/lynx/app/runtime/internal/infra",
+		"github.com/Tangerg/lynx/app/runtime/internal/bootstrap",
+		"github.com/Tangerg/lynx/app/runtime/internal/component/idempotency",
+	})
+}
+
 // TestDeliveryDoesNotImplementQuerySemantics keeps delivery out of deciding which
 // rows a read returns, in what order, and where a page stops. Those are
 // properties of the query: a correct cursor encodes the sort position and the

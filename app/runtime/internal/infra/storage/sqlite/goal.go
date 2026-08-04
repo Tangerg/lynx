@@ -41,7 +41,7 @@ type goalUsed struct {
 // Get returns the session's goal, or (zero, false, nil) when it has none.
 func (s *GoalStore) Get(ctx context.Context, sessionID string) (goal.Goal, bool, error) {
 	row := conn(ctx, s.db).QueryRowContext(ctx,
-		`SELECT session_id, objective, status, reason_cause, reason_detail, provider, model, budget, used, lease_id, revision, created_at, updated_at
+		`SELECT session_id, objective, status, reason_code, reason_detail, provider, model, budget, used, lease_id, revision, created_at, updated_at
 		 FROM goals WHERE session_id = ?`, sessionID)
 	g, err := scanGoal(row)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -81,10 +81,10 @@ func (s *GoalStore) Save(ctx context.Context, g goal.Goal, expected goal.Version
 	}
 	if expected == (goal.Version{}) {
 		res, err := conn(ctx, s.db).ExecContext(ctx,
-			`INSERT INTO goals(session_id, objective, status, reason_cause, reason_detail, provider, model, budget, used, lease_id, revision, created_at, updated_at)
+			`INSERT INTO goals(session_id, objective, status, reason_code, reason_detail, provider, model, budget, used, lease_id, revision, created_at, updated_at)
 			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 			 ON CONFLICT(session_id) DO NOTHING`,
-			g.SessionID, g.Objective, string(g.Status), int(g.Reason.Cause), g.Reason.Detail, g.ModelSelection.Provider(), g.ModelSelection.Model(),
+			g.SessionID, g.Objective, string(g.Status), string(g.Reason.Code), g.Reason.Detail, g.ModelSelection.Provider(), g.ModelSelection.Model(),
 			string(budget), string(used), g.LeaseID, g.Revision, g.CreatedAt.UTC().UnixNano(), g.UpdatedAt.UTC().UnixNano())
 		if err != nil {
 			return goal.Goal{}, false, fmt.Errorf("sqlite: insert goal: %w", err)
@@ -96,9 +96,9 @@ func (s *GoalStore) Save(ctx context.Context, g goal.Goal, expected goal.Version
 		return g, true, nil
 	}
 	res, err := conn(ctx, s.db).ExecContext(ctx,
-		`UPDATE goals SET objective = ?, status = ?, reason_cause = ?, reason_detail = ?, provider = ?, model = ?, budget = ?, used = ?, lease_id = ?, revision = ?, created_at = ?, updated_at = ?
+		`UPDATE goals SET objective = ?, status = ?, reason_code = ?, reason_detail = ?, provider = ?, model = ?, budget = ?, used = ?, lease_id = ?, revision = ?, created_at = ?, updated_at = ?
 		 WHERE session_id = ? AND lease_id = ? AND revision = ?`,
-		g.Objective, string(g.Status), int(g.Reason.Cause), g.Reason.Detail, g.ModelSelection.Provider(), g.ModelSelection.Model(),
+		g.Objective, string(g.Status), string(g.Reason.Code), g.Reason.Detail, g.ModelSelection.Provider(), g.ModelSelection.Model(),
 		string(budget), string(used), g.LeaseID, g.Revision, g.CreatedAt.UTC().UnixNano(), g.UpdatedAt.UTC().UnixNano(),
 		g.SessionID, expected.LeaseID, expected.Revision)
 	if err != nil {
@@ -217,7 +217,7 @@ func (s *GoalStore) ClearIf(ctx context.Context, sessionID string, expected goal
 // List returns every stored goal (for the boot reconcile).
 func (s *GoalStore) List(ctx context.Context) ([]goal.Goal, error) {
 	rows, err := conn(ctx, s.db).QueryContext(ctx,
-		`SELECT session_id, objective, status, reason_cause, reason_detail, provider, model, budget, used, lease_id, revision, created_at, updated_at FROM goals`)
+		`SELECT session_id, objective, status, reason_code, reason_detail, provider, model, budget, used, lease_id, revision, created_at, updated_at FROM goals`)
 	if err != nil {
 		return nil, fmt.Errorf("sqlite: list goals: %w", err)
 	}
@@ -243,12 +243,12 @@ func scanGoal(row scanRow) (goal.Goal, error) {
 	var (
 		g                    goal.Goal
 		status               string
-		reasonCause          int
+		reasonCode           string
 		provider, model      string
 		budgetJSON, usedJSON string
 		createdAt, updatedAt int64
 	)
-	if err := row.Scan(&g.SessionID, &g.Objective, &status, &reasonCause, &g.Reason.Detail, &provider, &model, &budgetJSON, &usedJSON, &g.LeaseID, &g.Revision, &createdAt, &updatedAt); err != nil {
+	if err := row.Scan(&g.SessionID, &g.Objective, &status, &reasonCode, &g.Reason.Detail, &provider, &model, &budgetJSON, &usedJSON, &g.LeaseID, &g.Revision, &createdAt, &updatedAt); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return goal.Goal{}, err
 		}
@@ -268,7 +268,7 @@ func scanGoal(row scanRow) (goal.Goal, error) {
 		return goal.Goal{}, fmt.Errorf("sqlite: decode goal used: %w", err)
 	}
 	g.Status = goal.Status(status)
-	g.Reason.Cause = goal.ReasonCause(reasonCause)
+	g.Reason.Code = goal.ReasonCode(reasonCode)
 	g.Budget = goal.Budget{MaxTurns: budget.MaxTurns, MaxCostUSD: budget.MaxCostUSD, MaxSteps: budget.MaxSteps}
 	g.Used = goal.Usage{Turns: used.Turns, CostUSD: used.CostUSD, Steps: used.Steps}
 	g.CreatedAt = time.Unix(0, createdAt).UTC()

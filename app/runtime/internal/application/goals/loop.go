@@ -326,13 +326,13 @@ func turnSteps(run *transcript.Run) int { return run.Metrics.Steps }
 func (d *Driver) pauseOwned(
 	ctx context.Context,
 	current *goal.Goal,
-	cause goal.ReasonCause,
+	code goal.ReasonCode,
 	detail string,
 ) (turnDisposition, error) {
 	for current.Status == goal.StatusActive {
 		expected := current.Version()
 		candidate := *current
-		candidate.Pause(cause, detail, d.now())
+		candidate.Pause(code, detail, d.now())
 		saved, applied, err := d.goals.Save(ctx, candidate, expected)
 		if err != nil {
 			return "", err

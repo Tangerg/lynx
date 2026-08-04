@@ -107,27 +107,43 @@ func (b Budget) Exceeded(u Usage) (limit BudgetLimit, exceeded bool) {
 	}
 }
 
-// ReasonCause classifies why a paused or blocked goal stopped. It deliberately
-// carries no display text: delivery maps the stable cause to client wording.
-type ReasonCause uint8
+// ReasonCode classifies why a paused or blocked goal stopped. Its stable string
+// value is safe to persist and project across process boundaries; presentation
+// layers decide how to explain it to their audience.
+type ReasonCode string
 
 const (
-	ReasonNone ReasonCause = iota
-	ReasonStoppedByUser
-	ReasonRuntimeRestarted
-	ReasonRunStartFailed
-	ReasonAwaitingInput
-	ReasonTerminalOutcomeMissing
-	ReasonRunNotCompleted
-	ReasonTurnBudgetReached
-	ReasonCostBudgetReached
-	ReasonStepBudgetReached
-	ReasonBlockedByModel
+	ReasonNone                   ReasonCode = ""
+	ReasonStoppedByUser          ReasonCode = "stoppedByUser"
+	ReasonRuntimeRestarted       ReasonCode = "runtimeRestarted"
+	ReasonRunStartFailed         ReasonCode = "runStartFailed"
+	ReasonAwaitingInput          ReasonCode = "awaitingInput"
+	ReasonTerminalOutcomeMissing ReasonCode = "terminalOutcomeMissing"
+	ReasonRunNotCompleted        ReasonCode = "runNotCompleted"
+	ReasonTurnBudgetReached      ReasonCode = "turnBudgetReached"
+	ReasonCostBudgetReached      ReasonCode = "costBudgetReached"
+	ReasonStepBudgetReached      ReasonCode = "stepBudgetReached"
+	ReasonBlockedByModel         ReasonCode = "blockedByModel"
 )
 
-// Valid reports whether c is a recognized stopping cause.
-func (c ReasonCause) Valid() bool {
-	return c >= ReasonNone && c <= ReasonBlockedByModel
+// Valid reports whether code is a recognized stopping reason.
+func (code ReasonCode) Valid() bool {
+	switch code {
+	case ReasonNone,
+		ReasonStoppedByUser,
+		ReasonRuntimeRestarted,
+		ReasonRunStartFailed,
+		ReasonAwaitingInput,
+		ReasonTerminalOutcomeMissing,
+		ReasonRunNotCompleted,
+		ReasonTurnBudgetReached,
+		ReasonCostBudgetReached,
+		ReasonStepBudgetReached,
+		ReasonBlockedByModel:
+		return true
+	default:
+		return false
+	}
 }
 
 // Reason is the typed stopping context stored with a paused or blocked goal.
@@ -135,7 +151,7 @@ func (c ReasonCause) Valid() bool {
 // values such as an Outcome string. Infrastructure errors belong in logs and
 // traces, never in durable goal state.
 type Reason struct {
-	Cause  ReasonCause
+	Code   ReasonCode
 	Detail string
 }
 
@@ -222,8 +238,8 @@ func (g Goal) ValidateSnapshot() error {
 	if !g.Status.Valid() {
 		return fmt.Errorf("%w: unknown status %q", errInvalidSnapshot, g.Status)
 	}
-	if !g.Reason.Cause.Valid() {
-		return fmt.Errorf("%w: unknown reason cause %d", errInvalidSnapshot, g.Reason.Cause)
+	if !g.Reason.Code.Valid() {
+		return fmt.Errorf("%w: unknown reason code %q", errInvalidSnapshot, g.Reason.Code)
 	}
 	if err := g.Budget.Validate(); err != nil {
 		return fmt.Errorf("%w: %w", errInvalidSnapshot, err)
@@ -234,11 +250,11 @@ func (g Goal) ValidateSnapshot() error {
 	}
 	switch g.Status {
 	case StatusActive, StatusComplete:
-		if g.Reason.Cause != ReasonNone || g.Reason.Detail != "" {
+		if g.Reason.Code != ReasonNone || g.Reason.Detail != "" {
 			return fmt.Errorf("%w: %s goal must not carry a stop reason", errInvalidSnapshot, g.Status)
 		}
 	case StatusPaused, StatusBlocked:
-		if g.Reason.Cause == ReasonNone {
+		if g.Reason.Code == ReasonNone {
 			return fmt.Errorf("%w: %s goal requires a stop reason", errInvalidSnapshot, g.Status)
 		}
 	}
@@ -332,11 +348,11 @@ func (g *Goal) Complete(now time.Time) {
 	g.UpdatedAt = now
 }
 
-// Pause stops the loop with a typed cause (user stop, restart degrade, a run
+// Pause stops the loop with a typed reason (user stop, restart degrade, a run
 // that parked for HITL, or a transient run error). A paused goal can be resumed.
-func (g *Goal) Pause(cause ReasonCause, detail string, now time.Time) {
+func (g *Goal) Pause(code ReasonCode, detail string, now time.Time) {
 	g.Status = StatusPaused
-	g.Reason = Reason{Cause: cause, Detail: detail}
+	g.Reason = Reason{Code: code, Detail: detail}
 	g.UpdatedAt = now
 }
 
@@ -344,9 +360,9 @@ func (g *Goal) Pause(cause ReasonCause, detail string, now time.Time) {
 // model declared itself stuck). Model-declared blocks may be resumed; a spent
 // budget is deliberately not resumable because another Run would exceed the
 // configured cap before it could be accounted.
-func (g *Goal) Block(cause ReasonCause, detail string, now time.Time) {
+func (g *Goal) Block(code ReasonCode, detail string, now time.Time) {
 	g.Status = StatusBlocked
-	g.Reason = Reason{Cause: cause, Detail: detail}
+	g.Reason = Reason{Code: code, Detail: detail}
 	g.UpdatedAt = now
 }
 
@@ -366,7 +382,7 @@ func (g *Goal) Resume(now time.Time) error {
 	return nil
 }
 
-func reasonForBudgetLimit(limit BudgetLimit) ReasonCause {
+func reasonForBudgetLimit(limit BudgetLimit) ReasonCode {
 	switch limit {
 	case BudgetLimitTurns:
 		return ReasonTurnBudgetReached

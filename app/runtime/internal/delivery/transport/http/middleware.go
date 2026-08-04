@@ -18,19 +18,16 @@ import (
 // observability wraps the mux with the entry-point tracing layer — the
 // root of full-link tracing:
 //
-//   - extract any W3C traceparent the client sent, then open ONE server
-//     span per request. Every downstream span (dispatch → engine → agent →
-//     tools) hangs under it because the span rides r.Context() onward, so
-//     a single trace covers the whole request, generated right here at the
-//     entrance. The span carries http.* attributes + duration + body size,
-//     and is marked Error on 5xx so backends can alert.
+//   - extract any W3C traceparent the client sent, then open one server span per
+//     request. Downstream work inherits it through r.Context(), so a single
+//     trace covers the whole request. The span carries HTTP attributes,
+//     duration, and body size, and is marked Error on 5xx.
 //   - panic recovery so the runtime survives a misbehaving handler; the panic
 //     is recorded onto the request span, and an uncommitted response becomes a
 //     flat 500 envelope without corrupting an already-started stream.
 //
-// All observability flows through OTel (see ../tracing.go for the shared
-// package tracer); the global TracerProvider + propagator are wired once at
-// process start (adapter/observability bootstrap).
+// All observability flows through OTel; the process composition root installs
+// the global TracerProvider and propagator.
 func (s *Server) observability(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()

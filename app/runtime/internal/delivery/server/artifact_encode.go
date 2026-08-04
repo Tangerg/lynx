@@ -11,9 +11,9 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
 
-// artifactFromPortable maps Application's terminal archive projection to the
-// versioned protocol document. It deliberately uses canonical domain values,
-// never the live client presentation (which may reshape a known tool result).
+// artifactFromPortable maps the terminal archive projection to the versioned
+// protocol document. Tool results remain the canonical values stored in the
+// transcript; archive encoding does not reinterpret them.
 func artifactFromPortable(portable sessions.PortableSnapshot) (protocol.SessionArtifact, error) {
 	messages := make([]json.RawMessage, 0, len(portable.Messages))
 	for _, message := range portable.Messages {

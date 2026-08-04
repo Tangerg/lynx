@@ -171,9 +171,8 @@ type RuntimeLimits struct {
 	// because the alternative is a client discovering the ceiling by losing events:
 	// knowing the bound is what lets it choose replay or a cold read.
 	//
-	// A runtime cannot be composed without the enforcing coordinator, so this is a
-	// required value rather than an optional promise. It is read from that
-	// coordinator rather than restated here.
+	// This is a required value rather than an optional promise because every
+	// runtime subscription enforces a finite replay window.
 	RunReplay RunReplayLimits `json:"runReplay"`
 	// MCPAuthorizationAttempts tells clients how long terminal OAuth outcomes
 	// remain queryable. Pending attempts are retained until they settle.

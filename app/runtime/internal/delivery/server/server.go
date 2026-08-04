@@ -9,7 +9,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/change"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/integrations"
 	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
-	"github.com/Tangerg/lynx/app/runtime/internal/component/idempotency"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/dispatch"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 )
@@ -33,6 +32,8 @@ type Config struct {
 	// ServerInfo identifies this runtime on the wire. Name and Version receive
 	// development defaults when absent.
 	ServerInfo protocol.ServerInfo
+	// IdempotencyLimits is the replay window enforced for command retries.
+	IdempotencyLimits protocol.IdempotencyLimits
 
 	Schedules      scheduleManagementUseCases
 	ScheduleFiring scheduleFiringUseCases
@@ -93,18 +94,18 @@ type Server struct {
 	features featureAvailability
 
 	replay                   protocol.RunReplayLimits
+	idempotency              protocol.IdempotencyLimits
 	mcpAuthorizationAttempts protocol.MCPAuthorizationAttemptLimits
 
 	// wsHub fans non-run change signals (files/skills/mcp/schedule/session) out to
-	// runtime.subscribe streams (AUX_API §3). Ephemeral, lossy, connection-
-	// scoped — distinct from the durable per-run hubs.
+	// runtime.subscribe streams (AUX_API §3). It is ephemeral, lossy, and scoped
+	// to this process; run streams have their own durable replay contract.
 	wsHub *workspaceHub
 }
 
 // featureAvailability is the small closed set of optional runtime facts that
-// shape both capability discovery and delivery gates. It is derived once from
-// actual composition; no handler probes a disabled implementation to discover
-// whether it may be called.
+// shape both capability discovery and delivery gates. Construction derives it
+// once; handlers do not rediscover availability by attempting a call.
 type featureAvailability struct {
 	memory      bool
 	git         bool
@@ -194,6 +195,9 @@ func New(cfg Config) (*Server, error) {
 	if err := protocol.ValidateWireTree(replay); err != nil {
 		return nil, fmt.Errorf("server: Runs returned invalid replay retention: %w", err)
 	}
+	if err := protocol.ValidateWireTree(cfg.IdempotencyLimits); err != nil {
+		return nil, fmt.Errorf("server: IdempotencyLimits is invalid: %w", err)
+	}
 	mcpAuthorizationAttempts := protocol.MCPAuthorizationAttemptLimits{
 		RetentionSeconds: int(cfg.Integrations.MCPAuthorizationAttemptRetention().Seconds()),
 	}
@@ -226,6 +230,7 @@ func New(cfg Config) (*Server, error) {
 		workspaceWatch:           cfg.WorkspaceWatch,
 		features:                 features,
 		replay:                   replay,
+		idempotency:              cfg.IdempotencyLimits,
 		mcpAuthorizationAttempts: mcpAuthorizationAttempts,
 	}
 	if cfg.FileChanges != nil {
@@ -250,7 +255,7 @@ func New(cfg Config) (*Server, error) {
 // optional keys come from the same immutable composition facts that handlers
 // use for their capability gates.
 func (s *Server) capabilities() protocol.ServerCapabilities {
-	return capabilitiesFor(s.features, s.replay, s.mcpAuthorizationAttempts)
+	return capabilitiesFor(s.features, s.replay, s.idempotency, s.mcpAuthorizationAttempts)
 }
 
 // replayLimitsFrom captures the replay window the Runs use case enforces.
@@ -277,6 +282,7 @@ func replayLimitsFrom(useCases runUseCases) protocol.RunReplayLimits {
 func capabilitiesFor(
 	features featureAvailability,
 	replay protocol.RunReplayLimits,
+	idempotency protocol.IdempotencyLimits,
 	mcpAuthorizationAttempts protocol.MCPAuthorizationAttemptLimits,
 ) protocol.ServerCapabilities {
 	return protocol.ServerCapabilities{
@@ -300,9 +306,7 @@ func capabilitiesFor(
 		// The two bounds a client cannot discover by trying: what a reconnect can expect
 		// to get back, and how wide one subscription may be.
 		Limits: protocol.RuntimeLimits{
-			Idempotency: protocol.IdempotencyLimits{
-				RetentionSeconds: int(idempotency.Retention.Seconds()),
-			},
+			Idempotency: idempotency,
 			// No process-wide run cap is enforced, so maxConcurrentRuns stays absent
 			// rather than advertising a limit the admission layer does not own.
 			RunReplay:                replay,

@@ -11,6 +11,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/persistence"
+	"github.com/Tangerg/lynx/app/runtime/internal/component/idempotency"
 	"github.com/Tangerg/lynx/app/runtime/internal/config"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	runtimeserver "github.com/Tangerg/lynx/app/runtime/internal/delivery/server"
@@ -316,6 +317,9 @@ func protocolServer(stack Stack, cwd string) (*runtimeserver.Server, error) {
 		ServerInfo: protocol.ServerInfo{
 			Name: "conformance-test", Version: "0.0.0-test",
 			DefaultWorkspace: protocol.WorkspaceRef{Path: cwd}, Home: cwd,
+		},
+		IdempotencyLimits: protocol.IdempotencyLimits{
+			RetentionSeconds: int(idempotency.Retention.Seconds()),
 		},
 	})
 }

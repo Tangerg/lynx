@@ -78,7 +78,7 @@ func (s *pauseCompletionRaceStore) Save(
 	candidate goal.Goal,
 	expected goal.Version,
 ) (goal.Goal, bool, error) {
-	if candidate.Reason.Cause != goal.ReasonRunStartFailed || !s.won.CompareAndSwap(false, true) {
+	if candidate.Reason.Code != goal.ReasonRunStartFailed || !s.won.CompareAndSwap(false, true) {
 		return s.memStore.Save(ctx, candidate, expected)
 	}
 	if err := s.lock(ctx); err != nil {
@@ -163,7 +163,7 @@ func (s *memStore) Save(ctx context.Context, g goal.Goal, expected goal.Version)
 func (s *memStore) failNextStopSave(err error) {
 	s.mu.Lock()
 	s.failSave = func(g goal.Goal) error {
-		if g.Reason.Cause == goal.ReasonStoppedByUser {
+		if g.Reason.Code == goal.ReasonStoppedByUser {
 			return err
 		}
 		return nil
@@ -346,7 +346,7 @@ func (f *fakeRuns) Start(ctx context.Context, cmd runs.StartCommand) (runs.Start
 		g, _, _ := f.store.Get(ctx, cmd.SessionID)
 		g.Status = tn.setStatus
 		if tn.setStatus == goal.StatusBlocked {
-			g.Reason = goal.Reason{Cause: goal.ReasonBlockedByModel, Detail: tn.reason}
+			g.Reason = goal.Reason{Code: goal.ReasonBlockedByModel, Detail: tn.reason}
 		}
 		expected := g.Version()
 		_, _, _ = f.store.Save(ctx, g, expected)
@@ -601,7 +601,7 @@ func TestDriverAccountsModelBlockedTerminalTurn(t *testing.T) {
 		return ok && g.Status == goal.StatusBlocked && g.Used == (goal.Usage{Turns: 1, CostUSD: 0.75, Steps: 2})
 	})
 	g, _, _ := store.Get(t.Context(), "s1")
-	if g.Reason != (goal.Reason{Cause: goal.ReasonBlockedByModel, Detail: "needs credentials"}) {
+	if g.Reason != (goal.Reason{Code: goal.ReasonBlockedByModel, Detail: "needs credentials"}) {
 		t.Fatalf("blocked goal reason = %+v", g.Reason)
 	}
 }
@@ -625,7 +625,7 @@ func TestDriverPausesOnMalformedTerminal(t *testing.T) {
 		return ok && g.Status == goal.StatusPaused
 	})
 	g, _, _ := store.Get(t.Context(), "s1")
-	if g.Reason != (goal.Reason{Cause: goal.ReasonTerminalOutcomeMissing}) {
+	if g.Reason != (goal.Reason{Code: goal.ReasonTerminalOutcomeMissing}) {
 		t.Fatalf("pause reason = %+v", g.Reason)
 	}
 	if g.Used.Turns != 0 {
@@ -780,7 +780,7 @@ func TestDriverStopFoldsTerminalRaceBeforePausing(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Stop: %v", err)
 	}
-	if stopped.Status != goal.StatusPaused || stopped.Reason.Cause != goal.ReasonStoppedByUser {
+	if stopped.Status != goal.StatusPaused || stopped.Reason.Code != goal.ReasonStoppedByUser {
 		t.Fatalf("stopped goal = status %q reason %+v", stopped.Status, stopped.Reason)
 	}
 	if stopped.Used.Turns != 1 {
@@ -897,7 +897,7 @@ func TestDriverStopSaveFailureDoesNotPublishUserStop(t *testing.T) {
 	if got.Status == goal.StatusActive {
 		t.Fatal("failed Stop left an active goal without a driver")
 	}
-	if got.Reason.Cause == goal.ReasonStoppedByUser {
+	if got.Reason.Code == goal.ReasonStoppedByUser {
 		t.Fatal("failed Stop published the uncommitted user-stop reason")
 	}
 }
@@ -1085,7 +1085,7 @@ func TestReconcileDegradesActiveAndClearsComplete(t *testing.T) {
 	if _, ok, _ := store.Get(context.Background(), "done"); ok {
 		t.Fatal("complete goal not cleared")
 	}
-	if g, _, _ := store.Get(context.Background(), "held"); g.Status != goal.StatusPaused || g.Reason != (goal.Reason{Cause: goal.ReasonAwaitingInput}) {
+	if g, _, _ := store.Get(context.Background(), "held"); g.Status != goal.StatusPaused || g.Reason != (goal.Reason{Code: goal.ReasonAwaitingInput}) {
 		t.Fatalf("paused goal was disturbed: %+v", g)
 	}
 }

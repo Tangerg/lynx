@@ -1,7 +1,7 @@
 {
   "protocol": {
-    "current": "2026-08-02",
-    "minSupported": "2026-08-02"
+    "current": "2026-08-04",
+    "minSupported": "2026-08-04"
   },
   "features": [
     "reasoning",

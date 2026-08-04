@@ -443,7 +443,7 @@ func TestCommitEventRecordsGoalTurnWithTerminalRun(t *testing.T) {
 	if err != nil || !found {
 		t.Fatalf("goal after terminal found=%v err=%v", found, err)
 	}
-	if got.Used != (goal.Usage{Turns: 1, CostUSD: 0.25, Steps: 2}) || got.Status != goal.StatusBlocked || got.Reason.Cause != goal.ReasonTurnBudgetReached {
+	if got.Used != (goal.Usage{Turns: 1, CostUSD: 0.25, Steps: 2}) || got.Status != goal.StatusBlocked || got.Reason.Code != goal.ReasonTurnBudgetReached {
 		t.Fatalf("goal after terminal = %+v", got)
 	}
 	var runState string

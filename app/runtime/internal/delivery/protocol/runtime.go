@@ -58,8 +58,8 @@ type Runtime interface {
 // obligation, and a range wider than one version would advertise a negotiation
 // the code does not perform.
 const (
-	ProtocolVersion    = "2026-08-02"
-	MinProtocolVersion = "2026-08-02"
+	ProtocolVersion    = "2026-08-04"
+	MinProtocolVersion = "2026-08-04"
 )
 
 type ProtocolRange struct {

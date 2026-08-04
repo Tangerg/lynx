@@ -262,9 +262,9 @@ type SegmentOutcome struct {
 	Interrupts []Interrupt `json:"interrupts,omitempty"`
 }
 
-// StartRunRequest is the runs.start body (API.md §7.1). The session owns cwd
-// and the runtime owns the toolset and shared-state lifecycle, so clients send
-// only the user input and explicit execution limits/model selection.
+// StartRunRequest is the runs.start body (API.md §7.1). The session owns cwd,
+// available tools, and shared state, so clients send only the user input and
+// explicit execution limits/model selection.
 type StartRunRequest struct {
 	SessionID string         `json:"sessionId"`
 	Input     []ContentBlock `json:"input"`

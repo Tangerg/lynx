@@ -13,6 +13,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/observability"
 	"github.com/Tangerg/lynx/app/runtime/internal/bootstrap"
+	"github.com/Tangerg/lynx/app/runtime/internal/component/idempotency"
 	"github.com/Tangerg/lynx/app/runtime/internal/config"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/server"
@@ -78,13 +79,16 @@ func buildHTTPServer(stack bootstrap.Stack, srv config.Server, tokenValue string
 	info.Home = paths.userHome
 
 	api, err := server.New(server.Config{
-		Sessions:           stack.Sessions,
-		Integrations:       stack.Integrations,
-		Approvals:          stack.Approvals,
-		Models:             stack.Models,
-		Tools:              stack.Tools,
-		Codebase:           stack.Codebase,
-		ServerInfo:         info,
+		Sessions:     stack.Sessions,
+		Integrations: stack.Integrations,
+		Approvals:    stack.Approvals,
+		Models:       stack.Models,
+		Tools:        stack.Tools,
+		Codebase:     stack.Codebase,
+		ServerInfo:   info,
+		IdempotencyLimits: protocol.IdempotencyLimits{
+			RetentionSeconds: int(idempotency.Retention.Seconds()),
+		},
 		Runs:               stack.Runs,
 		FileChanges:        stack.FileChanges,
 		MCPStatus:          stack.MCPStatus,

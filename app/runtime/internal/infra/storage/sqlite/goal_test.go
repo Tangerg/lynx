@@ -5,6 +5,7 @@ import (
 	"errors"
 	"math"
 	"path/filepath"
+	"slices"
 	"testing"
 	"time"
 
@@ -56,8 +57,38 @@ func TestGoalStoreRecordTurnIsIdempotentAndBlocksAtBudget(t *testing.T) {
 	if err != nil || !found {
 		t.Fatalf("Get = (%v, %v), want found", found, err)
 	}
-	if got.Used != (goal.Usage{Turns: 1, CostUSD: 0.25, Steps: 3}) || got.Status != goal.StatusBlocked || got.Reason.Cause != goal.ReasonTurnBudgetReached {
+	if got.Used != (goal.Usage{Turns: 1, CostUSD: 0.25, Steps: 3}) || got.Status != goal.StatusBlocked || got.Reason.Code != goal.ReasonTurnBudgetReached {
 		t.Fatalf("goal after idempotent RecordTurn = %+v", got)
+	}
+}
+
+func TestGoalSchemaUsesSemanticReasonCode(t *testing.T) {
+	db, err := sqlite.Open(filepath.Join(t.TempDir(), "lyra.db"))
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+
+	rows, err := db.Query(`PRAGMA table_info(goals)`)
+	if err != nil {
+		t.Fatalf("table_info: %v", err)
+	}
+	defer rows.Close()
+	var columns []string
+	for rows.Next() {
+		var cid, notNull, primaryKey int
+		var name, dataType string
+		var defaultValue any
+		if err := rows.Scan(&cid, &name, &dataType, &notNull, &defaultValue, &primaryKey); err != nil {
+			t.Fatalf("scan table_info: %v", err)
+		}
+		columns = append(columns, name)
+	}
+	if !slices.Contains(columns, "reason_code") {
+		t.Fatalf("goals columns = %v, want reason_code", columns)
+	}
+	if slices.Contains(columns, "reason_cause") {
+		t.Fatalf("goals columns retain obsolete reason_cause: %v", columns)
 	}
 }
 

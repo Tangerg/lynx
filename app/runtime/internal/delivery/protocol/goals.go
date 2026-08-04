@@ -30,16 +30,16 @@ type Goals interface {
 // status is active | paused | blocked; a completed goal is cleared, so it never
 // appears here.
 type Goal struct {
-	SessionID string     `json:"sessionId"`
-	Objective string     `json:"objective"`
-	Status    GoalStatus `json:"status"`
-	Reason    string     `json:"reason,omitempty"`
-	Provider  string     `json:"provider,omitempty"`
-	Model     string     `json:"model,omitempty"`
-	Budget    GoalBudget `json:"budget"`
-	Used      GoalUsage  `json:"used"`
-	CreatedAt time.Time  `json:"createdAt"`
-	UpdatedAt time.Time  `json:"updatedAt"`
+	SessionID string      `json:"sessionId"`
+	Objective string      `json:"objective"`
+	Status    GoalStatus  `json:"status"`
+	Reason    *GoalReason `json:"reason,omitempty"`
+	Provider  string      `json:"provider,omitempty"`
+	Model     string      `json:"model,omitempty"`
+	Budget    GoalBudget  `json:"budget"`
+	Used      GoalUsage   `json:"used"`
+	CreatedAt time.Time   `json:"createdAt"`
+	UpdatedAt time.Time   `json:"updatedAt"`
 }
 
 // GoalStatus is the durable resting-state vocabulary exposed by the
@@ -52,6 +52,29 @@ const (
 	GoalActive  GoalStatus = "active"
 	GoalPaused  GoalStatus = "paused"
 	GoalBlocked GoalStatus = "blocked"
+)
+
+// GoalReason is machine-readable stopping context. Code determines client
+// presentation and behavior; detail carries only safe domain/model context.
+type GoalReason struct {
+	Code   GoalReasonCode `json:"code"`
+	Detail string         `json:"detail,omitempty"`
+}
+
+// GoalReasonCode is the closed vocabulary for paused and blocked goals.
+type GoalReasonCode string
+
+const (
+	GoalReasonStoppedByUser          GoalReasonCode = "stoppedByUser"
+	GoalReasonRuntimeRestarted       GoalReasonCode = "runtimeRestarted"
+	GoalReasonRunStartFailed         GoalReasonCode = "runStartFailed"
+	GoalReasonAwaitingInput          GoalReasonCode = "awaitingInput"
+	GoalReasonTerminalOutcomeMissing GoalReasonCode = "terminalOutcomeMissing"
+	GoalReasonRunNotCompleted        GoalReasonCode = "runNotCompleted"
+	GoalReasonTurnBudgetReached      GoalReasonCode = "turnBudgetReached"
+	GoalReasonCostBudgetReached      GoalReasonCode = "costBudgetReached"
+	GoalReasonStepBudgetReached      GoalReasonCode = "stepBudgetReached"
+	GoalReasonBlockedByModel         GoalReasonCode = "blockedByModel"
 )
 
 // GoalBudget is the opt-in cross-turn cap. A zero field is unbounded on that axis.

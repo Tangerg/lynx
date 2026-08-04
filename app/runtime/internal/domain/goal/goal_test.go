@@ -139,7 +139,7 @@ func TestRecordTurnPreservesPriorTerminalReport(t *testing.T) {
 		SessionID: "s", LeaseID: "lease", RunID: "run_1", Outcome: execution.OutcomeCompleted,
 		CostUSD: 0.25, Steps: 2, CompletedAt: now.Add(time.Second),
 	})
-	if g.Status != StatusBlocked || g.Reason != (Reason{Cause: ReasonBlockedByModel, Detail: "need a credential"}) {
+	if g.Status != StatusBlocked || g.Reason != (Reason{Code: ReasonBlockedByModel, Detail: "need a credential"}) {
 		t.Fatalf("status/reason after terminal record = %q/%+v", g.Status, g.Reason)
 	}
 	if g.Used != (Usage{Turns: 1, CostUSD: 0.25, Steps: 2}) {
@@ -158,7 +158,7 @@ func TestTransitions(t *testing.T) {
 	}
 
 	g.Block(ReasonTurnBudgetReached, "", now)
-	if g.Status != StatusBlocked || g.Reason != (Reason{Cause: ReasonTurnBudgetReached}) {
+	if g.Status != StatusBlocked || g.Reason != (Reason{Code: ReasonTurnBudgetReached}) {
 		t.Fatalf("Block = (%q, %+v)", g.Status, g.Reason)
 	}
 	g.Resume(now)
@@ -166,7 +166,7 @@ func TestTransitions(t *testing.T) {
 		t.Fatalf("Resume = (%q, %+v), want (active, zero reason)", g.Status, g.Reason)
 	}
 	g.Pause(ReasonStoppedByUser, "", now)
-	if g.Status != StatusPaused || g.Reason != (Reason{Cause: ReasonStoppedByUser}) {
+	if g.Status != StatusPaused || g.Reason != (Reason{Code: ReasonStoppedByUser}) {
 		t.Fatalf("Pause = (%q, %+v)", g.Status, g.Reason)
 	}
 }

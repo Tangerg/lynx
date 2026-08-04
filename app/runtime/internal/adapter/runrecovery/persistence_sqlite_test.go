@@ -116,7 +116,7 @@ func TestRecoveryRepairsWholeDurableLifecycle(t *testing.T) {
 		t.Fatalf("orphan checkpoint after recovery = %v", err)
 	}
 	storedGoal, found, err := goalStore.Get(ctx, goalValue.SessionID)
-	if err != nil || !found || storedGoal.Used.Turns != 1 || storedGoal.Status != goal.StatusPaused || storedGoal.Reason.Cause != goal.ReasonRunNotCompleted {
+	if err != nil || !found || storedGoal.Used.Turns != 1 || storedGoal.Status != goal.StatusPaused || storedGoal.Reason.Code != goal.ReasonRunNotCompleted {
 		t.Fatalf("Goal after recovery = found:%t value:%+v err:%v", found, storedGoal, err)
 	}
 }
