@@ -1,8 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { t } from "@/lib/i18n";
 import type { ContentBlock } from "@/plugins/sdk/types/contentBlock";
 import type { ToolCall } from "@/plugins/sdk/types/agentSessionView";
-import { planRenderUnits, waveSummary, type MessageRenderUnit } from "./messageRenderUnits";
+import { planRenderUnits, waveStepCount, type MessageRenderUnit } from "./messageRenderUnits";
 
 const text = (value: string, status: "running" | "complete" = "complete"): ContentBlock => ({
   kind: "text",
@@ -191,17 +190,21 @@ describe("planRenderUnits · read-only grouping", () => {
   });
 });
 
-describe("waveSummary", () => {
-  it("says how much is inside, in the tool group's own words", () => {
-    const units = planRenderUnits(
-      [reasoning(), toolBlock("read"), toolBlock("grep"), text("answer")],
-      TOOLS,
-    );
-    const wave = units[0];
-    if (wave?.kind !== "wave") throw new Error("expected a folded wave");
+describe("waveStepCount", () => {
+  // The first version of the row counted tool calls only, so a round of two commands
+  // and two conclusions said it held two things.
+  it("counts every step inside, thinking included and groups unpacked", () => {
+    const wave = (blocks: ContentBlock[]) => {
+      const first = planRenderUnits(blocks, TOOLS)[0];
+      if (first?.kind !== "wave") throw new Error("expected a folded wave");
+      return waveStepCount(first.units);
+    };
 
-    expect(waveSummary(t, wave.units)).toBe(
-      `${t("narrative.wave.thinking")} · ${t("tools.group.calls", { count: 2 })}`,
-    );
+    // One thought + a group of two reads.
+    expect(wave([reasoning(), toolBlock("read"), toolBlock("grep"), text("answer")])).toBe(3);
+    // Two thoughts around two side-effecting calls, none of them grouped.
+    expect(
+      wave([reasoning(), toolBlock("shell"), reasoning(), toolBlock("edit"), text("answer")]),
+    ).toBe(4);
   });
 });

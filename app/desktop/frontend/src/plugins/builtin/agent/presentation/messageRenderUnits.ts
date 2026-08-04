@@ -1,4 +1,3 @@
-import type { Translate } from "@/lib/i18n";
 import type { ContentBlock } from "@/plugins/sdk/types/contentBlock";
 import type { ToolCall } from "@/plugins/sdk/types/agentSessionView";
 import { isQuestionTool } from "../domain/toolCategory";
@@ -159,24 +158,20 @@ function toolOf(block: ContentBlock, toolCalls: Record<string, ToolCall>): ToolC
 }
 
 /**
- * What a folded wave says about itself.
+ * How much is inside a folded wave — every step of it, thinking included.
  *
- * Counts rather than a list of verbs: the row is closed, and the only question a
- * reader asks of it is how much is in there. The words come from the same catalog the
- * tool group's summary uses, so a folded wave and a folded group speak alike.
+ * One total rather than a breakdown, and a count rather than a verb. The first version
+ * of this row said "Working · thinking · 4 calls", which was wrong twice: a folded wave
+ * exists only because an answer followed it, so it is always PAST and never working;
+ * and the number counted tool calls alone, so a round of four commands and two
+ * conclusions claimed to hold four things.
  */
-export function waveSummary(t: Translate, units: readonly MessageRenderUnit[]): string {
-  let thought = false;
-  let calls = 0;
+export function waveStepCount(units: readonly MessageRenderUnit[]): number {
+  let steps = 0;
   for (const unit of units) {
-    if (unit.kind === "toolGroup") calls += unit.tools.length;
-    else if (unit.kind === "block" && unit.block.kind === "tool") calls += 1;
-    else if (unit.kind === "block" && unit.block.kind === "reasoning") thought = true;
+    if (unit.kind === "toolGroup") steps += unit.tools.length;
+    else if (unit.kind === "block" && unit.block.kind === "tool") steps += 1;
+    else if (unit.kind === "block" && unit.block.kind === "reasoning") steps += 1;
   }
-  const parts: string[] = [];
-  // Whether it thought, not how many times: the number of reasoning blocks a provider
-  // happens to emit is an artefact of its streaming, not something a reader can use.
-  if (thought) parts.push(t("narrative.wave.thinking"));
-  if (calls > 0) parts.push(t("tools.group.calls", { count: calls }));
-  return parts.join(" · ");
+  return steps;
 }

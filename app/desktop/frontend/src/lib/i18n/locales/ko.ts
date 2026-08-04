@@ -124,8 +124,7 @@ export const ko: Record<string, string> = {
   "tools.overflow.truncated": "런타임에서 잘렸습니다",
   "tools.overflow.outputTruncated": "런타임에서 출력이 잘렸습니다",
   "tools.group.calls": "호출 {{count}}회",
-  "narrative.wave.label": "처리 과정",
-  "narrative.wave.thinking": "생각",
+  "narrative.wave.steps": "{{count}}단계",
 
   "common.remove": "제거",
   "common.loading": "불러오는 중",

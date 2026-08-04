@@ -11,7 +11,7 @@
 
 import { useState } from "react";
 import type { MessageRenderUnit } from "@/plugins/builtin/agent/public/messagePresentation";
-import { waveSummary } from "@/plugins/builtin/agent/public/messagePresentation";
+import { waveStepCount } from "@/plugins/builtin/agent/public/messagePresentation";
 import { AgentActivityDisclosure } from "@/ui/agent";
 import { useT } from "@/lib/i18n";
 import type { BlockCtx } from "./blockContext";
@@ -25,8 +25,10 @@ export function NarrativeWave({ units, ctx }: { units: MessageRenderUnit[]; ctx:
     <AgentActivityDisclosure
       icon="history"
       shell="line"
-      label={t("narrative.wave.label")}
-      detail={waveSummary(t, units)}
+      // The count IS the label. A word for what this is would have to be a tense, and
+      // the only tense available is past — the wave exists because an answer followed
+      // it — while the glyph beside it already says "what happened".
+      label={t("narrative.wave.steps", { count: waveStepCount(units) })}
       open={open}
       onToggle={() => setOpen((value) => !value)}
     >

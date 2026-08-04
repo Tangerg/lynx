@@ -125,8 +125,7 @@ export const es: Record<string, string> = {
   "tools.overflow.truncated": "truncado por el runtime",
   "tools.overflow.outputTruncated": "salida truncada por el runtime",
   "tools.group.calls": "{{count}} llamadas",
-  "narrative.wave.label": "Proceso",
-  "narrative.wave.thinking": "razonamiento",
+  "narrative.wave.steps": "{{count}} pasos",
 
   "common.remove": "Eliminar",
   "common.loading": "Cargando",

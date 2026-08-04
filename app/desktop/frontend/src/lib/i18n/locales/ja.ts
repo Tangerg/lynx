@@ -124,8 +124,7 @@ export const ja: Record<string, string> = {
   "tools.overflow.truncated": "ランタイムにより切り詰められました",
   "tools.overflow.outputTruncated": "出力がランタイムにより切り詰められました",
   "tools.group.calls": "{{count}} 件の呼び出し",
-  "narrative.wave.label": "処理",
-  "narrative.wave.thinking": "思考",
+  "narrative.wave.steps": "{{count}} ステップ",
 
   "common.remove": "削除",
   "common.loading": "読み込み中",
