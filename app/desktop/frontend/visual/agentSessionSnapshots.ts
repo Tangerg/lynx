@@ -1,4 +1,4 @@
-import type { Item, RunEvent, RunRef, StreamEvent } from "@/rpc";
+import type { Item, RunEvent, RunProtocolProfile, RunRef, StreamEvent } from "@/rpc";
 import type { AgentSessionSnapshot } from "@/plugins/builtin/agent/application/ports/runtimeGateway";
 
 export const VISUAL_AGENT_STATES = [
@@ -25,7 +25,21 @@ const SESSION_ID = "ses_visual";
 const ROOT_RUN_ID = "run_root";
 const CREATED_AT = "2026-07-31T08:00:00.000Z";
 const METRICS = { steps: 4, activeDurationMs: 12_000 };
-const PROFILE = { interruptTypes: ["approval"], requiredFeatures: ["subagents"] };
+const PROFILE: RunProtocolProfile = {
+  interruptTypes: ["approval"],
+  requiredFeatures: ["subagents"],
+};
+
+const SAFETY_CLASS: Record<string, "safe" | "write" | "exec" | "network"> = {
+  read: "safe",
+  grep: "safe",
+  glob: "safe",
+  lsp: "safe",
+  delegate_task: "safe",
+  edit: "write",
+  write: "write",
+  shell: "exec",
+};
 
 function run(status: RunRef["status"], patch: Partial<RunRef> = {}): RunRef {
   return {
@@ -86,19 +100,6 @@ const RUNNING_REASONING: Item = {
   text: "The framework must expose execution capability without knowing the application’s persistence records.",
 };
 
-const RUNNING_PLAN: Item = {
-  type: "plan",
-  id: "item_plan",
-  runId: ROOT_RUN_ID,
-  status: "running",
-  createdAt: CREATED_AT,
-  steps: [
-    { id: "step_boundary", title: "Verify boundary ownership", status: "completed" },
-    { id: "step_projection", title: "Inspect the normalized projection", status: "running" },
-    { id: "step_gates", title: "Run conformance gates", status: "pending" },
-  ],
-};
-
 // A settled read ahead of the running one, so the two fold into a tool GROUP:
 // a disclosure nested inside a disclosure, auto-open because a child is still
 // working. That is the shape a real working turn spends most of its time in, and
@@ -106,24 +107,26 @@ const RUNNING_PLAN: Item = {
 // parent's rounded corner shipped twice.
 const RUNNING_READ: Item = {
   type: "toolCall",
+  safetyClass: "safe",
   id: "item_running_read",
   runId: ROOT_RUN_ID,
   status: "completed",
-  createdAt: CREATED_AT,
+  startedAt: CREATED_AT,
   tool: {
     name: "read",
     arguments: {
-      file_path: "/Users/visual/lynx/app/runtime/internal/session/atomicity_and_idempotency.go",
+      path: "/Users/visual/lynx/app/runtime/internal/session/atomicity_and_idempotency.go",
     },
   },
 };
 
 const RUNNING_TOOL: Item = {
   type: "toolCall",
+  safetyClass: "safe",
   id: "item_running_tool",
   runId: ROOT_RUN_ID,
   status: "running",
-  createdAt: CREATED_AT,
+  startedAt: CREATED_AT,
   tool: {
     name: "grep",
     arguments: {
@@ -140,39 +143,43 @@ const RUNNING_TOOL: Item = {
 // carry different tones on purpose: a refusal is a decision, not a fault.
 const SHELL_READ: Item = {
   type: "toolCall",
+  safetyClass: "safe",
   id: "item_shells_read",
   runId: ROOT_RUN_ID,
   status: "completed",
-  createdAt: CREATED_AT,
-  tool: { name: "read", arguments: { file_path: "app/runtime/internal/session/store.go" } },
+  startedAt: CREATED_AT,
+  tool: { name: "read", arguments: { path: "app/runtime/internal/session/store.go" } },
 };
 
 const SHELL_COMMAND: Item = {
   type: "toolCall",
+  safetyClass: "exec",
   id: "item_shells_command",
   runId: ROOT_RUN_ID,
   status: "completed",
-  createdAt: CREATED_AT,
+  startedAt: CREATED_AT,
   tool: { name: "shell", arguments: { command: "go test ./internal/session/..." } },
 };
 
 const SHELL_FAILED: Item = {
   type: "toolCall",
+  safetyClass: "write",
   id: "item_shells_failed",
   runId: ROOT_RUN_ID,
   status: "incomplete",
-  createdAt: CREATED_AT,
-  tool: { name: "edit", arguments: { file_path: "app/runtime/internal/session/store.go" } },
+  startedAt: CREATED_AT,
+  tool: { name: "edit", arguments: { path: "app/runtime/internal/session/store.go" } },
   error: { type: "tool_failed", detail: "store.go changed on disk after it was read." },
 };
 
 const SHELL_DENIED: Item = {
   type: "toolCall",
+  safetyClass: "write",
   id: "item_shells_denied",
   runId: ROOT_RUN_ID,
   status: "incomplete",
-  createdAt: CREATED_AT,
-  tool: { name: "write", arguments: { file_path: ".env.production" } },
+  startedAt: CREATED_AT,
+  tool: { name: "write", arguments: { path: ".env.production" } },
   error: { type: "denied_by_user", detail: "You declined this write." },
 };
 
@@ -191,19 +198,21 @@ const WAVE_REASONING_ONE: Item = {
 
 const WAVE_READ: Item = {
   type: "toolCall",
+  safetyClass: "safe",
   id: "item_w_read",
   runId: ROOT_RUN_ID,
   status: "completed",
-  createdAt: CREATED_AT,
-  tool: { name: "read", arguments: { file_path: "app/runtime/internal/session/store.go" } },
+  startedAt: CREATED_AT,
+  tool: { name: "read", arguments: { path: "app/runtime/internal/session/store.go" } },
 };
 
 const WAVE_GREP: Item = {
   type: "toolCall",
+  safetyClass: "safe",
   id: "item_w_grep",
   runId: ROOT_RUN_ID,
   status: "completed",
-  createdAt: CREATED_AT,
+  startedAt: CREATED_AT,
   tool: { name: "grep", arguments: { pattern: "RunInTx", path: "app/runtime" } },
 };
 
@@ -224,11 +233,12 @@ const WAVE_REASONING_TWO: Item = {
 
 const WAVE_EDIT: Item = {
   type: "toolCall",
+  safetyClass: "write",
   id: "item_w_edit",
   runId: ROOT_RUN_ID,
   status: "completed",
-  createdAt: CREATED_AT,
-  tool: { name: "edit", arguments: { file_path: "app/runtime/internal/session/store.go" } },
+  startedAt: CREATED_AT,
+  tool: { name: "edit", arguments: { path: "app/runtime/internal/session/store.go" } },
 };
 
 const WAVE_ANSWER_TWO = message(
@@ -248,10 +258,11 @@ const WAVE_LIVE_REASONING: Item = {
 
 const WAVE_LIVE_TOOL: Item = {
   type: "toolCall",
+  safetyClass: "exec",
   id: "item_w_live",
   runId: ROOT_RUN_ID,
   status: "running",
-  createdAt: CREATED_AT,
+  startedAt: CREATED_AT,
   tool: { name: "shell", arguments: { command: "go test ./internal/session/..." } },
 };
 
@@ -313,20 +324,6 @@ const NARRATIVE_REASONING: Item = {
   text: "The retry loop is inlined in handleSubmit with a hardcoded ceiling and no backoff. Extracting it has two hazards: the idempotency key has to survive the whole retry cycle, and the component may unmount mid-flight.",
 };
 
-const NARRATIVE_PLAN: Item = {
-  type: "plan",
-  id: "item_n_plan",
-  runId: ROOT_RUN_ID,
-  status: "completed",
-  createdAt: "2026-07-31T08:01:02.000Z",
-  steps: [
-    { id: "n_step1", title: "Locate the existing retry implementation", status: "completed" },
-    { id: "n_step2", title: "Extract useRetryPayment and wire up checkout", status: "completed" },
-    { id: "n_step3", title: "Run the checkout unit tests", status: "running" },
-    { id: "n_step4", title: "Publish the strategy comparison", status: "pending" },
-  ],
-};
-
 function narrativeTool(
   id: string,
   name: string,
@@ -338,7 +335,8 @@ function narrativeTool(
     id,
     runId: ROOT_RUN_ID,
     status: "completed",
-    createdAt: "2026-07-31T08:01:04.000Z",
+    startedAt: "2026-07-31T08:01:04.000Z",
+    safetyClass: SAFETY_CLASS[name] ?? "exec",
     tool: { name, arguments: args, ...(result === undefined ? {} : { result }) },
   };
 }
@@ -426,14 +424,14 @@ export const AGENT_SESSION_SNAPSHOTS: Readonly<Record<VisualAgentState, AgentSes
     items: [PROMPT],
     pendingInterruptSets: [],
     state: {
-      type: "todos",
+      type: "plan",
       sessionId: SESSION_ID,
       revision: 3,
       updatedAt: "2026-07-31T08:00:08.000Z",
-      todos: [
-        { id: "todo_boundary", text: "Verify boundary ownership", status: "completed" },
-        { id: "todo_visual", text: "Review visual evidence", status: "in_progress" },
-        { id: "todo_gates", text: "Run quality gates", status: "pending" },
+      plan: [
+        { id: "step_boundary", description: "Verify boundary ownership", status: "completed" },
+        { id: "step_visual", description: "Review visual evidence", status: "in_progress" },
+        { id: "step_gates", description: "Run quality gates", status: "pending" },
       ],
     },
   },
@@ -442,14 +440,14 @@ export const AGENT_SESSION_SNAPSHOTS: Readonly<Record<VisualAgentState, AgentSes
     items: [PROMPT],
     pendingInterruptSets: [],
     state: {
-      type: "todos",
+      type: "plan",
       sessionId: SESSION_ID,
       revision: 3,
       updatedAt: "2026-07-31T08:00:08.000Z",
-      todos: [
-        { id: "todo_boundary", text: "Verify boundary ownership", status: "completed" },
-        { id: "todo_visual", text: "Review visual evidence", status: "in_progress" },
-        { id: "todo_gates", text: "Run quality gates", status: "pending" },
+      plan: [
+        { id: "step_boundary", description: "Verify boundary ownership", status: "completed" },
+        { id: "step_visual", description: "Review visual evidence", status: "in_progress" },
+        { id: "step_gates", description: "Run quality gates", status: "pending" },
       ],
     },
   },
@@ -606,10 +604,11 @@ export const AGENT_SESSION_SNAPSHOTS: Readonly<Record<VisualAgentState, AgentSes
         id: "item_delegate",
         runId: ROOT_RUN_ID,
         status: "completed",
-        createdAt: "2026-07-31T08:00:02.000Z",
+        startedAt: "2026-07-31T08:00:02.000Z",
+        safetyClass: "safe",
         tool: {
-          name: "task",
-          arguments: { description: "Audit Agent Framework ownership" },
+          name: "delegate_task",
+          arguments: { summary: "Audit Agent Framework ownership", instructions: "…" },
         },
       },
       message(
@@ -623,10 +622,11 @@ export const AGENT_SESSION_SNAPSHOTS: Readonly<Record<VisualAgentState, AgentSes
         id: "item_nested_delegate",
         runId: "run_child",
         status: "completed",
-        createdAt: "2026-07-31T08:00:04.000Z",
+        startedAt: "2026-07-31T08:00:04.000Z",
+        safetyClass: "safe",
         tool: {
-          name: "task",
-          arguments: { description: "Verify package dependencies" },
+          name: "delegate_task",
+          arguments: { summary: "Verify package dependencies", instructions: "…" },
         },
       },
       message(
@@ -676,22 +676,21 @@ export const AGENT_SESSION_SNAPSHOTS: Readonly<Record<VisualAgentState, AgentSes
     items: [
       NARRATIVE_TURN_1,
       NARRATIVE_REASONING,
-      NARRATIVE_PLAN,
       // Four adjacent read-only calls, so the transcript photographs a tool GROUP
       // — a disclosure nested inside a disclosure. Every defect this shape has
       // shipped (a row overflowing its parent's rounded corner, an inner rail
       // with nowhere to go) survived because no fixture rendered one.
-      narrativeTool("item_n_read", "read", { file_path: "src/checkout/checkout.tsx" }),
+      narrativeTool("item_n_read", "read", { path: "src/checkout/checkout.tsx" }),
       narrativeTool("item_n_read_2", "read", {
         file_path:
           "/Users/visual/lynx/app/desktop/frontend/src/plugins/builtin/chat/tools/ui/ToolGroup.tsx",
       }),
-      narrativeTool("item_n_read_3", "read", { file_path: "src/checkout/api/pay.ts" }),
+      narrativeTool("item_n_read_3", "read", { path: "src/checkout/api/pay.ts" }),
       narrativeTool("item_n_grep", "grep", { pattern: "retry|backoff", path: "src" }, "7 matches"),
       narrativeTool(
         "item_n_edit",
         "edit",
-        { file_path: "src/checkout/hooks/useRetryPayment.ts" },
+        { path: "src/checkout/hooks/useRetryPayment.ts" },
         "Created 85 lines",
       ),
       NARRATIVE_ANSWER_1,
@@ -757,14 +756,12 @@ export const AGENT_SESSION_TAIL_EVENTS: Readonly<Record<VisualAgentState, RunEve
   idle: [],
   running: [
     tailEvent(1, { type: "item.started", item: RUNNING_REASONING }),
-    tailEvent(2, { type: "item.started", item: RUNNING_PLAN }),
     tailEvent(3, { type: "item.started", item: RUNNING_READ }),
     tailEvent(4, { type: "item.started", item: RUNNING_TOOL }),
     tailEvent(5, { type: "item.started", item: RUNNING_RESPONSE }),
   ],
   steer: [
     tailEvent(1, { type: "item.started", item: RUNNING_REASONING }),
-    tailEvent(2, { type: "item.started", item: RUNNING_PLAN }),
     tailEvent(3, { type: "item.started", item: RUNNING_READ }),
     tailEvent(4, { type: "item.started", item: RUNNING_TOOL }),
     tailEvent(5, { type: "item.started", item: RUNNING_RESPONSE }),

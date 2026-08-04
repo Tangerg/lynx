@@ -149,7 +149,9 @@ test("plan disclosure expands through the production banner contribution", async
 
   await page.getByRole("button", { name: "Expand plan (1/3 · 33%)" }).click();
 
-  await expect(page.getByText("Run conformance gates", { exact: true })).toBeVisible();
+  // The banner's steps come from the session's plan snapshot now, not from a
+  // per-run plan Item — same three steps, read from where the protocol keeps them.
+  await expect(page.getByText("Run quality gates", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Collapse plan list" })).toHaveAttribute(
     "aria-expanded",
     "true",

@@ -166,11 +166,13 @@ const VISUAL_CAPABILITIES: ServerCapabilities = {
   runEvents: [],
   runtimeTopics: [],
   stateSnapshots: [],
-  features: { git: stable(true) },
+  features: { git: stable(true), plan: stable(true) },
   streamingMethods: [],
   limits: {
     runReplay: { scope: "processRootSegment", maxEvents: 2_048, maxBytes: 16_777_216 },
     runtimeSubscription: { maxTopics: 32, maxWatches: 32 },
+    idempotency: { retentionSeconds: 86_400 },
+    mcpAuthorizationAttempts: { retentionSeconds: 600 },
   },
 };
 
@@ -257,7 +259,7 @@ const workspaceDockDestinations = definePlugin({
       { viewId: "file", scope: "workspace", order: 25 },
       { viewId: "diff", scope: "workspace", order: 40 },
       { viewId: "terminal", scope: "workspace", order: 60 },
-      { viewId: "plan", scope: "run", order: 120 },
+      { viewId: "plan", scope: "session", order: 120 },
       { viewId: "timeline", scope: "session", order: 140 },
     ] as const) {
       host.extensions.contribute(CONTEXT_DOCK_DESTINATION, destination);

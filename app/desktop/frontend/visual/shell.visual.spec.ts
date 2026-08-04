@@ -153,7 +153,13 @@ test("window resize clamps layout without overwriting the persisted preference",
   await expect(rail).toHaveAttribute("aria-valuenow", "800");
 });
 
-const DPR_ONE_GOLDENS = [
+interface ShellGolden {
+  name: string;
+  viewport: { width: number; height: number };
+  route: ShellRoute;
+}
+
+const DPR_ONE_GOLDENS: readonly ShellGolden[] = [
   {
     name: "shell-light-populated-1440x900.png",
     viewport: { width: 1440, height: 900 },
@@ -184,11 +190,7 @@ const DPR_ONE_GOLDENS = [
     viewport: { width: 1120, height: 720 },
     route: { theme: "dark", state: "populated", sidebar: "collapsed" },
   },
-] as const satisfies readonly {
-  name: string;
-  viewport: { width: number; height: number };
-  route: ShellRoute;
-}[];
+];
 
 for (const golden of DPR_ONE_GOLDENS) {
   test(`shell golden ${golden.name}`, async ({ page }) => {

@@ -32,13 +32,11 @@ const PROJECTS: WorkspaceProjectSummary[] = [
   {
     id: "/Users/visual/lynx",
     name: "lynx",
-    branch: "main",
     sessionCount: 6,
   },
   {
     id: "/Users/visual/runtime",
     name: "runtime-lab",
-    branch: "protocol-vnext",
     sessionCount: 2,
   },
 ];
