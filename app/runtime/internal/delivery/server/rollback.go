@@ -18,9 +18,8 @@ import (
 // (omit = clear to empty). Rejected with session_busy while a run is in flight.
 //
 // The whole guarded operation — single-writer + working-tree admission, working
-// tree restore, durable truncation — lives in the sessions coordinator
-// ([sessions.Coordinator.Rollback]). This adapter only decodes the intent
-// and presents the canonical result; boundary resolution stays in application.
+// tree restore, and durable truncation — belongs to the session use case. This
+// method only decodes the wire intent and projects the result.
 func (s *Server) RollbackSession(ctx context.Context, in protocol.RollbackSessionRequest) (*protocol.RollbackSessionResponse, error) {
 	intent, err := rollbackIntentFromWire(in)
 	if err != nil {
@@ -53,7 +52,7 @@ func (s *Server) RollbackSession(ctx context.Context, in protocol.RollbackSessio
 	return &protocol.RollbackSessionResponse{Session: &sess, DroppedRuns: out}, nil
 }
 
-// wireRollbackErr maps the rollback coordinator's sentinels onto their wire
+// wireRollbackErr maps session rollback errors onto their wire
 // errors (the boundary sentinels are already wire-mapped inside the resolver).
 func wireRollbackErr(err error, sessionID string) error {
 	switch {

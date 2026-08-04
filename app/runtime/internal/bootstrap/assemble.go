@@ -81,15 +81,10 @@ type Stack struct {
 	// self-maintained memory (agentMemory.*). It may hold a disabled store, so
 	// Delivery can truthfully negotiate the capability without a domain-port leak.
 	AgentMemory *agentmemoryapp.Coordinator
-	// Coordinator owns the run lifecycle end to end (§8.2/§20): admission, the
-	// per-run event journal, the segment pumps, and cancel. Built + owned by the
-	// Host (its pumps are joined by Host.Close); the delivery layer drives it as a
-	// use-case surface, never constructing it.
-	Coordinator *runs.Coordinator
-	// FileChanges bridges the run pump's live file-change nudges to the delivery
-	// workspace hub (the seam that lets the coordinator be built here rather than
-	// inside the delivery Server, §2.5). Delivery installs the consumer via Observe.
-	FileChanges *signal.Signal[runs.FileChange]
+	Runs        *runs.Coordinator
+	// FileChanges carries committed workspace mutation scopes to protocol
+	// subscribers without exposing a wire event to the producer.
+	FileChanges *signal.Signal[workspace.FileChangeNotice]
 	// MCPStatus bridges the integrations coordinator's MCP connection transitions
 	// to the delivery workspace hub, same seam as FileChanges. Delivery observes it.
 	MCPStatus *signal.Signal[integrations.MCPServerStatus]
@@ -379,7 +374,7 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 	// inside delivery (§11.1/§13.2). It drives the agent turn through the turn
 	// Executor (§6.1); the same adapter implements the complete neutral turn-control
 	// surface consumed by application/runs.
-	fileChanges := &signal.Signal[runs.FileChange]{}
+	fileChanges := &signal.Signal[workspace.FileChangeNotice]{}
 	runExecutor := turn.NewExecutor(turnDispatcher)
 	// effectsTasks owns title generation after the synchronous checkpoint
 	// boundary; the Host joins accepted title tasks after the pumps.
@@ -554,7 +549,7 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 			Models:           modelsCoord,
 			Tools:            toolsCoord,
 			Codebase:         codebaseCoord,
-			Coordinator:      runCoord,
+			Runs:             runCoord,
 			FileChanges:      fileChanges,
 			MCPStatus:        mcpStatus,
 			SkillChanges:     skillChanges,

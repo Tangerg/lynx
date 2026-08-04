@@ -79,7 +79,7 @@ func TestNegotiationMapsSubagentsToChildRunPolicy(t *testing.T) {
 func TestCapabilitiesAdvertiseNegotiableSubagents(t *testing.T) {
 	s, _ := rollbackHarness(t)
 
-	feature, ok := s.Capabilities().Features[protocol.FeatureSubagents]
+	feature, ok := s.capabilities().Features[protocol.FeatureSubagents]
 	if !ok {
 		t.Fatal("capabilities omit features.subagents")
 	}

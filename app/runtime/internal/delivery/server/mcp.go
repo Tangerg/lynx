@@ -144,13 +144,3 @@ func wireMCPError(err error) error {
 	}
 	return err
 }
-
-// observeMCPStatus publishes invalidations only. The resource value remains
-// authoritative in mcp.servers.list.
-func (s *Server) observeMCPStatus(src Source[integrations.MCPServerStatus]) {
-	src.Observe(func(status integrations.MCPServerStatus) {
-		s.PublishRuntimeEvent(protocol.RuntimeEvent{
-			Type: protocol.RuntimeMCPChanged, ServerIDs: []string{status.Name},
-		})
-	})
-}

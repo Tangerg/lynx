@@ -11,10 +11,13 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
 	appcontract "github.com/Tangerg/lynx/app/runtime/internal/application/contract"
+	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
+	deliveryserver "github.com/Tangerg/lynx/app/runtime/internal/delivery/server"
 )
 
 // TestDependencyRule enforces Clean Architecture's Dependency Rule for the lyra
@@ -1074,14 +1077,33 @@ func TestDeliveryDoesNotDeriveSessionActivity(t *testing.T) {
 	})
 }
 
-// TestDeliverySkillHandlersOnlyDriveUseCases prevents mutation handlers from
-// manually publishing their own effects. The workspace Skills use case emits a
-// neutral committed-change nudge through the composition-root bridge instead.
-func TestDeliverySkillHandlersDoNotPublishChangeEvents(t *testing.T) {
+// TestDeliveryServerExportsOnlyItsContract keeps internal event ingress and
+// orchestration seams off the concrete Server API. Composition may close the
+// Server; every other exported method must belong to protocol.Runtime.
+func TestDeliveryServerExportsOnlyItsContract(t *testing.T) {
+	serverType := reflect.TypeFor[*deliveryserver.Server]()
+	runtimeType := reflect.TypeFor[protocol.Runtime]()
+	if !serverType.Implements(runtimeType) {
+		t.Fatal("delivery Server no longer implements protocol.Runtime")
+	}
+	allowed := map[string]struct{}{"Close": {}}
+	for method := range runtimeType.Methods() {
+		allowed[method.Name] = struct{}{}
+	}
+	for method := range serverType.Methods() {
+		if _, ok := allowed[method.Name]; !ok {
+			t.Errorf("delivery Server exports non-contract method %s", method.Name)
+		}
+	}
+}
+
+// TestWorkspaceChangeNoticeBelongsToWorkspace prevents the Run use case from
+// becoming the vocabulary owner for a workspace subscription signal.
+func TestWorkspaceChangeNoticeBelongsToWorkspace(t *testing.T) {
 	root := moduleRoot(t)
-	path := filepath.Join(root, "internal", "delivery", "server", "skills.go")
-	forbidSelectorCalls(t, path, map[string]string{
-		"PublishRuntimeEvent": "committed skill changes are published by the application bridge",
+	forbidTopLevelNames(t, filepath.Join(root, "internal", "application", "runs"), map[string]string{
+		"FileChange":       "workspace change scope belongs to application/workspace",
+		"FileChangeNotice": "workspace change scope belongs to application/workspace",
 	})
 }
 

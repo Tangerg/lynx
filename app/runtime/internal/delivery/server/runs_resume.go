@@ -31,7 +31,7 @@ func (s *Server) ResumeRun(ctx context.Context, in protocol.ResumeRunRequest) (*
 	if err != nil {
 		return nil, nil, err
 	}
-	result, err := s.coordinator.Resume(ctx, runs.ResumeCommand{
+	result, err := s.runs.Resume(ctx, runs.ResumeCommand{
 		RunID:     in.RunID,
 		Responses: responses,
 		// An added user turn goes through the same decoder a fresh run's input does: one

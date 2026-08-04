@@ -135,13 +135,6 @@ type ToolCallEnd struct {
 	Problem *transcript.Problem
 }
 
-// FileChange is a live workspace refresh nudge emitted after a tool-owned file
-// mutation commits. Delivery only encodes these already-resolved values.
-type FileChange struct {
-	Cwd   string
-	Paths []string
-}
-
 type CompactBoundary struct {
 	engineEventBase
 	MessagesBefore int

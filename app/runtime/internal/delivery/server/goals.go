@@ -15,8 +15,7 @@ import (
 // an objective until the model signals complete/blocked, a budget is spent, or
 // the user stops it.
 
-// goalRunner is the server's narrow view of the goal driver.
-type goalRunner interface {
+type goalUseCases interface {
 	Start(ctx context.Context, sessionID, objective string, selection modelref.Selection, budget goal.Budget) (goal.Goal, error)
 	Resume(ctx context.Context, sessionID string) (goal.Goal, error)
 	Stop(ctx context.Context, sessionID string) (goal.Goal, error)

@@ -322,7 +322,7 @@ func TestWorkspaceSubscribe(t *testing.T) {
 		t.Fatalf("subscribe: %v", err)
 	}
 	events := drainSeq(ctx, seq)
-	s.PublishRuntimeEvent(protocol.RuntimeEvent{Type: "skills.changed"})
+	s.wsHub.publish(protocol.RuntimeEvent{Type: "skills.changed"})
 	select {
 	case ev := <-events:
 		if ev.Type != "skills.changed" {
@@ -354,7 +354,7 @@ func TestWorkspaceSubscribe_EarlyRangeStopReleasesSubscription(t *testing.T) {
 		t.Fatalf("subscribe: %v", err)
 	}
 
-	s.PublishRuntimeEvent(protocol.RuntimeEvent{Type: protocol.RuntimeSkillsChanged})
+	s.wsHub.publish(protocol.RuntimeEvent{Type: protocol.RuntimeSkillsChanged})
 	for range seq {
 		break
 	}

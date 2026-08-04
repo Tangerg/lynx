@@ -33,7 +33,7 @@ func (s *Server) negotiateCapabilities(ctx context.Context) (execution.RunProtoc
 		return execution.RunProtocolProfile{}, nil
 	}
 
-	advertised := s.Capabilities().Features
+	advertised := s.capabilities().Features
 
 	var profile execution.RunProtocolProfile
 	for key, preference := range caps.Features {
@@ -97,7 +97,7 @@ func (s *Server) missingFeatureRequirements(
 		client = declared
 	}
 	return protocol.MissingFeatureRequirements(
-		s.Capabilities().Features, client, required...,
+		s.capabilities().Features, client, required...,
 	)
 }
 

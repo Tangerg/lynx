@@ -291,7 +291,7 @@ func protocolServer(stack Stack, cwd string) (*runtimeserver.Server, error) {
 		Models:             stack.Models,
 		Tools:              stack.Tools,
 		Codebase:           stack.Codebase,
-		Coordinator:        stack.Coordinator,
+		Runs:               stack.Runs,
 		FileChanges:        stack.FileChanges,
 		MCPStatus:          stack.MCPStatus,
 		SkillChanges:       stack.SkillChanges,

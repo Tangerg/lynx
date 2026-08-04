@@ -14,6 +14,7 @@ import (
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
+	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
@@ -522,7 +523,7 @@ func TestNudgePublishesFileChange(t *testing.T) {
 		cwd   string
 		paths []string
 	}
-	effects := New(Config{PublishFileChanges: func(change runs.FileChange) {
+	effects := New(Config{PublishFileChanges: func(change workspaceapp.FileChangeNotice) {
 		published.cwd, published.paths = change.Cwd, change.Paths
 	}})
 

@@ -50,7 +50,7 @@ func (s *Server) CreateSchedule(ctx context.Context, in protocol.CreateScheduleR
 	return &wire, nil
 }
 
-// UpdateSchedule applies a revision-guarded partial patch. The coordinator
+// UpdateSchedule applies a revision-guarded partial patch. The schedule use case
 // recomputes due time when cron or enabled changes and clears it when disabled.
 func (s *Server) UpdateSchedule(ctx context.Context, in protocol.UpdateScheduleRequest) (*protocol.Schedule, error) {
 	updated, err := s.schedules.Update(ctx, scheduleapp.UpdateCommand{

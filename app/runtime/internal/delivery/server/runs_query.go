@@ -144,7 +144,7 @@ func (s *Server) SubscribeRun(ctx context.Context, in protocol.SubscribeRunReque
 	if err != nil {
 		return nil, nil, err
 	}
-	attached, err := s.coordinator.Subscribe(ctx, runs.SubscribeRequest{
+	attached, err := s.runs.Subscribe(ctx, runs.SubscribeRequest{
 		RunID:     in.RunID,
 		SegmentID: in.SegmentID,
 		// The application's cursor is prefix-free; the evt_ framing is this layer's

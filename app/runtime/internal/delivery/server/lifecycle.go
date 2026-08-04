@@ -12,6 +12,6 @@ func (s *Server) Discover(_ context.Context) (*protocol.DiscoverResponse, error)
 	return &protocol.DiscoverResponse{
 		Protocol:     protocol.SupportedProtocolRange(),
 		ServerInfo:   s.serverInfo,
-		Capabilities: s.Capabilities(),
+		Capabilities: s.capabilities(),
 	}, nil
 }

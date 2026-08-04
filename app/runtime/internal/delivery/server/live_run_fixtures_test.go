@@ -87,7 +87,7 @@ func startLiveRun(t *testing.T, s *Server, cwd string) (runID, segmentID string)
 	if err != nil {
 		t.Fatalf("create live-run session: %v", err)
 	}
-	result, err := s.coordinator.Start(context.Background(), runs.StartCommand{
+	result, err := s.runs.Start(context.Background(), runs.StartCommand{
 		SessionID: sess.ID,
 		Input:     []transcript.ContentBlock{{Kind: transcript.TextContent, Text: "hold this run open"}},
 	})
@@ -95,7 +95,7 @@ func startLiveRun(t *testing.T, s *Server, cwd string) (runID, segmentID string)
 		t.Fatalf("start live run: %v", err)
 	}
 	probeCtx, cancel := context.WithCancel(context.Background())
-	_, err = s.coordinator.Subscribe(probeCtx, runs.SubscribeRequest{
+	_, err = s.runs.Subscribe(probeCtx, runs.SubscribeRequest{
 		RunID: result.RunID, SegmentID: result.SegmentID,
 	})
 	cancel()

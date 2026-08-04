@@ -41,7 +41,7 @@ func (s *Server) StartRun(ctx context.Context, in protocol.StartRunRequest) (*pr
 	if err != nil {
 		return nil, nil, err
 	}
-	result, err := s.coordinator.Start(ctx, runs.StartCommand{
+	result, err := s.runs.Start(ctx, runs.StartCommand{
 		SessionID:            in.SessionID,
 		DefaultWorkspacePath: s.serverInfo.DefaultWorkspace.Path,
 		ModelSelection:       selection,

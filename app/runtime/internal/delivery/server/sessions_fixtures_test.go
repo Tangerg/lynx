@@ -187,7 +187,7 @@ func newTestServer(rt testRuntime) *Server {
 	if p, ok := rt.(runProjectionProvider); ok {
 		runProjection = p.runProjection()
 	}
-	s.coordinator = runs.NewCoordinator(runs.Dependencies{
+	s.runs = runs.NewCoordinator(runs.Dependencies{
 		Segments:   rt,
 		Turns:      rt,
 		Sessions:   lifecycle,

@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/runsegment"
-	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
+	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/component/signal"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 )
@@ -70,7 +70,7 @@ func TestWorkspaceSubscribe_NonRepoInert(t *testing.T) {
 	}
 	events := drainSeq(ctx, seq)
 	// Broadcast events still flow on the subscription.
-	s.PublishRuntimeEvent(protocol.RuntimeEvent{Type: "skills.changed"})
+	s.wsHub.publish(protocol.RuntimeEvent{Type: "skills.changed"})
 	select {
 	case ev := <-events:
 		if ev.Type != "skills.changed" {
@@ -91,8 +91,8 @@ func TestRunEffectsNudgePublishesFileChange(t *testing.T) {
 
 	// Wire the production seam: the run effects publish nudges through the
 	// notifier, and the hub observes it (mapping to the wire files.changed).
-	fc := &signal.Signal[runs.FileChange]{}
-	s.wsHub.observe(fc)
+	fc := &signal.Signal[workspaceapp.FileChangeNotice]{}
+	s.observeFileChanges(fc)
 	effects := runsegment.New(runsegment.Config{PublishFileChanges: fc.Publish})
 
 	effects.Nudge("/proj", []string{"src/a.go"})

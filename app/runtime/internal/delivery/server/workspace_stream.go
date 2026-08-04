@@ -9,7 +9,6 @@ import (
 	"slices"
 	"sync"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 )
@@ -87,20 +86,6 @@ func (h *workspaceHub) closeAdmissions() {
 	h.mu.Lock()
 	h.closed = true
 	h.mu.Unlock()
-}
-
-// observe wires the run pump's live file-change nudges (delivered through the
-// composition-root bridge) into the hub: each nudge becomes a files.changed signal
-// fanned to subscribers. The wire shape stays here in delivery; the bridge itself
-// carries only neutral (cwd, paths).
-func (h *workspaceHub) observe(src Source[runs.FileChange]) {
-	src.Observe(func(change runs.FileChange) {
-		h.publish(protocol.RuntimeEvent{
-			Type:      protocol.RuntimeFilesChanged,
-			Workspace: workspaceRefFromPath(change.Cwd),
-			Paths:     change.Paths,
-		})
-	})
 }
 
 // publish fans ev to every subscriber, folding it into a pending resync for any
@@ -384,7 +369,7 @@ func (s *Server) subscribedTopics(requested []protocol.RuntimeTopic) (map[protoc
 	if len(requested) > protocol.MaxSubscriptionTopics {
 		return nil, fmt.Errorf("%w: at most %d topics per subscription", protocol.ErrInvalidParams, protocol.MaxSubscriptionTopics)
 	}
-	advertised := s.Capabilities().RuntimeTopics
+	advertised := s.capabilities().RuntimeTopics
 	topics := make(map[protocol.RuntimeTopic]bool, len(requested))
 	for _, topic := range requested {
 		if !slices.Contains(advertised, topic) {
@@ -440,14 +425,4 @@ func mapWorkspaceSubscribeError(err error) error {
 		})
 	}
 	return wireWorkspaceError(fmt.Errorf("start git watcher: %w", err))
-}
-
-// PublishRuntimeEvent fans one workspace event out to subscribers. The
-// runtime / engine call this when a non-run state change happens (mcp
-// serverChanged, skills.changed, files.changed). Safe to call with no
-// subscribers (no-op).
-func (s *Server) PublishRuntimeEvent(ev protocol.RuntimeEvent) {
-	if s.wsHub != nil {
-		s.wsHub.publish(ev)
-	}
 }

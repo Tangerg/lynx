@@ -29,7 +29,7 @@ func TestCancelRunPresentsCommittedRootSnapshot(t *testing.T) {
 		ID: "run_1", SessionID: "ses_1", State: execution.Canceled,
 		Outcome: &outcome, Detail: "user stopped",
 	}}}
-	server := &Server{coordinator: useCases}
+	server := &Server{runs: useCases}
 
 	result, err := server.CancelRun(t.Context(), protocol.CancelRunRequest{
 		RunID: "run_1", Reason: "user stopped",
@@ -54,7 +54,7 @@ func TestCancelRunPassesNegotiatedChildAuthorityWithoutBlockingARoot(t *testing.
 	useCases := &cancelRunUseCaseStub{result: runs.CancelResult{Run: transcript.Run{
 		ID: "run_1", SessionID: "ses_1", State: execution.Canceled, Outcome: &outcome,
 	}}}
-	server := &Server{coordinator: useCases}
+	server := &Server{runs: useCases}
 	ctx := withClientCapabilities(protocol.ClientCapabilities{
 		Features: map[string]protocol.FeaturePreference{
 			protocol.FeatureSubagents: {Enabled: true},
@@ -71,7 +71,7 @@ func TestCancelRunPassesNegotiatedChildAuthorityWithoutBlockingARoot(t *testing.
 }
 
 func TestCancelRunMapsFinishedToTheSharedLifecycleError(t *testing.T) {
-	server := &Server{coordinator: &cancelRunUseCaseStub{err: runs.ErrRunFinished}}
+	server := &Server{runs: &cancelRunUseCaseStub{err: runs.ErrRunFinished}}
 
 	result, err := server.CancelRun(t.Context(), protocol.CancelRunRequest{RunID: "run_1"})
 	if result != nil || !errors.Is(err, protocol.ErrRunFinished) {
@@ -80,7 +80,7 @@ func TestCancelRunMapsFinishedToTheSharedLifecycleError(t *testing.T) {
 }
 
 func TestCancelRunNamesTheCapabilityNeededForAChild(t *testing.T) {
-	server := &Server{coordinator: &cancelRunUseCaseStub{err: runs.ErrChildRunNotAllowed}}
+	server := &Server{runs: &cancelRunUseCaseStub{err: runs.ErrChildRunNotAllowed}}
 
 	result, err := server.CancelRun(t.Context(), protocol.CancelRunRequest{RunID: "run_child"})
 	if result != nil || !errors.Is(err, protocol.ErrCapabilityNotNeg) {

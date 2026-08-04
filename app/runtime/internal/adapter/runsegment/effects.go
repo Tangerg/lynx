@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
+	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
@@ -123,7 +124,7 @@ type TaskLauncher interface {
 // FileChangePublisher nudges live workspace subscribers after a tool-owned file
 // mutation. It is deliberately path-only: the protocol adapter owns the wire
 // WorkspaceEvent shape.
-type FileChangePublisher func(runs.FileChange)
+type FileChangePublisher func(workspaceapp.FileChangeNotice)
 
 // Config bundles the Effects dependencies.
 type Config struct {
@@ -192,6 +193,6 @@ func New(cfg Config) *Effects {
 // Nudge publishes a non-durable live workspace change to subscribers.
 func (e *Effects) Nudge(cwd string, paths []string) {
 	if e.publish != nil && len(paths) > 0 {
-		e.publish(runs.FileChange{Cwd: cwd, Paths: slices.Clone(paths)})
+		e.publish(workspaceapp.FileChangeNotice{Cwd: cwd, Paths: slices.Clone(paths)})
 	}
 }

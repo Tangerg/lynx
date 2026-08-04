@@ -16,7 +16,7 @@ func (s *Server) CancelRun(ctx context.Context, in protocol.CancelRunRequest) (*
 	// Root cancel is the emergency stop and is always allowed. Whether the target
 	// is a child is durable state resolved by the application, so do not reject
 	// unsupported client preferences before that identity is known.
-	result, err := s.coordinator.Cancel(ctx, runs.CancelCommand{
+	result, err := s.runs.Cancel(ctx, runs.CancelCommand{
 		RunID:         in.RunID,
 		Reason:        in.Reason,
 		AllowChildRun: s.requestCanUseFeature(ctx, protocol.FeatureSubagents),
@@ -53,7 +53,7 @@ func (s *Server) SteerRun(ctx context.Context, in protocol.SteerRunRequest) erro
 	if err != nil {
 		return err
 	}
-	return wireSteerError(s.coordinator.Steer(ctx, runs.SteerCommand{
+	return wireSteerError(s.runs.Steer(ctx, runs.SteerCommand{
 		RunID: in.RunID, ExpectedSegmentID: in.ExpectedSegmentID, Input: input,
 	}))
 }

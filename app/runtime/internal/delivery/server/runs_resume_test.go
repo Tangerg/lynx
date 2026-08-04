@@ -58,7 +58,7 @@ func TestResumeRun_KeepsInterruptOpenWhenStartFails(t *testing.T) {
 	}
 
 	// Stop the run coordinator so continuation admission fails before opening.
-	shutdown, ok := s.coordinator.(interface {
+	shutdown, ok := s.runs.(interface {
 		BeginShutdown()
 		AwaitShutdown(context.Context) error
 	})

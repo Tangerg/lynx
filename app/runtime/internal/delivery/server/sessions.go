@@ -71,7 +71,7 @@ func (s *Server) DeleteSession(ctx context.Context, id string) error {
 	if id == "" {
 		return protocol.ErrSessionNotFound
 	}
-	// The lifecycle coordinator claims the addressed session and every owned
+	// The session use case claims the addressed session and every owned
 	// internal-subtask descendant before deleting their durable state atomically.
 	// User-created forks remain independent conversations.
 	if err := s.sessions.DeleteSession(ctx, id); err != nil {
