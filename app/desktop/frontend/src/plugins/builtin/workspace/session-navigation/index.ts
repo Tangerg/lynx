@@ -1,14 +1,13 @@
 import {
   getActiveSessionId,
   getAgentSessionLifecycleSnapshot,
+  subscribeActiveSessionId,
   subscribeAgentSessionLifecycle,
-  subscribeAgentSessionSelection,
 } from "@/plugins/builtin/agent/public/session";
 import { definePlugin } from "@/plugins/sdk";
 import {
   activateWorkspaceSessionScope,
   forgetWorkspaceSessionScopes,
-  selectWorkspaceChat,
 } from "@/plugins/builtin/workspace/public/navigation";
 import { bindWorkspaceSessionNavigation } from "./application/sessionNavigationSync";
 
@@ -20,11 +19,10 @@ export default definePlugin({
     return bindWorkspaceSessionNavigation({
       activeSessionId: getActiveSessionId,
       lifecycleSnapshot: getAgentSessionLifecycleSnapshot,
-      subscribeSelection: subscribeAgentSessionSelection,
+      subscribeActiveSessionId,
       subscribeLifecycle: subscribeAgentSessionLifecycle,
       activateSessionScope: activateWorkspaceSessionScope,
       forgetSessionScopes: forgetWorkspaceSessionScopes,
-      selectChat: selectWorkspaceChat,
     });
   },
 });

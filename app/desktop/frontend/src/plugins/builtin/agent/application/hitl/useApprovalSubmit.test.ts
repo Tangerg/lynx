@@ -6,9 +6,9 @@
 // ("approved"|"declined") to the wire pair ("approve"|"deny", §6.1).
 
 import { act, renderHook } from "@testing-library/react";
+import { navigator } from "@/lib/navigation";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useAgentStore } from "@/plugins/builtin/agent/adapters/agentStore";
-import { useAgentSessionStore } from "@/plugins/builtin/agent/adapters/agentSessionStore";
 import { useApprovalSubmit } from "./useApprovalSubmit";
 
 const SID = "ses_1";
@@ -18,7 +18,7 @@ const SID = "ses_1";
 // the store refuses to resurrect a dropped/absent session (see agentStore).
 function bindResume(impl?: (...args: unknown[]) => void) {
   const resume = impl ? vi.fn(impl) : vi.fn();
-  useAgentSessionStore.setState({ activeSessionId: SID });
+  navigator().go({ session: SID });
   useAgentStore.getState().ensureSession(SID);
   useAgentStore.getState().setResume(SID, resume);
   return resume;

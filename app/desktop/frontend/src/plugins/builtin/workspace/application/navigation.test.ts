@@ -18,9 +18,8 @@ function reset() {
   useContextDockStore.setState({
     activeSessionScopeId: "",
     sessionScopes: new Map(),
-    dockOpen: false,
     dockViewIds: [],
-    activeDockViewId: null,
+    lastViewId: null,
     activeFile: "",
     fileViewer: null,
     selectedToolId: "",
@@ -38,16 +37,15 @@ describe("workspace navigation port", () => {
 
     expect(navigator().get().view).toBeNull();
     expect(useContextDockStore.getState()).toMatchObject({
-      dockOpen: true,
       dockViewIds: ["explorer", "diff"],
-      activeDockViewId: "explorer",
+      lastViewId: "explorer",
     });
   });
 
   it("only selects views that already belong to the dock", () => {
     openWorkspaceViewInDock("explorer");
     selectWorkspaceDockView("diff");
-    expect(useContextDockStore.getState().activeDockViewId).toBe("explorer");
+    expect(navigator().get().dock).toBe("explorer");
   });
 
   it("a full view leaves the dock workspace alone", () => {
@@ -57,9 +55,8 @@ describe("workspace navigation port", () => {
 
     expect(navigator().get().view).toBe("v3");
     expect(useContextDockStore.getState()).toMatchObject({
-      dockOpen: false,
       dockViewIds: ["explorer"],
-      activeDockViewId: "explorer",
+      lastViewId: "explorer",
     });
   });
 
@@ -78,9 +75,8 @@ describe("workspace navigation port", () => {
     showWorkspaceDock();
 
     expect(useContextDockStore.getState()).toMatchObject({
-      dockOpen: true,
       dockViewIds: ["diff"],
-      activeDockViewId: "diff",
+      lastViewId: "diff",
     });
   });
 
@@ -88,9 +84,8 @@ describe("workspace navigation port", () => {
     showWorkspaceDock();
 
     expect(useContextDockStore.getState()).toMatchObject({
-      dockOpen: true,
       dockViewIds: ["explorer"],
-      activeDockViewId: "explorer",
+      lastViewId: "explorer",
     });
   });
 
@@ -100,9 +95,8 @@ describe("workspace navigation port", () => {
 
     expect(closeActiveWorkspaceDockView()).toBe(true);
     expect(useContextDockStore.getState()).toMatchObject({
-      dockOpen: true,
       dockViewIds: ["explorer"],
-      activeDockViewId: "explorer",
+      lastViewId: "explorer",
     });
   });
 

@@ -12,23 +12,18 @@ export interface AgentSessionLifecycleSnapshot {
   openSessionIds: string[];
 }
 
-export interface AgentSessionSelectionSnapshot {
-  activeSessionId: string;
-  selectionEpoch: number;
-}
-
 export interface AgentSessionStatePort {
   useActiveSessionId(): string;
   getActiveSessionId(): string;
   getLifecycleSnapshot(): AgentSessionLifecycleSnapshot;
   subscribeActiveSessionId(onChange: (sessionId: string) => void): () => void;
   subscribeLifecycle(onChange: (snapshot: AgentSessionLifecycleSnapshot) => void): () => void;
-  subscribeSelection(
-    onChange: (
-      snapshot: AgentSessionSelectionSnapshot,
-      previous: AgentSessionSelectionSnapshot,
-    ) => void,
-  ): () => void;
+  /**
+   * Go to a session: hold it open and make it the place the user is. Leaves any
+   * promoted view behind — selecting a session means looking at that
+   * conversation, which is why this used to need a "selection epoch" the
+   * workspace watched for re-selection. One move, so no counter.
+   */
   selectSession(id: string): void;
   closeSession(id: string): void;
   useDraftSessionIds(): Set<string>;
@@ -36,6 +31,12 @@ export interface AgentSessionStatePort {
   isDraftSession(id: string): boolean;
   useSelectSession(): (id: string) => void;
   reconcileSessions(liveIds: string[]): void;
+  /**
+   * Cold start: go to the session the user was last in, if the location doesn't
+   * already name one. A no-op when it does — a deeplink or a reload with a
+   * session in the URL is a stronger statement about where to be than memory is.
+   */
+  restoreLastSession(): void;
   markDraftSession(id: string): void;
   graduateDraftSession(id: string): void;
   setPendingMessage(id: string, message: PendingAgentMessage): void;

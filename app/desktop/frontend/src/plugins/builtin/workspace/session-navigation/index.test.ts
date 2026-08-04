@@ -1,197 +1,95 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type {
-  AgentSessionLifecycleSnapshot,
-  AgentSessionSelectionSnapshot,
-} from "@/plugins/builtin/agent/public/session";
 import { loadPlugin, unloadPlugin } from "@/plugins/sdk";
 import { useContextDockStore } from "@/state/contextDockStore";
 import { navigator } from "@/lib/navigation";
 import sessionNavigation from ".";
 
-type SelectionListener = (
-  state: AgentSessionSelectionSnapshot,
-  previous: AgentSessionSelectionSnapshot,
-) => void;
-type LifecycleListener = (state: AgentSessionLifecycleSnapshot) => void;
-
-const agentSessionSelection = vi.hoisted(() => {
-  let listener: SelectionListener | undefined;
-  let lifecycleListener: LifecycleListener | undefined;
-  let activeSessionId = "s1";
+// The plugin's job: keep the dock's per-session memory pointed at the session the
+// user is in. It observes the session through the agent facade and answers by
+// navigating the dock, so both sides are asserted through the location.
+const agentSession = vi.hoisted(() => {
+  let listener: ((sessionId: string) => void) | undefined;
   let openSessionIds = ["s1", "s2"];
   return {
-    emit(state: AgentSessionSelectionSnapshot, previous: AgentSessionSelectionSnapshot) {
-      activeSessionId = state.activeSessionId;
-      listener?.(state, previous);
+    goTo(sessionId: string) {
+      navigator().go({ session: sessionId });
+      listener?.(sessionId);
     },
-    emitLifecycle(state: AgentSessionLifecycleSnapshot) {
-      activeSessionId = state.activeSessionId;
-      openSessionIds = state.openSessionIds;
-      lifecycleListener?.(state);
+    setOpen(ids: string[]) {
+      openSessionIds = ids;
     },
-    getActiveSessionId() {
-      return activeSessionId;
-    },
-    getLifecycleSnapshot() {
-      return { activeSessionId, openSessionIds };
+    getOpen: () => openSessionIds,
+    subscribe(fn: (sessionId: string) => void) {
+      listener = fn;
+      return () => {
+        listener = undefined;
+      };
     },
     reset() {
       listener = undefined;
-      lifecycleListener = undefined;
-      activeSessionId = "s1";
       openSessionIds = ["s1", "s2"];
-    },
-    subscribe(onChange: SelectionListener) {
-      listener = onChange;
-      return () => {
-        if (listener === onChange) listener = undefined;
-      };
-    },
-    subscribeLifecycle(onChange: LifecycleListener) {
-      lifecycleListener = onChange;
-      return () => {
-        if (lifecycleListener === onChange) lifecycleListener = undefined;
-      };
     },
   };
 });
 
 vi.mock("@/plugins/builtin/agent/public/session", () => ({
-  getActiveSessionId: agentSessionSelection.getActiveSessionId,
-  getAgentSessionLifecycleSnapshot: agentSessionSelection.getLifecycleSnapshot,
-  subscribeAgentSessionLifecycle: agentSessionSelection.subscribeLifecycle,
-  subscribeAgentSessionSelection: agentSessionSelection.subscribe,
+  getActiveSessionId: () => navigator().get().session,
+  getAgentSessionLifecycleSnapshot: () => ({
+    activeSessionId: navigator().get().session,
+    openSessionIds: agentSession.getOpen(),
+  }),
+  subscribeActiveSessionId: (fn: (sessionId: string) => void) => agentSession.subscribe(fn),
+  subscribeAgentSessionLifecycle: () => () => {},
 }));
 
-function selection(activeSessionId: string, selectionEpoch: number): AgentSessionSelectionSnapshot {
-  return { activeSessionId, selectionEpoch };
-}
+beforeEach(() => {
+  agentSession.reset();
+  navigator().go({ session: "s1" });
+});
 
-function resetWorkspace() {
-  navigator().go({ view: "v2", settings: null });
-  useContextDockStore.setState({
-    activeSessionScopeId: "",
-    sessionScopes: new Map(),
-    dockOpen: false,
-    dockViewIds: [],
-    activeDockViewId: null,
-    activeFile: "",
-    fileViewer: null,
-    selectedToolId: "",
-    expandedToolIds: new Set<string>(),
-  });
-}
-
-function seedInspector() {
-  useContextDockStore.setState({
-    activeFile: "src/a.ts",
-    selectedToolId: "tool-1",
-    expandedToolIds: new Set(["tool-1"]),
-    dockOpen: true,
-    dockViewIds: ["explorer", "diff"],
-    activeDockViewId: "diff",
-  });
-}
-
-function expectSessionScopedStateBlank() {
-  const state = useContextDockStore.getState();
-  expect(state.activeFile).toBe("");
-  expect(state.selectedToolId).toBe("");
-  expect(state.expandedToolIds.size).toBe(0);
-  expect(state.dockOpen).toBe(false);
-  expect(state.dockViewIds).toEqual([]);
-  expect(state.activeDockViewId).toBeNull();
-}
-
-function expectSessionScopedStatePreserved() {
-  const state = useContextDockStore.getState();
-  expect(state.activeFile).toBe("src/a.ts");
-  expect(state.selectedToolId).toBe("tool-1");
-  expect(state.expandedToolIds.has("tool-1")).toBe(true);
-  expect(state.dockOpen).toBe(true);
-  expect(state.dockViewIds).toEqual(["explorer", "diff"]);
-  expect(state.activeDockViewId).toBe("diff");
-}
+afterEach(() => {
+  unloadPlugin(sessionNavigation.name);
+});
 
 describe("workspace session navigation", () => {
-  beforeEach(async () => {
-    agentSessionSelection.reset();
-    resetWorkspace();
+  it("adopts the session the app is already in when it loads", async () => {
+    useContextDockStore.setState({ activeSessionScopeId: "", sessionScopes: new Map() });
+
     await loadPlugin(sessionNavigation);
+
+    expect(useContextDockStore.getState().activeSessionScopeId).toBe("s1");
   });
 
-  afterEach(() => {
-    unloadPlugin(sessionNavigation.name);
+  it("restores the dock destination the session it moves to remembers", async () => {
+    await loadPlugin(sessionNavigation);
+    useContextDockStore.getState().openDockTab("diff");
+    useContextDockStore.getState().rememberDockView("diff");
+
+    agentSession.goTo("s2");
+    expect(navigator().get().dock).toBeNull();
+
+    agentSession.goTo("s1");
+    expect(useContextDockStore.getState().activeSessionScopeId).toBe("s1");
+    expect(navigator().get().dock).toBe("diff");
   });
 
-  it("selecting a different session returns the main pane to chat", () => {
-    expect(navigator().get().view).toBe("v2");
+  it("keeps each session's own tabs", async () => {
+    await loadPlugin(sessionNavigation);
+    useContextDockStore.getState().openDockTab("diff");
 
-    agentSessionSelection.emit(selection("s2", 1), selection("s1", 0));
+    agentSession.goTo("s2");
+    expect(useContextDockStore.getState().dockViewIds).toEqual([]);
 
-    expect(navigator().get().view).toBeNull();
+    agentSession.goTo("s1");
+    expect(useContextDockStore.getState().dockViewIds).toEqual(["diff"]);
   });
 
-  it("selecting a different session restores that session's workspace scope", () => {
-    seedInspector();
+  it("stops following once unloaded", async () => {
+    await loadPlugin(sessionNavigation);
+    await unloadPlugin(sessionNavigation.name);
 
-    agentSessionSelection.emit(selection("s2", 1), selection("s1", 0));
+    agentSession.goTo("s2");
 
-    expectSessionScopedStateBlank();
-
-    useContextDockStore.setState({
-      activeFile: "src/b.ts",
-      selectedToolId: "tool-2",
-      expandedToolIds: new Set(["tool-2"]),
-      dockOpen: true,
-      dockViewIds: ["terminal"],
-      activeDockViewId: "terminal",
-    });
-
-    agentSessionSelection.emit(selection("s1", 2), selection("s2", 1));
-    expectSessionScopedStatePreserved();
-
-    agentSessionSelection.emit(selection("s2", 3), selection("s1", 2));
-    const state = useContextDockStore.getState();
-    expect(state.activeFile).toBe("src/b.ts");
-    expect(state.selectedToolId).toBe("tool-2");
-    expect(state.expandedToolIds.has("tool-2")).toBe(true);
-    expect(state.dockOpen).toBe(true);
-    expect(state.dockViewIds).toEqual(["terminal"]);
-    expect(state.activeDockViewId).toBe("terminal");
-  });
-
-  it("re-selecting the same session preserves session-scoped workspace state", () => {
-    seedInspector();
-
-    agentSessionSelection.emit(selection("s1", 1), selection("s1", 0));
-
-    expectSessionScopedStatePreserved();
-  });
-
-  it("moving to a session without saved dock state starts blank", () => {
-    seedInspector();
-
-    agentSessionSelection.emit(selection("s2", 0), selection("s1", 0));
-
-    expectSessionScopedStateBlank();
-  });
-
-  it("closing a background session keeps the active session's workspace state", () => {
-    seedInspector();
-
-    agentSessionSelection.emit(selection("s1", 0), selection("s1", 0));
-
-    expectSessionScopedStatePreserved();
-  });
-
-  it("forgets workspace scopes for closed sessions", () => {
-    seedInspector();
-
-    agentSessionSelection.emit(selection("s2", 1), selection("s1", 0));
-    agentSessionSelection.emitLifecycle({ activeSessionId: "s2", openSessionIds: ["s2"] });
-    agentSessionSelection.emit(selection("s1", 2), selection("s2", 1));
-
-    expectSessionScopedStateBlank();
+    expect(useContextDockStore.getState().activeSessionScopeId).toBe("s1");
   });
 });

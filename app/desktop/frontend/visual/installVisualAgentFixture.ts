@@ -1,4 +1,5 @@
 import { installAgentStatePorts } from "@/plugins/builtin/agent/adapters/agentStatePorts";
+import { navigator } from "@/lib/navigation";
 import { useAgentSessionStore } from "@/plugins/builtin/agent/adapters/agentSessionStore";
 import { useAgentStore } from "@/plugins/builtin/agent/adapters/agentStore";
 import { reduceRunEvent } from "@/plugins/builtin/agent/application/fold/reducer";
@@ -107,11 +108,13 @@ export async function installVisualAgentFixture(
   configureAgentRuntimeGateway(visualAgentRuntimeGateway(state));
 
   useAgentSessionStore.setState({
-    activeSessionId: VISUAL_SESSION_ID,
     openSessionIds: [VISUAL_SESSION_ID],
+    lastSessionId: VISUAL_SESSION_ID,
     draftSessionIds: new Set(),
     pendingMessages: {},
   });
+  // Which session is on screen is the location, not a store field.
+  navigator().go({ session: VISUAL_SESSION_ID });
   queryClient.setQueryDefaults([AGENT_SESSIONS_KEY], { staleTime: Infinity });
   queryClient.setQueryDefaults([MODELS_KEY], { staleTime: Infinity });
   queryClient.setQueryDefaults([APPROVAL_MODE_KEY], { staleTime: Infinity });

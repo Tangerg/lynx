@@ -60,8 +60,11 @@ test("collapse and reopen preserve the dock workspace", async ({ page }) => {
   await expect(page.getByTestId("active-dock-view")).toHaveText("plan");
 
   await page.getByRole("button", { name: "Collapse right workspace" }).click();
+  // Collapsed means there is no destination, rather than a hidden one: the dock
+  // is open exactly when the location names a view. What survives is the tab set
+  // and the memory of which tab you were on — asserted by the round trip below.
   await expect(page.getByTestId("dock-open")).toHaveText("false");
-  await expect(page.getByTestId("active-dock-view")).toHaveText("plan");
+  await expect(page.getByTestId("active-dock-view")).toHaveText("");
   await expect(page.getByTestId("dock-view-ids")).toHaveText(
     "explorer,file,diff,terminal,plan,timeline",
   );

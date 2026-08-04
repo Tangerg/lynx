@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { navigator } from "@/lib/navigation";
 import type {
   AgentProblem,
   AgentRunMetrics,
@@ -27,11 +28,10 @@ import type {
   SendAgentInputAction,
   StopCurrentRootRunAction,
 } from "../application/ports/sessionView";
-import { useAgentSessionStore } from "./agentSessionStore";
 import { useAgentStore } from "./agentStore";
 
 function useActiveAgentView<T>(select: (view: AgentSessionView) => T): T {
-  const sessionId = useAgentSessionStore((state) => state.activeSessionId);
+  const sessionId = navigator().use((location) => location.session);
   return useAgentStore((state) =>
     select(state.sessions[sessionId]?.view ?? EMPTY_AGENT_SESSION_VIEW),
   );
@@ -46,7 +46,7 @@ export function useAgentAction(kind: "send"): SendAgentInputAction | null;
 export function useAgentAction(
   kind: "stop" | "send",
 ): StopCurrentRootRunAction | SendAgentInputAction | null {
-  const sessionId = useAgentSessionStore((state) => state.activeSessionId);
+  const sessionId = navigator().use((location) => location.session);
   return useAgentStore((state) => state.sessions[sessionId]?.[kind] ?? null);
 }
 
@@ -114,7 +114,7 @@ export function useAgentSharedState<T = unknown>(path?: string): T | undefined {
 }
 
 export function getCurrentSessionView(): AgentSessionView {
-  const sessionId = useAgentSessionStore.getState().activeSessionId;
+  const sessionId = navigator().get().session;
   return useAgentStore.getState().sessions[sessionId]?.view ?? EMPTY_AGENT_SESSION_VIEW;
 }
 

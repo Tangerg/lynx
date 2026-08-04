@@ -1,23 +1,19 @@
+// The set of sessions held open, and which session the app should be on after a
+// change to it.
+//
+// `activeSessionId` appears here as an INPUT read from the location and as an
+// OUTPUT the caller navigates to — never as a field anyone stores. Closing the
+// session you are looking at has to answer "then where?", and that answer is a
+// move, not a write.
+
 export interface AgentOpenSessions {
   activeSessionId: string;
   openSessionIds: string[];
 }
 
-export interface AgentSessionSelection extends AgentOpenSessions {
-  selectionEpoch: number;
-}
-
-export function selectOpenSession(
-  state: AgentSessionSelection,
-  sessionId: string,
-): AgentSessionSelection {
-  return {
-    activeSessionId: sessionId,
-    selectionEpoch: state.selectionEpoch + 1,
-    openSessionIds: state.openSessionIds.includes(sessionId)
-      ? state.openSessionIds
-      : [...state.openSessionIds, sessionId],
-  };
+/** The tab set after holding `sessionId` open. */
+export function openSession(openSessionIds: string[], sessionId: string): string[] {
+  return openSessionIds.includes(sessionId) ? openSessionIds : [...openSessionIds, sessionId];
 }
 
 export function closeOpenSession(state: AgentOpenSessions, sessionId: string): AgentOpenSessions {
@@ -26,6 +22,7 @@ export function closeOpenSession(state: AgentOpenSessions, sessionId: string): A
   const leavingActive = sessionId === state.activeSessionId;
   return {
     openSessionIds,
+    // The neighbour that slid into its place, else the last one, else nowhere.
     activeSessionId: leavingActive
       ? (openSessionIds[index] ?? openSessionIds.at(-1) ?? "")
       : state.activeSessionId,

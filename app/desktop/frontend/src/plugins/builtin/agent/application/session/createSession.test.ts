@@ -3,6 +3,7 @@
 // path (returns null, no throw).
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { navigator } from "@/lib/navigation";
 import { renderHook } from "@testing-library/react";
 import { createElement, type ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -24,8 +25,8 @@ function stubCreate(create: Methods["sessions"]["create"]) {
 
 afterEach(() => {
   resetContainer();
+  navigator().go({ session: "" });
   useAgentSessionStore.setState({
-    activeSessionId: "",
     openSessionIds: [],
     draftSessionIds: new Set<string>(),
     pendingMessages: {},
@@ -54,7 +55,7 @@ describe("useCreateSession", () => {
 
     expect(id).toBe("new-1");
     const s = useAgentSessionStore.getState();
-    expect(s.activeSessionId).toBe("new-1");
+    expect(navigator().get().session).toBe("new-1");
     expect(s.openSessionIds).toContain("new-1");
     expect(s.draftSessionIds.has("new-1")).toBe(true);
     expect(s.takePendingMessage("new-1")).toEqual({
@@ -153,7 +154,7 @@ describe("useCreateSession", () => {
     const { result } = renderHook(() => useCreateSession(), { wrapper });
 
     await expect(result.current({ firstInput: agentTextInput("x") })).resolves.toBeNull();
-    expect(useAgentSessionStore.getState().activeSessionId).toBe("");
+    expect(navigator().get().session).toBe("");
   });
 
   it("re-entrant calls join the in-flight create (double-click ≠ two sessions)", async () => {

@@ -13,6 +13,7 @@
 
 import { useSyncExternalStore } from "react";
 import {
+  createBrowserHistory,
   createRootRoute,
   createRoute,
   createRouter,
@@ -43,23 +44,68 @@ function param(value: unknown): string | undefined {
   return typeof value === "string" && value.length > 0 ? value : undefined;
 }
 
-function locationOf(search: AppSearch): AppLocation {
+// The location lives in the URL, and the URL is owned by ONE history instance —
+// created here, handed to the router below, and read by the Navigator. It exists
+// before any plugin loads, which is what the Navigator needs: ports are
+// installed while plugins load and several of them read or subscribe to the
+// location immediately, whereas the router cannot be built until those same
+// plugins have registered their routes. Binding the Navigator to the router
+// instead of the history made that a boot-order race with no honest fix at the
+// call sites.
+const history = createBrowserHistory();
+
+function readLocation(): AppLocation {
+  const params = new URLSearchParams(history.location.search);
   return {
-    session: search.session ?? "",
-    view: search.view ?? null,
-    dock: search.dock ?? null,
-    settings: search.settings ?? null,
+    session: params.get("session") ?? "",
+    view: params.get("view") || null,
+    dock: params.get("dock") || null,
+    settings: params.get("settings") || null,
   };
 }
 
-function searchOf(location: AppLocation): AppSearch {
-  return {
-    session: location.session || undefined,
-    view: location.view ?? undefined,
-    dock: location.dock ?? undefined,
-    settings: location.settings ?? undefined,
-  };
+function hrefOf(location: AppLocation): string {
+  const params = new URLSearchParams();
+  if (location.session) params.set("session", location.session);
+  if (location.view) params.set("view", location.view);
+  if (location.dock) params.set("dock", location.dock);
+  if (location.settings) params.set("settings", location.settings);
+  const query = params.toString();
+  return query ? `${history.location.pathname}?${query}` : history.location.pathname;
 }
+
+const historyNavigator: Navigator = {
+  get: readLocation,
+  // Compares only the field the caller asked for, so opening a settings pane
+  // doesn't re-render everything that reads the dock.
+  use: (select) =>
+    useSyncExternalStore(
+      (onChange) => history.subscribe(onChange),
+      () => select(readLocation()),
+    ),
+  subscribe(listener) {
+    let previous = readLocation();
+    return history.subscribe(() => {
+      const next = readLocation();
+      if (sameLocation(previous, next)) return;
+      const before = previous;
+      previous = next;
+      listener(next, before);
+    });
+  },
+  go(patch, options) {
+    const current = readLocation();
+    const next = applyPatch(current, patch);
+    if (sameLocation(current, next)) return;
+    const href = hrefOf(next);
+    if (options?.replace === true) history.replace(href);
+    else history.push(href);
+  },
+  back: () => history.back(),
+  forward: () => history.forward(),
+};
+
+configureNavigator(historyNavigator);
 
 const rootRoute = createRootRoute({
   validateSearch: (search: Record<string, unknown>): AppSearch => ({
@@ -87,6 +133,7 @@ function buildRouter() {
   return createRouter({
     routeTree: rootRoute.addChildren(routes),
     defaultPreload: "intent",
+    history,
   });
 }
 
@@ -97,57 +144,12 @@ declare module "@tanstack/react-router" {
   }
 }
 
-function routerNavigator(router: ReturnType<typeof buildRouter>): Navigator {
-  const read = (): AppLocation => locationOf(router.state.location.search);
-
-  return {
-    get: read,
-    // Subscribed directly rather than through useRouterState, which selects
-    // against the whole router state: this compares only the field the caller
-    // asked for, so opening a settings pane doesn't re-render everything that
-    // reads the dock. It also works outside RouterProvider, because the router
-    // comes from this closure instead of from context — the ports built on this
-    // are consumed from both sides of that boundary.
-    use: (select) =>
-      useSyncExternalStore(
-        (onChange) => router.subscribe("onResolved", onChange),
-        () => select(read()),
-      ),
-    subscribe(listener) {
-      let previous = read();
-      return router.subscribe("onResolved", () => {
-        const next = read();
-        if (sameLocation(previous, next)) return;
-        const before = previous;
-        previous = next;
-        listener(next, before);
-      });
-    },
-    go(patch, options) {
-      const next = applyPatch(read(), patch);
-      void router.navigate({
-        to: "/",
-        search: searchOf(next),
-        replace: options?.replace === true,
-      });
-    },
-    back: () => router.history.back(),
-    forward: () => router.history.forward(),
-  };
-}
-
-// Built once, on first access, together with the navigator that reads it. The
-// router used to be rebuilt on every AppRouter render, which was invisible only
-// because AppRouter renders once — a navigator holding a router that gets
-// replaced underneath it would not have been.
+// Built once, on first access. It used to be rebuilt on every AppRouter render,
+// which was invisible only because AppRouter renders once.
 let instance: ReturnType<typeof buildRouter> | null = null;
 
 function appRouter(): ReturnType<typeof buildRouter> {
-  if (!instance) {
-    instance = buildRouter();
-    configureNavigator(routerNavigator(instance));
-  }
-  return instance;
+  return (instance ??= buildRouter());
 }
 
 export function AppRouter() {

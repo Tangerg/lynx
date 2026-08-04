@@ -124,7 +124,7 @@ export function createHost(
       },
       closeView(id: string): void {
         if (navigator().get().view === id) navigator().go({ view: null });
-        useContextDockStore.getState().closeDockView(id);
+        useContextDockStore.getState().closeDockTab(id);
       },
     },
 

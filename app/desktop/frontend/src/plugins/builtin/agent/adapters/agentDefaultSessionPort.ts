@@ -1,7 +1,7 @@
 import { useCallback } from "react";
 import { pickAgentSource } from "@/plugins/sdk";
+import { navigator } from "@/lib/navigation";
 import { configureAgentDefaultSessionPort } from "../application/ports/defaultSession";
-import { useAgentSessionStore } from "./agentSessionStore";
 import { useAgentSession } from "./useAgentSession";
 
 export function installAgentDefaultSessionPort(): () => void {
@@ -11,7 +11,7 @@ export function installAgentDefaultSessionPort(): () => void {
 }
 
 function useDefaultChatSession() {
-  const activeSessionId = useAgentSessionStore((s) => s.activeSessionId);
+  const activeSessionId = navigator().use((location) => location.session);
   return useAgentSession(
     useCallback(() => {
       const source = pickAgentSource();

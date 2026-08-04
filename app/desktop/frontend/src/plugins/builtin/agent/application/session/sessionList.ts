@@ -23,8 +23,13 @@ export function useReconcilePersistedAgentSessions(): void {
     if (done.current || !isSuccess) return;
     done.current = true;
     const sessions = data ?? [];
-    // Reconcile FIRST: it decides which sessions the app still holds open, and the
-    // sweep must not delete the one being restored into view.
+    // Seed the location from memory before reconciling: a cold start always
+    // opens at "/" with no session, and where the user was is remembered rather
+    // than owned (see lib/navigation). Reconcile then gets the chance to reject
+    // it if the runtime no longer has that session.
+    agentSessionState().restoreLastSession();
+    // Reconcile SECOND: it decides which sessions the app still holds open, and
+    // the sweep must not delete the one being restored into view.
     agentSessionState().reconcileSessions(sessions.map((session) => session.id));
     void pruneUnusedSessions(sessions, agentSessionState().getLifecycleSnapshot().openSessionIds);
   }, [isSuccess, data]);

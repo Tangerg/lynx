@@ -4,9 +4,9 @@
 // the pending latch, and the deferred/rolled-back store settle.
 
 import { act, renderHook } from "@testing-library/react";
+import { navigator } from "@/lib/navigation";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useAgentStore } from "@/plugins/builtin/agent/adapters/agentStore";
-import { useAgentSessionStore } from "@/plugins/builtin/agent/adapters/agentSessionStore";
 import { useQuestionAnswer } from "./useQuestionAnswer";
 
 const SID = "ses_1";
@@ -16,7 +16,7 @@ const SID = "ses_1";
 // useAgentSession does at mount).
 function bindResume(impl?: (...args: unknown[]) => void) {
   const resume = impl ? vi.fn(impl) : vi.fn();
-  useAgentSessionStore.setState({ activeSessionId: SID });
+  navigator().go({ session: SID });
   useAgentStore.getState().ensureSession(SID);
   useAgentStore.getState().setResume(SID, resume);
   return resume;

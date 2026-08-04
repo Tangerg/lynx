@@ -8,10 +8,10 @@
 // other view selectors share.
 
 import { act, renderHook } from "@testing-library/react";
+import { navigator } from "@/lib/navigation";
 import { afterEach, describe, expect, it } from "vitest";
 import { EMPTY_AGENT_SESSION_VIEW, type AgentProblem } from "@/plugins/sdk/types/agentSessionView";
 import { useAgentStore } from "./agentStore";
-import { useAgentSessionStore } from "./agentSessionStore";
 import {
   useAgentProblem,
   useAgentSharedState,
@@ -35,7 +35,7 @@ function seed(commandError: AgentProblem | null, shared: Record<string, unknown>
 
 afterEach(() => {
   useAgentStore.setState({ sessions: {} });
-  useAgentSessionStore.setState({ activeSessionId: "" });
+  navigator().go({ session: "" });
 });
 
 describe("agent view selectors react to session switch", () => {
@@ -43,12 +43,12 @@ describe("agent view selectors react to session switch", () => {
     useAgentStore.setState({
       sessions: { a: seed({ message: "A" }, {}), b: seed({ message: "B" }, {}) },
     });
-    useAgentSessionStore.setState({ activeSessionId: "a" });
+    navigator().go({ session: "a" });
 
     const { result } = renderHook(() => useAgentProblem());
     expect(result.current?.message).toBe("A");
 
-    act(() => useAgentSessionStore.setState({ activeSessionId: "b" }));
+    act(() => navigator().go({ session: "b" }));
     expect(result.current?.message).toBe("B");
   });
 
@@ -56,12 +56,12 @@ describe("agent view selectors react to session switch", () => {
     useAgentStore.setState({
       sessions: { a: seed(null, { k: "A" }), b: seed(null, { k: "B" }) },
     });
-    useAgentSessionStore.setState({ activeSessionId: "a" });
+    navigator().go({ session: "a" });
 
     const { result } = renderHook(() => useAgentSharedState<string>("k"));
     expect(result.current).toBe("A");
 
-    act(() => useAgentSessionStore.setState({ activeSessionId: "b" }));
+    act(() => navigator().go({ session: "b" }));
     expect(result.current).toBe("B");
   });
 
@@ -92,7 +92,7 @@ describe("agent view selectors react to session switch", () => {
         },
       },
     });
-    useAgentSessionStore.setState({ activeSessionId: "a" });
+    navigator().go({ session: "a" });
 
     const { result, rerender } = renderHook(() => useCurrentRootAttention());
     const first = result.current;
@@ -130,7 +130,7 @@ describe("agent view selectors react to session switch", () => {
         },
       },
     });
-    useAgentSessionStore.setState({ activeSessionId: "a" });
+    navigator().go({ session: "a" });
 
     let renders = 0;
     const { result } = renderHook(() => {

@@ -1,16 +1,9 @@
 import { discardAbandonedDraft } from "./discardAbandonedDraft";
 import type { AgentSessionSummary } from "./sessionQueries";
 import { useAgentSessions } from "./sessionQueries";
-import {
-  agentSessionState,
-  type AgentSessionLifecycleSnapshot,
-  type AgentSessionSelectionSnapshot,
-} from "../ports/sessionState";
+import { agentSessionState, type AgentSessionLifecycleSnapshot } from "../ports/sessionState";
 
-export type {
-  AgentSessionLifecycleSnapshot,
-  AgentSessionSelectionSnapshot,
-} from "../ports/sessionState";
+export type { AgentSessionLifecycleSnapshot } from "../ports/sessionState";
 
 export function useActiveSessionId(): string {
   return agentSessionState().useActiveSessionId();
@@ -32,15 +25,6 @@ export function subscribeAgentSessionLifecycle(
   onChange: (snapshot: AgentSessionLifecycleSnapshot) => void,
 ): () => void {
   return agentSessionState().subscribeLifecycle(onChange);
-}
-
-export function subscribeAgentSessionSelection(
-  onChange: (
-    snapshot: AgentSessionSelectionSnapshot,
-    previous: AgentSessionSelectionSnapshot,
-  ) => void,
-): () => void {
-  return agentSessionState().subscribeSelection(onChange);
 }
 
 export function selectAgentSession(id: string): void {

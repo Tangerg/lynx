@@ -12,13 +12,30 @@ function selectChat(): void {
   navigator().go({ view: null });
 }
 
+/** The dock is open exactly when the location names a destination. */
+function dockSnapshot() {
+  return {
+    open: navigator().get().dock !== null,
+    viewIds: useContextDockStore.getState().dockViewIds,
+    activeViewId: navigator().get().dock,
+  };
+}
+
+/** Show a dock destination, and remember it as the one to return to. */
+function showDockView(id: string, alsoLeavePromotedView: boolean): void {
+  // Remembered by the mover rather than by a subscriber on the location: this
+  // port is installed while plugins load, before the router exists.
+  useContextDockStore.getState().rememberDockView(id);
+  navigator().go(alsoLeavePromotedView ? { view: null, dock: id } : { dock: id });
+}
+
 export function installWorkspaceNavigationPort(): () => void {
   return configureWorkspaceNavigationPort({
     useActiveViewId: () => navigator().use((location) => location.view),
     useDock: () => ({
-      open: useContextDockStore((state) => state.dockOpen),
+      open: navigator().use((location) => location.dock !== null),
       viewIds: useContextDockStore((state) => state.dockViewIds),
-      activeViewId: useContextDockStore((state) => state.activeDockViewId),
+      activeViewId: navigator().use((location) => location.dock),
     }),
     useActiveFile: () => useContextDockStore((state) => state.activeFile),
     useFileViewer: () => useContextDockStore((state) => state.fileViewer),
@@ -49,37 +66,40 @@ export function installWorkspaceNavigationPort(): () => void {
     // Taking the whole card leaves the dock's own selection alone: closing the
     // full view brings back whatever the user had beside the chat.
     openView: (id) => navigator().go({ view: id }),
+    // One move: the tab opens and the location shows it, leaving the promoted
+    // view behind.
     openViewInDock: (id) => {
-      selectChat();
-      useContextDockStore.getState().openDockView(id);
+      useContextDockStore.getState().openDockTab(id);
+      showDockView(id, true);
     },
-    selectDockView: (id) => useContextDockStore.getState().selectDockView(id),
-    closeDockView: (id) => useContextDockStore.getState().closeDockView(id),
-    collapseDock: () => useContextDockStore.getState().collapseDock(),
+    selectDockView: (id) => {
+      if (useContextDockStore.getState().dockViewIds.includes(id)) showDockView(id, false);
+    },
+    closeDockView: (id) => {
+      const next = useContextDockStore.getState().closeDockTab(id);
+      if (navigator().get().dock !== id) return;
+      if (next === null) navigator().go({ dock: null });
+      else showDockView(next, false);
+    },
+    collapseDock: () => navigator().go({ dock: null }),
     showDock: (defaultViewId) => {
-      selectChat();
-      useContextDockStore.getState().showDock(defaultViewId);
+      const target = useContextDockStore.getState().dockTabToShow(defaultViewId);
+      useContextDockStore.getState().openDockTab(target);
+      showDockView(target, true);
     },
     /** A stale id is a no-op: it is not the surface on screen. */
     closeView: (id) => {
       if (navigator().get().view === id) selectChat();
     },
     activeViewId: () => navigator().get().view,
-    dock: () => {
-      const state = useContextDockStore.getState();
-      return {
-        open: state.dockOpen,
-        viewIds: state.dockViewIds,
-        activeViewId: state.activeDockViewId,
-      };
-    },
+    dock: dockSnapshot,
     setSettingsPane: (pane) => navigator().go({ settings: pane }),
     settingsPaneTarget: () => navigator().get().settings,
     setActiveFile: (path) => useContextDockStore.getState().setActiveFile(path),
     openFile: (path, line) => {
       useContextDockStore.getState().setFileViewer(path, line);
-      useContextDockStore.getState().openDockView("file");
-      selectChat();
+      useContextDockStore.getState().openDockTab("file");
+      showDockView("file", true);
     },
     selectedToolId: () => useContextDockStore.getState().selectedToolId,
     setSelectedTool: (id) => useContextDockStore.getState().setSelectedToolId(id),
@@ -90,8 +110,15 @@ export function installWorkspaceNavigationPort(): () => void {
         requestAnimationFrame(() => focusConversationTool(id));
       }
     },
-    activateSessionScope: (sessionId) =>
-      useContextDockStore.getState().activateSessionScope(sessionId),
+    // Arriving in a session restores the destination it remembers. `replace`
+    // because this is the tail of the move the user already made — going back
+    // should leave the session, not undo its dock.
+    activateSessionScope: (sessionId) => {
+      const remembered = useContextDockStore.getState().activateSessionScope(sessionId);
+      if (navigator().get().dock !== remembered) {
+        navigator().go({ dock: remembered }, { replace: true });
+      }
+    },
     forgetSessionScopes: (openSessionIds) =>
       useContextDockStore.getState().forgetSessionScopes(openSessionIds),
   });

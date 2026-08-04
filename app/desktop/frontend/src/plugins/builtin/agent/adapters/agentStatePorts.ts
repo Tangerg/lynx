@@ -1,10 +1,14 @@
 import { agentInputToContentBlocks } from "./wireInput";
 import { localUserMessage } from "./optimisticUserMessage";
 import { useAgentSessionStore } from "./agentSessionStore";
+import { navigator } from "@/lib/navigation";
+import {
+  closeOpenSession,
+  reconcileOpenSessions,
+} from "../application/session/sessionSelectionModel";
 import {
   configureAgentSessionStatePort,
   type AgentSessionLifecycleSnapshot,
-  type AgentSessionSelectionSnapshot,
 } from "../application/ports/sessionState";
 import { configureAgentSessionViewPort } from "../application/ports/sessionView";
 import {
@@ -27,68 +31,102 @@ import {
 } from "./agentViewSelectors";
 import { useAgentStore } from "./agentStore";
 
-function getLifecycleSnapshot(): AgentSessionLifecycleSnapshot {
-  const state = useAgentSessionStore.getState();
-  return { activeSessionId: state.activeSessionId, openSessionIds: state.openSessionIds };
+function activeSessionId(): string {
+  return navigator().get().session;
 }
 
-function getSelectionSnapshot(): AgentSessionSelectionSnapshot {
-  const state = useAgentSessionStore.getState();
-  return { activeSessionId: state.activeSessionId, selectionEpoch: state.selectionEpoch };
+function getLifecycleSnapshot(): AgentSessionLifecycleSnapshot {
+  return {
+    activeSessionId: activeSessionId(),
+    openSessionIds: useAgentSessionStore.getState().openSessionIds,
+  };
+}
+
+/**
+ * Go to a session. Two halves of one move: the tab set remembers it is open, and
+ * the location says it is where the user is — leaving any promoted view, so
+ * picking a session lands you in its conversation.
+ */
+function goToSession(id: string): void {
+  const store = useAgentSessionStore.getState();
+  store.holdOpen(id);
+  // Recorded here rather than by a subscriber on the location: ports are
+  // installed while plugins load, which is before the router (and so the
+  // Navigator) exists. Memory is a consequence of the move, so the mover keeps
+  // it — and there is one mover.
+  store.rememberSession(id);
+  navigator().go({ session: id, view: null });
 }
 
 export function installAgentStatePorts(): () => void {
   const disposeSessionState = configureAgentSessionStatePort({
-    useActiveSessionId: () => useAgentSessionStore((state) => state.activeSessionId),
-    getActiveSessionId: () => useAgentSessionStore.getState().activeSessionId,
+    useActiveSessionId: () => navigator().use((location) => location.session),
+    getActiveSessionId: activeSessionId,
     getLifecycleSnapshot,
-    subscribeActiveSessionId: (onChange) => {
-      let lastSessionId = useAgentSessionStore.getState().activeSessionId;
-      return useAgentSessionStore.subscribe((state) => {
-        if (state.activeSessionId === lastSessionId) return;
-        lastSessionId = state.activeSessionId;
-        onChange(lastSessionId);
-      });
-    },
+    subscribeActiveSessionId: (onChange) =>
+      navigator().subscribe((location, previous) => {
+        if (location.session !== previous.session) onChange(location.session);
+      }),
+    // Fires for either half: the location moved to another session, or the open
+    // set changed under the one we are on.
     subscribeLifecycle: (onChange) => {
-      let lastSnapshot = getLifecycleSnapshot();
-      return useAgentSessionStore.subscribe((state) => {
+      let last = getLifecycleSnapshot();
+      const emit = () => {
+        const next = getLifecycleSnapshot();
         if (
-          state.activeSessionId === lastSnapshot.activeSessionId &&
-          state.openSessionIds === lastSnapshot.openSessionIds
+          next.activeSessionId === last.activeSessionId &&
+          next.openSessionIds === last.openSessionIds
         ) {
           return;
         }
-        lastSnapshot = {
-          activeSessionId: state.activeSessionId,
-          openSessionIds: state.openSessionIds,
-        };
-        onChange(lastSnapshot);
-      });
+        last = next;
+        onChange(next);
+      };
+      const unsubscribeLocation = navigator().subscribe(emit);
+      const unsubscribeStore = useAgentSessionStore.subscribe(emit);
+      return () => {
+        unsubscribeLocation();
+        unsubscribeStore();
+      };
     },
-    subscribeSelection: (onChange) => {
-      let lastSnapshot = getSelectionSnapshot();
-      return useAgentSessionStore.subscribe((state) => {
-        if (
-          state.activeSessionId === lastSnapshot.activeSessionId &&
-          state.selectionEpoch === lastSnapshot.selectionEpoch
-        ) {
-          return;
-        }
-        const previous = lastSnapshot;
-        lastSnapshot = {
-          activeSessionId: state.activeSessionId,
-          selectionEpoch: state.selectionEpoch,
-        };
-        onChange(lastSnapshot, previous);
-      });
+    selectSession: goToSession,
+    closeSession: (id) => {
+      const store = useAgentSessionStore.getState();
+      const next = closeOpenSession(
+        { activeSessionId: activeSessionId(), openSessionIds: store.openSessionIds },
+        id,
+      );
+      store.release(id);
+      navigator().go({ session: next.activeSessionId });
     },
-    selectSession: (id) => useAgentSessionStore.getState().selectSession(id),
-    closeSession: (id) => useAgentSessionStore.getState().closeSession(id),
     useDraftSessionIds: () => useAgentSessionStore((state) => state.draftSessionIds),
     isDraftSession: (id) => useAgentSessionStore.getState().draftSessionIds.has(id),
-    useSelectSession: () => useAgentSessionStore((state) => state.selectSession),
-    reconcileSessions: (liveIds) => useAgentSessionStore.getState().reconcileSessions(liveIds),
+    useSelectSession: () => goToSession,
+    // Boot: drop open + active refs to sessions the runtime no longer has. The
+    // location is corrected with `replace` — a session that turned out not to
+    // exist was never a place the user went, so there is nothing to go back to.
+    reconcileSessions: (liveIds) => {
+      const store = useAgentSessionStore.getState();
+      const next = reconcileOpenSessions(
+        {
+          activeSessionId: activeSessionId(),
+          openSessionIds: store.openSessionIds,
+          draftSessionIds: store.draftSessionIds,
+        },
+        liveIds,
+      );
+      if (!next) return;
+      store.retainOnly(next.openSessionIds);
+      if (next.activeSessionId !== activeSessionId()) {
+        navigator().go({ session: next.activeSessionId }, { replace: true });
+      }
+    },
+    restoreLastSession: () => {
+      if (activeSessionId() !== "") return;
+      const { lastSessionId } = useAgentSessionStore.getState();
+      if (lastSessionId === "") return;
+      goToSession(lastSessionId);
+    },
     markDraftSession: (id) => useAgentSessionStore.getState().markDraft(id),
     graduateDraftSession: (id) => useAgentSessionStore.getState().graduateDraft(id),
     setPendingMessage: (id, message) =>

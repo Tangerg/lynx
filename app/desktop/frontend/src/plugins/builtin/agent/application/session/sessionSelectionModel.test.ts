@@ -1,25 +1,17 @@
 import { describe, expect, it } from "vitest";
 import {
   closeOpenSession,
+  openSession,
   pruneSessionHandoffs,
   reconcileOpenSessions,
-  selectOpenSession,
 } from "./sessionSelectionModel";
 
 describe("sessionSelectionModel", () => {
-  it("selects a session and appends it only once", () => {
-    const state = { activeSessionId: "s1", selectionEpoch: 2, openSessionIds: ["s1"] };
-
-    expect(selectOpenSession(state, "s2")).toEqual({
-      activeSessionId: "s2",
-      selectionEpoch: 3,
-      openSessionIds: ["s1", "s2"],
-    });
-    expect(selectOpenSession(state, "s1")).toEqual({
-      activeSessionId: "s1",
-      selectionEpoch: 3,
-      openSessionIds: ["s1"],
-    });
+  it("holds a session open, and only once", () => {
+    expect(openSession(["s1"], "s2")).toEqual(["s1", "s2"]);
+    // The same array back, so nothing downstream sees a change that isn't one.
+    const open = ["s1"];
+    expect(openSession(open, "s1")).toBe(open);
   });
 
   it("closes the active session by selecting its adjacent survivor", () => {

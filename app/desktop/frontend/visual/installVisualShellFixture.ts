@@ -1,4 +1,5 @@
 import { queryClient } from "@/lib/queryClient";
+import { navigator } from "@/lib/navigation";
 import { SIDEBAR_DEFAULT_WIDTH_PX } from "@/lib/shellGeometry";
 import { installAgentStatePorts } from "@/plugins/builtin/agent/adapters/agentStatePorts";
 import { useAgentSessionStore } from "@/plugins/builtin/agent/adapters/agentSessionStore";
@@ -166,11 +167,12 @@ export async function installVisualShellFixture(
   installAgentStatePorts();
   installWorkspaceNavigationPort();
   useAgentSessionStore.setState({
-    activeSessionId: state === "populated" ? ACTIVE_SESSION_ID : "",
     openSessionIds: state === "populated" ? [ACTIVE_SESSION_ID] : [],
+    lastSessionId: "",
     draftSessionIds: new Set(),
     pendingMessages: {},
   });
+  navigator().go({ session: state === "populated" ? ACTIVE_SESSION_ID : "" });
   useUiStore.setState({
     theme,
     visualStyle: "lyra",

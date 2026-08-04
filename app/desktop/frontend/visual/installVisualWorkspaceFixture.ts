@@ -320,15 +320,18 @@ export async function installVisualWorkspaceFixture(
   useContextDockStore.setState({
     activeSessionScopeId: VISUAL_SESSION_ID,
     sessionScopes: new Map(),
-    dockOpen: true,
     dockViewIds: ["explorer", "file", "diff", "terminal", "plan", "timeline"],
-    activeDockViewId: dockViewId,
+    lastViewId: dockViewId,
     activeFile: ACTIVE_DIFF_FILE,
     fileViewer: { path: ACTIVE_DIFF_FILE, line: 6 },
     selectedToolId: "",
     expandedToolIds: new Set(),
   });
+  // The dock is open because the location names a destination — there is no
+  // separate flag to set, which is the point.
   navigator().go({
+    session: VISUAL_SESSION_ID,
+    dock: dockViewId,
     view: state === "settings" ? "settings" : null,
     settings: state === "settings" ? "appearance" : null,
   });

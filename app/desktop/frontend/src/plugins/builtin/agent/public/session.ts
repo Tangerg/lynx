@@ -4,13 +4,11 @@ export {
   getActiveSessionId,
   selectAgentSession,
   subscribeAgentSessionLifecycle,
-  subscribeAgentSessionSelection,
   subscribeActiveSessionId,
   useActiveSession,
   useActiveSessionCwd,
   useActiveSessionId,
   type AgentSessionLifecycleSnapshot,
-  type AgentSessionSelectionSnapshot,
 } from "../application/session/activeSession";
 export {
   useReconcilePersistedAgentSessions,

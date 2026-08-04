@@ -21,15 +21,18 @@ import { installComposerStatePorts } from "@/plugins/builtin/chat/composer/adapt
 import { installRuntimeCapabilityPort } from "@/plugins/builtin/runtime/adapters/runtimeCapabilityStore";
 import { installWorkspaceNavigationPort } from "@/plugins/builtin/workspace/adapters/navigationStatePort";
 
+// Before the ports: installing them subscribes to the location.
+configureNavigator(createMemoryNavigator());
 installAgentStatePorts();
 installAgentDefaultSessionPort();
 installAgentRuntimeGateway();
 installComposerStatePorts();
 installWorkspaceNavigationPort();
 installRuntimeCapabilityPort();
-configureNavigator(createMemoryNavigator());
 
 beforeEach(() => {
+  // A fresh location per spec, with its own history. First, for the same reason.
+  configureNavigator(createMemoryNavigator());
   installAgentStatePorts();
   installAgentDefaultSessionPort();
   installAgentRuntimeGateway();
@@ -40,15 +43,11 @@ beforeEach(() => {
   usePluginErrorStore.setState({ log: [], nextId: 1 });
   useNotificationStore.setState({ log: [], nextId: 1 });
   useConfigStore.setState({ values: new Map(), subscribers: new Map() });
-  // A fresh location per spec, with its own history — the app's Navigator is
-  // backed by the router, which no test stands up.
-  configureNavigator(createMemoryNavigator());
   useContextDockStore.setState({
     activeSessionScopeId: "",
     sessionScopes: new Map(),
-    dockOpen: false,
     dockViewIds: [],
-    activeDockViewId: null,
+    lastViewId: null,
     activeFile: "",
     fileViewer: null,
     selectedToolId: "",

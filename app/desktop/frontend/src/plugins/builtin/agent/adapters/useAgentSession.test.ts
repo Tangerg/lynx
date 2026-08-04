@@ -6,6 +6,7 @@
 // orphaned optimistic bubble whose localId is never relabeled.
 
 import { act, renderHook, waitFor } from "@testing-library/react";
+import { navigator } from "@/lib/navigation";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AgentDriver } from "@/plugins/sdk/types";
 import {
@@ -41,7 +42,8 @@ beforeEach(async () => {
   const { default: spec } = await import("@/plugins/builtin/agent/public/foldPlugin");
   await loadPlugin(spec);
   // Mark draft so the effect skips history hydration (items.list → container).
-  useAgentSessionStore.setState({ draftSessionIds: new Set([SID]), activeSessionId: SID });
+  navigator().go({ session: SID });
+  useAgentSessionStore.setState({ draftSessionIds: new Set([SID]) });
 });
 afterEach(() => {
   useAgentStore.getState().dropSession(SID);
@@ -291,7 +293,8 @@ describe("useAgentSession durable recovery", () => {
 
   beforeEach(() => {
     // NOT a draft — recovery only runs for existing sessions.
-    useAgentSessionStore.setState({ draftSessionIds: new Set(), activeSessionId: RID });
+    navigator().go({ session: RID });
+    useAgentSessionStore.setState({ draftSessionIds: new Set() });
   });
   afterEach(() => {
     useAgentStore.getState().dropSession(RID);
