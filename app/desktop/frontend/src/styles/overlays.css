@@ -39,7 +39,7 @@
   }
 }
 .fade-in {
-  animation: fadeIn 0.7s ease-in-out both;
+  animation: fadeIn calc(700ms * var(--motion-scale)) ease-in-out both;
 }
 
 /* Typewriter-mode tail caret (rehypeStreamCaret). A small accent dot glued to
@@ -53,7 +53,7 @@
   vertical-align: baseline;
   border-radius: var(--shape-pill);
   background: var(--color-accent);
-  animation: lyra-caret-blink 1.05s step-end infinite;
+  animation: lyra-caret-blink calc(1050ms * var(--motion-scale)) step-end infinite;
 }
 @keyframes lyra-caret-blink {
   0%,

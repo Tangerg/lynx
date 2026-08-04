@@ -1,20 +1,28 @@
 // Skeleton primitives for loading states. Only `SkeletonList` is exported;
-// `Line` + `Row` are internal building blocks. Shimmer uses the
-// `animate-shimmer` keyframe in styles/globals.css and honors
-// prefers-reduced-motion via `motion-reduce:animate-none`.
+// `Line` + `Row` are internal building blocks.
+//
+// The shimmer is a translated overlay, not a scrolling background. `background-position`
+// repaints the whole element every frame, and a list is eight of these at once — on the
+// main thread, usually beside a streaming transcript. A transform costs nothing per
+// frame because the compositor owns it. Honors prefers-reduced-motion via
+// `motion-reduce:animate-none` on the moving part.
 
 import type { CSSProperties } from "react";
 
 function SkeletonLine({ width = "100%", height = 10 }: { width?: string; height?: number }) {
   return (
     <span
-      className={
-        "inline-block rounded-xs animate-shimmer motion-reduce:animate-none " +
-        "bg-[linear-gradient(120deg,var(--color-surface-2)_0%,var(--color-surface)_50%,var(--color-surface-2)_100%)] " +
-        "bg-[length:200%_100%]"
-      }
+      className="relative inline-block overflow-hidden rounded-xs bg-surface-2"
       style={{ width, height }}
-    />
+    >
+      <span
+        aria-hidden
+        className={
+          "absolute inset-0 animate-sweep motion-reduce:animate-none " +
+          "bg-[linear-gradient(100deg,transparent_0%,var(--color-surface)_50%,transparent_100%)]"
+        }
+      />
+    </span>
   );
 }
 

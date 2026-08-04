@@ -280,9 +280,20 @@
 
   /* Animations — `animate-shimmer` powers Skeleton, `animate-pulse-dot`
      the running indicator, `animate-rise-in` popover entry. */
-  --animate-shimmer: lyra-shimmer 1.4s linear infinite;
-  --animate-pulse-dot: lyra-pulse 1.6s ease-in-out infinite;
-  --animate-rise-in: lyra-rise-in 140ms cubic-bezier(0.3, 0, 0, 1);
+  /* Keyframe durations ride `--motion-scale`, the same as every `--dur-*` token.
+     They used to be bare literals, which meant the app had TWO speed authorities
+     and the keyframe one ignored the user's Motion preference entirely: Off and
+     "reduce" were caught by the blanket 1ms rules at the bottom of this file, but
+     Fast and Slow reached every transition and not one animation. A popover that
+     rises at a fixed 140ms next to a message that enters at a scaled one is the
+     same gesture keeping two different clocks. */
+  --animate-sweep: lyra-sweep calc(1300ms * var(--motion-scale)) linear infinite;
+  /* Kept for the ONE case a transform cannot express: text shimmer clips its
+     gradient to the glyphs, so the paint IS the effect. One element, bounded cost —
+     unlike a skeleton list, which was eight. */
+  --animate-shimmer: lyra-shimmer calc(1400ms * var(--motion-scale)) linear infinite;
+  --animate-pulse-dot: lyra-pulse calc(1600ms * var(--motion-scale)) ease-in-out infinite;
+  --animate-rise-in: lyra-rise-in calc(140ms * var(--motion-scale)) cubic-bezier(0.3, 0, 0, 1);
 }
 
 @keyframes lyra-shimmer {
@@ -291,6 +302,22 @@
   }
   100% {
     background-position: 200% 0;
+  }
+}
+/* A light passing over a placeholder, as a TRANSFORM.
+   It was `background-position` on a 200%-wide gradient, which is a full repaint of
+   every animated element on every frame — and a skeleton list is eight of them at
+   once, on the main thread, next to a streaming transcript. A translated overlay is
+   the same picture on the compositor, where it costs nothing per frame. This is also
+   the answer to "CSS animation is not smooth enough": what is expensive is the
+   PROPERTY, not the mechanism, and a JS animation runtime driving
+   `background-position` would repaint exactly as often. */
+@keyframes lyra-sweep {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(200%);
   }
 }
 @keyframes lyra-pulse {

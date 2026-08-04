@@ -57,7 +57,7 @@ function DotsLoader({ size = "md", className }: { size?: LoaderSize; className?:
         <span
           key={i}
           className={cn(
-            "rounded-full bg-fg-muted animate-[lyra-loader-bounce_1.4s_ease-in-out_infinite]",
+            "rounded-full bg-fg-muted animate-[lyra-loader-bounce_calc(1400ms*var(--motion-scale))_ease-in-out_infinite]",
             dot,
           )}
           style={{ animationDelay: `${i * 160}ms` }}
@@ -76,7 +76,7 @@ function TypingLoader({ size = "md", className }: { size?: LoaderSize; className
         <span
           key={i}
           className={cn(
-            "rounded-full bg-fg-muted animate-[lyra-loader-typing_1s_ease-in-out_infinite]",
+            "rounded-full bg-fg-muted animate-[lyra-loader-typing_calc(1000ms*var(--motion-scale))_ease-in-out_infinite]",
             dot,
           )}
           style={{ animationDelay: `${i * 250}ms` }}
@@ -104,7 +104,7 @@ function WaveLoader({ size = "md", className }: { size?: LoaderSize; className?:
         <span
           key={i}
           className={cn(
-            "h-full origin-center rounded-full bg-fg-muted animate-[lyra-loader-wave_1s_ease-in-out_infinite]",
+            "h-full origin-center rounded-full bg-fg-muted animate-[lyra-loader-wave_calc(1000ms*var(--motion-scale))_ease-in-out_infinite]",
             bar,
           )}
           style={{ animationDelay: `${i * 100}ms` }}
@@ -124,7 +124,7 @@ function BarsLoader({ size = "md", className }: { size?: LoaderSize; className?:
         <span
           key={i}
           className={cn(
-            "h-full origin-center rounded-sm bg-fg-muted animate-[lyra-loader-bars_1.2s_ease-in-out_infinite]",
+            "h-full origin-center rounded-sm bg-fg-muted animate-[lyra-loader-bars_calc(1200ms*var(--motion-scale))_ease-in-out_infinite]",
             width,
           )}
           style={{ animationDelay: `${i * 200}ms` }}
@@ -141,7 +141,10 @@ function TerminalLoader({ size = "md", className }: { size?: LoaderSize; classNa
     <div className={cn("flex items-center gap-1", CONTAINER[size], className)}>
       <span className={cn("font-mono text-fg-muted", TEXT[size])}>{">"}</span>
       <span
-        className={cn("bg-fg-muted animate-[lyra-loader-blink_1s_step-end_infinite]", cursor)}
+        className={cn(
+          "bg-fg-muted animate-[lyra-loader-blink_calc(1000ms*var(--motion-scale))_step-end_infinite]",
+          cursor,
+        )}
       />
       <Loading />
     </div>
