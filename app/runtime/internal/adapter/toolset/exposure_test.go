@@ -56,7 +56,9 @@ func TestResolverRegistersExactlyOneMutationVocabulary(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			built, err := Build(t.Context(), BuildConfig{Workdir: t.TempDir(), DefaultModel: selection})
+			built, err := Build(t.Context(), BuildConfig{
+				Workdir: t.TempDir(), UserHome: t.TempDir(), DefaultModel: selection,
+			})
 			if err != nil {
 				t.Fatalf("Build: %v", err)
 			}
@@ -161,5 +163,20 @@ func TestResolverInitialManifestSeparatesDirectAndDeferredCapabilities(t *testin
 		if advertised[name] {
 			t.Errorf("deferred tool %q leaked into initial manifest: %v", name, advertised)
 		}
+	}
+}
+
+func TestBuildRequiresExplicitProcessPaths(t *testing.T) {
+	if _, err := Build(t.Context(), BuildConfig{UserHome: t.TempDir()}); err == nil {
+		t.Fatal("Build accepted an empty workdir")
+	}
+	if _, err := Build(t.Context(), BuildConfig{Workdir: t.TempDir()}); err == nil {
+		t.Fatal("Build accepted an empty user home")
+	}
+	if _, err := Build(t.Context(), BuildConfig{Workdir: "relative", UserHome: t.TempDir()}); err == nil {
+		t.Fatal("Build accepted a relative workdir")
+	}
+	if _, err := Build(t.Context(), BuildConfig{Workdir: t.TempDir(), UserHome: "relative"}); err == nil {
+		t.Fatal("Build accepted a relative user home")
 	}
 }

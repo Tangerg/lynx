@@ -3,6 +3,7 @@ package bootstrap
 import (
 	"context"
 	"iter"
+	"os"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -239,7 +240,11 @@ func (noBoundaryMaintenance) Maintain(
 
 func openProtocolRuntime(t *testing.T, model chat.Model) (*Host, *runtimeserver.Server) {
 	t.Helper()
-	stores, err := persistence.Open()
+	dataDirectory := os.Getenv("LYRA_HOME")
+	stores, err := persistence.Open(persistence.Config{
+		DataDirectory:        dataDirectory,
+		DefaultWorkspacePath: dataDirectory,
+	})
 	if err != nil {
 		t.Fatalf("open persistence: %v", err)
 	}
@@ -253,11 +258,11 @@ func openProtocolRuntime(t *testing.T, model chat.Model) (*Host, *runtimeserver.
 		stores,
 		client,
 		stores.Provider,
-		NewHookResolver(stores.Home, stores.Trust),
+		NewHookResolver(stores.DataDirectory, stores.Trust),
 		"sha256:0000000000000000000000000000000000000000000000000000000000000000",
 	)
-	cfg.UserHome = stores.Home
-	cfg.DefaultWorkspacePath = stores.Home
+	cfg.UserHome = stores.DataDirectory
+	cfg.DefaultWorkspacePath = stores.DataDirectory
 	cfg.Maintenance = noBoundaryMaintenance{}
 
 	assembly := NewAssembly(cfg)
@@ -270,7 +275,7 @@ func openProtocolRuntime(t *testing.T, model chat.Model) (*Host, *runtimeserver.
 		_ = host.Close()
 		t.Fatalf("recover runtime: %v", err)
 	}
-	api, err := protocolServer(host.Stack, stores.Home)
+	api, err := protocolServer(host.Stack, stores.DataDirectory)
 	if err != nil {
 		_ = host.Close()
 		t.Fatalf("build protocol server: %v", err)

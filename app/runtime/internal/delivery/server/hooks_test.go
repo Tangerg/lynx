@@ -6,7 +6,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspacepath"
 	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	domainhooks "github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
@@ -50,8 +49,8 @@ func TestSetHookTrustCanonicalizesProjectRoot(t *testing.T) {
 	if err != nil {
 		t.Fatalf("setTrust: %v", err)
 	}
-	if trust.calls != 1 || trust.projectRoot != workspacepath.Canonical(projectRoot) || !trust.trusted {
-		t.Fatalf("trusted root=%q trusted=%v calls=%d, want %q true 1", trust.projectRoot, trust.trusted, trust.calls, workspacepath.Canonical(projectRoot))
+	if trust.calls != 1 || trust.projectRoot != canonicalWorkspacePath(t, projectRoot) || !trust.trusted {
+		t.Fatalf("trusted root=%q trusted=%v calls=%d, want %q true 1", trust.projectRoot, trust.trusted, trust.calls, canonicalWorkspacePath(t, projectRoot))
 	}
 }
 

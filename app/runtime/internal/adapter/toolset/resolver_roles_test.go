@@ -49,6 +49,7 @@ func TestPlanModeToolsAreRootOnly(t *testing.T) {
 	}
 	built, err := Build(t.Context(), BuildConfig{
 		Workdir:  t.TempDir(),
+		UserHome: t.TempDir(),
 		PlanMode: policy,
 		Plan:     rolePlanStore{},
 		Interrupt: func(context.Context, string, runs.Interrupt) (interrupts.Resolution, error) {
@@ -117,8 +118,8 @@ func TestPlanModeToolsAreRootOnly(t *testing.T) {
 
 func TestGoalToolsAreRootOnlyAndOutcomeRequiresActiveGoal(t *testing.T) {
 	built, err := Build(t.Context(), BuildConfig{
-		Workdir: t.TempDir(),
-		Goals:   roleGoalState{active: true},
+		Workdir: t.TempDir(), UserHome: t.TempDir(),
+		Goals: roleGoalState{active: true},
 	})
 	if err != nil {
 		t.Fatalf("Build: %v", err)
@@ -156,7 +157,9 @@ func TestGoalToolsAreRootOnlyAndOutcomeRequiresActiveGoal(t *testing.T) {
 		}
 	}
 
-	inactive, err := Build(t.Context(), BuildConfig{Workdir: t.TempDir(), Goals: roleGoalState{}})
+	inactive, err := Build(t.Context(), BuildConfig{
+		Workdir: t.TempDir(), UserHome: t.TempDir(), Goals: roleGoalState{},
+	})
 	if err != nil {
 		t.Fatalf("Build(inactive): %v", err)
 	}
@@ -178,6 +181,7 @@ func TestGoalToolsAreRootOnlyAndOutcomeRequiresActiveGoal(t *testing.T) {
 func TestProposeSkillIsRootOnlyAndDeferred(t *testing.T) {
 	built, err := Build(t.Context(), BuildConfig{
 		Workdir:        t.TempDir(),
+		UserHome:       t.TempDir(),
 		SkillProposals: allWiredSkillProposals{},
 	})
 	if err != nil {
@@ -218,8 +222,8 @@ func TestProposeSkillIsRootOnlyAndDeferred(t *testing.T) {
 func TestToolGroupPreservesActiveGoalLookupFailure(t *testing.T) {
 	wantErr := errors.New("goal store unavailable")
 	built, err := Build(t.Context(), BuildConfig{
-		Workdir: t.TempDir(),
-		Goals:   failingGoalState{err: wantErr},
+		Workdir: t.TempDir(), UserHome: t.TempDir(),
+		Goals: failingGoalState{err: wantErr},
 	})
 	if err != nil {
 		t.Fatalf("Build: %v", err)
@@ -236,7 +240,7 @@ func TestToolGroupPreservesActiveGoalLookupFailure(t *testing.T) {
 }
 
 func TestResolverAcceptsOnlyCanonicalRoleNames(t *testing.T) {
-	built, err := Build(t.Context(), BuildConfig{Workdir: t.TempDir()})
+	built, err := Build(t.Context(), BuildConfig{Workdir: t.TempDir(), UserHome: t.TempDir()})
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}

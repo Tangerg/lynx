@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"slices"
 	"sync"
 	"time"
@@ -362,7 +363,10 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 	// closed). Its copies are destroyed on session delete and at shutdown.
 	var isolator *isolation.Isolator
 	if cfg.SandboxDir != "" {
-		isolator = isolation.New(cfg.SandboxDir, cfg.SandboxReadOnlyPaths)
+		isolator, err = isolation.New(cfg.UserHome, cfg.SandboxDir, cfg.SandboxReadOnlyPaths)
+		if err != nil {
+			return nil, fmt.Errorf("runtime: build isolated workspace manager: %w", err)
+		}
 		lifetime.toolClosers = append(lifetime.toolClosers, shutdown.New(func(context.Context) error {
 			return isolator.Close()
 		}))
@@ -594,8 +598,32 @@ func validateAssemblyConfig(cfg Config) error {
 	if cfg.UserHome == "" {
 		return errors.New("runtime: UserHome is required")
 	}
+	if !filepath.IsAbs(cfg.UserHome) {
+		return errors.New("runtime: UserHome must be absolute")
+	}
 	if cfg.DefaultWorkspacePath == "" {
 		return errors.New("runtime: DefaultWorkspacePath is required")
+	}
+	if !filepath.IsAbs(cfg.DefaultWorkspacePath) {
+		return errors.New("runtime: DefaultWorkspacePath must be absolute")
+	}
+	for _, path := range []struct {
+		name  string
+		value string
+	}{
+		{name: "SkillsUserDir", value: cfg.SkillsUserDir},
+		{name: "SandboxDir", value: cfg.SandboxDir},
+		{name: "RecipesGlobalDir", value: cfg.RecipesGlobalDir},
+		{name: "CheckpointDir", value: cfg.CheckpointDir},
+	} {
+		if path.value != "" && !filepath.IsAbs(path.value) {
+			return fmt.Errorf("runtime: %s must be absolute when set", path.name)
+		}
+	}
+	for i, path := range cfg.SandboxReadOnlyPaths {
+		if path != "" && !filepath.IsAbs(path) {
+			return fmt.Errorf("runtime: SandboxReadOnlyPaths[%d] must be absolute when set", i)
+		}
 	}
 	if cfg.Engine.ChatClient == nil {
 		return errors.New("runtime: Engine.ChatClient is required")

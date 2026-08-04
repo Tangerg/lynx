@@ -165,3 +165,12 @@ func TestDiscoverAgentDocsIgnoresEmpty(t *testing.T) {
 		t.Fatalf("files[0].Content = %q", files[0].Content)
 	}
 }
+
+func TestDiscoverAgentDocsRequiresAbsoluteCompositionPaths(t *testing.T) {
+	if _, err := promptsource.DiscoverAgentDocs(t.Context(), "relative-workspace", ""); err == nil {
+		t.Fatal("DiscoverAgentDocs accepted a relative cwd")
+	}
+	if _, err := promptsource.DiscoverAgentDocs(t.Context(), t.TempDir(), "relative-home"); err == nil {
+		t.Fatal("DiscoverAgentDocs accepted a relative home")
+	}
+}

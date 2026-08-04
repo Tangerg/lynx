@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
@@ -46,7 +47,11 @@ func run(ctx context.Context, errw io.Writer) (err error) {
 
 	var token *lyrahttp.LocalToken
 	if !srv.NoLocalToken {
-		t, err := lyrahttp.IssueLocalToken(srv.LocalTokenPath)
+		tokenPath := srv.LocalTokenPath
+		if tokenPath == "" {
+			tokenPath = filepath.Join(paths.dataDirectory, "local-token")
+		}
+		t, err := lyrahttp.IssueLocalToken(tokenPath)
 		if err != nil {
 			return err
 		}

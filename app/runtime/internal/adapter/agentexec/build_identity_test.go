@@ -80,7 +80,7 @@ func TestRestoreRejectsUsageProjectionThatDriftedFromProcessTree(t *testing.T) {
 	if err != nil {
 		t.Fatalf("chatclient.New: %v", err)
 	}
-	built, err := toolset.Build(t.Context(), toolset.BuildConfig{})
+	built, err := toolset.Build(t.Context(), testToolsetBuildConfig(t, toolset.BuildConfig{}))
 	if err != nil {
 		t.Fatalf("toolset.Build: %v", err)
 	}
@@ -141,7 +141,7 @@ func TestWaitingCheckpointCaptureDoesNotReadCheckpointStorage(t *testing.T) {
 	if err != nil {
 		t.Fatalf("chatclient.New: %v", err)
 	}
-	built, err := toolset.Build(t.Context(), toolset.BuildConfig{})
+	built, err := toolset.Build(t.Context(), testToolsetBuildConfig(t, toolset.BuildConfig{}))
 	if err != nil {
 		t.Fatalf("toolset.Build: %v", err)
 	}

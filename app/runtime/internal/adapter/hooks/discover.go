@@ -30,6 +30,12 @@ func load(ctx context.Context, cwd, home string, includeProject bool) ([]domainh
 	if cwd == "" {
 		return nil, errors.New("hooks: cwd is required")
 	}
+	if !filepath.IsAbs(cwd) {
+		return nil, errors.New("hooks: cwd must be absolute")
+	}
+	if home != "" && !filepath.IsAbs(home) {
+		return nil, errors.New("hooks: home must be absolute")
+	}
 	cwd = filepath.Clean(cwd)
 
 	var out []domainhooks.Hook
@@ -38,10 +44,7 @@ func load(ctx context.Context, cwd, home string, includeProject bool) ([]domainh
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		abs, err := filepath.Abs(path)
-		if err != nil {
-			return fmt.Errorf("hooks: resolve config path %q: %w", path, err)
-		}
+		abs := filepath.Clean(path)
 		if _, dup := seen[abs]; dup {
 			return nil
 		}

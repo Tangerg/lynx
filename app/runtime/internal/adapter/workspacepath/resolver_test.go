@@ -10,15 +10,24 @@ import (
 	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
 )
 
+func mustCanonical(t *testing.T, path string) string {
+	t.Helper()
+	canonical, err := workspacepath.Canonical(path)
+	if err != nil {
+		t.Fatalf("Canonical(%q): %v", path, err)
+	}
+	return canonical
+}
+
 func TestCanonicalNormalizesSpellingsAndSymlinks(t *testing.T) {
 	dir := t.TempDir()
-	want := workspacepath.Canonical(dir)
+	want := mustCanonical(t, dir)
 	for _, spelling := range []string{
 		dir + string(filepath.Separator),
 		filepath.Join(dir, "."),
 		filepath.Join(dir, "sub", ".."),
 	} {
-		if got := workspacepath.Canonical(spelling); got != want {
+		if got := mustCanonical(t, spelling); got != want {
 			t.Errorf("Canonical(%q) = %q, want %q", spelling, got, want)
 		}
 	}
@@ -26,11 +35,11 @@ func TestCanonicalNormalizesSpellingsAndSymlinks(t *testing.T) {
 	if err := os.Symlink(dir, link); err != nil {
 		t.Fatalf("symlink: %v", err)
 	}
-	if got := workspacepath.Canonical(link); got != want {
+	if got := mustCanonical(t, link); got != want {
 		t.Fatalf("Canonical(symlink) = %q, want %q", got, want)
 	}
-	if got := workspacepath.Canonical(""); got != "" {
-		t.Fatalf("Canonical(empty) = %q", got)
+	if _, err := workspacepath.Canonical(""); !errors.Is(err, workspacepath.ErrAbsolutePathRequired) {
+		t.Fatalf("Canonical(empty) error = %v, want ErrAbsolutePathRequired", err)
 	}
 }
 
@@ -76,7 +85,7 @@ func TestResolveExistingDir(t *testing.T) {
 	dir := t.TempDir()
 	resolver := workspacepath.Resolver{}
 	got, err := resolver.ResolveExistingDir(filepath.Join(dir, "."))
-	if err != nil || got != workspacepath.Canonical(dir) {
+	if err != nil || got != mustCanonical(t, dir) {
 		t.Fatalf("ResolveExistingDir = %q, %v", got, err)
 	}
 	file := filepath.Join(dir, "file.txt")
@@ -88,6 +97,22 @@ func TestResolveExistingDir(t *testing.T) {
 	}
 	if _, err := resolver.ResolveExistingDir(filepath.Join(dir, "missing")); err == nil {
 		t.Fatal("missing directory must fail")
+	}
+}
+
+func TestResolverRejectsAmbientRelativeWorkspaceIdentity(t *testing.T) {
+	resolver := workspacepath.Resolver{}
+	if _, err := workspacepath.Canonical("relative"); !errors.Is(err, workspacepath.ErrAbsolutePathRequired) {
+		t.Fatalf("Canonical(relative) error = %v, want ErrAbsolutePathRequired", err)
+	}
+	if _, err := resolver.ResolveExistingDir("."); !errors.Is(err, workspacepath.ErrAbsolutePathRequired) {
+		t.Fatalf("ResolveExistingDir(relative) error = %v", err)
+	}
+	if _, err := resolver.ResolveInRoot("relative-root", "file.go"); !errors.Is(err, workspacepath.ErrAbsolutePathRequired) {
+		t.Fatalf("ResolveInRoot(relative root) error = %v", err)
+	}
+	if _, err := resolver.Inspect("relative-workspace"); !errors.Is(err, workspacepath.ErrAbsolutePathRequired) {
+		t.Fatalf("Inspect(relative) error = %v, want ErrAbsolutePathRequired", err)
 	}
 }
 
@@ -105,7 +130,7 @@ func TestResolverInspectFindsRepositoryRoot(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Inspect: %v", err)
 	}
-	if identity.Cwd != workspacepath.Canonical(nested) || identity.ProjectRoot != workspacepath.Canonical(root) || identity.Missing {
+	if identity.Cwd != mustCanonical(t, nested) || identity.ProjectRoot != mustCanonical(t, root) || identity.Missing {
 		t.Fatalf("identity = %+v", identity)
 	}
 }
@@ -121,7 +146,7 @@ func TestResolverInspectReportsUnavailableWorkspace(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Inspect missing: %v", err)
 	}
-	if !identity.Missing || identity.Cwd != workspacepath.Canonical(missing) || identity.ProjectRoot != identity.Cwd {
+	if !identity.Missing || identity.Cwd != mustCanonical(t, missing) || identity.ProjectRoot != identity.Cwd {
 		t.Fatalf("missing identity = %+v", identity)
 	}
 

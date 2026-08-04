@@ -17,8 +17,8 @@ import (
 
 // LoadConfig loads the app config and resolves provider defaults plus env-key
 // overrides used by the runtime process.
-func LoadConfig() (config.Settings, error) {
-	cfg, err := config.Load()
+func LoadConfig(configDirectories []string) (config.Settings, error) {
+	cfg, err := config.Load(configDirectories)
 	if err != nil {
 		return config.Settings{}, err
 	}

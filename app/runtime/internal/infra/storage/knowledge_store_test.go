@@ -12,17 +12,21 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage"
 )
 
-func TestFileMemoryService_UpdateAndGet(t *testing.T) {
-	t.Setenv("LYRA_HOME", t.TempDir())
-
-	svc, err := storage.NewFileKnowledgeStore()
+func newKnowledgeStore(t *testing.T, userScopeDirectory, defaultProjectDirectory string) *storage.FileKnowledgeStore {
+	t.Helper()
+	store, err := storage.NewFileKnowledgeStore(userScopeDirectory, defaultProjectDirectory)
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("NewFileKnowledgeStore: %v", err)
 	}
+	return store
+}
+
+func TestFileMemoryService_UpdateAndGet(t *testing.T) {
+	svc := newKnowledgeStore(t, t.TempDir(), t.TempDir())
 	ctx := context.Background()
 
 	const userBody = "# User\nprefer terse output\n"
-	if err = svc.Update(ctx, knowledge.ScopeUser, "", userBody); err != nil {
+	if err := svc.Update(ctx, knowledge.ScopeUser, "", userBody); err != nil {
 		t.Fatalf("Update: %v", err)
 	}
 	got, err := svc.Get(ctx, knowledge.ScopeUser, "")
@@ -35,8 +39,7 @@ func TestFileMemoryService_UpdateAndGet(t *testing.T) {
 }
 
 func TestFileMemoryService_GetEmptyOnFreshHome(t *testing.T) {
-	t.Setenv("LYRA_HOME", t.TempDir())
-	svc, _ := storage.NewFileKnowledgeStore()
+	svc := newKnowledgeStore(t, t.TempDir(), t.TempDir())
 	got, err := svc.Get(context.Background(), knowledge.ScopeUser, "")
 	if err != nil {
 		t.Fatal(err)
@@ -47,12 +50,12 @@ func TestFileMemoryService_GetEmptyOnFreshHome(t *testing.T) {
 }
 
 func TestFileMemoryService_PersistsAcrossInstances(t *testing.T) {
-	t.Setenv("LYRA_HOME", t.TempDir())
-
-	first, _ := storage.NewFileKnowledgeStore()
+	userScopeDirectory := t.TempDir()
+	defaultProjectDirectory := t.TempDir()
+	first := newKnowledgeStore(t, userScopeDirectory, defaultProjectDirectory)
 	_ = first.Update(context.Background(), knowledge.ScopeUser, "", "remember me")
 
-	second, _ := storage.NewFileKnowledgeStore()
+	second := newKnowledgeStore(t, userScopeDirectory, defaultProjectDirectory)
 	got, _ := second.Get(context.Background(), knowledge.ScopeUser, "")
 	if got != "remember me" {
 		t.Errorf("after restart got %q", got)
@@ -61,15 +64,9 @@ func TestFileMemoryService_PersistsAcrossInstances(t *testing.T) {
 
 func TestFileMemoryService_ConcurrentInstancesUseIndependentTemporaryFiles(t *testing.T) {
 	home := t.TempDir()
-	t.Setenv("LYRA_HOME", home)
-	first, err := storage.NewFileKnowledgeStore()
-	if err != nil {
-		t.Fatal(err)
-	}
-	second, err := storage.NewFileKnowledgeStore()
-	if err != nil {
-		t.Fatal(err)
-	}
+	defaultProjectDirectory := t.TempDir()
+	first := newKnowledgeStore(t, home, defaultProjectDirectory)
+	second := newKnowledgeStore(t, home, defaultProjectDirectory)
 
 	// A fixed sibling used by an older implementation must not be a reserved path.
 	legacyTemporary := filepath.Join(home, "LYRA.md.tmp")
@@ -114,8 +111,7 @@ func TestFileMemoryService_ConcurrentInstancesUseIndependentTemporaryFiles(t *te
 }
 
 func TestFileMemoryService_List_SkipsEmptyScopes(t *testing.T) {
-	t.Setenv("LYRA_HOME", t.TempDir())
-	svc, _ := storage.NewFileKnowledgeStore()
+	svc := newKnowledgeStore(t, t.TempDir(), t.TempDir())
 	ctx := context.Background()
 
 	_ = svc.Update(ctx, knowledge.ScopeUser, "", "only user")
@@ -138,11 +134,7 @@ func TestFileMemoryService_List_SkipsEmptyScopes(t *testing.T) {
 }
 
 func TestFileMemoryService_RejectsUnknownScope(t *testing.T) {
-	t.Setenv("LYRA_HOME", t.TempDir())
-	svc, err := storage.NewFileKnowledgeStore()
-	if err != nil {
-		t.Fatal(err)
-	}
+	svc := newKnowledgeStore(t, t.TempDir(), t.TempDir())
 	unknown := knowledge.Scope("workspace")
 
 	if _, err := svc.Get(t.Context(), unknown, t.TempDir()); err == nil {
@@ -153,20 +145,11 @@ func TestFileMemoryService_RejectsUnknownScope(t *testing.T) {
 	}
 }
 
-// TestFileMemoryService_ProjectScopeUsesCwd points cwd at a temp
-// dir and verifies the project file ends up there (not in
-// LYRA_HOME).
-func TestFileMemoryService_ProjectScopeUsesCwd(t *testing.T) {
-	t.Setenv("LYRA_HOME", t.TempDir())
+// TestFileMemoryService_ProjectScopeUsesConfiguredDefault proves the adapter
+// uses its explicit fallback and never reads the process working directory.
+func TestFileMemoryService_ProjectScopeUsesConfiguredDefault(t *testing.T) {
 	projectDir := t.TempDir()
-
-	prevWd, _ := os.Getwd()
-	t.Cleanup(func() { _ = os.Chdir(prevWd) })
-	if err := os.Chdir(projectDir); err != nil {
-		t.Fatal(err)
-	}
-
-	svc, _ := storage.NewFileKnowledgeStore()
+	svc := newKnowledgeStore(t, t.TempDir(), projectDir)
 	ctx := context.Background()
 	_ = svc.Update(ctx, knowledge.ScopeProject, "", "project body")
 
@@ -184,11 +167,7 @@ func TestFileMemoryService_ProjectScopeUsesCwd(t *testing.T) {
 // addressed by the per-call dir, so one store serves every project;
 // empty dir falls back to the construction-time default.
 func TestFileMemoryService_ProjectScopeFollowsDir(t *testing.T) {
-	t.Setenv("LYRA_HOME", t.TempDir())
-	svc, err := storage.NewFileKnowledgeStore()
-	if err != nil {
-		t.Fatalf("NewFileKnowledgeStore: %v", err)
-	}
+	svc := newKnowledgeStore(t, t.TempDir(), t.TempDir())
 
 	dirA, dirB := t.TempDir(), t.TempDir()
 	ctx := context.Background()
@@ -202,5 +181,20 @@ func TestFileMemoryService_ProjectScopeFollowsDir(t *testing.T) {
 	}
 	if got, _ := svc.Get(ctx, knowledge.ScopeProject, dirB); got != "" {
 		t.Fatalf("Get dirB = %q, want empty (projects are isolated)", got)
+	}
+}
+
+func TestNewFileKnowledgeStoreRequiresBothCompositionPaths(t *testing.T) {
+	if _, err := storage.NewFileKnowledgeStore("", t.TempDir()); err == nil {
+		t.Fatal("NewFileKnowledgeStore accepted an empty user scope directory")
+	}
+	if _, err := storage.NewFileKnowledgeStore(t.TempDir(), ""); err == nil {
+		t.Fatal("NewFileKnowledgeStore accepted an empty default project directory")
+	}
+	if _, err := storage.NewFileKnowledgeStore("relative-user", t.TempDir()); err == nil {
+		t.Fatal("NewFileKnowledgeStore accepted a relative user scope directory")
+	}
+	if _, err := storage.NewFileKnowledgeStore(t.TempDir(), "relative-project"); err == nil {
+		t.Fatal("NewFileKnowledgeStore accepted a relative default project directory")
 	}
 }

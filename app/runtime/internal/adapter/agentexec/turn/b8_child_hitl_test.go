@@ -1045,6 +1045,7 @@ func buildB8Controller(
 	}
 	built, err := toolset.Build(t.Context(), toolset.BuildConfig{
 		Workdir:   t.TempDir(),
+		UserHome:  t.TempDir(),
 		Interrupt: suspension.Interrupt,
 	})
 	if err != nil {
@@ -1088,6 +1089,7 @@ func buildB8PersistentController(
 	}
 	built, err := toolset.Build(t.Context(), toolset.BuildConfig{
 		Workdir:   t.TempDir(),
+		UserHome:  t.TempDir(),
 		Interrupt: suspension.Interrupt,
 	})
 	if err != nil {

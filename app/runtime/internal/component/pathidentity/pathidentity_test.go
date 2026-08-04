@@ -53,3 +53,12 @@ func TestContainsRequiresPhysicalTargets(t *testing.T) {
 		})
 	}
 }
+
+func TestRelativePathRequiresExplicitAbsoluteRoot(t *testing.T) {
+	if _, err := Resolve("", "relative.txt"); err == nil {
+		t.Fatal("Resolve accepted a relative path without a root")
+	}
+	if _, err := Resolve("relative-root", "relative.txt"); err == nil {
+		t.Fatal("Resolve accepted a relative root")
+	}
+}

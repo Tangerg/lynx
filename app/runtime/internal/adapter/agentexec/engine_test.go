@@ -799,7 +799,7 @@ func TestEngine_RestoreChat_PreservesOptionsFromSnapshot(t *testing.T) {
 	stub := newOptionToolStub()
 	client, _ := chatclient.New(stub, chatclient.Config{Defaults: *stub.defaults})
 	store := newMemoryCheckpointStore()
-	built, err := toolset.Build(context.Background(), toolset.BuildConfig{})
+	built, err := toolset.Build(context.Background(), testToolsetBuildConfig(t, toolset.BuildConfig{}))
 	if err != nil {
 		t.Fatalf("toolset.Build: %v", err)
 	}
@@ -1024,7 +1024,7 @@ func TestEngine_RestoreTurnRejectsDifferentExecutableBuild(t *testing.T) {
 	stub := newOptionToolStub()
 	client, _ := chatclient.New(stub, chatclient.Config{Defaults: *stub.defaults})
 	store := newMemoryCheckpointStore()
-	built, err := toolset.Build(t.Context(), toolset.BuildConfig{})
+	built, err := toolset.Build(t.Context(), testToolsetBuildConfig(t, toolset.BuildConfig{}))
 	if err != nil {
 		t.Fatalf("toolset.Build: %v", err)
 	}

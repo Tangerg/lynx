@@ -784,6 +784,38 @@ Acceptance:
   the exclusive timing union; focused normal/race tests and architecture
   fitness checks pass. Frontend generated artifacts remain deferred by scope.
 
+### Batch 28 — Ambient path ownership closure
+
+Status: **Completed**
+
+Scope:
+
+- Extend the executable-owned path snapshot to distinguish User Home, default
+  workspace, durable data directory, and launch directory. Resolve `LYRA_HOME`,
+  process cwd, and User Home exactly once in `cmd/lyra`.
+- Replace persistence's no-argument `Open`, the knowledge store's ambient
+  constructor, and the ambiguous `Bundle.Home` with explicit configuration and
+  `DataDirectory`; delete the former storage-home resolver entirely.
+- Pass User Home explicitly into both sandbox confinement models, root the
+  default local token in DataDirectory, and make config search directories
+  executable-supplied absolute paths.
+- Remove implicit `filepath.Abs` behavior from path identity, workspace path,
+  hooks, prompt-source, sandbox archive, and read-only policy adapters. Relative
+  resource paths remain valid only when paired with an explicit absolute root.
+- Enforce absolute path invariants at runtime assembly and isolation
+  construction, including optional skill, recipe, checkpoint, sandbox, and
+  read-only roots; constructors own caller-supplied slices.
+
+Acceptance:
+
+- No production file under `internal/` calls `os.UserHomeDir`, `os.Getwd`, or
+  `filepath.Abs`; an architecture fitness rule scans the entire inner runtime.
+- Persistence, knowledge, toolset, sandbox, configuration, transport, workspace
+  path, hooks, and prompt-source boundaries reject missing or relative process
+  paths instead of consulting ambient host state.
+- Focused normal/race tests, runtime-wide build/vet, standalone module checks,
+  static analysis, lint, dead-code analysis, and final structural scans pass.
+
 ## 6. Progress
 
 | Batch | Status | Started | Completed | Evidence |
@@ -815,10 +847,30 @@ Acceptance:
 | 25. Mutable-value and atomic-write ownership | Completed | 2026-08-04 | 2026-08-04 | Deep-ownership tests plus focused normal/race suites for contracts, protocol enums, Run registry, execution profiles, and filesystem storage passed. |
 | 26. Process-path composition ownership | Completed | 2026-08-04 | 2026-08-04 | Executable, Agent prompt, Workspace, Runs, Schedules, Bootstrap, and Delivery tests plus the ambient-path architecture fitness rule passed. |
 | 27. Item timestamp vocabulary closure | Completed | 2026-08-04 | 2026-08-04 | Domain/Application/SQLite/Delivery normal and race tests, generated Go validators, server contract artifacts, JSON exclusivity assertions, and timestamp architecture fitness checks passed. |
+| 28. Ambient path ownership closure | Completed | 2026-08-04 | 2026-08-04 | Explicit-path boundary tests, runtime-wide ambient-path fitness scan, focused normal/race suites, build/vet, static analysis, lint, dead-code analysis, and structural residue scans passed. |
 
 Allowed status values: `Pending`, `In progress`, `Completed`, `Blocked`, `Revised`.
 
 ## 7. Progress log
+
+### 2026-08-04 — Batch 28 completed
+
+- Moved the final host-path lookups into `cmd/lyra`: User Home, default
+  workspace, DataDirectory, and launch directory now form one immutable process
+  snapshot. `LYRA_HOME` is required to be absolute when explicitly configured.
+- Replaced `persistence.Open()` and `storage.NewFileKnowledgeStore()` ambient
+  discovery with required configs, renamed `Bundle.Home` to `DataDirectory`, and
+  deleted `storage.Home` rather than retaining a compatibility path.
+- Removed inner User Home/cwd lookups from sandbox and HTTP token issuance, and
+  removed every internal `filepath.Abs` fallback. Config files, hooks, agent
+  documents, workspace identity, path locks, archives, and sandbox policies now
+  consume explicit absolute roots and fail closed on missing context.
+- Replaced the workspace canonicalizer's silent empty-string fallback with an
+  explicit error and tightened runtime assembly plus isolation constructors so
+  relative configuration cannot survive until first filesystem use.
+- Expanded the architecture fitness rule from three selected packages to all of
+  `internal/`, covering `os.UserHomeDir`, `os.Getwd`, and `filepath.Abs` so this
+  ownership cannot silently regress.
 
 ### 2026-08-04 — Batch 27 completed
 

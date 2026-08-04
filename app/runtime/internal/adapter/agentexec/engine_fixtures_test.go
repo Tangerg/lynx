@@ -51,6 +51,7 @@ func (e *assembledEngine) Close() error {
 // set.
 func mustEngineWith(t *testing.T, client *chatclient.Client, bc toolset.BuildConfig) *assembledEngine {
 	t.Helper()
+	bc = testToolsetBuildConfig(t, bc)
 	built, err := toolset.Build(context.Background(), bc)
 	if err != nil {
 		t.Fatalf("toolset.Build: %v", err)
@@ -72,6 +73,20 @@ func mustEngineWith(t *testing.T, client *chatclient.Client, bc toolset.BuildCon
 		catalog: built.Resolver,
 		closers: built.Closers,
 	}
+}
+
+// testToolsetBuildConfig supplies the process-owned paths every production
+// composition provides while preserving the capability overrides relevant to
+// each engine test.
+func testToolsetBuildConfig(t *testing.T, config toolset.BuildConfig) toolset.BuildConfig {
+	t.Helper()
+	if config.Workdir == "" {
+		config.Workdir = t.TempDir()
+	}
+	if config.UserHome == "" {
+		config.UserHome = t.TempDir()
+	}
+	return config
 }
 
 func codingTools(t *testing.T, resolver *toolset.Resolver) []toolcontract.Tool {

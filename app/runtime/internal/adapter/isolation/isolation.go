@@ -10,6 +10,9 @@ package isolation
 import (
 	"context"
 	"errors"
+	"fmt"
+	"path/filepath"
+	"slices"
 	"sync"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/sandbox"
@@ -22,6 +25,7 @@ import (
 // snapshotted or written back — isolation means the project is left untouched.
 // Safe for concurrent use.
 type Isolator struct {
+	userHome      string
 	baseDir       string
 	readOnlyPaths []string
 
@@ -32,12 +36,30 @@ type Isolator struct {
 // New builds an isolator rooting its ephemeral copies under baseDir (a trusted
 // path owned by the runtime). readOnlyPaths re-opens toolchain roots below the
 // hidden home for the jailed shell.
-func New(baseDir string, readOnlyPaths []string) *Isolator {
-	return &Isolator{
-		baseDir:       baseDir,
-		readOnlyPaths: readOnlyPaths,
-		workspaces:    map[string]*sandbox.Workspace{},
+func New(userHome, baseDir string, readOnlyPaths []string) (*Isolator, error) {
+	if userHome == "" {
+		return nil, errors.New("isolation: user home is required")
 	}
+	if !filepath.IsAbs(userHome) {
+		return nil, errors.New("isolation: user home must be absolute")
+	}
+	if baseDir == "" {
+		return nil, errors.New("isolation: base directory is required")
+	}
+	if !filepath.IsAbs(baseDir) {
+		return nil, errors.New("isolation: base directory must be absolute")
+	}
+	for i, path := range readOnlyPaths {
+		if path != "" && !filepath.IsAbs(path) {
+			return nil, fmt.Errorf("isolation: read-only path %d must be absolute", i)
+		}
+	}
+	return &Isolator{
+		userHome:      userHome,
+		baseDir:       baseDir,
+		readOnlyPaths: slices.Clone(readOnlyPaths),
+		workspaces:    map[string]*sandbox.Workspace{},
+	}, nil
 }
 
 // Workspace returns the isolated working-copy directory for sessionID, creating
@@ -54,6 +76,7 @@ func (i *Isolator) Workspace(ctx context.Context, sessionID, projectRoot string)
 	// by admission, so the same session cannot race here; the store-back below
 	// still resolves a race defensively (discarding the losing copy).
 	fresh, err := sandbox.New(ctx, sandbox.Config{
+		UserHome:      i.userHome,
 		BaseDir:       i.baseDir,
 		ReadOnlyPaths: i.readOnlyPaths,
 	}, projectRoot)

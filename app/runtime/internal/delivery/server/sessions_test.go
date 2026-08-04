@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspacepath"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
@@ -68,8 +67,8 @@ func TestUpdateSession(t *testing.T) {
 	if err != nil {
 		t.Fatalf("relocate: %v", err)
 	}
-	if out.Workspace.Ref.Path != workspacepath.Canonical(newCwd) {
-		t.Errorf("workspace = %q, want relocated %q", out.Workspace.Ref.Path, workspacepath.Canonical(newCwd))
+	if out.Workspace.Ref.Path != canonicalWorkspacePath(t, newCwd) {
+		t.Errorf("workspace = %q, want relocated %q", out.Workspace.Ref.Path, canonicalWorkspacePath(t, newCwd))
 	}
 	releaseSession, ok := rt.admissions.AcquireSession(created.ID)
 	if !ok {

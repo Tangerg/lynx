@@ -86,6 +86,12 @@ func buildController(t *testing.T) (turnDriver, *agentexec.Engine) {
 
 func buildEngine(t *testing.T, cfg agentexec.Config) *agentexec.Engine {
 	t.Helper()
+	if cfg.Workdir == "" {
+		cfg.Workdir = t.TempDir()
+	}
+	if cfg.UserHome == "" {
+		cfg.UserHome = t.TempDir()
+	}
 	if cfg.Checkpoints == nil {
 		cfg.Checkpoints = newMemoryCheckpointStore()
 	}
@@ -101,8 +107,9 @@ func buildEngine(t *testing.T, cfg agentexec.Config) *agentexec.Engine {
 		}
 	}
 	built, err := toolset.Build(context.Background(), toolset.BuildConfig{
-		Workdir: cfg.Workdir,
-		Plan:    planStore,
+		Workdir:  cfg.Workdir,
+		UserHome: cfg.UserHome,
+		Plan:     planStore,
 	})
 	if err != nil {
 		t.Fatalf("toolset.Build: %v", err)

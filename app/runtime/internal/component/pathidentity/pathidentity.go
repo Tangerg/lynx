@@ -11,40 +11,45 @@ import (
 
 const maxSymlinkDepth = 40
 
-// Absolute anchors path under root, matching the local filesystem executor's
-// treatment of relative and home-relative paths.
-func Absolute(root, path string) string {
-	path = expandHome(path)
+// absolute anchors a relative path under an explicit absolute root. Host cwd
+// and User Home discovery belong to process composition, never path identity.
+func absolute(root, path string) (string, error) {
 	if filepath.IsAbs(path) {
-		return filepath.Clean(path)
+		return filepath.Clean(path), nil
 	}
-	if root != "" {
-		return filepath.Clean(filepath.Join(root, path))
+	if root == "" {
+		return "", errors.New("resolve filesystem path: root is required for a relative path")
 	}
-	abs, err := filepath.Abs(path)
-	if err != nil {
-		return filepath.Clean(path)
+	if !filepath.IsAbs(root) {
+		return "", errors.New("resolve filesystem path: root must be absolute")
 	}
-	return abs
+	return filepath.Clean(filepath.Join(root, path)), nil
 }
 
 // Resolve resolves every existing symlink component while preserving a
 // not-yet-created suffix. This is the identity used by path locks and security
 // decisions, so aliases cannot disagree about the resource they target.
 func Resolve(root, path string) (string, error) {
-	return resolve(Absolute(root, path), 0)
+	abs, err := absolute(root, path)
+	if err != nil {
+		return "", err
+	}
+	return resolve(abs, 0)
 }
 
 // Canonical returns the physical identity when it can be established and the
 // absolute lexical identity otherwise. Use Resolve instead when failure must
 // be handled conservatively at a trust boundary.
-func Canonical(root, path string) string {
-	abs := Absolute(root, path)
+func Canonical(root, path string) (string, error) {
+	abs, err := absolute(root, path)
+	if err != nil {
+		return "", err
+	}
 	resolved, err := resolve(abs, 0)
 	if err != nil {
-		return abs
+		return abs, nil
 	}
-	return resolved
+	return resolved, nil
 }
 
 // Contains reports whether target is root itself or lies below it. Callers at
@@ -98,18 +103,4 @@ func resolve(abs string, depth int) (string, error) {
 		suffix = append([]string{filepath.Base(current)}, suffix...)
 		current = parent
 	}
-}
-
-func expandHome(path string) string {
-	if path != "~" && !strings.HasPrefix(path, "~/") {
-		return path
-	}
-	home, err := os.UserHomeDir()
-	if err != nil || home == "" {
-		return path
-	}
-	if path == "~" {
-		return home
-	}
-	return filepath.Join(home, path[len("~/"):])
 }

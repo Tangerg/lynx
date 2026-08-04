@@ -56,3 +56,9 @@ func TestWorkspaceCopiesSourceAndShutsDown(t *testing.T) {
 		t.Fatalf("Path after Shutdown error = %v, want ErrShutdown", err)
 	}
 }
+
+func TestNewWorkspaceRequiresAbsoluteBaseDirectory(t *testing.T) {
+	if _, err := newWorkspace(t.Context(), Config{BaseDir: "relative"}, "", recordingRunner{}); err == nil {
+		t.Fatal("newWorkspace accepted a relative base directory")
+	}
+}

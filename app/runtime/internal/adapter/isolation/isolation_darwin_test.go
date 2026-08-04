@@ -15,7 +15,10 @@ func TestIsolatorCopiesReusesAndDiscards(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	iso := New(t.TempDir(), nil)
+	iso, err := New(t.TempDir(), t.TempDir(), nil)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
 	t.Cleanup(func() { _ = iso.Close() })
 	ctx := context.Background()
 

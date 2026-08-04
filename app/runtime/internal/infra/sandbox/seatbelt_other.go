@@ -11,7 +11,7 @@ func checkBackend() error {
 	return fmt.Errorf("%w: supported backend requires macOS Seatbelt", ErrUnavailable)
 }
 
-func platformRunner([]string) (commandRunner, error) {
+func platformRunner(string, []string) (commandRunner, error) {
 	return nil, checkBackend()
 }
 

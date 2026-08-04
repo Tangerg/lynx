@@ -16,21 +16,23 @@ import (
 // ErrNotDirectory reports that a path exists but is not a directory.
 var ErrNotDirectory = errors.New("workspacepath: not a directory")
 
+// ErrAbsolutePathRequired reports an attempt to let an adapter rediscover the
+// process cwd. Workspace roots are resolved once at process/session boundaries.
+var ErrAbsolutePathRequired = errors.New("workspacepath: absolute path required")
+
 // Canonical returns the stable identity used for working-tree locks,
 // checkpoints, and per-cwd indexes. Missing paths are still normalized to an
-// absolute spelling; callers that require existence use Resolver.
-func Canonical(path string) string {
-	if path == "" {
-		return ""
+// absolute spelling; callers that require existence use Resolver. Relative
+// values are rejected because resolving them would depend on the process cwd.
+func Canonical(path string) (string, error) {
+	if !filepath.IsAbs(path) {
+		return "", ErrAbsolutePathRequired
 	}
-	abs, err := filepath.Abs(path)
-	if err != nil {
-		return filepath.Clean(path)
-	}
+	abs := filepath.Clean(path)
 	if resolved, err := filepath.EvalSymlinks(abs); err == nil {
-		return resolved
+		return resolved, nil
 	}
-	return abs
+	return abs, nil
 }
 
 // Resolver implements the application session coordinator's cwd-resolution
@@ -40,6 +42,9 @@ type Resolver struct{}
 // ResolveExistingDir verifies path exists as a directory and returns its
 // canonical identity.
 func (Resolver) ResolveExistingDir(path string) (string, error) {
+	if !filepath.IsAbs(path) {
+		return "", ErrAbsolutePathRequired
+	}
 	info, err := os.Stat(path)
 	if err != nil {
 		return "", err
@@ -47,13 +52,16 @@ func (Resolver) ResolveExistingDir(path string) (string, error) {
 	if !info.IsDir() {
 		return "", ErrNotDirectory
 	}
-	return Canonical(path), nil
+	return Canonical(path)
 }
 
 // ResolveInRoot lexically confines a client path to root and returns its
 // root-relative form. The workspace application owns the input-policy errors;
 // this adapter owns filesystem path spelling and cleaning.
 func (Resolver) ResolveInRoot(root, path string) (string, error) {
+	if !filepath.IsAbs(root) {
+		return "", ErrAbsolutePathRequired
+	}
 	if path == "" {
 		return "", workspaceapp.ErrPathRequired
 	}
@@ -81,7 +89,15 @@ func (r Resolver) ResolveExistingInRoot(root, path string) (string, error) {
 	if err != nil {
 		return rel, nil
 	}
-	if !pathInside(Canonical(root), Canonical(resolved)) {
+	canonicalRoot, err := Canonical(root)
+	if err != nil {
+		return "", err
+	}
+	canonicalResolved, err := Canonical(resolved)
+	if err != nil {
+		return "", err
+	}
+	if !pathInside(canonicalRoot, canonicalResolved) {
 		return "", workspaceapp.ErrPathOutsideRoot
 	}
 	return rel, nil
@@ -94,7 +110,10 @@ func (Resolver) Inspect(path string) (session.WorkspaceIdentity, error) {
 	if path == "" {
 		return session.WorkspaceIdentity{Missing: true}, nil
 	}
-	cwd := Canonical(path)
+	cwd, err := Canonical(path)
+	if err != nil {
+		return session.WorkspaceIdentity{}, err
+	}
 	identity := session.WorkspaceIdentity{Cwd: cwd, ProjectRoot: cwd}
 	info, err := os.Stat(cwd)
 	if err != nil {

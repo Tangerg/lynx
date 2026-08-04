@@ -21,7 +21,7 @@ func TestSeatbeltRunnerConfinesWritesAndEnvironment(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Setenv("HOME", home)
-	runner, err := platformRunner(nil)
+	runner, err := platformRunner(home, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

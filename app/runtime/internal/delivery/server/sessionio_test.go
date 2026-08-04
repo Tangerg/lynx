@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspacepath"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
@@ -29,7 +28,7 @@ func TestSessionExportImport_RoundTrip(t *testing.T) {
 	s, rt := rollbackHarness(t)
 	ctx := t.Context()
 	cwd := t.TempDir()
-	canonicalCwd := workspacepath.Canonical(cwd)
+	canonicalCwd := canonicalWorkspacePath(t, cwd)
 
 	ses, err := rt.sess.Create(ctx, "My Session", cwd)
 	if err != nil {

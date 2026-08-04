@@ -90,15 +90,19 @@ type seatbeltRunner struct {
 	hiddenPaths   []string
 }
 
-func platformRunner(readOnlyPaths []string) (commandRunner, error) {
+func platformRunner(userHome string, readOnlyPaths []string) (commandRunner, error) {
 	if err := checkBackend(); err != nil {
+		return nil, err
+	}
+	hidden, err := resolveHiddenHome(userHome)
+	if err != nil {
 		return nil, err
 	}
 	paths, err := resolveReadOnlyPaths(readOnlyPaths)
 	if err != nil {
 		return nil, err
 	}
-	return seatbeltRunner{readOnlyPaths: paths, hiddenPaths: hiddenHomePaths()}, nil
+	return seatbeltRunner{readOnlyPaths: paths, hiddenPaths: []string{hidden}}, nil
 }
 
 func (r seatbeltRunner) Run(ctx context.Context, dir string, input toolshell.Input) (toolshell.Output, error) {

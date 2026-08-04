@@ -39,7 +39,10 @@ func withReadTracking(inner toolcontract.Tool, tr *readTracker, workdir string) 
 		}
 		_ = json.Unmarshal([]byte(arguments), &a)
 		if a.Path != "" {
-			abs := pathidentity.Canonical(workdir, a.Path)
+			abs, pathErr := pathidentity.Canonical(workdir, a.Path)
+			if pathErr != nil {
+				return out, fmt.Errorf("track read path: %w", pathErr)
+			}
 			if fingerprint, err := fingerprintFile(abs); err == nil {
 				tr.record(executionctx.SessionID(ctx), abs, fingerprint, a.StartLine > 1 || a.MaxLines > 0)
 			}
@@ -60,7 +63,10 @@ func withEditGuard(inner toolcontract.Tool, tr *readTracker, workdir string) too
 			return "", fmt.Errorf("inspect mutation paths before edit: %w", err)
 		}
 		for _, path := range paths {
-			abs := pathidentity.Canonical(workdir, path)
+			abs, err := pathidentity.Canonical(workdir, path)
+			if err != nil {
+				return "", fmt.Errorf("resolve edit path: %w", err)
+			}
 			if !isExistingFile(abs) {
 				continue
 			}
@@ -77,7 +83,10 @@ func withEditGuard(inner toolcontract.Tool, tr *readTracker, workdir string) too
 			return out, err
 		}
 		for _, path := range paths {
-			abs := pathidentity.Canonical(workdir, path)
+			abs, err := pathidentity.Canonical(workdir, path)
+			if err != nil {
+				return out, fmt.Errorf("refresh edit path: %w", err)
+			}
 			if fingerprint, err := fingerprintFile(abs); err == nil {
 				tr.refresh(executionctx.SessionID(ctx), abs, fingerprint)
 			}
@@ -98,8 +107,13 @@ func withWriteGuard(inner toolcontract.Tool, tr *readTracker, workdir string) to
 			Path string `json:"path"`
 		}
 		_ = json.Unmarshal([]byte(arguments), &a)
+		var abs string
 		if a.Path != "" {
-			abs := pathidentity.Canonical(workdir, a.Path)
+			var pathErr error
+			abs, pathErr = pathidentity.Canonical(workdir, a.Path)
+			if pathErr != nil {
+				return "", fmt.Errorf("resolve write path: %w", pathErr)
+			}
 			if isExistingFile(abs) {
 				fingerprint, err := fingerprintFile(abs)
 				if err == nil {
@@ -114,7 +128,6 @@ func withWriteGuard(inner toolcontract.Tool, tr *readTracker, workdir string) to
 			return out, err
 		}
 		if a.Path != "" {
-			abs := pathidentity.Canonical(workdir, a.Path)
 			if fingerprint, err := fingerprintFile(abs); err == nil {
 				tr.refresh(executionctx.SessionID(ctx), abs, fingerprint)
 			}

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"sync"
 
 	toolshell "github.com/Tangerg/lynx/tools/shell"
@@ -21,6 +22,8 @@ var (
 type Config struct {
 	// BaseDir owns ephemeral workspace copies and must be a trusted path.
 	BaseDir string
+	// UserHome is the process snapshot hidden from jailed commands.
+	UserHome string
 	// ReadOnlyPaths re-opens selected host paths hidden by the default policy,
 	// typically language toolchains or dependency caches below the user's home.
 	ReadOnlyPaths []string
@@ -52,7 +55,7 @@ var _ toolshell.Executor = (*Workspace)(nil)
 // its regular files, directories, and contained relative symlinks are copied
 // into the new workspace through a validated tar stream.
 func New(ctx context.Context, config Config, source string) (*Workspace, error) {
-	runner, err := platformRunner(config.ReadOnlyPaths)
+	runner, err := platformRunner(config.UserHome, config.ReadOnlyPaths)
 	if err != nil {
 		return nil, err
 	}
@@ -65,6 +68,9 @@ func newWorkspace(ctx context.Context, config Config, source string, runner comm
 	}
 	if config.BaseDir == "" {
 		return nil, errors.New("sandbox: base directory is required")
+	}
+	if !filepath.IsAbs(config.BaseDir) {
+		return nil, errors.New("sandbox: base directory must be absolute")
 	}
 	if err := os.MkdirAll(config.BaseDir, 0o700); err != nil {
 		return nil, fmt.Errorf("sandbox: create base directory: %w", err)

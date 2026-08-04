@@ -12,7 +12,6 @@ import (
 
 	"github.com/Tangerg/lynx/core/chat"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspacepath"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
@@ -337,7 +336,7 @@ func seedMaximalSession(t *testing.T, s *Server, rt *stubRuntime) string {
 	// The canonical spelling: an import resolves the cwd, so seeding the raw temp
 	// path would make the two exports differ by macOS's /private prefix rather than
 	// by anything the archive carries.
-	cwd := workspacepath.Canonical(t.TempDir())
+	cwd := canonicalWorkspacePath(t, t.TempDir())
 	if err := rt.sess.Restore(ctx, session.Session{
 		ID: sessionID, Title: "Everything", Cwd: cwd, Model: "claude-opus-5",
 		StartedAt: time.Unix(1, 0).UTC(), UpdatedAt: time.Unix(9, 0).UTC(),

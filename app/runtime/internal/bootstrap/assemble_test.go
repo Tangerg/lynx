@@ -44,11 +44,60 @@ func TestNewRequiresRuntimeDependencies(t *testing.T) {
 			want: "runtime: UserHome is required",
 		},
 		{
+			name: "relative user home",
+			edit: func(cfg *Config) {
+				cfg.UserHome = "relative-home"
+			},
+			want: "runtime: UserHome must be absolute",
+		},
+		{
 			name: "default workspace path",
 			edit: func(cfg *Config) {
 				cfg.DefaultWorkspacePath = ""
 			},
 			want: "runtime: DefaultWorkspacePath is required",
+		},
+		{
+			name: "relative default workspace path",
+			edit: func(cfg *Config) {
+				cfg.DefaultWorkspacePath = "relative-workspace"
+			},
+			want: "runtime: DefaultWorkspacePath must be absolute",
+		},
+		{
+			name: "relative skills user directory",
+			edit: func(cfg *Config) {
+				cfg.SkillsUserDir = "relative-skills"
+			},
+			want: "runtime: SkillsUserDir must be absolute when set",
+		},
+		{
+			name: "relative sandbox directory",
+			edit: func(cfg *Config) {
+				cfg.SandboxDir = "relative-sandbox"
+			},
+			want: "runtime: SandboxDir must be absolute when set",
+		},
+		{
+			name: "relative sandbox read-only path",
+			edit: func(cfg *Config) {
+				cfg.SandboxReadOnlyPaths = []string{"relative-read-only"}
+			},
+			want: "runtime: SandboxReadOnlyPaths[0] must be absolute when set",
+		},
+		{
+			name: "relative recipes global directory",
+			edit: func(cfg *Config) {
+				cfg.RecipesGlobalDir = "relative-recipes"
+			},
+			want: "runtime: RecipesGlobalDir must be absolute when set",
+		},
+		{
+			name: "relative checkpoint directory",
+			edit: func(cfg *Config) {
+				cfg.CheckpointDir = "relative-checkpoints"
+			},
+			want: "runtime: CheckpointDir must be absolute when set",
 		},
 		{
 			name: "chat client",

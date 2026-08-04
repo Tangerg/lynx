@@ -259,3 +259,12 @@ func TestIssueLocalToken(t *testing.T) {
 		t.Fatalf("file content mismatch")
 	}
 }
+
+func TestIssueLocalTokenRequiresExplicitPath(t *testing.T) {
+	if _, err := lyrahttp.IssueLocalToken(""); err == nil {
+		t.Fatal("IssueLocalToken accepted an empty path")
+	}
+	if _, err := lyrahttp.IssueLocalToken("relative-token"); err == nil {
+		t.Fatal("IssueLocalToken accepted a relative path")
+	}
+}

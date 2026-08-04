@@ -70,3 +70,9 @@ func TestArchiveTreeRejectsEscapingSymlink(t *testing.T) {
 		t.Fatal("escaping source symlink was accepted")
 	}
 }
+
+func TestArchiveTreeRequiresAbsoluteRoot(t *testing.T) {
+	if _, err := archiveTree(t.Context(), "relative-root"); err == nil {
+		t.Fatal("archiveTree accepted a relative root")
+	}
+}

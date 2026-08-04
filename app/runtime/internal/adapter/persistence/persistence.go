@@ -9,6 +9,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"sync"
 
@@ -20,7 +21,7 @@ import (
 )
 
 // Bundle holds every persistence backend opened for one runtime process. All
-// durable stores share one SQLite database at $LYRA_HOME/lyra.db, except
+// durable stores share one SQLite database under DataDirectory, except
 // Knowledge, which is the user-editable LYRA.md cascade. AgentMemory is the
 // separate SQLite fact ledger + curated memory items.
 type Bundle struct {
@@ -28,8 +29,8 @@ type Bundle struct {
 	closeOnce sync.Once
 	closeErr  error
 
-	Home string
-	Tx   func(context.Context, func(context.Context) error) error
+	DataDirectory string
+	Tx            func(context.Context, func(context.Context) error) error
 
 	Session             *sqlitestore.SessionStore
 	Runs                *sqlitestore.RunStore
@@ -56,24 +57,43 @@ type Bundle struct {
 	Idempotency         *sqlitestore.IdempotencyStore
 }
 
+// Config is the process-owned filesystem snapshot persistence consumes. It has
+// no environment or working-directory fallback: host path discovery belongs to
+// the executable composition root.
+type Config struct {
+	DataDirectory        string
+	DefaultWorkspacePath string
+}
+
 // Open wires the persistence backends. The returned bundle owns the shared
 // SQLite handle and must be closed when the runtime process stops.
-func Open() (*Bundle, error) {
-	home, err := storage.Home()
-	if err != nil {
-		return nil, fmt.Errorf("storage home: %w", err)
+func Open(config Config) (*Bundle, error) {
+	if config.DataDirectory == "" {
+		return nil, errors.New("persistence: data directory is required")
 	}
-	db, err := sqlitestore.Open(filepath.Join(home, "lyra.db"))
+	if !filepath.IsAbs(config.DataDirectory) {
+		return nil, errors.New("persistence: data directory must be absolute")
+	}
+	if config.DefaultWorkspacePath == "" {
+		return nil, errors.New("persistence: default workspace path is required")
+	}
+	if !filepath.IsAbs(config.DefaultWorkspacePath) {
+		return nil, errors.New("persistence: default workspace path must be absolute")
+	}
+	if err := os.MkdirAll(config.DataDirectory, 0o755); err != nil {
+		return nil, fmt.Errorf("persistence: create data directory %q: %w", config.DataDirectory, err)
+	}
+	db, err := sqlitestore.Open(filepath.Join(config.DataDirectory, "lyra.db"))
 	if err != nil {
 		return nil, err
 	}
-	mem, err := storage.NewFileKnowledgeStore()
+	mem, err := storage.NewFileKnowledgeStore(config.DataDirectory, config.DefaultWorkspacePath)
 	if err != nil {
 		return nil, errors.Join(fmt.Errorf("memory storage: %w", err), db.Close())
 	}
 	return &Bundle{
-		db:   db,
-		Home: home,
+		db:            db,
+		DataDirectory: config.DataDirectory,
 		Tx: func(ctx context.Context, fn func(context.Context) error) error {
 			return sqlitestore.RunInTx(ctx, db, fn)
 		},

@@ -11,7 +11,7 @@ import (
 func TestComposeConfigInjectsDurableRuntimePolicy(t *testing.T) {
 	const buildID = "sha256:2222222222222222222222222222222222222222222222222222222222222222"
 	agentMemory := sqlitestore.NewAgentMemoryStore(nil)
-	got := ComposeConfig(config.Settings{}, &persistence.Bundle{Home: t.TempDir(), AgentMemory: agentMemory}, nil, nil, nil, buildID)
+	got := ComposeConfig(config.Settings{}, &persistence.Bundle{DataDirectory: t.TempDir(), AgentMemory: agentMemory}, nil, nil, nil, buildID)
 	if got.Engine.BuildID != buildID {
 		t.Fatalf("Engine.BuildID = %q, want %q", got.Engine.BuildID, buildID)
 	}

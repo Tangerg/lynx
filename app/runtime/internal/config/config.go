@@ -3,7 +3,7 @@
 // Sources, later overrides earlier:
 //
 //  1. Built-in defaults
-//  2. config/config.yaml (or $HOME/.lyra/config.yaml) — viper
+//  2. config.yaml in an executable-supplied absolute search directory
 //  3. Environment variables (LYRA_*)
 //
 // The yaml file is where the API key lives in dev; it is gitignored.
@@ -14,6 +14,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/spf13/viper"
@@ -24,12 +25,16 @@ import (
 // model selection, and provider-specific API-key env fallback live in the
 // composition root because they depend on the LLM adapter catalog, not on
 // config-source parsing.
-func Load() (Settings, error) {
+func Load(configDirectories []string) (Settings, error) {
 	v := viper.New()
 	v.SetConfigName("config")
 	v.SetConfigType("yaml")
-	v.AddConfigPath("config")      // ./config/config.yaml (run from the lyra dir)
-	v.AddConfigPath("$HOME/.lyra") // ~/.lyra/config.yaml
+	for _, directory := range configDirectories {
+		if !filepath.IsAbs(directory) {
+			return Settings{}, fmt.Errorf("config: search directory %q must be absolute", directory)
+		}
+		v.AddConfigPath(filepath.Clean(directory))
+	}
 
 	// No default provider — it must be set explicitly in config/config.yaml
 	// or via LYRA_PROVIDER. (No vendor is privileged as the implicit default.)

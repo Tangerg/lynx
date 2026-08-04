@@ -20,7 +20,7 @@ import (
 func ComposeConfig(cfg config.Settings, stores *persistence.Bundle, client *chatclient.Client, providers providersvc.Registry, hooks HookResolver, buildID string) Config {
 	return Config{
 		Resources:     []ShutdownResource{stores},
-		SkillsUserDir: filepath.Join(stores.Home, "skills"),
+		SkillsUserDir: filepath.Join(stores.DataDirectory, "skills"),
 		Engine: agentexec.Config{
 			BuildID:      buildID,
 			ChatClient:   client,
@@ -38,7 +38,7 @@ func ComposeConfig(cfg config.Settings, stores *persistence.Bundle, client *chat
 		LSPServers:             codeintelServers(cfg.LSPServers),
 		SandboxShell:           cfg.SandboxShell,
 		SandboxReadOnlyPaths:   cfg.SandboxReadOnlyPaths,
-		SandboxDir:             filepath.Join(stores.Home, "sandbox"),
+		SandboxDir:             filepath.Join(stores.DataDirectory, "sandbox"),
 		SessionStore:           stores.Session,
 		RunStore:               stores.Runs,
 		ExecutorCheckpoints:    stores.ExecutorCheckpoints,
@@ -55,8 +55,8 @@ func ComposeConfig(cfg config.Settings, stores *persistence.Bundle, client *chat
 		Model:                  cfg.Model,
 		HooksResolver:          hooks,
 		HookTrustStore:         stores.Trust,
-		RecipesGlobalDir:       filepath.Join(stores.Home, "recipes"),
-		CheckpointDir:          filepath.Join(stores.Home, "checkpoints"),
+		RecipesGlobalDir:       filepath.Join(stores.DataDirectory, "recipes"),
+		CheckpointDir:          filepath.Join(stores.DataDirectory, "checkpoints"),
 		ScheduleStore:          stores.Schedules,
 		EmbeddingRoleStore:     stores.EmbeddingRole,
 		CodebaseStore:          stores.Codebase,

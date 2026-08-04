@@ -16,7 +16,6 @@ package sandbox
 import (
 	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
 )
 
@@ -52,15 +51,19 @@ type Confiner struct {
 // asked for confinement is refused at construction rather than silently running
 // unconfined. Resolving a non-existent read-only path is likewise an error: an
 // unreachable entry in a security policy is a configuration mistake.
-func NewConfiner(readOnlyPaths []string) (*Confiner, error) {
+func NewConfiner(userHome string, readOnlyPaths []string) (*Confiner, error) {
 	if err := checkBackend(); err != nil {
+		return nil, err
+	}
+	hidden, err := resolveHiddenHome(userHome)
+	if err != nil {
 		return nil, err
 	}
 	readable, err := resolveReadOnlyPaths(readOnlyPaths)
 	if err != nil {
 		return nil, err
 	}
-	return &Confiner{readOnlyPaths: readable, hiddenPaths: hiddenHomePaths()}, nil
+	return &Confiner{readOnlyPaths: readable, hiddenPaths: []string{hidden}}, nil
 }
 
 // Confine returns command as a [Command] jailed to root: root is its only
@@ -87,11 +90,10 @@ func resolveReadOnlyPaths(in []string) ([]string, error) {
 		if value == "" {
 			continue
 		}
-		absolute, err := filepath.Abs(value)
-		if err != nil {
-			return nil, fmt.Errorf("sandbox: resolve read-only path %q: %w", value, err)
+		if !filepath.IsAbs(value) {
+			return nil, fmt.Errorf("sandbox: read-only path %q must be absolute", value)
 		}
-		realPath, err := filepath.EvalSymlinks(absolute)
+		realPath, err := filepath.EvalSymlinks(value)
 		if err != nil {
 			return nil, fmt.Errorf("sandbox: resolve read-only path %q: %w", value, err)
 		}
@@ -100,14 +102,16 @@ func resolveReadOnlyPaths(in []string) ([]string, error) {
 	return paths, nil
 }
 
-// hiddenHomePaths returns the resolved real home directory to hide from reads,
-// or nil when it can't be resolved (non-fatal: the environment is scrubbed and
-// $HOME re-pointed at the workspace regardless).
-func hiddenHomePaths() []string {
-	if home, err := os.UserHomeDir(); err == nil && home != "" {
-		if realHome, err := filepath.EvalSymlinks(home); err == nil {
-			return []string{realHome}
-		}
+func resolveHiddenHome(userHome string) (string, error) {
+	if userHome == "" {
+		return "", errors.New("sandbox: user home is required")
 	}
-	return nil
+	if !filepath.IsAbs(userHome) {
+		return "", errors.New("sandbox: user home must be absolute")
+	}
+	realHome, err := filepath.EvalSymlinks(userHome)
+	if err != nil {
+		return "", fmt.Errorf("sandbox: resolve user home %q: %w", userHome, err)
+	}
+	return realHome, nil
 }

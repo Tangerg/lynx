@@ -18,7 +18,7 @@ func TestLaunchSandboxConfinesWrites(t *testing.T) {
 	workspace := t.TempDir()
 	outside := filepath.Join(t.TempDir(), "outside.txt")
 
-	confiner, err := sandbox.NewConfiner(nil)
+	confiner, err := sandbox.NewConfiner(t.TempDir(), nil)
 	if err != nil {
 		t.Fatalf("new confiner: %v", err)
 	}
@@ -64,7 +64,7 @@ func TestLaunchIsolatedJailsWithoutGlobalFlag(t *testing.T) {
 	workspace := t.TempDir()
 	outside := filepath.Join(t.TempDir(), "out.txt")
 
-	confiner, err := sandbox.NewConfiner(nil)
+	confiner, err := sandbox.NewConfiner(t.TempDir(), nil)
 	if err != nil {
 		t.Fatalf("new confiner: %v", err)
 	}

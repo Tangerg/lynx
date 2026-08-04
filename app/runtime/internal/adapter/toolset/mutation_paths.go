@@ -44,7 +44,11 @@ func resolvedMutationPaths(tool toolcontract.Tool, arguments, workdir string) ([
 		return nil, err
 	}
 	for i, path := range paths {
-		paths[i] = pathidentity.Canonical(workdir, path)
+		resolved, err := pathidentity.Canonical(workdir, path)
+		if err != nil {
+			return nil, err
+		}
+		paths[i] = resolved
 	}
 	return cleanPathList(paths), nil
 }

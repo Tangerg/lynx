@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
 
 	toolcontract "github.com/Tangerg/lynx/tool"
 
@@ -37,6 +38,7 @@ import (
 // scope + the capability tables). Driven by the runtime config.
 type BuildConfig struct {
 	Workdir       string
+	UserHome      string
 	DefaultModel  modelref.Selection
 	SkillsUserDir string
 	Online        OnlineConfig
@@ -94,6 +96,18 @@ type Built struct {
 // their dedicated adapter before this function and supplied as an initial tool
 // snapshot; this package owns only the local and A2A capability lifecycle.
 func Build(ctx context.Context, config BuildConfig) (_ Built, err error) {
+	if config.Workdir == "" {
+		return Built{}, errors.New("toolset: workdir is required")
+	}
+	if !filepath.IsAbs(config.Workdir) {
+		return Built{}, errors.New("toolset: workdir must be absolute")
+	}
+	if config.UserHome == "" {
+		return Built{}, errors.New("toolset: user home is required")
+	}
+	if !filepath.IsAbs(config.UserHome) {
+		return Built{}, errors.New("toolset: user home must be absolute")
+	}
 	online, err := buildOnline(config.Online)
 	if err != nil {
 		return Built{}, err
@@ -114,7 +128,7 @@ func Build(ctx context.Context, config BuildConfig) (_ Built, err error) {
 	// host supports it — isolated sessions jail their shell even when the global
 	// sandbox.shell opt-in is off. If the global opt-in IS on but the host has no
 	// backend, that is a hard, fail-closed configuration error (refuse assembly).
-	confiner, confErr := sandbox.NewConfiner(config.SandboxReadOnlyPaths)
+	confiner, confErr := sandbox.NewConfiner(config.UserHome, config.SandboxReadOnlyPaths)
 	if confErr != nil && config.SandboxShell {
 		return Built{}, fmt.Errorf("toolset: enable shell sandbox: %w", confErr)
 	}

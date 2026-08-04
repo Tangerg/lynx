@@ -86,7 +86,7 @@ func TestEngine_TaskDelegationInheritsPerRunModelAndProvider(t *testing.T) {
 	defaultClient, _ := chatclient.New(newNamedStub("default-model"), chatclient.Config{})
 	selectedModel := newDelegatingAccountingStub("selected-model", chat.Usage{InputTokens: 1, OutputTokens: 1})
 	selectedClient, _ := chatclient.New(selectedModel, chatclient.Config{})
-	built, err := toolset.Build(t.Context(), toolset.BuildConfig{})
+	built, err := toolset.Build(t.Context(), testToolsetBuildConfig(t, toolset.BuildConfig{}))
 	if err != nil {
 		t.Fatalf("toolset.Build: %v", err)
 	}
@@ -171,7 +171,7 @@ func TestEngine_TaskDelegationDoesNotStartChildAfterTokenBudgetIsSpent(t *testin
 func TestEngine_TaskDelegationDoesNotStartChildAfterCostBudgetIsSpent(t *testing.T) {
 	model := newDelegatingAccountingStub("cost-model", chat.Usage{InputTokens: 1, OutputTokens: 1})
 	client, _ := chatclient.New(model, chatclient.Config{})
-	built, err := toolset.Build(t.Context(), toolset.BuildConfig{})
+	built, err := toolset.Build(t.Context(), testToolsetBuildConfig(t, toolset.BuildConfig{}))
 	if err != nil {
 		t.Fatalf("toolset.Build: %v", err)
 	}

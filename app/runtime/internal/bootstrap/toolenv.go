@@ -52,6 +52,7 @@ func buildToolEnvironment(
 	}
 	bc := toolset.BuildConfig{
 		Workdir:         ecfg.Workdir,
+		UserHome:        ecfg.UserHome,
 		DefaultModel:    defaultModel,
 		SkillsUserDir:   cfg.SkillsUserDir,
 		Online:          cfg.Online,

@@ -21,32 +21,38 @@ const memoryFileName = "LYRA.md"
 //   - <dir>/LYRA.md    — project scope (per-repo knowledge); dir is
 //     supplied per call (a session's cwd), so one store serves
 //     every project
-//   - <home>/LYRA.md   — user scope    (cross-project preferences)
+//   - <data-dir>/LYRA.md — user scope (cross-project preferences)
 //
 // Files are created lazily on first Update; Get returns "" until that point.
 // Concurrent protocol-level updates are serialized with last-write-wins
 // semantics. Agent extraction never writes these human-owned files.
 type FileKnowledgeStore struct {
-	defaultDir string // fallback project dir for calls without one; empty if unavailable
-	home       string // resolved from storage.Home()
+	defaultProjectDirectory string
+	userScopeDirectory      string
 
 	mu sync.Mutex // protects the file writes (paths differ but a single mutex is plenty for this volume)
 }
 
-// NewFileKnowledgeStore captures the process working directory (the
-// per-call fallback project dir) and the storage home. Callers with a
-// session in hand pass that session's cwd per call instead.
-func NewFileKnowledgeStore() (*FileKnowledgeStore, error) {
-	cwd, err := os.Getwd()
-	if err != nil {
-		// Non-fatal: the default project scope simply stays unavailable.
-		cwd = ""
+// NewFileKnowledgeStore binds both filesystem roots explicitly. Process path
+// discovery belongs to the executable composition root; this adapter only maps
+// knowledge scopes onto the paths it was given.
+func NewFileKnowledgeStore(userScopeDirectory, defaultProjectDirectory string) (*FileKnowledgeStore, error) {
+	if userScopeDirectory == "" {
+		return nil, errors.New("memory store: user scope directory is required")
 	}
-	home, err := Home()
-	if err != nil {
-		return nil, fmt.Errorf("memory store: %w", err)
+	if !filepath.IsAbs(userScopeDirectory) {
+		return nil, errors.New("memory store: user scope directory must be absolute")
 	}
-	return &FileKnowledgeStore{defaultDir: cwd, home: home}, nil
+	if defaultProjectDirectory == "" {
+		return nil, errors.New("memory store: default project directory is required")
+	}
+	if !filepath.IsAbs(defaultProjectDirectory) {
+		return nil, errors.New("memory store: default project directory must be absolute")
+	}
+	return &FileKnowledgeStore{
+		defaultProjectDirectory: defaultProjectDirectory,
+		userScopeDirectory:      userScopeDirectory,
+	}, nil
 }
 
 // pathFor maps a (scope, dir) pair to its absolute filesystem path.
@@ -57,14 +63,14 @@ func (s *FileKnowledgeStore) pathFor(scope knowledge.Scope, dir string) (string,
 	switch scope {
 	case knowledge.ScopeProject:
 		if dir == "" {
-			dir = s.defaultDir
+			dir = s.defaultProjectDirectory
 		}
-		if dir == "" {
-			return "", nil
+		if !filepath.IsAbs(dir) {
+			return "", errors.New("project directory must be absolute")
 		}
 		return filepath.Join(dir, memoryFileName), nil
 	case knowledge.ScopeUser:
-		return filepath.Join(s.home, memoryFileName), nil
+		return filepath.Join(s.userScopeDirectory, memoryFileName), nil
 	default:
 		return "", scope.Validate()
 	}
@@ -103,9 +109,9 @@ func (s *FileKnowledgeStore) Update(_ context.Context, scope knowledge.Scope, di
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	// Ensure the parent dir exists (user scope's parent is LYRA_HOME
-	// which Home() already created; project scope's cwd we assume
-	// the user has).
+	// Ensure the parent directory exists. The persistence bundle creates the
+	// process data directory eagerly; a project directory can be supplied later
+	// by a Session and therefore remains a per-write responsibility here.
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return fmt.Errorf("memory store: mkdir: %w", err)
 	}

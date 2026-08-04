@@ -115,3 +115,12 @@ func TestProjectRoot_FindsGitAncestor(t *testing.T) {
 		t.Errorf("ProjectRoot(%q) = %q, want %q", sub, got, root)
 	}
 }
+
+func TestLoadRequiresAbsoluteCompositionPaths(t *testing.T) {
+	if _, err := Load(t.Context(), "relative-workspace", ""); err == nil {
+		t.Fatal("Load accepted a relative cwd")
+	}
+	if _, err := Load(t.Context(), t.TempDir(), "relative-home"); err == nil {
+		t.Fatal("Load accepted a relative home")
+	}
+}

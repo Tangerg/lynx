@@ -151,7 +151,8 @@ func TestRecoveryRejectsPartialParkWithoutMutatingIt(t *testing.T) {
 	}
 	question := &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Continue?"}}}
 	interrupt := transcript.Interrupt{
-		ItemID: "item_missing", RunID: "run_partial", Kind: execution.QuestionInterrupt, Question: question,
+		ItemID: "item_missing", ItemOccurredAt: createdAt.Add(time.Second),
+		RunID: "run_partial", Kind: execution.QuestionInterrupt, Question: question,
 	}
 	if err := runStore.Suspend(ctx, transcript.Run{
 		ID: "run_partial", SessionID: "session", State: execution.Interrupted,

@@ -33,7 +33,7 @@ func TestConfinerJailsInPlace(t *testing.T) {
 	t.Setenv("HOME", home)
 	t.Setenv("LYRA_SANDBOX_SECRET", "must-not-leak")
 
-	confiner, err := NewConfiner(nil)
+	confiner, err := NewConfiner(home, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -68,11 +68,23 @@ func TestConfinerJailsInPlace(t *testing.T) {
 }
 
 func TestConfineRejectsEmptyCommand(t *testing.T) {
-	confiner, err := NewConfiner(nil)
+	confiner, err := NewConfiner(t.TempDir(), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if _, err := confiner.Confine(t.TempDir(), ""); err == nil {
 		t.Fatal("expected an error for an empty command")
+	}
+}
+
+func TestNewConfinerRequiresExplicitAbsoluteHostPaths(t *testing.T) {
+	if _, err := NewConfiner("", nil); err == nil {
+		t.Fatal("NewConfiner accepted an empty user home")
+	}
+	if _, err := NewConfiner("relative-home", nil); err == nil {
+		t.Fatal("NewConfiner accepted a relative user home")
+	}
+	if _, err := NewConfiner(t.TempDir(), []string{"relative-cache"}); err == nil {
+		t.Fatal("NewConfiner accepted a relative read-only path")
 	}
 }

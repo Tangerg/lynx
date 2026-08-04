@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"crypto/subtle"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -25,16 +26,15 @@ type LocalToken struct {
 	Path  string
 }
 
-// IssueLocalToken generates a fresh 32-byte token, base64-encodes it,
-// and writes it to path with mode 0600 (parent dir 0700). When path
-// is empty it defaults to $HOME/.lyra/local-token.
+// IssueLocalToken generates a fresh 32-byte token, base64-encodes it, and writes
+// it to path with mode 0600 (parent dir 0700). The executable supplies the
+// process-owned data path; Transport never discovers host directories.
 func IssueLocalToken(path string) (*LocalToken, error) {
 	if path == "" {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return nil, fmt.Errorf("local token: locate home dir: %w", err)
-		}
-		path = filepath.Join(home, ".lyra", "local-token")
+		return nil, errors.New("local token: path is required")
+	}
+	if !filepath.IsAbs(path) {
+		return nil, errors.New("local token: path must be absolute")
 	}
 
 	buf := make([]byte, 32)

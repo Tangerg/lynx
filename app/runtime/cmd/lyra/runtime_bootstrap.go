@@ -5,19 +5,22 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/persistence"
 	"github.com/Tangerg/lynx/app/runtime/internal/bootstrap"
 	"github.com/Tangerg/lynx/app/runtime/internal/config"
 )
 
-// runtimePaths is the process composition root's single snapshot of the host
-// paths shared by Bootstrap and Delivery. The default workspace is a product
-// choice; it currently starts at the user's home, but remains named separately
-// so consumers do not confuse that choice with home-scoped configuration.
+// runtimePaths is the executable's single snapshot of host paths. User Home,
+// default workspace, durable data, and launch directory are distinct facts even
+// when defaults make some of them descendants or aliases; inner runtime rings
+// consume these values and never rediscover them.
 type runtimePaths struct {
 	userHome             string
 	defaultWorkspacePath string
+	dataDirectory        string
+	launchDirectory      string
 }
 
 func resolveRuntimePaths() (runtimePaths, error) {
@@ -25,9 +28,31 @@ func resolveRuntimePaths() (runtimePaths, error) {
 	if err != nil {
 		return runtimePaths{}, fmt.Errorf("runtime: locate user home: %w", err)
 	}
+	if userHome == "" {
+		return runtimePaths{}, errors.New("runtime: user home is unavailable")
+	}
+	if !filepath.IsAbs(userHome) {
+		return runtimePaths{}, errors.New("runtime: user home must be absolute")
+	}
+	userHome = filepath.Clean(userHome)
+	launchDirectory, err := os.Getwd()
+	if err != nil {
+		return runtimePaths{}, fmt.Errorf("runtime: locate launch directory: %w", err)
+	}
+	if !filepath.IsAbs(launchDirectory) {
+		return runtimePaths{}, errors.New("runtime: launch directory must be absolute")
+	}
+	dataDirectory := os.Getenv("LYRA_HOME")
+	if dataDirectory == "" {
+		dataDirectory = filepath.Join(userHome, ".lyra")
+	} else if !filepath.IsAbs(dataDirectory) {
+		return runtimePaths{}, errors.New("runtime: LYRA_HOME must be an absolute path")
+	}
 	return runtimePaths{
 		userHome:             userHome,
 		defaultWorkspacePath: userHome,
+		dataDirectory:        filepath.Clean(dataDirectory),
+		launchDirectory:      filepath.Clean(launchDirectory),
 	}, nil
 }
 
@@ -47,7 +72,10 @@ func bootstrapRuntimeWithBuildID(ctx context.Context, paths runtimePaths, buildI
 	if err != nil {
 		return nil, config.Settings{}, err
 	}
-	cfg, err := bootstrap.LoadConfig()
+	cfg, err := bootstrap.LoadConfig([]string{
+		filepath.Join(paths.launchDirectory, "config"),
+		paths.dataDirectory,
+	})
 	if err != nil {
 		return nil, config.Settings{}, err
 	}
@@ -56,7 +84,10 @@ func bootstrapRuntimeWithBuildID(ctx context.Context, paths runtimePaths, buildI
 		return nil, config.Settings{}, err
 	}
 
-	stores, err := persistence.Open()
+	stores, err := persistence.Open(persistence.Config{
+		DataDirectory:        paths.dataDirectory,
+		DefaultWorkspacePath: paths.defaultWorkspacePath,
+	})
 	if err != nil {
 		return nil, config.Settings{}, err
 	}

@@ -3,11 +3,50 @@ package persistence
 import (
 	"context"
 	"errors"
+	"os"
 	"path/filepath"
 	"testing"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/knowledge"
 	sqlitestore "github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 )
+
+func TestOpenRequiresAndUsesExplicitProcessPaths(t *testing.T) {
+	if _, err := Open(Config{DefaultWorkspacePath: t.TempDir()}); err == nil {
+		t.Fatal("Open accepted an empty data directory")
+	}
+	if _, err := Open(Config{DataDirectory: t.TempDir()}); err == nil {
+		t.Fatal("Open accepted an empty default workspace path")
+	}
+	if _, err := Open(Config{DataDirectory: "relative-data", DefaultWorkspacePath: t.TempDir()}); err == nil {
+		t.Fatal("Open accepted a relative data directory")
+	}
+	if _, err := Open(Config{DataDirectory: t.TempDir(), DefaultWorkspacePath: "relative-workspace"}); err == nil {
+		t.Fatal("Open accepted a relative default workspace path")
+	}
+
+	dataDirectory := filepath.Join(t.TempDir(), "data")
+	defaultWorkspace := t.TempDir()
+	bundle, err := Open(Config{
+		DataDirectory: dataDirectory, DefaultWorkspacePath: defaultWorkspace,
+	})
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	t.Cleanup(func() { _ = bundle.Close() })
+	if bundle.DataDirectory != dataDirectory {
+		t.Fatalf("DataDirectory = %q, want %q", bundle.DataDirectory, dataDirectory)
+	}
+	if _, err := os.Stat(filepath.Join(dataDirectory, "lyra.db")); err != nil {
+		t.Fatalf("data directory does not own lyra.db: %v", err)
+	}
+	if err := bundle.Memory.Update(t.Context(), knowledge.ScopeProject, "", "project"); err != nil {
+		t.Fatalf("write default project knowledge: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(defaultWorkspace, "LYRA.md")); err != nil {
+		t.Fatalf("default workspace does not own project knowledge: %v", err)
+	}
+}
 
 func TestBundleCloseIsIdempotent(t *testing.T) {
 	db, err := sqlitestore.Open(filepath.Join(t.TempDir(), "lyra.db"))

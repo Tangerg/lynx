@@ -22,10 +22,10 @@ const (
 )
 
 func archiveTree(ctx context.Context, root string) ([]byte, error) {
-	root, err := filepath.Abs(root)
-	if err != nil {
-		return nil, fmt.Errorf("resolve root: %w", err)
+	if !filepath.IsAbs(root) {
+		return nil, errors.New("archive root must be absolute")
 	}
+	root = filepath.Clean(root)
 	info, err := os.Stat(root)
 	if err != nil {
 		return nil, fmt.Errorf("stat root: %w", err)

@@ -131,6 +131,7 @@ func TestRootResolverIncludesConfiguredConditionalTools(t *testing.T) {
 	}
 	built, err := Build(t.Context(), BuildConfig{
 		Workdir:  t.TempDir(),
+		UserHome: t.TempDir(),
 		PlanMode: policy,
 		Plan:     rolePlanStore{},
 		Goals:    activeGoalState{},
@@ -180,6 +181,7 @@ func TestSafetyTableMatchesBuiltInTools(t *testing.T) {
 	}
 	built, err := Build(t.Context(), BuildConfig{
 		Workdir:        t.TempDir(),
+		UserHome:       t.TempDir(),
 		SkillsUserDir:  t.TempDir(), // backs skill
 		PlanMode:       policy,
 		Plan:           rolePlanStore{},

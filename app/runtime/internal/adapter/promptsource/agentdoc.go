@@ -37,6 +37,12 @@ func DiscoverAgentDocs(ctx context.Context, cwd, home string) ([]workspaceapp.Ag
 	if cwd == "" {
 		return nil, errors.New("promptsource: cwd is required")
 	}
+	if !filepath.IsAbs(cwd) {
+		return nil, errors.New("promptsource: cwd must be absolute")
+	}
+	if home != "" && !filepath.IsAbs(home) {
+		return nil, errors.New("promptsource: home must be absolute")
+	}
 	cwd = filepath.Clean(cwd)
 
 	d := &agentDocScan{seen: make(map[string]struct{})}
@@ -93,10 +99,7 @@ func (d *agentDocScan) try(ctx context.Context, path string) error {
 	if path == "" {
 		return nil
 	}
-	abs, err := filepath.Abs(path)
-	if err != nil {
-		return nil
-	}
+	abs := filepath.Clean(path)
 	if _, dup := d.seen[abs]; dup {
 		return nil
 	}
