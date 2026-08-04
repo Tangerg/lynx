@@ -38,10 +38,21 @@ interface AppSearch {
   settings?: string;
 }
 
-// A hand-typed or stale URL is input like any other: anything that isn't a
-// non-empty string is not a location, it's noise, and becomes absent.
-function param(value: unknown): string | undefined {
-  return typeof value === "string" && value.length > 0 ? value : undefined;
+// ONE parser, used by both readers below — the route's `validateSearch` and the
+// Navigator were each free to read the URL their own way, which is two answers
+// to "where am I" in the same file. A hand-typed or stale URL is input like any
+// other: anything that isn't a non-empty string is not a location, it's noise.
+function locationFrom(read: (key: string) => unknown): AppLocation {
+  const param = (key: string): string | null => {
+    const value = read(key);
+    return typeof value === "string" && value.length > 0 ? value : null;
+  };
+  return {
+    session: param("session") ?? "",
+    view: param("view"),
+    dock: param("dock"),
+    settings: param("settings"),
+  };
 }
 
 // The location lives in the URL, and the URL is owned by ONE history instance —
@@ -56,20 +67,23 @@ const history = createBrowserHistory();
 
 function readLocation(): AppLocation {
   const params = new URLSearchParams(history.location.search);
+  return locationFrom((key) => params.get(key));
+}
+
+function searchOf(location: AppLocation): AppSearch {
   return {
-    session: params.get("session") ?? "",
-    view: params.get("view") || null,
-    dock: params.get("dock") || null,
-    settings: params.get("settings") || null,
+    session: location.session || undefined,
+    view: location.view ?? undefined,
+    dock: location.dock ?? undefined,
+    settings: location.settings ?? undefined,
   };
 }
 
 function hrefOf(location: AppLocation): string {
   const params = new URLSearchParams();
-  if (location.session) params.set("session", location.session);
-  if (location.view) params.set("view", location.view);
-  if (location.dock) params.set("dock", location.dock);
-  if (location.settings) params.set("settings", location.settings);
+  for (const [key, value] of Object.entries(searchOf(location))) {
+    if (value !== undefined) params.set(key, value);
+  }
   const query = params.toString();
   return query ? `${history.location.pathname}?${query}` : history.location.pathname;
 }
@@ -108,12 +122,11 @@ const historyNavigator: Navigator = {
 configureNavigator(historyNavigator);
 
 const rootRoute = createRootRoute({
-  validateSearch: (search: Record<string, unknown>): AppSearch => ({
-    session: param(search.session),
-    view: param(search.view),
-    dock: param(search.dock),
-    settings: param(search.settings),
-  }),
+  // Declared here so every plugin route inherits it, and derived from the same
+  // parser the Navigator reads with, so the route can never disagree about what
+  // the URL says.
+  validateSearch: (search: Record<string, unknown>): AppSearch =>
+    searchOf(locationFrom((key) => search[key])),
   component: () => <Outlet />,
 });
 

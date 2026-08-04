@@ -38,6 +38,7 @@
   1. **插件系统**：一个开放扩展点底座 —— 每个贡献面是一个 typed ExtensionPoint，所有贡献（内置与第三方）走同一条 `contribute` 写路径、selector 读路径。Host 上只留少量薄 facade + 命令式动作。
   2. **协议 fold 层**：reducer 是**纯派发器**，把 wire 的 StreamEvent 路由到注册的 handler chain；所有协议语义（Item→message/block 投影、HITL）都在 agent 插件里（handlers 派发 / projections 纯映射 / fold 有状态折叠）。wire 层独立于 fold 层。
   3. **状态分层**：几个小 Zustand store 各司其职（每会话 ephemeral / tab·draft / UI 偏好 / 握手能力 / 后台任务 / 编辑器），无 context 链。store schema 变了 bump `version` 丢旧数据，不写 migration。
+     - **但"我此刻在哪"不归 store —— 归 URL**：session / 主视图 / dock 目标 / settings 面板四个标量住在路由的 search param（`lib/navigation` 的 Navigator port），所以历史里有它们、前进后退成立。**store 拥有"我在各处存了什么"**（打开的 tab 集、每个视图的局部状态、跨启动的连续性）。转场时**记忆去种 URL，永不反向同步**；同一个标量绝不留第二份副本。曾经的 `selectionEpoch` 与 `dockOpen` 就是这条规则缺席时长出来的（两个 store 表达不了"一次移动"、一个旗标能和它所显示的视图自相矛盾）。
 - **结构细节**（目录树 / 各模块职责 / composition root）见 `frontend/ARCHITECTURE.md`。Go 侧只是 Wails 壳、不内嵌 runtime；前端经 HTTP 连外部 Lyra Runtime。
 
 ---
