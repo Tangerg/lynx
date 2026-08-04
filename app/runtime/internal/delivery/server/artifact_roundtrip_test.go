@@ -467,7 +467,7 @@ func seedEveryItemKind(t *testing.T, rt *stubRuntime, sessionID string) {
 			Status: transcript.ItemCompleted, OccurredAt: time.Unix(2, 0).UTC(),
 			Content: []transcript.ContentBlock{
 				{Kind: transcript.TextContent, Text: "do everything"},
-				{Kind: transcript.ImageContent, Mime: "image/png", Data: "aGVsbG8="},
+				{Kind: transcript.ImageContent, MediaType: "image/png", Bytes: []byte("hello")},
 			},
 		},
 		{

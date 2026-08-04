@@ -24,6 +24,22 @@ func TestSequenceOrderIsAClosedVocabulary(t *testing.T) {
 	}
 }
 
+func TestCloneContentOwnsImageBytes(t *testing.T) {
+	original := []transcript.ContentBlock{{
+		Kind: transcript.ImageContent, MediaType: "image/png", Bytes: []byte{1, 2, 3},
+	}}
+	cloned := transcript.CloneContent(original)
+
+	cloned[0].Bytes[0] = 9
+	if original[0].Bytes[0] != 1 {
+		t.Fatalf("CloneContent shares image storage: original bytes = %v", original[0].Bytes)
+	}
+	original[0].Bytes[1] = 8
+	if cloned[0].Bytes[1] != 2 {
+		t.Fatalf("CloneContent is not ownership-isolated: cloned bytes = %v", cloned[0].Bytes)
+	}
+}
+
 func TestItemValidateOwnsPayloadInvariants(t *testing.T) {
 	tests := []struct {
 		name    string

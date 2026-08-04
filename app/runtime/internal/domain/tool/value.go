@@ -142,7 +142,7 @@ func ParseResult(data []byte) (Result, error) {
 // Any returns a recursively ownership-isolated wire or presentation value.
 func (r Result) Any() any {
 	var value any
-	if err := decodeValue([]byte(r.canonical()), &value); err != nil {
+	if err := decodeValue([]byte(r.Canonical()), &value); err != nil {
 		panic(fmt.Sprintf("tool: corrupt Result invariant: %v", err))
 	}
 	return value
@@ -151,20 +151,21 @@ func (r Result) Any() any {
 // String returns the contained string and whether this result is textual.
 func (r Result) String() (string, bool) {
 	var value string
-	if err := json.Unmarshal([]byte(r.canonical()), &value); err != nil {
+	if err := json.Unmarshal([]byte(r.Canonical()), &value); err != nil {
 		return "", false
 	}
 	return value, true
 }
 
-func (r Result) canonical() string {
+// Canonical returns the stable JSON spelling used for persistence and cache identity.
+func (r Result) Canonical() string {
 	if r.raw == "" {
 		return "null"
 	}
 	return r.raw
 }
 
-func (r Result) MarshalJSON() ([]byte, error) { return []byte(r.canonical()), nil }
+func (r Result) MarshalJSON() ([]byte, error) { return []byte(r.Canonical()), nil }
 
 func (r *Result) UnmarshalJSON(data []byte) error {
 	if r == nil {

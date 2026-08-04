@@ -194,7 +194,7 @@ func TestController_InjectSteering_PreservesStructuredContent(t *testing.T) {
 	// starting turn 2 — the steering flushes after the turn returns.
 	if err := controller.InjectSteering(context.Background(), handle, []transcript.ContentBlock{
 		{Kind: transcript.TextContent, Text: "also keep responses short"},
-		{Kind: transcript.ImageContent, Mime: "image/png", Data: "aW1hZ2U="},
+		{Kind: transcript.ImageContent, MediaType: "image/png", Bytes: []byte("image")},
 	}); err != nil {
 		t.Fatalf("InjectSteering: %v", err)
 	}

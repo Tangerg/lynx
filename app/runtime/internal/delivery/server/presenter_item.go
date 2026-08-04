@@ -79,16 +79,11 @@ func presentItemKind(kind transcript.ItemKind) protocol.ItemType {
 }
 
 func presentContent(block transcript.ContentBlock) protocol.ContentBlock {
-	var kind protocol.ContentBlockType
-	switch block.Kind {
-	case transcript.TextContent:
-		kind = protocol.ContentBlockText
-	case transcript.ImageContent:
-		kind = protocol.ContentBlockImage
-	default:
-		panic("server: unknown transcript content kind")
+	encoded, err := encodeContent(block)
+	if err != nil {
+		panic("server: " + err.Error())
 	}
-	return protocol.ContentBlock{Type: kind, Text: block.Text, Mime: block.Mime, Data: block.Data}
+	return protocol.ContentBlock{Type: encoded.kind, Text: encoded.text, Mime: encoded.mime, Data: encoded.data}
 }
 
 func presentQuestion(question transcript.Question) protocol.Question {

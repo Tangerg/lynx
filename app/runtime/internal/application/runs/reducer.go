@@ -132,7 +132,7 @@ func newReducer(cfg reducerConfig) *reducer {
 		resume = resumeBindingFrom(*cfg.Continuation, cfg.RunID)
 	}
 	return &reducer{
-		cfg: cfg, resume: resume, userInput: cfg.UserInput, step: cfg.Metrics.Steps,
+		cfg: cfg, resume: resume, userInput: transcript.CloneContent(cfg.UserInput), step: cfg.Metrics.Steps,
 		tools: make(openTools),
 	}
 }

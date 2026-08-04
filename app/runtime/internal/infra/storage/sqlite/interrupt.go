@@ -14,6 +14,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
 
 // InterruptStore is the SQLite-backed registry of root-owned pending interrupt
@@ -32,11 +33,27 @@ type drainedToolRow struct {
 }
 
 type committedToolRow struct {
-	ItemID    string             `json:"itemId"`
-	CallID    string             `json:"callId"`
-	Name      string             `json:"name"`
-	Arguments string             `json:"arguments"`
-	Problem   transcript.Problem `json:"problem"`
+	ItemID    string         `json:"itemId"`
+	CallID    string         `json:"callId"`
+	Name      string         `json:"name"`
+	Arguments string         `json:"arguments"`
+	Problem   problemPayload `json:"problem"`
+}
+
+type interruptPayload struct {
+	ItemID         string           `json:"itemId"`
+	ItemOccurredAt int64            `json:"itemOccurredAt"`
+	RunID          string           `json:"runId"`
+	Kind           string           `json:"kind"`
+	Approval       *approvalPayload `json:"approval,omitempty"`
+	Question       *questionPayload `json:"question,omitempty"`
+}
+
+type approvalPayload struct {
+	Tool         toolInvocationPayload `json:"tool"`
+	Risk         string                `json:"risk,omitempty"`
+	Reason       string                `json:"reason,omitempty"`
+	Rememberable bool                  `json:"rememberable,omitempty"`
 }
 
 type continuationRow struct {
@@ -73,11 +90,19 @@ func (s *InterruptStore) Open(ctx context.Context, p interrupts.Pending) error {
 		return fmt.Errorf("sqlite: open interrupt: %w", err)
 	}
 	root, _ := p.RootContinuation()
-	payload, err := json.Marshal(p.Interrupts)
+	interrupts, err := interruptPayloads(p.Interrupts)
 	if err != nil {
 		return fmt.Errorf("sqlite: encode interrupts: %w", err)
 	}
-	continuations, err := json.Marshal(continuationRows(p.Continuations))
+	payload, err := json.Marshal(interrupts)
+	if err != nil {
+		return fmt.Errorf("sqlite: encode interrupts: %w", err)
+	}
+	continuationValues, err := continuationRows(p.Continuations)
+	if err != nil {
+		return fmt.Errorf("sqlite: encode interrupt continuations: %w", err)
+	}
+	continuations, err := json.Marshal(continuationValues)
 	if err != nil {
 		return fmt.Errorf("sqlite: encode interrupt continuations: %w", err)
 	}
@@ -336,11 +361,11 @@ func decodeInterrupts(payload string) ([]transcript.Interrupt, error) {
 	if payload == "" {
 		return nil, nil
 	}
-	var out []transcript.Interrupt
-	if err := decodeInterruptJSON(payload, &out); err != nil {
+	var rows []interruptPayload
+	if err := decodeInterruptJSON(payload, &rows); err != nil {
 		return nil, err
 	}
-	return out, nil
+	return interruptsFromPayloads(rows)
 }
 
 func decodeInterruptJSON(encoded string, target any) error {
@@ -381,37 +406,49 @@ func drainedToolsFromRows(rows []drainedToolRow) []interrupts.DrainedTool {
 	return tools
 }
 
-func committedToolRows(tools []interrupts.CommittedTool) []committedToolRow {
+func committedToolRows(tools []interrupts.CommittedTool) ([]committedToolRow, error) {
 	rows := make([]committedToolRow, len(tools))
-	for index, tool := range tools {
+	for index, committed := range tools {
+		problem, err := encodeProblemPayload(committed.Problem)
+		if err != nil {
+			return nil, fmt.Errorf("committed tool[%d] problem: %w", index, err)
+		}
 		rows[index] = committedToolRow{
-			ItemID:    tool.ItemID,
-			CallID:    tool.CallID,
-			Name:      tool.Name,
-			Arguments: tool.Arguments,
-			Problem:   tool.Problem,
+			ItemID:    committed.ItemID,
+			CallID:    committed.CallID,
+			Name:      committed.Name,
+			Arguments: committed.Arguments,
+			Problem:   problem,
 		}
 	}
-	return rows
+	return rows, nil
 }
 
-func committedToolsFromRows(rows []committedToolRow) []interrupts.CommittedTool {
+func committedToolsFromRows(rows []committedToolRow) ([]interrupts.CommittedTool, error) {
 	tools := make([]interrupts.CommittedTool, len(rows))
 	for index, row := range rows {
+		problem, err := decodeProblemPayload(row.Problem)
+		if err != nil {
+			return nil, fmt.Errorf("committed tool[%d] problem: %w", index, err)
+		}
 		tools[index] = interrupts.CommittedTool{
 			ItemID:    row.ItemID,
 			CallID:    row.CallID,
 			Name:      row.Name,
 			Arguments: row.Arguments,
-			Problem:   row.Problem,
+			Problem:   problem,
 		}
 	}
-	return tools
+	return tools, nil
 }
 
-func continuationRows(values []interrupts.Continuation) []continuationRow {
+func continuationRows(values []interrupts.Continuation) ([]continuationRow, error) {
 	rows := make([]continuationRow, len(values))
 	for index, value := range values {
+		committedTools, err := committedToolRows(value.CommittedTools)
+		if err != nil {
+			return nil, fmt.Errorf("continuation[%d]: %w", index, err)
+		}
 		rows[index] = continuationRow{
 			RunID:           value.RunID,
 			ProcessID:       value.ProcessID,
@@ -421,12 +458,12 @@ func continuationRows(values []interrupts.Continuation) []continuationRow {
 			Provider:        value.ModelSelection.Provider(),
 			Model:           value.ModelSelection.Model(),
 			DrainedTools:    drainedToolRows(value.DrainedTools),
-			CommittedTools:  committedToolRows(value.CommittedTools),
+			CommittedTools:  committedTools,
 			RunCreatedAt:    value.RunCreatedAt.UnixNano(),
 			Accounting:      runAccountingRowOf(value.Metrics, value.Limits),
 		}
 	}
-	return rows
+	return rows, nil
 }
 
 func continuationsFromRows(rows []continuationRow) ([]interrupts.Continuation, error) {
@@ -440,6 +477,10 @@ func continuationsFromRows(rows []continuationRow) ([]interrupts.Continuation, e
 		if err != nil {
 			return nil, fmt.Errorf("continuation[%d] accounting: %w", index, err)
 		}
+		committedTools, err := committedToolsFromRows(row.CommittedTools)
+		if err != nil {
+			return nil, fmt.Errorf("continuation[%d]: %w", index, err)
+		}
 		values[index] = interrupts.Continuation{
 			RunID:     row.RunID,
 			ProcessID: row.ProcessID,
@@ -450,11 +491,84 @@ func continuationsFromRows(rows []continuationRow) ([]interrupts.Continuation, e
 			},
 			ModelSelection: selection,
 			DrainedTools:   drainedToolsFromRows(row.DrainedTools),
-			CommittedTools: committedToolsFromRows(row.CommittedTools),
+			CommittedTools: committedTools,
 			RunCreatedAt:   time.Unix(0, row.RunCreatedAt).UTC(),
 			Metrics:        metrics,
 			Limits:         limits,
 		}
+	}
+	return values, nil
+}
+
+func interruptPayloads(values []transcript.Interrupt) ([]interruptPayload, error) {
+	rows := make([]interruptPayload, len(values))
+	for index, value := range values {
+		row := interruptPayload{
+			ItemID: value.ItemID, ItemOccurredAt: value.ItemOccurredAt.UnixNano(),
+			RunID: value.RunID, Kind: value.Kind.String(),
+		}
+		switch value.Kind {
+		case execution.ApprovalInterrupt:
+			if value.Approval == nil {
+				return nil, fmt.Errorf("interrupt[%d] approval payload is missing", index)
+			}
+			row.Approval = &approvalPayload{
+				Tool: encodeToolInvocationPayload(value.Approval.Tool),
+				Risk: string(value.Approval.Risk), Reason: value.Approval.Reason,
+				Rememberable: value.Approval.Rememberable,
+			}
+		case execution.QuestionInterrupt:
+			if value.Question == nil {
+				return nil, fmt.Errorf("interrupt[%d] question payload is missing", index)
+			}
+			question, err := encodeQuestionPayload(*value.Question)
+			if err != nil {
+				return nil, fmt.Errorf("interrupt[%d]: %w", index, err)
+			}
+			row.Question = &question
+		default:
+			return nil, fmt.Errorf("interrupt[%d] has unknown kind %d", index, value.Kind)
+		}
+		rows[index] = row
+	}
+	return rows, nil
+}
+
+func interruptsFromPayloads(rows []interruptPayload) ([]transcript.Interrupt, error) {
+	values := make([]transcript.Interrupt, len(rows))
+	for index, row := range rows {
+		kind, ok := execution.ParseInterruptKind(row.Kind)
+		if !ok {
+			return nil, fmt.Errorf("interrupt[%d] has unknown kind %q", index, row.Kind)
+		}
+		value := transcript.Interrupt{
+			ItemID: row.ItemID, ItemOccurredAt: time.Unix(0, row.ItemOccurredAt).UTC(),
+			RunID: row.RunID, Kind: kind,
+		}
+		switch kind {
+		case execution.ApprovalInterrupt:
+			if row.Approval == nil || row.Question != nil {
+				return nil, fmt.Errorf("interrupt[%d] approval payload is invalid", index)
+			}
+			invocation, err := decodeToolInvocationPayload(row.Approval.Tool)
+			if err != nil {
+				return nil, fmt.Errorf("interrupt[%d] approval tool: %w", index, err)
+			}
+			value.Approval = &transcript.Approval{
+				Tool: invocation, Risk: tool.RiskLevel(row.Approval.Risk),
+				Reason: row.Approval.Reason, Rememberable: row.Approval.Rememberable,
+			}
+		case execution.QuestionInterrupt:
+			if row.Question == nil || row.Approval != nil {
+				return nil, fmt.Errorf("interrupt[%d] question payload is invalid", index)
+			}
+			question, err := decodeQuestionPayload(*row.Question)
+			if err != nil {
+				return nil, fmt.Errorf("interrupt[%d]: %w", index, err)
+			}
+			value.Question = &question
+		}
+		values[index] = value
 	}
 	return values, nil
 }

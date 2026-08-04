@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"maps"
 	"math"
+	"slices"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -210,8 +211,8 @@ const (
 type ItemKind uint8
 
 const (
-	// ItemKind values are durable SQLite discriminants. Removed variants leave
-	// gaps so an existing row is rejected instead of being decoded as another kind.
+	// ItemKind values name the closed semantic variants of a transcript item.
+	// Storage adapters choose and validate their own durable discriminants.
 	UserMessage  ItemKind = 0
 	AgentMessage ItemKind = 1
 	Reasoning    ItemKind = 2
@@ -296,10 +297,25 @@ const (
 )
 
 type ContentBlock struct {
-	Kind ContentKind
-	Text string
-	Mime string
-	Data string
+	Kind      ContentKind
+	Text      string
+	MediaType string
+	Bytes     []byte
+}
+
+// Clone returns an ownership-isolated content value.
+func (block ContentBlock) Clone() ContentBlock {
+	block.Bytes = slices.Clone(block.Bytes)
+	return block
+}
+
+// CloneContent returns an ownership-isolated sequence of content blocks.
+func CloneContent(blocks []ContentBlock) []ContentBlock {
+	cloned := make([]ContentBlock, len(blocks))
+	for index, block := range blocks {
+		cloned[index] = block.Clone()
+	}
+	return cloned
 }
 
 type Question struct {
@@ -595,12 +611,15 @@ func (problem *Problem) ValidateFor(scope ProblemScope) error {
 func (block ContentBlock) Validate() error {
 	switch block.Kind {
 	case TextContent:
-		if block.Mime != "" || block.Data != "" {
-			return errors.New("text content cannot carry mime or data")
+		if block.Text == "" {
+			return errors.New("text content requires text")
+		}
+		if block.MediaType != "" || len(block.Bytes) != 0 {
+			return errors.New("text content cannot carry media")
 		}
 	case ImageContent:
-		if block.Mime == "" || block.Data == "" {
-			return errors.New("image content requires mime and data")
+		if !strings.HasPrefix(block.MediaType, "image/") || len(block.Bytes) == 0 {
+			return errors.New("image content requires an image media type and bytes")
 		}
 		if block.Text != "" {
 			return errors.New("image content cannot carry text")

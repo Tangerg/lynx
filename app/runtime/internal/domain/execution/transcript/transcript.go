@@ -70,7 +70,7 @@ func OpeningInputs(items []Item) map[string][]ContentBlock {
 		if _, exists := out[item.RunID]; exists {
 			continue
 		}
-		out[item.RunID] = slices.Clone(item.Content)
+		out[item.RunID] = CloneContent(item.Content)
 	}
 	return out
 }

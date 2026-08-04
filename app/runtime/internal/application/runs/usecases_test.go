@@ -1467,7 +1467,7 @@ func TestSteerHidesExecutorHandle(t *testing.T) {
 		ExpectedSegmentID: testSegmentID,
 		Input: []transcript.ContentBlock{
 			{Kind: transcript.TextContent, Text: "wait"},
-			{Kind: transcript.ImageContent, Mime: "image/png", Data: "aW1hZ2U="},
+			{Kind: transcript.ImageContent, MediaType: "image/png", Bytes: []byte("image")},
 		},
 	}); err != nil {
 		t.Fatalf("Steer: %v", err)

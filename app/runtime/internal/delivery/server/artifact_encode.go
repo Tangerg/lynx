@@ -238,11 +238,11 @@ func artifactItemFromTranscript(item transcript.Item) (protocol.ArtifactItem, er
 	if len(item.Content) != 0 {
 		out.Content = make([]protocol.ArtifactContentBlock, len(item.Content))
 		for index, block := range item.Content {
-			contentType, err := artifactContentType(block.Kind)
+			encoded, err := encodeContent(block)
 			if err != nil {
 				return protocol.ArtifactItem{}, fmt.Errorf("item %q content %d: %w", item.ID, index, err)
 			}
-			out.Content[index] = protocol.ArtifactContentBlock{Type: contentType, Text: block.Text, Mime: block.Mime, Data: block.Data}
+			out.Content[index] = protocol.ArtifactContentBlock{Type: encoded.kind, Text: encoded.text, Mime: encoded.mime, Data: encoded.data}
 		}
 	}
 	if item.Question != nil {
@@ -296,17 +296,6 @@ func artifactItemType(kind transcript.ItemKind) (protocol.ItemType, error) {
 		return protocol.ItemTypeToolCall, nil
 	case transcript.Compaction:
 		return protocol.ItemTypeCompaction, nil
-	default:
-		return "", fmt.Errorf("unknown value %d", kind)
-	}
-}
-
-func artifactContentType(kind transcript.ContentKind) (protocol.ContentBlockType, error) {
-	switch kind {
-	case transcript.TextContent:
-		return protocol.ContentBlockText, nil
-	case transcript.ImageContent:
-		return protocol.ContentBlockImage, nil
 	default:
 		return "", fmt.Errorf("unknown value %d", kind)
 	}

@@ -108,6 +108,10 @@ func TestInterruptStore_OpenGetListDelete(t *testing.T) {
 func TestInterruptStore_ConsumeIsAtomic(t *testing.T) {
 	ctx := context.Background()
 	store := newInterruptStore(t)
+	arguments, err := tool.ParseArguments(`{"command":"go test ./..."}`)
+	if err != nil {
+		t.Fatalf("parse approval arguments: %v", err)
+	}
 
 	// Nothing recorded → ok=false.
 	if _, ok, err := store.Consume(ctx, "ses_a", "run_x"); err != nil || ok {
@@ -123,7 +127,10 @@ func TestInterruptStore_ConsumeIsAtomic(t *testing.T) {
 		},
 		Interrupts: []transcript.Interrupt{{
 			ItemID: "item_approval", ItemOccurredAt: time.Unix(2, 0).UTC(), RunID: "run_1", Kind: execution.ApprovalInterrupt,
-			Approval: &transcript.Approval{Risk: tool.RiskHigh},
+			Approval: &transcript.Approval{
+				Tool: transcript.ToolInvocation{Name: "shell", Arguments: arguments},
+				Risk: tool.RiskHigh, Reason: "executes tests", Rememberable: true,
+			},
 		}},
 		Suspensions: []interrupts.SuspensionBinding{{
 			InterruptItemID: "item_approval",
@@ -145,7 +152,10 @@ func TestInterruptStore_ConsumeIsAtomic(t *testing.T) {
 	}
 	root, _ := got.RootContinuation()
 	if root.ProcessID != "proc_1" || len(got.Interrupts) != 1 || got.Interrupts[0].ItemID != "item_approval" ||
-		got.Interrupts[0].Approval == nil || got.Interrupts[0].Approval.Risk != tool.RiskHigh {
+		got.Interrupts[0].Approval == nil || got.Interrupts[0].Approval.Risk != tool.RiskHigh ||
+		got.Interrupts[0].Approval.Tool.Name != "shell" ||
+		got.Interrupts[0].Approval.Tool.Arguments.Canonical() != arguments.Canonical() ||
+		got.Interrupts[0].Approval.Reason != "executes tests" || !got.Interrupts[0].Approval.Rememberable {
 		t.Fatalf("Consume returned %+v", got)
 	}
 

@@ -3,7 +3,6 @@ package server
 import (
 	"bytes"
 	"context"
-	"encoding/base64"
 	"errors"
 	"strings"
 	"testing"
@@ -76,10 +75,9 @@ func TestSteerRun_RefusesASegmentTheRunIsNotExecuting(t *testing.T) {
 }
 
 func TestWireLiveSegmentErrorPreservesTheInvalidInputField(t *testing.T) {
-	_, materializeErr := runs.MaterializeUserMessage([]transcript.ContentBlock{{
-		Kind: transcript.ImageContent, Mime: "image/png", Data: "not-base64",
+	_, err := decodeRunInput([]protocol.ContentBlock{{
+		Type: protocol.ContentBlockImage, Mime: "image/png", Data: "not-base64",
 	}})
-	err := wireSteerError(materializeErr)
 	constraint, ok := errors.AsType[*protocol.ConstraintError](err)
 	if !ok || !errors.Is(err, protocol.ErrInvalidParams) {
 		t.Fatalf("steer invalid image: err = %v, want typed invalid_params", err)
@@ -110,13 +108,13 @@ func TestRunInputFromWireReportsTheInvalidBlockField(t *testing.T) {
 // TestStartCommandMaterializeInput covers the Application-owned conversion from
 // canonical input blocks to executor media and opening text.
 func TestStartCommandMaterializeInput(t *testing.T) {
-	const b64 = "iVBORw0KGgoAAAANSUhEUg=="
+	imageBytes := []byte("semantic image bytes")
 
 	// text + image: text joins, one media with decoded bytes carried through.
 	text, imgs, _, err := (runs.StartCommand{Input: []transcript.ContentBlock{
 		{Kind: transcript.TextContent, Text: "look at"},
 		{Kind: transcript.TextContent, Text: "this"},
-		{Kind: transcript.ImageContent, Mime: "image/png", Data: b64},
+		{Kind: transcript.ImageContent, MediaType: "image/png", Bytes: imageBytes},
 	}}).MaterializeInput()
 	if err != nil {
 		t.Fatalf("text+image: %v", err)
@@ -127,9 +125,8 @@ func TestStartCommandMaterializeInput(t *testing.T) {
 	if len(imgs) != 1 {
 		t.Fatalf("want 1 media, got %d", len(imgs))
 	}
-	want, _ := base64.StdEncoding.DecodeString(b64)
-	if got, err := imgs[0].Bytes(); err != nil || !bytes.Equal(got, want) {
-		t.Fatalf("media data = %q, %v; want decoded bytes %q", got, err, want)
+	if got, err := imgs[0].Bytes(); err != nil || !bytes.Equal(got, imageBytes) {
+		t.Fatalf("media data = %q, %v; want bytes %q", got, err, imageBytes)
 	}
 	if imgs[0].MIME != "image/png" {
 		t.Fatalf("media mime = %q, want image/png", imgs[0].MIME)
@@ -137,24 +134,24 @@ func TestStartCommandMaterializeInput(t *testing.T) {
 
 	// image-only: no text is fine (the StartRun guard accepts media-only).
 	if text, imgs, _, err := (runs.StartCommand{Input: []transcript.ContentBlock{
-		{Kind: transcript.ImageContent, Mime: "image/jpeg", Data: b64},
+		{Kind: transcript.ImageContent, MediaType: "image/jpeg", Bytes: imageBytes},
 	}}).MaterializeInput(); err != nil || text != "" || len(imgs) != 1 {
 		t.Fatalf("image-only: text=%q imgs=%d err=%v", text, len(imgs), err)
 	}
 
 	// A non-image mime, an unparseable mime, and empty data are all rejected.
 	if _, _, _, err := (runs.StartCommand{Input: []transcript.ContentBlock{
-		{Kind: transcript.ImageContent, Mime: "text/plain", Data: b64},
+		{Kind: transcript.ImageContent, MediaType: "text/plain", Bytes: imageBytes},
 	}}).MaterializeInput(); !errors.Is(err, runs.ErrUnsupportedMedia) {
 		t.Fatalf("non-image mime: err = %v, want ErrUnsupportedMedia", err)
 	}
 	if _, _, _, err := (runs.StartCommand{Input: []transcript.ContentBlock{
-		{Kind: transcript.ImageContent, Mime: "not-a-mime", Data: b64},
+		{Kind: transcript.ImageContent, MediaType: "not-a-mime", Bytes: imageBytes},
 	}}).MaterializeInput(); !errors.Is(err, runs.ErrUnsupportedMedia) {
 		t.Fatalf("bad mime: err = %v, want ErrUnsupportedMedia", err)
 	}
 	if _, _, _, err := (runs.StartCommand{Input: []transcript.ContentBlock{
-		{Kind: transcript.ImageContent, Mime: "image/png", Data: ""},
+		{Kind: transcript.ImageContent, MediaType: "image/png"},
 	}}).MaterializeInput(); !errors.Is(err, runs.ErrUnsupportedMedia) {
 		t.Fatalf("empty data: err = %v, want ErrUnsupportedMedia", err)
 	}

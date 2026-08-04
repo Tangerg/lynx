@@ -5,7 +5,6 @@
 package modelref
 
 import (
-	"encoding/json"
 	"errors"
 	"strings"
 )
@@ -50,23 +49,3 @@ func (s Selection) Provider() string { return s.provider }
 
 // Model returns the explicitly selected model, or "" for the runtime default.
 func (s Selection) Model() string { return s.model }
-
-// MarshalJSON preserves the selection as ordinary protocol values for durable
-// payloads while keeping the Go representation immutable.
-func (s Selection) MarshalJSON() ([]byte, error) {
-	return json.Marshal(map[string]string{"provider": s.provider, "model": s.model})
-}
-
-// UnmarshalJSON validates a durable selection before it enters a domain value.
-func (s *Selection) UnmarshalJSON(data []byte) error {
-	var encoded map[string]string
-	if err := json.Unmarshal(data, &encoded); err != nil {
-		return err
-	}
-	selection, err := New(encoded["provider"], encoded["model"])
-	if err != nil {
-		return err
-	}
-	*s = selection
-	return nil
-}

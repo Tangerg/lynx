@@ -903,10 +903,25 @@ Acceptance:
 | 29. Delivery semantic boundary closure | Completed | 2026-08-04 | 2026-08-04 | Runtime event/export and server dependency fitness checks, Goal reason projection/storage tests, Go contract generation, runtime-wide build/vet, and focused server/domain/application/storage tests passed; full drift remains limited to deferred frontend bindings and canonical samples. |
 | 30. Delivery projection vocabulary closure | Completed | 2026-08-04 | 2026-08-04 | All server projection helpers use `presentX`, inbound mappers alone retain `FromWire`, duplicate model-usage mapping was removed, and server/architecture/build/vet checks passed. |
 | 31. Concrete tool semantics ownership | Completed | 2026-08-04 | 2026-08-04 | Tool safety, approval-subject extraction, and offload reader naming moved to toolset/composition; Domain and architecture tests no longer know the built-in catalog. |
+| 32. Semantic content and explicit storage codecs | Completed | 2026-08-04 | 2026-08-04 | Content is media-semantic inside the runtime; Delivery owns MIME/base64 wire decoding, SQLite owns explicit transcript/interrupt rows, and schema epoch 55 rejects the former implicit aggregate encoding. |
 
 Allowed status values: `Pending`, `In progress`, `Completed`, `Blocked`, `Revised`.
 
 ## 7. Progress log
+
+### 2026-08-04 — Batch 32 completed
+
+- Replaced the internal image carrier's encoded `Mime`/`Data` strings with an
+  ownership-isolated `MediaType` plus raw bytes. Delivery now exclusively
+  validates MIME types and decodes/encodes base64 at HTTP and artifact
+  boundaries; Application and Domain no longer interpret transport encodings.
+- Replaced direct JSON serialization of transcript Items, pending Interrupts,
+  committed tool Problems, and model selections with explicit SQLite-owned
+  payload rows and exhaustive semantic mappings. Renaming a Domain field can no
+  longer silently rewrite the durable format.
+- Advanced the deliberately migration-free SQLite shape to epoch 55 and added
+  deep-copy coverage for image bytes. The old encoded content and implicit Go
+  aggregate shapes have no compatibility reader.
 
 ### 2026-08-04 — Batch 31 completed
 

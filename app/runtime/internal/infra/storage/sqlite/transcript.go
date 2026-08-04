@@ -3,7 +3,6 @@ package sqlite
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"reflect"
@@ -45,7 +44,7 @@ func (s *TranscriptStore) AppendItem(ctx context.Context, item transcript.Item) 
 		}
 		offloadID = item.Tool.Offload.ID
 	}
-	payload, err := json.Marshal(item)
+	payload, err := encodeTranscriptItem(item)
 	if err != nil {
 		return fmt.Errorf("sqlite: encode history item: %w", err)
 	}
@@ -186,8 +185,17 @@ func scanTranscriptItem(row scanRow) (transcript.Item, error) {
 	); err != nil {
 		return transcript.Item{}, err
 	}
-	var item transcript.Item
-	if err := json.Unmarshal([]byte(payload), &item); err != nil {
+	return materializeTranscriptItem(sessionID, runID, itemID, occurredAt, payload, rawOffloadID, offloaded)
+}
+
+func materializeTranscriptItem(
+	sessionID, runID, itemID string,
+	occurredAt int64,
+	payload, rawOffloadID string,
+	offloaded sql.NullString,
+) (transcript.Item, error) {
+	item, err := decodeTranscriptItem([]byte(payload))
+	if err != nil {
 		return transcript.Item{}, fmt.Errorf("sqlite: decode history item %q: %w", itemID, err)
 	}
 	item.SessionID = sessionID
@@ -195,6 +203,9 @@ func scanTranscriptItem(row scanRow) (transcript.Item, error) {
 	item.ID = itemID
 	item.OccurredAt = time.Unix(0, occurredAt).UTC()
 	if rawOffloadID == "" {
+		if err := item.Validate(); err != nil {
+			return transcript.Item{}, fmt.Errorf("sqlite: decoded history item %q: %w", itemID, err)
+		}
 		return item, nil
 	}
 	id, err := offload.ParseID(rawOffloadID)
@@ -216,6 +227,9 @@ func scanTranscriptItem(row scanRow) (transcript.Item, error) {
 	item.Tool.Offload = &offload.Ref{ID: id}
 	body := tool.StringResult(offloaded.String)
 	item.Tool.Result = &body
+	if err := item.Validate(); err != nil {
+		return transcript.Item{}, fmt.Errorf("sqlite: decoded history item %q: %w", itemID, err)
+	}
 	return item, nil
 }
 
@@ -391,34 +405,9 @@ func (s *TranscriptStore) pageItems(ctx context.Context, scope, subject string, 
 		if err := rows.Scan(&sequence, &session, &runID, &itemID, &occurredAt, &payload, &rawOffloadID, &offloadedBody); err != nil {
 			return nil, fmt.Errorf("sqlite: scan history item: %w", err)
 		}
-		var item transcript.Item
-		if err := json.Unmarshal([]byte(payload), &item); err != nil {
-			return nil, fmt.Errorf("sqlite: decode history item %q: %w", itemID, err)
-		}
-		item.SessionID = session
-		item.RunID = runID
-		item.ID = itemID
-		item.OccurredAt = time.Unix(0, occurredAt).UTC()
-		if rawOffloadID != "" {
-			id, err := offload.ParseID(rawOffloadID)
-			if err != nil {
-				return nil, fmt.Errorf("sqlite: decode history item %q offload: %w", itemID, err)
-			}
-			if item.Tool == nil {
-				return nil, fmt.Errorf("sqlite: history item %q has an offload identity but no tool invocation", itemID)
-			}
-			if item.Tool.Result == nil {
-				return nil, fmt.Errorf("sqlite: history item %q has an offload identity but no preview", itemID)
-			}
-			if _, ok := item.Tool.Result.String(); !ok {
-				return nil, fmt.Errorf("sqlite: history item %q has an offload identity but no preview string", itemID)
-			}
-			if !offloadedBody.Valid {
-				return nil, fmt.Errorf("sqlite: history item %q references missing tool result %q", itemID, id)
-			}
-			item.Tool.Offload = &offload.Ref{ID: id}
-			body := tool.StringResult(offloadedBody.String)
-			item.Tool.Result = &body
+		item, err := materializeTranscriptItem(session, runID, itemID, occurredAt, payload, rawOffloadID, offloadedBody)
+		if err != nil {
+			return nil, err
 		}
 		out = append(out, transcript.SequencedItem{Sequence: sequence, Item: item})
 	}

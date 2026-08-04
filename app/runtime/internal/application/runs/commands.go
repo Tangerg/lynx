@@ -1,11 +1,9 @@
 package runs
 
 import (
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"iter"
-	stdmime "mime"
 	"strings"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
@@ -146,30 +144,25 @@ func MaterializeUserMessage(input []transcript.ContentBlock) (corechat.Message, 
 			if block.Text == "" {
 				return corechat.Message{}, invalidInputBlock(index, "text", "must not be empty", ErrInputRequired)
 			}
-			if block.Mime != "" || block.Data != "" {
-				return corechat.Message{}, invalidInputBlock(index, "type", "text content cannot carry mime or data", ErrUnsupportedMedia)
+			if block.MediaType != "" || len(block.Bytes) != 0 {
+				return corechat.Message{}, invalidInputBlock(index, "type", "text content cannot carry media", ErrUnsupportedMedia)
 			}
 			parts = append(parts, corechat.NewTextPart(block.Text))
 		case transcript.ImageContent:
 			if block.Text != "" {
 				return corechat.Message{}, invalidInputBlock(index, "type", "image content cannot carry text", ErrUnsupportedMedia)
 			}
-			mediaType, _, parseErr := stdmime.ParseMediaType(block.Mime)
-			if parseErr != nil || !strings.HasPrefix(mediaType, "image/") {
+			if !strings.HasPrefix(block.MediaType, "image/") {
 				return corechat.Message{}, invalidInputBlock(
-					index, "mime", fmt.Sprintf("must be a supported image MIME, got %q", block.Mime), ErrUnsupportedMedia,
+					index, "mediaType", fmt.Sprintf("must be an image media type, got %q", block.MediaType), ErrUnsupportedMedia,
 				)
 			}
-			if block.Data == "" {
-				return corechat.Message{}, invalidInputBlock(index, "data", "must not be empty", ErrUnsupportedMedia)
+			if len(block.Bytes) == 0 {
+				return corechat.Message{}, invalidInputBlock(index, "bytes", "must not be empty", ErrUnsupportedMedia)
 			}
-			data, decodeErr := base64.StdEncoding.DecodeString(block.Data)
-			if decodeErr != nil {
-				return corechat.Message{}, invalidInputBlock(index, "data", "must be valid base64", ErrUnsupportedMedia)
-			}
-			image, mediaErr := media.NewBytes(mediaType, data)
+			image, mediaErr := media.NewBytes(block.MediaType, block.Bytes)
 			if mediaErr != nil {
-				return corechat.Message{}, invalidInputBlock(index, "data", mediaErr.Error(), ErrUnsupportedMedia)
+				return corechat.Message{}, invalidInputBlock(index, "bytes", mediaErr.Error(), ErrUnsupportedMedia)
 			}
 			parts = append(parts, corechat.NewMediaPart(image))
 		default:

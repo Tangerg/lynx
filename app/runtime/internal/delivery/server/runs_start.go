@@ -65,31 +65,13 @@ func (s *Server) StartRun(ctx context.Context, in protocol.StartRunRequest) (*pr
 func decodeRunInput(blocks []protocol.ContentBlock) ([]transcript.ContentBlock, error) {
 	input := make([]transcript.ContentBlock, len(blocks))
 	for i, block := range blocks {
-		var kind transcript.ContentKind
-		switch block.Type {
-		case protocol.ContentBlockText:
-			if block.Text == "" {
-				return nil, invalidWireContentBlock(i, "text", "must not be empty")
-			}
-			if block.Mime != "" || block.Data != "" {
-				return nil, invalidWireContentBlock(i, "type", "text content cannot carry mime or data")
-			}
-			kind = transcript.TextContent
-		case protocol.ContentBlockImage:
-			if block.Mime == "" {
-				return nil, invalidWireContentBlock(i, "mime", "is required for image content")
-			}
-			if block.Data == "" {
-				return nil, invalidWireContentBlock(i, "data", "is required for image content")
-			}
-			if block.Text != "" {
-				return nil, invalidWireContentBlock(i, "type", "image content cannot carry text")
-			}
-			kind = transcript.ImageContent
-		default:
-			return nil, invalidWireContentBlock(i, "type", "must be text or image")
+		decoded, decodeErr := decodeContent(encodedContent{
+			kind: block.Type, text: block.Text, mime: block.Mime, data: block.Data,
+		})
+		if decodeErr != nil {
+			return nil, invalidWireContentBlock(i, decodeErr.field, decodeErr.detail)
 		}
-		input[i] = transcript.ContentBlock{Kind: kind, Text: block.Text, Mime: block.Mime, Data: block.Data}
+		input[i] = decoded
 	}
 	return input, nil
 }

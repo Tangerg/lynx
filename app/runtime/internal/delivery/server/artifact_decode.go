@@ -334,14 +334,13 @@ func portableItemKind(path string, value protocol.ItemType) (transcript.ItemKind
 }
 
 func portableContentFromArtifact(path string, artifact protocol.ArtifactContentBlock) (transcript.ContentBlock, error) {
-	switch artifact.Type {
-	case protocol.ContentBlockText:
-		return transcript.ContentBlock{Kind: transcript.TextContent, Text: artifact.Text, Mime: artifact.Mime, Data: artifact.Data}, nil
-	case protocol.ContentBlockImage:
-		return transcript.ContentBlock{Kind: transcript.ImageContent, Text: artifact.Text, Mime: artifact.Mime, Data: artifact.Data}, nil
-	default:
-		return transcript.ContentBlock{}, invalidArtifact(path+".type", "unknown value %q", artifact.Type)
+	decoded, decodeErr := decodeContent(encodedContent{
+		kind: artifact.Type, text: artifact.Text, mime: artifact.Mime, data: artifact.Data,
+	})
+	if decodeErr != nil {
+		return transcript.ContentBlock{}, invalidArtifact(path+"."+decodeErr.field, "%s", decodeErr.detail)
 	}
+	return decoded, nil
 }
 
 func portableQuestionFromArtifact(path string, artifact protocol.ArtifactQuestion) (transcript.Question, error) {

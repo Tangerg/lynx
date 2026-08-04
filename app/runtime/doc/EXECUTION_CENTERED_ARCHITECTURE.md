@@ -255,7 +255,7 @@ parked tree 由 Application 确定性收口为 `run_lost`，不尝试猜测式�
 
 Session 与 executor process 是两套不同 identity。用户对话及 fork 才是 `Session`；delegated
 work 由同一 Session 下的 first-class child Run 表达，不再从 child process 派生隐藏 Session。
-当前 SQLite `schemaEpoch = 52`，没有旧 `process_states`、`sessions.kind`、双读写或迁移分支。
+当前 SQLite `schemaEpoch = 55`，没有旧 `process_states`、`sessions.kind`、双读写或迁移分支。
 同一 `root_process_id` 的 Session owner 不可被 upsert 改写；普通 lifecycle 的定向删除必须
 同时携带 Session，只有 boot exact-retention 使用全局 unowned cleanup。
 
@@ -327,7 +327,7 @@ Application 依赖 SQLite：用例依赖自己需要的窄读写/事务端口，
 - 一个 Session 至多一个非 terminal Run 由数据库约束兜底，不只靠内存锁；
 - transcript/history 是 projection，不替代 Run aggregate。
 
-当前 SQLite `schemaEpoch = 52`，`runs.goal_lease_id`、`interrupts.goal_lease_id`、
+当前 SQLite `schemaEpoch = 55`，`runs.goal_lease_id`、`interrupts.goal_lease_id`、
 `mcp_oauth_sessions` 与
 `runs.max_total_tokens` 均属于唯一现行 shape；不读取或迁移任何其他 epoch 的数据库。
 
