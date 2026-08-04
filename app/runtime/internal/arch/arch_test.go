@@ -1056,6 +1056,45 @@ func TestGoalReasonStaysMachineReadable(t *testing.T) {
 	})
 }
 
+// TestDeliveryProjectionUsesOneVerb keeps outbound mapping under the existing
+// presentX vocabulary. Inbound mappers may retain the explicit xFromWire form;
+// xWire and xToWire make direction ambiguous and previously concealed duplicate
+// projections behind different names.
+func TestDeliveryProjectionUsesOneVerb(t *testing.T) {
+	root := moduleRoot(t)
+	dir := filepath.Join(root, "internal", "delivery", "server")
+	walkErr := filepath.WalkDir(dir, func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if entry.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		file, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
+		if err != nil {
+			return err
+		}
+		for _, declaration := range file.Decls {
+			function, ok := declaration.(*ast.FuncDecl)
+			if !ok || function.Recv != nil {
+				continue
+			}
+			name := function.Name.Name
+			if strings.HasSuffix(name, "FromWire") {
+				continue
+			}
+			if strings.HasSuffix(name, "ToWire") || strings.HasSuffix(name, "Wire") {
+				relative, _ := filepath.Rel(root, path)
+				t.Errorf("%s: projection helper %s must use presentX", relative, name)
+			}
+		}
+		return nil
+	})
+	if walkErr != nil {
+		t.Fatalf("walk delivery server: %v", walkErr)
+	}
+}
+
 // TestDeliveryServerDependsOnUseCaseBoundaries prevents concrete execution,
 // persistence, or composition types from entering the protocol implementation.
 // Adapter imports remain available to other delivery packages where a transport

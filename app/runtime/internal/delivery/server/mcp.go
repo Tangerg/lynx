@@ -20,7 +20,7 @@ func (s *Server) ListMCPServers(ctx context.Context) (*protocol.Page[protocol.Mc
 	}
 	out := make([]protocol.McpServer, 0, len(servers))
 	for _, server := range servers {
-		wire, err := mcpServerWire(server)
+		wire, err := presentMCPServer(server)
 		if err != nil {
 			return nil, err
 		}
@@ -39,7 +39,7 @@ func (s *Server) CreateMCPServer(ctx context.Context, in protocol.MCPServerCandi
 	if err != nil {
 		return nil, wireMCPError(err)
 	}
-	out, err := mcpServerWire(server)
+	out, err := presentMCPServer(server)
 	if err != nil {
 		return nil, err
 	}
@@ -57,7 +57,7 @@ func (s *Server) UpdateMCPServer(ctx context.Context, in protocol.UpdateMCPServe
 	if err != nil {
 		return nil, wireMCPError(err)
 	}
-	out, err := mcpServerWire(server)
+	out, err := presentMCPServer(server)
 	if err != nil {
 		return nil, err
 	}
@@ -95,7 +95,7 @@ func (s *Server) ListMCPTools(ctx context.Context, in protocol.MCPListToolsReque
 	}
 	out := make([]protocol.McpTool, 0, len(found))
 	for _, tool := range found {
-		out = append(out, mcpToolWire(tool))
+		out = append(out, presentMCPTool(tool))
 	}
 	return protocol.NewPage(out), nil
 }
@@ -113,7 +113,7 @@ func (s *Server) CreateMCPAuthorizationAttempt(ctx context.Context, server strin
 	if err != nil {
 		return nil, wireMCPError(err)
 	}
-	out := mcpAuthorizationAttemptWire(attempt)
+	out := presentMCPAuthorizationAttempt(attempt)
 	return &out, nil
 }
 
@@ -123,7 +123,7 @@ func (s *Server) GetMCPAuthorizationAttempt(ctx context.Context, attemptID strin
 	if err != nil {
 		return nil, wireMCPError(err)
 	}
-	out := mcpAuthorizationAttemptWire(attempt)
+	out := presentMCPAuthorizationAttempt(attempt)
 	return &out, nil
 }
 

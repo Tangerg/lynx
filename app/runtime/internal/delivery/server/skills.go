@@ -22,7 +22,7 @@ func (s *Server) ListManagedSkills(ctx context.Context) (*protocol.Page[protocol
 	}
 	out := make([]protocol.ManagedSkill, 0, len(entries))
 	for _, e := range entries {
-		lifecycle, ok := skillLifecycleWire(e.Lifecycle)
+		lifecycle, ok := presentSkillLifecycle(e.Lifecycle)
 		if !ok {
 			return nil, fmt.Errorf("skills.library.list: unsupported lifecycle %q", e.Lifecycle)
 		}
@@ -35,7 +35,7 @@ func (s *Server) ListManagedSkills(ctx context.Context) (*protocol.Page[protocol
 	return protocol.NewPage(out), nil
 }
 
-func skillLifecycleWire(lifecycle skills.Lifecycle) (protocol.SkillLifecycle, bool) {
+func presentSkillLifecycle(lifecycle skills.Lifecycle) (protocol.SkillLifecycle, bool) {
 	switch lifecycle {
 	case skills.Active:
 		return protocol.SkillLifecycleActive, true
@@ -81,11 +81,11 @@ func (s *Server) ListSkillProposals(ctx context.Context, in protocol.WorkspaceQu
 	}
 	out := make([]protocol.SkillProposal, 0, len(proposals))
 	for _, proposal := range proposals {
-		scope, ok := proposalScopeWire(proposal.Ref.Scope)
+		scope, ok := presentSkillProposalScope(proposal.Ref.Scope)
 		if !ok {
 			return nil, fmt.Errorf("skills.proposals.list: unsupported scope %q", proposal.Ref.Scope)
 		}
-		origin, ok := proposalOriginWire(proposal.Origin)
+		origin, ok := presentSkillProposalOrigin(proposal.Origin)
 		if !ok {
 			return nil, fmt.Errorf("skills.proposals.list: unsupported origin %q", proposal.Origin)
 		}
@@ -139,7 +139,7 @@ func skillProposalRef(in protocol.SkillProposalRef) (skills.ProposalRef, error) 
 	return ref, nil
 }
 
-func proposalScopeWire(scope skills.Scope) (protocol.SkillScope, bool) {
+func presentSkillProposalScope(scope skills.Scope) (protocol.SkillScope, bool) {
 	switch scope {
 	case skills.ScopeProject:
 		return protocol.SkillScopeProject, true
@@ -161,7 +161,7 @@ func proposalScopeDomain(scope protocol.SkillScope) (skills.Scope, bool) {
 	}
 }
 
-func proposalOriginWire(origin skills.ProposalOrigin) (protocol.SkillProposalOrigin, bool) {
+func presentSkillProposalOrigin(origin skills.ProposalOrigin) (protocol.SkillProposalOrigin, bool) {
 	switch origin {
 	case "":
 		return "", true

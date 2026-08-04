@@ -32,7 +32,7 @@ func (s *Server) StartGoal(ctx context.Context, in protocol.StartGoalRequest) (*
 	if err != nil {
 		return nil, mapGoalErr(err, "goals.start")
 	}
-	return goalPtr(g)
+	return presentGoal(g)
 }
 
 // GetGoal returns the session's goal, or a nil result when it has none (goals.get).
@@ -44,7 +44,7 @@ func (s *Server) GetGoal(ctx context.Context, in protocol.GoalRequest) (*protoco
 	if !ok {
 		return nil, nil
 	}
-	return goalPtr(g)
+	return presentGoal(g)
 }
 
 // StopGoal pauses the session's goal and stops the loop (goals.stop).
@@ -53,7 +53,7 @@ func (s *Server) StopGoal(ctx context.Context, in protocol.GoalRequest) (*protoc
 	if err != nil {
 		return nil, mapGoalErr(err, "goals.stop")
 	}
-	return goalPtr(g)
+	return presentGoal(g)
 }
 
 // ResumeGoal re-activates a paused or blocked goal (goals.resume).
@@ -62,7 +62,7 @@ func (s *Server) ResumeGoal(ctx context.Context, in protocol.GoalRequest) (*prot
 	if err != nil {
 		return nil, mapGoalErr(err, "goals.resume")
 	}
-	return goalPtr(g)
+	return presentGoal(g)
 }
 
 func mapGoalErr(err error, method string) error {
@@ -91,12 +91,12 @@ func budgetFromWire(b protocol.GoalBudget) goal.Budget {
 	return goal.Budget{MaxTurns: b.MaxTurns, MaxCostUSD: b.MaxCostUsd, MaxSteps: b.MaxSteps}
 }
 
-func goalPtr(g goal.Goal) (*protocol.Goal, error) {
-	status, ok := goalStatusWire(g.Status)
+func presentGoal(g goal.Goal) (*protocol.Goal, error) {
+	status, ok := presentGoalStatus(g.Status)
 	if !ok {
 		return nil, fmt.Errorf("goals: unsupported status %q", g.Status)
 	}
-	reason, err := goalReasonWire(g.Reason)
+	reason, err := presentGoalReason(g.Reason)
 	if err != nil {
 		return nil, err
 	}
@@ -115,7 +115,7 @@ func goalPtr(g goal.Goal) (*protocol.Goal, error) {
 	return &w, nil
 }
 
-func goalStatusWire(status goal.Status) (protocol.GoalStatus, bool) {
+func presentGoalStatus(status goal.Status) (protocol.GoalStatus, bool) {
 	switch status {
 	case goal.StatusActive:
 		return protocol.GoalActive, true
@@ -128,7 +128,7 @@ func goalStatusWire(status goal.Status) (protocol.GoalStatus, bool) {
 	}
 }
 
-func goalReasonWire(reason goal.Reason) (*protocol.GoalReason, error) {
+func presentGoalReason(reason goal.Reason) (*protocol.GoalReason, error) {
 	var code protocol.GoalReasonCode
 	switch reason.Code {
 	case goal.ReasonNone:

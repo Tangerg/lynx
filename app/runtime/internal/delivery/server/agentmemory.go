@@ -38,7 +38,7 @@ func (s *Server) ListAgentMemory(ctx context.Context, in protocol.AgentMemoryLis
 	}
 	out := protocol.AgentMemoryList{Items: make([]protocol.AgentMemoryItem, 0, len(items))}
 	for _, item := range items {
-		wire, err := agentMemoryItemToWire(item)
+		wire, err := presentAgentMemoryItem(item)
 		if err != nil {
 			return nil, err
 		}
@@ -67,7 +67,7 @@ func (s *Server) UpdateAgentMemory(ctx context.Context, in protocol.AgentMemoryU
 	if err != nil {
 		return nil, mapAgentMemoryErr(err, "agentMemory.update")
 	}
-	w, err := agentMemoryItemToWire(item)
+	w, err := presentAgentMemoryItem(item)
 	if err != nil {
 		return nil, err
 	}
@@ -89,7 +89,7 @@ func (s *Server) AddAgentMemory(ctx context.Context, in protocol.AgentMemoryAddR
 	if err != nil {
 		return nil, mapAgentMemoryErr(err, "agentMemory.add")
 	}
-	w, err := agentMemoryItemToWire(item)
+	w, err := presentAgentMemoryItem(item)
 	if err != nil {
 		return nil, err
 	}
@@ -132,16 +132,16 @@ func mapAgentMemoryErr(err error, method string) error {
 	}
 }
 
-func agentMemoryItemToWire(item agentmemory.Item) (protocol.AgentMemoryItem, error) {
-	scope, err := agentMemoryScopeWire(item.Scope)
+func presentAgentMemoryItem(item agentmemory.Item) (protocol.AgentMemoryItem, error) {
+	scope, err := presentAgentMemoryScope(item.Scope)
 	if err != nil {
 		return protocol.AgentMemoryItem{}, err
 	}
-	origin, err := agentMemoryOriginWire(item.Origin)
+	origin, err := presentAgentMemoryOrigin(item.Origin)
 	if err != nil {
 		return protocol.AgentMemoryItem{}, err
 	}
-	status, err := agentMemoryStatusWire(item.Status)
+	status, err := presentAgentMemoryStatus(item.Status)
 	if err != nil {
 		return protocol.AgentMemoryItem{}, err
 	}
@@ -159,7 +159,7 @@ func agentMemoryItemToWire(item agentmemory.Item) (protocol.AgentMemoryItem, err
 	}, nil
 }
 
-func agentMemoryScopeWire(scope agentmemory.Scope) (protocol.AgentMemoryScope, error) {
+func presentAgentMemoryScope(scope agentmemory.Scope) (protocol.AgentMemoryScope, error) {
 	switch scope {
 	case agentmemory.ScopeProject:
 		return protocol.AgentMemoryScopeProject, nil
@@ -170,7 +170,7 @@ func agentMemoryScopeWire(scope agentmemory.Scope) (protocol.AgentMemoryScope, e
 	}
 }
 
-func agentMemoryOriginWire(origin agentmemory.Origin) (protocol.AgentMemoryOrigin, error) {
+func presentAgentMemoryOrigin(origin agentmemory.Origin) (protocol.AgentMemoryOrigin, error) {
 	switch origin {
 	case agentmemory.OriginAuto:
 		return protocol.AgentMemoryOriginAuto, nil
@@ -181,7 +181,7 @@ func agentMemoryOriginWire(origin agentmemory.Origin) (protocol.AgentMemoryOrigi
 	}
 }
 
-func agentMemoryStatusWire(status agentmemory.Status) (protocol.AgentMemoryStatus, error) {
+func presentAgentMemoryStatus(status agentmemory.Status) (protocol.AgentMemoryStatus, error) {
 	switch status {
 	case agentmemory.StatusActive:
 		return protocol.AgentMemoryStatusActive, nil

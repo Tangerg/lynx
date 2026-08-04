@@ -9,8 +9,8 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 )
 
-func mcpServerWire(server integrations.MCPServer) (protocol.McpServer, error) {
-	connection, err := mcpConnectionWire(server.Connection)
+func presentMCPServer(server integrations.MCPServer) (protocol.McpServer, error) {
+	connection, err := presentMCPConnection(server.Connection)
 	if err != nil {
 		return protocol.McpServer{}, err
 	}
@@ -21,12 +21,12 @@ func mcpServerWire(server integrations.MCPServer) (protocol.McpServer, error) {
 		TimeoutSeconds:   int(server.Timeout / time.Second),
 		DisabledTools:    server.DisabledTools,
 		AutoApproveTools: server.AutoApproveTools,
-		Status:           mcpServerStateWire(server.State),
+		Status:           presentMCPServerState(server.State),
 	}, nil
 }
 
-func mcpConnectionWire(connection integrations.MCPConnection) (protocol.McpConnection, error) {
-	transport, ok := mcpTransportWire(connection.Transport)
+func presentMCPConnection(connection integrations.MCPConnection) (protocol.McpConnection, error) {
+	transport, ok := presentMCPTransport(connection.Transport)
 	if !ok {
 		return protocol.McpConnection{}, fmt.Errorf("mcp: unsupported transport %q", connection.Transport)
 	}
@@ -42,7 +42,7 @@ func mcpConnectionWire(connection integrations.MCPConnection) (protocol.McpConne
 	}, nil
 }
 
-func mcpServerStateWire(state integrations.MCPServerState) protocol.McpServerState {
+func presentMCPServerState(state integrations.MCPServerState) protocol.McpServerState {
 	out := protocol.McpServerState{ToolCount: state.ToolCount}
 	switch state.Type {
 	case integrations.MCPServerDisabled:
@@ -80,7 +80,7 @@ func mcpProbeProblem() *protocol.ProblemData {
 	return &protocol.ProblemData{Type: protocol.ProblemMCPDialFailed}
 }
 
-func mcpAuthorizationAttemptWire(attempt integrations.MCPAuthorizationAttempt) protocol.McpAuthorizationAttempt {
+func presentMCPAuthorizationAttempt(attempt integrations.MCPAuthorizationAttempt) protocol.McpAuthorizationAttempt {
 	status := protocol.McpAuthorizationAttemptStatus{}
 	switch attempt.Status {
 	case integrations.MCPAuthorizationAttemptPending:
@@ -101,7 +101,7 @@ func mcpAuthorizationAttemptWire(attempt integrations.MCPAuthorizationAttempt) p
 	}
 }
 
-func mcpToolWire(tool mcpserver.ToolInfo) protocol.McpTool {
+func presentMCPTool(tool mcpserver.ToolInfo) protocol.McpTool {
 	return protocol.McpTool{
 		Server:      tool.Server,
 		Name:        tool.Name,
@@ -110,7 +110,7 @@ func mcpToolWire(tool mcpserver.ToolInfo) protocol.McpTool {
 	}
 }
 
-func mcpTransportWire(transport mcpserver.Transport) (protocol.McpTransport, bool) {
+func presentMCPTransport(transport mcpserver.Transport) (protocol.McpTransport, bool) {
 	switch transport {
 	case mcpserver.TransportStdio:
 		return protocol.McpTransportStdio, true

@@ -18,7 +18,7 @@ func (s *Server) ListModels(ctx context.Context, in protocol.ListModelsRequest) 
 	models := s.models.ListModels(ctx, in.Provider)
 	out := make([]protocol.Model, 0, len(models))
 	for _, model := range models {
-		out = append(out, modelToWire(model))
+		out = append(out, presentModel(model))
 	}
 	return protocol.NewPage(out), nil
 }
@@ -74,7 +74,7 @@ func mapModelError(err error) error {
 	return err
 }
 
-func modelToWire(model modelapp.Model) protocol.Model {
+func presentModel(model modelapp.Model) protocol.Model {
 	if model.Details == nil {
 		return protocol.Model{ID: model.ID, Provider: model.Provider}
 	}

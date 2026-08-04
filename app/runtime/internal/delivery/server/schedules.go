@@ -23,7 +23,7 @@ func (s *Server) ListSchedules(ctx context.Context, query protocol.PageQuery) (*
 	}
 	out := make([]protocol.Schedule, 0, len(page.Rows))
 	for _, sc := range page.Rows {
-		out = append(out, scheduleToWire(sc))
+		out = append(out, presentSchedule(sc))
 	}
 	return protocol.NewPageWithCursor(out, page.NextCursor), nil
 }
@@ -46,7 +46,7 @@ func (s *Server) CreateSchedule(ctx context.Context, in protocol.CreateScheduleR
 	if err != nil {
 		return nil, mapScheduleErr(err, "schedules.create", "")
 	}
-	wire := scheduleToWire(created)
+	wire := presentSchedule(created)
 	return &wire, nil
 }
 
@@ -69,7 +69,7 @@ func (s *Server) UpdateSchedule(ctx context.Context, in protocol.UpdateScheduleR
 	if err != nil {
 		return nil, mapScheduleErr(err, "schedules.update", in.ID)
 	}
-	wire := scheduleToWire(updated)
+	wire := presentSchedule(updated)
 	return &wire, nil
 }
 
@@ -118,9 +118,9 @@ func mapScheduleErr(err error, method, id string) error {
 	return err
 }
 
-// scheduleToWire maps a domain schedule to its wire shape, projecting the zero
+// presentSchedule maps a domain schedule to its protocol shape, projecting the zero
 // time (never fired / unscheduled) to an omitted field rather than a fake epoch.
-func scheduleToWire(sc schedule.Schedule) protocol.Schedule {
+func presentSchedule(sc schedule.Schedule) protocol.Schedule {
 	w := protocol.Schedule{
 		ID:        sc.ID,
 		Title:     sc.Title,

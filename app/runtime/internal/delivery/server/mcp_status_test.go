@@ -13,7 +13,7 @@ import (
 
 func TestMCPAuthorizationAttemptWire(t *testing.T) {
 	finishedAt := time.Date(2026, 8, 2, 12, 1, 0, 0, time.UTC)
-	got := mcpAuthorizationAttemptWire(integrations.MCPAuthorizationAttempt{
+	got := presentMCPAuthorizationAttempt(integrations.MCPAuthorizationAttempt{
 		ID: "mcpauth_example", Server: "github",
 		Status:    integrations.MCPAuthorizationAttemptFailed,
 		CreatedAt: finishedAt.Add(-time.Minute), FinishedAt: &finishedAt,
@@ -75,8 +75,8 @@ func TestMCPServerStateWire(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := mcpServerStateWire(tt.state).Type; got != tt.want {
-				t.Fatalf("mcpServerStateWire(%v) = %q, want %q", tt.state.Type, got, tt.want)
+			if got := presentMCPServerState(tt.state).Type; got != tt.want {
+				t.Fatalf("presentMCPServerState(%v) = %q, want %q", tt.state.Type, got, tt.want)
 			}
 		})
 	}
@@ -88,10 +88,10 @@ func TestMCPServerStateWire(t *testing.T) {
 func TestMCPServerWireRejectsUnknownDomainState(t *testing.T) {
 	defer func() {
 		if recover() == nil {
-			t.Fatal("mcpServerWire(unknown state) answered with a projection instead of panicking")
+			t.Fatal("presentMCPServer(unknown state) answered with a projection instead of panicking")
 		}
 	}()
-	_, _ = mcpServerWire(integrations.MCPServer{
+	_, _ = presentMCPServer(integrations.MCPServer{
 		Name:       "broken",
 		Connection: integrations.MCPConnection{Transport: mcpserver.TransportStdio, Command: "broken"},
 		State:      integrations.MCPServerState{Type: integrations.MCPServerStateType(255)},

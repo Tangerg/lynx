@@ -159,7 +159,7 @@ func TestMemoryMappingRejectsUnknownScopes(t *testing.T) {
 	}); !errors.Is(err, protocol.ErrInvalidParams) {
 		t.Fatalf("GetMemory err = %v, want ErrInvalidParams", err)
 	}
-	if _, err := memScopeToWire(knowledge.Scope("workspace")); err == nil {
-		t.Fatal("memScopeToWire accepted an unknown domain scope")
+	if _, err := presentMemoryScope(knowledge.Scope("workspace")); err == nil {
+		t.Fatal("presentMemoryScope accepted an unknown domain scope")
 	}
 }

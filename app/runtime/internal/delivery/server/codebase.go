@@ -41,7 +41,7 @@ func (s *Server) CodebaseStatus(ctx context.Context, in protocol.CodebaseStatusR
 	if err != nil {
 		return nil, mapCodebaseErr(err)
 	}
-	out, err := codebaseStatusToWire(st.Index)
+	out, err := presentCodebaseStatus(st.Index)
 	if err != nil {
 		return nil, err
 	}
@@ -72,8 +72,8 @@ func mapCodebaseErr(err error) error {
 	return wireWorkspaceError(err)
 }
 
-func codebaseStatusToWire(st codebaseindex.Status) (*protocol.CodebaseStatus, error) {
-	state, ok := codebaseStateWire(st.State)
+func presentCodebaseStatus(st codebaseindex.Status) (*protocol.CodebaseStatus, error) {
+	state, ok := presentCodebaseState(st.State)
 	if !ok {
 		return nil, fmt.Errorf("codebase.status: unsupported state %q", st.State)
 	}
@@ -90,7 +90,7 @@ func codebaseStatusToWire(st codebaseindex.Status) (*protocol.CodebaseStatus, er
 	return w, nil
 }
 
-func codebaseStateWire(state codebaseindex.State) (protocol.CodebaseState, bool) {
+func presentCodebaseState(state codebaseindex.State) (protocol.CodebaseState, bool) {
 	switch state {
 	case codebaseindex.StateNone:
 		return protocol.CodebaseStateNone, true

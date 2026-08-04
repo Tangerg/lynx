@@ -19,7 +19,7 @@ func (s *Server) ResolveWorkspace(_ context.Context, in protocol.ResolveWorkspac
 	if err != nil {
 		return nil, wireWorkspaceError(err)
 	}
-	out := workspaceInfoToWire(resolved.Path, resolved.ProjectRoot, resolved.Missing)
+	out := presentWorkspaceInfo(resolved.Path, resolved.ProjectRoot, resolved.Missing)
 	return &out, nil
 }
 
@@ -34,14 +34,14 @@ func (s *Server) ListWorkspaces(ctx context.Context) (*protocol.Page[protocol.Wo
 	for _, workspace := range workspaces {
 		lastActiveAt := workspace.LastActiveAt
 		out = append(out, protocol.WorkspaceSummary{
-			Workspace: workspaceInfoToWire(workspace.Path, workspace.ProjectRoot, workspace.Missing),
+			Workspace: presentWorkspaceInfo(workspace.Path, workspace.ProjectRoot, workspace.Missing),
 			Name:      workspace.Name, SessionCount: workspace.SessionCount, LastActiveAt: &lastActiveAt,
 		})
 	}
 	return protocol.NewPage(out), nil
 }
 
-func workspaceInfoToWire(path, projectRoot string, missing bool) protocol.WorkspaceInfo {
+func presentWorkspaceInfo(path, projectRoot string, missing bool) protocol.WorkspaceInfo {
 	availability := protocol.WorkspaceAvailable
 	if missing {
 		availability = protocol.WorkspaceMissing
@@ -59,7 +59,7 @@ func (s *Server) ListDiscoveredSkills(ctx context.Context, in protocol.Workspace
 	}
 	out := make([]protocol.Skill, 0, len(found))
 	for _, skill := range found {
-		source, ok := workspaceSkillScopeWire(skill.Scope)
+		source, ok := presentWorkspaceSkillScope(skill.Scope)
 		if !ok {
 			return nil, fmt.Errorf("skills.discovered.list: unsupported skill scope %q", skill.Scope)
 		}
@@ -76,7 +76,7 @@ func (s *Server) ListRecipes(ctx context.Context, in protocol.WorkspaceQuery) (*
 	}
 	out := make([]protocol.Recipe, 0, len(found))
 	for _, recipe := range found {
-		scope, ok := recipeScopeWire(recipe.Scope)
+		scope, ok := presentRecipeScope(recipe.Scope)
 		if !ok {
 			return nil, fmt.Errorf("recipes.list: unsupported recipe scope %q", recipe.Scope)
 		}
@@ -97,7 +97,7 @@ func (s *Server) ListAgentDocs(ctx context.Context, in protocol.WorkspaceQuery) 
 	}
 	out := make([]protocol.AgentDoc, 0, len(docs))
 	for _, doc := range docs {
-		scope, ok := agentDocScopeWire(doc.Scope)
+		scope, ok := presentAgentDocScope(doc.Scope)
 		if !ok {
 			return nil, fmt.Errorf("agentDocs.list: unsupported document scope %q", doc.Scope)
 		}
@@ -106,7 +106,7 @@ func (s *Server) ListAgentDocs(ctx context.Context, in protocol.WorkspaceQuery) 
 	return protocol.NewPage(out), nil
 }
 
-func workspaceSkillScopeWire(scope workspaceapp.SkillScope) (protocol.SkillScope, bool) {
+func presentWorkspaceSkillScope(scope workspaceapp.SkillScope) (protocol.SkillScope, bool) {
 	switch scope {
 	case workspaceapp.SkillScopeProject:
 		return protocol.SkillScopeProject, true
@@ -117,7 +117,7 @@ func workspaceSkillScopeWire(scope workspaceapp.SkillScope) (protocol.SkillScope
 	}
 }
 
-func recipeScopeWire(scope workspaceapp.RecipeScope) (protocol.RecipeScope, bool) {
+func presentRecipeScope(scope workspaceapp.RecipeScope) (protocol.RecipeScope, bool) {
 	switch scope {
 	case workspaceapp.RecipeScopeProject:
 		return protocol.RecipeScopeProject, true
@@ -128,7 +128,7 @@ func recipeScopeWire(scope workspaceapp.RecipeScope) (protocol.RecipeScope, bool
 	}
 }
 
-func agentDocScopeWire(scope workspaceapp.AgentDocScope) (protocol.AgentDocScope, bool) {
+func presentAgentDocScope(scope workspaceapp.AgentDocScope) (protocol.AgentDocScope, bool) {
 	switch scope {
 	case workspaceapp.AgentDocScopeCwd:
 		return protocol.AgentDocScopeCwd, true

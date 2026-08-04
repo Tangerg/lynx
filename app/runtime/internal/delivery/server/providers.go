@@ -17,7 +17,7 @@ func (s *Server) ListProviders(ctx context.Context) (*protocol.Page[protocol.Pro
 	}
 	out := make([]protocol.Provider, 0, len(providers))
 	for _, provider := range providers {
-		wire, err := providerToWire(provider)
+		wire, err := presentProvider(provider)
 		if err != nil {
 			return nil, err
 		}
@@ -45,7 +45,7 @@ func (s *Server) UpdateProvider(ctx context.Context, in protocol.UpdateProviderR
 	if err != nil {
 		return nil, mapModelError(err)
 	}
-	out, err := providerToWire(configured)
+	out, err := presentProvider(configured)
 	if err != nil {
 		return nil, err
 	}

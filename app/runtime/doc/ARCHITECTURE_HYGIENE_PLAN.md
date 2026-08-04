@@ -847,6 +847,27 @@ Acceptance:
   tests, and architecture fitness checks pass. Frontend generated bindings and
   canonical samples remain the explicitly deferred integration block.
 
+### Batch 30 — Delivery projection vocabulary closure
+
+Status: **Completed**
+
+Scope:
+
+- Replace the mixed `xWire`, `xToWire`, and pointer-shape helper names in
+  `delivery/server` with one outbound `presentX` vocabulary.
+- Retain `xFromWire` only for inbound protocol-to-inner mapping, where the
+  direction is meaningful and unambiguous.
+- Merge any duplicate projection exposed by the rename instead of preserving
+  two implementations behind new names.
+
+Acceptance:
+
+- No production package function in `delivery/server` ends in `Wire` or
+  `ToWire` unless it explicitly ends in `FromWire`.
+- Run and aggregate usage share one `presentModelUsage`; there is no duplicate
+  token/cost field mapping.
+- Server and architecture tests, runtime-wide build, and vet pass.
+
 ## 6. Progress
 
 | Batch | Status | Started | Completed | Evidence |
@@ -880,10 +901,23 @@ Acceptance:
 | 27. Item timestamp vocabulary closure | Completed | 2026-08-04 | 2026-08-04 | Domain/Application/SQLite/Delivery normal and race tests, generated Go validators, server contract artifacts, JSON exclusivity assertions, and timestamp architecture fitness checks passed. |
 | 28. Ambient path ownership closure | Completed | 2026-08-04 | 2026-08-04 | Explicit-path boundary tests, runtime-wide ambient-path fitness scan, focused normal/race suites, build/vet, static analysis, lint, dead-code analysis, and structural residue scans passed. |
 | 29. Delivery semantic boundary closure | Completed | 2026-08-04 | 2026-08-04 | Runtime event/export and server dependency fitness checks, Goal reason projection/storage tests, Go contract generation, runtime-wide build/vet, and focused server/domain/application/storage tests passed; full drift remains limited to deferred frontend bindings and canonical samples. |
+| 30. Delivery projection vocabulary closure | Completed | 2026-08-04 | 2026-08-04 | All server projection helpers use `presentX`, inbound mappers alone retain `FromWire`, duplicate model-usage mapping was removed, and server/architecture/build/vet checks passed. |
 
 Allowed status values: `Pending`, `In progress`, `Completed`, `Blocked`, `Revised`.
 
 ## 7. Progress log
+
+### 2026-08-04 — Batch 30 completed
+
+- Standardized every outbound `delivery/server` mapper on `presentX`; removed
+  the ambiguous `xWire`, `xToWire`, and shape-oriented `goalPtr` vocabulary.
+  Inbound mapping consistently retains `xFromWire`.
+- The convergence exposed two identical model-usage projections in
+  `presenter_run.go` and `usage.go`. Deleted the aggregate-usage copy so token
+  and cost fields have one projector shared by Run and usage APIs.
+- Added a syntax-level fitness check that rejects any future outbound server
+  helper ending in `Wire` or `ToWire` while allowing explicit `FromWire`
+  decoders.
 
 ### 2026-08-04 — Batch 29 completed
 

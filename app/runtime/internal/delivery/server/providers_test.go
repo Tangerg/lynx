@@ -35,7 +35,7 @@ func TestModelToWire(t *testing.T) {
 		},
 	}
 
-	m := modelToWire(info)
+	m := presentModel(info)
 
 	if m.ID != "claude-x" || m.Provider != "anthropic" || m.DisplayName != "Claude X" {
 		t.Fatalf("identity = %+v", m)
@@ -79,7 +79,7 @@ func TestModelToWire(t *testing.T) {
 // TestModelToWire_TextOnly verifies the convenience flags read false for a
 // plain text model: no image → multimodal false, no reasoning levels.
 func TestModelToWire_TextOnly(t *testing.T) {
-	m := modelToWire(models.Model{
+	m := presentModel(models.Model{
 		ID:       "tiny",
 		Provider: "openai",
 		Details:  &models.Details{InputModalities: []string{"text"}},
@@ -108,12 +108,12 @@ func TestProviderToWire_RequiresBaseURL(t *testing.T) {
 		{id: "anthropic", want: false},
 	}
 	for _, test := range tests {
-		wire, err := providerToWire(models.ProviderInfo{ID: test.id, RequiresBaseURL: test.want})
+		wire, err := presentProvider(models.ProviderInfo{ID: test.id, RequiresBaseURL: test.want})
 		if err != nil {
-			t.Fatalf("providerToWire(%q): %v", test.id, err)
+			t.Fatalf("presentProvider(%q): %v", test.id, err)
 		}
 		if wire.RequiresBaseURL != test.want {
-			t.Errorf("providerToWire(%q).RequiresBaseURL = %v, want %v", test.id, wire.RequiresBaseURL, test.want)
+			t.Errorf("presentProvider(%q).RequiresBaseURL = %v, want %v", test.id, wire.RequiresBaseURL, test.want)
 		}
 	}
 }

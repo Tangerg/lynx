@@ -129,7 +129,7 @@ func TestSkillProposalApproveConflictMapsInvalidParams(t *testing.T) {
 }
 
 func wireProposalRef(root string, ref skills.ProposalRef) protocol.SkillProposalRef {
-	scope, _ := proposalScopeWire(ref.Scope)
+	scope, _ := presentSkillProposalScope(ref.Scope)
 	return protocol.SkillProposalRef{
 		Workspace: protocol.WorkspaceRef{Path: root},
 		Name:      ref.Name,

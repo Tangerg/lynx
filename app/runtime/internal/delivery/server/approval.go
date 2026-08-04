@@ -15,7 +15,7 @@ func (s *Server) GetApprovalMode(ctx context.Context) (*protocol.ApprovalModeRes
 	if err != nil {
 		return nil, err
 	}
-	mode, ok := approvalModeToWire(m)
+	mode, ok := presentApprovalMode(m)
 	if !ok {
 		return nil, fmt.Errorf("server: %w: %d", approval.ErrInvalidMode, m)
 	}
@@ -45,7 +45,7 @@ func (s *Server) ListApprovalRules(ctx context.Context, in protocol.ListApproval
 	}
 	out := make([]protocol.ApprovalRule, 0, len(rules))
 	for _, r := range rules {
-		wire, err := approvalRuleToWire(r)
+		wire, err := presentApprovalRule(r)
 		if err != nil {
 			return nil, err
 		}
@@ -60,15 +60,15 @@ func (s *Server) ForgetApprovalRule(ctx context.Context, in protocol.ForgetAppro
 	return s.approvals.ForgetRule(ctx, in.ID)
 }
 
-// approvalRuleToWire maps a domain rule to its wire shape. The project
+// presentApprovalRule maps a domain rule to its protocol shape. The project
 // directory is surfaced only for project-scoped rules (the UI shows where they
 // apply); session/global rules carry no dir.
-func approvalRuleToWire(r approval.Rule) (protocol.ApprovalRule, error) {
-	scope, ok := approvalScopeWire(r.Scope)
+func presentApprovalRule(r approval.Rule) (protocol.ApprovalRule, error) {
+	scope, ok := presentApprovalScope(r.Scope)
 	if !ok {
 		return protocol.ApprovalRule{}, fmt.Errorf("approval.listRules: unsupported scope %q", r.Scope)
 	}
-	decision, ok := approvalDecisionWire(r.Decision)
+	decision, ok := presentApprovalDecision(r.Decision)
 	if !ok {
 		return protocol.ApprovalRule{}, fmt.Errorf("approval.listRules: unsupported decision %q", r.Decision)
 	}
@@ -85,7 +85,7 @@ func approvalRuleToWire(r approval.Rule) (protocol.ApprovalRule, error) {
 	return wire, nil
 }
 
-func approvalScopeWire(scope approval.Scope) (protocol.ApprovalRuleScope, bool) {
+func presentApprovalScope(scope approval.Scope) (protocol.ApprovalRuleScope, bool) {
 	switch scope {
 	case approval.ScopeSession:
 		return protocol.ApprovalRuleScopeSession, true
@@ -98,7 +98,7 @@ func approvalScopeWire(scope approval.Scope) (protocol.ApprovalRuleScope, bool) 
 	}
 }
 
-func approvalDecisionWire(decision approval.Decision) (protocol.ApprovalRuleDecision, bool) {
+func presentApprovalDecision(decision approval.Decision) (protocol.ApprovalRuleDecision, bool) {
 	switch decision {
 	case approval.Allow:
 		return protocol.ApprovalRuleDecisionAllow, true
@@ -109,9 +109,9 @@ func approvalDecisionWire(decision approval.Decision) (protocol.ApprovalRuleDeci
 	}
 }
 
-// approvalModeToWire maps the complete domain vocabulary to wire names. An
+// presentApprovalMode maps the complete domain vocabulary to protocol names. An
 // unknown value is rejected rather than disguised as a valid stance.
-func approvalModeToWire(m approval.Mode) (protocol.ApprovalMode, bool) {
+func presentApprovalMode(m approval.Mode) (protocol.ApprovalMode, bool) {
 	switch m {
 	case approval.ModeSafe:
 		return protocol.ApprovalModeSafe, true
@@ -140,7 +140,7 @@ func rememberScopeFromWire(s protocol.RememberScopeKind) (approval.Scope, bool) 
 	return "", false
 }
 
-// approvalModeFromWire maps a wire stance to the engine stance; ok=false for an
+// approvalModeFromWire maps a protocol stance to the domain stance; ok=false for an
 // unknown value (the caller raises invalid_params).
 func approvalModeFromWire(m protocol.ApprovalMode) (approval.Mode, bool) {
 	switch m {

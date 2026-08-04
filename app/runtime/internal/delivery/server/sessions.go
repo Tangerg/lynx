@@ -38,7 +38,7 @@ func (s *Server) ListSessions(ctx context.Context, q protocol.PageQuery) (*proto
 	}
 	data := make([]protocol.Session, 0, len(page.Rows))
 	for _, view := range page.Rows {
-		data = append(data, sessionViewToWire(view))
+		data = append(data, presentSession(view))
 	}
 	return protocol.NewPageWithCursor(data, page.NextCursor), nil
 }
@@ -48,7 +48,7 @@ func (s *Server) GetSession(ctx context.Context, id string) (*protocol.Session, 
 	if err != nil {
 		return nil, wireSessionErr(err)
 	}
-	out := sessionViewToWire(view)
+	out := presentSession(view)
 	return &out, nil
 }
 
@@ -63,7 +63,7 @@ func (s *Server) CreateSession(ctx context.Context, in protocol.CreateSessionReq
 	if err != nil {
 		return nil, err
 	}
-	out := sessionViewToWire(view)
+	out := presentSession(view)
 	return &out, nil
 }
 
@@ -106,7 +106,7 @@ func (s *Server) UpdateSession(ctx context.Context, in protocol.UpdateSessionReq
 		}
 		return nil, wireSessionErr(err)
 	}
-	out := sessionViewToWire(view)
+	out := presentSession(view)
 	return &out, nil
 }
 
@@ -132,20 +132,20 @@ func (s *Server) ForkSession(ctx context.Context, in protocol.ForkSessionRequest
 		}
 		return nil, wireSessionErr(err)
 	}
-	out := sessionViewToWire(child)
+	out := presentSession(child)
 	return &out, nil
 }
 
-// sessionViewToWire projects the complete Application read model into the
+// presentSession projects the complete Application read model into the
 // selected protocol shape. It intentionally performs no filesystem, live-run,
 // or model-default lookup.
-func sessionViewToWire(view sessions.View) protocol.Session {
+func presentSession(view sessions.View) protocol.Session {
 	return protocol.Session{
 		ID:        view.ID,
 		Title:     view.Title,
-		Workspace: workspaceInfoToWire(view.Cwd, view.ProjectRoot, view.CwdMissing),
+		Workspace: presentWorkspaceInfo(view.Cwd, view.ProjectRoot, view.CwdMissing),
 		Model:     view.Model,
-		Status:    sessionActivityToWire(view.Activity),
+		Status:    presentSessionStatus(view.Activity),
 		CreatedAt: view.CreatedAt,
 		UpdatedAt: view.UpdatedAt,
 		Favorite:  view.Favorite,
@@ -153,9 +153,9 @@ func sessionViewToWire(view sessions.View) protocol.Session {
 	}
 }
 
-// sessionActivityToWire projects the application-resolved activity without
+// presentSessionStatus projects the application-resolved activity without
 // reproducing its running/waiting precedence in Delivery.
-func sessionActivityToWire(activity sessions.Activity) protocol.SessionStatus {
+func presentSessionStatus(activity sessions.Activity) protocol.SessionStatus {
 	switch activity {
 	case sessions.ActivityRunning:
 		return protocol.SessionStatusRunning

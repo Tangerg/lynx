@@ -8,8 +8,8 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
 )
 
-func providerToWire(info modelapp.ProviderInfo) (protocol.Provider, error) {
-	keySource, err := providerKeySourceWire(info.KeySource)
+func presentProvider(info modelapp.ProviderInfo) (protocol.Provider, error) {
+	keySource, err := presentProviderKeySource(info.KeySource)
 	if err != nil {
 		return protocol.Provider{}, err
 	}
@@ -24,7 +24,7 @@ func providerToWire(info modelapp.ProviderInfo) (protocol.Provider, error) {
 	}, nil
 }
 
-func providerKeySourceWire(source provider.KeySource) (protocol.ProviderKeySource, error) {
+func presentProviderKeySource(source provider.KeySource) (protocol.ProviderKeySource, error) {
 	switch source {
 	case provider.KeyStored:
 		return protocol.ProviderKeySourceStored, nil

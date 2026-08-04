@@ -24,11 +24,11 @@ func (s *Server) ListHooks(ctx context.Context, in protocol.ListHooksRequest) (*
 	}
 	for _, resolved := range insp.Hooks {
 		h := resolved.Hook
-		event, ok := hookEventWire(h.Event)
+		event, ok := presentHookEvent(h.Event)
 		if !ok {
 			return nil, fmt.Errorf("hooks.list: unsupported hook event %q", h.Event)
 		}
-		scope, ok := hookScopeWire(h.Scope)
+		scope, ok := presentHookScope(h.Scope)
 		if !ok {
 			return nil, fmt.Errorf("hooks.list: unsupported hook scope %q", h.Scope)
 		}
@@ -46,7 +46,7 @@ func (s *Server) ListHooks(ctx context.Context, in protocol.ListHooksRequest) (*
 	return out, nil
 }
 
-func hookEventWire(event hooks.Event) (protocol.HookEvent, bool) {
+func presentHookEvent(event hooks.Event) (protocol.HookEvent, bool) {
 	switch event {
 	case hooks.PreToolUse:
 		return protocol.HookEventPreToolUse, true
@@ -71,7 +71,7 @@ func hookEventWire(event hooks.Event) (protocol.HookEvent, bool) {
 	}
 }
 
-func hookScopeWire(scope hooks.Scope) (protocol.HookScope, bool) {
+func presentHookScope(scope hooks.Scope) (protocol.HookScope, bool) {
 	switch scope {
 	case hooks.ScopeGlobal:
 		return protocol.HookScopeGlobal, true

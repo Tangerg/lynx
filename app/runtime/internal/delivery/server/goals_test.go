@@ -31,7 +31,7 @@ func TestGoalPtrProjectsMachineReadableReason(t *testing.T) {
 		test := test
 		t.Run(string(test.domain), func(t *testing.T) {
 			t.Parallel()
-			presented, err := goalPtr(goal.Goal{
+			presented, err := presentGoal(goal.Goal{
 				SessionID: "session-1",
 				Objective: "finish the migration",
 				Status:    goal.StatusBlocked,
@@ -40,7 +40,7 @@ func TestGoalPtrProjectsMachineReadableReason(t *testing.T) {
 				UpdatedAt: time.Unix(2, 0),
 			})
 			if err != nil {
-				t.Fatalf("goalPtr: %v", err)
+				t.Fatalf("presentGoal: %v", err)
 			}
 			if presented.Reason == nil || presented.Reason.Code != test.wire || presented.Reason.Detail != "safe context" {
 				t.Fatalf("reason = %+v, want code %q and preserved detail", presented.Reason, test.wire)
@@ -52,9 +52,9 @@ func TestGoalPtrProjectsMachineReadableReason(t *testing.T) {
 func TestGoalPtrOmitsReasonForActiveGoal(t *testing.T) {
 	t.Parallel()
 
-	presented, err := goalPtr(goal.Goal{Status: goal.StatusActive})
+	presented, err := presentGoal(goal.Goal{Status: goal.StatusActive})
 	if err != nil {
-		t.Fatalf("goalPtr: %v", err)
+		t.Fatalf("presentGoal: %v", err)
 	}
 	if presented.Reason != nil {
 		t.Fatalf("active reason = %+v, want nil", presented.Reason)
@@ -64,11 +64,11 @@ func TestGoalPtrOmitsReasonForActiveGoal(t *testing.T) {
 func TestGoalPtrRejectsUnknownReasonCode(t *testing.T) {
 	t.Parallel()
 
-	_, err := goalPtr(goal.Goal{
+	_, err := presentGoal(goal.Goal{
 		Status: goal.StatusPaused,
 		Reason: goal.Reason{Code: goal.ReasonCode("futureReason")},
 	})
 	if err == nil {
-		t.Fatal("goalPtr accepted an unpublished reason code")
+		t.Fatal("presentGoal accepted an unpublished reason code")
 	}
 }

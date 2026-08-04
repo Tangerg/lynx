@@ -65,7 +65,7 @@ func (f fakeSessionLookup) Get(context.Context, string) (session.Session, error)
 // and back, and that an unknown wire value is rejected (→ invalid_params).
 func TestApprovalModeWireRoundTrip(t *testing.T) {
 	for _, m := range []approval.Mode{approval.ModeSafe, approval.ModeBalanced, approval.ModeYolo} {
-		wire, ok := approvalModeToWire(m)
+		wire, ok := presentApprovalMode(m)
 		if !ok {
 			t.Fatalf("domain mode %v has no wire mapping", m)
 		}
@@ -74,7 +74,7 @@ func TestApprovalModeWireRoundTrip(t *testing.T) {
 			t.Errorf("round-trip %v → %q → %v (ok=%v)", m, wire, back, ok)
 		}
 	}
-	if _, ok := approvalModeToWire(approval.Mode(255)); ok {
+	if _, ok := presentApprovalMode(approval.Mode(255)); ok {
 		t.Error("unknown domain approval mode must be rejected")
 	}
 	if _, ok := approvalModeFromWire(protocol.ApprovalMode("bogus")); ok {

@@ -18,7 +18,7 @@ func (s *Server) ListMemory(ctx context.Context, in protocol.WorkspaceQuery) (*p
 	}
 	out := make([]protocol.MemoryEntry, 0, len(entries))
 	for _, e := range entries {
-		scope, err := memScopeToWire(e.Scope)
+		scope, err := presentMemoryScope(e.Scope)
 		if err != nil {
 			return nil, err
 		}
@@ -53,11 +53,11 @@ func (s *Server) UpdateMemory(ctx context.Context, in protocol.UpdateMemoryReque
 	return wireWorkspaceError(s.workspaceKnowledge.UpdateMemory(ctx, scope, cwd, in.Content))
 }
 
-// memScopeToWire / memScopeFromWire bridge the protocol and Domain closed
+// presentMemoryScope / memoryScopeFromWire bridge the protocol and Domain closed
 // vocabularies. The wire's cwd + projectRoot both
 // fold into the project scope (addressed by the request's cwd);
 // home maps to the user scope.
-func memScopeToWire(scope knowledge.Scope) (protocol.MemoryScope, error) {
+func presentMemoryScope(scope knowledge.Scope) (protocol.MemoryScope, error) {
 	switch scope {
 	case knowledge.ScopeProject:
 		return protocol.MemoryScopeCwd, nil
@@ -68,7 +68,7 @@ func memScopeToWire(scope knowledge.Scope) (protocol.MemoryScope, error) {
 	}
 }
 
-func memScopeFromWire(scope protocol.MemoryScope) (knowledge.Scope, error) {
+func memoryScopeFromWire(scope protocol.MemoryScope) (knowledge.Scope, error) {
 	switch scope {
 	case protocol.MemoryScopeCwd, protocol.MemoryScopeProjectRoot:
 		return knowledge.ScopeProject, nil
@@ -80,7 +80,7 @@ func memScopeFromWire(scope protocol.MemoryScope) (knowledge.Scope, error) {
 }
 
 func (s *Server) memoryTargetFromWire(scope protocol.MemoryScope, cwd string) (knowledge.Scope, string, error) {
-	target, err := memScopeFromWire(scope)
+	target, err := memoryScopeFromWire(scope)
 	if err != nil {
 		return "", "", err
 	}

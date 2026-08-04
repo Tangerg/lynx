@@ -25,7 +25,7 @@ func (s *Server) ListWorkspaceFiles(ctx context.Context, in protocol.ListFilesRe
 	}
 	data := make([]protocol.FileEntry, 0, len(page.Entries))
 	for _, entry := range page.Entries {
-		kind, ok := fileEntryTypeWire(entry.Kind)
+		kind, ok := presentFileEntryType(entry.Kind)
 		if !ok {
 			return nil, fmt.Errorf("workspace.files.list: unsupported entry kind %q", entry.Kind)
 		}
@@ -41,7 +41,7 @@ func (s *Server) ListWorkspaceFiles(ctx context.Context, in protocol.ListFilesRe
 	return protocol.NewPageWithCursor(data, page.NextCursor), nil
 }
 
-func fileEntryTypeWire(kind workspaceapp.FileEntryKind) (protocol.FileEntryType, bool) {
+func presentFileEntryType(kind workspaceapp.FileEntryKind) (protocol.FileEntryType, bool) {
 	switch kind {
 	case workspaceapp.FileEntryFile:
 		return protocol.FileEntryFile, true

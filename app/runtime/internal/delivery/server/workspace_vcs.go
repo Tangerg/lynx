@@ -16,7 +16,7 @@ func (s *Server) ListWorkspaceFileChanges(ctx context.Context, in protocol.Works
 	}
 	out := make([]protocol.WorkspaceFileChange, 0, len(changes))
 	for _, change := range changes {
-		status, ok := fileStatusWire(change.Status)
+		status, ok := presentFileStatus(change.Status)
 		if !ok {
 			return nil, fmt.Errorf("workspace.changes.list: unsupported file status %q", change.Status)
 		}
@@ -52,21 +52,21 @@ func (s *Server) GetWorkspaceDiff(ctx context.Context, in protocol.GetDiffReques
 	if in.Format == protocol.DiffFormatRaw {
 		return &protocol.Diff{Patch: diff.Patch}, nil
 	}
-	files, err := diffFilesWire(diff.Files)
+	files, err := presentDiffFiles(diff.Files)
 	if err != nil {
 		return nil, err
 	}
 	return &protocol.Diff{Files: files, Truncated: diff.Truncated}, nil
 }
 
-func diffFilesWire(files []workspaceapp.FileDiff) ([]protocol.FileDiff, error) {
+func presentDiffFiles(files []workspaceapp.FileDiff) ([]protocol.FileDiff, error) {
 	out := make([]protocol.FileDiff, 0, len(files))
 	for _, file := range files {
-		status, ok := fileStatusWire(file.Status)
+		status, ok := presentFileStatus(file.Status)
 		if !ok {
 			return nil, fmt.Errorf("workspace.diff.get: unsupported file status %q", file.Status)
 		}
-		rows, err := diffRowsWire(file.Rows)
+		rows, err := presentDiffRows(file.Rows)
 		if err != nil {
 			return nil, err
 		}
@@ -83,10 +83,10 @@ func diffFilesWire(files []workspaceapp.FileDiff) ([]protocol.FileDiff, error) {
 	return out, nil
 }
 
-func diffRowsWire(rows []workspaceapp.DiffRow) ([]protocol.DiffRow, error) {
+func presentDiffRows(rows []workspaceapp.DiffRow) ([]protocol.DiffRow, error) {
 	out := make([]protocol.DiffRow, 0, len(rows))
 	for _, row := range rows {
-		kind, ok := diffRowTypeWire(row.Type)
+		kind, ok := presentDiffRowType(row.Type)
 		if !ok {
 			return nil, fmt.Errorf("workspace.diff.get: unsupported row type %q", row.Type)
 		}
@@ -97,7 +97,7 @@ func diffRowsWire(rows []workspaceapp.DiffRow) ([]protocol.DiffRow, error) {
 	return out, nil
 }
 
-func fileStatusWire(status workspaceapp.FileStatus) (protocol.FileStatus, bool) {
+func presentFileStatus(status workspaceapp.FileStatus) (protocol.FileStatus, bool) {
 	switch status {
 	case workspaceapp.FileStatusAdded:
 		return protocol.FileStatusAdded, true
@@ -114,7 +114,7 @@ func fileStatusWire(status workspaceapp.FileStatus) (protocol.FileStatus, bool) 
 	}
 }
 
-func diffRowTypeWire(kind workspaceapp.DiffRowType) (protocol.DiffRowType, bool) {
+func presentDiffRowType(kind workspaceapp.DiffRowType) (protocol.DiffRowType, bool) {
 	switch kind {
 	case workspaceapp.DiffRowHunk:
 		return protocol.DiffRowHunk, true
