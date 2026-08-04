@@ -16,8 +16,8 @@ type recordingAgentMemory struct {
 	listCwd   string
 	items     []agentmemory.Item
 
-	statusID string
-	status   agentmemory.Status
+	reviewID string
+	decision agentmemory.ReviewDecision
 	pinnedID string
 	pinned   bool
 	editedID string
@@ -38,8 +38,8 @@ func (r *recordingAgentMemory) List(_ context.Context, scope agentmemory.Scope, 
 	return r.items, nil
 }
 
-func (r *recordingAgentMemory) Review(_ context.Context, id string, status agentmemory.Status) error {
-	r.statusID, r.status = id, status
+func (r *recordingAgentMemory) Review(_ context.Context, id string, decision agentmemory.ReviewDecision) error {
+	r.reviewID, r.decision = id, decision
 	return nil
 }
 
@@ -65,7 +65,7 @@ func (r *recordingAgentMemory) Add(_ context.Context, scope agentmemory.Scope, c
 
 func TestAgentMemoryListResolvesTargetAndMapsWire(t *testing.T) {
 	rec := &recordingAgentMemory{items: []agentmemory.Item{
-		{ID: "1", Content: "- fact", Origin: agentmemory.OriginAuto, Status: agentmemory.StatusPending},
+		{ID: "1", Scope: agentmemory.ScopeProject, Content: "- fact", Origin: agentmemory.OriginAuto, Status: agentmemory.StatusPending},
 	}}
 	s := newTestServer(&stubRuntime{})
 	s.agentMemory = rec
@@ -118,14 +118,14 @@ func TestAgentMemoryReviewMapsDecision(t *testing.T) {
 	if err := s.ReviewAgentMemory(context.Background(), protocol.AgentMemoryReviewRequest{ID: "a", Decision: "approve"}); err != nil {
 		t.Fatal(err)
 	}
-	if rec.statusID != "a" || rec.status != agentmemory.StatusActive {
-		t.Fatalf("approve → %q %v", rec.statusID, rec.status)
+	if rec.reviewID != "a" || rec.decision != agentmemory.ReviewApprove {
+		t.Fatalf("approve → %q %v", rec.reviewID, rec.decision)
 	}
 	if err := s.ReviewAgentMemory(context.Background(), protocol.AgentMemoryReviewRequest{ID: "b", Decision: "reject"}); err != nil {
 		t.Fatal(err)
 	}
-	if rec.status != agentmemory.StatusRejected {
-		t.Fatalf("reject → %v", rec.status)
+	if rec.decision != agentmemory.ReviewReject {
+		t.Fatalf("reject → %v", rec.decision)
 	}
 	if err := s.ReviewAgentMemory(context.Background(), protocol.AgentMemoryReviewRequest{ID: "c", Decision: "bogus"}); !errors.Is(err, protocol.ErrInvalidParams) {
 		t.Fatalf("bogus decision → %v, want invalid_params", err)
@@ -133,7 +133,10 @@ func TestAgentMemoryReviewMapsDecision(t *testing.T) {
 }
 
 func TestAgentMemoryUpdateAndAdd(t *testing.T) {
-	rec := &recordingAgentMemory{getItem: agentmemory.Item{ID: "a", Content: "- edited", Pinned: true, Status: agentmemory.StatusActive}}
+	rec := &recordingAgentMemory{getItem: agentmemory.Item{
+		ID: "a", Scope: agentmemory.ScopeProject, Content: "- edited", Origin: agentmemory.OriginUser,
+		Pinned: true, Status: agentmemory.StatusActive,
+	}}
 	s := newTestServer(&stubRuntime{})
 	s.agentMemory = rec
 	s.features.agentMemory = true

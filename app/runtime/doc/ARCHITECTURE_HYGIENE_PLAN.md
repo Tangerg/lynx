@@ -599,6 +599,32 @@ Acceptance:
   removed-source scans pass, aside from the known deferred frontend contract
   fixture drift.
 
+### Batch 21 — Agent-memory domain closure
+
+Status: **Completed**
+
+Scope:
+
+- Replace permissive integer scope/status/origin values with closed string
+  vocabularies whose zero value is invalid and whose parsers reject unknown
+  durable tokens.
+- Model human review as `ReviewDecision`, not as a caller-selected target
+  status, and permit only the pending-to-active/rejected transition.
+- Validate durable Item identity, partition, provenance, state, content, and
+  timestamps in Domain before persistence.
+- Make SQLite apply review atomically and enforce the same vocabulary,
+  partition, provenance/state, and boolean constraints in schema epoch 52.
+
+Acceptance:
+
+- Corrupt storage values cannot become project, active, or auto through a
+  default branch.
+- Direct Application callers cannot select an invalid scope or set arbitrary
+  memory state; repeated/non-pending review reports a typed domain error.
+- Domain/Application/SQLite/Delivery normal and race tests, runtime-wide
+  compile, standalone build/vet, static analysis, lint, and dead-code analysis
+  pass; the known deferred frontend contract/sample drift may remain.
+
 ## 6. Progress
 
 | Batch | Status | Started | Completed | Evidence |
@@ -623,10 +649,30 @@ Acceptance:
 | 18. Composition-input and transparent-alias closure | Completed | 2026-08-04 | 2026-08-04 | Runtime-wide compile, focused tests, dependency/alias fitness tests, `go vet`, `staticcheck`, `golangci-lint`, `deadcode -test`, and exact alias scans passed; the full architecture suite retained only the known stale frontend-contract failures. |
 | 19. Canonical runtime vocabulary | Completed | 2026-08-04 | 2026-08-04 | Runtime-wide compile, focused behavior tests, dependency/vocabulary/activity fitness tests, `go vet`, `staticcheck`, `golangci-lint`, `deadcode -test`, formatting, and exact removed-name scans passed. |
 | 20. Responsibility and entrypoint convergence | Completed | 2026-08-04 | 2026-08-04 | Runtime-wide compile; focused normal/race tests; architecture checks; standalone build/vet; `staticcheck`; `golangci-lint`; `deadcode -test`; formatting and exact-source scans passed. Full tests retain only the known deferred frontend contract/sample drift. |
+| 21. Agent-memory domain closure | Completed | 2026-08-04 | 2026-08-04 | Domain/Application/SQLite/Delivery normal and race tests, runtime-wide compile, standalone build/vet, `staticcheck`, `golangci-lint`, `deadcode -test`, schema-constraint tests, and full regression classification passed. |
 
 Allowed status values: `Pending`, `In progress`, `Completed`, `Blocked`, `Revised`.
 
 ## 7. Progress log
+
+### 2026-08-04 — Batch 21 completed
+
+- Replaced agent-memory's permissive integer enums with closed string values.
+  Unknown stored scope, status, or origin now fails decoding instead of becoming
+  project, active, or auto; the zero value is no longer a valid business fact.
+- Replaced the `SetStatus` persistence seam and status-shaped Application
+  command with one `ReviewDecision`. SQLite applies only
+  pending-to-active/rejected transitions atomically and distinguishes missing
+  from already-resolved items.
+- Added Domain validation for durable Item identity, scope/project partition,
+  content, provenance, lifecycle, and timestamps. Constructors now return only
+  valid Items or an error.
+- Advanced the single current SQLite shape to epoch 52 and encoded the same
+  vocabulary, scope/project, user-origin, and pinned constraints in the table.
+- Focused normal and race tests, runtime-wide compilation, schema constraint
+  tests, and full regression classification pass. Full-test failures remain
+  limited to the previously recorded frontend generated-contract and protocol
+  sample drift.
 
 ### 2026-08-04 — Batch 20 completed
 

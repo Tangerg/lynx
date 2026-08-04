@@ -60,7 +60,7 @@ func Open(path string) (*sql.DB, error) {
 // schemaEpoch identifies the one storage shape this build understands. It is an
 // epoch rather than a version because nothing connects two values: a database
 // stamped with any other number is refused, never upgraded.
-const schemaEpoch = 51
+const schemaEpoch = 52
 
 func installCurrentSchema(db *sql.DB, path string) error {
 	var epoch int
@@ -542,16 +542,16 @@ func installCurrentSchema(db *sql.DB, path string) error {
 		// auto-pruned. session_id/day carry provenance.
 		`CREATE TABLE IF NOT EXISTS agent_memory_items (
 			id         TEXT    PRIMARY KEY,
-			scope      TEXT    NOT NULL,
+			scope      TEXT    NOT NULL CHECK (scope IN ('project', 'user')),
 			project    TEXT    NOT NULL DEFAULT '',
 			content    TEXT    NOT NULL,
 			digest     TEXT    NOT NULL,
-			origin     TEXT    NOT NULL,
+			origin     TEXT    NOT NULL CHECK (origin IN ('auto', 'user')),
 			-- HITL review lifecycle: 'active' (approved/injected/searched),
 			-- 'pending' (proposed, awaiting review), 'rejected' (tombstone that
 			-- blocks the same fact from being re-proposed).
-			status     TEXT    NOT NULL DEFAULT 'active',
-			pinned     INTEGER NOT NULL DEFAULT 0,
+			status     TEXT    NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'pending', 'rejected')),
+			pinned     INTEGER NOT NULL DEFAULT 0 CHECK (pinned IN (0, 1)),
 			session_id TEXT    NOT NULL DEFAULT '',
 			day        TEXT    NOT NULL DEFAULT '',
 			created_at INTEGER NOT NULL,
@@ -560,6 +560,8 @@ func installCurrentSchema(db *sql.DB, path string) error {
 			-- codebase_chunks). Empty until a configured embedder backfills it; a
 			-- keyword scan works without it.
 			embedding  BLOB    NOT NULL DEFAULT x'',
+			CHECK ((scope = 'project' AND project <> '') OR (scope = 'user' AND project = '')),
+			CHECK (origin <> 'user' OR status = 'active'),
 			UNIQUE(scope, project, digest)
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_agent_memory_items_scope

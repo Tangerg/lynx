@@ -15,6 +15,7 @@ type fakeStore struct {
 	updatedAt   time.Time
 	content     *string
 	pinned      *bool
+	decision    domain.ReviewDecision
 }
 
 func (s *fakeStore) List(_ context.Context, scope domain.Scope, project string) ([]domain.Item, error) {
@@ -22,7 +23,10 @@ func (s *fakeStore) List(_ context.Context, scope domain.Scope, project string) 
 	return []domain.Item{{ID: "mem_1", Scope: scope, Project: project}}, nil
 }
 
-func (*fakeStore) SetStatus(context.Context, string, domain.Status, time.Time) error { return nil }
+func (s *fakeStore) Review(_ context.Context, _ string, decision domain.ReviewDecision, _ time.Time) error {
+	s.decision = decision
+	return nil
+}
 
 func (s *fakeStore) Update(_ context.Context, _ string, content *string, pinned *bool, now time.Time) (domain.Item, error) {
 	s.content, s.pinned, s.updatedAt = content, pinned, now
@@ -74,6 +78,28 @@ func TestUpdateDelegatesOneAtomicPatchWithApplicationClock(t *testing.T) {
 	}
 	if store.content != &content || store.pinned != &pinned || !store.updatedAt.Equal(now) {
 		t.Fatalf("patch = content=%p pinned=%p at=%s", store.content, store.pinned, store.updatedAt)
+	}
+}
+
+func TestReviewAcceptsDecisionNotTargetState(t *testing.T) {
+	store := &fakeStore{}
+	c := New(Config{Store: store})
+	if err := c.Review(t.Context(), "mem_1", domain.ReviewApprove); err != nil {
+		t.Fatal(err)
+	}
+	if store.decision != domain.ReviewApprove {
+		t.Fatalf("decision = %q, want approve", store.decision)
+	}
+	if err := c.Review(t.Context(), "mem_1", domain.ReviewDecision("active")); err == nil {
+		t.Fatal("target status was accepted as a review decision")
+	}
+}
+
+func TestUnknownScopeFailsBeforeRootResolution(t *testing.T) {
+	store := &fakeStore{}
+	c := New(Config{Store: store, Roots: rootResolver{root: "/canonical/repo"}})
+	if _, err := c.List(t.Context(), domain.Scope("unknown"), "/repo"); err == nil {
+		t.Fatal("unknown scope was accepted")
 	}
 }
 

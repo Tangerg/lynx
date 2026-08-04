@@ -143,11 +143,14 @@ func TestAgentMemoryReviewLifecycle(t *testing.T) {
 		t.Fatalf("proposals = %d, want 2", len(proposals))
 	}
 	approve, reject := proposals[0], proposals[1]
-	if err := store.SetStatus(t.Context(), approve.ID, agentmemory.StatusActive, now); err != nil {
+	if err := store.Review(t.Context(), approve.ID, agentmemory.ReviewApprove, now); err != nil {
 		t.Fatal(err)
 	}
-	if err := store.SetStatus(t.Context(), reject.ID, agentmemory.StatusRejected, now); err != nil {
+	if err := store.Review(t.Context(), reject.ID, agentmemory.ReviewReject, now); err != nil {
 		t.Fatal(err)
+	}
+	if err := store.Review(t.Context(), approve.ID, agentmemory.ReviewReject, now); !errors.Is(err, agentmemory.ErrNotPending) {
+		t.Fatalf("second review = %v, want ErrNotPending", err)
 	}
 
 	// Only the approved item is injected; List hides the rejected tombstone.
@@ -173,6 +176,37 @@ func TestAgentMemoryReviewLifecycle(t *testing.T) {
 	}
 	if slices.Contains(contents, "two") {
 		t.Fatalf("rejected fact was re-proposed: %+v", listed)
+	}
+}
+
+func TestAgentMemorySchemaRejectsInvalidDomainVocabulary(t *testing.T) {
+	db, err := sqlite.Open(filepath.Join(t.TempDir(), "lyra.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+
+	for _, test := range []struct {
+		name   string
+		scope  string
+		origin string
+		status string
+	}{
+		{name: "scope", scope: "unknown", origin: "auto", status: "pending"},
+		{name: "origin", scope: "project", origin: "unknown", status: "pending"},
+		{name: "status", scope: "project", origin: "auto", status: "unknown"},
+		{name: "user project", scope: "user", origin: "user", status: "active"},
+		{name: "user pending", scope: "user", origin: "user", status: "pending"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := db.Exec(`INSERT INTO agent_memory_items(
+				id, scope, project, content, digest, origin, status, created_at, updated_at
+			) VALUES (?, ?, '/repo', 'fact', ?, ?, ?, 1, 1)`,
+				"mem_"+test.name, test.scope, "digest_"+test.name, test.origin, test.status)
+			if err == nil {
+				t.Fatal("invalid agent-memory row was accepted")
+			}
+		})
 	}
 }
 
@@ -234,7 +268,7 @@ func TestAgentMemoryEmbeddingBackfillRoundTrip(t *testing.T) {
 	// Only approved (active) items are embedded; approve the proposals first.
 	proposals, _ := store.List(t.Context(), agentmemory.ScopeProject, "/repo")
 	for _, item := range proposals {
-		if err := store.SetStatus(t.Context(), item.ID, agentmemory.StatusActive, now); err != nil {
+		if err := store.Review(t.Context(), item.ID, agentmemory.ReviewApprove, now); err != nil {
 			t.Fatal(err)
 		}
 	}

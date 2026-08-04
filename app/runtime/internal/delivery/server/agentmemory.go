@@ -19,7 +19,7 @@ import (
 type agentMemoryUseCases interface {
 	Available() bool
 	List(ctx context.Context, scope agentmemory.Scope, cwd string) ([]agentmemory.Item, error)
-	Review(ctx context.Context, id string, status agentmemory.Status) error
+	Review(ctx context.Context, id string, decision agentmemory.ReviewDecision) error
 	Update(ctx context.Context, id string, content *string, pinned *bool) (agentmemory.Item, error)
 	Delete(ctx context.Context, id string) error
 	Add(ctx context.Context, scope agentmemory.Scope, cwd, content string) (agentmemory.Item, error)
@@ -49,16 +49,16 @@ func (s *Server) ListAgentMemory(ctx context.Context, in protocol.AgentMemoryLis
 
 // ReviewAgentMemory approves or rejects a pending proposal (agentMemory.review).
 func (s *Server) ReviewAgentMemory(ctx context.Context, in protocol.AgentMemoryReviewRequest) error {
-	var status agentmemory.Status
+	var decision agentmemory.ReviewDecision
 	switch in.Decision {
 	case protocol.AgentMemoryReviewApprove:
-		status = agentmemory.StatusActive
+		decision = agentmemory.ReviewApprove
 	case protocol.AgentMemoryReviewReject:
-		status = agentmemory.StatusRejected
+		decision = agentmemory.ReviewReject
 	default:
 		return fmt.Errorf("%w: decision must be \"approve\" or \"reject\"", protocol.ErrInvalidParams)
 	}
-	return mapAgentMemoryErr(s.agentMemory.Review(ctx, in.ID, status), "agentMemory.review")
+	return mapAgentMemoryErr(s.agentMemory.Review(ctx, in.ID, decision), "agentMemory.review")
 }
 
 // UpdateAgentMemory edits and/or pins an item (agentMemory.update).
@@ -104,16 +104,16 @@ func agentMemoryTargetFromWire(scope protocol.AgentMemoryScope, workspace *proto
 	switch scope {
 	case protocol.AgentMemoryScopeProject:
 		if workspace == nil {
-			return 0, "", fmt.Errorf("%w: project agent memory requires workspace", protocol.ErrInvalidParams)
+			return "", "", fmt.Errorf("%w: project agent memory requires workspace", protocol.ErrInvalidParams)
 		}
 		return agentmemory.ScopeProject, workspace.Path, nil
 	case protocol.AgentMemoryScopeUser:
 		if workspace != nil {
-			return 0, "", fmt.Errorf("%w: user agent memory forbids workspace", protocol.ErrInvalidParams)
+			return "", "", fmt.Errorf("%w: user agent memory forbids workspace", protocol.ErrInvalidParams)
 		}
 		return agentmemory.ScopeUser, "", nil
 	default:
-		return 0, "", fmt.Errorf("%w: unknown agent memory scope %q", protocol.ErrInvalidParams, scope)
+		return "", "", fmt.Errorf("%w: unknown agent memory scope %q", protocol.ErrInvalidParams, scope)
 	}
 }
 
@@ -125,6 +125,8 @@ func mapAgentMemoryErr(err error, method string) error {
 		return capabilityNotNegotiated(method)
 	case errors.Is(err, agentmemory.ErrNotFound):
 		return fmt.Errorf("%w: no such memory item", protocol.ErrInvalidParams)
+	case errors.Is(err, agentmemory.ErrNotPending):
+		return fmt.Errorf("%w: memory item is not pending review", protocol.ErrInvalidParams)
 	default:
 		return wireWorkspaceError(err)
 	}
@@ -164,7 +166,7 @@ func agentMemoryScopeWire(scope agentmemory.Scope) (protocol.AgentMemoryScope, e
 	case agentmemory.ScopeUser:
 		return protocol.AgentMemoryScopeUser, nil
 	default:
-		return "", fmt.Errorf("agentMemory: unsupported scope %d", scope)
+		return "", fmt.Errorf("agentMemory: unsupported scope %q", scope)
 	}
 }
 
@@ -175,7 +177,7 @@ func agentMemoryOriginWire(origin agentmemory.Origin) (protocol.AgentMemoryOrigi
 	case agentmemory.OriginUser:
 		return protocol.AgentMemoryOriginUser, nil
 	default:
-		return "", fmt.Errorf("agentMemory: unsupported origin %d", origin)
+		return "", fmt.Errorf("agentMemory: unsupported origin %q", origin)
 	}
 }
 
@@ -188,6 +190,6 @@ func agentMemoryStatusWire(status agentmemory.Status) (protocol.AgentMemoryStatu
 	case agentmemory.StatusRejected:
 		return "", errors.New("agentMemory: rejected items must not be projected")
 	default:
-		return "", fmt.Errorf("agentMemory: unsupported status %d", status)
+		return "", fmt.Errorf("agentMemory: unsupported status %q", status)
 	}
 }

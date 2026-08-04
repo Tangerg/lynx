@@ -27,18 +27,60 @@ func TestFactBatchNormalizeValidatesIdentity(t *testing.T) {
 	}
 }
 
-func TestScopeAndOriginRoundTrip(t *testing.T) {
+func TestClosedVocabularyRoundTrip(t *testing.T) {
 	for _, scope := range []Scope{ScopeProject, ScopeUser} {
-		if ParseScope(scope.String()) != scope {
+		parsed, err := ParseScope(scope.String())
+		if err != nil || parsed != scope {
 			t.Fatalf("scope round-trip failed for %v", scope)
 		}
 	}
+	for _, status := range []Status{StatusActive, StatusPending, StatusRejected} {
+		parsed, err := ParseStatus(status.String())
+		if err != nil || parsed != status {
+			t.Fatalf("status round-trip failed for %v", status)
+		}
+	}
 	for _, origin := range []Origin{OriginAuto, OriginUser} {
-		if ParseOrigin(origin.String()) != origin {
+		parsed, err := ParseOrigin(origin.String())
+		if err != nil || parsed != origin {
 			t.Fatalf("origin round-trip failed for %v", origin)
 		}
 	}
-	if ParseScope("garbage") != ScopeProject || ParseOrigin("garbage") != OriginAuto {
-		t.Fatal("unknown tokens must default to project / auto")
+	if _, err := ParseScope("garbage"); err == nil {
+		t.Fatal("unknown scope was accepted")
+	}
+	if _, err := ParseStatus("garbage"); err == nil {
+		t.Fatal("unknown status was accepted")
+	}
+	if _, err := ParseOrigin("garbage"); err == nil {
+		t.Fatal("unknown origin was accepted")
+	}
+}
+
+func TestReviewDecisionOwnsResultingStatus(t *testing.T) {
+	for _, test := range []struct {
+		decision ReviewDecision
+		want     Status
+	}{
+		{decision: ReviewApprove, want: StatusActive},
+		{decision: ReviewReject, want: StatusRejected},
+	} {
+		got, err := test.decision.Result()
+		if err != nil || got != test.want {
+			t.Fatalf("%q.Result() = (%q, %v), want %q", test.decision, got, err, test.want)
+		}
+	}
+	if _, err := ReviewDecision("later").Result(); err == nil {
+		t.Fatal("unknown review decision was accepted")
+	}
+}
+
+func TestItemConstructionRejectsInvalidPartition(t *testing.T) {
+	now := time.Now()
+	if _, err := NewProposal("mem_1", "", "fact", now); err == nil {
+		t.Fatal("project proposal without project was accepted")
+	}
+	if _, err := NewUserItem("mem_2", ScopeUser, "/repo", "fact", now); err == nil {
+		t.Fatal("user item with project was accepted")
 	}
 }

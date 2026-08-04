@@ -26,7 +26,7 @@ type RootResolver interface {
 // Extraction and search declare their own narrower consumer views.
 type Store interface {
 	List(ctx context.Context, scope domain.Scope, project string) ([]domain.Item, error)
-	SetStatus(ctx context.Context, id string, status domain.Status, now time.Time) error
+	Review(ctx context.Context, id string, decision domain.ReviewDecision, now time.Time) error
 	Update(ctx context.Context, id string, content *string, pinned *bool, now time.Time) (domain.Item, error)
 	Delete(ctx context.Context, id string) error
 	Add(ctx context.Context, scope domain.Scope, project, content string, now time.Time) (domain.Item, error)
@@ -74,11 +74,14 @@ func (c *Coordinator) List(ctx context.Context, scope domain.Scope, cwd string) 
 }
 
 // Review accepts or rejects an extracted proposal.
-func (c *Coordinator) Review(ctx context.Context, id string, status domain.Status) error {
+func (c *Coordinator) Review(ctx context.Context, id string, decision domain.ReviewDecision) error {
 	if !c.Available() {
 		return ErrUnavailable
 	}
-	return c.store.SetStatus(ctx, id, status, c.now())
+	if _, err := decision.Result(); err != nil {
+		return err
+	}
+	return c.store.Review(ctx, id, decision, c.now())
 }
 
 // Update applies the content/pin patch as one use case and returns the saved
@@ -111,6 +114,9 @@ func (c *Coordinator) Add(ctx context.Context, scope domain.Scope, cwd, content 
 }
 
 func (c *Coordinator) project(scope domain.Scope, cwd string) (string, error) {
+	if err := scope.Validate(); err != nil {
+		return "", err
+	}
 	if scope == domain.ScopeUser {
 		return "", nil
 	}
