@@ -1,7 +1,7 @@
-// Package goaltool exposes the root Agent's model-facing autonomous Goal
+// Package goal exposes the root Agent's model-facing autonomous Goal
 // controls. The adapters depend only on narrow application use cases: they do
 // not know how Goals are persisted, scheduled, or joined to Run admission.
-package goaltool
+package goal
 
 import (
 	"context"
@@ -13,7 +13,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/executionctx"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/goals"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
+	goalstate "github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 )
 
@@ -64,7 +64,7 @@ type reportArgs struct {
 
 // Reader is get_goal's complete consumer view.
 type Reader interface {
-	Get(ctx context.Context, sessionID string) (goal.Goal, bool, error)
+	Get(ctx context.Context, sessionID string) (goalstate.Goal, bool, error)
 }
 
 // ActiveReader is the resolver gate's complete consumer view.
@@ -89,7 +89,7 @@ type State interface {
 // Starter is the one lifecycle operation create_goal needs. The Driver owns
 // admission waiting and loop lifetime; the tool does not reproduce either.
 type Starter interface {
-	Start(ctx context.Context, sessionID, objective string, selection modelref.Selection, budget goal.Budget) (goal.Goal, error)
+	Start(ctx context.Context, sessionID, objective string, selection modelref.Selection, budget goalstate.Budget) (goalstate.Goal, error)
 }
 
 type createTool struct{ goals Starter }
@@ -172,9 +172,9 @@ func (t *createTool) create(ctx context.Context, args createArgs) (goalResult, e
 	if objective == "" {
 		return goalResult{Message: "Provide a non-empty autonomous objective."}, nil
 	}
-	var budget goal.Budget
+	var budget goalstate.Budget
 	if args.Budget != nil {
-		budget = goal.Budget{
+		budget = goalstate.Budget{
 			MaxTurns:   args.Budget.MaxTurns,
 			MaxCostUSD: args.Budget.MaxCostUSD,
 			MaxSteps:   args.Budget.MaxSteps,
@@ -225,10 +225,10 @@ func (t *reportTool) report(ctx context.Context, args reportArgs) (string, error
 	if sessionID == "" {
 		return "No active session; cannot report a Goal outcome.", nil
 	}
-	status := goal.StatusComplete
+	status := goalstate.StatusComplete
 	reason := ""
 	if args.Outcome == "blocked" {
-		status = goal.StatusBlocked
+		status = goalstate.StatusBlocked
 		if args.Reason != nil {
 			reason = strings.TrimSpace(*args.Reason)
 		}
@@ -269,7 +269,7 @@ func (t *reportTool) report(ctx context.Context, args reportArgs) (string, error
 	}
 }
 
-func viewOf(g goal.Goal) goalView {
+func viewOf(g goalstate.Goal) goalView {
 	return goalView{
 		SessionID: g.SessionID,
 		Objective: g.Objective,
@@ -294,32 +294,32 @@ func viewOf(g goal.Goal) goalView {
 
 // reasonText is adapter-owned presentation. Keeping it here avoids making
 // application or domain packages depend on model-facing prose.
-func reasonText(reason goal.Reason) string {
+func reasonText(reason goalstate.Reason) string {
 	switch reason.Cause {
-	case goal.ReasonNone:
+	case goalstate.ReasonNone:
 		return ""
-	case goal.ReasonStoppedByUser:
+	case goalstate.ReasonStoppedByUser:
 		return "stopped by the user"
-	case goal.ReasonRuntimeRestarted:
+	case goalstate.ReasonRuntimeRestarted:
 		return "the service restarted; resume to continue"
-	case goal.ReasonRunStartFailed:
+	case goalstate.ReasonRunStartFailed:
 		return "could not start the next Run"
-	case goal.ReasonAwaitingInput:
+	case goalstate.ReasonAwaitingInput:
 		return "the Run is waiting for user input"
-	case goal.ReasonTerminalOutcomeMissing:
+	case goalstate.ReasonTerminalOutcomeMissing:
 		return "the Run ended without a terminal outcome"
-	case goal.ReasonRunNotCompleted:
+	case goalstate.ReasonRunNotCompleted:
 		if reason.Detail == "" {
 			return "the Run ended before completing the Goal"
 		}
 		return "the Run ended: " + reason.Detail
-	case goal.ReasonTurnBudgetReached:
+	case goalstate.ReasonTurnBudgetReached:
 		return "reached the turn budget"
-	case goal.ReasonCostBudgetReached:
+	case goalstate.ReasonCostBudgetReached:
 		return "reached the cost budget"
-	case goal.ReasonStepBudgetReached:
+	case goalstate.ReasonStepBudgetReached:
 		return "reached the step budget"
-	case goal.ReasonBlockedByModel:
+	case goalstate.ReasonBlockedByModel:
 		if reason.Detail != "" {
 			return reason.Detail
 		}

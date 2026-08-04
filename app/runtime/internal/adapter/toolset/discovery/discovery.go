@@ -1,4 +1,4 @@
-// Package toolsearch exposes the model-facing search_tools meta-tool: a
+// Package discovery exposes the model-facing search_tools meta-tool: a
 // progressive-disclosure surface over a set of tools deliberately withheld from
 // the initial manifest. The withheld
 // tools stay resolvable in the turn's registry but are not advertised, so the
@@ -8,7 +8,7 @@
 // becomes directly callable on the next round.
 //
 // The generic mid-loop promotion mechanism lives in agent/toolloop.
-package toolsearch
+package discovery
 
 import (
 	"cmp"
@@ -50,25 +50,25 @@ type mcpToolIdentity interface {
 	MCPToolIdentity() (sourceName, remoteName string)
 }
 
-// Tool is the search_tools meta-tool over a fixed set of withheld tools. It is
+// Search is the search_tools meta-tool over a fixed set of withheld tools. It is
 // built per Run from the resolver's complete deferred set, so its advertised
 // catalog and promotable definitions never drift.
-type Tool struct {
+type Search struct {
 	entries []entry
 	byName  map[string]entry
 	names   []string // deferred tool names, in stable source-then-name order
 	inner   toolcontract.Tool
 }
 
-var _ toolcontract.Tool = (*Tool)(nil)
+var _ toolcontract.Tool = (*Search)(nil)
 
 // New builds a search_tools tool over withheld. It returns nil when withheld is
 // empty so the caller simply omits the tool — there is nothing to search.
-func New(withheld []toolcontract.Tool) (*Tool, error) {
+func New(withheld []toolcontract.Tool) (*Search, error) {
 	if len(withheld) == 0 {
 		return nil, nil
 	}
-	t := &Tool{byName: make(map[string]entry, len(withheld))}
+	t := &Search{byName: make(map[string]entry, len(withheld))}
 	for _, tool := range withheld {
 		def := tool.Definition()
 		e := entry{
@@ -101,7 +101,7 @@ func New(withheld []toolcontract.Tool) (*Tool, error) {
 		t.search,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("toolsearch: build search_tools: %w", err)
+		return nil, fmt.Errorf("discovery: build search_tools: %w", err)
 	}
 	t.inner = inner
 	return t, nil
@@ -110,16 +110,16 @@ func New(withheld []toolcontract.Tool) (*Tool, error) {
 // DeferredToolNames implements [toolloop.DeferredTool]: the framework's manifest
 // projection excludes these from the initial advertised toolset while keeping
 // them resolvable, so this tool can promote the ones the model picked.
-var _ toolloop.DeferredTool = (*Tool)(nil)
+var _ toolloop.DeferredTool = (*Search)(nil)
 
-func (t *Tool) DeferredToolNames() []string {
+func (t *Search) DeferredToolNames() []string {
 	if t == nil {
 		return nil
 	}
 	return slices.Clone(t.names)
 }
 
-func (t *Tool) Definition() chat.ToolDefinition {
+func (t *Search) Definition() chat.ToolDefinition {
 	return t.inner.Definition()
 }
 
@@ -127,7 +127,7 @@ func (t *Tool) Definition() chat.ToolDefinition {
 // tool the model always sees, listing names grouped by source so it has the
 // vocabulary to search or select. Only names (never schemas) are listed — that is
 // the whole point of deferral.
-func (t *Tool) buildDescription() string {
+func (t *Search) buildDescription() string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "Load additional built-in or integration tools on demand. %d tool(s) are available but omitted from the initial tool list to keep it focused. ",
 		len(t.entries))
@@ -148,11 +148,11 @@ func (t *Tool) buildDescription() string {
 	return b.String()
 }
 
-func (t *Tool) Call(ctx context.Context, arguments string) (string, error) {
+func (t *Search) Call(ctx context.Context, arguments string) (string, error) {
 	return t.inner.Call(ctx, arguments)
 }
 
-func (t *Tool) search(ctx context.Context, args searchArgs) (string, error) {
+func (t *Search) search(ctx context.Context, args searchArgs) (string, error) {
 	query := strings.TrimSpace(args.Query)
 	if query == "" {
 		return "", ErrEmptyQuery
@@ -184,7 +184,7 @@ func (t *Tool) search(ctx context.Context, args searchArgs) (string, error) {
 
 // selectByName resolves an exact "select:a,b,c" list, preserving request order
 // and dropping unknown names.
-func (t *Tool) selectByName(list string) []entry {
+func (t *Search) selectByName(list string) []entry {
 	var out []entry
 	seen := make(map[string]struct{})
 	for name := range strings.SplitSeq(list, ",") {
@@ -211,7 +211,7 @@ type scored struct {
 // searchByKeyword ranks the withheld tools against the query terms, then spreads
 // the top results across servers (round-robin) so one large integration cannot
 // starve the others out of the result window.
-func (t *Tool) searchByKeyword(query string, limit int) []entry {
+func (t *Search) searchByKeyword(query string, limit int) []entry {
 	terms := strings.Fields(strings.ToLower(query))
 	if len(terms) == 0 {
 		return nil
@@ -295,7 +295,7 @@ func roundRobinBySource(hits []scored, limit int) []entry {
 	return out
 }
 
-func (t *Tool) renderMatches(matches []entry) string {
+func (t *Search) renderMatches(matches []entry) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "Loaded %d tool(s) — now callable directly on your next step:\n", len(matches))
 	for _, m := range matches {
@@ -313,7 +313,7 @@ func (t *Tool) renderMatches(matches []entry) string {
 	return strings.TrimRight(b.String(), "\n")
 }
 
-func (t *Tool) renderNoMatch(query string) string {
+func (t *Search) renderNoMatch(query string) string {
 	return fmt.Sprintf("No tools matched %q. %d tool(s) are available — try a broader keyword, or select:name to load one by exact name.", query, len(t.entries))
 }
 

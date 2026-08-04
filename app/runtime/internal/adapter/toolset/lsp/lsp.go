@@ -1,4 +1,5 @@
-package lsptools
+// Package lsp exposes language-server capabilities as one model tool.
+package lsp
 
 import (
 	"context"
@@ -24,7 +25,7 @@ import (
 // unsupported file type into a plain reply.
 func Build(ci *codeintel.Analyzer, defaultWorkdir string) ([]toolcontract.Tool, error) {
 	if ci == nil {
-		return nil, errors.New("lsptools: analyzer is nil")
+		return nil, errors.New("lsp: analyzer is nil")
 	}
 	lsp, err := newLSPTool(ci, defaultWorkdir)
 	if err != nil {

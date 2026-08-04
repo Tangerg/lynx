@@ -28,7 +28,7 @@ func TestPathLockUsesCanonicalConcurrencyKey(t *testing.T) {
 	locker := newPathLocker()
 	tracker := editguardstate.NewTracker()
 	read := withPathLock(withReadTracking(fs.NewReadTool(executor), tracker, workdir), locker, workdir)
-	edit := editMutationTool(fs.NewEditTool(executor), nil, tracker, locker, workdir)
+	edit := editMutation(fs.NewEditTool(executor), nil, tracker, locker, workdir)
 
 	relativeKey := concurrentKey(t, read, pathArguments("real.txt"))
 	absoluteKey := concurrentKey(t, edit, pathArguments(realPath))
@@ -60,7 +60,7 @@ func TestPathLockUsesPhysicalIdentityForSymlinkAlias(t *testing.T) {
 	locker := newPathLocker()
 	tracker := editguardstate.NewTracker()
 	read := withPathLock(withReadTracking(fs.NewReadTool(executor), tracker, workdir), locker, workdir)
-	write := writeMutationTool(fs.NewWriteTool(executor), nil, tracker, locker, workdir)
+	write := writeMutation(fs.NewWriteTool(executor), nil, tracker, locker, workdir)
 	realKey := concurrentKey(t, read, pathArguments(realPath))
 	aliasKey := concurrentKey(t, write, pathArguments(aliasPath))
 	if realKey != aliasKey {
@@ -94,7 +94,7 @@ func TestAssembledFileToolStillReportsWhatItMutates(t *testing.T) {
 	if err := os.WriteFile(target, []byte("content"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	assembled := editMutationTool(
+	assembled := editMutation(
 		fs.NewEditTool(fs.NewLocalExecutor(workdir)),
 		nil,
 		editguardstate.NewTracker(),

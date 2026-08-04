@@ -9,10 +9,10 @@ import (
 	domaintool "github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
 
-// resolveCodingTools builds a resolver, injects mcpTools, and returns the coding
+// resolveRootTools builds a resolver, injects mcpTools, and returns the root
 // role's fully resolved tool set (MCP tools still resolvable; deferral is a
 // manifest-projection concern applied later in the turn, not here).
-func resolveCodingTools(t *testing.T, mcpTools []toolcontract.Tool) []toolcontract.Tool {
+func resolveRootTools(t *testing.T, mcpTools []toolcontract.Tool) []toolcontract.Tool {
 	t.Helper()
 	built, err := Build(t.Context(), BuildConfig{Workdir: t.TempDir()})
 	if err != nil {
@@ -39,7 +39,7 @@ func TestResolverOffersSearchToolsOverDeferredCatalog(t *testing.T) {
 		mcpToolStub{name: "files_read", server: "files", remote: "read"},
 		mcpToolStub{name: "files_write", server: "files", remote: "write"},
 	}
-	resolved := resolveCodingTools(t, mcpTools)
+	resolved := resolveRootTools(t, mcpTools)
 
 	var search deferredNamer
 	names := make(map[string]bool, len(resolved))
@@ -69,7 +69,7 @@ func TestResolverOffersSearchToolsOverDeferredCatalog(t *testing.T) {
 }
 
 func TestResolverDefersRuntimeToolsWithoutMCP(t *testing.T) {
-	resolved := resolveCodingTools(t, nil)
+	resolved := resolveRootTools(t, nil)
 	manifest, err := toolloop.Advertise(resolved)
 	if err != nil {
 		t.Fatalf("Advertise: %v", err)

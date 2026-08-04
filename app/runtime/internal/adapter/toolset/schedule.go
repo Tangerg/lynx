@@ -51,7 +51,7 @@ type scheduleView struct {
 	CreatedAt    string `json:"created_at,omitempty"`
 }
 
-// ScheduleManagement is the coding tool's narrow schedule-management use case.
+// ScheduleManagement is the schedule family's narrow application use case.
 // It intentionally does not expose delivery's revisioned Update or firing APIs.
 type ScheduleManagement interface {
 	List(ctx context.Context) ([]schedule.Schedule, error)
@@ -59,16 +59,16 @@ type ScheduleManagement interface {
 	Delete(ctx context.Context, id string) error
 }
 
-type scheduleTools struct{ coordinator ScheduleManagement }
+type scheduleFamily struct{ coordinator ScheduleManagement }
 
-// newScheduleTools builds one tool per schedule action. Each schema therefore
+// buildSchedules builds one tool per schedule action. Each schema therefore
 // contains only fields that action can consume. nil coordinator disables the
 // complete model-facing family.
-func newScheduleTools(coordinator ScheduleManagement) ([]toolcontract.Tool, error) {
+func buildSchedules(coordinator ScheduleManagement) ([]toolcontract.Tool, error) {
 	if coordinator == nil {
 		return nil, nil
 	}
-	t := &scheduleTools{coordinator: coordinator}
+	t := &scheduleFamily{coordinator: coordinator}
 	list, err := toolcontract.NewFunc[struct{}, scheduleListResponse](
 		toolcontract.FuncConfig{
 			Name:        "list_schedules",
@@ -90,7 +90,7 @@ func newScheduleTools(coordinator ScheduleManagement) ([]toolcontract.Tool, erro
 	if err != nil {
 		return nil, err
 	}
-	deleteTool, err := toolcontract.NewFunc[deleteScheduleArgs, scheduleDeleteResponse](
+	deleteSchedule, err := toolcontract.NewFunc[deleteScheduleArgs, scheduleDeleteResponse](
 		toolcontract.FuncConfig{
 			Name:        "delete_schedule",
 			Description: "Permanently delete one recurring Agent Run schedule by its exact schedule_id. Use list_schedules first when the id is uncertain. To change a schedule, delete it and create the replacement explicitly.",
@@ -100,10 +100,10 @@ func newScheduleTools(coordinator ScheduleManagement) ([]toolcontract.Tool, erro
 	if err != nil {
 		return nil, err
 	}
-	return []toolcontract.Tool{list, create, deleteTool}, nil
+	return []toolcontract.Tool{list, create, deleteSchedule}, nil
 }
 
-func (t *scheduleTools) list(ctx context.Context, _ struct{}) (scheduleListResponse, error) {
+func (t *scheduleFamily) list(ctx context.Context, _ struct{}) (scheduleListResponse, error) {
 	items, err := t.coordinator.List(ctx)
 	if err != nil {
 		return scheduleListResponse{}, fmt.Errorf("list_schedules: %w", err)
@@ -115,7 +115,7 @@ func (t *scheduleTools) list(ctx context.Context, _ struct{}) (scheduleListRespo
 	return scheduleListResponse{Schedules: views}, nil
 }
 
-func (t *scheduleTools) create(ctx context.Context, in createScheduleArgs) (scheduleResponse, error) {
+func (t *scheduleFamily) create(ctx context.Context, in createScheduleArgs) (scheduleResponse, error) {
 	selection, err := modelref.New(in.Provider, in.Model)
 	if err != nil {
 		return scheduleResponse{}, fmt.Errorf("create_schedule: %w", err)
@@ -134,7 +134,7 @@ func (t *scheduleTools) create(ctx context.Context, in createScheduleArgs) (sche
 	return scheduleResponse{Schedule: viewSchedule(created)}, nil
 }
 
-func (t *scheduleTools) delete(ctx context.Context, in deleteScheduleArgs) (scheduleDeleteResponse, error) {
+func (t *scheduleFamily) delete(ctx context.Context, in deleteScheduleArgs) (scheduleDeleteResponse, error) {
 	if err := t.coordinator.Delete(ctx, in.ScheduleID); err != nil {
 		return scheduleDeleteResponse{}, fmt.Errorf("delete_schedule: %w", err)
 	}
@@ -151,13 +151,13 @@ func viewSchedule(sc schedule.Schedule) scheduleView {
 		Model:        sc.ModelSelection.Model(),
 		Cron:         sc.Cron,
 		Enabled:      sc.Enabled,
-		LastRunAt:    formatToolTime(sc.LastRunAt),
-		NextRunAt:    formatToolTime(sc.NextRunAt),
-		CreatedAt:    formatToolTime(sc.CreatedAt),
+		LastRunAt:    formatScheduleTime(sc.LastRunAt),
+		NextRunAt:    formatScheduleTime(sc.NextRunAt),
+		CreatedAt:    formatScheduleTime(sc.CreatedAt),
 	}
 }
 
-func formatToolTime(t time.Time) string {
+func formatScheduleTime(t time.Time) string {
 	if t.IsZero() {
 		return ""
 	}

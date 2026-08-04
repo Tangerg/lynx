@@ -1,4 +1,4 @@
-package lsptools
+package lsp
 
 import (
 	"context"

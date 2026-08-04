@@ -1,4 +1,4 @@
-// Package toolresult exposes the model-facing read_tool_result tool: it reads
+// Package offload exposes read_tool_result for retrieving evicted output: it reads
 // back a tool output that the runtime offloaded when it exceeded the
 // context-eviction threshold. Eviction keeps only a head+tail placeholder (with
 // the blob id) in the conversation, so this tool is how the model recovers the
@@ -9,7 +9,7 @@
 // tool-result eviction middleware; the shared tool name lives in
 // [tool.NameReadToolResult] so the registered name and the name that
 // middleware refuses to evict cannot drift.
-package toolresult
+package offload
 
 import (
 	"context"

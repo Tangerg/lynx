@@ -11,7 +11,7 @@ import (
 	toolcontract "github.com/Tangerg/lynx/tool"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/executionctx"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/goaltool"
+	goaladapter "github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/goal"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/goals"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	scheduleapp "github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
@@ -45,7 +45,7 @@ func (allWiredGoalStarter) Start(context.Context, string, string, modelref.Selec
 
 func wireCreateGoal(t *testing.T, resolver *Resolver) {
 	t.Helper()
-	create, err := goaltool.NewCreate(allWiredGoalStarter{})
+	create, err := goaladapter.NewCreate(allWiredGoalStarter{})
 	if err != nil {
 		t.Fatalf("build create_goal: %v", err)
 	}
@@ -127,7 +127,7 @@ func assertBuiltInToolContract(t *testing.T, candidate toolcontract.Tool) {
 	}
 }
 
-func TestCodingResolverIncludesConfiguredConditionalTools(t *testing.T) {
+func TestRootResolverIncludesConfiguredConditionalTools(t *testing.T) {
 	policy, err := approval.New(approval.ModeBalanced, nil, nil)
 	if err != nil {
 		t.Fatalf("approval policy: %v", err)
@@ -158,7 +158,7 @@ func TestCodingResolverIncludesConfiguredConditionalTools(t *testing.T) {
 	names := toolNameSet(resolved)
 	for _, want := range []string{"enter_plan_mode", "exit_plan_mode", "create_goal", "get_goal", "report_goal_outcome"} {
 		if !names[want] {
-			t.Errorf("configured coding tools missing %q: %v", want, names)
+			t.Errorf("configured root tools missing %q: %v", want, names)
 		}
 	}
 }

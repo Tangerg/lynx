@@ -158,7 +158,7 @@ func isExistingFile(path string) bool {
 // [codeintel.Analyzer.DiagnoseEdit]; here we only feed it the edit closure. root is
 // the resolved workspace directory for this resolution; the wrapped tool's path
 // argument is relative to it. A fs-edit decorator (sibling to the read/edit/write
-// guards), not an lsp query tool — hence it lives here, not in the lsptools package.
+// guards), not an lsp query tool — hence it lives here, not in package lsp.
 func withEditDiagnostics(inner toolcontract.Tool, ci *codeintel.Analyzer, root string) toolcontract.Tool {
 	if ci == nil {
 		return inner

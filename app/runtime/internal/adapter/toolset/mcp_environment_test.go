@@ -29,7 +29,7 @@ import (
 // `npx` / Python / etc. in CI.
 const runAsMCPServerEnv = "LYRA_TEST_RUN_AS_MCP_SERVER"
 
-func resolvedCodingTools(t *testing.T, resolver *toolset.Resolver) []toolcontract.Tool {
+func resolvedRootTools(t *testing.T, resolver *toolset.Resolver) []toolcontract.Tool {
 	t.Helper()
 	group, ok, err := resolver.Resolve(t.Context(), domaintool.GroupRoot)
 	if err != nil || !ok {
@@ -37,7 +37,7 @@ func resolvedCodingTools(t *testing.T, resolver *toolset.Resolver) []toolcontrac
 	}
 	values, err := group.Tools(t.Context())
 	if err != nil {
-		t.Fatalf("coding tools: %v", err)
+		t.Fatalf("root tools: %v", err)
 	}
 	return values
 }
@@ -120,14 +120,14 @@ func TestToolEnvironmentDialsMCPServer(t *testing.T) {
 	// model-facing MCP port name.
 	want := "test_ping"
 	found := false
-	for _, tool := range resolvedCodingTools(t, built.Resolver) {
+	for _, tool := range resolvedRootTools(t, built.Resolver) {
 		if tool.Definition().Name == want {
 			found = true
 			break
 		}
 	}
 	if !found {
-		catalog := resolvedCodingTools(t, built.Resolver)
+		catalog := resolvedRootTools(t, built.Resolver)
 		names := make([]string, 0, len(catalog))
 		for _, t := range catalog {
 			names = append(names, t.Definition().Name)
@@ -189,14 +189,14 @@ func TestToolEnvironmentDialsStdioMCP(t *testing.T) {
 	}})
 	want := "stdio_ping"
 	found := false
-	for _, tool := range resolvedCodingTools(t, built.Resolver) {
+	for _, tool := range resolvedRootTools(t, built.Resolver) {
 		if tool.Definition().Name == want {
 			found = true
 			break
 		}
 	}
 	if !found {
-		catalog := resolvedCodingTools(t, built.Resolver)
+		catalog := resolvedRootTools(t, built.Resolver)
 		names := make([]string, 0, len(catalog))
 		for _, t := range catalog {
 			names = append(names, t.Definition().Name)

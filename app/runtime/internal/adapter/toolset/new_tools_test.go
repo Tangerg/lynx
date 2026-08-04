@@ -45,11 +45,11 @@ func TestFormatJSON_WritesIndentedFile(t *testing.T) {
 	}
 }
 
-func TestScheduleTools_CreateListDelete(t *testing.T) {
+func TestSchedulesCreateListDelete(t *testing.T) {
 	reg := newMemoryScheduleRegistry()
-	tools, err := newScheduleTools(newTestScheduleCoordinator(reg))
+	tools, err := buildSchedules(newTestScheduleCoordinator(reg))
 	if err != nil {
-		t.Fatalf("newScheduleTools: %v", err)
+		t.Fatalf("buildSchedules: %v", err)
 	}
 	byName := toolNameMap(tools)
 
@@ -85,11 +85,11 @@ func TestScheduleTools_CreateListDelete(t *testing.T) {
 	}
 }
 
-func TestScheduleTools_HaveActionSpecificStrictSchemas(t *testing.T) {
+func TestSchedulesHaveActionSpecificStrictSchemas(t *testing.T) {
 	reg := newMemoryScheduleRegistry()
-	tools, err := newScheduleTools(newTestScheduleCoordinator(reg))
+	tools, err := buildSchedules(newTestScheduleCoordinator(reg))
 	if err != nil {
-		t.Fatalf("newScheduleTools: %v", err)
+		t.Fatalf("buildSchedules: %v", err)
 	}
 	byName := toolNameMap(tools)
 	if _, err := byName["create_schedule"].Call(t.Context(), `{"cron":"0 9 * * *"}`); err == nil {
@@ -103,11 +103,11 @@ func TestScheduleTools_HaveActionSpecificStrictSchemas(t *testing.T) {
 	}
 }
 
-func TestScheduleTools_CreateRejectsUnavailableWorkdir(t *testing.T) {
+func TestSchedulesCreateRejectsUnavailableWorkdir(t *testing.T) {
 	reg := newMemoryScheduleRegistry()
-	tools, err := newScheduleTools(newTestScheduleCoordinator(reg))
+	tools, err := buildSchedules(newTestScheduleCoordinator(reg))
 	if err != nil {
-		t.Fatalf("newScheduleTools: %v", err)
+		t.Fatalf("buildSchedules: %v", err)
 	}
 	missing := filepath.Join(t.TempDir(), "missing")
 	_, err = toolNameMap(tools)["create_schedule"].Call(t.Context(), `{"instructions":"summarize","cron":"0 9 * * *","workdir":"`+missing+`"}`)

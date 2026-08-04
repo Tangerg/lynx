@@ -1,4 +1,4 @@
-package goaltool
+package goal
 
 import (
 	"context"
@@ -9,42 +9,42 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/executionctx"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/goals"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
+	goalstate "github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 )
 
 // in-memory goals.Store for the tool tests.
-type memStore struct{ goals map[string]goal.Goal }
+type memStore struct{ goals map[string]goalstate.Goal }
 
-func newMemStore() *memStore { return &memStore{goals: map[string]goal.Goal{}} }
+func newMemStore() *memStore { return &memStore{goals: map[string]goalstate.Goal{}} }
 
-func (s *memStore) Get(_ context.Context, id string) (goal.Goal, bool, error) {
+func (s *memStore) Get(_ context.Context, id string) (goalstate.Goal, bool, error) {
 	g, ok := s.goals[id]
 	return g, ok, nil
 }
 
 // put seeds a goal directly (test setup), bypassing the CAS.
-func (s *memStore) put(g goal.Goal) { s.goals[g.SessionID] = g }
+func (s *memStore) put(g goalstate.Goal) { s.goals[g.SessionID] = g }
 
-func (s *memStore) Save(_ context.Context, g goal.Goal, expected goal.Version) (goal.Goal, bool, error) {
+func (s *memStore) Save(_ context.Context, g goalstate.Goal, expected goalstate.Version) (goalstate.Goal, bool, error) {
 	cur, ok := s.goals[g.SessionID]
-	if expected == (goal.Version{}) {
+	if expected == (goalstate.Version{}) {
 		if ok {
-			return goal.Goal{}, false, nil
+			return goalstate.Goal{}, false, nil
 		}
 		g.Revision = 1
 		s.goals[g.SessionID] = g
 		return g, true, nil
 	}
 	if !ok || cur.Version() != expected {
-		return goal.Goal{}, false, nil
+		return goalstate.Goal{}, false, nil
 	}
 	g.Revision = expected.Revision + 1
 	s.goals[g.SessionID] = g
 	return g, true, nil
 }
 func (s *memStore) Clear(_ context.Context, id string) error { delete(s.goals, id); return nil }
-func (s *memStore) ClearIf(_ context.Context, id string, expected goal.Version) (bool, error) {
+func (s *memStore) ClearIf(_ context.Context, id string, expected goalstate.Version) (bool, error) {
 	cur, ok := s.goals[id]
 	if !ok || cur.Version() != expected {
 		return false, nil
@@ -52,11 +52,11 @@ func (s *memStore) ClearIf(_ context.Context, id string, expected goal.Version) 
 	delete(s.goals, id)
 	return true, nil
 }
-func (s *memStore) List(context.Context) ([]goal.Goal, error) { return nil, nil }
+func (s *memStore) List(context.Context) ([]goalstate.Goal, error) { return nil, nil }
 
 // activeGoal builds a stored active goal with an opaque current lease.
-func activeGoal(session string) goal.Goal {
-	g, _ := goal.New(session, "obj", modelref.Selection{}, goal.Budget{}, "lease-active", time.Unix(0, 0))
+func activeGoal(session string) goalstate.Goal {
+	g, _ := goalstate.New(session, "obj", modelref.Selection{}, goalstate.Budget{}, "lease-active", time.Unix(0, 0))
 	return g
 }
 
@@ -85,7 +85,7 @@ func TestReportGoalOutcomeCompleted(t *testing.T) {
 	if !strings.Contains(out, "completed") {
 		t.Fatalf("output = %q", out)
 	}
-	if got := store.goals["s1"]; got.Status != goal.StatusComplete {
+	if got := store.goals["s1"]; got.Status != goalstate.StatusComplete {
 		t.Fatalf("stored status = %q, want complete", got.Status)
 	}
 }
@@ -99,7 +99,7 @@ func TestReportGoalOutcomeBlockedRequiresReason(t *testing.T) {
 	if !strings.Contains(out, "reason") {
 		t.Fatalf("blocked without reason = %q, want a reason prompt", out)
 	}
-	if store.goals["s1"].Status != goal.StatusActive {
+	if store.goals["s1"].Status != goalstate.StatusActive {
 		t.Fatal("goal should stay active when blocked reason is missing")
 	}
 
@@ -108,7 +108,7 @@ func TestReportGoalOutcomeBlockedRequiresReason(t *testing.T) {
 	if !strings.Contains(out, "blocked") {
 		t.Fatalf("output = %q", out)
 	}
-	if got := store.goals["s1"]; got.Status != goal.StatusBlocked || got.Reason != (goal.Reason{Cause: goal.ReasonBlockedByModel, Detail: "needs a key"}) {
+	if got := store.goals["s1"]; got.Status != goalstate.StatusBlocked || got.Reason != (goalstate.Reason{Cause: goalstate.ReasonBlockedByModel, Detail: "needs a key"}) {
 		t.Fatalf("stored = (%q, %+v)", got.Status, got.Reason)
 	}
 }
@@ -124,7 +124,7 @@ func TestReportGoalOutcomeCompletedRejectsReason(t *testing.T) {
 	if !strings.Contains(out, "Omit reason") {
 		t.Fatalf("completed with reason = %q, want precise field guidance", out)
 	}
-	if store.goals["s1"].Status != goal.StatusActive {
+	if store.goals["s1"].Status != goalstate.StatusActive {
 		t.Fatal("completed reason must be rejected before Goal state changes")
 	}
 }
@@ -143,14 +143,14 @@ func TestReportGoalOutcomeNoActiveGoal(t *testing.T) {
 func TestReportGoalOutcomeDoesNotTouchPausedGoal(t *testing.T) {
 	store := newMemStore()
 	g := activeGoal("s1")
-	g.Pause(goal.ReasonStoppedByUser, "", time.Unix(0, 0))
+	g.Pause(goalstate.ReasonStoppedByUser, "", time.Unix(0, 0))
 	store.put(g)
 
 	out, _ := newReportTool(t, store).report(sessionCtx("s1"), reportArgs{Outcome: "completed"})
 	if !strings.Contains(out, "No active Goal") {
 		t.Fatalf("paused goal should be untouchable via report_goal_outcome, got %q", out)
 	}
-	if store.goals["s1"].Status != goal.StatusPaused {
+	if store.goals["s1"].Status != goalstate.StatusPaused {
 		t.Fatal("paused goal must not be flipped to complete")
 	}
 }
@@ -177,7 +177,7 @@ func TestReportGoalOutcomeSupersededStampRefused(t *testing.T) {
 	if !strings.Contains(out, "superseded") {
 		t.Fatalf("output = %q, want a superseded-goal refusal", out)
 	}
-	if store.goals["s1"].Status != goal.StatusActive {
+	if store.goals["s1"].Status != goalstate.StatusActive {
 		t.Fatal("a straggler run must not flip the current goal to complete")
 	}
 }
@@ -196,8 +196,8 @@ func TestGetGoalReturnsActionableViewWithoutOwnershipInternals(t *testing.T) {
 	store := newMemStore()
 	g := activeGoal("s1")
 	g.Revision = 42
-	g.Budget = goal.Budget{MaxTurns: 3}
-	g.Used = goal.Usage{Turns: 1, Steps: 5}
+	g.Budget = goalstate.Budget{MaxTurns: 3}
+	g.Used = goalstate.Usage{Turns: 1, Steps: 5}
 	store.put(g)
 
 	result, err := newGetTool(t, store).get(sessionCtx("s1"), getArgs{})
@@ -226,15 +226,15 @@ type fakeStarter struct {
 	sessionID string
 	objective string
 	selection modelref.Selection
-	budget    goal.Budget
+	budget    goalstate.Budget
 }
 
-func (s *fakeStarter) Start(_ context.Context, sessionID, objective string, selection modelref.Selection, budget goal.Budget) (goal.Goal, error) {
+func (s *fakeStarter) Start(_ context.Context, sessionID, objective string, selection modelref.Selection, budget goalstate.Budget) (goalstate.Goal, error) {
 	s.sessionID = sessionID
 	s.objective = objective
 	s.selection = selection
 	s.budget = budget
-	return goal.New(sessionID, objective, selection, budget, "lease", time.Unix(1, 0))
+	return goalstate.New(sessionID, objective, selection, budget, "lease", time.Unix(1, 0))
 }
 
 func TestCreateGoalUsesCurrentSessionAndExplicitBudget(t *testing.T) {
@@ -252,7 +252,7 @@ func TestCreateGoalUsesCurrentSessionAndExplicitBudget(t *testing.T) {
 	if starter.selection.Configured() {
 		t.Fatal("create_goal must use the runtime's surrounding model default")
 	}
-	if starter.budget != (goal.Budget{MaxTurns: 4, MaxCostUSD: 2.5, MaxSteps: 20}) {
+	if starter.budget != (goalstate.Budget{MaxTurns: 4, MaxCostUSD: 2.5, MaxSteps: 20}) {
 		t.Fatalf("budget = %+v", starter.budget)
 	}
 	if result.Goal == nil || !strings.Contains(result.Message, "after the current Run") {

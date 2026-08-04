@@ -13,9 +13,9 @@ import (
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/codeintel"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/executionctx"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/discovery"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/editguardstate"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/skill"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/toolsearch"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	domaintool "github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
@@ -301,8 +301,8 @@ func (r *Resolver) workdirFor(ctx context.Context) string {
 	return executionctx.CWD(ctx, r.defaultWorkdir)
 }
 
-func (r *Resolver) workdirTools(workdir string) workdirToolFamilies {
-	return buildWorkdirTools(workdir, r.codeIntel, r.readTracker, r.pathLocker)
+func (r *Resolver) workdirTools(workdir string) workdirSet {
+	return buildWorkdir(workdir, r.codeIntel, r.readTracker, r.pathLocker)
 }
 
 // toolGroup resolves its tool slice lazily at Tools() time so it can read the
@@ -369,7 +369,7 @@ func (g *toolGroup) Tools(ctx context.Context) ([]toolcontract.Tool, error) {
 	// search_tools is the sole model-facing entry to every capability withheld
 	// from the initial manifest. The tools themselves remain in the same Run
 	// registry, so promotion changes visibility rather than execution authority.
-	search, err := toolsearch.New(tools.deferred)
+	search, err := discovery.New(tools.deferred)
 	if err != nil {
 		return nil, fmt.Errorf("toolset: resolve search_tools: %w", err)
 	}

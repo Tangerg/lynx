@@ -1,4 +1,4 @@
-package toolresult
+package offload
 
 import (
 	"context"
@@ -38,7 +38,7 @@ func TestNew_NilStoreOmitted(t *testing.T) {
 	}
 }
 
-func TestNew_ToolName(t *testing.T) {
+func TestNewUsesCanonicalName(t *testing.T) {
 	tool, err := New(&fakeStore{})
 	if err != nil || tool == nil {
 		t.Fatalf("New = (%v, %v), want a tool", tool, err)

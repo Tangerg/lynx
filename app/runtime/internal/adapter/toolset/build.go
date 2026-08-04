@@ -12,15 +12,15 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/editguardstate"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/enterplan"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/exitplan"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/goaltool"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/lsptools"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/goal"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/lsp"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/memorysearch"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/offload"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/plantool"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/proposeskill"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/sessionsearch"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/shell"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/skill"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/toolresult"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
@@ -66,10 +66,10 @@ type BuildConfig struct {
 	PlanMode               PlanModePolicy // session-scoped Plan mode; nil → enter/exit are omitted
 	Interrupt              runs.InterruptFunc
 	Schedules              ScheduleManagement     // backs schedule management tools; nil → omitted
-	ToolResults            toolresult.Store       // backs read_tool_result (reads offloaded tool output); nil → omitted
+	ToolResults            offload.Store          // backs read_tool_result (reads offloaded tool output); nil → omitted
 	SkillUsage             skill.UsageRecorder    // records skill loads for the idle-lifecycle curator; nil → use recording off
 	SkillProposalSubmitter proposeskill.Submitter // backs root-only propose_skill; nil → omitted
-	Goals                  goaltool.State         // backs get_goal + report_goal_outcome and its active gate; nil → omitted
+	Goals                  goal.State             // backs get_goal + report_goal_outcome and its active gate; nil → omitted
 
 	// MemorySearch backs search_memory (keyword + semantic search over the
 	// agent's curated project memory). nil omits the tool.
@@ -111,7 +111,7 @@ type Built struct {
 // their dedicated adapter before this function and supplied as an initial tool
 // snapshot; this package owns only the local and A2A capability lifecycle.
 func Build(ctx context.Context, config BuildConfig) (_ Built, err error) {
-	online, err := BuildOnlineTools(config.Online)
+	online, err := buildOnline(config.Online)
 	if err != nil {
 		return Built{}, err
 	}
@@ -120,7 +120,7 @@ func Build(ctx context.Context, config BuildConfig) (_ Built, err error) {
 	// lazily per (workspace root, language). Tools are cwd-independent (the
 	// analyzer keys by root, read per call off the blackboard).
 	codeIntel := codeintel.New(config.LSPServers)
-	lspTools, err := lsptools.Build(codeIntel, config.Workdir)
+	lspTools, err := lsp.Build(codeIntel, config.Workdir)
 	if err != nil {
 		return Built{}, fmt.Errorf("toolset: build lsp tools: %w", err)
 	}
@@ -173,19 +173,19 @@ func Build(ctx context.Context, config BuildConfig) (_ Built, err error) {
 
 	// set_plan maintains the root Agent's per-session execution plan. nil
 	// config.Plan yields a nil tool that's simply omitted (feature off). It is
-	// built once here; the resolver exposes it only to the coding role.
+	// built once here; the resolver exposes it only to the root role.
 	planTool, err := plantool.New(config.Plan)
 	if err != nil {
 		return Built{}, fmt.Errorf("toolset: build set_plan: %w", err)
 	}
-	scheduleTools, err := newScheduleTools(config.Schedules)
+	scheduleTools, err := buildSchedules(config.Schedules)
 	if err != nil {
 		return Built{}, fmt.Errorf("toolset: build schedule tools: %w", err)
 	}
 	// read_tool_result reads back a tool output the runtime offloaded on
 	// eviction. Working-directory independent (keys off the session id), so built
 	// once and given to both roles. nil store → nil tool, simply omitted.
-	toolResultTool, err := toolresult.New(config.ToolResults)
+	toolResultTool, err := offload.New(config.ToolResults)
 	if err != nil {
 		return Built{}, fmt.Errorf("toolset: build read_tool_result: %w", err)
 	}
@@ -206,11 +206,11 @@ func Build(ctx context.Context, config BuildConfig) (_ Built, err error) {
 	// Goal state is working-directory independent and keyed by session. get_goal
 	// is always useful to the root Agent; report_goal_outcome is additionally
 	// gated to an active Goal by the resolver.
-	goalGetTool, err := goaltool.NewGet(config.Goals)
+	goalGetTool, err := goal.NewGet(config.Goals)
 	if err != nil {
 		return Built{}, fmt.Errorf("toolset: build get_goal: %w", err)
 	}
-	goalReportTool, err := goaltool.NewReport(config.Goals)
+	goalReportTool, err := goal.NewReport(config.Goals)
 	if err != nil {
 		return Built{}, fmt.Errorf("toolset: build report_goal_outcome: %w", err)
 	}
@@ -272,7 +272,7 @@ func Build(ctx context.Context, config BuildConfig) (_ Built, err error) {
 // report_goal_outcome. A paused or blocked Goal does not count: only a Run
 // driven by the active autonomous loop can truthfully report its outcome.
 // Returns nil when Goal mode is off so the tool is never offered.
-func goalActiveReader(state goaltool.ActiveReader) func(context.Context, string) (bool, error) {
+func goalActiveReader(state goal.ActiveReader) func(context.Context, string) (bool, error) {
 	if state == nil {
 		return nil
 	}

@@ -1,4 +1,4 @@
-package toolsearch_test
+package discovery_test
 
 import (
 	"context"
@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/agent/toolloop"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/toolsearch"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/discovery"
 	"github.com/Tangerg/lynx/core/chat"
 	toolcontract "github.com/Tangerg/lynx/tool"
 	toolset "github.com/Tangerg/lynx/tools"
@@ -43,7 +43,7 @@ func catalog() []toolcontract.Tool {
 	}
 }
 
-func call(t *testing.T, tool *toolsearch.Tool, query string) string {
+func call(t *testing.T, tool *discovery.Search, query string) string {
 	t.Helper()
 	args, _ := json.Marshal(map[string]any{"query": query})
 	out, err := tool.Call(context.Background(), string(args))
@@ -53,9 +53,9 @@ func call(t *testing.T, tool *toolsearch.Tool, query string) string {
 	return out
 }
 
-func newSearch(t *testing.T, tools []toolcontract.Tool) *toolsearch.Tool {
+func newSearch(t *testing.T, tools []toolcontract.Tool) *discovery.Search {
 	t.Helper()
-	search, err := toolsearch.New(tools)
+	search, err := discovery.New(tools)
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
@@ -63,7 +63,7 @@ func newSearch(t *testing.T, tools []toolcontract.Tool) *toolsearch.Tool {
 }
 
 func TestNewEmptyReturnsNil(t *testing.T) {
-	search, err := toolsearch.New(nil)
+	search, err := discovery.New(nil)
 	if err != nil {
 		t.Fatalf("New(nil): %v", err)
 	}

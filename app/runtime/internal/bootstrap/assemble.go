@@ -24,7 +24,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/runsegment"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/skillproposal"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/goaltool"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/goal"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/proposeskill"
 	checkpointstore "github.com/Tangerg/lynx/app/runtime/internal/adapter/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspacepath"
@@ -641,7 +641,7 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 		// create_goal is the only Goal tool that needs the Driver. Inject the
 		// generic tool after Runs and the Driver exist instead of leaking either
 		// application type into agentexec or introducing a mutable lifecycle proxy.
-		createGoalTool, err := goaltool.NewCreate(goalDriver)
+		createGoalTool, err := goal.NewCreate(goalDriver)
 		if err != nil {
 			return nil, fmt.Errorf("runtime: build create_goal: %w", err)
 		}
