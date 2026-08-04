@@ -37,8 +37,9 @@ type Engine struct {
 	userHome       string
 	pricing        accounting.Pricing
 
-	toolResultStore     toolResultOffloader
-	toolResultThreshold int
+	toolResultStore      toolResultOffloader
+	toolResultThreshold  int
+	toolResultReaderName string
 
 	defaultProvider        string
 	modelStreamIdleTimeout time.Duration
@@ -88,6 +89,9 @@ func New(ctx context.Context, config Config) (*Engine, error) {
 	if config.ChatClient == nil {
 		return nil, errors.New("engine: ChatClient is required")
 	}
+	if config.ToolResultStore != nil && config.ToolResultThreshold > 0 && config.ToolResultReaderName == "" {
+		return nil, errors.New("engine: ToolResultReaderName is required when result eviction is enabled")
+	}
 	if config.BuildID != "" && !validBuildID(config.BuildID) {
 		return nil, errors.New("engine: BuildID must use the format sha256:<64 lowercase hex characters>")
 	}
@@ -124,6 +128,7 @@ func New(ctx context.Context, config Config) (*Engine, error) {
 		buildID:                config.BuildID,
 		toolResultStore:        config.ToolResultStore,
 		toolResultThreshold:    config.ToolResultThreshold,
+		toolResultReaderName:   config.ToolResultReaderName,
 		defaultProvider:        config.Provider,
 		modelStreamIdleTimeout: llmIdleTimeout,
 		chatMiddlewareBuilder:  newChatMiddlewareWithBeforeRound,

@@ -88,6 +88,9 @@ type Dependencies struct {
 	// preserves canonical tool results and uses generic activity text.
 	ToolPresenter ToolPresenter
 
+	// ToolSemantics interprets concrete calls for approval policy. Required.
+	ToolSemantics ToolSemantics
+
 	// MCPToolAutoApproved reports whether an identified MCP tool may skip the
 	// approval prompt. nil disables MCP-specific auto-approval.
 	MCPToolAutoApproved func(mcpserver.ToolRef) bool
@@ -127,6 +130,9 @@ func New(deps Dependencies) (*controller, error) {
 	if deps.Approval == nil {
 		return nil, errors.New("turn: approval gate is required")
 	}
+	if deps.ToolSemantics == nil {
+		return nil, errors.New("turn: tool semantics are required")
+	}
 	return &controller{
 		engine:              deps.Engine,
 		steering:            deps.Steering,
@@ -135,6 +141,7 @@ func New(deps Dependencies) (*controller, error) {
 		resolver:            deps.ClientResolver,
 		plan:                deps.Plan,
 		toolPresenter:       deps.ToolPresenter,
+		toolSemantics:       deps.ToolSemantics,
 		mcpToolAutoApproved: deps.MCPToolAutoApproved,
 		hooks:               deps.Hooks,
 		turns:               map[string]*turnState{},
@@ -153,6 +160,7 @@ type controller struct {
 	resolver      clientResolver // optional — nil accepts only the default model
 	plan          planReader     // optional — nil = no state.snapshot{plan} projection
 	toolPresenter ToolPresenter  // optional — nil = generic activity and canonical results
+	toolSemantics ToolSemantics
 
 	// mcpToolAutoApproved reports whether an identified MCP tool skips the
 	// approval prompt. The runtime recomputes the policy on every

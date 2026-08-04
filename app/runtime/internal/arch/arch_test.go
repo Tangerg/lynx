@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -996,6 +997,55 @@ func TestDomainValuesCarryNoJSONTags(t *testing.T) {
 	})
 	if walkErr != nil {
 		t.Fatalf("walk domain: %v", walkErr)
+	}
+}
+
+// TestDomainDoesNotOwnConcreteToolInventory keeps model-facing names and
+// argument schemas with toolset. Domain approval consumes only a safety class,
+// tool identity, and a subject already derived by the concrete tool owner.
+func TestDomainDoesNotOwnConcreteToolInventory(t *testing.T) {
+	root := moduleRoot(t)
+	forbidTopLevelNames(t, filepath.Join(root, "internal", "domain", "tool"), map[string]string{
+		"SafetyClassFor":      "the concrete tool catalog owns name-to-safety classification",
+		"ClassifiedToolNames": "the concrete tool catalog owns its completeness guard",
+		"NameReadToolResult":  "a model-facing tool name belongs to its adapter",
+	})
+
+	forbidden := map[string]struct{}{
+		"shell": {}, "read": {}, "write": {}, "edit": {}, "apply_patch": {},
+		"web_fetch": {}, "read_tool_result": {}, "create_goal": {}, "propose_skill": {},
+	}
+	dir := filepath.Join(root, "internal", "domain", "approval")
+	walkErr := filepath.WalkDir(dir, func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if entry.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		file, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
+		if err != nil {
+			return err
+		}
+		ast.Inspect(file, func(node ast.Node) bool {
+			literal, ok := node.(*ast.BasicLit)
+			if !ok || literal.Kind != token.STRING {
+				return true
+			}
+			value, err := strconv.Unquote(literal.Value)
+			if err != nil {
+				return true
+			}
+			if _, found := forbidden[value]; found {
+				relative, _ := filepath.Rel(root, path)
+				t.Errorf("%s: approval domain names concrete tool %q; derive its semantics in toolset", relative, value)
+			}
+			return true
+		})
+		return nil
+	})
+	if walkErr != nil {
+		t.Fatalf("walk approval domain: %v", walkErr)
 	}
 }
 

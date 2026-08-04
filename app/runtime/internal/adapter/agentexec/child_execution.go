@@ -34,6 +34,7 @@ type childExecutionPolicy struct {
 	observer        executionObserver
 	toolResultStore toolResultOffloader
 	evictThreshold  int
+	readToolName    string
 	chatMiddleware  *core.ChatMiddleware
 	usage           *usageLedger
 	admitChild      AdmitChildFunc
@@ -47,6 +48,7 @@ func childOptions(
 	observer executionObserver,
 	toolResultStore toolResultOffloader,
 	evictThreshold int,
+	readToolName string,
 	chatMiddleware *core.ChatMiddleware,
 	usage *usageLedger,
 	admitChild AdmitChildFunc,
@@ -59,6 +61,7 @@ func childOptions(
 		observer:        observer,
 		toolResultStore: toolResultStore,
 		evictThreshold:  evictThreshold,
+		readToolName:    readToolName,
 		chatMiddleware:  chatMiddleware,
 		usage:           usage,
 		admitChild:      admitChild,
@@ -78,7 +81,7 @@ func (p childExecutionPolicy) options(_ context.Context, _ core.ProcessView, _ c
 	}
 	var observation *toolObservation
 	if p.observer != nil {
-		observation = newToolObservation(p.observer, p.toolResultStore, p.evictThreshold)
+		observation = newToolObservation(p.observer, p.toolResultStore, p.evictThreshold, p.readToolName)
 		if err := core.RegisterDependency(dependencies, toolObservationKey, observation); err != nil {
 			return core.ProcessOptions{}, fmt.Errorf("agentexec: register child tool observation: %w", err)
 		}

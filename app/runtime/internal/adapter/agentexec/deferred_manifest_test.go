@@ -35,7 +35,7 @@ func (catalogTool) Call(context.Context, string) (string, error) { return "", ni
 // from those wrappers must still withhold what the search tool defers. Losing
 // it would advertise the whole catalog the deferral exists to hide, silently.
 func TestDeferredManifestSurvivesObservation(t *testing.T) {
-	middleware := &toolObserverMiddleware{observation: newToolObservation(noopObserver{}, nil, 0)}
+	middleware := &toolObserverMiddleware{observation: newToolObservation(noopObserver{}, nil, 0, "")}
 	observed := []toolcontract.Tool{
 		middleware.WrapTool(nil, core.ActionDescriptor{}, deferringSearchTool{}),
 		middleware.WrapTool(nil, core.ActionDescriptor{}, catalogTool{name: "catalog_a"}),

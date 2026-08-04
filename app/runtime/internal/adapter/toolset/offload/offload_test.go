@@ -8,7 +8,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/executionctx"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	resultoffload "github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
-	domaintool "github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
 
 type fakeStore struct {
@@ -43,8 +42,8 @@ func TestNewUsesCanonicalName(t *testing.T) {
 	if err != nil || tool == nil {
 		t.Fatalf("New = (%v, %v), want a tool", tool, err)
 	}
-	if got := tool.Definition().Name; got != domaintool.NameReadToolResult {
-		t.Fatalf("tool name = %q, want %q", got, domaintool.NameReadToolResult)
+	if got := tool.Definition().Name; got != Name {
+		t.Fatalf("tool name = %q, want %q", got, Name)
 	}
 }
 

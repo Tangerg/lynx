@@ -265,6 +265,12 @@ work 由同一 Session 下的 first-class child Run 表达，不再从 child pro
 和 capability closers。Agent Engine 只在部署 delegated Agent 后把唯一的 `delegate_task` tool 注回
 Resolver；catalog 仍归 toolset。
 
+具体工具名称、参数结构、安全分类和 remembered-approval subject 同样归 toolset。
+`agentexec/turn` 只经消费方定义的 `ToolSemantics` 窄接口取得 `SafetyClass`、subject 与
+shell command；`domain/approval` 只对这些已提炼的领域事实执行 mode、rule 和 bypass
+决策，不维护内建工具目录，也不解释 `command`、`path` 等模型参数字段。未知扩展工具
+在 adapter 边界保守归为 exec。
+
 MCP status/catalog/connection/registry 四片接口定义在真实消费者
 `application/integrations`，由 toolset adapter 实现并由 Bootstrap 直接注入。
 OAuth 会话另走 `infra/mcp` 消费方定义的窄持久化接口：SQLite 只保存 opaque payload，

@@ -130,7 +130,7 @@ func (mutatingTool) MutationPaths(string) ([]string, error) {
 // wrapping chain, so wrapping must not change what a tool declares — nor invent
 // declarations for a tool that has none.
 func TestObservedToolStandsInForTheToolItObserves(t *testing.T) {
-	observation := newToolObservation(noopObserver{}, nil, 0)
+	observation := newToolObservation(noopObserver{}, nil, 0, "")
 	keyed := &observedTool{inner: keyedTool{}, observation: observation}
 
 	direct, ok, err := toolcontract.Capability[toolloop.DirectTool](keyed)
@@ -170,7 +170,7 @@ func TestObservedToolBindsApprovalToExactMCPIdentity(t *testing.T) {
 	observer := new(approvalTargetObserver)
 	tool := &observedTool{
 		inner:       identifiedMCPTool{},
-		observation: newToolObservation(observer, nil, 0),
+		observation: newToolObservation(observer, nil, 0, ""),
 	}
 	if _, err := tool.Call(t.Context(), `{}`); err != nil {
 		t.Fatalf("Call: %v", err)
@@ -183,7 +183,7 @@ func TestObservedToolBindsApprovalToExactMCPIdentity(t *testing.T) {
 
 func TestObservedToolReportsOnlySuccessfulMutatedPaths(t *testing.T) {
 	observer := new(recordingObserver)
-	tool := &observedTool{inner: mutatingTool{}, observation: newToolObservation(observer, nil, 0)}
+	tool := &observedTool{inner: mutatingTool{}, observation: newToolObservation(observer, nil, 0, "")}
 	if _, err := tool.Call(t.Context(), `{}`); err != nil {
 		t.Fatalf("Call: %v", err)
 	}
@@ -194,7 +194,7 @@ func TestObservedToolReportsOnlySuccessfulMutatedPaths(t *testing.T) {
 
 	observer = new(recordingObserver)
 	callErr := errors.New("write failed")
-	tool = &observedTool{inner: mutatingTool{err: callErr}, observation: newToolObservation(observer, nil, 0)}
+	tool = &observedTool{inner: mutatingTool{err: callErr}, observation: newToolObservation(observer, nil, 0, "")}
 	if _, err := tool.Call(t.Context(), `{}`); !errors.Is(err, callErr) {
 		t.Fatalf("Call error = %v, want %v", err, callErr)
 	}
@@ -206,7 +206,7 @@ func TestObservedToolReportsOnlySuccessfulMutatedPaths(t *testing.T) {
 
 func TestToolObservationPublishesPreparedStartsInModelOrder(t *testing.T) {
 	observer := new(recordingObserver)
-	observation := newToolObservation(observer, nil, 0)
+	observation := newToolObservation(observer, nil, 0, "")
 	observation.beginRef(processRef(testProcess("process-1")), 2, chat.ToolCall{ID: "call-1", Name: "first", Arguments: `{}`})
 	observation.beginRef(processRef(testProcess("process-1")), 2, chat.ToolCall{ID: "call-2", Name: "second", Arguments: `{}`})
 
@@ -248,7 +248,7 @@ func TestToolObservationSerializesClaimedStartBatches(t *testing.T) {
 		firstEntered: make(chan struct{}),
 		releaseFirst: make(chan struct{}),
 	}
-	observation := newToolObservation(observer, nil, 0)
+	observation := newToolObservation(observer, nil, 0, "")
 	for index, name := range []string{"first", "second", "third"} {
 		observation.beginRef(processRef(testProcess("process-1")), 1, chat.ToolCall{
 			ID: fmt.Sprintf("call-%d", index+1), Name: name, Arguments: `{}`,
@@ -320,7 +320,7 @@ func TestModelToolCallIDIncludesProcessAndRoundOwnership(t *testing.T) {
 
 func TestToolObservationSeparatesConcurrentProcessesReusingCallID(t *testing.T) {
 	observer := new(recordingObserver)
-	observation := newToolObservation(observer, nil, 0)
+	observation := newToolObservation(observer, nil, 0, "")
 	const sharedCallID = "call-1"
 
 	observation.beginRef(processRef(testProcess("root")), 1, chat.ToolCall{ID: sharedCallID, Name: "root-tool", Arguments: `{}`})
@@ -364,7 +364,7 @@ func TestToolObservationSeparatesConcurrentProcessesReusingCallID(t *testing.T) 
 
 func TestToolObservationClosesUnknownCallsButIgnoresRestoredSettledResults(t *testing.T) {
 	observer := new(recordingObserver)
-	observation := newToolObservation(observer, nil, 0)
+	observation := newToolObservation(observer, nil, 0, "")
 	result := chat.ToolResult{ID: "missing-1", Name: "missing", Result: "not available", IsError: true}
 
 	observation.resultRef(processRef(testProcess("process-1")), 1, result)

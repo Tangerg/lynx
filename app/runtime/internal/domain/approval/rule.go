@@ -6,8 +6,6 @@ import (
 	"path"
 	"strconv"
 	"strings"
-
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
 
 type ruleSet []Rule
@@ -58,25 +56,6 @@ func (r Rule) Validate() error {
 	return nil
 }
 
-// subject extracts the per-tool identity fragment a remembered rule matches:
-// shell command, file path, or whole-tool ("") for tools without a finer key.
-func (q Query) subject() (string, error) {
-	var field string
-	switch q.Tool {
-	case "shell":
-		field = "command"
-	case "read", "write", "edit":
-		field = "path"
-	default:
-		return "", nil
-	}
-	subject, ok := q.Arguments.StringField(field)
-	if !ok || strings.TrimSpace(subject) == "" {
-		return "", fmt.Errorf("%w: tool %q requires non-empty string argument %q: %w", ErrInvalidQuery, q.Tool, field, tool.ErrInvalidArguments)
-	}
-	return subject, nil
-}
-
 // hasGlob reports whether a subject pattern carries glob metacharacters.
 func hasGlob(pattern string) bool {
 	return strings.ContainsAny(pattern, "*?[")
@@ -125,10 +104,6 @@ func (rs ruleSet) decide(q Query) (Decision, bool, error) {
 	if strings.TrimSpace(q.Tool) == "" || strings.TrimSpace(q.Tool) != q.Tool {
 		return "", false, fmt.Errorf("%w: tool name is required without surrounding whitespace", ErrInvalidQuery)
 	}
-	subject, err := q.subject()
-	if err != nil {
-		return "", false, err
-	}
 	best := -1
 	var verdict Decision
 	conflict := false
@@ -136,7 +111,7 @@ func (rs ruleSet) decide(q Query) (Decision, bool, error) {
 		if err := r.Validate(); err != nil {
 			return "", false, fmt.Errorf("approval: candidate rule %d: %w", index, err)
 		}
-		if r.Tool != q.Tool || !r.matchesSubject(subject) {
+		if r.Tool != q.Tool || !r.matchesSubject(q.Subject) {
 			continue
 		}
 		switch score := r.specificity(); {
@@ -180,11 +155,7 @@ func (req RememberRequest) rule() (Rule, error) {
 	if !req.Decision.Valid() {
 		return Rule{}, fmt.Errorf("%w: unknown decision %q", ErrInvalidRule, req.Decision)
 	}
-	subject, err := (Query{Tool: req.Tool, Arguments: req.Arguments}).subject()
-	if err != nil {
-		return Rule{}, fmt.Errorf("%w: %w", ErrInvalidRule, err)
-	}
-	return NewRule(req.Scope, key, req.Tool, subject, req.Decision)
+	return NewRule(req.Scope, key, req.Tool, req.Subject, req.Decision)
 }
 
 // stableID makes re-remembering the same rule an upsert and gives the UI a

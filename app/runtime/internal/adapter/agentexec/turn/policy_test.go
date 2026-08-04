@@ -10,6 +10,7 @@ import (
 	"github.com/Tangerg/lynx/agent/interaction"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/suspension"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval/approvaltest"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
@@ -26,7 +27,7 @@ func TestApproveToolCall_RememberedShortCircuit(t *testing.T) {
 	ctx := context.Background()
 	appr := newTestApprovalPolicy(t, approval.ModeSafe)
 	obs := &turnObserver{
-		controller: &controller{approval: appr},
+		controller: &controller{approval: appr, toolSemantics: toolset.Semantics{}},
 		st:         &turnState{handle: Handle{SessionID: "s1"}},
 	}
 
@@ -34,7 +35,7 @@ func TestApproveToolCall_RememberedShortCircuit(t *testing.T) {
 	shellArguments := `{"command":"go test","description":"Run tests"}`
 	if err := appr.Remember(ctx, approval.RememberRequest{
 		Scope: approval.ScopeSession, SessionID: "s1", Tool: "shell",
-		Arguments: mustToolArguments(t, shellArguments), Decision: approval.Allow,
+		Subject: "go test", Decision: approval.Allow,
 	}); err != nil {
 		t.Fatalf("remember shell allow: %v", err)
 	}
@@ -46,7 +47,7 @@ func TestApproveToolCall_RememberedShortCircuit(t *testing.T) {
 	writeArguments := `{"path":"main.go"}`
 	if err := appr.Remember(ctx, approval.RememberRequest{
 		Scope: approval.ScopeSession, SessionID: "s1", Tool: "write",
-		Arguments: mustToolArguments(t, writeArguments), Decision: approval.Deny,
+		Subject: "main.go", Decision: approval.Deny,
 	}); err != nil {
 		t.Fatalf("remember write deny: %v", err)
 	}
@@ -71,6 +72,7 @@ func TestApproveToolCall_MCPAutoApprove(t *testing.T) {
 	obs := &turnObserver{
 		controller: &controller{
 			approval:            appr,
+			toolSemantics:       toolset.Semantics{},
 			mcpToolAutoApproved: func(ref mcpserver.ToolRef) bool { return ref == autoApproved },
 		},
 		st: &turnState{handle: Handle{SessionID: "s1"}},
@@ -95,7 +97,7 @@ func TestApproveToolCall_MCPAutoApprove(t *testing.T) {
 	// tests, not this bare-construction unit test.)
 	if err := appr.Remember(ctx, approval.RememberRequest{
 		Scope: approval.ScopeSession, SessionID: "s1", Tool: autoApproved.PublicName(),
-		Arguments: mustToolArguments(t, `{}`), Decision: approval.Deny,
+		Decision: approval.Deny,
 	}); err != nil {
 		t.Fatalf("remember MCP deny: %v", err)
 	}
@@ -188,7 +190,7 @@ func TestApproveToolCallRejectsMalformedGatedArguments(t *testing.T) {
 
 func approvalObserver(policy ApprovalGate) *turnObserver {
 	return &turnObserver{
-		controller: &controller{approval: policy},
+		controller: &controller{approval: policy, toolSemantics: toolset.Semantics{}},
 		st:         &turnState{handle: Handle{SessionID: "s1"}},
 	}
 }

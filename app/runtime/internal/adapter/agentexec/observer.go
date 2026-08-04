@@ -14,7 +14,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/accounting"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
-	domaintool "github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/core/chat"
 )
 
@@ -220,6 +219,7 @@ type toolObservation struct {
 	// non-positive threshold disables it.
 	evictStore     toolResultOffloader
 	evictThreshold int
+	readToolName   string
 
 	mu sync.Mutex
 	// model is keyed by process ownership as well as the provider-defined call
@@ -248,7 +248,7 @@ type processToolCallKey struct {
 	callID    string
 }
 
-func newToolObservation(target executionObserver, evictStore toolResultOffloader, evictThreshold int) *toolObservation {
+func newToolObservation(target executionObserver, evictStore toolResultOffloader, evictThreshold int, readToolName string) *toolObservation {
 	if executionObserverIsNil(target) {
 		return nil
 	}
@@ -256,6 +256,7 @@ func newToolObservation(target executionObserver, evictStore toolResultOffloader
 		target:         target,
 		evictStore:     evictStore,
 		evictThreshold: evictThreshold,
+		readToolName:   readToolName,
 		model:          make(map[processToolCallKey]*observedModelCall),
 		finished:       make(map[string]struct{}),
 	}
@@ -407,7 +408,7 @@ func (o *toolObservation) evict(ctx context.Context, toolName, output string) (s
 	if o.evictStore == nil || o.evictThreshold <= 0 || len(output) <= o.evictThreshold {
 		return output, nil
 	}
-	if toolName == domaintool.NameReadToolResult {
+	if toolName == o.readToolName {
 		return output, nil
 	}
 	sessionID := executionctx.SessionID(ctx)
@@ -415,7 +416,7 @@ func (o *toolObservation) evict(ctx context.Context, toolName, output string) (s
 		return output, nil
 	}
 	id := offload.NewID()
-	preview := renderToolResultPreview(output, string(id), domaintool.NameReadToolResult, min(toolResultPreviewBytes, o.evictThreshold))
+	preview := renderToolResultPreview(output, string(id), o.readToolName, min(toolResultPreviewBytes, o.evictThreshold))
 	if len(preview) >= len(output) {
 		// Very small configured thresholds can make the retrieval marker larger
 		// than the body. Keep the body inline without staging any durable state.

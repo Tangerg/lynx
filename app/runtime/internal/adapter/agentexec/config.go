@@ -145,4 +145,9 @@ type Config struct {
 	// offloaded (see ToolResultStore). Zero or negative disables eviction
 	// regardless of ToolResultStore.
 	ToolResultThreshold int
+
+	// ToolResultReaderName is the model-facing capability that retrieves an
+	// offloaded body. It is required when result eviction is enabled, used both
+	// in the preview instruction and to prevent recursively offloading its output.
+	ToolResultReaderName string
 }

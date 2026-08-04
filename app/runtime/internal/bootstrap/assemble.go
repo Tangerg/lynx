@@ -338,6 +338,7 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 		ClientResolver:      resolver,
 		Plan:                ecfg.Plan,
 		ToolPresenter:       toolset.Presenter{},
+		ToolSemantics:       toolset.Semantics{},
 		MCPToolAutoApproved: mcpEnv.policy.ToolAutoApproved,
 		Hooks:               cfg.HooksResolver,
 	})

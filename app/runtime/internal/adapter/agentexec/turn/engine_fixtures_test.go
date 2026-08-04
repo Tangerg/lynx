@@ -50,6 +50,7 @@ func turnDeps(engine testEngine, opts ...func(*turn.Dependencies)) turn.Dependen
 		Maintenance:   services,
 		Approval:      explicitYoloPolicy(),
 		ToolPresenter: toolset.Presenter{},
+		ToolSemantics: toolset.Semantics{},
 	}
 	for _, opt := range opts {
 		opt(&deps)

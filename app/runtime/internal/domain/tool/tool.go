@@ -6,10 +6,6 @@ const (
 	GroupRoot = "root"
 	// GroupDelegated is the bounded surface used by delegated Agents.
 	GroupDelegated = "delegated"
-
-	// NameReadToolResult is the model-facing name of the tool that reads an
-	// offloaded result back into the conversation.
-	NameReadToolResult = "read_tool_result"
 )
 
 // Tool is the metadata of one registered tool. Schema is the JSON Schema

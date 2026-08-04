@@ -192,24 +192,29 @@ func (t *toolGate) ApproveToolCall(ctx context.Context, callID, toolName, argume
 	}
 
 	plan := approval.ToolCallInput{
-		Tool:         toolName,
 		Arguments:    arguments,
 		Mode:         mode,
 		Hook:         hookDecision,
+		SafetyClass:  t.controller.toolSafetyClass(toolName),
 		FileMutation: fileMutationScope(target.FileMutations, cmp.Or(hookDecision.RewriteArguments, arguments), t.st.cwd),
-		ShellCommand: shellCommandFromArguments(toolName, cmp.Or(hookDecision.RewriteArguments, arguments)),
+		ShellCommand: t.controller.shellCommand(toolName, cmp.Or(hookDecision.RewriteArguments, arguments)),
 	}.Plan()
 	sessionID := t.st.handle.SessionID
-	var rememberedArguments tool.Arguments
+	approvalSubject := ""
 	if plan.Action == approval.GatePrompt {
-		var err error
-		rememberedArguments, err = tool.ParseArguments(plan.Arguments)
+		rememberedArguments, err := tool.ParseArguments(plan.Arguments)
 		if err != nil {
 			return agentexec.ToolApprovalVerdict{
 				Interrupt: fmt.Errorf("turn: validate gated tool %q arguments: %w", toolName, err),
 			}
 		}
-		query := approval.Query{SessionID: sessionID, ProjectDir: t.st.cwd, Tool: toolName, Arguments: rememberedArguments}
+		approvalSubject, err = t.controller.approvalSubject(toolName, rememberedArguments)
+		if err != nil {
+			return agentexec.ToolApprovalVerdict{
+				Interrupt: fmt.Errorf("turn: derive approval subject for tool %q: %w", toolName, err),
+			}
+		}
+		query := approval.Query{SessionID: sessionID, ProjectDir: t.st.cwd, Tool: toolName, Subject: approvalSubject}
 		d, ok, err := t.controller.approval.Decide(ctx, query)
 		if err != nil {
 			return agentexec.ToolApprovalVerdict{
@@ -253,24 +258,12 @@ func (t *toolGate) ApproveToolCall(ctx context.Context, callID, toolName, argume
 	// calls auto-resolve the same way — recorded for approve AND deny. Keyed on
 	// the ORIGINAL arguments (the model regenerates calls like this one); any
 	// editedArgs override stays one-shot, never folded into the rule.
-	if err := t.rememberApproval(ctx, toolName, rememberedArguments, res); err != nil {
+	if err := t.rememberApproval(ctx, toolName, approvalSubject, res); err != nil {
 		return agentexec.ToolApprovalVerdict{Interrupt: err}
 	}
 	// The human's edited args win over a hook rewrite; fall back to the rewrite
 	// when they approved without editing.
 	return approvalResolutionVerdict(res, plan.ArgumentOverride)
-}
-
-func shellCommandFromArguments(toolName, raw string) string {
-	if toolName != "shell" {
-		return ""
-	}
-	arguments, err := tool.ParseArguments(raw)
-	if err != nil {
-		return ""
-	}
-	command, _ := arguments.StringField("command")
-	return command
 }
 
 // doomLoopEscalation brakes a model repeating the same call to no effect. It
@@ -307,7 +300,7 @@ func (t *toolGate) awaitApproval(ctx context.Context, toolName, arguments string
 	return suspension.Interrupt(ctx, interrupts.InterruptKey(execution.ApprovalInterrupt.String(), toolName, arguments), pending)
 }
 
-func (t *toolGate) rememberApproval(ctx context.Context, toolName string, arguments tool.Arguments, resolution interrupts.Resolution) error {
+func (t *toolGate) rememberApproval(ctx context.Context, toolName, subject string, resolution interrupts.Resolution) error {
 	if resolution.RememberScope == "" {
 		return nil
 	}
@@ -316,7 +309,7 @@ func (t *toolGate) rememberApproval(ctx context.Context, toolName string, argume
 		SessionID:  t.st.handle.SessionID,
 		ProjectDir: t.st.cwd,
 		Tool:       toolName,
-		Arguments:  arguments,
+		Subject:    subject,
 		Decision:   approval.DecisionOf(resolution.Approved),
 	}); err != nil {
 		return fmt.Errorf("turn: remember approval decision for tool %q: %w", toolName, err)
@@ -401,6 +394,12 @@ func (t *toolGate) resumedToolVerdict(ctx context.Context, toolName string) (age
 				Interrupt: fmt.Errorf("turn: validate restored approval tool %q arguments: %w", toolName, err),
 			}, true
 		}
+		approvalSubject, err := t.controller.approvalSubject(toolName, rememberedArguments)
+		if err != nil {
+			return agentexec.ToolApprovalVerdict{
+				Interrupt: fmt.Errorf("turn: derive restored approval subject for tool %q: %w", toolName, err),
+			}, true
+		}
 		resolution, err := suspension.DecodeResolution(parked.Response)
 		if err != nil {
 			return agentexec.ToolApprovalVerdict{
@@ -408,7 +407,7 @@ func (t *toolGate) resumedToolVerdict(ctx context.Context, toolName string) (age
 			}, true
 		}
 		if pending.Approval.Rememberable {
-			if err := t.rememberApproval(ctx, toolName, rememberedArguments, resolution); err != nil {
+			if err := t.rememberApproval(ctx, toolName, approvalSubject, resolution); err != nil {
 				return agentexec.ToolApprovalVerdict{Interrupt: err}, true
 			}
 		}
@@ -437,7 +436,7 @@ func (t *turnObserver) OnToolCallStart(process agentexec.ProcessRef, callID, sou
 		ToolName:     toolName,
 		Arguments:    arguments,
 		Activity:     t.controller.toolActivity(toolName, arguments),
-		SafetyClass:  tool.SafetyClassFor(toolName),
+		SafetyClass:  t.controller.toolSafetyClass(toolName),
 	})
 }
 

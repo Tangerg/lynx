@@ -6,9 +6,7 @@
 // rather than re-inflating the whole thing into context.
 //
 // It is the read half of the eviction feature whose write half is the engine's
-// tool-result eviction middleware; the shared tool name lives in
-// [tool.NameReadToolResult] so the registered name and the name that
-// middleware refuses to evict cannot drift.
+// tool-result eviction middleware.
 package offload
 
 import (
@@ -20,13 +18,16 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/executionctx"
 	resultoffload "github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
-	domaintool "github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
 
 // defaultReadWindow bounds a read that names no limit, so a naive
 // read_tool_result returns a readable window instead of re-inflating a huge body
 // into context (which would defeat the eviction it is recovering from).
-const defaultReadWindow = 20_000
+const (
+	// Name is the model-facing retrieval capability paired with result eviction.
+	Name              = "read_tool_result"
+	defaultReadWindow = 20_000
+)
 
 const description = `Read omitted bytes from an earlier tool result that was
 offloaded to keep the conversation small. Copy result_id from the inline
@@ -64,7 +65,7 @@ func New(store Store) (toolcontract.Tool, error) {
 		return nil, nil
 	}
 	return toolcontract.NewFunc[readArgs, string](
-		toolcontract.FuncConfig{Name: domaintool.NameReadToolResult, Description: description},
+		toolcontract.FuncConfig{Name: Name, Description: description},
 		(&reader{store: store}).read,
 	)
 }

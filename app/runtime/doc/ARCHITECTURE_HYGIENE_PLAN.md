@@ -902,10 +902,26 @@ Acceptance:
 | 28. Ambient path ownership closure | Completed | 2026-08-04 | 2026-08-04 | Explicit-path boundary tests, runtime-wide ambient-path fitness scan, focused normal/race suites, build/vet, static analysis, lint, dead-code analysis, and structural residue scans passed. |
 | 29. Delivery semantic boundary closure | Completed | 2026-08-04 | 2026-08-04 | Runtime event/export and server dependency fitness checks, Goal reason projection/storage tests, Go contract generation, runtime-wide build/vet, and focused server/domain/application/storage tests passed; full drift remains limited to deferred frontend bindings and canonical samples. |
 | 30. Delivery projection vocabulary closure | Completed | 2026-08-04 | 2026-08-04 | All server projection helpers use `presentX`, inbound mappers alone retain `FromWire`, duplicate model-usage mapping was removed, and server/architecture/build/vet checks passed. |
+| 31. Concrete tool semantics ownership | Completed | 2026-08-04 | 2026-08-04 | Tool safety, approval-subject extraction, and offload reader naming moved to toolset/composition; Domain and architecture tests no longer know the built-in catalog. |
 
 Allowed status values: `Pending`, `In progress`, `Completed`, `Blocked`, `Revised`.
 
 ## 7. Progress log
+
+### 2026-08-04 — Batch 31 completed
+
+- Removed the built-in name-to-safety table and `read_tool_result` name from
+  Domain. `toolset.Semantics` now owns classification, remembered-rule subject
+  extraction, and catastrophic shell-command projection next to the concrete
+  tool schemas; unknown extension tools still fail closed as arbitrary exec.
+- Approval policy now accepts the supplied safety class and already-derived
+  subject. It retains mode, scope, precedence, bypass immunity, and durable rule
+  invariants without interpreting `shell.command` or file-tool `path` fields.
+- `agentexec/turn` consumes the new semantics through its own required narrow
+  interface. Tool-result eviction receives its read-back capability name from
+  Bootstrap, so neither Domain nor Agent execution hard-codes that tool.
+- Added an architecture fitness check that rejects a concrete built-in inventory
+  or known tool-name literals in approval Domain.
 
 ### 2026-08-04 — Batch 30 completed
 

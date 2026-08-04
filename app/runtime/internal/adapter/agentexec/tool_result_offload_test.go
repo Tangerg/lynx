@@ -9,8 +9,9 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/executionctx"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
+
+const testToolResultReaderName = "read_tool_result"
 
 type fakeOffloader struct {
 	calls     int
@@ -29,7 +30,7 @@ func sessionCtx(session string) context.Context {
 }
 
 func newObservationWith(store toolResultOffloader, threshold int) *toolObservation {
-	return newToolObservation(noopObserver{}, store, threshold)
+	return newToolObservation(noopObserver{}, store, threshold, testToolResultReaderName)
 }
 
 func TestEvict_OversizedIsOffloadedWithRetrievablePreview(t *testing.T) {
@@ -85,7 +86,7 @@ func TestEvict_ReadBackToolExcluded(t *testing.T) {
 	obs := newObservationWith(store, 10)
 	body := strings.Repeat("x", 500)
 	// Evicting the read-back tool's own output would loop.
-	if got, ref := obs.evict(sessionCtx("s"), tool.NameReadToolResult, body); got != body || ref != nil || store.calls != 0 {
+	if got, ref := obs.evict(sessionCtx("s"), testToolResultReaderName, body); got != body || ref != nil || store.calls != 0 {
 		t.Fatalf("read-back tool must not be offloaded (calls %d)", store.calls)
 	}
 }

@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"testing"
-
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
 
 // White-box tests: the matching/precedence rules are the heart of the rule
@@ -21,37 +19,6 @@ func TestDefaultModeGetSet(t *testing.T) {
 	}
 	if m, _ := svc.Mode(context.Background(), "session-1"); m != ModeBalanced {
 		t.Fatalf("mode after set = %v, want Balanced", m)
-	}
-}
-
-func TestQuerySubject(t *testing.T) {
-	cases := []struct {
-		tool, arguments, want string
-		wantError             bool
-	}{
-		{tool: "shell", arguments: `{"command":"npm run build","description":"Build the project"}`, want: "npm run build"},
-		// A backgrounded command is still the `shell` tool (run_in_background is one
-		// of its arguments, not a tool of its own), so it keeps the command subject.
-		{tool: "shell", arguments: `{"command":"sleep 1","description":"Wait briefly","run_in_background":true}`, want: "sleep 1"},
-		{tool: "edit", arguments: `{"path":"src/a.go","old":"x"}`, want: "src/a.go"},
-		{tool: "read", arguments: `{"path":"go.mod"}`, want: "go.mod"},
-		{tool: "write", arguments: `{"path":"out.txt"}`, want: "out.txt"},
-		{tool: "grep", arguments: `{"pattern":"foo"}`},       // no per-tool subject → whole-tool
-		{tool: "stop_shell", arguments: `{"shell_id":"s1"}`}, // ditto — not a command-bearing tool
-		{tool: "shell", arguments: `{"timeout_ms":5}`, wantError: true},
-	}
-	for _, c := range cases {
-		q := Query{Tool: c.tool, Arguments: mustArguments(t, c.arguments)}
-		got, err := q.subject()
-		if c.wantError {
-			if !errors.Is(err, ErrInvalidQuery) || !errors.Is(err, tool.ErrInvalidArguments) {
-				t.Errorf("Query.subject(%q,%q) error = %v", c.tool, c.arguments, err)
-			}
-			continue
-		}
-		if err != nil || got != c.want {
-			t.Errorf("Query.subject(%q,%q) = (%q, %v), want %q", c.tool, c.arguments, got, err, c.want)
-		}
 	}
 }
 
@@ -78,7 +45,7 @@ func TestRuleMatchesSubject(t *testing.T) {
 // TestDecidePrecedence: the most specific matching rule wins — scope dominates
 // (session > project > global), then subject (exact > glob > any).
 func TestDecidePrecedence(t *testing.T) {
-	q := Query{SessionID: "s1", ProjectDir: "/p", Tool: "shell", Arguments: mustArguments(t, `{"command":"rm -rf /","description":"Remove root files"}`)}
+	q := Query{SessionID: "s1", ProjectDir: "/p", Tool: "shell", Subject: "rm -rf /"}
 
 	// A broad session allow vs a narrow (exact-subject) session deny → deny wins.
 	rules := []Rule{
@@ -107,7 +74,7 @@ func TestDecidePrecedence(t *testing.T) {
 // TestDecideConflictDeny: two equally-specific rules disagree → deny wins (a
 // remembered deny must not be overridden by an equally-specific allow).
 func TestDecideConflictDeny(t *testing.T) {
-	q := Query{SessionID: "s1", Tool: "shell", Arguments: mustArguments(t, `{"command":"go test","description":"Run tests"}`)}
+	q := Query{SessionID: "s1", Tool: "shell", Subject: "go test"}
 	rules := []Rule{
 		mustRule(t, ScopeSession, "s1", "shell", "", Allow),
 		mustRule(t, ScopeSession, "s1", "shell", "", Deny),
@@ -121,11 +88,10 @@ func TestDecideConflictDeny(t *testing.T) {
 func TestNilStore(t *testing.T) {
 	ctx := context.Background()
 	svc := mustPolicy(t, ModeSafe, nil)
-	arguments := mustArguments(t, `{"command":"go test","description":"Run tests"}`)
-	if err := svc.Remember(ctx, RememberRequest{Scope: ScopeGlobal, Tool: "shell", Arguments: arguments, Decision: Allow}); !errors.Is(err, ErrRuleStoreUnavailable) {
+	if err := svc.Remember(ctx, RememberRequest{Scope: ScopeGlobal, Tool: "shell", Subject: "go test", Decision: Allow}); !errors.Is(err, ErrRuleStoreUnavailable) {
 		t.Fatalf("Remember on nil store error = %v, want ErrRuleStoreUnavailable", err)
 	}
-	if _, ok, _ := svc.Decide(ctx, Query{Tool: "shell", Arguments: arguments}); ok {
+	if _, ok, _ := svc.Decide(ctx, Query{Tool: "shell", Subject: "go test"}); ok {
 		t.Fatal("nil store matched a rule")
 	}
 	if rules, _ := svc.Rules(ctx, "s1", "/p"); rules != nil {
@@ -255,19 +221,6 @@ func TestRuleValidationRejectsCorruptDurableValues(t *testing.T) {
 	}
 }
 
-func TestPolicyRejectsMissingRequiredRuleSubject(t *testing.T) {
-	svc := mustPolicy(t, ModeSafe, nil)
-	missingCommand := mustArguments(t, `{"timeout_ms":30}`)
-	if _, _, err := svc.Decide(t.Context(), Query{Tool: "shell", Arguments: missingCommand}); !errors.Is(err, ErrInvalidQuery) || !errors.Is(err, tool.ErrInvalidArguments) {
-		t.Fatalf("Decide error = %v, want invalid query + invalid arguments", err)
-	}
-	if err := svc.Remember(t.Context(), RememberRequest{
-		Scope: ScopeGlobal, Tool: "shell", Arguments: missingCommand, Decision: Allow,
-	}); !errors.Is(err, ErrInvalidRule) || !errors.Is(err, tool.ErrInvalidArguments) {
-		t.Fatalf("Remember error = %v, want invalid rule + invalid arguments", err)
-	}
-}
-
 func mustPolicy(t *testing.T, mode Mode, store RuleStore) *RuntimePolicy {
 	t.Helper()
 	policy, err := New(mode, store, nil)
@@ -275,15 +228,6 @@ func mustPolicy(t *testing.T, mode Mode, store RuleStore) *RuntimePolicy {
 		t.Fatalf("New policy: %v", err)
 	}
 	return policy
-}
-
-func mustArguments(t *testing.T, raw string) tool.Arguments {
-	t.Helper()
-	arguments, err := tool.ParseArguments(raw)
-	if err != nil {
-		t.Fatalf("ParseArguments(%q): %v", raw, err)
-	}
-	return arguments
 }
 
 func mustRule(t *testing.T, scope Scope, scopeKey, toolName, subject string, decision Decision) Rule {

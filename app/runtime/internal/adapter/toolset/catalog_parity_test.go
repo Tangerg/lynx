@@ -244,7 +244,7 @@ func TestSafetyTableMatchesBuiltInTools(t *testing.T) {
 	existing["delegate_task"] = true
 
 	var unreachable []string
-	for _, name := range tool.ClassifiedToolNames() {
+	for _, name := range classifiedToolNames() {
 		if !existing[name] {
 			unreachable = append(unreachable, name)
 		}
@@ -254,7 +254,7 @@ func TestSafetyTableMatchesBuiltInTools(t *testing.T) {
 			"either the tool is gone (drop the name) or it was never built (wire it)", unreachable)
 	}
 	classified := make(map[string]bool)
-	for _, name := range tool.ClassifiedToolNames() {
+	for _, name := range classifiedToolNames() {
 		classified[name] = true
 	}
 	var unclassified []string

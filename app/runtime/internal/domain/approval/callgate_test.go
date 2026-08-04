@@ -8,10 +8,10 @@ import (
 
 func TestToolCallInputPlan_HookBlockWins(t *testing.T) {
 	plan := ToolCallInput{
-		Tool:      "write",
-		Arguments: `{"path":"x"}`,
-		Mode:      ModeYolo,
-		Hook:      HookDecision{Block: true},
+		Arguments:   `{"path":"x"}`,
+		Mode:        ModeYolo,
+		Hook:        HookDecision{Block: true},
+		SafetyClass: tool.SafetyClassWrite,
 	}.Plan()
 	if plan.Action != GateDeny || plan.Denial != (Denial{Cause: DenialHook}) {
 		t.Fatalf("plan = %+v, want hook denial", plan)
@@ -20,10 +20,10 @@ func TestToolCallInputPlan_HookBlockWins(t *testing.T) {
 
 func TestToolCallInputPlan_RewritePassesAsOverride(t *testing.T) {
 	plan := ToolCallInput{
-		Tool:      "write",
-		Arguments: `{"path":"unsafe"}`,
-		Mode:      ModeYolo,
-		Hook:      HookDecision{RewriteArguments: `{"path":"safe"}`},
+		Arguments:   `{"path":"unsafe"}`,
+		Mode:        ModeYolo,
+		Hook:        HookDecision{RewriteArguments: `{"path":"safe"}`},
+		SafetyClass: tool.SafetyClassWrite,
 	}.Plan()
 	if plan.Action != GatePass || plan.Arguments != `{"path":"safe"}` || plan.ArgumentOverride != `{"path":"safe"}` {
 		t.Fatalf("plan = %+v, want pass with rewritten override", plan)
@@ -32,10 +32,10 @@ func TestToolCallInputPlan_RewritePassesAsOverride(t *testing.T) {
 
 func TestToolCallInputPlan_HookAskEscalatesPass(t *testing.T) {
 	plan := ToolCallInput{
-		Tool:      "write",
-		Arguments: `{}`,
-		Mode:      ModeBalanced,
-		Hook:      HookDecision{Ask: true},
+		Arguments:   `{}`,
+		Mode:        ModeBalanced,
+		Hook:        HookDecision{Ask: true},
+		SafetyClass: tool.SafetyClassWrite,
 	}.Plan()
 	if plan.Action != GatePrompt || plan.SafetyClass != tool.SafetyClassWrite || plan.Risk == "" || plan.PromptCause != PromptCauseWorkspaceWrite {
 		t.Fatalf("plan = %+v, want prompt for hook ask", plan)
@@ -46,9 +46,9 @@ func TestToolCallInputPlan_OutOfWorkspaceMutationIsBypassImmune(t *testing.T) {
 	// Yolo would auto-pass a write, but a target outside the workspace must still
 	// be confirmed — shown as high risk with a specific reason.
 	plan := ToolCallInput{
-		Tool:         "write",
 		Arguments:    `{"path":"/etc/hosts"}`,
 		Mode:         ModeYolo,
+		SafetyClass:  tool.SafetyClassWrite,
 		FileMutation: tool.FileMutationOutsideWorkspace,
 	}.Plan()
 	if plan.Action != GatePrompt {
@@ -61,9 +61,9 @@ func TestToolCallInputPlan_OutOfWorkspaceMutationIsBypassImmune(t *testing.T) {
 
 func TestToolCallInputPlan_InWorkspaceMutationStillAutoPassesInYolo(t *testing.T) {
 	plan := ToolCallInput{
-		Tool:         "write",
 		Arguments:    `{"path":"src/a.go"}`,
 		Mode:         ModeYolo,
+		SafetyClass:  tool.SafetyClassWrite,
 		FileMutation: tool.FileMutationWithinWorkspace,
 	}.Plan()
 	if plan.Action != GatePass {
@@ -73,9 +73,9 @@ func TestToolCallInputPlan_InWorkspaceMutationStillAutoPassesInYolo(t *testing.T
 
 func TestToolCallInputPlan_NoMutationScopeDoesNotEscalate(t *testing.T) {
 	plan := ToolCallInput{
-		Tool:      "write",
-		Arguments: `{"path":"/etc/hosts"}`,
-		Mode:      ModeYolo,
+		Arguments:   `{"path":"/etc/hosts"}`,
+		Mode:        ModeYolo,
+		SafetyClass: tool.SafetyClassWrite,
 	}.Plan()
 	if plan.Action != GatePass {
 		t.Fatalf("action = %v, want GatePass (no workspace configured)", plan.Action)
@@ -84,10 +84,10 @@ func TestToolCallInputPlan_NoMutationScopeDoesNotEscalate(t *testing.T) {
 
 func TestToolCallInputPlan_ModePlanDenyBeatsHookAsk(t *testing.T) {
 	plan := ToolCallInput{
-		Tool:      "shell",
-		Arguments: `{}`,
-		Mode:      ModePlan,
-		Hook:      HookDecision{Ask: true},
+		Arguments:   `{}`,
+		Mode:        ModePlan,
+		Hook:        HookDecision{Ask: true},
+		SafetyClass: tool.SafetyClassExec,
 	}.Plan()
 	if plan.Action != GateDeny || plan.Denial.Cause != DenialPlanMode {
 		t.Fatalf("plan = %+v, want plan-mode deny", plan)
@@ -96,9 +96,9 @@ func TestToolCallInputPlan_ModePlanDenyBeatsHookAsk(t *testing.T) {
 
 func TestToolCallPlanResolvePromptShortcuts_RememberedRuleBeforeAutoApprove(t *testing.T) {
 	plan := ToolCallInput{
-		Tool:      "srv_read",
-		Arguments: `{}`,
-		Mode:      ModeSafe,
+		Arguments:   `{}`,
+		Mode:        ModeSafe,
+		SafetyClass: tool.SafetyClassExec,
 	}.Plan()
 	got := plan.ResolvePromptShortcuts(StandingDecision{Matched: true, Decision: Deny}, true)
 	if got.Action != GateDeny || got.Denial.Cause != DenialRememberedRule {

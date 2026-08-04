@@ -18,10 +18,10 @@ type StandingDecision struct {
 
 // ToolCallInput is the pure policy input for one tool call.
 type ToolCallInput struct {
-	Tool         string
 	Arguments    string
 	Mode         Mode
 	Hook         HookDecision
+	SafetyClass  tool.SafetyClass
 	FileMutation tool.FileMutationScope
 	ShellCommand string
 }
@@ -82,19 +82,18 @@ func (in ToolCallInput) Plan() ToolCallPlan {
 		arguments = in.Hook.RewriteArguments
 		override = in.Hook.RewriteArguments
 	}
-	cls := tool.SafetyClassFor(in.Tool)
 	plan := ToolCallPlan{
 		Action:           GatePass,
 		Arguments:        arguments,
 		ArgumentOverride: override,
-		SafetyClass:      cls,
+		SafetyClass:      in.SafetyClass,
 	}
 	if in.Hook.Block {
 		plan.Action = GateDeny
 		plan.Denial = Denial{Cause: DenialHook, Detail: in.Hook.Reason}
 		return plan
 	}
-	action := GateFor(cls, in.Mode)
+	action := GateFor(in.SafetyClass, in.Mode)
 	// Bypass-immune escalation: a call dangerous enough (a mutation escaping the
 	// workspace, or a high-confidence catastrophic shell command) is confirmed
 	// even under a mode that would auto-pass it (Yolo, or Balanced for
@@ -111,8 +110,8 @@ func (in ToolCallInput) Plan() ToolCallPlan {
 	case GateDeny:
 		plan.Denial = Denial{Cause: DenialPlanMode}
 	case GatePrompt:
-		plan.Risk = cls.Risk()
-		plan.PromptCause = promptCauseForSafetyClass(cls)
+		plan.Risk = in.SafetyClass.Risk()
+		plan.PromptCause = promptCauseForSafetyClass(in.SafetyClass)
 		if immunity != tool.BypassAllowed {
 			plan.Risk = tool.RiskHigh
 			plan.PromptCause = promptCauseForBypassImmunity(immunity)

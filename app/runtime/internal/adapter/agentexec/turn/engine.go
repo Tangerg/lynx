@@ -66,3 +66,11 @@ type ToolPresenter interface {
 	Activity(toolName string, arguments tool.Arguments) string
 	Present(toolName string, arguments tool.Arguments, result tool.Result) (tool.Result, string)
 }
+
+// ToolSemantics translates concrete tool names and argument schemas into the
+// domain facts used by approval and transcript projection.
+type ToolSemantics interface {
+	SafetyClass(toolName string) tool.SafetyClass
+	ApprovalSubject(toolName string, arguments tool.Arguments) (string, error)
+	ShellCommand(toolName, arguments string) string
+}

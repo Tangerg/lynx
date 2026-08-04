@@ -256,13 +256,14 @@ func (e *Engine) turnProcessOptions(
 		observer,
 		e.toolResultStore,
 		e.toolResultThreshold,
+		e.toolResultReaderName,
 		childMiddleware,
 		usage,
 		admitChild,
 	)
 	var observation *toolObservation
 	if observer != nil {
-		observation = newToolObservation(observer, e.toolResultStore, e.toolResultThreshold)
+		observation = newToolObservation(observer, e.toolResultStore, e.toolResultThreshold, e.toolResultReaderName)
 		if err := core.RegisterDependency(scope, toolObservationKey, observation); err != nil {
 			return core.ProcessOptions{}, fmt.Errorf("agentexec: register tool observation dependency: %w", err)
 		}

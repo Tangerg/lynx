@@ -16,11 +16,7 @@
 //     not the blunt "allow every shell call ever".
 package approval
 
-import (
-	"errors"
-
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
-)
+import "errors"
 
 var (
 	ErrInvalidMode          = errors.New("approval: invalid mode")
@@ -122,22 +118,22 @@ type Rule struct {
 
 // Query identifies one gated tool call for [Policy.Decide]. ProjectDir is the
 // call's working directory (the project scope key); empty for sessions without
-// a cwd. Arguments owns the validated call object used to derive its subject.
+// a cwd. Subject is derived by the concrete tool owner before policy evaluation.
 type Query struct {
 	SessionID  string
 	ProjectDir string
 	Tool       string
-	Arguments  tool.Arguments
+	Subject    string
 }
 
 // RememberRequest persists a rule from a user's "approve/deny + remember{scope}"
-// choice. The subject is extracted from Arguments per the tool, so the rule
-// matches future calls like this one — not the blunt whole-tool grant.
+// choice. Subject is the same concrete-tool identity used for matching the
+// current call; an empty subject deliberately means a whole-tool rule.
 type RememberRequest struct {
 	Scope      Scope
 	SessionID  string
 	ProjectDir string
 	Tool       string
-	Arguments  tool.Arguments
+	Subject    string
 	Decision   Decision
 }

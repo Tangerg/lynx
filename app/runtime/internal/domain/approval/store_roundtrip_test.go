@@ -7,7 +7,6 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval/approvaltest"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
 
 // Black-box round-trips through the exported Policy API against the in-memory
@@ -19,18 +18,17 @@ import (
 func TestServiceRememberDecide(t *testing.T) {
 	ctx := context.Background()
 	svc := newPolicy(t)
-	build := parseArguments(t, `{"command":"npm run build","description":"Build the project"}`)
 	if err := svc.Remember(ctx, approval.RememberRequest{
-		Scope: approval.ScopeSession, SessionID: "s1", Tool: "shell", Arguments: build, Decision: approval.Allow,
+		Scope: approval.ScopeSession, SessionID: "s1", Tool: "shell", Subject: "npm run build", Decision: approval.Allow,
 	}); err != nil {
 		t.Fatalf("remember: %v", err)
 	}
 
-	if d, ok, err := svc.Decide(ctx, approval.Query{SessionID: "s1", Tool: "shell", Arguments: build}); err != nil || !ok || d != approval.Allow {
+	if d, ok, err := svc.Decide(ctx, approval.Query{SessionID: "s1", Tool: "shell", Subject: "npm run build"}); err != nil || !ok || d != approval.Allow {
 		t.Fatalf("matching call = (%v,%v,%v), want (allow,true,nil)", d, ok, err)
 	}
 	// A different command isn't covered by the remembered one.
-	if _, ok, err := svc.Decide(ctx, approval.Query{SessionID: "s1", Tool: "shell", Arguments: parseArguments(t, `{"command":"rm -rf /","description":"Remove root files"}`)}); err != nil || ok {
+	if _, ok, err := svc.Decide(ctx, approval.Query{SessionID: "s1", Tool: "shell", Subject: "rm -rf /"}); err != nil || ok {
 		if err != nil {
 			t.Fatalf("decide different command: %v", err)
 		}
@@ -43,14 +41,13 @@ func TestServiceRememberDecide(t *testing.T) {
 func TestServiceScopeVisibilityAndForget(t *testing.T) {
 	ctx := context.Background()
 	svc := newPolicy(t)
-	arguments := parseArguments(t, `{"path":"x"}`)
 	if err := svc.Remember(ctx, approval.RememberRequest{
-		Scope: approval.ScopeProject, ProjectDir: "/proj/a", Tool: "write", Arguments: arguments, Decision: approval.Allow,
+		Scope: approval.ScopeProject, ProjectDir: "/proj/a", Tool: "write", Subject: "x", Decision: approval.Allow,
 	}); err != nil {
 		t.Fatalf("remember: %v", err)
 	}
 
-	q := approval.Query{SessionID: "s1", ProjectDir: "/proj/a", Tool: "write", Arguments: arguments}
+	q := approval.Query{SessionID: "s1", ProjectDir: "/proj/a", Tool: "write", Subject: "x"}
 	if _, ok, err := svc.Decide(ctx, q); err != nil || !ok {
 		if err != nil {
 			t.Fatalf("decide project rule: %v", err)
@@ -91,7 +88,7 @@ func TestRememberRejectsUnkeyable(t *testing.T) {
 	svc := newPolicy(t)
 	err := svc.Remember(ctx, approval.RememberRequest{
 		Scope: approval.ScopeProject, ProjectDir: "", Tool: "shell",
-		Arguments: parseArguments(t, `{"command":"go test","description":"Run tests"}`), Decision: approval.Allow,
+		Subject: "go test", Decision: approval.Allow,
 	})
 	if !errors.Is(err, approval.ErrInvalidRule) {
 		t.Fatalf("unkeyable rule error = %v, want ErrInvalidRule", err)
@@ -111,13 +108,4 @@ func newPolicy(t *testing.T) *approval.RuntimePolicy {
 		t.Fatalf("new policy: %v", err)
 	}
 	return policy
-}
-
-func parseArguments(t *testing.T, raw string) tool.Arguments {
-	t.Helper()
-	arguments, err := tool.ParseArguments(raw)
-	if err != nil {
-		t.Fatalf("parse arguments: %v", err)
-	}
-	return arguments
 }

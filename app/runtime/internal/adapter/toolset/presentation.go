@@ -8,6 +8,7 @@ import (
 
 	"github.com/pmezard/go-difflib/difflib"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/offload"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
 
@@ -32,7 +33,7 @@ const (
 	toolNameReadSkillResource   = "read_skill_resource"
 	toolNameShell               = "shell"
 	toolNameReadShellOutput     = "read_shell_output"
-	toolNameReadToolResult      = "read_tool_result"
+	toolNameReadToolResult      = offload.Name
 	toolNameReportGoalOutcome   = "report_goal_outcome"
 	toolNameSearchMemory        = "search_memory"
 	toolNameSearchConversations = "search_conversations"
