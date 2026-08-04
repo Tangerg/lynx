@@ -72,12 +72,28 @@ func TestFileMemoryService_List_SkipsEmptyScopes(t *testing.T) {
 		t.Fatalf("len = %d, want 1 (project skipped)", len(entries))
 	}
 	if entries[0].Scope != knowledge.ScopeUser {
-		t.Errorf("scope = %d, want user", entries[0].Scope)
+		t.Errorf("scope = %q, want user", entries[0].Scope)
 	}
 	// CapturedAt must be populated from the file mtime, not left zero (the wire
 	// maps it to MemoryEntry.UpdatedAt — a zero time would surface as 0001-01-01).
 	if entries[0].CapturedAt.IsZero() {
 		t.Error("CapturedAt is zero; want the LYRA.md file mtime")
+	}
+}
+
+func TestFileMemoryService_RejectsUnknownScope(t *testing.T) {
+	t.Setenv("LYRA_HOME", t.TempDir())
+	svc, err := storage.NewFileKnowledgeStore()
+	if err != nil {
+		t.Fatal(err)
+	}
+	unknown := knowledge.Scope("workspace")
+
+	if _, err := svc.Get(t.Context(), unknown, t.TempDir()); err == nil {
+		t.Fatal("Get accepted an unknown scope")
+	}
+	if err := svc.Update(t.Context(), unknown, t.TempDir(), "notes"); err == nil {
+		t.Fatal("Update accepted an unknown scope")
 	}
 }
 

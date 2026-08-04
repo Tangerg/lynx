@@ -4,24 +4,43 @@
 // agentmemory. Prompt composition remains in the agent-execution adapter.
 package knowledge
 
-import "time"
+import (
+	"fmt"
+	"time"
+)
 
 // Scope selects which LYRA.md the operation targets. The prompt
 // composes both per turn — user (global) first, then project, so
 // project knowledge extends and overrides the global preferences.
-type Scope int
+type Scope string
 
 const (
 	// ScopeProject — `<dir>/LYRA.md`. Project-specific knowledge:
 	// conventions, key files, gotchas. Addressed by the project
 	// directory passed per call (a session's cwd), so one store
 	// serves every project.
-	ScopeProject Scope = iota
+	ScopeProject Scope = "project"
 	// ScopeUser — `~/.lyra/LYRA.md`. Cross-project preferences:
 	// coding style, tools, vocabulary. The global scope; per-call
 	// dir is ignored.
-	ScopeUser
+	ScopeUser Scope = "user"
 )
+
+// Valid reports whether s names one of the two human-authored knowledge
+// partitions.
+func (s Scope) Valid() bool {
+	return s == ScopeProject || s == ScopeUser
+}
+
+// Validate rejects a value that cannot identify a LYRA.md partition.
+func (s Scope) Validate() error {
+	if !s.Valid() {
+		return fmt.Errorf("knowledge: invalid scope %q", s)
+	}
+	return nil
+}
+
+func (s Scope) String() string { return string(s) }
 
 // Entry is one piece of stored memory. Content is the verbatim markdown
 // shown to the model; CapturedAt records when it landed in LYRA.md.

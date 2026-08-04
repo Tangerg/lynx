@@ -151,3 +151,16 @@ func TestProjectMemoryRejectsUnavailableCwd(t *testing.T) {
 		t.Fatalf("update memory err = %v, want ErrWorkspaceUnavailable", err)
 	}
 }
+
+func TestMemoryMappingRejectsUnknownScopes(t *testing.T) {
+	s := serverWithMemory(&fakeMemoryStore{})
+
+	if _, err := s.GetMemory(t.Context(), protocol.GetMemoryRequest{
+		Scope: protocol.MemoryScope("workspace"),
+	}); !errors.Is(err, protocol.ErrInvalidParams) {
+		t.Fatalf("GetMemory err = %v, want ErrInvalidParams", err)
+	}
+	if _, err := memScopeToWire(knowledge.Scope("workspace")); err == nil {
+		t.Fatal("memScopeToWire accepted an unknown domain scope")
+	}
+}

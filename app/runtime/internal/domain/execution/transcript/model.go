@@ -261,23 +261,32 @@ type SequencedItem struct {
 // directions are the SAME total order read from opposite ends — never a different
 // sort — so a page is exact either way and the two cannot disagree about which item
 // comes first.
-type SequenceOrder uint8
+type SequenceOrder string
 
 const (
 	// OldestFirst replays the session the way it happened, which is what folding it
 	// back into state requires.
-	OldestFirst SequenceOrder = iota
+	OldestFirst SequenceOrder = "oldest"
 	// NewestFirst reaches the tail without walking everything before it, which is
 	// what showing a long session's last screen requires.
-	NewestFirst
+	NewestFirst SequenceOrder = "newest"
 )
 
-func (o SequenceOrder) String() string {
-	if o == NewestFirst {
-		return "newest"
-	}
-	return "oldest"
+// Valid reports whether o names one of the two directions through the durable
+// transcript sequence.
+func (o SequenceOrder) Valid() bool {
+	return o == OldestFirst || o == NewestFirst
 }
+
+// Validate rejects a direction that cannot define cursor and SQL ordering.
+func (o SequenceOrder) Validate() error {
+	if !o.Valid() {
+		return fmt.Errorf("transcript: invalid sequence order %q", o)
+	}
+	return nil
+}
+
+func (o SequenceOrder) String() string { return string(o) }
 
 type ContentKind uint8
 

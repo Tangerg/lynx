@@ -244,6 +244,9 @@ func (c *Knowledge) ListMemoryEntries(ctx context.Context, cwd string) ([]knowle
 
 // Memory returns the LYRA.md content for one scope.
 func (c *Knowledge) Memory(ctx context.Context, scope knowledge.Scope, cwd string) (string, error) {
+	if err := scope.Validate(); err != nil {
+		return "", err
+	}
 	if c.memory == nil {
 		return "", ErrMemoryUnavailable
 	}
@@ -259,6 +262,9 @@ func (c *Knowledge) Memory(ctx context.Context, scope knowledge.Scope, cwd strin
 
 // UpdateMemory overwrites the LYRA.md content for one scope.
 func (c *Knowledge) UpdateMemory(ctx context.Context, scope knowledge.Scope, cwd string, content string) error {
+	if err := scope.Validate(); err != nil {
+		return err
+	}
 	if c.memory == nil {
 		return ErrMemoryUnavailable
 	}

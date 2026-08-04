@@ -8,6 +8,22 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 )
 
+func TestSequenceOrderIsAClosedVocabulary(t *testing.T) {
+	for _, order := range []transcript.SequenceOrder{transcript.OldestFirst, transcript.NewestFirst} {
+		if err := order.Validate(); err != nil {
+			t.Fatalf("Validate(%q): %v", order, err)
+		}
+		if order.String() != string(order) {
+			t.Fatalf("String(%q) = %q", order, order.String())
+		}
+	}
+	for _, order := range []transcript.SequenceOrder{"", "ascending", "descending"} {
+		if err := order.Validate(); err == nil {
+			t.Fatalf("Validate(%q) succeeded", order)
+		}
+	}
+}
+
 func TestItemValidateOwnsPayloadInvariants(t *testing.T) {
 	tests := []struct {
 		name    string

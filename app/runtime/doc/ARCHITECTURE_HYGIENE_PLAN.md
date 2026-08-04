@@ -625,6 +625,32 @@ Acceptance:
   compile, standalone build/vet, static analysis, lint, and dead-code analysis
   pass; the known deferred frontend contract/sample drift may remain.
 
+### Batch 22 — Ambiguous-default closure
+
+Status: **Completed**
+
+Scope:
+
+- Replace human-authored knowledge's permissive integer scope with a closed
+  string vocabulary whose zero value is invalid.
+- Make Delivery, Application, and filesystem storage reject unknown knowledge
+  scopes instead of silently selecting project knowledge or treating the
+  request as unavailable.
+- Replace transcript page order's permissive integer value with a closed
+  vocabulary and validate it at Domain, Application, and SQLite boundaries.
+- Reject negative durable-sequence anchors and page limits instead of
+  reinterpreting them as an unbounded first page.
+
+Acceptance:
+
+- Unknown knowledge scopes cannot read or overwrite project `LYRA.md` through
+  a default branch, and corrupt projected scopes cannot be emitted on the wire.
+- Unknown transcript orders cannot mint a cursor or choose SQL direction;
+  invalid direct-store pagination controls fail before a query is built.
+- Focused normal/race tests, runtime-wide compile, standalone build/vet,
+  static analysis, lint, and dead-code analysis pass; the known deferred
+  frontend contract/sample drift may remain.
+
 ## 6. Progress
 
 | Batch | Status | Started | Completed | Evidence |
@@ -650,10 +676,28 @@ Acceptance:
 | 19. Canonical runtime vocabulary | Completed | 2026-08-04 | 2026-08-04 | Runtime-wide compile, focused behavior tests, dependency/vocabulary/activity fitness tests, `go vet`, `staticcheck`, `golangci-lint`, `deadcode -test`, formatting, and exact removed-name scans passed. |
 | 20. Responsibility and entrypoint convergence | Completed | 2026-08-04 | 2026-08-04 | Runtime-wide compile; focused normal/race tests; architecture checks; standalone build/vet; `staticcheck`; `golangci-lint`; `deadcode -test`; formatting and exact-source scans passed. Full tests retain only the known deferred frontend contract/sample drift. |
 | 21. Agent-memory domain closure | Completed | 2026-08-04 | 2026-08-04 | Domain/Application/SQLite/Delivery normal and race tests, runtime-wide compile, standalone build/vet, `staticcheck`, `golangci-lint`, `deadcode -test`, schema-constraint tests, and full regression classification passed. |
+| 22. Ambiguous-default closure | Completed | 2026-08-04 | 2026-08-04 | Knowledge and transcript Domain/Application/Storage/Delivery normal and race tests, runtime-wide compile, standalone build/vet, static analysis, lint, dead-code analysis, and full regression classification passed. |
 
 Allowed status values: `Pending`, `In progress`, `Completed`, `Blocked`, `Revised`.
 
 ## 7. Progress log
+
+### 2026-08-04 — Batch 22 completed
+
+- Made human-authored knowledge scope a closed string vocabulary. Unknown
+  Domain values now fail in Application and filesystem storage; unknown wire
+  scopes fail as invalid parameters; invalid stored projections fail rather
+  than being emitted as project memory.
+- Made transcript sequence order a closed string vocabulary and validated it
+  before cursor construction and again at the SQLite adapter boundary. The
+  zero value and unfamiliar directions no longer mean oldest-first.
+- Tightened direct pagination inputs so negative sequence anchors and limits
+  cannot silently become an unanchored or unbounded query; non-positive cursor
+  sequence keys are rejected as invalid cursors.
+- Kept the knowledge store's same-directory `os.Rename` deliberately: it is the
+  atomic last-write-wins commit from a fixed temporary sibling, not a
+  cross-filesystem move or conflict-preserving import, so `fileflow` would
+  change the bounded-context semantics rather than improve them.
 
 ### 2026-08-04 — Batch 21 completed
 

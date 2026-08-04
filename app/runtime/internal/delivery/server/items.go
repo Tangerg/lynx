@@ -130,7 +130,7 @@ func sequenceOrderFromWire(order protocol.ItemOrder) (transcript.SequenceOrder, 
 	case protocol.ItemOrderDesc:
 		return transcript.NewestFirst, nil
 	default:
-		return 0, fmt.Errorf("%w: unknown order %q", protocol.ErrInvalidParams, order)
+		return "", fmt.Errorf("%w: unknown order %q", protocol.ErrInvalidParams, order)
 	}
 }
 

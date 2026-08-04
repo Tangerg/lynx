@@ -37,6 +37,20 @@ func toolItem(sessionID, id, result string, ref *resultoffload.Ref) transcript.I
 	}
 }
 
+func TestTranscriptPaginationRejectsInvalidControls(t *testing.T) {
+	store, _ := openTranscriptAndBlobs(t)
+
+	if _, err := store.PageSessionItems(t.Context(), "sess-1", transcript.SequenceOrder("ascending"), 0, 1); err == nil {
+		t.Fatal("PageSessionItems accepted an unknown order")
+	}
+	if _, err := store.PageSessionItems(t.Context(), "sess-1", transcript.OldestFirst, -1, 1); err == nil {
+		t.Fatal("PageSessionItems accepted a negative sequence")
+	}
+	if _, err := store.PageSessionItems(t.Context(), "sess-1", transcript.OldestFirst, 0, -1); err == nil {
+		t.Fatal("PageSessionItems accepted a negative limit")
+	}
+}
+
 func TestTranscriptRehydratesOffloadedToolResult(t *testing.T) {
 	tr, blobs := openTranscriptAndBlobs(t)
 	const sess = "sess-1"

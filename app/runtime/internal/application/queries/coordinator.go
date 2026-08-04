@@ -176,6 +176,9 @@ func RunTreeItems(runID string) ItemScope {
 // [keyset.ErrInvalidCursor]. Silently restarting from the top would look like a
 // page of duplicates to a client that had already read them.
 func (c *Coordinator) ListItemPage(ctx context.Context, scope ItemScope, order transcript.SequenceOrder, cursor string, limit int) (ItemPage, error) {
+	if err := order.Validate(); err != nil {
+		return ItemPage{}, err
+	}
 	filters, err := scope.cursorFilters(order)
 	if err != nil {
 		return ItemPage{}, err
@@ -308,7 +311,7 @@ func sequenceAnchor(anchor []string) (int64, error) {
 		return 0, nil
 	}
 	sequence, err := strconv.ParseInt(anchor[0], 10, 64)
-	if err != nil || len(anchor) != 1 {
+	if err != nil || len(anchor) != 1 || sequence <= 0 {
 		return 0, keyset.ErrInvalidCursor
 	}
 	return sequence, nil

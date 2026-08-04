@@ -468,6 +468,29 @@ func TestListItemPageRejectsANegativeLimit(t *testing.T) {
 	}
 }
 
+func TestListItemPageRejectsAnUnknownOrder(t *testing.T) {
+	tx := &fakeTranscript{items: sequencedItems(1)}
+	c := New(Dependencies{Transcript: tx, Runs: &fakeRuns{}, Sessions: &fakeSessions{}})
+
+	if _, err := c.ListItemPage(t.Context(), SessionItems("ses_1"), transcript.SequenceOrder("ascending"), "", 1); err == nil {
+		t.Fatal("unknown order returned no error")
+	}
+	if tx.order != "" {
+		t.Fatalf("unknown order reached transcript store as %q", tx.order)
+	}
+}
+
+func TestSequenceAnchorRequiresAPositiveSequence(t *testing.T) {
+	for _, anchor := range [][]string{{"0"}, {"-1"}, {"not-a-sequence"}, {"1", "extra"}} {
+		if _, err := sequenceAnchor(anchor); !errors.Is(err, keyset.ErrInvalidCursor) {
+			t.Fatalf("sequenceAnchor(%q) err = %v, want ErrInvalidCursor", anchor, err)
+		}
+	}
+	if got, err := sequenceAnchor([]string{"1"}); err != nil || got != 1 {
+		t.Fatalf("sequenceAnchor(1) = (%d, %v)", got, err)
+	}
+}
+
 // history builds the run page's rows in the order the store returns them: newest
 // admission first, one nanosecond apart. States cycle through the three lifecycle
 // positions so a status filter has something to exclude.

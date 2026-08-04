@@ -345,6 +345,15 @@ func (s *TranscriptStore) PageRunTreeItems(ctx context.Context, runID string, or
 }
 
 func (s *TranscriptStore) pageItems(ctx context.Context, scope, subject string, order transcript.SequenceOrder, fromSequence int64, limit int) ([]transcript.SequencedItem, error) {
+	if err := order.Validate(); err != nil {
+		return nil, fmt.Errorf("sqlite: page history items: %w", err)
+	}
+	if fromSequence < 0 {
+		return nil, errors.New("sqlite: history page sequence must not be negative")
+	}
+	if limit < 0 {
+		return nil, errors.New("sqlite: history page limit must not be negative")
+	}
 	query := `SELECT h.seq, h.session_id, h.run_id, h.item_id, h.created_at, h.payload, h.offload_id, b.body
 		 FROM history_items AS h
 		 LEFT JOIN tool_result_blobs AS b

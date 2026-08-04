@@ -51,22 +51,23 @@ func NewFileKnowledgeStore() (*FileKnowledgeStore, error) {
 
 // pathFor maps a (scope, dir) pair to its absolute filesystem path.
 // Empty dir falls back to the construction-time default. Returns an
-// empty string when the scope is unavailable (project scope with
-// neither a dir nor a resolvable default) so callers can skip cleanly.
-func (s *FileKnowledgeStore) pathFor(scope knowledge.Scope, dir string) string {
+// empty path when the project scope has neither a dir nor a resolvable default,
+// while an unknown scope is rejected rather than reinterpreted as unavailable.
+func (s *FileKnowledgeStore) pathFor(scope knowledge.Scope, dir string) (string, error) {
 	switch scope {
 	case knowledge.ScopeProject:
 		if dir == "" {
 			dir = s.defaultDir
 		}
 		if dir == "" {
-			return ""
+			return "", nil
 		}
-		return filepath.Join(dir, memoryFileName)
+		return filepath.Join(dir, memoryFileName), nil
 	case knowledge.ScopeUser:
-		return filepath.Join(s.home, memoryFileName)
+		return filepath.Join(s.home, memoryFileName), nil
+	default:
+		return "", scope.Validate()
 	}
-	return ""
 }
 
 // ------------------------------------------------------------------
@@ -74,7 +75,10 @@ func (s *FileKnowledgeStore) pathFor(scope knowledge.Scope, dir string) string {
 // ------------------------------------------------------------------
 
 func (s *FileKnowledgeStore) Get(_ context.Context, scope knowledge.Scope, dir string) (string, error) {
-	path := s.pathFor(scope, dir)
+	path, err := s.pathFor(scope, dir)
+	if err != nil {
+		return "", fmt.Errorf("memory store: resolve path: %w", err)
+	}
 	if path == "" {
 		return "", nil
 	}
@@ -89,9 +93,12 @@ func (s *FileKnowledgeStore) Get(_ context.Context, scope knowledge.Scope, dir s
 }
 
 func (s *FileKnowledgeStore) Update(_ context.Context, scope knowledge.Scope, dir string, content string) error {
-	path := s.pathFor(scope, dir)
+	path, err := s.pathFor(scope, dir)
+	if err != nil {
+		return fmt.Errorf("memory store: resolve path: %w", err)
+	}
 	if path == "" {
-		return fmt.Errorf("memory store: scope %d unavailable", scope)
+		return errors.New("memory store: project scope unavailable")
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -131,7 +138,11 @@ func (s *FileKnowledgeStore) List(ctx context.Context, dir string) ([]knowledge.
 		// its last-modified time is the truthful "when this memory landed".
 		// Best-effort — a stat failure leaves the zero time rather than
 		// dropping the entry.
-		if info, err := os.Stat(s.pathFor(scope, dir)); err == nil {
+		path, err := s.pathFor(scope, dir)
+		if err != nil {
+			return nil, fmt.Errorf("memory store: resolve listed path: %w", err)
+		}
+		if info, err := os.Stat(path); err == nil {
 			entry.CapturedAt = info.ModTime()
 		}
 		out = append(out, entry)

@@ -64,6 +64,22 @@ func TestRuntimeMemoryPorts(t *testing.T) {
 	}
 }
 
+func TestRuntimeMemoryRejectsUnknownScopeBeforeDispatch(t *testing.T) {
+	store := &fakeMemoryStore{}
+	c := NewKnowledge(NewContext("", "", testPaths{}), store)
+	unknown := knowledge.Scope("workspace")
+
+	if _, err := c.Memory(t.Context(), unknown, "/repo"); err == nil {
+		t.Fatal("Memory accepted an unknown scope")
+	}
+	if err := c.UpdateMemory(t.Context(), unknown, "/repo", "notes"); err == nil {
+		t.Fatal("UpdateMemory accepted an unknown scope")
+	}
+	if store.getScope != "" || store.updateScope != "" {
+		t.Fatalf("invalid scope reached store: get=%q update=%q", store.getScope, store.updateScope)
+	}
+}
+
 type fakeMemoryStore struct {
 	entries []knowledge.Entry
 	content string

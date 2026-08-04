@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/knowledge"
@@ -17,8 +18,12 @@ func (s *Server) ListMemory(ctx context.Context, in protocol.WorkspaceQuery) (*p
 	}
 	out := make([]protocol.MemoryEntry, 0, len(entries))
 	for _, e := range entries {
+		scope, err := memScopeToWire(e.Scope)
+		if err != nil {
+			return nil, err
+		}
 		out = append(out, protocol.MemoryEntry{
-			Scope:     memScopeToWire(e.Scope),
+			Scope:     scope,
 			Content:   e.Content,
 			UpdatedAt: e.CapturedAt,
 		})
@@ -48,26 +53,37 @@ func (s *Server) UpdateMemory(ctx context.Context, in protocol.UpdateMemoryReque
 	return wireWorkspaceError(s.workspaceKnowledge.UpdateMemory(ctx, scope, cwd, in.Content))
 }
 
-// memScopeToWire / memScopeFromWire bridge the protocol string enum and
-// the memory store's int Scope. The wire's cwd + projectRoot both
+// memScopeToWire / memScopeFromWire bridge the protocol and Domain closed
+// vocabularies. The wire's cwd + projectRoot both
 // fold into the project scope (addressed by the request's cwd);
 // home maps to the user scope.
-func memScopeToWire(s knowledge.Scope) protocol.MemoryScope {
-	if s == knowledge.ScopeUser {
-		return protocol.MemoryScopeHome
+func memScopeToWire(scope knowledge.Scope) (protocol.MemoryScope, error) {
+	switch scope {
+	case knowledge.ScopeProject:
+		return protocol.MemoryScopeCwd, nil
+	case knowledge.ScopeUser:
+		return protocol.MemoryScopeHome, nil
+	default:
+		return "", fmt.Errorf("memory: unsupported knowledge scope %q", scope)
 	}
-	return protocol.MemoryScopeCwd
 }
 
-func memScopeFromWire(s protocol.MemoryScope) knowledge.Scope {
-	if s == protocol.MemoryScopeHome {
-		return knowledge.ScopeUser
+func memScopeFromWire(scope protocol.MemoryScope) (knowledge.Scope, error) {
+	switch scope {
+	case protocol.MemoryScopeCwd, protocol.MemoryScopeProjectRoot:
+		return knowledge.ScopeProject, nil
+	case protocol.MemoryScopeHome:
+		return knowledge.ScopeUser, nil
+	default:
+		return "", fmt.Errorf("%w: unknown memory scope %q", protocol.ErrInvalidParams, scope)
 	}
-	return knowledge.ScopeProject
 }
 
 func (s *Server) memoryTargetFromWire(scope protocol.MemoryScope, cwd string) (knowledge.Scope, string, error) {
-	target := memScopeFromWire(scope)
+	target, err := memScopeFromWire(scope)
+	if err != nil {
+		return "", "", err
+	}
 	if target == knowledge.ScopeUser {
 		return target, "", nil
 	}
