@@ -651,6 +651,34 @@ Acceptance:
   static analysis, lint, and dead-code analysis pass; the known deferred
   frontend contract/sample drift may remain.
 
+### Batch 23 — Composition-boundary ownership
+
+Status: **Completed**
+
+Scope:
+
+- Make cross-ring adapter constructors return their concrete implementation;
+  Bootstrap assigns those implementations to Application-owned ports.
+- Remove adapter imports used only to name a consumer interface at the return
+  boundary and add an architecture fitness test for the concrete constructors.
+- Split Assembly construction input from composition-root union ports, and
+  replace the stuttering `RuntimeConfig` factory with the verb-shaped
+  `ComposeConfig` entrypoint.
+- Preserve Run scope, model-selection, and trace values when `TurnProcess`
+  detaches cancellation for joins and framework-only auto-continuations.
+
+Acceptance:
+
+- Adapter constructors no longer hide concrete ownership behind the interface
+  of the Application consumer; Bootstrap remains the only assignment point.
+- Assembly input and composition ports live in files named for their distinct
+  responsibilities; the removed catch-all config-types file does not return.
+- Auto-continuation is request-cancellation-independent without severing
+  execution context or tracing lineage.
+- Focused normal/race tests, architecture fitness tests, runtime-wide compile,
+  standalone build/vet, static analysis, lint, and dead-code analysis pass;
+  the known deferred frontend contract/sample drift may remain.
+
 ## 6. Progress
 
 | Batch | Status | Started | Completed | Evidence |
@@ -677,10 +705,33 @@ Acceptance:
 | 20. Responsibility and entrypoint convergence | Completed | 2026-08-04 | 2026-08-04 | Runtime-wide compile; focused normal/race tests; architecture checks; standalone build/vet; `staticcheck`; `golangci-lint`; `deadcode -test`; formatting and exact-source scans passed. Full tests retain only the known deferred frontend contract/sample drift. |
 | 21. Agent-memory domain closure | Completed | 2026-08-04 | 2026-08-04 | Domain/Application/SQLite/Delivery normal and race tests, runtime-wide compile, standalone build/vet, `staticcheck`, `golangci-lint`, `deadcode -test`, schema-constraint tests, and full regression classification passed. |
 | 22. Ambiguous-default closure | Completed | 2026-08-04 | 2026-08-04 | Knowledge and transcript Domain/Application/Storage/Delivery normal and race tests, runtime-wide compile, standalone build/vet, static analysis, lint, dead-code analysis, and full regression classification passed. |
+| 23. Composition-boundary ownership | Completed | 2026-08-04 | 2026-08-04 | Adapter/Bootstrap/Agent execution normal and race tests, architecture constructor fitness tests, runtime-wide compile, standalone build/vet, static analysis, lint, dead-code analysis, and full regression classification passed. |
 
 Allowed status values: `Pending`, `In progress`, `Completed`, `Blocked`, `Revised`.
 
 ## 7. Progress log
+
+### 2026-08-04 — Batch 23 completed
+
+- Replaced three adapter factories that returned Application interfaces with
+  concrete `DiagnosticRegistry`, `SessionCheckpoints`, and
+  `SessionTurnCleanup` implementations. The hook factory likewise returns its
+  concrete resolver; Bootstrap remains responsible for assigning each value to
+  a consumer-owned port.
+- Removed the tool registry's construction-only dependency on
+  `application/tools` and the Agent turn cleanup adapter's construction-only
+  dependency on `application/sessions`. Added a fitness test that rejects a
+  return to consumer-interface construction at these seams.
+- Split the former `runtime_config_types.go` catch-all into
+  `assembly_config.go` and `composition_ports.go`; renamed the settings-to-input
+  function and file to `ComposeConfig` / `config_composition.go` so the name
+  describes an action rather than introducing a second Config concept.
+- Replaced bare background contexts in `TurnProcess.Await` with a single
+  cancellation-detached Run context. Joins and internally driven continuations
+  now retain execution scope, model selection, and tracing values.
+- Replaced the remaining constant `fmt.Errorf` with `errors.New`; cohesive
+  state-machine, codec, SQL, and generated-shape files remain intact rather
+  than being split by line count alone.
 
 ### 2026-08-04 — Batch 22 completed
 

@@ -16,7 +16,7 @@ type HookTrust interface {
 }
 
 // NewHookResolver builds the runtime hook resolver from process-local user config.
-func NewHookResolver(trust HookTrust) HookResolver {
+func NewHookResolver(trust HookTrust) *adapterhooks.Resolver {
 	userHome, _ := os.UserHomeDir()
 	return adapterhooks.NewResolver(userHome,
 		func(ctx context.Context, projectRoot string) (bool, error) {

@@ -10,7 +10,6 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 
-	toolapp "github.com/Tangerg/lynx/app/runtime/internal/application/tools"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
 
@@ -22,11 +21,13 @@ const attrGenAIToolName = "gen_ai.tool.name"
 // catalog. It deliberately does not reuse the agent resolver: agent tools may
 // require a process, session, approval flow, or model loop that does not exist
 // for a client-driven call.
-func NewDiagnosticRegistry() toolapp.Registry { return registry{} }
+func NewDiagnosticRegistry() DiagnosticRegistry { return DiagnosticRegistry{} }
 
-type registry struct{}
+// DiagnosticRegistry is the direct-invocation adapter for the small diagnostic
+// tool catalog exposed outside an Agent turn.
+type DiagnosticRegistry struct{}
 
-func (registry) List(context.Context) ([]tool.Tool, error) {
+func (DiagnosticRegistry) List(context.Context) ([]tool.Tool, error) {
 	chatTools := directTools("")
 	out := make([]tool.Tool, 0, len(chatTools))
 	for _, candidate := range chatTools {
@@ -45,7 +46,7 @@ func (registry) List(context.Context) ([]tool.Tool, error) {
 	return out, nil
 }
 
-func (registry) Invoke(ctx context.Context, root, name, arguments string) (tool.Result, error) {
+func (DiagnosticRegistry) Invoke(ctx context.Context, root, name, arguments string) (tool.Result, error) {
 	if name == "" {
 		return tool.Result{}, errors.New("toolset: direct tool name must not be empty")
 	}

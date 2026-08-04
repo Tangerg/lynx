@@ -74,7 +74,7 @@ func bootstrapRuntimeWithBuildID(ctx context.Context, buildIdentity func() (stri
 
 	hookResolver := bootstrap.NewHookResolver(stores.Trust)
 
-	runtimeCfg := bootstrap.RuntimeConfig(cfg, stores, client, providers, hookResolver, buildID)
+	runtimeCfg := bootstrap.ComposeConfig(cfg, stores, client, providers, hookResolver, buildID)
 	if cwd, cwdErr := os.UserHomeDir(); cwdErr == nil {
 		runtimeCfg.DefaultCwd = cwd
 	}

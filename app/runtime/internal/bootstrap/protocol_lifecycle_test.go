@@ -248,7 +248,7 @@ func openProtocolRuntime(t *testing.T, model chat.Model) (*Host, *runtimeserver.
 		_ = stores.Close()
 		t.Fatalf("build chat client: %v", err)
 	}
-	cfg := RuntimeConfig(
+	cfg := ComposeConfig(
 		config.Settings{},
 		stores,
 		client,

@@ -36,7 +36,7 @@ func (s *PermissionModeStore) GetMode(ctx context.Context, sessionID string) (ap
 
 func (s *PermissionModeStore) PutMode(ctx context.Context, sessionID string, state approval.SessionMode) error {
 	if sessionID == "" {
-		return fmt.Errorf("sqlite: session permission mode requires a session id")
+		return errors.New("sqlite: session permission mode requires a session id")
 	}
 	if err := state.Validate(); err != nil {
 		return fmt.Errorf("sqlite: validate session permission mode: %w", err)

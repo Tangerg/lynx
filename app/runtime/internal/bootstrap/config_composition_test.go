@@ -8,10 +8,10 @@ import (
 	sqlitestore "github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 )
 
-func TestRuntimeConfigInjectsDurableRuntimePolicy(t *testing.T) {
+func TestComposeConfigInjectsDurableRuntimePolicy(t *testing.T) {
 	const buildID = "sha256:2222222222222222222222222222222222222222222222222222222222222222"
 	agentMemory := sqlitestore.NewAgentMemoryStore(nil)
-	got := RuntimeConfig(config.Settings{}, &persistence.Bundle{Home: t.TempDir(), AgentMemory: agentMemory}, nil, nil, nil, buildID)
+	got := ComposeConfig(config.Settings{}, &persistence.Bundle{Home: t.TempDir(), AgentMemory: agentMemory}, nil, nil, nil, buildID)
 	if got.Engine.BuildID != buildID {
 		t.Fatalf("Engine.BuildID = %q, want %q", got.Engine.BuildID, buildID)
 	}

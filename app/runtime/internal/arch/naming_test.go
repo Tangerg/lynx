@@ -97,6 +97,47 @@ func TestReceiverNamesStayConsistent(t *testing.T) {
 	}
 }
 
+// TestCrossRingAdapterConstructorsReturnConcreteImplementations keeps the
+// composition root responsible for assigning implementations to
+// consumer-owned ports. Returning the consumer interface from an adapter
+// constructor hides its own vocabulary and reverses the dependency at the
+// construction boundary.
+func TestCrossRingAdapterConstructorsReturnConcreteImplementations(t *testing.T) {
+	root := moduleRoot(t)
+	tests := []struct {
+		path, constructor, result string
+	}{
+		{"internal/adapter/toolset/registry.go", "NewDiagnosticRegistry", "DiagnosticRegistry"},
+		{"internal/adapter/workspace/session_checkpoints.go", "NewSessionCheckpoints", "SessionCheckpoints"},
+		{"internal/adapter/agentexec/turn/session_cleanup.go", "NewSessionTurnCleanup", "SessionTurnCleanup"},
+		{"internal/bootstrap/hooks.go", "NewHookResolver", "*adapterhooks.Resolver"},
+	}
+	for _, test := range tests {
+		file, err := parser.ParseFile(token.NewFileSet(), filepath.Join(root, test.path), nil, 0)
+		if err != nil {
+			t.Fatalf("parse %s: %v", test.path, err)
+		}
+		found := false
+		for _, declaration := range file.Decls {
+			function, ok := declaration.(*ast.FuncDecl)
+			if !ok || function.Recv != nil || function.Name.Name != test.constructor {
+				continue
+			}
+			found = true
+			if function.Type.Results == nil || len(function.Type.Results.List) != 1 {
+				t.Errorf("%s: %s must return exactly one concrete implementation", test.path, test.constructor)
+				break
+			}
+			if got := exprString(function.Type.Results.List[0].Type); got != test.result {
+				t.Errorf("%s: %s returns %s, want concrete %s", test.path, test.constructor, got, test.result)
+			}
+		}
+		if !found {
+			t.Errorf("%s: constructor %s not found", test.path, test.constructor)
+		}
+	}
+}
+
 func receiverTypeName(expression ast.Expr) string {
 	switch typed := expression.(type) {
 	case *ast.Ident:

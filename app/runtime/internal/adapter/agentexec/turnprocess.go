@@ -150,8 +150,9 @@ func (p *turnProcess) Await() TurnCompletion {
 	if p == nil || p.process == nil || p.segment == nil {
 		return TurnCompletion{Err: errors.New("agentexec: await process: no active segment")}
 	}
+	ctx := p.detachedRunContext()
 	for {
-		segmentCompletion, err := p.segment.Await(context.Background())
+		segmentCompletion, err := p.segment.Await(ctx)
 		if err != nil {
 			return TurnCompletion{Err: err}
 		}
@@ -177,12 +178,22 @@ func (p *turnProcess) Await() TurnCompletion {
 			}
 			return completion
 		}
-		if err := p.resumeNext(context.Background()); err != nil {
+		if err := p.resumeNext(ctx); err != nil {
 			completion.Err = err
 			p.pendingResponses = nil
 			return completion
 		}
 	}
+}
+
+// detachedRunContext preserves the immutable execution scope, model selection,
+// and trace lineage while letting the process owner join and auto-continue a
+// segment independently of the request that initiated the Run.
+func (p *turnProcess) detachedRunContext() context.Context {
+	if p == nil || p.runCtx == nil {
+		return context.Background()
+	}
+	return context.WithoutCancel(p.runCtx)
 }
 
 func (p *turnProcess) Cancel(ctx context.Context) error {

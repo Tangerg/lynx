@@ -15,9 +15,9 @@ import (
 	"github.com/Tangerg/lynx/chatclient"
 )
 
-// RuntimeConfig assembles the runtime Config from already-opened
-// process adapters.
-func RuntimeConfig(cfg config.Settings, stores *persistence.Bundle, client *chatclient.Client, providers providersvc.Registry, hooks HookResolver, buildID string) Config {
+// ComposeConfig translates process settings and already-opened adapters into
+// the construction input consumed by [NewAssembly].
+func ComposeConfig(cfg config.Settings, stores *persistence.Bundle, client *chatclient.Client, providers providersvc.Registry, hooks HookResolver, buildID string) Config {
 	return Config{
 		Resources:     []ShutdownResource{stores},
 		SkillsUserDir: filepath.Join(stores.Home, "skills"),

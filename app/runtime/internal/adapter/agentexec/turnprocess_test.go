@@ -12,6 +12,21 @@ import (
 	"github.com/Tangerg/lynx/core/chat"
 )
 
+func TestTurnProcessDetachedRunContextPreservesValuesWithoutRequestCancellation(t *testing.T) {
+	type contextKey struct{}
+	source, cancel := context.WithCancel(context.WithValue(t.Context(), contextKey{}, "run-value"))
+	process := &turnProcess{runCtx: source}
+	detached := process.detachedRunContext()
+	cancel()
+
+	if got := detached.Value(contextKey{}); got != "run-value" {
+		t.Fatalf("detached value = %v, want run-value", got)
+	}
+	if err := detached.Err(); err != nil {
+		t.Fatalf("detached context canceled with request: %v", err)
+	}
+}
+
 // refusingStubModel fails every model call, so the turn's action returns an
 // error and the process ends in StatusFailed.
 type refusingStubModel struct{ err error }

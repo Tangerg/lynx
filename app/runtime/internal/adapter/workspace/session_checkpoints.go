@@ -8,15 +8,17 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
 )
 
-type sessionCheckpoints struct{ checkpoints *Checkpoints }
+// SessionCheckpoints adapts workspace checkpoint operations to session
+// lifecycle restoration and cleanup.
+type SessionCheckpoints struct{ checkpoints *Checkpoints }
 
 // NewSessionCheckpoints adapts workspace checkpoint operations to the session
 // lifecycle's restore and cleanup port.
-func NewSessionCheckpoints(checkpoints *Checkpoints) sessions.WorkspaceCheckpoints {
-	return sessionCheckpoints{checkpoints: checkpoints}
+func NewSessionCheckpoints(checkpoints *Checkpoints) SessionCheckpoints {
+	return SessionCheckpoints{checkpoints: checkpoints}
 }
 
-func (s sessionCheckpoints) Restore(ctx context.Context, sessionID, cwd, runID string) error {
+func (s SessionCheckpoints) Restore(ctx context.Context, sessionID, cwd, runID string) error {
 	if err := s.checkpoints.Restore(ctx, sessionID, cwd, runID); err != nil {
 		switch {
 		case errors.Is(err, ErrCheckpointUnavailable):
@@ -30,6 +32,6 @@ func (s sessionCheckpoints) Restore(ctx context.Context, sessionID, cwd, runID s
 	return nil
 }
 
-func (s sessionCheckpoints) DropSession(sessionID string) error {
+func (s SessionCheckpoints) DropSession(sessionID string) error {
 	return s.checkpoints.DropSession(sessionID)
 }
