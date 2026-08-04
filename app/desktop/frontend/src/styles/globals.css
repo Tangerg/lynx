@@ -1243,13 +1243,18 @@ html.theme-dark {
 /* ---------- Drawer ---------- */
 
 /* In-flow spacer reserves the tool-window width while the fixed panel slides. */
+/* The spacer's width JUMPS, for the same reason the dock's basis does: this is the
+   one measurement the reading plane's text is laid out against, and animating it
+   re-wraps every visible paragraph on every frame. Immediate on the way in, delayed
+   by the travel on the way out. */
 .agent-drawer-gap {
   width: var(--sidebar-width);
   flex-shrink: 0;
-  transition: width var(--dur-drawer) var(--ease-drawer);
+  transition: width 0s linear 0s;
 }
 .agent-shell[data-sidebar="collapsed"] .agent-drawer-gap {
   width: 0;
+  transition: width 0s linear var(--dur-drawer);
 }
 
 /* The panel is out of flow so collapse never re-parents its interactive content. */
@@ -1262,17 +1267,18 @@ html.theme-dark {
   width: var(--sidebar-width);
   height: 100vh;
   visibility: visible;
+  /* `transform`, not `left`. The panel is fixed so it never reflowed the document,
+     but `left` still invalidates its own layout every frame — and its subtree is the
+     entire work index. A translation is composited. */
   transition:
-    left var(--dur-drawer) var(--ease-drawer),
-    width var(--dur-drawer) var(--ease-drawer),
+    transform var(--dur-drawer) var(--ease-drawer),
     visibility 0s linear 0s;
 }
 .agent-shell[data-sidebar="collapsed"] .agent-drawer {
-  left: calc(var(--sidebar-width) * -1);
+  transform: translateX(-100%);
   visibility: hidden;
   transition:
-    left var(--dur-drawer) var(--ease-drawer),
-    width var(--dur-drawer) var(--ease-drawer),
+    transform var(--dur-drawer) var(--ease-drawer),
     visibility 0s linear var(--dur-drawer);
 }
 
@@ -1490,15 +1496,30 @@ html.theme-dark {
   flex-direction: column;
   overflow: hidden;
   background: var(--app-dock-surface);
+  /* The BASIS jumps; it never animates. Animating it meant relaying out the chat
+     column on every frame, which re-wraps every visible message, fires
+     use-stick-to-bottom's ResizeObserver, and re-evaluates `content-visibility`
+     containment — sixty times a second, which is the stutter. It now changes once:
+     immediately on the way in, and delayed by the travel on the way out so the panel
+     still has a column to slide out of. Two reflows per toggle instead of fifteen. */
+  /* What travels is a TRANSFORM — composited, so the main thread does nothing per
+     frame. The panel slides out past the window's right edge, where
+     `.agent-content-card`'s own `overflow: hidden` clips it. */
   transition:
-    flex-basis var(--dur-drawer) var(--ease-drawer),
+    transform var(--dur-drawer) var(--ease-drawer),
+    flex-basis 0s linear 0s,
     visibility 0s linear 0s;
 }
 .agent-context-dock:not([data-open]) {
+  transform: translateX(100%);
   visibility: hidden;
   transition:
-    flex-basis var(--dur-drawer) var(--ease-drawer),
+    transform var(--dur-drawer) var(--ease-drawer),
+    flex-basis 0s linear var(--dur-drawer),
     visibility 0s linear var(--dur-drawer);
+}
+.agent-shell[data-resizing] .agent-context-dock {
+  transition: none;
 }
 /* Mid-drag the basis changes every pointer-move, so the travel curve would make the
    dock chase the cursor a third of a second behind it — the same reason the drawer's

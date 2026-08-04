@@ -117,17 +117,21 @@ test("motion preference and OS reduced motion share one final authority", async 
     motion: "full",
   });
 
-  const drawerGap = page.locator(".agent-drawer-gap");
+  // The drawer PANEL, not its spacer: the spacer's width is a delayed jump on
+  // purpose (animating the measurement the reading plane wraps against re-wraps
+  // every visible paragraph per frame), so the thing carrying the duration is the
+  // transform that travels.
+  const drawer = page.locator(".agent-drawer");
   // The shipped visual style declares a 240ms drawer (WORKBENCH_MOTION.drawerMs).
-  await expect(drawerGap).toHaveCSS("transition-duration", "0.24s");
+  await expect(drawer).toHaveCSS("transition-duration", "0.24s, 0s");
 
   await page.emulateMedia({ reducedMotion: "reduce" });
-  await expect(drawerGap).toHaveCSS("transition-duration", "0.001s");
+  await expect(drawer).toHaveCSS("transition-duration", "0.001s");
 
   await page.emulateMedia({ reducedMotion: "no-preference" });
   await openFixture(page, { fixture: "shell", state: "populated", theme: "light" });
   await expect(page.locator("html")).toHaveAttribute("data-motion", "off");
-  await expect(page.locator(".agent-drawer-gap")).toHaveCSS("transition-duration", "0.001s");
+  await expect(page.locator(".agent-drawer")).toHaveCSS("transition-duration", "0.001s");
 });
 
 test("coarse pointers receive real 44px controls without overlapping hit targets", async ({
