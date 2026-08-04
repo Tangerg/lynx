@@ -12,6 +12,7 @@ import {
   mapQuestion,
   toolFields,
   toolLabel,
+  toolLabelKind,
   toolStatus,
   userContentBlocks,
 } from "./projections";
@@ -367,6 +368,7 @@ export function writeToolCall(
     runId: item.runId,
     name: item.tool?.name ?? "tool",
     fn: toolLabel(item.tool),
+    ...(toolLabelKind(item.tool) === "path" ? { fnKind: "path" as const } : {}),
     // Tool args are authoritative from the structured Item — tools are
     // call-and-result: the runtime parses the args whole before emitting the
     // card and re-sends them on the completed Item. So at the TERMINAL state we

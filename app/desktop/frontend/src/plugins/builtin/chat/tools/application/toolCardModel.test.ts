@@ -33,7 +33,7 @@ describe("toolCardModel", () => {
       ),
     ).toMatchObject({
       isError: true,
-      detail: "permission denied",
+      detail: { kind: "text", value: "permission denied" },
     });
   });
 

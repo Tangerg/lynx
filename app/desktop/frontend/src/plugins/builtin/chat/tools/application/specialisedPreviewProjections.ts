@@ -141,27 +141,6 @@ export function projectToolSearchGroups(result: string | undefined): ToolSearchG
   return groups;
 }
 
-export interface PlanUpdateStep {
-  status: "done" | "active" | "pending";
-  text: string;
-}
-
-const PLAN_MARK: Record<string, PlanUpdateStep["status"]> = {
-  "[x]": "done",
-  "[~]": "active",
-  "[ ]": "pending",
-};
-
-/** `set_plan`: `Plan updated:` then one `[x] | [~] | [ ] description` per step. */
-export function projectPlanUpdate(result: string | undefined): PlanUpdateStep[] {
-  const steps: PlanUpdateStep[] = [];
-  for (const line of resultLines(result)) {
-    const status = PLAN_MARK[line.slice(0, 3)];
-    if (status) steps.push({ status, text: line.slice(3).trim() });
-  }
-  return steps;
-}
-
 // ── JSON-returning tools ─────────────────────────────────────────────────────
 
 export interface GoalPreview {

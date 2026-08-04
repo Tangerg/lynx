@@ -3,9 +3,23 @@ import type { ToolCall } from "@/plugins/sdk/types/agentSessionView";
 import type { ActivityShell } from "@/lib/activityShell";
 import { fmtDuration } from "@/lib/format";
 
+/**
+ * The thing a call acted on, and what kind of thing it is.
+ *
+ * Typed rather than a bare string because a path is not a string with slashes in
+ * it: it truncates from the other end (see the FilePath atom), and only this layer
+ * knows which of a call's arguments it read. Handing the renderer a string threw
+ * that knowledge away and left it guessing — which it did by not guessing, so
+ * every path lost its filename to an ellipsis.
+ */
+export type ToolDetail = { kind: "path" | "text"; value: string };
+
 export interface ToolIntent {
-  label: string;
-  detail?: string;
+  /** What the row calls the call. Also a value with a nature: for the file
+   *  categories the projection puts the path here rather than in `detail`, so this
+   *  is the slot that has to keep the filename. */
+  label: ToolDetail;
+  detail?: ToolDetail;
 }
 
 export type ToolMetaTone = "success" | "negative" | "muted";
@@ -39,7 +53,16 @@ const TOOL_LABEL_KEYS: Record<string, string> = {
   read_tool_result: "tool.label.readToolResult",
 };
 
-const TOOL_DETAIL_KEYS = ["path", "query", "pattern", "url"] as const;
+// Which argument names an identifying subject, and how that subject reads. `path`
+// is the runtime's own spelling for it (Semantics.ApprovalSubject reads the same
+// field), so the two cannot drift apart on a rename without the approval rules
+// drifting too.
+const TOOL_DETAIL_KEYS: ReadonlyArray<{ key: string; kind: ToolDetail["kind"] }> = [
+  { key: "path", kind: "path" },
+  { key: "query", kind: "text" },
+  { key: "pattern", kind: "text" },
+  { key: "url", kind: "text" },
+];
 
 export function toolIntent(t: Translate, tool: ToolCall): ToolIntent {
   const parsed = parseToolArgs(tool.args);
@@ -49,27 +72,32 @@ export function toolIntent(t: Translate, tool: ToolCall): ToolIntent {
   // thing by coincidence until a shell command happens to be spelled `grep`.
   const labelKey = tool.fn === tool.name ? TOOL_LABEL_KEYS[tool.name] : undefined;
   return {
-    label: labelKey ? t(labelKey) : tool.fn,
-    // A shell call's command comes from its own field; everything else falls back
-    // to whatever identifying argument its arg text happens to carry.
-    detail: tool.command ?? (parsed ? toolDetail(parsed) : undefined),
+    label: labelKey
+      ? { kind: "text", value: t(labelKey) }
+      : { kind: tool.fnKind ?? "text", value: tool.fn },
+    // In order of how directly each answers "what did this do": the command a
+    // shell ran, the step a plan is on, else whatever identifying argument the
+    // call's arg text carries. The first two are facts the fold lifted out of the
+    // arguments; only the last has to be looked for.
+    detail: text(tool.command) ?? text(tool.step) ?? (parsed ? toolDetail(parsed) : undefined),
   };
 }
 
 export function toolMetaItems(t: Translate, tool: ToolCall): ToolMetaItem[] {
   const items: ToolMetaItem[] = [];
-  if (tool.added != null) {
+  // Added and removed are NOT chips: a diffstat is one fact with two numbers, and
+  // the app already renders it as `+n −m` in the diff header and the run summary.
+  // Two chips worded in prose made the same fact look like two, and made it look
+  // different here than everywhere else it appears. See `toolDiffStat`.
+  // Notation, not words: a ratio and a line span read the same in every language,
+  // and a catalog entry that holds no word gives a translator nothing to do while
+  // making the format harder to find. (The two diffstat entries this replaced were
+  // exactly that — "+{{count}}" and "-{{count}}" filed under translation.)
+  if (tool.progress != null) {
     items.push({
-      id: "added",
-      label: t("tool.meta.added", { count: tool.added }),
-      tone: "success",
-    });
-  }
-  if (tool.removed != null) {
-    items.push({
-      id: "removed",
-      label: t("tool.meta.removed", { count: tool.removed }),
-      tone: "negative",
+      id: "progress",
+      label: `${tool.progress.done}/${tool.progress.total}`,
+      tone: "muted",
     });
   }
   if (tool.files != null) {
@@ -77,6 +105,9 @@ export function toolMetaItems(t: Translate, tool: ToolCall): ToolMetaItem[] {
   }
   if (tool.hits != null) {
     items.push({ id: "hits", label: t("tool.meta.matches", { count: tool.hits }), tone: "muted" });
+  }
+  if (tool.range != null) {
+    items.push({ id: "range", label: `L${tool.range.start}-${tool.range.end}`, tone: "muted" });
   }
   if (tool.lines != null) {
     items.push({ id: "lines", label: t("tool.meta.lines", { count: tool.lines }), tone: "muted" });
@@ -98,6 +129,21 @@ export function toolMetaItems(t: Translate, tool: ToolCall): ToolMetaItem[] {
     items.push({ id: "live", label: t("tool.meta.live"), tone: "muted" });
   }
   return items;
+}
+
+/**
+ * The call's diffstat, when it has one worth showing.
+ *
+ * Absent rather than zeroed when nothing was measured: the atom draws a dash to
+ * hold a column in the diff views, and a dash on a transcript row is a mark the
+ * reader has to stop and interpret. A no-op edit reports nothing instead.
+ */
+export function toolDiffStat(tool: ToolCall): { added: number; removed: number } | undefined {
+  const added = tool.added ?? 0;
+  const removed = tool.removed ?? 0;
+  if (tool.added == null && tool.removed == null) return undefined;
+  if (added === 0 && removed === 0) return undefined;
+  return { added, removed };
 }
 
 /**
@@ -166,10 +212,14 @@ function parseToolArgs(args: string): Record<string, unknown> | null {
   }
 }
 
-function toolDetail(args: Record<string, unknown>): string | undefined {
-  for (const key of TOOL_DETAIL_KEYS) {
+function text(value: string | undefined): ToolDetail | undefined {
+  return value === undefined || value === "" ? undefined : { kind: "text", value };
+}
+
+function toolDetail(args: Record<string, unknown>): ToolDetail | undefined {
+  for (const { key, kind } of TOOL_DETAIL_KEYS) {
     const value = args[key];
-    if (value != null) return String(value);
+    if (value != null) return { kind, value: String(value) };
   }
   return undefined;
 }

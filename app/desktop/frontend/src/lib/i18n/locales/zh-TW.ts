@@ -956,8 +956,6 @@ export const zhTW: Record<string, string> = {
   "tool.label.listSkills": "列出技能",
   "tool.label.listSchedules": "列出排程",
   "tool.label.readToolResult": "讀取暫存輸出",
-  "tool.meta.added": "+{{count}}",
-  "tool.meta.removed": "-{{count}}",
   "tool.meta.matches": "{{count}} 處符合",
   "tool.meta.lines": "{{count}} 行",
   "tool.meta.files": "{{count}} 個檔案",

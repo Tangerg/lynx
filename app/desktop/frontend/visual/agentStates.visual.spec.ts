@@ -19,11 +19,11 @@ const EXPECTED_ATTENTION: Record<VisualAgentState, string> = {
   waves: "running",
 };
 
-// `visual/` sits outside the typecheck's include, so the Record's own exhaustiveness
-// is not enforced anywhere — `narrative` had been missing since it was added, and an
-// absent expectation reads to Playwright as "assert the attribute exists", which
-// passes for every value. A state without an expectation is a state nobody is
-// asserting anything about.
+// The Record's own exhaustiveness is not enforced by its type — a partial Record
+// still typechecks against an index signature — and an absent expectation reads to
+// Playwright as "assert the attribute exists", which passes for every value.
+// `narrative` had been missing since it was added. A state without an expectation
+// is a state nobody is asserting anything about.
 test("every declared state carries an expected attention", () => {
   expect(Object.keys(EXPECTED_ATTENTION).sort()).toEqual([...VISUAL_AGENT_STATES].sort());
 });
@@ -324,6 +324,43 @@ for (const state of ["long-content", "question", "delegated"] as const) {
     expect(measured!.clearance).toBeGreaterThanOrEqual(measured!.margin);
   });
 }
+
+// Every state collapses its tool calls into an "N steps" summary, so until this
+// test the rows themselves — the app's most-read surface — appeared in no
+// screenshot and in no browser assertion. What it pins is what a row REPORTS: the
+// subject it acted on, and for an edit the lines it changed.
+test("an expanded tool row reports its subject and what it changed", async ({ page }) => {
+  await page.goto("/visual/?fixture=agent&theme=light&state=tool-shells");
+  await page.locator("html[data-visual-ready]").waitFor();
+  await page.getByRole("button", { name: /steps/ }).first().click();
+
+  const row = page
+    .locator(".msg-scroll-viewport button")
+    .filter({ hasText: "specialisedPreviewProjections.ts" })
+    .first();
+  await expect(row).toBeVisible();
+
+  // The point of the split, in a real layout: the path is too long for the row, so
+  // the DIRECTORY is the part that gets clipped and the filename is whole. Measured
+  // rather than screenshotted because it is the overflow that matters, and a golden
+  // cannot tell "clipped on the left" from "clipped on the right" without a human.
+  const clipping = await row.evaluate((element) => {
+    const directory = element.querySelector("[dir=rtl]");
+    const filename = directory?.nextElementSibling?.nextElementSibling;
+    return {
+      directoryClipped: !!directory && directory.scrollWidth > directory.clientWidth + 1,
+      filenameWhole: !!filename && filename.scrollWidth <= filename.clientWidth + 1,
+      filenameText: filename?.textContent,
+    };
+  });
+  expect(clipping.directoryClipped).toBe(true);
+  expect(clipping.filenameWhole).toBe(true);
+  expect(clipping.filenameText).toBe("specialisedPreviewProjections.ts");
+  // `+2 −1` from the call's own diff rows, drawn by the atom the diff views use —
+  // one fact, one rendering, wherever it appears.
+  await expect(row).toContainText("+2");
+  await expect(row).toContainText("−1");
+});
 
 for (const theme of ["light", "dark"] as const) {
   for (const state of VISUAL_AGENT_STATES) {

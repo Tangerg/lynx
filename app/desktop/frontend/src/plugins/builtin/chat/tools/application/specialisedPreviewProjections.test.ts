@@ -6,7 +6,6 @@ import {
   projectGlobPreview,
   projectGoalPreview,
   projectHttpPreview,
-  projectPlanUpdate,
   projectRecalledMemories,
   projectSchedulePreviews,
   projectSkillPreview,
@@ -106,18 +105,6 @@ describe("prose tool results", () => {
       { source: "builtin", names: ["create_goal", "get_goal"] },
       { source: "mcp:sentry", names: ["list_issues"] },
     ]);
-  });
-
-  it("reads the plan marks as the three step states", () => {
-    expect(
-      projectPlanUpdate("Plan updated:\n[x] Read the code\n[~] Write the fix\n[ ] Run tests"),
-    ).toEqual([
-      { status: "done", text: "Read the code" },
-      { status: "active", text: "Write the fix" },
-      { status: "pending", text: "Run tests" },
-    ]);
-    // A cleared plan answers with one sentence and no marks.
-    expect(projectPlanUpdate("Plan cleared.")).toEqual([]);
   });
 });
 

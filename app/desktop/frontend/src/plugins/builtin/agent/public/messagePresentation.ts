@@ -3,11 +3,17 @@ export type { MessageRenderUnit } from "../presentation/messageRenderUnits";
 export {
   summarizeToolGroup,
   toolActivityShell,
+  toolDiffStat,
   toolGroupNeedsAttention,
   toolIntent,
   toolMetaItems,
 } from "../presentation/toolPresentation";
-export type { ToolIntent, ToolMetaItem, ToolMetaTone } from "../presentation/toolPresentation";
+export type {
+  ToolDetail,
+  ToolIntent,
+  ToolMetaItem,
+  ToolMetaTone,
+} from "../presentation/toolPresentation";
 export {
   approvalReversibilityView,
   approvalRiskView,

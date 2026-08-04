@@ -957,8 +957,6 @@ export const zh: Record<string, string> = {
   "tool.label.listSkills": "列出技能",
   "tool.label.listSchedules": "列出定时任务",
   "tool.label.readToolResult": "读取暂存输出",
-  "tool.meta.added": "+{{count}}",
-  "tool.meta.removed": "-{{count}}",
   "tool.meta.matches": "{{count}} 处匹配",
   "tool.meta.lines": "{{count}} 行",
   "tool.meta.files": "{{count}} 个文件",

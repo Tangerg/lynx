@@ -991,8 +991,6 @@ export const ja: Record<string, string> = {
   "tool.label.listSkills": "スキルを一覧",
   "tool.label.listSchedules": "スケジュールを一覧",
   "tool.label.readToolResult": "保存された出力を読む",
-  "tool.meta.added": "+{{count}}",
-  "tool.meta.removed": "-{{count}}",
   "tool.meta.matches": "{{count}} 件一致",
   "tool.meta.lines": "{{count}} 行",
   "tool.meta.files": "{{count}} 個のファイル",

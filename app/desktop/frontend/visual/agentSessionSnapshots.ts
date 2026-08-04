@@ -172,6 +172,41 @@ const SHELL_FAILED: Item = {
   error: { type: "tool_failed", detail: "store.go changed on disk after it was read." },
 };
 
+// An edit that reports what it changed. Both halves are here on purpose: a path
+// too long for the row (deep and absolute, which is what the runtime reports), so
+// it MUST clip and which end it clips is visible — and a result carrying diff rows,
+// which is where the row's `+n −m` comes from. Without an item like this, neither is in any golden — and
+// the waves state, the only other place an edit appeared, collapses tool rows into
+// "N steps" and draws none of them.
+const SHELL_EDIT: Item = {
+  type: "toolCall",
+  safetyClass: "write",
+  id: "item_shells_edit",
+  runId: ROOT_RUN_ID,
+  status: "completed",
+  startedAt: CREATED_AT,
+  tool: {
+    name: "edit",
+    arguments: {
+      path: "/Users/visual/lynx/app/desktop/frontend/src/plugins/builtin/chat/tools/application/specialisedPreviewProjections.ts",
+    },
+    result: {
+      changes: [
+        {
+          path: "/Users/visual/lynx/app/desktop/frontend/src/plugins/builtin/chat/tools/application/specialisedPreviewProjections.ts",
+          status: "modified",
+          diff: [
+            { type: "context", leftLine: 41, rightLine: 41, code: "func (s *Store) Commit(" },
+            { type: "deleted", leftLine: 42, code: "\tif err := s.flush(); err != nil {" },
+            { type: "added", rightLine: 42, code: "\tif err := s.flushLocked(); err != nil {" },
+            { type: "added", rightLine: 43, code: "\t\ts.metrics.RecordFlushFailure()" },
+          ],
+        },
+      ],
+    },
+  },
+};
+
 const SHELL_DENIED: Item = {
   type: "toolCall",
   safetyClass: "write",
@@ -729,9 +764,13 @@ export const AGENT_SESSION_SNAPSHOTS: Readonly<Record<VisualAgentState, AgentSes
       run("finished", {
         finishedAt: "2026-07-31T08:00:12.000Z",
         outcome: { type: "completed" },
+        // Five tool calls below, so the run's own count says five. The default
+        // METRICS is four; leaving it would put two numbers that disagree in the
+        // same frame, which is a bug everywhere except in a fixture nobody read.
+        metrics: { steps: 5, activeDurationMs: 12_000 },
       }),
     ],
-    items: [PROMPT, SHELL_READ, SHELL_COMMAND, SHELL_FAILED, SHELL_DENIED, RESPONSE],
+    items: [PROMPT, SHELL_READ, SHELL_COMMAND, SHELL_EDIT, SHELL_FAILED, SHELL_DENIED, RESPONSE],
     pendingInterruptSets: [],
   },
 

@@ -10,9 +10,12 @@
 // readable as a hierarchy instead of a stack of competing cards.
 import type { IconName } from "@/ui";
 import type { ToolCall } from "@/plugins/builtin/agent/public/viewState";
-import { Badge, Icon, IconButton, StatusDot } from "@/ui";
+import { Badge, DiffStat, FilePath, Icon, IconButton, StatusDot } from "@/ui";
 import { AgentActivityDisclosure } from "@/ui/agent";
-import { type ToolMetaItem } from "@/plugins/builtin/agent/public/messagePresentation";
+import {
+  type ToolDetail,
+  type ToolMetaItem,
+} from "@/plugins/builtin/agent/public/messagePresentation";
 import { cn } from "@/lib/classNames";
 import { useT } from "@/lib/i18n";
 import {
@@ -60,17 +63,23 @@ export function ToolCard({ tool, expanded, onToggleExpand }: Props) {
       icon={toolRowIcon(tool)}
       tone={model.tone}
       shell={model.shell}
-      label={<span title={model.intent.label}>{model.intent.label}</span>}
+      label={<ToolText value={model.intent.label} />}
       detail={
         model.detail ? (
           // A path, a pattern, a command — data, so it takes the technical face.
-          <span title={model.detail} className={cn("font-mono", model.isError && "text-negative")}>
-            {model.detail}
-          </span>
+          <ToolText
+            value={model.detail}
+            className={cn("font-mono", model.isError && "text-negative")}
+          />
         ) : undefined
       }
       trailing={
         <>
+          {/* Before the counts, because it is the count a reader of an edit came
+              for — and the same `+n −m` the diff header and run summary show. */}
+          {model.diffStat && (
+            <DiffStat added={model.diffStat.added} removed={model.diffStat.removed} />
+          )}
           <ToolMeta items={model.metaItems} running={model.running} />
           {model.running && <StatusDot tone="running" />}
           {/* A refused call is not a finished one. Its glyph says so at 12px, which
@@ -119,12 +128,35 @@ function toolRowIcon(tool: ToolCall): IconName {
   return toolIconFor(toolRoutingKey(tool));
 }
 
+/**
+ * One of the row's two written slots.
+ *
+ * A path keeps its filename when the row runs out of width, which is the whole
+ * reason the model says which kind of value it is holding — and why both slots go
+ * through here instead of one of them spelling it out.
+ */
+function ToolText({ value, className }: { value: ToolDetail; className?: string }) {
+  if (value.kind === "path") {
+    return <FilePath path={value.value} className={className} />;
+  }
+  return (
+    <span className={cn("truncate", className)} title={value.value}>
+      {value.value}
+    </span>
+  );
+}
+
 function ToolMeta({ items, running }: { items: ToolMetaItem[]; running: boolean }) {
   const shown = visibleToolMetaItems(items, running);
   if (shown.length === 0) return null;
 
   return (
-    <span className="hidden shrink-0 items-center gap-1.5 sm:flex">
+    // Against the TRANSCRIPT's width, not the window's. `sm:` asked the viewport
+    // whether this row has room, which it cannot know: the dock and the drawer take
+    // their width from the same card this row sits in, so a wide window can hold a
+    // narrow transcript and a cramped row would keep its chips. The pane declares
+    // itself a container (ChatStream); this asks that.
+    <span className="hidden shrink-0 items-center gap-1.5 @sm:flex">
       {shown.map((item) => (
         <span
           key={item.id}

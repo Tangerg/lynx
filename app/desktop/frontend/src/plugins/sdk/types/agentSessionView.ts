@@ -30,6 +30,10 @@ export interface ToolCall {
   runId: string;
   name: string; // wire tool identity (ToolInvocation.name) — drives icon/preview routing (display label is `fn`)
   fn: string; // tool display name / command
+  /** Set when `fn` is a PATH — the file categories label themselves with the file
+   *  they acted on. The row truncates a path from the other end, and only the
+   *  projection that chose what to put in `fn` knows which case this is. */
+  fnKind?: "path";
   args: string; // accumulated arg text (toolArguments deltas, pre-parse)
   status: ToolCallStatus;
   added?: number;
@@ -68,6 +72,18 @@ export interface ToolCall {
    *  reads as "not a read" — the same fail-conservative default the approval gate
    *  applies. This is what replaced a hand-maintained read-only tool list here. */
   safetyClass?: "safe" | "write" | "exec" | "network";
+  /** read-category: the line span actually returned, when it is not the whole file.
+   *  From the result (`start_line`/`end_line`), not the request: the runtime clamps,
+   *  and what a reader needs is the window they are looking at. Absent for a whole
+   *  file, where the span would only restate `lines`. */
+  range?: { start: number; end: number };
+  /** plan-writing calls: the step the agent is on. A row's subject is the fact a
+   *  reader verifies, which for a plan is not the tool's name but the work in
+   *  hand — the same reason `command` has a field of its own. */
+  step?: string;
+  /** plan-writing calls: how far the plan has got. Not a formatted ratio: the
+   *  reader's language decides how "3 of 7" is worded. */
+  progress?: { done: number; total: number };
   /** How long the call took, measured by the runtime (toolCall Item durationMs).
    *  Absent while the call is still running — a client-side stopwatch would be
    *  measuring its own render loop, not the tool. */

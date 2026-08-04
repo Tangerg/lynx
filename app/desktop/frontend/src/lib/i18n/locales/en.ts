@@ -1028,8 +1028,6 @@ export const en: Record<string, string> = {
   "tool.label.listSkills": "List Skills",
   "tool.label.listSchedules": "List schedules",
   "tool.label.readToolResult": "Read stored output",
-  "tool.meta.added": "+{{count}}",
-  "tool.meta.removed": "-{{count}}",
   "tool.meta.matches": "{{count}} matches",
   "tool.meta.lines": "{{count}} lines",
   "tool.meta.files": "{{count}} files",

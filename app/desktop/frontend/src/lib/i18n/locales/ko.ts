@@ -975,8 +975,6 @@ export const ko: Record<string, string> = {
   "tool.label.listSkills": "스킬 목록",
   "tool.label.listSchedules": "일정 목록",
   "tool.label.readToolResult": "저장된 출력 읽기",
-  "tool.meta.added": "+{{count}}",
-  "tool.meta.removed": "-{{count}}",
   "tool.meta.matches": "{{count}}건 일치",
   "tool.meta.lines": "{{count}}줄",
   "tool.meta.files": "파일 {{count}}개",

@@ -3,19 +3,25 @@
 // The same StepRow the Plan panel and the progress banner use, so the plan reads
 // identically wherever it appears: the tool row shows what this call changed it to,
 // the panel shows what it is now, and neither has its own idea of what a step
-// looks like. The runtime's marks ([x] / [~] / [ ]) already carry the three states.
+// looks like.
+//
+// Read from the call's ARGUMENTS, through the same projection the row's step and
+// ratio come from. The runtime also renders the plan as `[x] …` lines for the model,
+// and this used to parse those back — a second answer to "what are the steps",
+// derived from a rendering rather than from the data, and one that would go quiet
+// the day the marks changed.
 
 import type { ToolPreviewProps } from "@/plugins/sdk";
 import { StepRow } from "@/ui";
 import { PreviewPlaceholder } from "@/plugins/builtin/chat/tools/public/previews/PreviewPlaceholder";
 import { definePlugin } from "@/plugins/sdk";
 import { TOOL_PREVIEW } from "@/plugins/sdk/kernelPoints";
-import { projectPlanUpdate } from "@/plugins/builtin/chat/tools/application/specialisedPreviewProjections";
+import { planStepsFromToolArgs } from "@/plugins/builtin/agent/public/plan";
 import { planToolPreview } from "@/plugins/builtin/chat/tools/application/toolPreviewContributions";
 import { TEXT_PREVIEW_CLASS } from "./previewChrome";
 
 function PlanUpdatePreview({ tool }: ToolPreviewProps) {
-  const steps = projectPlanUpdate(tool.result);
+  const steps = planStepsFromToolArgs(tool.args);
   if (steps.length === 0) {
     return (
       <div className={TEXT_PREVIEW_CLASS}>
@@ -30,8 +36,8 @@ function PlanUpdatePreview({ tool }: ToolPreviewProps) {
   }
   return (
     <div className="max-h-60 overflow-y-auto pt-1">
-      {steps.map((step, i) => (
-        <StepRow key={i} state={step.status}>
+      {steps.map((step) => (
+        <StepRow key={step.id} state={step.status}>
           {step.text}
         </StepRow>
       ))}

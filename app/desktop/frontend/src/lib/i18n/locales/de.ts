@@ -1009,8 +1009,6 @@ export const de: Record<string, string> = {
   "tool.label.listSkills": "Skills auflisten",
   "tool.label.listSchedules": "Zeitpläne auflisten",
   "tool.label.readToolResult": "Gespeicherte Ausgabe lesen",
-  "tool.meta.added": "+{{count}}",
-  "tool.meta.removed": "-{{count}}",
   "tool.meta.matches": "{{count}} Treffer",
   "tool.meta.lines": "{{count}} Zeilen",
   "tool.meta.files": "{{count}} Dateien",

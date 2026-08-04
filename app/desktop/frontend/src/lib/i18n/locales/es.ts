@@ -1000,8 +1000,6 @@ export const es: Record<string, string> = {
   "tool.label.listSkills": "Listar habilidades",
   "tool.label.listSchedules": "Listar programaciones",
   "tool.label.readToolResult": "Leer salida almacenada",
-  "tool.meta.added": "+{{count}}",
-  "tool.meta.removed": "-{{count}}",
   "tool.meta.matches": "{{count}} coincidencias",
   "tool.meta.lines": "{{count}} líneas",
   "tool.meta.files": "{{count}} archivos",

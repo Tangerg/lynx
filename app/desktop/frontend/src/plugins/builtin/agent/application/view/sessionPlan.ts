@@ -43,6 +43,64 @@ export function planSteps(snapshot: SharedPlan | undefined): PlanStep[] {
 }
 
 /**
+ * The plan a `set_plan` call wrote, read from the call's own arguments.
+ *
+ * The same steps in the same vocabulary as the session snapshot above, from the
+ * other end: the snapshot is what the plan IS, these are what one call SAID. The
+ * arguments carry `{steps:[{description,status}]}` with no ids — ids belong to the
+ * runtime's plan, not to an argument list — so the index stands in, which is all a
+ * list key needs.
+ *
+ * Structured arguments and not the rendered result text: the runtime also renders
+ * the plan as `[x] …` lines for the model to read, and parsing that back would be
+ * a second answer to "what are the steps" that goes stale the moment the marks
+ * change.
+ */
+export function planStepsFromArguments(args: unknown): PlanStep[] {
+  if (typeof args !== "object" || args === null) return NO_STEPS;
+  const steps = (args as { steps?: unknown }).steps;
+  if (!Array.isArray(steps) || steps.length === 0) return NO_STEPS;
+  const projected: PlanStep[] = [];
+  for (const [index, step] of steps.entries()) {
+    if (typeof step !== "object" || step === null) continue;
+    const { description, status } = step as { description?: unknown; status?: unknown };
+    if (typeof description !== "string" || description.length === 0) continue;
+    projected.push({
+      id: String(index),
+      text: description,
+      status: STEP_STATUS[status as PlanSnapshot["status"]] ?? "pending",
+    });
+  }
+  return projected;
+}
+
+/**
+ * The steps in a `set_plan` call's accumulated argument TEXT.
+ *
+ * The transcript carries arguments as the text they streamed as, so a preview
+ * reading a settled call has to parse it. Unparseable text (a call still
+ * streaming) is not an empty plan, but it renders as one — a half-written plan is
+ * not a thing to draw, and the preview's own pending state covers the gap.
+ */
+export function planStepsFromToolArgs(args: string): PlanStep[] {
+  if (args === "") return NO_STEPS;
+  try {
+    return planStepsFromArguments(JSON.parse(args));
+  } catch {
+    return NO_STEPS;
+  }
+}
+
+/** The step a reader is watching: the first one not finished, else the last. */
+export function activePlanStep(steps: readonly PlanStep[]): PlanStep | undefined {
+  return steps.find((step) => step.status !== "done") ?? steps.at(-1);
+}
+
+export function planProgress(steps: readonly PlanStep[]): { done: number; total: number } {
+  return { done: steps.filter((step) => step.status === "done").length, total: steps.length };
+}
+
+/**
  * The active session's plan.
  *
  * Memoised on the snapshot object the fold swaps in, so a reader that feeds a

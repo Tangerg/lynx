@@ -3,6 +3,7 @@
 // stateful folds that place these into AgentSessionView live in `fold.ts`.
 
 import type { Item, ItemStatus, Question, ToolInvocation } from "@/rpc";
+import { activePlanStep, planProgress, planStepsFromArguments } from "../view/sessionPlan";
 import type { ContentBlock as WireContentBlock } from "@/rpc";
 import type { BlockStatus, ContentBlock, QuestionItem } from "@/plugins/sdk/types/contentBlock";
 import type { ToolCall, ToolCallStatus, ToolDiffRow } from "@/plugins/sdk/types/agentSessionView";
@@ -128,18 +129,20 @@ function toolDiffRow(value: unknown): ToolDiffRow | undefined {
   return undefined;
 }
 
-/** result.changes (FileEdit[]) → the call-scoped diff rows + their +added /
- *  −removed line counts (§4.4.2 edit / §12.1 C). An `edit` now ships actual
- *  per-file `diff` rows (tooldisplay.go editDiffRows), so the card renders THIS
- *  edit's patch inline and shows real counts; a `write` (or any shape without
- *  `diff` rows) carries none, so we return {} rather than a fabricated "+0 −0"
- *  on every card (ToolMeta renders `+{added}` whenever `added != null`). */
 /** result.changes (FileEdit[]) — the files one edit call touched. */
 function editChanges(result: unknown): unknown[] {
   const changes = asRecord(result)?.changes;
   return Array.isArray(changes) ? changes : [];
 }
 
+/**
+ * result.changes (FileEdit[]) → the call-scoped diff rows and their line counts
+ * (§4.4.2 edit / §12.1 C). An `edit` ships actual per-file `diff` rows
+ * (tooldisplay.go editDiffRows), so the card renders THIS edit's patch inline and
+ * reports real counts; a `write` (or any shape without `diff` rows) carries none,
+ * so this returns {} rather than a fabricated zero — which the row would then have
+ * to decide not to draw.
+ */
 function editLineCounts(result: unknown): Partial<ToolCall> {
   const changes = editChanges(result);
   if (changes.length === 0) return {};
@@ -208,9 +211,26 @@ function nameLabel(tool: ToolInvocation): string | undefined {
 
 /** Human-readable label for a tool invocation (the toolCall row title). */
 export function toolLabel(tool: ToolInvocation | undefined): string {
-  if (!tool) return "tool";
+  return labelSource(tool).text;
+}
+
+/**
+ * Whether the row's label IS a path — which for the file categories it is, because
+ * this projection puts one there rather than leaving the tool's name.
+ *
+ * Read off the same switch that chose the text, not re-derived from the category:
+ * the fallbacks matter (an edit touching several files labels itself with the tool's
+ * name instead), and a second rule that "fileEdit means path" would call those a
+ * path too, then truncate a word from its left.
+ */
+export function toolLabelKind(tool: ToolInvocation | undefined): "path" | "text" {
+  return labelSource(tool).path ? "path" : "text";
+}
+
+function labelSource(tool: ToolInvocation | undefined): { text: string; path: boolean } {
+  if (!tool) return { text: "tool", path: false };
   const byName = nameLabel(tool);
-  if (byName) return byName;
+  if (byName) return { text: byName, path: false };
   const a = tool.arguments ?? {};
   switch (toolCategory(tool.name)) {
     case "command":
@@ -218,30 +238,38 @@ export function toolLabel(tool: ToolInvocation | undefined): string {
       // backend tests"); the command itself rides beside it as the row's mono
       // detail. A title spelled as the command line puts data in the slot meant
       // for intent, and repeats verbatim what the detail already shows.
-      return asString(a.description) || asString(a.command) || tool.name || "command";
+      return {
+        text: asString(a.description) || asString(a.command) || tool.name || "command",
+        path: false,
+      };
     case "fileEdit": {
       const path = asString(a.path);
-      if (path) return path;
+      if (path) return { text: path, path: true };
       const single = asString(asRecord(editChanges(tool.result)[0])?.path);
       // No single path to show: leave the tool's own name, which is how every
       // other label-less case reports "I have nothing better" — presentation
       // then resolves it through TOOL_LABEL_KEYS, and the file count rides along
       // as a meta chip. A fold that spelled "3 files" here froze one language
       // into the view state.
-      return single ?? tool.name;
+      return single === undefined ? { text: tool.name, path: false } : { text: single, path: true };
     }
     case "search":
-      return asString(a.query) || asString(a.pattern) || "search";
+      return { text: asString(a.query) || asString(a.pattern) || "search", path: false };
     case "webSearch":
-      return asString(a.query) || "search";
-    case "read":
-      return asString(a.path) || tool.name;
+      return { text: asString(a.query) || "search", path: false };
+    case "read": {
+      const path = asString(a.path);
+      return path === undefined ? { text: tool.name, path: false } : { text: path, path: true };
+    }
     case "subagent":
       // delegate_task requires a 3-5 word `summary` precisely so the parent row can
       // name the delegated work without quoting the whole brief.
-      return asString(a.summary) || firstLine(a.instructions) || tool.name;
+      return {
+        text: asString(a.summary) || firstLine(a.instructions) || tool.name,
+        path: false,
+      };
     default:
-      return tool.name || "tool";
+      return { text: tool.name || "tool", path: false };
   }
 }
 
@@ -252,8 +280,25 @@ export function toolFields(tool: ToolInvocation | undefined): Partial<ToolCall> 
   const operation = asString(tool.arguments?.operation);
   return {
     ...(operation !== undefined ? { operation } : {}),
+    ...planFields(tool),
     ...categoryFields(tool, result),
   };
+}
+
+/**
+ * What a plan-writing call reports on its row: the step being worked and how far
+ * the plan has got.
+ *
+ * Pulled out of the arguments here for the same reason `command` is — a row's
+ * subject is a fact about the call, and deriving it at render time would parse the
+ * same argument text on every stream tick. The steps themselves stay in `args`,
+ * which is where the preview reads them from when it lists all of them.
+ */
+function planFields(tool: ToolInvocation): Partial<ToolCall> {
+  if (tool.name !== "set_plan") return {};
+  const steps = planStepsFromArguments(tool.arguments);
+  if (steps.length === 0) return {};
+  return { step: activePlanStep(steps)?.text, progress: planProgress(steps) };
 }
 
 function categoryFields(
@@ -324,9 +369,19 @@ function categoryFields(
       // toolOutput-delta preview (same guard as command / search).
       const content = asString(result?.content);
       const lines = asNumber(result?.total_lines);
+      const start = asNumber(result?.start_line);
+      const end = asNumber(result?.end_line);
+      // A window, not the file: `L40-80` answers "which part am I looking at",
+      // which `80 lines` cannot. Omitted when the read covered everything, where
+      // the span is the file size written twice.
+      const partial =
+        start !== undefined &&
+        end !== undefined &&
+        (start > 1 || (lines !== undefined && end < lines));
       return {
         ...(content !== undefined ? { result: content } : {}),
         ...(lines !== undefined ? { lines } : {}),
+        ...(partial ? { range: { start: start!, end: end! } } : {}),
       };
     }
     default:
