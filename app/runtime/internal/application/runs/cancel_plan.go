@@ -77,7 +77,7 @@ func (c *Coordinator) cancellationPlanFor(
 			rootRunID,
 		)
 	}
-	pending, pendingFound, err := c.sessions.GetOpenInterrupt(ctx, rootRunID)
+	pending, pendingFound, err := c.sessions.LookupOpenInterrupt(ctx, rootRunID)
 	if err != nil {
 		return cancellationPlan{}, liveSegment{}, false, err
 	}

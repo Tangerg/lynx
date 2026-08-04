@@ -227,7 +227,7 @@ func (barrier TreeInterrupted) validateFor(
 }
 
 // SegmentInterrupted is the source-Run reducer input derived from a
-// [TreeInterrupted] barrier. Executor adapters never emit it directly.
+// [TreeInterrupted] barrier. Executor sources never emit it directly.
 type SegmentInterrupted struct {
 	engineEventBase
 	Interrupts []Interrupt

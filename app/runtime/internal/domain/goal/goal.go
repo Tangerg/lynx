@@ -148,7 +148,7 @@ func (code ReasonCode) Valid() bool {
 
 // Reason is the typed stopping context stored with a paused or blocked goal.
 // Detail is allowed only for model-authored explanations and stable domain
-// values such as an Outcome string. Infrastructure errors belong in logs and
+// values such as an Outcome string. Operational errors belong in logs and
 // traces, never in durable goal state.
 type Reason struct {
 	Code   ReasonCode
@@ -220,8 +220,8 @@ func New(sessionID, objective string, selection modelref.Selection, budget Budge
 }
 
 // ValidateSnapshot verifies the invariants of one durable goal state. It does
-// not validate a lifecycle transition; persistence adapters use it when they
-// reconstruct a Goal so corrupt or obsolete rows cannot enter the application.
+// not validate a lifecycle transition; persistence reconstruction uses it so
+// corrupt or obsolete rows cannot become a Goal.
 func (g Goal) ValidateSnapshot() error {
 	if g.SessionID == "" {
 		return errSessionRequired

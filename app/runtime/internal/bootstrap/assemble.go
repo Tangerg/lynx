@@ -44,6 +44,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/tools"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/usage"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
+	"github.com/Tangerg/lynx/app/runtime/internal/component/idempotency"
 	"github.com/Tangerg/lynx/app/runtime/internal/component/shutdown"
 	"github.com/Tangerg/lynx/app/runtime/internal/component/signal"
 	"github.com/Tangerg/lynx/app/runtime/internal/component/taskgroup"
@@ -52,7 +53,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/codebaseindex"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/skills"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/skillauthoring"
-	sqlitestore "github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 )
 
 // Stack is the assembled application: the coordinators + adapters the delivery
@@ -99,7 +99,7 @@ type Stack struct {
 	// above; the producers are the use cases that committed the write.
 	Changes          *signal.Signal[change.Notice]
 	ScheduleFiring   *schedules.Firing
-	IdempotencyStore *sqlitestore.IdempotencyStore
+	IdempotencyStore idempotency.Store
 	GitAvailable     bool
 	PlanEnabled      bool
 }

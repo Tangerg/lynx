@@ -1,7 +1,7 @@
 // Package plan defines the session-scoped execution plan maintained by the
 // root Agent. A Plan is one ordered list of Steps; it is neither a second task
-// system nor Plan-mode state. Model presentation and persistence live in
-// adapters.
+// system nor Plan-mode state. It owns only semantic state and invariants, not
+// presentation or persistence formats.
 package plan
 
 import (

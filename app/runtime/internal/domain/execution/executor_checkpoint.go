@@ -13,7 +13,7 @@ import (
 // exists for the requested root process identity.
 var ErrExecutorCheckpointNotFound = errors.New("executor checkpoint not found")
 
-// ErrInvalidExecutorCheckpoint reports a malformed application envelope around
+// ErrInvalidExecutorCheckpoint reports malformed host-owned metadata around
 // an executor's opaque continuation state.
 var ErrInvalidExecutorCheckpoint = errors.New("invalid executor checkpoint")
 
@@ -64,7 +64,7 @@ type ExecutorCheckpoint struct {
 	Usage          accounting.Snapshot
 }
 
-// ExecutorCheckpointExpectation is the application identity and host context a
+// ExecutorCheckpointExpectation is the durable identity and host context a
 // durable continuation must still belong to before it may be retained or
 // restored. It contains no executor topology: every field is independently
 // known by the owning Run and Session.
@@ -86,7 +86,7 @@ func (c ExecutorCheckpoint) Clone() ExecutorCheckpoint {
 	return c
 }
 
-// Validate verifies the application-owned envelope without interpreting the
+// Validate verifies the host-owned metadata without interpreting the
 // executor payload.
 func (c ExecutorCheckpoint) Validate() error {
 	if strings.TrimSpace(c.RootProcessID) == "" || c.RootProcessID != strings.TrimSpace(c.RootProcessID) {
@@ -113,7 +113,7 @@ func (c ExecutorCheckpoint) Validate() error {
 	return nil
 }
 
-// ValidateOwnership proves that the checkpoint and its application aggregate
+// ValidateOwnership proves that the checkpoint and its owning Run aggregate
 // name the same root process and Session. Callers use this at every atomic
 // Pending/checkpoint write boundary so two separately valid values cannot be
 // committed as one mismatched continuation.

@@ -122,8 +122,8 @@ func composePrompt(ctx context.Context, mem KnowledgeReader, memory AgentMemoryR
 	}
 
 	// AGENTS.md cascade — best-effort, silent on error so a missing or unreadable
-	// instruction file never derails a turn. User home is injected by the process
-	// composition root rather than rediscovered inside every prompt assembly.
+	// instruction file never derails a turn. User Home is injected rather than
+	// rediscovered inside every prompt assembly.
 	if dir := strings.TrimSpace(cwd); dir != "" {
 		if files, err := promptsource.DiscoverAgentDocs(ctx, dir, userHome); err == nil {
 			if rendered := renderAgentDocs(files, agentDocPromptMaxBytes); rendered != "" {

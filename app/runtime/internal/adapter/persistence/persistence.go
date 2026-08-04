@@ -1,7 +1,6 @@
 // Package persistence assembles Lyra's durable storage adapters into one
-// process-lifetime bundle. It is the storage-side capability adapter: the
-// process composition root opens a bundle, while runtime construction decides
-// how to consume it.
+// process-lifetime bundle. It is the storage-side capability adapter: [Open]
+// returns a bundle while its consumers decide how to use each store.
 package persistence
 
 import (
@@ -58,8 +57,7 @@ type Bundle struct {
 }
 
 // Config is the process-owned filesystem snapshot persistence consumes. It has
-// no environment or working-directory fallback: host path discovery belongs to
-// the executable composition root.
+// no environment or working-directory fallback: startup supplies every path.
 type Config struct {
 	DataDirectory        string
 	DefaultWorkspacePath string
@@ -136,7 +134,7 @@ func (b *Bundle) Close() error {
 	return b.closeErr
 }
 
-// Shutdown implements bootstrap's context-aware process-resource boundary.
+// Shutdown implements the context-aware process-resource boundary.
 // SQLite's Close is synchronous and normally immediate, but checking the
 // deadline before beginning prevents a shutdown attempt from starting new work
 // after its caller's budget has expired.

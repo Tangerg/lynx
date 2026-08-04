@@ -14,9 +14,8 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
 )
 
-// ProviderCatalog is the static provider and model reference data projected
-// from infrastructure catalogs. The composition root supplies it; application
-// owns the use-case policy that consumes the projection.
+// ProviderCatalog supplies static provider and model reference data. The
+// coordinator owns the use-case policy that consumes the projection.
 type ProviderCatalog interface {
 	Supported() []ProviderMetadata
 	Metadata(id string) (ProviderMetadata, bool)
@@ -39,8 +38,7 @@ var (
 )
 
 // ProviderProber validates a provider's credentials with one minimal live call
-// (providers.test). The composition root supplies it (it owns client
-// construction and the outbound probe).
+// (providers.test).
 type ProviderProber interface {
 	Probe(ctx context.Context, entry provider.Provider) error
 }
@@ -48,8 +46,7 @@ type ProviderProber interface {
 // ProviderModelLister discovers a provider's available models by probing its
 // live endpoint — used for local / bring-your-own-endpoint providers whose model
 // set is not in the static catalog (models.list of an Ollama daemon or a compat
-// passthrough). The composition root supplies it (it owns endpoint resolution +
-// the outbound probe). A nil lister disables live discovery (static catalog only).
+// passthrough). A nil lister disables live discovery (static catalog only).
 type ProviderModelLister interface {
 	ListModels(ctx context.Context, entry provider.Provider) ([]string, error)
 }
@@ -86,8 +83,8 @@ type Coordinator struct {
 	prober    ProviderProber
 	lister    ProviderModelLister
 
-	// utility / embedding model roles: the application-owned live state shared
-	// with driven adapters, the resolver that validates a new role, and the saver
+	// utility / embedding model roles: the live state shared with runtime
+	// consumers, the resolver that validates a new role, and the saver
 	// that persists it.
 	utilityRoleState *RoleState
 	utilityValidator ChatModelValidator

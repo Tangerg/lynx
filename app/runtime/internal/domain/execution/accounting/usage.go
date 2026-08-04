@@ -44,8 +44,8 @@ type ModelUsage struct {
 	Calls   int
 }
 
-// Snapshot is the durable, application-owned usage projection for one complete
-// process tree. Models are unique and sorted by model ID so concurrent
+// Snapshot is the durable usage projection for one complete process tree.
+// Models are unique and sorted by model ID so concurrent
 // execution cannot make checkpoint bytes or output ordering nondeterministic.
 type Snapshot struct {
 	Models []ModelUsage

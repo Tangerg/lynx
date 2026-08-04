@@ -10,6 +10,6 @@
 // own file, constructible and testable without the agentexec. Suite is the
 // one explicit composition point for the workers that run after a clean Run.
 //
-// Bootstrap owns construction. Suite owns the maintenance lifecycle policy;
-// the execution controller supplies finished-Run facts and observes its result.
+// Suite owns the maintenance lifecycle policy; the execution controller
+// supplies finished-Run facts and observes its result.
 package maintenance

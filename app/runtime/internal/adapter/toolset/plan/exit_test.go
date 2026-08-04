@@ -17,7 +17,7 @@ type modeStore struct {
 	states map[string]approval.SessionMode
 }
 
-func (s *modeStore) GetMode(_ context.Context, sessionID string) (approval.SessionMode, bool, error) {
+func (s *modeStore) LookupMode(_ context.Context, sessionID string) (approval.SessionMode, bool, error) {
 	state, found := s.states[sessionID]
 	return state, found, nil
 }

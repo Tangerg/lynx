@@ -1,5 +1,5 @@
 // Package modelcatalog adapts provider infrastructure and static catalog data
-// to the application/models ports. Bootstrap only constructs this adapter.
+// to the application/models ports.
 package modelcatalog
 
 import (
@@ -15,9 +15,9 @@ import (
 )
 
 // Capabilities implements the three model-configuration ports consumed by
-// Application: static catalog lookup, credential probing, and remote listing.
-// Keeping them together is justified because they share the same provider
-// infrastructure boundary and have one composition-root construction point.
+// model use cases: static catalog lookup, credential probing, and remote listing.
+// Keeping them together is justified because they share one provider
+// integration boundary.
 type Capabilities struct{}
 
 func (Capabilities) Supported() []modelsapp.ProviderMetadata {

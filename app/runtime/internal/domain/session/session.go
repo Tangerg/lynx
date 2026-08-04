@@ -86,7 +86,7 @@ type Session struct {
 
 // Fork derives a child session from s. The child inherits s's working
 // directory, takes s's title with a " (fork)" suffix, and points ParentID back
-// at s. The application copies the selected conversation prefix separately;
+// at s. The selected conversation prefix is copied separately;
 // the parent's model and other accumulated state are not inherited.
 //
 // id and now are supplied by the caller, keeping this derivation pure and making

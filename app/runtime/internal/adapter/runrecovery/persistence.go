@@ -102,7 +102,7 @@ func New(config Config) (*Persistence, error) {
 	}
 }
 
-func (p *Persistence) GetSession(ctx context.Context, sessionID string) (session.Session, error) {
+func (p *Persistence) SessionByID(ctx context.Context, sessionID string) (session.Session, error) {
 	return p.sessions.Get(ctx, sessionID)
 }
 

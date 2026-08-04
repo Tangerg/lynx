@@ -30,8 +30,8 @@ import (
 // This file is the tool-assembly entry point. It is the SOLE place that
 // constructs the capability adapters the tools wrap (code intelligence,
 // background exec, MCP, A2A) and wires them into the resolver — so the engine
-// CORE imports none of them; it receives the assembled [Built] from the
-// composition root. Tool capability construction therefore stays outside Agent
+// CORE imports none of them; it receives the assembled [Built]. Tool capability
+// construction therefore stays outside Agent
 // execution (doc/EXECUTION_CENTERED_ARCHITECTURE.md).
 
 // BuildConfig is the tool-environment construction input (the working-directory
@@ -79,13 +79,12 @@ type BuildConfig struct {
 	SandboxReadOnlyPaths []string
 }
 
-// Built is the assembled tool environment handed to the composition root: the
-// runtime-scope resolver (also the diagnostic tool catalog) and the capability
-// closers owned by bootstrap.Host.
+// Built is the assembled tool environment: the runtime-scope resolver (also the
+// diagnostic tool catalog) and its capability closers.
 type Built struct {
 	Resolver *Resolver
-	// Shells is the background-shell set the shell tools run over. Exposed so the
-	// composition root can report a session's still-running jobs (e.g. a
+	// Shells is the background-shell set the shell tools run over. Exposed so
+	// live-state reporting can inspect a session's still-running jobs (e.g. a
 	// post-compaction live-state reminder) without owning a second shell set.
 	Shells  *exec.Shells
 	Closers []func() error

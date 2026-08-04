@@ -11,7 +11,7 @@ package execution
 // mapping table between them, and a kind added to one would be a kind the other
 // silently could not represent.
 //
-// Executor adapters must persist and restore this exact union; they may not
+// Executor implementations must preserve this exact union; they may not
 // infer a kind by inspecting arbitrary prompt fields.
 type InterruptKind uint8
 

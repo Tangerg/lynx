@@ -152,7 +152,7 @@ func (c *Coordinator) restoreSession(ctx context.Context, snapshot Snapshot, pre
 }
 
 // RestorePortableSession rebuilds and restores one transport-neutral archive.
-// Archive decoding belongs to adapters; aggregate reconstruction and invariant
+// Boundary codecs decode the archive; aggregate reconstruction and invariant
 // enforcement belong here with the restore use case.
 func (c *Coordinator) RestorePortableSession(ctx context.Context, portable PortableSnapshot) (View, error) {
 	snapshot, err := portable.CanonicalSnapshot()

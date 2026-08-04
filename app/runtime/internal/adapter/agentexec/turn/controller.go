@@ -111,7 +111,7 @@ type Dependencies struct {
 //   - turn_control.go   — cancel/resume interrupt control
 //   - rehydrate.go      — cross-restart parked-turn resume
 //   - live_registry.go  — live-turn lookup + per-turn interrupt gates
-//   - event_emit.go     — stamped event delivery and backpressure semantics
+//   - event_emit.go     — stamped event publication and backpressure semantics
 //   - state.go          — per-turn state + cross-goroutine invariants
 //   - turn.go           — run/drive/interrupt lifecycle
 //   - terminal.go       — terminal event mapping + teardown

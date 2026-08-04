@@ -23,7 +23,7 @@ var errClosed = errors.New("integrations: closed")
 var errMCPConnectionUnavailable = errors.New("integrations: MCP connection service is unavailable")
 
 // ErrInvalidMCPServerConfiguration marks a malformed MCP configuration command.
-// Outer adapters map it to their validation error without re-running domain
+// Callers map it to their validation error without re-running domain
 // validation or inspecting persistence state.
 var ErrInvalidMCPServerConfiguration = errors.New("integrations: invalid MCP server configuration")
 

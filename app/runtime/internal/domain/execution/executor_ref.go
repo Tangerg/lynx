@@ -18,7 +18,7 @@ type ExecutorRef struct {
 }
 
 // ValidateFor checks that the executor returned a complete identity bound to
-// the session whose admission the application owns.
+// the admitted session.
 func (r ExecutorRef) ValidateFor(sessionID string) error {
 	if strings.TrimSpace(r.SessionID) == "" || strings.TrimSpace(r.SessionID) != r.SessionID {
 		return fmt.Errorf("%w: session ID must be non-empty without surrounding whitespace", ErrInvalidExecutorRef)

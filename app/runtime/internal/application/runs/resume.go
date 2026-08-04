@@ -16,7 +16,7 @@ func (c *Coordinator) Resume(ctx context.Context, cmd ResumeCommand) (StartResul
 	if err := c.requireUseCaseDependencies(); err != nil {
 		return StartResult{}, err
 	}
-	pending, found, err := c.sessions.GetOpenInterrupt(ctx, cmd.RunID)
+	pending, found, err := c.sessions.LookupOpenInterrupt(ctx, cmd.RunID)
 	if err != nil {
 		return StartResult{}, err
 	}

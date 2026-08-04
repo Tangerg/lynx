@@ -55,9 +55,9 @@ func (c *Coordinator) ActiveRun(ctx context.Context, sessionID string) (transcri
 	return transcript.Run{}, false, nil
 }
 
-// GetOpenInterrupt returns the parked run identified by runID without claiming
+// LookupOpenInterrupt returns the parked run identified by runID without claiming
 // or consuming it. The run use case owns the subsequent admission ordering.
-func (c *Coordinator) GetOpenInterrupt(ctx context.Context, runID string) (interrupts.Pending, bool, error) {
+func (c *Coordinator) LookupOpenInterrupt(ctx context.Context, runID string) (interrupts.Pending, bool, error) {
 	if c.interrupts == nil {
 		return interrupts.Pending{}, false, errors.New("sessions: interrupt store is unavailable")
 	}

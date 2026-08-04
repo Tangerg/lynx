@@ -1,7 +1,7 @@
 // Package interrupts owns the durable hand-off between a running executor tree
-// and a later continuation. Application orchestration records one root-owned
-// [Pending] set when the tree reaches a human-input barrier; a resume consumes
-// that complete set atomically.
+// and a later continuation. One root-owned [Pending] set records the complete
+// tree when it reaches a human-input barrier; a resume consumes that set
+// atomically.
 package interrupts
 
 import (
@@ -20,14 +20,14 @@ import (
 // keyed by RootRunID and consumed all-or-nothing: individual source Runs do not
 // own separate resume claims. Interrupts is the client-facing typed set;
 // Suspensions binds each item back to the executor boundary it answers;
-// Continuations is the application state required to reopen every surviving Run
+// Continuations is the durable state required to reopen every surviving Run
 // with a fresh Segment, including after process restart.
 type Pending struct {
 	RootRunID  string
 	SessionID  string
 	ExecutorID string
 	// GoalLeaseID is the root Run's autonomous-goal incarnation. It is an
-	// application continuation fact, not executor payload: a resumed Segment
+	// Run continuation fact, not executor payload: a resumed Segment
 	// needs it to keep terminal budget accounting attached to the same Goal.
 	GoalLeaseID   string
 	Interrupts    []transcript.Interrupt
@@ -42,17 +42,17 @@ type Pending struct {
 }
 
 // Continuation is the durable hand-off for one suspended Run. ProcessID is the
-// opaque binding between that application Run and its executor member; the
+// opaque binding between that Run and its executor member; the
 // executor's parent/spawn topology remains inside its opaque checkpoint. Run
-// lineage is the application's independent tree fact.
+// lineage is the product's independent tree fact.
 type Continuation struct {
 	RunID          string
 	ProcessID      string
 	Lineage        execution.RunLineage
 	ModelSelection modelref.Selection
 	DrainedTools   []DrainedTool
-	// CommittedTools are tool results whose transcript projection was completed
-	// by an application transaction while the executor tree stayed parked. The
+	// CommittedTools are tool results committed to the transcript while the
+	// executor tree stayed parked. The
 	// executor still publishes those results when it re-enters the checkpoint
 	// because the model needs them in its continuation message; the resumed Run
 	// reducer consumes this identity set without appending the Item a second time.
@@ -71,7 +71,7 @@ type SuspensionBinding struct {
 }
 
 // SuspensionAnswer is one validated decision bound to the exact executor
-// boundary that must consume it. InterruptItemID keeps the application item
+// boundary that must consume it. InterruptItemID keeps the transcript item
 // identity attached until the execution-control boundary; ProcessID and
 // SuspensionID prevent execution from guessing which parked branch it answers.
 type SuspensionAnswer struct {
@@ -95,7 +95,7 @@ type DrainedTool struct {
 
 // CommittedTool is the durable hand-off for one tool result already written to
 // the transcript while its executor checkpoint was parked. Problem records the
-// application classification that was committed; it is not reconstructed from
+// classification that was committed; it is not reconstructed from
 // the executor's lower-level error when the checkpoint later publishes its
 // model-facing result.
 type CommittedTool struct {

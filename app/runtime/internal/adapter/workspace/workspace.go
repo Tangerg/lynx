@@ -1,8 +1,7 @@
-// Package workspace adapts git-backed workspace operations: the VCS view of a project's
-// working tree (git-backed diff / status) and per-session file checkpoints
-// (shadow-git snapshot / restore). It is the single owner of the git and
-// checkpoint infra adapters here: delivery drives workspace operations through
-// here and never imports infra/git or infra/checkpoint directly.
+// Package workspace adapts git-backed workspace operations: the VCS view of a
+// project's working tree (git-backed diff / status) and per-session file
+// checkpoints (shadow-git snapshot / restore). It owns the Git and checkpoint
+// implementations behind those semantic operations.
 //
 // VCS reads are stateless package functions (a git working tree is addressed
 // purely by its root path); checkpoint lifecycle is stateful and lives on
@@ -18,8 +17,8 @@ import (
 
 var (
 	// ErrCheckpointUnavailable means the file-checkpoint store is disabled (git
-	// absent) or holds no snapshot for the target run. Delivery maps it onto the
-	// wire checkpoint_unavailable.
+	// absent) or holds no snapshot for the target run. Callers translate this
+	// sentinel at their own boundary.
 	ErrCheckpointUnavailable = checkpoint.ErrUnavailable
 	// ErrCheckpointRestoreIncomplete means Git started a work-tree reset but did
 	// not finish; orchestration must keep its durable recovery intent.

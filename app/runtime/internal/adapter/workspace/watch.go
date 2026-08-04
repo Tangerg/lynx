@@ -121,7 +121,7 @@ func (w *gitWatch) run() {
 }
 
 // Close joins the callback goroutine before closing the underlying watcher, so
-// a caller can safely close its delivery channel immediately afterwards.
+// a caller can safely close its output channel immediately afterwards.
 func (w *gitWatch) Close() error {
 	w.closeOnce.Do(func() {
 		close(w.done)

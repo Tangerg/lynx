@@ -40,8 +40,8 @@ const scopeName = "lyra"
 //     directly — is what makes them backend-swappable: a production
 //     build swaps every exporter for OTLP (→ Datadog / Cloud
 //     Logging / ...) with zero business-code change.
-//   - Context: W3C trace-context + baggage propagator, so a traceparent the
-//     frontend sends extends into the backend (full-link tracing).
+//   - Context: W3C trace-context + baggage propagator, so an inbound traceparent
+//     continues through the runtime.
 //
 // Level comes from LYRA_LOG_LEVEL (debug|info|warn|error, default info) and
 // is gated before the bridge (the bridge itself does no level filtering).

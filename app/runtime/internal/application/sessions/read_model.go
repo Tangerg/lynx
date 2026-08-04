@@ -11,7 +11,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 )
 
-// Activity is the resolved session activity view used by read adapters.
+// Activity is the resolved session activity view used by read consumers.
 // Running is process-local admission state; Waiting is a durable open HITL
 // interrupt; Idle means neither. This precedence is application policy.
 type Activity string

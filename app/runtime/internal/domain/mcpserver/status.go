@@ -3,8 +3,8 @@ package mcpserver
 import "errors"
 
 // ConnectionState is the lifecycle state of a configured MCP connection.
-// Keeping this vocabulary in the domain prevents adapters from inventing
-// subtly different values for the same user-visible fact.
+// Keeping this vocabulary canonical prevents subtly different values for the
+// same user-visible fact.
 type ConnectionState string
 
 const (

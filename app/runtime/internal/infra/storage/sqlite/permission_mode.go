@@ -17,7 +17,7 @@ func NewPermissionModeStore(db *sql.DB) *PermissionModeStore {
 	return &PermissionModeStore{db: db}
 }
 
-func (s *PermissionModeStore) GetMode(ctx context.Context, sessionID string) (approval.SessionMode, bool, error) {
+func (s *PermissionModeStore) LookupMode(ctx context.Context, sessionID string) (approval.SessionMode, bool, error) {
 	var state approval.SessionMode
 	err := conn(ctx, s.db).QueryRowContext(ctx,
 		`SELECT mode, restore_mode FROM session_permission_modes WHERE session_id = ?`, sessionID,

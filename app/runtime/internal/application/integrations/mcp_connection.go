@@ -172,8 +172,8 @@ func (c *Coordinator) dispatchMCPConnection(
 
 // replaceMCPDial gives each server exactly one current connection operation.
 // A registry mutation, reconnect, or authorization attempt supersedes the previous dial by
-// canceling its context; adapters must honor ctx while dialing and reject a
-// stale completion through their per-server generation check.
+// canceling its context; connection commands must honor ctx while dialing and
+// reject a stale completion through their per-server generation check.
 func (c *Coordinator) replaceMCPDial(ctx context.Context, name string) (context.Context, *mcpDial) {
 	dialCtx, cancel := context.WithCancel(ctx)
 	dial := &mcpDial{cancel: cancel}
@@ -237,7 +237,7 @@ func newMCPStatusQueue(sink func(MCPServerStatus)) *mcpStatusQueue {
 }
 
 // prepareMCPStatus is called while mcpMutationMu is held. The sequence lets
-// lock-free callback delivery retain the exact mutation order.
+// lock-free callback publication retain the exact mutation order.
 func (c *Coordinator) prepareMCPStatus(status MCPServerStatus) mcpStatusEvent {
 	c.mcpStatusSequence++
 	return mcpStatusEvent{sequence: c.mcpStatusSequence, status: status}

@@ -908,10 +908,28 @@ Acceptance:
 | 34. Semantic replay retention and interrupt integrity | Completed | 2026-08-04 | 2026-08-04 | Replay memory is charged from the closed event family rather than JSON encoding; pending approvals now require a valid tool, risk, and not-yet-executed invocation. |
 | 35. Execution identity and Goal Run vocabulary closure | Completed | 2026-08-04 | 2026-08-04 | Domain/Application use `ExecutorRef`, `ExecutionScope`, `ExecutionControl`, and Goal `Run` accounting exclusively; adapter-local `Turn` no longer crosses inward, SQLite uses `executor_id`/`goal_runs`/`max_runs`, server contracts were regenerated, and semantic-boundary fitness tests pin the retired vocabulary. |
 | 36. Cursor namespace and maintenance boundary closure | Completed | 2026-08-04 | 2026-08-04 | Semantic cursor namespaces, Execution/Run maintenance vocabulary, Delivery test-boundary isolation, comment cleanup, architecture fitness checks, workspace/standalone build and vet, server suites, focused race tests, static analysis, lint, dead-code analysis, and residue scans passed. |
+| 37. Remaining semantic boundary closure | Completed | 2026-08-04 | 2026-08-04 | `bootstrap.Stack` exposes the idempotency consumer port, inner queries use lookup/value semantics, inner-ring comments are layer-neutral, and focused architecture guards plus workspace/standalone/race/static verification passed. |
 
 Allowed status values: `Pending`, `In progress`, `Completed`, `Blocked`, `Revised`.
 
 ## 7. Progress log
+
+### 2026-08-04 — Batch 37 completed
+
+- Replaced `bootstrap.Stack`'s concrete SQLite idempotency field with the neutral
+  consumer-owned `idempotency.Store` port. Construction still accepts the
+  deliberately single-backend SQLite store, while the cross-package discovery
+  surface exposes only the two replay operations its HTTP consumer invokes.
+- Replaced the remaining inner-ring Java-style queries with semantics that state
+  their absence/identity contract: `LookupMode`, `LookupOpenInterrupt`, and
+  `SessionByID`. Published Delivery RPC operation names remain unchanged.
+- Rewrote Domain, Application, and Adapter comments around owned concepts rather
+  than current outer callers. The architecture suite now parses Go comments and
+  rejects outward ring vocabulary per ring; additional guards reject future
+  inner `GetX` queries and a concrete idempotency store returning to `Stack`.
+- Workspace and standalone build/vet/test, focused race tests, `staticcheck`,
+  `golangci-lint`, `deadcode -test`, formatting, empty-path, dependency, naming,
+  and comment-residue scans passed.
 
 ### 2026-08-04 — Batch 36 completed
 

@@ -496,7 +496,7 @@ func (c *Coordinator) cancelParkedRun(ctx context.Context, cmd CancelCommand, ru
 	}
 	defer releaseSession()
 
-	pending, found, err := c.sessions.GetOpenInterrupt(ctx, cmd.RunID)
+	pending, found, err := c.sessions.LookupOpenInterrupt(ctx, cmd.RunID)
 	if err != nil {
 		return CancelResult{}, err
 	}

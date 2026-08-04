@@ -23,9 +23,9 @@ import (
 // component is shutting down.
 var errClosed = errors.New("codebase: closed")
 
-// ErrRootResolverUnavailable reports a malformed composition root. Normal
-// deployments always provide the workspace resolver; keeping the failure
-// explicit prevents semantic-index calls from accepting an unscoped path.
+// ErrRootResolverUnavailable reports a missing required workspace resolver.
+// Keeping the failure explicit prevents semantic-index calls from accepting an
+// unscoped path.
 var ErrRootResolverUnavailable = errors.New("codebase: workspace root resolver unavailable")
 
 // ErrUnavailable reports that this runtime assembled no semantic index, so the

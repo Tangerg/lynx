@@ -72,7 +72,7 @@ type goalStore interface {
 }
 
 // NewSessionStores returns the SQLite adapter for session snapshots and
-// write-sets. Its dependencies are assembled once by Bootstrap.
+// write-sets. Its dependencies are fixed at construction.
 func NewSessionStores(cfg SessionStoresConfig) *SessionStores {
 	return &SessionStores{
 		sessions:            cfg.Sessions,

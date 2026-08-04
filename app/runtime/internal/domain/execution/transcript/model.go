@@ -41,7 +41,7 @@ type Run struct {
 	RootRunID       string
 	ModelSelection  modelref.Selection
 	// GoalLeaseID is immutable admission provenance for a root autonomous Run.
-	// It remains private to application accounting and is deliberately omitted
+	// It remains private to autonomous-goal accounting and is deliberately omitted
 	// from portable session snapshots, which cannot resurrect a live goal lease.
 	GoalLeaseID string
 	State       execution.RunState
@@ -211,7 +211,7 @@ type ItemKind uint8
 
 const (
 	// ItemKind values name the closed semantic variants of a transcript item.
-	// Storage adapters choose and validate their own durable discriminants.
+	// Durable codecs choose and validate their own discriminants.
 	UserMessage  ItemKind = 0
 	AgentMessage ItemKind = 1
 	Reasoning    ItemKind = 2

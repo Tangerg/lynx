@@ -109,7 +109,7 @@ type TreeResumeDraft struct {
 	RootRunID string
 	SessionID string
 	// ResumedAt is the single tree-opening timestamp used by every Run row.
-	// Recording it on the draft lets the application return the exact committed
+	// Recording it on the draft preserves the exact committed
 	// root snapshot instead of approximating a store-owned clock.
 	ResumedAt time.Time
 	Runs      []RunResumeDraft

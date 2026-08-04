@@ -19,8 +19,8 @@ import (
 // @file autocomplete source. Listing is gitignore-aware: in a git repo the
 // candidate set comes from `git ls-files` (tracked + untracked-not-ignored, the
 // repo's own .gitignore as authority); outside a repo it's a filesystem walk
-// that skips a backstop set of heavy build/vcs dirs. This lives in the adapter
-// layer so delivery never imports infra/git directly.
+// that skips a backstop set of heavy build/vcs dirs. This package owns Git
+// interaction so callers depend only on listing behavior.
 
 // EntryKind is a listed entry's type — file / dir / symlink (wire §7.5).
 type EntryKind string
@@ -32,7 +32,7 @@ const (
 )
 
 // FileEntry is one inspected entry, path relative to the workspace root
-// (slash-separated). It owns the file facts needed by every delivery adapter;
+// (slash-separated). It owns the file facts needed by every listing consumer;
 // callers don't need a second, potentially inconsistent stat pass.
 type FileEntry struct {
 	Path       string
@@ -66,7 +66,7 @@ type ListFilesOptions struct {
 var ErrListingTooLarge = errors.New("workspace: file listing too large")
 
 // maxListEntries is a safety boundary, not a silent result cap. Crossing it
-// returns ErrListingTooLarge so delivery can surface a clear invalid_params.
+// returns ErrListingTooLarge so callers can report precise invalid input.
 const maxListEntries = 20000
 
 // backstopExclude are directories never worth listing. `.git` is always
@@ -83,8 +83,8 @@ var backstopExclude = map[string]bool{
 // ListFiles lists entries under opts.Path within root. With Recursive (or a
 // Glob) it returns a flat list of files for the subtree; otherwise the
 // immediate children (files + dirs) of opts.Path, for a lazy file tree.
-// The complete, deterministically ordered result is returned for application-
-// level pagination. Oversized trees fail explicitly with ErrListingTooLarge.
+// The complete, deterministically ordered result is returned for use-case
+// pagination. Oversized trees fail explicitly with ErrListingTooLarge.
 func ListFiles(ctx context.Context, root string, opts ListFilesOptions) ([]FileEntry, error) {
 	sub := path.Clean(filepath.ToSlash(opts.Path))
 	if sub == "." || sub == "/" {

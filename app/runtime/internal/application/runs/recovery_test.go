@@ -35,7 +35,7 @@ func (store *recoveryStoreStub) ListPendingInterrupts(context.Context) ([]interr
 	return append([]interrupts.Pending(nil), store.pending...), nil
 }
 
-func (store *recoveryStoreStub) GetSession(_ context.Context, sessionID string) (session.Session, error) {
+func (store *recoveryStoreStub) SessionByID(_ context.Context, sessionID string) (session.Session, error) {
 	if sess, ok := store.sessions[sessionID]; ok {
 		return sess, nil
 	}

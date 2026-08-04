@@ -120,7 +120,7 @@ func TestPolicyRejectsInvalidMode(t *testing.T) {
 
 type memoryModeStore struct{ states map[string]SessionMode }
 
-func (s *memoryModeStore) GetMode(_ context.Context, sessionID string) (SessionMode, bool, error) {
+func (s *memoryModeStore) LookupMode(_ context.Context, sessionID string) (SessionMode, bool, error) {
 	state, found := s.states[sessionID]
 	return state, found, nil
 }

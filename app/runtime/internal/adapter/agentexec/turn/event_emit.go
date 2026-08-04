@@ -35,7 +35,7 @@ func (s *controller) emitProcessEvent(st *turnState, process agentexec.ProcessRe
 	if st.eventsClosed {
 		return false
 	}
-	// Prefer delivery: when the buffer has room the event lands regardless of
+	// Prefer enqueueing: when the buffer has room the event lands regardless of
 	// whether the turn ctx was already canceled. This is what makes a canceled
 	// turn's terminal event (TurnEnd) reaches a consumer still draining the
 	// stream — Cancel cancels st.ctx *before* the

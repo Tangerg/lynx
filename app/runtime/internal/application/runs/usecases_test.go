@@ -64,7 +64,7 @@ func (f *fakeRunSessions) ListOpenInterrupts(_ context.Context, sessionID string
 	return out, nil
 }
 
-func (f *fakeRunSessions) GetOpenInterrupt(_ context.Context, runID string) (interrupts.Pending, bool, error) {
+func (f *fakeRunSessions) LookupOpenInterrupt(_ context.Context, runID string) (interrupts.Pending, bool, error) {
 	pending, ok := f.pending[runID]
 	return pending, ok, nil
 }

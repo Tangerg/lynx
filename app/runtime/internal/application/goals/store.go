@@ -29,14 +29,14 @@ type RunRecorder interface {
 	RecordRun(ctx context.Context, record goal.RunRecord) error
 }
 
-// DurableStore is the complete persistence surface the composition root gives
-// to a Run terminalizer. The Driver and State consume the smaller Store slice.
+// DurableStore is the complete persistence surface required by a Run
+// terminalizer. The Driver and State consume the smaller Store slice.
 type DurableStore interface {
 	Store
 	RunRecorder
 }
 
-// State is the narrowly exposed autonomous-goal state use case. Tool adapters
+// State is the narrowly exposed autonomous-goal state use case. Tool callers
 // can read the current aggregate, report a terminal outcome, and gate their
 // manifest, but never receive persistence or compare-and-swap operations.
 type State struct {

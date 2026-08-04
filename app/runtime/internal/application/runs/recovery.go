@@ -21,7 +21,7 @@ import (
 type RecoveryStore interface {
 	ListNonTerminalRuns(ctx context.Context) ([]transcript.Run, error)
 	ListPendingInterrupts(ctx context.Context) ([]interrupts.Pending, error)
-	GetSession(ctx context.Context, sessionID string) (session.Session, error)
+	SessionByID(ctx context.Context, sessionID string) (session.Session, error)
 	ListTranscript(ctx context.Context, sessionID string) ([]transcript.Item, error)
 	CountMessages(ctx context.Context, sessionID string) (int, error)
 	CommitRecovery(ctx context.Context, commit RecoveryCommit) error
@@ -141,7 +141,7 @@ func (r *Recovery) Reconcile(ctx context.Context) (int, error) {
 		if tree.root.State == execution.Interrupted && hasInterrupt {
 			sess, ok := sessions[tree.root.SessionID]
 			if !ok {
-				sess, err = r.store.GetSession(ctx, tree.root.SessionID)
+				sess, err = r.store.SessionByID(ctx, tree.root.SessionID)
 				if err != nil {
 					return 0, fmt.Errorf("runs: load recovery Session %q: %w", tree.root.SessionID, err)
 				}

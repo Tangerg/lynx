@@ -1,7 +1,6 @@
 // Package schedule is the scheduled-run domain: a Schedule fires a saved prompt
-// on a cron trigger as a headless run (no client present). The application
-// worker asks its persistence port for schedules whose time has come, starts a
-// run, and records the firing.
+// on a cron trigger as a headless run (no client present). A firing claims
+// schedules whose time has come, starts a run, and records the occurrence.
 //
 // A Schedule stores the final PROMPT text, not a recipe reference — the
 // scheduler is deliberately decoupled from recipes (a client may pre-fill the
@@ -22,7 +21,7 @@ import (
 // run id convention).
 const IDPrefix = "sch_"
 
-// ErrNotFound is returned when an application schedule lookup cannot find an id.
+// ErrNotFound is returned when a schedule lookup cannot find an id.
 var ErrNotFound = errors.New("schedule: not found")
 
 // ErrUnavailable is returned when scheduling is disabled for this runtime.

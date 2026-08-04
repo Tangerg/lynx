@@ -6,6 +6,7 @@ import (
 	"go/token"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -336,44 +337,64 @@ func TestToolsetDoesNotDependOnAgentexec(t *testing.T) {
 	}
 }
 
-// TestDomainDoesNotNameOuterRings prevents documentation from rebuilding a
-// reverse dependency in the reader's mental model after imports have been
-// cleaned up. Domain source describes semantics and ports, never concrete
-// application or adapter package locations.
-func TestDomainDoesNotNameOuterRings(t *testing.T) {
-	root := filepath.Join(moduleRoot(t), "internal", "domain")
-	forbidden := []string{
-		"internal/adapter/",
-		"internal/application/",
-		"internal/delivery/",
-		"internal/infra/",
-		"internal/bootstrap/",
-		"adapter/",
-		"application/",
-		"delivery/",
-		"infra/",
-		"bootstrap/",
+// TestInnerRingCommentsDoNotNameOuterArchitecture prevents documentation from
+// rebuilding a reverse dependency in the reader's mental model after imports
+// have been cleaned up. Comments describe owned semantics and inward ports,
+// never a caller or composition package that happens to consume them today.
+func TestInnerRingCommentsDoNotNameOuterArchitecture(t *testing.T) {
+	root := filepath.Join(moduleRoot(t), "internal")
+	checks := []struct {
+		ring      string
+		forbidden *regexp.Regexp
+	}{
+		{
+			ring:      "domain",
+			forbidden: regexp.MustCompile(`(?i)\b(application|adapters?|delivery|infrastructure|infra|bootstrap)\b`),
+		},
+		{
+			ring:      "application",
+			forbidden: regexp.MustCompile(`(?i)\b(adapters?|delivery|infrastructure|infra|bootstrap)\b|composition[ -]root`),
+		},
+		{
+			ring:      "adapter",
+			forbidden: regexp.MustCompile(`(?i)\b(delivery|bootstrap|frontend)\b|composition[ -]root`),
+		},
 	}
-	err := filepath.WalkDir(root, func(path string, entry os.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if entry.IsDir() || filepath.Ext(path) != ".go" || strings.HasSuffix(path, "_test.go") {
-			return nil
-		}
-		source, err := os.ReadFile(path)
-		if err != nil {
-			return err
-		}
-		for _, outer := range forbidden {
-			if strings.Contains(string(source), outer) {
-				t.Errorf("domain source %s names outer ring %q", path, outer)
+	for _, check := range checks {
+		t.Run(check.ring, func(t *testing.T) {
+			dir := filepath.Join(root, check.ring)
+			err := filepath.WalkDir(dir, func(path string, entry os.DirEntry, err error) error {
+				if err != nil {
+					return err
+				}
+				if entry.IsDir() || filepath.Ext(path) != ".go" || strings.HasSuffix(path, "_test.go") {
+					return nil
+				}
+				file, err := parser.ParseFile(token.NewFileSet(), path, nil, parser.ParseComments)
+				if err != nil {
+					return err
+				}
+				for _, group := range file.Comments {
+					if leaked := check.forbidden.FindString(group.Text()); leaked != "" {
+						t.Errorf("%s comment names outer architecture %q", path, leaked)
+					}
+				}
+				return nil
+			})
+			if err != nil {
+				t.Fatalf("walk %s comments: %v", check.ring, err)
 			}
-		}
-		return nil
-	})
-	if err != nil {
-		t.Fatalf("walk domain source: %v", err)
+		})
+	}
+}
+
+// TestStackExposesTheIdempotencyConsumerPort keeps concrete storage ownership
+// inside construction. The assembled discovery surface crosses a package
+// boundary, so it exposes exactly the behavior its HTTP consumer requires.
+func TestStackExposesTheIdempotencyConsumerPort(t *testing.T) {
+	path := filepath.Join(moduleRoot(t), "internal", "bootstrap", "assemble.go")
+	if got := namedStructFieldType(t, path, "Stack", "IdempotencyStore"); got != "idempotency.Store" {
+		t.Fatalf("Stack.IdempotencyStore type = %s, want consumer port idempotency.Store", got)
 	}
 }
 

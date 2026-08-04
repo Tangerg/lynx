@@ -53,7 +53,7 @@ type scheduleView struct {
 }
 
 // Management is the schedule family's narrow application use case.
-// It intentionally does not expose delivery's revisioned Update or firing APIs.
+// It intentionally excludes revisioned updates and firing operations.
 type Management interface {
 	List(ctx context.Context) ([]scheduledomain.Schedule, error)
 	Create(ctx context.Context, cmd scheduleapp.CreateCommand) (scheduledomain.Schedule, error)

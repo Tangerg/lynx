@@ -25,8 +25,8 @@ const (
 //   - ModePlan     → deny every write / network / exec / unknown tool (read-only)
 //
 // Read-only tools ([tool.SafetyClassSafe]) never gate, in any mode. Pure
-// function so adapters and tests can audit the matrix without touching the
-// runtime policy. The concrete tool owner supplies the class; this function
+// function so tests can audit the matrix without touching runtime policy. The
+// concrete tool owner supplies the class; this function
 // only decides the gate from domain values.
 func GateFor(cls tool.SafetyClass, mode Mode) GateAction {
 	if mode == ModeYolo {

@@ -15,8 +15,7 @@ import (
 )
 
 // UsageRecorder records that a skill was loaded, feeding the idle-lifecycle
-// curator's last-used signal. The composition root supplies the authoring store;
-// nil disables use recording (a session that ships no authoring store).
+// curator's last-used signal. nil disables use recording.
 type UsageRecorder interface {
 	RecordUse(ctx context.Context, name string, now time.Time) error
 }

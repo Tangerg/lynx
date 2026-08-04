@@ -7,7 +7,7 @@ import (
 )
 
 // ToolPolicyState owns the effective MCP tool-policy snapshot. The application
-// coordinator publishes registry-derived replacements; execution adapters read
+// coordinator publishes registry-derived replacements; execution consumers read
 // only the policy decisions they need.
 type ToolPolicyState struct {
 	policy atomic.Pointer[mcpserver.ToolPolicy]

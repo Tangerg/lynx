@@ -87,7 +87,7 @@ type RunWriter interface {
 }
 
 // ExecutorCheckpointStore persists and removes root-owned opaque executor
-// checkpoints selected by the Application lifecycle. It never interprets the
+// checkpoints selected by the Run lifecycle. It never interprets the
 // payload.
 type ExecutorCheckpointStore interface {
 	SaveCheckpoint(ctx context.Context, checkpoint execution.ExecutorCheckpoint) error
@@ -122,7 +122,7 @@ type TaskLauncher interface {
 }
 
 // FileChangePublisher nudges live workspace subscribers after a tool-owned file
-// mutation. It is deliberately path-only: the protocol adapter owns the wire
+// mutation. It is deliberately path-only: the protocol boundary owns the wire
 // WorkspaceEvent shape.
 type FileChangePublisher func(workspaceapp.FileChangeNotice)
 

@@ -48,7 +48,7 @@ func (s SessionMode) Validate() error {
 // the runtime default. Implementations must return found=false for a missing
 // session row and validate ownership at their persistence boundary.
 type ModeStore interface {
-	GetMode(ctx context.Context, sessionID string) (state SessionMode, found bool, err error)
+	LookupMode(ctx context.Context, sessionID string) (state SessionMode, found bool, err error)
 	PutMode(ctx context.Context, sessionID string, state SessionMode) error
 }
 
@@ -93,7 +93,7 @@ func (p *RuntimePolicy) Mode(ctx context.Context, sessionID string) (Mode, error
 	if sessionID == "" || p.modeStore == nil {
 		return fallback, nil
 	}
-	state, found, err := p.modeStore.GetMode(ctx, sessionID)
+	state, found, err := p.modeStore.LookupMode(ctx, sessionID)
 	if err != nil {
 		return 0, err
 	}
@@ -144,7 +144,7 @@ func (p *RuntimePolicy) ExitPlanMode(ctx context.Context, sessionID string) (res
 	p.modeMu.Lock()
 	defer p.modeMu.Unlock()
 
-	state, found, err := p.modeStore.GetMode(ctx, sessionID)
+	state, found, err := p.modeStore.LookupMode(ctx, sessionID)
 	if err != nil {
 		return 0, false, err
 	}

@@ -32,7 +32,7 @@ type turnState struct {
 	cancel context.CancelFunc
 
 	// eventMu is the single serialization point for sequence assignment,
-	// event delivery, and channel closure. No sender may touch events without
+	// event publication, and channel closure. No sender may touch events without
 	// it, so terminalization can close the stream without racing a late observer
 	// or a park/cancel hand-off.
 	eventMu      sync.Mutex

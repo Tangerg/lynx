@@ -217,7 +217,7 @@ func (r *Resolver) delegationTool() toolcontract.Tool {
 }
 
 // UseCreateGoalTool installs the root-only autonomous Goal entry tool after
-// Bootstrap has constructed the Goal Driver over Runs. This is a narrow
+// the Goal Driver has been constructed over Runs. This is a narrow
 // construction seam: the resolver still knows only a generic tool contract.
 func (r *Resolver) UseCreateGoalTool(tool toolcontract.Tool) {
 	r.lateMu.Lock()

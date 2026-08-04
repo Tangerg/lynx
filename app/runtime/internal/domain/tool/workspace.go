@@ -19,7 +19,7 @@ const (
 )
 
 // BypassImmunity identifies a call that must still be confirmed under an
-// auto-approve mode. It is policy data; adapters decide how to explain it.
+// auto-approve mode. It carries policy identity without presentation text.
 type BypassImmunity uint8
 
 const (
@@ -78,8 +78,8 @@ var (
 // bypassable via quoting/variables); it is a courtesy confirm before an obvious
 // disaster.
 // CatastrophicCommand reports whether a shell command has a high-confidence
-// destructive shape. Adapters extract the command from their concrete tool
-// input schema before invoking this domain policy.
+// destructive shape. The command must already be extracted from its concrete
+// tool input before invoking this policy.
 func CatastrophicCommand(command string) bool {
 	if command == "" {
 		return false

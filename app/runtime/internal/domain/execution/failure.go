@@ -6,8 +6,8 @@ import (
 )
 
 // FailureKind classifies an execution failure without depending on provider
-// error text. Integrations translate concrete failures at their boundary; the
-// application projects this stable vocabulary into its own records.
+// error text. Integrations translate concrete failures at their boundary;
+// durable Run records retain this stable vocabulary.
 type FailureKind uint8
 
 const (

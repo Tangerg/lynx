@@ -7,7 +7,7 @@
 //     persisted session overlay entered only through enter_plan_mode. The HITL
 //     pause/resume is the R model: the
 //     executor parks a suspension and the client later supplies one typed
-//     resolution through the application continuation boundary.
+//     resolution through the durable continuation boundary.
 //   - Rules: persistent, fine-grained "remember this decision" rules. A rule
 //     gates a (tool, subject) pair under a scope (session / project / global),
 //     so the user can approve once and not be re-asked for matching calls. The

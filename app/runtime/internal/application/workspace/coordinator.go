@@ -41,8 +41,7 @@ type SkillCatalog interface {
 
 // SkillCurator manages the user self-authored Skill library: listing every
 // skill with its lifecycle and moving one between active and archived (never
-// deleting). The composition root supplies the file-backed authoring store; nil
-// disables the management surface.
+// deleting). A nil curator disables the management surface.
 type SkillCurator interface {
 	List(ctx context.Context) ([]skills.Entry, error)
 	Archive(ctx context.Context, name string) error

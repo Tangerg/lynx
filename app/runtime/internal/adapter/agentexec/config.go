@@ -81,8 +81,8 @@ type Config struct {
 	// path) — fine for tests, not recommended for production.
 	Workdir string
 
-	// UserHome anchors the home-scoped AGENTS.md instruction cascade. The
-	// process composition root resolves it once; the execution adapter never
+	// UserHome anchors the home-scoped AGENTS.md instruction cascade. The caller
+	// resolves it once; the execution adapter never
 	// consults ambient user-home state on its own. Empty omits the home layer.
 	UserHome string
 
@@ -114,7 +114,7 @@ type Config struct {
 
 	// ToolResolver supplies the execution-time role groups and accepts the task
 	// delegation tool that can only be built after the subtask Agent deploys.
-	// Catalogs, MCP controls, and shutdown hooks stay with toolset/bootstrap.
+	// Catalogs, MCP controls, and shutdown hooks remain outside execution.
 	ToolResolver ToolResolver
 
 	// Pricing optionally computes per-round USD cost from the round's

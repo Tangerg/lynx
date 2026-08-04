@@ -11,6 +11,62 @@ import (
 	"testing"
 )
 
+// TestInnerQueriesDoNotUseJavaGetterNames keeps internal semantic APIs on Go
+// vocabulary. Delivery is intentionally excluded because its exported method
+// names mirror the published RPC operations; inner queries instead use a noun,
+// Lookup, or Find according to their missing-value contract.
+func TestInnerQueriesDoNotUseJavaGetterNames(t *testing.T) {
+	root := moduleRoot(t)
+	for _, ring := range []string{"domain", "application", "adapter", "infra"} {
+		t.Run(ring, func(t *testing.T) {
+			dir := filepath.Join(root, "internal", ring)
+			err := filepath.WalkDir(dir, func(path string, entry fs.DirEntry, err error) error {
+				if err != nil {
+					return err
+				}
+				if entry.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+					return nil
+				}
+				file, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
+				if err != nil {
+					return err
+				}
+				check := func(name string) {
+					if strings.HasPrefix(name, "Get") && len(name) > len("Get") && ast.IsExported(name[len("Get"):]) {
+						t.Errorf("%s declares Java-style query %s; name the value or its lookup semantics", path, name)
+					}
+				}
+				for _, declaration := range file.Decls {
+					switch typed := declaration.(type) {
+					case *ast.FuncDecl:
+						check(typed.Name.Name)
+					case *ast.GenDecl:
+						for _, spec := range typed.Specs {
+							typeSpec, ok := spec.(*ast.TypeSpec)
+							if !ok {
+								continue
+							}
+							contract, ok := typeSpec.Type.(*ast.InterfaceType)
+							if !ok {
+								continue
+							}
+							for _, method := range contract.Methods.List {
+								for _, name := range method.Names {
+									check(name.Name)
+								}
+							}
+						}
+					}
+				}
+				return nil
+			})
+			if err != nil {
+				t.Fatalf("walk %s naming: %v", ring, err)
+			}
+		})
+	}
+}
+
 // TestReceiverNamesStayConsistent keeps a receiver's name stable across every
 // production method on the same type. Mixed names make one type read like
 // several unrelated abstractions and commonly expose a partial rename.
