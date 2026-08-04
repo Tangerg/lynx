@@ -644,6 +644,8 @@ export const de: Record<string, string> = {
   "command.closeFocused.desc":
     "Schließt das offene Panel; sonst verlässt es den Chat, der im Arbeitsindex bleibt",
   "command.focusComposer": "Editor fokussieren",
+  "command.historyBack": "Zurück",
+  "command.historyForward": "Vorwärts",
 
   "diagnostics.clear": "Löschen",
   "diagnostics.title": "Diagnose",

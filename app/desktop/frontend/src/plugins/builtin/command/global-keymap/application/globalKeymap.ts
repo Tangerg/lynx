@@ -1,6 +1,8 @@
 import type { CommandSpec, ShortcutSpec } from "@/plugins/sdk";
 import type { Translate } from "@/lib/i18n";
 
+// A command's `combo` is only a real shortcut if its id is listed here — this is
+// what turns the declaration into a registration.
 export const GLOBAL_COMMAND_IDS = [
   "chat.new",
   "chat.search",
@@ -8,6 +10,8 @@ export const GLOBAL_COMMAND_IDS = [
   "composer.focus",
   "view.toggle-sidebar",
   "settings.toggle-theme",
+  "history.back",
+  "history.forward",
 ];
 
 export type CommandLookup = (id: string) => CommandSpec | undefined;

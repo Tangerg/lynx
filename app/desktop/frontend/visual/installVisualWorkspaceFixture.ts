@@ -42,7 +42,7 @@ import type { PluginSpec } from "@/plugins/sdk";
 import type { FeatureCapability, ServerCapabilities } from "@/rpc";
 import { useContextDockStore } from "@/state/contextDockStore";
 import { useUiStore } from "@/state/uiStore";
-import { useWorkspaceSurfaceStore } from "@/state/workspaceSurfaceStore";
+import { navigator } from "@/lib/navigation";
 import { VISUAL_SESSION_ID } from "./agentSessionSnapshots";
 import { installVisualAgentFixture } from "./installVisualAgentFixture";
 import type { VisualWorkspaceState, VisualWorkspaceTheme } from "./workspaceFixtureStates";
@@ -328,9 +328,9 @@ export async function installVisualWorkspaceFixture(
     selectedToolId: "",
     expandedToolIds: new Set(),
   });
-  useWorkspaceSurfaceStore.setState({
-    activeMainView: state === "settings" ? "settings" : null,
-    settingsPane: state === "settings" ? "appearance" : null,
+  navigator().go({
+    view: state === "settings" ? "settings" : null,
+    settings: state === "settings" ? "appearance" : null,
   });
   useUiStore.setState({
     theme,

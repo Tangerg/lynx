@@ -820,6 +820,8 @@ export const zh: Record<string, string> = {
   "command.closeFocused": "关闭面板或会话",
   "command.closeFocused.desc": "先关闭打开的面板；否则离开当前会话 —— 会话仍留在工作索引中",
   "command.focusComposer": "聚焦输入框",
+  "command.historyBack": "后退",
+  "command.historyForward": "前进",
 
   "diagnostics.clear": "清除",
   "diagnostics.title": "诊断",

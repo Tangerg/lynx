@@ -6,6 +6,8 @@ import { TooltipProvider } from "@/ui";
 import { publishMotionScale } from "@/lib/appearance";
 import { queryClient } from "@/lib/queryClient";
 import { setLocale } from "@/lib/i18n";
+import { configureNavigator } from "@/lib/navigation";
+import { createMemoryNavigator } from "@/lib/navigation.testkit";
 import { uiTypeLadderCssVariables } from "@/lib/typography";
 import { installDocumentAppearance } from "@/plugins/builtin/theme/adapters/documentAppearance";
 import { loadPlugin } from "@/plugins/sdk";
@@ -26,6 +28,10 @@ const VISUAL_CLOCK_STARTED_AT = performance.now();
 // transcript's real initial-scroll behaviour from visual tests.
 Date.now = () => VISUAL_NOW + (performance.now() - VISUAL_CLOCK_STARTED_AT);
 setLocale("en");
+// The app's location comes from the router; a fixture has no routes and needs
+// only to be somewhere. Each fixture's install() navigates this to the place it
+// is photographing.
+configureNavigator(createMemoryNavigator());
 
 function fixtureTheme(value: string | null): FixtureTheme {
   return value === "dark" ? "dark" : "light";

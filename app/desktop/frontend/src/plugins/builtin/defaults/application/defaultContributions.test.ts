@@ -61,6 +61,8 @@ describe("defaultStaticCommands", () => {
       newChat: run,
       closeFocused: run,
       focusComposer: run,
+      historyBack: run,
+      historyForward: run,
     });
 
     expect(commands.map((command) => command.id)).toEqual([
@@ -69,6 +71,8 @@ describe("defaultStaticCommands", () => {
       "chat.new",
       "workspace.close-focused",
       "composer.focus",
+      "history.back",
+      "history.forward",
     ]);
     expect(commands.map((command) => command.combo)).toEqual([
       "Mod+B",
@@ -76,6 +80,8 @@ describe("defaultStaticCommands", () => {
       "Mod+N",
       "Mod+W",
       "Mod+L",
+      "Mod+[",
+      "Mod+]",
     ]);
     expect(commands.map((command) => command.label)).toEqual([
       "command.toggleSidebar",
@@ -83,6 +89,8 @@ describe("defaultStaticCommands", () => {
       "command.newChat",
       "command.closeFocused",
       "command.focusComposer",
+      "command.historyBack",
+      "command.historyForward",
     ]);
   });
 });

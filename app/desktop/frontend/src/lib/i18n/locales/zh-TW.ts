@@ -641,6 +641,8 @@ export const zhTW: Record<string, string> = {
   "command.closeFocused": "關閉面板或對話",
   "command.closeFocused.desc": "先關閉開啟的面板；否則離開目前對話 —— 對話仍留在工作索引中",
   "command.focusComposer": "聚焦輸入框",
+  "command.historyBack": "上一頁",
+  "command.historyForward": "下一頁",
 
   "diagnostics.clear": "清除",
   "diagnostics.title": "診斷",

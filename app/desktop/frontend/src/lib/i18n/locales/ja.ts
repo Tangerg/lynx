@@ -634,6 +634,8 @@ export const ja: Record<string, string> = {
   "command.closeFocused.desc":
     "開いているパネルを閉じ、なければチャットから離れます（チャットは作業インデックスに残ります）",
   "command.focusComposer": "コンポーザーにフォーカス",
+  "command.historyBack": "戻る",
+  "command.historyForward": "進む",
 
   "diagnostics.clear": "クリア",
   "diagnostics.title": "診断",

@@ -628,6 +628,8 @@ export const ko: Record<string, string> = {
   "command.closeFocused.desc":
     "열린 패널을 닫고, 없으면 채팅에서 나갑니다 — 채팅은 작업 색인에 남습니다",
   "command.focusComposer": "컴포저에 포커스",
+  "command.historyBack": "뒤로 가기",
+  "command.historyForward": "앞으로 가기",
 
   "diagnostics.clear": "지우기",
   "diagnostics.title": "진단",

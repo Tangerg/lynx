@@ -22,7 +22,7 @@ import type {
 import type { ContentBlockKind } from "@/plugins/sdk/types/contentBlock";
 import { addLocaleBundle } from "@/lib/i18n";
 import { useContextDockStore } from "@/state/contextDockStore";
-import { useWorkspaceSurfaceStore } from "@/state/workspaceSurfaceStore";
+import { navigator } from "@/lib/navigation";
 import { startTask } from "@/state/tasksStore";
 import { getConfig, hasConfig, setConfig, useConfigStore } from "./config";
 import { restrictHost } from "./capabilityGate";
@@ -120,10 +120,10 @@ export function createHost(
           console.warn(`[plugin] workspace.openView("${id}"): no view registered`);
           return;
         }
-        useWorkspaceSurfaceStore.getState().openMainView(id);
+        navigator().go({ view: id });
       },
       closeView(id: string): void {
-        useWorkspaceSurfaceStore.getState().closeMainView(id);
+        if (navigator().get().view === id) navigator().go({ view: null });
         useContextDockStore.getState().closeDockView(id);
       },
     },

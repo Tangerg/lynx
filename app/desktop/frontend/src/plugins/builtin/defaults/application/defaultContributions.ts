@@ -8,6 +8,8 @@ export interface DefaultCommandRuns {
   newChat: CommandRun;
   closeFocused: CommandRun;
   focusComposer: CommandRun;
+  historyBack: CommandRun;
+  historyForward: CommandRun;
 }
 
 /** The two placements a view can be opened into. Which one a command uses is the
@@ -132,6 +134,28 @@ export function defaultStaticCommands(runs: DefaultCommandRuns): CommandSpec[] {
       order: 0,
       combo: "Mod+L",
       run: runs.focusComposer,
+    },
+    // The window has no address bar and no back button, so these two are the
+    // only way to reach the history the location now records.
+    {
+      id: "history.back",
+      label: "command.historyBack",
+      icon: "chevron-left",
+      group: "command.group.view",
+      keywords: ["previous", "return"],
+      order: 1,
+      combo: "Mod+[",
+      run: runs.historyBack,
+    },
+    {
+      id: "history.forward",
+      label: "command.historyForward",
+      icon: "chevron-right",
+      group: "command.group.view",
+      keywords: ["next"],
+      order: 2,
+      combo: "Mod+]",
+      run: runs.historyForward,
     },
   ];
 }

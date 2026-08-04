@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { useContextDockStore } from "@/state/contextDockStore";
-import { useWorkspaceSurfaceStore } from "@/state/workspaceSurfaceStore";
+import { navigator } from "@/lib/navigation";
 import {
   closeActiveWorkspaceDockView,
   closeActiveWorkspaceView,
@@ -14,7 +14,7 @@ import {
 
 function reset() {
   document.body.replaceChildren();
-  useWorkspaceSurfaceStore.setState({ activeMainView: "v2", settingsPane: null });
+  navigator().go({ view: "v2", settings: null });
   useContextDockStore.setState({
     activeSessionScopeId: "",
     sessionScopes: new Map(),
@@ -36,7 +36,7 @@ describe("workspace navigation port", () => {
     openWorkspaceViewInDock("diff");
     openWorkspaceViewInDock("explorer");
 
-    expect(useWorkspaceSurfaceStore.getState().activeMainView).toBeNull();
+    expect(navigator().get().view).toBeNull();
     expect(useContextDockStore.getState()).toMatchObject({
       dockOpen: true,
       dockViewIds: ["explorer", "diff"],
@@ -55,7 +55,7 @@ describe("workspace navigation port", () => {
     collapseWorkspaceDock();
     openWorkspaceView("v3");
 
-    expect(useWorkspaceSurfaceStore.getState().activeMainView).toBe("v3");
+    expect(navigator().get().view).toBe("v3");
     expect(useContextDockStore.getState()).toMatchObject({
       dockOpen: false,
       dockViewIds: ["explorer"],
@@ -68,7 +68,7 @@ describe("workspace navigation port", () => {
     openWorkspaceView("v3");
 
     expect(closeActiveWorkspaceView()).toBe(true);
-    expect(useWorkspaceSurfaceStore.getState().activeMainView).toBeNull();
+    expect(navigator().get().view).toBeNull();
     expect(useContextDockStore.getState().dockViewIds).toEqual(["explorer"]);
   });
 
@@ -116,7 +116,7 @@ describe("workspace navigation port", () => {
 
     locateWorkspaceTool("task-item");
 
-    expect(useWorkspaceSurfaceStore.getState().activeMainView).toBeNull();
+    expect(navigator().get().view).toBeNull();
     expect(useContextDockStore.getState().selectedToolId).toBe("task-item");
     expect(useContextDockStore.getState().expandedToolIds).toEqual(new Set(["task-item"]));
     expect(document.activeElement).toBe(button);

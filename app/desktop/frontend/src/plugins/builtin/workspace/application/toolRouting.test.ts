@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import type { ToolCall } from "@/plugins/builtin/agent/public/viewState";
 import { useContextDockStore } from "@/state/contextDockStore";
-import { useWorkspaceSurfaceStore } from "@/state/workspaceSurfaceStore";
+import { navigator } from "@/lib/navigation";
 import { hasWorkspaceViewForTool, openWorkspaceViewForTool } from "./toolRouting";
 import { workspaceCommandActivitiesFromAgentTools } from "./toolActivity";
 
@@ -18,9 +18,7 @@ const toolCall = ({
 
 describe("openWorkspaceViewForTool", () => {
   beforeEach(() => {
-    useWorkspaceSurfaceStore.setState({
-      activeMainView: null,
-    });
+    navigator().go({ view: null });
     useContextDockStore.setState({
       dockOpen: false,
       dockViewIds: [],
@@ -39,14 +37,14 @@ describe("openWorkspaceViewForTool", () => {
   it("opens a command tool beside chat as the terminal split, leaving activeMainView null", () => {
     openWorkspaceViewForTool(toolCall({ id: "t1", name: "shell", fn: "ls -la" }));
     expect(useContextDockStore.getState().activeDockViewId).toBe("terminal");
-    expect(useWorkspaceSurfaceStore.getState().activeMainView).toBeNull();
+    expect(navigator().get().view).toBeNull();
     expect(useContextDockStore.getState().selectedToolId).toBe("t1");
   });
 
   it("opens a fileEdit tool as the diff split and focuses its file", () => {
     openWorkspaceViewForTool(toolCall({ id: "t2", name: "edit", fn: "src/app.ts" }));
     expect(useContextDockStore.getState().activeDockViewId).toBe("diff");
-    expect(useWorkspaceSurfaceStore.getState().activeMainView).toBeNull();
+    expect(navigator().get().view).toBeNull();
     expect(useContextDockStore.getState().activeFile).toBe("src/app.ts");
   });
 
@@ -59,7 +57,7 @@ describe("openWorkspaceViewForTool", () => {
   it("promotes no view for inline-only categories", () => {
     openWorkspaceViewForTool(toolCall({ id: "t4", name: "grep", fn: "foo" }));
     expect(useContextDockStore.getState().activeDockViewId).toBeNull();
-    expect(useWorkspaceSurfaceStore.getState().activeMainView).toBeNull();
+    expect(navigator().get().view).toBeNull();
     expect(useContextDockStore.getState().selectedToolId).toBe("");
   });
 

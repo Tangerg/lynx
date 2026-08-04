@@ -12,7 +12,8 @@ import { useNotificationStore } from "@/plugins/sdk/notifications";
 import { usePluginStore } from "@/plugins/sdk/registry";
 import { _resetAllSlices } from "@/plugins/sdk/stateSlice";
 import { useContextDockStore } from "@/state/contextDockStore";
-import { useWorkspaceSurfaceStore } from "@/state/workspaceSurfaceStore";
+import { configureNavigator } from "@/lib/navigation";
+import { createMemoryNavigator } from "@/lib/navigation.testkit";
 import { installAgentDefaultSessionPort } from "@/plugins/builtin/agent/adapters/agentDefaultSessionPort";
 import { installAgentRuntimeGateway } from "@/plugins/builtin/agent/adapters/agentRuntimeGateway";
 import { installAgentStatePorts } from "@/plugins/builtin/agent/adapters/agentStatePorts";
@@ -26,6 +27,7 @@ installAgentRuntimeGateway();
 installComposerStatePorts();
 installWorkspaceNavigationPort();
 installRuntimeCapabilityPort();
+configureNavigator(createMemoryNavigator());
 
 beforeEach(() => {
   installAgentStatePorts();
@@ -38,10 +40,9 @@ beforeEach(() => {
   usePluginErrorStore.setState({ log: [], nextId: 1 });
   useNotificationStore.setState({ log: [], nextId: 1 });
   useConfigStore.setState({ values: new Map(), subscribers: new Map() });
-  useWorkspaceSurfaceStore.setState({
-    activeMainView: null,
-    settingsPane: null,
-  });
+  // A fresh location per spec, with its own history — the app's Navigator is
+  // backed by the router, which no test stands up.
+  configureNavigator(createMemoryNavigator());
   useContextDockStore.setState({
     activeSessionScopeId: "",
     sessionScopes: new Map(),

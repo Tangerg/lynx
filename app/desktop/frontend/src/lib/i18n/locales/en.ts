@@ -936,6 +936,8 @@ export const en: Record<string, string> = {
   "command.closeFocused.desc":
     "Closes the open panel; otherwise leaves the chat, which stays in the work index",
   "command.focusComposer": "Focus composer",
+  "command.historyBack": "Go back",
+  "command.historyForward": "Go forward",
 
   // ── Diagnostics view ──
   "diagnostics.clear": "Clear",

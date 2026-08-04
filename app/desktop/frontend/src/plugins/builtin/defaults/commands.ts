@@ -22,6 +22,7 @@ import { definePlugin, lookupExtensionPoint, usePluginStore } from "@/plugins/sd
 import { ACCENT, WORKSPACE_VIEW } from "@/plugins/sdk/kernelPoints";
 import { focusComposer } from "@/plugins/builtin/chat/composer/public/focus";
 import { useUiStore } from "@/state/uiStore";
+import { navigator } from "@/lib/navigation";
 import {
   defaultAccentCommands,
   defaultStaticCommands,
@@ -52,6 +53,8 @@ export const defaultCommands = definePlugin({
       newChat: openNewChatSession,
       closeFocused: closeFocusedSurface,
       focusComposer: () => focusComposer(),
+      historyBack: () => navigator().back(),
+      historyForward: () => navigator().forward(),
     })) {
       host.commands.register(command);
     }

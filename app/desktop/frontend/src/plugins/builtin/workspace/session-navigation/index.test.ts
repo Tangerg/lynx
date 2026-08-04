@@ -5,7 +5,7 @@ import type {
 } from "@/plugins/builtin/agent/public/session";
 import { loadPlugin, unloadPlugin } from "@/plugins/sdk";
 import { useContextDockStore } from "@/state/contextDockStore";
-import { useWorkspaceSurfaceStore } from "@/state/workspaceSurfaceStore";
+import { navigator } from "@/lib/navigation";
 import sessionNavigation from ".";
 
 type SelectionListener = (
@@ -68,10 +68,7 @@ function selection(activeSessionId: string, selectionEpoch: number): AgentSessio
 }
 
 function resetWorkspace() {
-  useWorkspaceSurfaceStore.setState({
-    activeMainView: "v2",
-    settingsPane: null,
-  });
+  navigator().go({ view: "v2", settings: null });
   useContextDockStore.setState({
     activeSessionScopeId: "",
     sessionScopes: new Map(),
@@ -128,11 +125,11 @@ describe("workspace session navigation", () => {
   });
 
   it("selecting a different session returns the main pane to chat", () => {
-    expect(useWorkspaceSurfaceStore.getState().activeMainView).toBe("v2");
+    expect(navigator().get().view).toBe("v2");
 
     agentSessionSelection.emit(selection("s2", 1), selection("s1", 0));
 
-    expect(useWorkspaceSurfaceStore.getState().activeMainView).toBeNull();
+    expect(navigator().get().view).toBeNull();
   });
 
   it("selecting a different session restores that session's workspace scope", () => {

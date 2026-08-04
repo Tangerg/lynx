@@ -1,11 +1,20 @@
+// Which surface fills the content card, and which settings pane is open, are
+// the user's location — they come from the Navigator, so history holds them.
+// What the dock has OPEN, and the per-view state inside it, is memory the
+// location doesn't describe: that stays in the store.
 import { useUiStore } from "@/state/uiStore";
 import { useContextDockStore } from "@/state/contextDockStore";
-import { useWorkspaceSurfaceStore } from "@/state/workspaceSurfaceStore";
+import { navigator } from "@/lib/navigation";
 import { configureWorkspaceNavigationPort } from "../application/ports/navigationState";
+
+/** Leaving a promoted view returns to the chat, which is the only other surface. */
+function selectChat(): void {
+  navigator().go({ view: null });
+}
 
 export function installWorkspaceNavigationPort(): () => void {
   return configureWorkspaceNavigationPort({
-    useActiveViewId: () => useWorkspaceSurfaceStore((state) => state.activeMainView),
+    useActiveViewId: () => navigator().use((location) => location.view),
     useDock: () => ({
       open: useContextDockStore((state) => state.dockOpen),
       viewIds: useContextDockStore((state) => state.dockViewIds),
@@ -13,7 +22,7 @@ export function installWorkspaceNavigationPort(): () => void {
     }),
     useActiveFile: () => useContextDockStore((state) => state.activeFile),
     useFileViewer: () => useContextDockStore((state) => state.fileViewer),
-    useSettingsPaneTarget: () => useWorkspaceSurfaceStore((state) => state.settingsPane),
+    useSettingsPaneTarget: () => navigator().use((location) => location.settings),
     useExpandedToolIds: () => useContextDockStore((state) => state.expandedToolIds),
     useSelectTool: () => useContextDockStore((state) => state.setSelectedToolId),
     useToggleTool: () => useContextDockStore((state) => state.toggleExpandedTool),
@@ -36,23 +45,26 @@ export function installWorkspaceNavigationPort(): () => void {
         setWidth: setDockWidth,
       };
     },
-    selectChat: () => useWorkspaceSurfaceStore.getState().selectChat(),
+    selectChat,
     // Taking the whole card leaves the dock's own selection alone: closing the
     // full view brings back whatever the user had beside the chat.
-    openView: (id) => useWorkspaceSurfaceStore.getState().openMainView(id),
+    openView: (id) => navigator().go({ view: id }),
     openViewInDock: (id) => {
-      useWorkspaceSurfaceStore.getState().selectChat();
+      selectChat();
       useContextDockStore.getState().openDockView(id);
     },
     selectDockView: (id) => useContextDockStore.getState().selectDockView(id),
     closeDockView: (id) => useContextDockStore.getState().closeDockView(id),
     collapseDock: () => useContextDockStore.getState().collapseDock(),
     showDock: (defaultViewId) => {
-      useWorkspaceSurfaceStore.getState().selectChat();
+      selectChat();
       useContextDockStore.getState().showDock(defaultViewId);
     },
-    closeView: (id) => useWorkspaceSurfaceStore.getState().closeMainView(id),
-    activeViewId: () => useWorkspaceSurfaceStore.getState().activeMainView,
+    /** A stale id is a no-op: it is not the surface on screen. */
+    closeView: (id) => {
+      if (navigator().get().view === id) selectChat();
+    },
+    activeViewId: () => navigator().get().view,
     dock: () => {
       const state = useContextDockStore.getState();
       return {
@@ -61,18 +73,18 @@ export function installWorkspaceNavigationPort(): () => void {
         activeViewId: state.activeDockViewId,
       };
     },
-    setSettingsPane: (pane) => useWorkspaceSurfaceStore.getState().setSettingsPane(pane),
-    settingsPaneTarget: () => useWorkspaceSurfaceStore.getState().settingsPane,
+    setSettingsPane: (pane) => navigator().go({ settings: pane }),
+    settingsPaneTarget: () => navigator().get().settings,
     setActiveFile: (path) => useContextDockStore.getState().setActiveFile(path),
     openFile: (path, line) => {
       useContextDockStore.getState().setFileViewer(path, line);
       useContextDockStore.getState().openDockView("file");
-      useWorkspaceSurfaceStore.getState().selectChat();
+      selectChat();
     },
     selectedToolId: () => useContextDockStore.getState().selectedToolId,
     setSelectedTool: (id) => useContextDockStore.getState().setSelectedToolId(id),
     locateTool: (id) => {
-      useWorkspaceSurfaceStore.getState().selectChat();
+      selectChat();
       useContextDockStore.getState().revealTool(id);
       if (!focusConversationTool(id) && typeof requestAnimationFrame === "function") {
         requestAnimationFrame(() => focusConversationTool(id));
