@@ -1,50 +1,58 @@
 #!/usr/bin/env node
-// Bundle size budget — guards against accidental regressions in the
-// first-paint payload (entry JS/CSS referenced directly from index.html) and the
-// two intentionally heavyweight lazy capabilities. Vite's raw-size warning is
-// a poor proxy here: ELK and Shiki are disk-served, compressed, lazy features.
-// Explicit gzip budgets preserve the real invariant without funneling unrelated
-// dependencies into one vendor chunk or suppressing unbounded growth.
+// Startup budget — guards the work the app performs before first paint, and the
+// code splitting that keeps that work bounded.
+//
+// WHY RAW BYTES, NOT GZIP: this is a desktop app. Assets are read from an
+// embedded filesystem through the webview's own scheme — never fetched over a
+// network, never gzipped in transit. Compressed size therefore measures a cost
+// we do not pay; the cost we do pay is parse + evaluate, which tracks raw
+// bytes. Measuring gzip here was a web-era proxy that had drifted into
+// measuring nothing: the entry budget sat at 3.5x the actual payload (a gate
+// that could no longer fail) while the lazy features sat at ~90% of theirs,
+// about to fail for a reason that costs a desktop user nothing.
+//
+// TWO DIFFERENT INVARIANTS, GUARDED DIFFERENTLY:
+//   * The entry payload is startup work. Every byte is parsed before anything
+//     renders, so it gets a real ceiling with modest headroom.
+//   * The heavyweight lazy features (syntax highlighting, diagram rendering)
+//     are read from local disk on first use, so their absolute size is not a
+//     user-visible cost. What WOULD be is one of them landing on the startup
+//     path. So they are guarded structurally — each must exist as its own chunk
+//     and must not be referenced from index.html — with only a runaway ceiling
+//     on size.
 //
 // Method:
-//   1. Parse dist/index.html, extract every <script src> and
-//      <link rel="stylesheet" href> that points into /assets/.
-//   2. For each referenced file, measure gzip size (Node builtin zlib).
-//   3. Sum + compare against the per-extension budgets in BUDGETS.
-//   4. Exit non-zero on any overrun; print a focused diff vs. budget.
+//   1. Parse dist/index.html for the entry assets (<script src>, stylesheets).
+//   2. Sum their raw bytes, compare against BUDGETS.
+//   3. For each lazy feature: assert its chunk exists, assert index.html does
+//      not reference it, sum its raw bytes against a runaway ceiling.
 //
-// Bumping the budget: when a deliberate increase is needed (new
-// feature added to the entry path), update the constants below in
-// the same commit that introduces the growth. Reviewers SHOULD push
-// back on bumps without a justification line.
+// Bumping a budget: allowed, in the same commit as the growth, with a reason.
+// Reviewers SHOULD push back on a bump carrying no justification — a budget
+// nobody defends decays into the gate this file had already become.
 
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { basename, join } from "node:path";
-import { gzipSync } from "node:zlib";
 
 const DIST = "dist";
 const INDEX_HTML = join(DIST, "index.html");
 
-// Budgets in BYTES (gzipped). Recorded 2026-05-28 from a clean
-// `npm run build`. Headroom is ~10–15 % above current — tight enough
-// to flag a 100 KB regression, loose enough that adding a normal
-// feature doesn't bump it.
+// Budgets in RAW bytes. Recorded 2026-08-04 from a clean `npm run build`:
+// entry JS 926.8 KB, entry CSS 98.5 KB. Headroom is ~30% — loose enough that
+// adding a normal feature doesn't bump it, tight enough that pulling a
+// heavyweight dependency onto the startup path fails here.
 const BUDGETS = {
-  js: 960_000, // entry JS (current ~858 KB gzip)
-  css: 25_000, // entry CSS (current ~14.5 KB gzip)
+  js: 1_250_000,
+  css: 135_000,
 };
 
-const LAZY_FEATURE_BUDGETS = [
-  {
-    label: "syntax highlighting",
-    prefix: "markdown-",
-    budget: 520_000,
-  },
-  {
-    label: "diagram rendering",
-    prefix: "mermaid-",
-    budget: 520_000,
-  },
+// Runaway ceilings, RAW bytes. Recorded 2026-08-04: syntax highlighting
+// 1383.0 KB, diagram rendering 1542.1 KB. Deliberately ~2x current — these are
+// on-demand local reads, so the ceiling exists to catch an accident of scale (a
+// full language set, a second diagram engine), not to ration bytes.
+const LAZY_FEATURES = [
+  { label: "syntax highlighting", prefix: "shiki-", ceiling: 3_000_000 },
+  { label: "diagram rendering", prefix: "mermaid-", ceiling: 3_000_000 },
 ];
 
 function loadIndexHtml() {
@@ -66,21 +74,39 @@ function extractEntryAssets(html) {
   return { js, css };
 }
 
-function gzipSizeOf(relativeUrl) {
-  // index.html references are absolute (/assets/...). Strip the leading
-  // slash to make a filesystem path relative to dist/.
-  const path = join(DIST, relativeUrl.replace(/^\//, ""));
-  statSync(path); // throw early with a clear message if missing
-  return gzipSync(readFileSync(path)).length;
+// Every asset index.html points at, by whatever mechanism — script, stylesheet,
+// modulepreload, prefetch. This is the set a lazy feature has to stay out of:
+// anything reachable from the document is startup work, and a `modulepreload`
+// is exactly how a lazy chunk quietly stops being lazy.
+function referencedAssets(html) {
+  return new Set(
+    [...html.matchAll(/["'](\/assets\/[^"']+)["']/g)].map((match) => basename(match[1])),
+  );
 }
 
-function gzipSizeOfPath(path) {
-  statSync(path);
-  return gzipSync(readFileSync(path)).length;
+function rawSizeOf(path) {
+  statSync(path); // throw early with a clear message if missing
+  return readFileSync(path).length;
+}
+
+function rawSizeOfAsset(relativeUrl) {
+  // index.html references are absolute (/assets/...). Strip the leading slash
+  // to make a filesystem path relative to dist/.
+  return rawSizeOf(join(DIST, relativeUrl.replace(/^\//, "")));
 }
 
 function formatKb(bytes) {
   return `${(bytes / 1024).toFixed(1)} KB`;
+}
+
+/** Prints one budget line; returns true when it is over. */
+function report(label, used, budget) {
+  const pct = ((used / budget) * 100).toFixed(1);
+  const over = used > budget;
+  console.log(
+    `  ${label.padEnd(20)} ${formatKb(used).padStart(10)} / ${formatKb(budget).padStart(10)}  (${pct}%) ${over ? "FAIL" : "OK"}`,
+  );
+  return over;
 }
 
 const html = loadIndexHtml();
@@ -91,50 +117,42 @@ if (js.length === 0) {
   process.exit(2);
 }
 
-const totals = {
-  js: js.reduce((sum, url) => sum + gzipSizeOf(url), 0),
-  css: css.reduce((sum, url) => sum + gzipSizeOf(url), 0),
-};
-
 let failed = false;
-console.log("[check-bundle-size] entry payload (gzip):");
-for (const ext of /** @type {const} */ (["js", "css"])) {
-  const used = totals[ext];
-  const budget = BUDGETS[ext];
-  const pct = ((used / budget) * 100).toFixed(1);
-  const status = used > budget ? "FAIL" : "OK";
-  if (used > budget) failed = true;
-  console.log(
-    `  ${ext.toUpperCase().padEnd(4)} ${formatKb(used).padStart(10)} / ${formatKb(budget).padStart(10)}  (${pct}%) ${status}`,
-  );
+
+console.log("[check-bundle-size] entry payload — parsed before first paint (raw):");
+for (const [extension, assets] of [
+  ["js", js],
+  ["css", css],
+]) {
+  const used = assets.reduce((sum, url) => sum + rawSizeOfAsset(url), 0);
+  if (report(extension.toUpperCase(), used, BUDGETS[extension])) failed = true;
 }
 
 const assetDirectory = join(DIST, "assets");
 const assetNames = readdirSync(assetDirectory);
-console.log("[check-bundle-size] lazy feature payloads (gzip):");
-for (const { label, prefix, budget } of LAZY_FEATURE_BUDGETS) {
+const entryReferences = referencedAssets(html);
+
+console.log("[check-bundle-size] lazy features — must stay off the startup path (raw):");
+for (const { label, prefix, ceiling } of LAZY_FEATURES) {
   const chunks = assetNames.filter((name) => name.startsWith(prefix) && name.endsWith(".js"));
   if (chunks.length === 0) {
-    console.error(`  ${label}: no ${prefix}*.js chunk found`);
+    console.error(`  ${label}: no ${prefix}*.js chunk found — did it get folded into the entry?`);
     failed = true;
     continue;
   }
-  const used = chunks.reduce(
-    (sum, name) => sum + gzipSizeOfPath(join(assetDirectory, basename(name))),
-    0,
-  );
-  const pct = ((used / budget) * 100).toFixed(1);
-  const status = used > budget ? "FAIL" : "OK";
-  if (used > budget) failed = true;
-  console.log(
-    `  ${label.padEnd(20)} ${formatKb(used).padStart(10)} / ${formatKb(budget).padStart(10)}  (${pct}%) ${status}`,
-  );
+  const eager = chunks.filter((name) => entryReferences.has(name));
+  if (eager.length > 0) {
+    console.error(`  ${label}: index.html references ${eager.join(", ")} — it must stay lazy.`);
+    failed = true;
+  }
+  const used = chunks.reduce((sum, name) => sum + rawSizeOf(join(assetDirectory, name)), 0);
+  if (report(label, used, ceiling)) failed = true;
 }
 
 if (failed) {
   console.error("");
   console.error("[check-bundle-size] FAIL — a guarded payload exceeded its budget.");
-  console.error("If this growth is intentional, update BUDGETS in");
-  console.error("scripts/check-bundle-size.mjs in the same commit.");
+  console.error("If this growth is intentional, update the budget in");
+  console.error("scripts/check-bundle-size.mjs in the same commit, with a reason.");
   process.exit(1);
 }

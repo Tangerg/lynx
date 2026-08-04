@@ -38,22 +38,40 @@ export default defineConfig({
     },
   },
   build: {
-    // Desktop app loads from disk, so chunk size is less critical than on web.
-    // Still, splitting vendor deps means Wails updates only ship changed chunks.
-    // The largest intentional lazy features are ELK-backed diagrams and Shiki;
-    // their compressed payloads have explicit budgets in check-bundle-size.mjs.
-    // Keep Vite's raw warning just above those known monoliths so it catches a
+    // Desktop app loads from disk, so total size matters far less than what is
+    // on the STARTUP path. Splitting vendor deps also means Wails updates ship
+    // only changed chunks. The startup budget and the assertion that the heavy
+    // lazy features stay off that path both live in check-bundle-size.mjs.
+    // Keep Vite's raw warning just above the known monoliths so it catches a
     // new unclassified mega-chunk without reporting the same reviewed features
     // on every clean build.
     chunkSizeWarningLimit: 1600,
     rollupOptions: {
       output: {
+        // A chunk is as eager as its most eager member: if any module in it is
+        // statically reachable from the entry, Vite modulepreloads the whole
+        // chunk and a dynamic import of anything else inside it buys nothing.
+        // So the grouping below separates deps by WHEN they are needed, not by
+        // subject matter — and the substring tests are anchored (trailing `/`)
+        // because `node_modules/react` also matches `react-markdown`, which is
+        // how this function came to describe a grouping it wasn't producing.
         manualChunks(id: string) {
+          // Vite's dynamic-import preload helper. Every module holding a
+          // dynamic import imports it STATICALLY, so whichever chunk it lands
+          // in becomes a static dependency of the entry — and left unassigned,
+          // Rolldown folds a lone virtual module like this into a big
+          // neighbour. That is how a monolith kept reaching the startup path:
+          // first the 1.36 MB markdown chunk, then, once that was split, the
+          // 755 KB shiki chunk. It gets its own chunk for the same reason
+          // rolldown-runtime does — a shared runtime helper is nobody's
+          // feature, and a name already used by another group gets merged back
+          // into whatever chunk Rolldown picks.
+          if (id.includes("vite/preload-helper")) return "preload-helper";
           // Stable vendor deps
           if (
-            id.includes("node_modules/react") ||
-            id.includes("node_modules/react-dom") ||
-            id.includes("node_modules/scheduler")
+            id.includes("node_modules/react/") ||
+            id.includes("node_modules/react-dom/") ||
+            id.includes("node_modules/scheduler/")
           )
             return "vendor";
           if (id.includes("node_modules/motion")) return "vendor-motion";
@@ -65,22 +83,30 @@ export default defineConfig({
           // Icons
           if (id.includes("node_modules/@lobehub/icons")) return "icons";
           if (id.includes("node_modules/lucide-react")) return "icons";
-          // Markdown + syntax highlighting
+          // Markdown pipeline — eager: every rendered message goes through it.
           if (
-            id.includes("node_modules/react-markdown") ||
+            id.includes("node_modules/react-markdown/") ||
             id.includes("node_modules/remark-") ||
             id.includes("node_modules/rehype-") ||
             id.includes("node_modules/unist-") ||
-            id.includes("node_modules/mdast-") ||
-            id.includes("node_modules/shiki")
+            id.includes("node_modules/mdast-")
           )
             return "markdown";
+          // Syntax highlighting — lazy: dynamic-imported on the first code
+          // block. Kept out of "markdown" above for the reason stated there;
+          // sharing that chunk is how ~1.3 MB of grammars reached the startup
+          // path while still looking like a lazy feature in every report.
+          if (id.includes("node_modules/shiki")) return "shiki";
           // Math rendering
-          if (id.includes("node_modules/katex") || id.includes("node_modules/remark-math"))
-            return "katex";
+          if (id.includes("node_modules/katex/")) return "katex";
           // Mermaid
           if (id.includes("node_modules/beautiful-mermaid")) return "mermaid";
-          // OpenTelemetry — only used in diagnostics view
+          // OpenTelemetry. Eager, despite `setupObservability` being
+          // dynamic-imported: app code on ordinary paths opens spans and emits
+          // metrics against the API. Splitting the API out of this group was
+          // measured and bought nothing (a 422-byte chunk, the SDK still
+          // static-reachable), so it stays one group until the eager edge into
+          // the SDK is found.
           if (id.includes("node_modules/@opentelemetry")) return "otel";
           // Leave unrelated dependencies to Rollup's graph-aware chunking. A
           // catch-all vendor bucket merged otherwise independent lazy features
