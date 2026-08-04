@@ -1,8 +1,8 @@
 // Package workspace contains focused project-scoped application use cases:
 // workspace identity, file and VCS browsing, long-term memory (LYRA.md), skill
 // and recipe discovery, lifecycle-hook inspection/trust, and Git-state
-// subscriptions. Each use case takes only the port it consumes; delivery drives
-// the relevant one per cwd-scoped request.
+// subscriptions. Each use case takes only the port it consumes and owns its
+// cwd-scoped policy.
 package workspace
 
 import (
@@ -19,8 +19,7 @@ import (
 var ErrMemoryUnavailable = errors.New("workspace: memory unavailable")
 
 // ErrSkillProposalsUnavailable reports that this runtime was built without a
-// Skill proposal store, so authoring and review are not negotiated.
-// Delivery maps it to capability_not_negotiated.
+// Skill proposal store, so authoring and review are unavailable.
 var ErrSkillProposalsUnavailable = errors.New("workspace: skill proposals unavailable")
 
 // ErrSkillLibraryUnavailable reports that this runtime was built without the
@@ -35,7 +34,7 @@ var ErrSkillLibraryUnavailable = errors.New("workspace: skill library unavailabl
 var ErrFileWatchUnavailable = errors.New("workspace: file watch unavailable")
 
 // SkillCatalog enumerates the skills visible from a working directory (project
-// over user). The composition root supplies promptsource-backed discovery.
+// over user).
 type SkillCatalog interface {
 	ListSkills(ctx context.Context, workdir string) ([]SkillInfo, error)
 }
@@ -51,7 +50,7 @@ type SkillCurator interface {
 }
 
 // SkillProposals stores immutable proposals in either the project or user Skill
-// library. projectRoot is already resolved by the application boundary.
+// library. projectRoot is already resolved by this application boundary.
 type SkillProposals interface {
 	SubmitProposal(ctx context.Context, projectRoot string, proposal skills.Proposal) (skills.ProposalRef, error)
 	ListProposals(ctx context.Context, projectRoot string) ([]skills.ProposalInfo, error)
@@ -82,16 +81,16 @@ type KnowledgeStore interface {
 
 // RecipeLister discovers the prompt recipes visible from a working directory —
 // a project's .lyra/recipes layered over the global directory. The composition
-// root supplies the filesystem-backed implementation (the promptsource adapter);
-// the port keeps the coordinator free of file I/O.
+// root supplies the filesystem-backed implementation; the port keeps the
+// coordinator free of file I/O.
 type RecipeLister interface {
 	List(ctx context.Context, cwd string) ([]Recipe, error)
 }
 
 // GitStateWatcher observes the small set of Git metadata directories that
-// signal a changed repository state. The adapter owns filesystem notification,
-// debounce, repository layout, and goroutine lifetime; the application owns
-// resolving requested workspace roots and exposes only a neutral resync
+// signal a changed repository state. Implementations own filesystem
+// notification, debounce, repository layout, and goroutine lifetime; this use
+// case owns requested-root resolution and exposes only a neutral resync
 // callback. Closing the returned subscription stops all callbacks before it
 // returns.
 type GitStateWatcher interface {
@@ -99,7 +98,7 @@ type GitStateWatcher interface {
 }
 
 // Context resolves the process-facing workspace identity shared by independent
-// workspace use cases. It owns no feature adapter: each capability below takes
+// workspace use cases. It owns no feature implementation: each capability below takes
 // this small context plus only the port it actually needs.
 type Context struct {
 	defaultWorkspacePath string
@@ -177,8 +176,7 @@ type Hooks struct {
 }
 
 // HookInspection is the workspace use case's resolved hook view. Active is
-// business policy (global hooks always run; project hooks require trust), not
-// a presentation decision for Delivery to reconstruct.
+// business policy (global hooks always run; project hooks require trust).
 type HookInspection struct {
 	ProjectRoot    string
 	ProjectTrusted bool
@@ -194,7 +192,7 @@ func NewHooks(context *Context, hooks HookInspector, trust HookTrustStore) *Hook
 	return &Hooks{context: context, hooks: hooks, trust: trust}
 }
 
-// GitWatch owns Git-state subscription setup over the technical watch adapter.
+// GitWatch owns Git-state subscription setup over its watcher port.
 type GitWatch struct {
 	context *Context
 	watcher GitStateWatcher
@@ -212,8 +210,8 @@ func (c *GitWatch) HasFileWatch() bool { return c != nil && c.watcher != nil }
 
 // WatchGitState resolves each requested working directory to its canonical
 // workspace root, removes duplicate roots, then delegates technical watching to
-// the configured adapter. It deliberately carries no delivery/protocol event
-// type: any observed change means only "resync the workspace view".
+// the configured watcher. Any observed change means only "resync the workspace
+// view".
 func (c *GitWatch) WatchGitState(cwds []string, notify func()) (io.Closer, error) {
 	if c.watcher == nil {
 		return nil, ErrFileWatchUnavailable

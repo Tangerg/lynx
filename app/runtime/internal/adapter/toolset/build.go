@@ -175,7 +175,7 @@ func Build(ctx context.Context, config BuildConfig) (_ Built, err error) {
 		return Built{}, fmt.Errorf("toolset: build read_tool_result: %w", err)
 	}
 	// search_memory reads back the agent's curated project memory (keyword +
-	// semantic). Working-directory independent (searches the turn's project), so
+	// semantic). Working-directory independent (searches the Run's project), so
 	// built once for both roles. nil searcher → nil tool, simply omitted.
 	memorySearchTool, err := memorysearch.New(config.MemorySearch)
 	if err != nil {
@@ -253,7 +253,7 @@ func Build(ctx context.Context, config BuildConfig) (_ Built, err error) {
 	}, nil
 }
 
-// goalActiveReader adapts Goal state into the resolver's per-turn gate for
+// goalActiveReader adapts Goal state into the resolver's per-Run gate for
 // report_goal_outcome. A paused or blocked Goal does not count: only a Run
 // driven by the active autonomous loop can truthfully report its outcome.
 // Returns nil when Goal mode is off so the tool is never offered.

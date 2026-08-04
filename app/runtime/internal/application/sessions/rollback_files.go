@@ -12,8 +12,7 @@ import (
 
 // ErrCheckpointUnavailable reports that a file rollback can't restore the working
 // tree — the checkpoint store is disabled, the session has no cwd, or the target
-// run has no snapshot. The composition root maps the checkpoint adapter's own
-// sentinel onto this one so the coordinator stays free of the adapter package.
+// run has no snapshot.
 var (
 	ErrCheckpointUnavailable = errors.New("sessions: checkpoint unavailable")
 	// ErrCheckpointRestoreIncomplete marks a restore that may already have
@@ -24,7 +23,7 @@ var (
 
 const mutationCleanupTimeout = 5 * time.Second
 
-// RollbackSpec is the wire-decoded rollback intent: which run to keep to and
+// RollbackSpec is the rollback intent: which Run to keep to and
 // what the rollback rewinds. RestoreFiles restores the working tree to the run
 // snapshot; RestoreHistory truncates the chat log to the run boundary. Every
 // file restore is recoverable; setting both coordinates the two resources
@@ -51,10 +50,10 @@ type RollbackResult struct {
 // as [ErrSessionBusy]) and, for a file restore, the working-tree mutation slot
 // too, then resolves the boundary under those guards, restores the working tree
 // to the run snapshot (files first, as required by AUX_API §4.1), and applies
-// the durable history truncation. It returns the
-// session so the delivery adapter can shape its response without re-reading it.
+// the durable history truncation. It returns the resolved session view with the
+// mutation result so callers do not re-read a newer revision.
 //
-// The guards live here, not at the wire: a file restore's `git reset --hard`
+// The guards live with the use case: a file restore's `git reset --hard`
 // writes a working tree a sibling session sharing the cwd would race, and that
 // sibling's tool writes never take the checkpoint lock, so the mutation must see
 // any in-flight run on the tree, not just this session's.

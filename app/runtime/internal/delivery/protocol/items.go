@@ -183,7 +183,7 @@ type Item struct {
 	Tool        *ToolInvocation `json:"tool,omitempty"`
 	SafetyClass SafetyClass     `json:"safetyClass,omitempty"`
 	Error       *ProblemData    `json:"error,omitempty"` // tool-level failure (API.md §4.3)
-	// Summary / DroppedMessages describe a compaction Item — the post-turn
+	// Summary / DroppedMessages describe a compaction Item — the post-Run
 	// auto-compaction boundary. DroppedMessages is the net history reduction
 	// (messages before − after); Summary is an optional human note (currently
 	// left empty — the summary text is folded into the rewritten history).

@@ -9,8 +9,8 @@ import (
 
 // SessionMutations serializes session lifecycle write-sets with Goal commands
 // and owns the in-process registry of active Goal loops. It is created before
-// either coordinator, so Session lifecycle coordination never needs a mutable
-// Bootstrap proxy to reach a Driver constructed later.
+// either coordinator so both use cases share one stable lifecycle boundary
+// without late-bound references.
 type SessionMutations struct {
 	admission sync.RWMutex
 

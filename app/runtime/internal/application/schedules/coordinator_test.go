@@ -257,7 +257,7 @@ func scheduleRows(ids ...string) []schedule.Schedule {
 	return out
 }
 
-// TestListPagePagesNewestFirstAndRefusesAForeignCursor covers schedules.list's query
+// TestListPagePagesNewestFirstAndRefusesAForeignCursor covers the schedules query
 // properties: the order is fixed (newest created first, id breaking ties), the
 // next page seeks strictly past the previous one, and a cursor from another query is
 // refused rather than quietly restarting — a schedule shown twice reads as a second
@@ -289,7 +289,7 @@ func TestListPagePagesNewestFirstAndRefusesAForeignCursor(t *testing.T) {
 		t.Fatalf("second page = %+v, want the tail and no cursor", second.Rows)
 	}
 
-	foreign := keyset.Encode("sessions.list", nil, []string{"0", "sch_1"})
+	foreign := keyset.Encode("sessions", nil, []string{"0", "sch_1"})
 	if _, err := c.ListPage(ctx, foreign, 2); !errors.Is(err, keyset.ErrInvalidCursor) {
 		t.Fatalf("cursor from another query err = %v, want ErrInvalidCursor", err)
 	}

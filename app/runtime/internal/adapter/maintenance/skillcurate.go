@@ -15,7 +15,7 @@ const (
 type LifecycleConfig struct {
 	// ArchiveAfter is the inactivity before an agent-authored skill is archived.
 	ArchiveAfter time.Duration
-	// SweepEvery is the minimum wall-clock between turn-boundary sweeps, bounding
+	// SweepEvery is the minimum wall-clock between Run-boundary sweeps, bounding
 	// the sweep cost across a busy session.
 	SweepEvery time.Duration
 }
@@ -36,9 +36,9 @@ type skillSweeper interface {
 	SweepIdle(ctx context.Context, now time.Time, archiveAfter time.Duration) ([]string, error)
 }
 
-// SkillCurator runs the idle-lifecycle sweep at the turn boundary, rate-limited
+// SkillCurator runs the idle-lifecycle sweep at the Run boundary, rate-limited
 // to at most once per SweepEvery. The managed Skill library is user-scoped, so
-// the sweep is process-wide rather than per session; the first turn after start
+// the sweep is process-wide rather than per Session; the first Run after start
 // triggers it (lastSweep is
 // zero), which stands in for an explicit boot sweep without a startup-time
 // filesystem mutation.
@@ -63,7 +63,7 @@ func NewSkillCurator(sweeper skillSweeper, config LifecycleConfig) *SkillCurator
 
 // MaybeSweep runs one idle-lifecycle sweep unless the last one was within
 // SweepEvery. The rate-limit window advances whether or not the sweep archives
-// anything, so a busy session doesn't re-sweep every turn.
+// anything, so a busy Session does not re-sweep every Run.
 func (c *SkillCurator) MaybeSweep(ctx context.Context) error {
 	if c == nil || c.sweeper == nil {
 		return nil

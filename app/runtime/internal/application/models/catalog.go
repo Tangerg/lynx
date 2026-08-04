@@ -16,8 +16,7 @@ type ProviderMetadata struct {
 }
 
 // Model is the application-facing catalog record used by model selection. It
-// carries provider capability facts without exposing the infrastructure catalog
-// or a protocol-specific shape.
+// carries only provider capability facts needed by model-selection use cases.
 type Model struct {
 	ID       string
 	Provider string

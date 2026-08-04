@@ -29,11 +29,11 @@ type Config struct {
 	// state.
 	SkillsUserDir string
 
-	// Turn-boundary collaborators. nil selects the in-house/default binding:
+	// Run-boundary collaborators. nil selects the in-house/default binding:
 	// conversation steering and the complete maintenance suite (skill mining,
 	// idle curation, compaction, then post-compaction knowledge extraction).
 	Steering    turn.SteeringSink
-	Maintenance turn.BoundaryMaintenance
+	Maintenance turn.RunMaintenance
 
 	// AgentMemoryStore is the SQLite fact ledger and its curated memory items,
 	// used by the default Extractor and injected into the system prompt. nil
@@ -53,7 +53,7 @@ type Config struct {
 	// UtilityRoleStore persists the global utility-model role; the (provider,
 	// model) the in-house maintenance services (compaction / extraction /
 	// titling) run on. nil disables persistence: the role stays unset and those
-	// services run on the main turn model. The composition root injects the
+	// services run on the main Run model. The composition root injects the
 	// sqlite-backed store and seeds it from config on first run.
 	UtilityRoleStore UtilityRoleStore
 
@@ -165,14 +165,14 @@ type Config struct {
 	// composition root injects the sqlite-backed store.
 	ApprovalRuleStore ApprovalRuleStore
 
-	// Provider / Model name the runtime's DEFAULT provider+model; the one a turn
+	// Provider / Model name the runtime's default provider+model; the one a Run
 	// runs against when it doesn't pick a model. providers.list / models.list
 	// are served from the registry + catalog, not these.
 	Provider string
 	Model    string
 
-	// HooksResolver resolves user-configured lifecycle hooks for a turn's cwd.
-	// nil disables hooks; the turn no-ops every hook seam. The composition root
+	// HooksResolver resolves user-configured lifecycle hooks for a Run's cwd.
+	// nil disables hooks; execution no-ops every hook seam. The composition root
 	// builds the adapter-backed resolver from the storage home + trust store.
 	HooksResolver HookResolver
 

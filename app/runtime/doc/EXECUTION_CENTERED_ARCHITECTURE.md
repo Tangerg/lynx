@@ -107,7 +107,7 @@ application Run command
 turn handle、subscribe、cancel/resume/rehydrate、approval/hooks 和 terminal first-wins。
 `turn.Executor` 作为应用层的直接消费者，在自己的包内定义只含所需方法的窄控制端口；
 Bootstrap 和 run-segment 同样只声明各自需要的关闭或 process-lookup 切片。turn 自身只通过
-两方法 consumer interface 使用 Agent execution；steering 与完整的 turn-boundary maintenance
+两方法 consumer interface 使用 Agent execution；steering 与完整的 Run-boundary maintenance
 是两片独立依赖，不再经 Engine 中转。Delivery 不直接驱动 turn control。
 
 这里的 `Turn` 是 Agent 防腐层内部术语，不是应用生命周期。越过适配器边界后只存在
@@ -126,7 +126,7 @@ schema 与持久化不得再使用 `turn` 表示同一概念。
 
 Runtime 供应 model stream wrapper、`tools.Registry`、limits、cost projection 和 observer；
 observer 从 model-response boundary 建立 application-owned per-model USD 账本。该账本不进入
-Agent snapshot，而是作为 App-owned `ExecutorCheckpoint` metadata 与 opaque process-tree
+Agent snapshot，而是作为 application-owned `ExecutorCheckpoint` metadata 与 opaque process-tree
 payload 一起原子提交；只有 agentexec 能解释 payload 并校验两侧 usage 聚合。
 正常完成直接读取 framework tagged `Final`；只有 budget/step 提前停止才保留局部 partial
 文本。模型空闲 timeout 只包围一次 provider stream，长工具执行不进入该计时。
@@ -141,7 +141,7 @@ payload 一起原子提交；只有 agentexec 能解释 payload 并校验两侧 
 - cancel root 会递归终止存活 child；
 - `delegate_task` 本身是纯编排，不重复审批或执行 tool hooks；child 的真实工具调用逐个 gating；
 - child approval/question 产生真实 nested suspension，不编码为普通工具 JSON；
-- Agent 私有 checkpoint 保存 parent pending call 与 child relation；App 在完整 waiting tree
+- Agent 私有 checkpoint 保存 parent pending call 与 child relation；应用层在完整 waiting tree
   capture 后，以一个 tree-barrier transaction 同时提交 checkpoint、root-owned Pending 与
   所有 active Run 的 suspension；公开 `ProcessSnapshot` / Runtime wire 不增加产品字段；
 - Runtime suspension prompt 只允许 application-owned typed `runs.Interrupt`；
@@ -152,12 +152,12 @@ payload 一起原子提交；只有 agentexec 能解释 payload 并校验两侧 
   identity 推进完整树；已由 Host 结算的 ready checkpoint 直接 Continue，不伪造响应；
 - `claimPark` 是 Resume/Cancel 的线性化点，保证竞争只产生一个 terminal。
 
-child 的产品生命周期身份只来自 App opening：Framework 在发布/执行 child 前等待
+child 的产品生命周期身份只来自应用层 opening：Framework 在发布/执行 child 前等待
 `ChildOpeningRequest`，Application 原子写入 parent spawning Item 与 child Run 后返回
 `ChildRunBinding{ProcessID, RunID, ParentRunID}`。SubagentStart/Stop hooks 对外只编码
-`runId/parentRunId`；没有 App binding 的 Framework-internal child 不触发产品 hook。恢复时
+`runId/parentRunId`；没有 application binding 的 Framework-internal child 不触发产品 hook。恢复时
 Application 从 Continuation 传入既有 child binding，因此 Stop hook 不需要读取或暴露
-Framework parent topology。binding set 必须组成以 root Run 为根的单一连通 App tree；opening
+Framework parent topology。binding set 必须组成以 root Run 为根的单一连通 application Run tree；opening
 result 无论成功或失败都只完成一次，contract failure 同时送达等待 executor 并返回
 Coordinator 触发 fail-close，不能让任一侧继续或永久等待。
 
@@ -167,12 +167,12 @@ Interrupt，但只有一个 claim owner、一个 transaction 和一条 terminal 
 
 Interrupted tree 中取消 child 时，application 先在 root/worktree admission 内取得自己的
 cancel claim，再通过 Agent adapter 规划 execution-only subtree transition。Agent plan 返回前
-已经释放全部 Runtime ownership，不在 App transaction 期间持锁。App 的纯 transformation
+已经释放全部 Runtime ownership，不在 application transaction 期间持锁。应用层的纯 transformation
 随后一次确定 canceled postorder、parent spawning Item、reduced Pending / private tree
 continuation 与 replacement checkpoint；runsegment 在一个 transaction 中提交这些 durable
-facts。失败只释放 App claim，成功后才 Apply live Agent transition。
-若 durable commit 已成功但 live Apply 失败，App 立即把 root Run tree 以 `run_lost` fail closed，
-删除已失效的 durable checkpoint aggregate 并 teardown 旧 runtime tree；该补偿/恢复政策完全属于 App。
+facts。失败只释放 application claim，成功后才 Apply live Agent transition。
+若 durable commit 已成功但 live Apply 失败，Application 立即把 root Run tree 以 `run_lost` fail closed，
+删除已失效的 durable checkpoint aggregate 并 teardown 旧 runtime tree；该补偿/恢复政策完全属于 Application。
 若仍有外部 Interrupt，整树继续静止；若移除了最后一个外部边界，同一 transaction 打开
 surviving Runs 的新 Segment，Agent 通过 Continue 推进 ready checkpoint，不构造用户
 Resume。Agent 始终不知道 BuildID、checkpoint Store、CAS 或 SQLite transaction。
@@ -182,18 +182,18 @@ Resume。Agent 始终不知道 BuildID、checkpoint Store、CAS 或 SQLite trans
 Process checkpoint 的执行状态、Agent 声明 compatibility 和 nested relation 由 Agent
 framework 解释；Agent 不拥有 backend、宿主 build identity 或应用计费明细。
 `adapter/agentexec` 在 Waiting 段边界调用 `SnapshotTree`，把完整
-`core.ProcessSnapshotTree` 编码成一个 opaque payload，并返回 concrete App-owned
-`execution.ExecutorCheckpoint`。App envelope 只包含 root process identity、payload、
+`core.ProcessSnapshotTree` 编码成一个 opaque payload，并返回 concrete application-owned
+`execution.ExecutorCheckpoint`。application envelope 只包含 root process identity、payload、
 BuildID、TurnScope、完整 model selection、RunLimits/usage，不包含 child 节点、parent topology、started-at 或
 Framework type。capture 是纯计算，不执行 Store I/O，也不返回可执行 write capability。
 
 Application 把这个 immutable value 放进完整的 tree-barrier write-set；`runsegment` 在一个
 transaction 内调用自己的窄 `ExecutorCheckpointStore.SaveCheckpoint`，同时提交 Pending 和
 所有 Run suspension。SQLite `executor_checkpoints` 每个 root 只有一行，只把 payload 当作
-BLOB；`session_id` 仅是 App cleanup metadata。加载时 agentexec 经只读 `CheckpointReader`
+BLOB；`session_id` 仅是 application cleanup metadata。加载时 agentexec 经只读 `CheckpointReader`
 取得 aggregate，检查 BuildID，解码并校验 tree/usage，最后调用 Agent 的
 `ValidateRestoreTree` / `ValidateResumableSnapshot` / `RestoreTree`。具体 Store 的提交时间、
-替换、删除、retention 和 transaction 全部留在 App。
+替换、删除、retention 和 transaction 全部留在 Application。
 
 同 root 的 checkpoint advance 不是任意 overwrite：Session owner、BuildID、TurnScope、完整
 model selection 与 `RunLimits{MaxTotalTokens, MaxSteps, MaxBudgetUSD}` 一经 admission 即冻结；
@@ -204,17 +204,17 @@ cumulative Usage 必须保留所有已出现 model，
 单值合法不等于 cross-aggregate 合法。Application 在 tree barrier、waiting-subtree、boot
 recovery 和 restore 边界同时证明 checkpoint 与 Pending/Run/Session 的 root process、Session、
 完整 model selection 和 goal lease 一致；restart 还独立核对 cwd/isolation。`Pending.GoalLeaseID` 是
-App-owned continuation fact，保证 resumed root reducer 继续向同一 Goal incarnation 记账。
+application-owned continuation fact，保证 resumed root reducer 继续向同一 Goal incarnation 记账。
 同一 lease 同时冻结在 root `Run.GoalLeaseID` admission provenance 中，使 boot/online
 `run_lost` 即使不经过普通 reducer，也能把 exact Goal Run 与 terminal Run 原子提交；child
 Run 禁止复制该 root-only lease。
 
-RunLimits 只有一个 App 作者：同一个值进入 Run、Pending continuation、executor checkpoint、restore
+RunLimits 只有一个 application owner：同一个值进入 Run、Pending continuation、executor checkpoint、restore
 expectation、SQLite 与 wire。`maxTotalTokens` 是整棵 Run tree 的 prompt + completion 累计 ceiling；
 `params.maxTokens` 仍是单次 generation 输出上限，二者不共用名称或恢复来源。
 
 Continuation 也不是一份可独立修改的恢复配置，而是 Run admission 的 durable hand-off。
-它只携带 App Run facts 与 `RunID <-> ProcessID` opaque binding，不保存
+它只携带 application Run facts 与 `RunID <-> ProcessID` opaque binding，不保存
 `ParentProcessID/SpawnCallID`。恢复 route 的 parent relation 完全来自 `RunLineage`；child 首次
 live event 到达时再验证 executor `ParentID/SpawnCallID`，验证通过后冻结该 transient source，
 后续 topology 漂移直接失败。SQLite 因此没有第二份 executor tree。
@@ -227,19 +227,19 @@ parked Run 存在时，`ClaimIdleSession` 禁止修改 Session cwd/isolation；�
 lifecycle write-set 使用另一条 `ClaimSessionMutation`，不把两类授权混为一个“通用 mutation”。
 
 Waiting snapshot 可以处于未回答或已回答待继续阶段。Agent 只校验和重建这两种 execution
-state；App 决定是否把 response、请求幂等记录和 checkpoint 放入同一事务。恢复后未回答
-状态进入 `Resume`，已回答状态直接进入 `Continue`，不在 App 重放或解释 Agent checkpoint。
+state；Application 决定是否把 response、请求幂等记录和 checkpoint 放入同一事务。恢复后未回答
+状态进入 `Resume`，已回答状态直接进入 `Continue`，不在 Application 重放或解释 Agent checkpoint。
 
-`cmd/lyra` 在 bootstrap 前计算运行二进制内容的 `sha256:<hex>` BuildID；配置 App
+`cmd/lyra` 在 bootstrap 前计算运行二进制内容的 `sha256:<hex>` BuildID；配置 Agent
 execution adapter 时 BuildID 必填，并作为 checkpoint 行元数据保存，不进入 Agent deployment
 digest 或 snapshot wire。只有 Waiting 段拥有可恢复 continuation，因此终态不写 process
-snapshot。Waiting checkpoint 提交失败时 App 不暴露 interrupt，而是终止并失败收口该 Run；
+snapshot。Waiting checkpoint 提交失败时 Application 不暴露 interrupt，而是终止并失败收口该 Run；
 build 不兼容、checkpoint 缺失或损坏确定性转为 `run_lost` 并清理 aggregate，不做 migration
 或旧 shape 兼容。
 
 终态遵循同一所有权：Agent `Discard` 只从 live Framework registry 移除终态 tree，不触碰
 durable state；root Run 的 terminal `EventCommit` 把 `ObsoleteCheckpointRootID` 带入
-App transaction，由 `runsegment` 将 Run terminalization 与 checkpoint 删除一起提交。child
+application transaction，由 `runsegment` 将 Run terminalization 与 checkpoint 删除一起提交。child
 terminal 不单独删除 root-owned aggregate。若 terminal transaction 失败，Run 与 checkpoint
 同时保留。启动时 `application/runs.Recovery` 读取事实、校验完整 Interrupted Run tree +
 Pending 和 canonical Session，并通过完整 `ExecutorCheckpointExpectation` 调用
@@ -282,9 +282,9 @@ MCP status/catalog/connection/registry 四片接口定义在真实消费者
 OAuth 会话另走 `infra/mcp` 消费方定义的窄持久化接口：SQLite 只保存 opaque payload，
 并以 server name + 规范化 HTTP origin 绑定；endpoint/transport 变化或授权拒绝都会先失效凭据。
 
-turn-boundary steering 与 `BoundaryMaintenance` 接口定义在 `adapter/agentexec/turn`；
+execution steering 与 `RunMaintenance` 接口定义在 `adapter/agentexec/turn`；
 Bootstrap 默认绑定 conversation 与 `adapter/maintenance.Suite`。Suite 持有 mining、
-curation、compaction、extraction 的顺序与条件，Dispatcher 只提供回合事实、记录失败并
+curation、compaction、extraction 的顺序与条件，execution controller 只提供 Run 事实、记录失败并
 发布摘要压缩边界；调用方仍可显式替换整个 maintenance 语义，不扩大 Engine。
 
 ## 4. Domain 与 Application 边界
@@ -325,7 +325,7 @@ Application 依赖 SQLite：用例依赖自己需要的窄读写/事务端口，
   Session owner；
 - parked tree 的全部 child/root terminalization、interrupt Item repair、Pending/checkpoint 删除与
   root Goal Run 在同一事务提交；
-- Session delete 通过 checkpoint root 的 App-owned `session_id` 元数据删除该 Session 的全部
+- Session delete 通过 checkpoint root 的 application-owned `session_id` 元数据删除该 Session 的全部
   checkpoint aggregates；boot 只保留被完整 Interrupted Run/Pending 及 resumability 证明拥有的 roots；
 - 数据库与 filesystem/Git 不能伪装成一个原子事务，跨资源操作使用显式 intent 和补偿；
   Git work-tree reset 本身也不是跨文件原子操作，因此 files-only rollback 同样先记录

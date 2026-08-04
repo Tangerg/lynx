@@ -116,7 +116,7 @@ func (s *Server) UpdateSession(ctx context.Context, in protocol.UpdateSessionReq
 // overrides the default "<parent> (fork)".
 //
 // FromRunID (run-boundary fork — "branch from this run", B4) truncate-copies
-// history up to and INCLUDING that run's turn; omit it for a whole-conversation
+// history up to and including that Run; omit it for a whole-conversation
 // fork. Snapshot semantics: only terminal runs are copied; an in-flight run and
 // all of its mutable history tail are excluded. Forking deletes nothing, so
 // unlike rollback it needs no session_busy guard.

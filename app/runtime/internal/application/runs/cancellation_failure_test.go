@@ -15,7 +15,7 @@ func TestLiveChildCancellationReleasesClaimWhenExecutorTeardownFails(t *testing.
 	control := &fakeExecutionControl{
 		cancelSubtree: func(ref execution.ExecutorRef, processID string) error {
 			if ref != (execution.ExecutorRef{SessionID: "session", ExecutorID: "turn_root"}) {
-				t.Fatalf("CancelSubtree turn = %+v, want session/turn_root", ref)
+				t.Fatalf("CancelSubtree execution = %+v, want session/exec_root", ref)
 			}
 			if processID != plan.target.processID {
 				t.Fatalf(

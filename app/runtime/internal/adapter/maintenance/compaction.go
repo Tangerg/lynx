@@ -148,7 +148,7 @@ func (c *Compactor) MaybeCompact(ctx context.Context, sessionID string, contextW
 	rewritten = append(rewritten, summary)
 	// Right after the summary, carry over the live execution state the summary
 	// dropped (running background shells, in-progress tasks) so the model does not
-	// forget a job it started before the compacted turns. Deterministic, no model
+	// forget a job it started before the compacted Runs. Deterministic, no model
 	// call; omitted entirely when nothing is active.
 	if c.liveState != nil {
 		if reminder, ok := liveStateReminder(c.liveState(ctx, sessionID)); ok {

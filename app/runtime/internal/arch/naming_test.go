@@ -109,7 +109,7 @@ func TestCrossRingAdapterConstructorsReturnConcreteImplementations(t *testing.T)
 	}{
 		{"internal/adapter/toolset/registry.go", "NewDiagnosticRegistry", "DiagnosticRegistry"},
 		{"internal/adapter/workspace/session_checkpoints.go", "NewSessionCheckpoints", "SessionCheckpoints"},
-		{"internal/adapter/agentexec/turn/session_cleanup.go", "NewSessionTurnCleanup", "SessionTurnCleanup"},
+		{"internal/adapter/agentexec/turn/session_cleanup.go", "NewSessionExecutionCleanup", "SessionExecutionCleanup"},
 		{"internal/bootstrap/hooks.go", "NewHookResolver", "*adapterhooks.Resolver"},
 	}
 	for _, test := range tests {

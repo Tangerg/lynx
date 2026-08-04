@@ -13,7 +13,7 @@ import (
 var ErrIncomplete = errors.New("model selection: provider and model must be set together")
 
 // ErrSurroundingWhitespace reports a provider/model identity that would compare
-// differently before and after ordinary protocol normalization.
+// differently before and after ordinary input normalization.
 var ErrSurroundingWhitespace = errors.New("model selection: provider and model must not have surrounding whitespace")
 
 // Selection is an immutable model choice. Its zero value asks the owning use
@@ -23,7 +23,7 @@ type Selection struct {
 	model    string
 }
 
-// New constructs a selection from its protocol values.
+// New constructs a selection from its provider and model identities.
 func New(provider, model string) (Selection, error) {
 	if (provider == "") != (model == "") {
 		return Selection{}, ErrIncomplete

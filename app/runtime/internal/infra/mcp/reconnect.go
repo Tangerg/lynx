@@ -41,7 +41,7 @@ func (c *Connections) Reconnect(ctx context.Context, name string) error {
 	c.mu.Unlock()
 	defer c.finishAttempt(attempt)
 
-	// Publish the connecting state before closing/dialing: no new turn may keep
+	// Publish the connecting state before closing/dialing: no new Run may keep
 	// resolving wrappers backed by the session we are about to close.
 	c.publishTools()
 
@@ -212,7 +212,7 @@ func (c *Connections) dialAndSwap(attempt connectionAttempt, cfg ServerConfig, k
 	// concurrently-dialing sibling still has session==nil until its own commit, so
 	// it is invisible to any check taken before this lock: two servers whose
 	// sanitized names collapse to one could each pass a separate pre-check and then
-	// both commit a duplicate — which breaks the next turn's tool-registry build.
+	// both commit a duplicate — which breaks the next Run's tool-registry build.
 	// Validating here, under the same c.mu that serializes every commit, makes the
 	// second arrival see the first's committed session and fail closed.
 	if err == nil {

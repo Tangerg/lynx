@@ -84,9 +84,9 @@ func (c EventCommit) Validate() error {
 	}
 	validatedRun := *c.Run
 	if c.State == StateTerminalize && validatedRun.MessageMark == transcript.UnknownMessageMark {
-		// The reducer cannot know the final conversation watermark. The effects
-		// adapter resolves it inside the same transaction that terminalizes this
-		// Run; every other terminal fact must already satisfy the domain invariant.
+		// The reducer cannot know the final conversation watermark. The terminal
+		// transaction resolves it while committing this Run; every other terminal
+		// fact must already satisfy the domain invariant.
 		validatedRun.MessageMark = 0
 	}
 	if err := validatedRun.Validate(); err != nil {

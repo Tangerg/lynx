@@ -5,8 +5,7 @@ import (
 	"fmt"
 )
 
-// Workspace input failures are application errors. Delivery maps them to the
-// protocol's symbolic errors without leaking protocol values inward.
+// Workspace input failures are stable application errors.
 var (
 	ErrCwdUnavailable   = errors.New("workspace: cwd unavailable")
 	ErrPathRequired     = errors.New("workspace: path required")
@@ -16,8 +15,8 @@ var (
 )
 
 // Paths resolves the externally-observed filesystem identity used by workspace
-// use cases. The adapter owns path canonicalization and symlink inspection;
-// this package owns when a use case requires each operation.
+// use cases. Implementations own path canonicalization and symlink inspection;
+// this package owns when each operation is required.
 type Paths interface {
 	ResolveExistingDir(path string) (string, error)
 	ResolveInRoot(root, path string) (string, error)

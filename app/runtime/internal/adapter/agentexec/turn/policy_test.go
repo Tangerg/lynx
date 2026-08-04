@@ -233,12 +233,3 @@ func newTestApprovalPolicy(t *testing.T, mode approval.Mode) *approval.RuntimePo
 	}
 	return policy
 }
-
-func mustToolArguments(t *testing.T, raw string) tool.Arguments {
-	t.Helper()
-	arguments, err := tool.ParseArguments(raw)
-	if err != nil {
-		t.Fatalf("parse tool arguments: %v", err)
-	}
-	return arguments
-}

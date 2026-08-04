@@ -151,7 +151,7 @@ func (c *Coordinator) cancelLiveChild(
 // claims the execution lifecycle, and obtains an immutable transition plan
 // that retains no runtime ownership. The application projections and replacement
 // executor checkpoint commit in one transaction; only after that durable boundary may
-// App apply the planned live transition.
+// the live transition be applied.
 //
 // When another external boundary survives, the tree stays Interrupted. Removing
 // the final boundary instead opens continuation Segments in the same transaction
@@ -289,10 +289,9 @@ func (c *Coordinator) cancelWaitingChild(
 				plan.root.run.ID,
 				err,
 			)
-			// The database transaction is already authoritative. Release the App
-			// claim before asking execution control to tear down its obsolete live
-			// tree, then fail the durable tree closed as run_lost. This recovery is
-			// application policy; Agent Runtime remains unaware of the transaction.
+			// The database transaction is already authoritative. Release the
+			// lifecycle claim before tearing down the obsolete execution tree, then
+			// fail the durable tree closed as run_lost.
 			prepared.Mutation.Abort()
 			recoveryErr := c.recoverCommittedWaitingCancellation(cleanupCtx, plan)
 			return CancelResult{}, errors.Join(applyErr, recoveryErr)

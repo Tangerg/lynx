@@ -11,50 +11,56 @@ import (
 	"strconv"
 	"strings"
 	"testing"
-
-	"github.com/Tangerg/lynx/app/runtime/internal/delivery/dispatch"
 )
 
-// TestPageCursorsBindToTheirOwnMethod is the structural half of contract §11.4
-// gate 11: each seek-paged read binds its cursors to its own query.
+// TestPageCursorsHaveUniqueSemanticNamespaces is the structural half of contract
+// §11.4 gate 11: each seek-paged read binds its cursors to its own application
+// namespace.
 //
 // The paging component already refuses a cursor minted by another query — that is
-// what the namespace in the token is for. What it cannot see is a READER that names
-// the wrong namespace, and there are two ways to do that. Naming a query nothing
-// publishes makes "does this reader bind its own method" unanswerable without
-// knowing the exceptions; naming the SAME namespace as another read is worse, because
-// then two queries accept each other's anchors and the seek lands in the wrong
-// ordering.
+// what the namespace in the token is for. What it cannot see is two readers sharing
+// a namespace, which would let each continue the other's cursor in a different
+// ordering or filter scope.
 //
 // The constants are read out of source because a Go const block cannot be enumerated
-// at runtime — the same reason, and the same mechanism, as the wire enums and the
-// capability keys.
-func TestPageCursorsBindToTheirOwnMethod(t *testing.T) {
+// at runtime.
+func TestPageCursorsHaveUniqueSemanticNamespaces(t *testing.T) {
 	root := moduleRoot(t)
 	namespaces := pageCursorNamespaces(t, root)
+	keysetPath := filepath.Join(root, "internal", "component", "keyset", "keyset.go")
+	keysetFile, err := parser.ParseFile(token.NewFileSet(), keysetPath, nil, 0)
+	if err != nil {
+		t.Fatalf("parse keyset cursor: %v", err)
+	}
+	if fields := structFields(keysetFile, "token"); !slices.Equal(fields, []string{"Version", "Namespace", "Filters", "Key"}) {
+		t.Fatalf("keyset token fields = %v, want semantic namespace ownership", fields)
+	}
 
-	// Five reads page by seeking today. The floor is here so the gate cannot pass by
+	// Six reads page by seeking today. The floor is here so the gate cannot pass by
 	// finding nothing — a renamed convention would otherwise read as compliance.
-	if len(namespaces) < 5 {
+	if len(namespaces) < 6 {
 		t.Fatalf("found %d page cursor namespaces, want every seek-paged read's: %v", len(namespaces), namespaces)
 	}
 
-	published := dispatch.Contract().Names()
 	seen := make(map[string]string, len(namespaces))
-	for name, method := range namespaces {
-		if !slices.Contains(published, method) {
-			t.Errorf("%s binds its cursors to %q, which no registered method serves", name, method)
-		}
-		if owner, taken := seen[method]; taken {
-			t.Errorf("%s and %s both bind their cursors to %q — each would continue the other's page", name, owner, method)
+	for name, namespace := range namespaces {
+		if namespace == "" {
+			t.Errorf("%s has an empty page cursor namespace", name)
 			continue
 		}
-		seen[method] = name
+		if strings.HasSuffix(namespace, ".list") {
+			t.Errorf("%s uses transport method-shaped namespace %q", name, namespace)
+		}
+		if owner, taken := seen[namespace]; taken {
+			t.Errorf("%s and %s both bind their cursors to %q — each would continue the other's page", name, owner, namespace)
+			continue
+		}
+		seen[namespace] = name
 	}
 }
 
-// pageCursorNamespaces reads every `*PageMethod` string constant in the module,
-// keyed by constant name.
+// pageCursorNamespaces reads every `*PageNamespace` string constant in the
+// module, keyed by constant name.
 func pageCursorNamespaces(t *testing.T, root string) map[string]string {
 	t.Helper()
 
@@ -78,7 +84,7 @@ func pageCursorNamespaces(t *testing.T, root string) map[string]string {
 					continue
 				}
 				name := value.Names[0].Name
-				if !strings.HasSuffix(name, "PageMethod") {
+				if !strings.HasSuffix(name, "PageNamespace") {
 					continue
 				}
 				literal, ok := value.Values[0].(*ast.BasicLit)
@@ -114,24 +120,24 @@ func pageCursorNamespaces(t *testing.T, root string) map[string]string {
 func TestEverySeekPagedReadHasQueryFixtures(t *testing.T) {
 	root := moduleRoot(t)
 
-	for _, method := range pageCursorNamespaces(t, root) {
-		covered, ok := pageFixtures[method]
+	for _, namespace := range pageCursorNamespaces(t, root) {
+		covered, ok := pageFixtures[namespace]
 		if !ok {
-			t.Errorf("%s pages by seeking and has no query fixtures", method)
+			t.Errorf("%s pages by seeking and has no query fixtures", namespace)
 			continue
 		}
 		for _, property := range [...]queryProperty{fixedOrder, cursorBinding, pageDirection} {
 			fixture, ok := covered[property]
 			if !ok {
-				t.Errorf("%s has no fixture for %s", method, property)
+				t.Errorf("%s has no fixture for %s", namespace, property)
 				continue
 			}
-			assertFixtureProves(t, root, fixture, method)
+			assertFixtureProves(t, root, fixture, namespace)
 		}
 	}
-	for method := range pageFixtures {
-		if !slices.Contains(slices.Collect(maps.Values(pageCursorNamespaces(t, root))), method) {
-			t.Errorf("fixtures claim to page %s, which no read binds its cursors to", method)
+	for namespace := range pageFixtures {
+		if !slices.Contains(slices.Collect(maps.Values(pageCursorNamespaces(t, root))), namespace) {
+			t.Errorf("fixtures claim to page %s, which no read binds its cursors to", namespace)
 		}
 	}
 }
@@ -152,32 +158,32 @@ const (
 )
 
 var pageFixtures = map[string]map[queryProperty]fixtureRef{
-	"items.list": {
+	"items": {
 		fixedOrder:    {"internal/application/queries", "TestListItemPageBoundsTheQueryAndSeeksPastTheAnchor"},
 		pageDirection: {"internal/application/queries", "TestListItemPageBoundsTheQueryAndSeeksPastTheAnchor"},
 		cursorBinding: {"internal/application/queries", "TestListItemPageRefusesAForeignCursor"},
 	},
-	"runs.list": {
+	"runs": {
 		fixedOrder:    {"internal/application/queries", "TestListRunPageWalksBackwardThroughHistory"},
 		pageDirection: {"internal/application/queries", "TestListRunPageWalksBackwardThroughHistory"},
 		cursorBinding: {"internal/application/queries", "TestListRunPageRefusesACursorFromAnotherQuery"},
 	},
-	"interrupts.list": {
+	"interrupts": {
 		fixedOrder:    {"internal/application/queries", "TestListPendingInterruptPagePagesOldestFirst"},
 		pageDirection: {"internal/application/queries", "TestListPendingInterruptPagePagesOldestFirst"},
 		cursorBinding: {"internal/application/queries", "TestListPendingInterruptPagePagesOldestFirst"},
 	},
-	"sessions.list": {
+	"sessions": {
 		fixedOrder:    {"internal/application/sessions", "TestListViewPagePagesInAFixedOrderAndRefusesAForeignCursor"},
 		pageDirection: {"internal/application/sessions", "TestListViewPagePagesInAFixedOrderAndRefusesAForeignCursor"},
 		cursorBinding: {"internal/application/sessions", "TestListViewPagePagesInAFixedOrderAndRefusesAForeignCursor"},
 	},
-	"schedules.list": {
+	"schedules": {
 		fixedOrder:    {"internal/application/schedules", "TestListPagePagesNewestFirstAndRefusesAForeignCursor"},
 		pageDirection: {"internal/application/schedules", "TestListPagePagesNewestFirstAndRefusesAForeignCursor"},
 		cursorBinding: {"internal/application/schedules", "TestListPagePagesNewestFirstAndRefusesAForeignCursor"},
 	},
-	"workspace.files.list": {
+	"workspace.files": {
 		fixedOrder:    {"internal/application/workspace", "TestFilePagesUseATotalOrderAndBindTheCompleteQuery"},
 		pageDirection: {"internal/application/workspace", "TestFilePagesUseATotalOrderAndBindTheCompleteQuery"},
 		cursorBinding: {"internal/application/workspace", "TestFilePagesUseATotalOrderAndBindTheCompleteQuery"},

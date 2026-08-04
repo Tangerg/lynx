@@ -24,7 +24,7 @@ func WithScope(ctx context.Context, scope execution.ExecutionScope) context.Cont
 	return context.WithValue(ctx, scopeKey{}, scope)
 }
 
-// Scope returns the application scope attached at the root turn boundary.
+// Scope returns the application scope attached at the root Run boundary.
 func Scope(ctx context.Context) (execution.ExecutionScope, bool) {
 	if ctx == nil {
 		return execution.ExecutionScope{}, false
@@ -33,7 +33,7 @@ func Scope(ctx context.Context) (execution.ExecutionScope, bool) {
 	return scope, ok
 }
 
-// CWD returns the execution workspace, falling back when the turn is
+// CWD returns the execution workspace, falling back when the Run is
 // unattached. Every cwd-dependent adapter reads this single host seam.
 func CWD(ctx context.Context, fallback string) string {
 	if scope, ok := Scope(ctx); ok && scope.Cwd != "" {
@@ -43,7 +43,7 @@ func CWD(ctx context.Context, fallback string) string {
 }
 
 // WorkspaceCWD returns the persistent session workspace, falling back when the
-// turn is unattached. Unlike [CWD], it never points at an isolated scratch copy.
+// Run is unattached. Unlike [CWD], it never points at an isolated scratch copy.
 func WorkspaceCWD(ctx context.Context, fallback string) string {
 	if scope, ok := Scope(ctx); ok && scope.WorkspaceCwd != "" {
 		return scope.WorkspaceCwd
@@ -51,7 +51,7 @@ func WorkspaceCWD(ctx context.Context, fallback string) string {
 	return fallback
 }
 
-// Isolated reports whether the running turn is in an isolated session
+// Isolated reports whether the running Run is in an isolated session
 // so shell execution applies the host's OS jail.
 func Isolated(ctx context.Context) bool {
 	scope, ok := Scope(ctx)
@@ -68,7 +68,7 @@ func GoalLeaseID(ctx context.Context) (string, bool) {
 }
 
 // SessionID returns the owning product session, or empty for an unattached
-// smoke turn.
+// smoke Run.
 func SessionID(ctx context.Context) string {
 	if scope, ok := Scope(ctx); ok {
 		return scope.SessionID
@@ -87,7 +87,7 @@ func WithModelSelection(ctx context.Context, selection modelref.Selection) conte
 }
 
 // ModelSelection returns the Run's explicit model choice, falling back to the
-// runtime default for turns that did not override it.
+// runtime default for Runs that did not override it.
 func ModelSelection(ctx context.Context, fallback modelref.Selection) modelref.Selection {
 	if ctx != nil {
 		if selection, ok := ctx.Value(modelSelectionKey{}).(modelref.Selection); ok && selection.Configured() {

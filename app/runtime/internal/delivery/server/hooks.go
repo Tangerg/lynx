@@ -83,8 +83,8 @@ func presentHookScope(scope hooks.Scope) (protocol.HookScope, bool) {
 }
 
 // SetHookTrust trusts (or revokes) a project's hooks (hooks.
-// setTrust). The change takes effect on the next turn — the resolver re-reads
-// trust per turn.
+// setTrust). The change takes effect on the next Run — the resolver re-reads
+// trust per Run.
 func (s *Server) SetHookTrust(ctx context.Context, in protocol.SetHookTrustRequest) error {
 	if in.ProjectRoot == "" {
 		return protocol.ErrInvalidParams

@@ -1,7 +1,7 @@
 // Package session models Lyra's conversation identity — the Session entity and
 // the pure derivations over it (Fork and the editable Patch). Every multi-Run
 // interaction lives under a Session. Persistence is a
-// consumer concern: each coordinator/adapter defines the narrow store port it
+// consumer concern: each coordinator defines the narrow store port it
 // needs (list/resume/branch/discard), so this package holds no persistence
 // interface of its own.
 package session
@@ -89,9 +89,8 @@ type Session struct {
 // at s. The application copies the selected conversation prefix separately;
 // the parent's model and other accumulated state are not inherited.
 //
-// id and now are supplied by the caller: the storage adapter owns id generation
-// (uuid) and the clock, keeping this derivation a pure, DB-free function the
-// "what a fork is" rule can be unit-tested against.
+// id and now are supplied by the caller, keeping this derivation pure and making
+// the "what a fork is" rule directly testable.
 func (s Session) Fork(id string, now time.Time) Session {
 	return Session{
 		ID:        id,

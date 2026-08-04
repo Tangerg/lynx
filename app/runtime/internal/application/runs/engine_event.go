@@ -84,11 +84,9 @@ type executorPayloadBase struct{}
 
 func (executorPayloadBase) executorPayload() {}
 
-// EngineEvent is the closed application-owned execution fact family. Driven
-// adapters emit these values at the SegmentExecutor port; delivery therefore
-// projects an application contract and never reaches into an executor adapter.
-// Control handshakes deliberately implement only [ExecutorPayload], so they
-// cannot accidentally enter the reducer.
+// EngineEvent is the closed application-owned execution fact family emitted at
+// the SegmentExecutor port. Control handshakes deliberately implement only
+// [ExecutorPayload], so they cannot accidentally enter the reducer.
 type EngineEvent interface {
 	ExecutorPayload
 	engineEvent()
@@ -111,8 +109,8 @@ type ReasoningDelta struct {
 type ToolCallStart struct {
 	engineEventBase
 	CallID string
-	// SourceCallID is the executor's parent-call identity. It never reaches the
-	// protocol; it exists solely to map a child Process causal edge to this
+	// SourceCallID is the executor's parent-call identity. It exists solely to map
+	// a child Process causal edge to this
 	// canonical Item without parsing CallID or relying on event timing.
 	SourceCallID string
 	ToolName     string

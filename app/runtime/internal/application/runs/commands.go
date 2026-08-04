@@ -31,8 +31,7 @@ var (
 	// parked.
 	ErrRunNotFound = errors.New("runs: run not found")
 	// ErrChildRunNotAllowed reports that a caller addressed a child Run without
-	// the child-run capability. The application keeps this protocol-neutral:
-	// Delivery decides how that missing authority is represented on its wire.
+	// the child-run capability.
 	ErrChildRunNotAllowed = errors.New("runs: child run control is not allowed")
 	// ErrRunWaiting and ErrRunFinished report a run that exists but is not
 	// executing. They are separate from ErrRunNotFound because the caller's next
@@ -70,8 +69,7 @@ var (
 )
 
 // InputBlockError identifies one invalid field in canonical user content while
-// preserving the application error category callers branch on. Delivery may
-// translate Index and Field into its wire path without re-validating media.
+// preserving the application error category callers branch on.
 type InputBlockError struct {
 	Index  int
 	Field  string
@@ -89,7 +87,7 @@ func invalidInputBlock(index int, field, detail string, cause error) error {
 	return &InputBlockError{Index: index, Field: field, Detail: detail, Cause: cause}
 }
 
-// StartCommand is the protocol-neutral runs.start use case input.
+// StartCommand is the complete input for starting a Run.
 type StartCommand struct {
 	// RunID and NewSessionID are set only by a durable scheduled occurrence.
 	// They make re-dispatch after a crash resume the same logical run/session.
@@ -199,7 +197,7 @@ func (c StartCommand) MaterializeInput() (message string, images []*media.Media,
 	return message, images, strings.TrimSpace(message), nil
 }
 
-// ResumeCommand is the protocol-neutral runs.resume use case input.
+// ResumeCommand is the complete input for resuming a waiting Run.
 type ResumeCommand struct {
 	RunID     string
 	Responses []ResumeResponse
@@ -220,7 +218,7 @@ const (
 	QuestionResponseKind ResumeResponseKind = "question"
 )
 
-// ResumeResponse is the protocol-neutral answer to one durable interrupt item.
+// ResumeResponse is the answer to one durable interrupt item.
 // Exactly one payload must match Kind.
 type ResumeResponse struct {
 	ItemID   string
@@ -242,8 +240,7 @@ type QuestionResponse struct {
 
 // QuestionAnswerError identifies the exact ordered answer that failed the
 // durable question schema. Index is -1 when the answer collection itself is
-// malformed. Delivery turns it into invalid_params.errors without teaching the
-// application about JSON field paths.
+// malformed.
 type QuestionAnswerError struct {
 	ItemID string
 	Index  int
@@ -270,9 +267,8 @@ type CancelCommand struct {
 }
 
 // CancelResult is the exact durable terminal snapshot committed by Cancel.
-// RootRun is present only when the addressed Run is a child; it gives Delivery
-// enough information to publish the closed root/child result union without
-// querying or reconstructing domain state after the command boundary.
+// RootRun is present only when the addressed Run is a child, so callers do not
+// have to query or reconstruct state after the command boundary.
 type CancelResult struct {
 	Run     transcript.Run
 	RootRun *transcript.Run
@@ -314,8 +310,7 @@ type Subscription struct {
 	Events     iter.Seq[Event]
 }
 
-// StartResult identifies the admitted segment and exposes its application
-// event stream. Delivery only maps this result to protocol DTOs.
+// StartResult identifies the admitted Segment and exposes its event stream.
 type StartResult struct {
 	RunID      string
 	SegmentID  string

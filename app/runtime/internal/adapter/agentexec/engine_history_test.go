@@ -105,8 +105,8 @@ func TestEngine_RunChat_PersistentHistoryStoreRoundTrip(t *testing.T) {
 	}
 }
 
-// TestEngine_RunChat_RequiresSessionID verifies the App execution adapter never
-// creates an ownerless turn that cannot form a valid durable TurnScope.
+// TestEngine_RunChat_RequiresSessionID verifies the Application execution adapter never
+// creates an ownerless turn that cannot form a valid durable ExecutionScope.
 func TestEngine_RunChat_RequiresSessionID(t *testing.T) {
 	stub := newHistoryAwareStub()
 	client, _ := chatclient.New(stub, chatclient.Config{})

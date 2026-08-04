@@ -5,10 +5,9 @@ package execution
 // projected — the three terminal reasons are one position, because "why did it
 // end" is the [Outcome] and not the position.
 //
-// It is a domain type rather than a wire enum because reads FILTER on it and the
-// durable record is keyed by it. Without it, the store's state column and the
-// published status would each own a spelling of the same three positions, and
-// nothing would make them agree.
+// Reads filter on this domain value and durable records are keyed by it. Keeping
+// one projection prevents observers and persistence from inventing independent
+// spellings for the same three positions.
 type RunStatus uint8
 
 const (

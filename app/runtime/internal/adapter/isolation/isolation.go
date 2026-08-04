@@ -20,7 +20,7 @@ import (
 
 // Isolator holds one sandbox Workspace per isolated session. The copy is
 // created lazily on the session's first isolated run and reused across its
-// turns (so the agent's work accumulates), then destroyed when the session is
+// Runs (so the agent's work accumulates), then destroyed when the session is
 // deleted or the runtime stops. The copy is a scratch tree: it is never
 // snapshotted or written back — isolation means the project is left untouched.
 // Safe for concurrent use.

@@ -34,7 +34,7 @@ const (
 
 // ClientSpec is everything needed to build one chat client: which provider
 // (the adapter to use), which model, the api key, and an optional endpoint
-// override. It's the unit a multi-provider registry resolves a turn to.
+// override. It is the unit a multi-provider registry resolves a Run to.
 type ClientSpec struct {
 	Provider Provider
 	Model    string

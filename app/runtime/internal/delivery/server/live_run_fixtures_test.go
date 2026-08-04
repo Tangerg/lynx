@@ -7,7 +7,6 @@ import (
 
 	"github.com/Tangerg/lynx/core/chat"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/runsegment"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
@@ -16,7 +15,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 )
 
-// blockingRunRuntime is a stub whose turn never emits or finishes, so a run
+// blockingRunRuntime is a stub whose execution never emits or finishes, so a Run
 // started through it stays live in the coordinator until its context is
 // canceled — the seam delivery tests use to hold a live run present (the run
 // registry lives inside the Coordinator now, so tests can no longer inject a
@@ -55,8 +54,7 @@ func (*blockingRunRuntime) CancelSubtree(context.Context, execution.ExecutorRef,
 }
 
 func (*blockingRunRuntime) PrepareStart(_ context.Context, req runs.StartExecution) (execution.ExecutorRef, error) {
-	handle := turn.Handle{SessionID: req.SessionID, TurnID: "turn_blocking"}
-	return execution.ExecutorRef{SessionID: handle.SessionID, ExecutorID: handle.TurnID}, nil
+	return execution.ExecutorRef{SessionID: req.SessionID, ExecutorID: "exec_blocking"}, nil
 }
 
 func (*blockingRunRuntime) Activate(context.Context, execution.ExecutorRef) error { return nil }

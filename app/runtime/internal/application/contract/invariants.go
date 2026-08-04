@@ -1,17 +1,14 @@
 // Package contract names the runtime's cross-resource invariants and says which
 // transaction boundaries are responsible for keeping each one.
 //
-// It lives in the application ring on purpose (vNext plan D3). These invariants
-// span runs, interrupts, items and the store, so the delivery ring — which must
-// stay wire-only — has no business naming them; and if the type lived in
-// delivery, registering here would make the application ring depend OUTWARD,
-// which the dependency rule forbids.
+// These invariants span Runs, Interrupts, Items, and persistence, so the use-case
+// layer must name them independently of any external contract.
 //
 // What this package does NOT do is enforce anything. A [SystemInvariantSpec]
 // gives an invariant a stable name and points at the code responsible for it. The
 // alternative — a Validate() that reaches into a repository to check a
 // cross-resource fact — is exactly what contract §11.2 rules out: it would make a
-// DTO validator depend on storage, and it would pretend a frame-local check can
+// local value validator depend on storage, and it would pretend a value-local check can
 // see the whole system. Verification is a cross-projection integration fixture.
 package contract
 

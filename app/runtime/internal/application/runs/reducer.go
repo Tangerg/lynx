@@ -243,11 +243,11 @@ func (r *reducer) synthesizeTerminal() (reductionBatch, error) {
 	return r.project(out)
 }
 
-// abort marks the segment as failed so terminal synthesis produces an error
-// outcome. It takes no cause: an internal failure must not put its internals on
-// the wire, so the client gets the bare symbol and supplies its own words.
+// abort marks the Segment as failed so terminal synthesis produces an error
+// outcome. It takes no cause: an internal failure exposes only its stable problem
+// kind to observers.
 // That makes the caller's span the only place the cause survives — a rejected
-// terminal commit or a protocol-violating executor event is otherwise invisible
+// terminal commit or a contract-violating executor event is otherwise invisible
 // — so every caller records it there before calling this.
 func (r *reducer) abort() {
 	r.errProblem = &transcript.Problem{Kind: transcript.InternalProblem, Scope: transcript.RunProblem}

@@ -17,7 +17,7 @@ type SessionLookup interface {
 }
 
 // Policy is the approval-management use case's view of runtime policy. Tool
-// call evaluation has a different, narrower consumer interface in turn.
+// call evaluation consumes a separate, narrower policy view.
 type Policy interface {
 	DefaultMode(ctx context.Context) (approval.Mode, error)
 	SetDefaultMode(ctx context.Context, mode approval.Mode) error

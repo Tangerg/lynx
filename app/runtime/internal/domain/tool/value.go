@@ -11,8 +11,8 @@ import (
 var (
 	// ErrInvalidArguments reports malformed or non-object tool arguments.
 	ErrInvalidArguments = errors.New("tool: invalid arguments")
-	// ErrInvalidResult reports a tool result that cannot cross the JSON-based
-	// provider and runtime protocol boundaries without losing information.
+	// ErrInvalidResult reports a tool result that cannot be represented as one
+	// complete JSON value without losing information.
 	ErrInvalidResult = errors.New("tool: invalid result")
 )
 
@@ -41,7 +41,7 @@ func ParseArguments(raw string) (Arguments, error) {
 	return ArgumentsFromMap(value)
 }
 
-// ArgumentsFromMap takes an ownership-isolated snapshot of a wire object.
+// ArgumentsFromMap takes an ownership-isolated snapshot of an argument object.
 func ArgumentsFromMap(value map[string]any) (Arguments, error) {
 	if value == nil {
 		return Arguments{}, fmt.Errorf("%w: expected an object", ErrInvalidArguments)
@@ -64,7 +64,7 @@ func (a Arguments) Canonical() string {
 	return a.raw
 }
 
-// Map returns a recursively ownership-isolated wire projection.
+// Map returns a recursively ownership-isolated object projection.
 func (a Arguments) Map() map[string]any {
 	var value map[string]any
 	if err := decodeValue([]byte(a.Canonical()), &value); err != nil {
@@ -114,7 +114,7 @@ func StringResult(value string) Result {
 	return Result{raw: string(encoded)}
 }
 
-// NewResult snapshots and validates an arbitrary adapter or wire value.
+// NewResult snapshots and validates an arbitrary JSON-compatible value.
 func NewResult(value any) (Result, error) {
 	encoded, err := json.Marshal(value)
 	if err != nil {
@@ -139,7 +139,7 @@ func ParseResult(data []byte) (Result, error) {
 	return Result{raw: string(encoded)}, nil
 }
 
-// Any returns a recursively ownership-isolated wire or presentation value.
+// Any returns a recursively ownership-isolated value.
 func (r Result) Any() any {
 	var value any
 	if err := decodeValue([]byte(r.Canonical()), &value); err != nil {

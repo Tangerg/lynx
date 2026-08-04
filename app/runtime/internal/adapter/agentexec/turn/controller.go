@@ -70,7 +70,7 @@ type Dependencies struct {
 
 	// Maintenance performs best-effort post-turn housekeeping. nil disables the
 	// complete maintenance sweep.
-	Maintenance BoundaryMaintenance
+	Maintenance RunMaintenance
 
 	// Approval gates every tool call using the owning session's effective
 	// permission mode and remembered rules. Required.
@@ -121,8 +121,8 @@ type Dependencies struct {
 //   - subagent_lifecycle.go — child-process lifecycle hook projection
 //   - observer.go       — engine tool-observer → application runs event translation
 //
-// Consumers define the narrow control ports they need; delivery never drives
-// this adapter directly.
+// Consumers define the narrow control ports they need; this controller exposes
+// no request or presentation concerns.
 func New(deps Dependencies) (*controller, error) {
 	if deps.Engine == nil {
 		return nil, errors.New("turn: engine is required")
@@ -155,7 +155,7 @@ func New(deps Dependencies) (*controller, error) {
 type controller struct {
 	engine        engineDep
 	steering      SteeringSink
-	maintenance   BoundaryMaintenance // optional — nil = no turn-boundary maintenance
+	maintenance   RunMaintenance // optional — nil = no Run-boundary maintenance
 	approval      ApprovalGate
 	resolver      clientResolver // optional — nil accepts only the default model
 	plan          planReader     // optional — nil = no state.snapshot{plan} projection
@@ -213,8 +213,8 @@ func (s *controller) isClosed() bool {
 }
 
 // BeginShutdown rejects future turns and starts cancellation for the complete
-// live-turn set. The controller, not the delivery run registry, is authoritative
-// because parked turns remain live after their streaming segment has ended.
+// live-turn set. The controller is authoritative because parked Turns remain
+// live after their streaming Segment has ended.
 func (s *controller) BeginShutdown() {
 	s.shutdownOnce.Do(func() {
 		s.mu.Lock()

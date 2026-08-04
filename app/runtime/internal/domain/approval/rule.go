@@ -158,8 +158,8 @@ func (req RememberRequest) rule() (Rule, error) {
 	return NewRule(req.Scope, key, req.Tool, req.Subject, req.Decision)
 }
 
-// stableID makes re-remembering the same rule an upsert and gives the UI a
-// durable forget handle.
+// stableID makes re-remembering the same rule an upsert and supplies a durable
+// handle for forgetting it later.
 func (r Rule) stableID() string {
 	h := fnv.New64a()
 	for _, part := range []string{string(r.Scope), r.ScopeKey, r.Tool, r.Subject} {

@@ -16,8 +16,7 @@ import (
 )
 
 // ErrInvalidPortableSnapshot marks a structurally decoded archive that cannot
-// satisfy the product aggregate invariants. Delivery maps this use-case error
-// to invalid_params without reimplementing the validation itself.
+// satisfy the product aggregate invariants.
 var ErrInvalidPortableSnapshot = errors.New("sessions: invalid portable snapshot")
 
 // PortableSnapshot is the transport-neutral, terminal-only session archive
@@ -112,8 +111,7 @@ func (p PortableRun) validateLineage() error {
 }
 
 // CanonicalSnapshot rebuilds and validates the canonical aggregate from a
-// portable archive. Protocol adapters only decode their wire document into
-// PortableSnapshot values; the restore use case owns its one normalization.
+// portable archive. The restore use case owns this normalization.
 func (p PortableSnapshot) CanonicalSnapshot() (Snapshot, error) {
 	snapshot := Snapshot{
 		Session:     p.Session.session(),
@@ -217,8 +215,7 @@ func bindPortableToolResults(snapshot *Snapshot) error {
 }
 
 // PortableSnapshot returns the normalized, terminal-only representation used by
-// an archive encoder. It keeps archive projection out of Delivery while leaving
-// the selected wire format to the protocol adapter.
+// archive encoders.
 func (snapshot Snapshot) PortableSnapshot() (PortableSnapshot, error) {
 	normalized, err := snapshot.NormalizeForRestore()
 	if err != nil {

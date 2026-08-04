@@ -1,4 +1,4 @@
-// Package maintenance implements turn-boundary LLM workers for kernel ports:
+// Package maintenance implements Run-boundary LLM workers:
 // history compaction, long-term fact extraction, and session titling.
 //
 // These workers operate OUTSIDE the normal conversation flow — they call the
@@ -8,8 +8,8 @@
 // direct-call helpers in llm.go; each is otherwise an independent,
 // single-responsibility worker (Compactor / Extractor / Titler) in its
 // own file, constructible and testable without the agentexec. Suite is the
-// one explicit composition point for the workers that run after a clean turn.
+// one explicit composition point for the workers that run after a clean Run.
 //
 // Bootstrap owns construction. Suite owns the maintenance lifecycle policy;
-// the turn dispatcher supplies finished-turn facts and observes its result.
+// the execution controller supplies finished-Run facts and observes its result.
 package maintenance

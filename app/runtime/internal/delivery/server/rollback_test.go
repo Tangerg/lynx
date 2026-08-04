@@ -74,7 +74,7 @@ func putUserItem(t *testing.T, rt *stubRuntime, sessionID, runID, itemID, text s
 	}
 }
 
-// TestRollbackSession_DropTail keeps the first turn and drops the second: the
+// TestRollbackSession_DropTail keeps the first Run and drops the second: the
 // message log truncates to the kept run's watermark, the dropped run's history
 // is deleted, and droppedRuns reports it with its opening user input.
 func TestRollbackSession_DropTail(t *testing.T) {
@@ -82,7 +82,7 @@ func TestRollbackSession_DropTail(t *testing.T) {
 	ctx := context.Background()
 	sess, _ := rt.sess.Create(ctx, "s", "/w")
 
-	// Two completed turns: R1 left 3 messages, R2 left 6.
+	// Two completed executions: R1 left 3 messages, R2 left 6.
 	rt.history[sess.ID] = []chat.Message{
 		chat.NewUserMessage(chat.NewTextPart("u1")), chat.NewAssistantMessage(chat.NewTextPart("a1")), chat.NewUserMessage(chat.NewTextPart("u1b")),
 		chat.NewUserMessage(chat.NewTextPart("u2")), chat.NewAssistantMessage(chat.NewTextPart("a2")), chat.NewUserMessage(chat.NewTextPart("u2b")),
@@ -127,15 +127,15 @@ func TestRollbackSession_CancelsDroppedParkedRun(t *testing.T) {
 	if err := rt.interrupts.Open(ctx, serverPending(
 		"run_2",
 		sess.ID,
-		"turn_parked",
+		"exec_parked",
 		"process_run_2",
 		nil,
 		time.Now().UTC(),
 	)); err != nil {
 		t.Fatalf("seed interrupt: %v", err)
 	}
-	turns := &recordingTurns{}
-	rt.turns = turns
+	executions := &recordingExecutions{}
+	rt.execution = executions
 
 	out, err := s.RollbackSession(ctx, protocol.RollbackSessionRequest{SessionID: sess.ID, ToRunID: "run_1"})
 	if err != nil {
@@ -144,11 +144,11 @@ func TestRollbackSession_CancelsDroppedParkedRun(t *testing.T) {
 	if len(out.DroppedRuns) != 1 || out.DroppedRuns[0].Run.ID != "run_2" {
 		t.Fatalf("droppedRuns = %+v, want [run_2]", out.DroppedRuns)
 	}
-	if len(turns.canceled) != 1 {
-		t.Fatalf("canceled = %+v, want one parked turn", turns.canceled)
+	if len(executions.canceled) != 1 {
+		t.Fatalf("canceled = %+v, want one parked execution", executions.canceled)
 	}
-	if got := turns.canceled[0]; got.SessionID != sess.ID || got.TurnID != "turn_parked" {
-		t.Fatalf("canceled handle = %+v, want %s/turn_parked", got, sess.ID)
+	if got := executions.canceled[0]; got.SessionID != sess.ID || got.ExecutorID != "exec_parked" {
+		t.Fatalf("canceled execution = %+v, want %s/exec_parked", got, sess.ID)
 	}
 	if pending, _ := rt.interrupts.List(ctx, sess.ID); len(pending) != 0 {
 		t.Fatalf("pending interrupts = %+v, want cleared", pending)

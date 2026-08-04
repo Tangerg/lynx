@@ -1,7 +1,5 @@
 // Package agentmemory owns the human-in-the-loop use cases for agent-maintained
-// memory. It translates workspace-scoped requests into durable memory actions;
-// Delivery only validates/projections protocol values and never drives a
-// domain persistence port directly.
+// memory. It translates workspace-scoped requests into durable memory actions.
 package agentmemory
 
 import (

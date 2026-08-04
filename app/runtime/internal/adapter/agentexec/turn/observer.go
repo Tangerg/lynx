@@ -267,7 +267,7 @@ func (t *toolGate) ApproveToolCall(ctx context.Context, callID, toolName, argume
 }
 
 // doomLoopEscalation brakes a model repeating the same call to no effect. It
-// raises the ordinary approval interrupt (reusing its resume, UI card, and
+// raises the ordinary approval interrupt (reusing its resolution lifecycle and
 // auto-deny-when-unanswerable machinery — a headless client that cannot answer
 // approvals auto-denies, braking the loop automatically) with a reason naming
 // the loop. The no-progress streak is reset as the brake fires, so after the

@@ -10,7 +10,7 @@ import (
 )
 
 // CancelRun hard-stops a running run (outcome:canceled, API.md §7.3).
-// A parked run is also abandoned — its live parked turn is torn down
+// A parked Run is also abandoned — its live parked execution is torn down
 // and its open interrupt dropped so it stops surfacing as resumable.
 func (s *Server) CancelRun(ctx context.Context, in protocol.CancelRunRequest) (*protocol.CancelRunResponse, error) {
 	// Root cancel is the emergency stop and is always allowed. Whether the target

@@ -27,7 +27,7 @@ func (c *Coordinator) applyRollback(ctx context.Context, sessionID string, bound
 		return err
 	}
 	// Read the boundary's Plan BEFORE the write-set drops the runs after it: the
-	// kept run survives, but reading inside the plan would mean the adapter deciding
+	// kept run survives, but reading inside the write-set would mean persistence deciding
 	// which boundary the state comes from.
 	plan, err := c.planBoundary(ctx, boundary.KeepRunID)
 	if err != nil {

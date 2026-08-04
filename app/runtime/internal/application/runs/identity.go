@@ -1,8 +1,7 @@
 package runs
 
-// Resource identifiers are application-owned lifecycle identities. Delivery
-// may frame them for the wire, but neither Bootstrap nor a persistence adapter
-// decides their namespace.
+// Resource identifiers are application-owned lifecycle identities. Their
+// namespace is decided here rather than by composition or persistence.
 const (
 	runIDPrefix     = "run_"
 	segmentIDPrefix = "seg_"

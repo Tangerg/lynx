@@ -13,9 +13,8 @@ import (
 )
 
 // InterruptFunc is the consumer-owned capability a tool uses to park the
-// current execution on one application interrupt. The Agent adapter provides
-// the live implementation; tool packages depend only on this application
-// contract and never on that concrete adapter.
+// current execution on one application interrupt. Tool packages depend only on
+// this contract and never on execution internals.
 type InterruptFunc func(context.Context, string, Interrupt) (interrupts.Resolution, error)
 
 // InterruptUnavailable is the fail-closed default for a tool environment that
@@ -66,8 +65,8 @@ type QuestionOptionSpec struct {
 }
 
 // Interrupt is the durable application plan for a runtime suspension. Exactly
-// one payload must be present and must match Kind. Agent-process JSON encoding
-// belongs to the adapter boundary.
+// one payload must be present and must match Kind. Executor continuation data is
+// deliberately absent.
 type Interrupt struct {
 	Kind     execution.InterruptKind
 	Approval *ApprovalPrompt

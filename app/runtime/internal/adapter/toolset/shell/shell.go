@@ -27,7 +27,7 @@ import (
 // session's working directory.
 
 // defaultAutoBackgroundSeconds is how long a foreground shell command may run
-// before it is moved to the background (so the turn isn't blocked on a build /
+// before it is moved to the background (so the Run isn't blocked on a build /
 // dev server). Overridable per call via
 // auto_background_after_seconds.
 const defaultAutoBackgroundSeconds = 60
@@ -180,7 +180,7 @@ func (t *toolSet) completed(id string, sh *exec.Shell) string {
 }
 
 func (t *toolSet) cancelForeground(ctx context.Context, id string, sh *exec.Shell) (string, error) {
-	// The command may have finished in the same instant the turn was canceled;
+	// The command may have finished in the same instant the Run was canceled;
 	// select picks a ready case at random, so check Done() before discarding a
 	// completed result the user can still use.
 	select {
@@ -276,7 +276,7 @@ func backgroundedJSON(id string) string {
 // — the timeout elapses. It reuses the same per-shell done channel the shell
 // foreground path selects on (no polling). A timeout is NOT an error: the
 // caller then reports the current still-running output, just as if wait were
-// off. Returns ctx.Err() only on cancellation (turn cancel / budget timeout).
+// off. Returns ctx.Err() only on cancellation (Run cancel / budget timeout).
 func waitForShell(ctx context.Context, sh *exec.Shell, timeoutMs int) error {
 	if timeoutMs <= 0 {
 		select {

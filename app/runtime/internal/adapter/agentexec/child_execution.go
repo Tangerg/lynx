@@ -24,7 +24,7 @@ type ChildProcess struct {
 type AdmitChildFunc func(ctx context.Context, child ChildProcess) error
 
 // childExecutionPolicy propagates application-owned provider, dependencies,
-// accounting projection, and UI hooks. Agent supplies the tree-wide budget
+// accounting projection, and observation hooks. Agent supplies the tree-wide budget
 // authority automatically; children never receive a second limit calculation.
 type childExecutionPolicy struct {
 	engine          *Engine

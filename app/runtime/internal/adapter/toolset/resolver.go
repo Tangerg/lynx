@@ -20,7 +20,7 @@ import (
 	domaintool "github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
 
-// The per-turn application-context seam (cwd, session, isolation, goal lease)
+// The per-Run application-context seam (cwd, session, isolation, goal lease)
 // lives in package executionctx — the resolver, per-tool packages, and prompt
 // composition all read it inward without coupling to each other.
 
@@ -28,7 +28,7 @@ import (
 // delegated roles. The working-directory-independent tools (online
 // providers, MCP servers, the `delegate_task` tool) are built once at
 // engine construction and captured here; filesystem and skill tools are
-// rebuilt per resolution, while shell and LSP tools read the resolving turn's
+// rebuilt per resolution, while shell and LSP tools read the resolving Run's
 // application context per call. Both paths fall back to defaultWorkdir. That is
 // what lets a single engine serve many sessions —
 // each running its tools in its own project directory — without a
@@ -38,23 +38,23 @@ type Resolver struct {
 
 	defaultWorkdir string
 	defaultModel   modelref.Selection
-	skillsUserDir  string                                      // user-scope skills dir; merged under each turn's project skills
+	skillsUserDir  string                                      // user-scope skills dir; merged under each Run's project skills
 	skillUsage     skill.UsageRecorder                         // records skill loads for the idle-lifecycle curator; nil → off
 	online         []toolcontract.Tool                         // working-directory-independent network tools
 	a2a            []toolcontract.Tool                         // working-directory-independent remote A2A agents
 	lsp            []toolcontract.Tool                         // code-intelligence tools; cwd read per-call (analyzer keys servers by root)
-	codeIntel      *codeintel.Analyzer                         // backs the write/edit diagnostics wrap (rebuilt per resolution with the turn's cwd)
+	codeIntel      *codeintel.Analyzer                         // backs the write/edit diagnostics wrap (rebuilt per resolution with the Run's cwd)
 	readTracker    *readTracker                                // backs the read-before-edit + stale guards on read/edit/write
-	pathLocker     *pathLocker                                 // serializes same-path fs calls across every concurrent turn resolution
+	pathLocker     *pathLocker                                 // serializes same-path fs calls across every concurrent Run resolution
 	shell          []toolcontract.Tool                         // shell tools (shell / read_shell_output / stop_shell) over the exec.Shells; cwd read per-call
 	delegation     toolcontract.Tool                           // bounded recursive delegation tool; nil until set
 	createGoal     toolcontract.Tool                           // root-only Goal entry tool; nil until the Goal Driver exists
-	staticTools    []staticToolSpec                            // built-once tools with one role/placement policy for turn manifests
+	staticTools    []staticToolSpec                            // built-once tools with one role/placement policy for Run manifests
 	goalActive     func(context.Context, string) (bool, error) // reports whether the session has an active Goal; nil → outcome reporting never offered
 
 	// mcp is the working-directory-independent MCP tool set, held behind an
 	// atomic pointer so a reconnect (B3b-2) can hot-swap the live set without
-	// locking the per-turn resolution path: Tools() does one atomic load, the
+	// locking the per-Run resolution path: Tools() does one atomic load, the
 	// reconnect does one atomic store. The model therefore always sees the
 	// currently-connected servers' tools, even mid-session.
 	mcp atomic.Pointer[[]toolcontract.Tool]
@@ -83,7 +83,7 @@ const (
 	toolRootTail
 )
 
-// staticToolSpec is the policy table for built-once per-turn tools. A turn
+// staticToolSpec is the policy table for built-once per-Run tools. A Run
 // consumes entries in its placement and audience, evaluating the one dynamic
 // active-goal condition without turning resolution into a generic registry.
 type staticToolSpec struct {
@@ -96,7 +96,7 @@ type staticToolSpec struct {
 
 // resolverDeps bundles the working-directory-independent inputs the resolver captures
 // at construction. Filesystem and skill tools are rebuilt per resolution;
-// shell and LSP tools are built once but read the turn's cwd per call. Online,
+// shell and LSP tools are built once but read the Run's cwd per call. Online,
 // A2A, and code-intelligence capabilities are also built once and held.
 type resolverDeps struct {
 	DefaultWorkdir string
@@ -294,7 +294,7 @@ func (r *Resolver) Resolve(_ context.Context, role string) (core.ToolGroup, bool
 	}
 }
 
-// workdirFor reads the per-turn working directory, falling back to the
+// workdirFor reads the per-Run working directory, falling back to the
 // engine default.
 func (r *Resolver) workdirFor(ctx context.Context) string {
 	return executionctx.CWD(ctx, r.defaultWorkdir)
@@ -331,7 +331,7 @@ func (g *toolGroup) Tools(ctx context.Context) ([]toolcontract.Tool, error) {
 	tools.deferTools(g.resolver.lsp...)
 	tools.direct(g.resolver.shell...)
 	// Skill tools are working-directory scoped (project skills live under the
-	// turn's cwd), so they are built per resolution like filesystem tools and are
+	// Run's cwd), so they are built per resolution like filesystem tools and are
 	// available to both root and delegated roles. No tools when no skills exist.
 	skillTools, err := skill.BuildReaders(workdir, g.resolver.skillsUserDir, g.resolver.skillUsage)
 	if err != nil {

@@ -24,7 +24,7 @@ const attrGenAIToolName = "gen_ai.tool.name"
 func NewDiagnosticRegistry() DiagnosticRegistry { return DiagnosticRegistry{} }
 
 // DiagnosticRegistry is the direct-invocation adapter for the small diagnostic
-// tool catalog exposed outside an Agent turn.
+// tool catalog exposed outside an Agent Run.
 type DiagnosticRegistry struct{}
 
 func (DiagnosticRegistry) List(context.Context) ([]tool.Tool, error) {

@@ -38,7 +38,7 @@ type fakePreparedWaitingCancellation struct {
 	suspensions []ProcessSuspension
 	checkpoint  *execution.ExecutorCheckpoint
 	commitErr   error
-	// settleOnCommitError models the real turn adapter's post-commit Continue
+	// settleOnCommitError models the executor's post-commit Continue
 	// failure: the planned runtime transition is already applied, so Abort must
 	// be a no-op while the opened segment error-terminalizes.
 	settleOnCommitError bool
@@ -311,7 +311,7 @@ func TestCancelWaitingChildCommitsReducedPendingBeforeRuntimeTransition(t *testi
 		t.Fatalf("durable waiting commits = %+v, want one reduced Pending", effects.waitingCancels)
 	}
 	if control.prepared != plan.executor {
-		t.Fatalf("prepared turn = %+v, want %+v", control.prepared, plan.executor)
+		t.Fatalf("prepared execution = %+v, want %+v", control.prepared, plan.executor)
 	}
 }
 
@@ -646,7 +646,7 @@ func waitingCancellationCoordinator(
 		processID string,
 	) (PreparedWaitingSubtreeCancellation, error) {
 		if ref != plan.executor {
-			return PreparedWaitingSubtreeCancellation{}, errors.New("prepared the wrong turn")
+			return PreparedWaitingSubtreeCancellation{}, errors.New("prepared the wrong execution")
 		}
 		if processID != plan.target.processID {
 			return PreparedWaitingSubtreeCancellation{}, errors.New("prepared the wrong process subtree")

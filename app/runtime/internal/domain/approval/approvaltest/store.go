@@ -1,9 +1,8 @@
 // Package approvaltest provides an in-memory [approval.RuleStore] for tests.
 //
-// It lives in its own non-test-file package so that both the approval package's
-// own black-box tests and other packages' tests (e.g. kernel/turn) share one
-// fixture: nothing outside a _test.go imports it, so it never ships in the
-// production binary, yet any test can import it without an import cycle.
+// It lives in its own non-test-file package so black-box tests in multiple
+// packages can share one fixture without import cycles. Production code never
+// imports it.
 package approvaltest
 
 import (
@@ -14,7 +13,7 @@ import (
 )
 
 // MemoryStore is an in-process [approval.RuleStore] for tests. Rules die with
-// the process; production wires the sqlite-backed store.
+// the process; production supplies durable persistence separately.
 type MemoryStore struct {
 	mu    sync.Mutex
 	rules map[string]approval.Rule // by id
@@ -63,7 +62,7 @@ func (m *MemoryStore) DeleteSession(_ context.Context, sessionID string) error {
 }
 
 // visible reports whether a rule is reachable from the given session/project —
-// the same scope predicate the sqlite store expresses as a WHERE clause.
+// the same scope predicate required of durable implementations.
 func visible(r approval.Rule, sessionID, projectDir string) bool {
 	switch r.Scope {
 	case approval.ScopeSession:

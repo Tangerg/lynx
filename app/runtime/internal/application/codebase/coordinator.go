@@ -51,7 +51,7 @@ type Index interface {
 }
 
 // Status combines the index's durable status with the transient operation id
-// that this coordinator owns. Delivery projects this neutral value onto wire.
+// that this coordinator owns.
 type Status struct {
 	Index       codebaseindex.Status
 	OperationID string
@@ -68,8 +68,7 @@ type Coordinator struct {
 }
 
 // New returns a Coordinator over index (nil to disable @codebase) scoped by
-// roots. Root resolution belongs here so no Delivery handler must orchestrate
-// workspace context before invoking a codebase use case.
+// roots. Root resolution belongs to this use case.
 func New(index Index, roots RootResolver) *Coordinator {
 	return &Coordinator{index: index, roots: roots, active: make(map[string]string)}
 }

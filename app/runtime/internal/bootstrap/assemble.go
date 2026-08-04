@@ -205,11 +205,11 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 		return nil, err
 	}
 
-	// Turn-boundary ports are owned by the dispatcher. The runtime supplies the
+	// Run-boundary ports are owned by the execution controller. The runtime supplies the
 	// in-house implementations when the composition root did not inject one.
 	// The clientResolver builds a chat client for an explicit (provider, model)
 	// from that provider's registry credentials, caching by the credential
-	// tuple. A turn uses it to honor a per-run model; the maintenance services
+	// tuple. A Run uses it to honor a per-Run model; the maintenance services
 	// below use it to honor the utility-model role.
 	providers := cfg.ProviderRegistry
 	resolver := modelclient.NewClientResolver(providers)
@@ -244,7 +244,7 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 	// exec / MCP / A2A capabilities + the resolver) and injected, so the engine
 	// core builds no capability. ctx flows so a slow MCP/A2A dial can be
 	// canceled during startup.
-	// Permission policy is built early because Plan-mode tools and the turn gate
+	// Permission policy is built early because Plan-mode tools and the execution gate
 	// share its narrow session-mode views. The policy owns no Agent execution
 	// state: Plan-mode persistence remains a runtime/session concern.
 	approvalPolicy, err := approval.New(cfg.ApprovalMode, cfg.ApprovalRuleStore, cfg.PermissionModeStore)
@@ -260,7 +260,7 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 	// Goal state crosses into the tool environment before the loop driver can be
 	// constructed. It is an application boundary, not a persistence proxy. Wrapping
 	// the store here is what makes every Goal write — lifecycle command, autonomous
-	// turn, reported outcome, boot reconcile — publish its own invalidation.
+	// Run, reported outcome, boot reconcile — publish its own invalidation.
 	goalStore := goals.WithChangeNotices(cfg.GoalStore, changes.Publish)
 	goalState := goals.NewState(goalStore)
 
@@ -295,15 +295,15 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 		return nil, err
 	}
 	attachToolEnvironment(&ecfg, built.tools)
-	// Per-turn memory recall reuses the same searcher the search_memory tool does.
+	// Per-Run memory recall reuses the same searcher the search_memory tool does.
 	if memorySearcher != nil {
 		ecfg.MemorySearch = memorySearcher
 	}
 
 	// Built after the tool environment so the compactor's live-state reminder can
 	// read the same background-shell set the shell tools run over (built.Shells);
-	// turnServices is not consumed until the dispatcher config below.
-	turnServices := buildTurnServices(cfg, messages, built.tools.Shells, skillStore, workspaceSkills, utilityClient, liveEmbedder.ResolveMemory)
+	// executionServices is not consumed until the execution-controller config below.
+	executionServices := buildExecutionServices(cfg, messages, built.tools.Shells, skillStore, workspaceSkills, utilityClient, liveEmbedder.ResolveMemory)
 
 	eng, err := agentexec.New(ctx, ecfg)
 	if err != nil {
@@ -330,10 +330,10 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 		return nil, fmt.Errorf("runtime: reconcile abandoned Runs: %w", err)
 	}
 
-	turnDispatcher, err := turn.New(turn.Dependencies{
+	executionController, err := turn.New(turn.Dependencies{
 		Engine:              eng,
-		Steering:            turnServices.steering,
-		Maintenance:         turnServices.maintenance,
+		Steering:            executionServices.steering,
+		Maintenance:         executionServices.maintenance,
 		Approval:            approvalPolicy,
 		ClientResolver:      resolver,
 		Plan:                ecfg.Plan,
@@ -343,9 +343,9 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 		Hooks:               cfg.HooksResolver,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("runtime: turn dispatcher: %w", err)
+		return nil, fmt.Errorf("runtime: execution controller: %w", err)
 	}
-	lifetime.dispatcher = turnDispatcher
+	lifetime.execution = executionController
 	toolRegistry := toolset.NewDiagnosticRegistry()
 
 	// File checkpoints (shadow git) enable run-boundary snapshots + file
@@ -368,15 +368,12 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 		}))
 	}
 
-	// The run coordinator owns the run lifecycle (§20). It commits durable side
-	// effects through the run-segment adapter, whose file-change nudges reach the
-	// delivery workspace hub via the notifier the delivery Server observes — the
-	// seam that lets the coordinator be constructed here in the Host rather than
-	// inside delivery (§11.1/§13.2). It drives the agent turn through the turn
-	// Executor (§6.1); the same adapter implements the complete neutral turn-control
-	// surface consumed by application/runs.
+	// The Run coordinator owns the Run lifecycle (§20). It commits durable effects
+	// through the Run-segment adapter and publishes file-change nudges through the
+	// workspace signal. Agent execution is driven through the same semantic
+	// execution-control adapter consumed by application/runs.
 	fileChanges := &signal.Signal[workspace.FileChangeNotice]{}
-	runExecutor := turn.NewExecutor(turnDispatcher)
+	runExecutor := turn.NewExecutor(executionController)
 	// effectsTasks owns title generation after the synchronous checkpoint
 	// boundary; the Host joins accepted title tasks after the pumps.
 	effectsTasks := &taskgroup.Group{}
@@ -436,8 +433,8 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 		Boundaries:       cfg.PlanStore,
 		Snapshots:        sessionStorage,
 		Writes:           sessionStorage,
-		Forgetter:        turnDispatcher,
-		ExecutionCleanup: turn.NewSessionTurnCleanup(turnDispatcher),
+		Forgetter:        executionController,
+		ExecutionCleanup: turn.NewSessionExecutionCleanup(executionController),
 		Paths:            workspacepath.Resolver{},
 		DefaultModel:     cfg.Model,
 		Checkpoints:      checkpointstore.NewSessionCheckpoints(checkpoints),

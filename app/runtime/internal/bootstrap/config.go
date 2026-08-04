@@ -43,7 +43,7 @@ func resolveProviderConfig(cfg config.Settings) (config.Settings, error) {
 	return cfg, nil
 }
 
-// DefaultClient builds the provider/model client used when a turn does not
+// DefaultClient builds the provider/model client used when a Run does not
 // choose a per-run model.
 func DefaultClient(cfg config.Settings) (*chatclient.Client, error) {
 	return llm.BuildClient(llm.ClientSpec{

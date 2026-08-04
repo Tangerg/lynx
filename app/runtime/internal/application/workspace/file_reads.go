@@ -121,7 +121,7 @@ const (
 	defaultFileListPageLimit = 1000
 	defaultFileHeadLines     = 200
 	defaultGrepLimit         = 100
-	fileListPageMethod       = "workspace.files.list"
+	fileListPageNamespace    = "workspace.files"
 )
 
 // ListFiles returns one stable cursor page of entries below a workspace root.
@@ -187,7 +187,7 @@ func (c *Files) FileHead(ctx context.Context, cwd, path string, lines int) (File
 }
 
 // ReadFile returns all or a one-based inclusive line window of a workspace
-// file. It validates ranges before asking the filesystem adapter to read.
+// file. It validates ranges before invoking the filesystem port.
 func (c *Files) ReadFile(ctx context.Context, cwd string, input FileReadInput) (FileReadResult, error) {
 	if err := input.validate(); err != nil {
 		return FileReadResult{}, err
@@ -265,7 +265,7 @@ func pageFileEntries(entries []FileEntry, filters []string, cursor string, limit
 		return nil, "", fmt.Errorf("%w: %w", ErrPageLimit, err)
 	}
 	slices.SortFunc(entries, func(a, b FileEntry) int { return cmp.Compare(a.orderKey(), b.orderKey()) })
-	anchor, err := keyset.Decode(cursor, fileListPageMethod, filters)
+	anchor, err := keyset.Decode(cursor, fileListPageNamespace, filters)
 	if err != nil {
 		return nil, "", fmt.Errorf("%w: %w", ErrPageCursor, err)
 	}
@@ -290,5 +290,5 @@ func pageFileEntries(entries []FileEntry, filters []string, cursor string, limit
 	if end == len(entries) {
 		return page, "", nil
 	}
-	return page, keyset.Encode(fileListPageMethod, filters, []string{entries[end-1].orderKey()}), nil
+	return page, keyset.Encode(fileListPageNamespace, filters, []string{entries[end-1].orderKey()}), nil
 }

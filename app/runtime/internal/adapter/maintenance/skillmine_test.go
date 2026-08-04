@@ -93,35 +93,35 @@ func TestSkillMinerBelowComplexityThresholdDoesNotMine(t *testing.T) {
 		t.Fatal(err)
 	}
 	if model.calls != 0 {
-		t.Fatalf("below-threshold turn called the model %d times", model.calls)
+		t.Fatalf("below-threshold Run called the model %d times", model.calls)
 	}
 	if len(proposals.proposals) != 0 {
-		t.Fatalf("below-threshold turn submitted %d proposals", len(proposals.proposals))
+		t.Fatalf("below-threshold Run submitted %d proposals", len(proposals.proposals))
 	}
 }
 
 func TestSkillMinerCadenceGatesMining(t *testing.T) {
 	miner, proposals, model := minerFixture(t, sampleSkillMD, MinerConfig{ComplexityThreshold: 2, Cadence: 2})
-	// A routine turn must not advance the cadence counter.
+	// A routine Run must not advance the cadence counter.
 	if err := miner.MaybeMine(t.Context(), "ses_1", "/repo", 1); err != nil {
 		t.Fatal(err)
 	}
-	// First complex turn: due counter reaches 1 of 2 — no mine yet.
+	// First complex Run: due counter reaches 1 of 2 — no mine yet.
 	if err := miner.MaybeMine(t.Context(), "ses_1", "/repo", 5); err != nil {
 		t.Fatal(err)
 	}
 	if len(proposals.proposals) != 0 {
 		t.Fatalf("mined before the cadence was due: %d proposals", len(proposals.proposals))
 	}
-	// Second complex turn: cadence is due — mine once.
+	// Second complex Run: cadence is due — mine once.
 	if err := miner.MaybeMine(t.Context(), "ses_1", "/repo", 5); err != nil {
 		t.Fatal(err)
 	}
 	if model.calls != 1 {
-		t.Fatalf("expected one mining call on the cadence turn, got %d", model.calls)
+		t.Fatalf("expected one mining call on the cadence Run, got %d", model.calls)
 	}
 	if len(proposals.proposals) != 1 {
-		t.Fatalf("expected one proposal on the cadence turn, got %d", len(proposals.proposals))
+		t.Fatalf("expected one proposal on the cadence Run, got %d", len(proposals.proposals))
 	}
 }
 

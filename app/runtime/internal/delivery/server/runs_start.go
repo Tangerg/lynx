@@ -17,7 +17,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 )
 
-// StartRun translates runs.start into the in-process runtime turn
+// StartRun translates runs.start into in-process execution
 // path (API.md §7.3). It returns the runId synchronously; events flow
 // out via the returned sequence as RunEvents (wrapped by the transport
 // into notifications.run.event). The terminal segment.finished rides this

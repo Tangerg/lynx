@@ -16,17 +16,17 @@ import (
 
 // TestDeleteSessionAppliesThenCleansUpProcesses: DeleteSession reads the open
 // interrupts, commits the atomic delete write-set, then tears down the parked
-// turns and the resume gate — in that order (the durable state is gone before the
+// executions and the resume gate — in that order (the durable state is gone before the
 // process-local cleanup).
 func TestDeleteSessionAppliesThenCleansUpProcesses(t *testing.T) {
 	stores := newMutationStores("")
-	turns := mutationTurns{operations: &stores.operations}
+	executions := mutationExecutions{operations: &stores.operations}
 
-	if err := newCoordinator(stores, turns).DeleteSession(t.Context(), "ses_1"); err != nil {
+	if err := newCoordinator(stores, executions).DeleteSession(t.Context(), "ses_1"); err != nil {
 		t.Fatalf("DeleteSession: %v", err)
 	}
 
-	want := []string{"interrupts.list", "apply.delete", "turn.cancel", "session.forget"}
+	want := []string{"interrupts.read", "apply.delete", "execution.cancel", "session.forget"}
 	if !slices.Equal(stores.operations, want) {
 		t.Fatalf("operations = %v, want %v", stores.operations, want)
 	}
@@ -36,17 +36,17 @@ func TestDeleteSessionAppliesThenCleansUpProcesses(t *testing.T) {
 }
 
 // TestDeleteSessionStopsBeforeProcessCleanupOnApplyFailure: a failed write-set
-// leaves the parked turns and the resume gate untouched (no half-cleanup on a
+// leaves parked executions and the resume gate untouched (no half-cleanup on a
 // durable failure).
 func TestDeleteSessionStopsBeforeProcessCleanupOnApplyFailure(t *testing.T) {
 	stores := newMutationStores("apply.delete")
-	turns := mutationTurns{operations: &stores.operations}
+	executions := mutationExecutions{operations: &stores.operations}
 
-	err := newCoordinator(stores, turns).DeleteSession(t.Context(), "ses_1")
+	err := newCoordinator(stores, executions).DeleteSession(t.Context(), "ses_1")
 	if !errors.Is(err, errMutationStage) {
 		t.Fatalf("DeleteSession error = %v, want %v", err, errMutationStage)
 	}
-	if slices.Contains(stores.operations, "turn.cancel") || slices.Contains(stores.operations, "session.forget") {
+	if slices.Contains(stores.operations, "execution.cancel") || slices.Contains(stores.operations, "session.forget") {
 		t.Fatalf("operations after failure = %v, want no process cleanup", stores.operations)
 	}
 }
@@ -54,7 +54,7 @@ func TestDeleteSessionStopsBeforeProcessCleanupOnApplyFailure(t *testing.T) {
 func TestDeleteSessionQuiescesGoalOnlyAfterDurableCommit(t *testing.T) {
 	stores := newMutationStores("")
 	coordinator := New(testDependencies(stores, Dependencies{
-		ExecutionCleanup: mutationTurns{operations: &stores.operations},
+		ExecutionCleanup: mutationExecutions{operations: &stores.operations},
 		Paths:            testCwdResolver{},
 		Goals:            mutationGoalGuard{operations: &stores.operations},
 	}))
@@ -62,7 +62,7 @@ func TestDeleteSessionQuiescesGoalOnlyAfterDurableCommit(t *testing.T) {
 	if err := coordinator.DeleteSession(t.Context(), "ses_1"); err != nil {
 		t.Fatalf("DeleteSession: %v", err)
 	}
-	want := []string{"goal.mutation", "interrupts.list", "apply.delete", "goal.quiesce", "turn.cancel", "session.forget"}
+	want := []string{"goal.mutation", "interrupts.read", "apply.delete", "goal.quiesce", "execution.cancel", "session.forget"}
 	if !slices.Equal(stores.operations, want) {
 		t.Fatalf("operations = %v, want %v", stores.operations, want)
 	}
@@ -71,7 +71,7 @@ func TestDeleteSessionQuiescesGoalOnlyAfterDurableCommit(t *testing.T) {
 func TestDeleteSessionDoesNotQuiesceGoalWhenDurableCommitFails(t *testing.T) {
 	stores := newMutationStores("apply.delete")
 	coordinator := New(testDependencies(stores, Dependencies{
-		ExecutionCleanup: mutationTurns{operations: &stores.operations},
+		ExecutionCleanup: mutationExecutions{operations: &stores.operations},
 		Paths:            testCwdResolver{},
 		Goals:            mutationGoalGuard{operations: &stores.operations},
 	}))
@@ -88,7 +88,7 @@ func TestDeleteSessionCleansUpAfterGoalQuiesceFailure(t *testing.T) {
 	quiesceErr := errors.New("goal quiesce failed")
 	stores := newMutationStores("")
 	coordinator := New(testDependencies(stores, Dependencies{
-		ExecutionCleanup: mutationTurns{operations: &stores.operations},
+		ExecutionCleanup: mutationExecutions{operations: &stores.operations},
 		Paths:            testCwdResolver{},
 		Goals:            mutationGoalGuard{operations: &stores.operations, quiesceErr: quiesceErr},
 	}))
@@ -97,7 +97,7 @@ func TestDeleteSessionCleansUpAfterGoalQuiesceFailure(t *testing.T) {
 	if !errors.Is(err, quiesceErr) {
 		t.Fatalf("DeleteSession error = %v, want quiesce failure", err)
 	}
-	want := []string{"goal.mutation", "interrupts.list", "apply.delete", "goal.quiesce", "turn.cancel", "session.forget"}
+	want := []string{"goal.mutation", "interrupts.read", "apply.delete", "goal.quiesce", "execution.cancel", "session.forget"}
 	if !slices.Equal(stores.operations, want) {
 		t.Fatalf("operations = %v, want post-commit cleanup despite quiesce failure", stores.operations)
 	}
@@ -105,40 +105,40 @@ func TestDeleteSessionCleansUpAfterGoalQuiesceFailure(t *testing.T) {
 
 func TestDeleteSessionDetachesParkedTurnCleanupFromCallerCancellation(t *testing.T) {
 	stores := newMutationStores("")
-	turns := new(observingTurns)
+	executions := new(observingExecutions)
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
-	if err := newCoordinator(stores, turns).DeleteSession(ctx, "ses_1"); err != nil {
+	if err := newCoordinator(stores, executions).DeleteSession(ctx, "ses_1"); err != nil {
 		t.Fatalf("DeleteSession: %v", err)
 	}
-	if turns.calls != 1 {
-		t.Fatalf("turn Cancel calls = %d, want 1", turns.calls)
+	if executions.calls != 1 {
+		t.Fatalf("execution Cancel calls = %d, want 1", executions.calls)
 	}
-	if turns.canceled {
-		t.Fatal("turn cleanup inherited caller cancellation")
+	if executions.canceled {
+		t.Fatal("execution cleanup inherited caller cancellation")
 	}
-	if !turns.bounded {
-		t.Fatal("turn cleanup context has no deadline")
+	if !executions.bounded {
+		t.Fatal("execution cleanup context has no deadline")
 	}
 }
 
 func TestDeleteSessionReportsEveryPostCommitCleanupFailure(t *testing.T) {
-	turnErr := errors.New("turn cleanup failed")
+	executionErr := errors.New("execution cleanup failed")
 	checkpointErr := errors.New("checkpoint cleanup failed")
 	stores := newMutationStores("")
 	checkpoints := &mutationCheckpoints{operations: &stores.operations, err: checkpointErr}
 	coordinator := New(testDependencies(stores, Dependencies{
-		ExecutionCleanup: mutationTurns{operations: &stores.operations, err: turnErr},
+		ExecutionCleanup: mutationExecutions{operations: &stores.operations, err: executionErr},
 		Paths:            testCwdResolver{},
 		Checkpoints:      checkpoints,
 	}))
 
 	err := coordinator.DeleteSession(t.Context(), "ses_1")
-	if !errors.Is(err, turnErr) || !errors.Is(err, checkpointErr) {
-		t.Fatalf("DeleteSession error = %v, want turn and checkpoint cleanup failures", err)
+	if !errors.Is(err, executionErr) || !errors.Is(err, checkpointErr) {
+		t.Fatalf("DeleteSession error = %v, want execution and checkpoint cleanup failures", err)
 	}
-	want := []string{"interrupts.list", "apply.delete", "turn.cancel", "session.forget", "checkpoint.drop:ses_1"}
+	want := []string{"interrupts.read", "apply.delete", "execution.cancel", "session.forget", "checkpoint.drop:ses_1"}
 	if !slices.Equal(stores.operations, want) {
 		t.Fatalf("operations = %v, want %v", stores.operations, want)
 	}
@@ -151,7 +151,7 @@ func TestDeleteSessionDiscardsIsolatedSandboxCopyPostCommit(t *testing.T) {
 	sandboxErr := errors.New("sandbox discard failed")
 	stores := newMutationStores("")
 	coordinator := New(testDependencies(stores, Dependencies{
-		ExecutionCleanup: mutationTurns{operations: &stores.operations},
+		ExecutionCleanup: mutationExecutions{operations: &stores.operations},
 		Paths:            testCwdResolver{},
 		Checkpoints:      &mutationCheckpoints{operations: &stores.operations},
 		Sandbox:          &mutationSandbox{operations: &stores.operations, err: sandboxErr},
@@ -163,7 +163,7 @@ func TestDeleteSessionDiscardsIsolatedSandboxCopyPostCommit(t *testing.T) {
 	}
 	// The sandbox copy is discarded post-commit, after the durable delete and the
 	// checkpoint drop — never inside the write-set.
-	want := []string{"interrupts.list", "apply.delete", "turn.cancel", "session.forget", "checkpoint.drop:ses_1", "sandbox.discard:ses_1"}
+	want := []string{"interrupts.read", "apply.delete", "execution.cancel", "session.forget", "checkpoint.drop:ses_1", "sandbox.discard:ses_1"}
 	if !slices.Equal(stores.operations, want) {
 		t.Fatalf("operations = %v, want %v", stores.operations, want)
 	}
@@ -173,21 +173,21 @@ func TestDeleteSessionDiscardsIsolatedSandboxCopyPostCommit(t *testing.T) {
 }
 
 func TestRollbackReportsParkedTurnCleanupFailure(t *testing.T) {
-	turnErr := errors.New("turn cleanup failed")
+	executionErr := errors.New("execution cleanup failed")
 	stores := newMutationStores("")
 	coordinator := New(testDependencies(stores, Dependencies{
-		ExecutionCleanup: mutationTurns{operations: &stores.operations, err: turnErr},
+		ExecutionCleanup: mutationExecutions{operations: &stores.operations, err: executionErr},
 		Paths:            testCwdResolver{},
 	}))
 	boundary := transcript.Boundary{Dropped: []transcript.RunNode{{ID: "run_1"}}}
 
 	err := coordinator.applyRollback(t.Context(), "ses_1", boundary)
-	if !errors.Is(err, turnErr) {
-		t.Fatalf("applyRollback error = %v, want turn cleanup failure", err)
+	if !errors.Is(err, executionErr) {
+		t.Fatalf("applyRollback error = %v, want execution cleanup failure", err)
 	}
 	want := []string{
 		"apply.rollback",
-		"turn.cancel",
+		"execution.cancel",
 	}
 	if !slices.Equal(stores.operations, want) {
 		t.Fatalf("operations = %v, want %v", stores.operations, want)
@@ -198,7 +198,7 @@ func TestDeleteSessionAddressesOnlyTheRequestedConversation(t *testing.T) {
 	stores := newMutationStores("")
 	claims := new(testClaimer)
 
-	if err := newCoordinatorWithAdmissions(stores, mutationTurns{operations: &stores.operations}, claims).DeleteSession(t.Context(), "ses_1"); err != nil {
+	if err := newCoordinatorWithAdmissions(stores, mutationExecutions{operations: &stores.operations}, claims).DeleteSession(t.Context(), "ses_1"); err != nil {
 		t.Fatalf("DeleteSession: %v", err)
 	}
 	wantDeleted := []string{"ses_1"}
@@ -215,7 +215,7 @@ func TestDeleteSessionAddressesOnlyTheRequestedConversation(t *testing.T) {
 func TestRestoreSessionAppliesPlan(t *testing.T) {
 	stores := newMutationStores("")
 	stores.pending = map[string][]interrupts.Pending{}
-	_, err := newCoordinator(stores, mutationTurns{operations: &stores.operations}).restoreSession(
+	_, err := newCoordinator(stores, mutationExecutions{operations: &stores.operations}).restoreSession(
 		t.Context(),
 		Snapshot{
 			Session:  session.Session{ID: "ses_1", Cwd: "/workspace"},
@@ -235,7 +235,7 @@ func TestRestoreSessionRejectsUnresolvableCwdBeforeMutation(t *testing.T) {
 	stores.pending = map[string][]interrupts.Pending{}
 	want := errors.New("missing workspace")
 	coordinator := New(testDependencies(stores, Dependencies{
-		ExecutionCleanup: mutationTurns{operations: &stores.operations},
+		ExecutionCleanup: mutationExecutions{operations: &stores.operations},
 		Paths:            testCwdResolver{err: want},
 	}))
 
@@ -271,7 +271,7 @@ func (g mutationGoalGuard) WithSessionMutation(
 
 // mutationStores supplies the coordinator's named persistence ports for mutation write-sets: it
 // records the atomic Apply* calls + the process cleanup, and lists a single open
-// interrupt so DeleteSession has a parked turn to cancel.
+// interrupt so DeleteSession has a parked execution to cancel.
 type mutationStores struct {
 	operations []string
 	fail       string
@@ -286,7 +286,7 @@ func newMutationStores(fail string) *mutationStores {
 		fail: fail,
 		pending: map[string][]interrupts.Pending{
 			"ses_1": {{
-				RootRunID: "run_1", SessionID: "ses_1", ExecutorID: "turn_1",
+				RootRunID: "run_1", SessionID: "ses_1", ExecutorID: "exec_1",
 				Continuations: []interrupts.Continuation{{RunID: "run_1", ProcessID: "proc_1"}},
 			}},
 		},
@@ -356,7 +356,7 @@ type mutationInterrupts struct{ stores *mutationStores }
 
 func (i *mutationInterrupts) Open(context.Context, interrupts.Pending) error { panic("unused") }
 func (i *mutationInterrupts) List(_ context.Context, sessionID string) ([]interrupts.Pending, error) {
-	if err := i.stores.record("interrupts.list"); err != nil {
+	if err := i.stores.record("interrupts.read"); err != nil {
 		return nil, err
 	}
 	return i.stores.pending[sessionID], nil
@@ -375,26 +375,26 @@ func (i *mutationInterrupts) Consume(context.Context, string, string) (interrupt
 	panic("unused")
 }
 
-type mutationTurns struct {
+type mutationExecutions struct {
 	operations *[]string
 	err        error
 }
 
-func (t mutationTurns) Cancel(context.Context, execution.ExecutorRef) error {
-	*t.operations = append(*t.operations, "turn.cancel")
-	return t.err
+func (e mutationExecutions) Cancel(context.Context, execution.ExecutorRef) error {
+	*e.operations = append(*e.operations, "execution.cancel")
+	return e.err
 }
 
-type observingTurns struct {
+type observingExecutions struct {
 	calls    int
 	canceled bool
 	bounded  bool
 }
 
-func (t *observingTurns) Cancel(ctx context.Context, _ execution.ExecutorRef) error {
-	t.calls++
-	t.canceled = ctx.Err() != nil
-	_, t.bounded = ctx.Deadline()
+func (e *observingExecutions) Cancel(ctx context.Context, _ execution.ExecutorRef) error {
+	e.calls++
+	e.canceled = ctx.Err() != nil
+	_, e.bounded = ctx.Deadline()
 	return nil
 }
 

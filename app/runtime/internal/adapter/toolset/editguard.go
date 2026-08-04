@@ -16,7 +16,7 @@ import (
 // The read/edit/write guards: the LLM-facing presentation of the
 // readTracker invariant (read-before-edit + staleness). These
 // wrappers parse the tool's arguments,
-// resolve the path against the turn's working directory, read the session id off
+// resolve the path against the Run's working directory, read the session id off
 // the blackboard, and turn a refused check into a model-facing message. They are
 // to the editguard domain what the wire translator is to a domain event —
 // presentation, kept out of the domain.

@@ -57,7 +57,7 @@ func TestStartExecutionValidateKeepsModelSelectionOutsideOptions(t *testing.T) {
 func TestStartExecutionValidateRejectsNonCanonicalAdmissionPolicy(t *testing.T) {
 	t.Parallel()
 
-	for name, turn := range map[string]StartExecution{
+	for name, execution := range map[string]StartExecution{
 		"negative token limit": {
 			Message: "hello", Limits: execution.RunLimits{MaxTotalTokens: -1},
 		},
@@ -77,7 +77,7 @@ func TestStartExecutionValidateRejectsNonCanonicalAdmissionPolicy(t *testing.T) 
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			if err := turn.Validate(); err == nil {
+			if err := execution.Validate(); err == nil {
 				t.Fatal("Validate accepted non-canonical admission policy")
 			}
 		})

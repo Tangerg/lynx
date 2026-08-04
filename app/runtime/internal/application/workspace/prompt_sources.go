@@ -1,9 +1,8 @@
 package workspace
 
-// AgentDocFile is the content read from one discovered AGENTS.md source. The
-// prompt-source adapter owns discovery; the agent-execution adapter owns prompt
-// rendering. This application value carries only the data exchanged between
-// those two use cases.
+// AgentDocFile is the content read from one discovered AGENTS.md source. It
+// carries only the source identity and content; discovery and prompt rendering
+// remain independent concerns.
 type AgentDocFile struct {
 	Path    string
 	Content string
@@ -17,9 +16,8 @@ const (
 	RecipeScopeGlobal  RecipeScope = "global"
 )
 
-// Recipe is a discovered prompt template. Filesystem layout and frontmatter
-// parsing belong to the prompt-source adapter; placeholder expansion is a
-// client concern.
+// Recipe is a discovered prompt template. Source layout and frontmatter have
+// already been resolved; placeholder expansion belongs to the consumer.
 type Recipe struct {
 	Name         string
 	Description  string

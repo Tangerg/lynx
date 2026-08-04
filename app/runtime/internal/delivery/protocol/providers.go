@@ -19,11 +19,11 @@ type Models interface {
 	ListModels(ctx context.Context, in ListModelsRequest) (*Page[Model], error)
 	// GetUtilityRole reports the (provider, model) the in-house maintenance
 	// work (compaction / extraction / titling) runs on — empty model when
-	// unset (it runs on the main turn model).
+	// unset (it runs on the main Run model).
 	GetUtilityRole(ctx context.Context) (*UtilityRole, error)
 	// SetUtilityRole points that maintenance work at a (provider, model),
 	// validated by resolving the client; an empty model clears it back to the
-	// main turn model. Persisted across restarts.
+	// main Run model. Persisted across restarts.
 	SetUtilityRole(ctx context.Context, in UtilityRole) (*UtilityRole, error)
 	// GetEmbeddingRole reports the (provider, model) the @codebase semantic index
 	// embeds with — empty model when unset (the index feature is off).
@@ -36,7 +36,7 @@ type Models interface {
 
 // UtilityRole is the (provider, model) the in-house maintenance services run
 // on (models.getUtilityRole / setUtilityRole). Empty model = unset → those run
-// on the main turn model. Provider must be a configured provider id.
+// on the main Run model. Provider must be a configured provider id.
 type UtilityRole struct {
 	Provider string `json:"provider,omitempty"`
 	Model    string `json:"model,omitempty"`

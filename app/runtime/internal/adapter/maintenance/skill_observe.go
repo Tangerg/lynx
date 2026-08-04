@@ -9,7 +9,7 @@ import (
 	"go.opentelemetry.io/otel/metric"
 )
 
-// The self-evolving skill loop is request-detached turn-boundary maintenance;
+// The self-evolving skill loop is request-detached Run-boundary maintenance;
 // without counters it runs blind — no client event reports how often the agent
 // mines or the curator prunes. No-op until a MeterProvider is installed.
 //

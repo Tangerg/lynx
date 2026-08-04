@@ -14,17 +14,17 @@ import (
 
 // ClientFunc resolves the chat client the maintenance services run on. It is
 // read per call — not captured once at construction — so a runtime change to
-// the utility model (models.setUtilityRole) takes effect at the next turn
+// the utility model (models.setUtilityRole) takes effect at the next Run
 // boundary. The runtime's implementation never returns nil (it falls back to
-// the main turn client); a nil ClientFunc, or one that returns nil, leaves the
+// the main Run client); a nil ClientFunc, or one that returns nil, leaves the
 // owning service unable to call and surfaces as [askDirect]'s missing-client
 // error (or a no-op, for the best-effort [Titler]).
 type ClientFunc func(context.Context) *chatclient.Client
 
 // directCallTimeout caps a single maintenance LLM call (compaction
 // summary / fact extraction) so a hung provider connection fails the
-// call instead of blocking turn-boundary housekeeping forever.
-// Independent from the kernel's turn-level timeout: this bounds a
+// call instead of blocking Run-boundary housekeeping forever.
+// Independent from the executor's Run timeout: this bounds a
 // one-shot, middleware-free call, not a full streaming tool-loop, so the
 // two evolve for different reasons.
 const directCallTimeout = 2 * time.Minute

@@ -15,7 +15,8 @@ import (
 // synchronously (unknown → [ErrUnknownMCPServer], disabled →
 // [ErrMCPServerDisabled]), then the dial runs on
 // the component task group with connecting → settled status published for the
-// workspace stream, so a returning RPC does not abort it while shutdown still can.
+// status observers, so the initiating request does not abort it while shutdown
+// still can.
 func (c *Coordinator) ReconnectMCPServer(ctx context.Context, name string) error {
 	return c.startMCPConnection(ctx, name, func(ctx context.Context) error {
 		return c.mcpConnectionCommands.Reconnect(ctx, name)
@@ -23,13 +24,14 @@ func (c *Coordinator) ReconnectMCPServer(ctx context.Context, name string) error
 }
 
 // startMCPConnection validates the server exists, then runs dial on the
-// component task group — detached from the caller's cancellation (so a returning
-// RPC cannot abort it) but keeping its trace values and canceled + joined by
+// component task group — detached from the caller's cancellation but keeping
+// its trace values and canceled + joined by
 // Close. It enters the application mutation order only for the pre/post registry
 // checks and status publication; the dial itself runs outside that global
-// critical section. The live adapter's per-server generation makes a concurrent
-// configure/remove supersede stale dial completion, while unrelated servers can
-// connect in parallel. The task's context scopes both registry reads and dial.
+// critical section. The connection command's per-server generation makes a
+// concurrent configure/remove supersede stale dial completion, while unrelated
+// servers can connect in parallel. The task's context scopes both registry reads
+// and dial.
 // Returns [errMCPConnectionUnavailable] when the coordinator lacks a required
 // connection dependency, [ErrUnknownMCPServer] or [ErrMCPServerDisabled] when
 // durable state refuses the command, or [errClosed] during shutdown.
@@ -126,10 +128,10 @@ func (c *Coordinator) dispatchMCPConnection(
 		c.mcpMutationMu.Unlock()
 		c.publishMCPStatus(connecting)
 
-		// Interactive OAuth may wait minutes for a human. The live connection
-		// adapter owns per-server generation/cancellation, so no application-wide
+		// Interactive OAuth may wait minutes for a human. The connection command
+		// owns per-server generation and cancellation, so no application-wide
 		// mutation lock is held while dialing. A configure/remove can supersede it
-		// immediately; stale adapter completion cannot swap itself back in.
+		// immediately; stale completion cannot swap itself back in.
 		connectionErr := connect(ctx)
 		if connectionErr != nil && ctx.Err() == nil {
 			recordMCPConnectionError(ctx, fmt.Errorf("integrations: connect MCP server %q: %w", name, connectionErr))

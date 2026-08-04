@@ -24,7 +24,7 @@ func (s *Server) ListModels(ctx context.Context, in protocol.ListModelsRequest) 
 }
 
 // GetUtilityRole reports the (provider, model) the in-house maintenance
-// services run on — empty model when unset, meaning they run on the main turn
+// services run on — empty model when unset, meaning they run on the main Run
 // model (models.getUtilityRole).
 func (s *Server) GetUtilityRole(_ context.Context) (*protocol.UtilityRole, error) {
 	role := s.models.UtilityRole()

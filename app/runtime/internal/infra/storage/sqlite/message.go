@@ -19,7 +19,7 @@ var errEmptyConversationID = errors.New("sqlite: conversation id is required")
 
 // MessageStore implements the lynx-core chat history [history.Store] against
 // SQLite — the per-conversation chat history the history middleware loads
-// before each turn and appends to after. One append-only table keyed by
+// before each Run and appends to it afterward. One append-only table keyed by
 // conversation, ordered by an autoincrement seq; each [chat.Message] is
 // stored as opaque JSON (round-tripped via [chat.UnmarshalMessage]).
 //

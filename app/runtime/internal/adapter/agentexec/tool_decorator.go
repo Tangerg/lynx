@@ -93,9 +93,8 @@ func (o *observedTool) Call(ctx context.Context, arguments string) (string, erro
 		return "", v.Interrupt
 	case v.Denied:
 		// Recoverable denial: the model sees DenyReason as the tool
-		// result and adapts instead of aborting. Start/End still fire so
-		// UI counts stay matched; End carries ErrToolDenied so the wire
-		// renders a distinct "denied" terminal (not a green success).
+		// result and adapts instead of aborting. Start/End remain paired, and End
+		// carries ErrToolDenied as the distinct denied outcome.
 		o.observation.finish(call, bound, arguments, v.DenyReason, nil, nil, ErrToolDenied)
 		return v.DenyReason, nil
 	}
@@ -107,8 +106,8 @@ func (o *observedTool) Call(ctx context.Context, arguments string) (string, erro
 		// Evict an oversized body to the blob store, substituting a bounded preview
 		// for BOTH the transcript (finish → OnToolCallEnd) and the model (the
 		// returned value the tool loop records) — so the full body lives in the
-		// blob alone. The transcript store rehydrates it through the typed item-to-
-		// blob relationship when serving items to the UI.
+		// blob alone. Transcript reads rehydrate it through the typed item-to-blob
+		// relationship.
 		displayed, ref = o.observation.evict(ctx, name, output)
 	}
 	o.observation.finish(call, bound, arguments, displayed, ref, o.successfulMutationPaths(arguments, err), err)

@@ -12,8 +12,8 @@ import (
 // ChildOpeningRequest asks the Coordinator to durably admit one child Run
 // before its executor process publishes ProcessCreated or starts executing.
 //
-// It is an internal control signal, not a reducible EngineEvent and never a
-// journal or wire value. The constructor returns the request and the matching
+// It is an internal control signal, not a reducible EngineEvent or journal
+// value. The constructor returns the request and the matching
 // confirmation as separate capabilities: the executor may wait, while only the
 // runs package can claim and complete the transaction.
 type ChildOpeningRequest struct {
@@ -30,7 +30,7 @@ type ChildOpeningConfirmation struct {
 
 // ChildRunBinding is the application identity assigned to one opaque executor
 // child after its opening transaction commits. Product lifecycle observers use
-// Run identity; executor process identity remains an adapter routing detail.
+// Run identity; executor process identity remains an implementation detail.
 type ChildRunBinding struct {
 	ProcessID   string
 	RunID       string
@@ -61,7 +61,7 @@ func (binding ChildRunBinding) Validate() error {
 }
 
 // ValidateChildRunBindings proves that every restored child belongs to one
-// connected App Run tree rooted at rootRunID. Executor topology is deliberately
+// connected application Run tree rooted at rootRunID. Executor topology is deliberately
 // absent from this validation.
 func ValidateChildRunBindings(rootRunID string, bindings []ChildRunBinding) error {
 	if rootRunID == "" || strings.TrimSpace(rootRunID) != rootRunID {

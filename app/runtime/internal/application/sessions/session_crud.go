@@ -34,7 +34,8 @@ func (c *Coordinator) Get(ctx context.Context, id string) (session.Session, erro
 
 // InspectWorkspace resolves the live filesystem projection of an admitted cwd.
 // Missing directories are represented in the returned value; unexpected
-// filesystem failures remain errors so delivery never silently lies.
+// filesystem failures remain errors so callers never receive a fabricated
+// workspace identity.
 func (c *Coordinator) InspectWorkspace(cwd string) (session.WorkspaceIdentity, error) {
 	if c.paths == nil {
 		return session.WorkspaceIdentity{}, errors.New("sessions: workspace inspector is unavailable")

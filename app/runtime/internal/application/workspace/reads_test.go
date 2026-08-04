@@ -48,7 +48,7 @@ func TestAgentDocScope(t *testing.T) {
 	}
 }
 
-// TestFilePagesUseATotalOrderAndBindTheCompleteQuery covers workspace.files.list's
+// TestFilePagesUseATotalOrderAndBindTheCompleteQuery covers the workspace.files
 // query properties: directories precede files and paths make the order total; a
 // next page seeks strictly past the previous sort key even if that row was
 // deleted; and every normalized filter belongs to the cursor identity, so a

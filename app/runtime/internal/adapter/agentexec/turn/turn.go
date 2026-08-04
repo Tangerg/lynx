@@ -123,7 +123,7 @@ func (s *controller) drive(st *turnState) {
 	// extractor see it as part of the conversation they summarize.
 	s.flushSteering(st.ctx, st, st.handle.SessionID)
 	if completion.Status == core.StatusCompleted && completion.Err == nil && st.handle.SessionID != "" {
-		s.postTurnMaintenance(st.ctx, st, st.handle.SessionID)
+		s.postRunMaintenance(st.ctx, st, st.handle.SessionID)
 	}
 	// MessageDelta events already streamed through the observer — no
 	// need to re-emit the assembled reply here.
@@ -263,20 +263,20 @@ func typedInterrupt(prompt []byte) (runs.Interrupt, bool) {
 	return pending, true
 }
 
-// postTurnMaintenance runs turn-boundary housekeeping after the turn's real LLM
+// postRunMaintenance runs Run-boundary housekeeping after the Run's real LLM
 // round completed cleanly. Errors are observability facts, not execution facts:
 // the user reply has already completed and its outcome must not be rewritten.
 //
 // The concrete maintenance suite owns worker ordering and conditional work. A
 // fired compaction emits [CompactBoundary] with before/after message counts;
 // other maintenance output stays internal. Failures are recorded on the active
-// turn span and never alter the completed reply.
-func (s *controller) postTurnMaintenance(ctx context.Context, st *turnState, sessionID string) {
+// execution span and never alter the completed reply.
+func (s *controller) postRunMaintenance(ctx context.Context, st *turnState, sessionID string) {
 	if s.maintenance == nil {
 		return
 	}
 	// PreCompact hooks fire from inside MaybeCompact — exactly when a compaction
-	// is committed (after its triggers + guards), never on a turn that won't
+	// is committed (after its triggers + guards), never on a Run that won't
 	// compact. A hook may veto (Block) the compaction; observe-only otherwise.
 	preCompact := func(hctx context.Context) bool {
 		if st.hooks.Empty() {
@@ -285,7 +285,7 @@ func (s *controller) postTurnMaintenance(ctx context.Context, st *turnState, ses
 		dec := st.hooks.Run(hctx, hooks.Input{Event: hooks.PreCompact, SessionID: sessionID, Cwd: st.cwd})
 		return !dec.Block
 	}
-	result := s.maintenance.Maintain(ctx, BoundaryMaintenanceInput{
+	result := s.maintenance.Maintain(ctx, RunMaintenanceInput{
 		SessionID:      sessionID,
 		Cwd:            st.cwd,
 		ModelSelection: st.modelSelection,
@@ -293,7 +293,7 @@ func (s *controller) postTurnMaintenance(ctx context.Context, st *turnState, ses
 		PreCompact:     preCompact,
 	})
 	for _, err := range result.Errors {
-		recordTurnMaintenanceError(st, err)
+		recordRunMaintenanceError(st, err)
 	}
 	if !result.Compaction.Compacted {
 		return

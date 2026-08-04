@@ -49,7 +49,7 @@ const (
 
 // Presenter owns the client-facing projection of concrete tool schemas. Its
 // zero value is ready for use. Unknown tools retain their canonical result and
-// let the turn adapter supply generic activity text.
+// let the execution adapter supply generic activity text.
 type Presenter struct{}
 
 // Activity returns concise progress text for a known concrete tool.

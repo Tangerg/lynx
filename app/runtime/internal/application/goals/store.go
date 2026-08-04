@@ -54,8 +54,8 @@ type ReportCommand struct {
 	Reason    string
 }
 
-// ReportResult tells the adapter which truthful, recoverable outcome occurred.
-// It avoids exporting persistence/CAS details into the tool layer.
+// ReportResult identifies the truthful, recoverable outcome of one report.
+// It keeps persistence and compare-and-swap details private to this use case.
 type ReportResult int
 
 const (
@@ -98,8 +98,8 @@ func (s *State) Active(ctx context.Context, sessionID string) (bool, error) {
 }
 
 // Report applies one model-declared terminal status through the goal use case.
-// It owns the active-state, lease, validation, revision, and CAS rules so no
-// delivery adapter can accidentally mutate a goal aggregate or its store.
+// It owns the active-state, lease, validation, revision, and CAS rules so callers
+// cannot accidentally mutate a Goal aggregate or its store.
 func (s *State) Report(ctx context.Context, cmd ReportCommand) (ReportResult, error) {
 	if s == nil || s.goals == nil {
 		return ReportNoActiveGoal, nil

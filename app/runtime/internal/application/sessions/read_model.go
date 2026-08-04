@@ -22,9 +22,8 @@ const (
 	ActivityIdle    Activity = "idle"
 )
 
-// View is the complete application read model for a user-facing
-// session. It deliberately contains only values Delivery may project; live
-// lineage and other aggregate-only state stay inside the session domain.
+// View is the complete application read model for a session. Live lineage and
+// other aggregate-only state stay inside the session domain.
 type View struct {
 	ID          string
 	Title       string
@@ -41,7 +40,7 @@ type View struct {
 
 // Activities resolves activity for the requested sessions in one use-case
 // read. It centralizes the precedence between a live execution and a durable
-// interrupt so Delivery only projects the resolved state.
+// interrupt so every caller observes the same resolved state.
 func (c *Coordinator) Activities(ctx context.Context, sessionIDs []string) (map[string]Activity, error) {
 	activities := make(map[string]Activity, len(sessionIDs))
 	if len(sessionIDs) == 0 {
@@ -79,11 +78,11 @@ func (c *Coordinator) Activities(ctx context.Context, sessionIDs []string) (map[
 	return activities, nil
 }
 
-// viewPageMethod names the query a page cursor belongs to, so a cursor minted by
-// another read is rejected instead of continuing this one.
-const viewPageMethod = "sessions.list"
+// viewPageNamespace binds cursors to the session listing independently of any
+// transport method that exposes it.
+const viewPageNamespace = "sessions"
 
-// viewPageLimit is the widest sessions.list page this read will serve.
+// viewPageLimit is the widest session page this read will serve.
 const viewPageLimit = 100
 
 // ListViewPage resolves one page of user-facing sessions, continuing after
@@ -93,7 +92,7 @@ func (c *Coordinator) ListViewPage(ctx context.Context, cursor string, limit int
 	if c.sessions == nil {
 		return keyset.Page[View]{}, errors.New("sessions: session store is unavailable")
 	}
-	anchor, err := keyset.Decode(cursor, viewPageMethod, nil)
+	anchor, err := keyset.Decode(cursor, viewPageNamespace, nil)
 	if err != nil {
 		return keyset.Page[View]{}, err
 	}
@@ -118,7 +117,7 @@ func (c *Coordinator) ListViewPage(ctx context.Context, cursor string, limit int
 	if err != nil {
 		return keyset.Page[View]{}, err
 	}
-	bounded := keyset.PageOf(values, size, viewPageMethod, nil, func(value session.Session) []string {
+	bounded := keyset.PageOf(values, size, viewPageNamespace, nil, func(value session.Session) []string {
 		favorite := "0"
 		if value.Favorite {
 			favorite = "1"

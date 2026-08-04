@@ -25,9 +25,8 @@ const liveHeadroom = 256
 // result or image. Whichever is reached first evicts from the oldest event
 // forward.
 //
-// The values are published through discovery so a client can choose replay or a
-// cold read knowingly. They are values rather than protocol: tuning them is not
-// a protocol change, but changing what the window BELONGS to would be.
+// The values are discoverable so a caller can choose replay or a cold read
+// knowingly. Tuning their size does not change cursor ownership or semantics.
 type Retention struct {
 	MaxEvents int
 	MaxBytes  int
@@ -319,7 +318,7 @@ type journalSubscriber struct {
 	retention Retention
 	queue     []chargedEvent
 	head      int
-	// queuedLive counts non-replayable events awaiting delivery;
+	// queuedLive counts non-replayable events awaiting publication;
 	// queuedReplayable and queuedBytes count the replay backlog, which cannot be dropped and
 	// therefore ends the subscription instead when it exceeds the window.
 	queuedLive       int

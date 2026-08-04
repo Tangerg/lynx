@@ -124,7 +124,7 @@ type RollbackSessionResponse struct {
 // DroppedRun is one run sessions.rollback removed (AUX_API §4.1). UserInput is
 // the dropped run's opening userMessage content — same shape as
 // StartRunRequest.input, so the client can re-populate the composer with zero
-// transformation. Continuation runs (resume/edit) open no user turn, so it's
+// transformation. Continuation Runs (resume/edit) open no user message, so it is
 // omitted for them.
 type DroppedRun struct {
 	// Run is a SUMMARY, not a RunRef: this run no longer exists. A RunRef asserts

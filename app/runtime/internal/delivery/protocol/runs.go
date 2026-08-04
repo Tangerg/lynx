@@ -33,7 +33,7 @@ type Runs interface {
 	// SteerRun injects a user message into the segment the request names so the
 	// model reads it on its next tool round (mid-run steering, API.md §6) —
 	// distinct from runs.resume (which answers an interrupt) and runs.start (a new
-	// turn). A run that is not executing that segment is refused by name:
+	// Segment). A Run that is not executing that Segment is refused by name:
 	// run_waiting, run_finished, stale_segment, run_not_root.
 	SteerRun(ctx context.Context, in SteerRunRequest) error
 
@@ -392,7 +392,7 @@ type ListInterruptsRequest struct {
 type ResumeRunRequest struct {
 	RunID     string              `json:"runId"`
 	Responses []InterruptResponse `json:"responses"`
-	// Input is an optional user turn to add while answering. It exists because
+	// Input is optional user input to add while answering. It exists because
 	// "approve, and also do this differently" was otherwise two calls — resume, then
 	// steer — with a race in between where the model could finish the tool round
 	// before the instruction arrived. Given here, the user Item commits in the SAME
@@ -419,7 +419,7 @@ type SubscribeRunRequest struct {
 
 // SubscribeRunResponse acknowledges an attached stream.
 //
-// It is not a StartRunResponse: subscribing opens no turn, so there is no
+// It is not a StartRunResponse: subscribing opens no Segment, so there is no
 // userItemId, and an ack that declared one would publish a field nothing on this
 // path can write.
 type SubscribeRunResponse struct {

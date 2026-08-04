@@ -9,7 +9,7 @@ import (
 // validateToolCatalog rejects model-facing name collisions across live MCP
 // servers. The public label is sanitized and capped by provider constraints, so
 // distinct raw identities can collapse to one name; allowing both through would
-// make the next agent turn fail registry construction and leave model-facing
+// make the next Run fail registry construction and leave model-facing
 // dispatch ambiguous.
 //
 // replacing is excluded from the current catalog for reconnect/configure. At

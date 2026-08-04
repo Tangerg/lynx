@@ -18,8 +18,8 @@ import (
 // code-intelligence analyzer and any new problems are folded into the tool
 // result (see withEditDiagnostics). ci may be nil — the wrap is then a no-op.
 // locker is owner-scoped: resolver-owned builds reuse one locker so
-// read/check/write stays atomic across concurrent turns, not merely across the
-// tools resolved for one turn.
+// read/check/write stays atomic across concurrent Runs, not merely across the
+// tools resolved for one Run.
 type workdirSet struct {
 	readSearch []toolcontract.Tool
 	editWrite  []toolcontract.Tool

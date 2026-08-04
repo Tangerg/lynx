@@ -101,7 +101,7 @@ func workspacesFromSessions(sessions []session.Session) []Summary {
 }
 
 // AgentDocScope identifies where an instruction document participates in the
-// cascade, without leaking a raw delivery enum through the application layer.
+// cascade.
 type AgentDocScope string
 
 const (

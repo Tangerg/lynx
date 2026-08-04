@@ -1,8 +1,7 @@
 // Package integrations is the application coordinator for the runtime's external
 // integration surface — currently MCP: the durable MCP server registry (source
 // of truth), its live connection pool, and the atomically-published tool policy
-// the execution tool gate reads. It is a thin use-case layer over domain services
-// the delivery mcp.* handlers drive.
+// the execution tool gate reads.
 package integrations
 
 import (
@@ -56,8 +55,8 @@ type Coordinator struct {
 	// (projection), and the atomically-published ToolPolicy the engine's tool gate
 	// + approval read. mcpMutationMu linearizes durable registry -> policy/live
 	// reconciliation and the short pre/post boundaries of asynchronous connect
-	// operations. Network and interactive OAuth waits never hold it; the live
-	// adapter owns per-server latest-operation-wins sequencing.
+	// operations. Network and interactive OAuth waits never hold it;
+	// MCPConnectionCommands owns per-server latest-operation-wins sequencing.
 	mcpRegistry              Registry
 	mcpStatusReader          MCPStatusReader
 	mcpToolCatalog           MCPToolCatalog
@@ -85,8 +84,8 @@ type Config struct {
 	MCPConnectionCommands MCPConnectionCommands
 	MCPRegistryCommands   MCPRegistryCommands
 	MCPPolicy             *ToolPolicyState
-	// MCPStatus publishes safe MCP connection status read models to the delivery
-	// workspace stream bridge. nil disables notification.
+	// MCPStatus publishes safe MCP connection status read models. nil disables
+	// notification.
 	MCPStatus func(status MCPServerStatus)
 }
 

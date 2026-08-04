@@ -230,13 +230,13 @@ func (m *lifecycleModel) Stream(ctx context.Context, request *chat.Request) iter
 	}
 }
 
-type noBoundaryMaintenance struct{}
+type noRunMaintenance struct{}
 
-func (noBoundaryMaintenance) Maintain(
+func (noRunMaintenance) Maintain(
 	context.Context,
-	turn.BoundaryMaintenanceInput,
-) turn.BoundaryMaintenanceResult {
-	return turn.BoundaryMaintenanceResult{}
+	turn.RunMaintenanceInput,
+) turn.RunMaintenanceResult {
+	return turn.RunMaintenanceResult{}
 }
 
 func openProtocolRuntime(t *testing.T, model chat.Model) (*Host, *runtimeserver.Server) {
@@ -264,7 +264,7 @@ func openProtocolRuntime(t *testing.T, model chat.Model) (*Host, *runtimeserver.
 	)
 	cfg.UserHome = stores.DataDirectory
 	cfg.DefaultWorkspacePath = stores.DataDirectory
-	cfg.Maintenance = noBoundaryMaintenance{}
+	cfg.Maintenance = noRunMaintenance{}
 
 	assembly := NewAssembly(cfg)
 	host, err := BuildAssembly(t.Context(), assembly)

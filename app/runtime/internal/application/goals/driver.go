@@ -56,8 +56,7 @@ var (
 func (d *Driver) Available() bool { return d != nil && d.goals != nil }
 
 // RunUseCases is the goal loop's narrow view of the run entry point — the same
-// headless start the scheduler uses. Autonomous execution never calls a delivery
-// handler.
+// headless start the scheduler uses.
 type RunUseCases interface {
 	WaitSessionStartable(ctx context.Context, sessionID string) error
 	Start(ctx context.Context, cmd runs.StartCommand) (runs.StartResult, error)
@@ -74,15 +73,14 @@ type SessionExists interface {
 }
 
 // PromptInput is the semantic context required to construct one autonomous
-// model Run. The model-facing instruction belongs to an execution adapter;
-// application/goals only declares when a first or continuing Run is needed.
+// model Run. Goals decides when a first or continuing Run is needed without
+// owning prompt rendering.
 type PromptInput struct {
 	Objective  string
 	Continuing bool
 }
 
-// PromptBuilder renders an autonomous-Run instruction for the execution
-// adapter selected by the composition root.
+// PromptBuilder renders the instruction for an autonomous Run.
 type PromptBuilder func(PromptInput) string
 
 // Driver owns the per-session autonomous loops. Each active goal has at most one

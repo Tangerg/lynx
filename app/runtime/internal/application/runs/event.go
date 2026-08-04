@@ -2,8 +2,7 @@ package runs
 
 import "time"
 
-// Event is the transport-neutral run event the [Journal] carries and the
-// delivery layer maps to the wire.
+// Event is the application-owned Run event carried by the [Journal].
 //
 // RunID and SegmentID are the ENVELOPE: which run and segment produced this
 // event. They are not the stream's scope — one root stream carries its whole

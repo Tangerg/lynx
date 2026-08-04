@@ -95,9 +95,8 @@ func ResolveForkBoundary(msgs []chat.Message, runs []transcript.Run, fromRunID s
 
 // Fork creates a child session, seeds it with the resolved parent history prefix
 // and the Plan that boundary held, and renames it as ONE atomic write-set
-// (§8.1). The protocol adapter owns only wire decoding; the boundary semantics
-// live here (the application resolves the boundary; the adapter commits the
-// branch).
+// (§8.1). The application resolves the boundary and commits the branch through
+// its persistence port.
 func (c *Coordinator) Fork(ctx context.Context, spec ForkSpec) (session.Session, error) {
 	if c.snapshots == nil || c.writes == nil {
 		return session.Session{}, errors.New("sessions: fork persistence is unavailable")

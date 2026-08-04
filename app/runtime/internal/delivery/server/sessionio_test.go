@@ -386,7 +386,7 @@ func TestCancelParkedRunProducesPortableTerminalSnapshot(t *testing.T) {
 	if err := rt.interrupts.Open(ctx, serverPending(
 		"run_parked",
 		ses.ID,
-		"turn_parked",
+		"exec_parked",
 		"process_parked",
 		[]transcript.Interrupt{{
 			ItemID:   "item_question",

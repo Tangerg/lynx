@@ -45,8 +45,8 @@ func (s Schema) String() string {
 	return s.raw
 }
 
-// Map returns a recursively ownership-isolated wire projection while
-// preserving JSON numbers exactly.
+// Map returns a recursively ownership-isolated object while preserving JSON
+// numbers exactly.
 func (s Schema) Map() map[string]any {
 	var value map[string]any
 	if err := decodeValue([]byte(s.String()), &value); err != nil {

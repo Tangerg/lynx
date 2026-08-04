@@ -32,7 +32,7 @@ var protectedDirs = []string{".git"}
 // In an ISOLATED session it additionally confines writes to the workspace copy:
 // the fs executor is not an OS jail (an absolute path, "../", or "~" escapes its
 // root), so this guard is the boundary that keeps an isolated run from modifying
-// the real project tree. Non-isolated turns keep the existing behavior (absolute
+// the real project tree. Non-isolated Runs keep the existing behavior (absolute
 // paths anywhere are allowed — that is the point of the fs tools).
 func withPathGuard(inner toolcontract.Tool, workdir string) toolcontract.Tool {
 	return decorate(inner, func(ctx context.Context, arguments string) (string, error) {

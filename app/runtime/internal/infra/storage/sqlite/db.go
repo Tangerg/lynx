@@ -257,7 +257,7 @@ func installCurrentSchema(db *sql.DB, path string) error {
 		// Global utility-model role (models.setUtilityRole): the (provider, model)
 		// the in-house maintenance services — compaction / extraction / titling —
 		// run on. Single row, pinned by CHECK(id = 1); empty model = unset (those
-		// run on the main turn model).
+		// run on the main Run model).
 		`CREATE TABLE IF NOT EXISTS utility_role (
 			id        INTEGER PRIMARY KEY CHECK (id = 1),
 			provider  TEXT NOT NULL DEFAULT '',

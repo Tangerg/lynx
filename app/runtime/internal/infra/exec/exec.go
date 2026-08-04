@@ -1,5 +1,5 @@
 // Package exec is the background-process mechanism: it runs shell commands
-// detached from the calling turn, buffers their output in a bounded ring so
+// detached from the calling Run, buffers their output in a bounded ring so
 // the model can read it incrementally, and kills them on demand. It is pure
 // infra — no domain knowledge, no upward dependency.
 //
@@ -121,9 +121,9 @@ type Shell struct {
 // live-state reminder) without leaking another session's shells; "" is allowed
 // for callers with no session.
 //
-// It is detached from the tool-call's CANCELLATION so it outlives the turn —
+// It is detached from the tool-call's cancellation so it outlives the Run —
 // via context.WithoutCancel(ctx), which drops cancellation but KEEPS ctx's
-// values, so the launching turn's trace span still propagates (full-link)
+// values, so the launching Run's trace span still propagates (full-link)
 // rather than being severed by a bare context.Background(). A positive timeout
 // hard-kills the command when it elapses (0 = no hard timeout; the command
 // runs until it exits or is killed).

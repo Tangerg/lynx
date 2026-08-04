@@ -16,7 +16,7 @@ type RunningShell struct {
 
 // LiveStateSnapshot is the still-active execution state an LLM history summary
 // silently drops — background jobs and in-progress tasks the model started
-// before its earlier turns were folded into a summary. Reminding the model of it
+// before its earlier Runs were folded into a summary. Reminding the model of it
 // keeps it from forgetting a running command or an unfinished plan across a
 // compaction.
 type LiveStateSnapshot struct {

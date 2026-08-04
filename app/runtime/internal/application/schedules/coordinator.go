@@ -89,17 +89,17 @@ func (c *Coordinator) List(ctx context.Context) ([]schedule.Schedule, error) {
 	return c.registry.List(ctx)
 }
 
-// listPageMethod names the query a page cursor belongs to, so a cursor minted by
-// another read is rejected instead of continuing this one.
-const listPageMethod = "schedules.list"
+// listPageNamespace binds cursors to the schedule listing independently of any
+// transport method that exposes it.
+const listPageNamespace = "schedules"
 
-// listPageLimit is the widest schedules.list page this read will serve.
+// listPageLimit is the widest schedule page this read will serve.
 const listPageLimit = 100
 
 // ListPage returns one page of schedules, newest-created first, continuing after
 // cursor.
 func (c *Coordinator) ListPage(ctx context.Context, cursor string, limit int) (keyset.Page[schedule.Schedule], error) {
-	anchor, err := keyset.Decode(cursor, listPageMethod, nil)
+	anchor, err := keyset.Decode(cursor, listPageNamespace, nil)
 	if err != nil {
 		return keyset.Page[schedule.Schedule]{}, err
 	}
@@ -122,7 +122,7 @@ func (c *Coordinator) ListPage(ctx context.Context, cursor string, limit int) (k
 	if err != nil {
 		return keyset.Page[schedule.Schedule]{}, err
 	}
-	return keyset.PageOf(rows, size, listPageMethod, nil, func(sc schedule.Schedule) []string {
+	return keyset.PageOf(rows, size, listPageNamespace, nil, func(sc schedule.Schedule) []string {
 		return []string{strconv.FormatInt(sc.CreatedAt.UnixNano(), 10), sc.ID}
 	}), nil
 }
@@ -174,8 +174,8 @@ func (c *Coordinator) Update(ctx context.Context, cmd UpdateCommand) (schedule.S
 }
 
 // UpdateLatest applies an internal automation patch to the latest durable
-// revision. Unlike the user-facing Update command, an Agent tool has no stale UI
-// snapshot to protect; the coordinator's own read is its OCC baseline.
+// revision. Unlike Update with an observed revision, an Agent tool has no stale
+// caller snapshot to protect; the coordinator's own read is its OCC baseline.
 func (c *Coordinator) UpdateLatest(ctx context.Context, id string, patch schedule.Patch) (schedule.Schedule, error) {
 	if !c.enabled {
 		return schedule.Schedule{}, schedule.ErrUnavailable

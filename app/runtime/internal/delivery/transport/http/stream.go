@@ -13,7 +13,7 @@ import (
 
 // heartbeatInterval is how often an idle streaming response emits an SSE
 // comment frame to keep the connection alive through proxies (TRANSPORT
-// §7/§14) — e.g. while a turn waits on a slow LLM round.
+// §7/§14) — e.g. while a Run waits on a slow LLM round.
 const heartbeatInterval = 15 * time.Second
 
 // streamWriteTimeout bounds a single SSE frame write. ctx cancellation cannot

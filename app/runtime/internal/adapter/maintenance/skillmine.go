@@ -17,10 +17,10 @@ import (
 
 const (
 	// defaultMinerComplexityThreshold is the minimum completed tool-call count
-	// for a turn to count as "complex" enough to consider distilling. Below it a
-	// turn is routine and never triggers a mining attempt.
+	// for a Run to count as "complex" enough to consider distilling. Below it a
+	// Run is routine and never triggers a mining attempt.
 	defaultMinerComplexityThreshold = 8
-	// defaultMinerCadence mines at most once per this many complex turns per
+	// defaultMinerCadence mines at most once per this many complex Runs per
 	// session, bounding the extra LLM call and avoiding proposal spam.
 	defaultMinerCadence = 3
 	// minerMinMessages skips mining a conversation too short to hold a reusable
@@ -36,10 +36,10 @@ const (
 // MinerConfig tunes when the [SkillMiner] attempts a distillation. Zero values
 // select package defaults.
 type MinerConfig struct {
-	// ComplexityThreshold is the minimum completed tool-call count for a turn to
-	// count as complex. Only complex turns advance the cadence counter.
+	// ComplexityThreshold is the minimum completed tool-call count for a Run to
+	// count as complex. Only complex Runs advance the cadence counter.
 	ComplexityThreshold int
-	// Cadence bounds mining to at most once per this many complex turns, per
+	// Cadence bounds mining to at most once per this many complex Runs, per
 	// session.
 	Cadence int
 }
@@ -69,8 +69,8 @@ type skillSource interface {
 	Load(ctx context.Context, name string) (*skillspec.Skill, error)
 }
 
-// SkillMiner distills a complex turn's trajectory into a Skill proposal.
-// It runs at the turn boundary — after a clean finish, before compaction — and
+// SkillMiner distills a complex Run's trajectory into a Skill proposal.
+// It runs at the Run boundary — after a clean finish, before compaction — and
 // takes the Hermes learning-loop's "mine automatically" idea but grounds it in
 // the governed authoring path: every proposal stays behind the mandatory human
 // approval gate and carries mined provenance. The Agent
@@ -84,30 +84,30 @@ type SkillMiner struct {
 	config    MinerConfig
 	minMsgs   int
 
-	// mu guards complexTurns, the per-session count of complex turns since the
+	// mu guards complexRuns, the per-session count of complex Runs since the
 	// last mining attempt. In-memory and reset on restart: it bounds cost, not a
 	// correctness invariant.
-	mu           sync.Mutex
-	complexTurns map[string]int
+	mu          sync.Mutex
+	complexRuns map[string]int
 }
 
-// NewSkillMiner builds the turn-boundary skill miner over the conversation
+// NewSkillMiner builds the Run-boundary skill miner over the conversation
 // history reader, the proposal use case, the active-Skill source (for the
 // read-before-write refinement guard), and the utility-model client resolver.
 func NewSkillMiner(history messageReader, proposals proposalSubmitter, source skillSource, client ClientFunc, config MinerConfig) *SkillMiner {
 	return &SkillMiner{
-		history:      history,
-		proposals:    proposals,
-		source:       source,
-		client:       client,
-		config:       config.normalized(),
-		minMsgs:      minerMinMessages,
-		complexTurns: map[string]int{},
+		history:     history,
+		proposals:   proposals,
+		source:      source,
+		client:      client,
+		config:      config.normalized(),
+		minMsgs:     minerMinMessages,
+		complexRuns: map[string]int{},
 	}
 }
 
 // MaybeMine distills the session's recent trajectory into a Skill proposal
-// when the just-finished turn was complex enough and the per-session
+// when the just-finished Run was complex enough and the per-session
 // cadence is due. A distillation that yields no reusable skill, an unparseable
 // or invalid document, or an obviously-dangerous one is dropped silently
 // (return nil) — only a real read/save/LLM failure surfaces as an error.
@@ -224,7 +224,7 @@ func reviseTarget(text string) (string, bool) {
 	return name, name != ""
 }
 
-// due advances the session's complex-turn counter and reports whether a mining
+// due advances the session's complex-Run counter and reports whether a mining
 // attempt is now due, resetting the counter when it fires. Resetting on the
 // attempt (not on a successful save) is deliberate: the cadence bounds LLM
 // calls, and every due attempt makes one whether or not it yields a proposal. The
@@ -234,9 +234,9 @@ func reviseTarget(text string) (string, bool) {
 func (m *SkillMiner) due(sessionID string) bool {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.complexTurns[sessionID]++
-	if m.complexTurns[sessionID] >= m.config.Cadence {
-		delete(m.complexTurns, sessionID)
+	m.complexRuns[sessionID]++
+	if m.complexRuns[sessionID] >= m.config.Cadence {
+		delete(m.complexRuns, sessionID)
 		return true
 	}
 	return false

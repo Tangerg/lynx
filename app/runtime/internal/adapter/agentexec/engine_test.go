@@ -503,7 +503,7 @@ func TestEngine_RunChat_ToolsRunInCwd(t *testing.T) {
 // delegated Agents: the main turn delegates, the child's shell creates a
 // marker with a RELATIVE path, and it must land in the turn's Cwd. The
 // sub-agent runs on a clean blackboard — so its goal is not pre-satisfied by
-// inherited planner state — while the App-owned context carries the cwd.
+// inherited planner state — while the Application-owned context carries the cwd.
 func TestEngine_RunChat_SubtaskInheritsCwd(t *testing.T) {
 	dir := t.TempDir()
 	stub := newCwdDelegatingStubModel()

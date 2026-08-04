@@ -8,8 +8,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/schedule"
 )
 
-// RunUseCases is the schedule application's narrow view of the complete run
-// entry point. Scheduled execution never calls a Delivery handler.
+// RunUseCases is schedule firing's narrow view of the complete Run entry point.
 type RunUseCases interface {
 	Start(ctx context.Context, cmd runs.StartCommand) (runs.StartResult, error)
 }
@@ -29,8 +28,8 @@ func NewRunLauncher(runUseCases RunUseCases, defaultWorkspacePath string, fired 
 	return RunLauncher{runs: runUseCases, defaultWorkspacePath: defaultWorkspacePath, fired: fired}
 }
 
-// StartScheduledRun starts one schedule through the same Application Runs entry
-// point as transports, then immediately drops the unused event subscription.
+// StartScheduledRun starts one schedule through the shared Run entry point, then
+// immediately drops the unused event subscription.
 func (l RunLauncher) StartScheduledRun(ctx context.Context, occurrence schedule.Occurrence) (RunHandle, error) {
 	sc := occurrence.Schedule
 	cwd := sc.Cwd

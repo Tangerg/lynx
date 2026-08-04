@@ -27,8 +27,8 @@ type RecoveryStore interface {
 	CommitRecovery(ctx context.Context, commit RecoveryCommit) error
 }
 
-// CheckpointResumability is the recovery use case's narrow execution-adapter
-// view. false, nil means the opaque continuation is unavailable or incompatible;
+// CheckpointResumability is the recovery use case's narrow checkpoint probe.
+// false, nil means the opaque continuation is unavailable or incompatible;
 // an error means validation itself failed and startup must stop without writes.
 type CheckpointResumability interface {
 	CanResumeCheckpoint(ctx context.Context, expected execution.ExecutorCheckpointExpectation) (bool, error)

@@ -295,7 +295,7 @@ func TestStartOwnsCompleteAdmissionSequence(t *testing.T) {
 		t.Fatalf("result = %+v", result)
 	}
 	if control.started.SessionID != "ses_1" || control.started.Cwd != "/work" || control.started.WorkspaceCwd != "/work" {
-		t.Fatalf("started turn = %+v", control.started)
+		t.Fatalf("started execution = %+v", control.started)
 	}
 	wantLimits := execution.RunLimits{MaxTotalTokens: 16_384, MaxSteps: 12, MaxBudgetUSD: 3.5}
 	if control.started.Limits != wantLimits {
@@ -334,7 +334,7 @@ func TestStartSeparatesIsolatedExecutionDirFromPersistentWorkspace(t *testing.T)
 	for range result.Events {
 	}
 	if control.started.Cwd != "/sandbox/copy" || control.started.WorkspaceCwd != "/work" || !control.started.Isolated {
-		t.Fatalf("started turn scope = %+v", control.started)
+		t.Fatalf("started execution scope = %+v", control.started)
 	}
 }
 
@@ -351,10 +351,10 @@ func TestStartDoesNotActivateRejectedAdmission(t *testing.T) {
 		t.Fatalf("Start error = %v, want opening failure", err)
 	}
 	if control.activated {
-		t.Fatal("rejected admission activated the prepared turn")
+		t.Fatal("rejected admission activated the prepared execution")
 	}
 	if exec.cancels() != 1 {
-		t.Fatalf("prepared turn cancels = %d, want 1", exec.cancels())
+		t.Fatalf("prepared execution cancels = %d, want 1", exec.cancels())
 	}
 }
 
@@ -376,7 +376,7 @@ func TestStartRejectsPartialScheduledIdentityBeforeSideEffects(t *testing.T) {
 				t.Fatalf("Start error = %v, want ErrInvalidScheduledStart", err)
 			}
 			if control.started.SessionID != "" || len(effects.openings) != 0 {
-				t.Fatalf("partial scheduled identity reached side effects: turn=%+v openings=%d", control.started, len(effects.openings))
+				t.Fatalf("partial scheduled identity reached side effects: execution=%+v openings=%d", control.started, len(effects.openings))
 			}
 		})
 	}
@@ -444,10 +444,10 @@ func TestStartRejectsForeignTurnIdentityAndCleansItUp(t *testing.T) {
 		t.Fatalf("Start error = %v, want ErrInvalidExecutorRef", err)
 	}
 	if len(control.canceled) != 1 || control.canceled[0] != control.startRef {
-		t.Fatalf("canceled control = %+v, want invalid started turn", control.canceled)
+		t.Fatalf("canceled control = %+v, want invalid started execution", control.canceled)
 	}
 	if _, ok := c.registry.Get("run_new"); len(effects.openings) != 0 || ok {
-		t.Fatal("invalid turn identity reached run admission")
+		t.Fatal("invalid execution identity reached Run admission")
 	}
 }
 
@@ -675,7 +675,7 @@ func TestResumeWithInputCommitsTheUserTurnWithTheContinuation(t *testing.T) {
 	for range without.Events {
 	}
 	if without.UserItemID != "" {
-		t.Fatalf("userItemId = %q on a resume that opened no user turn", without.UserItemID)
+		t.Fatalf("userItemId = %q on a resume that opened no user input", without.UserItemID)
 	}
 }
 
@@ -705,7 +705,7 @@ func TestResumeRecoversLostProcessSnapshotBeforeReturning(t *testing.T) {
 		}},
 	})
 	if !errors.Is(err, ErrRunNotFound) || !errors.Is(err, ErrExecutorStateLost) {
-		t.Fatalf("Resume error = %v, want run not found wrapping turn state lost", err)
+		t.Fatalf("Resume error = %v, want Run not found wrapping executor state lost", err)
 	}
 	if sessions.lostRunID != "run_1" || sessions.lostAt.IsZero() {
 		t.Fatalf("lost recovery = %q/%v, want run_1 and terminal time", sessions.lostRunID, sessions.lostAt)
@@ -852,7 +852,7 @@ func TestResumeRefusesIsolatedRunAfterSandboxProcessEnded(t *testing.T) {
 		},
 		operations: &operations,
 	}
-	// The process that owned the sandbox copy is gone (Prepare reports the turn as
+	// The process that owned the sandbox copy is gone (Prepare reports the execution as
 	// not live), so a rehydrate would run against the real project tree.
 	control := &fakeExecutionControl{prepareErr: ErrExecutorNotLive}
 	c := newUseCaseCoordinator(&fakeExecutor{}, control, sessions, &fakeEffects{})
@@ -868,7 +868,7 @@ func TestResumeRefusesIsolatedRunAfterSandboxProcessEnded(t *testing.T) {
 		}},
 	})
 	if !errors.Is(err, ErrRunNotFound) || !errors.Is(err, ErrExecutorStateLost) {
-		t.Fatalf("Resume error = %v, want run not found wrapping turn state lost", err)
+		t.Fatalf("Resume error = %v, want Run not found wrapping executor state lost", err)
 	}
 	if control.rehydrateReq.ProcessID != "" || len(control.rehydrateReq.ChildRuns) != 0 {
 		t.Fatalf("isolated run was rehydrated against %+v, want no rehydrate", control.rehydrateReq)
@@ -971,7 +971,7 @@ func TestCancelParkedRunUsesApplicationAdmission(t *testing.T) {
 		t.Fatalf("Cancel result = %+v, want canceled run_1", result)
 	}
 	if sessions.canceledRunID != "run_1" || len(control.canceled) != 1 {
-		t.Fatalf("durable cancel=%q turn cancels=%v", sessions.canceledRunID, control.canceled)
+		t.Fatalf("durable cancel=%q execution cancels=%v", sessions.canceledRunID, control.canceled)
 	}
 	if sessions.cancelReason != "user stopped" || sessions.canceledAt.IsZero() {
 		t.Fatalf("cancel reason/time = %q/%v, want user reason and terminal time", sessions.cancelReason, sessions.canceledAt)
@@ -1048,7 +1048,7 @@ func TestCancelRunningChildCommitsExactSubtreeBoundaryAndKeepsRootRunning(t *tes
 	control := &fakeExecutionControl{}
 	control.cancelSubtree = func(ref execution.ExecutorRef, processID string) error {
 		if ref != (execution.ExecutorRef{SessionID: "ses_1", ExecutorID: "turn_1"}) {
-			return errors.New("subtree cancellation addressed the wrong turn")
+			return errors.New("subtree cancellation addressed the wrong execution")
 		}
 		if processID != childSource.ProcessID {
 			return errors.New("subtree cancellation addressed the wrong process")
@@ -1198,7 +1198,7 @@ func TestCancelRunningChildCommitsExactSubtreeBoundaryAndKeepsRootRunning(t *tes
 }
 
 func TestCancelParkedRunReportsTurnCleanupFailureAfterDurableCommit(t *testing.T) {
-	cleanupErr := errors.New("turn cleanup failed")
+	cleanupErr := errors.New("execution cleanup failed")
 	pending := testPendingInterrupt("item_1", "proc_1", time.Now().UTC())
 	sessions := &fakeRunSessions{pending: map[string]interrupts.Pending{
 		"run_1": pending,
@@ -1217,12 +1217,12 @@ func TestCancelParkedRunReportsTurnCleanupFailureAfterDurableCommit(t *testing.T
 		t.Fatalf("Cancel error = %v, want cleanup failure", err)
 	}
 	if sessions.canceledRunID != "run_1" {
-		t.Fatal("turn cleanup failure prevented the durable cancel commit")
+		t.Fatal("execution cleanup failure prevented the durable cancel commit")
 	}
 }
 
 func TestCancelLiveRunReportsTurnCleanupFailureAndStillTerminalizes(t *testing.T) {
-	cleanupErr := errors.New("turn cleanup failed")
+	cleanupErr := errors.New("execution cleanup failed")
 	executor := &fakeExecutor{block: true, cancelErr: cleanupErr}
 	effects := &fakeEffects{}
 	control := &fakeExecutionControl{}
@@ -1248,7 +1248,7 @@ func TestCancelLiveRunReportsTurnCleanupFailureAndStillTerminalizes(t *testing.T
 	for _, ok := next(); ok; _, ok = next() { // drain the terminal events
 	}
 	if !effects.terminalized("ses_1", "run_1") {
-		t.Fatal("turn cleanup failure prevented live run terminalization")
+		t.Fatal("execution cleanup failure prevented live Run terminalization")
 	}
 }
 
@@ -1434,7 +1434,7 @@ func TestCancelLetsCommittedInterruptOwnDurableFirstTeardown(t *testing.T) {
 		t.Fatalf("pump executor cancellations = %d, want parked owner to remain intact until durable cancel", executor.cancels())
 	}
 	if len(operations) != 2 || operations[0] != "durable.cancel" || operations[1] != "execution.cancel" {
-		t.Fatalf("cancel operations = %v, want durable cancel before parked turn cleanup", operations)
+		t.Fatalf("cancel operations = %v, want durable cancel before parked execution cleanup", operations)
 	}
 }
 

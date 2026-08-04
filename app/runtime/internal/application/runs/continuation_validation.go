@@ -83,7 +83,7 @@ func validatePendingRunTree(pending interrupts.Pending, values []transcript.Run)
 // validateContinuationRunFacts proves that a durable continuation is a hand-off
 // of run, not a second author for immutable admission or cumulative accounting.
 // Lifecycle callers separately validate state, tree coverage, Pending ownership,
-// and the root-owned protocol/Goal facts that do not live on each continuation.
+// and root-owned capability and Goal facts that do not live on each continuation.
 func validateContinuationRunFacts(
 	rootRunID string,
 	run transcript.Run,

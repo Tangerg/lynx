@@ -43,7 +43,7 @@ type MemorySearcher interface {
 }
 
 // CheckpointReader is the execution adapter's read-only durable continuation
-// boundary. The complete executor tree remains opaque inside one App-owned
+// boundary. The complete executor tree remains opaque inside one Application-owned
 // aggregate; writes belong to the application transaction that consumes a
 // captured checkpoint.
 type CheckpointReader interface {
@@ -86,15 +86,14 @@ type Config struct {
 	// consults ambient user-home state on its own. Empty omits the home layer.
 	UserHome string
 
-	// HistoryStore optionally supplies a persistent chat-history
-	// backend (the sqlite MessageStore, redis-backed, ...). When nil the
+	// HistoryStore optionally supplies a persistent chat-history backend. When nil the
 	// engine falls back to lynx's in-process [in-memory history store]
 	// — fine for tests but loses history on restart.
 	HistoryStore history.Store
 
 	// Knowledge optionally supplies the human-authored LYRA.md cascade reader.
 	// nil disables that prompt layer; curated memory and discovered AGENTS.md
-	// remain independent. (Wire/API calls this "memory".)
+	// remain independent.
 	Knowledge KnowledgeReader
 
 	// AgentMemory optionally supplies the agent-maintained memory items. The

@@ -90,8 +90,8 @@ func (s *controller) CancelSubtree(
 
 // PrepareWaitingSubtreeCancellation claims one parked turn and asks the Agent
 // adapter for an immutable execution-transition plan. The returned application
-// capability owns only the App lifecycle claim until Commit or Abort; Agent
-// runtime retains no resource while the App transaction runs.
+// capability owns only the Application lifecycle claim until Commit or Abort; Agent
+// runtime retains no resource while the Application transaction runs.
 func (s *controller) PrepareWaitingSubtreeCancellation(
 	ctx context.Context,
 	handle Handle,

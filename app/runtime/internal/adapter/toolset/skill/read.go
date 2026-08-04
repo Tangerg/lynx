@@ -29,7 +29,7 @@ type UsageRecorder interface {
 // ones.
 //
 // Rebuilt per resolution like fs/shell, because the project directory depends on
-// the turn's working directory; the merged source just wraps os.DirFS, so the
+// the Run's working directory; the merged source just wraps os.DirFS, so the
 // cost is negligible.
 func BuildReaders(workdir, userDir string, recorder UsageRecorder) ([]toolcontract.Tool, error) {
 	var decorateUser func(skillspec.ResourceSource) skillspec.ResourceSource

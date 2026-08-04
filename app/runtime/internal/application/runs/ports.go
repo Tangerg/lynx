@@ -16,9 +16,8 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 )
 
-// The ports this package consumes to run a segment. They are defined here — on
-// the consumer side — and satisfied structurally by the runtime / delivery /
-// adapter implementations the composition root injects.
+// The ports this package consumes to run a Segment. They are defined here on the
+// consumer side and satisfied structurally by composition.
 //
 // The application drives execution through implementation-neutral
 // [SegmentExecutor] and [ExecutionControl] ports. It observes the
@@ -27,7 +26,7 @@ import (
 
 // ExecutionCanceler tears down a live or parked execution by durable identity. It is a
 // shared capability both the pump ([SegmentExecutor]) and the control surface
-// ([ExecutionControl]) need; naming it once keeps the adapter from implementing the
+// ([ExecutionControl]) need; naming it once keeps an implementation from exposing the
 // same teardown under two method names.
 type ExecutionCanceler interface {
 	CancelExecution(ctx context.Context, ref execution.ExecutorRef) error
@@ -47,7 +46,7 @@ const (
 
 // WaitingSubtreeMutation is the live executor lease attached to a data-only
 // prepared cancellation. Commit crosses the executor boundary only after the
-// application transaction succeeds; Abort releases the App lifecycle claim.
+// application transaction succeeds; Abort releases its lifecycle claim.
 type WaitingSubtreeMutation interface {
 	Commit(ctx context.Context, disposition WaitingSubtreeDisposition) error
 	Abort()
@@ -138,8 +137,8 @@ type RehydrateExecution struct {
 	ExecutorID string
 	ProcessID  string
 	RootRunID  string
-	// ChildRuns restores the App identities of already-admitted child executor
-	// members so product lifecycle hooks never need Framework topology.
+	// ChildRuns restores the application identities of already-admitted child
+	// executor members so lifecycle hooks never need executor topology.
 	ChildRuns                []ChildRunBinding
 	ModelSelection           modelref.Selection
 	Cwd                      string
@@ -151,9 +150,8 @@ type RehydrateExecution struct {
 }
 
 // IsolationProvider resolves the sandbox working-copy directory an isolated
-// session's run executes in, creating it from the project directory on first
-// use. Implemented by the isolation adapter; nil when isolation is not
-// configured (then an isolated session's start is refused).
+// session's Run executes in, creating it from the project directory on first
+// use. nil means isolation is unavailable and an isolated start is refused.
 type IsolationProvider interface {
 	Workspace(ctx context.Context, sessionID, projectRoot string) (string, error)
 }
@@ -170,12 +168,12 @@ type ExecutionControl interface {
 	ExecutionCanceler
 	// CancelSubtree terminates exactly the addressed executor process and its
 	// descendants while the owning execution continues. processID is an opaque
-	// identity previously observed through ExecutorSource; the adapter must
+	// identity previously observed through ExecutorSource; the implementation must
 	// prove that it belongs to ref before crossing the executor side effect.
 	CancelSubtree(ctx context.Context, ref execution.ExecutorRef, processID string) error
 	// PrepareWaitingSubtreeCancellation claims a parked execution and computes an
 	// executor transition plan without changing live execution or retaining an
-	// executor lock. The returned capability owns the App claim until Commit or
+	// executor lock. The returned capability owns the application claim until Commit or
 	// Abort.
 	PrepareWaitingSubtreeCancellation(
 		ctx context.Context,
@@ -185,9 +183,8 @@ type ExecutionControl interface {
 	Steer(ctx context.Context, ref execution.ExecutorRef, input []transcript.ContentBlock) error
 }
 
-// Nudge is a non-durable live workspace change notification the pump forwards to
-// subscribers after a file-mutating tool item — deliberately path-only, so the
-// wire WorkspaceEvent shape stays in the delivery adapter.
+// Nudge is a non-durable live workspace change notification the pump forwards
+// to subscribers after a file-mutating tool item.
 type Nudge struct {
 	Cwd   string
 	Paths []string
@@ -199,7 +196,7 @@ type Nudge struct {
 // observe state the durable stores cannot yet serve. Nudge is a non-durable live
 // workspace notification. Finish synchronously establishes the checkpoint
 // boundary while run admission is still held, then may generate the title off
-// the live path. The adapter/runsegment.Effects satisfies it.
+// the live path.
 type Effects interface {
 	// CommitOpening atomically persists every durable projection that leads a
 	// segment. For a fresh Run it also admits the Run; for a continuation it
@@ -298,9 +295,8 @@ type segmentSpec struct {
 	// and carried unchanged through every resume, so admission / journal / durable
 	// records key on the run, not the segment.
 	RunID string
-	// SegmentID identifies THIS streamed segment (a fresh one per runs.start /
-	// runs.resume). The wire event envelope carries it so a client scopes its
-	// stream-tree + reconnect-replay dedup to the segment.
+	// SegmentID identifies this streamed Segment. A fresh identity is created for
+	// every start and resume so reconnect and replay remain scoped correctly.
 	SegmentID string
 	SessionID string
 	Cwd       string

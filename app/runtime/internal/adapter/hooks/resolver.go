@@ -8,7 +8,7 @@ import (
 
 // Resolver binds the hooks.json cascade to a working directory: it loads the
 // global + project hooks, drops project hooks when the project is not trusted,
-// and returns a bound hook set for the turn to fire.
+// and returns a bound hook set for the Run to fire.
 type Resolver struct {
 	home string
 	// trusted reports whether a project root's project-scope hooks may run.
@@ -29,7 +29,7 @@ func NewResolver(home string, trusted func(context.Context, string) (bool, error
 
 // For returns the current global hooks plus the project's hooks when the
 // project is trusted. Discovery and trust are read on every call so edits and
-// revocations take effect on the next turn without a process restart.
+// revocations take effect on the next Run without a process restart.
 func (r *Resolver) For(ctx context.Context, cwd string) (*domainhooks.Bound, error) {
 	if r == nil || cwd == "" {
 		return nil, nil

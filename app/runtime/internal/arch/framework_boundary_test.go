@@ -11,8 +11,8 @@ import (
 	"testing"
 )
 
-// TestExecutorCheckpointRemainsOpaqueOutsideExecutionAdapter prevents App from
-// reconstructing framework process topology. App may own only the aggregate
+// TestExecutorCheckpointRemainsOpaqueOutsideExecutionAdapter prevents the
+// application from reconstructing executor process topology. It may own only the aggregate
 // root identity, opaque payload, and host metadata required for lifecycle
 // policy.
 func TestExecutorCheckpointRemainsOpaqueOutsideExecutionAdapter(t *testing.T) {
@@ -224,7 +224,7 @@ func TestBootRecoveryPolicyBelongsToApplication(t *testing.T) {
 }
 
 // TestExecutionContextIsNeutralBetweenPeerAdapters prevents application-owned
-// turn scope from being nested under agentexec again.
+// execution scope from being nested under agentexec again.
 func TestExecutionContextIsNeutralBetweenPeerAdapters(t *testing.T) {
 	root := moduleRoot(t)
 	legacy := filepath.Join(root, "internal", "adapter", "agentexec", "turnctx")
@@ -237,8 +237,8 @@ func TestExecutionContextIsNeutralBetweenPeerAdapters(t *testing.T) {
 	}
 }
 
-// TestPendingStoresOnlyOpaqueExecutorBindings prevents the App continuation
-// from persisting a second copy of Framework parent/spawn topology. Run lineage
+// TestPendingStoresOnlyOpaqueExecutorBindings prevents the application continuation
+// from persisting a second copy of executor parent/spawn topology. Run lineage
 // is the durable product tree; live executor topology is validated only while
 // routing events through the adapter boundary.
 func TestPendingStoresOnlyOpaqueExecutorBindings(t *testing.T) {
@@ -253,7 +253,7 @@ func TestPendingStoresOnlyOpaqueExecutorBindings(t *testing.T) {
 		"CommittedTools", "RunCreatedAt", "Metrics", "Limits",
 	}
 	if fields := structFields(interruptFile, "Continuation"); strings.Join(fields, ",") != strings.Join(want, ",") {
-		t.Fatalf("Continuation fields = %v, want App facts plus one opaque executor binding %v", fields, want)
+		t.Fatalf("Continuation fields = %v, want application facts plus one opaque executor binding %v", fields, want)
 	}
 
 	storagePath := filepath.Join(root, "internal", "infra", "storage", "sqlite", "interrupt.go")
@@ -272,7 +272,7 @@ func TestPendingStoresOnlyOpaqueExecutorBindings(t *testing.T) {
 }
 
 // TestSubagentHooksUseApplicationRunIdentity keeps the user-facing lifecycle
-// contract aligned with the product model. Framework process identities remain
+// contract aligned with the product model. Executor process identities remain
 // private routing values and cannot escape through hook JSON.
 func TestSubagentHooksUseApplicationRunIdentity(t *testing.T) {
 	root := moduleRoot(t)
@@ -283,7 +283,7 @@ func TestSubagentHooksUseApplicationRunIdentity(t *testing.T) {
 	}
 	want := []string{"RunID", "ParentRunID", "Description", "Prompt", "Status", "Result", "Error"}
 	if fields := structFields(hookFile, "SubagentInput"); strings.Join(fields, ",") != strings.Join(want, ",") {
-		t.Fatalf("SubagentInput fields = %v, want App lifecycle identity %v", fields, want)
+		t.Fatalf("SubagentInput fields = %v, want application lifecycle identity %v", fields, want)
 	}
 
 	shellPath := filepath.Join(root, "internal", "adapter", "hooks", "shell.go")
@@ -293,7 +293,7 @@ func TestSubagentHooksUseApplicationRunIdentity(t *testing.T) {
 	}
 	for _, required := range []string{"json:\"runId\"", "json:\"parentRunId,omitempty\""} {
 		if !strings.Contains(string(shellSource), required) {
-			t.Errorf("hook JSON no longer exposes App identity marker %q", required)
+			t.Errorf("hook JSON no longer exposes application identity marker %q", required)
 		}
 	}
 	for _, forbidden := range []string{"processId", "parentProcessId", "ParentProcessID"} {

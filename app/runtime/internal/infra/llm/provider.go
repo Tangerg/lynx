@@ -47,7 +47,7 @@ const (
 	ProviderZhipu       Provider = "zhipu" // GLM
 
 	// Generic "bring-your-own-endpoint" providers: the user supplies the base
-	// URL + key + model id, and the turn runs through the OpenAI- / Anthropic-
+	// URL + key + model id, and the Run executes through the OpenAI- / Anthropic-
 	// wire adapter. They cover any compatible gateway not named above (and have
 	// no catalog — the model id is user-supplied).
 	ProviderOpenAICompat    Provider = "openai-compatible"

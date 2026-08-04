@@ -58,7 +58,7 @@ type reader struct {
 // New builds the read_tool_result tool over store. It returns a nil tool and
 // nil error when store is nil so the caller can simply omit the tool — the
 // eviction feature is disabled, not a broken tool. The session id is read
-// per-call off the turn's blackboard ([executionctx.SessionID]), scoping every read
+// per-call off the Run's blackboard ([executionctx.SessionID]), scoping every read
 // to the calling session, so one tool instance serves every session.
 func New(store Store) (toolcontract.Tool, error) {
 	if store == nil {
@@ -85,7 +85,7 @@ func (t *reader) read(ctx context.Context, a readArgs) (string, error) {
 	}
 	if !found {
 		// Recoverable: an unknown id (typo, or the blob dropped with its session)
-		// is surfaced to the model, not raised as a turn-aborting error.
+		// is surfaced to the model, not raised as a Run-aborting error.
 		return "No stored tool result with result_id " + a.ResultID + " — it may have been deleted with its session.", nil
 	}
 

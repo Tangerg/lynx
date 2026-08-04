@@ -1,10 +1,8 @@
 // Package models is the application coordinator for provider + model
 // configuration: the runtime-mutable provider registry (credentials), the static
 // provider catalog + credential prober, and the utility / embedding model roles.
-// It is a thin use-case layer
-// over the domain provider registry + a few composition-injected ports
-// (client/embedding resolvers, catalog, prober); the delivery layer drives it per
-// providers.* / models.* request.
+// It is a thin use-case layer over the domain provider registry and focused
+// ports for model validation, catalog lookup, and credential probing.
 package models
 
 import (
@@ -27,7 +25,7 @@ type ProviderCatalog interface {
 }
 
 var (
-	// ErrProviderUnsupported reports a provider id with no runtime adapter.
+	// ErrProviderUnsupported reports a provider id with no runtime implementation.
 	ErrProviderUnsupported = errors.New("models: provider is unsupported")
 	// ErrProviderBaseURLRequired reports a provider that cannot be configured
 	// without its endpoint.
@@ -36,13 +34,13 @@ var (
 	ErrProviderUnconfigured = errors.New("models: provider is not configured")
 	// ErrProviderUpdateRequired reports a provider update with no changes.
 	ErrProviderUpdateRequired = errors.New("models: provider update has no changes")
-	// ErrEmbeddingUnsupported reports a provider with no embedding adapter.
-	ErrEmbeddingUnsupported = errors.New("models: provider has no embeddings adapter")
+	// ErrEmbeddingUnsupported reports a provider with no embedding implementation.
+	ErrEmbeddingUnsupported = errors.New("models: provider does not support embeddings")
 )
 
 // ProviderProber validates a provider's credentials with one minimal live call
 // (providers.test). The composition root supplies it (it owns client
-// construction against the infra provider adapters).
+// construction and the outbound probe).
 type ProviderProber interface {
 	Probe(ctx context.Context, entry provider.Provider) error
 }
@@ -57,13 +55,13 @@ type ProviderModelLister interface {
 }
 
 // ChatModelValidator verifies that a chat client can be built for
-// (provider, model) without exposing the concrete client to Application.
+// (provider, model) without exposing the concrete client.
 type ChatModelValidator interface {
 	ValidateChatModel(ctx context.Context, providerID, model string) error
 }
 
 // EmbeddingModelValidator validates that an embedding client can be built for
-// (provider, model) without leaking the concrete embedder into Application.
+// (provider, model) without exposing the concrete embedder.
 type EmbeddingModelValidator interface {
 	ValidateEmbeddingModel(ctx context.Context, providerID, model string) error
 }

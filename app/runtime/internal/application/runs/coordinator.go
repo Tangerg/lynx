@@ -26,8 +26,8 @@ var ErrClosed = errors.New("runs: coordinator closed")
 // request-detached task group that keeps runs alive across client disconnects
 // and cancels + joins them during shutdown.
 //
-// It is the transport-neutral home of the run lifecycle: reading Start and the
-// pump explains a run end to end; delivery only presents its canonical events.
+// Reading Start and the pump explains a Run end to end through canonical
+// application events.
 type Coordinator struct {
 	executor     SegmentExecutor
 	control      ExecutionControl
@@ -342,9 +342,9 @@ func (c *Coordinator) rejectUnadmittedExecution(ctx context.Context, ref executi
 	return cause
 }
 
-// Subscribe attaches to the segment the request names. The record and Journal
-// are captured from the same registry entry, so Delivery cannot return a segment
-// id from one entry and subscribe to a replacement or removed entry. The
+// Subscribe attaches to the Segment the request names. The record and Journal
+// are captured from the same registry entry, so a caller cannot receive a
+// Segment id from one entry and subscribe to a replacement or removed entry. The
 // subscription is dropped when ctx ends or the consumer stops ranging.
 //
 // Refusals name what the caller should do instead: [ErrRunNotFound],

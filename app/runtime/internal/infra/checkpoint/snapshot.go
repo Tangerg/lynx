@@ -21,7 +21,7 @@ const maxCheckpointFileSize = 2 << 20
 // the run's changed files (honoring .gitignore + a backstop exclude list +
 // the size cap) and tags the boundary by run id. A run that changed nothing
 // re-tags the existing HEAD instead of minting an empty commit, so a no-change
-// turn costs one ref and zero objects. Idempotent per run (the tag is moved).
+// Run costs one ref and zero objects. Idempotent per Run (the tag is moved).
 func (s *Store) Snapshot(ctx context.Context, sessionID, cwd, runID string) error {
 	mu := s.treeLockFor(cwd)
 	mu.Lock()

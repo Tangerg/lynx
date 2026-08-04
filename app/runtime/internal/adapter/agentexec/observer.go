@@ -22,9 +22,8 @@ import (
 var ErrToolDenied = errors.New("agentexec: tool call denied by user")
 
 // ProcessRef identifies the process that produced an observation. Root and
-// child processes share one engine, but they do not share presentation
-// ownership: consumers can project a child only when their protocol exposes a
-// child-run model.
+// child processes share one engine; the application maps each admitted process
+// to its own Run identity.
 type ProcessRef struct {
 	ID          string
 	ParentID    string
@@ -115,15 +114,12 @@ type executionObserver interface {
 	OnToolCallStart(process ProcessRef, callID, sourceCallID, toolName, arguments string)
 	OnToolCallEnd(process ProcessRef, callID, toolName, arguments, output string, ref *offload.Ref, mutatedPaths []string, err error)
 
-	// OnMessageDelta is invoked for every non-empty text chunk the
-	// model streams out. Implementations typically append the chunk
-	// to a UI buffer or forward it to an event channel.
+	// OnMessageDelta is invoked for every non-empty text chunk the model streams
+	// out. Implementations forward it to the owning execution event stream.
 	OnMessageDelta(process ProcessRef, text string)
 
-	// OnReasoningDelta is invoked for every non-empty reasoning
-	// (extended thinking) chunk the model streams out — distinct
-	// from final-text chunks so UIs can render thinking separately
-	// (e.g. dimmed, collapsed, or behind a "show reasoning" toggle).
+	// OnReasoningDelta is invoked for every non-empty reasoning chunk the model
+	// streams out, distinct from final-text chunks.
 	OnReasoningDelta(process ProcessRef, text string)
 
 	// OnUsage is invoked once per completed LLM round (right after the
@@ -131,14 +127,12 @@ type executionObserver interface {
 	// producing process's cumulative subtree roll-up and cost. Root reports the
 	// complete execution tree; a child reports only itself and its descendants.
 	// This is the mid-run signal, distinct from the authoritative accounting at
-	// that process's TurnEnd. costUSD is zero when no pricing hook is configured
-	// (the wire layer omits it rather than showing a fabricated $0).
+	// that process's TurnEnd. costUSD is zero when no pricing hook is configured.
 	//
 	// contextTokens is THIS round's prompt-token count (not cumulative) — the
 	// size of the context the model was just sent, i.e. how full the window is
-	// right now. It grows across rounds/turns as history accumulates and drops
-	// after a compaction, so the client can render a live context-occupancy
-	// gauge (distinct from the summed usage, which only ever grows).
+	// right now. It grows across rounds and Turns as history accumulates and drops
+	// after a compaction, unlike summed usage, which only ever grows.
 	OnUsage(process ProcessRef, progress UsageProgress)
 
 	// OnChildProcessEnd closes one delegated process after Agent Runtime has

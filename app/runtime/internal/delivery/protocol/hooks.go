@@ -9,7 +9,7 @@ type Hooks interface {
 }
 
 // Lifecycle-hooks management wire types (hooks.*, API.md §7.5). The
-// runtime runs user-authored hooks at fixed turn lifecycle points; these
+// runtime runs user-authored hooks at fixed Run lifecycle points; these
 // methods let a client review what's configured for a cwd and toggle whether a
 // project's hooks are trusted to run (a cloned repo's hooks stay inert until
 // trusted).

@@ -1,10 +1,10 @@
 // Package discovery exposes the model-facing search_tools meta-tool: a
 // progressive-disclosure surface over a set of tools deliberately withheld from
 // the initial manifest. The withheld
-// tools stay resolvable in the turn's registry but are not advertised, so the
+// tools stay resolvable in the Run's registry but are not advertised, so the
 // prompt does not carry every deferred JSON schema every round. The model
 // calls search_tools to find the ones it needs; each match is promoted into the
-// advertised toolset for the rest of the turn (via [toolloop.PromoteTools]) so it
+// advertised toolset for the rest of the Run (via [toolloop.PromoteTools]) so it
 // becomes directly callable on the next round.
 //
 // The generic mid-loop promotion mechanism lives in agent/toolloop.
@@ -176,7 +176,7 @@ func (t *Search) search(ctx context.Context, args searchArgs) (string, error) {
 	for i, m := range matches {
 		defs[i] = m.definition
 	}
-	// Advertise the matches for the rest of the turn. Outside a running loop this
+	// Advertise the matches for the rest of the Run. Outside a running loop this
 	// is a no-op; the listing is still returned so the call is never useless.
 	toolloop.PromoteTools(ctx, defs...)
 	return t.renderMatches(matches), nil

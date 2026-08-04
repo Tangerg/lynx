@@ -15,13 +15,13 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/skillauthoring"
 )
 
-type turnServices struct {
+type executionServices struct {
 	steering    turn.SteeringSink
-	maintenance turn.BoundaryMaintenance
+	maintenance turn.RunMaintenance
 }
 
-func buildTurnServices(cfg Config, messages messageEnvironment, shells *exec.Shells, skillStore *skillauthoring.Store, skillProposals *workspace.Skills, resolveUtility func(context.Context) *chatclient.Client, embedder func(context.Context) (agentmemory.Embedder, error)) turnServices {
-	services := turnServices{
+func buildExecutionServices(cfg Config, messages messageEnvironment, shells *exec.Shells, skillStore *skillauthoring.Store, skillProposals *workspace.Skills, resolveUtility func(context.Context) *chatclient.Client, embedder func(context.Context) (agentmemory.Embedder, error)) executionServices {
+	services := executionServices{
 		steering:    cfg.Steering,
 		maintenance: cfg.Maintenance,
 	}

@@ -5,11 +5,9 @@
 // log, open interrupts) and several commit as ONE transaction via RunInTx, so a
 // mid-sequence failure leaves no half-mutated session.
 //
-// These are use-case orchestration, not protocol adaptation: keeping them here
-// (driven by the protocol adapter, which still owns wire decode and streaming
-// registry concerns) holds the "thin delivery" line and lets the write-sets be
-// tested without standing up the wire. The Coordinator reads canonical
-// transcript values, decides the mutation, and executes it atomically.
+// The Coordinator reads canonical transcript values, decides each mutation, and
+// executes it atomically. These rules are use-case orchestration and stay
+// independent of request decoding, presentation, and stream management.
 package sessions
 
 import (
@@ -76,10 +74,10 @@ type RunStore interface {
 }
 
 // WriteSets are the atomic durable write-sets the coordinator commits through the
-// persistence adapter (§8.1): each applies its whole multi-store mutation in ONE
+// persistence boundary (§8.1): each applies its whole multi-store mutation in ONE
 // transaction, so the coordinator never stitches a transaction across table-CRUD
 // calls with the boundary hidden in the context (§8.4). The application decides
-// the plan; the adapter executes it atomically, enriching nothing.
+// the plan; the implementation executes it atomically, enriching nothing.
 type WriteSets interface {
 	// ApplyFork branches a child session off the plan's parent, seeds its chat log
 	// with the resolved history prefix and its Plan with the boundary value,
@@ -116,8 +114,7 @@ type Forgetter interface {
 }
 
 // Snapshot is one coherent, canonical session read used to produce portable
-// exports. The application owns this shape; delivery only projects it onto the
-// selected wire format.
+// archives.
 type Snapshot struct {
 	Session     session.Session
 	Messages    []chat.Message
@@ -140,7 +137,7 @@ type Snapshot struct {
 // the recoverable operation can re-drive it at boot. A disabled store or missing
 // snapshot surfaces as [ErrCheckpointUnavailable]; a reset that may have changed
 // only part of the tree surfaces as [ErrCheckpointRestoreIncomplete]. The
-// composition root maps adapter sentinels so this port stays adapter-free.
+// composition root maps implementation errors into these application errors.
 type WorkspaceCheckpoints interface {
 	Restore(ctx context.Context, sessionID, cwd, runID string) error
 	// DropSession removes a session's checkpoint history after the durable

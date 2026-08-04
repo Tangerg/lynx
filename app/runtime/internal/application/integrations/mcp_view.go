@@ -8,9 +8,8 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 )
 
-// MCPSecretChangeKind is the application's exact secret-mutation
-// vocabulary. Delivery translates the wire union into it; persistence never
-// has to infer intent from an empty string.
+// MCPSecretChangeKind is the application's exact secret-mutation vocabulary.
+// Persistence never has to infer intent from an empty string.
 type MCPSecretChangeKind uint8
 
 const (

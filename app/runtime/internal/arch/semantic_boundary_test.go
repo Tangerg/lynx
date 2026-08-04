@@ -202,38 +202,44 @@ func TestExecutorAndGoalVocabularyDoesNotLeakAcrossBoundaries(t *testing.T) {
 		"TurnControl": {}, "TurnCanceler": {}, "TurnInterrupted": {},
 		"TurnEnd": {}, "TurnUsage": {}, "TurnRecord": {}, "RecordTurn": {},
 		"GoalTurn": {}, "GoalTurns": {}, "MaxTurns": {},
+		"BoundaryMaintenance": {}, "SessionTurnCleanup": {}, "NewSessionTurnCleanup": {},
 	}
-	for _, ring := range []string{"domain", "application"} {
-		err := filepath.WalkDir(filepath.Join(root, "internal", ring), func(path string, entry fs.DirEntry, walkErr error) error {
-			if walkErr != nil {
-				return walkErr
-			}
-			if entry.IsDir() || filepath.Ext(path) != ".go" || strings.HasSuffix(path, "_test.go") {
-				return nil
-			}
-			file, parseErr := parser.ParseFile(token.NewFileSet(), path, nil, 0)
-			if parseErr != nil {
-				return parseErr
-			}
-			ast.Inspect(file, func(node ast.Node) bool {
-				identifier, ok := node.(*ast.Ident)
-				if !ok {
-					return true
-				}
-				if identifier.Name == "TurnID" {
-					t.Errorf("%s leaks adapter-local TurnID", path)
-					return true
-				}
-				if _, forbidden := forbiddenNames[identifier.Name]; forbidden {
-					t.Errorf("%s leaks retired vocabulary %s", path, identifier.Name)
-				}
-				return true
-			})
-			return nil
-		})
-		if err != nil {
-			t.Fatalf("scan %s executor vocabulary: %v", ring, err)
+	agentAdapter := filepath.Join(root, "internal", "adapter", "agentexec") + string(filepath.Separator)
+	err = filepath.WalkDir(filepath.Join(root, "internal"), func(path string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
 		}
+		if entry.IsDir() {
+			if path+string(filepath.Separator) == agentAdapter {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if filepath.Ext(path) != ".go" || strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		file, parseErr := parser.ParseFile(token.NewFileSet(), path, nil, 0)
+		if parseErr != nil {
+			return parseErr
+		}
+		ast.Inspect(file, func(node ast.Node) bool {
+			identifier, ok := node.(*ast.Ident)
+			if !ok {
+				return true
+			}
+			if identifier.Name == "TurnID" {
+				t.Errorf("%s leaks adapter-local TurnID", path)
+				return true
+			}
+			if _, forbidden := forbiddenNames[identifier.Name]; forbidden {
+				t.Errorf("%s leaks retired vocabulary %s", path, identifier.Name)
+			}
+			return true
+		})
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("scan executor vocabulary outside Agent adapter: %v", err)
 	}
 
 	sqliteDir := filepath.Join(root, "internal", "infra", "storage", "sqlite")

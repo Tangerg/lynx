@@ -18,9 +18,8 @@ var ErrTurnAlreadyActivated = errors.New("turn: turn already activated")
 // at least one turn did not finish its terminal teardown within the deadline.
 var ErrShutdownTimeout = errors.New("turn: shutdown timeout")
 
-// ErrPromptBlocked surfaces when a UserPromptSubmit / SessionStart hook blocks a
-// turn before it starts. The delivery layer maps it to a run-channel error so
-// the client sees why the prompt was refused.
+// ErrPromptBlocked surfaces when a UserPromptSubmit or SessionStart hook blocks
+// a Turn before it starts.
 var ErrPromptBlocked = errors.New("turn: prompt blocked by a hook")
 
 // ErrParkClaimed surfaces from Resume when the turn still exists but its parked

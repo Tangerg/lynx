@@ -1,6 +1,5 @@
-// Package feedback contains the feedback.create use case. It turns a delivery
-// request into one validated, durable quality observation; it deliberately has
-// no read model because the public protocol promises write-only collection.
+// Package feedback records validated, durable quality observations. It has no
+// read model because collection is intentionally write-only.
 package feedback
 
 import (

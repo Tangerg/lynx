@@ -172,15 +172,15 @@ func TestNegotiationWithoutCapabilitiesIsTheMinimalProfile(t *testing.T) {
 // continue while publishing interrupts this caller can never resolve.
 func TestResumeRunRefusesACallerThatCannotFollowTheRun(t *testing.T) {
 	s, rt := rollbackHarness(t)
-	rt.turns = resumeOKTurns{}
+	rt.execution = resumeOKExecution{}
 	ctx := context.Background()
 	sess, _ := rt.sess.Create(ctx, "s", "/w")
 
 	pending := serverPending(
 		"run_1",
 		sess.ID,
-		"turn_parked",
-		"turn_parked",
+		"exec_parked",
+		"process_parked",
 		[]transcript.Interrupt{{
 			ItemID:   "item_1",
 			Kind:     execution.ApprovalInterrupt,

@@ -102,7 +102,7 @@ func (c *Coordinator) withGoalMutation(
 // restoreSession applies a canonical archive and, when requested, derives its
 // session view before releasing the mutation admission. A restoration must not
 // expose a separately-read view because another mutation could otherwise
-// interleave between the durable write and Delivery's response.
+// interleave between the durable write and the returned result.
 func (c *Coordinator) restoreSession(ctx context.Context, snapshot Snapshot, present bool) (View, error) {
 	normalized, err := snapshot.NormalizeForRestore()
 	if err != nil {

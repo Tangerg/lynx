@@ -243,7 +243,7 @@ func TestCoordinatorReadsDelegateToProjections(t *testing.T) {
 // The page is cut by the query, not after the fact: the read asks for exactly one
 // row more than it will return, which is both how "there is more" is known and
 // what keeps a long session's history out of memory.
-// It is also items.list's fixed-order and next-page-direction fixture.
+// It is also the items cursor namespace's fixed-order and next-page-direction fixture.
 func TestListItemPageBoundsTheQueryAndSeeksPastTheAnchor(t *testing.T) {
 	ctx := context.Background()
 	tx := &fakeTranscript{items: sequencedItems(5)}
@@ -282,7 +282,7 @@ func TestListItemPageBoundsTheQueryAndSeeksPastTheAnchor(t *testing.T) {
 
 // A cursor from another session would page this one against positions it never
 // enumerated. Restarting from the top instead of refusing would hand the client
-// rows it had already read, as if they were new. It is items.list's cursor-binding
+// rows it had already read, as if they were new. It is the items cursor-binding
 // fixture.
 func TestListItemPageRefusesAForeignCursor(t *testing.T) {
 	ctx := context.Background()
@@ -325,7 +325,7 @@ func TestListItemPageRefusesAForeignCursor(t *testing.T) {
 	}
 }
 
-// TestListItemPageWalksBackwardFromTheTail is items.list's other direction: the same
+// TestListItemPageWalksBackwardFromTheTail is the items read's other direction: the same
 // durable sequence read from the end. A long session's first screen is its tail, and
 // paging forward to reach it would read everything before it first.
 func TestListItemPageWalksBackwardFromTheTail(t *testing.T) {
@@ -601,7 +601,7 @@ func TestListPendingInterruptPageFiltersByRootAndRefusesAChild(t *testing.T) {
 	}
 }
 
-// TestListRunPageWalksBackwardThroughHistory covers runs.list's query properties:
+// TestListRunPageWalksBackwardThroughHistory covers the runs query properties:
 // the order is fixed (admission descending, tie-broken by id), the next page seeks
 // strictly EARLIER than the last row rather than re-reading it, and "there is more"
 // is only claimed when the over-fetch found it.
@@ -699,7 +699,7 @@ func TestListRunPageIncludesDescendantsAndBindsTheCursor(t *testing.T) {
 	}
 }
 
-// TestListRunPageRefusesACursorFromAnotherQuery is runs.list's half of the cursor
+// TestListRunPageRefusesACursorFromAnotherQuery is the runs read's half of the cursor
 // binding: an anchor is only meaningful against the ordering AND the filter that
 // produced it. Continuing from a foreign one silently pages against positions this
 // query never enumerated — the client is handed rows it already has, or none at
@@ -754,7 +754,7 @@ func TestListRunPageRefusesACursorFromAnotherQuery(t *testing.T) {
 }
 
 // TestListPendingInterruptPagePagesOldestFirst is the same three properties for
-// interrupts.list, whose order the contract fixes as oldest first: a
+// the interrupts read, whose order the contract fixes as oldest first: a
 // resumable run that keeps sinking below the page boundary is one nobody answers.
 func TestListPendingInterruptPagePagesOldestFirst(t *testing.T) {
 	ctx := context.Background()

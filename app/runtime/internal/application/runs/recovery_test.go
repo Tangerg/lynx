@@ -157,12 +157,12 @@ func TestRecoveryChargesLostGoalOwnedRootToItsAdmissionLease(t *testing.T) {
 	if len(store.commit.GoalRuns) != 1 {
 		t.Fatalf("Goal Runs = %+v, want one", store.commit.GoalRuns)
 	}
-	turn := store.commit.GoalRuns[0]
-	if turn.SessionID != run.SessionID || turn.LeaseID != run.GoalLeaseID ||
-		turn.RunID != run.ID || turn.Outcome != execution.OutcomeError ||
-		turn.CostUSD != cost || turn.Steps != run.Metrics.Steps ||
-		!turn.CompletedAt.Equal(finishedAt) {
-		t.Fatalf("Goal Run = %+v", turn)
+	goalRun := store.commit.GoalRuns[0]
+	if goalRun.SessionID != run.SessionID || goalRun.LeaseID != run.GoalLeaseID ||
+		goalRun.RunID != run.ID || goalRun.Outcome != execution.OutcomeError ||
+		goalRun.CostUSD != cost || goalRun.Steps != run.Metrics.Steps ||
+		!goalRun.CompletedAt.Equal(finishedAt) {
+		t.Fatalf("Goal Run = %+v", goalRun)
 	}
 
 	missingCharge := store.commit

@@ -1,11 +1,9 @@
 // Package change carries the "this moved, read it again" notices a use case
 // publishes after its durable mutation commits.
 //
-// It lives in the application ring because the facts are the application's: which
-// resource a committed write moved, and which of its members. Delivery owns the
-// wire vocabulary those notices are projected onto (which topic, which state key),
-// and the composition root connects the two — so a producer needs no knowledge of
-// the protocol, and the protocol ring keeps naming no application type.
+// The facts are application-owned: which resource a committed write moved, and
+// which of its members. Producers publish this semantic notice without choosing
+// a transport topic or presentation shape.
 //
 // A notice carries IDs and nothing else. A value in it would be a second source of
 // truth for something a query already answers, and the two would disagree the
@@ -14,7 +12,7 @@
 package change
 
 // Resource is what moved. It is a closed set: [Resources] lists every value, and
-// the projection onto the wire is checked against that list rather than trusting a
+// external projections are checked against that list rather than trusting a
 // switch to have kept up.
 type Resource uint8
 

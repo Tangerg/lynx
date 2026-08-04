@@ -269,8 +269,8 @@ func (noopTurnServices) AppendUserMessage(context.Context, string, corechat.Mess
 	return nil
 }
 
-func (noopTurnServices) Maintain(context.Context, turn.BoundaryMaintenanceInput) turn.BoundaryMaintenanceResult {
-	return turn.BoundaryMaintenanceResult{}
+func (noopTurnServices) Maintain(context.Context, turn.RunMaintenanceInput) turn.RunMaintenanceResult {
+	return turn.RunMaintenanceResult{}
 }
 
 // slowStubEngine simulates an engine that respects ctx cancellation without

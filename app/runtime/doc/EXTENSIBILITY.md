@@ -5,7 +5,7 @@ Lyra 使用接口有两个理由：
 1. 内层消费者需要定义一片稳定能力面，隔离外层技术实现；
 2. 产品确实允许组合根注入另一种策略或后端。
 
-Run 生命周期、Agent process 装配、turn 状态机、协议 dispatch 和资源关闭顺序是产品
+Run 生命周期、Agent process 装配、私有模型回合状态机、协议 dispatch 和资源关闭顺序是产品
 机制，不因为测试方便就抽象成插件。整体分层见
 [`EXECUTION_CENTERED_ARCHITECTURE.md`](EXECUTION_CENTERED_ARCHITECTURE.md)。
 
@@ -29,8 +29,8 @@ Run 生命周期、Agent process 装配、turn 状态机、协议 dispatch 和�
 | 自治目标 | `application/goals.Store` 与 `application/goals.State` | SQLite goal store |
 | 计划任务 | `application/schedules.ManagementStore`、`RunNowStore`、`WorkerStore` | SQLite schedule store |
 | 执行计划 | `toolset/plan.Store`、`agentexec.PlanReader`、queries/maintenance 的消费方只读端口 | SQLite plan store |
-| turn steering | `adapter/agentexec/turn.SteeringSink` | conversation/message adapter |
-| turn-boundary maintenance | `adapter/agentexec/turn.BoundaryMaintenance` | `adapter/maintenance.Suite`（组合 compaction / extraction / skill lifecycle workers） |
+| execution steering | `adapter/agentexec/turn.SteeringSink` | conversation/message adapter |
+| Run-boundary maintenance | `adapter/agentexec/turn.RunMaintenance` | `adapter/maintenance.Suite`（组合 compaction / extraction / skill lifecycle workers） |
 | utility chat model validation | `application/models.ChatModelValidator` | `adapter/modelclient` + `infra/llm` |
 | Chat provider | `core/chat.Model` / optional `Streamer` | provider adapters |
 | Chat history | `chathistory.Store` | SQLite message store |
@@ -47,9 +47,9 @@ Run 生命周期、Agent process 装配、turn 状态机、协议 dispatch 和�
 
 - `adapter/agentexec.Engine` 是具体 Agent SDK 防腐对象，直接持有具体
   `*agent/runtime.Engine`；不再为 start/restore/control 套单实现接口；
-- `adapter/agentexec/turn` 自己定义 unexported 两方法 `engineDep`，因为具体 turn control
+- `adapter/agentexec/turn` 自己定义 unexported 两方法 `engineDep`，因为具体模型回合控制
   才是 Start/Restore 的消费者；
-- `turn.New` 返回具体的进程内 turn control；`turn.Executor` 在消费侧定义
+- `turn.New` 返回具体的进程内执行控制；`turn.Executor` 在消费侧定义
   `executorDispatcher` 窄端口，把所需控制能力投影为 application/runs ports。不要再在
   application、delivery 或 bootstrap 外面套一层 Manager/Facade；
 - tool catalog、MCP ports、maintenance 和 closers 不经 Engine 中转。
@@ -62,7 +62,7 @@ Run 生命周期、Agent process 装配、turn 状态机、协议 dispatch 和�
 
 - `application/runs.Coordinator` 与 journal/pump/admission；
 - `application/sessions`、queries、models、workspace 等 use-case coordinator；
-- `adapter/agentexec.Engine`、`adapter/agentexec/turn.Executor` 及其私有具体 turn control；
+- `adapter/agentexec.Engine`、`adapter/agentexec/turn.Executor` 及其私有模型回合控制；
 - `adapter/toolset.Resolver` 与 diagnostic registry；
 - `delivery/server`、dispatch 与 HTTP/inprocess transport；
 - `bootstrap.Stack`、`bootstrap.Host`、`hostLifetime` 与 wiring；

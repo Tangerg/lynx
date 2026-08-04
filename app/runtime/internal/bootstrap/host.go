@@ -39,7 +39,7 @@ type hostLifetime struct {
 	integrations shutdownComponent
 	codebase     shutdownComponent
 	coordinator  shutdownComponent
-	dispatcher   shutdownComponent
+	execution    shutdownComponent
 	effectsTasks shutdownComponent
 	toolClosers  []ShutdownResource
 	resources    []ShutdownResource
@@ -106,9 +106,9 @@ func closeHostLifetime(lifetime *hostLifetime) error {
 		return componentErr
 	}
 
-	if lifetime.dispatcher != nil {
-		lifetime.dispatcher.BeginShutdown()
-		if err := lifetime.dispatcher.AwaitShutdown(shutdownCtx); err != nil {
+	if lifetime.execution != nil {
+		lifetime.execution.BeginShutdown()
+		if err := lifetime.execution.AwaitShutdown(shutdownCtx); err != nil {
 			return err
 		}
 	}

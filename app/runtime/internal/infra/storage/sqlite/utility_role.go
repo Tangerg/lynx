@@ -21,13 +21,13 @@ func NewUtilityRoleStore(db *sql.DB) *UtilityRoleStore {
 }
 
 // LoadUtilityRole returns the stored role, or its zero value when unset (no
-// row yet) — the caller then runs maintenance on the main turn model.
+// row yet) — the caller then runs maintenance on the main Run model.
 func (s *UtilityRoleStore) LoadUtilityRole(ctx context.Context) (modelref.Selection, error) {
 	return s.store.load(ctx)
 }
 
 // SaveUtilityRole upserts the single utility-role row. A zero role clears it
-// back to the main turn model.
+// back to the main Run model.
 func (s *UtilityRoleStore) SaveUtilityRole(ctx context.Context, role modelref.Selection) error {
 	return s.store.save(ctx, role)
 }

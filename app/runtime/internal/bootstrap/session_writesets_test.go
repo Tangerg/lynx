@@ -381,12 +381,12 @@ func TestApplyTerminalChargesGoalOwnedParkAtomically(t *testing.T) {
 		UpdatedAt:   finishedAt,
 		MessageMark: 0,
 	}
-	turn := goal.RunRecord{
+	goalRun := goal.RunRecord{
 		SessionID: "ses_A", LeaseID: leaseID, RunID: terminal.ID,
 		Outcome: outcome, CostUSD: costUSD, Steps: 4, CompletedAt: finishedAt,
 	}
 	if err := ss.ApplyTerminal(ctx, sessions.TerminalPlan{
-		Runs: []transcript.Run{terminal}, CheckpointRootID: processID, GoalRun: &turn,
+		Runs: []transcript.Run{terminal}, CheckpointRootID: processID, GoalRun: &goalRun,
 	}); err != nil {
 		t.Fatalf("ApplyTerminal: %v", err)
 	}

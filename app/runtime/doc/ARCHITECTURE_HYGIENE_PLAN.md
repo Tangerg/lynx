@@ -130,7 +130,7 @@ Status: **Completed**
 
 Scope:
 
-- Return a concrete turn dispatcher and define narrow interfaces at its consumers.
+- Return a concrete execution controller and define narrow interfaces at its consumers.
 - Make the Run registry concrete over its actual payload.
 - Keep the Journal generic only if another production event family is found; otherwise concretize it.
 - Replace dependency-bag accessor interfaces with named dependencies or cohesive phase ports.
@@ -907,10 +907,36 @@ Acceptance:
 | 33. Run capability vocabulary closure | Completed | 2026-08-04 | 2026-08-04 | Domain, Application, adapters, and SQLite use `RunCapabilities`; the versioned Delivery DTO alone retains `RunProtocolProfile`, with one explicit mapping boundary and schema epoch 56. |
 | 34. Semantic replay retention and interrupt integrity | Completed | 2026-08-04 | 2026-08-04 | Replay memory is charged from the closed event family rather than JSON encoding; pending approvals now require a valid tool, risk, and not-yet-executed invocation. |
 | 35. Execution identity and Goal Run vocabulary closure | Completed | 2026-08-04 | 2026-08-04 | Domain/Application use `ExecutorRef`, `ExecutionScope`, `ExecutionControl`, and Goal `Run` accounting exclusively; adapter-local `Turn` no longer crosses inward, SQLite uses `executor_id`/`goal_runs`/`max_runs`, server contracts were regenerated, and semantic-boundary fitness tests pin the retired vocabulary. |
+| 36. Cursor namespace and maintenance boundary closure | Completed | 2026-08-04 | 2026-08-04 | Semantic cursor namespaces, Execution/Run maintenance vocabulary, Delivery test-boundary isolation, comment cleanup, architecture fitness checks, workspace/standalone build and vet, server suites, focused race tests, static analysis, lint, dead-code analysis, and residue scans passed. |
 
 Allowed status values: `Pending`, `In progress`, `Completed`, `Blocked`, `Revised`.
 
 ## 7. Progress log
+
+### 2026-08-04 — Batch 36 completed
+
+- Decoupled Application paging from Delivery method names. Every paged read now
+  owns a unique semantic namespace, and keyset token v2 stores `Namespace`
+  rather than `Method`; older cursors fail closed instead of retaining a hidden
+  RPC dependency.
+- Replaced the remaining cross-boundary Turn/dispatcher vocabulary with
+  `SessionExecutionCleanup`, `RunMaintenance`, and execution-controller
+  ownership. Bootstrap lifecycle fields and tests now describe the semantic
+  execution resource they actually close.
+- Removed concrete Agent execution construction from every Delivery test
+  fixture. Server tests implement the Application-owned execution ports
+  directly, and a fitness rule now rejects `adapter/agentexec` imports in both
+  Delivery production code and Delivery tests.
+- Rewrote Domain/Application and adapter-boundary comments around owned
+  semantics, removed stale outer-ring and application-layer shorthand, and
+  expanded the retired-vocabulary guard across all production packages outside
+  the private Agent adapter.
+- Workspace and standalone build/vet passed; all server-owned test packages
+  passed in both modes; focused race tests, `staticcheck`, `golangci-lint`,
+  `deadcode -test`, formatting, empty-directory/TODO/import/vocabulary scans,
+  and all non-contract-drift architecture checks passed. Full tests remain
+  blocked only by the intentionally deferred frontend Goal sample and generated
+  TypeScript bindings.
 
 ### 2026-08-04 — Batch 35 completed
 
@@ -1114,7 +1140,7 @@ Allowed status values: `Pending`, `In progress`, `Completed`, `Blocked`, `Revise
 
 - Replaced three adapter factories that returned Application interfaces with
   concrete `DiagnosticRegistry`, `SessionCheckpoints`, and
-  `SessionTurnCleanup` implementations. The hook factory likewise returns its
+  `SessionExecutionCleanup` implementations. The hook factory likewise returns its
   concrete resolver; Bootstrap remains responsible for assigning each value to
   a consumer-owned port.
 - Removed the tool registry's construction-only dependency on

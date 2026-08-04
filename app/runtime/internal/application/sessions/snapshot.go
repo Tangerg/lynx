@@ -9,9 +9,8 @@ import (
 )
 
 // ExportResult is the complete result of a session archive use case. The
-// archive and its presentation are derived while the same session admission is
-// held, so Delivery cannot accidentally pair one revision's archive with a
-// later revision's session view.
+// archive and its session view are derived while the same admission is held, so
+// callers cannot pair one revision's archive with a later revision's view.
 type ExportResult struct {
 	Session  View
 	Snapshot PortableSnapshot

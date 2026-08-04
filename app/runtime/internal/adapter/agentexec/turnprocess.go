@@ -16,9 +16,9 @@ import (
 )
 
 // TurnCompletion is the typed application projection of one Agent runtime
-// segment completion. Durable checkpoint policy is deliberately absent: the
-// App captures a waiting checkpoint after it decides to expose the boundary,
-// then commits that value in its own tree-barrier transaction.
+// segment completion. Durable checkpoint policy is deliberately absent: a
+// waiting checkpoint is captured only after the application accepts the
+// boundary, then committed by its tree-barrier transaction.
 //
 // A segment reports its process failure and its own driving error separately,
 // and how those two combine is the framework's rule — not something to restate
@@ -50,12 +50,10 @@ type SuspensionAnswer struct {
 // TurnProcess is the handle [Engine.StartTurn] returns. It exposes one typed
 // completion boundary instead of separate status, output, and done signals.
 //
-// The interface lives in this package (not in the turn dispatcher) so
-// test stubs can substitute a fake without standing up a full engine.
+// The interface is the Engine's process result and keeps its runtime process
+// implementation private.
 type TurnProcess interface {
-	// ID is the underlying agent process id — surfaces to clients as
-	// the turn handle so cancellation / resume requests route through
-	// the runtime by process id.
+	// ID is the private root process identity used to route executor control.
 	ID() string
 
 	// Await joins the active segment and captures its immutable completion.
@@ -94,9 +92,10 @@ type TurnProcess interface {
 	Discard(ctx context.Context) error
 }
 
-// WaitingCheckpoint is the data-only App projection of one Agent waiting tree.
-// Checkpoint contains one root-owned opaque executor aggregate; Suspensions are
-// the external boundaries captured from that exact immutable tree.
+// WaitingCheckpoint is the data-only application projection of one Agent
+// waiting tree. Checkpoint contains one root-owned opaque executor aggregate;
+// Suspensions are the external boundaries captured from that exact immutable
+// tree.
 type WaitingCheckpoint struct {
 	Checkpoint  execution.ExecutorCheckpoint
 	Suspensions []PendingSuspension

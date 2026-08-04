@@ -514,7 +514,7 @@ func seedEveryItemKind(t *testing.T, rt *stubRuntime, sessionID string) {
 		{
 			ID: "item_compaction", RunID: "run_failed", Kind: transcript.Compaction,
 			Status: transcript.ItemCompleted, OccurredAt: time.Unix(9, 0).UTC(),
-			Summary: "folded the earlier turns", DroppedMessages: 4,
+			Summary: "folded the earlier messages", DroppedMessages: 4,
 		},
 	}
 	for _, item := range items {

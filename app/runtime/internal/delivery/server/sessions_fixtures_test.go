@@ -9,8 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/runsegment"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspacepath"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/admission"
@@ -29,10 +27,10 @@ import (
 	"github.com/Tangerg/lynx/core/chat"
 )
 
-// testRuntime is the delivery test seam newTestServer builds the run coordinator
-// from: the executor + the run-segment effects factory. Production wires the
-// agentexec turn executor + a Host-built effects; the stub provides both, plus
-// the optional coordinator-provider seams asserted below.
+// testRuntime is the Delivery test seam newTestServer uses to build the Run
+// coordinator: semantic execution plus a Run-segment effects factory. The test
+// double stays on application-owned ports so handler fixtures do not depend on
+// Agent adapter handles.
 type testRuntime interface {
 	runs.SegmentExecutor
 	runs.ExecutionControl
@@ -40,12 +38,12 @@ type testRuntime interface {
 }
 
 func serverPending(
-	runID, sessionID, turnID, processID string,
+	runID, sessionID, executorID, processID string,
 	open []transcript.Interrupt,
 	createdAt time.Time,
 ) interrupts.Pending {
-	if turnID == "" {
-		turnID = "turn_" + runID
+	if executorID == "" {
+		executorID = "exec_" + runID
 	}
 	if processID == "" {
 		processID = "process_" + runID
@@ -84,7 +82,7 @@ func serverPending(
 	return interrupts.Pending{
 		RootRunID:    runID,
 		SessionID:    sessionID,
-		ExecutorID:   turnID,
+		ExecutorID:   executorID,
 		Interrupts:   open,
 		Suspensions:  bindings,
 		Capabilities: capabilities.Normalized(),
@@ -97,24 +95,17 @@ func serverPending(
 	}
 }
 
-// turnRuntime is this integration harness's complete executor view. Production
-// consumers do not share this surface: turn.Executor, session cleanup, and
-// run-segment persistence each declare their own smaller ports.
-type turnRuntime interface {
-	Events(context.Context, turn.Handle) (iter.Seq[runs.ExecutorEvent], error)
-	InjectSteering(context.Context, turn.Handle, []transcript.ContentBlock) error
-	PrepareTurn(context.Context, runs.StartExecution) (turn.Handle, error)
-	ActivateTurn(context.Context, turn.Handle) error
-	Resume(context.Context, turn.Handle, []agentexec.SuspensionAnswer, []execution.InterruptKind) error
-	ProcessID(context.Context, turn.Handle) (string, error)
-	Rehydrate(context.Context, runs.RehydrateExecution) (turn.Handle, error)
-	Cancel(context.Context, turn.Handle) error
-	CancelSubtree(context.Context, turn.Handle, string) error
+// executionRuntime is the combined application-owned execution surface this
+// integration harness supplies. Production consumers still receive the two
+// narrower interfaces independently.
+type executionRuntime interface {
+	runs.SegmentExecutor
+	runs.ExecutionControl
 }
 
 // stubRuntime is the delivery session/lifecycle test double: it provides the run
 // executor + effects (testRuntime) over its own in-memory + sqlite stores, and
-// the coordinator-provider seams (sessions / queries / turn control).
+// the coordinator-provider seams for Sessions, queries, and execution control.
 type stubRuntime struct {
 	sess        *sqlite.SessionStore
 	model       string
@@ -125,7 +116,7 @@ type stubRuntime struct {
 	plan        *sqlite.PlanStore              // session-scoped state: exported, restored, dropped with the session
 	interrupts  *sqlite.InterruptStore         // open-interrupt registry (rollback clears dropped)
 	muts        *sqlite.WorkspaceMutationStore // §8.5 recoverable file-rollback log
-	turns       turnRuntime
+	execution   executionRuntime
 	admissions  *admission.Gate
 }
 
@@ -253,59 +244,90 @@ func (s stubRuntime) TruncateMessages(_ context.Context, id string, keepN int) e
 	return nil
 }
 
-// turnStub supplies the default inert executor. Most session tests never drive
-// a turn, so no method is implemented unless a specific case needs it.
-type turnStub struct{ turnRuntime }
+// executionStub supplies the default inert executor through application-owned
+// values. Most Session tests never drive it, but complete methods keep an
+// accidental call deterministic instead of dispatching through a nil embed.
+type executionStub struct{}
 
-func (turnStub) Cancel(context.Context, turn.Handle) error { return nil }
-
-type recordingTurns struct {
-	turnRuntime
-	canceled []turn.Handle
+func (executionStub) Events(context.Context, execution.ExecutorRef) (iter.Seq[runs.ExecutorEvent], error) {
+	return func(func(runs.ExecutorEvent) bool) {}, nil
 }
-
-func (r *recordingTurns) Cancel(_ context.Context, h turn.Handle) error {
-	r.canceled = append(r.canceled, h)
+func (executionStub) ValidateStart(req runs.StartExecution) error { return req.Validate() }
+func (executionStub) PrepareStart(_ context.Context, req runs.StartExecution) (execution.ExecutorRef, error) {
+	return execution.ExecutorRef{SessionID: req.SessionID, ExecutorID: "exec_test"}, nil
+}
+func (executionStub) Activate(context.Context, execution.ExecutorRef) error { return nil }
+func (executionStub) Prepare(_ context.Context, ref execution.ExecutorRef) (execution.ExecutorRef, error) {
+	return ref, nil
+}
+func (executionStub) Resume(context.Context, execution.ExecutorRef, []interrupts.SuspensionAnswer, []execution.InterruptKind) error {
+	return nil
+}
+func (executionStub) Rehydrate(_ context.Context, req runs.RehydrateExecution) (execution.ExecutorRef, error) {
+	return execution.ExecutorRef{SessionID: req.SessionID, ExecutorID: req.ExecutorID}, nil
+}
+func (executionStub) CancelExecution(context.Context, execution.ExecutorRef) error { return nil }
+func (executionStub) CancelSubtree(context.Context, execution.ExecutorRef, string) error {
+	return nil
+}
+func (executionStub) PrepareWaitingSubtreeCancellation(
+	context.Context,
+	execution.ExecutorRef,
+	string,
+) (runs.PreparedWaitingSubtreeCancellation, error) {
+	return runs.PreparedWaitingSubtreeCancellation{}, errors.New("test execution: waiting subtree cancellation is unavailable")
+}
+func (executionStub) Steer(context.Context, execution.ExecutorRef, []transcript.ContentBlock) error {
 	return nil
 }
 
-func (s stubRuntime) turnDispatcher() turnRuntime {
-	if s.turns != nil {
-		return s.turns
+type recordingExecutions struct {
+	executionStub
+	canceled []execution.ExecutorRef
+}
+
+func (r *recordingExecutions) CancelExecution(_ context.Context, ref execution.ExecutorRef) error {
+	r.canceled = append(r.canceled, ref)
+	return nil
+}
+
+func (s stubRuntime) executionController() executionRuntime {
+	if s.execution != nil {
+		return s.execution
 	}
-	return turnStub{}
+	return executionStub{}
 }
 
 func (s stubRuntime) Events(ctx context.Context, ref execution.ExecutorRef) (iter.Seq[runs.ExecutorEvent], error) {
-	return turn.NewExecutor(s.turnDispatcher()).Events(ctx, ref)
+	return s.executionController().Events(ctx, ref)
 }
 
 func (s stubRuntime) ValidateStart(req runs.StartExecution) error {
-	return turn.NewExecutor(s.turnDispatcher()).ValidateStart(req)
+	return s.executionController().ValidateStart(req)
 }
 
 func (s stubRuntime) PrepareStart(ctx context.Context, req runs.StartExecution) (execution.ExecutorRef, error) {
-	return turn.NewExecutor(s.turnDispatcher()).PrepareStart(ctx, req)
+	return s.executionController().PrepareStart(ctx, req)
 }
 
 func (s stubRuntime) Activate(ctx context.Context, ref execution.ExecutorRef) error {
-	return turn.NewExecutor(s.turnDispatcher()).Activate(ctx, ref)
+	return s.executionController().Activate(ctx, ref)
 }
 
 func (s stubRuntime) Prepare(ctx context.Context, ref execution.ExecutorRef) (execution.ExecutorRef, error) {
-	return turn.NewExecutor(s.turnDispatcher()).Prepare(ctx, ref)
+	return s.executionController().Prepare(ctx, ref)
 }
 
 func (s stubRuntime) Resume(ctx context.Context, prepared execution.ExecutorRef, answers []interrupts.SuspensionAnswer, interruptKinds []execution.InterruptKind) error {
-	return turn.NewExecutor(s.turnDispatcher()).Resume(ctx, prepared, answers, interruptKinds)
+	return s.executionController().Resume(ctx, prepared, answers, interruptKinds)
 }
 
 func (s stubRuntime) Rehydrate(ctx context.Context, req runs.RehydrateExecution) (execution.ExecutorRef, error) {
-	return turn.NewExecutor(s.turnDispatcher()).Rehydrate(ctx, req)
+	return s.executionController().Rehydrate(ctx, req)
 }
 
 func (s stubRuntime) Cancel(ctx context.Context, ref execution.ExecutorRef) error {
-	return turn.NewExecutor(s.turnDispatcher()).CancelExecution(ctx, ref)
+	return s.executionController().CancelExecution(ctx, ref)
 }
 
 func (s stubRuntime) CancelSubtree(
@@ -313,7 +335,7 @@ func (s stubRuntime) CancelSubtree(
 	ref execution.ExecutorRef,
 	processID string,
 ) error {
-	return turn.NewExecutor(s.turnDispatcher()).CancelSubtree(ctx, ref, processID)
+	return s.executionController().CancelSubtree(ctx, ref, processID)
 }
 
 func (s stubRuntime) PrepareWaitingSubtreeCancellation(
@@ -321,7 +343,7 @@ func (s stubRuntime) PrepareWaitingSubtreeCancellation(
 	ref execution.ExecutorRef,
 	processID string,
 ) (runs.PreparedWaitingSubtreeCancellation, error) {
-	return turn.NewExecutor(s.turnDispatcher()).PrepareWaitingSubtreeCancellation(
+	return s.executionController().PrepareWaitingSubtreeCancellation(
 		ctx,
 		ref,
 		processID,
@@ -329,22 +351,18 @@ func (s stubRuntime) PrepareWaitingSubtreeCancellation(
 }
 
 func (s stubRuntime) Steer(ctx context.Context, ref execution.ExecutorRef, input []transcript.ContentBlock) error {
-	return turn.NewExecutor(s.turnDispatcher()).Steer(ctx, ref, input)
+	return s.executionController().Steer(ctx, ref, input)
 }
 
 func (s stubRuntime) CancelExecution(ctx context.Context, ref execution.ExecutorRef) error {
-	return s.turnDispatcher().Cancel(ctx, turn.Handle{SessionID: ref.SessionID, TurnID: ref.ExecutorID})
+	return s.executionController().CancelExecution(ctx, ref)
 }
 
-func (s stubRuntime) TurnProcessID(ctx context.Context, handle turn.Handle) (string, error) {
-	return s.turnDispatcher().ProcessID(ctx, handle)
-}
-
-type stubLifecycleTurns struct {
+type stubExecutionCleanup struct {
 	rt *stubRuntime
 }
 
-func (t stubLifecycleTurns) Cancel(ctx context.Context, ref execution.ExecutorRef) error {
+func (t stubExecutionCleanup) Cancel(ctx context.Context, ref execution.ExecutorRef) error {
 	return t.rt.CancelExecution(ctx, execution.ExecutorRef{SessionID: ref.SessionID, ExecutorID: ref.ExecutorID})
 }
 
@@ -565,7 +583,7 @@ type stubTitleGenerator struct{}
 func (stubTitleGenerator) Generate(context.Context, string) (string, error) { return "", nil }
 
 // sessionsCoordinator builds the real lifecycle coordinator over the stub's
-// in-memory stores and turns, so newTestServer can wire s.sessions the way the
+// in-memory stores and execution cleanup, so newTestServer can wire s.sessions the way the
 // composition root does — delivery drives every lifecycle write-set through it.
 // File restore stays disabled (nil restorer); the checkpoint tests rebuild it
 // with a real restorer via [stubRuntime.sessionsCoordinatorWithRestorer].
@@ -592,7 +610,7 @@ func (s *stubRuntime) sessionsCoordinatorWithRestorer(checkpoints sessions.Works
 		Snapshots:        stores,
 		Writes:           stores,
 		Forgetter:        s,
-		ExecutionCleanup: stubLifecycleTurns{rt: s},
+		ExecutionCleanup: stubExecutionCleanup{rt: s},
 		Paths:            workspacepath.Resolver{},
 		Checkpoints:      checkpoints,
 		Mutations:        s.muts,
@@ -641,7 +659,7 @@ func (stubRunState) Terminalize(context.Context, transcript.Run) error { return 
 
 // ForgetSession is the no-op the session-delete / rollback / purge cascades call
 // (via the lifecycle coordinator) to release a removed session's process-local
-// gate; these tests have no live turn state to forget.
+// gate; these tests have no live execution state to forget.
 func (stubRuntime) ForgetSession(string) {}
 
 func (s stubRuntime) ReadHistory(_ context.Context, id string) ([]chat.Message, error) {

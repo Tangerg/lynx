@@ -36,7 +36,7 @@ func ProjectSkillDir(workdir string) string {
 // user-resolved loads and nothing else.
 //
 // Building a source just wraps an os.DirFS, so this is cheap enough to call per
-// tool resolution (the engine rebuilds the skill tool per turn cwd).
+// tool resolution (the engine rebuilds the skill tool per Run cwd).
 func MergeSkillSource(projectDir, userDir string, decorateUser func(sdk.ResourceSource) sdk.ResourceSource) sdk.ResourceSource {
 	var sources []sdk.ResourceSource
 	if dirExists(projectDir) {

@@ -11,7 +11,7 @@ type Recipes interface {
 // a user-invoked, parameterized prompt template discovered from .lyra/recipes
 // (project) layered over the global recipes directory. The client renders the
 // list, expands a chosen recipe's body ($ARGUMENTS / $1..$9) with the user's
-// input, and sends the result as a turn — the runtime only discovers them.
+// input, and sends the result as a Run — the runtime only discovers them.
 
 // RecipeScope is where a discovered Recipe came from: project (<cwd>/.lyra/
 // recipes) or global (<LYRA_HOME>/recipes). Mirrors SkillScope's values but is

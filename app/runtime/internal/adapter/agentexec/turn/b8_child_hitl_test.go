@@ -715,7 +715,7 @@ func TestRestartRestoresParkedChildWithoutReplayingPreHook(t *testing.T) {
 		t.Fatalf("list executor checkpoints: %v", err)
 	}
 	if len(ids) != 1 {
-		t.Fatalf("terminal executor checkpoints = %v, want one App-owned aggregate pending cleanup", ids)
+		t.Fatalf("terminal executor checkpoints = %v, want one Application-owned aggregate pending cleanup", ids)
 	}
 	if err := store.DeleteCheckpoints(t.Context(), original.SessionID, []string{processID}); err != nil {
 		t.Fatalf("application terminal checkpoint cleanup: %v", err)
@@ -783,7 +783,7 @@ func TestCancelParkedChildCleansWholeProcessTree(t *testing.T) {
 		t.Fatalf("list snapshots: %v", err)
 	}
 	if len(ids) != 1 {
-		t.Fatalf("canceled executor checkpoints = %v, want one App-owned aggregate pending cleanup", ids)
+		t.Fatalf("canceled executor checkpoints = %v, want one Application-owned aggregate pending cleanup", ids)
 	}
 	if err := store.DeleteCheckpoints(t.Context(), handle.SessionID, []string{processID}); err != nil {
 		t.Fatalf("application cancel checkpoint cleanup: %v", err)

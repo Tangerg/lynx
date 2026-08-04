@@ -6,9 +6,9 @@ import (
 )
 
 // FileMutationScope describes what a filesystem-capable tool will affect
-// relative to the active workspace. The adapter derives it from the concrete
-// tool's mutation-reporting capability after hook argument rewrites and after
-// resolving symlinks; policy never guesses paths from a tool name or JSON key.
+// relative to the active workspace. It is derived from the concrete tool's
+// mutation-reporting capability after hook argument rewrites and symlink
+// resolution; policy never guesses paths from a tool name or JSON key.
 type FileMutationScope uint8
 
 const (

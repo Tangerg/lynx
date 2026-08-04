@@ -81,9 +81,9 @@ func (r *reducer) interrupt(e SegmentInterrupted) ([]RunEvent, error) {
 	return append(out, SegmentFinished{Run: run}), nil
 }
 
-// suspend closes this Run's segment because another Run in the same tree raised
-// the human-input barrier. It carries no direct interrupts: that absence is what
-// the protocol projects as outcome "suspended". Open tool items are made
+// suspend closes this Run's Segment because another Run in the same tree raised
+// the human-input barrier. It carries no direct interrupts, which distinguishes
+// a suspended sibling from the Run that owns the barrier. Open tool items are made
 // incomplete and retained for continuation correlation exactly as on the source
 // Run, because the whole tree resumes rather than replaying those calls as new
 // work.

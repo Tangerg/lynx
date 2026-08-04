@@ -7,8 +7,8 @@ import (
 // Retention accounting bounds the variable heap held by the replay window. The
 // event count separately bounds fixed headers, while these conservative entry
 // charges cover slice and map backing storage even when their strings are empty.
-// Values are intentionally estimates: they describe retained memory, not a
-// storage or delivery encoding.
+// Values are intentionally estimates: they describe retained memory, not any
+// durable or presentation encoding.
 const (
 	retainedEventHeaderBytes    = 128
 	retainedRunHeaderBytes      = 256

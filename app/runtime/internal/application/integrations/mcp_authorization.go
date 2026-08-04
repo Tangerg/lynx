@@ -28,8 +28,8 @@ const (
 )
 
 // MCPAuthorizationAttempt is the application read model for one interactive
-// OAuth flow. Failure details remain in telemetry; callers receive the stable
-// status and Delivery projects the public problem type.
+// OAuth flow. Failure details remain in telemetry; callers receive only the
+// stable status.
 type MCPAuthorizationAttempt struct {
 	ID         string
 	Server     string
@@ -39,7 +39,7 @@ type MCPAuthorizationAttempt struct {
 }
 
 // MCPAuthorizationAttemptRetention is the terminal-result window this
-// Coordinator enforces. Delivery publishes this exact value in discovery.
+// Coordinator enforces and reports to callers.
 func (c *Coordinator) MCPAuthorizationAttemptRetention() time.Duration {
 	return c.mcpAuthorizationAttempts.retention
 }

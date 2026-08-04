@@ -19,31 +19,31 @@ type engineDep interface {
 	SubagentProjection(processID string) (agentexec.SubagentProjection, bool)
 }
 
-// SteeringSink persists queued steering after the current turn finishes.
+// SteeringSink persists queued steering after the current Run finishes.
 type SteeringSink interface {
 	AppendUserMessage(ctx context.Context, sessionID string, message chat.Message) error
 }
 
-// CompactionResult reports one turn-boundary compaction sweep.
+// CompactionResult reports one Run-boundary compaction sweep.
 type CompactionResult struct {
 	Compacted      bool
 	MessagesBefore int
 	MessagesAfter  int
 }
 
-// BoundaryMaintenance owns the best-effort housekeeping that follows a clean
-// turn. The controller supplies immutable turn facts, records the returned
-// failures on the turn span, and publishes a compaction boundary; the
+// RunMaintenance owns the best-effort housekeeping that follows a clean Run.
+// The controller supplies immutable Run facts, records returned failures on
+// the execution span, and publishes a compaction boundary; the
 // implementation owns the workers' ordering and conditional work.
-type BoundaryMaintenance interface {
-	Maintain(context.Context, BoundaryMaintenanceInput) BoundaryMaintenanceResult
+type RunMaintenance interface {
+	Maintain(context.Context, RunMaintenanceInput) RunMaintenanceResult
 }
 
-// BoundaryMaintenanceInput is the finished turn's maintenance context.
-// ModelSelection identifies the model pinned by this turn; an unset selection
+// RunMaintenanceInput is the finished Run's maintenance context.
+// ModelSelection identifies the model pinned by this Run; an unset selection
 // leaves compaction to its configured fallback window. PreCompact is invoked
 // only when a compaction is about to commit and may veto it.
-type BoundaryMaintenanceInput struct {
+type RunMaintenanceInput struct {
 	SessionID      string
 	Cwd            string
 	ModelSelection modelref.Selection
@@ -51,16 +51,16 @@ type BoundaryMaintenanceInput struct {
 	PreCompact     func(context.Context) bool
 }
 
-// BoundaryMaintenanceResult reports the observable outcome of one maintenance
+// RunMaintenanceResult reports the observable outcome of one maintenance
 // sweep. Errors are independent best-effort failures: they never rewrite an
 // already-completed user reply.
-type BoundaryMaintenanceResult struct {
+type RunMaintenanceResult struct {
 	Compaction CompactionResult
 	Errors     []error
 }
 
-// ToolPresenter owns tool-specific activity and result projection. Turn owns
-// only execution lifecycle translation; concrete tool names and schemas remain
+// ToolPresenter owns tool-specific activity and result projection. This
+// execution adapter owns only lifecycle translation; concrete tool names and schemas remain
 // in the tool catalog adapter that implements this interface.
 type ToolPresenter interface {
 	Activity(toolName string, arguments tool.Arguments) string

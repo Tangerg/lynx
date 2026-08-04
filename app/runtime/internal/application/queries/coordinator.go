@@ -1,8 +1,6 @@
-// Package queries is the application-owned read surface over a session's durable
-// execution record: the transcript (items + runs) and open HITL interrupts.
-// These are projections read directly from persistence (§5.4) — no aggregate is
-// loaded and no command store is fattened with reads. Delivery drives them for
-// runs.list, items.list and interrupts.list.
+// Package queries owns reads over a session's durable execution record: the
+// transcript (items and Runs), open interrupts, and current Plan projection.
+// Reads load only the projections they need; command stores remain command-only.
 package queries
 
 import (
@@ -22,16 +20,13 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 )
 
-// The query a page cursor belongs to, so a cursor minted by another read is
-// rejected instead of continuing this one. Each is the name of the PUBLISHED method
-// the read serves: the namespace only has to be unique, but spelling it any other
-// way gives one query two names, and then nothing can check that a reader binds its
-// cursors to its own query. [arch.TestPageCursorsBindToTheirOwnMethod] holds the
-// convention.
+// Each namespace binds a cursor to one application read so another read cannot
+// continue it. Names are semantic and deliberately independent of transport
+// method names; cursors are opaque application values.
 const (
-	itemPageMethod      = "items.list"
-	runPageMethod       = "runs.list"
-	interruptPageMethod = "interrupts.list"
+	itemPageNamespace      = "items"
+	runPageNamespace       = "runs"
+	interruptPageNamespace = "interrupts"
 )
 
 // Page ceilings, per read. A client asking for more gets this many and a cursor.
@@ -183,7 +178,7 @@ func (c *Coordinator) ListItemPage(ctx context.Context, scope ItemScope, order t
 	if err != nil {
 		return ItemPage{}, err
 	}
-	anchor, err := keyset.Decode(cursor, itemPageMethod, filters)
+	anchor, err := keyset.Decode(cursor, itemPageNamespace, filters)
 	if err != nil {
 		return ItemPage{}, err
 	}
@@ -205,7 +200,7 @@ func (c *Coordinator) ListItemPage(ctx context.Context, scope ItemScope, order t
 	if err != nil {
 		return ItemPage{}, err
 	}
-	page := keyset.PageOf(sequenced, size, itemPageMethod, filters,
+	page := keyset.PageOf(sequenced, size, itemPageNamespace, filters,
 		func(entry transcript.SequencedItem) []string {
 			return []string{strconv.FormatInt(entry.Sequence, 10)}
 		})
@@ -356,7 +351,7 @@ func (c *Coordinator) ListRunPage(ctx context.Context, filter RunPageFilter, cur
 		statusFilter(filter.Statuses),
 		strconv.FormatBool(filter.IncludeDescendants),
 	}
-	beforeCreatedAt, beforeID, err := timeAndIDAnchor(cursor, runPageMethod, filters)
+	beforeCreatedAt, beforeID, err := timeAndIDAnchor(cursor, runPageNamespace, filters)
 	if err != nil {
 		return keyset.Page[transcript.Run]{}, err
 	}
@@ -376,7 +371,7 @@ func (c *Coordinator) ListRunPage(ctx context.Context, filter RunPageFilter, cur
 	if err != nil {
 		return keyset.Page[transcript.Run]{}, err
 	}
-	return keyset.PageOf(rows, size, runPageMethod, filters, func(run transcript.Run) []string {
+	return keyset.PageOf(rows, size, runPageNamespace, filters, func(run transcript.Run) []string {
 		return []string{strconv.FormatInt(run.CreatedAt.UnixNano(), 10), run.ID}
 	}), nil
 }
@@ -425,7 +420,7 @@ func statusFilter(statuses []execution.RunStatus) string {
 // set it belongs to exists — under the root — and an empty page would say otherwise.
 func (c *Coordinator) ListPendingInterruptPage(ctx context.Context, sessionID, rootRunID string, caller execution.RunCapabilities, cursor string, limit int) (keyset.Page[interrupts.Pending], error) {
 	filters := []string{sessionID, rootRunID}
-	afterCreatedAt, afterID, err := timeAndIDAnchor(cursor, interruptPageMethod, filters)
+	afterCreatedAt, afterID, err := timeAndIDAnchor(cursor, interruptPageNamespace, filters)
 	if err != nil {
 		return keyset.Page[interrupts.Pending]{}, err
 	}
@@ -440,7 +435,7 @@ func (c *Coordinator) ListPendingInterruptPage(ctx context.Context, sessionID, r
 	if err != nil {
 		return keyset.Page[interrupts.Pending]{}, err
 	}
-	page := keyset.PageOf(rows, size, interruptPageMethod, filters, func(pending interrupts.Pending) []string {
+	page := keyset.PageOf(rows, size, interruptPageNamespace, filters, func(pending interrupts.Pending) []string {
 		return []string{strconv.FormatInt(pending.CreatedAt.UnixNano(), 10), pending.RootRunID}
 	})
 	for _, pending := range page.Rows {

@@ -1,5 +1,5 @@
-// Package usage reports durable run metering without exposing storage or wire
-// shapes to its callers.
+// Package usage reports durable Run metering through application-owned read
+// models.
 package usage
 
 import (

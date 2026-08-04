@@ -8,9 +8,9 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 )
 
-// encodeProcessTree closes the Agent-to-App checkpoint boundary. The complete
-// framework tree becomes one opaque payload, so no outer layer can acquire or
-// reproduce executor topology.
+// encodeProcessTree closes the Agent-to-application checkpoint boundary. The
+// complete framework tree becomes one opaque payload, so no outer layer can
+// acquire or reproduce executor topology.
 func encodeProcessTree(tree core.ProcessSnapshotTree) ([]byte, error) {
 	if err := tree.Validate(); err != nil {
 		return nil, fmt.Errorf("agentexec: encode process tree: %w", err)
@@ -22,9 +22,10 @@ func encodeProcessTree(tree core.ProcessSnapshotTree) ([]byte, error) {
 	return payload, nil
 }
 
-// decodeValidatedProcessTree is the only App path that interprets a validated
-// opaque executor payload. The decoded root must agree with the App-owned
-// aggregate identity so storage corruption cannot redirect a continuation.
+// decodeValidatedProcessTree is the only boundary path that interprets a
+// validated opaque executor payload. The decoded root must agree with the
+// application-owned aggregate identity so storage corruption cannot redirect a
+// continuation.
 func decodeValidatedProcessTree(checkpoint execution.ExecutorCheckpoint) (core.ProcessSnapshotTree, error) {
 	var tree core.ProcessSnapshotTree
 	if err := json.Unmarshal(checkpoint.Payload, &tree); err != nil {

@@ -41,7 +41,7 @@ type ToolCallPlan struct {
 }
 
 // Denial identifies why the gate refused a call. Detail preserves hook-owned
-// text; generated wording belongs to the adapter that presents the denial.
+// text; generated wording belongs to the caller that presents the denial.
 type Denial struct {
 	Cause  DenialCause
 	Detail string

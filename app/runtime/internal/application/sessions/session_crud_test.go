@@ -316,7 +316,7 @@ func sessionRows(ids ...string) []session.Session {
 	return out
 }
 
-// TestListViewPagePagesInAFixedOrderAndRefusesAForeignCursor covers sessions.list's
+// TestListViewPagePagesInAFixedOrderAndRefusesAForeignCursor covers the sessions
 // query properties: the order is fixed (favorites first, then recency, id
 // last so it is total), the next page seeks strictly past the previous one, and a
 // cursor minted by another query is refused rather than restarting from the top —
@@ -353,7 +353,7 @@ func TestListViewPagePagesInAFixedOrderAndRefusesAForeignCursor(t *testing.T) {
 		t.Fatalf("second page = %+v, want the tail and no cursor", second.Rows)
 	}
 
-	foreign := keyset.Encode("runs.list", nil, []string{"1", "0", "ses_1"})
+	foreign := keyset.Encode("runs", nil, []string{"1", "0", "ses_1"})
 	if _, err := c.ListViewPage(ctx, foreign, 2); !errors.Is(err, keyset.ErrInvalidCursor) {
 		t.Fatalf("cursor from another query err = %v, want ErrInvalidCursor", err)
 	}

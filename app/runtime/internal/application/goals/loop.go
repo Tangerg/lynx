@@ -165,8 +165,8 @@ func (d *Driver) driveRun(ctx context.Context, g *goal.Goal) (disposition runDis
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "start run")
 		// A start failure is an operational fact already recorded on the span.
-		// Persist only its stable cause so goal status cannot become a transport
-		// for adapter diagnostics.
+		// Persist only its stable cause so Goal status never stores diagnostic
+		// details that cannot be recovered consistently.
 		disposition, err := d.pauseOwned(ctx, g, goal.ReasonRunStartFailed, "")
 		if err != nil {
 			if ctx.Err() != nil {

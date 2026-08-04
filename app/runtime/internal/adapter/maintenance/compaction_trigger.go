@@ -7,7 +7,7 @@ const (
 	// compaction trigger estimate — never for billing. ~4 chars/token is
 	// the usual English rule of thumb; mature agent runtimes drive this
 	// decision with a similar cheap heuristic rather than
-	// paying for real tokenization every turn boundary.
+	// paying for real tokenization every Run boundary.
 	charsPerToken = 4
 )
 

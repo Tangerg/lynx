@@ -90,14 +90,14 @@ func (s *controller) flushSteering(ctx context.Context, st *turnState, sessionID
 		if !s.emitRootEvent(st, runs.SteerMessage{
 			Content: append([]transcript.ContentBlock(nil), queued.content...),
 		}) {
-			recordTurnMaintenanceError(st, errors.New("steering transcript publication failed"))
+			recordRunMaintenanceError(st, errors.New("steering transcript publication failed"))
 		}
 		if s.steering == nil {
-			recordTurnMaintenanceError(st, errors.New("steering inject failed: no steering sink configured"))
+			recordRunMaintenanceError(st, errors.New("steering inject failed: no steering sink configured"))
 			return
 		}
 		if err := s.steering.AppendUserMessage(ctx, sessionID, queued.message); err != nil {
-			recordTurnMaintenanceError(st, err)
+			recordRunMaintenanceError(st, err)
 			return
 		}
 	}

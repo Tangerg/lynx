@@ -8,7 +8,7 @@ import (
 	"go.opentelemetry.io/otel/metric"
 )
 
-// The agent-memory extract/curate fold is request-detached turn-boundary
+// The agent-memory extract/curate fold is request-detached Run-boundary
 // maintenance; without counters it runs blind — no client event reports how
 // often facts are mined into the ledger or a curated generation is published.
 // These give the memory pipeline the same observability the skill and goal

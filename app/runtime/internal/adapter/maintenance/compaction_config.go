@@ -4,7 +4,7 @@ package maintenance
 // [CompactionConfig]. Two independent triggers, OR-composed: a raw
 // message count and an estimated token footprint. The token trigger
 // catches a conversation whose few messages carry large tool outputs (a
-// single file read can outweigh twenty short turns) — which a message
+// single file read can outweigh twenty short Runs) — which a message
 // count alone misses. The defaults aim at "comfortably fits in
 // 128k-context models".
 const (
@@ -19,7 +19,7 @@ const (
 
 	// windowTriggerPct is the share of the model's context window at which an
 	// estimated footprint triggers compaction — leaving headroom for the
-	// summary output + the next turn. A fixed number is wrong across the 32k…1M
+	// summary output + the next Run. A fixed number is wrong across the 32k…1M
 	// window range; a relative trigger tracks the actual model's context
 	// window rather than a fixed number that's wrong at either extreme.
 	windowTriggerPct = 80

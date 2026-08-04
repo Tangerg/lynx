@@ -18,7 +18,7 @@ import (
 // vocabulary avoids two model-visible names for one language-server capability.
 //
 // The analyzer is working-directory independent — it keys servers by workspace
-// root internally — so these tools are built ONCE and read the turn's cwd off
+// root internally — so these tools are built ONCE and read the Run's cwd off
 // application context at call time (the per-session-cwd seam shared with fs /
 // shell). Positions are 1-based at the tool boundary (what a human/LLM reads
 // off a file); the analyzer converts to the LSP 0-based wire form and folds an

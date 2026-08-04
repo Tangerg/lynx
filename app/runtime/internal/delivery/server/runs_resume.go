@@ -34,7 +34,7 @@ func (s *Server) ResumeRun(ctx context.Context, in protocol.ResumeRunRequest) (*
 	result, err := s.runs.Resume(ctx, runs.ResumeCommand{
 		RunID:     in.RunID,
 		Responses: responses,
-		// An added user turn goes through the same decoder a fresh run's input does: one
+		// Added user input goes through the same decoder as a fresh Run: one
 		// reading of what a content block means.
 		Input: input,
 		// The run keeps the profile it was created with; this only says whether the

@@ -17,7 +17,7 @@ const fileResourceKeyPrefix = "file:"
 // interleave, and a tracked read must stamp the exact state it read.
 // Keyed by resolved abs path and ref-counted so the map doesn't grow unbounded;
 // glob / grep / LSP / MCP tools are unaffected. The runtime resolver owns one
-// locker across all of its per-turn tool builds, so separate turns cannot both
+// locker across all of its per-Run tool builds, so separate Runs cannot both
 // cross a stale-read check before either mutation lands.
 type pathLocker struct {
 	mu    sync.Mutex
@@ -33,7 +33,7 @@ func newPathLocker() *pathLocker { return &pathLocker{locks: make(map[string]*pa
 
 // acquire takes the per-path lock and returns a release closure. Calls for
 // distinct paths run concurrently; calls for the same path serialize. Waiting
-// is context-aware so a canceled turn is never pinned behind another tool call.
+// is context-aware so a canceled Run is never pinned behind another tool call.
 func (p *pathLocker) acquire(ctx context.Context, path string) (func(), error) {
 	p.mu.Lock()
 	l := p.locks[path]

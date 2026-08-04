@@ -5,9 +5,10 @@
 // count, truncate, and inject into that history.
 //
 // This is one of the three distinct "histories" (see
-// doc/EXECUTION_CENTERED_ARCHITECTURE.md): conversation (here) is what the LLM sees; knowledge is LYRA.md;
-// transcript is the UI Items+Runs timeline. Execution drives Runs; these
-// messages own history operations outside active execution.
+// doc/EXECUTION_CENTERED_ARCHITECTURE.md): conversation is model context,
+// knowledge is LYRA.md, and transcript is the observable Items-and-Runs record.
+// Execution drives Runs; this package owns message history outside active
+// execution.
 package conversation
 
 import (

@@ -8,7 +8,7 @@ import (
 )
 
 // Catalog returns the runtime's per-round cost hook: it prices the round's
-// (provider, served model) from the models catalog, so a turn on any
+// (provider, served model) from the models catalog, so a Run on any
 // provider+model reports CostUSD.
 func Catalog() accounting.Pricing {
 	return func(provider, servedModel string, u *chat.Usage) float64 {

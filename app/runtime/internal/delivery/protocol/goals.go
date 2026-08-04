@@ -13,7 +13,7 @@ import (
 // its own instead of the user driving each Run.
 type Goals interface {
 	// StartGoal opens a goal for the session and begins driving it. sessionId +
-	// objective are required; provider/model pair the model each turn runs
+	// objective are required; provider/model pair the model each Run uses
 	// against; budget caps the loop (all-zero = uncapped, an explicit choice).
 	// Fails if the session already has an actively-driving goal.
 	StartGoal(ctx context.Context, in StartGoalRequest) (*Goal, error)

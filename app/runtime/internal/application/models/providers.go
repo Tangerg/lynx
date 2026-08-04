@@ -33,8 +33,8 @@ type UpdateProviderCommand struct {
 
 // ProviderTestOutcome is the complete client-relevant result of a live
 // credential probe. Unsupported provider remains a command error; all other
-// operational details stay in observability rather than crossing the
-// Application-to-Delivery boundary as arbitrary error text.
+// operational details stay in observability rather than becoming arbitrary
+// caller-visible error text.
 type ProviderTestOutcome string
 
 const (
@@ -102,8 +102,8 @@ func (c *Coordinator) UpdateProvider(ctx context.Context, cmd UpdateProviderComm
 }
 
 // TestProvider checks that a supported, configured provider accepts a minimal
-// request. Its result is deliberately a stable use-case outcome: delivery does
-// not receive adapter diagnostics and therefore cannot leak them to clients.
+// request. Its result is deliberately a stable use-case outcome; integration
+// diagnostics never become caller-visible data.
 func (c *Coordinator) TestProvider(ctx context.Context, id string) (ProviderTestOutcome, error) {
 	_, entry, err := c.configuredProvider(ctx, id)
 	if err != nil {

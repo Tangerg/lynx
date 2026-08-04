@@ -385,10 +385,10 @@ func TestApplicationStaysFrameworkFree(t *testing.T) {
 		}, frameworkImports...))
 }
 
-// TestAppDoesNotInterpretAgentContinuationState preserves the consumer
-// boundary: App stores the Agent snapshot as an opaque value, while only the
+// TestApplicationDoesNotInterpretAgentContinuationState preserves the consumer
+// boundary: Application stores the Agent snapshot as an opaque value, while only the
 // Agent runtime may decode Suspension.FrameworkState.
-func TestAppDoesNotInterpretAgentContinuationState(t *testing.T) {
+func TestApplicationDoesNotInterpretAgentContinuationState(t *testing.T) {
 	root := moduleRoot(t)
 	fset := token.NewFileSet()
 	walkErr := filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
@@ -415,20 +415,20 @@ func TestAppDoesNotInterpretAgentContinuationState(t *testing.T) {
 				return true
 			}
 			relativePath, _ := filepath.Rel(root, path)
-			t.Errorf("App production code interprets Agent Suspension.FrameworkState: %s", relativePath)
+			t.Errorf("application production code interprets Agent Suspension.FrameworkState: %s", relativePath)
 			return true
 		})
 		return nil
 	})
 	if walkErr != nil {
-		t.Fatalf("walk App runtime: %v", walkErr)
+		t.Fatalf("walk application runtime: %v", walkErr)
 	}
 }
 
 // TestAgentSDKStaysBehindExecutionAdapters keeps the reusable framework at the
-// App's anti-corruption edge. agentexec translates process/runtime values;
+// application's anti-corruption edge. agentexec translates process/runtime values;
 // toolset implements framework tool capabilities. Domain, application,
-// delivery, infrastructure, and unrelated adapters must see only App-owned
+// delivery, infrastructure, and unrelated adapters must see only application-owned
 // values and ports.
 func TestAgentSDKStaysBehindExecutionAdapters(t *testing.T) {
 	root := moduleRoot(t)
@@ -476,7 +476,7 @@ func TestAgentSDKStaysBehindExecutionAdapters(t *testing.T) {
 		return nil
 	})
 	if walkErr != nil {
-		t.Fatalf("walk App runtime: %v", walkErr)
+		t.Fatalf("walk application runtime: %v", walkErr)
 	}
 }
 
@@ -503,13 +503,16 @@ func TestDeliveryStaysAdapterOnly(t *testing.T) {
 	forbidExternalImports(t, filepath.Join(root, "internal", "delivery"), externalSDKs)
 }
 
-// TestDeliveryDoesNotControlAgentTurns keeps complete Run commands behind the
-// application/runs use-case surface. Delivery may decode and present wire data,
-// but it must not plan, rebuild, assert, or steer concrete agent turn handles.
-func TestDeliveryDoesNotControlAgentTurns(t *testing.T) {
+// TestDeliveryDoesNotControlAgentExecutions keeps complete Run commands behind
+// the application/runs use-case surface. Delivery may decode and present wire
+// data, but it must not plan, rebuild, assert, or steer concrete Agent execution
+// handles.
+func TestDeliveryDoesNotControlAgentExecutions(t *testing.T) {
+	const agentExecPkg = "github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	root := moduleRoot(t)
-	forbidExternalImports(t, filepath.Join(root, "internal", "delivery"),
-		[]string{"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"})
+	delivery := filepath.Join(root, "internal", "delivery")
+	forbidExternalImports(t, delivery, []string{agentExecPkg})
+	forbidTestImports(t, delivery, []string{agentExecPkg})
 }
 
 // TestDeliveryDoesNotWireApplicationCollaborators keeps construction cycles and
@@ -633,22 +636,21 @@ func TestDeliveryDoesNotOwnModelPolicy(t *testing.T) {
 		[]string{"github.com/Tangerg/lynx/models/catalog"})
 }
 
-// TestUseCasesDoNotDependOnConcreteAgentEngine keeps the agent runtime behind
-// bootstrap and the turn dispatcher. Application owns consumer-side ports and
-// delivery invokes use cases; neither ring may regain a dependency on the
-// concrete agentexec Engine or one of its implementation subpackages.
-func TestUseCasesDoNotDependOnConcreteAgentEngine(t *testing.T) {
+// TestApplicationDoesNotDependOnConcreteAgentEngine keeps the Agent runtime
+// behind Bootstrap and the execution adapter. Application owns consumer-side
+// ports and must not regain a dependency on the concrete agentexec Engine or
+// one of its implementation subpackages.
+func TestApplicationDoesNotDependOnConcreteAgentEngine(t *testing.T) {
 	const agentExecPkg = "github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	root := moduleRoot(t)
 	forbidExternalImports(t, filepath.Join(root, "internal", "application"), []string{agentExecPkg})
-	forbidExternalImports(t, filepath.Join(root, "internal", "delivery"), []string{agentExecPkg})
 }
 
 // TestAgentExecDelegatesManagedExecution locks the Framework/Host ownership
 // boundary. The agent adapter may supply product prompts, pricing, observers,
 // tools, and responses, but it must not rebuild the framework's ToolLoop,
 // decode ProcessSnapshot continuation payloads, or record framework aggregate
-// usage directly. Managed interaction owns those execution mechanics; App
+// usage directly. Managed interaction owns those execution mechanics; Application
 // observes its boundaries and owns the detailed accounting projection.
 // TestAgentExecDelegatesManagedExecution pins what the rule is actually about:
 // the framework's managed interaction drives the tool loop and records framework
@@ -844,7 +846,7 @@ func TestHostOwnsShutdownGraph(t *testing.T) {
 		"integrations",
 		"codebase",
 		"coordinator",
-		"dispatcher",
+		"execution",
 		"effectsTasks",
 		"toolClosers",
 		"resources",
@@ -1642,6 +1644,40 @@ func forbidExternalImports(t *testing.T, dir string, banned []string) {
 	})
 	if walkErr != nil {
 		t.Fatalf("walk %s: %v", dir, walkErr)
+	}
+}
+
+// forbidTestImports applies a selected boundary to test fixtures as well. Most
+// dependency rules intentionally ignore tests, but a Delivery fixture that
+// imports Agent execution handles would teach the outer boundary to construct
+// the implementation it is meant to drive only through application ports.
+func forbidTestImports(t *testing.T, dir string, banned []string) {
+	t.Helper()
+	root := moduleRoot(t)
+	walkErr := filepath.WalkDir(dir, func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if entry.IsDir() || !strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		file, err := parser.ParseFile(token.NewFileSet(), path, nil, parser.ImportsOnly)
+		if err != nil {
+			return err
+		}
+		for _, imported := range file.Imports {
+			pathValue := strings.Trim(imported.Path.Value, `"`)
+			for _, forbidden := range banned {
+				if pathValue == forbidden || strings.HasPrefix(pathValue, forbidden+"/") {
+					relative, _ := filepath.Rel(root, path)
+					t.Errorf("%s test fixture must not import %q", relative, pathValue)
+				}
+			}
+		}
+		return nil
+	})
+	if walkErr != nil {
+		t.Fatalf("walk %s test imports: %v", dir, walkErr)
 	}
 }
 

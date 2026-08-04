@@ -6,26 +6,21 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 )
 
-// resumeOKTurns is a turn dispatcher whose Resume succeeds and whose Cancel is a
-// no-op — enough to carry ResumeRun past the interrupt consume + turn resume so
+// resumeOKExecution is an execution controller whose Resume succeeds and whose
+// cancellation is a no-op — enough to carry ResumeRun past interrupt consume and resume so
 // the failing continuation Start is what's under test.
-type resumeOKTurns struct{ turnRuntime }
+type resumeOKExecution struct{ executionStub }
 
-func (resumeOKTurns) Resume(context.Context, turn.Handle, []agentexec.SuspensionAnswer, []execution.InterruptKind) error {
+func (resumeOKExecution) Resume(context.Context, execution.ExecutorRef, []interrupts.SuspensionAnswer, []execution.InterruptKind) error {
 	return nil
-}
-func (resumeOKTurns) Cancel(context.Context, turn.Handle) error { return nil }
-func (resumeOKTurns) ProcessID(_ context.Context, handle turn.Handle) (string, error) {
-	return handle.TurnID, nil
 }
 
 // TestResumeRun_KeepsInterruptOpenWhenStartFails proves ownership ordering: the
@@ -34,15 +29,15 @@ func (resumeOKTurns) ProcessID(_ context.Context, handle turn.Handle) (string, e
 // without a compensation write.
 func TestResumeRun_KeepsInterruptOpenWhenStartFails(t *testing.T) {
 	s, rt := rollbackHarness(t)
-	rt.turns = resumeOKTurns{}
+	rt.execution = resumeOKExecution{}
 	ctx := context.Background()
 	sess, _ := rt.sess.Create(ctx, "s", "/w")
 
 	pending := serverPending(
 		"run_1",
 		sess.ID,
-		"turn_parked",
-		"turn_parked",
+		"exec_parked",
+		"process_parked",
 		[]transcript.Interrupt{{
 			ItemID: "item_1",
 			Kind:   execution.ApprovalInterrupt,
@@ -106,8 +101,8 @@ func TestResumeRunRejectsMissingAndUnknownItemCoverage(t *testing.T) {
 	pending := serverPending(
 		"run_coverage",
 		sess.ID,
-		"turn_parked",
-		"turn_parked",
+		"exec_parked",
+		"process_parked",
 		[]transcript.Interrupt{{
 			ItemID: "item_open",
 			Kind:   execution.ApprovalInterrupt,

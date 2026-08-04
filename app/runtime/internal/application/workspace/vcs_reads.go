@@ -2,8 +2,7 @@ package workspace
 
 import "context"
 
-// FileStatus is the application vocabulary for a working-tree change. It is
-// intentionally independent of both the Git adapter's type and the wire enum.
+// FileStatus is the application vocabulary for a working-tree change.
 type FileStatus string
 
 const (
@@ -91,7 +90,7 @@ func (c *VCS) ListFileChanges(ctx context.Context, cwd string) ([]FileChange, er
 }
 
 // Diff reads a workspace VCS diff, keeping path confinement and file-boundary
-// truncation in the application use case rather than the delivery projection.
+// truncation in the application use case.
 func (c *VCS) Diff(ctx context.Context, input DiffInput) (Diff, error) {
 	root, err := c.context.root(input.Cwd)
 	if err != nil {

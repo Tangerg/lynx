@@ -139,10 +139,9 @@ type turnState struct {
 	doomResult uint64
 	doomRepeat int
 
-	// toolCalls counts completed root-process tool calls — the skill miner's
-	// complexity signal. Child observations carry process ownership and are not
-	// projected while the protocol has no child-run model, so they cannot skew a
-	// root transcript's complexity score.
+	// toolCalls counts completed root-process tool calls — the root Run's skill-
+	// mining complexity signal. Child-process calls belong to their child Runs and
+	// cannot skew the root's score.
 	toolCalls int
 }
 
@@ -247,8 +246,8 @@ func newRestoringTurnState(ctx context.Context, handle Handle) *turnState {
 
 // newTurnState initializes common per-turn ownership at one explicit entry
 // phase. Its lifetime ctx derives from the
-// entry ctx via context.WithoutCancel: the caller's ctx ending (e.g. the
-// StartTurn RPC returning) doesn't kill the in-flight turn; only
+// entry ctx via context.WithoutCancel: the caller's request ending does not kill
+// the in-flight Turn; only
 // Cancel (st.cancel) does; yet the entry trace span is preserved,
 // so the engine's spans chain onto the same trace. The turn span is layered on
 // in StartTurn / Rehydrate. Shared by both entry points so they produce an

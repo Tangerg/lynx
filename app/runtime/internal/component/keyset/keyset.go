@@ -9,8 +9,8 @@
 // continuation into `WHERE key > anchor ORDER BY key LIMIT n`, which stays exact
 // under concurrent writes and never loads a page it will not return.
 //
-// A token also carries the query it belongs to. Without that, a cursor from one
-// method or one filter set silently reinterprets against another and pages skip
+// A token also carries the query namespace it belongs to. Without that, a cursor
+// from one query or filter set silently reinterprets against another and pages skip
 // or repeat rows; with it, a mismatched cursor is rejected and the caller starts
 // over. That check is the integrity guarantee here — no secret is involved,
 // because the runtime has no user boundary to defend across.
@@ -25,7 +25,7 @@ import (
 )
 
 // ErrInvalidCursor reports a cursor that cannot continue this query: damaged,
-// minted by an older format, or issued for a different method or filter set.
+// minted by an older format, or issued for a different namespace or filter set.
 // All of those have one remedy — restart from the first page — so they are one
 // sentinel rather than a taxonomy the caller would branch on identically.
 var ErrInvalidCursor = errors.New("keyset: cursor cannot continue this query")
@@ -37,7 +37,7 @@ var ErrInvalidLimit = errors.New("keyset: page limit is invalid")
 
 // formatVersion changes when the token layout does, so a cursor in flight across
 // an upgrade is rejected instead of decoded as something else.
-const formatVersion = 1
+const formatVersion = 2
 
 // Page is one keyset page: the rows, and the token that continues after them.
 // An empty NextCursor means the page reached the end of the collection — the
@@ -47,22 +47,25 @@ type Page[T any] struct {
 	NextCursor string
 }
 
-// token is the decoded cursor. Method and Filters identify the query; Key is the
-// sort position the previous page ended at.
+// token is the decoded cursor. Namespace and Filters identify the query; Key is
+// the sort position the previous page ended at.
 type token struct {
-	Version int      `json:"v"`
-	Method  string   `json:"m"`
-	Filters []string `json:"f,omitempty"`
-	Key     []string `json:"k"`
+	Version   int      `json:"v"`
+	Namespace string   `json:"n"`
+	Filters   []string `json:"f,omitempty"`
+	Key       []string `json:"k"`
 }
 
-// Encode mints the cursor that continues method past key. filters are the
+// Encode mints the cursor that continues namespace past key. filters are the
 // query's normalized inputs — every value that changes which rows match or the
 // order they arrive in, including the sort direction, since a cursor from an
 // ascending page cannot continue a descending one.
-func Encode(method string, filters []string, key []string) string {
+func Encode(namespace string, filters []string, key []string) string {
+	if namespace == "" {
+		panic("keyset: encode cursor: namespace is required")
+	}
 	payload, err := json.Marshal(token{
-		Version: formatVersion, Method: method,
+		Version: formatVersion, Namespace: namespace,
 		Filters: slices.Clone(filters), Key: key,
 	})
 	if err != nil {
@@ -73,10 +76,13 @@ func Encode(method string, filters []string, key []string) string {
 	return base64.RawURLEncoding.EncodeToString(payload)
 }
 
-// Decode returns the sort position cursor stopped at, for the same method and
+// Decode returns the sort position cursor stopped at, for the same namespace and
 // filters that minted it. An empty cursor is the first page and yields a nil key
 // with no error.
-func Decode(cursor, method string, filters []string) ([]string, error) {
+func Decode(cursor, namespace string, filters []string) ([]string, error) {
+	if namespace == "" {
+		return nil, ErrInvalidCursor
+	}
 	if cursor == "" {
 		return nil, nil
 	}
@@ -88,7 +94,7 @@ func Decode(cursor, method string, filters []string) ([]string, error) {
 	if err := json.Unmarshal(payload, &decoded); err != nil {
 		return nil, ErrInvalidCursor
 	}
-	if decoded.Version != formatVersion || decoded.Method != method ||
+	if decoded.Version != formatVersion || decoded.Namespace != namespace ||
 		!slices.Equal(decoded.Filters, filters) || len(decoded.Key) == 0 {
 		return nil, ErrInvalidCursor
 	}
@@ -111,13 +117,16 @@ func Limit(requested, max int) (int, error) {
 // Reads ask their store for limit+1 rows: getting the extra one is how "there is
 // more" is known without a second count query. nextKey derives the anchor from
 // the last row the page actually returns.
-func PageOf[T any](rows []T, limit int, method string, filters []string, nextKey func(T) []string) Page[T] {
+func PageOf[T any](rows []T, limit int, namespace string, filters []string, nextKey func(T) []string) Page[T] {
+	if namespace == "" {
+		panic("keyset: page namespace is required")
+	}
 	if len(rows) <= limit {
 		return Page[T]{Rows: rows}
 	}
 	page := rows[:limit]
 	return Page[T]{
 		Rows:       page,
-		NextCursor: Encode(method, filters, nextKey(page[len(page)-1])),
+		NextCursor: Encode(namespace, filters, nextKey(page[len(page)-1])),
 	}
 }

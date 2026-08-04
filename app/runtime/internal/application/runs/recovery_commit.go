@@ -14,7 +14,7 @@ import (
 )
 
 // Validate proves that a boot-recovery write-set is self-contained and
-// owner-bound before a persistence adapter starts its transaction.
+// owner-bound before its transaction begins.
 func (commit RecoveryCommit) Validate() error {
 	lostByID := make(map[string]transcript.Run, len(commit.LostRuns))
 	treeMembers := make(map[string][]execution.RunTreeMember)

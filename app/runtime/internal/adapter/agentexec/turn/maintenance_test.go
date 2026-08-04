@@ -12,12 +12,12 @@ import (
 
 type recordingMaintenance struct {
 	mu     sync.Mutex
-	input  turn.BoundaryMaintenanceInput
+	input  turn.RunMaintenanceInput
 	called bool
-	result turn.BoundaryMaintenanceResult
+	result turn.RunMaintenanceResult
 }
 
-func (m *recordingMaintenance) Maintain(_ context.Context, input turn.BoundaryMaintenanceInput) turn.BoundaryMaintenanceResult {
+func (m *recordingMaintenance) Maintain(_ context.Context, input turn.RunMaintenanceInput) turn.RunMaintenanceResult {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.input = input
@@ -25,15 +25,15 @@ func (m *recordingMaintenance) Maintain(_ context.Context, input turn.BoundaryMa
 	return m.result
 }
 
-func (m *recordingMaintenance) snapshot() (turn.BoundaryMaintenanceInput, bool) {
+func (m *recordingMaintenance) snapshot() (turn.RunMaintenanceInput, bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return m.input, m.called
 }
 
-func TestTurnDelegatesCleanBoundaryMaintenanceAndPublishesCompaction(t *testing.T) {
+func TestRunDelegatesMaintenanceAndPublishesCompaction(t *testing.T) {
 	engine := &stubEngine{}
-	maintenance := &recordingMaintenance{result: turn.BoundaryMaintenanceResult{
+	maintenance := &recordingMaintenance{result: turn.RunMaintenanceResult{
 		Compaction: turn.CompactionResult{Compacted: true, MessagesBefore: 12, MessagesAfter: 5},
 	}}
 	client, err := chatclient.New(newCapturingModel(), chatclient.Config{})

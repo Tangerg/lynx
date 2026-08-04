@@ -91,7 +91,7 @@ type TurnRequest struct {
 
 	// EventListener, when non-nil, is registered as a process-scope extension.
 	// Values that also implement [event.Listener] receive Agent runtime events
-	// for this turn. The turn dispatcher installs one only when subagent
+	// for this turn. The execution controller installs one only when subagent
 	// lifecycle hooks need subtree events.
 	//
 	// Names must be unique across the process extension slice — process
@@ -105,7 +105,7 @@ type TurnRequest struct {
 	AdmitChild AdmitChildFunc
 }
 
-// snapshot returns the protocol-value state owned by the process launched from
+// snapshot returns the request-owned state used by the process launched from
 // this request. Runtime collaborators keep their documented shared concurrency
 // semantics; only caller-owned chat values need deep copies.
 func (r TurnRequest) snapshot() TurnRequest {

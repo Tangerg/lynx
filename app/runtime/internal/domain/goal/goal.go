@@ -322,9 +322,8 @@ func (record RunRecord) Validate() error {
 // lifecycle state from the terminal outcome or budget — an earlier explicit
 // stop/report remains authoritative.
 //
-// The persistence adapter invokes this within the same transaction that
-// terminalizes the Run, so a completed Run and its budget charge cannot
-// diverge.
+// Callers persist this mutation in the same transaction that terminalizes the
+// Run, so a completed Run and its budget charge cannot diverge.
 func (g *Goal) RecordRun(record RunRecord) {
 	g.AddRun(record.CostUSD, record.Steps, record.CompletedAt)
 	if g.Status != StatusActive {

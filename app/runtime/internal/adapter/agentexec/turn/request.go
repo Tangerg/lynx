@@ -7,8 +7,8 @@ import (
 	"github.com/Tangerg/lynx/core/media"
 )
 
-// snapshotStartTurn returns the immutable protocol values the asynchronous
-// turn owns.
+// snapshotStartTurn returns the immutable request values the asynchronous Turn
+// owns.
 // Runtime collaborators such as clients, observers, and callbacks keep their
 // documented shared concurrency semantics and are attached later.
 func snapshotStartTurn(r runs.StartExecution) runs.StartExecution {

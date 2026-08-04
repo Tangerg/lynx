@@ -222,7 +222,7 @@ func (write *mcpWrite) close() {
 //     caller dispatches it detached, after releasing the lock, because a network
 //     handshake must never hold the control-plane lock (see commitMCPServer);
 //   - disabling detaches the live projection before publishing policy; physical
-//     session retirement remains owned by the adapter's shutdown lifecycle.
+//     session retirement remains owned by the live connection lifecycle.
 //
 // Either reversal would leave a window where a disabled tool is live under the
 // wrong policy. The caller has already mutated the registry, so
@@ -244,9 +244,9 @@ func (c *Coordinator) applyMCPRegistryChange(ctx context.Context, srv mcpserver.
 // blocks on it until the caller's deferred release fires, then dials), so one slow
 // endpoint cannot freeze the whole MCP control plane. It reuses the same live
 // collaborator the synchronous path used ([mcpRegistryCommands.Configure] with the
-// just-committed descriptor); a concurrent reconfigure supersedes a stale dial via
-// the adapter's per-server generation. A dial failure does not fail the originating
-// call — status surfaces it and it is reconnectable.
+// just-committed descriptor); a concurrent reconfigure supersedes a stale dial
+// through per-server generation. A dial failure does not fail the originating
+// call; status surfaces it and it remains reconnectable.
 func (c *Coordinator) redialMCPServer(ctx context.Context, srv mcpserver.Server) {
 	if c.mcpRegistryCommands == nil {
 		return

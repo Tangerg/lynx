@@ -11,17 +11,17 @@ type sessionTurnCanceler interface {
 	Cancel(context.Context, Handle) error
 }
 
-// SessionTurnCleanup adapts Agent turn cancellation to idempotent session
+// SessionExecutionCleanup adapts Agent turn cancellation to idempotent Session
 // lifecycle cleanup.
-type SessionTurnCleanup struct{ controller sessionTurnCanceler }
+type SessionExecutionCleanup struct{ controller sessionTurnCanceler }
 
-// NewSessionTurnCleanup adapts Agent turn cancellation to the narrow cleanup
+// NewSessionExecutionCleanup adapts Agent turn cancellation to the narrow cleanup
 // port consumed by the session lifecycle.
-func NewSessionTurnCleanup(controller sessionTurnCanceler) SessionTurnCleanup {
-	return SessionTurnCleanup{controller: controller}
+func NewSessionExecutionCleanup(controller sessionTurnCanceler) SessionExecutionCleanup {
+	return SessionExecutionCleanup{controller: controller}
 }
 
-func (t SessionTurnCleanup) Cancel(ctx context.Context, ref execution.ExecutorRef) error {
+func (t SessionExecutionCleanup) Cancel(ctx context.Context, ref execution.ExecutorRef) error {
 	err := t.controller.Cancel(ctx, Handle{SessionID: ref.SessionID, TurnID: ref.ExecutorID})
 	if errors.Is(err, ErrTurnNotFound) {
 		return nil

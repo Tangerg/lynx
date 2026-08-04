@@ -78,7 +78,7 @@ type Extractor struct {
 	now      func() time.Time
 }
 
-// NewExtractor builds the turn-boundary extraction and curation worker.
+// NewExtractor builds the Run-boundary extraction and curation worker.
 // embedder is optional (nil = keyword-only memory search).
 func NewExtractor(store messageReader, memory agentMemory, client ClientFunc, embedder func(context.Context) (agentmemory.Embedder, error), config CurationConfig) *Extractor {
 	return &Extractor{
@@ -95,7 +95,7 @@ func NewExtractor(store messageReader, memory agentMemory, client ClientFunc, em
 // MaybeExtract reads post-compaction history, appends fresh facts to today's
 // project ledger, and publishes a curated generation when its watermark gate
 // is due. Short conversations skip extraction but still fold pending ledger
-// entries, so a previous provider failure can recover on a later turn.
+// entries, so a previous provider failure can recover on a later Run.
 func (e *Extractor) MaybeExtract(ctx context.Context, sessionID, cwd string) error {
 	if e == nil || e.memory == nil || sessionID == "" || cwd == "" {
 		return nil

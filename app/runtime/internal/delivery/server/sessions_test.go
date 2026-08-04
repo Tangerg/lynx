@@ -195,7 +195,7 @@ func TestDeleteSession_CancelsParkedTurn(t *testing.T) {
 	if err := ints.Open(ctx, serverPending(
 		"run_parked",
 		id,
-		"turn_parked",
+		"exec_parked",
 		"process_parked",
 		nil,
 		time.Now().UTC(),
@@ -203,17 +203,17 @@ func TestDeleteSession_CancelsParkedTurn(t *testing.T) {
 		t.Fatalf("seed interrupt: %v", err)
 	}
 
-	turns := &recordingTurns{}
-	s := newTestServer(&stubRuntime{sess: svc, hist: hist, runs: sqlite.NewRunStore(db), interrupts: ints, history: map[string][]chat.Message{}, turns: turns})
+	executions := &recordingExecutions{}
+	s := newTestServer(&stubRuntime{sess: svc, hist: hist, runs: sqlite.NewRunStore(db), interrupts: ints, history: map[string][]chat.Message{}, execution: executions})
 	if err := s.DeleteSession(ctx, id); err != nil {
 		t.Fatalf("delete: %v", err)
 	}
 
-	if len(turns.canceled) != 1 {
-		t.Fatalf("canceled = %+v, want one parked turn", turns.canceled)
+	if len(executions.canceled) != 1 {
+		t.Fatalf("canceled = %+v, want one parked execution", executions.canceled)
 	}
-	if got := turns.canceled[0]; got.SessionID != id || got.TurnID != "turn_parked" {
-		t.Fatalf("canceled handle = %+v, want %s/turn_parked", got, id)
+	if got := executions.canceled[0]; got.SessionID != id || got.ExecutorID != "exec_parked" {
+		t.Fatalf("canceled execution = %+v, want %s/exec_parked", got, id)
 	}
 	if pending, _ := ints.List(ctx, id); len(pending) != 0 {
 		t.Fatalf("pending interrupts = %+v, want cleared", pending)

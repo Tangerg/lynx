@@ -261,7 +261,7 @@ func TestPreparedWaitingCancellationRuntimeApplyFailureReleasesClaimOnAbort(t *t
 		t.Fatalf("runtime apply calls = %d, want 1", plan.applied)
 	}
 	if !state.claimWaitingMutation() {
-		t.Fatal("runtime apply failure retained the App waiting-mutation claim")
+		t.Fatal("runtime apply failure retained the Application waiting-mutation claim")
 	}
 	state.abortWaitingMutation()
 }
