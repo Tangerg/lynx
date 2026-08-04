@@ -2,17 +2,22 @@
 // shortcut registry. Plugins register via `host.shortcuts.register(spec)`;
 // this component does the dispatch.
 //
-// Why a single listener (vs. one per registration):
-//   - Browser-level capture: we can preventDefault before React's synthetic
-//     event runs.
-//   - O(1) lookup by canonical combo — cheaper than running N handlers per
-//     keypress and short-circuiting when one matches.
-//   - Plugin registration changes only update the registry; the listener
-//     never re-binds.
+// Matching is tinykeys', not ours. Three things it gets right that a
+// combo-string comparison against `KeyboardEvent.key` did not:
+//   - Letter shortcuts survive a non-US keyboard layout, because the binding
+//     names the physical key (see `dispatchBinding`).
+//   - `$mod` is Meta on Mac and Control elsewhere, so ⌃K stays with the text
+//     field it belongs to instead of opening the palette.
+//   - Auto-repeat is one intent: holding ⌘N opens one chat, not thirty.
+// Sequences ("Mod+K Mod+S") come with it; nothing registers one yet.
+//
+// Still a single listener, so a registry change updates one binding map rather
+// than N subscriptions, and plugins never touch the DOM to own a chord.
 
 import { useEffect } from "react";
-import { lookupExtensionByKey, SHORTCUT, usePluginStore } from "@/plugins/sdk";
-import { normalizeCombo } from "@/plugins/sdk/registry";
+import { tinykeys } from "tinykeys";
+import { SHORTCUT, useExtensionPoint } from "@/plugins/sdk";
+import { dispatchBinding } from "@/lib/combo";
 
 // `allowInInputs: true` opts in so the shortcut fires even in form fields.
 function isEditableTarget(target: EventTarget | null): boolean {
@@ -22,40 +27,29 @@ function isEditableTarget(target: EventTarget | null): boolean {
   return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
 }
 
-function comboFromEvent(e: KeyboardEvent): string {
-  const parts: string[] = [];
-  // `metaKey` is Cmd on Mac. We collapse Cmd + Ctrl into "mod" so a plugin's
-  // "Mod+K" registration fires regardless of platform. If a plugin really
-  // wants Ctrl-only on Mac, it can register "Ctrl+K" — that path normalizes
-  // to "ctrl+k" and only matches when ctrlKey is set without metaKey.
-  if (e.metaKey || e.ctrlKey) parts.push("mod");
-  if (e.altKey) parts.push("alt");
-  if (e.shiftKey) parts.push("shift");
-  parts.push(e.key.toLowerCase());
-  return normalizeCombo(parts.join("+"));
-}
-
 export function ShortcutsProvider() {
-  // Subscribe to the extension substrate so the effect tears down + reattaches
-  // if the registry changes. (Not strictly necessary — the handler reads
-  // through `lookupExtensionByKey(SHORTCUT, …)` on every keydown — but subscribing keeps the
-  // component honest about its dependency.)
-  const extensions = usePluginStore((s) => s.extensions);
+  const shortcuts = useExtensionPoint(SHORTCUT);
 
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      // Don't dispatch shortcuts mid-IME-composition: a CJK commit keystroke
-      // (Enter/Space) must reach the input, not fire a plain-key shortcut.
-      if (e.isComposing) return;
-      const combo = comboFromEvent(e);
-      const spec = lookupExtensionByKey(SHORTCUT, combo);
-      if (!spec) return;
-      if (!spec.allowInInputs && isEditableTarget(e.target)) return;
-      spec.handler(e);
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [extensions]);
+    const bindings: Record<string, (event: KeyboardEvent) => void> = {};
+    for (const spec of shortcuts) {
+      // The registry keys this point by canonical combo, so two specs can only
+      // collide here if they already collided there — one survived.
+      bindings[dispatchBinding(spec.key)] = (event) => {
+        if (!spec.allowInInputs && isEditableTarget(event.target)) return;
+        spec.handler(event);
+      };
+    }
+
+    // tinykeys' default `ignore` drops every event whose target is a form
+    // control, which is the decision `allowInInputs` exists to make per
+    // shortcut — so gate it in the handler above and keep only the two rules
+    // that hold for all of them: auto-repeat, and IME composition (a CJK commit
+    // keystroke belongs to the input, not to a shortcut).
+    return tinykeys(window, bindings, {
+      ignore: (event) => event.repeat || event.isComposing,
+    });
+  }, [shortcuts]);
 
   return null;
 }
