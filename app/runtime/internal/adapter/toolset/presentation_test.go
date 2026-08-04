@@ -3,6 +3,7 @@ package toolset
 import (
 	"encoding/json"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
@@ -10,28 +11,42 @@ import (
 
 func TestPresenterActivity(t *testing.T) {
 	presenter := Presenter{}
-	if got := presenter.Activity(toolNameWebSearch, tool.Arguments{}); got != "Searching the web" {
-		t.Fatalf("web search activity = %q", got)
+	tests := []struct {
+		name      string
+		toolName  string
+		arguments string
+		want      string
+	}{
+		{name: "web search", toolName: toolNameWebSearch, arguments: `{}`, want: "Searching the web"},
+		{name: "shell description", toolName: toolNameShell, arguments: `{"command":"go test ./...","description":"Run server tests"}`, want: "Run server tests"},
+		{name: "shell invalid description", toolName: toolNameShell, arguments: `{"description":" Run server tests"}`, want: "Running command"},
+		{name: "delegation summary", toolName: toolNameDelegateTask, arguments: `{"summary":"Review tool contracts"}`, want: "Delegating: Review tool contracts"},
+		{name: "long delegation summary", toolName: toolNameDelegateTask, arguments: `{"summary":"` + strings.Repeat("a", 81) + `"}`, want: "Delegating to a sub-agent"},
+		{name: "enter Plan mode", toolName: toolNameEnterPlanMode, arguments: `{}`, want: "Entering Plan mode"},
+		{name: "set Plan", toolName: toolNameSetPlan, arguments: `{}`, want: "Updating the Plan"},
+		{name: "exit Plan mode", toolName: toolNameExitPlanMode, arguments: `{}`, want: "Requesting Plan approval"},
+		{name: "create Goal", toolName: toolNameCreateGoal, arguments: `{"objective":"finish the work"}`, want: "Starting an autonomous Goal"},
+		{name: "create titled schedule", toolName: toolNameCreateSchedule, arguments: `{"title":"Daily review"}`, want: "Creating schedule: Daily review"},
+		{name: "create untitled schedule", toolName: toolNameCreateSchedule, arguments: `{}`, want: "Creating a schedule"},
+		{name: "load Skill", toolName: toolNameLoadSkill, arguments: `{"name":"go-review"}`, want: "Loading Skill: go-review"},
+		{name: "propose named Skill", toolName: toolNameProposeSkill, arguments: `{"name":"review-go-api"}`, want: "Proposing Skill: review-go-api"},
+		{name: "propose unnamed Skill", toolName: toolNameProposeSkill, arguments: `{}`, want: "Proposing a Skill"},
+		{name: "LSP references", toolName: toolNameLSP, arguments: `{"operation":"references"}`, want: "Finding symbol references"},
+		{name: "unknown LSP operation", toolName: toolNameLSP, arguments: `{"operation":"rename"}`, want: "Querying the language server"},
+		{name: "HTTP default method", toolName: toolNameHTTPRequest, arguments: `{"url":"https://example.com"}`, want: "Sending GET request"},
+		{name: "HTTP explicit method", toolName: toolNameHTTPRequest, arguments: `{"url":"https://example.com","method":"POST"}`, want: "Sending POST request"},
+		{name: "unknown tool", toolName: "external_tool", arguments: `{}`, want: ""},
 	}
-	if got := presenter.Activity(toolNameProposeSkill, tool.Arguments{}); got != "Proposing a Skill" {
-		t.Fatalf("propose Skill activity = %q", got)
-	}
-	shellArguments, err := tool.ParseArguments(`{"command":"go test ./...","description":"Run server tests"}`)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got := presenter.Activity(toolNameShell, shellArguments); got != "Run server tests" {
-		t.Fatalf("shell activity = %q", got)
-	}
-	delegationArguments, err := tool.ParseArguments(`{"summary":"Review tool contracts"}`)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got := presenter.Activity(toolNameDelegateTask, delegationArguments); got != "Delegating: Review tool contracts" {
-		t.Fatalf("delegation activity = %q", got)
-	}
-	if got := presenter.Activity("external_tool", tool.Arguments{}); got != "" {
-		t.Fatalf("unknown activity = %q, want empty", got)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			arguments, err := tool.ParseArguments(test.arguments)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := presenter.Activity(test.toolName, arguments); got != test.want {
+				t.Fatalf("activity = %q, want %q", got, test.want)
+			}
+		})
 	}
 }
 

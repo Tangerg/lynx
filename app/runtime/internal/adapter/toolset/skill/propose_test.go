@@ -14,12 +14,39 @@ import (
 type recordingSubmitter struct {
 	cwd      string
 	proposal skills.Proposal
+	calls    int
 }
 
 func (s *recordingSubmitter) SubmitSkillProposal(_ context.Context, cwd string, proposal skills.Proposal) (skills.ProposalRef, error) {
+	s.calls++
 	s.cwd = cwd
 	s.proposal = proposal
 	return skills.NewProposalRef(proposal.Scope, proposal.Name, []byte(proposal.Instructions)), nil
+}
+
+func TestProposalSchemaRejectsInvalidDomainValuesBeforeSubmission(t *testing.T) {
+	submitter := &recordingSubmitter{}
+	candidate, err := NewProposal(submitter, "/fallback")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := executionctx.WithScope(t.Context(), execution.TurnScope{SessionID: "ses_1", Cwd: "/repo"})
+	tests := map[string]string{
+		"noncanonical name": `{"name":"Review_Go_API","description":"Review a Go API before implementation.","instructions":"Review it.","scope":"project"}`,
+		"overlong name":     `{"name":"` + strings.Repeat("a", 65) + `","description":"Review a Go API before implementation.","instructions":"Review it.","scope":"project"}`,
+		"overlong description": `{"name":"review-go-api","description":"` + strings.Repeat("a", 1025) +
+			`","instructions":"Review it.","scope":"project"}`,
+	}
+	for name, arguments := range tests {
+		t.Run(name, func(t *testing.T) {
+			if _, err := candidate.Call(ctx, arguments); err == nil || !strings.Contains(err.Error(), "decode function arguments") {
+				t.Fatalf("error = %v, want schema rejection", err)
+			}
+		})
+	}
+	if submitter.calls != 0 {
+		t.Fatalf("invalid proposals reached submitter %d time(s)", submitter.calls)
+	}
 }
 
 func TestNewNilSubmitterOmitsTool(t *testing.T) {

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/pmezard/go-difflib/difflib"
 
@@ -11,21 +12,38 @@ import (
 )
 
 const (
-	toolNameApplyPatch      = "apply_patch"
-	toolNameAskUser         = "ask_user"
-	toolNameEdit            = "edit"
-	toolNameGlob            = "glob"
-	toolNameGrep            = "grep"
-	toolNameRead            = "read"
-	toolNameShell           = "shell"
-	toolNameReadShellOutput = "read_shell_output"
-	toolNameStopShell       = "stop_shell"
-	toolNameDelegateTask    = "delegate_task"
-	toolNameSetPlan         = "set_plan"
-	toolNameProposeSkill    = "propose_skill"
-	toolNameWebFetch        = "web_fetch"
-	toolNameWebSearch       = "web_search"
-	toolNameWrite           = "write"
+	toolNameApplyPatch          = "apply_patch"
+	toolNameAskUser             = "ask_user"
+	toolNameCreateGoal          = "create_goal"
+	toolNameCreateSchedule      = "create_schedule"
+	toolNameDeleteSchedule      = "delete_schedule"
+	toolNameEdit                = "edit"
+	toolNameEnterPlanMode       = "enter_plan_mode"
+	toolNameExitPlanMode        = "exit_plan_mode"
+	toolNameGetGoal             = "get_goal"
+	toolNameGlob                = "glob"
+	toolNameGrep                = "grep"
+	toolNameHTTPRequest         = "http_request"
+	toolNameListSchedules       = "list_schedules"
+	toolNameListSkills          = "list_skills"
+	toolNameLoadSkill           = "load_skill"
+	toolNameLSP                 = "lsp"
+	toolNameRead                = "read"
+	toolNameReadSkillResource   = "read_skill_resource"
+	toolNameShell               = "shell"
+	toolNameReadShellOutput     = "read_shell_output"
+	toolNameReadToolResult      = "read_tool_result"
+	toolNameReportGoalOutcome   = "report_goal_outcome"
+	toolNameSearchMemory        = "search_memory"
+	toolNameSearchConversations = "search_conversations"
+	toolNameSearchTools         = "search_tools"
+	toolNameStopShell           = "stop_shell"
+	toolNameDelegateTask        = "delegate_task"
+	toolNameSetPlan             = "set_plan"
+	toolNameProposeSkill        = "propose_skill"
+	toolNameWebFetch            = "web_fetch"
+	toolNameWebSearch           = "web_search"
+	toolNameWrite               = "write"
 )
 
 // Presenter owns the client-facing projection of concrete tool schemas. Its
@@ -38,7 +56,7 @@ func (Presenter) Activity(name string, arguments tool.Arguments) string {
 	switch strings.ToLower(name) {
 	case toolNameShell:
 		if args, ok := decodeArguments[shellActivityArguments](arguments, "description"); ok &&
-			args.Description != "" && args.Description == strings.TrimSpace(args.Description) {
+			isConciseActivityText(args.Description, 120) {
 			return args.Description
 		}
 		return "Running command"
@@ -64,16 +82,72 @@ func (Presenter) Activity(name string, arguments tool.Arguments) string {
 		return "Fetching a page"
 	case toolNameDelegateTask:
 		if args, ok := decodeArguments[delegationActivityArguments](arguments, "summary"); ok &&
-			args.Summary != "" && args.Summary == strings.TrimSpace(args.Summary) {
+			isConciseActivityText(args.Summary, 80) {
 			return "Delegating: " + args.Summary
 		}
 		return "Delegating to a sub-agent"
 	case toolNameAskUser:
 		return "Waiting for your answer"
+	case toolNameEnterPlanMode:
+		return "Entering Plan mode"
 	case toolNameSetPlan:
-		return "Updating the plan"
+		return "Updating the Plan"
+	case toolNameExitPlanMode:
+		return "Requesting Plan approval"
+	case toolNameCreateGoal:
+		return "Starting an autonomous Goal"
+	case toolNameGetGoal:
+		return "Inspecting the autonomous Goal"
+	case toolNameReportGoalOutcome:
+		return "Reporting a Goal outcome"
+	case toolNameListSchedules:
+		return "Listing schedules"
+	case toolNameCreateSchedule:
+		if args, ok := decodeArguments[scheduleActivityArguments](arguments, "title"); ok &&
+			isConciseActivityText(args.Title, 120) {
+			return "Creating schedule: " + args.Title
+		}
+		return "Creating a schedule"
+	case toolNameDeleteSchedule:
+		return "Deleting a schedule"
+	case toolNameListSkills:
+		return "Listing Skills"
+	case toolNameLoadSkill:
+		if args, ok := decodeArguments[skillActivityArguments](arguments, "name"); ok &&
+			isConciseActivityText(args.Name, 80) {
+			return "Loading Skill: " + args.Name
+		}
+		return "Loading a Skill"
+	case toolNameReadSkillResource:
+		return "Reading a Skill resource"
 	case toolNameProposeSkill:
+		if args, ok := decodeArguments[skillActivityArguments](arguments, "name"); ok &&
+			isConciseActivityText(args.Name, 64) {
+			return "Proposing Skill: " + args.Name
+		}
 		return "Proposing a Skill"
+	case toolNameLSP:
+		if args, ok := decodeArguments[lspActivityArguments](arguments, "operation"); ok {
+			if activity := lspActivity(args.Operation); activity != "" {
+				return activity
+			}
+		}
+		return "Querying the language server"
+	case toolNameSearchMemory:
+		return "Searching project memory"
+	case toolNameSearchConversations:
+		return "Searching earlier conversations"
+	case toolNameSearchTools:
+		return "Loading additional tools"
+	case toolNameReadToolResult:
+		return "Reading omitted tool output"
+	case toolNameHTTPRequest:
+		if args, ok := decodeArguments[httpActivityArguments](arguments, "url"); ok {
+			if method := httpMethod(args.Method); method != "" {
+				return "Sending " + method + " request"
+			}
+		}
+		return "Sending an HTTP request"
 	default:
 		return ""
 	}
@@ -85,6 +159,65 @@ type shellActivityArguments struct {
 
 type delegationActivityArguments struct {
 	Summary string `json:"summary"`
+}
+
+type scheduleActivityArguments struct {
+	Title string `json:"title"`
+}
+
+type skillActivityArguments struct {
+	Name string `json:"name"`
+}
+
+type lspActivityArguments struct {
+	Operation string `json:"operation"`
+}
+
+type httpActivityArguments struct {
+	URL    string `json:"url"`
+	Method string `json:"method"`
+}
+
+func isConciseActivityText(value string, maxRunes int) bool {
+	return value != "" && value == strings.TrimSpace(value) && utf8.RuneCountInString(value) <= maxRunes
+}
+
+func lspActivity(operation string) string {
+	switch operation {
+	case "definition":
+		return "Finding a symbol definition"
+	case "references":
+		return "Finding symbol references"
+	case "implementation":
+		return "Finding symbol implementations"
+	case "hover":
+		return "Inspecting a symbol"
+	case "incoming_calls":
+		return "Finding incoming calls"
+	case "outgoing_calls":
+		return "Finding outgoing calls"
+	case "document_symbols":
+		return "Listing document symbols"
+	case "workspace_symbols":
+		return "Searching workspace symbols"
+	case "diagnostics":
+		return "Checking file diagnostics"
+	default:
+		return ""
+	}
+}
+
+func httpMethod(method string) string {
+	method = strings.ToUpper(strings.TrimSpace(method))
+	if method == "" {
+		return "GET"
+	}
+	switch method {
+	case "GET", "HEAD", "POST", "PUT", "PATCH", "DELETE":
+		return method
+	default:
+		return ""
+	}
 }
 
 // Present projects a known tool's canonical arguments and result into the

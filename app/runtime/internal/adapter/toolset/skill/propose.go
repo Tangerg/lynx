@@ -23,8 +23,8 @@ This creates a pending proposal for review. It does not activate, publish, or
 run the Skill.`
 
 type proposalArgs struct {
-	Name         string `json:"name" jsonschema:"required,minLength=1" jsonschema_description:"Stable lowercase hyphenated Skill identifier, such as review-go-api. Describe the workflow, not the current task."`
-	Description  string `json:"description" jsonschema:"required,minLength=1" jsonschema_description:"One or two sentences stating what reusable workflow the Skill provides and when it should be used."`
+	Name         string `json:"name" jsonschema:"required,minLength=1,maxLength=64,pattern=^[a-z0-9]+(-[a-z0-9]+)*$" jsonschema_description:"Stable lowercase hyphenated Skill identifier of at most 64 characters, such as review-go-api. Describe the workflow, not the current task."`
+	Description  string `json:"description" jsonschema:"required,minLength=1,maxLength=1024" jsonschema_description:"One or two sentences stating what reusable workflow the Skill provides and when it should be used."`
 	Instructions string `json:"instructions" jsonschema:"required,minLength=1" jsonschema_description:"Complete self-contained instructions an Agent should follow in future work. Exclude one-off progress, transient context, and secrets."`
 	Scope        string `json:"scope" jsonschema:"required,enum=project,enum=user" jsonschema_description:"project = available only in the current workspace; user = available across all workspaces for this user."`
 }

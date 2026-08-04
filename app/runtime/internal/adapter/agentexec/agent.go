@@ -98,7 +98,7 @@ func (e *Engine) buildTurnAgent() *core.Agent {
 // task. Both fields are runtime semantics: Summary identifies the child in
 // lifecycle events and Instructions are its isolated input.
 type delegateTaskInput struct {
-	Summary      string `json:"summary" jsonschema:"minLength=1" jsonschema_description:"Concise 3-5 word label that identifies this delegated task."`
+	Summary      string `json:"summary" jsonschema:"minLength=1,maxLength=80,pattern=^[^[:space:]](.*[^[:space:]])?$" jsonschema_description:"Concise 3-5 word action label, at most 80 characters, that identifies this delegated task. Do not include leading or trailing whitespace."`
 	Instructions string `json:"instructions" jsonschema:"minLength=1" jsonschema_description:"Complete self-contained work instructions. The delegated Agent cannot see the parent conversation, so include every fact it needs."`
 }
 

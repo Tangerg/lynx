@@ -511,3 +511,12 @@
 - Turn 的 `ToolPresenter.Activity` 从只接收工具名改为同时接收 canonical arguments；Shell activity 直接消费 `description`，因此该字段既保留在 ToolCall 参数里供后续客户端投影，也在服务端执行生命周期中有真实消费者；
 - `delegate_task` 不新增同义的 `description/label`，而是复用现有、已限定为 3–5 个词的 `summary` 生成 activity。其他工具也没有新增通用 `displayName`：path、query、Skill name 和 Schedule title 各有不同领域语义，强行抽成一个展示字段会制造重复事实；
 - 参数解析仍停留在 Turn 的 consumer-side presenter seam，具体 Shell / delegation schema 停留在 toolset / Agent adapter；通用 `tool.Tool`、运行领域和 delivery DTO 没有获得 UI metadata 接口。本批继续只改服务端，前端如何优先渲染 `description` 留给后续接线专项。
+
+### 批次 10c
+
+- 完成全部内建工具的 activity 语义审计，结论是 Shell 仍是唯一需要新增专用短描述参数的工具：原始 command 可能很长、不可安全概括，而模型知道它为什么执行。没有为其他工具复制一套 `label / display_name / metadata`；Presenter 优先复用工具已经拥有的领域事实；
+- 短身份字段只在语义和长度都适合标题时进入 activity：`delegate_task.summary`、`create_schedule.title`、`load_skill.name`、`propose_skill.name`。title 缺失、字段带首尾空白或超出展示上限时使用工具级准确文案，不截断后冒充原值；
+- 闭集动作字段由 Presenter 映射为稳定短文案：`lsp.operation` 区分 definition/references/diagnostics 等查询，`http_request.method` 区分 GET/POST 等方法。HTTP URL、搜索 query、文件 path、instructions 和各种 id 不进入 activity，避免长文本、凭据、实现标识与用户内容挤占工具标题；
+- Plan、Goal、Schedule、Skill、memory、conversation search、tool discovery 和 offloaded-result 工具补齐服务端 canonical activity。未知 MCP/A2A 工具继续走通用工具名降级，不猜测第三方参数语义；
+- `delegate_task.summary` 的 schema 现在落实 `1..80` 字符且禁止首尾空白，保持其 3–5 词动作标签语义；`propose_skill.name` 的 schema 与 Skill 领域规则对齐为最多 64 字符的 lowercase-hyphenated identifier，description 上限同步为领域已有的 1024 字符。约束在 typed-tool 解码阶段生效，不再等进入 Agent/Skill 领域后才失败；
+- Presenter 仍是 toolset adapter 内的 client-facing projection，没有把具体工具名、参数结构或 activity 规则泄露到 `agentexec/turn`、通用 Agent runtime、领域对象或 delivery DTO。本批仍只修改服务端，未改桌面前端接线。

@@ -69,10 +69,12 @@ func TestDelegationToolUsesOnePreciseContract(t *testing.T) {
 		}
 	}
 	for name, arguments := range map[string]string{
-		"obsolete field": `{"summary":"focused task","instructions":"inspect the package","prompt":"legacy"}`,
-		"empty summary":  `{"summary":"","instructions":"inspect the package"}`,
-		"missing field":  `{"summary":"focused task"}`,
-		"trailing value": `{"summary":"focused task","instructions":"inspect the package"} {}`,
+		"obsolete field":      `{"summary":"focused task","instructions":"inspect the package","prompt":"legacy"}`,
+		"empty summary":       `{"summary":"","instructions":"inspect the package"}`,
+		"padded summary":      `{"summary":" focused task ","instructions":"inspect the package"}`,
+		"overlong summary":    `{"summary":"` + strings.Repeat("a", 81) + `","instructions":"inspect the package"}`,
+		"missing field":       `{"summary":"focused task"}`,
+		"trailing JSON value": `{"summary":"focused task","instructions":"inspect the package"} {}`,
 	} {
 		t.Run(name, func(t *testing.T) {
 			_, err := definition.Call(t.Context(), arguments)
