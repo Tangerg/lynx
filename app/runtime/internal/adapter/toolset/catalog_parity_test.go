@@ -246,8 +246,19 @@ func TestDescriptorCatalogMatchesBuiltInTools(t *testing.T) {
 			t.Errorf("built-in identity %q is declared more than once", name)
 		}
 		declared[name] = true
-		if _, ok := descriptorFor(name); !ok {
+		descriptor, ok := descriptorFor(name)
+		if !ok {
 			t.Errorf("built-in identity %q has no descriptor", name)
+		} else {
+			if !descriptor.safety.Valid() {
+				t.Errorf("built-in identity %q has invalid safety class %q", name, descriptor.safety)
+			}
+			if (descriptor.activityText == "") == (descriptor.activity == nil) {
+				t.Errorf("built-in identity %q must define exactly one static or argument-aware activity", name)
+			}
+			if descriptor.activityText != "" && !isConciseActivityText(descriptor.activityText, 120) {
+				t.Errorf("built-in identity %q has invalid static activity %q", name, descriptor.activityText)
+			}
 		}
 		if !existing[name] {
 			unreachable = append(unreachable, name)

@@ -26,7 +26,7 @@ func (Presenter) Activity(name string, arguments tool.Arguments) string {
 	return descriptor.activityText
 }
 
-func shellToolActivity(arguments tool.Arguments) string {
+func shellActivity(arguments tool.Arguments) string {
 	if args, ok := decodeArguments[shellActivityArguments](arguments, "description"); ok &&
 		isConciseActivityText(args.Description, 120) {
 		return args.Description
@@ -34,7 +34,7 @@ func shellToolActivity(arguments tool.Arguments) string {
 	return "Running command"
 }
 
-func delegationToolActivity(arguments tool.Arguments) string {
+func delegationActivity(arguments tool.Arguments) string {
 	if args, ok := decodeArguments[delegationActivityArguments](arguments, "summary"); ok &&
 		isConciseActivityText(args.Summary, 80) {
 		return "Delegating: " + args.Summary
@@ -66,16 +66,16 @@ func proposeSkillActivity(arguments tool.Arguments) string {
 	return "Proposing a Skill"
 }
 
-func lspToolActivity(arguments tool.Arguments) string {
+func lspActivity(arguments tool.Arguments) string {
 	if args, ok := decodeArguments[lspActivityArguments](arguments, "operation"); ok {
-		if activity := lspActivity(args.Operation); activity != "" {
+		if activity := lspOperationActivity(args.Operation); activity != "" {
 			return activity
 		}
 	}
 	return "Querying the language server"
 }
 
-func httpToolActivity(arguments tool.Arguments) string {
+func httpActivity(arguments tool.Arguments) string {
 	if args, ok := decodeArguments[httpActivityArguments](arguments, "url"); ok {
 		if method := httpMethod(args.Method); method != "" {
 			return "Sending " + method + " request"
@@ -113,7 +113,7 @@ func isConciseActivityText(value string, maxRunes int) bool {
 	return value != "" && value == strings.TrimSpace(value) && utf8.RuneCountInString(value) <= maxRunes
 }
 
-func lspActivity(operation string) string {
+func lspOperationActivity(operation string) string {
 	switch operation {
 	case "definition":
 		return "Finding a symbol definition"

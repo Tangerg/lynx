@@ -28,7 +28,7 @@ func Build(ci *codeintel.Analyzer, defaultWorkdir string) ([]toolcontract.Tool, 
 	if ci == nil {
 		return nil, errors.New("lsp: analyzer is nil")
 	}
-	lsp, err := newLSPTool(ci, defaultWorkdir)
+	lsp, err := newQuery(ci, defaultWorkdir)
 	if err != nil {
 		return nil, err
 	}
@@ -90,7 +90,7 @@ type lspRunner struct {
 	defaultWorkdir string
 }
 
-func newLSPTool(ci *codeintel.Analyzer, defaultWorkdir string) (toolcontract.Tool, error) {
+func newQuery(ci *codeintel.Analyzer, defaultWorkdir string) (toolcontract.Tool, error) {
 	t := &lspRunner{analyzer: ci, defaultWorkdir: defaultWorkdir}
 	return toolcontract.NewFunc[lspInput, string](
 		toolcontract.FuncConfig{Name: catalog.LSP, Description: lspDesc},

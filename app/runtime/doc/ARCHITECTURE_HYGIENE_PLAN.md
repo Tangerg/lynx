@@ -913,6 +913,7 @@ Acceptance:
 | 39. Concrete tool contract ownership | Completed | 2026-08-04 | 2026-08-04 | Delegation schema/description, Goal outcome prompt, special policy, and Plan outcome projection moved to toolset; agentexec contains no built-in tool identities and consumes one neutral semantics port. Full build/vet/test, focused race tests, static analysis, lint, dead-code analysis, and architecture checks passed. |
 | 40. Run pump responsibility closure | Completed | 2026-08-04 | 2026-08-04 | The monolithic pump became one concrete single-goroutine state owner with focused event, synthesis, teardown, and boundary methods; batch publication moved to its own cohesive file. Full build/vet/test, focused race tests, static analysis, lint, dead-code analysis, and architecture checks passed. |
 | 41. Tool identity and mutation vocabulary closure | Completed | 2026-08-04 | 2026-08-04 | Built-in identities and cross-cutting metadata are catalog-owned; all models use only `apply_patch`; model-id dialect inference and the `edit`/`write` Runtime family were removed. Full build/vet/test, focused race tests, static analysis, lint, dead-code analysis, formatting, and architecture checks passed. |
+| 42. Final toolset vocabulary and descriptor closure | Completed | 2026-08-04 | 2026-08-04 | Package-stuttering private names were removed, descriptor parity now proves safety and activity invariants, and architecture checks pin the retired vocabulary. Full workspace/standalone verification, focused race tests, static analysis, lint, dead-code analysis, formatting, and residue scans passed. |
 
 Allowed status values: `Pending`, `In progress`, `Completed`, `Blocked`, `Revised`.
 
@@ -992,6 +993,24 @@ Allowed status values: `Pending`, `In progress`, `Completed`, `Blocked`, `Revise
   to record the breaking single-vocabulary decision. Full build, vet, test,
   focused race tests, `staticcheck`, `golangci-lint`, `deadcode -test`,
   formatting, and diff checks passed.
+
+### 2026-08-04 — Batch 42 completed
+
+- Replaced the final package-stuttering Toolset vocabulary with names that gain
+  their context from the owning package: `resolution`, `staticSpec`,
+  `audience`, `placement`, activity/result projections, the LSP query
+  constructor, and the Shell family.
+- Strengthened catalog parity so every built-in descriptor must declare a valid
+  safety class and exactly one concise static or argument-aware activity. This
+  makes client-facing execution metadata a checked invariant instead of a
+  convention maintained by review.
+- Extended the architecture vocabulary guard with every retired name. Final
+  empty-path, stale-comment, concrete-name, model-dialect, and directory-name
+  scans found no additional Runtime-owned residue; the ignored user-owned
+  `LYRA.md` placeholder remains deliberately outside product source.
+- Workspace and standalone build, vet, and test, focused race tests,
+  `staticcheck`, `golangci-lint`, `deadcode -test`, formatting, and diff checks
+  passed.
 
 ### 2026-08-04 — Batch 37 completed
 

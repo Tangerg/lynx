@@ -47,7 +47,7 @@ type Resolver struct {
 	shell          []toolcontract.Tool                         // shell tools (shell / read_shell_output / stop_shell) over the exec.Shells; cwd read per-call
 	delegation     toolcontract.Tool                           // bounded recursive delegation tool; nil until set
 	createGoal     toolcontract.Tool                           // root-only Goal entry tool; nil until the Goal Driver exists
-	staticTools    []staticToolSpec                            // built-once tools with one role/placement policy for Run manifests
+	staticSpecs    []staticSpec                                // built-once capabilities with one role/placement policy for Run manifests
 	goalActive     func(context.Context, string) (bool, error) // reports whether the session has an active Goal; nil → outcome reporting never offered
 
 	// mcp is the working-directory-independent MCP tool set, held behind an
@@ -62,32 +62,32 @@ type Resolver struct {
 	mcpToolDisabled func(mcpserver.ToolRef) bool
 }
 
-type toolAudience uint8
+type audience uint8
 
 const (
-	toolAudienceBoth toolAudience = iota
-	toolAudienceRoot
+	audienceBoth audience = iota
+	audienceRoot
 )
 
-func (a toolAudience) includes(role string) bool {
-	return a == toolAudienceBoth || role == domaintool.GroupRoot
+func (a audience) includes(role string) bool {
+	return a == audienceBoth || role == domaintool.GroupRoot
 }
 
-type toolPlacement uint8
+type placement uint8
 
 const (
-	toolAfterSkill toolPlacement = iota
-	toolAfterCodebase
-	toolRootTail
+	afterSkill placement = iota
+	afterCodebase
+	rootTail
 )
 
-// staticToolSpec is the policy table for built-once per-Run tools. A Run
+// staticSpec is the policy record for one built-once per-Run capability. A Run
 // consumes entries in its placement and audience, evaluating the one dynamic
 // active-goal condition without turning resolution into a generic registry.
-type staticToolSpec struct {
+type staticSpec struct {
 	tool               toolcontract.Tool
-	audience           toolAudience
-	placement          toolPlacement
+	audience           audience
+	placement          placement
 	deferred           bool
 	requiresActiveGoal bool
 }
@@ -145,17 +145,17 @@ func newResolver(d resolverDeps) (*Resolver, error) {
 		a2a:            slices.Clone(d.A2A),
 		lsp:            slices.Clone(d.LSP),
 		shell:          slices.Clone(d.Shell),
-		staticTools: []staticToolSpec{
-			{tool: d.AskUser, audience: toolAudienceBoth, placement: toolAfterCodebase},
-			{tool: d.EnterPlan, audience: toolAudienceRoot, placement: toolAfterCodebase},
-			{tool: d.ExitPlan, audience: toolAudienceRoot, placement: toolAfterCodebase},
-			{tool: d.Plan, audience: toolAudienceRoot, placement: toolAfterSkill},
-			{tool: d.ToolResult, audience: toolAudienceBoth, placement: toolAfterSkill},
-			{tool: d.MemorySearch, audience: toolAudienceBoth, placement: toolAfterSkill, deferred: true},
-			{tool: d.SessionSearch, audience: toolAudienceBoth, placement: toolAfterSkill, deferred: true},
-			{tool: d.ProposeSkill, audience: toolAudienceRoot, placement: toolAfterSkill, deferred: true},
-			{tool: d.GoalGet, audience: toolAudienceRoot, placement: toolRootTail},
-			{tool: d.GoalReport, audience: toolAudienceRoot, placement: toolRootTail, requiresActiveGoal: true},
+		staticSpecs: []staticSpec{
+			{tool: d.AskUser, audience: audienceBoth, placement: afterCodebase},
+			{tool: d.EnterPlan, audience: audienceRoot, placement: afterCodebase},
+			{tool: d.ExitPlan, audience: audienceRoot, placement: afterCodebase},
+			{tool: d.Plan, audience: audienceRoot, placement: afterSkill},
+			{tool: d.ToolResult, audience: audienceBoth, placement: afterSkill},
+			{tool: d.MemorySearch, audience: audienceBoth, placement: afterSkill, deferred: true},
+			{tool: d.SessionSearch, audience: audienceBoth, placement: afterSkill, deferred: true},
+			{tool: d.ProposeSkill, audience: audienceRoot, placement: afterSkill, deferred: true},
+			{tool: d.GoalGet, audience: audienceRoot, placement: rootTail},
+			{tool: d.GoalReport, audience: audienceRoot, placement: rootTail, requiresActiveGoal: true},
 		},
 		goalActive:      d.GoalActive,
 		codeIntel:       d.CodeIntel,
@@ -164,16 +164,16 @@ func newResolver(d resolverDeps) (*Resolver, error) {
 		mcpToolDisabled: d.MCPToolDisabled,
 	}
 	for _, scheduleTool := range d.ScheduleTools {
-		resolver.staticTools = append(resolver.staticTools, staticToolSpec{
-			tool: scheduleTool, audience: toolAudienceRoot, placement: toolRootTail, deferred: true,
+		resolver.staticSpecs = append(resolver.staticSpecs, staticSpec{
+			tool: scheduleTool, audience: audienceRoot, placement: rootTail, deferred: true,
 		})
 	}
 	return resolver, nil
 }
 
-func (r *Resolver) appendStaticTools(ctx context.Context, into *resolvedToolset, placement toolPlacement, role string) error {
-	for _, spec := range r.staticTools {
-		if spec.tool == nil || spec.placement != placement || !spec.audience.includes(role) {
+func (r *Resolver) appendStatic(ctx context.Context, into *resolution, at placement, role string) error {
+	for _, spec := range r.staticSpecs {
+		if spec.tool == nil || spec.placement != at || !spec.audience.includes(role) {
 			continue
 		}
 		if spec.requiresActiveGoal {
@@ -312,7 +312,7 @@ type toolGroup struct {
 func (g *toolGroup) Tools(ctx context.Context) ([]toolcontract.Tool, error) {
 	workdir := g.resolver.workdirFor(ctx)
 	workdirTools := g.resolver.workdirTools(workdir)
-	var tools resolvedToolset
+	var tools resolution
 	tools.direct(workdirTools.readSearch...)
 	tools.direct(workdirTools.applyPatch)
 	tools.deferTools(g.resolver.online...)
@@ -331,13 +331,13 @@ func (g *toolGroup) Tools(ctx context.Context) ([]toolcontract.Tool, error) {
 	tools.deferTools(skillTools...)
 	// Built-once, session-keyed helpers (plan/result/memory/transcript search)
 	// are projected from the resolver's role and placement policy.
-	if err := g.resolver.appendStaticTools(ctx, &tools, toolAfterSkill, g.role); err != nil {
+	if err := g.resolver.appendStatic(ctx, &tools, afterSkill, g.role); err != nil {
 		return nil, err
 	}
 	// Both roles can ask the user; Plan-mode controls in this placement remain
 	// root-only. A child question parks through the same nested suspension tree
 	// as a child approval.
-	if err := g.resolver.appendStaticTools(ctx, &tools, toolAfterCodebase, g.role); err != nil {
+	if err := g.resolver.appendStatic(ctx, &tools, afterCodebase, g.role); err != nil {
 		return nil, err
 	}
 	if delegation := g.resolver.delegationTool(); delegation != nil {
@@ -353,7 +353,7 @@ func (g *toolGroup) Tools(ctx context.Context) ([]toolcontract.Tool, error) {
 		}
 		// The remaining schedule and Goal state capabilities are
 		// product-root operations rather than generic child execution tools.
-		if err := g.resolver.appendStaticTools(ctx, &tools, toolRootTail, g.role); err != nil {
+		if err := g.resolver.appendStatic(ctx, &tools, rootTail, g.role); err != nil {
 			return nil, err
 		}
 	}

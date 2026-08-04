@@ -248,6 +248,12 @@ func TestRemovedStutteringVocabularyDoesNotReturn(t *testing.T) {
 			"Config", "ServerConfig", "OnlineConfig", "MCPServerConfig", "LSPServerConfig", "A2AAgentConfig",
 		},
 		filepath.Join(root, "internal", "delivery", "dispatch"): {"Dispatcher"},
+		filepath.Join(root, "internal", "adapter", "toolset"): {
+			"resolvedToolset", "staticToolSpec", "toolAudience", "toolPlacement",
+			"toolActivity", "toolPresentation",
+		},
+		filepath.Join(root, "internal", "adapter", "toolset", "lsp"):   {"newLSPTool"},
+		filepath.Join(root, "internal", "adapter", "toolset", "shell"): {"toolSet"},
 	} {
 		banned := make(map[string]string, len(names))
 		for _, name := range names {

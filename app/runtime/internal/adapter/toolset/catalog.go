@@ -5,21 +5,21 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
 
-type toolActivity func(tool.Arguments) string
-type toolPresentation func(tool.Arguments, tool.Result) (tool.Result, string)
+type activityProjection func(tool.Arguments) string
+type resultProjection func(tool.Arguments, tool.Result) (tool.Result, string)
 
 type outcomeProjection uint8
 
 const planOutcomeProjection outcomeProjection = 1
 
 // builtInDescriptor is the single behavioral catalog for built-in identities.
-// Tool constructors own model descriptions and schemas; this table owns the
+// Tool constructors own model descriptions and schemas; this catalog owns the
 // cross-cutting policy and client projection attached to those definitions.
 type builtInDescriptor struct {
 	safety        tool.SafetyClass
 	activityText  string
-	activity      toolActivity
-	presentation  toolPresentation
+	activity      activityProjection
+	presentation  resultProjection
 	orchestration bool
 	outcome       outcomeProjection
 }
@@ -33,7 +33,7 @@ func descriptorFor(name string) (builtInDescriptor, bool) {
 	case catalog.Grep:
 		return builtInDescriptor{safety: tool.SafetyClassSafe, activityText: "Searching", presentation: presentSearch}, true
 	case catalog.LSP:
-		return builtInDescriptor{safety: tool.SafetyClassSafe, activity: lspToolActivity}, true
+		return builtInDescriptor{safety: tool.SafetyClassSafe, activity: lspActivity}, true
 	case catalog.ReadShellOutput:
 		return builtInDescriptor{safety: tool.SafetyClassSafe, activityText: "Reading command output"}, true
 	case catalog.ListSchedules:
@@ -61,7 +61,7 @@ func descriptorFor(name string) (builtInDescriptor, bool) {
 	case catalog.ReadToolResult:
 		return builtInDescriptor{safety: tool.SafetyClassSafe, activityText: "Reading omitted tool output"}, true
 	case catalog.DelegateTask:
-		return builtInDescriptor{safety: tool.SafetyClassSafe, activity: delegationToolActivity, orchestration: true}, true
+		return builtInDescriptor{safety: tool.SafetyClassSafe, activity: delegationActivity, orchestration: true}, true
 	case catalog.CreateGoal:
 		return builtInDescriptor{safety: tool.SafetyClassSafe, activityText: "Starting an autonomous Goal"}, true
 	case catalog.GetGoal:
@@ -77,7 +77,7 @@ func descriptorFor(name string) (builtInDescriptor, bool) {
 	case catalog.DeleteSchedule:
 		return builtInDescriptor{safety: tool.SafetyClassWrite, activityText: "Deleting a schedule"}, true
 	case catalog.Shell:
-		return builtInDescriptor{safety: tool.SafetyClassExec, activity: shellToolActivity, presentation: presentCommand}, true
+		return builtInDescriptor{safety: tool.SafetyClassExec, activity: shellActivity, presentation: presentCommand}, true
 	case catalog.StopShell:
 		return builtInDescriptor{safety: tool.SafetyClassExec, activityText: "Stopping command"}, true
 	case catalog.WebFetch:
@@ -85,7 +85,7 @@ func descriptorFor(name string) (builtInDescriptor, bool) {
 	case catalog.WebSearch:
 		return builtInDescriptor{safety: tool.SafetyClassNetwork, activityText: "Searching the web", presentation: presentWebSearch}, true
 	case catalog.HTTPRequest:
-		return builtInDescriptor{safety: tool.SafetyClassNetwork, activity: httpToolActivity}, true
+		return builtInDescriptor{safety: tool.SafetyClassNetwork, activity: httpActivity}, true
 	default:
 		return builtInDescriptor{}, false
 	}
