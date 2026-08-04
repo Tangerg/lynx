@@ -20,11 +20,8 @@ func (e *Effects) CommitOpening(ctx context.Context, opening runs.OpeningCommit)
 	if e.tx == nil {
 		return errors.New("runsegment: transactor is unavailable")
 	}
-	// Exactly one admission action IS the opening's durable projection: the Run
-	// comes into existence, or resumes, right here. Item commits are whatever the
-	// opening happened to produce, and an approval-only resume produces none.
-	if (opening.Admit == nil) == (opening.Resume == nil) {
-		return errors.New("runsegment: opening requires exactly one admission action")
+	if err := opening.Validate(); err != nil {
+		return fmt.Errorf("runsegment: invalid opening: %w", err)
 	}
 	return e.runInTx(ctx, func(ctx context.Context) error {
 		switch {
@@ -33,9 +30,6 @@ func (e *Effects) CommitOpening(ctx context.Context, opening runs.OpeningCommit)
 				return errors.New("runsegment: run-state persistence is unavailable")
 			}
 			if opening.ScheduledSession != nil {
-				if opening.ScheduledSession.ID != opening.Admit.SessionID {
-					return errors.New("runsegment: opening scheduled-session mismatch")
-				}
 				if e.sessions == nil {
 					return errors.New("runsegment: session persistence is unavailable")
 				}
@@ -47,9 +41,6 @@ func (e *Effects) CommitOpening(ctx context.Context, opening runs.OpeningCommit)
 				return err
 			}
 			if opening.SessionModel != nil {
-				if opening.SessionModel.SessionID != opening.Admit.SessionID {
-					return errors.New("runsegment: opening session-model session mismatch")
-				}
 				if e.sessions == nil {
 					return errors.New("runsegment: session persistence is unavailable")
 				}
@@ -66,23 +57,11 @@ func (e *Effects) CommitOpening(ctx context.Context, opening runs.OpeningCommit)
 				}
 			}
 		case opening.Resume != nil:
-			if opening.ScheduledSession != nil || opening.SessionModel != nil || opening.ScheduleFiring != "" {
-				return errors.New("runsegment: resumed opening cannot carry fresh-run facts")
-			}
 			if err := e.consumeResume(ctx, *opening.Resume); err != nil {
 				return err
 			}
 		}
 		for _, commit := range opening.Events {
-			if err := commit.Validate(); err != nil {
-				return fmt.Errorf("runsegment: invalid opening event commit: %w", err)
-			}
-			if commit.State != runs.StateUnchanged {
-				return errors.New("runsegment: opening commit contains a lifecycle transition")
-			}
-			if len(commit.Items) == 0 {
-				return errors.New("runsegment: opening commit has no items to append")
-			}
 			if err := e.applyCommit(ctx, commit); err != nil {
 				return err
 			}
@@ -140,99 +119,8 @@ func (e *Effects) CommitTreeBarrier(ctx context.Context, barrier runs.TreeBarrie
 	if e.executorCheckpoints == nil {
 		return errors.New("runsegment: executor checkpoint persistence is unavailable")
 	}
-	if err := barrier.Pending.Validate(); err != nil {
+	if err := barrier.Validate(); err != nil {
 		return fmt.Errorf("runsegment: invalid tree barrier: %w", err)
-	}
-	rootContinuation, ok := barrier.Pending.RootContinuation()
-	if !ok {
-		return errors.New("runsegment: tree barrier has no root continuation")
-	}
-	if err := barrier.Checkpoint.ValidateOwnership(
-		rootContinuation.ProcessID,
-		barrier.Pending.SessionID,
-	); err != nil {
-		return fmt.Errorf("runsegment: invalid tree barrier executor checkpoint ownership: %w", err)
-	}
-	if barrier.Checkpoint.Scope.GoalLeaseID != barrier.Pending.GoalLeaseID {
-		return fmt.Errorf(
-			"runsegment: tree barrier checkpoint goal lease %q does not match Pending %q: %w",
-			barrier.Checkpoint.Scope.GoalLeaseID,
-			barrier.Pending.GoalLeaseID,
-			execution.ErrInvalidExecutorCheckpoint,
-		)
-	}
-	if barrier.Checkpoint.ModelSelection != rootContinuation.ModelSelection {
-		return fmt.Errorf(
-			"runsegment: tree barrier checkpoint model %q/%q does not match root continuation %q/%q: %w",
-			barrier.Checkpoint.ModelSelection.Provider(),
-			barrier.Checkpoint.ModelSelection.Model(),
-			rootContinuation.ModelSelection.Provider(),
-			rootContinuation.ModelSelection.Model(),
-			execution.ErrInvalidExecutorCheckpoint,
-		)
-	}
-	if barrier.Checkpoint.Limits != rootContinuation.Limits {
-		return fmt.Errorf(
-			"runsegment: tree barrier checkpoint limits %+v do not match root continuation %+v: %w",
-			barrier.Checkpoint.Limits,
-			rootContinuation.Limits,
-			execution.ErrInvalidExecutorCheckpoint,
-		)
-	}
-	if len(barrier.Runs) != len(barrier.Pending.Continuations) {
-		return fmt.Errorf(
-			"runsegment: tree barrier has %d Run commits for %d continuations",
-			len(barrier.Runs),
-			len(barrier.Pending.Continuations),
-		)
-	}
-	continuations := make(map[string]interrupts.Continuation, len(barrier.Pending.Continuations))
-	for _, continuation := range barrier.Pending.Continuations {
-		continuations[continuation.RunID] = continuation
-	}
-	seen := make(map[string]struct{}, len(barrier.Runs))
-	for index, commit := range barrier.Runs {
-		if err := commit.Validate(); err != nil {
-			return fmt.Errorf("runsegment: tree barrier Run[%d]: %w", index, err)
-		}
-		switch {
-		case commit.State != runs.StateSuspend:
-			return fmt.Errorf("runsegment: tree barrier Run[%d] is not a suspend commit", index)
-		case commit.Run == nil || commit.Run.State != execution.Interrupted:
-			return fmt.Errorf("runsegment: tree barrier Run[%d] has no interrupted Run", index)
-		case commit.RunID != commit.Run.ID:
-			return fmt.Errorf("runsegment: tree barrier Run[%d] identity mismatch", index)
-		case commit.SessionID != barrier.Pending.SessionID ||
-			commit.Run.SessionID != barrier.Pending.SessionID:
-			return fmt.Errorf("runsegment: tree barrier Run[%d] session mismatch", index)
-		case commit.GoalRun != nil:
-			return fmt.Errorf("runsegment: tree barrier Run[%d] carries a terminal goal charge", index)
-		}
-		continuation, exists := continuations[commit.RunID]
-		if !exists {
-			return fmt.Errorf("runsegment: tree barrier Run[%d] has no continuation", index)
-		}
-		if commit.Run.Lineage() != continuation.Lineage ||
-			commit.Run.ModelSelection != continuation.ModelSelection ||
-			!commit.Run.CreatedAt.Equal(continuation.RunCreatedAt) ||
-			!commit.Run.Metrics.Equal(continuation.Metrics) ||
-			commit.Run.Limits != continuation.Limits {
-			return fmt.Errorf("runsegment: tree barrier Run[%d] differs from its continuation", index)
-		}
-		if !commit.Run.Capabilities.Equal(barrier.Pending.Capabilities) {
-			return fmt.Errorf("runsegment: tree barrier Run[%d] run capabilities differ from Pending", index)
-		}
-		if commit.RunID == barrier.Pending.RootRunID {
-			if commit.Run.GoalLeaseID != barrier.Pending.GoalLeaseID {
-				return errors.New("runsegment: tree barrier root Run goal lease differs from Pending")
-			}
-		} else if commit.Run.GoalLeaseID != "" {
-			return fmt.Errorf("runsegment: tree barrier child Run[%d] carries a root Goal lease", index)
-		}
-		if _, duplicate := seen[commit.RunID]; duplicate {
-			return fmt.Errorf("runsegment: tree barrier repeats Run %q", commit.RunID)
-		}
-		seen[commit.RunID] = struct{}{}
 	}
 
 	err := e.runInTx(ctx, func(ctx context.Context) error {

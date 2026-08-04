@@ -14,21 +14,23 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 )
 
-// CommitWaitingSubtreeCancellation commits the complete durable side of one
-// prepared waiting-tree transformation. The Agent runtime remains frozen while
-// this transaction runs; this adapter never commits or aborts that live
-// mutation—it owns only application persistence.
+// CommitWaitingSubtreeCancellation claims the prepared Pending snapshot and
+// persists the application-defined replacement atomically. It does not decide
+// which Runs survive or how their transcript and continuation facts change.
 func (e *Effects) CommitWaitingSubtreeCancellation(
 	ctx context.Context,
 	commit runs.WaitingSubtreeCancellationCommit,
 ) (runs.WaitingSubtreeCancellationResult, error) {
-	if err := e.validateWaitingSubtreeCancellation(commit); err != nil {
+	if err := e.requireWaitingCancellationStores(); err != nil {
 		return runs.WaitingSubtreeCancellationResult{}, err
 	}
-	var (
-		target transcript.Run
-		root   transcript.Run
-	)
+	if err := commit.Validate(); err != nil {
+		return runs.WaitingSubtreeCancellationResult{}, fmt.Errorf(
+			"runsegment: invalid waiting subtree cancellation: %w",
+			err,
+		)
+	}
+	var target, root transcript.Run
 	err := e.runInTx(ctx, func(ctx context.Context) error {
 		pending, found, err := e.interrupts.Consume(ctx, commit.SessionID, commit.RootRunID)
 		if err != nil {
@@ -60,11 +62,7 @@ func (e *Effects) CommitWaitingSubtreeCancellation(
 				err,
 			)
 		}
-		if err := e.itemReplacer.ReplaceItem(
-			ctx,
-			commit.ParentItem.Expected,
-			commit.ParentItem.Replacement,
-		); err != nil {
+		if err := e.itemReplacer.ReplaceItem(ctx, commit.ParentItem.Expected, commit.ParentItem.Replacement); err != nil {
 			return fmt.Errorf(
 				"runsegment: replace spawning Item %q for waiting child Run %q: %w",
 				commit.ParentItem.Expected.ID,
@@ -73,11 +71,7 @@ func (e *Effects) CommitWaitingSubtreeCancellation(
 			)
 		}
 		for _, item := range commit.TerminalItems {
-			if err := e.itemReplacer.ReplaceItem(
-				ctx,
-				item.Expected,
-				item.Replacement,
-			); err != nil {
+			if err := e.itemReplacer.ReplaceItem(ctx, item.Expected, item.Replacement); err != nil {
 				return fmt.Errorf(
 					"runsegment: settle interrupted Item %q for canceled Run %q: %w",
 					item.Expected.ID,
@@ -124,12 +118,7 @@ func (e *Effects) CommitWaitingSubtreeCancellation(
 		}
 
 		for _, draft := range commit.Resume.Runs {
-			if err := e.runState.Resume(
-				ctx,
-				commit.Resume.SessionID,
-				draft,
-				commit.Resume.ResumedAt,
-			); err != nil {
+			if err := e.runState.Resume(ctx, commit.Resume.SessionID, draft, commit.Resume.ResumedAt); err != nil {
 				return fmt.Errorf("runsegment: resume surviving Run %q: %w", draft.RunID, err)
 			}
 			if draft.RunID == commit.RootRunID {
@@ -140,9 +129,6 @@ func (e *Effects) CommitWaitingSubtreeCancellation(
 			}
 		}
 		for _, event := range commit.OpeningEvents {
-			if event.State != runs.StateUnchanged {
-				return errors.New("runsegment: waiting cancellation opening contains a lifecycle transition")
-			}
 			if err := e.applyCommit(ctx, event); err != nil {
 				return fmt.Errorf(
 					"runsegment: persist opening projection for surviving Run %q: %w",
@@ -164,9 +150,7 @@ func (e *Effects) CommitWaitingSubtreeCancellation(
 	return runs.WaitingSubtreeCancellationResult{TargetRun: target, RootRun: root}, nil
 }
 
-func (e *Effects) validateWaitingSubtreeCancellation(
-	commit runs.WaitingSubtreeCancellationCommit,
-) error {
+func (e *Effects) requireWaitingCancellationStores() error {
 	switch {
 	case e.tx == nil:
 		return errors.New("runsegment: transactor is unavailable")
@@ -178,450 +162,6 @@ func (e *Effects) validateWaitingSubtreeCancellation(
 		return errors.New("runsegment: transcript Item replacement is unavailable")
 	case e.executorCheckpoints == nil:
 		return errors.New("runsegment: executor checkpoint persistence is unavailable")
-	case commit.RootRunID == "" || commit.TargetRunID == "" || commit.SessionID == "":
-		return errors.New("runsegment: waiting cancellation identity is incomplete")
-	case commit.RootRun.ID != commit.RootRunID ||
-		commit.RootRun.SessionID != commit.SessionID ||
-		!commit.RootRun.Lineage().IsRoot() ||
-		commit.RootRun.State != execution.Interrupted:
-		return errors.New("runsegment: waiting cancellation root snapshot is invalid")
-	}
-	if err := commit.ExpectedPending.Validate(); err != nil {
-		return fmt.Errorf("runsegment: expected waiting cancellation interrupt: %w", err)
-	}
-	if commit.ExpectedPending.RootRunID != commit.RootRunID ||
-		commit.ExpectedPending.SessionID != commit.SessionID {
-		return errors.New("runsegment: expected waiting cancellation interrupt scope mismatch")
-	}
-	rootContinuation, ok := commit.ExpectedPending.RootContinuation()
-	if !ok {
-		return errors.New("runsegment: expected waiting cancellation interrupt has no root continuation")
-	}
-	if commit.RootRun.GoalLeaseID != commit.ExpectedPending.GoalLeaseID {
-		return errors.New("runsegment: waiting cancellation root Run goal lease differs from Pending")
-	}
-	if !commit.RootRun.Capabilities.Equal(commit.ExpectedPending.Capabilities) {
-		return errors.New("runsegment: waiting cancellation root Run run capabilities differ from Pending")
-	}
-	if err := validateWaitingRunContinuationFacts(commit.RootRun, rootContinuation); err != nil {
-		return fmt.Errorf("runsegment: waiting cancellation root Run: %w", err)
-	}
-	if err := commit.Checkpoint.ValidateOwnership(
-		rootContinuation.ProcessID,
-		commit.SessionID,
-	); err != nil {
-		return fmt.Errorf("runsegment: invalid waiting cancellation executor checkpoint ownership: %w", err)
-	}
-	if commit.Checkpoint.Scope.GoalLeaseID != commit.ExpectedPending.GoalLeaseID {
-		return fmt.Errorf(
-			"runsegment: waiting cancellation checkpoint goal lease %q does not match Pending %q: %w",
-			commit.Checkpoint.Scope.GoalLeaseID,
-			commit.ExpectedPending.GoalLeaseID,
-			execution.ErrInvalidExecutorCheckpoint,
-		)
-	}
-	if commit.Checkpoint.ModelSelection != rootContinuation.ModelSelection {
-		return fmt.Errorf(
-			"runsegment: waiting cancellation checkpoint model %q/%q does not match root continuation %q/%q: %w",
-			commit.Checkpoint.ModelSelection.Provider(),
-			commit.Checkpoint.ModelSelection.Model(),
-			rootContinuation.ModelSelection.Provider(),
-			rootContinuation.ModelSelection.Model(),
-			execution.ErrInvalidExecutorCheckpoint,
-		)
-	}
-	if commit.Checkpoint.Limits != rootContinuation.Limits {
-		return fmt.Errorf(
-			"runsegment: waiting cancellation checkpoint limits %+v do not match root continuation %+v: %w",
-			commit.Checkpoint.Limits,
-			rootContinuation.Limits,
-			execution.ErrInvalidExecutorCheckpoint,
-		)
-	}
-	if (commit.RemainingPending == nil) == (commit.Resume == nil) {
-		return errors.New("runsegment: waiting cancellation requires exactly one surviving disposition")
-	}
-	if commit.RemainingPending != nil {
-		if err := commit.RemainingPending.Validate(); err != nil {
-			return fmt.Errorf("runsegment: reduced waiting cancellation interrupt: %w", err)
-		}
-		if commit.RemainingPending.RootRunID != commit.RootRunID ||
-			commit.RemainingPending.SessionID != commit.SessionID {
-			return errors.New("runsegment: reduced waiting cancellation interrupt scope mismatch")
-		}
-		if len(commit.OpeningEvents) != 0 {
-			return errors.New("runsegment: still-waiting cancellation carries Segment opening events")
-		}
-	} else if err := commit.Resume.Validate(); err != nil {
-		return fmt.Errorf("runsegment: waiting cancellation tree resume: %w", err)
-	} else if commit.Resume.RootRunID != commit.RootRunID ||
-		commit.Resume.SessionID != commit.SessionID {
-		return errors.New("runsegment: waiting cancellation tree resume scope mismatch")
-	}
-	if len(commit.TerminalRuns) == 0 {
-		return errors.New("runsegment: waiting cancellation has no terminal Runs")
-	}
-	members := make([]execution.RunTreeMember, 0, len(commit.ExpectedPending.Continuations))
-	continuationByRunID := make(
-		map[string]interrupts.Continuation,
-		len(commit.ExpectedPending.Continuations),
-	)
-	for _, continuation := range commit.ExpectedPending.Continuations {
-		members = append(members, execution.RunTreeMember{
-			RunID:   continuation.RunID,
-			Lineage: continuation.Lineage,
-		})
-		continuationByRunID[continuation.RunID] = continuation
-	}
-	tree, err := execution.NewRunTree(commit.RootRunID, members)
-	if err != nil {
-		return fmt.Errorf("runsegment: waiting cancellation tree: %w", err)
-	}
-	canceledRunIDs, found := tree.SubtreePostorder(commit.TargetRunID)
-	if !found {
-		return fmt.Errorf(
-			"runsegment: waiting cancellation target Run %q is outside tree %q",
-			commit.TargetRunID,
-			commit.RootRunID,
-		)
-	}
-	if commit.TargetRunID == commit.RootRunID {
-		return errors.New("runsegment: waiting subtree cancellation targets the root")
-	}
-	if len(commit.TerminalRuns) != len(canceledRunIDs) {
-		return fmt.Errorf(
-			"runsegment: waiting cancellation has %d terminal Runs, target subtree requires %d",
-			len(commit.TerminalRuns),
-			len(canceledRunIDs),
-		)
-	}
-	seen := make(map[string]struct{}, len(commit.TerminalRuns))
-	finishedAtByRunID := make(map[string]time.Time, len(commit.TerminalRuns))
-	for index, run := range commit.TerminalRuns {
-		expectedRunID := canceledRunIDs[index]
-		continuation := continuationByRunID[expectedRunID]
-		switch {
-		case run.ID != expectedRunID:
-			return fmt.Errorf(
-				"runsegment: canceled Run[%d] is %q, canonical target postorder requires %q",
-				index,
-				run.ID,
-				expectedRunID,
-			)
-		case run.SessionID != commit.SessionID:
-			return fmt.Errorf("runsegment: canceled Run[%d] session mismatch", index)
-		case run.Lineage() != continuation.Lineage:
-			return fmt.Errorf("runsegment: canceled Run[%d] lineage mismatch", index)
-		case run.ModelSelection != continuation.ModelSelection:
-			return fmt.Errorf("runsegment: canceled Run[%d] model selection mismatch", index)
-		case !run.Metrics.Equal(continuation.Metrics):
-			return fmt.Errorf("runsegment: canceled Run[%d] cumulative metrics mismatch", index)
-		case run.Limits != continuation.Limits:
-			return fmt.Errorf("runsegment: canceled Run[%d] frozen limits mismatch", index)
-		case !run.CreatedAt.Equal(continuation.RunCreatedAt):
-			return fmt.Errorf("runsegment: canceled Run[%d] creation time mismatch", index)
-		case !run.Capabilities.Equal(commit.ExpectedPending.Capabilities):
-			return fmt.Errorf("runsegment: canceled Run[%d] run capabilities mismatch", index)
-		case run.GoalLeaseID != "":
-			return fmt.Errorf("runsegment: canceled child Run[%d] carries a root Goal lease", index)
-		case run.State != execution.Canceled ||
-			run.Outcome == nil ||
-			*run.Outcome != execution.OutcomeCanceled:
-			return fmt.Errorf("runsegment: canceled Run[%d] is not canceled", index)
-		case run.ID == commit.RootRunID:
-			return errors.New("runsegment: waiting child cancellation terminalizes the root")
-		}
-		if _, duplicate := seen[run.ID]; duplicate {
-			return fmt.Errorf("runsegment: waiting cancellation repeats Run %q", run.ID)
-		}
-		seen[run.ID] = struct{}{}
-		finishedAtByRunID[run.ID] = run.FinishedAt
-	}
-
-	expectedTerminalItems := make(map[string]transcript.Interrupt)
-	for _, interrupt := range commit.ExpectedPending.Interrupts {
-		if _, terminal := seen[interrupt.RunID]; terminal {
-			expectedTerminalItems[interrupt.ItemID] = interrupt
-		}
-	}
-	if len(commit.TerminalItems) != len(expectedTerminalItems) {
-		return fmt.Errorf(
-			"runsegment: waiting cancellation has %d terminal Items, want %d",
-			len(commit.TerminalItems),
-			len(expectedTerminalItems),
-		)
-	}
-	seenTerminalItems := make(map[string]struct{}, len(commit.TerminalItems))
-	for index, item := range commit.TerminalItems {
-		interrupt, expected := expectedTerminalItems[item.Expected.ID]
-		if !expected ||
-			item.Expected.SessionID != commit.SessionID ||
-			item.Expected.RunID != interrupt.RunID ||
-			item.Expected.Status != transcript.ItemRunning {
-			return fmt.Errorf(
-				"runsegment: waiting cancellation terminal Item[%d] %q is outside the canceled interrupts",
-				index,
-				item.Expected.ID,
-			)
-		}
-		if _, duplicate := seenTerminalItems[item.Expected.ID]; duplicate {
-			return fmt.Errorf(
-				"runsegment: waiting cancellation repeats terminal Item %q",
-				item.Expected.ID,
-			)
-		}
-		seenTerminalItems[item.Expected.ID] = struct{}{}
-		switch interrupt.Kind {
-		case execution.QuestionInterrupt:
-			if item.Expected.Kind != transcript.QuestionItem ||
-				item.Expected.Question == nil ||
-				interrupt.Question == nil ||
-				!reflect.DeepEqual(item.Expected.Question, interrupt.Question) {
-				return fmt.Errorf(
-					"runsegment: waiting cancellation terminal question Item %q differs from its interrupt",
-					item.Expected.ID,
-				)
-			}
-		case execution.ApprovalInterrupt:
-			if item.Expected.Kind != transcript.ToolCall ||
-				item.Expected.Tool == nil ||
-				interrupt.Approval == nil ||
-				!reflect.DeepEqual(*item.Expected.Tool, interrupt.Approval.Tool) {
-				return fmt.Errorf(
-					"runsegment: waiting cancellation terminal approval Item %q differs from its interrupt",
-					item.Expected.ID,
-				)
-			}
-		default:
-			return fmt.Errorf(
-				"runsegment: waiting cancellation terminal Item %q has unsupported interrupt kind %s",
-				item.Expected.ID,
-				interrupt.Kind,
-			)
-		}
-		expectedReplacement := item.Expected
-		expectedReplacement.Status = transcript.ItemIncomplete
-		if expectedReplacement.Kind == transcript.ToolCall {
-			expectedReplacement.FinishedAt = finishedAtByRunID[interrupt.RunID]
-			expectedReplacement.Error = item.Replacement.Error
-			if expectedReplacement.Error == nil ||
-				expectedReplacement.Error.Kind != transcript.ToolFailedProblem ||
-				expectedReplacement.Error.Scope != transcript.ToolProblem {
-				return fmt.Errorf(
-					"runsegment: waiting cancellation terminal tool Item %q has invalid problem",
-					item.Expected.ID,
-				)
-			}
-		}
-		if !reflect.DeepEqual(expectedReplacement, item.Replacement) {
-			return fmt.Errorf(
-				"runsegment: waiting cancellation terminal Item %q replacement is invalid",
-				item.Expected.ID,
-			)
-		}
-	}
-
-	canceledSet := make(map[string]struct{}, len(canceledRunIDs))
-	canceledProcessSet := make(map[string]struct{}, len(canceledRunIDs))
-	for _, runID := range canceledRunIDs {
-		canceledSet[runID] = struct{}{}
-		canceledProcessSet[continuationByRunID[runID].ProcessID] = struct{}{}
-	}
-	var survivingRunIDs []string
-	for _, runID := range tree.Postorder() {
-		if _, canceled := canceledSet[runID]; !canceled {
-			survivingRunIDs = append(survivingRunIDs, runID)
-		}
-	}
-	var dispositionRunIDs []string
-	if commit.RemainingPending != nil {
-		var survivingInterruptIndexes []int
-		for index, binding := range commit.ExpectedPending.Suspensions {
-			if _, canceled := canceledProcessSet[binding.ProcessID]; !canceled {
-				survivingInterruptIndexes = append(survivingInterruptIndexes, index)
-			}
-		}
-		if len(commit.RemainingPending.Suspensions) != len(survivingInterruptIndexes) {
-			return fmt.Errorf(
-				"runsegment: reduced waiting cancellation has %d suspensions, surviving tree requires %d",
-				len(commit.RemainingPending.Suspensions),
-				len(survivingInterruptIndexes),
-			)
-		}
-		for index, expectedIndex := range survivingInterruptIndexes {
-			if commit.RemainingPending.Suspensions[index] !=
-				commit.ExpectedPending.Suspensions[expectedIndex] ||
-				!sameInterruptSnapshot(
-					commit.RemainingPending.Interrupts[index],
-					commit.ExpectedPending.Interrupts[expectedIndex],
-				) {
-				return fmt.Errorf(
-					"runsegment: reduced waiting cancellation changed surviving suspension[%d]",
-					index,
-				)
-			}
-		}
-		for _, continuation := range commit.RemainingPending.Continuations {
-			dispositionRunIDs = append(dispositionRunIDs, continuation.RunID)
-		}
-		if commit.RemainingPending.ExecutorID != commit.ExpectedPending.ExecutorID ||
-			commit.RemainingPending.GoalLeaseID != commit.ExpectedPending.GoalLeaseID ||
-			!commit.RemainingPending.CreatedAt.Equal(commit.ExpectedPending.CreatedAt) ||
-			!reflect.DeepEqual(
-				normalizeCapabilities(commit.RemainingPending.Capabilities),
-				normalizeCapabilities(commit.ExpectedPending.Capabilities),
-			) {
-			return errors.New("runsegment: reduced waiting cancellation changed immutable pending facts")
-		}
-	} else {
-		for _, binding := range commit.ExpectedPending.Suspensions {
-			if _, canceled := canceledProcessSet[binding.ProcessID]; !canceled {
-				return fmt.Errorf(
-					"runsegment: waiting cancellation resumes while process %q suspension %q survives",
-					binding.ProcessID,
-					binding.SuspensionID,
-				)
-			}
-		}
-		for _, draft := range commit.Resume.Runs {
-			dispositionRunIDs = append(dispositionRunIDs, draft.RunID)
-		}
-	}
-	if !slices.Equal(dispositionRunIDs, survivingRunIDs) {
-		return fmt.Errorf(
-			"runsegment: waiting cancellation disposition Runs %v, surviving tree requires %v",
-			dispositionRunIDs,
-			survivingRunIDs,
-		)
-	}
-	survivingSet := make(map[string]struct{}, len(survivingRunIDs))
-	for _, runID := range survivingRunIDs {
-		survivingSet[runID] = struct{}{}
-	}
-	for index, event := range commit.OpeningEvents {
-		if event.State != runs.StateUnchanged ||
-			event.Run != nil ||
-			event.GoalRun != nil ||
-			event.SessionID != commit.SessionID {
-			return fmt.Errorf(
-				"runsegment: waiting cancellation opening event[%d] is not an item-only projection",
-				index,
-			)
-		}
-		if _, survives := survivingSet[event.RunID]; !survives {
-			return fmt.Errorf(
-				"runsegment: waiting cancellation opening event[%d] names removed Run %q",
-				index,
-				event.RunID,
-			)
-		}
-		if len(event.Items) == 0 {
-			return fmt.Errorf(
-				"runsegment: waiting cancellation opening event[%d] has no Items",
-				index,
-			)
-		}
-		for _, item := range event.Items {
-			if item.SessionID != event.SessionID || item.RunID != event.RunID {
-				return fmt.Errorf(
-					"runsegment: waiting cancellation opening event[%d] Item %q scope mismatch",
-					index,
-					item.ID,
-				)
-			}
-		}
-	}
-
-	expectedItem, replacement := commit.ParentItem.Expected, commit.ParentItem.Replacement
-	targetContinuation := continuationByRunID[commit.TargetRunID]
-	if expectedItem.ID == "" ||
-		expectedItem.ID != replacement.ID ||
-		expectedItem.ID != targetContinuation.Lineage.SpawnedByItemID ||
-		expectedItem.SessionID != commit.SessionID ||
-		replacement.SessionID != commit.SessionID ||
-		expectedItem.RunID != replacement.RunID ||
-		expectedItem.RunID != targetContinuation.Lineage.ParentRunID {
-		return errors.New("runsegment: waiting cancellation parent Item identity mismatch")
-	}
-	replacementWithoutProblem := replacement
-	replacementWithoutProblem.Error = nil
-	if expectedItem.Kind != transcript.ToolCall ||
-		expectedItem.Tool == nil ||
-		expectedItem.Status != transcript.ItemIncomplete ||
-		expectedItem.Error != nil ||
-		!sameItemSnapshot(expectedItem, replacementWithoutProblem) {
-		return errors.New(
-			"runsegment: waiting cancellation replacement changes parent Item facts beyond its problem",
-		)
-	}
-	if replacement.Status != transcript.ItemIncomplete ||
-		replacement.Error == nil ||
-		replacement.Error.Kind != transcript.ChildRunCanceledProblem ||
-		replacement.Error.Scope != transcript.ToolProblem {
-		return errors.New("runsegment: waiting cancellation parent Item lacks child_run_canceled")
-	}
-	if commit.RemainingPending != nil {
-		for _, actual := range commit.RemainingPending.Continuations {
-			expected := continuationByRunID[actual.RunID]
-			if actual.RunID == targetContinuation.Lineage.ParentRunID {
-				var matched []interrupts.DrainedTool
-				expected.DrainedTools = slices.DeleteFunc(
-					slices.Clone(expected.DrainedTools),
-					func(candidate interrupts.DrainedTool) bool {
-						if candidate.ItemID != expectedItem.ID {
-							return false
-						}
-						matched = append(matched, candidate)
-						return true
-					},
-				)
-				if len(matched) != 1 {
-					return fmt.Errorf(
-						"runsegment: parent continuation has %d drained tools for spawning Item %q",
-						len(matched),
-						expectedItem.ID,
-					)
-				}
-				settled := matched[0]
-				expected.CommittedTools = append(
-					slices.Clone(expected.CommittedTools),
-					interrupts.CommittedTool{
-						ItemID:    settled.ItemID,
-						CallID:    settled.CallID,
-						Name:      settled.Name,
-						Arguments: settled.Arguments,
-						Problem:   *replacement.Error,
-					},
-				)
-			}
-			if !sameContinuationSnapshot(actual, expected) {
-				return fmt.Errorf(
-					"runsegment: reduced waiting cancellation changed continuation for Run %q",
-					actual.RunID,
-				)
-			}
-		}
-	}
-	return nil
-}
-
-func validateWaitingRunContinuationFacts(
-	run transcript.Run,
-	continuation interrupts.Continuation,
-) error {
-	switch {
-	case run.ID != continuation.RunID:
-		return errors.New("identity differs from continuation")
-	case run.Lineage() != continuation.Lineage:
-		return errors.New("lineage differs from continuation")
-	case run.ModelSelection != continuation.ModelSelection:
-		return errors.New("model selection differs from continuation")
-	case !run.Metrics.Equal(continuation.Metrics):
-		return errors.New("cumulative metrics differ from continuation")
-	case run.Limits != continuation.Limits:
-		return errors.New("frozen limits differ from continuation")
-	case !run.CreatedAt.Equal(continuation.RunCreatedAt):
-		return errors.New("creation time differs from continuation")
 	default:
 		return nil
 	}
@@ -637,16 +177,11 @@ func directInterrupts(pending interrupts.Pending, runID string) []transcript.Int
 	return out
 }
 
-// samePendingSnapshot compares the command's frozen optimistic-lock value with
-// the row claimed inside the transaction. SQLite round-trips zero-length nested
-// slices as allocated empty slices, while in-memory reducers commonly leave
-// them nil; those are the same domain value and must not create a false conflict.
-// Times are compared after removing monotonic/location representation details.
+// samePendingSnapshot compares the frozen optimistic-lock value with the row
+// claimed inside the transaction. SQLite may round-trip equivalent empty slices
+// and time representations differently, so those storage forms are normalized.
 func samePendingSnapshot(left, right interrupts.Pending) bool {
-	return reflect.DeepEqual(
-		normalizePendingSnapshot(left),
-		normalizePendingSnapshot(right),
-	)
+	return reflect.DeepEqual(normalizePendingSnapshot(left), normalizePendingSnapshot(right))
 }
 
 func normalizePendingSnapshot(pending interrupts.Pending) interrupts.Pending {
@@ -656,50 +191,32 @@ func normalizePendingSnapshot(pending interrupts.Pending) interrupts.Pending {
 	pending.CreatedAt = timeFromUnixNano(pending.CreatedAt)
 	pending.Capabilities = normalizeCapabilities(pending.Capabilities)
 	for index := range pending.Continuations {
-		pending.Continuations[index] = normalizeContinuationSnapshot(
-			pending.Continuations[index],
-		)
+		pending.Continuations[index] = normalizeContinuationSnapshot(pending.Continuations[index])
 	}
 	for index := range pending.Interrupts {
-		pending.Interrupts[index].ItemOccurredAt = timeFromUnixNano(
-			pending.Interrupts[index].ItemOccurredAt,
-		)
-		source := pending.Interrupts[index].Question
-		if source == nil {
+		pending.Interrupts[index].ItemOccurredAt = timeFromUnixNano(pending.Interrupts[index].ItemOccurredAt)
+		if pending.Interrupts[index].Question == nil {
 			continue
 		}
-		questionValue := *source
-		questionValue.Fields = slices.Clone(source.Fields)
-		question := &questionValue
-		pending.Interrupts[index].Question = question
-		if len(question.Fields) == 0 {
-			question.Fields = nil
-			continue
-		}
+		question := *pending.Interrupts[index].Question
+		question.Fields = slices.Clone(question.Fields)
 		for fieldIndex := range question.Fields {
 			if len(question.Fields[fieldIndex].Options) == 0 {
 				question.Fields[fieldIndex].Options = nil
 			}
 		}
+		if len(question.Fields) == 0 {
+			question.Fields = nil
+		}
+		pending.Interrupts[index].Question = &question
 	}
 	return pending
 }
 
-func sameContinuationSnapshot(left, right interrupts.Continuation) bool {
-	return reflect.DeepEqual(
-		normalizeContinuationSnapshot(left),
-		normalizeContinuationSnapshot(right),
-	)
-}
-
-func normalizeContinuationSnapshot(
-	continuation interrupts.Continuation,
-) interrupts.Continuation {
+func normalizeContinuationSnapshot(continuation interrupts.Continuation) interrupts.Continuation {
 	continuation.RunCreatedAt = timeFromUnixNano(continuation.RunCreatedAt)
 	for index := range continuation.DrainedTools {
-		continuation.DrainedTools[index].ItemOccurredAt = timeFromUnixNano(
-			continuation.DrainedTools[index].ItemOccurredAt,
-		)
+		continuation.DrainedTools[index].ItemOccurredAt = timeFromUnixNano(continuation.DrainedTools[index].ItemOccurredAt)
 	}
 	if len(continuation.DrainedTools) == 0 {
 		continuation.DrainedTools = nil
@@ -726,17 +243,7 @@ func normalizeCapabilities(capabilities execution.RunCapabilities) execution.Run
 }
 
 func sameItemSnapshot(left, right transcript.Item) bool {
-	return reflect.DeepEqual(
-		normalizeItemSnapshot(left),
-		normalizeItemSnapshot(right),
-	)
-}
-
-func sameInterruptSnapshot(left, right transcript.Interrupt) bool {
-	pending := normalizePendingSnapshot(interrupts.Pending{
-		Interrupts: []transcript.Interrupt{left, right},
-	})
-	return reflect.DeepEqual(pending.Interrupts[0], pending.Interrupts[1])
+	return reflect.DeepEqual(normalizeItemSnapshot(left), normalizeItemSnapshot(right))
 }
 
 func normalizeItemSnapshot(item transcript.Item) transcript.Item {

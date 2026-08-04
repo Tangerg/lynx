@@ -134,6 +134,43 @@ func (c EventCommit) isEmpty() bool {
 		c.State == StateUnchanged
 }
 
+// Validate proves that the opening is exactly one fresh admission or one tree
+// continuation and that every accompanying projection is item-only. Persistence
+// Port implementations may reject unavailable stores or concurrent state changes, but they
+// do not reinterpret this application write-set.
+func (c OpeningCommit) Validate() error {
+	if (c.Admit == nil) == (c.Resume == nil) {
+		return errors.New("runs: opening requires exactly one admission action")
+	}
+	if c.Admit != nil {
+		if c.ScheduledSession != nil && c.ScheduledSession.ID != c.Admit.SessionID {
+			return errors.New("runs: opening scheduled Session differs from admitted Run")
+		}
+		if c.SessionModel != nil {
+			if c.SessionModel.SessionID != c.Admit.SessionID {
+				return errors.New("runs: opening Session model differs from admitted Run")
+			}
+			if strings.TrimSpace(c.SessionModel.Model) == "" || c.SessionModel.Model != strings.TrimSpace(c.SessionModel.Model) {
+				return errors.New("runs: opening Session model must be non-empty without surrounding whitespace")
+			}
+		}
+		if c.ScheduleFiring != strings.TrimSpace(c.ScheduleFiring) {
+			return errors.New("runs: opening schedule firing has surrounding whitespace")
+		}
+	} else if c.ScheduledSession != nil || c.SessionModel != nil || c.ScheduleFiring != "" {
+		return errors.New("runs: resumed opening carries fresh-run facts")
+	}
+	for index, commit := range c.Events {
+		if err := commit.Validate(); err != nil {
+			return fmt.Errorf("runs: opening event[%d]: %w", index, err)
+		}
+		if commit.State != StateUnchanged || len(commit.Items) == 0 {
+			return fmt.Errorf("runs: opening event[%d] is not an item-only projection", index)
+		}
+	}
+	return nil
+}
+
 // TreeBarrierCommit is the one durable write-set produced when any executor
 // suspension stops a Run tree. Pending owns the complete continuation hand-off;
 // Runs contains one StateSuspend commit for every active Run in deterministic
@@ -142,4 +179,83 @@ type TreeBarrierCommit struct {
 	Pending    interrupts.Pending
 	Runs       []EventCommit
 	Checkpoint execution.ExecutorCheckpoint
+}
+
+// Validate proves that the barrier is the complete suspension projection for
+// the pending continuation tree and that its checkpoint belongs to the same
+// execution. The Effects port only persists this already-defined write-set.
+func (c TreeBarrierCommit) Validate() error {
+	if err := c.Pending.Validate(); err != nil {
+		return fmt.Errorf("runs: tree barrier Pending: %w", err)
+	}
+	rootContinuation, ok := c.Pending.RootContinuation()
+	if !ok {
+		return errors.New("runs: tree barrier has no root continuation")
+	}
+	if err := c.Checkpoint.ValidateOwnership(rootContinuation.ProcessID, c.Pending.SessionID); err != nil {
+		return fmt.Errorf("runs: tree barrier checkpoint ownership: %w", err)
+	}
+	if c.Checkpoint.Scope.GoalLeaseID != c.Pending.GoalLeaseID {
+		return fmt.Errorf(
+			"runs: tree barrier checkpoint goal lease %q does not match Pending %q: %w",
+			c.Checkpoint.Scope.GoalLeaseID,
+			c.Pending.GoalLeaseID,
+			execution.ErrInvalidExecutorCheckpoint,
+		)
+	}
+	if c.Checkpoint.ModelSelection != rootContinuation.ModelSelection {
+		return fmt.Errorf("runs: tree barrier checkpoint model differs from root continuation: %w", execution.ErrInvalidExecutorCheckpoint)
+	}
+	if c.Checkpoint.Limits != rootContinuation.Limits {
+		return fmt.Errorf("runs: tree barrier checkpoint limits differ from root continuation: %w", execution.ErrInvalidExecutorCheckpoint)
+	}
+	if len(c.Runs) != len(c.Pending.Continuations) {
+		return fmt.Errorf(
+			"runs: tree barrier has %d Run commits for %d continuations",
+			len(c.Runs),
+			len(c.Pending.Continuations),
+		)
+	}
+	continuations := make(map[string]interrupts.Continuation, len(c.Pending.Continuations))
+	for _, continuation := range c.Pending.Continuations {
+		continuations[continuation.RunID] = continuation
+	}
+	seen := make(map[string]struct{}, len(c.Runs))
+	for index, commit := range c.Runs {
+		if err := commit.Validate(); err != nil {
+			return fmt.Errorf("runs: tree barrier Run[%d]: %w", index, err)
+		}
+		if commit.State != StateSuspend || commit.Run == nil || commit.Run.State != execution.Interrupted {
+			return fmt.Errorf("runs: tree barrier Run[%d] is not an interrupted Run projection", index)
+		}
+		if commit.SessionID != c.Pending.SessionID || commit.Run.SessionID != c.Pending.SessionID {
+			return fmt.Errorf("runs: tree barrier Run[%d] Session differs from Pending", index)
+		}
+		continuation, exists := continuations[commit.RunID]
+		if !exists {
+			return fmt.Errorf("runs: tree barrier Run[%d] has no continuation", index)
+		}
+		if commit.Run.Lineage() != continuation.Lineage ||
+			commit.Run.ModelSelection != continuation.ModelSelection ||
+			!commit.Run.CreatedAt.Equal(continuation.RunCreatedAt) ||
+			!commit.Run.Metrics.Equal(continuation.Metrics) ||
+			commit.Run.Limits != continuation.Limits {
+			return fmt.Errorf("runs: tree barrier Run[%d] differs from its continuation", index)
+		}
+		if !commit.Run.Capabilities.Equal(c.Pending.Capabilities) {
+			return fmt.Errorf("runs: tree barrier Run[%d] capabilities differ from Pending", index)
+		}
+		if commit.RunID == c.Pending.RootRunID {
+			if commit.Run.GoalLeaseID != c.Pending.GoalLeaseID {
+				return errors.New("runs: tree barrier root Run goal lease differs from Pending")
+			}
+		} else if commit.Run.GoalLeaseID != "" {
+			return fmt.Errorf("runs: tree barrier child Run[%d] carries a root Goal lease", index)
+		}
+		if _, duplicate := seen[commit.RunID]; duplicate {
+			return fmt.Errorf("runs: tree barrier repeats Run %q", commit.RunID)
+		}
+		seen[commit.RunID] = struct{}{}
+	}
+	return nil
 }

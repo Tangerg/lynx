@@ -411,12 +411,14 @@ func TestExecutorCheckpointBindingIsValidatedAtEveryBoundary(t *testing.T) {
 		filepath.Join("internal", "application", "runs", "waiting_cancellation.go"): {
 			"ValidateOwnership", "Scope.GoalLeaseID", "Checkpoint.ModelSelection",
 		},
-		filepath.Join("internal", "adapter", "runsegment", "effects_commit.go"): {
+		filepath.Join("internal", "application", "runs", "commit.go"): {
 			"ValidateOwnership", "Scope.GoalLeaseID", "Checkpoint.ModelSelection",
-			"DeleteCheckpoints(ctx, commit.SessionID",
 		},
-		filepath.Join("internal", "adapter", "runsegment", "effects_waiting_cancellation.go"): {
+		filepath.Join("internal", "application", "runs", "waiting_cancellation_commit.go"): {
 			"ValidateOwnership", "Scope.GoalLeaseID", "Checkpoint.ModelSelection",
+		},
+		filepath.Join("internal", "adapter", "runsegment", "effects_commit.go"): {
+			"DeleteCheckpoints(ctx, commit.SessionID",
 		},
 		filepath.Join("internal", "application", "runs", "recovery_validation.go"): {
 			"ExecutorCheckpointExpectation", "GoalLeaseID", "sess.Cwd", "sess.Isolated",
@@ -542,16 +544,16 @@ func TestParkedContinuationFactsAreCrossCheckedAtEveryLifecycleBoundary(t *testi
 			"p.Capabilities.ChildRuns",
 			"slices.Contains(p.Capabilities.InterruptKinds, interrupt.Kind)",
 		},
-		filepath.Join("internal", "adapter", "runsegment", "effects_commit.go"): {
+		filepath.Join("internal", "application", "runs", "commit.go"): {
 			"commit.Run.Metrics.Equal(continuation.Metrics)",
 			"commit.Run.Limits != continuation.Limits",
-			"commit.Run.Capabilities.Equal(barrier.Pending.Capabilities)",
-			"commit.Run.GoalLeaseID != barrier.Pending.GoalLeaseID",
+			"commit.Run.Capabilities.Equal(c.Pending.Capabilities)",
+			"commit.Run.GoalLeaseID != c.Pending.GoalLeaseID",
 		},
-		filepath.Join("internal", "adapter", "runsegment", "effects_waiting_cancellation.go"): {
+		filepath.Join("internal", "application", "runs", "waiting_cancellation_commit.go"): {
 			"run.Metrics.Equal(continuation.Metrics)",
 			"run.Limits != continuation.Limits",
-			"commit.RootRun.Capabilities.Equal(commit.ExpectedPending.Capabilities)",
+			"c.RootRun.Capabilities.Equal(c.ExpectedPending.Capabilities)",
 		},
 		filepath.Join("internal", "application", "runs", "cancel_plan.go"): {
 			"validatePendingRunTree(*pending, activeRuns)",

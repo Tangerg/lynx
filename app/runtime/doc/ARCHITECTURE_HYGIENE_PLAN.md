@@ -909,10 +909,30 @@ Acceptance:
 | 35. Execution identity and Goal Run vocabulary closure | Completed | 2026-08-04 | 2026-08-04 | Domain/Application use `ExecutorRef`, `ExecutionScope`, `ExecutionControl`, and Goal `Run` accounting exclusively; adapter-local `Turn` no longer crosses inward, SQLite uses `executor_id`/`goal_runs`/`max_runs`, server contracts were regenerated, and semantic-boundary fitness tests pin the retired vocabulary. |
 | 36. Cursor namespace and maintenance boundary closure | Completed | 2026-08-04 | 2026-08-04 | Semantic cursor namespaces, Execution/Run maintenance vocabulary, Delivery test-boundary isolation, comment cleanup, architecture fitness checks, workspace/standalone build and vet, server suites, focused race tests, static analysis, lint, dead-code analysis, and residue scans passed. |
 | 37. Remaining semantic boundary closure | Completed | 2026-08-04 | 2026-08-04 | `bootstrap.Stack` exposes the idempotency consumer port, inner queries use lookup/value semantics, inner-ring comments are layer-neutral, and focused architecture guards plus workspace/standalone/race/static verification passed. |
+| 38. Run write-set ownership closure | Completed | 2026-08-04 | 2026-08-04 | Opening, tree-barrier, and waiting-subtree invariants are application-owned; runsegment retains only store availability, optimistic snapshot claiming, transaction I/O, and compensation. Full build/vet/test, focused race tests, static analysis, lint, dead-code analysis, formatting, and architecture checks passed. |
 
 Allowed status values: `Pending`, `In progress`, `Completed`, `Blocked`, `Revised`.
 
 ## 7. Progress log
+
+### 2026-08-04 — Batch 38 completed
+
+- Added application-owned validation for `OpeningCommit`, `TreeBarrierCommit`,
+  and `WaitingSubtreeCancellationCommit`. Canonical tree membership,
+  checkpoint binding, continuation equality, disposition, terminal projection,
+  and parent-tool settlement are now expressed beside the write sets they
+  define.
+- Reduced `adapter/runsegment` to infrastructure concerns: collaborator
+  availability, optimistic comparison of the claimed persisted snapshot,
+  transactional writes, storage error context, and failed-commit compensation.
+  The former 439-line adapter policy validator was removed rather than wrapped.
+- Moved the architecture fitness markers for checkpoint and parked-continuation
+  invariants to Application. Semantic value comparison deliberately normalizes
+  equivalent empty collections and time representations without importing a
+  storage technology inward.
+- `go build ./...`, `go vet ./...`, `go test ./...`, focused `-race` tests,
+  `staticcheck`, `golangci-lint`, `deadcode -test`, formatting, and
+  `git diff --check` passed.
 
 ### 2026-08-04 — Batch 37 completed
 
