@@ -57,28 +57,12 @@ func (r *Registry) add(meta MethodMeta, handle func(*Router, context.Context, *t
 	r.names = append(r.names, meta.Name)
 }
 
-// Lookup returns the registered method, or false for an unknown name.
-func (r *Registry) Lookup(name string) (*Method, bool) {
-	method, ok := r.lookup(name)
-	if !ok {
-		return nil, false
-	}
-	snapshot := *method
-	snapshot.Meta = cloneMethodMeta(method.Meta)
-	return &snapshot, true
-}
-
 // lookup is the router's allocation-free read of immutable registry state.
-// Public tooling uses Lookup's defensive snapshot; routing never exposes this
-// pointer outside the package.
+// The returned pointer remains package-owned and must not be mutated.
 func (r *Registry) lookup(name string) (*Method, bool) {
 	method, ok := r.byName[name]
 	return method, ok
 }
-
-// Names lists every registered method in registration order, so generated
-// artifacts and diffs are stable.
-func (r *Registry) Names() []string { return slices.Clone(r.names) }
 
 // Metas lists every method's metadata in registration order.
 func (r *Registry) Metas() []MethodMeta {

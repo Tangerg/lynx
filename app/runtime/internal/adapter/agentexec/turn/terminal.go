@@ -130,7 +130,7 @@ func (s *controller) cleanupTurn(ctx context.Context, st *turnState) error {
 }
 
 // emitTurnEnd maps the process segment's immutable completion onto the
-// transport-shape TurnEnd.
+// application-owned TurnEnd event.
 func (s *controller) emitTurnEnd(st *turnState, completion agentexec.TurnCompletion, duration time.Duration) {
 	plan := planTurnEnd(completion)
 	out := completion.Output

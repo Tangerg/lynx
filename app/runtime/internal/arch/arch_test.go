@@ -2048,11 +2048,24 @@ func TestSystemInvariantsStayInApplication(t *testing.T) {
 		"SystemInvariantSpec": "a cross-resource invariant is named by the ring that owns its transaction",
 		"TransactionBoundary": "a transaction boundary is an application concern",
 	})
-	// The declared set must be actionable wherever it lives.
-	if err := appcontract.Validate(); err != nil {
-		t.Fatalf("declared system invariants: %v", err)
-	}
-	if len(appcontract.SystemInvariants()) == 0 {
+	// The declared set must be actionable wherever it lives. This validation is
+	// fitness-test behavior, so it stays out of the production contract package.
+	specs := appcontract.SystemInvariants()
+	if len(specs) == 0 {
 		t.Fatal("no system invariant is declared; the manifest gate would pass vacuously")
+	}
+	seen := make(map[string]bool, len(specs))
+	for _, spec := range specs {
+		switch {
+		case spec.Key == "":
+			t.Error("system invariant key is required")
+		case seen[spec.Key]:
+			t.Errorf("system invariant %q is declared twice", spec.Key)
+		case spec.Why == "":
+			t.Errorf("system invariant %q does not explain what it protects", spec.Key)
+		case len(spec.Boundaries) == 0:
+			t.Errorf("system invariant %q has no responsible transaction", spec.Key)
+		}
+		seen[spec.Key] = true
 	}
 }

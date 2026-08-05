@@ -33,12 +33,6 @@ func TestRegistryViewsAreSnapshots(t *testing.T) {
 		Params:    reflect.TypeFor[registrySnapshotParams](),
 	}, nil)
 
-	names := registry.Names()
-	names[0] = "tests.corrupted"
-	if got := registry.Names(); !slices.Equal(got, []string{"tests.snapshot"}) {
-		t.Fatalf("Names exposed registry storage: %v", got)
-	}
-
 	metas := registry.Metas()
 	metas[0].Errors[0] = protocol.ErrSessionNotFound.Error()
 	metas[0].CapabilityRules[0].When[0].Field = "corrupted"
@@ -53,19 +47,12 @@ func TestRegistryViewsAreSnapshots(t *testing.T) {
 	if !slices.Equal(got.CapabilityRules[0].Requires, []string{protocol.FeatureSubagents}) {
 		t.Fatalf("Metas exposed requirement storage: %+v", got.CapabilityRules)
 	}
-
-	lookedUp, _ := registry.Lookup("tests.snapshot")
-	lookedUp.Meta.Errors[0] = protocol.ErrSessionNotFound.Error()
-	lookedUpAgain, _ := registry.Lookup("tests.snapshot")
-	if !slices.Equal(lookedUpAgain.Meta.Errors, []string{protocol.ErrRunNotFound.Error()}) {
-		t.Fatalf("Lookup exposed registry storage: %v", lookedUpAgain.Meta.Errors)
-	}
 }
 
 func TestMetadataEnumsRejectUnknownValuesWithoutMasqueradingAsDefaults(t *testing.T) {
 	t.Parallel()
 
-	registered, ok := contract.Lookup("runs.list")
+	registered, ok := contract.lookup("runs.list")
 	if !ok {
 		t.Fatal("runs.list is not registered")
 	}
@@ -181,7 +168,7 @@ func TestPaginationIsDerivedFromWireShapes(t *testing.T) {
 	}
 
 	for _, name := range []string{"models.list", "providers.list", "runs.get", "tools.list", "workspaces.list"} {
-		method, ok := contract.Lookup(name)
+		method, ok := contract.lookup(name)
 		if !ok {
 			t.Fatalf("%s is not registered", name)
 		}

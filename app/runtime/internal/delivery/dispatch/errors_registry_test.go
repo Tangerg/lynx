@@ -15,9 +15,12 @@ import (
 func TestEveryDeclarableProblemTypeHasARecoveryAction(t *testing.T) {
 	t.Parallel()
 
-	for _, problemType := range MethodProblemTypes() {
-		if _, declared := RecoveryFor(problemType); !declared {
-			t.Errorf("%s is declarable and has no recovery action", problemType)
+	for _, spec := range rpcErrorSpecs {
+		if !spec.methodDeclarable {
+			continue
+		}
+		if _, declared := RecoveryFor(spec.sentinel.Error()); !declared {
+			t.Errorf("%s is declarable and has no recovery action", spec.sentinel)
 		}
 	}
 }

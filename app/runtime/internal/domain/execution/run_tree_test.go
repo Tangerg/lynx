@@ -47,10 +47,6 @@ func TestRunTreeCanonicalPostorderAndSubtree(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewRunTree: %v", err)
 	}
-	if tree.RootRunID() != "run_root" {
-		t.Fatalf("RootRunID = %q, want run_root", tree.RootRunID())
-	}
-
 	wantTree := []string{"run_a0", "run_a1", "run_a", "run_b", "run_root"}
 	if got := tree.Postorder(); !equalStrings(got, wantTree) {
 		t.Fatalf("Postorder = %v, want %v", got, wantTree)

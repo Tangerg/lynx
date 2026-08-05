@@ -180,15 +180,15 @@ func fileStatus(status git.Status) (workspaceapp.FileStatus, bool) {
 	}
 }
 
-func diffRowType(kind string) (workspaceapp.DiffRowType, bool) {
+func diffRowType(kind git.RowType) (workspaceapp.DiffRowType, bool) {
 	switch kind {
-	case "hunk":
+	case git.RowHunk:
 		return workspaceapp.DiffRowHunk, true
-	case "context":
+	case git.RowContext:
 		return workspaceapp.DiffRowContext, true
-	case "added":
+	case git.RowAdded:
 		return workspaceapp.DiffRowAdded, true
-	case "deleted":
+	case git.RowDeleted:
 		return workspaceapp.DiffRowDeleted, true
 	default:
 		return "", false

@@ -21,7 +21,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 )
 
 // TestEngine_RunChat_ToolCallObserved drives the engine with a stub
@@ -967,9 +966,6 @@ func TestEngine_RestoreChat_PreservesOptionsFromSnapshot(t *testing.T) {
 	}
 	if scope, ok := executionctx.Scope(restoredProcess.runCtx); !ok || scope != wantScope {
 		t.Fatalf("restored run scope = (%+v, %v), want %+v", scope, ok, wantScope)
-	}
-	if selection := executionctx.ModelSelection(restoredProcess.runCtx, modelref.Selection{}); selection != wantSelection {
-		t.Fatalf("restored model selection = %+v, want %+v", selection, wantSelection)
 	}
 	pendingSuspensions, err := restored.PendingSuspensions(context.Background())
 	if err != nil {

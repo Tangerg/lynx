@@ -144,7 +144,7 @@ func (e *Engine) StartTurn(ctx context.Context, request TurnRequest) (TurnProces
 	if err := scope.Validate(); err != nil {
 		return nil, fmt.Errorf("engine: start chat: %w", err)
 	}
-	runCtx := executionctx.WithModelSelection(executionctx.WithScope(ctx, scope), request.ModelSelection)
+	runCtx := executionctx.WithScope(ctx, scope)
 	provider := request.ModelSelection.Provider()
 	limits := request.Limits
 	input := turnInput{Message: request.Message, Media: request.Media, Options: request.Options}
@@ -438,7 +438,7 @@ func (e *Engine) RestoreTurn(ctx context.Context, rootProcessID string, request 
 	if err := agentruntime.ValidateResumableSnapshot(root); err != nil {
 		return nil, executorCheckpointLost("restore", err)
 	}
-	runCtx := executionctx.WithModelSelection(executionctx.WithScope(ctx, checkpoint.Scope), checkpoint.ModelSelection)
+	runCtx := executionctx.WithScope(ctx, checkpoint.Scope)
 	process, err := e.runtime.RestoreTree(runCtx, tree, options)
 	if err != nil {
 		if isExecutorCheckpointLoss(err) {

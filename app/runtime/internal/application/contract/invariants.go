@@ -13,8 +13,6 @@
 package contract
 
 import (
-	"errors"
-	"fmt"
 	"slices"
 )
 
@@ -124,24 +122,3 @@ var systemInvariants = []SystemInvariantSpec{{
 		"rollback would keep driving runs toward an objective nobody can see or stop.",
 	Boundaries: []TransactionBoundary{BoundaryGoalLifecycle, BoundarySessionDelete, BoundarySessionRollback},
 }}
-
-// Validate rejects a declaration that cannot be acted on: an invariant with no
-// responsible boundary is a wish, and a duplicate key would let two fixtures each
-// think it covered the other's invariant.
-func Validate() error {
-	seen := make(map[string]bool, len(systemInvariants))
-	for _, spec := range systemInvariants {
-		switch {
-		case spec.Key == "":
-			return errors.New("system invariant: key is required")
-		case seen[spec.Key]:
-			return fmt.Errorf("system invariant %q is declared twice", spec.Key)
-		case spec.Why == "":
-			return fmt.Errorf("system invariant %q: state what breaks without it", spec.Key)
-		case len(spec.Boundaries) == 0:
-			return fmt.Errorf("system invariant %q: no transaction is responsible for it", spec.Key)
-		}
-		seen[spec.Key] = true
-	}
-	return nil
-}

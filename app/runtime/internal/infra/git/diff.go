@@ -23,10 +23,20 @@ const (
 	Base Mode = "base"
 )
 
-// Row is one structured unified-diff row. Type ∈ hunk|context|added|deleted
-// (matches the wire DiffRow). Code is the line content (without the +/-/space).
+// RowType is the parser-owned classification of a unified-diff row.
+type RowType string
+
+const (
+	RowHunk    RowType = "hunk"
+	RowContext RowType = "context"
+	RowAdded   RowType = "added"
+	RowDeleted RowType = "deleted"
+)
+
+// Row is one structured unified-diff row. Code is the line content without the
+// leading addition, deletion, or context marker.
 type Row struct {
-	Type      string
+	Type      RowType
 	Text      string // hunk header text (Type=hunk)
 	LeftLine  int
 	RightLine int

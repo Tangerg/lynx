@@ -530,8 +530,8 @@ func (t *turnObserver) OnReasoningDelta(process agentexec.ProcessRef, text strin
 	})
 }
 
-// OnUsage forwards the per-round cumulative usage as a [UsageReported] event —
-// the mid-run token / cost readout (transport maps it to segment.progress).
+// OnUsage forwards the per-round cumulative usage as a [UsageReported] event,
+// preserving the live token and cost facts for downstream projection.
 // contextTokens is this round's prompt size (the live context occupancy).
 func (t *turnObserver) OnUsage(process agentexec.ProcessRef, progress agentexec.UsageProgress) {
 	if !t.projects(process) {

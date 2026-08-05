@@ -48,17 +48,17 @@ func parseUnifiedDiff(patch string) ([]DiffFile, error) {
 			if err != nil {
 				return nil, err
 			}
-			cur.Rows = append(cur.Rows, Row{Type: "hunk", Text: line})
+			cur.Rows = append(cur.Rows, Row{Type: RowHunk, Text: line})
 		case strings.HasPrefix(line, "+"):
-			cur.Rows = append(cur.Rows, Row{Type: "added", RightLine: rightLine, Code: line[1:]})
+			cur.Rows = append(cur.Rows, Row{Type: RowAdded, RightLine: rightLine, Code: line[1:]})
 			rightLine++
 			cur.Added++
 		case strings.HasPrefix(line, "-"):
-			cur.Rows = append(cur.Rows, Row{Type: "deleted", LeftLine: leftLine, Code: line[1:]})
+			cur.Rows = append(cur.Rows, Row{Type: RowDeleted, LeftLine: leftLine, Code: line[1:]})
 			leftLine++
 			cur.Removed++
 		case strings.HasPrefix(line, " "):
-			cur.Rows = append(cur.Rows, Row{Type: "context", LeftLine: leftLine, RightLine: rightLine, Code: line[1:]})
+			cur.Rows = append(cur.Rows, Row{Type: RowContext, LeftLine: leftLine, RightLine: rightLine, Code: line[1:]})
 			leftLine++
 			rightLine++
 		}

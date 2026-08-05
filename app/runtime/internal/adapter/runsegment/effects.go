@@ -122,8 +122,8 @@ type TaskLauncher interface {
 }
 
 // FileChangePublisher nudges live workspace subscribers after a tool-owned file
-// mutation. It is deliberately path-only: the protocol boundary owns the wire
-// WorkspaceEvent shape.
+// mutation. It is deliberately path-only so the persistence effect does not
+// acquire event-presentation responsibilities.
 type FileChangePublisher func(workspaceapp.FileChangeNotice)
 
 // Config bundles the Effects dependencies.

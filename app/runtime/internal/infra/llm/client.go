@@ -159,8 +159,8 @@ func openaiNative(spec ClientSpec, opts chat.Options) (chat.Model, error) {
 // BuildClient wires a *chatclient.Client for one provider+model from [providerInfo]:
 // it picks the model adapter, plugs in the model id, api key, and optional base
 // URL. A provider that requires a base URL (the generic passthroughs, Azure)
-// errors when one isn't supplied. Per-round cost is priced separately by the
-// runtime composition layer, so a client carries no pricing hook.
+// errors when one isn't supplied. Pricing is a separate accounting concern, so
+// the constructed client carries no pricing hook.
 func BuildClient(spec ClientSpec) (*chatclient.Client, error) {
 	entry, ok := providerInfo[spec.Provider]
 	if !ok {

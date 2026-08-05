@@ -22,8 +22,7 @@ import (
 
 var (
 	// ErrUnavailable means there is no snapshot to restore for the requested run
-	// (no shadow repo, or no tag at that boundary). It maps to the wire
-	// checkpoint_unavailable.
+	// (no shadow repo, or no tag at that boundary).
 	ErrUnavailable = errors.New("checkpoint: no snapshot for run")
 	// ErrRestoreIncomplete means reset started but did not complete, so callers
 	// must retain their recovery intent: Git may already have changed part of the

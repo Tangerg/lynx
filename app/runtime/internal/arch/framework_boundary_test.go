@@ -524,7 +524,7 @@ func TestSegmentPumpKeepsOneGoroutineOwner(t *testing.T) {
 // never a caller or composition package that happens to consume them today.
 func TestInnerRingCommentsDoNotNameOuterArchitecture(t *testing.T) {
 	root := filepath.Join(moduleRoot(t), "internal")
-	runtimeProtocolReference := regexp.MustCompile(`(?i)API\.md|AUX_API|TRANSPORT\.md|\b(workspace\.listFiles|sessions\.(rollback|fork|import)|runs\.(start|cancel|resume)|providers\.(update|test)|models\.(list|setUtilityRole|getUtilityRole|setEmbeddingRole|getEmbeddingRole)|goals\.start|mcp\.tools\.list)\b`)
+	runtimeProtocolReference := regexp.MustCompile(`(?i)API\.md|AUX_API|TRANSPORT\.md|\b(workspace\.listFiles|sessions\.(rollback|fork|import)|runs\.(start|cancel|resume)|providers\.(update|test)|models\.(list|setUtilityRole|getUtilityRole|setEmbeddingRole|getEmbeddingRole)|goals\.start|mcp\.tools\.list)\b|matches? the wire|maps? to the wire|transport maps|transport-shape|protocol boundary owns the wire|runtime composition layer|runtime server process`)
 	checks := []struct {
 		ring      string
 		forbidden *regexp.Regexp

@@ -8,7 +8,7 @@
 // someone else's tail. So a cursor carries what it was minted for — the process,
 // the run and the segment — and a mismatch is refused rather than resolved.
 //
-// The token is opaque to clients: they store it and hand it back, and they may
+// The token is opaque to consumers: they store it and hand it back, and they may
 // not order, parse or construct one. The encoding is therefore free to change;
 // [formatVersion] makes a token in flight across an upgrade a refusal rather
 // than a misreading. Nothing here is secret — the runtime has no user boundary
@@ -36,7 +36,7 @@ const formatVersion = 1
 // Position is a point in one stream: which process minted it, which run and
 // segment the stream belongs to, and how far along it is.
 //
-// Epoch is compared for equality only. It is the identity of the runtime process
+// Epoch is compared for equality only. It is the identity of the process
 // that owns the in-memory stream, so a cursor from an earlier process names a
 // buffer that no longer exists — a different answer from "that position was
 // evicted", and a different answer again from "that position never existed".
@@ -47,13 +47,13 @@ type Position struct {
 	Sequence  uint64
 }
 
-// NewEpoch mints the identity of one runtime process's event streams. It is
+// NewEpoch mints the identity of one process's event streams. It is
 // random rather than a counter or a timestamp: a restart must never be able to
 // mint an epoch a previous run of the process already used, which is what would
 // let a stale cursor be accepted as current.
 func NewEpoch() string { return rand.Text() }
 
-// cursor is the encoded token. Keys are short because every event on the wire
+// cursor is the encoded token. Keys stay short because each published event
 // carries one.
 type cursor struct {
 	Version   int    `json:"v"`
@@ -72,7 +72,7 @@ func Encode(p Position) string {
 	if err != nil {
 		// cursor holds only strings and an integer, so marshaling cannot fail. An
 		// empty token would read as "no cursor" and silently turn a reconnect into a
-		// tail-only subscription, losing the events the client asked to replay.
+		// tail-only subscription, losing the events the subscriber asked to replay.
 		panic("replaycursor: encode: " + err.Error())
 	}
 	return base64.RawURLEncoding.EncodeToString(payload)

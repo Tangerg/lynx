@@ -70,9 +70,8 @@ type TurnOutput struct {
 // within one turn without an application-owned iteration loop.
 //
 // The body uses Stream rather than Call so each text chunk surfaces
-// to [executionObserver.OnMessageDelta] as it arrives — transport
-// adapters get a real streaming experience instead of one pre-buffered
-// MessageDelta. Tool-call rounds still go through the same tool loop; tool
+// to [executionObserver.OnMessageDelta] as it arrives instead of producing one
+// pre-buffered MessageDelta. Tool-call rounds still go through the same tool loop; tool
 // events surface via the tool-decorator path independently of the text-delta
 // path.
 func (e *Engine) buildTurnAgent() *core.Agent {

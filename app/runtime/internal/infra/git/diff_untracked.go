@@ -45,9 +45,9 @@ func untrackedDiffFile(dir, rel string) (DiffFile, bool) {
 	if len(data) == 0 {
 		lines = nil
 	}
-	df.Rows = append(df.Rows, Row{Type: "hunk", Text: "@@ -0,0 +1," + strconv.Itoa(len(lines)) + " @@"})
+	df.Rows = append(df.Rows, Row{Type: RowHunk, Text: "@@ -0,0 +1," + strconv.Itoa(len(lines)) + " @@"})
 	for i, ln := range lines {
-		df.Rows = append(df.Rows, Row{Type: "added", RightLine: i + 1, Code: ln})
+		df.Rows = append(df.Rows, Row{Type: RowAdded, RightLine: i + 1, Code: ln})
 	}
 	df.Added = len(lines)
 	return df, true

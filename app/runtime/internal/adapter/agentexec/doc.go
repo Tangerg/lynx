@@ -5,5 +5,5 @@
 // application layer drives to run one segment (a chat turn + its tool loop).
 //
 // Engine is owned by [New]; everything else is internal plumbing. The engine
-// is process-scoped — one *Engine per runtime server process.
+// is process-scoped — one *Engine per host process.
 package agentexec

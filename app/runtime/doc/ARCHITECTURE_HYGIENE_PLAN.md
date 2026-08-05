@@ -1090,6 +1090,28 @@ Allowed status values: `Pending`, `In progress`, `Completed`, `Blocked`, `Revise
   build/vet/test, race tests, static analysis, lint, formatting, dead-code
   analysis, and residue scans passed.
 
+### 2026-08-05 — Batch 52 completed
+
+- Replaced Git diff rows' stringly typed, outer-vocabulary coupling with an
+  infrastructure-owned `RowType`; the workspace adapter now performs the one
+  explicit translation into application diff-row values. Removed the remaining
+  lower-ring comments that narrated Runtime wire names, presentation mapping,
+  or composition ownership, and extended the comment fitness gate to keep those
+  phrases out.
+- Deleted the model-selection context carrier that production wrote but never
+  read; model choice remains exactly where it is consumed and persisted: the
+  turn request, process options, and executor checkpoint. Removed a test-only
+  RunTree getter and moved test-only item normalization out of production code.
+- Removed test-only production catalog/snapshot entry points from change,
+  invariant, and dispatch packages. Fitness tests now inspect caller-owned
+  snapshots or package-owned registry facts directly. Dead-code analysis is
+  reduced to the deliberately retained same-process transport surface and the
+  explicitly test-only cross-package approval fixture.
+- Focused Git, workspace, execution-context, agent execution, run-segment,
+  checkpoint, replay-cursor, Delivery, Domain, and architecture tests, full
+  standalone build/vet/test, race tests, static analysis, lint, formatting,
+  generated-contract drift, and residue scans passed.
+
 ### 2026-08-04 — Batch 38 completed
 
 - Added application-owned validation for `OpeningCommit`, `TreeBarrierCommit`,

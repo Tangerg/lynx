@@ -11,9 +11,8 @@
 // allowed to do.
 package change
 
-// Resource is what moved. It is a closed set: [Resources] lists every value, and
-// external projections are checked against that list rather than trusting a
-// switch to have kept up.
+// Resource is what moved. It is a closed set projected exhaustively at the
+// publication boundary.
 type Resource uint8
 
 const (
@@ -28,12 +27,6 @@ const (
 	// PlanState — the session-scoped Plan projection was committed.
 	PlanState
 )
-
-// Resources returns every Resource in declaration order. The returned slice is
-// caller-owned so validation code cannot mutate the application's vocabulary.
-func Resources() []Resource {
-	return []Resource{Sessions, Runs, Interrupts, Goals, PlanState}
-}
 
 // Notice is one committed change: the resource, and the members of it a reader can
 // narrow to. Empty ID sets mean "every member of this resource may be stale",

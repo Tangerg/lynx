@@ -170,11 +170,6 @@ func NewRunTree(rootRunID string, members []RunTreeMember) (RunTree, error) {
 	return tree, nil
 }
 
-// RootRunID returns the tree's declared root identity.
-func (tree RunTree) RootRunID() string {
-	return tree.rootRunID
-}
-
 // Postorder returns a defensive copy of the complete canonical Run order.
 func (tree RunTree) Postorder() []string {
 	return slices.Clone(tree.postorder)

@@ -16,22 +16,18 @@ import (
 func TestContractIsTheOnlyMethodTable(t *testing.T) {
 	t.Parallel()
 
-	names := contract.Names()
-	if len(names) == 0 {
+	metas := contract.Metas()
+	if len(metas) == 0 {
 		t.Fatal("the contract registered no methods")
 	}
-	seen := make(map[string]bool, len(names))
-	for _, name := range names {
-		if seen[name] {
-			t.Errorf("method %q is registered twice", name)
+	seen := make(map[string]bool, len(metas))
+	for _, meta := range metas {
+		if seen[meta.Name] {
+			t.Errorf("method %q is registered twice", meta.Name)
 		}
-		seen[name] = true
-		method, ok := contract.Lookup(name)
-		if !ok {
-			t.Fatalf("Names() returned %q but Lookup could not find it", name)
-		}
-		if err := method.Meta.validate(); err != nil {
-			t.Errorf("%s: %v", name, err)
+		seen[meta.Name] = true
+		if err := meta.validate(); err != nil {
+			t.Errorf("%s: %v", meta.Name, err)
 		}
 	}
 }
@@ -90,7 +86,7 @@ func TestReplayPolicyCoversEveryCommand(t *testing.T) {
 		}
 	}
 	for _, name := range []string{"runs.start", "runs.resume"} {
-		method, _ := contract.Lookup(name)
+		method, _ := contract.lookup(name)
 		if method.Meta.Idempotency != IdempotencyReplayRunStream {
 			t.Errorf("%s must replay by re-attaching to its run, got %v", name, method.Meta.Idempotency)
 		}

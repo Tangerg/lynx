@@ -21,7 +21,7 @@ var (
 	ErrNotRepo     = errors.New("git: not a repository")
 )
 
-// Status is the working-tree state of one file (matches the wire vocabulary).
+// Status is Git's normalized working-tree state for one file.
 type Status string
 
 const (

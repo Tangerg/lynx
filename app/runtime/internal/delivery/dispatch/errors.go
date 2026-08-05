@@ -105,18 +105,6 @@ func IsMethodProblemType(problemType string) bool {
 	return ok && spec.methodDeclarable
 }
 
-// MethodProblemTypes lists every problem a method may declare, in deterministic
-// registry order.
-func MethodProblemTypes() []string {
-	var out []string
-	for _, spec := range rpcErrorSpecs {
-		if spec.methodDeclarable {
-			out = append(out, spec.sentinel.Error())
-		}
-	}
-	return out
-}
-
 // ProblemCodes is the published business error surface: every problem type this
 // router can send, with the code it is sent with.
 //
