@@ -2,6 +2,7 @@ package toolset
 
 import (
 	"encoding/json"
+	"reflect"
 	"strconv"
 	"strings"
 	"unicode/utf8"
@@ -13,6 +14,33 @@ import (
 // zero value is ready for use. Unknown tools retain their canonical result and
 // let the execution adapter supply generic activity text.
 type Presenter struct{}
+
+// PresentationContract describes one built-in tool result after Presenter has
+// projected it into the transcript. ResultType is the exact root object carried
+// by ToolInvocation.result; EnumValues supplies the closed string vocabularies
+// reflection cannot discover.
+type PresentationContract struct {
+	ToolName   string
+	ResultType reflect.Type
+	EnumValues map[reflect.Type][]string
+}
+
+// PresentationContracts returns the concrete result contracts from the same
+// descriptors Presenter executes. Callers receive fresh slices and maps.
+func PresentationContracts() []PresentationContract {
+	var contracts []PresentationContract
+	for name, descriptor := range descriptors() {
+		if descriptor.result.project == nil {
+			continue
+		}
+		contract := PresentationContract{ToolName: name, ResultType: descriptor.result.resultType}
+		if descriptor.result.enums != nil {
+			contract.EnumValues = descriptor.result.enums()
+		}
+		contracts = append(contracts, contract)
+	}
+	return contracts
+}
 
 // Activity returns concise progress text for a known concrete tool.
 func (Presenter) Activity(name string, arguments tool.Arguments) string {
@@ -156,10 +184,10 @@ func httpMethod(method string) string {
 // clients that render command text separately.
 func (Presenter) Present(name string, arguments tool.Arguments, result tool.Result) (tool.Result, string) {
 	descriptor, ok := descriptorFor(name)
-	if !ok || descriptor.presentation == nil {
+	if !ok || descriptor.result.project == nil {
 		return result, ""
 	}
-	return descriptor.presentation(arguments, result)
+	return descriptor.result.project(arguments, result)
 }
 
 func presentCommand(_ tool.Arguments, result tool.Result) (tool.Result, string) {
@@ -178,22 +206,27 @@ func presentApplyPatch(_ tool.Arguments, result tool.Result) (tool.Result, strin
 	return presentApplyPatchResult(result), ""
 }
 
-type commandResult struct {
+func commandResultContract() resultProjectionContract {
+	return resultProjectionContract{project: presentCommand, resultType: reflect.TypeFor[CommandResult]()}
+}
+
+type commandExecutionResult struct {
 	Stdout   string `json:"stdout"`
 	Stderr   string `json:"stderr"`
 	ExitCode *int   `json:"exit_code"`
 }
 
-type commandPresentation struct {
+// CommandResult is the transcript result of shell.
+type CommandResult struct {
 	Output   string `json:"output"`
 	ExitCode *int   `json:"exitCode,omitempty"`
 }
 
 func presentCommandResult(result tool.Result) (tool.Result, string) {
-	if existing, ok := decodeResult[commandPresentation](result, "output"); ok {
+	if existing, ok := decodeResult[CommandResult](result, "output"); ok {
 		return result, existing.Output
 	}
-	raw, ok := decodeResult[commandResult](result, "stdout", "stderr", "exit_code")
+	raw, ok := decodeResult[commandExecutionResult](result, "stdout", "stderr", "exit_code")
 	if !ok {
 		return result, ""
 	}
@@ -204,11 +237,15 @@ func presentCommandResult(result tool.Result) (tool.Result, string) {
 	case raw.Stderr != "":
 		output = raw.Stdout + "\n" + raw.Stderr
 	}
-	presentation := commandPresentation{Output: output, ExitCode: raw.ExitCode}
+	presentation := CommandResult{Output: output, ExitCode: raw.ExitCode}
 	return projectResult(result, presentation), output
 }
 
-type localSearchResult struct {
+func searchResultContract() resultProjectionContract {
+	return resultProjectionContract{project: presentSearch, resultType: reflect.TypeFor[SearchResult]()}
+}
+
+type localSearchExecutionResult struct {
 	Matches []localSearchMatch `json:"matches"`
 	Files   []string           `json:"files"`
 	Paths   []string           `json:"paths"`
@@ -226,45 +263,52 @@ type localSearchCount struct {
 	Count int    `json:"count"`
 }
 
-type searchPresentation struct {
-	Hits []searchHit `json:"hits"`
+// SearchResult is the transcript result shared by glob and grep.
+type SearchResult struct {
+	Hits []SearchHit `json:"hits"`
 }
 
-type searchHit struct {
+// SearchHit identifies one local path and, for content matches, its location
+// and preview.
+type SearchHit struct {
 	Path       string `json:"path"`
 	Snippet    string `json:"snippet,omitempty"`
 	LineNumber int    `json:"lineNumber,omitempty"`
 }
 
 func presentSearchResult(result tool.Result) tool.Result {
-	if _, ok := decodeResult[searchPresentation](result, "hits"); ok {
+	if _, ok := decodeResult[SearchResult](result, "hits"); ok {
 		return result
 	}
-	raw, ok := decodeResult[localSearchResult](result, "matches", "files", "paths", "counts")
+	raw, ok := decodeResult[localSearchExecutionResult](result, "matches", "files", "paths", "counts")
 	if !ok {
 		return result
 	}
-	hits := make([]searchHit, 0, len(raw.Matches)+len(raw.Files)+len(raw.Paths)+len(raw.Counts))
+	hits := make([]SearchHit, 0, len(raw.Matches)+len(raw.Files)+len(raw.Paths)+len(raw.Counts))
 	for _, match := range raw.Matches {
-		hits = append(hits, searchHit{Path: match.Path, Snippet: match.Text, LineNumber: match.Line})
+		hits = append(hits, SearchHit{Path: match.Path, Snippet: match.Text, LineNumber: match.Line})
 	}
 	for _, path := range raw.Files {
-		hits = append(hits, searchHit{Path: path})
+		hits = append(hits, SearchHit{Path: path})
 	}
 	for _, path := range raw.Paths {
-		hits = append(hits, searchHit{Path: path})
+		hits = append(hits, SearchHit{Path: path})
 	}
 	for _, count := range raw.Counts {
-		hits = append(hits, searchHit{Path: count.Path, Snippet: strconv.Itoa(count.Count) + " matches"})
+		hits = append(hits, SearchHit{Path: count.Path, Snippet: strconv.Itoa(count.Count) + " matches"})
 	}
-	return projectResult(result, searchPresentation{Hits: hits})
+	return projectResult(result, SearchResult{Hits: hits})
 }
 
-type webSearchResult struct {
-	Results []webSearchHit `json:"results"`
+func webSearchResultContract() resultProjectionContract {
+	return resultProjectionContract{project: presentWebSearch, resultType: reflect.TypeFor[WebSearchResult]()}
 }
 
-type webSearchHit struct {
+type webSearchExecutionResult struct {
+	Results []webSearchExecutionHit `json:"results"`
+}
+
+type webSearchExecutionHit struct {
 	Title          string `json:"title"`
 	URL            string `json:"url"`
 	Snippet        string `json:"snippet"`
@@ -272,11 +316,13 @@ type webSearchHit struct {
 	FaviconURLWire string `json:"faviconUrl"`
 }
 
-type webSearchPresentation struct {
-	Results []webSearchPresentationHit `json:"results"`
+// WebSearchResult is the transcript result of web_search.
+type WebSearchResult struct {
+	Results []WebSearchHit `json:"results"`
 }
 
-type webSearchPresentationHit struct {
+// WebSearchHit is one web_search source suitable for a result card.
+type WebSearchHit struct {
 	Title      string `json:"title,omitempty"`
 	URL        string `json:"url"`
 	Snippet    string `json:"snippet,omitempty"`
@@ -284,43 +330,63 @@ type webSearchPresentationHit struct {
 }
 
 func presentWebSearchResult(result tool.Result) tool.Result {
-	raw, ok := decodeResult[webSearchResult](result, "results")
+	raw, ok := decodeResult[webSearchExecutionResult](result, "results")
 	if !ok {
 		return result
 	}
-	items := make([]webSearchPresentationHit, 0, len(raw.Results))
+	items := make([]WebSearchHit, 0, len(raw.Results))
 	for _, item := range raw.Results {
 		faviconURL := item.FaviconURL
 		if faviconURL == "" {
 			faviconURL = item.FaviconURLWire
 		}
-		items = append(items, webSearchPresentationHit{
+		items = append(items, WebSearchHit{
 			Title: item.Title, URL: item.URL, Snippet: item.Snippet, FaviconURL: faviconURL,
 		})
 	}
-	return projectResult(result, webSearchPresentation{Results: items})
+	return projectResult(result, WebSearchResult{Results: items})
 }
 
-type changePresentation struct {
-	Changes []presentedChange `json:"changes"`
+func patchResultContract() resultProjectionContract {
+	return resultProjectionContract{
+		project: presentApplyPatch, resultType: reflect.TypeFor[PatchResult](), enums: patchResultEnums,
+	}
 }
 
-type changeStatus string
+func patchResultEnums() map[reflect.Type][]string {
+	return map[reflect.Type][]string{
+		reflect.TypeFor[ChangeStatus](): changeStatusValues(),
+	}
+}
+
+// PatchResult is the transcript result of apply_patch.
+type PatchResult struct {
+	Changes []AppliedChange `json:"changes"`
+}
+
+// ChangeStatus describes the applied filesystem mutation, not its VCS state.
+type ChangeStatus string
 
 const (
-	changeAdded    changeStatus = "added"
-	changeDeleted  changeStatus = "deleted"
-	changeModified changeStatus = "modified"
-	changeMoved    changeStatus = "moved"
+	changeAdded    ChangeStatus = "added"
+	changeDeleted  ChangeStatus = "deleted"
+	changeModified ChangeStatus = "modified"
+	changeMoved    ChangeStatus = "moved"
 )
 
-type presentedChange struct {
+func changeStatusValues() []string {
+	return []string{string(changeAdded), string(changeDeleted), string(changeModified), string(changeMoved)}
+}
+
+// AppliedChange is one path mutation applied by apply_patch. From is present
+// only when Status is moved.
+type AppliedChange struct {
 	Path   string       `json:"path"`
-	Status changeStatus `json:"status"`
+	Status ChangeStatus `json:"status"`
 	From   string       `json:"from,omitempty"`
 }
 
-type applyPatchResult struct {
+type patchExecutionResult struct {
 	Files []struct {
 		Path      string `json:"path"`
 		Created   bool   `json:"created"`
@@ -330,14 +396,14 @@ type applyPatchResult struct {
 }
 
 func presentApplyPatchResult(result tool.Result) tool.Result {
-	if _, ok := decodeResult[changePresentation](result, "changes"); ok {
+	if _, ok := decodeResult[PatchResult](result, "changes"); ok {
 		return result
 	}
-	decoded, ok := decodeResult[applyPatchResult](result, "files")
+	decoded, ok := decodeResult[patchExecutionResult](result, "files")
 	if !ok || len(decoded.Files) == 0 {
 		return result
 	}
-	changes := make([]presentedChange, 0, len(decoded.Files))
+	changes := make([]AppliedChange, 0, len(decoded.Files))
 	for _, file := range decoded.Files {
 		status := changeModified
 		switch {
@@ -348,11 +414,11 @@ func presentApplyPatchResult(result tool.Result) tool.Result {
 		case file.Deleted:
 			status = changeDeleted
 		}
-		changes = append(changes, presentedChange{
+		changes = append(changes, AppliedChange{
 			Path: file.Path, Status: status, From: file.MovedFrom,
 		})
 	}
-	return projectResult(result, changePresentation{Changes: changes})
+	return projectResult(result, PatchResult{Changes: changes})
 }
 
 func decodeResult[T any](result tool.Result, knownFields ...string) (T, bool) {
@@ -386,7 +452,7 @@ func decodePresentation[T any](data []byte, knownFields ...string) (T, bool) {
 }
 
 type presentationValue interface {
-	commandPresentation | searchPresentation | webSearchPresentation | changePresentation
+	CommandResult | SearchResult | WebSearchResult | PatchResult
 }
 
 func projectResult[T presentationValue](original tool.Result, value T) tool.Result {

@@ -2068,21 +2068,35 @@
       "schema": {
         "$ref": "schema.json#/$defs/RequestMeta"
       }
-    },
+    }
+  ],
+  "toolResultPresentations": [
     {
-      "carrier": "items[].tool.result",
+      "toolName": "glob",
       "schema": {
-        "$ref": "schema.json#/$defs/FileEdit"
+        "$ref": "schema.json#/$defs/SearchResult"
       }
     },
     {
-      "carrier": "items[].tool.result",
+      "toolName": "grep",
       "schema": {
-        "$ref": "schema.json#/$defs/SearchHit"
+        "$ref": "schema.json#/$defs/SearchResult"
       }
     },
     {
-      "carrier": "items[].tool.result",
+      "toolName": "apply_patch",
+      "schema": {
+        "$ref": "schema.json#/$defs/PatchResult"
+      }
+    },
+    {
+      "toolName": "shell",
+      "schema": {
+        "$ref": "schema.json#/$defs/CommandResult"
+      }
+    },
+    {
+      "toolName": "web_search",
       "schema": {
         "$ref": "schema.json#/$defs/WebSearchResult"
       }
@@ -5417,10 +5431,6 @@
     {
       "file": "ws.grepResult.json",
       "shape": "GrepResult"
-    },
-    {
-      "file": "ws.searchHit.json",
-      "shape": "SearchHit"
     },
     {
       "file": "ws.fileContent.json",

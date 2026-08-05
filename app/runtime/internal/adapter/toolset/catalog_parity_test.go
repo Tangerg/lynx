@@ -96,20 +96,6 @@ func definitionNames(ts []toolcontract.Tool) map[string]bool {
 	return names
 }
 
-func builtInNames() []string {
-	return []string{
-		catalog.ApplyPatch, catalog.AskUser, catalog.CreateGoal, catalog.CreateSchedule,
-		catalog.DeleteSchedule, catalog.DelegateTask, catalog.EnterPlanMode,
-		catalog.ExitPlanMode, catalog.GetGoal, catalog.Glob, catalog.Grep,
-		catalog.HTTPRequest, catalog.ListSchedules, catalog.ListSkills,
-		catalog.LoadSkill, catalog.LSP, catalog.ProposeSkill, catalog.Read,
-		catalog.ReadShellOutput, catalog.ReadSkillResource, catalog.ReadToolResult,
-		catalog.ReportGoalOutcome, catalog.SearchConversations, catalog.SearchMemory,
-		catalog.SearchTools, catalog.SetPlan, catalog.Shell, catalog.StopShell,
-		catalog.WebFetch, catalog.WebSearch,
-	}
-}
-
 func assertBuiltInToolContract(t *testing.T, candidate toolcontract.Tool) {
 	t.Helper()
 	definition := candidate.Definition()
@@ -241,24 +227,22 @@ func TestDescriptorCatalogMatchesBuiltInTools(t *testing.T) {
 
 	declared := make(map[string]bool)
 	var unreachable []string
-	for _, name := range builtInNames() {
+	for name, descriptor := range descriptors() {
 		if declared[name] {
 			t.Errorf("built-in identity %q is declared more than once", name)
 		}
 		declared[name] = true
-		descriptor, ok := descriptorFor(name)
-		if !ok {
-			t.Errorf("built-in identity %q has no descriptor", name)
-		} else {
-			if !descriptor.safety.Valid() {
-				t.Errorf("built-in identity %q has invalid safety class %q", name, descriptor.safety)
-			}
-			if (descriptor.activityText == "") == (descriptor.activity == nil) {
-				t.Errorf("built-in identity %q must define exactly one static or argument-aware activity", name)
-			}
-			if descriptor.activityText != "" && !isConciseActivityText(descriptor.activityText, 120) {
-				t.Errorf("built-in identity %q has invalid static activity %q", name, descriptor.activityText)
-			}
+		if !descriptor.safety.Valid() {
+			t.Errorf("built-in identity %q has invalid safety class %q", name, descriptor.safety)
+		}
+		if (descriptor.activityText == "") == (descriptor.activity == nil) {
+			t.Errorf("built-in identity %q must define exactly one static or argument-aware activity", name)
+		}
+		if descriptor.activityText != "" && !isConciseActivityText(descriptor.activityText, 120) {
+			t.Errorf("built-in identity %q has invalid static activity %q", name, descriptor.activityText)
+		}
+		if (descriptor.result.project == nil) != (descriptor.result.resultType == nil) {
+			t.Errorf("built-in identity %q must pair its result projection with its published type", name)
 		}
 		if !existing[name] {
 			unreachable = append(unreachable, name)

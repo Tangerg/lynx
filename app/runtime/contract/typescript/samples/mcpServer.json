@@ -1,0 +1,20 @@
+{
+  "name": "filesystem",
+  "description": "Local filesystem access",
+  "connection": {
+    "type": "stdio",
+    "command": "npx",
+    "args": ["-y", "@modelcontextprotocol/server-filesystem", "/Users/dev/project"],
+    "envMasked": {
+      "NODE_ENV": "********"
+    },
+    "dir": "/Users/dev/project"
+  },
+  "timeoutSeconds": 30,
+  "disabledTools": ["delete_file"],
+  "autoApproveTools": ["read_file"],
+  "status": {
+    "type": "connected",
+    "toolCount": 8
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "id": "item_14",
+  "runId": "run_01",
+  "status": "completed",
+  "createdAt": "2026-07-07T10:00:00Z",
+  "type": "compaction",
+  "summary": "Summarized 8 earlier messages into a context note.",
+  "droppedMessages": 8
+}

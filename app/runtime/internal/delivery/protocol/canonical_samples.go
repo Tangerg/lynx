@@ -106,7 +106,6 @@ func CanonicalSamples() []CanonicalSample {
 		{"ws.fileChange.json", reflect.TypeFor[WorkspaceFileChange]()},
 		{"ws.fileHead.json", reflect.TypeFor[FileHead]()},
 		{"ws.grepResult.json", reflect.TypeFor[GrepResult]()},
-		{"ws.searchHit.json", reflect.TypeFor[SearchHit]()},
 		{"ws.fileContent.json", reflect.TypeFor[FileContent]()},
 		{"method.getDiff.req.json", reflect.TypeFor[GetDiffRequest]()},
 		{"method.listFileChanges.req.json", reflect.TypeFor[WorkspaceQuery]()},

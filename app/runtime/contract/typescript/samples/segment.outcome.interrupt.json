@@ -1,0 +1,20 @@
+{
+  "type": "interrupt",
+  "interrupts": [
+    {
+      "itemId": "item_09",
+      "runId": "run_01",
+      "type": "approval",
+      "payload": {
+        "tool": {
+          "name": "shell",
+          "arguments": {
+            "command": "rm -rf build"
+          }
+        },
+        "risk": "high",
+        "reason": "destructive command"
+      }
+    }
+  ]
+}

@@ -40,8 +40,7 @@ type Diff struct {
 }
 
 // FileStatus is the past-tense working-tree status vocabulary shared by
-// WorkspaceFileChange, FileDiff, and FileEdit (§4.5). "untracked" is VCS-only
-// (a tool's FileEdit never produces it).
+// WorkspaceFileChange and FileDiff (§4.5).
 type FileStatus string
 
 const (
@@ -65,11 +64,9 @@ type FileDiff struct {
 	Rows         []DiffRow  `json:"rows"`
 }
 
-// WorkspaceFileChange is one entry in workspace.changes.list (AUX_API §2.2)
-// — the VCS working-tree scan state. Distinct from FileEdit (a tool's edit
-// result): this one has "untracked" (a VCS-only state); they share the
-// past-tense status vocabulary deliberately (§4.5). Added/Removed are omitted
-// for a Binary file (not a fake 0); PreviousPath is set only for renames.
+// WorkspaceFileChange is one entry in workspace.changes.list (AUX_API §2.2).
+// Added/Removed are omitted for a Binary file (not a fake 0); PreviousPath is
+// set only for renames.
 type WorkspaceFileChange struct {
 	Path         string     `json:"path"`
 	Status       FileStatus `json:"status"` // see FileStatus

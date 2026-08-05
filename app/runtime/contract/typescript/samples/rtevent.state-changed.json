@@ -1,0 +1,6 @@
+{
+  "type": "state.changed",
+  "sequence": 16,
+  "key": "plan",
+  "sessionIds": ["ses_01"]
+}

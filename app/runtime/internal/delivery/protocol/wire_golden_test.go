@@ -9,20 +9,18 @@ import (
 	"testing"
 )
 
-// samplesDir holds the shared canonical wire samples. They live under the
-// frontend tree (its tsconfig rootDir) so the TS `satisfies` test can import
-// them directly; the Go side — the protocol SSOT — reads them cross-module.
-// See app/desktop/docs/protocol/API.md §14 (machine-readable artifacts / drift
-// gate) and app/desktop/docs/protocol/API.md.
-const samplesDir = "../../../../desktop/frontend/src/rpc/samples"
+// samplesDir holds the runtime-owned canonical wire samples beside the published
+// TypeScript binding. Client modules own how they consume or vendor both; protocol
+// verification never reaches into a client's source tree.
+const samplesDir = "../../../contract/typescript/samples"
 
 // TestWireGoldenRoundTrip is the Go half of the §14 drift gate: every canonical
-// sample must unmarshal into the SSOT type and re-marshal to a SEMANTICALLY
+// sample must unmarshal into the authoritative Go type and re-marshal to a SEMANTICALLY
 // identical object. A Go struct that drops a field (unknown → discarded) or adds
 // a non-omitempty zero diverges from the sample and fails here — catching the
-// `items` vs `data` class of drift the moment the Go side moves. The TS side
-// (frontend rpc/samples.test.ts) pins the SAME files against the hand-written
-// wire types, so the two together pin one contract.
+// `items` vs `data` class of drift the moment the Go side moves. The generated
+// binding publishes the same sample index, so a TypeScript consumer can run an
+// equivalent check without becoming an input to Runtime tests.
 func TestWireGoldenRoundTrip(t *testing.T) {
 	for _, s := range CanonicalSamples() {
 		t.Run(s.File, func(t *testing.T) {

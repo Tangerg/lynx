@@ -32,9 +32,9 @@ func TestGeneratedContractHasNoDrift(t *testing.T) {
 	root := moduleRoot(t)
 	regenerated, regeneratedTS, regeneratedValidators := regenerateContract(t, root)
 
-	// Some artifacts land outside contract/ — the TypeScript types and checks in the
-	// frontend's tree, the Go validator beside the shapes it checks. Their homes hold
-	// hand-written files too, so the rule runs one way: every file the generator
+	// Some artifacts land outside contract/'s root — the published TypeScript binding
+	// in its own subdirectory and the Go validator beside the shapes it checks. Their
+	// homes may hold other files, so the rule runs one way: every file the generator
 	// writes there must match the copy in the tree.
 	for _, outside := range []struct{ fresh, committed string }{
 		{regeneratedTS, filepath.Join(root, tsWireDir)},
@@ -69,11 +69,11 @@ func TestGeneratedContractHasNoDrift(t *testing.T) {
 	}
 }
 
-// Where the generated TypeScript lands, mirroring the go:generate directive on
-// dispatch's contract_methods.go. The frontend consumes the wire types from its own
-// tree — a client that imported them across the module boundary would not build.
+// Where the runtime publishes its generated TypeScript binding, mirroring the
+// generation directive on dispatch's contract_methods.go. Client modules own how
+// they consume or vendor this output; the runtime never writes into their trees.
 const (
-	tsWireDir       = "../desktop/frontend/src/rpc"
+	tsWireDir       = "contract/typescript"
 	tsWireValidator = "wire.validate.generated.ts"
 	validatorDir    = "internal/delivery/protocol"
 	validatorFile   = "wire_constraints.generated.go"
@@ -134,31 +134,33 @@ func TestGeneratedContractIsSubstantive(t *testing.T) {
 		Errors           struct {
 			Types []struct{} `json:"types"`
 		} `json:"errors"`
-		CapabilityPolicy []struct{} `json:"capabilityPolicy"`
-		RunEventPolicy   []struct{} `json:"runEventPolicy"`
-		CarriedShapes    []struct{} `json:"carriedShapes"`
-		StatePolicy      []struct{} `json:"statePolicy"`
-		Unions           []struct{} `json:"unions"`
-		Constraints      []struct{} `json:"objectConstraints"`
-		ValueConstraints []struct{} `json:"valueConstraints"`
-		SystemInvariants []struct{} `json:"systemInvariants"`
+		CapabilityPolicy    []struct{} `json:"capabilityPolicy"`
+		RunEventPolicy      []struct{} `json:"runEventPolicy"`
+		CarriedShapes       []struct{} `json:"carriedShapes"`
+		ResultPresentations []struct{} `json:"toolResultPresentations"`
+		StatePolicy         []struct{} `json:"statePolicy"`
+		Unions              []struct{} `json:"unions"`
+		Constraints         []struct{} `json:"objectConstraints"`
+		ValueConstraints    []struct{} `json:"valueConstraints"`
+		SystemInvariants    []struct{} `json:"systemInvariants"`
 	}
 	if err := json.Unmarshal(raw, &manifest); err != nil {
 		t.Fatalf("decode manifest: %v", err)
 	}
 	sections := map[string]int{
-		"protocol":          len(manifest.Protocol),
-		"methods":           len(manifest.Methods),
-		"streamingMethods":  len(manifest.StreamingMethods),
-		"errors.types":      len(manifest.Errors.Types),
-		"capabilityPolicy":  len(manifest.CapabilityPolicy),
-		"carriedShapes":     len(manifest.CarriedShapes),
-		"runEventPolicy":    len(manifest.RunEventPolicy),
-		"statePolicy":       len(manifest.StatePolicy),
-		"unions":            len(manifest.Unions),
-		"objectConstraints": len(manifest.Constraints),
-		"valueConstraints":  len(manifest.ValueConstraints),
-		"systemInvariants":  len(manifest.SystemInvariants),
+		"protocol":                len(manifest.Protocol),
+		"methods":                 len(manifest.Methods),
+		"streamingMethods":        len(manifest.StreamingMethods),
+		"errors.types":            len(manifest.Errors.Types),
+		"capabilityPolicy":        len(manifest.CapabilityPolicy),
+		"carriedShapes":           len(manifest.CarriedShapes),
+		"toolResultPresentations": len(manifest.ResultPresentations),
+		"runEventPolicy":          len(manifest.RunEventPolicy),
+		"statePolicy":             len(manifest.StatePolicy),
+		"unions":                  len(manifest.Unions),
+		"objectConstraints":       len(manifest.Constraints),
+		"valueConstraints":        len(manifest.ValueConstraints),
+		"systemInvariants":        len(manifest.SystemInvariants),
 	}
 	for section, count := range sections {
 		if count == 0 {

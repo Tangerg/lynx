@@ -1,7 +1,9 @@
 package toolset
 
 import (
+	"bytes"
 	"encoding/json"
+	"io"
 	"reflect"
 	"strings"
 	"testing"
@@ -81,6 +83,85 @@ func TestPresenterApplyPatchResult(t *testing.T) {
 	}}
 	if got := presented.Any(); !reflect.DeepEqual(got, want) {
 		t.Fatalf("presented patch = %#v, want %#v", got, want)
+	}
+}
+
+func TestPresenterSearchResult(t *testing.T) {
+	presented, _ := Presenter{}.Present(
+		catalog.Grep,
+		tool.Arguments{},
+		mustToolResult(t, map[string]any{"matches": []any{
+			map[string]any{"path": "main.go", "line": 7, "text": "func main()"},
+		}}),
+	)
+	want := map[string]any{"hits": []any{
+		map[string]any{"path": "main.go", "lineNumber": json.Number("7"), "snippet": "func main()"},
+	}}
+	if got := presented.Any(); !reflect.DeepEqual(got, want) {
+		t.Fatalf("presented search = %#v, want %#v", got, want)
+	}
+}
+
+func TestPresenterWebSearchResult(t *testing.T) {
+	presented, _ := Presenter{}.Present(
+		catalog.WebSearch,
+		tool.Arguments{},
+		mustToolResult(t, map[string]any{"results": []any{
+			map[string]any{"title": "Example", "url": "https://example.com", "favicon_url": "https://example.com/icon.png"},
+		}}),
+	)
+	want := map[string]any{"results": []any{
+		map[string]any{"title": "Example", "url": "https://example.com", "faviconUrl": "https://example.com/icon.png"},
+	}}
+	if got := presented.Any(); !reflect.DeepEqual(got, want) {
+		t.Fatalf("presented web search = %#v, want %#v", got, want)
+	}
+}
+
+func TestPublishedResultContractsDecodePresenterOutput(t *testing.T) {
+	contracts := make(map[string]PresentationContract)
+	for _, contract := range PresentationContracts() {
+		if _, exists := contracts[contract.ToolName]; exists {
+			t.Fatalf("duplicate result contract for %q", contract.ToolName)
+		}
+		contracts[contract.ToolName] = contract
+	}
+
+	tests := []struct {
+		name   string
+		result map[string]any
+	}{
+		{name: catalog.Shell, result: map[string]any{"stdout": "ok", "exit_code": 0}},
+		{name: catalog.Glob, result: map[string]any{"paths": []string{"main.go"}}},
+		{name: catalog.Grep, result: map[string]any{"matches": []any{map[string]any{"path": "main.go", "line": 1, "text": "package main"}}}},
+		{name: catalog.WebSearch, result: map[string]any{"results": []any{map[string]any{"url": "https://example.com"}}}},
+		{name: catalog.ApplyPatch, result: map[string]any{"files": []any{map[string]any{"path": "main.go"}}}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			contract, ok := contracts[test.name]
+			if !ok {
+				t.Fatalf("no published result contract for %q", test.name)
+			}
+			presented, _ := Presenter{}.Present(test.name, tool.Arguments{}, mustToolResult(t, test.result))
+			encoded, err := json.Marshal(presented)
+			if err != nil {
+				t.Fatal(err)
+			}
+			decoder := json.NewDecoder(bytes.NewReader(encoded))
+			decoder.DisallowUnknownFields()
+			if err := decoder.Decode(reflect.New(contract.ResultType).Interface()); err != nil {
+				t.Fatalf("presented result does not match %v: %v", contract.ResultType, err)
+			}
+			if err := decoder.Decode(new(any)); err != io.EOF {
+				t.Fatalf("presented result has trailing JSON: %v", err)
+			}
+		})
+	}
+
+	wantStatuses := []string{"added", "deleted", "modified", "moved"}
+	if got := contracts[catalog.ApplyPatch].EnumValues[reflect.TypeFor[ChangeStatus]()]; !reflect.DeepEqual(got, wantStatuses) {
+		t.Fatalf("published patch statuses = %v, want %v", got, wantStatuses)
 	}
 }
 

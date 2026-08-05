@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/dispatch"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 )
@@ -25,6 +26,12 @@ const schemaDialect = "https://json-schema.org/draft/2020-12/schema"
 // methods, but are equally part of the wire surface.
 func walkWireTypes(registry *dispatch.Registry, shapes *dispatch.Shapes) *schemaSet {
 	set := newSchemaSet(shapes)
+	for _, contract := range toolset.PresentationContracts() {
+		for enumType, values := range contract.EnumValues {
+			set.registerEnum(enumType, values)
+		}
+		set.walk(contract.ResultType)
+	}
 	for _, meta := range registry.Metas() {
 		set.walk(meta.Params)
 		if meta.Result != nil {
@@ -48,8 +55,9 @@ func walkWireTypes(registry *dispatch.Registry, shapes *dispatch.Shapes) *schema
 		set.walk(constraint.GoType)
 	}
 	// These two, by contrast, are reachable from NOTHING else — a carried shape rides
-	// an opaque member and a state key's value rides an untyped map — so without the
-	// declarations the published contract would simply omit them.
+	// outside typed params and a state key's value rides an untyped map — so without
+	// the declarations the published contract would simply omit them. Concrete tool
+	// results are walked from toolset's own presentation contracts above.
 	for _, carried := range shapes.Carried() {
 		set.walk(carried.GoType)
 	}

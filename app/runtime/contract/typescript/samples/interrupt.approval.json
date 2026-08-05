@@ -1,0 +1,16 @@
+{
+  "itemId": "item_05",
+  "runId": "run_01",
+  "type": "approval",
+  "payload": {
+    "tool": {
+      "name": "write",
+      "arguments": {
+        "path": "src/main.go",
+        "content": "package main\n"
+      }
+    },
+    "risk": "medium",
+    "reason": "writes a new file"
+  }
+}

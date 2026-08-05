@@ -1,0 +1,6 @@
+{
+  "query": "func main",
+  "workspace": { "path": "/Users/me/project" },
+  "path": "src",
+  "limit": 100
+}

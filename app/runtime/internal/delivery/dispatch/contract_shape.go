@@ -117,11 +117,10 @@ type StateKeySpec struct {
 
 // CarriedSpec declares a wire type the method graph cannot reach.
 //
-// The artifact walk starts from the registered methods, so a shape that rides
-// somewhere else is invisible to it: `params._meta` is stripped before typed
-// decoding, and a tool result is deliberately opaque JSON. Both are on the wire and
-// a client has to construct or render them, so a contract that omits their shape is
-// incomplete.
+// The artifact walk starts from the registered methods, so a delivery-owned shape
+// that rides somewhere else is invisible to it; `params._meta`, for example, is
+// stripped before typed decoding. Concrete tool results are published from
+// toolset's presentation contracts instead of being restated here.
 //
 // Carrier says WHERE it rides, in wire terms. A bare list of types would publish
 // the shapes without answering the only question a reader has about them.

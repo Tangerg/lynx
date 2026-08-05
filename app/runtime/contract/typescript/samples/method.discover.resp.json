@@ -1,0 +1,152 @@
+{
+  "protocol": {
+    "current": "2026-08-04",
+    "minSupported": "2026-08-04"
+  },
+  "serverInfo": {
+    "name": "lyra",
+    "version": "0.1.0",
+    "defaultWorkspace": { "path": "/Users/dev/project" },
+    "home": "/Users/dev/.lyra"
+  },
+  "capabilities": {
+    "runEvents": [
+      "segment.started",
+      "segment.progress",
+      "segment.finished",
+      "item.started",
+      "item.delta",
+      "item.completed",
+      "state.snapshot"
+    ],
+    "runtimeTopics": [
+      "files.changed",
+      "skills.changed",
+      "mcp.changed",
+      "schedules.changed",
+      "sessions.changed",
+      "runs.changed",
+      "state.changed",
+      "goals.changed",
+      "interrupts.changed"
+    ],
+    "stateSnapshots": [
+      {
+        "key": "plan",
+        "recoveryMethod": "plan.get",
+        "scope": "session",
+        "writer": "rootRun"
+      }
+    ],
+    "streamingMethods": ["runs.start", "runs.resume", "runs.subscribe", "runtime.subscribe"],
+    "features": {
+      "reasoning": {
+        "enabled": true,
+        "stability": "stable",
+        "clientOptIn": false,
+        "requiredByRunProtocol": false
+      },
+      "mcp": {
+        "enabled": true,
+        "stability": "stable",
+        "clientOptIn": false,
+        "requiredByRunProtocol": false
+      },
+      "multimodal": {
+        "enabled": true,
+        "stability": "stable",
+        "clientOptIn": false,
+        "requiredByRunProtocol": false
+      },
+      "git": {
+        "enabled": true,
+        "stability": "stable",
+        "clientOptIn": false,
+        "requiredByRunProtocol": false
+      },
+      "fileWatch": {
+        "enabled": true,
+        "stability": "stable",
+        "clientOptIn": false,
+        "requiredByRunProtocol": false
+      },
+      "checkpoints": {
+        "enabled": true,
+        "stability": "stable",
+        "clientOptIn": false,
+        "requiredByRunProtocol": false
+      },
+      "lsp": {
+        "enabled": true,
+        "stability": "stable",
+        "clientOptIn": false,
+        "requiredByRunProtocol": false
+      },
+      "subagents": {
+        "enabled": false,
+        "stability": "stable",
+        "clientOptIn": true,
+        "requiredByRunProtocol": true
+      },
+      "skills": {
+        "enabled": true,
+        "stability": "stable",
+        "clientOptIn": false,
+        "requiredByRunProtocol": false
+      },
+      "sessionExport": {
+        "enabled": true,
+        "stability": "stable",
+        "clientOptIn": false,
+        "requiredByRunProtocol": false
+      },
+      "memory": {
+        "enabled": true,
+        "stability": "stable",
+        "clientOptIn": false,
+        "requiredByRunProtocol": false
+      },
+      "relocate": {
+        "enabled": true,
+        "stability": "stable",
+        "clientOptIn": false,
+        "requiredByRunProtocol": false
+      },
+      "plan": {
+        "enabled": true,
+        "stability": "stable",
+        "clientOptIn": false,
+        "requiredByRunProtocol": false
+      },
+      "compaction": {
+        "enabled": true,
+        "stability": "stable",
+        "clientOptIn": false,
+        "requiredByRunProtocol": false
+      },
+      "clientTools": {
+        "enabled": false,
+        "stability": "stable",
+        "clientOptIn": true,
+        "requiredByRunProtocol": false
+      }
+    },
+    "limits": {
+      "idempotency": {
+        "retentionSeconds": 86400
+      },
+      "runReplay": {
+        "scope": "processRootSegment",
+        "maxEvents": 2048,
+        "maxBytes": 16777216
+      },
+      "mcpAuthorizationAttempts": {
+        "retentionSeconds": 600
+      },
+      "runtimeSubscription": {
+        "maxTopics": 32,
+        "maxWatches": 32
+      }
+    }
+  }
+}

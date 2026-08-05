@@ -1,0 +1,18 @@
+{
+  "id": "item_13",
+  "runId": "run_01",
+  "status": "running",
+  "createdAt": "2026-07-07T10:00:00Z",
+  "type": "question",
+  "question": {
+    "fields": [
+      { "prompt": "Any additional notes?", "type": "text" },
+      {
+        "prompt": "Which environment should I target?",
+        "type": "choice",
+        "options": [{ "label": "Staging" }, { "label": "Production" }],
+        "allowCustom": true
+      }
+    ]
+  }
+}

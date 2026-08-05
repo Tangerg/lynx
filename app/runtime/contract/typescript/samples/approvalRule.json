@@ -1,0 +1,8 @@
+{
+  "id": "rule_01",
+  "scope": "project",
+  "tool": "shell",
+  "subject": "npm run *",
+  "dir": "/Users/alex/proj",
+  "decision": "allow"
+}

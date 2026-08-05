@@ -1,0 +1,7 @@
+{
+  "type": "files.changed",
+  "sequence": 12,
+  "watchId": "w_01",
+  "workspace": { "path": "/Users/dev/project" },
+  "paths": ["src/main.go", "src/util.go"]
+}

@@ -1,0 +1,10 @@
+{
+  "name": "git-bisect-helper",
+  "revision": "3f9a2c1b8e5d",
+  "scope": "project",
+  "description": "Walk a git bisect to find the commit that introduced a regression.",
+  "instructions": "Start with `git bisect start`, mark the last known good commit, then run the failing test at each step until the first bad commit is named.",
+  "origin": "mined",
+  "revises": true,
+  "sourceSession": "sess_01HZY7K9Q3"
+}

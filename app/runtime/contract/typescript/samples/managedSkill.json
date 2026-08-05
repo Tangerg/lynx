@@ -1,0 +1,5 @@
+{
+  "name": "git-bisect-helper",
+  "description": "Walk a git bisect to find a regression.",
+  "lifecycle": "active"
+}

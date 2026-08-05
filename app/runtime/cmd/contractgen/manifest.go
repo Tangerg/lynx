@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"slices"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
 	appcontract "github.com/Tangerg/lynx/app/runtime/internal/application/contract"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/dispatch"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
@@ -16,22 +17,23 @@ import (
 // the dispatcher, and `go generate` leaving a diff means the artifacts drifted
 // from the code — which is the only way to notice.
 type manifest struct {
-	Protocol         protocol.ProtocolRange `json:"protocol"`
-	Features         []string               `json:"features"`
-	Methods          []methodEntry          `json:"methods"`
-	Notifications    []string               `json:"notifications"`
-	StreamingMethods []string               `json:"streamingMethods"`
-	Errors           errorRegistry          `json:"errors"`
-	CapabilityPolicy []capabilityEntry      `json:"capabilityPolicy"`
-	RunEventPolicy   []eventEntry           `json:"runEventPolicy"`
-	RuntimeTopics    []topicEntry           `json:"runtimeTopics"`
-	CarriedShapes    []carriedEntry         `json:"carriedShapes"`
-	StatePolicy      []stateEntry           `json:"statePolicy"`
-	Unions           []unionEntry           `json:"unions"`
-	Constraints      []constraintEntry      `json:"objectConstraints"`
-	ValueConstraints []valueConstraintEntry `json:"valueConstraints"`
-	SystemInvariants []invariantEntry       `json:"systemInvariants"`
-	CanonicalSamples []sampleEntry          `json:"canonicalSamples"`
+	Protocol            protocol.ProtocolRange        `json:"protocol"`
+	Features            []string                      `json:"features"`
+	Methods             []methodEntry                 `json:"methods"`
+	Notifications       []string                      `json:"notifications"`
+	StreamingMethods    []string                      `json:"streamingMethods"`
+	Errors              errorRegistry                 `json:"errors"`
+	CapabilityPolicy    []capabilityEntry             `json:"capabilityPolicy"`
+	RunEventPolicy      []eventEntry                  `json:"runEventPolicy"`
+	RuntimeTopics       []topicEntry                  `json:"runtimeTopics"`
+	CarriedShapes       []carriedEntry                `json:"carriedShapes"`
+	ResultPresentations []toolResultPresentationEntry `json:"toolResultPresentations"`
+	StatePolicy         []stateEntry                  `json:"statePolicy"`
+	Unions              []unionEntry                  `json:"unions"`
+	Constraints         []constraintEntry             `json:"objectConstraints"`
+	ValueConstraints    []valueConstraintEntry        `json:"valueConstraints"`
+	SystemInvariants    []invariantEntry              `json:"systemInvariants"`
+	CanonicalSamples    []sampleEntry                 `json:"canonicalSamples"`
 }
 
 type methodEntry struct {
@@ -115,6 +117,15 @@ type carriedEntry struct {
 	Schema  *schema `json:"schema"`
 }
 
+// toolResultPresentationEntry binds a built-in identity to the exact object Presenter puts
+// in ToolInvocation.result. The binding matters as much as the shape: without
+// it a client cannot distinguish two valid result objects that ride in the same
+// opaque carrier.
+type toolResultPresentationEntry struct {
+	ToolName string  `json:"toolName"`
+	Schema   *schema `json:"schema"`
+}
+
 type unionEntry struct {
 	Type           string             `json:"type"`
 	Discriminator  string             `json:"discriminator"`
@@ -167,22 +178,23 @@ func build(walked *schemaSet) manifest {
 	registry := dispatch.Contract()
 	shapes := dispatch.WireShapes()
 	return manifest{
-		Protocol:         protocol.SupportedProtocolRange(),
-		Features:         protocol.FeatureKeys(),
-		Methods:          methods(registry),
-		Notifications:    notificationNames(shapes),
-		StreamingMethods: registry.StreamMethods(),
-		Errors:           errors(registry),
-		CapabilityPolicy: capabilities(registry),
-		RunEventPolicy:   runEvents(shapes),
-		RuntimeTopics:    topics(shapes),
-		CarriedShapes:    carriedShapes(shapes, walked),
-		StatePolicy:      stateKeys(shapes, walked),
-		Unions:           unions(shapes),
-		Constraints:      constraints(shapes),
-		ValueConstraints: valueConstraints(shapes),
-		SystemInvariants: invariants(),
-		CanonicalSamples: canonicalSamples(),
+		Protocol:            protocol.SupportedProtocolRange(),
+		Features:            protocol.FeatureKeys(),
+		Methods:             methods(registry),
+		Notifications:       notificationNames(shapes),
+		StreamingMethods:    registry.StreamMethods(),
+		Errors:              errors(registry),
+		CapabilityPolicy:    capabilities(registry),
+		RunEventPolicy:      runEvents(shapes),
+		RuntimeTopics:       topics(shapes),
+		CarriedShapes:       carriedShapes(shapes, walked),
+		ResultPresentations: toolResultPresentations(walked),
+		StatePolicy:         stateKeys(shapes, walked),
+		Unions:              unions(shapes),
+		Constraints:         constraints(shapes),
+		ValueConstraints:    valueConstraints(shapes),
+		SystemInvariants:    invariants(),
+		CanonicalSamples:    canonicalSamples(),
 	}
 }
 
@@ -318,6 +330,18 @@ func carriedShapes(shapes *dispatch.Shapes, walked *schemaSet) []carriedEntry {
 	out := make([]carriedEntry, 0, len(carried))
 	for _, shape := range carried {
 		out = append(out, carriedEntry{Carrier: shape.Carrier, Schema: external(walked.walk(shape.GoType))})
+	}
+	return out
+}
+
+func toolResultPresentations(walked *schemaSet) []toolResultPresentationEntry {
+	contracts := toolset.PresentationContracts()
+	out := make([]toolResultPresentationEntry, 0, len(contracts))
+	for _, contract := range contracts {
+		out = append(out, toolResultPresentationEntry{
+			ToolName: contract.ToolName,
+			Schema:   external(walked.walk(contract.ResultType)),
+		})
 	}
 	return out
 }

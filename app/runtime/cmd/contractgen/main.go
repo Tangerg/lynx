@@ -34,7 +34,7 @@ var (
 func main() {
 	out := flag.String("out", ".", "directory the Go-side artifacts are written to")
 	validators := flag.String("validators", "", "directory the generated Go wire validator is written to; skipped when empty")
-	ts := flag.String("ts", "", "directory the TypeScript wire types are written to; skipped when empty")
+	ts := flag.String("ts", "", "directory the TypeScript protocol binding is written to; skipped when empty")
 	flag.Parse()
 
 	if err := run(*out, *validators, *ts); err != nil {
@@ -79,7 +79,7 @@ func run(dir, validatorDir, tsDir string) error {
 	if tsDir == "" {
 		return nil
 	}
-	// What the client needs to hold the protocol: the shapes, the checks that say an
+	// What a TypeScript client needs to hold the protocol: the shapes, the checks that say an
 	// arriving frame really is one of them, the method surface that carries them, and
 	// which hand-written fixture proves which shape.
 	for _, artifact := range []struct{ name, content string }{

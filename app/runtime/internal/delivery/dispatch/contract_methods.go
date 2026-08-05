@@ -5,7 +5,7 @@ package dispatch
 // only mechanism that notices when the code and the published contract disagree
 // (contract §11.4 gate 1).
 //
-//go:generate go run github.com/Tangerg/lynx/app/runtime/cmd/contractgen -out ../../../contract -validators ../protocol -ts ../../../../desktop/frontend/src/rpc
+//go:generate go run github.com/Tangerg/lynx/app/runtime/cmd/contractgen -out ../../../contract -validators ../protocol -ts ../../../contract/typescript
 
 import "github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 

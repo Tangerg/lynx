@@ -1,6 +1,6 @@
 # Runtime Architecture Hygiene Plan
 
-> Status: Completed
+> Status: In progress
 > Started: 2026-07-22  
 > Scope: `app/runtime`  
 > Architecture baseline: [EXECUTION_CENTERED_ARCHITECTURE.md](EXECUTION_CENTERED_ARCHITECTURE.md)
@@ -914,10 +914,30 @@ Acceptance:
 | 40. Run pump responsibility closure | Completed | 2026-08-04 | 2026-08-04 | The monolithic pump became one concrete single-goroutine state owner with focused event, synthesis, teardown, and boundary methods; batch publication moved to its own cohesive file. Full build/vet/test, focused race tests, static analysis, lint, dead-code analysis, and architecture checks passed. |
 | 41. Tool identity and mutation vocabulary closure | Completed | 2026-08-04 | 2026-08-04 | Built-in identities and cross-cutting metadata are catalog-owned; all models use only `apply_patch`; model-id dialect inference and the `edit`/`write` Runtime family were removed. Full build/vet/test, focused race tests, static analysis, lint, dead-code analysis, formatting, and architecture checks passed. |
 | 42. Final toolset vocabulary and descriptor closure | Completed | 2026-08-04 | 2026-08-04 | Package-stuttering private names were removed, descriptor parity now proves safety and activity invariants, and architecture checks pin the retired vocabulary. Full workspace/standalone verification, focused race tests, static analysis, lint, dead-code analysis, formatting, and residue scans passed. |
+| 43. Tool result presentation contract ownership | Completed | 2026-08-05 | 2026-08-05 | Toolset descriptors now jointly own result projection and exact published shape; generated artifacts bind each presentation to its tool identity, Runtime owns its TypeScript binding and canonical samples, and workspace/standalone plus focused race/static/dead-code verification passed. |
 
 Allowed status values: `Pending`, `In progress`, `Completed`, `Blocked`, `Revised`.
 
 ## 7. Progress log
+
+### 2026-08-05 — Batch 43 completed
+
+- Replaced Delivery's stale `FileEdit` / `SearchHit` / `WebSearchResult`
+  carried-shape declarations with Toolset-owned presentation contracts. The
+  same descriptor row now selects the projector, root result type, and closed
+  enum vocabulary for `shell`, local search, `web_search`, and `apply_patch`.
+- Added a `toolResultPresentations` manifest section that binds each concrete
+  tool identity to its exact root schema. Presenter tests decode every projected
+  result through that published type, and generator tests enforce two-way
+  contract publication; `moved` plus `from` now replaces the false
+  `renamed`/`diff` declaration.
+- Moved generated TypeScript bindings and canonical JSON fixtures under
+  `app/runtime/contract`. Runtime generation and tests no longer write into or
+  read from a consuming frontend module; clients independently choose how to
+  consume or vendor the published artifacts.
+- `go build ./...`, `go vet ./...`, `go test ./...`, focused `-race` tests,
+  standalone `GOWORK=off` build/vet/test, `staticcheck`, `golangci-lint`,
+  `deadcode -test`, formatting, and diff checks passed.
 
 ### 2026-08-04 — Batch 38 completed
 

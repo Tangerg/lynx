@@ -1,0 +1,29 @@
+{
+  "id": "run_02",
+  "sessionId": "ses_01",
+  "model": "claude-opus-4-8",
+  "provider": "anthropic",
+  "status": "finished",
+  "metrics": {
+    "usage": {
+      "inputTokens": 1200,
+      "outputTokens": 340,
+      "costUsd": 0.021
+    },
+    "steps": 3,
+    "activeDurationMs": 12400
+  },
+  "limits": {
+    "maxSteps": 20,
+    "maxBudgetUsd": 4
+  },
+  "protocolProfile": {
+    "requiredFeatures": [],
+    "interruptTypes": ["approval", "question"]
+  },
+  "createdAt": "2026-07-07T10:00:00Z",
+  "finishedAt": "2026-07-07T10:00:12Z",
+  "outcome": {
+    "type": "completed"
+  }
+}

@@ -4,9 +4,35 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/dispatch"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 )
+
+func TestManifestPublishesToolsetPresentationContracts(t *testing.T) {
+	registry, shapes := dispatch.Contract(), dispatch.WireShapes()
+	generated := build(walkWireTypes(registry, shapes))
+
+	want := make(map[string]string)
+	for _, contract := range toolset.PresentationContracts() {
+		want[contract.ToolName] = "schema.json#/$defs/" + defName(contract.ResultType)
+	}
+	got := make(map[string]string)
+	for _, result := range generated.ResultPresentations {
+		if _, exists := got[result.ToolName]; exists {
+			t.Fatalf("tool result presentation %q is published twice", result.ToolName)
+		}
+		got[result.ToolName] = result.Schema.Ref
+	}
+	if len(got) != len(want) {
+		t.Fatalf("published result presentations = %v, want %v", got, want)
+	}
+	for toolName, wantRef := range want {
+		if gotRef := got[toolName]; gotRef != wantRef {
+			t.Errorf("result presentation %q schema = %q, want %q", toolName, gotRef, wantRef)
+		}
+	}
+}
 
 func TestGeneratedMethodErrorsIncludeStaticCapabilityRefusals(t *testing.T) {
 	t.Parallel()

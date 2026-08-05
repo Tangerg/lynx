@@ -1,0 +1,30 @@
+{
+  "runId": "run_01",
+  "segmentId": "seg_01",
+  "eventId": "evt_01",
+  "timestamp": "2026-07-07T10:00:00Z",
+  "event": {
+    "type": "segment.started",
+    "run": {
+      "id": "run_01",
+      "sessionId": "ses_01",
+      "model": "claude-opus-4-8",
+      "provider": "anthropic",
+      "status": "running",
+      "metrics": {
+        "steps": 1,
+        "activeDurationMs": 2100
+      },
+      "limits": {
+        "maxSteps": 20,
+        "maxBudgetUsd": 4
+      },
+      "createdAt": "2026-07-07T10:00:00Z",
+      "activeSegmentId": "seg_01",
+      "protocolProfile": {
+        "requiredFeatures": [],
+        "interruptTypes": ["approval"]
+      }
+    }
+  }
+}

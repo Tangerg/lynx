@@ -93,6 +93,7 @@ var (
 type schemaSet struct {
 	defs   map[string]*schema
 	origin map[string]reflect.Type
+	enums  map[reflect.Type][]string
 
 	unions      map[reflect.Type]dispatch.UnionSpec
 	constraints map[reflect.Type][]dispatch.PresenceRule
@@ -103,6 +104,7 @@ func newSchemaSet(shapes *dispatch.Shapes) *schemaSet {
 	set := &schemaSet{
 		defs:        make(map[string]*schema),
 		origin:      make(map[string]reflect.Type),
+		enums:       make(map[reflect.Type][]string),
 		unions:      make(map[reflect.Type]dispatch.UnionSpec),
 		constraints: make(map[reflect.Type][]dispatch.PresenceRule),
 		values:      make(map[reflect.Type][]dispatch.FieldConstraint),
@@ -122,6 +124,16 @@ func newSchemaSet(shapes *dispatch.Shapes) *schemaSet {
 // Definitions returns the walked definitions keyed by name. Names are sorted by
 // the JSON encoder, so the bundle's diff is stable across runs.
 func (s *schemaSet) Definitions() map[string]*schema { return s.defs }
+
+func (s *schemaSet) registerEnum(t reflect.Type, values []string) {
+	if t.Kind() != reflect.String || t.Name() == "" || len(values) == 0 {
+		panic(fmt.Sprintf("contractgen: invalid external enum %s with values %v", t, values))
+	}
+	if existing, ok := s.enums[t]; ok && !slices.Equal(existing, values) {
+		panic(fmt.Sprintf("contractgen: external enum %s has conflicting values %v and %v", t, existing, values))
+	}
+	s.enums[t] = slices.Clone(values)
+}
 
 // walk returns the schema for a Go type, defining it in the bundle if it is a
 // named type worth referencing.
@@ -143,6 +155,9 @@ func (s *schemaSet) walk(t reflect.Type) *schema {
 	case reflect.Bool:
 		return &schema{Type: schemaTypeBoolean}
 	case reflect.String:
+		if values, ok := s.enums[t]; ok {
+			return s.define(t, &schema{Type: schemaTypeString, Enum: slices.Clone(values)})
+		}
 		if values, ok := protocol.WireEnum(t); ok {
 			return s.define(t, &schema{Type: schemaTypeString, Enum: values})
 		}

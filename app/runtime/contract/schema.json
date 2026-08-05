@@ -285,6 +285,24 @@
         "id"
       ]
     },
+    "AppliedChange": {
+      "type": "object",
+      "properties": {
+        "from": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/ChangeStatus"
+        }
+      },
+      "required": [
+        "path",
+        "status"
+      ]
+    },
     "ApprovalDecision": {
       "type": "string",
       "enum": [
@@ -1383,6 +1401,15 @@
         "stateSnapshot"
       ]
     },
+    "ChangeStatus": {
+      "type": "string",
+      "enum": [
+        "added",
+        "deleted",
+        "modified",
+        "moved"
+      ]
+    },
     "ClientCapabilities": {
       "type": "object",
       "properties": {
@@ -1557,6 +1584,20 @@
       },
       "required": [
         "workspace"
+      ]
+    },
+    "CommandResult": {
+      "type": "object",
+      "properties": {
+        "exitCode": {
+          "type": "integer"
+        },
+        "output": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "output"
       ]
     },
     "ContentBlock": {
@@ -2032,27 +2073,6 @@
       "required": [
         "path",
         "rows",
-        "status"
-      ]
-    },
-    "FileEdit": {
-      "type": "object",
-      "properties": {
-        "diff": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/DiffRow"
-          }
-        },
-        "path": {
-          "type": "string"
-        },
-        "status": {
-          "$ref": "#/$defs/FileStatus"
-        }
-      },
-      "required": [
-        "path",
         "status"
       ]
     },
@@ -4666,6 +4686,20 @@
         }
       }
     },
+    "PatchResult": {
+      "type": "object",
+      "properties": {
+        "changes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AppliedChange"
+          }
+        }
+      },
+      "required": [
+        "changes"
+      ]
+    },
     "PendingInterruptSet": {
       "type": "object",
       "properties": {
@@ -6919,6 +6953,20 @@
         "path"
       ]
     },
+    "SearchResult": {
+      "type": "object",
+      "properties": {
+        "hits": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SearchHit"
+          }
+        }
+      },
+      "required": [
+        "hits"
+      ]
+    },
     "SegmentOutcome": {
       "type": "object",
       "properties": {
@@ -8231,7 +8279,7 @@
         "workspace"
       ]
     },
-    "WebSearchResult": {
+    "WebSearchHit": {
       "type": "object",
       "properties": {
         "faviconUrl": {
@@ -8249,6 +8297,20 @@
       },
       "required": [
         "url"
+      ]
+    },
+    "WebSearchResult": {
+      "type": "object",
+      "properties": {
+        "results": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/WebSearchHit"
+          }
+        }
+      },
+      "required": [
+        "results"
       ]
     },
     "WorkspaceAvailability": {

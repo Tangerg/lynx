@@ -259,17 +259,6 @@ type ToolInvocation struct {
 	Result    any            `json:"result,omitempty"` // best-effort JSON; absent on item.started, authoritative on item.completed
 }
 
-// FileEdit is the applied result of one edit (API.md §4.5) — used in an
-// edit/write tool's result {changes} (§4.4.2). status is past-tense (the
-// post-change state); Diff is optional. No "untracked" (that's a VCS scan
-// state only — see WorkspaceFileChange). Shares the FileEdit/WorkspaceFileChange
-// status vocabulary deliberately (§4.5).
-type FileEdit struct {
-	Path   string     `json:"path"`
-	Status FileStatus `json:"status"` // see FileStatus ("untracked" is VCS-only, never here)
-	Diff   []DiffRow  `json:"diff,omitempty"`
-}
-
 // DiffRow is one structured row of a unified diff (API.md §4.5). Code
 // is plain text — the client highlights.
 //
@@ -283,27 +272,6 @@ type DiffRow struct {
 	LeftLine  int         `json:"leftLine,omitempty"`
 	RightLine int         `json:"rightLine,omitempty"`
 	Code      string      `json:"code,omitempty"`
-}
-
-// SearchHit is one LOCAL search hit (API.md §4.5) — used in a grep/glob
-// tool's result {hits} (§4.4.2): grep = path+lineNumber+snippet, glob = path
-// only. Distinct type from WebSearchResult: local (file+line) and web
-// (url+title) are two mutually-exclusive shapes, never merged into one loose
-// struct (which would let a result carry both path and url — an illegal but
-// representable state).
-type SearchHit struct {
-	Path       string `json:"path"`
-	LineNumber int    `json:"lineNumber,omitempty"`
-	Snippet    string `json:"snippet,omitempty"`
-}
-
-// WebSearchResult is one web-search result (API.md §4.5) — used in a
-// webSearch tool's result {results} (§4.4.2).
-type WebSearchResult struct {
-	Title      string `json:"title,omitempty"`
-	URL        string `json:"url"`
-	Snippet    string `json:"snippet,omitempty"`
-	FaviconURL string `json:"faviconUrl,omitempty"`
 }
 
 // ModelUsage is one model's usage slice (API.md §4.6): provider-reported

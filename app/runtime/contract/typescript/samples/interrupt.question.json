@@ -1,0 +1,24 @@
+{
+  "itemId": "item_06",
+  "runId": "run_01",
+  "type": "question",
+  "payload": {
+    "question": {
+      "fields": [
+        {
+          "prompt": "Which environment should I deploy to?",
+          "header": "Environment",
+          "type": "choice",
+          "options": [
+            {
+              "label": "staging"
+            },
+            {
+              "label": "production"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}
