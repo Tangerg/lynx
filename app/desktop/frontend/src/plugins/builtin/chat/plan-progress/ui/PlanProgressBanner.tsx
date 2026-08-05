@@ -37,6 +37,7 @@ export function PlanProgressBanner() {
           className="mt-1.5 mb-1"
         >
           <AgentActivityDisclosure
+            mark="glyph"
             leading={<StepMark state={progress.current.status} />}
             // A banner, not an entry in the transcript: it stands above the stream
             // and has to hold its own edge against whatever scrolls under it.

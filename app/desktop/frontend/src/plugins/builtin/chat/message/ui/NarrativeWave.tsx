@@ -38,6 +38,9 @@ export function NarrativeWave({ units, ctx, renderUnit }: Props) {
       shell="line"
       // The marks of what is inside, not a generic "history" glyph — a folded row is
       // the one row whose leading mark has something to say, because its label cannot.
+      // A strip, so the gutter is the wide one — and fixed, so a two-glyph wave and a
+      // three-glyph wave put their labels on the same column.
+      mark="strip"
       leading={
         <span className="flex items-center gap-1">
           {glyphs.map((glyph, index) => (

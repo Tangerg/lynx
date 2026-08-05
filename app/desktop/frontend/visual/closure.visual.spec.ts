@@ -193,6 +193,52 @@ test("keyboard-only traversal reaches recovery, HITL, and settings actions", asy
   await expect(page.getByRole("heading", { name: "Providers" })).toBeVisible();
 });
 
+// One column per row. A `line` row has no box, so the indent is the only thing saying
+// what belongs to what — and its disclosed body used to start at a fixed 32px while its
+// label started wherever the mark's width left it: 56, 60, 68 or 84, because a folded
+// wave's strip is as wide as its glyph count. Two waves in one transcript put their
+// labels 16px apart, and every body sat 24 to 72px left of the label naming it, which
+// reads as belonging to the row above.
+for (const state of ["waves", "tool-shells", "delegated", "narrative"] as const) {
+  test(`a disclosed body starts on its own label's column — ${state}`, async ({ page }) => {
+    await openFixture(page, { fixture: "agent", state });
+    for (let i = 0; i < 8; i++) {
+      const shut = page.locator(
+        "[data-slot='agent-activity-disclosure'] button[aria-expanded='false']",
+      );
+      if ((await shut.count()) === 0) break;
+      await shut
+        .first()
+        .click({ timeout: 2000 })
+        .catch(() => {});
+    }
+
+    const drift = await page.evaluate(() => {
+      const out: string[] = [];
+      for (const d of document.querySelectorAll<HTMLElement>(
+        "[data-slot='agent-activity-disclosure']",
+      )) {
+        // A card groups with its fill, so its body answers to the card's padding.
+        if (d.dataset.shell !== "line") continue;
+        const trigger = d.querySelector("button[aria-expanded]");
+        if (trigger?.getAttribute("aria-expanded") !== "true") continue;
+        const label = [...(trigger?.children ?? [])].find(
+          (c) => c.getAttribute("aria-hidden") === null && c.tagName === "SPAN",
+        );
+        const body = d.querySelector("[role='region']")?.firstElementChild;
+        if (!label || !body) continue;
+        const delta = Math.round(
+          body.getBoundingClientRect().left - label.getBoundingClientRect().left,
+        );
+        if (Math.abs(delta) > 1) out.push(`${label.textContent?.trim().slice(0, 24)}: ${delta}px`);
+      }
+      return out;
+    });
+
+    expect(drift).toEqual([]);
+  });
+}
+
 // The vertical half of the same question. `truncate` clips both axes, so text set at a
 // line box the height of its own font size has the glyph box's descender outside it —
 // the sidebar's section labels were shaving the tail off the "j" in "Projects". A
