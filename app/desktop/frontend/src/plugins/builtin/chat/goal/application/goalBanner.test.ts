@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { goalBudgetAxes, goalStopKey, tightestAxis } from "./goalBanner";
+import { goalBudgetAxes, tightestAxis } from "./goalBanner";
 import type { GoalReadModel } from "./goalQueries";
 
 function goal(patch: Partial<GoalReadModel> = {}): GoalReadModel {
@@ -33,11 +33,5 @@ describe("the goal's allowance", () => {
   it("has no tightest axis when nothing is capped", () => {
     const uncapped = goal({ budget: { maxRuns: 0, maxCostUsd: 0, maxSteps: 0 } });
     expect(tightestAxis(goalBudgetAxes(uncapped))).toBeUndefined();
-  });
-});
-
-describe("why the loop stopped", () => {
-  it("words the stop from the closed code, so it is not the runtime's English", () => {
-    expect(goalStopKey("costBudgetReached")).toBe("goal.stop.costBudgetReached");
   });
 });

@@ -9,7 +9,6 @@ import { useActiveSessionId } from "@/plugins/builtin/agent/public/session";
 import {
   GOAL_TONE,
   goalBudgetAxes,
-  goalStopKey,
   tightestAxis,
   type BudgetAxisView,
 } from "../application/goalBanner";
@@ -30,6 +29,7 @@ export function GoalBanner() {
   const { data } = useGoal(sessionId ? { sessionId } : undefined);
   const [expanded, setExpanded] = useState(false);
   const goal = data?.goal;
+  const axes = goal ? goalBudgetAxes(goal) : [];
 
   return (
     <AnimatePresence initial={false}>
@@ -46,15 +46,13 @@ export function GoalBanner() {
             shell="card"
             tone={GOAL_TONE[goal.status]}
             label={<span className="block min-w-0 truncate">{goal.objective}</span>}
-            trailing={<Allowance axis={tightestAxis(goalBudgetAxes(goal))} />}
+            trailing={<Allowance axis={tightestAxis(axes)} />}
             // Only when it is not running: "Running" is what a goal banner being
             // on screen already says, and a badge repeating it would leave the two
             // states that need saying — paused, blocked — competing with noise.
             actions={
               goal.status !== "active" && (
-                <Badge tone={GOAL_TONE[goal.status] === "negative" ? "negative" : "warning"}>
-                  {t(`goal.status.${goal.status}`)}
-                </Badge>
+                <Badge tone={GOAL_TONE[goal.status]}>{t(`goal.status.${goal.status}`)}</Badge>
               )
             }
             open={expanded}
@@ -62,13 +60,16 @@ export function GoalBanner() {
             toggleLabel={expanded ? t("goal.collapse") : t("goal.expand")}
           >
             <div className="flex flex-col gap-1.5">
-              {goalBudgetAxes(goal).map((axis) => (
+              {axes.map((axis) => (
                 <BudgetAxis key={axis.label} axis={axis} />
               ))}
             </div>
             {goal.stop && (
               <p className="mt-2.5 text-ui-sm leading-body text-fg-muted">
-                {t(goalStopKey(goal.stop.code))}
+                {/* Worded from the read model's closed stop CODE, not from the
+                    runtime's `detail`: echoing that would ship English into every
+                    locale. The detail still shows, beside the sentence. */}
+                {t(`goal.stop.${goal.stop.code}`)}
                 {goal.stop.detail && ` — ${goal.stop.detail}`}
               </p>
             )}
@@ -79,7 +80,9 @@ export function GoalBanner() {
   );
 }
 
-function write(axis: BudgetAxisView, value: number): string {
+/** A number in the axis's own unit — dollars are written as money, everything
+ *  else as the count it is. */
+function amount(axis: BudgetAxisView, value: number): string {
   return axis.unit === "cost" ? fmtCost(value) : String(value);
 }
 
@@ -89,7 +92,7 @@ function Allowance({ axis }: { axis: BudgetAxisView | undefined }) {
   if (!axis) return <span className="text-ui-xs text-fg-faint">{t("goal.budget.uncapped")}</span>;
   return (
     <span className="font-mono text-ui-xs font-medium tabular-nums">
-      {write(axis, axis.used)}/{write(axis, axis.max)}
+      {amount(axis, axis.used)}/{amount(axis, axis.max)}
     </span>
   );
 }
@@ -106,8 +109,8 @@ function BudgetAxis({ axis }: { axis: BudgetAxisView }) {
       )}
       <span className="font-mono text-ui-xs tabular-nums text-fg-muted">
         {axis.spent === undefined
-          ? write(axis, axis.used)
-          : `${write(axis, axis.used)} / ${write(axis, axis.max)}`}
+          ? amount(axis, axis.used)
+          : `${amount(axis, axis.used)} / ${amount(axis, axis.max)}`}
       </span>
     </div>
   );

@@ -336,6 +336,14 @@ async function loadVisualPlugins(plugins: readonly PluginSpec[]): Promise<void> 
   }
 }
 
+// Which dock view each state is ABOUT. A state not named here is a diff state —
+// there are four of them and they differ in their data, not in their destination.
+const DOCK_VIEW_BY_STATE: Partial<Record<VisualWorkspaceState, string>> = {
+  "dock-light": "plan",
+  "dock-inbox": "inbox",
+  "dock-stats": "tool-stats",
+};
+
 export async function installVisualWorkspaceFixture(
   state: VisualWorkspaceState,
   theme: VisualWorkspaceTheme,
@@ -355,11 +363,6 @@ export async function installVisualWorkspaceFixture(
     refetchOnWindowFocus: false,
   });
 
-  const DOCK_VIEW_BY_STATE: Partial<Record<VisualWorkspaceState, string>> = {
-    "dock-light": "plan",
-    "dock-inbox": "inbox",
-    "dock-stats": "tool-stats",
-  };
   const dockViewId = DOCK_VIEW_BY_STATE[state] ?? "diff";
   useContextDockStore.setState({
     activeSessionScopeId: VISUAL_SESSION_ID,

@@ -4,7 +4,7 @@
 // question the banner exists to answer is "how far can it still go" — not "what
 // did the last goal tool call return".
 
-import type { GoalReadModel, GoalStatus, GoalStopCode } from "./goalQueries";
+import type { GoalReadModel, GoalStatus } from "./goalQueries";
 
 /** How a budget axis is counted, which is also how it is written. */
 export type BudgetUnit = "count" | "cost";
@@ -50,20 +50,15 @@ export function tightestAxis(axes: readonly BudgetAxisView[]): BudgetAxisView | 
   return tightest;
 }
 
-/** A paused goal is a thing to notice; a blocked one is a thing to fix. */
-export const GOAL_TONE: Record<GoalStatus, "neutral" | "warning" | "negative"> = {
+/**
+ * A paused goal is a thing to notice; a blocked one is a thing to fix.
+ *
+ * `as const` so a caller that has already ruled out "active" gets a tone that has
+ * already ruled out "neutral" — the banner's badge otherwise needed a runtime
+ * ternary to re-derive what this table says, and that ternary could never be false.
+ */
+export const GOAL_TONE = {
   active: "neutral",
   paused: "warning",
   blocked: "negative",
-};
-
-/**
- * The catalog key for why the loop stopped.
- *
- * The read model states this as a closed code precisely so the reader gets it in
- * their own language; echoing the runtime's `detail` instead would ship English
- * into every locale. The detail is still shown — beside the sentence, not as it.
- */
-export function goalStopKey(code: GoalStopCode): string {
-  return `goal.stop.${code}`;
-}
+} as const satisfies Record<GoalStatus, "neutral" | "warning" | "negative">;

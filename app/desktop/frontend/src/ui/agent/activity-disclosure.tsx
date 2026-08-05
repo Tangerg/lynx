@@ -130,7 +130,14 @@ export function AgentActivityDisclosure({
           // activity row stuck would pile a dozen headers at the top of the
           // reading column, each hiding the rows of the one above it. Only a
           // disclosure long enough to scroll past its own header wants this.
-          stickyHeader && "sticky top-0 z-1 bg-canvas",
+          //
+          // The fill follows the SHELL, because a stuck header has to hide the
+          // rows travelling under it and the shell decides what ground it sits
+          // on: a `line` has no fill of its own, so it borrows the column's.
+          // Hardcoding the column's ground would have put canvas over card the
+          // first time a card shell asked for this.
+          stickyHeader && "sticky top-0 z-1",
+          stickyHeader && (shell === "line" ? "bg-canvas" : "bg-card"),
         )}
       >
         <Pressable

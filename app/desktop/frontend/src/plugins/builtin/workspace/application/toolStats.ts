@@ -6,13 +6,7 @@
 // eye. Everything here is derived from tool calls the fold already holds: the
 // runtime measures `durationMs` per call, so nothing is timed in the client.
 
-import type { ToolCall, ToolCallStatus } from "@/plugins/sdk/types/agentSessionView";
-
-/** Statuses that mean the call did not deliver. A denial is a person saying no
- *  — it is not the tool failing, and lumping the two would make an approval
- *  policy look like a broken tool. */
-const FAILED: ReadonlySet<ToolCallStatus> = new Set<ToolCallStatus>(["err"]);
-const DENIED: ReadonlySet<ToolCallStatus> = new Set<ToolCallStatus>(["denied"]);
+import type { ToolCall } from "@/plugins/sdk/types/agentSessionView";
 
 export interface ToolStat {
   /** Wire tool identity — the same name the icon and preview registries key on. */
@@ -63,8 +57,10 @@ export function toolStats(calls: Record<string, ToolCall>): ToolStatsSummary {
       timed: 0,
     };
     row.calls += 1;
-    if (FAILED.has(call.status)) row.failed += 1;
-    if (DENIED.has(call.status)) row.denied += 1;
+    // Counted apart: a denial is a person saying no, not the tool failing, and
+    // lumping the two would make an approval policy read as a broken tool.
+    if (call.status === "err") row.failed += 1;
+    if (call.status === "denied") row.denied += 1;
     if (call.durationMs !== undefined) {
       row.timed += 1;
       row.totalMs += call.durationMs;

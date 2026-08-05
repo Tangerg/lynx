@@ -12,6 +12,7 @@
 // the same list from session status would lose both the ordering and what each
 // session is actually waiting FOR.
 
+import type { Interrupt, PendingInterruptSet } from "@/rpc";
 import type { PendingInterruptKind } from "@/plugins/sdk/types/agentSessionView";
 import { createDataQuery } from "@/plugins/sdk";
 
@@ -40,26 +41,26 @@ export interface PendingWorkItem {
   waitingSince: string;
 }
 
-/** The wire shape this reads, in this context's own words — the interrupt union
- *  narrowed to the two kinds a person answers. */
-export interface PendingInterruptSetLike {
-  sessionId: string;
-  rootRunId: string;
-  createdAt: string;
-  interrupts: readonly {
-    type: string;
-    payload?: {
-      tool?: { name?: string };
-      /** A Question is a list of FIELDS, each with its own prompt — there is no
-       *  question-level text to show, so the first field's prompt is the row's
-       *  subject and the rest are part of the same ask. */
-      question?: { fields?: readonly { prompt?: string }[] };
-    };
-  }[];
+/** An interrupt a PERSON answers, narrowed off the wire union so the payload each
+ *  kind carries is the compiler's business rather than a guess. Reading a question
+ *  through a hand-written mirror of the shape is how this first looked for a
+ *  prompt on the question itself; the prompts are on its FIELDS. */
+type AnswerableInterrupt = Extract<Interrupt, { type: PendingWorkKind }>;
+
+function answerable(set: PendingInterruptSet): AnswerableInterrupt[] {
+  return set.interrupts.filter(
+    (interrupt): interrupt is AnswerableInterrupt =>
+      interrupt.type === "approval" || interrupt.type === "question",
+  );
 }
 
-function answerable(set: PendingInterruptSetLike) {
-  return set.interrupts.filter((i) => i.type === "approval" || i.type === "question");
+/** The one line of the ask a row shows: the tool an approval is for, or the first
+ *  of a question's fields — a Question is a LIST of prompts, and the rest of them
+ *  are part of the same ask. */
+function subjectOf(interrupt: AnswerableInterrupt): string {
+  return interrupt.type === "question"
+    ? (interrupt.payload.question.fields[0]?.prompt ?? "")
+    : interrupt.payload.tool.name;
 }
 
 /**
@@ -70,7 +71,7 @@ function answerable(set: PendingInterruptSetLike) {
  * because resuming answers the whole set at once: N rows that all disappear on
  * one click would be N lies about how much work is left.
  */
-export function pendingWorkItems(sets: readonly PendingInterruptSetLike[]): PendingWorkItem[] {
+export function pendingWorkItems(sets: readonly PendingInterruptSet[]): PendingWorkItem[] {
   const items: PendingWorkItem[] = [];
   for (const set of sets) {
     const asks = answerable(set);
@@ -80,11 +81,8 @@ export function pendingWorkItems(sets: readonly PendingInterruptSetLike[]): Pend
       id: `${set.sessionId}:${set.rootRunId}`,
       sessionId: set.sessionId,
       rootRunId: set.rootRunId,
-      kind: first.type === "question" ? "question" : "approval",
-      subject:
-        first.type === "question"
-          ? (first.payload?.question?.fields?.[0]?.prompt ?? "")
-          : (first.payload?.tool?.name ?? ""),
+      kind: first.type,
+      subject: subjectOf(first),
       more: asks.length - 1,
       waitingSince: set.createdAt,
     });
