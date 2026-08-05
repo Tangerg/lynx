@@ -346,3 +346,33 @@ func TestTableRowStyleBandsTheWholeRow(t *testing.T) {
 		}
 	}
 }
+
+func TestAZeroListAnswersTheKeysItDocuments(t *testing.T) {
+	// A list is a struct a caller fills in, so its zero value has to work. One that
+	// quietly ignored the arrow keys would look finished and not be — and nothing would
+	// say so, because an unconsumed key simply carries on to whatever is around it.
+	l := List[string]{Items: []string{"a", "b", "c"}}
+	if !l.Handle(input.Key{Code: input.Down}) {
+		t.Fatal("a zero list ignored the down key")
+	}
+	if l.Selected() != 1 {
+		t.Fatalf("selected %d, want the second item", l.Selected())
+	}
+	if !l.Handle(input.Key{Code: input.End}) || l.Selected() != 2 {
+		t.Fatalf("end went to %d", l.Selected())
+	}
+}
+
+func TestAZeroEditorAnswersTheKeysItDocuments(t *testing.T) {
+	// Same for the editor, whose ensure is already the seam that makes its zero value
+	// usable: it took text but answered no navigation, which is the worse kind of
+	// broken because it looks like it works.
+	var e Editor
+	e.Insert("abc")
+	if !e.Handle(input.Key{Code: input.Left}) {
+		t.Fatal("a zero editor ignored the left key")
+	}
+	if _, col := e.Cursor(); col != 2 {
+		t.Fatalf("cursor at %d, want it to have moved left", col)
+	}
+}

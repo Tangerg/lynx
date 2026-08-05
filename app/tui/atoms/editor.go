@@ -166,6 +166,29 @@ func (e *Editor) Insert(s string) {
 	if !e.typing {
 		e.snapshot()
 	}
+	e.splice(s)
+}
+
+// Replace swaps the byte range [start, end) of the line the cursor is on for s, and
+// leaves the cursor after what was put in. The range is clamped to the line.
+//
+// It is one edit rather than a delete and an insert so that it is one step to undo:
+// accepting a completion is one thing the user did, and taking it back should not
+// take two. A token never spans lines, which is why the range does not either.
+func (e *Editor) Replace(start, end int, s string) {
+	e.ensure()
+	line := e.lines[e.line]
+	start = min(max(start, 0), len(line))
+	end = min(max(end, start), len(line))
+	e.endTyping()
+	e.snapshot()
+	e.lines[e.line] = line[:start] + line[end:]
+	e.col = start
+	e.splice(s)
+}
+
+// splice puts text in at the cursor, assuming the undo step has been opened already.
+func (e *Editor) splice(s string) {
 	parts := strings.Split(s, "\n")
 	current := e.lines[e.line]
 	head, tail := current[:e.col], current[e.col:]
@@ -438,6 +461,7 @@ func (e *Editor) Handle(ev input.Event) bool {
 	if !ok || !key.Down() {
 		return false
 	}
+	e.ensure()
 
 	k := e.Keys
 	switch {
@@ -496,10 +520,15 @@ func (e *Editor) Handle(ev input.Event) bool {
 	return true
 }
 
-// ensure makes the zero editor usable: one empty line, and a cursor in it.
+// ensure makes the zero editor usable: one empty line, a cursor in it, and the
+// bindings it documents. An editor that took text but answered no arrow keys would
+// be the worse kind of broken — it would look like it worked.
 func (e *Editor) ensure() {
 	if len(e.lines) == 0 {
 		e.lines = []string{""}
+	}
+	if e.Keys == (EditorKeys{}) {
+		e.Keys = DefaultEditorKeys()
 	}
 	e.line = min(max(e.line, 0), len(e.lines)-1)
 	e.col = min(max(e.col, 0), len(e.lines[e.line]))

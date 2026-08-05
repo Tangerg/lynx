@@ -118,24 +118,37 @@ func (l *List[T]) Handle(ev input.Event) bool {
 			return false
 		}
 	}
+	keys := l.keys()
 	page := max(l.window-1, 1)
 	switch {
-	case l.Keys.Up.Matches(ev):
+	case keys.Up.Matches(ev):
 		l.Move(-1)
-	case l.Keys.Down.Matches(ev):
+	case keys.Down.Matches(ev):
 		l.Move(1)
-	case l.Keys.PageUp.Matches(ev):
+	case keys.PageUp.Matches(ev):
 		l.Move(-page)
-	case l.Keys.PageDn.Matches(ev):
+	case keys.PageDn.Matches(ev):
 		l.Move(page)
-	case l.Keys.First.Matches(ev):
+	case keys.First.Matches(ev):
 		l.Select(0)
-	case l.Keys.Last.Matches(ev):
+	case keys.Last.Matches(ev):
 		l.Select(len(l.Items) - 1)
 	default:
 		return false
 	}
 	return true
+}
+
+// keys are the bindings to answer, filling in the ones a caller left unset.
+//
+// Lazily rather than in a constructor, because a list is a struct a caller fills in
+// and so its zero value has to work: one that quietly ignored the arrow keys would
+// look finished and not be.
+func (l *List[T]) keys() ListKeys {
+	if l.Keys == (ListKeys{}) {
+		l.Keys = DefaultListKeys()
+	}
+	return l.Keys
 }
 
 // Height is one row per item, which is what a container needs to decide whether the
