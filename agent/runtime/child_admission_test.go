@@ -60,7 +60,7 @@ func TestChildAdmissionCompletesBeforeCreatedEventAndExecution(t *testing.T) {
 		release: release,
 	}
 	var childCreated atomic.Bool
-	listener := event.NewNamedListener("child-created", func(_ context.Context, published event.Event) {
+	listener := runtime.NewEventListener("child-created", func(_ context.Context, published event.Event) {
 		created, ok := published.(event.ProcessCreated)
 		if ok && created.ParentID != "" {
 			childCreated.Store(true)
@@ -144,7 +144,7 @@ func TestRejectedChildAdmissionRemovesUnpublishedProcess(t *testing.T) {
 		rejected: rejection,
 	}
 	var childCreated atomic.Bool
-	listener := event.NewNamedListener("rejected-child-created", func(_ context.Context, published event.Event) {
+	listener := runtime.NewEventListener("rejected-child-created", func(_ context.Context, published event.Event) {
 		created, ok := published.(event.ProcessCreated)
 		if ok && created.ParentID != "" {
 			childCreated.Store(true)

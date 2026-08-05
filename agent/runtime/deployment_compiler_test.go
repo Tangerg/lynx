@@ -392,7 +392,7 @@ func TestAgentRegistryRetainsHistoricalDefinitions(t *testing.T) {
 
 func TestEngineDeploymentConflictReplaceAndHistoricalLookup(t *testing.T) {
 	var lifecycle []event.Event
-	listener := event.NewNamedListener("deployment-lifecycle", func(_ context.Context, published event.Event) {
+	listener := NewEventListener("deployment-lifecycle", func(_ context.Context, published event.Event) {
 		lifecycle = append(lifecycle, published)
 	})
 	engine := MustNew(Config{Extensions: []core.Extension{goap.NewPlanner(), listener}})

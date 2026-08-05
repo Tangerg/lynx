@@ -1,8 +1,8 @@
 # Agent Framework 架构演进执行计划
 
-> 状态：持续开发（P31 显式并发、RAG 与 authoring 人体工学收口已完成，8/8）
+> 状态：持续开发（P32 Agent 内部 owner 与抽象边界清洗已完成，3/3）
 > 建立日期：2026-07-15
-> 最后更新：2026-08-01
+> 最后更新：2026-08-05
 > 维护者：Lynx 仓库维护者
 > 适用范围：`agent`、直接支撑它的基础模块，以及 `app/runtime`、MCP/A2A 等直接消费者
 > Core 基线：`8ae840171`（Core 架构计划 73/73 关闭）
@@ -2034,6 +2034,29 @@ SQLite 只认识 App-owned opaque envelope；Host 原子性、幂等、恢复与
 退出标准：顶层 Process 保持串行逐 tick 重规划；所有并发都有显式作者边界、隔离能力与稳定
 提交顺序；RAG/切分/filter/typed output 的常用路径准确可发现，且没有第二套抽象或兼容债。
 
+### P32：Agent 内部 owner 与抽象边界清洗
+
+- [x] **P32-01 Event/Runtime listener owner 收正**（完成：2026-08-05）
+  - `event` 只保留 Event、Listener 与 Multicast 协议，不再定义专门实现 Runtime Extension 的
+    named listener 类型或向上引用 Runtime/Core owner。
+  - named 与 subtree listener adapter 移入 `runtime`，名称直接表达 event、scope 与 extension
+    identity；App 唯一 consumer 直接迁移，不保留 alias、wrapper 或旧 constructor。
+- [x] **P32-02 删除不可替换的伪 Runtime 接口**（完成：2026-08-05）
+  - workflow 的 child Deployment 必须由执行它的同一个 Engine 拥有，因此删除只为测试替身
+    存在的 `ChildRuntime`，`Parallel`、`Sequence`、`Loop` 直接接收 `*runtime.Engine`。
+  - routing 的 candidate 来自 Engine 的 exact Deployment catalog，删除返回 concrete
+    Deployment 的 `Runtime` 假抽象，Router 明确持有 `*runtime.Engine`。
+- [x] **P32-03 迁移、守卫与门禁**（完成：2026-08-05）
+  - API guard 精确禁止三组旧跨包抽象回流；公开 API baseline 更新为 627 declaration、root 53，
+    SHA-256 `86dd3e196a28cf6d57a3e934c3adf90d446b010d3c3331366ae8e941c1af1159`。
+  - wire 仍为 160 行，SHA-256
+    `24627d86d343d726e26c1efbbc332026b3aefd80786ffbcbc43933a9daa32575`，执行协议未变化。
+  - Agent 与受影响 App adapter 的 build/vet/test/lint/tidy、选定 race 和 diff 门禁全部通过；
+    无 frontend、TUI 或 CLI 源码改动。
+
+退出标准：内层 event 协议不再知道 Runtime Extension；workflow/routing 不以测试替身伪造
+Engine 替换点；名称、参数、注释与实际 owner 一致；旧 API 精确守卫且无兼容层。
+
 ---
 
 ## 15. 当前进度
@@ -2069,16 +2092,17 @@ SQLite 只认识 App-owned opaque envelope；Host 原子性、幂等、恢复与
 | P24 Waiting child checkpoint settlement | 完成 | 4/4 | ToolLoop、Runtime prepared mutation、App durable transaction 与 W2.1–W2.4 conformance 全部完成 |
 | P25 Framework/Host zero-leak closure | 完成 | 4/4 | Runtime 删除 Host transaction choreography；App/SQLite 改用 opaque process envelope；边界守卫与门禁收口 |
 | P31 显式并发、RAG 与 authoring 人体工学 | 完成 | 8/8 | capability isolation、deterministic join、RAG/filter/chunking/typed output 与负向边界审计完成 |
-| **总计** | **完成** | **182/182（100%）** | **P31-01 至 P31-08 全部完成；不执行封版、tag 或 release** |
+| P32 Agent 内部 owner 与抽象边界清洗 | 完成 | 3/3 | Event/Runtime owner 收正，workflow/routing 伪 Runtime 接口删除，consumer 与 guard 收口 |
+| **总计** | **完成** | **185/185（100%）** | **P32-01 至 P32-03 全部完成；不执行封版、tag 或 release** |
 
 ### 15.2 当前焦点
 
-- 当前阶段：P31 显式并发、RAG 与 authoring 人体工学收口，8/8，已完成。
-- 下一任务：只有出现真实消费者、正确性反例或 profiling 证据时才扩展并发/RAG/provider
-  structured-output 能力。本批不封版、不创建 tag 或 release。
+- 当前阶段：P32 Agent 内部 owner 与抽象边界清洗，3/3，已完成。
+- 下一任务：继续以真实调用链和可构造反例审计 Agent；没有真实变化点时不新增 interface、
+  adapter、package 或 Runtime 同义词。本批不封版、不创建 tag 或 release。
 - 当前决策门：已解除；按 BB-01 至 BB-08 直接迁移，不保留兼容层。
-- 最近完成：保持顶层 Process 串行重规划，收窄 fan-out capability 并固定 join/error 顺序；
-  RAG unique TopK、Markdown 结构化切分、collection `HAS` 与 managed typed Prompt 已落地。
+- 最近完成：Runtime listener adapter 从 event 协议包收回 runtime；workflow/routing 删除只为
+  测试替身存在、却泄漏 concrete Deployment 的伪 Runtime 接口，直接表达 exact Engine owner。
   Agent 只拥有 execution framework 语义，App transaction/idempotency/persistence ownership
   保持不变。
 
@@ -2418,12 +2442,27 @@ SQLite 只认识 App-owned opaque envelope；Host 原子性、幂等、恢复与
 - negative space：没有真实消费者或测量证据前，不增加 Plan Stage、ParallelSafe、Blackboard
   patch/transaction 或仅为测试存在的公共 conformance package。
 
+### ADR-AF-028：接口和 adapter 必须由真实 owner 与替换语义证明
+
+- 状态：已接受并实现。
+- leaf protocol：`event` 只拥有事件值、通用 Listener 与 Multicast；需要 Extension Name、
+  process scope 或 descendant propagation 的 adapter 属于 `runtime`，不能通过无 import 的方法
+  集合和向上 GoDoc 偷渡回 leaf package。
+- exact identity：workflow child 与 routing candidate 都引用 Runtime 的 exact Deployment handle。
+  该 handle 只能由拥有 catalog/process tree 的同一个 Engine 部署或执行，因此调用点直接接收
+  `*runtime.Engine`，不以只服务测试替身的 interface 伪造实现可替换性。
+- 接口门槛：只有 public SPI、消费方边界或至少两种语义成立的实现才引入 interface；测试隔离、
+  缩短参数类型或隐藏 Engine 方法数量不构成抽象理由。
+- breaking：旧 event named listener、`workflow.ChildRuntime` 与 `routing.Runtime` 直接删除；
+  consumer、API baseline、GoDoc 与精确 forbidden-symbol guard 同批迁移，不留 alias 或 wrapper。
+
 ---
 
 ## 18. 变更日志
 
 | 日期 | 变更 | 作者 |
 |---|---|---|
+| 2026-08-05 | 完成 P32 Agent 内部 owner 与抽象边界清洗：Runtime named/subtree listener adapter 从 event leaf 收回 Runtime；workflow/routing 删除只为测试替身存在、却返回 exact Runtime Deployment 的伪接口；App 唯一 consumer、API baseline、GoDoc 与精确防回流守卫直接迁移，无兼容层 | Codex |
 | 2026-08-01 | 完成 P31 explicit concurrency/RAG/authoring closure：顶层 Process 保持串行重规划；fan-out capability 与错误顺序确定化；RAG unique TopK、Markdown 结构化切分、collection `HAS` 与 managed typed Prompt 落地；拒绝自动 Plan Stage、共享 Blackboard、test-only public package 与 provider schema 猜测层 | Codex |
 | 2026-08-01 | 完成 P26 durable checkpoint/Application ownership closure：waiting capture 改为无 I/O，checkpoint/Pending/Run suspension 同事务；terminal Discard 改为纯 live cleanup，Run terminalization 与 checkpoint deletion 同事务；boot 精确保留 owned roots；删除 process-derived hidden Session，schema epoch 46；新增 package-wide AST guard 与专项防复发文档 | Codex |
 | 2026-08-01 | 完成 P25 Framework/Host zero-leak closure：Agent Runtime 删除跨 App transaction 持有 ownership 的 prepared protocol，改为无资源保留的 Plan/Apply；App 建立自有 `ProcessTreeState` 信封，Agent snapshot codec 收口到 `agentexec`，SQLite 以 `process_states.payload BLOB` 仅保存 opaque payload；schema epoch 45，双侧架构守卫与 breaking migration 同步 | Codex |
@@ -2490,6 +2529,7 @@ SQLite 只认识 App-owned opaque envelope；Host 原子性、幂等、恢复与
 
 | 日期 | 任务 | 结果与证据 | 下一步 |
 |---|---|---|---|
+| 2026-08-05 | P32 Agent 内部 owner 与抽象边界清洗 | Event leaf 删除 Runtime Extension adapter；workflow/routing 直接依赖 exact `*runtime.Engine`；App agentexec consumer 直接迁移。Agent API 为 627 declaration/root 53，SHA-256 `86dd3e196a28cf6d57a3e934c3adf90d446b010d3c3331366ae8e941c1af1159`；wire 160 行且 hash 不变。Agent/App 定向与完整门禁、选定 race、staticcheck、golangci-lint、tidy diff 和 diff check 全绿 | 185/185 关闭；继续反例扫描，不创建 tag/release |
 | 2026-08-01 | P31 显式并发、RAG 与 authoring 人体工学收口 | `60729739f`、`14aae8eda`、`1ff0c8db6`、`277f36b72`、`12998274d`、`01177233f`、`9a2c9222a`；Agent workflow/toolloop/prompt race+lint，RAG/filter/Markdown/provider 定向门禁及 workspace 69 项 build/vet/test 全绿；按维护者要求不执行 fuzz | 无；8/8 关闭，形成最终文档提交并 push |
 | 2026-08-01 | P26 durable checkpoint/Application ownership closure | 普通 waiting capture 无 I/O，App tree barrier 原子提交 checkpoint/Pending/Run suspension；root terminal transaction 原子 terminalize + delete checkpoint，Framework Discard 只清 live registry；boot exact preserved set 与 Session-root metadata 清理孤儿；process-derived hidden Session 全部删除，schema epoch 46；新增真实 SQLite rollback/restart tests、package-wide AST guard 与专项审计文档；Agent/App build、vet、普通 test、lint、staticcheck、tidy、architecture/diff 门禁全绿，按用户要求不执行 fuzz/race。 | 形成独立提交并 push；后续 seam 变更按 ADR-AF-026 与专项 checklist 审查 |
 | 2026-08-01 | P25 Framework/Host zero-leak closure | Agent prepared `Prepare/Commit/Abort` protocol 被 Plan/Apply 直接替换：plan 返回前释放所有 runtime ownership，apply 在副作用前拒绝 stale source。App 的 Commit/Abort、SQLite transaction 与 post-commit run-lost recovery 保持 application-owned；`agentexec` 独占 framework snapshot codec，Domain/SQLite 只见 App-owned envelope，存储落为 `process_states.payload BLOB`。新增双侧 AST/API guard，schema epoch 45，无 shim、双路径或旧数据迁移。普通 build/vet/test/staticcheck/lint/tidy/API/arch/diff 门禁全绿；API baseline 632 行、SHA-256 `a8f911341c8e8b24a47d9a30dca1fb33eb6a913792c8aa074d034e24740c90b2`，wire 160 行且 hash 不变；按用户要求不执行 fuzz/race。 | 174/174 关闭；形成独立提交并 push，不创建 tag/release |

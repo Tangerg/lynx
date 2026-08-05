@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/Tangerg/lynx/agent/event"
+	agentruntime "github.com/Tangerg/lynx/agent/runtime"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
@@ -57,8 +58,8 @@ func (l *subagentLifecycle) confirmRoot(id string) error {
 	}
 }
 
-func (l *subagentLifecycle) listener(turnID string) *event.NamedSubtreeListener {
-	return event.NewNamedSubtreeListener("subagent-lifecycle-"+turnID, func(ctx context.Context, e event.Event) {
+func (l *subagentLifecycle) listener(turnID string) *agentruntime.NamedSubtreeEventListener {
+	return agentruntime.NewSubtreeEventListener("subagent-lifecycle-"+turnID, func(ctx context.Context, e event.Event) {
 		if created, ok := e.(event.ProcessCreated); ok && created.ParentID == "" {
 			if l.bindRoot(e.ProcessID()) {
 				return

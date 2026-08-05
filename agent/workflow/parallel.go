@@ -9,14 +9,6 @@ import (
 	"github.com/Tangerg/lynx/agent/runtime"
 )
 
-// ChildRuntime is the deployment and clean-child execution surface used by
-// sub-agent workflows. The interface is defined by the consumer so workflow
-// builders do not depend on unrelated Engine lifecycle APIs.
-type ChildRuntime interface {
-	Deploy(context.Context, *core.Agent) (*runtime.Deployment, error)
-	RunChild(context.Context, *runtime.Deployment, any) (*runtime.Process, error)
-}
-
 // ParallelConfig configures a fan-out across N sub-agents that all
 // consume the same In type and produce the same Element type, then a
 // single Joiner consolidates the per-agent outputs into Result.
@@ -63,16 +55,16 @@ type ParallelConfig[In, Element, Result any] struct {
 // or missing Element) cancels the errgroup and propagates as the
 // process failure, naming the offending agent.
 //
-// Returns an error on nil child runtime, missing Name, negative
+// Returns an error on nil engine, missing Name, negative
 // MaxConcurrency, empty Agents, a nil sub-agent, or nil Joiner — caller
 // decides whether to surface, retry, or panic.
 func Parallel[In, Element, Result any](
 	ctx context.Context,
-	childRuntime ChildRuntime,
+	engine *runtime.Engine,
 	config ParallelConfig[In, Element, Result],
 ) (*core.Agent, error) {
-	if childRuntime == nil {
-		return nil, errors.New("workflow.Parallel: child runtime must not be nil")
+	if engine == nil {
+		return nil, errors.New("workflow.Parallel: engine must not be nil")
 	}
 	if config.Name == "" {
 		return nil, errors.New("workflow.Parallel: Name must not be empty")
@@ -93,7 +85,7 @@ func Parallel[In, Element, Result any](
 	}
 	deployments := make([]*runtime.Deployment, len(config.Agents))
 	for index, agent := range config.Agents {
-		deployment, err := childRuntime.Deploy(ctx, agent)
+		deployment, err := engine.Deploy(ctx, agent)
 		if err != nil {
 			return nil, fmt.Errorf("workflow.Parallel: deploy Agents[%d] %q: %w", index, agent.Name(), err)
 		}
@@ -108,7 +100,7 @@ func Parallel[In, Element, Result any](
 		generators[index] = func(ctx context.Context, input In) (Element, error) {
 			var zero Element
 			name := deployment.Ref().Name
-			child, err := childRuntime.RunChild(ctx, deployment, input)
+			child, err := engine.RunChild(ctx, deployment, input)
 			if err != nil {
 				return zero, fmt.Errorf("agent %q: %w", name, err)
 			}

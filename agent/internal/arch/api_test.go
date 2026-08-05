@@ -165,6 +165,22 @@ func TestAPISnapshotOmitsPrivateRepresentation(t *testing.T) {
 	}
 }
 
+func TestCrossPackageAbstractionLeaksStayRemoved(t *testing.T) {
+	snapshot := agentExportedAPISnapshot(t)
+	for _, leaked := range []string{
+		"event: type NamedListener",
+		"event: type NamedSubtreeListener",
+		"event: func NewNamedListener",
+		"event: func NewNamedSubtreeListener",
+		"routing: type Runtime interface",
+		"workflow: type ChildRuntime interface",
+	} {
+		if strings.Contains(snapshot, leaked) {
+			t.Errorf("cross-package abstraction leak returned to the public API: %q", leaked)
+		}
+	}
+}
+
 func rootExportedNames(t *testing.T) map[string]struct{} {
 	t.Helper()
 	root := moduleRoot(t)

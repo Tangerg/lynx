@@ -72,14 +72,6 @@ type Ranker interface {
 	Rank(ctx context.Context, input string, candidates []Candidate) ([]Choice, error)
 }
 
-// Runtime is the deployment surface Router consumes: it enumerates the routes
-// currently active. Selection needs nothing else — a Choice names an exact
-// immutable identity, and running it is the caller's step, with
-// [runtime.Engine.RunDeployment] or however else it drives the engine.
-type Runtime interface {
-	ActiveDeployments() []*runtime.Deployment
-}
-
 // ErrNoMatch is returned by [Router.Choose] when the highest-scored candidate
 // falls below
 // [Config.MinConfidence]. Callers typically translate
@@ -107,17 +99,17 @@ type Config struct {
 
 // Router is the orchestrator. Construct with [New].
 type Router struct {
-	runtime Runtime
-	ranker  Ranker
-	config  Config
+	engine *runtime.Engine
+	ranker Ranker
+	config Config
 }
 
-// New returns an orchestrator backed by ranker. Both runtime and
-// ranker are required; nil returns an error — caller decides whether
-// to surface or panic.
-func New(agentRuntime Runtime, ranker Ranker, config Config) (*Router, error) {
-	if agentRuntime == nil {
-		return nil, errors.New("routing: runtime is nil")
+// New returns a router over the engine's active deployment catalog. The engine
+// only supplies immutable routing candidates; running the selected deployment
+// remains the caller's explicit next step.
+func New(engine *runtime.Engine, ranker Ranker, config Config) (*Router, error) {
+	if engine == nil {
+		return nil, errors.New("routing: engine is nil")
 	}
 	if ranker == nil {
 		return nil, errors.New("routing: ranker is nil")
@@ -125,18 +117,16 @@ func New(agentRuntime Runtime, ranker Ranker, config Config) (*Router, error) {
 	if math.IsNaN(config.MinConfidence) || config.MinConfidence < minimumConfidence || config.MinConfidence > maximumConfidence {
 		return nil, errors.New("routing: minimum confidence must be between 0 and 1")
 	}
-	return &Router{runtime: agentRuntime, ranker: ranker, config: config}, nil
+	return &Router{engine: engine, ranker: ranker, config: config}, nil
 }
 
 // Candidates enumerates the (agent, goal) pool left after AgentFilter and
 // GoalFilter have run — exactly what [Router.Choose] will hand the Ranker.
 func (r *Router) Candidates() []Candidate {
 	var candidates []Candidate
-	for _, deployment := range r.runtime.ActiveDeployments() {
-		// Runtime is a consumer-defined port, so the deployment list is only as
-		// well-formed as its implementation. A deployment that reached the engine
-		// carries a validated agent, which is why nothing here re-checks the
-		// description it projects.
+	for _, deployment := range r.engine.ActiveDeployments() {
+		// Every deployment in the engine catalog already carries a validated,
+		// immutable definition, so routing only projects its descriptors.
 		if deployment == nil {
 			continue
 		}

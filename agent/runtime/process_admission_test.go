@@ -26,7 +26,7 @@ func TestFreshProcessOwnsFirstRunBeforeCreatedEvent(t *testing.T) {
 
 			var attempted atomic.Bool
 			admission := make(chan error, 1)
-			listener := event.NewNamedListener("created-reentry", func(ctx context.Context, published event.Event) {
+			listener := runtime.NewEventListener("created-reentry", func(ctx context.Context, published event.Event) {
 				if _, ok := published.(event.ProcessCreated); !ok || !attempted.CompareAndSwap(false, true) {
 					return
 				}
@@ -86,7 +86,7 @@ func TestFreshChildOwnsFirstRunBeforeCreatedEvent(t *testing.T) {
 	})
 
 	admission := make(chan error, 1)
-	listener := event.NewNamedSubtreeListener("child-created-reentry", func(ctx context.Context, published event.Event) {
+	listener := runtime.NewSubtreeEventListener("child-created-reentry", func(ctx context.Context, published event.Event) {
 		created, ok := published.(event.ProcessCreated)
 		if !ok || created.ParentID == "" {
 			return

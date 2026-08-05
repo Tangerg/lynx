@@ -115,7 +115,7 @@ func TestKillCancelsRunningChildTree(t *testing.T) {
 		killedMu  sync.Mutex
 		killedIDs []string
 	)
-	killedListener := event.NewNamedListener(
+	killedListener := runtime.NewEventListener(
 		"record-killed-order",
 		func(_ context.Context, published event.Event) {
 			killed, ok := published.(event.ProcessKilled)

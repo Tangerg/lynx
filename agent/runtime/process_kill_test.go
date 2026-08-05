@@ -70,7 +70,7 @@ func TestKillProcess_IdempotentNoClobber(t *testing.T) {
 func TestKillListenerMayReenterSameProcessTree(t *testing.T) {
 	var engine *runtime.Engine
 	reentered := make(chan error, 1)
-	listener := event.NewNamedListener("reentrant-kill", func(ctx context.Context, published event.Event) {
+	listener := runtime.NewEventListener("reentrant-kill", func(ctx context.Context, published event.Event) {
 		killed, ok := published.(event.ProcessKilled)
 		if !ok {
 			return

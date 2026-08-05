@@ -118,7 +118,7 @@ func TestManagedInteractionPublishesOwnedBoundariesAndRecordsUsage(t *testing.T)
 	}
 
 	var boundaries []event.InteractionBoundary
-	listener := event.NewNamedListener("managed-boundaries", func(_ context.Context, value event.Event) {
+	listener := runtime.NewEventListener("managed-boundaries", func(_ context.Context, value event.Event) {
 		if boundary, ok := value.(event.InteractionBoundary); ok {
 			boundaries = append(boundaries, boundary)
 		}
@@ -241,7 +241,7 @@ func TestManagedInteractionSuspendsAndResumesPendingToolExactly(t *testing.T) {
 	registry, _ := tools.NewRegistry(approval)
 	a := managedInteractionAgent(t, "managed-resume", registry, interaction.Limits{})
 	var boundaries []interaction.EventKind
-	listener := event.NewNamedListener("managed-resume-boundaries", func(_ context.Context, value event.Event) {
+	listener := runtime.NewEventListener("managed-resume-boundaries", func(_ context.Context, value event.Event) {
 		if boundary, ok := value.(event.InteractionBoundary); ok {
 			boundaries = append(boundaries, boundary.Boundary.Kind)
 		}
@@ -900,7 +900,7 @@ func TestManagedInteractionCancellationAtRequestBoundarySkipsProviderCall(t *tes
 		_, err = pc.Interact(ctx, core.Interaction{Request: request, Tools: registry})
 		return "", err
 	}, core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[string](core.GoalConfig{Description: "managed result"})}})
-	cancelListener := event.NewNamedListener("cancel-at-request", func(_ context.Context, value event.Event) {
+	cancelListener := runtime.NewEventListener("cancel-at-request", func(_ context.Context, value event.Event) {
 		if boundary, ok := value.(event.InteractionBoundary); ok &&
 			boundary.Boundary.Kind == interaction.EventModelRequest {
 			cancel()

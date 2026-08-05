@@ -36,56 +36,6 @@ type ListenerFunc func(context.Context, Event)
 
 func (f ListenerFunc) OnEvent(ctx context.Context, event Event) { f(ctx, event) }
 
-// NamedListener wraps a function as a [runtime.EventListener] — i.e.,
-// a [core.Extension] (it has Name) that observes events published in its
-// registration scope.
-//
-// It turns event consumption into a closure, which is what makes stream-style
-// delivery possible without a listener type: capture a channel in fn and range
-// it from a consumer goroutine. Delivery is synchronous with publication, so fn
-// must not block the tick — a full channel is the closure's problem to decide.
-//
-// Use [NewNamedSubtreeListener] when a process-scoped listener must also observe
-// descendants; fn owns any filtering by ProcessID. A nil fn makes OnEvent a
-// no-op.
-type NamedListener struct {
-	name string
-	fn   func(context.Context, Event)
-}
-
-// NamedSubtreeListener is the explicit descendant-observing variant of
-// [NamedListener] when registered in ProcessOptions.Extensions.
-type NamedSubtreeListener struct {
-	*NamedListener
-}
-
-// NewNamedListener returns a NamedListener with the given name and
-// callback. name should be non-empty and unique within the slice
-// passed to the engine — the runtime rejects duplicate or empty
-// extension names at registration time.
-func NewNamedListener(name string, fn func(context.Context, Event)) *NamedListener {
-	return &NamedListener{name: name, fn: fn}
-}
-
-// NewNamedSubtreeListener returns a listener whose process-scoped registration
-// follows descendant processes created below that process.
-func NewNamedSubtreeListener(name string, fn func(context.Context, Event)) *NamedSubtreeListener {
-	return &NamedSubtreeListener{NamedListener: NewNamedListener(name, fn)}
-}
-
-// ObserveSubtree marks l as a runtime.SubtreeEventListener.
-func (*NamedSubtreeListener) ObserveSubtree() {}
-
-// Name implements [core.Extension].
-func (l *NamedListener) Name() string { return l.name }
-
-// OnEvent invokes fn; nil fn is a no-op.
-func (l *NamedListener) OnEvent(ctx context.Context, event Event) {
-	if l.fn != nil {
-		l.fn(ctx, event)
-	}
-}
-
 // Multicast is a concurrent-safe fan-out. A delivery uses the subscription
 // snapshot captured when it began, so cancellation never interrupts an event
 // already being delivered. Event types carrying mutable protocol containers

@@ -2,7 +2,6 @@ package event_test
 
 import (
 	"context"
-	"sync"
 	"testing"
 
 	"github.com/Tangerg/lynx/agent/core"
@@ -12,36 +11,6 @@ import (
 )
 
 var listenerDeployment = core.DeploymentRef{Name: "x", Digest: "digest"}
-
-func TestNamedListener_NameAndOnEvent(t *testing.T) {
-	var got []event.Kind
-	listener := event.NewNamedListener("collector", func(_ context.Context, e event.Event) {
-		got = append(got, e.Kind())
-	})
-
-	if listener.Name() != "collector" {
-		t.Fatalf("Name() = %q, want %q", listener.Name(), "collector")
-	}
-
-	mc := event.NewMulticast()
-	mc.Add(listener)
-	mc.OnEvent(t.Context(), event.AgentDeployed{Header: event.NewHeader(""), Deployment: listenerDeployment})
-	mc.OnEvent(t.Context(), event.AgentUndeployed{Header: event.NewHeader(""), Deployment: listenerDeployment})
-
-	if len(got) != 2 {
-		t.Fatalf("captured %d events, want 2: %v", len(got), got)
-	}
-	if got[0] != "agent_deployed" || got[1] != "agent_undeployed" {
-		t.Fatalf("captured order = %v", got)
-	}
-}
-
-func TestNamedListener_NilFnIsNop(t *testing.T) {
-	listener := event.NewNamedListener("nop", nil)
-
-	// Should not panic.
-	listener.OnEvent(t.Context(), event.AgentDeployed{Header: event.NewHeader(""), Deployment: listenerDeployment})
-}
 
 func TestMulticastCancelListenerFunc(t *testing.T) {
 	var calls int
@@ -92,40 +61,6 @@ func TestMulticastIsolatesInteractionBoundaryListeners(t *testing.T) {
 
 	if observed != "original" || boundary.Boundary.Response.Text() != "original" {
 		t.Fatalf("observed=%q source=%q, want isolated original values", observed, boundary.Boundary.Response.Text())
-	}
-}
-
-func TestNamedListener_ConcurrentDelivery(t *testing.T) {
-	// Smoke test: NamedListener fn must tolerate concurrent OnEvent calls
-	// from the multicast (the user closure is responsible for its own
-	// synchronization). Verify no race when the callback is a goroutine-safe
-	// counter.
-	var (
-		mu    sync.Mutex
-		count int
-	)
-	listener := event.NewNamedListener("counter", func(context.Context, event.Event) {
-		mu.Lock()
-		count++
-		mu.Unlock()
-	})
-
-	mc := event.NewMulticast()
-	mc.Add(listener)
-
-	const N = 100
-	var wg sync.WaitGroup
-	for range N {
-		wg.Go(func() {
-			mc.OnEvent(t.Context(), event.AgentDeployed{Header: event.NewHeader(""), Deployment: listenerDeployment})
-		})
-	}
-	wg.Wait()
-
-	mu.Lock()
-	defer mu.Unlock()
-	if count != N {
-		t.Fatalf("count = %d, want %d", count, N)
 	}
 }
 

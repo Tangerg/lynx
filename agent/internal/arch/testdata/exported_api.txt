@@ -288,7 +288,6 @@ core: var ErrLifecycleControlUnavailable = errors.New("agent: process lifecycle 
 core: var ErrUndeclaredState = errors.New("core: type is not declared snapshot state")
 core: var ErrUnportableValue = errors.New("core: value has no portable form")
 event: const ( KindAgentDeployed Kind = "agent_deployed" KindAgentUndeployed Kind = "agent_undeployed" KindProcessCreated Kind = "process_created" KindProcessCompleted Kind = "process_completed" KindProcessFailed Kind = "process_failed" KindProcessStuck Kind = "process_stuck" KindProcessWaiting Kind = "process_waiting" KindProcessKilled Kind = "process_killed" KindProcessTerminated Kind = "process_terminated" KindPlanningStarted Kind = "planning_started" KindPlanCreated Kind = "plan_created" KindReplanRequested Kind = "replan_requested" KindActionStarted Kind = "action_started" KindActionFinished Kind = "action_finished" KindGoalAchieved Kind = "goal_achieved" KindInteractionBoundary Kind = "interaction_boundary" )
-event: func (*NamedSubtreeListener) ObserveSubtree()
 event: func (ActionFinished) Kind() Kind
 event: func (ActionStarted) Kind() Kind
 event: func (AgentDeployed) Kind() Kind
@@ -308,14 +307,10 @@ event: func (ReplanRequested) Kind() Kind
 event: func (f ListenerFunc) OnEvent(ctx context.Context, event Event)
 event: func (h Header) ProcessID() string
 event: func (h Header) Timestamp() time.Time
-event: func (l *NamedListener) Name() string
-event: func (l *NamedListener) OnEvent(ctx context.Context, event Event)
 event: func (m *Multicast) Add(listener Listener) func()
 event: func (m *Multicast) OnEvent(ctx context.Context, event Event)
 event: func NewHeader(processID string) Header
 event: func NewMulticast() *Multicast
-event: func NewNamedListener(name string, fn func(context.Context, Event)) *NamedListener
-event: func NewNamedSubtreeListener(name string, fn func(context.Context, Event)) *NamedSubtreeListener
 event: type ActionFinished struct { Header Action core.ActionDescriptor Status core.ActionStatus Duration time.Duration Err error }
 event: type ActionStarted struct { Header Action core.ActionDescriptor StartedAt time.Time }
 event: type AgentDeployed struct { Header Deployment core.DeploymentRef }
@@ -328,8 +323,6 @@ event: type Kind string
 event: type Listener interface { OnEvent(ctx context.Context, event Event) }
 event: type ListenerFunc func(context.Context, Event)
 event: type Multicast struct { }
-event: type NamedListener struct { }
-event: type NamedSubtreeListener struct { *NamedListener }
 event: type PlanCreated struct { Header Plan planning.PlanDescriptor }
 event: type PlanningStarted struct { Header State core.WorldState }
 event: type ProcessCompleted struct { Header Goal core.GoalDescriptor }
@@ -454,15 +447,15 @@ routing: func (c Candidate) Goal() core.GoalDescriptor
 routing: func (c Candidate) String() string
 routing: func (r *Router) Candidates() []Candidate
 routing: func (r *Router) Choose(ctx context.Context, input string) (Choice, error)
-routing: func New(agentRuntime Runtime, ranker Ranker, config Config) (*Router, error)
+routing: func New(engine *runtime.Engine, ranker Ranker, config Config) (*Router, error)
 routing: type Candidate struct { }
 routing: type Choice struct { Candidate Confidence float64 Rationale string }
 routing: type Config struct { MinConfidence float64 AgentFilter func(core.AgentDescriptor) bool GoalFilter func(core.AgentDescriptor, core.GoalDescriptor) bool }
 routing: type Ranker interface { Rank(ctx context.Context, input string, candidates []Candidate) ([]Choice, error) }
 routing: type Router struct { }
-routing: type Runtime interface { ActiveDeployments() []*runtime.Deployment }
 routing: var ErrNoMatch = errors.New("routing: no candidate cleared the confidence threshold")
 runtime: const ( DefaultMaxChildDepth = 8 )
+runtime: func (*NamedSubtreeEventListener) ObserveSubtree()
 runtime: func (c RunCompletion) Error() error
 runtime: func (d *Deployment) Descriptor() core.AgentDescriptor
 runtime: func (d *Deployment) Ref() core.DeploymentRef
@@ -498,6 +491,8 @@ runtime: func (e *Engine) SnapshotTree(ctx context.Context, processID string) (c
 runtime: func (e *Engine) Start( ctx context.Context, agent *core.Agent, bindings core.Bindings, options core.ProcessOptions, ) (*Segment, error)
 runtime: func (e *Engine) Undeploy(ctx context.Context, name string) error
 runtime: func (e *Engine) ValidateRestoreTree(tree core.ProcessSnapshotTree) error
+runtime: func (l *NamedEventListener) Name() string
+runtime: func (l *NamedEventListener) OnEvent(ctx context.Context, published event.Event)
 runtime: func (p *Process) Blackboard() core.BlackboardReader
 runtime: func (p *Process) Deployment() core.DeploymentRef
 runtime: func (p *Process) Failure() error
@@ -520,6 +515,8 @@ runtime: func CompletionResult[T any](completion RunCompletion) (T, bool)
 runtime: func MustNew(config Config) *Engine
 runtime: func New(config Config) (*Engine, error)
 runtime: func NewAgentTool[In, Out any](engine *Engine, deployment *Deployment) (tool.Tool, error)
+runtime: func NewEventListener(name string, fn func(context.Context, event.Event)) *NamedEventListener
+runtime: func NewSubtreeEventListener(name string, fn func(context.Context, event.Event)) *NamedSubtreeEventListener
 runtime: func PendingSuspensionsIn(tree core.ProcessSnapshotTree) ([]PendingSuspension, error)
 runtime: func ValidateResumableSnapshot(snapshot core.ProcessSnapshot) error
 runtime: type BlackboardRestorer interface { Restore(BlackboardState) error }
@@ -531,6 +528,8 @@ runtime: type Deployment struct { }
 runtime: type DeploymentConflictError struct { Active core.DeploymentRef Candidate core.DeploymentRef }
 runtime: type Engine struct { }
 runtime: type EventListener interface { core.Extension OnEvent(ctx context.Context, event event.Event) }
+runtime: type NamedEventListener struct { }
+runtime: type NamedSubtreeEventListener struct { *NamedEventListener }
 runtime: type PendingSuspension struct { ProcessID string SuspensionID string Prompt json.RawMessage ResumeSchema json.RawMessage }
 runtime: type Process struct { }
 runtime: type RunCompletion struct { Status core.ProcessStatus Failure error Err error }
@@ -608,17 +607,16 @@ workflow: func (h History[T]) Last() (T, bool)
 workflow: func (h History[T]) MarshalJSON() ([]byte, error)
 workflow: func Consensus[In, Element any](config ConsensusConfig[In, Element]) (*core.Agent, error)
 workflow: func DefaultKey[Element ~string](element Element) string
-workflow: func Loop[In, Out any]( ctx context.Context, childRuntime ChildRuntime, config LoopConfig[In, Out], ) (*core.Agent, error)
-workflow: func Parallel[In, Element, Result any]( ctx context.Context, childRuntime ChildRuntime, config ParallelConfig[In, Element, Result], ) (*core.Agent, error)
+workflow: func Loop[In, Out any]( ctx context.Context, engine *runtime.Engine, config LoopConfig[In, Out], ) (*core.Agent, error)
+workflow: func Parallel[In, Element, Result any]( ctx context.Context, engine *runtime.Engine, config ParallelConfig[In, Element, Result], ) (*core.Agent, error)
 workflow: func RepeatUntilAcceptable[In, Out any](config RepeatUntilAcceptableConfig[In, Out]) (*core.Agent, error)
 workflow: func RepeatUntil[In, Out any](config RepeatUntilConfig[In, Out]) (*core.Agent, error)
 workflow: func ScatterGather[In, Element, Result any](config ScatterGatherConfig[In, Element, Result]) (*core.Agent, error)
-workflow: func Sequence[In, Out any]( ctx context.Context, childRuntime ChildRuntime, name string, agents ...*core.Agent, ) (*core.Agent, error)
+workflow: func Sequence[In, Out any]( ctx context.Context, engine *runtime.Engine, name string, agents ...*core.Agent, ) (*core.Agent, error)
 workflow: func Supervisor[In, Out any](config SupervisorConfig[In, Out]) (*core.Agent, error)
 workflow: func Team(config TeamConfig) (*core.Agent, error)
 workflow: type AttemptHistory[Out any] struct { }
 workflow: type Attempt[Out any] struct { Output Out Feedback Feedback }
-workflow: type ChildRuntime interface { Deploy(context.Context, *core.Agent) (*runtime.Deployment, error) RunChild(context.Context, *runtime.Deployment, any) (*runtime.Process, error) }
 workflow: type ConsensusConfig[In, Element any] struct { Name string Description string MaxConcurrency int Voters []Generator[In, Element] Key func(Element) string }
 workflow: type Evaluator[In, Out any] func(ctx context.Context, process *core.ProcessContext, input In, latest Out) (Feedback, error)
 workflow: type Feedback struct { Score float64 Text string }

@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"github.com/Tangerg/lynx/agent/core"
+	"github.com/Tangerg/lynx/agent/runtime"
 )
 
 // defaultLoopIterations bounds Loop when Config.MaxIterations is unset. Every
@@ -77,11 +78,11 @@ type LoopConfig[In, Out any] struct {
 // Returns an error on missing Name, nil Body, or nil Until.
 func Loop[In, Out any](
 	ctx context.Context,
-	childRuntime ChildRuntime,
+	engine *runtime.Engine,
 	config LoopConfig[In, Out],
 ) (*core.Agent, error) {
-	if childRuntime == nil {
-		return nil, errors.New("workflow.Loop: child runtime must not be nil")
+	if engine == nil {
+		return nil, errors.New("workflow.Loop: engine must not be nil")
 	}
 	if config.Name == "" {
 		return nil, errors.New("workflow.Loop: Name must not be empty")
@@ -95,7 +96,7 @@ func Loop[In, Out any](
 	if config.MaxIterations < 0 {
 		return nil, fmt.Errorf("workflow.Loop: MaxIterations %d must not be negative", config.MaxIterations)
 	}
-	bodyDeployment, err := childRuntime.Deploy(ctx, config.Body)
+	bodyDeployment, err := engine.Deploy(ctx, config.Body)
 	if err != nil {
 		return nil, fmt.Errorf("workflow.Loop: deploy Body %q: %w", config.Body.Name(), err)
 	}
@@ -116,7 +117,7 @@ func Loop[In, Out any](
 		count:         History[Out].Count,
 		run: func(ctx context.Context, process *core.ProcessContext, input In, history History[Out]) (Out, History[Out], error) {
 			var zero Out
-			child, err := childRuntime.RunChild(ctx, bodyDeployment, input)
+			child, err := engine.RunChild(ctx, bodyDeployment, input)
 			if err != nil {
 				return zero, history, fmt.Errorf("iteration %d: %w", history.Count(), err)
 			}

@@ -78,7 +78,7 @@ func TestChildEventsReachParentProcessListener(t *testing.T) {
 
 	capture := &pidCapture{}
 	localIDs := make(map[string]int)
-	local := event.NewNamedListener("local-capture", func(_ context.Context, published event.Event) {
+	local := runtime.NewEventListener("local-capture", func(_ context.Context, published event.Event) {
 		localIDs[published.ProcessID()]++
 	})
 	proc, err := engine.Run(
