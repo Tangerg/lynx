@@ -9,7 +9,7 @@ import (
 )
 
 // UtilityRole returns the live utility-model role; both empty when unset
-// (maintenance runs on the main Run model). Backs models.getUtilityRole.
+// (maintenance runs on the main Run model).
 func (c *Coordinator) UtilityRole() modelref.Selection { return c.utilityRoleState.Role() }
 
 // SetUtilityRole repoints the maintenance services at (provider, model), persists
@@ -17,7 +17,7 @@ func (c *Coordinator) UtilityRole() modelref.Selection { return c.utilityRoleSta
 // boundary. An empty model clears the role back to the main Run model. A
 // non-empty model is validated before persistence — an unsupported or
 // unconfigured provider fails here rather than silently degrading at the next
-// compaction. Backs models.setUtilityRole.
+// compaction.
 func (c *Coordinator) SetUtilityRole(ctx context.Context, provider, model string) (modelref.Selection, error) {
 	c.utilityMu.Lock()
 	defer c.utilityMu.Unlock()
@@ -46,14 +46,14 @@ func (c *Coordinator) SetUtilityRole(ctx context.Context, provider, model string
 }
 
 // EmbeddingRole returns the live embedding role; both empty when unset. Backs
-// models.getEmbeddingRole.
+// current embedding role.
 func (c *Coordinator) EmbeddingRole() modelref.Selection { return c.embeddingRoleState.Role() }
 
-// SetEmbeddingRole repoints the @codebase index at (provider, model), persists
+// SetEmbeddingRole repoints the semantic index at (provider, model), persists
 // it, and swaps the live cell. An empty model clears the role (turns the index
 // off). A non-empty model is validated by building its embedding client, so an
 // unsupported, unconfigured, or unbuildable role fails here rather than at the
-// next search. Backs models.setEmbeddingRole.
+// next search.
 func (c *Coordinator) SetEmbeddingRole(ctx context.Context, providerID, model string) (modelref.Selection, error) {
 	c.embeddingMu.Lock()
 	defer c.embeddingMu.Unlock()

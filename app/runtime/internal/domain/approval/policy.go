@@ -1,19 +1,17 @@
 // Package approval defines the runtime tool-call approval policy. Two concerns
 // live here:
 //
-//   - Mode: the effective session permission stance the chat engine reads at
-//     each tool call to decide whether a call runs, is denied, or must pause for
+//   - Mode: the effective session permission stance checked at each tool call
+//     to decide whether a call runs, is denied, or must pause for
 //     approval. safe / balanced / yolo are runtime defaults; Plan mode is a
-//     persisted session overlay entered only through enter_plan_mode. The HITL
-//     pause/resume is the R model: the
-//     executor parks a suspension and the client later supplies one typed
+//     persisted session overlay entered only through an explicit transition.
+//     The executor parks a suspension and the caller later supplies one typed
 //     resolution through the durable continuation boundary.
 //   - Rules: persistent, fine-grained "remember this decision" rules. A rule
 //     gates a (tool, subject) pair under a scope (session / project / global),
 //     so the user can approve once and not be re-asked for matching calls. The
-//     subject is the per-tool part that actually matters — a shell command, an
-//     edited file's path — so a rule is "allow `npm run *` in this project",
-//     not the blunt "allow every shell call ever".
+//     subject is the per-tool part that actually matters, so a remembered rule
+//     can stay narrower than allowing every operation of that tool.
 package approval
 
 import "errors"

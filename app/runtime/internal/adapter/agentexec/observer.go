@@ -94,7 +94,7 @@ type executionObserver interface {
 	// ApproveToolCall is the gate consulted BEFORE every tool call.
 	// It returns a verdict telling the decorator whether the call runs,
 	// is denied (short-circuited to a recoverable result), or must pause
-	// the process for user approval (HITL R model, API.md §6): a non-nil
+	// the process for user approval: a non-nil
 	// Verdict.Interrupt makes the call return the framework's durable
 	// Suspension error, parking the process at [core.StatusWaiting]. The
 	// client answers via a continuation run.
@@ -159,7 +159,7 @@ type fileMutationReporter interface {
 var toolObservationKey = core.MustDependencyKey[*toolObservation]("lyra.tool_observation")
 
 // ToolApprovalVerdict is the decorator's instruction for one gated tool
-// call (API.md §6 HITL). Exactly one outcome applies:
+// call. Exactly one outcome applies:
 //
 //   - Interrupt != nil → suspend the run for human input (R model); the
 //     chat tool loop propagates the durable Suspension so the action parks. On resume

@@ -139,7 +139,7 @@ func installCurrentSchema(ctx context.Context, db *sql.DB, path string) error {
 		// rather than by a check that could be forgotten.
 		//
 		// message_mark is the conversation message count captured when the Run
-		// finished (post-compaction) — the per-run watermark sessions.rollback /
+		// finished (post-compaction) — the per-run rollback/fork watermark
 		// fork{fromRunId} truncate to. -1 is transcript.UnknownMessageMark: a Run
 		// that has not finished has no watermark yet.
 		`CREATE TABLE IF NOT EXISTS runs (
@@ -255,7 +255,7 @@ func installCurrentSchema(ctx context.Context, db *sql.DB, path string) error {
 			api_key   TEXT NOT NULL DEFAULT '',
 			base_url  TEXT NOT NULL DEFAULT ''
 		)`,
-		// Global utility-model role (models.setUtilityRole): the (provider, model)
+		// Global utility-model role: the (provider, model)
 		// the in-house maintenance services — compaction / extraction / titling —
 		// run on. Single row, pinned by CHECK(id = 1); empty model = unset (those
 		// run on the main Run model).
@@ -325,8 +325,8 @@ func installCurrentSchema(ctx context.Context, db *sql.DB, path string) error {
 		)`,
 		// One row per terminal Run: the session's Plan as it stood when that Run
 		// ended. session_plans is a latest-value projection with no history, so without
-		// this row "the Plan at Run X" is unknowable — and sessions.rollback and
-		// sessions.fork both restore/copy a Run boundary. It is the state half of what
+		// this row "the Plan at Run X" is unknowable — rollback and fork both
+		// restore or copy a Run boundary. It is the state half of what
 		// runs.message_mark is for the conversation, written by the same terminal
 		// transition.
 		//
@@ -372,7 +372,7 @@ func installCurrentSchema(ctx context.Context, db *sql.DB, path string) error {
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_goal_runs_session
 			ON goal_runs(session_id, lease_id)`,
-		// Persistent fine-grained approval rules (AUX_API §6). id is
+		// Persistent fine-grained approval rules. id is
 		// deterministic over (scope, scope_key, tool, subject) so re-remembering
 		// the same rule upserts the decision; scope_key is the session id /
 		// project dir / '' for global.
@@ -446,7 +446,7 @@ func installCurrentSchema(ctx context.Context, db *sql.DB, path string) error {
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_idempotency_records_expires_at
 			ON idempotency_records(expires_at)`,
-		// Embedding-model role (models.setEmbeddingRole): the (provider, model)
+		// Embedding-model role: the (provider, model)
 		// the @codebase semantic index embeds with. Single row, pinned by
 		// CHECK(id = 1); empty model = unset (the index feature is off). Mirrors
 		// utility_role; the credential comes from the provider registry.

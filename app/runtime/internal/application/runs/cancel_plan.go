@@ -21,7 +21,7 @@ type cancellationRun struct {
 	hasProcess bool
 }
 
-// cancellationPlan is the complete, immutable fact set one runs.cancel command
+// cancellationPlan is the complete, immutable fact set one cancellation command
 // acts on. It is application-private because it combines domain Run topology,
 // durable pending state, and process-local executor bindings; none of those
 // outer representations belongs in the execution domain itself.

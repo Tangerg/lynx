@@ -1,6 +1,5 @@
-// Package codebase owns the @codebase semantic-index use cases — search, status,
-// and background reindex. A nil index
-// means @codebase is disabled (no embedding store wired); the methods degrade to
+// Package codebase owns semantic-index search, status, and background reindex.
+// A nil index means semantic indexing is disabled; the methods degrade to
 // "unavailable" rather than erroring construction. The component task group owns
 // the request-detached reindex, canceled by [Coordinator.BeginShutdown] and
 // joined by [Coordinator.AwaitShutdown].
@@ -31,8 +30,8 @@ var ErrRootResolverUnavailable = errors.New("codebase: workspace root resolver u
 // ErrUnavailable reports that this runtime assembled no semantic index, so the
 // capability does not exist here. It is deliberately distinct from
 // [codebaseindex.ErrNoEmbeddingModel]: "never built" and "built but not
-// configured" are two different answers to the client (API.md §7.10) — the first
-// is capability_not_negotiated, the second a fixable invalid_params.
+// configured" are different states: one has no capability and the other has a
+// capability whose required model is unavailable.
 var ErrUnavailable = errors.New("codebase: semantic index unavailable")
 
 // RootResolver is the narrow workspace context dependency required by codebase
@@ -57,7 +56,7 @@ type Status struct {
 	OperationID string
 }
 
-// Coordinator drives the @codebase semantic index.
+// Coordinator drives the semantic index.
 type Coordinator struct {
 	index Index
 	roots RootResolver
@@ -67,7 +66,7 @@ type Coordinator struct {
 	active   map[string]string // canonical root -> operation ID
 }
 
-// New returns a Coordinator over index (nil to disable @codebase) scoped by
+// New returns a Coordinator over index (nil to disable semantic indexing), scoped by
 // roots. Root resolution belongs to this use case.
 func New(index Index, roots RootResolver) *Coordinator {
 	return &Coordinator{index: index, roots: roots, active: make(map[string]string)}

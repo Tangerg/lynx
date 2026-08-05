@@ -136,7 +136,7 @@ func (s *controller) drive(st *turnState) {
 // the pending interrupt's kind is one this turn's client can answer, it
 // surfaces it via [controller.emitInterrupt] and the turn waits for
 // [controller.Resume]. Otherwise the client could never answer it, so rather
-// than leave a deadlocked interrupt (API.md §6.2) the turn auto-denies and the
+// than leave a deadlocked interrupt, the turn auto-denies and the
 // continuation runs to a real terminal.
 func (s *controller) handleWaiting(st *turnState, process agentexec.TurnProcess) {
 	// Canceled while the process was parking: Cancel cancels st.ctx but skips

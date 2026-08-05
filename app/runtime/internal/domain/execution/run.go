@@ -30,7 +30,7 @@ const (
 	// Failed — the run stopped without completing: an error, or a budget/step
 	// cap. The fine reason is the [Outcome] (Error / MaxBudget / MaxSteps).
 	Failed
-	// Canceled — the client canceled the run, or its context was canceled.
+	// Canceled — the caller canceled the run, or its context was canceled.
 	Canceled
 )
 
@@ -118,7 +118,7 @@ type Outcome uint8
 const (
 	// OutcomeCompleted — the model returned a stop-marker normally. → Completed.
 	OutcomeCompleted Outcome = iota
-	// OutcomeCanceled — the client canceled, or the context was canceled. →
+	// OutcomeCanceled — the caller canceled, or the context was canceled. →
 	// Canceled.
 	OutcomeCanceled
 	// OutcomeError — the run aborted on an error. → Failed.

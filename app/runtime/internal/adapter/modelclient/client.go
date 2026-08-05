@@ -1,8 +1,8 @@
 // Package modelclient resolves per-(provider, model) chat and embedding clients
 // from the runtime-mutable provider registry credentials, caching by the
-// credential tuple so a providers.update (new key / base URL) is picked up
+// credential tuple so a credential mutation (new key or base URL) is picked up
 // rather than serving a stale client. It is the driven adapter the runtime's
-// per-run model selection, utility-model role, and @codebase embedding role all
+// per-run model selection, utility-model role, and semantic-index embedding role all
 // resolve through.
 package modelclient
 
@@ -64,7 +64,7 @@ func (r *ClientResolver) ResolveClient(ctx context.Context, selection modelref.S
 		}
 	}
 
-	// Key by everything that changes the built client, so a providers.update
+	// Key by everything that changes the built client, so a credential mutation
 	// (new key / base URL) is picked up rather than serving a stale client.
 	key := providerID + "\x00" + model + "\x00" + entry.APIKey + "\x00" + entry.BaseURL
 	r.mu.Lock()

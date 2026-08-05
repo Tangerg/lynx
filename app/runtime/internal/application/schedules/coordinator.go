@@ -89,8 +89,8 @@ func (c *Coordinator) List(ctx context.Context) ([]schedule.Schedule, error) {
 	return c.registry.List(ctx)
 }
 
-// listPageNamespace binds cursors to the schedule listing independently of any
-// transport method that exposes it.
+// listPageNamespace binds cursors to this schedule read independently of other
+// paged reads.
 const listPageNamespace = "schedules"
 
 // listPageLimit is the widest schedule page this read will serve.

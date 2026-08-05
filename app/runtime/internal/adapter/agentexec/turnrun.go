@@ -84,7 +84,7 @@ type TurnRequest struct {
 	Observer executionObserver
 
 	// Steer, when non-nil, provides user messages injected into the running
-	// loop during continuation rounds (mid-run steering, API.md §6). Messages
+	// loop during continuation rounds. Steering messages
 	// flow on the next tool loop round only, so the current assistant/tool
 	// state remains the decision point. nil disables mid-run injection.
 	Steer SteerSource

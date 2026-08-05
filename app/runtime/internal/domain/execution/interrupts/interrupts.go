@@ -18,7 +18,7 @@ import (
 
 // Pending is one complete Run-tree barrier awaiting human decisions. The set is
 // keyed by RootRunID and consumed all-or-nothing: individual source Runs do not
-// own separate resume claims. Interrupts is the client-facing typed set;
+// own separate resume claims. Interrupts is the published typed set;
 // Suspensions binds each item back to the executor boundary it answers;
 // Continuations is the durable state required to reopen every surviving Run
 // with a fresh Segment, including after process restart.
@@ -62,7 +62,7 @@ type Continuation struct {
 	Limits         execution.RunLimits
 }
 
-// SuspensionBinding is the private correspondence between one client-visible
+// SuspensionBinding is the private correspondence between one published
 // interrupt item and the executor suspension that must receive its answer.
 type SuspensionBinding struct {
 	InterruptItemID string

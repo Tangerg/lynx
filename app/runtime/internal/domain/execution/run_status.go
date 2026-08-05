@@ -27,7 +27,7 @@ const (
 //
 // It is exhaustive rather than defaulting. A state outside the machine is a
 // programming error, and the cost of guessing is asymmetric: "running" is the one
-// answer that makes a client attach to a stream and a session keep its admission
+// answer that makes an observer attach to a stream and a session keep its admission
 // slot, so silently choosing it for a value nothing produced would turn a bug into
 // a run nobody can finish.
 func (s RunState) Status() RunStatus {

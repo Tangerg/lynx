@@ -1,5 +1,5 @@
 // Package provider models the credentials and enablement registry used by model
-// execution. Model metadata, pricing, capabilities, and client construction are
+// execution. Model metadata, pricing, capabilities, and connection construction are
 // separate concerns; this package owns only provider identity, configuration,
 // provenance, and registry operations.
 package provider
@@ -8,8 +8,8 @@ import (
 	"context"
 )
 
-// Provider is one registry entry: a stable provider id plus the credentials a
-// Run uses to build its client. The id also keys model reference data.
+// Provider is one registry entry: a stable provider id plus the credentials
+// used for model access. The id also keys model reference data.
 type Provider struct {
 	// ID is the provider id — lowercase, e.g. "anthropic", "deepseek".
 	ID string
@@ -34,7 +34,7 @@ type KeySource string
 const (
 	// KeyNone — no key; the provider is unconfigured and not enabled.
 	KeyNone KeySource = ""
-	// KeyStored — key set via providers.update (persisted in the registry).
+	// KeyStored — key persisted in the registry.
 	KeyStored KeySource = "stored"
 	// KeyEnv — key read from the provider's environment variable (not persisted;
 	// surfaced by [WithEnvKeys]). A stored key always takes precedence.

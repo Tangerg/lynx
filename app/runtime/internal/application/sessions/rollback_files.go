@@ -49,7 +49,7 @@ type RollbackResult struct {
 // the single-writer mutation slot (rejecting a rollback under an in-flight run
 // as [ErrSessionBusy]) and, for a file restore, the working-tree mutation slot
 // too, then resolves the boundary under those guards, restores the working tree
-// to the run snapshot (files first, as required by AUX_API §4.1), and applies
+// to the run snapshot, restoring files before durable session state, and applies
 // the durable history truncation. It returns the resolved session view with the
 // mutation result so callers do not re-read a newer revision.
 //

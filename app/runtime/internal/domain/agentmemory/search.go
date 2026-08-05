@@ -9,9 +9,8 @@ import (
 	"unicode"
 )
 
-// Embedder turns text into vectors for semantic memory search. It is satisfied
-// by the same embedding client @codebase uses; the [Searcher] treats it as
-// optional and best-effort.
+// Embedder turns text into vectors for semantic memory search. [Searcher]
+// treats it as optional and best-effort.
 type Embedder interface {
 	Embed(ctx context.Context, texts []string) ([][]float32, error)
 	ID() string

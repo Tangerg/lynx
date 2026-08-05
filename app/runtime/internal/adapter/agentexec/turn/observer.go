@@ -140,7 +140,7 @@ type toolGate struct {
 //   - deny stance (read-only) → recoverable denial, the model adapts.
 //   - prompt stance → runtime suspension: the first pass returns a durable
 //     Suspension error (the tool loop exits, the action parks at
-//     StatusWaiting, the client answers via runs.resume); on resume the gate
+//     StatusWaiting, then a continuation supplies the answer); on resume the gate
 //     is consulted again at the same pending call and Interrupt returns the
 //     human's [interrupts.Resolution], so the gate runs / denies /
 //     runs-with-edited-args accordingly.

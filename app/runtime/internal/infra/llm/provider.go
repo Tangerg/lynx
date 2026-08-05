@@ -17,8 +17,8 @@ import (
 type Provider string
 
 const (
-	// Native + OpenAI-/Anthropic-compatible vendors with a catalog (models.list
-	// browses their models). Each routes through its own adapter, which encodes
+	// Native + OpenAI-/Anthropic-compatible vendors with a model catalog. Each
+	// routes through its own adapter, which encodes
 	// the vendor endpoint. IAM-only vendors (amazonbedrock, vertexai) are
 	// intentionally absent — they don't fit the "paste an API key" model.
 	ProviderAnthropic   Provider = "anthropic"
@@ -96,7 +96,7 @@ func (p Provider) DefaultBaseURL() string {
 // ProbeModels reports whether p's available models are defined by its live
 // endpoint rather than the static catalog — true exactly for the providers
 // whose model id is user-supplied (no catalog default): Ollama, Azure, and the
-// generic OpenAI-/Anthropic-compatible passthroughs. models.list probes their
+// generic OpenAI-/Anthropic-compatible passthroughs. Dynamic discovery probes their
 // /v1/models instead of serving the embedded catalog for these.
 func (p Provider) ProbeModels() bool {
 	entry, ok := providerInfo[p]

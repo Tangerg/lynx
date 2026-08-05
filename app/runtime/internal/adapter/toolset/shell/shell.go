@@ -244,9 +244,8 @@ func (t *family) kill(_ context.Context, a shellIDArgs) (string, error) {
 }
 
 // completedJSON shapes a finished foreground command's result. The combined
-// stdout+stderr goes in "stdout" (the exec ring merges the two streams; the
-// server's commandResult merges them on the wire anyway). exit_code is always
-// present, so the client renders it.
+// stdout+stderr goes in "stdout" because the execution ring preserves their
+// combined arrival order. exit_code is always present for a finished command.
 func completedJSON(out string, dropped bool, code int, killed bool, dur time.Duration) (string, error) {
 	if dropped {
 		out = "[earlier output dropped — buffer overflowed]\n" + out
@@ -266,7 +265,7 @@ func completedJSON(out string, dropped bool, code int, killed bool, dur time.Dur
 
 // backgroundedJSON is the result for a command left running (explicit
 // run_in_background or auto-backgrounded). It omits exit_code — the command
-// hasn't exited — so the server's commandResult renders no phantom "exit 0".
+// has not exited and therefore has no exit status.
 func backgroundedJSON(id string) (string, error) {
 	b, err := json.Marshal(struct {
 		Stdout string `json:"stdout"`

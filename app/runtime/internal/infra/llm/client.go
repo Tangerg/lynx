@@ -56,7 +56,7 @@ type providerEntry struct {
 	// validated at client build.
 	requiresBaseURL bool
 	// defaultBaseURL is a built-in endpoint used for live model discovery
-	// (models.list) when the caller configured none — set only for the local
+	// when the caller configured none — set only for the local
 	// Ollama daemon (hosted vendors encode their endpoint inside the adapter).
 	defaultBaseURL string
 }
@@ -120,7 +120,7 @@ var providerInfo = map[Provider]providerEntry{
 	}},
 
 	// Local daemon (base URL defaults to localhost; model id is user-pulled —
-	// models.list probes the daemon's /v1/models for what's actually installed).
+	// dynamic discovery probes the daemon's /v1/models for what is installed).
 	ProviderOllama: {apiKeyEnv: "OLLAMA_API_KEY", defaultBaseURL: "http://localhost:11434/v1", build: func(s ClientSpec, o chat.Options) (chat.Model, error) {
 		return ollama.NewOpenAIChat(ollama.OpenAIChatConfig{APIKey: s.APIKey, DefaultOptions: o, BaseURL: s.BaseURL})
 	}},

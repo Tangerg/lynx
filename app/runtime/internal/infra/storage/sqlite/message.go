@@ -84,7 +84,7 @@ func (s *MessageStore) Write(ctx context.Context, conversationID string, message
 		return nil
 	}
 	// RunInTx so the batch is atomic standalone, and folds into a caller's
-	// cross-store transaction (sessions.import seeds history inside one) instead
+	// cross-store transaction (portable restore seeds history inside one) instead
 	// of opening its own — which would deadlock under MaxOpenConns(1).
 	return RunInTx(ctx, s.db, func(ctx context.Context) error {
 		q := conn(ctx, s.db)
@@ -139,7 +139,7 @@ func (s *MessageStore) Replace(ctx context.Context, conversationID string, messa
 }
 
 // Count returns conversationID's message count via a COUNT(*) query — the
-// [conversation.Store] contract — so a watermark read (sessions.rollback /
+// [conversation.Store] contract, so a rollback/fork watermark read
 // fork{fromRunId}) doesn't load and unmarshal the whole history just to take
 // its length. Unknown conversation → 0. COUNT(*) tallies stored rows; Read
 // skips any that fail to unmarshal, but Write only persists marshalable

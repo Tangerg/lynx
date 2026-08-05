@@ -16,8 +16,8 @@ import (
 // A Session's Runs form a wall-clock timeline: each root Run opens one execution,
 // optionally interleaved with subagent Runs it spawns (carrying
 // a SpawnedByItemID). A run's resume continuations are NOT separate nodes — they
-// share the run's stable id and collapse into its one record. sessions.rollback
-// and sessions.fork both cut this timeline at a run boundary — keeping a run
+// share the run's stable id and collapse into its one record. Rollback and fork
+// both cut this timeline at a run boundary, so keeping a run
 // (with its subagents) and dropping/copying from the next root on. That boundary
 // math is a domain invariant of the Run log, so it lives here; callers only map
 // these canonical values and sentinels to their external representation. See

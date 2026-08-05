@@ -14,7 +14,7 @@ import (
 
 // ClientFunc resolves the chat client the maintenance services run on. It is
 // read per call — not captured once at construction — so a runtime change to
-// the utility model (models.setUtilityRole) takes effect at the next Run
+// a utility-role change takes effect at the next Run
 // boundary. The runtime's implementation never returns nil (it falls back to
 // the main Run client); a nil ClientFunc, or one that returns nil, leaves the
 // owning service unable to call and surfaces as [askDirect]'s missing-client

@@ -473,21 +473,22 @@ func TestSegmentPumpKeepsOneGoroutineOwner(t *testing.T) {
 // never a caller or composition package that happens to consume them today.
 func TestInnerRingCommentsDoNotNameOuterArchitecture(t *testing.T) {
 	root := filepath.Join(moduleRoot(t), "internal")
+	runtimeProtocolReference := regexp.MustCompile(`(?i)API\.md|AUX_API|TRANSPORT\.md|\b(workspace\.listFiles|sessions\.(rollback|fork|import)|runs\.(start|cancel|resume)|providers\.(update|test)|models\.(list|setUtilityRole|getUtilityRole|setEmbeddingRole|getEmbeddingRole)|goals\.start|mcp\.tools\.list)\b`)
 	checks := []struct {
 		ring      string
 		forbidden *regexp.Regexp
 	}{
 		{
 			ring:      "domain",
-			forbidden: regexp.MustCompile(`(?i)\b(application|adapters?|delivery|infrastructure|infra|bootstrap|frontend|desktop|tui|cli)\b`),
+			forbidden: regexp.MustCompile(`(?i)\b(application|adapters?|delivery|infrastructure|infra|bootstrap|frontend|desktop|tui|cli|chat engine)\b|@[a-z]`),
 		},
 		{
 			ring:      "application",
-			forbidden: regexp.MustCompile(`(?i)\b(adapters?|delivery|infrastructure|infra|bootstrap|frontend|desktop|tui|cli)\b|composition[ -]root`),
+			forbidden: regexp.MustCompile(`(?i)\b(adapters?|delivery|infrastructure|infra|bootstrap|frontend|desktop|tui|cli)\b|composition[ -]root|transport method|@[a-z]`),
 		},
 		{
 			ring:      "adapter",
-			forbidden: regexp.MustCompile(`(?i)\b(delivery|bootstrap|frontend|desktop|tui|cli)\b|composition[ -]root`),
+			forbidden: regexp.MustCompile(`(?i)\b(delivery|bootstrap|frontend|desktop|tui|cli)\b|composition[ -]root|server's commandResult|@[a-z]`),
 		},
 		{
 			ring:      "infra",
@@ -519,6 +520,9 @@ func TestInnerRingCommentsDoNotNameOuterArchitecture(t *testing.T) {
 				for _, group := range file.Comments {
 					if leaked := check.forbidden.FindString(group.Text()); leaked != "" {
 						t.Errorf("%s comment names outer architecture %q", path, leaked)
+					}
+					if leaked := runtimeProtocolReference.FindString(group.Text()); leaked != "" {
+						t.Errorf("%s comment names Runtime protocol surface %q", path, leaked)
 					}
 				}
 				return nil

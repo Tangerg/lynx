@@ -36,7 +36,7 @@ func (e *InsufficientCapabilities) Is(target error) bool {
 // segment obeys them. A continuation answers an interrupt; it does not renegotiate
 // what the Run is allowed to do.
 //
-// Input boundaries translate negotiated client capabilities into this value.
+// Input boundaries translate negotiated caller capabilities into this value.
 // The empty value is a valid minimal capability set, not an unknown value.
 type RunCapabilities struct {
 	ChildRuns      bool

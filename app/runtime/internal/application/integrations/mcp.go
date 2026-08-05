@@ -455,7 +455,7 @@ func resolveMCPConnection(input MCPConnectionInput, current *mcpserver.Server) (
 }
 
 // MCPTools lists tools advertised by the connected MCP servers (scoped to server
-// when non-empty) for mcp.tools.list.
+// when non-empty) for tool discovery.
 func (c *Coordinator) MCPTools(ctx context.Context, server string) ([]mcpserver.ToolInfo, error) {
 	if c.mcpToolCatalog == nil {
 		return nil, nil

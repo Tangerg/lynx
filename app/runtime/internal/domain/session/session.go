@@ -70,7 +70,7 @@ func (p Patch) Normalize() (Patch, error) {
 type Session struct {
 	ID        string
 	Title     string // human-readable; auto-generated from first user message
-	Cwd       string // working-directory identity (API.md §0.2); defaults to the serve cwd
+	Cwd       string // working-directory identity; defaults to the serve directory
 	Model     string // the model the session last explicitly ran against; empty ⇒ runtime default
 	ParentID  string // empty for root sessions; non-empty for a user-created fork
 	StartedAt time.Time
@@ -95,7 +95,7 @@ func (s Session) Fork(id string, now time.Time) Session {
 	return Session{
 		ID:        id,
 		Title:     s.Title + " (fork)",
-		Cwd:       s.Cwd, // inherit the source's cwd (API.md §7.2)
+		Cwd:       s.Cwd, // inherit the source working directory
 		ParentID:  s.ID,
 		Isolated:  s.Isolated, // a fork of an isolated session stays isolated
 		StartedAt: now,

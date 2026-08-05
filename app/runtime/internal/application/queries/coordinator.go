@@ -405,16 +405,16 @@ func statusFilter(statuses []execution.RunStatus) string {
 // every session and an empty rootRunID every waiting tree; given together they must
 // both match.
 //
-// The page unit is a whole set, never an interrupt: [runs.Resume] validates and
+// The page unit is a whole set, never an interrupt: resume validates and
 // consumes a set in one transaction, so half a set is a resume nobody can attempt.
 // Sets are one row each, which is what makes "never split" a property of the
 // storage rather than a rule this read has to remember.
 //
-// caller is what the requesting client declared it can follow. A set whose Run
+// caller is what the requester declared it can follow. A set whose Run
 // publishes more than that is REFUSED — [execution.ErrInsufficientCapabilities] — rather
-// than returned with the parts the caller understands: a client that answered a
+// than returned with the parts the caller understands: answering a
 // trimmed set would leave the rest of it open forever, and the run would stay
-// waiting on interrupts the client believes it resolved.
+// waiting on interrupts the requester believes it resolved.
 //
 // rootRunID must name a root. A child id is [transcript.ErrNotRoot], because the
 // set it belongs to exists — under the root — and an empty page would say otherwise.

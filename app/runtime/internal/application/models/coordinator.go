@@ -38,14 +38,14 @@ var (
 )
 
 // ProviderProber validates a provider's credentials with one minimal live call
-// (providers.test).
+// during a provider probe.
 type ProviderProber interface {
 	Probe(ctx context.Context, entry provider.Provider) error
 }
 
 // ProviderModelLister discovers a provider's available models by probing its
 // live endpoint — used for local / bring-your-own-endpoint providers whose model
-// set is not in the static catalog (models.list of an Ollama daemon or a compat
+// set is not in the static catalog (dynamic discovery from an Ollama daemon or a compatible
 // passthrough). A nil lister disables live discovery (static catalog only).
 type ProviderModelLister interface {
 	ListModels(ctx context.Context, entry provider.Provider) ([]string, error)

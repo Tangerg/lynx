@@ -62,7 +62,7 @@ func (m *Messages) Read(ctx context.Context, sessionID string) ([]chat.Message, 
 	return messages, nil
 }
 
-// Seed writes messages into sessionID's history. Used by sessions.fork to copy a
+// Seed writes messages into sessionID's history. Fork uses it to copy a
 // slice of the parent's history into a freshly created child so the child's
 // next execution continues from the fork point. No-op for an empty slice. The store
 // appends, so seed a fresh session only (seeding one with existing history
@@ -81,7 +81,7 @@ func (m *Messages) Seed(ctx context.Context, sessionID string, messages []chat.M
 }
 
 // Count returns sessionID's message count — the per-run watermark
-// sessions.rollback / fork{fromRunId} record at segment.finished and truncate to.
+// rollback or fork boundary records at segment completion and truncate to.
 // Empty session → 0.
 func (m *Messages) Count(ctx context.Context, sessionID string) (int, error) {
 	if sessionID == "" {
@@ -95,7 +95,7 @@ func (m *Messages) Count(ctx context.Context, sessionID string) (int, error) {
 }
 
 // Truncate keeps the first keepN messages of sessionID and drops the rest
-// (sessions.rollback). keepN >= current count is a no-op; keepN <= 0 clears the
+// during rollback. keepN >= current count is a no-op; keepN <= 0 clears the
 // session. It reads the prefix and atomically replaces the history through the
 // required [Store] contract, so a failed rewrite leaves the prior history
 // intact (sequence renumbering is immaterial; rollback does not depend on it).

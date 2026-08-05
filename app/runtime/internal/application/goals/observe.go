@@ -12,7 +12,7 @@ import (
 // The autonomous loop is a request-detached background driver — without a span
 // per Run and a disposition metric it runs blind. The loop's ctx keeps the
 // starting request's trace values (taskgroup.Attach → context.WithoutCancel), so
-// each goal.run span nests under the goals.start trace (full-link). No-op until
+// each Goal-run span nests under the root Goal trace. No-op until
 // a TracerProvider / MeterProvider is installed.
 const observeScope = "lynx/lyra/goal"
 

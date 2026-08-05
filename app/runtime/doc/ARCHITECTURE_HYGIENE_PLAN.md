@@ -921,6 +921,7 @@ Acceptance:
 | 47. Infrastructure boundary and external-output closure | Completed | 2026-08-05 | 2026-08-05 | Infrastructure comments no longer name composition or presentation owners and a mechanical gate covers the ring; Git output parsing fails on malformed counts/hunks and accepts only documented nonzero statuses; duplicated text-delta coalescing has one semantic path. Standalone full and focused race/static verification passed. |
 | 48. Shared-component semantic ownership | Completed | 2026-08-05 | 2026-08-05 | Component and configuration comments describe owned behavior without outer-ring vocabulary; TaskGroup no longer exports duplicate shutdown aliases solely to satisfy a construction-owned interface, and the consumer names the narrower Cancel/Wait port. Standalone full and focused race/static verification passed. |
 | 49. Construction naming and client-neutral semantics | Completed | 2026-08-05 | 2026-08-05 | Execution support and utility-role files/types/functions now name their actual construction responsibility; all inner rings reject CLI/TUI/desktop/frontend vocabulary, and remaining client-specific examples were replaced by owned behavior. Standalone full and focused race/static verification passed. |
+| 50. Inner-ring protocol-language closure | Completed | 2026-08-05 | 2026-08-05 | Domain, application, adapter, and infrastructure comments no longer explain owned behavior through Runtime RPC names, protocol documents, model/client symbols, or former Delivery projectors; a precise mechanical gate rejects those references without banning external MCP/LSP wire terminology. Standalone full and focused race/static verification passed. |
 
 Allowed status values: `Pending`, `In progress`, `Completed`, `Blocked`, `Revised`.
 
@@ -1054,6 +1055,25 @@ Allowed status values: `Pending`, `In progress`, `Completed`, `Blocked`, `Revise
 - Focused bootstrap, domain, application, execution, MCP, LLM, and architecture
   tests, full standalone build/vet/test, race tests, static analysis, lint,
   formatting, dead-code analysis, and residue scans passed.
+
+### 2026-08-05 — Batch 50 completed
+
+- Removed the remaining Runtime-protocol narration from inner-ring production
+  comments: API/AUX document citations, RPC names such as provider/model/session
+  mutations, `@codebase` / `@file` symbols, and the obsolete server-owned shell
+  result projector. Each comment now describes its own registry, transition,
+  cursor, persistence, or result-shape semantics.
+- Added a precise comment gate for known Runtime RPC and contract-document
+  references across every inner ring. It intentionally does not ban generic
+  transport/wire language because MCP, LSP, HTTP, and vendor model adapters own
+  external protocols of their own; internal transaction ids and database column
+  names likewise remain with their owners.
+- Clarified cancellation, capability, interrupt, scheduling, semantic-index,
+  provider, and approval vocabulary around callers and published facts rather
+  than a particular model tool or UI client.
+- Focused domain, application, toolset, model-client, workspace, infrastructure,
+  and architecture tests, full standalone build/vet/test, race tests, static
+  analysis, lint, formatting, dead-code analysis, and residue scans passed.
 
 ### 2026-08-04 — Batch 38 completed
 

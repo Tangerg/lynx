@@ -15,14 +15,14 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/git"
 )
 
-// File browsing (workspace.listFiles, API.md §7.5) — the file-tree browser +
-// @file autocomplete source. Listing is gitignore-aware: in a git repo the
+// File browsing returns workspace entries for tree and completion consumers.
+// Listing is gitignore-aware: in a git repo the
 // candidate set comes from `git ls-files` (tracked + untracked-not-ignored, the
 // repo's own .gitignore as authority); outside a repo it's a filesystem walk
 // that skips a backstop set of heavy build/vcs dirs. This package owns Git
 // interaction so callers depend only on listing behavior.
 
-// EntryKind is a listed entry's type — file / dir / symlink (wire §7.5).
+// EntryKind is a listed entry's type: file, directory, or symbolic link.
 type EntryKind string
 
 const (
@@ -52,8 +52,8 @@ func (e FileEntry) OrderKey() string {
 	return class + ":" + e.Path
 }
 
-// ListFilesOptions mirrors the workspace.listFiles params (§7.5). Path is a
-// root-relative sub-directory (already jailed by the caller); empty = root.
+// ListFilesOptions controls one listing. Path is a root-relative subdirectory
+// already confined by the caller; empty selects the root.
 type ListFilesOptions struct {
 	Path           string
 	Glob           string

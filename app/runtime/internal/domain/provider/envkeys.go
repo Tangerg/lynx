@@ -9,7 +9,7 @@ import (
 
 // envKeyRegistry decorates a registry so a provider with no stored key falls
 // back to its environment-variable key. Precedence is stored > env: a key set
-// via providers.update always wins over the environment. The decorator is
+// through a registry mutation always wins over the environment. The decorator is
 // the single authority on [Provider.KeySource] — it's the only layer that knows
 // whether the effective key is stored or env-sourced.
 type envKeyRegistry struct {

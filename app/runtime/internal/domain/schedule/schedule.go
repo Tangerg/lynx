@@ -3,8 +3,8 @@
 // schedules whose time has come, starts a run, and records the occurrence.
 //
 // A Schedule stores the final PROMPT text, not a recipe reference — the
-// scheduler is deliberately decoupled from recipes (a client may pre-fill the
-// prompt from a recipe, but a deleted/renamed recipe can't break a schedule).
+// scheduler is deliberately decoupled from any authoring source, so deleting or
+// renaming that source cannot break a schedule.
 package schedule
 
 import (

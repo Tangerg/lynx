@@ -23,7 +23,7 @@ const (
 )
 
 // Valid reports whether k is a kind the system can persist and surface.
-// Input boundaries map client values into this closed vocabulary.
+// Input boundaries map external values into this closed vocabulary.
 func (k InterruptKind) Valid() bool {
 	return k == ApprovalInterrupt || k == QuestionInterrupt
 }

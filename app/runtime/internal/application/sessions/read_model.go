@@ -78,8 +78,8 @@ func (c *Coordinator) Activities(ctx context.Context, sessionIDs []string) (map[
 	return activities, nil
 }
 
-// viewPageNamespace binds cursors to the session listing independently of any
-// transport method that exposes it.
+// viewPageNamespace binds cursors to this session read independently of other
+// paged reads.
 const viewPageNamespace = "sessions"
 
 // viewPageLimit is the widest session page this read will serve.

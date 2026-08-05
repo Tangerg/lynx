@@ -7,9 +7,9 @@ import (
 	"strings"
 )
 
-// ErrNoBase means mode=base couldn't resolve a base branch (no remote /
-// origin/HEAD, no main/master, detached HEAD). The caller maps it to
-// invalid_params — NOT vcs_unavailable (that's "not a repo"), per AUX_API §2.3.
+// ErrNoBase means mode=base could not resolve a base branch: there is no remote
+// default, main/master branch, or attached HEAD. It is distinct from a missing
+// repository or unavailable Git binary.
 var ErrNoBase = errors.New("git: cannot resolve base branch")
 
 // Mode selects what getDiff compares against.

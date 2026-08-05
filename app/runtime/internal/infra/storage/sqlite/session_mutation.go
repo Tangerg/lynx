@@ -46,7 +46,7 @@ func (s *SessionStore) Ensure(ctx context.Context, sess session.Session) (sessio
 }
 
 // Restore upserts a session row verbatim (INSERT OR REPLACE) — the write side
-// of sessions.import. It preserves the supplied id and all fields, overwriting
+// of portable session restore. It preserves the supplied id and all fields, overwriting
 // any existing row with that id (restore semantics).
 func (s *SessionStore) Restore(ctx context.Context, sess session.Session) error {
 	_, err := conn(ctx, s.db).ExecContext(ctx,
