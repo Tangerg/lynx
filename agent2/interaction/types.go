@@ -26,8 +26,11 @@ var (
 // Dispatcher so model-visible definitions and executable behavior cannot drift
 // per Process.
 type Input struct {
+	// Messages is the initial provider-neutral WorkingContext.
 	Messages []chat.Message `json:"messages"`
-	Options  chat.Options   `json:"options,omitzero"`
+
+	// Options contains request-specific generation overrides.
+	Options chat.Options `json:"options,omitzero"`
 }
 
 // Validate verifies the provider-neutral model request represented by Input.
@@ -43,8 +46,11 @@ func (input Input) Validate() error {
 // independently of best-effort stream Delta delivery, so it remains complete
 // after observer loss or snapshot restoration.
 type Output struct {
-	Response   chat.Response `json:"response"`
-	ModelCalls uint32        `json:"model_calls"`
+	// Response is the authoritative accumulated final model response.
+	Response chat.Response `json:"response"`
+
+	// ModelCalls is the number of model Effects issued by this Interaction.
+	ModelCalls uint32 `json:"model_calls"`
 }
 
 // Validate verifies that Output contains a final model response and an actual
@@ -67,14 +73,28 @@ func (output Output) Validate() error {
 // required because a model-directed loop must have an explicit local stop
 // condition in addition to Engine-wide Effect and Step limits.
 type DefinitionConfig struct {
-	Name          string
-	Description   string
-	Version       string
+	// Name is the stable qualified Definition name.
+	Name string
+
+	// Description states the managed behavior for discovery.
+	Description string
+
+	// Version is the semantic version of the Definition contract.
+	Version string
+
+	// MaxModelCalls bounds model Effects in one Interaction. It must be positive.
 	MaxModelCalls uint32
 }
 
 // DispatcherConfig binds external capabilities for one Deployment.
 type DispatcherConfig struct {
+	// Client provides complete and optional streaming model calls.
 	Client *chatclient.Client
-	Tools  []tool.Tool
+
+	// Tools is the frozen model-visible and executable tool manifest.
+	Tools []tool.Tool
+
+	// StreamModelResponses selects Client.Stream and publishes each validated
+	// response chunk as a best-effort ModelResponseDelta. False uses Client.Call.
+	StreamModelResponses bool
 }

@@ -23,6 +23,7 @@ type Dispatcher struct {
 	client      *chatclient.Client
 	tools       map[string]boundTool
 	definitions []chat.ToolDefinition
+	stream      bool
 }
 
 // NewDispatcher freezes the model-visible tool manifest and binds executable
@@ -36,6 +37,7 @@ func NewDispatcher(config DispatcherConfig) (*Dispatcher, error) {
 		client:      config.Client,
 		tools:       make(map[string]boundTool, len(config.Tools)),
 		definitions: make([]chat.ToolDefinition, 0, len(config.Tools)),
+		stream:      config.StreamModelResponses,
 	}
 	for index, executable := range config.Tools {
 		if nilValue(executable) {
@@ -62,7 +64,7 @@ func NewDispatcher(config DispatcherConfig) (*Dispatcher, error) {
 func (dispatcher *Dispatcher) Dispatch(
 	ctx context.Context,
 	request agent.EffectRequest,
-	_ agent.DeltaEmitter,
+	emit agent.DeltaEmitter,
 ) (agent.Settlement, error) {
 	if dispatcher == nil || dispatcher.client == nil {
 		return agent.Settlement{}, ErrInvalidDispatcherConfig
@@ -73,7 +75,7 @@ func (dispatcher *Dispatcher) Dispatch(
 	}
 	switch envelope.Operation {
 	case operationModelCall:
-		return dispatcher.dispatchModel(ctx, request.ID(), envelope.ModelCall)
+		return dispatcher.dispatchModel(ctx, request.ID(), envelope.ModelCall, emit)
 	case operationToolBatch:
 		return dispatcher.dispatchToolBatch(ctx, request.ID(), envelope.ToolBatch)
 	default:
@@ -92,13 +94,14 @@ func (dispatcher *Dispatcher) dispatchModel(
 	ctx context.Context,
 	effectID agent.EffectID,
 	call *modelCall,
+	emit agent.DeltaEmitter,
 ) (agent.Settlement, error) {
 	modelRequest := call.Request.Clone()
 	modelRequest.Tools = cloneDefinitions(dispatcher.definitions)
 	if err := modelRequest.Validate(); err != nil {
 		return agent.Settlement{}, fmt.Errorf("interaction: prepare model request: %w", err)
 	}
-	response, err := dispatcher.client.Call(ctx, modelRequest)
+	response, err := dispatcher.callModel(ctx, modelRequest, emit)
 	if err != nil {
 		return modelFailureSettlement(effectID, err)
 	}
