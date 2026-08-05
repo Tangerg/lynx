@@ -43,7 +43,7 @@ export function GoalBanner() {
           className="mt-1.5 mb-1"
         >
           <AgentActivityDisclosure
-            icon="loop"
+            icon="target"
             shell="card"
             tone={GOAL_STATUS_I18N[goal.status].tone}
             label={<span className="block min-w-0 truncate">{goal.objective}</span>}

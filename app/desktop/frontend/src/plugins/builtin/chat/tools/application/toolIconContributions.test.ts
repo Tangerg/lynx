@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { ICON_NAMES, type IconName } from "@/ui/icons";
 import {
   DEFAULT_TOOL_ICONS,
   defaultToolIconContributions,
@@ -9,26 +10,31 @@ const entries = (items: { key: string; icon: string }[]) =>
   Object.fromEntries(items.map((item) => [item.key, item.icon]));
 
 describe("tool icon contributions", () => {
-  it("maps built-in tool keys to their domain glyphs", () => {
-    expect(DEFAULT_TOOL_ICONS).toMatchObject({
-      shell: "terminal",
-      read_shell_output: "list",
-      stop_shell: "stop",
-      read: "eye",
-      write: "file-plus",
-      edit: "edit",
-      grep: "search",
-      glob: "folder-search",
-      web_search: "globe",
-      web_fetch: "download",
-      lsp: "code",
-      list_skills: "sparkle",
-      load_skill: "sparkle",
-      propose_skill: "sparkle",
-      delegate_task: "spark",
-      ask_user: "question",
-      set_plan: "list",
-    });
+  // The glyph is the only part of a folded row a reader takes in without reading
+  // it, so a shared one spends that on nothing: `list` used to stand for reading
+  // shell output, three plan-mode calls and a deferred result, and `search` for
+  // grep, two recall families and the tool catalog. Assert the WHOLE table is
+  // injective rather than spot-checking pairs — the pairs were what let the reuse
+  // build up unnoticed.
+  it("gives every built-in tool a glyph of its own", () => {
+    const byGlyph = new Map<string, string[]>();
+    for (const [tool, glyph] of Object.entries(DEFAULT_TOOL_ICONS)) {
+      byGlyph.set(glyph, [...(byGlyph.get(glyph) ?? []), tool]);
+    }
+    const shared = [...byGlyph].filter(([, tools]) => tools.length > 1);
+
+    expect(shared).toEqual([]);
+    expect(byGlyph.size).toBe(Object.keys(DEFAULT_TOOL_ICONS).length);
+  });
+
+  // A glyph the vocabulary does not have renders as nothing at all, and the table
+  // is a plain Record of strings — so this is the only thing standing between a
+  // typo here and an invisible icon in the transcript.
+  it("names glyphs the icon vocabulary actually has", () => {
+    const unknown = Object.values(DEFAULT_TOOL_ICONS).filter(
+      (glyph) => !ICON_NAMES.has(glyph as IconName),
+    );
+    expect(unknown).toEqual([]);
   });
 
   it("turns the default icon table into registry contributions", () => {

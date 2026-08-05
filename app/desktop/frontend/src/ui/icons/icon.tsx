@@ -67,6 +67,25 @@ import {
   Wrench,
   X,
   Zap,
+  Archive,
+  BookOpen,
+  Brain,
+  CalendarPlus,
+  CalendarX,
+  ClipboardCheck,
+  Crosshair,
+  Flag,
+  Library,
+  ListChecks,
+  Map as MapIcon,
+  PackageSearch,
+  Paperclip,
+  Replace,
+  ScrollText,
+  Target,
+  TextSearch,
+  Users,
+  Webhook,
 } from "lucide-react";
 
 // Project-wide icon adapter — app icon name → lucide-react component.
@@ -148,13 +167,36 @@ export type IconName =
   | "download"
   | "bot"
   | "question"
-  | "star";
+  | "star"
+  // One glyph per built-in tool. The vocabulary used to run 16 glyphs across 32
+  // tools — `list` stood for five unrelated calls and `search` for four — so a
+  // scrolled transcript read as one repeated shape and told a reader nothing
+  // about what the agent had been doing.
+  | "scroll"
+  | "replace"
+  | "text-search"
+  | "webhook"
+  | "library"
+  | "book-open"
+  | "paperclip"
+  | "users"
+  | "map"
+  | "list-checks"
+  | "flag"
+  | "brain"
+  | "package-search"
+  | "archive"
+  | "calendar-plus"
+  | "calendar-x"
+  | "target"
+  | "crosshair"
+  | "clipboard-check";
 
 // Mapping from our project's icon vocabulary to lucide components.
 // Names on the left are the project's IconName tokens used at every
 // callsite; names on the right are the Feather/Lucide-canonical
 // equivalents we render under the hood.
-const ICON_MAP: Record<IconName, LucideIcon> = {
+const ICON_MAP = {
   search: Search,
   plus: Plus,
   chat: MessageSquare,
@@ -227,7 +269,36 @@ const ICON_MAP: Record<IconName, LucideIcon> = {
   bot: Bot,
   question: CircleHelp,
   star: Star,
-};
+  scroll: ScrollText,
+  replace: Replace,
+  "text-search": TextSearch,
+  webhook: Webhook,
+  library: Library,
+  "book-open": BookOpen,
+  paperclip: Paperclip,
+  users: Users,
+  map: MapIcon,
+  "list-checks": ListChecks,
+  flag: Flag,
+  brain: Brain,
+  "package-search": PackageSearch,
+  archive: Archive,
+  "calendar-plus": CalendarPlus,
+  "calendar-x": CalendarX,
+  target: Target,
+  crosshair: Crosshair,
+  "clipboard-check": ClipboardCheck,
+} satisfies Record<IconName, LucideIcon>;
+
+/**
+ * The vocabulary as data, for the tables that name a glyph in a plain string.
+ *
+ * `Icon` itself is typed, so a component naming a glyph the map lacks cannot
+ * compile. A registry contribution cannot say that: the tool-icon table is
+ * `Record<string, string>` because a plugin contributes into it, so its glyph
+ * names are checked by the test that reads this instead of by the compiler.
+ */
+export const ICON_NAMES: ReadonlySet<IconName> = new Set(Object.keys(ICON_MAP) as IconName[]);
 
 interface Props {
   name: IconName;
