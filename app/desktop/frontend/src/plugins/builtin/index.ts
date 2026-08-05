@@ -42,6 +42,7 @@ import workspaceBootstrap from "./workspace/bootstrap";
 import workspaceEvents from "./workspace/events";
 import workspaceSessionNavigation from "./workspace/session-navigation";
 import globalKeymap from "./command/global-keymap";
+import sessionSearch from "./command/session-search";
 import hooksPane from "./settings/hooks";
 import schedulesPane from "./settings/schedules";
 import iconGallery from "./settings/icon-gallery";
@@ -250,6 +251,7 @@ const overlays: PluginSpec[] = [
   windowTitle,
   shortcuts,
   globalKeymap,
+  sessionSearch,
   iconGallery,
   narrativeRails,
   goal,

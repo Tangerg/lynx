@@ -16,6 +16,11 @@ export const ja: Record<string, string> = {
   "session.restore.history": "会話をこのチェックポイントまで巻き戻しました。",
   "session.restore.noCheckpoint":
     "最初のターンより前にチェックポイントがないため、ファイルはそのままです。",
+  "shortcut.sessionSearch": "セッションへ移動",
+  "sessionSearch.label": "セッションへ移動",
+  "sessionSearch.placeholder": "セッションを検索…",
+  "sessionSearch.empty.title": "一致するセッションがありません",
+  "sessionSearch.empty.sub": "タイトルの一部で試してください。",
   "shortcut.closeWorkspaceView": "ワークスペースビューを閉じる",
   "markdown.diagram": "図",
   "markdown.htmlArtifact": "HTML アーティファクト",

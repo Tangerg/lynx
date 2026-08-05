@@ -17,6 +17,11 @@ export const de: Record<string, string> = {
   "session.restore.history": "Unterhaltung auf diesen Checkpoint zurückgespult.",
   "session.restore.noCheckpoint":
     "Kein Checkpoint vor dem ersten Zug — Dateien bleiben unverändert.",
+  "shortcut.sessionSearch": "Zu einer Sitzung springen",
+  "sessionSearch.label": "Zu einer Sitzung springen",
+  "sessionSearch.placeholder": "Sitzungen suchen…",
+  "sessionSearch.empty.title": "Keine Sitzung passt",
+  "sessionSearch.empty.sub": "Versuche einen Teil des Titels.",
   "shortcut.closeWorkspaceView": "Arbeitsbereichsansicht schließen",
   "markdown.diagram": "Diagramm",
   "markdown.htmlArtifact": "HTML-Artefakt",

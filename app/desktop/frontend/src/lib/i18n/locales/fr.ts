@@ -17,6 +17,11 @@ export const fr: Record<string, string> = {
   "session.restore.history": "Conversation ramenée à ce point de contrôle.",
   "session.restore.noCheckpoint":
     "Aucun point de contrôle avant le premier tour — les fichiers restent inchangés.",
+  "shortcut.sessionSearch": "Aller à une session",
+  "sessionSearch.label": "Aller à une session",
+  "sessionSearch.placeholder": "Rechercher des sessions…",
+  "sessionSearch.empty.title": "Aucune session ne correspond",
+  "sessionSearch.empty.sub": "Essayez une partie du titre.",
   "shortcut.closeWorkspaceView": "Fermer la vue de l'espace de travail",
   "markdown.diagram": "Diagramme",
   "markdown.htmlArtifact": "Artefact HTML",
