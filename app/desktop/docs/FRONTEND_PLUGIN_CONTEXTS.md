@@ -385,7 +385,9 @@ Zustand store 不是业务层。它可以承担：
 `check-layers`、`check-builtin-contexts`、`check-published-boundaries` 与
 `check-circular` 已强制：
 
-- context domain/application 不反向依赖 UI 或 composition root；
+- 上下文内部逐环判定 `domain / application / presentation / adapters / ui`：越环 import
+  直接 build 失败（这一条此前只是纪律 —— gate 把整个 `plugins/builtin/` 当一层，看不见环
+  之间的方向。补上时树里零违规，所以补的成本是零）；
 - 其他插件只能 import 某 context 的 `public/`；
 - published view language 不携带 wire；
 - 合法 public edge 仍不得形成 context cycle。

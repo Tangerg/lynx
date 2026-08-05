@@ -254,6 +254,48 @@ function crossContextViolation(file, dep, contextRoots) {
   };
 }
 
+// The rings INSIDE a context, which neither rule above sees: `check-layers`
+// classifies every file under plugins/builtin/ as one layer, so the direction
+// between a context's own domain / application / adapters / ui has been held by
+// discipline alone. It has held — this rule was written against a tree with zero
+// violations — which is exactly when to lock it, because the cost is nothing now
+// and a rewrite later.
+//
+// Inner to outer: domain ← application ← { adapters, presentation, ui }. Each
+// ring names what it must never reach for. `public/` is a re-export surface, not
+// a ring, and is policed by check-published-boundaries instead.
+const RING_ORDER = ["domain", "application", "presentation", "adapters", "ui"];
+const RING_FORBIDS = {
+  // Pure model: no orchestration, no ports, no rendering. A domain that reaches
+  // for its application layer has stopped being the thing the application is
+  // about.
+  domain: ["application", "presentation", "adapters", "ui"],
+  // Orchestration: may use the model, may NOT reach the ports that serve it (it
+  // declares those) or anything that draws.
+  application: ["adapters", "ui"],
+  // View models: shapes for a renderer, which is why they may read the model —
+  // and must not reach a port or a component.
+  presentation: ["adapters", "ui"],
+  // Ports and their implementations: may serve the inside, must not draw.
+  adapters: ["ui"],
+};
+
+function ringOf(path, contextRoot) {
+  const rest = path.slice(contextRoot.length + 1).split("/");
+  // Nested plugin folders (chat/composer/...) put the ring deeper than the root.
+  return rest.find((segment) => RING_ORDER.includes(segment)) ?? null;
+}
+
+function ringViolation(file, dep, contextRoots) {
+  const context = builtinContext(file, contextRoots);
+  if (!context || context !== builtinContext(dep, contextRoots)) return null;
+  const from = ringOf(file, context);
+  const to = ringOf(dep, context);
+  if (!from || !to || from === to) return null;
+  if (!RING_FORBIDS[from]?.includes(to)) return null;
+  return { from: `${context.replace("plugins/builtin/", "")}/${from}`, to };
+}
+
 // Redirect madge's JSON to a temp FILE rather than capturing its stdout pipe.
 // madge calls process.exit() before an async stdout *pipe* finishes draining
 // (Node's classic exit-truncates-piped-stdout bug), so a captured pipe is
@@ -307,6 +349,17 @@ for (const [file, deps] of Object.entries(graph)) {
     const to = layerOf(dep);
     if (forbidden.includes(to) && !ALLOWED_EDGES.has(`${file}↦${dep}`)) {
       violations.push({ file, dep, from, to });
+    }
+    // Tests are exempt from the LAYER rule above for fixture wiring; the ring
+    // rule is about production direction too, so they are exempt here as well.
+    const ringBreak = isTest ? null : ringViolation(file, dep, contextRoots);
+    if (ringBreak && !ALLOWED_EDGES.has(`${file}↦${dep}`)) {
+      violations.push({
+        file,
+        dep,
+        from: `ring:${ringBreak.from}`,
+        to: `ring:${ringBreak.to}`,
+      });
     }
     const contextViolation = crossContextViolation(file, dep, contextRoots);
     if (contextViolation && !ALLOWED_EDGES.has(`${file}↦${dep}`)) {
