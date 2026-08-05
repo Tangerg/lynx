@@ -16,6 +16,7 @@ import (
 type boundTool struct {
 	executable tool.Tool
 	direct     bool
+	concurrent ConcurrentTool
 }
 
 // Dispatcher executes model calls and tool batches emitted by an Interaction
@@ -26,6 +27,7 @@ type Dispatcher struct {
 	tools       map[string]boundTool
 	definitions []chat.ToolDefinition
 	stream      bool
+	maxParallel int
 }
 
 // NewDispatcher freezes the model-visible tool manifest and binds executable
@@ -35,11 +37,16 @@ func NewDispatcher(config DispatcherConfig) (*Dispatcher, error) {
 	if config.Client == nil {
 		return nil, fmt.Errorf("%w: Client is required", ErrInvalidDispatcherConfig)
 	}
+	if config.MaxConcurrentToolCalls < 0 {
+		return nil, fmt.Errorf("%w: MaxConcurrentToolCalls must not be negative", ErrInvalidDispatcherConfig)
+	}
+	maxParallel := max(1, config.MaxConcurrentToolCalls)
 	dispatcher := &Dispatcher{
 		client:      config.Client,
 		tools:       make(map[string]boundTool, len(config.Tools)),
 		definitions: make([]chat.ToolDefinition, 0, len(config.Tools)),
 		stream:      config.StreamModelResponses,
+		maxParallel: maxParallel,
 	}
 	for index, executable := range config.Tools {
 		if nilValue(executable) {
@@ -57,7 +64,15 @@ func NewDispatcher(config DispatcherConfig) (*Dispatcher, error) {
 		if err != nil {
 			return nil, fmt.Errorf("%w: Tools[%d]: %w", ErrInvalidDispatcherConfig, index, err)
 		}
-		dispatcher.tools[definition.Name] = boundTool{executable: executable, direct: direct}
+		concurrent, err := concurrentToolCapability(executable)
+		if err != nil {
+			return nil, fmt.Errorf("%w: Tools[%d]: %w", ErrInvalidDispatcherConfig, index, err)
+		}
+		dispatcher.tools[definition.Name] = boundTool{
+			executable: executable,
+			direct:     direct,
+			concurrent: concurrent,
+		}
 		dispatcher.definitions = append(dispatcher.definitions, definition.Clone())
 	}
 	return dispatcher, nil
@@ -163,38 +178,81 @@ func (dispatcher *Dispatcher) dispatchToolBatch(
 		}
 	}
 	allDirect := dispatcher.allCallsDirect(batch.Calls)
-	for index := start; index < len(batch.Calls); index++ {
+	if continuation != nil {
 		callContext := ctx
-		if continuation != nil && index == start {
-			callContext = withToolInputContinuation(ctx, *continuation)
-		}
-		result, required, err := dispatcher.callTool(callContext, batch.Calls[index])
+		callContext = withToolInputContinuation(callContext, *continuation)
+		result, required, err := dispatcher.callTool(callContext, batch.Calls[start])
 		if err != nil {
-			return agent.Settlement{}, fmt.Errorf("interaction: tool call %q: %w", batch.Calls[index].ID, err)
+			return agent.Settlement{}, fmt.Errorf("interaction: tool call %q: %w", batch.Calls[start].ID, err)
 		}
 		if required != nil {
 			checkpoint := &toolCheckpoint{
 				Completed: append([]chat.ToolResult(nil), results...),
-				Next:      uint32(index),
+				Next:      uint32(start),
 				Pauses:    pauses + 1,
 				Input:     wireInputRequest(*required),
 			}
-			payload, err := encodeProtocol(signalEnvelope{
-				SchemaVersion: protocolSchemaVersion,
-				Operation:     operationToolBatch,
-				ToolResult:    &toolBatchResult{Checkpoint: checkpoint},
-			})
-			if err != nil {
-				return agent.Settlement{}, err
-			}
-			return agent.NewSettlement(effectID, agent.SettlementStatusSucceeded, payload)
+			return toolCheckpointSettlement(effectID, checkpoint)
 		}
 		results = append(results, result)
+		start++
+	}
+
+	plans, err := dispatcher.planToolCalls(batch.Calls[start:])
+	if err != nil {
+		return agent.Settlement{}, err
+	}
+	for offset := 0; offset < len(plans); {
+		end := offset + 1
+		if dispatcher.maxParallel > 1 {
+			end = concurrentBatchEnd(plans, offset)
+		}
+		outcomes := dispatcher.callToolBatch(ctx, batch.Calls[start+offset:start+end])
+		for index, outcome := range outcomes {
+			call := batch.Calls[start+offset+index]
+			if outcome.err != nil {
+				return agent.Settlement{}, fmt.Errorf("interaction: tool call %q: %w", call.ID, outcome.err)
+			}
+			if outcome.required != nil {
+				if len(outcomes) != 1 {
+					return agent.Settlement{}, fmt.Errorf(
+						"interaction: concurrently executed tool call %q requested external input",
+						call.ID,
+					)
+				}
+				checkpoint := &toolCheckpoint{
+					Completed: append([]chat.ToolResult(nil), results...),
+					Next:      uint32(start + offset),
+					Pauses:    pauses + 1,
+					Input:     wireInputRequest(*outcome.required),
+				}
+				return toolCheckpointSettlement(effectID, checkpoint)
+			}
+		}
+		for _, outcome := range outcomes {
+			results = append(results, outcome.result)
+		}
+		offset = end
 	}
 	payload, err := encodeProtocol(signalEnvelope{
 		SchemaVersion: protocolSchemaVersion,
 		Operation:     operationToolBatch,
 		ToolResult:    &toolBatchResult{Results: results, Direct: allDirect},
+	})
+	if err != nil {
+		return agent.Settlement{}, err
+	}
+	return agent.NewSettlement(effectID, agent.SettlementStatusSucceeded, payload)
+}
+
+func toolCheckpointSettlement(
+	effectID agent.EffectID,
+	checkpoint *toolCheckpoint,
+) (agent.Settlement, error) {
+	payload, err := encodeProtocol(signalEnvelope{
+		SchemaVersion: protocolSchemaVersion,
+		Operation:     operationToolBatch,
+		ToolResult:    &toolBatchResult{Checkpoint: checkpoint},
 	})
 	if err != nil {
 		return agent.Settlement{}, err
@@ -269,6 +327,17 @@ func directResultCapability(executable tool.Tool) (direct bool, err error) {
 		return false, nil
 	}
 	return capability.ReturnsDirectResult(), nil
+}
+
+func concurrentToolCapability(executable tool.Tool) (declared ConcurrentTool, err error) {
+	capability, found, err := tool.Capability[ConcurrentTool](executable)
+	if err != nil {
+		return nil, fmt.Errorf("concurrency capability: %w", err)
+	}
+	if !found {
+		return nil, nil
+	}
+	return capability, nil
 }
 
 func toolDefinition(executable tool.Tool) (definition chat.ToolDefinition, err error) {

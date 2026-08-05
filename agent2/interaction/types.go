@@ -129,6 +129,20 @@ type DirectResultTool interface {
 	ReturnsDirectResult() bool
 }
 
+// ConcurrentTool is an optional Tool capability declaring which calls are safe
+// to overlap within one model-requested batch. Tools without this capability,
+// or calls returning concurrent=false, execute alone. A non-empty key names a
+// mutually exclusive resource: calls with the same key in that batch never
+// overlap. Cross-Process resource coordination remains the Tool owner's job.
+//
+// Returning concurrent=true also asserts that this invocation will not request
+// external input through [RequireToolInput]. A parallel invocation that breaks
+// that assertion makes the whole Tool Effect outcome unknown; the Dispatcher
+// never re-executes siblings whose side effects may already have happened.
+type ConcurrentTool interface {
+	ConcurrencyKey(arguments string) (key string, concurrent bool)
+}
+
 // DefinitionConfig describes immutable Interaction behavior. MaxModelCalls is
 // required because a model-directed loop must have an explicit local stop
 // condition in addition to Engine-wide Effect and Step limits.
@@ -153,6 +167,11 @@ type DispatcherConfig struct {
 
 	// Tools is the frozen model-visible and executable tool manifest.
 	Tools []tool.Tool
+
+	// MaxConcurrentToolCalls bounds calls that explicitly declare safe overlap.
+	// Zero preserves serial execution; negative values are invalid. Undeclared
+	// calls and calls with the same non-empty concurrency key remain serial.
+	MaxConcurrentToolCalls int
 
 	// StreamModelResponses selects Client.Stream and publishes each validated
 	// response chunk as a best-effort ModelResponseDelta. False uses Client.Call.
