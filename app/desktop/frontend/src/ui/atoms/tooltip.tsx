@@ -1,7 +1,7 @@
 import type { ReactElement, ReactNode } from "react";
 import { cn } from "@/lib/classNames";
 import { TooltipPrimitive } from "@/ui/primitives";
-import { FLOATING_TIP } from "./floating-surface";
+import { FLOATING_LAYER, FLOATING_TIP } from "./floating-surface";
 
 export interface TooltipProviderProps {
   children: ReactNode;
@@ -66,7 +66,7 @@ export function RichTooltip({
             and loses to anything on the page that owns a context. Every tooltip
             in the app was rendering *behind* the content it described. Menu makes
             the same move for the same reason. */}
-        <TooltipPrimitive.Positioner className="z-50" side={side} sideOffset={sideOffset}>
+        <TooltipPrimitive.Positioner className={FLOATING_LAYER} side={side} sideOffset={sideOffset}>
           <TooltipPrimitive.Popup role="tooltip" className={cn(FLOATING_TIP, className)}>
             {children}
           </TooltipPrimitive.Popup>

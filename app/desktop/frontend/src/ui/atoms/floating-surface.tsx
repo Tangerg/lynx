@@ -24,6 +24,25 @@ const FLOATING_SURFACE_BASE = [
   "before:rounded-[inherit] before:backdrop-blur-2xl before:backdrop-saturate-150",
 ].join(" ");
 
+/**
+ * The layer a floating primitive competes on, and it goes on the POSITIONER — not
+ * on the panel inside it.
+ *
+ * Base UI positions the portaled node with a `transform`, which makes it a
+ * stacking context: the panel's own `z-50` is then scoped INSIDE it and settles
+ * nothing outside. With the positioner left at `auto` the whole popup stacks by
+ * DOM order and loses to any page element that owns a layer — the composer's
+ * `relative z-[2]` when the model picker opens upward, and the Context Dock's
+ * `z-15` backing, which is where the dock's own panel picker rendered fully
+ * behind the panel it was opened from: present in the DOM, correct rect, opacity
+ * 1, and not a pixel of it painted.
+ *
+ * Named here rather than spelled at each positioner because it had been spelled
+ * at two of the three and the third was the bug. A floating primitive added
+ * later gets the layer by reaching for this, not by remembering.
+ */
+export const FLOATING_LAYER = "z-50";
+
 /** Menus, popovers, command panels — anything holding rows the pointer travels. */
 export const FLOATING_PANEL = `${FLOATING_SURFACE_BASE} rounded-[var(--floating-panel-radius)]`;
 

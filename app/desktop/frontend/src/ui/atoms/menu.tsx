@@ -2,7 +2,7 @@ import type { ComponentProps, ReactNode } from "react";
 import { cn } from "@/lib/classNames";
 import { Icon, type IconName } from "@/ui/icons";
 import { ContextMenuPrimitive, MenuPrimitive } from "@/ui/primitives";
-import { FLOATING_PANEL } from "./floating-surface";
+import { FLOATING_LAYER, FLOATING_PANEL } from "./floating-surface";
 import { floatingRowStyles } from "./option-row";
 
 const MENU_CONTENT_CLASSES = `${FLOATING_PANEL} p-1`;
@@ -60,12 +60,7 @@ function DropdownContent({
         align={align}
         sideOffset={sideOffset}
         alignOffset={alignOffset}
-        /* Explicit z-index on the portaled positioner itself — the popup's own
-           z-50 sits inside this fixed-positioned node, so without a z-index here
-           the whole menu stacks by DOM order and loses to a page element that
-           owns a stacking context (e.g. the composer's `relative z-[2]` when the
-           model picker opens upward). z-50 keeps every menu above app chrome. */
-        className={cn("z-50", positionerClassName)}
+        className={cn(FLOATING_LAYER, positionerClassName)}
       >
         <MenuPrimitive.Popup {...popupProps} className={cn(MENU_CONTENT_CLASSES, className)}>
           {children}
@@ -92,7 +87,7 @@ function ContextContent({
         align={align}
         sideOffset={sideOffset}
         alignOffset={alignOffset}
-        className={cn("z-50", positionerClassName)}
+        className={cn(FLOATING_LAYER, positionerClassName)}
       >
         <ContextMenuPrimitive.Popup {...popupProps} className={cn(MENU_CONTENT_CLASSES, className)}>
           {children}

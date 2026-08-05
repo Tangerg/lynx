@@ -1,7 +1,7 @@
 import type { ComponentProps, ReactNode } from "react";
 import { cn } from "@/lib/classNames";
 import { PopoverPrimitive } from "@/ui/primitives";
-import { FLOATING_PANEL } from "./floating-surface";
+import { FLOATING_LAYER, FLOATING_PANEL } from "./floating-surface";
 
 type PositionerProps = ComponentProps<typeof PopoverPrimitive.Positioner>;
 type PopupProps = ComponentProps<typeof PopoverPrimitive.Popup>;
@@ -36,7 +36,7 @@ function PopoverContent({
         align={align}
         sideOffset={sideOffset}
         alignOffset={alignOffset}
-        className={positionerClassName}
+        className={cn(FLOATING_LAYER, positionerClassName)}
       >
         <PopoverPrimitive.Popup {...popupProps} className={cn(FLOATING_PANEL, className)}>
           {children}

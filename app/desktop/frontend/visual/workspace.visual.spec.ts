@@ -119,6 +119,21 @@ test("add-panel menu restores a closed singleton and focuses it", async ({ page 
   await expect(page.getByTestId("dock-view-ids")).not.toContainText("terminal");
 
   await page.getByRole("button", { name: "Browse panels" }).click();
+
+  // The panel has to be ON TOP of the dock, not merely mounted. Base UI positions
+  // the portaled node with a `transform`, which makes it a stacking context — so
+  // the panel's own z-index settles nothing outside it, and with the positioner
+  // left at `auto` the whole popup lost to the dock's `z-15` backing and painted
+  // entirely behind the panel it was opened from. Every assertion below passed
+  // through all of that: the DOM was right and not one pixel was drawn.
+  const onTop = await page.locator("[role=combobox]").evaluate((input) => {
+    const panel = input.closest("[role=dialog], div[class*='z-50']") ?? input.parentElement!;
+    const box = panel.getBoundingClientRect();
+    const hit = document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2);
+    return panel.contains(hit);
+  });
+  expect(onTop).toBe(true);
+
   // The catalog is a searchable combobox, not a menu. Filtering and committing
   // from the keyboard is also the path the control is shaped for: the input takes
   // focus on open and `autoHighlight` puts the first match under Enter.
