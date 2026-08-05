@@ -7,21 +7,25 @@ import (
 	"fmt"
 	"io"
 
+	agent "github.com/Tangerg/lynx/agent2"
 	"github.com/Tangerg/lynx/core/chat"
 )
 
 type phase string
 
 const (
-	phaseReadyModel    phase = "ready_model"
-	phaseAwaitingModel phase = "awaiting_model"
-	phaseAwaitingTools phase = "awaiting_tools"
-	phaseCompleted     phase = "completed"
+	phaseReadyModel     phase = "ready_model"
+	phaseAwaitingModel  phase = "awaiting_model"
+	phaseAwaitingTools  phase = "awaiting_tools"
+	phaseAwaitingWaitID phase = "awaiting_wait_id"
+	phaseWaitingInput   phase = "waiting_input"
+	phaseCompleted      phase = "completed"
 )
 
 func (value phase) valid() bool {
 	switch value {
-	case phaseReadyModel, phaseAwaitingModel, phaseAwaitingTools, phaseCompleted:
+	case phaseReadyModel, phaseAwaitingModel, phaseAwaitingTools,
+		phaseAwaitingWaitID, phaseWaitingInput, phaseCompleted:
 		return true
 	default:
 		return false
@@ -32,11 +36,13 @@ func (value phase) valid() bool {
 // self-sufficient WorkingContext for the next model call. PendingResponse is
 // present only while a model-requested tool batch is being settled.
 type executionState struct {
-	Phase           phase          `json:"phase"`
-	Request         *chat.Request  `json:"request"`
-	ModelCalls      uint32         `json:"model_calls"`
-	PendingResponse *chat.Response `json:"pending_response,omitempty"`
-	FinalOutput     *Output        `json:"final_output,omitempty"`
+	Phase           phase           `json:"phase"`
+	Request         *chat.Request   `json:"request"`
+	ModelCalls      uint32          `json:"model_calls"`
+	PendingResponse *chat.Response  `json:"pending_response,omitempty"`
+	ToolCheckpoint  *toolCheckpoint `json:"tool_checkpoint,omitempty"`
+	WaitID          *agent.WaitID   `json:"wait_id,omitempty"`
+	FinalOutput     *Output         `json:"final_output,omitempty"`
 }
 
 func (state executionState) Validate(maxModelCalls uint32) error {
@@ -57,15 +63,15 @@ func (state executionState) Validate(maxModelCalls uint32) error {
 	}
 	switch state.Phase {
 	case phaseReadyModel:
-		if state.PendingResponse != nil || state.FinalOutput != nil {
+		if state.PendingResponse != nil || state.ToolCheckpoint != nil || state.WaitID != nil || state.FinalOutput != nil {
 			return fmt.Errorf("%w: ready_model has inconsistent pending response or limit", ErrInvalidState)
 		}
 	case phaseAwaitingModel:
-		if state.PendingResponse != nil || state.FinalOutput != nil || state.ModelCalls == 0 {
+		if state.PendingResponse != nil || state.ToolCheckpoint != nil || state.WaitID != nil || state.FinalOutput != nil || state.ModelCalls == 0 {
 			return fmt.Errorf("%w: awaiting_model has inconsistent pending response or limit", ErrInvalidState)
 		}
 	case phaseAwaitingTools:
-		if state.PendingResponse == nil || state.FinalOutput != nil || state.ModelCalls == 0 {
+		if state.PendingResponse == nil || state.WaitID != nil || state.FinalOutput != nil || state.ModelCalls == 0 {
 			return fmt.Errorf("%w: awaiting_tools requires a model response", ErrInvalidState)
 		}
 		if err := state.PendingResponse.Validate(); err != nil {
@@ -75,8 +81,33 @@ func (state executionState) Validate(maxModelCalls uint32) error {
 		if err != nil || len(calls) == 0 {
 			return fmt.Errorf("%w: pending response has no unambiguous tool calls", ErrInvalidState)
 		}
+		if state.ToolCheckpoint != nil {
+			if err := state.ToolCheckpoint.validate(calls); err != nil {
+				return fmt.Errorf("%w: %w", ErrInvalidState, err)
+			}
+		}
+	case phaseAwaitingWaitID, phaseWaitingInput:
+		if state.PendingResponse == nil || state.ToolCheckpoint == nil || state.FinalOutput != nil || state.ModelCalls == 0 {
+			return fmt.Errorf("%w: waiting phase requires a pending response and Tool checkpoint", ErrInvalidState)
+		}
+		if err := state.PendingResponse.Validate(); err != nil {
+			return fmt.Errorf("%w: pending response: %w", ErrInvalidState, err)
+		}
+		calls, _, err := responseToolCalls(state.PendingResponse)
+		if err != nil || len(calls) == 0 {
+			return fmt.Errorf("%w: pending response has no unambiguous tool calls", ErrInvalidState)
+		}
+		if err := state.ToolCheckpoint.validate(calls); err != nil {
+			return fmt.Errorf("%w: %w", ErrInvalidState, err)
+		}
+		if state.Phase == phaseAwaitingWaitID && state.WaitID != nil {
+			return fmt.Errorf("%w: awaiting_wait_id already has a WaitID", ErrInvalidState)
+		}
+		if state.Phase == phaseWaitingInput && (state.WaitID == nil || !state.WaitID.Valid()) {
+			return fmt.Errorf("%w: waiting_input requires an Engine WaitID", ErrInvalidState)
+		}
 	case phaseCompleted:
-		if state.PendingResponse != nil || state.FinalOutput == nil || state.ModelCalls == 0 {
+		if state.PendingResponse != nil || state.ToolCheckpoint != nil || state.WaitID != nil || state.FinalOutput == nil || state.ModelCalls == 0 {
 			return fmt.Errorf("%w: completed state requires only its final Output", ErrInvalidState)
 		}
 		if err := state.FinalOutput.Validate(); err != nil {

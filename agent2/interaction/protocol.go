@@ -13,12 +13,15 @@ const protocolSchemaVersion uint16 = 1
 type operation string
 
 const (
-	operationModelCall operation = "model_call"
-	operationToolBatch operation = "tool_batch"
+	operationModelCall     operation = "model_call"
+	operationToolBatch     operation = "tool_batch"
+	operationWaitOpened    operation = "wait_opened"
+	operationInputResponse operation = "input_response"
 )
 
 func (value operation) valid() bool {
-	return value == operationModelCall || value == operationToolBatch
+	return value == operationModelCall || value == operationToolBatch ||
+		value == operationWaitOpened || value == operationInputResponse
 }
 
 type effectEnvelope struct {
@@ -33,14 +36,18 @@ type modelCall struct {
 }
 
 type toolBatchCall struct {
-	Calls []chat.ToolCall `json:"calls"`
+	Calls         []chat.ToolCall `json:"calls"`
+	Checkpoint    *toolCheckpoint `json:"checkpoint,omitempty"`
+	InputResponse json.RawMessage `json:"input_response,omitempty"`
 }
 
 type signalEnvelope struct {
-	SchemaVersion uint16           `json:"schema_version"`
-	Operation     operation        `json:"operation"`
-	ModelResult   *modelCallResult `json:"model_result,omitempty"`
-	ToolResult    *toolBatchResult `json:"tool_result,omitempty"`
+	SchemaVersion uint16            `json:"schema_version"`
+	Operation     operation         `json:"operation"`
+	ModelResult   *modelCallResult  `json:"model_result,omitempty"`
+	ToolResult    *toolBatchResult  `json:"tool_result,omitempty"`
+	WaitOpened    *inputRequestWire `json:"wait_opened,omitempty"`
+	InputResponse json.RawMessage   `json:"input_response,omitempty"`
 }
 
 type modelCallResult struct {
@@ -49,8 +56,33 @@ type modelCallResult struct {
 }
 
 type toolBatchResult struct {
-	Results []chat.ToolResult `json:"results"`
-	Direct  bool              `json:"direct"`
+	Results    []chat.ToolResult `json:"results"`
+	Direct     bool              `json:"direct"`
+	Checkpoint *toolCheckpoint   `json:"checkpoint,omitempty"`
+}
+
+type toolCheckpoint struct {
+	Completed []chat.ToolResult `json:"completed"`
+	Next      uint32            `json:"next"`
+	Pauses    uint32            `json:"pauses"`
+	Input     inputRequestWire  `json:"input"`
+}
+
+type inputRequestWire struct {
+	Prompt            json.RawMessage `json:"prompt"`
+	ResponseSchema    json.RawMessage `json:"response_schema"`
+	ContinuationState json.RawMessage `json:"continuation_state"`
+}
+
+func wireInputRequest(request ToolInputRequest) inputRequestWire {
+	return inputRequestWire{
+		Prompt: request.Prompt(), ResponseSchema: request.ResponseSchema(),
+		ContinuationState: request.ContinuationState(),
+	}
+}
+
+func (wire inputRequestWire) inputRequest() (ToolInputRequest, error) {
+	return NewToolInputRequest(wire.Prompt, wire.ResponseSchema, wire.ContinuationState)
 }
 
 func newModelEffect(request *chat.Request) (effectEnvelope, error) {
@@ -68,7 +100,11 @@ func newModelEffect(request *chat.Request) (effectEnvelope, error) {
 	}, nil
 }
 
-func newToolBatchEffect(calls []chat.ToolCall) (effectEnvelope, error) {
+func newToolBatchEffect(
+	calls []chat.ToolCall,
+	checkpoint *toolCheckpoint,
+	inputResponse json.RawMessage,
+) (effectEnvelope, error) {
 	if len(calls) == 0 {
 		return effectEnvelope{}, errors.New("interaction: tool batch is empty")
 	}
@@ -78,15 +114,35 @@ func newToolBatchEffect(calls []chat.ToolCall) (effectEnvelope, error) {
 			return effectEnvelope{}, fmt.Errorf("interaction: tool batch call %d: %w", index, err)
 		}
 	}
+	batch := &toolBatchCall{Calls: cloned}
+	if checkpoint != nil {
+		if err := checkpoint.validate(cloned); err != nil {
+			return effectEnvelope{}, err
+		}
+		response, err := checkpoint.Input.inputRequest()
+		if err != nil {
+			return effectEnvelope{}, err
+		}
+		inputResponse, err = response.validateResponse(inputResponse)
+		if err != nil {
+			return effectEnvelope{}, err
+		}
+		clonedCheckpoint := checkpoint.clone()
+		batch.Checkpoint = &clonedCheckpoint
+		batch.InputResponse = inputResponse
+	} else if len(inputResponse) != 0 {
+		return effectEnvelope{}, errors.New("interaction: input response requires a tool checkpoint")
+	}
 	return effectEnvelope{
 		SchemaVersion: protocolSchemaVersion,
 		Operation:     operationToolBatch,
-		ToolBatch:     &toolBatchCall{Calls: cloned},
+		ToolBatch:     batch,
 	}, nil
 }
 
 func (envelope effectEnvelope) validate() error {
-	if envelope.SchemaVersion != protocolSchemaVersion || !envelope.Operation.valid() {
+	if envelope.SchemaVersion != protocolSchemaVersion ||
+		(envelope.Operation != operationModelCall && envelope.Operation != operationToolBatch) {
 		return errors.New("interaction: unsupported effect protocol")
 	}
 	switch envelope.Operation {
@@ -106,6 +162,22 @@ func (envelope effectEnvelope) validate() error {
 				return fmt.Errorf("interaction: tool_batch call %d: %w", index, err)
 			}
 		}
+		if envelope.ToolBatch.Checkpoint == nil {
+			if len(envelope.ToolBatch.InputResponse) != 0 {
+				return errors.New("interaction: tool_batch input response requires a checkpoint")
+			}
+		} else {
+			if err := envelope.ToolBatch.Checkpoint.validate(envelope.ToolBatch.Calls); err != nil {
+				return err
+			}
+			request, err := envelope.ToolBatch.Checkpoint.Input.inputRequest()
+			if err != nil {
+				return err
+			}
+			if _, err := request.validateResponse(envelope.ToolBatch.InputResponse); err != nil {
+				return err
+			}
+		}
 	}
 	return nil
 }
@@ -116,7 +188,7 @@ func (envelope signalEnvelope) validate() error {
 	}
 	switch envelope.Operation {
 	case operationModelCall:
-		if envelope.ModelResult == nil || envelope.ToolResult != nil {
+		if envelope.ModelResult == nil || envelope.ToolResult != nil || envelope.WaitOpened != nil || len(envelope.InputResponse) != 0 {
 			return errors.New("interaction: model_result signal has an invalid payload set")
 		}
 		result := envelope.ModelResult
@@ -129,13 +201,68 @@ func (envelope signalEnvelope) validate() error {
 			}
 		}
 	case operationToolBatch:
-		if envelope.ModelResult != nil || envelope.ToolResult == nil || len(envelope.ToolResult.Results) == 0 {
+		if envelope.ModelResult != nil || envelope.ToolResult == nil || envelope.WaitOpened != nil || len(envelope.InputResponse) != 0 {
 			return errors.New("interaction: tool_result signal has an invalid payload set")
 		}
-		for index := range envelope.ToolResult.Results {
-			if err := envelope.ToolResult.Results[index].Validate(); err != nil {
-				return fmt.Errorf("interaction: tool_result %d: %w", index, err)
+		if (len(envelope.ToolResult.Results) == 0) == (envelope.ToolResult.Checkpoint == nil) {
+			return errors.New("interaction: tool_result requires complete results or a checkpoint")
+		}
+		if envelope.ToolResult.Checkpoint != nil {
+			if envelope.ToolResult.Direct {
+				return errors.New("interaction: paused tool_result cannot be direct")
 			}
+			if _, err := envelope.ToolResult.Checkpoint.Input.inputRequest(); err != nil {
+				return err
+			}
+		} else {
+			for index := range envelope.ToolResult.Results {
+				if err := envelope.ToolResult.Results[index].Validate(); err != nil {
+					return fmt.Errorf("interaction: tool_result %d: %w", index, err)
+				}
+			}
+		}
+	case operationWaitOpened:
+		if envelope.ModelResult != nil || envelope.ToolResult != nil || envelope.WaitOpened == nil || len(envelope.InputResponse) != 0 {
+			return errors.New("interaction: wait_opened signal has an invalid payload set")
+		}
+		if _, err := envelope.WaitOpened.inputRequest(); err != nil {
+			return err
+		}
+	case operationInputResponse:
+		if envelope.ModelResult != nil || envelope.ToolResult != nil || envelope.WaitOpened != nil || len(envelope.InputResponse) == 0 {
+			return errors.New("interaction: input_response signal has an invalid payload set")
+		}
+		if _, err := canonicalJSON(envelope.InputResponse); err != nil {
+			return fmt.Errorf("interaction: input_response: %w", err)
+		}
+	}
+	return nil
+}
+
+func (checkpoint toolCheckpoint) clone() toolCheckpoint {
+	cloned := checkpoint
+	cloned.Completed = append([]chat.ToolResult(nil), checkpoint.Completed...)
+	cloned.Input.Prompt = append(json.RawMessage(nil), checkpoint.Input.Prompt...)
+	cloned.Input.ResponseSchema = append(json.RawMessage(nil), checkpoint.Input.ResponseSchema...)
+	cloned.Input.ContinuationState = append(json.RawMessage(nil), checkpoint.Input.ContinuationState...)
+	return cloned
+}
+
+func (checkpoint toolCheckpoint) validate(calls []chat.ToolCall) error {
+	if checkpoint.Pauses == 0 || checkpoint.Next != uint32(len(checkpoint.Completed)) ||
+		int(checkpoint.Next) >= len(calls) {
+		return errors.New("interaction: invalid tool checkpoint position")
+	}
+	if _, err := checkpoint.Input.inputRequest(); err != nil {
+		return fmt.Errorf("interaction: tool checkpoint input: %w", err)
+	}
+	for index := range checkpoint.Completed {
+		result := checkpoint.Completed[index]
+		if err := result.Validate(); err != nil {
+			return fmt.Errorf("interaction: tool checkpoint result %d: %w", index, err)
+		}
+		if result.ID != calls[index].ID || result.Name != calls[index].Name {
+			return fmt.Errorf("interaction: tool checkpoint result %d does not match call %q", index, calls[index].ID)
 		}
 	}
 	return nil

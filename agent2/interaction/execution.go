@@ -2,7 +2,10 @@ package interaction
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
+	"strconv"
 	"strings"
 	"unicode/utf8"
 
@@ -34,6 +37,10 @@ func (execution *execution) Step(_ context.Context, signals []agent.Signal) (age
 		return execution.acceptModel(signals)
 	case phaseAwaitingTools:
 		return execution.acceptTools(signals)
+	case phaseAwaitingWaitID:
+		return execution.acceptWaitID(signals)
+	case phaseWaitingInput:
+		return execution.acceptInputResponse(signals)
 	case phaseCompleted:
 		return agent.Transition{}, fmt.Errorf("%w: completed execution cannot advance", ErrInvalidState)
 	default:
@@ -110,7 +117,7 @@ func (execution *execution) acceptModel(signals []agent.Signal) (agent.Transitio
 		})
 	}
 
-	effectEnvelope, err := newToolBatchEffect(calls)
+	effectEnvelope, err := newToolBatchEffect(calls, nil, nil)
 	if err != nil {
 		return agent.Transition{}, err
 	}
@@ -143,6 +150,12 @@ func (execution *execution) acceptTools(signals []agent.Signal) (agent.Transitio
 		return agent.Transition{}, err
 	}
 	results := envelope.ToolResult.Results
+	if checkpoint := envelope.ToolResult.Checkpoint; checkpoint != nil {
+		if err := checkpoint.validate(calls); err != nil {
+			return agent.Transition{}, err
+		}
+		return execution.requestInputWait(1, checkpoint)
+	}
 	if err := validateToolResults(calls, results); err != nil {
 		return agent.Transition{}, err
 	}
@@ -160,8 +173,120 @@ func (execution *execution) acceptTools(signals []agent.Signal) (agent.Transitio
 	}
 	execution.state.Request = request
 	execution.state.PendingResponse = nil
+	execution.state.ToolCheckpoint = nil
+	execution.state.WaitID = nil
 	execution.state.Phase = phaseReadyModel
 	return execution.requestModel(1)
+}
+
+func (execution *execution) requestInputWait(
+	consumed uint32,
+	checkpoint *toolCheckpoint,
+) (agent.Transition, error) {
+	if checkpoint == nil {
+		return agent.Transition{}, fmt.Errorf("%w: missing Tool checkpoint", ErrInvalidState)
+	}
+	calls, _, err := responseToolCalls(execution.state.PendingResponse)
+	if err != nil {
+		return agent.Transition{}, err
+	}
+	if err := checkpoint.validate(calls); err != nil {
+		return agent.Transition{}, err
+	}
+	waitOpened := checkpoint.Input
+	payload, err := encodeProtocol(signalEnvelope{
+		SchemaVersion: protocolSchemaVersion,
+		Operation:     operationWaitOpened,
+		WaitOpened:    &waitOpened,
+	})
+	if err != nil {
+		return agent.Transition{}, err
+	}
+	waitKey, err := checkpointWaitKey(execution.state.ModelCalls, calls[checkpoint.Next].ID, checkpoint.Pauses)
+	if err != nil {
+		return agent.Transition{}, err
+	}
+	effect, err := agent.RequestWait(waitKey, payload)
+	if err != nil {
+		return agent.Transition{}, err
+	}
+	cloned := checkpoint.clone()
+	execution.state.ToolCheckpoint = &cloned
+	execution.state.WaitID = nil
+	execution.state.Phase = phaseAwaitingWaitID
+	return agent.Continue(consumed, effect)
+}
+
+func (execution *execution) acceptWaitID(signals []agent.Signal) (agent.Transition, error) {
+	if len(signals) == 0 {
+		return agent.Transition{}, fmt.Errorf("%w: wait-opened Signal is missing", ErrInvalidState)
+	}
+	envelope, err := decodeSignal(signals[0].Payload())
+	if err != nil {
+		return agent.Transition{}, err
+	}
+	if envelope.Operation != operationWaitOpened {
+		return agent.Transition{}, fmt.Errorf("%w: got %q while awaiting WaitID", ErrInvalidState, envelope.Operation)
+	}
+	waitID, ok := signals[0].WaitID()
+	if !ok {
+		return agent.Transition{}, fmt.Errorf("%w: Engine did not attach a WaitID", ErrInvalidState)
+	}
+	want, err := execution.state.ToolCheckpoint.Input.inputRequest()
+	if err != nil {
+		return agent.Transition{}, err
+	}
+	got, err := envelope.WaitOpened.inputRequest()
+	if err != nil || !sameInputRequest(want, got) {
+		return agent.Transition{}, fmt.Errorf("%w: wait-opened payload does not match Tool checkpoint", ErrInvalidState)
+	}
+	execution.state.WaitID = &waitID
+	execution.state.Phase = phaseWaitingInput
+	return agent.Wait(1, waitID)
+}
+
+func (execution *execution) acceptInputResponse(signals []agent.Signal) (agent.Transition, error) {
+	if len(signals) == 0 {
+		return agent.Transition{}, fmt.Errorf("%w: input-response Signal is missing", ErrInvalidState)
+	}
+	waitID, addressed := signals[0].WaitID()
+	if !addressed || execution.state.WaitID == nil || waitID != *execution.state.WaitID {
+		return agent.Transition{}, fmt.Errorf("%w: input response addressed the wrong wait", ErrInvalidState)
+	}
+	envelope, err := decodeSignal(signals[0].Payload())
+	if err != nil {
+		return agent.Transition{}, err
+	}
+	if envelope.Operation != operationInputResponse {
+		return agent.Transition{}, fmt.Errorf("%w: got %q while awaiting input response", ErrInvalidState, envelope.Operation)
+	}
+	request, err := execution.state.ToolCheckpoint.Input.inputRequest()
+	if err != nil {
+		return agent.Transition{}, err
+	}
+	response, err := request.validateResponse(envelope.InputResponse)
+	if err != nil {
+		return agent.Transition{}, err
+	}
+	calls, _, err := responseToolCalls(execution.state.PendingResponse)
+	if err != nil {
+		return agent.Transition{}, err
+	}
+	effectEnvelope, err := newToolBatchEffect(calls, execution.state.ToolCheckpoint, response)
+	if err != nil {
+		return agent.Transition{}, err
+	}
+	payload, err := encodeProtocol(effectEnvelope)
+	if err != nil {
+		return agent.Transition{}, err
+	}
+	effect, err := agent.NewDispatcherEffect(payload)
+	if err != nil {
+		return agent.Transition{}, err
+	}
+	execution.state.WaitID = nil
+	execution.state.Phase = phaseAwaitingTools
+	return agent.Continue(1, effect)
 }
 
 func (execution *execution) complete(consumed uint32, output Output) (agent.Transition, error) {
@@ -174,8 +299,26 @@ func (execution *execution) complete(consumed uint32, output Output) (agent.Tran
 	}
 	execution.state.Phase = phaseCompleted
 	execution.state.PendingResponse = nil
+	execution.state.ToolCheckpoint = nil
+	execution.state.WaitID = nil
 	execution.state.FinalOutput = &output
 	return agent.Complete(consumed, encoded)
+}
+
+func checkpointWaitKey(modelCalls uint32, callID string, pauses uint32) (agent.WaitKey, error) {
+	hash := sha256.New()
+	hash.Write([]byte(strconv.FormatUint(uint64(modelCalls), 10)))
+	hash.Write([]byte{0})
+	hash.Write([]byte(callID))
+	hash.Write([]byte{0})
+	hash.Write([]byte(strconv.FormatUint(uint64(pauses), 10)))
+	return agent.ParseWaitKey("interaction.input." + hex.EncodeToString(hash.Sum(nil)))
+}
+
+func sameInputRequest(left, right ToolInputRequest) bool {
+	return string(left.Prompt()) == string(right.Prompt()) &&
+		string(left.ResponseSchema()) == string(right.ResponseSchema()) &&
+		string(left.ContinuationState()) == string(right.ContinuationState())
 }
 
 func validateToolResults(calls []chat.ToolCall, results []chat.ToolResult) error {

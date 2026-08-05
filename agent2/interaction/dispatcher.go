@@ -2,6 +2,7 @@ package interaction
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"reflect"
@@ -144,15 +145,51 @@ func (dispatcher *Dispatcher) dispatchToolBatch(
 	effectID agent.EffectID,
 	batch *toolBatchCall,
 ) (agent.Settlement, error) {
-	results := make([]chat.ToolResult, len(batch.Calls))
-	allDirect := len(batch.Calls) > 0
-	for index, call := range batch.Calls {
-		result, direct, err := dispatcher.callTool(ctx, call)
-		if err != nil {
-			return agent.Settlement{}, fmt.Errorf("interaction: tool call %q: %w", call.ID, err)
+	results := make([]chat.ToolResult, 0, len(batch.Calls))
+	start := 0
+	pauses := uint32(0)
+	var continuation *ToolInputContinuation
+	if batch.Checkpoint != nil {
+		checkpoint := batch.Checkpoint
+		results = append(results, checkpoint.Completed...)
+		start = int(checkpoint.Next)
+		pauses = checkpoint.Pauses
+		if pauses == ^uint32(0) {
+			return agent.Settlement{}, errors.New("interaction: tool checkpoint pause count exhausted")
 		}
-		results[index] = result
-		allDirect = allDirect && direct
+		continuation = &ToolInputContinuation{
+			state:    append(json.RawMessage(nil), checkpoint.Input.ContinuationState...),
+			response: append(json.RawMessage(nil), batch.InputResponse...),
+		}
+	}
+	allDirect := dispatcher.allCallsDirect(batch.Calls)
+	for index := start; index < len(batch.Calls); index++ {
+		callContext := ctx
+		if continuation != nil && index == start {
+			callContext = withToolInputContinuation(ctx, *continuation)
+		}
+		result, required, err := dispatcher.callTool(callContext, batch.Calls[index])
+		if err != nil {
+			return agent.Settlement{}, fmt.Errorf("interaction: tool call %q: %w", batch.Calls[index].ID, err)
+		}
+		if required != nil {
+			checkpoint := &toolCheckpoint{
+				Completed: append([]chat.ToolResult(nil), results...),
+				Next:      uint32(index),
+				Pauses:    pauses + 1,
+				Input:     wireInputRequest(*required),
+			}
+			payload, err := encodeProtocol(signalEnvelope{
+				SchemaVersion: protocolSchemaVersion,
+				Operation:     operationToolBatch,
+				ToolResult:    &toolBatchResult{Checkpoint: checkpoint},
+			})
+			if err != nil {
+				return agent.Settlement{}, err
+			}
+			return agent.NewSettlement(effectID, agent.SettlementStatusSucceeded, payload)
+		}
+		results = append(results, result)
 	}
 	payload, err := encodeProtocol(signalEnvelope{
 		SchemaVersion: protocolSchemaVersion,
@@ -165,32 +202,56 @@ func (dispatcher *Dispatcher) dispatchToolBatch(
 	return agent.NewSettlement(effectID, agent.SettlementStatusSucceeded, payload)
 }
 
-func (dispatcher *Dispatcher) callTool(ctx context.Context, call chat.ToolCall) (result chat.ToolResult, direct bool, err error) {
+func (dispatcher *Dispatcher) callTool(
+	ctx context.Context,
+	call chat.ToolCall,
+) (result chat.ToolResult, required *ToolInputRequest, err error) {
 	hosted, found := dispatcher.tools[call.Name]
 	if !found {
 		return chat.ToolResult{
 			ID: call.ID, Name: call.Name,
 			Result: fmt.Sprintf("error: tool %q is not available", call.Name), IsError: true,
-		}, false, nil
+		}, nil, nil
 	}
 	defer func() {
 		if recovered := recover(); recovered != nil {
 			result = chat.ToolResult{}
-			direct = false
+			required = nil
 			err = fmt.Errorf("tool panicked: %v", recovered)
 		}
 	}()
 	output, err := hosted.executable.Call(ctx, call.Arguments)
 	if err != nil {
 		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-			return chat.ToolResult{}, false, err
+			return chat.ToolResult{}, nil, err
+		}
+		var inputRequired *ToolInputRequiredError
+		if errors.As(err, &inputRequired) {
+			request, valid := inputRequired.inputRequest()
+			if !valid {
+				return chat.ToolResult{}, nil, ErrInvalidToolInputRequest
+			}
+			return chat.ToolResult{}, &request, nil
 		}
 		return chat.ToolResult{
 			ID: call.ID, Name: call.Name,
 			Result: fmt.Sprintf("error: tool %q failed: %s", call.Name, boundedDiagnostic(err.Error())), IsError: true,
-		}, hosted.direct, nil
+		}, nil, nil
 	}
-	return chat.ToolResult{ID: call.ID, Name: call.Name, Result: output}, hosted.direct, nil
+	return chat.ToolResult{ID: call.ID, Name: call.Name, Result: output}, nil, nil
+}
+
+func (dispatcher *Dispatcher) allCallsDirect(calls []chat.ToolCall) bool {
+	if len(calls) == 0 {
+		return false
+	}
+	for _, call := range calls {
+		hosted, found := dispatcher.tools[call.Name]
+		if !found || !hosted.direct {
+			return false
+		}
+	}
+	return true
 }
 
 func directResultCapability(executable tool.Tool) (direct bool, err error) {
