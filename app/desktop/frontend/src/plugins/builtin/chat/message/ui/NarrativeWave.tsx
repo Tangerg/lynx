@@ -51,6 +51,11 @@ export function NarrativeWave({ units, ctx, renderUnit }: Props) {
       label={t("agent.steps", { count: waveStepCount(units) })}
       open={open}
       onToggle={() => setOpen((value) => !value)}
+      // A wave holds a whole round of work — reasoning plus every tool call in
+      // it — so it is routinely taller than the reading column. Scrolling its
+      // rows used to carry the count away with it, leaving a stack of tool rows
+      // with nothing saying what round they belonged to.
+      stickyHeader
     >
       {/* Each member already knows it is superseded — this wave exists BECAUSE an
           answer followed it — so nothing inside springs open when the wave does.

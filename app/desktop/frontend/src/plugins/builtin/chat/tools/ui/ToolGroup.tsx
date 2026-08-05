@@ -41,6 +41,7 @@ export function ToolGroup({ tools, onSelectTool, expandedIds, onToggleExpand, su
       }
       open={model.expanded}
       onToggle={() => setPinned(model.nextPinned)}
+      stickyHeader
     >
       {tools.map((tool) => (
         <ToolCard

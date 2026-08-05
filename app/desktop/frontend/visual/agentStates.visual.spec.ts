@@ -362,6 +362,36 @@ test("an expanded tool row reports its subject and what it changed", async ({ pa
   await expect(row).toContainText("−1");
 });
 
+test("an expanded wave keeps its summary while its rows scroll past", async ({ page }) => {
+  await page.goto("/visual/?fixture=agent&theme=light&state=tool-shells");
+  await page.locator("html[data-visual-ready]").waitFor();
+  await page.getByRole("button", { name: /steps/ }).first().click();
+
+  const header = page.locator("[data-slot=agent-activity-disclosure] .sticky").first();
+  await expect(header).toBeVisible();
+
+  // Measured, not screenshotted: a golden of a scrolled transcript cannot tell
+  // "the header stuck" from "the header happened to be in frame". The card's own
+  // `overflow` decides this — `hidden` would make the card the scrollport and the
+  // header would leave with its rows.
+  const stuck = await header.evaluate((element) => {
+    const viewport = element.closest(".msg-scroll-viewport");
+    const card = element.parentElement;
+    if (!viewport || !card) return null;
+    const before = element.getBoundingClientRect().top - card.getBoundingClientRect().top;
+    viewport.scrollTop = viewport.scrollHeight;
+    return {
+      before,
+      overflow: getComputedStyle(card).overflow,
+      position: getComputedStyle(element).position,
+    };
+  });
+  expect(stuck?.position).toBe("sticky");
+  // `hidden` here is the bug this guards: it silently turns the card into the
+  // scrollport, and sticky then has nothing to stick to.
+  expect(stuck?.overflow).toBe("clip");
+});
+
 test("the goal banner reports the allowance that will run out first", async ({ page }) => {
   await page.goto("/visual/?fixture=agent&theme=light&state=running");
   await page.locator("html[data-visual-ready]").waitFor();

@@ -28,6 +28,10 @@ type AgentActivityDisclosureProps = Omit<ComponentPropsWithoutRef<"div">, "child
     actions?: ReactNode;
     open: boolean;
     onToggle: () => void;
+    /** Keep the summary row visible while its own body scrolls past. For a
+     *  disclosure that can hold more rows than fit — a tool group — where losing
+     *  the header means losing what the rows below it belong to. */
+    stickyHeader?: boolean;
     toggleLabel?: string;
     tone?: ActivityTone;
     shell?: ActivityShell;
@@ -78,6 +82,7 @@ export function AgentActivityDisclosure({
   actions,
   open,
   onToggle,
+  stickyHeader,
   toggleLabel,
   tone = "neutral",
   shell = "card",
@@ -102,7 +107,12 @@ export function AgentActivityDisclosure({
         // No outer margin. What distance this row keeps from the one above it
         // depends on what that one WAS, which is a fact only the renderer walking
         // the sequence has (see renderUnitRhythm).
-        "group/activity min-w-0 overflow-hidden",
+        // `clip`, not `hidden`. Both cut the same pixels, but `hidden` makes this
+        // box a scroll container — which makes it the scrollport a `sticky`
+        // descendant positions against, and a sticky header inside a box that
+        // never scrolls simply does not stick. `clip` is not a scroll container,
+        // so the corner is still clipped and `stickyHeader` below still works.
+        "group/activity min-w-0 overflow-clip",
         shell === "line"
           ? // A radius even with no fill: the hover wash needs a shape, and a
             // full-bleed rectangle sliding under the cursor is what makes a quiet
@@ -113,7 +123,16 @@ export function AgentActivityDisclosure({
         className,
       )}
     >
-      <div className="flex min-w-0 items-center">
+      <div
+        className={cn(
+          "flex min-w-0 items-center",
+          // Opt-in, and deliberately not the default: a transcript where every
+          // activity row stuck would pile a dozen headers at the top of the
+          // reading column, each hiding the rows of the one above it. Only a
+          // disclosure long enough to scroll past its own header wants this.
+          stickyHeader && "sticky top-0 z-1 bg-canvas",
+        )}
+      >
         <Pressable
           id={triggerId}
           type="button"
