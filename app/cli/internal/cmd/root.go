@@ -15,10 +15,11 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/Tangerg/oolong/core/term"
+
 	"github.com/Tangerg/lynx/app/cli/internal/client"
 	"github.com/Tangerg/lynx/app/cli/internal/client/mock"
 	"github.com/Tangerg/lynx/app/cli/internal/ui/session"
-	"github.com/Tangerg/oolong/primitives/term"
 )
 
 // version is overridden at link time via -ldflags "-X ...cmd.version=...".

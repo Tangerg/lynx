@@ -54,7 +54,7 @@ func New() *Runtime {
 
 var _ client.Runtime = (*Runtime)(nil)
 
-// ListSessions returns the catalogue, most recently touched first.
+// ListSessions returns the catalog, most recently touched first.
 func (r *Runtime) ListSessions(context.Context) ([]client.Session, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -181,7 +181,7 @@ func (r *Runtime) play(ctx context.Context, rn *run, steps []Step, park bool) cl
 
 // pause waits out one step's delay, reporting why it stopped early. Cancellation
 // is checked even when there is nothing to wait for, so an instant script still
-// honours a stop.
+// honors a stop.
 func (r *Runtime) pause(ctx context.Context, rn *run, d time.Duration) error {
 	if r.Instant || d <= 0 {
 		select {

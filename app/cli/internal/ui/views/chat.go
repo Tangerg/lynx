@@ -7,13 +7,15 @@
 package views
 
 import (
+	"github.com/Tangerg/oolong/components/headless"
+	"github.com/Tangerg/oolong/components/kit"
+	"github.com/Tangerg/oolong/core/grid"
+	"github.com/Tangerg/oolong/core/input"
+	"github.com/Tangerg/oolong/core/layout"
+
 	"github.com/Tangerg/lynx/app/cli/internal/client"
 	"github.com/Tangerg/lynx/app/cli/internal/ui/parts"
 	"github.com/Tangerg/lynx/app/cli/internal/ui/store"
-	"github.com/Tangerg/oolong/atoms"
-	"github.com/Tangerg/oolong/atoms/theme"
-	"github.com/Tangerg/oolong/primitives/grid"
-	"github.com/Tangerg/oolong/primitives/input"
 )
 
 // Chat is the conversation screen: a transcript, a plan, whatever is being asked,
@@ -34,14 +36,14 @@ type Chat struct {
 	// Quit is called when the user asks to leave.
 	Quit func()
 
-	theme      theme.Theme
+	theme      kit.Theme
 	transcript *parts.Transcript
 	plan       *parts.Plan
 	approval   *parts.Approval
 	composer   *parts.Composer
-	spinner    *atoms.Spinner
+	spinner    *kit.Spinner
 	status     parts.Status
-	help       atoms.Help
+	help       kit.Help
 
 	keys ChatKeys
 	// session is the state last given to the view, held so drawing does not need it
@@ -51,31 +53,31 @@ type Chat struct {
 
 // ChatKeys are the screen's own bindings, as opposed to the ones its parts own.
 type ChatKeys struct {
-	Quit    atoms.Binding
-	Cancel  atoms.Binding
-	Newline atoms.Binding
+	Quit    headless.Binding
+	Cancel  headless.Binding
+	Newline headless.Binding
 }
 
 // DefaultChatKeys are the bindings a terminal chat is expected to have.
 func DefaultChatKeys() ChatKeys {
 	return ChatKeys{
-		Quit:   atoms.Binding{Key: input.Key{Code: input.Character, Rune: 'd', Mods: input.Ctrl}, Does: "quit"},
-		Cancel: atoms.Binding{Key: input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl}, Does: "stop"},
+		Quit:   headless.Binding{Key: input.Key{Code: input.Character, Rune: 'd', Mods: input.Ctrl}, Does: "quit"},
+		Cancel: headless.Binding{Key: input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl}, Does: "stop"},
 		// Named so the hint row can say it, since it is the one keystroke a user
 		// would not guess.
-		Newline: atoms.Binding{Key: input.Key{Code: input.Enter, Mods: input.Alt}, Does: "newline"},
+		Newline: headless.Binding{Key: input.Key{Code: input.Enter, Mods: input.Alt}, Does: "newline"},
 	}
 }
 
 // NewChat builds the screen.
-func NewChat(t theme.Theme) *Chat {
+func NewChat(t kit.Theme) *Chat {
 	c := &Chat{
 		theme:      t,
 		transcript: parts.NewTranscript(t),
 		plan:       parts.NewPlan(t),
 		approval:   parts.NewApproval(t),
 		composer:   parts.NewComposer(t),
-		spinner:    &atoms.Spinner{Style: t.Accent},
+		spinner:    &kit.Spinner{Style: t.Accent},
 		keys:       DefaultChatKeys(),
 	}
 	c.plan.Collapsed = true
@@ -91,7 +93,7 @@ func NewChat(t theme.Theme) *Chat {
 		}
 	}
 	c.status = parts.Status{Theme: t}
-	c.help = atoms.Help{
+	c.help = kit.Help{
 		KeyStyle:       t.Accent,
 		DoesStyle:      t.Subtle,
 		SeparatorStyle: t.Subtle,
@@ -195,30 +197,52 @@ func (c *Chat) Handle(ev input.Event) bool {
 	return c.transcript.Handle(ev)
 }
 
+// band is one horizontal region of the screen and the widget that fills it.
+//
+// [layout.Rows] measures and arranges but deliberately does not draw, so the
+// pairing is the caller's to keep. Holding both in one value is what stops a
+// slot list and a draw list from drifting a row apart.
+type band struct {
+	widget headless.Widget
+	size   layout.Sizing
+}
+
 // Draw lays the screen out.
 func (c *Chat) Draw(v grid.View) {
 	width, _ := v.Size()
 	if width <= 0 {
 		return
 	}
-	atoms.Rows(v,
+	bands := []band{
 		// The transcript absorbs whatever the others do not need.
-		atoms.Slot{Widget: c.transcript, Size: atoms.Flex(1)},
-		atoms.Slot{Widget: c.plan, Size: atoms.Measured(0, 8)},
-		atoms.Slot{Widget: c.approval, Size: atoms.Measured(0, 20)},
-		atoms.Slot{Widget: c.composer, Size: atoms.Measured(3, 10)},
-		atoms.Slot{Widget: c.status, Size: atoms.Fixed(1)},
-		atoms.Slot{Widget: c.help, Size: atoms.Fixed(1)},
-	)
+		{c.transcript, layout.Flex(1)},
+		{c.plan, layout.Measured(0, 8)},
+		{c.approval, layout.Measured(0, 20)},
+		{c.composer, layout.Measured(3, 10)},
+		{c.status, layout.Fixed(1)},
+		{c.help, layout.Fixed(1)},
+	}
+	slots := make([]layout.Slot, len(bands))
+	for i, b := range bands {
+		slots[i] = layout.Slot{Size: b.size}
+		// A measured band is asked how much it wants; a fixed or flexible one is
+		// told, and has nothing to answer.
+		if sized, ok := b.widget.(headless.Sized); ok {
+			slots[i].Of = sized
+		}
+	}
+	for i, region := range layout.Rows(v, slots...) {
+		bands[i].widget.Draw(region)
+	}
 }
 
 // bindings are the hints for the current state, which is not the same as the list of
 // keys that work: a hint for stopping a run that is not running is noise.
-func (c *Chat) bindings() []atoms.Binding {
+func (c *Chat) bindings() []headless.Binding {
 	if c.approval.Showing() {
 		return c.approval.Bindings()
 	}
-	out := []atoms.Binding{
+	out := []headless.Binding{
 		{Key: input.Key{Code: input.Enter}, Does: "send"},
 		c.keys.Newline,
 	}

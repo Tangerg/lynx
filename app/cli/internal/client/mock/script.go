@@ -34,7 +34,7 @@ func (s Script) parks() bool { return s.Approval.InterruptID != "" }
 
 const (
 	// tick paces one streamed word. Fast enough to feel live, slow enough that
-	// a renderer's incremental behaviour is visible to the naked eye.
+	// a renderer's incremental behavior is visible to the naked eye.
 	tick = 22 * time.Millisecond
 	beat = 260 * time.Millisecond
 )
@@ -178,7 +178,7 @@ func words(text string) []string {
 	return out
 }
 
-// demoSessions seeds the catalogue with plainly fake history.
+// demoSessions seeds the catalog with plainly fake history.
 func demoSessions() []client.Session {
 	now := time.Date(2026, 8, 4, 11, 30, 0, 0, time.UTC)
 	return []client.Session{

@@ -18,7 +18,7 @@ type Runtime interface {
 	Runs
 }
 
-// Sessions is the session catalogue.
+// Sessions is the session catalog.
 type Sessions interface {
 	// ListSessions returns sessions most recently touched first.
 	//

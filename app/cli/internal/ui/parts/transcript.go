@@ -13,12 +13,13 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/Tangerg/oolong/components/headless"
+	"github.com/Tangerg/oolong/components/kit"
+	"github.com/Tangerg/oolong/core/grid"
+	"github.com/Tangerg/oolong/core/input"
+	"github.com/Tangerg/oolong/core/text"
+
 	"github.com/Tangerg/lynx/app/cli/internal/client"
-	"github.com/Tangerg/oolong/atoms"
-	"github.com/Tangerg/oolong/atoms/theme"
-	"github.com/Tangerg/oolong/primitives/grid"
-	"github.com/Tangerg/oolong/primitives/input"
-	"github.com/Tangerg/oolong/primitives/text"
 )
 
 // Transcript draws a conversation and scrolls through it.
@@ -28,7 +29,7 @@ import (
 // beside a fifty-line diff — so the rows are what scrolling and hit-testing work in;
 // scrolling in blocks would jump a screenful at a time.
 type Transcript struct {
-	Theme theme.Theme
+	Theme kit.Theme
 	// MaxToolRows caps how much of a tool's output is shown before it is folded to a
 	// summary. Zero means show it all, which a long test run makes unreadable.
 	MaxToolRows int
@@ -40,8 +41,8 @@ type Transcript struct {
 	built  bool
 	width  int
 	rows   []transcriptRow
-	scroll atoms.Scroll
-	keys   atoms.ScrollKeys
+	scroll headless.Scroll
+	keys   headless.ScrollKeys
 }
 
 // transcriptRow is one drawn row: a line of text, and the block it came from.
@@ -52,8 +53,8 @@ type transcriptRow struct {
 }
 
 // NewTranscript returns a transcript that follows the conversation as it grows.
-func NewTranscript(t theme.Theme) *Transcript {
-	tr := &Transcript{Theme: t, MaxToolRows: 12, keys: atoms.DefaultScrollKeys()}
+func NewTranscript(t kit.Theme) *Transcript {
+	tr := &Transcript{Theme: t, MaxToolRows: 12, keys: headless.DefaultScrollKeys()}
 	tr.scroll.ToBottom()
 	return tr
 }
@@ -68,14 +69,10 @@ func (t *Transcript) Update(blocks []client.Block, revision uint64) {
 }
 
 // Scroll exposes the position, for a scrollbar drawn beside the transcript.
-func (t *Transcript) Scroll() *atoms.Scroll { return &t.scroll }
+func (t *Transcript) Scroll() *headless.Scroll { return &t.scroll }
 
 // Handle scrolls, reporting whether it consumed the event.
 func (t *Transcript) Handle(ev input.Event) bool { return t.scroll.Handle(ev, t.keys) }
-
-// Height is how tall the whole conversation is at a width, which a container needs
-// when the transcript shares a pane with something else.
-func (t *Transcript) Height(width int) int { return len(t.layout(width)) }
 
 // Draw paints the visible part of the conversation.
 func (t *Transcript) Draw(v grid.View) {
@@ -214,7 +211,7 @@ func (t *Transcript) appendOutput(index int, output string, width int) {
 	}
 }
 
-// appendDiff lays out a unified diff, colouring the two halves.
+// appendDiff lays out a unified diff, coloring the two halves.
 func (t *Transcript) appendDiff(index int, diff string, width int) {
 	for line := range strings.SplitSeq(strings.TrimRight(diff, "\n"), "\n") {
 		style := t.Theme.Context

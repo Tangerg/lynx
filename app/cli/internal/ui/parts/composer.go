@@ -5,12 +5,14 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Tangerg/oolong/components/headless"
+	"github.com/Tangerg/oolong/components/kit"
+	"github.com/Tangerg/oolong/core/grid"
+	"github.com/Tangerg/oolong/core/input"
+	"github.com/Tangerg/oolong/core/layout"
+	"github.com/Tangerg/oolong/core/text"
+
 	"github.com/Tangerg/lynx/app/cli/internal/client"
-	"github.com/Tangerg/oolong/atoms"
-	"github.com/Tangerg/oolong/atoms/theme"
-	"github.com/Tangerg/oolong/primitives/grid"
-	"github.com/Tangerg/oolong/primitives/input"
-	"github.com/Tangerg/oolong/primitives/text"
 )
 
 // Composer is where the user writes.
@@ -20,7 +22,7 @@ import (
 // chat — most messages are one line, and the common case should be the short
 // keystroke.
 type Composer struct {
-	Theme theme.Theme
+	Theme kit.Theme
 	// Marker introduces the field, so the eye finds where to type.
 	Marker string
 	// Submit is called with the text when the user sends it. It reports whether the
@@ -28,13 +30,13 @@ type Composer struct {
 	// lose what the user wrote.
 	Submit func(string) bool
 
-	editor *atoms.Editor
-	box    atoms.Box
+	editor *headless.Editor
+	box    kit.Box
 }
 
 // NewComposer returns a composer with the field a chat expects.
-func NewComposer(t theme.Theme) *Composer {
-	editor := atoms.NewEditor()
+func NewComposer(t kit.Theme) *Composer {
+	editor := headless.NewEditor()
 	editor.Placeholder = "Ask anything, or /help"
 	editor.Style = t.Text
 	editor.PlaceholderStyle = t.Subtle
@@ -43,24 +45,24 @@ func NewComposer(t theme.Theme) *Composer {
 		Theme:  t,
 		Marker: "› ",
 		editor: editor,
-		box: atoms.Box{
-			Border:  atoms.Rounded,
+		box: kit.Box{
+			Border:  kit.Rounded,
 			Style:   t.Border,
-			Padding: atoms.Symmetric(0, 1),
+			Padding: layout.Symmetric(0, 1),
 		},
 	}
 }
 
 // Editor is the field itself, for anything that needs to read or set the text.
-func (c *Composer) Editor() *atoms.Editor { return c.editor }
+func (c *Composer) Editor() *headless.Editor { return c.editor }
 
 // Text is what has been written.
 func (c *Composer) Text() string { return c.editor.Text() }
 
-// Height is how tall the composer needs to be at a width.
-func (c *Composer) Height(width int) int {
-	ow, oh := c.box.Overhead()
-	return c.editor.Height(max(width-ow-text.Width(c.Marker), 1)) + oh
+// Measure is how tall the composer needs to be at a width.
+func (c *Composer) Measure(width int) int {
+	overhead := c.box.Overhead()
+	return c.editor.Measure(max(width-overhead.W-text.Width(c.Marker), 1)) + overhead.H
 }
 
 // Handle answers input, reporting whether it consumed the event.
@@ -102,7 +104,7 @@ func (c *Composer) Draw(v grid.View) {
 // token count — and reference material that grew to two rows would be taking space
 // from the conversation.
 type Status struct {
-	Theme theme.Theme
+	Theme kit.Theme
 	// Left is what the session is doing.
 	Left string
 	// Model names the model in use.
@@ -110,11 +112,8 @@ type Status struct {
 	// Usage is what the session has spent.
 	Usage client.Usage
 	// Spinner turns while something is happening. Nil means nothing is.
-	Spinner *atoms.Spinner
+	Spinner *kit.Spinner
 }
-
-// Height is one row.
-func (s Status) Height(int) int { return 1 }
 
 // Draw paints the status line: state on the left, cost on the right.
 func (s Status) Draw(v grid.View) {

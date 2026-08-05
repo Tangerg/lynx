@@ -3,7 +3,8 @@ module github.com/Tangerg/lynx/app/cli
 go 1.26.5
 
 require (
-	github.com/Tangerg/oolong v0.0.0
+	github.com/Tangerg/oolong/components v0.0.1
+	github.com/Tangerg/oolong/core v0.0.1
 	github.com/spf13/cobra v1.10.2
 )
 
@@ -15,7 +16,3 @@ require (
 	golang.org/x/sys v0.47.0 // indirect
 	golang.org/x/term v0.45.0 // indirect
 )
-
-// The terminal interface library is a repository of its own and is not published yet,
-// so it is resolved from a sibling checkout rather than from a version.
-replace github.com/Tangerg/oolong => ../../../oolong

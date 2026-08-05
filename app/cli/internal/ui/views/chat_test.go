@@ -4,11 +4,12 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Tangerg/oolong/components/kit"
+	"github.com/Tangerg/oolong/core/grid"
+	"github.com/Tangerg/oolong/core/input"
+
 	"github.com/Tangerg/lynx/app/cli/internal/client"
 	"github.com/Tangerg/lynx/app/cli/internal/ui/store"
-	"github.com/Tangerg/oolong/atoms/theme"
-	"github.com/Tangerg/oolong/primitives/grid"
-	"github.com/Tangerg/oolong/primitives/input"
 )
 
 // screen draws a view and returns what it looks like, one string per row.
@@ -37,10 +38,10 @@ func joined(rows []string) string { return strings.Join(rows, "\n") }
 
 // newChat builds a chat over a state, with the requests it makes recorded.
 type recorded struct {
-	sent      []string
-	answers   []client.Decision
-	cancelled int
-	quit      int
+	sent     []string
+	answers  []client.Decision
+	canceled int
+	quit     int
 	// accept decides what Send reports back.
 	accept bool
 }
@@ -48,13 +49,13 @@ type recorded struct {
 func newChat(t *testing.T, s *store.Session) (*Chat, *recorded) {
 	t.Helper()
 	rec := &recorded{accept: true}
-	c := NewChat(theme.Dark())
+	c := NewChat(kit.Dark())
 	c.Send = func(body string) bool {
 		rec.sent = append(rec.sent, body)
 		return rec.accept
 	}
 	c.Answer = func(d client.Decision) { rec.answers = append(rec.answers, d) }
-	c.Cancel = func() { rec.cancelled++ }
+	c.Cancel = func() { rec.canceled++ }
 	c.Quit = func() { rec.quit++ }
 	c.Update(s)
 	return c, rec
@@ -135,14 +136,14 @@ func TestChatStopsARunningRunAndQuitsAnIdleOne(t *testing.T) {
 	stop := input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl}
 
 	c.Handle(stop)
-	if rec.quit != 1 || rec.cancelled != 0 {
-		t.Fatalf("with nothing running: quit %d, cancelled %d", rec.quit, rec.cancelled)
+	if rec.quit != 1 || rec.canceled != 0 {
+		t.Fatalf("with nothing running: quit %d, canceled %d", rec.quit, rec.canceled)
 	}
 	s.Apply(client.RunStarted{RunID: "r"})
 	c.Update(s)
 	c.Handle(stop)
-	if rec.cancelled != 1 || rec.quit != 1 {
-		t.Fatalf("with a run going: quit %d, cancelled %d", rec.quit, rec.cancelled)
+	if rec.canceled != 1 || rec.quit != 1 {
+		t.Fatalf("with a run going: quit %d, canceled %d", rec.quit, rec.canceled)
 	}
 }
 
@@ -159,8 +160,8 @@ func TestChatTypingIsTypingEvenWhenItSpellsAChord(t *testing.T) {
 	// The field is last in line, so a plain "c" is a "c" and not a command.
 	c, rec := newChat(t, store.NewSession())
 	typeInto(c, "cancel")
-	if rec.cancelled != 0 || rec.quit != 0 {
-		t.Fatalf("typing triggered commands: cancelled %d, quit %d", rec.cancelled, rec.quit)
+	if rec.canceled != 0 || rec.quit != 0 {
+		t.Fatalf("typing triggered commands: canceled %d, quit %d", rec.canceled, rec.quit)
 	}
 	if got := c.Composer().Text(); got != "cancel" {
 		t.Fatalf("field = %q", got)
@@ -202,7 +203,7 @@ func TestAnOpenApprovalTakesTheKeyboard(t *testing.T) {
 	if got := c.Composer().Text(); got != "" {
 		t.Fatalf("field = %q, want the prompt to have taken the keys", got)
 	}
-	if rec.cancelled != 0 {
+	if rec.canceled != 0 {
 		t.Fatal("a screen command fired while a prompt was open")
 	}
 }

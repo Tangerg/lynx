@@ -20,12 +20,12 @@ import (
 // prints ten thousand lines should not bury the answer that follows it.
 const maxToolOutputLines = 12
 
-// Text renders events as plain text, with no colour and no cursor movement, so
+// Text renders events as plain text, with no color and no cursor movement, so
 // the same bytes are correct on a terminal, in a pipe and in a log file.
 //
 // Assistant prose is written as it streams, because that is the content a reader
 // is waiting for. Everything else is held until its block completes and then
-// printed as a labelled unit — a marker prefix cannot survive being interleaved
+// printed as a labeled unit — a marker prefix cannot survive being interleaved
 // with a live token feed.
 type Text struct {
 	w   io.Writer

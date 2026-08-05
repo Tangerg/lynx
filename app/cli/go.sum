@@ -1,3 +1,7 @@
+github.com/Tangerg/oolong/components v0.0.1 h1:yEZdK1rjkvDtungx+4YLChuGON1JopkC41u0qAMWXuI=
+github.com/Tangerg/oolong/components v0.0.1/go.mod h1:cQexP5xRBGetge7FFTCP7PzOTgutEhe4fp0NdGnU6q8=
+github.com/Tangerg/oolong/core v0.0.1 h1:e1gNPwWqgiu+Cze4YVqDivMfo00erYbWRuRrFkntOS4=
+github.com/Tangerg/oolong/core v0.0.1/go.mod h1:v0j97OQRN3r45ZB8xDdVUW0HhKWMASfPZudwBGkE/rU=
 github.com/cpuguy83/go-md2man/v2 v2.0.6/go.mod h1:oOW0eioCTA6cOiMLiUPZOpcVxMig6NIQQ7OS05n1F4g=
 github.com/inconshreveable/mousetrap v1.1.0 h1:wN+x4NVGpMsO7ErUn/mUI3vEoE6Jt13X2s0bqwp9tc8=
 github.com/inconshreveable/mousetrap v1.1.0/go.mod h1:vpF70FUmC8bwa3OWnCshd2FqLfsEA9PFc4w1p2J65bw=

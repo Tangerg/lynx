@@ -1,11 +1,12 @@
 package parts
 
 import (
+	"github.com/Tangerg/oolong/components/kit"
+	"github.com/Tangerg/oolong/core/grid"
+	"github.com/Tangerg/oolong/core/layout"
+	"github.com/Tangerg/oolong/core/text"
+
 	"github.com/Tangerg/lynx/app/cli/internal/client"
-	"github.com/Tangerg/oolong/atoms"
-	"github.com/Tangerg/oolong/atoms/theme"
-	"github.com/Tangerg/oolong/primitives/grid"
-	"github.com/Tangerg/oolong/primitives/text"
 )
 
 // Plan shows what the run means to do and how far it has got.
@@ -14,36 +15,35 @@ import (
 // than no pane: it takes room from the conversation and tells the reader that
 // something is missing.
 type Plan struct {
-	Theme theme.Theme
+	Theme kit.Theme
 	Items []client.PlanItem
 	// Collapsed shows only the step in progress, for when the conversation needs the
 	// room more than the plan does.
 	Collapsed bool
 
-	box atoms.Box
+	box kit.Box
 }
 
 // NewPlan returns an empty plan pane.
-func NewPlan(t theme.Theme) *Plan {
+func NewPlan(t kit.Theme) *Plan {
 	return &Plan{
 		Theme: t,
-		box: atoms.Box{
-			Border:     atoms.Rounded,
+		box: kit.Box{
+			Border:     kit.Rounded,
 			Style:      t.Border,
-			Padding:    atoms.Symmetric(0, 1),
+			Padding:    layout.Symmetric(0, 1),
 			Title:      "Plan",
 			TitleStyle: t.Heading,
 		},
 	}
 }
 
-// Height is how tall the pane needs to be, or zero when there is no plan.
-func (p *Plan) Height(int) int {
+// Measure is how tall the pane needs to be, or zero when there is no plan.
+func (p *Plan) Measure(int) int {
 	if len(p.Items) == 0 {
 		return 0
 	}
-	_, oh := p.box.Overhead()
-	return len(p.shown()) + oh
+	return len(p.shown()) + p.box.Overhead().H
 }
 
 // Draw paints the plan.

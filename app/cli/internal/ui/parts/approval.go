@@ -3,12 +3,14 @@ package parts
 import (
 	"strings"
 
+	"github.com/Tangerg/oolong/components/headless"
+	"github.com/Tangerg/oolong/components/kit"
+	"github.com/Tangerg/oolong/core/grid"
+	"github.com/Tangerg/oolong/core/input"
+	"github.com/Tangerg/oolong/core/layout"
+	"github.com/Tangerg/oolong/core/text"
+
 	"github.com/Tangerg/lynx/app/cli/internal/client"
-	"github.com/Tangerg/oolong/atoms"
-	"github.com/Tangerg/oolong/atoms/theme"
-	"github.com/Tangerg/oolong/primitives/grid"
-	"github.com/Tangerg/oolong/primitives/input"
-	"github.com/Tangerg/oolong/primitives/text"
 )
 
 // Approval asks the user to allow or refuse something, and takes their answer.
@@ -17,14 +19,14 @@ import (
 // a prompt the user answers by accident, and what it is asking about is a change to
 // their files.
 type Approval struct {
-	Theme theme.Theme
+	Theme kit.Theme
 	// Answer is called with the decision. It is the owner's job to send it on and to
 	// close the prompt.
 	Answer func(client.Decision)
 
 	request client.Approval
-	choices *atoms.List[choice]
-	box     atoms.Box
+	choices *headless.List[choice]
+	box     kit.Box
 }
 
 // choice is one answer the prompt offers.
@@ -37,17 +39,17 @@ type choice struct {
 }
 
 // NewApproval returns a closed prompt.
-func NewApproval(t theme.Theme) *Approval {
+func NewApproval(t kit.Theme) *Approval {
 	a := &Approval{
 		Theme: t,
-		box: atoms.Box{
-			Border:  atoms.Rounded,
+		box: kit.Box{
+			Border:  kit.Rounded,
 			Style:   t.Warning,
-			Padding: atoms.Symmetric(0, 1),
+			Padding: layout.Symmetric(0, 1),
 		},
 	}
-	a.choices = &atoms.List[choice]{
-		Keys: atoms.DefaultListKeys(),
+	a.choices = &headless.List[choice]{
+		Keys: headless.DefaultListKeys(),
 		Wrap: true,
 		Row: func(v grid.View, c choice, selected bool) {
 			style := t.Text
@@ -128,14 +130,14 @@ func (a *Approval) send(d client.Decision) {
 	}
 }
 
-// Height is how tall the prompt needs to be at a width: the question, its detail,
+// Measure is how tall the prompt needs to be at a width: the question, its detail,
 // the diff it is about, and the answers.
-func (a *Approval) Height(width int) int {
+func (a *Approval) Measure(width int) int {
 	if !a.Showing() {
 		return 0
 	}
-	ow, oh := a.box.Overhead()
-	room := max(width-ow, 1)
+	overhead := a.box.Overhead()
+	room := max(width-overhead.W, 1)
 	rows := 1 // the question
 	if a.request.Detail != "" {
 		rows += len(text.WrapAll(linesOf(a.request.Detail, a.Theme.Muted), max(room-2, 1)))
@@ -143,7 +145,7 @@ func (a *Approval) Height(width int) int {
 	if a.request.Diff != "" {
 		rows += 1 + min(diffRows(a.request.Diff), maxApprovalDiffRows)
 	}
-	return rows + 1 + len(a.choices.Items) + oh
+	return rows + 1 + len(a.choices.Items) + overhead.H
 }
 
 // maxApprovalDiffRows caps the preview. A prompt taller than the screen cannot be
@@ -222,8 +224,8 @@ func (a *Approval) drawDiff(v grid.View, y, width, height int) int {
 }
 
 // Bindings are the prompt's keys, for the hint row.
-func (a *Approval) Bindings() []atoms.Binding {
-	return []atoms.Binding{
+func (a *Approval) Bindings() []headless.Binding {
+	return []headless.Binding{
 		{Key: input.Key{Code: input.Up}, Does: "choose"},
 		{Key: input.Key{Code: input.Enter}, Does: "answer"},
 		{Key: input.Key{Code: input.Character, Rune: 'y'}, Does: "allow"},

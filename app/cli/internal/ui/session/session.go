@@ -13,14 +13,15 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/Tangerg/oolong/components/kit"
+	"github.com/Tangerg/oolong/core/grid"
+	"github.com/Tangerg/oolong/core/input"
+	"github.com/Tangerg/oolong/core/program"
+	"github.com/Tangerg/oolong/core/term"
+
 	"github.com/Tangerg/lynx/app/cli/internal/client"
 	"github.com/Tangerg/lynx/app/cli/internal/ui/store"
 	"github.com/Tangerg/lynx/app/cli/internal/ui/views"
-	"github.com/Tangerg/oolong/atoms/theme"
-	"github.com/Tangerg/oolong/primitives/grid"
-	"github.com/Tangerg/oolong/primitives/input"
-	"github.com/Tangerg/oolong/primitives/term"
-	"github.com/Tangerg/oolong/program"
 )
 
 // animationRate is how often something animated advances while something is animating.
@@ -38,7 +39,7 @@ type Config struct {
 	// line can be read and changed before it goes.
 	Prompt string
 	// Theme is the palette. Nil uses the dark one.
-	Theme *theme.Theme
+	Theme *kit.Theme
 	// Host overrides where input comes from and frames go, for tests.
 	Host program.Host
 }
@@ -102,7 +103,7 @@ type Conversation struct {
 
 // New builds a conversation over a loop.
 func New(loop program.Loop, cfg Config, opened client.Session) *Conversation {
-	palette := theme.Dark()
+	palette := kit.Dark()
 	if cfg.Theme != nil {
 		palette = *cfg.Theme
 	}

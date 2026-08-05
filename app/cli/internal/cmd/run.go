@@ -94,7 +94,7 @@ func follow(ctx context.Context, rt client.Runtime, out renderer, start client.S
 	go func() {
 		<-ctx.Done()
 		if id := runID.Load(); id != nil {
-			// Detached from ctx on purpose: cancelling a run is a request that
+			// Detached from ctx on purpose: canceling a run is a request that
 			// must outlive the signal that asked for it.
 			_ = rt.CancelRun(context.WithoutCancel(ctx), *id)
 		}
@@ -118,7 +118,6 @@ func follow(ctx context.Context, rt client.Runtime, out renderer, start client.S
 				break
 			}
 		}
-		stream = nil
 		if parked == nil {
 			break
 		}
