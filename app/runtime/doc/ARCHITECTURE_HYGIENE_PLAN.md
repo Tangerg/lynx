@@ -918,6 +918,7 @@ Acceptance:
 | 44. Runtime semantic and API residue closure | Completed | 2026-08-05 | 2026-08-05 | Current tool documentation and comments match the surviving vocabulary, five false internal API dimensions were removed, all production `unparam`/`modernize` findings reached zero, and full workspace/standalone plus focused race/static/dead-code verification passed. |
 | 45. Runtime protocol contract ownership | Completed | 2026-08-05 | 2026-08-05 | Protocol semantics, transport binding, auxiliary APIs, generated artifacts, canonical samples, and version drift gates are all Runtime-owned; no generator, current architecture guide, or production source resolves protocol truth through a client module. Full workspace/standalone and focused verification passed. |
 | 46. Cancellation, filesystem, and narrowing safety closure | Completed | 2026-08-05 | 2026-08-05 | Persistence and OAuth startup inherit caller cancellation, workspace archives use root-scoped filesystem access, persisted integer discriminants cannot narrow into valid enums, and precise interface/error-handling checks are clean. Full workspace/standalone plus focused race/static/security verification passed. |
+| 47. Infrastructure boundary and external-output closure | Completed | 2026-08-05 | 2026-08-05 | Infrastructure comments no longer name composition or presentation owners and a mechanical gate covers the ring; Git output parsing fails on malformed counts/hunks and accepts only documented nonzero statuses; duplicated text-delta coalescing has one semantic path. Standalone full and focused race/static verification passed. |
 
 Allowed status values: `Pending`, `In progress`, `Completed`, `Blocked`, `Revised`.
 
@@ -1004,6 +1005,25 @@ Allowed status values: `Pending`, `In progress`, `Completed`, `Blocked`, `Revise
   security linters, full workspace and standalone build/vet/test, race tests,
   static analysis, default lint, dead-code analysis, formatting, and diff
   checks passed.
+
+### 2026-08-05 — Batch 47 completed
+
+- Extended the architecture-comment boundary gate through `internal/infra`,
+  closing the only uncovered ring. Infrastructure documentation now describes
+  owned filesystem, persistence, Git, MCP, and sandbox semantics without naming
+  a composition or presentation package that happens to consume them.
+- Replaced ignored Git parse and subprocess errors with strict hunk/numstat
+  decoders and an explicit accepted-exit-code runner. Unborn repositories are
+  detected as a fact, while malformed external output and unexpected command
+  failures are no longer reinterpreted as empty or zero-valued results.
+- Collapsed the duplicated message/reasoning delta draining loops into one
+  same-source, same-kind coalescing path while preserving their closed payload
+  variants and spill ordering.
+- Focused Git, turn-stream, and architecture tests, full standalone
+  build/vet/test, focused race tests, static analysis, lint, formatting, and
+  residue scans passed. Workspace-mode verification is temporarily masked by
+  the concurrently developed CLI's unpublished sibling-module replace; Runtime
+  remains independently buildable and does not absorb that client dependency.
 
 ### 2026-08-04 — Batch 38 completed
 

@@ -7,10 +7,9 @@
 //     denied, $HOME hidden, and the environment scrubbed. It backs the live
 //     shell tool (see internal/infra/exec).
 //   - Workspace (wired): an isolated working copy — a session marked Isolated
-//     runs its tools inside one instead of the real tree (see
-//     internal/adapter/isolation, which drives New/Path/Shutdown). macOS-only
-//     today (fail-closed elsewhere). The scratch copy is process-local and is
-//     removed at shutdown.
+//     runs its tools inside one instead of the real tree. macOS-only today
+//     (fail-closed elsewhere). The scratch copy is process-local and is removed
+//     at shutdown.
 package sandbox
 
 import (

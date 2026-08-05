@@ -7,7 +7,8 @@ import (
 )
 
 // ErrUnknownServer is returned by [Connections.Reconnect] for a name that was
-// never configured; the delivery layer maps it to invalid_params.
+// never configured. Callers can distinguish it from a configured server whose
+// connection attempt failed.
 var ErrUnknownServer = errors.New("mcp: unknown server")
 
 // ErrConnectionsClosed reports an operation attempted after the connection

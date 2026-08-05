@@ -6,9 +6,9 @@ import (
 )
 
 // Cross-store transactions. The stores in this package each own their own
-// table(s) but share one *sql.DB, and a few delivery-layer operations
-// (sessions.import, sessions.rollback) need a write-set that spans several of
-// them to be atomic — a mid-sequence failure must leave no partial state.
+// table(s) but share one *sql.DB. Some use cases need a write-set that spans
+// several stores atomically, so a mid-sequence failure must leave no partial
+// state.
 //
 // A caller-supplied transaction is carried on the context: [RunInTx] begins it
 // (or joins an outer one) and stashes it under txKey; every store statement

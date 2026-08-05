@@ -1,6 +1,7 @@
 package git
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 )
@@ -9,7 +10,7 @@ import (
 // Path comes from the +++ (new) / --- (old, for deletes) headers — one path per
 // line, so unambiguous even with spaces; status from the extended headers
 // (new file / deleted file / rename); added/removed counted from the rows.
-func parseUnifiedDiff(patch string) []DiffFile {
+func parseUnifiedDiff(patch string) ([]DiffFile, error) {
 	var files []DiffFile
 	var cur *DiffFile
 	var leftLine, rightLine int
@@ -42,7 +43,11 @@ func parseUnifiedDiff(patch string) []DiffFile {
 				cur.Path = strings.TrimPrefix(p, "b/")
 			}
 		case strings.HasPrefix(line, "@@"):
-			leftLine, rightLine = parseHunkHeader(line)
+			var err error
+			leftLine, rightLine, err = parseHunkHeader(line)
+			if err != nil {
+				return nil, err
+			}
 			cur.Rows = append(cur.Rows, Row{Type: "hunk", Text: line})
 		case strings.HasPrefix(line, "+"):
 			cur.Rows = append(cur.Rows, Row{Type: "added", RightLine: rightLine, Code: line[1:]})
@@ -58,29 +63,35 @@ func parseUnifiedDiff(patch string) []DiffFile {
 			rightLine++
 		}
 	}
-	return files
+	return files, nil
 }
 
 // parseHunkHeader pulls the left/right start lines out of "@@ -L,S +R,S @@ …".
-func parseHunkHeader(h string) (left, right int) {
-	for f := range strings.FieldsSeq(h) {
-		if len(f) < 2 {
-			continue
-		}
-		switch f[0] {
-		case '-':
-			left = atoiBeforeComma(f[1:])
-		case '+':
-			right = atoiBeforeComma(f[1:])
-		}
+func parseHunkHeader(h string) (left, right int, err error) {
+	fields := strings.Fields(h)
+	if len(fields) < 4 || fields[0] != "@@" || fields[3] != "@@" ||
+		len(fields[1]) < 2 || fields[1][0] != '-' ||
+		len(fields[2]) < 2 || fields[2][0] != '+' {
+		return 0, 0, fmt.Errorf("git: malformed hunk header %q", h)
 	}
-	return left, right
+	left, err = atoiBeforeComma(fields[1][1:])
+	if err != nil {
+		return 0, 0, fmt.Errorf("git: malformed hunk header %q: %w", h, err)
+	}
+	right, err = atoiBeforeComma(fields[2][1:])
+	if err != nil {
+		return 0, 0, fmt.Errorf("git: malformed hunk header %q: %w", h, err)
+	}
+	return left, right, nil
 }
 
-func atoiBeforeComma(s string) int {
+func atoiBeforeComma(s string) (int, error) {
 	if i := strings.IndexByte(s, ','); i >= 0 {
 		s = s[:i]
 	}
-	n, _ := strconv.Atoi(s)
-	return n
+	n, err := strconv.Atoi(s)
+	if err != nil || n < 0 {
+		return 0, fmt.Errorf("invalid line number %q", s)
+	}
+	return n, nil
 }

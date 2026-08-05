@@ -54,7 +54,10 @@ func Diff(ctx context.Context, dir, relPath string, mode Mode) ([]DiffFile, erro
 	if err != nil {
 		return nil, err
 	}
-	files := parseUnifiedDiff(patch)
+	files, err := parseUnifiedDiff(patch)
+	if err != nil {
+		return nil, err
+	}
 	for _, u := range untracked {
 		if df, ok := untrackedDiffFile(dir, u); ok {
 			files = append(files, df)
@@ -73,9 +76,12 @@ func RawDiff(ctx context.Context, dir, relPath string, mode Mode) (string, error
 	var b strings.Builder
 	b.WriteString(patch)
 	for _, u := range untracked {
-		// no-index diff of /dev/null vs the file; exit code 1 (differences) is
-		// normal, so run() returning an error here is tolerated for non-empty out.
-		out, _ := run(ctx, dir, "diff", "--no-index", "--", os.DevNull, u)
+		// no-index diff of /dev/null vs the file; Git uses exit code 1 to report
+		// the expected fact that the two paths differ.
+		out, err := runAllowingExitCode(ctx, dir, 1, "diff", "--no-index", "--", os.DevNull, u)
+		if err != nil {
+			return "", err
+		}
 		b.WriteString(out)
 	}
 	return b.String(), nil

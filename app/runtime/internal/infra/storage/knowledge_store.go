@@ -33,9 +33,8 @@ type FileKnowledgeStore struct {
 	mu sync.Mutex // protects the file writes (paths differ but a single mutex is plenty for this volume)
 }
 
-// NewFileKnowledgeStore binds both filesystem roots explicitly. Process path
-// discovery belongs to the executable composition root; this adapter only maps
-// knowledge scopes onto the paths it was given.
+// NewFileKnowledgeStore binds both filesystem roots explicitly and only maps
+// knowledge scopes onto the paths supplied at construction.
 func NewFileKnowledgeStore(userScopeDirectory, defaultProjectDirectory string) (*FileKnowledgeStore, error) {
 	if userScopeDirectory == "" {
 		return nil, errors.New("memory store: user scope directory is required")

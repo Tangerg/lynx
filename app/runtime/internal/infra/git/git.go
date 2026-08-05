@@ -1,10 +1,6 @@
-// Package git is a thin exec-git capability layer for the workspace VCS
-// surface (workspace.listFileChanges / getDiff). It shells out to the git
-// binary — no embedded git library — and is transport-neutral: it returns
-// plain structs, never delivery/protocol types, so the protocol server maps them
-// to the wire. Missing git binary or a non-repo directory surface as typed
-// errors (ErrUnavailable / ErrNotRepo) rather than empty results, so the
-// caller can keep "no git" / "not a repo" / "clean repo" distinct.
+// Package git exposes workspace version-control reads through the Git binary.
+// It returns transport-neutral values and classifies an unavailable binary and
+// a non-repository directory separately from a clean repository.
 package git
 
 import (
@@ -76,12 +72,23 @@ func IsRepo(ctx context.Context, dir string) bool {
 // run executes `git -C dir <args...>` with hooks disabled and returns stdout.
 // A non-zero exit is returned as an error carrying stderr.
 func run(ctx context.Context, dir string, args ...string) (string, error) {
+	return runAllowingExitCode(ctx, dir, -1, args...)
+}
+
+// runAllowingExitCode executes Git like run and additionally treats one
+// documented nonzero status as success. Git uses status 1 for read-only
+// predicates and for `diff --no-index` when differences exist.
+func runAllowingExitCode(ctx context.Context, dir string, allowedExitCode int, args ...string) (string, error) {
 	full := append([]string{"-C", dir, "-c", "core.quotepath=false"}, args...)
 	cmd := exec.CommandContext(ctx, "git", full...)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 	if err := cmd.Run(); err != nil {
+		var exitErr *exec.ExitError
+		if ctx.Err() == nil && errors.As(err, &exitErr) && exitErr.ExitCode() == allowedExitCode {
+			return stdout.String(), nil
+		}
 		if errors.Is(err, exec.ErrNotFound) {
 			return "", ErrUnavailable
 		}
@@ -116,9 +123,18 @@ func ListChanges(ctx context.Context, dir string) ([]FileChange, error) {
 	// numstat gives added/removed (+ binary "-\t-") for tracked changes vs
 	// HEAD, with rename detection (-M). Untracked files aren't in HEAD, so
 	// they won't appear here — their counts are filled below.
-	numOut, err := run(ctx, dir, "diff", "--numstat", "-M", "-z", "HEAD")
-	if err == nil { // a fresh repo with no HEAD yields an error; counts stay 0
-		applyNumstatZ(numOut, changes)
+	head, err := runAllowingExitCode(ctx, dir, 1, "rev-parse", "--verify", "--quiet", "HEAD")
+	if err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(head) != "" {
+		numOut, err := run(ctx, dir, "diff", "--numstat", "-M", "-z", "HEAD")
+		if err != nil {
+			return nil, err
+		}
+		if err := applyNumstatZ(numOut, changes); err != nil {
+			return nil, err
+		}
 	}
 
 	out := make([]FileChange, 0, len(order))
@@ -206,7 +222,7 @@ func statusFromXY(xy string) Status {
 // Each record is "added\tremoved\tpath"; a binary file reports "-\t-". With
 // -z, a rename emits the path as two extra NUL fields (old, new) after the
 // counts line instead of inline.
-func applyNumstatZ(out string, changes map[string]*FileChange) {
+func applyNumstatZ(out string, changes map[string]*FileChange) error {
 	fields := strings.Split(out, "\x00")
 	for i := 0; i < len(fields); i++ {
 		line := fields[i]
@@ -215,7 +231,7 @@ func applyNumstatZ(out string, changes map[string]*FileChange) {
 		}
 		parts := strings.SplitN(line, "\t", 3)
 		if len(parts) < 3 {
-			continue
+			return fmt.Errorf("git: malformed numstat record %q", line)
 		}
 		addS, remS, path := parts[0], parts[1], parts[2]
 		if path == "" {
@@ -223,17 +239,30 @@ func applyNumstatZ(out string, changes map[string]*FileChange) {
 			if i+2 < len(fields) {
 				path = fields[i+2] // new path
 				i += 2
+			} else {
+				return fmt.Errorf("git: malformed rename numstat record %q", line)
 			}
+		}
+		if addS == "-" || remS == "-" {
+			if fc := changes[path]; fc != nil {
+				fc.Binary = true
+			}
+			continue
+		}
+		added, err := strconv.Atoi(addS)
+		if err != nil || added < 0 {
+			return fmt.Errorf("git: invalid added-line count %q for %q", addS, path)
+		}
+		removed, err := strconv.Atoi(remS)
+		if err != nil || removed < 0 {
+			return fmt.Errorf("git: invalid removed-line count %q for %q", remS, path)
 		}
 		fc := changes[path]
 		if fc == nil {
 			continue
 		}
-		if addS == "-" || remS == "-" {
-			fc.Binary = true
-			continue
-		}
-		fc.Added, _ = strconv.Atoi(addS)
-		fc.Removed, _ = strconv.Atoi(remS)
+		fc.Added = added
+		fc.Removed = removed
 	}
+	return nil
 }

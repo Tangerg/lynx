@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -128,5 +129,34 @@ func TestRunPreservesContextCancellation(t *testing.T) {
 	_, err := run(ctx, t.TempDir(), "status", "--short")
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("run error = %v, want context.Canceled", err)
+	}
+}
+
+func TestRunAllowsDocumentedExitCode(t *testing.T) {
+	if !Available() {
+		t.Skip("git not on PATH")
+	}
+	dir := t.TempDir()
+	write(t, dir, "new.txt", "new\n")
+	out, err := runAllowingExitCode(t.Context(), dir, 1, "diff", "--no-index", "--", os.DevNull, "new.txt")
+	if err != nil {
+		t.Fatalf("runAllowingExitCode: %v", err)
+	}
+	if !strings.Contains(out, "+new") {
+		t.Fatalf("diff output = %q, want added content", out)
+	}
+}
+
+func TestParseUnifiedDiffRejectsMalformedHunkHeader(t *testing.T) {
+	patch := "diff --git a/a.txt b/a.txt\n--- a/a.txt\n+++ b/a.txt\n@@ -invalid +1 @@\n-old\n+new\n"
+	if _, err := parseUnifiedDiff(patch); err == nil {
+		t.Fatal("parseUnifiedDiff accepted a malformed hunk header")
+	}
+}
+
+func TestApplyNumstatRejectsMalformedCounts(t *testing.T) {
+	changes := map[string]*FileChange{"a.txt": {Path: "a.txt"}}
+	if err := applyNumstatZ("invalid\t1\ta.txt\x00", changes); err == nil {
+		t.Fatal("applyNumstatZ accepted a malformed added-line count")
 	}
 }

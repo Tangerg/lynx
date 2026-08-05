@@ -8,9 +8,9 @@ import (
 
 const sessionColumns = `id, title, cwd, parent_id, started_at, updated_at, model, favorite, isolated, revision`
 
-// rowToSession decodes one DB row into a product session.Session. Agent-runtime
-// continuation state deliberately lives in the bootstrap-owned sidecar table,
-// never in this domain projection.
+// rowToSession decodes one DB row into a product session.Session. Execution
+// continuation state deliberately lives in its dedicated sidecar table, never
+// in this session projection.
 func rowToSession(scanner interface {
 	Scan(dest ...any) error
 }) (session.Session, error) {

@@ -76,64 +76,61 @@ func eventSequence(ctx context.Context, state *turnState) iter.Seq[runs.Executor
 // ordering is preserved. The merged event keeps the head event's metadata; deltas are
 // ephemeral (no SSE id, §5.2), so merged delta boundaries are immaterial.
 func coalesceTextDeltas(head runs.ExecutorEvent, ch <-chan runs.ExecutorEvent, spill **runs.ExecutorEvent) runs.ExecutorEvent {
-	switch h := head.Payload.(type) {
-	case runs.MessageDelta:
-		var merged strings.Builder
-	messageDeltas:
-		for {
-			select {
-			case ev, ok := <-ch:
-				if !ok {
-					break messageDeltas
-				}
-				if d, same := ev.Payload.(runs.MessageDelta); same && ev.Source == head.Source {
-					if merged.Len() == 0 {
-						merged.Grow(len(h.Text) + len(d.Text))
-						merged.WriteString(h.Text)
-					}
-					merged.WriteString(d.Text)
-					continue
-				}
-				spillEvent := ev
-				*spill = &spillEvent
-			default:
-			}
-			break
-		}
-		if merged.Len() > 0 {
-			h.Text = merged.String()
-		}
-		head.Payload = h
-		return head
-	case runs.ReasoningDelta:
-		var merged strings.Builder
-	reasoningDeltas:
-		for {
-			select {
-			case ev, ok := <-ch:
-				if !ok {
-					break reasoningDeltas
-				}
-				if d, same := ev.Payload.(runs.ReasoningDelta); same && ev.Source == head.Source {
-					if merged.Len() == 0 {
-						merged.Grow(len(h.Text) + len(d.Text))
-						merged.WriteString(h.Text)
-					}
-					merged.WriteString(d.Text)
-					continue
-				}
-				spillEvent := ev
-				*spill = &spillEvent
-			default:
-			}
-			break
-		}
-		if merged.Len() > 0 {
-			h.Text = merged.String()
-		}
-		head.Payload = h
-		return head
-	default:
+	kind, initial, ok := textDelta(head.Payload)
+	if !ok {
 		return head
 	}
+	var merged strings.Builder
+	for {
+		select {
+		case ev, open := <-ch:
+			if !open {
+				return replaceTextDelta(head, kind, merged.String())
+			}
+			nextKind, text, isDelta := textDelta(ev.Payload)
+			if isDelta && nextKind == kind && ev.Source == head.Source {
+				if merged.Len() == 0 {
+					merged.Grow(len(initial) + len(text))
+					merged.WriteString(initial)
+				}
+				merged.WriteString(text)
+				continue
+			}
+			spillEvent := ev
+			*spill = &spillEvent
+		default:
+		}
+		return replaceTextDelta(head, kind, merged.String())
+	}
+}
+
+type textDeltaKind uint8
+
+const (
+	messageTextDelta textDeltaKind = iota + 1
+	reasoningTextDelta
+)
+
+func textDelta(payload runs.ExecutorPayload) (textDeltaKind, string, bool) {
+	switch delta := payload.(type) {
+	case runs.MessageDelta:
+		return messageTextDelta, delta.Text, true
+	case runs.ReasoningDelta:
+		return reasoningTextDelta, delta.Text, true
+	default:
+		return 0, "", false
+	}
+}
+
+func replaceTextDelta(event runs.ExecutorEvent, kind textDeltaKind, text string) runs.ExecutorEvent {
+	if text == "" {
+		return event
+	}
+	switch kind {
+	case messageTextDelta:
+		event.Payload = runs.MessageDelta{Text: text}
+	case reasoningTextDelta:
+		event.Payload = runs.ReasoningDelta{Text: text}
+	}
+	return event
 }
