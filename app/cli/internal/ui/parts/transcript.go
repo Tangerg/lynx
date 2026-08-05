@@ -14,11 +14,11 @@ import (
 	"strings"
 
 	"github.com/Tangerg/lynx/app/cli/internal/client"
-	"github.com/Tangerg/lynx/app/tui/atoms"
-	"github.com/Tangerg/lynx/app/tui/atoms/theme"
-	"github.com/Tangerg/lynx/app/tui/primitives/grid"
-	"github.com/Tangerg/lynx/app/tui/primitives/input"
-	"github.com/Tangerg/lynx/app/tui/primitives/text"
+	"github.com/Tangerg/oolong/atoms"
+	"github.com/Tangerg/oolong/atoms/theme"
+	"github.com/Tangerg/oolong/primitives/grid"
+	"github.com/Tangerg/oolong/primitives/input"
+	"github.com/Tangerg/oolong/primitives/text"
 )
 
 // Transcript draws a conversation and scrolls through it.

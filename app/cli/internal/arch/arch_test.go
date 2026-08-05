@@ -18,7 +18,7 @@ import (
 
 const (
 	modulePath  = "github.com/Tangerg/lynx/app/cli"
-	libraryPath = "github.com/Tangerg/lynx/app/tui"
+	libraryPath = "github.com/Tangerg/oolong"
 )
 
 // The layers, longest prefix first so the first match wins.
