@@ -5,6 +5,8 @@ import (
 	"reflect"
 	"strings"
 	"unicode"
+
+	"github.com/Tangerg/lynx/agent/internal/nilvalue"
 )
 
 // ErrUnportableValue reports a write of a value whose Go state cannot survive
@@ -119,7 +121,7 @@ type Blackboard interface {
 // function because Go does not permit method type parameters.
 func Get[T any](blackboard BlackboardReader, name string) (T, bool) {
 	var zero T
-	if blackboard == nil {
+	if nilvalue.Is(blackboard) {
 		return zero, false
 	}
 
@@ -138,7 +140,7 @@ func Get[T any](blackboard BlackboardReader, name string) (T, bool) {
 // Objects filters the blackboard's object list to entries
 // assignable to T, preserving insertion order.
 func Objects[T any](blackboard BlackboardReader) []T {
-	if blackboard == nil {
+	if nilvalue.Is(blackboard) {
 		return nil
 	}
 

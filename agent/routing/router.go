@@ -5,8 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"slices"
 
 	"github.com/Tangerg/lynx/agent/core"
+	"github.com/Tangerg/lynx/agent/internal/nilvalue"
+	"github.com/Tangerg/lynx/agent/internal/panicerr"
 	"github.com/Tangerg/lynx/agent/runtime"
 )
 
@@ -65,9 +68,10 @@ type Choice struct {
 }
 
 // Ranker scores how well each Candidate matches the input. It MUST return one
-// [Choice] per candidate, positionally aligned — the Router verifies that and
-// rejects a ranker that reorders or drops one. Sorting and filtering belong to
-// the Router, not here.
+// [Choice] per candidate, positionally aligned — the Router gives Rank an
+// ownership-isolated slice, verifies the result against its canonical order,
+// and rejects a ranker that reorders or drops one. Sorting and filtering belong
+// to the Router, not here. A panic is returned as an attributed error.
 type Ranker interface {
 	Rank(ctx context.Context, input string, candidates []Candidate) ([]Choice, error)
 }
@@ -89,11 +93,13 @@ type Config struct {
 
 	// AgentFilter, when non-nil, restricts the candidate pool to agents the
 	// predicate returns true for. Why a caller narrows the pool is its own
-	// concern; the router only applies the predicate.
+	// concern; the router only applies the predicate. A panic is returned by
+	// Candidates or Choose as an attributed error.
 	AgentFilter func(core.AgentDescriptor) bool
 
 	// GoalFilter, when non-nil, restricts which goals on each
-	// surviving agent become candidates.
+	// surviving agent become candidates. A panic follows AgentFilter's error
+	// semantics.
 	GoalFilter func(core.AgentDescriptor, core.GoalDescriptor) bool
 }
 
@@ -111,7 +117,7 @@ func New(engine *runtime.Engine, ranker Ranker, config Config) (*Router, error) 
 	if engine == nil {
 		return nil, errors.New("routing: engine is nil")
 	}
-	if ranker == nil {
+	if nilvalue.Is(ranker) {
 		return nil, errors.New("routing: ranker is nil")
 	}
 	if math.IsNaN(config.MinConfidence) || config.MinConfidence < minimumConfidence || config.MinConfidence > maximumConfidence {
@@ -121,8 +127,10 @@ func New(engine *runtime.Engine, ranker Ranker, config Config) (*Router, error) 
 }
 
 // Candidates enumerates the (agent, goal) pool left after AgentFilter and
-// GoalFilter have run — exactly what [Router.Choose] will hand the Ranker.
-func (r *Router) Candidates() []Candidate {
+// GoalFilter have run — exactly what [Router.Choose] will hand the Ranker. A
+// filter panic is returned as an attributed error without exposing a partial
+// candidate list.
+func (r *Router) Candidates() ([]Candidate, error) {
 	var candidates []Candidate
 	for _, deployment := range r.engine.ActiveDeployments() {
 		// Every deployment in the engine catalog already carries a validated,
@@ -131,17 +139,29 @@ func (r *Router) Candidates() []Candidate {
 			continue
 		}
 		agent := deployment.Descriptor()
-		if r.config.AgentFilter != nil && !r.config.AgentFilter(agent) {
-			continue
+		if r.config.AgentFilter != nil {
+			accepted, err := callAgentFilter(r.config.AgentFilter, agent)
+			if err != nil {
+				return nil, err
+			}
+			if !accepted {
+				continue
+			}
 		}
 		for _, goal := range agent.Goals() {
-			if r.config.GoalFilter != nil && !r.config.GoalFilter(agent, goal) {
-				continue
+			if r.config.GoalFilter != nil {
+				accepted, err := callGoalFilter(r.config.GoalFilter, agent, goal)
+				if err != nil {
+					return nil, err
+				}
+				if !accepted {
+					continue
+				}
 			}
 			candidates = append(candidates, newCandidate(deployment.Ref(), agent, goal))
 		}
 	}
-	return candidates
+	return candidates, nil
 }
 
 // Choose ranks the candidates against input and returns the top match, or
@@ -149,12 +169,15 @@ func (r *Router) Candidates() []Candidate {
 // broken by the order the Ranker received them, so an indecisive ranker still
 // routes deterministically.
 func (r *Router) Choose(ctx context.Context, input string) (Choice, error) {
-	candidates := r.Candidates()
+	candidates, err := r.Candidates()
+	if err != nil {
+		return Choice{}, err
+	}
 	if len(candidates) == 0 {
 		return Choice{}, ErrNoMatch
 	}
 
-	choices, err := r.ranker.Rank(ctx, input, candidates)
+	choices, err := callRanker(ctx, r.ranker, input, slices.Clone(candidates))
 	if err != nil {
 		return Choice{}, fmt.Errorf("routing: rank candidates: %w", err)
 	}
@@ -181,6 +204,36 @@ func (r *Router) Choose(ctx context.Context, input string) (Choice, error) {
 		return best, ErrNoMatch
 	}
 	return best, nil
+}
+
+func callAgentFilter(filter func(core.AgentDescriptor) bool, agent core.AgentDescriptor) (accepted bool, err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			accepted = false
+			err = panicerr.New("routing: AgentFilter panicked", recovered)
+		}
+	}()
+	return filter(agent), nil
+}
+
+func callGoalFilter(filter func(core.AgentDescriptor, core.GoalDescriptor) bool, agent core.AgentDescriptor, goal core.GoalDescriptor) (accepted bool, err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			accepted = false
+			err = panicerr.New("routing: GoalFilter panicked", recovered)
+		}
+	}()
+	return filter(agent, goal), nil
+}
+
+func callRanker(ctx context.Context, ranker Ranker, input string, candidates []Candidate) (choices []Choice, err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			choices = nil
+			err = panicerr.New("routing: Ranker panicked", recovered)
+		}
+	}()
+	return ranker.Rank(ctx, input, candidates)
 }
 
 func validConfidence(value float64) bool {

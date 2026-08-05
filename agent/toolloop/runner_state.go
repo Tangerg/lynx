@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/Tangerg/lynx/agent/internal/nilvalue"
 	"github.com/Tangerg/lynx/core/chat"
 )
 
@@ -42,7 +43,7 @@ func (s *runnerState) validateInput() error {
 	if len(s.request.Tools) == 0 {
 		return nil
 	}
-	if valueIsNil(s.resolver) {
+	if nilvalue.Is(s.resolver) {
 		return fmt.Errorf("%w: request advertises tools but resolver is nil", ErrInvalidInput)
 	}
 	for _, definition := range s.request.Tools {

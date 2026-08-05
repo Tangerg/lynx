@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/Tangerg/lynx/agent/core"
+	"github.com/Tangerg/lynx/agent/internal/nilvalue"
 	"github.com/Tangerg/lynx/agent/internal/panicerr"
 	"github.com/Tangerg/lynx/agent/planning"
 )
@@ -248,7 +249,7 @@ func (e *Engine) resolveBlackboardSource(supplied core.Blackboard) (core.Blackbo
 }
 
 func blackboardName(blackboard core.Blackboard) (string, error) {
-	if valueIsNil(blackboard) {
+	if nilvalue.Is(blackboard) {
 		return "", errors.New("blackboard is nil")
 	}
 	name, err := extensionName(blackboard)
@@ -280,7 +281,7 @@ func cloneBlackboardNamed(name string, source core.Blackboard) (clone core.Black
 	if err != nil {
 		return nil, fmt.Errorf("blackboard %q Clone: %w", name, err)
 	}
-	if valueIsNil(clone) {
+	if nilvalue.Is(clone) {
 		return nil, fmt.Errorf("blackboard %q Clone returned nil", name)
 	}
 	if _, err := blackboardName(clone); err != nil {
@@ -313,7 +314,7 @@ func registerProcessExtensions(extensions []core.Extension) ([]extensionEntry, e
 	seen := make(map[string]struct{}, len(extensions))
 	registered := make([]extensionEntry, 0, len(extensions))
 	for index, extension := range extensions {
-		if valueIsNil(extension) {
+		if nilvalue.Is(extension) {
 			return nil, fmt.Errorf("ProcessOptions.Extensions[%d] is nil", index)
 		}
 		name, err := extensionName(extension)

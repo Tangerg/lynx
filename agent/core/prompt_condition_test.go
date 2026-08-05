@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"iter"
+	"math"
 	"testing"
 
 	"github.com/Tangerg/lynx/agent/core"
@@ -149,6 +150,24 @@ func TestPromptCondition_RejectsInvalidArgs(t *testing.T) {
 		{"nil parser", func() error {
 			_, err := core.NewPromptCondition(core.PromptConditionConfig{
 				Name: "x", Prompt: func(_ context.Context, _ *core.ConditionEnv) string { return "" },
+			})
+			return err
+		}},
+		{"name with surrounding whitespace", func() error {
+			_, err := core.NewPromptCondition(core.PromptConditionConfig{
+				Name: " x ", Prompt: func(_ context.Context, _ *core.ConditionEnv) string { return "" }, Parse: core.ParseYesNo,
+			})
+			return err
+		}},
+		{"NaN cost", func() error {
+			_, err := core.NewPromptCondition(core.PromptConditionConfig{
+				Name: "x", Prompt: func(_ context.Context, _ *core.ConditionEnv) string { return "" }, Parse: core.ParseYesNo, Cost: math.NaN(),
+			})
+			return err
+		}},
+		{"infinite cost", func() error {
+			_, err := core.NewPromptCondition(core.PromptConditionConfig{
+				Name: "x", Prompt: func(_ context.Context, _ *core.ConditionEnv) string { return "" }, Parse: core.ParseYesNo, Cost: math.Inf(1),
 			})
 			return err
 		}},

@@ -154,13 +154,7 @@ type managedStreamModel struct {
 	observe  func(*chat.Response)
 }
 
-func (m managedStreamModel) Call(ctx context.Context, request *chat.Request) (response *chat.Response, err error) {
-	defer func() {
-		if recovered := recover(); recovered != nil {
-			response = nil
-			err = panicerr.New("runtime: managed interaction stream observer panicked", recovered)
-		}
-	}()
+func (m managedStreamModel) Call(ctx context.Context, request *chat.Request) (*chat.Response, error) {
 	return interaction.StreamCall(ctx, m.streamer, request, func(delta *chat.Response) {
 		m.observe(delta.Clone())
 	})

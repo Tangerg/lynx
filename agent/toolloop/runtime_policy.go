@@ -1,8 +1,7 @@
 package toolloop
 
 import (
-	"reflect"
-
+	"github.com/Tangerg/lynx/agent/internal/nilvalue"
 	"github.com/Tangerg/lynx/tool"
 )
 
@@ -35,7 +34,7 @@ type InputlessContinuationTool interface {
 // through it.
 // Nil input remains nil and is rejected by a Registry or Runner.Run.
 func Direct(tool tool.Tool) tool.Tool {
-	if valueIsNil(tool) {
+	if nilvalue.Is(tool) {
 		return nil
 	}
 	return directRuntimeTool{Tool: tool}
@@ -56,16 +55,3 @@ func (directRuntimeTool) ReturnsDirect() bool { return true }
 // Unwrap exposes the decorated tool so its optional capabilities remain
 // discoverable; this decorator overrides only the direct-return marker.
 func (t directRuntimeTool) Unwrap() tool.Tool { return t.Tool }
-
-func valueIsNil(value any) bool {
-	if value == nil {
-		return true
-	}
-	reflected := reflect.ValueOf(value)
-	switch reflected.Kind() {
-	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
-		return reflected.IsNil()
-	default:
-		return false
-	}
-}

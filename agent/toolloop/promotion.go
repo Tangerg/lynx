@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/Tangerg/lynx/agent/internal/nilvalue"
 	"github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/tool"
 )
@@ -131,7 +132,7 @@ func Advertise(candidates []tool.Tool) ([]chat.ToolDefinition, error) {
 
 	manifest := make([]chat.ToolDefinition, 0, len(candidates))
 	for _, candidate := range candidates {
-		if valueIsNil(candidate) {
+		if nilvalue.Is(candidate) {
 			continue
 		}
 		definition, err := hostedTool{tool: candidate}.definition()

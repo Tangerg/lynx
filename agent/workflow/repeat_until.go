@@ -60,7 +60,8 @@ type RepeatUntilConfig[In, Out any] struct {
 // History is replaced on the blackboard after each iteration, so user-supplied
 // Task / Accept callbacks see an immutable snapshot of the running record.
 //
-// Returns an error on missing Name, nil Task, or nil Accept.
+// Returns an error on missing Name, nil Task, nil Accept, or negative
+// MaxIterations.
 func RepeatUntil[In, Out any](config RepeatUntilConfig[In, Out]) (*core.Agent, error) {
 	if config.Name == "" {
 		return nil, errors.New("workflow.RepeatUntil: Name must not be empty")

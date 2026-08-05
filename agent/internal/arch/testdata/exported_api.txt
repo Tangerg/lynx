@@ -445,7 +445,7 @@ routing: func (c Candidate) Agent() core.AgentDescriptor
 routing: func (c Candidate) Deployment() core.DeploymentRef
 routing: func (c Candidate) Goal() core.GoalDescriptor
 routing: func (c Candidate) String() string
-routing: func (r *Router) Candidates() []Candidate
+routing: func (r *Router) Candidates() ([]Candidate, error)
 routing: func (r *Router) Choose(ctx context.Context, input string) (Choice, error)
 routing: func New(engine *runtime.Engine, ranker Ranker, config Config) (*Router, error)
 routing: type Candidate struct { }

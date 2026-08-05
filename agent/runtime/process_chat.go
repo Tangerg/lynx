@@ -5,6 +5,7 @@ import (
 	"slices"
 
 	"github.com/Tangerg/lynx/agent/core"
+	"github.com/Tangerg/lynx/agent/internal/nilvalue"
 	"github.com/Tangerg/lynx/agent/internal/panicerr"
 	"github.com/Tangerg/lynx/chatclient"
 	"github.com/Tangerg/lynx/core/chat"
@@ -25,8 +26,8 @@ func (p *Process) effectiveChat() (core.ChatCapability, error) {
 		if err != nil {
 			return core.ChatCapability{}, err
 		}
-		if valueIsNil(candidate.Model) {
-			if !valueIsNil(candidate.Streamer) {
+		if nilvalue.Is(candidate.Model) {
+			if !nilvalue.Is(candidate.Streamer) {
 				return core.ChatCapability{}, fmt.Errorf("runtime: ChatProvider %q returned a Streamer without a Model", provider.name)
 			}
 			continue
@@ -34,7 +35,7 @@ func (p *Process) effectiveChat() (core.ChatCapability, error) {
 		capability = candidate
 		break
 	}
-	if valueIsNil(capability.Model) {
+	if nilvalue.Is(capability.Model) {
 		capability = p.engineChat()
 	}
 	return p.scopeChat(capability)
@@ -50,7 +51,7 @@ func chatFromProvider(provider core.ChatProvider, process core.ProcessView, name
 }
 
 func (p *Process) scopeChat(capability core.ChatCapability) (core.ChatCapability, error) {
-	if valueIsNil(capability.Model) {
+	if nilvalue.Is(capability.Model) {
 		return core.ChatCapability{}, nil
 	}
 	middleware := p.effectiveChatMiddleware()
@@ -66,7 +67,7 @@ func (p *Process) scopeChat(capability core.ChatCapability) (core.ChatCapability
 		streamMiddleware = append(streamMiddleware, middleware.StreamMiddlewares...)
 	}
 	config := chatclient.Config{CallMiddleware: callMiddleware}
-	if !valueIsNil(capability.Streamer) {
+	if !nilvalue.Is(capability.Streamer) {
 		config.Streamer = capability.Streamer
 		config.StreamMiddleware = streamMiddleware
 	}
@@ -75,7 +76,7 @@ func (p *Process) scopeChat(capability core.ChatCapability) (core.ChatCapability
 		return core.ChatCapability{}, err
 	}
 	result := core.ChatCapability{Model: client}
-	if !valueIsNil(capability.Streamer) {
+	if !nilvalue.Is(capability.Streamer) {
 		result.Streamer = client
 	}
 	return result, nil

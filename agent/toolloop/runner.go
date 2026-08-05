@@ -12,6 +12,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/Tangerg/lynx/agent/interaction"
+	"github.com/Tangerg/lynx/agent/internal/nilvalue"
 	"github.com/Tangerg/lynx/agent/internal/toolcall"
 	"github.com/Tangerg/lynx/core/chat"
 )
@@ -48,7 +49,7 @@ type Runner struct {
 
 // NewRunner validates model and config and returns an immutable Runner.
 func NewRunner(model chat.Model, config Config) (*Runner, error) {
-	if valueIsNil(model) {
+	if nilvalue.Is(model) {
 		return nil, fmt.Errorf("%w: model must not be nil", ErrInvalidConfig)
 	}
 	if config.MaxRounds < 0 {
@@ -212,7 +213,7 @@ func (r *Runner) checkpointState(ctx context.Context, checkpoint *Checkpoint, re
 }
 
 func (r *Runner) validateContext(ctx context.Context) error {
-	if r == nil || valueIsNil(r.model) || r.maxRounds < 0 || r.maxConcurrentCalls < 0 {
+	if r == nil || nilvalue.Is(r.model) || r.maxRounds < 0 || r.maxConcurrentCalls < 0 {
 		return fmt.Errorf("%w: uninitialized runner", ErrInvalidInput)
 	}
 	if ctx == nil {

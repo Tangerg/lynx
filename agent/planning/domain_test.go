@@ -178,6 +178,31 @@ func TestNewDomainRejectsConflictingConditionSources(t *testing.T) {
 	}
 }
 
+func TestNewDomainRejectsNilMembers(t *testing.T) {
+	var typedNilAction *planAction
+	var typedNilCondition *core.FuncCondition
+	goal := core.NewGoal(core.GoalConfig{Name: "goal"})
+
+	for _, test := range []struct {
+		name       string
+		actions    []core.Action
+		goals      []*core.Goal
+		conditions []core.Condition
+	}{
+		{name: "nil action", actions: []core.Action{nil}},
+		{name: "typed nil action", actions: []core.Action{typedNilAction}},
+		{name: "nil goal", goals: []*core.Goal{nil}},
+		{name: "nil condition", conditions: []core.Condition{nil}},
+		{name: "typed nil condition", goals: []*core.Goal{goal}, conditions: []core.Condition{typedNilCondition}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			if _, err := planning.NewDomain(test.actions, test.goals, test.conditions); err == nil {
+				t.Fatal("NewDomain accepted a nil member")
+			}
+		})
+	}
+}
+
 func TestDomainPlanningMethodsValidateTheirInputs(t *testing.T) {
 	domain := mustDomain(t, nil, nil, nil)
 	state := planning.NewState(nil)
@@ -188,6 +213,14 @@ func TestDomainPlanningMethodsValidateTheirInputs(t *testing.T) {
 	}
 	if _, err := domain.Plans(t.Context(), nil, state, planning.Options{}); err == nil {
 		t.Fatal("Plans accepted nil planner")
+	}
+	var typedNilPlanner plannerFunc
+	if _, err := domain.Plans(t.Context(), typedNilPlanner, state, planning.Options{}); err == nil {
+		t.Fatal("Plans accepted typed nil planner")
+	}
+	var typedNilState *planning.State
+	if err := domain.ValidatePlanInputs(typedNilState, goal); err == nil {
+		t.Fatal("ValidatePlanInputs accepted typed nil world state")
 	}
 
 	var nilDomain *planning.Domain

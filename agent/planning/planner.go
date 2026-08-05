@@ -7,6 +7,7 @@ import (
 	"maps"
 
 	"github.com/Tangerg/lynx/agent/core"
+	"github.com/Tangerg/lynx/agent/internal/nilvalue"
 	"github.com/Tangerg/lynx/agent/internal/panicerr"
 )
 
@@ -116,7 +117,7 @@ func (d *Domain) ValidatePlanInputs(state core.WorldState, goal *core.Goal) erro
 	switch {
 	case d == nil:
 		return errors.New("planning.Domain.ValidatePlanInputs: domain is nil")
-	case state == nil:
+	case nilvalue.Is(state):
 		return errors.New("planning.Domain.ValidatePlanInputs: world state is nil")
 	case goal == nil:
 		return errors.New("planning.Domain.ValidatePlanInputs: goal is nil")
@@ -136,9 +137,9 @@ func (d *Domain) Plans(
 	switch {
 	case d == nil:
 		return nil, errors.New("planning.Domain.Plans: domain is nil")
-	case planner == nil:
+	case nilvalue.Is(planner):
 		return nil, errors.New("planning.Domain.Plans: planner is nil")
-	case state == nil:
+	case nilvalue.Is(state):
 		return nil, errors.New("planning.Domain.Plans: world state is nil")
 	}
 	hosted, err := hostPlanner(planner)
@@ -219,7 +220,7 @@ func (d *Domain) acceptPlan(plan *Plan, goal *core.Goal, state core.WorldState, 
 	canonical := make([]core.Action, len(actions))
 	cursor := state
 	for index, candidate := range actions {
-		if candidate == nil {
+		if nilvalue.Is(candidate) {
 			return nil, fmt.Errorf("%w: action[%d] is nil", errInvalidPlan, index)
 		}
 		name := candidate.Metadata().Name
@@ -297,7 +298,7 @@ func (d *Domain) Prune(
 	referenced := map[string]struct{}{}
 	for _, plan := range plans {
 		for _, action := range plan.Actions() {
-			if action == nil {
+			if nilvalue.Is(action) {
 				continue
 			}
 			referenced[action.Metadata().Name] = struct{}{}
@@ -306,7 +307,7 @@ func (d *Domain) Prune(
 
 	kept := make([]core.Action, 0, len(referenced))
 	for _, action := range d.Actions() {
-		if action == nil {
+		if nilvalue.Is(action) {
 			continue
 		}
 		if _, ok := referenced[action.Metadata().Name]; ok {

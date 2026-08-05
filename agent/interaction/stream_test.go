@@ -69,6 +69,36 @@ func TestStreamCallNilStreamer(t *testing.T) {
 	}
 }
 
+type pointerStreamer struct{}
+
+func (*pointerStreamer) Stream(context.Context, *chat.Request) iter.Seq2[*chat.Response, error] {
+	panic("typed nil streamer was called")
+}
+
+func TestStreamCallTypedNilStreamer(t *testing.T) {
+	if _, err := interaction.StreamCall(t.Context(), (*pointerStreamer)(nil), &chat.Request{}, nil); err == nil {
+		t.Fatal("StreamCall accepted a typed nil streamer")
+	}
+}
+
+func TestStreamCallContainsPanics(t *testing.T) {
+	streamCause := errors.New("stream panic")
+	streamer := chat.StreamerFunc(func(context.Context, *chat.Request) iter.Seq2[*chat.Response, error] {
+		panic(streamCause)
+	})
+	if _, err := interaction.StreamCall(t.Context(), streamer, &chat.Request{}, nil); !errors.Is(err, streamCause) {
+		t.Fatalf("stream panic error = %v", err)
+	}
+
+	observerCause := errors.New("observer panic")
+	_, err := interaction.StreamCall(t.Context(), streamOf(&chat.Response{}), &chat.Request{}, func(*chat.Response) {
+		panic(observerCause)
+	})
+	if !errors.Is(err, observerCause) {
+		t.Fatalf("observer panic error = %v", err)
+	}
+}
+
 func TestStreamCallPropagatesStreamError(t *testing.T) {
 	sentinel := errors.New("provider exploded")
 	_, err := interaction.StreamCall(t.Context(), streamError(sentinel), &chat.Request{}, nil)

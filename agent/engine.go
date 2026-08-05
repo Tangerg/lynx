@@ -2,9 +2,9 @@ package agent
 
 import (
 	"fmt"
-	"reflect"
 
 	"github.com/Tangerg/lynx/agent/core"
+	"github.com/Tangerg/lynx/agent/internal/nilvalue"
 	"github.com/Tangerg/lynx/agent/internal/panicerr"
 	"github.com/Tangerg/lynx/agent/planning/goap"
 	"github.com/Tangerg/lynx/agent/planning/reactive"
@@ -42,7 +42,7 @@ func MustNewEngine(config EngineConfig) *Engine {
 func withDefaultPlanners(extensions []core.Extension) ([]core.Extension, error) {
 	taken := make(map[string]struct{}, len(extensions))
 	for _, extension := range extensions {
-		if extensionIsNil(extension) {
+		if nilvalue.Is(extension) {
 			continue
 		}
 		name, err := facadeExtensionName(extension)
@@ -71,17 +71,4 @@ func facadeExtensionName(extension core.Extension) (name string, err error) {
 		}
 	}()
 	return extension.Name(), nil
-}
-
-func extensionIsNil(extension core.Extension) bool {
-	if extension == nil {
-		return true
-	}
-	value := reflect.ValueOf(extension)
-	switch value.Kind() {
-	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
-		return value.IsNil()
-	default:
-		return false
-	}
 }

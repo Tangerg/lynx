@@ -11,6 +11,7 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 
+	"github.com/Tangerg/lynx/agent/internal/nilvalue"
 	"github.com/Tangerg/lynx/agent/internal/panicerr"
 )
 
@@ -55,9 +56,9 @@ type subscription struct {
 func NewMulticast() *Multicast { return &Multicast{} }
 
 // Add subscribes listener and returns an idempotent cancellation function.
-// Nil listeners are ignored.
+// Nil listeners, including interfaces holding a typed nil, are ignored.
 func (m *Multicast) Add(listener Listener) func() {
-	if listener == nil {
+	if nilvalue.Is(listener) {
 		return func() {}
 	}
 
@@ -85,9 +86,13 @@ func (m *Multicast) remove(id uint64) {
 	}
 }
 
-// OnEvent delivers to a stable snapshot of every registered listener. Each
-// callback is panic-isolated so one faulty listener cannot suppress the rest.
+// OnEvent delivers a non-nil event to a stable snapshot of every registered
+// listener. Each callback is panic-isolated so one faulty listener cannot
+// suppress the rest.
 func (m *Multicast) OnEvent(ctx context.Context, event Event) {
+	if nilvalue.Is(event) {
+		return
+	}
 	if ctx == nil {
 		ctx = context.Background()
 	}

@@ -6,6 +6,7 @@ import (
 	"slices"
 
 	"github.com/Tangerg/lynx/agent/core"
+	"github.com/Tangerg/lynx/agent/internal/nilvalue"
 )
 
 // processOptions is the runtime-owned subset of [core.ProcessOptions]. The
@@ -26,7 +27,7 @@ type processOptions struct {
 // (extension implementations, middleware closures, and ChildOptions) are
 // intentionally not deep-copied; their contracts require lifetime safety.
 func snapshotProcessOptions(options core.ProcessOptions) (processOptions, error) {
-	if options.Blackboard != nil && valueIsNil(options.Blackboard) {
+	if options.Blackboard != nil && nilvalue.Is(options.Blackboard) {
 		return processOptions{}, errors.New("ProcessOptions.Blackboard is typed nil")
 	}
 	extensions, err := registerProcessExtensions(options.Extensions)

@@ -16,6 +16,13 @@ func TestCompositeConditionsHandleNilChildren(t *testing.T) {
 	if got := core.Not(nil).Evaluate(t.Context(), nil); got != core.Unknown {
 		t.Fatalf("Not(nil) = %s, want unknown", got)
 	}
+	var typedNil *core.FuncCondition
+	if got := core.And(typedNil, core.NewCondition("ready", nil)).Evaluate(t.Context(), nil); got != core.Unknown {
+		t.Fatalf("And(typed nil, ready) = %s, want unknown", got)
+	}
+	if got := core.Not(typedNil).Name(); got != "(NOT <nil>)" {
+		t.Fatalf("Not(typed nil) name = %q", got)
+	}
 }
 
 func TestCompositeConditionNamesHandleNilAndUnnamedChildren(t *testing.T) {

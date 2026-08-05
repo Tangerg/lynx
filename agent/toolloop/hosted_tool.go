@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/Tangerg/lynx/agent/internal/nilvalue"
 	"github.com/Tangerg/lynx/agent/internal/panicerr"
 	"github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/tool"
@@ -38,7 +39,7 @@ func resolveHosted(resolver ToolResolver, name string) (hosted hostedTool, ok bo
 		}
 	}()
 	tool, ok := resolver.Resolve(name)
-	if !ok || valueIsNil(tool) {
+	if !ok || nilvalue.Is(tool) {
 		return hostedTool{}, false, nil
 	}
 	return hostedTool{tool: tool, name: name}, true, nil

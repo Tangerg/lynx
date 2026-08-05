@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"context"
 	"errors"
+	"math"
 	"strings"
 
 	"github.com/Tangerg/lynx/agent/interaction"
@@ -28,7 +29,8 @@ type PromptFunc func(context.Context, *ConditionEnv) string
 type ParseTruthFunc func(string) Truth
 
 // PromptConditionConfig configures an LLM-evaluated condition. Cost defaults
-// to one because each evaluation performs a model call.
+// to one because each evaluation performs a model call; an explicit cost must
+// be finite and non-negative.
 type PromptConditionConfig struct {
 	Name   string
 	Prompt PromptFunc
@@ -46,8 +48,8 @@ type PromptCondition struct {
 
 // NewPromptCondition validates config and returns an LLM-evaluated condition.
 func NewPromptCondition(config PromptConditionConfig) (*PromptCondition, error) {
-	if config.Name == "" {
-		return nil, errors.New("agent: prompt condition name must not be empty")
+	if config.Name == "" || strings.TrimSpace(config.Name) != config.Name {
+		return nil, errors.New("agent: prompt condition name must be non-empty without surrounding whitespace")
 	}
 	if config.Prompt == nil {
 		return nil, errors.New("agent: prompt condition prompt must not be nil")
@@ -55,8 +57,8 @@ func NewPromptCondition(config PromptConditionConfig) (*PromptCondition, error) 
 	if config.Parse == nil {
 		return nil, errors.New("agent: prompt condition parser must not be nil")
 	}
-	if config.Cost < 0 {
-		return nil, errors.New("agent: prompt condition cost must not be negative")
+	if math.IsNaN(config.Cost) || math.IsInf(config.Cost, 0) || config.Cost < 0 {
+		return nil, errors.New("agent: prompt condition cost must be finite and non-negative")
 	}
 	cost := cmp.Or(config.Cost, defaultPromptConditionCost)
 	return &PromptCondition{

@@ -7,6 +7,7 @@ import (
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/event"
+	"github.com/Tangerg/lynx/agent/internal/nilvalue"
 )
 
 const (
@@ -98,7 +99,7 @@ func New(config Config) (*Engine, error) {
 	if config.MaxToolRounds < 0 {
 		return nil, errors.New("runtime.New: MaxToolRounds must not be negative")
 	}
-	if valueIsNil(config.Chat.Model) && !valueIsNil(config.Chat.Streamer) {
+	if nilvalue.Is(config.Chat.Model) && !nilvalue.Is(config.Chat.Streamer) {
 		return nil, errors.New("runtime.New: Chat.Streamer requires Chat.Model")
 	}
 	chatMiddleware := cloneChatMiddleware(config.ChatMiddleware)

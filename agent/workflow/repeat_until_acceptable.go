@@ -40,9 +40,9 @@ type RepeatUntilAcceptableConfig[In, Out any] struct {
 	// [RepeatUntilConfig]); negative values are invalid.
 	MaxIterations int
 
-	// AcceptableScore is the [Feedback.Score] threshold; the loop
-	// terminates as soon as Evaluator returns Score ≥ this. Zero defaults to
-	// 0.7; negative values are invalid.
+	// AcceptableScore is the required [Feedback.Score] threshold; the loop
+	// terminates as soon as Evaluator returns Score ≥ this. It must be finite
+	// and greater than zero through one, inclusive.
 	AcceptableScore float64
 
 	// Task produces a fresh attempt. Same shape as
@@ -70,7 +70,8 @@ type RepeatUntilAcceptableConfig[In, Out any] struct {
 // the best attempt so far. The "{Name}_acceptable" condition stops the loop
 // once the best score crosses the threshold or MaxIterations is reached.
 //
-// Returns an error on missing Name / nil Task / nil Evaluator.
+// Returns an error on missing Name, nil Task, nil Evaluator, a non-positive or
+// non-finite AcceptableScore, a score above one, or negative MaxIterations.
 func RepeatUntilAcceptable[In, Out any](config RepeatUntilAcceptableConfig[In, Out]) (*core.Agent, error) {
 	if config.Name == "" {
 		return nil, errors.New("workflow.RepeatUntilAcceptable: Name must not be empty")

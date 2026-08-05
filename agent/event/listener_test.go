@@ -3,6 +3,7 @@ package event_test
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/event"
@@ -11,6 +12,16 @@ import (
 )
 
 var listenerDeployment = core.DeploymentRef{Name: "x", Digest: "digest"}
+
+type pointerListener struct{ calls int }
+
+func (l *pointerListener) OnEvent(context.Context, event.Event) { l.calls++ }
+
+type pointerEvent struct{}
+
+func (*pointerEvent) Timestamp() time.Time { return time.Time{} }
+func (*pointerEvent) ProcessID() string    { return "" }
+func (*pointerEvent) Kind() event.Kind     { return "test" }
 
 func TestMulticastCancelListenerFunc(t *testing.T) {
 	var calls int
@@ -26,6 +37,24 @@ func TestMulticastCancelListenerFunc(t *testing.T) {
 
 	if calls != 1 {
 		t.Fatalf("calls = %d, want 1", calls)
+	}
+}
+
+func TestMulticastIgnoresTypedNilListener(t *testing.T) {
+	var listener *pointerListener
+	multicast := event.NewMulticast()
+	cancel := multicast.Add(listener)
+	multicast.OnEvent(t.Context(), event.AgentDeployed{Header: event.NewHeader(""), Deployment: listenerDeployment})
+	cancel()
+}
+
+func TestMulticastIgnoresTypedNilEvent(t *testing.T) {
+	listener := &pointerListener{}
+	multicast := event.NewMulticast()
+	multicast.Add(listener)
+	multicast.OnEvent(t.Context(), (*pointerEvent)(nil))
+	if listener.calls != 0 {
+		t.Fatalf("listener calls = %d, want none", listener.calls)
 	}
 }
 

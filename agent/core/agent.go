@@ -9,6 +9,7 @@ import (
 
 	"github.com/Masterminds/semver/v3"
 
+	"github.com/Tangerg/lynx/agent/internal/nilvalue"
 	"github.com/Tangerg/lynx/agent/internal/panicerr"
 )
 
@@ -188,7 +189,7 @@ func (a *Agent) Descriptor() AgentDescriptor {
 		plannerName:   a.config.PlannerName,
 	}
 	for index, action := range a.config.Actions {
-		if action != nil {
+		if !nilvalue.Is(action) {
 			descriptor.actions[index] = action.Metadata().Descriptor()
 		}
 	}
@@ -196,7 +197,7 @@ func (a *Agent) Descriptor() AgentDescriptor {
 		descriptor.goals[index] = goal.Descriptor()
 	}
 	for index, condition := range a.config.Conditions {
-		if condition != nil {
+		if !nilvalue.Is(condition) {
 			descriptor.conditions[index] = ConditionDescriptor{
 				name: condition.Name(),
 				cost: condition.Cost(),
@@ -258,6 +259,9 @@ func (a *Agent) Validate() error {
 			problems = append(problems, fmt.Errorf("agent.Agent.Validate: invalid agent %q: version %q: %w", a.Name(), a.Version(), err))
 		}
 	}
+	if a.config.StuckPolicy != nil && nilvalue.Is(a.config.StuckPolicy) {
+		problems = append(problems, fmt.Errorf("agent.Agent.Validate: invalid agent %q: stuck policy is typed nil", a.Name()))
+	}
 
 	type namedCollection struct {
 		kind    string
@@ -267,7 +271,7 @@ func (a *Agent) Validate() error {
 	}
 	for _, collection := range []namedCollection{
 		{"action", func(index int) (string, bool) {
-			if a.config.Actions[index] == nil {
+			if nilvalue.Is(a.config.Actions[index]) {
 				return "", true
 			}
 			return a.config.Actions[index].Metadata().Name, false
@@ -279,7 +283,7 @@ func (a *Agent) Validate() error {
 			return a.config.Goals[index].Name(), false
 		}, len(a.config.Goals), true},
 		{"condition", func(index int) (string, bool) {
-			if a.config.Conditions[index] == nil {
+			if nilvalue.Is(a.config.Conditions[index]) {
 				return "", true
 			}
 			return a.config.Conditions[index].Name(), false
@@ -290,7 +294,7 @@ func (a *Agent) Validate() error {
 		}
 	}
 	for _, action := range a.config.Actions {
-		if action == nil {
+		if nilvalue.Is(action) {
 			continue
 		}
 		metadata := action.Metadata()
@@ -307,7 +311,7 @@ func (a *Agent) Validate() error {
 		}
 	}
 	for _, condition := range a.config.Conditions {
-		if condition == nil {
+		if nilvalue.Is(condition) {
 			continue
 		}
 		cost, err := evaluateConditionCost(condition)
@@ -366,7 +370,7 @@ func evaluateConditionCost(condition Condition) (cost float64, err error) {
 func (a *Agent) goalReachabilityErrors() []error {
 	producible := map[string]struct{}{}
 	for _, action := range a.config.Actions {
-		if action == nil {
+		if nilvalue.Is(action) {
 			continue
 		}
 		metadata := action.Metadata()
@@ -380,7 +384,7 @@ func (a *Agent) goalReachabilityErrors() []error {
 		}
 	}
 	for _, condition := range a.config.Conditions {
-		if condition != nil && condition.Name() != "" {
+		if !nilvalue.Is(condition) && condition.Name() != "" {
 			producible[condition.Name()] = struct{}{}
 		}
 	}

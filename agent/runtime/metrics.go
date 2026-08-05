@@ -13,6 +13,7 @@ import (
 	"go.opentelemetry.io/otel/metric/noop"
 
 	"github.com/Tangerg/lynx/agent/core"
+	"github.com/Tangerg/lynx/agent/internal/nilvalue"
 )
 
 // Runtime metrics use the OTel pipeline shared with tracing. Without a
@@ -63,7 +64,7 @@ func newAgentMetrics(meter metric.Meter) *agentMetrics {
 // visible while the typed no-op preserves the execution path.
 func int64Counter(meter metric.Meter, name string, options ...metric.Int64CounterOption) metric.Int64Counter {
 	instrument, err := meter.Int64Counter(name, options...)
-	if err == nil && !valueIsNil(instrument) {
+	if err == nil && !nilvalue.Is(instrument) {
 		return instrument
 	}
 	if err == nil {
@@ -75,7 +76,7 @@ func int64Counter(meter metric.Meter, name string, options ...metric.Int64Counte
 
 func float64Histogram(meter metric.Meter, name string, options ...metric.Float64HistogramOption) metric.Float64Histogram {
 	instrument, err := meter.Float64Histogram(name, options...)
-	if err == nil && !valueIsNil(instrument) {
+	if err == nil && !nilvalue.Is(instrument) {
 		return instrument
 	}
 	if err == nil {

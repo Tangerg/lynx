@@ -3,6 +3,7 @@ package toolloop
 import (
 	"fmt"
 
+	"github.com/Tangerg/lynx/agent/internal/nilvalue"
 	"github.com/Tangerg/lynx/core/chat"
 )
 
@@ -36,7 +37,7 @@ func planCalls(resolver ToolResolver, calls []chat.ToolCall) ([]callPlan, bool, 
 	plans := make([]callPlan, len(calls))
 	allDirect := len(calls) > 0
 	for index, call := range calls {
-		if valueIsNil(resolver) {
+		if nilvalue.Is(resolver) {
 			allDirect = false
 			continue
 		}

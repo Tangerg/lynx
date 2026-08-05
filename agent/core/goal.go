@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"reflect"
 	"slices"
+
+	"github.com/Tangerg/lynx/agent/internal/nilvalue"
 )
 
 const defaultGoalValue = 1.0
@@ -159,7 +161,7 @@ func (g *Goal) Preconditions() ConditionSet {
 // SatisfiedBy reports whether worldState meets every goal precondition.
 // Used by planners to check whether the goal is already met.
 func (g *Goal) SatisfiedBy(worldState WorldState) bool {
-	if g == nil || worldState == nil {
+	if g == nil || nilvalue.Is(worldState) {
 		return false
 	}
 	return worldState.Conditions().Satisfies(g.Preconditions())

@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/Tangerg/lynx/agent/internal/nilvalue"
+	"github.com/Tangerg/lynx/agent/internal/panicerr"
 	"github.com/Tangerg/lynx/core/chat"
 )
 
@@ -16,12 +18,24 @@ import (
 // Cancellation, idle, and retry policy stay with the caller through ctx and the
 // supplied streamer; StreamCall owns only accumulation and delta forwarding. It
 // reports an error when the stream fails, yields a nil delta, cannot be
-// accumulated, or ends without producing any delta. onDelta observes a delta
-// only after it has been accumulated, so a delta it sees is always valid.
+// accumulated, or ends without producing any delta. A streamer or observer
+// panic is returned as an attributed error. onDelta observes a delta only after
+// it has been accumulated, so a delta it sees is always valid.
 func StreamCall(ctx context.Context, streamer chat.Streamer, req *chat.Request, onDelta func(*chat.Response)) (*chat.Response, error) {
-	if streamer == nil {
+	return streamCall(ctx, streamer, req, onDelta)
+}
+
+func streamCall(ctx context.Context, streamer chat.Streamer, req *chat.Request, onDelta func(*chat.Response)) (response *chat.Response, err error) {
+	if nilvalue.Is(streamer) {
 		return nil, errors.New("interaction: nil streamer")
 	}
+	panicSource := "chat stream"
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			response = nil
+			err = panicerr.New("interaction: "+panicSource+" panicked", recovered)
+		}
+	}()
 	var accumulator chat.ResponseAccumulator
 	seen := false
 	for delta, err := range streamer.Stream(ctx, req) {
@@ -36,7 +50,9 @@ func StreamCall(ctx context.Context, streamer chat.Streamer, req *chat.Request, 
 		}
 		seen = true
 		if onDelta != nil {
+			panicSource = "stream observer"
 			onDelta(delta)
+			panicSource = "chat stream"
 		}
 	}
 	if !seen {

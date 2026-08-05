@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/agent/interaction"
+	"github.com/Tangerg/lynx/agent/internal/nilvalue"
 )
 
 // ProcessView is the read-only process capability used by conditions,
@@ -63,9 +64,12 @@ type processViewContextValue struct {
 
 // WithProcessView attaches a read-only process view to ctx so nested policy
 // helpers can inspect execution state without receiving lifecycle control. A
-// nil process masks an inherited view while preserving cancellation and other
-// context values.
+// nil process, including an interface holding a typed nil, masks an inherited
+// view while preserving cancellation and other context values.
 func WithProcessView(ctx context.Context, process ProcessView) context.Context {
+	if nilvalue.Is(process) {
+		process = nil
+	}
 	return context.WithValue(ctx, processViewCtxKey{}, processViewContextValue{process: process})
 }
 
@@ -83,7 +87,7 @@ func ProcessViewFrom(ctx context.Context) ProcessView {
 // A top-level function because Go can't have method-level type parameters.
 func Result[T any](process ProcessView) (T, bool) {
 	var zero T
-	if process == nil {
+	if nilvalue.Is(process) {
 		return zero, false
 	}
 	return Last[T](process.Blackboard())

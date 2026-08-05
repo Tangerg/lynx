@@ -4,12 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"reflect"
 	"strings"
 	"sync"
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/event"
+	"github.com/Tangerg/lynx/agent/internal/nilvalue"
 	"github.com/Tangerg/lynx/agent/internal/panicerr"
 	"github.com/Tangerg/lynx/agent/planning"
 	"github.com/Tangerg/lynx/tool"
@@ -82,7 +82,7 @@ func newExtensionRegistry() extensionRegistry {
 // register adds extension to the registry. It rejects nil (including typed nil),
 // empty Name, and duplicate Name without mutating the registry.
 func (r *extensionRegistry) register(scope string, extension core.Extension) error {
-	if valueIsNil(extension) {
+	if nilvalue.Is(extension) {
 		return fmt.Errorf("runtime: nil extension in %s", scope)
 	}
 	name, err := extensionName(extension)
@@ -160,19 +160,6 @@ func extensionName(extension core.Extension) (name string, err error) {
 		}
 	}()
 	return extension.Name(), nil
-}
-
-func valueIsNil(value any) bool {
-	if value == nil {
-		return true
-	}
-	reflected := reflect.ValueOf(value)
-	switch reflected.Kind() {
-	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
-		return reflected.IsNil()
-	default:
-		return false
-	}
 }
 
 // collectExtensions returns every extension that implements T, in
@@ -269,7 +256,7 @@ func (p *Process) wrapTool(
 		if err != nil {
 			return nil, err
 		}
-		if valueIsNil(wrapped) {
+		if nilvalue.Is(wrapped) {
 			return nil, fmt.Errorf("tool middleware %q returned nil", middleware.name)
 		}
 		tool = wrapped
@@ -353,12 +340,12 @@ func runToolGroupResolvers(
 			return nil, false, fmt.Errorf("runtime.runToolGroupResolvers: resolver %q: %w", resolver.name, err)
 		}
 		if !ok {
-			if !valueIsNil(group) {
+			if !nilvalue.Is(group) {
 				return nil, false, fmt.Errorf("runtime.runToolGroupResolvers: resolver %q returned a group for a miss", resolver.name)
 			}
 			continue
 		}
-		if valueIsNil(group) {
+		if nilvalue.Is(group) {
 			return nil, false, fmt.Errorf("runtime.runToolGroupResolvers: resolver %q matched role %q with a nil group", resolver.name, role)
 		}
 		return group, true, nil

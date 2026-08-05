@@ -6,6 +6,7 @@ import (
 	"slices"
 
 	"github.com/Tangerg/lynx/agent/core"
+	"github.com/Tangerg/lynx/agent/internal/nilvalue"
 	"github.com/Tangerg/lynx/agent/internal/panicerr"
 	"github.com/Tangerg/lynx/tool"
 )
@@ -40,7 +41,7 @@ func (p *Process) childExtensions(childExtensions []core.Extension) ([]core.Exte
 	}
 	seen := make(map[string]struct{}, len(childExtensions))
 	for _, extension := range childExtensions {
-		if valueIsNil(extension) {
+		if nilvalue.Is(extension) {
 			continue
 		}
 		name, err := extensionName(extension)

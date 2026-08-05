@@ -75,7 +75,8 @@ type LoopConfig[In, Out any] struct {
 // computed-condition + History pattern — substituting "run a sub-agent"
 // for "call a closure".
 //
-// Returns an error on missing Name, nil Body, or nil Until.
+// Returns an error on a nil engine, missing Name, nil Body, nil Until, or
+// negative MaxIterations.
 func Loop[In, Out any](
 	ctx context.Context,
 	engine *runtime.Engine,

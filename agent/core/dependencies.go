@@ -6,6 +6,8 @@ import (
 	"reflect"
 	"strings"
 	"sync"
+
+	"github.com/Tangerg/lynx/agent/internal/nilvalue"
 )
 
 var (
@@ -127,7 +129,7 @@ func RegisterDependency[T any](dependencies *Dependencies, key DependencyKey[T],
 	if dependencies == nil {
 		return fmt.Errorf("core.RegisterDependency %q: %w", key.name, ErrDependenciesFrozen)
 	}
-	if valueIsNil(value) {
+	if nilvalue.Is(value) {
 		return fmt.Errorf("core.RegisterDependency %q: %w", key.name, ErrNilDependency)
 	}
 
@@ -192,17 +194,4 @@ func (k DependencyKey[T]) validate() error {
 		return ErrInvalidDependencyKey
 	}
 	return nil
-}
-
-func valueIsNil(value any) bool {
-	v := reflect.ValueOf(value)
-	if !v.IsValid() {
-		return true
-	}
-	switch v.Kind() {
-	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
-		return v.IsNil()
-	default:
-		return false
-	}
 }

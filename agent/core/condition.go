@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/Tangerg/lynx/agent/interaction"
+	"github.com/Tangerg/lynx/agent/internal/nilvalue"
 )
 
 // ConditionEnv is the read-only surface a Condition.Evaluate sees. It's
@@ -80,9 +81,10 @@ func (c *FuncCondition) Evaluate(ctx context.Context, env *ConditionEnv) Truth {
 }
 
 // operand is one side of a condition combinator. The combinators are public and
-// accept any Condition, so a nil side is a real state rather than a caller
-// error: it names itself, contributes no cost, and evaluates to Unknown — which
-// is what three-valued logic already says about something not known.
+// accept any Condition, so a nil side (including an interface holding a typed
+// nil) is a real state rather than a caller error: it names itself, contributes
+// no cost, and evaluates to Unknown — which is what three-valued logic already
+// says about something not known.
 //
 // The nil check lives here so each combinator can read its sides directly. It is
 // a plain field rather than an embedded Condition because an embedded interface
@@ -91,7 +93,7 @@ func (c *FuncCondition) Evaluate(ctx context.Context, env *ConditionEnv) Truth {
 type operand struct{ condition Condition }
 
 func (o operand) Name() string {
-	if o.condition == nil {
+	if nilvalue.Is(o.condition) {
 		return "<nil>"
 	}
 	if name := o.condition.Name(); name != "" {
@@ -101,14 +103,14 @@ func (o operand) Name() string {
 }
 
 func (o operand) Cost() float64 {
-	if o.condition == nil {
+	if nilvalue.Is(o.condition) {
 		return 0
 	}
 	return o.condition.Cost()
 }
 
 func (o operand) Evaluate(ctx context.Context, env *ConditionEnv) Truth {
-	if o.condition == nil {
+	if nilvalue.Is(o.condition) {
 		return Unknown
 	}
 	return o.condition.Evaluate(ctx, env)

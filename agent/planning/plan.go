@@ -6,6 +6,7 @@ import (
 	"slices"
 
 	"github.com/Tangerg/lynx/agent/core"
+	"github.com/Tangerg/lynx/agent/internal/nilvalue"
 	"github.com/Tangerg/lynx/agent/internal/panicerr"
 )
 
@@ -54,7 +55,7 @@ func (p *Plan) Descriptor() PlanDescriptor {
 	}
 	actions := make([]core.ActionDescriptor, len(p.actions))
 	for index, action := range p.actions {
-		if action != nil {
+		if !nilvalue.Is(action) {
 			actions[index] = action.Metadata().Descriptor()
 		}
 	}
@@ -89,7 +90,7 @@ func (p *Plan) Cost(worldState core.WorldState) float64 {
 
 	total := 0.0
 	for _, action := range p.actions {
-		if action == nil {
+		if nilvalue.Is(action) {
 			continue
 		}
 		if fn := action.Metadata().Cost; fn != nil {
@@ -119,7 +120,7 @@ func (p *Plan) ActionsValue(worldState core.WorldState) float64 {
 
 	total := 0.0
 	for _, action := range p.actions {
-		if action == nil {
+		if nilvalue.Is(action) {
 			continue
 		}
 		if fn := action.Metadata().Value; fn != nil {
@@ -195,7 +196,7 @@ func (p *Plan) checkedNetValue(worldState core.WorldState) (float64, error) {
 	}
 	total := goalValue
 	for _, action := range p.actions {
-		if action == nil {
+		if nilvalue.Is(action) {
 			continue
 		}
 		metadata := action.Metadata()

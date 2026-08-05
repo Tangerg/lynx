@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/agent/core"
+	"github.com/Tangerg/lynx/agent/planning"
 )
 
 func TestGoalOwnsConfigurationCollections(t *testing.T) {
@@ -36,5 +37,13 @@ func TestGoalOwnsConfigurationCollections(t *testing.T) {
 	if descriptor.Name() != "done" || descriptor.Description() != "finish" ||
 		descriptor.RequiredConditions()[0] != "ready" || descriptor.Inputs()[0].Name != "input" {
 		t.Fatal("GoalDescriptor leaked accessor slice storage")
+	}
+}
+
+func TestGoalRejectsTypedNilWorldState(t *testing.T) {
+	goal := core.NewGoal(core.GoalConfig{Name: "done"})
+	var state *planning.State
+	if goal.SatisfiedBy(state) {
+		t.Fatal("goal was satisfied by a typed nil world state")
 	}
 }

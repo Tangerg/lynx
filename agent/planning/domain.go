@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/Tangerg/lynx/agent/core"
+	"github.com/Tangerg/lynx/agent/internal/nilvalue"
 )
 
 // Domain is an immutable capability set passed to a planner, detached from
@@ -110,8 +111,24 @@ func (s conditionSources) refFor(key string) ConditionRef {
 }
 
 // NewDomain constructs a domain from explicit slices. Pass nil for any unused
-// dimension. It rejects condition keys claimed by incompatible value sources.
+// dimension. It rejects nil slice members and condition keys claimed by
+// incompatible value sources.
 func NewDomain(actions []core.Action, goals []*core.Goal, conditions []core.Condition) (*Domain, error) {
+	for index, action := range actions {
+		if nilvalue.Is(action) {
+			return nil, fmt.Errorf("planning.NewDomain: action[%d] is nil", index)
+		}
+	}
+	for index, goal := range goals {
+		if goal == nil {
+			return nil, fmt.Errorf("planning.NewDomain: goal[%d] is nil", index)
+		}
+	}
+	for index, condition := range conditions {
+		if nilvalue.Is(condition) {
+			return nil, fmt.Errorf("planning.NewDomain: condition[%d] is nil", index)
+		}
+	}
 	domain := &Domain{
 		actions:    slices.Clone(actions),
 		goals:      slices.Clone(goals),
@@ -135,7 +152,7 @@ func (d *Domain) Actions() []core.Action {
 
 func (d *Domain) action(name string) (core.Action, bool) {
 	for _, action := range d.actions {
-		if action != nil && action.Metadata().Name == name {
+		if action.Metadata().Name == name {
 			return action, true
 		}
 	}
@@ -220,9 +237,6 @@ func (d *Domain) computeConditionRefs() ([]ConditionRef, error) {
 func (d *Domain) declareConditionSources() (conditionSources, error) {
 	sources := newConditionSources()
 	for _, action := range d.actions {
-		if action == nil {
-			continue
-		}
 		metadata := action.Metadata()
 		if strings.TrimSpace(metadata.Name) == "" || strings.TrimSpace(metadata.Name) != metadata.Name {
 			return sources, fmt.Errorf("planning.NewDomain: action name %q must be non-empty without surrounding whitespace", metadata.Name)
@@ -248,9 +262,6 @@ func (d *Domain) declareConditionSources() (conditionSources, error) {
 		}
 	}
 	for _, goal := range d.goals {
-		if goal == nil {
-			continue
-		}
 		if strings.TrimSpace(goal.Name()) == "" || strings.TrimSpace(goal.Name()) != goal.Name() {
 			return sources, fmt.Errorf("planning.NewDomain: goal name %q must be non-empty without surrounding whitespace", goal.Name())
 		}
@@ -269,9 +280,6 @@ func (d *Domain) declareConditionSources() (conditionSources, error) {
 		}
 	}
 	for _, condition := range d.conditions {
-		if condition == nil {
-			continue
-		}
 		if strings.TrimSpace(condition.Name()) == "" || strings.TrimSpace(condition.Name()) != condition.Name() {
 			return sources, fmt.Errorf("planning.NewDomain: condition name %q must be non-empty without surrounding whitespace", condition.Name())
 		}
@@ -297,9 +305,6 @@ func (d *Domain) orderConditionRefs(sources conditionSources) []ConditionRef {
 		refs = append(refs, sources.refFor(key))
 	}
 	for _, action := range d.actions {
-		if action == nil {
-			continue
-		}
 		metadata := action.Metadata()
 		for _, key := range slices.Sorted(maps.Keys(metadata.Preconditions)) {
 			appendKey(key)
@@ -309,17 +314,12 @@ func (d *Domain) orderConditionRefs(sources conditionSources) []ConditionRef {
 		}
 	}
 	for _, goal := range d.goals {
-		if goal == nil {
-			continue
-		}
 		for _, key := range slices.Sorted(maps.Keys(goal.Preconditions())) {
 			appendKey(key)
 		}
 	}
 	for _, condition := range d.conditions {
-		if condition != nil {
-			appendKey(condition.Name())
-		}
+		appendKey(condition.Name())
 	}
 	for _, key := range sources.order {
 		appendKey(key)

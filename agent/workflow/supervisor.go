@@ -15,7 +15,7 @@ import (
 // that delegates through explicitly supplied tools.
 //
 // Unlike the planner-driven default (where a GOAP plan sequences actions),
-// a supervisor hands the chosen agents to a model as tools and lets it
+// a supervisor hands the chosen agents to a model as tools and lets the
 // model decide which to call and in what order, ReAct-style. It is an
 // opt-in pattern, not a new runtime concept: the result is a perfectly
 // ordinary single-action GOAP agent whose body runs the chat tool loop, so
@@ -51,7 +51,8 @@ type SupervisorConfig[In, Out any] struct {
 // the supervisor's budget when built with runtime.NewAgentTool.
 //
 // At execution, the compiled agent requires a chat capability on its runtime.
-// Returns an error when the static workflow configuration is invalid.
+// Returns an error when the static workflow configuration is invalid,
+// including a negative MaxToolRounds limit.
 func Supervisor[In, Out any](config SupervisorConfig[In, Out]) (*core.Agent, error) {
 	if config.Name == "" {
 		return nil, errors.New("workflow.Supervisor: Name must not be empty")
@@ -61,6 +62,9 @@ func Supervisor[In, Out any](config SupervisorConfig[In, Out]) (*core.Agent, err
 	}
 	if config.Parse == nil {
 		return nil, errors.New("workflow.Supervisor: Parse must not be nil")
+	}
+	if config.MaxToolRounds < 0 {
+		return nil, errors.New("workflow.Supervisor: MaxToolRounds must not be negative")
 	}
 	if _, err := tools.NewRegistry(config.Tools...); err != nil {
 		return nil, fmt.Errorf("workflow.Supervisor: Tools: %w", err)

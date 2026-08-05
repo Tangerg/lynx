@@ -20,6 +20,12 @@ type fakeCondition struct {
 
 type snapshotStateSample struct{ Value string }
 
+type pointerStuckPolicy struct{}
+
+func (*pointerStuckPolicy) Recover(context.Context, core.ProcessView, core.BlackboardWriter) (core.StuckResult, error) {
+	return core.StuckResult{}, nil
+}
+
 func (c fakeCondition) Name() string                                          { return c.name }
 func (c fakeCondition) Cost() float64                                         { return c.cost }
 func (fakeCondition) Evaluate(context.Context, *core.ConditionEnv) core.Truth { return core.Unknown }
@@ -39,6 +45,27 @@ func TestValidateRejectsNilAction(t *testing.T) {
 	err := a.Validate()
 	if err == nil || !strings.Contains(err.Error(), "action at index 0 is nil") {
 		t.Fatalf("Validate error = %v, want nil action index", err)
+	}
+}
+
+func TestValidateRejectsTypedNilCapabilitiesWithoutPanicking(t *testing.T) {
+	var action *fakeAction
+	var condition *fakeCondition
+	var stuckPolicy *pointerStuckPolicy
+	agent := core.NewAgent(core.AgentConfig{
+		Name:        "typed-nil",
+		StuckPolicy: stuckPolicy,
+		Actions:     []core.Action{action},
+		Goals:       []*core.Goal{core.NewGoal(core.GoalConfig{Name: "goal"})},
+		Conditions:  []core.Condition{condition},
+	})
+
+	_ = agent.Descriptor()
+	err := agent.Validate()
+	for _, want := range []string{"action at index 0 is nil", "condition at index 0 is nil", "stuck policy is typed nil"} {
+		if err == nil || !strings.Contains(err.Error(), want) {
+			t.Errorf("Validate error = %v, want %q", err, want)
+		}
 	}
 }
 

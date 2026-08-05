@@ -1,6 +1,6 @@
 # Agent Framework 架构演进执行计划
 
-> 状态：持续开发（P33 执行边界 fail-soft 与值所有权硬化已完成，3/3）
+> 状态：持续开发（P34 capability nil、回调失败与输入所有权合同已完成，4/4）
 > 建立日期：2026-07-15
 > 最后更新：2026-08-05
 > 维护者：Lynx 仓库维护者
@@ -2076,6 +2076,37 @@ Engine 替换点；名称、参数、注释与实际 owner 一致；旧 API 精�
 退出标准：可选观测 provider 的错误不能改变 Agent 执行结果；ProcessContext 不保留或泄漏
 caller-owned tool-role slice；注释不声明依赖接口未保证的行为。
 
+### P34：Capability nil、回调失败与输入所有权合同
+
+- [x] **P34-01 typed-nil 语义集中化**（完成：2026-08-05）
+  - 四份跨层反射判断收敛到 `internal/nilvalue`；它只拥有 Go interface typed-nil 机制，
+    不引入新的领域术语或公开 package。
+  - Agent Action/Condition/StuckPolicy、Domain member、ProcessView/Blackboard helper、Event
+    Listener、Stream、Ranker 等公开入口统一把 typed nil 当作 nil/非法输入，不再延迟到
+    callback method panic。
+- [x] **P34-02 Routing 回调与候选所有权闭合**（完成：2026-08-05）
+  - Router 保留 canonical candidate slice，只把独立副本交给 Ranker；原地换序不能再改写
+    校验基准或 tie-break 顺序。
+  - Ranker、AgentFilter、GoalFilter panic 转为保留 cause 的归因错误；`Candidates` 改为
+    `([]Candidate, error)`，失败不返回部分结果，不保留旧无错误签名。
+- [x] **P34-03 构造期与注释合同收正**（完成：2026-08-05）
+  - PromptCondition 在 error constructor 中直接拒绝空白名称和 NaN/Inf/负 cost；Supervisor
+    直接拒绝负 MaxToolRounds，不把静态配置错误推迟到 Action 执行。
+  - Stream 分离 streamer/observer panic 归因；Repeat/Loop/Acceptable/Supervisor GoDoc 与实际
+    默认值和错误条件一致，不再声明不存在的 AcceptableScore 默认值。
+- [x] **P34-04 API、反例与完整门禁**（完成：2026-08-05）
+  - typed-nil capability、Ranker slice mutation、Ranker/filter/stream/observer panic、非法 cost
+    和负 round limit 均有可构造反例测试。
+  - 公开 API 仍为 627 declaration、root 53；仅 Candidates 错误返回发生 breaking 变化，
+    SHA-256 `ebbe2e85c311e9858351cc68c52cd915201dcbb0d93a46a1e123cf9b0446550a`。
+    wire 仍为 160 行，SHA-256
+    `24627d86d343d726e26c1efbbc332026b3aefd80786ffbcbc43933a9daa32575`。
+  - Agent 全量 build/vet/test/staticcheck/lint/tidy、受影响 package race 与 diff check 全绿。
+
+退出标准：typed-nil 只有一个内部机制且所有 capability 构造边界语义一致；宿主 callback panic
+不逃逸 routing/stream 边界；Router 的 canonical candidates 不可被 Ranker 反向修改；构造器和
+GoDoc 不把静态非法值伪装成运行期问题。
+
 ---
 
 ## 15. 当前进度
@@ -2113,16 +2144,18 @@ caller-owned tool-role slice；注释不声明依赖接口未保证的行为。
 | P31 显式并发、RAG 与 authoring 人体工学 | 完成 | 8/8 | capability isolation、deterministic join、RAG/filter/chunking/typed output 与负向边界审计完成 |
 | P32 Agent 内部 owner 与抽象边界清洗 | 完成 | 3/3 | Event/Runtime owner 收正，workflow/routing 伪 Runtime 接口删除，consumer 与 guard 收口 |
 | P33 执行边界 fail-soft 与值所有权硬化 | 完成 | 3/3 | Metrics provider 失败降级、ProcessContext role slice 双向隔离、注释与门禁收口 |
-| **总计** | **完成** | **188/188（100%）** | **P33-01 至 P33-03 全部完成；不执行封版、tag 或 release** |
+| P34 Capability nil、回调失败与输入所有权合同 | 完成 | 4/4 | typed-nil 集中化、Routing canonical input、host callback fail-soft、构造/注释合同收正 |
+| **总计** | **完成** | **192/192（100%）** | **P34-01 至 P34-04 全部完成；不执行封版、tag 或 release** |
 
 ### 15.2 当前焦点
 
-- 当前阶段：P33 执行边界 fail-soft 与值所有权硬化，3/3，已完成。
+- 当前阶段：P34 Capability nil、回调失败与输入所有权合同，4/4，已完成。
 - 下一任务：继续以真实调用链和可构造反例审计 Agent；没有真实变化点时不新增 interface、
   adapter、package 或 Runtime 同义词。本批不封版、不创建 tag 或 release。
 - 当前决策门：已解除；按 BB-01 至 BB-08 直接迁移，不保留兼容层。
-- 最近完成：OTel instrument 创建失败显式报告并降级为 typed no-op；ProcessContext 在构造和
-  resolver callback 两侧隔离 action tool-role slice，不再允许外部 mutation 改写后续执行。
+- 最近完成：typed-nil 检测收敛为唯一内部机制；Router 保留 canonical candidate slice 并将
+  Ranker/filter panic 转为普通错误；streamer/observer panic 分别归因；静态数值错误在构造期
+  拒绝，相关 GoDoc 与真实默认/错误语义一致。
   Agent 只拥有 execution framework 语义，App transaction/idempotency/persistence ownership
   保持不变。
 
@@ -2482,6 +2515,7 @@ caller-owned tool-role slice；注释不声明依赖接口未保证的行为。
 
 | 日期 | 变更 | 作者 |
 |---|---|---|
+| 2026-08-05 | 完成 P34 capability nil、回调失败与输入所有权合同：四份 typed-nil 反射逻辑收敛为唯一内部机制并补齐公开 capability 边界；Router 隔离 Ranker candidate slice，Ranker/filter/stream/observer panic 显式错误化；PromptCondition/Supervisor 静态校验与 Repeat/Loop 文档收正；Candidates breaking 签名直接更新，无兼容层 | Codex |
 | 2026-08-05 | 完成 P33 执行边界 fail-soft 与值所有权硬化：OTel instrument 创建错误通过 error handler 报告并降级 typed no-op，不再把 nil instrument 带进 tick；ProcessContext 在构造与 resolver callback 两侧复制 ActionToolGroups；同步删除重复/错误注释，API/wire 不变 | Codex |
 | 2026-08-05 | 完成 P32 Agent 内部 owner 与抽象边界清洗：Runtime named/subtree listener adapter 从 event leaf 收回 Runtime；workflow/routing 删除只为测试替身存在、却返回 exact Runtime Deployment 的伪接口；App 唯一 consumer、API baseline、GoDoc 与精确防回流守卫直接迁移，无兼容层 | Codex |
 | 2026-08-01 | 完成 P31 explicit concurrency/RAG/authoring closure：顶层 Process 保持串行重规划；fan-out capability 与错误顺序确定化；RAG unique TopK、Markdown 结构化切分、collection `HAS` 与 managed typed Prompt 落地；拒绝自动 Plan Stage、共享 Blackboard、test-only public package 与 provider schema 猜测层 | Codex |
@@ -2550,6 +2584,7 @@ caller-owned tool-role slice；注释不声明依赖接口未保证的行为。
 
 | 日期 | 任务 | 结果与证据 | 下一步 |
 |---|---|---|---|
+| 2026-08-05 | P34 Capability nil、回调失败与输入所有权合同 | typed-nil、candidate mutation、host callback panic、NaN/Inf cost 与负 round limit 反例全部通过；API 627 declaration/root 53，SHA-256 `ebbe2e85c311e9858351cc68c52cd915201dcbb0d93a46a1e123cf9b0446550a`；wire 160 行且 hash 不变。Agent 全量 build/vet/test/staticcheck/golangci-lint/tidy，受影响 package race 与 diff check 全绿 | 192/192 关闭；提交推送并更新 App Agent pin 后继续最终反向扫描 |
 | 2026-08-05 | P33 执行边界 fail-soft 与值所有权硬化 | custom Meter 的 error/nil instrument 反例降级为 no-op；ActionToolGroups caller/callback 双向 mutation 均被隔离；API/wire hash 不变。Agent 全量 build/vet/test/staticcheck/golangci-lint/tidy，core/runtime/arch race 与 diff check 全绿 | 188/188 关闭；更新 App Agent pin 后继续最终反例扫描 |
 | 2026-08-05 | P32 Agent 内部 owner 与抽象边界清洗 | Event leaf 删除 Runtime Extension adapter；workflow/routing 直接依赖 exact `*runtime.Engine`；App agentexec consumer 直接迁移。Agent API 为 627 declaration/root 53，SHA-256 `86dd3e196a28cf6d57a3e934c3adf90d446b010d3c3331366ae8e941c1af1159`；wire 160 行且 hash 不变。Agent/App 定向与完整门禁、选定 race、staticcheck、golangci-lint、tidy diff 和 diff check 全绿 | 185/185 关闭；继续反例扫描，不创建 tag/release |
 | 2026-08-01 | P31 显式并发、RAG 与 authoring 人体工学收口 | `60729739f`、`14aae8eda`、`1ff0c8db6`、`277f36b72`、`12998274d`、`01177233f`、`9a2c9222a`；Agent workflow/toolloop/prompt race+lint，RAG/filter/Markdown/provider 定向门禁及 workspace 69 项 build/vet/test 全绿；按维护者要求不执行 fuzz | 无；8/8 关闭，形成最终文档提交并 push |

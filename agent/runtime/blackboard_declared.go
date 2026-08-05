@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/Tangerg/lynx/agent/core"
+	"github.com/Tangerg/lynx/agent/internal/nilvalue"
 	"github.com/Tangerg/lynx/agent/internal/panicerr"
 )
 
@@ -27,7 +28,7 @@ type declaredBlackboard struct {
 // Wrapping an already-wrapped blackboard replaces the codec rather than
 // stacking, so a child process is gated by its own agent's declarations.
 func declareWrites(blackboard core.Blackboard, codec core.SnapshotCodec) core.Blackboard {
-	if valueIsNil(blackboard) {
+	if nilvalue.Is(blackboard) {
 		return blackboard
 	}
 	if declared, ok := blackboard.(*declaredBlackboard); ok {
@@ -91,7 +92,7 @@ func (b *declaredBlackboard) Clone() (core.Blackboard, error) {
 	if err != nil {
 		return nil, err
 	}
-	if valueIsNil(clone) {
+	if nilvalue.Is(clone) {
 		return nil, fmt.Errorf("blackboard %T Clone returned nil", b.Blackboard)
 	}
 	return declareWrites(clone, b.codec), nil

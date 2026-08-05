@@ -187,7 +187,10 @@ func TestRouter_AgentFilter(t *testing.T) {
 		AgentFilter: func(a core.AgentDescriptor) bool { return a.Name() != "internal" },
 	})
 
-	candidates := auto.Candidates()
+	candidates, err := auto.Candidates()
+	if err != nil {
+		t.Fatalf("Candidates: %v", err)
+	}
 	if len(candidates) != 1 || candidates[0].Agent().Name() != "public" {
 		t.Fatalf("AgentFilter not respected; candidates=%v", candidates)
 	}
@@ -213,7 +216,11 @@ func TestCandidateKeepsExactImmutableIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	candidate := router.Candidates()[0]
+	candidates, err := router.Candidates()
+	if err != nil {
+		t.Fatal(err)
+	}
+	candidate := candidates[0]
 	actions := candidate.Agent().Actions()
 	actions[0] = core.ActionDescriptor{}
 	goals := candidate.Agent().Goals()
@@ -255,11 +262,68 @@ func TestRouter_RejectsNilArgs(t *testing.T) {
 			_, err := routing.New(engine, nil, routing.Config{})
 			return err
 		}},
+		{"typed nil ranker", func() error {
+			_, err := routing.New(engine, (*stubRanker)(nil), routing.Config{})
+			return err
+		}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			if err := tc.fn(); err == nil {
 				t.Fatal("expected error")
 			}
 		})
+	}
+}
+
+type mutatingRanker struct{}
+
+func (mutatingRanker) Rank(_ context.Context, _ string, candidates []routing.Candidate) ([]routing.Choice, error) {
+	candidates[0], candidates[1] = candidates[1], candidates[0]
+	choices := make([]routing.Choice, len(candidates))
+	for index, candidate := range candidates {
+		choices[index] = routing.Choice{Candidate: candidate, Confidence: 1}
+	}
+	return choices, nil
+}
+
+func TestRouterProtectsCandidateOrderFromRankerMutation(t *testing.T) {
+	engine := agent.MustNewEngine(runtime.Config{})
+	mustDeploy(t, engine, newAgent("alpha"), newAgent("beta"))
+	router, err := routing.New(engine, mutatingRanker{}, routing.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := router.Choose(t.Context(), "anything"); err == nil || !strings.Contains(err.Error(), "changed candidate") {
+		t.Fatalf("Choose error = %v, want candidate-mutation rejection", err)
+	}
+}
+
+type panickingRanker struct{ cause error }
+
+func (r panickingRanker) Rank(context.Context, string, []routing.Candidate) ([]routing.Choice, error) {
+	panic(r.cause)
+}
+
+func TestRouterContainsHostedCallbackPanics(t *testing.T) {
+	cause := errors.New("routing callback panic")
+	engine := agent.MustNewEngine(runtime.Config{})
+	mustDeploy(t, engine, newAgent("alpha"))
+
+	rankerRouter, err := routing.New(engine, panickingRanker{cause: cause}, routing.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := rankerRouter.Choose(t.Context(), "anything"); !errors.Is(err, cause) || !strings.Contains(err.Error(), "Ranker panicked") {
+		t.Fatalf("Choose error = %v, want attributed Ranker panic", err)
+	}
+
+	filterRouter, err := routing.New(engine, droppingRanker{}, routing.Config{
+		AgentFilter: func(core.AgentDescriptor) bool { panic(cause) },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if candidates, err := filterRouter.Candidates(); candidates != nil || !errors.Is(err, cause) || !strings.Contains(err.Error(), "AgentFilter panicked") {
+		t.Fatalf("Candidates = %v, %v, want no partial result and attributed filter panic", candidates, err)
 	}
 }
