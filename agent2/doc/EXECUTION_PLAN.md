@@ -3,7 +3,7 @@
 > 状态：持续实施
 > 建立日期：2026-08-06
 > 最后更新：2026-08-06
-> 当前阶段：P1 候选窄腰与消费审计，6/9 完成
+> 当前阶段：P1 候选窄腰与消费审计，7/9 完成
 > 当前实施范围：仅 `agent2`
 > 临时模块路径：`github.com/Tangerg/lynx/agent2`
 > 最终模块路径：`github.com/Tangerg/lynx/agent`
@@ -67,7 +67,7 @@ go test ./...
 | 阶段 | 状态 | 进度 | 目标 |
 |---|---|---:|---|
 | P0 模块边界与设计合同 | 完成 | 6/6 | 建立独立 module、分层文档、能力台账和候选合同 |
-| P1 候选窄腰与消费审计 | 进行中 | 6/9 | 用只读审计和多策略 spike 验证 erased wire、协议与状态机，不冻结 API |
+| P1 候选窄腰与消费审计 | 进行中 | 7/9 | 用只读审计和多策略 spike 验证 erased wire、协议与状态机，不冻结 API |
 | P2 Engine 最小执行闭环 | 未开始 | 0/8 | 单 Process、Signal、Effect、状态提交、snapshot、event/delta、limit |
 | P3 真实 Interaction 验证 | 未开始 | 0/9 | 真实模型/工具 dispatcher、流、HITL、steer，并接入 disposable consumer |
 | P4 子 Process 组合与合同冻结 | 未开始 | 0/9 | start/wait、递归、组合、预算、取消、恢复；多消费方验证后冻结窄腰 |
@@ -100,7 +100,7 @@ go test ./...
 - [x] P1-04 用两个 Action 的 Planning spike 验证 Goal/Condition/Planner 专属状态与共同窄腰的边界。
 - [x] P1-05 验证非泛型 `json.RawMessage` 窄腰、Descriptor schema/version/digest 和边缘 `Typed[I, O]` adapter。
 - [x] P1-06 验证 Signal/WaitID、Transition、Effect/settlement、Event/Delta 的候选协议和 payload 所有权。
-- [ ] P1-07 验证 Definition、Deployment、ExecutionState、Process 状态机、last-stable/prepared capture、pre-dispatch durability gate 和终态映射矩阵。
+- [x] P1-07 验证 Definition、Deployment、ExecutionState、Process 状态机、last-stable/prepared capture、pre-dispatch durability gate 和终态映射矩阵。
 - [ ] P1-08 建立类型、codec、状态机、终态和依赖架构 contract tests。
 - [ ] P1-09 删除未被多个真实实现或真实消费者共同证明的推测性抽象；P1 只形成候选合同，不冻结公开 API/wire。
 
@@ -251,6 +251,7 @@ go test ./...
 
 | 日期 | 阶段 | 实际事实 | 验证与结果 |
 |---|---|---|---|
+| 2026-08-06 | P1 | 完成 exact Deployment 与 Prepared Step disposable harness。将字符串 digest 治本式收敛为不可伪造的 SHA-256 `Digest` 值对象；DeploymentRef 明确绑定 Descriptor contract、实现代码和冻结 dispatcher/configuration 三份 digest，并校验派生总 digest。候选 Process snapshot 同时保存 last-stable state、Signal 到达序/游标和只读 prepared envelope；prepared envelope 固定 last-stable digest、candidate state、拟消费范围、Transition、按 ProcessID/Step/index 生成的 EffectID、冻结 payload 与逐项 settlement。验证 durable acknowledgment 前绝不 dispatch；ack 后可从 prepared snapshot 恢复并 finalize；Step 先污染实例再失败时丢弃实例且不推进游标；unknown settlement 恢复后不隐式重投；不同 exact Deployment 无法恢复同一 snapshot。未引入 Store、transaction、CAS、lease 或 Host 水位 SPI | `go build ./...`、`go vet ./...`、`staticcheck ./...`、`go test ./...`、`go test -race ./...` 全绿；P1-07 完成，P1 更新为 7/9；Prepared Process/Deployment 仍是测试 harness，未提前冻结 P2 Engine API |
 | 2026-08-06 | P1 | 用两个只存在于测试的 disposable spike 反向验证候选窄腰。Interaction 完整走通 model Effect、stream Delta、Tool Effect、Effect 进行期间到达但只在安全 Step 消费的 steer、Framework wait request、Engine-minted WaitID 写回、Waiting snapshot/restore、HITL answer、下一次 model Effect 和不依赖 Delta 拼接的最终 Output；Planning 完整走通 observe、两个具有前置条件/效果的 Action、act、reobserve 和完成，并证明相同 ExecutionState + Signal 产生规范化等价的 Transition/候选 state。由真实消费形态新增 `RequestWait(WaitKey, signalPayload)`：Engine 只解释 wait key 并原样回送 Strategy-owned payload；同时将终态矩阵输入全部降为 Engine 私有，公共面只暴露最终 Termination，避免第二终态写入口。Descriptor 补充 schema 参与 digest 的合同测试 | `go build ./...`、`go vet ./...`、`staticcheck ./...`、`go test ./...`、`go test -race ./...` 全绿；P1-03～P1-06 完成，P1 更新为 6/9；spike 未进入生产 package，仍可整体删除 |
 | 2026-08-06 | P1 | 建立第二组候选合同：强类型 Process/Signal/Wait/Effect identity；opaque Signal、Dispatcher/Framework Effect target 与 definite/unknown settlement；严格可判别的 ExecutionState 和 Transition；Definition/Execution 非泛型窄腰及 `Typed[I, O]` 边缘；完整 Process Status 合法迁移表；基于 Engine 控制事实优先级而非 error 猜测的终态裁决；区分 attempt/committed 的 Event 与 Effect-local、非权威 Delta。API 反向审计移除未被当前行为使用的 WaitKey、通用 Framework Effect 构造器和公开 StepOutcome 枚举，并将复用语法从 Definition 专属命名收敛为私有 qualified-name 规则。候选合同仍待 Interaction/Planning spike 验证，因此 P1 保持 2/9，不提前冻结或标记完成 | `go mod tidy`、`go build ./...`、`go vet ./...`、`staticcheck ./...`、`go test ./...`、`go test -race ./...` 全绿；ExecutionState codec fuzz 3 秒执行 326958 次、Transition codec fuzz 3 秒执行 424157 次，均无失败 |
 | 2026-08-06 | P1 | 完成旧 `agent` 与真实 Host 消费面的只读审计并将中性需求证据写入能力台账；确认旧 ProcessView/ProcessContext、共同 snapshot 的策略类型、同步事件监听和根聊天 GOAP 包装均不能复制。建立第一组候选基础值对象：不可变且限长的 erased JSON Input/Output、编译并禁止隐式外部加载的权威 Schema、只拥有 Definition 静态合同的不可变 Descriptor 与合同 digest；实现过程中主动移除错误归属到 Descriptor 的 Deployment revision。P1-05 尚未完成，typed Definition adapter 及多 Strategy 证据仍待实现 | Schema 实现实测发现并修复元 Schema 未完整校验和数字类型误判；`go mod tidy`、`go build ./...`、`go vet ./...`、`go test ./...`、`go test -race ./...` 全绿；Input codec fuzz 3 秒执行 420342 次无失败；P1 更新为 2/9 |
@@ -262,7 +263,7 @@ go test ./...
 
 ## 9. 当前下一步
 
-P1 的只读审计、两个 Strategy spike、erased wire/typed edge 和基础协议验证已经完成。下一轮集中完成 P1-07：用候选 Deployment、Prepared Step 和 Process snapshot 验证精确 Definition 绑定、last-stable/candidate state、Signal 消费范围、稳定 EffectID、settlement、pre-dispatch durability acknowledgment 与终态裁决。随后完成 codec/状态机/终态/依赖架构门禁，删除未被上述证据共同证明的候选结构并结束 P1。
+P1 的只读审计、两个 Strategy spike、erased wire/typed edge、基础协议、exact Deployment 和 Prepared Step 验证已经完成。下一轮完成 P1-08/P1-09：补齐依赖架构守卫和剩余 codec fuzz，审计所有候选公开名称与所有权，删除未被多个证据共同证明的结构，并确认 P1 只留下候选合同而没有提前实现 Engine 或冻结 wire。
 
 P1 仍只形成候选合同，不能冻结公开 API/wire。只有 P3 真实 Interaction 与 P4 child composition 以及第二个 disposable consumer 共同通过后，才建立首个 baseline。
 

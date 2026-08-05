@@ -25,7 +25,7 @@ func TestDescriptorOwnsContractAndValidatesValues(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !descriptor.Valid() || descriptor.Digest() == "" {
+	if !descriptor.Valid() || !descriptor.Digest().Valid() {
 		t.Fatalf("descriptor is not valid: %+v", descriptor)
 	}
 	input, err := EncodeInput(wireFixture{Message: "hello"})

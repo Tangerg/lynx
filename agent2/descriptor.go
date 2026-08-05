@@ -2,8 +2,6 @@ package agent2
 
 import (
 	"bytes"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -37,7 +35,7 @@ type Descriptor struct {
 	version      string
 	inputSchema  Schema
 	outputSchema Schema
-	digest       string
+	digest       Digest
 }
 
 // NewDescriptor validates and takes an immutable snapshot of config.
@@ -76,12 +74,12 @@ func (d Descriptor) InputSchema() Schema { return d.inputSchema.clone() }
 func (d Descriptor) OutputSchema() Schema { return d.outputSchema.clone() }
 
 // Digest returns the sha256 identity of the complete descriptor contract.
-func (d Descriptor) Digest() string { return d.digest }
+func (d Descriptor) Digest() Digest { return d.digest }
 
 // Valid reports whether the Descriptor was constructed successfully.
 func (d Descriptor) Valid() bool {
 	return d.name != "" && d.version != "" &&
-		d.inputSchema.Valid() && d.outputSchema.Valid() && validDigest(d.digest)
+		d.inputSchema.Valid() && d.outputSchema.Valid() && d.digest.Valid()
 }
 
 // ValidateInput validates an Input against the Definition contract.
@@ -105,12 +103,8 @@ func (d Descriptor) MarshalJSON() ([]byte, error) {
 		return nil, ErrInvalidDescriptor
 	}
 	return json.Marshal(descriptorWire{
-		Name:         d.name,
-		Description:  d.description,
-		Version:      d.version,
-		InputSchema:  d.inputSchema.JSON(),
-		OutputSchema: d.outputSchema.JSON(),
-		Digest:       d.digest,
+		descriptorContractWire: d.contractWire(),
+		Digest:                 d.digest,
 	})
 }
 
@@ -152,13 +146,17 @@ func (d *Descriptor) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-type descriptorWire struct {
+type descriptorContractWire struct {
 	Name         string          `json:"name"`
 	Description  string          `json:"description"`
 	Version      string          `json:"version"`
 	InputSchema  json.RawMessage `json:"input_schema"`
 	OutputSchema json.RawMessage `json:"output_schema"`
-	Digest       string          `json:"digest,omitempty"`
+}
+
+type descriptorWire struct {
+	descriptorContractWire
+	Digest Digest `json:"digest"`
 }
 
 func validateDescriptorConfig(config DescriptorConfig) error {
@@ -168,8 +166,7 @@ func validateDescriptorConfig(config DescriptorConfig) error {
 	if config.Description == "" || strings.TrimSpace(config.Description) != config.Description || len(config.Description) > maxDescriptionBytes {
 		return fmt.Errorf("%w: description must be non-empty, trimmed, and at most %d bytes", ErrInvalidDescriptor, maxDescriptionBytes)
 	}
-	version, err := semver.StrictNewVersion(config.Version)
-	if err != nil || version.String() != config.Version {
+	if !validSemanticVersion(config.Version) {
 		return fmt.Errorf("%w: version must be a canonical MAJOR.MINOR.PATCH semantic version", ErrInvalidDescriptor)
 	}
 	if !config.InputSchema.Valid() {
@@ -181,26 +178,25 @@ func validateDescriptorConfig(config DescriptorConfig) error {
 	return nil
 }
 
-func descriptorDigest(descriptor Descriptor) (string, error) {
-	data, err := json.Marshal(descriptorWire{
-		Name:         descriptor.name,
-		Description:  descriptor.description,
-		Version:      descriptor.version,
-		InputSchema:  descriptor.inputSchema.JSON(),
-		OutputSchema: descriptor.outputSchema.JSON(),
-	})
-	if err != nil {
-		return "", err
-	}
-	sum := sha256.Sum256(data)
-	return "sha256:" + hex.EncodeToString(sum[:]), nil
+func validSemanticVersion(value string) bool {
+	version, err := semver.StrictNewVersion(value)
+	return err == nil && version.String() == value
 }
 
-func validDigest(digest string) bool {
-	encoded, ok := strings.CutPrefix(digest, "sha256:")
-	if !ok || len(encoded) != sha256.Size*2 || encoded != strings.ToLower(encoded) {
-		return false
+func descriptorDigest(descriptor Descriptor) (Digest, error) {
+	data, err := json.Marshal(descriptor.contractWire())
+	if err != nil {
+		return Digest{}, err
 	}
-	_, err := hex.DecodeString(encoded)
-	return err == nil
+	return digestBytes(data), nil
+}
+
+func (d Descriptor) contractWire() descriptorContractWire {
+	return descriptorContractWire{
+		Name:         d.name,
+		Description:  d.description,
+		Version:      d.version,
+		InputSchema:  d.inputSchema.JSON(),
+		OutputSchema: d.outputSchema.JSON(),
+	}
 }
