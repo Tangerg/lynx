@@ -60,7 +60,15 @@ export function SearchOverlay({
           className={cn(
             "fixed inset-x-0 top-24 z-50 mx-auto flex w-[min(520px,calc(100vw-32px))] flex-col",
             "overflow-hidden rounded-[var(--floating-panel-radius)] outline-none",
-            "bg-[var(--app-floating-surface)] shadow-[var(--shadow-popover)] data-[open]:animate-rise-in",
+            // OPAQUE, and the modal shadow — the same answer ConfirmDialog gives,
+            // because both are modals. The frosted `--app-floating-surface` is for
+            // a popover: small, anchored to its trigger, and read as glass. Dropped
+            // over a full transcript at 520px wide it was a window onto the prose
+            // underneath, and the first draft here took that fill WITHOUT the
+            // backdrop blur that makes it legible — so the text behind it came
+            // straight through the search row. A scrim already separates a modal
+            // from the page; frosting it adds nothing but that risk.
+            "bg-canvas shadow-[var(--shadow-modal)] data-[open]:animate-rise-in",
             className,
           )}
         >
@@ -68,6 +76,9 @@ export function SearchOverlay({
             <Icon name="search" size="md" />
             <TextField
               variant="bare"
+              // A session title is prose. `TextField` defaults to mono — right for
+              // the fields that hold paths and patterns, wrong for this one.
+              font="sans"
               autoFocus
               value={value}
               onChange={(event) => onValueChange(event.target.value)}
