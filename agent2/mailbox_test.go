@@ -61,7 +61,7 @@ func TestMailboxRoutesWaitAnswersAndHandlesEarlyArrival(t *testing.T) {
 	mailbox := newSignalMailbox()
 	key, _ := ParseWaitKey("approval:1")
 	waitID, _ := ParseWaitID("wait:1")
-	if err := mailbox.registerWait(key, waitID); err != nil {
+	if err := mailbox.registerWait(key, waitID, true); err != nil {
 		t.Fatal(err)
 	}
 	answerID, _ := ParseSignalID("signal:answer")
@@ -115,7 +115,7 @@ func TestMailboxSnapshotRestoresDeduplicationCursorAndWaitFacts(t *testing.T) {
 	mailbox := newSignalMailbox()
 	key, _ := ParseWaitKey("approval:1")
 	waitID, _ := ParseWaitID("wait:1")
-	if err := mailbox.registerWait(key, waitID); err != nil {
+	if err := mailbox.registerWait(key, waitID, true); err != nil {
 		t.Fatal(err)
 	}
 	answer := mustSignal(t, "signal:answer", waitID, time.Unix(1, 0), json.RawMessage(`{"approved":true}`))
@@ -158,7 +158,7 @@ func TestMailboxWaitOpenedSignalDoesNotAnswerOrCloseWait(t *testing.T) {
 	mailbox := newSignalMailbox()
 	key, _ := ParseWaitKey("approval:1")
 	waitID, _ := ParseWaitID("wait:1")
-	if err := mailbox.registerWait(key, waitID); err != nil {
+	if err := mailbox.registerWait(key, waitID, true); err != nil {
 		t.Fatal(err)
 	}
 	opened := mustSignal(t, "signal:opened", waitID, time.Unix(1, 0), json.RawMessage(`{"kind":"wait_opened"}`))

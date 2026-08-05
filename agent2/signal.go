@@ -11,8 +11,10 @@ import (
 var ErrInvalidSignal = errors.New("agent: invalid signal")
 
 // Signal is the immutable input envelope delivered by the Engine to an
-// Execution. Payload belongs exclusively to the Strategy. SignalID identifies
-// delivery, while an optional WaitID identifies the Engine-created wait target.
+// Execution. Dispatcher and ordinary wait payloads belong exclusively to the
+// Strategy; Framework composition payloads are decoded only through their
+// public typed helpers. SignalID identifies delivery, while an optional WaitID
+// identifies the Engine-created wait target.
 type Signal struct {
 	id         SignalID
 	waitID     WaitID
@@ -49,8 +51,9 @@ func (s Signal) WaitID() (WaitID, bool) { return s.waitID, s.waitID.Valid() }
 // ReceivedAt returns when the Engine accepted the Signal.
 func (s Signal) ReceivedAt() time.Time { return s.receivedAt }
 
-// Payload returns an independently owned copy. Only the receiving Strategy may
-// interpret its schema or kind.
+// Payload returns an independently owned copy. Strategy-owned payloads are
+// interpreted only by their Strategy; Framework-owned payloads should be read
+// through the corresponding typed parser rather than decoded ad hoc.
 func (s Signal) Payload() json.RawMessage { return bytes.Clone(s.payload) }
 
 // Valid reports whether the Signal has a complete immutable envelope.

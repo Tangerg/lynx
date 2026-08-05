@@ -44,6 +44,7 @@ func restoreProcessRuntime(
 func (runtime *processRuntime) capture() (Snapshot, error) {
 	wire := processSnapshotWire{
 		SchemaVersion: processSnapshotSchemaVersion, ProcessID: runtime.controller.id,
+		Relation:   runtime.controller.relation.wire(),
 		Deployment: runtime.deployment.Reference(), StartedAt: runtime.startedAt,
 		Status: runtime.status, CommittedSteps: runtime.committedSteps, EventSequence: runtime.eventSequence,
 		Limits: runtime.limits, Usage: runtime.usage,

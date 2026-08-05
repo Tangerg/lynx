@@ -34,6 +34,11 @@ type EngineConfig struct {
 	// represented by the supplied Snapshot.
 	PreparedStepAcknowledger PreparedStepAcknowledger
 
+	// DeploymentResolver supplies exact Deployments requested by child Effects.
+	// It is unnecessary for same-Deployment recursion. Resolution is a binding
+	// lookup only; the resolver does not own Process construction or lifecycle.
+	DeploymentResolver DeploymentResolver
+
 	// EventListeners receive ordered facts for each Process. Different
 	// Processes may call a listener concurrently.
 	EventListeners []EventListener
@@ -56,12 +61,15 @@ type EngineConfig struct {
 // Deployment catalog or Host persistence abstraction.
 type Engine struct {
 	acknowledger PreparedStepAcknowledger
+	resolver     DeploymentResolver
 	observation  *observationBus
 	limits       Limits
 
-	mu        sync.RWMutex
-	processes map[ProcessID]*processController
-	closed    bool
+	mu         sync.RWMutex
+	processes  map[ProcessID]*processController
+	children   map[childIdentity]ProcessID
+	childWaits map[WaitID]*childWaitRegistration
+	closed     bool
 }
 
 // NewEngine validates execution infrastructure and returns an empty Engine.
@@ -71,6 +79,9 @@ func NewEngine(config EngineConfig) (*Engine, error) {
 	}
 	if !nilOrConcrete(config.PreparedStepAcknowledger) {
 		return nil, fmt.Errorf("%w: PreparedStepAcknowledger is typed nil", ErrInvalidEngineConfig)
+	}
+	if !nilOrConcrete(config.DeploymentResolver) {
+		return nil, fmt.Errorf("%w: DeploymentResolver is typed nil", ErrInvalidEngineConfig)
 	}
 	for index, listener := range config.EventListeners {
 		if nilInterface(listener) {
@@ -92,10 +103,18 @@ func NewEngine(config EngineConfig) (*Engine, error) {
 	}
 	return &Engine{
 		acknowledger: config.PreparedStepAcknowledger,
+		resolver:     config.DeploymentResolver,
 		observation:  newObservationBus(config.EventListeners, config.DeltaListeners, capacity),
 		limits:       limits,
 		processes:    make(map[ProcessID]*processController),
+		children:     make(map[childIdentity]ProcessID),
+		childWaits:   make(map[WaitID]*childWaitRegistration),
 	}, nil
+}
+
+type childIdentity struct {
+	parent ProcessID
+	key    ChildKey
 }
 
 func nilOrConcrete(value any) bool { return value == nil || !nilInterface(value) }
@@ -130,7 +149,8 @@ func (engine *Engine) Start(ctx context.Context, deployment Deployment, input In
 		return nil, err
 	}
 	startedAt := time.Now().Round(0).UTC()
-	controller := newProcessController(id, deployment.Reference(), startedAt, StatusRunning)
+	relation := rootProcessRelation(id)
+	controller := newProcessController(relation, deployment.Reference(), startedAt, StatusRunning)
 	runtime := newProcessRuntime(engine, controller, deployment, execution, state, startedAt, engine.limits)
 	if err := engine.register(controller); err != nil {
 		return nil, err
@@ -174,7 +194,11 @@ func (engine *Engine) Restore(ctx context.Context, deployment Deployment, snapsh
 	if err != nil {
 		return nil, fmt.Errorf("%w: mailbox: %w", ErrInvalidSnapshot, err)
 	}
-	controller := newProcessController(wire.ProcessID, wire.Deployment, wire.StartedAt, wire.Status)
+	relation, err := processRelationFromWire(wire.ProcessID, wire.Relation)
+	if err != nil {
+		return nil, fmt.Errorf("%w: relation: %w", ErrInvalidSnapshot, err)
+	}
+	controller := newProcessController(relation, wire.Deployment, wire.StartedAt, wire.Status)
 	runtime, err := restoreProcessRuntime(engine, controller, deployment, execution, mailbox, wire)
 	if err != nil {
 		return nil, err
@@ -237,6 +261,39 @@ func (engine *Engine) register(controller *processController) error {
 		return ErrProcessExists
 	}
 	engine.processes[controller.id] = controller
+	return nil
+}
+
+func (engine *Engine) registerChild(controller *processController, requestDigest Digest) error {
+	relation := controller.relation
+	parentID, child := relation.ParentID()
+	key, keyed := relation.ChildKey()
+	if !child || !keyed || !requestDigest.Valid() {
+		return ErrInvalidProcessRelation
+	}
+	identity := childIdentity{parent: parentID, key: key}
+	engine.mu.Lock()
+	defer engine.mu.Unlock()
+	if engine.closed {
+		return ErrEngineClosed
+	}
+	if existingID, exists := engine.children[identity]; exists {
+		existing := engine.processes[existingID]
+		if existing != nil && existing.id == controller.id &&
+			existing.deployment == controller.deployment && existing.childRequestDigest == requestDigest {
+			return nil
+		}
+		return ErrInvalidChild
+	}
+	if _, exists := engine.processes[controller.id]; exists {
+		return ErrProcessExists
+	}
+	if _, exists := engine.processes[parentID]; !exists {
+		return ErrInvalidProcessRelation
+	}
+	controller.childRequestDigest = requestDigest
+	engine.processes[controller.id] = controller
+	engine.children[identity] = controller.id
 	return nil
 }
 

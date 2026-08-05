@@ -37,6 +37,15 @@ func (process *Process) DeploymentRef() DeploymentRef {
 	return process.controller.deployment
 }
 
+// Relation returns the immutable parent/root/depth location assigned by the
+// Engine. It is a root relation for Processes created through Engine.Start.
+func (process *Process) Relation() ProcessRelation {
+	if process == nil || process.controller == nil {
+		return ProcessRelation{}
+	}
+	return process.controller.relation
+}
+
 // StartedAt returns when the Engine created this Process.
 func (process *Process) StartedAt() time.Time {
 	if process == nil || process.controller == nil {
@@ -218,11 +227,13 @@ func (result Result) Valid() bool {
 }
 
 type processController struct {
-	id         ProcessID
-	deployment DeploymentRef
-	startedAt  time.Time
-	commands   chan processCommand
-	done       chan struct{}
+	id                 ProcessID
+	deployment         DeploymentRef
+	relation           ProcessRelation
+	childRequestDigest Digest
+	startedAt          time.Time
+	commands           chan processCommand
+	done               chan struct{}
 
 	viewMu      sync.RWMutex
 	viewStatus  Status
@@ -233,9 +244,14 @@ type processController struct {
 	captureErr  error
 }
 
-func newProcessController(id ProcessID, deployment DeploymentRef, startedAt time.Time, status Status) *processController {
+func newProcessController(
+	relation ProcessRelation,
+	deployment DeploymentRef,
+	startedAt time.Time,
+	status Status,
+) *processController {
 	return &processController{
-		id: id, deployment: deployment, startedAt: startedAt,
+		id: relation.ProcessID(), deployment: deployment, relation: relation, startedAt: startedAt,
 		commands: make(chan processCommand, 32), done: make(chan struct{}), viewStatus: status,
 	}
 }
@@ -307,14 +323,16 @@ const (
 	commandResolveEffect
 	commandQueryUnknownEffectIDs
 	commandCapture
+	commandChildrenCompleted
 )
 
 type processCommand struct {
-	kind       commandKind
-	signal     SignalRequest
-	settlement Settlement
-	reason     string
-	response   chan processResponse
+	kind           commandKind
+	signal         SignalRequest
+	settlement     Settlement
+	internalSignal Signal
+	reason         string
+	response       chan processResponse
 }
 
 type processResponse struct {
@@ -325,6 +343,9 @@ type processResponse struct {
 }
 
 func (command processCommand) reply(response processResponse) {
+	if command.response == nil {
+		return
+	}
 	command.response <- response
 }
 

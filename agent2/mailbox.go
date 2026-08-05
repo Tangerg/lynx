@@ -20,10 +20,11 @@ type signalRecord struct {
 }
 
 type waitRecord struct {
-	key      WaitKey
-	id       WaitID
-	answered bool
-	closed   bool
+	key                   WaitKey
+	id                    WaitID
+	externallyAddressable bool
+	answered              bool
+	closed                bool
 }
 
 type signalMailbox struct {
@@ -50,7 +51,8 @@ func (mailbox *signalMailbox) enqueue(status Status, signal Signal) (bool, error
 	waitID, addressed := signal.WaitID()
 	if addressed {
 		record, exists := mailbox.waits[waitID]
-		if !exists || record.closed || record.answered || (status != StatusRunning && status != StatusWaiting) {
+		if !exists || !record.externallyAddressable || record.closed || record.answered ||
+			(status != StatusRunning && status != StatusWaiting) {
 			return false, ErrSignalRejected
 		}
 		record.answered = true
@@ -62,6 +64,28 @@ func (mailbox *signalMailbox) enqueue(status Status, signal Signal) (bool, error
 	mailbox.records = append(mailbox.records, signalRecord{
 		sequence: uint64(len(mailbox.records) + 1),
 		signal:   signal,
+	})
+	return true, nil
+}
+
+func (mailbox *signalMailbox) enqueueChildCompletion(status Status, signal Signal) (bool, error) {
+	if !signal.Valid() {
+		return false, fmt.Errorf("%w: %w", ErrSignalRejected, ErrInvalidSignal)
+	}
+	if _, duplicate := mailbox.seen[signal.ID()]; duplicate {
+		return false, nil
+	}
+	waitID, addressed := signal.WaitID()
+	record, exists := mailbox.waits[waitID]
+	if !addressed || !exists || record.externallyAddressable || record.closed || record.answered ||
+		(status != StatusRunning && status != StatusWaiting) {
+		return false, ErrSignalRejected
+	}
+	record.answered = true
+	mailbox.waits[waitID] = record
+	mailbox.seen[signal.ID()] = struct{}{}
+	mailbox.records = append(mailbox.records, signalRecord{
+		sequence: uint64(len(mailbox.records) + 1), signal: signal,
 	})
 	return true, nil
 }
@@ -89,7 +113,7 @@ func (mailbox *signalMailbox) enqueueWaitOpened(signal Signal) error {
 	return nil
 }
 
-func (mailbox *signalMailbox) registerWait(key WaitKey, id WaitID) error {
+func (mailbox *signalMailbox) registerWait(key WaitKey, id WaitID, externallyAddressable bool) error {
 	if !key.Valid() || !id.Valid() {
 		return fmt.Errorf("%w: wait key and ID are required", errWaitState)
 	}
@@ -101,7 +125,9 @@ func (mailbox *signalMailbox) registerWait(key WaitKey, id WaitID) error {
 			return fmt.Errorf("%w: wait key is already open", errWaitState)
 		}
 	}
-	mailbox.waits[id] = waitRecord{key: key, id: id}
+	mailbox.waits[id] = waitRecord{
+		key: key, id: id, externallyAddressable: externallyAddressable,
+	}
 	return nil
 }
 
@@ -169,10 +195,11 @@ type signalRecordWire struct {
 }
 
 type waitRecordWire struct {
-	Key      WaitKey `json:"key"`
-	ID       WaitID  `json:"id"`
-	Answered bool    `json:"answered"`
-	Closed   bool    `json:"closed"`
+	Key                   WaitKey `json:"key"`
+	ID                    WaitID  `json:"id"`
+	ExternallyAddressable bool    `json:"externally_addressable"`
+	Answered              bool    `json:"answered"`
+	Closed                bool    `json:"closed"`
 }
 
 type mailboxWire struct {
@@ -190,7 +217,8 @@ func (mailbox *signalMailbox) snapshot() mailboxWire {
 	}
 	for _, record := range mailbox.waits {
 		wire.Waits = append(wire.Waits, waitRecordWire{
-			Key: record.key, ID: record.id, Answered: record.answered, Closed: record.closed,
+			Key: record.key, ID: record.id, ExternallyAddressable: record.externallyAddressable,
+			Answered: record.answered, Closed: record.closed,
 		})
 	}
 	slices.SortFunc(wire.Waits, func(left, right waitRecordWire) int {
@@ -237,7 +265,8 @@ func restoreSignalMailbox(wire mailboxWire) (signalMailbox, error) {
 			openKeys[record.Key] = struct{}{}
 		}
 		mailbox.waits[record.ID] = waitRecord{
-			key: record.Key, id: record.ID, answered: record.Answered, closed: record.Closed,
+			key: record.Key, id: record.ID, externallyAddressable: record.ExternallyAddressable,
+			answered: record.Answered, closed: record.Closed,
 		}
 	}
 	answered := make(map[WaitID]struct{})

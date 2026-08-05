@@ -88,7 +88,7 @@ func newEffect(target EffectTarget, payload json.RawMessage) (Effect, error) {
 		return Effect{}, fmt.Errorf("%w: payload: %w", ErrInvalidEffect, err)
 	}
 	if target == EffectTargetFramework {
-		if _, _, err := decodeWaitRequestPayload(normalized); err != nil {
+		if err := validateFrameworkEffectPayload(normalized); err != nil {
 			return Effect{}, err
 		}
 	}
@@ -150,6 +150,8 @@ type effectWire struct {
 const (
 	frameworkEffectSchemaVersion = 1
 	frameworkEffectWait          = "wait"
+	frameworkEffectStartChild    = "start_child"
+	frameworkEffectWaitChildren  = "wait_children"
 )
 
 type waitRequestWire struct {
@@ -184,4 +186,38 @@ func decodeWaitRequestPayload(payload json.RawMessage) (WaitKey, json.RawMessage
 		return WaitKey{}, nil, fmt.Errorf("%w: framework Effect signal payload: %w", ErrInvalidEffect, err)
 	}
 	return wire.Key, normalized, nil
+}
+
+func validateFrameworkEffectPayload(payload json.RawMessage) error {
+	operation, err := frameworkEffectOperation(payload)
+	if err != nil {
+		return err
+	}
+	switch operation {
+	case frameworkEffectWait:
+		_, _, err := decodeWaitRequestPayload(payload)
+		return err
+	case frameworkEffectStartChild:
+		_, err := decodeChildStartEffect(payload)
+		return err
+	case frameworkEffectWaitChildren:
+		_, err := decodeChildWaitEffect(payload)
+		return err
+	default:
+		return fmt.Errorf("%w: unsupported Framework Effect", ErrInvalidEffect)
+	}
+}
+
+func frameworkEffectOperation(payload json.RawMessage) (string, error) {
+	var header struct {
+		Operation     string `json:"operation"`
+		SchemaVersion uint16 `json:"schema_version"`
+	}
+	if err := json.Unmarshal(payload, &header); err != nil {
+		return "", fmt.Errorf("%w: decode Framework Effect header: %w", ErrInvalidEffect, err)
+	}
+	if header.SchemaVersion != frameworkEffectSchemaVersion {
+		return "", fmt.Errorf("%w: unsupported Framework Effect schema", ErrInvalidEffect)
+	}
+	return header.Operation, nil
 }

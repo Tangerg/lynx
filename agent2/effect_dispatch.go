@@ -24,26 +24,84 @@ func (runtime *processRuntime) dispatchPrepared(ctx context.Context, hostDone *<
 			}
 		}
 		if record.Effect.Target() == EffectTargetFramework {
-			runtime.dispatchFrameworkEffect(record)
+			runtime.dispatchFrameworkEffect(ctx, record)
 			continue
 		}
 		runtime.dispatchStrategyEffect(ctx, hostDone, uint32(index), record)
 	}
 }
 
-func (runtime *processRuntime) dispatchFrameworkEffect(record *preparedEffectWire) {
-	_, payload, err := decodeWaitRequest(record.Effect)
-	if err != nil {
-		settlement, _ := NewSettlement(record.ID, SettlementStatusUnknown, json.RawMessage("null"))
-		record.Settlement = &settlement
+func (runtime *processRuntime) dispatchFrameworkEffect(ctx context.Context, record *preparedEffectWire) {
+	var header struct {
+		Operation string `json:"operation"`
+	}
+	if err := json.Unmarshal(record.Effect.Payload(), &header); err != nil {
+		runtime.markFrameworkEffectUnknown(record)
 		return
 	}
-	waitID := deriveWaitID(record.ID)
-	settlement, err := NewSettlement(record.ID, SettlementStatusSucceeded, payload)
-	if err != nil {
-		settlement, _ = NewSettlement(record.ID, SettlementStatusUnknown, json.RawMessage("null"))
+	switch header.Operation {
+	case frameworkEffectWait:
+		_, payload, err := decodeWaitRequest(record.Effect)
+		if err != nil {
+			runtime.markFrameworkEffectUnknown(record)
+			return
+		}
+		waitID := deriveWaitID(record.ID)
+		settlement, err := NewSettlement(record.ID, SettlementStatusSucceeded, payload)
+		if err != nil {
+			runtime.markFrameworkEffectUnknown(record)
+			return
+		}
+		record.WaitID = &waitID
+		record.Settlement = &settlement
+	case frameworkEffectStartChild:
+		spec, err := decodeChildStartEffect(record.Effect.Payload())
+		if err != nil {
+			runtime.markFrameworkEffectUnknown(record)
+			return
+		}
+		result := runtime.startChild(ctx, record.ID, spec)
+		payload, err := encodeChildStartResult(result)
+		if err != nil {
+			runtime.markFrameworkEffectUnknown(record)
+			return
+		}
+		status := SettlementStatusSucceeded
+		if _, failed := result.Failure(); failed {
+			status = SettlementStatusFailed
+		}
+		settlement, err := NewSettlement(record.ID, status, payload)
+		if err != nil {
+			runtime.markFrameworkEffectUnknown(record)
+			return
+		}
+		record.Settlement = &settlement
+	case frameworkEffectWaitChildren:
+		spec, err := decodeChildWaitEffect(record.Effect.Payload())
+		if err != nil {
+			runtime.markFrameworkEffectUnknown(record)
+			return
+		}
+		payload, err := encodeChildWaitOpened(spec)
+		if err != nil {
+			runtime.markFrameworkEffectUnknown(record)
+			return
+		}
+		waitID := deriveWaitID(record.ID)
+		settlement, err := NewSettlement(record.ID, SettlementStatusSucceeded, payload)
+		if err != nil {
+			runtime.markFrameworkEffectUnknown(record)
+			return
+		}
+		record.WaitID = &waitID
+		record.Settlement = &settlement
+	default:
+		runtime.markFrameworkEffectUnknown(record)
 	}
-	record.WaitID = &waitID
+}
+
+func (runtime *processRuntime) markFrameworkEffectUnknown(record *preparedEffectWire) {
+	settlement, _ := NewSettlement(record.ID, SettlementStatusUnknown, json.RawMessage("null"))
 	record.Settlement = &settlement
 }
 

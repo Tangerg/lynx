@@ -1,0 +1,487 @@
+package agent2
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"slices"
+	"strings"
+	"sync"
+	"testing"
+	"time"
+)
+
+func TestEngineStartsSameDeploymentChildWithStableRelation(t *testing.T) {
+	deployment := newChildTestDeployment(t)
+	engine, err := NewEngine(EngineConfig{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	input, _ := EncodeInput(childTestInput{Mode: "parent"})
+	root, err := engine.Start(context.Background(), deployment, input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rootResult, err := root.Await(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	output := childTestResult(t, rootResult)
+	if len(output.ChildIDs) != 1 || output.Failures != 0 {
+		t.Fatalf("root output = %#v", output)
+	}
+	childID, err := ParseProcessID(output.ChildIDs[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	child, found := engine.Process(childID)
+	if !found {
+		t.Fatal("Engine did not retain the child Process")
+	}
+	childResult, err := child.Await(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if childResult.Status() != StatusCompleted {
+		t.Fatalf("child status = %s", childResult.Status())
+	}
+	childSnapshot, err := child.Capture(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	rootRelation := root.Relation()
+	childRelation := child.Relation()
+	parentID, hasParent := childRelation.ParentID()
+	childKey, hasKey := childRelation.ChildKey()
+	if !rootRelation.IsRoot() || rootRelation.RootID() != root.ID() || rootRelation.Depth() != 0 {
+		t.Fatalf("root relation = %#v", rootRelation)
+	}
+	if !hasParent || parentID != root.ID() || !hasKey || childKey.String() != "worker" ||
+		childRelation.RootID() != root.ID() || childRelation.Depth() != 1 {
+		t.Fatalf("child relation = %#v", childRelation)
+	}
+	if childSnapshot.Relation() != childRelation {
+		t.Fatalf("captured child relation = %#v, want %#v", childSnapshot.Relation(), childRelation)
+	}
+	if err := engine.Close(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestEngineRejectsDuplicateChildKeyInOneParent(t *testing.T) {
+	deployment := newChildTestDeployment(t)
+	engine, err := NewEngine(EngineConfig{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	input, _ := EncodeInput(childTestInput{Mode: "duplicate"})
+	root, err := engine.Start(context.Background(), deployment, input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rootResult, err := root.Await(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	output := childTestResult(t, rootResult)
+	if len(output.ChildIDs) != 1 || output.Failures != 1 {
+		t.Fatalf("duplicate child output = %#v", output)
+	}
+	childID, _ := ParseProcessID(output.ChildIDs[0])
+	child, found := engine.Process(childID)
+	if !found {
+		t.Fatal("successful child is missing")
+	}
+	if _, err := child.Await(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if err := engine.Close(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestEngineWaitsForChildrenByConditionAndReturnsRequestOrder(t *testing.T) {
+	tests := []struct {
+		name     string
+		mode     string
+		release  []string
+		wantKeys []string
+	}{
+		{name: "any", mode: "wait:any", release: []string{"third"}, wantKeys: []string{"third"}},
+		{name: "quorum", mode: "wait:quorum", release: []string{"third", "first"}, wantKeys: []string{"first", "third"}},
+		{name: "all", mode: "wait:all", release: []string{"third", "first", "second"}, wantKeys: []string{"first", "second", "third"}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			dispatcher := newBlockingChildDispatcher("first", "second", "third")
+			t.Cleanup(dispatcher.ReleaseAll)
+			deployment := newChildTestDeploymentWithDispatcher(t, dispatcher)
+			engine, err := NewEngine(EngineConfig{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			input, _ := EncodeInput(childTestInput{Mode: test.mode})
+			root, err := engine.Start(context.Background(), deployment, input)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for range 3 {
+				<-dispatcher.started
+			}
+			waitForProcessStatus(t, root, StatusWaiting)
+			waitID, waiting := root.WaitID()
+			if !waiting {
+				t.Fatal("Waiting parent did not expose its current WaitID")
+			}
+			externalID, _ := ParseSignalID("signal:forged-child-completion")
+			forged, _ := NewSignalRequest(externalID, waitID, json.RawMessage(`{"forged":true}`))
+			if accepted, err := root.DeliverSignal(context.Background(), forged); accepted || !errors.Is(err, ErrSignalRejected) {
+				t.Fatalf("forged child completion accepted = %t, error = %v", accepted, err)
+			}
+			for _, name := range test.release {
+				dispatcher.Release(name)
+			}
+			result, err := root.Await(context.Background())
+			if err != nil {
+				t.Fatal(err)
+			}
+			output := childTestResult(t, result)
+			if !slices.Equal(output.CompletedKeys, test.wantKeys) {
+				t.Fatalf("completed keys = %v, want %v", output.CompletedKeys, test.wantKeys)
+			}
+			dispatcher.ReleaseAll()
+			for _, id := range output.ChildIDs {
+				childID, _ := ParseProcessID(id)
+				child, found := engine.Process(childID)
+				if !found {
+					t.Fatalf("child %s is missing", childID)
+				}
+				if _, err := child.Await(context.Background()); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err := engine.Close(); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
+type childTestInput struct {
+	Mode string `json:"mode"`
+}
+
+type childTestOutput struct {
+	ChildIDs      []string `json:"child_ids,omitempty"`
+	CompletedKeys []string `json:"completed_keys,omitempty"`
+	Failures      int      `json:"failures"`
+}
+
+type childTestState struct {
+	Phase    string   `json:"phase"`
+	Mode     string   `json:"mode"`
+	ChildIDs []string `json:"child_ids,omitempty"`
+	WaitID   string   `json:"wait_id,omitempty"`
+}
+
+type childTestDefinition struct {
+	descriptor Descriptor
+	reference  DeploymentRef
+}
+
+func newChildTestDeployment(t *testing.T) Deployment {
+	return newChildTestDeploymentWithDispatcher(t, childTestDispatcher{})
+}
+
+func newChildTestDeploymentWithDispatcher(t *testing.T, dispatcher Dispatcher) Deployment {
+	t.Helper()
+	inputSchema, err := SchemaFor[childTestInput]()
+	if err != nil {
+		t.Fatal(err)
+	}
+	outputSchema, err := SchemaFor[childTestOutput]()
+	if err != nil {
+		t.Fatal(err)
+	}
+	descriptor, err := NewDescriptor(DescriptorConfig{
+		Name: "test.child", Description: "Exercise child Process framework Effects.",
+		Version: "1.0.0", InputSchema: inputSchema, OutputSchema: outputSchema,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	implementation := ComputeDigest([]byte("child-test-implementation"))
+	configuration := ComputeDigest([]byte("child-test-configuration"))
+	reference, err := NewDeploymentRef(descriptor, implementation, configuration)
+	if err != nil {
+		t.Fatal(err)
+	}
+	definition := &childTestDefinition{descriptor: descriptor, reference: reference}
+	deployment, err := NewDeployment(DeploymentConfig{
+		Definition: definition, Dispatcher: dispatcher,
+		ImplementationDigest: implementation, ConfigurationDigest: configuration,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return deployment
+}
+
+func (definition *childTestDefinition) Descriptor() Descriptor { return definition.descriptor }
+
+func (definition *childTestDefinition) Start(input Input) (Execution, error) {
+	decoded, err := DecodeInput[childTestInput](input)
+	if err != nil {
+		return nil, err
+	}
+	return &childTestExecution{
+		reference: definition.reference,
+		state:     childTestState{Phase: "ready", Mode: decoded.Mode},
+	}, nil
+}
+
+func (definition *childTestDefinition) Restore(state ExecutionState) (Execution, error) {
+	if state.Kind() != "test.child" || state.SchemaVersion() != 1 {
+		return nil, ErrInvalidExecutionState
+	}
+	var decoded childTestState
+	if err := json.Unmarshal(state.Payload(), &decoded); err != nil {
+		return nil, err
+	}
+	return &childTestExecution{reference: definition.reference, state: decoded}, nil
+}
+
+type childTestExecution struct {
+	reference DeploymentRef
+	state     childTestState
+}
+
+func (execution *childTestExecution) Step(_ context.Context, signals []Signal) (Transition, error) {
+	switch execution.state.Phase {
+	case "ready":
+		if execution.state.Mode == "leaf" {
+			execution.state.Phase = "done"
+			output, _ := EncodeOutput(childTestOutput{})
+			return Complete(0, output)
+		}
+		if strings.HasPrefix(execution.state.Mode, "leaf:") {
+			payload, _ := json.Marshal(struct {
+				Name string `json:"name"`
+			}{Name: strings.TrimPrefix(execution.state.Mode, "leaf:")})
+			effect, err := NewDispatcherEffect(payload)
+			if err != nil {
+				return Transition{}, err
+			}
+			execution.state.Phase = "leaf_effect"
+			return Continue(0, effect)
+		}
+		execution.state.Phase = "started"
+		if strings.HasPrefix(execution.state.Mode, "wait:") {
+			var effects []Effect
+			for _, name := range []string{"first", "second", "third"} {
+				childInput, _ := EncodeInput(childTestInput{Mode: "leaf:" + name})
+				key, _ := ParseChildKey(name)
+				effect, err := StartChild(ChildSpec{Key: key, Deployment: execution.reference, Input: childInput})
+				if err != nil {
+					return Transition{}, err
+				}
+				effects = append(effects, effect)
+			}
+			return Continue(0, effects...)
+		}
+		childInput, _ := EncodeInput(childTestInput{Mode: "leaf"})
+		key, _ := ParseChildKey("worker")
+		effect, err := StartChild(ChildSpec{Key: key, Deployment: execution.reference, Input: childInput})
+		if err != nil {
+			return Transition{}, err
+		}
+		if execution.state.Mode == "duplicate" {
+			return Continue(0, effect, effect)
+		}
+		return Continue(0, effect)
+	case "started":
+		if len(signals) == 0 {
+			return Transition{}, errors.New("child start results are required")
+		}
+		output := childTestOutput{}
+		for _, signal := range signals {
+			result, err := ParseChildStartResult(signal)
+			if err != nil {
+				return Transition{}, err
+			}
+			if childID, started := result.ProcessID(); started {
+				output.ChildIDs = append(output.ChildIDs, childID.String())
+			} else {
+				output.Failures++
+			}
+		}
+		if !strings.HasPrefix(execution.state.Mode, "wait:") {
+			execution.state.Phase = "done"
+			erased, _ := EncodeOutput(output)
+			return Complete(uint32(len(signals)), erased)
+		}
+		execution.state.ChildIDs = slices.Clone(output.ChildIDs)
+		children := make([]ProcessID, len(output.ChildIDs))
+		for index, encoded := range output.ChildIDs {
+			children[index], _ = ParseProcessID(encoded)
+		}
+		condition := AllChildren()
+		switch execution.state.Mode {
+		case "wait:any":
+			condition = AnyChild()
+		case "wait:quorum":
+			condition, _ = ChildQuorum(2)
+		}
+		key, _ := ParseWaitKey("children")
+		effect, err := WaitForChildren(ChildWaitSpec{Key: key, Children: children, Condition: condition})
+		if err != nil {
+			return Transition{}, err
+		}
+		execution.state.Phase = "wait_opened"
+		return Continue(uint32(len(signals)), effect)
+	case "wait_opened":
+		if len(signals) == 0 {
+			return Transition{}, errors.New("child wait-opened Signal is required")
+		}
+		opened, err := ParseChildWaitOpened(signals[0])
+		if err != nil {
+			return Transition{}, err
+		}
+		execution.state.WaitID = opened.WaitID().String()
+		if len(signals) > 1 {
+			return execution.completeChildren(signals, uint32(len(signals)))
+		}
+		execution.state.Phase = "waiting"
+		return Wait(1, opened.WaitID())
+	case "waiting":
+		return execution.completeChildren(signals, uint32(len(signals)))
+	case "leaf_effect":
+		if len(signals) != 1 {
+			return Transition{}, errors.New("leaf Effect settlement is required")
+		}
+		execution.state.Phase = "done"
+		output, _ := EncodeOutput(childTestOutput{})
+		return Complete(1, output)
+	default:
+		return Transition{}, errors.New("child test execution cannot advance")
+	}
+}
+
+func (execution *childTestExecution) completeChildren(signals []Signal, consumed uint32) (Transition, error) {
+	if len(signals) == 0 {
+		return Transition{}, errors.New("children-completed Signal is required")
+	}
+	completed, err := ParseChildrenCompleted(signals[len(signals)-1])
+	if err != nil {
+		return Transition{}, err
+	}
+	if completed.WaitID().String() != execution.state.WaitID {
+		return Transition{}, errors.New("children completed another wait")
+	}
+	output := childTestOutput{ChildIDs: slices.Clone(execution.state.ChildIDs)}
+	for _, outcome := range completed.Outcomes() {
+		output.CompletedKeys = append(output.CompletedKeys, outcome.Key().String())
+	}
+	execution.state.Phase = "done"
+	erased, _ := EncodeOutput(output)
+	return Complete(consumed, erased)
+}
+
+func (execution *childTestExecution) Snapshot() (ExecutionState, error) {
+	payload, err := json.Marshal(execution.state)
+	if err != nil {
+		return ExecutionState{}, err
+	}
+	return NewExecutionState("test.child", 1, payload)
+}
+
+type childTestDispatcher struct{}
+
+func (childTestDispatcher) Dispatch(context.Context, EffectRequest, DeltaEmitter) (Settlement, error) {
+	return Settlement{}, errors.New("child test has no dispatcher Effects")
+}
+
+func (childTestDispatcher) ReplayPolicy(Effect) ReplayPolicy { return ReplayPolicyNever }
+
+type blockingChildDispatcher struct {
+	started  chan string
+	releases map[string]*childTestRelease
+}
+
+func newBlockingChildDispatcher(names ...string) *blockingChildDispatcher {
+	dispatcher := &blockingChildDispatcher{
+		started: make(chan string, len(names)), releases: make(map[string]*childTestRelease, len(names)),
+	}
+	for _, name := range names {
+		dispatcher.releases[name] = &childTestRelease{done: make(chan struct{})}
+	}
+	return dispatcher
+}
+
+func (dispatcher *blockingChildDispatcher) Dispatch(
+	_ context.Context,
+	request EffectRequest,
+	_ DeltaEmitter,
+) (Settlement, error) {
+	var input struct {
+		Name string `json:"name"`
+	}
+	if err := json.Unmarshal(request.Effect().Payload(), &input); err != nil {
+		return Settlement{}, err
+	}
+	release, exists := dispatcher.releases[input.Name]
+	if !exists {
+		return Settlement{}, fmt.Errorf("unknown child %q", input.Name)
+	}
+	dispatcher.started <- input.Name
+	<-release.done
+	return NewSettlement(request.ID(), SettlementStatusSucceeded, json.RawMessage(`{}`))
+}
+
+func (*blockingChildDispatcher) ReplayPolicy(Effect) ReplayPolicy { return ReplayPolicyNever }
+
+func (dispatcher *blockingChildDispatcher) Release(name string) {
+	if release := dispatcher.releases[name]; release != nil {
+		release.once.Do(func() { close(release.done) })
+	}
+}
+
+func (dispatcher *blockingChildDispatcher) ReleaseAll() {
+	for name := range dispatcher.releases {
+		dispatcher.Release(name)
+	}
+}
+
+type childTestRelease struct {
+	done chan struct{}
+	once sync.Once
+}
+
+func waitForProcessStatus(t *testing.T, process *Process, want Status) {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		if process.Status() == want {
+			return
+		}
+		time.Sleep(time.Millisecond)
+	}
+	t.Fatalf("Process status = %s, want %s", process.Status(), want)
+}
+
+func childTestResult(t *testing.T, result Result) childTestOutput {
+	t.Helper()
+	if result.Status() != StatusCompleted {
+		t.Fatalf("status = %s, termination = %#v", result.Status(), result.Termination())
+	}
+	erased, ok := result.Output()
+	if !ok {
+		t.Fatal("completed result has no Output")
+	}
+	decoded, err := DecodeOutput[childTestOutput](erased)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return decoded
+}

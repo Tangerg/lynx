@@ -107,3 +107,14 @@ func ParseWaitKey(value string) (WaitKey, error) {
 	id, err := parseIdentity("wait key", value)
 	return WaitKey{id}, err
 }
+
+// ChildKey is an Execution-owned stable identity for one logical child start.
+// The Engine combines it with the parent Process identity and prepared Effect
+// identity to make retries and restoration idempotent.
+type ChildKey struct{ identity }
+
+// ParseChildKey validates an Execution-owned logical child identity.
+func ParseChildKey(value string) (ChildKey, error) {
+	id, err := parseIdentity("child key", value)
+	return ChildKey{id}, err
+}

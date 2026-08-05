@@ -184,9 +184,43 @@ func (runtime *processRuntime) applyCommand(ctx context.Context, command process
 	case commandCapture:
 		snapshot, err := runtime.capture()
 		command.reply(processResponse{snapshot: snapshot, err: err})
+	case commandChildrenCompleted:
+		runtime.deliverChildrenCompleted(ctx, command.internalSignal)
 	default:
 		command.reply(processResponse{err: ErrProcessNotRunning})
 	}
+}
+
+func (runtime *processRuntime) deliverChildrenCompleted(ctx context.Context, signal Signal) {
+	if runtime.usage.AcceptedSignals >= runtime.limits.MaxSignals ||
+		runtime.mailbox.pendingCount() >= runtime.limits.MaxPendingSignals {
+		runtime.fail(ctx, FailureKindExecution, "engine.limit.child_completion_signal", ErrLimitExceeded)
+		return
+	}
+	accepted, err := runtime.mailbox.enqueueChildCompletion(runtime.status, signal)
+	if err != nil {
+		runtime.fail(ctx, FailureKindContract, "engine.child.completion.invalid", err)
+		return
+	}
+	if !accepted {
+		return
+	}
+	runtime.usage.AcceptedSignals++
+	if runtime.status == StatusWaiting {
+		runtime.status = StatusRunning
+		runtime.currentWaitID = WaitID{}
+	}
+	runtime.updateView()
+	payload, _ := json.Marshal(struct {
+		SignalID string `json:"signal_id"`
+		WaitID   string `json:"wait_id"`
+	}{SignalID: signal.ID().String(), WaitID: commandSignalWaitID(signal)})
+	runtime.publishEvent(ctx, "agent.signal.accepted", EventPhaseCommitted, 0, EffectID{}, payload)
+}
+
+func commandSignalWaitID(signal Signal) string {
+	waitID, _ := signal.WaitID()
+	return waitID.String()
 }
 
 func (runtime *processRuntime) deliver(ctx context.Context, command processCommand) {
@@ -313,6 +347,7 @@ func (runtime *processRuntime) finish(ctx context.Context) {
 	runtime.publishEvent(ctx, "agent.process.finished", EventPhaseCommitted, 0, EffectID{}, payload)
 	snapshot, err := runtime.capture()
 	runtime.controller.complete(runtime.result(), snapshot, err)
+	runtime.engine.processFinished(runtime.controller)
 }
 
 func (runtime *processRuntime) updateView() {

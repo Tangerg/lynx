@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	processSnapshotSchemaVersion = 1
+	processSnapshotSchemaVersion = 2
 	maxSnapshotBytes             = 128 << 20
 )
 
@@ -25,6 +25,7 @@ type Snapshot struct {
 	status         Status
 	executionState ExecutionState
 	waitID         WaitID
+	relation       ProcessRelation
 }
 
 // ParseSnapshot strictly validates one Process snapshot wire value.
@@ -47,6 +48,7 @@ func ParseSnapshot(data json.RawMessage) (Snapshot, error) {
 		status:         wire.Status,
 		executionState: wire.LastStable,
 		waitID:         snapshotWaitID(wire.CurrentWaitID),
+		relation:       mustProcessRelation(wire.ProcessID, wire.Relation),
 	}, nil
 }
 
@@ -66,6 +68,10 @@ func (snapshot Snapshot) ProcessID() ProcessID { return snapshot.processID }
 
 // DeploymentRef returns the exact execution binding required for restoration.
 func (snapshot Snapshot) DeploymentRef() DeploymentRef { return snapshot.deployment }
+
+// Relation returns the immutable parent/root/depth location captured with the
+// Process.
+func (snapshot Snapshot) Relation() ProcessRelation { return snapshot.relation }
 
 // Status returns the captured common lifecycle state.
 func (snapshot Snapshot) Status() Status { return snapshot.status }
@@ -87,7 +93,12 @@ func (snapshot Snapshot) WaitID() (WaitID, bool) {
 // Valid reports whether the snapshot passed the strict wire boundary.
 func (snapshot Snapshot) Valid() bool {
 	return len(snapshot.data) > 0 && snapshot.processID.Valid() && snapshot.deployment.Valid() &&
-		snapshot.status.Valid() && snapshot.executionState.Valid()
+		snapshot.status.Valid() && snapshot.executionState.Valid() && snapshot.relation.Valid()
+}
+
+func mustProcessRelation(processID ProcessID, wire processRelationWire) ProcessRelation {
+	relation, _ := processRelationFromWire(processID, wire)
+	return relation
 }
 
 func snapshotWaitID(waitID *WaitID) WaitID {
@@ -149,24 +160,25 @@ type pendingControlWire struct {
 }
 
 type processSnapshotWire struct {
-	SchemaVersion  uint16             `json:"schema_version"`
-	ProcessID      ProcessID          `json:"process_id"`
-	Deployment     DeploymentRef      `json:"deployment"`
-	StartedAt      time.Time          `json:"started_at"`
-	FinishedAt     *time.Time         `json:"finished_at,omitempty"`
-	Status         Status             `json:"status"`
-	CommittedSteps uint64             `json:"committed_steps"`
-	EventSequence  uint64             `json:"event_sequence"`
-	Limits         Limits             `json:"limits"`
-	Usage          Usage              `json:"usage"`
-	LastStable     ExecutionState     `json:"last_stable"`
-	Mailbox        mailboxWire        `json:"mailbox"`
-	Prepared       *preparedStepWire  `json:"prepared,omitempty"`
-	CurrentWaitID  *WaitID            `json:"current_wait_id,omitempty"`
-	PauseReason    string             `json:"pause_reason,omitempty"`
-	PendingControl pendingControlWire `json:"pending_control"`
-	Output         *Output            `json:"output,omitempty"`
-	Termination    *Termination       `json:"termination,omitempty"`
+	SchemaVersion  uint16              `json:"schema_version"`
+	ProcessID      ProcessID           `json:"process_id"`
+	Relation       processRelationWire `json:"relation"`
+	Deployment     DeploymentRef       `json:"deployment"`
+	StartedAt      time.Time           `json:"started_at"`
+	FinishedAt     *time.Time          `json:"finished_at,omitempty"`
+	Status         Status              `json:"status"`
+	CommittedSteps uint64              `json:"committed_steps"`
+	EventSequence  uint64              `json:"event_sequence"`
+	Limits         Limits              `json:"limits"`
+	Usage          Usage               `json:"usage"`
+	LastStable     ExecutionState      `json:"last_stable"`
+	Mailbox        mailboxWire         `json:"mailbox"`
+	Prepared       *preparedStepWire   `json:"prepared,omitempty"`
+	CurrentWaitID  *WaitID             `json:"current_wait_id,omitempty"`
+	PauseReason    string              `json:"pause_reason,omitempty"`
+	PendingControl pendingControlWire  `json:"pending_control"`
+	Output         *Output             `json:"output,omitempty"`
+	Termination    *Termination        `json:"termination,omitempty"`
 }
 
 func decodeProcessSnapshot(data []byte) (processSnapshotWire, error) {
@@ -196,6 +208,9 @@ func validateProcessSnapshot(wire processSnapshotWire) error {
 		!wire.Status.Valid() || wire.Status == StatusNotStarted || !wire.LastStable.Valid() ||
 		!wire.Limits.Valid() || !wire.Usage.validFor(wire.Limits) || wire.Usage.CommittedSteps != wire.CommittedSteps {
 		return fmt.Errorf("%w: incomplete Process identity or state", ErrInvalidSnapshot)
+	}
+	if _, err := processRelationFromWire(wire.ProcessID, wire.Relation); err != nil {
+		return fmt.Errorf("%w: relation: %w", ErrInvalidSnapshot, err)
 	}
 	mailbox, err := restoreSignalMailbox(wire.Mailbox)
 	if err != nil {
@@ -281,12 +296,34 @@ func validatePreparedStep(processID ProcessID, sequence uint64, lastStable Execu
 			return errors.New("prepared settlement addresses another Effect")
 		}
 		if record.Effect.Target() == EffectTargetFramework {
-			if record.WaitID != nil && *record.WaitID != deriveWaitID(record.ID) {
-				return errors.New("framework Effect contains a non-derived WaitID")
+			operation, err := frameworkEffectOperation(record.Effect.Payload())
+			if err != nil {
+				return err
 			}
-			if (record.WaitID == nil) != (record.Settlement == nil) ||
-				record.Settlement != nil && record.Settlement.Status() == SettlementStatusUnknown {
-				return errors.New("framework Effect has an incomplete or unknown settlement")
+			switch operation {
+			case frameworkEffectWait:
+				if record.WaitID != nil && *record.WaitID != deriveWaitID(record.ID) {
+					return errors.New("wait Effect contains a non-derived WaitID")
+				}
+				if (record.WaitID == nil) != (record.Settlement == nil) ||
+					record.Settlement != nil && record.Settlement.Status() == SettlementStatusUnknown {
+					return errors.New("wait Effect has an incomplete or unknown settlement")
+				}
+			case frameworkEffectStartChild:
+				if record.WaitID != nil ||
+					record.Settlement != nil && record.Settlement.Status() == SettlementStatusUnknown {
+					return errors.New("child-start Effect has an invalid settlement")
+				}
+			case frameworkEffectWaitChildren:
+				if record.WaitID != nil && *record.WaitID != deriveWaitID(record.ID) {
+					return errors.New("child-wait Effect contains a non-derived WaitID")
+				}
+				if (record.WaitID == nil) != (record.Settlement == nil) ||
+					record.Settlement != nil && record.Settlement.Status() == SettlementStatusUnknown {
+					return errors.New("child-wait Effect has an incomplete or unknown settlement")
+				}
+			default:
+				return errors.New("unsupported framework Effect")
 			}
 		} else if record.WaitID != nil {
 			return errors.New("dispatcher Effect cannot contain WaitID")

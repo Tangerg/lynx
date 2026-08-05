@@ -101,8 +101,19 @@ func (runtime *processRuntime) acknowledgePrepared(ctx context.Context) bool {
 	return false
 }
 
-func (runtime *processRuntime) finalizePrepared(ctx context.Context) error {
+func (runtime *processRuntime) finalizePrepared(ctx context.Context) (returnErr error) {
 	prepared := runtime.prepared
+	var immediateChildSignals []Signal
+	var registeredChildWaits []WaitID
+	committed := false
+	defer func() {
+		if committed {
+			return
+		}
+		for _, waitID := range registeredChildWaits {
+			runtime.engine.unregisterChildWait(waitID)
+		}
+	}()
 	mailbox, err := restoreSignalMailbox(runtime.mailbox.snapshot())
 	if err != nil {
 		return err
@@ -116,13 +127,43 @@ func (runtime *processRuntime) finalizePrepared(ctx context.Context) error {
 		}
 		waitID := WaitID{}
 		if record.Effect.Target() == EffectTargetFramework {
-			key, _, err := decodeWaitRequest(record.Effect)
-			if err != nil || record.WaitID == nil {
+			operation, err := frameworkEffectOperation(record.Effect.Payload())
+			if err != nil {
 				return errors.New("invalid prepared framework Effect")
 			}
-			waitID = *record.WaitID
-			if err := mailbox.registerWait(key, waitID); err != nil {
-				return err
+			switch operation {
+			case frameworkEffectWait:
+				key, _, err := decodeWaitRequest(record.Effect)
+				if err != nil || record.WaitID == nil {
+					return errors.New("invalid prepared wait Effect")
+				}
+				waitID = *record.WaitID
+				if err := mailbox.registerWait(key, waitID, true); err != nil {
+					return err
+				}
+			case frameworkEffectStartChild:
+				if record.WaitID != nil {
+					return errors.New("child-start Effect unexpectedly contains a WaitID")
+				}
+			case frameworkEffectWaitChildren:
+				spec, err := decodeChildWaitEffect(record.Effect.Payload())
+				if err != nil || record.WaitID == nil {
+					return errors.New("invalid child-wait Effect")
+				}
+				waitID = *record.WaitID
+				if err := mailbox.registerWait(spec.Key, waitID, false); err != nil {
+					return err
+				}
+				immediate, err := runtime.engine.registerChildWait(runtime.controller.id, waitID, spec)
+				if err != nil {
+					return err
+				}
+				registeredChildWaits = append(registeredChildWaits, waitID)
+				if immediate != nil {
+					immediateChildSignals = append(immediateChildSignals, *immediate)
+				}
+			default:
+				return errors.New("unsupported prepared framework Effect")
 			}
 		}
 		signal, err := newSignal(
@@ -142,6 +183,20 @@ func (runtime *processRuntime) finalizePrepared(ctx context.Context) error {
 			}
 		}
 	}
+	for _, signal := range immediateChildSignals {
+		if runtime.usage.AcceptedSignals+uint64(len(prepared.wire.Effects))+1 > runtime.limits.MaxSignals ||
+			mailbox.pendingCount()+1 > runtime.limits.MaxPendingSignals {
+			waitID, _ := signal.WaitID()
+			runtime.engine.unregisterChildWait(waitID)
+			return ErrLimitExceeded
+		}
+		accepted, err := mailbox.enqueueChildCompletion(StatusRunning, signal)
+		if err != nil || !accepted {
+			waitID, _ := signal.WaitID()
+			runtime.engine.unregisterChildWait(waitID)
+			return errors.Join(err, errors.New("immediate child completion Signal was not accepted"))
+		}
+	}
 	runtime.execution = prepared.candidate
 	if runtime.execution == nil {
 		runtime.execution, err = restoreExecution(runtime.deployment.Definition(), prepared.wire.CandidateState)
@@ -154,6 +209,7 @@ func (runtime *processRuntime) finalizePrepared(ctx context.Context) error {
 	runtime.committedSteps = prepared.wire.Sequence
 	runtime.usage.CommittedSteps = runtime.committedSteps
 	runtime.usage.AcceptedSignals += uint64(len(prepared.wire.Effects))
+	runtime.usage.AcceptedSignals += uint64(len(immediateChildSignals))
 	transition := prepared.wire.Transition
 	runtime.prepared = nil
 	switch transition.Kind() {
@@ -190,6 +246,7 @@ func (runtime *processRuntime) finalizePrepared(ctx context.Context) error {
 		Status string `json:"status"`
 	}{Status: runtime.status.String()})
 	runtime.publishEvent(ctx, "agent.step.committed", EventPhaseCommitted, runtime.committedSteps, EffectID{}, payload)
+	committed = true
 	return nil
 }
 
