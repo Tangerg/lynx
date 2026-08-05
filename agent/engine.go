@@ -1,11 +1,7 @@
 package agent
 
 import (
-	"fmt"
-
 	"github.com/Tangerg/lynx/agent/core"
-	"github.com/Tangerg/lynx/agent/internal/nilvalue"
-	"github.com/Tangerg/lynx/agent/internal/panicerr"
 	"github.com/Tangerg/lynx/agent/planning/goap"
 	"github.com/Tangerg/lynx/agent/planning/reactive"
 	"github.com/Tangerg/lynx/agent/runtime"
@@ -15,18 +11,14 @@ import (
 // the built-in planners and otherwise uses runtime defaults.
 //
 // As the composition root, NewEngine registers the framework's built-in
-// planners (goap, reactive) unless the caller supplied one with the same name. This keeps the
-// runtime package free of any concrete planner dependency — runtime
-// resolves planners purely through the [planning.Planner] interface —
-// while agents requesting "goap" / "reactive" (or an empty PlannerName,
-// which defaults to "goap") still work out of the box. Other planners
-// (htn, utility) are opt-in via config.Extensions.
+// planners (goap, reactive) before caller extensions. Their reserved names
+// cannot be replaced accidentally; duplicate registration is rejected by the
+// runtime. Call [runtime.New] when constructing a runtime with a completely
+// custom planner set. Other planners (htn, utility) remain opt-in.
 func NewEngine(config EngineConfig) (*Engine, error) {
-	extensions, err := withDefaultPlanners(config.Extensions)
-	if err != nil {
-		return nil, fmt.Errorf("agent.NewEngine: %w", err)
-	}
-	config.Extensions = extensions
+	extensions := make([]core.Extension, 0, 2+len(config.Extensions))
+	extensions = append(extensions, goap.NewPlanner(), reactive.NewPlanner())
+	config.Extensions = append(extensions, config.Extensions...)
 	return runtime.New(config)
 }
 
@@ -37,38 +29,4 @@ func MustNewEngine(config EngineConfig) *Engine {
 		panic(err)
 	}
 	return engine
-}
-
-func withDefaultPlanners(extensions []core.Extension) ([]core.Extension, error) {
-	taken := make(map[string]struct{}, len(extensions))
-	for _, extension := range extensions {
-		if nilvalue.Is(extension) {
-			continue
-		}
-		name, err := facadeExtensionName(extension)
-		if err != nil {
-			return nil, err
-		}
-		taken[name] = struct{}{}
-	}
-	defaults := make([]core.Extension, 0, 2)
-	for _, planner := range []core.Extension{goap.NewPlanner(), reactive.NewPlanner()} {
-		name, err := facadeExtensionName(planner)
-		if err != nil {
-			return nil, err
-		}
-		if _, ok := taken[name]; !ok {
-			defaults = append(defaults, planner)
-		}
-	}
-	return append(defaults, extensions...), nil
-}
-
-func facadeExtensionName(extension core.Extension) (name string, err error) {
-	defer func() {
-		if recovered := recover(); recovered != nil {
-			err = panicerr.New(fmt.Sprintf("extension %T Name panicked", extension), recovered)
-		}
-	}()
-	return extension.Name(), nil
 }

@@ -283,16 +283,17 @@ func wrapToolWith(
 // report every problem at once rather than stopping at the first.
 func (e *Engine) agentValidationErrors(agent *core.Agent) []error {
 	validators := collectExtensions[core.AgentValidator](e.extensions.list)
+	descriptor := agent.Descriptor()
 	var problems []error
 	for _, validator := range validators {
-		if err := validateAgentWith(validator.value, agent); err != nil {
+		if err := validateAgentWith(validator.value, descriptor); err != nil {
 			problems = append(problems, fmt.Errorf("runtime.Engine.agentValidationErrors: validator %q: %w", validator.name, err))
 		}
 	}
 	return problems
 }
 
-func validateAgentWith(validator core.AgentValidator, agent *core.Agent) (err error) {
+func validateAgentWith(validator core.AgentValidator, agent core.AgentDescriptor) (err error) {
 	defer func() {
 		if recovered := recover(); recovered != nil {
 			err = panicerr.New("agent validator panicked", recovered)

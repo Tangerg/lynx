@@ -67,9 +67,9 @@ func cloneChatMiddleware(middleware *core.ChatMiddleware) *core.ChatMiddleware {
 // that path before execution begins.
 //
 // The runtime needs the scope to resolve engine registrations, which requires
-// ancestry and nothing more: how many layers a host stacks in between — shared
-// services, then a per-session scope, then this process — is the host's own
-// composition to decide. Every layer up to the engine is frozen, because a
+// ancestry and nothing more: how many host-defined intermediate scopes exist
+// before this process is the host's own composition to decide. Every layer up
+// to the engine is frozen, because a
 // scope left open could change what an already-running process resolves.
 func (e *Engine) prepareProcessDependencies(configured *core.Dependencies) (*core.Dependencies, error) {
 	e.dependencies.Freeze()

@@ -51,7 +51,7 @@ func TestProcessContextNormalizesTypedNilCapabilities(t *testing.T) {
 	if context.Process() != nil || context.Blackboard() != nil {
 		t.Fatalf("typed-nil capabilities survived: process=%v blackboard=%v", context.Process(), context.Blackboard())
 	}
-	if err := context.TerminateAgent("stop"); !errors.Is(err, core.ErrLifecycleControlUnavailable) {
-		t.Fatalf("TerminateAgent error = %v, want unavailable control", err)
+	if err := context.Terminate("stop"); !errors.Is(err, core.ErrLifecycleControlUnavailable) {
+		t.Fatalf("Terminate error = %v, want unavailable control", err)
 	}
 }

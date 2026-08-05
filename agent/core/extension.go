@@ -68,13 +68,13 @@ type ToolMiddleware interface {
 }
 
 // AgentValidator runs as the engine's last deploy-time validation step after
-// [Agent.Validate]. It receives the same frozen definition snapshot that the
-// runtime will execute and identify in snapshots. A non-nil return rejects the
+// [Agent.Validate]. It receives an inert descriptor of the frozen definition,
+// not executable actions or conditions. A non-nil return rejects the
 // deployment, attributed to the validator's Name. Valid only at engine scope.
 type AgentValidator interface {
 	Extension
 
-	Validate(agent *Agent) error
+	Validate(agent AgentDescriptor) error
 }
 
 // GoalApprover gates the planner's goal-selection: every approver

@@ -112,8 +112,8 @@ func (p *Process) tick(ctx context.Context) {
 	ctx = normalizeContext(ctx)
 	ctx = core.WithProcessView(ctx, p)
 
-	if signal := p.signals.drainTerminate(); signal != nil {
-		p.handleTerminationSignal(ctx, *signal)
+	if request := p.signals.drainTermination(); request != nil {
+		p.terminateOnRequest(ctx, request.reason)
 		return
 	}
 
@@ -146,24 +146,13 @@ func (p *Process) observe(ctx context.Context, span trace.Span) (core.WorldState
 	return worldState, nil
 }
 
-// handleTerminationSignal processes a queued termination request. AGENT-
-// scope signals stop the process; ACTION-scope signals trigger a re-plan
-// without running an action this tick.
-func (p *Process) handleTerminationSignal(ctx context.Context, sig core.TerminationSignal) {
-	switch sig.Scope {
-	case core.TerminationScopeAgent:
-		if p.state.transition(core.StatusTerminated) {
-			p.publishEvent(ctx, event.ProcessTerminated{
-				Header: p.eventHeader(),
-				Reason: sig.Reason,
-				Scope:  core.TerminationScopeAgent,
-			})
-		}
-
-	case core.TerminationScopeAction:
-		p.publishEvent(ctx, event.ReplanRequested{
+// terminateOnRequest applies an action-requested graceful stop at a tick
+// boundary. Replanning remains exclusively represented by [core.ReplanRequest].
+func (p *Process) terminateOnRequest(ctx context.Context, reason string) {
+	if p.state.transition(core.StatusTerminated) {
+		p.publishEvent(ctx, event.ProcessTerminated{
 			Header: p.eventHeader(),
-			Reason: sig.Reason,
+			Reason: reason,
 		})
 	}
 }

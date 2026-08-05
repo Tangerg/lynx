@@ -37,16 +37,16 @@ type ProcessView interface {
 // ProcessControl is the lifecycle mutation capability installed privately on
 // a ProcessContext. Parallel workflow branches intentionally receive none.
 type ProcessControl interface {
-	TerminateAgent(reason string)
-	TerminateAction(reason string)
+	// Terminate requests a graceful process stop at the next tick boundary.
+	Terminate(reason string)
 
-	// TerminateToolCall cancels any in-flight tool call running through
+	// CancelToolCall cancels any in-flight tool call running through
 	// a context derived from [ProcessContext.ToolCallContext]. Action
 	// bodies opt in by deriving their tool-invocation contexts from
 	// that helper; calls made with a raw ctx receive no cancellation
-	// signal. Calling TerminateToolCall when no tool call is active is
+	// signal. Calling CancelToolCall when no tool call is active is
 	// a no-op.
-	TerminateToolCall()
+	CancelToolCall()
 
 	// Suspend parks JSON-safe continuation state until an external
 	// caller responds through runtime.Engine.Resume.

@@ -1,6 +1,6 @@
 # Agent Framework 架构演进执行计划
 
-> 状态：持续开发（P36 定义快照、评分与上下文信任边界已完成，4/4）
+> 状态：持续开发（P37 生命周期能力与扩展权限边界已完成，4/4）
 > 建立日期：2026-07-15
 > 最后更新：2026-08-05
 > 维护者：Lynx 仓库维护者
@@ -2169,6 +2169,38 @@ GoDoc 不把静态非法值伪装成运行期问题。
 合同；公开 capability 的 typed-nil 语义一致；生命周期状态投影不再伪装成 operation error；示例、
 GoDoc、API baseline 与实现同步，不增加公开 package 或兼容路径。
 
+### P37：生命周期能力与扩展权限边界
+
+- [x] **P37-01 生命周期术语与能力单轨化**（完成：2026-08-05）
+  - `ProcessContext.Terminate` 只表达 action 请求当前 Process 在下一 tick 边界优雅终止；
+    `CancelToolCall` 只取消经 `ToolCallContext` 注册的在途工具调用，名字与作用域一致。
+  - 删除把 action termination 伪装成重规划的 `TerminateAction`、公开 `TerminationScope` 与
+    `TerminationSignal`；重规划只有 `ReplanRequest` 一条能力路径，不保留 alias、wrapper 或双术语。
+  - `ProcessTerminated` 删除错误默认成 agent scope 的 `Scope` 字段；StopPolicy、budget 与 action
+    自终止统一发布同一诚实事件，首个并发终止原因由 Runtime 私有请求值稳定保留。
+- [x] **P37-02 AgentValidator 最小权限化**（完成：2026-08-05）
+  - `AgentValidator.Validate` 直接改为接收不可执行 `AgentDescriptor`；宿主校验器只能读取冻结定义，
+    不再获得可执行 Action/Condition 聚合根。
+  - Runtime 对 descriptor 只投影一次后 fan-out，validator panic 仍保留 cause 并按已冻结 Name 归因。
+- [x] **P37-03 组合根 Name 单次采样与术语清洗**（完成：2026-08-05）
+  - 根 `NewEngine` 不再预读扩展 Name 来猜测是否覆盖默认 planner；始终先注册 goap/reactive，
+    再由唯一 Runtime registry 单次采样并拒绝保留名冲突。完全自定义 planner 集显式使用
+    `runtime.New`，不建立 override 特例。
+  - 删除 façade 私有 panic/nil/name 重复机制；dependency scope 注释不再泄露 Session 等宿主概念；
+    示例常量错误统一使用 `errors.New`。
+- [x] **P37-04 Breaking API、反例与完整门禁**（完成：2026-08-05）
+  - termination 首因、端到端状态/事件原因、descriptor-only validator、Name single-read 与 built-in
+    name collision 均有反例；旧 lifecycle/scope 标识符跨 Agent/App 精确扫描为零。
+  - Agent public API 收缩为 622 declaration、root 53，SHA-256
+    `1d276a69bc2a35481db24a803f8dc80d0ec44fefcd70d9dd2f672cc292bd9eda`；wire 仍为 160 行，
+    SHA-256 `24627d86d343d726e26c1efbbc332026b3aefd80786ffbcbc43933a9daa32575`。
+  - Agent standalone 全量 build/vet/test/staticcheck/golangci-lint/tidy、core/runtime/arch race、examples
+    与 diff check 全绿。
+
+退出标准：生命周期动词与实际作用域一致；termination/replan 不存在第二条表达路径；扩展校验器
+只拥有完成规则所需的只读定义；Extension.Name 在唯一 registry 边界只读一次；GoDoc、API baseline、
+反例与实现同步，不保留兼容层或宿主术语。
+
 ---
 
 ## 15. 当前进度
@@ -2209,17 +2241,18 @@ GoDoc、API baseline 与实现同步，不增加公开 package 或兼容路径�
 | P34 Capability nil、回调失败与输入所有权合同 | 完成 | 4/4 | typed-nil 集中化、Routing canonical input、host callback fail-soft、构造/注释合同收正 |
 | P35 Workflow 构造期原子性与定义检查 | 完成 | 4/4 | 统一 Name、child-before-deploy 静态校验、metadata 单次 panic-safe 检查与门禁收口 |
 | P36 定义快照、评分与上下文信任边界 | 完成 | 4/4 | definition/request ownership、统一 score/options、capability nil 与 lifecycle outcome 收口 |
-| **总计** | **完成** | **200/200（100%）** | **P36-01 至 P36-04 全部完成；不执行封版、tag 或 release** |
+| P37 生命周期能力与扩展权限边界 | 完成 | 4/4 | lifecycle/replan 单轨、validator inert descriptor、Name 单次注册与门禁收口 |
+| **总计** | **完成** | **204/204（100%）** | **P37-01 至 P37-04 全部完成；不执行封版、tag 或 release** |
 
 ### 15.2 当前焦点
 
-- 当前阶段：P36 定义快照、评分与上下文信任边界，4/4，已完成。
+- 当前阶段：P37 生命周期能力与扩展权限边界，4/4，已完成。
 - 下一任务：继续以真实调用链和可构造反例审计 Agent；没有真实变化点时不新增 interface、
   adapter、package 或 Runtime 同义词。本批不封版、不创建 tag 或 release。
 - 当前决策门：已解除；按 BB-01 至 BB-08 直接迁移，不保留兼容层。
-- 最近完成：definition/snapshot/request 的值所有权闭合；所有 planner 统一 score 与 Options
-  合法性；ProcessContext capability nil 和 lifecycle outcome 语义收正；示例错误传播与
-  Supervisor/NewBlackboard 注释合同同步。
+- 最近完成：Process termination 与 replan 能力单轨化；AgentValidator 收窄为 inert descriptor；
+  根组合只在 Runtime registry 单次读取 Extension.Name 并拒绝 built-in planner 名称冲突；
+  宿主术语和常量错误坏味道同步清除。
   Agent 只拥有 execution framework 语义，App transaction/idempotency/persistence ownership
   保持不变。
 
@@ -2579,6 +2612,7 @@ GoDoc、API baseline 与实现同步，不增加公开 package 或兼容路径�
 
 | 日期 | 变更 | 作者 |
 |---|---|---|
+| 2026-08-05 | 完成 P37 生命周期能力与扩展权限边界：删除 TerminateAction/TerminationScope/TerminationSignal 双轨能力，Terminate/CancelToolCall 名实相符且 replan 只由 ReplanRequest 表达；AgentValidator 改收 inert descriptor；NewEngine 删除 Name 预读与默认 planner override 特例；全部 breaking change 直接迁移，无兼容层 | Codex |
 | 2026-08-05 | 完成 P36 定义快照、评分与上下文信任边界：definition/deployment/prompt 深快照与 typed-nil 语义闭合；planner score/Options 使用唯一校验机制；ProcessContext capability 与 run outcome 收正；示例错误传播及注释合同同步；ValidatePlanInputs breaking 签名直接更新，无兼容层 | Codex |
 | 2026-08-05 | 完成 P35 workflow 构造期原子性与定义检查：九种组合器统一 Name 规则；Parallel/Sequence/Loop 在首个 child deploy 前完成全部静态 Agent 校验；Agent.Validate 单次采样 Action/Condition metadata 并错误化 SPI panic；API/wire 不变，不新增 transaction/deployment 抽象 | Codex |
 | 2026-08-05 | 完成 P34 capability nil、回调失败与输入所有权合同：四份 typed-nil 反射逻辑收敛为唯一内部机制并补齐公开 capability 边界；Router 隔离 Ranker candidate slice，Ranker/filter/stream/observer panic 显式错误化；PromptCondition/Supervisor 静态校验与 Repeat/Loop 文档收正；Candidates breaking 签名直接更新，无兼容层 | Codex |
@@ -2650,6 +2684,7 @@ GoDoc、API baseline 与实现同步，不增加公开 package 或兼容路径�
 
 | 日期 | 任务 | 结果与证据 | 下一步 |
 |---|---|---|---|
+| 2026-08-05 | P37 生命周期能力与扩展权限边界 | termination 首因、端到端状态/事件、descriptor-only validator、Name single-read 与 built-in collision 反例通过；API 622 declaration/root 53，SHA-256 `1d276a69bc2a35481db24a803f8dc80d0ec44fefcd70d9dd2f672cc292bd9eda`；wire 160 行且 hash 不变。Agent standalone 全量 build/vet/test/staticcheck/golangci-lint/tidy、core/runtime/arch race、examples 与 diff check 全绿 | 204/204 关闭；提交推送并更新 App Agent pin 后继续零残留反向扫描 |
 | 2026-08-05 | P36 定义快照、评分与上下文信任边界 | duplicate/whitespace、typed-nil/panic snapshot、request mutation、非法 score/options、nil ProcessContext 与 deployment attribution 反例通过；API 627 declaration/root 53，SHA-256 `d594c5ed9d05ed104f1996b4ae61942a331a5f884b302dea2e8889e9dc5a3138`；wire 160 行且 hash 不变。Agent standalone 全量 build/vet/test/staticcheck/golangci-lint/tidy、受影响 package race、examples 与 diff check 全绿 | 200/200 关闭；提交推送并更新 App Agent pin 后继续零残留反向扫描 |
 | 2026-08-05 | P35 Workflow 构造期原子性与定义检查 | whitespace Name、parent/late-child invalid-before-deploy、metadata panic/single-read 反例通过；API/wire hash 不变。Agent standalone 全量 build/vet/test/staticcheck/golangci-lint/tidy，core/workflow/arch race 与 diff check 全绿 | 196/196 关闭；提交推送并更新 App Agent pin 后继续最终反向扫描 |
 | 2026-08-05 | P34 Capability nil、回调失败与输入所有权合同 | typed-nil、candidate mutation、host callback panic、NaN/Inf cost 与负 round limit 反例全部通过；API 627 declaration/root 53，SHA-256 `ebbe2e85c311e9858351cc68c52cd915201dcbb0d93a46a1e123cf9b0446550a`；wire 160 行且 hash 不变。Agent 全量 build/vet/test/staticcheck/golangci-lint/tidy，受影响 package race 与 diff check 全绿 | 192/192 关闭；提交推送并更新 App Agent pin 后继续最终反向扫描 |

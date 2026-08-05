@@ -578,22 +578,24 @@ type failingValidator struct {
 }
 
 type capturingValidator struct {
-	seen *core.Agent
+	seen   core.AgentDescriptor
+	called bool
 }
 
 func (*capturingValidator) Name() string { return "capture" }
-func (v *capturingValidator) Validate(agent *core.Agent) error {
+func (v *capturingValidator) Validate(agent core.AgentDescriptor) error {
 	v.seen = agent
+	v.called = true
 	return nil
 }
 
 type panickingValidator struct{ cause error }
 
-func (panickingValidator) Name() string                 { return "panicking-validator" }
-func (v panickingValidator) Validate(*core.Agent) error { panic(v.cause) }
+func (panickingValidator) Name() string                          { return "panicking-validator" }
+func (v panickingValidator) Validate(core.AgentDescriptor) error { panic(v.cause) }
 
-func (v failingValidator) Name() string                 { return v.name }
-func (v failingValidator) Validate(_ *core.Agent) error { return v.err }
+func (v failingValidator) Name() string                        { return v.name }
+func (v failingValidator) Validate(core.AgentDescriptor) error { return v.err }
 
 // TestAgentValidatorRejectsDeploy — extension can veto Deploy, error is
 // attributed to the validator's Name.
@@ -618,7 +620,7 @@ func TestAgentValidatorRejectsDeploy(t *testing.T) {
 	}
 }
 
-func TestAgentValidatorReceivesCompiledSnapshot(t *testing.T) {
+func TestAgentValidatorReceivesCompiledDescriptor(t *testing.T) {
 	definition := newExtensionTestAgent()
 	validator := new(capturingValidator)
 	engine := agent.MustNewEngine(runtime.Config{Extensions: []core.Extension{validator}})
@@ -626,10 +628,10 @@ func TestAgentValidatorReceivesCompiledSnapshot(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Deploy: %v", err)
 	}
-	if validator.seen == nil || validator.seen == definition {
-		t.Fatalf("validator agent = %p, source = %p", validator.seen, definition)
+	if !validator.called {
+		t.Fatal("validator was not called")
 	}
-	seen := validator.seen.Descriptor()
+	seen := validator.seen
 	deployed := deployment.Descriptor()
 	if seen.Name() != deployed.Name() ||
 		seen.Version() != deployed.Version() ||

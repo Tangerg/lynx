@@ -35,3 +35,43 @@ func TestNewEngineReturnsExtensionNamePanic(t *testing.T) {
 		t.Fatalf("error = %v, want wrapped cause", err)
 	}
 }
+
+type countingFacadeValidator struct {
+	nameCalls int
+}
+
+func (v *countingFacadeValidator) Name() string {
+	v.nameCalls++
+	return "counting-validator"
+}
+
+func (*countingFacadeValidator) Validate(AgentDescriptor) error { return nil }
+
+func TestNewEngineReadsExtensionNameOnce(t *testing.T) {
+	validator := new(countingFacadeValidator)
+	engine, err := NewEngine(EngineConfig{Extensions: []Extension{validator}})
+	if err != nil {
+		t.Fatalf("NewEngine: %v", err)
+	}
+	if engine == nil {
+		t.Fatal("engine = nil")
+	}
+	if validator.nameCalls != 1 {
+		t.Fatalf("Name calls = %d, want 1", validator.nameCalls)
+	}
+}
+
+type reservedFacadeValidator struct{}
+
+func (reservedFacadeValidator) Name() string                   { return "goap" }
+func (reservedFacadeValidator) Validate(AgentDescriptor) error { return nil }
+
+func TestNewEngineRejectsBuiltInPlannerNameCollision(t *testing.T) {
+	engine, err := NewEngine(EngineConfig{Extensions: []Extension{reservedFacadeValidator{}}})
+	if engine != nil {
+		t.Fatalf("engine = %#v, want nil", engine)
+	}
+	if err == nil || !strings.Contains(err.Error(), `extension "goap" already registered`) {
+		t.Fatalf("error = %v, want reserved-name collision", err)
+	}
+}

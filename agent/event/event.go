@@ -138,12 +138,11 @@ type ProcessKilled struct {
 
 func (ProcessKilled) Kind() Kind { return KindProcessKilled }
 
-// ProcessTerminated fires when a StopPolicy or a queued
-// [core.TerminationScopeAgent] signal stops the process.
+// ProcessTerminated fires when a StopPolicy, budget, or action-requested
+// graceful stop terminates the process.
 type ProcessTerminated struct {
 	Header
 	Reason string
-	Scope  core.TerminationScope
 }
 
 func (ProcessTerminated) Kind() Kind { return KindProcessTerminated }

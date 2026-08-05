@@ -175,33 +175,23 @@ func (pc *ProcessContext) Suspend(ctx context.Context, suspension interaction.Su
 	return status, nil
 }
 
-// TerminateAgent requests process termination at the next tick boundary.
-func (pc *ProcessContext) TerminateAgent(reason string) error {
+// Terminate requests graceful process termination at the next tick boundary.
+func (pc *ProcessContext) Terminate(reason string) error {
 	control, err := pc.lifecycleControl()
 	if err != nil {
 		return err
 	}
-	control.TerminateAgent(reason)
+	control.Terminate(reason)
 	return nil
 }
 
-// TerminateAction requests re-planning without terminating the process.
-func (pc *ProcessContext) TerminateAction(reason string) error {
+// CancelToolCall cancels the process's registered in-flight tool call.
+func (pc *ProcessContext) CancelToolCall() error {
 	control, err := pc.lifecycleControl()
 	if err != nil {
 		return err
 	}
-	control.TerminateAction(reason)
-	return nil
-}
-
-// TerminateToolCall cancels the process's registered in-flight tool call.
-func (pc *ProcessContext) TerminateToolCall() error {
-	control, err := pc.lifecycleControl()
-	if err != nil {
-		return err
-	}
-	control.TerminateToolCall()
+	control.CancelToolCall()
 	return nil
 }
 
@@ -220,7 +210,7 @@ func (pc *ProcessContext) ActionTools(ctx context.Context) ([]tool.Tool, error) 
 	return pc.actionTools(contextOrBackground(ctx), slices.Clone(pc.actionToolGroups))
 }
 
-// ToolCallContext derives a child context cancellable through TerminateToolCall.
+// ToolCallContext derives a child context cancellable through CancelToolCall.
 // The returned cancel function also unregisters the runtime callback and must
 // be called when the tool invocation finishes.
 func (pc *ProcessContext) ToolCallContext(parent context.Context) (context.Context, context.CancelFunc) {

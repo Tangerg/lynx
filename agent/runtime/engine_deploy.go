@@ -49,7 +49,7 @@ func (e *DeploymentConflictError) Unwrap() error { return ErrDeploymentConflict 
 //
 //  1. Runtime freezes caller-owned SPI metadata into the execution snapshot.
 //  2. [core.Agent.Validate] checks that frozen snapshot's structural invariants.
-//  3. Every [core.AgentValidator] extension runs against that same snapshot;
+//  3. Every [core.AgentValidator] extension runs against its inert descriptor;
 //     each error is collected with the validator's Name attributed.
 //
 // All collected problems are joined into a single error so a misconfigured

@@ -11,9 +11,8 @@ import (
 func TestProcessContextLifecycleErrorsIdentifyUnavailableControl(t *testing.T) {
 	process := core.NewProcessContext(core.ProcessContextConfig{})
 	for name, run := range map[string]func() error{
-		"terminate agent":     func() error { return process.TerminateAgent("stop") },
-		"terminate action":    func() error { return process.TerminateAction("stop") },
-		"terminate tool call": process.TerminateToolCall,
+		"terminate process": func() error { return process.Terminate("stop") },
+		"cancel tool call":  process.CancelToolCall,
 		"suspend": func() error {
 			_, err := process.Suspend(t.Context(), interaction.Suspension{})
 			return err

@@ -1,56 +1,20 @@
 package runtime
 
-import (
-	"testing"
+import "testing"
 
-	"github.com/Tangerg/lynx/agent/core"
-)
-
-func TestProcessSignalsMergeTerminationByScope(t *testing.T) {
+func TestProcessSignalsRetainFirstTerminationReason(t *testing.T) {
 	signals := newProcessSignals()
-	signals.queueTermination(core.TerminationScopeAction, "retry action")
-	signals.queueTermination(core.TerminationScopeAgent, "stop process")
-	signals.queueTermination(core.TerminationScopeAction, "late action")
-	signals.queueTermination(core.TerminationScopeAgent, "late process")
+	signals.queueTermination("first cause")
+	signals.queueTermination("late cause")
 
-	got := signals.drainTerminate()
+	got := signals.drainTermination()
 	if got == nil {
-		t.Fatal("drainTerminate() = nil, want signal")
+		t.Fatal("drainTermination() = nil, want request")
 	}
-	if got.Scope != core.TerminationScopeAgent || got.Reason != "stop process" {
-		t.Fatalf("signal = %#v, want first agent-scoped request", got)
+	if got.reason != "first cause" {
+		t.Fatalf("reason = %q, want first cause", got.reason)
 	}
-	if got := signals.drainTerminate(); got != nil {
-		t.Fatalf("second drainTerminate() = %#v, want nil", got)
+	if got := signals.drainTermination(); got != nil {
+		t.Fatalf("second drainTermination() = %#v, want nil", got)
 	}
-}
-
-func TestProcessSignalsPreferAgentTerminationInEveryArrivalOrder(t *testing.T) {
-	tests := []struct {
-		name  string
-		first core.TerminationScope
-		last  core.TerminationScope
-	}{
-		{name: "action then agent", first: core.TerminationScopeAction, last: core.TerminationScopeAgent},
-		{name: "agent then action", first: core.TerminationScopeAgent, last: core.TerminationScopeAction},
-	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			signals := newProcessSignals()
-			signals.queueTermination(test.first, terminationReason(test.first))
-			signals.queueTermination(test.last, terminationReason(test.last))
-
-			got := signals.drainTerminate()
-			if got == nil || got.Scope != core.TerminationScopeAgent || got.Reason != "stop process" {
-				t.Fatalf("signal = %#v, want agent-scoped request", got)
-			}
-		})
-	}
-}
-
-func terminationReason(scope core.TerminationScope) string {
-	if scope == core.TerminationScopeAgent {
-		return "stop process"
-	}
-	return "retry action"
 }

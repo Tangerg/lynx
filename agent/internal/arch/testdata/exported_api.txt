@@ -59,7 +59,6 @@ core: const ( ActionSucceeded ActionStatus = iota ActionFailed ActionWaiting Act
 core: const ( DefaultBindingName = "it" LastResultBindingName = "last_result" )
 core: const ( StatusNotStarted ProcessStatus = iota StatusRunning StatusCompleted StatusFailed StatusStuck StatusWaiting StatusPaused StatusTerminated StatusKilled )
 core: const ( StuckStop StuckDecision = iota StuckReplan )
-core: const ( TerminationScopeAgent TerminationScope = iota TerminationScopeAction )
 core: const ( Unknown Truth = 0 True Truth = 1 False Truth = 2 )
 core: const ProcessSnapshotSchemaVersion uint16 = 15
 core: const UUIDGeneratorName = "uuid"
@@ -149,14 +148,13 @@ core: func (m ActionMetadata) Descriptor() ActionDescriptor
 core: func (m ActionMetadata) RunCondition() string
 core: func (pc *ProcessContext) ActionTools(ctx context.Context) ([]tool.Tool, error)
 core: func (pc *ProcessContext) Blackboard() Blackboard
+core: func (pc *ProcessContext) CancelToolCall() error
 core: func (pc *ProcessContext) Dependencies() *Dependencies
 core: func (pc *ProcessContext) Interact(ctx context.Context, input Interaction) (interaction.Result, error)
 core: func (pc *ProcessContext) Process() ProcessView
 core: func (pc *ProcessContext) Prompt(ctx context.Context, text string, config PromptConfig) (string, error)
 core: func (pc *ProcessContext) Suspend(ctx context.Context, suspension interaction.Suspension) (ActionStatus, error)
-core: func (pc *ProcessContext) TerminateAction(reason string) error
-core: func (pc *ProcessContext) TerminateAgent(reason string) error
-core: func (pc *ProcessContext) TerminateToolCall() error
+core: func (pc *ProcessContext) Terminate(reason string) error
 core: func (pc *ProcessContext) ToolCallContext(parent context.Context) (context.Context, context.CancelFunc)
 core: func (r *ReplanRequest) Error() string
 core: func (r DeploymentRef) String() string
@@ -168,7 +166,6 @@ core: func (s ProcessSnapshot) MarshalJSON() ([]byte, error)
 core: func (s ProcessSnapshot) Validate() error
 core: func (s ProcessStatus) IsTerminal() bool
 core: func (s ProcessStatus) String() string
-core: func (s TerminationScope) String() string
 core: func (t ProcessSnapshotTree) Root() (ProcessSnapshot, bool)
 core: func (t ProcessSnapshotTree) Usage() (Usage, error)
 core: func (t ProcessSnapshotTree) Validate() error
@@ -220,7 +217,7 @@ core: type ActionStatus int8
 core: type Agent struct { }
 core: type AgentConfig struct { Name string Description string Version string StuckPolicy StuckPolicy Actions []Action Goals []*Goal Conditions []Condition SnapshotState []Binding PlannerName string }
 core: type AgentDescriptor struct { }
-core: type AgentValidator interface { Extension Validate(agent *Agent) error }
+core: type AgentValidator interface { Extension Validate(agent AgentDescriptor) error }
 core: type Binding struct { Name string Type string }
 core: type Bindings struct { }
 core: type Blackboard interface { Extension BlackboardReader BlackboardWriter Clone() (Blackboard, error) ClearWorkingState() error }
@@ -252,7 +249,7 @@ core: type InteractionCostProjector interface { Extension ProjectInteractionCost
 core: type ParseTruthFunc func(string) Truth
 core: type ProcessContext struct { }
 core: type ProcessContextConfig struct { Process ProcessView Control ProcessControl Blackboard Blackboard Dependencies *Dependencies MaxToolRounds int ActionTools func(context.Context, []string) ([]tool.Tool, error) RunInteraction func(context.Context, Interaction) (interaction.Result, error) ToolCallCancel func(context.CancelFunc) (release func()) ActionToolGroups []string }
-core: type ProcessControl interface { TerminateAgent(reason string) TerminateAction(reason string) TerminateToolCall() Suspend(ctx context.Context, suspension interaction.Suspension) (ActionStatus, error) }
+core: type ProcessControl interface { Terminate(reason string) CancelToolCall() Suspend(ctx context.Context, suspension interaction.Suspension) (ActionStatus, error) }
 core: type ProcessFailure struct { Message string `json:"message"` }
 core: type ProcessOptions struct { Blackboard Blackboard ChildOptions ChildOptionsFunc Budget Budget Dependencies *Dependencies Extensions []Extension ChatMiddleware *ChatMiddleware MaxToolRounds int }
 core: type ProcessSnapshot struct { SchemaVersion uint16 `json:"schema_version"` ID string `json:"id"` ParentID string `json:"parent_id,omitempty"` SpawnCallID string `json:"spawn_call_id,omitempty"` Deployment DeploymentRef `json:"deployment"` StartedAt time.Time `json:"started_at"` Status ProcessStatus `json:"-"` Suspension *interaction.Suspension `json:"suspension,omitempty"` GoalName string `json:"goal_name,omitempty"` Failure *ProcessFailure `json:"failure,omitempty"` OwnUsage Usage `json:"own_usage"` RetiredChildUsage Usage `json:"retired_child_usage"` Blackboard map[string]TaggedValue `json:"blackboard,omitempty"` Conditions map[string]bool `json:"conditions,omitempty"` Objects []TaggedValue `json:"objects,omitempty"` Hidden []TaggedValue `json:"hidden,omitempty"` }
@@ -271,8 +268,6 @@ core: type StuckDecision uint8
 core: type StuckPolicy interface { Recover(ctx context.Context, process ProcessView, blackboard BlackboardWriter) (StuckResult, error) }
 core: type StuckResult struct { Decision StuckDecision Reason string }
 core: type TaggedValue struct { Type string `json:"t"` Value json.RawMessage `json:"v"` }
-core: type TerminationScope int
-core: type TerminationSignal struct { Scope TerminationScope Reason string }
 core: type ToolGroup interface { Tools(ctx context.Context) ([]tool.Tool, error) }
 core: type ToolGroupResolver interface { Extension Resolve(ctx context.Context, role string) (ToolGroup, bool, error) }
 core: type ToolMiddleware interface { Extension WrapTool( process ProcessView, action ActionDescriptor, tool tool.Tool, ) tool.Tool }
@@ -330,7 +325,7 @@ event: type ProcessCreated struct { Header ParentID string SpawnCallID string }
 event: type ProcessFailed struct { Header Err error }
 event: type ProcessKilled struct { Header Reason string }
 event: type ProcessStuck struct { Header State core.WorldState Reason string }
-event: type ProcessTerminated struct { Header Reason string Scope core.TerminationScope }
+event: type ProcessTerminated struct { Header Reason string }
 event: type ProcessWaiting struct { Header Suspension *interaction.Suspension }
 event: type ReplanRequested struct { Header ActionName string Reason string }
 hitl: func HandleInterrupt(ctx context.Context, process *core.ProcessContext, err error) (core.ActionStatus, bool, error)

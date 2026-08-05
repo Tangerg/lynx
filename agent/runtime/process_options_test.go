@@ -12,8 +12,8 @@ import (
 
 type engineOnlyValidator struct{}
 
-func (engineOnlyValidator) Name() string               { return "validator" }
-func (engineOnlyValidator) Validate(*core.Agent) error { return nil }
+func (engineOnlyValidator) Name() string                        { return "validator" }
+func (engineOnlyValidator) Validate(core.AgentDescriptor) error { return nil }
 
 func TestSnapshotProcessOptionsOwnsMutableContainers(t *testing.T) {
 	firstExtension := &constructorExtension{name: "first"}
