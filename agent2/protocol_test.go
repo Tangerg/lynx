@@ -138,3 +138,11 @@ func TestWaitRequestKeepsEngineKeySeparateFromStrategySignalPayload(t *testing.T
 		t.Fatal(err)
 	}
 }
+
+func TestFrameworkEffectRejectsUnknownOperations(t *testing.T) {
+	data := []byte(`{"target":"framework","payload":{"operation":"tool","schema_version":1,"key":"approval","signal_payload":{}}}`)
+	var effect Effect
+	if err := json.Unmarshal(data, &effect); !errors.Is(err, ErrInvalidEffect) {
+		t.Fatalf("unknown Framework Effect error = %v, want ErrInvalidEffect", err)
+	}
+}

@@ -7,7 +7,7 @@ import (
 )
 
 func TestDigestStrictRoundTrip(t *testing.T) {
-	want := digestBytes([]byte("deployment content"))
+	want := ComputeDigest([]byte("deployment content"))
 	parsed, err := ParseDigest(want.String())
 	if err != nil {
 		t.Fatal(err)

@@ -471,15 +471,13 @@ func mustSignalWithoutTest(id string, waitID WaitID, receivedAt time.Time, paylo
 }
 
 func decodeJSONInto(data []byte, target any) error {
-	decoder := json.NewDecoder(bytesReader(data))
+	decoder := json.NewDecoder(bytes.NewReader(data))
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(target); err != nil {
 		return err
 	}
 	return requireJSONEOF(decoder)
 }
-
-func bytesReader(data []byte) *bytes.Reader { return bytes.NewReader(data) }
 
 func TestPreparedStepRequiresDurableAcknowledgmentBeforeDispatch(t *testing.T) {
 	definition := newPreparedSpikeDefinition(t)

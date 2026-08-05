@@ -59,23 +59,6 @@ func (adapter Typed[I, O]) EncodeInput(value I) (Input, error) {
 	return input, nil
 }
 
-// Start strictly encodes and validates a typed value before creating an
-// Execution through the erased Definition.
-func (adapter Typed[I, O]) Start(value I) (Execution, error) {
-	input, err := adapter.EncodeInput(value)
-	if err != nil {
-		return nil, err
-	}
-	execution, err := adapter.definition.Start(input)
-	if err != nil {
-		return nil, err
-	}
-	if execution == nil {
-		return nil, fmt.Errorf("%w: Definition.Start returned a nil Execution", ErrInvalidTypedAdapter)
-	}
-	return execution, nil
-}
-
 // DecodeOutput validates the authoritative Descriptor output schema before
 // strictly decoding the final semantic result into O.
 func (adapter Typed[I, O]) DecodeOutput(output Output) (O, error) {

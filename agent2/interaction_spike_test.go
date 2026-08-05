@@ -296,7 +296,11 @@ func TestInteractionSpikeValidatesModelToolStreamHITLAndSteer(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	execution, err := typed.Start(interactionSpikeInput{Prompt: "inspect repository"})
+	input, err := typed.EncodeInput(interactionSpikeInput{Prompt: "inspect repository"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	execution, err := definition.Start(input)
 	if err != nil {
 		t.Fatal(err)
 	}

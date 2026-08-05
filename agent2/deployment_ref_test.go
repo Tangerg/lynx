@@ -61,3 +61,51 @@ func TestDeploymentRefStrictJSONRejectsTampering(t *testing.T) {
 		t.Fatalf("tampered DeploymentRef error = %v, want ErrInvalidDeploymentRef", err)
 	}
 }
+
+func FuzzDeploymentRefJSONRoundTrip(f *testing.F) {
+	reference, err := NewDeploymentRef(testDescriptorForFuzz(f), ComputeDigest([]byte("implementation")), ComputeDigest([]byte("configuration")))
+	if err != nil {
+		f.Fatal(err)
+	}
+	seed, err := json.Marshal(reference)
+	if err != nil {
+		f.Fatal(err)
+	}
+	f.Add(seed)
+	f.Fuzz(func(t *testing.T, data []byte) {
+		var decoded DeploymentRef
+		if err := json.Unmarshal(data, &decoded); err != nil {
+			return
+		}
+		encoded, err := json.Marshal(decoded)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var roundTrip DeploymentRef
+		if err := json.Unmarshal(encoded, &roundTrip); err != nil {
+			t.Fatal(err)
+		}
+		if roundTrip != decoded {
+			t.Fatalf("round trip = %+v, want %+v", roundTrip, decoded)
+		}
+	})
+}
+
+func testDescriptorForFuzz(f *testing.F) Descriptor {
+	f.Helper()
+	schema, err := SchemaFor[wireFixture]()
+	if err != nil {
+		f.Fatal(err)
+	}
+	descriptor, err := NewDescriptor(DescriptorConfig{
+		Name:         "deployment.fuzz",
+		Description:  "Validates DeploymentRef codec fuzz behavior.",
+		Version:      "0.1.0",
+		InputSchema:  schema,
+		OutputSchema: schema,
+	})
+	if err != nil {
+		f.Fatal(err)
+	}
+	return descriptor
+}

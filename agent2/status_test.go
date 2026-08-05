@@ -1,6 +1,7 @@
 package agent2
 
 import (
+	"encoding/json"
 	"errors"
 	"testing"
 )
@@ -34,10 +35,19 @@ func TestStatusTransitionMatrix(t *testing.T) {
 
 func TestResolveTerminationPriorityMatrix(t *testing.T) {
 	kill, _ := newKillIntent("operator requested kill")
-	deadline, _ := newDeadlineIntent(deadlineOwnerHost, "host deadline reached")
-	cancellation, _ := newCancellationIntent(cancellationOwnerParent, "parent cancelled")
-	failure, _ := NewFailure(FailureKindExternal, "provider.failed", "Provider failed.")
-	failed, _ := failedOutcome(failure)
+	processDeadline, _ := newDeadlineIntent(deadlineOwnerProcess, "process deadline reached")
+	parentDeadline, _ := newDeadlineIntent(deadlineOwnerParent, "parent deadline reached")
+	hostDeadline, _ := newDeadlineIntent(deadlineOwnerHost, "host deadline reached")
+	parentCancellation, _ := newCancellationIntent(cancellationOwnerParent, "parent cancelled")
+	hostCancellation, _ := newCancellationIntent(cancellationOwnerHost, "host cancelled")
+	executionFailure, _ := NewFailure(FailureKindExecution, "step.failed", "Step failed.")
+	contractFailure, _ := NewFailure(FailureKindContract, "transition.invalid", "Transition is invalid.")
+	externalFailure, _ := NewFailure(FailureKindExternal, "provider.failed", "Provider failed.")
+	panicFailure, _ := NewFailure(FailureKindPanic, "step.panic", "Step panicked.")
+	executionFailed, _ := failedOutcome(executionFailure)
+	contractFailed, _ := failedOutcome(contractFailure)
+	externalFailed, _ := failedOutcome(externalFailure)
+	panicFailed, _ := failedOutcome(panicFailure)
 
 	tests := []struct {
 		name  string
@@ -45,10 +55,16 @@ func TestResolveTerminationPriorityMatrix(t *testing.T) {
 		want  Status
 		cause TerminationCause
 	}{
-		{name: "kill wins all", facts: terminationFacts{kill: kill, deadline: deadline, cancellation: cancellation, outcome: failed}, want: StatusKilled, cause: TerminationCauseEngineKill},
-		{name: "deadline wins cancellation and failure", facts: terminationFacts{deadline: deadline, cancellation: cancellation, outcome: failed}, want: StatusTimedOut, cause: TerminationCauseHostDeadline},
-		{name: "cancellation wins failure", facts: terminationFacts{cancellation: cancellation, outcome: failed}, want: StatusCancelled, cause: TerminationCauseParentCancellation},
-		{name: "failure without control", facts: terminationFacts{outcome: failed}, want: StatusFailed, cause: TerminationCauseExternalFailure},
+		{name: "kill wins all", facts: terminationFacts{kill: kill, deadline: hostDeadline, cancellation: parentCancellation, outcome: externalFailed}, want: StatusKilled, cause: TerminationCauseEngineKill},
+		{name: "process deadline", facts: terminationFacts{deadline: processDeadline, outcome: externalFailed}, want: StatusTimedOut, cause: TerminationCauseProcessDeadline},
+		{name: "parent deadline", facts: terminationFacts{deadline: parentDeadline, outcome: externalFailed}, want: StatusTimedOut, cause: TerminationCauseParentDeadline},
+		{name: "host deadline wins cancellation and failure", facts: terminationFacts{deadline: hostDeadline, cancellation: parentCancellation, outcome: externalFailed}, want: StatusTimedOut, cause: TerminationCauseHostDeadline},
+		{name: "parent cancellation wins failure", facts: terminationFacts{cancellation: parentCancellation, outcome: externalFailed}, want: StatusCancelled, cause: TerminationCauseParentCancellation},
+		{name: "host cancellation wins failure", facts: terminationFacts{cancellation: hostCancellation, outcome: externalFailed}, want: StatusCancelled, cause: TerminationCauseHostCancellation},
+		{name: "execution failure", facts: terminationFacts{outcome: executionFailed}, want: StatusFailed, cause: TerminationCauseExecutionFailure},
+		{name: "contract failure", facts: terminationFacts{outcome: contractFailed}, want: StatusFailed, cause: TerminationCauseContractFailure},
+		{name: "external failure", facts: terminationFacts{outcome: externalFailed}, want: StatusFailed, cause: TerminationCauseExternalFailure},
+		{name: "panic", facts: terminationFacts{outcome: panicFailed}, want: StatusFailed, cause: TerminationCausePanic},
 		{name: "completion", facts: terminationFacts{outcome: completedOutcome()}, want: StatusCompleted, cause: TerminationCauseCompletion},
 	}
 	for _, test := range tests {
@@ -61,6 +77,25 @@ func TestResolveTerminationPriorityMatrix(t *testing.T) {
 				t.Fatalf("ResolveTermination() = status %s cause %d valid %t", got.Status(), got.Cause(), got.Valid())
 			}
 		})
+	}
+}
+
+func TestStatusStrictJSONRoundTrip(t *testing.T) {
+	for status := StatusNotStarted; status <= StatusKilled; status++ {
+		data, err := json.Marshal(status)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var decoded Status
+		if err := json.Unmarshal(data, &decoded); err != nil {
+			t.Fatal(err)
+		}
+		if decoded != status {
+			t.Fatalf("decoded Status = %s, want %s", decoded, status)
+		}
+	}
+	if _, err := json.Marshal(StatusInvalid); !errors.Is(err, ErrInvalidStatus) {
+		t.Fatalf("marshal invalid Status error = %v, want ErrInvalidStatus", err)
 	}
 }
 

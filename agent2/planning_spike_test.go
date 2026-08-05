@@ -305,7 +305,11 @@ func TestPlanningSpikeValidatesTwoActionObservePlanActReobserve(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	execution, err := typed.Start(planningSpikeInput{Goal: "built"})
+	input, err := typed.EncodeInput(planningSpikeInput{Goal: "built"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	execution, err := definition.Start(input)
 	if err != nil {
 		t.Fatal(err)
 	}

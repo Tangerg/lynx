@@ -60,7 +60,11 @@ func TestTypedAdapterKeepsDefinitionErased(t *testing.T) {
 		t.Fatalf("heterogeneous erased Definitions = %+v", erased)
 	}
 
-	execution, err := message.Start(wireFixture{Message: "hello"})
+	input, err := message.EncodeInput(wireFixture{Message: "hello"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	execution, err := message.Definition().Start(input)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -81,14 +85,14 @@ func TestTypedAdapterKeepsDefinitionErased(t *testing.T) {
 	}
 }
 
-func TestTypedAdapterRejectsSchemaMismatchBeforeStart(t *testing.T) {
+func TestTypedAdapterRejectsSchemaMismatchAtEdge(t *testing.T) {
 	definition := newTypedFixtureDefinition[wireFixture](t, "fixture.message")
 	adapter, err := NewTyped[typedCount, wireFixture](definition)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := adapter.Start(typedCount{Count: 3}); !errors.Is(err, ErrInvalidTypedAdapter) {
-		t.Fatalf("Start schema mismatch error = %v, want ErrInvalidTypedAdapter", err)
+	if _, err := adapter.EncodeInput(typedCount{Count: 3}); !errors.Is(err, ErrInvalidTypedAdapter) {
+		t.Fatalf("EncodeInput schema mismatch error = %v, want ErrInvalidTypedAdapter", err)
 	}
 	if definition.starts != 0 {
 		t.Fatalf("Definition.Start called %d times after edge validation failed", definition.starts)
