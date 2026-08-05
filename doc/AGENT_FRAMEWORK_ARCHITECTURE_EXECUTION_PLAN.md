@@ -1,6 +1,6 @@
 # Agent Framework 架构演进执行计划
 
-> 状态：持续开发（P40 验证代码失败语义清洗已完成，3/3）
+> 状态：持续开发（P41 公开能力可达性与零残留收口已完成，3/3）
 > 建立日期：2026-07-15
 > 最后更新：2026-08-05
 > 维护者：Lynx 仓库维护者
@@ -2284,6 +2284,29 @@ GoDoc、API baseline 与实现同步，不增加公开 package 或兼容路径�
 退出标准：验证代码不静默丢弃可失败操作，不在错误分支解引用可能为空的结果，不以越界或类型断言
 panic 代替领域断言；标准门禁和含测试文件的额外 errcheck 同时为零。
 
+### P41：公开能力可达性与零残留收口
+
+- [x] **P41-01 deadcode 结果按领域语义裁决**（完成：2026-08-05）
+  - `deadcode -test` 首次只报告 5 个公开能力：root CompletionResult façade、DependencyKey.Name、
+    PromptCondition.Name、HandleInterrupt 与 HTN Library.Lookup。逐一核对后确认它们分别承担 façade
+    完整性、值对象身份、Condition SPI、手写 Action HITL 和只读 authoring query，不是可删除死代码。
+  - 不以可达性工具替代领域判断，不删除合法公共能力；补齐最小契约测试后 `deadcode -test ./...`
+    输出为空，公开入口与背后的私有调用链均有真实可达路径。
+- [x] **P41-02 公开能力契约闭合**（完成：2026-08-05）
+  - façade CompletionResult 锁定空 completion 转发；DependencyKey/PromptCondition 锁定稳定 Name；
+    HandleInterrupt 锁定 wrapped suspension 的 waiting translation 与 ordinary error 非处理语义。
+  - HTN Library.Lookup 锁定命中、缺失与 defensive copy，不让 authoring caller 修改 Library 自有 Task。
+  - 所有新增测试显式检查 error/nil/handled/status/identity，不引入测试专用生产入口或新抽象。
+- [x] **P41-03 独立零残留审计与完整门禁**（完成：2026-08-05）
+  - 空目录/空文件、TODO/FIXME/HACK/XXX、生产静态 fmt.Errorf、含测试 errcheck、deadcode、宿主边界
+    architecture guard、API/wire baseline 与 git diff 扫描均无未裁决项。
+  - Agent public API 623 declaration/root 53 与 wire 160 行均不变，两个 baseline hash 不变。
+  - Agent standalone 全量 build/vet/test/staticcheck/golangci-lint/tidy、core/planning/runtime/workflow/arch
+    race、examples 与 diff check 全绿；App Runtime 精确 pin 后同级服务端门禁全绿。
+
+退出标准：静态可达性报告为空；保留的公共能力都有可构造契约；所有结构、术语、错误、边界、API、
+wire 与门禁扫描无未裁决命中。本轮不把“零残留”夸大为永不演进，只表示当前标尺下没有已知债务。
+
 ---
 
 ## 15. 当前进度
@@ -2328,16 +2351,17 @@ panic 代替领域断言；标准门禁和含测试文件的额外 errcheck 同�
 | P38 规划快照与 HTN 声明边界 | 完成 | 4/4 | Domain metadata snapshot、HTN identity-only task、删除虚假 planner 旋钮与门禁收口 |
 | P39 生产表面与测试语义清洗 | 完成 | 3/3 | test-only production entry 删除、测试术语/错误处理收正与反证门禁 |
 | P40 验证代码失败语义清洗 | 完成 | 3/3 | 测试吞错、nil/越界断言与含测试 errcheck 收口 |
-| **总计** | **完成** | **214/214（100%）** | **P40-01 至 P40-03 全部完成；不执行封版、tag 或 release** |
+| P41 公开能力可达性与零残留收口 | 完成 | 3/3 | deadcode 语义裁决、公开契约覆盖与独立零残留审计 |
+| **总计** | **完成** | **217/217（100%）** | **P41-01 至 P41-03 全部完成；不执行封版、tag 或 release** |
 
 ### 15.2 当前焦点
 
-- 当前阶段：P40 验证代码失败语义清洗，3/3，已完成。
+- 当前阶段：P41 公开能力可达性与零残留收口，3/3，已完成。
 - 下一任务：继续以真实调用链和可构造反例审计 Agent；没有真实变化点时不新增 interface、
   adapter、package 或 Runtime 同义词。本批不封版、不创建 tag 或 release。
 - 当前决策门：已解除；按 BB-01 至 BB-08 直接迁移，不保留兼容层。
-- 最近完成：Core/Planning/Routing/Runtime/Workflow 测试成功路径不再吞错；Run、planner 与 blackboard
-  断言先验证 error/nil/length/type/存在性；以包含 `_test.go` 的独立 errcheck 证明未检查 error 清零。
+- 最近完成：对 deadcode 报告的 5 个公开能力完成领域裁决并补齐契约测试；`deadcode -test` 输出归零；
+  空结构、债务标记、错误吞噬、宿主边界、API/wire 与完整 Agent/App 服务端门禁无未裁决命中。
   Agent 只拥有 execution framework 语义，App transaction/idempotency/persistence ownership
   保持不变。
 
@@ -2697,6 +2721,7 @@ panic 代替领域断言；标准门禁和含测试文件的额外 errcheck 同�
 
 | 日期 | 变更 | 作者 |
 |---|---|---|
+| 2026-08-05 | 完成 P41 公开能力可达性与零残留收口：逐一裁决 deadcode 报告的 façade/value object/SPI/HITL/authoring query 为合法能力并补齐契约测试，使 test-aware deadcode 输出归零；空结构、债务标记、错误、边界、API/wire 与完整门禁无未裁决项；无兼容层 | Codex |
 | 2026-08-05 | 完成 P40 验证代码失败语义清洗：Core/Planning/Routing/Runtime/Workflow 测试显式传播 constructor、marshal、plan、registry、blackboard 与 run error；nil process、nil/empty plan 与 unchecked type assertion 改为领域断言；额外启用 test errcheck 收口常规配置排除的验证债；无生产 API、wire 或兼容层变化 | Codex |
 | 2026-08-05 | 完成 P39 生产表面与测试语义清洗：删除仅测试调用的 deployment compiler/process state 生产入口；测试统一 process-tree/AgentTool 当前术语并传播构造、JSON 编码错误；删除迁移历史注释；经 API baseline 反证保留隔离公开签名与 panic recovery 的 StreamCall 边界；无兼容层 | Codex |
 | 2026-08-05 | 完成 P38 规划快照与 HTN 声明边界：Domain 冻结 Action/Condition planner metadata 并 containment 构造/验收 panic；ActionMetadata.Clone 替代重复复制；HTN Task.Action 改为 ActionName，执行能力只由 Domain 解析；删除仅 GOAP 误用且无宿主消费者的 Options.MaxIterations 与多余 ValidatePlanInputs 参数；全部 breaking change 直接迁移，无兼容层 | Codex |
@@ -2772,6 +2797,7 @@ panic 代替领域断言；标准门禁和含测试文件的额外 errcheck 同�
 
 | 日期 | 任务 | 结果与证据 | 下一步 |
 |---|---|---|---|
+| 2026-08-05 | P41 公开能力可达性与零残留收口 | `deadcode -test ./...` 空输出；test errcheck、空目录/文件、债务标记、静态错误与边界扫描无未裁决项。API 623 declaration/root 53，SHA-256 `5cd8ba8c59697011b916e44eb67c71b3ccfa37b02d91d6d726ab0b8eabe6a660`；wire 160 行且 hash `24627d86d343d726e26c1efbbc332026b3aefd80786ffbcbc43933a9daa32575` 不变。Agent/App Runtime 全量服务端门禁、选定 race、tidy 与 diff check 全绿 | 217/217 关闭；提交推送并更新 App Agent pin，随后只做零变化复核 |
 | 2026-08-05 | P40 验证代码失败语义清洗 | 含测试文件的独立 errcheck 0 issues；Run nil safety、planner nil/length、blackboard type/existence 与 filepath.Rel error 断言收口。API 623 declaration/root 53，SHA-256 `5cd8ba8c59697011b916e44eb67c71b3ccfa37b02d91d6d726ab0b8eabe6a660`；wire 160 行且 hash `24627d86d343d726e26c1efbbc332026b3aefd80786ffbcbc43933a9daa32575` 不变。Agent standalone 全量 build/vet/test/staticcheck/golangci-lint/tidy、core/planning/runtime/workflow/arch race、examples 与 diff check 全绿 | 214/214 关闭；提交推送并更新 App Agent pin 后继续最终零变化扫描 |
 | 2026-08-05 | P39 生产表面与测试语义清洗 | test-only production entry、process-tree/AgentTool 术语、历史注释与 targeted ignored-error 扫描收口；API 623 declaration/root 53，SHA-256 `5cd8ba8c59697011b916e44eb67c71b3ccfa37b02d91d6d726ab0b8eabe6a660`；wire 160 行且 hash `24627d86d343d726e26c1efbbc332026b3aefd80786ffbcbc43933a9daa32575` 不变。Agent standalone 全量 build/vet/test/staticcheck/golangci-lint/tidy、core/planning/runtime/arch race、examples 与 diff check 全绿 | 211/211 关闭；提交推送并更新 App Agent pin 后继续零残留反向扫描 |
 | 2026-08-05 | P38 规划快照与 HTN 声明边界 | Domain mutation/delegate/panic/cost 与 nil ordering、planner result panic、HTN identity/missing action/shape/deterministic error 反例通过；API 623 declaration/root 53，SHA-256 `5cd8ba8c59697011b916e44eb67c71b3ccfa37b02d91d6d726ab0b8eabe6a660`；wire 160 行且 hash 不变。Agent standalone 全量 build/vet/test/staticcheck/golangci-lint/tidy、core/planning/runtime/arch race、examples 与 diff check 全绿 | 208/208 关闭；提交推送并更新 App Agent pin 后继续零残留反向扫描 |

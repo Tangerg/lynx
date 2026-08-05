@@ -51,3 +51,9 @@ func TestRequireTypeProducesDistinctDefaultBindingKeys(t *testing.T) {
 		t.Fatalf("RequireType collapsed distinct types to one key %q", topicKey)
 	}
 }
+
+func TestCompletionResultDelegatesToRuntimeSnapshot(t *testing.T) {
+	if _, ok := agent.CompletionResult[int](agent.RunCompletion{}); ok {
+		t.Fatal("CompletionResult found a value in an empty completion")
+	}
+}

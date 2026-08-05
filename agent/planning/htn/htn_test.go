@@ -200,6 +200,24 @@ func TestHTN_RejectsBadTaskShapes(t *testing.T) {
 	}
 }
 
+func TestLibraryLookupReturnsOwnedTaskCopy(t *testing.T) {
+	library := htn.NewLibrary()
+	library.MustAdd(&htn.Task{Name: "step", ActionName: "work"})
+
+	task, ok := library.Lookup("step")
+	if !ok || task == nil || task.ActionName != "work" {
+		t.Fatalf("Lookup(step) = %#v, %v", task, ok)
+	}
+	task.ActionName = "mutated"
+	again, ok := library.Lookup("step")
+	if !ok || again == nil || again.ActionName != "work" {
+		t.Fatalf("Lookup leaked caller mutation: %#v, %v", again, ok)
+	}
+	if missing, ok := library.Lookup("missing"); ok || missing != nil {
+		t.Fatalf("Lookup(missing) = %#v, %v", missing, ok)
+	}
+}
+
 func TestHTN_RejectsUnknownSubtaskAtConstruction(t *testing.T) {
 	lib := htn.NewLibrary()
 	lib.MustAdd(&htn.Task{Name: "step_b", ActionName: "b"})

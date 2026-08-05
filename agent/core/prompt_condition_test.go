@@ -78,6 +78,9 @@ func TestPromptCondition_YesReplyIsTrue(t *testing.T) {
 		},
 		Parse: core.ParseYesNo,
 	})
+	if cond.Name() != "draft_acceptable" {
+		t.Fatalf("Name = %q, want draft_acceptable", cond.Name())
+	}
 
 	got := cond.Evaluate(t.Context(), managedConditionEnv(model))
 	if got != core.True {

@@ -12,6 +12,9 @@ type dependencyFixture struct{ Value string }
 
 func TestDependenciesTypedHierarchy(t *testing.T) {
 	key := core.MustDependencyKey[*dependencyFixture]("fixture")
+	if key.Name() != "fixture" {
+		t.Fatalf("dependency key name = %q, want fixture", key.Name())
+	}
 	root := core.NewDependencies()
 	if err := core.RegisterDependency(root, key, &dependencyFixture{Value: "engine"}); err != nil {
 		t.Fatalf("RegisterDependency root: %v", err)
