@@ -12,10 +12,8 @@ import (
 type nvIn struct{ X int }
 type nvOut struct{ Y int }
 
-// TestNetValueIncludesActionsValue locks in the standard plan-value ranking
-// (goal.value + actionsValue − cost). The actions-value term was previously
-// dropped, so a plan whose actions carry independent value ranked the same
-// as a valueless plan with equal goal value and cost.
+// TestNetValueIncludesActionsValue locks in the standard plan-value ranking:
+// goal value and independent action value both participate alongside cost.
 func TestNetValueIncludesActionsValue(t *testing.T) {
 	mk := func(name string, value, cost float64) core.Action {
 		return agent.NewAction(name,

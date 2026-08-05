@@ -1,6 +1,6 @@
 # Agent Framework 架构演进执行计划
 
-> 状态：持续开发（P38 规划快照与 HTN 声明边界已完成，4/4）
+> 状态：持续开发（P39 生产表面与测试语义清洗已完成，3/3）
 > 建立日期：2026-07-15
 > 最后更新：2026-08-05
 > 维护者：Lynx 仓库维护者
@@ -2239,6 +2239,29 @@ GoDoc、API baseline 与实现同步，不增加公开 package 或兼容路径�
 只表达分解声明，不持有执行权限；公共 planner Options 的每个字段都被全部声称支持它的调用链真实
 消费；不存在兼容字段、双复制机制或错误的 immutable 注释。
 
+### P39：生产表面与测试语义清洗
+
+- [x] **P39-01 删除测试专用生产入口**（完成：2026-08-05）
+  - 删除仅测试调用的 `deploymentCompiler.compile`；测试在同 package 的 `_test.go` 中自行组合
+    snapshot、definition validation 与 compileSnapshot，生产 deployment 只保留 Engine 真实路径。
+  - 删除仅测试读取的 `processState.runActive`；并发所有权测试改用真实 `beginRun` 冲突行为证明
+    `Start` 返回前已完成 run ownership admission，不为断言暴露第二条状态读取路径。
+- [x] **P39-02 测试术语与失败语义收正**（完成：2026-08-05）
+  - process-tree sequencer 测试、key 与错误文案统一使用 tree，不再残留 Session 术语；AgentTool
+    测试名、注释与 JSON 反例同步真实 API，不再沿用 AsChatTool/subagent/legacy 迁移语言。
+  - AgentTool 测试不再丢弃构造与 JSON 编码错误；child event 测试删除历史修复叙述，只陈述当前
+    subtree listener 合同；plan value 测试注释删除迁移历史，只锁定当前评分语义。
+- [x] **P39-03 反证复核与完整门禁**（完成：2026-08-05）
+  - 复核 `StreamCall` 一跳边界后确认其隔离公开无名返回签名与内部 panic 恢复所需命名返回值，
+    因而保留，不以“减少函数数目”为由制造无收益 API 变化。
+  - Agent public API 与 wire baseline hash 均不变；空目录/空文件、TODO/FIXME/HACK/XXX、宿主术语、
+    生产静态 `fmt.Errorf`、test-only production entry 与 targeted ignored-error 扫描收口。
+  - Agent standalone 全量 build/vet/test/staticcheck/golangci-lint/tidy、core/planning/runtime/arch race、
+    examples 与 diff check 全绿。
+
+退出标准：生产代码不为同 package 测试提供专用观察或编排入口；测试只使用当前领域术语并显式处理
+可能失败的构造/执行步骤；一跳函数按真实语义裁决，不机械合并；API、wire 与完整门禁同步。
+
 ---
 
 ## 15. 当前进度
@@ -2281,17 +2304,18 @@ GoDoc、API baseline 与实现同步，不增加公开 package 或兼容路径�
 | P36 定义快照、评分与上下文信任边界 | 完成 | 4/4 | definition/request ownership、统一 score/options、capability nil 与 lifecycle outcome 收口 |
 | P37 生命周期能力与扩展权限边界 | 完成 | 4/4 | lifecycle/replan 单轨、validator inert descriptor、Name 单次注册与门禁收口 |
 | P38 规划快照与 HTN 声明边界 | 完成 | 4/4 | Domain metadata snapshot、HTN identity-only task、删除虚假 planner 旋钮与门禁收口 |
-| **总计** | **完成** | **208/208（100%）** | **P38-01 至 P38-04 全部完成；不执行封版、tag 或 release** |
+| P39 生产表面与测试语义清洗 | 完成 | 3/3 | test-only production entry 删除、测试术语/错误处理收正与反证门禁 |
+| **总计** | **完成** | **211/211（100%）** | **P39-01 至 P39-03 全部完成；不执行封版、tag 或 release** |
 
 ### 15.2 当前焦点
 
-- 当前阶段：P38 规划快照与 HTN 声明边界，4/4，已完成。
+- 当前阶段：P39 生产表面与测试语义清洗，3/3，已完成。
 - 下一任务：继续以真实调用链和可构造反例审计 Agent；没有真实变化点时不新增 interface、
   adapter、package 或 Runtime 同义词。本批不封版、不创建 tag 或 release。
 - 当前决策门：已解除；按 BB-01 至 BB-08 直接迁移，不保留兼容层。
-- 最近完成：Domain 冻结 planner-visible Action/Condition metadata 并 containment capability panic；
-  HTN Task 只引用 domain action identity；删除无消费者且跨 planner 语义不成立的 MaxIterations；
-  ActionMetadata 深复制机制与相关注释合同收敛为唯一实现。
+- 最近完成：删除 deployment compiler 与 process state 的测试专用生产入口；sequencer、AgentTool、
+  child event 与 plan value 测试统一当前领域术语并传播真实错误；通过 API baseline 反证保留
+  `StreamCall` 的公开签名隔离边界。
   Agent 只拥有 execution framework 语义，App transaction/idempotency/persistence ownership
   保持不变。
 
@@ -2651,6 +2675,7 @@ GoDoc、API baseline 与实现同步，不增加公开 package 或兼容路径�
 
 | 日期 | 变更 | 作者 |
 |---|---|---|
+| 2026-08-05 | 完成 P39 生产表面与测试语义清洗：删除仅测试调用的 deployment compiler/process state 生产入口；测试统一 process-tree/AgentTool 当前术语并传播构造、JSON 编码错误；删除迁移历史注释；经 API baseline 反证保留隔离公开签名与 panic recovery 的 StreamCall 边界；无兼容层 | Codex |
 | 2026-08-05 | 完成 P38 规划快照与 HTN 声明边界：Domain 冻结 Action/Condition planner metadata 并 containment 构造/验收 panic；ActionMetadata.Clone 替代重复复制；HTN Task.Action 改为 ActionName，执行能力只由 Domain 解析；删除仅 GOAP 误用且无宿主消费者的 Options.MaxIterations 与多余 ValidatePlanInputs 参数；全部 breaking change 直接迁移，无兼容层 | Codex |
 | 2026-08-05 | 完成 P37 生命周期能力与扩展权限边界：删除 TerminateAction/TerminationScope/TerminationSignal 双轨能力，Terminate/CancelToolCall 名实相符且 replan 只由 ReplanRequest 表达；AgentValidator 改收 inert descriptor；NewEngine 删除 Name 预读与默认 planner override 特例；全部 breaking change 直接迁移，无兼容层 | Codex |
 | 2026-08-05 | 完成 P36 定义快照、评分与上下文信任边界：definition/deployment/prompt 深快照与 typed-nil 语义闭合；planner score/Options 使用唯一校验机制；ProcessContext capability 与 run outcome 收正；示例错误传播及注释合同同步；ValidatePlanInputs breaking 签名直接更新，无兼容层 | Codex |
@@ -2724,6 +2749,7 @@ GoDoc、API baseline 与实现同步，不增加公开 package 或兼容路径�
 
 | 日期 | 任务 | 结果与证据 | 下一步 |
 |---|---|---|---|
+| 2026-08-05 | P39 生产表面与测试语义清洗 | test-only production entry、process-tree/AgentTool 术语、历史注释与 targeted ignored-error 扫描收口；API 623 declaration/root 53，SHA-256 `5cd8ba8c59697011b916e44eb67c71b3ccfa37b02d91d6d726ab0b8eabe6a660`；wire 160 行且 hash `24627d86d343d726e26c1efbbc332026b3aefd80786ffbcbc43933a9daa32575` 不变。Agent standalone 全量 build/vet/test/staticcheck/golangci-lint/tidy、core/planning/runtime/arch race、examples 与 diff check 全绿 | 211/211 关闭；提交推送并更新 App Agent pin 后继续零残留反向扫描 |
 | 2026-08-05 | P38 规划快照与 HTN 声明边界 | Domain mutation/delegate/panic/cost 与 nil ordering、planner result panic、HTN identity/missing action/shape/deterministic error 反例通过；API 623 declaration/root 53，SHA-256 `5cd8ba8c59697011b916e44eb67c71b3ccfa37b02d91d6d726ab0b8eabe6a660`；wire 160 行且 hash 不变。Agent standalone 全量 build/vet/test/staticcheck/golangci-lint/tidy、core/planning/runtime/arch race、examples 与 diff check 全绿 | 208/208 关闭；提交推送并更新 App Agent pin 后继续零残留反向扫描 |
 | 2026-08-05 | P37 生命周期能力与扩展权限边界 | termination 首因、端到端状态/事件、descriptor-only validator、Name single-read 与 built-in collision 反例通过；API 622 declaration/root 53，SHA-256 `1d276a69bc2a35481db24a803f8dc80d0ec44fefcd70d9dd2f672cc292bd9eda`；wire 160 行且 hash 不变。Agent standalone 全量 build/vet/test/staticcheck/golangci-lint/tidy、core/runtime/arch race、examples 与 diff check 全绿 | 204/204 关闭；提交推送并更新 App Agent pin 后继续零残留反向扫描 |
 | 2026-08-05 | P36 定义快照、评分与上下文信任边界 | duplicate/whitespace、typed-nil/panic snapshot、request mutation、非法 score/options、nil ProcessContext 与 deployment attribution 反例通过；API 627 declaration/root 53，SHA-256 `d594c5ed9d05ed104f1996b4ae61942a331a5f884b302dea2e8889e9dc5a3138`；wire 160 行且 hash 不变。Agent standalone 全量 build/vet/test/staticcheck/golangci-lint/tidy、受影响 package race、examples 与 diff check 全绿 | 200/200 关闭；提交推送并更新 App Agent pin 后继续零残留反向扫描 |

@@ -56,6 +56,17 @@ func (deploymentGoldenStuckPolicy) Recover(context.Context, core.ProcessView, co
 	return core.StuckResult{Decision: core.StuckStop}, nil
 }
 
+func (c deploymentCompiler) compile(source *core.Agent) (*Deployment, error) {
+	agent, err := c.snapshot(source)
+	if err != nil {
+		return nil, err
+	}
+	if err := validateAgentDefinition(agent); err != nil {
+		return nil, fmt.Errorf("compile deployment %q: %w", agent.Name(), err)
+	}
+	return c.compileSnapshot(agent)
+}
+
 func (c *mutableDeploymentCondition) Name() string  { return c.name }
 func (c *mutableDeploymentCondition) Cost() float64 { return c.cost }
 func (c *mutableDeploymentCondition) Evaluate(context.Context, *core.ConditionEnv) core.Truth {
@@ -840,7 +851,7 @@ func TestAgentToolRemainsBoundToConstructionDeployment(t *testing.T) {
 	}
 	result, ok := core.Result[deploymentRunOutput](child)
 	if !ok || result.Value != 21 {
-		t.Fatalf("old tool result = %#v, %v; want first deployment", result, ok)
+		t.Fatalf("first-deployment tool result = %#v, %v; want first deployment", result, ok)
 	}
 
 	replacementTool, err := NewAgentTool[deploymentRunInput, deploymentRunOutput](engine, secondDeployment)
@@ -848,7 +859,7 @@ func TestAgentToolRemainsBoundToConstructionDeployment(t *testing.T) {
 		t.Fatal(err)
 	}
 	if replacementTool.(*agentTool).deployment == firstDeployment {
-		t.Fatal("tool constructed after redeploy retained the old deployment")
+		t.Fatal("tool constructed after redeploy retained the first deployment")
 	}
 }
 

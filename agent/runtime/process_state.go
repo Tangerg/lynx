@@ -353,12 +353,6 @@ func (s *processState) waitRun(ctx context.Context) error {
 	}
 }
 
-func (s *processState) runActive() bool {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.runPhase != runIdle
-}
-
 func (s *processState) checkpointBusy() bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()

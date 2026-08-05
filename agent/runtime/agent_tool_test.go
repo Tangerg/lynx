@@ -40,10 +40,10 @@ func constrainedChildAgent() *core.Agent {
 	})
 }
 
-// TestAsChatTool_RunsChildAndReturnsResult exercises the full loop:
-// parent action body invokes the subagent tool directly, child agent
+// TestAgentToolRunsChildAndReturnsResult exercises the full loop:
+// parent action body invokes the agent tool directly, child agent
 // runs, output marshals back as JSON.
-func TestAsChatTool_RunsChildAndReturnsResult(t *testing.T) {
+func TestAgentToolRunsChildAndReturnsResult(t *testing.T) {
 	engine := agent.MustNewEngine(runtime.Config{})
 	childDeployment, err := engine.Deploy(t.Context(), childAgent())
 	if err != nil {
@@ -51,8 +51,14 @@ func TestAsChatTool_RunsChildAndReturnsResult(t *testing.T) {
 	}
 
 	parent := agent.New(agent.AgentConfig{Name: "parent", Description: "calls the child", Actions: []agent.Action{agent.NewAction("invoke-child", func(ctx context.Context, _ *core.ProcessContext, in subInput) (parentOutput, error) {
-		tool, _ := runtime.NewAgentTool[subInput, subOutput](engine, childDeployment)
-		args, _ := json.Marshal(in)
+		tool, err := runtime.NewAgentTool[subInput, subOutput](engine, childDeployment)
+		if err != nil {
+			return parentOutput{}, err
+		}
+		args, err := json.Marshal(in)
+		if err != nil {
+			return parentOutput{}, err
+		}
 		out, err := tool.Call(ctx, string(args))
 		if err != nil {
 			return parentOutput{}, err
@@ -136,23 +142,26 @@ func TestAsChatTool_RunsChildAndReturnsResult(t *testing.T) {
 	}
 }
 
-// TestAsChatTool_NoParentProcessInCtx verifies the helper rejects
-// callers without core.WithProcess in ctx.
-func TestAsChatTool_NoParentProcessInCtx(t *testing.T) {
+// TestAgentToolRejectsMissingParentProcess verifies the helper rejects
+// callers without core.WithProcessView in ctx.
+func TestAgentToolRejectsMissingParentProcess(t *testing.T) {
 	engine := agent.MustNewEngine(runtime.Config{})
 	childDeployment, err := engine.Deploy(t.Context(), childAgent())
 	if err != nil {
 		t.Fatalf("deploy child: %v", err)
 	}
 
-	tool, _ := runtime.NewAgentTool[subInput, subOutput](engine, childDeployment)
+	tool, err := runtime.NewAgentTool[subInput, subOutput](engine, childDeployment)
+	if err != nil {
+		t.Fatal(err)
+	}
 	_, err = tool.Call(t.Context(), `{"Value":1}`)
 	if err == nil || !strings.Contains(err.Error(), "no parent process in ctx") {
 		t.Fatalf("expected no-parent-process error, got %v", err)
 	}
 }
 
-func TestAsChatTool_EnforcesOneTypedInputContract(t *testing.T) {
+func TestAgentToolEnforcesTypedInputContract(t *testing.T) {
 	engine := agent.MustNewEngine(runtime.Config{})
 	childDeployment, err := engine.Deploy(t.Context(), constrainedChildAgent())
 	if err != nil {
@@ -163,7 +172,7 @@ func TestAsChatTool_EnforcesOneTypedInputContract(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, arguments := range []string{
-		`{"instruction":"do work","prompt":"legacy"}`,
+		`{"instruction":"do work","unexpected":"field"}`,
 		`{"instruction":"x"}`,
 		`{}`,
 		`{"instruction":"do work"} {}`,
@@ -179,14 +188,14 @@ func TestAsChatTool_EnforcesOneTypedInputContract(t *testing.T) {
 	}
 }
 
-func TestAsChatTool_RejectsNilDeployment(t *testing.T) {
+func TestNewAgentToolRejectsNilDeployment(t *testing.T) {
 	engine := agent.MustNewEngine(runtime.Config{})
 	if _, err := runtime.NewAgentTool[subInput, subOutput](engine, nil); err == nil {
 		t.Fatal("expected error on nil deployment")
 	}
 }
 
-func TestAsChatTool_RejectsForeignDeployment(t *testing.T) {
+func TestNewAgentToolRejectsForeignDeployment(t *testing.T) {
 	engine := agent.MustNewEngine(runtime.Config{})
 	other := agent.MustNewEngine(runtime.Config{})
 	deployment, err := other.Deploy(t.Context(), childAgent())
@@ -198,7 +207,7 @@ func TestAsChatTool_RejectsForeignDeployment(t *testing.T) {
 	}
 }
 
-func TestAsChatTool_RejectsInterfaceInput(t *testing.T) {
+func TestNewAgentToolRejectsInterfaceInput(t *testing.T) {
 	engine := agent.MustNewEngine(runtime.Config{})
 	childDeployment, err := engine.Deploy(t.Context(), childAgent())
 	if err != nil {
@@ -210,16 +219,19 @@ func TestAsChatTool_RejectsInterfaceInput(t *testing.T) {
 	}
 }
 
-// TestAsChatTool_DefinitionUsesAgentMetadata verifies the tool surface
+// TestAgentToolDefinitionUsesAgentMetadata verifies the tool surface
 // reflects the wrapped agent's name + description and a JSON schema
 // derived from In.
-func TestAsChatTool_DefinitionUsesAgentMetadata(t *testing.T) {
+func TestAgentToolDefinitionUsesAgentMetadata(t *testing.T) {
 	engine := agent.MustNewEngine(runtime.Config{})
 	childDeployment, err := engine.Deploy(t.Context(), childAgent())
 	if err != nil {
 		t.Fatalf("deploy child: %v", err)
 	}
-	tool, _ := runtime.NewAgentTool[subInput, subOutput](engine, childDeployment)
+	tool, err := runtime.NewAgentTool[subInput, subOutput](engine, childDeployment)
+	if err != nil {
+		t.Fatal(err)
+	}
 	def := tool.Definition()
 	if def.Name != "child-agent" {
 		t.Fatalf("Name = %q, want child-agent", def.Name)

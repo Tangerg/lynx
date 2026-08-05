@@ -113,8 +113,8 @@ func TestStartClaimsSegmentOwnershipBeforeReturning(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Start: %v", err)
 	}
-	if !segment.Process().state.runActive() {
-		t.Fatal("Start returned before the segment owned its process run")
+	if started, err := segment.Process().state.beginRun(); started || !errors.Is(err, ErrProcessRunning) {
+		t.Fatalf("second beginRun = (%v, %v), want false and ErrProcessRunning", started, err)
 	}
 	close(release)
 	ctx, cancel := context.WithTimeout(t.Context(), time.Second)

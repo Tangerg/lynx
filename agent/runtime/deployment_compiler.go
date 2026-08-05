@@ -55,17 +55,6 @@ func (d *Deployment) Descriptor() core.AgentDescriptor {
 	return d.descriptor
 }
 
-func (c deploymentCompiler) compile(source *core.Agent) (*Deployment, error) {
-	agent, err := c.snapshot(source)
-	if err != nil {
-		return nil, err
-	}
-	if err := validateAgentDefinition(agent); err != nil {
-		return nil, fmt.Errorf("compile deployment %q: %w", agent.Name(), err)
-	}
-	return c.compileSnapshot(agent)
-}
-
 func (c deploymentCompiler) snapshot(source *core.Agent) (agent *core.Agent, err error) {
 	if source == nil {
 		return nil, errors.New("compile deployment: agent is nil")

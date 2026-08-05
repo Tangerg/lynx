@@ -7,10 +7,10 @@ import (
 	"testing/synctest"
 )
 
-func TestLocalSequencerSerializesSameKey(t *testing.T) {
+func TestProcessTreeSequencerSerializesSameKey(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		sequencer := newProcessTreeSequencer()
-		releaseFirst, err := sequencer.acquire(t.Context(), "session-1")
+		releaseFirst, err := sequencer.acquire(t.Context(), "tree-1")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -18,13 +18,13 @@ func TestLocalSequencerSerializesSameKey(t *testing.T) {
 		waitContext, cancelWait := context.WithCancel(t.Context())
 		waitResult := make(chan error, 1)
 		go func() {
-			_, err := sequencer.acquire(waitContext, "session-1")
+			_, err := sequencer.acquire(waitContext, "tree-1")
 			waitResult <- err
 		}()
 		synctest.Wait()
 		select {
 		case err := <-waitResult:
-			t.Fatalf("same-session acquire returned before release: %v", err)
+			t.Fatalf("same-tree acquire returned before release: %v", err)
 		default:
 		}
 		cancelWait()
@@ -36,12 +36,12 @@ func TestLocalSequencerSerializesSameKey(t *testing.T) {
 		releaseFirst()
 		releaseFirst()
 		if len(sequencer.gates) != 0 {
-			t.Fatalf("retained gates = %d, want no idle per-session state", len(sequencer.gates))
+			t.Fatalf("retained gates = %d, want no idle per-tree state", len(sequencer.gates))
 		}
 	})
 }
 
-func TestLocalSequencerGrantsWaitersInArrivalOrder(t *testing.T) {
+func TestProcessTreeSequencerGrantsWaitersInArrivalOrder(t *testing.T) {
 	type ownership struct {
 		index   int
 		release func()
@@ -50,7 +50,7 @@ func TestLocalSequencerGrantsWaitersInArrivalOrder(t *testing.T) {
 
 	synctest.Test(t, func(t *testing.T) {
 		sequencer := newProcessTreeSequencer()
-		releaseFirst, err := sequencer.acquire(t.Context(), "session-1")
+		releaseFirst, err := sequencer.acquire(t.Context(), "tree-1")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -58,7 +58,7 @@ func TestLocalSequencerGrantsWaitersInArrivalOrder(t *testing.T) {
 		ownerships := make(chan ownership, 3)
 		for index := range 3 {
 			go func() {
-				release, err := sequencer.acquire(t.Context(), "session-1")
+				release, err := sequencer.acquire(t.Context(), "tree-1")
 				ownerships <- ownership{index: index, release: release, err: err}
 			}()
 			synctest.Wait()
@@ -77,28 +77,28 @@ func TestLocalSequencerGrantsWaitersInArrivalOrder(t *testing.T) {
 			got.release()
 		}
 		if len(sequencer.gates) != 0 {
-			t.Fatalf("retained gates = %d, want no idle per-session state", len(sequencer.gates))
+			t.Fatalf("retained gates = %d, want no idle per-tree state", len(sequencer.gates))
 		}
 	})
 }
 
-// TestLocalSequencerReleaseCannotEvictTheNextOwner pins why releaseFunc wraps
+// TestProcessTreeSequencerReleaseCannotEvictTheNextOwner pins why releaseFunc wraps
 // its release in sync.OnceFunc. Every mutation both defers its release and calls
 // it early, so the release runs twice on every path. A second real release would
 // find the queue empty — the waiter it just handed the key to is no longer in it
 // — delete the gate, and admit the next caller while the current owner still
 // believes it holds the key.
-func TestLocalSequencerReleaseCannotEvictTheNextOwner(t *testing.T) {
+func TestProcessTreeSequencerReleaseCannotEvictTheNextOwner(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		sequencer := newProcessTreeSequencer()
-		releaseFirst, err := sequencer.acquire(t.Context(), "session-1")
+		releaseFirst, err := sequencer.acquire(t.Context(), "tree-1")
 		if err != nil {
 			t.Fatal(err)
 		}
 
 		granted := make(chan func(), 1)
 		go func() {
-			release, err := sequencer.acquire(t.Context(), "session-1")
+			release, err := sequencer.acquire(t.Context(), "tree-1")
 			if err == nil {
 				granted <- release
 			}
@@ -113,7 +113,7 @@ func TestLocalSequencerReleaseCannotEvictTheNextOwner(t *testing.T) {
 
 		third := make(chan func(), 1)
 		go func() {
-			release, err := sequencer.acquire(t.Context(), "session-1")
+			release, err := sequencer.acquire(t.Context(), "tree-1")
 			if err == nil {
 				third <- release
 			}
@@ -130,27 +130,27 @@ func TestLocalSequencerReleaseCannotEvictTheNextOwner(t *testing.T) {
 		releaseThird := <-third
 		releaseThird()
 		if len(sequencer.gates) != 0 {
-			t.Fatalf("retained gates = %d, want no idle per-session state", len(sequencer.gates))
+			t.Fatalf("retained gates = %d, want no idle per-tree state", len(sequencer.gates))
 		}
 	})
 }
 
-func TestLocalSequencerAllowsDifferentKeys(t *testing.T) {
+func TestProcessTreeSequencerAllowsDifferentKeys(t *testing.T) {
 	sequencer := newProcessTreeSequencer()
-	releaseFirst, err := sequencer.acquire(t.Context(), "session-1")
+	releaseFirst, err := sequencer.acquire(t.Context(), "tree-1")
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer releaseFirst()
 
-	releaseSecond, err := sequencer.acquire(t.Context(), "session-2")
+	releaseSecond, err := sequencer.acquire(t.Context(), "tree-2")
 	if err != nil {
-		t.Fatalf("acquire different session: %v", err)
+		t.Fatalf("acquire different tree: %v", err)
 	}
 	releaseSecond()
 }
 
-func TestLocalSequencerRejectsCanceledIdleAcquire(t *testing.T) {
+func TestProcessTreeSequencerRejectsCanceledIdleAcquire(t *testing.T) {
 	sequencer := newProcessTreeSequencer()
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()

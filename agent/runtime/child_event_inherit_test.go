@@ -45,13 +45,10 @@ func (c *pidCapture) OnEvent(_ context.Context, e event.Event) {
 	}
 }
 
-// TestChildEventsReachParentProcessListener verifies the runtime
-// propagates a parent's process-scope SubtreeEventListener onto the child
-// processes it spawns: a listener registered ONLY via
-// ProcessOptions.Extensions (not engine-scope) sees events from the
-// subtask the parent delegates to, each carrying the child's own
-// ProcessID. Before listener inheritance this listener saw the parent
-// only — child events reached just the engine multicast.
+// TestChildEventsReachParentProcessListener verifies that a parent's
+// process-scope SubtreeEventListener receives events from spawned child
+// processes, each carrying the child's own ProcessID. The listener is
+// registered only through ProcessOptions.Extensions, not at engine scope.
 func TestChildEventsReachParentProcessListener(t *testing.T) {
 	engine := agent.MustNewEngine(runtime.Config{})
 	childDeployment, err := engine.Deploy(t.Context(), childAgent())
@@ -60,8 +57,14 @@ func TestChildEventsReachParentProcessListener(t *testing.T) {
 	}
 
 	parent := agent.New(agent.AgentConfig{Name: "parent-observed", Description: "spawns a child while a process-scope listener watches", Actions: []agent.Action{agent.NewAction("invoke-child", func(ctx context.Context, _ *core.ProcessContext, in subInput) (parentOutput, error) {
-		tool, _ := runtime.NewAgentTool[subInput, subOutput](engine, childDeployment)
-		args, _ := json.Marshal(in)
+		tool, err := runtime.NewAgentTool[subInput, subOutput](engine, childDeployment)
+		if err != nil {
+			return parentOutput{}, err
+		}
+		args, err := json.Marshal(in)
+		if err != nil {
+			return parentOutput{}, err
+		}
 		out, err := tool.Call(ctx, string(args))
 		if err != nil {
 			return parentOutput{}, err
@@ -99,8 +102,8 @@ func TestChildEventsReachParentProcessListener(t *testing.T) {
 	if capture.ids[proc.ID()] == 0 {
 		t.Fatalf("listener saw no events for the parent process %s", proc.ID())
 	}
-	// The point of the fix: a child process (id != parent) surfaced on
-	// the parent's process-scope listener.
+	// A child process (id != parent) must surface on the parent's
+	// process-scope listener.
 	sawChild := false
 	for id := range capture.ids {
 		if id != proc.ID() {
