@@ -3,7 +3,7 @@
 > 状态：持续实施
 > 建立日期：2026-08-06
 > 最后更新：2026-08-06
-> 当前阶段：P0 模块边界与设计合同，6/6 完成
+> 当前阶段：P1 候选窄腰与消费审计，2/9 完成
 > 当前实施范围：仅 `agent2`
 > 临时模块路径：`github.com/Tangerg/lynx/agent2`
 > 最终模块路径：`github.com/Tangerg/lynx/agent`
@@ -67,7 +67,7 @@ go test ./...
 | 阶段 | 状态 | 进度 | 目标 |
 |---|---|---:|---|
 | P0 模块边界与设计合同 | 完成 | 6/6 | 建立独立 module、分层文档、能力台账和候选合同 |
-| P1 候选窄腰与消费审计 | 未开始 | 0/9 | 用只读审计和多策略 spike 验证 erased wire、协议与状态机，不冻结 API |
+| P1 候选窄腰与消费审计 | 进行中 | 2/9 | 用只读审计和多策略 spike 验证 erased wire、协议与状态机，不冻结 API |
 | P2 Engine 最小执行闭环 | 未开始 | 0/8 | 单 Process、Signal、Effect、状态提交、snapshot、event/delta、limit |
 | P3 真实 Interaction 验证 | 未开始 | 0/9 | 真实模型/工具 dispatcher、流、HITL、steer，并接入 disposable consumer |
 | P4 子 Process 组合与合同冻结 | 未开始 | 0/9 | start/wait、递归、组合、预算、取消、恢复；多消费方验证后冻结窄腰 |
@@ -94,8 +94,8 @@ go test ./...
 
 ### P1：候选窄腰与消费审计
 
-- [ ] P1-01 依据能力台账审查旧 `agent`，记录保留思想、重新实现和移除裁决。
-- [ ] P1-02 只读审计 `app/runtime` 与其他真实消费者；只提取中性需求证据，不复制应用术语、存储协议或交付模型。
+- [x] P1-01 依据能力台账审查旧 `agent`，记录保留思想、重新实现和移除裁决。
+- [x] P1-02 只读审计 `app/runtime` 与其他真实消费者；只提取中性需求证据，不复制应用术语、存储协议或交付模型。
 - [ ] P1-03 用真实形态的 Interaction spike 验证模型、Tool、HITL、stream 和 steer 所需合同，spike 完成后可整体丢弃。
 - [ ] P1-04 用两个 Action 的 Planning spike 验证 Goal/Condition/Planner 专属状态与共同窄腰的边界。
 - [ ] P1-05 验证非泛型 `json.RawMessage` 窄腰、Descriptor schema/version/digest 和边缘 `Typed[I, O]` adapter。
@@ -251,6 +251,7 @@ go test ./...
 
 | 日期 | 阶段 | 实际事实 | 验证与结果 |
 |---|---|---|---|
+| 2026-08-06 | P1 | 完成旧 `agent` 与真实 Host 消费面的只读审计并将中性需求证据写入能力台账；确认旧 ProcessView/ProcessContext、共同 snapshot 的策略类型、同步事件监听和根聊天 GOAP 包装均不能复制。建立第一组候选基础值对象：不可变且限长的 erased JSON Input/Output、编译并禁止隐式外部加载的权威 Schema、只拥有 Definition 静态合同的不可变 Descriptor 与合同 digest；实现过程中主动移除错误归属到 Descriptor 的 Deployment revision。P1-05 尚未完成，typed Definition adapter 及多 Strategy 证据仍待实现 | Schema 实现实测发现并修复元 Schema 未完整校验和数字类型误判；`go mod tidy`、`go build ./...`、`go vet ./...`、`go test ./...`、`go test -race ./...` 全绿；Input codec fuzz 3 秒执行 420342 次无失败；P1 更新为 2/9 |
 | 2026-08-06 | P0 | 完整吸收二轮设计复审：新增能力裁决台账；补齐 opaque Signal/Engine-minted WaitID、Transition/Effect/Event/Delta、erased JSON + typed edge、终态矩阵、Prepared Step 两阶段提交、durability boundary、真实 child Process Fork/Map、stream/steer 和 Host 外部事实清理合同；Supervisor 降为 orchestrator-worker 组合；公共设计文档移除具体应用依赖，P1 改为候选验证、P3/P4 后才冻结 | 独立复审确认无剩余 blocker；稳定架构/ADR/工程标准无具体 Host module 引用；`git diff --check`、`go build ./...`、`go vet ./...`、`go test ./...`、`go test -race ./...` 全绿；P0 更新为 6/6 |
 | 2026-08-06 | P0 | 新增独立工程实施标准；明确治本式实施、恰当抽象、DAG、Framework/Host 边界、下游事务/幂等扩展、Go 风格充血模型、组合式 OOP、API 人体工程学和批次完成定义；新增三项 ADR；接入模块级指引且不复制四份职责文档正文 | 文档一致性和 diff check 通过；`go build ./...`、`go vet ./...`、`go test ./...` 全绿；P0 更新为 5/5 |
 | 2026-08-06 | P0 | 创建独立 `agent2` module 并加入 workspace；仅用根 `doc.go` 建立可验证的 package，未引入接口或占位实现；将稳定架构、ADR、实施进度拆为三份文档；明确旧 `agent` 是并存期直接参考实现但不是兼容规范；未修改旧 `agent` 或 `app/runtime` | `go build ./...`、`go vet ./...`、`go test ./...`、独立 module 解析和 diff check 全部通过；P0 3/3 完成 |
@@ -259,7 +260,7 @@ go test ./...
 
 ## 9. 当前下一步
 
-下一阶段是 P1。先依据能力台账审查旧 `agent`，并对 `app/runtime` 与其他消费者做只读审计；应用代码只提供需求和失败案例，不提供 Framework 术语或类型。随后建立两个可整体丢弃的 spike：
+P1 的旧模块和 Host 只读审计已经完成，后续实现只能使用能力台账中的中性需求证据，不能从消费方复制 Framework 术语或类型。下一轮建立候选协议、状态机和两个可整体丢弃的 spike：
 
 1. 一个具备真实模型、Tool、stream、HITL 和 steer 形态的 Interaction Definition/dispatcher。
 2. 一个只有两个 Action 的 Planning Definition。

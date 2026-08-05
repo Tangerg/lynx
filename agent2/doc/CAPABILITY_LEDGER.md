@@ -25,7 +25,7 @@
 |---|---|---|---|---|---|
 | Agent definition、descriptor、deployment digest | 旧 Engine、长期恢复 | Definition/Deployment | 重新实现 | P1–P2 | 不可变、schema 进入 digest、精确恢复 |
 | Process 状态机 | 所有托管执行 | Engine/Process | 保留思想并重新实现 | P1–P2 | 全状态矩阵、first-terminal-wins |
-| ProcessView | policy、listener、Host adapter | 按消费者拆分的只读小接口 | 重新裁决 | P1 | 不保留共同胖视图；每个接口有真实消费者 |
+| ProcessView | policy、listener、Host adapter | 按消费者拆分的只读小接口 | 移除旧形态并按需重写 | P1 | 不保留共同胖视图；每个接口有真实消费者 |
 | ProcessContext | Action、interaction、tool、控制 | Signal/Transition/Effect 与消费侧小接口 | 移除旧形态 | P1–P5 | 不出现 god context；Engine 保持唯一 owner |
 | Process snapshot/tree snapshot | pause、restart、child tree | Framework capture/restore | 重新实现 | P2–P4 | last-stable/prepared 边界、pre-dispatch durability gate、严格 codec、tree restore |
 | Respond/Resume/Continue | HITL、parked tool、child completion | Signal/WaitID 控制面 | 重新实现 | P1–P4 | 排序、去重、过期、Running/Waiting 投递 |
@@ -69,7 +69,7 @@
 
 | 旧能力 | 真实消费者/证据 | 新 owner | 裁决 | 阶段 | 验收 |
 |---|---|---|---|---|---|
-| `core.Dependencies` typed scope chain | 动态 Action、应用装配 | 构造/闭包优先；真实动态需求留 Strategy | 待审查 | P1、对应 Strategy | 无全局 DI、无 service locator、无共同 god scope |
+| `core.Dependencies` typed scope chain | 动态 Action、应用装配 | 构造/闭包优先；经真实 Strategy 证明后才建局部 typed provider | 移除共同 scope，局部需求重新实现 | P1、对应 Strategy | 无全局 DI、无 service locator、无共同 god scope |
 | Extension marker/capability dispatch | policy、middleware、listener、planner | 单一横切扩展机制；主 Strategy 移出 | 拆分重写 | P2、P8 | 忽略扩展不破坏 Kernel 正确性 |
 | Event multicast | runtime observer、Host projection | Framework Event | 重新实现 | P2 | attempt/committed 区分、顺序、listener 隔离 |
 | model/tool lifecycle event | UI、usage、observability | Strategy dispatcher → Framework Event | 重新实现 | P2–P3 | 时间语义、Process/Step/Effect identity 完整 |
@@ -90,3 +90,23 @@
 | 外部副作用事务、补偿和业务幂等 | Action/Tool adapter 或 Host | EffectID 与 settlement 事实 | 对应 Strategy、P10 |
 
 这些名称不得成为 Kernel 类型、字段、package 或 snapshot 字段。Host 的真实消费审计可以补充本表证据，但不能以迁移方便反向决定 Framework API。
+
+## 7. P1 只读审计证据
+
+### 7.1 旧 Framework 证据
+
+- 旧共同 `ProcessView` 同时暴露 Planning 的 Goal、Blackboard、WorldState 和 Interaction 的挂起信息；旧 `ProcessContext` 又合并依赖访问、树控制、状态推进和策略执行。这证明两者不能作为新窄腰保留，共同层必须改成明确方向的 Signal/Transition/Effect 和按消费点形成的小接口。
+- 旧共同 Process snapshot 直接持有 Interaction 的挂起类型，证明“看似中性的挂起字段”仍会让策略抽象反向进入 Kernel；新共同 snapshot 只能记录 WaitID、Signal envelope、游标和 Execution 自有 opaque state。
+- 旧 Interaction/tool loop 已证明有价值的行为包括稳定工具顺序、有界并行、checkpoint、pause/resume 和精确继续；这些行为保留，但旧 package 划分、类型所有权和同步 listener 合同不复制。
+- 旧 GOAP 搜索、成本、条件与动态重规划是 P5 的算法证据，不是共同 Process 模型；Planning 术语只能留在 Planning。
+- 旧事件路径把具体观测实现带入 listener 且同步传播失败；新 Event 必须保持 Framework 中性，观察失败不能改变 Step 结果，具体 OTel 只能在外部 decorator。
+
+### 7.2 真实 Host 消费证据
+
+- 只读扫描确认 Host 有 54 个 Go 源文件直接引用旧 Framework。真实共性需求是异步 start/await、根或子树取消、HITL 恢复、等待查询、opaque capture/restore 和执行清理；这些能力必须由中性 Engine 生命周期覆盖。
+- 当前根聊天执行把一个完整 Interaction 包装成单 Action 的 GOAP 计划。这个形态只证明 Host 需要原生 Interaction Definition，不证明普通聊天应依赖 Planning，也不能成为新架构的默认组合。
+- Host 必须继续拥有产品身份、历史与上下文、工作空间与隔离、模型选择、价格投影、业务限制、持久 write-set 和展示投影；Framework 只提供 Process identity、opaque snapshot、usage、Event/Output 和 prepared durability boundary。
+- 当前 steering 绕经聊天 middleware，迁移目标是由 Interaction 在声明的安全边界解释 opaque Signal；Engine 只排序、去重、投递并推进游标。
+- 当前 Host 将 executor checkpoint 当 opaque value 使用，这支持 Framework capture/restore 边界；Host 不应解析 Strategy state。子执行准入和持久提交仍是 Host 策略，不能升级成 Framework 的 Store、transaction、lease 或幂等模型。
+
+以上证据只约束行为和边界，不授权将任何 Host DTO、存储协议、产品生命周期或交付模型复制进 `agent2`。
