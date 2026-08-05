@@ -16,7 +16,7 @@ import (
 // resolves to a cached client. The provider is taken as given — never
 // inferred from the model.
 func TestClientResolver_RejectsUnconfigured(t *testing.T) {
-	db, err := sqlitestore.Open(filepath.Join(t.TempDir(), "lyra.db"))
+	db, err := sqlitestore.Open(t.Context(), filepath.Join(t.TempDir(), "lyra.db"))
 	if err != nil {
 		t.Fatal(err)
 	}

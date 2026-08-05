@@ -24,7 +24,7 @@ func ToolName(server, tool string) string {
 
 func sanitizeToolName(name string) string {
 	b := make([]byte, 0, len(name))
-	for i := 0; i < len(name); i++ {
+	for i := range len(name) {
 		c := name[i]
 		switch {
 		case c >= 'a' && c <= 'z',

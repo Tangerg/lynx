@@ -21,8 +21,8 @@ func (c *client) ensureOpen(ctx context.Context, abs string) (int, error) {
 	hash := sha256.Sum256(text)
 
 	// Hold c.mu across the Notify so the version bump and its didOpen/didChange
-	// are atomic PER DOCUMENT. Two concurrent ensureOpen on the same file — the
-	// the `lsp` operation tool share one parallel segment
+	// are atomic PER DOCUMENT. Two concurrent ensureOpen on the same file — calls
+	// to the `lsp` operation tool share one parallel segment
 	// (ConcurrencyKey=true) and hit this shared client — would otherwise compute
 	// v1 and v2 under the lock, release, then race the Notify: the server could
 	// see didChange(v2) before didOpen(v1), or versions out of order, and desync

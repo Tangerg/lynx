@@ -65,7 +65,7 @@ type Config struct {
 
 // Open wires the persistence backends. The returned bundle owns the shared
 // SQLite handle and must be closed when the runtime process stops.
-func Open(config Config) (*Bundle, error) {
+func Open(ctx context.Context, config Config) (*Bundle, error) {
 	if config.DataDirectory == "" {
 		return nil, errors.New("persistence: data directory is required")
 	}
@@ -81,7 +81,7 @@ func Open(config Config) (*Bundle, error) {
 	if err := os.MkdirAll(config.DataDirectory, 0o755); err != nil {
 		return nil, fmt.Errorf("persistence: create data directory %q: %w", config.DataDirectory, err)
 	}
-	db, err := sqlitestore.Open(filepath.Join(config.DataDirectory, "lyra.db"))
+	db, err := sqlitestore.Open(ctx, filepath.Join(config.DataDirectory, "lyra.db"))
 	if err != nil {
 		return nil, err
 	}

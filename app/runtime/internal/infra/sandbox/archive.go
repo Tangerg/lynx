@@ -26,9 +26,14 @@ func archiveTree(ctx context.Context, root string) ([]byte, error) {
 		return nil, errors.New("archive root must be absolute")
 	}
 	root = filepath.Clean(root)
-	info, err := os.Stat(root)
+	archiveRoot, err := os.OpenRoot(root)
 	if err != nil {
-		return nil, fmt.Errorf("stat root: %w", err)
+		return nil, fmt.Errorf("open archive root: %w", err)
+	}
+	defer archiveRoot.Close()
+	info, err := archiveRoot.Stat(".")
+	if err != nil {
+		return nil, fmt.Errorf("stat archive root: %w", err)
 	}
 	if !info.IsDir() {
 		return nil, fmt.Errorf("root %q is not a directory", root)
@@ -37,17 +42,14 @@ func archiveTree(ctx context.Context, root string) ([]byte, error) {
 	var archive bytes.Buffer
 	tw := tar.NewWriter(&archive)
 	entries := 0
-	err = filepath.WalkDir(root, func(name string, entry fs.DirEntry, walkErr error) error {
+	err = fs.WalkDir(archiveRoot.FS(), ".", func(name string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
 		}
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		rel, err := filepath.Rel(root, name)
-		if err != nil {
-			return err
-		}
+		rel := name
 		if rel == "." {
 			return nil
 		}
@@ -75,7 +77,7 @@ func archiveTree(ctx context.Context, root string) ([]byte, error) {
 			header.Typeflag = tar.TypeReg
 			header.Size = info.Size()
 		case mode&os.ModeSymlink != 0:
-			target, err := os.Readlink(name)
+			target, err := archiveRoot.Readlink(name)
 			if err != nil {
 				return err
 			}
@@ -93,7 +95,7 @@ func archiveTree(ctx context.Context, root string) ([]byte, error) {
 		if !mode.IsRegular() {
 			return nil
 		}
-		file, err := os.Open(name)
+		file, err := archiveRoot.Open(name)
 		if err != nil {
 			return err
 		}
@@ -163,7 +165,10 @@ func extractArchive(ctx context.Context, destination string, archive []byte) err
 			return fmt.Errorf("archive contains duplicate path %q", name)
 		}
 		seen[name] = struct{}{}
-		mode := fs.FileMode(header.Mode) & fs.ModePerm
+		if header.Mode < 0 || header.Mode&^int64(fs.ModePerm) != 0 {
+			return fmt.Errorf("archive path %q has invalid permission mode %#o", name, header.Mode)
+		}
+		mode := fs.FileMode(header.Mode) //nolint:gosec // the preceding mask check proves the value fits FileMode
 		parent := path.Dir(name)
 		if parent != "." {
 			if err := root.MkdirAll(filepath.FromSlash(parent), 0o700); err != nil {

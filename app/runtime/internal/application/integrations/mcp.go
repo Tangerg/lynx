@@ -260,7 +260,8 @@ func (c *Coordinator) redialMCPServer(ctx context.Context, srv mcpserver.Server)
 // connection test that touches neither the registry nor the live set, EXCEPT it
 // reuses an active OAuth sign-in for the same-named server (so an authorized
 // OAuth server tests as connected, not "unauthorized"). Returns the dial /
-// tools-list error, or nil on success.
+// tools-list failure as OK=false; invalid candidates and unavailable registry
+// capability are returned as errors.
 func (c *Coordinator) TestMCPServer(ctx context.Context, input MCPServerInput) (MCPTestResult, error) {
 	srv, err := c.validatedMCPServer(ctx, input)
 	if err != nil {

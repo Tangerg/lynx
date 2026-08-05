@@ -11,7 +11,7 @@ import (
 
 func newEmbeddingRoleStore(t *testing.T) *sqlite.EmbeddingRoleStore {
 	t.Helper()
-	db, err := sqlite.Open(filepath.Join(t.TempDir(), "lyra.db"))
+	db, err := sqlite.Open(t.Context(), filepath.Join(t.TempDir(), "lyra.db"))
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}

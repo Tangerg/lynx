@@ -15,7 +15,7 @@ import (
 
 func newAgentMemoryStore(t *testing.T) *sqlite.AgentMemoryStore {
 	t.Helper()
-	db, err := sqlite.Open(filepath.Join(t.TempDir(), "lyra.db"))
+	db, err := sqlite.Open(t.Context(), filepath.Join(t.TempDir(), "lyra.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -180,7 +180,7 @@ func TestAgentMemoryReviewLifecycle(t *testing.T) {
 }
 
 func TestAgentMemorySchemaRejectsInvalidDomainVocabulary(t *testing.T) {
-	db, err := sqlite.Open(filepath.Join(t.TempDir(), "lyra.db"))
+	db, err := sqlite.Open(t.Context(), filepath.Join(t.TempDir(), "lyra.db"))
 	if err != nil {
 		t.Fatal(err)
 	}

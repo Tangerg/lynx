@@ -16,7 +16,7 @@ import (
 )
 
 func TestChildOpeningAtomicallyCommitsRunAndParentSpawningItem(t *testing.T) {
-	db, err := sqlite.Open(filepath.Join(t.TempDir(), "runtime.db"))
+	db, err := sqlite.Open(t.Context(), filepath.Join(t.TempDir(), "runtime.db"))
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}

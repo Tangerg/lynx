@@ -17,7 +17,7 @@ import (
 // the in-flight close operation and lets a later Close join it instead of
 // issuing a concurrent second teardown.
 type ShutdownResource interface {
-	Shutdown(context.Context) error
+	Shutdown(ctx context.Context) error
 }
 
 // PlanStore is the composition-root union shared by prompt assembly, set_plan,

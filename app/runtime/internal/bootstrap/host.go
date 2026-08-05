@@ -47,7 +47,7 @@ type hostLifetime struct {
 
 type shutdownComponent interface {
 	BeginShutdown()
-	AwaitShutdown(context.Context) error
+	AwaitShutdown(ctx context.Context) error
 }
 
 const hostShutdownTimeout = 10 * time.Second

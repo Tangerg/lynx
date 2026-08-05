@@ -24,7 +24,6 @@ func shutdownClosers(closers []func() error) []ShutdownResource {
 		if closeFn == nil {
 			continue
 		}
-		closeFn := closeFn
 		steps = append(steps, shutdown.New(func(context.Context) error {
 			return closeFn()
 		}))

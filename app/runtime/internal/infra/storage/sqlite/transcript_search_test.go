@@ -86,7 +86,7 @@ func TestTranscriptSearchIndexesConversationAndExcludesNoise(t *testing.T) {
 // whole schema whenever the epoch moved.
 func TestReopenKeepsTheSearchIndex(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "lyra.db")
-	db, err := sqlite.Open(path)
+	db, err := sqlite.Open(t.Context(), path)
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -99,7 +99,7 @@ func TestReopenKeepsTheSearchIndex(t *testing.T) {
 		t.Fatalf("close: %v", err)
 	}
 
-	reopened, err := sqlite.Open(path)
+	reopened, err := sqlite.Open(t.Context(), path)
 	if err != nil {
 		t.Fatalf("reopen: %v", err)
 	}

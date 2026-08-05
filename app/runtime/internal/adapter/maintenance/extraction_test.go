@@ -46,7 +46,7 @@ func (m *scriptedModel) Call(_ context.Context, request *chat.Request) (*chat.Re
 
 func extractionFixture(t *testing.T, replies ...scriptedReply) (*Extractor, *sqlite.AgentMemoryStore, *scriptedModel) {
 	t.Helper()
-	db, err := sqlite.Open(filepath.Join(t.TempDir(), "lyra.db"))
+	db, err := sqlite.Open(t.Context(), filepath.Join(t.TempDir(), "lyra.db"))
 	if err != nil {
 		t.Fatal(err)
 	}

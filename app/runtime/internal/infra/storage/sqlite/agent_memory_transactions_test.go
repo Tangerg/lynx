@@ -11,7 +11,7 @@ import (
 )
 
 func TestAgentMemoryQueriesJoinCallerTransaction(t *testing.T) {
-	db, err := Open(filepath.Join(t.TempDir(), "lyra.db"))
+	db, err := Open(t.Context(), filepath.Join(t.TempDir(), "lyra.db"))
 	if err != nil {
 		t.Fatal(err)
 	}

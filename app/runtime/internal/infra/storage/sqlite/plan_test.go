@@ -13,7 +13,7 @@ import (
 
 func newPlanStore(t *testing.T) *sqlite.PlanStore {
 	t.Helper()
-	db, err := sqlite.Open(filepath.Join(t.TempDir(), "lyra.db"))
+	db, err := sqlite.Open(t.Context(), filepath.Join(t.TempDir(), "lyra.db"))
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -97,7 +97,7 @@ func TestPlanStore_RoundTrip(t *testing.T) {
 // terminal transition and the list it captures are the same transaction's work.
 func newPlanBoundaryStores(t *testing.T) (*sqlite.PlanStore, *sqlite.RunStore) {
 	t.Helper()
-	db, err := sqlite.Open(filepath.Join(t.TempDir(), "lyra.db"))
+	db, err := sqlite.Open(t.Context(), filepath.Join(t.TempDir(), "lyra.db"))
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}

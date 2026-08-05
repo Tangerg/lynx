@@ -77,11 +77,19 @@ func (l *Libraries) store(scope skills.Scope, projectRoot string) (*skillauthori
 			return nil, errors.New("skillproposal: project root is required")
 		}
 		if loaded, ok := l.projects.Load(projectRoot); ok {
-			return loaded.(*skillauthoring.Store), nil
+			store, ok := loaded.(*skillauthoring.Store)
+			if !ok {
+				return nil, errors.New("skillproposal: project Skill cache contains an invalid entry")
+			}
+			return store, nil
 		}
 		created := skillauthoring.NewStore(promptsource.ProjectSkillDir(projectRoot), skills.ScopeProject)
 		loaded, _ := l.projects.LoadOrStore(projectRoot, created)
-		return loaded.(*skillauthoring.Store), nil
+		store, ok := loaded.(*skillauthoring.Store)
+		if !ok {
+			return nil, errors.New("skillproposal: project Skill cache contains an invalid entry")
+		}
+		return store, nil
 	default:
 		return nil, errors.New("skillproposal: invalid Skill scope")
 	}

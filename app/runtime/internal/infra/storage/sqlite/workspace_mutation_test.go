@@ -10,7 +10,7 @@ import (
 // TestWorkspaceMutationLogRoundTrip: a recorded intent surfaces in ListPending
 // and clears on Complete — the record/recover/clear cycle §8.5 boots from.
 func TestWorkspaceMutationLogRoundTrip(t *testing.T) {
-	db, err := Open(":memory:")
+	db, err := Open(t.Context(), ":memory:")
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -57,7 +57,7 @@ func TestWorkspaceMutationLogRoundTrip(t *testing.T) {
 // TestWorkspaceMutationReRecordReplaces: re-recording for the same session
 // overwrites rather than duplicating (the mutation slot admits one per session).
 func TestWorkspaceMutationReRecordReplaces(t *testing.T) {
-	db, err := Open(":memory:")
+	db, err := Open(t.Context(), ":memory:")
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}

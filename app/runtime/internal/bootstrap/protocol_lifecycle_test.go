@@ -242,7 +242,7 @@ func (noRunMaintenance) Maintain(
 func openProtocolRuntime(t *testing.T, model chat.Model) (*Host, *runtimeserver.Server) {
 	t.Helper()
 	dataDirectory := os.Getenv("LYRA_HOME")
-	stores, err := persistence.Open(persistence.Config{
+	stores, err := persistence.Open(t.Context(), persistence.Config{
 		DataDirectory:        dataDirectory,
 		DefaultWorkspacePath: dataDirectory,
 	})

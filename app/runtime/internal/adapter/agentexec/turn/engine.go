@@ -37,7 +37,7 @@ type CompactionResult struct {
 // the execution span, and publishes a compaction boundary; the
 // implementation owns the workers' ordering and conditional work.
 type RunMaintenance interface {
-	Maintain(context.Context, RunMaintenanceInput) RunMaintenanceResult
+	Maintain(ctx context.Context, input RunMaintenanceInput) RunMaintenanceResult
 }
 
 // RunMaintenanceInput is the finished Run's maintenance context.

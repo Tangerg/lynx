@@ -127,13 +127,15 @@ func writeProblem(w http.ResponseWriter, status int, typ, detail string, noCache
 		w.Header().Set("Cache-Control", "no-store")
 	}
 	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(transportProblem{
+	if err := json.NewEncoder(w).Encode(transportProblem{
 		Type:      "urn:lyra:transport:" + typ,
 		Title:     http.StatusText(status),
 		Status:    status,
 		Detail:    detail,
 		RequestID: w.Header().Get("Request-Id"),
-	})
+	}); err != nil {
+		return
+	}
 }
 
 // isJSONMediaType reports whether a Content-Type header denotes JSON.

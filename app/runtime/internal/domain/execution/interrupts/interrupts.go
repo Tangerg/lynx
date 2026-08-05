@@ -314,8 +314,7 @@ func (c Continuation) Validate() error {
 	if err := validateRequiredIdentity("process id", c.ProcessID); err != nil {
 		return err
 	}
-	switch {
-	case c.RunCreatedAt.IsZero():
+	if c.RunCreatedAt.IsZero() {
 		return errors.New("run creation time is required")
 	}
 	if err := c.Lineage.Validate(c.RunID); err != nil {

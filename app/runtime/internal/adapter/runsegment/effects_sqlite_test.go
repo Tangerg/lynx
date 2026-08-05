@@ -45,7 +45,7 @@ func waitingProcessSnapshot(id string, started, parked time.Time) core.ProcessSn
 // write-set uses one real database transaction: even though Consume executes
 // before validation fails, rollback leaves the interrupt open.
 func TestCommitOpeningResumeRollsBackConsume(t *testing.T) {
-	db, err := sqlite.Open(":memory:")
+	db, err := sqlite.Open(t.Context(), ":memory:")
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -88,7 +88,7 @@ func TestCommitOpeningResumeRollsBackConsume(t *testing.T) {
 }
 
 func TestCommitOpeningResumeCommitsWholeWriteSet(t *testing.T) {
-	db, err := sqlite.Open(":memory:")
+	db, err := sqlite.Open(t.Context(), ":memory:")
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -172,7 +172,7 @@ func TestCommitOpeningResumesRunTreeAtomically(t *testing.T) {
 		{name: "rollback after descendant resumed", wantError: true},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			db, err := sqlite.Open(":memory:")
+			db, err := sqlite.Open(t.Context(), ":memory:")
 			if err != nil {
 				t.Fatalf("open: %v", err)
 			}
@@ -341,7 +341,7 @@ func assertStoredRunState(t testing.TB, db *sql.DB, runID, want string) {
 // particular, a rejected occurrence must not leave a session that can later be
 // mistaken for a user-created conversation.
 func TestCommitOpeningRollsBackScheduledSession(t *testing.T) {
-	db, err := sqlite.Open(":memory:")
+	db, err := sqlite.Open(t.Context(), ":memory:")
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -385,7 +385,7 @@ func TestCommitOpeningRollsBackScheduledSession(t *testing.T) {
 // terminal Run fact, not a best-effort follow-up by the Goal driver. Both the
 // Run state and the Goal aggregate must become visible together.
 func TestCommitEventRecordsGoalRunWithTerminalRun(t *testing.T) {
-	db, err := sqlite.Open(":memory:")
+	db, err := sqlite.Open(t.Context(), ":memory:")
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -457,7 +457,7 @@ func TestCommitEventRecordsGoalRunWithTerminalRun(t *testing.T) {
 // lands the pending set, opaque executor checkpoint, and suspended Run together
 // while a fresh admission is refused.
 func TestCommitTreeBarrierProducesDurableTriplet(t *testing.T) {
-	db, err := sqlite.Open(":memory:")
+	db, err := sqlite.Open(t.Context(), ":memory:")
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -537,7 +537,7 @@ func TestCommitTreeBarrierProducesDurableTriplet(t *testing.T) {
 }
 
 func TestCommitTreeBarrierRollsBackCheckpointWhenRunSuspendFails(t *testing.T) {
-	db, err := sqlite.Open(":memory:")
+	db, err := sqlite.Open(t.Context(), ":memory:")
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -601,7 +601,7 @@ func TestCommitTerminalOwnsExecutorCheckpointDeletion(t *testing.T) {
 		{name: "rollback when checkpoint delete fails", deleteFail: true},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			db, err := sqlite.Open(":memory:")
+			db, err := sqlite.Open(t.Context(), ":memory:")
 			if err != nil {
 				t.Fatalf("open: %v", err)
 			}
@@ -810,7 +810,7 @@ func newWaitingCancellationSQLiteFixtureAt(
 	survivingBoundary bool,
 ) waitingCancellationSQLiteFixture {
 	t.Helper()
-	db, err := sqlite.Open(dataSourceName)
+	db, err := sqlite.Open(t.Context(), dataSourceName)
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -1295,7 +1295,7 @@ func sqliteEffects(stores sqliteOpeningStores, cfg Config) *Effects {
 // would produce a session whose history mentions a run that does not exist, and no
 // later write supplies it.
 func TestCommitOpeningRefusesASecondOpenRun(t *testing.T) {
-	db, err := sqlite.Open(":memory:")
+	db, err := sqlite.Open(t.Context(), ":memory:")
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -1350,7 +1350,7 @@ func TestCommitOpeningRefusesASecondOpenRun(t *testing.T) {
 // later write will supply them. Reading it back through ListRuns is the only way to
 // see whether the commit carried them or merely flipped a state column.
 func TestCommitEventPersistsTheTerminalRunsResult(t *testing.T) {
-	db, err := sqlite.Open(":memory:")
+	db, err := sqlite.Open(t.Context(), ":memory:")
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}

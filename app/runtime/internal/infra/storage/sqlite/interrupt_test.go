@@ -17,7 +17,7 @@ import (
 
 func newInterruptStore(t *testing.T) *sqlite.InterruptStore {
 	t.Helper()
-	db, err := sqlite.Open(filepath.Join(t.TempDir(), "lyra.db"))
+	db, err := sqlite.Open(t.Context(), filepath.Join(t.TempDir(), "lyra.db"))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -273,7 +273,7 @@ func TestInterruptStoreRoundTripsAppLineageWithoutExecutorTopology(t *testing.T)
 }
 
 func TestInterruptStoreRejectsUnknownExecutorTopologyFields(t *testing.T) {
-	database, err := sqlite.Open(filepath.Join(t.TempDir(), "lyra.db"))
+	database, err := sqlite.Open(t.Context(), filepath.Join(t.TempDir(), "lyra.db"))
 	if err != nil {
 		t.Fatalf("Open database: %v", err)
 	}

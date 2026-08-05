@@ -39,6 +39,7 @@ func TestExtractArchiveRejectsTraversalAndEscapingSymlink(t *testing.T) {
 		{name: "absolute path", header: tar.Header{Name: "/outside", Typeflag: tar.TypeReg, Size: 1, Mode: 0o644}, contents: "x"},
 		{name: "escaping symlink", header: tar.Header{Name: "link", Typeflag: tar.TypeSymlink, Linkname: "../outside", Mode: 0o777}},
 		{name: "device", header: tar.Header{Name: "device", Typeflag: tar.TypeChar, Mode: 0o600}},
+		{name: "invalid permission bits", header: tar.Header{Name: "file", Typeflag: tar.TypeReg, Mode: 1 << 40}},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			var body bytes.Buffer

@@ -124,7 +124,6 @@ func (g *Group) Cancel() {
 	for _, cancel := range cancels {
 		cancel()
 	}
-
 }
 
 // Wait joins all active tasks after [Cancel]. The caller owns the deadline, so

@@ -183,7 +183,7 @@ func (e *ActiveRunConflict) Enrich(problem *ProblemData) { problem.ActiveRun = &
 // fields beyond the prose detail. The dispatcher applies it when building the frame.
 type ProblemDetailed interface {
 	error
-	Enrich(*ProblemData)
+	Enrich(problem *ProblemData)
 }
 
 // FieldError is one field-level validation failure inside ProblemData

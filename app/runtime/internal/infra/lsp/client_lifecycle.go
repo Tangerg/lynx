@@ -31,7 +31,9 @@ const clientShutdownTimeout = 2 * time.Second
 // the server stays warm for the engine's lifetime) while keeping ctx's trace
 // span via context.WithoutCancel.
 func startClient(ctx context.Context, spec ServerSpec, root string) (*client, error) {
-	cmd := exec.Command(spec.Command, spec.Args...)
+	// The process belongs to the cached client, not this initialization call;
+	// CommandContext would kill a healthy server when the handshake ctx ends.
+	cmd := exec.Command(spec.Command, spec.Args...) //nolint:noctx
 	cmd.Dir = root
 	cmd.Stderr = io.Discard // server logs are noise; failures surface as call errors
 

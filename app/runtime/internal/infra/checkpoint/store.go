@@ -25,12 +25,20 @@ func NewStore(dir string) *Store { return &Store{root: dir} }
 
 func (s *Store) treeLockFor(cwd string) *sync.Mutex {
 	mu, _ := s.treeLocks.LoadOrStore(cwd, &sync.Mutex{})
-	return mu.(*sync.Mutex)
+	return storedMutex(mu, "checkpoint tree lock")
 }
 
 func (s *Store) repoLockFor(sessionID string) *sync.Mutex {
 	mu, _ := s.repoLocks.LoadOrStore(sessionID, &sync.Mutex{})
-	return mu.(*sync.Mutex)
+	return storedMutex(mu, "checkpoint repository lock")
+}
+
+func storedMutex(value any, owner string) *sync.Mutex {
+	mu, ok := value.(*sync.Mutex)
+	if !ok {
+		panic(owner + " map contains a non-mutex value")
+	}
+	return mu
 }
 
 // DropSession removes a session's shadow repo (on session delete).

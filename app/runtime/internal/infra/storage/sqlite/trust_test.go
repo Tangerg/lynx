@@ -10,7 +10,7 @@ import (
 
 func TestTrustStore_RoundTrip(t *testing.T) {
 	ctx := context.Background()
-	db, err := sqlite.Open(filepath.Join(t.TempDir(), "lyra.db"))
+	db, err := sqlite.Open(t.Context(), filepath.Join(t.TempDir(), "lyra.db"))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}

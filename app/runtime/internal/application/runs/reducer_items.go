@@ -178,22 +178,22 @@ func (r *reducer) toolEnd(e ToolCallEnd) ([]RunEvent, error) {
 	if ref.end != nil {
 		return nil, fmt.Errorf("tool call %q ended more than once", e.CallID)
 	}
-	copy := e
+	cloned := e
 	if e.Offload != nil {
 		ref := *e.Offload
-		copy.Offload = &ref
+		cloned.Offload = &ref
 	}
 	if e.Problem != nil {
 		problem := *e.Problem
-		copy.Problem = &problem
+		cloned.Problem = &problem
 	}
-	copy.MutatedPaths = slices.Clone(e.MutatedPaths)
+	cloned.MutatedPaths = slices.Clone(e.MutatedPaths)
 	finishedAt := r.now()
 	if finishedAt.Before(ref.startedAt) {
 		return nil, fmt.Errorf("tool call %q finish time precedes start time", e.CallID)
 	}
 	ref.finishedAt = finishedAt
-	ref.end = &copy
+	ref.end = &cloned
 	return r.flushEndedTools()
 }
 

@@ -41,7 +41,7 @@ var (
 // The const VALUES are not in strictness order — ModePlan is appended
 // (value 3) so the existing zero value (ModeSafe) is unchanged. Order
 // code against the named constants, never the ints.
-type Mode int
+type Mode int32
 
 const (
 	// ModeSafe — every Exec/Write/Network tool prompts.

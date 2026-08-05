@@ -8,7 +8,7 @@ import (
 )
 
 type sessionTurnCanceler interface {
-	Cancel(context.Context, Handle) error
+	Cancel(ctx context.Context, handle Handle) error
 }
 
 // SessionExecutionCleanup adapts Agent turn cancellation to idempotent Session

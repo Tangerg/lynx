@@ -154,7 +154,7 @@ func (t *family) run(ctx context.Context, a shellArgs) (string, error) {
 		return "", err
 	}
 	if a.RunInBackground {
-		return backgroundedJSON(id), nil
+		return backgroundedJSON(id)
 	}
 
 	sh, ok := t.shells.Get(id)
@@ -165,15 +165,15 @@ func (t *family) run(ctx context.Context, a shellArgs) (string, error) {
 	defer timer.Stop()
 	select {
 	case <-sh.Done():
-		return t.completed(id, sh), nil
+		return t.completed(id, sh)
 	case <-timer.C:
-		return backgroundedJSON(id), nil // still running — leave it
+		return backgroundedJSON(id) // still running — leave it
 	case <-ctx.Done():
 		return t.cancelForeground(ctx, id, sh)
 	}
 }
 
-func (t *family) completed(id string, sh *exec.Shell) string {
+func (t *family) completed(id string, sh *exec.Shell) (string, error) {
 	out, dropped := sh.Read()
 	code, killed, dur := sh.Outcome()
 	t.shells.Remove(id)
@@ -186,7 +186,7 @@ func (t *family) cancelForeground(ctx context.Context, id string, sh *exec.Shell
 	// completed result the user can still use.
 	select {
 	case <-sh.Done():
-		return t.completed(id, sh), nil
+		return t.completed(id, sh)
 	default:
 		// Canceled mid-run: kill AND remove. A killed-and-discarded foreground
 		// command is not a background job the model will query later, so leaving
@@ -247,30 +247,36 @@ func (t *family) kill(_ context.Context, a shellIDArgs) (string, error) {
 // stdout+stderr goes in "stdout" (the exec ring merges the two streams; the
 // server's commandResult merges them on the wire anyway). exit_code is always
 // present, so the client renders it.
-func completedJSON(out string, dropped bool, code int, killed bool, dur time.Duration) string {
+func completedJSON(out string, dropped bool, code int, killed bool, dur time.Duration) (string, error) {
 	if dropped {
 		out = "[earlier output dropped — buffer overflowed]\n" + out
 	}
-	b, _ := json.Marshal(struct {
+	b, err := json.Marshal(struct {
 		Stdout   string `json:"stdout"`
 		Stderr   string `json:"stderr"`
 		ExitCode int    `json:"exit_code"`
 		Killed   bool   `json:"killed,omitempty"`
 		Duration string `json:"duration"`
 	}{Stdout: out, ExitCode: code, Killed: killed, Duration: dur.String()})
-	return string(b)
+	if err != nil {
+		return "", fmt.Errorf("shell: encode completed command result: %w", err)
+	}
+	return string(b), nil
 }
 
 // backgroundedJSON is the result for a command left running (explicit
 // run_in_background or auto-backgrounded). It omits exit_code — the command
 // hasn't exited — so the server's commandResult renders no phantom "exit 0".
-func backgroundedJSON(id string) string {
-	b, _ := json.Marshal(struct {
+func backgroundedJSON(id string) (string, error) {
+	b, err := json.Marshal(struct {
 		Stdout string `json:"stdout"`
 	}{Stdout: fmt.Sprintf(
 		"Command running in background as shell %s. Continue with read_shell_output {\"shell_id\":%q} or stop_shell {\"shell_id\":%q}.",
 		id, id, id)})
-	return string(b)
+	if err != nil {
+		return "", fmt.Errorf("shell: encode background command result: %w", err)
+	}
+	return string(b), nil
 }
 
 // waitForShell blocks until sh exits, ctx is canceled, or — when timeoutMs > 0

@@ -95,7 +95,7 @@ func mutationGuardMessage(verdict guardVerdict, path string) string {
 	case readRequired:
 		return fmt.Sprintf("You must read %s before modifying it. Use the read tool first.", path)
 	case contentChanged:
-		return fmt.Sprintf("%s changed since you last read it (modified by the user or a tool). Read it again before modifying it.", path)
+		return path + " changed since you last read it (modified by the user or a tool). Read it again before modifying it."
 	default:
 		return fmt.Sprintf("Cannot modify %s until its current contents have been read.", path)
 	}

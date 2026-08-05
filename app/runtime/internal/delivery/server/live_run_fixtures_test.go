@@ -26,7 +26,7 @@ type blockingRunRuntime struct {
 
 func newBlockingServer(t *testing.T) *Server {
 	t.Helper()
-	db, err := sqlite.Open(":memory:")
+	db, err := sqlite.Open(t.Context(), ":memory:")
 	if err != nil {
 		t.Fatalf("open blocking runtime store: %v", err)
 	}

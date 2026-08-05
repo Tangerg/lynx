@@ -94,8 +94,8 @@ func coalesceTextDeltas(head runs.ExecutorEvent, ch <-chan runs.ExecutorEvent, s
 					merged.WriteString(d.Text)
 					continue
 				}
-				copy := ev
-				*spill = &copy
+				spillEvent := ev
+				*spill = &spillEvent
 			default:
 			}
 			break
@@ -122,8 +122,8 @@ func coalesceTextDeltas(head runs.ExecutorEvent, ch <-chan runs.ExecutorEvent, s
 					merged.WriteString(d.Text)
 					continue
 				}
-				copy := ev
-				*spill = &copy
+				spillEvent := ev
+				*spill = &spillEvent
 			default:
 			}
 			break

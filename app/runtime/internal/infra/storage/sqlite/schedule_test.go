@@ -14,7 +14,7 @@ import (
 
 func newScheduleStore(t *testing.T) *sqlite.ScheduleStore {
 	t.Helper()
-	db, err := sqlite.Open(filepath.Join(t.TempDir(), "lyra.db"))
+	db, err := sqlite.Open(t.Context(), filepath.Join(t.TempDir(), "lyra.db"))
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -287,7 +287,7 @@ func TestScheduleClaimKeepsOnlyOnePendingOccurrencePerSchedule(t *testing.T) {
 
 func TestScheduleStoreRejectsDuplicatePendingRows(t *testing.T) {
 	ctx := t.Context()
-	db, err := sqlite.Open(filepath.Join(t.TempDir(), "lyra.db"))
+	db, err := sqlite.Open(t.Context(), filepath.Join(t.TempDir(), "lyra.db"))
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -348,7 +348,7 @@ func TestScheduleDueSkipsDisabled(t *testing.T) {
 func TestScheduleUnacknowledgedOccurrenceSurvivesStoreReopen(t *testing.T) {
 	ctx := context.Background()
 	path := filepath.Join(t.TempDir(), "lyra.db")
-	db, err := sqlite.Open(path)
+	db, err := sqlite.Open(t.Context(), path)
 	if err != nil {
 		t.Fatalf("open initial store: %v", err)
 	}
@@ -364,7 +364,7 @@ func TestScheduleUnacknowledgedOccurrenceSurvivesStoreReopen(t *testing.T) {
 		t.Fatalf("close initial store: %v", err)
 	}
 
-	reopenedDB, err := sqlite.Open(path)
+	reopenedDB, err := sqlite.Open(t.Context(), path)
 	if err != nil {
 		t.Fatalf("reopen store: %v", err)
 	}
@@ -379,7 +379,7 @@ func TestScheduleUnacknowledgedOccurrenceSurvivesStoreReopen(t *testing.T) {
 }
 
 func TestScheduleQueriesUseIDAsStableTieBreaker(t *testing.T) {
-	db, err := sqlite.Open(filepath.Join(t.TempDir(), "lyra.db"))
+	db, err := sqlite.Open(t.Context(), filepath.Join(t.TempDir(), "lyra.db"))
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -422,7 +422,7 @@ func TestScheduleQueriesUseIDAsStableTieBreaker(t *testing.T) {
 }
 
 func TestScheduleDuePrioritizesOldestBacklog(t *testing.T) {
-	db, err := sqlite.Open(filepath.Join(t.TempDir(), "lyra.db"))
+	db, err := sqlite.Open(t.Context(), filepath.Join(t.TempDir(), "lyra.db"))
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}

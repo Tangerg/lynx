@@ -674,7 +674,7 @@ func (s stubRuntime) SeedHistory(_ context.Context, id string, msgs []chat.Messa
 
 func newSessionServer(t *testing.T) (*Server, *sqlite.SessionStore, *stubRuntime) {
 	t.Helper()
-	db, err := sqlite.Open(":memory:")
+	db, err := sqlite.Open(t.Context(), ":memory:")
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}

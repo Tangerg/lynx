@@ -54,7 +54,7 @@ func TestWaitingSubtreeCancellationSurvivesSQLiteRestart(t *testing.T) {
 				t.Fatalf("close first runtime database: %v", err)
 			}
 
-			db, err := sqlite.Open(path)
+			db, err := sqlite.Open(t.Context(), path)
 			if err != nil {
 				t.Fatalf("reopen runtime database: %v", err)
 			}

@@ -12,22 +12,22 @@ import (
 )
 
 func TestOpenRequiresAndUsesExplicitProcessPaths(t *testing.T) {
-	if _, err := Open(Config{DefaultWorkspacePath: t.TempDir()}); err == nil {
+	if _, err := Open(t.Context(), Config{DefaultWorkspacePath: t.TempDir()}); err == nil {
 		t.Fatal("Open accepted an empty data directory")
 	}
-	if _, err := Open(Config{DataDirectory: t.TempDir()}); err == nil {
+	if _, err := Open(t.Context(), Config{DataDirectory: t.TempDir()}); err == nil {
 		t.Fatal("Open accepted an empty default workspace path")
 	}
-	if _, err := Open(Config{DataDirectory: "relative-data", DefaultWorkspacePath: t.TempDir()}); err == nil {
+	if _, err := Open(t.Context(), Config{DataDirectory: "relative-data", DefaultWorkspacePath: t.TempDir()}); err == nil {
 		t.Fatal("Open accepted a relative data directory")
 	}
-	if _, err := Open(Config{DataDirectory: t.TempDir(), DefaultWorkspacePath: "relative-workspace"}); err == nil {
+	if _, err := Open(t.Context(), Config{DataDirectory: t.TempDir(), DefaultWorkspacePath: "relative-workspace"}); err == nil {
 		t.Fatal("Open accepted a relative default workspace path")
 	}
 
 	dataDirectory := filepath.Join(t.TempDir(), "data")
 	defaultWorkspace := t.TempDir()
-	bundle, err := Open(Config{
+	bundle, err := Open(t.Context(), Config{
 		DataDirectory: dataDirectory, DefaultWorkspacePath: defaultWorkspace,
 	})
 	if err != nil {
@@ -49,7 +49,7 @@ func TestOpenRequiresAndUsesExplicitProcessPaths(t *testing.T) {
 }
 
 func TestBundleCloseIsIdempotent(t *testing.T) {
-	db, err := sqlitestore.Open(filepath.Join(t.TempDir(), "lyra.db"))
+	db, err := sqlitestore.Open(t.Context(), filepath.Join(t.TempDir(), "lyra.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -66,7 +66,7 @@ func TestBundleCloseIsIdempotent(t *testing.T) {
 }
 
 func TestBundleShutdownHonorsExpiredContext(t *testing.T) {
-	db, err := sqlitestore.Open(filepath.Join(t.TempDir(), "lyra.db"))
+	db, err := sqlitestore.Open(t.Context(), filepath.Join(t.TempDir(), "lyra.db"))
 	if err != nil {
 		t.Fatal(err)
 	}

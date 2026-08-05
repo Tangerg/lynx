@@ -17,7 +17,7 @@ import (
 
 func newRunStores(t *testing.T) (*sqlite.RunStore, *sqlite.InterruptStore) {
 	t.Helper()
-	db, err := sqlite.Open(filepath.Join(t.TempDir(), "lyra.db"))
+	db, err := sqlite.Open(t.Context(), filepath.Join(t.TempDir(), "lyra.db"))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -27,7 +27,7 @@ func newRunStores(t *testing.T) (*sqlite.RunStore, *sqlite.InterruptStore) {
 
 func newRunProjectionStores(t *testing.T) (*sqlite.RunStore, *sqlite.InterruptStore, *sqlite.TranscriptStore) {
 	t.Helper()
-	db, err := sqlite.Open(filepath.Join(t.TempDir(), "lyra.db"))
+	db, err := sqlite.Open(t.Context(), filepath.Join(t.TempDir(), "lyra.db"))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -128,7 +128,7 @@ func capabilitiesForInterrupts(values []transcript.Interrupt) execution.RunCapab
 // join the same conn(ctx)), so a crash can never leave a parked run with an
 // interrupt but a still-running admission row, or vice versa.
 func TestParkCommitsInterruptAndSuspendAtomically(t *testing.T) {
-	db, err := sqlite.Open(filepath.Join(t.TempDir(), "lyra.db"))
+	db, err := sqlite.Open(t.Context(), filepath.Join(t.TempDir(), "lyra.db"))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}

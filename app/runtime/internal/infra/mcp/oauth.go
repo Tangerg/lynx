@@ -55,8 +55,11 @@ type oauthFlow struct {
 
 // newOAuthFlow binds a loopback callback server on an ephemeral port and starts
 // serving. The caller closes it once the flow settles.
-func newOAuthFlow() (*oauthFlow, error) {
-	ln, err := net.Listen("tcp", "127.0.0.1:0")
+func newOAuthFlow(ctx context.Context) (*oauthFlow, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	ln, err := (&net.ListenConfig{}).Listen(ctx, "tcp", "127.0.0.1:0")
 	if err != nil {
 		return nil, fmt.Errorf("mcp oauth: bind callback server: %w", err)
 	}

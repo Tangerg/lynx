@@ -52,7 +52,9 @@ func (s *Server) handleInfo(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	w.WriteHeader(http.StatusOK)
 
-	_ = json.NewEncoder(w).Encode(s.info)
+	if err := json.NewEncoder(w).Encode(s.info); err != nil {
+		return
+	}
 }
 
 type livenessResponse struct {
@@ -63,7 +65,9 @@ func (s *Server) handleLiveness(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
 	w.WriteHeader(http.StatusOK)
-	_ = json.NewEncoder(w).Encode(livenessResponse{Status: "ok"})
+	if err := json.NewEncoder(w).Encode(livenessResponse{Status: "ok"}); err != nil {
+		return
+	}
 }
 
 type readinessResponse struct {
@@ -83,5 +87,7 @@ func (s *Server) handleReadiness(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	w.WriteHeader(status)
 
-	_ = json.NewEncoder(w).Encode(readinessResponse{Status: string(overall), Checks: checks})
+	if err := json.NewEncoder(w).Encode(readinessResponse{Status: string(overall), Checks: checks}); err != nil {
+		return
+	}
 }

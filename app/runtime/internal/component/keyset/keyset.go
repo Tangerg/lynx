@@ -103,12 +103,12 @@ func Decode(cursor, namespace string, filters []string) ([]string, error) {
 
 // Limit validates and clamps a requested page size. Zero asks for the default,
 // which is also the ceiling; a negative value is invalid.
-func Limit(requested, max int) (int, error) {
+func Limit(requested, ceiling int) (int, error) {
 	if requested < 0 {
 		return 0, fmt.Errorf("%w: must not be negative", ErrInvalidLimit)
 	}
-	if requested == 0 || requested > max {
-		return max, nil
+	if requested == 0 || requested > ceiling {
+		return ceiling, nil
 	}
 	return requested, nil
 }

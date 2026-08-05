@@ -197,7 +197,7 @@ type headerRoundTripper struct {
 	authorization string
 	headers       map[string]string
 	base          http.RoundTripper
-	lastStatus    atomic.Int32
+	lastStatus    atomic.Int64
 }
 
 func (t *headerRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
@@ -213,7 +213,7 @@ func (t *headerRoundTripper) RoundTrip(req *http.Request) (*http.Response, error
 	}
 	response, err := t.base.RoundTrip(r)
 	if response != nil {
-		t.lastStatus.Store(int32(response.StatusCode))
+		t.lastStatus.Store(int64(response.StatusCode))
 	}
 	return response, err
 }

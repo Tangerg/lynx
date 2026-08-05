@@ -8,7 +8,7 @@ import (
 )
 
 func TestProviderStoreUpdatePreservesOmittedFieldsAndClearsExplicitly(t *testing.T) {
-	db, err := Open(filepath.Join(t.TempDir(), "runtime.db"))
+	db, err := Open(t.Context(), filepath.Join(t.TempDir(), "runtime.db"))
 	if err != nil {
 		t.Fatal(err)
 	}

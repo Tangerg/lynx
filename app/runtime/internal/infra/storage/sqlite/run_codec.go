@@ -407,13 +407,46 @@ func decodeRunProblem(encoded string) (*transcript.Problem, error) {
 	if err := json.Unmarshal([]byte(encoded), &row); err != nil {
 		return nil, err
 	}
+	kind, err := decodeRunProblemKind(row.Kind)
+	if err != nil {
+		return nil, err
+	}
 	// Scope is not stored: a problem in a Run's result slot is a Run problem by
 	// definition, and Validate refuses any other.
 	return &transcript.Problem{
-		Kind:              transcript.ProblemKind(row.Kind),
+		Kind:              kind,
 		Scope:             transcript.RunProblem,
 		Detail:            row.Detail,
 		DocURL:            row.DocURL,
 		RetryAfterSeconds: row.RetryAfterSeconds,
 	}, nil
+}
+
+func decodeRunProblemKind(kind int) (transcript.ProblemKind, error) {
+	switch kind {
+	case int(transcript.InternalProblem):
+		return transcript.InternalProblem, nil
+	case int(transcript.RunLostProblem):
+		return transcript.RunLostProblem, nil
+	case int(transcript.AgentStuckProblem):
+		return transcript.AgentStuckProblem, nil
+	case int(transcript.RateLimitedProblem):
+		return transcript.RateLimitedProblem, nil
+	case int(transcript.InvalidAPIKeyProblem):
+		return transcript.InvalidAPIKeyProblem, nil
+	case int(transcript.TimeoutProblem):
+		return transcript.TimeoutProblem, nil
+	case int(transcript.ProviderUnavailableProblem):
+		return transcript.ProviderUnavailableProblem, nil
+	case int(transcript.ProviderRejectedProblem):
+		return transcript.ProviderRejectedProblem, nil
+	case int(transcript.DeniedByUserProblem):
+		return transcript.DeniedByUserProblem, nil
+	case int(transcript.ToolFailedProblem):
+		return transcript.ToolFailedProblem, nil
+	case int(transcript.ChildRunCanceledProblem):
+		return transcript.ChildRunCanceledProblem, nil
+	default:
+		return 0, fmt.Errorf("unknown run problem kind %d", kind)
+	}
 }

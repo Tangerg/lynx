@@ -159,7 +159,7 @@ type IsolationProvider interface {
 // ExecutionControl is the run use cases' implementation-neutral control
 // surface. Validation happens before Session creation.
 type ExecutionControl interface {
-	ValidateStart(StartExecution) error
+	ValidateStart(start StartExecution) error
 	PrepareStart(ctx context.Context, req StartExecution) (execution.ExecutorRef, error)
 	Activate(ctx context.Context, ref execution.ExecutorRef) error
 	Prepare(ctx context.Context, ref execution.ExecutorRef) (execution.ExecutorRef, error)

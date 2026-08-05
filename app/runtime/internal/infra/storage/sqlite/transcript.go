@@ -444,16 +444,20 @@ func (s *TranscriptStore) SearchTranscript(ctx context.Context, query string, li
 	var out []transcript.SearchHit
 	for rows.Next() {
 		var sessionID, runID, itemID, snippet string
-		var kind int
+		var storedKind int
 		var createdAt int64
-		if err := rows.Scan(&sessionID, &runID, &itemID, &kind, &createdAt, &snippet); err != nil {
+		if err := rows.Scan(&sessionID, &runID, &itemID, &storedKind, &createdAt, &snippet); err != nil {
+			return nil, fmt.Errorf("sqlite: scan transcript search hit: %w", err)
+		}
+		kind, err := decodeStoredItemKind(storedKind)
+		if err != nil {
 			return nil, fmt.Errorf("sqlite: scan transcript search hit: %w", err)
 		}
 		out = append(out, transcript.SearchHit{
 			SessionID: sessionID,
 			RunID:     runID,
 			ItemID:    itemID,
-			Kind:      transcript.ItemKind(kind),
+			Kind:      kind,
 			CreatedAt: time.Unix(0, createdAt).UTC(),
 			Snippet:   snippet,
 		})
@@ -462,6 +466,25 @@ func (s *TranscriptStore) SearchTranscript(ctx context.Context, query string, li
 		return nil, fmt.Errorf("sqlite: search transcripts: %w", err)
 	}
 	return out, nil
+}
+
+func decodeStoredItemKind(kind int) (transcript.ItemKind, error) {
+	switch kind {
+	case int(transcript.UserMessage):
+		return transcript.UserMessage, nil
+	case int(transcript.AgentMessage):
+		return transcript.AgentMessage, nil
+	case int(transcript.Reasoning):
+		return transcript.Reasoning, nil
+	case int(transcript.QuestionItem):
+		return transcript.QuestionItem, nil
+	case int(transcript.ToolCall):
+		return transcript.ToolCall, nil
+	case int(transcript.Compaction):
+		return transcript.Compaction, nil
+	default:
+		return 0, fmt.Errorf("unknown transcript item kind %d", kind)
+	}
 }
 
 // ftsMatchQuery turns natural-language input into a safe FTS5 MATCH expression:

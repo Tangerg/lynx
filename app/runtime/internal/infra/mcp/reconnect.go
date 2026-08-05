@@ -159,7 +159,7 @@ func (c *Connections) Authorize(ctx context.Context, name string) error {
 	defer cancel()
 	cfg.Timeout = 0
 
-	flow, err := newOAuthFlow()
+	flow, err := newOAuthFlow(ctx)
 	if err != nil {
 		c.failAttempt(attempt)
 		return errors.Join(closeErr, err)

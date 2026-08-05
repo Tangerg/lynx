@@ -917,6 +917,7 @@ Acceptance:
 | 43. Tool result presentation contract ownership | Completed | 2026-08-05 | 2026-08-05 | Toolset descriptors now jointly own result projection and exact published shape; generated artifacts bind each presentation to its tool identity, Runtime owns its TypeScript binding and canonical samples, and workspace/standalone plus focused race/static/dead-code verification passed. |
 | 44. Runtime semantic and API residue closure | Completed | 2026-08-05 | 2026-08-05 | Current tool documentation and comments match the surviving vocabulary, five false internal API dimensions were removed, all production `unparam`/`modernize` findings reached zero, and full workspace/standalone plus focused race/static/dead-code verification passed. |
 | 45. Runtime protocol contract ownership | Completed | 2026-08-05 | 2026-08-05 | Protocol semantics, transport binding, auxiliary APIs, generated artifacts, canonical samples, and version drift gates are all Runtime-owned; no generator, current architecture guide, or production source resolves protocol truth through a client module. Full workspace/standalone and focused verification passed. |
+| 46. Cancellation, filesystem, and narrowing safety closure | Completed | 2026-08-05 | 2026-08-05 | Persistence and OAuth startup inherit caller cancellation, workspace archives use root-scoped filesystem access, persisted integer discriminants cannot narrow into valid enums, and precise interface/error-handling checks are clean. Full workspace/standalone plus focused race/static/security verification passed. |
 
 Allowed status values: `Pending`, `In progress`, `Completed`, `Blocked`, `Revised`.
 
@@ -979,6 +980,30 @@ Allowed status values: `Pending`, `In progress`, `Completed`, `Blocked`, `Revise
 - Contract generation, focused architecture/protocol/HTTP tests, full
   workspace and standalone build/vet/test, race tests, static analysis, lint,
   dead-code analysis, formatting, and residue scans passed.
+
+### 2026-08-05 — Batch 46 completed
+
+- Made persistence opening explicitly context-bound from process bootstrap
+  through the persistence bundle to SQLite schema inspection and installation;
+  every call site now chooses its lifetime instead of falling through
+  context-free SQL APIs. OAuth loopback binding likewise inherits the bounded
+  authorization context.
+- Replaced archive-time absolute-path reopening with `os.Root`-scoped walking,
+  link reads, and file opens, and reject tar permission values outside the
+  supported permission mask. This preserves exact archive names while making
+  containment race-safe; no filename sanitization or silent rewriting is used.
+- Added explicit stored-enum decoders for Run problems and transcript search
+  items so corrupt or future integer values cannot narrow through `uint8` and
+  masquerade as a current valid variant. Atomic permission and HTTP status
+  representations now match their bounded value widths.
+- Named every previously anonymous consumer-interface parameter, removed stale
+  loop-variable copies and predeclared-name shadows, checked JSON encoding and
+  internal cache assertions, and applied the remaining unambiguous modern Go
+  simplifications found by the extended audit.
+- Focused storage/MCP/sandbox/agent/application/Delivery tests, context and
+  security linters, full workspace and standalone build/vet/test, race tests,
+  static analysis, default lint, dead-code analysis, formatting, and diff
+  checks passed.
 
 ### 2026-08-04 — Batch 38 completed
 

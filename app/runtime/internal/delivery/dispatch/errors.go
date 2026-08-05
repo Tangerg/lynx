@@ -260,13 +260,19 @@ func marshalProblem(spec rpcErrorSpec, problem protocol.ProblemData) *transport.
 	if err := protocol.ValidateWireTree(problem); err != nil {
 		return invalidProblemResponse("the runtime could not encode a valid error response")
 	}
-	encodedProblem, _ := json.Marshal(problem)
+	encodedProblem, err := json.Marshal(problem)
+	if err != nil {
+		return invalidProblemResponse("the runtime could not serialize a valid error response")
+	}
 	return transport.NewError(spec.code, problem.Type, encodedProblem)
 }
 
 func invalidProblemResponse(detail string) *transport.Error {
 	fallback := protocol.ProblemData{Type: protocol.ProblemInternalError, Detail: detail}
-	encodedFallback, _ := json.Marshal(fallback)
+	encodedFallback, err := json.Marshal(fallback)
+	if err != nil {
+		return transport.NewError(protocol.CodeInternalError, protocol.ProblemInternalError, nil)
+	}
 	return transport.NewError(
 		protocol.CodeInternalError,
 		protocol.ProblemInternalError,

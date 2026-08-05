@@ -100,7 +100,7 @@ func TestUpdateSession(t *testing.T) {
 // orphan (the bug: items.list / runs.listOpenInterrupts kept resolving a
 // deleted session).
 func TestDeleteSession_Cascade(t *testing.T) {
-	db, err := sqlite.Open(":memory:")
+	db, err := sqlite.Open(t.Context(), ":memory:")
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -180,7 +180,7 @@ func TestDeleteSession_RejectsActiveSession(t *testing.T) {
 }
 
 func TestDeleteSession_CancelsParkedTurn(t *testing.T) {
-	db, err := sqlite.Open(":memory:")
+	db, err := sqlite.Open(t.Context(), ":memory:")
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
@@ -224,7 +224,7 @@ func TestDeleteSession_CancelsParkedTurn(t *testing.T) {
 // history into the child, and honors a title override; a run-boundary fork
 // (fromRunId) against an unknown run is run_not_found.
 func TestForkSession(t *testing.T) {
-	db, err := sqlite.Open(":memory:")
+	db, err := sqlite.Open(t.Context(), ":memory:")
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}

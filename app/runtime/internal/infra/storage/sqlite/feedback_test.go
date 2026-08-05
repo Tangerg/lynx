@@ -10,7 +10,7 @@ import (
 )
 
 func TestFeedbackStoreAppendsEntry(t *testing.T) {
-	db, err := sqlite.Open(filepath.Join(t.TempDir(), "lyra.db"))
+	db, err := sqlite.Open(t.Context(), filepath.Join(t.TempDir(), "lyra.db"))
 	if err != nil {
 		t.Fatal(err)
 	}

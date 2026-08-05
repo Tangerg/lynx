@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/google/uuid"
@@ -176,7 +177,7 @@ func (w Worker) fireDue(ctx context.Context, now time.Time) {
 }
 
 func occurrenceID(scheduleID string, dueAt time.Time) string {
-	return scheduleID + ":" + fmt.Sprintf("%d", dueAt.UTC().UnixMilli())
+	return scheduleID + ":" + strconv.FormatInt(dueAt.UTC().UnixMilli(), 10)
 }
 
 func recordWorkerError(ctx context.Context, msg string, err error) {

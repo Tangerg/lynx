@@ -84,7 +84,7 @@ func bootstrapRuntimeWithBuildID(ctx context.Context, paths runtimePaths, buildI
 		return nil, config.Settings{}, err
 	}
 
-	stores, err := persistence.Open(persistence.Config{
+	stores, err := persistence.Open(ctx, persistence.Config{
 		DataDirectory:        paths.dataDirectory,
 		DefaultWorkspacePath: paths.defaultWorkspacePath,
 	})

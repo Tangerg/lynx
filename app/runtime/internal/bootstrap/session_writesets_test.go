@@ -120,7 +120,7 @@ type sessionStores struct {
 // database so the atomic write-sets run against the real stores + transactor.
 func newWriteSetFixture(t *testing.T) (sessionStores, *sqlite.RunStore, *sqlite.InterruptStore) {
 	t.Helper()
-	db, err := sqlite.Open(filepath.Join(t.TempDir(), "lyra.db"))
+	db, err := sqlite.Open(t.Context(), filepath.Join(t.TempDir(), "lyra.db"))
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}

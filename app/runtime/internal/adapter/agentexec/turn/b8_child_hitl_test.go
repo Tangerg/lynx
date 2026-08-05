@@ -312,7 +312,7 @@ func TestRestartResumesCompleteSiblingAnswerSetWithoutReplayingBarrier(t *testin
 	const buildID = "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
 	cwd := t.TempDir()
 	databasePath := filepath.Join(t.TempDir(), "runtime.db")
-	firstDatabase, err := sqlite.Open(databasePath)
+	firstDatabase, err := sqlite.Open(t.Context(), databasePath)
 	if err != nil {
 		t.Fatalf("open first database: %v", err)
 	}
@@ -368,7 +368,7 @@ func TestRestartResumesCompleteSiblingAnswerSetWithoutReplayingBarrier(t *testin
 		t.Fatalf("ProcessID: %v", err)
 	}
 
-	restoredDatabase, err := sqlite.Open(databasePath)
+	restoredDatabase, err := sqlite.Open(t.Context(), databasePath)
 	if err != nil {
 		t.Fatalf("reopen database: %v", err)
 	}

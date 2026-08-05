@@ -51,7 +51,6 @@ func (c *Discovery) ResolveWorkspace(path string) (Resolved, error) {
 	return Resolved{
 		Path: identity.Cwd, ProjectRoot: identity.ProjectRoot, Missing: identity.Missing,
 	}, nil
-
 }
 
 // ListWorkspaces returns each non-empty session workspace once, newest-active first.

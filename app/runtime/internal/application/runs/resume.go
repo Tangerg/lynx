@@ -54,7 +54,7 @@ func (c *Coordinator) Resume(ctx context.Context, cmd ResumeCommand) (StartResul
 	}
 
 	// Resume inherits the copy cwd and isolation from the parked execution scope,
-	// scope, so no execution-cwd resolution is needed here. A rehydrate (process
+	// so no execution-cwd resolution is needed here. A rehydrate (process
 	// gone) of an isolated Run is refused as lost — see prepareExecution — because the
 	// sandbox copy died with the process.
 	ref, err := c.prepareExecution(ctx, pending, sess.Cwd, sess.Isolated)

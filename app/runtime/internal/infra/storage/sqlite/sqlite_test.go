@@ -19,10 +19,21 @@ import (
 	"github.com/Tangerg/lynx/core/chat"
 )
 
+func TestOpenHonorsCanceledContext(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	if db, err := sqlite.Open(ctx, filepath.Join(t.TempDir(), "lyra.db")); !errors.Is(err, context.Canceled) {
+		if db != nil {
+			_ = db.Close()
+		}
+		t.Fatalf("Open error = %v, want context.Canceled", err)
+	}
+}
+
 func newTempDB(t *testing.T) *sqlite.SessionStore {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "lyra.db")
-	db, err := sqlite.Open(path)
+	db, err := sqlite.Open(t.Context(), path)
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -213,7 +224,7 @@ func TestSessionPersistAcrossReopen(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "lyra.db")
 
-	db1, err := sqlite.Open(path)
+	db1, err := sqlite.Open(t.Context(), path)
 	if err != nil {
 		t.Fatalf("Open 1: %v", err)
 	}
@@ -221,7 +232,7 @@ func TestSessionPersistAcrossReopen(t *testing.T) {
 	created, _ := svc1.Create(ctx, "persistent", "")
 	_ = db1.Close()
 
-	db2, err := sqlite.Open(path)
+	db2, err := sqlite.Open(t.Context(), path)
 	if err != nil {
 		t.Fatalf("Open 2: %v", err)
 	}
@@ -242,7 +253,7 @@ func TestSessionPersistAcrossReopen(t *testing.T) {
 // an empty slice; Clear is idempotent.
 func TestMessageStore_RoundTrip(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "lyra.db")
-	db, err := sqlite.Open(path)
+	db, err := sqlite.Open(t.Context(), path)
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -301,7 +312,7 @@ func TestMessageStore_RoundTrip(t *testing.T) {
 // and per-session scoping. The Runs those items belong to are the run store's.
 func TestTranscriptStore_RoundTrip(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "lyra.db")
-	db, err := sqlite.Open(path)
+	db, err := sqlite.Open(t.Context(), path)
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -331,7 +342,7 @@ func TestTranscriptStore_RoundTrip(t *testing.T) {
 
 func TestTranscriptStoreRejectsIdentityReparenting(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "lyra.db")
-	db, err := sqlite.Open(path)
+	db, err := sqlite.Open(t.Context(), path)
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -392,7 +403,7 @@ func TestTranscriptStoreRejectsIdentityReparenting(t *testing.T) {
 
 func TestTranscriptStoreReplaceItemUsesExactOptimisticSnapshot(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "lyra.db")
-	db, err := sqlite.Open(path)
+	db, err := sqlite.Open(t.Context(), path)
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -448,7 +459,7 @@ func TestTranscriptStoreReplaceItemUsesExactOptimisticSnapshot(t *testing.T) {
 
 func TestTranscriptStoreKeepsOffloadRelationshipsImmutableAndOneToOne(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "lyra.db")
-	db, err := sqlite.Open(path)
+	db, err := sqlite.Open(t.Context(), path)
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -508,7 +519,7 @@ func TestOpenRefusesEveryMismatchedSchemaWithoutTouchingIt(t *testing.T) {
 				t.Fatalf("close stale database: %v", err)
 			}
 
-			db, err := sqlite.Open(path)
+			db, err := sqlite.Open(t.Context(), path)
 			if !errors.Is(err, sqlite.ErrSchemaEpochMismatch) {
 				if err == nil {
 					_ = db.Close()
@@ -557,7 +568,7 @@ func TestOpenInstallsIntoAnEmptyFile(t *testing.T) {
 		t.Fatalf("close empty database: %v", err)
 	}
 
-	db, err := sqlite.Open(path)
+	db, err := sqlite.Open(t.Context(), path)
 	if err != nil {
 		t.Fatalf("open empty database: %v", err)
 	}

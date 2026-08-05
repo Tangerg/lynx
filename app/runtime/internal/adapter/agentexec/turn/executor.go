@@ -19,22 +19,22 @@ import (
 // needs. It lives at the consumer because the concrete controller owns no
 // reusable abstraction boundary.
 type executorControl interface {
-	Events(context.Context, Handle) (iter.Seq[runs.ExecutorEvent], error)
-	InjectSteering(context.Context, Handle, []transcript.ContentBlock) error
-	PrepareTurn(context.Context, runs.StartExecution) (Handle, error)
-	ActivateTurn(context.Context, Handle) error
-	Resume(context.Context, Handle, []agentexec.SuspensionAnswer, []execution.InterruptKind) error
-	ProcessID(context.Context, Handle) (string, error)
-	Rehydrate(context.Context, runs.RehydrateExecution) (Handle, error)
-	Cancel(context.Context, Handle) error
-	CancelSubtree(context.Context, Handle, string) error
+	Events(ctx context.Context, handle Handle) (iter.Seq[runs.ExecutorEvent], error)
+	InjectSteering(ctx context.Context, handle Handle, content []transcript.ContentBlock) error
+	PrepareTurn(ctx context.Context, start runs.StartExecution) (Handle, error)
+	ActivateTurn(ctx context.Context, handle Handle) error
+	Resume(ctx context.Context, handle Handle, answers []agentexec.SuspensionAnswer, interruptKinds []execution.InterruptKind) error
+	ProcessID(ctx context.Context, handle Handle) (string, error)
+	Rehydrate(ctx context.Context, execution runs.RehydrateExecution) (Handle, error)
+	Cancel(ctx context.Context, handle Handle) error
+	CancelSubtree(ctx context.Context, handle Handle, processID string) error
 }
 
 type waitingSubtreeControl interface {
 	PrepareWaitingSubtreeCancellation(
-		context.Context,
-		Handle,
-		string,
+		ctx context.Context,
+		handle Handle,
+		processID string,
 	) (runs.PreparedWaitingSubtreeCancellation, error)
 }
 

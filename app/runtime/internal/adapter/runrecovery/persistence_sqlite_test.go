@@ -28,7 +28,7 @@ func (alwaysResumable) CanResumeCheckpoint(
 // TestRecoveryRepairsWholeDurableLifecycle proves
 // terminal_run_explains_how_it_ended at the runs.recovery boundary.
 func TestRecoveryRepairsWholeDurableLifecycle(t *testing.T) {
-	db, err := sqlite.Open(":memory:")
+	db, err := sqlite.Open(t.Context(), ":memory:")
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
@@ -124,7 +124,7 @@ func TestRecoveryRepairsWholeDurableLifecycle(t *testing.T) {
 // TestRecoveryRejectsPartialParkWithoutMutatingIt proves
 // parked_tree_has_exactly_one_open_interrupt_set at the runs.recovery boundary.
 func TestRecoveryRejectsPartialParkWithoutMutatingIt(t *testing.T) {
-	db, err := sqlite.Open(":memory:")
+	db, err := sqlite.Open(t.Context(), ":memory:")
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}

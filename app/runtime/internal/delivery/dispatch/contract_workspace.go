@@ -91,7 +91,6 @@ func registerWorkspace(r *Registry) {
 	}, func(d *Router, ctx context.Context, in protocol.ReadFileRequest) (*protocol.FileContent, error) {
 		return d.api.ReadWorkspaceFile(ctx, in)
 	})
-
 }
 
 func registerRuntimeSubscription(r *Registry) {

@@ -17,7 +17,7 @@ import (
 
 func newExecutorCheckpointStorage(t *testing.T) (*sql.DB, *sqlite.ExecutorCheckpointStore) {
 	t.Helper()
-	db, err := sqlite.Open(":memory:")
+	db, err := sqlite.Open(t.Context(), ":memory:")
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}

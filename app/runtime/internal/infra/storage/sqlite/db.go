@@ -10,6 +10,7 @@
 package sqlite
 
 import (
+	"context"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -37,7 +38,7 @@ var ErrSchemaEpochMismatch = errors.New("sqlite: schema epoch mismatch")
 //   - foreign_keys = ON — surfaces parent-id violations early
 //   - busy_timeout = 5000ms — survives brief contention from
 //     concurrent writers piling onto the same connection
-func Open(path string) (*sql.DB, error) {
+func Open(ctx context.Context, path string) (*sql.DB, error) {
 	dsn := fmt.Sprintf(
 		"file:%s?_pragma=journal_mode(WAL)&_pragma=foreign_keys(ON)&_pragma=busy_timeout(5000)",
 		path,
@@ -51,7 +52,7 @@ func Open(path string) (*sql.DB, error) {
 	// concurrent transactions.
 	db.SetMaxOpenConns(1)
 
-	if err := installCurrentSchema(db, path); err != nil {
+	if err := installCurrentSchema(ctx, db, path); err != nil {
 		return nil, errors.Join(err, db.Close())
 	}
 	return db, nil
@@ -62,13 +63,13 @@ func Open(path string) (*sql.DB, error) {
 // stamped with any other number is refused, never upgraded.
 const schemaEpoch = 57
 
-func installCurrentSchema(db *sql.DB, path string) error {
+func installCurrentSchema(ctx context.Context, db *sql.DB, path string) error {
 	var epoch int
-	if err := db.QueryRow(`PRAGMA user_version`).Scan(&epoch); err != nil {
+	if err := db.QueryRowContext(ctx, `PRAGMA user_version`).Scan(&epoch); err != nil {
 		return fmt.Errorf("sqlite: read schema epoch: %w", err)
 	}
 	if epoch != schemaEpoch {
-		empty, err := holdsNoSchema(db)
+		empty, err := holdsNoSchema(ctx, db)
 		if err != nil {
 			return err
 		}
@@ -576,11 +577,11 @@ func installCurrentSchema(db *sql.DB, path string) error {
 		)`,
 	}
 	for _, stmt := range stmts {
-		if _, err := db.Exec(stmt); err != nil {
+		if _, err := db.ExecContext(ctx, stmt); err != nil {
 			return fmt.Errorf("sqlite: install current schema: %w", err)
 		}
 	}
-	if _, err := db.Exec(fmt.Sprintf(`PRAGMA user_version = %d`, schemaEpoch)); err != nil {
+	if _, err := db.ExecContext(ctx, fmt.Sprintf(`PRAGMA user_version = %d`, schemaEpoch)); err != nil {
 		return fmt.Errorf("sqlite: set schema epoch: %w", err)
 	}
 	return nil
@@ -590,9 +591,9 @@ func installCurrentSchema(db *sql.DB, path string) error {
 // file this process just created. It is the one case where an epoch mismatch is
 // not a mismatch at all: an unstamped empty file has no durable state to lose,
 // so the current schema is installed into it.
-func holdsNoSchema(db *sql.DB) (bool, error) {
+func holdsNoSchema(ctx context.Context, db *sql.DB) (bool, error) {
 	var tables int
-	if err := db.QueryRow(
+	if err := db.QueryRowContext(ctx,
 		`SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'`,
 	).Scan(&tables); err != nil {
 		return false, fmt.Errorf("sqlite: inspect schema: %w", err)
