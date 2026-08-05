@@ -36,6 +36,21 @@ describe("assembled context dock destinations", () => {
     expect(missing).toEqual([]);
   });
 
+  // The reverse direction, which nothing checked: a REGISTERED VIEW with no
+  // destination is unreachable. It renders correctly, it can be photographed by a
+  // fixture that registers a destination by hand, and in the product it never
+  // appears in the add-panel menu at all — which is how the Inbox and Tool stats
+  // views shipped registered and unreachable. Assert the whole set, so a view
+  // added without a destination fails here instead of quietly going missing.
+  it("every registered view is reachable from the dock", async () => {
+    const { destinations, views } = await assemble();
+    const reachable = new Set(destinations.map((destination) => destination.viewId));
+
+    const unreachable = [...views.keys()].filter((viewId) => !reachable.has(viewId));
+
+    expect(unreachable).toEqual([]);
+  });
+
   // Every destination opens in the dock, so a destination that cannot live there
   // is a one-way trip: the view would have no "open in the dock" affordance to
   // get back with.

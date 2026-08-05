@@ -418,6 +418,8 @@ export const zh: Record<string, string> = {
   "workspace.view.title.agentDocs": "Agent 文档",
   "workspace.view.title.runSummary": "运行摘要",
   "workspace.view.title.notifications": "通知",
+  "workspace.view.title.inbox": "收件箱",
+  "workspace.view.title.toolStats": "工具统计",
   "workspace.view.title.timeline": "时间线",
   "workspace.view.title.terminal": "终端",
   "workspace.view.title.skills": "技能",

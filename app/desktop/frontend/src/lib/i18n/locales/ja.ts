@@ -288,6 +288,8 @@ export const ja: Record<string, string> = {
   "workspace.view.title.agentDocs": "Agent ドキュメント",
   "workspace.view.title.runSummary": "実行サマリー",
   "workspace.view.title.notifications": "通知",
+  "workspace.view.title.inbox": "受信箱",
+  "workspace.view.title.toolStats": "ツール統計",
   "workspace.view.title.timeline": "タイムライン",
   "workspace.view.title.terminal": "ターミナル",
   "workspace.view.title.skills": "スキル",

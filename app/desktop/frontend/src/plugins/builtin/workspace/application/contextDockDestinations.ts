@@ -9,6 +9,10 @@ import type { ContextDockDestinationSpec } from "@/plugins/sdk";
 // remains the discoverable entry point for the whole right workspace.
 export const builtinContextDockDestinations: ContextDockDestinationSpec[] = [
   { viewId: "search", scope: "workspace", order: 10 },
+  // Not session-scoped: the queue is every session's, which is the whole reason
+  // it exists — a session-scoped inbox could only ever tell you about the session
+  // you were already looking at.
+  { viewId: "inbox", scope: "workspace", order: 15 },
   { viewId: "explorer", scope: "workspace", order: 20 },
   { viewId: "file", scope: "workspace", order: 25 },
   { viewId: "files", scope: "workspace", order: 30 },
@@ -28,4 +32,5 @@ export const builtinContextDockDestinations: ContextDockDestinationSpec[] = [
   { viewId: "run-summary", scope: "run", order: 130 },
   { viewId: "timeline", scope: "session", order: 140 },
   { viewId: "notifications", scope: "session", order: 145 },
+  { viewId: "tool-stats", scope: "session", order: 150 },
 ];

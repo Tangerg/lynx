@@ -87,7 +87,7 @@ function ToolStatRow({ row, summary }: { row: ToolStat; summary: ToolStatsSummar
 
 export const toolStatsView = defineWorkspaceView({
   id: "tool-stats",
-  title: "toolStats.title",
+  title: "workspace.view.title.toolStats",
   icon: "chart",
   order: 150,
   splittable: true,

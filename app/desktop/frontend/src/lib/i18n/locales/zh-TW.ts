@@ -289,6 +289,8 @@ export const zhTW: Record<string, string> = {
   "workspace.view.title.agentDocs": "Agent 文件",
   "workspace.view.title.runSummary": "執行摘要",
   "workspace.view.title.notifications": "通知",
+  "workspace.view.title.inbox": "收件匣",
+  "workspace.view.title.toolStats": "工具統計",
   "workspace.view.title.timeline": "時間軸",
   "workspace.view.title.terminal": "終端機",
   "workspace.view.title.skills": "技能",

@@ -430,6 +430,8 @@ export const en: Record<string, string> = {
   "workspace.view.title.agentDocs": "Agent docs",
   "workspace.view.title.runSummary": "Run summary",
   "workspace.view.title.notifications": "Notifications",
+  "workspace.view.title.inbox": "Inbox",
+  "workspace.view.title.toolStats": "Tool stats",
   "workspace.view.title.timeline": "Timeline",
   "workspace.view.title.terminal": "Terminal",
   "workspace.view.title.skills": "Skills",

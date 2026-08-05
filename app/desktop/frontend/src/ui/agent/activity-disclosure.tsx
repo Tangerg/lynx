@@ -136,8 +136,7 @@ export function AgentActivityDisclosure({
           // on: a `line` has no fill of its own, so it borrows the column's.
           // Hardcoding the column's ground would have put canvas over card the
           // first time a card shell asked for this.
-          stickyHeader && "sticky top-0 z-1",
-          stickyHeader && (shell === "line" ? "bg-canvas" : "bg-card"),
+          stickyHeader && ["sticky top-0 z-1", shell === "line" ? "bg-canvas" : "bg-card"],
         )}
       >
         <Pressable

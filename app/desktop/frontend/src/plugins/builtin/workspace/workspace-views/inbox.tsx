@@ -115,9 +115,10 @@ function InboxBadge() {
 
 export const inboxView = defineWorkspaceView({
   id: "inbox",
-  title: "inbox.title",
+  title: "workspace.view.title.inbox",
   icon: "bell",
   badge: InboxBadge,
   order: 15,
+  splittable: true,
   component: InboxTab,
 });

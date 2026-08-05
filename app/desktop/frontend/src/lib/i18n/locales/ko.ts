@@ -287,6 +287,8 @@ export const ko: Record<string, string> = {
   "workspace.view.title.agentDocs": "Agent 문서",
   "workspace.view.title.runSummary": "실행 요약",
   "workspace.view.title.notifications": "알림",
+  "workspace.view.title.inbox": "받은 항목",
+  "workspace.view.title.toolStats": "도구 통계",
   "workspace.view.title.timeline": "타임라인",
   "workspace.view.title.terminal": "터미널",
   "workspace.view.title.skills": "스킬",
