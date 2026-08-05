@@ -13,8 +13,7 @@ import (
 )
 
 const (
-	maxDefinitionNameBytes = 128
-	maxDescriptionBytes    = 4096
+	maxDescriptionBytes = 4096
 )
 
 var ErrInvalidDescriptor = errors.New("agent: invalid descriptor")
@@ -163,7 +162,7 @@ type descriptorWire struct {
 }
 
 func validateDescriptorConfig(config DescriptorConfig) error {
-	if !validDefinitionName(config.Name) {
+	if !validQualifiedName(config.Name) {
 		return fmt.Errorf("%w: name must start with a lowercase letter and contain only lowercase letters, digits, '.', '_' or '-'", ErrInvalidDescriptor)
 	}
 	if config.Description == "" || strings.TrimSpace(config.Description) != config.Description || len(config.Description) > maxDescriptionBytes {
@@ -180,20 +179,6 @@ func validateDescriptorConfig(config DescriptorConfig) error {
 		return fmt.Errorf("%w: output schema: %w", ErrInvalidDescriptor, ErrInvalidSchema)
 	}
 	return nil
-}
-
-func validDefinitionName(name string) bool {
-	if len(name) == 0 || len(name) > maxDefinitionNameBytes || name[0] < 'a' || name[0] > 'z' {
-		return false
-	}
-	for index := 1; index < len(name); index++ {
-		character := name[index]
-		if character >= 'a' && character <= 'z' || character >= '0' && character <= '9' || character == '.' || character == '_' || character == '-' {
-			continue
-		}
-		return false
-	}
-	return true
 }
 
 func descriptorDigest(descriptor Descriptor) (string, error) {

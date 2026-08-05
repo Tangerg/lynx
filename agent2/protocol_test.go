@@ -1,0 +1,110 @@
+package agent2
+
+import (
+	"encoding/json"
+	"errors"
+	"testing"
+	"time"
+)
+
+func TestSignalKeepsDeliveryAndWaitIdentitySeparate(t *testing.T) {
+	signalID, err := ParseSignalID("signal:42")
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitID, err := ParseWaitID("wait:7")
+	if err != nil {
+		t.Fatal(err)
+	}
+	payload := json.RawMessage(` { "answer": true } `)
+	signal, err := newSignal(signalID, waitID, time.Date(2026, time.August, 6, 8, 9, 10, 11, time.FixedZone("test", 8*60*60)), payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	payload[3] = 'x'
+	if signal.ID() != signalID {
+		t.Fatalf("Signal.ID() = %v, want %v", signal.ID(), signalID)
+	}
+	if got, ok := signal.WaitID(); !ok || got != waitID {
+		t.Fatalf("Signal.WaitID() = %v, %t, want %v, true", got, ok, waitID)
+	}
+	if got := string(signal.Payload()); got != `{"answer":true}` {
+		t.Fatalf("Signal.Payload() = %s", got)
+	}
+	if signal.ReceivedAt().Location() != time.UTC {
+		t.Fatalf("Signal.ReceivedAt location = %v, want UTC", signal.ReceivedAt().Location())
+	}
+}
+
+func TestSignalStrictJSONRoundTrip(t *testing.T) {
+	signalID, _ := ParseSignalID("signal:1")
+	signal, err := newSignal(signalID, WaitID{}, time.Unix(42, 0), json.RawMessage(`{"kind":"steer"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := json.Marshal(signal)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var decoded Signal
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := decoded.WaitID(); ok {
+		t.Fatal("decoded Signal unexpectedly has a WaitID")
+	}
+	if decoded.ID() != signal.ID() || string(decoded.Payload()) != string(signal.Payload()) {
+		t.Fatalf("decoded Signal = %+v, want %+v", decoded, signal)
+	}
+	if err := json.Unmarshal([]byte(`{"id":"signal:1","received_at":"2026-08-06T00:00:00Z","payload":{},"unknown":true}`), &decoded); !errors.Is(err, ErrInvalidSignal) {
+		t.Fatalf("unknown field error = %v, want ErrInvalidSignal", err)
+	}
+}
+
+func TestDispatcherEffectIsOpaqueAndImmutable(t *testing.T) {
+	payload := json.RawMessage(` { "operation": "model" } `)
+	effect, err := NewDispatcherEffect(payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	payload[3] = 'x'
+	copyOfPayload := effect.Payload()
+	copyOfPayload[0] = '['
+	if effect.Target() != EffectTargetDispatcher || string(effect.Payload()) != `{"operation":"model"}` {
+		t.Fatalf("Effect = target %s payload %s", effect.Target(), effect.Payload())
+	}
+
+	data, err := json.Marshal(effect)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var decoded Effect
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatal(err)
+	}
+	if decoded.Target() != EffectTargetDispatcher || string(decoded.Payload()) != string(effect.Payload()) {
+		t.Fatalf("decoded Effect = %+v, want %+v", decoded, effect)
+	}
+}
+
+func TestSettlementPreservesUnknownWithoutImplyingRetry(t *testing.T) {
+	effectID, _ := ParseEffectID("process:1:step:2:effect:0")
+	settlement, err := NewSettlement(effectID, SettlementStatusUnknown, json.RawMessage(`{"reason":"connection_lost"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if settlement.Status() != SettlementStatusUnknown || settlement.EffectID() != effectID {
+		t.Fatalf("Settlement = status %s effect %v", settlement.Status(), settlement.EffectID())
+	}
+	data, err := json.Marshal(settlement)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var decoded Settlement
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatal(err)
+	}
+	if decoded.Status() != SettlementStatusUnknown || string(decoded.Payload()) != `{"reason":"connection_lost"}` {
+		t.Fatalf("decoded Settlement = %+v", decoded)
+	}
+}
