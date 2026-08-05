@@ -110,3 +110,59 @@ func TestMailboxRejectsUnaddressedWaitingAndAddressedPausedSignals(t *testing.T)
 		t.Fatalf("unaddressed Paused enqueue = %t, %v", accepted, err)
 	}
 }
+
+func TestMailboxSnapshotRestoresDeduplicationCursorAndWaitFacts(t *testing.T) {
+	mailbox := newSignalMailbox()
+	key, _ := ParseWaitKey("approval:1")
+	waitID, _ := ParseWaitID("wait:1")
+	if err := mailbox.registerWait(key, waitID); err != nil {
+		t.Fatal(err)
+	}
+	answer := mustSignal(t, "signal:answer", waitID, time.Unix(1, 0), json.RawMessage(`{"approved":true}`))
+	if _, err := mailbox.enqueue(StatusRunning, answer); err != nil {
+		t.Fatal(err)
+	}
+	plain := mustSignal(t, "signal:plain", WaitID{}, time.Unix(2, 0), json.RawMessage(`{"kind":"steer"}`))
+	if _, err := mailbox.enqueue(StatusRunning, plain); err != nil {
+		t.Fatal(err)
+	}
+	if err := mailbox.commit(1); err != nil {
+		t.Fatal(err)
+	}
+
+	wire := mailbox.snapshot()
+	data, err := json.Marshal(wire)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var decoded mailboxWire
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatal(err)
+	}
+	restored, err := restoreSignalMailbox(decoded)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if restored.consumedSequence() != 1 || len(restored.pending()) != 1 || restored.pending()[0].ID() != plain.ID() {
+		t.Fatalf("restored mailbox cursor=%d pending=%+v", restored.consumedSequence(), restored.pending())
+	}
+	if accepted, err := restored.enqueue(StatusRunning, answer); err != nil || accepted {
+		t.Fatalf("restored duplicate enqueue = %t, %v", accepted, err)
+	}
+	if shouldWait, err := restored.enterWait(waitID); err != nil || shouldWait {
+		t.Fatalf("restored answered wait = %t, %v", shouldWait, err)
+	}
+}
+
+func TestMailboxRestoreRejectsInvalidWire(t *testing.T) {
+	signal := mustSignal(t, "signal:1", WaitID{}, time.Unix(1, 0), json.RawMessage(`{}`))
+	for _, wire := range []mailboxWire{
+		{Cursor: 1},
+		{Signals: []signalRecordWire{{Sequence: 2, Signal: signal}}},
+		{Signals: []signalRecordWire{{Sequence: 1, Signal: signal}, {Sequence: 2, Signal: signal}}},
+	} {
+		if _, err := restoreSignalMailbox(wire); err == nil {
+			t.Fatalf("restoreSignalMailbox(%+v) unexpectedly succeeded", wire)
+		}
+	}
+}
