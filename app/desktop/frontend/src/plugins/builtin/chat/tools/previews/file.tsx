@@ -22,12 +22,15 @@ function FilePreview({ tool, onOpenView }: ToolPreviewProps) {
         {(lines ?? []).map((l) => (
           <div
             key={l.lineNumber}
-            className="grid grid-cols-[28px_1fr] gap-2.5 rounded-2xs px-1 hover:bg-hover transition-colors"
+            className="grid grid-cols-[28px_minmax(0,1fr)] items-start gap-2.5 rounded-2xs px-1 transition-colors hover:bg-hover"
           >
             <span className="text-right text-ui-sm text-fg-faint tabular-nums select-none">
               {l.lineNumber}
             </span>
-            <span className="whitespace-pre text-fg-soft">{l.text || " "}</span>
+            {/* Wraps rather than clips, for the reason spelled out in DiffView. */}
+            <span className="min-w-0 whitespace-pre-wrap wrap-anywhere text-fg-soft">
+              {l.text || " "}
+            </span>
           </div>
         ))}
       </div>
