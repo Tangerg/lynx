@@ -17,11 +17,21 @@
 // and for the terminal reporting progress — never on a clock that runs regardless. A
 // component that wants a clock starts one with [Loop.Every], and an interface with
 // nothing animating costs nothing.
+//
+// # The two places an interface can be
+//
+// A program either takes a screen of its own, which it gives back on the way out, or
+// draws in the terminal's own screen as a block with the session's output above it.
+// The second is what [Config.Inline] asks for, and it is the difference between a
+// program the user enters and leaves and one that is part of their session: what an
+// inline interface has finished with is printed with [InlineLoop.Print] and belongs to
+// the terminal from then on — scrollable, selectable, and still there afterwards.
 package program
 
 import (
 	"context"
 	"errors"
+	"io"
 	"time"
 
 	"github.com/Tangerg/lynx/app/tui/primitives/grid"
@@ -73,6 +83,27 @@ type Loop interface {
 	Quit()
 }
 
+// InlineLoop is what an inline program's component may ask of it: everything a
+// [Loop] offers, and somewhere to put output that is finished.
+//
+// It is a separate interface rather than two more methods on [Loop] because a
+// program drawing on a screen of its own has nowhere to print: that screen has no
+// scrollback, and output written above the interface would be scrolled away and
+// gone. A component that means to print says so by asking for this, and a program
+// that cannot offer it cannot be given such a component.
+type InlineLoop interface {
+	Loop
+
+	// Print draws rows that become part of the terminal's own output, above the
+	// interface, and stay there after the program exits.
+	//
+	// It is how a streaming interface says something final: the interface itself is
+	// what is still changing, and everything it has finished with belongs to the
+	// terminal. draw is given a view rows tall and as wide as the interface, and
+	// runs on the program's goroutine like anything else posted to it.
+	Print(rows int, draw func(grid.View))
+}
+
 // Host is where a program's input comes from and its frames go.
 //
 // A program opens the real terminal unless it is given one of these. Being able to
@@ -88,15 +119,27 @@ type Host interface {
 }
 
 // Config is what a program needs to run.
+//
+// Exactly one of Root and Inline says what to run, and which one it is decides
+// where the interface is drawn: Root takes a screen of its own, Inline draws in the
+// terminal's own screen and prints finished output into its scrollback.
 type Config struct {
-	// Root builds the component to run. It is given the loop first, so the component
-	// can hold it from the moment it exists.
-	//
-	// Required.
+	// Root builds the component to run on a screen of its own. It is given the loop
+	// first, so the component can hold it from the moment it exists.
 	Root func(Loop) Component
+
+	// Inline builds the component to run as a block in the terminal's own screen,
+	// with output that is finished printed above it. Its component is given an
+	// [InlineLoop], which is a [Loop] that can also print.
+	Inline func(InlineLoop) Component
 
 	// Terminal says which of the terminal's optional behaviours to ask for. Ignored
 	// when Host is set.
+	//
+	// AltScreen is the program's to decide rather than the caller's, because where
+	// frames go is the rendering model and not an input capability: it follows from
+	// which of Root and Inline was set. Asking for it alongside Inline is a
+	// contradiction and is reported as one.
 	Terminal term.Options
 
 	// Host overrides where input comes from and frames go. Nil opens the real terminal
@@ -113,12 +156,18 @@ type Config struct {
 // A cancelled context stops the program without being reported as a failure: being
 // asked to stop is not one.
 func Run(ctx context.Context, cfg Config) (err error) {
-	if cfg.Root == nil {
-		return errors.New("program: a root component is required")
+	if (cfg.Root == nil) == (cfg.Inline == nil) {
+		return errors.New("program: exactly one of Root and Inline is required")
 	}
+	if cfg.Inline != nil && cfg.Terminal.AltScreen {
+		return errors.New("program: an inline interface cannot take the alternate screen")
+	}
+	opts := cfg.Terminal
+	opts.AltScreen = cfg.Root != nil
+
 	host := cfg.Host
 	if host == nil {
-		terminal, openErr := term.Open(cfg.Terminal)
+		terminal, openErr := term.Open(opts)
 		if openErr != nil {
 			return openErr
 		}
@@ -138,7 +187,6 @@ func Run(ctx context.Context, cfg Config) (err error) {
 
 	p := &program{
 		host:      host,
-		screen:    grid.NewScreen(width, height),
 		writer:    host.Writer(),
 		frameRate: cfg.FrameRate,
 		tasks:     make(chan func(), 256),
@@ -148,15 +196,37 @@ func Run(ctx context.Context, cfg Config) (err error) {
 		p.frameRate = DefaultFrameRate
 	}
 	defer close(p.done)
-	p.root = cfg.Root(loop{p})
+	if cfg.Inline != nil {
+		p.inline = grid.NewInline(width, height)
+		p.canvas = p.inline
+		p.root = cfg.Inline(inlineLoop{loop{p}})
+	} else {
+		p.canvas = grid.NewScreen(width, height)
+		p.root = cfg.Root(loop{p})
+	}
 	return p.run(ctx)
+}
+
+// canvas is somewhere frames go: a screen of the program's own, or a block in the
+// terminal's. The program drives both the same way, and the difference between them
+// is entirely in how a frame reaches the wire.
+type canvas interface {
+	Size() (w, h int)
+	Resize(w, h int)
+	Invalidate()
+	Frame() grid.View
+	Flush(w io.Writer) error
 }
 
 // program is one running interface.
 type program struct {
 	root   Component
 	host   Host
-	screen *grid.Screen
+	canvas canvas
+	// inline is the canvas again when the interface is drawn in the terminal's own
+	// screen, and nil when it has a screen to itself. It is what printing needs and
+	// a screen cannot offer.
+	inline *grid.Inline
 	writer *term.Writer
 
 	present   present.Presenter
@@ -174,6 +244,9 @@ type program struct {
 
 // run is the event loop.
 func (p *program) run(ctx context.Context) error {
+	// However this ends — asked to stop, input gone, terminal broken — an inline
+	// interface has one more frame to draw and a cursor to leave in a sane place.
+	defer p.finish()
 	events := p.host.Events()
 
 	// due fires when a frame that was turned away for arriving too soon becomes
@@ -260,7 +333,7 @@ func (p *program) drain() {
 func (p *program) handle(ev input.Event) {
 	switch e := ev.(type) {
 	case input.Resize:
-		p.screen.Resize(e.Width, e.Height)
+		p.canvas.Resize(e.Width, e.Height)
 		p.present.RequestFull()
 		return
 	case input.FocusIn:
@@ -276,26 +349,56 @@ func (p *program) handle(ev input.Event) {
 func (p *program) draw() {
 	p.present.Present(time.Now(), func(full bool) uint64 {
 		if full {
-			p.screen.Invalidate()
+			p.canvas.Invalidate()
 		}
-		p.root.Draw(p.screen.Frame())
+		p.root.Draw(p.canvas.Frame())
 		return p.flush()
 	})
 }
 
 // flush hands the frame to the writer and returns the sequence it was queued under.
 //
-// The screen writes into a buffer rather than straight to the terminal, because the
+// The canvas writes into a buffer rather than straight to the terminal, because the
 // write has to happen on the writer's goroutine: that is the whole reason there is one.
 func (p *program) flush() uint64 {
 	var frame frameBuffer
 	// Nothing here can fail — the destination is memory — so the error is the compiler's
 	// concern and not this program's.
-	_ = p.screen.Flush(&frame)
+	_ = p.canvas.Flush(&frame)
 	if len(frame.bytes) == 0 {
 		return 0
 	}
 	return p.writer.Queue(frame.bytes)
+}
+
+// finish settles what the program leaves behind.
+//
+// An inline interface's last state is what stays in the terminal, so it is drawn one
+// more time and the cursor is left below it — otherwise the shell's next prompt lands
+// on top of what the program was showing. The last frame is drawn without asking the
+// presenter: pacing is about not drawing more often than a terminal can keep up with,
+// and there is no next frame to be too close to. Anything printed but not yet written
+// goes out with it, because output the caller asked for must not be lost to the timing
+// of the exit.
+//
+// A program on a screen of its own needs none of that. Giving the screen back takes
+// the interface with it, which is what makes that mode simple and this one not.
+//
+// Both wait for the terminal to catch up, so that Run returning means what the
+// program drew has been written. Without it a caller printing its own output next
+// would find the program's last frame arriving in the middle of it.
+func (p *program) finish() {
+	if p.inline != nil {
+		p.root.Draw(p.inline.Frame())
+		p.flush()
+
+		var tail frameBuffer
+		_ = p.inline.Finish(&tail)
+		if len(tail.bytes) > 0 {
+			p.writer.Queue(tail.bytes)
+		}
+	}
+	p.writer.Drain(term.DrainGrace)
 }
 
 // frameBuffer collects one frame's bytes.
@@ -304,6 +407,15 @@ type frameBuffer struct{ bytes []byte }
 func (f *frameBuffer) Write(b []byte) (int, error) {
 	f.bytes = append(f.bytes, b...)
 	return len(b), nil
+}
+
+// inlineLoop is the program's side of [InlineLoop]. It exists only when there is a
+// terminal screen to print into, which is what keeps [InlineLoop.Print] from being a
+// method that quietly does nothing half the time.
+type inlineLoop struct{ loop }
+
+func (l inlineLoop) Print(rows int, draw func(grid.View)) {
+	l.Post(func() { l.p.inline.Print(rows, draw) })
 }
 
 // loop is the program's side of [Loop]. It is a value so a component can copy it

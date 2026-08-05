@@ -17,7 +17,7 @@ import (
 // Same reasoning as [TestWireEnumsAreComplete]: a Go const block cannot be
 // enumerated at runtime, so the published vocabulary has to be written down twice —
 // once as constants a rule can reference, once as a list the generator can walk.
-// A declared constant missing from the list is a capability the frontend can never
+// A declared constant missing from the list is a capability clients can never
 // name; a listed name with no constant is one the runtime will never advertise.
 func TestFeaturesAreComplete(t *testing.T) {
 	declared := featureConstants(t)

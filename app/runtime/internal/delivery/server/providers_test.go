@@ -95,9 +95,8 @@ func TestModelToWire_TextOnly(t *testing.T) {
 	}
 }
 
-// TestProviderToWire_RequiresBaseURL pins the flag the frontend keys its
-// base-URL field off: set for the no-built-in-endpoint providers, clear for
-// the named vendors.
+// TestProviderToWire_RequiresBaseURL pins the client-facing flag: set for
+// providers without a built-in endpoint and clear for named vendors.
 func TestProviderToWire_RequiresBaseURL(t *testing.T) {
 	tests := []struct {
 		id   string

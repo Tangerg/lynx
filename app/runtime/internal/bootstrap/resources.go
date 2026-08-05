@@ -33,8 +33,8 @@ func shutdownClosers(closers []func() error) []ShutdownResource {
 }
 
 func closePendingResources(ctx context.Context, resources []ShutdownResource) ([]ShutdownResource, error) {
-	for index := len(resources) - 1; index >= 0; index-- {
-		if resource := resources[index]; resource != nil {
+	for index, resource := range slices.Backward(resources) {
+		if resource != nil {
 			if err := resource.Shutdown(ctx); err != nil {
 				// The slice is creation ordered, so the not-yet-run prefix contains
 				// dependencies of this failing closer. Do not tear them down beneath

@@ -56,7 +56,7 @@ func Run(ctx context.Context, cfg Config) error {
 		Root: func(loop program.Loop) program.Component {
 			return New(loop, cfg, opened)
 		},
-		Terminal: term.Options{AltScreen: true, Mouse: true, Focus: true, Keyboard: true},
+		Terminal: term.Options{Mouse: true, Focus: true, Keyboard: true},
 		Host:     cfg.Host,
 	})
 }

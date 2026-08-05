@@ -64,7 +64,7 @@ func addA2ARPCOrigins(agents []A2AAgent, raw string) ([]A2AAgent, error) {
 		byName[agent.Name] = i
 	}
 	configured := make(map[string]struct{})
-	for _, entry := range strings.Split(raw, ",") {
+	for entry := range strings.SplitSeq(raw, ",") {
 		entry = strings.TrimSpace(entry)
 		if entry == "" {
 			continue

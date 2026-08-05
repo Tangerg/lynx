@@ -161,10 +161,7 @@ func (t *turnObserver) OnChildProcessEnd(completion agentexec.ChildCompletion) {
 		return
 	}
 	plan := planChildTurnEnd(completion)
-	duration := completion.CompletedAt.Sub(completion.Process.StartedAt)
-	if duration < 0 {
-		duration = 0
-	}
+	duration := max(completion.CompletedAt.Sub(completion.Process.StartedAt), 0)
 	end := runs.SegmentEnded{
 		Reason:   plan.reason,
 		Problem:  plan.problem,

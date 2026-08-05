@@ -133,7 +133,7 @@ func TestNotificationValidationRejectsUnpublishableParams(t *testing.T) {
 // branch; that is still a registered union, not an arbitrary string escape hatch.
 //
 // DiffRow is not one of the thirteen §11.2 names: its godoc always described a
-// union and the frontend always modeled it as one, but nothing on the wire said
+// union and clients always modeled it as one, but nothing on the wire said
 // so, so the published shape allowed a row with a hunk's text and both line
 // numbers. Generating the TypeScript is what surfaced it.
 func TestEveryWireUnionIsRegistered(t *testing.T) {

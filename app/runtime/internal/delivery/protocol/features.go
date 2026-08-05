@@ -11,7 +11,7 @@ import (
 // them — so they belong here, with the shapes that carry them, and not in
 // whichever package happened to mention one first. Before this they had three
 // authors: the capability rules that gate a method, the map discovery advertises,
-// and the frontend's own union of the same nineteen names. Three spellings of one
+// and a client's hand-written union of the same nineteen names. Three spellings of one
 // vocabulary is three chances for a typo to read as "this build cannot do that".
 const (
 	FeatureReasoning     = "reasoning"

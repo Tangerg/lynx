@@ -117,7 +117,7 @@ func (c FieldCondition) matches(frame map[string]any) bool {
 // lookupField walks a dotted path through the decoded frame.
 func lookupField(frame map[string]any, path string) (any, bool) {
 	var value any = frame
-	for _, segment := range strings.Split(path, ".") {
+	for segment := range strings.SplitSeq(path, ".") {
 		object, ok := value.(map[string]any)
 		if !ok {
 			return nil, false

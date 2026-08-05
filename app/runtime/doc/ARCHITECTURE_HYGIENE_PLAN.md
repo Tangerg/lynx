@@ -912,9 +912,10 @@ Acceptance:
 | 38. Run write-set ownership closure | Completed | 2026-08-04 | 2026-08-04 | Opening, tree-barrier, and waiting-subtree invariants are application-owned; runsegment retains only store availability, optimistic snapshot claiming, transaction I/O, and compensation. Full build/vet/test, focused race tests, static analysis, lint, dead-code analysis, formatting, and architecture checks passed. |
 | 39. Concrete tool contract ownership | Completed | 2026-08-04 | 2026-08-04 | Delegation schema/description, Goal outcome prompt, special policy, and Plan outcome projection moved to toolset; agentexec contains no built-in tool identities and consumes one neutral semantics port. Full build/vet/test, focused race tests, static analysis, lint, dead-code analysis, and architecture checks passed. |
 | 40. Run pump responsibility closure | Completed | 2026-08-04 | 2026-08-04 | The monolithic pump became one concrete single-goroutine state owner with focused event, synthesis, teardown, and boundary methods; batch publication moved to its own cohesive file. Full build/vet/test, focused race tests, static analysis, lint, dead-code analysis, and architecture checks passed. |
-| 41. Tool identity and mutation vocabulary closure | Completed | 2026-08-04 | 2026-08-04 | Built-in identities and cross-cutting metadata are catalog-owned; all models use only `apply_patch`; model-id dialect inference and the `edit`/`write` Runtime family were removed. Full build/vet/test, focused race tests, static analysis, lint, dead-code analysis, formatting, and architecture checks passed. |
-| 42. Final toolset vocabulary and descriptor closure | Completed | 2026-08-04 | 2026-08-04 | Package-stuttering private names were removed, descriptor parity now proves safety and activity invariants, and architecture checks pin the retired vocabulary. Full workspace/standalone verification, focused race tests, static analysis, lint, dead-code analysis, formatting, and residue scans passed. |
+| 41. Tool identity and mutation vocabulary closure | Completed | 2026-08-05 | 2026-08-05 | Built-in identities and cross-cutting metadata are catalog-owned; all models use only `apply_patch`; model-id dialect inference and the `edit`/`write` Runtime family were removed. Full build/vet/test, focused race tests, static analysis, lint, dead-code analysis, formatting, and architecture checks passed. |
+| 42. Final toolset vocabulary and descriptor closure | Completed | 2026-08-05 | 2026-08-05 | Package-stuttering private names were removed, descriptor parity now proves safety and activity invariants, and architecture checks pin the retired vocabulary. Full workspace/standalone verification, focused race tests, static analysis, lint, dead-code analysis, formatting, and residue scans passed. |
 | 43. Tool result presentation contract ownership | Completed | 2026-08-05 | 2026-08-05 | Toolset descriptors now jointly own result projection and exact published shape; generated artifacts bind each presentation to its tool identity, Runtime owns its TypeScript binding and canonical samples, and workspace/standalone plus focused race/static/dead-code verification passed. |
+| 44. Runtime semantic and API residue closure | Completed | 2026-08-05 | 2026-08-05 | Current tool documentation and comments match the surviving vocabulary, five false internal API dimensions were removed, all production `unparam`/`modernize` findings reached zero, and full workspace/standalone plus focused race/static/dead-code verification passed. |
 
 Allowed status values: `Pending`, `In progress`, `Completed`, `Blocked`, `Revised`.
 
@@ -938,6 +939,26 @@ Allowed status values: `Pending`, `In progress`, `Completed`, `Blocked`, `Revise
 - `go build ./...`, `go vet ./...`, `go test ./...`, focused `-race` tests,
   standalone `GOWORK=off` build/vet/test, `staticcheck`, `golangci-lint`,
   `deadcode -test`, formatting, and diff checks passed.
+
+### 2026-08-05 — Batch 44 completed
+
+- Removed the unused curation outcome, truncation outcome, Session view context,
+  MCP failure error, and TypeScript indentation depth. Each private API now
+  exposes only information its callers consume.
+- Applied the current standard-library forms reported across production code:
+  `slices.Backward` / `Contains` / `ContainsFunc`, `maps.Copy`, `strings.Cut` /
+  `CutPrefix` / `SplitSeq`, reflection field iteration, built-in `max`, and a
+  builder for generated definition names. OAuth token persistence now uses
+  `omitzero` for a zero `time.Time`, matching the stated JSON contract.
+- Reconciled the normative tool document with the sole `apply_patch` mutation
+  surface and actual delegated-Agent recursion policy. Result presentation
+  contracts, comments, and client-neutral transport language now describe the
+  current ownership; Batch 41/42 timestamps were corrected to their actual
+  post-midnight completion date.
+- `go build ./...`, `go vet ./...`, `go test ./...`, focused `-race` tests,
+  standalone `GOWORK=off` build/vet/test, `staticcheck`, default and targeted
+  `golangci-lint`, `deadcode -test`, formatting, and diff checks passed. Both
+  production `unparam` and `modernize` scans report zero issues.
 
 ### 2026-08-04 — Batch 38 completed
 
@@ -993,7 +1014,7 @@ Allowed status values: `Pending`, `In progress`, `Completed`, `Blocked`, `Revise
   ./...`, `go vet ./...`, `go test ./...`, focused `-race`, `staticcheck`,
   `golangci-lint`, and `deadcode -test` passed.
 
-### 2026-08-04 — Batch 41 completed
+### 2026-08-05 — Batch 41 completed
 
 - Added one stable `toolset/catalog` identity vocabulary and one descriptor
   catalog for safety, policy exceptions, activity, result presentation, and
@@ -1014,7 +1035,7 @@ Allowed status values: `Pending`, `In progress`, `Completed`, `Blocked`, `Revise
   focused race tests, `staticcheck`, `golangci-lint`, `deadcode -test`,
   formatting, and diff checks passed.
 
-### 2026-08-04 — Batch 42 completed
+### 2026-08-05 — Batch 42 completed
 
 - Replaced the final package-stuttering Toolset vocabulary with names that gain
   their context from the owning package: `resolution`, `staticSpec`,

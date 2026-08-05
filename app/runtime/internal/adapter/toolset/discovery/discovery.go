@@ -359,8 +359,8 @@ func tokenize(name string) []string {
 func isUpper(r rune) bool { return r >= 'A' && r <= 'Z' }
 
 func firstLine(s string) string {
-	if i := strings.IndexByte(s, '\n'); i >= 0 {
-		return strings.TrimSpace(s[:i])
+	if line, _, ok := strings.Cut(s, "\n"); ok {
+		return strings.TrimSpace(line)
 	}
 	return strings.TrimSpace(s)
 }

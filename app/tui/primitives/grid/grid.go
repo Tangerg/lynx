@@ -1,6 +1,12 @@
 // Package grid is the cell grid the whole terminal UI is drawn into: styled
-// grapheme cells, a clipped drawing view over them, and a double-buffered screen
-// that emits the smallest escape stream turning one frame into the next.
+// grapheme cells, a clipped drawing view over them, and the two ways a frame of
+// them reaches a terminal.
+//
+// [Screen] takes the terminal's whole screen and emits the smallest escape stream
+// that turns one frame into the next. [Inline] draws a block in the terminal's own
+// screen instead, printing finished output above it into the scrollback. They share
+// the cells, the view and the encoding, and differ only in what a frame is allowed
+// to assume about where it is.
 //
 // It is the only layer that knows what a terminal is made of. Everything above
 // it draws through [View] and never assembles an escape sequence.

@@ -186,8 +186,8 @@ func strictRequestFrame(set *schemaSet, business *schema) *schema {
 // both the runtime validator and x-lyra-requestFrame.
 func requestPropertySchema(set *schemaSet, frame *schema, owner reflect.Type, field string) *schema {
 	body := frame
-	if strings.HasPrefix(frame.Ref, refPrefix) {
-		body = set.defs[strings.TrimPrefix(frame.Ref, refPrefix)]
+	if name, ok := strings.CutPrefix(frame.Ref, refPrefix); ok {
+		body = set.defs[name]
 	}
 	if body == nil || body.Properties == nil {
 		panic(fmt.Sprintf("contractgen: %s request frame has no object properties", owner))

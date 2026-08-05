@@ -102,13 +102,13 @@ func renderTranscript(msgs []chat.Message, toolResultCap int) string {
 
 // headTail reduces s to a head (¾) + tail (¼) preview when it exceeds limit,
 // the elided middle replaced by marker(elidedChars). Cuts snap to rune
-// boundaries so a multibyte rune is never split. Returns s unchanged and false
-// when limit <= 0 or s already fits. Shared by the summariser's input cap
+// boundaries so a multibyte rune is never split. Returns s unchanged when
+// limit <= 0 or s already fits. Shared by the summariser's input cap
 // ([capText]) and the compaction ladder's stored trim (compaction_ladder.go);
 // each supplies its own marker.
-func headTail(s string, limit int, marker func(elided int) string) (string, bool) {
+func headTail(s string, limit int, marker func(elided int) string) string {
 	if limit <= 0 || len(s) <= limit {
-		return s, false
+		return s
 	}
 	head, tailStart := limit*3/4, len(s)-limit/4
 	for head > 0 && !utf8.RuneStart(s[head]) {
@@ -117,15 +117,14 @@ func headTail(s string, limit int, marker func(elided int) string) (string, bool
 	for tailStart < len(s) && !utf8.RuneStart(s[tailStart]) {
 		tailStart++
 	}
-	return s[:head] + marker(tailStart-head) + s[tailStart:], true
+	return s[:head] + marker(tailStart-head) + s[tailStart:]
 }
 
 // capText bounds an oversized body for the SUMMARISER'S INPUT (transient, not
 // stored) — head+tail with the elided middle marked. limit <= 0 or an
 // already-small body is returned unchanged.
 func capText(s string, limit int) string {
-	out, _ := headTail(s, limit, func(elided int) string {
+	return headTail(s, limit, func(elided int) string {
 		return fmt.Sprintf("\n…[%d bytes elided for summary]…\n", elided)
 	})
-	return out
 }

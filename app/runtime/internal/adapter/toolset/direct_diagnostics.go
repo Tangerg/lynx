@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	toolcontract "github.com/Tangerg/lynx/tool"
@@ -103,12 +104,11 @@ func validateDirectGlobPattern(pattern string) error {
 	if filepath.IsAbs(pattern) {
 		return fmt.Errorf("%w: absolute glob pattern %q", workspaceapp.ErrPathOutsideRoot, pattern)
 	}
-	for _, segment := range strings.FieldsFunc(pattern, func(r rune) bool {
+	segments := strings.FieldsFunc(pattern, func(r rune) bool {
 		return r == '/' || r == filepath.Separator
-	}) {
-		if segment == ".." {
-			return fmt.Errorf("%w: glob pattern %q", workspaceapp.ErrPathOutsideRoot, pattern)
-		}
+	})
+	if slices.Contains(segments, "..") {
+		return fmt.Errorf("%w: glob pattern %q", workspaceapp.ErrPathOutsideRoot, pattern)
 	}
 	return nil
 }

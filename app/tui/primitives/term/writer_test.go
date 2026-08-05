@@ -234,7 +234,7 @@ func TestCloseReportsAbandonedFrames(t *testing.T) {
 	}
 	// A write already inside the terminal cannot be interrupted, so Close returns on
 	// its grace period rather than waiting for one that never comes back.
-	if elapsed := time.Since(start); elapsed > 2*drainGrace {
+	if elapsed := time.Since(start); elapsed > 2*DrainGrace {
 		t.Fatalf("Close took %v, want it bounded by the grace period", elapsed)
 	}
 }

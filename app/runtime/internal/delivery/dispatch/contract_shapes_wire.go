@@ -435,7 +435,7 @@ func registerArtifactUnions(s *Shapes) {
 
 func registerDiffUnions(s *Shapes) {
 	// A diff row's godoc has always described a union — a hunk carries text, a context
-	// row carries both line numbers, an added row only the right one — and the frontend
+	// row carries both line numbers, an added row only the right one — and clients
 	// modeled it as one. Nothing said so on the wire, so the generated shape permitted
 	// a row carrying a hunk's text AND both line numbers at once.
 	s.union(UnionSpec{

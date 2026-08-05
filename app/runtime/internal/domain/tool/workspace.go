@@ -2,6 +2,7 @@ package tool
 
 import (
 	"regexp"
+	"slices"
 	"strings"
 )
 
@@ -98,12 +99,7 @@ func CatastrophicCommand(command string) bool {
 	}
 	// Check each pipeline/sequence segment for a recursive-force rm of a
 	// catastrophic target, so `cd x && rm -rf ~` is caught in its own segment.
-	for _, segment := range shellSegments(command) {
-		if recursiveForceRemoveOfRootOrHome(segment) {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(shellSegments(command), recursiveForceRemoveOfRootOrHome)
 }
 
 // shellSegments splits a command line on the shell operators that separate

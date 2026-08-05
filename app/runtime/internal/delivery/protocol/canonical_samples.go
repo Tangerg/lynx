@@ -12,7 +12,7 @@ import "reflect"
 // and the one that drifts is silently checked against the wrong thing.
 //
 // It lives in non-test code because the artifact pipeline reads it: the generator
-// projects it into the manifest and into the index the frontend's own check consumes.
+// projects it into the manifest and the published TypeScript sample index.
 // The SAMPLES stay hand-written — §11.3 forbids generating a fixture and then proving
 // it with the same-source schema — and so does this binding.
 

@@ -146,7 +146,7 @@ func (c *Coordinator) Rollback(ctx context.Context, spec RollbackSpec) (Rollback
 			return result, err
 		}
 	}
-	result.Session, err = c.view(ctx, ses, ActivityIdle)
+	result.Session, err = c.view(ses, ActivityIdle)
 	if err != nil {
 		return result, err
 	}

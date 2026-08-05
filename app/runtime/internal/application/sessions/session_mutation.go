@@ -142,7 +142,7 @@ func (c *Coordinator) restoreSession(ctx context.Context, snapshot Snapshot, pre
 			}
 			if present {
 				var viewErr error
-				view, viewErr = c.view(ctx, snapshot.Session, ActivityIdle)
+				view, viewErr = c.view(snapshot.Session, ActivityIdle)
 				postCommitErrs = append(postCommitErrs, viewErr)
 			}
 			return errors.Join(postCommitErrs...)

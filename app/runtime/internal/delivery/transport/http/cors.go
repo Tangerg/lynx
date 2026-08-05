@@ -8,8 +8,8 @@ import (
 )
 
 // DefaultCORSOrigins returns the allowlist baked in for the runtime HTTP server
-// when the operator hasn't supplied CORS origins. Covers the Web frontend
-// shells we ship with + the dev servers we use day to day. Each caller owns its
+// when the operator hasn't supplied CORS origins. It covers the browser shells
+// and development servers shipped with the application. Each caller owns its
 // result, so server configuration cannot mutate the package default.
 func DefaultCORSOrigins() []string {
 	return []string{
@@ -25,8 +25,8 @@ func DefaultCORSOrigins() []string {
 // list means "no CORS" (same-origin only) — a pass-through. go-chi/cors
 // owns the spec mechanics (origin match incl. "*", preflight, Vary,
 // credentials); we only declare the policy. Exposed headers are the three
-// observability headers the FE reads (TRANSPORT §13); allowed headers are
-// the transport-metadata set the FE sends (TRANSPORT §2). go-chi/cors answers
+// observability headers browser clients read; allowed headers are the transport
+// metadata they send. go-chi/cors answers
 // preflight with 200 (the contract is silent on the exact 2xx — browsers
 // accept either; the prior hand-rolled layer used 204).
 func corsMiddleware(origins []string) func(http.Handler) http.Handler {
@@ -35,12 +35,12 @@ func corsMiddleware(origins []string) func(http.Handler) http.Handler {
 	}
 	opts := cors.Options{
 		AllowedMethods: []string{http.MethodGet, http.MethodPost, http.MethodOptions},
-		// Transport-metadata headers the FE sends (TRANSPORT §2) + the W3C
-		// trace-context headers its OTel layer injects on every request
-		// (traceparent / tracestate / baggage) so the FE span extends the
+		// Transport metadata sent by browser clients plus the W3C trace-context
+		// headers their OTel layer injects on every request
+		// (traceparent / tracestate / baggage) so the client span extends the
 		// backend trace. Trace correlation is W3C-only — no X-Trace-Id.
 		// Omitting the trace headers fails the preflight for EVERY method,
-		// since the FE injects traceparent unconditionally.
+		// since browser tracing injects traceparent unconditionally.
 		AllowedHeaders:   []string{"Authorization", "Content-Type", "Idempotency-Key", "Last-Event-Id", "traceparent", "tracestate", "baggage"},
 		ExposedHeaders:   []string{"Request-Id", "X-Server", "X-Method"},
 		AllowCredentials: true,

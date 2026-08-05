@@ -453,15 +453,17 @@ func defName(t reflect.Type) string {
 	if !generic {
 		return genericName
 	}
-	out := genericName
+	var out strings.Builder
+	out.WriteString(genericName)
 	for argument := range strings.SplitSeq(strings.TrimSuffix(arguments, "]"), ",") {
 		argument = strings.TrimPrefix(strings.TrimSpace(argument), "*")
 		if index := strings.LastIndex(argument, "."); index >= 0 {
 			argument = argument[index+1:]
 		}
-		out += "Of" + argument
+		out.WriteString("Of")
+		out.WriteString(argument)
 	}
-	return out
+	return out.String()
 }
 
 // applyValueConstraints states a declared value constraint in JSON Schema terms, so

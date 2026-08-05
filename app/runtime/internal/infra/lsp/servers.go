@@ -307,7 +307,7 @@ func (s *Servers) Diagnostics(ctx context.Context, root, file string) ([]Diagnos
 }
 
 // Supported reports whether any configured server handles file's extension —
-// lets callers skip LSP work (e.g. post-edit diagnostics) for unsupported
+// lets callers skip LSP work (e.g. post-mutation diagnostics) for unsupported
 // files without starting anything.
 func (s *Servers) Supported(file string) bool {
 	_, ok := s.table.forFile(file)

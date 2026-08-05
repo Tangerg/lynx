@@ -25,8 +25,8 @@ import (
 // it lands. A type system that silently drops half a constraint is worse than one
 // that says which half it holds.
 
-// tsFileName is the single generated module. Its name says generated so nobody
-// hand-edits it; every ignore entry in the frontend's tooling points at it.
+// tsFileName is the generated shape module. Its name makes generated ownership
+// explicit to every consumer that vendors the binding.
 const tsFileName = "wire.generated.ts"
 
 type tsEmitter struct {
@@ -178,7 +178,7 @@ func (e *tsEmitter) protocolVersion() {
 // The walk sees only instantiations — `Page[Session]`, `Page[Model]` — because Go
 // reflection has no view of an uninstantiated type. Emitting one interface per
 // instantiation would publish nineteen copies of the same two fields and break
-// every generic helper the frontend has, so the shape is recovered by substituting
+// generic helpers in consuming clients, so the shape is recovered by substituting
 // the type argument out of one instantiation, and every OTHER instantiation must
 // reproduce it exactly or generation fails.
 func (e *tsEmitter) generic(genericName string, instantiations []string) {

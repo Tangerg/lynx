@@ -517,3 +517,160 @@ type brokenTerminal struct{}
 var errBrokenTerminal = errors.New("the terminal went away")
 
 func (brokenTerminal) Write([]byte) (int, error) { return 0, errBrokenTerminal }
+
+// The inline mode's own tests. What they are about is placement: an interface that
+// shares the terminal has to reach its own rows without ever naming one, and has to
+// leave the terminal usable when it stops.
+
+// printer is a component that draws a line and can send finished output above itself.
+type printer struct {
+	loop InlineLoop
+
+	text  string
+	drawn atomic.Int64
+}
+
+func (p *printer) Draw(v grid.View) {
+	p.drawn.Add(1)
+	v.Text(0, 0, p.text, grid.Style{})
+}
+
+func (p *printer) Handle(input.Event) bool { return true }
+
+// startInline runs an inline program over a fake host.
+func startInline(t *testing.T) (*host, *printer, chan error) {
+	t.Helper()
+	h := newHost()
+	root := &printer{text: "prompt"}
+	done := make(chan error, 1)
+	go func() {
+		done <- Run(context.Background(), Config{
+			Host: h,
+			Inline: func(loop InlineLoop) Component {
+				root.loop = loop
+				return root
+			},
+		})
+	}()
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		if strings.Contains(h.frames.String(), "prompt") {
+			return h, root, done
+		}
+		time.Sleep(time.Millisecond)
+	}
+	t.Fatal("the inline interface never drew")
+	return nil, nil, nil
+}
+
+func waitFor(t *testing.T, done chan error, h *host, what string, cond func() bool) {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		if cond() {
+			return
+		}
+		select {
+		case err := <-done:
+			t.Fatalf("the program ended waiting for %s: %v (frames: %q)", what, err, h.frames.String())
+		case <-time.After(2 * time.Millisecond):
+		}
+	}
+	t.Fatalf("timed out waiting for %s (frames: %q)", what, h.frames.String())
+}
+
+func TestExactlyOneRootSaysWhereTheInterfaceGoes(t *testing.T) {
+	// Which of the two is set decides the rendering model, so neither and both are
+	// equally unanswerable.
+	both := Config{
+		Root:   func(Loop) Component { return &component{} },
+		Inline: func(InlineLoop) Component { return &printer{} },
+	}
+	for what, cfg := range map[string]Config{"neither": {}, "both": both} {
+		if err := Run(context.Background(), cfg); err == nil {
+			t.Errorf("%s root was accepted", what)
+		}
+	}
+}
+
+func TestAnInlineInterfaceCannotTakeTheAlternateScreen(t *testing.T) {
+	// A caller who asked for both believes something false: an interface on a screen
+	// of its own has no session output to sit among, and nowhere to print.
+	err := Run(context.Background(), Config{
+		Inline:   func(InlineLoop) Component { return &printer{} },
+		Terminal: term.Options{AltScreen: true},
+		Host:     newHost(),
+	})
+	if err == nil {
+		t.Fatal("asking for an inline interface on the alternate screen was accepted")
+	}
+}
+
+func TestAnInlineInterfaceNeverNamesARowOfTheTerminal(t *testing.T) {
+	// The program's rows are wherever the session's output left them, and nothing here
+	// is allowed to assume otherwise.
+	h, root, done := startInline(t)
+	root.loop.Post(func() { root.text = "typing" })
+	waitFor(t, done, h, "the next frame", func() bool {
+		return strings.Contains(h.frames.String(), "typing")
+	})
+	root.loop.Quit()
+	if err := <-done; err != nil {
+		t.Fatalf("program: %v", err)
+	}
+	if got := h.frames.String(); strings.Contains(got, "\x1b[1;1H") || strings.Contains(got, ";1H") {
+		t.Fatalf("an inline frame addressed a row of the terminal: %q", got)
+	}
+}
+
+func TestPrintedOutputReachesTheTerminalAboveTheInterface(t *testing.T) {
+	h, root, done := startInline(t)
+	root.loop.Print(1, func(v grid.View) { v.Text(0, 0, "finished", grid.Style{}) })
+	waitFor(t, done, h, "the printed row", func() bool {
+		return strings.Contains(h.frames.String(), "finished")
+	})
+	root.loop.Quit()
+	if err := <-done; err != nil {
+		t.Fatalf("program: %v", err)
+	}
+
+	got := h.frames.String()
+	printed := strings.Index(got, "finished")
+	// The interface is drawn again below what was printed, which is what pushes the
+	// printed row up and into the terminal's scrollback.
+	if after := strings.Index(got[printed:], "prompt"); after < 0 {
+		t.Fatalf("the interface was not redrawn below the printed row: %q", got)
+	}
+}
+
+func TestPrintedOutputIsNotLostToTheExit(t *testing.T) {
+	// Printing and then quitting in the same breath is what a one-shot run does: say
+	// the answer, then stop. Pacing must not be able to swallow the answer.
+	h, root, done := startInline(t)
+	root.loop.Print(1, func(v grid.View) { v.Text(0, 0, "the answer", grid.Style{}) })
+	root.loop.Quit()
+	if err := <-done; err != nil {
+		t.Fatalf("program: %v", err)
+	}
+	if got := h.frames.String(); !strings.Contains(got, "the answer") {
+		t.Fatalf("the printed row never reached the terminal: %q", got)
+	}
+}
+
+func TestTheLastStateOfAnInlineInterfaceIsWhatStays(t *testing.T) {
+	// It is not taken down on the way out — it is the last thing the session said, and
+	// the cursor has to end up below it so the next prompt does not land on top.
+	h, root, done := startInline(t)
+	root.loop.Post(func() { root.text = "goodbye" })
+	root.loop.Quit()
+	if err := <-done; err != nil {
+		t.Fatalf("program: %v", err)
+	}
+	got := h.frames.String()
+	if !strings.Contains(got, "goodbye") {
+		t.Fatalf("the last state was never drawn: %q", got)
+	}
+	if !strings.HasSuffix(got, "\r\n\x1b[0m\x1b[?25h") {
+		t.Fatalf("the terminal was not handed back below the interface: %q", got)
+	}
+}

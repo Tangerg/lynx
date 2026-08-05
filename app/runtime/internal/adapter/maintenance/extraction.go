@@ -107,8 +107,7 @@ func (e *Extractor) MaybeExtract(ctx context.Context, sessionID, cwd string) err
 	}
 	now := e.now()
 	if len(messages) < e.minMsgs {
-		_, err := e.maybeCurate(ctx, project, now)
-		return err
+		return e.maybeCurate(ctx, project, now)
 	}
 
 	markdown, err := e.askForFacts(ctx, messages)
@@ -126,43 +125,42 @@ func (e *Extractor) MaybeExtract(ctx context.Context, sessionID, cwd string) err
 		return fmt.Errorf("memory extraction: append daily ledger: %w", err)
 	}
 	recordMinedFacts(ctx, len(appended))
-	_, err = e.maybeCurate(ctx, project, now)
-	return err
+	return e.maybeCurate(ctx, project, now)
 }
 
-func (e *Extractor) maybeCurate(ctx context.Context, project string, now time.Time) (bool, error) {
+func (e *Extractor) maybeCurate(ctx context.Context, project string, now time.Time) error {
 	state, err := e.memory.State(ctx, project)
 	if err != nil {
-		return false, fmt.Errorf("memory curation: load watermark: %w", err)
+		return fmt.Errorf("memory curation: load watermark: %w", err)
 	}
 	pending, err := e.memory.PendingLedger(ctx, project, state.Watermark, e.config.MaxPendingFacts)
 	if err != nil {
-		return false, fmt.Errorf("memory curation: read ledger after watermark %d: %w", state.Watermark, err)
+		return fmt.Errorf("memory curation: read ledger after watermark %d: %w", state.Watermark, err)
 	}
 	if !e.curationDue(state, len(pending), now) {
-		return false, nil
+		return nil
 	}
 	current, err := e.currentMemory(ctx, project)
 	if err != nil {
-		return false, fmt.Errorf("memory curation: load current items: %w", err)
+		return fmt.Errorf("memory curation: load current items: %w", err)
 	}
 	content, err := e.askForCuration(ctx, current, pending)
 	if err != nil {
-		return false, fmt.Errorf("memory curation: generate memory: %w", err)
+		return fmt.Errorf("memory curation: generate memory: %w", err)
 	}
 	if tokens := estimateTextTokens(content); tokens > e.config.MaxTokens {
-		return false, fmt.Errorf("memory curation: generated %d estimated tokens; limit is %d", tokens, e.config.MaxTokens)
+		return fmt.Errorf("memory curation: generated %d estimated tokens; limit is %d", tokens, e.config.MaxTokens)
 	}
 	through := pending[len(pending)-1].Sequence
 	published, err := e.memory.Reconcile(ctx, project, state.Watermark, through, parseMemoryFacts(content), now)
 	if err != nil {
-		return false, fmt.Errorf("memory curation: reconcile through watermark %d: %w", through, err)
+		return fmt.Errorf("memory curation: reconcile through watermark %d: %w", through, err)
 	}
 	if published {
 		recordCuratedGeneration(ctx)
 		e.embedNewItems(ctx, project)
 	}
-	return published, nil
+	return nil
 }
 
 // embedNewItems backfills content vectors for the project's items that lack one,

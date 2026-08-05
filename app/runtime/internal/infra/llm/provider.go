@@ -86,8 +86,7 @@ func (p Provider) APIKeyEnv() string {
 }
 
 // RequiresBaseURL reports whether p has no built-in endpoint and needs a
-// caller-supplied base URL (the generic passthroughs + Azure). The frontend
-// renders a base URL field + free-form model input for these.
+// caller-supplied base URL (the generic passthroughs + Azure).
 func (p Provider) RequiresBaseURL() bool {
 	return providerInfo[p].requiresBaseURL
 }

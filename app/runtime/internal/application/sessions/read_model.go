@@ -153,7 +153,7 @@ func (c *Coordinator) CreateView(ctx context.Context, title, cwd string) (View, 
 	if err != nil {
 		return View{}, err
 	}
-	return c.view(ctx, value, ActivityIdle)
+	return c.view(value, ActivityIdle)
 }
 
 // UpdateView applies an edit and returns its fully resolved read model.
@@ -166,7 +166,7 @@ func (c *Coordinator) UpdateView(ctx context.Context, id string, patch session.P
 	if err != nil {
 		return View{}, err
 	}
-	return c.view(ctx, value, activities[value.ID])
+	return c.view(value, activities[value.ID])
 }
 
 // ForkView branches a session and returns the child session's fully resolved
@@ -176,7 +176,7 @@ func (c *Coordinator) ForkView(ctx context.Context, spec ForkSpec) (View, error)
 	if err != nil {
 		return View{}, err
 	}
-	return c.view(ctx, value, ActivityIdle)
+	return c.view(value, ActivityIdle)
 }
 
 func (c *Coordinator) views(ctx context.Context, values []session.Session) ([]View, error) {
@@ -190,7 +190,7 @@ func (c *Coordinator) views(ctx context.Context, values []session.Session) ([]Vi
 	}
 	views := make([]View, 0, len(values))
 	for _, value := range values {
-		view, err := c.view(ctx, value, activities[value.ID])
+		view, err := c.view(value, activities[value.ID])
 		if err != nil {
 			return nil, err
 		}
@@ -199,7 +199,7 @@ func (c *Coordinator) views(ctx context.Context, values []session.Session) ([]Vi
 	return views, nil
 }
 
-func (c *Coordinator) view(ctx context.Context, value session.Session, activity Activity) (View, error) {
+func (c *Coordinator) view(value session.Session, activity Activity) (View, error) {
 	if c.paths == nil {
 		return View{}, errors.New("sessions: workspace inspector is unavailable")
 	}

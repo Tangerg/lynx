@@ -52,7 +52,7 @@ type storedOAuthToken struct {
 	AccessToken  string    `json:"accessToken"`
 	TokenType    string    `json:"tokenType,omitempty"`
 	RefreshToken string    `json:"refreshToken,omitempty"`
-	Expiry       time.Time `json:"expiry,omitempty"`
+	Expiry       time.Time `json:"expiry,omitzero"`
 }
 
 func oauthOrigin(endpoint string) (string, error) {

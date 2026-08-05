@@ -68,8 +68,8 @@ func (m *SessionMutations) acquireSessions(sessionIDs ...string) func() {
 		lock.mu.Lock()
 	}
 	return func() {
-		for i := len(locks) - 1; i >= 0; i-- {
-			locks[i].mu.Unlock()
+		for _, lock := range slices.Backward(locks) {
+			lock.mu.Unlock()
 		}
 		m.mu.Lock()
 		for i, sessionID := range ids {

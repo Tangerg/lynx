@@ -29,14 +29,14 @@ import (
 // only states which keyword applies where — the same division as the generated Go
 // validator and its hand-written `required` / `positive` helpers.
 
-// tsValidatorFileName is the second generated module in the frontend's tree.
+// tsValidatorFileName is the second module in the published TypeScript binding.
 const tsValidatorFileName = "wire.validate.generated.ts"
 
 type checkEmitter struct {
 	set *schemaSet
 
 	// used records the primitives the body actually calls, so the import list names
-	// exactly those — the frontend compiles with noUnusedLocals.
+	// exactly those — the binding compiles with noUnusedLocals.
 	used map[string]bool
 }
 
@@ -48,7 +48,7 @@ func newWireChecks(registry *dispatch.Registry, shapes *dispatch.Shapes, set *sc
 	var body strings.Builder
 	body.WriteString("const CHECKS: Record<WireTypeName, WireCheck> = {\n")
 	for _, name := range names {
-		fmt.Fprintf(&body, "  %s: %s,\n", name, shift(emitter.compile(set.defs[name]), 1))
+		fmt.Fprintf(&body, "  %s: %s,\n", name, indent(emitter.compile(set.defs[name])))
 	}
 	body.WriteString("};\n")
 	// Rendered before the import list, because these are what decide it.
@@ -115,7 +115,7 @@ func (e *checkEmitter) methodResults(registry *dispatch.Registry) string {
 				check = e.call("nullable", check)
 			}
 		}
-		fmt.Fprintf(&out, "  %s: %s,\n", strconv.Quote(meta.Name), shift(check, 1))
+		fmt.Fprintf(&out, "  %s: %s,\n", strconv.Quote(meta.Name), indent(check))
 	}
 	out.WriteString("};\n")
 	out.WriteString(`
@@ -158,7 +158,7 @@ func (e *checkEmitter) notifications(shapes *dispatch.Shapes) string {
 			&out,
 			"  %s: %s,\n",
 			strconv.Quote(notification.Name),
-			shift(e.compile(e.set.walk(notification.ParamsType)), 1),
+			indent(e.compile(e.set.walk(notification.ParamsType))),
 		)
 	}
 	out.WriteString("};\n")
@@ -300,7 +300,7 @@ func (e *checkEmitter) properties(node *schema) string {
 	var out strings.Builder
 	out.WriteString("{\n")
 	for _, name := range names {
-		fmt.Fprintf(&out, "  %s: %s,\n", propertyKey(name), shift(e.property(node.Properties[name]), 1))
+		fmt.Fprintf(&out, "  %s: %s,\n", propertyKey(name), indent(e.property(node.Properties[name])))
 	}
 	out.WriteString("}")
 	return out.String()
@@ -341,7 +341,7 @@ func (e *checkEmitter) callBlock(name string, arguments ...string) string {
 	var out strings.Builder
 	out.WriteString(name + "(\n")
 	for _, argument := range arguments {
-		fmt.Fprintf(&out, "  %s,\n", shift(argument, 1))
+		fmt.Fprintf(&out, "  %s,\n", indent(argument))
 	}
 	out.WriteString(")")
 	return out.String()
@@ -357,7 +357,7 @@ func block(items []string) string {
 	var out strings.Builder
 	out.WriteString("[\n")
 	for _, item := range items {
-		fmt.Fprintf(&out, "  %s,\n", shift(item, 1))
+		fmt.Fprintf(&out, "  %s,\n", indent(item))
 	}
 	out.WriteString("]")
 	return out.String()
@@ -367,9 +367,7 @@ func values(items []string) string {
 	return "[" + strings.Join(quoteAll(items), ", ") + "]"
 }
 
-// shift re-indents an already-rendered expression for the depth it is embedded at.
-// Every expression is rendered as if it started at column zero, so a container only
-// has to say how deep it is putting things.
-func shift(rendered string, levels int) string {
-	return strings.ReplaceAll(rendered, "\n", "\n"+strings.Repeat("  ", levels))
+// indent moves an already-rendered expression one level into its container.
+func indent(rendered string) string {
+	return strings.ReplaceAll(rendered, "\n", "\n  ")
 }

@@ -35,7 +35,7 @@ type methodsEmitter struct {
 	out strings.Builder
 
 	// imported collects the published shapes the module names, so its import list is
-	// exactly those — the frontend compiles with noUnusedLocals.
+	// exactly those — the binding compiles with noUnusedLocals.
 	imported map[string]bool
 }
 

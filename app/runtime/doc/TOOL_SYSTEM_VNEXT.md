@@ -32,7 +32,7 @@
 ## 3. 命名规则
 
 - 模型工具名统一使用 `lower_snake_case`；
-- 动作工具使用 `verb_noun`，已形成稳定模型先验的 `read`、`write`、`edit`、`glob`、`grep`、`shell` 除外；
+- 动作工具使用 `verb_noun`，已形成稳定模型先验的 `read`、`glob`、`grep`、`shell` 除外；
 - 完整替换使用 `set_*`，局部修改才使用 `update_*`；
 - 创建、读取、删除分别使用 `create_*`、`get_*`、`delete_*`；
 - 模型报告判断使用 `report_*`，不得伪装成任意状态修改；
@@ -177,11 +177,11 @@
 
 ### 文件与本地搜索
 
-- `read`、`write`、`edit` 的文件参数统一为 `path`，与 `glob`、`grep`、`lsp` 一致；`apply_patch` 的每文件结果也返回 `path`。旧 `file_path` 不保留；
+- `read`、`glob`、`grep` 的文件参数统一为 `path`，与 `lsp` 一致；`apply_patch` 的每文件结果也返回 `path`。旧 `file_path` 不保留；
 - `read(path,start_line?,max_lines?)` 使用 1-based `start_line` 和显式行数上限；删除把 0/default 与 1-based 行号混在同一字段里的 `offset`，也不再用无单位 `limit`；
-- `write(path,content)` 只表达创建或完整替换。删除与 `edit` 重叠且会绕开完整读取保护的 `append` 入口；底层 Executor 仍可为非模型消费者保留 append 原语；
+- `apply_patch` 是唯一模型文件修改入口，显式 patch 同时覆盖创建、修改、删除、移动与多文件原子变更；不保留 `write`、`edit` 或 `append` 旁路；
 - `grep` 只保留 `before_context_lines` / `after_context_lines`，删除同时表达相同状态的 `context` shortcut；文件过滤使用 `file_glob` / `file_type`，结果上限使用与 `glob` 一致的 `max_results`，`output_mode` 是 `content | files_with_matches | count` 闭集；
-- 六个 filesystem 工具的外层继续拥有 concurrency / mutation-path 等真实附加能力，但 Definition 与 Call 都委托给同一个 typed function contract。未知字段、缺失字段和越界值不再被手写 `json.Unmarshal` 静默接受。
+- 四个 filesystem 工具的外层继续拥有 concurrency / mutation-path 等真实附加能力，但 Definition 与 Call 都委托给同一个 typed function contract。未知字段、缺失字段和越界值不再被手写 `json.Unmarshal` 静默接受。
 
 ### Skill 渐进披露
 
@@ -204,7 +204,7 @@
 - 参数只包含模型真正决定的 `name / description / instructions / scope`。`scope` 是闭集：`project` 仅属于当前 workspace，`user` 跨 workspace 属于当前用户；
 - `name` 是稳定的 lowercase-hyphenated identifier；`description` 同时说明“做什么”和“何时使用”；`instructions` 是未来 Agent 可独立执行的完整指令，不携带本次进度、瞬时环境或 secret；
 - session、cwd、origin 由执行上下文补齐，绝不作为模型参数。前台工具固定写入 `origin=requested`；后台 Miner 固定写入 `origin=mined`；
-- 工具只提交不可变 Proposal，并返回 `pending_review + scope + name + revision`。它不 interrupt、不 approve、不 activate，也不复用前端交互作为调用前置条件；
+- 工具只提交不可变 Proposal，并返回 `pending_review + scope + name + revision`。它不 interrupt、不 approve、不 activate，也不依赖协议外的交互流程作为调用前置条件；
 - Proposal 按内容寻址并存入目标 library 的 `_proposals/<revision>/SKILL.md`。`revision` 同时覆盖 scope、name 和完整文件内容，评审操作不会误作用于后来变化的内容；
 - 服务端评审面唯一使用 `skills.proposals.list / approve / reject`。list 必须带 workspace 并返回完整 description、instructions、scope、origin、source session 和 revises；approve/reject 必须携带 workspace、scope、name、revision；
 - `Draft / promote / discard / global` 已从 Skill 领域、存储、应用和服务端协议移除，不提供别名或兼容转换；
@@ -223,9 +223,8 @@
 
 ### 从模型工具面移除
 
-- `codebase_search`；代码索引仅在仍有前端消费方时保留；
-- 共享 session Plan store 的委派 Agent 写入口；
-- 普通委派 Agent 的递归委派入口。
+- `codebase_search`；代码索引仅在仍有独立协议消费方时保留；
+- 共享 session Plan store 的委派 Agent 写入口。
 
 ### 合并或拆分
 
@@ -243,6 +242,8 @@
 - object schema 默认拒绝未知字段，非 `omitempty` / `omitzero` 字段默认 required；
 - schema 支持 enum、字符串长度、数值范围、正则和数组范围，并由 typed function tool 在调用边界执行同一份约束；
 - 跨字段业务不变量继续由具体工具验证，不为尚不存在的消费者扩张通用 schema DSL；
+- Toolset 的同一 descriptor 同时绑定 client-facing result projector、根结果类型与闭集 enum；生成 manifest 的 `toolResultPresentations` 按 `toolName` 发布这些精确映射，不由 Delivery 为 opaque `tool.result` 猜测或复制具体工具结构；
+- `apply_patch` 的展示结果固定为 `{changes:[{path,status,from?}]}`，其中 `status` 是 `added | deleted | modified | moved`，`from` 只表达移动前路径；它不复用 VCS 的 `renamed/untracked` 状态，也不伪造未返回的 diff；
 - 工具输出保持各模型协议共同支持的文本结果；结构化结果可以编码为 JSON 文本，但在出现至少两个真实 output-schema 消费者前不提升为通用协议；
 - 普通工具错误由 `agent/toolloop` 结算为 `ToolResult.IsError`，不再增加第二套失败类型；approval、question 和 lifecycle interrupt 仍是控制流；
 - 输出裁剪与 offload 由统一 settlement 边界负责，不进入 `tool.Tool`。

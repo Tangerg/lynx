@@ -14,10 +14,13 @@ import (
 // abandoned rather than written.
 var ErrClosed = errors.New("term: writer closed")
 
-// drainGrace is how long [Writer.Close] waits for queued frames to reach the
-// terminal before abandoning them. A terminal that has stopped accepting bytes
-// must not be able to hold up an exit.
-const drainGrace = 250 * time.Millisecond
+// DrainGrace is how long to wait for queued frames to reach the terminal before
+// abandoning them. A terminal that has stopped accepting bytes must not be able to
+// hold up an exit, and no amount of waiting makes one start accepting them again.
+//
+// It is what [Writer.Close] waits, and the right answer for anyone else with a
+// reason to wait for the terminal to catch up.
+const DrainGrace = 250 * time.Millisecond
 
 // Writer writes frames to the terminal from a goroutine of its own.
 //
@@ -148,7 +151,7 @@ func (w *Writer) Drain(timeout time.Duration) bool {
 // finishes on its own, discarding what is left rather than writing it.
 func (w *Writer) Close() error {
 	w.closeOnce.Do(func() {
-		drained := w.Drain(drainGrace)
+		drained := w.Drain(DrainGrace)
 		w.discarding.Store(true)
 		w.closed = true
 		close(w.frames)

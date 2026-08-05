@@ -3,6 +3,7 @@ package runs
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"strings"
 )
 
@@ -74,8 +75,6 @@ func (h *handle) executorProcessSnapshot() map[string]string {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	processes := make(map[string]string, len(h.executorProcesses))
-	for runID, processID := range h.executorProcesses {
-		processes[runID] = processID
-	}
+	maps.Copy(processes, h.executorProcesses)
 	return processes
 }

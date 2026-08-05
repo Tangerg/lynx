@@ -41,7 +41,7 @@ func (c *Coordinator) ExportSession(ctx context.Context, sessionID string) (Expo
 	if err != nil {
 		return ExportResult{}, fmt.Errorf("sessions: prepare portable snapshot: %w", err)
 	}
-	view, err := c.view(ctx, snapshot.Session, ActivityIdle)
+	view, err := c.view(snapshot.Session, ActivityIdle)
 	if err != nil {
 		return ExportResult{}, err
 	}

@@ -11,7 +11,7 @@ import (
 // into the engine's tool set (so the model can call it): one combined `lsp`
 // operation tool, including diagnostics. This is a pure wiring check — no
 // language server is started. The tool-layer behavior (unsupported file,
-// post-edit diagnostics) is tested in internal/adapter/toolset.
+// post-mutation diagnostics) is tested in internal/adapter/toolset.
 func TestEngine_RegistersLSPTools(t *testing.T) {
 	stub := newStubModel("nop", `{}`, "")
 	client, _ := chatclient.New(stub, chatclient.Config{})

@@ -58,7 +58,7 @@ func mergeBase(ctx context.Context, dir string) (string, error) {
 func defaultBranch(ctx context.Context, dir string) (string, error) {
 	if out, err := run(ctx, dir, "symbolic-ref", "--quiet", "refs/remotes/origin/HEAD"); err == nil {
 		ref := strings.TrimSpace(out) // refs/remotes/origin/main
-		if b := strings.TrimPrefix(ref, "refs/remotes/"); b != ref {
+		if b, ok := strings.CutPrefix(ref, "refs/remotes/"); ok {
 			return b, nil
 		}
 	}

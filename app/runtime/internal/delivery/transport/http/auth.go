@@ -12,15 +12,14 @@ import (
 	"strings"
 )
 
-// LocalToken is the per-process gate token described in
-// ../desktop/docs/protocol/TRANSPORT.md §11 (本地门禁 token). It only protects
-// against other processes on the same machine — it is NOT user
-// auth. The Web frontend reads the token from Path and sends
+// LocalToken is the transport's per-process gate token. It only protects
+// against other processes on the same machine — it is NOT user authentication.
+// A trusted local client reads the token from Path and sends
 //
 //	Authorization: Bearer <Value>
 //
-// on every POST /v2/rpc. The sidecars and the SSE stream
-// stay open per the frontend's `httpTransport` contract.
+// on every POST /v2/rpc. The sidecars and SSE streams remain unauthenticated by
+// this token.
 type LocalToken struct {
 	Value string
 	Path  string

@@ -30,7 +30,7 @@ import (
 // earned, and was it taken?
 
 // closedSetRationale is why gaining a member is as breaking as losing one. The
-// frontend declares these unions itself and its fold is exhaustive — a member with no
+// A client may declare these unions itself and use an exhaustive fold — a member with no
 // branch fails to compile — which is the whole reason the contract distinguishes a
 // closed set from an open one.
 const closedSetRationale = "a closed set: an exhaustive client has no branch for a member it never saw"

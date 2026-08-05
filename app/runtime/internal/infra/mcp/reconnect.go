@@ -161,13 +161,13 @@ func (c *Connections) Authorize(ctx context.Context, name string) error {
 
 	flow, err := newOAuthFlow()
 	if err != nil {
-		c.failAttempt(attempt, err)
+		c.failAttempt(attempt)
 		return errors.Join(closeErr, err)
 	}
 	defer flow.close(ctx)
 	handler, err := newOAuthHandler(flow, c.oauthSessions, cfg.Name, cfg.Endpoint)
 	if err != nil {
-		c.failAttempt(attempt, err)
+		c.failAttempt(attempt)
 		return errors.Join(closeErr, err)
 	}
 	cfg.OAuthHandler = handler
@@ -284,7 +284,7 @@ func (c *Connections) currentAttempt(attempt connectionAttempt) bool {
 		attempt.target.generation == attempt.generation
 }
 
-func (c *Connections) failAttempt(attempt connectionAttempt, err error) {
+func (c *Connections) failAttempt(attempt connectionAttempt) {
 	c.mu.Lock()
 	if c.currentAttempt(attempt) {
 		attempt.target.session = nil

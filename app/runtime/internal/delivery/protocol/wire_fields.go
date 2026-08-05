@@ -38,8 +38,7 @@ func WireFields(owner reflect.Type) []WireField {
 		return nil
 	}
 	var out []WireField
-	for index := range owner.NumField() {
-		field := owner.Field(index)
+	for field := range owner.Fields() {
 		name, options := wireNameOf(field)
 		if options.embedded {
 			out = append(out, WireFields(Deref(field.Type))...)
@@ -63,8 +62,7 @@ func WireEmbeds(owner reflect.Type) []reflect.Type {
 		return nil
 	}
 	var out []reflect.Type
-	for index := range owner.NumField() {
-		field := owner.Field(index)
+	for field := range owner.Fields() {
 		if _, options := wireNameOf(field); !options.embedded {
 			continue
 		}

@@ -50,7 +50,7 @@ const (
 	DiagnosticSeverityHint
 )
 
-// IsProblem reports whether the severity belongs in the post-edit problem
+// IsProblem reports whether the severity belongs in the post-mutation problem
 // summary. LSP treats an omitted severity as an error for this purpose.
 func (s DiagnosticSeverity) IsProblem() bool {
 	return s <= DiagnosticSeverityWarning
@@ -217,7 +217,7 @@ type callHierarchyOutgoingCall struct {
 }
 
 // publishDiagnosticsParams is the server→client push we cache. Version echoes
-// the document version the server diagnosed, so a post-edit wait can tell
+// the document version the server diagnosed, so a post-mutation wait can tell
 // fresh diagnostics from stale ones.
 type publishDiagnosticsParams struct {
 	URI         string       `json:"uri"`
