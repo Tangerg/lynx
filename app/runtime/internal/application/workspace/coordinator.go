@@ -63,8 +63,7 @@ type HookInspector interface {
 	Inspect(ctx context.Context, cwd string) (hooks.Inspection, error)
 }
 
-// HookTrustStore mutates project hook trust (the hooks.setTrust
-// surface). nil leaves trust read-only (CLI / file only).
+// HookTrustStore mutates project hook trust. nil leaves trust read-only.
 type HookTrustStore interface {
 	Trust(ctx context.Context, projectRoot string) error
 	Untrust(ctx context.Context, projectRoot string) error

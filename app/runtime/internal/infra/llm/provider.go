@@ -1,14 +1,10 @@
-// Package llm is Lyra's catalog of supported LLM providers and the
-// construction of a chat client for one. It owns the static provider table
-// (which vendors Lyra can talk to, each one's default model, key env var, and
-// wire adapter) and [BuildClient], which wires a vendor's lynx model adapter
-// into a *chatclient.Client. It is pure infrastructure: it wraps the external model
-// SDKs and depends on no inner ring.
+// Package llm owns Lyra's static provider catalog and constructs a chat client
+// for a selected provider. Each catalog entry binds a vendor, default model,
+// credential environment key, and external wire adapter.
 //
 // The runtime-mutable credential registry (a provider's configured key + base
-// URL) is a separate concern — see internal/domain/provider. This package is
-// "what providers exist and how to build a client"; that one is "what's
-// configured right now".
+// URL) is a separate concern. This package answers what providers exist and how
+// to construct their clients, not what credentials are configured now.
 package llm
 
 import (
@@ -16,9 +12,8 @@ import (
 	"slices"
 )
 
-// Provider identifies an LLM vendor Lyra supports. The string values are the
-// wire ids (Provider.id on the protocol, runs.start{provider}) and the catalog
-// keys (models.dev) — lowercase, stable.
+// Provider identifies an LLM vendor Lyra supports. Its lowercase string value
+// is the stable catalog key.
 type Provider string
 
 const (
@@ -54,9 +49,8 @@ const (
 	ProviderAnthropicCompat Provider = "anthropic-compatible"
 )
 
-// SupportedProviders lists every provider Lyra has an adapter for — the static
-// set providers.list reports, regardless of which are configured. Sorted for a
-// stable wire / CLI order.
+// SupportedProviders lists every provider with a static catalog entry,
+// regardless of which are configured. The result has deterministic order.
 func SupportedProviders() []Provider {
 	out := make([]Provider, 0, len(providerInfo))
 	for p := range providerInfo {

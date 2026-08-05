@@ -177,7 +177,7 @@ func newOAuthHandler(flow *oauthFlow, store OAuthSessionStore, server, endpoint 
 }
 
 // openBrowser opens url in the user's default browser, best-effort and
-// platform-specific. The runtime is local (the desktop app's loopback), so this
+// platform-specific. This service is local and binds loopback, so this
 // opens on the user's machine; an error is surfaced so the URL can be opened
 // manually.
 func openBrowser(ctx context.Context, url string) error {

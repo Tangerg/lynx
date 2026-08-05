@@ -15,21 +15,21 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/skillauthoring"
 )
 
-type executionServices struct {
+type executionSupport struct {
 	steering    turn.SteeringSink
 	maintenance turn.RunMaintenance
 }
 
-func buildExecutionServices(cfg Config, messages messageEnvironment, shells *exec.Shells, skillStore *skillauthoring.Store, skillProposals *workspace.Skills, resolveUtility func(context.Context) *chatclient.Client, embedder func(context.Context) (agentmemory.Embedder, error)) executionServices {
-	services := executionServices{
+func buildExecutionSupport(cfg Config, messages messageEnvironment, shells *exec.Shells, skillStore *skillauthoring.Store, skillProposals *workspace.Skills, resolveUtility func(context.Context) *chatclient.Client, embedder func(context.Context) (agentmemory.Embedder, error)) executionSupport {
+	support := executionSupport{
 		steering:    cfg.Steering,
 		maintenance: cfg.Maintenance,
 	}
-	if services.steering == nil {
-		services.steering = messages.conversation
+	if support.steering == nil {
+		support.steering = messages.conversation
 	}
-	if services.maintenance != nil {
-		return services
+	if support.maintenance != nil {
+		return support
 	}
 	window := 0
 	if info, ok := catalog.Lookup(cfg.Provider, cfg.Model); ok {
@@ -57,6 +57,6 @@ func buildExecutionServices(cfg Config, messages messageEnvironment, shells *exe
 		)
 		curator = maintenance.NewSkillCurator(skillStore, maintenance.LifecycleConfig{})
 	}
-	services.maintenance = maintenance.NewSuite(compactor, extractor, miner, curator)
-	return services
+	support.maintenance = maintenance.NewSuite(compactor, extractor, miner, curator)
+	return support
 }

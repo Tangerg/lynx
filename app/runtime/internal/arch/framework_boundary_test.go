@@ -479,27 +479,27 @@ func TestInnerRingCommentsDoNotNameOuterArchitecture(t *testing.T) {
 	}{
 		{
 			ring:      "domain",
-			forbidden: regexp.MustCompile(`(?i)\b(application|adapters?|delivery|infrastructure|infra|bootstrap)\b`),
+			forbidden: regexp.MustCompile(`(?i)\b(application|adapters?|delivery|infrastructure|infra|bootstrap|frontend|desktop|tui|cli)\b`),
 		},
 		{
 			ring:      "application",
-			forbidden: regexp.MustCompile(`(?i)\b(adapters?|delivery|infrastructure|infra|bootstrap)\b|composition[ -]root`),
+			forbidden: regexp.MustCompile(`(?i)\b(adapters?|delivery|infrastructure|infra|bootstrap|frontend|desktop|tui|cli)\b|composition[ -]root`),
 		},
 		{
 			ring:      "adapter",
-			forbidden: regexp.MustCompile(`(?i)\b(delivery|bootstrap|frontend)\b|composition[ -]root`),
+			forbidden: regexp.MustCompile(`(?i)\b(delivery|bootstrap|frontend|desktop|tui|cli)\b|composition[ -]root`),
 		},
 		{
 			ring:      "infra",
-			forbidden: regexp.MustCompile(`(?i)delivery[/ -](layer|protocol|server)|\b(bootstrap|frontend)\b|composition[ -]root|internal/adapter/`),
+			forbidden: regexp.MustCompile(`(?i)delivery[/ -](layer|protocol|server)|\b(bootstrap|frontend|desktop|tui|cli)\b|composition[ -]root|internal/adapter/`),
 		},
 		{
 			ring:      "component",
-			forbidden: regexp.MustCompile(`(?i)\b(application|adapters?|delivery|infrastructure|infra|bootstrap|frontend)\b|composition[ -]root`),
+			forbidden: regexp.MustCompile(`(?i)\b(application|adapters?|delivery|infrastructure|infra|bootstrap|frontend|desktop|tui|cli)\b|composition[ -]root`),
 		},
 		{
 			ring:      "config",
-			forbidden: regexp.MustCompile(`(?i)\b(delivery|bootstrap|frontend)\b|composition[ -]root`),
+			forbidden: regexp.MustCompile(`(?i)\b(delivery|bootstrap|frontend|desktop|tui|cli)\b|composition[ -]root`),
 		},
 	}
 	for _, check := range checks {

@@ -63,7 +63,7 @@ type Connections struct {
 
 	// oauthSessions is the durable credential boundary. It is optional so the
 	// infrastructure remains usable in processes that deliberately opt out of
-	// persistence; the desktop runtime always supplies it.
+	// persistence; callers that enable OAuth supply it.
 	oauthSessions OAuthSessionStore
 
 	// publishMu serializes snapshot+sink publication. Mutations themselves run

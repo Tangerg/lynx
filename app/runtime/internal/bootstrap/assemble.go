@@ -302,8 +302,8 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 
 	// Built after the tool environment so the compactor's live-state reminder can
 	// read the same background-shell set the shell tools run over (built.Shells);
-	// executionServices is not consumed until the execution-controller config below.
-	executionServices := buildExecutionServices(cfg, messages, built.tools.Shells, skillStore, workspaceSkills, utilityClient, liveEmbedder.ResolveMemory)
+	// executionSupport is not consumed until the execution-controller config below.
+	executionSupport := buildExecutionSupport(cfg, messages, built.tools.Shells, skillStore, workspaceSkills, utilityClient, liveEmbedder.ResolveMemory)
 
 	eng, err := agentexec.New(ctx, ecfg)
 	if err != nil {
@@ -332,8 +332,8 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 
 	executionController, err := turn.New(turn.Dependencies{
 		Engine:              eng,
-		Steering:            executionServices.steering,
-		Maintenance:         executionServices.maintenance,
+		Steering:            executionSupport.steering,
+		Maintenance:         executionSupport.maintenance,
 		Approval:            approvalPolicy,
 		ClientResolver:      resolver,
 		ToolPresenter:       toolset.Presenter{},

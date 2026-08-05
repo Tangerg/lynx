@@ -243,7 +243,7 @@ func (s *controller) emitInterrupt(
 		return
 	}
 	// Notification hooks (observe-only): the turn is waiting on the user — fire
-	// so a user script can route it (desktop / Slack / …). The kind ("approval"
+	// so external automation can route it. The kind ("approval"
 	// | "question") rides as the reason.
 	if !st.hooks.Empty() {
 		_ = st.hooks.Run(st.ctx, hooks.Input{

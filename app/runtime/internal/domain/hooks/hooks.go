@@ -53,7 +53,7 @@ const (
 	// Stop fires at Run end (any terminal) — observe-only (notify / chain).
 	Stop Event = "Stop"
 	// Notification fires when a run parks waiting on the user (HITL interrupt)
-	// — observe-only (route to Slack / desktop / etc.).
+	// — observe-only (route to an external sink).
 	Notification Event = "Notification"
 )
 

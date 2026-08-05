@@ -920,6 +920,7 @@ Acceptance:
 | 46. Cancellation, filesystem, and narrowing safety closure | Completed | 2026-08-05 | 2026-08-05 | Persistence and OAuth startup inherit caller cancellation, workspace archives use root-scoped filesystem access, persisted integer discriminants cannot narrow into valid enums, and precise interface/error-handling checks are clean. Full workspace/standalone plus focused race/static/security verification passed. |
 | 47. Infrastructure boundary and external-output closure | Completed | 2026-08-05 | 2026-08-05 | Infrastructure comments no longer name composition or presentation owners and a mechanical gate covers the ring; Git output parsing fails on malformed counts/hunks and accepts only documented nonzero statuses; duplicated text-delta coalescing has one semantic path. Standalone full and focused race/static verification passed. |
 | 48. Shared-component semantic ownership | Completed | 2026-08-05 | 2026-08-05 | Component and configuration comments describe owned behavior without outer-ring vocabulary; TaskGroup no longer exports duplicate shutdown aliases solely to satisfy a construction-owned interface, and the consumer names the narrower Cancel/Wait port. Standalone full and focused race/static verification passed. |
+| 49. Construction naming and client-neutral semantics | Completed | 2026-08-05 | 2026-08-05 | Execution support and utility-role files/types/functions now name their actual construction responsibility; all inner rings reject CLI/TUI/desktop/frontend vocabulary, and remaining client-specific examples were replaced by owned behavior. Standalone full and focused race/static verification passed. |
 
 Allowed status values: `Pending`, `In progress`, `Completed`, `Blocked`, `Revised`.
 
@@ -1039,6 +1040,20 @@ Allowed status values: `Pending`, `In progress`, `Completed`, `Blocked`, `Revise
 - Focused component, configuration, bootstrap, and architecture tests, full
   standalone build/vet/test, race tests, static analysis, lint, formatting,
   dead-code analysis, and residue scans passed.
+
+### 2026-08-05 — Batch 49 completed
+
+- Renamed the generic `executionServices` aggregate and its maintenance-only
+  filename to precise execution-support vocabulary across its type, builder,
+  local binding, and source file. Renamed the stale `utility_env.go` file to
+  `utility_role.go` because it only loads the persisted utility role.
+- Extended every inner-ring comment gate to reject CLI, TUI, desktop, and
+  frontend vocabulary. Hook routing, trust mutation, OAuth loopback, MCP OAuth
+  storage, and provider ordering now describe stable behavior without naming a
+  current client or presentation surface.
+- Focused bootstrap, domain, application, execution, MCP, LLM, and architecture
+  tests, full standalone build/vet/test, race tests, static analysis, lint,
+  formatting, dead-code analysis, and residue scans passed.
 
 ### 2026-08-04 — Batch 38 completed
 
