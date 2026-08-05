@@ -149,6 +149,7 @@ const SHELL_READ: Item = {
   runId: ROOT_RUN_ID,
   status: "completed",
   startedAt: CREATED_AT,
+  durationMs: 42,
   tool: { name: "read", arguments: { path: "app/runtime/internal/session/store.go" } },
 };
 
@@ -159,6 +160,7 @@ const SHELL_COMMAND: Item = {
   runId: ROOT_RUN_ID,
   status: "completed",
   startedAt: CREATED_AT,
+  durationMs: 8400,
   tool: { name: "shell", arguments: { command: "go test ./internal/session/..." } },
 };
 
@@ -169,6 +171,7 @@ const SHELL_FAILED: Item = {
   runId: ROOT_RUN_ID,
   status: "incomplete",
   startedAt: CREATED_AT,
+  durationMs: 120,
   tool: { name: "edit", arguments: { path: "app/runtime/internal/session/store.go" } },
   error: { type: "tool_failed", detail: "store.go changed on disk after it was read." },
 };
@@ -215,6 +218,7 @@ const SHELL_DENIED: Item = {
   runId: ROOT_RUN_ID,
   status: "incomplete",
   startedAt: CREATED_AT,
+  durationMs: 15,
   tool: { name: "write", arguments: { path: ".env.production" } },
   error: { type: "denied_by_user", detail: "You declined this write." },
 };

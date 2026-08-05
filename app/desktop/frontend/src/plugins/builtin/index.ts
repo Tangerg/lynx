@@ -112,6 +112,7 @@ import {
   skillProposalsView,
   terminalView,
   timelineView,
+  toolStatsView,
   toolsView,
 } from "./workspace/workspace-views";
 
@@ -213,6 +214,7 @@ const panes: PluginSpec[] = [
   fileTreeView,
   planView,
   timelineView,
+  toolStatsView,
   runSummaryView,
   toolsView,
   skillsView,

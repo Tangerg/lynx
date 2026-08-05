@@ -23,4 +23,5 @@ export { runSummaryView } from "./run-summary";
 export { searchView } from "./search";
 export { terminalView } from "./terminal";
 export { timelineView } from "./timeline";
+export { toolStatsView } from "./toolStats";
 export { toolsView } from "./tools";

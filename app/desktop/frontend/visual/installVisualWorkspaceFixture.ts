@@ -31,6 +31,7 @@ import {
   planView,
   terminalView,
   timelineView,
+  toolStatsView,
 } from "@/plugins/builtin/workspace/workspace-views";
 import { PENDING_WORK_KEY, type PendingWorkItem } from "@/plugins/builtin/agent/public/hitl";
 import {
@@ -293,6 +294,7 @@ const workspaceDockDestinations = definePlugin({
       { viewId: "plan", scope: "session", order: 120 },
       { viewId: "timeline", scope: "session", order: 140 },
       { viewId: "inbox", scope: "workspace", order: 15 },
+      { viewId: "tool-stats", scope: "session", order: 150 },
     ] as const) {
       host.extensions.contribute(CONTEXT_DOCK_DESTINATION, destination);
     }
@@ -338,7 +340,12 @@ export async function installVisualWorkspaceFixture(
   state: VisualWorkspaceState,
   theme: VisualWorkspaceTheme,
 ): Promise<void> {
-  await installVisualAgentFixture(state === "dock-light" ? "running" : "idle");
+  // Tool stats needs a session that actually ran tools; every other state wants
+  // the quiet one. `tool-shells` is the state with a read, a command, an edit, a
+  // failure and a refusal in it — five outcomes, which is what the view sorts.
+  await installVisualAgentFixture(
+    state === "dock-light" ? "running" : state === "dock-stats" ? "tool-shells" : "idle",
+  );
 
   installWorkspaceErrorClassifier();
   useRuntimeStore.getState().replace(VISUAL_CAPABILITIES);
@@ -348,7 +355,12 @@ export async function installVisualWorkspaceFixture(
     refetchOnWindowFocus: false,
   });
 
-  const dockViewId = state === "dock-light" ? "plan" : state === "dock-inbox" ? "inbox" : "diff";
+  const DOCK_VIEW_BY_STATE: Partial<Record<VisualWorkspaceState, string>> = {
+    "dock-light": "plan",
+    "dock-inbox": "inbox",
+    "dock-stats": "tool-stats",
+  };
+  const dockViewId = DOCK_VIEW_BY_STATE[state] ?? "diff";
   useContextDockStore.setState({
     activeSessionScopeId: VISUAL_SESSION_ID,
     sessionScopes: new Map(),
@@ -356,10 +368,20 @@ export async function installVisualWorkspaceFixture(
     // present only in the state that is about it. Adding it everywhere moved the
     // tab strip in every other golden, which is a change to states that have
     // nothing to do with this feature.
-    dockViewIds:
-      state === "dock-inbox"
-        ? ["inbox", "explorer", "file", "diff", "terminal", "plan", "timeline"]
-        : ["explorer", "file", "diff", "terminal", "plan", "timeline"],
+    // A view this feature added is a tab you opened, not one every workspace
+    // carries. Present only in the state that is about it: adding it everywhere
+    // moved the tab strip in every other golden, which is a change to states
+    // that have nothing to do with the feature.
+    dockViewIds: [
+      ...(DOCK_VIEW_BY_STATE[state] === "inbox" ? ["inbox"] : []),
+      ...(DOCK_VIEW_BY_STATE[state] === "tool-stats" ? ["tool-stats"] : []),
+      "explorer",
+      "file",
+      "diff",
+      "terminal",
+      "plan",
+      "timeline",
+    ],
     lastViewId: dockViewId,
     activeFile: ACTIVE_DIFF_FILE,
     fileViewer: { path: ACTIVE_DIFF_FILE, line: 6 },
@@ -394,6 +416,7 @@ export async function installVisualWorkspaceFixture(
     fileTreeView,
     inboxView,
     terminalView,
+    toolStatsView,
     planView,
     timelineView,
     kernelSettings,

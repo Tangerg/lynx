@@ -2,6 +2,7 @@ export const VISUAL_WORKSPACE_STATES = [
   "dock-light",
   "dock-review",
   "dock-inbox",
+  "dock-stats",
   "dock-empty",
   "dock-loading",
   "dock-error",

@@ -39,6 +39,21 @@ async function waitForWorkspaceState(page: Page, state: VisualWorkspaceState): P
     await expect(page.getByText("+2", { exact: true })).toBeVisible();
     return;
   }
+  if (state === "dock-stats") {
+    // Every dock view stays MOUNTED, so `.first()` here once matched a hidden
+    // tool-stats pane while the diff was the one on screen — and the assertions
+    // passed against a view nobody could see. Scope to what is visible.
+    const view = page.locator(".agent-workspace-view:visible");
+    await expect(view).toContainText("5 calls · 8.6s");
+    // The two ways a call fails to deliver, counted apart.
+    await expect(view).toContainText("1 failed");
+    await expect(view).toContainText("1 denied");
+    // Ordered by time SPENT, not by call count: the one 8.4s command has to
+    // outrank the faster reads, which is the whole reason this is not a counter.
+    const listing = await view.innerText();
+    expect(listing.indexOf("shell")).toBeLessThan(listing.indexOf("read"));
+    return;
+  }
   if (state === "dock-empty") {
     await expect(page.getByText("Nothing to compare", { exact: true })).toBeVisible();
     return;
