@@ -72,6 +72,17 @@ const RULES = [
     appliesTo: (_line, rel) => rel !== "styles/globals.css",
   },
   {
+    // A control revealed by hover and by nothing else. Transparency stops the pointer
+    // and not the keyboard, so the control stays a tab stop that paints nothing: the
+    // composer's remove-attachment button was one. Four other reveals in the tree pair
+    // the hover with a focus variant; this makes the pair the rule, and it has to be on
+    // the same line so a reader can see both at once.
+    pattern: /\b(?:group-)?hover(?:\/[a-z]+)?:opacity-100\b/g,
+    message: "hover-only reveal — pair it with `focus-within:` / `focus-visible:opacity-100`",
+    appliesTo: (line) =>
+      !/(?:group-)?focus(?:-within|-visible)?(?:\/[a-z]+)?:opacity-100/.test(line),
+  },
+  {
     pattern: /\btransition-all\b/g,
     message:
       "`transition-all` couples unrelated properties — enumerate only the properties that move",

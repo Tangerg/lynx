@@ -41,13 +41,16 @@ function wrap(ui: ReactElement) {
   return render(<QueryClientProvider client={client}>{ui}</QueryClientProvider>);
 }
 
+const field = () => screen.getByRole("combobox");
+const marked = () =>
+  screen.getAllByRole("option").filter((row) => row.getAttribute("aria-selected") === "true");
+
 beforeEach(() => selectAgentSession.mockClear());
 afterEach(() => useSessionSearchStore.setState({ open: false }));
 
 // A surface that renders and does NOTHING is the failure this file exists for, and
 // it shipped once: the palette's rows lost the props that made them rows, so the
-// list looked right and nothing in it could be run by mouse or keyboard. Every
-// assertion here is about a row doing its job.
+// list looked right and nothing in it could be run by mouse or keyboard.
 describe("going to a session", () => {
   it("opens the session a row is clicked on, and closes", () => {
     wrap(open());
@@ -60,11 +63,10 @@ describe("going to a session", () => {
 
   it("opens the highlighted session on Enter, after the arrows move it", () => {
     wrap(open());
-    const panel = screen.getByRole("listbox");
 
     // Newest first, so the highlight starts on "Rename the dock".
-    fireEvent.keyDown(panel, { key: "ArrowDown" });
-    fireEvent.keyDown(panel, { key: "Enter" });
+    fireEvent.keyDown(field(), { key: "ArrowDown" });
+    fireEvent.keyDown(field(), { key: "Enter" });
 
     expect(selectAgentSession).toHaveBeenCalledWith("ses_a");
   });
@@ -72,12 +74,10 @@ describe("going to a session", () => {
   it("marks exactly one row, and moves it with the query", () => {
     wrap(open());
 
-    const marked = () =>
-      screen.getAllByRole("option").filter((row) => row.getAttribute("aria-selected") === "true");
     expect(marked()).toHaveLength(1);
     expect(marked()[0]?.textContent).toContain("Rename the dock");
 
-    fireEvent.change(screen.getByRole("textbox"), { target: { value: "retry" } });
+    fireEvent.change(field(), { target: { value: "retry" } });
 
     expect(screen.getAllByRole("option")).toHaveLength(1);
     expect(marked()[0]?.textContent).toContain("Fix the retry loop");
@@ -86,9 +86,40 @@ describe("going to a session", () => {
   it("says so when nothing matches, instead of showing an empty box", () => {
     wrap(open());
 
-    fireEvent.change(screen.getByRole("textbox"), { target: { value: "nothing here" } });
+    fireEvent.change(field(), { target: { value: "nothing here" } });
 
     expect(screen.queryAllByRole("option")).toHaveLength(0);
     expect(screen.getByText("No session matches")).toBeTruthy();
+  });
+});
+
+// Focus stays in the field, so the field is the only thing that can say which row
+// the keyboard is on, and the rows must not be tab stops. Both were unmet and both
+// are invisible to anyone driving this with a mouse.
+describe("reaching the list without a pointer", () => {
+  it("announces the highlighted row from the field", () => {
+    wrap(open());
+
+    expect(field().getAttribute("aria-activedescendant")).toBe(marked()[0]?.id);
+
+    fireEvent.keyDown(field(), { key: "ArrowDown" });
+
+    expect(marked()[0]?.textContent).toContain("Fix the retry loop");
+    expect(field().getAttribute("aria-activedescendant")).toBe(marked()[0]?.id);
+  });
+
+  it("names a list for the field to point at, and keeps rows out of the tab order", () => {
+    wrap(open());
+
+    expect(field().getAttribute("aria-controls")).toBe(screen.getByRole("listbox").id);
+    for (const row of screen.getAllByRole("option")) expect(row.tabIndex).toBe(-1);
+  });
+
+  it("stops announcing a row when none is left to announce", () => {
+    wrap(open());
+
+    fireEvent.change(field(), { target: { value: "nothing here" } });
+
+    expect(field().getAttribute("aria-activedescendant")).toBe(null);
   });
 });

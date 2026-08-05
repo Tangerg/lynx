@@ -3,20 +3,13 @@ import { cn } from "@/lib/classNames";
 import { Pressable, type PressableProps } from "./pressable";
 
 /**
- * A row in a floating list — a menu item, a command-palette result, a suggestion in
- * the composer's @-file or slash picker.
+ * A row in a floating list — a menu item, a search result, a suggestion in the
+ * composer's pickers.
  *
- * It had been written five times, once inside this ring and four times outside it, and
- * the copies disagreed on every value: radius (`sm` / `md`), inset (2 / 2.5), gap
- * (2 / 2.5), and the type step. The part that actually showed was the last one — two
- * different mechanisms answer "which row is the keyboard on" (Base UI sets
- * `data-highlighted`, a hand-driven listbox knows its own index and says so through
- * `selected`) and each copy had wired a different wash to whichever one it used.
- *
- * Both are handled here, so which behaviour library a consumer needs cannot change how
- * selection looks. There was a third — cmdk's `data-selected`, which it writes on EVERY
- * item as "true"/"false", so a presence-testing selector washed the whole list — and it
- * left with the command palette.
+ * Two mechanisms answer "which row is the keyboard on": Base UI sets
+ * `data-highlighted`, and a hand-driven listbox knows its own index and says so
+ * through `selected`. Both wash the row here, so which behaviour library a consumer
+ * needs cannot change how selection looks.
  */
 export const floatingRowStyles = cva(
   [
@@ -53,15 +46,12 @@ export type OptionRowProps = Omit<PressableProps, "aria-selected"> &
   VariantProps<typeof floatingRowStyles> & {
     /**
      * Marks the row the keyboard is on, for a listbox driving selection by hand.
+     * Passing it also makes the row an `option`, because `role="option"` requires
+     * `aria-selected` and a call site that set the role and forgot the state would be
+     * silently wrong to a screen reader.
      *
-     * Passing it also makes the row an `option`: `role="option"` REQUIRES
-     * `aria-selected`, and the two belong to whoever knows the answer. Split across the
-     * boundary — role at the call site, state in here — the pair reads as incomplete to
-     * anything checking statically, and a call site that set the role and forgot the
-     * state would be silently wrong to a screen reader.
-     *
-     * Leave unset where a behaviour library owns selection: Base UI sets its own
-     * attributes, and passing `undefined` here must not overwrite them.
+     * Leave unset where a behaviour library owns selection — Base UI sets its own
+     * attributes and `undefined` here must not overwrite them.
      */
     selected?: boolean;
   };
@@ -74,7 +64,6 @@ export function OptionRow({ layout, size, selected, className, ...props }: Optio
       {...(selected === undefined
         ? {}
         : { role: props.role ?? "option", "aria-selected": selected })}
-      {...(selected ? { "data-selected": "" } : {})}
       className={cn(floatingRowStyles({ layout, size }), className)}
     />
   );

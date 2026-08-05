@@ -1,95 +1,163 @@
-import type { KeyboardEvent, ReactNode } from "react";
+import type { ReactNode } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { cn } from "@/lib/classNames";
 import { DialogPrimitive } from "@/ui/primitives";
 import { Icon } from "@/ui/icons";
 import { Kbd } from "./kbd";
+import { OptionRow } from "./option-row";
 import { TextField } from "./text-field";
+
+export interface SearchOption {
+  /** React key. The row's DOM id is derived from position, which is all
+   *  `aria-activedescendant` needs and cannot be broken by a key holding a space. */
+  key: string;
+  onSelect: () => void;
+  children: ReactNode;
+}
 
 interface SearchOverlayProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** Names the dialog AND the list inside it — one label for one surface, so a
-   *  screen reader hears the same thing on the way in and while arrowing. */
+  /** Names the dialog and its list, so a screen reader hears the same thing on the
+   *  way in and while arrowing. */
   label: string;
-  value: string;
-  onValueChange: (value: string) => void;
   placeholder: string;
-  /** Arrow/Enter handling. The overlay owns the field and the scroll box; which
-   *  row is highlighted and what Enter means belong to whoever has the list. */
-  onKeyDown?: (event: KeyboardEvent<HTMLDivElement>) => void;
-  className?: string;
-  children: ReactNode;
+  /** What the typed query matches. Called on every render with the current query:
+   *  the overlay owns the query so that closing resets it, the highlight and the
+   *  scroll position together. */
+  options: (query: string) => readonly SearchOption[];
+  empty: ReactNode;
+}
+
+function wrap(index: number, count: number, step: number) {
+  if (count === 0) return 0;
+  return (index + step + count) % count;
 }
 
 /**
- * The shell of a type-to-find overlay: a scrim, a panel dropped from the top, a
- * bare search row, and a scrolling list under it.
+ * A type-to-find overlay: scrim, panel dropped from the top, one search row, and a
+ * list of options under it.
  *
- * Extracted as an atom rather than left in the one feature that uses it, because
- * the previous version of this shape lived inside a feature and paid for it: the
- * panel was hand-spelled, the field was a native `<input>`, and the scrim was a
- * class on a variant that could never reach the element it named — so there was
- * no scrim at all and nobody could see that from the code. The ring draws the
- * shape; the feature says what is in the list.
- *
- * `SearchField` is the boxed sibling of this row and deliberately not reused: a
- * field with its own edge inside a panel is two edges around one input.
+ * The whole listbox is in here, rows included, because the invariants that bind the
+ * field to the list cannot be met from one side of the boundary: the field announces
+ * the active row through `aria-activedescendant`, so it needs that row's id; focus
+ * never leaves the field, so the rows must not be tab stops; and the active row has
+ * to be scrolled to. A caller rendering its own rows silently owed all three, and the
+ * first one to do so paid none of them.
  */
 export function SearchOverlay({
   open,
   onOpenChange,
   label,
-  value,
-  onValueChange,
   placeholder,
-  onKeyDown,
-  className,
-  children,
+  options,
+  empty,
 }: SearchOverlayProps) {
+  const [query, setQuery] = useState("");
+  const [highlight, setHighlight] = useState(0);
+  const listRef = useRef<HTMLDivElement>(null);
+  const baseId = useId();
+  const listboxId = `${baseId}-list`;
+
+  const rows = options(query);
+  // Clamped on read, not stored clamped: one more character can shorten the list
+  // under an index held in state, and a stale index renders as no highlight at all
+  // and an Enter that opens nothing.
+  const active = rows.length === 0 ? 0 : Math.min(Math.max(highlight, 0), rows.length - 1);
+  const activeId = rows.length === 0 ? undefined : `${baseId}-${active}`;
+
+  useEffect(() => {
+    if (!open) {
+      setQuery("");
+      setHighlight(0);
+    }
+  }, [open]);
+
+  // The list is taller than its box, so a highlight the keyboard moved past the
+  // eighth row is a highlight nobody can see.
+  useLayoutEffect(() => {
+    listRef.current?.querySelector("[aria-selected='true']")?.scrollIntoView({ block: "nearest" });
+  }, [activeId]);
+
   return (
     <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
       <DialogPrimitive.Portal>
         <DialogPrimitive.Backdrop
           data-slot="search-overlay-backdrop"
-          className="fixed inset-0 z-50 bg-scrim"
+          className="fixed inset-0 z-[var(--layer-modal)] bg-scrim"
         />
         <DialogPrimitive.Popup
           data-slot="search-overlay"
           aria-label={label}
-          onKeyDown={onKeyDown}
+          onKeyDown={(event) => {
+            if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+              event.preventDefault();
+              setHighlight(wrap(active, rows.length, event.key === "ArrowDown" ? 1 : -1));
+              return;
+            }
+            if (event.key === "Enter") {
+              event.preventDefault();
+              rows[active]?.onSelect();
+            }
+          }}
           className={cn(
-            "fixed inset-x-0 top-24 z-50 mx-auto flex w-[min(520px,calc(100vw-32px))] flex-col",
-            "overflow-hidden rounded-[var(--floating-panel-radius)] outline-none",
-            // OPAQUE, and the modal shadow — the same answer ConfirmDialog gives,
-            // because both are modals. The frosted `--app-floating-surface` is for
-            // a popover: small, anchored to its trigger, and read as glass. Dropped
-            // over a full transcript at 520px wide it was a window onto the prose
-            // underneath, and the first draft here took that fill WITHOUT the
-            // backdrop blur that makes it legible — so the text behind it came
-            // straight through the search row. A scrim already separates a modal
-            // from the page; frosting it adds nothing but that risk.
+            "fixed inset-x-0 top-24 z-[var(--layer-modal)] mx-auto flex w-[min(520px,calc(100vw-32px))]",
+            "flex-col overflow-hidden rounded-[var(--floating-panel-radius)] outline-none",
+            // Opaque, and the modal shadow — this is a modal, so it gives the answer
+            // ConfirmDialog gives. The ring's frosted fill is for a popover: small,
+            // anchored, read as glass. Over a whole transcript at 520px it was a
+            // window onto the prose underneath.
             "bg-canvas shadow-[var(--shadow-modal)] data-[open]:animate-rise-in",
-            className,
           )}
         >
           <div className="flex items-center gap-2.5 border-b border-line-soft px-3.5 py-2.5 text-fg-muted">
             <Icon name="search" size="md" />
             <TextField
               variant="bare"
-              // A session title is prose. `TextField` defaults to mono — right for
-              // the fields that hold paths and patterns, wrong for this one.
+              // A session title is prose; the default mono is for paths and patterns.
               font="sans"
+              // The surface exists to be typed into, and the user opened it with a
+              // keystroke — landing anywhere else would be the surprise.
+              // oxlint-disable-next-line jsx-a11y/no-autofocus
               autoFocus
-              value={value}
-              onChange={(event) => onValueChange(event.target.value)}
+              role="combobox"
+              aria-expanded
+              aria-controls={listboxId}
+              aria-activedescendant={activeId}
+              value={query}
+              onChange={(event) => {
+                setQuery(event.target.value);
+                setHighlight(0);
+              }}
               placeholder={placeholder}
               aria-label={placeholder}
               className="flex-1"
             />
             <Kbd>esc</Kbd>
           </div>
-          <div role="listbox" aria-label={label} className="max-h-80 overflow-y-auto p-1.5">
-            {children}
+          <div
+            ref={listRef}
+            id={listboxId}
+            role="listbox"
+            aria-label={label}
+            className="max-h-80 overflow-y-auto p-1.5"
+          >
+            {rows.length === 0
+              ? empty
+              : rows.map((option, index) => (
+                  <OptionRow
+                    key={option.key}
+                    id={`${baseId}-${index}`}
+                    layout="flex"
+                    size="lg"
+                    tabIndex={-1}
+                    selected={index === active}
+                    onPointerMove={() => setHighlight(index)}
+                    onClick={option.onSelect}
+                  >
+                    {option.children}
+                  </OptionRow>
+                ))}
           </div>
         </DialogPrimitive.Popup>
       </DialogPrimitive.Portal>

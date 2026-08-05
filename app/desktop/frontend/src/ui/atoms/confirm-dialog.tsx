@@ -40,11 +40,11 @@ export function ConfirmDialog({
       <DialogPrimitive.Portal>
         <DialogPrimitive.Backdrop
           data-slot="confirm-dialog-backdrop"
-          className="fixed inset-0 z-[200] bg-scrim"
+          className="fixed inset-0 z-[var(--layer-modal)] bg-scrim"
         />
         <DialogPrimitive.Popup
           data-slot="confirm-dialog"
-          className="fixed inset-0 z-[201] m-auto h-fit w-[min(400px,calc(100vw-32px))] rounded-[var(--floating-panel-radius)] bg-canvas p-4 shadow-[var(--shadow-modal)] outline-none data-[open]:animate-rise-in"
+          className="fixed inset-0 z-[var(--layer-modal)] m-auto h-fit w-[min(400px,calc(100vw-32px))] rounded-[var(--floating-panel-radius)] bg-canvas p-4 shadow-[var(--shadow-modal)] outline-none data-[open]:animate-rise-in"
         >
           <DialogPrimitive.Title className="text-display-sm font-semibold text-fg">
             {title}

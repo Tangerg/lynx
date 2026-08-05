@@ -57,7 +57,7 @@ function MessageBlockInner({
   const content = renderMessageBlocks(msg, blockCtx);
 
   const actionsClass = cn(
-    "flex shrink-0 transition-opacity duration-[var(--dur-fast)]",
+    "flex shrink-0 transition-[opacity,visibility] duration-[var(--dur-fast)]",
     ACTIONS_VISIBILITY[messageActionsVisibility({ isRunning, isLast })],
   );
 
@@ -168,7 +168,11 @@ export const MessageBlock = memo(MessageBlockInner);
 // its edge, so the bar came out sliced. Reserved space is also the only version
 // where pointing at a turn doesn't move the text under the pointer.
 const ACTIONS_VISIBILITY: Record<MessageActionsVisibility, string> = {
-  hidden: "pointer-events-none opacity-0",
+  // `invisible`, not `pointer-events-none opacity-0`: transparency stops the pointer
+  // but not the keyboard, so every message in a streaming run held two focusable
+  // buttons nobody could see and nothing could reveal. `visibility` also keeps the
+  // reserved row, which `display: none` would not.
+  hidden: "invisible opacity-0",
   hover: "opacity-0 group-hover:opacity-100 focus-within:opacity-100",
   pinned: "opacity-100",
 };

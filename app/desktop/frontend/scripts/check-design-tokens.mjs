@@ -102,6 +102,15 @@ const MARKUP_RULES = [
     message: "arbitrary corner radius — use a `rounded-*` step",
   },
   {
+    // A double-digit layer. Within one stacking context a handful of steps is all
+    // there is to order, so anything reaching past single digits is competing with
+    // the window — and that competition has exactly two rungs, both named. Seven
+    // spellings had accumulated across five files, which is how the session search
+    // panel came to sit at the same height as an open menu.
+    pattern: /(?<![\w-])(?:[a-z-]+:)*z-(?:\d\d+|\[(?!var\(--layer-)[^\]]*\])/g,
+    message: "unnamed window layer — use `z-[var(--layer-floating)]` / `z-[var(--layer-modal)]`",
+  },
+  {
     pattern: /(?<![\w-])(?:[a-z-]+:)*leading-\[[\d.]+\]/g,
     message: "arbitrary line height — use a `leading-*` step",
   },

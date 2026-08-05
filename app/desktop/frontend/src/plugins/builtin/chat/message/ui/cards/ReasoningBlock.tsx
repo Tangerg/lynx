@@ -195,7 +195,7 @@ export function ReasoningBlock({ text, status, superseded = false }: Props) {
         {/* Top fade — visible when scrolled down. */}
         <div
           className={cn(
-            "pointer-events-none absolute inset-x-0 top-0 z-10 h-6",
+            "pointer-events-none absolute inset-x-0 top-0 z-1 h-6",
             "bg-[linear-gradient(to_bottom,var(--app-content-surface),transparent)]",
             "transition-opacity duration-[var(--dur-fast)]",
             showTopFade ? "opacity-100" : "opacity-0",
@@ -215,7 +215,7 @@ export function ReasoningBlock({ text, status, superseded = false }: Props) {
         {/* Bottom fade — visible while streaming and not at bottom. */}
         <div
           className={cn(
-            "pointer-events-none absolute inset-x-0 bottom-0 z-10 h-6",
+            "pointer-events-none absolute inset-x-0 bottom-0 z-1 h-6",
             "bg-[linear-gradient(to_top,var(--app-content-surface),transparent)]",
             "transition-opacity duration-[var(--dur-fast)]",
             showBottomFade ? "opacity-100" : "opacity-0",

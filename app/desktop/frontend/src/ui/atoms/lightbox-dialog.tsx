@@ -25,12 +25,12 @@ export function LightboxDialog({
     <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
       <DialogPrimitive.Trigger render={trigger} />
       <DialogPrimitive.Portal>
-        <DialogPrimitive.Backdrop className="fixed inset-0 z-[200] cursor-zoom-out bg-scrim" />
+        <DialogPrimitive.Backdrop className="fixed inset-0 z-[var(--layer-modal)] cursor-zoom-out bg-scrim" />
         <DialogPrimitive.Popup
           aria-describedby={undefined}
           onClick={closeOnContentClick ? () => onOpenChange(false) : undefined}
           className={cn(
-            "fixed inset-0 z-[201] m-auto h-fit w-fit max-h-[90vh] max-w-[min(1400px,95vw)] overflow-auto rounded-[var(--floating-panel-radius)] bg-card shadow-[var(--shadow-modal)] outline-none data-[open]:animate-rise-in",
+            "fixed inset-0 z-[var(--layer-modal)] m-auto h-fit w-fit max-h-[90vh] max-w-[min(1400px,95vw)] overflow-auto rounded-[var(--floating-panel-radius)] bg-card shadow-[var(--shadow-modal)] outline-none data-[open]:animate-rise-in",
             closeOnContentClick && "cursor-zoom-out",
             className,
           )}

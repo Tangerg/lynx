@@ -26,7 +26,7 @@ export function JumpToBottomButton() {
       onClick={scrollStreamToBottom}
       tabIndex={visible ? 0 : -1}
       className={cn(
-        "absolute bottom-[calc(100%+0.5rem)] left-1/2 -translate-x-1/2 z-[3] grid h-8 w-8 place-items-center rounded-full",
+        "absolute bottom-[calc(100%+0.5rem)] left-1/2 -translate-x-1/2 z-3 grid h-8 w-8 place-items-center rounded-full",
         "bg-canvas text-fg-soft border-0",
         "shadow-[var(--shadow-raised)] transition-[opacity,translate,scale,background] duration-[var(--dur-fast)]",
         "hover:bg-surface-2 hover:text-fg",

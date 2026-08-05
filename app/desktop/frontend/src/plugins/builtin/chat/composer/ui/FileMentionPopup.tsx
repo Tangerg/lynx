@@ -27,7 +27,7 @@ export function FileMentionPopup({ items, index, onPick, onHover }: Props) {
       id={MENTION_LISTBOX_ID}
       role="listbox"
       aria-label={t("composer.mention.heading")}
-      className="absolute bottom-full left-2 right-2 z-10 mb-2 p-1"
+      className="absolute bottom-full left-2 right-2 z-1 mb-2 p-1"
     >
       <SectionLabel className="px-2.5 pb-1 pt-1.5">{t("composer.mention.heading")}</SectionLabel>
       {items.map((path, i) => {

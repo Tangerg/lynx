@@ -14,11 +14,9 @@ describe("OptionRow", () => {
     const picked = screen.getByText("picked");
     expect(picked.getAttribute("role")).toBe("option");
     expect(picked.getAttribute("aria-selected")).toBe("true");
-    expect(picked.getAttribute("data-selected")).toBe("");
 
     const other = screen.getByText("other");
     expect(other.getAttribute("aria-selected")).toBe("false");
-    expect(other.hasAttribute("data-selected")).toBe(false);
   });
 
   // Without `selected`, the row must stay out of the way of whatever library owns

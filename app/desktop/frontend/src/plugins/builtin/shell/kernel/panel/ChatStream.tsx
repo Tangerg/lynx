@@ -57,7 +57,7 @@ interface Props {
 // Bounded above the composer for the same reason the transcript pads its tail —
 // the overlay is opaque, and marks that run under it are marks nobody can hit.
 const RAIL =
-  "absolute top-0 bottom-[var(--composer-overlay,0px)] z-[1] hidden w-[var(--reading-rail-width)] flex-col @min-[1152px]:flex pointer-events-none [&>*]:pointer-events-auto right-[calc(50%+var(--reading-column-max)/2)]";
+  "absolute top-0 bottom-[var(--composer-overlay,0px)] z-1 hidden w-[var(--reading-rail-width)] flex-col @min-[1152px]:flex pointer-events-none [&>*]:pointer-events-auto right-[calc(50%+var(--reading-column-max)/2)]";
 
 export function ChatStream({ onSend }: Props) {
   const resetKey = useActiveSessionId();

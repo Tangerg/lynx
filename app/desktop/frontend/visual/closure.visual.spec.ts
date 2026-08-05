@@ -186,6 +186,116 @@ test("keyboard-only traversal reaches recovery, HITL, and settings actions", asy
   await expect(page.getByRole("heading", { name: "Providers" })).toBeVisible();
 });
 
+// The mirror of the test above, and the half that was missing: every assertion here
+// had been "the keyboard can reach X", never "the keyboard cannot reach what is not on
+// screen". Two ways of hiding a control stop the pointer and neither stops Tab —
+// transparency, and a box clipped to nothing — so a folded tool card kept its buttons
+// in the tab order and a streaming run put two per message there. Nothing painted
+// differently in either case, so no golden could see it.
+for (const state of ["tool-shells", "running"] as const) {
+  test(`keyboard traversal skips what is hidden (${state})`, async ({ page }) => {
+    await openFixture(page, { fixture: "agent", state, theme: "light" });
+
+    // Fold a disclosure that has been open, which is the only way its body mounts and
+    // then goes away: content that was never revealed was never in the tab order.
+    const trigger = page
+      .locator("[data-slot='agent-activity-disclosure'] button[aria-expanded]")
+      .first();
+    if (await trigger.count()) {
+      const wasOpen = (await trigger.getAttribute("aria-expanded")) === "true";
+      if (!wasOpen) await trigger.click();
+      await expect(trigger).toHaveAttribute("aria-expanded", "true");
+      await trigger.click();
+      await expect(trigger).toHaveAttribute("aria-expanded", "false");
+    }
+
+    const dead = await page.evaluate(() => {
+      // Settled styles, not in-flight ones: a reveal is a transition, and computed
+      // opacity one tick after focus is still the value it is animating away from.
+      const freeze = document.createElement("style");
+      freeze.textContent = "* { transition: none !important; }";
+      document.head.append(freeze);
+
+      const focusable =
+        "a[href], button:not([disabled]), input:not([disabled]), textarea, select, [tabindex]";
+
+      const transparent = (element: Element) => {
+        for (let node: Element | null = element; node; node = node.parentElement) {
+          const style = getComputedStyle(node);
+          if (style.visibility === "hidden" || Number.parseFloat(style.opacity) === 0) return true;
+        }
+        return false;
+      };
+
+      // Clipped away rather than transparent: a collapsed disclosure keeps its body at
+      // full opacity in a box with no height, so nothing about the element's own style
+      // says it cannot be seen. What says so is that the pixel at its centre belongs to
+      // something else.
+      const clippedAway = (element: Element) => {
+        const box = element.getBoundingClientRect();
+        const x = box.left + box.width / 2;
+        const y = box.top + box.height / 2;
+        if (x < 0 || y < 0 || x > innerWidth || y > innerHeight) return false; // scrolled off
+        const hit = document.elementFromPoint(x, y);
+        return hit === null || !(element.contains(hit) || hit.contains(element));
+      };
+
+      const out: string[] = [];
+      for (const element of document.querySelectorAll<HTMLElement>(focusable)) {
+        // A negative tabIndex is programmatically focusable but not a tab stop, which
+        // is how a control that hides itself is supposed to withdraw.
+        if (element.tabIndex < 0) continue;
+        const box = element.getBoundingClientRect();
+        if (box.width === 0 && box.height === 0) continue;
+        // Ask the browser about the rest: focus is refused inside `inert`,
+        // `visibility: hidden` and `display: none`, which is exactly the difference
+        // between withdrawing a control and merely making it invisible. A
+        // hover-revealed control passes, because tabbing to it is what reveals it.
+        element.focus();
+        if (document.activeElement === element && (transparent(element) || clippedAway(element))) {
+          out.push(element.getAttribute("aria-label") ?? element.textContent?.trim() ?? "?");
+        }
+        element.blur();
+      }
+      freeze.remove();
+      return out;
+    });
+
+    expect(dead).toEqual([]);
+  });
+}
+
+// A sticky header positions against the nearest ancestor that is a scroll container,
+// and `overflow: hidden` makes a box one even when it can never scroll. A tool group
+// folded inside a wave had landed in exactly that box, so its header stuck to a port
+// with nowhere to travel — visible, correct, and doing nothing.
+test("a sticky header has a scrollport that can scroll", async ({ page }) => {
+  await openFixture(page, { fixture: "agent", state: "waves", theme: "light" });
+
+  for (let i = 0; i < 4; i++) {
+    const shut = page.locator(
+      "[data-slot='agent-activity-disclosure'] button[aria-expanded='false']",
+    );
+    if ((await shut.count()) === 0) break;
+    await shut.first().click();
+  }
+
+  const stranded = await page.evaluate(() =>
+    [...document.querySelectorAll<HTMLElement>("*")]
+      .filter((element) => getComputedStyle(element).position === "sticky")
+      .filter((element) => {
+        for (let node = element.parentElement; node; node = node.parentElement) {
+          if (!/(auto|scroll|hidden)/.test(getComputedStyle(node).overflowY)) continue;
+          return node.scrollHeight <= node.clientHeight + 1;
+        }
+        return false;
+      })
+      .map((element) => element.className),
+  );
+
+  expect(stranded).toEqual([]);
+});
+
 test("IME composition keeps Enter inside the composer until text is committed", async ({
   page,
 }) => {

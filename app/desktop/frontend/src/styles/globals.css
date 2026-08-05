@@ -749,6 +749,17 @@
   --icon-swap-ease: ease-in-out;
 
   /* -----------------------------------------------------------------------
+   *  Window layers. Only two surfaces leave the page: one anchored to a trigger
+   *  and one that takes the whole window. Naming them is what keeps the second
+   *  from being spelled at the first's height — the session search panel was, so
+   *  a modal and any open menu tied and DOM order decided which was on top.
+   *  Everything else stacks inside its own component and stays single-digit
+   *  (`check-design-tokens` enforces the split).
+   * ----------------------------------------------------------------------- */
+  --layer-floating: 50;
+  --layer-modal: 100;
+
+  /* -----------------------------------------------------------------------
    *  Shadow system. First-paint mirror of the visual style, which owns these:
    *  flush chrome casts nothing, only surfaces that genuinely leave the plane
    *  carry depth, and every cast composes from the palette's --shadow-cast.

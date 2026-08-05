@@ -60,7 +60,7 @@ export function FloatingComposer({
   return (
     <div
       ref={overlay}
-      className={cn("pointer-events-none absolute inset-x-0 bottom-0 z-10", READING_COLUMN)}
+      className={cn("pointer-events-none absolute inset-x-0 bottom-0 z-2", READING_COLUMN)}
     >
       <div className={cn(READING_GUTTER, "pb-3 sm:pb-4")}>
         <div className="pointer-events-auto relative">

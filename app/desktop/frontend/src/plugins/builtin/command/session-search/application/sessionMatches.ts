@@ -38,23 +38,3 @@ export function matchSessions(
       : sessions.filter((session) => session.title.toLowerCase().includes(needle));
   return matched.sort(byNewest).slice(0, limit);
 }
-
-/**
- * Where the highlight lands after the list changes under it.
- *
- * Kept pure because this is where a hand-driven list goes wrong: the index is
- * held in state, the list is derived from a query, and typing one more character
- * can leave the index past the end — which renders as no highlight at all and an
- * Enter that opens nothing.
- */
-export function clampHighlight(index: number, length: number): number {
-  if (length === 0) return 0;
-  return Math.min(Math.max(index, 0), length - 1);
-}
-
-/** Arrow-key movement, wrapping at both ends: a list this short is faster to
- *  reach the bottom of by pressing Up once. */
-export function moveHighlight(index: number, length: number, delta: number): number {
-  if (length === 0) return 0;
-  return (((index + delta) % length) + length) % length;
-}
