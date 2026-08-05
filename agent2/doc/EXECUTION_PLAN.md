@@ -3,7 +3,7 @@
 > 状态：持续实施
 > 建立日期：2026-08-06
 > 最后更新：2026-08-06
-> 当前阶段：P1 候选窄腰与消费审计，9/9 完成
+> 当前阶段：P2 Engine 最小执行闭环，1/8 完成
 > 当前实施范围：仅 `agent2`
 > 临时模块路径：`github.com/Tangerg/lynx/agent2`
 > 最终模块路径：`github.com/Tangerg/lynx/agent`
@@ -68,7 +68,7 @@ go test ./...
 |---|---|---:|---|
 | P0 模块边界与设计合同 | 完成 | 6/6 | 建立独立 module、分层文档、能力台账和候选合同 |
 | P1 候选窄腰与消费审计 | 完成 | 9/9 | 用只读审计和多策略 spike 验证 erased wire、协议与状态机，不冻结 API |
-| P2 Engine 最小执行闭环 | 未开始 | 0/8 | 单 Process、Signal、Effect、状态提交、snapshot、event/delta、limit |
+| P2 Engine 最小执行闭环 | 进行中 | 1/8 | 单 Process、Signal、Effect、状态提交、snapshot、event/delta、limit |
 | P3 真实 Interaction 验证 | 未开始 | 0/9 | 真实模型/工具 dispatcher、流、HITL、steer，并接入 disposable consumer |
 | P4 子 Process 组合与合同冻结 | 未开始 | 0/9 | start/wait、递归、组合、预算、取消、恢复；多消费方验证后冻结窄腰 |
 | P5 Planning 与 GOAP | 未开始 | 0/8 | Planning 状态、Planner SPI、GOAP 搜索与 replan |
@@ -106,7 +106,7 @@ go test ./...
 
 ### P2：Engine 最小执行闭环
 
-- [ ] P2-01 实现 Definition 候选合同、Descriptor 校验和精确 Deployment 绑定。
+- [x] P2-01 实现 Definition 候选合同、Descriptor 校验和精确 Deployment 绑定。
 - [ ] P2-02 实现单 Process start/step/run/control 生命周期，并将 Process 构造权封装在 Engine。
 - [ ] P2-03 实现 Signal mailbox、Engine 铸造 WaitID、投递去重和安全边界消费。
 - [ ] P2-04 实现 Strategy-owned Effect dispatcher、稳定 EffectID、settlement Signal 和禁止隐式重投的默认策略。
@@ -251,6 +251,7 @@ go test ./...
 
 | 日期 | 阶段 | 实际事实 | 验证与结果 |
 |---|---|---|---|
+| 2026-08-06 | P2 | 将 P1 的 exact binding 证据提升为正式 Deployment 聚合：DeploymentConfig 必须显式提供 Definition、Strategy Dispatcher、implementation digest 与 configuration digest；Deployment 冻结 Descriptor 和 DeploymentRef，并持续拒绝 Definition contract 漂移。新增由 Engine 构造的 immutable EffectRequest，准确携带 ProcessID、Step sequence、batch index、EffectID 与防御性复制的 Effect；新增 Dispatcher SPI、无错误回传的 DeltaEmitter 和只允许 never/same-identity 的最小 ReplayPolicy。复用 typed-nil 检查，未引入 registry、resolver、Store 或通用 DI；Typed adapter 仍不拥有启动能力 | `go build ./...`、`go vet ./...`、`staticcheck ./...`、`go test ./...`、`go test -race ./...` 全绿；P2-01 完成，P2 更新为 1/8 |
 | 2026-08-06 | P1 | 完成 P1 contract gate 与候选 API 清洗。新增生产源码 AST 架构守卫，禁止根 Framework 依赖旧 `agent`、Host `app` 或声明 Session/Conversation/Workspace/WriteSet/Store/Repository/Transaction/Lease 抽象；终态表覆盖 Engine kill、Process/parent/Host deadline、parent/Host cancellation、execution/contract/external/panic failure 和 completion 的完整优先级；补齐 Status、Framework Effect 和 DeploymentRef strict codec 证明。公开 API 审计删除 `Typed.Start`，避免 typed adapter 成为绕过 Engine 的第二生命周期入口；Typed 只保留 I↔Input、Output↔O 与显式类型擦除。新增 `ComputeDigest` 作为 Deployment assembly 的唯一直接哈希入口，删除无意义 helper，确认剩余候选类型均由架构合同、两个 Strategy spike、Prepared Step 或观察协议直接证明；无兼容层、应用抽象、TODO 或占位实现。P1 仅验证候选合同，没有冻结 API/wire，也没有提前实现 Engine | `go build ./...`、`go vet ./...`、`staticcheck ./...`、`go test ./...`、`go test -race ./...` 全绿；Input/ExecutionState/Transition/DeploymentRef codec fuzz 分别执行 250757、309026、402347、112284 次且无失败；P1-08/P1-09 完成，P1 更新为 9/9 |
 | 2026-08-06 | P1 | 完成 exact Deployment 与 Prepared Step disposable harness。将字符串 digest 治本式收敛为不可伪造的 SHA-256 `Digest` 值对象；DeploymentRef 明确绑定 Descriptor contract、实现代码和冻结 dispatcher/configuration 三份 digest，并校验派生总 digest。候选 Process snapshot 同时保存 last-stable state、Signal 到达序/游标和只读 prepared envelope；prepared envelope 固定 last-stable digest、candidate state、拟消费范围、Transition、按 ProcessID/Step/index 生成的 EffectID、冻结 payload 与逐项 settlement。验证 durable acknowledgment 前绝不 dispatch；ack 后可从 prepared snapshot 恢复并 finalize；Step 先污染实例再失败时丢弃实例且不推进游标；unknown settlement 恢复后不隐式重投；不同 exact Deployment 无法恢复同一 snapshot。未引入 Store、transaction、CAS、lease 或 Host 水位 SPI | `go build ./...`、`go vet ./...`、`staticcheck ./...`、`go test ./...`、`go test -race ./...` 全绿；P1-07 完成，P1 更新为 7/9；Prepared Process/Deployment 仍是测试 harness，未提前冻结 P2 Engine API |
 | 2026-08-06 | P1 | 用两个只存在于测试的 disposable spike 反向验证候选窄腰。Interaction 完整走通 model Effect、stream Delta、Tool Effect、Effect 进行期间到达但只在安全 Step 消费的 steer、Framework wait request、Engine-minted WaitID 写回、Waiting snapshot/restore、HITL answer、下一次 model Effect 和不依赖 Delta 拼接的最终 Output；Planning 完整走通 observe、两个具有前置条件/效果的 Action、act、reobserve 和完成，并证明相同 ExecutionState + Signal 产生规范化等价的 Transition/候选 state。由真实消费形态新增 `RequestWait(WaitKey, signalPayload)`：Engine 只解释 wait key 并原样回送 Strategy-owned payload；同时将终态矩阵输入全部降为 Engine 私有，公共面只暴露最终 Termination，避免第二终态写入口。Descriptor 补充 schema 参与 digest 的合同测试 | `go build ./...`、`go vet ./...`、`staticcheck ./...`、`go test ./...`、`go test -race ./...` 全绿；P1-03～P1-06 完成，P1 更新为 6/9；spike 未进入生产 package，仍可整体删除 |
@@ -266,6 +267,6 @@ go test ./...
 
 P1 已完成，得到经过旧模块/Host 审计、Interaction/Planning spike、Prepared Step 恢复 harness、完整终态表、strict codec/fuzz 和依赖架构守卫共同验证的候选合同。它仍不是冻结的 API/wire baseline；只有 P3 真实 Interaction 与 P4 child composition 以及第二个 disposable consumer 共同通过后，才建立首个 baseline。
 
-下一阶段是 P2 Engine 最小执行闭环。先把 test-only Prepared Step harness 中已证明的最小语义提升为 Engine 私有实现：精确 Deployment 绑定、Engine-only Process 构造、Signal mailbox/WaitID、prepare→durable acknowledgment→dispatch→finalize、last-stable/prepared snapshot、终态矩阵和中性 Event/Delta。不得机械复制 spike 类型，也不得引入 Store、transaction、Host lifecycle 或 Strategy union。
+P2-01 的 exact Deployment binding 已完成。下一轮实现 Engine-only Process 构造和单写者 start/step/control 生命周期，并建立 Signal mailbox、去重、到达序、消费游标与 WaitID 寻址；仍不在 Step 内 dispatch Effect。随后再把 prepared→durability acknowledgment→dispatch→finalize 提升为正式 Engine 私有提交协议。不得机械复制 spike 类型，也不得引入 Store、transaction、Host lifecycle 或 Strategy union。
 
 在 P1–P9 完成前，不迁移 `app/runtime`，不删除旧 `agent`，不发布 `agent2` 稳定版本。

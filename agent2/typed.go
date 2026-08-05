@@ -3,7 +3,6 @@ package agent2
 import (
 	"errors"
 	"fmt"
-	"reflect"
 )
 
 var ErrInvalidTypedAdapter = errors.New("agent: invalid typed adapter")
@@ -18,26 +17,13 @@ type Typed[I, O any] struct {
 // against the Descriptor schema on every typed encode and decode; the adapter
 // does not claim that arbitrary Go types are schema-equivalent in advance.
 func NewTyped[I, O any](definition Definition) (Typed[I, O], error) {
-	if nilDefinition(definition) {
+	if nilInterface(definition) {
 		return Typed[I, O]{}, fmt.Errorf("%w: Definition is required", ErrInvalidTypedAdapter)
 	}
 	if !definition.Descriptor().Valid() {
 		return Typed[I, O]{}, fmt.Errorf("%w: %w", ErrInvalidTypedAdapter, ErrInvalidDescriptor)
 	}
 	return Typed[I, O]{definition: definition}, nil
-}
-
-func nilDefinition(definition Definition) bool {
-	if definition == nil {
-		return true
-	}
-	value := reflect.ValueOf(definition)
-	switch value.Kind() {
-	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
-		return value.IsNil()
-	default:
-		return false
-	}
 }
 
 // Definition returns the erased Definition for heterogeneous Engine storage.
