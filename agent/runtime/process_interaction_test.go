@@ -238,7 +238,10 @@ func TestManagedInteractionSuspendsAndResumesPendingToolExactly(t *testing.T) {
 		}
 		return "approved", nil
 	})
-	registry, _ := tools.NewRegistry(approval)
+	registry, err := tools.NewRegistry(approval)
+	if err != nil {
+		t.Fatal(err)
+	}
 	a := managedInteractionAgent(t, "managed-resume", registry, interaction.Limits{})
 	var boundaries []interaction.EventKind
 	listener := runtime.NewEventListener("managed-resume-boundaries", func(_ context.Context, value event.Event) {
@@ -434,7 +437,10 @@ func TestPendingSuspensionsReportsConcurrentCallsInModelOrder(t *testing.T) {
 func TestManagedInteractionStopsBeforeContinuationAtStepLimit(t *testing.T) {
 	model := &managedModel{}
 	approval := newRuntimeTestTool("approval", func(context.Context) (string, error) { return "ok", nil })
-	registry, _ := tools.NewRegistry(approval)
+	registry, err := tools.NewRegistry(approval)
+	if err != nil {
+		t.Fatal(err)
+	}
 	a := managedInteractionAgent(t, "managed-steps", registry, interaction.Limits{MaxRounds: 1})
 	engine := agent.MustNewEngine(runtime.Config{Chat: core.ChatCapability{Model: model}})
 	mustDeploy(t, engine, a)
@@ -453,7 +459,10 @@ func TestManagedInteractionStopsBeforeContinuationAtStepLimit(t *testing.T) {
 func TestManagedInteractionStopsBeforeContinuationAtModelCallLimit(t *testing.T) {
 	model := &managedModel{}
 	approval := newRuntimeTestTool("approval", func(context.Context) (string, error) { return "ok", nil })
-	registry, _ := tools.NewRegistry(approval)
+	registry, err := tools.NewRegistry(approval)
+	if err != nil {
+		t.Fatal(err)
+	}
 	a := managedInteractionAgent(t, "managed-model-calls", registry, interaction.Limits{})
 	engine := agent.MustNewEngine(runtime.Config{Chat: core.ChatCapability{Model: model}})
 	mustDeploy(t, engine, a)

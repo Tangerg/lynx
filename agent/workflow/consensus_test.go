@@ -68,10 +68,8 @@ func TestConsensus_TieBreakByVoterOrder(t *testing.T) {
 	}
 	engine := agent.MustNewEngine(runtime.Config{})
 	mustDeploy(t, engine, a)
-	proc, _ := engine.Run(t.Context(), a,
-		core.Input(consensusIn{}),
-		core.ProcessOptions{})
-	got, _ := core.Result[consensusVote](proc)
+	proc := mustRun(t, engine, a, core.Input(consensusIn{}))
+	got := mustResult[consensusVote](t, proc)
 	if got != "yes" {
 		t.Fatalf("tie should pick first-seen ('yes'), got %q", got)
 	}

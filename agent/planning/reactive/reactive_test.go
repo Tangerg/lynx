@@ -86,9 +86,12 @@ func TestReactive_TieBreaksByLowerCost(t *testing.T) {
 	expensive := newAction("expensive", nil, core.ConditionSet{"a": core.True}, 5)
 
 	domain := mustDomain(t, []core.Action{expensive, cheap}, []*core.Goal{g}, nil)
-	pl, _ := reactive.NewPlanner().PlanToGoal(t.Context(), start, domain, g, planning.Options{})
-	if pl.Actions()[0].Metadata().Name != "cheap" {
-		t.Fatalf("expected tie-break to cheaper action, got %q", pl.Actions()[0].Metadata().Name)
+	pl, err := reactive.NewPlanner().PlanToGoal(t.Context(), start, domain, g, planning.Options{})
+	if err != nil {
+		t.Fatalf("PlanToGoal: %v", err)
+	}
+	if pl == nil || len(pl.Actions()) != 1 || pl.Actions()[0].Metadata().Name != "cheap" {
+		t.Fatalf("expected one-action plan using cheaper action, got %#v", pl)
 	}
 }
 
@@ -102,8 +105,11 @@ func TestReactive_SkipsInapplicable(t *testing.T) {
 	open := newAction("open", nil, core.ConditionSet{"a": core.True}, 2)
 
 	domain := mustDomain(t, []core.Action{blocked, open}, []*core.Goal{g}, nil)
-	pl, _ := reactive.NewPlanner().PlanToGoal(t.Context(), start, domain, g, planning.Options{})
-	if pl == nil || pl.Actions()[0].Metadata().Name != "open" {
+	pl, err := reactive.NewPlanner().PlanToGoal(t.Context(), start, domain, g, planning.Options{})
+	if err != nil {
+		t.Fatalf("PlanToGoal: %v", err)
+	}
+	if pl == nil || len(pl.Actions()) != 1 || pl.Actions()[0].Metadata().Name != "open" {
 		t.Fatalf("expected applicable action 'open', got %#v", pl)
 	}
 }
@@ -131,11 +137,14 @@ func TestReactive_RespectsExclusion(t *testing.T) {
 	fallback := newAction("fallback", nil, core.ConditionSet{"a": core.True}, 5)
 
 	domain := mustDomain(t, []core.Action{preferred, fallback}, []*core.Goal{g}, nil)
-	pl, _ := reactive.NewPlanner().PlanToGoal(t.Context(), start, domain, g, planning.Options{
+	pl, err := reactive.NewPlanner().PlanToGoal(t.Context(), start, domain, g, planning.Options{
 		ExcludedActions: planning.NewExclusions("preferred"),
 	})
-	if pl.Actions()[0].Metadata().Name != "fallback" {
-		t.Fatalf("expected exclusion to leave fallback, got %q", pl.Actions()[0].Metadata().Name)
+	if err != nil {
+		t.Fatalf("PlanToGoal: %v", err)
+	}
+	if pl == nil || len(pl.Actions()) != 1 || pl.Actions()[0].Metadata().Name != "fallback" {
+		t.Fatalf("expected one-action fallback plan, got %#v", pl)
 	}
 }
 
@@ -149,8 +158,11 @@ func TestReactive_BestValuePlanRanksByNetValue(t *testing.T) {
 	high := core.NewGoal(core.GoalConfig{Name: "high", Preconditions: []string{"y"}, Value: core.FixedScore(10)})
 
 	domain := mustDomain(t, []core.Action{a, b}, []*core.Goal{low, high}, nil)
-	pl, _ := domain.BestPlan(t.Context(), reactive.NewPlanner(), start, planning.Options{})
-	if pl == nil || pl.Goal().Name() != "high" {
+	pl, err := domain.BestPlan(t.Context(), reactive.NewPlanner(), start, planning.Options{})
+	if err != nil {
+		t.Fatalf("BestPlan: %v", err)
+	}
+	if pl == nil || pl.Goal() == nil || pl.Goal().Name() != "high" {
 		t.Fatalf("expected high-value goal, got %#v", pl)
 	}
 }

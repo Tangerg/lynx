@@ -70,9 +70,9 @@ func TestBindingsCloneOwnsContainer(t *testing.T) {
 	bindings.Set(core.DefaultBindingName, sample{V: 2})
 	clone.Set("extra", true)
 
-	value, _ := clone.Get(core.DefaultBindingName)
-	if value != (sample{V: 1}) {
-		t.Fatalf("clone input = %#v, want original value", value)
+	value, ok := clone.Get(core.DefaultBindingName)
+	if !ok || value != (sample{V: 1}) {
+		t.Fatalf("clone input = %#v, %v; want original value", value, ok)
 	}
 	if _, ok := bindings.Get("extra"); ok {
 		t.Fatal("clone mutation leaked into source")

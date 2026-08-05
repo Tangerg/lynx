@@ -155,7 +155,10 @@ func TestKillCancelsRunningChildTree(t *testing.T) {
 			if err != nil {
 				return childPolicyOutput{}, err
 			}
-			output, _ := core.Result[childPolicyOutput](child)
+			output, ok := core.Result[childPolicyOutput](child)
+			if !ok {
+				return childPolicyOutput{}, errors.New("canceled child produced no output")
+			}
 			return output, nil
 		}, core.ActionConfig{})},
 		Goals: []*agent.Goal{agent.NewOutputGoal[childPolicyOutput](core.GoalConfig{Description: "root done"})},

@@ -25,8 +25,7 @@ func newRecordingModel() *recordingModel { return &recordingModel{} }
 func (m *recordingModel) Call(_ context.Context, _ *chat.Request) (*chat.Response, error) {
 	m.called = true
 	message := chat.NewAssistantMessage(chat.NewTextPart("ok"))
-	resp, _ := chat.NewResponse(chat.Choice{Index: 0, Message: &message, FinishReason: chat.FinishReasonStop})
-	return resp, nil
+	return chat.NewResponse(chat.Choice{Index: 0, Message: &message, FinishReason: chat.FinishReasonStop})
 }
 
 func (m *recordingModel) Stream(ctx context.Context, req *chat.Request) iter.Seq2[*chat.Response, error] {
@@ -69,14 +68,26 @@ func chatAgent() *core.Agent {
 	return agent.New(agent.AgentConfig{Name: "chat-router", Actions: []agent.Action{agent.NewAction("call", callsChat(), core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[callOut](core.GoalConfig{Description: "done"})}})
 }
 
+func mustChatClient(t *testing.T, model chat.Model) *chatclient.Client {
+	t.Helper()
+	client, err := chatclient.New(model, chatclient.Config{})
+	if err != nil {
+		t.Fatalf("chatclient.New: %v", err)
+	}
+	if client == nil {
+		t.Fatal("chatclient.New returned nil without an error")
+	}
+	return client
+}
+
 // TestChatProvider_OverridesEngineClient verifies a per-process
 // ChatProvider extension wins over the engine's shared client — the
 // mechanism that lets one Engine serve turns against different models.
 func TestChatProvider_OverridesEngineClient(t *testing.T) {
 	platformModel := newRecordingModel()
 	overrideModel := newRecordingModel()
-	platformClient, _ := chatclient.New(platformModel, chatclient.Config{})
-	overrideClient, _ := chatclient.New(overrideModel, chatclient.Config{})
+	platformClient := mustChatClient(t, platformModel)
+	overrideClient := mustChatClient(t, overrideModel)
 
 	a := chatAgent()
 	engine := agent.MustNewEngine(runtime.Config{Chat: core.ChatCapability{Model: platformClient, Streamer: platformClient}})
@@ -108,7 +119,7 @@ func TestChatProvider_OverridesEngineClient(t *testing.T) {
 // registered (or one that returns nil), the engine's client is used.
 func TestChatProvider_FallsBackToEngine(t *testing.T) {
 	platformModel := newRecordingModel()
-	platformClient, _ := chatclient.New(platformModel, chatclient.Config{})
+	platformClient := mustChatClient(t, platformModel)
 
 	a := chatAgent()
 	engine := agent.MustNewEngine(runtime.Config{Chat: core.ChatCapability{Model: platformClient, Streamer: platformClient}})
@@ -136,7 +147,7 @@ func TestChatProvider_FallsBackToEngine(t *testing.T) {
 
 func TestChatProvider_TypedNilFallsBackToEngine(t *testing.T) {
 	platformModel := newRecordingModel()
-	platformClient, _ := chatclient.New(platformModel, chatclient.Config{})
+	platformClient := mustChatClient(t, platformModel)
 	var typedNil *chatclient.Client
 
 	a := chatAgent()
@@ -181,7 +192,7 @@ func (p panickingChatProvider) Chat(core.ProcessView) core.ChatCapability {
 }
 
 func TestChatProvider_RejectsStreamerWithoutModel(t *testing.T) {
-	platformClient, _ := chatclient.New(newRecordingModel(), chatclient.Config{})
+	platformClient := mustChatClient(t, newRecordingModel())
 	a := chatAgent()
 	engine := agent.MustNewEngine(runtime.Config{Chat: core.ChatCapability{Model: platformClient, Streamer: platformClient}})
 	if _, err := engine.Deploy(t.Context(), a); err != nil {
@@ -204,7 +215,7 @@ func TestChatProvider_RejectsStreamerWithoutModel(t *testing.T) {
 
 func TestChatProvider_PanicFailsProcess(t *testing.T) {
 	cause := errors.New("chat provider sentinel")
-	platformClient, _ := chatclient.New(newRecordingModel(), chatclient.Config{})
+	platformClient := mustChatClient(t, newRecordingModel())
 	a := chatAgent()
 	engine := agent.MustNewEngine(runtime.Config{Chat: core.ChatCapability{Model: platformClient}})
 	process, err := engine.Run(

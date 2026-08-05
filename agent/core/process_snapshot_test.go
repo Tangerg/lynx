@@ -54,7 +54,10 @@ func TestProcessSnapshotRejectsUnknownAndMissingSchema(t *testing.T) {
 	unsupported = append(unsupported, core.ProcessSnapshotSchemaVersion+1)
 	for _, version := range unsupported {
 		decoded["schema_version"] = version
-		invalid, _ := json.Marshal(decoded)
+		invalid, err := json.Marshal(decoded)
+		if err != nil {
+			t.Fatal(err)
+		}
 		var target core.ProcessSnapshot
 		if err := json.Unmarshal(invalid, &target); !errors.Is(err, core.ErrSnapshotSchema) {
 			t.Fatalf("schema %v error = %v", version, err)

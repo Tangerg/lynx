@@ -136,14 +136,11 @@ func TestRepeatUntil_MaxIterationsCap(t *testing.T) {
 	if err != nil {
 		t.Fatalf("deploy: %v", err)
 	}
-	proc, _ := engine.Run(t.Context(), a,
-		core.Input(ruIn{Target: 999}),
-		core.ProcessOptions{},
-	)
+	proc := mustRun(t, engine, a, core.Input(ruIn{Target: 999}))
 	if proc.Status() != core.StatusCompleted {
 		t.Fatalf("status = %s; failure = %v", proc.Status(), proc.Failure())
 	}
-	got, _ := core.Result[ruOut](proc)
+	got := mustResult[ruOut](t, proc)
 	if got.Value != 3 {
 		t.Fatalf("Value = %d, want 3 (MaxIterations cap)", got.Value)
 	}
@@ -163,8 +160,11 @@ func TestRepeatUntil_SnapshotTreeRoundTrip(t *testing.T) {
 	}
 	mustDeploy(t, engine, a)
 	process, err := engine.Run(t.Context(), a, core.Input(ruIn{Target: 9}), core.ProcessOptions{})
-	if err != nil || process.Status() != core.StatusCompleted {
-		t.Fatalf("Run status=%s err=%v failure=%v", process.Status(), err, process.Failure())
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if process.Status() != core.StatusCompleted {
+		t.Fatalf("Run status=%s failure=%v", process.Status(), process.Failure())
 	}
 	tree, err := engine.SnapshotTree(t.Context(), process.ID())
 	if err != nil {
@@ -212,10 +212,7 @@ func TestRepeatUntil_HistoryPassedToTaskAndAccept(t *testing.T) {
 	if err != nil {
 		t.Fatalf("deploy: %v", err)
 	}
-	proc, _ := engine.Run(t.Context(), a,
-		core.Input(ruIn{Target: 0}),
-		core.ProcessOptions{},
-	)
+	proc := mustRun(t, engine, a, core.Input(ruIn{Target: 0}))
 	if proc.Status() != core.StatusCompleted {
 		t.Fatalf("status = %s; failure = %v", proc.Status(), proc.Failure())
 	}

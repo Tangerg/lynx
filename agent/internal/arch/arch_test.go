@@ -175,12 +175,18 @@ func TestFrameworkDoesNotImportApplicationOrTransportModules(t *testing.T) {
 		for _, imported := range file.Imports {
 			importPath := strings.Trim(imported.Path.Value, `"`)
 			if strings.HasPrefix(importPath, "github.com/Tangerg/lynx/tools/") {
-				rel, _ := filepath.Rel(root, path)
+				rel, err := filepath.Rel(root, path)
+				if err != nil {
+					return err
+				}
 				t.Errorf("Agent Framework production package imports concrete tool capability %q: %s", importPath, rel)
 			}
 			for _, prefix := range forbiddenFrameworkModulePrefixes {
 				if hasModulePrefix(importPath, prefix) {
-					rel, _ := filepath.Rel(root, path)
+					rel, err := filepath.Rel(root, path)
+					if err != nil {
+						return err
+					}
 					t.Errorf("Agent Framework production package imports application or transport module %q: %s", importPath, rel)
 				}
 			}
@@ -250,7 +256,10 @@ func TestFrameworkDoesNotImportStorageBackends(t *testing.T) {
 			importPath := strings.Trim(imported.Path.Value, `"`)
 			for _, prefix := range forbiddenPrefixes {
 				if importPath == prefix || strings.HasPrefix(importPath, prefix+"/") {
-					relativePath, _ := filepath.Rel(root, path)
+					relativePath, err := filepath.Rel(root, path)
+					if err != nil {
+						return err
+					}
 					t.Errorf("Agent Framework production package imports storage backend %q: %s", importPath, relativePath)
 				}
 			}
@@ -361,7 +370,10 @@ func TestRuntimeNamedJSONStructsAreExecutionState(t *testing.T) {
 					continue
 				}
 				if _, reviewed := allowed[typeSpec.Name.Name]; !reviewed {
-					rel, _ := filepath.Rel(root, path)
+					rel, err := filepath.Rel(root, path)
+					if err != nil {
+						return err
+					}
 					t.Errorf("runtime named JSON struct %q is not framework execution state: %s", typeSpec.Name.Name, rel)
 					continue
 				}
@@ -451,7 +463,10 @@ func TestToolLoopDoesNotImportLegacyProtocol(t *testing.T) {
 			importPath := strings.Trim(imported.Path.Value, `"`)
 			if importPath == "github.com/Tangerg/lynx/chatclient" ||
 				strings.HasPrefix(importPath, "github.com/Tangerg/lynx/chatclient/") {
-				rel, _ := filepath.Rel(root, path)
+				rel, err := filepath.Rel(root, path)
+				if err != nil {
+					return err
+				}
 				t.Errorf("tool-loop file %s imports frozen runtime %q", rel, importPath)
 			}
 		}
@@ -568,7 +583,10 @@ func TestFrameworkWritesNoModelFacingCopy(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		relativePath, _ := filepath.Rel(root, path)
+		relativePath, err := filepath.Rel(root, path)
+		if err != nil {
+			return err
+		}
 		ast.Inspect(file, func(node ast.Node) bool {
 			switch value := node.(type) {
 			case *ast.CompositeLit:

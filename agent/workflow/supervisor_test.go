@@ -19,7 +19,7 @@ type toolCallingModel struct{}
 func (toolCallingModel) Call(_ context.Context, request *chat.Request) (*chat.Response, error) {
 	for index := range request.Messages {
 		if request.Messages[index].Role == chat.RoleTool {
-			return fakeTextResponse("orchestrated result"), nil
+			return textResponse("orchestrated result")
 		}
 	}
 	toolName := request.Tools[0].Name
@@ -30,10 +30,9 @@ func (toolCallingModel) Call(_ context.Context, request *chat.Request) (*chat.Re
 		Index: 0, Message: &message, FinishReason: chat.FinishReasonToolCalls,
 	})
 }
-func fakeTextResponse(text string) *chat.Response {
+func textResponse(text string) (*chat.Response, error) {
 	message := chat.NewAssistantMessage(chat.NewTextPart(text))
-	resp, _ := chat.NewResponse(chat.Choice{Index: 0, Message: &message, FinishReason: chat.FinishReasonStop})
-	return resp
+	return chat.NewResponse(chat.Choice{Index: 0, Message: &message, FinishReason: chat.FinishReasonStop})
 }
 
 type supTopic struct{ Title string }

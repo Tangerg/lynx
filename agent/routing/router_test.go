@@ -37,6 +37,18 @@ func newAgent(name string) *core.Agent {
 	}, core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[chooseOut](core.GoalConfig{Description: "test goal " + name})}})
 }
 
+func mustRouter(t *testing.T, engine *runtime.Engine, ranker routing.Ranker, config routing.Config) *routing.Router {
+	t.Helper()
+	router, err := routing.New(engine, ranker, config)
+	if err != nil {
+		t.Fatalf("routing.New: %v", err)
+	}
+	if router == nil {
+		t.Fatal("routing.New returned nil without an error")
+	}
+	return router
+}
+
 func TestRouter_PicksHighestConfidence(t *testing.T) {
 	engine := agent.MustNewEngine(runtime.Config{})
 	a1 := newAgent("alpha")
@@ -47,7 +59,7 @@ func TestRouter_PicksHighestConfidence(t *testing.T) {
 		}
 	}
 
-	auto, _ := routing.New(engine, &stubRanker{
+	auto := mustRouter(t, engine, &stubRanker{
 		scores: map[string]float64{
 			"alpha:produce_github.com/Tangerg/lynx/agent/routing_test.chooseOut": 0.3,
 			"beta:produce_github.com/Tangerg/lynx/agent/routing_test.chooseOut":  0.9,
@@ -72,7 +84,7 @@ func TestRouter_LowConfidenceReturnsError(t *testing.T) {
 		t.Fatalf("deploy: %v", err)
 	}
 
-	auto, _ := routing.New(engine, &stubRanker{
+	auto := mustRouter(t, engine, &stubRanker{
 		scores: map[string]float64{
 			"alpha:produce_github.com/Tangerg/lynx/agent/routing_test.chooseOut": 0.3,
 		},
@@ -178,7 +190,7 @@ func TestRouter_AgentFilter(t *testing.T) {
 	engine := agent.MustNewEngine(runtime.Config{})
 	mustDeploy(t, engine, newAgent("public"), newAgent("internal"))
 
-	auto, _ := routing.New(engine, &stubRanker{
+	auto := mustRouter(t, engine, &stubRanker{
 		scores: map[string]float64{
 			"public:produce_github.com/Tangerg/lynx/agent/routing_test.chooseOut":   0.5,
 			"internal:produce_github.com/Tangerg/lynx/agent/routing_test.chooseOut": 0.99,
@@ -240,7 +252,7 @@ func TestCandidateKeepsExactImmutableIdentity(t *testing.T) {
 
 func TestRouter_NoCandidatesError(t *testing.T) {
 	engine := agent.MustNewEngine(runtime.Config{})
-	auto, _ := routing.New(engine, &stubRanker{}, routing.Config{})
+	auto := mustRouter(t, engine, &stubRanker{}, routing.Config{})
 
 	_, err := auto.Choose(t.Context(), "x")
 	if err == nil {

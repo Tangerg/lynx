@@ -302,10 +302,7 @@ func TestScatterGather_GeneratorErrorPropagates(t *testing.T) {
 	if _, err := engine.Deploy(t.Context(), a); err != nil {
 		t.Fatalf("deploy: %v", err)
 	}
-	proc, _ := engine.Run(t.Context(), a,
-		core.Input(sgIn{Topic: "x"}),
-		core.ProcessOptions{},
-	)
+	proc := mustRun(t, engine, a, core.Input(sgIn{Topic: "x"}))
 	if proc.Status() == core.StatusCompleted {
 		t.Fatal("expected non-completed status when a generator errors")
 	}

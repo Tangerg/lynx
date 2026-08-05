@@ -100,14 +100,11 @@ func TestLoop_MaxIterationsCapsTheLoop(t *testing.T) {
 	}
 	mustDeploy(t, engine, wf)
 
-	proc, _ := engine.Run(t.Context(), wf,
-		core.Input(loopIn{Target: 100}),
-		core.ProcessOptions{},
-	)
+	proc := mustRun(t, engine, wf, core.Input(loopIn{Target: 100}))
 	if proc.Status() != core.StatusCompleted {
 		t.Fatalf("status = %s; failure = %v", proc.Status(), proc.Failure())
 	}
-	got, _ := core.Result[loopOut](proc)
+	got := mustResult[loopOut](t, proc)
 	if got.Value != 3 {
 		t.Fatalf("Value = %d, want 3 (MaxIterations cap)", got.Value)
 	}
@@ -129,8 +126,11 @@ func TestLoop_SnapshotTreePreservesWorkflowState(t *testing.T) {
 	}
 	mustDeploy(t, engine, wf)
 	process, err := engine.Run(t.Context(), wf, core.Input(loopIn{Target: 99}), core.ProcessOptions{})
-	if err != nil || process.Status() != core.StatusCompleted {
-		t.Fatalf("Run status=%s err=%v failure=%v", process.Status(), err, process.Failure())
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if process.Status() != core.StatusCompleted {
+		t.Fatalf("Run status=%s failure=%v", process.Status(), process.Failure())
 	}
 	tree, err := engine.SnapshotTree(t.Context(), process.ID())
 	if err != nil {
@@ -179,10 +179,7 @@ func TestLoop_BranchIsolation(t *testing.T) {
 	}
 	mustDeploy(t, engine, wf)
 
-	engine.Run(t.Context(), wf,
-		core.Input(loopIn{Target: 100}),
-		core.ProcessOptions{},
-	)
+	mustRun(t, engine, wf, core.Input(loopIn{Target: 100}))
 	if sawPriorOut.Load() {
 		t.Fatal("body saw a prior iteration's loopOut on its blackboard — branch isolation broken")
 	}

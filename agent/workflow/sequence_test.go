@@ -99,10 +99,7 @@ func TestSequence_StepFailurePropagates(t *testing.T) {
 	}
 	mustDeploy(t, engine, pipeline)
 
-	proc, _ := engine.Run(t.Context(), pipeline,
-		core.Input(seqTopic{Word: "x"}),
-		core.ProcessOptions{},
-	)
+	proc := mustRun(t, engine, pipeline, core.Input(seqTopic{Word: "x"}))
 	if proc.Status() != core.StatusFailed {
 		t.Fatalf("status = %s; want StatusFailed", proc.Status())
 	}

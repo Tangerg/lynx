@@ -28,3 +28,24 @@ func mustDeploy(t *testing.T, p *runtime.Engine, agents ...*core.Agent) {
 		}
 	}
 }
+
+func mustRun(t *testing.T, engine *runtime.Engine, definition *core.Agent, input core.Bindings) *runtime.Process {
+	t.Helper()
+	process, err := engine.Run(t.Context(), definition, input, core.ProcessOptions{})
+	if err != nil {
+		t.Fatalf("run %q: %v", definition.Name(), err)
+	}
+	if process == nil {
+		t.Fatalf("run %q returned nil without an error", definition.Name())
+	}
+	return process
+}
+
+func mustResult[T any](t *testing.T, process core.ProcessView) T {
+	t.Helper()
+	result, ok := core.Result[T](process)
+	if !ok {
+		t.Fatalf("process %q has no result of the requested type", process.ID())
+	}
+	return result
+}

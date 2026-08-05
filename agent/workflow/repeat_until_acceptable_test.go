@@ -104,8 +104,11 @@ func TestRepeatUntilAcceptable_SnapshotTreePreservesState(t *testing.T) {
 	}
 	mustDeploy(t, engine, a)
 	process, err := engine.Run(t.Context(), a, core.Input(ruaIn{Topic: "original-"}), core.ProcessOptions{})
-	if err != nil || process.Status() != core.StatusCompleted {
-		t.Fatalf("Run status=%s err=%v failure=%v", process.Status(), err, process.Failure())
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if process.Status() != core.StatusCompleted {
+		t.Fatalf("Run status=%s failure=%v", process.Status(), process.Failure())
 	}
 	tree, err := engine.SnapshotTree(t.Context(), process.ID())
 	if err != nil {
@@ -146,8 +149,11 @@ func TestRepeatUntilAcceptable_InEqualsOutKeepsOriginalInput(t *testing.T) {
 	engine := agent.MustNewEngine(runtime.Config{})
 	mustDeploy(t, engine, a)
 	process, err := engine.Run(t.Context(), a, core.Input(refine{Tag: "original"}), core.ProcessOptions{})
-	if err != nil || process.Status() != core.StatusCompleted {
-		t.Fatalf("Run status=%s err=%v", process.Status(), err)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if process.Status() != core.StatusCompleted {
+		t.Fatalf("Run status=%s failure=%v", process.Status(), process.Failure())
 	}
 	for index, input := range seen {
 		if input != "original" {

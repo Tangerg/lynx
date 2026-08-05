@@ -57,9 +57,21 @@ func managedConditionEnv(model chat.Model) *core.ConditionEnv {
 	}}
 }
 
+func mustPromptCondition(t *testing.T, config core.PromptConditionConfig) *core.PromptCondition {
+	t.Helper()
+	condition, err := core.NewPromptCondition(config)
+	if err != nil {
+		t.Fatalf("NewPromptCondition: %v", err)
+	}
+	if condition == nil {
+		t.Fatal("NewPromptCondition returned nil without an error")
+	}
+	return condition
+}
+
 func TestPromptCondition_YesReplyIsTrue(t *testing.T) {
 	model := newStubModel("Yes, the draft is acceptable.")
-	cond, _ := core.NewPromptCondition(core.PromptConditionConfig{
+	cond := mustPromptCondition(t, core.PromptConditionConfig{
 		Name: "draft_acceptable",
 		Prompt: func(_ context.Context, _ *core.ConditionEnv) string {
 			return "Is this draft acceptable?"
@@ -78,7 +90,7 @@ func TestPromptCondition_YesReplyIsTrue(t *testing.T) {
 
 func TestPromptCondition_NoReplyIsFalse(t *testing.T) {
 	model := newStubModel("No.")
-	cond, _ := core.NewPromptCondition(core.PromptConditionConfig{
+	cond := mustPromptCondition(t, core.PromptConditionConfig{
 		Name:   "x",
 		Prompt: func(_ context.Context, _ *core.ConditionEnv) string { return "ok?" },
 		Parse:  core.ParseYesNo,
@@ -91,7 +103,7 @@ func TestPromptCondition_NoReplyIsFalse(t *testing.T) {
 
 func TestPromptCondition_AmbiguousReplyIsUnknown(t *testing.T) {
 	model := newStubModel("Maybe, it depends.")
-	cond, _ := core.NewPromptCondition(core.PromptConditionConfig{
+	cond := mustPromptCondition(t, core.PromptConditionConfig{
 		Name:   "x",
 		Prompt: func(_ context.Context, _ *core.ConditionEnv) string { return "ok?" },
 		Parse:  core.ParseYesNo,
@@ -104,7 +116,7 @@ func TestPromptCondition_AmbiguousReplyIsUnknown(t *testing.T) {
 
 func TestPromptCondition_LLMErrorDegradesToUnknown(t *testing.T) {
 	model := newStubErrModel(errors.New("transient"))
-	cond, _ := core.NewPromptCondition(core.PromptConditionConfig{
+	cond := mustPromptCondition(t, core.PromptConditionConfig{
 		Name:   "x",
 		Prompt: func(_ context.Context, _ *core.ConditionEnv) string { return "ok?" },
 		Parse:  core.ParseYesNo,
@@ -116,7 +128,7 @@ func TestPromptCondition_LLMErrorDegradesToUnknown(t *testing.T) {
 }
 
 func TestPromptCondition_CostDefaultsToOne(t *testing.T) {
-	cond, _ := core.NewPromptCondition(core.PromptConditionConfig{
+	cond := mustPromptCondition(t, core.PromptConditionConfig{
 		Name:   "x",
 		Prompt: func(_ context.Context, _ *core.ConditionEnv) string { return "ok?" },
 		Parse:  core.ParseYesNo,
@@ -125,7 +137,7 @@ func TestPromptCondition_CostDefaultsToOne(t *testing.T) {
 		t.Fatalf("Cost = %f, want 1", cond.Cost())
 	}
 
-	cond, _ = core.NewPromptCondition(core.PromptConditionConfig{
+	cond = mustPromptCondition(t, core.PromptConditionConfig{
 		Name:   "x",
 		Prompt: func(_ context.Context, _ *core.ConditionEnv) string { return "ok?" },
 		Parse:  core.ParseYesNo,

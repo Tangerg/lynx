@@ -21,7 +21,9 @@ func TestChildRunRejectsUnknownBlackboardMode(t *testing.T) {
 func TestChildRunCopiesParentBlackboardExplicitly(t *testing.T) {
 	const stateKey = "working-state"
 	parentBlackboard := newInMemoryBlackboard()
-	parentBlackboard.Store(stateKey, "parent")
+	if err := parentBlackboard.Store(stateKey, "parent"); err != nil {
+		t.Fatal(err)
+	}
 	parent := &Process{blackboard: parentBlackboard}
 
 	options, err := (childRun{mode: childCopiesParentState}).processOptions(parent, nil)
@@ -35,8 +37,10 @@ func TestChildRunCopiesParentBlackboardExplicitly(t *testing.T) {
 		t.Fatalf("child state = %v, %v; want parent, true", got, ok)
 	}
 
-	options.Blackboard.Store(stateKey, "child")
-	if got, _ := parentBlackboard.Load(stateKey); got != "parent" {
-		t.Fatalf("parent state changed through child clone: %v", got)
+	if err := options.Blackboard.Store(stateKey, "child"); err != nil {
+		t.Fatal(err)
+	}
+	if got, ok := parentBlackboard.Load(stateKey); !ok || got != "parent" {
+		t.Fatalf("parent state changed through child clone: %v, %v", got, ok)
 	}
 }

@@ -107,10 +107,7 @@ func TestParallel_SubAgentFailureCancels(t *testing.T) {
 	}
 	mustDeploy(t, engine, wf)
 
-	proc, _ := engine.Run(t.Context(), wf,
-		core.Input(paIn{Topic: "x"}),
-		core.ProcessOptions{},
-	)
+	proc := mustRun(t, engine, wf, core.Input(paIn{Topic: "x"}))
 	if proc.Status() != core.StatusFailed {
 		t.Fatalf("status = %s; want StatusFailed", proc.Status())
 	}

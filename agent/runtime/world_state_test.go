@@ -28,7 +28,9 @@ func TestWorldStateReadsNamespacedActionRunCondition(t *testing.T) {
 		t.Fatalf("NewDomain: %v", err)
 	}
 	blackboard := newInMemoryBlackboard()
-	blackboard.StoreCondition(action.metadata.RunCondition(), true)
+	if err := blackboard.StoreCondition(action.metadata.RunCondition(), true); err != nil {
+		t.Fatal(err)
+	}
 
 	state, err := newWorldStateReader(domain, blackboard, nil).read(t.Context())
 	if err != nil {

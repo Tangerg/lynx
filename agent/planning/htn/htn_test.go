@@ -88,7 +88,13 @@ func TestHTN_CompoundTaskDecomposesIntoSubtaskOrder(t *testing.T) {
 
 	g := core.NewGoal(core.GoalConfig{Name: "build_thing", Preconditions: []string{"b_done"}})
 	domain := mustDomain(t, []core.Action{actionA, actionB}, []*core.Goal{g}, nil)
-	pl, _ := mustHTNPlanner(t, lib).PlanToGoal(t.Context(), planning.NewState(nil), domain, g, planning.Options{})
+	pl, err := mustHTNPlanner(t, lib).PlanToGoal(t.Context(), planning.NewState(nil), domain, g, planning.Options{})
+	if err != nil {
+		t.Fatalf("PlanToGoal: %v", err)
+	}
+	if pl == nil {
+		t.Fatal("PlanToGoal returned no compound plan")
+	}
 	if got := names(pl.Actions()); len(got) != 2 || got[0] != "a" || got[1] != "b" {
 		t.Fatalf("expected [a b], got %v", got)
 	}
@@ -111,16 +117,28 @@ func TestHTN_MethodPreconditionGate(t *testing.T) {
 	planner := mustHTNPlanner(t, lib)
 
 	// Without "ready" → falls back to slow.
-	pl, _ := planner.PlanToGoal(t.Context(), planning.NewState(nil), domain, g, planning.Options{})
-	if names(pl.Actions())[0] != "slow" {
-		t.Fatalf("expected fallback path 'slow', got %v", names(pl.Actions()))
+	pl, err := planner.PlanToGoal(t.Context(), planning.NewState(nil), domain, g, planning.Options{})
+	if err != nil {
+		t.Fatalf("PlanToGoal without ready: %v", err)
+	}
+	if pl == nil {
+		t.Fatal("PlanToGoal without ready returned no plan")
+	}
+	if got := names(pl.Actions()); len(got) != 1 || got[0] != "slow" {
+		t.Fatalf("expected fallback path 'slow', got %v", got)
 	}
 
 	// With "ready" → express path picks fast.
 	ready := planning.NewState(map[string]core.Truth{"ready": core.True})
-	pl, _ = planner.PlanToGoal(t.Context(), ready, domain, g, planning.Options{})
-	if names(pl.Actions())[0] != "fast" {
-		t.Fatalf("expected express path 'fast', got %v", names(pl.Actions()))
+	pl, err = planner.PlanToGoal(t.Context(), ready, domain, g, planning.Options{})
+	if err != nil {
+		t.Fatalf("PlanToGoal with ready: %v", err)
+	}
+	if pl == nil {
+		t.Fatal("PlanToGoal with ready returned no plan")
+	}
+	if got := names(pl.Actions()); len(got) != 1 || got[0] != "fast" {
+		t.Fatalf("expected express path 'fast', got %v", got)
 	}
 }
 
@@ -222,11 +240,17 @@ func TestHTN_RespectsExclusion(t *testing.T) {
 
 	g := core.NewGoal(core.GoalConfig{Name: "do", Preconditions: []string{"done"}})
 	domain := mustDomain(t, []core.Action{primary, fallback}, []*core.Goal{g}, nil)
-	pl, _ := mustHTNPlanner(t, lib).PlanToGoal(t.Context(), planning.NewState(nil), domain, g, planning.Options{
+	pl, err := mustHTNPlanner(t, lib).PlanToGoal(t.Context(), planning.NewState(nil), domain, g, planning.Options{
 		ExcludedActions: planning.NewExclusions("primary"),
 	})
-	if names(pl.Actions())[0] != "fallback" {
-		t.Fatalf("expected exclusion to drop 'primary', got %v", names(pl.Actions()))
+	if err != nil {
+		t.Fatalf("PlanToGoal: %v", err)
+	}
+	if pl == nil {
+		t.Fatal("PlanToGoal returned no fallback plan")
+	}
+	if got := names(pl.Actions()); len(got) != 1 || got[0] != "fallback" {
+		t.Fatalf("expected exclusion to drop 'primary', got %v", got)
 	}
 }
 
@@ -241,9 +265,12 @@ func TestHTN_BestValuePlanRanksByGoalValue(t *testing.T) {
 	high := core.NewGoal(core.GoalConfig{Name: "high_goal", Preconditions: []string{"y"}, Value: core.FixedScore(10)})
 
 	domain := mustDomain(t, []core.Action{actionA, actionB}, []*core.Goal{low, high}, nil)
-	pl, _ := domain.BestPlan(t.Context(), mustHTNPlanner(t, lib), planning.NewState(nil), planning.Options{})
-	if pl.Goal().Name() != "high_goal" {
-		t.Fatalf("expected high_goal, got %q", pl.Goal().Name())
+	pl, err := domain.BestPlan(t.Context(), mustHTNPlanner(t, lib), planning.NewState(nil), planning.Options{})
+	if err != nil {
+		t.Fatalf("BestPlan: %v", err)
+	}
+	if pl == nil || pl.Goal() == nil || pl.Goal().Name() != "high_goal" {
+		t.Fatalf("expected high_goal plan, got %#v", pl)
 	}
 }
 
