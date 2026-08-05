@@ -40,8 +40,9 @@ const minimumSequenceAgents = 2
 // through the engine; cumulative cost / tokens / action
 // count surface on the parent's [core.ProcessView.Usage].
 //
-// Returns an error on missing name, fewer than 2 agents, or any nil
-// agent — caller decides whether to surface, retry, or panic.
+// Returns an error on a missing or whitespace-padded name, fewer than 2 agents,
+// or any nil or structurally invalid agent. All static validation finishes
+// before the first child deployment.
 func Sequence[In, Out any](
 	ctx context.Context,
 	engine *runtime.Engine,
@@ -51,8 +52,8 @@ func Sequence[In, Out any](
 	if engine == nil {
 		return nil, errors.New("workflow.Sequence: engine must not be nil")
 	}
-	if name == "" {
-		return nil, errors.New("workflow.Sequence: name must not be empty")
+	if err := validateName("Sequence", name); err != nil {
+		return nil, err
 	}
 	if len(agents) < minimumSequenceAgents {
 		return nil, fmt.Errorf("workflow.Sequence: at least %d agents required, got %d", minimumSequenceAgents, len(agents))
@@ -60,6 +61,9 @@ func Sequence[In, Out any](
 	for index, agent := range agents {
 		if agent == nil {
 			return nil, fmt.Errorf("workflow.Sequence: agents[%d] is nil", index)
+		}
+		if err := agent.Validate(); err != nil {
+			return nil, fmt.Errorf("workflow.Sequence: agents[%d] %q is invalid: %w", index, agent.Name(), err)
 		}
 	}
 	deployments := make([]*runtime.Deployment, len(agents))

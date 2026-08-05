@@ -86,6 +86,11 @@ func TestConsensus_RejectsInvalidSpec(t *testing.T) {
 			Voters: []workflow.Generator[consensusIn, consensusVote]{voter("y")},
 			Key:    workflow.DefaultKey[consensusVote],
 		}},
+		{"name with surrounding whitespace", workflow.ConsensusConfig[consensusIn, consensusVote]{
+			Name:   " x ",
+			Voters: []workflow.Generator[consensusIn, consensusVote]{voter("y")},
+			Key:    workflow.DefaultKey[consensusVote],
+		}},
 		{"empty voters", workflow.ConsensusConfig[consensusIn, consensusVote]{
 			Name: "x", Key: workflow.DefaultKey[consensusVote],
 		}},

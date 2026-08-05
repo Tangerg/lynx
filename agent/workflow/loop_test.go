@@ -225,3 +225,25 @@ func TestLoopRejectsNegativeIterationsBeforeDeploy(t *testing.T) {
 		t.Fatal("invalid Loop config deployed its body")
 	}
 }
+
+func TestLoopValidatesDefinitionBeforeDeployingBody(t *testing.T) {
+	validBody, _ := makeIncrementingBody()
+	for _, config := range []workflow.LoopConfig[loopIn, loopOut]{
+		{
+			Name: " invalid-parent ", Body: validBody,
+			Until: func(context.Context, loopIn, loopOut) bool { return true },
+		},
+		{
+			Name: "parent", Body: invalidWorkflowAgent(),
+			Until: func(context.Context, loopIn, loopOut) bool { return true },
+		},
+	} {
+		engine := agent.MustNewEngine(runtime.Config{})
+		if _, err := workflow.Loop(t.Context(), engine, config); err == nil {
+			t.Fatal("Loop accepted invalid static configuration")
+		}
+		if deployments := engine.ActiveDeployments(); len(deployments) != 0 {
+			t.Fatalf("invalid Loop configuration deployed %d body definitions", len(deployments))
+		}
+	}
+}

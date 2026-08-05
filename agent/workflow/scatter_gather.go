@@ -35,7 +35,7 @@ type scatterOutput[Element any] struct {
 // cannot change the process error.
 type ScatterGatherConfig[In, Element, Result any] struct {
 	// Name names the produced agent + its goal + the action names.
-	// Required.
+	// Required; surrounding whitespace is invalid.
 	Name string
 
 	// Description is the agent's human-facing summary. Optional.
@@ -78,8 +78,8 @@ func scatterGather[In, Element, Result any](
 	config ScatterGatherConfig[In, Element, Result],
 	generatorContext func(context.Context, *core.ProcessContext) context.Context,
 ) (*core.Agent, error) {
-	if config.Name == "" {
-		return nil, errors.New("workflow.ScatterGather: Name must not be empty")
+	if err := validateName("ScatterGather", config.Name); err != nil {
+		return nil, err
 	}
 	if config.MaxConcurrency < 0 {
 		return nil, errors.New("workflow.ScatterGather: MaxConcurrency must not be negative")

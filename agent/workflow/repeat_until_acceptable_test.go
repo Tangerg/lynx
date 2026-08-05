@@ -248,6 +248,15 @@ func TestRepeatUntilAcceptable_RejectsInvalidSpec(t *testing.T) {
 				return workflow.Feedback{}, nil
 			},
 		}},
+		{"name with surrounding whitespace", workflow.RepeatUntilAcceptableConfig[ruaIn, ruaOut]{
+			Name: " x ", AcceptableScore: 0.5,
+			Task: func(context.Context, *core.ProcessContext, ruaIn, workflow.History[ruaOut]) (ruaOut, error) {
+				return ruaOut{}, nil
+			},
+			Evaluator: func(context.Context, *core.ProcessContext, ruaIn, ruaOut) (workflow.Feedback, error) {
+				return workflow.Feedback{}, nil
+			},
+		}},
 		{"nil task", workflow.RepeatUntilAcceptableConfig[ruaIn, ruaOut]{
 			Name: "x",
 			Evaluator: func(context.Context, *core.ProcessContext, ruaIn, ruaOut) (workflow.Feedback, error) {

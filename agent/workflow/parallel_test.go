@@ -231,6 +231,31 @@ func TestParallel_RejectsEmptyAgents(t *testing.T) {
 	}
 }
 
+func TestParallelValidatesAllDefinitionsBeforeDeployingChildren(t *testing.T) {
+	for _, config := range []workflow.ParallelConfig[paIn, paScore, paSummary]{
+		{
+			Name: " invalid-parent ", Agents: []*core.Agent{makeScoringAgent("valid", 1)},
+			Joiner: func(_ context.Context, _ *core.ProcessContext, _ []paScore) (paSummary, error) {
+				return paSummary{}, nil
+			},
+		},
+		{
+			Name: "parent", Agents: []*core.Agent{makeScoringAgent("valid", 1), invalidWorkflowAgent()},
+			Joiner: func(_ context.Context, _ *core.ProcessContext, _ []paScore) (paSummary, error) {
+				return paSummary{}, nil
+			},
+		},
+	} {
+		engine := agent.MustNewEngine(runtime.Config{})
+		if _, err := workflow.Parallel(t.Context(), engine, config); err == nil {
+			t.Fatal("Parallel accepted invalid static configuration")
+		}
+		if deployments := engine.ActiveDeployments(); len(deployments) != 0 {
+			t.Fatalf("invalid Parallel configuration deployed %d child definitions", len(deployments))
+		}
+	}
+}
+
 func TestParallel_RejectsNilJoiner(t *testing.T) {
 	engine := agent.MustNewEngine(runtime.Config{})
 	_, err := workflow.Parallel[paIn, paScore, paSummary](t.Context(),

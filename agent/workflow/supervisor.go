@@ -21,7 +21,8 @@ import (
 // ordinary single-action GOAP agent whose body runs the chat tool loop, so
 // it deploys, snapshots, and budgets like any other agent.
 type SupervisorConfig[In, Out any] struct {
-	// Name / Description identify the compiled agent.
+	// Name / Description identify the compiled agent. Name is required and must
+	// not have surrounding whitespace.
 	Name        string
 	Description string
 
@@ -54,8 +55,8 @@ type SupervisorConfig[In, Out any] struct {
 // Returns an error when the static workflow configuration is invalid,
 // including a negative MaxToolRounds limit.
 func Supervisor[In, Out any](config SupervisorConfig[In, Out]) (*core.Agent, error) {
-	if config.Name == "" {
-		return nil, errors.New("workflow.Supervisor: Name must not be empty")
+	if err := validateName("Supervisor", config.Name); err != nil {
+		return nil, err
 	}
 	if len(config.Tools) == 0 {
 		return nil, errors.New("workflow.Supervisor: Tools must not be empty")

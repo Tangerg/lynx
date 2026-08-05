@@ -110,6 +110,7 @@ func TestTeamValidatesConfiguration(t *testing.T) {
 		contains string
 	}{
 		{name: "empty name", config: workflow.TeamConfig{Agents: []*core.Agent{teamAgentA()}}, contains: "Name must not be empty"},
+		{name: "name with surrounding whitespace", config: workflow.TeamConfig{Name: " team ", Agents: []*core.Agent{teamAgentA()}}, contains: "Name must not have surrounding whitespace"},
 		{name: "empty agents", config: workflow.TeamConfig{Name: "empty"}, contains: "Agents must not be empty"},
 		{name: "nil agent", config: workflow.TeamConfig{Name: "nil", Agents: []*core.Agent{teamAgentA(), nil}}, contains: "Agents[1] is nil"},
 		{name: "duplicate action", config: workflow.TeamConfig{Name: "duplicate", Agents: []*core.Agent{duplicate("a"), duplicate("b")}}, contains: `duplicate action name "same-name"`},

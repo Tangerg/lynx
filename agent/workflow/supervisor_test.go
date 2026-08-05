@@ -81,6 +81,7 @@ func TestSupervisor_Validation(t *testing.T) {
 		config workflow.SupervisorConfig[supTopic, supAnswer]
 	}{
 		{"empty name", workflow.SupervisorConfig[supTopic, supAnswer]{Tools: []tool.Tool{worker}, Parse: parse}},
+		{"name with surrounding whitespace", workflow.SupervisorConfig[supTopic, supAnswer]{Name: " s ", Tools: []tool.Tool{worker}, Parse: parse}},
 		{"no tools", workflow.SupervisorConfig[supTopic, supAnswer]{Name: "s", Parse: parse}},
 		{"nil tool", workflow.SupervisorConfig[supTopic, supAnswer]{Name: "s", Tools: []tool.Tool{nil}, Parse: parse}},
 		{"nil parse", workflow.SupervisorConfig[supTopic, supAnswer]{Name: "s", Tools: []tool.Tool{worker}}},

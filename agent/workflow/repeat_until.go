@@ -25,7 +25,7 @@ const defaultRepeatIterations = 3
 // last attempt as the final result.
 type RepeatUntilConfig[In, Out any] struct {
 	// Name names the produced agent + its goal + the iteration's
-	// computed condition. Required.
+	// computed condition. Required; surrounding whitespace is invalid.
 	Name string
 
 	// Description is the agent's human-facing summary.
@@ -63,8 +63,8 @@ type RepeatUntilConfig[In, Out any] struct {
 // Returns an error on missing Name, nil Task, nil Accept, or negative
 // MaxIterations.
 func RepeatUntil[In, Out any](config RepeatUntilConfig[In, Out]) (*core.Agent, error) {
-	if config.Name == "" {
-		return nil, errors.New("workflow.RepeatUntil: Name must not be empty")
+	if err := validateName("RepeatUntil", config.Name); err != nil {
+		return nil, err
 	}
 	if config.Task == nil {
 		return nil, errors.New("workflow.RepeatUntil: Task must not be nil")

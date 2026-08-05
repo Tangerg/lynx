@@ -190,7 +190,9 @@ func (a *Agent) Descriptor() AgentDescriptor {
 	}
 	for index, action := range a.config.Actions {
 		if !nilvalue.Is(action) {
-			descriptor.actions[index] = action.Metadata().Descriptor()
+			if metadata, err := inspectActionMetadata(action); err == nil {
+				descriptor.actions[index] = metadata.Descriptor()
+			}
 		}
 	}
 	for index, goal := range a.config.Goals {
@@ -198,9 +200,8 @@ func (a *Agent) Descriptor() AgentDescriptor {
 	}
 	for index, condition := range a.config.Conditions {
 		if !nilvalue.Is(condition) {
-			descriptor.conditions[index] = ConditionDescriptor{
-				name: condition.Name(),
-				cost: condition.Cost(),
+			if metadata, err := inspectConditionMetadata(condition); err == nil {
+				descriptor.conditions[index] = metadata
 			}
 		}
 	}
@@ -243,7 +244,8 @@ func (d AgentDescriptor) PlannerName() string { return d.plannerName }
 // AgentValidator adds caller-defined deploy-time rules on top.
 //
 // Independent violations are joined so one deployment attempt reports the
-// complete definition problem set.
+// complete definition problem set. Action and Condition metadata are sampled
+// once; a hosted implementation panic becomes an attributed validation error.
 func (a *Agent) Validate() error {
 	if a == nil {
 		return errors.New("agent.Agent.Validate: invalid agent: agent is nil")
@@ -263,64 +265,70 @@ func (a *Agent) Validate() error {
 		problems = append(problems, fmt.Errorf("agent.Agent.Validate: invalid agent %q: stuck policy is typed nil", a.Name()))
 	}
 
-	type namedCollection struct {
-		kind    string
-		name    func(int) (string, bool) // (name, isNil)
-		count   int
-		require bool
-	}
-	for _, collection := range []namedCollection{
-		{"action", func(index int) (string, bool) {
-			if nilvalue.Is(a.config.Actions[index]) {
-				return "", true
-			}
-			return a.config.Actions[index].Metadata().Name, false
-		}, len(a.config.Actions), true},
-		{"goal", func(index int) (string, bool) {
-			if a.config.Goals[index] == nil {
-				return "", true
-			}
-			return a.config.Goals[index].Name(), false
-		}, len(a.config.Goals), true},
-		{"condition", func(index int) (string, bool) {
-			if nilvalue.Is(a.config.Conditions[index]) {
-				return "", true
-			}
-			return a.config.Conditions[index].Name(), false
-		}, len(a.config.Conditions), false},
-	} {
-		if err := a.validateUniqueNamed(collection.kind, collection.count, collection.name, collection.require); err != nil {
-			problems = append(problems, err)
-		}
-	}
-	for _, action := range a.config.Actions {
+	actionMetadata := make([]ActionMetadata, len(a.config.Actions))
+	actionReadable := make([]bool, len(a.config.Actions))
+	actionNames := make([]namedValidationEntry, len(a.config.Actions))
+	for index, action := range a.config.Actions {
 		if nilvalue.Is(action) {
+			actionNames[index].isNil = true
 			continue
 		}
-		metadata := action.Metadata()
+		metadata, err := inspectActionMetadata(action)
+		if err != nil {
+			actionNames[index].unreadable = true
+			problems = append(problems, fmt.Errorf("agent.Agent.Validate: invalid agent %q: action at index %d: %w", a.Name(), index, err))
+			continue
+		}
+		actionMetadata[index] = metadata
+		actionReadable[index] = true
+		actionNames[index].name = metadata.Name
 		if err := metadata.validate(); err != nil {
 			problems = append(problems, fmt.Errorf("agent.Agent.Validate: invalid agent %q: action %q: %w", a.Name(), metadata.Name, err))
 		}
 	}
-	for _, goal := range a.config.Goals {
+	goalNames := make([]namedValidationEntry, len(a.config.Goals))
+	for index, goal := range a.config.Goals {
 		if goal == nil {
+			goalNames[index].isNil = true
 			continue
 		}
+		goalNames[index].name = goal.Name()
 		if err := goal.validate(); err != nil {
 			problems = append(problems, fmt.Errorf("agent.Agent.Validate: invalid agent %q: goal %q: %w", a.Name(), goal.Name(), err))
 		}
 	}
-	for _, condition := range a.config.Conditions {
+	conditionMetadata := make([]ConditionDescriptor, len(a.config.Conditions))
+	conditionReadable := make([]bool, len(a.config.Conditions))
+	conditionNames := make([]namedValidationEntry, len(a.config.Conditions))
+	for index, condition := range a.config.Conditions {
 		if nilvalue.Is(condition) {
+			conditionNames[index].isNil = true
 			continue
 		}
-		cost, err := evaluateConditionCost(condition)
+		metadata, err := inspectConditionMetadata(condition)
 		if err != nil {
-			problems = append(problems, fmt.Errorf("agent.Agent.Validate: invalid agent %q: condition %q cost: %w", a.Name(), condition.Name(), err))
+			conditionNames[index].unreadable = true
+			problems = append(problems, fmt.Errorf("agent.Agent.Validate: invalid agent %q: condition at index %d: %w", a.Name(), index, err))
 			continue
 		}
-		if math.IsNaN(cost) || math.IsInf(cost, 0) || cost < 0 {
-			problems = append(problems, fmt.Errorf("agent.Agent.Validate: invalid agent %q: condition %q cost %v must be finite and non-negative", a.Name(), condition.Name(), cost))
+		conditionMetadata[index] = metadata
+		conditionReadable[index] = true
+		conditionNames[index].name = metadata.Name()
+		if cost := metadata.Cost(); math.IsNaN(cost) || math.IsInf(cost, 0) || cost < 0 {
+			problems = append(problems, fmt.Errorf("agent.Agent.Validate: invalid agent %q: condition %q cost %v must be finite and non-negative", a.Name(), metadata.Name(), cost))
+		}
+	}
+	for _, collection := range []struct {
+		kind    string
+		entries []namedValidationEntry
+		require bool
+	}{
+		{kind: "action", entries: actionNames, require: true},
+		{kind: "goal", entries: goalNames, require: true},
+		{kind: "condition", entries: conditionNames},
+	} {
+		if err := a.validateUniqueNamed(collection.kind, collection.entries, collection.require); err != nil {
+			problems = append(problems, err)
 		}
 	}
 	seenState := make(map[string]struct{}, len(a.config.SnapshotState))
@@ -340,17 +348,31 @@ func (a *Agent) Validate() error {
 		}
 		seenState[key] = struct{}{}
 	}
-	problems = append(problems, a.goalReachabilityErrors()...)
+	problems = append(problems, a.goalReachabilityErrors(actionMetadata, actionReadable, conditionMetadata, conditionReadable)...)
 	return errors.Join(problems...)
 }
 
-func evaluateConditionCost(condition Condition) (cost float64, err error) {
+func inspectActionMetadata(action Action) (metadata ActionMetadata, err error) {
 	defer func() {
 		if recovered := recover(); recovered != nil {
-			err = panicerr.New("cost function panicked", recovered)
+			metadata = ActionMetadata{}
+			err = panicerr.New("Metadata panicked", recovered)
 		}
 	}()
-	return condition.Cost(), nil
+	return action.Metadata(), nil
+}
+
+func inspectConditionMetadata(condition Condition) (metadata ConditionDescriptor, err error) {
+	operation := "Name"
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			metadata = ConditionDescriptor{}
+			err = panicerr.New(operation+" panicked", recovered)
+		}
+	}()
+	name := condition.Name()
+	operation = "Cost"
+	return ConditionDescriptor{name: name, cost: condition.Cost()}, nil
 }
 
 // goalReachabilityErrors does a conservative one-step producer scan: for
@@ -365,15 +387,19 @@ func evaluateConditionCost(condition Condition) (cost float64, err error) {
 // state — the latter falsely rejects agents whose first action's
 // precondition is "input binding present", because empty world state
 // has no bindings. We accept the false-negative tradeoff so
-// legitimate input-driven agents can deploy. Nil actions/goals are
-// skipped here; [Agent.Validate] reports those separately.
-func (a *Agent) goalReachabilityErrors() []error {
+// legitimate input-driven agents can deploy. Nil or unreadable capabilities
+// and nil goals are skipped here; [Agent.Validate] reports those separately.
+func (a *Agent) goalReachabilityErrors(
+	actions []ActionMetadata,
+	actionReadable []bool,
+	conditions []ConditionDescriptor,
+	conditionReadable []bool,
+) []error {
 	producible := map[string]struct{}{}
-	for _, action := range a.config.Actions {
-		if nilvalue.Is(action) {
+	for index, metadata := range actions {
+		if !actionReadable[index] {
 			continue
 		}
-		metadata := action.Metadata()
 		for key, value := range metadata.Effects {
 			if value == True {
 				producible[key] = struct{}{}
@@ -383,8 +409,8 @@ func (a *Agent) goalReachabilityErrors() []error {
 			producible[input.String()] = struct{}{}
 		}
 	}
-	for _, condition := range a.config.Conditions {
-		if !nilvalue.Is(condition) && condition.Name() != "" {
+	for index, condition := range conditions {
+		if conditionReadable[index] && condition.Name() != "" {
 			producible[condition.Name()] = struct{}{}
 		}
 	}
@@ -417,30 +443,32 @@ func (a *Agent) goalReachabilityErrors() []error {
 	return problems
 }
 
-func (a *Agent) validateUniqueNamed(
-	kind string,
-	count int,
-	nameAt func(int) (name string, isNil bool),
-	require bool,
-) error {
-	if require && count == 0 {
+type namedValidationEntry struct {
+	name       string
+	isNil      bool
+	unreadable bool
+}
+
+func (a *Agent) validateUniqueNamed(kind string, entries []namedValidationEntry, require bool) error {
+	if require && len(entries) == 0 {
 		return fmt.Errorf("agent.Agent.Validate: invalid agent %q: at least one %s is required", a.Name(), kind)
 	}
-	seen := make(map[string]struct{}, count)
-	for i := range count {
-		name, isNil := nameAt(i)
+	seen := make(map[string]struct{}, len(entries))
+	for index, entry := range entries {
 		switch {
-		case isNil:
-			return fmt.Errorf("agent.Agent.Validate: invalid agent %q: %s at index %d is nil", a.Name(), kind, i)
-		case name == "":
-			return fmt.Errorf("agent.Agent.Validate: invalid agent %q: %s at index %d has empty name", a.Name(), kind, i)
-		case strings.TrimSpace(name) != name:
-			return fmt.Errorf("agent.Agent.Validate: invalid agent %q: %s name %q has surrounding whitespace", a.Name(), kind, name)
+		case entry.isNil:
+			return fmt.Errorf("agent.Agent.Validate: invalid agent %q: %s at index %d is nil", a.Name(), kind, index)
+		case entry.unreadable:
+			continue
+		case entry.name == "":
+			return fmt.Errorf("agent.Agent.Validate: invalid agent %q: %s at index %d has empty name", a.Name(), kind, index)
+		case strings.TrimSpace(entry.name) != entry.name:
+			return fmt.Errorf("agent.Agent.Validate: invalid agent %q: %s name %q has surrounding whitespace", a.Name(), kind, entry.name)
 		}
-		if _, dup := seen[name]; dup {
-			return fmt.Errorf("agent.Agent.Validate: invalid agent %q: duplicate %s name %q", a.Name(), kind, name)
+		if _, duplicate := seen[entry.name]; duplicate {
+			return fmt.Errorf("agent.Agent.Validate: invalid agent %q: duplicate %s name %q", a.Name(), kind, entry.name)
 		}
-		seen[name] = struct{}{}
+		seen[entry.name] = struct{}{}
 	}
 	return nil
 }

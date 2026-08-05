@@ -30,7 +30,7 @@ type Evaluator[In, Out any] func(ctx context.Context, process *core.ProcessConte
 //
 // RepeatUntilAcceptable: RepeatUntil with a Feedback-shaped Accept.
 type RepeatUntilAcceptableConfig[In, Out any] struct {
-	// Name names the produced agent. Required.
+	// Name names the produced agent. Required; surrounding whitespace is invalid.
 	Name string
 
 	// Description is the agent's human-facing summary.
@@ -73,8 +73,8 @@ type RepeatUntilAcceptableConfig[In, Out any] struct {
 // Returns an error on missing Name, nil Task, nil Evaluator, a non-positive or
 // non-finite AcceptableScore, a score above one, or negative MaxIterations.
 func RepeatUntilAcceptable[In, Out any](config RepeatUntilAcceptableConfig[In, Out]) (*core.Agent, error) {
-	if config.Name == "" {
-		return nil, errors.New("workflow.RepeatUntilAcceptable: Name must not be empty")
+	if err := validateName("RepeatUntilAcceptable", config.Name); err != nil {
+		return nil, err
 	}
 	if config.Task == nil {
 		return nil, errors.New("workflow.RepeatUntilAcceptable: Task must not be nil")

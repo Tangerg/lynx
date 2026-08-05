@@ -242,6 +242,13 @@ func TestRepeatUntil_RejectsInvalidSpec(t *testing.T) {
 			},
 			Accept: func(context.Context, ruIn, ruOut, workflow.History[ruOut]) bool { return true },
 		}},
+		{"name with surrounding whitespace", workflow.RepeatUntilConfig[ruIn, ruOut]{
+			Name: " x ",
+			Task: func(context.Context, *core.ProcessContext, ruIn, workflow.History[ruOut]) (ruOut, error) {
+				return ruOut{}, nil
+			},
+			Accept: func(context.Context, ruIn, ruOut, workflow.History[ruOut]) bool { return true },
+		}},
 		{"nil task", workflow.RepeatUntilConfig[ruIn, ruOut]{
 			Name:   "x",
 			Accept: func(context.Context, ruIn, ruOut, workflow.History[ruOut]) bool { return true },

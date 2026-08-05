@@ -11,6 +11,8 @@ import (
 // into one agent. Action, goal, and condition names must be unique across all
 // members.
 type TeamConfig struct {
+	// Name identifies the composed agent. It is required and must not have
+	// surrounding whitespace.
 	Name        string
 	Description string
 	Agents      []*core.Agent
@@ -21,8 +23,8 @@ type TeamConfig struct {
 // follows the same deployment and execution path as every other agent; Team
 // introduces no second runtime model.
 func Team(config TeamConfig) (*core.Agent, error) {
-	if config.Name == "" {
-		return nil, errors.New("workflow.Team: Name must not be empty")
+	if err := validateName("Team", config.Name); err != nil {
+		return nil, err
 	}
 	if len(config.Agents) == 0 {
 		return nil, errors.New("workflow.Team: Agents must not be empty")

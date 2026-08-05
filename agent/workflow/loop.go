@@ -42,7 +42,7 @@ const defaultLoopIterations = 5
 // for "loop a whole agent".
 type LoopConfig[In, Out any] struct {
 	// Name names the produced agent + its goal + the iteration's
-	// computed condition. Required.
+	// computed condition. Required; surrounding whitespace is invalid.
 	Name string
 
 	// Description is the agent's human-facing summary.
@@ -75,8 +75,9 @@ type LoopConfig[In, Out any] struct {
 // computed-condition + History pattern — substituting "run a sub-agent"
 // for "call a closure".
 //
-// Returns an error on a nil engine, missing Name, nil Body, nil Until, or
-// negative MaxIterations.
+// Returns an error on a nil engine, missing or whitespace-padded Name, nil or
+// structurally invalid Body, nil Until, or negative MaxIterations. Static
+// validation finishes before Body is deployed.
 func Loop[In, Out any](
 	ctx context.Context,
 	engine *runtime.Engine,
@@ -85,8 +86,8 @@ func Loop[In, Out any](
 	if engine == nil {
 		return nil, errors.New("workflow.Loop: engine must not be nil")
 	}
-	if config.Name == "" {
-		return nil, errors.New("workflow.Loop: Name must not be empty")
+	if err := validateName("Loop", config.Name); err != nil {
+		return nil, err
 	}
 	if config.Body == nil {
 		return nil, errors.New("workflow.Loop: Body must not be nil")
@@ -96,6 +97,9 @@ func Loop[In, Out any](
 	}
 	if config.MaxIterations < 0 {
 		return nil, fmt.Errorf("workflow.Loop: MaxIterations %d must not be negative", config.MaxIterations)
+	}
+	if err := config.Body.Validate(); err != nil {
+		return nil, fmt.Errorf("workflow.Loop: Body %q is invalid: %w", config.Body.Name(), err)
 	}
 	bodyDeployment, err := engine.Deploy(ctx, config.Body)
 	if err != nil {

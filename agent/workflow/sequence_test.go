@@ -125,6 +125,24 @@ func TestSequence_RejectsNilAgent(t *testing.T) {
 	}
 }
 
+func TestSequenceValidatesAllDefinitionsBeforeDeployingChildren(t *testing.T) {
+	for _, test := range []struct {
+		name   string
+		agents []*core.Agent
+	}{
+		{name: " invalid-parent ", agents: []*core.Agent{makeOutlineAgent(), makeDraftAgent()}},
+		{name: "parent", agents: []*core.Agent{makeOutlineAgent(), invalidWorkflowAgent()}},
+	} {
+		engine := agent.MustNewEngine(runtime.Config{})
+		if _, err := workflow.Sequence[seqTopic, seqDraft](t.Context(), engine, test.name, test.agents...); err == nil {
+			t.Fatal("Sequence accepted invalid static configuration")
+		}
+		if deployments := engine.ActiveDeployments(); len(deployments) != 0 {
+			t.Fatalf("invalid Sequence configuration deployed %d child definitions", len(deployments))
+		}
+	}
+}
+
 func TestSequence_RejectsNilEngine(t *testing.T) {
 	if _, err := workflow.Sequence[seqTopic, seqDraft](t.Context(), nil, "x", makeOutlineAgent(), makeDraftAgent()); err == nil {
 		t.Fatal("expected error")

@@ -2,6 +2,7 @@ package core_test
 
 import (
 	"context"
+	"errors"
 	"math"
 	"strings"
 	"testing"
@@ -24,6 +25,59 @@ type pointerStuckPolicy struct{}
 
 func (*pointerStuckPolicy) Recover(context.Context, core.ProcessView, core.BlackboardWriter) (core.StuckResult, error) {
 	return core.StuckResult{}, nil
+}
+
+type metadataAction struct {
+	metadata core.ActionMetadata
+	calls    *int
+	cause    error
+}
+
+func (a metadataAction) Metadata() core.ActionMetadata {
+	if a.calls != nil {
+		*a.calls++
+	}
+	if a.cause != nil {
+		panic(a.cause)
+	}
+	return a.metadata
+}
+
+func (metadataAction) Execute(context.Context, *core.ProcessContext) (core.ActionStatus, error) {
+	return core.ActionSucceeded, nil
+}
+
+type metadataCondition struct {
+	name      string
+	cost      float64
+	nameCalls *int
+	costCalls *int
+	namePanic error
+	costPanic error
+}
+
+func (c metadataCondition) Name() string {
+	if c.nameCalls != nil {
+		*c.nameCalls++
+	}
+	if c.namePanic != nil {
+		panic(c.namePanic)
+	}
+	return c.name
+}
+
+func (c metadataCondition) Cost() float64 {
+	if c.costCalls != nil {
+		*c.costCalls++
+	}
+	if c.costPanic != nil {
+		panic(c.costPanic)
+	}
+	return c.cost
+}
+
+func (metadataCondition) Evaluate(context.Context, *core.ConditionEnv) core.Truth {
+	return core.Unknown
 }
 
 func (c fakeCondition) Name() string                                          { return c.name }
@@ -66,6 +120,70 @@ func TestValidateRejectsTypedNilCapabilitiesWithoutPanicking(t *testing.T) {
 		if err == nil || !strings.Contains(err.Error(), want) {
 			t.Errorf("Validate error = %v, want %q", err, want)
 		}
+	}
+}
+
+func TestValidateContainsMetadataPanics(t *testing.T) {
+	for _, test := range []struct {
+		name       string
+		action     core.Action
+		conditions []core.Condition
+		contains   string
+		cause      error
+	}{
+		{
+			name: "action metadata", cause: errors.New("action metadata panic"), contains: "Metadata panicked",
+		},
+		{
+			name: "condition name", action: fakeAction{meta: core.ActionMetadata{Name: "act"}},
+			cause: errors.New("condition name panic"), contains: "Name panicked",
+		},
+		{
+			name: "condition cost", action: fakeAction{meta: core.ActionMetadata{Name: "act"}},
+			cause: errors.New("condition cost panic"), contains: "Cost panicked",
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			action := test.action
+			conditions := test.conditions
+			switch test.name {
+			case "action metadata":
+				action = metadataAction{cause: test.cause}
+			case "condition name":
+				conditions = []core.Condition{metadataCondition{namePanic: test.cause}}
+			case "condition cost":
+				conditions = []core.Condition{metadataCondition{name: "ready", costPanic: test.cause}}
+			}
+			definition := core.NewAgent(core.AgentConfig{
+				Name: "metadata-panic", Actions: []core.Action{action},
+				Goals: []*core.Goal{core.NewGoal(core.GoalConfig{Name: "goal"})}, Conditions: conditions,
+			})
+			_ = definition.Descriptor()
+			err := definition.Validate()
+			if !errors.Is(err, test.cause) || !strings.Contains(err.Error(), test.contains) {
+				t.Fatalf("Validate error = %v, want attributed metadata panic", err)
+			}
+		})
+	}
+}
+
+func TestValidateReadsCapabilityMetadataOnce(t *testing.T) {
+	var actionCalls, conditionNameCalls, conditionCostCalls int
+	definition := core.NewAgent(core.AgentConfig{
+		Name: "metadata-snapshot",
+		Actions: []core.Action{metadataAction{
+			metadata: core.ActionMetadata{Name: "act"}, calls: &actionCalls,
+		}},
+		Goals: []*core.Goal{core.NewGoal(core.GoalConfig{Name: "goal"})},
+		Conditions: []core.Condition{metadataCondition{
+			name: "ready", nameCalls: &conditionNameCalls, costCalls: &conditionCostCalls,
+		}},
+	})
+	if err := definition.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	if actionCalls != 1 || conditionNameCalls != 1 || conditionCostCalls != 1 {
+		t.Fatalf("metadata calls = action %d, condition name/cost %d/%d; want one each", actionCalls, conditionNameCalls, conditionCostCalls)
 	}
 }
 

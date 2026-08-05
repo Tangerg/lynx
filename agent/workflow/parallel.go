@@ -20,7 +20,8 @@ import (
 // ParallelAgent branch-isolation design (avoids LLM context
 // cross-pollination when each sub-agent drives its own LLM tool loop).
 type ParallelConfig[In, Element, Result any] struct {
-	// Name names the produced agent + its goal + the action names. Required.
+	// Name names the produced agent + its goal + the action names. Required;
+	// surrounding whitespace is invalid.
 	Name string
 
 	// Description is the agent's human-facing summary.
@@ -56,8 +57,8 @@ type ParallelConfig[In, Element, Result any] struct {
 // process failure, naming the offending agent.
 //
 // Returns an error on nil engine, missing Name, negative
-// MaxConcurrency, empty Agents, a nil sub-agent, or nil Joiner — caller
-// decides whether to surface, retry, or panic.
+// MaxConcurrency, empty Agents, a nil or structurally invalid sub-agent, or nil
+// Joiner. All static validation finishes before the first child deployment.
 func Parallel[In, Element, Result any](
 	ctx context.Context,
 	engine *runtime.Engine,
@@ -66,8 +67,8 @@ func Parallel[In, Element, Result any](
 	if engine == nil {
 		return nil, errors.New("workflow.Parallel: engine must not be nil")
 	}
-	if config.Name == "" {
-		return nil, errors.New("workflow.Parallel: Name must not be empty")
+	if err := validateName("Parallel", config.Name); err != nil {
+		return nil, err
 	}
 	if config.MaxConcurrency < 0 {
 		return nil, errors.New("workflow.Parallel: MaxConcurrency must not be negative")
@@ -81,6 +82,9 @@ func Parallel[In, Element, Result any](
 	for index, agent := range config.Agents {
 		if agent == nil {
 			return nil, fmt.Errorf("workflow.Parallel: Agents[%d] is nil", index)
+		}
+		if err := agent.Validate(); err != nil {
+			return nil, fmt.Errorf("workflow.Parallel: Agents[%d] %q is invalid: %w", index, agent.Name(), err)
 		}
 	}
 	deployments := make([]*runtime.Deployment, len(config.Agents))

@@ -1,6 +1,6 @@
 # Agent Framework 架构演进执行计划
 
-> 状态：持续开发（P34 capability nil、回调失败与输入所有权合同已完成，4/4）
+> 状态：持续开发（P35 workflow 构造期原子性与定义检查已完成，4/4）
 > 建立日期：2026-07-15
 > 最后更新：2026-08-05
 > 维护者：Lynx 仓库维护者
@@ -2107,6 +2107,35 @@ caller-owned tool-role slice；注释不声明依赖接口未保证的行为。
 不逃逸 routing/stream 边界；Router 的 canonical candidates 不可被 Ranker 反向修改；构造器和
 GoDoc 不把静态非法值伪装成运行期问题。
 
+### P35：Workflow 构造期原子性与定义检查
+
+- [x] **P35-01 Workflow Name 语义统一**（完成：2026-08-05）
+  - Team、Parallel、Sequence、Loop、ScatterGather、Consensus、RepeatUntil、
+    RepeatUntilAcceptable、Supervisor 全部复用 `workflow/name.go` 的同一 Name 规则。
+  - 空名称与首尾空白在组合器入口直接失败；字段 GoDoc 和错误归因使用同一 Name 术语，
+    不再先返回一个只能在后续 Deploy 失败的父 Agent。
+- [x] **P35-02 Child 静态定义先于部署验证**（完成：2026-08-05）
+  - Parallel/Sequence 在第一项 Engine.Deploy 前验证全部 child Agent；Loop 在部署 Body 前验证
+    Body，后置结构错误不再让前置 child 进入 active catalog。
+  - parent name、后置 invalid child/body 两类反例均断言失败后 ActiveDeployments 仍为空。
+- [x] **P35-03 Agent metadata 检查稳定化**（完成：2026-08-05）
+  - `Agent.Validate` 对每个 Action.Metadata、Condition.Name/Cost 只采样一次，唯一性、结构与
+    reachability 复用同一检查快照，不让不纯 SPI 的多次读取在一次校验内产生漂移。
+  - metadata panic 保留原 cause 并变成带 action/condition index 与 operation 的普通 error；
+    `Agent.Descriptor` 对非法 SPI 也不再让 panic 越过只读投影边界。
+- [x] **P35-04 文档、反例与完整门禁**（完成：2026-08-05）
+  - 九种 workflow whitespace Name、三种 child-before-deploy、Action/Condition metadata panic
+    与 single-read 反例全部通过。
+  - Agent public API 仍为 627 declaration、root 53，SHA-256
+    `ebbe2e85c311e9858351cc68c52cd915201dcbb0d93a46a1e123cf9b0446550a`；wire 仍为 160 行，
+    SHA-256 `24627d86d343d726e26c1efbbc332026b3aefd80786ffbcbc43933a9daa32575`。
+  - Agent standalone 全量 build/vet/test/staticcheck/lint/tidy、core/workflow/arch race 与 diff
+    check 全绿。
+
+退出标准：所有 workflow builder 对 Name 使用一种规则；所有可预先判断的父/child 静态错误
+都发生在首个 Engine catalog mutation 前；Agent definition SPI 的验证是单次、一致、panic-safe
+的值检查，不建立第二套 deployment 或 transaction 抽象。
+
 ---
 
 ## 15. 当前进度
@@ -2145,17 +2174,18 @@ GoDoc 不把静态非法值伪装成运行期问题。
 | P32 Agent 内部 owner 与抽象边界清洗 | 完成 | 3/3 | Event/Runtime owner 收正，workflow/routing 伪 Runtime 接口删除，consumer 与 guard 收口 |
 | P33 执行边界 fail-soft 与值所有权硬化 | 完成 | 3/3 | Metrics provider 失败降级、ProcessContext role slice 双向隔离、注释与门禁收口 |
 | P34 Capability nil、回调失败与输入所有权合同 | 完成 | 4/4 | typed-nil 集中化、Routing canonical input、host callback fail-soft、构造/注释合同收正 |
-| **总计** | **完成** | **192/192（100%）** | **P34-01 至 P34-04 全部完成；不执行封版、tag 或 release** |
+| P35 Workflow 构造期原子性与定义检查 | 完成 | 4/4 | 统一 Name、child-before-deploy 静态校验、metadata 单次 panic-safe 检查与门禁收口 |
+| **总计** | **完成** | **196/196（100%）** | **P35-01 至 P35-04 全部完成；不执行封版、tag 或 release** |
 
 ### 15.2 当前焦点
 
-- 当前阶段：P34 Capability nil、回调失败与输入所有权合同，4/4，已完成。
+- 当前阶段：P35 Workflow 构造期原子性与定义检查，4/4，已完成。
 - 下一任务：继续以真实调用链和可构造反例审计 Agent；没有真实变化点时不新增 interface、
   adapter、package 或 Runtime 同义词。本批不封版、不创建 tag 或 release。
 - 当前决策门：已解除；按 BB-01 至 BB-08 直接迁移，不保留兼容层。
-- 最近完成：typed-nil 检测收敛为唯一内部机制；Router 保留 canonical candidate slice 并将
-  Ranker/filter panic 转为普通错误；streamer/observer panic 分别归因；静态数值错误在构造期
-  拒绝，相关 GoDoc 与真实默认/错误语义一致。
+- 最近完成：九种 workflow builder 的 Name 规则统一；Parallel/Sequence/Loop 在首个 child
+  deploy 前完成全部可判定静态校验；Agent.Validate 单次采样 capability metadata，并将
+  Metadata/Name/Cost panic 收敛为可归因 error。
   Agent 只拥有 execution framework 语义，App transaction/idempotency/persistence ownership
   保持不变。
 
@@ -2515,6 +2545,7 @@ GoDoc 不把静态非法值伪装成运行期问题。
 
 | 日期 | 变更 | 作者 |
 |---|---|---|
+| 2026-08-05 | 完成 P35 workflow 构造期原子性与定义检查：九种组合器统一 Name 规则；Parallel/Sequence/Loop 在首个 child deploy 前完成全部静态 Agent 校验；Agent.Validate 单次采样 Action/Condition metadata 并错误化 SPI panic；API/wire 不变，不新增 transaction/deployment 抽象 | Codex |
 | 2026-08-05 | 完成 P34 capability nil、回调失败与输入所有权合同：四份 typed-nil 反射逻辑收敛为唯一内部机制并补齐公开 capability 边界；Router 隔离 Ranker candidate slice，Ranker/filter/stream/observer panic 显式错误化；PromptCondition/Supervisor 静态校验与 Repeat/Loop 文档收正；Candidates breaking 签名直接更新，无兼容层 | Codex |
 | 2026-08-05 | 完成 P33 执行边界 fail-soft 与值所有权硬化：OTel instrument 创建错误通过 error handler 报告并降级 typed no-op，不再把 nil instrument 带进 tick；ProcessContext 在构造与 resolver callback 两侧复制 ActionToolGroups；同步删除重复/错误注释，API/wire 不变 | Codex |
 | 2026-08-05 | 完成 P32 Agent 内部 owner 与抽象边界清洗：Runtime named/subtree listener adapter 从 event leaf 收回 Runtime；workflow/routing 删除只为测试替身存在、却返回 exact Runtime Deployment 的伪接口；App 唯一 consumer、API baseline、GoDoc 与精确防回流守卫直接迁移，无兼容层 | Codex |
@@ -2584,6 +2615,7 @@ GoDoc 不把静态非法值伪装成运行期问题。
 
 | 日期 | 任务 | 结果与证据 | 下一步 |
 |---|---|---|---|
+| 2026-08-05 | P35 Workflow 构造期原子性与定义检查 | whitespace Name、parent/late-child invalid-before-deploy、metadata panic/single-read 反例通过；API/wire hash 不变。Agent standalone 全量 build/vet/test/staticcheck/golangci-lint/tidy，core/workflow/arch race 与 diff check 全绿 | 196/196 关闭；提交推送并更新 App Agent pin 后继续最终反向扫描 |
 | 2026-08-05 | P34 Capability nil、回调失败与输入所有权合同 | typed-nil、candidate mutation、host callback panic、NaN/Inf cost 与负 round limit 反例全部通过；API 627 declaration/root 53，SHA-256 `ebbe2e85c311e9858351cc68c52cd915201dcbb0d93a46a1e123cf9b0446550a`；wire 160 行且 hash 不变。Agent 全量 build/vet/test/staticcheck/golangci-lint/tidy，受影响 package race 与 diff check 全绿 | 192/192 关闭；提交推送并更新 App Agent pin 后继续最终反向扫描 |
 | 2026-08-05 | P33 执行边界 fail-soft 与值所有权硬化 | custom Meter 的 error/nil instrument 反例降级为 no-op；ActionToolGroups caller/callback 双向 mutation 均被隔离；API/wire hash 不变。Agent 全量 build/vet/test/staticcheck/golangci-lint/tidy，core/runtime/arch race 与 diff check 全绿 | 188/188 关闭；更新 App Agent pin 后继续最终反例扫描 |
 | 2026-08-05 | P32 Agent 内部 owner 与抽象边界清洗 | Event leaf 删除 Runtime Extension adapter；workflow/routing 直接依赖 exact `*runtime.Engine`；App agentexec consumer 直接迁移。Agent API 为 627 declaration/root 53，SHA-256 `86dd3e196a28cf6d57a3e934c3adf90d446b010d3c3331366ae8e941c1af1159`；wire 160 行且 hash 不变。Agent/App 定向与完整门禁、选定 race、staticcheck、golangci-lint、tidy diff 和 diff check 全绿 | 185/185 关闭；继续反例扫描，不创建 tag/release |

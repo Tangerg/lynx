@@ -399,6 +399,13 @@ func TestScatterGather_RejectsInvalidSpec(t *testing.T) {
 			},
 			Joiner: func(context.Context, *core.ProcessContext, []sgElement) (sgResult, error) { return sgResult{}, nil },
 		}},
+		{"name with surrounding whitespace", workflow.ScatterGatherConfig[sgIn, sgElement, sgResult]{
+			Name: " x ",
+			Generators: []workflow.Generator[sgIn, sgElement]{
+				func(context.Context, sgIn) (sgElement, error) { return sgElement{}, nil },
+			},
+			Joiner: func(context.Context, *core.ProcessContext, []sgElement) (sgResult, error) { return sgResult{}, nil },
+		}},
 		{"empty generators", workflow.ScatterGatherConfig[sgIn, sgElement, sgResult]{
 			Name:   "x",
 			Joiner: func(context.Context, *core.ProcessContext, []sgElement) (sgResult, error) { return sgResult{}, nil },

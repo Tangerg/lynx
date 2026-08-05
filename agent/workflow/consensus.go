@@ -23,7 +23,8 @@ import (
 // closure. Use [Parallel] child agents when each vote needs framework-managed
 // interaction, tools, suspension, or checkpoint state.
 type ConsensusConfig[In, Element any] struct {
-	// Name names the produced agent + its goal. Required.
+	// Name names the produced agent + its goal. Required; surrounding whitespace
+	// is invalid.
 	Name string
 
 	// Description is the agent's human-facing summary.
@@ -53,8 +54,8 @@ type ConsensusConfig[In, Element any] struct {
 // Returns an error on missing Name, negative MaxConcurrency, empty Voters, or
 // nil Key.
 func Consensus[In, Element any](config ConsensusConfig[In, Element]) (*core.Agent, error) {
-	if config.Name == "" {
-		return nil, errors.New("workflow.Consensus: Name must not be empty")
+	if err := validateName("Consensus", config.Name); err != nil {
+		return nil, err
 	}
 	if config.MaxConcurrency < 0 {
 		return nil, errors.New("workflow.Consensus: MaxConcurrency must not be negative")
