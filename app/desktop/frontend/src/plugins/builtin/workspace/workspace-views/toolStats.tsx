@@ -10,7 +10,7 @@ import type { IconName } from "@/ui";
 import type { ToolStat, ToolStatsSummary } from "../application/toolStats";
 import { toolStats, toolTimeShare } from "../application/toolStats";
 import { useActiveSessionToolCalls } from "@/plugins/builtin/agent/public/run";
-import { Badge, EmptyState, Icon, ProgressBar } from "@/ui";
+import { Badge, EmptyState, Icon, ProgressBar, Sparkline } from "@/ui";
 import { fmtDuration } from "@/lib/format";
 import { useT } from "@/lib/i18n";
 import { lookupExtensionByKey, TOOL_ICON } from "@/plugins/sdk";
@@ -79,6 +79,16 @@ function ToolStatRow({ row, summary }: { row: ToolStat; summary: ToolStatsSummar
           label={t("toolStats.share", { name: row.name })}
           className="h-1 flex-1"
         />
+        {/* How this tool's calls trended, not just what they summed to: three reads at
+            40ms and one at 8s sum to the same as four at 2s, and only one of those is worth
+            looking into. Two calls is the minimum that has a direction. */}
+        {row.durations.length > 1 && (
+          <Sparkline
+            data={row.durations}
+            label={t("toolStats.trend", { name: row.name })}
+            className="shrink-0 text-fg-faint"
+          />
+        )}
         <span className="shrink-0 text-ui-sm text-fg-faint">
           {t("toolStats.calls", { n: row.calls })}
           {row.timed > 0 &&

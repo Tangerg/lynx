@@ -1,7 +1,7 @@
 import type { MouseEvent } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useState } from "react";
-import { IconButton, StepMark, StepRow } from "@/ui";
+import { IconButton, ProgressBar, StepMark, StepRow } from "@/ui";
 import { AgentActivityDisclosure } from "@/ui/agent";
 import { disclosureTransition } from "@/lib/motion";
 import { useT } from "@/lib/i18n";
@@ -58,8 +58,18 @@ export function PlanProgressBanner() {
               </AnimatePresence>
             }
             trailing={
-              <span className="font-mono text-ui-xs font-medium tabular-nums">
-                {progress.percent}%
+              // The number AND the bar. A percentage is read; a bar is seen — and this
+              // row's whole job is to be seen without being read. Short on purpose: it
+              // sits in the meta column beside the count, not across the card.
+              <span className="flex items-center gap-2">
+                <ProgressBar
+                  value={progress.percent}
+                  label={t("plan.complete", { done: progress.done, total: progress.total })}
+                  className="h-1 w-10"
+                />
+                <span className="font-mono text-ui-xs font-medium tabular-nums">
+                  {progress.percent}%
+                </span>
               </span>
             }
             actions={

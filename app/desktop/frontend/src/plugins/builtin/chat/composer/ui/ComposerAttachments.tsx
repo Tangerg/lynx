@@ -5,6 +5,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { chipPresence } from "@/lib/motion";
 import { Chip, Icon, IconButton, Tooltip } from "@/ui";
 import { useT } from "@/lib/i18n";
+import { draftMentions, removeMention } from "../application/draftContext";
 
 type AttachmentSource = ComposerAttachmentSourceSpec;
 
@@ -12,6 +13,9 @@ interface Props {
   sources: AttachmentSource[];
   images: ComposerImage[];
   pastes: PastedText[];
+  /** The draft, for the files it references. */
+  value: string;
+  onChange: (value: string) => void;
   onRemoveImage: (id: string) => void;
   onRemovePaste: (id: string) => void;
 }
@@ -20,12 +24,15 @@ export function ComposerAttachments({
   sources,
   images,
   pastes,
+  value,
+  onChange,
   onRemoveImage,
   onRemovePaste,
 }: Props) {
   return (
     <>
       <PluginAttachments sources={sources} />
+      <DraftContext value={value} onChange={onChange} />
       {/* These arrive and leave because the USER put them there and took them away,
           which is the one thing presence animation is for.
           Presence only — no `layout`. `value` is a prop, so this whole subtree
@@ -57,6 +64,44 @@ export function ComposerAttachments({
       )}
     </>
   );
+}
+
+/**
+ * The files the draft references, as chips.
+ *
+ * An `@path` in the text is an attachment, and it used to look like prose — the same
+ * ink as the sentence around it, so what a turn was carrying was something you worked
+ * out by re-reading your own message. Derived from the draft on every render rather
+ * than tracked, because the text is what gets sent: a second list could disagree with
+ * the message.
+ */
+function DraftContext({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const mentions = draftMentions(value);
+  if (mentions.length === 0) return null;
+  return (
+    <div className="flex flex-wrap gap-1.5 pt-1 pb-0.5">
+      <AnimatePresence initial={false}>
+        {mentions.map((mention) => (
+          <motion.div key={`${mention.start}:${mention.path}`} {...chipPresence}>
+            <Chip
+              icon="filetext"
+              title={mention.path}
+              onClose={() => onChange(removeMention(value, mention))}
+            >
+              {basename(mention.path)}
+            </Chip>
+          </motion.div>
+        ))}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+/** The chip shows the filename; the whole path is the tooltip. A column of chips each
+ *  reading `app/desktop/frontend/src/…` says nothing the others do not. */
+function basename(path: string): string {
+  const cut = path.lastIndexOf("/");
+  return cut >= 0 ? path.slice(cut + 1) : path;
 }
 
 function PluginAttachments({ sources }: { sources: AttachmentSource[] }) {

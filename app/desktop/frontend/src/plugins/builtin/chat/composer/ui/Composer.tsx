@@ -82,6 +82,8 @@ export function Composer({
           sources={attachmentSources}
           images={images}
           pastes={pastes}
+          value={value}
+          onChange={onChange}
           onRemoveImage={onRemoveImage}
           onRemovePaste={onRemovePaste}
         />

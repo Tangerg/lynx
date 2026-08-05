@@ -20,6 +20,17 @@ interface Props {
  *  `preview` comment. Raising or lowering it changes nothing on screen. */
 const PREVIEW_LAYOUT_BOUND = 400;
 
+/** The thought as it stands right now — the last line with anything on it, so a
+ *  trailing newline mid-stream does not blank the row it is reporting into. */
+function lastLine(text: string): string {
+  const lines = text.split("\n");
+  for (let index = lines.length - 1; index >= 0; index -= 1) {
+    const line = lines[index]!.trim();
+    if (line !== "") return line;
+  }
+  return "";
+}
+
 // Collapsible "thinking" aside. Auto-opens while the agent streams, then collapses
 // once the reasoning is done. User can toggle anytime to override.
 //
@@ -90,7 +101,14 @@ export function ReasoningBlock({ text, status, superseded = false }: Props) {
   // observed: the widest this row ever gets is the reading column, which holds
   // ~110 Latin characters at this size, and a settled 50k-token thought would
   // otherwise lay out as a 50k-character nowrap line once per collapsed row.
-  const preview = streaming ? "" : text.slice(0, PREVIEW_LAYOUT_BOUND);
+  //
+  // While it is still thinking the preview is the TAIL, not the head: a folded row
+  // showing the opening of a thought that has run for twenty seconds is a row that
+  // stopped reporting. It used to show nothing at all in that state, which is what a
+  // folded row looked like for the whole time the model was working.
+  const preview = streaming
+    ? lastLine(text).slice(-PREVIEW_LAYOUT_BOUND)
+    : text.slice(0, PREVIEW_LAYOUT_BOUND);
 
   // ---- Bounded scroll + auto-follow + fades ----
   const scrollRef = useRef<HTMLDivElement>(null);

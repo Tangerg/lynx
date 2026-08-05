@@ -38,6 +38,7 @@ export { ResizeHandle } from "./resize-handle";
 export type { ResizeHandleProps } from "./resize-handle";
 export { ScrollArea } from "./scroll-area";
 export { SearchField } from "./text-field";
+export { Sparkline } from "./sparkline";
 export { SearchOverlay } from "./search-overlay";
 export type { SearchFieldProps } from "./text-field";
 export { SectionLabel } from "./section-label";

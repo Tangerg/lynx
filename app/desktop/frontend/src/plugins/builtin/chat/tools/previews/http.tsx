@@ -9,6 +9,7 @@ import type { ToolPreviewProps } from "@/plugins/sdk";
 import type { Tone } from "@/lib/tone";
 import { Badge } from "@/ui";
 import { PreviewFoot } from "@/plugins/builtin/chat/tools/public/previews/PreviewFoot";
+import { ToolOutputPanel } from "@/plugins/builtin/chat/tools/public/previews/ToolOutputPanel";
 import { PreviewPlaceholder } from "@/plugins/builtin/chat/tools/public/previews/PreviewPlaceholder";
 import { definePlugin } from "@/plugins/sdk";
 import { TOOL_PREVIEW } from "@/plugins/sdk/kernelPoints";
@@ -62,13 +63,14 @@ function HttpRequestPreview({ tool, onOpenView }: ToolPreviewProps) {
         <div className="min-w-4 flex-1" />
         {response.truncated && <Badge>{t("tools.overflow.truncated")}</Badge>}
       </div>
-      {response.body ? (
-        <pre className={CODE_PREVIEW_CLASS}>{response.body}</pre>
-      ) : (
-        <div className={TEXT_PREVIEW_CLASS}>
-          <span className="text-fg-faint">{t("tools.preview.idle.emptyBody")}</span>
-        </div>
-      )}
+      {/* The body through the shared panel: a response is program output like any
+          other, and it was the one place a caller could neither see how much was
+          withheld nor take it out. */}
+      <ToolOutputPanel
+        output={response.body}
+        status={tool.status}
+        idleLabel="tools.preview.idle.emptyBody"
+      />
       <PreviewFoot label="tools.preview.viewDetails" onClick={onOpenView} />
     </div>
   );

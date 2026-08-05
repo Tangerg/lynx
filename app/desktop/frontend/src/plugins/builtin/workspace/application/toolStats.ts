@@ -19,6 +19,9 @@ export interface ToolStat {
   totalMs: number;
   /** The slowest single call, which is what a person waited on. */
   slowestMs: number;
+  /** Every timed call's duration, in the order they ran — the only series this view
+   *  has, and enough to show a tool that is getting slower. */
+  durations: number[];
   /** Calls that reported a duration — the denominator behind the two above, and
    *  the reason a row can honestly show "—" instead of a made-up zero. */
   timed: number;
@@ -54,6 +57,7 @@ export function toolStats(calls: Record<string, ToolCall>): ToolStatsSummary {
       denied: 0,
       totalMs: 0,
       slowestMs: 0,
+      durations: [],
       timed: 0,
     };
     row.calls += 1;
@@ -65,6 +69,7 @@ export function toolStats(calls: Record<string, ToolCall>): ToolStatsSummary {
       row.timed += 1;
       row.totalMs += call.durationMs;
       row.slowestMs = Math.max(row.slowestMs, call.durationMs);
+      row.durations.push(call.durationMs);
     }
     byName.set(call.name, row);
   }
