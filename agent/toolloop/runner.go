@@ -423,7 +423,7 @@ func (r *Runner) runSegment(
 	}
 	// The group's error is only the first branch to fail; per-call attribution
 	// comes from outcomes below, so joining is all Wait is needed for.
-	_ = group.Wait()
+	waitErr := group.Wait()
 
 	if err := ctx.Err(); err != nil {
 		return err
@@ -443,6 +443,12 @@ func (r *Runner) runSegment(
 	}
 	if canceled != nil {
 		return canceled
+	}
+	// Every branch records its own outcome before returning. Keep the aggregate
+	// error as a defensive fallback if an errgroup implementation ever violates
+	// that local invariant.
+	if waitErr != nil {
+		return waitErr
 	}
 	for index, outcome := range outcomes {
 		state.settled(start+index, outcome.result, outcome.pending)
@@ -558,7 +564,7 @@ func invokeTool(
 	if err := ctx.Err(); err != nil {
 		return chat.ToolResult{}, nil, err
 	}
-	if hosted.tool == nil {
+	if nilvalue.Is(hosted.tool) {
 		return chat.ToolResult{
 			ID:      call.ID,
 			Name:    call.Name,

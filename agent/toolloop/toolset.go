@@ -46,7 +46,7 @@ func toolsetDigest(definitions []chat.ToolDefinition) (string, error) {
 		if _, err := fmt.Fprintf(hash, "%d:", len(canonical)); err != nil {
 			return "", err
 		}
-		_, _ = hash.Write(canonical)
+		hash.Write(canonical)
 	}
 	return hex.EncodeToString(hash.Sum(nil)), nil
 }

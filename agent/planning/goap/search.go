@@ -4,11 +4,10 @@ import (
 	"container/heap"
 	"context"
 	"fmt"
-	"math"
 	"slices"
 
 	"github.com/Tangerg/lynx/agent/core"
-	"github.com/Tangerg/lynx/agent/internal/panicerr"
+	"github.com/Tangerg/lynx/agent/internal/score"
 )
 
 type searchNode struct {
@@ -148,12 +147,12 @@ func (s *search) expand(current *searchNode) error {
 		edgeCost := 0.0
 		if metadata.Cost != nil {
 			var err error
-			edgeCost, err = evaluateCost(metadata.Cost, current.state)
+			edgeCost, err = score.Evaluate(metadata.Cost, current.state)
 			if err != nil {
 				return fmt.Errorf("%w: action %q at state %q: %w", ErrInvalidActionCost, metadata.Name, currentKey, err)
 			}
 		}
-		if math.IsNaN(edgeCost) || math.IsInf(edgeCost, 0) || edgeCost < 0 {
+		if !score.Finite(edgeCost) || edgeCost < 0 {
 			return fmt.Errorf(
 				"%w: action %q at state %q returned %v",
 				ErrInvalidActionCost,
@@ -172,15 +171,6 @@ func (s *search) expand(current *searchNode) error {
 		s.push(nextState, cost)
 	}
 	return nil
-}
-
-func evaluateCost(score core.ScoreFunc, state core.WorldState) (value float64, err error) {
-	defer func() {
-		if recovered := recover(); recovered != nil {
-			err = panicerr.New("cost function panicked", recovered)
-		}
-	}()
-	return score(state), nil
 }
 
 func (s *search) reconstructPath(goalKey string) ([]core.Action, error) {

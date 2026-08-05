@@ -10,7 +10,8 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/Tangerg/lynx/agent/core"
-	"github.com/Tangerg/lynx/agent/internal/panicerr"
+	"github.com/Tangerg/lynx/agent/internal/nilvalue"
+	"github.com/Tangerg/lynx/agent/internal/score"
 	"github.com/Tangerg/lynx/agent/planning"
 )
 
@@ -90,7 +91,7 @@ func planUtility(
 	options planning.Options,
 	goalFirst bool,
 ) (result *planning.Plan, err error) {
-	if err = domain.ValidatePlanInputs(start, goal); err != nil {
+	if err = domain.ValidatePlanInputs(start, goal, options); err != nil {
 		return nil, err
 	}
 	_, span := plannerTracer.Start(ctx, name+".plan",
@@ -143,7 +144,7 @@ func topApplicable(
 		bestValue = math.Inf(-1)
 	)
 	for _, action := range actions {
-		if action == nil {
+		if nilvalue.Is(action) {
 			continue
 		}
 		metadata := action.Metadata()
@@ -187,27 +188,18 @@ func netValue(state core.WorldState, metadata core.ActionMetadata) (float64, err
 	return net, nil
 }
 
-func finiteScore(score core.ScoreFunc, state core.WorldState, kind, action string) (float64, error) {
-	if score == nil {
+func finiteScore(function core.ScoreFunc, state core.WorldState, kind, action string) (float64, error) {
+	if function == nil {
 		return 0, nil
 	}
-	value, err := evaluateScore(score, state)
+	value, err := score.Evaluate(function, state)
 	if err != nil {
 		return 0, fmt.Errorf("utility: action %q %s: %w", action, kind, err)
 	}
-	if math.IsNaN(value) || math.IsInf(value, 0) {
+	if !score.Finite(value) {
 		return 0, fmt.Errorf("utility: action %q %s returned %v", action, kind, value)
 	}
 	return value, nil
-}
-
-func evaluateScore(score core.ScoreFunc, state core.WorldState) (value float64, err error) {
-	defer func() {
-		if recovered := recover(); recovered != nil {
-			err = panicerr.New("score function panicked", recovered)
-		}
-	}()
-	return score(state), nil
 }
 
 // Compile-time assertions that the planners satisfy [planning.Planner];

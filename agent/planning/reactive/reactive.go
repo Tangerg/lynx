@@ -2,6 +2,7 @@ package reactive
 
 import (
 	"context"
+	"fmt"
 	"math"
 
 	"go.opentelemetry.io/otel"
@@ -9,6 +10,8 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/Tangerg/lynx/agent/core"
+	"github.com/Tangerg/lynx/agent/internal/nilvalue"
+	"github.com/Tangerg/lynx/agent/internal/score"
 	"github.com/Tangerg/lynx/agent/planning"
 )
 
@@ -48,7 +51,7 @@ func (p *Planner) PlanToGoal(
 	goal *core.Goal,
 	options planning.Options,
 ) (result *planning.Plan, err error) {
-	if err = domain.ValidatePlanInputs(start, goal); err != nil {
+	if err = domain.ValidatePlanInputs(start, goal, options); err != nil {
 		return nil, err
 	}
 
@@ -69,7 +72,10 @@ func (p *Planner) PlanToGoal(
 		result = planning.NewPlan(nil, goal)
 		return result, nil
 	}
-	best := p.bestApplicable(start, domain.Actions(), goal, options.ExcludedActions)
+	best, err := p.bestApplicable(start, domain.Actions(), goal, options.ExcludedActions)
+	if err != nil {
+		return nil, err
+	}
 	if best == nil {
 		return nil, nil
 	}
@@ -93,7 +99,7 @@ func (p *Planner) bestApplicable(
 	actions []core.Action,
 	goal *core.Goal,
 	excluded planning.Exclusions,
-) core.Action {
+) (core.Action, error) {
 	state := start.Conditions()
 	unsatisfied := state.Unsatisfied(goal.Preconditions())
 
@@ -102,7 +108,7 @@ func (p *Planner) bestApplicable(
 	bestCost := math.Inf(1)
 
 	for _, action := range actions {
-		if action == nil {
+		if nilvalue.Is(action) {
 			continue
 		}
 		metadata := action.Metadata()
@@ -120,7 +126,14 @@ func (p *Planner) bestApplicable(
 
 		cost := math.Inf(1)
 		if metadata.Cost != nil {
-			cost = metadata.Cost(start)
+			var err error
+			cost, err = score.Evaluate(metadata.Cost, start)
+			if err != nil {
+				return nil, fmt.Errorf("reactive: action %q cost: %w", metadata.Name, err)
+			}
+			if !score.Finite(cost) || cost < 0 {
+				return nil, fmt.Errorf("reactive: action %q cost returned %v; cost must be finite and non-negative", metadata.Name, cost)
+			}
 		}
 
 		if progress > bestProgress || (progress == bestProgress && cost < bestCost) {
@@ -129,7 +142,7 @@ func (p *Planner) bestApplicable(
 			bestCost = cost
 		}
 	}
-	return best
+	return best, nil
 }
 
 // progressTowardsGoal counts how many still-unsatisfied goal

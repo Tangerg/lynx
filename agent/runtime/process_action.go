@@ -11,6 +11,7 @@ import (
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/event"
 	"github.com/Tangerg/lynx/agent/interaction"
+	"github.com/Tangerg/lynx/agent/internal/nilvalue"
 	"github.com/Tangerg/lynx/agent/internal/panicerr"
 )
 
@@ -146,7 +147,7 @@ func validateActionResult(action string, status core.ActionStatus, err error) (c
 }
 
 func (p *Process) invokeAction(ctx context.Context, action core.Action, processContext *core.ProcessContext) (status core.ActionStatus, err error) {
-	if action == nil {
+	if nilvalue.Is(action) {
 		return core.ActionFailed, errors.New("runtime.Process.invokeAction: action is nil")
 	}
 	ctx = normalizeContext(ctx)

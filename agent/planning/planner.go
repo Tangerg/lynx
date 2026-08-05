@@ -45,12 +45,20 @@ func EffectivePlannerName(name string) string {
 	return name
 }
 
-// Options carries per-call planner knobs. ExcludedActions is the
-// runtime's "ignore this recently-replanned action to avoid looping"
-// signal; MaxIterations caps internal search iteration count.
+// Options carries per-call planner knobs. ExcludedActions is the runtime's
+// "ignore this recently-replanned action to avoid looping" signal.
+// MaxIterations caps internal search work for planners that iterate; zero uses
+// the planner default and negative values are invalid.
 type Options struct {
 	ExcludedActions Exclusions
 	MaxIterations   int
+}
+
+func (o Options) validate() error {
+	if o.MaxIterations < 0 {
+		return fmt.Errorf("planning: MaxIterations %d must not be negative", o.MaxIterations)
+	}
+	return nil
 }
 
 // Exclusions is an immutable set of action names a planner must ignore.
@@ -113,7 +121,7 @@ type Planner interface {
 }
 
 // ValidatePlanInputs checks the inputs every PlanToGoal implementation needs.
-func (d *Domain) ValidatePlanInputs(state core.WorldState, goal *core.Goal) error {
+func (d *Domain) ValidatePlanInputs(state core.WorldState, goal *core.Goal, options Options) error {
 	switch {
 	case d == nil:
 		return errors.New("planning.Domain.ValidatePlanInputs: domain is nil")
@@ -122,7 +130,7 @@ func (d *Domain) ValidatePlanInputs(state core.WorldState, goal *core.Goal) erro
 	case goal == nil:
 		return errors.New("planning.Domain.ValidatePlanInputs: goal is nil")
 	}
-	return nil
+	return options.validate()
 }
 
 // Plans enumerates one plan for every reachable goal, sorted by NetValue
@@ -141,6 +149,9 @@ func (d *Domain) Plans(
 		return nil, errors.New("planning.Domain.Plans: planner is nil")
 	case nilvalue.Is(state):
 		return nil, errors.New("planning.Domain.Plans: world state is nil")
+	}
+	if err := options.validate(); err != nil {
+		return nil, fmt.Errorf("planning.Domain.Plans: %w", err)
 	}
 	hosted, err := hostPlanner(planner)
 	if err != nil {

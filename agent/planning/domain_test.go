@@ -208,8 +208,11 @@ func TestDomainPlanningMethodsValidateTheirInputs(t *testing.T) {
 	state := planning.NewState(nil)
 	goal := core.NewGoal(core.GoalConfig{Name: "goal"})
 
-	if err := domain.ValidatePlanInputs(state, goal); err != nil {
+	if err := domain.ValidatePlanInputs(state, goal, planning.Options{}); err != nil {
 		t.Fatalf("ValidatePlanInputs: %v", err)
+	}
+	if err := domain.ValidatePlanInputs(state, goal, planning.Options{MaxIterations: -1}); err == nil {
+		t.Fatal("ValidatePlanInputs accepted negative MaxIterations")
 	}
 	if _, err := domain.Plans(t.Context(), nil, state, planning.Options{}); err == nil {
 		t.Fatal("Plans accepted nil planner")
@@ -219,13 +222,16 @@ func TestDomainPlanningMethodsValidateTheirInputs(t *testing.T) {
 		t.Fatal("Plans accepted typed nil planner")
 	}
 	var typedNilState *planning.State
-	if err := domain.ValidatePlanInputs(typedNilState, goal); err == nil {
+	if err := domain.ValidatePlanInputs(typedNilState, goal, planning.Options{}); err == nil {
 		t.Fatal("ValidatePlanInputs accepted typed nil world state")
 	}
 
 	var nilDomain *planning.Domain
-	if err := nilDomain.ValidatePlanInputs(state, goal); err == nil {
+	if err := nilDomain.ValidatePlanInputs(state, goal, planning.Options{}); err == nil {
 		t.Fatal("ValidatePlanInputs accepted nil domain")
+	}
+	if _, err := domain.Plans(t.Context(), plannerFunc(func(*core.Goal) *planning.Plan { return nil }), state, planning.Options{MaxIterations: -1}); err == nil {
+		t.Fatal("Plans accepted negative MaxIterations")
 	}
 }
 

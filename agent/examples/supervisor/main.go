@@ -59,8 +59,14 @@ func main() {
 
 	// ---- parent agent (the supervisor) -------------------------------
 	parent := agent.New(agent.AgentConfig{Name: "supervisor", Description: "orchestrates research + summarize via the LLM", Actions: []agent.Action{agent.NewAction("brief", func(ctx context.Context, pc *agent.ProcessContext, in Topic) (Brief, error) {
-		researchTool, _ := runtime.NewAgentTool[Topic, Sources](engine, researchDeployment)
-		summarizeTool, _ := runtime.NewAgentTool[Sources, Summary](engine, summarizeDeployment)
+		researchTool, err := runtime.NewAgentTool[Topic, Sources](engine, researchDeployment)
+		if err != nil {
+			return Brief{}, fmt.Errorf("create research agent tool: %w", err)
+		}
+		summarizeTool, err := runtime.NewAgentTool[Sources, Summary](engine, summarizeDeployment)
+		if err != nil {
+			return Brief{}, fmt.Errorf("create summarize agent tool: %w", err)
+		}
 		prompt := fmt.Sprintf("Brief me on %q. Use research-agent first to gather sources, then summarize-agent to synthesize. Return the source URLs and summary.", in.Title)
 		content, err := agent.Prompt(ctx, pc, prompt, agent.PromptConfig{
 			System: "You are a supervisor that delegates to specialised agents.",
@@ -117,23 +123,35 @@ func (m *stubModel) Call(_ context.Context, request *chat.Request) (*chat.Respon
 	toolHistory := collectToolReturns(request.Messages)
 	switch {
 	case !contains(toolHistory, "research-agent"):
-		return responseWithToolCall("research-agent", `{"Title":"agent frameworks in 2026"}`), nil
+		return responseWithToolCall("research-agent", `{"Title":"agent frameworks in 2026"}`)
 	case !contains(toolHistory, "summarize-agent"):
 		// pull URLs out of the research result so we feed them on
 		var sources Sources
-		_ = json.Unmarshal([]byte(toolHistory["research-agent"]), &sources)
-		raw, _ := json.Marshal(sources)
-		return responseWithToolCall("summarize-agent", string(raw)), nil
+		if err := json.Unmarshal([]byte(toolHistory["research-agent"]), &sources); err != nil {
+			return nil, fmt.Errorf("decode research-agent result: %w", err)
+		}
+		raw, err := json.Marshal(sources)
+		if err != nil {
+			return nil, fmt.Errorf("encode summarize-agent input: %w", err)
+		}
+		return responseWithToolCall("summarize-agent", string(raw))
 	default:
 		var summary Summary
-		_ = json.Unmarshal([]byte(toolHistory["summarize-agent"]), &summary)
+		if err := json.Unmarshal([]byte(toolHistory["summarize-agent"]), &summary); err != nil {
+			return nil, fmt.Errorf("decode summarize-agent result: %w", err)
+		}
 		var sources Sources
-		_ = json.Unmarshal([]byte(toolHistory["research-agent"]), &sources)
-		raw, _ := json.Marshal(struct {
+		if err := json.Unmarshal([]byte(toolHistory["research-agent"]), &sources); err != nil {
+			return nil, fmt.Errorf("decode research-agent result: %w", err)
+		}
+		raw, err := json.Marshal(struct {
 			Sources []string `json:"sources"`
 			Summary string   `json:"summary"`
 		}{Sources: sources.URLs, Summary: summary.Text})
-		return responseWithText(string(raw)), nil
+		if err != nil {
+			return nil, fmt.Errorf("encode final response: %w", err)
+		}
+		return responseWithText(string(raw))
 	}
 }
 
@@ -164,16 +182,14 @@ func contains(m map[string]string, key string) bool {
 	return ok
 }
 
-func responseWithText(text string) *chat.Response {
+func responseWithText(text string) (*chat.Response, error) {
 	message := chat.NewAssistantMessage(chat.NewTextPart(text))
-	response, _ := chat.NewResponse(chat.Choice{Index: 0, Message: &message, FinishReason: chat.FinishReasonStop})
-	return response
+	return chat.NewResponse(chat.Choice{Index: 0, Message: &message, FinishReason: chat.FinishReasonStop})
 }
 
-func responseWithToolCall(name, args string) *chat.Response {
+func responseWithToolCall(name, args string) (*chat.Response, error) {
 	message := chat.NewAssistantMessage(chat.NewToolCallPart(chat.ToolCall{ID: "call_" + name, Name: name, Arguments: args}))
-	response, _ := chat.NewResponse(chat.Choice{Index: 0, Message: &message, FinishReason: chat.FinishReasonToolCalls})
-	return response
+	return chat.NewResponse(chat.Choice{Index: 0, Message: &message, FinishReason: chat.FinishReasonToolCalls})
 }
 
 // ============================================================================

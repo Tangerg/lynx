@@ -147,13 +147,12 @@ func (e *Engine) Dependencies() *core.Dependencies { return e.dependencies }
 // as a prototype — Clone yields the isolated per-process instance), else the
 // built-in in-memory implementation.
 //
-// Public so orchestration helpers — most notably the workflow agent-level
-// builders — can hand a child process a clean blackboard rather than inheriting
-// the parent's accumulated state via Clone. agent is required because its
-// declared snapshot state is what the returned blackboard admits: a blackboard
-// built for one agent must not be handed to a process that cannot restore what
-// it holds. It returns an error when a registered prototype panics or violates
-// the Clone contract.
+// Public so hosts implementing a custom Blackboard extension can obtain the
+// same isolated, declaration-gated instance the Engine would assign to a fresh
+// process. agent is required because its declared snapshot state is what the
+// returned blackboard admits: a blackboard built for one agent must not be
+// handed to a process that cannot restore what it holds. It returns an error
+// when a registered prototype panics or violates the Clone contract.
 func (e *Engine) NewBlackboard(agent *core.Agent) (core.Blackboard, error) {
 	if agent == nil {
 		return nil, errors.New("runtime.Engine.NewBlackboard: agent is nil")

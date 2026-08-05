@@ -2,12 +2,17 @@ package core_test
 
 import (
 	"context"
+	"errors"
 	"slices"
 	"testing"
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/tool"
 )
+
+type typedNilProcessView struct{ core.ProcessView }
+type typedNilProcessControl struct{ core.ProcessControl }
+type typedNilBlackboard struct{ core.Blackboard }
 
 func TestProcessContextOwnsActionToolGroups(t *testing.T) {
 	configured := []string{"research"}
@@ -33,5 +38,20 @@ func TestProcessContextOwnsActionToolGroups(t *testing.T) {
 		if !slices.Equal(groups, want) {
 			t.Fatalf("resolver call %d groups = %v, want %v", index, groups, want)
 		}
+	}
+}
+
+func TestProcessContextNormalizesTypedNilCapabilities(t *testing.T) {
+	var process *typedNilProcessView
+	var control *typedNilProcessControl
+	var blackboard *typedNilBlackboard
+	context := core.NewProcessContext(core.ProcessContextConfig{
+		Process: process, Control: control, Blackboard: blackboard,
+	})
+	if context.Process() != nil || context.Blackboard() != nil {
+		t.Fatalf("typed-nil capabilities survived: process=%v blackboard=%v", context.Process(), context.Blackboard())
+	}
+	if err := context.TerminateAgent("stop"); !errors.Is(err, core.ErrLifecycleControlUnavailable) {
+		t.Fatalf("TerminateAgent error = %v, want unavailable control", err)
 	}
 }

@@ -6,6 +6,7 @@ import (
 	"slices"
 
 	"github.com/Tangerg/lynx/agent/interaction"
+	"github.com/Tangerg/lynx/agent/internal/nilvalue"
 	"github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/tool"
 )
@@ -100,10 +101,22 @@ func NewProcessContext(config ProcessContextConfig) *ProcessContext {
 	if dependencies == nil {
 		dependencies = NewDependencies()
 	}
+	process := config.Process
+	if nilvalue.Is(process) {
+		process = nil
+	}
+	control := config.Control
+	if nilvalue.Is(control) {
+		control = nil
+	}
+	blackboard := config.Blackboard
+	if nilvalue.Is(blackboard) {
+		blackboard = nil
+	}
 	return &ProcessContext{
-		process:          config.Process,
-		control:          config.Control,
-		blackboard:       config.Blackboard,
+		process:          process,
+		control:          control,
+		blackboard:       blackboard,
 		dependencies:     dependencies,
 		maxToolRounds:    config.MaxToolRounds,
 		actionToolGroups: slices.Clone(config.ActionToolGroups),
@@ -201,7 +214,7 @@ func (pc *ProcessContext) lifecycleControl() (ProcessControl, error) {
 
 // ActionTools resolves the tool groups declared by the current action.
 func (pc *ProcessContext) ActionTools(ctx context.Context) ([]tool.Tool, error) {
-	if pc.actionTools == nil || len(pc.actionToolGroups) == 0 {
+	if pc == nil || pc.actionTools == nil || len(pc.actionToolGroups) == 0 {
 		return nil, nil
 	}
 	return pc.actionTools(contextOrBackground(ctx), slices.Clone(pc.actionToolGroups))
@@ -212,7 +225,7 @@ func (pc *ProcessContext) ActionTools(ctx context.Context) ([]tool.Tool, error) 
 // be called when the tool invocation finishes.
 func (pc *ProcessContext) ToolCallContext(parent context.Context) (context.Context, context.CancelFunc) {
 	ctx, cancel := context.WithCancel(contextOrBackground(parent))
-	if pc.toolCallCancel == nil {
+	if pc == nil || pc.toolCallCancel == nil {
 		return ctx, cancel
 	}
 	release := pc.toolCallCancel(cancel)

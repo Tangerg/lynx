@@ -41,7 +41,8 @@ type SupervisorConfig[In, Out any] struct {
 	// Parse turns the LLM's final reply into the typed Out. Required.
 	Parse func(text string) (Out, error)
 
-	// MaxToolRounds caps orchestration model calls. Zero leaves them unbounded.
+	// MaxToolRounds caps orchestration model calls. Zero inherits the process
+	// and engine default; when all three are zero, rounds are unbounded.
 	MaxToolRounds int
 }
 

@@ -152,12 +152,18 @@ func (m ActionMetadata) validate() error {
 	if err := m.Effects.Validate(); err != nil {
 		problems = append(problems, fmt.Errorf("effects: %w", err))
 	}
+	seenToolGroups := make(map[string]struct{}, len(m.ToolGroups))
 	for index, role := range m.ToolGroups {
 		switch {
 		case role == "":
 			problems = append(problems, fmt.Errorf("tool group %d: role is empty", index))
 		case strings.TrimSpace(role) != role:
 			problems = append(problems, fmt.Errorf("tool group %d: role has surrounding whitespace", index))
+		default:
+			if _, duplicate := seenToolGroups[role]; duplicate {
+				problems = append(problems, fmt.Errorf("tool group %d: duplicate role %q", index, role))
+			}
+			seenToolGroups[role] = struct{}{}
 		}
 	}
 	return errors.Join(problems...)

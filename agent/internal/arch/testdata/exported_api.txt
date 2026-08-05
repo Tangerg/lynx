@@ -405,7 +405,7 @@ planning: func (d *Domain) Goals() []*core.Goal
 planning: func (d *Domain) KnownConditions() iter.Seq[ConditionRef]
 planning: func (d *Domain) Plans( ctx context.Context, planner Planner, state core.WorldState, options Options, ) ([]*Plan, error)
 planning: func (d *Domain) Prune( ctx context.Context, planner Planner, state core.WorldState, options Options, ) (*Domain, error)
-planning: func (d *Domain) ValidatePlanInputs(state core.WorldState, goal *core.Goal) error
+planning: func (d *Domain) ValidatePlanInputs(state core.WorldState, goal *core.Goal, options Options) error
 planning: func (d PlanDescriptor) Actions() []core.ActionDescriptor
 planning: func (d PlanDescriptor) Complete() bool
 planning: func (d PlanDescriptor) Goal() core.GoalDescriptor

@@ -241,17 +241,40 @@ func TestValidateRejectsInvalidSnapshotState(t *testing.T) {
 }
 
 func TestValidateRejectsInvalidToolGroupRole(t *testing.T) {
-	config := core.AgentConfig{
-		Name: "tool-policy",
-		Actions: []core.Action{fakeAction{meta: core.ActionMetadata{
-			Name:       "act",
-			ToolGroups: []string{" research "},
-		}}},
-		Goals: []*core.Goal{core.NewGoal(core.GoalConfig{Name: "goal"})},
+	for _, test := range []struct {
+		name  string
+		roles []string
+		want  string
+	}{
+		{name: "whitespace", roles: []string{" research "}, want: "role has surrounding whitespace"},
+		{name: "duplicate", roles: []string{"research", "research"}, want: "duplicate role \"research\""},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			config := core.AgentConfig{
+				Name: "tool-policy",
+				Actions: []core.Action{fakeAction{meta: core.ActionMetadata{
+					Name:       "act",
+					ToolGroups: test.roles,
+				}}},
+				Goals: []*core.Goal{core.NewGoal(core.GoalConfig{Name: "goal"})},
+			}
+			err := core.NewAgent(config).Validate()
+			if err == nil || !strings.Contains(err.Error(), test.want) {
+				t.Fatalf("invalid tool group error = %v, want %q", err, test.want)
+			}
+		})
 	}
-	err := core.NewAgent(config).Validate()
-	if err == nil || !strings.Contains(err.Error(), "role has surrounding whitespace") {
-		t.Fatalf("invalid tool group error = %v", err)
+}
+
+func TestValidateRejectsWhitespacePlannerName(t *testing.T) {
+	definition := core.NewAgent(core.AgentConfig{
+		Name:        "planner-name",
+		PlannerName: " goap ",
+		Actions:     []core.Action{fakeAction{meta: core.ActionMetadata{Name: "act"}}},
+		Goals:       []*core.Goal{core.NewGoal(core.GoalConfig{Name: "goal"})},
+	})
+	if err := definition.Validate(); err == nil || !strings.Contains(err.Error(), "planner name \" goap \" has surrounding whitespace") {
+		t.Fatalf("Validate error = %v, want planner-name whitespace error", err)
 	}
 }
 

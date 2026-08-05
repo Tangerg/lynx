@@ -11,6 +11,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/Tangerg/lynx/agent/core"
+	"github.com/Tangerg/lynx/agent/internal/nilvalue"
 	"github.com/Tangerg/lynx/agent/planning"
 )
 
@@ -64,7 +65,7 @@ func (p *Planner) PlanToGoal(
 	goal *core.Goal,
 	options planning.Options,
 ) (*planning.Plan, error) {
-	if err := domain.ValidatePlanInputs(start, goal); err != nil {
+	if err := domain.ValidatePlanInputs(start, goal, options); err != nil {
 		return nil, err
 	}
 
@@ -146,7 +147,7 @@ func (p *Planner) expansionCap(options planning.Options) int {
 func (p *Planner) candidateActions(actions []core.Action, excluded planning.Exclusions) []core.Action {
 	out := make([]core.Action, 0, len(actions))
 	for _, action := range actions {
-		if action == nil {
+		if nilvalue.Is(action) {
 			continue
 		}
 		if excluded.Contains(action.Metadata().Name) {

@@ -2,6 +2,9 @@ package reactive_test
 
 import (
 	"context"
+	"errors"
+	"math"
+	"strings"
 	"testing"
 
 	"github.com/Tangerg/lynx/agent/core"
@@ -149,5 +152,35 @@ func TestReactive_BestValuePlanRanksByNetValue(t *testing.T) {
 	pl, _ := domain.BestPlan(t.Context(), reactive.NewPlanner(), start, planning.Options{})
 	if pl == nil || pl.Goal().Name() != "high" {
 		t.Fatalf("expected high-value goal, got %#v", pl)
+	}
+}
+
+func TestReactiveRejectsInvalidActionCosts(t *testing.T) {
+	cause := errors.New("cost panic")
+	for _, test := range []struct {
+		name  string
+		cost  core.ScoreFunc
+		cause error
+	}{
+		{name: "negative", cost: core.FixedScore(-1)},
+		{name: "nan", cost: core.FixedScore(math.NaN())},
+		{name: "positive infinity", cost: core.FixedScore(math.Inf(1))},
+		{name: "negative infinity", cost: core.FixedScore(math.Inf(-1))},
+		{name: "panic", cost: func(core.WorldState) float64 { panic(cause) }, cause: cause},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			goal := core.NewGoal(core.GoalConfig{Name: "goal", Preconditions: []string{"done"}})
+			action := &fakeAction{meta: core.ActionMetadata{
+				Name: "finish", Effects: core.ConditionSet{"done": core.True}, Cost: test.cost,
+			}}
+			domain := mustDomain(t, []core.Action{action}, []*core.Goal{goal}, nil)
+			_, err := reactive.NewPlanner().PlanToGoal(t.Context(), planning.NewState(nil), domain, goal, planning.Options{})
+			if err == nil || !strings.Contains(err.Error(), "action \"finish\" cost") {
+				t.Fatalf("PlanToGoal error = %v, want attributed cost failure", err)
+			}
+			if test.cause != nil && !errors.Is(err, test.cause) {
+				t.Fatalf("PlanToGoal error = %v, want cause %v", err, test.cause)
+			}
+		})
 	}
 }

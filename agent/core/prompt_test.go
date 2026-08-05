@@ -91,3 +91,31 @@ func TestPromptAcceptsTools(t *testing.T) {
 		t.Fatalf("Generate = %q, want ok", got)
 	}
 }
+
+func TestPromptSnapshotsGenerationOptions(t *testing.T) {
+	temperature := 0.25
+	options := chat.Options{Temperature: &temperature, Stop: []string{"END"}}
+	model := newStubModel("ok")
+	pc := core.NewProcessContext(core.ProcessContextConfig{
+		RunInteraction: func(ctx context.Context, input core.Interaction) (interaction.Result, error) {
+			temperature = 1.5
+			options.Stop[0] = "mutated"
+			if input.Request.Options.Temperature == nil || *input.Request.Options.Temperature != 0.25 {
+				t.Fatalf("temperature = %v, want snapshot 0.25", input.Request.Options.Temperature)
+			}
+			if len(input.Request.Options.Stop) != 1 || input.Request.Options.Stop[0] != "END" {
+				t.Fatalf("stop = %v, want snapshot [END]", input.Request.Options.Stop)
+			}
+			response, err := model.Call(ctx, input.Request)
+			if err != nil {
+				return interaction.Result{}, err
+			}
+			final := interaction.Event{Kind: interaction.EventModelResponse, Round: 1, Final: true, Response: response}
+			return interaction.Result{Final: &final}, nil
+		},
+	})
+
+	if _, err := pc.Prompt(t.Context(), "snapshot options", core.PromptConfig{Options: &options}); err != nil {
+		t.Fatalf("Prompt: %v", err)
+	}
+}

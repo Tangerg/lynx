@@ -56,3 +56,17 @@ func TestProcessContextToolCallContextNormalizesNilParent(t *testing.T) {
 		t.Fatal("ToolCallContext cancel did not release runtime registration")
 	}
 }
+
+func TestNilProcessContextToolHelpersUseEmptyCapabilities(t *testing.T) {
+	var pc *ProcessContext
+	if tools, err := pc.ActionTools(t.Context()); err != nil || tools != nil {
+		t.Fatalf("ActionTools = %v, %v; want nil, nil", tools, err)
+	}
+	ctx, cancel := pc.ToolCallContext(t.Context())
+	cancel()
+	select {
+	case <-ctx.Done():
+	default:
+		t.Fatal("nil ProcessContext cancel did not cancel derived context")
+	}
+}

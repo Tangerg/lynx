@@ -163,6 +163,29 @@ func TestCompileDeploymentContainsMetadataPanic(t *testing.T) {
 	}
 }
 
+func TestCompileDeploymentPreservesTypedNilCapabilityDiagnostics(t *testing.T) {
+	var action *mutableDeploymentAction
+	var condition *mutableDeploymentCondition
+	source := core.NewAgent(core.AgentConfig{
+		Name:       "typed-nil-capabilities",
+		Actions:    []core.Action{action},
+		Goals:      []*core.Goal{core.NewGoal(core.GoalConfig{Name: "goal"})},
+		Conditions: []core.Condition{condition},
+	})
+	_, err := (deploymentCompiler{}).compile(source)
+	if err == nil {
+		t.Fatal("compile accepted typed-nil capabilities")
+	}
+	for _, want := range []string{"action at index 0 is nil", "condition at index 0 is nil"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("compile error = %v, want %q", err, want)
+		}
+	}
+	if strings.Contains(err.Error(), "snapshot agent definition panicked") {
+		t.Fatalf("typed nil escaped structural validation: %v", err)
+	}
+}
+
 func TestCompileDeploymentCanonicalizesDefaultPlanner(t *testing.T) {
 	implicit := deploymentFixture("canonical-planner", core.ConditionSet{"finish": core.True}, nil)
 	implicit = reconfigureAgent(implicit, func(config *core.AgentConfig) {

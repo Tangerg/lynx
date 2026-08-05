@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"reflect"
 	"strconv"
+
+	"github.com/Tangerg/lynx/agent/internal/nilvalue"
 )
 
 const nullJSON = "null"
@@ -199,10 +201,13 @@ func (a *Agent) snapshotTypes() map[string]reflect.Type {
 	}
 	register(a.SnapshotState())
 	for _, action := range a.Actions() {
-		if action == nil {
+		if nilvalue.Is(action) {
 			continue
 		}
-		metadata := action.Metadata()
+		metadata, err := inspectActionMetadata(action)
+		if err != nil {
+			continue
+		}
 		register(metadata.Inputs)
 		register(metadata.Outputs)
 	}

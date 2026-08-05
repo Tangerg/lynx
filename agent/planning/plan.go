@@ -2,12 +2,11 @@ package planning
 
 import (
 	"fmt"
-	"math"
 	"slices"
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/internal/nilvalue"
-	"github.com/Tangerg/lynx/agent/internal/panicerr"
+	"github.com/Tangerg/lynx/agent/internal/score"
 )
 
 // Plan is an immutable planner output: an ordered action chain whose
@@ -186,11 +185,11 @@ func (p *Plan) checkedNetValue(worldState core.WorldState) (float64, error) {
 	goalValue := 0.0
 	if p.goal != nil {
 		var err error
-		goalValue, err = evaluatePlanScore(func(state core.WorldState) float64 { return p.goal.Value(state) }, worldState)
+		goalValue, err = score.Evaluate(func(state core.WorldState) float64 { return p.goal.Value(state) }, worldState)
 		if err != nil {
 			return 0, fmt.Errorf("planning: goal %q value: %w", p.goal.Name(), err)
 		}
-		if !finite(goalValue) {
+		if !score.Finite(goalValue) {
 			return 0, fmt.Errorf("planning: goal %q value returned %v", p.goal.Name(), goalValue)
 		}
 	}
@@ -201,27 +200,27 @@ func (p *Plan) checkedNetValue(worldState core.WorldState) (float64, error) {
 		}
 		metadata := action.Metadata()
 		if metadata.Value != nil {
-			value, err := evaluatePlanScore(metadata.Value, worldState)
+			value, err := score.Evaluate(metadata.Value, worldState)
 			if err != nil {
 				return 0, fmt.Errorf("planning: action %q value: %w", metadata.Name, err)
 			}
-			if !finite(value) {
+			if !score.Finite(value) {
 				return 0, fmt.Errorf("planning: action %q value returned %v", metadata.Name, value)
 			}
 			total += value
 		}
 		if metadata.Cost != nil {
-			cost, err := evaluatePlanScore(metadata.Cost, worldState)
+			cost, err := score.Evaluate(metadata.Cost, worldState)
 			if err != nil {
 				return 0, fmt.Errorf("planning: action %q cost: %w", metadata.Name, err)
 			}
-			if !finite(cost) || cost < 0 {
+			if !score.Finite(cost) || cost < 0 {
 				return 0, fmt.Errorf("planning: action %q cost returned %v; cost must be finite and non-negative", metadata.Name, cost)
 			}
 			total -= cost
 		}
 	}
-	if !finite(total) {
+	if !score.Finite(total) {
 		goalName := "<nil>"
 		if p.goal != nil {
 			goalName = p.goal.Name()
@@ -229,17 +228,4 @@ func (p *Plan) checkedNetValue(worldState core.WorldState) (float64, error) {
 		return 0, fmt.Errorf("planning: plan for goal %q net value overflowed to %v", goalName, total)
 	}
 	return total, nil
-}
-
-func evaluatePlanScore(score core.ScoreFunc, state core.WorldState) (value float64, err error) {
-	defer func() {
-		if recovered := recover(); recovered != nil {
-			err = panicerr.New("score function panicked", recovered)
-		}
-	}()
-	return score(state), nil
-}
-
-func finite(value float64) bool {
-	return !math.IsNaN(value) && !math.IsInf(value, 0)
 }

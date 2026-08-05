@@ -13,6 +13,7 @@ import (
 	"slices"
 
 	"github.com/Tangerg/lynx/agent/core"
+	"github.com/Tangerg/lynx/agent/internal/nilvalue"
 	"github.com/Tangerg/lynx/agent/internal/panicerr"
 	"github.com/Tangerg/lynx/agent/planning"
 )
@@ -145,14 +146,14 @@ func (c deploymentCompiler) cloneAgent(source *core.Agent) *core.Agent {
 	}
 
 	for i, action := range actions {
-		if action == nil {
+		if nilvalue.Is(action) {
 			continue
 		}
 		config.Actions[i] = c.freezeAction(action)
 	}
 
 	for i, condition := range source.Conditions() {
-		if condition == nil {
+		if nilvalue.Is(condition) {
 			continue
 		}
 		config.Conditions[i] = frozenCondition{

@@ -95,9 +95,9 @@ func newStubModel() *stubModel { return &stubModel{} }
 //     brief.
 func (m *stubModel) Call(_ context.Context, request *chat.Request) (*chat.Response, error) {
 	if !hasToolMessage(request.Messages) {
-		return responseWithToolCall(`{"query":"agent frameworks 2026"}`), nil
+		return responseWithToolCall(`{"query":"agent frameworks 2026"}`)
 	}
-	return responseWithText(`{"summary":"Agent frameworks in 2026 are converging on GOAP planning, OODA tick loops, and unified tool models.","sources":["https://example.com/agents-2026"]}`), nil
+	return responseWithText(`{"summary":"Agent frameworks in 2026 are converging on GOAP planning, OODA tick loops, and unified tool models.","sources":["https://example.com/agents-2026"]}`)
 }
 
 func (m *stubModel) Stream(ctx context.Context, request *chat.Request) iter.Seq2[*chat.Response, error] {
@@ -114,16 +114,14 @@ func hasToolMessage(messages []chat.Message) bool {
 	return false
 }
 
-func responseWithText(text string) *chat.Response {
+func responseWithText(text string) (*chat.Response, error) {
 	message := chat.NewAssistantMessage(chat.NewTextPart(text))
-	response, _ := chat.NewResponse(chat.Choice{Index: 0, Message: &message, FinishReason: chat.FinishReasonStop})
-	return response
+	return chat.NewResponse(chat.Choice{Index: 0, Message: &message, FinishReason: chat.FinishReasonStop})
 }
 
-func responseWithToolCall(args string) *chat.Response {
+func responseWithToolCall(args string) (*chat.Response, error) {
 	message := chat.NewAssistantMessage(chat.NewToolCallPart(chat.ToolCall{ID: "call_1", Name: "research_search", Arguments: args}))
-	response, _ := chat.NewResponse(chat.Choice{Index: 0, Message: &message, FinishReason: chat.FinishReasonToolCalls})
-	return response
+	return chat.NewResponse(chat.Choice{Index: 0, Message: &message, FinishReason: chat.FinishReasonToolCalls})
 }
 
 // ============================================================================

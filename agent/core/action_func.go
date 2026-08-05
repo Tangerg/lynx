@@ -7,6 +7,7 @@ import (
 	"slices"
 
 	"github.com/Tangerg/lynx/agent/interaction"
+	"github.com/Tangerg/lynx/agent/internal/nilvalue"
 )
 
 const defaultActionCost = 1.0
@@ -40,7 +41,7 @@ func (a *FuncAction[In, Out]) Execute(ctx context.Context, process *ProcessConte
 	if process == nil {
 		return ActionFailed, errors.New("agent.Action.Execute: process context is nil")
 	}
-	if process.blackboard == nil {
+	if nilvalue.Is(process.blackboard) {
 		return ActionFailed, fmt.Errorf("agent.Action.Execute: action %q cannot run: process context has no blackboard", a.metadata.Name)
 	}
 	if a.fn == nil {

@@ -11,6 +11,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/Tangerg/lynx/agent/core"
+	"github.com/Tangerg/lynx/agent/internal/nilvalue"
 	"github.com/Tangerg/lynx/agent/planning"
 )
 
@@ -71,7 +72,7 @@ func (p *Planner) PlanToGoal(
 	goal *core.Goal,
 	options planning.Options,
 ) (result *planning.Plan, err error) {
-	if err = domain.ValidatePlanInputs(start, goal); err != nil {
+	if err = domain.ValidatePlanInputs(start, goal, options); err != nil {
 		return nil, err
 	}
 
@@ -122,7 +123,7 @@ func (p *Planner) PlanToGoal(
 
 func domainAction(domain *planning.Domain, name string) (core.Action, bool) {
 	for _, action := range domain.Actions() {
-		if action != nil && action.Metadata().Name == name {
+		if !nilvalue.Is(action) && action.Metadata().Name == name {
 			return action, true
 		}
 	}

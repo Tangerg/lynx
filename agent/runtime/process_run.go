@@ -24,7 +24,7 @@ func (p *Process) beginRun() (bool, error) {
 func (p *Process) runOwned(ctx context.Context) error {
 	runErr := p.driveOwned(ctx)
 	p.finishRunLoop(ctx)
-	_, _ = p.state.endRun()
+	p.state.endRun()
 	return runErr
 }
 
@@ -37,10 +37,10 @@ func (p *Process) runOwnedSegment(ctx context.Context, segment *Segment, beforeC
 		beforeCompletion(runErr)
 	}
 	results := p.Blackboard().Objects()
-	status, failure := p.state.endRun()
+	outcome := p.state.endRun()
 	segment.complete(RunCompletion{
-		Status:  status,
-		Failure: failure,
+		Status:  outcome.status,
+		Failure: outcome.failure,
 		Err:     runErr,
 		results: results,
 	})

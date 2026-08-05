@@ -52,7 +52,7 @@ func (e *Engine) discardRejectedChild(ctx context.Context, parent, child *Proces
 		return nil
 	}
 	child.state.markKilled(cause)
-	_, _ = child.state.endRun()
+	child.state.endRun()
 	if !e.processes.reserveProcesses([]*Process{child}) {
 		return fmt.Errorf("runtime: discard rejected child %q: reserve removal", child.ID())
 	}

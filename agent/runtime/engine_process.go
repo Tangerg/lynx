@@ -39,7 +39,7 @@ func (e *Engine) admitProcessRun(
 		return nil, errors.New("runtime.Engine.admitProcessRun: fresh process rejected its first run")
 	}
 	if !e.processes.insert(process) {
-		_, _ = process.state.endRun()
+		process.state.endRun()
 		process.releaseDeployment()
 		return nil, fmt.Errorf("runtime.Engine.admitProcessRun: %w: duplicate ID %q", ErrProcessIdentity, process.id)
 	}
@@ -158,7 +158,7 @@ func (e *Engine) createChild(
 		return nil, errors.New("runtime.Engine.createChild: fresh child rejected its first run")
 	}
 	if err := e.attachChild(parent, child); err != nil {
-		_, _ = child.state.endRun()
+		child.state.endRun()
 		child.releaseDeployment()
 		return nil, err
 	}
@@ -189,10 +189,10 @@ func (e *Engine) attachChild(parent, child *Process) error {
 func (e *Engine) resolvePlanner(agent *core.Agent, processExtensions []extensionEntry) (planning.Planner, error) {
 	name := planning.EffectivePlannerName(agent.PlannerName())
 
-	if planner := findPlannerByName(processExtensions, name); planner != nil {
+	if planner := findPlannerByName(processExtensions, name); !nilvalue.Is(planner) {
 		return planner, nil
 	}
-	if planner := findPlannerByName(e.extensions.list, name); planner != nil {
+	if planner := findPlannerByName(e.extensions.list, name); !nilvalue.Is(planner) {
 		return planner, nil
 	}
 

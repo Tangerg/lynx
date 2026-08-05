@@ -51,7 +51,7 @@ func (s *runnerState) validateInput() error {
 		if err != nil {
 			return fmt.Errorf("%w: %w", ErrInvalidInput, err)
 		}
-		if hosted.tool == nil {
+		if nilvalue.Is(hosted.tool) {
 			return fmt.Errorf("%w: advertised tool %q is not executable", ErrInvalidInput, definition.Name)
 		}
 		if !matched {

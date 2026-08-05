@@ -304,21 +304,26 @@ func (s *processState) beginRunLocked(fromCheckpoint bool) (bool, error) {
 	return true, nil
 }
 
-// endRun closes the run and reports the outcome it recorded. The second result
-// is the process's own failure, not a failure to end the run, which is why
-// callers that only need the run closed discard both.
-func (s *processState) endRun() (status core.ProcessStatus, failure error) {
+type runOutcome struct {
+	status  core.ProcessStatus
+	failure error
+}
+
+// endRun closes the run and reports the indivisible process outcome it
+// recorded. Returning one value keeps lifecycle completion distinct from an
+// operation that can itself fail; callers that only release ownership need not
+// pretend to handle the process failure projection.
+func (s *processState) endRun() runOutcome {
 	s.mu.Lock()
 	done := s.runDone
-	status = s.currentStatus
-	failure = s.runErr
+	outcome := runOutcome{status: s.currentStatus, failure: s.runErr}
 	s.runPhase = runIdle
 	s.runDone = nil
 	s.mu.Unlock()
 	if done != nil {
 		close(done)
 	}
-	return status, failure
+	return outcome
 }
 
 func (s *processState) waitRun(ctx context.Context) error {

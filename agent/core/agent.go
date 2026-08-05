@@ -261,6 +261,9 @@ func (a *Agent) Validate() error {
 			problems = append(problems, fmt.Errorf("agent.Agent.Validate: invalid agent %q: version %q: %w", a.Name(), a.Version(), err))
 		}
 	}
+	if strings.TrimSpace(a.PlannerName()) != a.PlannerName() {
+		problems = append(problems, fmt.Errorf("agent.Agent.Validate: invalid agent %q: planner name %q has surrounding whitespace", a.Name(), a.PlannerName()))
+	}
 	if a.config.StuckPolicy != nil && nilvalue.Is(a.config.StuckPolicy) {
 		problems = append(problems, fmt.Errorf("agent.Agent.Validate: invalid agent %q: stuck policy is typed nil", a.Name()))
 	}

@@ -1,6 +1,6 @@
 # Agent Framework 架构演进执行计划
 
-> 状态：持续开发（P35 workflow 构造期原子性与定义检查已完成，4/4）
+> 状态：持续开发（P36 定义快照、评分与上下文信任边界已完成，4/4）
 > 建立日期：2026-07-15
 > 最后更新：2026-08-05
 > 维护者：Lynx 仓库维护者
@@ -2136,6 +2136,39 @@ GoDoc 不把静态非法值伪装成运行期问题。
 都发生在首个 Engine catalog mutation 前；Agent definition SPI 的验证是单次、一致、panic-safe
 的值检查，不建立第二套 deployment 或 transaction 抽象。
 
+### P36：定义快照、评分与上下文信任边界
+
+- [x] **P36-01 定义与请求值所有权闭合**（完成：2026-08-05）
+  - Action ToolGroups 拒绝重复 role，Agent PlannerName 拒绝首尾空白；deployment clone 与
+    snapshot type inventory 统一识别 typed nil，非法 capability 由定义校验稳定归因，不在
+    freeze/只读投影阶段 panic。
+  - snapshot inventory 对 Metadata panic fail-soft；Prompt request 深复制 model Options，调用方
+    callback 在请求组装后修改原值不再反向污染在途请求。
+- [x] **P36-02 Planner score 与 Options 信任边界统一**（完成：2026-08-05）
+  - 三份 score panic/finite 判断收敛为私有 `internal/score` 机制；GOAP、Utility、Plan value 与
+    Reactive 使用同一规则，Reactive 不再接受 panic、NaN、Inf 或负动态 cost。
+  - `Options.MaxIterations` 的负值在 Domain owner 边界统一拒绝；`Domain.Plans` 自身复验，第三方
+    Planner 无法绕过。`ValidatePlanInputs` 直接改为接收 Options，不保留旧签名或兼容 wrapper。
+- [x] **P36-03 Process capability 与生命周期语义收正**（完成：2026-08-05）
+  - `NewProcessContext` 将 typed-nil Process/Control/Blackboard 归一为 nil；nil receiver 的
+    ActionTools/ToolCallContext 保持安全，Action/Runtime/Planner/ToolLoop capability 检查统一复用
+    `internal/nilvalue`。
+  - 私有 `endRun` 返回不可分割 outcome，不再把 process failure 伪装成 lifecycle operation error；
+    ToolLoop 并发段保留 aggregate error 防御兜底。示例不再吞掉工具构造、JSON 或 Blackboard 错误，
+    Supervisor/NewBlackboard 注释与真实默认值及 owner 保持一致。
+- [x] **P36-04 Breaking API、反例与完整门禁**（完成：2026-08-05）
+  - duplicate role、whitespace planner、typed-nil/panic snapshot、Prompt deep clone、非法 Reactive
+    cost、负 MaxIterations、typed-nil/nil ProcessContext 与 deployment attribution 均有反例测试。
+  - Agent public API 仍为 627 declaration、root 53；`ValidatePlanInputs` 签名直接变化，SHA-256
+    `d594c5ed9d05ed104f1996b4ae61942a331a5f884b302dea2e8889e9dc5a3138`。wire 仍为 160 行，
+    SHA-256 `24627d86d343d726e26c1efbbc332026b3aefd80786ffbcbc43933a9daa32575`。
+  - Agent standalone 全量 build/vet/test/staticcheck/golangci-lint/tidy、core/planning/runtime/
+    toolloop/workflow/routing/arch/score race、examples 与 diff check 全绿。
+
+退出标准：定义和请求快照不共享调用方可变值；所有 planner 对 score 和 Options 使用同一合法性
+合同；公开 capability 的 typed-nil 语义一致；生命周期状态投影不再伪装成 operation error；示例、
+GoDoc、API baseline 与实现同步，不增加公开 package 或兼容路径。
+
 ---
 
 ## 15. 当前进度
@@ -2175,17 +2208,18 @@ GoDoc 不把静态非法值伪装成运行期问题。
 | P33 执行边界 fail-soft 与值所有权硬化 | 完成 | 3/3 | Metrics provider 失败降级、ProcessContext role slice 双向隔离、注释与门禁收口 |
 | P34 Capability nil、回调失败与输入所有权合同 | 完成 | 4/4 | typed-nil 集中化、Routing canonical input、host callback fail-soft、构造/注释合同收正 |
 | P35 Workflow 构造期原子性与定义检查 | 完成 | 4/4 | 统一 Name、child-before-deploy 静态校验、metadata 单次 panic-safe 检查与门禁收口 |
-| **总计** | **完成** | **196/196（100%）** | **P35-01 至 P35-04 全部完成；不执行封版、tag 或 release** |
+| P36 定义快照、评分与上下文信任边界 | 完成 | 4/4 | definition/request ownership、统一 score/options、capability nil 与 lifecycle outcome 收口 |
+| **总计** | **完成** | **200/200（100%）** | **P36-01 至 P36-04 全部完成；不执行封版、tag 或 release** |
 
 ### 15.2 当前焦点
 
-- 当前阶段：P35 Workflow 构造期原子性与定义检查，4/4，已完成。
+- 当前阶段：P36 定义快照、评分与上下文信任边界，4/4，已完成。
 - 下一任务：继续以真实调用链和可构造反例审计 Agent；没有真实变化点时不新增 interface、
   adapter、package 或 Runtime 同义词。本批不封版、不创建 tag 或 release。
 - 当前决策门：已解除；按 BB-01 至 BB-08 直接迁移，不保留兼容层。
-- 最近完成：九种 workflow builder 的 Name 规则统一；Parallel/Sequence/Loop 在首个 child
-  deploy 前完成全部可判定静态校验；Agent.Validate 单次采样 capability metadata，并将
-  Metadata/Name/Cost panic 收敛为可归因 error。
+- 最近完成：definition/snapshot/request 的值所有权闭合；所有 planner 统一 score 与 Options
+  合法性；ProcessContext capability nil 和 lifecycle outcome 语义收正；示例错误传播与
+  Supervisor/NewBlackboard 注释合同同步。
   Agent 只拥有 execution framework 语义，App transaction/idempotency/persistence ownership
   保持不变。
 
@@ -2545,6 +2579,7 @@ GoDoc 不把静态非法值伪装成运行期问题。
 
 | 日期 | 变更 | 作者 |
 |---|---|---|
+| 2026-08-05 | 完成 P36 定义快照、评分与上下文信任边界：definition/deployment/prompt 深快照与 typed-nil 语义闭合；planner score/Options 使用唯一校验机制；ProcessContext capability 与 run outcome 收正；示例错误传播及注释合同同步；ValidatePlanInputs breaking 签名直接更新，无兼容层 | Codex |
 | 2026-08-05 | 完成 P35 workflow 构造期原子性与定义检查：九种组合器统一 Name 规则；Parallel/Sequence/Loop 在首个 child deploy 前完成全部静态 Agent 校验；Agent.Validate 单次采样 Action/Condition metadata 并错误化 SPI panic；API/wire 不变，不新增 transaction/deployment 抽象 | Codex |
 | 2026-08-05 | 完成 P34 capability nil、回调失败与输入所有权合同：四份 typed-nil 反射逻辑收敛为唯一内部机制并补齐公开 capability 边界；Router 隔离 Ranker candidate slice，Ranker/filter/stream/observer panic 显式错误化；PromptCondition/Supervisor 静态校验与 Repeat/Loop 文档收正；Candidates breaking 签名直接更新，无兼容层 | Codex |
 | 2026-08-05 | 完成 P33 执行边界 fail-soft 与值所有权硬化：OTel instrument 创建错误通过 error handler 报告并降级 typed no-op，不再把 nil instrument 带进 tick；ProcessContext 在构造与 resolver callback 两侧复制 ActionToolGroups；同步删除重复/错误注释，API/wire 不变 | Codex |
@@ -2615,6 +2650,7 @@ GoDoc 不把静态非法值伪装成运行期问题。
 
 | 日期 | 任务 | 结果与证据 | 下一步 |
 |---|---|---|---|
+| 2026-08-05 | P36 定义快照、评分与上下文信任边界 | duplicate/whitespace、typed-nil/panic snapshot、request mutation、非法 score/options、nil ProcessContext 与 deployment attribution 反例通过；API 627 declaration/root 53，SHA-256 `d594c5ed9d05ed104f1996b4ae61942a331a5f884b302dea2e8889e9dc5a3138`；wire 160 行且 hash 不变。Agent standalone 全量 build/vet/test/staticcheck/golangci-lint/tidy、受影响 package race、examples 与 diff check 全绿 | 200/200 关闭；提交推送并更新 App Agent pin 后继续零残留反向扫描 |
 | 2026-08-05 | P35 Workflow 构造期原子性与定义检查 | whitespace Name、parent/late-child invalid-before-deploy、metadata panic/single-read 反例通过；API/wire hash 不变。Agent standalone 全量 build/vet/test/staticcheck/golangci-lint/tidy，core/workflow/arch race 与 diff check 全绿 | 196/196 关闭；提交推送并更新 App Agent pin 后继续最终反向扫描 |
 | 2026-08-05 | P34 Capability nil、回调失败与输入所有权合同 | typed-nil、candidate mutation、host callback panic、NaN/Inf cost 与负 round limit 反例全部通过；API 627 declaration/root 53，SHA-256 `ebbe2e85c311e9858351cc68c52cd915201dcbb0d93a46a1e123cf9b0446550a`；wire 160 行且 hash 不变。Agent 全量 build/vet/test/staticcheck/golangci-lint/tidy，受影响 package race 与 diff check 全绿 | 192/192 关闭；提交推送并更新 App Agent pin 后继续最终反向扫描 |
 | 2026-08-05 | P33 执行边界 fail-soft 与值所有权硬化 | custom Meter 的 error/nil instrument 反例降级为 no-op；ActionToolGroups caller/callback 双向 mutation 均被隔离；API/wire hash 不变。Agent 全量 build/vet/test/staticcheck/golangci-lint/tidy，core/runtime/arch race 与 diff check 全绿 | 188/188 关闭；更新 App Agent pin 后继续最终反例扫描 |

@@ -99,7 +99,7 @@ func (pc *ProcessContext) newPromptCall(ctx context.Context, text string, config
 	messages = append(messages, chat.NewUserMessage(chat.NewTextPart(text)))
 	request := &chat.Request{Messages: messages, Tools: registry.Definitions()}
 	if config.Options != nil {
-		request.Options = *config.Options
+		request.Options = config.Options.Clone()
 	}
 	if err := request.Validate(); err != nil {
 		return nil, fmt.Errorf("agent: prompt: validate request: %w", err)

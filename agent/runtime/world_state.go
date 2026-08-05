@@ -6,6 +6,7 @@ import (
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/interaction"
+	"github.com/Tangerg/lynx/agent/internal/nilvalue"
 	"github.com/Tangerg/lynx/agent/internal/panicerr"
 	"github.com/Tangerg/lynx/agent/planning"
 )
@@ -26,7 +27,7 @@ type worldStateReader struct {
 func newWorldStateReader(domain *planning.Domain, blackboard core.Blackboard, process *Process) *worldStateReader {
 	namedConditions := make(map[string]core.Condition, len(domain.Conditions()))
 	for _, condition := range domain.Conditions() {
-		if condition == nil {
+		if nilvalue.Is(condition) {
 			continue
 		}
 		namedConditions[condition.Name()] = condition
