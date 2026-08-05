@@ -30,7 +30,13 @@ type ActivityLeading = { icon: IconName; leading?: never } | { icon?: never; lea
 // four-glyph strip overran the label outright, and no row's text landed where another's
 // did. Anything a row wants to say beyond "what kind of row am I" belongs in the label
 // or the trailing slot, which can be as wide as they like.
-const GUTTER = { slot: "w-5", text: "pl-15" } as const;
+// The column a row's text starts on, and the step each nested level takes. 12 (the
+// row's inset) + 12 (the chevron) + 8 (the gap) — a `line` row carries no mark, so the
+// step is the chevron's width rather than the chevron plus a glyph.
+// Where a `line` row's text starts, and the step each nested level takes: the chevron
+// (12) plus its gap (12). The row itself has no left inset — the top level starts
+// exactly where the sentence above it does.
+const GUTTER = { slot: "w-5", text: "pl-6" } as const;
 
 type AgentActivityDisclosureProps = Omit<ComponentPropsWithoutRef<"div">, "children"> &
   ActivityLeading & {
@@ -159,7 +165,10 @@ export function AgentActivityDisclosure({
           aria-label={toggleLabel}
           onClick={onToggle}
           className={cn(
-            "flex min-w-0 flex-1 items-center gap-2 px-3 py-1.5 text-left",
+            "flex min-w-0 flex-1 items-center gap-3 py-1.5 pr-3 text-left",
+            // A card insets its content from its own edge; a line has no edge, so it
+            // starts on the column.
+            shell === "line" ? "pl-0" : "pl-3",
             "transition-colors duration-[var(--dur-color)] hover:bg-hover",
             shell === "line" ? "min-h-7" : "min-h-8",
           )}
@@ -180,7 +189,7 @@ export function AgentActivityDisclosure({
             aria-hidden
             className={cn(
               "grid shrink-0 place-items-center",
-              GUTTER.slot,
+              shell === "line" ? "hidden" : GUTTER.slot,
               // A framed icon gets the tray; a bare one gets a 16px box. But that box
               // is the shell's answer for ONE mark — a caller handing over its own
               // `leading` owns the size as well, and a folded wave's mark is a strip of
@@ -191,7 +200,11 @@ export function AgentActivityDisclosure({
               shell === "line" && tone === "neutral" ? "text-fg-faint" : TONE_CLASS[tone],
             )}
           >
-            {leading ?? (icon ? <Icon name={icon} size={framed ? "xs" : "sm"} /> : null)}
+            {/* An indented row is a chevron and its words, nothing else: a column of
+                them each repeating the glyph of the group above was the density. A card
+                keeps its mark — it has no indent to say what it is, and the tray is
+                where tone lives. */}
+            {shell === "line" ? null : (leading ?? (icon ? <Icon name={icon} size="xs" /> : null))}
           </span>
           {/* `truncate` needs the box to be allowed to shrink. Pinned at
               `shrink-0` it kept its full intrinsic width instead, so a long label

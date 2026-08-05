@@ -200,10 +200,6 @@ export function ReasoningBlock({ text, status, superseded = false }: Props) {
       // largest object in the turn. `border-field` and not `border-divider` — a
       // divider separates peers in a list, and at 7% ink it does not read as a
       // margin rule; this is the same job `.md blockquote` does, one step up.
-      // The rule, and only the rule — the inset is the disclosure's, so the thinking
-      // starts on the same column as the word "Thinking" above it. This used to set
-      // `pl-4` and land 40px left of its own label.
-      contentClassName="relative before:absolute before:inset-y-0 before:left-[52px] before:w-px before:bg-[var(--color-border-soft)]"
     >
       <div
         ref={scrollRef}

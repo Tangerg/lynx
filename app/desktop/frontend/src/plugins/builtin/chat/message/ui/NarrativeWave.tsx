@@ -13,7 +13,6 @@ import { useState, type ReactNode } from "react";
 import type { MessageRenderUnit } from "@/plugins/builtin/agent/public/messagePresentation";
 import { waveStepCount } from "@/plugins/builtin/agent/public/messagePresentation";
 import { AgentActivityDisclosure } from "@/ui/agent";
-import { Icon } from "@/ui";
 import { useT } from "@/lib/i18n";
 import { unitSeamClass } from "../application/renderUnitRhythm";
 import type { BlockCtx } from "./blockContext";
@@ -39,20 +38,6 @@ export function NarrativeWave({ units, ctx, renderUnit }: Props) {
       // What kind of round this was — the work that dominated it. One glyph, because
       // the gutter is one slot wide for every row in the transcript.
       icon={glyphs[0] ?? "sparkle"}
-      // …and the rest of what is inside, at the other end of the row. These used to be
-      // the leading mark, which is where they did damage: a strip is as wide as its
-      // glyph count, so it pushed this row's label off the column every other row's
-      // label sits on, and a long enough one ran straight into it. They say the same
-      // thing here, in a slot that may be any width.
-      trailing={
-        glyphs.length > 1 ? (
-          <span className="flex items-center gap-1">
-            {glyphs.slice(1).map((glyph, index) => (
-              <Icon key={index} name={glyph} size="xs" />
-            ))}
-          </span>
-        ) : undefined
-      }
       label={t("agent.steps", { count: waveStepCount(units) })}
       open={open}
       onToggle={() => setOpen((value) => !value)}

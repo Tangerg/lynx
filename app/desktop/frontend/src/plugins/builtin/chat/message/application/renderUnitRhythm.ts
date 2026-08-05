@@ -66,11 +66,10 @@ export function unitSeamClass(
  * process, so indenting them all shifts the group without saying anything about it —
  * and the disclosure body already provides that group's own inset.
  */
-const INDENT: Record<UnitVoice, string> = {
-  process: "pl-3",
-  prose: "",
-  panel: "",
-};
+// The top level starts where the sentence does. A step in from the measure was meant
+// to say "this is subordinate", and at the top level there is nothing above it to be
+// subordinate to — it just left the column.
+const INDENT: Record<UnitVoice, string> = { process: "", prose: "", panel: "" };
 
 export function unitIndentClass(unit: MessageRenderUnit): string {
   return INDENT[unitVoice(unit)];
