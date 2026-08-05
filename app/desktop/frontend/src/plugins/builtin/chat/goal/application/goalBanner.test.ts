@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { goalBudgetAxes, tightestAxis } from "./goalBanner";
+import { en } from "@/lib/i18n/locales/en";
+import { GOAL_STATUS_I18N, GOAL_STOP_I18N, goalBudgetAxes, tightestAxis } from "./goalBanner";
 import type { GoalReadModel } from "./goalQueries";
 
 function goal(patch: Partial<GoalReadModel> = {}): GoalReadModel {
@@ -33,5 +34,23 @@ describe("the goal's allowance", () => {
   it("has no tightest axis when nothing is capped", () => {
     const uncapped = goal({ budget: { maxRuns: 0, maxCostUsd: 0, maxSteps: 0 } });
     expect(tightestAxis(goalBudgetAxes(uncapped))).toBeUndefined();
+  });
+});
+
+// The tables are exhaustive over their unions by the compiler; that a listed key
+// has WORDS behind it is the half TypeScript cannot see. Without this, a code
+// added to the read model and mapped to a key nobody wrote renders as
+// `goal.stop.<code>` on screen, in all eight languages.
+describe("the wording tables", () => {
+  it("names a catalog entry for every stop code", () => {
+    const unworded = Object.values(GOAL_STOP_I18N).filter((key) => !(key in en));
+    expect(unworded).toEqual([]);
+  });
+
+  it("names a catalog entry for every status", () => {
+    const unworded = Object.values(GOAL_STATUS_I18N)
+      .map((status) => status.label)
+      .filter((key) => !(key in en));
+    expect(unworded).toEqual([]);
   });
 });

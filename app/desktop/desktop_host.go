@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -47,15 +46,11 @@ type WindowChrome struct {
 }
 
 // DesktopHost is the Wails-owned boundary for capabilities that belong to the
-// packaged application rather than the Runtime Protocol.
+// packaged application rather than the Runtime Protocol. Every method on it is
+// reachable from the frontend over the Wails binding, and nothing else is.
 type DesktopHost struct {
 	localTokenPath string
 	pluginRoot     string
-	// The Wails application context, handed over at startup. Held as a field
-	// rather than threaded per call because it is the window's identity, not a
-	// request's: the runtime's window API takes it, and the frontend's calls
-	// arrive over the binding with no context of their own.
-	window context.Context
 }
 
 func newDesktopHost(home string) *DesktopHost {
@@ -72,17 +67,6 @@ func defaultDesktopHost() (*DesktopHost, error) {
 		return nil, fmt.Errorf("desktop host: resolve user home: %w", err)
 	}
 	return newDesktopHost(home), nil
-}
-
-// attachWindow receives the Wails application context at startup. Everything
-// below that drives the window is inert until it has been called.
-//
-// It is also where the window's titlebar is set to the height that lines its own
-// three controls up with the app's header. The controls themselves are the
-// platform's — see window_chrome_darwin.go for what replacing them had cost.
-func (h *DesktopHost) attachWindow(ctx context.Context) {
-	h.window = ctx
-	useCompactWindowToolbar()
 }
 
 // WindowChrome hands the frontend the geometry of the platform's own window

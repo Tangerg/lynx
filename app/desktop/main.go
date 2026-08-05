@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"embed"
 	"log"
 
@@ -30,8 +31,13 @@ func desktopApplicationOptions(host *DesktopHost) *options.App {
 		AssetServer: &assetserver.Options{
 			Assets: assets,
 		},
-		Bind:             []any{host},
-		OnStartup:        host.attachWindow,
+		Bind: []any{host},
+		// Pinned at startup, where the window first exists. This used to be a
+		// DesktopHost method that also stored the context as "the window's
+		// identity" — nothing ever read it, because the native chrome is reached
+		// through the platform's key window and not through this context. So it
+		// belongs beside the options it completes, not on the frontend binding.
+		OnStartup:        func(context.Context) { useCompactWindowToolbar() },
 		BackgroundColour: &options.RGBA{R: 255, G: 255, B: 255, A: 1},
 		// macOS: a real titled window whose title bar is transparent and empty,
 		// with the content running the full height underneath it. The platform

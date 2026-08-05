@@ -4,7 +4,7 @@
 // question the banner exists to answer is "how far can it still go" — not "what
 // did the last goal tool call return".
 
-import type { GoalReadModel, GoalStatus } from "./goalQueries";
+import type { GoalReadModel, GoalStatus, GoalStopCode } from "./goalQueries";
 
 /** How a budget axis is counted, which is also how it is written. */
 export type BudgetUnit = "count" | "cost";
@@ -51,14 +51,46 @@ export function tightestAxis(axes: readonly BudgetAxisView[]): BudgetAxisView | 
 }
 
 /**
- * A paused goal is a thing to notice; a blocked one is a thing to fix.
+ * How each status reads: a paused goal is a thing to notice, a blocked one a thing
+ * to fix.
+ *
+ * A table rather than a `goal.status.${status}` template, which is the shape every
+ * other key family here uses that is not backed by a runtime array (timeline's
+ * KIND_I18N, and see GOAL_STOP_I18N below). The template compiles for a status the
+ * catalog has never heard of; this does not.
  *
  * `as const` so a caller that has already ruled out "active" gets a tone that has
  * already ruled out "neutral" — the banner's badge otherwise needed a runtime
- * ternary to re-derive what this table says, and that ternary could never be false.
+ * ternary to re-derive what this says, and that ternary could never be false.
  */
-export const GOAL_TONE = {
-  active: "neutral",
-  paused: "warning",
-  blocked: "negative",
-} as const satisfies Record<GoalStatus, "neutral" | "warning" | "negative">;
+export const GOAL_STATUS_I18N = {
+  active: { tone: "neutral", label: "goal.status.active" },
+  paused: { tone: "warning", label: "goal.status.paused" },
+  blocked: { tone: "negative", label: "goal.status.blocked" },
+} as const satisfies Record<
+  GoalStatus,
+  { tone: "neutral" | "warning" | "negative"; label: string }
+>;
+
+/**
+ * Why the loop stopped, in the reader's language.
+ *
+ * The read model states this as a CLOSED code precisely so a surface can word it;
+ * echoing the runtime's `detail` instead would ship English into every locale. And
+ * the wording is a table, not `goal.stop.${code}`: the codes are a type, with no
+ * runtime list behind them, so a template would render a raw key on screen the day
+ * the protocol grows an eleventh — silently, in all eight languages. This does not
+ * compile until the new code has words.
+ */
+export const GOAL_STOP_I18N: Record<GoalStopCode, string> = {
+  stoppedByUser: "goal.stop.stoppedByUser",
+  runtimeRestarted: "goal.stop.runtimeRestarted",
+  runStartFailed: "goal.stop.runStartFailed",
+  awaitingInput: "goal.stop.awaitingInput",
+  terminalOutcomeMissing: "goal.stop.terminalOutcomeMissing",
+  runNotCompleted: "goal.stop.runNotCompleted",
+  runBudgetReached: "goal.stop.runBudgetReached",
+  costBudgetReached: "goal.stop.costBudgetReached",
+  stepBudgetReached: "goal.stop.stepBudgetReached",
+  blockedByModel: "goal.stop.blockedByModel",
+};

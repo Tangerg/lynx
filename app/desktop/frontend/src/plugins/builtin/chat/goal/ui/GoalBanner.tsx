@@ -7,7 +7,8 @@ import { fmtCost } from "@/lib/format";
 import { useT } from "@/lib/i18n";
 import { useActiveSessionId } from "@/plugins/builtin/agent/public/session";
 import {
-  GOAL_TONE,
+  GOAL_STATUS_I18N,
+  GOAL_STOP_I18N,
   goalBudgetAxes,
   tightestAxis,
   type BudgetAxisView,
@@ -44,7 +45,7 @@ export function GoalBanner() {
           <AgentActivityDisclosure
             icon="loop"
             shell="card"
-            tone={GOAL_TONE[goal.status]}
+            tone={GOAL_STATUS_I18N[goal.status].tone}
             label={<span className="block min-w-0 truncate">{goal.objective}</span>}
             trailing={<Allowance axis={tightestAxis(axes)} />}
             // Only when it is not running: "Running" is what a goal banner being
@@ -52,7 +53,9 @@ export function GoalBanner() {
             // states that need saying — paused, blocked — competing with noise.
             actions={
               goal.status !== "active" && (
-                <Badge tone={GOAL_TONE[goal.status]}>{t(`goal.status.${goal.status}`)}</Badge>
+                <Badge tone={GOAL_STATUS_I18N[goal.status].tone}>
+                  {t(GOAL_STATUS_I18N[goal.status].label)}
+                </Badge>
               )
             }
             open={expanded}
@@ -66,10 +69,7 @@ export function GoalBanner() {
             </div>
             {goal.stop && (
               <p className="mt-2.5 text-ui-sm leading-body text-fg-muted">
-                {/* Worded from the read model's closed stop CODE, not from the
-                    runtime's `detail`: echoing that would ship English into every
-                    locale. The detail still shows, beside the sentence. */}
-                {t(`goal.stop.${goal.stop.code}`)}
+                {t(GOAL_STOP_I18N[goal.stop.code])}
                 {goal.stop.detail && ` — ${goal.stop.detail}`}
               </p>
             )}

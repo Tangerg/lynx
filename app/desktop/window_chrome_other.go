@@ -10,7 +10,7 @@ package main
 // gutter, which is what every other platform wants — the controls are outside the
 // content there, so nothing has to be reserved for them.
 
-func nativeWindowChrome() (titlebarHeight, controlsInlineEnd float64, measured bool) {
+func nativeWindowChrome() (controlsCentreY, controlsInlineEnd float64, measured bool) {
 	return 0, 0, false
 }
 
