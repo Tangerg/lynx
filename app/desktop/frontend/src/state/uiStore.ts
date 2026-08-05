@@ -11,6 +11,7 @@ import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { DEFAULT_UI_DENSITY, UI_DENSITY_MODES, type UiDensity } from "@/lib/density";
 import type { ColorThemeId, VisualStyleId } from "@/lib/appearance";
+import { discardOlderVersions } from "@/lib/persistedStore";
 import { DOCK_DEFAULT_WIDTH_PX, SIDEBAR_DEFAULT_WIDTH_PX } from "@/lib/shellGeometry";
 // Direct registry import — going through the SDK barrel pulls in
 // host.ts which imports this file, creating a TDZ cycle under Vitest.
@@ -118,6 +119,7 @@ export const useUiStore = create<UiState & UiActions>()(
       name: "lyra.ui",
       storage: createJSONStorage(() => localStorage),
       version: 11,
+      migrate: discardOlderVersions,
       merge: (persisted, current) => {
         if (persisted === undefined) return current;
         const parsed = uiPersistSchema.safeParse(persisted);

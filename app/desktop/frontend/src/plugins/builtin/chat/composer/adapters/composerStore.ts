@@ -4,6 +4,7 @@ import { createJSONStorage, persist } from "zustand/middleware";
 import { fileToInputImage } from "@/plugins/builtin/chat/composer/public/input";
 import { countLines } from "@/plugins/builtin/chat/composer/public/largePaste";
 import { t } from "@/lib/i18n";
+import { discardOlderVersions } from "@/lib/persistedStore";
 import { notifyError } from "@/plugins/sdk";
 import type { ComposerImage, PastedText } from "../domain/draft";
 import {
@@ -203,6 +204,7 @@ export const useComposerStore = create<ComposerState & ComposerActions>()(
       name: "lyra.composer",
       storage: createJSONStorage(() => localStorage),
       version: 1,
+      migrate: discardOlderVersions,
       // Persist text-only drafts. value/images/provider/model are NOT persisted:
       // value/images rehydrate from drafts via the cold-start loadSession below,
       // images are transient, and model re-defaults to the first available.

@@ -14,6 +14,7 @@ import { z } from "zod";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { disposeOnHmr } from "@/lib/hmr";
+import { discardOlderVersions } from "@/lib/persistedStore";
 import type { AgentRunStartOptions } from "@/plugins/sdk/types";
 import type { AgentInput } from "@/plugins/builtin/agent/domain/input";
 import { openSession, pruneSessionHandoffs } from "../application/session/sessionSelectionModel";
@@ -127,6 +128,7 @@ export const useAgentSessionStore = create<AgentSessionState & AgentSessionActio
       // Persisted shape is dev-phase only; bump to discard stale payloads
       // rather than migrate (the merge below Zod-validates what survives).
       version: 6,
+      migrate: discardOlderVersions,
       merge: (persisted, current) => {
         if (persisted === undefined) return current;
         const parsed = sessionPersistSchema.safeParse(persisted);

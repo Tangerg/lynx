@@ -45,6 +45,27 @@ describe("the cold-start seed", () => {
   });
 });
 
+// The version is the discard switch: bumping it must leave no trace of the old
+// payload — including in storage, or the next boot reads it again.
+describe("storage written by an older version", () => {
+  it("boots on defaults and restamps storage at the current version", async () => {
+    localStorage.setItem(
+      "lyra.agent-session",
+      JSON.stringify({ state: { openSessionIds: ["stale"], lastSessionId: "stale" }, version: 1 }),
+    );
+
+    await useAgentSessionStore.persist.rehydrate();
+
+    expect(store().openSessionIds).toEqual([]);
+    expect(store().lastSessionId).toBe("");
+
+    const stored = JSON.parse(localStorage.getItem("lyra.agent-session") ?? "null") as {
+      version: number;
+    };
+    expect(stored.version).toBe(useAgentSessionStore.persist.getOptions().version);
+  });
+});
+
 describe("drafts and queued first messages", () => {
   it("marks and graduates a draft", () => {
     store().markDraft("s1");
