@@ -180,7 +180,10 @@ export const zh: Record<string, string> = {
   "schedules.off": "已停用",
   "tools.overflow.matches": "还有 {{count}} 个匹配",
   "tools.overflow.rows": "还有 {{count}} 行",
-  "tools.overflow.lines": "还有 {{count}} 行",
+  "tools.output.copy": "复制输出",
+  "tools.output.copied": "已复制",
+  "tools.output.showAll": "显示全部 {{count}} 行",
+  "tools.output.collapse": "收起",
   "tools.overflow.truncated": "已被运行时截断",
   "tools.group.calls": "{{count}} 次调用",
 

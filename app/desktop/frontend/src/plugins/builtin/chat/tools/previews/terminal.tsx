@@ -1,50 +1,24 @@
 // terminal preview — the shell family (shell / read_shell_output / stop_shell), all
 // terminal-style plain text.
 
-import { useT } from "@/lib/i18n";
 import type { ToolPreviewProps } from "@/plugins/sdk";
-import { LinkedText } from "@/plugins/builtin/chat/file-references/public/LinkedText";
 import { PreviewFoot } from "@/plugins/builtin/chat/tools/public/previews/PreviewFoot";
-import { PreviewPlaceholder } from "@/plugins/builtin/chat/tools/public/previews/PreviewPlaceholder";
-import { cn } from "@/lib/classNames";
+import { ToolOutputPanel } from "@/plugins/builtin/chat/tools/public/previews/ToolOutputPanel";
 import { definePlugin } from "@/plugins/sdk";
 import { TOOL_PREVIEW } from "@/plugins/sdk/kernelPoints";
 import { shellToolPreviews } from "@/plugins/builtin/chat/tools/application/toolPreviewContributions";
-import { CODE_PREVIEW_CLASS } from "./previewChrome";
-
-const MAX_TERM_LINES = 9;
 
 function ShellPreview({ tool, onOpenView }: ToolPreviewProps) {
-  const t = useT();
-  // Render THIS call's stdout from `tool.result` — the authoritative merged
-  // output reconciled from the completed Item's tool.result.output, with
-  // the toolOutput delta stream as the live preview while running (see
-  // projections.ts + API.md §4.4.1).
-  const output = tool.result?.replace(/\n+$/, "");
-  const lines = output ? output.split("\n") : [];
-  const hiddenLines = lines.length - MAX_TERM_LINES;
   return (
     <div>
-      <div className={cn(CODE_PREVIEW_CLASS, "whitespace-pre-wrap break-all")}>
-        {lines.length > 0 ? (
-          lines.slice(0, MAX_TERM_LINES).map((text, i) => (
-            <div key={i}>
-              <LinkedText text={text || " "} />
-            </div>
-          ))
-        ) : (
-          <PreviewPlaceholder
-            status={tool.status}
-            pending="tools.preview.pending.running"
-            idle="tools.preview.idle.noOutput"
-          />
-        )}
-        {hiddenLines > 0 && (
-          <div className="text-fg-faint">
-            {`… ${t("tools.overflow.lines", { count: hiddenLines })}`}
-          </div>
-        )}
-      </div>
+      {/* `tool.result` is the authoritative merged output — reconciled from the
+          completed Item, with the toolOutput delta stream standing in while the
+          command runs (projections.ts + API.md §4.4.1). */}
+      <ToolOutputPanel
+        output={tool.result}
+        status={tool.status}
+        idleLabel="tools.preview.idle.noOutput"
+      />
       <PreviewFoot label="tools.preview.openTerminal" onClick={onOpenView} />
     </div>
   );

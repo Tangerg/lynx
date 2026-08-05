@@ -173,7 +173,10 @@ export const es: Record<string, string> = {
   "schedules.off": "Apagado",
   "tools.overflow.matches": "{{count}} coincidencias más",
   "tools.overflow.rows": "{{count}} filas más",
-  "tools.overflow.lines": "{{count}} líneas más",
+  "tools.output.copy": "Copiar salida",
+  "tools.output.copied": "Copiado",
+  "tools.output.showAll": "Mostrar las {{count}} líneas",
+  "tools.output.collapse": "Contraer",
   "tools.overflow.truncated": "truncado por el runtime",
   "tools.group.calls": "{{count}} llamadas",
 

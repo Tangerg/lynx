@@ -174,7 +174,10 @@ export const zhTW: Record<string, string> = {
   "schedules.off": "已停用",
   "tools.overflow.matches": "還有 {{count}} 個相符項",
   "tools.overflow.rows": "還有 {{count}} 列",
-  "tools.overflow.lines": "還有 {{count}} 行",
+  "tools.output.copy": "複製輸出",
+  "tools.output.copied": "已複製",
+  "tools.output.showAll": "顯示全部 {{count}} 行",
+  "tools.output.collapse": "收合",
   "tools.overflow.truncated": "已被執行環境截斷",
   "tools.group.calls": "{{count}} 次呼叫",
 

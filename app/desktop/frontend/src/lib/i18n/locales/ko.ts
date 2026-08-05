@@ -172,7 +172,10 @@ export const ko: Record<string, string> = {
   "schedules.off": "꺼짐",
   "tools.overflow.matches": "일치 항목 {{count}}개 더",
   "tools.overflow.rows": "{{count}}행 더",
-  "tools.overflow.lines": "{{count}}줄 더",
+  "tools.output.copy": "출력 복사",
+  "tools.output.copied": "복사됨",
+  "tools.output.showAll": "전체 {{count}}줄 보기",
+  "tools.output.collapse": "접기",
   "tools.overflow.truncated": "런타임에서 잘렸습니다",
   "tools.group.calls": "호출 {{count}}회",
 

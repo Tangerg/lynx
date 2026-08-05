@@ -173,7 +173,10 @@ export const de: Record<string, string> = {
   "schedules.off": "Aus",
   "tools.overflow.matches": "{{count}} weitere Treffer",
   "tools.overflow.rows": "{{count}} weitere Zeilen",
-  "tools.overflow.lines": "{{count}} weitere Zeilen",
+  "tools.output.copy": "Ausgabe kopieren",
+  "tools.output.copied": "Kopiert",
+  "tools.output.showAll": "Alle {{count}} Zeilen anzeigen",
+  "tools.output.collapse": "Einklappen",
   "tools.overflow.truncated": "von der Runtime gekürzt",
   "tools.group.calls": "{{count}} Aufrufe",
 

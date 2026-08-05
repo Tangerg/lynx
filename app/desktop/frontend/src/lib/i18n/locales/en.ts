@@ -185,7 +185,10 @@ export const en: Record<string, string> = {
   "schedules.off": "Off",
   "tools.overflow.matches": "{{count}} more matches",
   "tools.overflow.rows": "{{count}} more rows",
-  "tools.overflow.lines": "{{count}} more lines",
+  "tools.output.copy": "Copy output",
+  "tools.output.copied": "Copied",
+  "tools.output.showAll": "Show all {{count}} lines",
+  "tools.output.collapse": "Collapse",
   "tools.overflow.truncated": "truncated by runtime",
   "tools.group.calls": "{{count}} calls",
 

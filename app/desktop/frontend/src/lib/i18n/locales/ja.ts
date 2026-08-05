@@ -172,7 +172,10 @@ export const ja: Record<string, string> = {
   "schedules.off": "停止中",
   "tools.overflow.matches": "他 {{count}} 件の一致",
   "tools.overflow.rows": "他 {{count}} 行",
-  "tools.overflow.lines": "他 {{count}} 行",
+  "tools.output.copy": "出力をコピー",
+  "tools.output.copied": "コピーしました",
+  "tools.output.showAll": "全 {{count}} 行を表示",
+  "tools.output.collapse": "折りたたむ",
   "tools.overflow.truncated": "ランタイムにより切り詰められました",
   "tools.group.calls": "{{count}} 件の呼び出し",
 

@@ -193,7 +193,28 @@ const SHELL_COMMAND: Item = {
   status: "completed",
   startedAt: CREATED_AT,
   durationMs: 8400,
-  tool: { name: "shell", arguments: { command: "go test ./internal/session/..." } },
+  // A real test run: coloured, longer than the panel shows at rest, and non-zero.
+  // Every one of those was invisible here — the fixture's command produced no output
+  // at all, so the panel that holds it appeared in no screenshot.
+  tool: {
+    name: "shell",
+    arguments: { command: "go test ./internal/session/..." },
+    result: {
+      exitCode: 1,
+      output: [
+        "\u001b[1m=== RUN   TestCommitAtomicity\u001b[0m",
+        "\u001b[32m--- PASS: TestCommitAtomicity (0.01s)\u001b[0m",
+        "=== RUN   TestCommitIdempotency",
+        "\u001b[32m--- PASS: TestCommitIdempotency (0.00s)\u001b[0m",
+        "=== RUN   TestRollbackOnFlushFailure",
+        "    store_test.go:214: expected rollback, got commit",
+        "\u001b[31m--- FAIL: TestRollbackOnFlushFailure (0.02s)\u001b[0m",
+        "\u001b[33mwarning: 1 test skipped\u001b[0m",
+        "\u001b[31mFAIL\u001b[0m\tgithub.com/Tangerg/lynx/app/runtime/internal/session\t8.412s",
+        "FAIL",
+      ].join("\n"),
+    },
+  },
 };
 
 const SHELL_FAILED: Item = {
