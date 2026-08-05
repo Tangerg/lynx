@@ -4,8 +4,10 @@ use (
 	.
 	./a2a
 	./agent
+	./app/cli
 	./app/desktop
 	./app/runtime
+	./app/tui
 	./chathistory/cassandra
 	./chathistory/cosmosdb
 	./chathistory/mongodb
