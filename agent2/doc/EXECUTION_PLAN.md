@@ -3,12 +3,12 @@
 > 状态：持续实施
 > 建立日期：2026-08-06
 > 最后更新：2026-08-06
-> 当前阶段：P0 模块边界与文档分层，3/3 完成
+> 当前阶段：P0 模块边界与文档分层，5/5 完成
 > 当前实施范围：仅 `agent2`
 > 临时模块路径：`github.com/Tangerg/lynx/agent2`
 > 最终模块路径：`github.com/Tangerg/lynx/agent`
 
-本文只记录实施范围、阶段任务、当前进度、风险、验证结果和执行日志。目标架构见 [`ARCHITECTURE.md`](ARCHITECTURE.md)，长期决策见 [`DECISIONS.md`](DECISIONS.md)。
+本文只记录实施范围、阶段任务、当前进度、风险、验证结果和执行日志。目标架构见 [`ARCHITECTURE.md`](ARCHITECTURE.md)，长期决策见 [`DECISIONS.md`](DECISIONS.md)，强制工程标准见 [`ENGINEERING_STANDARDS.md`](ENGINEERING_STANDARDS.md)。
 
 ---
 
@@ -66,7 +66,7 @@ go test ./...
 
 | 阶段 | 状态 | 进度 | 目标 |
 |---|---|---:|---|
-| P0 模块边界与文档分层 | 完成 | 3/3 | 建立独立 module，拆分架构、决策和进度事实 |
+| P0 模块边界与文档分层 | 完成 | 5/5 | 建立独立 module，拆分架构、决策、工程标准和进度事实，并接入模块级指引 |
 | P1 公共窄腰与状态机 | 未开始 | 0/7 | 用多策略原型验证 Definition/Execution/Transition/Process |
 | P2 Engine 最小执行闭环 | 未开始 | 0/6 | 单 Process 调度、生命周期、snapshot、event、limit |
 | P3 Interaction | 未开始 | 0/8 | 原生模型/工具循环、流、checkpoint、HITL、结构化输出 |
@@ -88,6 +88,8 @@ go test ./...
 - [x] P0-01 创建独立 `agent2` Go module，并加入 workspace。
 - [x] P0-02 建立不含进度噪声的目标架构文档。
 - [x] P0-03 将 ADR 和实施事实拆成独立文档，并明确旧模块参考规则。
+- [x] P0-04 建立宏观架构、微观代码/API、测试和批次完成定义的强制工程标准。
+- [x] P0-05 建立不复制正文的模块级指引，确保后续任务必须读取四份职责文档。
 
 ### P1：公共窄腰与状态机
 
@@ -233,6 +235,7 @@ go test ./...
 
 | 日期 | 阶段 | 实际事实 | 验证与结果 |
 |---|---|---|---|
+| 2026-08-06 | P0 | 新增独立工程实施标准；明确治本式实施、恰当抽象、DAG、Framework/Host 边界、下游事务/幂等扩展、Go 风格充血模型、组合式 OOP、API 人体工程学和批次完成定义；新增三项 ADR；接入模块级指引且不复制四份职责文档正文 | 文档一致性和 diff check 通过；`go build ./...`、`go vet ./...`、`go test ./...` 全绿；P0 更新为 5/5 |
 | 2026-08-06 | P0 | 创建独立 `agent2` module 并加入 workspace；仅用根 `doc.go` 建立可验证的 package，未引入接口或占位实现；将稳定架构、ADR、实施进度拆为三份文档；明确旧 `agent` 是并存期直接参考实现但不是兼容规范；未修改旧 `agent` 或 `app/runtime` | `go build ./...`、`go vet ./...`、`go test ./...`、独立 module 解析和 diff check 全部通过；P0 3/3 完成 |
 
 ---
