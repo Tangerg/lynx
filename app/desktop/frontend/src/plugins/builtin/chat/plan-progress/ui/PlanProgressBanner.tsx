@@ -1,12 +1,12 @@
 import type { MouseEvent } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useState } from "react";
-import { IconButton, StepMark } from "@/ui";
+import { IconButton, StepMark, StepRow } from "@/ui";
 import { AgentActivityDisclosure } from "@/ui/agent";
 import { disclosureTransition } from "@/lib/motion";
 import { useT } from "@/lib/i18n";
 import { useCurrentRootRunId } from "@/plugins/builtin/agent/public/run";
-import { useSessionPlan, type PlanStep } from "@/plugins/builtin/agent/public/plan";
+import { useSessionPlan } from "@/plugins/builtin/agent/public/plan";
 import { planBannerState } from "../application/progress";
 
 export function PlanProgressBanner() {
@@ -85,11 +85,14 @@ export function PlanProgressBanner() {
                   })
             }
           >
-            <ul className="flex flex-col gap-0.5">
+            {/* The same row the Plan panel draws. This list used to spell the
+                step's ink a third time AND truncate every line to one — so a
+                step too long to fit was unreadable in the one place a reader
+                had explicitly opened to read it, while the panel wrapped it. */}
+            <ul className="flex flex-col">
               {steps.map((step) => (
-                <li key={step.id} className="flex items-center gap-2 py-0.5">
-                  <StepMark state={step.status} />
-                  <span className={stepTextClass(step.status)}>{step.text}</span>
+                <li key={step.id}>
+                  <StepRow state={step.status}>{step.text}</StepRow>
                 </li>
               ))}
             </ul>
@@ -98,14 +101,4 @@ export function PlanProgressBanner() {
       )}
     </AnimatePresence>
   );
-}
-
-function stepTextClass(status: PlanStep["status"]) {
-  if (status === "done") {
-    return "min-w-0 flex-1 truncate text-ui-md leading-body text-fg-faint line-through decoration-line-soft";
-  }
-  if (status === "active") {
-    return "min-w-0 flex-1 truncate text-ui-md font-semibold leading-body text-fg";
-  }
-  return "min-w-0 flex-1 truncate text-ui-md leading-body text-fg-soft";
 }
