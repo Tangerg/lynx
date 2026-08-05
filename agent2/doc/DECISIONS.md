@@ -212,3 +212,11 @@
 - 决策：Engine 在 dispatch 前原子记录 Prepared Step，其中包含 last-stable identity、候选 ExecutionState、拟消费 Signal 范围、Transition、稳定 EffectID 和冻结 payload，但不推进权威 state/cursor。取得 settlement 后再原子 finalize 状态、游标、settlement、结果 Signal 和 Process transition。
 - 原因：如果 Effect 先发生而 pending intent 尚无可恢复记录，崩溃后无法区分未执行与已执行但结算未知；Prepared Step 使未知结算可定位，又不把 Host Store/transaction 引入 Framework。
 - 限定：跨进程恢复只对 Host 已持久化 snapshot 生效；需要 durable recovery 时，Engine 必须在 dispatch 前允许 Host 同步确认 prepared boundary，但不定义 Store/transaction SPI。Engine 不承诺未持久化状态。Step 必须是确定性纯归约，dispatcher replay 仍受 ADR-A2-018/A2-022 的业务幂等边界约束。
+
+## ADR-A2-032：Process tree 使用结构化生命周期
+
+- 状态：已接受；补强 ADR-A2-009、ADR-A2-010 和 ADR-A2-026。
+- 决策：父 Process 一旦进入任意终态，Engine 就在每个直接子 Process 的下一安全边界记录父级终止意图，并由各子级继续向下传播；父级 deadline 映射为 child 的 parent deadline，其他父级终态映射为 parent cancellation。Engine kill 只描述被直接 kill 的 Process，不冒充后代的终止原因。正常完成的父级同样不能遗留脱离 Process tree 的活动孤儿。
+- 决策：child failure 不自动改写 parent 终态，而是作为 `ChildOutcome` 交给 parent Execution 显式裁决；child wait 只能引用直接 child，不能跨层等待 descendant 或 ancestor。
+- 原因：树形身份必须对应树形所有权。让子级脱离已终止父级会破坏预算、能力、恢复和清理边界；另一方面，把任一 child failure 硬编码成 parent failure 会抹掉 all/any/quorum、fallback 和容错编排的策略语义。
+- 限定：传播不抢占正在结算的 Effect。in-flight 副作用先按 prepared-step 合同取得 definite/unknown settlement，然后才在安全边界提交后代终态；Framework 不提供静默放弃副作用的旁路。

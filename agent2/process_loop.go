@@ -191,8 +191,30 @@ func (runtime *processRuntime) applyCommand(ctx context.Context, command process
 		command.reply(processResponse{snapshot: snapshot, err: err})
 	case commandChildrenCompleted:
 		runtime.deliverChildrenCompleted(ctx, command.internalSignal)
+	case commandParentTerminated:
+		runtime.recordParentTermination(command.parentTermination)
 	default:
 		command.reply(processResponse{err: ErrProcessNotRunning})
+	}
+}
+
+func (runtime *processRuntime) recordParentTermination(parent Termination) {
+	if !parent.Valid() {
+		return
+	}
+	if parent.Status() == StatusTimedOut {
+		intent, _ := newDeadlineIntent(deadlineOwnerParent, "parent Process reached a deadline")
+		if !runtime.control.deadline.valid() {
+			runtime.control.deadline = intent
+		}
+		return
+	}
+	intent, _ := newCancellationIntent(
+		cancellationOwnerParent,
+		"parent Process reached terminal status "+parent.Status().String(),
+	)
+	if !runtime.control.cancellation.valid() {
+		runtime.control.cancellation = intent
 	}
 }
 

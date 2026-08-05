@@ -66,7 +66,14 @@ func (engine *Engine) processFinished(controller *processController) {
 		return
 	}
 	var deliveries []childCompletionDelivery
+	var activeChildren []*processController
 	engine.mu.Lock()
+	for _, candidate := range engine.processes {
+		parentID, child := candidate.relation.ParentID()
+		if child && parentID == controller.id && !candidate.status().Terminal() {
+			activeChildren = append(activeChildren, candidate)
+		}
+	}
 	for _, registration := range engine.childWaits {
 		if registration.delivered || !childWaitContains(registration.spec, controller.id) {
 			continue
@@ -87,6 +94,19 @@ func (engine *Engine) processFinished(controller *processController) {
 	engine.mu.Unlock()
 	for _, delivery := range deliveries {
 		engine.deliverChildCompletion(delivery)
+	}
+	parentTermination := controller.terminalResult().Termination()
+	for _, child := range activeChildren {
+		engine.deliverParentTermination(child, parentTermination)
+	}
+}
+
+func (*Engine) deliverParentTermination(child *processController, parent Termination) {
+	select {
+	case child.commands <- processCommand{
+		kind: commandParentTerminated, parentTermination: parent,
+	}:
+	case <-child.done:
 	}
 }
 

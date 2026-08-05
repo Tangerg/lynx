@@ -347,15 +347,17 @@ const (
 	commandQueryUnknownEffectIDs
 	commandCapture
 	commandChildrenCompleted
+	commandParentTerminated
 )
 
 type processCommand struct {
-	kind           commandKind
-	signal         SignalRequest
-	settlement     Settlement
-	internalSignal Signal
-	reason         string
-	response       chan processResponse
+	kind              commandKind
+	signal            SignalRequest
+	settlement        Settlement
+	internalSignal    Signal
+	parentTermination Termination
+	reason            string
+	response          chan processResponse
 }
 
 type processResponse struct {

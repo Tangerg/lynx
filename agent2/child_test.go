@@ -366,6 +366,169 @@ func TestEngineAttenuatesChildBudgetAndCapabilities(t *testing.T) {
 	}
 }
 
+func TestParentTerminationPropagatesAtChildSafeBoundary(t *testing.T) {
+	tests := []struct {
+		name       string
+		terminate  func(t *testing.T, process *Process)
+		wantParent Status
+		wantChild  Status
+		wantCause  TerminationCause
+	}{
+		{
+			name: "completion", wantParent: StatusCompleted,
+			wantChild: StatusCancelled, wantCause: TerminationCauseParentCancellation,
+		},
+		{
+			name: "kill", wantParent: StatusKilled,
+			wantChild: StatusCancelled, wantCause: TerminationCauseParentCancellation,
+			terminate: func(t *testing.T, process *Process) {
+				t.Helper()
+				if err := process.Kill(context.Background(), "stop parent tree"); err != nil {
+					t.Fatal(err)
+				}
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			dispatcher := newBlockingChildDispatcher("first", "second", "third")
+			t.Cleanup(dispatcher.ReleaseAll)
+			deployment := newChildTestDeploymentWithDispatcher(t, dispatcher)
+			mode := "fanout_blocking"
+			if test.terminate != nil {
+				mode = "wait:all"
+			}
+			engine, err := NewEngine(EngineConfig{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			input, _ := EncodeInput(childTestInput{Mode: mode})
+			parent, err := engine.Start(context.Background(), deployment, input)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for range 3 {
+				<-dispatcher.started
+			}
+			if test.terminate != nil {
+				waitForProcessStatus(t, parent, StatusWaiting)
+				test.terminate(t, parent)
+			}
+			parentResult := mustAwait(t, parent)
+			if parentResult.Status() != test.wantParent {
+				t.Fatalf("parent status = %s, want %s", parentResult.Status(), test.wantParent)
+			}
+			var childIDs []string
+			if parentResult.Status() == StatusCompleted {
+				childIDs = childTestResult(t, parentResult).ChildIDs
+			} else {
+				childIDs = directChildIDs(t, engine, parent.ID())
+			}
+			dispatcher.ReleaseAll()
+			for _, encoded := range childIDs {
+				childID, _ := ParseProcessID(encoded)
+				child, _ := engine.Process(childID)
+				result := mustAwait(t, child)
+				if result.Status() != test.wantChild || result.Termination().Cause() != test.wantCause {
+					t.Fatalf("child result = status %s cause %s", result.Status(), result.Termination().Cause())
+				}
+			}
+			if err := engine.Close(); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
+func TestParentDeadlinePropagatesAsParentDeadline(t *testing.T) {
+	dispatcher := newBlockingChildDispatcher("first", "second", "third")
+	t.Cleanup(dispatcher.ReleaseAll)
+	deployment := newChildTestDeploymentWithDispatcher(t, dispatcher)
+	engine, err := NewEngine(EngineConfig{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+	input, _ := EncodeInput(childTestInput{Mode: "wait:all"})
+	parent, err := engine.Start(ctx, deployment, input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for range 3 {
+		<-dispatcher.started
+	}
+	parentResult := mustAwait(t, parent)
+	if parentResult.Status() != StatusTimedOut || parentResult.Termination().Cause() != TerminationCauseHostDeadline {
+		t.Fatalf("parent termination = %#v", parentResult.Termination())
+	}
+	childIDs := directChildIDs(t, engine, parent.ID())
+	dispatcher.ReleaseAll()
+	for _, encoded := range childIDs {
+		childID, _ := ParseProcessID(encoded)
+		child, _ := engine.Process(childID)
+		result := mustAwait(t, child)
+		if result.Status() != StatusTimedOut || result.Termination().Cause() != TerminationCauseParentDeadline {
+			t.Fatalf("child termination = %#v", result.Termination())
+		}
+	}
+	if err := engine.Close(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestChildFailureRemainsExplicitStrategyInput(t *testing.T) {
+	deployment := newChildTestDeployment(t)
+	engine, err := NewEngine(EngineConfig{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	input, _ := EncodeInput(childTestInput{Mode: "wait:failure"})
+	result, err := engine.Run(context.Background(), deployment, input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Status() != StatusFailed {
+		t.Fatalf("parent status = %s", result.Status())
+	}
+	failure, ok := result.Termination().Failure()
+	if !ok || failure.Code() != "test.child.failed" {
+		t.Fatalf("parent failure = %#v", failure)
+	}
+	if err := engine.Close(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestEngineRejectsWaitingOnDescendantThatIsNotDirectChild(t *testing.T) {
+	deployment := newChildTestDeployment(t)
+	engine, err := NewEngine(EngineConfig{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	input, _ := EncodeInput(childTestInput{Mode: "recurse:2"})
+	root, err := engine.Start(context.Background(), deployment, input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rootOutput := childTestResult(t, mustAwait(t, root))
+	childID, _ := ParseProcessID(rootOutput.ChildIDs[0])
+	child, _ := engine.Process(childID)
+	childOutput := childTestResult(t, mustAwait(t, child))
+	grandchildID, _ := ParseProcessID(childOutput.ChildIDs[0])
+	waitID, _ := ParseWaitID("wait:ancestor-rejected")
+	waitKey, _ := ParseWaitKey("descendant")
+	_, err = engine.registerChildWait(root.ID(), waitID, ChildWaitSpec{
+		Key: waitKey, Children: []ProcessID{grandchildID}, Condition: AllChildren(),
+	})
+	if !errors.Is(err, ErrInvalidChildWait) {
+		t.Fatalf("ancestor wait error = %v, want %v", err, ErrInvalidChildWait)
+	}
+	if err := engine.Close(); err != nil {
+		t.Fatal(err)
+	}
+}
+
 type childTestInput struct {
 	Mode string `json:"mode"`
 }
@@ -464,6 +627,11 @@ func (execution *childTestExecution) Step(_ context.Context, signals []Signal) (
 			output, _ := EncodeOutput(childTestOutput{})
 			return Complete(0, output)
 		}
+		if execution.state.Mode == "leaf_fail" {
+			execution.state.Phase = "done"
+			failure, _ := NewFailure(FailureKindExecution, "test.leaf.failed", "leaf failed as requested")
+			return Fail(0, failure)
+		}
 		if strings.HasPrefix(execution.state.Mode, "leaf:") {
 			payload, _ := json.Marshal(struct {
 				Name string `json:"name"`
@@ -479,7 +647,14 @@ func (execution *childTestExecution) Step(_ context.Context, signals []Signal) (
 		if strings.HasPrefix(execution.state.Mode, "wait:") {
 			var effects []Effect
 			for _, name := range []string{"first", "second", "third"} {
-				childInput, _ := EncodeInput(childTestInput{Mode: "leaf:" + name})
+				mode := "leaf:" + name
+				if execution.state.Mode == "wait:failure" {
+					mode = "leaf"
+					if name == "first" {
+						mode = "leaf_fail"
+					}
+				}
+				childInput, _ := EncodeInput(childTestInput{Mode: mode})
 				key, _ := ParseChildKey(name)
 				effect, err := StartChild(childTestSpec(key, execution.reference, childInput))
 				if err != nil {
@@ -558,7 +733,9 @@ func (execution *childTestExecution) Step(_ context.Context, signals []Signal) (
 				output.FailureCodes = append(output.FailureCodes, failure.Code())
 			}
 		}
-		if !strings.HasPrefix(execution.state.Mode, "wait:") {
+		needsChildWait := len(output.ChildIDs) > 0 && (strings.HasPrefix(execution.state.Mode, "wait:") ||
+			strings.HasPrefix(execution.state.Mode, "recurse:"))
+		if !needsChildWait {
 			execution.state.Phase = "done"
 			erased, _ := EncodeOutput(output)
 			return Complete(uint32(len(signals)), erased)
@@ -623,6 +800,11 @@ func (execution *childTestExecution) completeChildren(signals []Signal, consumed
 	}
 	output := childTestOutput{ChildIDs: slices.Clone(execution.state.ChildIDs)}
 	for _, outcome := range completed.Outcomes() {
+		if outcome.Result().Status() == StatusFailed {
+			execution.state.Phase = "done"
+			failure, _ := NewFailure(FailureKindExecution, "test.child.failed", "a child Process failed")
+			return Fail(consumed, failure)
+		}
 		output.CompletedKeys = append(output.CompletedKeys, outcome.Key().String())
 	}
 	execution.state.Phase = "done"
@@ -758,4 +940,19 @@ func awaitChildren(t *testing.T, engine *Engine, encodedIDs []string) {
 		}
 		_ = mustAwait(t, child)
 	}
+}
+
+func directChildIDs(t *testing.T, engine *Engine, parentID ProcessID) []string {
+	t.Helper()
+	engine.mu.RLock()
+	defer engine.mu.RUnlock()
+	var ids []string
+	for _, controller := range engine.processes {
+		actualParent, child := controller.relation.ParentID()
+		if child && actualParent == parentID {
+			ids = append(ids, controller.id.String())
+		}
+	}
+	slices.Sort(ids)
+	return ids
 }
