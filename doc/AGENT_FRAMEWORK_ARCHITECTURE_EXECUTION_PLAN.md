@@ -1,6 +1,6 @@
 # Agent Framework 架构演进执行计划
 
-> 状态：持续开发（P43 统一领域词汇已完成实现，3/4，待统一门禁）
+> 状态：持续开发（P43 统一领域词汇与生命周期 API 已完成，4/4）
 > 建立日期：2026-07-15
 > 最后更新：2026-08-05
 > 维护者：Lynx 仓库维护者
@@ -2350,9 +2350,15 @@ wire 与门禁扫描无未裁决命中。本轮不把“零残留”夸大为永
     AgentTool construction 合并回唯一文件，ToolLoop capability policy 收为 `tool_capabilities.go`。
   - App Runtime 与 examples 直接消费者同步迁移；无 alias/shim/双 wire reader。ProcessSnapshot v17、
     Suspension v7、ToolLoop checkpoint v5、Runtime suspension checkpoint v5、deployment definition v2。
-- [ ] **P43-04 API/wire baseline 与统一完整门禁**
-  - 更新 exported API baseline；执行 Agent standalone build/vet/test/staticcheck/golangci-lint/tidy，
-    core/planning/runtime/arch race，App Runtime 直接消费者门禁、旧术语扫描与 `git diff --check`。
+- [x] **P43-04 API/wire baseline 与统一完整门禁**（完成：2026-08-05）
+  - Exported API baseline 为 635 行（root façade 54），SHA-256
+    `d1ab9f25bc25fa01e683e59f11ce37d5b91b0e2438bf6202650da8d71682403f`；wire golden
+    为 160 行，SHA-256 `366d2aa25aa692729ef7b8b5603db2ef18f12ec9c0b792f418a14a0b208da109`。
+  - Agent standalone build/vet/test/staticcheck/golangci-lint/tidy 与 core/planning/runtime/toolloop/
+    workflow/arch race 全绿；App Runtime workspace 与钉住 Agent `9d5c18a99` 后的 `GOWORK=off`
+    完整门禁及高风险 race 全绿，MCP examples、旧术语扫描和 `git diff --check` 全绿。
+  - Race 门禁发现并删除了以单消费者 `Events` 误判 registry cleanup 的测试轮询，统一复用已有
+    lifecycle `joinTurnCleanup`；App turn race 连续 10 轮通过。
 
 退出标准：同一概念只有一个公开术语；名称能在不阅读实现时揭示对象、动作、计数单位与所有权；
 文件、私有变量、错误、GoDoc、wire 和直接消费者同步；旧符号只允许出现在明确标注的历史记录中。
@@ -2403,17 +2409,16 @@ wire 与门禁扫描无未裁决命中。本轮不把“零残留”夸大为永
 | P40 验证代码失败语义清洗 | 完成 | 3/3 | 测试吞错、nil/越界断言与含测试 errcheck 收口 |
 | P41 公开能力可达性与零残留收口 | 完成 | 3/3 | deadcode 语义裁决、公开契约覆盖与独立零残留审计 |
 | P42 Condition 按需观察与成本语义 | 完成 | 4/4 | Planning 按需解析、Runtime 单 tick 缓存、统一 Planner contract 与门禁 |
-| P43 统一领域词汇与生命周期 API | 进行中 | 3/4 | 代码、wire、consumer 与文档已迁移，待统一完整门禁 |
-| **总计** | **进行中** | **224/225** | **P43-04 待验收；不执行封版、tag 或 release** |
+| P43 统一领域词汇与生命周期 API | 完成 | 4/4 | 代码、wire、consumer、文档、独立依赖与完整门禁全部统一 |
+| **总计** | **完成** | **225/225** | **当前计划全部关闭；不执行封版、tag 或 release** |
 
 ### 15.2 当前焦点
 
-- 当前阶段：P43 统一领域词汇与生命周期 API，3/4，统一门禁待执行。
-- 下一任务：刷新 API baseline，执行 Agent/App Runtime 完整门禁、race、旧术语与 diff 审计；
-  任一失败未解释前不关闭 P43。本批不封版、不创建 tag 或 release。
+- 当前阶段：P43 统一领域词汇与生命周期 API，4/4，已完成。
+- 下一任务：无；后续语义或生命周期变更重新立项。本批不封版、不创建 tag 或 release。
 - 当前决策门：已解除；按 BB-01 至 BB-08 直接迁移，不保留兼容层。
 - 最近完成：Goal/Action/Condition/Planning/Runtime/ToolLoop/Workflow 的公开与私有词汇已统一；
-  ResponseSchema 与 portable schema epoch、App Runtime 直接消费者、Guide/migration/release notes 已同步，
+  ResponseSchema 与 portable schema epoch、App Runtime 独立依赖、Guide/migration/release notes 已同步，
   无兼容别名或旧 wire reader。Agent 只拥有 execution framework 语义，App transaction/
   idempotency/persistence ownership 保持不变。
 
@@ -2785,7 +2790,7 @@ wire 与门禁扫描无未裁决命中。本轮不把“零残留”夸大为永
 
 ### ADR-AF-030：一个概念只使用一个可判别术语
 
-- 状态：已接受并实现，完整门禁待验收。
+- 状态：已接受、实现并通过完整门禁。
 - 决策：公开 API、wire、GoDoc、错误和私有实现对同一概念使用同一名称；名称必须揭示真实对象、
   生命周期动作或计数单位。Goal requirement 不借用 Action input/precondition，response schema 不借用
   resume，model-call limit 不借用 round，异步 run handle 不借用 segment。
@@ -2801,6 +2806,7 @@ wire 与门禁扫描无未裁决命中。本轮不把“零残留”夸大为永
 
 | 日期 | 变更 | 作者 |
 |---|---|---|
+| 2026-08-05 | 完成 P43 统一领域词汇与生命周期 API：Goal/Action/Condition/Planning/Runtime/ToolLoop/Workflow 的公开、私有、wire 与文件词汇统一；root façade 去口吃；App Runtime/MCP 直接消费者与依赖 pin 同步；API/wire baseline、Agent standalone/App `GOWORK=off` 完整门禁和高风险 race 全绿；旧符号、兼容层与错误测试轮询清零 | Codex |
 | 2026-08-05 | 完成 P42 Condition 按需观察与成本语义：Planning 新增消费侧 ConditionResolver、Domain.Satisfies/Unsatisfied/ApplicableActions 并统一 GOAP/HTN/Reactive/Utility；Runtime evaluator 延迟到真实 applicability 需求且单 tick 缓存；多 Unknown、cheap-first、known mismatch、合法 Unknown 与 panic/error 路径补齐；NewCondition breaking 收为 ConditionConfig；ClearWorkingState 漂移注释修正；无兼容层 | Codex |
 | 2026-08-05 | 完成 P41 公开能力可达性与零残留收口：逐一裁决 deadcode 报告的 façade/value object/SPI/HITL/authoring query 为合法能力并补齐契约测试，使 test-aware deadcode 输出归零；空结构、债务标记、错误、边界、API/wire 与完整门禁无未裁决项；无兼容层 | Codex |
 | 2026-08-05 | 完成 P40 验证代码失败语义清洗：Core/Planning/Routing/Runtime/Workflow 测试显式传播 constructor、marshal、plan、registry、blackboard 与 run error；nil process、nil/empty plan 与 unchecked type assertion 改为领域断言；额外启用 test errcheck 收口常规配置排除的验证债；无生产 API、wire 或兼容层变化 | Codex |
@@ -2878,6 +2884,7 @@ wire 与门禁扫描无未裁决命中。本轮不把“零残留”夸大为永
 
 | 日期 | 任务 | 结果与证据 | 下一步 |
 |---|---|---|---|
+| 2026-08-05 | P43 统一领域词汇与生命周期 API | Agent API 635 行/root 54，SHA-256 `d1ab9f25bc25fa01e683e59f11ce37d5b91b0e2438bf6202650da8d71682403f`；wire 160 行，SHA-256 `366d2aa25aa692729ef7b8b5603db2ef18f12ec9c0b792f418a14a0b208da109`。Agent standalone build/vet/test/staticcheck/lint/tidy 与选定 race；App workspace 和 pin `9d5c18a99` 后 `GOWORK=off` 的完整门禁、高风险 race；MCP examples、旧术语与 diff 审计全部通过。Turn cleanup 测试删除 `Events` 伪同步并复用 lifecycle join，race 连续 10 轮全绿 | 225/225 关闭；提交 App Agent pin，不 tag/release |
 | 2026-08-05 | P41 公开能力可达性与零残留收口 | `deadcode -test ./...` 空输出；test errcheck、空目录/文件、债务标记、静态错误与边界扫描无未裁决项。API 623 declaration/root 53，SHA-256 `5cd8ba8c59697011b916e44eb67c71b3ccfa37b02d91d6d726ab0b8eabe6a660`；wire 160 行且 hash `24627d86d343d726e26c1efbbc332026b3aefd80786ffbcbc43933a9daa32575` 不变。Agent/App Runtime 全量服务端门禁、选定 race、tidy 与 diff check 全绿 | 217/217 关闭；提交推送并更新 App Agent pin，随后只做零变化复核 |
 | 2026-08-05 | P40 验证代码失败语义清洗 | 含测试文件的独立 errcheck 0 issues；Run nil safety、planner nil/length、blackboard type/existence 与 filepath.Rel error 断言收口。API 623 declaration/root 53，SHA-256 `5cd8ba8c59697011b916e44eb67c71b3ccfa37b02d91d6d726ab0b8eabe6a660`；wire 160 行且 hash `24627d86d343d726e26c1efbbc332026b3aefd80786ffbcbc43933a9daa32575` 不变。Agent standalone 全量 build/vet/test/staticcheck/golangci-lint/tidy、core/planning/runtime/workflow/arch race、examples 与 diff check 全绿 | 214/214 关闭；提交推送并更新 App Agent pin 后继续最终零变化扫描 |
 | 2026-08-05 | P39 生产表面与测试语义清洗 | test-only production entry、process-tree/AgentTool 术语、历史注释与 targeted ignored-error 扫描收口；API 623 declaration/root 53，SHA-256 `5cd8ba8c59697011b916e44eb67c71b3ccfa37b02d91d6d726ab0b8eabe6a660`；wire 160 行且 hash `24627d86d343d726e26c1efbbc332026b3aefd80786ffbcbc43933a9daa32575` 不变。Agent standalone 全量 build/vet/test/staticcheck/golangci-lint/tidy、core/planning/runtime/arch race、examples 与 diff check 全绿 | 211/211 关闭；提交推送并更新 App Agent pin 后继续零残留反向扫描 |
