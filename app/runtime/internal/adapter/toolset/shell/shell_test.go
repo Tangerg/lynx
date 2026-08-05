@@ -70,7 +70,7 @@ func TestShellContractRejectsRemovedArguments(t *testing.T) {
 
 	for _, arguments := range []string{
 		`{"command":"true","description":"Run true","timeout":1000}`,
-		`{"command":"true","description":"Run true","timeout_ms":0}`,
+		`{"command":"true","description":"Run true","timeout_millis":0}`,
 		`{"command":"true","description":"Run true","run_in_background":true,"auto_background_after_seconds":1}`,
 	} {
 		if _, err := shell.Call(t.Context(), arguments); err == nil {
@@ -80,8 +80,8 @@ func TestShellContractRejectsRemovedArguments(t *testing.T) {
 	if _, err := output.Call(t.Context(), `{"shell_id":"bg_1","block":true}`); err == nil {
 		t.Fatal("read_shell_output accepted removed block argument")
 	}
-	if _, err := output.Call(t.Context(), `{"shell_id":"bg_1","timeout_ms":1000}`); err == nil {
-		t.Fatal("read_shell_output accepted timeout_ms without wait=true")
+	if _, err := output.Call(t.Context(), `{"shell_id":"bg_1","timeout_millis":1000}`); err == nil {
+		t.Fatal("read_shell_output accepted timeout_millis without wait=true")
 	}
 }
 
@@ -175,7 +175,7 @@ func TestReadShellOutput_Wait(t *testing.T) {
 }
 
 // TestReadShellOutput_WaitTimeout returns the current still-running output (not an
-// error) when timeout_ms elapses before the command exits.
+// error) when timeout_millis elapses before the command exits.
 func TestReadShellOutput_WaitTimeout(t *testing.T) {
 	shells := exec.NewShells(nil, false)
 	cleanupShells(t, shells)
@@ -185,12 +185,12 @@ func TestReadShellOutput_WaitTimeout(t *testing.T) {
 	if _, err := shell.Call(context.Background(), `{"command":"sleep 30","description":"Keep a background shell running","run_in_background":true}`); err != nil {
 		t.Fatalf("shell(bg) err=%v", err)
 	}
-	read, err := output.Call(context.Background(), `{"shell_id":"bg_1","wait":true,"timeout_ms":1000}`)
+	read, err := output.Call(context.Background(), `{"shell_id":"bg_1","wait":true,"timeout_millis":1000}`)
 	if err != nil {
-		t.Fatalf("read_shell_output(wait,timeout_ms) err=%v, want graceful still-running", err)
+		t.Fatalf("read_shell_output(wait,timeout_millis) err=%v, want graceful still-running", err)
 	}
 	if !strings.Contains(read, "still running") {
-		t.Fatalf("read_shell_output(wait,timeout_ms) = %q, want a still-running status", read)
+		t.Fatalf("read_shell_output(wait,timeout_millis) = %q, want a still-running status", read)
 	}
 }
 

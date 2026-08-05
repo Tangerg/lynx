@@ -278,7 +278,7 @@ func mustMCPToolEnvironment(t *testing.T, servers []mcpserver.Server) (toolset.B
 		t.Fatalf("Open MCP pool: %v", err)
 	}
 	built, err := toolset.Build(t.Context(), toolset.BuildConfig{
-		Workdir: t.TempDir(), UserHome: t.TempDir(), MCPTools: mcpTools,
+		DefaultCWD: t.TempDir(), UserHome: t.TempDir(), MCPTools: mcpTools,
 	})
 	if err != nil {
 		_ = pool.Shutdown(context.WithoutCancel(t.Context()))

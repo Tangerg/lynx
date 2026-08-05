@@ -2,7 +2,6 @@ package protocol
 
 import (
 	"context"
-	"iter"
 	"time"
 )
 
@@ -17,13 +16,6 @@ type Workspace interface {
 	GrepWorkspace(ctx context.Context, in GrepRequest) (*GrepResult, error)
 	ListWorkspaceFiles(ctx context.Context, in ListFilesRequest) (*Page[FileEntry], error)
 	ReadWorkspaceFile(ctx context.Context, in ReadFileRequest) (*FileContent, error)
-}
-
-// RuntimeSubscription is the runtime-wide change notification surface. It is
-// separate from workspace scope because sessions, runs, goals, and interrupts may
-// change without a filesystem workspace changing.
-type RuntimeSubscription interface {
-	SubscribeRuntime(ctx context.Context, in RuntimeSubscribeRequest) (*RuntimeSubscribeResponse, iter.Seq[RuntimeEvent], error)
 }
 
 // WorkspaceRef is the stable wire reference to a filesystem workspace. Path is

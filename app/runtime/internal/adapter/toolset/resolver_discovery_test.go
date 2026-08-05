@@ -15,7 +15,7 @@ import (
 // manifest-projection concern applied later in the turn, not here).
 func resolveRootTools(t *testing.T, mcpTools []toolcontract.Tool) []toolcontract.Tool {
 	t.Helper()
-	built, err := Build(t.Context(), BuildConfig{Workdir: t.TempDir(), UserHome: t.TempDir()})
+	built, err := Build(t.Context(), BuildConfig{DefaultCWD: t.TempDir(), UserHome: t.TempDir()})
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}

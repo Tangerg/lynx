@@ -39,7 +39,7 @@ type PortableSnapshot struct {
 type PortableSession struct {
 	ID        string
 	Title     string
-	Cwd       string
+	CWD       string
 	Model     string
 	CreatedAt time.Time
 	UpdatedAt time.Time
@@ -182,7 +182,7 @@ func (p PortableSession) session() session.Session {
 	return session.Session{
 		ID:        p.ID,
 		Title:     p.Title,
-		Cwd:       p.Cwd,
+		CWD:       p.CWD,
 		Model:     p.Model,
 		StartedAt: p.CreatedAt,
 		UpdatedAt: p.UpdatedAt,
@@ -225,7 +225,7 @@ func (snapshot Snapshot) PortableSnapshot() (PortableSnapshot, error) {
 		Session: PortableSession{
 			ID:        normalized.Session.ID,
 			Title:     normalized.Session.Title,
-			Cwd:       normalized.Session.Cwd,
+			CWD:       normalized.Session.CWD,
 			Model:     normalized.Session.Model,
 			CreatedAt: normalized.Session.StartedAt,
 			UpdatedAt: normalized.Session.UpdatedAt,

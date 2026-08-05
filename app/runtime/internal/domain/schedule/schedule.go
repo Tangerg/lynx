@@ -1,8 +1,8 @@
-// Package schedule is the scheduled-run domain: a Schedule fires a saved prompt
+// Package schedule is the scheduled-run domain: a Schedule fires saved instructions
 // on a cron trigger as a headless run (no client present). A firing claims
 // schedules whose time has come, starts a run, and records the occurrence.
 //
-// A Schedule stores the final PROMPT text, not a recipe reference — the
+// A Schedule stores the final instruction text, not a recipe reference — the
 // scheduler is deliberately decoupled from any authoring source, so deleting or
 // renaming that source cannot break a schedule.
 package schedule
@@ -38,24 +38,24 @@ var (
 	ErrIDRequired = errors.New("schedule: id is required")
 	// ErrRevisionRequired — an external update must carry the version it read.
 	ErrRevisionRequired = errors.New("schedule: expected revision is required")
-	// ErrPromptRequired — a schedule with no prompt has nothing to fire.
-	ErrPromptRequired = errors.New("schedule: prompt is required")
+	// ErrInstructionsRequired — a schedule with no instructions has nothing to fire.
+	ErrInstructionsRequired = errors.New("schedule: instructions is required")
 	// ErrCronRequired — a schedule with no cron has no trigger.
 	ErrCronRequired = errors.New("schedule: cron is required")
 	// ErrInvalidCron — the cron expression is not a supported five-field spec.
 	ErrInvalidCron = errors.New("schedule: invalid cron")
-	// ErrCwdUnavailable — the configured working directory cannot be admitted.
-	ErrCwdUnavailable = errors.New("schedule: cwd unavailable")
+	// ErrCWDUnavailable — the configured working directory cannot be admitted.
+	ErrCWDUnavailable = errors.New("schedule: cwd unavailable")
 )
 
-// Schedule is a saved prompt fired on a cron trigger. Cwd anchors the headless
+// Schedule is saved instructions fired on a cron trigger. CWD anchors the headless
 // run's tools (empty → the serve directory); ModelSelection is optional (its
 // zero value uses the configured default).
 type Schedule struct {
 	ID             string
 	Title          string
-	Prompt         string // the final text sent as the run's input
-	Cwd            string
+	Instructions   string // the final text sent as the run's input
+	CWD            string
 	ModelSelection modelref.Selection
 	Cron           string    // 5-field standard cron: "min hour dom month dow"
 	Enabled        bool      // a disabled schedule never fires (NextRunAt cleared)
@@ -81,13 +81,13 @@ type Occurrence struct {
 // Patch is a partial update to a Schedule. Nil fields keep the existing value;
 // non-nil fields replace it, including replacing a string with "".
 type Patch struct {
-	Title    *string
-	Prompt   *string
-	Cwd      *string
-	Provider *string
-	Model    *string
-	Cron     *string
-	Enabled  *bool
+	Title        *string
+	Instructions *string
+	CWD          *string
+	Provider     *string
+	Model        *string
+	Cron         *string
+	Enabled      *bool
 }
 
 // Apply returns s with p applied. It does not recompute NextRunAt; call
@@ -96,11 +96,11 @@ func (s Schedule) Apply(p Patch) (Schedule, error) {
 	if p.Title != nil {
 		s.Title = *p.Title
 	}
-	if p.Prompt != nil {
-		s.Prompt = *p.Prompt
+	if p.Instructions != nil {
+		s.Instructions = *p.Instructions
 	}
-	if p.Cwd != nil {
-		s.Cwd = *p.Cwd
+	if p.CWD != nil {
+		s.CWD = *p.CWD
 	}
 	if p.Provider != nil || p.Model != nil {
 		provider, model := s.ModelSelection.Provider(), s.ModelSelection.Model()
@@ -125,12 +125,12 @@ func (s Schedule) Apply(p Patch) (Schedule, error) {
 	return s, nil
 }
 
-// Validate checks a schedule draft before it is persisted: a prompt and a
+// Validate checks a schedule draft before it is persisted: instructions and a
 // parseable cron are required. Create/update call
 // it so the rule lives on the entity, not at an input boundary.
 func (s Schedule) Validate() error {
-	if s.Prompt == "" {
-		return ErrPromptRequired
+	if s.Instructions == "" {
+		return ErrInstructionsRequired
 	}
 	if s.Cron == "" {
 		return ErrCronRequired

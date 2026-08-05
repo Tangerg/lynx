@@ -26,7 +26,7 @@ const blockExitCode = 2
 // domain prepares stdin and timeout; the runner owns how the command runs.
 type CommandRequest struct {
 	Command string
-	Cwd     string
+	CWD     string
 	Input   Input
 	Timeout time.Duration
 }
@@ -112,12 +112,12 @@ func (r *Runner) runOne(ctx context.Context, h Hook, in Input, dec *Decision) {
 		return
 	}
 	timeout := DefaultTimeout
-	if h.TimeoutMs > 0 {
-		timeout = time.Duration(h.TimeoutMs) * time.Millisecond
+	if h.TimeoutMillis > 0 {
+		timeout = time.Duration(h.TimeoutMillis) * time.Millisecond
 	}
 	result := r.commands.RunHookCommand(ctx, CommandRequest{
 		Command: h.Command,
-		Cwd:     in.Cwd,
+		CWD:     in.CWD,
 		Input:   in,
 		Timeout: timeout,
 	})

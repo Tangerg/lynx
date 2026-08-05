@@ -19,7 +19,7 @@ type goalUseCases interface {
 	Start(ctx context.Context, sessionID, objective string, selection modelref.Selection, budget goal.Budget) (goal.Goal, error)
 	Resume(ctx context.Context, sessionID string) (goal.Goal, error)
 	Stop(ctx context.Context, sessionID string) (goal.Goal, error)
-	Get(ctx context.Context, sessionID string) (goal.Goal, bool, error)
+	Current(ctx context.Context, sessionID string) (goal.Goal, bool, error)
 }
 
 // StartGoal opens and begins driving a goal for the session (goals.start).
@@ -37,7 +37,7 @@ func (s *Server) StartGoal(ctx context.Context, in protocol.StartGoalRequest) (*
 
 // GetGoal returns the session's goal, or a nil result when it has none (goals.get).
 func (s *Server) GetGoal(ctx context.Context, in protocol.GoalRequest) (*protocol.Goal, error) {
-	g, ok, err := s.goals.Get(ctx, in.SessionID)
+	g, ok, err := s.goals.Current(ctx, in.SessionID)
 	if err != nil {
 		return nil, mapGoalErr(err, "goals.get")
 	}
@@ -88,7 +88,7 @@ func mapGoalErr(err error, method string) error {
 }
 
 func budgetFromWire(b protocol.GoalBudget) goal.Budget {
-	return goal.Budget{MaxRuns: b.MaxRuns, MaxCostUSD: b.MaxCostUsd, MaxSteps: b.MaxSteps}
+	return goal.Budget{MaxRuns: b.MaxRuns, MaxCostUSD: b.MaxCostUSD, MaxSteps: b.MaxSteps}
 }
 
 func presentGoal(g goal.Goal) (*protocol.Goal, error) {
@@ -107,8 +107,8 @@ func presentGoal(g goal.Goal) (*protocol.Goal, error) {
 		Reason:    reason,
 		Provider:  g.ModelSelection.Provider(),
 		Model:     g.ModelSelection.Model(),
-		Budget:    protocol.GoalBudget{MaxRuns: g.Budget.MaxRuns, MaxCostUsd: g.Budget.MaxCostUSD, MaxSteps: g.Budget.MaxSteps},
-		Used:      protocol.GoalUsage{Runs: g.Used.Runs, CostUsd: g.Used.CostUSD, Steps: g.Used.Steps},
+		Budget:    protocol.GoalBudget{MaxRuns: g.Budget.MaxRuns, MaxCostUSD: g.Budget.MaxCostUSD, MaxSteps: g.Budget.MaxSteps},
+		Used:      protocol.GoalUsage{Runs: g.Used.Runs, CostUSD: g.Used.CostUSD, Steps: g.Used.Steps},
 		CreatedAt: g.CreatedAt,
 		UpdatedAt: g.UpdatedAt,
 	}

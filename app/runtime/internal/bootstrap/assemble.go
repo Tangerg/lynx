@@ -35,7 +35,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/codebase"
 	feedbackapp "github.com/Tangerg/lynx/app/runtime/internal/application/feedback"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/goals"
-	"github.com/Tangerg/lynx/app/runtime/internal/application/integrations"
+	mcpapp "github.com/Tangerg/lynx/app/runtime/internal/application/mcp"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/models"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/queries"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
@@ -60,7 +60,7 @@ import (
 // resource closers; the Host does.
 type Stack struct {
 	Sessions           *sessions.Coordinator
-	Integrations       *integrations.Coordinator
+	MCP                *mcpapp.Coordinator
 	Approvals          *approvals.Coordinator
 	Models             *models.Coordinator
 	Tools              *tools.Coordinator
@@ -85,9 +85,9 @@ type Stack struct {
 	// FileChanges carries committed workspace mutation scopes to protocol
 	// subscribers without exposing a wire event to the producer.
 	FileChanges *signal.Signal[workspace.FileChangeNotice]
-	// MCPStatus bridges the integrations coordinator's MCP connection transitions
+	// MCPStatusChanges bridges the MCP coordinator's connection transitions
 	// to the delivery workspace hub, same seam as FileChanges. Delivery observes it.
-	MCPStatus *signal.Signal[integrations.MCPServerStatus]
+	MCPStatusChanges *signal.Signal[mcpapp.ServerStatus]
 	// SkillChanges bridges committed skill-library mutations to the delivery
 	// workspace hub. Delivery maps the nudge to a skills.changed event.
 	SkillChanges *signal.Signal[struct{}]
@@ -112,7 +112,8 @@ type toolEnvironmentBuilder func(
 	mcpEnvironment,
 	*agentmemory.Searcher,
 	*schedules.Coordinator,
-	*goals.State,
+	*goals.Reader,
+	*goals.OutcomeReporter,
 	*skillauthoring.Store,
 	skill.ProposalSubmitter,
 ) (toolEnvironment, error)
@@ -212,14 +213,14 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 	// tuple. A Run uses it to honor a per-Run model; the maintenance services
 	// below use it to honor the utility-model role.
 	providers := cfg.ProviderRegistry
-	resolver := modelclient.NewClientResolver(providers)
+	chatResolver := modelclient.NewChatResolver(providers)
 
 	utilityRole, err := loadUtilityRole(ctx, cfg.UtilityRoleStore)
 	if err != nil {
 		return nil, err
 	}
 	utilityRoleState := models.NewRoleState(utilityRole)
-	utilityClient := resolver.UtilityClient(cfg.Engine.ChatClient, utilityRoleState)
+	utilityClient := chatResolver.UtilityClient(cfg.Engine.ChatClient, utilityRoleState)
 	embeddingRole, err := loadEmbeddingRole(ctx, cfg.EmbeddingRoleStore)
 	if err != nil {
 		return nil, err
@@ -235,9 +236,9 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 	// Agent-memory search (search_memory + the extractor's vector backfill) embeds
 	// through the same live embedding role as @codebase. The searcher is nil when
 	// no memory store is wired; keyword search works without an embedder.
-	var memorySearcher *agentmemory.Searcher
+	var agentMemorySearcher *agentmemory.Searcher
 	if cfg.AgentMemoryStore != nil {
-		memorySearcher = agentmemory.NewSearcher(cfg.AgentMemoryStore, liveEmbedder.ResolveMemory)
+		agentMemorySearcher = agentmemory.NewSearcher(cfg.AgentMemoryStore, liveEmbedder.ResolveMemory)
 	}
 
 	// Tool environment: assembled outside the core (constructs the code-intel /
@@ -257,12 +258,12 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 	// producers publish the same shape (a resource plus the ids that moved), and the
 	// wire vocabulary belongs to delivery either way.
 	changes := &signal.Signal[change.Notice]{}
-	// Goal state crosses into the tool environment before the loop driver can be
-	// constructed. It is an application boundary, not a persistence proxy. Wrapping
-	// the store here is what makes every Goal write — lifecycle command, autonomous
-	// Run, reported outcome, boot reconcile — publish its own invalidation.
+	// Goal reads and terminal outcome reporting cross into the tool environment
+	// before the loop driver can be constructed. They remain separate application
+	// boundaries over the same change-publishing store.
 	goalStore := goals.WithChangeNotices(cfg.GoalStore, changes.Publish)
-	goalState := goals.NewState(goalStore)
+	goalReader := goals.NewReader(goalStore)
+	goalReporter := goals.NewOutcomeReporter(goalStore)
 
 	mcpEnv, err := buildMCPEnvironment(ctx, cfg.MCPRegistry)
 	if err != nil {
@@ -273,7 +274,7 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 		Store: cfg.ScheduleStore,
 		Paths: workspacepath.Resolver{},
 	})
-	workspaceContext := workspace.NewContext(cfg.DefaultWorkspacePath, cfg.UserHome, workspacepath.Resolver{})
+	workspaceScope := workspace.NewScope(cfg.DefaultWorkspacePath, cfg.UserHome, workspacepath.Resolver{})
 	// One signal covers every committed Skill-library mutation, including
 	// proposal submission and review decisions.
 	skillChanges := &signal.Signal[struct{}]{}
@@ -283,21 +284,21 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 		skillCurator = skillStore
 	}
 	workspaceSkills := workspace.NewSkills(
-		workspaceContext,
+		workspaceScope,
 		promptsource.NewWorkspaceSkills(cfg.SkillsUserDir),
 		skillCurator,
 		skillproposal.NewLibraries(skillStore),
 		skillChanges.Publish,
 	)
-	built, err := buildTools(ctx, cfg, ecfg, approvalPolicy, mcpEnv, memorySearcher, scheduleCoord, goalState, skillStore, workspaceSkills)
+	built, err := buildTools(ctx, cfg, ecfg, approvalPolicy, mcpEnv, agentMemorySearcher, scheduleCoord, goalReader, goalReporter, skillStore, workspaceSkills)
 	lifetime.toolClosers = slices.Clone(built.closers)
 	if err != nil {
 		return nil, err
 	}
 	attachToolEnvironment(&ecfg, built.tools)
 	// Per-Run memory recall reuses the same searcher the search_memory tool does.
-	if memorySearcher != nil {
-		ecfg.MemorySearch = memorySearcher
+	if agentMemorySearcher != nil {
+		ecfg.AgentMemorySearch = agentMemorySearcher
 	}
 
 	// Built after the tool environment so the compactor's live-state reminder can
@@ -335,9 +336,9 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 		Steering:            executionSupport.steering,
 		Maintenance:         executionSupport.maintenance,
 		Approval:            approvalPolicy,
-		ClientResolver:      resolver,
+		ChatResolver:        chatResolver,
 		ToolPresenter:       toolset.Presenter{},
-		ToolSemantics:       toolset.NewSemantics(cfg.PlanStore),
+		ToolInterpreter:     toolset.NewInterpreter(cfg.PlanStore),
 		MCPToolAutoApproved: mcpEnv.policy.ToolAutoApproved,
 		Hooks:               cfg.HooksResolver,
 	})
@@ -394,9 +395,9 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 		Tasks:               effectsTasks,
 		PublishFileChanges:  fileChanges.Publish,
 	})
-	// mcpStatus bridges the integrations coordinator's MCP reconnect/authorize
+	// mcpStatus bridges the MCP coordinator's reconnect/authorize
 	// transitions to the delivery workspace stream the Server observes.
-	mcpStatus := &signal.Signal[integrations.MCPServerStatus]{}
+	mcpStatus := &signal.Signal[mcpapp.ServerStatus]{}
 	admissions := &admission.Gate{}
 	sessionStorage := persistence.NewSessionStores(persistence.SessionStoresConfig{
 		Sessions:            cfg.SessionStore,
@@ -418,7 +419,7 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 		Prober:             modelCapabilities,
 		Lister:             modelCapabilities,
 		UtilityRoleState:   utilityRoleState,
-		UtilityValidator:   resolver,
+		UtilityValidator:   chatResolver,
 		UtilityStore:       cfg.UtilityRoleStore,
 		EmbeddingRoleState: embeddingRoleState,
 		EmbeddingValidator: embeddingResolver,
@@ -487,18 +488,18 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 
 	approvalsCoord := approvals.New(approvalPolicy, cfg.SessionStore)
 
-	toolsCoord := tools.New(toolRegistry, workspaceContext)
+	toolsCoord := tools.New(toolRegistry, workspaceScope)
 
-	integrationsCoord := integrations.New(integrations.Config{
-		MCPRegistry:           cfg.MCPRegistry,
-		MCPStatusReader:       built.mcp,
-		MCPToolCatalog:        built.mcp,
-		MCPConnectionCommands: built.mcp,
-		MCPRegistryCommands:   built.mcp,
-		MCPPolicy:             mcpEnv.policy,
-		MCPStatus:             mcpStatus.Publish,
+	mcpCoord := mcpapp.New(mcpapp.Config{
+		Registry:            cfg.MCPRegistry,
+		StatusReader:        built.mcp,
+		ToolCatalog:         built.mcp,
+		ConnectionControl:   built.mcp,
+		ConnectionLifecycle: built.mcp,
+		Policy:              mcpEnv.policy,
+		StatusChanged:       mcpStatus.Publish,
 	})
-	lifetime.integrations = integrationsCoord
+	lifetime.mcp = mcpCoord
 
 	// Goal mode: the autonomous-execution loop driver over the run coordinator.
 	// nil store → nil driver → goals.* report capability_not_negotiated. Reconcile
@@ -506,7 +507,7 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 	// paused rather than silently resuming and burning budget.
 	var goalDriver *goals.Driver
 	if cfg.GoalStore != nil {
-		goalDriver = goals.NewDriverWithMutations(goalStore, runCoord, cfg.SessionStore, goalMutations, goal.Prompt)
+		goalDriver = goals.NewDriver(goalStore, runCoord, cfg.SessionStore, goalMutations, goal.RunInstructions)
 		lifetime.goals = goalDriver
 		if err := goalDriver.Reconcile(ctx); err != nil {
 			return nil, fmt.Errorf("runtime: reconcile goals: %w", err)
@@ -522,33 +523,33 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 			built.tools.Resolver.UseCreateGoalTool(createGoalTool)
 		}
 	}
-	workspaceFiles := workspace.NewFiles(workspaceContext, checkpointstore.Reads{})
-	workspaceVCS := workspace.NewVCS(workspaceContext, checkpointstore.VCS{})
+	workspaceFiles := workspace.NewFiles(workspaceScope, checkpointstore.FileBrowser{})
+	workspaceVCS := workspace.NewVCS(workspaceScope, checkpointstore.VCS{})
 	workspaceDiscovery := workspace.NewDiscovery(
-		workspaceContext, sessionCoord, promptsource.AgentDocs{}, promptsource.NewWorkspaceRecipes(cfg.RecipesGlobalDir),
+		workspaceScope, sessionCoord, promptsource.AgentDocs{}, promptsource.NewWorkspaceRecipes(cfg.RecipesGlobalDir),
 	)
-	workspaceKnowledge := workspace.NewKnowledge(workspaceContext, cfg.KnowledgeStore)
-	workspaceHooks := workspace.NewHooks(workspaceContext, cfg.HooksResolver, cfg.HookTrustStore)
-	workspaceWatch := workspace.NewGitWatch(workspaceContext, checkpointstore.GitWatcher{})
+	workspaceKnowledge := workspace.NewKnowledge(workspaceScope, cfg.KnowledgeStore)
+	workspaceHooks := workspace.NewHooks(workspaceScope, cfg.HooksResolver, cfg.HookTrustStore)
+	workspaceWatch := workspace.NewGitWatch(workspaceScope, checkpointstore.GitWatcher{})
 	// The @codebase semantic index is its own use-case coordinator (nil index =
 	// disabled); it owns the background reindex task group, closed by the Host.
-	codebaseCoord := codebase.New(codebaseUseCases, workspaceContext)
+	codebaseCoord := codebase.New(codebaseUseCases, workspaceScope)
 	lifetime.codebase = codebaseCoord
 	agentMemoryCoord := agentmemoryapp.New(agentmemoryapp.Config{
 		Store: cfg.AgentMemoryStore,
-		Roots: workspaceContext,
+		Roots: workspaceScope,
 	})
 	host := &Host{
 		Stack: Stack{
 			Sessions:         sessionCoord,
-			Integrations:     integrationsCoord,
+			MCP:              mcpCoord,
 			Approvals:        approvalsCoord,
 			Models:           modelsCoord,
 			Tools:            toolsCoord,
 			Codebase:         codebaseCoord,
 			Runs:             runCoord,
 			FileChanges:      fileChanges,
-			MCPStatus:        mcpStatus,
+			MCPStatusChanges: mcpStatus,
 			SkillChanges:     skillChanges,
 			ScheduleFires:    scheduleFires,
 			Changes:          changes,

@@ -16,8 +16,8 @@ func TestPresentToolCallTiming(t *testing.T) {
 		Status: transcript.ItemRunning, OccurredAt: startedAt,
 		Tool: &transcript.ToolInvocation{Name: "shell"},
 	})
-	if !running.CreatedAt.IsZero() || running.StartedAt != startedAt || !running.FinishedAt.IsZero() || running.DurationMs != nil {
-		t.Fatalf("running timing = started %s finished %s duration %v", running.StartedAt, running.FinishedAt, running.DurationMs)
+	if !running.CreatedAt.IsZero() || running.StartedAt != startedAt || !running.FinishedAt.IsZero() || running.DurationMillis != nil {
+		t.Fatalf("running timing = started %s finished %s duration %v", running.StartedAt, running.FinishedAt, running.DurationMillis)
 	}
 
 	finishedAt := startedAt.Add(1250 * time.Millisecond)
@@ -27,8 +27,8 @@ func TestPresentToolCallTiming(t *testing.T) {
 		Tool: &transcript.ToolInvocation{Name: "shell"},
 	})
 	if !completed.CreatedAt.IsZero() || completed.StartedAt != startedAt || completed.FinishedAt != finishedAt ||
-		completed.DurationMs == nil || *completed.DurationMs != 1250 {
-		t.Fatalf("completed timing = started %s finished %s duration %v", completed.StartedAt, completed.FinishedAt, completed.DurationMs)
+		completed.DurationMillis == nil || *completed.DurationMillis != 1250 {
+		t.Fatalf("completed timing = started %s finished %s duration %v", completed.StartedAt, completed.FinishedAt, completed.DurationMillis)
 	}
 	encoded, err := json.Marshal(completed)
 	if err != nil {

@@ -30,7 +30,7 @@ func run(ctx context.Context, errw io.Writer) (err error) {
 	}
 	defer func() { err = errors.Join(err, host.Close()) }()
 	// The Host owns the application tier's reverse-order shutdown (§10.3): the
-	// integrations reconcile + codebase reindex tasks, then the run pump + engine +
+	// MCP reconciliation + codebase reindex tasks, then the run pump + engine +
 	// persistence. api.Close (the run supervisor) is deferred later, so LIFO runs
 	// it first — transport → supervisor → reconciler → engine/persistence.
 	srv := cfg.Server
@@ -79,19 +79,19 @@ func buildHTTPServer(stack bootstrap.Stack, srv config.Server, tokenValue string
 	info.Home = paths.userHome
 
 	api, err := server.New(server.Config{
-		Sessions:     stack.Sessions,
-		Integrations: stack.Integrations,
-		Approvals:    stack.Approvals,
-		Models:       stack.Models,
-		Tools:        stack.Tools,
-		Codebase:     stack.Codebase,
-		ServerInfo:   info,
+		Sessions:   stack.Sessions,
+		MCP:        stack.MCP,
+		Approvals:  stack.Approvals,
+		Models:     stack.Models,
+		Tools:      stack.Tools,
+		Codebase:   stack.Codebase,
+		ServerInfo: info,
 		IdempotencyLimits: protocol.IdempotencyLimits{
 			RetentionSeconds: int(idempotency.Retention.Seconds()),
 		},
 		Runs:               stack.Runs,
 		FileChanges:        stack.FileChanges,
-		MCPStatus:          stack.MCPStatus,
+		MCPStatusChanges:   stack.MCPStatusChanges,
 		SkillChanges:       stack.SkillChanges,
 		ScheduleFires:      stack.ScheduleFires,
 		Changes:            stack.Changes,

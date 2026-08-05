@@ -483,7 +483,7 @@ func (f *terminalRaceRuns) Cancel(context.Context, runs.CancelCommand) (runs.Can
 
 func newDriver(t *testing.T, store *memStore, script ...scriptedRun) *goals.Driver {
 	t.Helper()
-	d := goals.NewDriverWithMutations(store, &fakeRuns{t: t, store: store, script: script}, &fakeSessions{}, goals.NewSessionMutations(), testPrompt)
+	d := goals.NewDriver(store, &fakeRuns{t: t, store: store, script: script}, &fakeSessions{}, goals.NewSessionMutations(), testPrompt)
 	cleanupDriver(t, d)
 	return d
 }
@@ -504,7 +504,7 @@ func cleanupDriver(t testing.TB, d *goals.Driver) {
 	})
 }
 
-func testPrompt(input goals.PromptInput) string { return input.Objective }
+func testPrompt(input goals.RunInstructionInput) string { return input.Objective }
 
 func testSelection(provider, model string) modelref.Selection {
 	selection, err := modelref.New(provider, model)
@@ -551,7 +551,7 @@ func TestDriverWaitsForCurrentSessionRunBeforeFirstGoalRun(t *testing.T) {
 		idleWaitStart: waiting,
 		idleRelease:   release,
 	}
-	d := goals.NewDriverWithMutations(store, runUseCases, &fakeSessions{}, goals.NewSessionMutations(), testPrompt)
+	d := goals.NewDriver(store, runUseCases, &fakeSessions{}, goals.NewSessionMutations(), testPrompt)
 	cleanupDriver(t, d)
 	if _, err := d.Start(t.Context(), "s1", "do it", modelref.Selection{}, goal.Budget{}); err != nil {
 		t.Fatalf("Start: %v", err)
@@ -637,7 +637,7 @@ func TestPauseCASUsesAuthoritativeCompleteOutcome(t *testing.T) {
 	base := newMemStore()
 	store := &pauseCompletionRaceStore{memStore: base}
 	fake := &fakeRuns{t: t, store: base, startErr: runs.ErrSessionBusy}
-	d := goals.NewDriverWithMutations(store, fake, &fakeSessions{}, goals.NewSessionMutations(), testPrompt)
+	d := goals.NewDriver(store, fake, &fakeSessions{}, goals.NewSessionMutations(), testPrompt)
 	cleanupDriver(t, d)
 	if _, err := d.Start(t.Context(), "s1", "do it", testSelection("p", "m"), goal.Budget{}); err != nil {
 		t.Fatalf("Start: %v", err)
@@ -662,7 +662,7 @@ func TestDriverRetriesSessionBusyAdmissionRace(t *testing.T) {
 			outcome:   execution.OutcomeCompleted,
 		}},
 	}
-	d := goals.NewDriverWithMutations(store, fake, &fakeSessions{}, goals.NewSessionMutations(), testPrompt)
+	d := goals.NewDriver(store, fake, &fakeSessions{}, goals.NewSessionMutations(), testPrompt)
 	cleanupDriver(t, d)
 	if _, err := d.Start(t.Context(), "s1", "do it", testSelection("p", "m"), goal.Budget{}); err != nil {
 		t.Fatalf("Start: %v", err)
@@ -705,7 +705,7 @@ func TestDriverRefusesConcurrentStart(t *testing.T) {
 		t: t, store: store, script: []scriptedRun{{outcome: execution.OutcomeCompleted}},
 		hold: make(chan struct{}), started: started,
 	}
-	d := goals.NewDriverWithMutations(store, fake, &fakeSessions{}, goals.NewSessionMutations(), testPrompt)
+	d := goals.NewDriver(store, fake, &fakeSessions{}, goals.NewSessionMutations(), testPrompt)
 	cleanupDriver(t, d)
 
 	if _, err := d.Start(context.Background(), "s1", "obj2", modelref.Selection{}, goal.Budget{}); err != goals.ErrGoalActive {
@@ -726,7 +726,7 @@ func TestDriverStopPausesRunningGoal(t *testing.T) {
 	hold := make(chan struct{})
 	started := make(chan struct{}, 1)
 	fake := &fakeRuns{t: t, store: store, script: []scriptedRun{{outcome: execution.OutcomeCompleted}}, hold: hold, started: started}
-	d := goals.NewDriverWithMutations(store, fake, &fakeSessions{}, goals.NewSessionMutations(), testPrompt)
+	d := goals.NewDriver(store, fake, &fakeSessions{}, goals.NewSessionMutations(), testPrompt)
 	cleanupDriver(t, d)
 
 	if _, err := d.Start(context.Background(), "s1", "do it", testSelection("p", "m"), goal.Budget{}); err != nil {
@@ -764,7 +764,7 @@ func TestDriverStopPausesRunningGoal(t *testing.T) {
 func TestDriverStopFoldsTerminalRaceBeforePausing(t *testing.T) {
 	store := newMemStore()
 	fake := &terminalRaceRuns{store: store, started: make(chan struct{})}
-	d := goals.NewDriverWithMutations(store, fake, &fakeSessions{}, goals.NewSessionMutations(), testPrompt)
+	d := goals.NewDriver(store, fake, &fakeSessions{}, goals.NewSessionMutations(), testPrompt)
 	cleanupDriver(t, d)
 
 	if _, err := d.Start(t.Context(), "s1", "do it", testSelection("p", "m"), goal.Budget{}); err != nil {
@@ -796,7 +796,7 @@ func TestDriverFreshStartReplacesStoppedGoal(t *testing.T) {
 		{outcome: execution.OutcomeCompleted},
 		{setStatus: goal.StatusComplete, outcome: execution.OutcomeCompleted},
 	}}
-	d := goals.NewDriverWithMutations(store, fake, &fakeSessions{}, goals.NewSessionMutations(), testPrompt)
+	d := goals.NewDriver(store, fake, &fakeSessions{}, goals.NewSessionMutations(), testPrompt)
 	cleanupDriver(t, d)
 
 	if _, err := d.Start(t.Context(), "s1", "first", testSelection("p", "m"), goal.Budget{}); err != nil {
@@ -830,7 +830,7 @@ func TestDriverStoreFailureRemainsAddressableUntilStop(t *testing.T) {
 		{outcome: execution.OutcomeCompleted},
 		{setStatus: goal.StatusComplete, outcome: execution.OutcomeCompleted},
 	}}
-	d := goals.NewDriverWithMutations(store, fake, &fakeSessions{}, goals.NewSessionMutations(), testPrompt)
+	d := goals.NewDriver(store, fake, &fakeSessions{}, goals.NewSessionMutations(), testPrompt)
 	cleanupDriver(t, d)
 
 	if _, err := d.Start(t.Context(), "s1", "old objective", testSelection("p", "m"), goal.Budget{}); err != nil {
@@ -871,7 +871,7 @@ func TestDriverStopSaveFailureDoesNotPublishUserStop(t *testing.T) {
 	fake := &fakeRuns{t: t, store: store, script: []scriptedRun{
 		{outcome: execution.OutcomeCompleted},
 	}, hold: hold, started: started}
-	d := goals.NewDriverWithMutations(store, fake, &fakeSessions{}, goals.NewSessionMutations(), testPrompt)
+	d := goals.NewDriver(store, fake, &fakeSessions{}, goals.NewSessionMutations(), testPrompt)
 	cleanupDriver(t, d)
 
 	if _, err := d.Start(t.Context(), "s1", "do it", testSelection("p", "m"), goal.Budget{}); err != nil {
@@ -910,7 +910,7 @@ func TestDriverContinuesAfterTerminalAccounting(t *testing.T) {
 		{outcome: execution.OutcomeCompleted},
 		{setStatus: goal.StatusComplete},
 	}, hold: hold, started: started}
-	d := goals.NewDriverWithMutations(store, fake, &fakeSessions{}, goals.NewSessionMutations(), testPrompt)
+	d := goals.NewDriver(store, fake, &fakeSessions{}, goals.NewSessionMutations(), testPrompt)
 	cleanupDriver(t, d)
 
 	if _, err := d.Start(t.Context(), "s1", "do it", testSelection("p", "m"), goal.Budget{}); err != nil {
@@ -961,7 +961,7 @@ func TestDriverShutdownJoinsRunCancellation(t *testing.T) {
 		cancelStarted: cancelStarted,
 		cancelRelease: cancelRelease,
 	}
-	d := goals.NewDriverWithMutations(store, fake, &fakeSessions{}, goals.NewSessionMutations(), testPrompt)
+	d := goals.NewDriver(store, fake, &fakeSessions{}, goals.NewSessionMutations(), testPrompt)
 
 	if _, err := d.Start(t.Context(), "s1", "do it", testSelection("p", "m"), goal.Budget{}); err != nil {
 		t.Fatalf("Start: %v", err)
@@ -1093,7 +1093,7 @@ func TestReconcileDegradesActiveAndClearsComplete(t *testing.T) {
 func TestStartRefusesMissingSession(t *testing.T) {
 	store := newMemStore()
 	fake := &fakeRuns{t: t, store: store}
-	d := goals.NewDriverWithMutations(store, fake, &fakeSessions{deleted: map[string]bool{"ghost": true}}, goals.NewSessionMutations(), testPrompt)
+	d := goals.NewDriver(store, fake, &fakeSessions{deleted: map[string]bool{"ghost": true}}, goals.NewSessionMutations(), testPrompt)
 	cleanupDriver(t, d)
 
 	if _, err := d.Start(context.Background(), "ghost", "obj", testSelection("p", "m"), goal.Budget{}); err != goals.ErrNoSession {
@@ -1119,7 +1119,7 @@ func TestReconcileSweepsOrphanGoal(t *testing.T) {
 	kept.Pause(goal.ReasonAwaitingInput, "", now)
 	_, _, _ = store.Save(context.Background(), kept, goal.Version{})
 
-	d := goals.NewDriverWithMutations(store, &fakeRuns{t: t, store: store}, &fakeSessions{deleted: map[string]bool{"gone": true}}, goals.NewSessionMutations(), testPrompt)
+	d := goals.NewDriver(store, &fakeRuns{t: t, store: store}, &fakeSessions{deleted: map[string]bool{"gone": true}}, goals.NewSessionMutations(), testPrompt)
 	cleanupDriver(t, d)
 	if err := d.Reconcile(context.Background()); err != nil {
 		t.Fatalf("Reconcile: %v", err)
@@ -1141,7 +1141,7 @@ func TestStopThenStartRejectsStragglerWrite(t *testing.T) {
 	hold := make(chan struct{})
 	started := make(chan struct{}, 1)
 	fake := &fakeRuns{t: t, store: store, script: []scriptedRun{{outcome: execution.OutcomeError}}, hold: hold, started: started}
-	d := goals.NewDriverWithMutations(store, fake, &fakeSessions{}, goals.NewSessionMutations(), testPrompt)
+	d := goals.NewDriver(store, fake, &fakeSessions{}, goals.NewSessionMutations(), testPrompt)
 	cleanupDriver(t, d)
 
 	if _, err := d.Start(context.Background(), "s1", "objective one", testSelection("p", "m"), goal.Budget{}); err != nil {
@@ -1188,7 +1188,7 @@ func TestStopResumeRaceNeverWedgesActive(t *testing.T) {
 			t.Fatalf("seed: %v", err)
 		}
 		fake := &fakeRuns{t: t, store: store, script: []scriptedRun{{outcome: execution.OutcomeCompleted}}}
-		d := goals.NewDriverWithMutations(store, fake, &fakeSessions{}, goals.NewSessionMutations(), testPrompt)
+		d := goals.NewDriver(store, fake, &fakeSessions{}, goals.NewSessionMutations(), testPrompt)
 
 		var wg sync.WaitGroup
 		wg.Go(func() { _, _ = d.Stop(context.Background(), "s1") })

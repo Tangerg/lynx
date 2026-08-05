@@ -22,8 +22,8 @@ var ErrInvalidExecutorCheckpoint = errors.New("invalid executor checkpoint")
 // leases are host facts, not planner state.
 type ExecutionScope struct {
 	SessionID    string
-	Cwd          string
-	WorkspaceCwd string
+	CWD          string
+	WorkspaceCWD string
 	Isolated     bool
 	GoalLeaseID  string
 }
@@ -39,8 +39,8 @@ func (s ExecutionScope) Validate() error {
 		value string
 	}{
 		{name: "session ID", value: s.SessionID},
-		{name: "working dir", value: s.Cwd},
-		{name: "workspace dir", value: s.WorkspaceCwd},
+		{name: "working dir", value: s.CWD},
+		{name: "workspace dir", value: s.WorkspaceCWD},
 		{name: "goal lease ID", value: s.GoalLeaseID},
 	} {
 		if field.value != strings.TrimSpace(field.value) {
@@ -71,8 +71,8 @@ type ExecutorCheckpoint struct {
 type ExecutorCheckpointExpectation struct {
 	RootProcessID  string
 	SessionID      string
-	Cwd            string
-	WorkspaceCwd   string
+	CWD            string
+	WorkspaceCWD   string
 	Isolated       bool
 	GoalLeaseID    string
 	ModelSelection modelref.Selection
@@ -154,10 +154,10 @@ func (c ExecutorCheckpoint) ValidateFor(expected ExecutorCheckpointExpectation) 
 	if err := c.ValidateOwnership(expected.RootProcessID, expected.SessionID); err != nil {
 		return err
 	}
-	if expected.Cwd != strings.TrimSpace(expected.Cwd) {
+	if expected.CWD != strings.TrimSpace(expected.CWD) {
 		return fmt.Errorf("%w: expected working dir has surrounding whitespace", ErrInvalidExecutorCheckpoint)
 	}
-	if expected.WorkspaceCwd != strings.TrimSpace(expected.WorkspaceCwd) {
+	if expected.WorkspaceCWD != strings.TrimSpace(expected.WorkspaceCWD) {
 		return fmt.Errorf("%w: expected workspace dir has surrounding whitespace", ErrInvalidExecutorCheckpoint)
 	}
 	if err := expected.ModelSelection.Validate(); err != nil {
@@ -169,20 +169,20 @@ func (c ExecutorCheckpoint) ValidateFor(expected ExecutorCheckpointExpectation) 
 	if expected.GoalLeaseID != strings.TrimSpace(expected.GoalLeaseID) {
 		return fmt.Errorf("%w: expected goal lease ID has surrounding whitespace", ErrInvalidExecutorCheckpoint)
 	}
-	if c.Scope.Cwd != expected.Cwd {
+	if c.Scope.CWD != expected.CWD {
 		return fmt.Errorf(
 			"%w: working dir %q does not match owner %q",
 			ErrInvalidExecutorCheckpoint,
-			c.Scope.Cwd,
-			expected.Cwd,
+			c.Scope.CWD,
+			expected.CWD,
 		)
 	}
-	if c.Scope.WorkspaceCwd != expected.WorkspaceCwd {
+	if c.Scope.WorkspaceCWD != expected.WorkspaceCWD {
 		return fmt.Errorf(
 			"%w: workspace dir %q does not match owner %q",
 			ErrInvalidExecutorCheckpoint,
-			c.Scope.WorkspaceCwd,
-			expected.WorkspaceCwd,
+			c.Scope.WorkspaceCWD,
+			expected.WorkspaceCWD,
 		)
 	}
 	if c.Scope.Isolated != expected.Isolated {

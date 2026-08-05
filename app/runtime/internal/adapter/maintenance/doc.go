@@ -7,9 +7,9 @@
 // conversation history. They share the transcript-rendering and
 // direct-call helpers in llm.go; each is otherwise an independent,
 // single-responsibility worker (Compactor / Extractor / Titler) in its
-// own file, constructible and testable without the agentexec. Suite is the
+// own file, constructible and testable without the agentexec. Pipeline is the
 // one explicit composition point for the workers that run after a clean Run.
 //
-// Suite owns the maintenance lifecycle policy; the execution controller
+// Pipeline owns the maintenance lifecycle policy; the execution controller
 // supplies finished-Run facts and observes its result.
 package maintenance

@@ -230,13 +230,13 @@ func (m *lifecycleModel) Stream(ctx context.Context, request *chat.Request) iter
 	}
 }
 
-type noRunMaintenance struct{}
+type noMaintenance struct{}
 
-func (noRunMaintenance) Maintain(
+func (noMaintenance) Maintain(
 	context.Context,
-	turn.RunMaintenanceInput,
-) turn.RunMaintenanceResult {
-	return turn.RunMaintenanceResult{}
+	turn.MaintenanceInput,
+) turn.MaintenanceResult {
+	return turn.MaintenanceResult{}
 }
 
 func openProtocolRuntime(t *testing.T, model chat.Model) (*Host, *runtimeserver.Server) {
@@ -258,13 +258,13 @@ func openProtocolRuntime(t *testing.T, model chat.Model) (*Host, *runtimeserver.
 		config.Settings{},
 		stores,
 		client,
-		stores.Provider,
+		stores.Providers,
 		NewHookResolver(stores.DataDirectory, stores.Trust),
 		"sha256:0000000000000000000000000000000000000000000000000000000000000000",
 	)
 	cfg.UserHome = stores.DataDirectory
 	cfg.DefaultWorkspacePath = stores.DataDirectory
-	cfg.Maintenance = noRunMaintenance{}
+	cfg.Maintenance = noMaintenance{}
 
 	assembly := NewAssembly(cfg)
 	host, err := BuildAssembly(t.Context(), assembly)
@@ -287,14 +287,14 @@ func openProtocolRuntime(t *testing.T, model chat.Model) (*Host, *runtimeserver.
 func protocolServer(stack Stack, cwd string) (*runtimeserver.Server, error) {
 	return runtimeserver.New(runtimeserver.Config{
 		Sessions:           stack.Sessions,
-		Integrations:       stack.Integrations,
+		MCP:                stack.MCP,
 		Approvals:          stack.Approvals,
 		Models:             stack.Models,
 		Tools:              stack.Tools,
 		Codebase:           stack.Codebase,
 		Runs:               stack.Runs,
 		FileChanges:        stack.FileChanges,
-		MCPStatus:          stack.MCPStatus,
+		MCPStatusChanges:   stack.MCPStatusChanges,
 		SkillChanges:       stack.SkillChanges,
 		ScheduleFires:      stack.ScheduleFires,
 		Changes:            stack.Changes,

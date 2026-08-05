@@ -13,6 +13,16 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/component/keyset"
 )
 
+// Files owns root-scoped file browser operations.
+type Files struct {
+	scope *Scope
+	files FileBrowser
+}
+
+func NewFiles(scope *Scope, files FileBrowser) *Files {
+	return &Files{scope: scope, files: files}
+}
+
 // FileEntryKind identifies a file-system entry in the workspace browser.
 type FileEntryKind string
 
@@ -49,14 +59,14 @@ type FileListOptions struct {
 
 // FileBrowser is the application-owned port for workspace file reads.
 type FileBrowser interface {
-	ListFiles(ctx context.Context, root string, options FileListOptions) ([]FileEntry, error)
-	ReadFile(ctx context.Context, root string, input FileReadInput) (FileReadResult, error)
+	List(ctx context.Context, root string, options FileListOptions) ([]FileEntry, error)
+	Read(ctx context.Context, root string, input FileReadInput) (FileReadResult, error)
 	Grep(ctx context.Context, root string, input GrepInput) (GrepResult, error)
 }
 
 // FileListInput is one paged workspace listing request.
 type FileListInput struct {
-	Cwd string
+	CWD string
 	FileListOptions
 	Cursor string
 	Limit  int
@@ -124,23 +134,23 @@ const (
 	fileListPageNamespace    = "workspace.files"
 )
 
-// ListFiles returns one stable cursor page of entries below a workspace root.
-func (c *Files) ListFiles(ctx context.Context, input FileListInput) (FilePage, error) {
-	root, err := c.context.root(input.Cwd)
+// List returns one stable cursor page of entries below a workspace root.
+func (f *Files) List(ctx context.Context, input FileListInput) (FilePage, error) {
+	root, err := f.scope.root(input.CWD)
 	if err != nil {
 		return FilePage{}, err
 	}
 	path := ""
 	if input.Path != "" {
-		path, err = c.context.paths.ResolveInRoot(root, input.Path)
+		path, err = f.scope.paths.ResolveInRoot(root, input.Path)
 		if err != nil {
 			return FilePage{}, err
 		}
 	}
-	if c.files == nil {
+	if f.files == nil {
 		return FilePage{}, errors.New("workspace: file browser is not configured")
 	}
-	entries, err := c.files.ListFiles(ctx, root, FileListOptions{
+	entries, err := f.files.List(ctx, root, FileListOptions{
 		Path: path, Glob: input.Glob, Recursive: input.Recursive, IncludeIgnored: input.IncludeIgnored,
 	})
 	if err != nil {
@@ -160,50 +170,50 @@ func (c *Files) ListFiles(ctx context.Context, input FileListInput) (FilePage, e
 	return FilePage{Entries: page, NextCursor: next}, nil
 }
 
-// FileHead returns the first requested lines of one workspace file.
-func (c *Files) FileHead(ctx context.Context, cwd, path string, lines int) (FileHead, error) {
-	root, err := c.context.root(cwd)
+// Head returns the first requested lines of one workspace file.
+func (f *Files) Head(ctx context.Context, cwd, path string, lines int) (FileHead, error) {
+	root, err := f.scope.root(cwd)
 	if err != nil {
 		return FileHead{}, err
 	}
 	if path == "" {
 		return FileHead{}, ErrPathRequired
 	}
-	path, err = c.context.paths.ResolveExistingInRoot(root, path)
+	path, err = f.scope.paths.ResolveExistingInRoot(root, path)
 	if err != nil {
 		return FileHead{}, err
 	}
 	if lines <= 0 {
 		lines = defaultFileHeadLines
 	}
-	if c.files == nil {
+	if f.files == nil {
 		return FileHead{}, errors.New("workspace: file browser is not configured")
 	}
-	read, err := c.files.ReadFile(ctx, root, FileReadInput{Path: path, EndLine: lines, StartLine: 1})
+	read, err := f.files.Read(ctx, root, FileReadInput{Path: path, EndLine: lines, StartLine: 1})
 	if err != nil {
 		return FileHead{}, err
 	}
 	return FileHead{Lines: previewLines(read)}, nil
 }
 
-// ReadFile returns all or a one-based inclusive line window of a workspace
+// Read returns all or a one-based inclusive line window of a workspace
 // file. It validates ranges before invoking the filesystem port.
-func (c *Files) ReadFile(ctx context.Context, cwd string, input FileReadInput) (FileReadResult, error) {
+func (f *Files) Read(ctx context.Context, cwd string, input FileReadInput) (FileReadResult, error) {
 	if err := input.validate(); err != nil {
 		return FileReadResult{}, err
 	}
-	root, err := c.context.root(cwd)
+	root, err := f.scope.root(cwd)
 	if err != nil {
 		return FileReadResult{}, err
 	}
-	input.Path, err = c.context.paths.ResolveExistingInRoot(root, input.Path)
+	input.Path, err = f.scope.paths.ResolveExistingInRoot(root, input.Path)
 	if err != nil {
 		return FileReadResult{}, err
 	}
-	if c.files == nil {
+	if f.files == nil {
 		return FileReadResult{}, errors.New("workspace: file browser is not configured")
 	}
-	return c.files.ReadFile(ctx, root, input)
+	return f.files.Read(ctx, root, input)
 }
 
 func (input FileReadInput) validate() error {
@@ -224,16 +234,16 @@ func (input FileReadInput) validate() error {
 
 // Grep searches a workspace root or an existing subdirectory. A truncated
 // search returns an honest total rather than silently under-reporting hits.
-func (c *Files) Grep(ctx context.Context, cwd string, input GrepInput) (GrepResult, error) {
+func (f *Files) Grep(ctx context.Context, cwd string, input GrepInput) (GrepResult, error) {
 	if input.Query == "" {
 		return GrepResult{}, ErrGrepQueryMissing
 	}
-	root, err := c.context.root(cwd)
+	root, err := f.scope.root(cwd)
 	if err != nil {
 		return GrepResult{}, err
 	}
 	if input.Path != "" {
-		input.Path, err = c.context.paths.ResolveExistingInRoot(root, input.Path)
+		input.Path, err = f.scope.paths.ResolveExistingInRoot(root, input.Path)
 		if err != nil {
 			return GrepResult{}, err
 		}
@@ -241,10 +251,10 @@ func (c *Files) Grep(ctx context.Context, cwd string, input GrepInput) (GrepResu
 	if input.Limit <= 0 {
 		input.Limit = defaultGrepLimit
 	}
-	if c.files == nil {
+	if f.files == nil {
 		return GrepResult{}, errors.New("workspace: file browser is not configured")
 	}
-	return c.files.Grep(ctx, root, input)
+	return f.files.Grep(ctx, root, input)
 }
 
 func previewLines(read FileReadResult) []FileLine {

@@ -24,7 +24,7 @@ func (e *Effects) Finish(ctx context.Context, fin runs.Finish) error {
 	if fin.Parked {
 		return nil
 	}
-	needsSnapshot := e.checkpoints != nil && fin.Cwd != ""
+	needsSnapshot := e.checkpoints != nil && fin.CWD != ""
 	needsTitle := strings.TrimSpace(fin.OpeningUserText) != ""
 	if !needsSnapshot && !needsTitle {
 		return nil
@@ -32,7 +32,7 @@ func (e *Effects) Finish(ctx context.Context, fin runs.Finish) error {
 	var errs []error
 	if needsSnapshot {
 		if err := observeTerminalMaintenance(ctx, fin, "checkpoint", func(ctx context.Context) error {
-			return e.snapshot(ctx, fin.SessionID, fin.Cwd, fin.RunID)
+			return e.snapshot(ctx, fin.SessionID, fin.CWD, fin.RunID)
 		}); err != nil {
 			errs = append(errs, err)
 		}

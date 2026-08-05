@@ -19,7 +19,7 @@ func wireSessionErr(err error) error {
 	if errors.Is(err, session.ErrTitleRequired) {
 		return fmt.Errorf("%w: title must not be empty", protocol.ErrInvalidParams)
 	}
-	if errors.Is(err, session.ErrCwdUnavailable) {
+	if errors.Is(err, session.ErrCWDUnavailable) {
 		return fmt.Errorf("%w: %w", protocol.ErrWorkspaceUnavailable, err)
 	}
 	if errors.Is(err, session.ErrRevisionConflict) {
@@ -96,7 +96,7 @@ func (s *Server) UpdateSession(ctx context.Context, in protocol.UpdateSessionReq
 	view, err := s.sessions.UpdateView(ctx, in.SessionID, session.Patch{
 		Title:            in.Title,
 		Model:            in.Model,
-		Cwd:              cwd,
+		CWD:              cwd,
 		Favorite:         in.Favorite,
 		ExpectedRevision: in.ExpectedRevision,
 	})
@@ -143,7 +143,7 @@ func presentSession(view sessions.View) protocol.Session {
 	return protocol.Session{
 		ID:        view.ID,
 		Title:     view.Title,
-		Workspace: presentWorkspaceInfo(view.Cwd, view.ProjectRoot, view.CwdMissing),
+		Workspace: presentWorkspaceInfo(view.CWD, view.ProjectRoot, view.CWDMissing),
 		Model:     view.Model,
 		Status:    presentSessionStatus(view.Activity),
 		CreatedAt: view.CreatedAt,

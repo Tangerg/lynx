@@ -1,6 +1,6 @@
 // Package goals owns the autonomous-execution loop (Goal mode): given a
 // session's objective, it launches runs back-to-back until the model signals the
-// goal complete or blocked (through report_goal_outcome), an opt-in cross-Run
+// goal complete or blocked (through terminal outcome reporting), an opt-in cross-Run
 // budget is spent, or the user stops it. It mirrors application/schedules — a
 // headless application component that drives the runs Coordinator — but is
 // event-driven per goal rather than cron-timed, and consumes each run's terminal
@@ -72,16 +72,16 @@ type SessionExists interface {
 	Exists(ctx context.Context, sessionID string) (bool, error)
 }
 
-// PromptInput is the semantic context required to construct one autonomous
-// model Run. Goals decides when a first or continuing Run is needed without
-// owning prompt rendering.
-type PromptInput struct {
+// RunInstructionInput is the semantic context required to construct one
+// autonomous model Run. Goals decides when a first or continuing Run is needed
+// without owning model-facing wording.
+type RunInstructionInput struct {
 	Objective  string
 	Continuing bool
 }
 
-// PromptBuilder renders the instruction for an autonomous Run.
-type PromptBuilder func(PromptInput) string
+// RunInstructionBuilder renders the instruction for an autonomous Run.
+type RunInstructionBuilder func(RunInstructionInput) string
 
 // Driver owns the per-session autonomous loops. Each active goal has at most one
 // loop goroutine, spawned into a task group so shutdown cancels and joins them.
@@ -92,13 +92,13 @@ type PromptBuilder func(PromptInput) string
 // lifecycle commands with session write-sets without coupling unrelated
 // sessions; loop goroutines and reported outcomes use the store CAS.
 type Driver struct {
-	goals    Store
-	runs     RunUseCases
-	sessions SessionExists
-	tasks    *taskgroup.Group
-	now      func() time.Time
-	newLease func() string
-	prompt   PromptBuilder
+	goals        Store
+	runs         RunUseCases
+	sessions     SessionExists
+	tasks        *taskgroup.Group
+	now          func() time.Time
+	newLease     func() string
+	instructions RunInstructionBuilder
 
 	mutations *SessionMutations
 	closed    atomic.Bool
@@ -111,24 +111,24 @@ type loopHandle struct {
 	err      error
 }
 
-// NewDriverWithMutations builds a Driver sharing one session lifecycle
+// NewDriver builds a Driver sharing one session lifecycle
 // coordinator with the sessions use case.
-func NewDriverWithMutations(store Store, runUseCases RunUseCases, sessions SessionExists, mutations *SessionMutations, prompt PromptBuilder) *Driver {
+func NewDriver(store Store, runUseCases RunUseCases, sessions SessionExists, mutations *SessionMutations, instructions RunInstructionBuilder) *Driver {
 	if mutations == nil {
 		mutations = NewSessionMutations()
 	}
-	if prompt == nil {
-		panic("goals: prompt builder is required")
+	if instructions == nil {
+		panic("goals: run instruction builder is required")
 	}
 	return &Driver{
-		goals:     store,
-		runs:      runUseCases,
-		sessions:  sessions,
-		tasks:     &taskgroup.Group{},
-		now:       time.Now,
-		newLease:  uuid.NewString,
-		prompt:    prompt,
-		mutations: mutations,
+		goals:        store,
+		runs:         runUseCases,
+		sessions:     sessions,
+		tasks:        &taskgroup.Group{},
+		now:          time.Now,
+		newLease:     uuid.NewString,
+		instructions: instructions,
+		mutations:    mutations,
 	}
 }
 
@@ -308,8 +308,8 @@ func (d *Driver) Stop(ctx context.Context, sessionID string) (goal.Goal, error) 
 	return saved, quiesceErr
 }
 
-// Get returns the session's goal, or (zero, false, nil) when it has none.
-func (d *Driver) Get(ctx context.Context, sessionID string) (goal.Goal, bool, error) {
+// Current returns the session's Goal, or (zero, false, nil) when it has none.
+func (d *Driver) Current(ctx context.Context, sessionID string) (goal.Goal, bool, error) {
 	if !d.Available() {
 		return goal.Goal{}, false, ErrUnavailable
 	}

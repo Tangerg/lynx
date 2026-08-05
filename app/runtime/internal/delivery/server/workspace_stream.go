@@ -297,7 +297,7 @@ func (s *Server) SubscribeRuntime(ctx context.Context, in protocol.RuntimeSubscr
 	if err != nil {
 		return nil, nil, err
 	}
-	cwds, watchIDs, err := watchCwds(in.Watches, topics)
+	cwds, watchIDs, err := watchCWDs(in.Watches, topics)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -314,7 +314,7 @@ func (s *Server) SubscribeRuntime(ctx context.Context, in protocol.RuntimeSubscr
 
 	var watcher io.Closer
 	if len(cwds) > 0 {
-		watcher, err = s.workspaceWatch.WatchGitState(cwds, func() {
+		watcher, err = s.workspaceWatch.Watch(cwds, func() {
 			s.wsHub.publishTo(subscription, protocol.RuntimeEvent{
 				Type:     protocol.RuntimeResync,
 				Topics:   []protocol.RuntimeTopic{protocol.TopicFilesChanged},
@@ -382,14 +382,14 @@ func (s *Server) subscribedTopics(requested []protocol.RuntimeTopic) (map[protoc
 	return topics, nil
 }
 
-// watchCwds validates the wire-only portion of watch specs. Root resolution,
+// watchCWDs validates the wire-only portion of watch specs. Root resolution,
 // repository layout and filesystem notification are application/adapter concerns;
 // Delivery retains only the protocol's required watch identifier.
 //
 // Watches are legal only with files.changed: the other topics are global, so a watch
 // would narrow nothing — and a caller that registered one expecting it to is holding
 // a belief the runtime would never honor.
-func watchCwds(specs []protocol.WatchSpec, topics map[protocol.RuntimeTopic]bool) (cwds, watchIDs []string, err error) {
+func watchCWDs(specs []protocol.WatchSpec, topics map[protocol.RuntimeTopic]bool) (cwds, watchIDs []string, err error) {
 	if len(specs) == 0 {
 		return nil, nil, nil
 	}

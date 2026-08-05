@@ -114,7 +114,7 @@ func (Resolver) Inspect(path string) (session.WorkspaceIdentity, error) {
 	if err != nil {
 		return session.WorkspaceIdentity{}, err
 	}
-	identity := session.WorkspaceIdentity{Cwd: cwd, ProjectRoot: cwd}
+	identity := session.WorkspaceIdentity{CWD: cwd, ProjectRoot: cwd}
 	info, err := os.Stat(cwd)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {

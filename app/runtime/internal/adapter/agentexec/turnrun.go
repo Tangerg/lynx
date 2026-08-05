@@ -44,16 +44,16 @@ type TurnRequest struct {
 	// user message as UserMessage.Media. Nil for a text-only turn.
 	Media []*media.Media
 
-	// Cwd is the working directory the turn's filesystem + shell tools run in.
+	// CWD is the working directory the turn's filesystem + shell tools run in.
 	// Runtime carries it in application context across the complete delegation
-	// tree. Empty falls back to the engine's default workdir.
-	Cwd string
+	// tree. Empty falls back to the engine's default cwd.
+	CWD string
 
-	// WorkspaceCwd is the persistent Session workspace. It remains the original
-	// project directory when Cwd is an isolated scratch copy.
-	WorkspaceCwd string
+	// WorkspaceCWD is the persistent Session workspace. It remains the original
+	// project directory when CWD is an isolated scratch copy.
+	WorkspaceCWD string
 
-	// Isolated marks a turn running in an isolated session: Cwd is a sandbox
+	// Isolated marks a turn running in an isolated session: CWD is a sandbox
 	// copy and the shell must be OS-jailed.
 	Isolated bool
 
@@ -136,8 +136,8 @@ func (e *Engine) StartTurn(ctx context.Context, request TurnRequest) (TurnProces
 	request = request.snapshot()
 	scope := execution.ExecutionScope{
 		SessionID:    request.SessionID,
-		Cwd:          request.Cwd,
-		WorkspaceCwd: request.WorkspaceCwd,
+		CWD:          request.CWD,
+		WorkspaceCWD: request.WorkspaceCWD,
 		Isolated:     request.Isolated,
 		GoalLeaseID:  request.GoalLeaseID,
 	}
@@ -168,7 +168,7 @@ func (e *Engine) StartTurn(ctx context.Context, request TurnRequest) (TurnProces
 	if err != nil {
 		return nil, fmt.Errorf("engine: configure chat process: %w", err)
 	}
-	runHandle, err := e.runtime.Start(runCtx, e.agent,
+	runHandle, err := e.agentRuntime.Start(runCtx, e.turnAgent,
 		core.Input(input),
 		processOptions,
 	)
@@ -205,7 +205,7 @@ func (e *Engine) turnProcessOptions(
 	usage *usageLedger,
 	admitChild AdmitChildFunc,
 ) (core.ProcessOptions, error) {
-	dependencies := e.dependencies
+	dependencies := e.agentDependencies
 	if dependencies == nil {
 		return core.ProcessOptions{}, errors.New("agentexec: engine dependencies are required")
 	}
@@ -326,11 +326,11 @@ type RestoreTurnRequest struct {
 	// It must match the application checkpoint exactly.
 	ModelSelection modelref.Selection
 
-	// Cwd, WorkspaceCwd, and Isolated are the Session facts independently resolved by the
+	// CWD, WorkspaceCWD, and Isolated are the Session facts independently resolved by the
 	// application. They must match the checkpoint so executor tools, lifecycle
 	// hooks, and delegated work cannot rehydrate into different workspaces.
-	Cwd          string
-	WorkspaceCwd string
+	CWD          string
+	WorkspaceCWD string
 	Isolated     bool
 	// GoalLeaseID binds autonomous-goal tool context to the same application
 	// lease whose terminal accounting will consume the resumed run.
@@ -375,7 +375,7 @@ func (e *Engine) RestoreTurn(ctx context.Context, rootProcessID string, request 
 	// re-resolved from the interrupt's persisted provider+model — so a restart
 	// mid-run keeps the model the turn parked on. nil (no selection / provider
 	// gone) falls back to the engine default.
-	if e.runtime == nil {
+	if e.agentRuntime == nil {
 		return nil, errors.New("engine: restore chat: agent runtime is required")
 	}
 	if e.checkpoints == nil {
@@ -391,8 +391,8 @@ func (e *Engine) RestoreTurn(ctx context.Context, rootProcessID string, request 
 	if err := checkpoint.ValidateFor(execution.ExecutorCheckpointExpectation{
 		RootProcessID:  rootProcessID,
 		SessionID:      request.SessionID,
-		Cwd:            request.Cwd,
-		WorkspaceCwd:   request.WorkspaceCwd,
+		CWD:            request.CWD,
+		WorkspaceCWD:   request.WorkspaceCWD,
 		Isolated:       request.Isolated,
 		GoalLeaseID:    request.GoalLeaseID,
 		ModelSelection: request.ModelSelection,
@@ -439,7 +439,7 @@ func (e *Engine) RestoreTurn(ctx context.Context, rootProcessID string, request 
 		return nil, executorCheckpointLost("restore", err)
 	}
 	runCtx := executionctx.WithScope(ctx, checkpoint.Scope)
-	process, err := e.runtime.RestoreTree(runCtx, tree, options)
+	process, err := e.agentRuntime.RestoreTree(runCtx, tree, options)
 	if err != nil {
 		if isExecutorCheckpointLoss(err) {
 			return nil, executorCheckpointLost("restore", err)

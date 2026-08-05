@@ -29,7 +29,7 @@ type DiagnosticRegistry struct{}
 
 func (DiagnosticRegistry) List(context.Context) ([]tool.Tool, error) {
 	chatTools := directTools("")
-	semantics := Semantics{}
+	interpreter := Interpreter{}
 	out := make([]tool.Tool, 0, len(chatTools))
 	for _, candidate := range chatTools {
 		definition := candidate.Definition()
@@ -41,7 +41,7 @@ func (DiagnosticRegistry) List(context.Context) ([]tool.Tool, error) {
 			Name:        definition.Name,
 			Description: definition.Description,
 			Schema:      schema,
-			SafetyClass: semantics.SafetyClass(definition.Name),
+			SafetyClass: interpreter.SafetyClass(definition.Name),
 		})
 	}
 	return out, nil

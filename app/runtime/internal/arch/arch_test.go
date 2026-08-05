@@ -16,7 +16,7 @@ import (
 	"strings"
 	"testing"
 
-	appcontract "github.com/Tangerg/lynx/app/runtime/internal/application/contract"
+	invariant "github.com/Tangerg/lynx/app/runtime/internal/application/invariant"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	deliveryserver "github.com/Tangerg/lynx/app/runtime/internal/delivery/server"
 )
@@ -233,8 +233,14 @@ func TestRemovedStutteringVocabularyDoesNotReturn(t *testing.T) {
 	reason := "use the package's canonical, non-stuttering vocabulary"
 	for path, names := range map[string][]string{
 		filepath.Join(root, "internal", "adapter", "agentexec", "turn"): {
-			"TurnHandle", "memoryDispatcher", "ErrDispatcherClosed",
+			"TurnHandle", "memoryDispatcher", "ErrDispatcherClosed", "engineDep",
+			"RunMaintenance", "RunMaintenanceInput", "RunMaintenanceResult", "ToolSemantics",
+			"clientResolver", "ResolveClient",
 		},
+		filepath.Join(root, "internal", "adapter", "agentexec"):     {"Workdir", "MemorySearcher"},
+		filepath.Join(root, "internal", "adapter", "modelclient"):   {"ClientResolver", "NewClientResolver", "ResolveClient"},
+		filepath.Join(root, "internal", "adapter", "pricing"):       {"Catalog"},
+		filepath.Join(root, "internal", "adapter", "maintenance"):   {"Suite", "NewSuite", "SubmitSkillProposal"},
 		filepath.Join(root, "internal", "adapter", "mcpconnection"): {"Connections"},
 		filepath.Join(root, "internal", "application", "models"):    {"ModelDetails"},
 		filepath.Join(root, "internal", "application", "sessions"): {
@@ -242,18 +248,46 @@ func TestRemovedStutteringVocabularyDoesNotReturn(t *testing.T) {
 			"SessionState", "SessionView",
 		},
 		filepath.Join(root, "internal", "application", "workspace"): {
-			"ResolvedWorkspace", "WorkspaceSummary", "WorkspaceCatalog",
+			"ResolvedWorkspace", "WorkspaceSummary", "WorkspaceCatalog", "Context", "NewContext",
+			"HasMemory", "ListMemoryEntries", "Memory", "UpdateMemory", "ErrMemoryUnavailable",
+			"ListFiles", "ReadFile", "ListFileChanges", "ListRecipes", "ResolveWorkspace", "ListWorkspaces",
+			"ListAgentDocs", "ListSkills", "ListManagedSkills", "ArchiveSkill", "RestoreSkill",
+			"SubmitSkillProposal", "ListSkillProposals", "ApproveSkillProposal", "RejectSkillProposal",
+			"InspectHooks", "SetProjectHookTrust", "HasFileWatch", "WatchGitState",
+		},
+		filepath.Join(root, "internal", "application", "goals"): {"State", "NewState", "PromptInput", "PromptBuilder"},
+		filepath.Join(root, "internal", "application", "invariant"): {
+			"SystemInvariantSpec", "TransactionBoundary",
+		},
+		filepath.Join(root, "internal", "application", "mcp"): {
+			"MCPServer", "MCPConnection", "MCPServerState", "MCPTestResult",
+			"MCPAuthorizationAttempt", "MCPPolicy", "ConnectionCommands", "RegistryCommands",
+		},
+		filepath.Join(root, "internal", "application", "runs"): {
+			"EngineEvent", "ToolCallStart", "ToolCallEnd", "CompactBoundary",
 		},
 		filepath.Join(root, "internal", "config"): {
 			"Config", "ServerConfig", "OnlineConfig", "MCPServerConfig", "LSPServerConfig", "A2AAgentConfig",
 		},
-		filepath.Join(root, "internal", "delivery", "dispatch"): {"Dispatcher"},
+		filepath.Join(root, "internal", "delivery", "dispatch"): {"Dispatcher", "registerIntegrationValues"},
+		filepath.Join(root, "internal", "delivery", "protocol"): {
+			"Memory", "MemoryScope", "MemoryScopeCwd", "MemoryScopeProjectRoot", "MemoryScopeHome",
+			"MemoryEntry", "GetMemoryRequest", "UpdateMemoryRequest", "FeatureMemory",
+			"ListMemory", "GetMemory", "UpdateMemory",
+		},
+		filepath.Join(root, "internal", "delivery", "server"): {
+			"ListMemory", "GetMemory", "UpdateMemory", "presentMemoryScope", "memoryScopeFromWire", "memoryTargetFromWire",
+		},
 		filepath.Join(root, "internal", "adapter", "toolset"): {
 			"resolvedToolset", "staticToolSpec", "toolAudience", "toolPlacement",
-			"toolActivity", "toolPresentation",
+			"toolActivity", "toolPresentation", "Workdir", "DefaultWorkdir",
+			"workdirSet", "buildWorkdir", "Semantics", "NewSemantics",
 		},
 		filepath.Join(root, "internal", "adapter", "toolset", "lsp"):   {"newLSPTool"},
+		filepath.Join(root, "internal", "adapter", "toolset", "goal"):  {"Prompt"},
 		filepath.Join(root, "internal", "adapter", "toolset", "shell"): {"toolSet"},
+		filepath.Join(root, "internal", "adapter", "toolset", "skill"): {"SubmitSkillProposal"},
+		filepath.Join(root, "internal", "adapter", "workspace"):        {"Reads", "WatchGitState"},
 	} {
 		banned := make(map[string]string, len(names))
 		for _, name := range names {
@@ -288,13 +322,69 @@ func TestRuntimeResponsibilityFilesStayFocused(t *testing.T) {
 			"RecoverStartup": "process startup lifetime belongs to host.go", "closeHostLifetime": "process lifetime belongs to host.go",
 			"shutdownResources": "resource close mechanics belong to resources.go", "closePendingResources": "resource close mechanics belong to resources.go",
 		},
+		filepath.Join(runs, "ports.go"): {
+			"Effects": "effect commits belong to effects.go", "Finish": "terminal maintenance facts belong to effects.go",
+			"segmentSpec":                      "segment supervision input belongs to segment_spec.go",
+			"OpeningCommit":                    "application write sets belong to commit.go",
+			"WaitingSubtreeCancellationCommit": "application write sets belong to commit.go",
+		},
+		filepath.Join(root, "internal", "adapter", "workspace", "file_browser.go"): {
+			"VCS": "Git-backed reads belong to vcs_reader.go",
+		},
+		filepath.Join(root, "internal", "adapter", "workspace", "vcs_reader.go"): {
+			"FileBrowser": "filesystem browsing belongs to file_browser.go",
+		},
+		filepath.Join(root, "internal", "application", "goals", "driver.go"): {
+			"Get": "current Goal reads use the canonical Current vocabulary",
+		},
+		filepath.Join(root, "internal", "delivery", "dispatch", "contract_skills.go"): {
+			"registerRecipes":   "recipe methods belong to contract_recipes.go",
+			"registerAgentDocs": "instruction-document methods belong to contract_agent_docs.go",
+		},
+		filepath.Join(root, "internal", "delivery", "protocol", "items.go"): {
+			"Plan": "the plan method group belongs to plan.go",
+		},
+		filepath.Join(root, "internal", "delivery", "protocol", "providers.go"): {
+			"Models": "the models method group belongs to models.go",
+		},
+		filepath.Join(root, "internal", "delivery", "protocol", "workspace.go"): {
+			"RuntimeSubscription": "runtime-wide subscriptions belong to runtime_subscription.go",
+		},
 	} {
 		forbidTopLevelNames(t, path, banned)
 	}
-	if _, err := os.Stat(filepath.Join(runs, "usecases.go")); err == nil {
-		t.Error("application/runs/usecases.go returned; keep independently named use cases in their focused files")
-	} else if !errors.Is(err, os.ErrNotExist) {
-		t.Fatalf("inspect removed runs/usecases.go: %v", err)
+	for relative, reason := range map[string]string{
+		filepath.Join("internal", "application", "runs", "usecases.go"):                "keep independently named Run use cases in focused files",
+		filepath.Join("internal", "application", "runs", "engine_event.go"):            "execution facts belong to execution_fact.go",
+		filepath.Join("internal", "application", "workspace", "coordinator.go"):        "workspace use cases belong to responsibility-specific files",
+		filepath.Join("internal", "adapter", "agentexec", "turn", "engine.go"):         "Agent execution, maintenance, and presentation dependencies belong to focused files",
+		filepath.Join("internal", "adapter", "maintenance", "suite.go"):                "Run maintenance composition is the Pipeline",
+		filepath.Join("internal", "application", "integrations"):                       "MCP application ownership belongs to application/mcp",
+		filepath.Join("internal", "application", "contract"):                           "cross-resource invariants belong to application/invariant",
+		filepath.Join("internal", "adapter", "toolset", "workdir.go"):                  "CWD-bound tool composition belongs to cwd_tools.go",
+		filepath.Join("internal", "adapter", "workspace", "reads.go"):                  "filesystem browsing and Git reads belong to focused adapter files",
+		filepath.Join("internal", "adapter", "toolset", "semantics.go"):                "concrete tool interpretation belongs to interpreter.go",
+		filepath.Join("internal", "adapter", "agentexec", "turn", "tool_semantics.go"): "concrete tool interpretation belongs to tool_interpreter.go",
+		filepath.Join("internal", "delivery", "protocol", "memory.go"):                 "human-authored knowledge belongs to knowledge.go",
+		filepath.Join("internal", "delivery", "protocol", "catalog.go"):                "Skill and instruction-document contracts belong to focused files",
+		filepath.Join("internal", "delivery", "server", "memory.go"):                   "human-authored knowledge belongs to knowledge.go",
+		filepath.Join("internal", "delivery", "server", "catalog.go"):                  "workspace, Skill, Recipe, and instruction-document handlers belong to focused files",
+		filepath.Join("internal", "delivery", "dispatch", "contract_integrations.go"):  "optional protocol domains belong to focused contract files",
+		filepath.Join("internal", "delivery", "dispatch", "contract_catalog.go"):       "protocol method groups belong to resource-specific contract files",
+		filepath.Join("internal", "delivery", "dispatch", "contract_catalogs.go"):      "protocol method groups belong to resource-specific contract files",
+		filepath.Join("internal", "adapter", "pricing", "catalog.go"):                  "model-catalog pricing belongs to model_catalog.go",
+		filepath.Join("internal", "adapter", "modelclient", "client.go"):               "chat-client resolution belongs to chat_resolver.go",
+		filepath.Join("internal", "config", "config.go"):                               "settings loading belongs to load.go",
+		filepath.Join("internal", "adapter", "toolset", "memorysearch"):                "agent-memory search belongs to toolset/agentmemorysearch",
+		filepath.Join("internal", "adapter", "toolset", "sessionsearch"):               "conversation search belongs to toolset/conversationsearch",
+		filepath.Join("internal", "adapter", "toolset", "goal", "prompt.go"):           "Goal Run wording belongs to run_instructions.go",
+	} {
+		path := filepath.Join(root, relative)
+		if _, err := os.Stat(path); err == nil {
+			t.Errorf("%s returned; %s", relative, reason)
+		} else if !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("inspect removed %s: %v", relative, err)
+		}
 	}
 }
 
@@ -535,9 +625,9 @@ func TestDeliveryDoesNotWireApplicationCollaborators(t *testing.T) {
 		"StartScheduledRun": "the schedule application owns scheduled Run starts",
 	})
 	forbidQualifiedCalls(t, filepath.Join(root, "internal", "delivery", "server"), map[string]string{
-		"schedules.New":        "Bootstrap owns schedule coordinator construction",
-		"workspace.NewContext": "Bootstrap owns workspace use-case construction",
-		"codebase.New":         "Bootstrap owns codebase coordinator construction",
+		"schedules.New":      "Bootstrap owns schedule coordinator construction",
+		"workspace.NewScope": "Bootstrap owns workspace use-case construction",
+		"codebase.New":       "Bootstrap owns codebase coordinator construction",
 	})
 }
 
@@ -776,7 +866,7 @@ func TestApplicationCoordinatorsDoNotExposeAtomicState(t *testing.T) {
 	root := moduleRoot(t)
 	for _, path := range []string{
 		filepath.Join(root, "internal", "application", "models", "coordinator.go"),
-		filepath.Join(root, "internal", "application", "integrations", "coordinator.go"),
+		filepath.Join(root, "internal", "application", "mcp", "coordinator.go"),
 	} {
 		forbidExternalImports(t, path, []string{"sync/atomic"})
 	}
@@ -849,7 +939,7 @@ func TestHostOwnsShutdownGraph(t *testing.T) {
 
 	lifetime := structFieldNames(structs["hostLifetime"])
 	for _, required := range []string{
-		"integrations",
+		"mcp",
 		"codebase",
 		"coordinator",
 		"execution",
@@ -1522,7 +1612,7 @@ func TestTurnControlHasNoProducerDispatcherPort(t *testing.T) {
 }
 
 // TestRunReductionHasNoOuterProjectionSeam locks in the ownership cutover:
-// application/runs reduces EngineEvent into canonical RunEvent itself, and
+// application/runs reduces ExecutionFact into canonical RunEvent itself, and
 // delivery cannot recreate the former stateful Projector/translator or derive
 // durable side effects from protocol events.
 func TestRunReductionHasNoOuterProjectionSeam(t *testing.T) {
@@ -2037,8 +2127,8 @@ func moduleRoot(t *testing.T) string {
 }
 
 // TestSystemInvariantsStayInApplication keeps cross-resource invariants out of
-// the wire ring (vNext plan D3). A SystemInvariantSpec names a fact that spans
-// runs, interrupts and the store, and it points at the transaction responsible
+// the wire ring (vNext plan D3). An invariant.Spec names a fact that spans
+// runs, interrupts and the store, and it points at the invariant.Boundary responsible
 // for it — neither of which delivery can see. Two things go wrong if delivery
 // names one: the wire layer starts asserting business facts, and the application
 // ring would have to import delivery to register, which is an outward edge.
@@ -2050,7 +2140,7 @@ func TestSystemInvariantsStayInApplication(t *testing.T) {
 	})
 	// The declared set must be actionable wherever it lives. This validation is
 	// fitness-test behavior, so it stays out of the production contract package.
-	specs := appcontract.SystemInvariants()
+	specs := invariant.All()
 	if len(specs) == 0 {
 		t.Fatal("no system invariant is declared; the manifest gate would pass vacuously")
 	}

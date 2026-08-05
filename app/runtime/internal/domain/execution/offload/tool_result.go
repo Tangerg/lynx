@@ -21,7 +21,7 @@ var (
 )
 
 // ID is the opaque identity copied from an offload preview into
-// read_tool_result calls and session artifacts.
+// later result reads and portable session exports.
 type ID string
 
 // NewID returns a new unguessable tool-result identity.
@@ -88,7 +88,7 @@ func (s ToolResultStage) Validate() error {
 }
 
 // ToolResultBlob is the portable, session-owned record needed to restore both
-// transcript presentation and read_tool_result behavior on another database.
+// transcript reconstruction and deferred result reads on another database.
 type ToolResultBlob struct {
 	ID        ID
 	SessionID string

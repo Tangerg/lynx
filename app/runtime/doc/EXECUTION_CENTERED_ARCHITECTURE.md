@@ -33,7 +33,7 @@ Delivery 接收 wire request，Application 拥有完整用例和副作用顺序�
 ```text
 internal/
 ├── domain/       execution、session、provider、tool、approval、editguard…
-├── application/  runs、sessions、models、workspace、usage、integrations、queries…
+├── application/  runs、sessions、models、workspace、usage、mcp、queries…
 ├── adapter/      agentexec、modelclient、maintenance、toolset、runsegment…
 ├── infra/        storage、git、checkpoint、exec、lsp、mcp、a2a、llm
 ├── delivery/     protocol、dispatch、server、transport/{http,inprocess}
@@ -54,7 +54,7 @@ internal/
 Start/Resume request
   -> validate + durable admission
   -> create/attach executor handle
-  -> reduce EngineEvent
+  -> reduce ExecutionFact
   -> EventCommit (persist before publish)
   -> RunEvent journal
   -> Delivery protocol projection
@@ -64,7 +64,7 @@ Start/Resume request
 
 - `RunID` 标识用户看到的完整 run，resume 后保持不变；
 - `SegmentID` 标识一次底层执行段；
-- `EngineEvent` 是 Application 接收 executor 的唯一事件族；
+- `ExecutionFact` 是 Application 接收 executor 的唯一事件族；
 - `EventCommit` 描述需要原子持久化的 projection；
 - `RunEvent` 是 application journal 向 delivery 发布的唯一事件族；
 - terminal checkpoint 是释放 Session admission 前的顺序栅栏，下一轮不能越过上一轮的
@@ -100,14 +100,14 @@ application Run command
   -> agentexec.Engine Start/Restore
   -> Agent Process tree
   -> turn events
-  -> application-owned runs.EngineEvent
+  -> application-owned runs.ExecutionFact
 ```
 
 `turn.New` 返回具体的进程内 turn control；它在 goroutine 启动前快照请求值，拥有 live
 turn handle、subscribe、cancel/resume/rehydrate、approval/hooks 和 terminal first-wins。
 `turn.Executor` 作为应用层的直接消费者，在自己的包内定义只含所需方法的窄控制端口；
 Bootstrap 和 run-segment 同样只声明各自需要的关闭或 process-lookup 切片。turn 自身只通过
-两方法 consumer interface 使用 Agent execution；steering 与完整的 Run-boundary maintenance
+`agentEngine` consumer interface 使用 Agent execution；steering 与完整的 Run-boundary maintenance
 是两片独立依赖，不再经 Engine 中转。Delivery 不直接驱动 turn control。
 
 这里的 `Turn` 是 Agent 防腐层内部术语，不是应用生命周期。越过适配器边界后只存在
@@ -261,7 +261,7 @@ parked tree 由 Application 确定性收口为 `run_lost`，不尝试猜测式�
 
 Session 与 executor process 是两套不同 identity。用户对话及 fork 才是 `Session`；delegated
 work 由同一 Session 下的 first-class child Run 表达，不再从 child process 派生隐藏 Session。
-当前 SQLite `schemaEpoch = 57`，没有旧 `process_states`、`sessions.kind`、双读写或迁移分支。
+当前 SQLite `schemaEpoch = 58`，没有旧 `process_states`、`sessions.kind`、双读写或迁移分支。
 同一 `root_process_id` 的 Session owner 不可被 upsert 改写；普通 lifecycle 的定向删除必须
 同时携带 Session，只有 boot exact-retention 使用全局 unowned cleanup。
 
@@ -272,18 +272,18 @@ work 由同一 Session 下的 first-class child Run 表达，不再从 child pro
 Resolver；catalog 仍归 toolset。
 
 具体工具名称、参数结构、安全分类和 remembered-approval subject 同样归 toolset。
-`agentexec/turn` 只经消费方定义的 `ToolSemantics` 窄接口取得 `SafetyClass`、subject 与
+`agentexec/turn` 只经消费方定义的 `ToolInterpreter` 窄接口取得 `SafetyClass`、subject 与
 shell command；`domain/approval` 只对这些已提炼的领域事实执行 mode、rule 和 bypass
 决策，不维护内建工具目录，也不解释 `command`、`path` 等模型参数字段。未知扩展工具
 在 adapter 边界保守归为 exec。
 
-MCP status/catalog/connection/registry 四片接口定义在真实消费者
-`application/integrations`，由 toolset adapter 实现并由 Bootstrap 直接注入。
+MCP status/catalog/connection/registry 的窄接口定义在真实消费者
+`application/mcp`，由 MCP connection adapter 实现并由 Bootstrap 直接注入。
 OAuth 会话另走 `infra/mcp` 消费方定义的窄持久化接口：SQLite 只保存 opaque payload，
 并以 server name + 规范化 HTTP origin 绑定；endpoint/transport 变化或授权拒绝都会先失效凭据。
 
-execution steering 与 `RunMaintenance` 接口定义在 `adapter/agentexec/turn`；
-Bootstrap 默认绑定 conversation 与 `adapter/maintenance.Suite`。Suite 持有 mining、
+execution steering 与 `Maintenance` 接口定义在 `adapter/agentexec/turn`；
+Bootstrap 默认绑定 conversation 与 `adapter/maintenance.Pipeline`。Pipeline 持有 mining、
 curation、compaction、extraction 的顺序与条件，execution controller 只提供 Run 事实、记录失败并
 发布摘要压缩边界；调用方仍可显式替换整个 maintenance 语义，不扩大 Engine。
 
@@ -333,7 +333,7 @@ Application 依赖 SQLite：用例依赖自己需要的窄读写/事务端口，
 - 一个 Session 至多一个非 terminal Run 由数据库约束兜底，不只靠内存锁；
 - transcript/history 是 projection，不替代 Run aggregate。
 
-当前 SQLite `schemaEpoch = 57`，`runs.goal_lease_id`、`interrupts.goal_lease_id`、
+当前 SQLite `schemaEpoch = 58`，`runs.goal_lease_id`、`interrupts.goal_lease_id`、
 `interrupts.executor_id`、`goal_runs`、Goal JSON 的 `max_runs`/`runs`、
 `mcp_oauth_sessions` 与
 `runs.max_total_tokens` 均属于唯一现行 shape；不读取或迁移任何其他 epoch 的数据库。
@@ -367,7 +367,7 @@ shutdown graph；Host 被复制、并发 Close 或其公开 Stack 被改写，�
 关闭顺序固定为：
 
 ```text
-integrations reconcile tasks
+MCP reconciliation tasks
   -> codebase reindex tasks
   -> active Run pumps
   -> active Agent turn/process trees

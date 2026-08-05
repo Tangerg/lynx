@@ -19,7 +19,7 @@ import (
 const agentMemoryInjectBudget = 4096
 
 // basePrompt is the always-on identity / behavioral preamble. It
-// stays small on purpose — project-specific context lives in curated memory,
+// stays small on purpose — project-specific context lives in agent memory,
 // LYRA.md, or AGENTS.md and gets appended during prompt assembly.
 // Anything user-specific lives in ~/.lyra/LYRA.md.
 const basePrompt = `You are Lyra, a general-purpose AI coding agent.
@@ -39,9 +39,9 @@ task is ambiguous, ask one focused question rather than guess.`
 // extends and overrides the global layer:
 //
 //	<base prompt>
-//	<user memory>     (~/.lyra/LYRA.md — global, user-managed)
-//	<curated memory>  (SQLite — project-scoped, agent-managed)
-//	<project memory>  (<cwd>/LYRA.md — per-session project dir)
+//	<user knowledge>       (~/.lyra/LYRA.md — global, user-managed)
+//	<pinned agent memory>  (SQLite — project-scoped, agent-managed)
+//	<project knowledge>    (<cwd>/LYRA.md — per-session project dir)
 //	<discovered>      (agentdoc cascade — global AGENTS.md first
 //	                   (~/.lyra, ~/.agents), then project root → cwd)
 //
@@ -51,12 +51,12 @@ task is ambiguous, ask one focused question rather than guess.`
 // project A briefs the model about project A regardless of where the runtime
 // server process was started.
 //
-// KnowledgeReader is the prompt's read-only memory surface; agentdoc is the
+// KnowledgeReader is the prompt's human-authored knowledge surface; agentdoc is the
 // read-only cross-tool AGENTS.md convention.
-// Engines built without either memory source simply yield the base prompt +
+// Engines built without knowledge or agent memory simply yield the base prompt +
 // discovered files.
 func (e *Engine) systemPrompt(ctx context.Context) string {
-	prompt := composePrompt(ctx, e.knowledge, e.memory, executionctx.CWD(ctx, e.workdir), e.userHome)
+	prompt := composePrompt(ctx, e.knowledge, e.agentMemory, executionctx.CWD(ctx, e.defaultCWD), e.userHome)
 	return appendPlan(ctx, prompt, e.plan)
 }
 
@@ -82,30 +82,30 @@ func appendPlan(ctx context.Context, prompt string, plan PlanReader) string {
 }
 
 // composePrompt is the pure form behind [Engine.systemPrompt],
-// exposed unexported so the unit tests (which build stub memory stores without
+// exposed unexported so the unit tests (which build stub knowledge and memory readers without
 // a full Engine) can exercise the cascade directly.
-func composePrompt(ctx context.Context, mem KnowledgeReader, memory AgentMemoryReader, cwd, userHome string) string {
+func composePrompt(ctx context.Context, knowledgeReader KnowledgeReader, agentMemory AgentMemoryReader, cwd, userHome string) string {
 	var b strings.Builder
 	b.WriteString(basePrompt)
 
-	if mem != nil {
-		userMem, _ := mem.Get(ctx, knowledge.ScopeUser, "")
-		if s := strings.TrimSpace(userMem); s != "" {
+	if knowledgeReader != nil {
+		userKnowledge, _ := knowledgeReader.Get(ctx, knowledge.ScopeUser, "")
+		if s := strings.TrimSpace(userKnowledge); s != "" {
 			b.WriteString("\n\n## User preferences (from ~/.lyra/LYRA.md)\n\n")
 			b.WriteString(s)
 		}
 	}
 
-	if memory != nil {
+	if agentMemory != nil {
 		// The always-on core is the PINNED items (project + user scope). Non-pinned
 		// approved memory is surfaced per turn by relevance (the recall block), so a
 		// growing corpus never bloats every prompt.
 		var pinned []agentmemory.Item
 		if project := strings.TrimSpace(cwd); project != "" {
-			items, _ := memory.Items(ctx, agentmemory.ScopeProject, filepath.Clean(project))
+			items, _ := agentMemory.Items(ctx, agentmemory.ScopeProject, filepath.Clean(project))
 			pinned = appendPinned(pinned, items)
 		}
-		userItems, _ := memory.Items(ctx, agentmemory.ScopeUser, "")
+		userItems, _ := agentMemory.Items(ctx, agentmemory.ScopeUser, "")
 		pinned = appendPinned(pinned, userItems)
 		if s := renderPinnedMemory(pinned, agentMemoryInjectBudget); s != "" {
 			b.WriteString("\n\n## Pinned memory (managed by Lyra)\n\n")
@@ -113,9 +113,9 @@ func composePrompt(ctx context.Context, mem KnowledgeReader, memory AgentMemoryR
 		}
 	}
 
-	if mem != nil {
-		projectMem, _ := mem.Get(ctx, knowledge.ScopeProject, cwd)
-		if s := strings.TrimSpace(projectMem); s != "" {
+	if knowledgeReader != nil {
+		projectKnowledge, _ := knowledgeReader.Get(ctx, knowledge.ScopeProject, cwd)
+		if s := strings.TrimSpace(projectKnowledge); s != "" {
 			b.WriteString("\n\n## Project knowledge (from <cwd>/LYRA.md)\n\n")
 			b.WriteString(s)
 		}

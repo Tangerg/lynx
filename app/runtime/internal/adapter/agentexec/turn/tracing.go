@@ -97,9 +97,9 @@ func recordTurnCleanupError(st *turnState, err error) {
 	st.span.RecordError(err)
 }
 
-// recordRunMaintenanceError keeps best-effort post-Run work visible without
+// recordMaintenanceError keeps best-effort post-Run work visible without
 // turning it into a second, contradictory execution outcome.
-func recordRunMaintenanceError(st *turnState, err error) {
+func recordMaintenanceError(st *turnState, err error) {
 	if err == nil || st == nil || st.span == nil {
 		return
 	}

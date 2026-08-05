@@ -592,10 +592,10 @@ func (p *processProjection) projectInteraction(process ProcessRef, boundary inte
 }
 
 func (p *processProjection) resolveProcess(processID string) (core.ProcessView, error) {
-	if p.engine == nil || p.engine.runtime == nil {
+	if p.engine == nil || p.engine.agentRuntime == nil {
 		return nil, errors.New("agentexec: process projection requires Agent Runtime")
 	}
-	process, ok := p.engine.runtime.Process(processID)
+	process, ok := p.engine.agentRuntime.Process(processID)
 	if !ok {
 		return nil, fmt.Errorf(
 			"agentexec: process projection cannot resolve process %q",

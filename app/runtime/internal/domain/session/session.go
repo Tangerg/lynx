@@ -19,8 +19,8 @@ const IDPrefix = "ses_"
 // ErrTitleRequired reports a session edit with an empty title.
 var ErrTitleRequired = errors.New("session: title required")
 
-// ErrCwdUnavailable reports a session relocation target that is not an existing directory.
-var ErrCwdUnavailable = errors.New("session: cwd unavailable")
+// ErrCWDUnavailable reports a session relocation target that is not an existing directory.
+var ErrCWDUnavailable = errors.New("session: cwd unavailable")
 
 // ErrRevisionConflict reports an optimistic-concurrency precondition that no
 // longer matches the stored aggregate.
@@ -31,7 +31,7 @@ var ErrRevisionConflict = errors.New("session: revision conflict")
 type Patch struct {
 	Title    *string
 	Model    *string
-	Cwd      *string
+	CWD      *string
 	Favorite *bool
 	Isolated *bool
 	// ExpectedRevision is the revision observed by the caller. Zero disables
@@ -42,7 +42,7 @@ type Patch struct {
 // Empty reports whether the patch carries no editable field. The revision is
 // a precondition, not a change, and therefore does not make a patch non-empty.
 func (p Patch) Empty() bool {
-	return p.Title == nil && p.Model == nil && p.Cwd == nil && p.Favorite == nil && p.Isolated == nil
+	return p.Title == nil && p.Model == nil && p.CWD == nil && p.Favorite == nil && p.Isolated == nil
 }
 
 // Normalize returns a copy with domain-level text invariants applied.
@@ -70,13 +70,13 @@ func (p Patch) Normalize() (Patch, error) {
 type Session struct {
 	ID        string
 	Title     string // human-readable; auto-generated from first user message
-	Cwd       string // working-directory identity; defaults to the serve directory
+	CWD       string // working-directory identity; defaults to the serve directory
 	Model     string // the model the session last explicitly ran against; empty ⇒ runtime default
 	ParentID  string // empty for root sessions; non-empty for a user-created fork
 	StartedAt time.Time
 	UpdatedAt time.Time
 	Favorite  bool // user-pinned: sorts ahead of the rest in the session list
-	// Isolated runs the session's tools inside a sandbox copy of Cwd instead of
+	// Isolated runs the session's tools inside a sandbox copy of CWD instead of
 	// the real working tree: fs + shell operate on the copy, the shell is
 	// OS-jailed (network denied, $HOME hidden), and changes never touch the
 	// project. Off by default. Requires a host isolation backend (macOS today).
@@ -95,7 +95,7 @@ func (s Session) Fork(id string, now time.Time) Session {
 	return Session{
 		ID:        id,
 		Title:     s.Title + " (fork)",
-		Cwd:       s.Cwd, // inherit the source working directory
+		CWD:       s.CWD, // inherit the source working directory
 		ParentID:  s.ID,
 		Isolated:  s.Isolated, // a fork of an isolated session stays isolated
 		StartedAt: now,

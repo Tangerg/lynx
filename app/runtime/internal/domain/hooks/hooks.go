@@ -72,11 +72,11 @@ const (
 // with no process spawn (the declarative fast path). A Matcher (tool-name glob)
 // applies only to tool events; configuration rejects it for other events.
 type Hook struct {
-	Event     Event
-	Matcher   string
-	Command   string
-	Inject    string
-	TimeoutMs int
+	Event         Event
+	Matcher       string
+	Command       string
+	Inject        string
+	TimeoutMillis int
 
 	// Scope + Source are stamped by the loader (provenance + trust gating), not
 	// parsed from the file.
@@ -104,11 +104,11 @@ func (h Hook) Validate() error {
 	if hasCommand == hasInject {
 		return fmt.Errorf("%w: exactly one of command or inject is required", ErrInvalidHook)
 	}
-	if h.TimeoutMs < 0 {
-		return fmt.Errorf("%w: timeoutMs must be non-negative", ErrInvalidHook)
+	if h.TimeoutMillis < 0 {
+		return fmt.Errorf("%w: timeoutMillis must be non-negative", ErrInvalidHook)
 	}
-	if hasInject && h.TimeoutMs != 0 {
-		return fmt.Errorf("%w: timeoutMs is only valid for command hooks", ErrInvalidHook)
+	if hasInject && h.TimeoutMillis != 0 {
+		return fmt.Errorf("%w: timeoutMillis is only valid for command hooks", ErrInvalidHook)
 	}
 	if h.Matcher != "" {
 		if h.Event != PreToolUse && h.Event != PostToolUse {
@@ -125,7 +125,7 @@ func (h Hook) Validate() error {
 type Input struct {
 	Event     Event
 	SessionID string
-	Cwd       string
+	CWD       string
 	Tool      *ToolInput
 	Subagent  *SubagentInput
 	Prompt    string

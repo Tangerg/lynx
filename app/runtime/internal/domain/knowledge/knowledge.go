@@ -42,10 +42,10 @@ func (s Scope) Validate() error {
 
 func (s Scope) String() string { return string(s) }
 
-// Entry is one piece of stored memory. Content is the verbatim markdown
-// shown to the model; CapturedAt records when it landed in LYRA.md.
+// Entry is one human-authored knowledge document. Content is its verbatim
+// Markdown; UpdatedAt records the document's last modification.
 type Entry struct {
-	Scope      Scope
-	Content    string
-	CapturedAt time.Time // when this entry last landed in LYRA.md
+	Scope     Scope
+	Content   string
+	UpdatedAt time.Time
 }

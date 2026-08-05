@@ -234,11 +234,11 @@ func currentUserText(messages []chat.Message) string {
 // turn delegates, and the child Agent (instead of replying text)
 // asks shell to create a marker file with a RELATIVE path. The marker lands in
 // whatever working directory the sub-agent's tools run in — so a test can
-// assert the sub-agent inherited the turn's Cwd by checking where the file
+// assert the sub-agent inherited the turn's CWD by checking where the file
 // appeared.
 type cwdDelegatingStubModel struct{ defaults *chat.Options }
 
-func newCwdDelegatingStubModel() *cwdDelegatingStubModel {
+func newCWDDelegatingStubModel() *cwdDelegatingStubModel {
 	opts := &chat.Options{Model: "stub-cwd-delegating"}
 	return &cwdDelegatingStubModel{defaults: opts}
 }

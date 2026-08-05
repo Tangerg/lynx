@@ -108,8 +108,8 @@ func validateRecoveryParkedTree(
 	resumable, err := checkpoints.CanResumeCheckpoint(ctx, execution.ExecutorCheckpointExpectation{
 		RootProcessID:  rootContinuation.ProcessID,
 		SessionID:      pending.SessionID,
-		Cwd:            sess.Cwd,
-		WorkspaceCwd:   sess.Cwd,
+		CWD:            sess.CWD,
+		WorkspaceCWD:   sess.CWD,
 		Isolated:       false,
 		GoalLeaseID:    pending.GoalLeaseID,
 		ModelSelection: rootContinuation.ModelSelection,

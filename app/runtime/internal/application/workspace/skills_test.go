@@ -8,15 +8,15 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/skills"
 )
 
-func TestListSkillsUsesCatalogPort(t *testing.T) {
+func TestListUsesCatalogPort(t *testing.T) {
 	catalog := &fakeSkillCatalog{
 		skills: []SkillInfo{{Name: "lint", Description: "check code", Scope: SkillScopeProject}},
 	}
-	c := NewSkills(NewContext("", "", testPaths{}), catalog, nil, nil, nil)
+	c := NewSkills(NewScope("", "", testPaths{}), catalog, nil, nil, nil)
 
-	got, err := c.ListSkills(context.Background(), "/repo")
+	got, err := c.List(context.Background(), "/repo")
 	if err != nil {
-		t.Fatalf("ListSkills err = %v", err)
+		t.Fatalf("List err = %v", err)
 	}
 	if catalog.cwd != "/repo" {
 		t.Fatalf("catalog cwd = %q", catalog.cwd)
@@ -26,24 +26,24 @@ func TestListSkillsUsesCatalogPort(t *testing.T) {
 	}
 }
 
-func TestListSkillsWithoutCatalogReturnsNil(t *testing.T) {
-	c := NewSkills(NewContext("", "", testPaths{}), nil, nil, nil, nil)
-	got, err := c.ListSkills(context.Background(), "/repo")
+func TestListWithoutCatalogReturnsNil(t *testing.T) {
+	c := NewSkills(NewScope("", "", testPaths{}), nil, nil, nil, nil)
+	got, err := c.List(context.Background(), "/repo")
 	if err != nil || got != nil {
-		t.Fatalf("ListSkills = %v, %v; want nil, nil", got, err)
+		t.Fatalf("List = %v, %v; want nil, nil", got, err)
 	}
 }
 
 func TestManagedSkillsWithoutCuratorReportUnavailable(t *testing.T) {
-	c := NewSkills(NewContext("", "", testPaths{}), nil, nil, nil, nil)
-	if _, err := c.ListManagedSkills(context.Background()); !errors.Is(err, ErrSkillLibraryUnavailable) {
-		t.Fatalf("ListManagedSkills err = %v, want ErrSkillLibraryUnavailable", err)
+	c := NewSkills(NewScope("", "", testPaths{}), nil, nil, nil, nil)
+	if _, err := c.Managed(context.Background()); !errors.Is(err, ErrSkillLibraryUnavailable) {
+		t.Fatalf("Managed err = %v, want ErrSkillLibraryUnavailable", err)
 	}
-	if err := c.ArchiveSkill(context.Background(), "lint"); !errors.Is(err, ErrSkillLibraryUnavailable) {
-		t.Fatalf("ArchiveSkill err = %v, want ErrSkillLibraryUnavailable", err)
+	if err := c.Archive(context.Background(), "lint"); !errors.Is(err, ErrSkillLibraryUnavailable) {
+		t.Fatalf("Archive err = %v, want ErrSkillLibraryUnavailable", err)
 	}
-	if err := c.RestoreSkill(context.Background(), "lint"); !errors.Is(err, ErrSkillLibraryUnavailable) {
-		t.Fatalf("RestoreSkill err = %v, want ErrSkillLibraryUnavailable", err)
+	if err := c.Restore(context.Background(), "lint"); !errors.Is(err, ErrSkillLibraryUnavailable) {
+		t.Fatalf("Restore err = %v, want ErrSkillLibraryUnavailable", err)
 	}
 }
 
@@ -51,20 +51,20 @@ func TestSkillMutationsNotifyOnlyAfterSuccessfulCommit(t *testing.T) {
 	curator := &fakeSkillCurator{}
 	proposals := &fakeSkillProposals{}
 	notifications := 0
-	c := NewSkills(NewContext("", "", testPaths{}), nil, curator, proposals, func(struct{}) { notifications++ })
+	c := NewSkills(NewScope("", "", testPaths{}), nil, curator, proposals, func(struct{}) { notifications++ })
 
-	if err := c.ArchiveSkill(context.Background(), "lint"); err != nil {
+	if err := c.Archive(context.Background(), "lint"); err != nil {
 		t.Fatal(err)
 	}
-	if err := c.RestoreSkill(context.Background(), "lint"); err != nil {
+	if err := c.Restore(context.Background(), "lint"); err != nil {
 		t.Fatal(err)
 	}
 	proposal := skills.Proposal{Scope: skills.ScopeProject, Name: "lint", Description: "Lint the current project before final verification.", Instructions: "Run the linter."}
-	ref, err := c.SubmitSkillProposal(context.Background(), "/repo", proposal)
+	ref, err := c.SubmitProposal(context.Background(), "/repo", proposal)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := c.ApproveSkillProposal(context.Background(), "/repo", ref); err != nil {
+	if err := c.ApproveProposal(context.Background(), "/repo", ref); err != nil {
 		t.Fatal(err)
 	}
 	if notifications != 4 {
@@ -72,12 +72,12 @@ func TestSkillMutationsNotifyOnlyAfterSuccessfulCommit(t *testing.T) {
 	}
 
 	curator.archiveErr = errors.New("disk unavailable")
-	if err := c.ArchiveSkill(context.Background(), "lint"); err == nil {
-		t.Fatal("ArchiveSkill error = nil, want failure")
+	if err := c.Archive(context.Background(), "lint"); err == nil {
+		t.Fatal("Archive error = nil, want failure")
 	}
 	proposals.approveErr = errors.New("disk unavailable")
-	if err := c.ApproveSkillProposal(context.Background(), "/repo", ref); err == nil {
-		t.Fatal("ApproveSkillProposal error = nil, want failure")
+	if err := c.ApproveProposal(context.Background(), "/repo", ref); err == nil {
+		t.Fatal("ApproveProposal error = nil, want failure")
 	}
 	if notifications != 4 {
 		t.Fatalf("failed mutation notifications = %d, want 4", notifications)
@@ -105,7 +105,7 @@ func (testPaths) ResolveExistingInRoot(_, path string) (string, error) {
 	return path, nil
 }
 
-func (f *fakeSkillCatalog) ListSkills(_ context.Context, cwd string) ([]SkillInfo, error) {
+func (f *fakeSkillCatalog) List(_ context.Context, cwd string) ([]SkillInfo, error) {
 	f.cwd = cwd
 	return f.skills, nil
 }

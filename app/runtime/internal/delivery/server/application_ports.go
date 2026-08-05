@@ -7,7 +7,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/codebase"
 	feedbackapp "github.com/Tangerg/lynx/app/runtime/internal/application/feedback"
-	"github.com/Tangerg/lynx/app/runtime/internal/application/integrations"
+	mcpapp "github.com/Tangerg/lynx/app/runtime/internal/application/mcp"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/models"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/queries"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
@@ -47,17 +47,17 @@ type sessionUseCases interface {
 	View(ctx context.Context, id string) (sessions.View, error)
 }
 
-type integrationUseCases interface {
-	CreateMCPAuthorizationAttempt(ctx context.Context, name string) (integrations.MCPAuthorizationAttempt, error)
-	CreateMCPServer(ctx context.Context, input integrations.MCPServerInput) (integrations.MCPServer, error)
-	DeleteMCPServer(ctx context.Context, name string) error
-	MCPAuthorizationAttempt(ctx context.Context, id string) (integrations.MCPAuthorizationAttempt, error)
-	MCPAuthorizationAttemptRetention() time.Duration
-	MCPServers(ctx context.Context) ([]integrations.MCPServer, error)
-	MCPTools(ctx context.Context, server string) ([]mcpserver.ToolInfo, error)
-	ReconnectMCPServer(ctx context.Context, name string) error
-	TestMCPServer(ctx context.Context, input integrations.MCPServerInput) (integrations.MCPTestResult, error)
-	UpdateMCPServer(ctx context.Context, name string, patch integrations.MCPServerPatch) (integrations.MCPServer, error)
+type mcpUseCases interface {
+	CreateAuthorizationAttempt(ctx context.Context, name string) (mcpapp.AuthorizationAttempt, error)
+	CreateServer(ctx context.Context, input mcpapp.ServerInput) (mcpapp.Server, error)
+	DeleteServer(ctx context.Context, name string) error
+	AuthorizationAttempt(ctx context.Context, id string) (mcpapp.AuthorizationAttempt, error)
+	AuthorizationAttemptRetention() time.Duration
+	Servers(ctx context.Context) ([]mcpapp.Server, error)
+	Tools(ctx context.Context, server string) ([]mcpserver.ToolInfo, error)
+	ReconnectServer(ctx context.Context, name string) error
+	TestServer(ctx context.Context, input mcpapp.ServerInput) (mcpapp.TestResult, error)
+	UpdateServer(ctx context.Context, name string, patch mcpapp.ServerPatch) (mcpapp.Server, error)
 }
 
 type approvalUseCases interface {
@@ -133,47 +133,47 @@ type scheduleFiringUseCases interface {
 }
 
 type workspaceFileUseCases interface {
-	FileHead(ctx context.Context, cwd, path string, lines int) (workspaceapp.FileHead, error)
+	Head(ctx context.Context, cwd, path string, lines int) (workspaceapp.FileHead, error)
 	Grep(ctx context.Context, cwd string, input workspaceapp.GrepInput) (workspaceapp.GrepResult, error)
-	ListFiles(ctx context.Context, input workspaceapp.FileListInput) (workspaceapp.FilePage, error)
-	ReadFile(ctx context.Context, cwd string, input workspaceapp.FileReadInput) (workspaceapp.FileReadResult, error)
+	List(ctx context.Context, input workspaceapp.FileListInput) (workspaceapp.FilePage, error)
+	Read(ctx context.Context, cwd string, input workspaceapp.FileReadInput) (workspaceapp.FileReadResult, error)
 }
 
 type workspaceVCSUseCases interface {
 	Diff(ctx context.Context, input workspaceapp.DiffInput) (workspaceapp.Diff, error)
-	ListFileChanges(ctx context.Context, cwd string) ([]workspaceapp.FileChange, error)
+	Changes(ctx context.Context, cwd string) ([]workspaceapp.FileChange, error)
 }
 
 type workspaceDiscoveryUseCases interface {
-	ListAgentDocs(ctx context.Context, cwd string) ([]workspaceapp.AgentDoc, error)
-	ListWorkspaces(ctx context.Context) ([]workspaceapp.Summary, error)
-	ListRecipes(ctx context.Context, cwd string) ([]workspaceapp.Recipe, error)
-	ResolveWorkspace(path string) (workspaceapp.Resolved, error)
+	AgentDocs(ctx context.Context, cwd string) ([]workspaceapp.AgentDoc, error)
+	Workspaces(ctx context.Context) ([]workspaceapp.Summary, error)
+	Recipes(ctx context.Context, cwd string) ([]workspaceapp.Recipe, error)
+	Resolve(path string) (workspaceapp.Resolved, error)
 }
 
 type workspaceKnowledgeUseCases interface {
-	HasMemory() bool
-	ListMemoryEntries(ctx context.Context, cwd string) ([]knowledge.Entry, error)
-	Memory(ctx context.Context, scope knowledge.Scope, cwd string) (string, error)
-	UpdateMemory(ctx context.Context, scope knowledge.Scope, cwd string, content string) error
+	Available() bool
+	Entries(ctx context.Context, cwd string) ([]knowledge.Entry, error)
+	Read(ctx context.Context, scope knowledge.Scope, cwd string) (string, error)
+	Update(ctx context.Context, scope knowledge.Scope, cwd string, content string) error
 }
 
 type workspaceSkillUseCases interface {
-	ArchiveSkill(ctx context.Context, name string) error
-	ListManagedSkills(ctx context.Context) ([]skills.Entry, error)
-	ListSkillProposals(ctx context.Context, cwd string) ([]skills.ProposalInfo, error)
-	ListSkills(ctx context.Context, cwd string) ([]workspaceapp.SkillInfo, error)
-	ApproveSkillProposal(ctx context.Context, cwd string, ref skills.ProposalRef) error
-	RejectSkillProposal(ctx context.Context, cwd string, ref skills.ProposalRef) error
-	RestoreSkill(ctx context.Context, name string) error
+	Archive(ctx context.Context, name string) error
+	Managed(ctx context.Context) ([]skills.Entry, error)
+	Proposals(ctx context.Context, cwd string) ([]skills.ProposalInfo, error)
+	List(ctx context.Context, cwd string) ([]workspaceapp.SkillInfo, error)
+	ApproveProposal(ctx context.Context, cwd string, ref skills.ProposalRef) error
+	RejectProposal(ctx context.Context, cwd string, ref skills.ProposalRef) error
+	Restore(ctx context.Context, name string) error
 }
 
 type workspaceHookUseCases interface {
-	InspectHooks(ctx context.Context, cwd string) (workspaceapp.HookInspection, error)
-	SetProjectHookTrust(ctx context.Context, projectRoot string, trusted bool) error
+	Inspect(ctx context.Context, cwd string) (workspaceapp.HookInspection, error)
+	SetProjectTrust(ctx context.Context, projectRoot string, trusted bool) error
 }
 
 type workspaceWatchUseCases interface {
-	HasFileWatch() bool
-	WatchGitState(cwds []string, notify func()) (io.Closer, error)
+	Available() bool
+	Watch(cwds []string, notify func()) (io.Closer, error)
 }

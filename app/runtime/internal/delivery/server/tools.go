@@ -36,7 +36,7 @@ func (s *Server) InvokeTool(ctx context.Context, in protocol.InvokeToolRequest) 
 		return nil, err
 	}
 	result, err := s.tools.Invoke(ctx, toolapp.Invocation{
-		Name: in.Name, Arguments: string(args), Cwd: workspaceRefPath(in.Workspace),
+		Name: in.Name, Arguments: string(args), CWD: workspaceRefPath(in.Workspace),
 	})
 	if err != nil {
 		return nil, wireWorkspaceError(err)

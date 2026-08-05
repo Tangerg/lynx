@@ -80,7 +80,7 @@ func DiscoverAgentDocs(ctx context.Context, cwd, home string) ([]workspaceapp.Ag
 // AgentDocs adapts prompt-source discovery to the workspace application port.
 type AgentDocs struct{}
 
-func (AgentDocs) DiscoverAgentDocs(ctx context.Context, cwd, home string) ([]workspaceapp.AgentDocFile, error) {
+func (AgentDocs) Find(ctx context.Context, cwd, home string) ([]workspaceapp.AgentDocFile, error) {
 	return DiscoverAgentDocs(ctx, cwd, home)
 }
 

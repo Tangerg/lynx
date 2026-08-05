@@ -1,4 +1,4 @@
-# Lyra Runtime Protocol · 旁路 API（定稿 `2026-08-04`）
+# Lyra Runtime Protocol · 旁路 API（定稿 `2026-08-05`）
 
 > **状态：正式契约（canonical）。** 本文是 [`API.md`](./API.md) 的配套契约，定义 Lyra Runtime 的**旁路面**——不经 LLM 的
 > 辅助能力：git/VCS、失效事件流、会话回退 / 派生 / 归档、MCP 生命周期、审批 scope。与 `API.md` /
@@ -11,7 +11,7 @@
 > **字段级真相在生成物**（`runtime/contract/{schema,openrpc,manifest}.json` 与 `API_REFERENCE.md`，`API.md §14`）。
 > 本文写语义与不变量，不重述字段表。
 >
-> 文内裸 `§x` 指**本文**小节；引 `API.md` 一律写全 `API.md §x.y`。`protocolVersion`：**`2026-08-04`**（与 `API.md` 同）。
+> 文内裸 `§x` 指**本文**小节；引 `API.md` 一律写全 `API.md §x.y`。`protocolVersion`：**`2026-08-05`**（与 `API.md` 同）。
 
 ---
 
@@ -169,7 +169,7 @@ run 粒度、按 `runId` 寻址的三个会话操作：**回退**（就地销毁
 
 ### 4.3 `sessions.export` / `sessions.import`
 
-同一份 `SessionArtifact`（**version 7**）的两端：终态 run + 完整 Item 历史 + chat 消息 + offload 的工具正文 +
+同一份 `SessionArtifact`（**version 13**）的两端：终态 run + 完整 Item 历史 + chat 消息 + offload 的工具正文 +
 会话级 state 的语义值。`format:"md"` 是人读转录（**不可再导入**）。
 
 - **只带终态 run**：live 与 interrupted 的 executor 状态是进程本地的，不可移植。
@@ -184,7 +184,7 @@ run 粒度、按 `runId` 寻址的三个会话操作：**回退**（就地销毁
 
 ## 5. MCP 生命周期
 
-`mcp.*` 受 `features.mcp` 门控。`mcp.servers.list` 的成员就是完整 `McpServer` 资源：安全的持久化配置与当前连接态一次
+`mcp.*` 受 `features.mcp` 门控。`mcp.servers.list` 的成员就是完整 `MCPServer` 资源：安全的持久化配置与当前连接态一次
 返回，客户端不再做 `configs ⨝ servers`。`mcp.tools.list` 只留给详情面板的远端工具目录（含 `inputSchema`）。
 
 资源操作采用明确的 create/update/delete 语义：
@@ -195,7 +195,7 @@ run 粒度、按 `runId` 寻址的三个会话操作：**回退**（就地销毁
 | `mcp.servers.create`                   | 创建新名字；已存在返回 `mcp_server_already_exists`，绝不隐式覆盖      |
 | `mcp.servers.update`                   | 部分更新；字段省略 = 保留，显式空值/空集合/0 = 清空                   |
 | `mcp.servers.delete`                   | 删除配置与 live projection；不存在返回 `mcp_server_not_found`         |
-| `mcp.servers.test`                     | 探测完整候选配置，不持久化；失败 verdict 内联在 `McpTestResult.error` |
+| `mcp.servers.test`                     | 探测完整候选配置，不持久化；失败 verdict 内联在 `MCPTestResult.error` |
 | `mcp.authorizationAttempts.create`     | 创建交互式 OAuth attempt；立即返回 `pending` 资源                     |
 | `mcp.authorizationAttempts.get`        | 读取 pending 或保留期内的终态 attempt                                 |
 
@@ -205,7 +205,7 @@ run 粒度、按 `runId` 寻址的三个会话操作：**回退**（就地销毁
 `(command,args,dir)`。改变 scope 时，已有 secret 必须显式 set 或 clear，防止凭证被静默转交给另一个网络端点或进程。
 显式切换 transport 则原子丢弃旧 transport 专属 secret，因为闭合输入联合不允许它们出现在新 transport 上。
 
-`McpServer.status` 是闭合联合：`disabled` / `disconnected` / `connecting` /
+`MCPServer.status` 是闭合联合：`disabled` / `disconnected` / `connecting` /
 `connected{toolCount}` / `failed{error}` / `needsAuth{error}`。`disconnected` 的作者是“已启用但 live pool 尚无该 server 的
 投影”，因此启动、异步 redial 前和 projection 重建窗口都有确定含义。`failed` 与 `needsAuth` 的 `error` 是内联状态：
 分别为 `mcp_dial_failed` 与 `mcp_authorization_required`；文案归客户端按 `type` 本地化。
@@ -273,7 +273,7 @@ run 粒度、按 `runId` 寻址的三个会话操作：**回退**（就地销毁
 ## 附录 · 类型索引
 
 本文约束的 wire 类型：`WorkspaceFileChange` · `Diff` · `FileDiff`（§2）、`RuntimeEvent` · `RuntimeTopic` ·
-`WatchSpec`（§3）、`DroppedRun` · `SessionArtifact`（§4）、`McpServer` · `McpServerState`（§5）、
+`WatchSpec`（§3）、`DroppedRun` · `SessionArtifact`（§4）、`MCPServer` · `MCPServerState`（§5）、
 `InterruptResponse.approval` 的 `remember` / `editedArgs`（§6）。**字段表见
 [`schema.json`](../contract/schema.json)**。
 

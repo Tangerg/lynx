@@ -25,7 +25,7 @@ func TestExecutorCheckpointValidatesOnlyApplicationEnvelope(t *testing.T) {
 		BuildID:       "sha256:build",
 		Scope: ExecutionScope{
 			SessionID:   "session-1",
-			Cwd:         "/workspace/project",
+			CWD:         "/workspace/project",
 			Isolated:    true,
 			GoalLeaseID: "lease-1",
 		},
@@ -47,7 +47,7 @@ func TestExecutorCheckpointValidatesOnlyApplicationEnvelope(t *testing.T) {
 		"empty payload":       func(checkpoint *ExecutorCheckpoint) { checkpoint.Payload = nil },
 		"empty build":         func(checkpoint *ExecutorCheckpoint) { checkpoint.BuildID = "" },
 		"unstable session":    func(checkpoint *ExecutorCheckpoint) { checkpoint.Scope.SessionID = " session-1" },
-		"unstable cwd":        func(checkpoint *ExecutorCheckpoint) { checkpoint.Scope.Cwd = "/workspace/project " },
+		"unstable cwd":        func(checkpoint *ExecutorCheckpoint) { checkpoint.Scope.CWD = "/workspace/project " },
 		"unstable goal lease": func(checkpoint *ExecutorCheckpoint) { checkpoint.Scope.GoalLeaseID = " lease-1" },
 		"negative tokens":     func(checkpoint *ExecutorCheckpoint) { checkpoint.Limits.MaxTotalTokens = -1 },
 		"negative cost":       func(checkpoint *ExecutorCheckpoint) { checkpoint.Limits.MaxBudgetUSD = -1 },
@@ -86,16 +86,16 @@ func TestExecutorCheckpointValidatesCrossAggregateOwnership(t *testing.T) {
 		BuildID:       "build",
 		Scope: ExecutionScope{
 			SessionID:    "session-1",
-			Cwd:          "/scratch/project",
-			WorkspaceCwd: "/workspace/project",
+			CWD:          "/scratch/project",
+			WorkspaceCWD: "/workspace/project",
 		},
 		ModelSelection: checkpointSelection(t, "anthropic", "claude"),
 	}
 	expected := ExecutorCheckpointExpectation{
 		RootProcessID:  "process-root",
 		SessionID:      "session-1",
-		Cwd:            "/scratch/project",
-		WorkspaceCwd:   "/workspace/project",
+		CWD:            "/scratch/project",
+		WorkspaceCWD:   "/workspace/project",
 		ModelSelection: checkpointSelection(t, "anthropic", "claude"),
 	}
 	if err := checkpoint.ValidateFor(expected); err != nil {
@@ -105,8 +105,8 @@ func TestExecutorCheckpointValidatesCrossAggregateOwnership(t *testing.T) {
 	for name, mutate := range map[string]func(*ExecutorCheckpointExpectation){
 		"root":       func(value *ExecutorCheckpointExpectation) { value.RootProcessID = "other-root" },
 		"session":    func(value *ExecutorCheckpointExpectation) { value.SessionID = "other-session" },
-		"cwd":        func(value *ExecutorCheckpointExpectation) { value.Cwd = "/other/workspace" },
-		"workspace":  func(value *ExecutorCheckpointExpectation) { value.WorkspaceCwd = "/other/workspace" },
+		"cwd":        func(value *ExecutorCheckpointExpectation) { value.CWD = "/other/workspace" },
+		"workspace":  func(value *ExecutorCheckpointExpectation) { value.WorkspaceCWD = "/other/workspace" },
 		"isolation":  func(value *ExecutorCheckpointExpectation) { value.Isolated = true },
 		"goal lease": func(value *ExecutorCheckpointExpectation) { value.GoalLeaseID = "other-lease" },
 		"provider": func(value *ExecutorCheckpointExpectation) {

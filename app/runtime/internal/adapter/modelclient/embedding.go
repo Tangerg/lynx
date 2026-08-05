@@ -15,7 +15,7 @@ import (
 
 // EmbeddingResolver builds + caches embedding clients from provider-registry
 // credentials, keyed by everything that changes the built client (so a
-// credential mutation is picked up). Mirrors [ClientResolver] for semantic-index
+// credential mutation is picked up). Mirrors [ChatResolver] for semantic-index
 // embedding role.
 type EmbeddingResolver struct {
 	providers CredentialLookup

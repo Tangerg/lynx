@@ -5,7 +5,7 @@ import (
 	"slices"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
-	appcontract "github.com/Tangerg/lynx/app/runtime/internal/application/contract"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/invariant"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/dispatch"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 )
@@ -404,7 +404,7 @@ func valueConstraints(shapes *dispatch.Shapes) []valueConstraintEntry {
 }
 
 func invariants() []invariantEntry {
-	specs := appcontract.SystemInvariants()
+	specs := invariant.All()
 	out := make([]invariantEntry, 0, len(specs))
 	for _, spec := range specs {
 		boundaries := make([]string, 0, len(spec.Boundaries))

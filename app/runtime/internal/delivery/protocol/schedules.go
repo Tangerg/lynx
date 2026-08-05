@@ -6,14 +6,14 @@ import (
 )
 
 // Schedules is the schedules.* method group (API.md §7.9) — cron-triggered
-// headless runs of a saved prompt. The runtime's scheduler worker fires them
+// headless runs from saved instructions. The runtime's scheduler worker fires them
 // while the server process is up; a client manages the schedule set here. A schedule
-// stores the final prompt text (the client may pre-fill it from a recipe), not
+// stores the final instructions text (the client may pre-fill it from a recipe), not
 // a recipe reference.
 type Schedules interface {
 	// ListSchedules returns every schedule, newest-created first.
 	ListSchedules(ctx context.Context, query PageQuery) (*Page[Schedule], error)
-	// CreateSchedule adds an (enabled) schedule. prompt + cron are required;
+	// CreateSchedule adds an (enabled) schedule. instructions + cron are required;
 	// provider/model are paired (both or neither). Returns the stored schedule
 	// (with its id + computed nextRunAt).
 	CreateSchedule(ctx context.Context, in CreateScheduleRequest) (*Schedule, error)
@@ -27,33 +27,33 @@ type Schedules interface {
 	RunScheduleNow(ctx context.Context, in RunScheduleNowRequest) (*RunScheduleNowResponse, error)
 }
 
-// Schedule is one scheduled run (API.md §4.12). Prompt is the final text
+// Schedule is one scheduled run (API.md §4.12). Instructions is the final text
 // sent as the run's input. cron is a 5-field standard expression
 // ("min hour dom month dow"). lastRunAt is omitted until first fired; nextRunAt
 // is omitted when the schedule is disabled.
 type Schedule struct {
-	ID        string        `json:"id"`
-	Title     string        `json:"title"`
-	Prompt    string        `json:"prompt"`
-	Workspace *WorkspaceRef `json:"workspace,omitempty"`
-	Provider  string        `json:"provider,omitempty"`
-	Model     string        `json:"model,omitempty"`
-	Cron      string        `json:"cron"`
-	Enabled   bool          `json:"enabled"`
-	LastRunAt *time.Time    `json:"lastRunAt,omitempty"`
-	NextRunAt *time.Time    `json:"nextRunAt,omitempty"`
-	CreatedAt time.Time     `json:"createdAt"`
-	Revision  uint64        `json:"revision"`
+	ID           string        `json:"id"`
+	Title        string        `json:"title"`
+	Instructions string        `json:"instructions"`
+	Workspace    *WorkspaceRef `json:"workspace,omitempty"`
+	Provider     string        `json:"provider,omitempty"`
+	Model        string        `json:"model,omitempty"`
+	Cron         string        `json:"cron"`
+	Enabled      bool          `json:"enabled"`
+	LastRunAt    *time.Time    `json:"lastRunAt,omitempty"`
+	NextRunAt    *time.Time    `json:"nextRunAt,omitempty"`
+	CreatedAt    time.Time     `json:"createdAt"`
+	Revision     uint64        `json:"revision"`
 }
 
 // CreateScheduleRequest — schedules.create body. A new schedule is enabled.
 type CreateScheduleRequest struct {
-	Title     string        `json:"title,omitempty"`
-	Prompt    string        `json:"prompt"`
-	Workspace *WorkspaceRef `json:"workspace,omitempty"`
-	Provider  string        `json:"provider,omitempty"`
-	Model     string        `json:"model,omitempty"`
-	Cron      string        `json:"cron"`
+	Title        string        `json:"title,omitempty"`
+	Instructions string        `json:"instructions"`
+	Workspace    *WorkspaceRef `json:"workspace,omitempty"`
+	Provider     string        `json:"provider,omitempty"`
+	Model        string        `json:"model,omitempty"`
+	Cron         string        `json:"cron"`
 }
 
 // UpdateScheduleRequest — schedules.update body (full-replace of the editable
@@ -62,7 +62,7 @@ type UpdateScheduleRequest struct {
 	ID               string        `json:"id"`
 	ExpectedRevision uint64        `json:"expectedRevision"`
 	Title            *string       `json:"title,omitempty"`
-	Prompt           *string       `json:"prompt,omitempty"`
+	Instructions     *string       `json:"instructions,omitempty"`
 	Workspace        *WorkspaceRef `json:"workspace,omitempty"`
 	Provider         *string       `json:"provider,omitempty"`
 	Model            *string       `json:"model,omitempty"`

@@ -39,7 +39,7 @@ func (store *recoveryStoreStub) SessionByID(_ context.Context, sessionID string)
 	if sess, ok := store.sessions[sessionID]; ok {
 		return sess, nil
 	}
-	return session.Session{ID: sessionID, Cwd: "/workspace"}, nil
+	return session.Session{ID: sessionID, CWD: "/workspace"}, nil
 }
 
 func (store *recoveryStoreStub) ListTranscript(_ context.Context, sessionID string) ([]transcript.Item, error) {
@@ -215,8 +215,8 @@ func TestRecoveryPreservesOnlyCoherentInterruptedTree(t *testing.T) {
 	wantExpectation := execution.ExecutorCheckpointExpectation{
 		RootProcessID:  "process_root",
 		SessionID:      run.SessionID,
-		Cwd:            "/workspace",
-		WorkspaceCwd:   "/workspace",
+		CWD:            "/workspace",
+		WorkspaceCWD:   "/workspace",
 		GoalLeaseID:    pending.GoalLeaseID,
 		ModelSelection: run.ModelSelection,
 		Limits:         run.Limits,
@@ -237,7 +237,7 @@ func TestRecoveryMarksIsolatedParkLostWithoutProbingExecutorCheckpoint(t *testin
 		pending:     []interrupts.Pending{pending},
 		transcripts: map[string][]transcript.Item{run.SessionID: {item}},
 		sessions: map[string]session.Session{
-			run.SessionID: {ID: run.SessionID, Cwd: "/workspace", Isolated: true},
+			run.SessionID: {ID: run.SessionID, CWD: "/workspace", Isolated: true},
 		},
 	}
 	checkpointCalls := 0

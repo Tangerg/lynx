@@ -28,7 +28,7 @@ type Roots interface {
 type Invocation struct {
 	Name      string
 	Arguments string
-	Cwd       string
+	CWD       string
 }
 
 // Coordinator drives direct diagnostic-tool use cases.
@@ -50,7 +50,7 @@ func (c *Coordinator) List(ctx context.Context) ([]toolsvc.Tool, error) {
 
 // Invoke runs one direct diagnostic tool within its admitted workspace root.
 func (c *Coordinator) Invoke(ctx context.Context, in Invocation) (toolsvc.Result, error) {
-	root, err := c.roots.ResolveRoot(in.Cwd)
+	root, err := c.roots.ResolveRoot(in.CWD)
 	if err != nil {
 		return toolsvc.Result{}, err
 	}

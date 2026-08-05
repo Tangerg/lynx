@@ -88,7 +88,7 @@ func TestListHooksPreservesCompleteHookDefinition(t *testing.T) {
 	s := newWorkspaceServerWithConfig(root, workspaceTestConfig{Hooks: staticHookInspector{inspection: domainhooks.Inspection{
 		ProjectRoot: root,
 		Hooks: []domainhooks.Hook{{
-			Event: domainhooks.SubagentStart, Command: "audit", TimeoutMs: 2500,
+			Event: domainhooks.SubagentStart, Command: "audit", TimeoutMillis: 2500,
 			Scope: domainhooks.ScopeGlobal, Source: "/home/user/.lyra/hooks.json",
 		}},
 	}}})
@@ -101,7 +101,7 @@ func TestListHooksPreservesCompleteHookDefinition(t *testing.T) {
 		t.Fatalf("hooks = %+v, want one", result.Hooks)
 	}
 	hook := result.Hooks[0]
-	if hook.Event != protocol.HookEventSubagentStart || hook.TimeoutMs != 2500 || !hook.Active {
+	if hook.Event != protocol.HookEventSubagentStart || hook.TimeoutMillis != 2500 || !hook.Active {
 		t.Fatalf("hook = %+v, want complete active subagent hook", hook)
 	}
 }

@@ -36,7 +36,7 @@ func TestRegistryViewsAreSnapshots(t *testing.T) {
 	metas := registry.Metas()
 	metas[0].Errors[0] = protocol.ErrSessionNotFound.Error()
 	metas[0].CapabilityRules[0].When[0].Field = "corrupted"
-	metas[0].CapabilityRules[0].Requires[0] = protocol.FeatureMemory
+	metas[0].CapabilityRules[0].Requires[0] = protocol.FeatureKnowledge
 	got := registry.Metas()[0]
 	if !slices.Equal(got.Errors, []string{protocol.ErrRunNotFound.Error()}) {
 		t.Fatalf("Metas exposed error storage: %v", got.Errors)

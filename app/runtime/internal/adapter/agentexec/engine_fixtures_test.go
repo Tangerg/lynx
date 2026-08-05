@@ -80,8 +80,8 @@ func mustEngineWith(t *testing.T, client *chatclient.Client, bc toolset.BuildCon
 // each engine test.
 func testToolsetBuildConfig(t *testing.T, config toolset.BuildConfig) toolset.BuildConfig {
 	t.Helper()
-	if config.Workdir == "" {
-		config.Workdir = t.TempDir()
+	if config.DefaultCWD == "" {
+		config.DefaultCWD = t.TempDir()
 	}
 	if config.UserHome == "" {
 		config.UserHome = t.TempDir()
@@ -143,8 +143,8 @@ func expectationForCheckpoint(
 	return execution.ExecutorCheckpointExpectation{
 		RootProcessID:  checkpoint.RootProcessID,
 		SessionID:      checkpoint.Scope.SessionID,
-		Cwd:            checkpoint.Scope.Cwd,
-		WorkspaceCwd:   checkpoint.Scope.WorkspaceCwd,
+		CWD:            checkpoint.Scope.CWD,
+		WorkspaceCWD:   checkpoint.Scope.WorkspaceCWD,
 		Isolated:       checkpoint.Scope.Isolated,
 		GoalLeaseID:    checkpoint.Scope.GoalLeaseID,
 		ModelSelection: checkpoint.ModelSelection,

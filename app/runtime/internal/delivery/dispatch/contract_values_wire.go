@@ -22,10 +22,19 @@ func registerValueConstraints(s *Shapes) {
 	registerSessionValues(s)
 	registerArtifactValues(s)
 	registerRunValues(s)
+	registerPlanValues(s)
 	registerWorkspaceValues(s)
-	registerIntegrationValues(s)
-	registerMemoryValues(s)
+	registerCodebaseValues(s)
+	registerUsageValues(s)
+	registerSkillValues(s)
+	registerHookValues(s)
+	registerApprovalValues(s)
+	registerMCPValues(s)
+	registerProviderValues(s)
+	registerToolValues(s)
+	registerAgentMemoryValues(s)
 	registerScheduleValues(s)
+	registerGoalValues(s)
 	registerRuntimeValues(s)
 }
 
@@ -88,14 +97,14 @@ func registerArtifactValues(s *Shapes) {
 		},
 	})
 	nonNegative[protocol.ArtifactRun](s, "messageMark")
-	nonNegative[protocol.ArtifactRunMetrics](s, "steps", "activeDurationMs")
+	nonNegative[protocol.ArtifactRunMetrics](s, "steps", "activeDurationMillis")
 	nonNegative[protocol.ArtifactUsage](s,
 		"inputTokens", "outputTokens", "cacheReadTokens", "cacheWriteTokens", "reasoningTokens", "costUsd",
 	)
 	nonNegative[protocol.ArtifactModelUsage](s,
 		"inputTokens", "outputTokens", "cacheReadTokens", "cacheWriteTokens", "reasoningTokens", "costUsd",
 	)
-	nonNegative[protocol.ArtifactItem](s, "droppedMessages", "durationMs")
+	nonNegative[protocol.ArtifactItem](s, "droppedMessages", "durationMillis")
 	s.valueConstraint(FieldConstraintSpec{
 		GoType:      typeOf[protocol.ArtifactProblem](),
 		Constraints: []FieldConstraint{{Field: "retryAfterSeconds", Kind: ConstraintPositive}},
@@ -103,7 +112,7 @@ func registerArtifactValues(s *Shapes) {
 }
 
 func registerRunValues(s *Shapes) {
-	nonNegative[protocol.Item](s, "durationMs")
+	nonNegative[protocol.Item](s, "durationMillis")
 	s.valueConstraint(FieldConstraintSpec{
 		GoType: typeOf[protocol.RunProtocolProfile](),
 		Constraints: []FieldConstraint{
@@ -204,9 +213,6 @@ func registerRunValues(s *Shapes) {
 	// The scope is required and its tag decides everything else about the read, so a
 	// scope with no tag is a request that never said what it wanted.
 	nonEmpty[protocol.ListItemsRequest](s, "scope.type")
-	nonEmpty[protocol.GetPlanRequest](s, "sessionId")
-	nonEmpty[protocol.SessionUsageRequest](s, "sessionId")
-
 	// An omitted status filter already means "every status", so an empty array is
 	// the one thing it cannot mean, and a repeat asks a set for something a set
 	// does not have.
@@ -217,6 +223,10 @@ func registerRunValues(s *Shapes) {
 			{Field: "statuses", Kind: ConstraintUniqueItems},
 		},
 	})
+}
+
+func registerPlanValues(s *Shapes) {
+	nonEmpty[protocol.GetPlanRequest](s, "sessionId")
 }
 
 func registerWorkspaceValues(s *Shapes) {
@@ -250,6 +260,9 @@ func registerWorkspaceValues(s *Shapes) {
 			{Field: "limit", Kind: ConstraintNonNegative},
 		},
 	})
+}
+
+func registerCodebaseValues(s *Shapes) {
 	s.valueConstraint(FieldConstraintSpec{
 		GoType: typeOf[protocol.CodebaseSearchRequest](),
 		Constraints: []FieldConstraint{
@@ -257,33 +270,46 @@ func registerWorkspaceValues(s *Shapes) {
 			{Field: "limit", Kind: ConstraintNonNegative},
 		},
 	})
+}
+
+func registerUsageValues(s *Shapes) {
+	nonEmpty[protocol.SessionUsageRequest](s, "sessionId")
 	s.valueConstraint(FieldConstraintSpec{
 		GoType:      typeOf[protocol.UsageSummaryRequest](),
 		Constraints: []FieldConstraint{{Field: "sinceDays", Kind: ConstraintNonNegative}},
 	})
 }
 
-func registerIntegrationValues(s *Shapes) {
+func registerSkillValues(s *Shapes) {
 	nonEmpty[protocol.SkillNameRequest](s, "name")
 	nonEmpty[protocol.SkillProposalRef](s, "name", "revision")
+}
+
+func registerHookValues(s *Shapes) {
 	nonEmpty[protocol.SetHookTrustRequest](s, "projectRoot")
+}
+
+func registerApprovalValues(s *Shapes) {
 	nonEmpty[protocol.ListApprovalRulesRequest](s, "sessionId")
 	nonEmpty[protocol.ForgetApprovalRuleRequest](s, "id")
+}
+
+func registerMCPValues(s *Shapes) {
 	nonEmpty[protocol.MCPServerRequest](s, "server")
 	nonEmpty[protocol.CreateMCPAuthorizationAttemptRequest](s, "server")
 	nonEmpty[protocol.MCPAuthorizationAttemptRequest](s, "attemptId")
-	nonEmpty[protocol.McpAuthorizationAttempt](s, "id", "server")
-	nonEmpty[protocol.McpConnection](s, "url", "command")
-	nonEmpty[protocol.McpConnectionInput](s, "url", "command")
-	nonEmpty[protocol.McpAuthorizationChange](s, "value")
+	nonEmpty[protocol.MCPAuthorizationAttempt](s, "id", "server")
+	nonEmpty[protocol.MCPConnection](s, "url", "command")
+	nonEmpty[protocol.MCPConnectionInput](s, "url", "command")
+	nonEmpty[protocol.MCPAuthorizationChange](s, "value")
 	s.valueConstraint(FieldConstraintSpec{
-		GoType: typeOf[protocol.McpHeadersChange](),
+		GoType: typeOf[protocol.MCPHeadersChange](),
 		Constraints: []FieldConstraint{
 			{Field: "value", Kind: ConstraintNonEmptyProperties},
 		},
 	})
 	s.valueConstraint(FieldConstraintSpec{
-		GoType: typeOf[protocol.McpEnvironmentChange](),
+		GoType: typeOf[protocol.MCPEnvironmentChange](),
 		Constraints: []FieldConstraint{
 			{Field: "value", Kind: ConstraintNonEmptyProperties},
 		},
@@ -306,15 +332,19 @@ func registerIntegrationValues(s *Shapes) {
 			{Field: "autoApproveTools", Kind: ConstraintUniqueItems},
 		},
 	})
+}
+
+func registerProviderValues(s *Shapes) {
 	nonEmpty[protocol.UpdateProviderRequest](s, "provider")
 	nonEmpty[protocol.ProviderConfigChange](s, "value")
 	nonEmpty[protocol.TestProviderRequest](s, "provider")
+}
+
+func registerToolValues(s *Shapes) {
 	nonEmpty[protocol.InvokeToolRequest](s, "name")
 }
 
-func registerMemoryValues(s *Shapes) {
-	// GetMemoryRequest / UpdateMemoryRequest carry only `scope`, whose closed set is
-	// checked from the enum declaration — nothing to state here.
+func registerAgentMemoryValues(s *Shapes) {
 	nonEmpty[protocol.AgentMemoryItemRequest](s, "id")
 	nonEmpty[protocol.AgentMemoryReviewRequest](s, "id")
 	nonEmpty[protocol.AgentMemoryUpdateRequest](s, "id")
@@ -322,18 +352,21 @@ func registerMemoryValues(s *Shapes) {
 }
 
 func registerScheduleValues(s *Shapes) {
-	nonEmpty[protocol.CreateScheduleRequest](s, "prompt", "cron")
+	nonEmpty[protocol.CreateScheduleRequest](s, "instructions", "cron")
 	s.valueConstraint(FieldConstraintSpec{
 		GoType: typeOf[protocol.UpdateScheduleRequest](),
 		Constraints: []FieldConstraint{
 			{Field: "id", Kind: ConstraintNonEmpty},
 			{Field: "expectedRevision", Kind: ConstraintPositive},
-			{Field: "prompt", Kind: ConstraintNonEmpty},
+			{Field: "instructions", Kind: ConstraintNonEmpty},
 			{Field: "cron", Kind: ConstraintNonEmpty},
 		},
 	})
 	nonEmpty[protocol.DeleteScheduleRequest](s, "id")
 	nonEmpty[protocol.RunScheduleNowRequest](s, "id")
+}
+
+func registerGoalValues(s *Shapes) {
 	nonEmpty[protocol.StartGoalRequest](s, "sessionId", "objective")
 	nonEmpty[protocol.GoalRequest](s, "sessionId")
 	s.valueConstraint(FieldConstraintSpec{

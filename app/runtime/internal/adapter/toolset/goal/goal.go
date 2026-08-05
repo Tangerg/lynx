@@ -65,7 +65,7 @@ type reportArgs struct {
 
 // Reader is get_goal's complete consumer view.
 type Reader interface {
-	Get(ctx context.Context, sessionID string) (goalstate.Goal, bool, error)
+	Current(ctx context.Context, sessionID string) (goalstate.Goal, bool, error)
 }
 
 // ActiveReader is the resolver gate's complete consumer view.
@@ -76,15 +76,6 @@ type ActiveReader interface {
 // Reporter is report_goal_outcome's complete consumer view.
 type Reporter interface {
 	Report(ctx context.Context, command goals.ReportCommand) (goals.ReportResult, error)
-}
-
-// State combines the three Goal-state capabilities required to assemble the
-// complete model-facing tool family. Individual constructors consume the
-// single-method interfaces above.
-type State interface {
-	Reader
-	ActiveReader
-	Reporter
 }
 
 // Starter is the one lifecycle operation create_goal needs. The Driver owns
@@ -210,7 +201,7 @@ func (t *getter) get(ctx context.Context, _ getArgs) (goalResult, error) {
 	if sessionID == "" {
 		return goalResult{Message: "No active session; there is no session Goal to inspect."}, nil
 	}
-	g, ok, err := t.goals.Get(ctx, sessionID)
+	g, ok, err := t.goals.Current(ctx, sessionID)
 	if err != nil {
 		return goalResult{}, err
 	}
@@ -226,10 +217,10 @@ func (t *outcomeReporter) report(ctx context.Context, args reportArgs) (string, 
 	if sessionID == "" {
 		return "No active session; cannot report a Goal outcome.", nil
 	}
-	status := goalstate.StatusComplete
+	outcome := goalstate.StatusComplete
 	reason := ""
 	if args.Outcome == "blocked" {
-		status = goalstate.StatusBlocked
+		outcome = goalstate.StatusBlocked
 		if args.Reason != nil {
 			reason = strings.TrimSpace(*args.Reason)
 		}
@@ -243,7 +234,7 @@ func (t *outcomeReporter) report(ctx context.Context, args reportArgs) (string, 
 	result, err := t.goals.Report(ctx, goals.ReportCommand{
 		SessionID: sessionID,
 		LeaseID:   leaseID,
-		Status:    status,
+		Outcome:   outcome,
 		Reason:    reason,
 	})
 	if err != nil {
@@ -263,7 +254,7 @@ func (t *outcomeReporter) report(ctx context.Context, args reportArgs) (string, 
 		return "The Goal changed concurrently; inspect it with get_goal before reporting an outcome.", nil
 	case goals.ReportReasonRequired:
 		return "Provide a concrete reason when reporting a blocked Goal.", nil
-	case goals.ReportInvalidStatus:
+	case goals.ReportInvalidOutcome:
 		return "Invalid Goal outcome; use completed or blocked.", nil
 	default:
 		return "No active Goal exists for this session; no outcome was reported.", nil

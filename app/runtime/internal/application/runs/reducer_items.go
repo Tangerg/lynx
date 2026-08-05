@@ -81,7 +81,7 @@ func (r *reducer) closeStreaming() []RunEvent {
 	return append(r.closeReasoning(), r.closeText()...)
 }
 
-func (r *reducer) toolStart(e ToolCallStart) ([]RunEvent, error) {
+func (r *reducer) toolStart(e ToolCallStarted) ([]RunEvent, error) {
 	if strings.TrimSpace(e.CallID) == "" {
 		return nil, errors.New("tool call id is required")
 	}
@@ -167,7 +167,7 @@ func (r *reducer) spawningItem(sourceCallID string) (transcript.Item, error) {
 	return r.runningToolItem(match), nil
 }
 
-func (r *reducer) toolEnd(e ToolCallEnd) ([]RunEvent, error) {
+func (r *reducer) toolEnd(e ToolCallFinished) ([]RunEvent, error) {
 	ref, ok := r.tools[e.CallID]
 	if !ok {
 		if consumed, err := r.resume.consumeCommittedTool(e); consumed {
@@ -217,7 +217,7 @@ func (r *reducer) flushEndedTools() ([]RunEvent, error) {
 	return out, nil
 }
 
-func (r *reducer) completeTool(ref *openTool, e ToolCallEnd) ([]RunEvent, error) {
+func (r *reducer) completeTool(ref *openTool, e ToolCallFinished) ([]RunEvent, error) {
 	var out []RunEvent
 	if e.OutputText != "" {
 		out = append(out, ItemChanged{
@@ -274,7 +274,7 @@ func (r *reducer) usageProgress(e UsageReported) ([]RunEvent, error) {
 	return []RunEvent{SegmentProgressed{Progress: progress}}, nil
 }
 
-func (r *reducer) compaction(e CompactBoundary) []RunEvent {
+func (r *reducer) compaction(e CompactionBoundary) []RunEvent {
 	dropped := max(e.MessagesBefore-e.MessagesAfter, 0)
 	id, now := r.nextItemID(), r.now()
 	return itemPair(func(status transcript.ItemStatus) transcript.Item {

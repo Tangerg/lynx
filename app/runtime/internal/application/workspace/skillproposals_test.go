@@ -52,21 +52,21 @@ func (f *fakeSkillProposals) RejectProposal(_ context.Context, projectRoot strin
 }
 
 func TestSkillProposalsUnavailableWithoutStore(t *testing.T) {
-	c := NewSkills(NewContext("", "", testPaths{}), nil, nil, nil, nil)
+	c := NewSkills(NewScope("", "", testPaths{}), nil, nil, nil, nil)
 	ref := skills.NewProposalRef(skills.ScopeProject, "run-tests", []byte("content"))
 	proposal := skills.Proposal{Scope: skills.ScopeProject, Name: "run-tests", Description: "Run the project tests when verification is requested.", Instructions: "Run the tests."}
 
-	if _, err := c.SubmitSkillProposal(t.Context(), "/repo", proposal); !errors.Is(err, ErrSkillProposalsUnavailable) {
-		t.Fatalf("SubmitSkillProposal err = %v, want ErrSkillProposalsUnavailable", err)
+	if _, err := c.SubmitProposal(t.Context(), "/repo", proposal); !errors.Is(err, ErrSkillProposalsUnavailable) {
+		t.Fatalf("SubmitProposal err = %v, want ErrSkillProposalsUnavailable", err)
 	}
-	if _, err := c.ListSkillProposals(t.Context(), "/repo"); !errors.Is(err, ErrSkillProposalsUnavailable) {
-		t.Fatalf("ListSkillProposals err = %v, want ErrSkillProposalsUnavailable", err)
+	if _, err := c.Proposals(t.Context(), "/repo"); !errors.Is(err, ErrSkillProposalsUnavailable) {
+		t.Fatalf("Proposals err = %v, want ErrSkillProposalsUnavailable", err)
 	}
-	if err := c.ApproveSkillProposal(t.Context(), "/repo", ref); !errors.Is(err, ErrSkillProposalsUnavailable) {
-		t.Fatalf("ApproveSkillProposal err = %v, want ErrSkillProposalsUnavailable", err)
+	if err := c.ApproveProposal(t.Context(), "/repo", ref); !errors.Is(err, ErrSkillProposalsUnavailable) {
+		t.Fatalf("ApproveProposal err = %v, want ErrSkillProposalsUnavailable", err)
 	}
-	if err := c.RejectSkillProposal(t.Context(), "/repo", ref); !errors.Is(err, ErrSkillProposalsUnavailable) {
-		t.Fatalf("RejectSkillProposal err = %v, want ErrSkillProposalsUnavailable", err)
+	if err := c.RejectProposal(t.Context(), "/repo", ref); !errors.Is(err, ErrSkillProposalsUnavailable) {
+		t.Fatalf("RejectProposal err = %v, want ErrSkillProposalsUnavailable", err)
 	}
 }
 
@@ -74,20 +74,20 @@ func TestSkillProposalsResolveWorkspaceAndDelegate(t *testing.T) {
 	proposal := skills.Proposal{Scope: skills.ScopeProject, Name: "run-tests", Description: "Run the project tests when verification is requested.", Instructions: "Run the tests."}
 	ref := skills.NewProposalRef(proposal.Scope, proposal.Name, []byte(proposal.Instructions))
 	fake := &fakeSkillProposals{list: []skills.ProposalInfo{{Ref: ref, Description: proposal.Description, Instructions: proposal.Instructions}}}
-	c := NewSkills(NewContext("", "", testPaths{}), nil, nil, fake, nil)
+	c := NewSkills(NewScope("", "", testPaths{}), nil, nil, fake, nil)
 
-	gotRef, err := c.SubmitSkillProposal(t.Context(), "/repo", proposal)
+	gotRef, err := c.SubmitProposal(t.Context(), "/repo", proposal)
 	if err != nil || gotRef != ref {
-		t.Fatalf("SubmitSkillProposal = %+v, %v; want %+v", gotRef, err, ref)
+		t.Fatalf("SubmitProposal = %+v, %v; want %+v", gotRef, err, ref)
 	}
-	got, err := c.ListSkillProposals(t.Context(), "/repo")
+	got, err := c.Proposals(t.Context(), "/repo")
 	if err != nil || len(got) != 1 || got[0].Ref != ref {
-		t.Fatalf("ListSkillProposals = %+v, %v", got, err)
+		t.Fatalf("Proposals = %+v, %v", got, err)
 	}
-	if err := c.ApproveSkillProposal(t.Context(), "/repo", ref); err != nil {
+	if err := c.ApproveProposal(t.Context(), "/repo", ref); err != nil {
 		t.Fatal(err)
 	}
-	if err := c.RejectSkillProposal(t.Context(), "/repo", ref); err != nil {
+	if err := c.RejectProposal(t.Context(), "/repo", ref); err != nil {
 		t.Fatal(err)
 	}
 	if fake.root != "/repo" || fake.proposal != proposal {

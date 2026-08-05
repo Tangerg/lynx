@@ -75,7 +75,7 @@ func (c *Coordinator) Rollback(ctx context.Context, spec RollbackSpec) (Rollback
 
 	var cwd string
 	if spec.RestoreFiles {
-		cwd = ses.Cwd
+		cwd = ses.CWD
 		if cwd == "" {
 			return result, ErrCheckpointUnavailable
 		}
@@ -111,7 +111,7 @@ func (c *Coordinator) Rollback(ctx context.Context, spec RollbackSpec) (Rollback
 	restoreLogged := spec.RestoreFiles && c.mutations != nil
 	if restoreLogged {
 		if err := c.recordMutation(ctx, execution.WorkspaceMutation{
-			SessionID: spec.SessionID, Cwd: cwd, ToRunID: spec.ToRunID,
+			SessionID: spec.SessionID, CWD: cwd, ToRunID: spec.ToRunID,
 			RestoreHistory: spec.RestoreHistory,
 		}); err != nil {
 			return result, err
@@ -204,7 +204,7 @@ func (c *Coordinator) recoverRollback(ctx context.Context, m execution.Workspace
 			return err
 		}
 	}
-	if err := c.restore(ctx, m.SessionID, m.Cwd, m.ToRunID); err != nil {
+	if err := c.restore(ctx, m.SessionID, m.CWD, m.ToRunID); err != nil {
 		return err
 	}
 	if m.RestoreHistory && len(boundary.Dropped) > 0 {

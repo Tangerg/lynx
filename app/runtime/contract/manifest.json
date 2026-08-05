@@ -1,7 +1,7 @@
 {
   "protocol": {
-    "current": "2026-08-04",
-    "minSupported": "2026-08-04"
+    "current": "2026-08-05",
+    "minSupported": "2026-08-05"
   },
   "features": [
     "reasoning",
@@ -10,7 +10,7 @@
     "plan",
     "goals",
     "agentMemory",
-    "memory",
+    "knowledge",
     "skills",
     "mcp",
     "schedules",
@@ -994,7 +994,7 @@
       "stability": "stable"
     },
     {
-      "name": "memory.list",
+      "name": "knowledge.list",
       "kind": "unary",
       "operation": "query",
       "idempotency": "none",
@@ -1004,12 +1004,12 @@
         "capability_not_negotiated"
       ],
       "features": [
-        "memory"
+        "knowledge"
       ],
       "stability": "stable"
     },
     {
-      "name": "memory.get",
+      "name": "knowledge.get",
       "kind": "unary",
       "operation": "query",
       "idempotency": "none",
@@ -1019,12 +1019,12 @@
         "capability_not_negotiated"
       ],
       "features": [
-        "memory"
+        "knowledge"
       ],
       "stability": "stable"
     },
     {
-      "name": "memory.update",
+      "name": "knowledge.update",
       "kind": "unary",
       "operation": "command",
       "idempotency": "replayResponse",
@@ -1034,7 +1034,7 @@
         "capability_not_negotiated"
       ],
       "features": [
-        "memory"
+        "knowledge"
       ],
       "stability": "stable"
     },
@@ -1148,6 +1148,9 @@
           "goals.stop",
           "interrupts.list",
           "items.list",
+          "knowledge.get",
+          "knowledge.list",
+          "knowledge.update",
           "mcp.authorizationAttempts.create",
           "mcp.authorizationAttempts.get",
           "mcp.servers.create",
@@ -1157,9 +1160,6 @@
           "mcp.servers.test",
           "mcp.servers.update",
           "mcp.tools.list",
-          "memory.get",
-          "memory.list",
-          "memory.update",
           "plan.get",
           "runs.cancel",
           "runs.get",
@@ -1443,9 +1443,9 @@
           "codebase.search",
           "codebase.status",
           "hooks.list",
-          "memory.get",
-          "memory.list",
-          "memory.update",
+          "knowledge.get",
+          "knowledge.list",
+          "knowledge.update",
           "recipes.list",
           "sessions.create",
           "sessions.update",
@@ -1907,31 +1907,31 @@
       ]
     },
     {
-      "method": "memory.list",
+      "method": "knowledge.list",
       "rules": [
         {
           "requires": [
-            "memory"
+            "knowledge"
           ]
         }
       ]
     },
     {
-      "method": "memory.get",
+      "method": "knowledge.get",
       "rules": [
         {
           "requires": [
-            "memory"
+            "knowledge"
           ]
         }
       ]
     },
     {
-      "method": "memory.update",
+      "method": "knowledge.update",
       "rules": [
         {
           "requires": [
-            "memory"
+            "knowledge"
           ]
         }
       ]
@@ -2615,7 +2615,7 @@
           ],
           "optional": [
             "finishedAt",
-            "durationMs",
+            "durationMillis",
             "tool",
             "safetyClass",
             "error"
@@ -2826,7 +2826,7 @@
       ]
     },
     {
-      "type": "McpConnection",
+      "type": "MCPConnection",
       "discriminator": "type",
       "variants": [
         {
@@ -2853,7 +2853,7 @@
       ]
     },
     {
-      "type": "McpConnectionInput",
+      "type": "MCPConnectionInput",
       "discriminator": "type",
       "variants": [
         {
@@ -2880,7 +2880,7 @@
       ]
     },
     {
-      "type": "McpAuthorizationChange",
+      "type": "MCPAuthorizationChange",
       "discriminator": "type",
       "variants": [
         {
@@ -2895,7 +2895,7 @@
       ]
     },
     {
-      "type": "McpHeadersChange",
+      "type": "MCPHeadersChange",
       "discriminator": "type",
       "variants": [
         {
@@ -2910,7 +2910,7 @@
       ]
     },
     {
-      "type": "McpEnvironmentChange",
+      "type": "MCPEnvironmentChange",
       "discriminator": "type",
       "variants": [
         {
@@ -2925,7 +2925,7 @@
       ]
     },
     {
-      "type": "McpServerState",
+      "type": "MCPServerState",
       "discriminator": "type",
       "variants": [
         {
@@ -2958,7 +2958,7 @@
       ]
     },
     {
-      "type": "McpAuthorizationAttemptStatus",
+      "type": "MCPAuthorizationAttemptStatus",
       "discriminator": "type",
       "variants": [
         {
@@ -3304,7 +3304,7 @@
           ],
           "optional": [
             "finishedAt",
-            "durationMs",
+            "durationMillis",
             "tool",
             "safetyClass",
             "error"
@@ -3398,7 +3398,7 @@
           ],
           "forbidden": [
             "finishedAt",
-            "durationMs"
+            "durationMillis"
           ]
         },
         {
@@ -3416,7 +3416,7 @@
           ],
           "required": [
             "finishedAt",
-            "durationMs"
+            "durationMillis"
           ]
         },
         {
@@ -3434,7 +3434,7 @@
           ],
           "required": [
             "finishedAt",
-            "durationMs"
+            "durationMillis"
           ]
         }
       ]
@@ -3457,7 +3457,7 @@
           ],
           "forbidden": [
             "finishedAt",
-            "durationMs"
+            "durationMillis"
           ]
         },
         {
@@ -3475,7 +3475,7 @@
           ],
           "required": [
             "finishedAt",
-            "durationMs"
+            "durationMillis"
           ]
         },
         {
@@ -3493,7 +3493,7 @@
           ],
           "required": [
             "finishedAt",
-            "durationMs"
+            "durationMillis"
           ]
         }
       ]
@@ -3557,7 +3557,7 @@
       ]
     },
     {
-      "type": "McpAuthorizationAttempt",
+      "type": "MCPAuthorizationAttempt",
       "rules": [
         {
           "when": [
@@ -4043,11 +4043,11 @@
       "rules": [
         {
           "field": "version",
-          "constraint": "minimum(12)"
+          "constraint": "minimum(13)"
         },
         {
           "field": "version",
-          "constraint": "maximum(12)"
+          "constraint": "maximum(13)"
         }
       ]
     },
@@ -4068,7 +4068,7 @@
           "constraint": "nonNegative"
         },
         {
-          "field": "activeDurationMs",
+          "field": "activeDurationMillis",
           "constraint": "nonNegative"
         }
       ]
@@ -4139,7 +4139,7 @@
           "constraint": "nonNegative"
         },
         {
-          "field": "durationMs",
+          "field": "durationMillis",
           "constraint": "nonNegative"
         }
       ]
@@ -4157,7 +4157,7 @@
       "type": "Item",
       "rules": [
         {
-          "field": "durationMs",
+          "field": "durationMillis",
           "constraint": "nonNegative"
         }
       ]
@@ -4451,24 +4451,6 @@
       ]
     },
     {
-      "type": "GetPlanRequest",
-      "rules": [
-        {
-          "field": "sessionId",
-          "constraint": "nonEmpty"
-        }
-      ]
-    },
-    {
-      "type": "SessionUsageRequest",
-      "rules": [
-        {
-          "field": "sessionId",
-          "constraint": "nonEmpty"
-        }
-      ]
-    },
-    {
       "type": "ListRunsRequest",
       "rules": [
         {
@@ -4478,6 +4460,15 @@
         {
           "field": "statuses",
           "constraint": "uniqueItems"
+        }
+      ]
+    },
+    {
+      "type": "GetPlanRequest",
+      "rules": [
+        {
+          "field": "sessionId",
+          "constraint": "nonEmpty"
         }
       ]
     },
@@ -4556,6 +4547,15 @@
         {
           "field": "limit",
           "constraint": "nonNegative"
+        }
+      ]
+    },
+    {
+      "type": "SessionUsageRequest",
+      "rules": [
+        {
+          "field": "sessionId",
+          "constraint": "nonEmpty"
         }
       ]
     },
@@ -4645,7 +4645,7 @@
       ]
     },
     {
-      "type": "McpAuthorizationAttempt",
+      "type": "MCPAuthorizationAttempt",
       "rules": [
         {
           "field": "id",
@@ -4658,7 +4658,7 @@
       ]
     },
     {
-      "type": "McpConnection",
+      "type": "MCPConnection",
       "rules": [
         {
           "field": "url",
@@ -4671,7 +4671,7 @@
       ]
     },
     {
-      "type": "McpConnectionInput",
+      "type": "MCPConnectionInput",
       "rules": [
         {
           "field": "url",
@@ -4684,7 +4684,7 @@
       ]
     },
     {
-      "type": "McpAuthorizationChange",
+      "type": "MCPAuthorizationChange",
       "rules": [
         {
           "field": "value",
@@ -4693,7 +4693,7 @@
       ]
     },
     {
-      "type": "McpHeadersChange",
+      "type": "MCPHeadersChange",
       "rules": [
         {
           "field": "value",
@@ -4702,7 +4702,7 @@
       ]
     },
     {
-      "type": "McpEnvironmentChange",
+      "type": "MCPEnvironmentChange",
       "rules": [
         {
           "field": "value",
@@ -4828,7 +4828,7 @@
       "type": "CreateScheduleRequest",
       "rules": [
         {
-          "field": "prompt",
+          "field": "instructions",
           "constraint": "nonEmpty"
         },
         {
@@ -4849,7 +4849,7 @@
           "constraint": "positive"
         },
         {
-          "field": "prompt",
+          "field": "instructions",
           "constraint": "nonEmpty"
         },
         {
@@ -5538,19 +5538,19 @@
     },
     {
       "file": "mcpAuthorizationAttempt.json",
-      "shape": "McpAuthorizationAttempt"
+      "shape": "MCPAuthorizationAttempt"
     },
     {
       "file": "mcpServer.json",
-      "shape": "McpServer"
+      "shape": "MCPServer"
     },
     {
       "file": "hooksList.json",
       "shape": "HooksListResult"
     },
     {
-      "file": "memoryEntry.json",
-      "shape": "MemoryEntry"
+      "file": "knowledgeEntry.json",
+      "shape": "KnowledgeEntry"
     },
     {
       "file": "agentMemoryItem.json",

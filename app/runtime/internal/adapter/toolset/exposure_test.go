@@ -13,7 +13,7 @@ import (
 )
 
 func TestResolverRegistersExactlyOneMutationVocabulary(t *testing.T) {
-	built, err := Build(t.Context(), BuildConfig{Workdir: t.TempDir(), UserHome: t.TempDir()})
+	built, err := Build(t.Context(), BuildConfig{DefaultCWD: t.TempDir(), UserHome: t.TempDir()})
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}
@@ -47,25 +47,25 @@ func TestResolverInitialManifestSeparatesDirectAndDeferredCapabilities(t *testin
 	analyzer := codeintel.New(nil)
 	t.Cleanup(func() { _ = analyzer.Close() })
 	resolver, err := newResolver(resolverDeps{
-		DefaultWorkdir: t.TempDir(),
-		Online:         []toolcontract.Tool{named(catalog.WebFetch)},
-		A2A:            []toolcontract.Tool{named("remote_agent")},
-		LSP:            []toolcontract.Tool{named(catalog.LSP)},
-		Shell:          []toolcontract.Tool{named(catalog.Shell)},
-		AskUser:        named(catalog.AskUser),
-		EnterPlan:      named(catalog.EnterPlanMode),
-		ExitPlan:       named(catalog.ExitPlanMode),
-		Plan:           named(catalog.SetPlan),
+		DefaultCWD: t.TempDir(),
+		Online:     []toolcontract.Tool{named(catalog.WebFetch)},
+		A2A:        []toolcontract.Tool{named("remote_agent")},
+		LSP:        []toolcontract.Tool{named(catalog.LSP)},
+		Shell:      []toolcontract.Tool{named(catalog.Shell)},
+		AskUser:    named(catalog.AskUser),
+		EnterPlan:  named(catalog.EnterPlanMode),
+		ExitPlan:   named(catalog.ExitPlanMode),
+		Plan:       named(catalog.SetPlan),
 		ScheduleTools: []toolcontract.Tool{
 			named(catalog.ListSchedules), named(catalog.CreateSchedule), named(catalog.DeleteSchedule),
 		},
-		ToolResult:    named(catalog.ReadToolResult),
-		MemorySearch:  named(catalog.SearchMemory),
-		SessionSearch: named(catalog.SearchConversations),
-		GoalGet:       named(catalog.GetGoal),
-		ProposeSkill:  named(catalog.ProposeSkill),
-		CodeIntel:     analyzer,
-		ReadTracker:   newReadTracker(),
+		ToolResult:         named(catalog.ReadToolResult),
+		AgentMemorySearch:  named(catalog.SearchMemory),
+		ConversationSearch: named(catalog.SearchConversations),
+		GoalGet:            named(catalog.GetGoal),
+		ProposeSkill:       named(catalog.ProposeSkill),
+		CodeIntel:          analyzer,
+		ReadTracker:        newReadTracker(),
 	})
 	if err != nil {
 		t.Fatalf("newResolver: %v", err)
@@ -115,15 +115,15 @@ func TestResolverInitialManifestSeparatesDirectAndDeferredCapabilities(t *testin
 
 func TestBuildRequiresExplicitProcessPaths(t *testing.T) {
 	if _, err := Build(t.Context(), BuildConfig{UserHome: t.TempDir()}); err == nil {
-		t.Fatal("Build accepted an empty workdir")
+		t.Fatal("Build accepted an empty default CWD")
 	}
-	if _, err := Build(t.Context(), BuildConfig{Workdir: t.TempDir()}); err == nil {
+	if _, err := Build(t.Context(), BuildConfig{DefaultCWD: t.TempDir()}); err == nil {
 		t.Fatal("Build accepted an empty user home")
 	}
-	if _, err := Build(t.Context(), BuildConfig{Workdir: "relative", UserHome: t.TempDir()}); err == nil {
-		t.Fatal("Build accepted a relative workdir")
+	if _, err := Build(t.Context(), BuildConfig{DefaultCWD: "relative", UserHome: t.TempDir()}); err == nil {
+		t.Fatal("Build accepted a relative default CWD")
 	}
-	if _, err := Build(t.Context(), BuildConfig{Workdir: t.TempDir(), UserHome: "relative"}); err == nil {
+	if _, err := Build(t.Context(), BuildConfig{DefaultCWD: t.TempDir(), UserHome: "relative"}); err == nil {
 		t.Fatal("Build accepted a relative user home")
 	}
 }

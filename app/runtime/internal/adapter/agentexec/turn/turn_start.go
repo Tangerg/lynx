@@ -34,8 +34,8 @@ func (s *controller) PrepareTurn(ctx context.Context, request runs.StartExecutio
 	if err := request.Validate(); err != nil {
 		return Handle{}, err
 	}
-	if request.ModelSelection.Configured() && s.resolver == nil {
-		return Handle{}, errors.New("turn: explicit model selection requires a client resolver")
+	if request.ModelSelection.Configured() && s.chatResolver == nil {
+		return Handle{}, errors.New("turn: explicit model selection requires a chat resolver")
 	}
 	if s.isClosed() {
 		return Handle{}, ErrClosed
@@ -49,7 +49,7 @@ func (s *controller) PrepareTurn(ctx context.Context, request runs.StartExecutio
 	handle.state = state
 	state.model = modelOr(request.ModelSelection.Model())
 	state.modelSelection = request.ModelSelection
-	state.cwd = request.Cwd
+	state.cwd = request.CWD
 	state.setInterruptKinds(request.InterruptKinds)
 	// Open the turn span synchronously (before the goroutine launches and
 	// before the handle is returned) so st.ctx carries it for every later
@@ -62,7 +62,7 @@ func (s *controller) PrepareTurn(ctx context.Context, request runs.StartExecutio
 	// can inject context into the prompt or block it; a block ends the span we
 	// just opened and fails the start.
 	if s.hooks != nil {
-		resolved, err := s.hooks.For(state.ctx, request.Cwd)
+		resolved, err := s.hooks.For(state.ctx, request.CWD)
 		if err != nil {
 			state.cancel()
 			state.span.RecordError(err)

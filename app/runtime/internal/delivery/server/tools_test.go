@@ -13,7 +13,7 @@ import (
 // toolRegistryFake is the diagnostic tool registry the tools coordinator drives.
 type toolRegistryFake struct {
 	tools          []tool.Tool
-	invokedCwd     string
+	invokedCWD     string
 	invokedName    string
 	invokedPayload string
 }
@@ -21,7 +21,7 @@ type toolRegistryFake struct {
 func (r *toolRegistryFake) List(context.Context) ([]tool.Tool, error) { return r.tools, nil }
 
 func (r *toolRegistryFake) Invoke(_ context.Context, in toolapp.Invocation) (tool.Result, error) {
-	r.invokedCwd = in.Cwd
+	r.invokedCWD = in.CWD
 	r.invokedName = in.Name
 	r.invokedPayload = in.Arguments
 	return tool.StringResult("ok"), nil
@@ -71,8 +71,8 @@ func TestInvokeToolPassesJSONArgumentsToRuntime(t *testing.T) {
 	if got != "ok" {
 		t.Fatalf("result = %v, want ok", got)
 	}
-	if rt.invokedName != "read" || rt.invokedCwd != "/workspace" {
-		t.Fatalf("invocation = %q in %q, want read in /workspace", rt.invokedName, rt.invokedCwd)
+	if rt.invokedName != "read" || rt.invokedCWD != "/workspace" {
+		t.Fatalf("invocation = %q in %q, want read in /workspace", rt.invokedName, rt.invokedCWD)
 	}
 	var payload map[string]string
 	if err := json.Unmarshal([]byte(rt.invokedPayload), &payload); err != nil {

@@ -18,7 +18,7 @@ func prepareEngineConfig(cfg Config) (agentexec.Config, messageEnvironment, erro
 	ecfg := cfg.Engine
 	ecfg.Checkpoints = cfg.ExecutorCheckpoints
 	ecfg.Provider = cfg.Provider
-	ecfg.Workdir = cfg.DefaultWorkspacePath
+	ecfg.DefaultCWD = cfg.DefaultWorkspacePath
 	ecfg.UserHome = cfg.UserHome
 	// These runtime-wide stores have one composition-root source of truth. The
 	// engine receives only its read views; accepting a second value through

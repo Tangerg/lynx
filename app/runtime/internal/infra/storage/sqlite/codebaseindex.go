@@ -28,21 +28,21 @@ func NewCodebaseIndexStore(db *sql.DB) *CodebaseIndexStore {
 
 func (s *CodebaseIndexStore) Meta(ctx context.Context, cwd string) (codebaseindex.Meta, bool, error) {
 	var (
-		m         = codebaseindex.Meta{Cwd: cwd}
-		indexedMs int64
-		truncated int
+		m             = codebaseindex.Meta{CWD: cwd}
+		indexedMillis int64
+		truncated     int
 	)
 	err := conn(ctx, s.db).QueryRowContext(ctx,
 		`SELECT model_id, indexed_at, file_count, chunk_count, truncated
 		 FROM codebase_index WHERE cwd = ?`, cwd).
-		Scan(&m.ModelID, &indexedMs, &m.FileCount, &m.ChunkCount, &truncated)
+		Scan(&m.ModelID, &indexedMillis, &m.FileCount, &m.ChunkCount, &truncated)
 	if errors.Is(err, sql.ErrNoRows) {
 		return codebaseindex.Meta{}, false, nil
 	}
 	if err != nil {
 		return codebaseindex.Meta{}, false, fmt.Errorf("sqlite: codebase meta: %w", err)
 	}
-	m.IndexedAt = fromMillis(indexedMs)
+	m.IndexedAt = fromMillis(indexedMillis)
 	m.Truncated = truncated != 0
 	return m, true, nil
 }
@@ -55,7 +55,7 @@ func (s *CodebaseIndexStore) SetMeta(ctx context.Context, m codebaseindex.Meta) 
 		   model_id = excluded.model_id, indexed_at = excluded.indexed_at,
 		   file_count = excluded.file_count, chunk_count = excluded.chunk_count,
 		   truncated = excluded.truncated`,
-		m.Cwd, m.ModelID, toMillis(m.IndexedAt), m.FileCount, m.ChunkCount, boolToInt(m.Truncated))
+		m.CWD, m.ModelID, toMillis(m.IndexedAt), m.FileCount, m.ChunkCount, boolToInt(m.Truncated))
 	if err != nil {
 		return fmt.Errorf("sqlite: set codebase meta: %w", err)
 	}

@@ -80,14 +80,14 @@ const (
 // GoalBudget is the opt-in cross-Run cap. A zero field is unbounded on that axis.
 type GoalBudget struct {
 	MaxRuns    int     `json:"maxRuns,omitempty"`
-	MaxCostUsd float64 `json:"maxCostUsd,omitempty"`
+	MaxCostUSD float64 `json:"maxCostUsd,omitempty"`
 	MaxSteps   int     `json:"maxSteps,omitempty"`
 }
 
 // GoalUsage is what the loop has spent so far.
 type GoalUsage struct {
 	Runs    int     `json:"runs"`
-	CostUsd float64 `json:"costUsd"`
+	CostUSD float64 `json:"costUsd"`
 	Steps   int     `json:"steps"`
 }
 

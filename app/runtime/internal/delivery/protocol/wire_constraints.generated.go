@@ -233,7 +233,7 @@ func (value ForgetApprovalRuleRequest) ValidateWire() error {
 
 func (value CreateScheduleRequest) ValidateWire() error {
 	return collectWireViolations("CreateScheduleRequest",
-		requiredText("prompt", value.Prompt),
+		requiredText("instructions", value.Instructions),
 		requiredText("cron", value.Cron),
 	)
 }
@@ -242,7 +242,7 @@ func (value UpdateScheduleRequest) ValidateWire() error {
 	return collectWireViolations("UpdateScheduleRequest",
 		requiredText("id", value.ID),
 		positiveNumber("expectedRevision", value.ExpectedRevision),
-		optionalText("prompt", value.Prompt),
+		optionalText("instructions", value.Instructions),
 		optionalText("cron", value.Cron),
 	)
 }
@@ -309,14 +309,14 @@ func (value UsageSummaryRequest) ValidateWire() error {
 	)
 }
 
-func (value GetMemoryRequest) ValidateWire() error {
-	return collectWireViolations("GetMemoryRequest",
+func (value GetKnowledgeRequest) ValidateWire() error {
+	return collectWireViolations("GetKnowledgeRequest",
 		closedEnum("scope", string(value.Scope), []string{"cwd", "projectRoot", "home"}, false),
 	)
 }
 
-func (value UpdateMemoryRequest) ValidateWire() error {
-	return collectWireViolations("UpdateMemoryRequest",
+func (value UpdateKnowledgeRequest) ValidateWire() error {
+	return collectWireViolations("UpdateKnowledgeRequest",
 		closedEnum("scope", string(value.Scope), []string{"cwd", "projectRoot", "home"}, false),
 	)
 }
@@ -631,7 +631,7 @@ func (value ArtifactState) ValidateWire() error {
 
 func (value Item) ValidateWire() error {
 	return collectWireViolations("Item",
-		optionalNonNegativeNumber("durationMs", value.DurationMs),
+		optionalNonNegativeNumber("durationMillis", value.DurationMillis),
 		closedEnum("status", string(value.Status), []string{"running", "completed", "incomplete"}, false),
 		closedEnum("type", string(value.Type), []string{"userMessage", "agentMessage", "reasoning", "question", "toolCall", "compaction"}, false),
 		closedEnum("safetyClass", string(value.SafetyClass), []string{"safe", "write", "exec", "network"}, true),
@@ -644,7 +644,7 @@ func (value Item) ValidateWire() error {
 		forbiddenWhen(wireFieldEquals(value, "type", "userMessage"), "question", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "userMessage"), "startedAt", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "userMessage"), "finishedAt", value),
-		forbiddenWhen(wireFieldEquals(value, "type", "userMessage"), "durationMs", value),
+		forbiddenWhen(wireFieldEquals(value, "type", "userMessage"), "durationMillis", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "userMessage"), "tool", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "userMessage"), "safetyClass", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "userMessage"), "error", value),
@@ -659,7 +659,7 @@ func (value Item) ValidateWire() error {
 		forbiddenWhen(wireFieldEquals(value, "type", "agentMessage"), "question", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "agentMessage"), "startedAt", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "agentMessage"), "finishedAt", value),
-		forbiddenWhen(wireFieldEquals(value, "type", "agentMessage"), "durationMs", value),
+		forbiddenWhen(wireFieldEquals(value, "type", "agentMessage"), "durationMillis", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "agentMessage"), "tool", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "agentMessage"), "safetyClass", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "agentMessage"), "error", value),
@@ -673,7 +673,7 @@ func (value Item) ValidateWire() error {
 		forbiddenWhen(wireFieldEquals(value, "type", "reasoning"), "question", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "reasoning"), "startedAt", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "reasoning"), "finishedAt", value),
-		forbiddenWhen(wireFieldEquals(value, "type", "reasoning"), "durationMs", value),
+		forbiddenWhen(wireFieldEquals(value, "type", "reasoning"), "durationMillis", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "reasoning"), "tool", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "reasoning"), "safetyClass", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "reasoning"), "error", value),
@@ -688,7 +688,7 @@ func (value Item) ValidateWire() error {
 		forbiddenWhen(wireFieldEquals(value, "type", "question"), "redacted", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "question"), "startedAt", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "question"), "finishedAt", value),
-		forbiddenWhen(wireFieldEquals(value, "type", "question"), "durationMs", value),
+		forbiddenWhen(wireFieldEquals(value, "type", "question"), "durationMillis", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "question"), "tool", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "question"), "safetyClass", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "question"), "error", value),
@@ -715,16 +715,16 @@ func (value Item) ValidateWire() error {
 		forbiddenWhen(wireFieldEquals(value, "type", "compaction"), "question", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "compaction"), "startedAt", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "compaction"), "finishedAt", value),
-		forbiddenWhen(wireFieldEquals(value, "type", "compaction"), "durationMs", value),
+		forbiddenWhen(wireFieldEquals(value, "type", "compaction"), "durationMillis", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "compaction"), "tool", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "compaction"), "safetyClass", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "compaction"), "error", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "toolCall") && wireFieldEquals(value, "status", "running"), "finishedAt", value),
-		forbiddenWhen(wireFieldEquals(value, "type", "toolCall") && wireFieldEquals(value, "status", "running"), "durationMs", value),
+		forbiddenWhen(wireFieldEquals(value, "type", "toolCall") && wireFieldEquals(value, "status", "running"), "durationMillis", value),
 		requiredWhen(wireFieldEquals(value, "type", "toolCall") && wireFieldEquals(value, "status", "completed"), "finishedAt", value),
-		requiredWhen(wireFieldEquals(value, "type", "toolCall") && wireFieldEquals(value, "status", "completed"), "durationMs", value),
+		requiredWhen(wireFieldEquals(value, "type", "toolCall") && wireFieldEquals(value, "status", "completed"), "durationMillis", value),
 		requiredWhen(wireFieldEquals(value, "type", "toolCall") && wireFieldEquals(value, "status", "incomplete"), "finishedAt", value),
-		requiredWhen(wireFieldEquals(value, "type", "toolCall") && wireFieldEquals(value, "status", "incomplete"), "durationMs", value),
+		requiredWhen(wireFieldEquals(value, "type", "toolCall") && wireFieldEquals(value, "status", "incomplete"), "durationMillis", value),
 	)
 }
 
@@ -827,8 +827,8 @@ func (value ProviderConfigChange) ValidateWire() error {
 	)
 }
 
-func (value McpConnection) ValidateWire() error {
-	return collectWireViolations("McpConnection",
+func (value MCPConnection) ValidateWire() error {
+	return collectWireViolations("MCPConnection",
 		requiredText("url", value.URL),
 		requiredText("command", value.Command),
 		closedEnum("type", string(value.Type), []string{"stdio", "streamableHttp"}, false),
@@ -844,8 +844,8 @@ func (value McpConnection) ValidateWire() error {
 	)
 }
 
-func (value McpConnectionInput) ValidateWire() error {
-	return collectWireViolations("McpConnectionInput",
+func (value MCPConnectionInput) ValidateWire() error {
+	return collectWireViolations("MCPConnectionInput",
 		requiredText("url", value.URL),
 		requiredText("command", value.Command),
 		closedEnum("type", string(value.Type), []string{"stdio", "streamableHttp"}, false),
@@ -861,8 +861,8 @@ func (value McpConnectionInput) ValidateWire() error {
 	)
 }
 
-func (value McpAuthorizationChange) ValidateWire() error {
-	return collectWireViolations("McpAuthorizationChange",
+func (value MCPAuthorizationChange) ValidateWire() error {
+	return collectWireViolations("MCPAuthorizationChange",
 		requiredText("value", value.Value),
 		closedEnum("type", string(value.Type), []string{"set", "clear"}, false),
 		requiredWhen(wireFieldEquals(value, "type", "set"), "value", value),
@@ -870,8 +870,8 @@ func (value McpAuthorizationChange) ValidateWire() error {
 	)
 }
 
-func (value McpHeadersChange) ValidateWire() error {
-	return collectWireViolations("McpHeadersChange",
+func (value MCPHeadersChange) ValidateWire() error {
+	return collectWireViolations("MCPHeadersChange",
 		nonEmptyProperties("value", value.Value),
 		closedEnum("type", string(value.Type), []string{"set", "clear"}, false),
 		requiredWhen(wireFieldEquals(value, "type", "set"), "value", value),
@@ -879,8 +879,8 @@ func (value McpHeadersChange) ValidateWire() error {
 	)
 }
 
-func (value McpEnvironmentChange) ValidateWire() error {
-	return collectWireViolations("McpEnvironmentChange",
+func (value MCPEnvironmentChange) ValidateWire() error {
+	return collectWireViolations("MCPEnvironmentChange",
 		nonEmptyProperties("value", value.Value),
 		closedEnum("type", string(value.Type), []string{"set", "clear"}, false),
 		requiredWhen(wireFieldEquals(value, "type", "set"), "value", value),
@@ -888,8 +888,8 @@ func (value McpEnvironmentChange) ValidateWire() error {
 	)
 }
 
-func (value McpServerState) ValidateWire() error {
-	return collectWireViolations("McpServerState",
+func (value MCPServerState) ValidateWire() error {
+	return collectWireViolations("MCPServerState",
 		closedEnum("type", string(value.Type), []string{"disabled", "disconnected", "connecting", "connected", "failed", "needsAuth"}, false),
 		forbiddenWhen(wireFieldEquals(value, "type", "disabled"), "toolCount", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "disabled"), "error", value),
@@ -906,8 +906,8 @@ func (value McpServerState) ValidateWire() error {
 	)
 }
 
-func (value McpAuthorizationAttemptStatus) ValidateWire() error {
-	return collectWireViolations("McpAuthorizationAttemptStatus",
+func (value MCPAuthorizationAttemptStatus) ValidateWire() error {
+	return collectWireViolations("MCPAuthorizationAttemptStatus",
 		closedEnum("type", string(value.Type), []string{"pending", "succeeded", "failed", "canceled"}, false),
 		forbiddenWhen(wireFieldEquals(value, "type", "pending"), "error", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "succeeded"), "error", value),
@@ -1200,7 +1200,7 @@ func (value ArtifactOutcome) ValidateWire() error {
 func (value ArtifactItem) ValidateWire() error {
 	return collectWireViolations("ArtifactItem",
 		nonNegativeNumber("droppedMessages", value.DroppedMessages),
-		optionalNonNegativeNumber("durationMs", value.DurationMs),
+		optionalNonNegativeNumber("durationMillis", value.DurationMillis),
 		closedEnum("status", string(value.Status), []string{"running", "completed", "incomplete"}, false),
 		closedEnum("type", string(value.Type), []string{"userMessage", "agentMessage", "reasoning", "question", "toolCall", "compaction"}, false),
 		closedEnum("safetyClass", string(value.SafetyClass), []string{"safe", "write", "exec", "network"}, true),
@@ -1213,7 +1213,7 @@ func (value ArtifactItem) ValidateWire() error {
 		forbiddenWhen(wireFieldEquals(value, "type", "userMessage"), "question", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "userMessage"), "startedAt", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "userMessage"), "finishedAt", value),
-		forbiddenWhen(wireFieldEquals(value, "type", "userMessage"), "durationMs", value),
+		forbiddenWhen(wireFieldEquals(value, "type", "userMessage"), "durationMillis", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "userMessage"), "tool", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "userMessage"), "safetyClass", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "userMessage"), "error", value),
@@ -1228,7 +1228,7 @@ func (value ArtifactItem) ValidateWire() error {
 		forbiddenWhen(wireFieldEquals(value, "type", "agentMessage"), "question", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "agentMessage"), "startedAt", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "agentMessage"), "finishedAt", value),
-		forbiddenWhen(wireFieldEquals(value, "type", "agentMessage"), "durationMs", value),
+		forbiddenWhen(wireFieldEquals(value, "type", "agentMessage"), "durationMillis", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "agentMessage"), "tool", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "agentMessage"), "safetyClass", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "agentMessage"), "error", value),
@@ -1242,7 +1242,7 @@ func (value ArtifactItem) ValidateWire() error {
 		forbiddenWhen(wireFieldEquals(value, "type", "reasoning"), "question", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "reasoning"), "startedAt", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "reasoning"), "finishedAt", value),
-		forbiddenWhen(wireFieldEquals(value, "type", "reasoning"), "durationMs", value),
+		forbiddenWhen(wireFieldEquals(value, "type", "reasoning"), "durationMillis", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "reasoning"), "tool", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "reasoning"), "safetyClass", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "reasoning"), "error", value),
@@ -1257,7 +1257,7 @@ func (value ArtifactItem) ValidateWire() error {
 		forbiddenWhen(wireFieldEquals(value, "type", "question"), "redacted", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "question"), "startedAt", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "question"), "finishedAt", value),
-		forbiddenWhen(wireFieldEquals(value, "type", "question"), "durationMs", value),
+		forbiddenWhen(wireFieldEquals(value, "type", "question"), "durationMillis", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "question"), "tool", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "question"), "safetyClass", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "question"), "error", value),
@@ -1284,16 +1284,16 @@ func (value ArtifactItem) ValidateWire() error {
 		forbiddenWhen(wireFieldEquals(value, "type", "compaction"), "question", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "compaction"), "startedAt", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "compaction"), "finishedAt", value),
-		forbiddenWhen(wireFieldEquals(value, "type", "compaction"), "durationMs", value),
+		forbiddenWhen(wireFieldEquals(value, "type", "compaction"), "durationMillis", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "compaction"), "tool", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "compaction"), "safetyClass", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "compaction"), "error", value),
 		forbiddenWhen(wireFieldEquals(value, "type", "toolCall") && wireFieldEquals(value, "status", "running"), "finishedAt", value),
-		forbiddenWhen(wireFieldEquals(value, "type", "toolCall") && wireFieldEquals(value, "status", "running"), "durationMs", value),
+		forbiddenWhen(wireFieldEquals(value, "type", "toolCall") && wireFieldEquals(value, "status", "running"), "durationMillis", value),
 		requiredWhen(wireFieldEquals(value, "type", "toolCall") && wireFieldEquals(value, "status", "completed"), "finishedAt", value),
-		requiredWhen(wireFieldEquals(value, "type", "toolCall") && wireFieldEquals(value, "status", "completed"), "durationMs", value),
+		requiredWhen(wireFieldEquals(value, "type", "toolCall") && wireFieldEquals(value, "status", "completed"), "durationMillis", value),
 		requiredWhen(wireFieldEquals(value, "type", "toolCall") && wireFieldEquals(value, "status", "incomplete"), "finishedAt", value),
-		requiredWhen(wireFieldEquals(value, "type", "toolCall") && wireFieldEquals(value, "status", "incomplete"), "durationMs", value),
+		requiredWhen(wireFieldEquals(value, "type", "toolCall") && wireFieldEquals(value, "status", "incomplete"), "durationMillis", value),
 	)
 }
 
@@ -1331,8 +1331,8 @@ func (value DiffRow) ValidateWire() error {
 	)
 }
 
-func (value McpAuthorizationAttempt) ValidateWire() error {
-	return collectWireViolations("McpAuthorizationAttempt",
+func (value MCPAuthorizationAttempt) ValidateWire() error {
+	return collectWireViolations("MCPAuthorizationAttempt",
 		requiredText("id", value.ID),
 		requiredText("server", value.Server),
 		forbiddenWhen(wireFieldEquals(value, "status.type", "pending"), "finishedAt", value),
@@ -1408,15 +1408,15 @@ func (value ArtifactRun) ValidateWire() error {
 
 func (value SessionArtifact) ValidateWire() error {
 	return collectWireViolations("SessionArtifact",
-		minimumNumber("version", value.Version, 12),
-		maximumNumber("version", value.Version, 12),
+		minimumNumber("version", value.Version, 13),
+		maximumNumber("version", value.Version, 13),
 	)
 }
 
 func (value ArtifactRunMetrics) ValidateWire() error {
 	return collectWireViolations("ArtifactRunMetrics",
 		nonNegativeNumber("steps", value.Steps),
-		nonNegativeNumber("activeDurationMs", value.ActiveDurationMs),
+		nonNegativeNumber("activeDurationMillis", value.ActiveDurationMillis),
 	)
 }
 
@@ -1535,7 +1535,7 @@ func (value WorkspaceRef) ValidateWire() error {
 func (value GoalBudget) ValidateWire() error {
 	return collectWireViolations("GoalBudget",
 		nonNegativeNumber("maxRuns", value.MaxRuns),
-		nonNegativeNumber("maxCostUsd", value.MaxCostUsd),
+		nonNegativeNumber("maxCostUsd", value.MaxCostUSD),
 		nonNegativeNumber("maxSteps", value.MaxSteps),
 	)
 }

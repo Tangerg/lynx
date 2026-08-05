@@ -26,7 +26,7 @@ func TestRunLauncherUsesApplicationRunEntry(t *testing.T) {
 	launcher := NewRunLauncher(useCases, "/default", func(id string) { fired = id })
 
 	handle, err := launcher.StartScheduledRun(context.Background(), schedule.Occurrence{Schedule: schedule.Schedule{
-		ID: "sch_1", Prompt: "summarize", ModelSelection: mustScheduleSelection("p", "m"),
+		ID: "sch_1", Instructions: "summarize", ModelSelection: mustScheduleSelection("p", "m"),
 	}})
 	if err != nil {
 		t.Fatalf("StartScheduledRun: %v", err)

@@ -57,7 +57,7 @@ func (c MinerConfig) normalized() MinerConfig {
 // proposalSubmitter is the miner's narrow application boundary. The miner can
 // submit immutable content for review but cannot activate or reject it.
 type proposalSubmitter interface {
-	SubmitSkillProposal(ctx context.Context, cwd string, proposal skills.Proposal) (skills.ProposalRef, error)
+	SubmitProposal(ctx context.Context, cwd string, proposal skills.Proposal) (skills.ProposalRef, error)
 }
 
 // skillSource loads the current on-disk body of an active skill. The miner uses
@@ -205,7 +205,7 @@ func (m *SkillMiner) submitProposal(ctx context.Context, cwd string, proposal sk
 	if proposal.SafetyIssue() != skills.ProposalSafe {
 		return nil
 	}
-	if _, err := m.proposals.SubmitSkillProposal(ctx, cwd, proposal); err != nil {
+	if _, err := m.proposals.SubmitProposal(ctx, cwd, proposal); err != nil {
 		return fmt.Errorf("skill mining: submit proposal %q: %w", proposal.Name, err)
 	}
 	recordMinedSkill(ctx, kind)

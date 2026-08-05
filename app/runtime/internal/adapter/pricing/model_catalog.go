@@ -1,0 +1,30 @@
+// Package pricing adapts catalog model pricing into kernel pricing hooks.
+package pricing
+
+import (
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/accounting"
+	"github.com/Tangerg/lynx/core/chat"
+	"github.com/Tangerg/lynx/models/catalog"
+)
+
+// FromModelCatalog returns a per-round cost calculator backed by the model
+// catalog. It prices the round's provider and served model, so every Run
+// reports CostUSD against the model that actually answered.
+func FromModelCatalog() accounting.Pricing {
+	return func(provider, servedModel string, usage *chat.Usage) float64 {
+		if info, ok := catalog.Lookup(provider, servedModel); ok {
+			catalogUsage := catalog.Usage{
+				InputTokens:  usage.InputTokens,
+				OutputTokens: usage.OutputTokens,
+			}
+			if usage.CacheReadInputTokens != nil {
+				catalogUsage.CacheReadInputTokens = *usage.CacheReadInputTokens
+			}
+			if usage.CacheWriteInputTokens != nil {
+				catalogUsage.CacheWriteInputTokens = *usage.CacheWriteInputTokens
+			}
+			return catalog.CostOf(info.Pricing, catalogUsage)
+		}
+		return 0
+	}
+}

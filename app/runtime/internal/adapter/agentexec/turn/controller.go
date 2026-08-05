@@ -20,12 +20,12 @@ import (
 	"github.com/Tangerg/lynx/chatclient"
 )
 
-// clientResolver resolves a per-turn chat client for one explicit model
+// chatResolver resolves a per-turn chat client for one explicit model
 // selection. It is turn's own narrow dependency on the runtime model registry;
 // success returns a non-nil client, while an unavailable provider or model is
 // reported as an error.
-type clientResolver interface {
-	ResolveClient(ctx context.Context, selection modelref.Selection) (*chatclient.Client, error)
+type chatResolver interface {
+	ResolveChat(ctx context.Context, selection modelref.Selection) (*chatclient.Client, error)
 }
 
 // ApprovalGate is the tool-call evaluator's complete approval view. Mode/rules
@@ -51,7 +51,7 @@ type hookResolver interface {
 // nil behavior on the field.
 type Dependencies struct {
 	// Engine starts or restores the Agent process tree. Required.
-	Engine engineDep
+	Engine agentEngine
 
 	// Steering persists queued messages that miss the current continuation
 	// round. nil reports a steering error only when such a message exists.
@@ -59,22 +59,22 @@ type Dependencies struct {
 
 	// Maintenance performs best-effort post-turn housekeeping. nil disables the
 	// complete maintenance sweep.
-	Maintenance RunMaintenance
+	Maintenance Maintenance
 
 	// Approval gates every tool call using the owning session's effective
 	// permission mode and remembered rules. Required.
 	Approval ApprovalGate
 
-	// ClientResolver resolves an explicit per-turn provider/model client. nil
+	// ChatResolver resolves an explicit per-turn provider/model chat client. nil
 	// supports only unset selections, which use the engine default client.
-	ClientResolver clientResolver
+	ChatResolver chatResolver
 
-	// ToolPresenter projects concrete tool activity and results for clients. nil
+	// ToolPresenter projects concrete tool activity and transcript results. nil
 	// preserves canonical tool results and uses generic activity text.
 	ToolPresenter ToolPresenter
 
-	// ToolSemantics interprets concrete calls for approval policy. Required.
-	ToolSemantics ToolSemantics
+	// ToolInterpreter interprets concrete calls for approval policy. Required.
+	ToolInterpreter ToolInterpreter
 
 	// MCPToolAutoApproved reports whether an identified MCP tool may skip the
 	// approval prompt. nil disables MCP-specific auto-approval.
@@ -87,25 +87,6 @@ type Dependencies struct {
 // New builds the concrete in-process controller. The controller is
 // single-process — it holds in-memory state about live turns and
 // fans events out to subscribers via per-turn channels.
-//
-// The implementation is split across files by concern:
-//   - request.go        — Start/Rehydrate request shapes + validation
-//   - event.go          — turn event model + terminal reason vocabulary
-//   - controller.go              — in-process controller construction + shared state
-//   - turn_start.go     — start-turn admission into the agent engine
-//   - turn_control.go   — cancel/resume interrupt control
-//   - rehydrate.go      — cross-restart parked-turn resume
-//   - live_registry.go  — live-turn lookup + per-turn interrupt gates
-//   - event_emit.go     — stamped event publication and backpressure semantics
-//   - state.go          — per-turn state + cross-goroutine invariants
-//   - turn.go           — run/drive/interrupt lifecycle
-//   - terminal.go       — terminal event mapping + teardown
-//   - steering.go       — mid-run steering source + final history flush
-//   - event_stream.go   — event subscription + transient delta coalescing
-//   - prompt_hooks.go   — pre-turn lifecycle hooks
-//   - subagent_lifecycle.go — child-process lifecycle hook projection
-//   - observer.go       — engine tool-observer → application runs event translation
-//
 // Consumers define the narrow control ports they need; this controller exposes
 // no request or presentation concerns.
 func New(deps Dependencies) (*controller, error) {
@@ -115,17 +96,17 @@ func New(deps Dependencies) (*controller, error) {
 	if deps.Approval == nil {
 		return nil, errors.New("turn: approval gate is required")
 	}
-	if deps.ToolSemantics == nil {
-		return nil, errors.New("turn: tool semantics are required")
+	if deps.ToolInterpreter == nil {
+		return nil, errors.New("turn: tool interpreter is required")
 	}
 	return &controller{
 		engine:              deps.Engine,
 		steering:            deps.Steering,
 		maintenance:         deps.Maintenance,
 		approval:            deps.Approval,
-		resolver:            deps.ClientResolver,
+		chatResolver:        deps.ChatResolver,
 		toolPresenter:       deps.ToolPresenter,
-		toolSemantics:       deps.ToolSemantics,
+		toolInterpreter:     deps.ToolInterpreter,
 		mcpToolAutoApproved: deps.MCPToolAutoApproved,
 		hooks:               deps.Hooks,
 		turns:               map[string]*turnState{},
@@ -137,13 +118,13 @@ func New(deps Dependencies) (*controller, error) {
 // tracks live turns in a map keyed by turn id; state lives in
 // process memory and does not survive restart.
 type controller struct {
-	engine        engineDep
-	steering      SteeringSink
-	maintenance   RunMaintenance // optional — nil = no Run-boundary maintenance
-	approval      ApprovalGate
-	resolver      clientResolver // optional — nil accepts only the default model
-	toolPresenter ToolPresenter  // optional — nil = generic activity and canonical results
-	toolSemantics ToolSemantics
+	engine          agentEngine
+	steering        SteeringSink
+	maintenance     Maintenance // optional — nil = no Run-boundary maintenance
+	approval        ApprovalGate
+	chatResolver    chatResolver  // optional — nil accepts only the default model
+	toolPresenter   ToolPresenter // optional — nil = generic activity and canonical results
+	toolInterpreter ToolInterpreter
 
 	// mcpToolAutoApproved reports whether an identified MCP tool skips the
 	// approval prompt. The runtime recomputes the policy on every

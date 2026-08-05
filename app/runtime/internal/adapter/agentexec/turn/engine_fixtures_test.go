@@ -45,12 +45,12 @@ type testEngine interface {
 func turnDeps(engine testEngine, opts ...func(*turn.Dependencies)) turn.Dependencies {
 	services := noopTurnServices{}
 	deps := turn.Dependencies{
-		Engine:        engine,
-		Steering:      services,
-		Maintenance:   services,
-		Approval:      explicitYoloPolicy(),
-		ToolPresenter: toolset.Presenter{},
-		ToolSemantics: toolset.Semantics{},
+		Engine:          engine,
+		Steering:        services,
+		Maintenance:     services,
+		Approval:        explicitYoloPolicy(),
+		ToolPresenter:   toolset.Presenter{},
+		ToolInterpreter: toolset.Interpreter{},
 	}
 	for _, opt := range opts {
 		opt(&deps)
@@ -81,11 +81,11 @@ func mustApprovalPolicy(t testing.TB, mode approval.Mode, store approval.RuleSto
 	return policy
 }
 
-func withClientResolver(resolver interface {
-	ResolveClient(ctx context.Context, selection modelref.Selection) (*chatclient.Client, error)
+func withChatResolver(resolver interface {
+	ResolveChat(ctx context.Context, selection modelref.Selection) (*chatclient.Client, error)
 }) func(*turn.Dependencies) {
 	return func(deps *turn.Dependencies) {
-		deps.ClientResolver = resolver
+		deps.ChatResolver = resolver
 	}
 }
 
@@ -178,7 +178,7 @@ type stubEngine struct {
 
 	mu                   sync.Mutex
 	lastClient           *chatclient.Client
-	lastCwd              string
+	lastCWD              string
 	lastMessage          string
 	lastCtx              context.Context
 	lastOptions          *corechat.Options
@@ -198,7 +198,7 @@ func (s *stubEngine) StartTurn(ctx context.Context, request agentexec.TurnReques
 	s.runTurnCalls.Add(1)
 	s.mu.Lock()
 	s.lastClient = request.ChatClient
-	s.lastCwd = request.Cwd
+	s.lastCWD = request.CWD
 	s.lastMessage = request.Message
 	s.lastCtx = ctx
 	s.lastAdmitChild = request.AdmitChild
@@ -269,8 +269,8 @@ func (noopTurnServices) AppendUserMessage(context.Context, string, corechat.Mess
 	return nil
 }
 
-func (noopTurnServices) Maintain(context.Context, turn.RunMaintenanceInput) turn.RunMaintenanceResult {
-	return turn.RunMaintenanceResult{}
+func (noopTurnServices) Maintain(context.Context, turn.MaintenanceInput) turn.MaintenanceResult {
+	return turn.MaintenanceResult{}
 }
 
 // slowStubEngine simulates an engine that respects ctx cancellation without
@@ -380,16 +380,16 @@ func (e *blockedStartFailureEngine) StartTurn(context.Context, agentexec.TurnReq
 	return nil, e.err
 }
 
-// fakeResolver returns a preset client, recording the provider/model it was
+// fakeChatResolver returns a preset client, recording the provider/model it was
 // asked to resolve.
-type fakeResolver struct {
+type fakeChatResolver struct {
 	client      *chatclient.Client
 	gotProvider string
 	gotModel    string
 	resolveErr  error
 }
 
-func (r *fakeResolver) ResolveClient(_ context.Context, selection modelref.Selection) (*chatclient.Client, error) {
+func (r *fakeChatResolver) ResolveChat(_ context.Context, selection modelref.Selection) (*chatclient.Client, error) {
 	r.gotProvider, r.gotModel = selection.Provider(), selection.Model()
 	if r.resolveErr != nil {
 		return nil, r.resolveErr

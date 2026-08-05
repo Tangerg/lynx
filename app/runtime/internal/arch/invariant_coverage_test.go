@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	appcontract "github.com/Tangerg/lynx/app/runtime/internal/application/contract"
+	invariant "github.com/Tangerg/lynx/app/runtime/internal/application/invariant"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/dispatch"
 )
 
@@ -32,9 +32,9 @@ import (
 func TestEverySystemInvariantHasAnIntegrationFixture(t *testing.T) {
 	root := moduleRoot(t)
 
-	declared := make(map[string]map[appcontract.TransactionBoundary]bool)
-	for _, spec := range appcontract.SystemInvariants() {
-		boundaries := make(map[appcontract.TransactionBoundary]bool, len(spec.Boundaries))
+	declared := make(map[string]map[invariant.Boundary]bool)
+	for _, spec := range invariant.All() {
+		boundaries := make(map[invariant.Boundary]bool, len(spec.Boundaries))
 		for _, boundary := range spec.Boundaries {
 			boundaries[boundary] = true
 		}
@@ -75,55 +75,55 @@ func TestEverySystemInvariantHasAnIntegrationFixture(t *testing.T) {
 // a runtime registry would only ever see the one package it was compiled into, and
 // reading the claims out of source would mean mapping a boundary CONSTANT back to
 // its value — a second table of exactly what this one replaces.
-var invariantFixtures = map[string]map[appcontract.TransactionBoundary]fixtureRef{
+var invariantFixtures = map[string]map[invariant.Boundary]fixtureRef{
 	"session_has_at_most_one_open_run": {
-		appcontract.BoundaryRunAdmission:   {"internal/infra/storage/sqlite", "TestRunAdmitEnforcesOneActivePerSession"},
-		appcontract.BoundarySegmentOpening: {"internal/adapter/runsegment", "TestCommitOpeningRefusesASecondOpenRun"},
+		invariant.BoundaryRunAdmission:   {"internal/infra/storage/sqlite", "TestRunAdmitEnforcesOneActivePerSession"},
+		invariant.BoundarySegmentOpening: {"internal/adapter/runsegment", "TestCommitOpeningRefusesASecondOpenRun"},
 	},
 	"terminal_run_explains_how_it_ended": {
-		appcontract.BoundarySegmentEvent: {"internal/adapter/runsegment", "TestCommitEventPersistsTheTerminalRunsResult"},
-		appcontract.BoundaryRunRecovery:  {"internal/adapter/runrecovery", "TestRecoveryRepairsWholeDurableLifecycle"},
-		appcontract.BoundarySessionImport: {
+		invariant.BoundarySegmentEvent: {"internal/adapter/runsegment", "TestCommitEventPersistsTheTerminalRunsResult"},
+		invariant.BoundaryRunRecovery:  {"internal/adapter/runrecovery", "TestRecoveryRepairsWholeDurableLifecycle"},
+		invariant.BoundarySessionImport: {
 			"internal/delivery/server", "TestSessionImportRejectsAFailedRunWithoutItsFailure",
 		},
 	},
 	"run_capabilities_are_immutable": {
-		appcontract.BoundaryRunAdmission: {"internal/infra/storage/sqlite", "TestRunCapabilitiesAreImmutable"},
+		invariant.BoundaryRunAdmission: {"internal/infra/storage/sqlite", "TestRunCapabilitiesAreImmutable"},
 	},
 	"parked_tree_has_exactly_one_open_interrupt_set": {
-		appcontract.BoundarySegmentEvent: {"internal/adapter/runsegment", "TestCommitTreeBarrierProducesDurableTriplet"},
-		appcontract.BoundaryRunRecovery: {
+		invariant.BoundarySegmentEvent: {"internal/adapter/runsegment", "TestCommitTreeBarrierProducesDurableTriplet"},
+		invariant.BoundaryRunRecovery: {
 			"internal/adapter/runrecovery", "TestRecoveryRejectsPartialParkWithoutMutatingIt",
 		},
 	},
 	"parked_continuation_matches_run_facts": {
-		appcontract.BoundarySegmentOpening: {
+		invariant.BoundarySegmentOpening: {
 			"internal/application/runs", "TestResumeRejectsContinuationFactDriftBeforeExecutorPreparation",
 		},
-		appcontract.BoundarySegmentEvent: {
+		invariant.BoundarySegmentEvent: {
 			"internal/adapter/runsegment", "TestCommitTreeBarrierRejectsRunContinuationFactDriftBeforeTransaction",
 		},
-		appcontract.BoundaryWaitingSubtreeCancellation: {
+		invariant.BoundaryWaitingSubtreeCancellation: {
 			"internal/adapter/runsegment", "TestCommitWaitingSubtreeCancellationRejectsRunContinuationFactDriftWithoutMutation",
 		},
-		appcontract.BoundaryRunRecovery: {
+		invariant.BoundaryRunRecovery: {
 			"internal/application/runs", "TestRecoveryRejectsContinuationFactDriftWithoutProbingCheckpoint",
 		},
-		appcontract.BoundaryParkedTermination: {
+		invariant.BoundaryParkedTermination: {
 			"internal/application/sessions", "TestApplyRunLostRejectsContinuationFactDriftBeforeTerminalCommit",
 		},
 	},
 	"dropped_run_leaves_nothing_behind": {
-		appcontract.BoundarySessionRollback: {"internal/bootstrap", "TestApplyRollbackDropsRunsAndFreesAdmission"},
-		appcontract.BoundarySessionDelete:   {"internal/bootstrap", "TestApplyDeleteRemovesRunRows"},
+		invariant.BoundarySessionRollback: {"internal/bootstrap", "TestApplyRollbackDropsRunsAndFreesAdmission"},
+		invariant.BoundarySessionDelete:   {"internal/bootstrap", "TestApplyDeleteRemovesRunRows"},
 	},
 	"imported_session_keeps_its_identity": {
-		appcontract.BoundarySessionImport: {"internal/delivery/server", "TestSessionExportImport_RoundTrip"},
+		invariant.BoundarySessionImport: {"internal/delivery/server", "TestSessionExportImport_RoundTrip"},
 	},
 	"goal_never_outlives_its_session": {
-		appcontract.BoundaryGoalLifecycle:   {"internal/infra/storage/sqlite", "TestGoalStoreRejectsMissingSession"},
-		appcontract.BoundarySessionDelete:   {"internal/bootstrap", "TestApplyDeleteClearsSessionGoal"},
-		appcontract.BoundarySessionRollback: {"internal/bootstrap", "TestApplyRollbackDropsRunsAndFreesAdmission"},
+		invariant.BoundaryGoalLifecycle:   {"internal/infra/storage/sqlite", "TestGoalStoreRejectsMissingSession"},
+		invariant.BoundarySessionDelete:   {"internal/bootstrap", "TestApplyDeleteClearsSessionGoal"},
+		invariant.BoundarySessionRollback: {"internal/bootstrap", "TestApplyRollbackDropsRunsAndFreesAdmission"},
 	},
 }
 

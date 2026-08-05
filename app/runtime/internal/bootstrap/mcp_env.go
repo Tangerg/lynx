@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/application/integrations"
+	mcpapp "github.com/Tangerg/lynx/app/runtime/internal/application/mcp"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 )
 
@@ -17,7 +17,7 @@ type mcpServerList interface {
 // mcpEnvironment is the boot-time MCP material: the application-owned live
 // policy state and the enabled durable server definitions to connect.
 type mcpEnvironment struct {
-	policy  *integrations.ToolPolicyState
+	policy  *mcpapp.ToolPolicyState
 	servers []mcpserver.Server
 }
 
@@ -28,7 +28,7 @@ func buildMCPEnvironment(ctx context.Context, registry mcpServerList) (mcpEnviro
 	}
 	policy := mcpserver.NewToolPolicy(servers)
 	return mcpEnvironment{
-		policy:  integrations.NewToolPolicyState(policy),
+		policy:  mcpapp.NewToolPolicyState(policy),
 		servers: enabledMCPServers(servers),
 	}, nil
 }

@@ -13,21 +13,21 @@ import (
 )
 
 func TestPathLockUsesOneCanonicalMutationIdentity(t *testing.T) {
-	workdir := t.TempDir()
-	realPath := filepath.Join(workdir, "real.txt")
+	cwd := t.TempDir()
+	realPath := filepath.Join(cwd, "real.txt")
 	if err := os.WriteFile(realPath, []byte("content"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(workdir, "other.txt"), []byte("other"), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(cwd, "other.txt"), []byte("other"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 
-	executor := fs.NewLocalExecutor(workdir)
-	readPaths, err := resolvedMutationPaths(fs.NewReadTool(executor), readArguments(realPath), workdir)
+	executor := fs.NewLocalExecutor(cwd)
+	readPaths, err := resolvedMutationPaths(fs.NewReadTool(executor), readArguments(realPath), cwd)
 	if err != nil {
 		t.Fatal(err)
 	}
-	mutationPaths, err := resolvedMutationPaths(fs.NewApplyPatchTool(executor), patchArguments(t, "real.txt", "content", "next"), workdir)
+	mutationPaths, err := resolvedMutationPaths(fs.NewApplyPatchTool(executor), patchArguments(t, "real.txt", "content", "next"), cwd)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -37,22 +37,22 @@ func TestPathLockUsesOneCanonicalMutationIdentity(t *testing.T) {
 }
 
 func TestPathLockUsesPhysicalIdentityForSymlinkAlias(t *testing.T) {
-	workdir := t.TempDir()
-	realPath := filepath.Join(workdir, "real.txt")
+	cwd := t.TempDir()
+	realPath := filepath.Join(cwd, "real.txt")
 	if err := os.WriteFile(realPath, []byte("content"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	aliasPath := filepath.Join(workdir, "alias.txt")
+	aliasPath := filepath.Join(cwd, "alias.txt")
 	if err := os.Symlink("real.txt", aliasPath); err != nil {
 		t.Skipf("create symlink: %v", err)
 	}
 
-	executor := fs.NewLocalExecutor(workdir)
-	realPaths, err := resolvedMutationPaths(fs.NewReadTool(executor), readArguments(realPath), workdir)
+	executor := fs.NewLocalExecutor(cwd)
+	realPaths, err := resolvedMutationPaths(fs.NewReadTool(executor), readArguments(realPath), cwd)
 	if err != nil {
 		t.Fatal(err)
 	}
-	aliasPaths, err := resolvedMutationPaths(fs.NewApplyPatchTool(executor), patchArguments(t, "alias.txt", "content", "next"), workdir)
+	aliasPaths, err := resolvedMutationPaths(fs.NewApplyPatchTool(executor), patchArguments(t, "alias.txt", "content", "next"), cwd)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -62,8 +62,8 @@ func TestPathLockUsesPhysicalIdentityForSymlinkAlias(t *testing.T) {
 }
 
 func TestPathLockKeepsMultiFilePatchExclusive(t *testing.T) {
-	workdir := t.TempDir()
-	tool := withPathLock(fs.NewApplyPatchTool(fs.NewLocalExecutor(workdir)), newPathLocker(), workdir)
+	cwd := t.TempDir()
+	tool := withPathLock(fs.NewApplyPatchTool(fs.NewLocalExecutor(cwd)), newPathLocker(), cwd)
 	policy, ok, err := toolcontract.Capability[toolloop.ConcurrentTool](tool)
 	if err != nil || !ok {
 		t.Fatal("path-locked apply_patch does not expose concurrency policy")
@@ -82,17 +82,17 @@ func TestPathLockKeepsMultiFilePatchExclusive(t *testing.T) {
 // silently answers "nothing", which reads as a safe tool rather than a broken
 // lookup.
 func TestAssembledFileToolStillReportsWhatItMutates(t *testing.T) {
-	workdir := t.TempDir()
-	target := filepath.Join(workdir, "real.txt")
+	cwd := t.TempDir()
+	target := filepath.Join(cwd, "real.txt")
 	if err := os.WriteFile(target, []byte("content"), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	assembled := guardedMutation(
-		fs.NewApplyPatchTool(fs.NewLocalExecutor(workdir)),
+		fs.NewApplyPatchTool(fs.NewLocalExecutor(cwd)),
 		nil,
 		newReadTracker(),
 		newPathLocker(),
-		workdir,
+		cwd,
 	)
 
 	reporter, ok, err := toolcontract.Capability[fileMutationReporter](assembled)

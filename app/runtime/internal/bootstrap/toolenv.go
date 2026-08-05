@@ -31,9 +31,10 @@ func buildToolEnvironment(
 	ecfg agentexec.Config,
 	approvalPolicy *approval.RuntimePolicy,
 	mcpEnv mcpEnvironment,
-	memorySearcher *agentmemory.Searcher,
+	agentMemorySearcher *agentmemory.Searcher,
 	scheduleCoord *schedules.Coordinator,
-	goalState *goals.State,
+	goalReader *goals.Reader,
+	goalReporter *goals.OutcomeReporter,
 	skillStore *skillauthoring.Store,
 	skillProposals skill.ProposalSubmitter,
 ) (toolEnvironment, error) {
@@ -46,7 +47,7 @@ func buildToolEnvironment(
 		closers: []ShutdownResource{mcpPool},
 	}
 	bc := toolset.BuildConfig{
-		Workdir:         ecfg.Workdir,
+		DefaultCWD:      ecfg.DefaultCWD,
 		UserHome:        ecfg.UserHome,
 		SkillsUserDir:   cfg.SkillsUserDir,
 		Online:          cfg.Online,
@@ -79,23 +80,25 @@ func buildToolEnvironment(
 	if cfg.ToolResultStore != nil {
 		bc.ToolResults = cfg.ToolResultStore
 	}
-	// Goal reads/outcome reports and the active gate come from the application
-	// state boundary. create_goal is injected later when the Driver exists. Set
-	// only when present, for the same nil-interface reason.
-	if goalState != nil {
-		bc.Goals = goalState
+	// Goal reads, outcome reports, and the active gate come from separate
+	// application boundaries. create_goal is injected later when the Driver exists.
+	if goalReader != nil {
+		bc.GoalReader = goalReader
+	}
+	if goalReporter != nil {
+		bc.GoalReporter = goalReporter
 	}
 	// search_memory searches the agent's curated project memory. Set only when a
 	// concrete searcher exists, so a nil *Searcher never reaches the tool builder
 	// as a non-nil interface.
-	if memorySearcher != nil {
-		bc.MemorySearch = memorySearcher
+	if agentMemorySearcher != nil {
+		bc.AgentMemorySearch = agentMemorySearcher
 	}
 	// search_conversations recalls past conversation transcripts (the durable Item
 	// history). Set only when the concrete store is present, for the same
 	// nil-interface reason.
 	if cfg.TranscriptStore != nil {
-		bc.SessionSearch = cfg.TranscriptStore
+		bc.ConversationSearch = cfg.TranscriptStore
 	}
 	built, err := toolset.Build(ctx, bc)
 	if err != nil {

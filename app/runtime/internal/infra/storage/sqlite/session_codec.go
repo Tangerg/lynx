@@ -22,7 +22,7 @@ func rowToSession(scanner interface {
 		isolatedInt    int64
 	)
 	if err := scanner.Scan(
-		&s.ID, &s.Title, &s.Cwd, &s.ParentID,
+		&s.ID, &s.Title, &s.CWD, &s.ParentID,
 		&startedAtNanos, &updatedAtNanos, &s.Model, &favoriteInt, &isolatedInt, &s.Revision,
 	); err != nil {
 		return session.Session{}, err

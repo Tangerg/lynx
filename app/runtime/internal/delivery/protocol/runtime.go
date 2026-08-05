@@ -41,7 +41,7 @@ type Runtime interface {
 	Providers
 	Models
 	Tools
-	Memory
+	Knowledge
 	AgentMemory
 	Feedback
 	UsageReports
@@ -55,8 +55,8 @@ type Runtime interface {
 // obligation, and a range wider than one version would advertise a negotiation
 // the code does not perform.
 const (
-	ProtocolVersion    = "2026-08-04"
-	MinProtocolVersion = "2026-08-04"
+	ProtocolVersion    = "2026-08-05"
+	MinProtocolVersion = "2026-08-05"
 )
 
 type ProtocolRange struct {

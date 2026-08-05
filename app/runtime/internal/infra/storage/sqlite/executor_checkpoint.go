@@ -35,8 +35,8 @@ type executorUsageWire struct {
 
 type executorScopeWire struct {
 	SessionID    string `json:"session_id"`
-	Cwd          string `json:"cwd"`
-	WorkspaceCwd string `json:"workspace_cwd"`
+	CWD          string `json:"cwd"`
+	WorkspaceCWD string `json:"workspace_cwd"`
 	Isolated     bool   `json:"isolated"`
 	GoalLeaseID  string `json:"goal_lease_id"`
 }
@@ -234,8 +234,8 @@ func encodeExecutorPolicy(checkpoint execution.ExecutorCheckpoint) ([]byte, erro
 	return json.Marshal(executorPolicyWire{
 		Scope: executorScopeWire{
 			SessionID:    checkpoint.Scope.SessionID,
-			Cwd:          checkpoint.Scope.Cwd,
-			WorkspaceCwd: checkpoint.Scope.WorkspaceCwd,
+			CWD:          checkpoint.Scope.CWD,
+			WorkspaceCWD: checkpoint.Scope.WorkspaceCWD,
 			Isolated:     checkpoint.Scope.Isolated,
 			GoalLeaseID:  checkpoint.Scope.GoalLeaseID,
 		},
@@ -265,8 +265,8 @@ func decodeExecutorPolicy(data string) (execution.ExecutorCheckpoint, error) {
 	}
 	scope := execution.ExecutionScope{
 		SessionID:    wire.Scope.SessionID,
-		Cwd:          wire.Scope.Cwd,
-		WorkspaceCwd: wire.Scope.WorkspaceCwd,
+		CWD:          wire.Scope.CWD,
+		WorkspaceCWD: wire.Scope.WorkspaceCWD,
 		Isolated:     wire.Scope.Isolated,
 		GoalLeaseID:  wire.Scope.GoalLeaseID,
 	}

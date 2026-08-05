@@ -20,7 +20,7 @@ func (e *Engine) CanResumeCheckpoint(
 	ctx context.Context,
 	expected execution.ExecutorCheckpointExpectation,
 ) (bool, error) {
-	if e == nil || e.runtime == nil {
+	if e == nil || e.agentRuntime == nil {
 		return false, errors.New("engine: agent runtime is required")
 	}
 	if e.checkpoints == nil {
@@ -52,7 +52,7 @@ func (e *Engine) CanResumeCheckpoint(
 	if err := validateCheckpointUsage(tree, checkpoint.Usage); err != nil {
 		return false, nil
 	}
-	if err := e.runtime.ValidateRestoreTree(tree); err != nil {
+	if err := e.agentRuntime.ValidateRestoreTree(tree); err != nil {
 		if isExecutorCheckpointLoss(err) {
 			return false, nil
 		}

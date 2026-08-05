@@ -196,14 +196,14 @@ func (p *turnProcess) detachedRunContext() context.Context {
 }
 
 func (p *turnProcess) Cancel(ctx context.Context) error {
-	if p == nil || p.owner == nil || p.owner.runtime == nil || p.process == nil {
+	if p == nil || p.owner == nil || p.owner.agentRuntime == nil || p.process == nil {
 		return errors.New("agentexec: cancel process: incomplete turn process")
 	}
-	return p.owner.runtime.Kill(ctx, p.process.ID())
+	return p.owner.agentRuntime.Kill(ctx, p.process.ID())
 }
 
 func (p *turnProcess) CancelSubtree(ctx context.Context, processID string) error {
-	if p == nil || p.owner == nil || p.owner.runtime == nil || p.process == nil {
+	if p == nil || p.owner == nil || p.owner.agentRuntime == nil || p.process == nil {
 		return errors.New("agentexec: cancel process subtree: incomplete turn process")
 	}
 	if processID == "" {
@@ -215,7 +215,7 @@ func (p *turnProcess) CancelSubtree(ctx context.Context, processID string) error
 			processID,
 		)
 	}
-	target, found := p.owner.runtime.Process(processID)
+	target, found := p.owner.agentRuntime.Process(processID)
 	if !found {
 		return fmt.Errorf(
 			"agentexec: cancel process subtree: target process %q not found",
@@ -225,14 +225,14 @@ func (p *turnProcess) CancelSubtree(ctx context.Context, processID string) error
 	if err := p.requireDescendant(target); err != nil {
 		return err
 	}
-	return p.owner.runtime.Kill(ctx, processID)
+	return p.owner.agentRuntime.Kill(ctx, processID)
 }
 
 func (p *turnProcess) PlanWaitingSubtreeCancellation(
 	ctx context.Context,
 	processID string,
 ) (WaitingSubtreeCancellationPlan, error) {
-	if p == nil || p.owner == nil || p.owner.runtime == nil || p.process == nil {
+	if p == nil || p.owner == nil || p.owner.agentRuntime == nil || p.process == nil {
 		return nil, errors.New("agentexec: plan waiting subtree cancellation: incomplete turn process")
 	}
 	if processID == "" {
@@ -244,7 +244,7 @@ func (p *turnProcess) PlanWaitingSubtreeCancellation(
 			processID,
 		)
 	}
-	plan, err := p.owner.runtime.PlanWaitingSubtreeCancellation(
+	plan, err := p.owner.agentRuntime.PlanWaitingSubtreeCancellation(
 		ctx,
 		p.process.ID(),
 		processID,
@@ -264,27 +264,27 @@ func (p *turnProcess) PlanWaitingSubtreeCancellation(
 			err,
 		)
 	}
-	return &waitingSubtreeCancellationPlan{process: p, runtime: plan, checkpoint: checkpoint}, nil
+	return &waitingSubtreeCancellationPlan{process: p, runtimePlan: plan, checkpoint: checkpoint}, nil
 }
 
 type waitingSubtreeCancellationPlan struct {
-	process    *turnProcess
-	runtime    *runtime.WaitingSubtreeCancellationPlan
-	checkpoint execution.ExecutorCheckpoint
+	process     *turnProcess
+	runtimePlan *runtime.WaitingSubtreeCancellationPlan
+	checkpoint  execution.ExecutorCheckpoint
 }
 
 func (plan *waitingSubtreeCancellationPlan) CanceledProcessIDs() []string {
-	if plan == nil || plan.runtime == nil {
+	if plan == nil || plan.runtimePlan == nil {
 		return nil
 	}
-	return plan.runtime.CanceledProcessIDs()
+	return plan.runtimePlan.CanceledProcessIDs()
 }
 
 func (plan *waitingSubtreeCancellationPlan) PendingSuspensions() []PendingSuspension {
-	if plan == nil || plan.runtime == nil {
+	if plan == nil || plan.runtimePlan == nil {
 		return nil
 	}
-	pending := plan.runtime.PendingSuspensions()
+	pending := plan.runtimePlan.PendingSuspensions()
 	out := make([]PendingSuspension, len(pending))
 	for index, boundary := range pending {
 		out[index] = PendingSuspension{
@@ -304,11 +304,11 @@ func (plan *waitingSubtreeCancellationPlan) Checkpoint() execution.ExecutorCheck
 }
 
 func (plan *waitingSubtreeCancellationPlan) Apply(ctx context.Context) error {
-	if plan == nil || plan.runtime == nil || plan.process == nil ||
-		plan.process.owner == nil || plan.process.owner.runtime == nil {
+	if plan == nil || plan.runtimePlan == nil || plan.process == nil ||
+		plan.process.owner == nil || plan.process.owner.agentRuntime == nil {
 		return errors.New("agentexec: apply waiting subtree cancellation plan: incomplete plan")
 	}
-	return plan.process.owner.runtime.ApplyWaitingSubtreeCancellation(ctx, plan.runtime)
+	return plan.process.owner.agentRuntime.ApplyWaitingSubtreeCancellation(ctx, plan.runtimePlan)
 }
 
 func (plan *waitingSubtreeCancellationPlan) Continue(ctx context.Context) error {
@@ -322,7 +322,7 @@ func (plan *waitingSubtreeCancellationPlan) Continue(ctx context.Context) error 
 			process.process.ID(),
 		)
 	}
-	runHandle, err := process.owner.runtime.ContinueAsync(ctx, process.process.ID())
+	runHandle, err := process.owner.agentRuntime.ContinueAsync(ctx, process.process.ID())
 	if err != nil {
 		return fmt.Errorf(
 			"agentexec: continue waiting subtree cancellation for process %q: %w",
@@ -353,7 +353,7 @@ func (p *turnProcess) requireDescendant(target *runtime.Process) error {
 			)
 		}
 		seen[parentID] = struct{}{}
-		parent, found := p.owner.runtime.Process(parentID)
+		parent, found := p.owner.agentRuntime.Process(parentID)
 		if !found {
 			return fmt.Errorf(
 				"agentexec: cancel process subtree: process %q has missing ancestor %q",
@@ -371,7 +371,7 @@ func (p *turnProcess) requireDescendant(target *runtime.Process) error {
 }
 
 func (p *turnProcess) Resume(ctx context.Context, answers []SuspensionAnswer) error {
-	if p == nil || p.process == nil || p.owner == nil || p.owner.runtime == nil {
+	if p == nil || p.process == nil || p.owner == nil || p.owner.agentRuntime == nil {
 		return errors.New("agentexec: resume process: incomplete turn process")
 	}
 	if p.runHandle != nil {
@@ -438,7 +438,7 @@ func (p *turnProcess) resumeNext(ctx context.Context) error {
 	// A waiting-tree transformation may have made one framework-owned boundary
 	// internally ready ahead of the external answer set. Advance it first,
 	// without fabricating a Resume event or consuming a human response.
-	runHandle, continueErr := p.owner.runtime.ContinueAsync(ctx, p.process.ID())
+	runHandle, continueErr := p.owner.agentRuntime.ContinueAsync(ctx, p.process.ID())
 	if continueErr == nil {
 		p.runHandle = runHandle
 		return nil
@@ -469,7 +469,7 @@ func (p *turnProcess) resumeNext(ctx context.Context) error {
 	if parked == nil {
 		return fmt.Errorf("agentexec: resume process %q: root has no promoted suspension", p.process.ID())
 	}
-	runHandle, err = p.owner.runtime.RespondAndContinueAsync(ctx, p.runCtx, p.process.ID(), parked.ID, response)
+	runHandle, err = p.owner.agentRuntime.RespondAndContinueAsync(ctx, p.runCtx, p.process.ID(), parked.ID, response)
 	if err != nil {
 		return err
 	}
@@ -479,10 +479,10 @@ func (p *turnProcess) resumeNext(ctx context.Context) error {
 }
 
 func (p *turnProcess) PendingSuspensions(ctx context.Context) ([]PendingSuspension, error) {
-	if p == nil || p.process == nil || p.owner == nil || p.owner.runtime == nil {
+	if p == nil || p.process == nil || p.owner == nil || p.owner.agentRuntime == nil {
 		return nil, errors.New("agentexec: inspect pending suspensions: incomplete turn process")
 	}
-	pending, err := p.owner.runtime.PendingSuspensions(ctx, p.process.ID())
+	pending, err := p.owner.agentRuntime.PendingSuspensions(ctx, p.process.ID())
 	if err != nil {
 		return nil, fmt.Errorf("agentexec: inspect pending suspensions: %w", err)
 	}
@@ -498,10 +498,10 @@ func (p *turnProcess) PendingSuspensions(ctx context.Context) ([]PendingSuspensi
 }
 
 func (p *turnProcess) CaptureWaitingCheckpoint(ctx context.Context) (WaitingCheckpoint, error) {
-	if p == nil || p.process == nil || p.owner == nil || p.owner.runtime == nil {
+	if p == nil || p.process == nil || p.owner == nil || p.owner.agentRuntime == nil {
 		return WaitingCheckpoint{}, errors.New("agentexec: capture waiting checkpoint: incomplete turn process")
 	}
-	tree, err := p.owner.runtime.SnapshotTree(ctx, p.process.ID())
+	tree, err := p.owner.agentRuntime.SnapshotTree(ctx, p.process.ID())
 	if err != nil {
 		return WaitingCheckpoint{}, fmt.Errorf("agentexec: capture waiting checkpoint: %w", err)
 	}
@@ -535,13 +535,13 @@ func (p *turnProcess) CaptureWaitingCheckpoint(ctx context.Context) (WaitingChec
 }
 
 func (p *turnProcess) Discard(ctx context.Context) error {
-	if p == nil || p.process == nil || p.owner == nil || p.owner.runtime == nil {
+	if p == nil || p.process == nil || p.owner == nil || p.owner.agentRuntime == nil {
 		return errors.New("agentexec: discard process: incomplete turn process")
 	}
 	if !p.process.Status().IsTerminal() {
 		return fmt.Errorf("agentexec: discard process %q: %w", p.process.ID(), runtime.ErrProcessActive)
 	}
-	return p.owner.runtime.RemoveTree(ctx, p.process.ID())
+	return p.owner.agentRuntime.RemoveTree(ctx, p.process.ID())
 }
 
 func (p *turnProcess) captureProcessTree(

@@ -20,7 +20,7 @@ const (
 	FeaturePlan          = "plan"
 	FeatureGoals         = "goals"
 	FeatureAgentMemory   = "agentMemory"
-	FeatureMemory        = "memory"
+	FeatureKnowledge     = "knowledge"
 	FeatureSkills        = "skills"
 	FeatureMCP           = "mcp"
 	FeatureSchedules     = "schedules"
@@ -72,7 +72,7 @@ var features = mustFeatures([]Feature{
 	{Key: FeaturePlan, Stability: StabilityStable},
 	{Key: FeatureGoals, Stability: StabilityStable},
 	{Key: FeatureAgentMemory, Stability: StabilityStable},
-	{Key: FeatureMemory, Stability: StabilityStable},
+	{Key: FeatureKnowledge, Stability: StabilityStable},
 	{Key: FeatureSkills, Stability: StabilityStable},
 	{Key: FeatureMCP, Stability: StabilityStable},
 	{Key: FeatureSchedules, Stability: StabilityStable},

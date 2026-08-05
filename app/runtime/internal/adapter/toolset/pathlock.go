@@ -85,19 +85,19 @@ func (p *pathLocker) releaseRef(path string, l *pathLock) {
 // replaces a concurrency-safe tool's caller-spelled path key with the same
 // canonical physical identity used by the lock. This makes model-order
 // scheduling agree with execution for relative, absolute, and symlink aliases.
-func withPathLock(inner toolcontract.Tool, locker *pathLocker, workdir string) toolcontract.Tool {
+func withPathLock(inner toolcontract.Tool, locker *pathLocker, cwd string) toolcontract.Tool {
 	if locker == nil {
 		return inner
 	}
-	return &pathLocked{inner: inner, locker: locker, workdir: workdir}
+	return &pathLocked{inner: inner, locker: locker, cwd: cwd}
 }
 
 // pathLocked owns the full same-file execution contract: its scheduling
 // key and runtime lock are derived from the same canonical path function.
 type pathLocked struct {
-	inner   toolcontract.Tool
-	locker  *pathLocker
-	workdir string
+	inner  toolcontract.Tool
+	locker *pathLocker
+	cwd    string
 }
 
 func (t *pathLocked) Definition() chat.ToolDefinition { return t.inner.Definition() }
@@ -109,7 +109,7 @@ func (t *pathLocked) Definition() chat.ToolDefinition { return t.inner.Definitio
 func (t *pathLocked) Unwrap() toolcontract.Tool { return t.inner }
 
 func (t *pathLocked) Call(ctx context.Context, arguments string) (string, error) {
-	paths, err := resolvedMutationPaths(t.inner, arguments, t.workdir)
+	paths, err := resolvedMutationPaths(t.inner, arguments, t.cwd)
 	if err != nil {
 		return "", err
 	}
@@ -135,7 +135,7 @@ func (t *pathLocked) ConcurrencyKey(arguments string) (key string, concurrent bo
 	if !concurrent {
 		return "", false
 	}
-	paths, err := resolvedMutationPaths(t.inner, arguments, t.workdir)
+	paths, err := resolvedMutationPaths(t.inner, arguments, t.cwd)
 	if err != nil {
 		return "", false
 	}

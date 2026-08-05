@@ -28,7 +28,7 @@ func TestSessionExportImport_RoundTrip(t *testing.T) {
 	s, rt := rollbackHarness(t)
 	ctx := t.Context()
 	cwd := t.TempDir()
-	canonicalCwd := canonicalWorkspacePath(t, cwd)
+	canonicalCWD := canonicalWorkspacePath(t, cwd)
 
 	ses, err := rt.sess.Create(ctx, "My Session", cwd)
 	if err != nil {
@@ -76,7 +76,7 @@ func TestSessionExportImport_RoundTrip(t *testing.T) {
 		t.Fatalf("export = %+v, want a json artifact", exp)
 	}
 	art := exp.Artifact
-	if art.Session.Title != "My Session" || art.Session.Workspace.Path != ses.Cwd {
+	if art.Session.Title != "My Session" || art.Session.Workspace.Path != ses.CWD {
 		t.Errorf("artifact session = %+v, want title/workspace preserved", art.Session)
 	}
 	if len(art.Messages) != 2 || len(art.Items) != 2 || len(art.Runs) != 1 {
@@ -102,7 +102,7 @@ func TestSessionExportImport_RoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("import: %v", err)
 	}
-	if imp.Session == nil || imp.Session.ID != ses.ID || imp.Session.Title != "My Session" || imp.Session.Workspace.Ref.Path != canonicalCwd {
+	if imp.Session == nil || imp.Session.ID != ses.ID || imp.Session.Title != "My Session" || imp.Session.Workspace.Ref.Path != canonicalCWD {
 		t.Fatalf("imported session = %+v, want id/title/workspace restored", imp.Session)
 	}
 
@@ -264,7 +264,7 @@ func TestSessionImportRejectsActiveSession(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get session: %v", err)
 	}
-	if got.Title != "Live" || got.Cwd != "/proj" {
+	if got.Title != "Live" || got.CWD != "/proj" {
 		t.Fatalf("session mutated under active run: %+v", got)
 	}
 }
@@ -426,7 +426,7 @@ func TestCancelParkedRunProducesPortableTerminalSnapshot(t *testing.T) {
 func TestRestoreSessionApplicationBoundaryRejectsOpenInterrupts(t *testing.T) {
 	s, rt := rollbackHarness(t)
 	ctx := t.Context()
-	restoreCwd := t.TempDir()
+	restoreCWD := t.TempDir()
 
 	ses, err := rt.sess.Create(ctx, "Old", "/proj")
 	if err != nil {
@@ -445,7 +445,7 @@ func TestRestoreSessionApplicationBoundaryRejectsOpenInterrupts(t *testing.T) {
 
 	now := time.Now().UTC()
 	_, err = s.sessions.RestorePortableSession(ctx, sessions.PortableSnapshot{Session: sessions.PortableSession{
-		ID: ses.ID, Title: "Restored", Cwd: restoreCwd, CreatedAt: now, UpdatedAt: now,
+		ID: ses.ID, Title: "Restored", CWD: restoreCWD, CreatedAt: now, UpdatedAt: now,
 	}})
 	if !errors.Is(err, sessions.ErrSessionBusy) {
 		t.Fatalf("restore = %v, want ErrSessionBusy", err)
@@ -506,7 +506,7 @@ func TestSessionImport_VersionMismatch(t *testing.T) {
 	}
 }
 
-func TestSessionImportRejectsUnavailableCwd(t *testing.T) {
+func TestSessionImportRejectsUnavailableCWD(t *testing.T) {
 	s, _ := rollbackHarness(t)
 	missing := t.TempDir() + "/missing"
 	_, err := s.ImportSession(t.Context(), protocol.ImportSessionRequest{
@@ -630,7 +630,7 @@ func TestSessionImportRefusesAnUnadvertisedStateKey(t *testing.T) {
 	artifact := protocol.SessionArtifact{
 		Version: protocol.SessionArtifactVersion,
 		Session: protocol.ArtifactSession{
-			ID: ses.ID, Title: "planned", Workspace: protocol.WorkspaceRef{Path: ses.Cwd},
+			ID: ses.ID, Title: "planned", Workspace: protocol.WorkspaceRef{Path: ses.CWD},
 		},
 		States: []protocol.ArtifactState{{
 			Type: protocol.ArtifactStatePlan,

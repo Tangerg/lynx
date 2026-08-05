@@ -1,3 +1,5 @@
+// Package workspace contains focused project-scoped application use cases for
+// workspace identity, browsing, knowledge, skills, hooks, and Git observation.
 package workspace
 
 import (
@@ -7,7 +9,7 @@ import (
 
 // Workspace input failures are stable application errors.
 var (
-	ErrCwdUnavailable   = errors.New("workspace: cwd unavailable")
+	ErrCWDUnavailable   = errors.New("workspace: cwd unavailable")
 	ErrPathRequired     = errors.New("workspace: path required")
 	ErrPathOutsideRoot  = errors.New("workspace: path outside root")
 	ErrInvalidFileRange = errors.New("workspace: invalid file range")
@@ -23,23 +25,35 @@ type Paths interface {
 	ResolveExistingInRoot(root, path string) (string, error)
 }
 
-func (c *Context) root(cwd string) (string, error) {
+// Scope resolves the workspace identity shared by independent use cases.
+type Scope struct {
+	defaultWorkspacePath string
+	userHome             string
+	paths                Paths
+}
+
+// NewScope constructs the shared workspace root scope.
+func NewScope(defaultWorkspacePath, userHome string, paths Paths) *Scope {
+	return &Scope{defaultWorkspacePath: defaultWorkspacePath, userHome: userHome, paths: paths}
+}
+
+func (s *Scope) root(cwd string) (string, error) {
 	root := cwd
 	if root == "" {
-		root = c.defaultWorkspacePath
+		root = s.defaultWorkspacePath
 	}
-	if c.paths == nil {
-		return "", fmt.Errorf("%w: path resolver is not configured", ErrCwdUnavailable)
+	if s.paths == nil {
+		return "", fmt.Errorf("%w: path resolver is not configured", ErrCWDUnavailable)
 	}
-	resolved, err := c.paths.ResolveExistingDir(root)
+	resolved, err := s.paths.ResolveExistingDir(root)
 	if err != nil {
-		return "", fmt.Errorf("%w: %s: %w", ErrCwdUnavailable, root, err)
+		return "", fmt.Errorf("%w: %s: %w", ErrCWDUnavailable, root, err)
 	}
 	return resolved, nil
 }
 
 // ResolveRoot returns the effective, existing working directory for a workspace
 // request. Empty cwd selects the host-provided default workspace.
-func (c *Context) ResolveRoot(cwd string) (string, error) {
-	return c.root(cwd)
+func (s *Scope) ResolveRoot(cwd string) (string, error) {
+	return s.root(cwd)
 }

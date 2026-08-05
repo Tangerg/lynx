@@ -55,7 +55,7 @@ func (c *Coordinator) ListRules(ctx context.Context, sessionID string) ([]approv
 	if sessionID != "" {
 		switch sess, err := c.sessions.Get(ctx, sessionID); {
 		case err == nil:
-			cwd = sess.Cwd
+			cwd = sess.CWD
 		case !errors.Is(err, session.ErrNotFound):
 			return nil, err
 		}

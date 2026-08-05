@@ -47,65 +47,65 @@ func registerProviderUnions(s *Shapes) {
 
 func registerMCPUnions(s *Shapes) {
 	s.union(UnionSpec{
-		GoType:        typeOf[protocol.McpConnection](),
+		GoType:        typeOf[protocol.MCPConnection](),
 		Discriminator: "type",
 		Variants: []VariantSpec{
-			{Tag: string(protocol.McpTransportStreamableHTTP), Required: []string{"url"}, Optional: []string{"authorizationMasked", "headersMasked"}},
-			{Tag: string(protocol.McpTransportStdio), Required: []string{"command"}, Optional: []string{"args", "envMasked", "dir"}},
+			{Tag: string(protocol.MCPTransportStreamableHTTP), Required: []string{"url"}, Optional: []string{"authorizationMasked", "headersMasked"}},
+			{Tag: string(protocol.MCPTransportStdio), Required: []string{"command"}, Optional: []string{"args", "envMasked", "dir"}},
 		},
 	})
 	s.union(UnionSpec{
-		GoType:        typeOf[protocol.McpConnectionInput](),
+		GoType:        typeOf[protocol.MCPConnectionInput](),
 		Discriminator: "type",
 		Variants: []VariantSpec{
-			{Tag: string(protocol.McpTransportStreamableHTTP), Required: []string{"url"}, Optional: []string{"authorization", "headers"}},
-			{Tag: string(protocol.McpTransportStdio), Required: []string{"command"}, Optional: []string{"args", "env", "dir"}},
+			{Tag: string(protocol.MCPTransportStreamableHTTP), Required: []string{"url"}, Optional: []string{"authorization", "headers"}},
+			{Tag: string(protocol.MCPTransportStdio), Required: []string{"command"}, Optional: []string{"args", "env", "dir"}},
 		},
 	})
 	s.union(UnionSpec{
-		GoType:        typeOf[protocol.McpAuthorizationChange](),
+		GoType:        typeOf[protocol.MCPAuthorizationChange](),
 		Discriminator: "type",
 		Variants: []VariantSpec{
-			{Tag: string(protocol.McpSecretSet), Required: []string{"value"}},
-			{Tag: string(protocol.McpSecretClear)},
+			{Tag: string(protocol.MCPSecretSet), Required: []string{"value"}},
+			{Tag: string(protocol.MCPSecretClear)},
 		},
 	})
 	s.union(UnionSpec{
-		GoType:        typeOf[protocol.McpHeadersChange](),
+		GoType:        typeOf[protocol.MCPHeadersChange](),
 		Discriminator: "type",
 		Variants: []VariantSpec{
-			{Tag: string(protocol.McpSecretSet), Required: []string{"value"}},
-			{Tag: string(protocol.McpSecretClear)},
+			{Tag: string(protocol.MCPSecretSet), Required: []string{"value"}},
+			{Tag: string(protocol.MCPSecretClear)},
 		},
 	})
 	s.union(UnionSpec{
-		GoType:        typeOf[protocol.McpEnvironmentChange](),
+		GoType:        typeOf[protocol.MCPEnvironmentChange](),
 		Discriminator: "type",
 		Variants: []VariantSpec{
-			{Tag: string(protocol.McpSecretSet), Required: []string{"value"}},
-			{Tag: string(protocol.McpSecretClear)},
+			{Tag: string(protocol.MCPSecretSet), Required: []string{"value"}},
+			{Tag: string(protocol.MCPSecretClear)},
 		},
 	})
 	s.union(UnionSpec{
-		GoType:        typeOf[protocol.McpServerState](),
+		GoType:        typeOf[protocol.MCPServerState](),
 		Discriminator: "type",
 		Variants: []VariantSpec{
-			{Tag: string(protocol.McpServerDisabled)},
-			{Tag: string(protocol.McpServerDisconnected)},
-			{Tag: string(protocol.McpServerConnecting)},
-			{Tag: string(protocol.McpServerConnected), Required: []string{"toolCount"}},
-			{Tag: string(protocol.McpServerFailed), Required: []string{"error"}},
-			{Tag: string(protocol.McpServerNeedsAuth), Required: []string{"error"}},
+			{Tag: string(protocol.MCPServerDisabled)},
+			{Tag: string(protocol.MCPServerDisconnected)},
+			{Tag: string(protocol.MCPServerConnecting)},
+			{Tag: string(protocol.MCPServerConnected), Required: []string{"toolCount"}},
+			{Tag: string(protocol.MCPServerFailed), Required: []string{"error"}},
+			{Tag: string(protocol.MCPServerNeedsAuth), Required: []string{"error"}},
 		},
 	})
 	s.union(UnionSpec{
-		GoType:        typeOf[protocol.McpAuthorizationAttemptStatus](),
+		GoType:        typeOf[protocol.MCPAuthorizationAttemptStatus](),
 		Discriminator: "type",
 		Variants: []VariantSpec{
-			{Tag: string(protocol.McpAuthorizationAttemptPending)},
-			{Tag: string(protocol.McpAuthorizationAttemptSucceeded)},
-			{Tag: string(protocol.McpAuthorizationAttemptFailed), Required: []string{"error"}},
-			{Tag: string(protocol.McpAuthorizationAttemptCanceled)},
+			{Tag: string(protocol.MCPAuthorizationAttemptPending)},
+			{Tag: string(protocol.MCPAuthorizationAttemptSucceeded)},
+			{Tag: string(protocol.MCPAuthorizationAttemptFailed), Required: []string{"error"}},
+			{Tag: string(protocol.MCPAuthorizationAttemptCanceled)},
 		},
 	})
 }
@@ -220,7 +220,7 @@ func registerItemUnions(s *Shapes) {
 			{Tag: string(protocol.ItemTypeAgentMessage), Required: createdItemFields, Optional: []string{"content"}},
 			{Tag: string(protocol.ItemTypeReasoning), Required: createdItemFields, Optional: []string{"text", "redacted"}},
 			{Tag: string(protocol.ItemTypeQuestion), Required: createdItemFields, Optional: []string{"question"}},
-			{Tag: string(protocol.ItemTypeToolCall), Required: toolItemFields, Optional: []string{"finishedAt", "durationMs", "tool", "safetyClass", "error"}},
+			{Tag: string(protocol.ItemTypeToolCall), Required: toolItemFields, Optional: []string{"finishedAt", "durationMillis", "tool", "safetyClass", "error"}},
 			{Tag: string(protocol.ItemTypeCompaction), Required: createdItemFields, Optional: []string{"summary", "droppedMessages"}},
 		},
 	})
@@ -418,7 +418,7 @@ func registerArtifactUnions(s *Shapes) {
 			{Tag: string(protocol.ItemTypeAgentMessage), Required: createdItemFields, Optional: []string{"content"}},
 			{Tag: string(protocol.ItemTypeReasoning), Required: createdItemFields, Optional: []string{"text", "redacted"}},
 			{Tag: string(protocol.ItemTypeQuestion), Required: createdItemFields, Optional: []string{"question"}},
-			{Tag: string(protocol.ItemTypeToolCall), Required: toolItemFields, Optional: []string{"finishedAt", "durationMs", "tool", "safetyClass", "error"}},
+			{Tag: string(protocol.ItemTypeToolCall), Required: toolItemFields, Optional: []string{"finishedAt", "durationMillis", "tool", "safetyClass", "error"}},
 			{Tag: string(protocol.ItemTypeCompaction), Required: createdItemFields, Optional: []string{"summary", "droppedMessages"}},
 		},
 	})
@@ -466,19 +466,19 @@ func registerObjectConstraints(s *Shapes) {
 					{Field: "type", Operator: OperatorEquals, Value: string(protocol.ItemTypeToolCall)},
 					{Field: "status", Operator: OperatorEquals, Value: string(protocol.ItemStatusRunning)},
 				},
-				Forbidden: []string{"finishedAt", "durationMs"},
+				Forbidden: []string{"finishedAt", "durationMillis"},
 			}, {
 				When: []FieldCondition{
 					{Field: "type", Operator: OperatorEquals, Value: string(protocol.ItemTypeToolCall)},
 					{Field: "status", Operator: OperatorEquals, Value: string(protocol.ItemStatusCompleted)},
 				},
-				Required: []string{"finishedAt", "durationMs"},
+				Required: []string{"finishedAt", "durationMillis"},
 			}, {
 				When: []FieldCondition{
 					{Field: "type", Operator: OperatorEquals, Value: string(protocol.ItemTypeToolCall)},
 					{Field: "status", Operator: OperatorEquals, Value: string(protocol.ItemStatusIncomplete)},
 				},
-				Required: []string{"finishedAt", "durationMs"},
+				Required: []string{"finishedAt", "durationMillis"},
 			}},
 		})
 	}
@@ -500,18 +500,18 @@ func registerObjectConstraints(s *Shapes) {
 	}
 
 	s.constraint(ObjectConstraintSpec{
-		GoType: typeOf[protocol.McpAuthorizationAttempt](),
+		GoType: typeOf[protocol.MCPAuthorizationAttempt](),
 		Rules: []PresenceRule{{
-			When:      []FieldCondition{{Field: "status.type", Operator: OperatorEquals, Value: string(protocol.McpAuthorizationAttemptPending)}},
+			When:      []FieldCondition{{Field: "status.type", Operator: OperatorEquals, Value: string(protocol.MCPAuthorizationAttemptPending)}},
 			Forbidden: []string{"finishedAt"},
 		}, {
-			When:     []FieldCondition{{Field: "status.type", Operator: OperatorEquals, Value: string(protocol.McpAuthorizationAttemptSucceeded)}},
+			When:     []FieldCondition{{Field: "status.type", Operator: OperatorEquals, Value: string(protocol.MCPAuthorizationAttemptSucceeded)}},
 			Required: []string{"finishedAt"},
 		}, {
-			When:     []FieldCondition{{Field: "status.type", Operator: OperatorEquals, Value: string(protocol.McpAuthorizationAttemptFailed)}},
+			When:     []FieldCondition{{Field: "status.type", Operator: OperatorEquals, Value: string(protocol.MCPAuthorizationAttemptFailed)}},
 			Required: []string{"finishedAt"},
 		}, {
-			When:     []FieldCondition{{Field: "status.type", Operator: OperatorEquals, Value: string(protocol.McpAuthorizationAttemptCanceled)}},
+			When:     []FieldCondition{{Field: "status.type", Operator: OperatorEquals, Value: string(protocol.MCPAuthorizationAttemptCanceled)}},
 			Required: []string{"finishedAt"},
 		}},
 	})

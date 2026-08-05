@@ -55,7 +55,7 @@ func TestDiscoverAgentDocsWalksProjectTree(t *testing.T) {
 	}
 }
 
-func TestDiscoverAgentDocsFallsBackToCwdWithoutGit(t *testing.T) {
+func TestDiscoverAgentDocsFallsBackToCWDWithoutGit(t *testing.T) {
 	dir := t.TempDir()
 	parent := filepath.Dir(dir)
 	writeFile(t, filepath.Join(parent, "AGENTS.md"), "parent-leak")

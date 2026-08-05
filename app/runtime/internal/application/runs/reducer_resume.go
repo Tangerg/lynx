@@ -170,7 +170,7 @@ func (b *resumeBinding) rejectCommittedToolStart(
 	return fmt.Errorf("committed tool call %q was executed again", callID)
 }
 
-func (b *resumeBinding) consumeCommittedTool(event ToolCallEnd) (bool, error) {
+func (b *resumeBinding) consumeCommittedTool(event ToolCallFinished) (bool, error) {
 	if b == nil {
 		return false, nil
 	}

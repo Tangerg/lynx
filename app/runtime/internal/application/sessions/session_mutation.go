@@ -114,11 +114,11 @@ func (c *Coordinator) restoreSession(ctx context.Context, snapshot Snapshot, pre
 		return View{}, err
 	}
 	defer admission.Release()
-	cwd, err := c.resolveSessionCwd(snapshot.Session.Cwd)
+	cwd, err := c.resolveSessionCWD(snapshot.Session.CWD)
 	if err != nil {
 		return View{}, err
 	}
-	snapshot.Session.Cwd = cwd
+	snapshot.Session.CWD = cwd
 	var view View
 	err = c.withGoalMutation(
 		ctx,

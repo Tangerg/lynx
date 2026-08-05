@@ -85,17 +85,17 @@ type config struct {
 }
 
 type hookWire struct {
-	Event     domainhooks.Event `json:"event"`
-	Matcher   string            `json:"matcher,omitempty"`
-	Command   string            `json:"command,omitempty"`
-	Inject    string            `json:"inject,omitempty"`
-	TimeoutMs int               `json:"timeoutMs,omitempty"`
+	Event         domainhooks.Event `json:"event"`
+	Matcher       string            `json:"matcher,omitempty"`
+	Command       string            `json:"command,omitempty"`
+	Inject        string            `json:"inject,omitempty"`
+	TimeoutMillis int               `json:"timeoutMillis,omitempty"`
 }
 
 func (wire hookWire) domain() domainhooks.Hook {
 	return domainhooks.Hook{
 		Event: wire.Event, Matcher: wire.Matcher, Command: wire.Command,
-		Inject: wire.Inject, TimeoutMs: wire.TimeoutMs,
+		Inject: wire.Inject, TimeoutMillis: wire.TimeoutMillis,
 	}
 }
 

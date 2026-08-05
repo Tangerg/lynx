@@ -29,18 +29,18 @@ type Bundle struct {
 	closeErr  error
 
 	DataDirectory string
-	Tx            func(context.Context, func(context.Context) error) error
+	Transactor    func(context.Context, func(context.Context) error) error
 
-	Session             *sqlitestore.SessionStore
+	Sessions            *sqlitestore.SessionStore
 	Runs                *sqlitestore.RunStore
-	WorkspaceMuts       *sqlitestore.WorkspaceMutationStore
-	Memory              *storage.FileKnowledgeStore
+	WorkspaceMutations  *sqlitestore.WorkspaceMutationStore
+	Knowledge           *storage.FileKnowledgeStore
 	AgentMemory         *sqlitestore.AgentMemoryStore
 	ExecutorCheckpoints *sqlitestore.ExecutorCheckpointStore
-	Interrupt           *sqlitestore.InterruptStore
+	Interrupts          *sqlitestore.InterruptStore
 	Transcript          *sqlitestore.TranscriptStore
 	Feedback            *sqlitestore.FeedbackStore
-	Provider            providersvc.Registry
+	Providers           providersvc.Registry
 	MCPServers          *sqlitestore.MCPServerStore
 	ChatHistory         history.Store
 	Plan                *sqlitestore.PlanStore
@@ -51,7 +51,7 @@ type Bundle struct {
 	Trust               *sqlitestore.TrustStore
 	Schedules           *sqlitestore.ScheduleStore
 	EmbeddingRole       *sqlitestore.EmbeddingRoleStore
-	Codebase            *sqlitestore.CodebaseIndexStore
+	CodebaseIndex       *sqlitestore.CodebaseIndexStore
 	ToolResults         *sqlitestore.ToolResultStore
 	Idempotency         *sqlitestore.IdempotencyStore
 }
@@ -85,26 +85,26 @@ func Open(ctx context.Context, config Config) (*Bundle, error) {
 	if err != nil {
 		return nil, err
 	}
-	mem, err := storage.NewFileKnowledgeStore(config.DataDirectory, config.DefaultWorkspacePath)
+	knowledgeStore, err := storage.NewFileKnowledgeStore(config.DataDirectory, config.DefaultWorkspacePath)
 	if err != nil {
-		return nil, errors.Join(fmt.Errorf("memory storage: %w", err), db.Close())
+		return nil, errors.Join(fmt.Errorf("knowledge storage: %w", err), db.Close())
 	}
 	return &Bundle{
 		db:            db,
 		DataDirectory: config.DataDirectory,
-		Tx: func(ctx context.Context, fn func(context.Context) error) error {
+		Transactor: func(ctx context.Context, fn func(context.Context) error) error {
 			return sqlitestore.RunInTx(ctx, db, fn)
 		},
-		Session:             sqlitestore.NewSessionStore(db),
+		Sessions:            sqlitestore.NewSessionStore(db),
 		Runs:                sqlitestore.NewRunStore(db),
-		WorkspaceMuts:       sqlitestore.NewWorkspaceMutationStore(db),
-		Memory:              mem,
+		WorkspaceMutations:  sqlitestore.NewWorkspaceMutationStore(db),
+		Knowledge:           knowledgeStore,
 		AgentMemory:         sqlitestore.NewAgentMemoryStore(db),
 		ExecutorCheckpoints: sqlitestore.NewExecutorCheckpointStore(db),
-		Interrupt:           sqlitestore.NewInterruptStore(db),
+		Interrupts:          sqlitestore.NewInterruptStore(db),
 		Transcript:          sqlitestore.NewTranscriptStore(db),
 		Feedback:            sqlitestore.NewFeedbackStore(db),
-		Provider:            sqlitestore.NewProviderStore(db),
+		Providers:           sqlitestore.NewProviderStore(db),
 		MCPServers:          sqlitestore.NewMCPServerStore(db),
 		ChatHistory:         sqlitestore.NewMessageStore(db),
 		Plan:                sqlitestore.NewPlanStore(db),
@@ -115,7 +115,7 @@ func Open(ctx context.Context, config Config) (*Bundle, error) {
 		Trust:               sqlitestore.NewTrustStore(db),
 		Schedules:           sqlitestore.NewScheduleStore(db),
 		EmbeddingRole:       sqlitestore.NewEmbeddingRoleStore(db),
-		Codebase:            sqlitestore.NewCodebaseIndexStore(db),
+		CodebaseIndex:       sqlitestore.NewCodebaseIndexStore(db),
 		ToolResults:         sqlitestore.NewToolResultStore(db),
 		Idempotency:         sqlitestore.NewIdempotencyStore(db),
 	}, nil

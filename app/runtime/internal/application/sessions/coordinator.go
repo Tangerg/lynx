@@ -206,7 +206,7 @@ type Coordinator struct {
 	writes           WriteSets
 	forgetter        Forgetter
 	executionCleanup ExecutionCleanup
-	paths            CwdResolver
+	paths            CWDResolver
 	defaultModel     string
 	// checkpoints resets the working tree to a run-boundary checkpoint for a file
 	// rollback and drops a deleted session's snapshots; nil disables both (file
@@ -244,7 +244,7 @@ type Dependencies struct {
 	Writes           WriteSets
 	Forgetter        Forgetter
 	ExecutionCleanup ExecutionCleanup
-	Paths            CwdResolver
+	Paths            CWDResolver
 	DefaultModel     string
 	Checkpoints      WorkspaceCheckpoints
 	Sandbox          SandboxDiscarder

@@ -6,7 +6,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/codeintel"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/goals"
-	"github.com/Tangerg/lynx/app/runtime/internal/application/integrations"
+	mcpapp "github.com/Tangerg/lynx/app/runtime/internal/application/mcp"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/codebaseindex"
@@ -30,10 +30,10 @@ type Config struct {
 	SkillsUserDir string
 
 	// Run-boundary collaborators. nil selects the in-house/default binding:
-	// conversation steering and the complete maintenance suite (skill mining,
+	// conversation steering and the complete maintenance pipeline (skill mining,
 	// idle curation, compaction, then post-compaction knowledge extraction).
 	Steering    turn.SteeringSink
-	Maintenance turn.RunMaintenance
+	Maintenance turn.Maintenance
 
 	// AgentMemoryStore is the SQLite fact ledger and its curated memory items,
 	// used by the default Extractor and injected into the system prompt. nil
@@ -82,7 +82,7 @@ type Config struct {
 	// entries are dialed at boot (the env seed lands here first, in the
 	// composition root) and the registry is the source for runtime
 	// mcp.servers.create / update / delete. Required.
-	MCPRegistry integrations.Registry
+	MCPRegistry mcpapp.Registry
 
 	// MCPOAuthSessions persists refreshing OAuth credentials independently of
 	// the domain registry shape. Required: without it desktop sign-in would be

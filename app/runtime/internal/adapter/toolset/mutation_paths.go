@@ -38,13 +38,13 @@ func mutationPaths(tool toolcontract.Tool, arguments string) ([]string, error) {
 	return cleanPathList(paths), nil
 }
 
-func resolvedMutationPaths(tool toolcontract.Tool, arguments, workdir string) ([]string, error) {
+func resolvedMutationPaths(tool toolcontract.Tool, arguments, cwd string) ([]string, error) {
 	paths, err := mutationPaths(tool, arguments)
 	if err != nil {
 		return nil, err
 	}
 	for i, path := range paths {
-		resolved, err := pathidentity.Canonical(workdir, path)
+		resolved, err := pathidentity.Canonical(cwd, path)
 		if err != nil {
 			return nil, err
 		}

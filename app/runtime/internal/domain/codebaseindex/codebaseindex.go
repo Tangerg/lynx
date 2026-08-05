@@ -57,7 +57,7 @@ type Status struct {
 // Meta is the persisted per-cwd index header (the model the vectors were built
 // with + counts/timestamp). ModelID = "provider:model".
 type Meta struct {
-	Cwd        string
+	CWD        string
 	ModelID    string
 	IndexedAt  time.Time
 	FileCount  int

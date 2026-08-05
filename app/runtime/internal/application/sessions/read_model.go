@@ -27,9 +27,9 @@ const (
 type View struct {
 	ID          string
 	Title       string
-	Cwd         string
+	CWD         string
 	ProjectRoot string
-	CwdMissing  bool
+	CWDMissing  bool
 	Model       string
 	Activity    Activity
 	CreatedAt   time.Time
@@ -203,9 +203,9 @@ func (c *Coordinator) view(value session.Session, activity Activity) (View, erro
 	if c.paths == nil {
 		return View{}, errors.New("sessions: workspace inspector is unavailable")
 	}
-	workspace, err := c.paths.Inspect(value.Cwd)
+	workspace, err := c.paths.Inspect(value.CWD)
 	if err != nil {
-		return View{}, fmt.Errorf("sessions: inspect workspace %q: %w", value.Cwd, err)
+		return View{}, fmt.Errorf("sessions: inspect workspace %q: %w", value.CWD, err)
 	}
 	model := value.Model
 	if model == "" {
@@ -214,9 +214,9 @@ func (c *Coordinator) view(value session.Session, activity Activity) (View, erro
 	return View{
 		ID:          value.ID,
 		Title:       value.Title,
-		Cwd:         workspace.Cwd,
+		CWD:         workspace.CWD,
 		ProjectRoot: workspace.ProjectRoot,
-		CwdMissing:  workspace.Missing,
+		CWDMissing:  workspace.Missing,
 		Model:       model,
 		Activity:    activity,
 		CreatedAt:   value.StartedAt,

@@ -72,7 +72,7 @@ func artifactStatesFromPortable(portable sessions.PortableSnapshot) []protocol.A
 
 func artifactSessionFromPortable(value sessions.PortableSession) protocol.ArtifactSession {
 	return protocol.ArtifactSession{
-		ID: value.ID, Title: value.Title, Workspace: protocol.WorkspaceRef{Path: value.Cwd}, Model: value.Model,
+		ID: value.ID, Title: value.Title, Workspace: protocol.WorkspaceRef{Path: value.CWD}, Model: value.Model,
 		CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt, Favorite: value.Favorite,
 	}
 }
@@ -133,9 +133,9 @@ func artifactOutcomeType(outcome execution.Outcome) (protocol.ArtifactOutcomeTyp
 
 func artifactMetricsFromDomain(metrics transcript.RunMetrics) protocol.ArtifactRunMetrics {
 	return protocol.ArtifactRunMetrics{
-		Usage:            artifactUsageFromDomain(metrics.Usage),
-		Steps:            metrics.Steps,
-		ActiveDurationMs: metrics.ActiveDuration.Milliseconds(),
+		Usage:                artifactUsageFromDomain(metrics.Usage),
+		Steps:                metrics.Steps,
+		ActiveDurationMillis: metrics.ActiveDuration.Milliseconds(),
 	}
 }
 
@@ -263,7 +263,7 @@ func artifactItemFromTranscript(item transcript.Item) (protocol.ArtifactItem, er
 	if item.Kind == transcript.ToolCall {
 		out.StartedAt = item.OccurredAt
 		out.FinishedAt = item.FinishedAt
-		out.DurationMs = presentToolDurationMs(item)
+		out.DurationMillis = presentToolDurationMillis(item)
 	} else {
 		out.CreatedAt = item.OccurredAt
 	}

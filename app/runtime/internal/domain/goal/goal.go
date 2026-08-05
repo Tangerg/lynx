@@ -21,7 +21,7 @@ import (
 
 // Status is where a goal sits in the autonomous loop.
 //
-// StatusComplete is transient: the model reports it through report_goal_outcome,
+// StatusComplete is transient: the model reports it through the terminal-outcome boundary,
 // the driver observes it once and clears the goal. It is never a durable
 // resting state — a stored complete goal only exists in the window between the
 // tool call and the driver's next read (or a crash in that window, which the

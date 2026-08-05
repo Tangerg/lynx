@@ -185,7 +185,7 @@ func TestRecoverRollbacks(t *testing.T) {
 	// Simulate the crash: the intent is logged but neither resource is rolled back
 	// yet (tree still v2, run2 still in history).
 	if err := rt.muts.Record(ctx, execution.WorkspaceMutation{
-		SessionID: sid, Cwd: cwd, ToRunID: "run1", RestoreHistory: true,
+		SessionID: sid, CWD: cwd, ToRunID: "run1", RestoreHistory: true,
 	}); err != nil {
 		t.Fatalf("record intent: %v", err)
 	}
@@ -221,7 +221,7 @@ func TestRecoverRollbacks_Idempotent(t *testing.T) {
 	// Only run1 in history (run2 already dropped by the pre-crash rollback), tree
 	// already at v1 — the "crashed after durable, before complete" state.
 	if err := rt.muts.Record(ctx, execution.WorkspaceMutation{
-		SessionID: sid, Cwd: cwd, ToRunID: "run1", RestoreHistory: true,
+		SessionID: sid, CWD: cwd, ToRunID: "run1", RestoreHistory: true,
 	}); err != nil {
 		t.Fatalf("record intent: %v", err)
 	}
@@ -256,7 +256,7 @@ func TestRecoverRollbacks_FilesOnly(t *testing.T) {
 	putRun(t, rt, sid, "run2", 2, 2)
 
 	if err := rt.muts.Record(ctx, execution.WorkspaceMutation{
-		SessionID: sid, Cwd: cwd, ToRunID: "run1", RestoreHistory: false,
+		SessionID: sid, CWD: cwd, ToRunID: "run1", RestoreHistory: false,
 	}); err != nil {
 		t.Fatalf("record intent: %v", err)
 	}

@@ -309,11 +309,11 @@ type webSearchExecutionResult struct {
 }
 
 type webSearchExecutionHit struct {
-	Title          string `json:"title"`
-	URL            string `json:"url"`
-	Snippet        string `json:"snippet"`
-	FaviconURL     string `json:"favicon_url"`
-	FaviconURLWire string `json:"faviconUrl"`
+	Title               string `json:"title"`
+	URL                 string `json:"url"`
+	Snippet             string `json:"snippet"`
+	FaviconURLSnakeCase string `json:"favicon_url"`
+	FaviconURLCamelCase string `json:"faviconUrl"`
 }
 
 // WebSearchResult is the transcript result of web_search.
@@ -336,9 +336,9 @@ func presentWebSearchResult(result tool.Result) tool.Result {
 	}
 	items := make([]WebSearchHit, 0, len(raw.Results))
 	for _, item := range raw.Results {
-		faviconURL := item.FaviconURL
+		faviconURL := item.FaviconURLSnakeCase
 		if faviconURL == "" {
-			faviconURL = item.FaviconURLWire
+			faviconURL = item.FaviconURLCamelCase
 		}
 		items = append(items, WebSearchHit{
 			Title: item.Title, URL: item.URL, Snippet: item.Snippet, FaviconURL: faviconURL,

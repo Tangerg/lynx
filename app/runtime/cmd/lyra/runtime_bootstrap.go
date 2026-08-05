@@ -103,7 +103,7 @@ func bootstrapRuntimeWithBuildID(ctx context.Context, paths runtimePaths, buildI
 	// providers enabled out of the box. Read once — the environment is static for
 	// the process. Everything downstream (resolver, providers.list, test) goes
 	// through this wrapped registry, so they share one stored>env truth.
-	providers := bootstrap.ProviderRegistry(stores.Provider)
+	providers := bootstrap.ProviderRegistry(stores.Providers)
 	// Seed the registry with the configured provider's credentials (if not
 	// already enabled), so the default provider works out of the box. Seeding
 	// through the wrapped registry means an env-sourced default key isn't

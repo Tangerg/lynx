@@ -28,7 +28,7 @@ func TestApproveToolCall_RememberedShortCircuit(t *testing.T) {
 	ctx := context.Background()
 	appr := newTestApprovalPolicy(t, approval.ModeSafe)
 	obs := &turnObserver{
-		controller: &controller{approval: appr, toolSemantics: toolset.Semantics{}},
+		controller: &controller{approval: appr, toolInterpreter: toolset.Interpreter{}},
 		st:         &turnState{handle: Handle{SessionID: "s1"}},
 	}
 
@@ -73,7 +73,7 @@ func TestApproveToolCall_MCPAutoApprove(t *testing.T) {
 	obs := &turnObserver{
 		controller: &controller{
 			approval:            appr,
-			toolSemantics:       toolset.Semantics{},
+			toolInterpreter:     toolset.Interpreter{},
 			mcpToolAutoApproved: func(ref mcpserver.ToolRef) bool { return ref == autoApproved },
 		},
 		st: &turnState{handle: Handle{SessionID: "s1"}},
@@ -191,7 +191,7 @@ func TestApproveToolCallRejectsMalformedGatedArguments(t *testing.T) {
 
 func approvalObserver(policy ApprovalGate) *turnObserver {
 	return &turnObserver{
-		controller: &controller{approval: policy, toolSemantics: toolset.Semantics{}},
+		controller: &controller{approval: policy, toolInterpreter: toolset.Interpreter{}},
 		st:         &turnState{handle: Handle{SessionID: "s1"}},
 	}
 }

@@ -130,14 +130,14 @@ func TestResolverInspectFindsRepositoryRoot(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Inspect: %v", err)
 	}
-	if identity.Cwd != mustCanonical(t, nested) || identity.ProjectRoot != mustCanonical(t, root) || identity.Missing {
+	if identity.CWD != mustCanonical(t, nested) || identity.ProjectRoot != mustCanonical(t, root) || identity.Missing {
 		t.Fatalf("identity = %+v", identity)
 	}
 }
 
 func TestResolverInspectReportsUnavailableWorkspace(t *testing.T) {
 	empty, err := (workspacepath.Resolver{}).Inspect("")
-	if err != nil || !empty.Missing || empty.Cwd != "" || empty.ProjectRoot != "" {
+	if err != nil || !empty.Missing || empty.CWD != "" || empty.ProjectRoot != "" {
 		t.Fatalf("Inspect empty = (%+v, %v), want unavailable empty identity", empty, err)
 	}
 
@@ -146,7 +146,7 @@ func TestResolverInspectReportsUnavailableWorkspace(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Inspect missing: %v", err)
 	}
-	if !identity.Missing || identity.Cwd != mustCanonical(t, missing) || identity.ProjectRoot != identity.Cwd {
+	if !identity.Missing || identity.CWD != mustCanonical(t, missing) || identity.ProjectRoot != identity.CWD {
 		t.Fatalf("missing identity = %+v", identity)
 	}
 

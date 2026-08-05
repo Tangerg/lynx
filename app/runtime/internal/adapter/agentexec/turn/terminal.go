@@ -74,7 +74,7 @@ func (s *controller) emitFinishedTurn(st *turnState, reason execution.Outcome) {
 
 // finishFailedTurn closes an emergency error path with one self-contained
 // terminal event. The raw error stays local to tracing and stop hooks; the
-// EngineEvent contract carries only the stable application problem.
+// ExecutionFact contract carries only the stable application problem.
 func (s *controller) finishFailedTurn(st *turnState, problem transcript.Problem, err error) error {
 	return s.completeTurn(st, func() {
 		dur := st.segmentElapsed()
@@ -214,7 +214,7 @@ func (s *controller) fireStop(st *turnState, detail string) {
 		return
 	}
 	_ = st.hooks.Run(st.ctx, hooks.Input{
-		Event: hooks.Stop, SessionID: st.handle.SessionID, Cwd: st.cwd, Reason: detail,
+		Event: hooks.Stop, SessionID: st.handle.SessionID, CWD: st.cwd, Reason: detail,
 	})
 }
 

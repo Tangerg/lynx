@@ -139,7 +139,7 @@ func BenchmarkCoalesceTextDeltas(b *testing.B) {
 	}
 }
 
-func rootExecutorEvent(payload runs.EngineEvent) runs.ExecutorEvent {
+func rootExecutorEvent(payload runs.ExecutionFact) runs.ExecutorEvent {
 	return runs.ExecutorEvent{
 		Source:  runs.ExecutorSource{ProcessID: "process_root"},
 		Payload: payload,

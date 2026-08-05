@@ -71,7 +71,7 @@ func portableArtifactFromWire(art protocol.SessionArtifact) (sessions.PortableSn
 	}
 	return sessions.PortableSnapshot{
 		Session: sessions.PortableSession{
-			ID: art.Session.ID, Title: art.Session.Title, Cwd: art.Session.Workspace.Path, Model: art.Session.Model,
+			ID: art.Session.ID, Title: art.Session.Title, CWD: art.Session.Workspace.Path, Model: art.Session.Model,
 			CreatedAt: art.Session.CreatedAt, UpdatedAt: art.Session.UpdatedAt, Favorite: art.Session.Favorite,
 		},
 		Messages: messages, Runs: runs, Items: items, ToolResults: toolResults, Plan: plan,
@@ -202,7 +202,7 @@ func portableMetricsFromArtifact(artifact protocol.ArtifactRunMetrics) transcrip
 	return transcript.RunMetrics{
 		Usage:          portableUsageFromArtifact(artifact.Usage),
 		Steps:          artifact.Steps,
-		ActiveDuration: time.Duration(artifact.ActiveDurationMs) * time.Millisecond,
+		ActiveDuration: time.Duration(artifact.ActiveDurationMillis) * time.Millisecond,
 	}
 }
 
@@ -263,8 +263,8 @@ func portableItemFromArtifact(sessionID, path string, artifact protocol.Artifact
 		out.OccurredAt = artifact.StartedAt
 		if status != transcript.ItemRunning {
 			expectedDuration := artifact.FinishedAt.Sub(artifact.StartedAt).Milliseconds()
-			if artifact.DurationMs == nil || *artifact.DurationMs != expectedDuration {
-				return transcript.Item{}, invalidArtifact(path+".durationMs", "must equal finishedAt minus startedAt in milliseconds")
+			if artifact.DurationMillis == nil || *artifact.DurationMillis != expectedDuration {
+				return transcript.Item{}, invalidArtifact(path+".durationMillis", "must equal finishedAt minus startedAt in milliseconds")
 			}
 			out.FinishedAt = artifact.FinishedAt
 		}

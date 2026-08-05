@@ -18,7 +18,7 @@ import (
 // where the runtime accepts three words, which is a published contract that
 // permits frames the runtime rejects.
 var wireEnums = map[reflect.Type][]string{
-	reflect.TypeFor[AgentDocScope]():                     {string(AgentDocScopeCwd), string(AgentDocScopeProjectRoot), string(AgentDocScopeHome)},
+	reflect.TypeFor[AgentDocScope]():                     {string(AgentDocScopeCWD), string(AgentDocScopeProjectRoot), string(AgentDocScopeHome)},
 	reflect.TypeFor[AgentMemoryOrigin]():                 {string(AgentMemoryOriginAuto), string(AgentMemoryOriginUser)},
 	reflect.TypeFor[AgentMemoryReviewDecision]():         {string(AgentMemoryReviewApprove), string(AgentMemoryReviewReject)},
 	reflect.TypeFor[AgentMemoryScope]():                  {string(AgentMemoryScopeProject), string(AgentMemoryScopeUser)},
@@ -55,11 +55,11 @@ var wireEnums = map[reflect.Type][]string{
 	reflect.TypeFor[ItemScopeType]():                     {string(ItemScopeSession), string(ItemScopeRun)},
 	reflect.TypeFor[ItemStatus]():                        {string(ItemStatusRunning), string(ItemStatusCompleted), string(ItemStatusIncomplete)},
 	reflect.TypeFor[ItemType]():                          {string(ItemTypeUserMessage), string(ItemTypeAgentMessage), string(ItemTypeReasoning), string(ItemTypeQuestion), string(ItemTypeToolCall), string(ItemTypeCompaction)},
-	reflect.TypeFor[McpSecretChangeType]():               {string(McpSecretSet), string(McpSecretClear)},
-	reflect.TypeFor[McpAuthorizationAttemptStatusType](): {string(McpAuthorizationAttemptPending), string(McpAuthorizationAttemptSucceeded), string(McpAuthorizationAttemptFailed), string(McpAuthorizationAttemptCanceled)},
-	reflect.TypeFor[McpServerStateType]():                {string(McpServerDisabled), string(McpServerDisconnected), string(McpServerConnecting), string(McpServerConnected), string(McpServerFailed), string(McpServerNeedsAuth)},
-	reflect.TypeFor[McpTransport]():                      {string(McpTransportStdio), string(McpTransportStreamableHTTP)},
-	reflect.TypeFor[MemoryScope]():                       {string(MemoryScopeCwd), string(MemoryScopeProjectRoot), string(MemoryScopeHome)},
+	reflect.TypeFor[MCPSecretChangeType]():               {string(MCPSecretSet), string(MCPSecretClear)},
+	reflect.TypeFor[MCPAuthorizationAttemptStatusType](): {string(MCPAuthorizationAttemptPending), string(MCPAuthorizationAttemptSucceeded), string(MCPAuthorizationAttemptFailed), string(MCPAuthorizationAttemptCanceled)},
+	reflect.TypeFor[MCPServerStateType]():                {string(MCPServerDisabled), string(MCPServerDisconnected), string(MCPServerConnecting), string(MCPServerConnected), string(MCPServerFailed), string(MCPServerNeedsAuth)},
+	reflect.TypeFor[MCPTransport]():                      {string(MCPTransportStdio), string(MCPTransportStreamableHTTP)},
+	reflect.TypeFor[KnowledgeScope]():                    {string(KnowledgeScopeCWD), string(KnowledgeScopeProjectRoot), string(KnowledgeScopeHome)},
 	reflect.TypeFor[Modality]():                          {string(ModalityText), string(ModalityImage), string(ModalityAudio), string(ModalityVideo), string(ModalityPDF)},
 	reflect.TypeFor[ProviderKeySource]():                 {string(ProviderKeySourceStored), string(ProviderKeySourceEnv)},
 	reflect.TypeFor[QuestionFieldType]():                 {string(QuestionFieldText), string(QuestionFieldChoice)},

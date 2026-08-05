@@ -36,7 +36,7 @@ type hostLifetime struct {
 	shutdownTimeout time.Duration
 
 	goals        shutdownComponent
-	integrations shutdownComponent
+	mcp          shutdownComponent
 	codebase     shutdownComponent
 	coordinator  shutdownComponent
 	execution    shutdownComponent
@@ -81,7 +81,7 @@ func closeHostLifetime(lifetime *hostLifetime) error {
 	}
 	components := []shutdownComponent{
 		lifetime.goals,
-		lifetime.integrations,
+		lifetime.mcp,
 		lifetime.codebase,
 		lifetime.coordinator,
 	}

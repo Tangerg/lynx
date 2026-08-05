@@ -51,7 +51,7 @@ const (
 	// ModePlan — the session-scoped read-only planning stance: every write / exec /
 	// network tool is denied outright (no prompt) so the agent can only
 	// investigate and draft a plan; the model sees the refusal as a tool
-	// error and adapts. The exit_plan_mode tool presents the plan for
+	// error and adapts. The Plan-exit boundary presents the plan for
 	// approval and restores the session's exact entry permission mode.
 	ModePlan
 )

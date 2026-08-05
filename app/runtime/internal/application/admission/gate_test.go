@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-func TestGateHoldsSessionThroughRunMaintenance(t *testing.T) {
+func TestGateHoldsSessionThroughMaintenance(t *testing.T) {
 	var gate Gate
 	opening, ok := gate.AcquireRun("ses_1", "/repo")
 	if !ok {

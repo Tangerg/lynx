@@ -34,8 +34,8 @@ func Scope(ctx context.Context) (execution.ExecutionScope, bool) {
 // CWD returns the execution workspace, falling back when the Run is
 // unattached. Every cwd-dependent adapter reads this single host seam.
 func CWD(ctx context.Context, fallback string) string {
-	if scope, ok := Scope(ctx); ok && scope.Cwd != "" {
-		return scope.Cwd
+	if scope, ok := Scope(ctx); ok && scope.CWD != "" {
+		return scope.CWD
 	}
 	return fallback
 }
@@ -43,8 +43,8 @@ func CWD(ctx context.Context, fallback string) string {
 // WorkspaceCWD returns the persistent session workspace, falling back when the
 // Run is unattached. Unlike [CWD], it never points at an isolated scratch copy.
 func WorkspaceCWD(ctx context.Context, fallback string) string {
-	if scope, ok := Scope(ctx); ok && scope.WorkspaceCwd != "" {
-		return scope.WorkspaceCwd
+	if scope, ok := Scope(ctx); ok && scope.WorkspaceCWD != "" {
+		return scope.WorkspaceCWD
 	}
 	return fallback
 }

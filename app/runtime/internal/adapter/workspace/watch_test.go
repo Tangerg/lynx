@@ -16,7 +16,7 @@ func TestGitWatcherRejectsUnwatchableGitDirectory(t *testing.T) {
 		t.Fatalf("remove git dir: %v", err)
 	}
 
-	watcher, err := (GitWatcher{}).WatchGitState([]string{root}, func() {})
+	watcher, err := (GitWatcher{}).Watch([]string{root}, func() {})
 	if err != nil {
 		t.Fatalf("non-repository root should produce an inert watcher: %v", err)
 	}

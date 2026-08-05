@@ -93,7 +93,7 @@ func TestCreateScheduleBuildsEnabledDomainSchedule(t *testing.T) {
 	cwd := t.TempDir()
 
 	got, err := s.CreateSchedule(context.Background(), protocol.CreateScheduleRequest{
-		Title: "Morning", Prompt: "Summarize the repo",
+		Title: "Morning", Instructions: "Summarize the repo",
 		Workspace: &protocol.WorkspaceRef{Path: cwd}, Cron: "@daily",
 	})
 	if err != nil {
@@ -103,7 +103,7 @@ func TestCreateScheduleBuildsEnabledDomainSchedule(t *testing.T) {
 		t.Fatalf("created %d schedule(s), want 1", len(reg.created))
 	}
 	created := reg.created[0]
-	if !created.Enabled || created.Prompt != "Summarize the repo" || created.Cwd != canonicalWorkspacePath(t, cwd) || created.Cron != "@daily" {
+	if !created.Enabled || created.Instructions != "Summarize the repo" || created.CWD != canonicalWorkspacePath(t, cwd) || created.Cron != "@daily" {
 		t.Fatalf("created = %+v", created)
 	}
 	if created.NextRunAt.IsZero() {
@@ -114,13 +114,13 @@ func TestCreateScheduleBuildsEnabledDomainSchedule(t *testing.T) {
 	}
 }
 
-func TestCreateScheduleRejectsUnavailableCwd(t *testing.T) {
+func TestCreateScheduleRejectsUnavailableCWD(t *testing.T) {
 	reg := &fakeScheduleRegistry{}
 	s := serverWithSchedules(reg)
 
 	_, err := s.CreateSchedule(context.Background(), protocol.CreateScheduleRequest{
-		Prompt:    "Summarize the repo",
-		Workspace: &protocol.WorkspaceRef{Path: t.TempDir() + "/missing"}, Cron: "@daily",
+		Instructions: "Summarize the repo",
+		Workspace:    &protocol.WorkspaceRef{Path: t.TempDir() + "/missing"}, Cron: "@daily",
 	})
 	if !errors.Is(err, protocol.ErrWorkspaceUnavailable) {
 		t.Fatalf("create schedule workspace err = %v, want ErrWorkspaceUnavailable", err)
@@ -143,7 +143,7 @@ func TestUpdateSchedulePreservesStoredTimestampsAndCanDisable(t *testing.T) {
 		ID:               "sch_1",
 		ExpectedRevision: 1,
 		Title:            valuePtr("Disabled"),
-		Prompt:           valuePtr("Stand down"),
+		Instructions:     valuePtr("Stand down"),
 		Workspace:        &protocol.WorkspaceRef{Path: cwd},
 		Cron:             valuePtr("@daily"),
 		Enabled:          valuePtr(false),
@@ -161,8 +161,8 @@ func TestUpdateSchedulePreservesStoredTimestampsAndCanDisable(t *testing.T) {
 	if !updated.NextRunAt.IsZero() {
 		t.Fatalf("updated.NextRunAt = %v, want zero when disabled", updated.NextRunAt)
 	}
-	if updated.Cwd != canonicalWorkspacePath(t, cwd) {
-		t.Fatalf("updated.Cwd = %q, want %q", updated.Cwd, canonicalWorkspacePath(t, cwd))
+	if updated.CWD != canonicalWorkspacePath(t, cwd) {
+		t.Fatalf("updated.CWD = %q, want %q", updated.CWD, canonicalWorkspacePath(t, cwd))
 	}
 	if got.NextRunAt != nil || got.LastRunAt == nil {
 		t.Fatalf("wire schedule = %+v, want omitted nextRunAt and present lastRunAt", got)
@@ -175,7 +175,7 @@ func TestUpdateScheduleUnknownIDIsInvalidParams(t *testing.T) {
 	_, err := s.UpdateSchedule(context.Background(), protocol.UpdateScheduleRequest{
 		ID:               "missing",
 		ExpectedRevision: 1,
-		Prompt:           valuePtr("hello"),
+		Instructions:     valuePtr("hello"),
 		Cron:             valuePtr("@daily"),
 		Enabled:          valuePtr(true),
 	})

@@ -127,7 +127,7 @@ func (c *Coordinator) WaitSessionStartable(ctx context.Context, sessionID string
 	if err != nil {
 		return err
 	}
-	return c.admission.WaitRunStartable(ctx, sess.ID, sess.Cwd)
+	return c.admission.WaitRunStartable(ctx, sess.ID, sess.CWD)
 }
 
 // openSegment attaches an already-prepared executor stream, atomically commits
@@ -202,7 +202,7 @@ func (c *Coordinator) openSegment(reqCtx context.Context, spec segmentSpec) (ite
 		ID:             spec.RunID,
 		SegmentID:      spec.SegmentID,
 		SessionID:      spec.SessionID,
-		Cwd:            spec.Cwd,
+		CWD:            spec.CWD,
 		CreatedAt:      spec.CreatedAt,
 		ExecutorID:     spec.ExecutorID,
 		ModelSelection: spec.ModelSelection,

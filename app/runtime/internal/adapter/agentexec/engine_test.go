@@ -465,12 +465,12 @@ func nthIndex(values []string, target string, ordinal int) int {
 	return -1
 }
 
-// TestEngine_RunChat_ToolsRunInCwd proves the per-run working directory
-// reaches the filesystem + shell tools: a turn started with Cwd=dir runs
+// TestEngine_RunChat_ToolsRunInCWD proves the per-run working directory
+// reaches the filesystem + shell tools: a turn started with CWD=dir runs
 // `ls` and must see a file that only exists in dir. Without the cwd seam
-// the tools would run in the engine's default workdir (the test process
+// the tools would run in the engine's default cwd (the test process
 // cwd) and the file wouldn't appear.
-func TestEngine_RunChat_ToolsRunInCwd(t *testing.T) {
+func TestEngine_RunChat_ToolsRunInCWD(t *testing.T) {
 	dir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(dir, "sentinel.txt"), []byte("x"), 0o644); err != nil {
 		t.Fatalf("seed sentinel: %v", err)
@@ -483,7 +483,7 @@ func TestEngine_RunChat_ToolsRunInCwd(t *testing.T) {
 	rec := &recordingObserver{}
 	if _, err := eng.runTurnSync(context.Background(), TurnRequest{
 		Message:  "list the dir",
-		Cwd:      dir,
+		CWD:      dir,
 		Observer: rec,
 	}); err != nil {
 		t.Fatalf("runTurnSync: %v", err)
@@ -494,25 +494,25 @@ func TestEngine_RunChat_ToolsRunInCwd(t *testing.T) {
 		t.Fatalf("tool end count = %d, want 1", len(ends))
 	}
 	if !strings.Contains(ends[0].output, "sentinel.txt") {
-		t.Errorf("shell `ls` output %q does not list the file in Cwd %q — tools didn't run in the per-run cwd", ends[0].output, dir)
+		t.Errorf("shell `ls` output %q does not list the file in CWD %q — tools didn't run in the per-run cwd", ends[0].output, dir)
 	}
 }
 
-// TestEngine_RunChat_SubtaskInheritsCwd proves the working directory reaches
+// TestEngine_RunChat_SubtaskInheritsCWD proves the working directory reaches
 // delegated Agents: the main turn delegates, the child's shell creates a
-// marker with a RELATIVE path, and it must land in the turn's Cwd. The
+// marker with a RELATIVE path, and it must land in the turn's CWD. The
 // sub-agent runs on a clean blackboard — so its goal is not pre-satisfied by
 // inherited planner state — while the Application-owned context carries the cwd.
-func TestEngine_RunChat_SubtaskInheritsCwd(t *testing.T) {
+func TestEngine_RunChat_SubtaskInheritsCWD(t *testing.T) {
 	dir := t.TempDir()
-	stub := newCwdDelegatingStubModel()
+	stub := newCWDDelegatingStubModel()
 	client, _ := chatclient.New(stub, chatclient.Config{})
 	eng := mustEngineWith(t, client, toolset.BuildConfig{})
 	defer eng.Close()
 
 	out, err := eng.runTurnSync(context.Background(), TurnRequest{
 		Message: "delegate this",
-		Cwd:     dir,
+		CWD:     dir,
 	})
 	if err != nil {
 		t.Fatalf("runTurnSync: %v", err)
@@ -521,7 +521,7 @@ func TestEngine_RunChat_SubtaskInheritsCwd(t *testing.T) {
 		t.Fatalf("reply = %q, want the post-delegation answer", out.Reply)
 	}
 	if _, err := os.Stat(filepath.Join(dir, "subtask_was_here.txt")); err != nil {
-		t.Errorf("subtask's shell did not create the marker in Cwd %q — the sub-agent didn't run or didn't inherit the working dir: %v", dir, err)
+		t.Errorf("subtask's shell did not create the marker in CWD %q — the sub-agent didn't run or didn't inherit the working dir: %v", dir, err)
 	}
 }
 
@@ -541,7 +541,7 @@ func TestEngine_RunChat_SubtaskKeepsHistoryAcrossRounds(t *testing.T) {
 
 	out, err := eng.runTurnSync(context.Background(), TurnRequest{
 		Message: "delegate this",
-		Cwd:     t.TempDir(),
+		CWD:     t.TempDir(),
 	})
 	if err != nil {
 		t.Fatalf("runTurnSync: %v", err)
@@ -704,7 +704,7 @@ func TestEngine_RunChat_LongToolDoesNotTripModelIdleTimeout(t *testing.T) {
 }
 
 func TestEngine_RunChat_ToolTimeoutIsNotModelIdleTimeout(t *testing.T) {
-	stub := newStubModel("shell", `{"command":"sleep 0.08","description":"Wait briefly","timeout_ms":10}`, "recovered")
+	stub := newStubModel("shell", `{"command":"sleep 0.08","description":"Wait briefly","timeout_millis":10}`, "recovered")
 	client, err := chatclient.New(stub, chatclient.Config{})
 	if err != nil {
 		t.Fatal(err)
@@ -818,8 +818,8 @@ func TestEngine_RestoreChat_PreservesOptionsFromSnapshot(t *testing.T) {
 	observer := &hitlApprovalObserver{}
 	wantScope := execution.ExecutionScope{
 		SessionID:    "session-restore",
-		Cwd:          "/sandbox/restore",
-		WorkspaceCwd: "/workspace/restore",
+		CWD:          "/sandbox/restore",
+		WorkspaceCWD: "/workspace/restore",
 		Isolated:     true,
 		GoalLeaseID:  "goal-lease-restore",
 	}
@@ -835,8 +835,8 @@ func TestEngine_RestoreChat_PreservesOptionsFromSnapshot(t *testing.T) {
 		SessionID:      wantScope.SessionID,
 		Message:        "echo lyra",
 		ModelSelection: wantSelection,
-		Cwd:            wantScope.Cwd,
-		WorkspaceCwd:   wantScope.WorkspaceCwd,
+		CWD:            wantScope.CWD,
+		WorkspaceCWD:   wantScope.WorkspaceCWD,
 		Isolated:       wantScope.Isolated,
 		GoalLeaseID:    wantScope.GoalLeaseID,
 		Limits:         wantLimits,
@@ -890,8 +890,8 @@ func TestEngine_RestoreChat_PreservesOptionsFromSnapshot(t *testing.T) {
 	if mismatched, err := eng2.RestoreTurn(context.Background(), proc.ID(), RestoreTurnRequest{
 		SessionID:      "another-session",
 		ModelSelection: wantSelection,
-		Cwd:            wantScope.Cwd,
-		WorkspaceCwd:   wantScope.WorkspaceCwd,
+		CWD:            wantScope.CWD,
+		WorkspaceCWD:   wantScope.WorkspaceCWD,
 		Isolated:       wantScope.Isolated,
 		GoalLeaseID:    wantScope.GoalLeaseID,
 		Limits:         wantLimits,
@@ -902,8 +902,8 @@ func TestEngine_RestoreChat_PreservesOptionsFromSnapshot(t *testing.T) {
 	if mismatched, err := eng2.RestoreTurn(context.Background(), proc.ID(), RestoreTurnRequest{
 		SessionID:      wantScope.SessionID,
 		ModelSelection: mustTestSelection(t, "another-provider", wantSelection.Model()),
-		Cwd:            wantScope.Cwd,
-		WorkspaceCwd:   wantScope.WorkspaceCwd,
+		CWD:            wantScope.CWD,
+		WorkspaceCWD:   wantScope.WorkspaceCWD,
 		Isolated:       wantScope.Isolated,
 		GoalLeaseID:    wantScope.GoalLeaseID,
 		Limits:         wantLimits,
@@ -914,8 +914,8 @@ func TestEngine_RestoreChat_PreservesOptionsFromSnapshot(t *testing.T) {
 	if mismatched, err := eng2.RestoreTurn(context.Background(), proc.ID(), RestoreTurnRequest{
 		SessionID:      wantScope.SessionID,
 		ModelSelection: mustTestSelection(t, wantSelection.Provider(), "another-model"),
-		Cwd:            wantScope.Cwd,
-		WorkspaceCwd:   wantScope.WorkspaceCwd,
+		CWD:            wantScope.CWD,
+		WorkspaceCWD:   wantScope.WorkspaceCWD,
 		Isolated:       wantScope.Isolated,
 		GoalLeaseID:    wantScope.GoalLeaseID,
 		Limits:         wantLimits,
@@ -926,7 +926,7 @@ func TestEngine_RestoreChat_PreservesOptionsFromSnapshot(t *testing.T) {
 	if mismatched, err := eng2.RestoreTurn(context.Background(), proc.ID(), RestoreTurnRequest{
 		SessionID:      wantScope.SessionID,
 		ModelSelection: wantSelection,
-		Cwd:            "/another/workspace",
+		CWD:            "/another/workspace",
 		Isolated:       wantScope.Isolated,
 		GoalLeaseID:    wantScope.GoalLeaseID,
 		Limits:         wantLimits,
@@ -937,8 +937,8 @@ func TestEngine_RestoreChat_PreservesOptionsFromSnapshot(t *testing.T) {
 	if mismatched, err := eng2.RestoreTurn(context.Background(), proc.ID(), RestoreTurnRequest{
 		SessionID:      wantScope.SessionID,
 		ModelSelection: wantSelection,
-		Cwd:            wantScope.Cwd,
-		WorkspaceCwd:   wantScope.WorkspaceCwd,
+		CWD:            wantScope.CWD,
+		WorkspaceCWD:   wantScope.WorkspaceCWD,
 		Isolated:       wantScope.Isolated,
 		GoalLeaseID:    "another-goal-lease",
 		Limits:         wantLimits,
@@ -950,8 +950,8 @@ func TestEngine_RestoreChat_PreservesOptionsFromSnapshot(t *testing.T) {
 	restored, err := eng2.RestoreTurn(context.Background(), proc.ID(), RestoreTurnRequest{
 		SessionID:      wantScope.SessionID,
 		ModelSelection: wantSelection,
-		Cwd:            wantScope.Cwd,
-		WorkspaceCwd:   wantScope.WorkspaceCwd,
+		CWD:            wantScope.CWD,
+		WorkspaceCWD:   wantScope.WorkspaceCWD,
 		Isolated:       wantScope.Isolated,
 		GoalLeaseID:    wantScope.GoalLeaseID,
 		Limits:         wantLimits,
@@ -1038,7 +1038,7 @@ func TestEngine_RestoreTurnRejectsDifferentExecutableBuild(t *testing.T) {
 
 	process, err := first.StartTurn(t.Context(), TurnRequest{
 		SessionID: "session-build",
-		Cwd:       "/workspace/build",
+		CWD:       "/workspace/build",
 		Message:   "pause for approval",
 		Observer:  &hitlApprovalObserver{},
 	})
@@ -1084,7 +1084,7 @@ func TestEngine_RestoreTurnRejectsDifferentExecutableBuild(t *testing.T) {
 	restored, err := second.RestoreTurn(t.Context(), process.ID(), RestoreTurnRequest{
 		SessionID:      checkpoint.Scope.SessionID,
 		ModelSelection: checkpoint.ModelSelection,
-		Cwd:            checkpoint.Scope.Cwd,
+		CWD:            checkpoint.Scope.CWD,
 		Isolated:       checkpoint.Scope.Isolated,
 		GoalLeaseID:    checkpoint.Scope.GoalLeaseID,
 		Limits:         checkpoint.Limits,

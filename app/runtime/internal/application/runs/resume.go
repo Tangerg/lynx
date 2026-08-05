@@ -37,9 +37,9 @@ func (c *Coordinator) Resume(ctx context.Context, cmd ResumeCommand) (StartResul
 	if err != nil {
 		return StartResult{}, err
 	}
-	runAdmission, ok := c.admission.AcquireRun(pending.SessionID, sess.Cwd)
+	runAdmission, ok := c.admission.AcquireRun(pending.SessionID, sess.CWD)
 	if !ok {
-		return StartResult{}, fmt.Errorf("%w: session %q or working tree %q has a run or mutation in flight", ErrSessionBusy, pending.SessionID, sess.Cwd)
+		return StartResult{}, fmt.Errorf("%w: session %q or working tree %q has a run or mutation in flight", ErrSessionBusy, pending.SessionID, sess.CWD)
 	}
 	defer runAdmission.Release()
 	if c.runs == nil {
@@ -57,7 +57,7 @@ func (c *Coordinator) Resume(ctx context.Context, cmd ResumeCommand) (StartResul
 	// so no execution-cwd resolution is needed here. A rehydrate (process
 	// gone) of an isolated Run is refused as lost — see prepareExecution — because the
 	// sandbox copy died with the process.
-	ref, err := c.prepareExecution(ctx, pending, sess.Cwd, sess.Isolated)
+	ref, err := c.prepareExecution(ctx, pending, sess.CWD, sess.Isolated)
 	if err != nil {
 		if errors.Is(err, ErrExecutorStateLost) {
 			cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), runCleanupTimeout)
@@ -85,7 +85,7 @@ func (c *Coordinator) Resume(ctx context.Context, cmd ResumeCommand) (StartResul
 		RunID:          cmd.RunID,
 		SegmentID:      segmentID,
 		SessionID:      pending.SessionID,
-		Cwd:            sess.Cwd,
+		CWD:            sess.CWD,
 		ExecutorID:     ref.ExecutorID,
 		ModelSelection: rootContinuation.ModelSelection,
 		GoalLeaseID:    pending.GoalLeaseID,
@@ -161,8 +161,8 @@ func (c *Coordinator) prepareExecution(ctx context.Context, pending interrupts.P
 		RootRunID:                pending.RootRunID,
 		ChildRuns:                childRunBindingsFromPending(pending),
 		ModelSelection:           root.ModelSelection,
-		Cwd:                      cwd,
-		WorkspaceCwd:             cwd,
+		CWD:                      cwd,
+		WorkspaceCWD:             cwd,
 		Isolated:                 isolated,
 		GoalLeaseID:              pending.GoalLeaseID,
 		Limits:                   root.Limits,

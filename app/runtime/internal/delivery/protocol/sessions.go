@@ -165,10 +165,10 @@ type ExportSessionResponse struct {
 // artifact it doesn't recognize; development builds do not migrate old
 // artifacts.
 //
-// v12 gives each item variant one timestamp vocabulary: ToolCall uses startedAt;
-// every other item uses createdAt. Older documents are refused before any write
-// rather than accepting two names for one ToolCall instant.
-const SessionArtifactVersion = 12
+// v13 spells millisecond durations out as durationMillis and
+// activeDurationMillis. Older documents are refused before any write rather
+// than accepting parallel abbreviations for the same unit.
+const SessionArtifactVersion = 13
 
 // SessionArtifact is the portable, round-trippable form of a session: its
 // identity plus the full conversation — chat messages (the model's context),
@@ -272,9 +272,9 @@ type ArtifactRunLimits struct {
 
 // ArtifactRunMetrics is what a portable run consumed.
 type ArtifactRunMetrics struct {
-	Usage            *ArtifactUsage `json:"usage,omitempty"`
-	Steps            int            `json:"steps"`
-	ActiveDurationMs int64          `json:"activeDurationMs"`
+	Usage                *ArtifactUsage `json:"usage,omitempty"`
+	Steps                int            `json:"steps"`
+	ActiveDurationMillis int64          `json:"activeDurationMillis"`
 }
 
 // ArtifactOutcome is a non-interrupt terminal fact. Its string discriminator
@@ -320,14 +320,14 @@ type ArtifactModelUsage struct {
 // Item response DTO: archive tool results remain canonical rather than being
 // transformed for a particular client presentation.
 type ArtifactItem struct {
-	ID         string     `json:"id"`
-	RunID      string     `json:"runId"`
-	Status     ItemStatus `json:"status"`
-	CreatedAt  time.Time  `json:"createdAt,omitzero"`
-	Type       ItemType   `json:"type"`
-	StartedAt  time.Time  `json:"startedAt,omitzero"`
-	FinishedAt time.Time  `json:"finishedAt,omitzero"`
-	DurationMs *int64     `json:"durationMs,omitempty"`
+	ID             string     `json:"id"`
+	RunID          string     `json:"runId"`
+	Status         ItemStatus `json:"status"`
+	CreatedAt      time.Time  `json:"createdAt,omitzero"`
+	Type           ItemType   `json:"type"`
+	StartedAt      time.Time  `json:"startedAt,omitzero"`
+	FinishedAt     time.Time  `json:"finishedAt,omitzero"`
+	DurationMillis *int64     `json:"durationMillis,omitempty"`
 
 	Content         []ArtifactContentBlock  `json:"content,omitempty"`
 	Text            string                  `json:"text,omitempty"`

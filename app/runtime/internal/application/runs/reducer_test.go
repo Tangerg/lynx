@@ -21,7 +21,7 @@ import (
 func testReducerConfig() reducerConfig {
 	now := time.Date(2026, 7, 13, 1, 2, 3, 0, time.UTC)
 	return reducerConfig{
-		RunID: "run_1", SegmentID: "seg_1", SessionID: "ses_1", Cwd: "/work",
+		RunID: "run_1", SegmentID: "seg_1", SessionID: "ses_1", CWD: "/work",
 		ExecutorID: "turn_1", ModelSelection: mustReducerSelection("anthropic", "claude"), CreatedAt: now,
 		Now: func() time.Time { return now },
 	}
@@ -31,8 +31,8 @@ func TestReducerTerminalIncludesGoalRunRecord(t *testing.T) {
 	config := testReducerConfig()
 	config.GoalLeaseID = "goal_lease"
 	reducer := newReducer(config)
-	mustReduce(t, reducer, ToolCallStart{CallID: "call_1", ToolName: "inspect", Arguments: `{}`})
-	mustReduce(t, reducer, ToolCallEnd{CallID: "call_1", Result: testToolResult(t, "ok")})
+	mustReduce(t, reducer, ToolCallStarted{CallID: "call_1", ToolName: "inspect", Arguments: `{}`})
+	mustReduce(t, reducer, ToolCallFinished{CallID: "call_1", Result: testToolResult(t, "ok")})
 	reductions := mustReduce(t, reducer, SegmentEnded{
 		Reason: execution.OutcomeCompleted,
 		Usage:  &SegmentUsage{CostUSD: 0.75, Steps: 1},
@@ -50,10 +50,10 @@ func TestReducerTerminalIncludesGoalRunRecord(t *testing.T) {
 func TestReducerStepsCountModelCallsRatherThanParallelTools(t *testing.T) {
 	reducer := newReducer(testReducerConfig())
 	mustReduce(t, reducer, UsageReported{Steps: 1})
-	mustReduce(t, reducer, ToolCallStart{CallID: "call_1", ToolName: "inspect", Arguments: `{}`})
-	mustReduce(t, reducer, ToolCallStart{CallID: "call_2", ToolName: "inspect", Arguments: `{}`})
-	mustReduce(t, reducer, ToolCallEnd{CallID: "call_2", Result: testToolResult(t, "two")})
-	mustReduce(t, reducer, ToolCallEnd{CallID: "call_1", Result: testToolResult(t, "one")})
+	mustReduce(t, reducer, ToolCallStarted{CallID: "call_1", ToolName: "inspect", Arguments: `{}`})
+	mustReduce(t, reducer, ToolCallStarted{CallID: "call_2", ToolName: "inspect", Arguments: `{}`})
+	mustReduce(t, reducer, ToolCallFinished{CallID: "call_2", Result: testToolResult(t, "two")})
+	mustReduce(t, reducer, ToolCallFinished{CallID: "call_1", Result: testToolResult(t, "one")})
 	finished := mustReduce(t, reducer, SegmentEnded{
 		Reason: execution.OutcomeCompleted,
 		Usage:  &SegmentUsage{Steps: 1},
@@ -136,7 +136,7 @@ func TestReducerRejectsInconsistentOrRegressingAccounting(t *testing.T) {
 	})
 }
 
-type unsupportedEngineEvent struct{ engineEventBase }
+type unsupportedEngineEvent struct{ executionFactBase }
 
 func mustOpen(t *testing.T, reducer *reducer) []reduction {
 	t.Helper()
@@ -147,7 +147,7 @@ func mustOpen(t *testing.T, reducer *reducer) []reduction {
 	return testReductions(batch)
 }
 
-func mustReduce(t *testing.T, reducer *reducer, event EngineEvent) []reduction {
+func mustReduce(t *testing.T, reducer *reducer, event ExecutionFact) []reduction {
 	t.Helper()
 	batch, err := reducer.reduce(event)
 	if err != nil {
@@ -156,7 +156,7 @@ func mustReduce(t *testing.T, reducer *reducer, event EngineEvent) []reduction {
 	return testReductions(batch)
 }
 
-func mustReduceBatch(t *testing.T, reducer *reducer, event EngineEvent) reductionBatch {
+func mustReduceBatch(t *testing.T, reducer *reducer, event ExecutionFact) reductionBatch {
 	t.Helper()
 	batch, err := reducer.reduce(event)
 	if err != nil {
@@ -216,7 +216,7 @@ func mustReducerSelection(provider, model string) modelref.Selection {
 
 func TestReducerResolvesSpawningItemByExecutorCallIdentity(t *testing.T) {
 	reducer := newReducer(testReducerConfig())
-	first := mustReduce(t, reducer, ToolCallStart{
+	first := mustReduce(t, reducer, ToolCallStarted{
 		CallID: "canonical-1", SourceCallID: "provider-1", ToolName: "delegate_task",
 		Arguments: `{"description":"delegate"}`, SafetyClass: tool.SafetyClassExec,
 	})
@@ -235,7 +235,7 @@ func TestReducerResolvesSpawningItemByExecutorCallIdentity(t *testing.T) {
 		t.Fatalf("spawningItem = %+v, want the canonical running tool item %q", got, want)
 	}
 
-	mustReduce(t, reducer, ToolCallStart{
+	mustReduce(t, reducer, ToolCallStarted{
 		CallID: "canonical-2", SourceCallID: "provider-1", ToolName: "delegate_task", Arguments: `{}`,
 	})
 	if _, err := reducer.spawningItem("provider-1"); err == nil ||
@@ -263,9 +263,9 @@ func TestReducerOwnsOpeningUserInput(t *testing.T) {
 
 func TestReducerPreservesRawToolResultsAndExplicitFileNudges(t *testing.T) {
 	reducer := newReducer(testReducerConfig())
-	mustReduce(t, reducer, ToolCallStart{CallID: "shell_1", ToolName: "shell", Arguments: `{"command":"echo hi","description":"Print hi"}`})
+	mustReduce(t, reducer, ToolCallStarted{CallID: "shell_1", ToolName: "shell", Arguments: `{"command":"echo hi","description":"Print hi"}`})
 	raw := map[string]any{"stdout": "hi\n", "stderr": "oops", "exit_code": 0}
-	reduced := mustReduce(t, reducer, ToolCallEnd{
+	reduced := mustReduce(t, reducer, ToolCallFinished{
 		CallID: "shell_1", Result: testToolResult(t, raw), OutputText: "hi\n\noops",
 	})
 	completed := completedItem(t, reduced)
@@ -277,8 +277,8 @@ func TestReducerPreservesRawToolResultsAndExplicitFileNudges(t *testing.T) {
 		t.Fatalf("raw command result = %#v", completed.Tool.Result)
 	}
 
-	mustReduce(t, reducer, ToolCallStart{CallID: "write_1", ToolName: "write", Arguments: `{"path":"src/a.go"}`})
-	write := mustReduce(t, reducer, ToolCallEnd{
+	mustReduce(t, reducer, ToolCallStarted{CallID: "write_1", ToolName: "write", Arguments: `{"path":"src/a.go"}`})
+	write := mustReduce(t, reducer, ToolCallFinished{
 		CallID: "write_1", Result: testToolResult(t, map[string]any{}), MutatedPaths: []string{"src/a.go"},
 	})
 	var nudge *Nudge
@@ -287,12 +287,12 @@ func TestReducerPreservesRawToolResultsAndExplicitFileNudges(t *testing.T) {
 			nudge = reduction.Nudge
 		}
 	}
-	if nudge == nil || nudge.Cwd != "/work" || len(nudge.Paths) != 1 || nudge.Paths[0] != "src/a.go" {
+	if nudge == nil || nudge.CWD != "/work" || len(nudge.Paths) != 1 || nudge.Paths[0] != "src/a.go" {
 		t.Fatalf("write nudge = %+v", nudge)
 	}
 
-	mustReduce(t, reducer, ToolCallStart{CallID: "denied_1", ToolName: "shell", Arguments: `{}`})
-	denied := completedItem(t, mustReduce(t, reducer, ToolCallEnd{
+	mustReduce(t, reducer, ToolCallStarted{CallID: "denied_1", ToolName: "shell", Arguments: `{}`})
+	denied := completedItem(t, mustReduce(t, reducer, ToolCallFinished{
 		CallID: "denied_1",
 		Problem: &transcript.Problem{
 			Kind: transcript.DeniedByUserProblem, Scope: transcript.ToolProblem,
@@ -308,7 +308,7 @@ func TestReducerCommitsConcurrentToolCompletionsInModelOrder(t *testing.T) {
 	now := config.CreatedAt
 	config.Now = func() time.Time { return now }
 	reducer := newReducer(config)
-	for _, event := range []ToolCallStart{
+	for _, event := range []ToolCallStarted{
 		{CallID: "call-1", ToolName: "first", Arguments: `{"value":1}`},
 		{CallID: "call-2", ToolName: "second", Arguments: `{"value":2}`},
 		{CallID: "call-3", ToolName: "third", Arguments: `{"value":3}`},
@@ -318,17 +318,17 @@ func TestReducerCommitsConcurrentToolCompletionsInModelOrder(t *testing.T) {
 
 	now = now.Add(time.Second)
 	thirdFinishedAt := now
-	if reduced := mustReduce(t, reducer, ToolCallEnd{CallID: "call-3", Result: testToolResult(t, "three")}); len(reduced) != 0 {
+	if reduced := mustReduce(t, reducer, ToolCallFinished{CallID: "call-3", Result: testToolResult(t, "three")}); len(reduced) != 0 {
 		t.Fatalf("third completion escaped ordering barrier: %+v", reduced)
 	}
 	now = now.Add(time.Second)
-	first := mustReduce(t, reducer, ToolCallEnd{CallID: "call-1", Result: testToolResult(t, "one")})
+	first := mustReduce(t, reducer, ToolCallFinished{CallID: "call-1", Result: testToolResult(t, "one")})
 	if got := completedToolNames(first); !slices.Equal(got, []string{"first"}) {
 		t.Fatalf("first completion batch = %v, want [first]", got)
 	}
 	now = now.Add(time.Second)
 	secondFinishedAt := now
-	remaining := mustReduce(t, reducer, ToolCallEnd{
+	remaining := mustReduce(t, reducer, ToolCallFinished{
 		CallID: "call-2", Arguments: `{"value":20}`, Result: testToolResult(t, "two"),
 	})
 	if got := completedToolNames(remaining); !slices.Equal(got, []string{"second", "third"}) {
@@ -351,14 +351,14 @@ func TestReducerCommitsConcurrentToolCompletionsInModelOrder(t *testing.T) {
 
 func TestReducerParksConcurrentToolsWithoutLosingCompletedResults(t *testing.T) {
 	reducer := newReducer(testReducerConfig())
-	firstStart := mustReduce(t, reducer, ToolCallStart{
+	firstStart := mustReduce(t, reducer, ToolCallStarted{
 		CallID: "call-1", ToolName: "approval", Arguments: `{"path":"a"}`, SafetyClass: "write",
 	})
 	firstID := startedItemID(t, firstStart)
-	mustReduce(t, reducer, ToolCallStart{
+	mustReduce(t, reducer, ToolCallStarted{
 		CallID: "call-2", ToolName: "lookup", Arguments: `{"path":"b"}`, SafetyClass: "read",
 	})
-	if reduced := mustReduce(t, reducer, ToolCallEnd{CallID: "call-2", Result: testToolResult(t, "found")}); len(reduced) != 0 {
+	if reduced := mustReduce(t, reducer, ToolCallFinished{CallID: "call-2", Result: testToolResult(t, "found")}); len(reduced) != 0 {
 		t.Fatalf("later completion escaped paused prefix: %+v", reduced)
 	}
 
@@ -393,10 +393,10 @@ func TestReducerParksConcurrentToolsWithoutLosingCompletedResults(t *testing.T) 
 
 func TestReducerCarriesLaterPausedCallIdentityAcrossSequentialResumes(t *testing.T) {
 	first := newReducer(testReducerConfig())
-	firstID := startedItemID(t, mustReduce(t, first, ToolCallStart{
+	firstID := startedItemID(t, mustReduce(t, first, ToolCallStarted{
 		CallID: "call-1", ToolName: "approval", Arguments: `{"path":"a"}`, SafetyClass: "write",
 	}))
-	secondID := startedItemID(t, mustReduce(t, first, ToolCallStart{
+	secondID := startedItemID(t, mustReduce(t, first, ToolCallStarted{
 		CallID: "call-2", ToolName: "approval", Arguments: `{"path":"b"}`, SafetyClass: "write",
 	}))
 	firstCommit := mustReduce(t, first, SegmentInterrupted{Interrupts: []Interrupt{{
@@ -424,12 +424,12 @@ func TestReducerCarriesLaterPausedCallIdentityAcrossSequentialResumes(t *testing
 	})
 	resumed := newReducer(config)
 	mustOpen(t, resumed)
-	if got := startedItemID(t, mustReduce(t, resumed, ToolCallStart{
+	if got := startedItemID(t, mustReduce(t, resumed, ToolCallStarted{
 		CallID: "call-1", ToolName: "approval", Arguments: `{"path":"a"}`, SafetyClass: "write",
 	})); got != firstID {
 		t.Fatalf("resumed first item ID = %q, want %q", got, firstID)
 	}
-	mustReduce(t, resumed, ToolCallEnd{CallID: "call-1", Result: testToolResult(t, "approved")})
+	mustReduce(t, resumed, ToolCallFinished{CallID: "call-1", Result: testToolResult(t, "approved")})
 
 	secondCommit := mustReduce(t, resumed, SegmentInterrupted{Interrupts: []Interrupt{{
 		Kind: execution.ApprovalInterrupt,
@@ -473,7 +473,7 @@ func TestReducerCanonicalProgressSnapshotsAndOutcomes(t *testing.T) {
 		t.Fatalf("plan snapshot identity = %+v, want session ses_1 at revision 3", state)
 	}
 
-	compaction := mustReduce(t, reducer, CompactBoundary{MessagesBefore: 20, MessagesAfter: 6})
+	compaction := mustReduce(t, reducer, CompactionBoundary{MessagesBefore: 20, MessagesAfter: 6})
 	if item := completedItem(t, compaction); item.Kind != transcript.Compaction || item.DroppedMessages != 14 {
 		t.Fatalf("compaction item = %+v", item)
 	}
@@ -568,7 +568,7 @@ func TestReducerResumeReusesInterruptedItems(t *testing.T) {
 		t.Fatalf("resumed question completion = %#v", opening[len(opening)-1].Event)
 	}
 
-	started := mustReduce(t, reducer, ToolCallStart{CallID: "call_1", ToolName: "shell", Arguments: `{"command":"go test","description":"Run tests"}`})
+	started := mustReduce(t, reducer, ToolCallStarted{CallID: "call_1", ToolName: "shell", Arguments: `{"command":"go test","description":"Run tests"}`})
 	var startedItem transcript.Item
 	for _, reduction := range started {
 		if event, ok := reduction.Event.(ItemStarted); ok {
@@ -578,9 +578,9 @@ func TestReducerResumeReusesInterruptedItems(t *testing.T) {
 	if startedItem.ID != "item_approval" || !startedItem.OccurredAt.Equal(approvalAt) {
 		t.Fatalf("resumed tool item = %+v, want original identity and occurrence", startedItem)
 	}
-	mustReduce(t, reducer, ToolCallEnd{CallID: "call_1", Result: testToolResult(t, "ok")})
+	mustReduce(t, reducer, ToolCallFinished{CallID: "call_1", Result: testToolResult(t, "ok")})
 
-	second := mustReduce(t, reducer, ToolCallStart{CallID: "call_2", ToolName: "shell", Arguments: `{"command":"go vet","description":"Vet server packages"}`})
+	second := mustReduce(t, reducer, ToolCallStarted{CallID: "call_2", ToolName: "shell", Arguments: `{"command":"go vet","description":"Vet server packages"}`})
 	var secondID string
 	for _, reduction := range second {
 		if event, ok := reduction.Event.(ItemStarted); ok {
@@ -631,7 +631,7 @@ func TestReducerProjectsParkAsOneAtomicWriteSetBeforeFirstInterruptEvent(t *test
 func TestReducerRejectsExecutorProtocolViolations(t *testing.T) {
 	tests := []struct {
 		name  string
-		event EngineEvent
+		event ExecutionFact
 	}{
 		{name: "unknown event", event: unsupportedEngineEvent{}},
 		{name: "invalid terminal outcome", event: SegmentEnded{Reason: execution.Outcome(255)}},
@@ -651,7 +651,7 @@ func TestReducerRejectsExecutorProtocolViolations(t *testing.T) {
 func TestReducerRejectsMalformedToolArguments(t *testing.T) {
 	t.Run("start", func(t *testing.T) {
 		reducer := newReducer(testReducerConfig())
-		_, err := reducer.reduce(ToolCallStart{
+		_, err := reducer.reduce(ToolCallStarted{
 			CallID: "call_1", ToolName: "shell", Arguments: `{"command":`,
 		})
 		if !errors.Is(err, errExecutorContract) || !errors.Is(err, tool.ErrInvalidArguments) {
@@ -664,10 +664,10 @@ func TestReducerRejectsMalformedToolArguments(t *testing.T) {
 
 	t.Run("effective end arguments", func(t *testing.T) {
 		reducer := newReducer(testReducerConfig())
-		mustReduce(t, reducer, ToolCallStart{
+		mustReduce(t, reducer, ToolCallStarted{
 			CallID: "call_1", ToolName: "shell", Arguments: `{"command":"go test","description":"Run tests"}`,
 		})
-		_, err := reducer.reduce(ToolCallEnd{CallID: "call_1", Arguments: "null"})
+		_, err := reducer.reduce(ToolCallFinished{CallID: "call_1", Arguments: "null"})
 		if !errors.Is(err, errExecutorContract) || !errors.Is(err, tool.ErrInvalidArguments) {
 			t.Fatalf("tool end error = %v, want executor protocol + invalid arguments", err)
 		}
@@ -677,12 +677,12 @@ func TestReducerRejectsMalformedToolArguments(t *testing.T) {
 func TestReducerRejectsInvalidToolLifecycle(t *testing.T) {
 	tests := []struct {
 		name  string
-		event EngineEvent
+		event ExecutionFact
 		want  string
 	}{
-		{name: "missing call id", event: ToolCallStart{ToolName: "shell"}, want: "id is required"},
-		{name: "missing tool name", event: ToolCallStart{CallID: "call_1"}, want: "name is required"},
-		{name: "end without start", event: ToolCallEnd{CallID: "call_1"}, want: "without an open start"},
+		{name: "missing call id", event: ToolCallStarted{ToolName: "shell"}, want: "id is required"},
+		{name: "missing tool name", event: ToolCallStarted{CallID: "call_1"}, want: "name is required"},
+		{name: "end without start", event: ToolCallFinished{CallID: "call_1"}, want: "without an open start"},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -695,7 +695,7 @@ func TestReducerRejectsInvalidToolLifecycle(t *testing.T) {
 
 	t.Run("duplicate start", func(t *testing.T) {
 		reducer := newReducer(testReducerConfig())
-		start := ToolCallStart{CallID: "call_1", ToolName: "shell", Arguments: `{}`}
+		start := ToolCallStarted{CallID: "call_1", ToolName: "shell", Arguments: `{}`}
 		mustReduce(t, reducer, start)
 		_, err := reducer.reduce(start)
 		if !errors.Is(err, errExecutorContract) || !strings.Contains(err.Error(), "started more than once") {
@@ -718,7 +718,7 @@ func TestReducerUsesCanonicalArgumentsForResumeIdentity(t *testing.T) {
 		}},
 	})
 	reducer := newReducer(config)
-	started := mustReduce(t, reducer, ToolCallStart{
+	started := mustReduce(t, reducer, ToolCallStarted{
 		CallID: "new_call", ToolName: "lookup",
 		Arguments: "{\n  \"a\": {\"enabled\": true}, \"b\": 2\n}",
 	})
@@ -770,7 +770,7 @@ func TestReducerConsumesHostCommittedToolResultWithoutDuplicatingTranscriptItem(
 		t.Fatalf("open: %v", err)
 	}
 
-	batch, err := reducer.reduce(ToolCallEnd{
+	batch, err := reducer.reduce(ToolCallFinished{
 		CallID:    "call_child",
 		Arguments: "{}",
 		Problem: &transcript.Problem{
@@ -780,7 +780,7 @@ func TestReducerConsumesHostCommittedToolResultWithoutDuplicatingTranscriptItem(
 		},
 	})
 	if err != nil {
-		t.Fatalf("consume committed ToolCallEnd: %v", err)
+		t.Fatalf("consume committed ToolCallFinished: %v", err)
 	}
 	if len(batch.events) != 0 || batch.parkCommit != nil {
 		t.Fatalf("committed tool result projected duplicate events: %+v", batch)
@@ -808,22 +808,22 @@ func TestReducerRejectsReexecutionOrSuccessForHostCommittedTool(t *testing.T) {
 		config := testReducerConfig()
 		config.Continuation = continuation
 		reducer := newReducer(config)
-		_, err := reducer.reduce(ToolCallStart{
+		_, err := reducer.reduce(ToolCallStarted{
 			CallID: "call_child", ToolName: "delegate_task", Arguments: "{}",
 		})
 		if !errors.Is(err, errExecutorContract) ||
 			!strings.Contains(err.Error(), "executed again") {
-			t.Fatalf("ToolCallStart error = %v, want committed-call reexecution violation", err)
+			t.Fatalf("ToolCallStarted error = %v, want committed-call reexecution violation", err)
 		}
 	})
 	t.Run("successful result", func(t *testing.T) {
 		config := testReducerConfig()
 		config.Continuation = continuation
 		reducer := newReducer(config)
-		_, err := reducer.reduce(ToolCallEnd{CallID: "call_child", Arguments: "{}"})
+		_, err := reducer.reduce(ToolCallFinished{CallID: "call_child", Arguments: "{}"})
 		if !errors.Is(err, errExecutorContract) ||
 			!strings.Contains(err.Error(), "successful result") {
-			t.Fatalf("ToolCallEnd error = %v, want committed-call success violation", err)
+			t.Fatalf("ToolCallFinished error = %v, want committed-call success violation", err)
 		}
 	})
 }
@@ -912,7 +912,7 @@ func TestValidateReductionBatchRejectsMalformedBoundaries(t *testing.T) {
 
 func TestReducerDrainsToolsInStartOrder(t *testing.T) {
 	reducer := newReducer(testReducerConfig())
-	for _, event := range []ToolCallStart{
+	for _, event := range []ToolCallStarted{
 		{CallID: "call_z", ToolName: "first", Arguments: `{}`},
 		{CallID: "call_a", ToolName: "second", Arguments: `{}`},
 		{CallID: "call_m", ToolName: "third", Arguments: `{}`},

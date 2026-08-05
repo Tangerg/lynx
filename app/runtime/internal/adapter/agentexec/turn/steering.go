@@ -10,6 +10,11 @@ import (
 	corechat "github.com/Tangerg/lynx/core/chat"
 )
 
+// SteeringSink persists queued steering after the current Run finishes.
+type SteeringSink interface {
+	AppendUserMessage(ctx context.Context, sessionID string, message corechat.Message) error
+}
+
 type steeringMessage struct {
 	content []transcript.ContentBlock
 	message corechat.Message
@@ -90,14 +95,14 @@ func (s *controller) flushSteering(ctx context.Context, st *turnState, sessionID
 		if !s.emitRootEvent(st, runs.SteerMessage{
 			Content: append([]transcript.ContentBlock(nil), queued.content...),
 		}) {
-			recordRunMaintenanceError(st, errors.New("steering transcript publication failed"))
+			recordMaintenanceError(st, errors.New("steering transcript publication failed"))
 		}
 		if s.steering == nil {
-			recordRunMaintenanceError(st, errors.New("steering inject failed: no steering sink configured"))
+			recordMaintenanceError(st, errors.New("steering inject failed: no steering sink configured"))
 			return
 		}
 		if err := s.steering.AppendUserMessage(ctx, sessionID, queued.message); err != nil {
-			recordRunMaintenanceError(st, err)
+			recordMaintenanceError(st, err)
 			return
 		}
 	}

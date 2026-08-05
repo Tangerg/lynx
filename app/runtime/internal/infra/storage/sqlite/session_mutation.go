@@ -15,7 +15,7 @@ func (s *SessionStore) Create(ctx context.Context, title, cwd string) (session.S
 	sess := session.Session{
 		ID:        session.IDPrefix + uuid.NewString(),
 		Title:     title,
-		Cwd:       cwd,
+		CWD:       cwd,
 		StartedAt: now,
 		UpdatedAt: now,
 		Revision:  1,
@@ -35,7 +35,7 @@ func (s *SessionStore) Ensure(ctx context.Context, sess session.Session) (sessio
 		`INSERT INTO sessions(`+sessionColumns+`)
 		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		 ON CONFLICT(id) DO NOTHING`,
-		sess.ID, sess.Title, sess.Cwd, sess.ParentID,
+		sess.ID, sess.Title, sess.CWD, sess.ParentID,
 		sess.StartedAt.UnixNano(), sess.UpdatedAt.UnixNano(),
 		sess.Model, sess.Favorite, sess.Isolated, max(sess.Revision, 1),
 	)
@@ -52,7 +52,7 @@ func (s *SessionStore) Restore(ctx context.Context, sess session.Session) error 
 	_, err := conn(ctx, s.db).ExecContext(ctx,
 		`INSERT OR REPLACE INTO sessions(`+sessionColumns+`)
 		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		sess.ID, sess.Title, sess.Cwd, sess.ParentID,
+		sess.ID, sess.Title, sess.CWD, sess.ParentID,
 		sess.StartedAt.UnixNano(), sess.UpdatedAt.UnixNano(),
 		sess.Model, sess.Favorite, sess.Isolated, max(sess.Revision, 1),
 	)
@@ -99,7 +99,7 @@ func (s *SessionStore) Patch(ctx context.Context, id string, patch session.Patch
 			updated_at = ?, revision = revision + 1
 			WHERE id = ? AND (? = 0 OR revision = ?)`,
 			nullableString(patch.Title), nullableString(patch.Model),
-			nullableString(patch.Cwd), nullableBool(patch.Favorite), nullableBool(patch.Isolated),
+			nullableString(patch.CWD), nullableBool(patch.Favorite), nullableBool(patch.Isolated),
 			time.Now().UTC().UnixNano(), id, patch.ExpectedRevision, patch.ExpectedRevision)
 		if err != nil {
 			return fmt.Errorf("sqlite: patch session: %w", err)
@@ -154,9 +154,9 @@ func (s *SessionStore) RenameIfUntitled(ctx context.Context, id, title string) e
 	return nil
 }
 
-// SetCwd relocates the session + refreshes UpdatedAt in a single UPDATE.
+// SetCWD relocates the session + refreshes UpdatedAt in a single UPDATE.
 // ErrNotFound for unknown id.
-func (s *SessionStore) SetCwd(ctx context.Context, id, cwd string) error {
+func (s *SessionStore) SetCWD(ctx context.Context, id, cwd string) error {
 	return s.updateByID(ctx, "relocate session",
 		`UPDATE sessions SET cwd = ?, updated_at = ?, revision = revision + 1 WHERE id = ?`,
 		cwd, time.Now().UTC().UnixNano(), id)
@@ -201,7 +201,7 @@ func (s *SessionStore) execInsert(ctx context.Context, ex execer, sess session.S
 	_, err := ex.ExecContext(ctx,
 		`INSERT INTO sessions(`+sessionColumns+`)
 		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		sess.ID, sess.Title, sess.Cwd, sess.ParentID,
+		sess.ID, sess.Title, sess.CWD, sess.ParentID,
 		sess.StartedAt.UnixNano(), sess.UpdatedAt.UnixNano(),
 		sess.Model, sess.Favorite, sess.Isolated, max(sess.Revision, 1),
 	)

@@ -40,17 +40,17 @@ var loadRecallCounter = sync.OnceValue(func() metric.Int64Counter {
 // project, or no relevant non-pinned memory). Best-effort: a search error yields
 // no block rather than failing the turn.
 func (e *Engine) recalledMemories(ctx context.Context, query string) (chat.Message, bool) {
-	if e.memorySearch == nil || strings.TrimSpace(query) == "" {
+	if e.agentMemorySearch == nil || strings.TrimSpace(query) == "" {
 		return chat.Message{}, false
 	}
-	project := strings.TrimSpace(executionctx.CWD(ctx, e.workdir))
+	project := strings.TrimSpace(executionctx.CWD(ctx, e.defaultCWD))
 	if project == "" {
 		return chat.Message{}, false
 	}
 	ctx, span := recallTracer.Start(ctx, "memory.recall")
 	defer span.End()
 
-	items, err := e.memorySearch.Search(ctx, agentmemory.ScopeProject, filepath.Clean(project), query, recalledMemoryTopK)
+	items, err := e.agentMemorySearch.Search(ctx, agentmemory.ScopeProject, filepath.Clean(project), query, recalledMemoryTopK)
 	if err != nil {
 		span.RecordError(err)
 		return chat.Message{}, false

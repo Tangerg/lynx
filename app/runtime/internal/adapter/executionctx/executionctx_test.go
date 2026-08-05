@@ -10,8 +10,8 @@ import (
 func TestScopeAccessorsShareOneImmutableTurnValue(t *testing.T) {
 	want := execution.ExecutionScope{
 		SessionID:    "session-1",
-		Cwd:          "/sandbox/project",
-		WorkspaceCwd: "/workspace/project",
+		CWD:          "/sandbox/project",
+		WorkspaceCWD: "/workspace/project",
 		Isolated:     true,
 		GoalLeaseID:  "lease-1",
 	}
@@ -23,11 +23,11 @@ func TestScopeAccessorsShareOneImmutableTurnValue(t *testing.T) {
 	if got := SessionID(ctx); got != want.SessionID {
 		t.Fatalf("SessionID = %q, want %q", got, want.SessionID)
 	}
-	if got := CWD(ctx, "/fallback"); got != want.Cwd {
-		t.Fatalf("CWD = %q, want %q", got, want.Cwd)
+	if got := CWD(ctx, "/fallback"); got != want.CWD {
+		t.Fatalf("CWD = %q, want %q", got, want.CWD)
 	}
-	if got := WorkspaceCWD(ctx, "/fallback"); got != want.WorkspaceCwd {
-		t.Fatalf("WorkspaceCWD = %q, want %q", got, want.WorkspaceCwd)
+	if got := WorkspaceCWD(ctx, "/fallback"); got != want.WorkspaceCWD {
+		t.Fatalf("WorkspaceCWD = %q, want %q", got, want.WorkspaceCWD)
 	}
 	if !Isolated(ctx) {
 		t.Fatal("Isolated = false, want true")

@@ -246,11 +246,12 @@ func TestAssemblyFailureReclaimsToolsAndOwnedResources(t *testing.T) {
 		mcpEnv mcpEnvironment,
 		searcher *agentmemory.Searcher,
 		scheduleCoord *scheduleapp.Coordinator,
-		goalState *goals.State,
+		goalReader *goals.Reader,
+		goalReporter *goals.OutcomeReporter,
 		skillStore *skillauthoring.Store,
 		skillProposals skill.ProposalSubmitter,
 	) (toolEnvironment, error) {
-		built, err := buildToolEnvironment(ctx, cfg, ecfg, policy, mcpEnv, searcher, scheduleCoord, goalState, skillStore, skillProposals)
+		built, err := buildToolEnvironment(ctx, cfg, ecfg, policy, mcpEnv, searcher, scheduleCoord, goalReader, goalReporter, skillStore, skillProposals)
 		if err != nil {
 			return toolEnvironment{}, err
 		}
@@ -288,7 +289,8 @@ func TestAssemblyBuilderFailureReclaimsReturnedAcquisitions(t *testing.T) {
 		mcpEnvironment,
 		*agentmemory.Searcher,
 		*scheduleapp.Coordinator,
-		*goals.State,
+		*goals.Reader,
+		*goals.OutcomeReporter,
 		*skillauthoring.Store,
 		skill.ProposalSubmitter,
 	) (toolEnvironment, error) {
@@ -332,11 +334,12 @@ func TestAssemblyFailureRetainsRetryableCleanupOwner(t *testing.T) {
 		mcpEnv mcpEnvironment,
 		searcher *agentmemory.Searcher,
 		scheduleCoord *scheduleapp.Coordinator,
-		goalState *goals.State,
+		goalReader *goals.Reader,
+		goalReporter *goals.OutcomeReporter,
 		skillStore *skillauthoring.Store,
 		skillProposals skill.ProposalSubmitter,
 	) (toolEnvironment, error) {
-		built, err := buildToolEnvironment(ctx, cfg, ecfg, policy, mcpEnv, searcher, scheduleCoord, goalState, skillStore, skillProposals)
+		built, err := buildToolEnvironment(ctx, cfg, ecfg, policy, mcpEnv, searcher, scheduleCoord, goalReader, goalReporter, skillStore, skillProposals)
 		if err != nil {
 			return toolEnvironment{}, err
 		}
@@ -387,11 +390,12 @@ func TestAssemblyDirectToolsDoNotDependOnAgentResolver(t *testing.T) {
 		mcpEnv mcpEnvironment,
 		searcher *agentmemory.Searcher,
 		scheduleCoord *scheduleapp.Coordinator,
-		goalState *goals.State,
+		goalReader *goals.Reader,
+		goalReporter *goals.OutcomeReporter,
 		skillStore *skillauthoring.Store,
 		skillProposals skill.ProposalSubmitter,
 	) (toolEnvironment, error) {
-		built, err := buildToolEnvironment(ctx, cfg, ecfg, policy, mcpEnv, searcher, scheduleCoord, goalState, skillStore, skillProposals)
+		built, err := buildToolEnvironment(ctx, cfg, ecfg, policy, mcpEnv, searcher, scheduleCoord, goalReader, goalReporter, skillStore, skillProposals)
 		if err != nil {
 			return toolEnvironment{}, err
 		}
@@ -457,15 +461,15 @@ func runtimeConfigWithRequiredDeps(t *testing.T) Config {
 
 func TestPrepareEngineConfigUsesCompositionRootPaths(t *testing.T) {
 	cfg := runtimeConfigWithRequiredDeps(t)
-	cfg.Engine.Workdir = "/stale-engine-workdir"
+	cfg.Engine.DefaultCWD = "/stale-engine-cwd"
 	cfg.Engine.UserHome = "/stale-engine-home"
 
 	engineConfig, _, err := prepareEngineConfig(cfg)
 	if err != nil {
 		t.Fatalf("prepareEngineConfig: %v", err)
 	}
-	if engineConfig.Workdir != cfg.DefaultWorkspacePath {
-		t.Fatalf("Engine.Workdir = %q, want composition default %q", engineConfig.Workdir, cfg.DefaultWorkspacePath)
+	if engineConfig.DefaultCWD != cfg.DefaultWorkspacePath {
+		t.Fatalf("Engine.DefaultCWD = %q, want composition default %q", engineConfig.DefaultCWD, cfg.DefaultWorkspacePath)
 	}
 	if engineConfig.UserHome != cfg.UserHome {
 		t.Fatalf("Engine.UserHome = %q, want composition home %q", engineConfig.UserHome, cfg.UserHome)
@@ -489,7 +493,7 @@ func TestAssemblyRecoversParkedRunWithIncompatibleDeployment(t *testing.T) {
 	}}
 
 	if _, err := cfg.SessionStore.Ensure(ctx, session.Session{
-		ID: sessionID, Cwd: t.TempDir(), StartedAt: createdAt, UpdatedAt: createdAt,
+		ID: sessionID, CWD: t.TempDir(), StartedAt: createdAt, UpdatedAt: createdAt,
 	}); err != nil {
 		t.Fatalf("ensure session: %v", err)
 	}

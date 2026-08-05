@@ -76,7 +76,7 @@ func TestStartTurnPreservesHookResolutionFailure(t *testing.T) {
 	if _, err := controller.StartTurn(t.Context(), runs.StartExecution{
 		SessionID: "sess-hook-error",
 		Message:   "hi",
-		Cwd:       t.TempDir(),
+		CWD:       t.TempDir(),
 	}); !errors.Is(err, wantErr) {
 		t.Fatalf("StartTurn error = %v, want %v", err, wantErr)
 	}
@@ -102,7 +102,7 @@ func TestPromptHookInjectedContextReachesTurn(t *testing.T) {
 	t.Cleanup(func() { shutdownController(t, controller) })
 
 	handle, err := controller.StartTurn(t.Context(), runs.StartExecution{
-		SessionID: "s", Message: "do the thing", Cwd: t.TempDir(),
+		SessionID: "s", Message: "do the thing", CWD: t.TempDir(),
 	})
 	if err != nil {
 		t.Fatalf("StartTurn: %v", err)
@@ -458,9 +458,9 @@ func TestRehydrateCanceledResumeAdmissionRemainsParked(t *testing.T) {
 func TestStartTurn_ResolvesPerRunClient(t *testing.T) {
 	stub := &stubEngine{runReply: "ok"}
 	sentinel, _ := chatclient.New(newCapturingModel(), chatclient.Config{})
-	resolver := &fakeResolver{client: sentinel}
+	resolver := &fakeChatResolver{client: sentinel}
 
-	controller := mustTurn(turn.New(turnDeps(stub, withClientResolver(resolver))))
+	controller := mustTurn(turn.New(turnDeps(stub, withChatResolver(resolver))))
 	handle, err := controller.StartTurn(context.Background(), runs.StartExecution{
 		SessionID:      "s",
 		Message:        "hi",
@@ -491,27 +491,27 @@ func TestExplicitModelSelectionRequiresResolverBeforeAdmission(t *testing.T) {
 	selection := testModelSelection(t, "openai", "gpt-test")
 	if _, err := controller.PrepareTurn(t.Context(), runs.StartExecution{
 		SessionID: "session", Message: "hello", ModelSelection: selection,
-	}); err == nil || !strings.Contains(err.Error(), "requires a client resolver") {
+	}); err == nil || !strings.Contains(err.Error(), "requires a chat resolver") {
 		t.Fatalf("PrepareTurn error = %v, want missing resolver", err)
 	}
 	if _, err := controller.Rehydrate(t.Context(), runs.RehydrateExecution{
 		SessionID: "session", ProcessID: "process", RootRunID: "run-root", ModelSelection: selection,
-	}); err == nil || !strings.Contains(err.Error(), "requires a client resolver") {
+	}); err == nil || !strings.Contains(err.Error(), "requires a chat resolver") {
 		t.Fatalf("Rehydrate error = %v, want missing resolver", err)
 	}
 }
 
-// TestStartTurn_PassesCwd verifies the session's working directory flows
-// from runs.StartTurn.Cwd through to the engine's TurnRequest.Cwd —
+// TestStartTurn_PassesCWD verifies the session's working directory flows
+// from runs.StartTurn.CWD through to the engine's TurnRequest.CWD —
 // the turn-controller half of per-session tool working directories.
-func TestStartTurn_PassesCwd(t *testing.T) {
+func TestStartTurn_PassesCWD(t *testing.T) {
 	stub := &stubEngine{runReply: "ok"}
 
 	controller := mustTurn(turn.New(turnDeps(stub)))
 	handle, err := controller.StartTurn(context.Background(), runs.StartExecution{
 		SessionID: "s",
 		Message:   "hi",
-		Cwd:       "/work/project-a",
+		CWD:       "/work/project-a",
 	})
 	if err != nil {
 		t.Fatalf("StartTurn: %v", err)
@@ -523,10 +523,10 @@ func TestStartTurn_PassesCwd(t *testing.T) {
 	}
 
 	stub.mu.Lock()
-	got := stub.lastCwd
+	got := stub.lastCWD
 	stub.mu.Unlock()
 	if got != "/work/project-a" {
-		t.Errorf("engine received Cwd %q, want %q", got, "/work/project-a")
+		t.Errorf("engine received CWD %q, want %q", got, "/work/project-a")
 	}
 }
 

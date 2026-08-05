@@ -39,7 +39,7 @@ type proposalResult struct {
 
 // ProposalSubmitter is the only Skill-authoring operation this capability consumes.
 type ProposalSubmitter interface {
-	SubmitSkillProposal(ctx context.Context, cwd string, proposal skills.Proposal) (skills.ProposalRef, error)
+	SubmitProposal(ctx context.Context, cwd string, proposal skills.Proposal) (skills.ProposalRef, error)
 }
 
 type proposer struct {
@@ -82,7 +82,7 @@ func (t *proposer) run(ctx context.Context, input proposalArgs) (proposalResult,
 	if err := proposal.Validate(); err != nil {
 		return proposalResult{}, fmt.Errorf("propose_skill: invalid proposal: %w", err)
 	}
-	ref, err := t.proposals.SubmitSkillProposal(ctx, cwd, proposal)
+	ref, err := t.proposals.SubmitProposal(ctx, cwd, proposal)
 	if err != nil {
 		return proposalResult{}, fmt.Errorf("propose_skill: submit proposal: %w", err)
 	}

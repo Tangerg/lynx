@@ -93,7 +93,7 @@ func (ix *Indexer) reconcile(ctx context.Context, cwd string, emb Embedder, mode
 		return ix.fail(cwd, err)
 	}
 	now := time.Now()
-	m := Meta{Cwd: cwd, ModelID: modelID, IndexedAt: now, FileCount: len(current), ChunkCount: len(all), Truncated: truncated}
+	m := Meta{CWD: cwd, ModelID: modelID, IndexedAt: now, FileCount: len(current), ChunkCount: len(all), Truncated: truncated}
 	if err := ix.store.SetMeta(ctx, m); err != nil {
 		return ix.fail(cwd, err)
 	}

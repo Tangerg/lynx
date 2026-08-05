@@ -8,7 +8,6 @@ import (
 	corechat "github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/core/media"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/application/admission"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
@@ -21,7 +20,7 @@ import (
 //
 // The application drives execution through implementation-neutral
 // [SegmentExecutor] and [ExecutionControl] ports. It observes the
-// application-owned [EngineEvent] family and addresses work through durable
+// application-owned [ExecutionFact] family and addresses work through durable
 // [execution.ExecutorRef] values.
 
 // ExecutionCanceler tears down a live or parked execution by durable identity. It is a
@@ -108,14 +107,14 @@ type StartExecution struct {
 	SessionID string
 	Message   string
 	Media     []*media.Media
-	// Cwd is the execution directory — the sandbox copy for an isolated
+	// CWD is the execution directory — the sandbox copy for an isolated
 	// run, else the session's project directory. The durable run record keeps the
 	// project directory; only the executor sees the copy.
-	Cwd string
-	// WorkspaceCwd is the persistent Session workspace. It differs from Cwd only
+	CWD string
+	// WorkspaceCWD is the persistent Session workspace. It differs from CWD only
 	// for an isolated Run and is used by product capabilities that must outlive
 	// the scratch copy.
-	WorkspaceCwd   string
+	WorkspaceCWD   string
 	Isolated       bool
 	ModelSelection modelref.Selection
 	Limits         execution.RunLimits
@@ -126,7 +125,7 @@ type StartExecution struct {
 	// off; the Run's frozen application policy is its sole production source.
 	ChildRunAdmissionEnabled bool
 	// GoalLeaseID stamps a Goal-mode autonomous run with its goal incarnation
-	// so report_goal_outcome only signals that Goal; empty for ordinary Runs.
+	// so a terminal outcome report only signals that Goal; empty for ordinary Runs.
 	GoalLeaseID string
 }
 
@@ -141,8 +140,8 @@ type RehydrateExecution struct {
 	// executor members so lifecycle hooks never need executor topology.
 	ChildRuns                []ChildRunBinding
 	ModelSelection           modelref.Selection
-	Cwd                      string
-	WorkspaceCwd             string
+	CWD                      string
+	WorkspaceCWD             string
 	Isolated                 bool
 	GoalLeaseID              string
 	Limits                   execution.RunLimits
@@ -181,191 +180,4 @@ type ExecutionControl interface {
 		processID string,
 	) (PreparedWaitingSubtreeCancellation, error)
 	Steer(ctx context.Context, ref execution.ExecutorRef, input []transcript.ContentBlock) error
-}
-
-// Nudge is a non-durable live workspace change notification the pump forwards
-// to subscribers after a file-mutating tool item.
-type Nudge struct {
-	Cwd   string
-	Paths []string
-}
-
-// Effects is the durable side of a run segment. CommitEvent atomically persists
-// one event's projections and its run-state transition (§8.3/§8.4) in a single
-// transaction before publishing the corresponding event, so subscribers never
-// observe state the durable stores cannot yet serve. Nudge is a non-durable live
-// workspace notification. Finish synchronously establishes the checkpoint
-// boundary while run admission is still held, then may generate the title off
-// the live path.
-type Effects interface {
-	// CommitOpening atomically persists every durable projection that leads a
-	// segment. For a fresh Run it also admits the Run; for a continuation it
-	// consumes the open interrupt and resumes the existing Run. Start does not
-	// return until this succeeds.
-	CommitOpening(ctx context.Context, opening OpeningCommit) error
-	// CommitEvent applies commit's set parts (interrupt open, transcript item/run,
-	// run-state transition) in one transaction. Every durable commit completes
-	// before publication; any error aborts the segment.
-	CommitEvent(ctx context.Context, commit EventCommit) error
-	// CommitTreeBarrier atomically writes the captured executor checkpoint, the
-	// one root-owned pending set, and every active Run suspension in the tree.
-	CommitTreeBarrier(ctx context.Context, barrier TreeBarrierCommit) error
-	// CommitWaitingSubtreeCancellation atomically persists one prepared process
-	// checkpoint replacement and every application fact that makes the same
-	// subtree cancellation durable.
-	CommitWaitingSubtreeCancellation(
-		ctx context.Context,
-		commit WaitingSubtreeCancellationCommit,
-	) (WaitingSubtreeCancellationResult, error)
-	// Nudge publishes a non-durable live workspace change to subscribers.
-	Nudge(cwd string, paths []string)
-	// Finish establishes the terminal checkpoint before returning, then starts
-	// non-boundary title maintenance off the live path. A parked run is resumable,
-	// not a boundary, so Finish no-ops for it (fin.Parked). Accepted background
-	// title failures remain observable on a terminal-maintenance span.
-	Finish(ctx context.Context, fin Finish) error
-}
-
-type ItemReplacement struct {
-	Expected    transcript.Item
-	Replacement transcript.Item
-}
-
-// WaitingSubtreeCancellationCommit is the complete immutable write-set for one
-// child cancellation performed while the Run tree is Interrupted.
-type WaitingSubtreeCancellationCommit struct {
-	RootRunID        string
-	TargetRunID      string
-	SessionID        string
-	RootRun          transcript.Run
-	ExpectedPending  interrupts.Pending
-	RemainingPending *interrupts.Pending
-	Checkpoint       execution.ExecutorCheckpoint
-	TerminalRuns     []transcript.Run
-	TerminalItems    []ItemReplacement
-	ParentItem       ItemReplacement
-	Resume           *execution.TreeResumeDraft
-	OpeningEvents    []EventCommit
-}
-
-type WaitingSubtreeCancellationResult struct {
-	TargetRun transcript.Run
-	RootRun   transcript.Run
-}
-
-// OpeningCommit is the single atomic acceptance commit for a segment. Exactly
-// one of Admit or Resume is set. Events contains the durable transcript
-// canonical records produced by the reducer; applying admission and all opening
-// facts in one transaction prevents a successful start response from naming a
-// Run whose opening record does not exist.
-type OpeningCommit struct {
-	Admit            *execution.RunDraft
-	Resume           *execution.TreeResumeDraft
-	ScheduledSession *session.Session
-	SessionModel     *SessionModelUpdate
-	ScheduleFiring   string
-	Events           []EventCommit
-}
-
-// SessionModelUpdate is the session fact established by accepting a fresh run
-// with an explicit model selection. It is committed with that run's admission,
-// so an opening rejection cannot leave the session advertising a model that
-// never successfully started.
-type SessionModelUpdate struct {
-	SessionID string
-	Model     string
-}
-
-// Finish describes the terminal run-boundary maintenance the Effects port runs
-// after the live stream has closed. The pump builds it from run-boundary facts
-// it already owns; a parked run is resumable, not a boundary.
-type Finish struct {
-	SessionID       string
-	RunID           string
-	Cwd             string
-	Parked          bool
-	OpeningUserText string
-}
-
-// segmentSpec is the already-prepared input to the package's segment
-// supervisor. User-visible Start/Resume use cases build it; no outer layer may
-// call the supervisor directly.
-type segmentSpec struct {
-	// RunID is the STABLE logical run id — minted once at the run's first segment
-	// and carried unchanged through every resume, so admission / journal / durable
-	// records key on the run, not the segment.
-	RunID string
-	// SegmentID identifies this streamed Segment. A fresh identity is created for
-	// every start and resume so reconnect and replay remain scoped correctly.
-	SegmentID string
-	SessionID string
-	Cwd       string
-	// ExecutorID is the durable execution identity recorded on the live Run.
-	ExecutorID       string
-	ModelSelection   modelref.Selection
-	GoalLeaseID      string
-	ScheduledSession *session.Session
-	SessionModel     *SessionModelUpdate
-	ScheduleFiring   string
-	CreatedAt        time.Time
-	OpeningUserText  string
-	Input            []transcript.ContentBlock
-	// Limits is the allowance the Run is admitted under, frozen for the whole Run
-	// — a continuation carries the first segment's caps rather than renegotiating.
-	Limits execution.RunLimits
-	// Capabilities is the optional behavior admitted for a fresh Run. A
-	// continuation leaves it zero and reads the Run's frozen value from
-	// Continuation; a resume request has no say in it.
-	Capabilities execution.RunCapabilities
-	// Continuation is present only when fresh Segments reopen a parked executor
-	// tree. It is independent from an open human interrupt: a host-settled
-	// checkpoint can continue after its final external boundary was removed.
-	Continuation *treeContinuation
-	// admission is the pre-commit reservation Start or Resume transfers to the
-	// live run immediately after its durable opening commit succeeds.
-	admission *admission.RunAdmission
-	// Activate crosses the executor's side-effect boundary after this segment's
-	// opening write-set commits. For a fresh run it starts model/tool execution;
-	// for a continuation it delivers the already-accepted user decision. Tests
-	// may leave it nil when exercising an already-active synthetic executor.
-	Activate func(context.Context) error
-	// CommitOpening overrides the ordinary segment-opening write-set only when a
-	// larger application transaction already owns that opening (waiting subtree
-	// cancellation). It receives the exact reducer-built opening and must commit
-	// all of it atomically before returning.
-	CommitOpening func(context.Context, OpeningCommit) error
-}
-
-func (s segmentSpec) executorRef() execution.ExecutorRef {
-	return execution.ExecutorRef{SessionID: s.SessionID, ExecutorID: s.ExecutorID}
-}
-
-// priorMetrics is what the Run had already consumed when this segment opened: a
-// first segment starts from nothing, a continuation from what the park recorded.
-func (s segmentSpec) priorMetrics() transcript.RunMetrics {
-	if s.Continuation == nil {
-		return transcript.RunMetrics{}
-	}
-	root, _ := s.Continuation.root()
-	return root.Metrics
-}
-
-// effectiveLimits is the allowance in force. A continuation does not take limits
-// from its resume request — the Run was admitted under one policy and keeps it,
-// so answering an interrupt cannot quietly raise a budget.
-func (s segmentSpec) effectiveLimits() execution.RunLimits {
-	if s.Continuation == nil {
-		return s.Limits
-	}
-	root, _ := s.Continuation.root()
-	return root.Limits
-}
-
-// effectiveCapabilities returns the Run-owned value in force. A continuation
-// reuses what the park recorded and never the request that resumed it.
-func (s segmentSpec) effectiveCapabilities() execution.RunCapabilities {
-	if s.Continuation == nil {
-		return s.Capabilities
-	}
-	return s.Continuation.capabilities
 }

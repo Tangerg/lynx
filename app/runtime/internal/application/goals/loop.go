@@ -275,13 +275,13 @@ func (d *Driver) command(g goal.Goal) runs.StartCommand {
 		ModelSelection: g.ModelSelection,
 		Input: []transcript.ContentBlock{{
 			Kind: transcript.TextContent,
-			Text: d.prompt(PromptInput{
+			Text: d.instructions(RunInstructionInput{
 				Objective:  g.Objective,
 				Continuing: g.Used.Runs > 0,
 			}),
 		}},
 		// GoalLeaseID stamps the run with the incarnation that launched it, so
-		// report_goal_outcome only signals THIS Goal: a straggler Run from a superseded
+		// A terminal outcome report only signals THIS Goal: a straggler Run from a superseded
 		// goal (stopped, then replaced by a fresh Start) cannot mark the new goal
 		// complete/blocked — its lease no longer matches.
 		GoalLeaseID: g.LeaseID,

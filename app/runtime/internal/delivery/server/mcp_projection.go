@@ -4,17 +4,17 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/application/integrations"
+	mcpapp "github.com/Tangerg/lynx/app/runtime/internal/application/mcp"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 )
 
-func presentMCPServer(server integrations.MCPServer) (protocol.McpServer, error) {
+func presentMCPServer(server mcpapp.Server) (protocol.MCPServer, error) {
 	connection, err := presentMCPConnection(server.Connection)
 	if err != nil {
-		return protocol.McpServer{}, err
+		return protocol.MCPServer{}, err
 	}
-	return protocol.McpServer{
+	return protocol.MCPServer{
 		Name:             server.Name,
 		Description:      server.Description,
 		Connection:       connection,
@@ -25,12 +25,12 @@ func presentMCPServer(server integrations.MCPServer) (protocol.McpServer, error)
 	}, nil
 }
 
-func presentMCPConnection(connection integrations.MCPConnection) (protocol.McpConnection, error) {
+func presentMCPConnection(connection mcpapp.Connection) (protocol.MCPConnection, error) {
 	transport, ok := presentMCPTransport(connection.Transport)
 	if !ok {
-		return protocol.McpConnection{}, fmt.Errorf("mcp: unsupported transport %q", connection.Transport)
+		return protocol.MCPConnection{}, fmt.Errorf("mcp: unsupported transport %q", connection.Transport)
 	}
-	return protocol.McpConnection{
+	return protocol.MCPConnection{
 		Type:                transport,
 		URL:                 connection.URL,
 		AuthorizationMasked: connection.AuthorizationMasked,
@@ -42,22 +42,22 @@ func presentMCPConnection(connection integrations.MCPConnection) (protocol.McpCo
 	}, nil
 }
 
-func presentMCPServerState(state integrations.MCPServerState) protocol.McpServerState {
-	out := protocol.McpServerState{ToolCount: state.ToolCount}
+func presentMCPServerState(state mcpapp.ServerState) protocol.MCPServerState {
+	out := protocol.MCPServerState{ToolCount: state.ToolCount}
 	switch state.Type {
-	case integrations.MCPServerDisabled:
-		out.Type = protocol.McpServerDisabled
-	case integrations.MCPServerDisconnected:
-		out.Type = protocol.McpServerDisconnected
-	case integrations.MCPServerConnecting:
-		out.Type = protocol.McpServerConnecting
-	case integrations.MCPServerConnected:
-		out.Type = protocol.McpServerConnected
-	case integrations.MCPServerFailed:
-		out.Type = protocol.McpServerFailed
+	case mcpapp.ServerDisabled:
+		out.Type = protocol.MCPServerDisabled
+	case mcpapp.ServerDisconnected:
+		out.Type = protocol.MCPServerDisconnected
+	case mcpapp.ServerConnecting:
+		out.Type = protocol.MCPServerConnecting
+	case mcpapp.ServerConnected:
+		out.Type = protocol.MCPServerConnected
+	case mcpapp.ServerFailed:
+		out.Type = protocol.MCPServerFailed
 		out.Error = mcpStatusProblem(mcpserver.ConnectionFailed)
-	case integrations.MCPServerNeedsAuth:
-		out.Type = protocol.McpServerNeedsAuth
+	case mcpapp.ServerNeedsAuth:
+		out.Type = protocol.MCPServerNeedsAuth
 		out.Error = mcpStatusProblem(mcpserver.ConnectionNeedsAuth)
 	default:
 		panic("server: unknown MCP server state")
@@ -80,29 +80,29 @@ func mcpProbeProblem() *protocol.ProblemData {
 	return &protocol.ProblemData{Type: protocol.ProblemMCPDialFailed}
 }
 
-func presentMCPAuthorizationAttempt(attempt integrations.MCPAuthorizationAttempt) protocol.McpAuthorizationAttempt {
-	status := protocol.McpAuthorizationAttemptStatus{}
+func presentMCPAuthorizationAttempt(attempt mcpapp.AuthorizationAttempt) protocol.MCPAuthorizationAttempt {
+	status := protocol.MCPAuthorizationAttemptStatus{}
 	switch attempt.Status {
-	case integrations.MCPAuthorizationAttemptPending:
-		status.Type = protocol.McpAuthorizationAttemptPending
-	case integrations.MCPAuthorizationAttemptSucceeded:
-		status.Type = protocol.McpAuthorizationAttemptSucceeded
-	case integrations.MCPAuthorizationAttemptFailed:
-		status.Type = protocol.McpAuthorizationAttemptFailed
+	case mcpapp.AuthorizationAttemptPending:
+		status.Type = protocol.MCPAuthorizationAttemptPending
+	case mcpapp.AuthorizationAttemptSucceeded:
+		status.Type = protocol.MCPAuthorizationAttemptSucceeded
+	case mcpapp.AuthorizationAttemptFailed:
+		status.Type = protocol.MCPAuthorizationAttemptFailed
 		status.Error = &protocol.ProblemData{Type: protocol.ProblemMCPAuthorizationFailed}
-	case integrations.MCPAuthorizationAttemptCanceled:
-		status.Type = protocol.McpAuthorizationAttemptCanceled
+	case mcpapp.AuthorizationAttemptCanceled:
+		status.Type = protocol.MCPAuthorizationAttemptCanceled
 	default:
 		panic("server: unknown MCP authorization attempt status")
 	}
-	return protocol.McpAuthorizationAttempt{
+	return protocol.MCPAuthorizationAttempt{
 		ID: attempt.ID, Server: attempt.Server, Status: status,
 		CreatedAt: attempt.CreatedAt, FinishedAt: attempt.FinishedAt,
 	}
 }
 
-func presentMCPTool(tool mcpserver.ToolInfo) protocol.McpTool {
-	return protocol.McpTool{
+func presentMCPTool(tool mcpserver.ToolInfo) protocol.MCPTool {
+	return protocol.MCPTool{
 		Server:      tool.Server,
 		Name:        tool.Name,
 		Description: tool.Description,
@@ -110,12 +110,12 @@ func presentMCPTool(tool mcpserver.ToolInfo) protocol.McpTool {
 	}
 }
 
-func presentMCPTransport(transport mcpserver.Transport) (protocol.McpTransport, bool) {
+func presentMCPTransport(transport mcpserver.Transport) (protocol.MCPTransport, bool) {
 	switch transport {
 	case mcpserver.TransportStdio:
-		return protocol.McpTransportStdio, true
+		return protocol.MCPTransportStdio, true
 	case mcpserver.TransportStreamableHTTP:
-		return protocol.McpTransportStreamableHTTP, true
+		return protocol.MCPTransportStreamableHTTP, true
 	default:
 		return "", false
 	}

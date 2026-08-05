@@ -62,7 +62,7 @@ func (m *memStore) Meta(_ context.Context, cwd string) (Meta, bool, error) {
 func (m *memStore) SetMeta(_ context.Context, meta Meta) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.meta[meta.Cwd] = meta
+	m.meta[meta.CWD] = meta
 	return nil
 }
 func (m *memStore) FileHashes(_ context.Context, cwd string) (map[string]string, error) {

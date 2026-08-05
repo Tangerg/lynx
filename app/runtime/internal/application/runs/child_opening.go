@@ -12,7 +12,7 @@ import (
 // ChildOpeningRequest asks the Coordinator to durably admit one child Run
 // before its executor process publishes ProcessCreated or starts executing.
 //
-// It is an internal control signal, not a reducible EngineEvent or journal
+// It is an internal control signal, not a reducible ExecutionFact or journal
 // value. The constructor returns the request and the matching
 // confirmation as separate capabilities: the executor may wait, while only the
 // runs package can claim and complete the transaction.

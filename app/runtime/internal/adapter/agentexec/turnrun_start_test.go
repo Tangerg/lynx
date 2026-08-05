@@ -47,7 +47,7 @@ func TestEngineStartTurnReturnsProcessCreationErrorsSynchronously(t *testing.T) 
 		{
 			name: "agent requests unregistered planner",
 			arrange: func(engine *Engine) {
-				engine.agent = startFailureAgent("unknown-planner", "missing-planner")
+				engine.turnAgent = startFailureAgent("unknown-planner", "missing-planner")
 			},
 			request:   func() TurnRequest { return TurnRequest{SessionID: "session", Message: "hello"} },
 			wantError: `planner "missing-planner" which is not registered`,
@@ -55,7 +55,7 @@ func TestEngineStartTurnReturnsProcessCreationErrorsSynchronously(t *testing.T) 
 		{
 			name: "agent definition cannot deploy",
 			arrange: func(engine *Engine) {
-				engine.agent = core.NewAgent(core.AgentConfig{
+				engine.turnAgent = core.NewAgent(core.AgentConfig{
 					Name:    "invalid-start-agent",
 					Actions: []core.Action{nil},
 					Goals:   []*core.Goal{core.NewGoal(core.GoalConfig{Name: "done"})},
@@ -67,7 +67,7 @@ func TestEngineStartTurnReturnsProcessCreationErrorsSynchronously(t *testing.T) 
 		{
 			name: "active deployment conflicts with definition",
 			arrange: func(engine *Engine) {
-				engine.agent = startFailureAgent("chat-agent", "")
+				engine.turnAgent = startFailureAgent("chat-agent", "")
 			},
 			request:   func() TurnRequest { return TurnRequest{SessionID: "session", Message: "hello"} },
 			wantError: "deployment conflict",
@@ -77,7 +77,7 @@ func TestEngineStartTurnReturnsProcessCreationErrorsSynchronously(t *testing.T) 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			engine := newStartFailureEngine(t)
-			runtimeEngine := engine.runtime
+			runtimeEngine := engine.agentRuntime
 			if test.arrange != nil {
 				test.arrange(engine)
 			}

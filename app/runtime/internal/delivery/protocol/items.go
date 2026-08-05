@@ -14,14 +14,6 @@ type Items interface {
 	ListItems(ctx context.Context, in ListItemsRequest) (*ListItemsResponse, error)
 }
 
-// Plan is the plan.* method group — the cold read behind the plan state key.
-type Plan interface {
-	// GetPlan returns the session's Plan projection, unchanged from what the
-	// stream publishes. A session with no list yet is the empty state at revision 0;
-	// only a session that does not exist is session_not_found.
-	GetPlan(ctx context.Context, in GetPlanRequest) (*StateSnapshot, error)
-}
-
 // ItemScopeType discriminates [ItemListScope]: which collection of items is being
 // paged.
 type ItemScopeType string
@@ -171,10 +163,10 @@ type Item struct {
 	CreatedAt time.Time `json:"createdAt,omitzero"`
 	Type      ItemType  `json:"type"`
 	// ToolCall execution timing. StartedAt is present from the first running
-	// frame; FinishedAt and DurationMs appear together on terminal frames.
-	StartedAt  time.Time `json:"startedAt,omitzero"`
-	FinishedAt time.Time `json:"finishedAt,omitzero"`
-	DurationMs *int64    `json:"durationMs,omitempty"`
+	// frame; FinishedAt and DurationMillis appear together on terminal frames.
+	StartedAt      time.Time `json:"startedAt,omitzero"`
+	FinishedAt     time.Time `json:"finishedAt,omitzero"`
+	DurationMillis *int64    `json:"durationMillis,omitempty"`
 
 	Content     []ContentBlock  `json:"content,omitempty"`
 	Text        string          `json:"text,omitempty"`

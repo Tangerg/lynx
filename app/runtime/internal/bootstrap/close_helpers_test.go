@@ -54,7 +54,7 @@ func TestHostCloseOwnsReverseOrderAndIsIdempotentAcrossCopies(t *testing.T) {
 	host := Host{
 		lifetime: &hostLifetime{
 			goals:        shutdownFunc{stop: recordStop("goals"), wait: recordWait("goals")},
-			integrations: shutdownFunc{stop: recordStop("integrations"), wait: recordWait("integrations")},
+			mcp:          shutdownFunc{stop: recordStop("mcp"), wait: recordWait("mcp")},
 			codebase:     shutdownFunc{stop: recordStop("codebase"), wait: recordWait("codebase")},
 			coordinator:  shutdownFunc{stop: recordStop("active-runs"), wait: recordWait("active-runs")},
 			execution:    shutdownFunc{stop: recordStop("active-execution-tree"), wait: recordWait("active-execution-tree")},
@@ -94,12 +94,12 @@ func TestHostCloseOwnsReverseOrderAndIsIdempotentAcrossCopies(t *testing.T) {
 	}
 	wantCalls := []string{
 		"stop goals",
-		"stop integrations",
+		"stop mcp",
 		"stop codebase",
 		"stop active-runs",
 		"stop effects",
 		"wait goals",
-		"wait integrations",
+		"wait mcp",
 		"wait codebase",
 		"wait active-runs",
 		"wait effects",

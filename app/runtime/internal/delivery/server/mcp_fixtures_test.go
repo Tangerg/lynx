@@ -6,7 +6,7 @@ import (
 	"slices"
 	"sync"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/application/integrations"
+	mcpapp "github.com/Tangerg/lynx/app/runtime/internal/application/mcp"
 	"github.com/Tangerg/lynx/app/runtime/internal/component/signal"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 )
@@ -50,7 +50,7 @@ func (*fakeMCPPorts) Probe(context.Context, mcpserver.Server) error     { return
 func (*fakeMCPPorts) Configure(context.Context, mcpserver.Server) error { return nil }
 func (*fakeMCPPorts) Detach(string) error                               { return nil }
 
-func fakeMCPPortsConfig(ports *fakeMCPPorts) integrations.Config {
+func fakeMCPPortsConfig(ports *fakeMCPPorts) mcpapp.Config {
 	servers := make(map[string]mcpserver.Server, len(ports.statuses))
 	for _, status := range ports.statuses {
 		servers[status.Name] = mcpserver.Server{
@@ -58,12 +58,12 @@ func fakeMCPPortsConfig(ports *fakeMCPPorts) integrations.Config {
 			Transport: mcpserver.TransportStdio, Command: "mcp-" + status.Name,
 		}
 	}
-	return integrations.Config{
-		MCPRegistry:           &mcpRegistryFake{servers: servers},
-		MCPStatusReader:       ports,
-		MCPToolCatalog:        ports,
-		MCPConnectionCommands: ports,
-		MCPRegistryCommands:   ports,
+	return mcpapp.Config{
+		Registry:            &mcpRegistryFake{servers: servers},
+		StatusReader:        ports,
+		ToolCatalog:         ports,
+		ConnectionControl:   ports,
+		ConnectionLifecycle: ports,
 	}
 }
 
@@ -121,14 +121,14 @@ func (r *mcpRegistryFake) Remove(_ context.Context, name string) error {
 // reconnect/configure paths publish through — bridged like the composition root
 // via a neutral signal so the coordinator's connecting → settled frames
 // reach the hub.
-func serverWithMCP(cfg integrations.Config) *Server {
-	if cfg.MCPPolicy == nil {
+func serverWithMCP(cfg mcpapp.Config) *Server {
+	if cfg.Policy == nil {
 		policy := mcpserver.NewToolPolicy(nil)
-		cfg.MCPPolicy = integrations.NewToolPolicyState(policy)
+		cfg.Policy = mcpapp.NewToolPolicyState(policy)
 	}
-	mcpStatus := &signal.Signal[integrations.MCPServerStatus]{}
-	cfg.MCPStatus = mcpStatus.Publish
-	s := &Server{integrations: integrations.New(cfg), wsHub: newWorkspaceHub()}
-	s.observeMCPStatus(mcpStatus)
+	mcpStatus := &signal.Signal[mcpapp.ServerStatus]{}
+	cfg.StatusChanged = mcpStatus.Publish
+	s := &Server{mcp: mcpapp.New(cfg), wsHub: newWorkspaceHub()}
+	s.observeMCPStatusChanges(mcpStatus)
 	return s
 }

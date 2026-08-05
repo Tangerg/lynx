@@ -1,8 +1,8 @@
-# Lyra Runtime Transport（定稿 `2026-08-04`）
+# Lyra Runtime Transport（定稿 `2026-08-05`）
 
 > **状态：正式契约（canonical）。** 本文定义同目录 [`API.md`](./API.md)（Lyra Runtime Protocol）如何在具体 transport
 > 上承载，并且是 **binding 层的唯一作者**：端点、POST 契约、HTTP status、SSE 帧、续流、门禁 token、sidecar、CORS、
-> 背压 —— 这些在别处都没有第二份定义。`protocolVersion`: **`2026-08-04`**。
+> 背压 —— 这些在别处都没有第二份定义。`protocolVersion`: **`2026-08-05`**。
 
 ## 0. 目的
 
@@ -149,7 +149,7 @@ body：
   "method": "runs.start",
   "params": {
     "_meta": {
-      "protocolVersion": "2026-08-04",
+      "protocolVersion": "2026-08-05",
       "clientInfo": { "name": "lyra-desktop", "version": "0.1.0" },
       "clientCapabilities": {
         "features": {},
@@ -251,13 +251,13 @@ X-Server: lyra-runtime
 data: {"jsonrpc":"2.0","id":"1","result":{"runId":"run_01","segmentId":"seg_01","userItemId":"item_00"}}
 
 id: evt_0001
-data: {"jsonrpc":"2.0","method":"notifications.run.event","params":{"runId":"run_01","segmentId":"seg_01","eventId":"evt_0001","timestamp":"2026-08-02T10:00:00Z","event":{"type":"segment.started","run":{"id":"run_01","sessionId":"ses_01","status":"running","activeSegmentId":"seg_01","metrics":{"steps":0,"activeDurationMs":0},"protocolProfile":{"requiredFeatures":[],"interruptTypes":["approval"]}}}}}
+data: {"jsonrpc":"2.0","method":"notifications.run.event","params":{"runId":"run_01","segmentId":"seg_01","eventId":"evt_0001","timestamp":"2026-08-02T10:00:00Z","event":{"type":"segment.started","run":{"id":"run_01","sessionId":"ses_01","status":"running","activeSegmentId":"seg_01","metrics":{"steps":0,"activeDurationMillis":0},"protocolProfile":{"requiredFeatures":[],"interruptTypes":["approval"]}}}}}
 
 id: evt_0002
 data: {"jsonrpc":"2.0","method":"notifications.run.event","params":{"runId":"run_01","segmentId":"seg_01","eventId":"evt_0002","timestamp":"2026-08-02T10:00:01Z","event":{"type":"item.delta","itemId":"item_01","delta":{"type":"content","text":"Hello"}}}}
 
 id: evt_0009
-data: {"jsonrpc":"2.0","method":"notifications.run.event","params":{"runId":"run_01","segmentId":"seg_01","eventId":"evt_0009","timestamp":"2026-08-02T10:00:09Z","event":{"type":"segment.finished","outcome":{"type":"completed"},"metrics":{"steps":3,"activeDurationMs":1500,"usage":{"inputTokens":120,"outputTokens":40,"costUsd":0.01}}}}}
+data: {"jsonrpc":"2.0","method":"notifications.run.event","params":{"runId":"run_01","segmentId":"seg_01","eventId":"evt_0009","timestamp":"2026-08-02T10:00:09Z","event":{"type":"segment.finished","outcome":{"type":"completed"},"metrics":{"steps":3,"activeDurationMillis":1500,"usage":{"inputTokens":120,"outputTokens":40,"costUsd":0.01}}}}}
 ```
 
 > `RunEvent` 信封和 `StreamEvent` 都**不带 reliability flag**。authoritative /
@@ -420,7 +420,7 @@ live 只返回 200；ready 在依赖异常时返回 503，并携带 `checks`。
 
 ```json
 {
-  "protocol": { "current": "2026-08-04", "minSupported": "2026-08-04" },
+  "protocol": { "current": "2026-08-05", "minSupported": "2026-08-05" },
   "server": { "name": "lyra-runtime", "version": "0.0.0" },
   "transport": "http",
   "endpoints": {

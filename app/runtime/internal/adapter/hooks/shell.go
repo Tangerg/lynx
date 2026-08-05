@@ -25,8 +25,8 @@ func (Shell) RunHookCommand(ctx context.Context, req domainhooks.CommandRequest)
 		return domainhooks.CommandResult{Err: err, ExitCode: -1}
 	}
 	cmd.Stdin = bytes.NewReader(stdin)
-	if req.Cwd != "" {
-		cmd.Dir = req.Cwd
+	if req.CWD != "" {
+		cmd.Dir = req.CWD
 	}
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
@@ -45,7 +45,7 @@ func (Shell) RunHookCommand(ctx context.Context, req domainhooks.CommandRequest)
 type hookInputWire struct {
 	Event     domainhooks.Event      `json:"event"`
 	SessionID string                 `json:"sessionId,omitempty"`
-	Cwd       string                 `json:"cwd,omitempty"`
+	CWD       string                 `json:"cwd,omitempty"`
 	Tool      *hookToolInputWire     `json:"tool,omitempty"`
 	Subagent  *hookSubagentInputWire `json:"subagent,omitempty"`
 	Prompt    string                 `json:"prompt,omitempty"`
@@ -69,7 +69,7 @@ type hookSubagentInputWire struct {
 }
 
 func hookInputWireFrom(input domainhooks.Input) hookInputWire {
-	out := hookInputWire{Event: input.Event, SessionID: input.SessionID, Cwd: input.Cwd, Prompt: input.Prompt, Reason: input.Reason}
+	out := hookInputWire{Event: input.Event, SessionID: input.SessionID, CWD: input.CWD, Prompt: input.Prompt, Reason: input.Reason}
 	if input.Tool != nil {
 		out.Tool = &hookToolInputWire{Name: input.Tool.Name, Arguments: input.Tool.Arguments, Result: input.Tool.Result}
 	}

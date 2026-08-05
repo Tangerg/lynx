@@ -38,7 +38,7 @@ func TestRecoveryRepairsWholeDurableLifecycle(t *testing.T) {
 	runStore := sqlite.NewRunStore(db)
 	sessionStore := sqlite.NewSessionStore(db)
 	if err := sessionStore.Restore(ctx, session.Session{
-		ID: "session", Cwd: "/workspace", StartedAt: createdAt, UpdatedAt: createdAt,
+		ID: "session", CWD: "/workspace", StartedAt: createdAt, UpdatedAt: createdAt,
 	}); err != nil {
 		t.Fatalf("seed Session: %v", err)
 	}
@@ -134,7 +134,7 @@ func TestRecoveryRejectsPartialParkWithoutMutatingIt(t *testing.T) {
 	runStore := sqlite.NewRunStore(db)
 	sessionStore := sqlite.NewSessionStore(db)
 	if err := sessionStore.Restore(ctx, session.Session{
-		ID: "session", Cwd: "/workspace", StartedAt: createdAt, UpdatedAt: createdAt,
+		ID: "session", CWD: "/workspace", StartedAt: createdAt, UpdatedAt: createdAt,
 	}); err != nil {
 		t.Fatalf("seed Session: %v", err)
 	}

@@ -32,7 +32,7 @@ func (refusingBoundaries) Boundary(context.Context, string) ([]plan.Step, bool, 
 }
 
 func boundaryCoordinator(stores testStores, boundaries PlanBoundaries) *Coordinator {
-	deps := testDependencies(stores, Dependencies{Paths: testCwdResolver{}})
+	deps := testDependencies(stores, Dependencies{Paths: testCWDResolver{}})
 	deps.Boundaries = boundaries
 	return New(deps)
 }

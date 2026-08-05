@@ -1,4 +1,4 @@
-# Lyra Runtime Protocol（定稿 `2026-08-04`）
+# Lyra Runtime Protocol（定稿 `2026-08-05`）
 
 > **状态：正式契约（canonical）。** 本文是 Lyra 客户端 ↔ Lyra Runtime 的 wire 契约真相源之一。物理传输见同目录
 > [`TRANSPORT.md`](./TRANSPORT.md)，旁路能力见 [`AUX_API.md`](./AUX_API.md)。
@@ -13,7 +13,7 @@
 > **本文写的是生成物写不出来的东西**：语义、不变量、"为什么不能是另一种形状"、以及跨方法的走查。一个事实一个作者
 > —— 本文一旦重述字段表，它就成了第二份会腐烂的真相。
 >
-> `protocolVersion`: **`2026-08-04`**（`minSupported` 同值：本 build 只服务这一个版本，旧版本请求确定性返回
+> `protocolVersion`: **`2026-08-05`**（`minSupported` 同值：本 build 只服务这一个版本，旧版本请求确定性返回
 > `invalid_protocol_version`，见 §12）。
 
 ---
@@ -79,7 +79,7 @@ Workspace          文件、配置发现与执行的显式资源根             
 - `workspaces.list` 返回按 Session 绑定聚合的 `WorkspaceSummary`；无 active 标记，不制造平行的 Project 资源。
 - `projectRoot` 只是**配置发现根**（向上找到最近含 `.git` 的祖先，找不到回落 workspace path），不取代
   `WorkspaceRef` 作为身份与工具根。
-- SDK 用 `client.workspace(ref)` 把已知身份一次绑定到 `files/diff/changes/skills/recipes/agentDocs/hooks/codebase/memory/agentMemory`
+- SDK 用 `client.workspace(ref)` 把已知身份一次绑定到 `files/diff/changes/skills/recipes/agentDocs/hooks/codebase/knowledge/agentMemory`
   等子资源；`await client.workspaces.open(ref?)` 在需要规范化或默认 workspace 时先 resolve 再绑定。绑定对象冻结自己的
   `ref`，调用方后来修改原对象不能偷换已打开资源的目标；默认 resolve 只缓存成功结果，瞬时失败可重试。
 
@@ -185,8 +185,8 @@ client identity 返回带精确 `errors[].field` 的 `invalid_params`，不会�
 - 字段名、枚举值一律 **camelCase**。
 - 缩写**白名单**（写死，其余全词）：`id` / `url` / `mime` / `api`（如 `apiKey` / `apiKeyMasked`）。
 - 单位用显式后缀，**后缀集也写死**（新单位先在此登记）：
-  - `Usd`（货币）：`maxBudgetUsd` / `inputUsdPerMillionTokens`
-  - `Ms`（毫秒）：`activeDurationMs`
+  - `USD`（货币）：`maxBudgetUsd` / `inputUsdPerMillionTokens`
+  - `Millis`（毫秒）：`activeDurationMillis`
   - `Seconds`：`retryAfterSeconds`
   - `Bytes`：`sizeBytes` / `maxBytes`
   - `At`（ISO-8601 时刻串）：`createdAt` / `expiresAt` / `finishedAt`
@@ -324,7 +324,7 @@ profile，会被**拒绝**而不是降级投递——降级等于给同一个 Ru
 
 - **`status` 与 `outcome` 正交**：`outcome` 只在 `finished` 时存在，`activeSegmentId` 只在 `running` 时存在，
   `finishedAt` 只在 `finished` 时存在。这三条是 schema 里的 presence 规则，不是约定。
-- **`metrics` 与 `outcome` 分家**：`RunMetrics{usage, steps, activeDurationMs}` 是"花了多少"，`RunOutcome` 是
+- **`metrics` 与 `outcome` 分家**：`RunMetrics{usage, steps, activeDurationMillis}` 是"花了多少"，`RunOutcome` 是
   "为什么停"。旧形状把两者塞进一个 `result`，于是"取消掉的 run 花了多少钱"没有位置放。`metrics` 单调不减，
   `activeDuration` **不含等人的时间**（一个停在审批上过夜的 Run 不因此变贵）。
 - **`limits` 是一份冻结的 Run-tree policy**：`maxTotalTokens`、`maxSteps`、`maxBudgetUsd` 都跨 child 与 resume
@@ -364,7 +364,7 @@ profile，会被**拒绝**而不是降级投递——降级等于给同一个 Ru
 
 | 出现处                                            | 值                                                                                          |
 | ------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| `McpTool.name`（`mcp.tools.list`，§4.10）         | MCP server **原样播报**的远端工具名（可含 `.` / 任意字符）                                  |
+| `MCPTool.name`（`mcp.tools.list`，§4.10）         | MCP server **原样播报**的远端工具名（可含 `.` / 任意字符）                                  |
 | `ToolInvocation.name`（toolCall Item / 审批载荷） | **模型可见名** `sanitize("<server>_<tool>")`：非 `[A-Za-z0-9_-]` 一律换 `_`，超 64 字符截断 |
 
 模型可见名是**有损**的：不同 `(server, tool)` 对可能塌成同一个字符串（`("a_b","c")` 与 `("a","b_c")` 都得
@@ -372,7 +372,7 @@ profile，会被**拒绝**而不是降级投递——降级等于给同一个 Ru
 
 - 要把一次 toolCall 关联回 `mcp.tools.list` 的条目时**不能**反解 `ToolInvocation.name`；需要精确身份就按
   `(server, tool)` 对匹配。
-- `McpServer.disabledTools` / `autoApproveTools` 用**远端原名**（在其 server 条目内寻址，不受塌名影响）。
+- `MCPServer.disabledTools` / `autoApproveTools` 用**远端原名**（在其 server 条目内寻址，不受塌名影响）。
 - 审批记忆（`remember`，AUX_API §6）的 key 是**模型可见名** —— 塌名的两个 MCP 工具会共享一条规则。这是当前形态的
   已知后果，非疏漏。
 
@@ -463,10 +463,10 @@ provider **不从 model 名推断**。`models.list` 的 `contextWindow` 配 `Run
 
 ### 4.10 Workspace 周边 / 可选域类型
 
-MCP server / skills / recipes / hooks / schedules / codebase / memory / goals / agentMemory 等可选域的类型都在
+MCP server / skills / recipes / hooks / schedules / codebase / knowledge / goals / agentMemory 等可选域的类型都在
 `schema.json` 里，语义见 [`AUX_API.md`](./AUX_API.md)。每个域由 §9 的一个 feature 门控。
 
-MCP 只发布一个 `McpServer` 资源，不再把可编辑配置与连接状态拆成两个集合让客户端 join：
+MCP 只发布一个 `MCPServer` 资源，不再把可编辑配置与连接状态拆成两个集合让客户端 join：
 
 - `connection` 是闭合的**安全读联合**：`stdio{command,args?,envMasked?,dir?}` 或
   `streamableHttp{url,authorizationMasked?,headersMasked?}`；另一种 transport 的字段不可出现，secret 原文永不通过读
@@ -474,13 +474,13 @@ MCP 只发布一个 `McpServer` 资源，不再把可编辑配置与连接状态
 - `status` 是闭合联合：`disabled` / `disconnected` / `connecting` /
   `connected{toolCount}` / `failed{error}` / `needsAuth{error}`。`disabled` 是持久化开关关闭，`disconnected` 是已启用但
   当前 live projection 尚无连接；二者不再靠字段缺席或客户端猜测区分。
-- authorization / headers / environment 都是 write-only，分别使用 `McpAuthorizationChange` / `McpHeadersChange` /
-  `McpEnvironmentChange`；三者共享精确的 `set` / `clear` 词汇，但保留独立领域类型，避免把一种 secret 误传到另一种
+- authorization / headers / environment 都是 write-only，分别使用 `MCPAuthorizationChange` / `MCPHeadersChange` /
+  `MCPEnvironmentChange`；三者共享精确的 `set` / `clear` 词汇，但保留独立领域类型，避免把一种 secret 误传到另一种
   位置。省略仅在相同 secret scope 内表示保留：HTTP 以 URL origin 为 scope；stdio 以完整进程目标
   `(command,args,dir)` 为 scope。scope 变化且已有 secret 时必须显式 `set` 或 `clear`，runtime 绝不把凭证静默带到新
   origin / 进程，也不替调用方猜测是否删除。显式切换 transport 会原子丢弃旧 transport 专属 secret；它们不可能进入新
   transport 的联合。`set.value` 必须非空；删除只用 `clear`，不让空 map 成为第二种删除写法。
-- 交互式 OAuth 不是一个“已开始”的 ACK，而是一等 `McpAuthorizationAttempt` 资源：
+- 交互式 OAuth 不是一个“已开始”的 ACK，而是一等 `MCPAuthorizationAttempt` 资源：
   `mcp.authorizationAttempts.create{server}` 返回 `pending`，客户端用
   `mcp.authorizationAttempts.get{attemptId}` 观察 `succeeded` / `failed{error}` / `canceled`。只有 live server 已实际
   connected 才是 `succeeded`；该操作只适用于 `streamableHttp`，其他 transport 在创建前拒绝；新的
@@ -701,7 +701,7 @@ Run 创建时把这份声明冻进 `RunProtocolProfile.interruptTypes`（§3.2�
   `restoreType` 可选还原文件（`features.checkpoints`），并把**边界那一刻的会话 state 作为一次新写入重新发布**
   （§5.3）。返回 `droppedRuns: DroppedRun[]`（每条带 `run: RunSummary` + 触发它的 `userInput`），所以客户端能
   告诉人"回退丢了哪些回合"。session 有 run 在飞时拒绝（`session_busy`），不去和正在 append 的历史赛跑。
-- **`export` / `import` 是同一份 `SessionArtifact`（v7）的两端**（AUX_API §4.3）：终态 run + 完整 Item 历史 +
+- **`export` / `import` 是同一份 `SessionArtifact`（v13）的两端**（AUX_API §4.3）：终态 run + 完整 Item 历史 +
   chat 消息 + offload 的工具正文 + 会话级 state 的**语义值**（不带 revision / updatedAt —— 那是源 runtime 的排序
   凭证，带过去会让导入值声称一个目标 runtime 从未发出的位置）。import 是**替换语义**（同 id 覆盖），版本不认识就
   确定性拒绝、**不迁移**；未广告的 state key 在任何写入之前拒绝。
@@ -778,14 +778,19 @@ provider 的 key，读取面自然回落到 `keySource:"env"`；环境值只参�
 
 ### 7.7 可选域（capability-gated）
 
-`skills.*` / `recipes.*` / `agentDocs.*` / `hooks.*` / `mcp.*` / `memory.*` / `agentMemory.*` / `approval.*` /
+`skills.*` / `recipes.*` / `agentDocs.*` / `hooks.*` / `mcp.*` / `knowledge.*` / `agentMemory.*` / `approval.*` /
 `checkpoints` / `usage.*` / `feedback.*` 等，每个由 §9 的一个 feature 门控，关掉即返回
 `capability_not_negotiated`（problem 里带 `requiredCapabilities`，客户端因此知道缺的是哪一个）。语义见
 [`AUX_API.md`](./AUX_API.md)。
 
+`knowledge.*` 专指人工维护的 `LYRA.md` 级联：`knowledge.list` 列出 workspace 可见条目，
+`knowledge.get` / `knowledge.update` 以闭合 `scope`（`cwd` / `projectRoot` / `home`）读取或覆盖一个条目。
+它不承载模型提炼事实，也不与 `agentMemory.*` 共享生命周期；后者才是 Agent 自维护、可检索和人工复核的记忆账本。
+因此协议不再提供含混的 `memory.*` 别名或 `features.memory`。
+
 `agentMemory.list` / `agentMemory.add` 的 target 是闭合二选一：`scope:"project"` 必带 `workspace: WorkspaceRef`；
 `scope:"user"` 禁止 `workspace`。不再有“省略 scope 默认 project”或“user scope 带一个会被忽略的 workspace”这两种
-半有效请求。SDK 的 `workspace(ref).agentMemory` 固定绑定 project target；用户级 memory 走顶层 `agentMemory`。
+半有效请求。SDK 的 `workspace(ref).agentMemory` 固定绑定 project target；用户级 agent memory 走顶层 `agentMemory`。
 
 ### 7.8 服务端发出的 Notification 汇总
 
@@ -810,7 +815,7 @@ provider 的 key，读取面自然回落到 `keySource:"env"`；环境值只参�
 
 ### 7.9 schedules.\*
 
-cron 形态的 headless run 管理（`features.schedules`）：一条 schedule 存的是要跑的 prompt 文本，不是一个 recipe
+cron 形态的 headless run 管理（`features.schedules`）：一条 schedule 存的是完整、自包含的执行 instructions，不是一个 recipe
 引用 —— 引用会让"这条定时任务当初要做什么"随 recipe 被改写而改变。触发一次 = 起一个普通 run。
 
 ### 7.10 codebase.\*
@@ -845,7 +850,7 @@ embedding 角色属于运行时配置（§7.6），不是每次检索的参数�
 三处都用**同一个 `ProblemData` 形状**。**落点本身就是判别**（§4.6：没有 `channel` 字段）。**反直觉但关键**：工具
 失败（c）通常不终止 run；实现方**不要**期望 run 执行期错误（b/c）能在 `runs.start` 的同步 response（a）里拿到。
 
-第四类是**内联状态**：它骑在**某个查询自己的结果**里（`McpServer.status.error` / `ProviderTestResult.error`），表达
+第四类是**内联状态**：它骑在**某个查询自己的结果**里（`MCPServer.status.error` / `ProviderTestResult.error`），表达
 "这个东西当前坏在哪"，而不是"你这次调用失败了"，所以调用**成功**返回。见 §8.4。
 
 ### 8.2 错误码与符号名
@@ -899,8 +904,8 @@ error `type` 是 §2.6 命名空间的一个实例：first-party 用裸 `snake_c
 
 客户端**只按 `type` 分支**，绝不 substring-match `detail`。
 
-**内联状态级**：`mcp_dial_failed` / `mcp_authorization_required`（`McpServer.error`）、
-`mcp_authorization_failed`（`McpAuthorizationAttempt.error`）、`provider_not_configured` /
+**内联状态级**：`mcp_dial_failed` / `mcp_authorization_required`（`MCPServer.error`）、
+`mcp_authorization_failed`（`MCPAuthorizationAttempt.error`）、`provider_not_configured` /
 `provider_test_failed`（`ProviderTestResult.error`）。**它们没有 `detail`**：一句英文人话对多语言 UI 是负资产，文案归
 客户端按 `type` 查本地表。
 
@@ -998,7 +1003,7 @@ dispatcher、discovery 与客户端 preflight 读的是同一份）。
 
 ## 12. 版本规则
 
-- `protocolVersion` 是日期串（本定稿 `2026-08-04`），`minSupported` 与之同值：**本 build 只服务一个版本**。
+- `protocolVersion` 是日期串（本定稿 `2026-08-05`），`minSupported` 与之同值：**本 build 只服务一个版本**。
   一个更宽的范围会宣称一次代码并不执行的协商。
 - 版本不兼容以 request 级 `invalid_protocol_version` 返回（带上本 build 服务的范围），**不存在连接级硬断开**。
 - **加什么不用 bump**：加 method / 加可选响应字段 / 加 `features` map key / 加开放枚举值 → 同版本号。
@@ -1006,7 +1011,7 @@ dispatcher、discovery 与客户端 preflight 读的是同一份）。
   exhaustive switch，§2.3）、加 state key、改语义 / 删字段 / 改字段类型。
 - **判据不是"加还是改"，而是"老客户端会不会做错事"**。这条规则由 CI 强制：compatibility differ 拿本次产物与
   上一版基线对比，判定 breaking 就要求同批 bump（§14）。
-- `SessionArtifactVersion` 与 `protocolVersion` 各自独立编号（本定稿 artifact = **9**）：一份归档可能被一个更新的
+- `SessionArtifactVersion` 与 `protocolVersion` 各自独立编号（本定稿 artifact = **13**）：一份归档可能被一个更新的
   runtime 读到。不认识的版本确定性拒绝，**dev 阶段不写 migration**。
 - HTTP URL 里的 `/v2/`（wire major epoch）与日期 `protocolVersion`（epoch 内请求版本）是两个层级
   （见 TRANSPORT §6.1）。

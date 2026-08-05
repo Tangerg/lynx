@@ -11,6 +11,35 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 )
 
+// RecipeLister discovers the recipes visible from a working directory.
+type RecipeLister interface {
+	List(ctx context.Context, cwd string) ([]Recipe, error)
+}
+
+// Discovery owns workspace, recipe, and instruction-document discovery.
+type Discovery struct {
+	scope      *Scope
+	workspaces Catalog
+	agentDocs  AgentDocFinder
+	recipes    RecipeLister
+}
+
+func NewDiscovery(scope *Scope, workspaces Catalog, agentDocs AgentDocFinder, recipes RecipeLister) *Discovery {
+	return &Discovery{scope: scope, workspaces: workspaces, agentDocs: agentDocs, recipes: recipes}
+}
+
+// Recipes enumerates project recipes layered over the global directory.
+func (d *Discovery) Recipes(ctx context.Context, cwd string) ([]Recipe, error) {
+	root, err := d.scope.root(cwd)
+	if err != nil {
+		return nil, err
+	}
+	if d.recipes == nil {
+		return nil, nil
+	}
+	return d.recipes.List(ctx, root)
+}
+
 // Resolved is the current filesystem identity of one workspace ref.
 type Resolved struct {
 	Path        string
@@ -35,40 +64,40 @@ type Catalog interface {
 	InspectWorkspace(cwd string) (session.WorkspaceIdentity, error)
 }
 
-// ResolveWorkspace returns the canonical live identity for path, using the
+// Resolve returns the canonical live workspace identity for path, using the
 // host-provided default when path is empty.
-func (c *Discovery) ResolveWorkspace(path string) (Resolved, error) {
-	if c.workspaces == nil {
+func (d *Discovery) Resolve(path string) (Resolved, error) {
+	if d.workspaces == nil {
 		return Resolved{}, errors.New("workspace: workspace catalog is not configured")
 	}
 	if path == "" {
-		path = c.context.defaultWorkspacePath
+		path = d.scope.defaultWorkspacePath
 	}
-	identity, err := c.workspaces.InspectWorkspace(path)
+	identity, err := d.workspaces.InspectWorkspace(path)
 	if err != nil {
 		return Resolved{}, err
 	}
 	return Resolved{
-		Path: identity.Cwd, ProjectRoot: identity.ProjectRoot, Missing: identity.Missing,
+		Path: identity.CWD, ProjectRoot: identity.ProjectRoot, Missing: identity.Missing,
 	}, nil
 }
 
-// ListWorkspaces returns each non-empty session workspace once, newest-active first.
-func (c *Discovery) ListWorkspaces(ctx context.Context) ([]Summary, error) {
-	if c.workspaces == nil {
+// Workspaces returns each non-empty session workspace once, newest-active first.
+func (d *Discovery) Workspaces(ctx context.Context) ([]Summary, error) {
+	if d.workspaces == nil {
 		return nil, errors.New("workspace: workspace catalog is not configured")
 	}
-	sessions, err := c.workspaces.List(ctx)
+	sessions, err := d.workspaces.List(ctx)
 	if err != nil {
 		return nil, err
 	}
 	workspaces := workspacesFromSessions(sessions)
 	for index := range workspaces {
-		identity, err := c.workspaces.InspectWorkspace(workspaces[index].Path)
+		identity, err := d.workspaces.InspectWorkspace(workspaces[index].Path)
 		if err != nil {
 			return nil, err
 		}
-		workspaces[index].Path = identity.Cwd
+		workspaces[index].Path = identity.CWD
 		workspaces[index].ProjectRoot = identity.ProjectRoot
 		workspaces[index].Missing = identity.Missing
 	}
@@ -78,13 +107,13 @@ func (c *Discovery) ListWorkspaces(ctx context.Context) ([]Summary, error) {
 func workspacesFromSessions(sessions []session.Session) []Summary {
 	byPath := map[string]*Summary{}
 	for _, session := range sessions {
-		if session.Cwd == "" {
+		if session.CWD == "" {
 			continue
 		}
-		workspace := byPath[session.Cwd]
+		workspace := byPath[session.CWD]
 		if workspace == nil {
-			workspace = &Summary{Path: session.Cwd, Name: filepath.Base(session.Cwd)}
-			byPath[session.Cwd] = workspace
+			workspace = &Summary{Path: session.CWD, Name: filepath.Base(session.CWD)}
+			byPath[session.CWD] = workspace
 		}
 		workspace.SessionCount++
 		if workspace.LastActiveAt.IsZero() || session.UpdatedAt.After(workspace.LastActiveAt) {
@@ -105,7 +134,7 @@ type AgentDocScope string
 
 const (
 	AgentDocScopeHome        AgentDocScope = "home"
-	AgentDocScopeCwd         AgentDocScope = "cwd"
+	AgentDocScopeCWD         AgentDocScope = "cwd"
 	AgentDocScopeProjectRoot AgentDocScope = "projectRoot"
 )
 
@@ -117,25 +146,25 @@ type AgentDoc struct {
 
 // AgentDocFinder discovers the workspace instruction-document cascade.
 type AgentDocFinder interface {
-	DiscoverAgentDocs(ctx context.Context, cwd, home string) ([]AgentDocFile, error)
+	Find(ctx context.Context, cwd, home string) ([]AgentDocFile, error)
 }
 
-// ListAgentDocs returns the instruction-document cascade for one workspace.
-func (c *Discovery) ListAgentDocs(ctx context.Context, cwd string) ([]AgentDoc, error) {
-	root, err := c.context.root(cwd)
+// AgentDocs returns the instruction-document cascade for one workspace.
+func (d *Discovery) AgentDocs(ctx context.Context, cwd string) ([]AgentDoc, error) {
+	root, err := d.scope.root(cwd)
 	if err != nil {
 		return nil, err
 	}
-	if c.agentDocs == nil {
+	if d.agentDocs == nil {
 		return nil, errors.New("workspace: agent document finder is not configured")
 	}
-	files, err := c.agentDocs.DiscoverAgentDocs(ctx, root, c.context.userHome)
+	files, err := d.agentDocs.Find(ctx, root, d.scope.userHome)
 	if err != nil {
 		return nil, err
 	}
 	docs := make([]AgentDoc, 0, len(files))
 	for _, file := range files {
-		docs = append(docs, AgentDoc{Path: file.Path, Scope: agentDocScope(file.Path, root, c.context.userHome)})
+		docs = append(docs, AgentDoc{Path: file.Path, Scope: agentDocScope(file.Path, root, d.scope.userHome)})
 	}
 	return docs, nil
 }
@@ -146,7 +175,7 @@ func agentDocScope(path, cwd, home string) AgentDocScope {
 	case home != "" && dir == home:
 		return AgentDocScopeHome
 	case cwd != "" && (dir == cwd || strings.HasPrefix(path, cwd+string(filepath.Separator))):
-		return AgentDocScopeCwd
+		return AgentDocScopeCWD
 	default:
 		return AgentDocScopeProjectRoot
 	}

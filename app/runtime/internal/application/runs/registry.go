@@ -13,7 +13,7 @@ type Record struct {
 	ID             string
 	SegmentID      string
 	SessionID      string
-	Cwd            string
+	CWD            string
 	CreatedAt      time.Time
 	ExecutorID     string
 	ModelSelection modelref.Selection

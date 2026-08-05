@@ -922,10 +922,35 @@ Acceptance:
 | 48. Shared-component semantic ownership | Completed | 2026-08-05 | 2026-08-05 | Component and configuration comments describe owned behavior without outer-ring vocabulary; TaskGroup no longer exports duplicate shutdown aliases solely to satisfy a construction-owned interface, and the consumer names the narrower Cancel/Wait port. Standalone full and focused race/static verification passed. |
 | 49. Construction naming and client-neutral semantics | Completed | 2026-08-05 | 2026-08-05 | Execution support and utility-role files/types/functions now name their actual construction responsibility; all inner rings reject CLI/TUI/desktop/frontend vocabulary, and remaining client-specific examples were replaced by owned behavior. Standalone full and focused race/static verification passed. |
 | 50. Inner-ring protocol-language closure | Completed | 2026-08-05 | 2026-08-05 | Domain, application, adapter, and infrastructure comments no longer explain owned behavior through Runtime RPC names, protocol documents, model/client symbols, or former Delivery projectors; a precise mechanical gate rejects those references without banning external MCP/LSP wire terminology. Standalone full and focused race/static verification passed. |
+| 54. Runtime naming and responsibility closure | Completed | 2026-08-05 | 2026-08-05 | Runtime now uses one domain term per concept across source, persistence, protocol, generated contracts, and current documentation; broad files and ports were split by owned responsibility. Full workspace/standalone, race, static, lint, dead-code, generation, formatting, and residue verification passed. |
 
 Allowed status values: `Pending`, `In progress`, `Completed`, `Blocked`, `Revised`.
 
 ## 7. Progress log
+
+### 2026-08-05 — Batch 54 completed
+
+- Completed a breaking, Runtime-only vocabulary pass across exported and
+  private identifiers, files, packages, storage columns, wire fields,
+  generated contracts, comments, and architecture guards. The protocol,
+  artifact, and schema epochs moved together; no aliases, migrations, or
+  compatibility fields remain.
+- Chose one term per concept: `CWD` internally, `instructions` for scheduled
+  work, `ExecutionFact` for reducible executor output, `Pipeline` for composed
+  Run maintenance, `knowledge` for user/project knowledge, `agentMemory` for
+  Agent-owned recall, and `mcp` for the MCP application boundary.
+- Split Goal reads from terminal outcome reporting; split catch-all Workspace,
+  Run-port, contract-registration, protocol, server, and Agent-turn files by
+  owned responsibility; and renamed resolvers, interpreters, presentation
+  fields, timing units, and generated MCP types to state their exact semantics.
+- Added architecture fitness rules for the retired identifiers, package paths,
+  filenames, protocol fields, and responsibility groupings. Exact scans retain
+  old spellings only in rejection tests and the previous released-contract
+  baseline.
+- `go build ./...`, `go vet ./...`, `go test ./...`, standalone `GOWORK=off`
+  build/vet/test, focused `go test -race`, `staticcheck`, `golangci-lint`,
+  `deadcode -test`, contract generation, formatting, empty-directory scans,
+  residue scans, and diff checks passed.
 
 ### 2026-08-05 — Batch 43 completed
 

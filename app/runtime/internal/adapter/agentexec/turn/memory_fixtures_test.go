@@ -86,8 +86,8 @@ func buildController(t *testing.T) (turnDriver, *agentexec.Engine) {
 
 func buildEngine(t *testing.T, cfg agentexec.Config) *agentexec.Engine {
 	t.Helper()
-	if cfg.Workdir == "" {
-		cfg.Workdir = t.TempDir()
+	if cfg.DefaultCWD == "" {
+		cfg.DefaultCWD = t.TempDir()
 	}
 	if cfg.UserHome == "" {
 		cfg.UserHome = t.TempDir()
@@ -107,9 +107,9 @@ func buildEngine(t *testing.T, cfg agentexec.Config) *agentexec.Engine {
 		}
 	}
 	built, err := toolset.Build(context.Background(), toolset.BuildConfig{
-		Workdir:  cfg.Workdir,
-		UserHome: cfg.UserHome,
-		Plan:     planStore,
+		DefaultCWD: cfg.DefaultCWD,
+		UserHome:   cfg.UserHome,
+		Plan:       planStore,
 	})
 	if err != nil {
 		t.Fatalf("toolset.Build: %v", err)
@@ -134,26 +134,26 @@ func cleanupToolEnvironment(t *testing.T, built toolset.Built) {
 	})
 }
 
-func drainEvents(events iter.Seq[runs.ExecutorEvent]) []runs.EngineEvent {
-	var out []runs.EngineEvent
+func drainEvents(events iter.Seq[runs.ExecutorEvent]) []runs.ExecutionFact {
+	var out []runs.ExecutionFact
 	for ev := range events {
-		if event, ok := ev.Payload.(runs.EngineEvent); ok {
+		if event, ok := ev.Payload.(runs.ExecutionFact); ok {
 			out = append(out, event)
 		}
 	}
 	return out
 }
 
-func eventNames(events []runs.EngineEvent) []string {
+func eventNames(events []runs.ExecutionFact) []string {
 	out := make([]string, len(events))
 	for i, ev := range events {
 		switch ev.(type) {
 		case runs.MessageDelta:
 			out[i] = "MessageDelta"
-		case runs.ToolCallStart:
-			out[i] = "ToolCallStart"
-		case runs.ToolCallEnd:
-			out[i] = "ToolCallEnd"
+		case runs.ToolCallStarted:
+			out[i] = "ToolCallStarted"
+		case runs.ToolCallFinished:
+			out[i] = "ToolCallFinished"
 		case runs.UsageReported:
 			out[i] = "UsageReported"
 		case runs.SegmentEnded:

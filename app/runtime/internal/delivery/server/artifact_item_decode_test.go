@@ -85,7 +85,7 @@ func TestPortableArtifactDecoderPreservesCanonicalToolResult(t *testing.T) {
 	at := time.Unix(1, 0).UTC()
 	artifact.Items[0] = protocol.ArtifactItem{
 		ID: "item_1", RunID: "run_1", Status: "completed", Type: "toolCall",
-		StartedAt: at, FinishedAt: at, DurationMs: valuePtr(int64(0)),
+		StartedAt: at, FinishedAt: at, DurationMillis: valuePtr(int64(0)),
 		Tool: &protocol.ArtifactToolInvocation{Name: "shell", Arguments: map[string]any{}, Result: map[string]any{"stdout": "raw"}},
 	}
 	portable, err := portableArtifactFromWire(artifact)
@@ -107,7 +107,7 @@ func TestPortableArtifactDecoderRejectsInconsistentToolTiming(t *testing.T) {
 		artifact.Items[0] = protocol.ArtifactItem{
 			ID: "item_1", RunID: "run_1", Status: protocol.ItemStatusCompleted,
 			StartedAt: startedAt, FinishedAt: finishedAt,
-			DurationMs: valuePtr(int64(1500)), Type: protocol.ItemTypeToolCall,
+			DurationMillis: valuePtr(int64(1500)), Type: protocol.ItemTypeToolCall,
 			Tool: &protocol.ArtifactToolInvocation{Name: "shell", Arguments: map[string]any{}},
 		}
 		return artifact
@@ -120,7 +120,7 @@ func TestPortableArtifactDecoderRejectsInconsistentToolTiming(t *testing.T) {
 			item.CreatedAt = startedAt
 		}},
 		{name: "duration differs from boundaries", mutate: func(item *protocol.ArtifactItem) {
-			item.DurationMs = valuePtr(int64(1499))
+			item.DurationMillis = valuePtr(int64(1499))
 		}},
 	}
 	for _, test := range tests {

@@ -16,8 +16,8 @@ import (
 	toolcontract "github.com/Tangerg/lynx/tool"
 )
 
-type failingGoalState struct{ err error }
-type roleGoalState struct{ active bool }
+type failingGoalStub struct{ err error }
+type roleGoalStub struct{ active bool }
 
 type rolePlanStore struct{}
 
@@ -26,19 +26,19 @@ func (rolePlanStore) List(context.Context, string) ([]plan.Step, error) {
 	return []plan.Step{{Description: "implement", Status: plan.StatusPending}}, nil
 }
 
-func (failingGoalState) Get(context.Context, string) (goal.Goal, bool, error) {
+func (failingGoalStub) Current(context.Context, string) (goal.Goal, bool, error) {
 	return goal.Goal{}, false, nil
 }
-func (s failingGoalState) Active(context.Context, string) (bool, error) { return false, s.err }
-func (failingGoalState) Report(context.Context, goals.ReportCommand) (goals.ReportResult, error) {
+func (s failingGoalStub) Active(context.Context, string) (bool, error) { return false, s.err }
+func (failingGoalStub) Report(context.Context, goals.ReportCommand) (goals.ReportResult, error) {
 	return goals.ReportNoActiveGoal, nil
 }
 
-func (roleGoalState) Get(context.Context, string) (goal.Goal, bool, error) {
+func (roleGoalStub) Current(context.Context, string) (goal.Goal, bool, error) {
 	return goal.Goal{}, false, nil
 }
-func (s roleGoalState) Active(context.Context, string) (bool, error) { return s.active, nil }
-func (roleGoalState) Report(context.Context, goals.ReportCommand) (goals.ReportResult, error) {
+func (s roleGoalStub) Active(context.Context, string) (bool, error) { return s.active, nil }
+func (roleGoalStub) Report(context.Context, goals.ReportCommand) (goals.ReportResult, error) {
 	return goals.ReportNoActiveGoal, nil
 }
 
@@ -48,10 +48,10 @@ func TestPlanModeToolsAreRootOnly(t *testing.T) {
 		t.Fatalf("approval policy: %v", err)
 	}
 	built, err := Build(t.Context(), BuildConfig{
-		Workdir:  t.TempDir(),
-		UserHome: t.TempDir(),
-		PlanMode: policy,
-		Plan:     rolePlanStore{},
+		DefaultCWD: t.TempDir(),
+		UserHome:   t.TempDir(),
+		PlanMode:   policy,
+		Plan:       rolePlanStore{},
 		Interrupt: func(context.Context, string, runs.Interrupt) (interrupts.Resolution, error) {
 			return interrupts.Resolution{}, nil
 		},
@@ -118,8 +118,9 @@ func TestPlanModeToolsAreRootOnly(t *testing.T) {
 
 func TestGoalToolsAreRootOnlyAndOutcomeRequiresActiveGoal(t *testing.T) {
 	built, err := Build(t.Context(), BuildConfig{
-		Workdir: t.TempDir(), UserHome: t.TempDir(),
-		Goals: roleGoalState{active: true},
+		DefaultCWD: t.TempDir(), UserHome: t.TempDir(),
+		GoalReader:   roleGoalStub{active: true},
+		GoalReporter: roleGoalStub{active: true},
 	})
 	if err != nil {
 		t.Fatalf("Build: %v", err)
@@ -158,7 +159,7 @@ func TestGoalToolsAreRootOnlyAndOutcomeRequiresActiveGoal(t *testing.T) {
 	}
 
 	inactive, err := Build(t.Context(), BuildConfig{
-		Workdir: t.TempDir(), UserHome: t.TempDir(), Goals: roleGoalState{},
+		DefaultCWD: t.TempDir(), UserHome: t.TempDir(), GoalReader: roleGoalStub{}, GoalReporter: roleGoalStub{},
 	})
 	if err != nil {
 		t.Fatalf("Build(inactive): %v", err)
@@ -180,7 +181,7 @@ func TestGoalToolsAreRootOnlyAndOutcomeRequiresActiveGoal(t *testing.T) {
 
 func TestProposeSkillIsRootOnlyAndDeferred(t *testing.T) {
 	built, err := Build(t.Context(), BuildConfig{
-		Workdir:        t.TempDir(),
+		DefaultCWD:     t.TempDir(),
 		UserHome:       t.TempDir(),
 		SkillProposals: allWiredSkillProposals{},
 	})
@@ -222,8 +223,9 @@ func TestProposeSkillIsRootOnlyAndDeferred(t *testing.T) {
 func TestToolGroupPreservesActiveGoalLookupFailure(t *testing.T) {
 	wantErr := errors.New("goal store unavailable")
 	built, err := Build(t.Context(), BuildConfig{
-		Workdir: t.TempDir(), UserHome: t.TempDir(),
-		Goals: failingGoalState{err: wantErr},
+		DefaultCWD: t.TempDir(), UserHome: t.TempDir(),
+		GoalReader:   failingGoalStub{err: wantErr},
+		GoalReporter: failingGoalStub{err: wantErr},
 	})
 	if err != nil {
 		t.Fatalf("Build: %v", err)
@@ -240,7 +242,7 @@ func TestToolGroupPreservesActiveGoalLookupFailure(t *testing.T) {
 }
 
 func TestResolverAcceptsOnlyCanonicalRoleNames(t *testing.T) {
-	built, err := Build(t.Context(), BuildConfig{Workdir: t.TempDir(), UserHome: t.TempDir()})
+	built, err := Build(t.Context(), BuildConfig{DefaultCWD: t.TempDir(), UserHome: t.TempDir()})
 	if err != nil {
 		t.Fatalf("Build: %v", err)
 	}

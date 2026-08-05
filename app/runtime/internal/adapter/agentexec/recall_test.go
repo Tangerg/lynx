@@ -8,23 +8,23 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/agentmemory"
 )
 
-type fakeMemorySearcher struct {
+type fakeAgentMemorySearcher struct {
 	items []agentmemory.Item
 	err   error
 	query string
 }
 
-func (f *fakeMemorySearcher) Search(_ context.Context, _ agentmemory.Scope, _, query string, _ int) ([]agentmemory.Item, error) {
+func (f *fakeAgentMemorySearcher) Search(_ context.Context, _ agentmemory.Scope, _, query string, _ int) ([]agentmemory.Item, error) {
 	f.query = query
 	return f.items, f.err
 }
 
 func TestRecalledMemoriesSkipsPinnedAndInjectsRest(t *testing.T) {
-	search := &fakeMemorySearcher{items: []agentmemory.Item{
+	search := &fakeAgentMemorySearcher{items: []agentmemory.Item{
 		{Content: "- pinned core", Pinned: true},
 		{Content: "- relevant fact", Pinned: false},
 	}}
-	e := &Engine{memorySearch: search, workdir: "/repo"}
+	e := &Engine{agentMemorySearch: search, defaultCWD: "/repo"}
 
 	msg, ok := e.recalledMemories(context.Background(), "what is the fact")
 	if !ok {
@@ -46,14 +46,14 @@ func TestRecalledMemoriesEmptyCases(t *testing.T) {
 	if _, ok := (&Engine{}).recalledMemories(context.Background(), "q"); ok {
 		t.Fatal("no searcher → no block")
 	}
-	if _, ok := (&Engine{memorySearch: &fakeMemorySearcher{}, workdir: "/repo"}).recalledMemories(context.Background(), "q"); ok {
+	if _, ok := (&Engine{agentMemorySearch: &fakeAgentMemorySearcher{}, defaultCWD: "/repo"}).recalledMemories(context.Background(), "q"); ok {
 		t.Fatal("no items → no block")
 	}
-	allPinned := &Engine{memorySearch: &fakeMemorySearcher{items: []agentmemory.Item{{Content: "- x", Pinned: true}}}, workdir: "/repo"}
+	allPinned := &Engine{agentMemorySearch: &fakeAgentMemorySearcher{items: []agentmemory.Item{{Content: "- x", Pinned: true}}}, defaultCWD: "/repo"}
 	if _, ok := allPinned.recalledMemories(context.Background(), "q"); ok {
 		t.Fatal("all-pinned results → no block (already in the core)")
 	}
-	if _, ok := (&Engine{memorySearch: &fakeMemorySearcher{}, workdir: "/repo"}).recalledMemories(context.Background(), "  "); ok {
+	if _, ok := (&Engine{agentMemorySearch: &fakeAgentMemorySearcher{}, defaultCWD: "/repo"}).recalledMemories(context.Background(), "  "); ok {
 		t.Fatal("blank query → no block")
 	}
 }

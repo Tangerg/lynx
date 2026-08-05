@@ -4,6 +4,6 @@ package workspace
 // read again. It carries scope only; file contents and VCS state remain
 // authoritative in their read use cases.
 type FileChangeNotice struct {
-	Cwd   string
+	CWD   string
 	Paths []string
 }

@@ -61,7 +61,7 @@ func Open(ctx context.Context, path string) (*sql.DB, error) {
 // schemaEpoch identifies the one storage shape this build understands. It is an
 // epoch rather than a version because nothing connects two values: a database
 // stamped with any other number is refused, never upgraded.
-const schemaEpoch = 57
+const schemaEpoch = 58
 
 func installCurrentSchema(ctx context.Context, db *sql.DB, path string) error {
 	var epoch int
@@ -233,7 +233,7 @@ func installCurrentSchema(ctx context.Context, db *sql.DB, path string) error {
 			ON history_items(session_id, seq)`,
 		`CREATE UNIQUE INDEX IF NOT EXISTS idx_history_items_offload
 			ON history_items(offload_id) WHERE offload_id != ''`,
-		// Full-text index over past conversation transcripts (search_conversations):
+		// Full-text index over past conversation transcripts:
 		// the human-readable user + agent message text, write-through from
 		// history_items and keyed by the same seq (the FTS rowid), so a search
 		// spans every session's conversation. The other columns are stored
@@ -395,13 +395,13 @@ func installCurrentSchema(ctx context.Context, db *sql.DB, path string) error {
 			project_root TEXT    PRIMARY KEY,
 			trusted_at   INTEGER NOT NULL
 		)`,
-		// Scheduled runs (schedules.*): a saved prompt fired on a cron trigger as
+		// Scheduled runs (schedules.*): a saved instructions fired on a cron trigger as
 		// a headless run. last_run_at / next_run_at are unix millis (0 = never /
 		// unscheduled); next_run_at is the worker's due index.
 		`CREATE TABLE IF NOT EXISTS schedules (
 			id          TEXT    PRIMARY KEY,
 			title       TEXT    NOT NULL DEFAULT '',
-			prompt      TEXT    NOT NULL,
+			instructions      TEXT    NOT NULL,
 			cwd         TEXT    NOT NULL DEFAULT '',
 			provider    TEXT    NOT NULL DEFAULT '',
 			model       TEXT    NOT NULL DEFAULT '',
@@ -418,7 +418,7 @@ func installCurrentSchema(ctx context.Context, db *sql.DB, path string) error {
 			id          TEXT    PRIMARY KEY,
 			schedule_id TEXT    NOT NULL,
 			title       TEXT    NOT NULL DEFAULT '',
-			prompt      TEXT    NOT NULL,
+			instructions      TEXT    NOT NULL,
 			cwd         TEXT    NOT NULL DEFAULT '',
 			provider    TEXT    NOT NULL DEFAULT '',
 			model       TEXT    NOT NULL DEFAULT '',
@@ -490,7 +490,7 @@ func installCurrentSchema(ctx context.Context, db *sql.DB, path string) error {
 		// that exceeds the eviction threshold is moved here and model history keeps
 		// only a bounded head+tail preview. history_items.offload_id + item_id form
 		// the typed one-to-one relationship used to hydrate transcript reads; the
-		// model-facing preview carries id only for read_tool_result. session_id
+		// the compact preview carries id only for deferred result reads. session_id
 		// scopes read-back, export, and delete; created_at orders portable records.
 		`CREATE TABLE IF NOT EXISTS tool_result_blobs (
 			id          TEXT    PRIMARY KEY,

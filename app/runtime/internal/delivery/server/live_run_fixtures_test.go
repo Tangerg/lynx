@@ -41,7 +41,7 @@ func newBlockingServer(t *testing.T) *Server {
 }
 
 func (*blockingRunRuntime) SessionByID(context.Context, string) (session.Session, error) {
-	return session.Session{ID: "ses_1", Cwd: "/work"}, nil
+	return session.Session{ID: "ses_1", CWD: "/work"}, nil
 }
 
 func (*blockingRunRuntime) Events(ctx context.Context, _ execution.ExecutorRef) (iter.Seq[runs.ExecutorEvent], error) {

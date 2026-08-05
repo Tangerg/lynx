@@ -103,10 +103,10 @@ func presentModel(model modelapp.Model) protocol.Model {
 	}
 	if details.Pricing != nil {
 		out.Pricing = &protocol.ModelPricing{
-			InputUsdPerMillionTokens:      details.Pricing.InputPerMillion,
-			OutputUsdPerMillionTokens:     details.Pricing.OutputPerMillion,
-			CacheReadUsdPerMillionTokens:  details.Pricing.CacheReadPerMillion,
-			CacheWriteUsdPerMillionTokens: details.Pricing.CacheWritePerMillion,
+			InputUSDPerMillionTokens:      details.Pricing.InputPerMillion,
+			OutputUSDPerMillionTokens:     details.Pricing.OutputPerMillion,
+			CacheReadUSDPerMillionTokens:  details.Pricing.CacheReadPerMillion,
+			CacheWriteUSDPerMillionTokens: details.Pricing.CacheWritePerMillion,
 		}
 	}
 	return out

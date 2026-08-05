@@ -26,16 +26,16 @@ Run 生命周期、Agent process 装配、私有模型回合状态机、协议 d
 | 能力 | 消费方端口 | 默认实现/来源 |
 |---|---|---|
 | 长期知识 | `application/workspace.KnowledgeStore`（写/列表）与 `adapter/agentexec.KnowledgeReader`（提示词读取） | `infra/storage.FileKnowledgeStore` |
-| 自治目标 | `application/goals.Store` 与 `application/goals.State` | SQLite goal store |
+| 自治目标 | `application/goals.Store`、`Reader` 与 `OutcomeReporter` | SQLite goal store |
 | 计划任务 | `application/schedules.ManagementStore`、`RunNowStore`、`WorkerStore` | SQLite schedule store |
 | 执行计划 | `toolset/plan.Store`、`agentexec.PlanReader`、queries/maintenance 的消费方只读端口 | SQLite plan store |
 | execution steering | `adapter/agentexec/turn.SteeringSink` | conversation/message adapter |
-| Run-boundary maintenance | `adapter/agentexec/turn.RunMaintenance` | `adapter/maintenance.Suite`（组合 compaction / extraction / skill lifecycle workers） |
+| Run-boundary maintenance | `adapter/agentexec/turn.Maintenance` | `adapter/maintenance.Pipeline`（组合 compaction / extraction / skill lifecycle workers） |
 | utility chat model validation | `application/models.ChatModelValidator` | `adapter/modelclient` + `infra/llm` |
 | Chat provider | `core/chat.Model` / optional `Streamer` | provider adapters |
 | Chat history | `chathistory.Store` | SQLite message store |
 | Tool capability | `tool.Tool` + Agent `core.ToolGroupResolver` | `adapter/toolset` |
-| MCP 状态/目录/连接/注册表 | `application/integrations.MCP*` 四片端口 | `adapter/toolset` + `infra/mcp` |
+| MCP 状态/目录/连接/注册表 | `application/mcp` 的 `StatusReader`、`ToolCatalog`、`ConnectionControl`、`ConnectionLifecycle` 与 `Registry` | `adapter/mcpconnection` + SQLite MCP registry |
 | workspace skills/hooks/recipes | `application/workspace` 的 consumer ports | bootstrap prompt/hook/recipe adapters |
 | 代码索引 | `domain/codebaseindex` ports | codebase adapter + vector/embedding backend |
 | Run/Session 持久化 | 对应 `application/*` / `domain/*` 窄端口 | `infra/storage/sqlite` |
@@ -47,7 +47,7 @@ Run 生命周期、Agent process 装配、私有模型回合状态机、协议 d
 
 - `adapter/agentexec.Engine` 是具体 Agent SDK 防腐对象，直接持有具体
   `*agent/runtime.Engine`；不再为 start/restore/control 套单实现接口；
-- `adapter/agentexec/turn` 自己定义 unexported 两方法 `engineDep`，因为具体模型回合控制
+- `adapter/agentexec/turn` 自己定义 unexported `agentEngine`，因为具体模型回合控制
   才是 Start/Restore 的消费者；
 - `turn.New` 返回具体的进程内执行控制；`turn.Executor` 在消费侧定义
   `executorDispatcher` 窄端口，把所需控制能力投影为 application/runs ports。不要再在
@@ -73,7 +73,7 @@ Agent SDK、toolset、SQLite、MCP SDK 或 protocol DTO。
 
 ## 5. 注入与生命周期规则
 
-- 可选策略采用 nil-default：显式注入 steering/maintenance suite 时 Bootstrap 不覆盖；
+- 可选策略采用 nil-default：显式注入 steering/maintenance pipeline 时 Bootstrap 不覆盖；
 - 必需依赖在构造时验证，禁止拖到第一条请求才 panic；
 - 注入接口前消除 typed-nil，避免“接口非 nil、动态值为 nil”；
 - provider/model 必须显式配对，不从 model 字符串猜 provider；

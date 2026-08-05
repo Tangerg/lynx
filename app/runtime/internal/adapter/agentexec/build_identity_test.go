@@ -97,7 +97,7 @@ func TestRestoreRejectsUsageProjectionThatDriftedFromProcessTree(t *testing.T) {
 	}
 	process, err := engine.StartTurn(t.Context(), TurnRequest{
 		SessionID: "session-usage",
-		Cwd:       "/workspace/usage",
+		CWD:       "/workspace/usage",
 		Message:   "pause for approval",
 		Observer:  &hitlApprovalObserver{},
 	})
@@ -124,7 +124,7 @@ func TestRestoreRejectsUsageProjectionThatDriftedFromProcessTree(t *testing.T) {
 	restored, err := engine.RestoreTurn(t.Context(), process.ID(), RestoreTurnRequest{
 		SessionID:      checkpoint.Scope.SessionID,
 		ModelSelection: checkpoint.ModelSelection,
-		Cwd:            checkpoint.Scope.Cwd,
+		CWD:            checkpoint.Scope.CWD,
 		Isolated:       checkpoint.Scope.Isolated,
 		GoalLeaseID:    checkpoint.Scope.GoalLeaseID,
 		Limits:         checkpoint.Limits,

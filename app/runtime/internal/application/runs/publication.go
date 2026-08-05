@@ -239,7 +239,7 @@ func (p treePublisher) publishTreeBarrier(
 func (p treePublisher) append(route *executorRoute, reduced reduction) {
 	p.live.hub.Append(p.coordinator.event(route.runID, route.segmentID, reduced))
 	if reduced.Nudge != nil {
-		p.coordinator.effects.Nudge(reduced.Nudge.Cwd, reduced.Nudge.Paths)
+		p.coordinator.effects.Nudge(reduced.Nudge.CWD, reduced.Nudge.Paths)
 	}
 	if _, ok := reduced.Event.(StateSnapshot); ok {
 		p.coordinator.publishStateMoved(p.rootSpec.SessionID)

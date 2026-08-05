@@ -118,8 +118,8 @@ func (h *handle) finishChildCancellationLocked(attempt *childCancellation) {
 func (h *handle) classifyChildCancellationTool(
 	parentRunID string,
 	itemID string,
-	event ToolCallEnd,
-) ToolCallEnd {
+	event ToolCallFinished,
+) ToolCallFinished {
 	if h == nil {
 		return event
 	}

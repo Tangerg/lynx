@@ -1,7 +1,7 @@
 {
   "protocol": {
-    "current": "2026-08-04",
-    "minSupported": "2026-08-04"
+    "current": "2026-08-05",
+    "minSupported": "2026-08-05"
   },
   "serverInfo": {
     "name": "lyra",
@@ -100,7 +100,7 @@
         "clientOptIn": false,
         "requiredByRunProtocol": false
       },
-      "memory": {
+      "knowledge": {
         "enabled": true,
         "stability": "stable",
         "clientOptIn": false,

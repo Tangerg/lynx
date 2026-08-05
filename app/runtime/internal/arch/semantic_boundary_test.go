@@ -192,7 +192,7 @@ func TestExecutorAndGoalVocabularyDoesNotLeakAcrossBoundaries(t *testing.T) {
 	if err != nil {
 		t.Fatalf("parse execution scope: %v", err)
 	}
-	wantScope := []string{"SessionID", "Cwd", "WorkspaceCwd", "Isolated", "GoalLeaseID"}
+	wantScope := []string{"SessionID", "CWD", "WorkspaceCWD", "Isolated", "GoalLeaseID"}
 	if fields := structFields(scopeFile, "ExecutionScope"); !slices.Equal(fields, wantScope) {
 		t.Fatalf("ExecutionScope fields = %v, want %v", fields, wantScope)
 	}

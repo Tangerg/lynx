@@ -151,7 +151,7 @@ func TestRunner_NonBlockingErrorProceeds(t *testing.T) {
 func TestRunner_TimeoutIsNonBlocking(t *testing.T) {
 	var got error
 	r := NewRunner(&commandStub{results: []CommandResult{{TimedOut: true}}}, func(_ context.Context, _ string, err error) { got = err })
-	hooks := []Hook{{Event: PreToolUse, Command: "hook", TimeoutMs: 40}}
+	hooks := []Hook{{Event: PreToolUse, Command: "hook", TimeoutMillis: 40}}
 	dec := r.Run(ctxBG(), hooks, Input{Event: PreToolUse, Tool: &ToolInput{Name: "shell"}})
 	if dec.Block {
 		t.Error("a timed-out hook must not block")

@@ -31,14 +31,14 @@ func presentItem(item transcript.Item) protocol.Item {
 	if item.Kind == transcript.ToolCall {
 		out.StartedAt = item.OccurredAt
 		out.FinishedAt = item.FinishedAt
-		out.DurationMs = presentToolDurationMs(item)
+		out.DurationMillis = presentToolDurationMillis(item)
 	} else {
 		out.CreatedAt = item.OccurredAt
 	}
 	return out
 }
 
-func presentToolDurationMs(item transcript.Item) *int64 {
+func presentToolDurationMillis(item transcript.Item) *int64 {
 	if item.FinishedAt.IsZero() {
 		return nil
 	}

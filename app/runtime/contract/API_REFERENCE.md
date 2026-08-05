@@ -5,7 +5,7 @@
 > method the runtime does not serve. Prose, rationale and wire examples live in
 > `app/runtime/doc/{API,TRANSPORT,AUX_API}.md`; this is the mechanical index.
 
-Protocol `2026-08-04` (minimum supported `2026-08-04`) · 86 methods
+Protocol `2026-08-05` (minimum supported `2026-08-05`) · 86 methods
 
 ## Methods
 
@@ -88,9 +88,9 @@ Protocol `2026-08-04` (minimum supported `2026-08-04`) · 86 methods
 | `tools.invoke` | command | unary | replayResponse | none | — | `workspace_unavailable`, `path_outside_root` |
 | `usage.session` | query | unary | none | none | — | `session_not_found` |
 | `usage.summary` | query | unary | none | none | — | — |
-| `memory.list` | query | unary | none | none | `memory` | `workspace_unavailable`, `capability_not_negotiated` |
-| `memory.get` | query | unary | none | none | `memory` | `workspace_unavailable`, `capability_not_negotiated` |
-| `memory.update` | command | unary | replayResponse | none | `memory` | `workspace_unavailable`, `capability_not_negotiated` |
+| `knowledge.list` | query | unary | none | none | `knowledge` | `workspace_unavailable`, `capability_not_negotiated` |
+| `knowledge.get` | query | unary | none | none | `knowledge` | `workspace_unavailable`, `capability_not_negotiated` |
+| `knowledge.update` | command | unary | replayResponse | none | `knowledge` | `workspace_unavailable`, `capability_not_negotiated` |
 | `agentMemory.list` | query | unary | none | none | `agentMemory` | `capability_not_negotiated` |
 | `agentMemory.review` | command | unary | replayResponse | none | `agentMemory` | `capability_not_negotiated` |
 | `agentMemory.update` | command | unary | replayResponse | none | `agentMemory` | `capability_not_negotiated` |
@@ -226,7 +226,7 @@ publish one namespaced pattern branch without weakening first-party tags.
 | `agentMessage` | `id`, `runId`, `status`, `createdAt` | `content` |
 | `reasoning` | `id`, `runId`, `status`, `createdAt` | `text`, `redacted` |
 | `question` | `id`, `runId`, `status`, `createdAt` | `question` |
-| `toolCall` | `id`, `runId`, `status`, `startedAt` | `finishedAt`, `durationMs`, `tool`, `safetyClass`, `error` |
+| `toolCall` | `id`, `runId`, `status`, `startedAt` | `finishedAt`, `durationMillis`, `tool`, `safetyClass`, `error` |
 | `compaction` | `id`, `runId`, `status`, `createdAt` | `summary`, `droppedMessages` |
 
 ### `ItemDelta`
@@ -288,42 +288,42 @@ publish one namespaced pattern branch without weakening first-party tags.
 | `set` | `value` | — |
 | `clear` | — | — |
 
-### `McpConnection`
+### `MCPConnection`
 
 | tag | required | optional |
 | --- | --- | --- |
 | `streamableHttp` | `url` | `authorizationMasked`, `headersMasked` |
 | `stdio` | `command` | `args`, `envMasked`, `dir` |
 
-### `McpConnectionInput`
+### `MCPConnectionInput`
 
 | tag | required | optional |
 | --- | --- | --- |
 | `streamableHttp` | `url` | `authorization`, `headers` |
 | `stdio` | `command` | `args`, `env`, `dir` |
 
-### `McpAuthorizationChange`
+### `MCPAuthorizationChange`
 
 | tag | required | optional |
 | --- | --- | --- |
 | `set` | `value` | — |
 | `clear` | — | — |
 
-### `McpHeadersChange`
+### `MCPHeadersChange`
 
 | tag | required | optional |
 | --- | --- | --- |
 | `set` | `value` | — |
 | `clear` | — | — |
 
-### `McpEnvironmentChange`
+### `MCPEnvironmentChange`
 
 | tag | required | optional |
 | --- | --- | --- |
 | `set` | `value` | — |
 | `clear` | — | — |
 
-### `McpServerState`
+### `MCPServerState`
 
 | tag | required | optional |
 | --- | --- | --- |
@@ -334,7 +334,7 @@ publish one namespaced pattern branch without weakening first-party tags.
 | `failed` | `error` | — |
 | `needsAuth` | `error` | — |
 
-### `McpAuthorizationAttemptStatus`
+### `MCPAuthorizationAttemptStatus`
 
 | tag | required | optional |
 | --- | --- | --- |
@@ -407,7 +407,7 @@ Forbidden on every variant: `durable`.
 | `agentMessage` | `id`, `runId`, `status`, `createdAt` | `content` |
 | `reasoning` | `id`, `runId`, `status`, `createdAt` | `text`, `redacted` |
 | `question` | `id`, `runId`, `status`, `createdAt` | `question` |
-| `toolCall` | `id`, `runId`, `status`, `startedAt` | `finishedAt`, `durationMs`, `tool`, `safetyClass`, `error` |
+| `toolCall` | `id`, `runId`, `status`, `startedAt` | `finishedAt`, `durationMillis`, `tool`, `safetyClass`, `error` |
 | `compaction` | `id`, `runId`, `status`, `createdAt` | `summary`, `droppedMessages` |
 
 ### `ArtifactContentBlock`
@@ -442,11 +442,11 @@ TypeScript validator from this single registry projection.
 | `UpdateSessionRequest` | `sessionId` | `nonEmpty` |
 | `UpdateSessionRequest` | `expectedRevision` | `positive` |
 | `ImportSessionRequest` | `artifact.session.id` | `nonEmpty` |
-| `SessionArtifact` | `version` | `minimum(12)` |
-| `SessionArtifact` | `version` | `maximum(12)` |
+| `SessionArtifact` | `version` | `minimum(13)` |
+| `SessionArtifact` | `version` | `maximum(13)` |
 | `ArtifactRun` | `messageMark` | `nonNegative` |
 | `ArtifactRunMetrics` | `steps` | `nonNegative` |
-| `ArtifactRunMetrics` | `activeDurationMs` | `nonNegative` |
+| `ArtifactRunMetrics` | `activeDurationMillis` | `nonNegative` |
 | `ArtifactUsage` | `inputTokens` | `nonNegative` |
 | `ArtifactUsage` | `outputTokens` | `nonNegative` |
 | `ArtifactUsage` | `cacheReadTokens` | `nonNegative` |
@@ -460,9 +460,9 @@ TypeScript validator from this single registry projection.
 | `ArtifactModelUsage` | `reasoningTokens` | `nonNegative` |
 | `ArtifactModelUsage` | `costUsd` | `nonNegative` |
 | `ArtifactItem` | `droppedMessages` | `nonNegative` |
-| `ArtifactItem` | `durationMs` | `nonNegative` |
+| `ArtifactItem` | `durationMillis` | `nonNegative` |
 | `ArtifactProblem` | `retryAfterSeconds` | `positive` |
-| `Item` | `durationMs` | `nonNegative` |
+| `Item` | `durationMillis` | `nonNegative` |
 | `RunProtocolProfile` | `requiredFeatures` | `uniqueItems` |
 | `RunProtocolProfile` | `interruptTypes` | `uniqueItems` |
 | `StartRunRequest` | `sessionId` | `nonEmpty` |
@@ -510,10 +510,9 @@ TypeScript validator from this single registry projection.
 | `SteerRunRequest` | `expectedSegmentId` | `nonEmpty` |
 | `SteerRunRequest` | `input` | `nonEmptyItems` |
 | `ListItemsRequest` | `scope.type` | `nonEmpty` |
-| `GetPlanRequest` | `sessionId` | `nonEmpty` |
-| `SessionUsageRequest` | `sessionId` | `nonEmpty` |
 | `ListRunsRequest` | `statuses` | `nonEmptyItems` |
 | `ListRunsRequest` | `statuses` | `uniqueItems` |
+| `GetPlanRequest` | `sessionId` | `nonEmpty` |
 | `WorkspaceRef` | `path` | `nonEmpty` |
 | `GetDiffRequest` | `limit` | `nonNegative` |
 | `GetFileHeadRequest` | `path` | `nonEmpty` |
@@ -526,6 +525,7 @@ TypeScript validator from this single registry projection.
 | `GrepRequest` | `limit` | `nonNegative` |
 | `CodebaseSearchRequest` | `query` | `nonEmpty` |
 | `CodebaseSearchRequest` | `limit` | `nonNegative` |
+| `SessionUsageRequest` | `sessionId` | `nonEmpty` |
 | `UsageSummaryRequest` | `sinceDays` | `nonNegative` |
 | `SkillNameRequest` | `name` | `nonEmpty` |
 | `SkillProposalRef` | `name` | `nonEmpty` |
@@ -536,15 +536,15 @@ TypeScript validator from this single registry projection.
 | `MCPServerRequest` | `server` | `nonEmpty` |
 | `CreateMCPAuthorizationAttemptRequest` | `server` | `nonEmpty` |
 | `MCPAuthorizationAttemptRequest` | `attemptId` | `nonEmpty` |
-| `McpAuthorizationAttempt` | `id` | `nonEmpty` |
-| `McpAuthorizationAttempt` | `server` | `nonEmpty` |
-| `McpConnection` | `url` | `nonEmpty` |
-| `McpConnection` | `command` | `nonEmpty` |
-| `McpConnectionInput` | `url` | `nonEmpty` |
-| `McpConnectionInput` | `command` | `nonEmpty` |
-| `McpAuthorizationChange` | `value` | `nonEmpty` |
-| `McpHeadersChange` | `value` | `nonEmptyProperties` |
-| `McpEnvironmentChange` | `value` | `nonEmptyProperties` |
+| `MCPAuthorizationAttempt` | `id` | `nonEmpty` |
+| `MCPAuthorizationAttempt` | `server` | `nonEmpty` |
+| `MCPConnection` | `url` | `nonEmpty` |
+| `MCPConnection` | `command` | `nonEmpty` |
+| `MCPConnectionInput` | `url` | `nonEmpty` |
+| `MCPConnectionInput` | `command` | `nonEmpty` |
+| `MCPAuthorizationChange` | `value` | `nonEmpty` |
+| `MCPHeadersChange` | `value` | `nonEmptyProperties` |
+| `MCPEnvironmentChange` | `value` | `nonEmptyProperties` |
 | `MCPServerCandidate` | `name` | `nonEmpty` |
 | `MCPServerCandidate` | `timeoutSeconds` | `nonNegative` |
 | `MCPServerCandidate` | `disabledTools` | `uniqueItems` |
@@ -561,11 +561,11 @@ TypeScript validator from this single registry projection.
 | `AgentMemoryReviewRequest` | `id` | `nonEmpty` |
 | `AgentMemoryUpdateRequest` | `id` | `nonEmpty` |
 | `AgentMemoryAddRequest` | `content` | `nonEmpty` |
-| `CreateScheduleRequest` | `prompt` | `nonEmpty` |
+| `CreateScheduleRequest` | `instructions` | `nonEmpty` |
 | `CreateScheduleRequest` | `cron` | `nonEmpty` |
 | `UpdateScheduleRequest` | `id` | `nonEmpty` |
 | `UpdateScheduleRequest` | `expectedRevision` | `positive` |
-| `UpdateScheduleRequest` | `prompt` | `nonEmpty` |
+| `UpdateScheduleRequest` | `instructions` | `nonEmpty` |
 | `UpdateScheduleRequest` | `cron` | `nonEmpty` |
 | `DeleteScheduleRequest` | `id` | `nonEmpty` |
 | `RunScheduleNowRequest` | `id` | `nonEmpty` |
@@ -663,9 +663,9 @@ available. Refusal is `capability_not_negotiated` — never a silent downgrade.
 | `codebase.search` | always | `codebase` |
 | `codebase.status` | always | `codebase` |
 | `codebase.reindex` | always | `codebase` |
-| `memory.list` | always | `memory` |
-| `memory.get` | always | `memory` |
-| `memory.update` | always | `memory` |
+| `knowledge.list` | always | `knowledge` |
+| `knowledge.get` | always | `knowledge` |
+| `knowledge.update` | always | `knowledge` |
 | `agentMemory.list` | always | `agentMemory` |
 | `agentMemory.review` | always | `agentMemory` |
 | `agentMemory.update` | always | `agentMemory` |

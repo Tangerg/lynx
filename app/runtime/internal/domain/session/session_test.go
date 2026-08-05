@@ -46,7 +46,7 @@ func TestSessionFork(t *testing.T) {
 	parent := Session{
 		ID:    "ses_parent",
 		Title: "research",
-		Cwd:   "/work/proj",
+		CWD:   "/work/proj",
 		Model: "claude-opus-4-8",
 	}
 
@@ -61,8 +61,8 @@ func TestSessionFork(t *testing.T) {
 	if child.Title != "research (fork)" {
 		t.Errorf("Title = %q, want %q", child.Title, "research (fork)")
 	}
-	if child.Cwd != parent.Cwd {
-		t.Errorf("Cwd = %q, want inherited %q", child.Cwd, parent.Cwd)
+	if child.CWD != parent.CWD {
+		t.Errorf("CWD = %q, want inherited %q", child.CWD, parent.CWD)
 	}
 	if !child.StartedAt.Equal(now) || !child.UpdatedAt.Equal(now) {
 		t.Errorf("timestamps = %v / %v, want %v", child.StartedAt, child.UpdatedAt, now)

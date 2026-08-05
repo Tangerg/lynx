@@ -159,7 +159,7 @@ func newCoordinator(stores testStores, executions ExecutionCleanup) *Coordinator
 
 func newCoordinatorWithAdmissions(stores testStores, executions ExecutionCleanup, admissions Admissions) *Coordinator {
 	return New(testDependencies(stores, Dependencies{
-		ExecutionCleanup: executions, Paths: testCwdResolver{}, Admissions: admissions,
+		ExecutionCleanup: executions, Paths: testCWDResolver{}, Admissions: admissions,
 	}))
 }
 
@@ -177,12 +177,12 @@ func testDependencies(stores testStores, deps Dependencies) Dependencies {
 	return deps
 }
 
-type testCwdResolver struct {
+type testCWDResolver struct {
 	resolved string
 	err      error
 }
 
-func (r testCwdResolver) ResolveExistingDir(path string) (string, error) {
+func (r testCWDResolver) ResolveExistingDir(path string) (string, error) {
 	if r.err != nil {
 		return "", r.err
 	}
@@ -192,14 +192,14 @@ func (r testCwdResolver) ResolveExistingDir(path string) (string, error) {
 	return path, nil
 }
 
-func (r testCwdResolver) Inspect(path string) (session.WorkspaceIdentity, error) {
+func (r testCWDResolver) Inspect(path string) (session.WorkspaceIdentity, error) {
 	if r.err != nil {
 		return session.WorkspaceIdentity{}, r.err
 	}
 	if r.resolved != "" {
 		path = r.resolved
 	}
-	return session.WorkspaceIdentity{Cwd: path, ProjectRoot: path}, nil
+	return session.WorkspaceIdentity{CWD: path, ProjectRoot: path}, nil
 }
 
 type emptyTranscript struct{}

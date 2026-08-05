@@ -152,11 +152,11 @@ func TestQuestionWireConstraints(t *testing.T) {
 func TestMCPSecretMapChangesRejectEmptyReplacement(t *testing.T) {
 	t.Parallel()
 
-	headers := McpHeadersChange{Type: McpSecretSet, Value: map[string]string{}}
-	assertConstraintField(t, headers.ValidateWire(), "McpHeadersChange", "value")
+	headers := MCPHeadersChange{Type: MCPSecretSet, Value: map[string]string{}}
+	assertConstraintField(t, headers.ValidateWire(), "MCPHeadersChange", "value")
 
-	environment := McpEnvironmentChange{Type: McpSecretSet, Value: map[string]string{}}
-	assertConstraintField(t, environment.ValidateWire(), "McpEnvironmentChange", "value")
+	environment := MCPEnvironmentChange{Type: MCPSecretSet, Value: map[string]string{}}
+	assertConstraintField(t, environment.ValidateWire(), "MCPEnvironmentChange", "value")
 
 	headers.Value = map[string]string{"X-API-Key": "secret"}
 	if err := headers.ValidateWire(); err != nil {
@@ -452,7 +452,7 @@ func TestGenerationAndGoalBoundsAreWireConstraints(t *testing.T) {
 
 	assertConstraintField(
 		t,
-		(GoalBudget{MaxCostUsd: -0.01}).ValidateWire(),
+		(GoalBudget{MaxCostUSD: -0.01}).ValidateWire(),
 		"GoalBudget",
 		"maxCostUsd",
 	)
@@ -474,7 +474,7 @@ func TestSessionArtifactBoundsAreWireConstraints(t *testing.T) {
 	}{
 		{shape: "ArtifactRun", field: "messageMark", value: ArtifactRun{MessageMark: -1}},
 		{shape: "ArtifactRunMetrics", field: "steps", value: ArtifactRunMetrics{Steps: -1}},
-		{shape: "ArtifactRunMetrics", field: "activeDurationMs", value: ArtifactRunMetrics{ActiveDurationMs: -1}},
+		{shape: "ArtifactRunMetrics", field: "activeDurationMillis", value: ArtifactRunMetrics{ActiveDurationMillis: -1}},
 		{shape: "ArtifactUsage", field: "inputTokens", value: ArtifactUsage{InputTokens: -1}},
 		{shape: "ArtifactUsage", field: "costUsd", value: ArtifactUsage{CostUSD: &cost}},
 		{shape: "ArtifactModelUsage", field: "reasoningTokens", value: ArtifactModelUsage{ReasoningTokens: -1}},

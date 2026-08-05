@@ -9,7 +9,52 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 )
+
+type ItemReplacement struct {
+	Expected    transcript.Item
+	Replacement transcript.Item
+}
+
+// WaitingSubtreeCancellationCommit is the immutable write-set for canceling a
+// child while its Run tree is interrupted.
+type WaitingSubtreeCancellationCommit struct {
+	RootRunID        string
+	TargetRunID      string
+	SessionID        string
+	RootRun          transcript.Run
+	ExpectedPending  interrupts.Pending
+	RemainingPending *interrupts.Pending
+	Checkpoint       execution.ExecutorCheckpoint
+	TerminalRuns     []transcript.Run
+	TerminalItems    []ItemReplacement
+	ParentItem       ItemReplacement
+	Resume           *execution.TreeResumeDraft
+	OpeningEvents    []EventCommit
+}
+
+type WaitingSubtreeCancellationResult struct {
+	TargetRun transcript.Run
+	RootRun   transcript.Run
+}
+
+// OpeningCommit is the atomic acceptance write-set for one fresh admission or
+// one continuation.
+type OpeningCommit struct {
+	Admit            *execution.RunDraft
+	Resume           *execution.TreeResumeDraft
+	ScheduledSession *session.Session
+	SessionModel     *SessionModelUpdate
+	ScheduleFiring   string
+	Events           []EventCommit
+}
+
+// SessionModelUpdate is committed with the Run admission that established it.
+type SessionModelUpdate struct {
+	SessionID string
+	Model     string
+}
 
 type StateChange uint8
 

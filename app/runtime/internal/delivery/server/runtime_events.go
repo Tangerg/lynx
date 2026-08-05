@@ -2,7 +2,7 @@ package server
 
 import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/change"
-	"github.com/Tangerg/lynx/app/runtime/internal/application/integrations"
+	mcpapp "github.com/Tangerg/lynx/app/runtime/internal/application/mcp"
 	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 )
@@ -11,14 +11,14 @@ func (s *Server) observeFileChanges(source source[workspaceapp.FileChangeNotice]
 	source.Observe(func(change workspaceapp.FileChangeNotice) {
 		s.wsHub.publish(protocol.RuntimeEvent{
 			Type:      protocol.RuntimeFilesChanged,
-			Workspace: workspaceRefFromPath(change.Cwd),
+			Workspace: workspaceRefFromPath(change.CWD),
 			Paths:     change.Paths,
 		})
 	})
 }
 
-func (s *Server) observeMCPStatus(source source[integrations.MCPServerStatus]) {
-	source.Observe(func(status integrations.MCPServerStatus) {
+func (s *Server) observeMCPStatusChanges(source source[mcpapp.ServerStatus]) {
+	source.Observe(func(status mcpapp.ServerStatus) {
 		s.wsHub.publish(protocol.RuntimeEvent{
 			Type: protocol.RuntimeMCPChanged, ServerIDs: []string{status.Name},
 		})

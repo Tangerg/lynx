@@ -9,7 +9,7 @@ import (
 )
 
 func TestScheduleValidate(t *testing.T) {
-	base := Schedule{Prompt: "do it", Cron: "0 9 * * 1-5"}
+	base := Schedule{Instructions: "do it", Cron: "0 9 * * 1-5"}
 	tests := []struct {
 		name string
 		mut  func(Schedule) Schedule
@@ -17,7 +17,7 @@ func TestScheduleValidate(t *testing.T) {
 	}{
 		{"valid, default model", func(s Schedule) Schedule { return s }, nil},
 		{"valid, paired model", func(s Schedule) Schedule { s.ModelSelection = mustSelection(t, "anthropic", "claude"); return s }, nil},
-		{"missing prompt", func(s Schedule) Schedule { s.Prompt = ""; return s }, ErrPromptRequired},
+		{"missing instructions", func(s Schedule) Schedule { s.Instructions = ""; return s }, ErrInstructionsRequired},
 		{"missing cron", func(s Schedule) Schedule { s.Cron = ""; return s }, ErrCronRequired},
 	}
 	for _, tt := range tests {
@@ -37,25 +37,25 @@ func TestScheduleValidate(t *testing.T) {
 
 func TestScheduleApplyPatch(t *testing.T) {
 	title := "weekday report"
-	emptyCwd := ""
+	emptyCWD := ""
 	enabled := false
 	sc := Schedule{
-		Title:   "old",
-		Prompt:  "summarize",
-		Cwd:     "/work",
-		Cron:    "@daily",
-		Enabled: true,
+		Title:        "old",
+		Instructions: "summarize",
+		CWD:          "/work",
+		Cron:         "@daily",
+		Enabled:      true,
 	}
 
 	got, err := sc.Apply(Patch{
 		Title:   &title,
-		Cwd:     &emptyCwd,
+		CWD:     &emptyCWD,
 		Enabled: &enabled,
 	})
 	if err != nil {
 		t.Fatalf("Apply: %v", err)
 	}
-	if got.Title != title || got.Cwd != "" || got.Prompt != sc.Prompt || got.Cron != sc.Cron || got.Enabled {
+	if got.Title != title || got.CWD != "" || got.Instructions != sc.Instructions || got.Cron != sc.Cron || got.Enabled {
 		t.Fatalf("patched schedule = %+v", got)
 	}
 
@@ -76,7 +76,7 @@ func mustSelection(t testing.TB, provider, model string) modelref.Selection {
 
 func TestScheduleScheduledAfter(t *testing.T) {
 	after := time.Date(2026, 6, 17, 10, 0, 0, 0, time.UTC)
-	sc := Schedule{Prompt: "do it", Cron: "0 9 * * 1-5", Enabled: true}
+	sc := Schedule{Instructions: "do it", Cron: "0 9 * * 1-5", Enabled: true}
 	got, err := sc.ScheduledAfter(after)
 	if err != nil {
 		t.Fatalf("ScheduledAfter: %v", err)
@@ -87,10 +87,10 @@ func TestScheduleScheduledAfter(t *testing.T) {
 	}
 
 	got, err = Schedule{
-		Prompt:    "do it",
-		Cron:      "@daily",
-		Enabled:   false,
-		NextRunAt: want,
+		Instructions: "do it",
+		Cron:         "@daily",
+		Enabled:      false,
+		NextRunAt:    want,
 	}.ScheduledAfter(after)
 	if err != nil {
 		t.Fatalf("ScheduledAfter disabled: %v", err)

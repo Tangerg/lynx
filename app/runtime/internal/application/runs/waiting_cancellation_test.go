@@ -405,7 +405,7 @@ func TestCancelWaitingChildRehydratesParkedTurnAfterProcessRestart(t *testing.T)
 	if control.rehydrateReq.SessionID != plan.pending.SessionID ||
 		control.rehydrateReq.ExecutorID != plan.pending.ExecutorID ||
 		control.rehydrateReq.ProcessID != rootContinuation.ProcessID ||
-		control.rehydrateReq.Cwd != "/work" ||
+		control.rehydrateReq.CWD != "/work" ||
 		control.rehydrateReq.ModelSelection != rootContinuation.ModelSelection {
 		t.Fatalf("rehydrate request = %+v, want durable root continuation", control.rehydrateReq)
 	}
@@ -654,7 +654,7 @@ func waitingCancellationCoordinator(
 		return prepared.value(), nil
 	}
 	sessions := &fakeRunSessions{
-		sess: session.Session{ID: plan.pending.SessionID, Cwd: "/work"},
+		sess: session.Session{ID: plan.pending.SessionID, CWD: "/work"},
 		pending: map[string]interrupts.Pending{
 			plan.pending.RootRunID: plan.pending,
 		},

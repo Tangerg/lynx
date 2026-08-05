@@ -60,29 +60,29 @@ func TestUpdateSession(t *testing.T) {
 	}
 
 	// relocate to a real dir → cwd surfaces on the wire
-	newCwd := t.TempDir()
+	newCWD := t.TempDir()
 	out, err = s.UpdateSession(ctx, protocol.UpdateSessionRequest{
-		SessionID: created.ID, Workspace: &protocol.WorkspaceRef{Path: newCwd},
+		SessionID: created.ID, Workspace: &protocol.WorkspaceRef{Path: newCWD},
 	})
 	if err != nil {
 		t.Fatalf("relocate: %v", err)
 	}
-	if out.Workspace.Ref.Path != canonicalWorkspacePath(t, newCwd) {
-		t.Errorf("workspace = %q, want relocated %q", out.Workspace.Ref.Path, canonicalWorkspacePath(t, newCwd))
+	if out.Workspace.Ref.Path != canonicalWorkspacePath(t, newCWD) {
+		t.Errorf("workspace = %q, want relocated %q", out.Workspace.Ref.Path, canonicalWorkspacePath(t, newCWD))
 	}
 	releaseSession, ok := rt.admissions.AcquireSession(created.ID)
 	if !ok {
 		t.Fatal("claim active session")
 	}
-	busyCwd := t.TempDir()
+	busyCWD := t.TempDir()
 	if _, err := s.UpdateSession(ctx, protocol.UpdateSessionRequest{
-		SessionID: created.ID, Workspace: &protocol.WorkspaceRef{Path: busyCwd},
+		SessionID: created.ID, Workspace: &protocol.WorkspaceRef{Path: busyCWD},
 	}); !errors.Is(err, protocol.ErrSessionBusy) {
 		t.Fatalf("relocate under active run = %v, want ErrSessionBusy", err)
 	}
 	releaseSession()
 
-	if err := os.RemoveAll(newCwd); err != nil {
+	if err := os.RemoveAll(newCWD); err != nil {
 		t.Fatalf("remove cwd: %v", err)
 	}
 	out, err = s.GetSession(ctx, created.ID)

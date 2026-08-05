@@ -17,8 +17,8 @@ func TestHookValidate(t *testing.T) {
 		{name: "missing action", hook: Hook{Event: Stop}},
 		{name: "ambiguous action", hook: Hook{Event: Stop, Command: "notify", Inject: "context"}},
 		{name: "blank command", hook: Hook{Event: Stop, Command: "  "}},
-		{name: "negative timeout", hook: Hook{Event: Stop, Command: "notify", TimeoutMs: -1}},
-		{name: "timeout on inject", hook: Hook{Event: SessionStart, Inject: "context", TimeoutMs: 100}},
+		{name: "negative timeout", hook: Hook{Event: Stop, Command: "notify", TimeoutMillis: -1}},
+		{name: "timeout on inject", hook: Hook{Event: SessionStart, Inject: "context", TimeoutMillis: 100}},
 		{name: "matcher on non-tool event", hook: Hook{Event: Stop, Command: "notify", Matcher: "shell"}},
 		{name: "malformed matcher", hook: Hook{Event: PreToolUse, Command: "check", Matcher: "["}},
 	}

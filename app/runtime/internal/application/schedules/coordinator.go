@@ -29,30 +29,30 @@ type ManagementStore interface {
 // Coordinator owns editable scheduled-run management over its narrow store.
 // It is stateless beyond its dependencies and safe to share.
 type Coordinator struct {
-	registry ManagementStore
-	paths    CwdResolver
-	now      func() time.Time
-	enabled  bool
+	store   ManagementStore
+	paths   CWDResolver
+	now     func() time.Time
+	enabled bool
 }
 
-// CwdResolver is the filesystem boundary used to admit a schedule's working
+// CWDResolver is the filesystem boundary used to admit a schedule's working
 // directory. Persisted schedules always hold either an empty cwd (the runtime
 // default) or a canonical existing directory.
-type CwdResolver interface {
+type CWDResolver interface {
 	ResolveExistingDir(path string) (string, error)
 }
 
 // Dependencies is the collaborator set [New] wires into a Coordinator.
 type Dependencies struct {
 	Store ManagementStore
-	Paths CwdResolver
+	Paths CWDResolver
 }
 
 // CreateCommand is the complete editable state of a new schedule.
 type CreateCommand struct {
 	Title          string
-	Prompt         string
-	Cwd            string
+	Instructions   string
+	CWD            string
 	ModelSelection modelref.Selection
 	Cron           string
 	Enabled        bool
@@ -68,16 +68,16 @@ type UpdateCommand struct {
 // New returns a Coordinator over deps. A nil store yields a disabled
 // coordinator (every CRUD operation returns [schedule.ErrUnavailable]).
 func New(deps Dependencies) *Coordinator {
-	registry := deps.Store
-	enabled := registry != nil
-	if registry == nil {
-		registry = disabledManagementStore{}
+	store := deps.Store
+	enabled := store != nil
+	if store == nil {
+		store = disabledManagementStore{}
 	}
 	return &Coordinator{
-		registry: registry,
-		paths:    deps.Paths,
-		now:      time.Now,
-		enabled:  enabled,
+		store:   store,
+		paths:   deps.Paths,
+		now:     time.Now,
+		enabled: enabled,
 	}
 }
 
@@ -86,7 +86,7 @@ func (c *Coordinator) Available() bool { return c != nil && c.enabled }
 
 // List returns every saved schedule, newest-created first.
 func (c *Coordinator) List(ctx context.Context) ([]schedule.Schedule, error) {
-	return c.registry.List(ctx)
+	return c.store.List(ctx)
 }
 
 // listPageNamespace binds cursors to this schedule read independently of other
@@ -118,7 +118,7 @@ func (c *Coordinator) ListPage(ctx context.Context, cursor string, limit int) (k
 	if err != nil {
 		return keyset.Page[schedule.Schedule]{}, err
 	}
-	rows, err := c.registry.ListPage(ctx, afterCreatedAt, afterID, size+1)
+	rows, err := c.store.ListPage(ctx, afterCreatedAt, afterID, size+1)
 	if err != nil {
 		return keyset.Page[schedule.Schedule]{}, err
 	}
@@ -134,8 +134,8 @@ func (c *Coordinator) Create(ctx context.Context, cmd CreateCommand) (schedule.S
 	}
 	sc, err := (schedule.Schedule{
 		Title:          cmd.Title,
-		Prompt:         cmd.Prompt,
-		Cwd:            cmd.Cwd,
+		Instructions:   cmd.Instructions,
+		CWD:            cmd.CWD,
 		ModelSelection: cmd.ModelSelection,
 		Cron:           cmd.Cron,
 		Enabled:        cmd.Enabled,
@@ -143,11 +143,11 @@ func (c *Coordinator) Create(ctx context.Context, cmd CreateCommand) (schedule.S
 	if err != nil {
 		return schedule.Schedule{}, err
 	}
-	sc.Cwd, err = c.resolveCwd(sc.Cwd)
+	sc.CWD, err = c.resolveCWD(sc.CWD)
 	if err != nil {
 		return schedule.Schedule{}, err
 	}
-	created, err := c.registry.Create(ctx, sc)
+	created, err := c.store.Create(ctx, sc)
 	if err != nil {
 		return schedule.Schedule{}, fmt.Errorf("schedules: create: %w", err)
 	}
@@ -166,16 +166,16 @@ func (c *Coordinator) Update(ctx context.Context, cmd UpdateCommand) (schedule.S
 	if cmd.ExpectedRevision == 0 {
 		return schedule.Schedule{}, schedule.ErrRevisionRequired
 	}
-	existing, err := c.registry.Get(ctx, cmd.ID)
+	existing, err := c.store.Get(ctx, cmd.ID)
 	if err != nil {
 		return schedule.Schedule{}, fmt.Errorf("schedules: get %q for update: %w", cmd.ID, err)
 	}
 	return c.updateExisting(ctx, existing, cmd.Patch, cmd.ExpectedRevision)
 }
 
-// UpdateLatest applies an internal automation patch to the latest durable
-// revision. Unlike Update with an observed revision, an Agent tool has no stale
-// caller snapshot to protect; the coordinator's own read is its OCC baseline.
+// UpdateLatest applies a patch to the latest durable revision. Unlike Update
+// with an observed revision, this use case has no caller snapshot to protect;
+// the coordinator's own read is its optimistic-concurrency baseline.
 func (c *Coordinator) UpdateLatest(ctx context.Context, id string, patch schedule.Patch) (schedule.Schedule, error) {
 	if !c.enabled {
 		return schedule.Schedule{}, schedule.ErrUnavailable
@@ -183,7 +183,7 @@ func (c *Coordinator) UpdateLatest(ctx context.Context, id string, patch schedul
 	if id == "" {
 		return schedule.Schedule{}, schedule.ErrIDRequired
 	}
-	existing, err := c.registry.Get(ctx, id)
+	existing, err := c.store.Get(ctx, id)
 	if err != nil {
 		return schedule.Schedule{}, fmt.Errorf("schedules: get %q for update: %w", id, err)
 	}
@@ -204,13 +204,13 @@ func (c *Coordinator) updateExisting(
 	if err != nil {
 		return schedule.Schedule{}, err
 	}
-	if patch.Cwd != nil {
-		updated.Cwd, err = c.resolveCwd(updated.Cwd)
+	if patch.CWD != nil {
+		updated.CWD, err = c.resolveCWD(updated.CWD)
 		if err != nil {
 			return schedule.Schedule{}, err
 		}
 	}
-	updated, err = c.registry.Update(ctx, updated, expectedRevision)
+	updated, err = c.store.Update(ctx, updated, expectedRevision)
 	if err != nil {
 		return schedule.Schedule{}, fmt.Errorf("schedules: update %q: %w", existing.ID, err)
 	}
@@ -225,22 +225,22 @@ func (c *Coordinator) Delete(ctx context.Context, id string) error {
 	if id == "" {
 		return schedule.ErrIDRequired
 	}
-	if err := c.registry.Delete(ctx, id); err != nil {
+	if err := c.store.Delete(ctx, id); err != nil {
 		return fmt.Errorf("schedules: delete %q: %w", id, err)
 	}
 	return nil
 }
 
-func (c *Coordinator) resolveCwd(cwd string) (string, error) {
+func (c *Coordinator) resolveCWD(cwd string) (string, error) {
 	if cwd == "" {
 		return "", nil
 	}
 	if c.paths == nil {
-		return "", errors.Join(schedule.ErrCwdUnavailable, errors.New("schedules: cwd resolver is unavailable"))
+		return "", errors.Join(schedule.ErrCWDUnavailable, errors.New("schedules: cwd resolver is unavailable"))
 	}
 	resolved, err := c.paths.ResolveExistingDir(cwd)
 	if err != nil {
-		return "", fmt.Errorf("%w: resolve %q: %w", schedule.ErrCwdUnavailable, cwd, err)
+		return "", fmt.Errorf("%w: resolve %q: %w", schedule.ErrCWDUnavailable, cwd, err)
 	}
 	return resolved, nil
 }

@@ -171,21 +171,21 @@ func (p *segmentPump) handleEngineEvent(event ExecutorEvent) bool {
 		p.fail(fmt.Errorf("runs: admitted child run %q has no segment reducer", route.runID))
 		return false
 	}
-	engineEvent, ok := event.Payload.(EngineEvent)
+	executionFact, ok := event.Payload.(ExecutionFact)
 	if !ok {
 		p.fail(fmt.Errorf("runs: unsupported executor payload %T", event.Payload))
 		return false
 	}
-	if _, interrupted := engineEvent.(SegmentInterrupted); interrupted {
+	if _, interrupted := executionFact.(SegmentInterrupted); interrupted {
 		p.fail(errors.New("runs: executor emitted a per-Run interrupt instead of a tree barrier"))
 		return false
 	}
-	if toolEnd, endingTool := engineEvent.(ToolCallEnd); endingTool {
+	if toolEnd, endingTool := executionFact.(ToolCallFinished); endingTool {
 		if itemID, open := route.reducer.openToolItemID(toolEnd.CallID); open {
-			engineEvent = p.live.classifyChildCancellationTool(route.runID, itemID, toolEnd)
+			executionFact = p.live.classifyChildCancellationTool(route.runID, itemID, toolEnd)
 		}
 	}
-	if route == p.routes.root && engineEventEndsSegment(engineEvent) {
+	if route == p.routes.root && engineEventEndsSegment(executionFact) {
 		if activeChildren := p.routes.unfinishedCount() - 1; activeChildren > 0 {
 			p.fail(fmt.Errorf(
 				"runs: root run %q reached a segment boundary with %d active child runs",
@@ -195,7 +195,7 @@ func (p *segmentPump) handleEngineEvent(event ExecutorEvent) bool {
 			return false
 		}
 	}
-	reductions, err := route.reducer.reduce(engineEvent)
+	reductions, err := route.reducer.reduce(executionFact)
 	if err != nil {
 		p.fail(err)
 		return false
@@ -305,7 +305,7 @@ func (p *segmentPump) finishBoundary() {
 		if err := p.coordinator.effects.Finish(ctx, Finish{
 			SessionID:       p.spec.SessionID,
 			RunID:           p.spec.RunID,
-			Cwd:             p.spec.Cwd,
+			CWD:             p.spec.CWD,
 			Parked:          p.rootParked,
 			OpeningUserText: p.spec.OpeningUserText,
 		}); err != nil {
@@ -322,7 +322,7 @@ func (p *segmentPump) finishBoundary() {
 	p.coordinator.registry.Remove(p.spec.RunID)
 }
 
-func engineEventEndsSegment(event EngineEvent) bool {
+func engineEventEndsSegment(event ExecutionFact) bool {
 	switch event.(type) {
 	case SegmentEnded:
 		return true

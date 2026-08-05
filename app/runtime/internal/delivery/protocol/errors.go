@@ -216,7 +216,7 @@ const (
 	ProblemDeniedByUser     = "denied_by_user"     // denied by the approval verdict
 	ProblemToolFailed       = "tool_failed"        // tool execution returned an error
 	ProblemChildRunCanceled = "child_run_canceled" // delegated Run was canceled by Run identity
-	// Inline status (McpServer.status.error, ProviderTestResult.error) — a connection or
+	// Inline status (MCPServer.status.error, ProviderTestResult.error) — a connection or
 	// probe verdict that rides its own query result instead of failing the call,
 	// so the pane renders it beside the thing it describes.
 	ProblemMCPAuthorizationRequired = "mcp_authorization_required" // an HTTP MCP server needs an interactive sign-in

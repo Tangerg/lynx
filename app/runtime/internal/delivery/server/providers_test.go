@@ -68,10 +68,10 @@ func TestModelToWire(t *testing.T) {
 	}
 
 	if m.Pricing == nil ||
-		m.Pricing.InputUsdPerMillionTokens != 3 ||
-		m.Pricing.OutputUsdPerMillionTokens != 15 ||
-		m.Pricing.CacheReadUsdPerMillionTokens != 0.3 ||
-		m.Pricing.CacheWriteUsdPerMillionTokens != 3.75 {
+		m.Pricing.InputUSDPerMillionTokens != 3 ||
+		m.Pricing.OutputUSDPerMillionTokens != 15 ||
+		m.Pricing.CacheReadUSDPerMillionTokens != 0.3 ||
+		m.Pricing.CacheWriteUSDPerMillionTokens != 3.75 {
 		t.Errorf("pricing = %+v", m.Pricing)
 	}
 }

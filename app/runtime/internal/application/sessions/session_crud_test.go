@@ -15,7 +15,7 @@ type crudSessionStore struct {
 	sessions      []session.Session
 	getID         string
 	createTitle   string
-	createCwd     string
+	createCWD     string
 	renamed       [2]string
 	model         [2]string
 	modelErr      error
@@ -34,13 +34,13 @@ func (s *crudSessionStore) List(context.Context) ([]session.Session, error) { re
 
 func (s *crudSessionStore) Get(_ context.Context, id string) (session.Session, error) {
 	s.getID = id
-	return session.Session{ID: id, Cwd: "/repo"}, nil
+	return session.Session{ID: id, CWD: "/repo"}, nil
 }
 
 func (s *crudSessionStore) Create(_ context.Context, title, cwd string) (session.Session, error) {
 	s.createTitle = title
-	s.createCwd = cwd
-	return session.Session{ID: "ses_created", Title: title, Cwd: cwd}, nil
+	s.createCWD = cwd
+	return session.Session{ID: "ses_created", Title: title, CWD: cwd}, nil
 }
 
 func (s *crudSessionStore) Ensure(_ context.Context, sess session.Session) (session.Session, error) {
@@ -61,8 +61,8 @@ func (s *crudSessionStore) Patch(_ context.Context, id string, patch session.Pat
 	if patch.Model != nil {
 		s.model = [2]string{id, *patch.Model}
 	}
-	if patch.Cwd != nil {
-		s.cwd = [2]string{id, *patch.Cwd}
+	if patch.CWD != nil {
+		s.cwd = [2]string{id, *patch.CWD}
 	}
 	if patch.Favorite != nil {
 		s.favoriteID = id
@@ -107,7 +107,7 @@ func (*crudStores) ApplyTerminal(context.Context, TerminalPlan) error { return n
 func TestCoordinatorSessionCRUD(t *testing.T) {
 	store := &crudSessionStore{sessions: []session.Session{{ID: "ses_1"}}}
 	stores := &crudStores{session: store}
-	c := New(testDependencies(stores, Dependencies{Paths: testCwdResolver{resolved: "/resolved/project"}}))
+	c := New(testDependencies(stores, Dependencies{Paths: testCWDResolver{resolved: "/resolved/project"}}))
 	ctx := context.Background()
 
 	listed, err := c.List(ctx)
@@ -122,7 +122,7 @@ func TestCoordinatorSessionCRUD(t *testing.T) {
 	if err != nil {
 		t.Fatalf("get session: %v", err)
 	}
-	if store.getID != "ses_2" || got.Cwd != "/repo" {
+	if store.getID != "ses_2" || got.CWD != "/repo" {
 		t.Fatalf("getID=%q got=%+v", store.getID, got)
 	}
 
@@ -130,15 +130,15 @@ func TestCoordinatorSessionCRUD(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create session: %v", err)
 	}
-	if created.ID != "ses_created" || store.createTitle != "New" || store.createCwd != "/resolved/project" {
-		t.Fatalf("created=%+v title=%q cwd=%q", created, store.createTitle, store.createCwd)
+	if created.ID != "ses_created" || store.createTitle != "New" || store.createCWD != "/resolved/project" {
+		t.Fatalf("created=%+v title=%q cwd=%q", created, store.createTitle, store.createCWD)
 	}
 }
 
 func TestViewUsesConfiguredDefaultModel(t *testing.T) {
-	c := New(Dependencies{Paths: testCwdResolver{}, DefaultModel: "claude-opus-4-8"})
+	c := New(Dependencies{Paths: testCWDResolver{}, DefaultModel: "claude-opus-4-8"})
 
-	view, err := c.view(session.Session{ID: "ses_1", Cwd: "/repo"}, ActivityIdle)
+	view, err := c.view(session.Session{ID: "ses_1", CWD: "/repo"}, ActivityIdle)
 	if err != nil {
 		t.Fatalf("view: %v", err)
 	}
@@ -151,7 +151,7 @@ func TestCoordinatorUpdateAppliesPatch(t *testing.T) {
 	store := &crudSessionStore{}
 	claims := new(testClaimer)
 	stores := &crudStores{session: store}
-	c := New(testDependencies(stores, Dependencies{Paths: testCwdResolver{resolved: "/resolved/project"}, Admissions: claims}))
+	c := New(testDependencies(stores, Dependencies{Paths: testCWDResolver{resolved: "/resolved/project"}, Admissions: claims}))
 	ctx := context.Background()
 
 	title := "  Renamed  "
@@ -162,7 +162,7 @@ func TestCoordinatorUpdateAppliesPatch(t *testing.T) {
 	got, err := c.Update(ctx, "ses_1", session.Patch{
 		Title:    &title,
 		Model:    &model,
-		Cwd:      &cwd,
+		CWD:      &cwd,
 		Favorite: &favorite,
 	})
 	if err != nil {
@@ -192,10 +192,10 @@ func TestCoordinatorUpdateRejectsRelocationDuringRun(t *testing.T) {
 	store := &crudSessionStore{}
 	claims := &testClaimer{claimed: map[string]bool{"ses_1": true}}
 	stores := &crudStores{session: store}
-	c := New(testDependencies(stores, Dependencies{Paths: testCwdResolver{resolved: "/resolved/project"}, Admissions: claims}))
+	c := New(testDependencies(stores, Dependencies{Paths: testCWDResolver{resolved: "/resolved/project"}, Admissions: claims}))
 	cwd := "/requested/project"
 
-	_, err := c.Update(t.Context(), "ses_1", session.Patch{Cwd: &cwd})
+	_, err := c.Update(t.Context(), "ses_1", session.Patch{CWD: &cwd})
 	if !errors.Is(err, ErrSessionBusy) {
 		t.Fatalf("Update relocation error = %v, want ErrSessionBusy", err)
 	}
@@ -208,7 +208,7 @@ func TestCoordinatorUpdateRejectsExecutionPolicyChangeWhileParked(t *testing.T) 
 	for name, patch := range map[string]session.Patch{
 		"cwd": func() session.Patch {
 			cwd := "/requested/project"
-			return session.Patch{Cwd: &cwd}
+			return session.Patch{CWD: &cwd}
 		}(),
 		"isolation": func() session.Patch {
 			isolated := true
@@ -224,7 +224,7 @@ func TestCoordinatorUpdateRejectsExecutionPolicyChangeWhileParked(t *testing.T) 
 				}},
 			}
 			coordinator := New(testDependencies(stores, Dependencies{
-				Paths:      testCwdResolver{resolved: "/resolved/project"},
+				Paths:      testCWDResolver{resolved: "/resolved/project"},
 				Admissions: new(testClaimer),
 			}))
 
@@ -242,7 +242,7 @@ func TestCoordinatorUpdateRejectsExecutionPolicyChangeWhileParked(t *testing.T) 
 func TestCoordinatorUpdateRejectsInvalidPatch(t *testing.T) {
 	store := &crudSessionStore{}
 	stores := &crudStores{session: store}
-	c := New(testDependencies(stores, Dependencies{Paths: testCwdResolver{err: errors.New("cwd unavailable")}}))
+	c := New(testDependencies(stores, Dependencies{Paths: testCWDResolver{err: errors.New("cwd unavailable")}}))
 
 	blank := "  "
 	if _, err := c.Update(t.Context(), "ses_1", session.Patch{Title: &blank}); !errors.Is(err, session.ErrTitleRequired) {
@@ -253,27 +253,27 @@ func TestCoordinatorUpdateRejectsInvalidPatch(t *testing.T) {
 	}
 
 	ghost := "/no/such/dir"
-	if _, err := c.Update(t.Context(), "ses_1", session.Patch{Cwd: &ghost}); !errors.Is(err, session.ErrCwdUnavailable) {
-		t.Fatalf("ghost cwd err = %v, want ErrCwdUnavailable", err)
+	if _, err := c.Update(t.Context(), "ses_1", session.Patch{CWD: &ghost}); !errors.Is(err, session.ErrCWDUnavailable) {
+		t.Fatalf("ghost cwd err = %v, want ErrCWDUnavailable", err)
 	}
 	if store.cwd != ([2]string{}) {
 		t.Fatalf("ghost cwd updated session: %v", store.cwd)
 	}
 
 	title := "Renamed"
-	if _, err := c.Update(t.Context(), "ses_1", session.Patch{Title: &title, Cwd: &ghost}); !errors.Is(err, session.ErrCwdUnavailable) {
-		t.Fatalf("mixed patch err = %v, want ErrCwdUnavailable", err)
+	if _, err := c.Update(t.Context(), "ses_1", session.Patch{Title: &title, CWD: &ghost}); !errors.Is(err, session.ErrCWDUnavailable) {
+		t.Fatalf("mixed patch err = %v, want ErrCWDUnavailable", err)
 	}
 	if store.renamed != ([2]string{}) {
 		t.Fatalf("invalid mixed patch renamed session: %v", store.renamed)
 	}
 
 	missing := "/missing/project"
-	if _, err := c.Create(context.Background(), "New", missing); !errors.Is(err, session.ErrCwdUnavailable) {
-		t.Fatalf("missing create cwd err = %v, want ErrCwdUnavailable", err)
+	if _, err := c.Create(context.Background(), "New", missing); !errors.Is(err, session.ErrCWDUnavailable) {
+		t.Fatalf("missing create cwd err = %v, want ErrCWDUnavailable", err)
 	}
-	if store.createCwd != "" {
-		t.Fatalf("missing create cwd wrote session: %q", store.createCwd)
+	if store.createCWD != "" {
+		t.Fatalf("missing create cwd wrote session: %q", store.createCWD)
 	}
 }
 
@@ -310,7 +310,7 @@ func sessionRows(ids ...string) []session.Session {
 	out := make([]session.Session, 0, len(ids))
 	for i, id := range ids {
 		out = append(out, session.Session{
-			ID: id, Cwd: "/repo", UpdatedAt: time.Unix(0, int64(len(ids)-i)).UTC(),
+			ID: id, CWD: "/repo", UpdatedAt: time.Unix(0, int64(len(ids)-i)).UTC(),
 		})
 	}
 	return out
@@ -327,7 +327,7 @@ func TestListViewPagePagesInAFixedOrderAndRefusesAForeignCursor(t *testing.T) {
 		rows:             sessionRows("ses_1", "ses_2", "ses_3"),
 	}
 	c := New(testDependencies(&crudStores{session: store}, Dependencies{
-		Paths: testCwdResolver{resolved: "/repo"},
+		Paths: testCWDResolver{resolved: "/repo"},
 	}))
 	ctx := t.Context()
 

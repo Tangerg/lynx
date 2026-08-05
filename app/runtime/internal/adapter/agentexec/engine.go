@@ -22,21 +22,21 @@ import (
 // integration control, tool catalogs, and resource shutdown are owned by their
 // direct consumers and the composition Host.
 type Engine struct {
-	runtime      *runtime.Engine
-	agent        *core.Agent
-	dependencies *core.Dependencies
-	checkpoints  CheckpointReader
-	buildID      string
+	agentRuntime      *runtime.Engine
+	turnAgent         *core.Agent
+	agentDependencies *core.Dependencies
+	checkpoints       CheckpointReader
+	buildID           string
 
-	historyStore   history.Store
-	chatMiddleware *core.ChatMiddleware
-	knowledge      KnowledgeReader
-	memory         AgentMemoryReader
-	memorySearch   MemorySearcher
-	plan           PlanReader
-	workdir        string
-	userHome       string
-	pricing        accounting.Pricing
+	historyStore      history.Store
+	chatMiddleware    *core.ChatMiddleware
+	knowledge         KnowledgeReader
+	agentMemory       AgentMemoryReader
+	agentMemorySearch AgentMemorySearcher
+	plan              PlanReader
+	defaultCWD        string
+	userHome          string
+	pricing           accounting.Pricing
 
 	toolResultStore      toolResultOffloader
 	toolResultThreshold  int
@@ -64,10 +64,10 @@ type SubagentProjection struct {
 // Valid while the engine still owns the process tree, which is true for the
 // duration of any event this answers.
 func (e *Engine) SubagentProjection(processID string) (SubagentProjection, bool) {
-	if e == nil || e.runtime == nil {
+	if e == nil || e.agentRuntime == nil {
 		return SubagentProjection{}, false
 	}
-	process, ok := e.runtime.Process(processID)
+	process, ok := e.agentRuntime.Process(processID)
 	if !ok {
 		return SubagentProjection{}, false
 	}
@@ -114,15 +114,15 @@ func New(ctx context.Context, config Config) (*Engine, error) {
 	}
 
 	engine := &Engine{
-		runtime:                agentRuntime,
-		dependencies:           agentRuntime.Dependencies(),
+		agentRuntime:           agentRuntime,
+		agentDependencies:      agentRuntime.Dependencies(),
 		knowledge:              config.Knowledge,
-		memory:                 config.AgentMemory,
-		memorySearch:           config.MemorySearch,
+		agentMemory:            config.AgentMemory,
+		agentMemorySearch:      config.AgentMemorySearch,
 		historyStore:           config.HistoryStore,
 		chatMiddleware:         chatMiddleware,
 		plan:                   config.Plan,
-		workdir:                config.Workdir,
+		defaultCWD:             config.DefaultCWD,
 		userHome:               config.UserHome,
 		pricing:                config.Pricing,
 		checkpoints:            config.Checkpoints,
@@ -158,8 +158,8 @@ func New(ctx context.Context, config Config) (*Engine, error) {
 		resolver.UseDelegationTool(delegationTool)
 	}
 
-	engine.agent = engine.buildTurnAgent()
-	if _, err := agentRuntime.Deploy(ctx, engine.agent); err != nil {
+	engine.turnAgent = engine.buildTurnAgent()
+	if _, err := agentRuntime.Deploy(ctx, engine.turnAgent); err != nil {
 		return nil, fmt.Errorf("engine: deploy turn agent: %w", err)
 	}
 	return engine, nil

@@ -7,15 +7,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 )
 
-func registerLifecycle(r *Registry) {
-	// runtime.discover takes no params; struct{} makes an unexpected field a
-	// decode failure rather than something silently ignored.
-	Query(r, MethodMeta{Name: "runtime.discover", Stability: stable},
-		func(d *Router, ctx context.Context, _ struct{}) (*protocol.DiscoverResponse, error) {
-			return d.api.Discover(ctx)
-		})
-}
-
 func registerRuns(r *Registry) {
 	// runs.start and runs.resume open a run. A same-key retry must land back on
 	// THAT run — replaying the cached ack alone would give the client a runId with
@@ -129,59 +120,5 @@ func registerRuns(r *Registry) {
 		Stability: stable,
 	}, func(d *Router, ctx context.Context, in protocol.ListRunsRequest) (*protocol.Page[protocol.RunRef], error) {
 		return d.api.ListRuns(ctx, in)
-	})
-}
-
-func registerInterrupts(r *Registry) {
-	// interrupts.list is its own root because a waiting set belongs to a run TREE,
-	// not to one run: it was runs.listOpenInterrupts, which read as "one run's
-	// interrupts" and made the aggregate look like a per-run detail.
-	//
-	// run_not_root is declared because the filter can name a child, and that is a
-	// different answer from "nothing is waiting".
-	Query(r, MethodMeta{
-		Name: "interrupts.list",
-		Errors: []string{
-			protocol.ErrRunNotRoot.Error(),
-			protocol.ErrCapabilityNotNeg.Error(),
-		},
-		Stability: stable,
-	}, func(d *Router, ctx context.Context, in protocol.ListInterruptsRequest) (*protocol.Page[protocol.PendingInterruptSet], error) {
-		return d.api.ListInterrupts(ctx, in)
-	})
-}
-
-func registerPlan(r *Registry) {
-	// The recovery source the plan state key declares. A session with no list yet
-	// answers with the empty state at revision 0 — "nothing written" is a fact, and
-	// only a session that does not exist is an error.
-	Query(r, MethodMeta{
-		Name:            "plan.get",
-		Errors:          []string{protocol.ErrSessionNotFound.Error()},
-		CapabilityRules: requires(protocol.FeaturePlan),
-		Stability:       stable,
-	}, func(d *Router, ctx context.Context, in protocol.GetPlanRequest) (*protocol.StateSnapshot, error) {
-		return d.api.GetPlan(ctx, in)
-	})
-}
-
-func registerItems(r *Registry) {
-	// Either scope can name something that does not exist, and the client's next move
-	// differs — find the session, or find the run — so both refusals are declared.
-	// Asking a run scope for its subtree needs features.subagents; the scope itself
-	// does not, since a root run is a run.
-	Query(r, MethodMeta{
-		Name: "items.list",
-		Errors: []string{
-			protocol.ErrSessionNotFound.Error(),
-			protocol.ErrRunNotFound.Error(),
-		},
-		CapabilityRules: []CapabilityRule{{
-			When:     []FieldCondition{{Field: "scope.includeDescendants", Operator: OperatorPresent}},
-			Requires: []string{protocol.FeatureSubagents},
-		}},
-		Stability: stable,
-	}, func(d *Router, ctx context.Context, in protocol.ListItemsRequest) (*protocol.ListItemsResponse, error) {
-		return d.api.ListItems(ctx, in)
 	})
 }

@@ -63,11 +63,11 @@ func listRecipes(ctx context.Context, projectDir, globalDir string) ([]workspace
 	return out, nil
 }
 
-func recipeDir(workdir string) string {
-	if workdir == "" {
+func recipeDir(cwd string) string {
+	if cwd == "" {
 		return ""
 	}
-	return filepath.Join(workdir, recipeProjectSubdir)
+	return filepath.Join(cwd, recipeProjectSubdir)
 }
 
 func recipeName(filename string) (string, bool) {

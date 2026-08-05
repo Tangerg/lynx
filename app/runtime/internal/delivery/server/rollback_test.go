@@ -43,7 +43,7 @@ func rollbackHarness(t *testing.T) (*Server, *stubRuntime) {
 func putSession(t *testing.T, rt *stubRuntime, sessionID string) {
 	t.Helper()
 	if err := rt.sess.Restore(t.Context(), session.Session{
-		ID: sessionID, Title: sessionID, Cwd: t.TempDir(),
+		ID: sessionID, Title: sessionID, CWD: t.TempDir(),
 		StartedAt: time.Unix(1, 0).UTC(), UpdatedAt: time.Unix(1, 0).UTC(),
 	}); err != nil {
 		t.Fatalf("putSession %s: %v", sessionID, err)

@@ -19,11 +19,11 @@ func TestWorkspaceMutationLogRoundTrip(t *testing.T) {
 	ctx := context.Background()
 
 	if err := store.Record(ctx, execution.WorkspaceMutation{
-		SessionID: "ses_1", Cwd: "/repo", ToRunID: "run_1", RestoreHistory: true,
+		SessionID: "ses_1", CWD: "/repo", ToRunID: "run_1", RestoreHistory: true,
 	}); err != nil {
 		t.Fatalf("record: %v", err)
 	}
-	if err := store.Record(ctx, execution.WorkspaceMutation{SessionID: "ses_2", Cwd: "/repo2", ToRunID: "run_9"}); err != nil {
+	if err := store.Record(ctx, execution.WorkspaceMutation{SessionID: "ses_2", CWD: "/repo2", ToRunID: "run_9"}); err != nil {
 		t.Fatalf("record 2: %v", err)
 	}
 
@@ -35,7 +35,7 @@ func TestWorkspaceMutationLogRoundTrip(t *testing.T) {
 		t.Fatalf("pending = %d, want 2", len(pending))
 	}
 	if pending[0] != (execution.WorkspaceMutation{
-		SessionID: "ses_1", Cwd: "/repo", ToRunID: "run_1", RestoreHistory: true,
+		SessionID: "ses_1", CWD: "/repo", ToRunID: "run_1", RestoreHistory: true,
 	}) {
 		t.Fatalf("pending[0] = %+v, want the ses_1 intent verbatim", pending[0])
 	}
@@ -65,11 +65,11 @@ func TestWorkspaceMutationReRecordReplaces(t *testing.T) {
 	store := NewWorkspaceMutationStore(db)
 	ctx := context.Background()
 
-	_ = store.Record(ctx, execution.WorkspaceMutation{SessionID: "ses_1", Cwd: "/a", ToRunID: "run_1"})
-	_ = store.Record(ctx, execution.WorkspaceMutation{SessionID: "ses_1", Cwd: "/b", ToRunID: "run_2"})
+	_ = store.Record(ctx, execution.WorkspaceMutation{SessionID: "ses_1", CWD: "/a", ToRunID: "run_1"})
+	_ = store.Record(ctx, execution.WorkspaceMutation{SessionID: "ses_1", CWD: "/b", ToRunID: "run_2"})
 
 	pending, _ := store.ListPending(ctx)
-	if len(pending) != 1 || pending[0].Cwd != "/b" || pending[0].ToRunID != "run_2" {
+	if len(pending) != 1 || pending[0].CWD != "/b" || pending[0].ToRunID != "run_2" {
 		t.Fatalf("pending = %+v, want one ses_1 row with the latest intent", pending)
 	}
 }

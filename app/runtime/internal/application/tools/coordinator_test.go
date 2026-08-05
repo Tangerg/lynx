@@ -57,7 +57,7 @@ func TestInvokeUsesRegistry(t *testing.T) {
 	roots := &rootRecorder{}
 	c := New(invoker, roots)
 
-	got, err := c.Invoke(context.Background(), Invocation{Name: "read", Arguments: `{"path":"main.go"}`, Cwd: "/requested"})
+	got, err := c.Invoke(context.Background(), Invocation{Name: "read", Arguments: `{"path":"main.go"}`, CWD: "/requested"})
 	if err != nil {
 		t.Fatalf("Invoke: %v", err)
 	}

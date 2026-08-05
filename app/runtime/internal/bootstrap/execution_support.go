@@ -17,7 +17,7 @@ import (
 
 type executionSupport struct {
 	steering    turn.SteeringSink
-	maintenance turn.RunMaintenance
+	maintenance turn.Maintenance
 }
 
 func buildExecutionSupport(cfg Config, messages messageEnvironment, shells *exec.Shells, skillStore *skillauthoring.Store, skillProposals *workspace.Skills, resolveUtility func(context.Context) *chatclient.Client, embedder func(context.Context) (agentmemory.Embedder, error)) executionSupport {
@@ -57,6 +57,6 @@ func buildExecutionSupport(cfg Config, messages messageEnvironment, shells *exec
 		)
 		curator = maintenance.NewSkillCurator(skillStore, maintenance.LifecycleConfig{})
 	}
-	support.maintenance = maintenance.NewSuite(compactor, extractor, miner, curator)
+	support.maintenance = maintenance.NewPipeline(compactor, extractor, miner, curator)
 	return support
 }

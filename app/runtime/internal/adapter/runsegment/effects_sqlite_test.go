@@ -358,7 +358,7 @@ func TestCommitOpeningRollsBackScheduledSession(t *testing.T) {
 	})
 	created := time.Now().UTC()
 	draft := execution.RunDraft{RunID: "run_scheduled", SessionID: "ses_scheduled", SegmentID: "seg_open", CreatedAt: created}
-	scheduled := session.Session{ID: draft.SessionID, Title: "scheduled", Cwd: "/work", StartedAt: created, UpdatedAt: created, Revision: 1}
+	scheduled := session.Session{ID: draft.SessionID, Title: "scheduled", CWD: "/work", StartedAt: created, UpdatedAt: created, Revision: 1}
 	err = effects.CommitOpening(ctx, runs.OpeningCommit{
 		Admit:            &draft,
 		ScheduledSession: &scheduled,

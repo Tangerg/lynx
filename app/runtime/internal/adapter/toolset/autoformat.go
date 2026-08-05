@@ -14,9 +14,9 @@ import (
 	toolcontract "github.com/Tangerg/lynx/tool"
 )
 
-func withAutoFormat(inner toolcontract.Tool, workdir string) toolcontract.Tool {
+func withAutoFormat(inner toolcontract.Tool, cwd string) toolcontract.Tool {
 	return decorate(inner, func(ctx context.Context, arguments string) (string, error) {
-		paths, err := resolvedMutationPaths(inner, arguments, workdir)
+		paths, err := resolvedMutationPaths(inner, arguments, cwd)
 		if err != nil {
 			return "", fmt.Errorf("inspect mutation paths before formatting: %w", err)
 		}

@@ -81,9 +81,9 @@ func TestSchedulesCreateRejectsUnavailableWorkdir(t *testing.T) {
 		t.Fatalf("Build: %v", err)
 	}
 	missing := filepath.Join(t.TempDir(), "missing")
-	_, err = scheduleByName(tools)["create_schedule"].Call(t.Context(), `{"instructions":"summarize","cron":"0 9 * * *","workdir":"`+missing+`"}`)
-	if !errors.Is(err, scheduledomain.ErrCwdUnavailable) {
-		t.Fatalf("create cwd err = %v, want ErrCwdUnavailable", err)
+	_, err = scheduleByName(tools)["create_schedule"].Call(t.Context(), `{"instructions":"summarize","cron":"0 9 * * *","workspace_path":"`+missing+`"}`)
+	if !errors.Is(err, scheduledomain.ErrCWDUnavailable) {
+		t.Fatalf("create cwd err = %v, want ErrCWDUnavailable", err)
 	}
 	if len(reg.items) != 0 {
 		t.Fatalf("created %d schedule(s), want none", len(reg.items))

@@ -55,7 +55,7 @@ func TestDeleteSessionQuiescesGoalOnlyAfterDurableCommit(t *testing.T) {
 	stores := newMutationStores("")
 	coordinator := New(testDependencies(stores, Dependencies{
 		ExecutionCleanup: mutationExecutions{operations: &stores.operations},
-		Paths:            testCwdResolver{},
+		Paths:            testCWDResolver{},
 		Goals:            mutationGoalGuard{operations: &stores.operations},
 	}))
 
@@ -72,7 +72,7 @@ func TestDeleteSessionDoesNotQuiesceGoalWhenDurableCommitFails(t *testing.T) {
 	stores := newMutationStores("apply.delete")
 	coordinator := New(testDependencies(stores, Dependencies{
 		ExecutionCleanup: mutationExecutions{operations: &stores.operations},
-		Paths:            testCwdResolver{},
+		Paths:            testCWDResolver{},
 		Goals:            mutationGoalGuard{operations: &stores.operations},
 	}))
 
@@ -89,7 +89,7 @@ func TestDeleteSessionCleansUpAfterGoalQuiesceFailure(t *testing.T) {
 	stores := newMutationStores("")
 	coordinator := New(testDependencies(stores, Dependencies{
 		ExecutionCleanup: mutationExecutions{operations: &stores.operations},
-		Paths:            testCwdResolver{},
+		Paths:            testCWDResolver{},
 		Goals:            mutationGoalGuard{operations: &stores.operations, quiesceErr: quiesceErr},
 	}))
 
@@ -130,7 +130,7 @@ func TestDeleteSessionReportsEveryPostCommitCleanupFailure(t *testing.T) {
 	checkpoints := &mutationCheckpoints{operations: &stores.operations, err: checkpointErr}
 	coordinator := New(testDependencies(stores, Dependencies{
 		ExecutionCleanup: mutationExecutions{operations: &stores.operations, err: executionErr},
-		Paths:            testCwdResolver{},
+		Paths:            testCWDResolver{},
 		Checkpoints:      checkpoints,
 	}))
 
@@ -152,7 +152,7 @@ func TestDeleteSessionDiscardsIsolatedSandboxCopyPostCommit(t *testing.T) {
 	stores := newMutationStores("")
 	coordinator := New(testDependencies(stores, Dependencies{
 		ExecutionCleanup: mutationExecutions{operations: &stores.operations},
-		Paths:            testCwdResolver{},
+		Paths:            testCWDResolver{},
 		Checkpoints:      &mutationCheckpoints{operations: &stores.operations},
 		Sandbox:          &mutationSandbox{operations: &stores.operations, err: sandboxErr},
 	}))
@@ -177,7 +177,7 @@ func TestRollbackReportsParkedTurnCleanupFailure(t *testing.T) {
 	stores := newMutationStores("")
 	coordinator := New(testDependencies(stores, Dependencies{
 		ExecutionCleanup: mutationExecutions{operations: &stores.operations, err: executionErr},
-		Paths:            testCwdResolver{},
+		Paths:            testCWDResolver{},
 	}))
 	boundary := transcript.Boundary{Dropped: []transcript.RunNode{{ID: "run_1"}}}
 
@@ -218,7 +218,7 @@ func TestRestoreSessionAppliesPlan(t *testing.T) {
 	_, err := newCoordinator(stores, mutationExecutions{operations: &stores.operations}).restoreSession(
 		t.Context(),
 		Snapshot{
-			Session:  session.Session{ID: "ses_1", Cwd: "/workspace"},
+			Session:  session.Session{ID: "ses_1", CWD: "/workspace"},
 			Messages: []chat.Message{chat.NewUserMessage(chat.NewTextPart("hi"))},
 		}, false,
 	)
@@ -230,17 +230,17 @@ func TestRestoreSessionAppliesPlan(t *testing.T) {
 	}
 }
 
-func TestRestoreSessionRejectsUnresolvableCwdBeforeMutation(t *testing.T) {
+func TestRestoreSessionRejectsUnresolvableCWDBeforeMutation(t *testing.T) {
 	stores := newMutationStores("")
 	stores.pending = map[string][]interrupts.Pending{}
 	want := errors.New("missing workspace")
 	coordinator := New(testDependencies(stores, Dependencies{
 		ExecutionCleanup: mutationExecutions{operations: &stores.operations},
-		Paths:            testCwdResolver{err: want},
+		Paths:            testCWDResolver{err: want},
 	}))
 
-	_, err := coordinator.restoreSession(t.Context(), Snapshot{Session: session.Session{ID: "ses_1", Cwd: "relative"}}, false)
-	if !errors.Is(err, session.ErrCwdUnavailable) || !errors.Is(err, want) {
+	_, err := coordinator.restoreSession(t.Context(), Snapshot{Session: session.Session{ID: "ses_1", CWD: "relative"}}, false)
+	if !errors.Is(err, session.ErrCWDUnavailable) || !errors.Is(err, want) {
 		t.Fatalf("RestoreSession error = %v, want cwd unavailable + cause", err)
 	}
 	if len(stores.restored) != 0 {

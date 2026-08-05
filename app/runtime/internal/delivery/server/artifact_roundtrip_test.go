@@ -30,13 +30,13 @@ import (
 // is that the document this build writes is the version the contract named. Bumping
 // it is a breaking act, so it should cost a deliberate edit here.
 func TestArtifactVersionIsTheOneVNextFroze(t *testing.T) {
-	if protocol.SessionArtifactVersion != 12 {
-		t.Fatalf("SessionArtifactVersion = %d; exclusive item timing requires artifact v12",
+	if protocol.SessionArtifactVersion != 13 {
+		t.Fatalf("SessionArtifactVersion = %d; explicit millisecond field names require artifact v13",
 			protocol.SessionArtifactVersion)
 	}
 }
 
-// TestArtifactV12RoundTripsEveryFieldItCarries is the rest of gate 15.
+// TestArtifactV13RoundTripsEveryFieldItCarries is the rest of gate 15.
 //
 // The failure mode a version bump actually has is a field the encoder writes and
 // the decoder drops — the archive still imports, still looks right, and the value is
@@ -49,7 +49,7 @@ func TestArtifactVersionIsTheOneVNextFroze(t *testing.T) {
 //   - the archive survives the trip WHOLE — export, wipe, import, export again, and
 //     the two documents must be identical byte for byte. Any field the decoder
 //     forgets is missing from the second document.
-func TestArtifactV12RoundTripsEveryFieldItCarries(t *testing.T) {
+func TestArtifactV13RoundTripsEveryFieldItCarries(t *testing.T) {
 	s, rt := rollbackHarness(t)
 	s.features.plan = true // this composition owns the key, so it may restore it
 	ctx := t.Context()
@@ -178,7 +178,7 @@ func TestImportRefusesAChildWhoseRootProfileDisallowsChildren(t *testing.T) {
 		},
 		Items: []protocol.ArtifactItem{{
 			ID: "item_spawn", RunID: "run_root", Status: protocol.ItemStatusCompleted,
-			StartedAt: at, FinishedAt: at, DurationMs: valuePtr(int64(0)),
+			StartedAt: at, FinishedAt: at, DurationMillis: valuePtr(int64(0)),
 			Type: protocol.ItemTypeToolCall,
 			Tool: &protocol.ArtifactToolInvocation{Name: "delegate_task", Arguments: map[string]any{}},
 		}},
@@ -338,7 +338,7 @@ func seedMaximalSession(t *testing.T, s *Server, rt *stubRuntime) string {
 	// by anything the archive carries.
 	cwd := canonicalWorkspacePath(t, t.TempDir())
 	if err := rt.sess.Restore(ctx, session.Session{
-		ID: sessionID, Title: "Everything", Cwd: cwd, Model: "claude-opus-5",
+		ID: sessionID, Title: "Everything", CWD: cwd, Model: "claude-opus-5",
 		StartedAt: time.Unix(1, 0).UTC(), UpdatedAt: time.Unix(9, 0).UTC(),
 		Favorite: true,
 	}); err != nil {

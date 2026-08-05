@@ -49,7 +49,7 @@ func (c *Coordinator) openingRoutes(
 	}
 	rootReducer := newReducer(reducerConfig{
 		RunID: spec.RunID, SegmentID: spec.SegmentID, SessionID: spec.SessionID,
-		Cwd: spec.Cwd, ExecutorID: spec.ExecutorID, ModelSelection: spec.ModelSelection,
+		CWD: spec.CWD, ExecutorID: spec.ExecutorID, ModelSelection: spec.ModelSelection,
 		GoalLeaseID: spec.GoalLeaseID,
 		CreatedAt:   spec.CreatedAt, UserInput: spec.Input,
 		Metrics: spec.priorMetrics(), Limits: spec.effectiveLimits(),
@@ -144,7 +144,7 @@ func (c *Coordinator) resumedExecutorRoutes(
 		}
 		route.reducer = newReducer(reducerConfig{
 			RunID: route.runID, SegmentID: route.segmentID, SessionID: spec.SessionID,
-			Lineage: route.lineage, Cwd: spec.Cwd, ExecutorID: spec.ExecutorID,
+			Lineage: route.lineage, CWD: spec.CWD, ExecutorID: spec.ExecutorID,
 			GoalLeaseID: goalLeaseID, ModelSelection: route.modelSelection,
 			CreatedAt: member.RunCreatedAt, UserInput: userInput,
 			Metrics: member.Metrics, Limits: member.Limits,
@@ -569,7 +569,7 @@ func (c *Coordinator) openChildRun(
 		SegmentID:      child.segmentID,
 		SessionID:      spec.SessionID,
 		Lineage:        child.lineage,
-		Cwd:            spec.Cwd,
+		CWD:            spec.CWD,
 		ExecutorID:     spec.ExecutorID,
 		ModelSelection: child.modelSelection,
 		CreatedAt:      startedAt,

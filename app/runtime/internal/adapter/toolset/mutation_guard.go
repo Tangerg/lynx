@@ -20,7 +20,7 @@ import (
 // withReadTracking stamps the current full-file fingerprint after a successful
 // read. The read may return a range, but staleness is checked against the whole
 // file so any concurrent change invalidates the stamp.
-func withReadTracking(inner toolcontract.Tool, tr *readTracker, workdir string) toolcontract.Tool {
+func withReadTracking(inner toolcontract.Tool, tr *readTracker, cwd string) toolcontract.Tool {
 	if tr == nil {
 		return inner
 	}
@@ -34,7 +34,7 @@ func withReadTracking(inner toolcontract.Tool, tr *readTracker, workdir string) 
 		}
 		_ = json.Unmarshal([]byte(arguments), &a)
 		if a.Path != "" {
-			abs, pathErr := pathidentity.Canonical(workdir, a.Path)
+			abs, pathErr := pathidentity.Canonical(cwd, a.Path)
 			if pathErr != nil {
 				return out, fmt.Errorf("track read path: %w", pathErr)
 			}
@@ -48,7 +48,7 @@ func withReadTracking(inner toolcontract.Tool, tr *readTracker, workdir string) 
 
 // withMutationGuard requires every existing target to have been read and to
 // remain unchanged, then refreshes stamps after a successful mutation.
-func withMutationGuard(inner toolcontract.Tool, tr *readTracker, workdir string) toolcontract.Tool {
+func withMutationGuard(inner toolcontract.Tool, tr *readTracker, cwd string) toolcontract.Tool {
 	if tr == nil {
 		return inner
 	}
@@ -58,7 +58,7 @@ func withMutationGuard(inner toolcontract.Tool, tr *readTracker, workdir string)
 			return "", fmt.Errorf("inspect mutation paths before applying patch: %w", err)
 		}
 		for _, path := range paths {
-			abs, err := pathidentity.Canonical(workdir, path)
+			abs, err := pathidentity.Canonical(cwd, path)
 			if err != nil {
 				return "", fmt.Errorf("resolve mutation path: %w", err)
 			}
@@ -78,7 +78,7 @@ func withMutationGuard(inner toolcontract.Tool, tr *readTracker, workdir string)
 			return out, err
 		}
 		for _, path := range paths {
-			abs, err := pathidentity.Canonical(workdir, path)
+			abs, err := pathidentity.Canonical(cwd, path)
 			if err != nil {
 				return out, fmt.Errorf("refresh mutation path: %w", err)
 			}

@@ -12,8 +12,8 @@ import (
 // ListWorkspaceFiles projects a paged application workspace-file listing onto
 // the wire contract.
 func (s *Server) ListWorkspaceFiles(ctx context.Context, in protocol.ListFilesRequest) (*protocol.Page[protocol.FileEntry], error) {
-	page, err := s.workspaceFiles.ListFiles(ctx, workspaceapp.FileListInput{
-		Cwd: in.Workspace.Path,
+	page, err := s.workspaceFiles.List(ctx, workspaceapp.FileListInput{
+		CWD: in.Workspace.Path,
 		FileListOptions: workspaceapp.FileListOptions{
 			Path: in.Path, Glob: in.Glob, Recursive: in.Recursive, IncludeIgnored: in.IncludeIgnored,
 		},
@@ -56,7 +56,7 @@ func presentFileEntryType(kind workspaceapp.FileEntryKind) (protocol.FileEntryTy
 
 // GetWorkspaceFileHead projects the application file preview onto wire lines.
 func (s *Server) GetWorkspaceFileHead(ctx context.Context, in protocol.GetFileHeadRequest) (*protocol.FileHead, error) {
-	head, err := s.workspaceFiles.FileHead(ctx, in.Workspace.Path, in.Path, in.Lines)
+	head, err := s.workspaceFiles.Head(ctx, in.Workspace.Path, in.Path, in.Lines)
 	if err != nil {
 		return nil, wireWorkspaceError(err)
 	}
@@ -69,7 +69,7 @@ func (s *Server) GetWorkspaceFileHead(ctx context.Context, in protocol.GetFileHe
 
 // ReadWorkspaceFile maps the application file read onto the protocol response.
 func (s *Server) ReadWorkspaceFile(ctx context.Context, in protocol.ReadFileRequest) (*protocol.FileContent, error) {
-	read, err := s.workspaceFiles.ReadFile(ctx, in.Workspace.Path, workspaceapp.FileReadInput{
+	read, err := s.workspaceFiles.Read(ctx, in.Workspace.Path, workspaceapp.FileReadInput{
 		Path: in.Path, MaxBytes: in.MaxBytes, StartLine: in.StartLine, EndLine: in.EndLine,
 	})
 	if err != nil {

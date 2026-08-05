@@ -52,12 +52,12 @@ func (c *Coordinator) Start(ctx context.Context, cmd StartCommand) (StartResult,
 	defer runAdmission.Release()
 
 	draft.SessionID = sess.ID
-	execCwd, isolated, err := c.executionCwd(ctx, sess)
+	execCWD, isolated, err := c.executionCWD(ctx, sess)
 	if err != nil {
 		return StartResult{}, err
 	}
-	draft.Cwd = execCwd
-	draft.WorkspaceCwd = sess.Cwd
+	draft.CWD = execCWD
+	draft.WorkspaceCWD = sess.CWD
 	draft.Isolated = isolated
 	ref, err := c.control.PrepareStart(ctx, draft)
 	if err != nil {
@@ -81,7 +81,7 @@ func (c *Coordinator) Start(ctx context.Context, cmd StartCommand) (StartResult,
 		RunID:            runID,
 		SegmentID:        segmentID,
 		SessionID:        sess.ID,
-		Cwd:              sess.Cwd,
+		CWD:              sess.CWD,
 		ExecutorID:       ref.ExecutorID,
 		ModelSelection:   cmd.ModelSelection,
 		GoalLeaseID:      cmd.GoalLeaseID,
@@ -134,7 +134,7 @@ func (c *Coordinator) resolveSession(ctx context.Context, id, newID, defaultWork
 }
 
 func (c *Coordinator) claimFreshRun(ctx context.Context, sess session.Session) (admission.RunAdmission, error) {
-	runAdmission, ok := c.admission.AcquireRun(sess.ID, sess.Cwd)
+	runAdmission, ok := c.admission.AcquireRun(sess.ID, sess.CWD)
 	if !ok {
 		// The in-process gate also guards working-tree mutations, so what it refuses is
 		// not always a Run and cannot always be named.
@@ -168,18 +168,18 @@ func (c *Coordinator) activeRunConflict(ctx context.Context, sessionID string) (
 	return &ActiveRunConflict{RunID: run.ID, Status: run.State.Status()}, nil
 }
 
-// executionCwd resolves where a Session's tools operate: the sandbox copy
+// executionCWD resolves where a Session's tools operate: the sandbox copy
 // for an isolated session (created on first use), else the project directory.
 // It fails closed when isolation is requested but unavailable — an isolated run
 // must never fall back to the real tree.
-func (c *Coordinator) executionCwd(ctx context.Context, sess session.Session) (cwd string, isolated bool, err error) {
+func (c *Coordinator) executionCWD(ctx context.Context, sess session.Session) (cwd string, isolated bool, err error) {
 	if !sess.Isolated {
-		return sess.Cwd, false, nil
+		return sess.CWD, false, nil
 	}
 	if c.isolation == nil {
 		return "", false, fmt.Errorf("%w: isolation is not configured", ErrIsolationUnavailable)
 	}
-	copyDir, err := c.isolation.Workspace(ctx, sess.ID, sess.Cwd)
+	copyDir, err := c.isolation.Workspace(ctx, sess.ID, sess.CWD)
 	if err != nil {
 		return "", false, fmt.Errorf("%w: %w", ErrIsolationUnavailable, err)
 	}

@@ -10,7 +10,7 @@ import (
 
 // ListWorkspaceFileChanges projects application VCS status onto the wire.
 func (s *Server) ListWorkspaceFileChanges(ctx context.Context, in protocol.WorkspaceQuery) (*protocol.Page[protocol.WorkspaceFileChange], error) {
-	changes, err := s.workspaceVCS.ListFileChanges(ctx, in.Workspace.Path)
+	changes, err := s.workspaceVCS.Changes(ctx, in.Workspace.Path)
 	if err != nil {
 		return nil, wireWorkspaceError(err)
 	}
@@ -44,7 +44,7 @@ func (s *Server) GetWorkspaceDiff(ctx context.Context, in protocol.GetDiffReques
 		return nil, fmt.Errorf("%w: unknown mode %q", protocol.ErrInvalidParams, in.Mode)
 	}
 	diff, err := s.workspaceVCS.Diff(ctx, workspaceapp.DiffInput{
-		Cwd: in.Workspace.Path, Path: in.Path, Base: base, Raw: in.Format == protocol.DiffFormatRaw, Limit: in.Limit,
+		CWD: in.Workspace.Path, Path: in.Path, Base: base, Raw: in.Format == protocol.DiffFormatRaw, Limit: in.Limit,
 	})
 	if err != nil {
 		return nil, wireWorkspaceError(err)

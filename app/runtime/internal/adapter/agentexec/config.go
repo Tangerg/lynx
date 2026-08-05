@@ -34,9 +34,9 @@ type AgentMemoryReader interface {
 	Items(ctx context.Context, scope agentmemory.Scope, project string) ([]agentmemory.Item, error)
 }
 
-// MemorySearcher retrieves the memory items most relevant to a turn's message,
+// AgentMemorySearcher retrieves the agent-memory items most relevant to a turn's message,
 // for the per-turn "relevant memories" recall block (the non-pinned corpus).
-type MemorySearcher interface {
+type AgentMemorySearcher interface {
 	Search(ctx context.Context, scope agentmemory.Scope, project, query string, topK int) ([]agentmemory.Item, error)
 }
 
@@ -70,14 +70,12 @@ type Config struct {
 	// a lynx model adapter (anthropic, openai, ...) at startup.
 	ChatClient *chatclient.Client
 
-	// Workdir is the DEFAULT working directory — the fallback for
-	// turns that carry no session cwd. A turn that does carry one
-	// a per-Run working directory overrides it everywhere
-	// cwd-dependent: fs/shell tools, project skills, curated memory, and the
-	// system prompt's project LYRA.md + AGENTS.md cascade (see turnCwd).
+	// DefaultCWD is the default working directory for turns with no session CWD.
+	// A Run-specific directory overrides it for filesystem and shell tools,
+	// project skills, curated memory, and instruction-document discovery.
 	// Empty disables tool path scoping (LocalExecutor permits any
 	// path) — fine for tests, not recommended for production.
-	Workdir string
+	DefaultCWD string
 
 	// UserHome anchors the home-scoped AGENTS.md instruction cascade. The caller
 	// resolves it once; the execution adapter never
@@ -100,10 +98,10 @@ type Config struct {
 	// authoritative. nil disables the layer.
 	AgentMemory AgentMemoryReader
 
-	// MemorySearch optionally retrieves the memory items most relevant to each
+	// AgentMemorySearch optionally retrieves the agent-memory items most relevant to each
 	// turn's message, injected as a separate "relevant memories" recall block. nil
 	// disables per-turn recall (only the pinned core is injected).
-	MemorySearch MemorySearcher
+	AgentMemorySearch AgentMemorySearcher
 
 	// Plan optionally supplies the root Agent's per-session execution plan. This
 	// read-only port only injects the current Plan into system prompts. nil

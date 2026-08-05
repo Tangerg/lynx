@@ -73,18 +73,18 @@ func writeSkill(t *testing.T, root, name, desc string) {
 }
 
 // TestBuild_MergesProjectOverUser proves the engine's skill tool
-// layers <workdir>/.lyra/skills over the user dir, with the project copy
+// layers <cwd>/.lyra/skills over the user dir, with the project copy
 // winning on a name collision.
 func TestBuildReadersMergesProjectOverUser(t *testing.T) {
-	workdir := t.TempDir()
+	cwd := t.TempDir()
 	user := t.TempDir()
 
-	writeSkill(t, promptsource.ProjectSkillDir(workdir), "shared", "PROJECT copy")
-	writeSkill(t, promptsource.ProjectSkillDir(workdir), "proj-only", "project only")
+	writeSkill(t, promptsource.ProjectSkillDir(cwd), "shared", "PROJECT copy")
+	writeSkill(t, promptsource.ProjectSkillDir(cwd), "proj-only", "project only")
 	writeSkill(t, user, "shared", "USER copy")
 	writeSkill(t, user, "user-only", "user only")
 
-	tools, err := BuildReaders(workdir, user, nil)
+	tools, err := BuildReaders(cwd, user, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

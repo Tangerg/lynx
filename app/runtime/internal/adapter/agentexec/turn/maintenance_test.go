@@ -12,12 +12,12 @@ import (
 
 type recordingMaintenance struct {
 	mu     sync.Mutex
-	input  turn.RunMaintenanceInput
+	input  turn.MaintenanceInput
 	called bool
-	result turn.RunMaintenanceResult
+	result turn.MaintenanceResult
 }
 
-func (m *recordingMaintenance) Maintain(_ context.Context, input turn.RunMaintenanceInput) turn.RunMaintenanceResult {
+func (m *recordingMaintenance) Maintain(_ context.Context, input turn.MaintenanceInput) turn.MaintenanceResult {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.input = input
@@ -25,7 +25,7 @@ func (m *recordingMaintenance) Maintain(_ context.Context, input turn.RunMainten
 	return m.result
 }
 
-func (m *recordingMaintenance) snapshot() (turn.RunMaintenanceInput, bool) {
+func (m *recordingMaintenance) snapshot() (turn.MaintenanceInput, bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return m.input, m.called
@@ -33,7 +33,7 @@ func (m *recordingMaintenance) snapshot() (turn.RunMaintenanceInput, bool) {
 
 func TestRunDelegatesMaintenanceAndPublishesCompaction(t *testing.T) {
 	engine := &stubEngine{}
-	maintenance := &recordingMaintenance{result: turn.RunMaintenanceResult{
+	maintenance := &recordingMaintenance{result: turn.MaintenanceResult{
 		Compaction: turn.CompactionResult{Compacted: true, MessagesBefore: 12, MessagesAfter: 5},
 	}}
 	client, err := chatclient.New(newCapturingModel(), chatclient.Config{})
@@ -42,13 +42,13 @@ func TestRunDelegatesMaintenanceAndPublishesCompaction(t *testing.T) {
 	}
 	controller, err := turn.New(turnDeps(engine, func(deps *turn.Dependencies) {
 		deps.Maintenance = maintenance
-		deps.ClientResolver = &fakeResolver{client: client}
+		deps.ChatResolver = &fakeChatResolver{client: client}
 	}))
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
 	handle, err := controller.PrepareTurn(t.Context(), runs.StartExecution{
-		SessionID: "session", Message: "hello", Cwd: "/project", ModelSelection: testModelSelection(t, "openai", "gpt-test"),
+		SessionID: "session", Message: "hello", CWD: "/project", ModelSelection: testModelSelection(t, "openai", "gpt-test"),
 	})
 	if err != nil {
 		t.Fatalf("PrepareTurn: %v", err)
@@ -61,14 +61,14 @@ func TestRunDelegatesMaintenanceAndPublishesCompaction(t *testing.T) {
 		t.Fatalf("ActivateTurn: %v", err)
 	}
 
-	var boundary *runs.CompactBoundary
+	var boundary *runs.CompactionBoundary
 	for event := range events {
-		if compacted, ok := event.Payload.(runs.CompactBoundary); ok {
+		if compacted, ok := event.Payload.(runs.CompactionBoundary); ok {
 			boundary = &compacted
 		}
 	}
 	if boundary == nil {
-		t.Fatal("maintenance compaction did not publish CompactBoundary")
+		t.Fatal("maintenance compaction did not publish CompactionBoundary")
 	}
 	if boundary.MessagesBefore != 12 || boundary.MessagesAfter != 5 {
 		t.Fatalf("compaction boundary = %+v, want 12 -> 5", *boundary)
@@ -78,7 +78,7 @@ func TestRunDelegatesMaintenanceAndPublishesCompaction(t *testing.T) {
 	if !called {
 		t.Fatal("maintenance was not called")
 	}
-	if input.SessionID != "session" || input.Cwd != "/project" || input.ModelSelection.Provider() != "openai" || input.ModelSelection.Model() != "gpt-test" {
+	if input.SessionID != "session" || input.CWD != "/project" || input.ModelSelection.Provider() != "openai" || input.ModelSelection.Model() != "gpt-test" {
 		t.Fatalf("maintenance input = %+v", input)
 	}
 	if input.PreCompact == nil || !input.PreCompact(t.Context()) {

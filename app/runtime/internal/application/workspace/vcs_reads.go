@@ -2,6 +2,14 @@ package workspace
 
 import "context"
 
+// VCS owns root-scoped Git status and diff operations.
+type VCS struct {
+	scope *Scope
+	git   GitReader
+}
+
+func NewVCS(scope *Scope, git GitReader) *VCS { return &VCS{scope: scope, git: git} }
+
 // FileStatus is the application vocabulary for a working-tree change.
 type FileStatus string
 
@@ -56,14 +64,14 @@ type FileDiff struct {
 // GitReader is the application-owned port for working-tree status and diff
 // reads. Its error contract uses this package's VCS sentinels.
 type GitReader interface {
-	ListFileChanges(ctx context.Context, root string) ([]FileChange, error)
+	Changes(ctx context.Context, root string) ([]FileChange, error)
 	StructuredDiff(ctx context.Context, root, path string, base bool) ([]FileDiff, error)
 	RawDiff(ctx context.Context, root, path string, base bool) (string, error)
 }
 
 // DiffInput selects a working-tree or merge-base diff, optionally as raw text.
 type DiffInput struct {
-	Cwd   string
+	CWD   string
 	Path  string
 	Base  bool
 	Raw   bool
@@ -77,40 +85,40 @@ type Diff struct {
 	Truncated bool
 }
 
-// ListFileChanges reads the root's VCS status.
-func (c *VCS) ListFileChanges(ctx context.Context, cwd string) ([]FileChange, error) {
-	root, err := c.context.root(cwd)
+// Changes reads the root's VCS status.
+func (v *VCS) Changes(ctx context.Context, cwd string) ([]FileChange, error) {
+	root, err := v.scope.root(cwd)
 	if err != nil {
 		return nil, err
 	}
-	if c.git == nil {
+	if v.git == nil {
 		return nil, ErrVCSUnavailable
 	}
-	return c.git.ListFileChanges(ctx, root)
+	return v.git.Changes(ctx, root)
 }
 
 // Diff reads a workspace VCS diff, keeping path confinement and file-boundary
 // truncation in the application use case.
-func (c *VCS) Diff(ctx context.Context, input DiffInput) (Diff, error) {
-	root, err := c.context.root(input.Cwd)
+func (v *VCS) Diff(ctx context.Context, input DiffInput) (Diff, error) {
+	root, err := v.scope.root(input.CWD)
 	if err != nil {
 		return Diff{}, err
 	}
 	path := ""
 	if input.Path != "" {
-		path, err = c.context.paths.ResolveInRoot(root, input.Path)
+		path, err = v.scope.paths.ResolveInRoot(root, input.Path)
 		if err != nil {
 			return Diff{}, err
 		}
 	}
-	if c.git == nil {
+	if v.git == nil {
 		return Diff{}, ErrVCSUnavailable
 	}
 	if input.Raw {
-		patch, err := c.git.RawDiff(ctx, root, path, input.Base)
+		patch, err := v.git.RawDiff(ctx, root, path, input.Base)
 		return Diff{Patch: patch}, err
 	}
-	files, err := c.git.StructuredDiff(ctx, root, path, input.Base)
+	files, err := v.git.StructuredDiff(ctx, root, path, input.Base)
 	if err != nil {
 		return Diff{}, err
 	}

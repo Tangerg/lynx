@@ -7,12 +7,12 @@ package execution
 // requested effect commits. A crash or incomplete reset is re-driven at boot.
 //
 // SessionID keys it: the per-session mutation slot admits at most one in-flight
-// rollback per session, so a session has at most one pending intent. Cwd and
+// rollback per session, so a session has at most one pending intent. CWD and
 // ToRunID identify the file boundary; RestoreHistory says whether recovery also
 // recomputes and applies the durable history cut.
 type WorkspaceMutation struct {
 	SessionID      string
-	Cwd            string
+	CWD            string
 	ToRunID        string
 	RestoreHistory bool
 }

@@ -21,16 +21,16 @@ import (
 // shared [drive] loop. st.ctx (the turn's own lifetime) bounds the run.
 func (s *controller) runTurn(request runs.StartExecution, st *turnState) {
 	// Resolve a per-turn client when the Run picked a provider+model. Preparation
-	// has already rejected an explicit selection without a resolver.
+	// has already rejected an explicit selection without a chat resolver.
 	var client *chatclient.Client
 	if request.ModelSelection.Configured() {
-		c, err := s.resolver.ResolveClient(st.ctx, request.ModelSelection)
+		c, err := s.chatResolver.ResolveChat(st.ctx, request.ModelSelection)
 		if err != nil {
 			recordTurnCleanupError(st, s.finishExecutionError(st, problemFromError(err), err))
 			return
 		}
 		if c == nil {
-			err := errors.New("turn: client resolver returned nil for an explicit model selection")
+			err := errors.New("turn: chat resolver returned nil for an explicit model selection")
 			recordTurnCleanupError(st, s.finishExecutionError(st, internalRunProblem(), err))
 			return
 		}
@@ -62,8 +62,8 @@ func (s *controller) runTurn(request runs.StartExecution, st *turnState) {
 		Message:        request.Message,
 		ModelSelection: request.ModelSelection,
 		Media:          request.Media,
-		Cwd:            request.Cwd,
-		WorkspaceCwd:   request.WorkspaceCwd,
+		CWD:            request.CWD,
+		WorkspaceCWD:   request.WorkspaceCWD,
 		Isolated:       request.Isolated,
 		GoalLeaseID:    request.GoalLeaseID,
 		Limits:         request.Limits,
@@ -123,7 +123,7 @@ func (s *controller) drive(st *turnState) {
 	// extractor see it as part of the conversation they summarize.
 	s.flushSteering(st.ctx, st, st.handle.SessionID)
 	if completion.Status == core.StatusCompleted && completion.Err == nil && st.handle.SessionID != "" {
-		s.postRunMaintenance(st.ctx, st, st.handle.SessionID)
+		s.postMaintenance(st.ctx, st, st.handle.SessionID)
 	}
 	// MessageDelta events already streamed through the observer — no
 	// need to re-emit the assembled reply here.
@@ -247,7 +247,7 @@ func (s *controller) emitInterrupt(
 	// | "question") rides as the reason.
 	if !st.hooks.Empty() {
 		_ = st.hooks.Run(st.ctx, hooks.Input{
-			Event: hooks.Notification, SessionID: st.handle.SessionID, Cwd: st.cwd, Reason: "interrupt",
+			Event: hooks.Notification, SessionID: st.handle.SessionID, CWD: st.cwd, Reason: "interrupt",
 		})
 	}
 }
@@ -263,15 +263,15 @@ func typedInterrupt(prompt []byte) (runs.Interrupt, bool) {
 	return pending, true
 }
 
-// postRunMaintenance runs Run-boundary housekeeping after the Run's real LLM
+// postMaintenance runs Run-boundary housekeeping after the Run's real LLM
 // round completed cleanly. Errors are observability facts, not execution facts:
 // the user reply has already completed and its outcome must not be rewritten.
 //
-// The concrete maintenance suite owns worker ordering and conditional work. A
-// fired compaction emits [CompactBoundary] with before/after message counts;
+// The concrete maintenance pipeline owns worker ordering and conditional work. A
+// fired compaction emits [CompactionBoundary] with before/after message counts;
 // other maintenance output stays internal. Failures are recorded on the active
 // execution span and never alter the completed reply.
-func (s *controller) postRunMaintenance(ctx context.Context, st *turnState, sessionID string) {
+func (s *controller) postMaintenance(ctx context.Context, st *turnState, sessionID string) {
 	if s.maintenance == nil {
 		return
 	}
@@ -282,23 +282,23 @@ func (s *controller) postRunMaintenance(ctx context.Context, st *turnState, sess
 		if st.hooks.Empty() {
 			return true
 		}
-		dec := st.hooks.Run(hctx, hooks.Input{Event: hooks.PreCompact, SessionID: sessionID, Cwd: st.cwd})
+		dec := st.hooks.Run(hctx, hooks.Input{Event: hooks.PreCompact, SessionID: sessionID, CWD: st.cwd})
 		return !dec.Block
 	}
-	result := s.maintenance.Maintain(ctx, RunMaintenanceInput{
+	result := s.maintenance.Maintain(ctx, MaintenanceInput{
 		SessionID:      sessionID,
-		Cwd:            st.cwd,
+		CWD:            st.cwd,
 		ModelSelection: st.modelSelection,
 		ToolCalls:      st.toolCallCount(),
 		PreCompact:     preCompact,
 	})
 	for _, err := range result.Errors {
-		recordRunMaintenanceError(st, err)
+		recordMaintenanceError(st, err)
 	}
 	if !result.Compaction.Compacted {
 		return
 	}
-	s.emitRootEvent(st, runs.CompactBoundary{
+	s.emitRootEvent(st, runs.CompactionBoundary{
 		MessagesBefore: result.Compaction.MessagesBefore,
 		MessagesAfter:  result.Compaction.MessagesAfter,
 	})

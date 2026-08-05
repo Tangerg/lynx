@@ -66,12 +66,12 @@ func sessionCtx(session string) context.Context {
 
 func newGetter(t *testing.T, store goals.Store) *getter {
 	t.Helper()
-	return &getter{goals: goals.NewState(store)}
+	return &getter{goals: goals.NewReader(store)}
 }
 
 func newReporter(t *testing.T, store goals.Store) *outcomeReporter {
 	t.Helper()
-	return &outcomeReporter{goals: goals.NewState(store)}
+	return &outcomeReporter{goals: goals.NewOutcomeReporter(store)}
 }
 
 func TestReportGoalOutcomeCompleted(t *testing.T) {
@@ -261,16 +261,18 @@ func TestCreateGoalUsesCurrentSessionAndExplicitBudget(t *testing.T) {
 }
 
 func TestGoalToolContractsUseOnePreciseVocabulary(t *testing.T) {
-	store := goals.NewState(newMemStore())
+	mem := newMemStore()
+	reader := goals.NewReader(mem)
+	reporter := goals.NewOutcomeReporter(mem)
 	create, err := NewCreate(&fakeStarter{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	get, err := NewGet(store)
+	get, err := NewGet(reader)
 	if err != nil {
 		t.Fatal(err)
 	}
-	report, err := NewReport(store)
+	report, err := NewReport(reporter)
 	if err != nil {
 		t.Fatal(err)
 	}

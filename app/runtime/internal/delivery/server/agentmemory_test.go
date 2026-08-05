@@ -13,7 +13,7 @@ import (
 // handlers, so Delivery's wire mapping is tested without a persistence port.
 type recordingAgentMemory struct {
 	listScope agentmemory.Scope
-	listCwd   string
+	listCWD   string
 	items     []agentmemory.Item
 
 	reviewID string
@@ -25,7 +25,7 @@ type recordingAgentMemory struct {
 	deleted  string
 
 	addScope   agentmemory.Scope
-	addCwd     string
+	addCWD     string
 	addContent string
 
 	getItem agentmemory.Item
@@ -34,7 +34,7 @@ type recordingAgentMemory struct {
 func (*recordingAgentMemory) Available() bool { return true }
 
 func (r *recordingAgentMemory) List(_ context.Context, scope agentmemory.Scope, cwd string) ([]agentmemory.Item, error) {
-	r.listScope, r.listCwd = scope, cwd
+	r.listScope, r.listCWD = scope, cwd
 	return r.items, nil
 }
 
@@ -59,7 +59,7 @@ func (r *recordingAgentMemory) Delete(_ context.Context, id string) error {
 }
 
 func (r *recordingAgentMemory) Add(_ context.Context, scope agentmemory.Scope, cwd, content string) (agentmemory.Item, error) {
-	r.addScope, r.addCwd, r.addContent = scope, cwd, content
+	r.addScope, r.addCWD, r.addContent = scope, cwd, content
 	return agentmemory.Item{ID: "mem_new", Scope: scope, Content: content, Origin: agentmemory.OriginUser, Status: agentmemory.StatusActive}, nil
 }
 
@@ -77,8 +77,8 @@ func TestAgentMemoryListResolvesTargetAndMapsWire(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if rec.listScope != agentmemory.ScopeProject || rec.listCwd != "/repo/" {
-		t.Fatalf("input = %v %q, want project /repo/", rec.listScope, rec.listCwd)
+	if rec.listScope != agentmemory.ScopeProject || rec.listCWD != "/repo/" {
+		t.Fatalf("input = %v %q, want project /repo/", rec.listScope, rec.listCWD)
 	}
 	if len(out.Items) != 1 || out.Items[0].Status != "pending" || out.Items[0].Origin != "auto" {
 		t.Fatalf("wire = %+v", out.Items)
@@ -89,8 +89,8 @@ func TestAgentMemoryListResolvesTargetAndMapsWire(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if rec.listScope != agentmemory.ScopeUser || rec.listCwd != "" {
-		t.Fatalf("user input = %v %q, want user with no workspace", rec.listScope, rec.listCwd)
+	if rec.listScope != agentmemory.ScopeUser || rec.listCWD != "" {
+		t.Fatalf("user input = %v %q, want user with no workspace", rec.listScope, rec.listCWD)
 	}
 }
 
@@ -160,7 +160,7 @@ func TestAgentMemoryUpdateAndAdd(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if rec.addContent != "- new note" || rec.addCwd != "/repo" || added.Origin != "user" {
+	if rec.addContent != "- new note" || rec.addCWD != "/repo" || added.Origin != "user" {
 		t.Fatalf("add recorded=%+v wire=%+v", rec, added)
 	}
 }

@@ -34,7 +34,7 @@ var protectedDirs = []string{".git"}
 // root), so this guard is the boundary that keeps an isolated run from modifying
 // the real project tree. Non-isolated Runs keep the existing behavior (absolute
 // paths anywhere are allowed — that is the point of the fs tools).
-func withPathGuard(inner toolcontract.Tool, workdir string) toolcontract.Tool {
+func withPathGuard(inner toolcontract.Tool, cwd string) toolcontract.Tool {
 	return decorate(inner, func(ctx context.Context, arguments string) (string, error) {
 		isolated := executionctx.Isolated(ctx)
 		paths, err := mutationPaths(inner, arguments)
@@ -42,7 +42,7 @@ func withPathGuard(inner toolcontract.Tool, workdir string) toolcontract.Tool {
 			return "", fmt.Errorf("inspect mutation paths: %w", err)
 		}
 		for _, path := range paths {
-			if refusal, ok := guardMutationPath(workdir, path, isolated); !ok {
+			if refusal, ok := guardMutationPath(cwd, path, isolated); !ok {
 				return refusal, nil
 			}
 		}
@@ -50,13 +50,13 @@ func withPathGuard(inner toolcontract.Tool, workdir string) toolcontract.Tool {
 	})
 }
 
-// guardMutationPath decides whether a mutation of path (relative to workdir) is
+// guardMutationPath decides whether a mutation of path (relative to cwd) is
 // allowed, returning ok=false plus a model-facing refusal otherwise. A path is
 // refused when it cannot be resolved, lands inside a [protectedDirs] directory,
 // or — for an isolated session — escapes the workspace copy. Pure (no ctx) so
 // the boundary decision is directly testable.
-func guardMutationPath(workdir, path string, isolated bool) (refusal string, ok bool) {
-	resolved, err := pathidentity.Resolve(workdir, path)
+func guardMutationPath(cwd, path string, isolated bool) (refusal string, ok bool) {
+	resolved, err := pathidentity.Resolve(cwd, path)
 	if err != nil {
 		return fmt.Sprintf("Refused: %q could not be resolved safely (%v).", path, err), false
 	}
@@ -64,7 +64,7 @@ func guardMutationPath(workdir, path string, isolated bool) (refusal string, ok 
 		return fmt.Sprintf("Refused: %q is inside the protected %q directory, which is read-only to the agent. Use the shell/git tooling if you need to change version-control state.", path, dir), false
 	}
 	if isolated {
-		inside, err := withinWorkspace(workdir, resolved)
+		inside, err := withinWorkspace(cwd, resolved)
 		if err != nil {
 			return fmt.Sprintf("Refused: %q could not be checked against the sandbox boundary (%v).", path, err), false
 		}
@@ -75,11 +75,11 @@ func guardMutationPath(workdir, path string, isolated bool) (refusal string, ok 
 	return "", true
 }
 
-// withinWorkspace reports whether the resolved path is workdir or below it, with
-// workdir resolved to its physical identity first so a symlinked workspace root
+// withinWorkspace reports whether the resolved path is cwd or below it, with
+// cwd resolved to its physical identity first so a symlinked workspace root
 // (macOS temp dirs live under /var → /private/var) compares correctly.
-func withinWorkspace(workdir, resolved string) (bool, error) {
-	root, err := pathidentity.Resolve(workdir, ".")
+func withinWorkspace(cwd, resolved string) (bool, error) {
+	root, err := pathidentity.Resolve(cwd, ".")
 	if err != nil {
 		return false, err
 	}

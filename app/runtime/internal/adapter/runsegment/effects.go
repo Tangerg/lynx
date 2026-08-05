@@ -193,6 +193,6 @@ func New(cfg Config) *Effects {
 // Nudge publishes a non-durable live workspace change to subscribers.
 func (e *Effects) Nudge(cwd string, paths []string) {
 	if e.publish != nil && len(paths) > 0 {
-		e.publish(workspaceapp.FileChangeNotice{Cwd: cwd, Paths: slices.Clone(paths)})
+		e.publish(workspaceapp.FileChangeNotice{CWD: cwd, Paths: slices.Clone(paths)})
 	}
 }

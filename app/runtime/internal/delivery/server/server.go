@@ -7,7 +7,7 @@ import (
 	"fmt"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/change"
-	"github.com/Tangerg/lynx/app/runtime/internal/application/integrations"
+	mcpapp "github.com/Tangerg/lynx/app/runtime/internal/application/mcp"
 	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/dispatch"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
@@ -15,19 +15,19 @@ import (
 
 // Config bundles construction inputs.
 type Config struct {
-	Sessions     sessionUseCases
-	Integrations integrationUseCases
-	Approvals    approvalUseCases
-	Models       modelUseCases
-	Tools        toolUseCases
-	Runs         runUseCases
-	Queries      queryUseCases
-	Usage        usageUseCases
-	Feedback     feedbackUseCases
+	Sessions  sessionUseCases
+	MCP       mcpUseCases
+	Approvals approvalUseCases
+	Models    modelUseCases
+	Tools     toolUseCases
+	Runs      runUseCases
+	Queries   queryUseCases
+	Usage     usageUseCases
+	Feedback  feedbackUseCases
 
-	FileChanges  source[workspaceapp.FileChangeNotice]
-	MCPStatus    source[integrations.MCPServerStatus]
-	SkillChanges source[struct{}]
+	FileChanges      source[workspaceapp.FileChangeNotice]
+	MCPStatusChanges source[mcpapp.ServerStatus]
+	SkillChanges     source[struct{}]
 
 	// ServerInfo identifies this runtime on the wire. Name and Version receive
 	// development defaults when absent.
@@ -68,7 +68,7 @@ type Server struct {
 	serverInfo protocol.ServerInfo
 
 	sessions       sessionUseCases
-	integrations   integrationUseCases
+	mcp            mcpUseCases
 	approvals      approvalUseCases
 	models         modelUseCases
 	tools          toolUseCases
@@ -107,7 +107,7 @@ type Server struct {
 // shape both capability discovery and delivery gates. Construction derives it
 // once; handlers do not rediscover availability by attempting a call.
 type featureAvailability struct {
-	memory      bool
+	knowledge   bool
 	git         bool
 	fileWatch   bool
 	plan        bool
@@ -137,8 +137,8 @@ func New(cfg Config) (*Server, error) {
 	if cfg.Sessions == nil {
 		return nil, errors.New("server: Sessions is required")
 	}
-	if cfg.Integrations == nil {
-		return nil, errors.New("server: Integrations is required")
+	if cfg.MCP == nil {
+		return nil, errors.New("server: MCP is required")
 	}
 	if cfg.Approvals == nil {
 		return nil, errors.New("server: Approvals is required")
@@ -182,9 +182,9 @@ func New(cfg Config) (*Server, error) {
 		return nil, errors.New("server: Codebase is required")
 	}
 	features := featureAvailability{
-		memory:      cfg.WorkspaceKnowledge.HasMemory(),
+		knowledge:   cfg.WorkspaceKnowledge.Available(),
 		git:         cfg.GitAvailable,
-		fileWatch:   cfg.WorkspaceWatch.HasFileWatch(),
+		fileWatch:   cfg.WorkspaceWatch.Available(),
 		plan:        cfg.PlanEnabled,
 		goals:       cfg.Goals != nil,
 		agentMemory: cfg.AgentMemory != nil && cfg.AgentMemory.Available(),
@@ -199,14 +199,14 @@ func New(cfg Config) (*Server, error) {
 		return nil, fmt.Errorf("server: IdempotencyLimits is invalid: %w", err)
 	}
 	mcpAuthorizationAttempts := protocol.MCPAuthorizationAttemptLimits{
-		RetentionSeconds: int(cfg.Integrations.MCPAuthorizationAttemptRetention().Seconds()),
+		RetentionSeconds: int(cfg.MCP.AuthorizationAttemptRetention().Seconds()),
 	}
 	if err := protocol.ValidateWireTree(mcpAuthorizationAttempts); err != nil {
-		return nil, fmt.Errorf("server: integrations returned invalid MCP authorization attempt retention: %w", err)
+		return nil, fmt.Errorf("server: MCP returned invalid authorization attempt retention: %w", err)
 	}
 	srv := &Server{
 		sessions:                 cfg.Sessions,
-		integrations:             cfg.Integrations,
+		mcp:                      cfg.MCP,
 		approvals:                cfg.Approvals,
 		models:                   cfg.Models,
 		tools:                    cfg.Tools,
@@ -236,8 +236,8 @@ func New(cfg Config) (*Server, error) {
 	if cfg.FileChanges != nil {
 		srv.observeFileChanges(cfg.FileChanges)
 	}
-	if cfg.MCPStatus != nil {
-		srv.observeMCPStatus(cfg.MCPStatus)
+	if cfg.MCPStatusChanges != nil {
+		srv.observeMCPStatusChanges(cfg.MCPStatusChanges)
 	}
 	if cfg.SkillChanges != nil {
 		srv.observeSkillChanges(cfg.SkillChanges)
@@ -328,7 +328,7 @@ func capabilitiesFor(
 		Features: advertisedFeatures(map[string]bool{
 			protocol.FeatureReasoning: true,
 			protocol.FeatureMCP:       true,
-			protocol.FeatureMemory:    features.memory,
+			protocol.FeatureKnowledge: features.knowledge,
 			protocol.FeatureSkills:    true,
 			protocol.FeatureGit:       features.git,
 			protocol.FeatureFileWatch: features.fileWatch,

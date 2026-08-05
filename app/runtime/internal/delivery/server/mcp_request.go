@@ -4,17 +4,17 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/application/integrations"
+	mcpapp "github.com/Tangerg/lynx/app/runtime/internal/application/mcp"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 )
 
-func mcpServerInputFromCandidate(in protocol.MCPServerCandidate) (integrations.MCPServerInput, error) {
+func mcpServerInputFromCandidate(in protocol.MCPServerCandidate) (mcpapp.ServerInput, error) {
 	connection, err := mcpConnectionInputFromWire(in.Connection)
 	if err != nil {
-		return integrations.MCPServerInput{}, err
+		return mcpapp.ServerInput{}, err
 	}
-	return integrations.MCPServerInput{
+	return mcpapp.ServerInput{
 		Name:             in.Name,
 		Enabled:          in.Enabled,
 		Description:      in.Description,
@@ -25,8 +25,8 @@ func mcpServerInputFromCandidate(in protocol.MCPServerCandidate) (integrations.M
 	}, nil
 }
 
-func mcpServerPatchFromRequest(in protocol.UpdateMCPServerRequest) (integrations.MCPServerPatch, error) {
-	patch := integrations.MCPServerPatch{
+func mcpServerPatchFromRequest(in protocol.UpdateMCPServerRequest) (mcpapp.ServerPatch, error) {
+	patch := mcpapp.ServerPatch{
 		Enabled:          in.Enabled,
 		Description:      in.Description,
 		DisabledTools:    in.DisabledTools,
@@ -35,7 +35,7 @@ func mcpServerPatchFromRequest(in protocol.UpdateMCPServerRequest) (integrations
 	if in.Connection != nil {
 		connection, err := mcpConnectionInputFromWire(*in.Connection)
 		if err != nil {
-			return integrations.MCPServerPatch{}, err
+			return mcpapp.ServerPatch{}, err
 		}
 		patch.Connection = &connection
 	}
@@ -46,51 +46,51 @@ func mcpServerPatchFromRequest(in protocol.UpdateMCPServerRequest) (integrations
 	return patch, nil
 }
 
-func mcpConnectionInputFromWire(in protocol.McpConnectionInput) (integrations.MCPConnectionInput, error) {
+func mcpConnectionInputFromWire(in protocol.MCPConnectionInput) (mcpapp.ConnectionInput, error) {
 	transport, ok := mcpTransportFromWire(in.Type)
 	if !ok {
-		return integrations.MCPConnectionInput{}, fmt.Errorf("%w: unknown MCP transport %q", protocol.ErrInvalidParams, in.Type)
+		return mcpapp.ConnectionInput{}, fmt.Errorf("%w: unknown MCP transport %q", protocol.ErrInvalidParams, in.Type)
 	}
-	var authorization *integrations.MCPAuthorizationChange
+	var authorization *mcpapp.AuthorizationChange
 	if in.Authorization != nil {
-		change := integrations.MCPAuthorizationChange{Value: in.Authorization.Value}
+		change := mcpapp.AuthorizationChange{Value: in.Authorization.Value}
 		switch in.Authorization.Type {
-		case protocol.McpSecretSet:
-			change.Kind = integrations.MCPSecretSet
-		case protocol.McpSecretClear:
-			change.Kind = integrations.MCPSecretClear
+		case protocol.MCPSecretSet:
+			change.Kind = mcpapp.SecretSet
+		case protocol.MCPSecretClear:
+			change.Kind = mcpapp.SecretClear
 		default:
-			return integrations.MCPConnectionInput{}, fmt.Errorf("%w: unknown MCP authorization change %q", protocol.ErrInvalidParams, in.Authorization.Type)
+			return mcpapp.ConnectionInput{}, fmt.Errorf("%w: unknown MCP authorization change %q", protocol.ErrInvalidParams, in.Authorization.Type)
 		}
 		authorization = &change
 	}
-	var headers *integrations.MCPHeadersChange
+	var headers *mcpapp.HeadersChange
 	if in.Headers != nil {
-		change := integrations.MCPHeadersChange{Value: in.Headers.Value}
+		change := mcpapp.HeadersChange{Value: in.Headers.Value}
 		switch in.Headers.Type {
-		case protocol.McpSecretSet:
-			change.Kind = integrations.MCPSecretSet
-		case protocol.McpSecretClear:
-			change.Kind = integrations.MCPSecretClear
+		case protocol.MCPSecretSet:
+			change.Kind = mcpapp.SecretSet
+		case protocol.MCPSecretClear:
+			change.Kind = mcpapp.SecretClear
 		default:
-			return integrations.MCPConnectionInput{}, fmt.Errorf("%w: unknown MCP headers change %q", protocol.ErrInvalidParams, in.Headers.Type)
+			return mcpapp.ConnectionInput{}, fmt.Errorf("%w: unknown MCP headers change %q", protocol.ErrInvalidParams, in.Headers.Type)
 		}
 		headers = &change
 	}
-	var environment *integrations.MCPEnvironmentChange
+	var environment *mcpapp.EnvironmentChange
 	if in.Env != nil {
-		change := integrations.MCPEnvironmentChange{Value: in.Env.Value}
+		change := mcpapp.EnvironmentChange{Value: in.Env.Value}
 		switch in.Env.Type {
-		case protocol.McpSecretSet:
-			change.Kind = integrations.MCPSecretSet
-		case protocol.McpSecretClear:
-			change.Kind = integrations.MCPSecretClear
+		case protocol.MCPSecretSet:
+			change.Kind = mcpapp.SecretSet
+		case protocol.MCPSecretClear:
+			change.Kind = mcpapp.SecretClear
 		default:
-			return integrations.MCPConnectionInput{}, fmt.Errorf("%w: unknown MCP environment change %q", protocol.ErrInvalidParams, in.Env.Type)
+			return mcpapp.ConnectionInput{}, fmt.Errorf("%w: unknown MCP environment change %q", protocol.ErrInvalidParams, in.Env.Type)
 		}
 		environment = &change
 	}
-	return integrations.MCPConnectionInput{
+	return mcpapp.ConnectionInput{
 		Transport:     transport,
 		URL:           in.URL,
 		Authorization: authorization,
@@ -102,11 +102,11 @@ func mcpConnectionInputFromWire(in protocol.McpConnectionInput) (integrations.MC
 	}, nil
 }
 
-func mcpTransportFromWire(transport protocol.McpTransport) (mcpserver.Transport, bool) {
+func mcpTransportFromWire(transport protocol.MCPTransport) (mcpserver.Transport, bool) {
 	switch transport {
-	case protocol.McpTransportStdio:
+	case protocol.MCPTransportStdio:
 		return mcpserver.TransportStdio, true
-	case protocol.McpTransportStreamableHTTP:
+	case protocol.MCPTransportStreamableHTTP:
 		return mcpserver.TransportStreamableHTTP, true
 	default:
 		return "", false

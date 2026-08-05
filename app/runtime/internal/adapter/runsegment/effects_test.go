@@ -524,7 +524,7 @@ func TestNudgePublishesFileChange(t *testing.T) {
 		paths []string
 	}
 	effects := New(Config{PublishFileChanges: func(change workspaceapp.FileChangeNotice) {
-		published.cwd, published.paths = change.Cwd, change.Paths
+		published.cwd, published.paths = change.CWD, change.Paths
 	}})
 
 	effects.Nudge("/work", []string{"a.go"})
@@ -538,7 +538,7 @@ func TestFinishRunsTerminalMaintenanceOnlyForTerminalRuns(t *testing.T) {
 	snapshotted := make(chan string, 1)
 	stores := &fakeStores{
 		session: &fakeSession{
-			sess:    session.Session{ID: "ses_1", Cwd: "/repo"},
+			sess:    session.Session{ID: "ses_1", CWD: "/repo"},
 			renamed: renamed,
 		},
 		title: "Generated title",
@@ -547,7 +547,7 @@ func TestFinishRunsTerminalMaintenanceOnlyForTerminalRuns(t *testing.T) {
 		Checkpoints: fakeCheckpoints{snapshotted: snapshotted},
 	})
 
-	effects.Finish(t.Context(), runs.Finish{SessionID: "ses_1", RunID: "run_1", Cwd: "/run-cwd", OpeningUserText: "hello"})
+	effects.Finish(t.Context(), runs.Finish{SessionID: "ses_1", RunID: "run_1", CWD: "/run-cwd", OpeningUserText: "hello"})
 
 	if got := waitString(t, snapshotted); got != "ses_1:/run-cwd:run_1" {
 		t.Fatalf("snapshot = %q", got)
@@ -556,7 +556,7 @@ func TestFinishRunsTerminalMaintenanceOnlyForTerminalRuns(t *testing.T) {
 		t.Fatalf("title = %q", got)
 	}
 
-	effects.Finish(t.Context(), runs.Finish{SessionID: "ses_1", RunID: "run_2", Cwd: "/run-cwd", Parked: true, OpeningUserText: "ignored"})
+	effects.Finish(t.Context(), runs.Finish{SessionID: "ses_1", RunID: "run_2", CWD: "/run-cwd", Parked: true, OpeningUserText: "ignored"})
 	select {
 	case got := <-snapshotted:
 		t.Fatalf("parked run must not snapshot, got %q", got)
@@ -589,7 +589,7 @@ func TestFinishOrdersMaintenanceAndReportsEveryFailure(t *testing.T) {
 	err := effects.Finish(t.Context(), runs.Finish{
 		SessionID:       "ses_1",
 		RunID:           "run_1",
-		Cwd:             "/repo",
+		CWD:             "/repo",
 		OpeningUserText: "hello",
 	})
 	if !errors.Is(err, snapshotErr) || !errors.Is(err, renameErr) {
@@ -610,7 +610,7 @@ func TestFinishWaitsForCheckpointBeforeReturning(t *testing.T) {
 	})
 	done := make(chan error, 1)
 	go func() {
-		done <- effects.Finish(t.Context(), runs.Finish{SessionID: "ses_1", RunID: "run_1", Cwd: "/repo"})
+		done <- effects.Finish(t.Context(), runs.Finish{SessionID: "ses_1", RunID: "run_1", CWD: "/repo"})
 	}()
 
 	select {

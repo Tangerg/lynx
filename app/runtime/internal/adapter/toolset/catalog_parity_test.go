@@ -27,13 +27,13 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
 
-type activeGoalState struct{}
+type activeGoalStub struct{}
 
-func (activeGoalState) Get(context.Context, string) (goal.Goal, bool, error) {
+func (activeGoalStub) Current(context.Context, string) (goal.Goal, bool, error) {
 	return goal.Goal{}, false, nil
 }
-func (activeGoalState) Active(context.Context, string) (bool, error) { return true, nil }
-func (activeGoalState) Report(context.Context, goals.ReportCommand) (goals.ReportResult, error) {
+func (activeGoalStub) Active(context.Context, string) (bool, error) { return true, nil }
+func (activeGoalStub) Report(context.Context, goals.ReportCommand) (goals.ReportResult, error) {
 	return goals.ReportNoActiveGoal, nil
 }
 
@@ -70,21 +70,21 @@ func (allWiredToolResults) Fetch(context.Context, string, resultoffload.ID) (str
 	return "", false, nil
 }
 
-type allWiredMemorySearch struct{}
+type allWiredAgentMemorySearch struct{}
 
-func (allWiredMemorySearch) Search(context.Context, agentmemory.Scope, string, string, int) ([]agentmemory.Item, error) {
+func (allWiredAgentMemorySearch) Search(context.Context, agentmemory.Scope, string, string, int) ([]agentmemory.Item, error) {
 	return nil, nil
 }
 
-type allWiredSessionSearch struct{}
+type allWiredConversationSearch struct{}
 
-func (allWiredSessionSearch) SearchTranscript(context.Context, string, int) ([]transcript.SearchHit, error) {
+func (allWiredConversationSearch) SearchTranscript(context.Context, string, int) ([]transcript.SearchHit, error) {
 	return nil, nil
 }
 
 type allWiredSkillProposals struct{}
 
-func (allWiredSkillProposals) SubmitSkillProposal(_ context.Context, _ string, proposal skills.Proposal) (skills.ProposalRef, error) {
+func (allWiredSkillProposals) SubmitProposal(_ context.Context, _ string, proposal skills.Proposal) (skills.ProposalRef, error) {
 	return skills.NewProposalRef(proposal.Scope, proposal.Name, []byte(proposal.Instructions)), nil
 }
 
@@ -130,11 +130,12 @@ func TestRootResolverIncludesConfiguredConditionalTools(t *testing.T) {
 		t.Fatalf("approval policy: %v", err)
 	}
 	built, err := Build(t.Context(), BuildConfig{
-		Workdir:  t.TempDir(),
-		UserHome: t.TempDir(),
-		PlanMode: policy,
-		Plan:     rolePlanStore{},
-		Goals:    activeGoalState{},
+		DefaultCWD:   t.TempDir(),
+		UserHome:     t.TempDir(),
+		PlanMode:     policy,
+		Plan:         rolePlanStore{},
+		GoalReader:   activeGoalStub{},
+		GoalReporter: activeGoalStub{},
 		Interrupt: func(context.Context, string, runs.Interrupt) (interrupts.Resolution, error) {
 			return interrupts.Resolution{}, nil
 		},
@@ -178,17 +179,18 @@ func TestDescriptorCatalogMatchesBuiltInTools(t *testing.T) {
 		t.Fatalf("approval policy: %v", err)
 	}
 	built, err := Build(t.Context(), BuildConfig{
-		Workdir:        t.TempDir(),
-		UserHome:       t.TempDir(),
-		SkillsUserDir:  t.TempDir(), // backs skill
-		PlanMode:       policy,
-		Plan:           rolePlanStore{},
-		Goals:          activeGoalState{},
-		Schedules:      allWiredSchedules{},   // backs schedule
-		ToolResults:    allWiredToolResults{}, // backs read_tool_result
-		MemorySearch:   allWiredMemorySearch{},
-		SessionSearch:  allWiredSessionSearch{},
-		SkillProposals: allWiredSkillProposals{},
+		DefaultCWD:         t.TempDir(),
+		UserHome:           t.TempDir(),
+		SkillsUserDir:      t.TempDir(), // backs skill
+		PlanMode:           policy,
+		Plan:               rolePlanStore{},
+		GoalReader:         activeGoalStub{},
+		GoalReporter:       activeGoalStub{},
+		Schedules:          allWiredSchedules{},   // backs schedule
+		ToolResults:        allWiredToolResults{}, // backs read_tool_result
+		AgentMemorySearch:  allWiredAgentMemorySearch{},
+		ConversationSearch: allWiredConversationSearch{},
+		SkillProposals:     allWiredSkillProposals{},
 		Online: OnlineConfig{
 			JinaAPIKey:       "test-jina",
 			TavilyAPIKey:     "test-tavily",

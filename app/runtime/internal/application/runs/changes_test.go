@@ -62,7 +62,7 @@ func (r *changeRecorder) count(resource change.Resource) int {
 func TestStartAndTerminalPublishRunAndSessionChanges(t *testing.T) {
 	exec := &fakeExecutor{}
 	effects := &fakeEffects{}
-	sessions := &fakeRunSessions{sess: session.Session{ID: "ses_1", Cwd: "/work"}}
+	sessions := &fakeRunSessions{sess: session.Session{ID: "ses_1", CWD: "/work"}}
 	control := &fakeExecutionControl{startRef: execution.ExecutorRef{SessionID: "ses_1", ExecutorID: "turn_1"}}
 	changes := &changeRecorder{}
 	c := NewCoordinator(Dependencies{
@@ -123,7 +123,7 @@ func TestCommittedStateChangeReachesOtherWindows(t *testing.T) {
 	c := NewCoordinator(Dependencies{
 		Segments:     exec,
 		Control:      &fakeExecutionControl{startRef: execution.ExecutorRef{SessionID: "ses_1", ExecutorID: "turn_1"}},
-		Sessions:     &fakeRunSessions{sess: session.Session{ID: "ses_1", Cwd: "/work"}},
+		Sessions:     &fakeRunSessions{sess: session.Session{ID: "ses_1", CWD: "/work"}},
 		Effects:      &fakeEffects{},
 		Now:          func() time.Time { return time.Date(2026, 7, 29, 1, 2, 3, 0, time.UTC) },
 		NewRunID:     func() string { return "run_new" },

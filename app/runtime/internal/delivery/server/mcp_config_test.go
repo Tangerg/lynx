@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/application/integrations"
+	mcpapp "github.com/Tangerg/lynx/app/runtime/internal/application/mcp"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 )
@@ -18,9 +18,9 @@ func TestUpdateMCPServerPreservesStoredHTTPSecretsAtSameOrigin(t *testing.T) {
 			Headers: map[string]string{"X-API-Key": "stored-key"},
 		},
 	}}
-	s := serverWithMCP(integrations.Config{MCPRegistry: registry})
-	connection := protocol.McpConnectionInput{
-		Type: protocol.McpTransportStreamableHTTP,
+	s := serverWithMCP(mcpapp.Config{Registry: registry})
+	connection := protocol.MCPConnectionInput{
+		Type: protocol.MCPTransportStreamableHTTP,
 		URL:  "https://mcp.linear.app/other-path",
 	}
 	got, err := s.UpdateMCPServer(context.Background(), protocol.UpdateMCPServerRequest{
@@ -53,9 +53,9 @@ func TestUpdateMCPServerRequiresExplicitAuthorizationDispositionAcrossOrigins(t 
 			URL: "https://mcp.linear.app/mcp", Authorization: "Bearer stored-token",
 		},
 	}}
-	s := serverWithMCP(integrations.Config{MCPRegistry: registry})
-	connection := protocol.McpConnectionInput{
-		Type: protocol.McpTransportStreamableHTTP,
+	s := serverWithMCP(mcpapp.Config{Registry: registry})
+	connection := protocol.MCPConnectionInput{
+		Type: protocol.MCPTransportStreamableHTTP,
 		URL:  "https://other.example/mcp",
 	}
 	_, err := s.UpdateMCPServer(t.Context(), protocol.UpdateMCPServerRequest{
@@ -68,7 +68,7 @@ func TestUpdateMCPServerRequiresExplicitAuthorizationDispositionAcrossOrigins(t 
 		t.Fatalf("saved %d server(s) after ambiguous credential transfer", len(registry.saved))
 	}
 
-	connection.Authorization = &protocol.McpAuthorizationChange{Type: protocol.McpSecretClear}
+	connection.Authorization = &protocol.MCPAuthorizationChange{Type: protocol.MCPSecretClear}
 	got, err := s.UpdateMCPServer(t.Context(), protocol.UpdateMCPServerRequest{
 		Server: "linear", Connection: &connection,
 	})
@@ -88,9 +88,9 @@ func TestUpdateMCPServerRequiresExplicitHeadersDispositionAcrossOrigins(t *testi
 			URL: "https://old.example/mcp", Headers: map[string]string{"X-API-Key": "stored-key"},
 		},
 	}}
-	s := serverWithMCP(integrations.Config{MCPRegistry: registry})
-	connection := protocol.McpConnectionInput{
-		Type: protocol.McpTransportStreamableHTTP,
+	s := serverWithMCP(mcpapp.Config{Registry: registry})
+	connection := protocol.MCPConnectionInput{
+		Type: protocol.MCPTransportStreamableHTTP,
 		URL:  "https://new.example/mcp",
 	}
 	_, err := s.UpdateMCPServer(t.Context(), protocol.UpdateMCPServerRequest{
@@ -100,7 +100,7 @@ func TestUpdateMCPServerRequiresExplicitHeadersDispositionAcrossOrigins(t *testi
 		t.Fatalf("update across origins = %v, want ErrInvalidParams", err)
 	}
 
-	connection.Headers = &protocol.McpHeadersChange{Type: protocol.McpSecretClear}
+	connection.Headers = &protocol.MCPHeadersChange{Type: protocol.MCPSecretClear}
 	got, err := s.UpdateMCPServer(t.Context(), protocol.UpdateMCPServerRequest{
 		Server: "cloud", Connection: &connection,
 	})
@@ -121,9 +121,9 @@ func TestUpdateMCPServerProtectsStoredEnvironmentAcrossProcessTargets(t *testing
 			Env: map[string]string{"API_KEY": "stored-key"},
 		},
 	}}
-	s := serverWithMCP(integrations.Config{MCPRegistry: registry})
-	connection := protocol.McpConnectionInput{
-		Type: protocol.McpTransportStdio, Command: "node", Args: []string{"server.js"}, Dir: "/repo",
+	s := serverWithMCP(mcpapp.Config{Registry: registry})
+	connection := protocol.MCPConnectionInput{
+		Type: protocol.MCPTransportStdio, Command: "node", Args: []string{"server.js"}, Dir: "/repo",
 	}
 	got, err := s.UpdateMCPServer(t.Context(), protocol.UpdateMCPServerRequest{
 		Server: "fs", Connection: &connection,
@@ -146,7 +146,7 @@ func TestUpdateMCPServerProtectsStoredEnvironmentAcrossProcessTargets(t *testing
 		t.Fatalf("changed target update = %v, want ErrInvalidParams", err)
 	}
 
-	connection.Env = &protocol.McpEnvironmentChange{Type: protocol.McpSecretClear}
+	connection.Env = &protocol.MCPEnvironmentChange{Type: protocol.MCPSecretClear}
 	got, err = s.UpdateMCPServer(t.Context(), protocol.UpdateMCPServerRequest{
 		Server: "fs", Connection: &connection,
 	})
@@ -162,12 +162,12 @@ func TestUpdateMCPServerProtectsStoredEnvironmentAcrossProcessTargets(t *testing
 func TestCreateMCPServerPropagatesExistenceLookupError(t *testing.T) {
 	lookupErr := errors.New("registry unavailable")
 	registry := &mcpRegistryFake{servers: map[string]mcpserver.Server{}, getErr: lookupErr}
-	s := serverWithMCP(integrations.Config{MCPRegistry: registry})
+	s := serverWithMCP(mcpapp.Config{Registry: registry})
 
 	_, err := s.CreateMCPServer(context.Background(), protocol.MCPServerCandidate{
 		Name: "linear", Enabled: true,
-		Connection: protocol.McpConnectionInput{
-			Type: protocol.McpTransportStreamableHTTP,
+		Connection: protocol.MCPConnectionInput{
+			Type: protocol.MCPTransportStreamableHTTP,
 			URL:  "https://mcp.linear.app/mcp",
 		},
 	})
@@ -181,12 +181,12 @@ func TestCreateMCPServerPropagatesExistenceLookupError(t *testing.T) {
 
 func TestCreateMCPServerRejectsNegativeTimeout(t *testing.T) {
 	registry := &mcpRegistryFake{}
-	s := serverWithMCP(integrations.Config{MCPRegistry: registry})
+	s := serverWithMCP(mcpapp.Config{Registry: registry})
 
 	_, err := s.CreateMCPServer(context.Background(), protocol.MCPServerCandidate{
 		Name: "linear", TimeoutSeconds: -1,
-		Connection: protocol.McpConnectionInput{
-			Type: protocol.McpTransportStreamableHTTP,
+		Connection: protocol.MCPConnectionInput{
+			Type: protocol.MCPTransportStreamableHTTP,
 			URL:  "https://mcp.linear.app/mcp",
 		},
 	})
@@ -200,12 +200,12 @@ func TestCreateMCPServerRejectsNegativeTimeout(t *testing.T) {
 
 func TestCreateMCPServerRejectsInvalidHTTPEndpointBeforePersistence(t *testing.T) {
 	registry := &mcpRegistryFake{}
-	s := serverWithMCP(integrations.Config{MCPRegistry: registry})
+	s := serverWithMCP(mcpapp.Config{Registry: registry})
 
 	_, err := s.CreateMCPServer(t.Context(), protocol.MCPServerCandidate{
 		Name: "linear",
-		Connection: protocol.McpConnectionInput{
-			Type: protocol.McpTransportStreamableHTTP,
+		Connection: protocol.MCPConnectionInput{
+			Type: protocol.MCPTransportStreamableHTTP,
 			URL:  "file:///tmp/mcp.sock",
 		},
 	})

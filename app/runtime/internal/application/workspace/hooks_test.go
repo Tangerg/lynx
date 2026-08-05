@@ -8,19 +8,19 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
 )
 
-func TestRuntimeInspectHooksReturnsEmptyWhenUnconfigured(t *testing.T) {
-	c := NewHooks(NewContext("", "", testPaths{}), nil, nil)
+func TestRuntimeInspectReturnsEmptyWhenUnconfigured(t *testing.T) {
+	c := NewHooks(NewScope("", "", testPaths{}), nil, nil)
 
-	got, err := c.InspectHooks(context.Background(), "/repo")
+	got, err := c.Inspect(context.Background(), "/repo")
 	if err != nil {
-		t.Fatalf("InspectHooks: %v", err)
+		t.Fatalf("Inspect: %v", err)
 	}
 	if got.ProjectRoot != "" || got.ProjectTrusted || len(got.Hooks) != 0 {
-		t.Fatalf("InspectHooks = %+v, want empty inspection", got)
+		t.Fatalf("Inspect = %+v, want empty inspection", got)
 	}
 }
 
-func TestRuntimeInspectHooksUsesInspectionPort(t *testing.T) {
+func TestRuntimeInspectUsesInspectionPort(t *testing.T) {
 	inspector := &fakeHookInspector{
 		inspection: hooks.Inspection{
 			ProjectRoot:    "/repo",
@@ -31,17 +31,17 @@ func TestRuntimeInspectHooksUsesInspectionPort(t *testing.T) {
 			}},
 		},
 	}
-	c := NewHooks(NewContext("", "", testPaths{}), inspector, nil)
+	c := NewHooks(NewScope("", "", testPaths{}), inspector, nil)
 
-	got, err := c.InspectHooks(context.Background(), "/repo")
+	got, err := c.Inspect(context.Background(), "/repo")
 	if err != nil {
-		t.Fatalf("InspectHooks: %v", err)
+		t.Fatalf("Inspect: %v", err)
 	}
 	if inspector.cwd != "/repo" {
 		t.Fatalf("inspect cwd = %q, want /repo", inspector.cwd)
 	}
 	if got.ProjectRoot != "/repo" || !got.ProjectTrusted || len(got.Hooks) != 1 || got.Hooks[0].Hook.Command != "make test" || !got.Hooks[0].Active {
-		t.Fatalf("InspectHooks = %+v", got)
+		t.Fatalf("Inspect = %+v", got)
 	}
 }
 
@@ -56,11 +56,11 @@ func (i *fakeHookInspector) Inspect(_ context.Context, cwd string) (hooks.Inspec
 	return i.inspection, i.err
 }
 
-func TestRuntimeInspectHooksPreservesInspectorFailure(t *testing.T) {
+func TestRuntimeInspectPreservesInspectorFailure(t *testing.T) {
 	wantErr := errors.New("hook trust unavailable")
-	c := NewHooks(NewContext("", "", testPaths{}), &fakeHookInspector{err: wantErr}, nil)
+	c := NewHooks(NewScope("", "", testPaths{}), &fakeHookInspector{err: wantErr}, nil)
 
-	if _, err := c.InspectHooks(context.Background(), "/repo"); !errors.Is(err, wantErr) {
-		t.Fatalf("InspectHooks error = %v, want %v", err, wantErr)
+	if _, err := c.Inspect(context.Background(), "/repo"); !errors.Is(err, wantErr) {
+		t.Fatalf("Inspect error = %v, want %v", err, wantErr)
 	}
 }

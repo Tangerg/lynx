@@ -22,7 +22,7 @@ var (
 )
 
 // reduction is one canonical output plus the persisted fact and live nudge that
-// arise from the same EngineEvent decision. The pump commits it before placing
+// arise from the same ExecutionFact decision. The pump commits it before placing
 // Event on the Journal.
 type reduction struct {
 	Event  RunEvent
@@ -45,7 +45,7 @@ type reducerConfig struct {
 	SegmentID      string
 	SessionID      string
 	Lineage        execution.RunLineage
-	Cwd            string
+	CWD            string
 	ExecutorID     string
 	GoalLeaseID    string
 	ModelSelection modelref.Selection
@@ -113,7 +113,7 @@ type openTool struct {
 	name         string
 	arguments    tool.Arguments
 	safetyClass  tool.SafetyClass
-	end          *ToolCallEnd
+	end          *ToolCallFinished
 }
 
 func newReducer(cfg reducerConfig) *reducer {
@@ -162,7 +162,7 @@ func (r *reducer) open() (reductionBatch, error) {
 	return r.project(out)
 }
 
-func (r *reducer) reduce(ev EngineEvent) (reductionBatch, error) {
+func (r *reducer) reduce(ev ExecutionFact) (reductionBatch, error) {
 	var out []RunEvent
 	switch e := ev.(type) {
 	case MessageDelta:
@@ -171,13 +171,13 @@ func (r *reducer) reduce(ev EngineEvent) (reductionBatch, error) {
 	case ReasoningDelta:
 		out = r.closeText()
 		out = append(out, r.appendReasoning(e.Text)...)
-	case ToolCallStart:
+	case ToolCallStarted:
 		var err error
 		out, err = r.toolStart(e)
 		if err != nil {
 			return reductionBatch{}, fmt.Errorf("%w: tool call start: %w", errExecutorContract, err)
 		}
-	case ToolCallEnd:
+	case ToolCallFinished:
 		var err error
 		out, err = r.toolEnd(e)
 		if err != nil {
@@ -193,7 +193,7 @@ func (r *reducer) reduce(ev EngineEvent) (reductionBatch, error) {
 		out = r.steerMessage(e)
 	case PlanUpdated:
 		out = r.planSnapshot(e)
-	case CompactBoundary:
+	case CompactionBoundary:
 		out = r.compaction(e)
 	case SegmentInterrupted:
 		var err error
@@ -367,7 +367,7 @@ func (r *reducer) projectOne(event RunEvent) (reduction, error) {
 		event = e
 		commit.Items = []transcript.Item{e.Item}
 		if e.Item.Status == transcript.ItemCompleted && e.Item.Error == nil && len(e.mutatedPaths) > 0 {
-			nudge = &Nudge{Cwd: r.cfg.Cwd, Paths: slices.Clone(e.mutatedPaths)}
+			nudge = &Nudge{CWD: r.cfg.CWD, Paths: slices.Clone(e.mutatedPaths)}
 		}
 	case SegmentFinished:
 		commit.Run = &e.Run

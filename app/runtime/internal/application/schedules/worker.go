@@ -29,7 +29,7 @@ const manualRunRecordTimeout = 5 * time.Second
 // admission.
 const workerBatchSize = 32
 
-// Runner starts one scheduled prompt as a headless run. It is the
+// Runner starts one scheduled instruction set as a headless run. It is the
 // application-owned seam between a fired schedule and a run start.
 type Runner interface {
 	StartScheduledRun(ctx context.Context, occurrence schedule.Occurrence) (RunHandle, error)

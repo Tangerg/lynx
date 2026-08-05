@@ -30,7 +30,7 @@ func TestDeleteSessionPublishesEveryProjectionItRemoved(t *testing.T) {
 	changes := &recorder{}
 	coordinator := New(testDependencies(stores, Dependencies{
 		ExecutionCleanup: mutationExecutions{operations: &stores.operations},
-		Paths:            testCwdResolver{},
+		Paths:            testCWDResolver{},
 		Changed:          changes.publish,
 	}))
 
@@ -57,7 +57,7 @@ func TestFailedDeleteSessionPublishesNothing(t *testing.T) {
 	changes := &recorder{}
 	coordinator := New(testDependencies(stores, Dependencies{
 		ExecutionCleanup: mutationExecutions{operations: &stores.operations},
-		Paths:            testCwdResolver{},
+		Paths:            testCWDResolver{},
 		Changed:          changes.publish,
 	}))
 

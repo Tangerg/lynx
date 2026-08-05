@@ -36,7 +36,7 @@ const defaultAutoBackgroundSeconds = 60
 type shellArgs struct {
 	Command                    string `json:"command" jsonschema:"minLength=1" jsonschema_description:"Shell command line, run by /bin/sh -c. Each call starts a fresh shell; directory changes, variables, and shell options do not persist."`
 	Description                string `json:"description" jsonschema:"minLength=1,maxLength=120" jsonschema_description:"Concise action phrase shown while the command runs, such as Run backend tests. Describe the command's purpose; do not copy the command or predict its result."`
-	TimeoutMS                  int    `json:"timeout_ms,omitempty" jsonschema:"minimum=1" jsonschema_description:"Hard execution timeout in milliseconds. Omit for no hard timeout."`
+	TimeoutMillis              int    `json:"timeout_millis,omitempty" jsonschema:"minimum=1" jsonschema_description:"Hard execution timeout in milliseconds. Omit for no hard timeout."`
 	RunInBackground            bool   `json:"run_in_background,omitempty" jsonschema_description:"Return immediately with a shell_id while the command keeps running. Use for servers and watchers."`
 	AutoBackgroundAfterSeconds int    `json:"auto_background_after_seconds,omitempty" jsonschema:"minimum=1" jsonschema_description:"Move a foreground command to the background after this many seconds. Defaults to 60."`
 }
@@ -58,7 +58,7 @@ func (a shellArgs) validate() error {
 }
 
 func (a shellArgs) timeout() time.Duration {
-	return time.Duration(a.TimeoutMS) * time.Millisecond
+	return time.Duration(a.TimeoutMillis) * time.Millisecond
 }
 
 func (a shellArgs) autoBackgroundAfter() time.Duration {
@@ -70,17 +70,17 @@ func (a shellArgs) autoBackgroundAfter() time.Duration {
 }
 
 type shellOutputArgs struct {
-	ShellID   string `json:"shell_id" jsonschema:"required" jsonschema_description:"Background shell id returned by shell when a long-running command was moved to the background."`
-	Wait      bool   `json:"wait,omitempty" jsonschema_description:"Wait for the shell to exit before returning new output. Use this instead of sleep polling; avoid waiting indefinitely on a server or watcher."`
-	TimeoutMS int    `json:"timeout_ms,omitempty" jsonschema:"minimum=1" jsonschema_description:"When wait=true, maximum milliseconds to wait before returning current output. Omit to wait until exit. Do not pass when wait=false."`
+	ShellID       string `json:"shell_id" jsonschema:"required" jsonschema_description:"Background shell id returned by shell when a long-running command was moved to the background."`
+	Wait          bool   `json:"wait,omitempty" jsonschema_description:"Wait for the shell to exit before returning new output. Use this instead of sleep polling; avoid waiting indefinitely on a server or watcher."`
+	TimeoutMillis int    `json:"timeout_millis,omitempty" jsonschema:"minimum=1" jsonschema_description:"When wait=true, maximum milliseconds to wait before returning current output. Omit to wait until exit. Do not pass when wait=false."`
 }
 
 func (a shellOutputArgs) validate() error {
 	if a.ShellID == "" {
 		return errors.New("read_shell_output: shell_id is required")
 	}
-	if !a.Wait && a.TimeoutMS > 0 {
-		return errors.New("read_shell_output: timeout_ms requires wait=true")
+	if !a.Wait && a.TimeoutMillis > 0 {
+		return errors.New("read_shell_output: timeout_millis requires wait=true")
 	}
 	return nil
 }
@@ -97,15 +97,15 @@ func (a shellIDArgs) validate() error {
 }
 
 type family struct {
-	shells         *exec.Shells
-	defaultWorkdir string
+	shells     *exec.Shells
+	defaultCWD string
 }
 
-func Build(shells *exec.Shells, defaultWorkdir string) ([]toolcontract.Tool, error) {
+func Build(shells *exec.Shells, defaultCWD string) ([]toolcontract.Tool, error) {
 	if shells == nil {
 		return nil, errors.New("shell: shells is nil")
 	}
-	t := &family{shells: shells, defaultWorkdir: defaultWorkdir}
+	t := &family{shells: shells, defaultCWD: defaultCWD}
 
 	shellTool, err := toolcontract.NewFunc[shellArgs, string](
 		toolcontract.FuncConfig{
@@ -124,7 +124,7 @@ func Build(shells *exec.Shells, defaultWorkdir string) ([]toolcontract.Tool, err
 	outputTool, err := toolcontract.NewFunc[shellOutputArgs, string](
 		toolcontract.FuncConfig{
 			Name:        catalog.ReadShellOutput,
-			Description: "Read only the new output produced by a background shell since the previous read and report whether it is still running. Set wait=true to wait event-first for exit instead of sleep polling; bound that wait with timeout_ms for servers or watchers.",
+			Description: "Read only the new output produced by a background shell since the previous read and report whether it is still running. Set wait=true to wait event-first for exit instead of sleep polling; bound that wait with timeout_millis for servers or watchers.",
 		},
 		t.output,
 	)
@@ -149,7 +149,7 @@ func (t *family) run(ctx context.Context, a shellArgs) (string, error) {
 		return "", err
 	}
 
-	id, err := t.shells.Launch(ctx, executionctx.SessionID(ctx), executionctx.CWD(ctx, t.defaultWorkdir), a.Command, a.timeout(), executionctx.Isolated(ctx))
+	id, err := t.shells.Launch(ctx, executionctx.SessionID(ctx), executionctx.CWD(ctx, t.defaultCWD), a.Command, a.timeout(), executionctx.Isolated(ctx))
 	if err != nil {
 		return "", err
 	}
@@ -208,7 +208,7 @@ func (t *family) output(ctx context.Context, a shellOutputArgs) (string, error) 
 		return fmt.Sprintf("No background shell %s.", a.ShellID), nil
 	}
 	if a.Wait {
-		if err := waitForShell(ctx, sh, a.TimeoutMS); err != nil {
+		if err := waitForShell(ctx, sh, a.TimeoutMillis); err != nil {
 			return "", err
 		}
 	}
@@ -278,13 +278,13 @@ func backgroundedJSON(id string) (string, error) {
 	return string(b), nil
 }
 
-// waitForShell blocks until sh exits, ctx is canceled, or — when timeoutMs > 0
+// waitForShell blocks until sh exits, ctx is canceled, or — when timeoutMillis > 0
 // — the timeout elapses. It reuses the same per-shell done channel the shell
 // foreground path selects on (no polling). A timeout is NOT an error: the
 // caller then reports the current still-running output, just as if wait were
 // off. Returns ctx.Err() only on cancellation (Run cancel / budget timeout).
-func waitForShell(ctx context.Context, sh *exec.Shell, timeoutMs int) error {
-	if timeoutMs <= 0 {
+func waitForShell(ctx context.Context, sh *exec.Shell, timeoutMillis int) error {
+	if timeoutMillis <= 0 {
 		select {
 		case <-sh.Done():
 		case <-ctx.Done():
@@ -292,7 +292,7 @@ func waitForShell(ctx context.Context, sh *exec.Shell, timeoutMs int) error {
 		}
 		return nil
 	}
-	timer := time.NewTimer(time.Duration(timeoutMs) * time.Millisecond)
+	timer := time.NewTimer(time.Duration(timeoutMillis) * time.Millisecond)
 	defer timer.Stop()
 	select {
 	case <-sh.Done():

@@ -38,7 +38,7 @@ func (s *WorkspaceMutationStore) Record(ctx context.Context, m execution.Workspa
 	}
 	_, err := s.db.ExecContext(ctx,
 		`INSERT OR REPLACE INTO pending_workspace_mutations(session_id, cwd, to_run_id, restore_history) VALUES (?, ?, ?, ?)`,
-		m.SessionID, m.Cwd, m.ToRunID, m.RestoreHistory)
+		m.SessionID, m.CWD, m.ToRunID, m.RestoreHistory)
 	if err != nil {
 		return fmt.Errorf("sqlite: record workspace mutation: %w", err)
 	}
@@ -76,7 +76,7 @@ func (s *WorkspaceMutationStore) ListPending(ctx context.Context) ([]execution.W
 	var out []execution.WorkspaceMutation
 	for rows.Next() {
 		var m execution.WorkspaceMutation
-		if err := rows.Scan(&m.SessionID, &m.Cwd, &m.ToRunID, &m.RestoreHistory); err != nil {
+		if err := rows.Scan(&m.SessionID, &m.CWD, &m.ToRunID, &m.RestoreHistory); err != nil {
 			return nil, fmt.Errorf("sqlite: scan workspace mutation: %w", err)
 		}
 		out = append(out, m)

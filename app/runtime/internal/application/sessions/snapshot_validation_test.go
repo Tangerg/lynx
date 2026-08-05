@@ -142,7 +142,7 @@ func TestPortableSnapshotRefusesABrokenRunLineage(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			portable := PortableSnapshot{
-				Session: PortableSession{ID: "ses_1", Title: "t", Cwd: "/w"},
+				Session: PortableSession{ID: "ses_1", Title: "t", CWD: "/w"},
 				Runs:    runs,
 			}
 			if _, err := portable.CanonicalSnapshot(); !errors.Is(err, ErrInvalidPortableSnapshot) {
@@ -161,7 +161,7 @@ func TestPortableSnapshotChildInheritsRootCapabilities(t *testing.T) {
 	}
 	at := time.Unix(1, 0).UTC()
 	portable := PortableSnapshot{
-		Session: PortableSession{ID: "ses_1", Title: "t", Cwd: "/w", CreatedAt: at, UpdatedAt: at},
+		Session: PortableSession{ID: "ses_1", Title: "t", CWD: "/w", CreatedAt: at, UpdatedAt: at},
 		// The spawning item has to exist: a child run is spawned BY something, and an
 		// archive naming an item it does not contain is a tree that cannot be walked.
 		// The spawning item is a TOOL CALL: a child run is the execution of one.

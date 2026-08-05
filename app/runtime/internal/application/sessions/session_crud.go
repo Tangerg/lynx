@@ -8,10 +8,10 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 )
 
-// CwdResolver is the filesystem boundary needed when a session is created or
-// relocated. Session.Cwd is canonical after admission, so downstream use cases
+// CWDResolver is the filesystem boundary needed when a session is created or
+// relocated. Session.CWD is canonical after admission, so downstream use cases
 // treat it as an invariant instead of repeatedly touching the filesystem.
-type CwdResolver interface {
+type CWDResolver interface {
 	ResolveExistingDir(path string) (string, error)
 	Inspect(path string) (session.WorkspaceIdentity, error)
 }
@@ -44,9 +44,9 @@ func (c *Coordinator) InspectWorkspace(cwd string) (session.WorkspaceIdentity, e
 }
 
 // Create starts a fresh session in cwd, resolving cwd to an existing directory
-// (an unavailable cwd is [session.ErrCwdUnavailable]).
+// (an unavailable cwd is [session.ErrCWDUnavailable]).
 func (c *Coordinator) Create(ctx context.Context, title, cwd string) (session.Session, error) {
-	cwd, err := c.resolveSessionCwd(cwd)
+	cwd, err := c.resolveSessionCWD(cwd)
 	if err != nil {
 		return session.Session{}, err
 	}
@@ -69,7 +69,7 @@ func (c *Coordinator) PrepareScheduled(ctx context.Context, id, title, cwd strin
 	if id == "" {
 		return session.Session{}, errors.New("sessions: scheduled session ID is required")
 	}
-	cwd, err := c.resolveSessionCwd(cwd)
+	cwd, err := c.resolveSessionCWD(cwd)
 	if err != nil {
 		return session.Session{}, err
 	}
@@ -77,7 +77,7 @@ func (c *Coordinator) PrepareScheduled(ctx context.Context, id, title, cwd strin
 	return session.Session{
 		ID:        id,
 		Title:     title,
-		Cwd:       cwd,
+		CWD:       cwd,
 		StartedAt: now,
 		UpdatedAt: now,
 		Revision:  1,
@@ -104,14 +104,14 @@ func (c *Coordinator) Update(ctx context.Context, id string, patch session.Patch
 	if err != nil {
 		return session.Session{}, err
 	}
-	if patch.Cwd != nil {
-		cwd, err := c.resolveSessionCwd(*patch.Cwd)
+	if patch.CWD != nil {
+		cwd, err := c.resolveSessionCWD(*patch.CWD)
 		if err != nil {
 			return session.Session{}, err
 		}
-		patch.Cwd = &cwd
+		patch.CWD = &cwd
 	}
-	if patch.Cwd != nil || patch.Isolated != nil {
+	if patch.CWD != nil || patch.Isolated != nil {
 		admission, err := c.ClaimIdleSession(ctx, id)
 		if err != nil {
 			return session.Session{}, err
@@ -130,15 +130,15 @@ func (c *Coordinator) Update(ctx context.Context, id string, patch session.Patch
 	return updated, nil
 }
 
-// resolveSessionCwd canonicalizes cwd and requires it to be an existing
-// directory, joining [session.ErrCwdUnavailable] on failure.
-func (c *Coordinator) resolveSessionCwd(cwd string) (string, error) {
+// resolveSessionCWD canonicalizes cwd and requires it to be an existing
+// directory, joining [session.ErrCWDUnavailable] on failure.
+func (c *Coordinator) resolveSessionCWD(cwd string) (string, error) {
 	if c.paths == nil {
-		return "", errors.Join(session.ErrCwdUnavailable, errors.New("sessions: cwd resolver is unavailable"))
+		return "", errors.Join(session.ErrCWDUnavailable, errors.New("sessions: cwd resolver is unavailable"))
 	}
 	resolved, err := c.paths.ResolveExistingDir(cwd)
 	if err != nil {
-		return "", errors.Join(session.ErrCwdUnavailable, err)
+		return "", errors.Join(session.ErrCWDUnavailable, err)
 	}
 	return resolved, nil
 }

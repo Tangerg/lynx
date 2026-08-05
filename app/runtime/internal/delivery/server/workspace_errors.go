@@ -36,7 +36,7 @@ func wireWorkspaceError(err error) error {
 	switch {
 	case err == nil:
 		return nil
-	case errors.Is(err, workspaceapp.ErrCwdUnavailable):
+	case errors.Is(err, workspaceapp.ErrCWDUnavailable):
 		return fmt.Errorf("%w: %w", protocol.ErrWorkspaceUnavailable, err)
 	case errors.Is(err, workspaceapp.ErrPathOutsideRoot):
 		return protocol.ErrPathOutsideRoot
@@ -55,7 +55,7 @@ func wireWorkspaceError(err error) error {
 	// same answer discovery's feature map implies (API.md §9). The dispatcher's
 	// rule refuses these before they get here; this mapping keeps the sentinel
 	// from surfacing raw on another path into the same workspace use case.
-	case errors.Is(err, workspaceapp.ErrMemoryUnavailable):
+	case errors.Is(err, workspaceapp.ErrKnowledgeUnavailable):
 		return fmt.Errorf("%w: %w", protocol.ErrCapabilityNotNeg, err)
 	default:
 		return err

@@ -99,7 +99,7 @@ func (l *subagentLifecycle) fireSubagentHook(ctx context.Context, e event.Event)
 		_ = l.hooks.Run(ctx, hooks.Input{
 			Event:     hooks.SubagentStart,
 			SessionID: l.sessionID,
-			Cwd:       l.cwd,
+			CWD:       l.cwd,
 			Subagent:  &in,
 		})
 	case event.ProcessCompleted:
@@ -146,7 +146,7 @@ func (l *subagentLifecycle) runSubagentStopHook(ctx context.Context, binding run
 	_ = l.hooks.Run(ctx, hooks.Input{
 		Event:     hooks.SubagentStop,
 		SessionID: l.sessionID,
-		Cwd:       l.cwd,
+		CWD:       l.cwd,
 		Subagent:  &in,
 		Reason:    subagentStopReason(status),
 	})

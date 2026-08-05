@@ -36,7 +36,7 @@ func storedExecutorCheckpoint(rootProcessID, sessionID, payload string) executio
 		BuildID:       "sha256:checkpoint-build",
 		Scope: execution.ExecutionScope{
 			SessionID:   sessionID,
-			Cwd:         "/workspace/" + sessionID,
+			CWD:         "/workspace/" + sessionID,
 			Isolated:    true,
 			GoalLeaseID: "lease-" + sessionID,
 		},
@@ -92,7 +92,7 @@ func TestExecutorCheckpointStoreRejectsImmutablePolicyReplacement(t *testing.T) 
 	}
 	for name, mutate := range map[string]func(*execution.ExecutorCheckpoint){
 		"build":      func(checkpoint *execution.ExecutorCheckpoint) { checkpoint.BuildID = "other-build" },
-		"cwd":        func(checkpoint *execution.ExecutorCheckpoint) { checkpoint.Scope.Cwd = "/other" },
+		"cwd":        func(checkpoint *execution.ExecutorCheckpoint) { checkpoint.Scope.CWD = "/other" },
 		"isolation":  func(checkpoint *execution.ExecutorCheckpoint) { checkpoint.Scope.Isolated = false },
 		"goal lease": func(checkpoint *execution.ExecutorCheckpoint) { checkpoint.Scope.GoalLeaseID = "other-lease" },
 		"provider": func(checkpoint *execution.ExecutorCheckpoint) {

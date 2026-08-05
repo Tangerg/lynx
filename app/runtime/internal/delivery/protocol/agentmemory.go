@@ -9,7 +9,7 @@ import (
 // surface over the agent's self-maintained memory. The agent proposes durable
 // facts it mined from a session; they wait as pending until the user approves
 // them, and only approved memory is injected into future prompts or returned by
-// the search_memory tool. This is distinct from the Memory group, which edits
+// the search_memory tool. This is distinct from the Knowledge group, which edits
 // the user-authored LYRA.md cascade.
 type AgentMemory interface {
 	// ListAgentMemory returns the project's active + pending memory items,

@@ -37,7 +37,7 @@ type fakeProposalSubmitter struct {
 	cwds      []string
 }
 
-func (s *fakeProposalSubmitter) SubmitSkillProposal(_ context.Context, cwd string, proposal skills.Proposal) (skills.ProposalRef, error) {
+func (s *fakeProposalSubmitter) SubmitProposal(_ context.Context, cwd string, proposal skills.Proposal) (skills.ProposalRef, error) {
 	s.cwds = append(s.cwds, cwd)
 	s.proposals = append(s.proposals, proposal)
 	return skills.NewProposalRef(proposal.Scope, proposal.Name, []byte(proposal.Instructions)), nil

@@ -12,7 +12,7 @@ import (
 )
 
 // schedules.* (API.md §7.9) — manage the cron-triggered headless runs the
-// application scheduler fires. A schedule stores the final prompt
+// application scheduler fires. A schedule stores the final instructions
 // text, so the runtime fires it without resolving a recipe.
 
 // ListSchedules returns every schedule, newest-created first (schedules.list).
@@ -37,8 +37,8 @@ func (s *Server) CreateSchedule(ctx context.Context, in protocol.CreateScheduleR
 	}
 	created, err := s.schedules.Create(ctx, scheduleapp.CreateCommand{
 		Title:          in.Title,
-		Prompt:         in.Prompt,
-		Cwd:            workspaceRefPath(in.Workspace),
+		Instructions:   in.Instructions,
+		CWD:            workspaceRefPath(in.Workspace),
 		ModelSelection: selection,
 		Cron:           in.Cron,
 		Enabled:        true,
@@ -57,13 +57,13 @@ func (s *Server) UpdateSchedule(ctx context.Context, in protocol.UpdateScheduleR
 		ID:               in.ID,
 		ExpectedRevision: in.ExpectedRevision,
 		Patch: schedule.Patch{
-			Title:    in.Title,
-			Prompt:   in.Prompt,
-			Cwd:      workspacePathPatch(in.Workspace),
-			Provider: in.Provider,
-			Model:    in.Model,
-			Cron:     in.Cron,
-			Enabled:  in.Enabled,
+			Title:        in.Title,
+			Instructions: in.Instructions,
+			CWD:          workspacePathPatch(in.Workspace),
+			Provider:     in.Provider,
+			Model:        in.Model,
+			Cron:         in.Cron,
+			Enabled:      in.Enabled,
 		},
 	})
 	if err != nil {
@@ -101,7 +101,7 @@ func mapScheduleErr(err error, method, id string) error {
 	if errors.Is(err, schedule.ErrNotFound) {
 		return fmt.Errorf("%w: schedule %q not found", protocol.ErrInvalidParams, id)
 	}
-	if errors.Is(err, schedule.ErrCwdUnavailable) {
+	if errors.Is(err, schedule.ErrCWDUnavailable) {
 		return fmt.Errorf("%w: %w", protocol.ErrWorkspaceUnavailable, err)
 	}
 	if errors.Is(err, schedule.ErrRevisionConflict) {
@@ -109,7 +109,7 @@ func mapScheduleErr(err error, method, id string) error {
 	}
 	if errors.Is(err, schedule.ErrIDRequired) ||
 		errors.Is(err, schedule.ErrRevisionRequired) ||
-		errors.Is(err, schedule.ErrPromptRequired) ||
+		errors.Is(err, schedule.ErrInstructionsRequired) ||
 		errors.Is(err, schedule.ErrCronRequired) ||
 		errors.Is(err, modelref.ErrIncomplete) ||
 		errors.Is(err, schedule.ErrInvalidCron) {
@@ -122,16 +122,16 @@ func mapScheduleErr(err error, method, id string) error {
 // time (never fired / unscheduled) to an omitted field rather than a fake epoch.
 func presentSchedule(sc schedule.Schedule) protocol.Schedule {
 	w := protocol.Schedule{
-		ID:        sc.ID,
-		Title:     sc.Title,
-		Prompt:    sc.Prompt,
-		Workspace: workspaceRefFromPath(sc.Cwd),
-		Provider:  sc.ModelSelection.Provider(),
-		Model:     sc.ModelSelection.Model(),
-		Cron:      sc.Cron,
-		Enabled:   sc.Enabled,
-		CreatedAt: sc.CreatedAt,
-		Revision:  sc.Revision,
+		ID:           sc.ID,
+		Title:        sc.Title,
+		Instructions: sc.Instructions,
+		Workspace:    workspaceRefFromPath(sc.CWD),
+		Provider:     sc.ModelSelection.Provider(),
+		Model:        sc.ModelSelection.Model(),
+		Cron:         sc.Cron,
+		Enabled:      sc.Enabled,
+		CreatedAt:    sc.CreatedAt,
+		Revision:     sc.Revision,
 	}
 	if !sc.LastRunAt.IsZero() {
 		t := sc.LastRunAt

@@ -105,7 +105,7 @@ func runChildHITLScenario(t *testing.T, scenario childHITLScenario) (childHITLOu
 	handle, err := controller.StartTurn(t.Context(), runs.StartExecution{
 		SessionID:      "sess-b8-" + strings.ReplaceAll(scenario.name, " ", "-"),
 		Message:        "delegate this work",
-		Cwd:            t.TempDir(),
+		CWD:            t.TempDir(),
 		InterruptKinds: scenario.interruptKinds,
 	})
 	if err != nil {
@@ -141,7 +141,7 @@ func runChildHITLScenario(t *testing.T, scenario childHITLScenario) (childHITLOu
 			); err != nil {
 				t.Fatalf("Resume: %v", err)
 			}
-		case runs.ToolCallStart:
+		case runs.ToolCallStarted:
 			if event.ToolName == scenario.childTool {
 				outcome.childEvents++
 			}
@@ -194,7 +194,7 @@ func TestChildCanSuspendTwiceOnTheSameRun(t *testing.T) {
 	handle, err := controller.StartTurn(t.Context(), runs.StartExecution{
 		SessionID:      "sess-b8-two-questions",
 		Message:        "delegate this work",
-		Cwd:            t.TempDir(),
+		CWD:            t.TempDir(),
 		InterruptKinds: []execution.InterruptKind{execution.QuestionInterrupt},
 	})
 	if err != nil {
@@ -256,7 +256,7 @@ func TestCompleteAnswerSetDrivesParallelChildSuspensionsWithoutSecondBarrier(t *
 	handle, err := controller.StartTurn(t.Context(), runs.StartExecution{
 		SessionID:      "sess-b8-parallel-questions",
 		Message:        "delegate this work",
-		Cwd:            t.TempDir(),
+		CWD:            t.TempDir(),
 		InterruptKinds: []execution.InterruptKind{execution.QuestionInterrupt},
 	})
 	if err != nil {
@@ -342,7 +342,7 @@ func TestRestartResumesCompleteSiblingAnswerSetWithoutReplayingBarrier(t *testin
 	original, err := first.StartTurn(t.Context(), runs.StartExecution{
 		SessionID:      sess.ID,
 		Message:        "delegate this work",
-		Cwd:            cwd,
+		CWD:            cwd,
 		InterruptKinds: []execution.InterruptKind{execution.QuestionInterrupt},
 	})
 	if err != nil {
@@ -387,7 +387,7 @@ func TestRestartResumesCompleteSiblingAnswerSetWithoutReplayingBarrier(t *testin
 		ExecutorID: original.TurnID,
 		ProcessID:  processID,
 		RootRunID:  "run-root",
-		Cwd:        cwd,
+		CWD:        cwd,
 	})
 	if err != nil {
 		t.Fatalf("Rehydrate: %v", err)
@@ -456,7 +456,7 @@ func TestCompleteAnswerSetDoesNotPersistDuringLiveContinuation(t *testing.T) {
 	handle, err := controller.StartTurn(t.Context(), runs.StartExecution{
 		SessionID:      "sess-b8-parallel-checkpoint-failure",
 		Message:        "delegate this work",
-		Cwd:            t.TempDir(),
+		CWD:            t.TempDir(),
 		InterruptKinds: []execution.InterruptKind{execution.QuestionInterrupt},
 	})
 	if err != nil {
@@ -523,7 +523,7 @@ func TestCompleteAnswerSetEncodingFailurePrecedesAnyContinuationSideEffect(t *te
 	handle, err := controller.StartTurn(t.Context(), runs.StartExecution{
 		SessionID:      "sess-b8-parallel-encoding-failure",
 		Message:        "delegate this work",
-		Cwd:            t.TempDir(),
+		CWD:            t.TempDir(),
 		InterruptKinds: []execution.InterruptKind{execution.QuestionInterrupt},
 	})
 	if err != nil {
@@ -596,7 +596,7 @@ func TestRestartRestoresParkedChildWithoutReplayingPreHook(t *testing.T) {
 	original, err := first.StartTurn(t.Context(), runs.StartExecution{
 		SessionID:      "sess-b8-restart",
 		Message:        "delegate this work",
-		Cwd:            cwd,
+		CWD:            cwd,
 		InterruptKinds: []execution.InterruptKind{execution.ApprovalInterrupt},
 	})
 	if err != nil {
@@ -649,7 +649,7 @@ func TestRestartRestoresParkedChildWithoutReplayingPreHook(t *testing.T) {
 			RunID:       "run-child",
 			ParentRunID: "run-root",
 		}},
-		Cwd: cwd,
+		CWD: cwd,
 	})
 	if err != nil {
 		t.Fatalf("Rehydrate: %v", err)
@@ -672,7 +672,7 @@ func TestRestartRestoresParkedChildWithoutReplayingPreHook(t *testing.T) {
 	leakedChildEvents := 0
 	for event := range restoredEvents {
 		switch event := event.Payload.(type) {
-		case runs.ToolCallStart:
+		case runs.ToolCallStarted:
 			if event.ToolName == "shell" {
 				leakedChildEvents++
 			}
@@ -740,7 +740,7 @@ func TestCancelParkedChildCleansWholeProcessTree(t *testing.T) {
 	handle, err := controller.StartTurn(t.Context(), runs.StartExecution{
 		SessionID:      "sess-b8-child-cancel",
 		Message:        "delegate this work",
-		Cwd:            t.TempDir(),
+		CWD:            t.TempDir(),
 		InterruptKinds: []execution.InterruptKind{execution.ApprovalInterrupt},
 	})
 	if err != nil {
@@ -809,7 +809,7 @@ func TestRehydrateRejectsCorruptCheckpointPayload(t *testing.T) {
 	handle, err := first.StartTurn(t.Context(), runs.StartExecution{
 		SessionID:      "sess-b8-child-missing",
 		Message:        "delegate this work",
-		Cwd:            t.TempDir(),
+		CWD:            t.TempDir(),
 		InterruptKinds: []execution.InterruptKind{execution.ApprovalInterrupt},
 	})
 	if err != nil {
@@ -846,7 +846,7 @@ func TestRehydrateRejectsCorruptCheckpointPayload(t *testing.T) {
 		ExecutorID: handle.TurnID,
 		ProcessID:  rootID,
 		RootRunID:  "run-root",
-		Cwd:        t.TempDir(),
+		CWD:        t.TempDir(),
 	})
 	if !errors.Is(err, agentexec.ErrExecutorCheckpointLost) {
 		t.Fatalf("Rehydrate error = %v, want executor checkpoint lost", err)
@@ -866,7 +866,7 @@ func TestChildApproveCancelRaceHasOneTerminal(t *testing.T) {
 		handle, err := controller.StartTurn(t.Context(), runs.StartExecution{
 			SessionID:      "sess-b8-race-" + string(rune('a'+index)),
 			Message:        "delegate this work",
-			Cwd:            t.TempDir(),
+			CWD:            t.TempDir(),
 			InterruptKinds: []execution.InterruptKind{execution.ApprovalInterrupt},
 		})
 		if err != nil {
@@ -918,7 +918,7 @@ func TestChildApproveCancelRaceHasOneTerminal(t *testing.T) {
 				if resumeErr != nil && cancelErr != nil {
 					t.Fatalf("iteration %d both racers lost: resume=%v cancel=%v", index, resumeErr, cancelErr)
 				}
-			case runs.ToolCallStart:
+			case runs.ToolCallStarted:
 				if event.ToolName == "shell" {
 					leakedChildEvents++
 				}
@@ -949,7 +949,7 @@ func TestCompleteSiblingAnswerSetCancelRaceHasOneTerminalAndNoSecondBarrier(t *t
 		handle, err := controller.StartTurn(t.Context(), runs.StartExecution{
 			SessionID:      fmt.Sprintf("sess-b8-parallel-race-%d", index),
 			Message:        "delegate this work",
-			Cwd:            t.TempDir(),
+			CWD:            t.TempDir(),
 			InterruptKinds: []execution.InterruptKind{execution.QuestionInterrupt},
 		})
 		if err != nil {
@@ -1044,9 +1044,9 @@ func buildB8Controller(
 		t.Fatalf("chatclient.New: %v", err)
 	}
 	built, err := toolset.Build(t.Context(), toolset.BuildConfig{
-		Workdir:   t.TempDir(),
-		UserHome:  t.TempDir(),
-		Interrupt: suspension.Interrupt,
+		DefaultCWD: t.TempDir(),
+		UserHome:   t.TempDir(),
+		Interrupt:  suspension.Interrupt,
 	})
 	if err != nil {
 		t.Fatalf("toolset.Build: %v", err)
@@ -1088,9 +1088,9 @@ func buildB8PersistentController(
 		t.Fatalf("chatclient.New: %v", err)
 	}
 	built, err := toolset.Build(t.Context(), toolset.BuildConfig{
-		Workdir:   t.TempDir(),
-		UserHome:  t.TempDir(),
-		Interrupt: suspension.Interrupt,
+		DefaultCWD: t.TempDir(),
+		UserHome:   t.TempDir(),
+		Interrupt:  suspension.Interrupt,
 	})
 	if err != nil {
 		t.Fatalf("toolset.Build: %v", err)

@@ -21,7 +21,7 @@ type GrepRequest struct {
 }
 
 // ListFilesRequest — workspace.files.list body (API.md §7.5). Lists files under
-// Path (relative to Cwd, jailed). Recursive (or a Glob) yields a flat subtree
+// Path (relative to CWD, jailed). Recursive (or a Glob) yields a flat subtree
 // file list — the @file / fuzzy source; otherwise the immediate children — the
 // lazy file-tree level. .gitignore + backstop excludes apply unless
 // IncludeIgnored. PageQuery carries stable cursor pagination.

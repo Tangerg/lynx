@@ -12,7 +12,7 @@ import (
 
 	toolcontract "github.com/Tangerg/lynx/tool"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/application/integrations"
+	mcpapp "github.com/Tangerg/lynx/app/runtime/internal/application/mcp"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/mcp"
 )
@@ -25,10 +25,10 @@ type Pool struct {
 }
 
 var (
-	_ integrations.MCPStatusReader       = (*Pool)(nil)
-	_ integrations.MCPToolCatalog        = (*Pool)(nil)
-	_ integrations.MCPConnectionCommands = (*Pool)(nil)
-	_ integrations.MCPRegistryCommands   = (*Pool)(nil)
+	_ mcpapp.StatusReader        = (*Pool)(nil)
+	_ mcpapp.ToolCatalog         = (*Pool)(nil)
+	_ mcpapp.ConnectionControl   = (*Pool)(nil)
+	_ mcpapp.ConnectionLifecycle = (*Pool)(nil)
 )
 
 // Open establishes the enabled MCP connections present at runtime startup.

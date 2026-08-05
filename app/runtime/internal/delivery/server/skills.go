@@ -10,13 +10,41 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/skills"
 )
 
+// ListDiscoveredSkills maps application skill discovery to the protocol shape.
+func (s *Server) ListDiscoveredSkills(ctx context.Context, in protocol.WorkspaceQuery) (*protocol.Page[protocol.Skill], error) {
+	found, err := s.workspaceSkills.List(ctx, in.Workspace.Path)
+	if err != nil {
+		return nil, wireWorkspaceError(err)
+	}
+	out := make([]protocol.Skill, 0, len(found))
+	for _, skill := range found {
+		scope, ok := presentWorkspaceSkillScope(skill.Scope)
+		if !ok {
+			return nil, fmt.Errorf("skills.discovered.list: unsupported skill scope %q", skill.Scope)
+		}
+		out = append(out, protocol.Skill{Name: skill.Name, Description: skill.Description, Scope: scope})
+	}
+	return protocol.NewPage(out), nil
+}
+
+func presentWorkspaceSkillScope(scope workspace.SkillScope) (protocol.SkillScope, bool) {
+	switch scope {
+	case workspace.SkillScopeProject:
+		return protocol.SkillScopeProject, true
+	case workspace.SkillScopeUser:
+		return protocol.SkillScopeUser, true
+	default:
+		return "", false
+	}
+}
+
 // ListManagedSkills returns the user self-authored Skill library —
 // active and archived skills, each tagged with its lifecycle
 // (skills.library.list). The library is small, so it comes back in one page
 // (same as skills.discovered.list). capability_not_negotiated when the library
 // curator is disabled.
 func (s *Server) ListManagedSkills(ctx context.Context) (*protocol.Page[protocol.ManagedSkill], error) {
-	entries, err := s.workspaceSkills.ListManagedSkills(ctx)
+	entries, err := s.workspaceSkills.Managed(ctx)
 	if err != nil {
 		return nil, mapSkillLibraryErr(err, "skills.library.list")
 	}
@@ -53,7 +81,7 @@ func (s *Server) ArchiveSkill(ctx context.Context, in protocol.SkillNameRequest)
 	if in.Name == "" {
 		return protocol.ErrInvalidParams
 	}
-	if err := s.workspaceSkills.ArchiveSkill(ctx, in.Name); err != nil {
+	if err := s.workspaceSkills.Archive(ctx, in.Name); err != nil {
 		return mapSkillLibraryErr(err, "skills.library.archive")
 	}
 	return nil
@@ -66,7 +94,7 @@ func (s *Server) RestoreSkill(ctx context.Context, in protocol.SkillNameRequest)
 	if in.Name == "" {
 		return protocol.ErrInvalidParams
 	}
-	if err := s.workspaceSkills.RestoreSkill(ctx, in.Name); err != nil {
+	if err := s.workspaceSkills.Restore(ctx, in.Name); err != nil {
 		return mapSkillLibraryErr(err, "skills.library.restore")
 	}
 	return nil
@@ -75,7 +103,7 @@ func (s *Server) RestoreSkill(ctx context.Context, in protocol.SkillNameRequest)
 // ListSkillProposals returns complete project and user proposals awaiting
 // review (skills.proposals.list).
 func (s *Server) ListSkillProposals(ctx context.Context, in protocol.WorkspaceQuery) (*protocol.Page[protocol.SkillProposal], error) {
-	proposals, err := s.workspaceSkills.ListSkillProposals(ctx, in.Workspace.Path)
+	proposals, err := s.workspaceSkills.Proposals(ctx, in.Workspace.Path)
 	if err != nil {
 		return nil, mapSkillProposalErr(err, "skills.proposals.list")
 	}
@@ -110,7 +138,7 @@ func (s *Server) ApproveSkillProposal(ctx context.Context, in protocol.SkillProp
 		return err
 	}
 	return mapSkillProposalErr(
-		s.workspaceSkills.ApproveSkillProposal(ctx, in.Workspace.Path, ref),
+		s.workspaceSkills.ApproveProposal(ctx, in.Workspace.Path, ref),
 		"skills.proposals.approve",
 	)
 }
@@ -122,7 +150,7 @@ func (s *Server) RejectSkillProposal(ctx context.Context, in protocol.SkillPropo
 		return err
 	}
 	return mapSkillProposalErr(
-		s.workspaceSkills.RejectSkillProposal(ctx, in.Workspace.Path, ref),
+		s.workspaceSkills.RejectProposal(ctx, in.Workspace.Path, ref),
 		"skills.proposals.reject",
 	)
 }

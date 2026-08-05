@@ -16,7 +16,7 @@ import (
 )
 
 type workspaceTestConfig struct {
-	Memory    workspaceapp.KnowledgeStore
+	Knowledge workspaceapp.KnowledgeStore
 	Skills    workspaceapp.SkillCatalog
 	Curator   workspaceapp.SkillCurator
 	Proposals workspaceapp.SkillProposals
@@ -27,7 +27,7 @@ type workspaceTestConfig struct {
 }
 
 type workspaceSurfaces struct {
-	roots     *workspaceapp.Context
+	roots     *workspaceapp.Scope
 	files     *workspaceapp.Files
 	vcs       *workspaceapp.VCS
 	discovery *workspaceapp.Discovery
@@ -38,17 +38,17 @@ type workspaceSurfaces struct {
 }
 
 func newWorkspaceSurfaces(cwd string, cfg workspaceTestConfig) workspaceSurfaces {
-	roots := workspaceapp.NewContext(cwd, cwd, workspacepath.Resolver{})
+	roots := workspaceapp.NewScope(cwd, cwd, workspacepath.Resolver{})
 	watcher := cfg.Watcher
 	if watcher == nil {
 		watcher = workspaceadapter.GitWatcher{}
 	}
 	return workspaceSurfaces{
 		roots:     roots,
-		files:     workspaceapp.NewFiles(roots, workspaceadapter.Reads{}),
+		files:     workspaceapp.NewFiles(roots, workspaceadapter.FileBrowser{}),
 		vcs:       workspaceapp.NewVCS(roots, workspaceadapter.VCS{}),
 		discovery: workspaceapp.NewDiscovery(roots, nil, nil, cfg.Recipes),
-		knowledge: workspaceapp.NewKnowledge(roots, cfg.Memory),
+		knowledge: workspaceapp.NewKnowledge(roots, cfg.Knowledge),
 		skills:    workspaceapp.NewSkills(roots, cfg.Skills, cfg.Curator, cfg.Proposals, nil),
 		hooks:     workspaceapp.NewHooks(roots, cfg.Hooks, cfg.Trust),
 		watch:     workspaceapp.NewGitWatch(roots, watcher),
@@ -262,7 +262,7 @@ func TestWorkspaceGrep(t *testing.T) {
 
 type fakeSkillCatalog struct{ skills []workspaceapp.SkillInfo }
 
-func (f fakeSkillCatalog) ListSkills(context.Context, string) ([]workspaceapp.SkillInfo, error) {
+func (f fakeSkillCatalog) List(context.Context, string) ([]workspaceapp.SkillInfo, error) {
 	return f.skills, nil
 }
 
@@ -419,7 +419,7 @@ func TestWorkspaceSubscribeLifetimeIsTheRequest(t *testing.T) {
 }
 
 // TestAgentDocScope pins the cwd→home cascade classification.
-func TestListAgentDocsRejectsUnavailableCwd(t *testing.T) {
+func TestListAgentDocsRejectsUnavailableCWD(t *testing.T) {
 	s := newWorkspaceServer(t.TempDir())
 	missing := filepath.Join(t.TempDir(), "missing")
 

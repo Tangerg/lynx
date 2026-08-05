@@ -32,7 +32,7 @@ func NewRunLauncher(runUseCases RunUseCases, defaultWorkspacePath string, fired 
 // immediately drops the unused event subscription.
 func (l RunLauncher) StartScheduledRun(ctx context.Context, occurrence schedule.Occurrence) (RunHandle, error) {
 	sc := occurrence.Schedule
-	cwd := sc.Cwd
+	cwd := sc.CWD
 	if cwd == "" {
 		cwd = l.defaultWorkspacePath
 	}
@@ -44,7 +44,7 @@ func (l RunLauncher) StartScheduledRun(ctx context.Context, occurrence schedule.
 		DefaultWorkspacePath: cwd,
 		NewSessionTitle:      sc.Title,
 		ModelSelection:       sc.ModelSelection,
-		Input:                []transcript.ContentBlock{{Kind: transcript.TextContent, Text: sc.Prompt}},
+		Input:                []transcript.ContentBlock{{Kind: transcript.TextContent, Text: sc.Instructions}},
 	})
 	cancel()
 	if err != nil {

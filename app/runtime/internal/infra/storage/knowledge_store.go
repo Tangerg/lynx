@@ -11,10 +11,10 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/knowledge"
 )
 
-// memoryFileName is the on-disk file name for both scopes.
+// knowledgeFileName is the on-disk file name for both scopes.
 // "LYRA.md" on disk; rendered through the knowledge store as a markdown
-// blob the agent reads as project / user knowledge.
-const memoryFileName = "LYRA.md"
+// blob consumed as project or user knowledge.
+const knowledgeFileName = "LYRA.md"
 
 // FileKnowledgeStore persists human-authored knowledge to markdown files:
 //
@@ -24,8 +24,8 @@ const memoryFileName = "LYRA.md"
 //   - <data-dir>/LYRA.md — user scope (cross-project preferences)
 //
 // Files are created lazily on first Update; Get returns "" until that point.
-// Concurrent protocol-level updates are serialized with last-write-wins
-// semantics. Agent extraction never writes these human-owned files.
+// Concurrent updates are serialized with last-write-wins semantics. Machine-
+// curated facts never enter these human-owned files.
 type FileKnowledgeStore struct {
 	defaultProjectDirectory string
 	userScopeDirectory      string
@@ -37,16 +37,16 @@ type FileKnowledgeStore struct {
 // knowledge scopes onto the paths supplied at construction.
 func NewFileKnowledgeStore(userScopeDirectory, defaultProjectDirectory string) (*FileKnowledgeStore, error) {
 	if userScopeDirectory == "" {
-		return nil, errors.New("memory store: user scope directory is required")
+		return nil, errors.New("knowledge store: user scope directory is required")
 	}
 	if !filepath.IsAbs(userScopeDirectory) {
-		return nil, errors.New("memory store: user scope directory must be absolute")
+		return nil, errors.New("knowledge store: user scope directory must be absolute")
 	}
 	if defaultProjectDirectory == "" {
-		return nil, errors.New("memory store: default project directory is required")
+		return nil, errors.New("knowledge store: default project directory is required")
 	}
 	if !filepath.IsAbs(defaultProjectDirectory) {
-		return nil, errors.New("memory store: default project directory must be absolute")
+		return nil, errors.New("knowledge store: default project directory must be absolute")
 	}
 	return &FileKnowledgeStore{
 		defaultProjectDirectory: defaultProjectDirectory,
@@ -67,22 +67,18 @@ func (s *FileKnowledgeStore) pathFor(scope knowledge.Scope, dir string) (string,
 		if !filepath.IsAbs(dir) {
 			return "", errors.New("project directory must be absolute")
 		}
-		return filepath.Join(dir, memoryFileName), nil
+		return filepath.Join(dir, knowledgeFileName), nil
 	case knowledge.ScopeUser:
-		return filepath.Join(s.userScopeDirectory, memoryFileName), nil
+		return filepath.Join(s.userScopeDirectory, knowledgeFileName), nil
 	default:
 		return "", scope.Validate()
 	}
 }
 
-// ------------------------------------------------------------------
-// knowledge persistence
-// ------------------------------------------------------------------
-
 func (s *FileKnowledgeStore) Get(_ context.Context, scope knowledge.Scope, dir string) (string, error) {
 	path, err := s.pathFor(scope, dir)
 	if err != nil {
-		return "", fmt.Errorf("memory store: resolve path: %w", err)
+		return "", fmt.Errorf("knowledge store: resolve path: %w", err)
 	}
 	if path == "" {
 		return "", nil
@@ -92,7 +88,7 @@ func (s *FileKnowledgeStore) Get(_ context.Context, scope knowledge.Scope, dir s
 		return "", nil
 	}
 	if err != nil {
-		return "", fmt.Errorf("memory store: read %q: %w", path, err)
+		return "", fmt.Errorf("knowledge store: read %q: %w", path, err)
 	}
 	return string(data), nil
 }
@@ -100,10 +96,10 @@ func (s *FileKnowledgeStore) Get(_ context.Context, scope knowledge.Scope, dir s
 func (s *FileKnowledgeStore) Update(_ context.Context, scope knowledge.Scope, dir string, content string) error {
 	path, err := s.pathFor(scope, dir)
 	if err != nil {
-		return fmt.Errorf("memory store: resolve path: %w", err)
+		return fmt.Errorf("knowledge store: resolve path: %w", err)
 	}
 	if path == "" {
-		return errors.New("memory store: project scope unavailable")
+		return errors.New("knowledge store: project scope unavailable")
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -112,39 +108,38 @@ func (s *FileKnowledgeStore) Update(_ context.Context, scope knowledge.Scope, di
 	// process data directory eagerly; a project directory can be supplied later
 	// by a Session and therefore remains a per-write responsibility here.
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return fmt.Errorf("memory store: mkdir: %w", err)
+		return fmt.Errorf("knowledge store: mkdir: %w", err)
 	}
 
-	tmp, err := os.CreateTemp(filepath.Dir(path), "."+memoryFileName+"-*")
+	tmp, err := os.CreateTemp(filepath.Dir(path), "."+knowledgeFileName+"-*")
 	if err != nil {
-		return fmt.Errorf("memory store: create temporary file: %w", err)
+		return fmt.Errorf("knowledge store: create temporary file: %w", err)
 	}
 	tmpPath := tmp.Name()
 	defer func() { _ = os.Remove(tmpPath) }()
 	if err := tmp.Chmod(0o644); err != nil {
 		_ = tmp.Close()
-		return fmt.Errorf("memory store: set temporary file mode: %w", err)
+		return fmt.Errorf("knowledge store: set temporary file mode: %w", err)
 	}
 	if _, err := tmp.WriteString(content); err != nil {
 		_ = tmp.Close()
-		return fmt.Errorf("memory store: write temporary file: %w", err)
+		return fmt.Errorf("knowledge store: write temporary file: %w", err)
 	}
 	if err := tmp.Sync(); err != nil {
 		_ = tmp.Close()
-		return fmt.Errorf("memory store: sync temporary file: %w", err)
+		return fmt.Errorf("knowledge store: sync temporary file: %w", err)
 	}
 	if err := tmp.Close(); err != nil {
-		return fmt.Errorf("memory store: close temporary file: %w", err)
+		return fmt.Errorf("knowledge store: close temporary file: %w", err)
 	}
 	if err := os.Rename(tmpPath, path); err != nil {
-		return fmt.Errorf("memory store: rename: %w", err)
+		return fmt.Errorf("knowledge store: rename: %w", err)
 	}
 	return nil
 }
 
-// List returns one [knowledge.Entry] per scope that has content. Empty
-// scopes are skipped — the UI shouldn't render placeholder entries
-// for files that don't exist yet.
+// List returns one [knowledge.Entry] per scope that has content. A missing
+// document is absence, so empty scopes are omitted.
 func (s *FileKnowledgeStore) List(ctx context.Context, dir string) ([]knowledge.Entry, error) {
 	out := make([]knowledge.Entry, 0, 2)
 	for _, scope := range []knowledge.Scope{knowledge.ScopeProject, knowledge.ScopeUser} {
@@ -156,16 +151,16 @@ func (s *FileKnowledgeStore) List(ctx context.Context, dir string) ([]knowledge.
 			continue
 		}
 		entry := knowledge.Entry{Scope: scope, Content: content}
-		// CapturedAt = the LYRA.md file's mtime: it's a user-editable file, so
-		// its last-modified time is the truthful "when this memory landed".
+		// UpdatedAt = the LYRA.md file's mtime: it's a user-editable file, so
+		// its last-modified time is the truthful "when this knowledge was updated".
 		// Best-effort — a stat failure leaves the zero time rather than
 		// dropping the entry.
 		path, err := s.pathFor(scope, dir)
 		if err != nil {
-			return nil, fmt.Errorf("memory store: resolve listed path: %w", err)
+			return nil, fmt.Errorf("knowledge store: resolve listed path: %w", err)
 		}
 		if info, err := os.Stat(path); err == nil {
-			entry.CapturedAt = info.ModTime()
+			entry.UpdatedAt = info.ModTime()
 		}
 		out = append(out, entry)
 	}

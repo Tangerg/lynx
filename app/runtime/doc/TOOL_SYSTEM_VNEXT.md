@@ -208,7 +208,7 @@
 - Proposal 按内容寻址并存入目标 library 的 `_proposals/<revision>/SKILL.md`。`revision` 同时覆盖 scope、name 和完整文件内容，评审操作不会误作用于后来变化的内容；
 - 服务端评审面唯一使用 `skills.proposals.list / approve / reject`。list 必须带 workspace 并返回完整 description、instructions、scope、origin、source session 和 revises；approve/reject 必须携带 workspace、scope、name、revision；
 - `Draft / promote / discard / global` 已从 Skill 领域、存储、应用和服务端协议移除，不提供别名或兼容转换；
-- 显式用户创作与自动 Miner 共享应用层 `SubmitSkillProposal`，但触发策略不同：工具只响应明确用户意图；Miner 只在复杂轨迹达到 cadence 时自主蒸馏，并默认提交 user Proposal。两者都不能直接激活 Skill；
+- 显式用户创作与自动 Miner 共享应用层 `SubmitProposal`，但触发策略不同：工具只响应明确用户意图；Miner 只在复杂轨迹达到 cadence 时自主蒸馏，并默认提交 user Proposal。两者都不能直接激活 Skill；
 - Tool adapter 只依赖单方法 `ProposalSubmitter`，Miner 也只依赖同一单方法应用能力；project/user 文件布局由 adapter 路由，Application 不认识 `.lyra`，Agent 核心只接收通用 `tool.Tool`。
 
 ## 7. 删除与收敛
@@ -358,13 +358,13 @@
 - 将模型工具 `task(description,prompt)` 彻底替换为 `delegate_task(summary,instructions)`；同批修改 Agent deployment name、安全分类、approval/hook 特例、活动展示、测试模型和 catalog guard，不保留旧名或旧字段；
 - `summary` 与 `instructions` 都由服务端消费并进入 typed `SubagentProjection`，分别驱动 child lifecycle identity 与隔离输入。删除“参数只给前端展示”的旧解释，避免 delivery concern 倒灌 Agent tool contract；
 - 将 `lsp_diagnostics(path)` 合并为 `lsp(operation="diagnostics",path=...)`，完整删除第二个 tool definition 和安全表项；位置操作新增 line/character 同时必填且大于零的业务约束，schema 同步声明 minimum；
-- 将四操作 `schedule(op=...)` 拆为 list/create/delete 三工具，各 schema 只包含真实消费字段；参数统一为 `instructions`、`workdir`、`schedule_id`，返回视图使用同一词汇；删除模型 update port 后，`ScheduleManagement` 同步缩窄为三个真实方法；
+- 将四操作 `schedule(op=...)` 拆为 list/create/delete 三工具，各 schema 只包含真实消费字段；参数统一为 `instructions`、`workspace_path`、`schedule_id`，返回视图使用同一词汇；删除模型 update port 后，`ScheduleManagement` 同步缩窄为三个真实方法；
 - Resolver 只接收 `[]ScheduleTools` 并按统一 Deferred 策略组装，不知道 Coordinator、revision 或 firing；Agent executor 的 resolver seam 从 `UseTaskTool` 精确更名为 `UseDelegationTool`，仍只传通用 `tool.Tool`。
 
 ### 批次 5b.1
 
 - 将后台命令领域词汇统一为 Shell：`shell_output` / `shell_kill` 改为 `read_shell_output` / `stop_shell`，参数统一为 `shell_id`，删除与 Agent process tree 冲突的 Process 叫法；
-- `shell` 删除仅供前端展示、服务端不消费的 `description`，将无单位 `timeout` / `auto_background_after` 改为 `timeout_ms` / `auto_background_after_seconds`；输出读取将 UI 控件式 `block` 改为行为语义 `wait`，等待超时也统一为 `timeout_ms`；
+- `shell.description` 是模型提供的简短动作标签，服务端将它附到工具调用活动信息供展示；将无单位 `timeout` / `auto_background_after` 改为 `timeout_millis` / `auto_background_after_seconds`；输出读取将 UI 控件式 `block` 改为行为语义 `wait`，等待超时也统一为 `timeout_millis`；
 - 将 curated project memory 与 raw transcript 两个 corpus 分别命名为 `search_memory`、`search_conversations`，重写 definition 与参数描述，统一 `query` 和 `limit=1..20` 的严格 schema；旧名称和越界截断路径不保留；
 - 改动只触及具体 toolset adapter、其 runtime 组装与基础 exec 注释；没有向通用 `tool.Tool`、Agent executor seam 或 delivery DTO 增加 Shell、Memory、Conversation 概念。
 
@@ -390,7 +390,7 @@
 
 ### 批次 6a
 
-- 从服务端源码完整删除 `download` definition、实现、测试、resolver 字段、BuildConfig 派生 allowlist、workdir tool family、审批 subject 和安全分类；不保留 disabled registration、旧名称或兼容参数；
+- 从服务端源码完整删除 `download` definition、实现、测试、resolver 字段、BuildConfig 派生 allowlist、CWD-bound tool family、审批 subject 和安全分类；不保留 disabled registration、旧名称或兼容参数；
 - `download` 原本把任意 URL GET 与 workspace 写入重新组合，重复了 `http_request`、`write` / `shell` 已有能力，并产生第二套 SSRF gate、路径锁、overwrite 规则和写审批身份；删除组合工具后，模型用单一原语显式完成网络读取与受保护写入；
 - 保留 `online.httpAllowedHosts` / `LYRA_HTTP_ALLOWED_HOSTS`，但其唯一模型消费者现在是 `http_request`。这不是 `download` 兼容配置，不再在 composition root 派生另一份 allowlist；
 - 从服务端源码完整删除 `sourcegraph_search`、stream parser、条件注册、测试和 `online.sourcegraphEndpoint/sourcegraphToken` 及 `LYRA_SOURCEGRAPH_*` 配置；不保留 vendor-specific hidden tool；
@@ -470,7 +470,7 @@
 - `skills.ProposalRef{scope,name,revision}` 绑定 scope、name 与完整渲染内容的 SHA-256，project/user store 都在 `_proposals` 保存不可变内容；评审 list 返回完整指令和 provenance，不再让用户只凭摘要审批；
 - 新增 adapter-owned `skillproposal.Libraries`，以 workspace root 路由 project library、以配置 root 路由 user library。Application 只接收已解析 root 和领域 Proposal，不认识 `.lyra/skills` 文件布局；
 - 服务端评审协议改为 `skills.proposals.list / approve / reject`，请求显式携带 workspace 和 scope，旧 `skills.drafts.*` 直接消失；本轮只生成 Go contract 和 validator，桌面 TypeScript 与 canonical samples 按约定留给前端专项；
-- SkillMiner 改为消费应用层单方法 `SubmitSkillProposal`，固定提交 `scope=user, origin=mined`，不再直连 `skillauthoring.Store`。前台与后台共享持久化不变量，但不共享触发策略。
+- SkillMiner 改为消费应用层单方法 `SubmitProposal`，固定提交 `scope=user, origin=mined`，不再直连 `skillauthoring.Store`。前台与后台共享持久化不变量，但不共享触发策略。
 
 ### 批次 8b
 
@@ -480,13 +480,13 @@
 - Resolver 将工具设为 root-only + Deferred，委派 Agent 不注册；safety 归类为 Safe，因为它只记录用户明确要求的待评审内容且无法激活能力，额外 approval 会重复同一意图门；
 - 工具角色词汇同步收敛为 `root / delegated`；删除把根角色称作 `coding`、把委派角色称作 `subtask` 的内部常量与 resolver 名称，使通用场景与策略名称保持一致；
 - Skill adapter 只定义单方法 `ProposalSubmitter`，Bootstrap 在 composition root 把 `workspace.Skills` 赋给它；Resolver 与 Agent 只看通用 `tool.Tool`，没有引入 application coordinator、store、delivery DTO 或 Skill filesystem layout；
-- 隔离审计发现原有 `TurnScope.Cwd` 在 isolated Run 中指向短命 scratch copy，不能作为 project Proposal 的持久 workspace identity；执行上下文因此治本式拆为 execution Cwd 与 `WorkspaceCwd`，fresh/restore/checkpoint 全链路保持两者。文件与 Shell 继续使用 execution Cwd，Proposal 使用 persistent workspace，避免把 Skill 写进随后销毁的 sandbox；
+- 隔离审计发现 execution `CWD` 在 isolated Run 中指向短命 scratch copy，不能作为 project Proposal 的持久 workspace identity；`execution.ExecutionScope` 因此同时保存 `CWD` 与 `WorkspaceCWD`，fresh/restore/checkpoint 全链路保持两者。文件与 Shell 继续使用 execution `CWD`，Proposal 使用 persistent workspace，避免把 Skill 写进随后销毁的 sandbox；
 - 参数、角色、Deferred manifest、provenance、双作用域路由、安全表和 catalog completeness 均有聚焦测试；服务端 build/vet 通过，完整 test 仅保留明确延后的桌面 generated contract/sample 漂移。
 
 ### 批次 9a
 
 - 删除此前功能移除和目录迁移遗留的空目录；将 `goaltool / lsptools / toolresult / toolsearch` 分别改为能力名 `goal / lsp / offload / discovery`，不保留旧 import path；
-- 根 `toolset` 文件按职责改为 `online / schedule / workdir / connections`，内部构造函数同步删除 `Tools` 重复词；测试 helper 中残留的 `coding` 统一为 `root`；
+- 根 `toolset` 文件按职责改为 `online / schedule / cwd_tools / connections`，内部构造函数同步删除 `Tools` 重复词；测试 helper 中残留的 `coding` 统一为 `root`；
 - `search_tools` 的模型名称保持不变；代码包名 `discovery` 表达 progressive disclosure 职责，避免出现 `toolset/toolsearch.Tool` 三重重复。
 
 ### 批次 9b
@@ -500,10 +500,10 @@
 
 ### 批次 10a
 
-- 为 transcript 的 ToolCall Item 增加唯一的终止事实 `FinishedAt`；执行开始仍由 Item 的 `CreatedAt` 定义，实时协议显式投影为 `startedAt`，终态再投影 `finishedAt` 与派生的 `durationMs`。没有把三个可变时间字段同时持久化，避免边界时间与持续时间互相漂移；
-- reducer 在收到 `ToolCallEnd` 时立即盖章，而不是等并发调用按模型顺序 flush 时才计时，因此 transcript 顺序仍按模型调用顺序，耗时却保留真实完成边界；取消、挂起、重启恢复和不可恢复的 parked Run 也在各自终止事务中补齐同一事实；
+- 为 transcript 的 ToolCall Item 增加唯一的终止事实 `FinishedAt`；执行开始仍由 Item 的 `CreatedAt` 定义，实时协议显式投影为 `startedAt`，终态再投影 `finishedAt` 与派生的 `durationMillis`。没有把三个可变时间字段同时持久化，避免边界时间与持续时间互相漂移；
+- reducer 在收到 `ToolCallFinished` 时立即盖章，而不是等并发调用按模型顺序 flush 时才计时，因此 transcript 顺序仍按模型调用顺序，耗时却保留真实完成边界；取消、挂起、重启恢复和不可恢复的 parked Run 也在各自终止事务中补齐同一事实；
 - ToolCall 领域 invariant 明确为：running 只有开始时间，completed/incomplete 必须有不早于开始的结束时间，其他 Item 禁止携带 ToolCall 结束时间。实时 DTO 与 artifact DTO 的存在性规则、非负持续时间约束由同一 contract registry 生成；
-- artifact 提升到 v11，导入同时核验 `startedAt == createdAt` 以及 `durationMs == finishedAt - startedAt`，不为旧 artifact 猜测执行边界，也不保留兼容字段；
+- artifact 当前提升到 v13，导入同时核验 `startedAt == createdAt` 以及 `durationMillis == finishedAt - startedAt`，不为旧 artifact 猜测执行边界，也不保留兼容字段；
 - 时间事实停留在 transcript / runs / delivery：通用 Agent ToolCall 协议仍只表达模型请求，没有被 app/runtime 的持久化生命周期污染。本轮只更新服务端 Go 契约；桌面 TypeScript 与 canonical samples 继续留给约定的前端专项。
 
 ### 批次 10b
@@ -525,8 +525,8 @@
 ### 批次 11
 
 - 将 Runtime 内建工具身份收敛到无执行依赖的 `toolset/catalog`；Runtime 自有构造器、安全等级、标准策略例外、activity、结果展示和成功调用投影都引用该身份，不再维护 `toolName*`、delegation/offload 私有别名和独立 safety switch；
-- 根 toolset 的 descriptor catalog 成为跨切面行为单源。Presenter 与 Semantics 只查询 descriptor；每个可构造内建工具必须有 descriptor，每个 descriptor 必须有可构造工具，未知 MCP/A2A 名称仍 fail-closed 为 Exec 且使用通用展示；
+- 根 toolset 的 descriptor catalog 成为跨切面行为单源。Presenter 与 Interpreter 只查询 descriptor；每个可构造内建工具必须有 descriptor，每个 descriptor 必须有可构造工具，未知 MCP/A2A 名称仍 fail-closed 为 Exec 且使用通用展示；
 - breaking change 删除 `edit` / `write` 的 Runtime 注册、resolver 分支、私有 guard、presentation 和测试 profile。所有模型只获得 `apply_patch`，继续完整复用 read-before-mutation、stale-read、path lock、protected path、auto-format 和 post-mutation diagnostics；
 - 删除按 provider/model 字符串推断 mutation dialect 的 `useApplyPatch`，同步移除 Toolset `DefaultModel` 构造参数。模型目录新增或改名不会再悄然改变工具 vocabulary；
-- 架构 fitness test 禁止 Runtime 自有构造器重新写入字面量 `Name`，并禁止 resolver/workdir 恢复 `edit/write` 或模型方言分支。SDK 模块自有 definition 通过双向 catalog parity test 锁定，不把 app/runtime 包反向泄露到通用工具模块；
+- 架构 fitness test 禁止 Runtime 自有构造器重新写入字面量 `Name`，并禁止 resolver/CWD-bound tools 恢复 `edit/write` 或模型方言分支。SDK 模块自有 definition 通过双向 catalog parity test 锁定，不把 app/runtime 包反向泄露到通用工具模块；
 - 本轮仍只修改服务端。前端对新工具 API、`apply_patch` 唯一修改面和 activity/result projection 的接线继续作为下一专项处理。

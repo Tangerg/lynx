@@ -13,7 +13,7 @@ import (
 // (global always; project only when the project is trusted). The client renders
 // this for review + a trust toggle (hooks.list, API.md §7.5).
 func (s *Server) ListHooks(ctx context.Context, in protocol.ListHooksRequest) (*protocol.HooksListResult, error) {
-	insp, err := s.workspaceHooks.InspectHooks(ctx, in.Workspace.Path)
+	insp, err := s.workspaceHooks.Inspect(ctx, in.Workspace.Path)
 	if err != nil {
 		return nil, wireWorkspaceError(fmt.Errorf("workspace: inspect hooks: %w", err))
 	}
@@ -33,14 +33,14 @@ func (s *Server) ListHooks(ctx context.Context, in protocol.ListHooksRequest) (*
 			return nil, fmt.Errorf("hooks.list: unsupported hook scope %q", h.Scope)
 		}
 		out.Hooks = append(out.Hooks, protocol.HookInfo{
-			Event:     event,
-			Matcher:   h.Matcher,
-			Command:   h.Command,
-			Inject:    h.Inject,
-			TimeoutMs: h.TimeoutMs,
-			Scope:     scope,
-			Source:    h.Source,
-			Active:    resolved.Active,
+			Event:         event,
+			Matcher:       h.Matcher,
+			Command:       h.Command,
+			Inject:        h.Inject,
+			TimeoutMillis: h.TimeoutMillis,
+			Scope:         scope,
+			Source:        h.Source,
+			Active:        resolved.Active,
 		})
 	}
 	return out, nil
@@ -89,5 +89,5 @@ func (s *Server) SetHookTrust(ctx context.Context, in protocol.SetHookTrustReque
 	if in.ProjectRoot == "" {
 		return protocol.ErrInvalidParams
 	}
-	return wireWorkspaceError(s.workspaceHooks.SetProjectHookTrust(ctx, in.ProjectRoot, in.Trusted))
+	return wireWorkspaceError(s.workspaceHooks.SetProjectTrust(ctx, in.ProjectRoot, in.Trusted))
 }

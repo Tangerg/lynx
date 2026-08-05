@@ -15,12 +15,12 @@ import (
 )
 
 type createScheduleArgs struct {
-	Title        string `json:"title,omitempty" jsonschema_description:"Optional concise name for this recurring automation."`
-	Instructions string `json:"instructions" jsonschema:"minLength=1" jsonschema_description:"Complete self-contained instructions for each scheduled Agent Run."`
-	Workdir      string `json:"workdir,omitempty" jsonschema_description:"Workspace directory for each Run. Omit to use the configured default."`
-	Provider     string `json:"provider,omitempty" jsonschema_description:"Model provider id. Set together with model only when the user explicitly chose both; otherwise omit both."`
-	Model        string `json:"model,omitempty" jsonschema_description:"Model id. Set together with provider only when the user explicitly chose both; otherwise omit both."`
-	Cron         string `json:"cron" jsonschema:"minLength=1" jsonschema_description:"Five-field cron expression: minute hour day-of-month month day-of-week."`
+	Title         string `json:"title,omitempty" jsonschema_description:"Optional concise name for this recurring automation."`
+	Instructions  string `json:"instructions" jsonschema:"minLength=1" jsonschema_description:"Complete self-contained instructions for each scheduled Agent Run."`
+	WorkspacePath string `json:"workspace_path,omitempty" jsonschema_description:"Workspace path for each scheduled Run. Omit to use the configured default workspace."`
+	Provider      string `json:"provider,omitempty" jsonschema_description:"Model provider id. Set together with model only when the user explicitly chose both; otherwise omit both."`
+	Model         string `json:"model,omitempty" jsonschema_description:"Model id. Set together with provider only when the user explicitly chose both; otherwise omit both."`
+	Cron          string `json:"cron" jsonschema:"minLength=1" jsonschema_description:"Five-field cron expression: minute hour day-of-month month day-of-week."`
 }
 
 type deleteScheduleArgs struct {
@@ -40,17 +40,17 @@ type scheduleDeleteResponse struct {
 }
 
 type scheduleView struct {
-	ScheduleID   string `json:"schedule_id"`
-	Title        string `json:"title,omitempty"`
-	Instructions string `json:"instructions"`
-	Workdir      string `json:"workdir,omitempty"`
-	Provider     string `json:"provider,omitempty"`
-	Model        string `json:"model,omitempty"`
-	Cron         string `json:"cron"`
-	Enabled      bool   `json:"enabled"`
-	LastRunAt    string `json:"last_run_at,omitempty"`
-	NextRunAt    string `json:"next_run_at,omitempty"`
-	CreatedAt    string `json:"created_at,omitempty"`
+	ScheduleID    string `json:"schedule_id"`
+	Title         string `json:"title,omitempty"`
+	Instructions  string `json:"instructions"`
+	WorkspacePath string `json:"workspace_path,omitempty"`
+	Provider      string `json:"provider,omitempty"`
+	Model         string `json:"model,omitempty"`
+	Cron          string `json:"cron"`
+	Enabled       bool   `json:"enabled"`
+	LastRunAt     string `json:"last_run_at,omitempty"`
+	NextRunAt     string `json:"next_run_at,omitempty"`
+	CreatedAt     string `json:"created_at,omitempty"`
 }
 
 // Management is the schedule family's narrow application use case.
@@ -123,8 +123,8 @@ func (t *family) create(ctx context.Context, in createScheduleArgs) (scheduleRes
 	}
 	created, err := t.coordinator.Create(ctx, scheduleapp.CreateCommand{
 		Title:          in.Title,
-		Prompt:         in.Instructions,
-		Cwd:            in.Workdir,
+		Instructions:   in.Instructions,
+		CWD:            in.WorkspacePath,
 		ModelSelection: selection,
 		Cron:           in.Cron,
 		Enabled:        true,
@@ -144,17 +144,17 @@ func (t *family) delete(ctx context.Context, in deleteScheduleArgs) (scheduleDel
 
 func viewSchedule(sc scheduledomain.Schedule) scheduleView {
 	return scheduleView{
-		ScheduleID:   sc.ID,
-		Title:        sc.Title,
-		Instructions: sc.Prompt,
-		Workdir:      sc.Cwd,
-		Provider:     sc.ModelSelection.Provider(),
-		Model:        sc.ModelSelection.Model(),
-		Cron:         sc.Cron,
-		Enabled:      sc.Enabled,
-		LastRunAt:    formatScheduleTime(sc.LastRunAt),
-		NextRunAt:    formatScheduleTime(sc.NextRunAt),
-		CreatedAt:    formatScheduleTime(sc.CreatedAt),
+		ScheduleID:    sc.ID,
+		Title:         sc.Title,
+		Instructions:  sc.Instructions,
+		WorkspacePath: sc.CWD,
+		Provider:      sc.ModelSelection.Provider(),
+		Model:         sc.ModelSelection.Model(),
+		Cron:          sc.Cron,
+		Enabled:       sc.Enabled,
+		LastRunAt:     formatScheduleTime(sc.LastRunAt),
+		NextRunAt:     formatScheduleTime(sc.NextRunAt),
+		CreatedAt:     formatScheduleTime(sc.CreatedAt),
 	}
 }
 

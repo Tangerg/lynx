@@ -9,14 +9,14 @@ import (
 	toolcontract "github.com/Tangerg/lynx/tool"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/codeintel"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/agentmemorysearch"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/askuser"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/conversationsearch"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/goal"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/lsp"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/memorysearch"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/offload"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/plan"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/schedule"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/sessionsearch"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/shell"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/skill"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
@@ -36,7 +36,7 @@ import (
 // BuildConfig is the tool-environment construction input (the working-directory
 // scope + the capability tables). Driven by the runtime config.
 type BuildConfig struct {
-	Workdir       string
+	DefaultCWD    string
 	UserHome      string
 	SkillsUserDir string
 	Online        OnlineConfig
@@ -52,15 +52,16 @@ type BuildConfig struct {
 	ToolResults    offload.Store           // backs read_tool_result (reads offloaded tool output); nil → omitted
 	SkillUsage     skill.UsageRecorder     // records skill loads for the idle-lifecycle curator; nil → use recording off
 	SkillProposals skill.ProposalSubmitter // backs root-only propose_skill; nil → omitted
-	Goals          goal.State              // backs get_goal + report_goal_outcome and its active gate; nil → omitted
+	GoalReader     GoalReader              // backs get_goal and the report_goal_outcome gate; nil → omitted
+	GoalReporter   goal.Reporter           // backs report_goal_outcome; nil → omitted
 
-	// MemorySearch backs search_memory (keyword + semantic search over the
+	// AgentMemorySearch backs search_memory (keyword + semantic search over the
 	// agent's curated project memory). nil omits the tool.
-	MemorySearch memorysearch.Search
+	AgentMemorySearch agentmemorysearch.Search
 
-	// SessionSearch backs search_conversations (full-text search over past conversation
+	// ConversationSearch backs search_conversations (full-text search over past conversation
 	// transcripts). nil omits the tool.
-	SessionSearch sessionsearch.Search
+	ConversationSearch conversationsearch.Search
 
 	// MCPToolDisabled reports whether an identified MCP tool is hidden. The
 	// runtime updates the underlying policy after every registry change.
@@ -75,6 +76,13 @@ type BuildConfig struct {
 	// home for reads (e.g. a language toolchain or dependency cache under $HOME).
 	// Ignored unless SandboxShell is set.
 	SandboxReadOnlyPaths []string
+}
+
+// GoalReader supplies both the Goal read model and the active-Goal predicate
+// required while resolving the root Agent's Goal tools.
+type GoalReader interface {
+	goal.Reader
+	goal.ActiveReader
 }
 
 // Built is the assembled tool environment: the runtime-scope resolver (also the
@@ -93,11 +101,11 @@ type Built struct {
 // their dedicated adapter before this function and supplied as an initial tool
 // snapshot; this package owns only the local and A2A capability lifecycle.
 func Build(ctx context.Context, config BuildConfig) (_ Built, err error) {
-	if config.Workdir == "" {
-		return Built{}, errors.New("toolset: workdir is required")
+	if config.DefaultCWD == "" {
+		return Built{}, errors.New("toolset: default CWD is required")
 	}
-	if !filepath.IsAbs(config.Workdir) {
-		return Built{}, errors.New("toolset: workdir must be absolute")
+	if !filepath.IsAbs(config.DefaultCWD) {
+		return Built{}, errors.New("toolset: default CWD must be absolute")
 	}
 	if config.UserHome == "" {
 		return Built{}, errors.New("toolset: user home is required")
@@ -114,7 +122,7 @@ func Build(ctx context.Context, config BuildConfig) (_ Built, err error) {
 	// lazily per (workspace root, language). Tools are cwd-independent (the
 	// analyzer keys by root, read per call off the blackboard).
 	codeIntel := codeintel.New(config.LSPServers)
-	lspTools, err := lsp.Build(codeIntel, config.Workdir)
+	lspTools, err := lsp.Build(codeIntel, config.DefaultCWD)
 	if err != nil {
 		return Built{}, fmt.Errorf("toolset: build lsp tools: %w", err)
 	}
@@ -130,7 +138,7 @@ func Build(ctx context.Context, config BuildConfig) (_ Built, err error) {
 		return Built{}, fmt.Errorf("toolset: enable shell sandbox: %w", confErr)
 	}
 	shells := exec.NewShells(confiner, config.SandboxShell)
-	shellTools, err := shell.Build(shells, config.Workdir)
+	shellTools, err := shell.Build(shells, config.DefaultCWD)
 	if err != nil {
 		return Built{}, fmt.Errorf("toolset: build shell tools: %w", err)
 	}
@@ -174,30 +182,30 @@ func Build(ctx context.Context, config BuildConfig) (_ Built, err error) {
 	// search_memory reads back the agent's curated project memory (keyword +
 	// semantic). Working-directory independent (searches the Run's project), so
 	// built once for both roles. nil searcher → nil tool, simply omitted.
-	memorySearchTool, err := memorysearch.New(config.MemorySearch)
+	agentMemorySearchTool, err := agentmemorysearch.New(config.AgentMemorySearch)
 	if err != nil {
 		return Built{}, fmt.Errorf("toolset: build search_memory: %w", err)
 	}
 	// search_conversations recalls past conversation transcripts (full-text, all
 	// sessions). Working-directory independent, so built once for both roles.
 	// nil searcher → nil tool, simply omitted.
-	sessionSearchTool, err := sessionsearch.New(config.SessionSearch)
+	conversationSearchTool, err := conversationsearch.New(config.ConversationSearch)
 	if err != nil {
 		return Built{}, fmt.Errorf("toolset: build search_conversations: %w", err)
 	}
 	// Goal state is working-directory independent and keyed by session. get_goal
 	// is always useful to the root Agent; report_goal_outcome is additionally
 	// gated to an active Goal by the resolver.
-	goalGetTool, err := goal.NewGet(config.Goals)
+	goalGetTool, err := goal.NewGet(config.GoalReader)
 	if err != nil {
 		return Built{}, fmt.Errorf("toolset: build get_goal: %w", err)
 	}
-	goalReportTool, err := goal.NewReport(config.Goals)
+	goalReportTool, err := goal.NewReport(config.GoalReporter)
 	if err != nil {
 		return Built{}, fmt.Errorf("toolset: build report_goal_outcome: %w", err)
 	}
-	goalActive := goalActiveReader(config.Goals)
-	proposeSkillTool, err := skill.NewProposal(config.SkillProposals, config.Workdir)
+	goalActive := goalActiveReader(config.GoalReader)
+	proposeSkillTool, err := skill.NewProposal(config.SkillProposals, config.DefaultCWD)
 	if err != nil {
 		return Built{}, fmt.Errorf("toolset: build propose_skill: %w", err)
 	}
@@ -209,28 +217,28 @@ func Build(ctx context.Context, config BuildConfig) (_ Built, err error) {
 	}
 
 	resolver, err := newResolver(resolverDeps{
-		SkillUsage:      config.SkillUsage,
-		DefaultWorkdir:  config.Workdir,
-		SkillsUserDir:   config.SkillsUserDir,
-		Online:          online,
-		A2A:             connections.a2aTools,
-		LSP:             lspTools,
-		Shell:           shellTools,
-		AskUser:         askUserTool,
-		EnterPlan:       planFamily.Enter,
-		ExitPlan:        planFamily.Exit,
-		Plan:            planFamily.Set,
-		ScheduleTools:   scheduleTools,
-		ToolResult:      toolResultTool,
-		MemorySearch:    memorySearchTool,
-		SessionSearch:   sessionSearchTool,
-		GoalGet:         goalGetTool,
-		GoalReport:      goalReportTool,
-		ProposeSkill:    proposeSkillTool,
-		GoalActive:      goalActive,
-		CodeIntel:       codeIntel,
-		ReadTracker:     tracker,
-		MCPToolDisabled: config.MCPToolDisabled,
+		SkillUsage:         config.SkillUsage,
+		DefaultCWD:         config.DefaultCWD,
+		SkillsUserDir:      config.SkillsUserDir,
+		Online:             online,
+		A2A:                connections.a2aTools,
+		LSP:                lspTools,
+		Shell:              shellTools,
+		AskUser:            askUserTool,
+		EnterPlan:          planFamily.Enter,
+		ExitPlan:           planFamily.Exit,
+		Plan:               planFamily.Set,
+		ScheduleTools:      scheduleTools,
+		ToolResult:         toolResultTool,
+		AgentMemorySearch:  agentMemorySearchTool,
+		ConversationSearch: conversationSearchTool,
+		GoalGet:            goalGetTool,
+		GoalReport:         goalReportTool,
+		ProposeSkill:       proposeSkillTool,
+		GoalActive:         goalActive,
+		CodeIntel:          codeIntel,
+		ReadTracker:        tracker,
+		MCPToolDisabled:    config.MCPToolDisabled,
 	})
 	if err != nil {
 		return Built{}, fmt.Errorf("toolset: build resolver: %w", err)
@@ -249,7 +257,7 @@ func Build(ctx context.Context, config BuildConfig) (_ Built, err error) {
 	}, nil
 }
 
-// goalActiveReader adapts Goal state into the resolver's per-Run gate for
+// goalActiveReader adapts the active-Goal lookup into the resolver's per-Run gate for
 // report_goal_outcome. A paused or blocked Goal does not count: only a Run
 // driven by the active autonomous loop can truthfully report its outcome.
 // Returns nil when Goal mode is off so the tool is never offered.

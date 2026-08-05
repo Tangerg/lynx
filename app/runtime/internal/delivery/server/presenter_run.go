@@ -132,9 +132,9 @@ func presentOutcome(run transcript.Run) protocol.RunOutcome {
 
 func presentMetrics(metrics transcript.RunMetrics) protocol.RunMetrics {
 	return protocol.RunMetrics{
-		Usage:            presentUsage(metrics.Usage),
-		Steps:            metrics.Steps,
-		ActiveDurationMs: metrics.ActiveDuration.Milliseconds(),
+		Usage:                presentUsage(metrics.Usage),
+		Steps:                metrics.Steps,
+		ActiveDurationMillis: metrics.ActiveDuration.Milliseconds(),
 	}
 }
 

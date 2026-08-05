@@ -633,7 +633,7 @@ func TestApplyDeleteRemovesRunRows(t *testing.T) {
 func TestApplyRestoreClearsSessionOwnedProjections(t *testing.T) {
 	ss, _, _ := newWriteSetFixture(t)
 	ctx := t.Context()
-	if err := ss.sessions.Restore(ctx, session.Session{ID: "ses_A", Cwd: "/repo"}); err != nil {
+	if err := ss.sessions.Restore(ctx, session.Session{ID: "ses_A", CWD: "/repo"}); err != nil {
 		t.Fatalf("seed session: %v", err)
 	}
 	if err := ss.plan.Replace(ctx, "ses_A", []plan.Step{{Description: "stale", Status: plan.StatusPending}}); err != nil {
@@ -649,7 +649,7 @@ func TestApplyRestoreClearsSessionOwnedProjections(t *testing.T) {
 		}
 	}
 
-	if err := ss.ApplyRestore(ctx, sessions.RestorePlan{Session: session.Session{ID: "ses_A", Cwd: "/repo"}}); err != nil {
+	if err := ss.ApplyRestore(ctx, sessions.RestorePlan{Session: session.Session{ID: "ses_A", CWD: "/repo"}}); err != nil {
 		t.Fatalf("ApplyRestore: %v", err)
 	}
 	if got, err := ss.plan.List(ctx, "ses_A"); err != nil || len(got) != 0 {
@@ -715,8 +715,8 @@ func TestApplyRestoreRollsBackOnTranscriptIdentityConflict(t *testing.T) {
 	ss, _, _ := newWriteSetFixture(t)
 	ctx := t.Context()
 	for _, ses := range []session.Session{
-		{ID: "ses_A", Title: "source", Cwd: "/source"},
-		{ID: "ses_B", Title: "target", Cwd: "/target"},
+		{ID: "ses_A", Title: "source", CWD: "/source"},
+		{ID: "ses_B", Title: "target", CWD: "/target"},
 	} {
 		if err := ss.sessions.Restore(ctx, ses); err != nil {
 			t.Fatalf("seed session %s: %v", ses.ID, err)
@@ -739,7 +739,7 @@ func TestApplyRestoreRollsBackOnTranscriptIdentityConflict(t *testing.T) {
 	}
 
 	err := ss.ApplyRestore(ctx, sessions.RestorePlan{
-		Session:  session.Session{ID: "ses_B", Title: "replacement", Cwd: "/replacement"},
+		Session:  session.Session{ID: "ses_B", Title: "replacement", CWD: "/replacement"},
 		Messages: []chat.Message{chat.NewUserMessage(chat.NewTextPart("after"))},
 		Runs:     []transcript.Run{restoredRun("ses_B", "run_shared", now)},
 	})
@@ -748,7 +748,7 @@ func TestApplyRestoreRollsBackOnTranscriptIdentityConflict(t *testing.T) {
 	}
 
 	target, err := ss.sessions.Get(ctx, "ses_B")
-	if err != nil || target.Title != "target" || target.Cwd != "/target" {
+	if err != nil || target.Title != "target" || target.CWD != "/target" {
 		t.Fatalf("target session after rollback = %+v, %v", target, err)
 	}
 	messages, err := ss.history.Read(ctx, "ses_B")

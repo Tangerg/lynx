@@ -391,7 +391,7 @@ func TestToolsetDoesNotDependOnAgentexec(t *testing.T) {
 // TestAgentexecDoesNotOwnConcreteToolContracts keeps model-facing tool names,
 // schemas, special gate policy, and tool-specific outcome projection in
 // toolset. Agent execution resolves generic tools and translates their lifecycle
-// through its consumer-owned semantics port.
+// through its consumer-owned interpreter port.
 func TestAgentexecDoesNotOwnConcreteToolContracts(t *testing.T) {
 	root := moduleRoot(t)
 	dir := filepath.Join(root, "internal", "adapter", "agentexec")
@@ -471,7 +471,7 @@ func TestFilesystemMutationVocabularyIsModelIndependent(t *testing.T) {
 		"internal/adapter/toolset/build.go",
 		"internal/adapter/toolset/exposure.go",
 		"internal/adapter/toolset/resolver.go",
-		"internal/adapter/toolset/workdir.go",
+		"internal/adapter/toolset/cwd_tools.go",
 	} {
 		path := filepath.Join(root, relative)
 		source, err := os.ReadFile(path)
@@ -602,7 +602,7 @@ func TestStackExposesTheIdempotencyConsumerPort(t *testing.T) {
 func TestExecutorCheckpointBindingIsValidatedAtEveryBoundary(t *testing.T) {
 	root := moduleRoot(t)
 	checks := map[string][]string{
-		filepath.Join("internal", "application", "runs", "engine_event.go"): {
+		filepath.Join("internal", "application", "runs", "execution_fact.go"): {
 			"ValidateOwnership", "Scope.GoalLeaseID", "Checkpoint.ModelSelection",
 		},
 		filepath.Join("internal", "application", "runs", "waiting_cancellation.go"): {
@@ -618,13 +618,13 @@ func TestExecutorCheckpointBindingIsValidatedAtEveryBoundary(t *testing.T) {
 			"DeleteCheckpoints(ctx, commit.SessionID",
 		},
 		filepath.Join("internal", "application", "runs", "recovery_validation.go"): {
-			"ExecutorCheckpointExpectation", "GoalLeaseID", "sess.Cwd", "sess.Isolated",
+			"ExecutorCheckpointExpectation", "GoalLeaseID", "sess.CWD", "sess.Isolated",
 		},
 		filepath.Join("internal", "adapter", "agentexec", "checkpoint_restore.go"): {
 			"ValidateFor",
 		},
 		filepath.Join("internal", "adapter", "agentexec", "turnrun.go"): {
-			"ValidateFor", "GoalLeaseID", "request.Cwd", "request.Isolated",
+			"ValidateFor", "GoalLeaseID", "request.CWD", "request.Isolated",
 		},
 		filepath.Join("internal", "adapter", "persistence", "session_stores.go"): {
 			"DeleteCheckpoints(ctx, plan.SessionID",

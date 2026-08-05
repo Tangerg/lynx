@@ -24,7 +24,7 @@ import (
 // against a stub LLM that asks for `shell` (echo lyra). The controller
 // must emit the canonical sequence:
 //
-//	UsageReported → ToolCallStart → ToolCallEnd → MessageDelta → UsageReported → TurnEnd
+//	UsageReported → ToolCallStarted → ToolCallFinished → MessageDelta → UsageReported → TurnEnd
 //
 // and the sequence must end cleanly.
 func TestController_StartTurn_EmitsExpectedEvents(t *testing.T) {
@@ -50,8 +50,8 @@ func TestController_StartTurn_EmitsExpectedEvents(t *testing.T) {
 
 	wantOrder := []string{
 		"UsageReported",
-		"ToolCallStart",
-		"ToolCallEnd",
+		"ToolCallStarted",
+		"ToolCallFinished",
 		"MessageDelta",
 		"UsageReported",
 		"TurnEnd",
@@ -63,27 +63,27 @@ func TestController_StartTurn_EmitsExpectedEvents(t *testing.T) {
 	// Spot-check each event's content.
 	for _, ev := range got {
 		switch e := ev.(type) {
-		case runs.ToolCallStart:
+		case runs.ToolCallStarted:
 			if e.ToolName != "shell" {
-				t.Errorf("ToolCallStart.ToolName = %q, want shell", e.ToolName)
+				t.Errorf("ToolCallStarted.ToolName = %q, want shell", e.ToolName)
 			}
 			if !strings.Contains(e.Arguments, "echo lyra") {
-				t.Errorf("ToolCallStart.Arguments missing command: %q", e.Arguments)
+				t.Errorf("ToolCallStarted.Arguments missing command: %q", e.Arguments)
 			}
 			if e.Activity != "Print lyra" {
-				t.Errorf("ToolCallStart.Activity = %q, want shell description", e.Activity)
+				t.Errorf("ToolCallStarted.Activity = %q, want shell description", e.Activity)
 			}
-		case runs.ToolCallEnd:
+		case runs.ToolCallFinished:
 			if e.Problem != nil {
-				t.Errorf("ToolCallEnd.Problem = %+v, want nil", e.Problem)
+				t.Errorf("ToolCallFinished.Problem = %+v, want nil", e.Problem)
 			}
 			result, ok := e.Result.Any().(map[string]any)
 			if !ok {
-				t.Fatalf("ToolCallEnd.Result = %T, want JSON object", e.Result)
+				t.Fatalf("ToolCallFinished.Result = %T, want JSON object", e.Result)
 			}
 			output, ok := result["output"].(string)
 			if !ok || !strings.Contains(output, "lyra") {
-				t.Errorf("ToolCallEnd.Result missing 'lyra': %#v", e.Result)
+				t.Errorf("ToolCallFinished.Result missing 'lyra': %#v", e.Result)
 			}
 		case runs.MessageDelta:
 			if !strings.Contains(e.Text, "lyra") {
@@ -442,7 +442,7 @@ func TestController_ApprovalGate_Deny(t *testing.T) {
 				answersForBarrier(e, interrupts.Resolution{Approved: false}),
 				[]execution.InterruptKind{execution.ApprovalInterrupt},
 			)
-		case runs.ToolCallEnd:
+		case runs.ToolCallFinished:
 			// Denial flows back as a tool *result* so the model can
 			// recover — Err stays empty, Result carries the reason.
 			if result, ok := e.Result.String(); ok && strings.Contains(result, "denied") {

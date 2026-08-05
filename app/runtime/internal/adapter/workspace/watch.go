@@ -24,10 +24,10 @@ var _ workspaceapp.GitStateWatcher = GitWatcher{}
 
 const gitWatchDebounce = 200 * time.Millisecond
 
-// WatchGitState watches every distinct repository reached from roots. A
+// Watch observes every distinct repository reached from roots. A
 // non-repository root is intentionally inert: its diff view is unavailable as
 // well, but the surrounding workspace subscription remains valid.
-func (GitWatcher) WatchGitState(roots []string, notify func()) (io.Closer, error) {
+func (GitWatcher) Watch(roots []string, notify func()) (io.Closer, error) {
 	gitDirs := gitDirsForRoots(roots)
 	if len(gitDirs) == 0 {
 		return nopWatch{}, nil

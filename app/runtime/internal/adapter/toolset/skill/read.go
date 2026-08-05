@@ -21,7 +21,7 @@ type UsageRecorder interface {
 }
 
 // BuildReaders assembles the working-directory-scoped reading tools over the
-// merged skill source (project <workdir>/.lyra/skills layered over the user dir,
+// merged skill source (project <cwd>/.lyra/skills layered over the user dir,
 // project winning). It returns nil when neither directory exists, so a session
 // that ships no skills gets no skill tools at all. When recorder is non-nil,
 // loading a skill records a use so the curator can tell active skills from idle
@@ -30,7 +30,7 @@ type UsageRecorder interface {
 // Rebuilt per resolution like fs/shell, because the project directory depends on
 // the Run's working directory; the merged source just wraps os.DirFS, so the
 // cost is negligible.
-func BuildReaders(workdir, userDir string, recorder UsageRecorder) ([]toolcontract.Tool, error) {
+func BuildReaders(cwd, userDir string, recorder UsageRecorder) ([]toolcontract.Tool, error) {
 	var decorateUser func(skillspec.ResourceSource) skillspec.ResourceSource
 	if recorder != nil {
 		// Wrap only the user source: the curator governs the user library, and
@@ -41,7 +41,7 @@ func BuildReaders(workdir, userDir string, recorder UsageRecorder) ([]toolcontra
 			return recordingSource{ResourceSource: user, recorder: recorder}
 		}
 	}
-	source := promptsource.MergeSkillSource(promptsource.ProjectSkillDir(workdir), userDir, decorateUser)
+	source := promptsource.MergeSkillSource(promptsource.ProjectSkillDir(cwd), userDir, decorateUser)
 	if source == nil {
 		return nil, nil
 	}

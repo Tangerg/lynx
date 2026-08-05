@@ -11,7 +11,7 @@
       "costUsd": 0.021
     },
     "steps": 3,
-    "activeDurationMs": 12400
+    "activeDurationMillis": 12400
   },
   "limits": {
     "maxSteps": 20,

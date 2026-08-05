@@ -9,7 +9,7 @@
 // in the generated validator and in schema.json.
 
 // The wire version this runtime serves; a client states it in request metadata.
-export const PROTOCOL_VERSION = "2026-08-04";
+export const PROTOCOL_VERSION = "2026-08-05";
 
 // The methods the runtime sends downstream. A client only ever subscribes.
 export const NOTIFICATIONS_RUN_EVENT = "notifications.run.event";
@@ -122,7 +122,7 @@ export type ArtifactItem =
   | { type: "agentMessage"; content?: ArtifactContentBlock[]; createdAt: string; id: string; runId: string; status: ItemStatus }
   | { type: "reasoning"; createdAt: string; id: string; redacted?: boolean; runId: string; status: ItemStatus; text?: string }
   | { type: "question"; createdAt: string; id: string; question?: ArtifactQuestion; runId: string; status: ItemStatus }
-  | { type: "toolCall"; durationMs?: number; error?: ArtifactProblem; finishedAt?: string; id: string; runId: string; safetyClass?: SafetyClass; startedAt: string; status: ItemStatus; tool?: ArtifactToolInvocation }
+  | { type: "toolCall"; durationMillis?: number; error?: ArtifactProblem; finishedAt?: string; id: string; runId: string; safetyClass?: SafetyClass; startedAt: string; status: ItemStatus; tool?: ArtifactToolInvocation }
   | { type: "compaction"; createdAt: string; droppedMessages?: number; id: string; runId: string; status: ItemStatus; summary?: string };
 
 export interface ArtifactModelUsage {
@@ -191,7 +191,7 @@ export interface ArtifactRunLimits {
 }
 
 export interface ArtifactRunMetrics {
-  activeDurationMs: number;
+  activeDurationMillis: number;
   steps: number;
   usage?: ArtifactUsage;
 }
@@ -327,8 +327,8 @@ export interface CreateMCPAuthorizationAttemptRequest {
 
 export interface CreateScheduleRequest {
   cron: string;
+  instructions: string;
   model?: string;
-  prompt: string;
   provider?: string;
   title?: string;
   workspace?: WorkspaceRef;
@@ -493,8 +493,8 @@ export interface GetFileHeadRequest {
   workspace: WorkspaceRef;
 }
 
-export interface GetMemoryRequest {
-  scope: MemoryScope;
+export interface GetKnowledgeRequest {
+  scope: KnowledgeScope;
   workspace?: WorkspaceRef;
 }
 
@@ -576,7 +576,7 @@ export interface HookInfo {
   matcher?: string;
   scope: HookScope;
   source: string;
-  timeoutMs?: number;
+  timeoutMillis?: number;
 }
 
 export type HookScope = "global" | "project";
@@ -637,7 +637,7 @@ export type Item =
   | { type: "agentMessage"; content?: ContentBlock[]; createdAt: string; id: string; runId: string; status: ItemStatus }
   | { type: "reasoning"; createdAt: string; id: string; redacted?: boolean; runId: string; status: ItemStatus; text?: string }
   | { type: "question"; createdAt: string; id: string; question?: Question; runId: string; status: ItemStatus }
-  | { type: "toolCall"; durationMs?: number; error?: ProblemData; finishedAt?: string; id: string; runId: string; safetyClass?: SafetyClass; startedAt: string; status: ItemStatus; tool?: ToolInvocation }
+  | { type: "toolCall"; durationMillis?: number; error?: ProblemData; finishedAt?: string; id: string; runId: string; safetyClass?: SafetyClass; startedAt: string; status: ItemStatus; tool?: ToolInvocation }
   | { type: "compaction"; createdAt: string; droppedMessages?: number; id: string; runId: string; status: ItemStatus; summary?: string };
 
 export type ItemDelta =
@@ -659,6 +659,14 @@ export type ItemScopeType = "session" | "run";
 export type ItemStatus = "running" | "completed" | "incomplete";
 
 export type ItemType = "userMessage" | "agentMessage" | "reasoning" | "question" | "toolCall" | "compaction";
+
+export interface KnowledgeEntry {
+  content: string;
+  scope: KnowledgeScope;
+  updatedAt?: string;
+}
+
+export type KnowledgeScope = "cwd" | "projectRoot" | "home";
 
 export interface ListApprovalRulesRequest {
   sessionId: string;
@@ -714,6 +722,14 @@ export interface ListRunsRequest {
   statuses?: RunStatus[];
 }
 
+export interface MCPAuthorizationAttempt {
+  createdAt: string;
+  finishedAt?: string;
+  id: string;
+  server: string;
+  status: MCPAuthorizationAttemptStatus;
+}
+
 export interface MCPAuthorizationAttemptLimits {
   retentionSeconds: number;
 }
@@ -722,13 +738,53 @@ export interface MCPAuthorizationAttemptRequest {
   attemptId: string;
 }
 
+export type MCPAuthorizationAttemptStatus =
+  | { type: "pending" }
+  | { type: "succeeded" }
+  | { type: "failed"; error: ProblemData }
+  | { type: "canceled" };
+
+export type MCPAuthorizationAttemptStatusType = "pending" | "succeeded" | "failed" | "canceled";
+
+export type MCPAuthorizationChange =
+  | { type: "set"; value: string }
+  | { type: "clear" };
+
+export type MCPConnection =
+  | { type: "streamableHttp"; authorizationMasked?: string; headersMasked?: Record<string, string>; url: string }
+  | { type: "stdio"; args?: string[]; command: string; dir?: string; envMasked?: Record<string, string> };
+
+export type MCPConnectionInput =
+  | { type: "streamableHttp"; authorization?: MCPAuthorizationChange; headers?: MCPHeadersChange; url: string }
+  | { type: "stdio"; args?: string[]; command: string; dir?: string; env?: MCPEnvironmentChange };
+
+export type MCPEnvironmentChange =
+  | { type: "set"; value: Record<string, string> }
+  | { type: "clear" };
+
+export type MCPHeadersChange =
+  | { type: "set"; value: Record<string, string> }
+  | { type: "clear" };
+
 export interface MCPListToolsRequest {
   server?: string;
 }
 
+export type MCPSecretChangeType = "set" | "clear";
+
+export interface MCPServer {
+  autoApproveTools?: string[];
+  connection: MCPConnection;
+  description?: string;
+  disabledTools?: string[];
+  name: string;
+  status: MCPServerState;
+  timeoutSeconds?: number;
+}
+
 export interface MCPServerCandidate {
   autoApproveTools?: string[];
-  connection: McpConnectionInput;
+  connection: MCPConnectionInput;
   description?: string;
   disabledTools?: string[];
   enabled: boolean;
@@ -740,61 +796,7 @@ export interface MCPServerRequest {
   server: string;
 }
 
-export interface ManagedSkill {
-  description?: string;
-  lifecycle: SkillLifecycle;
-  name: string;
-}
-
-export interface McpAuthorizationAttempt {
-  createdAt: string;
-  finishedAt?: string;
-  id: string;
-  server: string;
-  status: McpAuthorizationAttemptStatus;
-}
-
-export type McpAuthorizationAttemptStatus =
-  | { type: "pending" }
-  | { type: "succeeded" }
-  | { type: "failed"; error: ProblemData }
-  | { type: "canceled" };
-
-export type McpAuthorizationAttemptStatusType = "pending" | "succeeded" | "failed" | "canceled";
-
-export type McpAuthorizationChange =
-  | { type: "set"; value: string }
-  | { type: "clear" };
-
-export type McpConnection =
-  | { type: "streamableHttp"; authorizationMasked?: string; headersMasked?: Record<string, string>; url: string }
-  | { type: "stdio"; args?: string[]; command: string; dir?: string; envMasked?: Record<string, string> };
-
-export type McpConnectionInput =
-  | { type: "streamableHttp"; authorization?: McpAuthorizationChange; headers?: McpHeadersChange; url: string }
-  | { type: "stdio"; args?: string[]; command: string; dir?: string; env?: McpEnvironmentChange };
-
-export type McpEnvironmentChange =
-  | { type: "set"; value: Record<string, string> }
-  | { type: "clear" };
-
-export type McpHeadersChange =
-  | { type: "set"; value: Record<string, string> }
-  | { type: "clear" };
-
-export type McpSecretChangeType = "set" | "clear";
-
-export interface McpServer {
-  autoApproveTools?: string[];
-  connection: McpConnection;
-  description?: string;
-  disabledTools?: string[];
-  name: string;
-  status: McpServerState;
-  timeoutSeconds?: number;
-}
-
-export type McpServerState =
+export type MCPServerState =
   | { type: "disabled" }
   | { type: "disconnected" }
   | { type: "connecting" }
@@ -802,30 +804,27 @@ export type McpServerState =
   | { type: "failed"; error: ProblemData }
   | { type: "needsAuth"; error: ProblemData };
 
-export type McpServerStateType = "disabled" | "disconnected" | "connecting" | "connected" | "failed" | "needsAuth";
+export type MCPServerStateType = "disabled" | "disconnected" | "connecting" | "connected" | "failed" | "needsAuth";
 
-export interface McpTestResult {
+export interface MCPTestResult {
   error?: ProblemData;
   ok: boolean;
 }
 
-export interface McpTool {
+export interface MCPTool {
   description?: string;
   inputSchema?: Record<string, unknown>;
   name: string;
   server: string;
 }
 
-export type McpTransport = "stdio" | "streamableHttp";
+export type MCPTransport = "stdio" | "streamableHttp";
 
-export interface MemoryEntry {
-  content: string;
-  path: string;
-  scope: MemoryScope;
-  updatedAt?: string;
+export interface ManagedSkill {
+  description?: string;
+  lifecycle: SkillLifecycle;
+  name: string;
 }
-
-export type MemoryScope = "cwd" | "projectRoot" | "home";
 
 export type Modality = "text" | "image" | "audio" | "video" | "pdf";
 
@@ -873,13 +872,13 @@ export type PageOfAgentDoc = Page<AgentDoc>;
 
 export type PageOfFileEntry = Page<FileEntry>;
 
+export type PageOfKnowledgeEntry = Page<KnowledgeEntry>;
+
+export type PageOfMCPServer = Page<MCPServer>;
+
+export type PageOfMCPTool = Page<MCPTool>;
+
 export type PageOfManagedSkill = Page<ManagedSkill>;
-
-export type PageOfMcpServer = Page<McpServer>;
-
-export type PageOfMcpTool = Page<McpTool>;
-
-export type PageOfMemoryEntry = Page<MemoryEntry>;
 
 export type PageOfModel = Page<Model>;
 
@@ -1097,7 +1096,7 @@ export interface RunLimits {
 }
 
 export interface RunMetrics {
-  activeDurationMs: number;
+  activeDurationMillis: number;
   steps: number;
   usage?: Usage;
 }
@@ -1219,10 +1218,10 @@ export interface Schedule {
   cron: string;
   enabled: boolean;
   id: string;
+  instructions: string;
   lastRunAt?: string;
   model?: string;
   nextRunAt?: string;
-  prompt: string;
   provider?: string;
   revision: number;
   title: string;
@@ -1433,20 +1432,20 @@ export interface ToolSpec {
   safetyClass?: SafetyClass;
 }
 
+export interface UpdateKnowledgeRequest {
+  content: string;
+  scope: KnowledgeScope;
+  workspace?: WorkspaceRef;
+}
+
 export interface UpdateMCPServerRequest {
   autoApproveTools?: string[];
-  connection?: McpConnectionInput;
+  connection?: MCPConnectionInput;
   description?: string;
   disabledTools?: string[];
   enabled?: boolean;
   server: string;
   timeoutSeconds?: number;
-}
-
-export interface UpdateMemoryRequest {
-  content: string;
-  scope: MemoryScope;
-  workspace?: WorkspaceRef;
 }
 
 export interface UpdateProviderRequest {
@@ -1460,8 +1459,8 @@ export interface UpdateScheduleRequest {
   enabled?: boolean;
   expectedRevision: number;
   id: string;
+  instructions?: string;
   model?: string;
-  prompt?: string;
   provider?: string;
   title?: string;
   workspace?: WorkspaceRef;
@@ -1601,11 +1600,11 @@ export const WIRE_ENUMS = {
   ItemScopeType: ["session", "run"],
   ItemStatus: ["running", "completed", "incomplete"],
   ItemType: ["userMessage", "agentMessage", "reasoning", "question", "toolCall", "compaction"],
-  McpAuthorizationAttemptStatusType: ["pending", "succeeded", "failed", "canceled"],
-  McpSecretChangeType: ["set", "clear"],
-  McpServerStateType: ["disabled", "disconnected", "connecting", "connected", "failed", "needsAuth"],
-  McpTransport: ["stdio", "streamableHttp"],
-  MemoryScope: ["cwd", "projectRoot", "home"],
+  KnowledgeScope: ["cwd", "projectRoot", "home"],
+  MCPAuthorizationAttemptStatusType: ["pending", "succeeded", "failed", "canceled"],
+  MCPSecretChangeType: ["set", "clear"],
+  MCPServerStateType: ["disabled", "disconnected", "connecting", "connected", "failed", "needsAuth"],
+  MCPTransport: ["stdio", "streamableHttp"],
   Modality: ["text", "image", "audio", "video", "pdf"],
   PlanStatus: ["pending", "in_progress", "completed"],
   ProviderConfigChangeType: ["set", "clear"],

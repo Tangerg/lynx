@@ -12,7 +12,7 @@ func TestCapabilitiesAdvertiseOnlyProducedRunEvents(t *testing.T) {
 	t.Parallel()
 
 	caps := capabilitiesFor(featureAvailability{
-		memory: true, git: true, fileWatch: true, plan: true,
+		knowledge: true, git: true, fileWatch: true, plan: true,
 		goals: true, agentMemory: true, schedules: true, codebase: true,
 	}, replayLimitsFrom(runs.NewCoordinator(runs.Dependencies{})), protocol.IdempotencyLimits{RetentionSeconds: 86_400}, protocol.MCPAuthorizationAttemptLimits{RetentionSeconds: 73})
 	want := []protocol.StreamEventType{

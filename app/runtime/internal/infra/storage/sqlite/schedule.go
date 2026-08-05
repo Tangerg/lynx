@@ -13,9 +13,8 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/schedule"
 )
 
-// ScheduleStore is the SQLite persistence adapter for scheduled runs — the persistent home
-// for scheduled runs. The DB must have been opened via [Open] so the schedules
-// table exists.
+// ScheduleStore is the SQLite persistence adapter for scheduled runs. The DB
+// must have been opened via [Open] so the schedules table exists.
 type ScheduleStore struct {
 	db *sql.DB
 }
@@ -32,9 +31,9 @@ func (s *ScheduleStore) Create(ctx context.Context, sc schedule.Schedule) (sched
 	sc.ID = schedule.IDPrefix + uuid.NewString()
 	sc.CreatedAt = time.Now().UTC()
 	_, err := conn(ctx, s.db).ExecContext(ctx,
-		`INSERT INTO schedules (id, title, prompt, cwd, provider, model, cron, enabled, last_run_at, next_run_at, created_at, revision)
+		`INSERT INTO schedules (id, title, instructions, cwd, provider, model, cron, enabled, last_run_at, next_run_at, created_at, revision)
 		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
-		sc.ID, sc.Title, sc.Prompt, sc.Cwd, sc.ModelSelection.Provider(), sc.ModelSelection.Model(), sc.Cron,
+		sc.ID, sc.Title, sc.Instructions, sc.CWD, sc.ModelSelection.Provider(), sc.ModelSelection.Model(), sc.Cron,
 		boolToInt(sc.Enabled), toMillis(sc.LastRunAt), toMillis(sc.NextRunAt), sc.CreatedAt.UnixMilli())
 	if err != nil {
 		return schedule.Schedule{}, fmt.Errorf("sqlite: create schedule: %w", err)
@@ -49,9 +48,9 @@ func (s *ScheduleStore) Update(ctx context.Context, sc schedule.Schedule, expect
 	}
 	res, err := conn(ctx, s.db).ExecContext(ctx,
 		`UPDATE schedules
-		 SET title = ?, prompt = ?, cwd = ?, provider = ?, model = ?, cron = ?, enabled = ?, next_run_at = ?, revision = revision + 1
+		 SET title = ?, instructions = ?, cwd = ?, provider = ?, model = ?, cron = ?, enabled = ?, next_run_at = ?, revision = revision + 1
 		 WHERE id = ? AND revision = ?`,
-		sc.Title, sc.Prompt, sc.Cwd, sc.ModelSelection.Provider(), sc.ModelSelection.Model(), sc.Cron,
+		sc.Title, sc.Instructions, sc.CWD, sc.ModelSelection.Provider(), sc.ModelSelection.Model(), sc.Cron,
 		boolToInt(sc.Enabled), toMillis(sc.NextRunAt), sc.ID, expectedRevision)
 	if err != nil {
 		return schedule.Schedule{}, fmt.Errorf("sqlite: update schedule: %w", err)
@@ -71,7 +70,7 @@ func (s *ScheduleStore) Update(ctx context.Context, sc schedule.Schedule, expect
 
 func (s *ScheduleStore) Get(ctx context.Context, id string) (schedule.Schedule, error) {
 	row := conn(ctx, s.db).QueryRowContext(ctx,
-		`SELECT id, title, prompt, cwd, provider, model, cron, enabled, last_run_at, next_run_at, created_at, revision
+		`SELECT id, title, instructions, cwd, provider, model, cron, enabled, last_run_at, next_run_at, created_at, revision
 		 FROM schedules WHERE id = ?`, id)
 	sc, err := scanSchedule(row.Scan)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -95,7 +94,7 @@ func (s *ScheduleStore) List(ctx context.Context) ([]schedule.Schedule, error) {
 // so two schedules created in the same nanosecond cannot be dropped or repeated
 // across a page boundary.
 func (s *ScheduleStore) ListPage(ctx context.Context, afterCreatedAt int64, afterID string, limit int) ([]schedule.Schedule, error) {
-	query := `SELECT id, title, prompt, cwd, provider, model, cron, enabled, last_run_at, next_run_at, created_at, revision
+	query := `SELECT id, title, instructions, cwd, provider, model, cron, enabled, last_run_at, next_run_at, created_at, revision
 		 FROM schedules`
 	var args []any
 	if afterCreatedAt > 0 || afterID != "" {
@@ -115,7 +114,7 @@ func (s *ScheduleStore) Due(ctx context.Context, now time.Time, limit int) ([]sc
 		return nil, nil
 	}
 	return s.query(ctx, "list due schedules",
-		`SELECT id, title, prompt, cwd, provider, model, cron, enabled, last_run_at, next_run_at, created_at, revision
+		`SELECT id, title, instructions, cwd, provider, model, cron, enabled, last_run_at, next_run_at, created_at, revision
 		 FROM schedules
 		 WHERE enabled = 1 AND next_run_at > 0 AND next_run_at <= ?
 		 ORDER BY next_run_at, id
@@ -153,11 +152,11 @@ func (s *ScheduleStore) Claim(ctx context.Context, occurrence schedule.Occurrenc
 		}
 		_, err = conn(ctx, s.db).ExecContext(ctx,
 			`INSERT INTO schedule_firings(
-				id, schedule_id, title, prompt, cwd, provider, model, cron,
+				id, schedule_id, title, instructions, cwd, provider, model, cron,
 				due_at, fired_at, next_run_at, session_id, run_id, state
 			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')`,
-			occurrence.ID, occurrence.Schedule.ID, occurrence.Schedule.Title, occurrence.Schedule.Prompt,
-			occurrence.Schedule.Cwd, occurrence.Schedule.ModelSelection.Provider(), occurrence.Schedule.ModelSelection.Model(), occurrence.Schedule.Cron,
+			occurrence.ID, occurrence.Schedule.ID, occurrence.Schedule.Title, occurrence.Schedule.Instructions,
+			occurrence.Schedule.CWD, occurrence.Schedule.ModelSelection.Provider(), occurrence.Schedule.ModelSelection.Model(), occurrence.Schedule.Cron,
 			toMillis(occurrence.DueAt), toMillis(occurrence.FiredAt), toMillis(occurrence.NextRunAt), occurrence.SessionID, occurrence.RunID)
 		if err != nil {
 			return fmt.Errorf("sqlite: persist schedule occurrence: %w", err)
@@ -176,7 +175,7 @@ func (s *ScheduleStore) Pending(ctx context.Context, limit int) ([]schedule.Occu
 		return nil, nil
 	}
 	rows, err := conn(ctx, s.db).QueryContext(ctx,
-		`SELECT id, schedule_id, title, prompt, cwd, provider, model, cron,
+		`SELECT id, schedule_id, title, instructions, cwd, provider, model, cron,
 			due_at, fired_at, next_run_at, session_id, run_id
 		 FROM schedule_firings WHERE state = 'pending' ORDER BY due_at, id
 		 LIMIT ?`, limit)
@@ -286,9 +285,9 @@ func (s *ScheduleStore) query(ctx context.Context, operation, q string, args ...
 func scanSchedule(scan func(...any) error) (schedule.Schedule, error) {
 	var sc schedule.Schedule
 	var provider, model string
-	var enabled, lastMs, nextMs, createdMs int64
-	if err := scan(&sc.ID, &sc.Title, &sc.Prompt, &sc.Cwd, &provider, &model, &sc.Cron,
-		&enabled, &lastMs, &nextMs, &createdMs, &sc.Revision); err != nil {
+	var enabled, lastMillis, nextMillis, createdMillis int64
+	if err := scan(&sc.ID, &sc.Title, &sc.Instructions, &sc.CWD, &provider, &model, &sc.Cron,
+		&enabled, &lastMillis, &nextMillis, &createdMillis, &sc.Revision); err != nil {
 		return schedule.Schedule{}, err
 	}
 	selection, err := modelref.New(provider, model)
@@ -297,9 +296,9 @@ func scanSchedule(scan func(...any) error) (schedule.Schedule, error) {
 	}
 	sc.ModelSelection = selection
 	sc.Enabled = enabled != 0
-	sc.LastRunAt = fromMillis(lastMs)
-	sc.NextRunAt = fromMillis(nextMs)
-	sc.CreatedAt = time.UnixMilli(createdMs).UTC()
+	sc.LastRunAt = fromMillis(lastMillis)
+	sc.NextRunAt = fromMillis(nextMillis)
+	sc.CreatedAt = time.UnixMilli(createdMillis).UTC()
 	return sc, nil
 }
 
@@ -307,8 +306,8 @@ func scanOccurrence(scan func(...any) error) (schedule.Occurrence, error) {
 	var occurrence schedule.Occurrence
 	var provider, model string
 	var dueAt, firedAt, nextRunAt int64
-	if err := scan(&occurrence.ID, &occurrence.Schedule.ID, &occurrence.Schedule.Title, &occurrence.Schedule.Prompt,
-		&occurrence.Schedule.Cwd, &provider, &model, &occurrence.Schedule.Cron,
+	if err := scan(&occurrence.ID, &occurrence.Schedule.ID, &occurrence.Schedule.Title, &occurrence.Schedule.Instructions,
+		&occurrence.Schedule.CWD, &provider, &model, &occurrence.Schedule.Cron,
 		&dueAt, &firedAt, &nextRunAt, &occurrence.SessionID, &occurrence.RunID); err != nil {
 		return schedule.Occurrence{}, err
 	}

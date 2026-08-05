@@ -25,21 +25,21 @@ type FiringStore interface {
 // It is constructed with a complete Runner, so callers cannot observe an
 // incompletely wired scheduler.
 type Firing struct {
-	registry RunNowStore
-	worker   WorkerStore
-	runner   Runner
-	now      func() time.Time
-	enabled  bool
+	runNowStore RunNowStore
+	workerStore WorkerStore
+	runner      Runner
+	now         func() time.Time
+	enabled     bool
 }
 
-// NewFiring builds the schedule execution use case. A nil registry behaves as
+// NewFiring builds the schedule execution use case. A nil store behaves as
 // the unavailable scheduling capability.
 func NewFiring(store FiringStore, runner Runner) *Firing {
 	enabled := store != nil
 	if store == nil {
 		store = disabledFiringStore{}
 	}
-	return &Firing{registry: store, worker: store, runner: runner, now: time.Now, enabled: enabled}
+	return &Firing{runNowStore: store, workerStore: store, runner: runner, now: time.Now, enabled: enabled}
 }
 
 // Available reports whether schedule-firing use cases are wired.
@@ -49,7 +49,7 @@ func (f *Firing) Available() bool { return f != nil && f.enabled }
 // the cron cursor. Once accepted, recording outlives request cancellation so a
 // durable LastRunAt fact cannot be lost after a client disconnect.
 func (f *Firing) RunNow(ctx context.Context, id string) (RunHandle, error) {
-	sc, err := f.registry.Get(ctx, id)
+	sc, err := f.runNowStore.Get(ctx, id)
 	if err != nil {
 		return RunHandle{}, err
 	}
@@ -60,7 +60,7 @@ func (f *Firing) RunNow(ctx context.Context, id string) (RunHandle, error) {
 
 	writeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), manualRunRecordTimeout)
 	defer cancel()
-	if err := f.registry.RecordRun(writeCtx, id, f.now().UTC()); err != nil {
+	if err := f.runNowStore.RecordRun(writeCtx, id, f.now().UTC()); err != nil {
 		return RunHandle{}, fmt.Errorf("schedules: record run-now for %q: %w", id, err)
 	}
 	return handle, nil
@@ -68,7 +68,7 @@ func (f *Firing) RunNow(ctx context.Context, id string) (RunHandle, error) {
 
 // RunWorker starts the due-schedule scanner until ctx is canceled.
 func (f *Firing) RunWorker(ctx context.Context) {
-	NewWorker(f.worker, f.runner).Run(ctx)
+	NewWorker(f.workerStore, f.runner).Run(ctx)
 }
 
 type disabledFiringStore struct{}

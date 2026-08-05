@@ -58,10 +58,10 @@ func TestComposeSystemPrompt_SkipsEmptyScopes(t *testing.T) {
 	}
 }
 
-// TestComposePrompt_ProjectMemoryFollowsCwd — the project scope must
+// TestComposePrompt_ProjectMemoryFollowsCWD — the project scope must
 // read the LYRA.md of the TURN's working directory (the per-session
 // cwd), not a directory fixed at construction time.
-func TestComposePrompt_ProjectMemoryFollowsCwd(t *testing.T) {
+func TestComposePrompt_ProjectMemoryFollowsCWD(t *testing.T) {
 	store := &stubKnowledgeStore{project: "project body"}
 	composePrompt(context.Background(), store, nil, "/projects/alpha", "")
 	if store.projectDir != "/projects/alpha" {

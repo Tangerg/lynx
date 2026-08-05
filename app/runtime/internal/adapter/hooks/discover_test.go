@@ -66,8 +66,8 @@ func TestLoadRejectsInvalidHookConfiguration(t *testing.T) {
 		{name: "unknown event", body: `{"hooks":[{"event":"PreTool","command":"check"}]}`},
 		{name: "missing action", body: `{"hooks":[{"event":"Stop"}]}`},
 		{name: "ambiguous action", body: `{"hooks":[{"event":"Stop","command":"notify","inject":"context"}]}`},
-		{name: "negative timeout", body: `{"hooks":[{"event":"Stop","command":"notify","timeoutMs":-1}]}`},
-		{name: "timeout on inject", body: `{"hooks":[{"event":"SessionStart","inject":"context","timeoutMs":100}]}`},
+		{name: "negative timeout", body: `{"hooks":[{"event":"Stop","command":"notify","timeoutMillis":-1}]}`},
+		{name: "timeout on inject", body: `{"hooks":[{"event":"SessionStart","inject":"context","timeoutMillis":100}]}`},
 		{name: "matcher on non-tool event", body: `{"hooks":[{"event":"Stop","command":"notify","matcher":"shell"}]}`},
 		{name: "malformed matcher", body: `{"hooks":[{"event":"PreToolUse","command":"check","matcher":"["}]}`},
 	}

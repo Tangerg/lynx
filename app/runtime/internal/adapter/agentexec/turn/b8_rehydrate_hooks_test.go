@@ -9,7 +9,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
 )
 
-func TestRehydrateRestoresCwdAndToolHooks(t *testing.T) {
+func TestRehydrateRestoresCWDAndToolHooks(t *testing.T) {
 	const (
 		cwd       = "/restored/worktree"
 		rewritten = `{"command":"echo restored","description":"Print restored"}`
@@ -28,7 +28,7 @@ func TestRehydrateRestoresCwdAndToolHooks(t *testing.T) {
 	t.Cleanup(func() { shutdownController(t, controller) })
 
 	handle, err := controller.Rehydrate(t.Context(), runs.RehydrateExecution{
-		SessionID: "sess", ExecutorID: "turn", ProcessID: "process", RootRunID: "run-root", Cwd: cwd,
+		SessionID: "sess", ExecutorID: "turn", ProcessID: "process", RootRunID: "run-root", CWD: cwd,
 	})
 	if err != nil {
 		t.Fatalf("Rehydrate: %v", err)
@@ -44,7 +44,7 @@ func TestRehydrateRestoresCwdAndToolHooks(t *testing.T) {
 
 	recorder.mu.Lock()
 	defer recorder.mu.Unlock()
-	if len(recorder.inputs) != 1 || recorder.inputs[0].Cwd != cwd {
+	if len(recorder.inputs) != 1 || recorder.inputs[0].CWD != cwd {
 		t.Fatalf("restored hook inputs = %#v, want cwd %q", recorder.inputs, cwd)
 	}
 }
@@ -62,7 +62,7 @@ func TestRehydratePreservesHookResolutionFailure(t *testing.T) {
 		ExecutorID: "turn",
 		ProcessID:  "process",
 		RootRunID:  "run-root",
-		Cwd:        t.TempDir(),
+		CWD:        t.TempDir(),
 	}); !errors.Is(err, wantErr) {
 		t.Fatalf("Rehydrate error = %v, want %v", err, wantErr)
 	}

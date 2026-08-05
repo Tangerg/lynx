@@ -28,10 +28,10 @@ func (s *controller) runPromptHooks(ctx context.Context, request runs.StartExecu
 		}
 	}
 	if s.firstTurnForSession(request.SessionID) {
-		add(st.hooks.Run(ctx, hooks.Input{Event: hooks.SessionStart, SessionID: request.SessionID, Cwd: request.Cwd}))
+		add(st.hooks.Run(ctx, hooks.Input{Event: hooks.SessionStart, SessionID: request.SessionID, CWD: request.CWD}))
 	}
 	add(st.hooks.Run(ctx, hooks.Input{
-		Event: hooks.UserPromptSubmit, SessionID: request.SessionID, Cwd: request.Cwd, Prompt: request.Message,
+		Event: hooks.UserPromptSubmit, SessionID: request.SessionID, CWD: request.CWD, Prompt: request.Message,
 	}))
 	if blocked {
 		if reason == "" {

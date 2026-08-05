@@ -11,9 +11,9 @@ import (
 func TestWorkspacesFromSessions(t *testing.T) {
 	t0 := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
 	workspaces := workspacesFromSessions([]session.Session{
-		{ID: "s1", Cwd: "/a/proj", UpdatedAt: t0},
-		{ID: "s2", Cwd: "/a/proj", UpdatedAt: t0.Add(2 * time.Hour)},
-		{ID: "s3", Cwd: "/b/other", UpdatedAt: t0.Add(time.Hour)},
+		{ID: "s1", CWD: "/a/proj", UpdatedAt: t0},
+		{ID: "s2", CWD: "/a/proj", UpdatedAt: t0.Add(2 * time.Hour)},
+		{ID: "s3", CWD: "/b/other", UpdatedAt: t0.Add(time.Hour)},
 		{ID: "s4", UpdatedAt: t0},
 	})
 	if len(workspaces) != 2 {

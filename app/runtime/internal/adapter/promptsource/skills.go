@@ -17,11 +17,11 @@ const projectSkillsSubdir = ".lyra/skills"
 // ProjectSkillDir resolves the project skill-source directory for a working
 // directory. The .lyra layout is a prompt-source filesystem convention, not a
 // skills-domain concern.
-func ProjectSkillDir(workdir string) string {
-	if workdir == "" {
+func ProjectSkillDir(cwd string) string {
+	if cwd == "" {
 		return ""
 	}
-	return filepath.Join(workdir, projectSkillsSubdir)
+	return filepath.Join(cwd, projectSkillsSubdir)
 }
 
 // MergeSkillSource builds the merged skill source: projectDir layered over

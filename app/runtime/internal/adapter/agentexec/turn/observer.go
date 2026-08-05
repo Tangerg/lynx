@@ -46,7 +46,7 @@ func (t *turnObserver) projects(process agentexec.ProcessRef) bool {
 }
 
 // admitChild sends the child opening request through the same serialized
-// executor stream as the parent ToolCallStart that causally precedes it. The
+// executor stream as the parent ToolCallStarted that causally precedes it. The
 // Agent Runtime blocks child publication and execution until the Coordinator
 // confirms the durable transaction.
 func (t *turnObserver) admitChild(ctx context.Context, child agentexec.ChildProcess) error {
@@ -171,7 +171,7 @@ func (t *toolGate) ApproveToolCall(ctx context.Context, callID, toolName, argume
 	var hookDecision approval.HookDecision
 	if !t.st.hooks.Empty() {
 		dec := t.st.hooks.Run(ctx, hooks.Input{
-			Event: hooks.PreToolUse, SessionID: t.st.handle.SessionID, Cwd: t.st.cwd,
+			Event: hooks.PreToolUse, SessionID: t.st.handle.SessionID, CWD: t.st.cwd,
 			Tool: &hooks.ToolInput{Name: toolName, Arguments: arguments},
 		})
 		hookDecision = approval.HookDecision{
@@ -426,7 +426,7 @@ func (t *turnObserver) OnToolCallStart(process agentexec.ProcessRef, callID, sou
 	if !t.projects(process) {
 		return
 	}
-	t.controller.emitProcessEvent(t.st, process, runs.ToolCallStart{
+	t.controller.emitProcessEvent(t.st, process, runs.ToolCallStarted{
 		CallID:       callID,
 		SourceCallID: sourceCallID,
 		ToolName:     toolName,
@@ -447,7 +447,7 @@ func (t *turnObserver) OnToolCallEnd(process agentexec.ProcessRef, callID, toolN
 		return
 	}
 	// HITL interrupt: the tool
-	// paused for human input. Not a failure — skip the ToolCallEnd
+	// paused for human input. Not a failure — skip the ToolCallFinished
 	// event. The turn-park handler drains the in-flight tool item
 	// and creates the appropriate interrupt card.
 	if hitl.IsSuspended(err) {
@@ -460,7 +460,7 @@ func (t *turnObserver) OnToolCallEnd(process agentexec.ProcessRef, callID, toolN
 		t.st.recordToolOutcome(toolName, arguments, output)
 	}
 	result, outputText := decodeToolResult(t.controller.toolPresenter, toolName, arguments, output)
-	end := runs.ToolCallEnd{
+	end := runs.ToolCallFinished{
 		CallID:       callID,
 		Arguments:    arguments,
 		Result:       result,
@@ -503,7 +503,7 @@ func (t *turnObserver) postToolHook(toolName, output string, err error) {
 		return
 	}
 	_ = t.st.hooks.Run(t.st.ctx, hooks.Input{
-		Event: hooks.PostToolUse, SessionID: t.st.handle.SessionID, Cwd: t.st.cwd,
+		Event: hooks.PostToolUse, SessionID: t.st.handle.SessionID, CWD: t.st.cwd,
 		Tool: &hooks.ToolInput{Name: toolName, Result: output}, Reason: errorString(err),
 	})
 }

@@ -170,10 +170,10 @@ type RunProtocolProfile struct {
 type RunMetrics struct {
 	Usage *Usage `json:"usage,omitempty"`
 	Steps int    `json:"steps"`
-	// ActiveDurationMs is time spent executing, summed over the run's segments.
+	// ActiveDurationMillis is time spent executing, summed over the run's segments.
 	// Waiting on a person is not execution, so a run parked overnight and then
 	// answered reports the seconds it worked rather than the hours it existed.
-	ActiveDurationMs int64 `json:"activeDurationMs"`
+	ActiveDurationMillis int64 `json:"activeDurationMillis"`
 }
 
 // RunLimits is the allowance a run may consume before it is stopped (§4.2). An

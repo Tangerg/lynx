@@ -27,8 +27,8 @@ func (s *controller) Rehydrate(ctx context.Context, request runs.RehydrateExecut
 	if s.isClosed() {
 		return Handle{}, ErrClosed
 	}
-	if request.ModelSelection.Configured() && s.resolver == nil {
-		return Handle{}, errors.New("turn: explicit model selection requires a client resolver")
+	if request.ModelSelection.Configured() && s.chatResolver == nil {
+		return Handle{}, errors.New("turn: explicit model selection requires a chat resolver")
 	}
 	turnID := request.ExecutorID
 	if turnID == "" {
@@ -36,10 +36,10 @@ func (s *controller) Rehydrate(ctx context.Context, request runs.RehydrateExecut
 	}
 	handle := Handle{SessionID: request.SessionID, TurnID: turnID}
 	state := newRestoringTurnState(ctx, handle)
-	state.cwd = request.Cwd
+	state.cwd = request.CWD
 	if s.hooks != nil {
 		var err error
-		state.hooks, err = s.hooks.For(state.ctx, request.Cwd)
+		state.hooks, err = s.hooks.For(state.ctx, request.CWD)
 		if err != nil {
 			state.cancel()
 			return Handle{}, fmt.Errorf("turn: resolve lifecycle hooks while restoring process %q: %w", request.ProcessID, err)
@@ -50,14 +50,14 @@ func (s *controller) Rehydrate(ctx context.Context, request runs.RehydrateExecut
 	// StartTurn path). An unset selection uses the engine default.
 	var client *chatclient.Client
 	if request.ModelSelection.Configured() {
-		c, err := s.resolver.ResolveClient(state.ctx, request.ModelSelection)
+		c, err := s.chatResolver.ResolveChat(state.ctx, request.ModelSelection)
 		if err != nil {
 			state.cancel()
 			return Handle{}, err
 		}
 		if c == nil {
 			state.cancel()
-			return Handle{}, errors.New("turn: client resolver returned nil for an explicit model selection")
+			return Handle{}, errors.New("turn: chat resolver returned nil for an explicit model selection")
 		}
 		client = c
 		state.model = request.ModelSelection.Model()
@@ -100,8 +100,8 @@ func (s *controller) Rehydrate(ctx context.Context, request runs.RehydrateExecut
 	process, err := s.engine.RestoreTurn(state.ctx, request.ProcessID, agentexec.RestoreTurnRequest{
 		SessionID:      request.SessionID,
 		ModelSelection: request.ModelSelection,
-		Cwd:            request.Cwd,
-		WorkspaceCwd:   request.WorkspaceCwd,
+		CWD:            request.CWD,
+		WorkspaceCWD:   request.WorkspaceCWD,
 		Isolated:       request.Isolated,
 		GoalLeaseID:    request.GoalLeaseID,
 		Limits:         request.Limits,
