@@ -28,7 +28,8 @@ func TestToolCheckpointRestoresWithoutRepeatingSettledPrefix(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	waiting := &inputRequestTool{}
+	waiting := newInputRequestTool()
+	t.Cleanup(waiting.Release)
 	model := &checkpointModel{}
 	deployment := checkpointDeployment(t, model, []tool.Tool{prefix, waiting})
 
@@ -45,6 +46,10 @@ func TestToolCheckpointRestoresWithoutRepeatingSettledPrefix(t *testing.T) {
 	if !ok {
 		t.Fatal("waiting Process has no WaitID")
 	}
+	livePending, found, err := interaction.PendingToolInputFromProcess(context.Background(), process)
+	if err != nil || !found || livePending.WaitID() != waitID {
+		t.Fatalf("PendingToolInputFromProcess found = %t, WaitID = %s, error = %v", found, livePending.WaitID().String(), err)
+	}
 	snapshot, err := process.Capture(context.Background())
 	if err != nil {
 		t.Fatal(err)
@@ -57,6 +62,13 @@ func TestToolCheckpointRestoresWithoutRepeatingSettledPrefix(t *testing.T) {
 	}
 	if err := firstEngine.Close(); err != nil {
 		t.Fatal(err)
+	}
+	pending, found, err := interaction.PendingToolInputFromSnapshot(snapshot)
+	if err != nil || !found {
+		t.Fatalf("PendingToolInputFromSnapshot found = %t, error = %v", found, err)
+	}
+	if pending.WaitID() != waitID || string(pending.Prompt()) != `{"question":"What is your name?"}` {
+		t.Fatalf("pending input = WaitID %s, prompt %s", pending.WaitID().String(), pending.Prompt())
 	}
 
 	restoredEngine, err := agent.NewEngine(agent.EngineConfig{})
@@ -71,7 +83,25 @@ func TestToolCheckpointRestoresWithoutRepeatingSettledPrefix(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	answer, err := interaction.NewToolInputResponseSignal(signalID, waitID, json.RawMessage(`"Ada"`))
+	invalidID, err := agent.ParseSignalID("signal:invalid-checkpoint-answer")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pending.ResponseSignal(invalidID, json.RawMessage(`42`)); !errors.Is(err, interaction.ErrInvalidToolInputRequest) {
+		t.Fatalf("invalid response error = %v, want ErrInvalidToolInputRequest", err)
+	}
+	wrongWaitID, err := agent.ParseWaitID("wait:wrong")
+	if err != nil {
+		t.Fatal(err)
+	}
+	wrong, err := interaction.NewToolInputResponseSignal(invalidID, wrongWaitID, json.RawMessage(`"Ada"`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if accepted, err := restored.DeliverSignal(context.Background(), wrong); accepted || !errors.Is(err, agent.ErrSignalRejected) {
+		t.Fatalf("wrong-wait delivery accepted = %t, error = %v", accepted, err)
+	}
+	answer, err := pending.ResponseSignal(signalID, json.RawMessage(`"Ada"`))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -79,6 +109,12 @@ func TestToolCheckpointRestoresWithoutRepeatingSettledPrefix(t *testing.T) {
 	if err != nil || !accepted {
 		t.Fatalf("DeliverSignal accepted = %t, error = %v", accepted, err)
 	}
+	<-waiting.continuationStarted
+	accepted, err = restored.DeliverSignal(context.Background(), answer)
+	if err != nil || accepted {
+		t.Fatalf("duplicate DeliverSignal accepted = %t, error = %v", accepted, err)
+	}
+	waiting.Release()
 	result, err := restored.Await(context.Background())
 	if err != nil {
 		t.Fatal(err)
@@ -105,6 +141,17 @@ func TestToolCheckpointRestoresWithoutRepeatingSettledPrefix(t *testing.T) {
 	}
 	if output.ModelResponse == nil || output.ModelResponse.Text() != "prefix-complete; hello Ada" {
 		t.Fatalf("output = %#v", output)
+	}
+	staleID, err := agent.ParseSignalID("signal:stale-checkpoint-answer")
+	if err != nil {
+		t.Fatal(err)
+	}
+	stale, err := pending.ResponseSignal(staleID, json.RawMessage(`"Grace"`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if accepted, err := restored.DeliverSignal(context.Background(), stale); accepted || !errors.Is(err, agent.ErrProcessFinished) {
+		t.Fatalf("stale delivery accepted = %t, error = %v", accepted, err)
 	}
 }
 
@@ -171,8 +218,19 @@ func TestPreparedToolEffectIsNotRetriedAfterRestore(t *testing.T) {
 }
 
 type inputRequestTool struct {
-	initialCalls      atomic.Int32
-	continuationCalls atomic.Int32
+	initialCalls        atomic.Int32
+	continuationCalls   atomic.Int32
+	continuationStarted chan struct{}
+	continuationRelease chan struct{}
+	startedOnce         sync.Once
+	releaseOnce         sync.Once
+}
+
+func newInputRequestTool() *inputRequestTool {
+	return &inputRequestTool{
+		continuationStarted: make(chan struct{}),
+		continuationRelease: make(chan struct{}),
+	}
 }
 
 func (*inputRequestTool) Definition() chat.ToolDefinition {
@@ -194,6 +252,8 @@ func (value *inputRequestTool) Call(ctx context.Context, _ string) (string, erro
 		)
 	}
 	value.continuationCalls.Add(1)
+	value.startedOnce.Do(func() { close(value.continuationStarted) })
+	<-value.continuationRelease
 	var state struct {
 		Stage string `json:"stage"`
 	}
@@ -205,6 +265,10 @@ func (value *inputRequestTool) Call(ctx context.Context, _ string) (string, erro
 		return "", err
 	}
 	return "hello " + name, nil
+}
+
+func (value *inputRequestTool) Release() {
+	value.releaseOnce.Do(func() { close(value.continuationRelease) })
 }
 
 type checkpointModel struct {

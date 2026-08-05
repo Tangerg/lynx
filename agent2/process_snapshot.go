@@ -19,10 +19,12 @@ var ErrInvalidSnapshot = errors.New("agent: invalid process snapshot")
 // Callers may persist and later return its JSON, but Strategy state and Effect
 // payloads remain opaque. Snapshot deliberately defines no persistence API.
 type Snapshot struct {
-	data       json.RawMessage
-	processID  ProcessID
-	deployment DeploymentRef
-	status     Status
+	data           json.RawMessage
+	processID      ProcessID
+	deployment     DeploymentRef
+	status         Status
+	executionState ExecutionState
+	waitID         WaitID
 }
 
 // ParseSnapshot strictly validates one Process snapshot wire value.
@@ -39,10 +41,12 @@ func ParseSnapshot(data json.RawMessage) (Snapshot, error) {
 		return Snapshot{}, fmt.Errorf("%w: exceeds %d bytes", ErrInvalidSnapshot, maxSnapshotBytes)
 	}
 	return Snapshot{
-		data:       normalized,
-		processID:  wire.ProcessID,
-		deployment: wire.Deployment,
-		status:     wire.Status,
+		data:           normalized,
+		processID:      wire.ProcessID,
+		deployment:     wire.Deployment,
+		status:         wire.Status,
+		executionState: wire.LastStable,
+		waitID:         snapshotWaitID(wire.CurrentWaitID),
 	}, nil
 }
 
@@ -66,9 +70,31 @@ func (snapshot Snapshot) DeploymentRef() DeploymentRef { return snapshot.deploym
 // Status returns the captured common lifecycle state.
 func (snapshot Snapshot) Status() Status { return snapshot.status }
 
+// CommittedExecutionState returns the latest committed opaque Strategy state.
+// A prepared candidate, when present, remains an uncommitted Engine detail.
+// Only the owning Definition or its typed inspection helpers may interpret the
+// returned state's payload.
+func (snapshot Snapshot) CommittedExecutionState() ExecutionState {
+	return snapshot.executionState.clone()
+}
+
+// WaitID returns the current Engine-minted wait identity and true when the
+// captured Process is Waiting.
+func (snapshot Snapshot) WaitID() (WaitID, bool) {
+	return snapshot.waitID, snapshot.status == StatusWaiting && snapshot.waitID.Valid()
+}
+
 // Valid reports whether the snapshot passed the strict wire boundary.
 func (snapshot Snapshot) Valid() bool {
-	return len(snapshot.data) > 0 && snapshot.processID.Valid() && snapshot.deployment.Valid() && snapshot.status.Valid()
+	return len(snapshot.data) > 0 && snapshot.processID.Valid() && snapshot.deployment.Valid() &&
+		snapshot.status.Valid() && snapshot.executionState.Valid()
+}
+
+func snapshotWaitID(waitID *WaitID) WaitID {
+	if waitID == nil {
+		return WaitID{}
+	}
+	return *waitID
 }
 
 func (snapshot Snapshot) MarshalJSON() ([]byte, error) {

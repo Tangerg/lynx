@@ -48,6 +48,12 @@ func (s ExecutionState) Valid() bool {
 	return validQualifiedName(s.kind) && s.schemaVersion > 0 && len(s.payload) > 0
 }
 
+func (s ExecutionState) clone() ExecutionState {
+	return ExecutionState{
+		kind: s.kind, schemaVersion: s.schemaVersion, payload: bytes.Clone(s.payload),
+	}
+}
+
 func (s ExecutionState) MarshalJSON() ([]byte, error) {
 	if !s.Valid() {
 		return nil, ErrInvalidExecutionState
