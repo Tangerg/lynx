@@ -26,11 +26,13 @@ import {
 import {
   diffView,
   fileView,
+  inboxView,
   fileTreeView,
   planView,
   terminalView,
   timelineView,
 } from "@/plugins/builtin/workspace/workspace-views";
+import { PENDING_WORK_KEY, type PendingWorkItem } from "@/plugins/builtin/agent/public/hitl";
 import {
   CONTEXT_DOCK_DESTINATION,
   DATA_PROVIDER,
@@ -230,6 +232,35 @@ function workspaceDataPlugin(state: VisualWorkspaceState): PluginSpec {
             { path: "README.md", name: "README.md", type: "file", sizeBytes: 2_048 },
           ] satisfies WorkspaceFileEntry[],
       });
+      // Two sessions blocked on two different kinds of ask, one of them on a
+      // batch — the shapes the row has to tell apart. An empty queue is the
+      // other states' job, so this one is never empty.
+      host.extensions.contribute(DATA_PROVIDER, {
+        key: PENDING_WORK_KEY,
+        fetcher: async () =>
+          state === "dock-inbox"
+            ? ([
+                {
+                  id: "ses_visual:run_root",
+                  sessionId: VISUAL_SESSION_ID,
+                  rootRunId: "run_root",
+                  kind: "approval",
+                  subject: "shell",
+                  more: 2,
+                  waitingSince: "2026-07-31T07:52:00.000Z",
+                },
+                {
+                  id: "ses_other:run_b",
+                  sessionId: "ses_other",
+                  rootRunId: "run_b",
+                  kind: "question",
+                  subject: "Which database should the migration target?",
+                  more: 0,
+                  waitingSince: "2026-07-31T07:58:00.000Z",
+                },
+              ] satisfies PendingWorkItem[])
+            : [],
+      });
       host.extensions.contribute(DATA_PROVIDER, {
         key: PROVIDERS_KEY,
         fetcher: async () => PROVIDERS,
@@ -261,6 +292,7 @@ const workspaceDockDestinations = definePlugin({
       { viewId: "terminal", scope: "workspace", order: 60 },
       { viewId: "plan", scope: "session", order: 120 },
       { viewId: "timeline", scope: "session", order: 140 },
+      { viewId: "inbox", scope: "workspace", order: 15 },
     ] as const) {
       host.extensions.contribute(CONTEXT_DOCK_DESTINATION, destination);
     }
@@ -316,11 +348,18 @@ export async function installVisualWorkspaceFixture(
     refetchOnWindowFocus: false,
   });
 
-  const dockViewId = state === "dock-light" ? "plan" : "diff";
+  const dockViewId = state === "dock-light" ? "plan" : state === "dock-inbox" ? "inbox" : "diff";
   useContextDockStore.setState({
     activeSessionScopeId: VISUAL_SESSION_ID,
     sessionScopes: new Map(),
-    dockViewIds: ["explorer", "file", "diff", "terminal", "plan", "timeline"],
+    // The inbox is a tab you opened, not one every workspace carries — so it is
+    // present only in the state that is about it. Adding it everywhere moved the
+    // tab strip in every other golden, which is a change to states that have
+    // nothing to do with this feature.
+    dockViewIds:
+      state === "dock-inbox"
+        ? ["inbox", "explorer", "file", "diff", "terminal", "plan", "timeline"]
+        : ["explorer", "file", "diff", "terminal", "plan", "timeline"],
     lastViewId: dockViewId,
     activeFile: ACTIVE_DIFF_FILE,
     fileViewer: { path: ACTIVE_DIFF_FILE, line: 6 },
@@ -353,6 +392,7 @@ export async function installVisualWorkspaceFixture(
     diffView,
     fileView,
     fileTreeView,
+    inboxView,
     terminalView,
     planView,
     timelineView,

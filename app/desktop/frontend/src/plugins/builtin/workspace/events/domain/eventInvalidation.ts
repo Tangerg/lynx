@@ -6,6 +6,7 @@ export type WorkspaceInvalidationTarget =
   | "goal"
   | "mcpServers"
   | "mcpTools"
+  | "pendingWork"
   | "schedules"
   | "sessionUsage"
   | "sessions"
@@ -60,10 +61,12 @@ export function workspaceInvalidations(ev: WorkspaceEventLike): WorkspaceInvalid
     case "runs.changed":
       // A run's position is what a session row reports as its status, and a run that
       // ended changed what the session has spent.
-      return ["sessions", "sessionUsage", "agentSessionProjection"];
+      // A run that ended cannot still be waiting on anyone.
+      return ["sessions", "sessionUsage", "agentSessionProjection", "pendingWork"];
     case "interrupts.changed":
-      // A session waiting on a person reads differently in the list than one working.
-      return ["sessions", "agentSessionProjection"];
+      // A session waiting on a person reads differently in the list than one working,
+      // and the queue of what is waiting is this signal's whole subject.
+      return ["sessions", "agentSessionProjection", "pendingWork"];
     case "goals.changed":
       // This is why the goal banner no longer polls: an autonomous loop moves a goal
       // between turns, and the signal says so as it happens.

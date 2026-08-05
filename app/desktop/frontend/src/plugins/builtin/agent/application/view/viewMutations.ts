@@ -1,4 +1,5 @@
 import type { ContentBlock } from "@/plugins/sdk/types/contentBlock";
+import type { PendingWorkKind } from "../hitl/pendingWork";
 import type { ApprovalDecision } from "../../domain/hitl";
 import type { AgentProblem, AgentSessionView } from "@/plugins/sdk/types/agentSessionView";
 import { appendTimelineEntry } from "@/plugins/sdk/types/agentTimeline";
@@ -10,7 +11,7 @@ export interface SettledInterrupt {
   answers?: string[][];
 }
 
-type InterruptBlock = Extract<ContentBlock, { kind: "approval" | "question" }>;
+type InterruptBlock = Extract<ContentBlock, { kind: PendingWorkKind }>;
 
 function matchesInterruptBlock(block: ContentBlock, itemId: string): block is InterruptBlock {
   return (block.kind === "approval" || block.kind === "question") && block.itemId === itemId;

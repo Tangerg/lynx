@@ -4,6 +4,7 @@ import {
   AGENT_SESSION_USAGE_KEY,
   synchronizeMountedAgentSessions,
 } from "@/plugins/builtin/agent/public/session";
+import { PENDING_WORK_KEY } from "@/plugins/builtin/agent/public/hitl";
 import { GOAL_KEY } from "@/plugins/builtin/chat/goal/public/queries";
 import { SCHEDULES_KEY } from "@/plugins/builtin/settings/schedules/public/queries";
 import {
@@ -32,6 +33,7 @@ const QUERY_KEYS: Record<
   goal: GOAL_KEY,
   mcpServers: MCP_SERVERS_KEY,
   mcpTools: MCP_TOOLS_KEY,
+  pendingWork: PENDING_WORK_KEY,
   schedules: SCHEDULES_KEY,
   sessions: AGENT_SESSIONS_KEY,
   sessionUsage: AGENT_SESSION_USAGE_KEY,

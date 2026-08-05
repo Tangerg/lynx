@@ -100,6 +100,7 @@ import {
   fileTreeView,
   memoryView,
   agentMemoryView,
+  inboxView,
   notificationsView,
   planView,
   recipesView,
@@ -223,6 +224,7 @@ const panes: PluginSpec[] = [
   agentDocsView,
   memoryView,
   agentMemoryView,
+  inboxView,
   notificationsView,
   diagnostics,
 ];

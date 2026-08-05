@@ -33,10 +33,14 @@ describe("workspaceInvalidations", () => {
       "sessions",
       "sessionUsage",
       "agentSessionProjection",
+      // A run that ended cannot still be waiting on anyone, and the queue of
+      // what is waiting has no signal of its own for that.
+      "pendingWork",
     ]);
     expect(workspaceInvalidations({ type: "interrupts.changed", sequence: 2 })).toEqual([
       "sessions",
       "agentSessionProjection",
+      "pendingWork",
     ]);
     expect(workspaceInvalidations({ type: "goals.changed", sequence: 3 })).toEqual(["goal"]);
     expect(workspaceInvalidations({ type: "state.changed", sequence: 4 })).toEqual([

@@ -32,6 +32,13 @@ async function waitForWorkspaceState(page: Page, state: VisualWorkspaceState): P
     await page.locator('[data-diff-file] span[style*="color"]').first().waitFor();
     return;
   }
+  if (state === "dock-inbox") {
+    // Both rows, and the batch count that says one of them holds three asks —
+    // the queue is only useful if it distinguishes what is waiting and how much.
+    await expect(page.getByText("Which database should the migration target?")).toBeVisible();
+    await expect(page.getByText("+2", { exact: true })).toBeVisible();
+    return;
+  }
   if (state === "dock-empty") {
     await expect(page.getByText("Nothing to compare", { exact: true })).toBeVisible();
     return;
