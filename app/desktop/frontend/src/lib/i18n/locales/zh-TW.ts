@@ -139,6 +139,7 @@ export const zhTW: Record<string, string> = {
   "tools.http.headers": "{{count}} 個回應標頭",
   "toolStats.title": "工具統計",
   "toolStats.summary": "{{calls}} 次呼叫 · {{duration}}",
+  "toolStats.share": "{{name}} 佔用時間比例",
   "toolStats.calls": "{{n}} 次",
   "toolStats.slowest": "最慢 {{duration}}",
   "toolStats.failed": "{{n}} 次失敗",

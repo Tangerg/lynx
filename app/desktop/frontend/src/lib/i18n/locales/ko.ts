@@ -137,6 +137,7 @@ export const ko: Record<string, string> = {
   "tools.http.headers": "헤더 {{count}}개",
   "toolStats.title": "도구 통계",
   "toolStats.summary": "{{calls}}회 호출 · {{duration}}",
+  "toolStats.share": "{{name}} 소요 시간 비중",
   "toolStats.calls": "{{n}}회",
   "toolStats.slowest": "최장 {{duration}}",
   "toolStats.failed": "{{n}}회 실패",

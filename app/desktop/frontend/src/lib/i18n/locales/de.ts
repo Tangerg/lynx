@@ -138,6 +138,7 @@ export const de: Record<string, string> = {
   "tools.http.headers": "{{count}} Header",
   "toolStats.title": "Werkzeugstatistik",
   "toolStats.summary": "{{calls}} Aufrufe · {{duration}}",
+  "toolStats.share": "Zeitanteil von {{name}}",
   "toolStats.calls": "{{n}} Aufrufe",
   "toolStats.slowest": "langsamster {{duration}}",
   "toolStats.failed": "{{n}} fehlgeschlagen",

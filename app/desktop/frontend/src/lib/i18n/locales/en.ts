@@ -150,6 +150,7 @@ export const en: Record<string, string> = {
   "tools.http.headers": "{{count}} headers",
   "toolStats.title": "Tool stats",
   "toolStats.summary": "{{calls}} calls · {{duration}}",
+  "toolStats.share": "share of time spent in {{name}}",
   "toolStats.calls": "{{n}} calls",
   "toolStats.slowest": "slowest {{duration}}",
   "toolStats.failed": "{{n}} failed",

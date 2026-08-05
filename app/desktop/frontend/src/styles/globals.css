@@ -553,17 +553,14 @@
      reds — #37904c where `--color-success` is #2a713e — on the correct reasoning
      that a large-area fill needs a different tone than a punchy status mark, and
      the wrong mechanism: a second hand-picked truth per scheme. `--tone-*` is that
-     fill tone, derived. Alphas are pre-baked per role (row tint / sign + meta /
-     word-level intra-line tint) and consumed via var() rather than Tailwind
-     utilities, because the intra-line tint is injected as inline CSS into
-     Shiki-highlighted HTML. */
+     fill tone, derived. Alphas are pre-baked per role (row tint / sign + meta) and
+     consumed via var() rather than Tailwind utilities, because the row's mark is
+     injected as inline CSS into Shiki-highlighted HTML. */
   --color-diff-added-tint: color-mix(in srgb, var(--tone-success) 11%, transparent);
   --color-diff-added-meta: #2a713e;
-  --color-diff-added-word: color-mix(in srgb, var(--tone-success) 28%, transparent);
   --color-diff-added-code: #1c4e2c;
   --color-diff-deleted-tint: color-mix(in srgb, var(--tone-negative) 9%, transparent);
   --color-diff-deleted-meta: #b0342b;
-  --color-diff-deleted-word: color-mix(in srgb, var(--tone-negative) 26%, transparent);
   --color-diff-deleted-code: #6e211c;
 
   /* Primary CTA — the accent fill. This language keeps one saturated colour and
@@ -1116,19 +1113,27 @@ html.theme-dark {
   --color-divider: rgb(255 255 255 / 0.07);
   --color-scrim: rgb(0 0 0 / 0.5);
 
-  --color-diff-added-tint: color-mix(in srgb, var(--tone-success) 15%, transparent);
-  --color-diff-added-meta: #5fad65;
-  --color-diff-added-word: color-mix(in srgb, var(--tone-success) 32%, transparent);
+  /* Fainter bands than light's, which is the opposite of what a scheme usually wants,
+     and the reason is the syntax palette sitting on them: it is Shiki's, we do not
+     pick its colours, and its darkest member stops clearing AA once the band lifts the
+     ground past a luminance of 0.035. The light scheme has no such ceiling — there the
+     band darkens a near-white ground and moves the code's contrast the same way its
+     own ink goes. */
+  --color-diff-added-tint: color-mix(in srgb, var(--tone-success) 8%, transparent);
+  --color-diff-added-meta: #6db473;
   --color-diff-added-code: #bcebc4;
-  --color-diff-deleted-tint: color-mix(in srgb, var(--tone-negative) 13%, transparent);
-  --color-diff-deleted-meta: #e06c6c;
-  --color-diff-deleted-word: color-mix(in srgb, var(--tone-negative) 30%, transparent);
+  --color-diff-deleted-tint: color-mix(in srgb, var(--tone-negative) 8%, transparent);
+  --color-diff-deleted-meta: #e68a8a;
   --color-diff-deleted-code: #f2cccc;
 
-  --color-negative: #e06c6c;
+  /* Lifted until it clears AA on every ground it lands on — the card, and its own
+     wash, which is made FROM it, so lightening the ink lightens the backdrop too and
+     the pair converges rather than separating. It used to be measured against the
+     canvas alone, the one surface where it passed. */
+  --color-negative: #e68a8a;
   --color-warning: #d6a750;
   --color-info: #3574f0;
-  --color-success: #5fad65;
+  --color-success: #6db473;
 }
 
 /* Quieter scrollbar on light — the dark thumb tokens overshoot. An ink wash and

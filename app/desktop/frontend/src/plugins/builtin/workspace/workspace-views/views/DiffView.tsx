@@ -37,10 +37,19 @@ const ROW_STYLE: Record<
   context: { tone: "", meta: "text-fg-faint", sign: " " },
 };
 
-// Word-level change tint — semi-transparent so the syntax foreground shows
-// through. Applied to the exact changed sub-range of a replaced line (T2.2).
-const WD_DEL_STYLE = "background-color:var(--color-diff-deleted-word);border-radius:2px";
-const WD_ADD_STYLE = "background-color:var(--color-diff-added-word);border-radius:2px";
+// Word-level change mark, on the exact changed sub-range of a replaced line.
+//
+// An underline and not a fill. A fill has to stay translucent for the syntax
+// foreground to show through, and on dark that translucency is the problem: the
+// palette is Shiki's, its darkest member needs a ground no lighter than a luminance
+// of 0.035, and a word fill strong enough to see landed at 0.100 — three times over,
+// measured at 2.76:1 against the purple. An underline changes nothing about the
+// ground, so the mark can be as strong as it likes. It draws in the row's own meta
+// ink, which is the colour the sign in the gutter already uses.
+const wordMark = (ink: string) =>
+  `text-decoration-line:underline;text-decoration-color:${ink};text-decoration-thickness:2px;text-underline-offset:2px;text-decoration-skip-ink:none`;
+const WD_DEL_STYLE = wordMark("var(--color-diff-deleted-meta)");
+const WD_ADD_STYLE = wordMark("var(--color-diff-added-meta)");
 
 type WordDecoration = { start: number; end: number; properties: { style: string } };
 

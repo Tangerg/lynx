@@ -145,6 +145,7 @@ export const zh: Record<string, string> = {
   "tools.http.headers": "{{count}} 个响应头",
   "toolStats.title": "工具统计",
   "toolStats.summary": "{{calls}} 次调用 · {{duration}}",
+  "toolStats.share": "{{name}} 占用时间比例",
   "toolStats.calls": "{{n}} 次",
   "toolStats.slowest": "最慢 {{duration}}",
   "toolStats.failed": "{{n}} 次失败",

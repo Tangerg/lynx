@@ -137,6 +137,7 @@ export const ja: Record<string, string> = {
   "tools.http.headers": "ヘッダー {{count}} 件",
   "toolStats.title": "ツール統計",
   "toolStats.summary": "{{calls}} 回 · {{duration}}",
+  "toolStats.share": "{{name}} の所要時間の割合",
   "toolStats.calls": "{{n}} 回",
   "toolStats.slowest": "最遅 {{duration}}",
   "toolStats.failed": "{{n}} 回失敗",

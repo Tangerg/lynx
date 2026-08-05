@@ -105,7 +105,7 @@ function BudgetAxis({ axis }: { axis: BudgetAxisView }) {
       {axis.spent === undefined ? (
         <span className="text-ui-sm text-fg-faint">{t("goal.budget.uncapped")}</span>
       ) : (
-        <ProgressBar value={axis.spent * 100} className="h-1" />
+        <ProgressBar value={axis.spent * 100} label={t(axis.label)} className="h-1" />
       )}
       <span className="font-mono text-ui-xs tabular-nums text-fg-muted">
         {axis.spent === undefined

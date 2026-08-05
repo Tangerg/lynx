@@ -1,5 +1,8 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Browser, type Page } from "@playwright/test";
+import { VISUAL_AGENT_STATES } from "./agentSessionSnapshots";
+import { VISUAL_WORK_INDEX_STATES } from "./shellFixtureStates";
+import { VISUAL_WORKSPACE_STATES } from "./workspaceFixtureStates";
 
 const VISUAL_URL = "http://127.0.0.1:4174/visual/";
 const WCAG_TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"] as const;
@@ -70,17 +73,21 @@ function pageHorizontalOverflow(page: Page): Promise<number> {
   return page.locator("html").evaluate((element) => element.scrollWidth - element.clientWidth);
 }
 
-const ACCESSIBILITY_ROUTES = [
-  { fixture: "shell", state: "populated", theme: "light" },
-  { fixture: "shell", state: "error", theme: "dark" },
-  { fixture: "agent", state: "empty", theme: "light" },
-  { fixture: "agent", state: "waiting", theme: "dark" },
-  { fixture: "agent", state: "error", theme: "light" },
-  { fixture: "agent", state: "long-content", theme: "dark" },
-  { fixture: "workspace", state: "dock-review", theme: "light" },
-  { fixture: "workspace", state: "dock-error", theme: "dark" },
-  { fixture: "workspace", state: "settings", theme: "light" },
-] as const satisfies readonly FixtureRoute[];
+// Every declared state, in both schemes, derived from the lists the fixtures
+// themselves export — not a hand-picked sample. The sample this replaced named nine
+// routes and left eighteen states unvisited, and the states it skipped were the ones
+// holding the newest surfaces: every progress bar in the app was an unnamed
+// `progressbar` (a serious WCAG failure) and the only state that renders one was not
+// on the list. A sample cannot be kept honest by hand, because the thing it has to
+// track is which component appears where, and nothing tells you when that changes.
+const ACCESSIBILITY_ROUTES: readonly FixtureRoute[] = [
+  ...VISUAL_AGENT_STATES.map((state) => ({ fixture: "agent" as const, state })),
+  ...VISUAL_WORK_INDEX_STATES.map((state) => ({ fixture: "shell" as const, state })),
+  ...VISUAL_WORKSPACE_STATES.map((state) => ({ fixture: "workspace" as const, state })),
+].flatMap((route) => [
+  { ...route, theme: "light" as const },
+  { ...route, theme: "dark" as const },
+]);
 
 for (const route of ACCESSIBILITY_ROUTES) {
   test(`WCAG audit ${route.fixture} ${route.state} ${route.theme}`, async ({ page }) => {

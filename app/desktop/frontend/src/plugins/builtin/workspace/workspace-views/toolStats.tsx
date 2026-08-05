@@ -74,7 +74,11 @@ function ToolStatRow({ row, summary }: { row: ToolStat; summary: ToolStatsSummar
         </span>
       </div>
       <div className="mt-1 flex items-center gap-2.5">
-        <ProgressBar value={toolTimeShare(row, summary) * 100} className="h-1 flex-1" />
+        <ProgressBar
+          value={toolTimeShare(row, summary) * 100}
+          label={t("toolStats.share", { name: row.name })}
+          className="h-1 flex-1"
+        />
         <span className="shrink-0 text-ui-sm text-fg-faint">
           {t("toolStats.calls", { n: row.calls })}
           {row.timed > 0 &&

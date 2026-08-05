@@ -77,12 +77,14 @@ export default defineColorThemePlugin({
     divider: c.hairTertiary,
   },
   // Desaturated and lifted so they carry meaning on the warm near-black without
-  // vibrating against it.
+  // vibrating against it — and lifted far enough to clear AA on every ground each
+  // one lands on, which for negative means the card and its own wash, not just the
+  // canvas it used to be measured against.
   semantic: {
-    negative: "#e06c6c",
+    negative: "#e68a8a",
     warning: "#d6a750",
     info: c.accent,
-    success: "#5fad65",
+    success: "#6db473",
   },
   // Where each neutral sits, so the shell can rewrite them onto the live accent. The
   // hexes above are GENERATED from these steps at this theme's own accent — they are

@@ -62,7 +62,9 @@ function TaskRow({ task }: { task: TaskReadoutTask }) {
         <div className="mt-0.5 pl-[18px] text-ui-sm text-fg-muted">{task.message}</div>
       )}
       {task.error && <div className="mt-0.5 pl-[18px] text-ui-sm text-negative">{task.error}</div>}
-      {percent !== null && <ProgressBar value={percent} className="mt-1.5 ml-[18px]" />}
+      {percent !== null && (
+        <ProgressBar value={percent} label={task.label} className="mt-1.5 ml-[18px]" />
+      )}
     </div>
   );
 }
