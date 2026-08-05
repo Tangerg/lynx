@@ -84,26 +84,26 @@ func TestMailboxRoutesWaitAnswersAndHandlesEarlyArrival(t *testing.T) {
 
 	secondID, _ := ParseSignalID("signal:second-answer")
 	second := mustSignal(t, secondID.String(), waitID, time.Unix(2, 0), json.RawMessage(`{"approved":false}`))
-	if _, err := mailbox.enqueue(StatusWaiting, second); !errors.Is(err, errSignalRejected) {
-		t.Fatalf("second answer error = %v, want errSignalRejected", err)
+	if _, err := mailbox.enqueue(StatusWaiting, second); !errors.Is(err, ErrSignalRejected) {
+		t.Fatalf("second answer error = %v, want ErrSignalRejected", err)
 	}
 	if err := mailbox.closeWait(waitID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := mailbox.enqueue(StatusWaiting, second); !errors.Is(err, errSignalRejected) {
-		t.Fatalf("closed wait answer error = %v, want errSignalRejected", err)
+	if _, err := mailbox.enqueue(StatusWaiting, second); !errors.Is(err, ErrSignalRejected) {
+		t.Fatalf("closed wait answer error = %v, want ErrSignalRejected", err)
 	}
 }
 
 func TestMailboxRejectsUnaddressedWaitingAndAddressedPausedSignals(t *testing.T) {
 	mailbox := newSignalMailbox()
 	unaddressed := mustSignal(t, "signal:plain", WaitID{}, time.Unix(1, 0), json.RawMessage(`{}`))
-	if _, err := mailbox.enqueue(StatusWaiting, unaddressed); !errors.Is(err, errSignalRejected) {
+	if _, err := mailbox.enqueue(StatusWaiting, unaddressed); !errors.Is(err, ErrSignalRejected) {
 		t.Fatalf("unaddressed Waiting error = %v", err)
 	}
 	waitID, _ := ParseWaitID("wait:1")
 	addressed := mustSignal(t, "signal:answer", waitID, time.Unix(2, 0), json.RawMessage(`{}`))
-	if _, err := mailbox.enqueue(StatusPaused, addressed); !errors.Is(err, errSignalRejected) {
+	if _, err := mailbox.enqueue(StatusPaused, addressed); !errors.Is(err, ErrSignalRejected) {
 		t.Fatalf("addressed Paused error = %v", err)
 	}
 	if accepted, err := mailbox.enqueue(StatusPaused, unaddressed); err != nil || !accepted {
@@ -149,8 +149,27 @@ func TestMailboxSnapshotRestoresDeduplicationCursorAndWaitFacts(t *testing.T) {
 	if accepted, err := restored.enqueue(StatusRunning, answer); err != nil || accepted {
 		t.Fatalf("restored duplicate enqueue = %t, %v", accepted, err)
 	}
-	if shouldWait, err := restored.enterWait(waitID); err != nil || shouldWait {
-		t.Fatalf("restored answered wait = %t, %v", shouldWait, err)
+	if _, err := restored.enterWait(waitID); !errors.Is(err, errWaitState) {
+		t.Fatalf("restored consumed answer error = %v, want errWaitState", err)
+	}
+}
+
+func TestMailboxWaitOpenedSignalDoesNotAnswerOrCloseWait(t *testing.T) {
+	mailbox := newSignalMailbox()
+	key, _ := ParseWaitKey("approval:1")
+	waitID, _ := ParseWaitID("wait:1")
+	if err := mailbox.registerWait(key, waitID); err != nil {
+		t.Fatal(err)
+	}
+	opened := mustSignal(t, "signal:opened", waitID, time.Unix(1, 0), json.RawMessage(`{"kind":"wait_opened"}`))
+	if err := mailbox.enqueueWaitOpened(opened); err != nil {
+		t.Fatal(err)
+	}
+	if err := mailbox.commit(1); err != nil {
+		t.Fatal(err)
+	}
+	if shouldWait, err := mailbox.enterWait(waitID); err != nil || !shouldWait {
+		t.Fatalf("enter open wait = %t, %v", shouldWait, err)
 	}
 }
 

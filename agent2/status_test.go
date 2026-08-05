@@ -107,3 +107,23 @@ func TestResolveTerminationRejectsMissingFacts(t *testing.T) {
 		t.Fatalf("newDeadlineIntent error = %v, want errInvalidTermination", err)
 	}
 }
+
+func TestTerminationJSONRoundTripRejectsContradictoryState(t *testing.T) {
+	failure, _ := NewFailure(FailureKindExternal, "dispatcher.failed", "dispatcher failed")
+	termination := terminationForFailure(failure)
+	data, err := json.Marshal(termination)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var decoded Termination
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatal(err)
+	}
+	if !decoded.Valid() || decoded.Status() != StatusFailed || decoded.Cause() != TerminationCauseExternalFailure {
+		t.Fatalf("decoded termination=%+v", decoded)
+	}
+	contradictory := []byte(`{"status":"completed","cause":"external_failure","reason":"failed","failure":{"kind":"external","code":"dispatcher.failed","message":"failed"}}`)
+	if err := json.Unmarshal(contradictory, &decoded); err == nil {
+		t.Fatal("Termination accepted contradictory status and cause")
+	}
+}

@@ -3,7 +3,7 @@
 > 状态：持续实施
 > 建立日期：2026-08-06
 > 最后更新：2026-08-06
-> 当前阶段：P2 Engine 最小执行闭环，1/8 完成
+> 当前阶段：P2 Engine 最小执行闭环，7/8 完成
 > 当前实施范围：仅 `agent2`
 > 临时模块路径：`github.com/Tangerg/lynx/agent2`
 > 最终模块路径：`github.com/Tangerg/lynx/agent`
@@ -68,7 +68,7 @@ go test ./...
 |---|---|---:|---|
 | P0 模块边界与设计合同 | 完成 | 6/6 | 建立独立 module、分层文档、能力台账和候选合同 |
 | P1 候选窄腰与消费审计 | 完成 | 9/9 | 用只读审计和多策略 spike 验证 erased wire、协议与状态机，不冻结 API |
-| P2 Engine 最小执行闭环 | 进行中 | 1/8 | 单 Process、Signal、Effect、状态提交、snapshot、event/delta、limit |
+| P2 Engine 最小执行闭环 | 进行中 | 7/8 | 单 Process、Signal、Effect、状态提交、snapshot、event/delta、limit |
 | P3 真实 Interaction 验证 | 未开始 | 0/9 | 真实模型/工具 dispatcher、流、HITL、steer，并接入 disposable consumer |
 | P4 子 Process 组合与合同冻结 | 未开始 | 0/9 | start/wait、递归、组合、预算、取消、恢复；多消费方验证后冻结窄腰 |
 | P5 Planning 与 GOAP | 未开始 | 0/8 | Planning 状态、Planner SPI、GOAP 搜索与 replan |
@@ -107,12 +107,12 @@ go test ./...
 ### P2：Engine 最小执行闭环
 
 - [x] P2-01 实现 Definition 候选合同、Descriptor 校验和精确 Deployment 绑定。
-- [ ] P2-02 实现单 Process start/step/run/control 生命周期，并将 Process 构造权封装在 Engine。
-- [ ] P2-03 实现 Signal mailbox、Engine 铸造 WaitID、投递去重和安全边界消费。
-- [ ] P2-04 实现 Strategy-owned Effect dispatcher、稳定 EffectID、settlement Signal 和禁止隐式重投的默认策略。
-- [ ] P2-05 实现合法 Transition gate、last-stable ExecutionState、prepared/finalize 原子边界、失败实例丢弃和终态映射。
-- [ ] P2-06 实现 last-stable/prepared snapshot capture/validate/restore，并证明 durable recovery 启用时 Host 可在 dispatch 前同步确认 prepared boundary；不引入 Store、transaction、Host 水位或应用 revision。
-- [ ] P2-07 实现 attempt/committed Event、有界 best-effort Delta 和最小 usage/limit。
+- [x] P2-02 实现单 Process start/step/run/control 生命周期，并将 Process 构造权封装在 Engine。
+- [x] P2-03 实现 Signal mailbox、Engine 铸造 WaitID、投递去重和安全边界消费。
+- [x] P2-04 实现 Strategy-owned Effect dispatcher、稳定 EffectID、settlement Signal 和禁止隐式重投的默认策略。
+- [x] P2-05 实现合法 Transition gate、last-stable ExecutionState、prepared/finalize 原子边界、失败实例丢弃和终态映射。
+- [x] P2-06 实现 last-stable/prepared snapshot capture/validate/restore，并证明 durable recovery 启用时 Host 可在 dispatch 前同步确认 prepared boundary；不引入 Store、transaction、Host 水位或应用 revision。
+- [x] P2-07 实现 attempt/committed Event、有界 best-effort Delta 和最小 usage/limit。
 - [ ] P2-08 完成 standalone build/vet/test/race、codec/terminal/effect contract 和公开 API 审查。
 
 ### P3：真实 Interaction 验证
@@ -251,6 +251,7 @@ go test ./...
 
 | 日期 | 阶段 | 实际事实 | 验证与结果 |
 |---|---|---|---|
+| 2026-08-06 | P2 | 完成单 Process Engine 执行闭环。`Process` 只能由 Engine 颁发，公开面只提供 identity/read/control/capture/await，不暴露构造或第二推进入口；Start/Run/Restore 共用一个单写者循环，Step、Snapshot、Restore、dispatcher 和 durability acknowledgment 的 panic 均被分类隔离。实现 running/waiting/paused/terminal 控制、安全边界 pause/resume/cancel/kill、Host context 终态来源和 first-terminal-wins；in-flight Effect 不因控制请求被静默遗弃。将 mailbox 接入真实执行：WaitID/EffectID/内部 settlement SignalID 均由 Engine 稳定派生，wait-opened Signal 与外部 answer 分开记账，只有回答 Signal 与候选状态共同提交时才关闭 wait；重复 SignalID 幂等，错 WaitID/状态确定拒绝。实现完整 prepare → optional durable ack → dispatch/settle → finalize：candidate state、消费范围、冻结 Effect、逐项 settlement 与 pending control 可 capture；失败 Step 丢弃实例并从 last-stable 重建且不吞 Signal；exact Deployment restore；Framework Effect 可稳定恢复，dispatcher 仅在 `same_identity` 合同下重放，unknown 保持 prepared 并通过 `UnknownEffects` + `ResolveEffect` 显式裁决。snapshot 使用严格、版本化、opaque wire，保存 lifecycle、mailbox、last-stable、prepared、limits 与 usage，不含产品水位、Store 或 transaction。Event 区分 attempt/committed 并保持 Process-local 顺序；observer error/panic 不改变结果；Delta 使用显式容量的 Engine-owned bounded queue，慢 listener 触发可观察 drop，final Output 独立；最小 Limits/Usage 只记录 Framework step/effect/signal/delta 事实，不引入价格、token、模型或 Tool 术语 | `go build ./...`、`go vet ./...`、`staticcheck ./...`、`go test ./...`、`go test -race ./...` 全绿；新增真实 Engine 行为覆盖正常 effect、durable ack 前零 dispatch、unknown 显式裁决、never/same-identity 恢复策略、wait identity、waiting/paused capture→restore→continue、safe-boundary kill、Host cancellation、失败实例丢弃、limit/usage、listener 隔离和 Delta drop；Process Snapshot strict codec fuzz 3 秒执行 33 次且无失败。P2-02～P2-07 完成，P2 更新为 7/8；下一轮只做 P2-08 standalone/API/wire/architecture 清洗与阶段验收 |
 | 2026-08-06 | P2 | 为 Signal mailbox 补齐确定性 snapshot/restore：wire 明确记录逐项到达序、完整 Signal、消费游标及按 WaitID 稳定排序的 WaitKey/answered/closed 事实；seen 去重集合只从完整 Signal 记录重建，不建立第二真相源。恢复严格拒绝越界 cursor、非连续 sequence、重复 SignalID/WaitID、重复 open WaitKey、未知 wait 的 addressed Signal，以及没有对应 Signal 的 answered wait；恢复后已消费前缀、pending 顺序、重复投递与提前回答语义保持一致 | `go build ./...`、`go vet ./...`、`staticcheck ./...`、`go test ./...`、`go test -race ./...` 全绿；mailbox 已具备接入 Process snapshot 的完整状态合同，P2 阶段进度保持 1/8 |
 | 2026-08-06 | P2 | 完成 Engine 将消费的 Signal mailbox 领域对象，但不提前暴露第二执行入口。新增 immutable SignalRequest，由 Engine 负责补充 received-at 并转换为 Signal；mailbox 原子拥有到达序、SignalID 去重、pending prefix 和消费游标，失败的 cursor commit 不改变权威位置。WaitKey→WaitID 映射支持 Engine 注册后的提前回答：回答到达后 enter-wait 会确定跳过 Waiting；同一 SignalID 重复幂等成功，不同回答、未知/closed WaitID、Waiting 下无地址输入及 Paused 下有地址输入均确定拒绝；Paused 可排队普通输入但不消费。mailbox 不读取 Strategy payload，也未加入公开 ProcessView/god context | `go build ./...`、`go vet ./...`、`staticcheck ./...`、`go test ./...`、`go test -race ./...` 全绿；这是 P2-03 的完整内部构件，Engine delivery 与 snapshot 尚未接入，因此阶段进度保持 1/8 |
 | 2026-08-06 | P2 | 将 P1 的 exact binding 证据提升为正式 Deployment 聚合：DeploymentConfig 必须显式提供 Definition、Strategy Dispatcher、implementation digest 与 configuration digest；Deployment 冻结 Descriptor 和 DeploymentRef，并持续拒绝 Definition contract 漂移。新增由 Engine 构造的 immutable EffectRequest，准确携带 ProcessID、Step sequence、batch index、EffectID 与防御性复制的 Effect；新增 Dispatcher SPI、无错误回传的 DeltaEmitter 和只允许 never/same-identity 的最小 ReplayPolicy。复用 typed-nil 检查，未引入 registry、resolver、Store 或通用 DI；Typed adapter 仍不拥有启动能力 | `go build ./...`、`go vet ./...`、`staticcheck ./...`、`go test ./...`、`go test -race ./...` 全绿；P2-01 完成，P2 更新为 1/8 |

@@ -1,6 +1,8 @@
 package agent2
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -197,6 +199,35 @@ func (cause TerminationCause) String() string {
 	}
 }
 
+func parseTerminationCause(value string) (TerminationCause, error) {
+	switch value {
+	case "completion":
+		return TerminationCauseCompletion, nil
+	case "engine_kill":
+		return TerminationCauseEngineKill, nil
+	case "process_deadline":
+		return TerminationCauseProcessDeadline, nil
+	case "parent_deadline":
+		return TerminationCauseParentDeadline, nil
+	case "host_deadline":
+		return TerminationCauseHostDeadline, nil
+	case "parent_cancellation":
+		return TerminationCauseParentCancellation, nil
+	case "host_cancellation":
+		return TerminationCauseHostCancellation, nil
+	case "execution_failure":
+		return TerminationCauseExecutionFailure, nil
+	case "contract_failure":
+		return TerminationCauseContractFailure, nil
+	case "external_failure":
+		return TerminationCauseExternalFailure, nil
+	case "panic":
+		return TerminationCausePanic, nil
+	default:
+		return TerminationCauseInvalid, fmt.Errorf("%w: unknown cause %q", errInvalidTermination, value)
+	}
+}
+
 // Termination is the immutable result of applying the terminal priority matrix.
 type Termination struct {
 	status  Status
@@ -288,8 +319,80 @@ func (termination Termination) Valid() bool {
 	if !termination.status.Terminal() || termination.cause == TerminationCauseInvalid {
 		return false
 	}
-	if termination.status == StatusFailed {
-		return termination.failure.Valid()
+	switch termination.status {
+	case StatusCompleted:
+		return termination.cause == TerminationCauseCompletion && termination.reason == "" && !termination.failure.Valid()
+	case StatusFailed:
+		if !termination.failure.Valid() || termination.reason != termination.failure.Message() {
+			return false
+		}
+		return termination.cause == TerminationCauseExecutionFailure ||
+			termination.cause == TerminationCauseContractFailure ||
+			termination.cause == TerminationCauseExternalFailure ||
+			termination.cause == TerminationCausePanic
+	case StatusCancelled:
+		return (termination.cause == TerminationCauseParentCancellation || termination.cause == TerminationCauseHostCancellation) &&
+			termination.reason != "" && !termination.failure.Valid()
+	case StatusTimedOut:
+		return (termination.cause == TerminationCauseProcessDeadline || termination.cause == TerminationCauseParentDeadline || termination.cause == TerminationCauseHostDeadline) &&
+			termination.reason != "" && !termination.failure.Valid()
+	case StatusKilled:
+		return termination.cause == TerminationCauseEngineKill && termination.reason != "" && !termination.failure.Valid()
+	default:
+		return false
 	}
-	return !termination.failure.Valid()
+}
+
+func (termination Termination) MarshalJSON() ([]byte, error) {
+	if !termination.Valid() {
+		return nil, errInvalidTermination
+	}
+	wire := terminationWire{
+		Status: termination.status.String(),
+		Cause:  termination.cause.String(),
+		Reason: termination.reason,
+	}
+	if termination.failure.Valid() {
+		wire.Failure = &termination.failure
+	}
+	return json.Marshal(wire)
+}
+
+func (termination *Termination) UnmarshalJSON(data []byte) error {
+	if termination == nil {
+		return fmt.Errorf("%w: nil receiver", errInvalidTermination)
+	}
+	var wire terminationWire
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&wire); err != nil {
+		return fmt.Errorf("%w: decode: %w", errInvalidTermination, err)
+	}
+	if err := requireJSONEOF(decoder); err != nil {
+		return fmt.Errorf("%w: %w", errInvalidTermination, err)
+	}
+	status, err := parseStatus(wire.Status)
+	if err != nil {
+		return err
+	}
+	cause, err := parseTerminationCause(wire.Cause)
+	if err != nil {
+		return err
+	}
+	value := Termination{status: status, cause: cause, reason: wire.Reason}
+	if wire.Failure != nil {
+		value.failure = *wire.Failure
+	}
+	if !value.Valid() {
+		return errInvalidTermination
+	}
+	*termination = value
+	return nil
+}
+
+type terminationWire struct {
+	Status  string   `json:"status"`
+	Cause   string   `json:"cause"`
+	Reason  string   `json:"reason,omitempty"`
+	Failure *Failure `json:"failure,omitempty"`
 }
