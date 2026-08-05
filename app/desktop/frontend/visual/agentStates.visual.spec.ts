@@ -330,6 +330,36 @@ for (const state of ["long-content", "question", "delegated"] as const) {
 // test the rows themselves — the app's most-read surface — appeared in no
 // screenshot and in no browser assertion. What it pins is what a row REPORTS: the
 // subject it acted on, and for an edit the lines it changed.
+// The plan was on screen twice: the banner that stands above the transcript, and the
+// tool row that wrote it. Nothing about that is visible to a golden — both readings look
+// deliberate — so the assertion is that the transcript does not narrate a call whose
+// surface already holds it.
+test("a tool with a standing surface is not narrated as well", async ({ page }) => {
+  await page.goto("/visual/?fixture=agent&theme=light&state=running");
+  await page.locator("html[data-visual-ready]").waitFor();
+
+  // The banner holds the plan.
+  await expect(page.getByText("Review visual evidence").first()).toBeVisible();
+
+  const stream = page.locator(".msg-scroll-viewport");
+  // The transcript does not repeat it, closed or open.
+  for (let i = 0; i < 6; i++) {
+    const shut = stream.locator(
+      "[data-slot='agent-activity-disclosure'] button[aria-expanded='false']",
+    );
+    if ((await shut.count()) === 0) break;
+    await shut
+      .first()
+      .click({ timeout: 2000 })
+      .catch(() => {});
+  }
+  // Its rendered label, not the tool name — the row shows "Update the plan".
+  await expect(stream.getByText("Update the plan")).toHaveCount(0);
+
+  // The calls it does narrate are still there — the filter removed one row, not the run.
+  await expect(stream.getByText("atomicity_and_idempotency.go").first()).toBeVisible();
+});
+
 // The frame every turn passes through: the answer's item is open and still empty.
 // Nothing may be folded here — an empty block is not an answer, and treating it as one
 // collapsed the thinking to a one-line row with nothing in it, while the reply it

@@ -116,6 +116,23 @@ const RUNNING_REASONING: Item = {
   text: "The framework must expose execution capability without knowing the application’s persistence records.",
 };
 
+// Writing the plan, which the banner above the transcript already holds. The fixture
+// carries it so the duplication is reproducible: this call must leave no row behind.
+const RUNNING_SET_PLAN: Item = {
+  type: "toolCall",
+  safetyClass: "safe",
+  id: "item_running_set_plan",
+  runId: ROOT_RUN_ID,
+  status: "completed",
+  startedAt: CREATED_AT,
+  tool: {
+    name: "set_plan",
+    arguments: {
+      steps: ["Verify boundary ownership", "Review visual evidence", "Run quality gates"],
+    },
+  },
+};
+
 // A settled read ahead of the running one, so the two fold into a tool GROUP:
 // a disclosure nested inside a disclosure, auto-open because a child is still
 // working. That is the shape a real working turn spends most of its time in, and
@@ -838,6 +855,7 @@ export const AGENT_SESSION_TAIL_EVENTS: Readonly<Record<VisualAgentState, RunEve
   idle: [],
   running: [
     tailEvent(1, { type: "item.started", item: RUNNING_REASONING }),
+    tailEvent(2, { type: "item.completed", item: RUNNING_SET_PLAN }),
     tailEvent(3, { type: "item.started", item: RUNNING_READ }),
     tailEvent(4, { type: "item.started", item: RUNNING_TOOL }),
     tailEvent(5, { type: "item.started", item: RUNNING_RESPONSE }),
@@ -847,6 +865,7 @@ export const AGENT_SESSION_TAIL_EVENTS: Readonly<Record<VisualAgentState, RunEve
   // unfolded — the empty block used to count as the answer and fold all of it.
   "answer-opening": [
     tailEvent(1, { type: "item.started", item: RUNNING_REASONING }),
+    tailEvent(2, { type: "item.completed", item: RUNNING_SET_PLAN }),
     tailEvent(3, { type: "item.started", item: RUNNING_READ }),
     tailEvent(4, { type: "item.started", item: RUNNING_TOOL }),
     tailEvent(5, { type: "item.started", item: OPENING_RESPONSE }),

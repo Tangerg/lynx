@@ -233,6 +233,20 @@ export const TOOL_ICON = defineExtensionPoint<string>({
   capability: "tool",
   keying: "single",
 });
+// A tool whose whole outcome is already on screen somewhere that stays on screen.
+// Keyed by tool name; the value names the surface, so the claim is answerable ("who
+// says so?") rather than a bare flag. The narrative then does not repeat it — the
+// plan was being drawn twice, in the banner that stands above the transcript and
+// again as a tool row inside it.
+//
+// Claim only what the surface shows in FULL. A tool that asks the person something
+// is not presented by a banner however much of it a banner echoes: `exit_plan_mode`
+// interrupts for approval of the plan, and hiding it would hide the question.
+export const TOOL_STANDING_SURFACE = defineExtensionPoint<string>({
+  id: "lyra.tool.standingSurface",
+  capability: "tool",
+  keying: "single",
+});
 export const CONTENT_BLOCK = defineExtensionPoint<ContentBlockRenderer<ContentBlockKind>>({
   id: "lyra.message.contentBlock",
   capability: "message",

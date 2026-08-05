@@ -5,6 +5,7 @@ import {
   messageBlockRenderUnits,
   messageBlocksRenderInstant,
   messageCitations,
+  narratedBlocks,
 } from "./messageBlockModel";
 
 const text = (text: string, status: "running" | "complete" = "complete"): ContentBlock => ({
@@ -111,5 +112,52 @@ describe("messageBlocksRenderInstant", () => {
     expect(messageBlocksRenderInstant("user")).toBe(true);
     expect(messageBlocksRenderInstant("assistant")).toBe(false);
     expect(messageBlocksRenderInstant("system")).toBe(false);
+  });
+});
+
+// The plan was on screen twice: in the banner that stands above the transcript, and
+// again as the tool row that wrote it. A tool with a surface of its own has nothing
+// left to say in the narrative — and it has to leave before the units are planned, or
+// the counts and the grouping describe rows that are not there.
+describe("narratedBlocks", () => {
+  const standing = (name: string) => name === "set_plan";
+
+  it("drops a tool whose surface already holds its outcome", () => {
+    const blocks = [text("planning"), toolBlock("t_plan"), text("done")];
+    const tools = { t_plan: tool("t_plan", "set_plan") };
+
+    expect(narratedBlocks(blocks, tools, standing)).toEqual([blocks[0], blocks[2]]);
+  });
+
+  it("keeps every other tool, including the rest of the same family", () => {
+    const blocks = [toolBlock("t_enter"), toolBlock("t_exit"), toolBlock("t_read")];
+    const tools = {
+      t_enter: tool("t_enter", "enter_plan_mode"),
+      t_exit: tool("t_exit", "exit_plan_mode"),
+      t_read: tool("t_read", "read"),
+    };
+
+    expect(narratedBlocks(blocks, tools, standing)).toEqual(blocks);
+  });
+
+  it("keeps a tool block whose call has not arrived yet", () => {
+    const blocks = [toolBlock("t_unknown")];
+
+    expect(narratedBlocks(blocks, {}, standing)).toEqual(blocks);
+  });
+
+  it("closes the gap it leaves, so neighbours still group", () => {
+    const blocks = [toolBlock("t_a"), toolBlock("t_plan"), toolBlock("t_b")];
+    const tools = {
+      t_a: tool("t_a", "read"),
+      t_plan: tool("t_plan", "set_plan"),
+      t_b: tool("t_b", "grep"),
+    };
+
+    const units = messageBlockRenderUnits(narratedBlocks(blocks, tools, standing), tools);
+
+    expect(units).toEqual([
+      { kind: "toolGroup", tools: [tools.t_a, tools.t_b], superseded: false },
+    ]);
   });
 });

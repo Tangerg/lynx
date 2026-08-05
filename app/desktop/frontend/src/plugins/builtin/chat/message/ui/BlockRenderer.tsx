@@ -9,7 +9,9 @@ import { MarkdownMessage } from "./markdown/MarkdownMessage";
 import { ApprovalCard, CompactionBlock, ImageBlock, QuestionCard, ReasoningBlock } from "./cards";
 import { ToolCard, ToolGroup } from "@/plugins/builtin/chat/tools/public/rendering";
 import { PluginContentBlock } from "@/plugins/host/PluginContentBlock";
-import { messageBlockRenderUnits } from "../application/messageBlockModel";
+import { lookupExtensionByKey } from "@/plugins/sdk";
+import { TOOL_STANDING_SURFACE } from "@/plugins/sdk/kernelPoints";
+import { messageBlockRenderUnits, narratedBlocks } from "../application/messageBlockModel";
 import { BLOCK_ANCHOR_ATTR, renderUnitAnchor } from "../application/renderUnitAnchor";
 import { unitIndentClass, unitSeamClass } from "../application/renderUnitRhythm";
 import { DelegatedNarrative } from "./DelegatedNarrative";
@@ -171,8 +173,16 @@ export function renderUnit(unit: MessageRenderUnit, ctx: BlockCtx) {
   return renderBlock(unit.block, unit.index, ctx, unit.superseded);
 }
 
+// Whether a tool has a surface of its own that stays on screen. Read here rather than
+// inside the projection so the projection stays a function of its arguments.
+const standingTool = (name: string) =>
+  lookupExtensionByKey(TOOL_STANDING_SURFACE, name) !== undefined;
+
 export function renderMessageBlocks(message: Message, ctx: BlockCtx) {
-  const units = messageBlockRenderUnits(message.blocks, ctx.toolCalls);
+  const units = messageBlockRenderUnits(
+    narratedBlocks(message.blocks, ctx.toolCalls, standingTool),
+    ctx.toolCalls,
+  );
   return units.map((unit, index) => {
     const anchor = renderUnitAnchor(message.id, unit);
     return (

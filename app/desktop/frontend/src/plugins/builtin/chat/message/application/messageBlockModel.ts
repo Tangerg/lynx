@@ -18,6 +18,28 @@ export function messageCitations(
 }
 
 /**
+ * The blocks the narrative tells, which is not every block the turn produced: a tool
+ * whose outcome is held by a surface that stays on screen has nothing left to say here.
+ *
+ * Dropped before planning rather than skipped while rendering, because the units carry
+ * counts and grouping — a folded wave that says "4 steps" and shows 3, or a run of
+ * adjacent reads broken by a row nobody can see, are both worse than the duplication.
+ * The call itself is untouched: it is still in `toolCalls`, so Tool stats and the
+ * timeline still account for it.
+ */
+export function narratedBlocks(
+  blocks: ContentBlock[],
+  toolCalls: Record<string, ToolCall>,
+  standing: (toolName: string) => boolean,
+): ContentBlock[] {
+  return blocks.filter((block) => {
+    if (block.kind !== "tool") return true;
+    const name = toolCalls[block.toolCallId]?.name;
+    return name === undefined || !standing(name);
+  });
+}
+
+/**
  * The planner's units, with one presentation rule the planner has no business knowing:
  * a text block that is no longer the last one has stopped streaming whether or not the
  * fold has caught up, and a caret blinking in the middle of a finished turn is a lie.
