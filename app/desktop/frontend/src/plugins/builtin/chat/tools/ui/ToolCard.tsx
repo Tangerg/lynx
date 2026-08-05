@@ -10,12 +10,9 @@
 // readable as a hierarchy instead of a stack of competing cards.
 import type { IconName } from "@/ui";
 import type { ToolCall } from "@/plugins/builtin/agent/public/viewState";
-import { Badge, DiffStat, FilePath, Icon, IconButton, StatusDot } from "@/ui";
+import { Badge, DiffStat, Icon, IconButton, StatusDot } from "@/ui";
 import { AgentActivityDisclosure } from "@/ui/agent";
-import {
-  type ToolDetail,
-  type ToolMetaItem,
-} from "@/plugins/builtin/agent/public/messagePresentation";
+import { type ToolMetaItem } from "@/plugins/builtin/agent/public/messagePresentation";
 import { cn } from "@/lib/classNames";
 import { useT } from "@/lib/i18n";
 import {
@@ -34,6 +31,7 @@ import {
 } from "../application/toolCardModel";
 import { toolIconFor, toolRoutingKey } from "../public/toolIcon";
 import { ToolPreview } from "./ToolPreview";
+import { ToolText } from "./ToolText";
 
 interface Props {
   tool: ToolCall;
@@ -126,24 +124,6 @@ function toolRowIcon(tool: ToolCall): IconName {
   if (tool.status === "requires-action") return "alert";
   if (tool.status === "denied") return "stop";
   return toolIconFor(toolRoutingKey(tool));
-}
-
-/**
- * One of the row's two written slots.
- *
- * A path keeps its filename when the row runs out of width, which is the whole
- * reason the model says which kind of value it is holding — and why both slots go
- * through here instead of one of them spelling it out.
- */
-function ToolText({ value, className }: { value: ToolDetail; className?: string }) {
-  if (value.kind === "path") {
-    return <FilePath path={value.value} className={className} />;
-  }
-  return (
-    <span className={cn("truncate", className)} title={value.value}>
-      {value.value}
-    </span>
-  );
 }
 
 function ToolMeta({ items, running }: { items: ToolMetaItem[]; running: boolean }) {

@@ -29,7 +29,11 @@ export function FilePath({ path, className }: { path: string; className?: string
       {/* Rendered for a root-level path too (`/etc` has no directory but the slash
           is part of the name), which is why it is not inside the branch above. */}
       {cut >= 0 && <span className="shrink-0 text-fg-faint">/</span>}
-      <span className="shrink-0">{filename}</span>
+      {/* The filename is pinned against the DIRECTORY, not against the box: in a column
+          narrower than the name itself, `shrink-0` made this the row's min-content and
+          pushed the whole row past its container. It shrinks as a last resort, with an
+          ellipsis, which is still the right end to lose characters from. */}
+      <span className="min-w-0 shrink truncate">{filename}</span>
     </span>
   );
 }

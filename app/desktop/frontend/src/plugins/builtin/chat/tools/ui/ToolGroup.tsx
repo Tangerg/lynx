@@ -4,7 +4,7 @@ import { toolIconFor } from "@/plugins/builtin/chat/tools/public/toolIcon";
 import { AgentActivityDisclosure } from "@/ui/agent";
 import { useT } from "@/lib/i18n";
 import { toolGroupModel, type ToolGroupPinnedState } from "../application/toolGroupModel";
-import { ToolCard } from "./ToolCard";
+import { ToolGroupMember } from "./ToolGroupMember";
 
 interface Props {
   tools: ToolCall[];
@@ -44,17 +44,22 @@ export function ToolGroup({ tools, onSelectTool, expandedIds, onToggleExpand, su
       onToggle={() => setPinned(model.nextPinned)}
       stickyHeader
     >
-      {tools.map((tool) => (
-        <ToolCard
-          key={tool.id}
-          tool={tool}
-          expanded={expandedIds.has(tool.id)}
-          onToggleExpand={() => {
-            onSelectTool(tool.id);
-            onToggleExpand(tool.id);
-          }}
-        />
-      ))}
+      {/* A ruled list, not a stack of disclosures. The rule is what separates the rows
+          — this page's background is one colour, so indent alone was carrying the whole
+          hierarchy and could not. */}
+      <div className="divide-y divide-divider">
+        {tools.map((tool) => (
+          <ToolGroupMember
+            key={tool.id}
+            tool={tool}
+            expanded={expandedIds.has(tool.id)}
+            onToggleExpand={() => {
+              onSelectTool(tool.id);
+              onToggleExpand(tool.id);
+            }}
+          />
+        ))}
+      </div>
     </AgentActivityDisclosure>
   );
 }

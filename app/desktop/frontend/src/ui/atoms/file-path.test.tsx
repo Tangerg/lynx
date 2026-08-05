@@ -19,7 +19,11 @@ describe("FilePath", () => {
     // separator is a sibling so the bidi run cannot take it along.
     expect(parts[0]?.getAttribute("dir")).toBe("rtl");
     expect(parts[0]?.className).toContain("truncate");
-    expect(parts[2]?.className).toContain("shrink-0");
+    // The filename gives way only after the directory has nothing left to give, and
+    // then with an ellipsis: pinned outright it became the row's min-content and pushed
+    // the whole row past a column narrower than the name.
+    expect(parts[2]?.className).toContain("shrink");
+    expect(parts[2]?.className).toContain("truncate");
   });
 
   it("renders a bare filename as just the filename", () => {
