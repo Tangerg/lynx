@@ -54,6 +54,14 @@ type EngineConfig struct {
 	// Limits supplies per-Process execution bounds. Each zero field inherits
 	// the corresponding value from DefaultLimits.
 	Limits Limits
+
+	// TreeLimits bounds child depth, lifetime fan-out, active children, and the
+	// total Process count in each independent tree.
+	TreeLimits TreeLimits
+
+	// Capabilities is the maximum authority of each root Process. Child Effects
+	// may only allocate subsets and Dispatcher Effects declare what they require.
+	Capabilities CapabilitySet
 }
 
 // Engine is the sole owner of Process construction, scheduling, lifecycle,
@@ -64,6 +72,8 @@ type Engine struct {
 	resolver     DeploymentResolver
 	observation  *observationBus
 	limits       Limits
+	treeLimits   TreeLimits
+	capabilities CapabilitySet
 
 	mu         sync.RWMutex
 	processes  map[ProcessID]*processController
@@ -101,11 +111,20 @@ func NewEngine(config EngineConfig) (*Engine, error) {
 	if err != nil {
 		return nil, fmt.Errorf("%w: limits are invalid", ErrInvalidEngineConfig)
 	}
+	treeLimits, err := effectiveTreeLimits(config.TreeLimits)
+	if err != nil {
+		return nil, fmt.Errorf("%w: tree limits are invalid", ErrInvalidEngineConfig)
+	}
+	if !config.Capabilities.Valid() {
+		return nil, fmt.Errorf("%w: capabilities are invalid", ErrInvalidEngineConfig)
+	}
 	return &Engine{
 		acknowledger: config.PreparedStepAcknowledger,
 		resolver:     config.DeploymentResolver,
 		observation:  newObservationBus(config.EventListeners, config.DeltaListeners, capacity),
 		limits:       limits,
+		treeLimits:   treeLimits,
+		capabilities: config.Capabilities,
 		processes:    make(map[ProcessID]*processController),
 		children:     make(map[childIdentity]ProcessID),
 		childWaits:   make(map[WaitID]*childWaitRegistration),
@@ -150,7 +169,11 @@ func (engine *Engine) Start(ctx context.Context, deployment Deployment, input In
 	}
 	startedAt := time.Now().Round(0).UTC()
 	relation := rootProcessRelation(id)
-	controller := newProcessController(relation, deployment.Reference(), startedAt, StatusRunning)
+	controller := newProcessController(
+		relation, deployment.Reference(), budgetFromLimits(engine.limits), engine.capabilities,
+		engine.treeLimits,
+		startedAt, StatusRunning,
+	)
 	runtime := newProcessRuntime(engine, controller, deployment, execution, state, startedAt, engine.limits)
 	if err := engine.register(controller); err != nil {
 		return nil, err
@@ -198,7 +221,10 @@ func (engine *Engine) Restore(ctx context.Context, deployment Deployment, snapsh
 	if err != nil {
 		return nil, fmt.Errorf("%w: relation: %w", ErrInvalidSnapshot, err)
 	}
-	controller := newProcessController(relation, wire.Deployment, wire.StartedAt, wire.Status)
+	controller := newProcessController(
+		relation, wire.Deployment, wire.Budget, wire.Capabilities, wire.TreeLimits,
+		wire.StartedAt, wire.Status,
+	)
 	runtime, err := restoreProcessRuntime(engine, controller, deployment, execution, mailbox, wire)
 	if err != nil {
 		return nil, err
@@ -290,6 +316,28 @@ func (engine *Engine) registerChild(controller *processController, requestDigest
 	}
 	if _, exists := engine.processes[parentID]; !exists {
 		return ErrInvalidProcessRelation
+	}
+	parent := engine.processes[parentID]
+	if parent == nil || controller.treeLimits != parent.treeLimits ||
+		relation.depth > controller.treeLimits.MaxDepth {
+		return ErrLimitExceeded
+	}
+	var childCount, activeChildCount, treeProcessCount uint32
+	for _, existing := range engine.processes {
+		if existing.relation.rootID == relation.rootID {
+			treeProcessCount++
+		}
+		if existing.relation.parentID == parentID {
+			childCount++
+			if !existing.status().Terminal() {
+				activeChildCount++
+			}
+		}
+	}
+	if childCount >= controller.treeLimits.MaxChildren ||
+		activeChildCount >= controller.treeLimits.MaxActiveChildren ||
+		treeProcessCount >= controller.treeLimits.MaxTreeProcesses {
+		return ErrLimitExceeded
 	}
 	controller.childRequestDigest = requestDigest
 	engine.processes[controller.id] = controller

@@ -23,15 +23,18 @@ type DeploymentResolver interface {
 // ChildSpec is the complete Strategy-declared intent for one child Process.
 // Input is validated by the target Deployment before any Process is created.
 type ChildSpec struct {
-	Key        ChildKey      `json:"key"`
-	Deployment DeploymentRef `json:"deployment"`
-	Input      Input         `json:"input"`
+	Key          ChildKey      `json:"key"`
+	Deployment   DeploymentRef `json:"deployment"`
+	Input        Input         `json:"input"`
+	Budget       Budget        `json:"budget"`
+	Capabilities CapabilitySet `json:"capabilities"`
 }
 
 // Valid reports whether the child intent contains stable identity, exact
 // deployment identity, and portable input.
 func (spec ChildSpec) Valid() bool {
-	return spec.Key.Valid() && spec.Deployment.Valid() && spec.Input.Valid()
+	return spec.Key.Valid() && spec.Deployment.Valid() && spec.Input.Valid() &&
+		spec.Budget.Valid() && spec.Capabilities.Valid()
 }
 
 // StartChild creates a Framework-owned Effect requesting one independently

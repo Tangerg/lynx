@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -168,6 +169,203 @@ func TestEngineWaitsForChildrenByConditionAndReturnsRequestOrder(t *testing.T) {
 	}
 }
 
+func TestEngineSupportsBoundedSameDefinitionRecursion(t *testing.T) {
+	deployment := newChildTestDeployment(t)
+	engine, err := NewEngine(EngineConfig{TreeLimits: TreeLimits{
+		MaxDepth: 3, MaxChildren: 2, MaxActiveChildren: 2, MaxTreeProcesses: 4,
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	input, _ := EncodeInput(childTestInput{Mode: "recurse:3"})
+	process, err := engine.Start(context.Background(), deployment, input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rootID := process.ID()
+	for depth := uint32(0); depth < 3; depth++ {
+		result, err := process.Await(context.Background())
+		if err != nil {
+			t.Fatal(err)
+		}
+		output := childTestResult(t, result)
+		if len(output.ChildIDs) != 1 || output.Failures != 0 {
+			t.Fatalf("depth %d output = %#v", depth, output)
+		}
+		childID, _ := ParseProcessID(output.ChildIDs[0])
+		child, found := engine.Process(childID)
+		if !found {
+			t.Fatalf("depth %d child is missing", depth+1)
+		}
+		if child.Relation().Depth() != depth+1 || child.Relation().RootID() != rootID {
+			t.Fatalf("depth %d relation = %#v", depth+1, child.Relation())
+		}
+		process = child
+	}
+	if result, err := process.Await(context.Background()); err != nil || result.Status() != StatusCompleted {
+		t.Fatalf("recursive leaf result = %#v, error = %v", result, err)
+	}
+	if err := engine.Close(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestEngineEnforcesChildDepthFanoutActiveAndTreeLimits(t *testing.T) {
+	t.Run("depth", func(t *testing.T) {
+		deployment := newChildTestDeployment(t)
+		engine, err := NewEngine(EngineConfig{TreeLimits: TreeLimits{
+			MaxDepth: 1, MaxChildren: 2, MaxActiveChildren: 2, MaxTreeProcesses: 3,
+		}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		input, _ := EncodeInput(childTestInput{Mode: "recurse:2"})
+		root, err := engine.Start(context.Background(), deployment, input)
+		if err != nil {
+			t.Fatal(err)
+		}
+		rootOutput := childTestResult(t, mustAwait(t, root))
+		childID, _ := ParseProcessID(rootOutput.ChildIDs[0])
+		child, _ := engine.Process(childID)
+		childOutput := childTestResult(t, mustAwait(t, child))
+		if childOutput.Failures != 1 || !slices.Contains(childOutput.FailureCodes, "engine.child.tree_limit") {
+			t.Fatalf("depth-limited child output = %#v", childOutput)
+		}
+		if err := engine.Close(); err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	t.Run("lifetime fanout", func(t *testing.T) {
+		deployment := newChildTestDeployment(t)
+		engine, err := NewEngine(EngineConfig{TreeLimits: TreeLimits{
+			MaxDepth: 2, MaxChildren: 2, MaxActiveChildren: 2, MaxTreeProcesses: 4,
+		}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		input, _ := EncodeInput(childTestInput{Mode: "fanout"})
+		root, err := engine.Start(context.Background(), deployment, input)
+		if err != nil {
+			t.Fatal(err)
+		}
+		output := childTestResult(t, mustAwait(t, root))
+		if len(output.ChildIDs) != 2 || output.Failures != 1 {
+			t.Fatalf("fanout-limited output = %#v", output)
+		}
+		awaitChildren(t, engine, output.ChildIDs)
+		if err := engine.Close(); err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	t.Run("active children", func(t *testing.T) {
+		dispatcher := newBlockingChildDispatcher("first", "second", "third")
+		t.Cleanup(dispatcher.ReleaseAll)
+		deployment := newChildTestDeploymentWithDispatcher(t, dispatcher)
+		engine, err := NewEngine(EngineConfig{TreeLimits: TreeLimits{
+			MaxDepth: 2, MaxChildren: 3, MaxActiveChildren: 1, MaxTreeProcesses: 4,
+		}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		input, _ := EncodeInput(childTestInput{Mode: "fanout_blocking"})
+		root, err := engine.Start(context.Background(), deployment, input)
+		if err != nil {
+			t.Fatal(err)
+		}
+		<-dispatcher.started
+		output := childTestResult(t, mustAwait(t, root))
+		if len(output.ChildIDs) != 1 || output.Failures != 2 {
+			t.Fatalf("active-child-limited output = %#v", output)
+		}
+		dispatcher.ReleaseAll()
+		awaitChildren(t, engine, output.ChildIDs)
+		if err := engine.Close(); err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	t.Run("tree processes", func(t *testing.T) {
+		deployment := newChildTestDeployment(t)
+		engine, err := NewEngine(EngineConfig{TreeLimits: TreeLimits{
+			MaxDepth: 2, MaxChildren: 3, MaxActiveChildren: 3, MaxTreeProcesses: 2,
+		}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		input, _ := EncodeInput(childTestInput{Mode: "fanout"})
+		root, err := engine.Start(context.Background(), deployment, input)
+		if err != nil {
+			t.Fatal(err)
+		}
+		output := childTestResult(t, mustAwait(t, root))
+		if len(output.ChildIDs) != 1 || output.Failures != 2 {
+			t.Fatalf("tree-process-limited output = %#v", output)
+		}
+		awaitChildren(t, engine, output.ChildIDs)
+		if err := engine.Close(); err != nil {
+			t.Fatal(err)
+		}
+	})
+}
+
+func TestEngineAttenuatesChildBudgetAndCapabilities(t *testing.T) {
+	read, _ := ParseCapability("resource.read")
+	rootCapabilities, _ := NewCapabilitySet(read)
+	deployment := newChildTestDeployment(t)
+
+	t.Run("subset", func(t *testing.T) {
+		engine, err := NewEngine(EngineConfig{Capabilities: rootCapabilities})
+		if err != nil {
+			t.Fatal(err)
+		}
+		input, _ := EncodeInput(childTestInput{Mode: "capability_child"})
+		root, err := engine.Start(context.Background(), deployment, input)
+		if err != nil {
+			t.Fatal(err)
+		}
+		output := childTestResult(t, mustAwait(t, root))
+		childID, _ := ParseProcessID(output.ChildIDs[0])
+		child, _ := engine.Process(childID)
+		if !child.Capabilities().Contains(read) || child.Budget() != (Budget{Steps: 20, Effects: 20, Signals: 40}) {
+			t.Fatalf("child capabilities = %#v, budget = %#v", child.Capabilities(), child.Budget())
+		}
+		_ = mustAwait(t, child)
+		if err := engine.Close(); err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	for _, test := range []struct {
+		name string
+		mode string
+		code string
+	}{
+		{name: "capability escalation", mode: "capability_escalation", code: "engine.child.capability_escalation"},
+		{name: "budget escalation", mode: "budget_escalation", code: "engine.child.budget_exhausted"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			engine, err := NewEngine(EngineConfig{Capabilities: rootCapabilities})
+			if err != nil {
+				t.Fatal(err)
+			}
+			input, _ := EncodeInput(childTestInput{Mode: test.mode})
+			root, err := engine.Start(context.Background(), deployment, input)
+			if err != nil {
+				t.Fatal(err)
+			}
+			output := childTestResult(t, mustAwait(t, root))
+			if output.Failures != 1 || !slices.Contains(output.FailureCodes, test.code) {
+				t.Fatalf("attenuation output = %#v", output)
+			}
+			if err := engine.Close(); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
 type childTestInput struct {
 	Mode string `json:"mode"`
 }
@@ -175,6 +373,7 @@ type childTestInput struct {
 type childTestOutput struct {
 	ChildIDs      []string `json:"child_ids,omitempty"`
 	CompletedKeys []string `json:"completed_keys,omitempty"`
+	FailureCodes  []string `json:"failure_codes,omitempty"`
 	Failures      int      `json:"failures"`
 }
 
@@ -260,7 +459,7 @@ type childTestExecution struct {
 func (execution *childTestExecution) Step(_ context.Context, signals []Signal) (Transition, error) {
 	switch execution.state.Phase {
 	case "ready":
-		if execution.state.Mode == "leaf" {
+		if execution.state.Mode == "leaf" || execution.state.Mode == "recurse:0" {
 			execution.state.Phase = "done"
 			output, _ := EncodeOutput(childTestOutput{})
 			return Complete(0, output)
@@ -282,7 +481,7 @@ func (execution *childTestExecution) Step(_ context.Context, signals []Signal) (
 			for _, name := range []string{"first", "second", "third"} {
 				childInput, _ := EncodeInput(childTestInput{Mode: "leaf:" + name})
 				key, _ := ParseChildKey(name)
-				effect, err := StartChild(ChildSpec{Key: key, Deployment: execution.reference, Input: childInput})
+				effect, err := StartChild(childTestSpec(key, execution.reference, childInput))
 				if err != nil {
 					return Transition{}, err
 				}
@@ -290,9 +489,51 @@ func (execution *childTestExecution) Step(_ context.Context, signals []Signal) (
 			}
 			return Continue(0, effects...)
 		}
-		childInput, _ := EncodeInput(childTestInput{Mode: "leaf"})
+		if execution.state.Mode == "fanout" || execution.state.Mode == "fanout_blocking" {
+			var effects []Effect
+			for _, name := range []string{"first", "second", "third"} {
+				mode := "leaf"
+				if execution.state.Mode == "fanout_blocking" {
+					mode = "leaf:" + name
+				}
+				childInput, _ := EncodeInput(childTestInput{Mode: mode})
+				key, _ := ParseChildKey(name)
+				effect, err := StartChild(childTestSpec(key, execution.reference, childInput))
+				if err != nil {
+					return Transition{}, err
+				}
+				effects = append(effects, effect)
+			}
+			return Continue(0, effects...)
+		}
+		childMode := "leaf"
+		recursiveDepth := 0
+		if strings.HasPrefix(execution.state.Mode, "recurse:") {
+			depth, err := strconv.Atoi(strings.TrimPrefix(execution.state.Mode, "recurse:"))
+			if err != nil || depth <= 0 {
+				return Transition{}, errors.New("invalid recursive child depth")
+			}
+			recursiveDepth = depth
+			childMode = fmt.Sprintf("recurse:%d", depth-1)
+		}
+		childInput, _ := EncodeInput(childTestInput{Mode: childMode})
 		key, _ := ParseChildKey("worker")
-		effect, err := StartChild(ChildSpec{Key: key, Deployment: execution.reference, Input: childInput})
+		spec := childTestSpec(key, execution.reference, childInput)
+		if recursiveDepth > 0 {
+			units := uint64(recursiveDepth * 50)
+			spec.Budget, _ = NewBudget(units, units, units)
+		}
+		switch execution.state.Mode {
+		case "capability_child":
+			capability, _ := ParseCapability("resource.read")
+			spec.Capabilities, _ = NewCapabilitySet(capability)
+		case "capability_escalation":
+			capability, _ := ParseCapability("resource.write")
+			spec.Capabilities, _ = NewCapabilitySet(capability)
+		case "budget_escalation":
+			spec.Budget, _ = NewBudget(20_000, 20_000, 20_000)
+		}
+		effect, err := StartChild(spec)
 		if err != nil {
 			return Transition{}, err
 		}
@@ -312,8 +553,9 @@ func (execution *childTestExecution) Step(_ context.Context, signals []Signal) (
 			}
 			if childID, started := result.ProcessID(); started {
 				output.ChildIDs = append(output.ChildIDs, childID.String())
-			} else {
+			} else if failure, failed := result.Failure(); failed {
 				output.Failures++
+				output.FailureCodes = append(output.FailureCodes, failure.Code())
 			}
 		}
 		if !strings.HasPrefix(execution.state.Mode, "wait:") {
@@ -386,6 +628,14 @@ func (execution *childTestExecution) completeChildren(signals []Signal, consumed
 	execution.state.Phase = "done"
 	erased, _ := EncodeOutput(output)
 	return Complete(consumed, erased)
+}
+
+func childTestSpec(key ChildKey, deployment DeploymentRef, input Input) ChildSpec {
+	budget, _ := NewBudget(20, 20, 40)
+	return ChildSpec{
+		Key: key, Deployment: deployment, Input: input, Budget: budget,
+		Capabilities: CapabilitySet{},
+	}
 }
 
 func (execution *childTestExecution) Snapshot() (ExecutionState, error) {
@@ -484,4 +734,28 @@ func childTestResult(t *testing.T, result Result) childTestOutput {
 		t.Fatal(err)
 	}
 	return decoded
+}
+
+func mustAwait(t *testing.T, process *Process) Result {
+	t.Helper()
+	result, err := process.Await(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	return result
+}
+
+func awaitChildren(t *testing.T, engine *Engine, encodedIDs []string) {
+	t.Helper()
+	for _, encoded := range encodedIDs {
+		childID, err := ParseProcessID(encoded)
+		if err != nil {
+			t.Fatal(err)
+		}
+		child, found := engine.Process(childID)
+		if !found {
+			t.Fatalf("child %s is missing", childID)
+		}
+		_ = mustAwait(t, child)
+	}
 }

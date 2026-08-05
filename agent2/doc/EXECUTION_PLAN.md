@@ -70,7 +70,7 @@ go test ./...
 | P1 候选窄腰与消费审计 | 完成 | 9/9 | 用只读审计和多策略 spike 验证 erased wire、协议与状态机，不冻结 API |
 | P2 Engine 最小执行闭环 | 完成 | 8/8 | 单 Process、Signal、Effect、状态提交、snapshot、event/delta、limit |
 | P3 真实 Interaction 验证 | 完成 | 9/9 | 真实模型/工具 dispatcher、流、HITL、steer，并接入 disposable consumer |
-| P4 子 Process 组合与合同冻结 | 进行中 | 3/9 | start/wait、递归、组合、预算、取消、恢复；多消费方验证后冻结窄腰 |
+| P4 子 Process 组合与合同冻结 | 进行中 | 5/9 | start/wait、递归、组合、预算、取消、恢复；多消费方验证后冻结窄腰 |
 | P5 Planning 与 GOAP | 未开始 | 0/8 | Planning 状态、Planner SPI、GOAP 搜索与 replan |
 | P6 Workflow | 未开始 | 0/8 | 原生 sequence/gate/router/fork/join/loop/agent call |
 | P7 组合模式与能力覆盖 | 未开始 | 0/7 | 动态 worker 组合、typed artifacts、evaluator/optimizer、示例 |
@@ -132,8 +132,8 @@ go test ./...
 - [x] P4-01 实现 StartChild 和 WaitForChildren 的候选 Effect/Signal 语义。
 - [x] P4-02 实现 parent/root/depth 和 Process tree 不变量。
 - [x] P4-03 实现 all/any/quorum 等待与确定结果顺序。
-- [ ] P4-04 实现同 Definition 递归调用和不同 Strategy 嵌套。
-- [ ] P4-05 实现预算划拨、能力衰减、深度/fan-out/并行限制。
+- [x] P4-04 实现同 Definition 递归调用和不同 Strategy 嵌套。
+- [x] P4-05 实现预算划拨、能力衰减、深度/fan-out/并行限制。
 - [ ] P4-06 实现取消传播、失败传播、幂等恢复和祖先等待拒绝。
 - [ ] P4-07 验证父子 Process 的 schema 校验、Effect settlement、snapshot 和终态传播。
 - [ ] P4-08 用第二个 disposable consumer 验证嵌入式 Engine 与组合式 Agent 应用共用同一窄腰，且没有应用抽象进入 Framework。
@@ -251,6 +251,7 @@ go test ./...
 
 | 日期 | 阶段 | 实际事实 | 验证与结果 |
 |---|---|---|---|
+| 2026-08-06 | P4 | 完成递归/跨 Strategy 组合和 Engine-owned 结构、预算、能力约束。same-Definition recursion 每层都是新 ProcessID、独立 ExecutionState/结果/预算的真 child，不是 Go 调用栈重入或同 Process 内嵌套 Execution。跨 Strategy 只经最小 `DeploymentResolver.Resolve(context, DeploymentRef)`；Engine 再校验返回 Deployment 的 exact reference，错 binding 产生 definite child-start Failure 且不构造 Process，resolver 不获得生命周期所有权。新增与本地 `Limits` 正交的 `TreeLimits`：`MaxDepth`、`MaxChildren` 终生 fan-out、`MaxActiveChildren`、`MaxTreeProcesses` 均在 child 注册的 Engine 临界区内硬校验。`Budget{Steps,Effects,Signals}` 是非可再生的 Framework work-unit 划拨；child 必须显式请求正值 budget，一旦成功则从父级可用余额中永久保留，不复制全额、不静默回收；父级自身后续 Step/Effect/Signal 同样受已划拨额度约束。`Capability` 只是 Framework 不解释业务含义的 qualified authority；root 从 EngineConfig 获得上限，child 只能请求父级 `CapabilitySet` 子集。`NewDispatcherEffect(payload, required...)` 将真实能力需求冻结进 Effect wire，Engine 在 prepare 前校验；无权 Effect 零 dispatch，因此 capability 不是无行为的 metadata。budget/capability/tree limits 和 child request digest 全部进入严格 snapshot，不引入用户、订阅、工作区、锁或事务概念 | 独立 build/vet/staticcheck/test/race 全绿；递归、跨 Strategy、限制与衰减专项连续 50 次通过。测试证明三层递归共享 root 但 depth 严格递增，exact resolver 能启动不同 Strategy 且错 binding 被拒绝；depth、fan-out、active-child 和 tree-process 四种上限各自独立命中；合法 capability 子集与 budget 准确进入 child，capability/budget 提权产生稳定 Failure；根 Process 缺失 Effect 所需 capability 时 dispatcher 调用数为 0。P4-04–P4-05 完成，P4 更新为 5/9 |
 | 2026-08-06 | P4 | 实现第一组 child Process 组合窄腰。`StartChild(ChildSpec)` 产生 Framework-owned Effect，Execution 只声明 parent-scoped `ChildKey`、exact `DeploymentRef` 和经 schema 验证的 erased Input；ProcessID 由 Engine 基于稳定 EffectID 派生，Process 仍只能由 Engine 构造。`ChildStartResult` 明确区分已创建子 Process 与 definite Failure，resolver 只能返回完全匹配请求 reference 的不可变 Deployment；同 Deployment 递归不需要 resolver。`ProcessRelation` 将 process/parent/root/depth/ChildKey 收敛为不可变值对象，root 与 child 字段集严格互斥，同父 `ChildKey` 只能映射一个 child，relation 进入严格 snapshot wire 并通过 `Process.Relation`/`Snapshot.Relation` 只读暴露。`WaitForChildren(ChildWaitSpec)` 只允许等待直接子级，Effect 立即结算并由 Engine 铸造 WaitID，长时间 child 执行不阻塞 Step 也不持有 prepared boundary。child completion 是 Engine 内部定址 Signal，对外伪造回答被 mailbox 确定拒绝。`AllChildren`/`AnyChild`/`ChildQuorum` 只定义终态数量条件，不暗中取消 loser、不改写 child 终态；达成条件时已终态的 `ChildOutcome` 始终按原 ChildWaitSpec 顺序返回，不按 goroutine 完成顺序提交 | 独立 build/vet/staticcheck/test/race 全绿；child 专项稳定性测试连续 50 次通过。行为测试证明 same-Deployment child 具有唯一身份和正确 parent/root/depth/ChildKey，relation 经 snapshot 不漂移；同父重复 ChildKey 一个成功、一个 definite failure；any 返回首个已终态 child，quorum 返回达标集，all 在逆序完成下仍返回声明顺序；外部 Signal 不能伪造 child completion。P4-01–P4-03 完成，P4 更新为 3/9 |
 | 2026-08-06 | P3 | 新增两个可整体删除的独立 command consumer，只依赖公开 `agent2`/`interaction` API 和基础 `chatclient`/`chat`/`tool` 合同，不共享测试 helper，不 import 私有 effect/signal/state protocol。`direct_vs_managed` 在同一个程序中对比最小的 `chatclient.Call` 与 Definition→Dispatcher→Deployment→Engine→Process→typed Output 托管路径，证明框架没有强迫基础 AI 嵌入使用 Process。`autonomous` 以真实可执行 Tool 走通 model→ToolCall→ToolResult→model final，模型决定工具与停止点，Definition 只提供硬性 `MaxModelCalls`。两个示例都用无密钥、无网络的确定性模型，因此它们同时是可运行文档和消费者合同测试。P3 末尾复核确认 Interaction 仍是单一公共概念，没有恢复第二 Runner，没有 Host history/store/UI/approval 抽象，也没有冻结尚未经 P4 验证的 API/wire baseline | `GOWORK=off` 独立 build/vet/staticcheck/test/race 全绿；两个 command 的行为测试和 `go run` 都通过，分别稳定输出 direct/managed 结果与 `20 + 22 = 42`。公开 API GoDoc、依赖列表、空目录、漂移注释、TODO/FIXME/HACK、兼容残留扫描无异常。P3-09 完成，P3 9/9 完成 |
 | 2026-08-06 | P3 | 实现默认串行、显式声明才并行的 Tool batch scheduler。`ConcurrentTool.ConcurrencyKey(arguments)` 是 Interaction-owned 可选 capability；未声明或返回 `concurrent=false` 的调用独占当前 batch，空 key 表示本 batch 内无已知冲突，相同非空 key 始终串行。`DispatcherConfig.MaxConcurrentToolCalls` 语义固定为 zero=串行、positive=最大活跃调用数、negative=非法；实现只创建有界 worker，不按 ToolCall 数无界生成 goroutine。调度计划在任何 Tool 执行前完整解析，capability panic 不被当成并行许可；完成顺序不影响最终 ToolResult 的模型 ToolCall 顺序。并行声明同时承诺该调用不会请求外部输入；若违约且 sibling 已可能产生副作用，整个 Effect 按 unknown 处理，不伪造可恢复 checkpoint、不重执行 sibling。zero/单调用路径仍完整保留 P3-05 的 HITL checkpoint 语义。concurrency key 只管理单个模型 batch，不伪装成跨 Process 的业务锁或事务抽象 | 独立 build/vet/staticcheck/test/race 全绿；并发专项稳定性测试连续 50 次通过。行为测试证明最大活跃数严格不越界、逆序完成仍按 ToolCall 顺序提交、同 key 不重叠、未声明 Tool 形成独占屏障、zero 配置保持串行，以及并行 Tool 违规等待时暴露 unknown Effect 且 sibling 只执行一次。P3-08 完成，P3 更新为 8/9 |
@@ -281,6 +282,6 @@ go test ./...
 
 P1–P2 已完成，得到经过旧模块/Host 审计、Interaction/Planning spike、Prepared Step 恢复 harness、完整终态表、strict codec/fuzz 和依赖架构守卫共同验证的候选窄腰与单 Process Engine。它仍不是冻结的 API/wire baseline；只有 P3 真实 Interaction 与 P4 child composition 以及第二个 disposable consumer 共同通过后，才建立首个 baseline。
 
-P1–P3 和 P4-01–P4-03 已完成。下一轮用真实多层 same-Definition 递归和通过 exact DeploymentResolver 的跨 Strategy 嵌套验证组合窄腰，同时将深度、fan-out、并行/总 Process 限制与递减 budget/capability 建模为 Engine-owned 通用约束；不引入 Platform catalog、应用权限或业务锁。
+P1–P3 和 P4-01–P4-05 已完成。下一轮收口 structured cancellation/failure propagation：父级的 cancel/deadline/kill 按准确来源向后代传播，终态父不留孤儿，child wait 仅允许直接 child 从而结构性拒绝祖先等待；同时实现整棵 Process tree 的一致 capture/restore，验证 child start/wait 在崩溃边界不重复创建或丢失完成。
 
 在 P1–P9 完成前，不迁移 `app/runtime`，不删除旧 `agent`，不发布 `agent2` 稳定版本。

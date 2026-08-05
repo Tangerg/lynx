@@ -28,6 +28,10 @@ type processRuntime struct {
 	output         Output
 	termination    Termination
 	limits         Limits
+	treeLimits     TreeLimits
+	budget         Budget
+	reservedBudget Budget
+	capabilities   CapabilitySet
 	usage          Usage
 	restored       bool
 }
@@ -58,7 +62,8 @@ func newProcessRuntime(
 	return &processRuntime{
 		engine: engine, controller: controller, deployment: deployment, execution: execution,
 		startedAt: startedAt, status: StatusRunning, lastStable: state,
-		mailbox: newSignalMailbox(), limits: limits,
+		mailbox: newSignalMailbox(), limits: limits, treeLimits: engine.treeLimits,
+		budget: controller.budget, capabilities: controller.capabilities,
 	}
 }
 
@@ -193,7 +198,8 @@ func (runtime *processRuntime) applyCommand(ctx context.Context, command process
 
 func (runtime *processRuntime) deliverChildrenCompleted(ctx context.Context, signal Signal) {
 	if runtime.usage.AcceptedSignals >= runtime.limits.MaxSignals ||
-		runtime.mailbox.pendingCount() >= runtime.limits.MaxPendingSignals {
+		runtime.mailbox.pendingCount() >= runtime.limits.MaxPendingSignals ||
+		runtime.usage.AcceptedSignals+1+runtime.reservedBudget.Signals > runtime.budget.Signals {
 		runtime.fail(ctx, FailureKindExecution, "engine.limit.child_completion_signal", ErrLimitExceeded)
 		return
 	}
@@ -234,7 +240,8 @@ func (runtime *processRuntime) deliver(ctx context.Context, command processComma
 	}
 	reserved := runtime.reservedSettlementSignals()
 	if runtime.usage.AcceptedSignals+reserved >= runtime.limits.MaxSignals ||
-		runtime.mailbox.pendingCount()+reserved >= runtime.limits.MaxPendingSignals {
+		runtime.mailbox.pendingCount()+reserved >= runtime.limits.MaxPendingSignals ||
+		runtime.usage.AcceptedSignals+reserved+1+runtime.reservedBudget.Signals > runtime.budget.Signals {
 		command.reply(processResponse{err: ErrLimitExceeded})
 		return
 	}

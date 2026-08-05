@@ -231,6 +231,9 @@ type processController struct {
 	deployment         DeploymentRef
 	relation           ProcessRelation
 	childRequestDigest Digest
+	budget             Budget
+	capabilities       CapabilitySet
+	treeLimits         TreeLimits
 	startedAt          time.Time
 	commands           chan processCommand
 	done               chan struct{}
@@ -247,13 +250,33 @@ type processController struct {
 func newProcessController(
 	relation ProcessRelation,
 	deployment DeploymentRef,
+	budget Budget,
+	capabilities CapabilitySet,
+	treeLimits TreeLimits,
 	startedAt time.Time,
 	status Status,
 ) *processController {
 	return &processController{
-		id: relation.ProcessID(), deployment: deployment, relation: relation, startedAt: startedAt,
+		id: relation.ProcessID(), deployment: deployment, relation: relation,
+		budget: budget, capabilities: capabilities, treeLimits: treeLimits, startedAt: startedAt,
 		commands: make(chan processCommand, 32), done: make(chan struct{}), viewStatus: status,
 	}
+}
+
+// Budget returns the fixed non-renewable allocation assigned to this Process.
+func (process *Process) Budget() Budget {
+	if process == nil || process.controller == nil {
+		return Budget{}
+	}
+	return process.controller.budget
+}
+
+// Capabilities returns the immutable authority set assigned to this Process.
+func (process *Process) Capabilities() CapabilitySet {
+	if process == nil || process.controller == nil {
+		return CapabilitySet{}
+	}
+	return process.controller.capabilities
 }
 
 func (controller *processController) status() Status {

@@ -8,7 +8,8 @@ import (
 )
 
 func (runtime *processRuntime) prepareNextStep(ctx context.Context) {
-	if runtime.committedSteps >= runtime.limits.MaxSteps {
+	if runtime.committedSteps >= runtime.limits.MaxSteps ||
+		runtime.committedSteps+1+runtime.reservedBudget.Steps > runtime.budget.Steps {
 		runtime.fail(ctx, FailureKindExecution, "engine.limit.steps", ErrLimitExceeded)
 		return
 	}
@@ -25,15 +26,24 @@ func (runtime *processRuntime) prepareNextStep(ctx context.Context) {
 		runtime.fail(ctx, FailureKindContract, "execution.transition.invalid", ErrInvalidTransition)
 		return
 	}
+	for _, effect := range transition.Effects() {
+		if !runtime.capabilities.Allows(effect.RequiredCapabilities()) {
+			runtime.discardExecution()
+			runtime.fail(ctx, FailureKindContract, "engine.capability.denied", ErrInvalidCapability)
+			return
+		}
+	}
 	effectCount := uint64(len(transition.Effects()))
-	if runtime.usage.PreparedEffects+effectCount > runtime.limits.MaxEffects {
+	if runtime.usage.PreparedEffects+effectCount > runtime.limits.MaxEffects ||
+		runtime.usage.PreparedEffects+effectCount+runtime.reservedBudget.Effects > runtime.budget.Effects {
 		runtime.discardExecution()
 		runtime.fail(ctx, FailureKindExecution, "engine.limit.effects", ErrLimitExceeded)
 		return
 	}
 	remainingPending := runtime.mailbox.pendingCount() - uint64(transition.Consumed())
 	if runtime.usage.AcceptedSignals+effectCount > runtime.limits.MaxSignals ||
-		remainingPending+effectCount > runtime.limits.MaxPendingSignals {
+		remainingPending+effectCount > runtime.limits.MaxPendingSignals ||
+		runtime.usage.AcceptedSignals+effectCount+runtime.reservedBudget.Signals > runtime.budget.Signals {
 		runtime.discardExecution()
 		runtime.fail(ctx, FailureKindExecution, "engine.limit.signals", ErrLimitExceeded)
 		return
@@ -185,7 +195,9 @@ func (runtime *processRuntime) finalizePrepared(ctx context.Context) (returnErr 
 	}
 	for _, signal := range immediateChildSignals {
 		if runtime.usage.AcceptedSignals+uint64(len(prepared.wire.Effects))+1 > runtime.limits.MaxSignals ||
-			mailbox.pendingCount()+1 > runtime.limits.MaxPendingSignals {
+			mailbox.pendingCount()+1 > runtime.limits.MaxPendingSignals ||
+			runtime.usage.AcceptedSignals+uint64(len(prepared.wire.Effects))+1+
+				runtime.reservedBudget.Signals > runtime.budget.Signals {
 			waitID, _ := signal.WaitID()
 			runtime.engine.unregisterChildWait(waitID)
 			return ErrLimitExceeded

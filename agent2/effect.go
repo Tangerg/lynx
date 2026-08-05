@@ -46,14 +46,19 @@ func parseEffectTarget(value string) (EffectTarget, error) {
 // Payload is frozen before dispatch and interpreted only by Target's owner.
 // EffectID is deliberately absent because the Engine assigns it during prepare.
 type Effect struct {
-	target  EffectTarget
-	payload json.RawMessage
+	target       EffectTarget
+	payload      json.RawMessage
+	requirements CapabilitySet
 }
 
 // NewDispatcherEffect creates a Strategy-owned Effect. The Engine may copy,
 // order, identify, and route payload, but must not inspect it.
-func NewDispatcherEffect(payload json.RawMessage) (Effect, error) {
-	return newEffect(EffectTargetDispatcher, payload)
+func NewDispatcherEffect(payload json.RawMessage, required ...Capability) (Effect, error) {
+	requirements, err := NewCapabilitySet(required...)
+	if err != nil {
+		return Effect{}, fmt.Errorf("%w: required capabilities: %w", ErrInvalidEffect, err)
+	}
+	return newEffectWithCapabilities(EffectTargetDispatcher, payload, requirements)
 }
 
 // RequestWait creates the Framework Effect that asks the Engine to mint one
@@ -80,8 +85,19 @@ func RequestWait(key WaitKey, signalPayload json.RawMessage) (Effect, error) {
 }
 
 func newEffect(target EffectTarget, payload json.RawMessage) (Effect, error) {
+	return newEffectWithCapabilities(target, payload, CapabilitySet{})
+}
+
+func newEffectWithCapabilities(
+	target EffectTarget,
+	payload json.RawMessage,
+	requirements CapabilitySet,
+) (Effect, error) {
 	if target != EffectTargetFramework && target != EffectTargetDispatcher {
 		return Effect{}, fmt.Errorf("%w: invalid target", ErrInvalidEffect)
+	}
+	if !requirements.Valid() || target == EffectTargetFramework && len(requirements.values) != 0 {
+		return Effect{}, fmt.Errorf("%w: invalid required capabilities", ErrInvalidEffect)
 	}
 	normalized, err := normalizeJSON(payload, maxWireBytes)
 	if err != nil {
@@ -92,7 +108,7 @@ func newEffect(target EffectTarget, payload json.RawMessage) (Effect, error) {
 			return Effect{}, err
 		}
 	}
-	return Effect{target: target, payload: normalized}, nil
+	return Effect{target: target, payload: normalized, requirements: requirements}, nil
 }
 
 // Target returns the owner responsible for interpreting Payload.
@@ -101,20 +117,30 @@ func (e Effect) Target() EffectTarget { return e.target }
 // Payload returns an independently owned copy of the operation intent.
 func (e Effect) Payload() json.RawMessage { return bytes.Clone(e.payload) }
 
+// RequiredCapabilities returns the immutable authority set the Process must
+// possess before this Dispatcher Effect may be prepared.
+func (e Effect) RequiredCapabilities() CapabilitySet { return e.requirements }
+
 // Valid reports whether the Effect was created through a validated boundary.
 func (e Effect) Valid() bool {
-	return (e.target == EffectTargetFramework || e.target == EffectTargetDispatcher) && len(e.payload) > 0
+	return (e.target == EffectTargetFramework || e.target == EffectTargetDispatcher) &&
+		len(e.payload) > 0 && e.requirements.Valid() &&
+		(e.target != EffectTargetFramework || len(e.requirements.values) == 0)
 }
 
 func (e Effect) clone() Effect {
-	return Effect{target: e.target, payload: bytes.Clone(e.payload)}
+	requirements, _ := NewCapabilitySet(e.requirements.values...)
+	return Effect{target: e.target, payload: bytes.Clone(e.payload), requirements: requirements}
 }
 
 func (e Effect) MarshalJSON() ([]byte, error) {
 	if !e.Valid() {
 		return nil, ErrInvalidEffect
 	}
-	return json.Marshal(effectWire{Target: e.target.String(), Payload: e.payload})
+	return json.Marshal(effectWire{
+		Target: e.target.String(), Payload: e.payload,
+		RequiredCapabilities: e.requirements.Values(),
+	})
 }
 
 func (e *Effect) UnmarshalJSON(data []byte) error {
@@ -134,7 +160,11 @@ func (e *Effect) UnmarshalJSON(data []byte) error {
 	if err != nil {
 		return err
 	}
-	value, err := newEffect(target, wire.Payload)
+	requirements, err := NewCapabilitySet(wire.RequiredCapabilities...)
+	if err != nil {
+		return fmt.Errorf("%w: required capabilities: %w", ErrInvalidEffect, err)
+	}
+	value, err := newEffectWithCapabilities(target, wire.Payload, requirements)
 	if err != nil {
 		return err
 	}
@@ -143,8 +173,9 @@ func (e *Effect) UnmarshalJSON(data []byte) error {
 }
 
 type effectWire struct {
-	Target  string          `json:"target"`
-	Payload json.RawMessage `json:"payload"`
+	Target               string          `json:"target"`
+	Payload              json.RawMessage `json:"payload"`
+	RequiredCapabilities []Capability    `json:"required_capabilities,omitempty"`
 }
 
 const (

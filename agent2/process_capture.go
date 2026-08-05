@@ -14,7 +14,12 @@ func restoreProcessRuntime(
 		engine: engine, controller: controller, deployment: deployment, execution: execution,
 		startedAt: wire.StartedAt, status: wire.Status, committedSteps: wire.CommittedSteps,
 		eventSequence: wire.EventSequence, lastStable: wire.LastStable, mailbox: mailbox, restored: true,
-		pauseReason: wire.PauseReason, limits: wire.Limits, usage: wire.Usage,
+		pauseReason: wire.PauseReason, limits: wire.Limits, treeLimits: wire.TreeLimits,
+		budget: wire.Budget, reservedBudget: wire.ReservedBudget,
+		capabilities: wire.Capabilities, usage: wire.Usage,
+	}
+	if wire.ChildRequestDigest != nil {
+		controller.childRequestDigest = *wire.ChildRequestDigest
 	}
 	if wire.FinishedAt != nil {
 		runtime.finishedAt = *wire.FinishedAt
@@ -47,9 +52,15 @@ func (runtime *processRuntime) capture() (Snapshot, error) {
 		Relation:   runtime.controller.relation.wire(),
 		Deployment: runtime.deployment.Reference(), StartedAt: runtime.startedAt,
 		Status: runtime.status, CommittedSteps: runtime.committedSteps, EventSequence: runtime.eventSequence,
-		Limits: runtime.limits, Usage: runtime.usage,
+		Limits: runtime.limits, TreeLimits: runtime.treeLimits,
+		Budget: runtime.budget, ReservedBudget: runtime.reservedBudget,
+		Capabilities: runtime.capabilities, Usage: runtime.usage,
 		LastStable: runtime.lastStable, Mailbox: runtime.mailbox.snapshot(),
 		PauseReason: runtime.pauseReason, PendingControl: runtime.control.wire(),
+	}
+	if runtime.controller.childRequestDigest.Valid() {
+		digest := runtime.controller.childRequestDigest
+		wire.ChildRequestDigest = &digest
 	}
 	if !runtime.finishedAt.IsZero() {
 		finishedAt := runtime.finishedAt

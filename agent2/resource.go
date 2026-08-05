@@ -1,6 +1,9 @@
 package agent2
 
-import "errors"
+import (
+	"errors"
+	"fmt"
+)
 
 var ErrLimitExceeded = errors.New("agent: process limit exceeded")
 
@@ -78,4 +81,116 @@ func (usage Usage) validFor(limits Limits) bool {
 	return usage.CommittedSteps <= limits.MaxSteps &&
 		usage.PreparedEffects <= limits.MaxEffects &&
 		usage.AcceptedSignals <= limits.MaxSignals
+}
+
+// Budget is a non-renewable allocation of Framework-owned work units. A child
+// allocation is permanently transferred from its parent's remaining budget;
+// unused units are not silently reclaimed or duplicated.
+type Budget struct {
+	Steps   uint64 `json:"steps"`
+	Effects uint64 `json:"effects"`
+	Signals uint64 `json:"signals"`
+}
+
+// NewBudget constructs one positive allocation.
+func NewBudget(steps, effects, signals uint64) (Budget, error) {
+	budget := Budget{Steps: steps, Effects: effects, Signals: signals}
+	if !budget.Valid() {
+		return Budget{}, ErrLimitExceeded
+	}
+	return budget, nil
+}
+
+// Valid reports whether every governed resource has a positive allocation.
+func (budget Budget) Valid() bool {
+	return budget.Steps > 0 && budget.Effects > 0 && budget.Signals > 0
+}
+
+func budgetFromLimits(limits Limits) Budget {
+	return Budget{Steps: limits.MaxSteps, Effects: limits.MaxEffects, Signals: limits.MaxSignals}
+}
+
+func limitsFromBudget(parent Limits, budget Budget) (Limits, error) {
+	if !budget.Valid() {
+		return Limits{}, ErrLimitExceeded
+	}
+	pending := min(parent.MaxPendingSignals, budget.Signals)
+	limits := Limits{
+		MaxSteps: budget.Steps, MaxEffects: budget.Effects,
+		MaxSignals: budget.Signals, MaxPendingSignals: pending,
+	}
+	if !limits.Valid() {
+		return Limits{}, fmt.Errorf("%w: child budget cannot form valid limits", ErrLimitExceeded)
+	}
+	return limits, nil
+}
+
+func (budget Budget) contains(usage Usage, reserved Budget) bool {
+	return usage.CommittedSteps <= budget.Steps && reserved.Steps <= budget.Steps-usage.CommittedSteps &&
+		usage.PreparedEffects <= budget.Effects && reserved.Effects <= budget.Effects-usage.PreparedEffects &&
+		usage.AcceptedSignals <= budget.Signals && reserved.Signals <= budget.Signals-usage.AcceptedSignals
+}
+
+func (budget Budget) canAllocate(usage Usage, reserved, requested Budget) bool {
+	if !requested.Valid() || !budget.contains(usage, reserved) {
+		return false
+	}
+	return requested.Steps <= budget.Steps-usage.CommittedSteps-reserved.Steps &&
+		requested.Effects <= budget.Effects-usage.PreparedEffects-reserved.Effects &&
+		requested.Signals <= budget.Signals-usage.AcceptedSignals-reserved.Signals
+}
+
+func (budget Budget) add(other Budget) (Budget, bool) {
+	result := Budget{
+		Steps: budget.Steps + other.Steps, Effects: budget.Effects + other.Effects,
+		Signals: budget.Signals + other.Signals,
+	}
+	if result.Steps < budget.Steps || result.Effects < budget.Effects || result.Signals < budget.Signals {
+		return Budget{}, false
+	}
+	return result, true
+}
+
+// TreeLimits bounds structural expansion independently of per-Process work
+// limits. Every zero field in EngineConfig inherits DefaultTreeLimits.
+type TreeLimits struct {
+	MaxDepth          uint32 `json:"max_depth"`
+	MaxChildren       uint32 `json:"max_children"`
+	MaxActiveChildren uint32 `json:"max_active_children"`
+	MaxTreeProcesses  uint32 `json:"max_tree_processes"`
+}
+
+// DefaultTreeLimits returns conservative structured-concurrency bounds.
+func DefaultTreeLimits() TreeLimits {
+	return TreeLimits{
+		MaxDepth: 16, MaxChildren: 64, MaxActiveChildren: 16, MaxTreeProcesses: 1024,
+	}
+}
+
+// Valid reports whether all tree growth dimensions are positive and coherent.
+func (limits TreeLimits) Valid() bool {
+	return limits.MaxDepth > 0 && limits.MaxChildren > 0 &&
+		limits.MaxActiveChildren > 0 && limits.MaxActiveChildren <= limits.MaxChildren &&
+		limits.MaxTreeProcesses > 0
+}
+
+func effectiveTreeLimits(configured TreeLimits) (TreeLimits, error) {
+	effective := configured
+	defaults := DefaultTreeLimits()
+	if effective.MaxDepth == 0 {
+		effective.MaxDepth = defaults.MaxDepth
+	}
+	if effective.MaxChildren == 0 {
+		effective.MaxChildren = defaults.MaxChildren
+	}
+	if effective.MaxActiveChildren == 0 {
+		effective.MaxActiveChildren = defaults.MaxActiveChildren
+	}
+	if effective.MaxTreeProcesses == 0 {
+		effective.MaxTreeProcesses = defaults.MaxTreeProcesses
+	}
+	if !effective.Valid() {
+		return TreeLimits{}, ErrInvalidEngineConfig
+	}
+	return effective, nil
 }

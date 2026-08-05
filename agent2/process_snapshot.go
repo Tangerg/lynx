@@ -5,11 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"time"
 )
 
 const (
-	processSnapshotSchemaVersion = 2
+	processSnapshotSchemaVersion = 3
 	maxSnapshotBytes             = 128 << 20
 )
 
@@ -26,6 +27,8 @@ type Snapshot struct {
 	executionState ExecutionState
 	waitID         WaitID
 	relation       ProcessRelation
+	budget         Budget
+	capabilities   CapabilitySet
 }
 
 // ParseSnapshot strictly validates one Process snapshot wire value.
@@ -49,6 +52,8 @@ func ParseSnapshot(data json.RawMessage) (Snapshot, error) {
 		executionState: wire.LastStable,
 		waitID:         snapshotWaitID(wire.CurrentWaitID),
 		relation:       mustProcessRelation(wire.ProcessID, wire.Relation),
+		budget:         wire.Budget,
+		capabilities:   wire.Capabilities,
 	}, nil
 }
 
@@ -73,6 +78,12 @@ func (snapshot Snapshot) DeploymentRef() DeploymentRef { return snapshot.deploym
 // Process.
 func (snapshot Snapshot) Relation() ProcessRelation { return snapshot.relation }
 
+// Budget returns the Process work allocation captured by this snapshot.
+func (snapshot Snapshot) Budget() Budget { return snapshot.budget }
+
+// Capabilities returns the Process authority set captured by this snapshot.
+func (snapshot Snapshot) Capabilities() CapabilitySet { return snapshot.capabilities }
+
 // Status returns the captured common lifecycle state.
 func (snapshot Snapshot) Status() Status { return snapshot.status }
 
@@ -93,7 +104,8 @@ func (snapshot Snapshot) WaitID() (WaitID, bool) {
 // Valid reports whether the snapshot passed the strict wire boundary.
 func (snapshot Snapshot) Valid() bool {
 	return len(snapshot.data) > 0 && snapshot.processID.Valid() && snapshot.deployment.Valid() &&
-		snapshot.status.Valid() && snapshot.executionState.Valid() && snapshot.relation.Valid()
+		snapshot.status.Valid() && snapshot.executionState.Valid() && snapshot.relation.Valid() &&
+		snapshot.budget.Valid() && snapshot.capabilities.Valid()
 }
 
 func mustProcessRelation(processID ProcessID, wire processRelationWire) ProcessRelation {
@@ -160,25 +172,30 @@ type pendingControlWire struct {
 }
 
 type processSnapshotWire struct {
-	SchemaVersion  uint16              `json:"schema_version"`
-	ProcessID      ProcessID           `json:"process_id"`
-	Relation       processRelationWire `json:"relation"`
-	Deployment     DeploymentRef       `json:"deployment"`
-	StartedAt      time.Time           `json:"started_at"`
-	FinishedAt     *time.Time          `json:"finished_at,omitempty"`
-	Status         Status              `json:"status"`
-	CommittedSteps uint64              `json:"committed_steps"`
-	EventSequence  uint64              `json:"event_sequence"`
-	Limits         Limits              `json:"limits"`
-	Usage          Usage               `json:"usage"`
-	LastStable     ExecutionState      `json:"last_stable"`
-	Mailbox        mailboxWire         `json:"mailbox"`
-	Prepared       *preparedStepWire   `json:"prepared,omitempty"`
-	CurrentWaitID  *WaitID             `json:"current_wait_id,omitempty"`
-	PauseReason    string              `json:"pause_reason,omitempty"`
-	PendingControl pendingControlWire  `json:"pending_control"`
-	Output         *Output             `json:"output,omitempty"`
-	Termination    *Termination        `json:"termination,omitempty"`
+	SchemaVersion      uint16              `json:"schema_version"`
+	ProcessID          ProcessID           `json:"process_id"`
+	Relation           processRelationWire `json:"relation"`
+	ChildRequestDigest *Digest             `json:"child_request_digest,omitempty"`
+	Deployment         DeploymentRef       `json:"deployment"`
+	StartedAt          time.Time           `json:"started_at"`
+	FinishedAt         *time.Time          `json:"finished_at,omitempty"`
+	Status             Status              `json:"status"`
+	CommittedSteps     uint64              `json:"committed_steps"`
+	EventSequence      uint64              `json:"event_sequence"`
+	Limits             Limits              `json:"limits"`
+	TreeLimits         TreeLimits          `json:"tree_limits"`
+	Budget             Budget              `json:"budget"`
+	ReservedBudget     Budget              `json:"reserved_child_budget"`
+	Capabilities       CapabilitySet       `json:"capabilities"`
+	Usage              Usage               `json:"usage"`
+	LastStable         ExecutionState      `json:"last_stable"`
+	Mailbox            mailboxWire         `json:"mailbox"`
+	Prepared           *preparedStepWire   `json:"prepared,omitempty"`
+	CurrentWaitID      *WaitID             `json:"current_wait_id,omitempty"`
+	PauseReason        string              `json:"pause_reason,omitempty"`
+	PendingControl     pendingControlWire  `json:"pending_control"`
+	Output             *Output             `json:"output,omitempty"`
+	Termination        *Termination        `json:"termination,omitempty"`
 }
 
 func decodeProcessSnapshot(data []byte) (processSnapshotWire, error) {
@@ -206,11 +223,22 @@ func validateProcessSnapshot(wire processSnapshotWire) error {
 	}
 	if !wire.ProcessID.Valid() || !wire.Deployment.Valid() || wire.StartedAt.IsZero() ||
 		!wire.Status.Valid() || wire.Status == StatusNotStarted || !wire.LastStable.Valid() ||
-		!wire.Limits.Valid() || !wire.Usage.validFor(wire.Limits) || wire.Usage.CommittedSteps != wire.CommittedSteps {
+		!wire.Limits.Valid() || !wire.TreeLimits.Valid() || !wire.Budget.Valid() ||
+		!wire.Capabilities.Valid() || !wire.Usage.validFor(wire.Limits) ||
+		wire.Usage.CommittedSteps != wire.CommittedSteps ||
+		wire.Limits.MaxSteps != wire.Budget.Steps ||
+		wire.Limits.MaxEffects != wire.Budget.Effects ||
+		wire.Limits.MaxSignals != wire.Budget.Signals ||
+		!wire.Budget.contains(wire.Usage, wire.ReservedBudget) {
 		return fmt.Errorf("%w: incomplete Process identity or state", ErrInvalidSnapshot)
 	}
-	if _, err := processRelationFromWire(wire.ProcessID, wire.Relation); err != nil {
+	relation, err := processRelationFromWire(wire.ProcessID, wire.Relation)
+	if err != nil {
 		return fmt.Errorf("%w: relation: %w", ErrInvalidSnapshot, err)
+	}
+	if relation.IsRoot() != (wire.ChildRequestDigest == nil) ||
+		wire.ChildRequestDigest != nil && !wire.ChildRequestDigest.Valid() {
+		return fmt.Errorf("%w: child request digest does not match relation", ErrInvalidSnapshot)
 	}
 	mailbox, err := restoreSignalMailbox(wire.Mailbox)
 	if err != nil {
@@ -432,5 +460,6 @@ func deriveSettlementSignalID(effectID EffectID) SignalID {
 }
 
 func equalEffect(left, right Effect) bool {
-	return left.Target() == right.Target() && bytes.Equal(left.Payload(), right.Payload())
+	return left.Target() == right.Target() && bytes.Equal(left.Payload(), right.Payload()) &&
+		slices.Equal(left.RequiredCapabilities().values, right.RequiredCapabilities().values)
 }

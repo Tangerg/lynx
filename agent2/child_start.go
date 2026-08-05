@@ -3,6 +3,7 @@ package agent2
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 )
@@ -14,6 +15,35 @@ func (runtime *processRuntime) startChild(
 ) ChildStartResult {
 	if !spec.Valid() || !runtime.controller.relation.Valid() {
 		return failedChildStart(spec, FailureKindContract, "engine.child.request.invalid", ErrInvalidChild)
+	}
+	childID := deriveChildProcessID(effectID)
+	relation := childProcessRelation(childID, runtime.controller.relation, spec.Key)
+	requestDigest, err := childSpecDigest(spec)
+	if err != nil {
+		return failedChildStart(spec, FailureKindContract, "engine.child.request.invalid", err)
+	}
+	if existing, exists := runtime.engine.Process(childID); exists {
+		if existing.Relation() == relation && existing.DeploymentRef() == spec.Deployment &&
+			existing.controller.childRequestDigest == requestDigest {
+			return ChildStartResult{key: spec.Key, processID: childID, deployment: spec.Deployment}
+		}
+		return failedChildStart(spec, FailureKindContract, "engine.child.identity_conflict", ErrInvalidChild)
+	}
+	if !runtime.capabilities.Allows(spec.Capabilities) {
+		return failedChildStart(spec, FailureKindContract, "engine.child.capability_escalation", ErrInvalidCapability)
+	}
+	if !runtime.reserveChildBudget(spec.Budget) {
+		return failedChildStart(spec, FailureKindExecution, "engine.child.budget_exhausted", ErrLimitExceeded)
+	}
+	budgetCommitted := false
+	defer func() {
+		if !budgetCommitted {
+			runtime.releaseChildBudget(spec.Budget)
+		}
+	}()
+	childLimits, err := limitsFromBudget(runtime.limits, spec.Budget)
+	if err != nil {
+		return failedChildStart(spec, FailureKindExecution, "engine.child.budget_invalid", err)
 	}
 	deployment, err := runtime.resolveChildDeployment(ctx, spec.Deployment)
 	if err != nil {
@@ -34,23 +64,13 @@ func (runtime *processRuntime) startChild(
 	if err != nil {
 		return failedChildStart(spec, failureKindForError(err), "engine.child.snapshot.unrestorable", err)
 	}
-	childID := deriveChildProcessID(effectID)
-	relation := childProcessRelation(childID, runtime.controller.relation, spec.Key)
-	requestDigest, err := childSpecDigest(spec)
-	if err != nil {
-		return failedChildStart(spec, FailureKindContract, "engine.child.request.invalid", err)
-	}
-	if existing, exists := runtime.engine.Process(childID); exists {
-		if existing.Relation() == relation && existing.DeploymentRef() == spec.Deployment &&
-			existing.controller.childRequestDigest == requestDigest {
-			return ChildStartResult{key: spec.Key, processID: childID, deployment: spec.Deployment}
-		}
-		return failedChildStart(spec, FailureKindContract, "engine.child.identity_conflict", ErrInvalidChild)
-	}
 	startedAt := time.Now().Round(0).UTC()
-	controller := newProcessController(relation, deployment.Reference(), startedAt, StatusRunning)
+	controller := newProcessController(
+		relation, deployment.Reference(), spec.Budget, spec.Capabilities, runtime.treeLimits,
+		startedAt, StatusRunning,
+	)
 	childRuntime := newProcessRuntime(
-		runtime.engine, controller, deployment, execution, state, startedAt, runtime.limits,
+		runtime.engine, controller, deployment, execution, state, startedAt, childLimits,
 	)
 	if err := runtime.engine.registerChild(controller, requestDigest); err != nil {
 		if existing, exists := runtime.engine.Process(childID); exists &&
@@ -58,10 +78,37 @@ func (runtime *processRuntime) startChild(
 			existing.controller.childRequestDigest == requestDigest {
 			return ChildStartResult{key: spec.Key, processID: childID, deployment: spec.Deployment}
 		}
+		if errors.Is(err, ErrLimitExceeded) {
+			return failedChildStart(spec, FailureKindExecution, "engine.child.tree_limit", err)
+		}
 		return failedChildStart(spec, FailureKindContract, "engine.child.register.failed", err)
 	}
+	budgetCommitted = true
 	go childRuntime.run(context.Background())
 	return ChildStartResult{key: spec.Key, processID: childID, deployment: spec.Deployment}
+}
+
+func (runtime *processRuntime) reserveChildBudget(requested Budget) bool {
+	if !runtime.budget.canAllocate(runtime.usage, runtime.reservedBudget, requested) {
+		return false
+	}
+	reserved, ok := runtime.reservedBudget.add(requested)
+	if !ok {
+		return false
+	}
+	runtime.reservedBudget = reserved
+	return true
+}
+
+func (runtime *processRuntime) releaseChildBudget(released Budget) {
+	if released.Steps > runtime.reservedBudget.Steps ||
+		released.Effects > runtime.reservedBudget.Effects ||
+		released.Signals > runtime.reservedBudget.Signals {
+		return
+	}
+	runtime.reservedBudget.Steps -= released.Steps
+	runtime.reservedBudget.Effects -= released.Effects
+	runtime.reservedBudget.Signals -= released.Signals
 }
 
 func (runtime *processRuntime) resolveChildDeployment(
