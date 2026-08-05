@@ -46,7 +46,6 @@ describe("AgentActivityDisclosure", () => {
     const onAction = vi.fn();
     render(
       <AgentActivityDisclosure
-        mark="glyph"
         leading={<span>•</span>}
         label="Delegated run"
         open={false}
@@ -118,7 +117,6 @@ describe("AgentActivityDisclosure", () => {
 
     render(
       <AgentActivityDisclosure
-        mark="glyph"
         leading={<span>•</span>}
         label="own"
         open={false}

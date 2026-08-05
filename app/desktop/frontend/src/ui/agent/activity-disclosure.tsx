@@ -18,31 +18,19 @@ type ActivityTone = "neutral" | "warning" | "negative";
 //            have three spellings of one boundary — that band, this edge, and
 //            ApprovalCard's `bg-<tone>-wash` strip.
 
-type ActivityLeading =
-  | { icon: IconName; leading?: never; mark?: never }
-  | { icon?: never; leading: ReactNode; mark: ActivityMark };
+type ActivityLeading = { icon: IconName; leading?: never } | { icon?: never; leading: ReactNode };
 
-/**
- * How wide the gutter is. Not how wide the MARK is — the gutter is a fixed slot so a
- * mark's own width cannot move the words beside it, which is what it used to do: a
- * folded wave's strip is as wide as its glyph count, so two waves in one transcript
- * put their labels 16px apart, and neither landed where any other row's did.
- */
-type ActivityMark = "glyph" | "strip";
-
-// The gutter, and the column the row's text starts on — kept in one entry each so the
-// two cannot drift apart. `text` is the row's own inset (12) + the chevron (12) + the
-// two gaps around the mark (8 + 8) + `slot`.
+// The gutter, and the column the row's text starts on — one entry, so the two cannot
+// drift apart. `text` is the row's own inset (12) + the chevron (12) + the two gaps
+// around the mark (8 + 8) + the slot (20).
 //
-// The body takes the same `text`, because a body that starts anywhere else reads as
-// belonging to the row above it rather than to the row that discloses it. It used to
-// be a fixed `pl-8` while the label was wherever the mark's width left it — 24 to 72px
-// apart, in three different combinations, in one column of rows.
-const GUTTER: Record<ActivityMark | "tray", { slot: string; text: string }> = {
-  glyph: { slot: "w-5", text: "pl-15" },
-  tray: { slot: "w-5", text: "pl-15" },
-  strip: { slot: "w-11", text: "pl-21" },
-};
+// ONE slot, for every row. A mark identifies the row; it is not a place to put content.
+// A folded wave's marks-of-what-is-inside used to live here and were as wide as their
+// count, so they pushed the label — two waves put their labels 16px apart, a
+// four-glyph strip overran the label outright, and no row's text landed where another's
+// did. Anything a row wants to say beyond "what kind of row am I" belongs in the label
+// or the trailing slot, which can be as wide as they like.
+const GUTTER = { slot: "w-5", text: "pl-15" } as const;
 
 type AgentActivityDisclosureProps = Omit<ComponentPropsWithoutRef<"div">, "children"> &
   ActivityLeading & {
@@ -100,7 +88,6 @@ const TRAY_CLASS: Record<ActivityTone, string> = {
 export function AgentActivityDisclosure({
   icon,
   leading,
-  mark,
   label,
   detail,
   trailing,
@@ -121,7 +108,6 @@ export function AgentActivityDisclosure({
   // A caller handing over its own `leading` owns that whole box — a plan's step
   // mark in a tray would be a mark inside a mark.
   const framed = shell !== "line" && icon !== undefined;
-  const gutter = GUTTER[framed ? "tray" : (mark ?? "glyph")];
 
   return (
     <div
@@ -194,7 +180,7 @@ export function AgentActivityDisclosure({
             aria-hidden
             className={cn(
               "grid shrink-0 place-items-center",
-              gutter.slot,
+              GUTTER.slot,
               // A framed icon gets the tray; a bare one gets a 16px box. But that box
               // is the shell's answer for ONE mark — a caller handing over its own
               // `leading` owns the size as well, and a folded wave's mark is a strip of
@@ -258,7 +244,7 @@ export function AgentActivityDisclosure({
             // belongs to what: its body has to start on its label's column. A card
             // groups with its FILL, so its body takes the card's own padding — the
             // label's column would leave 60px of empty card down the left.
-            shell === "line" ? `${gutter.text} pb-1.5 pr-1` : "px-3 pb-2.5",
+            shell === "line" ? `${GUTTER.text} pb-1.5 pr-1` : "px-3 pb-2.5",
             contentClassName,
           )}
         >

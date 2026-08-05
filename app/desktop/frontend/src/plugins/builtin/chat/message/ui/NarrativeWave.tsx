@@ -36,21 +36,23 @@ export function NarrativeWave({ units, ctx, renderUnit }: Props) {
   return (
     <AgentActivityDisclosure
       shell="line"
-      // The marks of what is inside, not a generic "history" glyph — a folded row is
-      // the one row whose leading mark has something to say, because its label cannot.
-      // A strip, so the gutter is the wide one — and fixed, so a two-glyph wave and a
-      // three-glyph wave put their labels on the same column.
-      mark="strip"
-      leading={
-        <span className="flex items-center gap-1">
-          {glyphs.map((glyph, index) => (
-            <Icon key={index} name={glyph} size="xs" />
-          ))}
-        </span>
+      // What kind of round this was — the work that dominated it. One glyph, because
+      // the gutter is one slot wide for every row in the transcript.
+      icon={glyphs[0] ?? "sparkle"}
+      // …and the rest of what is inside, at the other end of the row. These used to be
+      // the leading mark, which is where they did damage: a strip is as wide as its
+      // glyph count, so it pushed this row's label off the column every other row's
+      // label sits on, and a long enough one ran straight into it. They say the same
+      // thing here, in a slot that may be any width.
+      trailing={
+        glyphs.length > 1 ? (
+          <span className="flex items-center gap-1">
+            {glyphs.slice(1).map((glyph, index) => (
+              <Icon key={index} name={glyph} size="xs" />
+            ))}
+          </span>
+        ) : undefined
       }
-      // The count IS the label. A word for what this is would have to be a tense, and
-      // the only tense available is past — the wave exists because an answer followed
-      // it — while the marks beside it already say what happened.
       label={t("agent.steps", { count: waveStepCount(units) })}
       open={open}
       onToggle={() => setOpen((value) => !value)}

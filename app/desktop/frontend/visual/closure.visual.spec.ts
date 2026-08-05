@@ -237,6 +237,44 @@ for (const state of ["waves", "tool-shells", "delegated", "narrative"] as const)
 
     expect(drift).toEqual([]);
   });
+
+  // …and nothing in the gutter reaches into it. The slot is one width for every row,
+  // so a mark too wide for it no longer moves the label — it runs underneath it, which
+  // is what a four-glyph strip did to the word beside it.
+  test(`a mark stays inside its gutter — ${state}`, async ({ page }) => {
+    await openFixture(page, { fixture: "agent", state });
+
+    const collisions = await page.evaluate(() => {
+      const out: string[] = [];
+      for (const d of document.querySelectorAll<HTMLElement>(
+        "[data-slot='agent-activity-disclosure']",
+      )) {
+        const trigger = d.querySelector("button[aria-expanded]");
+        const children = [...(trigger?.children ?? [])];
+        const mark = children.find(
+          (c) => c.getAttribute("aria-hidden") !== null && c.tagName === "SPAN",
+        );
+        const label = children.find(
+          (c) => c.getAttribute("aria-hidden") === null && c.tagName === "SPAN",
+        );
+        if (!mark || !label) continue;
+        // The slot's own box does not grow, so an oversized mark spills out of it
+        // rather than pushing anything: measure the CONTENT against the slot, and the
+        // furthest thing it draws against the label.
+        const spill = mark.scrollWidth - mark.clientWidth;
+        const reach = Math.max(
+          ...[...mark.querySelectorAll("*"), mark].map((n) => n.getBoundingClientRect().right),
+        );
+        const overlap = Math.round(reach - label.getBoundingClientRect().left);
+        if (spill > 1 || overlap > 0) {
+          out.push(`${label.textContent?.trim().slice(0, 20)}: spill=${spill} overlap=${overlap}`);
+        }
+      }
+      return out;
+    });
+
+    expect(collisions).toEqual([]);
+  });
 }
 
 // The vertical half of the same question. `truncate` clips both axes, so text set at a
