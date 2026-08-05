@@ -14,6 +14,9 @@
 | [EXTENSIBILITY.md](EXTENSIBILITY.md) | 当前可替换端口、内部具体类型与组合根注入规则。 |
 | [ARCHITECTURE_HYGIENE_PLAN.md](ARCHITECTURE_HYGIENE_PLAN.md) | `app/runtime` 架构卫生治理的目标、批次、验收标准与进度台账。 |
 | [TOOL_SYSTEM_VNEXT.md](TOOL_SYSTEM_VNEXT.md) | 新工具体系的唯一词汇、模型契约、删除范围与分批实施台账。 |
+| [API.md](API.md) | Runtime Protocol 的语义与跨方法不变量；字段和方法目录由 `contract/` 生成物拥有。 |
+| [TRANSPORT.md](TRANSPORT.md) | InProcess 与 streamable HTTP 的 binding、状态码、流、重放和安全边界。 |
+| [AUX_API.md](AUX_API.md) | VCS、失效流、会话恢复、MCP 生命周期与审批等旁路能力语义。 |
 
 ---
 
@@ -21,4 +24,4 @@
 
 ---
 
-> 协议契约（wire shape）在前端模块：[`../../desktop/docs/protocol/`](../../desktop/docs/protocol/)（API / TRANSPORT / AUX_API）。改协议契约先在那里对一遍。
+> 协议的人读规范由本目录的 `API.md` / `TRANSPORT.md` / `AUX_API.md` 拥有；字段、方法、错误、联合类型和示例的机器真相源是 [`../contract/`](../contract/)。客户端只能消费这些制品，不得反向成为 Runtime 契约作者。

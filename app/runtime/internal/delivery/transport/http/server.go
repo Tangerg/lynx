@@ -13,7 +13,7 @@
 //	GET /v2/health/live       Process liveness
 //	GET /v2/health/ready      Dependency readiness
 //
-// See docs/{API,TRANSPORT}.md for the wire details. The middleware here wraps
+// See doc/{API,TRANSPORT}.md for the wire details. The middleware here wraps
 // each request in an OTel span and sets the X-Method header — the router
 // itself stays transport-agnostic.
 package http

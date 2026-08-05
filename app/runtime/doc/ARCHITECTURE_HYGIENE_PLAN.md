@@ -916,6 +916,7 @@ Acceptance:
 | 42. Final toolset vocabulary and descriptor closure | Completed | 2026-08-05 | 2026-08-05 | Package-stuttering private names were removed, descriptor parity now proves safety and activity invariants, and architecture checks pin the retired vocabulary. Full workspace/standalone verification, focused race tests, static analysis, lint, dead-code analysis, formatting, and residue scans passed. |
 | 43. Tool result presentation contract ownership | Completed | 2026-08-05 | 2026-08-05 | Toolset descriptors now jointly own result projection and exact published shape; generated artifacts bind each presentation to its tool identity, Runtime owns its TypeScript binding and canonical samples, and workspace/standalone plus focused race/static/dead-code verification passed. |
 | 44. Runtime semantic and API residue closure | Completed | 2026-08-05 | 2026-08-05 | Current tool documentation and comments match the surviving vocabulary, five false internal API dimensions were removed, all production `unparam`/`modernize` findings reached zero, and full workspace/standalone plus focused race/static/dead-code verification passed. |
+| 45. Runtime protocol contract ownership | Completed | 2026-08-05 | 2026-08-05 | Protocol semantics, transport binding, auxiliary APIs, generated artifacts, canonical samples, and version drift gates are all Runtime-owned; no generator, current architecture guide, or production source resolves protocol truth through a client module. Full workspace/standalone and focused verification passed. |
 
 Allowed status values: `Pending`, `In progress`, `Completed`, `Blocked`, `Revised`.
 
@@ -959,6 +960,25 @@ Allowed status values: `Pending`, `In progress`, `Completed`, `Blocked`, `Revise
   standalone `GOWORK=off` build/vet/test, `staticcheck`, default and targeted
   `golangci-lint`, `deadcode -test`, formatting, and diff checks passed. Both
   production `unparam` and `modernize` scans report zero issues.
+
+### 2026-08-05 — Batch 45 completed
+
+- Moved the canonical `API.md`, `TRANSPORT.md`, and `AUX_API.md` specifications
+  into `app/runtime/doc`; their machine-readable field and method source remains
+  the generated `app/runtime/contract` bundle. Runtime no longer reads a
+  consuming application to validate its own protocol version.
+- Replaced the copied, obsolete `edit` / `write` / `task` / `download` tool
+  presentation table with the generated `toolResultPresentations` contract and
+  corrected remembered-approval subjects to the surviving `shell.command` and
+  `read.path` semantics.
+- Updated module guidance, architecture references, generator output, transport
+  comments, and positioning to describe arbitrary protocol clients rather than
+  expose one frontend's paths or configuration vocabulary. A fitness check now
+  rejects renewed client-owned protocol references in production, generators,
+  and current architecture guidance.
+- Contract generation, focused architecture/protocol/HTTP tests, full
+  workspace and standalone build/vet/test, race tests, static analysis, lint,
+  dead-code analysis, formatting, and residue scans passed.
 
 ### 2026-08-04 — Batch 38 completed
 
