@@ -72,6 +72,21 @@ func TestDescriptorDigestChangesWithContract(t *testing.T) {
 	if first.Digest() == second.Digest() {
 		t.Fatal("descriptor digest did not change with version")
 	}
+	countSchema, err := SchemaFor[struct {
+		Count int `json:"count"`
+	}]()
+	if err != nil {
+		t.Fatal(err)
+	}
+	base.Version = "1.0.0"
+	base.OutputSchema = countSchema
+	third, err := NewDescriptor(base)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first.Digest() == third.Digest() {
+		t.Fatal("descriptor digest did not change with output schema")
+	}
 }
 
 func TestDescriptorJSONRejectsDrift(t *testing.T) {

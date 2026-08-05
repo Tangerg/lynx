@@ -56,6 +56,29 @@ func NewDispatcherEffect(payload json.RawMessage) (Effect, error) {
 	return newEffect(EffectTargetDispatcher, payload)
 }
 
+// RequestWait creates the Framework Effect that asks the Engine to mint one
+// WaitID for key. signalPayload remains Strategy-owned and is returned unchanged
+// in the internal Signal that carries the minted WaitID back to the Execution.
+func RequestWait(key WaitKey, signalPayload json.RawMessage) (Effect, error) {
+	if !key.Valid() {
+		return Effect{}, fmt.Errorf("%w: wait key: %w", ErrInvalidEffect, ErrInvalidIdentity)
+	}
+	normalized, err := normalizeJSON(signalPayload, maxWireBytes)
+	if err != nil {
+		return Effect{}, fmt.Errorf("%w: wait signal payload: %w", ErrInvalidEffect, err)
+	}
+	payload, err := json.Marshal(waitRequestWire{
+		Operation:     frameworkEffectWait,
+		SchemaVersion: frameworkEffectSchemaVersion,
+		Key:           key,
+		SignalPayload: normalized,
+	})
+	if err != nil {
+		return Effect{}, fmt.Errorf("%w: encode wait request: %w", ErrInvalidEffect, err)
+	}
+	return newEffect(EffectTargetFramework, payload)
+}
+
 func newEffect(target EffectTarget, payload json.RawMessage) (Effect, error) {
 	if target != EffectTargetFramework && target != EffectTargetDispatcher {
 		return Effect{}, fmt.Errorf("%w: invalid target", ErrInvalidEffect)
@@ -63,6 +86,11 @@ func newEffect(target EffectTarget, payload json.RawMessage) (Effect, error) {
 	normalized, err := normalizeJSON(payload, maxWireBytes)
 	if err != nil {
 		return Effect{}, fmt.Errorf("%w: payload: %w", ErrInvalidEffect, err)
+	}
+	if target == EffectTargetFramework {
+		if _, _, err := decodeWaitRequestPayload(normalized); err != nil {
+			return Effect{}, err
+		}
 	}
 	return Effect{target: target, payload: normalized}, nil
 }
@@ -117,4 +145,43 @@ func (e *Effect) UnmarshalJSON(data []byte) error {
 type effectWire struct {
 	Target  string          `json:"target"`
 	Payload json.RawMessage `json:"payload"`
+}
+
+const (
+	frameworkEffectSchemaVersion = 1
+	frameworkEffectWait          = "wait"
+)
+
+type waitRequestWire struct {
+	Operation     string          `json:"operation"`
+	SchemaVersion uint16          `json:"schema_version"`
+	Key           WaitKey         `json:"key"`
+	SignalPayload json.RawMessage `json:"signal_payload"`
+}
+
+func decodeWaitRequest(effect Effect) (WaitKey, json.RawMessage, error) {
+	if effect.Target() != EffectTargetFramework {
+		return WaitKey{}, nil, fmt.Errorf("%w: Effect is not Framework-owned", ErrInvalidEffect)
+	}
+	return decodeWaitRequestPayload(effect.payload)
+}
+
+func decodeWaitRequestPayload(payload json.RawMessage) (WaitKey, json.RawMessage, error) {
+	var wire waitRequestWire
+	decoder := json.NewDecoder(bytes.NewReader(payload))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&wire); err != nil {
+		return WaitKey{}, nil, fmt.Errorf("%w: decode Framework Effect: %w", ErrInvalidEffect, err)
+	}
+	if err := requireJSONEOF(decoder); err != nil {
+		return WaitKey{}, nil, fmt.Errorf("%w: Framework Effect: %w", ErrInvalidEffect, err)
+	}
+	if wire.Operation != frameworkEffectWait || wire.SchemaVersion != frameworkEffectSchemaVersion || !wire.Key.Valid() {
+		return WaitKey{}, nil, fmt.Errorf("%w: unsupported Framework Effect", ErrInvalidEffect)
+	}
+	normalized, err := normalizeJSON(wire.SignalPayload, maxWireBytes)
+	if err != nil {
+		return WaitKey{}, nil, fmt.Errorf("%w: Framework Effect signal payload: %w", ErrInvalidEffect, err)
+	}
+	return wire.Key, normalized, nil
 }

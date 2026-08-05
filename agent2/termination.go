@@ -8,108 +8,105 @@ import (
 
 const maxTerminationReasonBytes = 4096
 
-var ErrInvalidTermination = errors.New("agent: invalid termination")
+var errInvalidTermination = errors.New("agent: invalid termination")
 
-// DeadlineOwner identifies the lifecycle boundary whose reached deadline is
+// deadlineOwner identifies the lifecycle boundary whose reached deadline is
 // recorded by the Engine.
-type DeadlineOwner uint8
+type deadlineOwner uint8
 
 const (
-	DeadlineOwnerInvalid DeadlineOwner = iota
-	DeadlineOwnerProcess
-	DeadlineOwnerParent
-	DeadlineOwnerHost
+	deadlineOwnerInvalid deadlineOwner = iota
+	deadlineOwnerProcess
+	deadlineOwnerParent
+	deadlineOwnerHost
 )
 
-func (owner DeadlineOwner) String() string {
+func (owner deadlineOwner) String() string {
 	switch owner {
-	case DeadlineOwnerProcess:
+	case deadlineOwnerProcess:
 		return "process"
-	case DeadlineOwnerParent:
+	case deadlineOwnerParent:
 		return "parent"
-	case DeadlineOwnerHost:
+	case deadlineOwnerHost:
 		return "host"
 	default:
 		return "invalid"
 	}
 }
 
-// CancellationOwner identifies a non-deadline cancellation source.
-type CancellationOwner uint8
+// cancellationOwner identifies a non-deadline cancellation source.
+type cancellationOwner uint8
 
 const (
-	CancellationOwnerInvalid CancellationOwner = iota
-	CancellationOwnerParent
-	CancellationOwnerHost
+	cancellationOwnerInvalid cancellationOwner = iota
+	cancellationOwnerParent
+	cancellationOwnerHost
 )
 
-func (owner CancellationOwner) String() string {
+func (owner cancellationOwner) String() string {
 	switch owner {
-	case CancellationOwnerParent:
+	case cancellationOwnerParent:
 		return "parent"
-	case CancellationOwnerHost:
+	case cancellationOwnerHost:
 		return "host"
 	default:
 		return "invalid"
 	}
 }
 
-// KillIntent records an explicit Engine kill request.
-type KillIntent struct{ reason string }
+// killIntent records an explicit Engine kill request.
+type killIntent struct{ reason string }
 
-// NewKillIntent validates an explicit Engine kill reason.
-func NewKillIntent(reason string) (KillIntent, error) {
+func newKillIntent(reason string) (killIntent, error) {
 	if err := validateTerminationReason(reason); err != nil {
-		return KillIntent{}, err
+		return killIntent{}, err
 	}
-	return KillIntent{reason: reason}, nil
+	return killIntent{reason: reason}, nil
 }
 
-func (intent KillIntent) valid() bool { return intent.reason != "" }
+func (intent killIntent) valid() bool { return intent.reason != "" }
 
-// DeadlineIntent records that a specific Process lifecycle deadline was
+// deadlineIntent records that a specific Process lifecycle deadline was
 // reached. A local Effect timeout remains a settlement Signal unless promoted
 // to a Process termination before constructing these facts.
-type DeadlineIntent struct {
-	owner  DeadlineOwner
+type deadlineIntent struct {
+	owner  deadlineOwner
 	reason string
 }
 
-// NewDeadlineIntent validates a reached lifecycle deadline.
-func NewDeadlineIntent(owner DeadlineOwner, reason string) (DeadlineIntent, error) {
-	if owner < DeadlineOwnerProcess || owner > DeadlineOwnerHost {
-		return DeadlineIntent{}, fmt.Errorf("%w: invalid deadline owner", ErrInvalidTermination)
+func newDeadlineIntent(owner deadlineOwner, reason string) (deadlineIntent, error) {
+	if owner < deadlineOwnerProcess || owner > deadlineOwnerHost {
+		return deadlineIntent{}, fmt.Errorf("%w: invalid deadline owner", errInvalidTermination)
 	}
 	if err := validateTerminationReason(reason); err != nil {
-		return DeadlineIntent{}, err
+		return deadlineIntent{}, err
 	}
-	return DeadlineIntent{owner: owner, reason: reason}, nil
+	return deadlineIntent{owner: owner, reason: reason}, nil
 }
 
-func (intent DeadlineIntent) valid() bool {
-	return intent.owner >= DeadlineOwnerProcess && intent.owner <= DeadlineOwnerHost && intent.reason != ""
+func (intent deadlineIntent) valid() bool {
+	return intent.owner >= deadlineOwnerProcess && intent.owner <= deadlineOwnerHost && intent.reason != ""
 }
 
-// CancellationIntent records a non-deadline cancellation from a parent Process
+// cancellationIntent records a non-deadline cancellation from a parent Process
 // or Host context.
-type CancellationIntent struct {
-	owner  CancellationOwner
+type cancellationIntent struct {
+	owner  cancellationOwner
 	reason string
 }
 
-// NewCancellationIntent validates a non-deadline cancellation.
-func NewCancellationIntent(owner CancellationOwner, reason string) (CancellationIntent, error) {
-	if owner < CancellationOwnerParent || owner > CancellationOwnerHost {
-		return CancellationIntent{}, fmt.Errorf("%w: invalid cancellation owner", ErrInvalidTermination)
+func newCancellationIntent(owner cancellationOwner, reason string) (cancellationIntent, error) {
+	if owner < cancellationOwnerParent || owner > cancellationOwnerHost {
+		return cancellationIntent{}, fmt.Errorf("%w: invalid cancellation owner", errInvalidTermination)
 	}
 	if err := validateTerminationReason(reason); err != nil {
-		return CancellationIntent{}, err
+		return cancellationIntent{}, err
 	}
-	return CancellationIntent{owner: owner, reason: reason}, nil
+	return cancellationIntent{owner: owner, reason: reason}, nil
 }
 
-func (intent CancellationIntent) valid() bool {
-	return intent.owner >= CancellationOwnerParent && intent.owner <= CancellationOwnerHost && intent.reason != ""
+func (intent cancellationIntent) valid() bool {
+	return intent.owner >= cancellationOwnerParent && intent.owner <= cancellationOwnerHost && intent.reason != ""
 }
 
 // stepOutcomeKind describes the valid terminal result of a Step. A zero outcome
@@ -122,37 +119,35 @@ const (
 	stepOutcomeFailed
 )
 
-// StepOutcome carries either legal completion or a classified failure.
-type StepOutcome struct {
+// stepOutcome carries either legal completion or a classified failure.
+type stepOutcome struct {
 	kind    stepOutcomeKind
 	failure Failure
 }
 
-// CompletedOutcome records a legal completion candidate.
-func CompletedOutcome() StepOutcome { return StepOutcome{kind: stepOutcomeCompleted} }
+func completedOutcome() stepOutcome { return stepOutcome{kind: stepOutcomeCompleted} }
 
-// FailedOutcome records a classified failed-execution candidate.
-func FailedOutcome(failure Failure) (StepOutcome, error) {
+func failedOutcome(failure Failure) (stepOutcome, error) {
 	if !failure.Valid() {
-		return StepOutcome{}, fmt.Errorf("%w: failure: %w", ErrInvalidTermination, ErrInvalidFailure)
+		return stepOutcome{}, fmt.Errorf("%w: failure: %w", errInvalidTermination, ErrInvalidFailure)
 	}
-	return StepOutcome{kind: stepOutcomeFailed, failure: failure}, nil
+	return stepOutcome{kind: stepOutcomeFailed, failure: failure}, nil
 }
 
-func (outcome StepOutcome) valid() bool {
+func (outcome stepOutcome) valid() bool {
 	return outcome.kind == stepOutcomeNone && !outcome.failure.Valid() ||
 		outcome.kind == stepOutcomeCompleted && !outcome.failure.Valid() ||
 		outcome.kind == stepOutcomeFailed && outcome.failure.Valid()
 }
 
-// TerminationFacts are the independently recorded facts used by the Engine's
+// terminationFacts are the independently recorded facts used by the Engine's
 // terminal priority matrix. Presence is expressed by validated value objects,
 // not by interpreting an error such as context.Canceled.
-type TerminationFacts struct {
-	Kill         KillIntent
-	Deadline     DeadlineIntent
-	Cancellation CancellationIntent
-	Outcome      StepOutcome
+type terminationFacts struct {
+	kill         killIntent
+	deadline     deadlineIntent
+	cancellation cancellationIntent
+	outcome      stepOutcome
 }
 
 // TerminationCause is the stable reason category of a terminal Process.
@@ -210,45 +205,45 @@ type Termination struct {
 	failure Failure
 }
 
-// ResolveTermination applies Engine kill, deadline, cancellation, and Step
+// resolveTermination applies Engine kill, deadline, cancellation, and Step
 // outcome facts in that priority order. It never infers intent from an error.
-func ResolveTermination(facts TerminationFacts) (Termination, error) {
-	if !facts.Outcome.valid() {
-		return Termination{}, fmt.Errorf("%w: invalid Step outcome", ErrInvalidTermination)
+func resolveTermination(facts terminationFacts) (Termination, error) {
+	if !facts.outcome.valid() {
+		return Termination{}, fmt.Errorf("%w: invalid Step outcome", errInvalidTermination)
 	}
-	if facts.Kill.valid() {
-		return Termination{status: StatusKilled, cause: TerminationCauseEngineKill, reason: facts.Kill.reason}, nil
+	if facts.kill.valid() {
+		return Termination{status: StatusKilled, cause: TerminationCauseEngineKill, reason: facts.kill.reason}, nil
 	}
-	if facts.Deadline.valid() {
-		return terminationForDeadline(facts.Deadline), nil
+	if facts.deadline.valid() {
+		return terminationForDeadline(facts.deadline), nil
 	}
-	if facts.Cancellation.valid() {
-		return terminationForCancellation(facts.Cancellation), nil
+	if facts.cancellation.valid() {
+		return terminationForCancellation(facts.cancellation), nil
 	}
-	switch facts.Outcome.kind {
+	switch facts.outcome.kind {
 	case stepOutcomeCompleted:
 		return Termination{status: StatusCompleted, cause: TerminationCauseCompletion}, nil
 	case stepOutcomeFailed:
-		return terminationForFailure(facts.Outcome.failure), nil
+		return terminationForFailure(facts.outcome.failure), nil
 	default:
-		return Termination{}, fmt.Errorf("%w: no terminal fact was recorded", ErrInvalidTermination)
+		return Termination{}, fmt.Errorf("%w: no terminal fact was recorded", errInvalidTermination)
 	}
 }
 
-func terminationForDeadline(intent DeadlineIntent) Termination {
+func terminationForDeadline(intent deadlineIntent) Termination {
 	cause := TerminationCauseProcessDeadline
 	switch intent.owner {
-	case DeadlineOwnerParent:
+	case deadlineOwnerParent:
 		cause = TerminationCauseParentDeadline
-	case DeadlineOwnerHost:
+	case deadlineOwnerHost:
 		cause = TerminationCauseHostDeadline
 	}
 	return Termination{status: StatusTimedOut, cause: cause, reason: intent.reason}
 }
 
-func terminationForCancellation(intent CancellationIntent) Termination {
+func terminationForCancellation(intent cancellationIntent) Termination {
 	cause := TerminationCauseParentCancellation
-	if intent.owner == CancellationOwnerHost {
+	if intent.owner == cancellationOwnerHost {
 		cause = TerminationCauseHostCancellation
 	}
 	return Termination{status: StatusCancelled, cause: cause, reason: intent.reason}
@@ -269,7 +264,7 @@ func terminationForFailure(failure Failure) Termination {
 
 func validateTerminationReason(reason string) error {
 	if reason == "" || strings.TrimSpace(reason) != reason || len(reason) > maxTerminationReasonBytes {
-		return fmt.Errorf("%w: reason must be non-empty, trimmed, and at most %d bytes", ErrInvalidTermination, maxTerminationReasonBytes)
+		return fmt.Errorf("%w: reason must be non-empty, trimmed, and at most %d bytes", errInvalidTermination, maxTerminationReasonBytes)
 	}
 	return nil
 }

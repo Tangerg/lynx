@@ -33,27 +33,27 @@ func TestStatusTransitionMatrix(t *testing.T) {
 }
 
 func TestResolveTerminationPriorityMatrix(t *testing.T) {
-	kill, _ := NewKillIntent("operator requested kill")
-	deadline, _ := NewDeadlineIntent(DeadlineOwnerHost, "host deadline reached")
-	cancellation, _ := NewCancellationIntent(CancellationOwnerParent, "parent cancelled")
+	kill, _ := newKillIntent("operator requested kill")
+	deadline, _ := newDeadlineIntent(deadlineOwnerHost, "host deadline reached")
+	cancellation, _ := newCancellationIntent(cancellationOwnerParent, "parent cancelled")
 	failure, _ := NewFailure(FailureKindExternal, "provider.failed", "Provider failed.")
-	failed, _ := FailedOutcome(failure)
+	failed, _ := failedOutcome(failure)
 
 	tests := []struct {
 		name  string
-		facts TerminationFacts
+		facts terminationFacts
 		want  Status
 		cause TerminationCause
 	}{
-		{name: "kill wins all", facts: TerminationFacts{Kill: kill, Deadline: deadline, Cancellation: cancellation, Outcome: failed}, want: StatusKilled, cause: TerminationCauseEngineKill},
-		{name: "deadline wins cancellation and failure", facts: TerminationFacts{Deadline: deadline, Cancellation: cancellation, Outcome: failed}, want: StatusTimedOut, cause: TerminationCauseHostDeadline},
-		{name: "cancellation wins failure", facts: TerminationFacts{Cancellation: cancellation, Outcome: failed}, want: StatusCancelled, cause: TerminationCauseParentCancellation},
-		{name: "failure without control", facts: TerminationFacts{Outcome: failed}, want: StatusFailed, cause: TerminationCauseExternalFailure},
-		{name: "completion", facts: TerminationFacts{Outcome: CompletedOutcome()}, want: StatusCompleted, cause: TerminationCauseCompletion},
+		{name: "kill wins all", facts: terminationFacts{kill: kill, deadline: deadline, cancellation: cancellation, outcome: failed}, want: StatusKilled, cause: TerminationCauseEngineKill},
+		{name: "deadline wins cancellation and failure", facts: terminationFacts{deadline: deadline, cancellation: cancellation, outcome: failed}, want: StatusTimedOut, cause: TerminationCauseHostDeadline},
+		{name: "cancellation wins failure", facts: terminationFacts{cancellation: cancellation, outcome: failed}, want: StatusCancelled, cause: TerminationCauseParentCancellation},
+		{name: "failure without control", facts: terminationFacts{outcome: failed}, want: StatusFailed, cause: TerminationCauseExternalFailure},
+		{name: "completion", facts: terminationFacts{outcome: completedOutcome()}, want: StatusCompleted, cause: TerminationCauseCompletion},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			got, err := ResolveTermination(test.facts)
+			got, err := resolveTermination(test.facts)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -65,10 +65,10 @@ func TestResolveTerminationPriorityMatrix(t *testing.T) {
 }
 
 func TestResolveTerminationRejectsMissingFacts(t *testing.T) {
-	if _, err := ResolveTermination(TerminationFacts{}); !errors.Is(err, ErrInvalidTermination) {
-		t.Fatalf("ResolveTermination(empty) error = %v, want ErrInvalidTermination", err)
+	if _, err := resolveTermination(terminationFacts{}); !errors.Is(err, errInvalidTermination) {
+		t.Fatalf("resolveTermination(empty) error = %v, want errInvalidTermination", err)
 	}
-	if _, err := NewDeadlineIntent(DeadlineOwnerInvalid, "deadline"); !errors.Is(err, ErrInvalidTermination) {
-		t.Fatalf("NewDeadlineIntent error = %v, want ErrInvalidTermination", err)
+	if _, err := newDeadlineIntent(deadlineOwnerInvalid, "deadline"); !errors.Is(err, errInvalidTermination) {
+		t.Fatalf("newDeadlineIntent error = %v, want errInvalidTermination", err)
 	}
 }

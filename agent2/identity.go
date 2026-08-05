@@ -97,3 +97,13 @@ func ParseEffectID(value string) (EffectID, error) {
 	id, err := parseIdentity("effect ID", value)
 	return EffectID{id}, err
 }
+
+// WaitKey is an Execution-owned logical key used to associate a requested wait
+// with the WaitID later minted by the Engine.
+type WaitKey struct{ identity }
+
+// ParseWaitKey validates an Execution-owned logical wait key.
+func ParseWaitKey(value string) (WaitKey, error) {
+	id, err := parseIdentity("wait key", value)
+	return WaitKey{id}, err
+}

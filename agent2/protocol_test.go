@@ -108,3 +108,33 @@ func TestSettlementPreservesUnknownWithoutImplyingRetry(t *testing.T) {
 		t.Fatalf("decoded Settlement = %+v", decoded)
 	}
 }
+
+func TestWaitRequestKeepsEngineKeySeparateFromStrategySignalPayload(t *testing.T) {
+	key, _ := ParseWaitKey("approval:tool:1")
+	effect, err := RequestWait(key, json.RawMessage(`{"kind":"approval_opened","tool":"shell"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if effect.Target() != EffectTargetFramework {
+		t.Fatalf("RequestWait target = %s, want framework", effect.Target())
+	}
+	decodedKey, signalPayload, err := decodeWaitRequest(effect)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if decodedKey != key || string(signalPayload) != `{"kind":"approval_opened","tool":"shell"}` {
+		t.Fatalf("decoded wait request = key %v payload %s", decodedKey, signalPayload)
+	}
+
+	data, err := json.Marshal(effect)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var restored Effect
+	if err := json.Unmarshal(data, &restored); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := decodeWaitRequest(restored); err != nil {
+		t.Fatal(err)
+	}
+}
