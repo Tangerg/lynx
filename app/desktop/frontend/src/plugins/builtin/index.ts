@@ -15,7 +15,6 @@ import appearance from "./settings/appearance";
 import approvalsPane from "./settings/approvals";
 import personalization from "./settings/personalization";
 import chatSearch from "./chat/chat-search";
-import commandPalette from "./command/command-palette";
 import {
   composerBootstrap,
   composerKeymap,
@@ -243,7 +242,6 @@ const sidebar: PluginSpec[] = [sidebarActions, sidebarProjects, sidebarRecents, 
 
 const overlays: PluginSpec[] = [
   toaster,
-  commandPalette,
   chatSearch,
   defaultCommands,
   tasksPill,

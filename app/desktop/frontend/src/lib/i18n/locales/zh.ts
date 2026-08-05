@@ -16,7 +16,6 @@ export const zh: Record<string, string> = {
   "session.restore.history": "对话已回退到该检查点。",
   "session.restore.noCheckpoint": "首轮之前没有检查点 —— 文件保持原样。",
   "shortcut.closeWorkspaceView": "关闭工作区视图",
-  "shortcut.commandPalette": "打开命令面板",
   "markdown.diagram": "图表",
   "markdown.htmlArtifact": "HTML 产物",
   "theme.switchToDark": "切换到深色",
@@ -732,9 +731,6 @@ export const zh: Record<string, string> = {
   "filetree.empty.sub": "此工作区中没有文件。",
 
   // ── 命令面板 ──
-  "commandPalette.label": "命令面板",
-  "commandPalette.placeholder": "搜索命令、面板与会话…",
-  "commandPalette.empty": "无匹配命令",
 
   // ── 键盘快捷键 ──
   "shortcuts.sub":
@@ -838,7 +834,6 @@ export const zh: Record<string, string> = {
   "slash.search": "在代码库中搜索符号或模式",
   "slash.plan": "重述或编辑当前计划",
   "command.toggleSidebar": "切换侧栏折叠",
-  "command.openPalette": "打开命令面板",
   "command.toggleTheme": "切换深色/浅色主题",
   "command.newChat": "新建聊天",
   "command.closeFocused": "关闭面板或会话",
@@ -924,8 +919,6 @@ export const zh: Record<string, string> = {
   "agentMemory.noProject.title": "没有项目会话",
   "agentMemory.noProject.sub": "打开或选择一个会话以审阅其项目记忆。切到「用户」可查看跨项目记忆。",
   "agentMemory.error": "无法更新记忆。",
-  "commandPalette.panels": "面板",
-  "commandPalette.sessions": "会话",
 
   "rpcError.session_has_active_run": "该会话已有一个运行中的任务 —— 请先介入、回应或取消它。",
 
@@ -1020,5 +1013,4 @@ export const zh: Record<string, string> = {
   "command.group.view": "视图",
   "command.group.theme": "主题",
   "command.group.composer": "输入区",
-  "command.group.general": "通用",
 };

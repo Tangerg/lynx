@@ -18,7 +18,6 @@ export const fr: Record<string, string> = {
   "session.restore.noCheckpoint":
     "Aucun point de contrôle avant le premier tour — les fichiers restent inchangés.",
   "shortcut.closeWorkspaceView": "Fermer la vue de l'espace de travail",
-  "shortcut.commandPalette": "Ouvrir la palette de commandes",
   "markdown.diagram": "Diagramme",
   "markdown.htmlArtifact": "Artefact HTML",
   "theme.switchToDark": "Passer en sombre",
@@ -563,9 +562,6 @@ export const fr: Record<string, string> = {
   "filetree.empty.sub": "Aucun fichier dans cet espace de travail.",
 
   // ── Palette de commandes ──
-  "commandPalette.label": "Palette de commandes",
-  "commandPalette.placeholder": "Rechercher commandes, panneaux et sessions…",
-  "commandPalette.empty": "Aucune commande trouvée",
 
   // ── Raccourcis clavier ──
   "shortcuts.sub":
@@ -661,7 +657,6 @@ export const fr: Record<string, string> = {
   "slash.search": "Rechercher un symbole ou un motif dans le code",
   "slash.plan": "Reformuler ou modifier le plan actuel",
   "command.toggleSidebar": "Basculer la barre latérale",
-  "command.openPalette": "Ouvrir la palette de commandes",
   "command.toggleTheme": "Basculer thème sombre/clair",
   "command.newChat": "Nouveau chat",
   "command.closeFocused": "Fermer le panneau ou le chat",
@@ -945,8 +940,6 @@ export const fr: Record<string, string> = {
     "Choisissez un modèle d'embedding dans Réglages → Fournisseurs pour activer la recherche sémantique de code.",
   "codebase.unavailable.title": "Recherche dans la base de code indisponible",
   "codebase.unavailable.sub": "Cette runtime n'a pas activé l'indexation de la base de code.",
-  "commandPalette.panels": "Panneaux",
-  "commandPalette.sessions": "Sessions",
   "diff.layoutAria": "Disposition du diff",
   "diff.layout.unified": "Unifiée",
   "diff.layout.split": "Côte à côte",
@@ -1070,5 +1063,4 @@ export const fr: Record<string, string> = {
   "command.group.view": "Vue",
   "command.group.theme": "Thème",
   "command.group.composer": "Saisie",
-  "command.group.general": "Général",
 };

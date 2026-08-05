@@ -19,7 +19,6 @@ export const en: Record<string, string> = {
   "session.restore.history": "Conversation rewound to this checkpoint.",
   "session.restore.noCheckpoint": "No checkpoint before the first turn — files left as they are.",
   "shortcut.closeWorkspaceView": "Close workspace view",
-  "shortcut.commandPalette": "Open the command palette",
   "markdown.diagram": "Diagram",
   "markdown.htmlArtifact": "HTML artifact",
   "theme.switchToDark": "Switch to dark",
@@ -816,11 +815,6 @@ export const en: Record<string, string> = {
   "filetree.empty.sub": "No files in this workspace.",
 
   // ── Command palette ──
-  "commandPalette.label": "Command palette",
-  "commandPalette.placeholder": "Search commands, panels and sessions…",
-  "commandPalette.empty": "No commands match",
-  "commandPalette.panels": "Panels",
-  "commandPalette.sessions": "Sessions",
 
   // ── Keyboard shortcuts ──
   "shortcuts.sub":
@@ -954,7 +948,6 @@ export const en: Record<string, string> = {
 
   // ── Default command palette labels ──
   "command.toggleSidebar": "Toggle sidebar rail",
-  "command.openPalette": "Open command palette",
   "command.toggleTheme": "Toggle dark/light theme",
   "command.newChat": "New chat",
   "command.closeFocused": "Close panel or chat",
@@ -1091,5 +1084,4 @@ export const en: Record<string, string> = {
   "command.group.view": "View",
   "command.group.theme": "Theme",
   "command.group.composer": "Composer",
-  "command.group.general": "General",
 };

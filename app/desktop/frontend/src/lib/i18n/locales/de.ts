@@ -18,7 +18,6 @@ export const de: Record<string, string> = {
   "session.restore.noCheckpoint":
     "Kein Checkpoint vor dem ersten Zug — Dateien bleiben unverändert.",
   "shortcut.closeWorkspaceView": "Arbeitsbereichsansicht schließen",
-  "shortcut.commandPalette": "Befehlspalette öffnen",
   "markdown.diagram": "Diagramm",
   "markdown.htmlArtifact": "HTML-Artefakt",
   "theme.switchToDark": "Zu Dunkel wechseln",
@@ -562,9 +561,6 @@ export const de: Record<string, string> = {
   "filetree.empty.sub": "Keine Dateien in diesem Workspace.",
 
   // ── Befehlspalette ──
-  "commandPalette.label": "Befehlspalette",
-  "commandPalette.placeholder": "Befehle, Panels und Sitzungen suchen…",
-  "commandPalette.empty": "Keine Befehle gefunden",
 
   // ── Tastaturkürzel ──
   "shortcuts.sub":
@@ -661,7 +657,6 @@ export const de: Record<string, string> = {
   "slash.search": "Codebasis nach Symbol oder Muster durchsuchen",
   "slash.plan": "Aktuellen Plan neu formulieren oder bearbeiten",
   "command.toggleSidebar": "Seitenleiste umschalten",
-  "command.openPalette": "Befehlspalette öffnen",
   "command.toggleTheme": "Dunkles/Helles Theme umschalten",
   "command.newChat": "Neuer Chat",
   "command.closeFocused": "Panel oder Chat schließen",
@@ -943,8 +938,6 @@ export const de: Record<string, string> = {
     "Wähle in Einstellungen → Anbieter ein Embedding-Modell, um die semantische Code-Suche zu aktivieren.",
   "codebase.unavailable.title": "Codebasis-Suche nicht verfügbar",
   "codebase.unavailable.sub": "Diese Runtime hat die Codebasis-Index-Funktion nicht aktiviert.",
-  "commandPalette.panels": "Panels",
-  "commandPalette.sessions": "Sitzungen",
   "diff.layoutAria": "Diff-Layout",
   "diff.layout.unified": "Vereinheitlicht",
   "diff.layout.split": "Geteilt",
@@ -1072,5 +1065,4 @@ export const de: Record<string, string> = {
   "command.group.view": "Ansicht",
   "command.group.theme": "Thema",
   "command.group.composer": "Eingabe",
-  "command.group.general": "Allgemein",
 };

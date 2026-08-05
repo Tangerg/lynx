@@ -8,15 +8,15 @@ import { Pressable, type PressableProps } from "./pressable";
  *
  * It had been written five times, once inside this ring and four times outside it, and
  * the copies disagreed on every value: radius (`sm` / `md`), inset (2 / 2.5), gap
- * (2 / 2.5), and the type step. The part that actually showed was the last one — three
+ * (2 / 2.5), and the type step. The part that actually showed was the last one — two
  * different mechanisms answer "which row is the keyboard on" (Base UI sets
- * `data-highlighted`, cmdk sets `aria-selected` and `data-selected`, a hand-driven
- * listbox knows its own index) and each copy had wired a different wash to whichever one
- * it used.
+ * `data-highlighted`, a hand-driven listbox knows its own index and says so through
+ * `selected`) and each copy had wired a different wash to whichever one it used.
  *
- * All three are handled here, so which behaviour library a consumer needs cannot change
- * how selection looks — and a list driven by cmdk needs no `selected` prop, because the
- * attributes it already sets are two of the three.
+ * Both are handled here, so which behaviour library a consumer needs cannot change how
+ * selection looks. There was a third — cmdk's `data-selected`, which it writes on EVERY
+ * item as "true"/"false", so a presence-testing selector washed the whole list — and it
+ * left with the command palette.
  */
 export const floatingRowStyles = cva(
   [
@@ -24,11 +24,7 @@ export const floatingRowStyles = cva(
     "text-ui-md text-fg outline-none transition-colors",
     // Hover first so a selected row that is also hovered stays selected.
     "hover:bg-hover",
-    // Every one of these is VALUE-matched. `data-[selected]` tests the attribute's
-    // presence, and cmdk writes `data-selected="false"` on every item it renders —
-    // so the unselected rows took the selected wash too, and a command palette was
-    // a stack of filled pills with nothing to say which row the keyboard was on.
-    "aria-selected:bg-selected data-[highlighted]:bg-hover data-[selected=true]:bg-selected",
+    "aria-selected:bg-selected data-[highlighted]:bg-hover",
   ].join(" "),
   {
     variants: {
@@ -64,8 +60,8 @@ export type OptionRowProps = Omit<PressableProps, "aria-selected"> &
      * anything checking statically, and a call site that set the role and forgot the
      * state would be silently wrong to a screen reader.
      *
-     * Leave unset where a behaviour library owns selection: cmdk sets `aria-selected`
-     * and `data-selected` itself, and passing `undefined` here must not overwrite them.
+     * Leave unset where a behaviour library owns selection: Base UI sets its own
+     * attributes, and passing `undefined` here must not overwrite them.
      */
     selected?: boolean;
   };

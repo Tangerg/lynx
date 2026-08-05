@@ -277,11 +277,11 @@ test("settings hosts shortcut contributions without a second page frame", async 
 
   await page.getByRole("searchbox", { name: "Search settings..." }).fill("Keyboard shortcuts");
   await expect(page.getByRole("heading", { name: "Keyboard shortcuts" })).toHaveCount(1);
-  await expect(page.getByText("Open the command palette", { exact: true })).toBeVisible();
+  await expect(page.getByText("New session", { exact: true })).toBeVisible();
 
   await page.getByRole("searchbox", { name: "Filter shortcuts" }).fill("Escape");
   await expect(page.getByText("Close workspace view", { exact: true })).toBeVisible();
-  await expect(page.getByText("Open the command palette", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("New session", { exact: true })).toHaveCount(0);
   await expect(page.getByText("Esc", { exact: true })).toBeVisible();
 });
 

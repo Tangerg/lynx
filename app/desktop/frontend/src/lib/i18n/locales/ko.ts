@@ -17,7 +17,6 @@ export const ko: Record<string, string> = {
   "session.restore.history": "대화를 이 체크포인트로 되돌렸습니다.",
   "session.restore.noCheckpoint": "첫 턴 이전에 체크포인트가 없어 파일은 그대로 둡니다.",
   "shortcut.closeWorkspaceView": "작업 공간 보기 닫기",
-  "shortcut.commandPalette": "명령 팔레트 열기",
   "markdown.diagram": "다이어그램",
   "markdown.htmlArtifact": "HTML 아티팩트",
   "theme.switchToDark": "다크로 전환",
@@ -550,9 +549,6 @@ export const ko: Record<string, string> = {
   "filetree.empty.sub": "이 워크스페이스에 파일이 없습니다.",
 
   // ── 명령 팔레트 ──
-  "commandPalette.label": "명령 팔레트",
-  "commandPalette.placeholder": "명령, 패널, 세션 검색…",
-  "commandPalette.empty": "일치하는 명령 없음",
 
   // ── 키보드 단축키 ──
   "shortcuts.sub":
@@ -645,7 +641,6 @@ export const ko: Record<string, string> = {
   "slash.search": "코드베이스에서 심볼 또는 패턴 검색",
   "slash.plan": "현재 계획 다시 설명 또는 편집",
   "command.toggleSidebar": "사이드바 레일 전환",
-  "command.openPalette": "명령 팔레트 열기",
   "command.toggleTheme": "다크/라이트 테마 전환",
   "command.newChat": "새 채팅",
   "command.closeFocused": "패널 또는 채팅 닫기",
@@ -920,8 +915,6 @@ export const ko: Record<string, string> = {
   "codebase.disabled.sub": "설정 → 제공자에서 임베딩 모델을 고르면 의미 코드 검색이 켜집니다.",
   "codebase.unavailable.title": "코드베이스 검색을 사용할 수 없습니다",
   "codebase.unavailable.sub": "이 런타임은 코드베이스 색인 기능을 켜지 않았습니다.",
-  "commandPalette.panels": "패널",
-  "commandPalette.sessions": "세션",
   "diff.layoutAria": "diff 레이아웃",
   "diff.layout.unified": "통합",
   "diff.layout.split": "분할",
@@ -1038,5 +1031,4 @@ export const ko: Record<string, string> = {
   "command.group.view": "보기",
   "command.group.theme": "테마",
   "command.group.composer": "입력창",
-  "command.group.general": "일반",
 };

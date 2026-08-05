@@ -18,7 +18,6 @@ export const es: Record<string, string> = {
   "session.restore.noCheckpoint":
     "No hay punto de control antes del primer turno: los archivos quedan como están.",
   "shortcut.closeWorkspaceView": "Cerrar la vista del espacio de trabajo",
-  "shortcut.commandPalette": "Abrir la paleta de comandos",
   "markdown.diagram": "Diagrama",
   "markdown.htmlArtifact": "Artefacto HTML",
   "theme.switchToDark": "Cambiar a oscuro",
@@ -561,9 +560,6 @@ export const es: Record<string, string> = {
   "filetree.empty.sub": "No hay archivos en este espacio de trabajo.",
 
   // ── Paleta de comandos ──
-  "commandPalette.label": "Paleta de comandos",
-  "commandPalette.placeholder": "Buscar comandos, paneles y sesiones…",
-  "commandPalette.empty": "Sin comandos coincidentes",
 
   // ── Atajos de teclado ──
   "shortcuts.sub":
@@ -658,7 +654,6 @@ export const es: Record<string, string> = {
   "slash.search": "Buscar un símbolo o patrón en el código",
   "slash.plan": "Reformular o editar el plan actual",
   "command.toggleSidebar": "Alternar barra lateral",
-  "command.openPalette": "Abrir paleta de comandos",
   "command.toggleTheme": "Alternar tema oscuro/claro",
   "command.newChat": "Nuevo chat",
   "command.closeFocused": "Cerrar panel o chat",
@@ -940,8 +935,6 @@ export const es: Record<string, string> = {
   "codebase.unavailable.title": "La búsqueda en la base de código no está disponible",
   "codebase.unavailable.sub":
     "Este runtime no ha habilitado la capacidad de índice de la base de código.",
-  "commandPalette.panels": "Paneles",
-  "commandPalette.sessions": "Sesiones",
   "diff.layoutAria": "Disposición del diff",
   "diff.layout.unified": "Unificada",
   "diff.layout.split": "Dividida",
@@ -1063,5 +1056,4 @@ export const es: Record<string, string> = {
   "command.group.view": "Vista",
   "command.group.theme": "Tema",
   "command.group.composer": "Entrada",
-  "command.group.general": "General",
 };

@@ -16,11 +16,6 @@ export const GLOBAL_COMMAND_IDS = [
 
 export type CommandLookup = (id: string) => CommandSpec | undefined;
 
-export interface WorkspaceEscapePorts {
-  isPaletteOpen: () => boolean;
-  closeActiveWorkspaceView: () => boolean;
-}
-
 export function globalCommandShortcuts(lookupCommand: CommandLookup): ShortcutSpec[] {
   return GLOBAL_COMMAND_IDS.flatMap((id) => {
     const command = lookupCommand(id);
@@ -40,18 +35,19 @@ export function globalCommandShortcuts(lookupCommand: CommandLookup): ShortcutSp
   });
 }
 
-export function handleWorkspaceEscape(ports: WorkspaceEscapePorts): boolean {
-  if (ports.isPaletteOpen()) return false;
-  return ports.closeActiveWorkspaceView();
-}
-
-export function workspaceEscapeShortcut(t: Translate, ports: WorkspaceEscapePorts): ShortcutSpec {
+/** Escape closes the workspace view. It used to first ask whether the command
+ *  palette was open — cmdk owned Escape while it was, so the guard kept one key
+ *  from meaning two things. With the palette gone there is only the one meaning. */
+export function workspaceEscapeShortcut(
+  t: Translate,
+  closeActiveWorkspaceView: () => boolean,
+): ShortcutSpec {
   return {
     key: "Escape",
     description: t("shortcut.closeWorkspaceView"),
     allowInInputs: false,
     handler: () => {
-      handleWorkspaceEscape(ports);
+      closeActiveWorkspaceView();
     },
   };
 }

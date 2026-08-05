@@ -1,10 +1,6 @@
 import type { CommandSpec } from "@/plugins/sdk";
 import { describe, expect, it, vi } from "vitest";
-import {
-  globalCommandShortcuts,
-  handleWorkspaceEscape,
-  workspaceEscapeShortcut,
-} from "./globalKeymap";
+import { globalCommandShortcuts, workspaceEscapeShortcut } from "./globalKeymap";
 
 const command = (patch: Partial<CommandSpec> & Pick<CommandSpec, "id">): CommandSpec => ({
   label: patch.id,
@@ -45,40 +41,19 @@ describe("globalCommandShortcuts", () => {
 });
 
 describe("workspaceEscapeShortcut", () => {
-  it("exposes the workspace close binding", () => {
-    const shortcut = workspaceEscapeShortcut((k: string) => k, {
-      isPaletteOpen: () => false,
-      closeActiveWorkspaceView: () => false,
-    });
+  it("closes the workspace view", () => {
+    const closeActiveWorkspaceView = vi.fn(() => true);
+    const shortcut = workspaceEscapeShortcut((k: string) => k, closeActiveWorkspaceView);
 
     expect(shortcut).toMatchObject({
       key: "Escape",
       description: "shortcut.closeWorkspaceView",
       allowInInputs: false,
     });
-  });
 
-  it("does not close the workspace while the palette owns Escape", () => {
-    const closeActiveWorkspaceView = vi.fn();
-
-    expect(
-      handleWorkspaceEscape({
-        isPaletteOpen: () => true,
-        closeActiveWorkspaceView,
-      }),
-    ).toBe(false);
-    expect(closeActiveWorkspaceView).not.toHaveBeenCalled();
-  });
-
-  it("delegates Escape to the workspace when the palette is closed", () => {
-    const closeActiveWorkspaceView = vi.fn(() => true);
-
-    expect(
-      handleWorkspaceEscape({
-        isPaletteOpen: () => false,
-        closeActiveWorkspaceView,
-      }),
-    ).toBe(true);
+    // The palette used to own Escape while it was open, so this went through a
+    // guard that asked first. One meaning now, so the handler just closes.
+    shortcut.handler(new KeyboardEvent("keydown"));
     expect(closeActiveWorkspaceView).toHaveBeenCalledOnce();
   });
 });

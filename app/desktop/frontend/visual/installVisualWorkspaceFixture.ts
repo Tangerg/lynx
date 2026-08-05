@@ -321,11 +321,6 @@ const visualShortcuts = definePlugin({
   setup({ host }) {
     for (const shortcut of [
       {
-        key: "Mod+K",
-        description: "shortcut.commandPalette",
-        handler: () => undefined,
-      },
-      {
         key: "Mod+N",
         description: "sidebar.action.newSession",
         handler: () => undefined,

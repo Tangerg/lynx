@@ -1,7 +1,6 @@
 import { definePlugin, lookupExtensionByKey } from "@/plugins/sdk";
 import { COMMAND, SHORTCUT } from "@/plugins/sdk/kernelPoints";
 import { closeActiveWorkspaceView } from "@/plugins/builtin/workspace/public/navigation";
-import { usePaletteStore } from "../paletteStore";
 import { globalCommandShortcuts, workspaceEscapeShortcut } from "./application/globalKeymap";
 import { t } from "@/lib/i18n";
 
@@ -13,12 +12,6 @@ export default definePlugin({
     for (const shortcut of globalCommandShortcuts((id) => lookupExtensionByKey(COMMAND, id))) {
       host.extensions.contribute(SHORTCUT, shortcut);
     }
-    host.extensions.contribute(
-      SHORTCUT,
-      workspaceEscapeShortcut(t, {
-        isPaletteOpen: () => usePaletteStore.getState().open,
-        closeActiveWorkspaceView,
-      }),
-    );
+    host.extensions.contribute(SHORTCUT, workspaceEscapeShortcut(t, closeActiveWorkspaceView));
   },
 });

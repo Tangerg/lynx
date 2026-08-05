@@ -17,7 +17,6 @@ export const ja: Record<string, string> = {
   "session.restore.noCheckpoint":
     "最初のターンより前にチェックポイントがないため、ファイルはそのままです。",
   "shortcut.closeWorkspaceView": "ワークスペースビューを閉じる",
-  "shortcut.commandPalette": "コマンドパレットを開く",
   "markdown.diagram": "図",
   "markdown.htmlArtifact": "HTML アーティファクト",
   "theme.switchToDark": "ダークに切り替え",
@@ -554,9 +553,6 @@ export const ja: Record<string, string> = {
   "filetree.empty.sub": "このワークスペースにはファイルがありません。",
 
   // ── コマンドパレット ──
-  "commandPalette.label": "コマンドパレット",
-  "commandPalette.placeholder": "コマンド・パネル・セッションを検索…",
-  "commandPalette.empty": "一致するコマンドはありません",
 
   // ── キーボードショートカット ──
   "shortcuts.sub":
@@ -651,7 +647,6 @@ export const ja: Record<string, string> = {
   "slash.search": "コードベースでシンボルまたはパターンを検索",
   "slash.plan": "現在の計画を再表示または編集",
   "command.toggleSidebar": "サイドバーレールを切り替え",
-  "command.openPalette": "コマンドパレットを開く",
   "command.toggleTheme": "ダーク/ライトテーマを切り替え",
   "command.newChat": "新しいチャット",
   "command.closeFocused": "パネルまたはチャットを閉じる",
@@ -930,8 +925,6 @@ export const ja: Record<string, string> = {
     "「設定 → プロバイダー」で埋め込みモデルを選ぶと、セマンティックコード検索が有効になります。",
   "codebase.unavailable.title": "コードベース検索は利用できません",
   "codebase.unavailable.sub": "このランタイムはコードベースインデックス機能を有効にしていません。",
-  "commandPalette.panels": "パネル",
-  "commandPalette.sessions": "セッション",
   "diff.layoutAria": "差分レイアウト",
   "diff.layout.unified": "統合",
   "diff.layout.split": "分割",
@@ -1055,5 +1048,4 @@ export const ja: Record<string, string> = {
   "command.group.view": "ビュー",
   "command.group.theme": "テーマ",
   "command.group.composer": "入力欄",
-  "command.group.general": "一般",
 };

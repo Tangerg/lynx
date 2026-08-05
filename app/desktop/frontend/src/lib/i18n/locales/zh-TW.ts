@@ -16,7 +16,6 @@ export const zhTW: Record<string, string> = {
   "session.restore.history": "對話已回復至此檢查點。",
   "session.restore.noCheckpoint": "第一輪之前沒有檢查點 —— 檔案保持原樣。",
   "shortcut.closeWorkspaceView": "關閉工作區檢視",
-  "shortcut.commandPalette": "開啟命令面板",
   "markdown.diagram": "圖表",
   "markdown.htmlArtifact": "HTML 產物",
   "theme.switchToDark": "切換至深色",
@@ -554,9 +553,6 @@ export const zhTW: Record<string, string> = {
   "filetree.empty.sub": "此工作區中沒有檔案。",
 
   // ── 命令面板 ──
-  "commandPalette.label": "命令面板",
-  "commandPalette.placeholder": "搜尋命令、面板與工作階段…",
-  "commandPalette.empty": "無符合命令",
 
   // ── 鍵盤快速鍵 ──
   "shortcuts.sub":
@@ -659,7 +655,6 @@ export const zhTW: Record<string, string> = {
   "slash.search": "在程式碼庫中搜尋符號或模式",
   "slash.plan": "重述或編輯目前計畫",
   "command.toggleSidebar": "切換側欄收合",
-  "command.openPalette": "開啟命令面板",
   "command.toggleTheme": "切換深色/淺色佈景",
   "command.newChat": "新增聊天",
   "command.closeFocused": "關閉面板或對話",
@@ -922,8 +917,6 @@ export const zhTW: Record<string, string> = {
   "codebase.disabled.sub": "在「設定 → 供應商」中選一個 embedding 模型即可啟用語意程式碼搜尋。",
   "codebase.unavailable.title": "程式庫搜尋不可用",
   "codebase.unavailable.sub": "此執行時未啟用程式庫索引能力。",
-  "commandPalette.panels": "面板",
-  "commandPalette.sessions": "工作階段",
   "mcp.import.hint": '貼上一段 Claude Desktop 設定區塊 —— 在 "mcpServers" 下的一個或多個伺服器。',
 
   "rpcError.session_has_active_run": "該工作階段已有一個進行中的執行 —— 請先介入、回應或取消它。",
@@ -1019,5 +1012,4 @@ export const zhTW: Record<string, string> = {
   "command.group.view": "檢視",
   "command.group.theme": "主題",
   "command.group.composer": "輸入區",
-  "command.group.general": "一般",
 };
