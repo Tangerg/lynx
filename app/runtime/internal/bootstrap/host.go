@@ -40,7 +40,7 @@ type hostLifetime struct {
 	codebase     shutdownComponent
 	coordinator  shutdownComponent
 	execution    shutdownComponent
-	effectsTasks shutdownComponent
+	effectsTasks taskOwner
 	toolClosers  []ShutdownResource
 	resources    []ShutdownResource
 }
@@ -48,6 +48,11 @@ type hostLifetime struct {
 type shutdownComponent interface {
 	BeginShutdown()
 	AwaitShutdown(ctx context.Context) error
+}
+
+type taskOwner interface {
+	Cancel()
+	Wait(ctx context.Context) error
 }
 
 const hostShutdownTimeout = 10 * time.Second
@@ -79,7 +84,6 @@ func closeHostLifetime(lifetime *hostLifetime) error {
 		lifetime.integrations,
 		lifetime.codebase,
 		lifetime.coordinator,
-		lifetime.effectsTasks,
 	}
 	if !lifetime.stopping {
 		lifetime.stopping = true
@@ -87,6 +91,9 @@ func closeHostLifetime(lifetime *hostLifetime) error {
 			if component != nil {
 				component.BeginShutdown()
 			}
+		}
+		if lifetime.effectsTasks != nil {
+			lifetime.effectsTasks.Cancel()
 		}
 	}
 
@@ -101,6 +108,9 @@ func closeHostLifetime(lifetime *hostLifetime) error {
 		if component != nil {
 			errs = append(errs, component.AwaitShutdown(shutdownCtx))
 		}
+	}
+	if lifetime.effectsTasks != nil {
+		errs = append(errs, lifetime.effectsTasks.Wait(shutdownCtx))
 	}
 	if componentErr := errors.Join(errs...); componentErr != nil {
 		return componentErr

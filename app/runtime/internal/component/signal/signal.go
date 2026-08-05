@@ -1,6 +1,6 @@
 // Package signal provides a synchronous, single-observer in-process signal.
-// It carries no domain meaning: owning Application or adapter types define the
-// payload, while the composition root connects producer and consumer.
+// It assigns no meaning to the payload; the producer defines the value and a
+// separately installed observer consumes it.
 package signal
 
 import "sync"

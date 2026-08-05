@@ -1,8 +1,7 @@
 // Package taskgroup owns cancelable, request-detached work for a process
 // component. It provides the lifecycle boundary a component uses to launch,
 // cancel, and join its own background tasks without knowing what those tasks
-// do — the process-component scope shared across the application, delivery, and
-// composition rings.
+// do.
 package taskgroup
 
 import (
@@ -144,14 +143,6 @@ func (g *Group) Close(ctx context.Context) error {
 	g.Cancel()
 	return g.Wait(ctx)
 }
-
-// BeginShutdown implements the component shutdown phase used by the
-// composition root.
-func (g *Group) BeginShutdown() { g.Cancel() }
-
-// AwaitShutdown implements the component shutdown phase used by the
-// composition root.
-func (g *Group) AwaitShutdown(ctx context.Context) error { return g.Wait(ctx) }
 
 func (g *Group) doneLocked() chan struct{} {
 	if g.allDone == nil {

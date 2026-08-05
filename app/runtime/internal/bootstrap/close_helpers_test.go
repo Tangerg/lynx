@@ -309,3 +309,7 @@ func (f shutdownFunc) AwaitShutdown(ctx context.Context) error {
 	}
 	return f.wait(ctx)
 }
+
+func (f shutdownFunc) Cancel() { f.BeginShutdown() }
+
+func (f shutdownFunc) Wait(ctx context.Context) error { return f.AwaitShutdown(ctx) }

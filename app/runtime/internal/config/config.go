@@ -22,9 +22,9 @@ import (
 
 // Load resolves configuration from yaml + env + defaults. A missing config
 // file is fine (defaults + env only). Provider catalog validation, default
-// model selection, and provider-specific API-key env fallback live in the
-// composition root because they depend on the LLM adapter catalog, not on
-// config-source parsing.
+// model selection, and provider-specific API-key fallback are deliberately
+// outside config-source parsing because they depend on the live provider
+// catalog.
 func Load(configDirectories []string) (Settings, error) {
 	v := viper.New()
 	v.SetConfigName("config")
@@ -63,8 +63,8 @@ func Load(configDirectories []string) (Settings, error) {
 
 	model := v.GetString("model")
 
-	// API key: yaml `apiKey`, optionally overridden later by the composition
-	// root with the provider's native env var (e.g. ANTHROPIC_API_KEY).
+	// API key from yaml `apiKey` or LYRA_APIKEY. Provider-native environment
+	// fallback is resolved separately against the selected provider.
 	apiKey := v.GetString("apiKey")
 
 	servers, err := parseMCPServers(os.Getenv("LYRA_MCP_SERVERS"))

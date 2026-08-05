@@ -1,9 +1,8 @@
 // Package idempotency provides durable request-result replay coordination.
 //
-// It intentionally deals in opaque keys, fingerprints, and bytes: transport
-// adapters decide how to derive a request fingerprint and encode a response.
-// Keeping this mechanism out of domain prevents JSON-RPC retention and replay
-// policy from becoming business vocabulary.
+// It intentionally deals in opaque keys, fingerprints, and bytes: callers
+// decide how to derive a request fingerprint and encode a result. The mechanism
+// does not prescribe business or transport vocabulary.
 package idempotency
 
 import (

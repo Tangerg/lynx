@@ -493,6 +493,14 @@ func TestInnerRingCommentsDoNotNameOuterArchitecture(t *testing.T) {
 			ring:      "infra",
 			forbidden: regexp.MustCompile(`(?i)delivery[/ -](layer|protocol|server)|\b(bootstrap|frontend)\b|composition[ -]root|internal/adapter/`),
 		},
+		{
+			ring:      "component",
+			forbidden: regexp.MustCompile(`(?i)\b(application|adapters?|delivery|infrastructure|infra|bootstrap|frontend)\b|composition[ -]root`),
+		},
+		{
+			ring:      "config",
+			forbidden: regexp.MustCompile(`(?i)\b(delivery|bootstrap|frontend)\b|composition[ -]root`),
+		},
 	}
 	for _, check := range checks {
 		t.Run(check.ring, func(t *testing.T) {

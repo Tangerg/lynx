@@ -1,5 +1,5 @@
-// Package secretmask provides fixed-width redaction for presentation-safe
-// application read models and diagnostics.
+// Package secretmask provides fixed-width redaction for values and diagnostics
+// that may leave their secret-owning boundary.
 package secretmask
 
 const (

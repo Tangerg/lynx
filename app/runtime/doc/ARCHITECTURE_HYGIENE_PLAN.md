@@ -919,6 +919,7 @@ Acceptance:
 | 45. Runtime protocol contract ownership | Completed | 2026-08-05 | 2026-08-05 | Protocol semantics, transport binding, auxiliary APIs, generated artifacts, canonical samples, and version drift gates are all Runtime-owned; no generator, current architecture guide, or production source resolves protocol truth through a client module. Full workspace/standalone and focused verification passed. |
 | 46. Cancellation, filesystem, and narrowing safety closure | Completed | 2026-08-05 | 2026-08-05 | Persistence and OAuth startup inherit caller cancellation, workspace archives use root-scoped filesystem access, persisted integer discriminants cannot narrow into valid enums, and precise interface/error-handling checks are clean. Full workspace/standalone plus focused race/static/security verification passed. |
 | 47. Infrastructure boundary and external-output closure | Completed | 2026-08-05 | 2026-08-05 | Infrastructure comments no longer name composition or presentation owners and a mechanical gate covers the ring; Git output parsing fails on malformed counts/hunks and accepts only documented nonzero statuses; duplicated text-delta coalescing has one semantic path. Standalone full and focused race/static verification passed. |
+| 48. Shared-component semantic ownership | Completed | 2026-08-05 | 2026-08-05 | Component and configuration comments describe owned behavior without outer-ring vocabulary; TaskGroup no longer exports duplicate shutdown aliases solely to satisfy a construction-owned interface, and the consumer names the narrower Cancel/Wait port. Standalone full and focused race/static verification passed. |
 
 Allowed status values: `Pending`, `In progress`, `Completed`, `Blocked`, `Revised`.
 
@@ -1024,6 +1025,20 @@ Allowed status values: `Pending`, `In progress`, `Completed`, `Blocked`, `Revise
   residue scans passed. Workspace-mode verification is temporarily masked by
   the concurrently developed CLI's unpublished sibling-module replace; Runtime
   remains independently buildable and does not absorb that client dependency.
+
+### 2026-08-05 — Batch 48 completed
+
+- Extended the comment-dependency gate to shared `component` and `config`
+  packages. Task lifetime, idempotency, signal, redaction, and configuration
+  documentation now state their own semantics instead of naming application,
+  delivery, or composition consumers.
+- Removed `TaskGroup.BeginShutdown` / `AwaitShutdown`, which duplicated
+  `Cancel` / `Wait` only so the generic component could satisfy a
+  construction-owned protocol. The Host now owns a precise task-owner port and
+  adapts its shutdown sequence without teaching TaskGroup about that caller.
+- Focused component, configuration, bootstrap, and architecture tests, full
+  standalone build/vet/test, race tests, static analysis, lint, formatting,
+  dead-code analysis, and residue scans passed.
 
 ### 2026-08-04 — Batch 38 completed
 
