@@ -21,6 +21,26 @@ var (
 	ErrInvalidState = errors.New("interaction: invalid execution state")
 )
 
+// CompletionSource identifies the semantic value that completed an
+// Interaction. It is Strategy-owned and does not add a Framework lifecycle
+// status.
+type CompletionSource string
+
+const (
+	// CompletionSourceModelResponse means the model produced a final response
+	// without requesting another tool round.
+	CompletionSourceModelResponse CompletionSource = "model_response"
+
+	// CompletionSourceDirectToolResults means every tool in one model-requested
+	// batch explicitly declared that its results complete the Interaction.
+	CompletionSourceDirectToolResults CompletionSource = "direct_tool_results"
+)
+
+// Valid reports whether source is a supported Interaction completion source.
+func (source CompletionSource) Valid() bool {
+	return source == CompletionSourceModelResponse || source == CompletionSourceDirectToolResults
+}
+
 // Input is the complete caller-supplied starting working context. Tools are
 // deliberately absent: a Deployment freezes executable tools in its
 // Dispatcher so model-visible definitions and executable behavior cannot drift
@@ -46,8 +66,16 @@ func (input Input) Validate() error {
 // independently of best-effort stream Delta delivery, so it remains complete
 // after observer loss or snapshot restoration.
 type Output struct {
-	// Response is the authoritative accumulated final model response.
-	Response chat.Response `json:"response"`
+	// Source identifies which mutually exclusive result field is authoritative.
+	Source CompletionSource `json:"source"`
+
+	// ModelResponse is the authoritative accumulated response when Source is
+	// CompletionSourceModelResponse.
+	ModelResponse *chat.Response `json:"model_response,omitempty"`
+
+	// DirectToolResults preserves model ToolCall order when Source is
+	// CompletionSourceDirectToolResults.
+	DirectToolResults []chat.ToolResult `json:"direct_tool_results,omitempty"`
 
 	// ModelCalls is the number of model Effects issued by this Interaction.
 	ModelCalls uint32 `json:"model_calls"`
@@ -56,17 +84,49 @@ type Output struct {
 // Validate verifies that Output contains a final model response and an actual
 // model-call count.
 func (output Output) Validate() error {
+	if !output.Source.Valid() {
+		return errors.New("interaction: output source is invalid")
+	}
 	if output.ModelCalls == 0 {
 		return errors.New("interaction: output model_calls must be positive")
 	}
-	if err := output.Response.Validate(); err != nil {
-		return fmt.Errorf("interaction: output response: %w", err)
-	}
-	choice := output.Response.First()
-	if choice == nil || choice.Message == nil {
-		return errors.New("interaction: output response has no final assistant message")
+	switch output.Source {
+	case CompletionSourceModelResponse:
+		if output.ModelResponse == nil || len(output.DirectToolResults) != 0 {
+			return errors.New("interaction: model_response output requires only ModelResponse")
+		}
+		if err := output.ModelResponse.Validate(); err != nil {
+			return fmt.Errorf("interaction: output model response: %w", err)
+		}
+		choice := output.ModelResponse.First()
+		if choice == nil || choice.Message == nil || choice.FinishReason == "" {
+			return errors.New("interaction: output has no finished assistant response")
+		}
+	case CompletionSourceDirectToolResults:
+		if output.ModelResponse != nil || len(output.DirectToolResults) == 0 {
+			return errors.New("interaction: direct_tool_results output requires only DirectToolResults")
+		}
+		seen := make(map[string]struct{}, len(output.DirectToolResults))
+		for index := range output.DirectToolResults {
+			result := output.DirectToolResults[index]
+			if err := result.Validate(); err != nil {
+				return fmt.Errorf("interaction: direct tool result %d: %w", index, err)
+			}
+			if _, duplicate := seen[result.ID]; duplicate {
+				return fmt.Errorf("interaction: duplicate direct tool result ID %q", result.ID)
+			}
+			seen[result.ID] = struct{}{}
+		}
 	}
 	return nil
+}
+
+// DirectResultTool is an optional Tool capability declaring that a successful
+// model-requested batch containing only such tools returns its ordered results
+// directly instead of making another model call. The declaration is frozen by
+// NewDispatcher; a panic or capability-resolution error rejects construction.
+type DirectResultTool interface {
+	ReturnsDirectResult() bool
 }
 
 // DefinitionConfig describes immutable Interaction behavior. MaxModelCalls is

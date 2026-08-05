@@ -3,7 +3,7 @@
 > 状态：持续实施
 > 建立日期：2026-08-06
 > 最后更新：2026-08-06
-> 当前阶段：P3 真实 Interaction 验证，3/9 完成
+> 当前阶段：P3 真实 Interaction 验证，4/9 完成
 > 当前实施范围：仅 `agent2`
 > 临时模块路径：`github.com/Tangerg/lynx/agent2`
 > 最终模块路径：`github.com/Tangerg/lynx/agent`
@@ -69,7 +69,7 @@ go test ./...
 | P0 模块边界与设计合同 | 完成 | 6/6 | 建立独立 module、分层文档、能力台账和候选合同 |
 | P1 候选窄腰与消费审计 | 完成 | 9/9 | 用只读审计和多策略 spike 验证 erased wire、协议与状态机，不冻结 API |
 | P2 Engine 最小执行闭环 | 完成 | 8/8 | 单 Process、Signal、Effect、状态提交、snapshot、event/delta、limit |
-| P3 真实 Interaction 验证 | 进行中 | 3/9 | 真实模型/工具 dispatcher、流、HITL、steer，并接入 disposable consumer |
+| P3 真实 Interaction 验证 | 进行中 | 4/9 | 真实模型/工具 dispatcher、流、HITL、steer，并接入 disposable consumer |
 | P4 子 Process 组合与合同冻结 | 未开始 | 0/9 | start/wait、递归、组合、预算、取消、恢复；多消费方验证后冻结窄腰 |
 | P5 Planning 与 GOAP | 未开始 | 0/8 | Planning 状态、Planner SPI、GOAP 搜索与 replan |
 | P6 Workflow | 未开始 | 0/8 | 原生 sequence/gate/router/fork/join/loop/agent call |
@@ -120,7 +120,7 @@ go test ./...
 - [x] P3-01 审查旧 `toolloop`、interaction 和 runtime interaction 实现并记录裁决。
 - [x] P3-02 使用 `chatclient` 和 `tool` 实现原生 Interaction Definition 与 Effect dispatcher。
 - [x] P3-03 支持普通与流式模型调用；listener 失败隔离、Delta 有界丢弃可观测、恢复不补播。
-- [ ] P3-04 支持模型/工具循环、清晰停止条件和可独立于 Delta 导出的最终 Output。
+- [x] P3-04 支持模型/工具循环、清晰停止条件和可独立于 Delta 导出的最终 Output。
 - [ ] P3-05 支持工具 checkpoint、挂起和精确恢复，验证 settlement 去重与不可重试副作用。
 - [ ] P3-06 支持 HITL；WaitID 由 Engine 铸造，业务 payload 只由 Interaction 解释。
 - [ ] P3-07 支持 steer，并为 Interaction 明确和测试 Signal 安全消费边界与最坏生效延迟。
@@ -251,6 +251,7 @@ go test ./...
 
 | 日期 | 阶段 | 实际事实 | 验证与结果 |
 |---|---|---|---|
+| 2026-08-06 | P3 | 收口 Interaction 的三种唯一停止语义。普通完成要求模型返回含完整 assistant message 且有明确 FinishReason 的非 ToolCall 响应，Output 以 `CompletionSourceModelResponse` + `ModelResponse` 表达；工具只有显式实现 `DirectResultTool.ReturnsDirectResult` 的可选 capability，且当前 batch 每个 ToolCall 都如此声明时，才以 `CompletionSourceDirectToolResults` + 原 ToolCall 顺序的 `DirectToolResults` 完成；达到显式 `MaxModelCalls` 时以 `interaction.limit.model_calls` 的 execution Failure 终止，不伪造模型或工具输出。Output 使用严格互斥字段集并验证重复 ToolResult ID；ExecutionState 改为显式保存最终 Output，不再将“待工具结算的模型响应”复用为“已完成结果”。Direct capability 通过 `tool.Capability` 穿透 decorator 链且在 Dispatcher 构造时冻结，panic/非法链直接拒绝 Deployment 组件 | 独立 build/vet/staticcheck/test/race 全绿。端到端测试证明普通模型响应和两轮 model→tool→model 都产生 `CompletionSourceModelResponse`；显式 Direct Tool 只调用一次模型并返回独立 ToolResult Output；非 Direct Tool 在 `MaxModelCalls=1` 时不发起第二次模型调用，而是以稳定 code 失败。P3-04 完成，P3 更新为 4/9 |
 | 2026-08-06 | P3 | 在 Interaction Dispatcher 中实现明确的普通/流式模型调用选择；`StreamModelResponses=false` 只调用 `chatclient.Call`，true 只调用 `chatclient.Stream`。流式路径将每个 provider-neutral response chunk 先通过 `chat.ResponseAccumulator.Add` 验证并累积，再编码为严格版本化的 `ModelResponseDelta`；对外只提供 `ParseModelResponseDelta` 和防御性 `Response` 快照。流结束时 settlement 携带 Accumulator 的完整 response，Execution 仍仅由 settlement Signal 产生 final Output，不读取 Delta。空流、nil chunk、非法 chunk 或中途 stream error 都不伪造 final；产品展示语义没有进入 Framework | 独立 build/vet/staticcheck/test/race 全绿。真实 Engine 测试证明 Event/Delta listener 返回 error 或 panic 不影响 Interaction 完成；容量为 1 的慢 listener 使 `DroppedDeltas` 单调增长并发布 `agent.delta.dropped`，同时 final 仍保留 66 个流式片段的完整内容；已完成 Process 的 snapshot/restore 不补播任何历史 Delta 且 Output 不变。P3-03 完成，P3 更新为 3/9 |
 | 2026-08-06 | P3 | 新增生产级 `agent2/interaction` package，使用原生 Definition/Execution 和 Deployment-bound Dispatcher 实现第一条完整托管路径。Definition 仅持有 Descriptor、显式 `MaxModelCalls` 和 Strategy-owned state；state 使用 strict versioned wire 自足保存 WorkingContext、模型调用计数、推进阶段与待结算模型响应。Dispatcher 直接复用根模块 `chatclient.Client`、`tool.Tool` 和 `core/chat`，构造时冻结并校验唯一 Tool manifest；model call 和整个 Tool batch 都通过严格可判别的 dispatcher Effect/settlement Signal 完成，Engine 不解析 payload。模型请求的 assistant ToolCall 与 ToolResult 按原顺序归并进下一轮 WorkingContext；重复 ToolCall ID、多 choice Tool 分支、错位 result 和非法恢复状态均确定拒绝。Dispatcher 默认 `ReplayPolicyNever`，不对可计费模型调用或可能有副作用的 Tool 做隐式重投。新增子 package 架构守卫，禁止旧 `agent` 和 `app` 依赖 | 使用已推送的根模块 pseudo-version 建立真实独立 module 依赖，不依赖 `go.work` 偶然解析；`GOWORK=off go build ./...`、`GOWORK=off go vet ./...`、`staticcheck ./...`、`GOWORK=off go test ./...`、`GOWORK=off go test -race ./...` 全绿；真实消费测试覆盖纯模型完成、模型→Tool→模型循环、冻结工具清单、稳定结果顺序和 WorkingContext snapshot/restore；P3-02 完成，P3 更新为 2/9 |
 | 2026-08-06 | P3 | 完成旧 `agent/interaction`、`agent/toolloop` 与真实 `app/runtime` 交互路径的 P3 专项只读审计。裁决保留 WorkingContext 自足恢复、ToolCall/ToolResult 稳定顺序、显式并行声明、暂停 checkpoint 和 `chat.ResponseAccumulator` 终值聚合思想；治本式移除 `interaction`/`toolloop` 双公共概念、Strategy/Tool 自铸等待 ID、Runner 多推进入口、middleware 侧路 steer、同步 observer 反向控制执行，以及 conversation/history、价格、run/segment、存储 checkpoint 和业务审批抽象。确定 Model/Tool batch 均通过 dispatcher-owned Effect，HITL 通过 Strategy payload + Engine-minted WaitID，无可证明 settlement 不隐式重试 | 只读证据和裁决已写入能力台账；本轮未改动旧 `agent`、`app/runtime` 或生产代码；P3-01 完成，P3 更新为 1/9 |
@@ -274,6 +275,6 @@ go test ./...
 
 P1–P2 已完成，得到经过旧模块/Host 审计、Interaction/Planning spike、Prepared Step 恢复 harness、完整终态表、strict codec/fuzz 和依赖架构守卫共同验证的候选窄腰与单 Process Engine。它仍不是冻结的 API/wire baseline；只有 P3 真实 Interaction 与 P4 child composition 以及第二个 disposable consumer 共同通过后，才建立首个 baseline。
 
-P3-01–P3-03 已完成。下一轮收口 Interaction 循环的终止语义：区分最终模型响应、模型调用上限和显式 direct Tool 结果，保证每种停止都有严格 Output 或稳定 Failure，不依赖 Delta 或观察端推断。
+P3-01–P3-04 已完成。下一轮实现 Tool batch 的精确 checkpoint 与暂停 continuation：已结算前缀、待执行后缀和活动暂停点都归 Interaction ExecutionState，每个外部副作用仍只经 prepared EffectID/settlement 边界；恢复不重调模型、不重执行已结算 Tool，unknown 结果仍由 Process 显式裁决。
 
 在 P1–P9 完成前，不迁移 `app/runtime`，不删除旧 `agent`，不发布 `agent2` 稳定版本。

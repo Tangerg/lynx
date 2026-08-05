@@ -50,6 +50,7 @@ type modelCallResult struct {
 
 type toolBatchResult struct {
 	Results []chat.ToolResult `json:"results"`
+	Direct  bool              `json:"direct"`
 }
 
 func newModelEffect(request *chat.Request) (effectEnvelope, error) {

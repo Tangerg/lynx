@@ -3,6 +3,8 @@ package interaction
 import (
 	"context"
 	"fmt"
+	"strings"
+	"unicode/utf8"
 
 	agent "github.com/Tangerg/lynx/agent2"
 	"github.com/Tangerg/lynx/core/chat"
@@ -101,17 +103,11 @@ func (execution *execution) acceptModel(signals []agent.Signal) (agent.Transitio
 		return agent.Transition{}, err
 	}
 	if len(calls) == 0 {
-		output := Output{Response: *response, ModelCalls: execution.state.ModelCalls}
-		if err := output.Validate(); err != nil {
-			return agent.Transition{}, err
-		}
-		encoded, err := agent.EncodeOutput(output)
-		if err != nil {
-			return agent.Transition{}, err
-		}
-		execution.state.Phase = phaseCompleted
-		execution.state.PendingResponse = response
-		return agent.Complete(1, encoded)
+		return execution.complete(1, Output{
+			Source:        CompletionSourceModelResponse,
+			ModelResponse: response,
+			ModelCalls:    execution.state.ModelCalls,
+		})
 	}
 
 	effectEnvelope, err := newToolBatchEffect(calls)
@@ -150,6 +146,13 @@ func (execution *execution) acceptTools(signals []agent.Signal) (agent.Transitio
 	if err := validateToolResults(calls, results); err != nil {
 		return agent.Transition{}, err
 	}
+	if envelope.ToolResult.Direct {
+		return execution.complete(1, Output{
+			Source:            CompletionSourceDirectToolResults,
+			DirectToolResults: append([]chat.ToolResult(nil), results...),
+			ModelCalls:        execution.state.ModelCalls,
+		})
+	}
 	request := execution.state.Request.Clone()
 	request.Messages = append(request.Messages, assistant.Clone(), chat.NewToolMessage(results...))
 	if err := request.Validate(); err != nil {
@@ -159,6 +162,20 @@ func (execution *execution) acceptTools(signals []agent.Signal) (agent.Transitio
 	execution.state.PendingResponse = nil
 	execution.state.Phase = phaseReadyModel
 	return execution.requestModel(1)
+}
+
+func (execution *execution) complete(consumed uint32, output Output) (agent.Transition, error) {
+	if err := output.Validate(); err != nil {
+		return agent.Transition{}, err
+	}
+	encoded, err := agent.EncodeOutput(output)
+	if err != nil {
+		return agent.Transition{}, err
+	}
+	execution.state.Phase = phaseCompleted
+	execution.state.PendingResponse = nil
+	execution.state.FinalOutput = &output
+	return agent.Complete(consumed, encoded)
 }
 
 func validateToolResults(calls []chat.ToolCall, results []chat.ToolResult) error {
@@ -188,6 +205,7 @@ func (execution *execution) fail(
 }
 
 func boundedDiagnostic(message string) string {
+	message = strings.TrimSpace(message)
 	if message == "" {
 		return "Interaction operation failed"
 	}
@@ -195,7 +213,15 @@ func boundedDiagnostic(message string) string {
 	if len(message) <= limit {
 		return message
 	}
-	return message[:limit]
+	message = message[:limit]
+	for !utf8.ValidString(message) {
+		message = message[:len(message)-1]
+	}
+	message = strings.TrimSpace(message)
+	if message == "" {
+		return "Interaction operation failed"
+	}
+	return message
 }
 
 var _ agent.Execution = (*execution)(nil)

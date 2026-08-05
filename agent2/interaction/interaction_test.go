@@ -53,7 +53,8 @@ func TestManagedInteractionCompletesFromModelResponse(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if output.ModelCalls != 1 || output.Response.Text() != "done" {
+	if output.Source != interaction.CompletionSourceModelResponse || output.ModelResponse == nil ||
+		output.ModelCalls != 1 || output.ModelResponse.Text() != "done" {
 		t.Fatalf("output = %#v", output)
 	}
 }
@@ -102,7 +103,8 @@ func TestManagedInteractionExecutesToolLoopInModelOrder(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if output.ModelCalls != 2 || output.Response.Text() != "5" {
+	if output.Source != interaction.CompletionSourceModelResponse || output.ModelResponse == nil ||
+		output.ModelCalls != 2 || output.ModelResponse.Text() != "5" {
 		t.Fatalf("output = %#v", output)
 	}
 	if model.Calls() != 2 {
@@ -163,10 +165,108 @@ func TestDefinitionRestoresCompleteWorkingContext(t *testing.T) {
 	}
 }
 
+func TestDirectResultToolCompletesWithoutAnotherModelCall(t *testing.T) {
+	type input struct {
+		Value string `json:"value"`
+	}
+	echo, err := tool.NewFunc(tool.FuncConfig{
+		Name:        "echo",
+		Description: "Return the supplied value directly.",
+	}, func(_ context.Context, input input) (string, error) {
+		return input.Value, nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	model := &singleToolCallModel{call: chat.ToolCall{ID: "call_direct", Name: "echo", Arguments: `{"value":"direct"}`}}
+	deployment := newDeployment(t, model, []tool.Tool{directTool{Tool: echo}}, 2)
+	engine, err := agent.NewEngine(agent.EngineConfig{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := engine.Run(context.Background(), deployment, interactionInput(t, "direct"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := engine.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if result.Status() != agent.StatusCompleted || model.Calls() != 1 {
+		t.Fatalf("status = %s, model calls = %d", result.Status(), model.Calls())
+	}
+	erased, _ := result.Output()
+	output, err := agent.DecodeOutput[interaction.Output](erased)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if output.Source != interaction.CompletionSourceDirectToolResults || output.ModelResponse != nil ||
+		len(output.DirectToolResults) != 1 || output.DirectToolResults[0].Result != "direct" {
+		t.Fatalf("output = %#v", output)
+	}
+}
+
+func TestModelCallLimitProducesStableFailure(t *testing.T) {
+	type noInput struct{}
+	next, err := tool.NewFunc(tool.FuncConfig{
+		Name:        "next",
+		Description: "Request another model round.",
+	}, func(context.Context, noInput) (string, error) { return "continue", nil })
+	if err != nil {
+		t.Fatal(err)
+	}
+	model := &singleToolCallModel{call: chat.ToolCall{ID: "call_limit", Name: "next", Arguments: `{}`}}
+	deployment := newDeployment(t, model, []tool.Tool{next}, 1)
+	engine, err := agent.NewEngine(agent.EngineConfig{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := engine.Run(context.Background(), deployment, interactionInput(t, "loop"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := engine.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if result.Status() != agent.StatusFailed || model.Calls() != 1 {
+		t.Fatalf("status = %s, model calls = %d", result.Status(), model.Calls())
+	}
+	failure, ok := result.Termination().Failure()
+	if !ok || failure.Code() != "interaction.limit.model_calls" || failure.Kind() != agent.FailureKindExecution {
+		t.Fatalf("failure = %#v, present = %t", failure, ok)
+	}
+}
+
 type scriptedModel struct {
 	mu    sync.Mutex
 	calls int
 }
+
+type singleToolCallModel struct {
+	mu    sync.Mutex
+	calls int
+	call  chat.ToolCall
+}
+
+func (model *singleToolCallModel) Call(context.Context, *chat.Request) (*chat.Response, error) {
+	model.mu.Lock()
+	defer model.mu.Unlock()
+	model.calls++
+	return toolCallResponse(model.call), nil
+}
+
+func (model *singleToolCallModel) Calls() int {
+	model.mu.Lock()
+	defer model.mu.Unlock()
+	return model.calls
+}
+
+type directTool struct {
+	tool.Tool
+}
+
+func (value directTool) Unwrap() tool.Tool { return value.Tool }
+
+func (directTool) ReturnsDirectResult() bool { return true }
 
 func (model *scriptedModel) Call(_ context.Context, request *chat.Request) (*chat.Response, error) {
 	model.mu.Lock()

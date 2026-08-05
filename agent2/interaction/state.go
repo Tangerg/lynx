@@ -36,6 +36,7 @@ type executionState struct {
 	Request         *chat.Request  `json:"request"`
 	ModelCalls      uint32         `json:"model_calls"`
 	PendingResponse *chat.Response `json:"pending_response,omitempty"`
+	FinalOutput     *Output        `json:"final_output,omitempty"`
 }
 
 func (state executionState) Validate(maxModelCalls uint32) error {
@@ -56,15 +57,15 @@ func (state executionState) Validate(maxModelCalls uint32) error {
 	}
 	switch state.Phase {
 	case phaseReadyModel:
-		if state.PendingResponse != nil {
+		if state.PendingResponse != nil || state.FinalOutput != nil {
 			return fmt.Errorf("%w: ready_model has inconsistent pending response or limit", ErrInvalidState)
 		}
 	case phaseAwaitingModel:
-		if state.PendingResponse != nil || state.ModelCalls == 0 {
+		if state.PendingResponse != nil || state.FinalOutput != nil || state.ModelCalls == 0 {
 			return fmt.Errorf("%w: awaiting_model has inconsistent pending response or limit", ErrInvalidState)
 		}
 	case phaseAwaitingTools:
-		if state.PendingResponse == nil || state.ModelCalls == 0 {
+		if state.PendingResponse == nil || state.FinalOutput != nil || state.ModelCalls == 0 {
 			return fmt.Errorf("%w: awaiting_tools requires a model response", ErrInvalidState)
 		}
 		if err := state.PendingResponse.Validate(); err != nil {
@@ -75,15 +76,14 @@ func (state executionState) Validate(maxModelCalls uint32) error {
 			return fmt.Errorf("%w: pending response has no unambiguous tool calls", ErrInvalidState)
 		}
 	case phaseCompleted:
-		if state.PendingResponse == nil || state.ModelCalls == 0 {
-			return fmt.Errorf("%w: completed state requires its final response", ErrInvalidState)
+		if state.PendingResponse != nil || state.FinalOutput == nil || state.ModelCalls == 0 {
+			return fmt.Errorf("%w: completed state requires only its final Output", ErrInvalidState)
 		}
-		if err := state.PendingResponse.Validate(); err != nil {
-			return fmt.Errorf("%w: final response: %w", ErrInvalidState, err)
+		if err := state.FinalOutput.Validate(); err != nil {
+			return fmt.Errorf("%w: final Output: %w", ErrInvalidState, err)
 		}
-		calls, _, err := responseToolCalls(state.PendingResponse)
-		if err != nil || len(calls) != 0 {
-			return fmt.Errorf("%w: completed response must not request tools", ErrInvalidState)
+		if state.FinalOutput.ModelCalls != state.ModelCalls {
+			return fmt.Errorf("%w: final Output model-call count does not match state", ErrInvalidState)
 		}
 	}
 	return nil

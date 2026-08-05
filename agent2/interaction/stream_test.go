@@ -43,8 +43,8 @@ func TestStreamingOutputDoesNotDependOnDeltaListeners(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if output.Response.Text() != "hello" {
-		t.Fatalf("final text = %q, want hello", output.Response.Text())
+	if output.ModelResponse == nil || output.ModelResponse.Text() != "hello" {
+		t.Fatalf("final output = %#v, want hello", output)
 	}
 	chunks := collector.Responses()
 	if len(chunks) != 2 || chunks[0].Text() != "hel" || chunks[1].Text() != "lo" {
@@ -101,8 +101,8 @@ func TestStreamingUsesBoundedBestEffortDeltaQueue(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if output.Response.Text() != strings.Repeat("x", 66) {
-		t.Fatalf("final response length = %d, want 66", len(output.Response.Text()))
+	if output.ModelResponse == nil || output.ModelResponse.Text() != strings.Repeat("x", 66) {
+		t.Fatalf("final output = %#v, want 66 streamed chunks", output)
 	}
 }
 

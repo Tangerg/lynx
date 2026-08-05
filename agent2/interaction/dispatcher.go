@@ -14,6 +14,7 @@ import (
 
 type boundTool struct {
 	executable tool.Tool
+	direct     bool
 }
 
 // Dispatcher executes model calls and tool batches emitted by an Interaction
@@ -51,7 +52,11 @@ func NewDispatcher(config DispatcherConfig) (*Dispatcher, error) {
 			return nil, fmt.Errorf("%w: duplicate tool name %q", ErrInvalidDispatcherConfig, definition.Name)
 		}
 		definition = definition.Clone()
-		dispatcher.tools[definition.Name] = boundTool{executable: executable}
+		direct, err := directResultCapability(executable)
+		if err != nil {
+			return nil, fmt.Errorf("%w: Tools[%d]: %w", ErrInvalidDispatcherConfig, index, err)
+		}
+		dispatcher.tools[definition.Name] = boundTool{executable: executable, direct: direct}
 		dispatcher.definitions = append(dispatcher.definitions, definition.Clone())
 	}
 	return dispatcher, nil
@@ -140,17 +145,19 @@ func (dispatcher *Dispatcher) dispatchToolBatch(
 	batch *toolBatchCall,
 ) (agent.Settlement, error) {
 	results := make([]chat.ToolResult, len(batch.Calls))
+	allDirect := len(batch.Calls) > 0
 	for index, call := range batch.Calls {
-		result, err := dispatcher.callTool(ctx, call)
+		result, direct, err := dispatcher.callTool(ctx, call)
 		if err != nil {
 			return agent.Settlement{}, fmt.Errorf("interaction: tool call %q: %w", call.ID, err)
 		}
 		results[index] = result
+		allDirect = allDirect && direct
 	}
 	payload, err := encodeProtocol(signalEnvelope{
 		SchemaVersion: protocolSchemaVersion,
 		Operation:     operationToolBatch,
-		ToolResult:    &toolBatchResult{Results: results},
+		ToolResult:    &toolBatchResult{Results: results, Direct: allDirect},
 	})
 	if err != nil {
 		return agent.Settlement{}, err
@@ -158,31 +165,49 @@ func (dispatcher *Dispatcher) dispatchToolBatch(
 	return agent.NewSettlement(effectID, agent.SettlementStatusSucceeded, payload)
 }
 
-func (dispatcher *Dispatcher) callTool(ctx context.Context, call chat.ToolCall) (result chat.ToolResult, err error) {
+func (dispatcher *Dispatcher) callTool(ctx context.Context, call chat.ToolCall) (result chat.ToolResult, direct bool, err error) {
 	hosted, found := dispatcher.tools[call.Name]
 	if !found {
 		return chat.ToolResult{
 			ID: call.ID, Name: call.Name,
 			Result: fmt.Sprintf("error: tool %q is not available", call.Name), IsError: true,
-		}, nil
+		}, false, nil
 	}
 	defer func() {
 		if recovered := recover(); recovered != nil {
 			result = chat.ToolResult{}
+			direct = false
 			err = fmt.Errorf("tool panicked: %v", recovered)
 		}
 	}()
 	output, err := hosted.executable.Call(ctx, call.Arguments)
 	if err != nil {
 		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-			return chat.ToolResult{}, err
+			return chat.ToolResult{}, false, err
 		}
 		return chat.ToolResult{
 			ID: call.ID, Name: call.Name,
 			Result: fmt.Sprintf("error: tool %q failed: %s", call.Name, boundedDiagnostic(err.Error())), IsError: true,
-		}, nil
+		}, hosted.direct, nil
 	}
-	return chat.ToolResult{ID: call.ID, Name: call.Name, Result: output}, nil
+	return chat.ToolResult{ID: call.ID, Name: call.Name, Result: output}, hosted.direct, nil
+}
+
+func directResultCapability(executable tool.Tool) (direct bool, err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			direct = false
+			err = fmt.Errorf("direct-result capability panicked: %v", recovered)
+		}
+	}()
+	capability, found, err := tool.Capability[DirectResultTool](executable)
+	if err != nil {
+		return false, fmt.Errorf("direct-result capability: %w", err)
+	}
+	if !found {
+		return false, nil
+	}
+	return capability.ReturnsDirectResult(), nil
 }
 
 func toolDefinition(executable tool.Tool) (definition chat.ToolDefinition, err error) {
