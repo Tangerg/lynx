@@ -3,8 +3,8 @@
 // HTN reasons over **tasks** rather than world-state effects directly.
 // A [Task] is either:
 //
-//   - **primitive** — wraps one [core.Action]; emitted into the plan
-//     as-is.
+//   - **primitive** — names one action in the planning domain; the domain's
+//     canonical executable action is emitted into the plan.
 //   - **compound** — has a list of [Method]s; each method is a
 //     decomposition recipe (preconditions + an ordered list of
 //     subtask names). The planner tries methods in order; the first

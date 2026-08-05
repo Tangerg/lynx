@@ -1,23 +1,55 @@
 package planning
 
 import (
+	"context"
 	"fmt"
 	"iter"
 	"maps"
+	"math"
 	"slices"
 	"strings"
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/internal/nilvalue"
+	"github.com/Tangerg/lynx/agent/internal/panicerr"
 )
 
-// Domain is an immutable capability set passed to a planner, detached from
-// agent identity so a planner can reason over any subset.
+// Domain is an immutable planning-definition snapshot, detached from agent
+// identity so a planner can reason over any subset. Action execution and
+// condition evaluation remain delegated to the supplied capabilities.
 type Domain struct {
 	actions       []core.Action
 	goals         []*core.Goal
 	conditions    []core.Condition
 	conditionRefs []ConditionRef
+}
+
+// domainAction owns the metadata snapshot a Domain exposes while delegating
+// execution to the capability supplied at construction.
+type domainAction struct {
+	delegate core.Action
+	metadata core.ActionMetadata
+}
+
+func (a domainAction) Metadata() core.ActionMetadata { return a.metadata.Clone() }
+
+func (a domainAction) Execute(ctx context.Context, process *core.ProcessContext) (core.ActionStatus, error) {
+	return a.delegate.Execute(ctx, process)
+}
+
+// domainCondition freezes planner-visible identity and cost while preserving
+// the supplied evaluator as the only executable capability.
+type domainCondition struct {
+	delegate core.Condition
+	name     string
+	cost     float64
+}
+
+func (c domainCondition) Name() string  { return c.name }
+func (c domainCondition) Cost() float64 { return c.cost }
+
+func (c domainCondition) Evaluate(ctx context.Context, environment *core.ConditionEnv) core.Truth {
+	return c.delegate.Evaluate(ctx, environment)
 }
 
 // ConditionKind identifies how the runtime obtains a condition's current value.
@@ -129,10 +161,27 @@ func NewDomain(actions []core.Action, goals []*core.Goal, conditions []core.Cond
 			return nil, fmt.Errorf("planning.NewDomain: condition[%d] is nil", index)
 		}
 	}
+
+	snapshottedActions := make([]core.Action, len(actions))
+	for index, action := range actions {
+		snapshot, err := snapshotDomainAction(action)
+		if err != nil {
+			return nil, fmt.Errorf("planning.NewDomain: action[%d]: %w", index, err)
+		}
+		snapshottedActions[index] = snapshot
+	}
+	snapshottedConditions := make([]core.Condition, len(conditions))
+	for index, condition := range conditions {
+		snapshot, err := snapshotDomainCondition(condition)
+		if err != nil {
+			return nil, fmt.Errorf("planning.NewDomain: condition[%d]: %w", index, err)
+		}
+		snapshottedConditions[index] = snapshot
+	}
 	domain := &Domain{
-		actions:    slices.Clone(actions),
+		actions:    snapshottedActions,
 		goals:      slices.Clone(goals),
-		conditions: slices.Clone(conditions),
+		conditions: snapshottedConditions,
 	}
 	refs, err := domain.computeConditionRefs()
 	if err != nil {
@@ -140,6 +189,43 @@ func NewDomain(actions []core.Action, goals []*core.Goal, conditions []core.Cond
 	}
 	domain.conditionRefs = refs
 	return domain, nil
+}
+
+func snapshotDomainAction(action core.Action) (snapshot core.Action, err error) {
+	if owned, ok := action.(domainAction); ok {
+		return owned, nil
+	}
+	metadata, err := inspectActionMetadata(action)
+	if err != nil {
+		return nil, err
+	}
+	return domainAction{delegate: action, metadata: metadata.Clone()}, nil
+}
+
+func inspectActionMetadata(action core.Action) (metadata core.ActionMetadata, err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			metadata = core.ActionMetadata{}
+			err = panicerr.New("Action.Metadata panicked", recovered)
+		}
+	}()
+	return action.Metadata(), nil
+}
+
+func snapshotDomainCondition(condition core.Condition) (snapshot core.Condition, err error) {
+	if owned, ok := condition.(domainCondition); ok {
+		return owned, nil
+	}
+	operation := "Name"
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			snapshot = nil
+			err = panicerr.New("Condition."+operation+" panicked", recovered)
+		}
+	}()
+	name := condition.Name()
+	operation = "Cost"
+	return domainCondition{delegate: condition, name: name, cost: condition.Cost()}, nil
 }
 
 // Actions returns a snapshot of the available actions.
@@ -280,10 +366,14 @@ func (d *Domain) declareConditionSources() (conditionSources, error) {
 		}
 	}
 	for _, condition := range d.conditions {
-		if strings.TrimSpace(condition.Name()) == "" || strings.TrimSpace(condition.Name()) != condition.Name() {
-			return sources, fmt.Errorf("planning.NewDomain: condition name %q must be non-empty without surrounding whitespace", condition.Name())
+		name := condition.Name()
+		if strings.TrimSpace(name) == "" || strings.TrimSpace(name) != name {
+			return sources, fmt.Errorf("planning.NewDomain: condition name %q must be non-empty without surrounding whitespace", name)
 		}
-		if err := sources.declare(ConditionRef{Key: condition.Name(), Kind: ConditionEvaluator}, "condition "+condition.Name()); err != nil {
+		if cost := condition.Cost(); math.IsNaN(cost) || math.IsInf(cost, 0) || cost < 0 {
+			return sources, fmt.Errorf("planning.NewDomain: condition %q cost %v must be finite and non-negative", name, cost)
+		}
+		if err := sources.declare(ConditionRef{Key: name, Kind: ConditionEvaluator}, "condition "+name); err != nil {
 			return sources, err
 		}
 	}

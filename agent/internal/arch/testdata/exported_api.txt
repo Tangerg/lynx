@@ -144,6 +144,7 @@ core: func (g *UUIDGenerator) Name() string
 core: func (k DependencyKey[T]) Name() string
 core: func (m *ChatMiddleware) Empty() bool
 core: func (m ActionMetadata) Applicable(state ConditionSet) bool
+core: func (m ActionMetadata) Clone() ActionMetadata
 core: func (m ActionMetadata) Descriptor() ActionDescriptor
 core: func (m ActionMetadata) RunCondition() string
 core: func (pc *ProcessContext) ActionTools(ctx context.Context) ([]tool.Tool, error)
@@ -378,7 +379,7 @@ planning/htn: func NewPlanner(library *Library) (*Planner, error)
 planning/htn: type Library struct { }
 planning/htn: type Method struct { Name string Preconditions core.ConditionSet Subtasks []string }
 planning/htn: type Planner struct { }
-planning/htn: type Task struct { Name string Action core.Action Methods []Method }
+planning/htn: type Task struct { Name string ActionName string Methods []Method }
 planning/reactive: func (p *Planner) Name() string
 planning/reactive: func (p *Planner) PlanToGoal( ctx context.Context, start core.WorldState, domain *planning.Domain, goal *core.Goal, options planning.Options, ) (result *planning.Plan, err error)
 planning/reactive: func NewPlanner() *Planner
@@ -400,7 +401,7 @@ planning: func (d *Domain) Goals() []*core.Goal
 planning: func (d *Domain) KnownConditions() iter.Seq[ConditionRef]
 planning: func (d *Domain) Plans( ctx context.Context, planner Planner, state core.WorldState, options Options, ) ([]*Plan, error)
 planning: func (d *Domain) Prune( ctx context.Context, planner Planner, state core.WorldState, options Options, ) (*Domain, error)
-planning: func (d *Domain) ValidatePlanInputs(state core.WorldState, goal *core.Goal, options Options) error
+planning: func (d *Domain) ValidatePlanInputs(state core.WorldState, goal *core.Goal) error
 planning: func (d PlanDescriptor) Actions() []core.ActionDescriptor
 planning: func (d PlanDescriptor) Complete() bool
 planning: func (d PlanDescriptor) Goal() core.GoalDescriptor
@@ -431,7 +432,7 @@ planning: type ConditionKind uint8
 planning: type ConditionRef struct { Key string Kind ConditionKind Binding core.Binding }
 planning: type Domain struct { }
 planning: type Exclusions struct { }
-planning: type Options struct { ExcludedActions Exclusions MaxIterations int }
+planning: type Options struct { ExcludedActions Exclusions }
 planning: type Plan struct { }
 planning: type PlanDescriptor struct { }
 planning: type Planner interface { core.Extension PlanToGoal( ctx context.Context, state core.WorldState, domain *Domain, goal *core.Goal, options Options, ) (*Plan, error) }

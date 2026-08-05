@@ -45,20 +45,9 @@ func EffectivePlannerName(name string) string {
 	return name
 }
 
-// Options carries per-call planner knobs. ExcludedActions is the runtime's
-// "ignore this recently-replanned action to avoid looping" signal.
-// MaxIterations caps internal search work for planners that iterate; zero uses
-// the planner default and negative values are invalid.
+// Options carries the runtime's per-call planning exclusions.
 type Options struct {
 	ExcludedActions Exclusions
-	MaxIterations   int
-}
-
-func (o Options) validate() error {
-	if o.MaxIterations < 0 {
-		return fmt.Errorf("planning: MaxIterations %d must not be negative", o.MaxIterations)
-	}
-	return nil
 }
 
 // Exclusions is an immutable set of action names a planner must ignore.
@@ -121,7 +110,7 @@ type Planner interface {
 }
 
 // ValidatePlanInputs checks the inputs every PlanToGoal implementation needs.
-func (d *Domain) ValidatePlanInputs(state core.WorldState, goal *core.Goal, options Options) error {
+func (d *Domain) ValidatePlanInputs(state core.WorldState, goal *core.Goal) error {
 	switch {
 	case d == nil:
 		return errors.New("planning.Domain.ValidatePlanInputs: domain is nil")
@@ -130,7 +119,7 @@ func (d *Domain) ValidatePlanInputs(state core.WorldState, goal *core.Goal, opti
 	case goal == nil:
 		return errors.New("planning.Domain.ValidatePlanInputs: goal is nil")
 	}
-	return options.validate()
+	return nil
 }
 
 // Plans enumerates one plan for every reachable goal, sorted by NetValue
@@ -149,9 +138,6 @@ func (d *Domain) Plans(
 		return nil, errors.New("planning.Domain.Plans: planner is nil")
 	case nilvalue.Is(state):
 		return nil, errors.New("planning.Domain.Plans: world state is nil")
-	}
-	if err := options.validate(); err != nil {
-		return nil, fmt.Errorf("planning.Domain.Plans: %w", err)
 	}
 	hosted, err := hostPlanner(planner)
 	if err != nil {
@@ -234,7 +220,11 @@ func (d *Domain) acceptPlan(plan *Plan, goal *core.Goal, state core.WorldState, 
 		if nilvalue.Is(candidate) {
 			return nil, fmt.Errorf("%w: action[%d] is nil", errInvalidPlan, index)
 		}
-		name := candidate.Metadata().Name
+		candidateMetadata, err := inspectActionMetadata(candidate)
+		if err != nil {
+			return nil, fmt.Errorf("%w: action[%d]: %w", errInvalidPlan, index, err)
+		}
+		name := candidateMetadata.Name
 		action, ok := d.action(name)
 		if !ok {
 			return nil, fmt.Errorf("%w: action[%d] %q is outside the domain", errInvalidPlan, index, name)

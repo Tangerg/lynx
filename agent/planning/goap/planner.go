@@ -44,9 +44,7 @@ type Planner struct {
 	maxExpansions int
 }
 
-// NewPlanner returns a planner with sensible defaults (10k node
-// expansions cap). Per-call overrides go through
-// [planning.Options].MaxIterations.
+// NewPlanner returns a planner with a 10k node-expansion safety cap.
 func NewPlanner() *Planner {
 	return &Planner{maxExpansions: defaultMaxExpansions}
 }
@@ -65,7 +63,7 @@ func (p *Planner) PlanToGoal(
 	goal *core.Goal,
 	options planning.Options,
 ) (*planning.Plan, error) {
-	if err := domain.ValidatePlanInputs(start, goal, options); err != nil {
+	if err := domain.ValidatePlanInputs(start, goal); err != nil {
 		return nil, err
 	}
 
@@ -94,7 +92,7 @@ func (p *Planner) PlanToGoal(
 
 	candidates := p.candidateActions(domain.Actions(), options.ExcludedActions)
 
-	s := newSearch(start, candidates, goal, p.expansionCap(options))
+	s := newSearch(start, candidates, goal, p.maxExpansions)
 
 	// Producer pre-check — short-circuits before search burns the expansion
 	// cap chasing a goal whose required conditions no candidate action can
@@ -129,15 +127,6 @@ func (p *Planner) PlanToGoal(
 		attribute.Int(planning.PlanLengthKey, len(path)),
 	)
 	return planning.NewPlan(path, goal), nil
-}
-
-// expansionCap honors per-call MaxIterations when supplied, otherwise returns
-// the planner default. The public option keeps its planner-neutral name.
-func (p *Planner) expansionCap(options planning.Options) int {
-	if options.MaxIterations > 0 {
-		return options.MaxIterations
-	}
-	return p.maxExpansions
 }
 
 // candidateActions filters the master action list against the per-call

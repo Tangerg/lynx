@@ -21,8 +21,9 @@ type Action interface {
 	Execute(ctx context.Context, process *ProcessContext) (ActionStatus, error)
 }
 
-// ActionMetadata is everything the planner needs to reason about an
-// action without invoking it. Immutable after construction.
+// ActionMetadata is everything the planner needs to reason about an action
+// without invoking it. Implementations must return a stable value; callers
+// retaining it across a trust boundary should use [ActionMetadata.Clone].
 //
 // Cost and Value are [ScoreFunc]s rather than (static, fn) pairs so the
 // planner has one uniform invocation point. Use [FixedScore] to lift a
@@ -48,7 +49,9 @@ type ActionMetadata struct {
 	ClearWorkingState bool // On success, clear working state before binding output.
 }
 
-func (m ActionMetadata) clone() ActionMetadata {
+// Clone returns an independent copy of every map and slice in m. Function
+// values cannot be cloned and remain shared.
+func (m ActionMetadata) Clone() ActionMetadata {
 	m.Inputs = slices.Clone(m.Inputs)
 	m.Outputs = slices.Clone(m.Outputs)
 	m.Preconditions = maps.Clone(m.Preconditions)

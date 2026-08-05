@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"maps"
 	"reflect"
 	"slices"
 
@@ -172,7 +171,7 @@ type frozenAction struct {
 }
 
 func (a frozenAction) Metadata() core.ActionMetadata {
-	return a.metadataSnapshot()
+	return a.metadata.Clone()
 }
 
 func (a frozenAction) Execute(ctx context.Context, process *core.ProcessContext) (core.ActionStatus, error) {
@@ -193,19 +192,7 @@ func (c frozenCondition) Evaluate(ctx context.Context, environment *core.Conditi
 }
 
 func (c deploymentCompiler) freezeAction(action core.Action) frozenAction {
-	frozen := frozenAction{delegate: action, metadata: action.Metadata()}
-	frozen.metadata = frozen.metadataSnapshot()
-	return frozen
-}
-
-func (a frozenAction) metadataSnapshot() core.ActionMetadata {
-	metadata := a.metadata
-	metadata.Inputs = slices.Clone(metadata.Inputs)
-	metadata.Outputs = slices.Clone(metadata.Outputs)
-	metadata.Preconditions = maps.Clone(metadata.Preconditions)
-	metadata.Effects = maps.Clone(metadata.Effects)
-	metadata.ToolGroups = slices.Clone(metadata.ToolGroups)
-	return metadata
+	return frozenAction{delegate: action, metadata: action.Metadata().Clone()}
 }
 
 type canonicalDefinition struct {

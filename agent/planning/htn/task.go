@@ -12,16 +12,17 @@ import (
 )
 
 // Task is one node in the HTN hierarchy. A task is either primitive
-// (Action set, Methods empty) or compound (Methods set, Action nil).
+// (ActionName set, Methods empty) or compound (Methods set, ActionName empty).
 // Mixing both fields is rejected by [Library.Add].
 type Task struct {
 	// Name is the unique identifier — methods reference subtasks by
 	// this name, and the planner's PlanToGoal matches on goal.Name.
 	Name string
 
-	// Action is the single primitive emitted into the plan when this
-	// task is reached. Set this XOR Methods.
-	Action core.Action
+	// ActionName resolves the primitive against the planning Domain when this
+	// task is reached. Set this XOR Methods. Task declarations never retain an
+	// executable action capability.
+	ActionName string
 
 	// Methods is the ordered list of decomposition recipes for a
 	// compound task. The first applicable method wins; on subtask
@@ -50,8 +51,8 @@ func (m Method) applicable(state core.ConditionSet) bool {
 	return state.Satisfies(m.Preconditions)
 }
 
-// IsPrimitive reports whether this task wraps a single core.Action.
-func (t *Task) IsPrimitive() bool { return t.Action != nil }
+// IsPrimitive reports whether this task names one domain action.
+func (t *Task) IsPrimitive() bool { return t != nil && t.ActionName != "" }
 
 // Library is the registry of named tasks the planner reasons over.
 type Library struct {
@@ -73,11 +74,14 @@ func (l *Library) Add(t *Task) error {
 	if strings.TrimSpace(t.Name) == "" || strings.TrimSpace(t.Name) != t.Name {
 		return fmt.Errorf("htn.Library.Add: task name %q must be non-empty without surrounding whitespace", t.Name)
 	}
-	if t.Action != nil && len(t.Methods) > 0 {
-		return fmt.Errorf("htn.Library.Add: task %q has both Action and Methods", t.Name)
+	if t.ActionName != "" && strings.TrimSpace(t.ActionName) != t.ActionName {
+		return fmt.Errorf("htn.Library.Add: task %q action name %q has surrounding whitespace", t.Name, t.ActionName)
 	}
-	if t.Action == nil && len(t.Methods) == 0 {
-		return fmt.Errorf("htn.Library.Add: task %q has neither Action nor Methods", t.Name)
+	if t.ActionName != "" && len(t.Methods) > 0 {
+		return fmt.Errorf("htn.Library.Add: task %q has both ActionName and Methods", t.Name)
+	}
+	if t.ActionName == "" && len(t.Methods) == 0 {
+		return fmt.Errorf("htn.Library.Add: task %q has neither ActionName nor Methods", t.Name)
 	}
 	for index, method := range t.Methods {
 		if err := method.Preconditions.Validate(); err != nil {

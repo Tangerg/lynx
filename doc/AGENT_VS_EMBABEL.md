@@ -97,7 +97,7 @@
 | **binding = `name:Type`** | `@JvmInline value class IoBinding("name:Type")`,默认名 `it`/`lastResult` | `Binding{Name,Type}`,`String()`="name:Type",默认名 `it`/`last_result` | ✅ 完全 |
 | **最小成本 GOAP 搜索** | A\*:g=Σcost,h=未满足 goal precondition 数 | 确定性 uniform-cost(Dijkstra / A\* with h=0) | ⚠️ 刻意分歧:lynx 用较保守的搜索换取严格的最小成本语义 |
 | **cost/value 是 world-state 的函数** | `typealias CostComputation=(WorldState)->ZeroToOne` | `type ScoreFunc func(WorldState) float64`,`FixedScore` 提常量 | ✅ 完全 |
-| **goal 可达性预检 + 迭代上限** | 反向可达检查 + `maxIterations=10000` | `hasGoalProducers()` 保守 producer 检查 + `MaxIterations` | ✅ 主体收敛 |
+| **goal 可达性预检 + 搜索上限** | 反向可达检查 + `maxIterations=10000` | `hasGoalProducers()` 保守 producer 检查 + GOAP 私有 10k node-expansion safety cap | ✅ 主体收敛 |
 | **prune 掉无 plan 引用的 action** | `planner.prune(system)` | `Domain.Prune(...)` | ✅ 完全 |
 | **intent→goal/agent 排序路由** | `Autonomy` + `LlmRanker` + 置信阈值 + `GoalChoiceApprover` | `routing.Router` + `Ranker`/`ModelRanker` + cutoff + `GoalApprover` | ✅ 收敛(见 §7) |
 

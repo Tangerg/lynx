@@ -97,6 +97,29 @@ func TestTypedActionMetadataIsDefensive(t *testing.T) {
 	}
 }
 
+func TestActionMetadataCloneOwnsCompositeValues(t *testing.T) {
+	original := core.ActionMetadata{
+		Inputs:        []core.Binding{{Name: "input", Type: "string"}},
+		Outputs:       []core.Binding{{Name: "output", Type: "string"}},
+		Preconditions: core.ConditionSet{"ready": core.True},
+		Effects:       core.ConditionSet{"done": core.True},
+		ToolGroups:    []string{"workspace"},
+		Cost:          core.FixedScore(1),
+	}
+	cloned := original.Clone()
+	cloned.Inputs[0].Name = "mutated"
+	cloned.Outputs[0].Name = "mutated"
+	cloned.Preconditions["ready"] = core.False
+	cloned.Effects["done"] = core.False
+	cloned.ToolGroups[0] = "mutated"
+
+	if original.Inputs[0].Name != "input" || original.Outputs[0].Name != "output" ||
+		original.Preconditions["ready"] != core.True || original.Effects["done"] != core.True ||
+		original.ToolGroups[0] != "workspace" {
+		t.Fatalf("Clone shared composite values with source: %#v", original)
+	}
+}
+
 type fakeBlackboard struct {
 	value any
 	ok    bool

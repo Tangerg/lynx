@@ -22,6 +22,7 @@ import (
 func (p *Planner) decompose(
 	ctx context.Context,
 	task Task,
+	actionsByName map[string]core.Action,
 	state core.WorldState,
 	excluded planning.Exclusions,
 	depth int,
@@ -34,14 +35,18 @@ func (p *Planner) decompose(
 	}
 
 	if task.IsPrimitive() {
-		metadata := task.Action.Metadata()
+		action, ok := actionsByName[task.ActionName]
+		if !ok {
+			return nil, state, false, fmt.Errorf("htn.Planner.decompose: task %q references action %q outside the planning domain", task.Name, task.ActionName)
+		}
+		metadata := action.Metadata()
 		if excluded.Contains(metadata.Name) {
 			return nil, state, false, nil
 		}
 		if !metadata.Applicable(state.Conditions()) {
 			return nil, state, false, nil
 		}
-		return []core.Action{task.Action}, state.Apply(metadata.Effects), true, nil
+		return []core.Action{action}, state.Apply(metadata.Effects), true, nil
 	}
 
 	// Snapshot once so all method-applicability probes share the same
@@ -52,7 +57,7 @@ func (p *Planner) decompose(
 		if !method.applicable(stateMap) {
 			continue
 		}
-		actions, next, ok, err := p.tryMethod(ctx, method, state, excluded, depth)
+		actions, next, ok, err := p.tryMethod(ctx, method, actionsByName, state, excluded, depth)
 		if err != nil {
 			return nil, state, false, err
 		}
@@ -69,6 +74,7 @@ func (p *Planner) decompose(
 func (p *Planner) tryMethod(
 	ctx context.Context,
 	method Method,
+	actionsByName map[string]core.Action,
 	state core.WorldState,
 	excluded planning.Exclusions,
 	depth int,
@@ -80,7 +86,7 @@ func (p *Planner) tryMethod(
 		if !ok {
 			return nil, state, false, fmt.Errorf("htn.Planner.tryMethod: method %q references unknown subtask %q", method.Name, subtaskName)
 		}
-		subActions, next, ok, err := p.decompose(ctx, sub, cur, excluded, depth+1)
+		subActions, next, ok, err := p.decompose(ctx, sub, actionsByName, cur, excluded, depth+1)
 		if err != nil {
 			return nil, state, false, err
 		}

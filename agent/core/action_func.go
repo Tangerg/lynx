@@ -30,7 +30,7 @@ type FuncAction[In, Out any] struct {
 // planner-visible definition (and the typed executor's input/output bindings)
 // after construction through an otherwise innocent metadata read.
 func (a *FuncAction[In, Out]) Metadata() ActionMetadata {
-	return a.metadata.clone()
+	return a.metadata.Clone()
 }
 
 // Execute is the runtime entry point. It pulls the In value from the

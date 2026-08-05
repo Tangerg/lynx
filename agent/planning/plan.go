@@ -9,9 +9,11 @@ import (
 	"github.com/Tangerg/lynx/agent/internal/score"
 )
 
-// Plan is an immutable planner output: an ordered action chain whose
-// accumulated effects achieve its goal. An empty chain with a non-nil goal
-// means the goal is already satisfied.
+// Plan is a planner output: an ordered action chain whose accumulated effects
+// achieve its goal. It owns the chain's slice storage but retains the action
+// capabilities. [Domain.Plans] validates and replaces candidates with the
+// Domain's canonical actions before returning a plan to runtime. An empty
+// chain with a non-nil goal means the goal is already satisfied.
 type Plan struct {
 	actions []core.Action
 	goal    *core.Goal

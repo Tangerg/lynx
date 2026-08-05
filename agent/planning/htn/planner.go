@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
+	"slices"
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -11,7 +13,6 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/Tangerg/lynx/agent/core"
-	"github.com/Tangerg/lynx/agent/internal/nilvalue"
 	"github.com/Tangerg/lynx/agent/planning"
 )
 
@@ -39,7 +40,8 @@ func NewPlanner(library *Library) (*Planner, error) {
 		return nil, errors.New("htn.NewPlanner: library must not be nil")
 	}
 	tasks := library.snapshot()
-	for taskName, task := range tasks {
+	for _, taskName := range slices.Sorted(maps.Keys(tasks)) {
+		task := tasks[taskName]
 		for methodIndex, method := range task.Methods {
 			for subtaskIndex, subtask := range method.Subtasks {
 				if _, ok := tasks[subtask]; !ok {
@@ -72,7 +74,7 @@ func (p *Planner) PlanToGoal(
 	goal *core.Goal,
 	options planning.Options,
 ) (result *planning.Plan, err error) {
-	if err = domain.ValidatePlanInputs(start, goal, options); err != nil {
+	if err = domain.ValidatePlanInputs(start, goal); err != nil {
 		return nil, err
 	}
 
@@ -99,7 +101,8 @@ func (p *Planner) PlanToGoal(
 	if !ok {
 		return nil, nil
 	}
-	actions, finalState, ok, err := p.decompose(ctx, root, start, options.ExcludedActions, 0)
+	actionsByName := indexDomainActions(domain.Actions())
+	actions, finalState, ok, err := p.decompose(ctx, root, actionsByName, start, options.ExcludedActions, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -109,23 +112,14 @@ func (p *Planner) PlanToGoal(
 	if !goal.SatisfiedBy(finalState) {
 		return nil, fmt.Errorf("htn: task %q decomposition does not satisfy its goal", root.Name)
 	}
-	for index, candidate := range actions {
-		name := candidate.Metadata().Name
-		canonical, found := domainAction(domain, name)
-		if !found {
-			return nil, fmt.Errorf("htn: task %q action[%d] %q is outside the planning domain", root.Name, index, name)
-		}
-		actions[index] = canonical
-	}
 	result = planning.NewPlan(actions, goal)
 	return result, nil
 }
 
-func domainAction(domain *planning.Domain, name string) (core.Action, bool) {
-	for _, action := range domain.Actions() {
-		if !nilvalue.Is(action) && action.Metadata().Name == name {
-			return action, true
-		}
+func indexDomainActions(actions []core.Action) map[string]core.Action {
+	indexed := make(map[string]core.Action, len(actions))
+	for _, action := range actions {
+		indexed[action.Metadata().Name] = action
 	}
-	return nil, false
+	return indexed
 }

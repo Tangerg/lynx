@@ -16,11 +16,56 @@ import (
 type domainInput struct{ X int }
 type domainOutput struct{ Y int }
 
-type planAction struct{ metadata core.ActionMetadata }
+type planAction struct {
+	metadata core.ActionMetadata
+	runs     int
+}
 
 func (a *planAction) Metadata() core.ActionMetadata { return a.metadata }
-func (*planAction) Execute(context.Context, *core.ProcessContext) (core.ActionStatus, error) {
+func (a *planAction) Execute(context.Context, *core.ProcessContext) (core.ActionStatus, error) {
+	a.runs++
 	return core.ActionSucceeded, nil
+}
+
+type planCondition struct {
+	name        string
+	cost        float64
+	evaluations int
+}
+
+func (c *planCondition) Name() string  { return c.name }
+func (c *planCondition) Cost() float64 { return c.cost }
+func (c *planCondition) Evaluate(context.Context, *core.ConditionEnv) core.Truth {
+	c.evaluations++
+	return core.True
+}
+
+type panickingDomainAction struct{ cause error }
+
+func (a panickingDomainAction) Metadata() core.ActionMetadata { panic(a.cause) }
+func (panickingDomainAction) Execute(context.Context, *core.ProcessContext) (core.ActionStatus, error) {
+	return core.ActionSucceeded, nil
+}
+
+type panickingDomainCondition struct {
+	nameCause error
+	costCause error
+}
+
+func (c panickingDomainCondition) Name() string {
+	if c.nameCause != nil {
+		panic(c.nameCause)
+	}
+	return "condition"
+}
+func (c panickingDomainCondition) Cost() float64 {
+	if c.costCause != nil {
+		panic(c.costCause)
+	}
+	return 0
+}
+func (panickingDomainCondition) Evaluate(context.Context, *core.ConditionEnv) core.Truth {
+	return core.True
 }
 
 type plannerFunc func(*core.Goal) *planning.Plan
@@ -140,6 +185,86 @@ func TestNewDomainCopiesInputsAndOrdersKnownConditions(t *testing.T) {
 	}
 }
 
+func TestNewDomainFreezesMetadataAndPreservesExecutionDelegates(t *testing.T) {
+	action := &planAction{metadata: core.ActionMetadata{
+		Name:          "work",
+		Preconditions: core.ConditionSet{"ready": core.True},
+		Effects:       core.ConditionSet{"done": core.True},
+		ToolGroups:    []string{"workspace"},
+	}}
+	condition := &planCondition{name: "ready", cost: 2}
+	domain := mustDomain(t, []core.Action{action}, nil, []core.Condition{condition})
+
+	action.metadata.Name = "mutated"
+	action.metadata.Preconditions["ready"] = core.False
+	action.metadata.Effects["done"] = core.False
+	action.metadata.ToolGroups[0] = "mutated"
+	condition.name = "mutated"
+	condition.cost = 99
+
+	metadata := domain.Actions()[0].Metadata()
+	if metadata.Name != "work" || metadata.Preconditions["ready"] != core.True ||
+		metadata.Effects["done"] != core.True || !slices.Equal(metadata.ToolGroups, []string{"workspace"}) {
+		t.Fatalf("frozen action metadata = %#v", metadata)
+	}
+	if got := domain.Conditions()[0]; got.Name() != "ready" || got.Cost() != 2 {
+		t.Fatalf("frozen condition metadata = %q/%v", got.Name(), got.Cost())
+	}
+
+	metadata.Effects["done"] = core.False
+	if domain.Actions()[0].Metadata().Effects["done"] != core.True {
+		t.Fatal("Actions returned mutable domain metadata")
+	}
+	if _, err := domain.Actions()[0].Execute(t.Context(), nil); err != nil || action.runs != 1 {
+		t.Fatalf("action delegate runs/error = %d/%v", action.runs, err)
+	}
+	if truth := domain.Conditions()[0].Evaluate(t.Context(), nil); truth != core.True || condition.evaluations != 1 {
+		t.Fatalf("condition delegate truth/evaluations = %v/%d", truth, condition.evaluations)
+	}
+}
+
+func TestNewDomainContainsMetadataPanics(t *testing.T) {
+	actionCause := errors.New("action sentinel")
+	nameCause := errors.New("name sentinel")
+	costCause := errors.New("cost sentinel")
+	for _, test := range []struct {
+		name       string
+		actions    []core.Action
+		conditions []core.Condition
+		cause      error
+		contains   string
+	}{
+		{
+			name: "action metadata", actions: []core.Action{panickingDomainAction{cause: actionCause}},
+			cause: actionCause, contains: "Action.Metadata panicked",
+		},
+		{
+			name: "condition name", conditions: []core.Condition{panickingDomainCondition{nameCause: nameCause}},
+			cause: nameCause, contains: "Condition.Name panicked",
+		},
+		{
+			name: "condition cost", conditions: []core.Condition{panickingDomainCondition{costCause: costCause}},
+			cause: costCause, contains: "Condition.Cost panicked",
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := planning.NewDomain(test.actions, nil, test.conditions)
+			if !errors.Is(err, test.cause) || !strings.Contains(err.Error(), test.contains) {
+				t.Fatalf("NewDomain error = %v, want %q", err, test.contains)
+			}
+		})
+	}
+}
+
+func TestNewDomainRejectsInvalidConditionCost(t *testing.T) {
+	for _, cost := range []float64{-1, math.NaN(), math.Inf(1)} {
+		_, err := planning.NewDomain(nil, nil, []core.Condition{&planCondition{name: "condition", cost: cost}})
+		if err == nil || !strings.Contains(err.Error(), "must be finite and non-negative") {
+			t.Fatalf("NewDomain cost %v error = %v", cost, err)
+		}
+	}
+}
+
 func TestNewDomainPreservesConditionSourcesWithoutParsingKeys(t *testing.T) {
 	action := domainAgent("worker", "worker:step").Actions()[0]
 	conditions := []core.Condition{
@@ -203,16 +328,25 @@ func TestNewDomainRejectsNilMembers(t *testing.T) {
 	}
 }
 
+func TestNewDomainRejectsNilMembersBeforeInspectingCapabilities(t *testing.T) {
+	cause := errors.New("metadata must not run")
+	_, err := planning.NewDomain(
+		[]core.Action{panickingDomainAction{cause: cause}},
+		[]*core.Goal{nil},
+		nil,
+	)
+	if err == nil || !strings.Contains(err.Error(), "goal[0] is nil") || errors.Is(err, cause) {
+		t.Fatalf("NewDomain error = %v, want nil goal before capability inspection", err)
+	}
+}
+
 func TestDomainPlanningMethodsValidateTheirInputs(t *testing.T) {
 	domain := mustDomain(t, nil, nil, nil)
 	state := planning.NewState(nil)
 	goal := core.NewGoal(core.GoalConfig{Name: "goal"})
 
-	if err := domain.ValidatePlanInputs(state, goal, planning.Options{}); err != nil {
+	if err := domain.ValidatePlanInputs(state, goal); err != nil {
 		t.Fatalf("ValidatePlanInputs: %v", err)
-	}
-	if err := domain.ValidatePlanInputs(state, goal, planning.Options{MaxIterations: -1}); err == nil {
-		t.Fatal("ValidatePlanInputs accepted negative MaxIterations")
 	}
 	if _, err := domain.Plans(t.Context(), nil, state, planning.Options{}); err == nil {
 		t.Fatal("Plans accepted nil planner")
@@ -222,16 +356,13 @@ func TestDomainPlanningMethodsValidateTheirInputs(t *testing.T) {
 		t.Fatal("Plans accepted typed nil planner")
 	}
 	var typedNilState *planning.State
-	if err := domain.ValidatePlanInputs(typedNilState, goal, planning.Options{}); err == nil {
+	if err := domain.ValidatePlanInputs(typedNilState, goal); err == nil {
 		t.Fatal("ValidatePlanInputs accepted typed nil world state")
 	}
 
 	var nilDomain *planning.Domain
-	if err := nilDomain.ValidatePlanInputs(state, goal, planning.Options{}); err == nil {
+	if err := nilDomain.ValidatePlanInputs(state, goal); err == nil {
 		t.Fatal("ValidatePlanInputs accepted nil domain")
-	}
-	if _, err := domain.Plans(t.Context(), plannerFunc(func(*core.Goal) *planning.Plan { return nil }), state, planning.Options{MaxIterations: -1}); err == nil {
-		t.Fatal("Plans accepted negative MaxIterations")
 	}
 }
 
@@ -278,6 +409,21 @@ func TestDomainRejectsInvalidPlannerResults(t *testing.T) {
 	}
 }
 
+func TestDomainContainsPlannerResultMetadataPanic(t *testing.T) {
+	cause := errors.New("candidate metadata sentinel")
+	canonical := &planAction{metadata: core.ActionMetadata{Name: "work", Effects: core.ConditionSet{"done": core.True}}}
+	goal := core.NewGoal(core.GoalConfig{Name: "goal", Preconditions: []string{"done"}})
+	domain := mustDomain(t, []core.Action{canonical}, []*core.Goal{goal}, nil)
+
+	_, err := domain.Plans(t.Context(), plannerFunc(func(goal *core.Goal) *planning.Plan {
+		return planning.NewPlan([]core.Action{panickingDomainAction{cause: cause}}, goal)
+	}), planning.NewState(nil), planning.Options{})
+	if !errors.Is(err, cause) || !strings.Contains(err.Error(), "planning: invalid plan") ||
+		!strings.Contains(err.Error(), "Action.Metadata panicked") {
+		t.Fatalf("Plans error = %v, want contained candidate metadata panic", err)
+	}
+}
+
 func TestDomainCanonicalizesPlannerActions(t *testing.T) {
 	canonical := &planAction{metadata: core.ActionMetadata{Name: "work", Effects: core.ConditionSet{"done": core.True}}}
 	lookalike := &planAction{metadata: canonical.metadata}
@@ -290,8 +436,12 @@ func TestDomainCanonicalizesPlannerActions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Plans: %v", err)
 	}
-	if got := plans[0].Actions()[0]; got != canonical {
-		t.Fatalf("accepted action = %p, want canonical %p", got, canonical)
+	accepted := plans[0].Actions()[0]
+	if accepted == lookalike || accepted.Metadata().Name != "work" {
+		t.Fatalf("accepted action = %#v, want domain-owned canonical action", accepted)
+	}
+	if _, err := accepted.Execute(t.Context(), nil); err != nil || canonical.runs != 1 {
+		t.Fatalf("canonical delegate runs/error = %d/%v", canonical.runs, err)
 	}
 }
 

@@ -1,6 +1,6 @@
 # Agent Framework 架构演进执行计划
 
-> 状态：持续开发（P37 生命周期能力与扩展权限边界已完成，4/4）
+> 状态：持续开发（P38 规划快照与 HTN 声明边界已完成，4/4）
 > 建立日期：2026-07-15
 > 最后更新：2026-08-05
 > 维护者：Lynx 仓库维护者
@@ -2149,6 +2149,8 @@ GoDoc 不把静态非法值伪装成运行期问题。
     Reactive 使用同一规则，Reactive 不再接受 panic、NaN、Inf 或负动态 cost。
   - `Options.MaxIterations` 的负值在 Domain owner 边界统一拒绝；`Domain.Plans` 自身复验，第三方
     Planner 无法绕过。`ValidatePlanInputs` 直接改为接收 Options，不保留旧签名或兼容 wrapper。
+    该字段随后在 P38 的真实消费审计中确认仅被 GOAP 误用为 node expansion 且无宿主消费者，
+    因此连同这版签名直接删除；此处只保留阶段历史。
 - [x] **P36-03 Process capability 与生命周期语义收正**（完成：2026-08-05）
   - `NewProcessContext` 将 typed-nil Process/Control/Blackboard 归一为 nil；nil receiver 的
     ActionTools/ToolCallContext 保持安全，Action/Runtime/Planner/ToolLoop capability 检查统一复用
@@ -2201,6 +2203,42 @@ GoDoc、API baseline 与实现同步，不增加公开 package 或兼容路径�
 只拥有完成规则所需的只读定义；Extension.Name 在唯一 registry 边界只读一次；GoDoc、API baseline、
 反例与实现同步，不保留兼容层或宿主术语。
 
+### P38：规划快照与 HTN 声明边界
+
+- [x] **P38-01 Domain 名实相符的不可变规划快照**（完成：2026-08-05）
+  - `NewDomain` 在读取 capability 前先完成全部 nil/typed-nil 成员检查；随后只读取一次调用方
+    Action.Metadata 与 Condition.Name/Cost，并以 Domain 私有 action/condition 封装冻结 planner
+    可见值。Execute/Evaluate 仍委托原 capability，不复制或伪造函数语义。
+  - `ActionMetadata.Clone` 成为值对象唯一深复制机制，Core FuncAction、Runtime deployment 与
+    Planning Domain 共同复用，删除 Runtime 自建 metadataSnapshot。
+  - Domain 构造与第三方 planner result 验收均将 metadata panic 变为保留 cause 的归因错误；
+    condition cost 在公共 NewDomain 边界也必须 finite 且非负，不再依赖先经过 Agent.Validate。
+- [x] **P38-02 HTN 声明层删除执行能力泄露**（完成：2026-08-05）
+  - `Task.Action` 直接 breaking 替换为 `ActionName`；Library 只保存任务到 domain action identity 的
+    声明，不再持有可执行 Action。PlanToGoal 对每次调用建立 canonical Domain action index，
+    primitive 分解只发射 Domain 自有 action。
+  - ActionName shape 在 Add 时验证；缺失 domain action 是带 task/action identity 的结构错误；
+    unknown subtask 检查按 task name 排序，错误选择不再受 Go map 迭代顺序影响。
+- [x] **P38-03 删除无消费者且语义虚假的 planner 旋钮**（完成：2026-08-05）
+  - 删除 `planning.Options.MaxIterations`：它只有 GOAP 将其解释成 node expansions，HTN、Reactive、
+    Utility 全部忽略，Runtime/App 无真实设置方，公共名字却错误承诺所有 planner 的统一迭代限制。
+  - `Options` 只保留真实共享的 `ExcludedActions`；`ValidatePlanInputs` 删除无意义 Options 参数；
+    GOAP 保留算法私有 10k node-expansion safety cap，出现真实调优需求前不预埋第二套模糊配置。
+  - Plan/Domain/ActionMetadata 与 HTN package GoDoc 同步说明 slice ownership、metadata snapshot 与
+    executable delegate 的真实边界，不把 capability 引用夸大成可深复制值。
+- [x] **P38-04 Breaking API、反例与完整门禁**（完成：2026-08-05）
+  - caller mutation、返回值 mutation、Execute/Evaluate delegate、nil-before-callback、metadata panic、
+    非法 condition cost、planner result panic、HTN missing action/whitespace/deterministic error 均有反例。
+  - Agent public API 为 623 declaration、root 53，SHA-256
+    `5cd8ba8c59697011b916e44eb67c71b3ccfa37b02d91d6d726ab0b8eabe6a660`；wire 仍为 160 行，
+    SHA-256 `24627d86d343d726e26c1efbbc332026b3aefd80786ffbcbc43933a9daa32575`。
+  - Agent standalone 全量 build/vet/test/staticcheck/golangci-lint/tidy、core/planning/runtime/arch race、
+    examples 与 diff check 全绿。
+
+退出标准：Domain 的 planner-visible 定义在构造后不漂移且 capability panic 不越界；HTN task library
+只表达分解声明，不持有执行权限；公共 planner Options 的每个字段都被全部声称支持它的调用链真实
+消费；不存在兼容字段、双复制机制或错误的 immutable 注释。
+
 ---
 
 ## 15. 当前进度
@@ -2242,17 +2280,18 @@ GoDoc、API baseline 与实现同步，不增加公开 package 或兼容路径�
 | P35 Workflow 构造期原子性与定义检查 | 完成 | 4/4 | 统一 Name、child-before-deploy 静态校验、metadata 单次 panic-safe 检查与门禁收口 |
 | P36 定义快照、评分与上下文信任边界 | 完成 | 4/4 | definition/request ownership、统一 score/options、capability nil 与 lifecycle outcome 收口 |
 | P37 生命周期能力与扩展权限边界 | 完成 | 4/4 | lifecycle/replan 单轨、validator inert descriptor、Name 单次注册与门禁收口 |
-| **总计** | **完成** | **204/204（100%）** | **P37-01 至 P37-04 全部完成；不执行封版、tag 或 release** |
+| P38 规划快照与 HTN 声明边界 | 完成 | 4/4 | Domain metadata snapshot、HTN identity-only task、删除虚假 planner 旋钮与门禁收口 |
+| **总计** | **完成** | **208/208（100%）** | **P38-01 至 P38-04 全部完成；不执行封版、tag 或 release** |
 
 ### 15.2 当前焦点
 
-- 当前阶段：P37 生命周期能力与扩展权限边界，4/4，已完成。
+- 当前阶段：P38 规划快照与 HTN 声明边界，4/4，已完成。
 - 下一任务：继续以真实调用链和可构造反例审计 Agent；没有真实变化点时不新增 interface、
   adapter、package 或 Runtime 同义词。本批不封版、不创建 tag 或 release。
 - 当前决策门：已解除；按 BB-01 至 BB-08 直接迁移，不保留兼容层。
-- 最近完成：Process termination 与 replan 能力单轨化；AgentValidator 收窄为 inert descriptor；
-  根组合只在 Runtime registry 单次读取 Extension.Name 并拒绝 built-in planner 名称冲突；
-  宿主术语和常量错误坏味道同步清除。
+- 最近完成：Domain 冻结 planner-visible Action/Condition metadata 并 containment capability panic；
+  HTN Task 只引用 domain action identity；删除无消费者且跨 planner 语义不成立的 MaxIterations；
+  ActionMetadata 深复制机制与相关注释合同收敛为唯一实现。
   Agent 只拥有 execution framework 语义，App transaction/idempotency/persistence ownership
   保持不变。
 
@@ -2612,6 +2651,7 @@ GoDoc、API baseline 与实现同步，不增加公开 package 或兼容路径�
 
 | 日期 | 变更 | 作者 |
 |---|---|---|
+| 2026-08-05 | 完成 P38 规划快照与 HTN 声明边界：Domain 冻结 Action/Condition planner metadata 并 containment 构造/验收 panic；ActionMetadata.Clone 替代重复复制；HTN Task.Action 改为 ActionName，执行能力只由 Domain 解析；删除仅 GOAP 误用且无宿主消费者的 Options.MaxIterations 与多余 ValidatePlanInputs 参数；全部 breaking change 直接迁移，无兼容层 | Codex |
 | 2026-08-05 | 完成 P37 生命周期能力与扩展权限边界：删除 TerminateAction/TerminationScope/TerminationSignal 双轨能力，Terminate/CancelToolCall 名实相符且 replan 只由 ReplanRequest 表达；AgentValidator 改收 inert descriptor；NewEngine 删除 Name 预读与默认 planner override 特例；全部 breaking change 直接迁移，无兼容层 | Codex |
 | 2026-08-05 | 完成 P36 定义快照、评分与上下文信任边界：definition/deployment/prompt 深快照与 typed-nil 语义闭合；planner score/Options 使用唯一校验机制；ProcessContext capability 与 run outcome 收正；示例错误传播及注释合同同步；ValidatePlanInputs breaking 签名直接更新，无兼容层 | Codex |
 | 2026-08-05 | 完成 P35 workflow 构造期原子性与定义检查：九种组合器统一 Name 规则；Parallel/Sequence/Loop 在首个 child deploy 前完成全部静态 Agent 校验；Agent.Validate 单次采样 Action/Condition metadata 并错误化 SPI panic；API/wire 不变，不新增 transaction/deployment 抽象 | Codex |
@@ -2684,6 +2724,7 @@ GoDoc、API baseline 与实现同步，不增加公开 package 或兼容路径�
 
 | 日期 | 任务 | 结果与证据 | 下一步 |
 |---|---|---|---|
+| 2026-08-05 | P38 规划快照与 HTN 声明边界 | Domain mutation/delegate/panic/cost 与 nil ordering、planner result panic、HTN identity/missing action/shape/deterministic error 反例通过；API 623 declaration/root 53，SHA-256 `5cd8ba8c59697011b916e44eb67c71b3ccfa37b02d91d6d726ab0b8eabe6a660`；wire 160 行且 hash 不变。Agent standalone 全量 build/vet/test/staticcheck/golangci-lint/tidy、core/planning/runtime/arch race、examples 与 diff check 全绿 | 208/208 关闭；提交推送并更新 App Agent pin 后继续零残留反向扫描 |
 | 2026-08-05 | P37 生命周期能力与扩展权限边界 | termination 首因、端到端状态/事件、descriptor-only validator、Name single-read 与 built-in collision 反例通过；API 622 declaration/root 53，SHA-256 `1d276a69bc2a35481db24a803f8dc80d0ec44fefcd70d9dd2f672cc292bd9eda`；wire 160 行且 hash 不变。Agent standalone 全量 build/vet/test/staticcheck/golangci-lint/tidy、core/runtime/arch race、examples 与 diff check 全绿 | 204/204 关闭；提交推送并更新 App Agent pin 后继续零残留反向扫描 |
 | 2026-08-05 | P36 定义快照、评分与上下文信任边界 | duplicate/whitespace、typed-nil/panic snapshot、request mutation、非法 score/options、nil ProcessContext 与 deployment attribution 反例通过；API 627 declaration/root 53，SHA-256 `d594c5ed9d05ed104f1996b4ae61942a331a5f884b302dea2e8889e9dc5a3138`；wire 160 行且 hash 不变。Agent standalone 全量 build/vet/test/staticcheck/golangci-lint/tidy、受影响 package race、examples 与 diff check 全绿 | 200/200 关闭；提交推送并更新 App Agent pin 后继续零残留反向扫描 |
 | 2026-08-05 | P35 Workflow 构造期原子性与定义检查 | whitespace Name、parent/late-child invalid-before-deploy、metadata panic/single-read 反例通过；API/wire hash 不变。Agent standalone 全量 build/vet/test/staticcheck/golangci-lint/tidy，core/workflow/arch race 与 diff check 全绿 | 196/196 关闭；提交推送并更新 App Agent pin 后继续最终反向扫描 |
