@@ -42,6 +42,7 @@ type executionState struct {
 	PendingResponse *chat.Response  `json:"pending_response,omitempty"`
 	ToolCheckpoint  *toolCheckpoint `json:"tool_checkpoint,omitempty"`
 	WaitID          *agent.WaitID   `json:"wait_id,omitempty"`
+	Steering        []chat.Message  `json:"steering,omitempty"`
 	FinalOutput     *Output         `json:"final_output,omitempty"`
 }
 
@@ -61,13 +62,18 @@ func (state executionState) Validate(maxModelCalls uint32) error {
 	if state.ModelCalls > maxModelCalls {
 		return fmt.Errorf("%w: model call count exceeds configured limit", ErrInvalidState)
 	}
+	if len(state.Steering) > 0 {
+		if err := validateSteeringMessages(state.Steering); err != nil {
+			return fmt.Errorf("%w: %v", ErrInvalidState, err)
+		}
+	}
 	switch state.Phase {
 	case phaseReadyModel:
-		if state.PendingResponse != nil || state.ToolCheckpoint != nil || state.WaitID != nil || state.FinalOutput != nil {
+		if state.PendingResponse != nil || state.ToolCheckpoint != nil || state.WaitID != nil || len(state.Steering) != 0 || state.FinalOutput != nil {
 			return fmt.Errorf("%w: ready_model has inconsistent pending response or limit", ErrInvalidState)
 		}
 	case phaseAwaitingModel:
-		if state.PendingResponse != nil || state.ToolCheckpoint != nil || state.WaitID != nil || state.FinalOutput != nil || state.ModelCalls == 0 {
+		if state.PendingResponse != nil || state.ToolCheckpoint != nil || state.WaitID != nil || len(state.Steering) != 0 || state.FinalOutput != nil || state.ModelCalls == 0 {
 			return fmt.Errorf("%w: awaiting_model has inconsistent pending response or limit", ErrInvalidState)
 		}
 	case phaseAwaitingTools:
@@ -107,7 +113,7 @@ func (state executionState) Validate(maxModelCalls uint32) error {
 			return fmt.Errorf("%w: waiting_input requires an Engine WaitID", ErrInvalidState)
 		}
 	case phaseCompleted:
-		if state.PendingResponse != nil || state.ToolCheckpoint != nil || state.WaitID != nil || state.FinalOutput == nil || state.ModelCalls == 0 {
+		if state.PendingResponse != nil || state.ToolCheckpoint != nil || state.WaitID != nil || len(state.Steering) != 0 || state.FinalOutput == nil || state.ModelCalls == 0 {
 			return fmt.Errorf("%w: completed state requires only its final Output", ErrInvalidState)
 		}
 		if err := state.FinalOutput.Validate(); err != nil {

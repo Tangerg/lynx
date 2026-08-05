@@ -69,7 +69,7 @@ go test ./...
 | P0 模块边界与设计合同 | 完成 | 6/6 | 建立独立 module、分层文档、能力台账和候选合同 |
 | P1 候选窄腰与消费审计 | 完成 | 9/9 | 用只读审计和多策略 spike 验证 erased wire、协议与状态机，不冻结 API |
 | P2 Engine 最小执行闭环 | 完成 | 8/8 | 单 Process、Signal、Effect、状态提交、snapshot、event/delta、limit |
-| P3 真实 Interaction 验证 | 进行中 | 6/9 | 真实模型/工具 dispatcher、流、HITL、steer，并接入 disposable consumer |
+| P3 真实 Interaction 验证 | 进行中 | 7/9 | 真实模型/工具 dispatcher、流、HITL、steer，并接入 disposable consumer |
 | P4 子 Process 组合与合同冻结 | 未开始 | 0/9 | start/wait、递归、组合、预算、取消、恢复；多消费方验证后冻结窄腰 |
 | P5 Planning 与 GOAP | 未开始 | 0/8 | Planning 状态、Planner SPI、GOAP 搜索与 replan |
 | P6 Workflow | 未开始 | 0/8 | 原生 sequence/gate/router/fork/join/loop/agent call |
@@ -123,7 +123,7 @@ go test ./...
 - [x] P3-04 支持模型/工具循环、清晰停止条件和可独立于 Delta 导出的最终 Output。
 - [x] P3-05 支持工具 checkpoint、挂起和精确恢复，验证 settlement 去重与不可重试副作用。
 - [x] P3-06 支持 HITL；WaitID 由 Engine 铸造，业务 payload 只由 Interaction 解释。
-- [ ] P3-07 支持 steer，并为 Interaction 明确和测试 Signal 安全消费边界与最坏生效延迟。
+- [x] P3-07 支持 steer，并为 Interaction 明确和测试 Signal 安全消费边界与最坏生效延迟。
 - [ ] P3-08 支持显式安全且有界的并行工具调用。
 - [ ] P3-09 用一个可随时删除的真实 consumer 接入完整路径，并通过 autonomous agent 和 direct-vs-managed 示例验收。
 
@@ -251,6 +251,7 @@ go test ./...
 
 | 日期 | 阶段 | 实际事实 | 验证与结果 |
 |---|---|---|---|
+| 2026-08-06 | P3 | 实现 Interaction-owned steer Signal，没有新增第二推进入口、middleware 侧路或 Engine 对消息语义的解析。`NewSteerSignal` 仅接受经验证的 user-role 消息，使用调用方稳定 SignalID 参与 Engine 去重，payload 仍为严格版本化且对 Kernel 不透明。Interaction 只在当前 model Effect 或整个 Tool batch 确定结算后消费 steer：模型已产生的最终 assistant 消息先进入 WorkingContext，ToolCall/ToolResult 批次也必须按稳定顺序完整结算，随后才追加 steer 并发起下一次 model Effect。正在结算的操作不中断，不丢弃 in-flight Tool 副作用；公开 GoDoc 明确最坏生效延迟为当前不可中断操作的剩余时长加 Engine Step 调度时间。暂存 steer 纳入 Strategy-owned ExecutionState，可跨 Tool/HITL checkpoint 恢复，但不进入 Framework 共同快照字段 | 独立 build/vet/staticcheck/test/race 全绿；steer 专项稳定性测试连续 20 次通过。可控阻塞模型证明 in-flight request 不可见 steer，仅下一模型轮可见；可控阻塞 Tool 证明 steer 不能越过 Tool batch 结算边界；非 user 消息在投递前即被拒绝。P3-07 完成，P3 更新为 7/9 |
 | 2026-08-06 | P3 | 收口 Interaction HITL 的 typed edge，并保持 Kernel 对 payload 完全不透明。Framework `Snapshot` 只新增 `CommittedExecutionState` 和 `WaitID` 两个中性、只读、防御性访问器；它仍不 import Interaction，不解析 prompt/schema/continuation，prepared candidate 也不暴露。`PendingToolInputFromProcess`/`PendingToolInputFromSnapshot` 只在 Interaction package 解码自己的已提交 state，并交叉校验 Strategy WaitID 与 Engine Snapshot WaitID；对 consumer 只暴露 `PendingToolInput.WaitID/Prompt/ResponseSchema`，Tool 私有 continuation state 不越过边界。`PendingToolInput.ResponseSignal` 先本地按权威 schema 验证回答，再用调用方提供的 SignalID 和 Engine-minted WaitID 构造去重 Signal。统一命名为 `ToolInputRequest`、`RequireToolInput`、`ToolInputContinuation`、`PendingToolInput`，避免与 Interaction 初始 `Input` 混淆；没有 approval/user/actor/form 等应用术语进入 Framework | 独立 build/vet/staticcheck/test/race 全绿；Snapshot strict codec fuzz 2 秒执行 20 次无失败。端到端恢复测试增加 live Process 和 stored Snapshot 两条 pending-input 查询路径；非法 schema response 在投递前就被 `ErrInvalidToolInputRequest` 拒绝，错 WaitID 被 Engine `ErrSignalRejected` 拒绝，同 SignalID 在续跑 Tool 执行中再投返回 `accepted=false` 且不重入，终态后的过期回答返回 `ErrProcessFinished`。P3-06 完成，P3 更新为 6/9 |
 | 2026-08-06 | P3 | 实现 Tool batch 的 Strategy-owned 精确 checkpoint 与可恢复挂起。Tool 通过语义明确的 `RequireToolInput` 返回经验证的 `ToolInputRequest`；其 prompt 是 consumer-facing JSON，response schema 是权威 JSON Schema，continuation state 只返回原 Tool，不含 Process/WaitID 或应用审批类型。Dispatcher 在确定 settlement 中保存按 ToolCall 顺序的已结算前缀、当前 call 位置、暂停计数和 Tool-owned continuation state，待执行后缀由原模型响应唯一导出。Execution 把 checkpoint 纳入版本化 ExecutionState，通过 Framework wait Effect 进入 Waiting；回答经 schema 验证后，Dispatcher 只向挂起 Tool 的 context 附加 `ToolInputContinuation`，不重调模型、不重执行已结算前缀，随后继续未执行后缀。WaitKey 由 Execution 对 model-call/call-ID/pause-count 稳定派生，WaitID 仍只由 Engine 铸造。Tool Effect 保持 `ReplayPolicyNever`；恢复 prepared 但未能证明结果的副作用只暴露 unknown EffectID，不擅自重投 | 独立 build/vet/staticcheck/test/race 全绿。第一个端到端测试执行“前缀 Tool 完成→后续 Tool 挂起→Waiting capture→杀死原 Process→恢复→回答→续跑 Tool→下一模型轮→完成”，确认前缀 Tool、首次模型和挂起前逻辑均只执行一次，结果顺序不变；第二个测试在阻塞 Tool Effect 执行中 capture，新 Engine 恢复后得到一个 unknown Effect 且 Tool 调用数仍为 1，证明 settlement 不重入和不可证明副作用不重试。P3-05 完成，P3 更新为 5/9 |
 | 2026-08-06 | P3 | 收口 Interaction 的三种唯一停止语义。普通完成要求模型返回含完整 assistant message 且有明确 FinishReason 的非 ToolCall 响应，Output 以 `CompletionSourceModelResponse` + `ModelResponse` 表达；工具只有显式实现 `DirectResultTool.ReturnsDirectResult` 的可选 capability，且当前 batch 每个 ToolCall 都如此声明时，才以 `CompletionSourceDirectToolResults` + 原 ToolCall 顺序的 `DirectToolResults` 完成；达到显式 `MaxModelCalls` 时以 `interaction.limit.model_calls` 的 execution Failure 终止，不伪造模型或工具输出。Output 使用严格互斥字段集并验证重复 ToolResult ID；ExecutionState 改为显式保存最终 Output，不再将“待工具结算的模型响应”复用为“已完成结果”。Direct capability 通过 `tool.Capability` 穿透 decorator 链且在 Dispatcher 构造时冻结，panic/非法链直接拒绝 Deployment 组件 | 独立 build/vet/staticcheck/test/race 全绿。端到端测试证明普通模型响应和两轮 model→tool→model 都产生 `CompletionSourceModelResponse`；显式 Direct Tool 只调用一次模型并返回独立 ToolResult Output；非 Direct Tool 在 `MaxModelCalls=1` 时不发起第二次模型调用，而是以稳定 code 失败。P3-04 完成，P3 更新为 4/9 |
@@ -277,6 +278,6 @@ go test ./...
 
 P1–P2 已完成，得到经过旧模块/Host 审计、Interaction/Planning spike、Prepared Step 恢复 harness、完整终态表、strict codec/fuzz 和依赖架构守卫共同验证的候选窄腰与单 Process Engine。它仍不是冻结的 API/wire baseline；只有 P3 真实 Interaction 与 P4 child composition 以及第二个 disposable consumer 共同通过后，才建立首个 baseline。
 
-P3-01–P3-06 已完成。下一轮实现与验证 steer：定义单一公开 Signal helper 和模型可见消息语义，只在当前 model Effect 或完整 Tool batch 结算后、下一 model Effect 前消费；用可控阻塞模型/Tool 测试最早可见边界，并把最坏生效延迟写入公开 GoDoc。
+P3-01–P3-07 已完成。下一轮实现显式安全且有界的 Tool 并行：默认仍串行，只允许 Tool 通过精确 capability 声明可重叠调用，同 concurrency key 串行，并行度受 Dispatcher 显式上限约束；以竞态测试证明结果顺序、互斥边界、并行上限和失败后不隐式重试。
 
 在 P1–P9 完成前，不迁移 `app/runtime`，不删除旧 `agent`，不发布 `agent2` 稳定版本。

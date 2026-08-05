@@ -29,10 +29,15 @@ func (execution *execution) Step(_ context.Context, signals []agent.Signal) (age
 	}
 	switch execution.state.Phase {
 	case phaseReadyModel:
-		if len(signals) != 0 {
-			return agent.Transition{}, fmt.Errorf("%w: unexpected Signal before first model call", ErrInvalidState)
+		steering, consumed, err := collectSteeringSignals(signals)
+		if err != nil {
+			return agent.Transition{}, err
 		}
-		return execution.requestModel(0)
+		execution.addSteering(steering)
+		if err := execution.applySteering(); err != nil {
+			return agent.Transition{}, err
+		}
+		return execution.requestModel(consumed)
 	case phaseAwaitingModel:
 		return execution.acceptModel(signals)
 	case phaseAwaitingTools:
@@ -86,19 +91,15 @@ func (execution *execution) requestModel(consumed uint32) (agent.Transition, err
 }
 
 func (execution *execution) acceptModel(signals []agent.Signal) (agent.Transition, error) {
-	if len(signals) == 0 {
-		return agent.Transition{}, fmt.Errorf("%w: model settlement Signal is missing", ErrInvalidState)
-	}
-	envelope, err := decodeSignal(signals[0].Payload())
+	envelope, steering, consumed, err := collectExpectedSignal(signals, operationModelCall)
 	if err != nil {
 		return agent.Transition{}, err
 	}
-	if envelope.Operation != operationModelCall {
-		return agent.Transition{}, fmt.Errorf("%w: got %q while awaiting model result", ErrInvalidState, envelope.Operation)
-	}
+	execution.addSteering(steering)
 	if envelope.ModelResult.Error != "" {
+		execution.state.Steering = nil
 		return execution.fail(
-			1,
+			consumed,
 			agent.FailureKindExternal,
 			"interaction.model.failed",
 			envelope.ModelResult.Error,
@@ -110,7 +111,21 @@ func (execution *execution) acceptModel(signals []agent.Signal) (agent.Transitio
 		return agent.Transition{}, err
 	}
 	if len(calls) == 0 {
-		return execution.complete(1, Output{
+		if len(execution.state.Steering) > 0 {
+			choice := response.First()
+			if choice == nil || choice.Message == nil || choice.FinishReason == "" {
+				return agent.Transition{}, fmt.Errorf("%w: steered response has no finished assistant message", ErrInvalidState)
+			}
+			request := execution.state.Request.Clone()
+			request.Messages = append(request.Messages, choice.Message.Clone())
+			execution.state.Request = request
+			if err := execution.applySteering(); err != nil {
+				return agent.Transition{}, err
+			}
+			execution.state.Phase = phaseReadyModel
+			return execution.requestModel(consumed)
+		}
+		return execution.complete(consumed, Output{
 			Source:        CompletionSourceModelResponse,
 			ModelResponse: response,
 			ModelCalls:    execution.state.ModelCalls,
@@ -131,20 +146,15 @@ func (execution *execution) acceptModel(signals []agent.Signal) (agent.Transitio
 	}
 	execution.state.Phase = phaseAwaitingTools
 	execution.state.PendingResponse = response
-	return agent.Continue(1, effect)
+	return agent.Continue(consumed, effect)
 }
 
 func (execution *execution) acceptTools(signals []agent.Signal) (agent.Transition, error) {
-	if len(signals) == 0 {
-		return agent.Transition{}, fmt.Errorf("%w: tool settlement Signal is missing", ErrInvalidState)
-	}
-	envelope, err := decodeSignal(signals[0].Payload())
+	envelope, steering, consumed, err := collectExpectedSignal(signals, operationToolBatch)
 	if err != nil {
 		return agent.Transition{}, err
 	}
-	if envelope.Operation != operationToolBatch {
-		return agent.Transition{}, fmt.Errorf("%w: got %q while awaiting tool results", ErrInvalidState, envelope.Operation)
-	}
+	execution.addSteering(steering)
 	calls, assistant, err := responseToolCalls(execution.state.PendingResponse)
 	if err != nil {
 		return agent.Transition{}, err
@@ -154,13 +164,13 @@ func (execution *execution) acceptTools(signals []agent.Signal) (agent.Transitio
 		if err := checkpoint.validate(calls); err != nil {
 			return agent.Transition{}, err
 		}
-		return execution.requestInputWait(1, checkpoint)
+		return execution.requestInputWait(consumed, checkpoint)
 	}
 	if err := validateToolResults(calls, results); err != nil {
 		return agent.Transition{}, err
 	}
-	if envelope.ToolResult.Direct {
-		return execution.complete(1, Output{
+	if envelope.ToolResult.Direct && len(execution.state.Steering) == 0 {
+		return execution.complete(consumed, Output{
 			Source:            CompletionSourceDirectToolResults,
 			DirectToolResults: append([]chat.ToolResult(nil), results...),
 			ModelCalls:        execution.state.ModelCalls,
@@ -168,6 +178,11 @@ func (execution *execution) acceptTools(signals []agent.Signal) (agent.Transitio
 	}
 	request := execution.state.Request.Clone()
 	request.Messages = append(request.Messages, assistant.Clone(), chat.NewToolMessage(results...))
+	execution.state.Request = request
+	if err := execution.applySteering(); err != nil {
+		return agent.Transition{}, err
+	}
+	request = execution.state.Request
 	if err := request.Validate(); err != nil {
 		return agent.Transition{}, fmt.Errorf("%w: continuation request: %w", ErrInvalidState, err)
 	}
@@ -176,7 +191,7 @@ func (execution *execution) acceptTools(signals []agent.Signal) (agent.Transitio
 	execution.state.ToolCheckpoint = nil
 	execution.state.WaitID = nil
 	execution.state.Phase = phaseReadyModel
-	return execution.requestModel(1)
+	return execution.requestModel(consumed)
 }
 
 func (execution *execution) requestInputWait(
@@ -218,17 +233,20 @@ func (execution *execution) requestInputWait(
 }
 
 func (execution *execution) acceptWaitID(signals []agent.Signal) (agent.Transition, error) {
-	if len(signals) == 0 {
-		return agent.Transition{}, fmt.Errorf("%w: wait-opened Signal is missing", ErrInvalidState)
-	}
-	envelope, err := decodeSignal(signals[0].Payload())
+	envelope, steering, consumed, err := collectExpectedSignal(signals, operationWaitOpened)
 	if err != nil {
 		return agent.Transition{}, err
 	}
-	if envelope.Operation != operationWaitOpened {
-		return agent.Transition{}, fmt.Errorf("%w: got %q while awaiting WaitID", ErrInvalidState, envelope.Operation)
+	execution.addSteering(steering)
+	var waitID agent.WaitID
+	var ok bool
+	for _, signal := range signals {
+		decoded, decodeErr := decodeSignal(signal.Payload())
+		if decodeErr == nil && decoded.Operation == operationWaitOpened {
+			waitID, ok = signal.WaitID()
+			break
+		}
 	}
-	waitID, ok := signals[0].WaitID()
 	if !ok {
 		return agent.Transition{}, fmt.Errorf("%w: Engine did not attach a WaitID", ErrInvalidState)
 	}
@@ -242,23 +260,24 @@ func (execution *execution) acceptWaitID(signals []agent.Signal) (agent.Transiti
 	}
 	execution.state.WaitID = &waitID
 	execution.state.Phase = phaseWaitingInput
-	return agent.Wait(1, waitID)
+	return agent.Wait(consumed, waitID)
 }
 
 func (execution *execution) acceptInputResponse(signals []agent.Signal) (agent.Transition, error) {
-	if len(signals) == 0 {
-		return agent.Transition{}, fmt.Errorf("%w: input-response Signal is missing", ErrInvalidState)
-	}
-	waitID, addressed := signals[0].WaitID()
-	if !addressed || execution.state.WaitID == nil || waitID != *execution.state.WaitID {
-		return agent.Transition{}, fmt.Errorf("%w: input response addressed the wrong wait", ErrInvalidState)
-	}
-	envelope, err := decodeSignal(signals[0].Payload())
+	envelope, steering, consumed, err := collectExpectedSignal(signals, operationInputResponse)
 	if err != nil {
 		return agent.Transition{}, err
 	}
-	if envelope.Operation != operationInputResponse {
-		return agent.Transition{}, fmt.Errorf("%w: got %q while awaiting input response", ErrInvalidState, envelope.Operation)
+	if len(steering) != 0 {
+		return agent.Transition{}, fmt.Errorf("%w: steer cannot address an input wait", ErrInvalidState)
+	}
+	inputSignal, ok := signalForOperation(signals, operationInputResponse)
+	if !ok {
+		return agent.Transition{}, fmt.Errorf("%w: input-response Signal is missing", ErrInvalidState)
+	}
+	waitID, addressed := inputSignal.WaitID()
+	if !addressed || execution.state.WaitID == nil || waitID != *execution.state.WaitID {
+		return agent.Transition{}, fmt.Errorf("%w: input response addressed the wrong wait", ErrInvalidState)
 	}
 	request, err := execution.state.ToolCheckpoint.Input.inputRequest()
 	if err != nil {
@@ -286,7 +305,7 @@ func (execution *execution) acceptInputResponse(signals []agent.Signal) (agent.T
 	}
 	execution.state.WaitID = nil
 	execution.state.Phase = phaseAwaitingTools
-	return agent.Continue(1, effect)
+	return agent.Continue(consumed, effect)
 }
 
 func (execution *execution) complete(consumed uint32, output Output) (agent.Transition, error) {
@@ -301,8 +320,94 @@ func (execution *execution) complete(consumed uint32, output Output) (agent.Tran
 	execution.state.PendingResponse = nil
 	execution.state.ToolCheckpoint = nil
 	execution.state.WaitID = nil
+	execution.state.Steering = nil
 	execution.state.FinalOutput = &output
 	return agent.Complete(consumed, encoded)
+}
+
+func (execution *execution) addSteering(messages []chat.Message) {
+	execution.state.Steering = append(execution.state.Steering, cloneMessages(messages)...)
+}
+
+func (execution *execution) applySteering() error {
+	if len(execution.state.Steering) == 0 {
+		return nil
+	}
+	request := execution.state.Request.Clone()
+	request.Messages = append(request.Messages, cloneMessages(execution.state.Steering)...)
+	if err := request.Validate(); err != nil {
+		return fmt.Errorf("%w: steered model request: %v", ErrInvalidState, err)
+	}
+	execution.state.Request = request
+	execution.state.Steering = nil
+	return nil
+}
+
+func collectSteeringSignals(signals []agent.Signal) ([]chat.Message, uint32, error) {
+	var messages []chat.Message
+	for _, signal := range signals {
+		if _, addressed := signal.WaitID(); addressed {
+			return nil, 0, fmt.Errorf("%w: steer Signal must not address a wait", ErrInvalidState)
+		}
+		envelope, err := decodeSignal(signal.Payload())
+		if err != nil {
+			return nil, 0, err
+		}
+		if envelope.Operation != operationSteer {
+			return nil, 0, fmt.Errorf("%w: unexpected %q Signal", ErrInvalidState, envelope.Operation)
+		}
+		messages = append(messages, cloneMessages(envelope.Steer.Messages)...)
+	}
+	return messages, uint32(len(signals)), nil
+}
+
+func collectExpectedSignal(
+	signals []agent.Signal,
+	expected operation,
+) (signalEnvelope, []chat.Message, uint32, error) {
+	var result signalEnvelope
+	var found bool
+	var steering []chat.Message
+	for _, signal := range signals {
+		envelope, err := decodeSignal(signal.Payload())
+		if err != nil {
+			return signalEnvelope{}, nil, 0, err
+		}
+		switch envelope.Operation {
+		case operationSteer:
+			if _, addressed := signal.WaitID(); addressed {
+				return signalEnvelope{}, nil, 0, fmt.Errorf("%w: steer Signal must not address a wait", ErrInvalidState)
+			}
+			steering = append(steering, cloneMessages(envelope.Steer.Messages)...)
+		case expected:
+			if found {
+				return signalEnvelope{}, nil, 0, fmt.Errorf("%w: duplicate %q Signal", ErrInvalidState, expected)
+			}
+			_, addressed := signal.WaitID()
+			requiresAddress := expected == operationWaitOpened || expected == operationInputResponse
+			if addressed != requiresAddress {
+				return signalEnvelope{}, nil, 0, fmt.Errorf("%w: %q Signal has invalid wait addressing", ErrInvalidState, expected)
+			}
+			found = true
+			result = envelope
+		default:
+			return signalEnvelope{}, nil, 0, fmt.Errorf("%w: got %q while awaiting %q", ErrInvalidState, envelope.Operation, expected)
+		}
+	}
+	if !found {
+		return signalEnvelope{}, nil, 0, fmt.Errorf("%w: %q settlement Signal is missing", ErrInvalidState, expected)
+	}
+	return result, steering, uint32(len(signals)), nil
+}
+
+func signalForOperation(signals []agent.Signal, expected operation) (agent.Signal, bool) {
+	for _, signal := range signals {
+		envelope, err := decodeSignal(signal.Payload())
+		if err == nil && envelope.Operation == expected {
+			return signal, true
+		}
+	}
+	return agent.Signal{}, false
 }
 
 func checkpointWaitKey(modelCalls uint32, callID string, pauses uint32) (agent.WaitKey, error) {

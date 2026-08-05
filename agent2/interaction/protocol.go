@@ -17,11 +17,12 @@ const (
 	operationToolBatch     operation = "tool_batch"
 	operationWaitOpened    operation = "wait_opened"
 	operationInputResponse operation = "input_response"
+	operationSteer         operation = "steer"
 )
 
 func (value operation) valid() bool {
 	return value == operationModelCall || value == operationToolBatch ||
-		value == operationWaitOpened || value == operationInputResponse
+		value == operationWaitOpened || value == operationInputResponse || value == operationSteer
 }
 
 type effectEnvelope struct {
@@ -48,11 +49,16 @@ type signalEnvelope struct {
 	ToolResult    *toolBatchResult  `json:"tool_result,omitempty"`
 	WaitOpened    *inputRequestWire `json:"wait_opened,omitempty"`
 	InputResponse json.RawMessage   `json:"input_response,omitempty"`
+	Steer         *steerInput       `json:"steer,omitempty"`
 }
 
 type modelCallResult struct {
 	Response *chat.Response `json:"response,omitempty"`
 	Error    string         `json:"error,omitempty"`
+}
+
+type steerInput struct {
+	Messages []chat.Message `json:"messages"`
 }
 
 type toolBatchResult struct {
@@ -188,7 +194,7 @@ func (envelope signalEnvelope) validate() error {
 	}
 	switch envelope.Operation {
 	case operationModelCall:
-		if envelope.ModelResult == nil || envelope.ToolResult != nil || envelope.WaitOpened != nil || len(envelope.InputResponse) != 0 {
+		if envelope.ModelResult == nil || envelope.ToolResult != nil || envelope.WaitOpened != nil || len(envelope.InputResponse) != 0 || envelope.Steer != nil {
 			return errors.New("interaction: model_result signal has an invalid payload set")
 		}
 		result := envelope.ModelResult
@@ -201,7 +207,7 @@ func (envelope signalEnvelope) validate() error {
 			}
 		}
 	case operationToolBatch:
-		if envelope.ModelResult != nil || envelope.ToolResult == nil || envelope.WaitOpened != nil || len(envelope.InputResponse) != 0 {
+		if envelope.ModelResult != nil || envelope.ToolResult == nil || envelope.WaitOpened != nil || len(envelope.InputResponse) != 0 || envelope.Steer != nil {
 			return errors.New("interaction: tool_result signal has an invalid payload set")
 		}
 		if (len(envelope.ToolResult.Results) == 0) == (envelope.ToolResult.Checkpoint == nil) {
@@ -222,18 +228,25 @@ func (envelope signalEnvelope) validate() error {
 			}
 		}
 	case operationWaitOpened:
-		if envelope.ModelResult != nil || envelope.ToolResult != nil || envelope.WaitOpened == nil || len(envelope.InputResponse) != 0 {
+		if envelope.ModelResult != nil || envelope.ToolResult != nil || envelope.WaitOpened == nil || len(envelope.InputResponse) != 0 || envelope.Steer != nil {
 			return errors.New("interaction: wait_opened signal has an invalid payload set")
 		}
 		if _, err := envelope.WaitOpened.inputRequest(); err != nil {
 			return err
 		}
 	case operationInputResponse:
-		if envelope.ModelResult != nil || envelope.ToolResult != nil || envelope.WaitOpened != nil || len(envelope.InputResponse) == 0 {
+		if envelope.ModelResult != nil || envelope.ToolResult != nil || envelope.WaitOpened != nil || len(envelope.InputResponse) == 0 || envelope.Steer != nil {
 			return errors.New("interaction: input_response signal has an invalid payload set")
 		}
 		if _, err := canonicalJSON(envelope.InputResponse); err != nil {
 			return fmt.Errorf("interaction: input_response: %w", err)
+		}
+	case operationSteer:
+		if envelope.ModelResult != nil || envelope.ToolResult != nil || envelope.WaitOpened != nil || len(envelope.InputResponse) != 0 || envelope.Steer == nil {
+			return errors.New("interaction: steer signal has an invalid payload set")
+		}
+		if err := validateSteeringMessages(envelope.Steer.Messages); err != nil {
+			return err
 		}
 	}
 	return nil
