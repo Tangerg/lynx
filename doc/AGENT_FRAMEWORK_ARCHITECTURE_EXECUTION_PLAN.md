@@ -1,6 +1,6 @@
 # Agent Framework 架构演进执行计划
 
-> 状态：持续开发（P32 Agent 内部 owner 与抽象边界清洗已完成，3/3）
+> 状态：持续开发（P33 执行边界 fail-soft 与值所有权硬化已完成，3/3）
 > 建立日期：2026-07-15
 > 最后更新：2026-08-05
 > 维护者：Lynx 仓库维护者
@@ -2057,6 +2057,25 @@ SQLite 只认识 App-owned opaque envelope；Host 原子性、幂等、恢复与
 退出标准：内层 event 协议不再知道 Runtime Extension；workflow/routing 不以测试替身伪造
 Engine 替换点；名称、参数、注释与实际 owner 一致；旧 API 精确守卫且无兼容层。
 
+### P33：执行边界 fail-soft 与值所有权硬化
+
+- [x] **P33-01 Metrics provider 错误不再击穿执行**（完成：2026-08-05）
+  - 修正“instrument 创建失败仍返回可用 no-op”的错误假设；OTel Meter 合法返回
+    `(nil, err)` 或 `(nil, nil)` 时，不再缓存 nil 后在 Process tick 中 panic。
+  - instrument 创建错误交给 OTel error handler，Runtime 使用类型正确的 no-op
+    Counter/Histogram 继续执行；provider error 与 nil instrument 两个反例均有测试。
+- [x] **P33-02 ProcessContext 工具角色值所有权闭合**（完成：2026-08-05）
+  - `NewProcessContext` 防御性复制 caller 的 `ActionToolGroups`；`ActionTools` 每次调用再把
+    独立快照交给 resolver，caller 与 callback 都不能改写后续角色解析。
+  - 双向 mutation 测试固定 config-input 与 callback-input 两个所有权边界。
+- [x] **P33-03 注释与完整门禁收口**（完成：2026-08-05）
+  - 删除 `processState.endRun` 重复说明，Metrics GoDoc 只描述实际 fail-soft 合同。
+  - 公开 API 与 wire baseline 均不变；Agent build/vet/test/staticcheck/lint/tidy、
+    core/runtime/arch race 与 diff check 全绿。
+
+退出标准：可选观测 provider 的错误不能改变 Agent 执行结果；ProcessContext 不保留或泄漏
+caller-owned tool-role slice；注释不声明依赖接口未保证的行为。
+
 ---
 
 ## 15. 当前进度
@@ -2093,16 +2112,17 @@ Engine 替换点；名称、参数、注释与实际 owner 一致；旧 API 精�
 | P25 Framework/Host zero-leak closure | 完成 | 4/4 | Runtime 删除 Host transaction choreography；App/SQLite 改用 opaque process envelope；边界守卫与门禁收口 |
 | P31 显式并发、RAG 与 authoring 人体工学 | 完成 | 8/8 | capability isolation、deterministic join、RAG/filter/chunking/typed output 与负向边界审计完成 |
 | P32 Agent 内部 owner 与抽象边界清洗 | 完成 | 3/3 | Event/Runtime owner 收正，workflow/routing 伪 Runtime 接口删除，consumer 与 guard 收口 |
-| **总计** | **完成** | **185/185（100%）** | **P32-01 至 P32-03 全部完成；不执行封版、tag 或 release** |
+| P33 执行边界 fail-soft 与值所有权硬化 | 完成 | 3/3 | Metrics provider 失败降级、ProcessContext role slice 双向隔离、注释与门禁收口 |
+| **总计** | **完成** | **188/188（100%）** | **P33-01 至 P33-03 全部完成；不执行封版、tag 或 release** |
 
 ### 15.2 当前焦点
 
-- 当前阶段：P32 Agent 内部 owner 与抽象边界清洗，3/3，已完成。
+- 当前阶段：P33 执行边界 fail-soft 与值所有权硬化，3/3，已完成。
 - 下一任务：继续以真实调用链和可构造反例审计 Agent；没有真实变化点时不新增 interface、
   adapter、package 或 Runtime 同义词。本批不封版、不创建 tag 或 release。
 - 当前决策门：已解除；按 BB-01 至 BB-08 直接迁移，不保留兼容层。
-- 最近完成：Runtime listener adapter 从 event 协议包收回 runtime；workflow/routing 删除只为
-  测试替身存在、却泄漏 concrete Deployment 的伪 Runtime 接口，直接表达 exact Engine owner。
+- 最近完成：OTel instrument 创建失败显式报告并降级为 typed no-op；ProcessContext 在构造和
+  resolver callback 两侧隔离 action tool-role slice，不再允许外部 mutation 改写后续执行。
   Agent 只拥有 execution framework 语义，App transaction/idempotency/persistence ownership
   保持不变。
 
@@ -2462,6 +2482,7 @@ Engine 替换点；名称、参数、注释与实际 owner 一致；旧 API 精�
 
 | 日期 | 变更 | 作者 |
 |---|---|---|
+| 2026-08-05 | 完成 P33 执行边界 fail-soft 与值所有权硬化：OTel instrument 创建错误通过 error handler 报告并降级 typed no-op，不再把 nil instrument 带进 tick；ProcessContext 在构造与 resolver callback 两侧复制 ActionToolGroups；同步删除重复/错误注释，API/wire 不变 | Codex |
 | 2026-08-05 | 完成 P32 Agent 内部 owner 与抽象边界清洗：Runtime named/subtree listener adapter 从 event leaf 收回 Runtime；workflow/routing 删除只为测试替身存在、却返回 exact Runtime Deployment 的伪接口；App 唯一 consumer、API baseline、GoDoc 与精确防回流守卫直接迁移，无兼容层 | Codex |
 | 2026-08-01 | 完成 P31 explicit concurrency/RAG/authoring closure：顶层 Process 保持串行重规划；fan-out capability 与错误顺序确定化；RAG unique TopK、Markdown 结构化切分、collection `HAS` 与 managed typed Prompt 落地；拒绝自动 Plan Stage、共享 Blackboard、test-only public package 与 provider schema 猜测层 | Codex |
 | 2026-08-01 | 完成 P26 durable checkpoint/Application ownership closure：waiting capture 改为无 I/O，checkpoint/Pending/Run suspension 同事务；terminal Discard 改为纯 live cleanup，Run terminalization 与 checkpoint deletion 同事务；boot 精确保留 owned roots；删除 process-derived hidden Session，schema epoch 46；新增 package-wide AST guard 与专项防复发文档 | Codex |
@@ -2529,6 +2550,7 @@ Engine 替换点；名称、参数、注释与实际 owner 一致；旧 API 精�
 
 | 日期 | 任务 | 结果与证据 | 下一步 |
 |---|---|---|---|
+| 2026-08-05 | P33 执行边界 fail-soft 与值所有权硬化 | custom Meter 的 error/nil instrument 反例降级为 no-op；ActionToolGroups caller/callback 双向 mutation 均被隔离；API/wire hash 不变。Agent 全量 build/vet/test/staticcheck/golangci-lint/tidy，core/runtime/arch race 与 diff check 全绿 | 188/188 关闭；更新 App Agent pin 后继续最终反例扫描 |
 | 2026-08-05 | P32 Agent 内部 owner 与抽象边界清洗 | Event leaf 删除 Runtime Extension adapter；workflow/routing 直接依赖 exact `*runtime.Engine`；App agentexec consumer 直接迁移。Agent API 为 627 declaration/root 53，SHA-256 `86dd3e196a28cf6d57a3e934c3adf90d446b010d3c3331366ae8e941c1af1159`；wire 160 行且 hash 不变。Agent/App 定向与完整门禁、选定 race、staticcheck、golangci-lint、tidy diff 和 diff check 全绿 | 185/185 关闭；继续反例扫描，不创建 tag/release |
 | 2026-08-01 | P31 显式并发、RAG 与 authoring 人体工学收口 | `60729739f`、`14aae8eda`、`1ff0c8db6`、`277f36b72`、`12998274d`、`01177233f`、`9a2c9222a`；Agent workflow/toolloop/prompt race+lint，RAG/filter/Markdown/provider 定向门禁及 workspace 69 项 build/vet/test 全绿；按维护者要求不执行 fuzz | 无；8/8 关闭，形成最终文档提交并 push |
 | 2026-08-01 | P26 durable checkpoint/Application ownership closure | 普通 waiting capture 无 I/O，App tree barrier 原子提交 checkpoint/Pending/Run suspension；root terminal transaction 原子 terminalize + delete checkpoint，Framework Discard 只清 live registry；boot exact preserved set 与 Session-root metadata 清理孤儿；process-derived hidden Session 全部删除，schema epoch 46；新增真实 SQLite rollback/restart tests、package-wide AST guard 与专项审计文档；Agent/App build、vet、普通 test、lint、staticcheck、tidy、architecture/diff 门禁全绿，按用户要求不执行 fuzz/race。 | 形成独立提交并 push；后续 seam 变更按 ADR-AF-026 与专项 checklist 审查 |

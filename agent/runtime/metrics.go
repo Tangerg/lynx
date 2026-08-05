@@ -2,19 +2,21 @@ package runtime
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"sync"
 	"time"
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/metric/noop"
 
 	"github.com/Tangerg/lynx/agent/core"
 )
 
-// Metric names + the meter scope. Via the OTel metric API so it slots
-// into the same pipeline as the runtime's tracing. When no MeterProvider is configured the global
-// meter is a no-op, so these add zero overhead by default.
+// Runtime metrics use the OTel pipeline shared with tracing. Without a
+// MeterProvider the global meter is a no-op.
 const (
 	meterName = "lynx/agent"
 
@@ -35,34 +37,52 @@ type agentMetrics struct {
 	exits          metric.Int64Counter
 }
 
-var loadMetrics = sync.OnceValue(newAgentMetrics)
+var loadMetrics = sync.OnceValue(func() *agentMetrics {
+	return newAgentMetrics(otel.Meter(meterName))
+})
 
-func newAgentMetrics() *agentMetrics {
-	meter := otel.Meter(meterName)
-
-	// Instrument-creation errors yield usable no-op instruments, so the
-	// errors are safe to drop — recording stays a no-op rather than
-	// panicking on a misconfigured provider.
-	ticks, _ := meter.Int64Counter(metricTicks,
-		metric.WithDescription("OODA tick iterations, by agent."))
-	actions, _ := meter.Int64Counter(metricActions,
-		metric.WithDescription("Action executions, by agent and final status."))
-	actionDuration, _ := meter.Float64Histogram(metricActionDur,
-		metric.WithDescription("Action execution wall-clock time."),
-		metric.WithUnit("ms"))
-	planDuration, _ := meter.Float64Histogram(metricPlanDur,
-		metric.WithDescription("Planner formulation wall-clock time."),
-		metric.WithUnit("ms"))
-	exits, _ := meter.Int64Counter(metricRunExits,
-		metric.WithDescription("Run-loop exits, by agent and status (completed/failed/waiting/...)."))
-
+func newAgentMetrics(meter metric.Meter) *agentMetrics {
 	return &agentMetrics{
-		ticks:          ticks,
-		actions:        actions,
-		actionDuration: actionDuration,
-		planDuration:   planDuration,
-		exits:          exits,
+		ticks: int64Counter(meter, metricTicks,
+			metric.WithDescription("OODA tick iterations, by agent.")),
+		actions: int64Counter(meter, metricActions,
+			metric.WithDescription("Action executions, by agent and final status.")),
+		actionDuration: float64Histogram(meter, metricActionDur,
+			metric.WithDescription("Action execution wall-clock time."),
+			metric.WithUnit("ms")),
+		planDuration: float64Histogram(meter, metricPlanDur,
+			metric.WithDescription("Planner formulation wall-clock time."),
+			metric.WithUnit("ms")),
+		exits: int64Counter(meter, metricRunExits,
+			metric.WithDescription("Run-loop exits, by agent and status (completed/failed/waiting/...).")),
 	}
+}
+
+// Metrics are observational: a provider that rejects an instrument must not
+// turn a valid process run into a panic. OTel's error handler keeps the failure
+// visible while the typed no-op preserves the execution path.
+func int64Counter(meter metric.Meter, name string, options ...metric.Int64CounterOption) metric.Int64Counter {
+	instrument, err := meter.Int64Counter(name, options...)
+	if err == nil && !valueIsNil(instrument) {
+		return instrument
+	}
+	if err == nil {
+		err = errors.New("provider returned a nil counter")
+	}
+	otel.Handle(fmt.Errorf("agent runtime: create metric %q: %w", name, err))
+	return noop.Int64Counter{}
+}
+
+func float64Histogram(meter metric.Meter, name string, options ...metric.Float64HistogramOption) metric.Float64Histogram {
+	instrument, err := meter.Float64Histogram(name, options...)
+	if err == nil && !valueIsNil(instrument) {
+		return instrument
+	}
+	if err == nil {
+		err = errors.New("provider returned a nil histogram")
+	}
+	otel.Handle(fmt.Errorf("agent runtime: create metric %q: %w", name, err))
+	return noop.Float64Histogram{}
 }
 
 func millis(duration time.Duration) float64 {

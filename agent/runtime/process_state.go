@@ -304,8 +304,6 @@ func (s *processState) beginRunLocked(fromCheckpoint bool) (bool, error) {
 	return true, nil
 }
 
-// endRun releases the complete run boundary and returns one lock-consistent
-// status/failure pair for Segment publication.
 // endRun closes the run and reports the outcome it recorded. The second result
 // is the process's own failure, not a failure to end the run, which is why
 // callers that only need the run closed discard both.

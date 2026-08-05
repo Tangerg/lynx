@@ -3,6 +3,7 @@ package core
 import (
 	"context"
 	"errors"
+	"slices"
 
 	"github.com/Tangerg/lynx/agent/interaction"
 	"github.com/Tangerg/lynx/core/chat"
@@ -105,7 +106,7 @@ func NewProcessContext(config ProcessContextConfig) *ProcessContext {
 		blackboard:       config.Blackboard,
 		dependencies:     dependencies,
 		maxToolRounds:    config.MaxToolRounds,
-		actionToolGroups: config.ActionToolGroups,
+		actionToolGroups: slices.Clone(config.ActionToolGroups),
 		actionTools:      config.ActionTools,
 		runInteraction:   config.RunInteraction,
 		toolCallCancel:   config.ToolCallCancel,
@@ -203,7 +204,7 @@ func (pc *ProcessContext) ActionTools(ctx context.Context) ([]tool.Tool, error) 
 	if pc.actionTools == nil || len(pc.actionToolGroups) == 0 {
 		return nil, nil
 	}
-	return pc.actionTools(contextOrBackground(ctx), pc.actionToolGroups)
+	return pc.actionTools(contextOrBackground(ctx), slices.Clone(pc.actionToolGroups))
 }
 
 // ToolCallContext derives a child context cancellable through TerminateToolCall.
