@@ -24,7 +24,8 @@ func (p *Planner) decompose(
 	task Task,
 	actionsByName map[string]core.Action,
 	state core.WorldState,
-	excluded planning.Exclusions,
+	domain *planning.Domain,
+	options planning.Options,
 	depth int,
 ) ([]core.Action, core.WorldState, bool, error) {
 	if err := ctx.Err(); err != nil {
@@ -40,24 +41,28 @@ func (p *Planner) decompose(
 			return nil, state, false, fmt.Errorf("htn.Planner.decompose: task %q references action %q outside the planning domain", task.Name, task.ActionName)
 		}
 		metadata := action.Metadata()
-		if excluded.Contains(metadata.Name) {
+		if options.ExcludedActions.Contains(metadata.Name) {
 			return nil, state, false, nil
 		}
-		if !metadata.Applicable(state.Conditions()) {
+		applicable, err := domain.Satisfies(ctx, state, metadata.Preconditions, options.ConditionResolver)
+		if err != nil {
+			return nil, state, false, err
+		}
+		if !applicable {
 			return nil, state, false, nil
 		}
 		return []core.Action{action}, state.Apply(metadata.Effects), true, nil
 	}
 
-	// Snapshot once so all method-applicability probes share the same
-	// view without paying one defensive map copy per method.
-	stateMap := state.Conditions()
-
 	for _, method := range task.Methods {
-		if !method.applicable(stateMap) {
+		applicable, err := domain.Satisfies(ctx, state, method.Preconditions, options.ConditionResolver)
+		if err != nil {
+			return nil, state, false, err
+		}
+		if !applicable {
 			continue
 		}
-		actions, next, ok, err := p.tryMethod(ctx, method, actionsByName, state, excluded, depth)
+		actions, next, ok, err := p.tryMethod(ctx, method, actionsByName, state, domain, options, depth)
 		if err != nil {
 			return nil, state, false, err
 		}
@@ -76,7 +81,8 @@ func (p *Planner) tryMethod(
 	method Method,
 	actionsByName map[string]core.Action,
 	state core.WorldState,
-	excluded planning.Exclusions,
+	domain *planning.Domain,
+	options planning.Options,
 	depth int,
 ) ([]core.Action, core.WorldState, bool, error) {
 	actions := make([]core.Action, 0, len(method.Subtasks))
@@ -86,7 +92,7 @@ func (p *Planner) tryMethod(
 		if !ok {
 			return nil, state, false, fmt.Errorf("htn.Planner.tryMethod: method %q references unknown subtask %q", method.Name, subtaskName)
 		}
-		subActions, next, ok, err := p.decompose(ctx, sub, actionsByName, cur, excluded, depth+1)
+		subActions, next, ok, err := p.decompose(ctx, sub, actionsByName, cur, domain, options, depth+1)
 		if err != nil {
 			return nil, state, false, err
 		}

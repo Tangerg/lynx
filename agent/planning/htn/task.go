@@ -46,11 +46,6 @@ type Method struct {
 	Subtasks []string
 }
 
-// applicable reports whether every method precondition holds in state.
-func (m Method) applicable(state core.ConditionSet) bool {
-	return state.Satisfies(m.Preconditions)
-}
-
 // IsPrimitive reports whether this task names one domain action.
 func (t *Task) IsPrimitive() bool { return t != nil && t.ActionName != "" }
 

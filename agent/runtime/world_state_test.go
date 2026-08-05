@@ -40,3 +40,58 @@ func TestWorldStateReadsNamespacedActionRunCondition(t *testing.T) {
 		t.Fatalf("run condition = %v, want true", got)
 	}
 }
+
+func TestWorldStateDefersAndCachesNamedConditionEvaluation(t *testing.T) {
+	evaluations := 0
+	condition := core.NewCondition(core.ConditionConfig{
+		Name: "remote_ready",
+		Cost: 5,
+		Evaluate: func(context.Context, *core.ConditionEnv) core.Truth {
+			evaluations++
+			return core.True
+		},
+	})
+	domain, err := planning.NewDomain(nil, nil, []core.Condition{condition})
+	if err != nil {
+		t.Fatalf("NewDomain: %v", err)
+	}
+	reader := newWorldStateReader(domain, newInMemoryBlackboard(), nil)
+
+	state, err := reader.read(t.Context())
+	if err != nil {
+		t.Fatalf("read: %v", err)
+	}
+	if evaluations != 0 {
+		t.Fatalf("evaluations after read = %d, want deferred", evaluations)
+	}
+	if got := state.Conditions()["remote_ready"]; got != core.Unknown {
+		t.Fatalf("unresolved state = %s, want unknown", got)
+	}
+	for range 2 {
+		truth, err := reader.Resolve(t.Context(), "remote_ready")
+		if err != nil || truth != core.True {
+			t.Fatalf("Resolve = %s, %v; want true", truth, err)
+		}
+	}
+	if evaluations != 1 {
+		t.Fatalf("evaluations after two resolves = %d, want one", evaluations)
+	}
+	resolved := reader.ResolvedConditions()
+	if resolved["remote_ready"] != core.True {
+		t.Fatalf("resolved conditions = %v, want remote_ready=true", resolved)
+	}
+	resolved["remote_ready"] = core.False
+	if reader.ResolvedConditions()["remote_ready"] != core.True {
+		t.Fatal("ResolvedConditions exposed mutable cache storage")
+	}
+
+	if _, err := reader.read(t.Context()); err != nil {
+		t.Fatalf("second read: %v", err)
+	}
+	if _, err := reader.Resolve(t.Context(), "remote_ready"); err != nil {
+		t.Fatalf("Resolve after second read: %v", err)
+	}
+	if evaluations != 2 {
+		t.Fatalf("evaluations after next tick = %d, want two", evaluations)
+	}
+}

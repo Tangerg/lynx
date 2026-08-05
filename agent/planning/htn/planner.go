@@ -93,7 +93,11 @@ func (p *Planner) PlanToGoal(
 		}
 		span.End()
 	}()
-	if goal.SatisfiedBy(start) {
+	satisfied, err := domain.Satisfies(ctx, start, goal.Preconditions(), options.ConditionResolver)
+	if err != nil {
+		return nil, err
+	}
+	if satisfied {
 		return planning.NewPlan(nil, goal), nil
 	}
 
@@ -102,14 +106,18 @@ func (p *Planner) PlanToGoal(
 		return nil, nil
 	}
 	actionsByName := indexDomainActions(domain.Actions())
-	actions, finalState, ok, err := p.decompose(ctx, root, actionsByName, start, options.ExcludedActions, 0)
+	actions, finalState, ok, err := p.decompose(ctx, root, actionsByName, start, domain, options, 0)
 	if err != nil {
 		return nil, err
 	}
 	if !ok {
 		return nil, nil
 	}
-	if !goal.SatisfiedBy(finalState) {
+	satisfied, err = domain.Satisfies(ctx, finalState, goal.Preconditions(), options.ConditionResolver)
+	if err != nil {
+		return nil, err
+	}
+	if !satisfied {
 		return nil, fmt.Errorf("htn: task %q decomposition does not satisfy its goal", root.Name)
 	}
 	result = planning.NewPlan(actions, goal)

@@ -105,9 +105,22 @@ Process 时复制绑定容器，因此调用方后续增删绑定不会改写运
 Deployment digest 共用同一归一规则，避免执行语义和缓存身份漂移。
 
 `planning.Options.ExcludedActions` 使用零值可用的不可变 `planning.Exclusions`，通过
-`planning.NewExclusions` 构造；条件状态统一使用 `core.ConditionSet`。`planning.NewDomain` 在构造时
-校验条件来源冲突，并把每个条件编译为带 `ConditionKind` 的 `ConditionRef`；`KnownConditions`
-以稳定序列暴露这些引用，因此运行时不解析条件名，也不依赖 Go map 的随机迭代顺序。
+`planning.NewExclusions` 构造；条件状态统一使用 `core.ConditionSet`。函数条件通过
+`agent.NewCondition(agent.ConditionConfig{Name, Cost, Evaluate})` 构造，其中 `Cost` 只表示观察成本，
+不参与 Action cost 或 Plan ranking。`planning.NewDomain` 在构造时校验条件来源冲突，并把每个条件
+编译为带 `ConditionKind` 和 evaluator cost 的 `ConditionRef`；`KnownConditions` 以稳定序列暴露这些
+引用，因此运行时不解析条件名，也不依赖 Go map 的随机迭代顺序。
+
+Runtime 每个 tick 先读取 Blackboard fact、binding 和 action-run marker；named evaluator 保持
+`Unknown`，直到 Planner 的 goal、action 或 HTN method applicability 真正依赖它。Planning 通过
+消费侧 `planning.ConditionResolver` 请求 Runtime 观察，并在整个 tick 缓存同一结果。一个合取条件
+中的已知 mismatch 会直接短路；其余 evaluator 按 `Cost` 从低到高解析，因此便宜条件失败时不会触发
+昂贵的 prompt/remote probe。`And`/`Or` 组合条件同样先执行更便宜的 operand。自定义 Planner 应使用
+`Domain.Satisfies`、`Domain.Unsatisfied` 和 `Domain.ApplicableActions`，不要把 `Unknown` 直接当成
+`False`；只有确实需要完整差集的算法才调用 `Unsatisfied`，因为它必须观察全部相关 evaluator。
+动态 Action/Goal score 应读取 `Domain.ResolvedState` 返回的投影视图。只有被 goal/action/method
+requirements 声明并实际请求的 evaluator 才会出现在该视图，未声明的 score 依赖仍是 `Unknown`。
+
 `Binding.Validate`、`ConditionSet.Validate` 与 `Truth.Valid` 共同封闭定义边界；非法值在 Deploy 前失败，
 自定义 Action 或 Condition 在执行时返回未定义枚举值也会让 Process 以明确错误失败。
 

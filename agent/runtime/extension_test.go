@@ -770,11 +770,11 @@ func TestConditionPanicFailsObservation(t *testing.T) {
 		Name: "panic-condition",
 		Actions: []agent.Action{agent.NewAction("work", func(context.Context, *core.ProcessContext, struct{}) (output, error) {
 			return output{}, nil
-		}, core.ActionConfig{})},
+		}, core.ActionConfig{Preconditions: []string{"reachable"}})},
 		Goals: []*agent.Goal{agent.NewOutputGoal[output](core.GoalConfig{Description: "done"})},
-		Conditions: []core.Condition{core.NewCondition("reachable", func(context.Context, *core.ConditionEnv) core.Truth {
+		Conditions: []core.Condition{core.NewCondition(core.ConditionConfig{Name: "reachable", Evaluate: func(context.Context, *core.ConditionEnv) core.Truth {
 			panic(cause)
-		})},
+		}})},
 	})
 	engine := agent.MustNewEngine(runtime.Config{})
 

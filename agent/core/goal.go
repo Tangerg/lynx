@@ -159,7 +159,9 @@ func (g *Goal) Preconditions() ConditionSet {
 }
 
 // SatisfiedBy reports whether worldState meets every goal precondition.
-// Used by planners to check whether the goal is already met.
+// It compares only the snapshot's current truth map and never evaluates
+// Unknown named conditions. Callers with evaluator-backed conditions must
+// resolve them before using this snapshot-only helper.
 func (g *Goal) SatisfiedBy(worldState WorldState) bool {
 	if g == nil || nilvalue.Is(worldState) {
 		return false

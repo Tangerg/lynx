@@ -1,6 +1,6 @@
 # Agent Framework 架构演进执行计划
 
-> 状态：持续开发（P41 公开能力可达性与零残留收口已完成，3/3）
+> 状态：持续开发（P42 Condition 按需观察与成本语义已完成，4/4）
 > 建立日期：2026-07-15
 > 最后更新：2026-08-05
 > 维护者：Lynx 仓库维护者
@@ -2715,12 +2715,29 @@ wire 与门禁扫描无未裁决命中。本轮不把“零残留”夸大为永
 - breaking：旧 event named listener、`workflow.ChildRuntime` 与 `routing.Runtime` 直接删除；
   consumer、API baseline、GoDoc 与精确 forbidden-symbol guard 同批迁移，不留 alias 或 wrapper。
 
+### ADR-AF-029：Condition cost 只驱动按需观察，不污染 Plan ranking
+
+- 状态：已接受并实现。
+- observation：Runtime 每 tick 先读取 Blackboard-backed state，named evaluator 保持 Unknown；Planner
+  只在 goal/action/method applicability 需要时通过 Planning 消费侧 `ConditionResolver` 请求观察。
+- ordering：Domain 对合取条件和候选 Action 集按 evaluator cost 从低到高解析；known mismatch 与
+  cheap mismatch 都会短路昂贵条件；`And`/`Or` 同样 cheap-first，equal cost 保持声明顺序。
+- ownership：Planning 决定“需要什么、先看什么”，Runtime 只执行并按 tick 缓存；Planner 不持有
+  `core.Condition` executable，Runtime 不理解 GOAP/HTN 算法。
+- semantics：Condition cost 不进入 Action cost、utility 或 Plan net value；未被规划实际需要的
+  Condition 不执行，禁止依赖其副作用。合法 Unknown 是一次已完成观察，不重复解析。动态 score
+  通过 resolved-state 投影读取已观察值，投影不改变 immutable search state 或覆盖 Action effect；
+  effect layering 与 projection 保留原 observation timestamp。
+- breaking：`NewCondition(name, fn)` 直接替换为 `NewCondition(ConditionConfig{Name, Cost, Evaluate})`，
+  不保留 overload、variadic shim 或旧 façade；API baseline、Guide、migration/release notes 同步。
+
 ---
 
 ## 18. 变更日志
 
 | 日期 | 变更 | 作者 |
 |---|---|---|
+| 2026-08-05 | 完成 P42 Condition 按需观察与成本语义：Planning 新增消费侧 ConditionResolver、Domain.Satisfies/Unsatisfied/ApplicableActions 并统一 GOAP/HTN/Reactive/Utility；Runtime evaluator 延迟到真实 applicability 需求且单 tick 缓存；多 Unknown、cheap-first、known mismatch、合法 Unknown 与 panic/error 路径补齐；NewCondition breaking 收为 ConditionConfig；ClearWorkingState 漂移注释修正；无兼容层 | Codex |
 | 2026-08-05 | 完成 P41 公开能力可达性与零残留收口：逐一裁决 deadcode 报告的 façade/value object/SPI/HITL/authoring query 为合法能力并补齐契约测试，使 test-aware deadcode 输出归零；空结构、债务标记、错误、边界、API/wire 与完整门禁无未裁决项；无兼容层 | Codex |
 | 2026-08-05 | 完成 P40 验证代码失败语义清洗：Core/Planning/Routing/Runtime/Workflow 测试显式传播 constructor、marshal、plan、registry、blackboard 与 run error；nil process、nil/empty plan 与 unchecked type assertion 改为领域断言；额外启用 test errcheck 收口常规配置排除的验证债；无生产 API、wire 或兼容层变化 | Codex |
 | 2026-08-05 | 完成 P39 生产表面与测试语义清洗：删除仅测试调用的 deployment compiler/process state 生产入口；测试统一 process-tree/AgentTool 当前术语并传播构造、JSON 编码错误；删除迁移历史注释；经 API baseline 反证保留隔离公开签名与 panic recovery 的 StreamCall 边界；无兼容层 | Codex |

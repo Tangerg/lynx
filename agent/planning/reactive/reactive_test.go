@@ -3,6 +3,7 @@ package reactive_test
 import (
 	"context"
 	"errors"
+	"maps"
 	"math"
 	"strings"
 	"testing"
@@ -25,6 +26,27 @@ func mustDomain(t *testing.T, actions []core.Action, goals []*core.Goal, conditi
 // reactive planner, so we only need to satisfy the interface.
 type fakeAction struct {
 	meta core.ActionMetadata
+}
+
+type conditionResolverFunc struct {
+	resolve  func(context.Context, string) (core.Truth, error)
+	resolved core.ConditionSet
+}
+
+func newConditionResolver(resolve func(context.Context, string) (core.Truth, error)) *conditionResolverFunc {
+	return &conditionResolverFunc{resolve: resolve, resolved: make(core.ConditionSet)}
+}
+
+func (r *conditionResolverFunc) Resolve(ctx context.Context, name string) (core.Truth, error) {
+	truth, err := r.resolve(ctx, name)
+	if err == nil {
+		r.resolved[name] = truth
+	}
+	return truth, err
+}
+
+func (r *conditionResolverFunc) ResolvedConditions() core.ConditionSet {
+	return maps.Clone(r.resolved)
 }
 
 func (a *fakeAction) Metadata() core.ActionMetadata { return a.meta }
@@ -75,6 +97,36 @@ func TestReactive_PicksHighestProgressAction(t *testing.T) {
 	}
 	if pl.Actions()[0].Metadata().Name != "strong" {
 		t.Fatalf("expected highest-progress action 'strong', got %q", pl.Actions()[0].Metadata().Name)
+	}
+}
+
+func TestReactiveResolvesGoalConditionsBeforeScoringProgress(t *testing.T) {
+	start := planning.NewState(core.ConditionSet{"missing": core.False})
+	goal := core.NewGoal(core.GoalConfig{Name: "goal", Preconditions: []string{"already", "missing"}})
+	irrelevant := newAction("irrelevant", nil, core.ConditionSet{"already": core.True}, 0)
+	progress := newAction("progress", nil, core.ConditionSet{"missing": core.True}, 1)
+	domain := mustDomain(t, []core.Action{irrelevant, progress}, []*core.Goal{goal}, []core.Condition{
+		core.NewCondition(core.ConditionConfig{Name: "already", Cost: 1}),
+	})
+	resolver := newConditionResolver(func(_ context.Context, name string) (core.Truth, error) {
+		if name != "already" {
+			t.Fatalf("resolved condition = %q, want already", name)
+		}
+		return core.True, nil
+	})
+
+	plan, err := reactive.NewPlanner().PlanToGoal(
+		t.Context(),
+		start,
+		domain,
+		goal,
+		planning.Options{ConditionResolver: resolver},
+	)
+	if err != nil {
+		t.Fatalf("PlanToGoal: %v", err)
+	}
+	if plan == nil || len(plan.Actions()) != 1 || plan.Actions()[0].Metadata().Name != "progress" {
+		t.Fatalf("plan = %#v, want progress", plan)
 	}
 }
 

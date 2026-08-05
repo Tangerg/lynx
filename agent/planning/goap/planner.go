@@ -85,14 +85,18 @@ func (p *Planner) PlanToGoal(
 		return nil, err
 	}
 
-	if goal.SatisfiedBy(start) {
+	satisfied, err := domain.Satisfies(ctx, start, goal.Preconditions(), options.ConditionResolver)
+	if err != nil {
+		return fail(err)
+	}
+	if satisfied {
 		span.SetAttributes(attribute.Bool(attrGOAPAlreadySat, true))
 		return planning.NewPlan(nil, goal), nil
 	}
 
 	candidates := p.candidateActions(domain.Actions(), options.ExcludedActions)
 
-	s := newSearch(start, candidates, goal, p.maxExpansions)
+	s := newSearch(start, candidates, domain, goal, options.ConditionResolver, p.maxExpansions)
 
 	// Producer pre-check — short-circuits before search burns the expansion
 	// cap chasing a goal whose required conditions no candidate action can

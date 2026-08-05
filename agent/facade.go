@@ -22,6 +22,7 @@ type (
 	Goal             = core.Goal
 	GoalConfig       = core.GoalConfig
 	Condition        = core.Condition
+	ConditionConfig  = core.ConditionConfig
 	ConditionEnv     = core.ConditionEnv
 	Truth            = core.Truth
 	FuncCondition    = core.FuncCondition
@@ -107,8 +108,8 @@ func NewAction[In, Out any](name string, fn func(context.Context, *ProcessContex
 }
 
 // NewCondition constructs a function-backed condition.
-func NewCondition(name string, fn func(context.Context, *ConditionEnv) Truth) *FuncCondition {
-	return core.NewCondition(name, fn)
+func NewCondition(config ConditionConfig) *FuncCondition {
+	return core.NewCondition(config)
 }
 
 // NewOutputGoal constructs a goal whose precondition is an artifact of type T

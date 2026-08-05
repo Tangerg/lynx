@@ -11,7 +11,7 @@
 .: func MustNewEngine(config EngineConfig) *Engine
 .: func New(config AgentConfig) *Agent
 .: func NewAction[In, Out any](name string, fn func(context.Context, *ProcessContext, In) (Out, error), config ActionConfig) *FuncAction[In, Out]
-.: func NewCondition(name string, fn func(context.Context, *ConditionEnv) Truth) *FuncCondition
+.: func NewCondition(config ConditionConfig) *FuncCondition
 .: func NewEngine(config EngineConfig) (*Engine, error)
 .: func NewGoal(config GoalConfig) *Goal
 .: func NewOutputGoal[T any](config GoalConfig) *Goal
@@ -28,6 +28,7 @@
 .: type ChatCapability = core.ChatCapability
 .: type ChildOptionsFunc = core.ChildOptionsFunc
 .: type Condition = core.Condition
+.: type ConditionConfig = core.ConditionConfig
 .: type ConditionEnv = core.ConditionEnv
 .: type Deployment = runtime.Deployment
 .: type DeploymentRef = core.DeploymentRef
@@ -188,7 +189,7 @@ core: func MustDependencyKey[T any](name string) DependencyKey[T]
 core: func NewAction[In, Out any]( name string, fn ActionFunc[In, Out], config ActionConfig, ) *FuncAction[In, Out]
 core: func NewAgent(config AgentConfig) *Agent
 core: func NewBinding[T any](name string) Binding
-core: func NewCondition(name string, fn ConditionFunc) *FuncCondition
+core: func NewCondition(config ConditionConfig) *FuncCondition
 core: func NewDependencies() *Dependencies
 core: func NewDependencyKey[T any](name string) (DependencyKey[T], error)
 core: func NewGoal(config GoalConfig) *Goal
@@ -230,6 +231,7 @@ core: type ChatMiddleware struct { CallMiddlewares []chat.CallMiddleware StreamM
 core: type ChatProvider interface { Extension Chat(process ProcessView) ChatCapability }
 core: type ChildOptionsFunc func( ctx context.Context, parent ProcessView, child AgentDescriptor, ) (ProcessOptions, error)
 core: type Condition interface { Name() string Cost() float64 Evaluate(ctx context.Context, env *ConditionEnv) Truth }
+core: type ConditionConfig struct { Name string Cost float64 Evaluate ConditionFunc }
 core: type ConditionDescriptor struct { }
 core: type ConditionEnv struct { Process ProcessView Blackboard BlackboardReader RunInteraction func(context.Context, Interaction) (interaction.Result, error) }
 core: type ConditionFunc func(ctx context.Context, env *ConditionEnv) Truth
@@ -395,12 +397,17 @@ planning/utility: type Planner struct{}
 planning: const ( ConditionFact ConditionKind = iota ConditionBinding ConditionActionRun ConditionEvaluator )
 planning: const ( GOAPPlannerName = "goap" HTNPlannerName = "htn" ReactivePlannerName = "reactive" UtilityPlannerName = "utility" GoalFirstUtilityPlannerName = "goal-first-utility" DefaultPlannerName = GOAPPlannerName TracerName = "lynx/agent/planner" PlannerNameKey = "agent.planner" GoalNameKey = "agent.goal.name" PlanLengthKey = "agent.plan.length" )
 planning: func (d *Domain) Actions() []core.Action
+planning: func (d *Domain) ApplicableActions( ctx context.Context, state core.WorldState, actions []core.Action, resolver ConditionResolver, ) ([]core.Action, error)
 planning: func (d *Domain) BestPlan( ctx context.Context, planner Planner, state core.WorldState, options Options, ) (*Plan, error)
+planning: func (d *Domain) ConditionRef(key string) (ConditionRef, bool)
 planning: func (d *Domain) Conditions() []core.Condition
 planning: func (d *Domain) Goals() []*core.Goal
 planning: func (d *Domain) KnownConditions() iter.Seq[ConditionRef]
 planning: func (d *Domain) Plans( ctx context.Context, planner Planner, state core.WorldState, options Options, ) ([]*Plan, error)
 planning: func (d *Domain) Prune( ctx context.Context, planner Planner, state core.WorldState, options Options, ) (*Domain, error)
+planning: func (d *Domain) ResolvedState(state core.WorldState, resolver ConditionResolver) (core.WorldState, error)
+planning: func (d *Domain) Satisfies( ctx context.Context, state core.WorldState, requirements core.ConditionSet, resolver ConditionResolver, ) (bool, error)
+planning: func (d *Domain) Unsatisfied( ctx context.Context, state core.WorldState, requirements core.ConditionSet, resolver ConditionResolver, ) (core.ConditionSet, error)
 planning: func (d *Domain) ValidatePlanInputs(state core.WorldState, goal *core.Goal) error
 planning: func (d PlanDescriptor) Actions() []core.ActionDescriptor
 planning: func (d PlanDescriptor) Complete() bool
@@ -429,10 +436,11 @@ planning: func NewExclusions(names ...string) Exclusions
 planning: func NewPlan(actions []core.Action, goal *core.Goal) *Plan
 planning: func NewState(conditions core.ConditionSet) *State
 planning: type ConditionKind uint8
-planning: type ConditionRef struct { Key string Kind ConditionKind Binding core.Binding }
+planning: type ConditionRef struct { Key string Kind ConditionKind Binding core.Binding Cost float64 }
+planning: type ConditionResolver interface { Resolve(ctx context.Context, name string) (core.Truth, error) ResolvedConditions() core.ConditionSet }
 planning: type Domain struct { }
 planning: type Exclusions struct { }
-planning: type Options struct { ExcludedActions Exclusions }
+planning: type Options struct { ExcludedActions Exclusions ConditionResolver ConditionResolver }
 planning: type Plan struct { }
 planning: type PlanDescriptor struct { }
 planning: type Planner interface { core.Extension PlanToGoal( ctx context.Context, state core.WorldState, domain *Domain, goal *core.Goal, options Options, ) (*Plan, error) }

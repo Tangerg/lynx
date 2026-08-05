@@ -212,12 +212,15 @@ func TestValidateRejectsInvalidConditions(t *testing.T) {
 		t.Fatalf("nil condition error = %v", err)
 	}
 
-	base.Conditions = []core.Condition{core.NewCondition("", nil)}
+	base.Conditions = []core.Condition{core.NewCondition(core.ConditionConfig{})}
 	if err := core.NewAgent(base).Validate(); err == nil || !strings.Contains(err.Error(), "condition at index 0 has empty name") {
 		t.Fatalf("empty condition error = %v", err)
 	}
 
-	base.Conditions = []core.Condition{core.NewCondition("ready", nil), core.NewCondition("ready", nil)}
+	base.Conditions = []core.Condition{
+		core.NewCondition(core.ConditionConfig{Name: "ready"}),
+		core.NewCondition(core.ConditionConfig{Name: "ready"}),
+	}
 	if err := core.NewAgent(base).Validate(); err == nil || !strings.Contains(err.Error(), "duplicate condition name") {
 		t.Fatalf("duplicate condition error = %v", err)
 	}
@@ -338,7 +341,7 @@ func TestValidateRejectsInvalidConditionCost(t *testing.T) {
 func TestAgentOwnsConfigurationCollections(t *testing.T) {
 	action := fakeAction{meta: core.ActionMetadata{Name: "act"}}
 	goal := core.NewGoal(core.GoalConfig{Name: "goal"})
-	condition := core.NewCondition("ready", nil)
+	condition := core.NewCondition(core.ConditionConfig{Name: "ready"})
 	actions := []core.Action{action}
 	goals := []*core.Goal{goal}
 	conditions := []core.Condition{condition}

@@ -272,8 +272,11 @@ func TestRunFailsWhenConditionReturnsInvalidTruth(t *testing.T) {
 		Actions: []agent.Action{agent.NewAction("count", func(context.Context, *core.ProcessContext, word) (wordCount, error) {
 			return wordCount{Count: 1}, nil
 		}, core.ActionConfig{Preconditions: []string{"ready"}})},
-		Goals:      []*agent.Goal{agent.NewOutputGoal[wordCount](core.GoalConfig{Description: "counted"})},
-		Conditions: []agent.Condition{agent.NewCondition("ready", func(context.Context, *core.ConditionEnv) core.Truth { return core.Truth(9) })},
+		Goals: []*agent.Goal{agent.NewOutputGoal[wordCount](core.GoalConfig{Description: "counted"})},
+		Conditions: []agent.Condition{agent.NewCondition(agent.ConditionConfig{
+			Name:     "ready",
+			Evaluate: func(context.Context, *core.ConditionEnv) core.Truth { return core.Truth(9) },
+		})},
 	})
 	engine := agent.MustNewEngine(runtime.Config{})
 	process, err := engine.Run(t.Context(), a, core.Input(word{Text: "lynx"}), core.ProcessOptions{})

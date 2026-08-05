@@ -32,7 +32,7 @@ type repeatWorkflowConfig[In, Out, State any] struct {
 func compileRepeatWorkflow[In, Out, State any](config repeatWorkflowConfig[In, Out, State]) *core.Agent {
 	inputState := core.NewBinding[loopInput[In]](config.name + inputStateSuffix)
 
-	doneCondition := core.NewCondition(config.doneKey, func(ctx context.Context, env *core.ConditionEnv) core.Truth {
+	doneCondition := core.NewCondition(core.ConditionConfig{Name: config.doneKey, Evaluate: func(ctx context.Context, env *core.ConditionEnv) core.Truth {
 		state, ok := core.Last[State](env.Blackboard)
 		if !ok || config.count(state) == 0 {
 			return core.False
@@ -48,7 +48,7 @@ func compileRepeatWorkflow[In, Out, State any](config repeatWorkflowConfig[In, O
 			return core.True
 		}
 		return core.False
-	})
+	}})
 
 	action := core.NewAction[In, Out](
 		config.actionName,

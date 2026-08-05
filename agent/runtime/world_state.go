@@ -3,6 +3,7 @@ package runtime
 import (
 	"context"
 	"fmt"
+	"sync"
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/interaction"
@@ -11,17 +12,25 @@ import (
 	"github.com/Tangerg/lynx/agent/planning"
 )
 
-// worldStateReader projects blackboard contents into planner state.
-// It walks the agent's planning.Domain.KnownConditions() and resolves each
-// condition from the source fixed when the domain was constructed.
+// worldStateReader projects blackboard contents into planner state. It reads
+// Blackboard-backed sources immediately and leaves named evaluators Unknown
+// until a planner requests them through Resolve.
 type worldStateReader struct {
 	domain     *planning.Domain
 	blackboard core.Blackboard
 	process    *Process
 
-	// namedConditions indexes domain.Conditions by Name() so the per-tick
-	// dispatch is a map lookup rather than a linear scan.
+	// namedConditions indexes domain.Conditions by Name() so on-demand
+	// resolution is a map lookup rather than a linear scan.
 	namedConditions map[string]core.Condition
+
+	resolutionMu sync.Mutex
+	resolutions  map[string]conditionResolution
+}
+
+type conditionResolution struct {
+	truth core.Truth
+	err   error
 }
 
 func newWorldStateReader(domain *planning.Domain, blackboard core.Blackboard, process *Process) *worldStateReader {
@@ -37,14 +46,23 @@ func newWorldStateReader(domain *planning.Domain, blackboard core.Blackboard, pr
 		blackboard:      blackboard,
 		process:         process,
 		namedConditions: namedConditions,
+		resolutions:     make(map[string]conditionResolution),
 	}
 }
 
 func (r *worldStateReader) read(ctx context.Context) (core.WorldState, error) {
+	r.resolutionMu.Lock()
+	r.resolutions = make(map[string]conditionResolution)
+	r.resolutionMu.Unlock()
+
 	state := core.ConditionSet{}
 	env := &core.ConditionEnv{Process: r.process, Blackboard: r.blackboard}
 
 	for condition := range r.domain.KnownConditions() {
+		if condition.Kind == planning.ConditionEvaluator {
+			state[condition.Key] = core.Unknown
+			continue
+		}
 		truth, err := r.evaluateCondition(ctx, condition, env)
 		if err != nil {
 			return nil, err
@@ -52,6 +70,40 @@ func (r *worldStateReader) read(ctx context.Context) (core.WorldState, error) {
 		state[condition.Key] = truth
 	}
 	return planning.NewState(state), nil
+}
+
+// Resolve evaluates one named condition at most once per world-state read.
+// Planners may encounter the same predicate in multiple goals, actions, or
+// simulated states; all of them observe one stable answer for the tick.
+func (r *worldStateReader) Resolve(ctx context.Context, name string) (core.Truth, error) {
+	r.resolutionMu.Lock()
+	defer r.resolutionMu.Unlock()
+	if result, ok := r.resolutions[name]; ok {
+		return result.truth, result.err
+	}
+
+	ref, ok := r.domain.ConditionRef(name)
+	if !ok || ref.Kind != planning.ConditionEvaluator {
+		return core.Unknown, fmt.Errorf("runtime: condition %q is not evaluator-backed", name)
+	}
+	env := &core.ConditionEnv{Process: r.process, Blackboard: r.blackboard}
+	truth, err := r.evaluateCondition(ctx, ref, env)
+	r.resolutions[name] = conditionResolution{truth: truth, err: err}
+	return truth, err
+}
+
+// ResolvedConditions returns an ownership-isolated view of the successful
+// named-condition observations made since the latest read.
+func (r *worldStateReader) ResolvedConditions() core.ConditionSet {
+	r.resolutionMu.Lock()
+	defer r.resolutionMu.Unlock()
+	resolved := make(core.ConditionSet, len(r.resolutions))
+	for name, result := range r.resolutions {
+		if result.err == nil {
+			resolved[name] = result.truth
+		}
+	}
+	return resolved
 }
 
 // User-supplied Conditions run inside [safeEvaluateCondition] so a panicking

@@ -11,9 +11,8 @@ import (
 
 // State is the canonical immutable WorldState. Apply
 // produces a new value; the receiver is never mutated. The key is
-// computed eagerly at construction so concurrent readers (parallel-tick
-// runners share a snapshot via [core.ProcessView.WorldState]) never
-// race on lazy initialization.
+// computed eagerly at construction so concurrent planner and extension readers
+// never race on lazy initialization.
 type State struct {
 	conditions core.ConditionSet
 	timestamp  time.Time
@@ -23,11 +22,11 @@ type State struct {
 // NewState seeds a state from a truth map. The
 // map is copied defensively so subsequent mutations don't ripple in.
 func NewState(conditions core.ConditionSet) *State {
-	return newState(maps.Clone(conditions))
+	return newState(maps.Clone(conditions), time.Now())
 }
 
-func newState(conditions core.ConditionSet) *State {
-	state := &State{conditions: conditions, timestamp: time.Now()}
+func newState(conditions core.ConditionSet, timestamp time.Time) *State {
+	state := &State{conditions: conditions, timestamp: timestamp}
 	state.key = state.deriveKey()
 	return state
 }
@@ -61,7 +60,7 @@ func (s *State) Apply(effects core.ConditionSet) core.WorldState {
 		}
 		merged[key] = truth
 	}
-	return newState(merged)
+	return newState(merged, s.timestamp)
 }
 
 // deriveKey produces a stable string identifier from the state

@@ -232,11 +232,11 @@ func (p *Process) planForTick(ctx context.Context, worldState core.WorldState) (
 
 // formulatePlan runs the configured planner against the current world state,
 // honoring the running exclusion list. The [planning.Domain] is allocated once
-// when the process is built rather than per tick, so its condition cache
-// survives the whole run.
+// when the process is built rather than per tick; evaluator results are kept
+// separately by the state reader and reset for each observation.
 //
 // Registered [core.GoalApprover] extensions filter the goal set before
-// the planner sees it — an unanimous "yes" is required for a goal to
+// the planner sees it — a unanimous "yes" is required for a goal to
 // remain plannable for this tick. With no approvers registered the
 // fast path reuses the cached planning.Domain.
 func (p *Process) formulatePlan(ctx context.Context, worldState core.WorldState) (*planning.Plan, error) {
@@ -265,7 +265,10 @@ func (p *Process) formulatePlan(ctx context.Context, worldState core.WorldState)
 
 	return domain.BestPlan(
 		ctx, p.planner, worldState,
-		planning.Options{ExcludedActions: p.state.snapshotExclusions()},
+		planning.Options{
+			ExcludedActions:   p.state.snapshotExclusions(),
+			ConditionResolver: p.stateReader,
+		},
 	)
 }
 

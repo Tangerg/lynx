@@ -27,9 +27,10 @@ type ConditionEnv struct {
 type Condition interface {
 	Name() string
 
-	// Cost is the planner's hint for how expensive evaluation is — composite
-	// conditions sum their children's costs, LLM-backed conditions report higher
-	// numbers so the planner explores cheaper branches first.
+	// Cost estimates the relative work required to evaluate the condition.
+	// Planners resolve unknown evaluator-backed conditions from lower to higher
+	// cost so a cheap mismatch can avoid an expensive observation. It does not
+	// contribute to action cost or plan ranking.
 	Cost() float64
 
 	Evaluate(ctx context.Context, env *ConditionEnv) Truth
@@ -61,9 +62,17 @@ type FuncCondition struct {
 	fn   ConditionFunc
 }
 
-// NewCondition constructs a function-backed condition with zero cost.
-func NewCondition(name string, fn ConditionFunc) *FuncCondition {
-	return &FuncCondition{name: name, fn: fn}
+// ConditionConfig describes a function-backed condition. Cost is a relative
+// evaluation-cost hint; zero is appropriate for an in-memory predicate.
+type ConditionConfig struct {
+	Name     string
+	Cost     float64
+	Evaluate ConditionFunc
+}
+
+// NewCondition constructs a function-backed condition.
+func NewCondition(config ConditionConfig) *FuncCondition {
+	return &FuncCondition{name: config.Name, cost: config.Cost, fn: config.Evaluate}
 }
 
 func (c *FuncCondition) Name() string  { return c.name }
@@ -128,6 +137,17 @@ func newBinaryCondition(left, right Condition) binaryCondition {
 
 func (c binaryCondition) Cost() float64 { return c.left.Cost() + c.right.Cost() }
 
+// evaluationOrder returns the cheaper operand first. AND and OR are
+// commutative, so this preserves their truth semantics while maximizing the
+// chance that short-circuiting avoids the more expensive observation. Equal
+// costs preserve declaration order.
+func (c binaryCondition) evaluationOrder() (operand, operand) {
+	if c.right.Cost() < c.left.Cost() {
+		return c.right, c.left
+	}
+	return c.left, c.right
+}
+
 func (c binaryCondition) name(operator string) string {
 	return "(" + c.left.Name() + " " + operator + " " + c.right.Name() + ")"
 }
@@ -142,11 +162,12 @@ func And(left, right Condition) Condition {
 func (c *andCondition) Name() string { return c.name("AND") }
 
 func (c *andCondition) Evaluate(ctx context.Context, env *ConditionEnv) Truth {
-	left := c.left.Evaluate(ctx, env)
-	if left == False {
+	first, second := c.evaluationOrder()
+	result := first.Evaluate(ctx, env)
+	if result == False {
 		return False
 	}
-	return left.And(c.right.Evaluate(ctx, env))
+	return result.And(second.Evaluate(ctx, env))
 }
 
 type orCondition struct{ binaryCondition }
@@ -159,11 +180,12 @@ func Or(left, right Condition) Condition {
 func (c *orCondition) Name() string { return c.name("OR") }
 
 func (c *orCondition) Evaluate(ctx context.Context, env *ConditionEnv) Truth {
-	left := c.left.Evaluate(ctx, env)
-	if left == True {
+	first, second := c.evaluationOrder()
+	result := first.Evaluate(ctx, env)
+	if result == True {
 		return True
 	}
-	return left.Or(c.right.Evaluate(ctx, env))
+	return result.Or(second.Evaluate(ctx, env))
 }
 
 type notCondition struct{ inner operand }

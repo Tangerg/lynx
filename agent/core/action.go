@@ -131,8 +131,9 @@ func (m ActionMetadata) RunCondition() string {
 }
 
 // Applicable reports whether every precondition holds in state.
-// Used by the concurrent runner to filter the plan's actions to those
-// currently runnable on this tick.
+// It compares only the supplied truth map and never evaluates Unknown named
+// conditions. Callers with evaluator-backed conditions must resolve them
+// before using this snapshot-only helper.
 func (m ActionMetadata) Applicable(state ConditionSet) bool {
 	return state.Satisfies(m.Preconditions)
 }
@@ -218,8 +219,8 @@ type ActionConfig struct {
 	// produce a single canonical artifact.
 	Outputs []Binding
 
-	// ClearWorkingState removes ordinary blackboard state on action success
-	// before binding the output. Protected ambient entries remain available.
-	// Useful for state-machine transitions.
+	// ClearWorkingState removes all blackboard bindings, objects, conditions,
+	// and hidden markers on action success before binding the output. Useful for
+	// state-machine transitions that intentionally discard prior working state.
 	ClearWorkingState bool
 }

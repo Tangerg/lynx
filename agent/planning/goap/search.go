@@ -8,6 +8,7 @@ import (
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/internal/score"
+	"github.com/Tangerg/lynx/agent/planning"
 )
 
 type searchNode struct {
@@ -47,7 +48,9 @@ func (f *frontier) Pop() any {
 type search struct {
 	start         core.WorldState
 	actions       []core.Action
+	domain        *planning.Domain
 	goal          *core.Goal
+	resolver      planning.ConditionResolver
 	maxExpansions int
 
 	startKey     string
@@ -71,14 +74,18 @@ type edge struct {
 func newSearch(
 	start core.WorldState,
 	actions []core.Action,
+	domain *planning.Domain,
 	goal *core.Goal,
+	resolver planning.ConditionResolver,
 	maxExpansions int,
 ) *search {
 	startKey := start.Key()
 	s := &search{
 		start:         start,
 		actions:       actions,
+		domain:        domain,
 		goal:          goal,
+		resolver:      resolver,
 		maxExpansions: maxExpansions,
 		startKey:      startKey,
 		frontier:      &frontier{},
@@ -115,11 +122,15 @@ func (s *search) run(ctx context.Context) (*searchNode, error) {
 		}
 		s.expansions++
 
-		if s.goal.SatisfiedBy(current.state) {
+		satisfied, err := s.domain.Satisfies(ctx, current.state, s.goal.Preconditions(), s.resolver)
+		if err != nil {
+			return nil, err
+		}
+		if satisfied {
 			return current, nil
 		}
 
-		if err := s.expand(current); err != nil {
+		if err := s.expand(ctx, current); err != nil {
 			return nil, err
 		}
 	}
@@ -129,14 +140,18 @@ func (s *search) run(ctx context.Context) (*searchNode, error) {
 // expand enqueues every state reachable from current by applying one
 // applicable action. A dynamic cost is evaluated against the edge's source
 // state, preserving the public ScoreFunc contract.
-func (s *search) expand(current *searchNode) error {
+func (s *search) expand(ctx context.Context, current *searchNode) error {
 	currentKey := current.state.Key()
-	currentState := current.state.Conditions()
-	for _, action := range s.actions {
+	applicable, err := s.domain.ApplicableActions(ctx, current.state, s.actions, s.resolver)
+	if err != nil {
+		return err
+	}
+	scoreState, err := s.domain.ResolvedState(current.state, s.resolver)
+	if err != nil {
+		return err
+	}
+	for _, action := range applicable {
 		metadata := action.Metadata()
-		if !metadata.Applicable(currentState) {
-			continue
-		}
 
 		nextState := current.state.Apply(metadata.Effects)
 		nextKey := nextState.Key()
@@ -147,7 +162,7 @@ func (s *search) expand(current *searchNode) error {
 		edgeCost := 0.0
 		if metadata.Cost != nil {
 			var err error
-			edgeCost, err = score.Evaluate(metadata.Cost, current.state)
+			edgeCost, err = score.Evaluate(metadata.Cost, scoreState)
 			if err != nil {
 				return fmt.Errorf("%w: action %q at state %q: %w", ErrInvalidActionCost, metadata.Name, currentKey, err)
 			}
@@ -194,6 +209,12 @@ func (s *search) hasGoalProducers() bool {
 	state := s.start.Conditions()
 	for key, required := range s.goal.Preconditions() {
 		if state[key] == required {
+			continue
+		}
+		// An evaluator-backed Unknown may satisfy this requirement when the
+		// search reaches a state where the rest of the goal holds. It does not
+		// need an action producer.
+		if ref, ok := s.domain.ConditionRef(key); ok && ref.Kind == planning.ConditionEvaluator && state[key] == core.Unknown {
 			continue
 		}
 		produced := false

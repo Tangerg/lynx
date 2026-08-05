@@ -18,10 +18,12 @@ import (
 // identity so a planner can reason over any subset. Action execution and
 // condition evaluation remain delegated to the supplied capabilities.
 type Domain struct {
-	actions       []core.Action
-	goals         []*core.Goal
-	conditions    []core.Condition
-	conditionRefs []ConditionRef
+	actions        []core.Action
+	goals          []*core.Goal
+	conditions     []core.Condition
+	conditionRefs  []ConditionRef
+	conditionByKey map[string]ConditionRef
+	conditionOrder map[string]int
 }
 
 // domainAction owns the metadata snapshot a Domain exposes while delegating
@@ -88,6 +90,9 @@ type ConditionRef struct {
 	Key     string
 	Kind    ConditionKind
 	Binding core.Binding
+	// Cost is the relative evaluation cost when Kind is
+	// [ConditionEvaluator]. Other condition sources have zero cost.
+	Cost float64
 }
 
 type conditionSource struct {
@@ -188,6 +193,12 @@ func NewDomain(actions []core.Action, goals []*core.Goal, conditions []core.Cond
 		return nil, err
 	}
 	domain.conditionRefs = refs
+	domain.conditionByKey = make(map[string]ConditionRef, len(refs))
+	domain.conditionOrder = make(map[string]int, len(refs))
+	for index, ref := range refs {
+		domain.conditionByKey[ref.Key] = ref
+		domain.conditionOrder[ref.Key] = index
+	}
 	return domain, nil
 }
 
@@ -306,6 +317,14 @@ func (d *Domain) KnownConditions() iter.Seq[ConditionRef] {
 	return slices.Values(d.conditionRefs)
 }
 
+// ConditionRef returns the planner-visible source metadata for key.
+func (d *Domain) ConditionRef(key string) (ConditionRef, bool) {
+	if d == nil {
+		return ConditionRef{}, false
+	}
+	return d.conditionRef(key)
+}
+
 // computeConditionRefs validates the domain and compiles its condition
 // vocabulary. Declaring and ordering are separate passes on purpose: every
 // conflict has to be known before any ref is emitted, or the emitted order would
@@ -373,7 +392,7 @@ func (d *Domain) declareConditionSources() (conditionSources, error) {
 		if cost := condition.Cost(); math.IsNaN(cost) || math.IsInf(cost, 0) || cost < 0 {
 			return sources, fmt.Errorf("planning.NewDomain: condition %q cost %v must be finite and non-negative", name, cost)
 		}
-		if err := sources.declare(ConditionRef{Key: name, Kind: ConditionEvaluator}, "condition "+name); err != nil {
+		if err := sources.declare(ConditionRef{Key: name, Kind: ConditionEvaluator, Cost: condition.Cost()}, "condition "+name); err != nil {
 			return sources, err
 		}
 	}

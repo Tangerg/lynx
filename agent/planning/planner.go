@@ -45,9 +45,10 @@ func EffectivePlannerName(name string) string {
 	return name
 }
 
-// Options carries the runtime's per-call planning exclusions.
+// Options carries per-call planning capabilities and policy.
 type Options struct {
-	ExcludedActions Exclusions
+	ExcludedActions   Exclusions
+	ConditionResolver ConditionResolver
 }
 
 // Exclusions is an immutable set of action names a planner must ignore.
@@ -84,8 +85,10 @@ func (e Exclusions) With(name string) Exclusions {
 	return Exclusions{names: names}
 }
 
-// Planner is a pure strategy: given a goal, return the action
-// sequence whose effects satisfy it (or nil when unreachable).
+// Planner is a strategy: given a goal, return the action sequence whose effects
+// satisfy it (or nil when unreachable). Built-in planners ask the Domain to
+// resolve evaluator-backed conditions on demand through
+// [Options.ConditionResolver]; they never invoke a [core.Condition] directly.
 // [Domain.Plans] and [Domain.BestPlan] are derived templates, so each planner
 // implementation only writes the algorithm-specific part.
 //
@@ -156,13 +159,17 @@ func (d *Domain) Plans(
 		if plan == nil {
 			continue
 		}
-		accepted, err := d.acceptPlan(plan, goal, state, options)
+		accepted, err := d.acceptPlan(ctx, plan, goal, state, options)
 		if err != nil {
 			return nil, fmt.Errorf("planning.Domain.Plans: planner %q goal %q: %w", hosted.name, goal.Name(), err)
 		}
 		plans = append(plans, accepted)
 	}
-	if err := sortByNetValueDesc(plans, state); err != nil {
+	rankingState, err := d.ResolvedState(state, options.ConditionResolver)
+	if err != nil {
+		return nil, fmt.Errorf("planning.Domain.Plans: resolved ranking state: %w", err)
+	}
+	if err := sortByNetValueDesc(plans, rankingState); err != nil {
 		return nil, fmt.Errorf("planning.Domain.Plans: rank plans: %w", err)
 	}
 	return plans, nil
@@ -208,7 +215,7 @@ func (p hostedPlanner) planToGoal(
 	return p.planner.PlanToGoal(ctx, state, domain, goal, options)
 }
 
-func (d *Domain) acceptPlan(plan *Plan, goal *core.Goal, state core.WorldState, options Options) (*Plan, error) {
+func (d *Domain) acceptPlan(ctx context.Context, plan *Plan, goal *core.Goal, state core.WorldState, options Options) (*Plan, error) {
 	if plan.Goal() != goal {
 		return nil, fmt.Errorf("%w: result targets a different goal", errInvalidPlan)
 	}
@@ -233,13 +240,21 @@ func (d *Domain) acceptPlan(plan *Plan, goal *core.Goal, state core.WorldState, 
 			return nil, fmt.Errorf("%w: action[%d] %q is excluded", errInvalidPlan, index, name)
 		}
 		metadata := action.Metadata()
-		if !metadata.Applicable(cursor.Conditions()) {
+		applicable, err := d.Satisfies(ctx, cursor, metadata.Preconditions, options.ConditionResolver)
+		if err != nil {
+			return nil, fmt.Errorf("%w: action[%d] %q preconditions: %w", errInvalidPlan, index, name, err)
+		}
+		if !applicable {
 			return nil, fmt.Errorf("%w: action[%d] %q has unsatisfied preconditions", errInvalidPlan, index, name)
 		}
 		canonical[index] = action
 		cursor = cursor.Apply(metadata.Effects)
 	}
-	if !goal.SatisfiedBy(cursor) {
+	satisfied, err := d.Satisfies(ctx, cursor, goal.Preconditions(), options.ConditionResolver)
+	if err != nil {
+		return nil, fmt.Errorf("%w: goal %q preconditions: %w", errInvalidPlan, goal.Name(), err)
+	}
+	if !satisfied {
 		return nil, fmt.Errorf("%w: declared effects do not satisfy goal %q", errInvalidPlan, goal.Name())
 	}
 	return NewPlan(canonical, goal), nil

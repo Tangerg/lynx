@@ -3,9 +3,11 @@ package planning_test
 import (
 	"context"
 	"errors"
+	"maps"
 	"math"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/Tangerg/lynx/agent"
@@ -75,6 +77,45 @@ func (f plannerFunc) PlanToGoal(_ context.Context, _ core.WorldState, _ *plannin
 	return f(goal), nil
 }
 
+type conditionResolverFunc struct {
+	mu       sync.Mutex
+	resolve  func(context.Context, string) (core.Truth, error)
+	resolved core.ConditionSet
+}
+
+type panickingConditionResolver struct {
+	resolveCause  error
+	snapshotCause error
+}
+
+func (r panickingConditionResolver) Resolve(context.Context, string) (core.Truth, error) {
+	panic(r.resolveCause)
+}
+
+func (r panickingConditionResolver) ResolvedConditions() core.ConditionSet {
+	panic(r.snapshotCause)
+}
+
+func newConditionResolver(resolve func(context.Context, string) (core.Truth, error)) *conditionResolverFunc {
+	return &conditionResolverFunc{resolve: resolve, resolved: make(core.ConditionSet)}
+}
+
+func (r *conditionResolverFunc) Resolve(ctx context.Context, name string) (core.Truth, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	truth, err := r.resolve(ctx, name)
+	if err == nil {
+		r.resolved[name] = truth
+	}
+	return truth, err
+}
+
+func (r *conditionResolverFunc) ResolvedConditions() core.ConditionSet {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return maps.Clone(r.resolved)
+}
+
 func mustDomain(t *testing.T, actions []core.Action, goals []*core.Goal, conditions []core.Condition) *planning.Domain {
 	t.Helper()
 	domain, err := planning.NewDomain(actions, goals, conditions)
@@ -99,6 +140,209 @@ func TestEffectivePlannerName(t *testing.T) {
 	}
 	if got := planning.EffectivePlannerName(planning.HTNPlannerName); got != planning.HTNPlannerName {
 		t.Fatalf("EffectivePlannerName(htn) = %q", got)
+	}
+}
+
+func TestDomainSatisfiesResolvesUnknownConditionsByCost(t *testing.T) {
+	domain := mustDomain(t, nil, nil, []core.Condition{
+		core.NewCondition(core.ConditionConfig{Name: "expensive", Cost: 100}),
+		core.NewCondition(core.ConditionConfig{Name: "cheap", Cost: 1}),
+	})
+	state := planning.NewState(core.ConditionSet{"cheap": core.Unknown, "expensive": core.Unknown})
+	var resolved []string
+	resolver := newConditionResolver(func(_ context.Context, name string) (core.Truth, error) {
+		resolved = append(resolved, name)
+		if name == "cheap" {
+			return core.False, nil
+		}
+		return core.True, nil
+	})
+
+	satisfied, err := domain.Satisfies(
+		t.Context(),
+		state,
+		core.ConditionSet{"cheap": core.True, "expensive": core.True},
+		resolver,
+	)
+	if err != nil {
+		t.Fatalf("Satisfies: %v", err)
+	}
+	if satisfied {
+		t.Fatal("Satisfies = true, want cheap mismatch")
+	}
+	if !slices.Equal(resolved, []string{"cheap"}) {
+		t.Fatalf("resolved = %v, want only cheap", resolved)
+	}
+}
+
+func TestDomainSatisfiesResolvesMultipleUnknownConditions(t *testing.T) {
+	domain := mustDomain(t, nil, nil, []core.Condition{
+		core.NewCondition(core.ConditionConfig{Name: "third", Cost: 3}),
+		core.NewCondition(core.ConditionConfig{Name: "first", Cost: 1}),
+		core.NewCondition(core.ConditionConfig{Name: "second", Cost: 2}),
+	})
+	var resolved []string
+	resolver := newConditionResolver(func(_ context.Context, name string) (core.Truth, error) {
+		resolved = append(resolved, name)
+		return core.True, nil
+	})
+
+	satisfied, err := domain.Satisfies(
+		t.Context(),
+		planning.NewState(nil),
+		core.ConditionSet{"first": core.True, "second": core.True, "third": core.True},
+		resolver,
+	)
+	if err != nil {
+		t.Fatalf("Satisfies: %v", err)
+	}
+	if !satisfied {
+		t.Fatal("Satisfies = false, want true")
+	}
+	if !slices.Equal(resolved, []string{"first", "second", "third"}) {
+		t.Fatalf("resolved = %v, want cost order", resolved)
+	}
+}
+
+func TestDomainSatisfiesSkipsEvaluationAfterKnownMismatch(t *testing.T) {
+	domain := mustDomain(t, nil, nil, []core.Condition{
+		core.NewCondition(core.ConditionConfig{Name: "remote", Cost: 1}),
+	})
+	resolver := newConditionResolver(func(context.Context, string) (core.Truth, error) {
+		t.Fatal("resolver called after a known mismatch")
+		return core.Unknown, nil
+	})
+
+	satisfied, err := domain.Satisfies(
+		t.Context(),
+		planning.NewState(core.ConditionSet{"local": core.False}),
+		core.ConditionSet{"local": core.True, "remote": core.True},
+		resolver,
+	)
+	if err != nil {
+		t.Fatalf("Satisfies: %v", err)
+	}
+	if satisfied {
+		t.Fatal("Satisfies = true, want known mismatch")
+	}
+}
+
+func TestDomainApplicableActionsShortCircuitsExpensiveConditions(t *testing.T) {
+	blocked := &planAction{metadata: core.ActionMetadata{
+		Name:          "blocked",
+		Preconditions: core.ConditionSet{"cheap": core.True, "expensive": core.True},
+	}}
+	ready := &planAction{metadata: core.ActionMetadata{Name: "ready"}}
+	domain := mustDomain(t, []core.Action{blocked, ready}, nil, []core.Condition{
+		core.NewCondition(core.ConditionConfig{Name: "expensive", Cost: 100}),
+		core.NewCondition(core.ConditionConfig{Name: "cheap", Cost: 1}),
+	})
+	var resolved []string
+	resolver := newConditionResolver(func(_ context.Context, name string) (core.Truth, error) {
+		resolved = append(resolved, name)
+		if name == "expensive" {
+			t.Fatal("expensive condition evaluated after cheap condition rejected its action")
+		}
+		return core.False, nil
+	})
+
+	applicable, err := domain.ApplicableActions(t.Context(), planning.NewState(nil), domain.Actions(), resolver)
+	if err != nil {
+		t.Fatalf("ApplicableActions: %v", err)
+	}
+	if len(applicable) != 1 || applicable[0].Metadata().Name != "ready" {
+		t.Fatalf("applicable = %v, want ready", actionNames(applicable))
+	}
+	if !slices.Equal(resolved, []string{"cheap"}) {
+		t.Fatalf("resolved = %v, want only cheap", resolved)
+	}
+}
+
+func TestDomainApplicableActionsTreatsObservedUnknownAsMismatch(t *testing.T) {
+	action := &planAction{metadata: core.ActionMetadata{
+		Name:          "guarded",
+		Preconditions: core.ConditionSet{"remote": core.True},
+	}}
+	domain := mustDomain(t, []core.Action{action}, nil, []core.Condition{
+		core.NewCondition(core.ConditionConfig{Name: "remote", Cost: 1}),
+	})
+	calls := 0
+	resolver := newConditionResolver(func(context.Context, string) (core.Truth, error) {
+		calls++
+		return core.Unknown, nil
+	})
+
+	applicable, err := domain.ApplicableActions(t.Context(), planning.NewState(nil), domain.Actions(), resolver)
+	if err != nil {
+		t.Fatalf("ApplicableActions: %v", err)
+	}
+	if len(applicable) != 0 || calls != 1 {
+		t.Fatalf("applicable/calls = %v/%d, want none/one", actionNames(applicable), calls)
+	}
+}
+
+func TestDomainApplicableActionsRejectsActionsOutsideDomain(t *testing.T) {
+	domain := mustDomain(t, nil, nil, nil)
+	outside := &planAction{metadata: core.ActionMetadata{Name: "outside"}}
+
+	_, err := domain.ApplicableActions(t.Context(), planning.NewState(nil), []core.Action{outside}, nil)
+	if err == nil || !strings.Contains(err.Error(), `action[0] "outside" is outside the domain`) {
+		t.Fatalf("ApplicableActions error = %v, want outside-domain rejection", err)
+	}
+}
+
+func TestDomainResolvedStateOverlaysObservationsWithoutOverwritingEffects(t *testing.T) {
+	domain := mustDomain(t, nil, nil, []core.Condition{
+		core.NewCondition(core.ConditionConfig{Name: "ready", Cost: 1}),
+	})
+	resolver := newConditionResolver(func(context.Context, string) (core.Truth, error) {
+		return core.True, nil
+	})
+	if _, err := resolver.Resolve(t.Context(), "ready"); err != nil {
+		t.Fatalf("Resolve: %v", err)
+	}
+
+	base := planning.NewState(core.ConditionSet{"ready": core.Unknown})
+	resolved, err := domain.ResolvedState(base, resolver)
+	if err != nil {
+		t.Fatalf("ResolvedState: %v", err)
+	}
+	if resolved.Conditions()["ready"] != core.True || base.Conditions()["ready"] != core.Unknown {
+		t.Fatalf("resolved/base = %v/%v, want true/unknown", resolved.Conditions(), base.Conditions())
+	}
+
+	withEffect := base.Apply(core.ConditionSet{"ready": core.False})
+	resolved, err = domain.ResolvedState(withEffect, resolver)
+	if err != nil {
+		t.Fatalf("ResolvedState with effect: %v", err)
+	}
+	if resolved.Conditions()["ready"] != core.False {
+		t.Fatalf("resolved effect = %v, want false", resolved.Conditions())
+	}
+}
+
+func TestDomainContainsConditionResolverPanics(t *testing.T) {
+	domain := mustDomain(t, nil, nil, []core.Condition{
+		core.NewCondition(core.ConditionConfig{Name: "ready", Cost: 1}),
+	})
+	resolveCause := errors.New("resolve sentinel")
+	_, err := domain.Satisfies(
+		t.Context(),
+		planning.NewState(nil),
+		core.ConditionSet{"ready": core.True},
+		panickingConditionResolver{resolveCause: resolveCause},
+	)
+	if !errors.Is(err, resolveCause) || !strings.Contains(err.Error(), "panicked resolving") {
+		t.Fatalf("Satisfies error = %v, want contained resolver panic", err)
+	}
+
+	snapshotCause := errors.New("snapshot sentinel")
+	_, err = domain.ResolvedState(
+		planning.NewState(nil),
+		panickingConditionResolver{snapshotCause: snapshotCause},
+	)
+	if !errors.Is(err, snapshotCause) || !strings.Contains(err.Error(), "ResolvedConditions panicked") {
+		t.Fatalf("ResolvedState error = %v, want contained snapshot panic", err)
 	}
 }
 
@@ -268,8 +512,8 @@ func TestNewDomainRejectsInvalidConditionCost(t *testing.T) {
 func TestNewDomainPreservesConditionSourcesWithoutParsingKeys(t *testing.T) {
 	action := domainAgent("worker", "worker:step").Actions()[0]
 	conditions := []core.Condition{
-		core.NewCondition("external:ready", nil),
-		core.NewCondition("action_ran_external", nil),
+		core.NewCondition(core.ConditionConfig{Name: "external:ready"}),
+		core.NewCondition(core.ConditionConfig{Name: "action_ran_external"}),
 	}
 	domain := mustDomain(t, []core.Action{action}, nil, conditions)
 
@@ -296,7 +540,7 @@ func TestNewDomainRejectsConflictingConditionSources(t *testing.T) {
 	_, err := planning.NewDomain(
 		[]core.Action{action},
 		nil,
-		[]core.Condition{core.NewCondition(action.Metadata().RunCondition(), nil)},
+		[]core.Condition{core.NewCondition(core.ConditionConfig{Name: action.Metadata().RunCondition()})},
 	)
 	if err == nil {
 		t.Fatal("NewDomain accepted an evaluator that shadows an action-run condition")

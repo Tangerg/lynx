@@ -68,11 +68,15 @@ func (p *Planner) PlanToGoal(
 		span.End()
 	}()
 
-	if goal.SatisfiedBy(start) {
+	unsatisfied, err := domain.Unsatisfied(ctx, start, goal.Preconditions(), options.ConditionResolver)
+	if err != nil {
+		return nil, err
+	}
+	if len(unsatisfied) == 0 {
 		result = planning.NewPlan(nil, goal)
 		return result, nil
 	}
-	best, err := p.bestApplicable(start, domain.Actions(), goal, options.ExcludedActions)
+	best, err := p.bestApplicable(ctx, start, domain, unsatisfied, options)
 	if err != nil {
 		return nil, err
 	}
@@ -95,39 +99,45 @@ func (p *Planner) PlanToGoal(
 // [core.NewAction] constructor fills in [core.FixedScore](1.0) when none
 // is supplied.
 func (p *Planner) bestApplicable(
+	ctx context.Context,
 	start core.WorldState,
-	actions []core.Action,
-	goal *core.Goal,
-	excluded planning.Exclusions,
+	domain *planning.Domain,
+	unsatisfied core.ConditionSet,
+	options planning.Options,
 ) (core.Action, error) {
-	state := start.Conditions()
-	unsatisfied := state.Unsatisfied(goal.Preconditions())
+	candidates := make([]core.Action, 0, len(domain.Actions()))
+	for _, action := range domain.Actions() {
+		if nilvalue.Is(action) {
+			continue
+		}
+		metadata := action.Metadata()
+		if options.ExcludedActions.Contains(metadata.Name) || p.progressTowardsGoal(metadata.Effects, unsatisfied) == 0 {
+			continue
+		}
+		candidates = append(candidates, action)
+	}
+	applicable, err := domain.ApplicableActions(ctx, start, candidates, options.ConditionResolver)
+	if err != nil {
+		return nil, err
+	}
+	scoreState, err := domain.ResolvedState(start, options.ConditionResolver)
+	if err != nil {
+		return nil, err
+	}
 
 	var best core.Action
 	bestProgress := 0
 	bestCost := math.Inf(1)
 
-	for _, action := range actions {
-		if nilvalue.Is(action) {
-			continue
-		}
+	for _, action := range applicable {
 		metadata := action.Metadata()
-		if excluded.Contains(metadata.Name) {
-			continue
-		}
-		if !metadata.Applicable(state) {
-			continue
-		}
 
 		progress := p.progressTowardsGoal(metadata.Effects, unsatisfied)
-		if progress == 0 {
-			continue
-		}
 
 		cost := math.Inf(1)
 		if metadata.Cost != nil {
 			var err error
-			cost, err = score.Evaluate(metadata.Cost, start)
+			cost, err = score.Evaluate(metadata.Cost, scoreState)
 			if err != nil {
 				return nil, fmt.Errorf("reactive: action %q cost: %w", metadata.Name, err)
 			}

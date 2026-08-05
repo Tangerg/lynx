@@ -18,7 +18,8 @@ type WorldState interface {
 	Key() string
 
 	// Apply produces a new state with the supplied effects layered on top. The
-	// receiver MUST NOT mutate; planners rely on snapshots being immutable.
+	// receiver MUST NOT mutate or change the observation timestamp; planners rely
+	// on simulated states remaining immutable projections of one observation.
 	Apply(effects ConditionSet) WorldState
 }
 
@@ -28,7 +29,10 @@ type WorldState interface {
 // deterministic and free of externally visible side effects because a planner
 // may evaluate alternatives that are never executed. Results must be finite;
 // functions used as costs must also be non-negative. A panic or invalid result
-// rejects the planning pass with an attributed error.
+// rejects the planning pass with an attributed error. A function must tolerate
+// Unknown conditions. If it depends on a named evaluator, declare that
+// condition in the relevant goal or action preconditions so planning observes
+// it before sampling the score.
 //
 // Use [FixedScore] to lift a constant float into a ScoreFunc — that single shape
 // covers both static and dynamic uses, so the framework doesn't need parallel

@@ -62,7 +62,7 @@ func NewGoalFirst() *GoalFirst { return &GoalFirst{} }
 func (p *GoalFirst) Name() string { return planning.GoalFirstUtilityPlannerName }
 
 // PlanToGoal differs from [Planner.PlanToGoal] only on the
-// satisfied-goal short-circuit: when goal.SatisfiedBy(start) the
+// satisfied-goal short-circuit: when the start state satisfies the goal, the
 // planner returns the empty plan immediately, even if other
 // applicable actions exist. The empty plan's net value (0) beats
 // any negative-value action, so the process picks termination over
@@ -107,23 +107,42 @@ func planUtility(
 		span.End()
 	}()
 
-	firstAction, err := topApplicable(start, domain.Actions(), options.ExcludedActions)
+	if goalFirst {
+		satisfied, err := domain.Satisfies(ctx, start, goal.Preconditions(), options.ConditionResolver)
+		if err != nil {
+			return nil, err
+		}
+		if satisfied {
+			return planning.NewPlan(nil, goal), nil
+		}
+	}
+
+	firstAction, err := topApplicable(ctx, start, domain, options)
 	if err != nil {
 		return nil, err
 	}
 	span.SetAttributes(attribute.Bool(attrAnyApplicable, firstAction != nil))
 
-	if goalFirst && goal.SatisfiedBy(start) {
-		return planning.NewPlan(nil, goal), nil
-	}
-
 	if firstAction == nil {
-		if !goalFirst && goal.SatisfiedBy(start) {
+		satisfied, err := domain.Satisfies(ctx, start, goal.Preconditions(), options.ConditionResolver)
+		if err != nil {
+			return nil, err
+		}
+		if !goalFirst && satisfied {
 			return planning.NewPlan(nil, goal), nil
 		}
 		return nil, nil
 	}
-	if goal.SatisfiedBy(start.Apply(firstAction.Metadata().Effects)) {
+	satisfied, err := domain.Satisfies(
+		ctx,
+		start.Apply(firstAction.Metadata().Effects),
+		goal.Preconditions(),
+		options.ConditionResolver,
+	)
+	if err != nil {
+		return nil, err
+	}
+	if satisfied {
 		return planning.NewPlan([]core.Action{firstAction}, goal), nil
 	}
 	return nil, nil
@@ -134,27 +153,36 @@ func planUtility(
 // qualifies. Single-pass O(n) — both planners only need the top
 // pick, so a full sort would be wasted work.
 func topApplicable(
+	ctx context.Context,
 	start core.WorldState,
-	actions []core.Action,
-	excluded planning.Exclusions,
+	domain *planning.Domain,
+	options planning.Options,
 ) (core.Action, error) {
-	state := start.Conditions()
+	candidates := make([]core.Action, 0, len(domain.Actions()))
+	for _, action := range domain.Actions() {
+		if nilvalue.Is(action) {
+			continue
+		}
+		if options.ExcludedActions.Contains(action.Metadata().Name) {
+			continue
+		}
+		candidates = append(candidates, action)
+	}
+	applicable, err := domain.ApplicableActions(ctx, start, candidates, options.ConditionResolver)
+	if err != nil {
+		return nil, err
+	}
+	scoreState, err := domain.ResolvedState(start, options.ConditionResolver)
+	if err != nil {
+		return nil, err
+	}
 	var (
 		best      core.Action
 		bestValue = math.Inf(-1)
 	)
-	for _, action := range actions {
-		if nilvalue.Is(action) {
-			continue
-		}
+	for _, action := range applicable {
 		metadata := action.Metadata()
-		if excluded.Contains(metadata.Name) {
-			continue
-		}
-		if !metadata.Applicable(state) {
-			continue
-		}
-		value, err := netValue(start, metadata)
+		value, err := netValue(scoreState, metadata)
 		if err != nil {
 			return nil, err
 		}
