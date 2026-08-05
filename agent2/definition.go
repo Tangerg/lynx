@@ -2,7 +2,8 @@ package agent2
 
 import "context"
 
-// Definition is an immutable Agent behavior definition. Implementations create
+// Definition is an immutable Agent behavior definition. Its methods may be
+// called concurrently for different Processes. Implementations create
 // a fresh Execution from validated Input or restore one from their own opaque,
 // versioned ExecutionState. Definition methods must not depend on Host product
 // identities, storage protocols, or mutable global registration.

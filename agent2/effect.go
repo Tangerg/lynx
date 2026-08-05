@@ -9,7 +9,7 @@ import (
 
 var ErrInvalidEffect = errors.New("agent: invalid effect")
 
-// EffectTarget identifies which closed execution boundary owns an Effect.
+// EffectTarget identifies which of the two execution boundaries owns an Effect.
 // Framework Effects are interpreted by the Engine; Dispatcher Effects remain
 // opaque to the Engine and are interpreted by the Deployment-bound dispatcher.
 type EffectTarget uint8
@@ -161,7 +161,7 @@ type waitRequestWire struct {
 
 func decodeWaitRequest(effect Effect) (WaitKey, json.RawMessage, error) {
 	if effect.Target() != EffectTargetFramework {
-		return WaitKey{}, nil, fmt.Errorf("%w: Effect is not Framework-owned", ErrInvalidEffect)
+		return WaitKey{}, nil, fmt.Errorf("%w: Effect is not framework-owned", ErrInvalidEffect)
 	}
 	return decodeWaitRequestPayload(effect.payload)
 }
@@ -174,14 +174,14 @@ func decodeWaitRequestPayload(payload json.RawMessage) (WaitKey, json.RawMessage
 		return WaitKey{}, nil, fmt.Errorf("%w: decode Framework Effect: %w", ErrInvalidEffect, err)
 	}
 	if err := requireJSONEOF(decoder); err != nil {
-		return WaitKey{}, nil, fmt.Errorf("%w: Framework Effect: %w", ErrInvalidEffect, err)
+		return WaitKey{}, nil, fmt.Errorf("%w: framework Effect: %w", ErrInvalidEffect, err)
 	}
 	if wire.Operation != frameworkEffectWait || wire.SchemaVersion != frameworkEffectSchemaVersion || !wire.Key.Valid() {
 		return WaitKey{}, nil, fmt.Errorf("%w: unsupported Framework Effect", ErrInvalidEffect)
 	}
 	normalized, err := normalizeJSON(wire.SignalPayload, maxWireBytes)
 	if err != nil {
-		return WaitKey{}, nil, fmt.Errorf("%w: Framework Effect signal payload: %w", ErrInvalidEffect, err)
+		return WaitKey{}, nil, fmt.Errorf("%w: framework Effect signal payload: %w", ErrInvalidEffect, err)
 	}
 	return wire.Key, normalized, nil
 }

@@ -53,7 +53,7 @@ func (process *Process) Status() Status {
 	return process.controller.status()
 }
 
-// Usage returns the latest committed Framework-owned counters.
+// Usage returns the latest Framework-owned counters.
 func (process *Process) Usage() Usage {
 	if process == nil || process.controller == nil {
 		return Usage{}
@@ -70,10 +70,10 @@ func (process *Process) WaitID() (WaitID, bool) {
 	return process.controller.waitID()
 }
 
-// Deliver submits immutable Strategy input. Running input is consumed only at
+// DeliverSignal submits immutable Strategy input. Running input is consumed only at
 // the next Strategy-safe Step boundary; Waiting input must address WaitID.
 // accepted is false, with nil error, when SignalID was already accepted.
-func (process *Process) Deliver(ctx context.Context, request SignalRequest) (accepted bool, err error) {
+func (process *Process) DeliverSignal(ctx context.Context, request SignalRequest) (accepted bool, err error) {
 	response, err := process.request(ctx, processCommand{kind: commandDeliver, signal: request})
 	return response.accepted, err
 }
@@ -113,10 +113,10 @@ func (process *Process) ResolveEffect(ctx context.Context, settlement Settlement
 	return err
 }
 
-// UnknownEffects returns stable identities whose external outcome requires an
+// UnknownEffectIDs returns stable identities whose external outcome requires an
 // explicit ResolveEffect decision. Payloads remain owned by the Dispatcher.
-func (process *Process) UnknownEffects(ctx context.Context) ([]EffectID, error) {
-	response, err := process.request(ctx, processCommand{kind: commandQueryUnknownEffects})
+func (process *Process) UnknownEffectIDs(ctx context.Context) ([]EffectID, error) {
+	response, err := process.request(ctx, processCommand{kind: commandQueryUnknownEffectIDs})
 	return response.effectIDs, err
 }
 
@@ -305,7 +305,7 @@ const (
 	commandCancel
 	commandKill
 	commandResolveEffect
-	commandQueryUnknownEffects
+	commandQueryUnknownEffectIDs
 	commandCapture
 )
 

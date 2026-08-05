@@ -18,7 +18,7 @@ type Typed[I, O any] struct {
 // does not claim that arbitrary Go types are schema-equivalent in advance.
 func NewTyped[I, O any](definition Definition) (Typed[I, O], error) {
 	if nilInterface(definition) {
-		return Typed[I, O]{}, fmt.Errorf("%w: Definition is required", ErrInvalidTypedAdapter)
+		return Typed[I, O]{}, fmt.Errorf("%w: definition is required", ErrInvalidTypedAdapter)
 	}
 	if !definition.Descriptor().Valid() {
 		return Typed[I, O]{}, fmt.Errorf("%w: %w", ErrInvalidTypedAdapter, ErrInvalidDescriptor)

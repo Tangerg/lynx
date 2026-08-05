@@ -67,8 +67,11 @@ type DeltaEmitter func(json.RawMessage)
 
 // Dispatcher executes Strategy-owned Effects outside Execution.Step. It must
 // return a Settlement addressed to request.ID. A returned error means the Engine
-// cannot prove the external result and records an unknown settlement. Dispatcher
-// implementations must not mutate an Execution or start unowned goroutines.
+// cannot prove the external result and records an unknown settlement. The same
+// Dispatcher may serve Processes concurrently; implementations must be
+// concurrency-safe, return in bounded time, not mutate an Execution, and not
+// start unowned goroutines. ReplayPolicy must be a pure, deterministic
+// declaration for the supplied immutable Effect.
 type Dispatcher interface {
 	Dispatch(context.Context, EffectRequest, DeltaEmitter) (Settlement, error)
 	ReplayPolicy(effect Effect) ReplayPolicy

@@ -86,11 +86,47 @@ func (execution *engineTestExecution) Step(_ context.Context, signals []Signal) 
 		return execution.stepEffect(signals)
 	case "wait":
 		return execution.stepWait(signals)
+	case "batch":
+		return execution.stepBatch(signals)
 	case "fail":
 		execution.state.Phase = "corrupted"
 		return Transition{}, errors.New("injected Step failure")
 	default:
 		return Transition{}, errors.New("unknown test mode")
+	}
+}
+
+func (execution *engineTestExecution) stepBatch(signals []Signal) (Transition, error) {
+	switch execution.state.Phase {
+	case "ready":
+		execution.state.Phase = "batch"
+		var effects []Effect
+		for _, value := range []string{"first", "second"} {
+			payload, _ := json.Marshal(engineTestMessage{Kind: "request", Value: value})
+			effect, err := NewDispatcherEffect(payload)
+			if err != nil {
+				return Transition{}, err
+			}
+			effects = append(effects, effect)
+		}
+		return Continue(0, effects...)
+	case "batch":
+		if len(signals) != 2 {
+			return Transition{}, errors.New("batch phase requires two settlement Signals")
+		}
+		first, err := decodeJSON[engineTestMessage](signals[0].Payload())
+		if err != nil {
+			return Transition{}, err
+		}
+		second, err := decodeJSON[engineTestMessage](signals[1].Payload())
+		if err != nil {
+			return Transition{}, err
+		}
+		execution.state.Phase = "done"
+		output, _ := EncodeOutput(engineTestOutput{Value: first.Value + "+" + second.Value})
+		return Complete(2, output)
+	default:
+		return Transition{}, errors.New("batch execution cannot advance")
 	}
 }
 
@@ -175,6 +211,8 @@ func (execution *engineTestExecution) Snapshot() (ExecutionState, error) {
 		name = "engine.wait"
 	} else if execution.mode == "fail" {
 		name = "engine.fail"
+	} else if execution.mode == "batch" {
+		name = "engine.batch"
 	}
 	return NewExecutionState(name, 1, payload)
 }
@@ -222,6 +260,29 @@ func (dispatcher *engineTestDispatcher) ReplayPolicy(Effect) ReplayPolicy { retu
 type failingEngineTestDispatcher struct {
 	calls atomic.Int32
 }
+
+type partialBatchDispatcher struct {
+	calls atomic.Int32
+}
+
+func (dispatcher *partialBatchDispatcher) Dispatch(
+	_ context.Context,
+	request EffectRequest,
+	_ DeltaEmitter,
+) (Settlement, error) {
+	dispatcher.calls.Add(1)
+	message, err := decodeJSON[engineTestMessage](request.Effect().Payload())
+	if err != nil {
+		return Settlement{}, err
+	}
+	if request.Index() == 1 {
+		return Settlement{}, errors.New("second Effect result is unknown")
+	}
+	payload, _ := json.Marshal(engineTestMessage{Kind: "result", Value: message.Value})
+	return NewSettlement(request.ID(), SettlementStatusSucceeded, payload)
+}
+
+func (*partialBatchDispatcher) ReplayPolicy(Effect) ReplayPolicy { return ReplayPolicyNever }
 
 func (dispatcher *failingEngineTestDispatcher) Dispatch(
 	context.Context,
@@ -299,12 +360,12 @@ func TestEngineMintsWaitIDAndRequiresAddressedAnswer(t *testing.T) {
 	}
 	plainID, _ := ParseSignalID("signal:plain")
 	plain, _ := NewSignalRequest(plainID, WaitID{}, json.RawMessage(`{"kind":"answer","value":"wrong"}`))
-	if _, err := process.Deliver(context.Background(), plain); !errors.Is(err, ErrSignalRejected) {
+	if _, err := process.DeliverSignal(context.Background(), plain); !errors.Is(err, ErrSignalRejected) {
 		t.Fatalf("unaddressed answer error=%v", err)
 	}
 	answerID, _ := ParseSignalID("signal:answer")
 	answer, _ := NewSignalRequest(answerID, waitID, json.RawMessage(`{"kind":"answer","value":"approved"}`))
-	accepted, err := process.Deliver(context.Background(), answer)
+	accepted, err := process.DeliverSignal(context.Background(), answer)
 	if err != nil || !accepted {
 		t.Fatalf("answer accepted=%t err=%v", accepted, err)
 	}
@@ -366,7 +427,7 @@ func TestUnknownSettlementRequiresExplicitResolutionAndSurvivesRestore(t *testin
 	if dispatcher.calls.Load() != 1 {
 		t.Fatalf("ReplayPolicyNever dispatcher calls=%d, want 1", dispatcher.calls.Load())
 	}
-	unknown, err := restored.UnknownEffects(context.Background())
+	unknown, err := restored.UnknownEffectIDs(context.Background())
 	if err != nil || len(unknown) != 1 || unknown[0] != effectID {
 		t.Fatalf("unknown Effects=%v err=%v", unknown, err)
 	}
@@ -380,6 +441,48 @@ func TestUnknownSettlementRequiresExplicitResolutionAndSurvivesRestore(t *testin
 	value, _ := DecodeOutput[engineTestOutput](output)
 	if value.Value != "resolved" {
 		t.Fatalf("resolved output=%q", value.Value)
+	}
+	_ = process.Kill(context.Background(), "test cleanup")
+	_ = awaitResult(t, process)
+}
+
+func TestPartialEffectBatchPreservesSettlementsAndDeclarationOrder(t *testing.T) {
+	definition := newEngineTestDefinition(t, "engine.batch", "batch")
+	dispatcher := &partialBatchDispatcher{}
+	deployment := engineTestDeployment(t, definition, dispatcher)
+	engine, _ := NewEngine(EngineConfig{})
+	input, _ := EncodeInput(engineTestInput{Value: "batch"})
+	process, err := engine.Start(context.Background(), deployment, input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	snapshot := waitForUnknownSettlement(t, process)
+	wire, _ := snapshot.wire()
+	if len(wire.Prepared.Effects) != 2 || wire.Prepared.Effects[0].Settlement == nil ||
+		wire.Prepared.Effects[0].Settlement.Status() != SettlementStatusSucceeded ||
+		wire.Prepared.Effects[1].Settlement == nil ||
+		wire.Prepared.Effects[1].Settlement.Status() != SettlementStatusUnknown {
+		t.Fatalf("prepared batch=%+v", wire.Prepared.Effects)
+	}
+	restoredEngine, _ := NewEngine(EngineConfig{})
+	restored, err := restoredEngine.Restore(context.Background(), deployment, snapshot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(20 * time.Millisecond)
+	if dispatcher.calls.Load() != 2 {
+		t.Fatalf("dispatcher calls=%d, want 2", dispatcher.calls.Load())
+	}
+	payload, _ := json.Marshal(engineTestMessage{Kind: "result", Value: "second"})
+	settlement, _ := NewSettlement(wire.Prepared.Effects[1].ID, SettlementStatusSucceeded, payload)
+	if err := restored.ResolveEffect(context.Background(), settlement); err != nil {
+		t.Fatal(err)
+	}
+	result := awaitResult(t, restored)
+	output, _ := result.Output()
+	value, _ := DecodeOutput[engineTestOutput](output)
+	if value.Value != "first+second" {
+		t.Fatalf("ordered batch output=%q", value.Value)
 	}
 	_ = process.Kill(context.Background(), "test cleanup")
 	_ = awaitResult(t, process)
@@ -454,7 +557,7 @@ func TestWaitingProcessRestoresWithSameWaitIdentity(t *testing.T) {
 	}
 	answerID, _ := ParseSignalID("signal:restored-answer")
 	answer, _ := NewSignalRequest(answerID, restoredWaitID, json.RawMessage(`{"kind":"answer","value":"restored"}`))
-	if accepted, err := restored.Deliver(context.Background(), answer); err != nil || !accepted {
+	if accepted, err := restored.DeliverSignal(context.Background(), answer); err != nil || !accepted {
 		t.Fatalf("accepted=%t err=%v", accepted, err)
 	}
 	if result := awaitResult(t, restored); result.Status() != StatusCompleted {
@@ -703,9 +806,12 @@ func waitForUnknownSettlement(t *testing.T, process *Process) Snapshot {
 		snapshot, err := process.Capture(context.Background())
 		if err == nil {
 			wire, _ := snapshot.wire()
-			if wire.Prepared != nil && wire.Prepared.Effects[0].Settlement != nil &&
-				wire.Prepared.Effects[0].Settlement.Status() == SettlementStatusUnknown {
-				return snapshot
+			if wire.Prepared != nil {
+				for _, effect := range wire.Prepared.Effects {
+					if effect.Settlement != nil && effect.Settlement.Status() == SettlementStatusUnknown {
+						return snapshot
+					}
+				}
 			}
 		}
 		time.Sleep(time.Millisecond)

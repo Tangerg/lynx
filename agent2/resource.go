@@ -8,9 +8,17 @@ var ErrLimitExceeded = errors.New("agent: process limit exceeded")
 // EngineConfig inherit DefaultLimits; Snapshot stores effective non-zero values
 // so restoration preserves the same execution contract.
 type Limits struct {
-	MaxSteps          uint64 `json:"max_steps"`
-	MaxEffects        uint64 `json:"max_effects"`
-	MaxSignals        uint64 `json:"max_signals"`
+	// MaxSteps bounds committed Step transactions.
+	MaxSteps uint64 `json:"max_steps"`
+
+	// MaxEffects bounds Effects prepared across all Steps.
+	MaxEffects uint64 `json:"max_effects"`
+
+	// MaxSignals bounds all accepted external and Engine-generated Signals.
+	MaxSignals uint64 `json:"max_signals"`
+
+	// MaxPendingSignals bounds the unconsumed mailbox suffix, including space
+	// reserved for the current prepared Effect batch.
 	MaxPendingSignals uint64 `json:"max_pending_signals"`
 }
 
@@ -53,10 +61,17 @@ func effectiveLimits(configured Limits) (Limits, error) {
 // Usage contains monotonic Framework-owned counters. It deliberately excludes
 // provider pricing and Strategy-specific concepts such as tokens or tool calls.
 type Usage struct {
-	CommittedSteps  uint64 `json:"committed_steps"`
+	// CommittedSteps counts finalized Step transactions.
+	CommittedSteps uint64 `json:"committed_steps"`
+
+	// PreparedEffects counts stable logical Effect identities, not replay attempts.
 	PreparedEffects uint64 `json:"prepared_effects"`
+
+	// AcceptedSignals counts external and Engine-generated mailbox entries.
 	AcceptedSignals uint64 `json:"accepted_signals"`
-	DroppedDeltas   uint64 `json:"dropped_deltas"`
+
+	// DroppedDeltas counts increments rejected by validation or the bounded queue.
+	DroppedDeltas uint64 `json:"dropped_deltas"`
 }
 
 func (usage Usage) validFor(limits Limits) bool {

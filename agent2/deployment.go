@@ -12,10 +12,18 @@ var ErrInvalidDeployment = errors.New("agent: invalid deployment")
 // The digests must cover the exact code artifact and all frozen dispatcher or
 // Strategy configuration that can affect execution or restoration.
 type DeploymentConfig struct {
-	Definition           Definition
-	Dispatcher           Dispatcher
+	// Definition owns the Strategy contract and creates per-Process execution.
+	Definition Definition
+
+	// Dispatcher interprets only Effects emitted by this Definition.
+	Dispatcher Dispatcher
+
+	// ImplementationDigest identifies the exact executable Definition artifact.
 	ImplementationDigest Digest
-	ConfigurationDigest  Digest
+
+	// ConfigurationDigest identifies all frozen behavior-affecting Definition
+	// and Dispatcher configuration.
+	ConfigurationDigest Digest
 }
 
 // Deployment is an immutable binding of one Definition, its Strategy-owned
@@ -32,10 +40,10 @@ type Deployment struct {
 // documented immutability and concurrency contracts.
 func NewDeployment(config DeploymentConfig) (Deployment, error) {
 	if nilInterface(config.Definition) {
-		return Deployment{}, fmt.Errorf("%w: Definition is required", ErrInvalidDeployment)
+		return Deployment{}, fmt.Errorf("%w: definition is required", ErrInvalidDeployment)
 	}
 	if nilInterface(config.Dispatcher) {
-		return Deployment{}, fmt.Errorf("%w: Dispatcher is required", ErrInvalidDeployment)
+		return Deployment{}, fmt.Errorf("%w: dispatcher is required", ErrInvalidDeployment)
 	}
 	descriptor := config.Definition.Descriptor()
 	reference, err := NewDeploymentRef(descriptor, config.ImplementationDigest, config.ConfigurationDigest)

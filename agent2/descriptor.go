@@ -20,10 +20,20 @@ var ErrInvalidDescriptor = errors.New("agent: invalid descriptor")
 // Executable implementation and frozen configuration identity belong to a
 // Deployment, not this contract.
 type DescriptorConfig struct {
-	Name         string
-	Description  string
-	Version      string
-	InputSchema  Schema
+	// Name is a stable lowercase qualified Definition name.
+	Name string
+
+	// Description states the Definition's behavior for human and model-facing
+	// discovery without execution-specific state.
+	Description string
+
+	// Version is a canonical MAJOR.MINOR.PATCH semantic version.
+	Version string
+
+	// InputSchema is the authoritative structural contract for Process input.
+	InputSchema Schema
+
+	// OutputSchema is the authoritative structural contract for completed output.
 	OutputSchema Schema
 }
 
@@ -73,7 +83,7 @@ func (d Descriptor) InputSchema() Schema { return d.inputSchema.clone() }
 // OutputSchema returns an independently owned schema value.
 func (d Descriptor) OutputSchema() Schema { return d.outputSchema.clone() }
 
-// Digest returns the sha256 identity of the complete descriptor contract.
+// Digest returns the SHA-256 identity of the complete descriptor contract.
 func (d Descriptor) Digest() Digest { return d.digest }
 
 // Valid reports whether the Descriptor was constructed successfully.

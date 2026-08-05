@@ -60,8 +60,8 @@ func (snapshot Snapshot) JSON() json.RawMessage { return bytes.Clone(snapshot.da
 // ProcessID returns the captured Process identity.
 func (snapshot Snapshot) ProcessID() ProcessID { return snapshot.processID }
 
-// Deployment returns the exact execution binding required for restoration.
-func (snapshot Snapshot) Deployment() DeploymentRef { return snapshot.deployment }
+// DeploymentRef returns the exact execution binding required for restoration.
+func (snapshot Snapshot) DeploymentRef() DeploymentRef { return snapshot.deployment }
 
 // Status returns the captured common lifecycle state.
 func (snapshot Snapshot) Status() Status { return snapshot.status }
@@ -205,14 +205,14 @@ func validateSnapshotLifecycle(wire processSnapshotWire) error {
 	}
 	if wire.Status == StatusCompleted {
 		if wire.Output == nil || !wire.Output.Valid() {
-			return fmt.Errorf("%w: Completed Process requires Output", ErrInvalidSnapshot)
+			return fmt.Errorf("%w: completed process requires output", ErrInvalidSnapshot)
 		}
 	} else if wire.Output != nil {
 		return fmt.Errorf("%w: only Completed Process may contain Output", ErrInvalidSnapshot)
 	}
 	if wire.Status == StatusWaiting {
 		if wire.CurrentWaitID == nil || !wire.CurrentWaitID.Valid() {
-			return fmt.Errorf("%w: Waiting Process requires current WaitID", ErrInvalidSnapshot)
+			return fmt.Errorf("%w: waiting process requires current WaitID", ErrInvalidSnapshot)
 		}
 	} else if wire.CurrentWaitID != nil {
 		return fmt.Errorf("%w: current WaitID requires Waiting status", ErrInvalidSnapshot)

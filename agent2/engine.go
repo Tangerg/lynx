@@ -11,16 +11,16 @@ import (
 )
 
 var (
-	ErrInvalidEngineConfig = errors.New("agent: invalid Engine configuration")
-	ErrEngineClosed        = errors.New("agent: Engine is closed")
-	ErrEngineBusy          = errors.New("agent: Engine has active Processes")
-	ErrProcessExists       = errors.New("agent: Process identity already exists")
+	ErrInvalidEngineConfig = errors.New("agent: invalid engine configuration")
+	ErrEngineClosed        = errors.New("agent: engine is closed")
+	ErrEngineBusy          = errors.New("agent: engine has active processes")
+	ErrProcessExists       = errors.New("agent: process identity already exists")
 )
 
 // PreparedStepAcknowledger is the optional durability boundary immediately
 // before external Effect dispatch. Returning nil confirms only that this exact
 // Snapshot reached the caller's chosen durable boundary; it does not grant the
-// Framework ownership of a Store, transaction, or application write set.
+// Framework ownership of the caller's persistence or atomicity semantics.
 type PreparedStepAcknowledger interface {
 	AcknowledgePreparedStep(context.Context, Snapshot) error
 }
@@ -28,11 +28,27 @@ type PreparedStepAcknowledger interface {
 // EngineConfig contains only cross-Strategy execution mechanics. Definition,
 // Dispatcher, schema, and behavior configuration belong to each Deployment.
 type EngineConfig struct {
+	// PreparedStepAcknowledger enables the optional pre-dispatch durability
+	// handshake. Implementations may be called concurrently for different
+	// Processes, must return in bounded time, and must not re-enter the Process
+	// represented by the supplied Snapshot.
 	PreparedStepAcknowledger PreparedStepAcknowledger
-	EventListeners           []EventListener
-	DeltaListeners           []DeltaListener
-	DeltaBufferCapacity      int
-	Limits                   Limits
+
+	// EventListeners receive ordered facts for each Process. Different
+	// Processes may call a listener concurrently.
+	EventListeners []EventListener
+
+	// DeltaListeners receive best-effort streaming increments from the shared
+	// bounded queue. Delivery to each listener is sequential.
+	DeltaListeners []DeltaListener
+
+	// DeltaBufferCapacity bounds the Engine-wide pending Delta queue. Zero uses
+	// the documented internal default; negative values are invalid.
+	DeltaBufferCapacity int
+
+	// Limits supplies per-Process execution bounds. Each zero field inherits
+	// the corresponding value from DefaultLimits.
+	Limits Limits
 }
 
 // Engine is the sole owner of Process construction, scheduling, lifecycle,
