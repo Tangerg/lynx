@@ -1,7 +1,7 @@
 # CLAUDE.md — lyra module
 
-> **Lyra Runtime** — Go agent runtime backend,实现 Lyra Runtime Protocol(JSON-RPC 2.0,MCP-inspired)给前端用(前端是同仓独立模块 [`../desktop`](../desktop))。
-> 项目级法则见 [`../CLAUDE.md`](../CLAUDE.md);架构基准见 [`doc/EXECUTION_CENTERED_ARCHITECTURE.md`](doc/EXECUTION_CENTERED_ARCHITECTURE.md);协议规范(方法表 / 错误码 / header / 状态码等一切 wire 细节)见 [`../desktop/docs/protocol/`](../desktop/docs/protocol/)。本文件只放 lyra 模块特有的宏观内容 —— 目录 / 符号 / 数值以代码与上述规范为准。
+> **Lyra Runtime** — Go agent runtime backend，实现供桌面、Web、CLI、TUI 或其他本地进程使用的 Lyra Runtime Protocol（JSON-RPC 2.0，MCP-inspired）。
+> 项目级法则见 [`../CLAUDE.md`](../CLAUDE.md)；架构基准见 [`doc/EXECUTION_CENTERED_ARCHITECTURE.md`](doc/EXECUTION_CENTERED_ARCHITECTURE.md)；协议规范（语义 / transport / 旁路 API）见 [`doc/API.md`](doc/API.md)、[`doc/TRANSPORT.md`](doc/TRANSPORT.md) 与 [`doc/AUX_API.md`](doc/AUX_API.md)，字段和方法的机器真相源见 [`contract/`](contract/)。本文件只放 Runtime 模块特有的宏观内容 —— 目录 / 符号 / 数值以代码与上述规范为准。
 
 ---
 

@@ -55,7 +55,7 @@ baseURL: ""
 # Runtime HTTP transport settings. Each is overridable by the matching
 # LYRA_SERVER_* env var.
 server:
-  listen: 127.0.0.1:17171   # matches the frontend's AGUI_BASE
+  listen: 127.0.0.1:17171   # loopback endpoint for local protocol clients
   noLocalToken: false       # true = disable the local-process gate (dev / same-origin)
   localTokenPath: ""        # default: $HOME/.lyra/local-token
   corsOrigins:              # empty = built-in dev allowlist (tauri / localhost ports)

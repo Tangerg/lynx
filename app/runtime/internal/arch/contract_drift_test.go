@@ -241,7 +241,8 @@ func TestRegistryShapeRulesReachTheGoValidator(t *testing.T) {
 }
 
 // TestProtocolVersionAgreesEverywhere is contract §11.4 gate 12: the generated
-// manifest, the canonical docs and the code state one protocol version.
+// manifest, the Runtime-owned canonical docs and the code state one protocol
+// version.
 //
 // This is the drift A1 had to fix by hand, machine-enforced. C16 flips the version
 // in ONE place — the constant — and this gate then names every document still
@@ -276,7 +277,7 @@ func TestProtocolVersionAgreesEverywhere(t *testing.T) {
 	// negotiates against it.
 	dateLiteral := regexp.MustCompile(`\b20\d\d-\d\d-\d\d\b`)
 	for _, name := range []string{"API.md", "AUX_API.md", "TRANSPORT.md"} {
-		path := filepath.Join(root, "..", "desktop", "docs", "protocol", name)
+		path := filepath.Join(root, "doc", name)
 		text, err := os.ReadFile(path)
 		if err != nil {
 			t.Fatalf("read %s: %v", name, err)
@@ -325,6 +326,52 @@ func TestProtocolVersionAgreesEverywhere(t *testing.T) {
 	}
 	if stated == 0 {
 		t.Error("no canonical sample states a protocol version; the handshake fixtures stopped covering it")
+	}
+}
+
+// TestProtocolContractIsRuntimeOwned prevents a consuming application from
+// becoming the Runtime's contract author again. Clients may vendor generated
+// bindings, but production code, generators and current architecture guidance
+// must resolve the protocol entirely inside this module.
+func TestProtocolContractIsRuntimeOwned(t *testing.T) {
+	root := moduleRoot(t)
+	leaks := []string{
+		strings.Join([]string{"desktop", "docs", "protocol"}, "/"),
+		strings.Join([]string{`filepath.Join(root, "`, `..", "`, `desktop"`}, ""),
+	}
+	for _, rel := range []string{"CLAUDE.md", "cmd", "internal", "doc/README.md", "doc/EXECUTION_CENTERED_ARCHITECTURE.md"} {
+		path := filepath.Join(root, rel)
+		info, err := os.Stat(path)
+		if err != nil {
+			t.Fatalf("stat %s: %v", rel, err)
+		}
+		paths := []string{path}
+		if info.IsDir() {
+			paths = nil
+			err := filepath.WalkDir(path, func(candidate string, entry os.DirEntry, walkErr error) error {
+				if walkErr != nil {
+					return walkErr
+				}
+				if !entry.IsDir() && slices.Contains([]string{".go", ".md"}, filepath.Ext(candidate)) {
+					paths = append(paths, candidate)
+				}
+				return nil
+			})
+			if err != nil {
+				t.Fatalf("walk %s: %v", rel, err)
+			}
+		}
+		for _, candidate := range paths {
+			source, err := os.ReadFile(candidate)
+			if err != nil {
+				t.Fatalf("read %s: %v", candidate, err)
+			}
+			for _, leaked := range leaks {
+				if bytes.Contains(source, []byte(leaked)) {
+					t.Errorf("%s resolves the Runtime protocol through a client module (%q)", candidate, leaked)
+				}
+			}
+		}
 	}
 }
 

@@ -342,9 +342,10 @@ Application 依赖 SQLite：用例依赖自己需要的窄读写/事务端口，
 
 ## 6. Transport 与协议
 
-`internal/delivery/protocol` 是 Lyra Runtime Protocol 的 Go 投影；完整 wire 规范在
-[`../../desktop/docs/protocol`](../../desktop/docs/protocol)。改变 method、error、event
-或 header 必须前后端同步。
+`internal/delivery/protocol` 是 Lyra Runtime Protocol 的 Go 投影；语义、transport 与旁路规范分别由
+[`API.md`](API.md)、[`TRANSPORT.md`](TRANSPORT.md) 和 [`AUX_API.md`](AUX_API.md) 拥有，字段与方法的
+机器真相源是 [`../contract/`](../contract/)。改变 method、error、event 或 header 时先改变 Runtime
+契约并重新生成制品；客户端只按发布制品接线，不参与定义服务端契约。
 
 Transport 只负责：
 

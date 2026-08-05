@@ -4,9 +4,9 @@
 // are derived from this surface; delivery/server realizes it on
 // top of Lyra's internal kernel + domain layer.
 //
-// ../desktop/docs/protocol/API.md describes the wire contract; every method on [Runtime]
-// maps to one row in API.md §7. The model is Session → Run → Item
-// (API.md §0): Item is the single history+streaming primitive, runs
+// doc/API.md describes the wire semantics; contract/API_REFERENCE.md is the
+// generated method index for [Runtime]. The model is Session → Run → Item
+// (doc/API.md §0): Item is the single history+streaming primitive, runs
 // finish with a discriminated RunOutcome, and human-in-the-loop uses
 // the R model (finish with interrupt outcome, resume via a
 // continuation run).
@@ -14,9 +14,9 @@
 // Discriminated unions (StreamEvent / Item / RunOutcome / ItemDelta /
 // Interrupt) are modeled as flat tag-discriminated
 // structs: a single `type` discriminator field plus the optional
-// fields that tag declares (API.md §2.1: one discriminator `type`,
+// fields that tag declares (doc/API.md §2.1: one discriminator `type`,
 // `kind` never appears on the wire). The wire JSON is exactly
-// {type, ...}, matching API.md.
+// {type, ...}, matching the generated contract schema.
 package protocol
 
 import "time"
@@ -50,7 +50,7 @@ type Runtime interface {
 	UsageReports
 }
 
-// ProtocolVersion is the wire version this build implements (API.md
+// ProtocolVersion is the wire version this build implements (doc/API.md
 // §12: date string).
 //
 // Current and minimum supported are deliberately the same date: this build
@@ -78,7 +78,7 @@ func SupportsProtocolVersion(version string) bool {
 	return version >= MinProtocolVersion && version <= ProtocolVersion
 }
 
-// Resource id prefixes (API.md §2.2). Server-generated, type-tagged.
+// Resource id prefixes (doc/API.md §2.2). Server-generated, type-tagged.
 const (
 	IDPrefixSession = "ses_"
 	IDPrefixRun     = "run_"
