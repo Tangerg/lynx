@@ -31,10 +31,10 @@ func Team(config TeamConfig) (*core.Agent, error) {
 	}
 
 	var (
-		actions       []core.Action
-		goals         []*core.Goal
-		conditions    []core.Condition
-		snapshotState []core.Binding
+		actions          []core.Action
+		goals            []*core.Goal
+		conditions       []core.Condition
+		snapshotBindings []core.Binding
 	)
 	for index, agent := range config.Agents {
 		if agent == nil {
@@ -43,17 +43,17 @@ func Team(config TeamConfig) (*core.Agent, error) {
 		actions = append(actions, agent.Actions()...)
 		goals = append(goals, agent.Goals()...)
 		conditions = append(conditions, agent.Conditions()...)
-		snapshotState = append(snapshotState, agent.SnapshotState()...)
+		snapshotBindings = append(snapshotBindings, agent.SnapshotBindings()...)
 	}
 
 	team := core.NewAgent(core.AgentConfig{
-		Name:          config.Name,
-		Description:   config.Description,
-		Actions:       actions,
-		Goals:         goals,
-		Conditions:    conditions,
-		SnapshotState: snapshotState,
-		PlannerName:   config.PlannerName,
+		Name:             config.Name,
+		Description:      config.Description,
+		Actions:          actions,
+		Goals:            goals,
+		Conditions:       conditions,
+		SnapshotBindings: snapshotBindings,
+		PlannerName:      config.PlannerName,
 	})
 	if err := team.Validate(); err != nil {
 		return nil, fmt.Errorf("workflow.Team: %w", err)

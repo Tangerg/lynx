@@ -49,7 +49,7 @@ type ProcessControl interface {
 	CancelToolCall()
 
 	// Suspend parks JSON-safe continuation state until an external
-	// caller responds through runtime.Engine.Resume.
+	// caller responds through runtime.Engine.Respond.
 	Suspend(ctx context.Context, suspension interaction.Suspension) (ActionStatus, error)
 }
 

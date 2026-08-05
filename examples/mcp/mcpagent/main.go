@@ -56,7 +56,7 @@ func main() {
 		})
 	}
 
-	a := agent.New(agent.AgentConfig{Name: "BriefingAgent", Description: "ask the LLM for a topic brief, with a remote MCP search tool", Actions: []agent.Action{agent.NewAction("brief", func(ctx context.Context, pc *agent.ProcessContext, in Topic) (Brief, error) {
+	a := agent.New(agent.Config{Name: "BriefingAgent", Description: "ask the LLM for a topic brief, with a remote MCP search tool", Actions: []agent.Action{agent.NewAction("brief", func(ctx context.Context, pc *agent.ProcessContext, in Topic) (Brief, error) {
 		result, err := cliSession.GetPrompt(ctx, &sdkmcp.GetPromptParams{Name: "researcher_role", Arguments: map[string]string{"topic": in.Title}})
 		if err != nil {
 			return Brief{}, fmt.Errorf("get prompt: %w", err)
@@ -80,7 +80,7 @@ func main() {
 		}
 		_ = json.Unmarshal([]byte(text), &parsed)
 		return Brief{Topic: in.Title, Sources: parsed.Sources}, nil
-	}, agent.ActionConfig{ToolGroups: []string{researchToolRole}})}, Goals: []*agent.Goal{agent.NewOutputGoal[Brief](agent.GoalConfig{Description: "topic brief produced"})}})
+	}, agent.ActionConfig{ToolRoles: []string{researchToolRole}})}, Goals: []*agent.Goal{agent.NewOutputGoal[Brief](agent.GoalConfig{Description: "topic brief produced"})}})
 
 	resolver := mcpToolResolver{group: mcpToolGroup{load: toolSource}}
 	engine := agent.MustNewEngine(agent.EngineConfig{

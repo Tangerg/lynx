@@ -71,9 +71,9 @@ func TestResolverOffersSearchToolsOverDeferredCatalog(t *testing.T) {
 
 func TestResolverDefersRuntimeToolsWithoutMCP(t *testing.T) {
 	resolved := resolveRootTools(t, nil)
-	manifest, err := toolloop.Advertise(resolved)
+	manifest, err := toolloop.InitialManifest(resolved)
 	if err != nil {
-		t.Fatalf("Advertise: %v", err)
+		t.Fatalf("InitialManifest: %v", err)
 	}
 	advertised := make(map[string]bool, len(manifest))
 	for _, definition := range manifest {

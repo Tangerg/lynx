@@ -108,7 +108,7 @@ func planUtility(
 	}()
 
 	if goalFirst {
-		satisfied, err := domain.Satisfies(ctx, start, goal.Preconditions(), options.ConditionResolver)
+		satisfied, err := domain.Satisfies(ctx, start, goal.Requirements(), options.ConditionResolver)
 		if err != nil {
 			return nil, err
 		}
@@ -124,7 +124,7 @@ func planUtility(
 	span.SetAttributes(attribute.Bool(attrAnyApplicable, firstAction != nil))
 
 	if firstAction == nil {
-		satisfied, err := domain.Satisfies(ctx, start, goal.Preconditions(), options.ConditionResolver)
+		satisfied, err := domain.Satisfies(ctx, start, goal.Requirements(), options.ConditionResolver)
 		if err != nil {
 			return nil, err
 		}
@@ -136,7 +136,7 @@ func planUtility(
 	satisfied, err := domain.Satisfies(
 		ctx,
 		start.Apply(firstAction.Metadata().Effects),
-		goal.Preconditions(),
+		goal.Requirements(),
 		options.ConditionResolver,
 	)
 	if err != nil {
@@ -172,7 +172,7 @@ func topApplicable(
 	if err != nil {
 		return nil, err
 	}
-	scoreState, err := domain.ResolvedState(start, options.ConditionResolver)
+	scoreState, err := domain.StateWithResolvedConditions(start, options.ConditionResolver)
 	if err != nil {
 		return nil, err
 	}

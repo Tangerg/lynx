@@ -20,15 +20,15 @@ const (
 
 // Engine is the agent runtime's top-level container — registers
 // agents, builds processes, dispatches events, and exposes the
-// resume API for HITL.
+// response API for HITL.
 //
 // Pluggable behavior flows through one mechanism: registered
 // [core.Extension]s, enumerated on [Config.Extensions]. Engine-scoped ones live
 // there; per-process ones live on [core.ProcessOptions.Extensions] and merge
 // with the engine set at dispatch time.
 type Engine struct {
-	catalog   deploymentRegistry // immutable deployments and active routes
-	processes processRegistry    // created and restored processes
+	catalog   deploymentCatalog // immutable deployments and active routes
+	processes processRegistry   // created and restored processes
 
 	extensions extensionRegistry // engine-scoped extensions
 
@@ -36,7 +36,7 @@ type Engine struct {
 	dependencies     *core.Dependencies    // typed engine dependency scope
 	chat             core.ChatCapability   // optional shared model and streamer
 	chatMiddleware   *core.ChatMiddleware  // optional shared chat middlewares
-	maxToolRounds    int                   // default Prompt tool-round limit
+	maxModelCalls    int                   // default managed-interaction model-call limit
 	processMutations *processTreeSequencer // linearizes state and registry changes per process tree
 	maxChildDepth    int
 }
@@ -59,10 +59,10 @@ type Config struct {
 	// call. Optional — nil / empty means "no global wrapping".
 	ChatMiddleware *core.ChatMiddleware
 
-	// MaxToolRounds bounds the tool rounds of every managed interaction by
+	// MaxModelCalls bounds the model calls of every managed interaction by
 	// default; a process may override it. Zero leaves interactions bounded only
 	// by what each states itself and by the tree Budget.
-	MaxToolRounds int
+	MaxModelCalls int
 
 	// MaxChildDepth limits recursive child-process delegation. Zero uses
 	// [DefaultMaxChildDepth]; negative values are rejected.
@@ -96,8 +96,8 @@ func New(config Config) (*Engine, error) {
 	if config.MaxChildDepth < 0 {
 		return nil, errors.New("runtime.New: MaxChildDepth must not be negative")
 	}
-	if config.MaxToolRounds < 0 {
-		return nil, errors.New("runtime.New: MaxToolRounds must not be negative")
+	if config.MaxModelCalls < 0 {
+		return nil, errors.New("runtime.New: MaxModelCalls must not be negative")
 	}
 	if nilvalue.Is(config.Chat.Model) && !nilvalue.Is(config.Chat.Streamer) {
 		return nil, errors.New("runtime.New: Chat.Streamer requires Chat.Model")
@@ -106,14 +106,14 @@ func New(config Config) (*Engine, error) {
 	maxChildDepth := cmp.Or(config.MaxChildDepth, DefaultMaxChildDepth)
 
 	engine := &Engine{
-		catalog:          newDeploymentRegistry(),
+		catalog:          newDeploymentCatalog(),
 		processes:        newProcessRegistry(),
 		extensions:       newExtensionRegistry(),
 		events:           event.NewMulticast(),
 		dependencies:     core.NewDependencies(),
 		chat:             config.Chat,
 		chatMiddleware:   chatMiddleware,
-		maxToolRounds:    config.MaxToolRounds,
+		maxModelCalls:    config.MaxModelCalls,
 		processMutations: newProcessTreeSequencer(),
 		maxChildDepth:    maxChildDepth,
 	}
@@ -149,7 +149,7 @@ func (e *Engine) Dependencies() *core.Dependencies { return e.dependencies }
 //
 // Public so hosts implementing a custom Blackboard extension can obtain the
 // same isolated, declaration-gated instance the Engine would assign to a fresh
-// process. agent is required because its declared snapshot state is what the
+// process. agent is required because its declared snapshot bindings are what the
 // returned blackboard admits: a blackboard built for one agent must not be
 // handed to a process that cannot restore what it holds. It returns an error
 // when a registered prototype panics or violates the Clone contract.
@@ -170,8 +170,8 @@ func (e *Engine) Process(id string) (*Process, bool) { return e.processes.get(id
 // processes.
 func (e *Engine) Processes() []*Process { return e.processes.list() }
 
-// publishContext is the runtime's engine-scoped event entry point.
-func (e *Engine) publishContext(ctx context.Context, published event.Event) {
+// publishEngineEvent is the runtime's engine-scoped event entry point.
+func (e *Engine) publishEngineEvent(ctx context.Context, published event.Event) {
 	if published == nil {
 		return
 	}

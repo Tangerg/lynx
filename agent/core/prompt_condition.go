@@ -28,22 +28,22 @@ type PromptFunc func(context.Context, *ConditionEnv) string
 // ParseTruthFunc interprets a model response as three-valued truth.
 type ParseTruthFunc func(string) Truth
 
-// PromptConditionConfig configures an LLM-evaluated condition. Cost defaults
+// PromptConditionConfig configures an LLM-evaluated condition. EvaluationCost defaults
 // to one because each evaluation performs a model call; an explicit cost must
 // be finite and non-negative.
 type PromptConditionConfig struct {
-	Name   string
-	Prompt PromptFunc
-	Parse  ParseTruthFunc
-	Cost   float64
+	Name           string
+	Prompt         PromptFunc
+	Parse          ParseTruthFunc
+	EvaluationCost float64
 }
 
 // PromptCondition evaluates a named condition with a model call.
 type PromptCondition struct {
-	name   string
-	cost   float64
-	prompt PromptFunc
-	parse  ParseTruthFunc
+	name           string
+	evaluationCost float64
+	prompt         PromptFunc
+	parse          ParseTruthFunc
 }
 
 // NewPromptCondition validates config and returns an LLM-evaluated condition.
@@ -57,23 +57,23 @@ func NewPromptCondition(config PromptConditionConfig) (*PromptCondition, error) 
 	if config.Parse == nil {
 		return nil, errors.New("agent: prompt condition parser must not be nil")
 	}
-	if math.IsNaN(config.Cost) || math.IsInf(config.Cost, 0) || config.Cost < 0 {
-		return nil, errors.New("agent: prompt condition cost must be finite and non-negative")
+	if math.IsNaN(config.EvaluationCost) || math.IsInf(config.EvaluationCost, 0) || config.EvaluationCost < 0 {
+		return nil, errors.New("agent: prompt condition evaluation cost must be finite and non-negative")
 	}
-	cost := cmp.Or(config.Cost, defaultPromptConditionCost)
+	evaluationCost := cmp.Or(config.EvaluationCost, defaultPromptConditionCost)
 	return &PromptCondition{
-		name:   config.Name,
-		cost:   cost,
-		prompt: config.Prompt,
-		parse:  config.Parse,
+		name:           config.Name,
+		evaluationCost: evaluationCost,
+		prompt:         config.Prompt,
+		parse:          config.Parse,
 	}, nil
 }
 
 // Name implements [Condition].
 func (c *PromptCondition) Name() string { return c.name }
 
-// Cost implements [Condition].
-func (c *PromptCondition) Cost() float64 { return c.cost }
+// EvaluationCost implements [Condition].
+func (c *PromptCondition) EvaluationCost() float64 { return c.evaluationCost }
 
 // Evaluate returns Unknown when the managed model interaction cannot produce a
 // model response, keeping an uncertain gate closed without aborting the tick.

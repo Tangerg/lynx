@@ -59,7 +59,7 @@ func TestProcessSnapshotRejectsUnknownAndMissingSchema(t *testing.T) {
 			t.Fatal(err)
 		}
 		var target core.ProcessSnapshot
-		if err := json.Unmarshal(invalid, &target); !errors.Is(err, core.ErrSnapshotSchema) {
+		if err := json.Unmarshal(invalid, &target); !errors.Is(err, core.ErrUnsupportedSnapshotSchema) {
 			t.Fatalf("schema %v error = %v", version, err)
 		}
 	}
@@ -177,7 +177,7 @@ func TestProcessSnapshotRejectsInvalidAggregate(t *testing.T) {
 	waitingWithFailure.Suspension = &interaction.Suspension{
 		SchemaVersion: interaction.SuspensionSchemaVersion,
 		ID:            "approval",
-		Prompt:        json.RawMessage(`"approve?"`), ResumeSchema: json.RawMessage(`{"type":"boolean"}`), CreatedAt: time.Now(),
+		Prompt:        json.RawMessage(`"approve?"`), ResponseSchema: json.RawMessage(`{"type":"boolean"}`), CreatedAt: time.Now(),
 	}
 	waitingWithFailure.Failure = &core.ProcessFailure{Message: "must not survive"}
 	if err := waitingWithFailure.Validate(); !errors.Is(err, core.ErrInvalidSnapshot) {

@@ -24,10 +24,10 @@ type refine struct {
 // TestRepeatUntil_InEqualsOut guards the In==Out shadowing bug: when the loop's
 // input and output are the same Go type (the canonical "refine a draft until
 // good enough"), the per-iteration outputs must NOT shadow the original input —
-// both Task and Accept must keep seeing the ORIGINAL input, not the latest
+// both Task and Until must keep seeing the ORIGINAL input, not the latest
 // attempt. With the bug, iteration 2+ saw the previous attempt as `in`.
 func TestRepeatUntil_InEqualsOut(t *testing.T) {
-	var taskInputs, acceptInputs []string
+	var taskInputs, untilInputs []string
 	a, err := workflow.RepeatUntil(workflow.RepeatUntilConfig[refine, refine]{
 		Name:          "refine-loop",
 		MaxIterations: 5,
@@ -35,8 +35,8 @@ func TestRepeatUntil_InEqualsOut(t *testing.T) {
 			taskInputs = append(taskInputs, in.Tag)
 			return refine{Tag: "attempt", N: h.Count() + 1}, nil
 		},
-		Accept: func(_ context.Context, in refine, _ refine, h workflow.History[refine]) bool {
-			acceptInputs = append(acceptInputs, in.Tag)
+		Until: func(_ context.Context, in refine, _ refine, h workflow.History[refine]) bool {
+			untilInputs = append(untilInputs, in.Tag)
 			return h.Count() >= 3 // stop after 3 attempts
 		},
 	})
@@ -65,15 +65,15 @@ func TestRepeatUntil_InEqualsOut(t *testing.T) {
 			t.Errorf("Task iteration %d saw in.Tag=%q, want \"orig\" (output shadowed the In==Out input)", i, tag)
 		}
 	}
-	for i, tag := range acceptInputs {
+	for i, tag := range untilInputs {
 		if tag != "orig" {
-			t.Errorf("Accept call %d saw in.Tag=%q, want \"orig\" (In==Out shadowing)", i, tag)
+			t.Errorf("Until call %d saw in.Tag=%q, want \"orig\" (In==Out shadowing)", i, tag)
 		}
 	}
 }
 
 func TestRepeatUntil_LoopsUntilAccept(t *testing.T) {
-	// Task increments by 1 each call. Accept stops once value ≥ Target.
+	// Task increments by 1 each call. Until stops once value ≥ Target.
 	a, err := workflow.RepeatUntil(workflow.RepeatUntilConfig[ruIn, ruOut]{
 		Name:          "increment-loop",
 		Description:   "increments until target",
@@ -85,7 +85,7 @@ func TestRepeatUntil_LoopsUntilAccept(t *testing.T) {
 			}
 			return ruOut{Value: last.Value + 1}, nil
 		},
-		Accept: func(_ context.Context, in ruIn, last ruOut, _ workflow.History[ruOut]) bool {
+		Until: func(_ context.Context, in ruIn, last ruOut, _ workflow.History[ruOut]) bool {
 			return last.Value >= in.Target
 		},
 	})
@@ -126,7 +126,7 @@ func TestRepeatUntil_MaxIterationsCap(t *testing.T) {
 		Task: func(_ context.Context, _ *core.ProcessContext, _ ruIn, h workflow.History[ruOut]) (ruOut, error) {
 			return ruOut{Value: h.Count() + 1}, nil
 		},
-		Accept: func(context.Context, ruIn, ruOut, workflow.History[ruOut]) bool { return false },
+		Until: func(context.Context, ruIn, ruOut, workflow.History[ruOut]) bool { return false },
 	})
 	if err != nil {
 		t.Fatalf("RepeatUntil: %v", err)
@@ -153,7 +153,7 @@ func TestRepeatUntil_SnapshotTreeRoundTrip(t *testing.T) {
 		Task: func(_ context.Context, _ *core.ProcessContext, _ ruIn, history workflow.History[ruOut]) (ruOut, error) {
 			return ruOut{Value: history.Count() + 1}, nil
 		},
-		Accept: func(context.Context, ruIn, ruOut, workflow.History[ruOut]) bool { return false },
+		Until: func(context.Context, ruIn, ruOut, workflow.History[ruOut]) bool { return false },
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -200,7 +200,7 @@ func TestRepeatUntil_HistoryPassedToTaskAndAccept(t *testing.T) {
 			seenInTask = snapshot // overwrite each iteration
 			return ruOut{Value: h.Count() + 1}, nil
 		},
-		Accept: func(_ context.Context, _ ruIn, last ruOut, h workflow.History[ruOut]) bool {
+		Until: func(_ context.Context, _ ruIn, last ruOut, h workflow.History[ruOut]) bool {
 			return last.Value >= 3 && h.Count() >= 3
 		},
 	})
@@ -237,18 +237,18 @@ func TestRepeatUntil_RejectsInvalidSpec(t *testing.T) {
 			Task: func(context.Context, *core.ProcessContext, ruIn, workflow.History[ruOut]) (ruOut, error) {
 				return ruOut{}, nil
 			},
-			Accept: func(context.Context, ruIn, ruOut, workflow.History[ruOut]) bool { return true },
+			Until: func(context.Context, ruIn, ruOut, workflow.History[ruOut]) bool { return true },
 		}},
 		{"name with surrounding whitespace", workflow.RepeatUntilConfig[ruIn, ruOut]{
 			Name: " x ",
 			Task: func(context.Context, *core.ProcessContext, ruIn, workflow.History[ruOut]) (ruOut, error) {
 				return ruOut{}, nil
 			},
-			Accept: func(context.Context, ruIn, ruOut, workflow.History[ruOut]) bool { return true },
+			Until: func(context.Context, ruIn, ruOut, workflow.History[ruOut]) bool { return true },
 		}},
 		{"nil task", workflow.RepeatUntilConfig[ruIn, ruOut]{
-			Name:   "x",
-			Accept: func(context.Context, ruIn, ruOut, workflow.History[ruOut]) bool { return true },
+			Name:  "x",
+			Until: func(context.Context, ruIn, ruOut, workflow.History[ruOut]) bool { return true },
 		}},
 		{"nil accept", workflow.RepeatUntilConfig[ruIn, ruOut]{
 			Name: "x",
@@ -262,7 +262,7 @@ func TestRepeatUntil_RejectsInvalidSpec(t *testing.T) {
 			Task: func(context.Context, *core.ProcessContext, ruIn, workflow.History[ruOut]) (ruOut, error) {
 				return ruOut{}, nil
 			},
-			Accept: func(context.Context, ruIn, ruOut, workflow.History[ruOut]) bool { return true },
+			Until: func(context.Context, ruIn, ruOut, workflow.History[ruOut]) bool { return true },
 		}},
 	}
 	for _, tc := range cases {

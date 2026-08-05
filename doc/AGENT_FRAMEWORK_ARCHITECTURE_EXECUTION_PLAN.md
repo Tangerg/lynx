@@ -1,6 +1,6 @@
 # Agent Framework 架构演进执行计划
 
-> 状态：持续开发（P42 Condition 按需观察与成本语义已完成，4/4）
+> 状态：持续开发（P43 统一领域词汇已完成实现，3/4，待统一门禁）
 > 建立日期：2026-07-15
 > 最后更新：2026-08-05
 > 维护者：Lynx 仓库维护者
@@ -2307,6 +2307,56 @@ panic 代替领域断言；标准门禁和含测试文件的额外 errcheck 同�
 退出标准：静态可达性报告为空；保留的公共能力都有可构造契约；所有结构、术语、错误、边界、API、
 wire 与门禁扫描无未裁决命中。本轮不把“零残留”夸大为永不演进，只表示当前标尺下没有已知债务。
 
+### P42：Condition 按需观察与成本语义
+
+- [x] **P42-01 Condition observation contract**（完成：2026-08-05）
+  - `ConditionConfig{Name, EvaluationCost, Evaluate}` 成为唯一函数条件构造输入；evaluation cost 只描述
+    观察成本，不参与 Action cost、utility 或 Plan ranking。
+  - Condition 必须是只读 predicate；未被 goal/action/HTN requirement 请求的 evaluator 不执行，禁止
+    依赖其副作用。
+- [x] **P42-02 Planning-owned resolution**（完成：2026-08-05）
+  - Planning 通过消费侧 `ConditionResolver` 按需请求 evaluator；Domain 的 satisfies/unsatisfied/
+    applicable-actions 路径统一 cheap-first、known-mismatch short circuit 与 deterministic ordering。
+  - 动态 score 只读取 `StateWithResolvedConditions` 投影，不改写 immutable search state。
+- [x] **P42-03 Runtime observation boundary**（完成：2026-08-05）
+  - Runtime 每 tick 只立即投影 Blackboard fact/binding/action-success；named evaluator 保持 Unknown，
+    被请求后单 tick 缓存 truth/error，panic 在用户能力边界收敛。
+- [x] **P42-04 Breaking API、反例与完整门禁**（完成：2026-08-05）
+  - 四种内置 Planner、组合条件、多 Unknown、合法 Unknown、error/panic、timestamp 与 consumer 文档均
+    完成迁移；旧构造和兼容层删除，完整 Agent/App 服务端门禁通过。
+
+退出标准：Condition 观察由 Planning 需求驱动、Runtime 执行并缓存；cost 只表达 observation cost；
+所有 Planner 使用同一 resolution contract，且无 eagerly-evaluate 或副作用依赖的第二路径。
+
+### P43：统一领域词汇与生命周期 API
+
+- [x] **P43-01 公共领域词汇一义一名**（完成：2026-08-05）
+  - Goal 使用 `RequiredConditions` / `RequiredBindings`，Action 使用 `ToolRoles` / `SuccessCondition`，
+    Agent 使用 `SnapshotBindings`，Condition 使用 `EvaluationCost` / `ConditionSourceKind` / `Source`。
+  - Domain query 改为 `ConditionRefs` / `StateWithResolvedConditions`；root façade 改为 `Config` /
+    `Descriptor`，不在 package 名之后重复 Agent。
+- [x] **P43-02 Runtime、ToolLoop 与 Workflow 生命周期动词收正**（完成：2026-08-05）
+  - 一次异步执行统一为 `RunHandle` / `RunCompletion`；外部回答统一使用 `Respond` /
+    `RespondAndContinueAsync`；child 工作状态复制明确为 `RunChildWithWorkingState`。
+  - limit 统一为 `MaxModelCalls` / `MaxConcurrentToolCalls` / `StopModelCalls`；ToolLoop 使用
+    `InitialManifest`、`ToolDeferrer` 与 concurrency batch；Workflow callback/threshold/key/feedback
+    字段改为 `Join`、`Until`、`AcceptanceThreshold`、`VoteKey`、`Rationale`。
+  - Suspension、Pause、PendingCall 与 Host projection 统一使用 `ResponseSchema`，不再把 response
+    schema 命名为 resume schema。
+  - ProcessContext runtime SPI 使用 `RegisterToolCallCancellation`，让字段名完整表达注册、取消函数
+    与配对 release 的所有权，不再把注册入口误写成取消动作。
+- [x] **P43-03 私有职责、文件与直接消费者清洗**（完成：2026-08-05）
+  - Runtime 私有实现收口为 deployment catalog、world-state observer、snapshot write guard、run handle；
+    AgentTool construction 合并回唯一文件，ToolLoop capability policy 收为 `tool_capabilities.go`。
+  - App Runtime 与 examples 直接消费者同步迁移；无 alias/shim/双 wire reader。ProcessSnapshot v17、
+    Suspension v7、ToolLoop checkpoint v5、Runtime suspension checkpoint v5、deployment definition v2。
+- [ ] **P43-04 API/wire baseline 与统一完整门禁**
+  - 更新 exported API baseline；执行 Agent standalone build/vet/test/staticcheck/golangci-lint/tidy，
+    core/planning/runtime/arch race，App Runtime 直接消费者门禁、旧术语扫描与 `git diff --check`。
+
+退出标准：同一概念只有一个公开术语；名称能在不阅读实现时揭示对象、动作、计数单位与所有权；
+文件、私有变量、错误、GoDoc、wire 和直接消费者同步；旧符号只允许出现在明确标注的历史记录中。
+
 ---
 
 ## 15. 当前进度
@@ -2352,18 +2402,20 @@ wire 与门禁扫描无未裁决命中。本轮不把“零残留”夸大为永
 | P39 生产表面与测试语义清洗 | 完成 | 3/3 | test-only production entry 删除、测试术语/错误处理收正与反证门禁 |
 | P40 验证代码失败语义清洗 | 完成 | 3/3 | 测试吞错、nil/越界断言与含测试 errcheck 收口 |
 | P41 公开能力可达性与零残留收口 | 完成 | 3/3 | deadcode 语义裁决、公开契约覆盖与独立零残留审计 |
-| **总计** | **完成** | **217/217（100%）** | **P41-01 至 P41-03 全部完成；不执行封版、tag 或 release** |
+| P42 Condition 按需观察与成本语义 | 完成 | 4/4 | Planning 按需解析、Runtime 单 tick 缓存、统一 Planner contract 与门禁 |
+| P43 统一领域词汇与生命周期 API | 进行中 | 3/4 | 代码、wire、consumer 与文档已迁移，待统一完整门禁 |
+| **总计** | **进行中** | **224/225** | **P43-04 待验收；不执行封版、tag 或 release** |
 
 ### 15.2 当前焦点
 
-- 当前阶段：P41 公开能力可达性与零残留收口，3/3，已完成。
-- 下一任务：继续以真实调用链和可构造反例审计 Agent；没有真实变化点时不新增 interface、
-  adapter、package 或 Runtime 同义词。本批不封版、不创建 tag 或 release。
+- 当前阶段：P43 统一领域词汇与生命周期 API，3/4，统一门禁待执行。
+- 下一任务：刷新 API baseline，执行 Agent/App Runtime 完整门禁、race、旧术语与 diff 审计；
+  任一失败未解释前不关闭 P43。本批不封版、不创建 tag 或 release。
 - 当前决策门：已解除；按 BB-01 至 BB-08 直接迁移，不保留兼容层。
-- 最近完成：对 deadcode 报告的 5 个公开能力完成领域裁决并补齐契约测试；`deadcode -test` 输出归零；
-  空结构、债务标记、错误吞噬、宿主边界、API/wire 与完整 Agent/App 服务端门禁无未裁决命中。
-  Agent 只拥有 execution framework 语义，App transaction/idempotency/persistence ownership
-  保持不变。
+- 最近完成：Goal/Action/Condition/Planning/Runtime/ToolLoop/Workflow 的公开与私有词汇已统一；
+  ResponseSchema 与 portable schema epoch、App Runtime 直接消费者、Guide/migration/release notes 已同步，
+  无兼容别名或旧 wire reader。Agent 只拥有 execution framework 语义，App transaction/
+  idempotency/persistence ownership 保持不变。
 
 ### 15.3 进度更新规则
 
@@ -2728,8 +2780,20 @@ wire 与门禁扫描无未裁决命中。本轮不把“零残留”夸大为永
   Condition 不执行，禁止依赖其副作用。合法 Unknown 是一次已完成观察，不重复解析。动态 score
   通过 resolved-state 投影读取已观察值，投影不改变 immutable search state 或覆盖 Action effect；
   effect layering 与 projection 保留原 observation timestamp。
-- breaking：`NewCondition(name, fn)` 直接替换为 `NewCondition(ConditionConfig{Name, Cost, Evaluate})`，
+- breaking：`NewCondition(name, fn)` 直接替换为 `NewCondition(ConditionConfig{Name, EvaluationCost, Evaluate})`，
   不保留 overload、variadic shim 或旧 façade；API baseline、Guide、migration/release notes 同步。
+
+### ADR-AF-030：一个概念只使用一个可判别术语
+
+- 状态：已接受并实现，完整门禁待验收。
+- 决策：公开 API、wire、GoDoc、错误和私有实现对同一概念使用同一名称；名称必须揭示真实对象、
+  生命周期动作或计数单位。Goal requirement 不借用 Action input/precondition，response schema 不借用
+  resume，model-call limit 不借用 round，异步 run handle 不借用 segment。
+- package context：只删除真实口吃；`core.AgentConfig` / `AgentDescriptor` 在 core 中仍准确，根 façade
+  才使用 `Config` / `Descriptor`。Action `Inputs` / `Preconditions`、ToolLoop `Resume` event 等真实独立
+  概念继续保留，不为表面统一抹掉领域差异。
+- breaking：旧名称、JSON 字段和 schema 直接删除；调用方、fixtures、API/wire baseline 与文档同批
+  迁移，不建立 alias、deprecated wrapper、双字段或兼容 reader。
 
 ---
 

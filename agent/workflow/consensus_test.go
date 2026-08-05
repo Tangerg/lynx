@@ -26,7 +26,7 @@ func TestConsensus_PicksMajorityVote(t *testing.T) {
 		Voters: []workflow.Generator[consensusIn, consensusVote]{
 			voter("yes"), voter("no"), voter("yes"), voter("yes"), voter("no"),
 		},
-		Key: workflow.DefaultKey[consensusVote],
+		VoteKey: workflow.StringKey[consensusVote],
 	})
 	if err != nil {
 		t.Fatalf("Consensus: %v", err)
@@ -61,7 +61,7 @@ func TestConsensus_TieBreakByVoterOrder(t *testing.T) {
 		Voters: []workflow.Generator[consensusIn, consensusVote]{
 			voter("yes"), voter("no"), voter("yes"), voter("no"),
 		},
-		Key: workflow.DefaultKey[consensusVote],
+		VoteKey: workflow.StringKey[consensusVote],
 	})
 	if err != nil {
 		t.Fatalf("Consensus: %v", err)
@@ -81,22 +81,22 @@ func TestConsensus_RejectsInvalidSpec(t *testing.T) {
 		spec workflow.ConsensusConfig[consensusIn, consensusVote]
 	}{
 		{"empty name", workflow.ConsensusConfig[consensusIn, consensusVote]{
-			Voters: []workflow.Generator[consensusIn, consensusVote]{voter("y")},
-			Key:    workflow.DefaultKey[consensusVote],
+			Voters:  []workflow.Generator[consensusIn, consensusVote]{voter("y")},
+			VoteKey: workflow.StringKey[consensusVote],
 		}},
 		{"name with surrounding whitespace", workflow.ConsensusConfig[consensusIn, consensusVote]{
-			Name:   " x ",
-			Voters: []workflow.Generator[consensusIn, consensusVote]{voter("y")},
-			Key:    workflow.DefaultKey[consensusVote],
+			Name:    " x ",
+			Voters:  []workflow.Generator[consensusIn, consensusVote]{voter("y")},
+			VoteKey: workflow.StringKey[consensusVote],
 		}},
 		{"empty voters", workflow.ConsensusConfig[consensusIn, consensusVote]{
-			Name: "x", Key: workflow.DefaultKey[consensusVote],
+			Name: "x", VoteKey: workflow.StringKey[consensusVote],
 		}},
 		{"negative max concurrency", workflow.ConsensusConfig[consensusIn, consensusVote]{
 			Name:           "x",
 			MaxConcurrency: -1,
 			Voters:         []workflow.Generator[consensusIn, consensusVote]{voter("y")},
-			Key:            workflow.DefaultKey[consensusVote],
+			VoteKey:        workflow.StringKey[consensusVote],
 		}},
 		{"nil key", workflow.ConsensusConfig[consensusIn, consensusVote]{
 			Name:   "x",

@@ -38,7 +38,7 @@ func TestPrune_DropsUnreachableActions(t *testing.T) {
 		core.ConditionSet{"done": core.True},
 	)
 
-	goal := core.NewGoal(core.GoalConfig{Name: "g", Preconditions: []string{"done"}, Value: core.FixedScore(1)})
+	goal := core.NewGoal(core.GoalConfig{Name: "g", RequiredConditions: []string{"done"}, Value: core.FixedScore(1)})
 	domain := mustDomain(t,
 		[]core.Action{reachable, dead},
 		[]*core.Goal{goal},
@@ -69,7 +69,7 @@ func TestPrune_KeepsEveryActionWhenAllReferenced(t *testing.T) {
 	a := newPruneAction("a", nil, core.ConditionSet{"step1": core.True})
 	b := newPruneAction("b", core.ConditionSet{"step1": core.True}, core.ConditionSet{"done": core.True})
 
-	goal := core.NewGoal(core.GoalConfig{Name: "g", Preconditions: []string{"done"}, Value: core.FixedScore(1)})
+	goal := core.NewGoal(core.GoalConfig{Name: "g", RequiredConditions: []string{"done"}, Value: core.FixedScore(1)})
 	domain := mustDomain(t,
 		[]core.Action{a, b},
 		[]*core.Goal{goal},
@@ -98,7 +98,7 @@ func TestPrune_NoReachableGoalDropsEverything(t *testing.T) {
 		core.ConditionSet{"impossible": core.True},
 		core.ConditionSet{"done": core.True},
 	)
-	goal := core.NewGoal(core.GoalConfig{Name: "g", Preconditions: []string{"done"}, Value: core.FixedScore(1)})
+	goal := core.NewGoal(core.GoalConfig{Name: "g", RequiredConditions: []string{"done"}, Value: core.FixedScore(1)})
 	domain := mustDomain(t, []core.Action{dead}, []*core.Goal{goal}, nil)
 
 	pruned, err := domain.Prune(
@@ -126,7 +126,7 @@ func TestPrune_DoesNotMutateInput(t *testing.T) {
 		core.ConditionSet{"never": core.True},
 		core.ConditionSet{"done": core.True},
 	)
-	goal := core.NewGoal(core.GoalConfig{Name: "g", Preconditions: []string{"done"}, Value: core.FixedScore(1)})
+	goal := core.NewGoal(core.GoalConfig{Name: "g", RequiredConditions: []string{"done"}, Value: core.FixedScore(1)})
 	domain := mustDomain(t,
 		[]core.Action{live, dead},
 		[]*core.Goal{goal},

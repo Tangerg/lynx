@@ -2,7 +2,7 @@
 //
 // Where GOAP searches for an optimal action sequence, the reactive
 // planner picks just the *next* action — the one whose effects close
-// the most goal preconditions, with low cost as a tie-breaker. The
+// the most goal requirements, with low cost as a tie-breaker. The
 // resulting [planning.Plan] always has at most one action; the runtime
 // drives the agent toward the goal by replanning every tick.
 //

@@ -21,7 +21,7 @@ func TestRunChildLimitsDepth(t *testing.T) {
 	)
 	type depthInput struct{ Depth int }
 	type depthOutput struct{ Depth int }
-	def := agent.New(agent.AgentConfig{
+	def := agent.New(agent.Config{
 		Name: "depth-limited-child",
 		Actions: []agent.Action{agent.NewAction("delegate", func(ctx context.Context, _ *core.ProcessContext, input depthInput) (depthOutput, error) {
 			child, err := engine.RunChild(ctx, deployment, depthInput{Depth: input.Depth + 1})
@@ -29,7 +29,7 @@ func TestRunChildLimitsDepth(t *testing.T) {
 				depthErr = err
 				return depthOutput{}, err
 			}
-			return depthOutput{Depth: input.Depth + 1}, child.TerminalError()
+			return depthOutput{Depth: input.Depth + 1}, child.CompletionError()
 		}, core.ActionConfig{})},
 		Goals: []*agent.Goal{agent.NewOutputGoal[depthOutput](core.GoalConfig{Description: "delegated"})},
 	})

@@ -52,5 +52,5 @@ type StuckResult struct {
 type StopPolicy interface {
 	Extension
 
-	Check(process ProcessView) (stop bool, reason string)
+	ShouldStop(process ProcessView) (stop bool, reason string)
 }

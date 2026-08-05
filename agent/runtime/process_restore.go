@@ -177,7 +177,7 @@ func (e *Engine) RestoreTree(
 		releaseProcessDeployments(processes)
 		return nil, fmt.Errorf("runtime.Engine.RestoreTree: %w", err)
 	}
-	if err := root.budget.restoreAuthority(root.Usage()); err != nil {
+	if err := root.budget.restoreAggregateUsage(root.Usage()); err != nil {
 		releaseProcessDeployments(processes)
 		return nil, fmt.Errorf("runtime.Engine.RestoreTree: restore budget authority: %w", err)
 	}
@@ -297,7 +297,7 @@ func (e *Engine) buildProcessSnapshot(snapshot core.ProcessSnapshot, options cor
 
 	process := newProcess(snapshot.ID, deployment, &processOptions, blackboard, dependencies, planner, domain, e)
 	process.deploymentRetained = true
-	process.wireRuntimeDeps(processOptions.extensions)
+	process.wireProcessComponents(processOptions.extensions)
 	process.parentID = snapshot.ParentID
 	process.spawnCallID = snapshot.SpawnCallID
 	process.startedAt = snapshot.StartedAt
@@ -321,8 +321,8 @@ func (e *Engine) buildProcessSnapshot(snapshot core.ProcessSnapshot, options cor
 		failure := *snapshot.Failure
 		process.state.restoreFailure(&failure)
 	}
-	process.budget.restore(snapshot.OwnUsage)
-	process.budget.restoreRetiredChildren(snapshot.RetiredChildUsage)
+	process.budget.restoreOwnUsage(snapshot.OwnUsage)
+	process.budget.restoreRetiredChildUsage(snapshot.RetiredChildUsage)
 
 	blackboardState, err := decodeProcessBlackboard(agent, snapshot)
 	if err != nil {

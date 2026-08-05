@@ -268,7 +268,7 @@ func failurePlan(err error) turnEndPlan {
 // becomes Runtime's own run outcome.
 func completedPlan(out agentexec.TurnOutput) turnEndPlan {
 	switch out.StopReason {
-	case agent.InteractionStopSteps:
+	case agent.InteractionStopModelCalls:
 		return turnEndPlan{reason: execution.OutcomeMaxSteps, withUsage: true}
 	case agent.InteractionStopBudget:
 		return turnEndPlan{reason: execution.OutcomeMaxBudget, withUsage: true}

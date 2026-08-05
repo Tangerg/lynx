@@ -15,7 +15,7 @@ func TestSuspensionJSONRoundTripAndResponseValidation(t *testing.T) {
 		SchemaVersion:  interaction.SuspensionSchemaVersion,
 		ID:             "approval-1",
 		Prompt:         json.RawMessage(`{"message":"approve?"}`),
-		ResumeSchema:   json.RawMessage(`{"type":"object","properties":{"approved":{"type":"boolean"}},"required":["approved"]}`),
+		ResponseSchema: json.RawMessage(`{"type":"object","properties":{"approved":{"type":"boolean"}},"required":["approved"]}`),
 		FrameworkState: json.RawMessage(`{"owner":"framework"}`),
 		CreatedAt:      time.Now().UTC(),
 	}
@@ -49,11 +49,11 @@ func TestSuspensionJSONRoundTripAndResponseValidation(t *testing.T) {
 
 func TestSuspensionRejectsSchemaMismatchAndInvalidWire(t *testing.T) {
 	suspension := interaction.Suspension{
-		SchemaVersion: interaction.SuspensionSchemaVersion,
-		ID:            "approval-1",
-		Prompt:        json.RawMessage(`"approve?"`),
-		ResumeSchema:  json.RawMessage(`{"type":"boolean"}`),
-		CreatedAt:     time.Now(),
+		SchemaVersion:  interaction.SuspensionSchemaVersion,
+		ID:             "approval-1",
+		Prompt:         json.RawMessage(`"approve?"`),
+		ResponseSchema: json.RawMessage(`{"type":"boolean"}`),
+		CreatedAt:      time.Now(),
 	}
 	if _, err := suspension.ValidateResponse("yes"); err == nil {
 		t.Fatal("string response unexpectedly matched boolean schema")

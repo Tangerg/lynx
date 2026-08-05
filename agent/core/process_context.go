@@ -21,8 +21,8 @@ type ChatCapability struct {
 }
 
 // Interaction is one framework-managed model/tool exchange. ID is optional;
-// runtime derives a stable owner from the process, action, and request when it
-// is empty. Stream receives raw provider deltas when set; runtime resolves and
+// runtime derives a stable ID from the process, action, and request when it
+// is empty. OnDelta receives raw provider deltas when set; runtime resolves and
 // scopes the process Streamer, accumulates the final response, and retains
 // ownership of accounting and lifecycle boundaries.
 type Interaction struct {
@@ -30,7 +30,7 @@ type Interaction struct {
 	Request *chat.Request
 	Tools   interaction.ToolResolver
 	Limits  interaction.Limits
-	Stream  func(*chat.Response)
+	OnDelta func(delta *chat.Response)
 }
 
 // ProcessContextConfig is the runtime SPI for assembling one action capability
@@ -43,25 +43,25 @@ type ProcessContextConfig struct {
 	Blackboard   Blackboard
 	Dependencies *Dependencies
 
-	// MaxToolRounds is the resolved process-level tool-round limit.
-	MaxToolRounds int
+	// MaxModelCalls is the resolved process-level model-call limit.
+	MaxModelCalls int
 
 	// ActionTools backs [ProcessContext.ActionTools]. The runtime supplies a
 	// closure backed by the engine's [ToolGroupResolver].
-	ActionTools func(context.Context, []string) ([]tool.Tool, error)
+	ActionTools func(ctx context.Context, roles []string) ([]tool.Tool, error)
 
 	// RunInteraction executes framework-managed model/tool control flow.
-	RunInteraction func(context.Context, Interaction) (interaction.Result, error)
+	RunInteraction func(ctx context.Context, interaction Interaction) (interaction.Result, error)
 
-	// ToolCallCancel registers a cancel func and returns a release
+	// RegisterToolCallCancellation registers a cancel func and returns a release
 	// closure — single function rather than a register/clear pair so
 	// callers can't mismatch them.
-	ToolCallCancel func(context.CancelFunc) (release func())
+	RegisterToolCallCancellation func(cancel context.CancelFunc) (release func())
 
-	// ActionToolGroups carries the currently-executing action's declared
+	// ActionToolRoles carries the currently-executing action's declared
 	// abstract tool roles, so [ProcessContext.ActionTools] can
 	// resolve them without the action body having to re-state role names.
-	ActionToolGroups []string
+	ActionToolRoles []string
 }
 
 // ProcessContext is the only thing handed to an [Action.Execute] call.
@@ -80,13 +80,13 @@ type ProcessContext struct {
 	// Engine-wired hooks. Private so action bodies go through
 	// the typed methods instead
 	// of touching the underlying client / closure directly.
-	maxToolRounds  int
-	actionTools    func(context.Context, []string) ([]tool.Tool, error)
-	runInteraction func(context.Context, Interaction) (interaction.Result, error)
-	toolCallCancel func(context.CancelFunc) (release func())
-	control        ProcessControl
+	maxModelCalls                int
+	actionTools                  func(context.Context, []string) ([]tool.Tool, error)
+	runInteraction               func(context.Context, Interaction) (interaction.Result, error)
+	registerToolCallCancellation func(context.CancelFunc) (release func())
+	control                      ProcessControl
 
-	actionToolGroups []string
+	actionToolRoles []string
 
 	// suspended flips when the action calls [Suspend]; the
 	// typed-action wrapper reads it to return ActionWaiting. Per-tick
@@ -114,15 +114,15 @@ func NewProcessContext(config ProcessContextConfig) *ProcessContext {
 		blackboard = nil
 	}
 	return &ProcessContext{
-		process:          process,
-		control:          control,
-		blackboard:       blackboard,
-		dependencies:     dependencies,
-		maxToolRounds:    config.MaxToolRounds,
-		actionToolGroups: slices.Clone(config.ActionToolGroups),
-		actionTools:      config.ActionTools,
-		runInteraction:   config.RunInteraction,
-		toolCallCancel:   config.ToolCallCancel,
+		process:                      process,
+		control:                      control,
+		blackboard:                   blackboard,
+		dependencies:                 dependencies,
+		maxModelCalls:                config.MaxModelCalls,
+		actionToolRoles:              slices.Clone(config.ActionToolRoles),
+		actionTools:                  config.ActionTools,
+		runInteraction:               config.RunInteraction,
+		registerToolCallCancellation: config.RegisterToolCallCancellation,
 	}
 }
 
@@ -202,12 +202,12 @@ func (pc *ProcessContext) lifecycleControl() (ProcessControl, error) {
 	return nil, ErrLifecycleControlUnavailable
 }
 
-// ActionTools resolves the tool groups declared by the current action.
+// ActionTools resolves the tool roles declared by the current action.
 func (pc *ProcessContext) ActionTools(ctx context.Context) ([]tool.Tool, error) {
-	if pc == nil || pc.actionTools == nil || len(pc.actionToolGroups) == 0 {
+	if pc == nil || pc.actionTools == nil || len(pc.actionToolRoles) == 0 {
 		return nil, nil
 	}
-	return pc.actionTools(contextOrBackground(ctx), slices.Clone(pc.actionToolGroups))
+	return pc.actionTools(contextOrBackground(ctx), slices.Clone(pc.actionToolRoles))
 }
 
 // ToolCallContext derives a child context cancellable through CancelToolCall.
@@ -215,10 +215,10 @@ func (pc *ProcessContext) ActionTools(ctx context.Context) ([]tool.Tool, error) 
 // be called when the tool invocation finishes.
 func (pc *ProcessContext) ToolCallContext(parent context.Context) (context.Context, context.CancelFunc) {
 	ctx, cancel := context.WithCancel(contextOrBackground(parent))
-	if pc == nil || pc.toolCallCancel == nil {
+	if pc == nil || pc.registerToolCallCancellation == nil {
 		return ctx, cancel
 	}
-	release := pc.toolCallCancel(cancel)
+	release := pc.registerToolCallCancellation(cancel)
 	return ctx, func() {
 		cancel()
 		if release != nil {

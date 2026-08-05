@@ -61,10 +61,10 @@ func runActionToolsWithResolver(t *testing.T, role string, resolver core.ToolGro
 		gotTools []tool.Tool
 		gotErr   error
 	)
-	a := agent.New(agent.AgentConfig{Name: "tool-groups", Actions: []agent.Action{agent.NewAction("probe", func(ctx context.Context, pc *core.ProcessContext, in word) (wordCount, error) {
+	a := agent.New(agent.Config{Name: "tool-groups", Actions: []agent.Action{agent.NewAction("probe", func(ctx context.Context, pc *core.ProcessContext, in word) (wordCount, error) {
 		gotTools, gotErr = pc.ActionTools(ctx)
 		return wordCount{Count: len(gotTools)}, nil
-	}, core.ActionConfig{ToolGroups: []string{role}})}, Goals: []*agent.Goal{agent.NewOutputGoal[wordCount](core.GoalConfig{Description: "done"})}})
+	}, core.ActionConfig{ToolRoles: []string{role}})}, Goals: []*agent.Goal{agent.NewOutputGoal[wordCount](core.GoalConfig{Description: "done"})}})
 
 	extensions := append([]core.Extension{resolver}, additional...)
 	engine := agent.MustNewEngine(runtime.Config{Extensions: extensions})

@@ -30,12 +30,12 @@ func NewAgent(execute Execute) *core.Agent {
 		func(ctx context.Context, process *core.ProcessContext, input Input) (string, error) {
 			return execute(ctx, process, input.Instructions)
 		},
-		core.ActionConfig{ToolGroups: []string{tool.GroupDelegated}},
+		core.ActionConfig{ToolRoles: []string{tool.GroupDelegated}},
 	)
 	answer := agent.NewOutputGoal[string](
 		core.GoalConfig{Description: "delegated task answer produced"},
 	)
-	return agent.New(agent.AgentConfig{
+	return agent.New(agent.Config{
 		Name: catalog.DelegateTask,
 		Description: "Delegate one self-contained task to a fresh Agent with coding tools and bounded delegation. " +
 			"Use it for focused, separable work so the current context stays uncluttered. " +

@@ -45,7 +45,7 @@ func restoreRoot(
 }
 
 func buildSnapshotAgent() *core.Agent {
-	return agent.New(agent.AgentConfig{
+	return agent.New(agent.Config{
 		Name: "snapshot-agent",
 		Actions: []agent.Action{agent.NewAction(
 			"count",
@@ -61,7 +61,7 @@ func buildSnapshotAgent() *core.Agent {
 }
 
 func admissionAgent() *core.Agent {
-	return agent.New(agent.AgentConfig{
+	return agent.New(agent.Config{
 		Name: "admission-agent",
 		Actions: []agent.Action{agent.NewAction(
 			"count",

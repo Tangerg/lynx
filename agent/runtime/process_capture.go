@@ -8,7 +8,7 @@ import (
 )
 
 func (p *Process) snapshotClaimed() (core.ProcessSnapshot, error) {
-	state := p.captureSnapshotState()
+	state := p.captureProcessState()
 	snapshot := core.ProcessSnapshot{
 		SchemaVersion:     core.ProcessSnapshotSchemaVersion,
 		ID:                p.ID(),
@@ -47,7 +47,7 @@ func (p *Process) snapshotClaimed() (core.ProcessSnapshot, error) {
 	return snapshot, nil
 }
 
-type processCaptureState struct {
+type capturedProcessState struct {
 	status            core.ProcessStatus
 	goal              *core.Goal
 	failure           error
@@ -56,17 +56,17 @@ type processCaptureState struct {
 	retiredChildUsage core.Usage
 }
 
-func (p *Process) captureSnapshotState() processCaptureState {
+func (p *Process) captureProcessState() capturedProcessState {
 	p.state.mu.RLock()
 	defer p.state.mu.RUnlock()
 	var suspension *interaction.Suspension
 	if p.state.pendingSuspension != nil {
 		suspension = p.state.pendingSuspension.Clone()
 	}
-	return processCaptureState{
+	return capturedProcessState{
 		status:            p.state.currentStatus,
 		goal:              p.state.currentGoal,
-		failure:           p.state.runErr,
+		failure:           p.state.recordedFailure,
 		suspension:        suspension,
 		ownUsage:          p.budget.ownUsage(),
 		retiredChildUsage: p.budget.retiredChildUsage(),

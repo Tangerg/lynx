@@ -17,11 +17,11 @@ const defaultRepeatIterations = 3
 
 // RepeatUntilConfig configures a "loop a task until the result is
 // acceptable" workflow. Each iteration runs Task to produce a fresh
-// Out; Accept then inspects the latest attempt (with full History)
+// Out; Until then inspects the latest attempt (with full History)
 // to decide whether the workflow should stop.
 //
 // The MaxIterations cap forces termination after that many attempts
-// even when Accept never returns true — the workflow then yields the
+// even when Until never returns true — the workflow then yields the
 // last attempt as the final result.
 type RepeatUntilConfig[In, Out any] struct {
 	// Name names the produced agent + its goal + the iteration's
@@ -40,10 +40,10 @@ type RepeatUntilConfig[In, Out any] struct {
 	// returns the next attempt. Required.
 	Task func(ctx context.Context, process *core.ProcessContext, input In, history History[Out]) (Out, error)
 
-	// Accept inspects the latest attempt and returns true to stop
+	// Until inspects the latest attempt and returns true to stop
 	// the loop. Receives the loop input, the latest Out, and the
 	// full history (latest is also history.Last()). Required.
-	Accept func(ctx context.Context, input In, latest Out, history History[Out]) bool
+	Until func(ctx context.Context, input In, latest Out, history History[Out]) bool
 }
 
 // RepeatUntil compiles config into a deployable [*core.Agent].
@@ -55,12 +55,12 @@ type RepeatUntilConfig[In, Out any] struct {
 // (which preconditions on it) is satisfied and the loop terminates;
 // when false, GOAP re-plans and runs the task again. The
 // MaxIterations cap forces the condition to true regardless once
-// reached, so a never-accepting Accept can't loop forever.
+// reached, so an Until predicate that never succeeds cannot loop forever.
 //
 // History is replaced on the blackboard after each iteration, so user-supplied
-// Task / Accept callbacks see an immutable snapshot of the running record.
+// Task / Until callbacks see an immutable snapshot of the running record.
 //
-// Returns an error on missing Name, nil Task, nil Accept, or negative
+// Returns an error on missing Name, nil Task, nil Until, or negative
 // MaxIterations.
 func RepeatUntil[In, Out any](config RepeatUntilConfig[In, Out]) (*core.Agent, error) {
 	if err := validateName("RepeatUntil", config.Name); err != nil {
@@ -69,8 +69,8 @@ func RepeatUntil[In, Out any](config RepeatUntilConfig[In, Out]) (*core.Agent, e
 	if config.Task == nil {
 		return nil, errors.New("workflow.RepeatUntil: Task must not be nil")
 	}
-	if config.Accept == nil {
-		return nil, errors.New("workflow.RepeatUntil: Accept must not be nil")
+	if config.Until == nil {
+		return nil, errors.New("workflow.RepeatUntil: Until must not be nil")
 	}
 	if config.MaxIterations < 0 {
 		return nil, fmt.Errorf("workflow.RepeatUntil: MaxIterations %d must not be negative", config.MaxIterations)
@@ -78,7 +78,7 @@ func RepeatUntil[In, Out any](config RepeatUntilConfig[In, Out]) (*core.Agent, e
 	maxIterations := cmp.Or(config.MaxIterations, defaultRepeatIterations)
 
 	acceptKey := config.Name + "_acceptable"
-	historyState := core.NewBinding[History[Out]](config.Name + historyStateSuffix)
+	historyBinding := core.NewBinding[History[Out]](config.Name + historyStateSuffix)
 
 	return compileRepeatWorkflow(repeatWorkflowConfig[In, Out, History[Out]]{
 		name:          config.Name,
@@ -86,7 +86,7 @@ func RepeatUntil[In, Out any](config RepeatUntilConfig[In, Out]) (*core.Agent, e
 		actionName:    config.Name + "-task",
 		doneKey:       acceptKey,
 		maxIterations: maxIterations,
-		stateBinding:  historyState,
+		stateBinding:  historyBinding,
 		newState:      func() History[Out] { return History[Out]{} },
 		count:         History[Out].Count,
 		run: func(ctx context.Context, process *core.ProcessContext, input In, history History[Out]) (Out, History[Out], error) {
@@ -97,9 +97,9 @@ func RepeatUntil[In, Out any](config RepeatUntilConfig[In, Out]) (*core.Agent, e
 			}
 			return output, history.withAttempt(output), nil
 		},
-		stop: func(ctx context.Context, input In, history History[Out]) bool {
+		until: func(ctx context.Context, input In, history History[Out]) bool {
 			last, ok := history.Last()
-			return ok && config.Accept(ctx, input, last, history)
+			return ok && config.Until(ctx, input, last, history)
 		},
 	}), nil
 }

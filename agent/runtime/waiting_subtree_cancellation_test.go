@@ -88,7 +88,7 @@ func TestWaitingSubtreeCancellationPlanHasNoSideEffects(t *testing.T) {
 	if _, ok := engine.Process(childID); !ok {
 		t.Fatalf("child %q disappeared after Abort", childID)
 	}
-	if err := engine.Resume(t.Context(), root.ID(), "nested-approval", true); err != nil {
+	if err := engine.Respond(t.Context(), root.ID(), "nested-approval", true); err != nil {
 		t.Fatalf("Resume after planning: %v", err)
 	}
 	if err := engine.ApplyWaitingSubtreeCancellation(t.Context(), plan); !errors.Is(err, interaction.ErrSuspensionStale) {
@@ -144,7 +144,7 @@ func TestWaitingSubtreeCancellationPlanAppliesPortableCheckpoint(t *testing.T) {
 	if len(live.Snapshots) != 1 {
 		t.Fatalf("live snapshot count = %d, want 1", len(live.Snapshots))
 	}
-	if err := engine.Resume(t.Context(), root.ID(), "nested-approval", true); !errors.Is(err, interaction.ErrSuspensionStale) {
+	if err := engine.Respond(t.Context(), root.ID(), "nested-approval", true); !errors.Is(err, interaction.ErrSuspensionStale) {
 		t.Fatalf("Resume framework-ready checkpoint error = %v, want ErrSuspensionStale", err)
 	}
 	if err := engine.Continue(t.Context(), root.ID()); err != nil {
@@ -191,14 +191,14 @@ func TestWaitingSubtreeCancellationPlanSettlesManagedToolCallInOrder(t *testing.
 			)
 			mustDeploy(t, engine, parent)
 
-			segment, err := engine.Start(t.Context(), parent, managedInput(), core.ProcessOptions{})
+			runHandle, err := engine.Start(t.Context(), parent, managedInput(), core.ProcessOptions{})
 			if err != nil {
 				t.Fatal(err)
 			}
-			if completion := awaitSegment(t, segment); completion.Error() != nil {
+			if completion := awaitRun(t, runHandle); completion.Error() != nil {
 				t.Fatal(completion.Error())
 			}
-			root := segment.Process()
+			root := runHandle.Process()
 			pending, err := engine.PendingSuspensions(t.Context(), root.ID())
 			if err != nil {
 				t.Fatal(err)
@@ -230,7 +230,7 @@ func TestWaitingSubtreeCancellationPlanSettlesManagedToolCallInOrder(t *testing.
 				// The root has a framework-ready result before the surviving
 				// external boundary. Advancing it publishes no user Resume and
 				// parks on the second call without invoking either child again.
-				if err := engine.Resume(
+				if err := engine.Respond(
 					t.Context(),
 					root.ID(),
 					target.SuspensionID,
@@ -248,7 +248,7 @@ func TestWaitingSubtreeCancellationPlanSettlesManagedToolCallInOrder(t *testing.
 				t.Fatalf("Continue with unanswered active sibling error = %v, want ErrSuspensionStale", err)
 			}
 
-			if err := engine.Resume(
+			if err := engine.Respond(
 				t.Context(),
 				root.ID(),
 				survivor.SuspensionID,
@@ -273,7 +273,7 @@ func TestWaitingSubtreeCancellationPlanPropagatesReadinessToManagedAncestor(t *t
 	model := &nestedWaitingCancellationModel{}
 	engine := agent.MustNewEngine(runtime.Config{Chat: core.ChatCapability{Model: model}})
 
-	leaf := agent.New(agent.AgentConfig{
+	leaf := agent.New(agent.Config{
 		Name: "waiting-cancellation-leaf",
 		Actions: []agent.Action{agent.NewAction(
 			"wait",
@@ -298,7 +298,7 @@ func TestWaitingSubtreeCancellationPlanPropagatesReadinessToManagedAncestor(t *t
 	if err != nil {
 		t.Fatal(err)
 	}
-	middle := agent.New(agent.AgentConfig{
+	middle := agent.New(agent.Config{
 		Name: "waiting-cancellation-middle",
 		Actions: []agent.Action{agent.NewAction(
 			"delegate-to-leaf",
@@ -343,14 +343,14 @@ func TestWaitingSubtreeCancellationPlanPropagatesReadinessToManagedAncestor(t *t
 	)
 	mustDeploy(t, engine, rootDefinition)
 
-	segment, err := engine.Start(t.Context(), rootDefinition, managedInput(), core.ProcessOptions{})
+	runHandle, err := engine.Start(t.Context(), rootDefinition, managedInput(), core.ProcessOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if completion := awaitSegment(t, segment); completion.Error() != nil {
+	if completion := awaitRun(t, runHandle); completion.Error() != nil {
 		t.Fatal(completion.Error())
 	}
-	root := segment.Process()
+	root := runHandle.Process()
 	pending, err := engine.PendingSuspensions(t.Context(), root.ID())
 	if err != nil {
 		t.Fatal(err)
@@ -498,7 +498,7 @@ func managedChildRegistry(t *testing.T, engine *runtime.Engine) *tools.Registry 
 		{name: "waiting-cancellation-first", pauseID: "approval-first"},
 		{name: "waiting-cancellation-second", pauseID: "approval-second"},
 	} {
-		child := agent.New(agent.AgentConfig{
+		child := agent.New(agent.Config{
 			Name: definition.name,
 			Actions: []agent.Action{agent.NewAction(
 				"approve-and-double",
@@ -538,7 +538,7 @@ func startWaitingNestedRestoreTree(
 	parent *core.Agent,
 ) *runtime.Process {
 	t.Helper()
-	segment, err := engine.Start(
+	runHandle, err := engine.Start(
 		t.Context(),
 		parent,
 		core.Input(nestedRestoreInput{Value: 21}),
@@ -547,10 +547,10 @@ func startWaitingNestedRestoreTree(
 	if err != nil {
 		t.Fatal(err)
 	}
-	if completion := awaitSegment(t, segment); completion.Error() != nil {
+	if completion := awaitRun(t, runHandle); completion.Error() != nil {
 		t.Fatal(completion.Error())
 	}
-	root := segment.Process()
+	root := runHandle.Process()
 	if root.Status() != core.StatusWaiting {
 		t.Fatalf("root status = %s, want waiting", root.Status())
 	}

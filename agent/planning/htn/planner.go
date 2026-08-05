@@ -93,7 +93,7 @@ func (p *Planner) PlanToGoal(
 		}
 		span.End()
 	}()
-	satisfied, err := domain.Satisfies(ctx, start, goal.Preconditions(), options.ConditionResolver)
+	satisfied, err := domain.Satisfies(ctx, start, goal.Requirements(), options.ConditionResolver)
 	if err != nil {
 		return nil, err
 	}
@@ -113,7 +113,7 @@ func (p *Planner) PlanToGoal(
 	if !ok {
 		return nil, nil
 	}
-	satisfied, err = domain.Satisfies(ctx, finalState, goal.Preconditions(), options.ConditionResolver)
+	satisfied, err = domain.Satisfies(ctx, finalState, goal.Requirements(), options.ConditionResolver)
 	if err != nil {
 		return nil, err
 	}

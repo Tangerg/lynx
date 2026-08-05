@@ -38,8 +38,8 @@ type BlackboardRestorer interface {
 var (
 	_ BlackboardSnapshotter = (*inMemoryBlackboard)(nil)
 	_ BlackboardRestorer    = (*inMemoryBlackboard)(nil)
-	_ BlackboardSnapshotter = (*declaredBlackboard)(nil)
-	_ BlackboardRestorer    = (*declaredBlackboard)(nil)
+	_ BlackboardSnapshotter = (*snapshotGuardedBlackboard)(nil)
+	_ BlackboardRestorer    = (*snapshotGuardedBlackboard)(nil)
 )
 
 func snapshotBlackboard(blackboard core.Blackboard) (state BlackboardState, err error) {
@@ -140,7 +140,7 @@ func (b *inMemoryBlackboard) Snapshot() (BlackboardState, error) {
 func (b *inMemoryBlackboard) Restore(state BlackboardState) error {
 	named := make(map[string]storedBlackboardValue, state.Bindings.Len())
 	for key, value := range state.Bindings.All() {
-		stored, err := storeBlackboardValue(value)
+		stored, err := newStoredBlackboardValue(value)
 		if err != nil {
 			return fmt.Errorf("restore blackboard[%q]: %w", key, err)
 		}
@@ -148,7 +148,7 @@ func (b *inMemoryBlackboard) Restore(state BlackboardState) error {
 	}
 	objects := make([]storedBlackboardValue, len(state.Objects))
 	for index, value := range state.Objects {
-		stored, err := storeBlackboardValue(value)
+		stored, err := newStoredBlackboardValue(value)
 		if err != nil {
 			return fmt.Errorf("restore objects[%d]: %w", index, err)
 		}
@@ -156,7 +156,7 @@ func (b *inMemoryBlackboard) Restore(state BlackboardState) error {
 	}
 	hidden := make([]storedBlackboardValue, len(state.Hidden))
 	for index, value := range state.Hidden {
-		stored, err := storeBlackboardValue(value)
+		stored, err := newStoredBlackboardValue(value)
 		if err != nil {
 			return fmt.Errorf("restore hidden[%d]: %w", index, err)
 		}

@@ -10,10 +10,10 @@ import (
 	"github.com/Tangerg/lynx/agent/internal/panicerr"
 )
 
-// TerminalError formats a non-completed terminal status as an error. Waiting
+// CompletionError formats a non-completed terminal status as an error. Waiting
 // is also an error here; adapters that expose waiting as structured state must
-// branch on [core.ProcessStatus] before calling TerminalError.
-func (p *Process) TerminalError() error {
+// branch on [core.ProcessStatus] before calling CompletionError.
+func (p *Process) CompletionError() error {
 	if p == nil {
 		return errors.New("process is nil")
 	}
@@ -94,7 +94,7 @@ func checkStopPolicy(policy core.StopPolicy, process core.ProcessView, name stri
 			err = panicerr.New(fmt.Sprintf("stop policy %q panicked", name), recovered)
 		}
 	}()
-	stop, reason = policy.Check(process)
+	stop, reason = policy.ShouldStop(process)
 	return stop, reason, nil
 }
 

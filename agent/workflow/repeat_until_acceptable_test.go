@@ -20,9 +20,9 @@ func TestRepeatUntilAcceptable_StopsWhenScoreCrossesThreshold(t *testing.T) {
 	var iterations atomic.Int32
 
 	a, err := workflow.RepeatUntilAcceptable(workflow.RepeatUntilAcceptableConfig[ruaIn, ruaOut]{
-		Name:            "iterate-draft",
-		MaxIterations:   5,
-		AcceptableScore: 0.7,
+		Name:                "iterate-draft",
+		MaxIterations:       5,
+		AcceptanceThreshold: 0.7,
 		Task: func(_ context.Context, _ *core.ProcessContext, _ ruaIn, h workflow.History[ruaOut]) (ruaOut, error) {
 			n := iterations.Add(1)
 			return ruaOut{Draft: "v" + string(rune('0'+n))}, nil
@@ -33,7 +33,7 @@ func TestRepeatUntilAcceptable_StopsWhenScoreCrossesThreshold(t *testing.T) {
 			if last.Draft == "v3" {
 				score = 0.8
 			}
-			return workflow.Feedback{Score: score, Text: "feedback for " + last.Draft}, nil
+			return workflow.Feedback{Score: score, Rationale: "feedback for " + last.Draft}, nil
 		},
 	})
 	if err != nil {
@@ -80,23 +80,23 @@ func TestRepeatUntilAcceptable_RejectsUnsetThreshold(t *testing.T) {
 			return ruaOut{Draft: "v"}, nil
 		},
 		Evaluator: func(_ context.Context, _ *core.ProcessContext, _ ruaIn, _ ruaOut) (workflow.Feedback, error) {
-			return workflow.Feedback{Score: 0.69, Text: "borderline"}, nil
+			return workflow.Feedback{Score: 0.69, Rationale: "borderline"}, nil
 		},
 	})
 	if err == nil {
-		t.Fatal("unset AcceptableScore was accepted")
+		t.Fatal("unset AcceptanceThreshold was accepted")
 	}
 }
 
 func TestRepeatUntilAcceptable_SnapshotTreePreservesState(t *testing.T) {
 	engine := agent.MustNewEngine(runtime.Config{})
 	a, err := workflow.RepeatUntilAcceptable(workflow.RepeatUntilAcceptableConfig[ruaIn, ruaOut]{
-		Name: "snapshot-acceptable", MaxIterations: 2, AcceptableScore: 0.9,
+		Name: "snapshot-acceptable", MaxIterations: 2, AcceptanceThreshold: 0.9,
 		Task: func(_ context.Context, _ *core.ProcessContext, input ruaIn, history workflow.History[ruaOut]) (ruaOut, error) {
 			return ruaOut{Draft: input.Topic + string(rune('1'+history.Count()))}, nil
 		},
 		Evaluator: func(context.Context, *core.ProcessContext, ruaIn, ruaOut) (workflow.Feedback, error) {
-			return workflow.Feedback{Score: 0.5, Text: "revise"}, nil
+			return workflow.Feedback{Score: 0.5, Rationale: "revise"}, nil
 		},
 	})
 	if err != nil {
@@ -134,7 +134,7 @@ func TestRepeatUntilAcceptable_SnapshotTreePreservesState(t *testing.T) {
 func TestRepeatUntilAcceptable_InEqualsOutKeepsOriginalInput(t *testing.T) {
 	var seen []string
 	a, err := workflow.RepeatUntilAcceptable(workflow.RepeatUntilAcceptableConfig[refine, refine]{
-		Name: "acceptable-refine", MaxIterations: 3, AcceptableScore: 1,
+		Name: "acceptable-refine", MaxIterations: 3, AcceptanceThreshold: 1,
 		Task: func(_ context.Context, _ *core.ProcessContext, input refine, history workflow.History[refine]) (refine, error) {
 			seen = append(seen, input.Tag)
 			return refine{Tag: "attempt", N: history.Count() + 1}, nil
@@ -169,9 +169,9 @@ func TestRepeatUntilAcceptable_ReturnsBestNotLast(t *testing.T) {
 	var iterations atomic.Int32
 
 	a, err := workflow.RepeatUntilAcceptable(workflow.RepeatUntilAcceptableConfig[ruaIn, ruaOut]{
-		Name:            "best-of-n",
-		MaxIterations:   3,
-		AcceptableScore: 0.95, // unreachable → loop runs all 3, never "accepts"
+		Name:                "best-of-n",
+		MaxIterations:       3,
+		AcceptanceThreshold: 0.95, // unreachable → loop runs all 3, never "accepts"
 		Task: func(_ context.Context, _ *core.ProcessContext, _ ruaIn, _ workflow.History[ruaOut]) (ruaOut, error) {
 			n := iterations.Add(1)
 			return ruaOut{Draft: "v" + string(rune('0'+n))}, nil
@@ -179,7 +179,7 @@ func TestRepeatUntilAcceptable_ReturnsBestNotLast(t *testing.T) {
 		Evaluator: func(_ context.Context, _ *core.ProcessContext, _ ruaIn, last ruaOut) (workflow.Feedback, error) {
 			// v1=0.5, v2=0.9 (best), v3=0.3 (worse, comes last).
 			score := map[string]float64{"v1": 0.5, "v2": 0.9, "v3": 0.3}[last.Draft]
-			return workflow.Feedback{Score: score, Text: last.Draft}, nil
+			return workflow.Feedback{Score: score, Rationale: last.Draft}, nil
 		},
 	})
 	if err != nil {
@@ -219,8 +219,8 @@ func TestRepeatUntilAcceptable_ReturnsBestNotLast(t *testing.T) {
 func TestRepeatUntilAcceptable_PropagatesEvaluatorError(t *testing.T) {
 	cause := errors.New("judge unavailable")
 	a, err := workflow.RepeatUntilAcceptable(workflow.RepeatUntilAcceptableConfig[ruaIn, ruaOut]{
-		Name:            "evaluator-error",
-		AcceptableScore: 0.8,
+		Name:                "evaluator-error",
+		AcceptanceThreshold: 0.8,
 		Task: func(context.Context, *core.ProcessContext, ruaIn, workflow.History[ruaOut]) (ruaOut, error) {
 			return ruaOut{Draft: "attempt"}, nil
 		},
@@ -255,7 +255,7 @@ func TestRepeatUntilAcceptable_RejectsInvalidSpec(t *testing.T) {
 			},
 		}},
 		{"name with surrounding whitespace", workflow.RepeatUntilAcceptableConfig[ruaIn, ruaOut]{
-			Name: " x ", AcceptableScore: 0.5,
+			Name: " x ", AcceptanceThreshold: 0.5,
 			Task: func(context.Context, *core.ProcessContext, ruaIn, workflow.History[ruaOut]) (ruaOut, error) {
 				return ruaOut{}, nil
 			},
@@ -276,7 +276,7 @@ func TestRepeatUntilAcceptable_RejectsInvalidSpec(t *testing.T) {
 			},
 		}},
 		{"invalid threshold", workflow.RepeatUntilAcceptableConfig[ruaIn, ruaOut]{
-			Name: "x", AcceptableScore: math.NaN(),
+			Name: "x", AcceptanceThreshold: math.NaN(),
 			Task: func(context.Context, *core.ProcessContext, ruaIn, workflow.History[ruaOut]) (ruaOut, error) {
 				return ruaOut{}, nil
 			},
@@ -285,7 +285,7 @@ func TestRepeatUntilAcceptable_RejectsInvalidSpec(t *testing.T) {
 			},
 		}},
 		{"negative threshold", workflow.RepeatUntilAcceptableConfig[ruaIn, ruaOut]{
-			Name: "x", AcceptableScore: -0.1,
+			Name: "x", AcceptanceThreshold: -0.1,
 			Task: func(context.Context, *core.ProcessContext, ruaIn, workflow.History[ruaOut]) (ruaOut, error) {
 				return ruaOut{}, nil
 			},

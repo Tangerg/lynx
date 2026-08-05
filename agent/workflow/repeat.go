@@ -21,16 +21,16 @@ type repeatWorkflowConfig[In, Out, State any] struct {
 	newState     func() State
 	count        func(State) int
 	run          func(context.Context, *core.ProcessContext, In, State) (Out, State, error)
-	stop         func(context.Context, In, State) bool
+	until        func(context.Context, In, State) bool
 
-	snapshotState []core.Binding
+	snapshotBindings []core.Binding
 }
 
 // compileRepeatWorkflow compiles the repeated-action lifecycle once: retain
 // the original input, restore or initialize snapshot iteration state, execute
 // one iteration, and expose a computed terminal condition to the planner.
 func compileRepeatWorkflow[In, Out, State any](config repeatWorkflowConfig[In, Out, State]) *core.Agent {
-	inputState := core.NewBinding[loopInput[In]](config.name + inputStateSuffix)
+	inputBinding := core.NewBinding[loopInput[In]](config.name + inputStateSuffix)
 
 	doneCondition := core.NewCondition(core.ConditionConfig{Name: config.doneKey, Evaluate: func(ctx context.Context, env *core.ConditionEnv) core.Truth {
 		state, ok := core.Last[State](env.Blackboard)
@@ -44,7 +44,7 @@ func compileRepeatWorkflow[In, Out, State any](config repeatWorkflowConfig[In, O
 		if original, ok := core.Last[loopInput[In]](env.Blackboard); ok {
 			input = original.Value
 		}
-		if config.stop(ctx, input, state) {
+		if config.until(ctx, input, state) {
 			return core.True
 		}
 		return core.False
@@ -58,7 +58,7 @@ func compileRepeatWorkflow[In, Out, State any](config repeatWorkflowConfig[In, O
 				state = config.newState()
 				// Preserve the original input. Repeated outputs can shadow an input
 				// of the same Go type on the blackboard.
-				if err := process.Blackboard().Store(inputState.Name, loopInput[In]{Value: input}); err != nil {
+				if err := process.Blackboard().Store(inputBinding.Name, loopInput[In]{Value: input}); err != nil {
 					var zero Out
 					return zero, fmt.Errorf("workflow: store original input: %w", err)
 				}
@@ -82,19 +82,19 @@ func compileRepeatWorkflow[In, Out, State any](config repeatWorkflowConfig[In, O
 		},
 	)
 
-	snapshotState := make([]core.Binding, 0, 2+len(config.snapshotState))
-	snapshotState = append(snapshotState, config.stateBinding, inputState)
-	snapshotState = append(snapshotState, config.snapshotState...)
+	snapshotBindings := make([]core.Binding, 0, 2+len(config.snapshotBindings))
+	snapshotBindings = append(snapshotBindings, config.stateBinding, inputBinding)
+	snapshotBindings = append(snapshotBindings, config.snapshotBindings...)
 
 	return core.NewAgent(core.AgentConfig{
-		Name:          config.name,
-		Description:   config.description,
-		Actions:       []core.Action{action},
-		Conditions:    []core.Condition{doneCondition},
-		SnapshotState: snapshotState,
+		Name:             config.name,
+		Description:      config.description,
+		Actions:          []core.Action{action},
+		Conditions:       []core.Condition{doneCondition},
+		SnapshotBindings: snapshotBindings,
 		Goals: []*core.Goal{core.NewOutputGoal[Out](core.GoalConfig{
-			Name:          config.name,
-			Preconditions: []string{config.doneKey},
+			Name:               config.name,
+			RequiredConditions: []string{config.doneKey},
 		})},
 	})
 }

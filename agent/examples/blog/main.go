@@ -35,7 +35,7 @@ func (stubLogger) OnEvent(_ context.Context, e event.Event) {
 }
 
 func main() {
-	a := agent.New(agent.AgentConfig{Name: "BlogAgent", Description: "synthesize a blog post from a topic", Actions: []agent.Action{agent.NewAction("research", func(ctx context.Context, pc *agent.ProcessContext, t Topic) (Research, error) {
+	a := agent.New(agent.Config{Name: "BlogAgent", Description: "synthesize a blog post from a topic", Actions: []agent.Action{agent.NewAction("research", func(ctx context.Context, pc *agent.ProcessContext, t Topic) (Research, error) {
 		return Research{Sources: []string{"https://example.com/" + t.Title}}, nil
 	}, agent.ActionConfig{}), agent.NewAction("outline", func(ctx context.Context, pc *agent.ProcessContext, t Topic) (Outline, error) {
 		return Outline{Sections: []string{"intro", t.Title, "conclusion"}}, nil

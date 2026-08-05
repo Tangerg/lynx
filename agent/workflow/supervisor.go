@@ -41,9 +41,9 @@ type SupervisorConfig[In, Out any] struct {
 	// Parse turns the LLM's final reply into the typed Out. Required.
 	Parse func(text string) (Out, error)
 
-	// MaxToolRounds caps orchestration model calls. Zero inherits the process
+	// MaxModelCalls caps orchestration model calls. Zero inherits the process
 	// and engine default; when all three are zero, rounds are unbounded.
-	MaxToolRounds int
+	MaxModelCalls int
 }
 
 // Supervisor compiles an LLM-orchestration agent over explicit delegate tools.
@@ -54,7 +54,7 @@ type SupervisorConfig[In, Out any] struct {
 //
 // At execution, the compiled agent requires a chat capability on its runtime.
 // Returns an error when the static workflow configuration is invalid,
-// including a negative MaxToolRounds limit.
+// including a negative MaxModelCalls limit.
 func Supervisor[In, Out any](config SupervisorConfig[In, Out]) (*core.Agent, error) {
 	if err := validateName("Supervisor", config.Name); err != nil {
 		return nil, err
@@ -65,8 +65,8 @@ func Supervisor[In, Out any](config SupervisorConfig[In, Out]) (*core.Agent, err
 	if config.Parse == nil {
 		return nil, errors.New("workflow.Supervisor: Parse must not be nil")
 	}
-	if config.MaxToolRounds < 0 {
-		return nil, errors.New("workflow.Supervisor: MaxToolRounds must not be negative")
+	if config.MaxModelCalls < 0 {
+		return nil, errors.New("workflow.Supervisor: MaxModelCalls must not be negative")
 	}
 	if _, err := tools.NewRegistry(config.Tools...); err != nil {
 		return nil, fmt.Errorf("workflow.Supervisor: Tools: %w", err)
@@ -95,7 +95,7 @@ func Supervisor[In, Out any](config SupervisorConfig[In, Out]) (*core.Agent, err
 			text, err := process.Prompt(ctx, prompt, core.PromptConfig{
 				System:        config.Instructions,
 				Tools:         delegates,
-				MaxToolRounds: config.MaxToolRounds,
+				MaxModelCalls: config.MaxModelCalls,
 			})
 			if err != nil {
 				return zero, fmt.Errorf("workflow.Supervisor %q: %w", config.Name, err)

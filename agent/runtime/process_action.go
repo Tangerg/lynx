@@ -31,19 +31,19 @@ func (p *Process) buildProcessContext(action core.ActionDescriptor) *core.Proces
 		Control:       processControl{process: p},
 		Blackboard:    p.blackboard,
 		Dependencies:  p.dependencies.Child(),
-		MaxToolRounds: p.effectiveMaxToolRounds(),
+		MaxModelCalls: p.effectiveMaxModelCalls(),
 		ActionTools:   p.toolResolverFor(action),
 		RunInteraction: func(ctx context.Context, input core.Interaction) (interaction.Result, error) {
 			return p.runInteraction(ctx, action.Name(), input)
 		},
-		ToolCallCancel:   p.signals.registerToolCallCancel,
-		ActionToolGroups: action.ToolGroups(),
+		RegisterToolCallCancellation: p.signals.registerToolCallCancellation,
+		ActionToolRoles:              action.ToolRoles(),
 	}
 	return core.NewProcessContext(config)
 }
 
 // executeAction invokes one Action with panic recovery and post-action
-// bookkeeping (action-run condition and events). It returns the
+// bookkeeping (action-success condition and events). It returns the
 // ActionStatus plus an optional ReplanRequest raised by the action. Retry
 // policy belongs to the operation implementation that understands its own
 // side effects; the framework never replays an Action.
@@ -90,15 +90,15 @@ func (p *Process) executeAction(ctx context.Context, action core.Action) (core.A
 	}
 
 	if status == core.ActionSucceeded {
-		// The action-run condition gates non-repeatable actions. Set it only on
+		// The action-success condition gates non-repeatable actions. Set it only on
 		// success so a future plan may still select an unsuccessful action. A
 		// failure to record it invalidates the whole action result: publishing
 		// success would make the event stream and metrics disagree with the
 		// process outcome and let the planner select the action again.
-		if err := p.blackboard.StoreCondition(metadata.RunCondition(), true); err != nil {
+		if err := p.blackboard.StoreCondition(metadata.SuccessCondition(), true); err != nil {
 			status = core.ActionFailed
 			replan = nil
-			lastErr = errors.Join(lastErr, fmt.Errorf("record action %q run condition: %w", metadata.Name, err))
+			lastErr = errors.Join(lastErr, fmt.Errorf("record action %q success condition: %w", metadata.Name, err))
 		}
 	}
 

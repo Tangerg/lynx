@@ -14,11 +14,11 @@ type typedNilProcessView struct{ core.ProcessView }
 type typedNilProcessControl struct{ core.ProcessControl }
 type typedNilBlackboard struct{ core.Blackboard }
 
-func TestProcessContextOwnsActionToolGroups(t *testing.T) {
+func TestProcessContextOwnsActionToolRoles(t *testing.T) {
 	configured := []string{"research"}
 	var resolved [][]string
 	process := core.NewProcessContext(core.ProcessContextConfig{
-		ActionToolGroups: configured,
+		ActionToolRoles: configured,
 		ActionTools: func(_ context.Context, groups []string) ([]tool.Tool, error) {
 			resolved = append(resolved, slices.Clone(groups))
 			groups[0] = "mutated by resolver"

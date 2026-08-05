@@ -440,7 +440,7 @@ func (t *turnObserver) OnToolCallEnd(process agentexec.ProcessRef, callID, toolN
 	if !t.projects(process) {
 		// A suspension is an unfinished call, not a tool result. Its logical
 		// completion will be observed after the resumed child call returns.
-		if hitl.IsInterrupt(err) {
+		if hitl.IsSuspended(err) {
 			return
 		}
 		t.postToolHook(toolName, output, err)
@@ -450,7 +450,7 @@ func (t *turnObserver) OnToolCallEnd(process agentexec.ProcessRef, callID, toolN
 	// paused for human input. Not a failure — skip the ToolCallEnd
 	// event. The turn-park handler drains the in-flight tool item
 	// and creates the appropriate interrupt card.
-	if hitl.IsInterrupt(err) {
+	if hitl.IsSuspended(err) {
 		return
 	}
 	// Feed the doom-loop brake (T13): a completed call — success, error, or a

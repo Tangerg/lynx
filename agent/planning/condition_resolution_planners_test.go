@@ -25,8 +25,8 @@ func TestBuiltInPlannersResolveRequiredConditions(t *testing.T) {
 		},
 		Value: core.FixedScore(1),
 	}}
-	goal := core.NewGoal(core.GoalConfig{Name: "complete", Preconditions: []string{"done"}})
-	condition := core.NewCondition(core.ConditionConfig{Name: "ready", Cost: 1})
+	goal := core.NewGoal(core.GoalConfig{Name: "complete", RequiredConditions: []string{"done"}})
+	condition := core.NewCondition(core.ConditionConfig{Name: "ready", EvaluationCost: 1})
 	domain := mustDomain(t, []core.Action{action}, []*core.Goal{goal}, []core.Condition{condition})
 
 	library := htn.NewLibrary()

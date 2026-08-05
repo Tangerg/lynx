@@ -24,7 +24,7 @@ type processState struct {
 	currentStatus      core.ProcessStatus
 	currentGoal        *core.Goal
 	world              core.WorldState
-	runErr             error
+	recordedFailure    error
 	excludedActions    planning.Exclusions
 	stuckReplanKey     string
 	stuckReplanPending bool
@@ -70,7 +70,7 @@ func (s *processState) worldState() core.WorldState {
 func (s *processState) failure() error {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.runErr
+	return s.recordedFailure
 }
 
 func (s *processState) suspension() *interaction.Suspension {
@@ -207,7 +207,7 @@ func (s *processState) observe(worldState core.WorldState) {
 func (s *processState) restoreFailure(err error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.runErr = err
+	s.recordedFailure = err
 }
 
 func (s *processState) joinFailure(err error) {
@@ -216,7 +216,7 @@ func (s *processState) joinFailure(err error) {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.runErr = errors.Join(s.runErr, err)
+	s.recordedFailure = errors.Join(s.recordedFailure, err)
 }
 
 func (s *processState) fail(err error) {
@@ -225,7 +225,7 @@ func (s *processState) fail(err error) {
 	if s.currentStatus.IsTerminal() {
 		return
 	}
-	s.runErr = err
+	s.recordedFailure = err
 	s.currentStatus = core.StatusFailed
 	s.pendingSuspension = nil
 }
@@ -316,7 +316,7 @@ type runOutcome struct {
 func (s *processState) endRun() runOutcome {
 	s.mu.Lock()
 	done := s.runDone
-	outcome := runOutcome{status: s.currentStatus, failure: s.runErr}
+	outcome := runOutcome{status: s.currentStatus, failure: s.recordedFailure}
 	s.runPhase = runIdle
 	s.runDone = nil
 	s.mu.Unlock()
@@ -400,7 +400,7 @@ func (s *processState) markKilled(err error) bool {
 	s.currentStatus = core.StatusKilled
 	s.pendingSuspension = nil
 	if err != nil {
-		s.runErr = err
+		s.recordedFailure = err
 	}
 	return true
 }

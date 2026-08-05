@@ -42,8 +42,8 @@ func (a *mutableDeploymentAction) Execute(_ context.Context, process *core.Proce
 }
 
 type mutableDeploymentCondition struct {
-	name string
-	cost float64
+	name           string
+	evaluationCost float64
 }
 
 type deploymentGoldenInput struct {
@@ -67,32 +67,30 @@ func (c deploymentCompiler) compile(source *core.Agent) (*Deployment, error) {
 	return c.compileSnapshot(agent)
 }
 
-func (c *mutableDeploymentCondition) Name() string  { return c.name }
-func (c *mutableDeploymentCondition) Cost() float64 { return c.cost }
+func (c *mutableDeploymentCondition) Name() string            { return c.name }
+func (c *mutableDeploymentCondition) EvaluationCost() float64 { return c.evaluationCost }
 func (c *mutableDeploymentCondition) Evaluate(context.Context, *core.ConditionEnv) core.Truth {
 	return core.True
 }
 
 func TestCompileDeploymentFreezesPlannerDefinition(t *testing.T) {
 	action := &mutableDeploymentAction{metadata: deploymentActionMetadata("finish")}
-	condition := &mutableDeploymentCondition{name: "ready", cost: 2.5}
+	condition := &mutableDeploymentCondition{name: "ready", evaluationCost: 2.5}
 	pre := []string{"finish"}
-	goal := core.NewGoal(core.GoalConfig{
-		Name: "complete", Preconditions: pre,
-	})
+	goal := core.NewGoal(core.GoalConfig{Name: "complete", RequiredConditions: pre})
 	actions := []core.Action{action}
 	goals := []*core.Goal{goal}
 	conditions := []core.Condition{condition}
-	snapshotState := []core.Binding{core.NewBinding[deploymentGoldenInput]("draft_state")}
+	snapshotBindings := []core.Binding{core.NewBinding[deploymentGoldenInput]("draft_state")}
 	config := core.AgentConfig{
-		Name:          "writer",
-		Description:   "original",
-		Version:       "1.2.3",
-		PlannerName:   "goap",
-		Actions:       actions,
-		Goals:         goals,
-		Conditions:    conditions,
-		SnapshotState: snapshotState,
+		Name:             "writer",
+		Description:      "original",
+		Version:          "1.2.3",
+		PlannerName:      "goap",
+		Actions:          actions,
+		Goals:            goals,
+		Conditions:       conditions,
+		SnapshotBindings: snapshotBindings,
 	}
 	source := core.NewAgent(config)
 
@@ -108,13 +106,13 @@ func TestCompileDeploymentFreezesPlannerDefinition(t *testing.T) {
 	actions[0] = nil
 	goals[0] = nil
 	conditions[0] = nil
-	snapshotState[0].Name = "mutated"
+	snapshotBindings[0].Name = "mutated"
 	pre[0] = "mutated"
 	action.metadata.Inputs[0].Name = "mutated"
 	action.metadata.Effects["finish"] = core.False
-	action.metadata.ToolGroups[0] = "mutated"
+	action.metadata.ToolRoles[0] = "mutated"
 	condition.name = "mutated"
-	condition.cost = 99
+	condition.evaluationCost = 99
 
 	frozen := compiled.agent
 	if frozen.Description() != "original" || frozen.Version() != "1.2.3" {
@@ -127,25 +125,25 @@ func TestCompileDeploymentFreezesPlannerDefinition(t *testing.T) {
 	if metadata.Inputs[0].Name != "input" || metadata.Effects["finish"] != core.True {
 		t.Fatalf("frozen metadata was mutated: %#v", metadata)
 	}
-	if metadata.ToolGroups[0] != "filesystem" {
-		t.Fatalf("frozen tool groups = %v", metadata.ToolGroups)
+	if metadata.ToolRoles[0] != "filesystem" {
+		t.Fatalf("frozen tool roles = %v", metadata.ToolRoles)
 	}
 	frozenGoal := frozen.Goals()[0]
 	if frozenGoal.RequiredConditions()[0] != "finish" {
 		t.Fatalf("frozen goal was mutated: %#v", frozenGoal)
 	}
-	if frozen.Conditions()[0].Name() != "ready" || frozen.Conditions()[0].Cost() != 2.5 {
-		t.Fatalf("frozen condition = %q/%v", frozen.Conditions()[0].Name(), frozen.Conditions()[0].Cost())
+	if frozen.Conditions()[0].Name() != "ready" || frozen.Conditions()[0].EvaluationCost() != 2.5 {
+		t.Fatalf("frozen condition = %q/%v", frozen.Conditions()[0].Name(), frozen.Conditions()[0].EvaluationCost())
 	}
-	if state := frozen.SnapshotState(); len(state) != 1 || state[0].Name != "draft_state" {
-		t.Fatalf("frozen snapshot state = %#v", state)
+	if state := frozen.SnapshotBindings(); len(state) != 1 || state[0].Name != "draft_state" {
+		t.Fatalf("frozen snapshot bindings = %#v", state)
 	}
 
 	// Metadata access itself must remain defensive.
 	metadata.Effects["finish"] = core.False
-	metadata.ToolGroups[0] = "mutated"
+	metadata.ToolRoles[0] = "mutated"
 	again := frozen.Actions()[0].Metadata()
-	if again.Effects["finish"] != core.True || again.ToolGroups[0] != "filesystem" {
+	if again.Effects["finish"] != core.True || again.ToolRoles[0] != "filesystem" {
 		t.Fatalf("metadata accessor leaked deployment state: %#v", again)
 	}
 }
@@ -278,7 +276,7 @@ func TestCompiledDefinitionMatchesGolden(t *testing.T) {
 		Preconditions:     core.ConditionSet{"authorized": core.True, "blocked": core.False, "reviewed": core.Unknown},
 		Effects:           core.ConditionSet{"complete": core.True, "stale": core.False},
 		Repeatable:        true,
-		ToolGroups:        []string{"search", "memory"},
+		ToolRoles:         []string{"search", "memory"},
 		Cost:              core.FixedScore(2.5),
 		Value:             core.FixedScore(7),
 		ClearWorkingState: true,
@@ -291,10 +289,10 @@ func TestCompiledDefinitionMatchesGolden(t *testing.T) {
 		StuckPolicy: deploymentGoldenStuckPolicy{},
 		Actions:     []core.Action{&mutableDeploymentAction{metadata: actionMetadata}},
 		Goals: []*core.Goal{
-			core.NewGoal(core.GoalConfig{Name: "publish-report", Description: "publish the researched report", Preconditions: []string{"complete", "authorized", "complete"}, Inputs: []core.Binding{{Name: "report", Type: "example.Report"}}, Value: core.FixedScore(11)}),
+			core.NewGoal(core.GoalConfig{Name: "publish-report", Description: "publish the researched report", RequiredConditions: []string{"complete", "authorized", "complete"}, RequiredBindings: []core.Binding{{Name: "report", Type: "example.Report"}}, Value: core.FixedScore(11)}),
 		},
-		Conditions:    []core.Condition{&mutableDeploymentCondition{name: "authorized", cost: 1.25}},
-		SnapshotState: []core.Binding{core.NewBinding[deploymentGoldenInput]("draft_state")},
+		Conditions:       []core.Condition{&mutableDeploymentCondition{name: "authorized", evaluationCost: 1.25}},
+		SnapshotBindings: []core.Binding{core.NewBinding[deploymentGoldenInput]("draft_state")},
 	})
 
 	compiled, err := (deploymentCompiler{}).compile(source)
@@ -308,7 +306,7 @@ func TestCompiledDefinitionMatchesGolden(t *testing.T) {
 	if !bytes.Equal(compiled.definition, bytes.TrimSpace(want)) {
 		t.Fatalf("canonical definition changed\nwant:\n%s\ngot:\n%s", bytes.TrimSpace(want), compiled.definition)
 	}
-	const wantDigest = "1a526fbeaef1e5ec8ba948be7dc3fb91e8416e6d55084a9d4cd902a8e8d07173"
+	const wantDigest = "018f95caca552382aec5c9bad1e2b7aca189eda4484cc0e28d37781b58c15e77"
 	if compiled.ref.Digest != wantDigest {
 		t.Fatalf("definition digest = %s, want %s", compiled.ref.Digest, wantDigest)
 	}
@@ -320,14 +318,14 @@ func TestCanonicalDefinitionFieldInventory(t *testing.T) {
 	// bypass the digest silently is more dangerous than making the author
 	// classify it as canonical data or implementation identity.
 	assertExportedFields(t, reflect.TypeFor[core.AgentConfig](), []string{
-		"Name", "Description", "Version", "StuckPolicy", "Actions", "Goals", "Conditions", "SnapshotState", "PlannerName",
+		"Name", "Description", "Version", "StuckPolicy", "Actions", "Goals", "Conditions", "SnapshotBindings", "PlannerName",
 	})
 	assertExportedFields(t, reflect.TypeFor[core.Agent](), nil)
 	assertExportedFields(t, reflect.TypeFor[core.ActionMetadata](), []string{
-		"Name", "Description", "Inputs", "Outputs", "Preconditions", "Effects", "Repeatable", "ToolGroups", "Cost", "Value", "ClearWorkingState",
+		"Name", "Description", "Inputs", "Outputs", "Preconditions", "Effects", "Repeatable", "ToolRoles", "Cost", "Value", "ClearWorkingState",
 	})
 	assertExportedFields(t, reflect.TypeFor[core.GoalConfig](), []string{
-		"Name", "Description", "Preconditions", "Inputs", "Value",
+		"Name", "Description", "RequiredConditions", "RequiredBindings", "Value",
 	})
 	assertExportedFields(t, reflect.TypeFor[core.Goal](), nil)
 	assertExportedFields(t, reflect.TypeFor[core.Binding](), []string{
@@ -352,21 +350,21 @@ func assertExportedFields(t *testing.T, typeOf reflect.Type, want []string) {
 	}
 }
 
-func TestAgentRegistryReturnsStableImmutableDeployments(t *testing.T) {
-	registry := newDeploymentRegistry()
+func TestDeploymentCatalogReturnsStableImmutableDeployments(t *testing.T) {
+	catalog := newDeploymentCatalog()
 	for _, name := range []string{"zebra", "alpha"} {
 		deployment, err := (deploymentCompiler{}).compile(deploymentFixture(name, core.ConditionSet{"finish": core.True}, nil))
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, _, err := registry.activate(deployment, false); err != nil {
+		if _, _, err := catalog.activate(deployment, false); err != nil {
 			t.Fatal(err)
 		}
 	}
 
-	listed := registry.listActive()
+	listed := catalog.listActive()
 	if len(listed) != 2 || listed[0].Ref().Name != "alpha" || listed[1].Ref().Name != "zebra" {
-		t.Fatalf("registry order = %#v", []string{listed[0].Ref().Name, listed[1].Ref().Name})
+		t.Fatalf("catalog order = %#v", []string{listed[0].Ref().Name, listed[1].Ref().Name})
 	}
 	definition := listed[0].Descriptor()
 	actions := definition.Actions()
@@ -385,8 +383,8 @@ func TestAgentRegistryReturnsStableImmutableDeployments(t *testing.T) {
 	}
 }
 
-func TestAgentRegistryRetainsHistoricalDefinitions(t *testing.T) {
-	registry := newDeploymentRegistry()
+func TestDeploymentCatalogRetainsHistoricalDefinitions(t *testing.T) {
+	catalog := newDeploymentCatalog()
 	first, err := (deploymentCompiler{}).compile(deploymentFixture("writer", core.ConditionSet{"finish": core.True}, nil))
 	if err != nil {
 		t.Fatal(err)
@@ -395,32 +393,32 @@ func TestAgentRegistryRetainsHistoricalDefinitions(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := registry.activate(first, false); err != nil {
+	if _, _, err := catalog.activate(first, false); err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := registry.activate(second, true); err != nil {
+	if _, _, err := catalog.activate(second, true); err != nil {
 		t.Fatal(err)
 	}
 
-	active, ok := registry.activeDeployment("writer")
+	active, ok := catalog.activeDeployment("writer")
 	if !ok || active.agent.Actions()[0].Metadata().Effects["replacement"] != core.True {
 		t.Fatalf("active deployment = %#v, %v", active, ok)
 	}
-	if historical, ok := registry.lookup(first.Ref()); !ok || historical != first {
+	if historical, ok := catalog.lookup(first.Ref()); !ok || historical != first {
 		t.Fatalf("first historical deployment = %#v, %v", historical, ok)
 	}
-	if historical, ok := registry.lookup(second.Ref()); !ok || historical != second {
+	if historical, ok := catalog.lookup(second.Ref()); !ok || historical != second {
 		t.Fatalf("second historical deployment = %#v, %v", historical, ok)
 	}
 
-	if _, err := registry.unregister("writer"); err != nil {
+	if _, err := catalog.deactivate("writer"); err != nil {
 		t.Fatal(err)
 	}
-	if _, ok := registry.activeDeployment("writer"); ok {
-		t.Fatal("unregister left deployment active")
+	if _, ok := catalog.activeDeployment("writer"); ok {
+		t.Fatal("deactivate left deployment active")
 	}
-	if _, ok := registry.lookup(first.Ref()); !ok {
-		t.Fatal("unregister destroyed historical deployment")
+	if _, ok := catalog.lookup(first.Ref()); !ok {
+		t.Fatal("deactivate destroyed historical deployment")
 	}
 }
 
@@ -545,7 +543,7 @@ func TestForgetDeploymentRequiresInactiveUnreferencedDefinition(t *testing.T) {
 	}
 }
 
-func TestAgentRegistrySupportsConcurrentRegistrationAndSnapshots(t *testing.T) {
+func TestDeploymentCatalogSupportsConcurrentRegistrationAndSnapshots(t *testing.T) {
 	const deploymentCount = 32
 	deployments := make([]*Deployment, deploymentCount)
 	for i := range deploymentCount {
@@ -560,14 +558,14 @@ func TestAgentRegistrySupportsConcurrentRegistrationAndSnapshots(t *testing.T) {
 		deployments[i] = deployment
 	}
 
-	registry := newDeploymentRegistry()
+	catalog := newDeploymentCatalog()
 	start := make(chan struct{})
 	errs := make(chan error, deploymentCount)
 	var wg sync.WaitGroup
 	for _, deployment := range deployments {
 		wg.Go(func() {
 			<-start
-			if _, _, err := registry.activate(deployment, false); err != nil {
+			if _, _, err := catalog.activate(deployment, false); err != nil {
 				errs <- err
 			}
 		})
@@ -576,7 +574,7 @@ func TestAgentRegistrySupportsConcurrentRegistrationAndSnapshots(t *testing.T) {
 		wg.Go(func() {
 			<-start
 			for range deploymentCount {
-				listed := registry.listActive()
+				listed := catalog.listActive()
 				for i := 1; i < len(listed); i++ {
 					if listed[i-1].agent.Name() > listed[i].agent.Name() {
 						errs <- fmt.Errorf("catalog snapshot is not name ordered: %q before %q", listed[i-1].agent.Name(), listed[i].agent.Name())
@@ -593,12 +591,12 @@ func TestAgentRegistrySupportsConcurrentRegistrationAndSnapshots(t *testing.T) {
 		t.Error(err)
 	}
 
-	listed := registry.listActive()
+	listed := catalog.listActive()
 	if len(listed) != deploymentCount {
 		t.Fatalf("active deployments = %d, want %d", len(listed), deploymentCount)
 	}
 	for _, deployment := range deployments {
-		got, ok := registry.lookup(deployment.Ref())
+		got, ok := catalog.lookup(deployment.Ref())
 		if !ok || got != deployment {
 			t.Fatalf("ref lookup for %q = %p, %v; want %p", deployment.agent.Name(), got, ok, deployment)
 		}
@@ -716,8 +714,8 @@ func TestAdvancedExecutionRejectsForeignDeployment(t *testing.T) {
 		name string
 		run  func() error
 	}{
-		{"RunChildWithState", func() error {
-			_, err := engine.RunChildWithState(ctx, foreign, nil)
+		{"RunChildWithWorkingState", func() error {
+			_, err := engine.RunChildWithWorkingState(ctx, foreign, nil)
 			return err
 		}},
 		{"RunChild", func() error {
@@ -1061,7 +1059,7 @@ func deploymentFixtureWith(
 		Version:     "1.0.0",
 		PlannerName: planner,
 		Actions:     []core.Action{&mutableDeploymentAction{metadata: metadata, run: run}},
-		Goals:       []*core.Goal{core.NewGoal(core.GoalConfig{Name: "complete", Preconditions: pre})},
+		Goals:       []*core.Goal{core.NewGoal(core.GoalConfig{Name: "complete", RequiredConditions: pre})},
 	})
 }
 
@@ -1087,7 +1085,7 @@ func deploymentActionMetadata(effect string) core.ActionMetadata {
 		Outputs:       []core.Binding{{Name: "output", Type: "string"}},
 		Preconditions: core.ConditionSet{"ready": core.True},
 		Effects:       core.ConditionSet{effect: core.True},
-		ToolGroups:    []string{"filesystem"},
+		ToolRoles:     []string{"filesystem"},
 		Cost:          core.FixedScore(1),
 		Value:         core.FixedScore(2),
 	}

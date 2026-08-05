@@ -47,28 +47,25 @@ func TestEventCloneOwnsNestedProtocolValues(t *testing.T) {
 	}
 
 	resumeEvent := interaction.Event{
-		Kind:  interaction.EventResume,
-		Round: 1,
-		Resume: &interaction.Resume{
-			ID:    "resume-1",
-			Input: json.RawMessage(`{"approved":true}`),
-		},
+		Kind:   interaction.EventResume,
+		Round:  1,
+		Resume: &interaction.Resume{ID: "resume-1", Response: json.RawMessage(`{"approved":true}`)},
 	}
 	clonedResume := resumeEvent.Clone()
-	clonedResume.Resume.Input[2] = 'x'
-	if string(resumeEvent.Resume.Input) != `{"approved":true}` {
-		t.Fatalf("mutating cloned resume changed source: %s", resumeEvent.Resume.Input)
+	clonedResume.Resume.Response[2] = 'x'
+	if string(resumeEvent.Resume.Response) != `{"approved":true}` {
+		t.Fatalf("mutating cloned resume changed source: %s", resumeEvent.Resume.Response)
 	}
 
 	suspensionEvent := interaction.Event{
 		Kind:  interaction.EventPause,
 		Round: 1,
 		Suspension: &interaction.Suspension{
-			SchemaVersion: interaction.SuspensionSchemaVersion,
-			ID:            "pause-1",
-			Prompt:        json.RawMessage(`"continue?"`),
-			ResumeSchema:  json.RawMessage(`{"type":"boolean"}`),
-			CreatedAt:     time.Unix(1, 0),
+			SchemaVersion:  interaction.SuspensionSchemaVersion,
+			ID:             "pause-1",
+			Prompt:         json.RawMessage(`"continue?"`),
+			ResponseSchema: json.RawMessage(`{"type":"boolean"}`),
+			CreatedAt:      time.Unix(1, 0),
 		},
 	}
 	clonedSuspension := suspensionEvent.Clone()
@@ -89,7 +86,7 @@ func TestResumeEventPreservesValidationCause(t *testing.T) {
 	event := interaction.Event{
 		Kind:   interaction.EventResume,
 		Round:  1,
-		Resume: &interaction.Resume{ID: " invalid", Input: json.RawMessage(`true`)},
+		Resume: &interaction.Resume{ID: " invalid", Response: json.RawMessage(`true`)},
 	}
 	if err := event.Validate(); !errors.Is(err, interaction.ErrInvalidID) {
 		t.Fatalf("Validate error = %v, want ErrInvalidID", err)
@@ -108,7 +105,7 @@ func TestValidateIDRejectsUnstableIdentity(t *testing.T) {
 }
 
 func TestStopReasonValid(t *testing.T) {
-	for _, reason := range []interaction.StopReason{interaction.StopNone, interaction.StopBudget, interaction.StopSteps} {
+	for _, reason := range []interaction.StopReason{interaction.StopNone, interaction.StopBudget, interaction.StopModelCalls} {
 		if !reason.Valid() {
 			t.Errorf("StopReason(%q) is invalid", reason)
 		}
@@ -120,7 +117,7 @@ func TestStopReasonValid(t *testing.T) {
 
 func TestLimitsValidateRejectsNegativeLocalLimits(t *testing.T) {
 	for _, limits := range []interaction.Limits{
-		{MaxRounds: -1},
+		{MaxModelCalls: -1},
 		{MaxConcurrentToolCalls: -1},
 	} {
 		if err := limits.Validate(); !errors.Is(err, interaction.ErrInvalidLimits) {

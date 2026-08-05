@@ -15,13 +15,13 @@ import (
 // PendingSuspension identifies one unanswered external-input boundary in a
 // process tree. ProcessID names the process that directly raised the boundary;
 // SuspensionID is the stable identity supplied to Resume. Prompt and
-// ResumeSchema are independently owned protocol values. Framework checkpoint
+// ResponseSchema are independently owned protocol values. Framework checkpoint
 // state remains private to the runtime.
 type PendingSuspension struct {
-	ProcessID    string
-	SuspensionID string
-	Prompt       json.RawMessage
-	ResumeSchema json.RawMessage
+	ProcessID      string
+	SuspensionID   string
+	Prompt         json.RawMessage
+	ResponseSchema json.RawMessage
 }
 
 // PendingSuspensions returns every unanswered external-input boundary in one
@@ -132,7 +132,7 @@ func (c *pendingSuspensionCollector) collect(processID string) error {
 				processID,
 				snapshot.Suspension.ID,
 				snapshot.Suspension.Prompt,
-				snapshot.Suspension.ResumeSchema,
+				snapshot.Suspension.ResponseSchema,
 			)
 		}
 		return c.collectUnvisitedChildren(processID)
@@ -192,7 +192,7 @@ func (c *pendingSuspensionCollector) collectInteraction(
 			(snapshot.Suspension.Responded() || checkpoint.Ready) {
 			continue
 		}
-		c.append(processID, state.Pending.ID, state.Pending.Prompt, state.Pending.ResumeSchema)
+		c.append(processID, state.Pending.ID, state.Pending.Prompt, state.Pending.ResponseSchema)
 	}
 	return nil
 }
@@ -213,13 +213,13 @@ func (c *pendingSuspensionCollector) append(
 	processID string,
 	suspensionID string,
 	prompt json.RawMessage,
-	resumeSchema json.RawMessage,
+	responseSchema json.RawMessage,
 ) {
 	c.pending = append(c.pending, PendingSuspension{
-		ProcessID:    processID,
-		SuspensionID: suspensionID,
-		Prompt:       bytes.Clone(prompt),
-		ResumeSchema: bytes.Clone(resumeSchema),
+		ProcessID:      processID,
+		SuspensionID:   suspensionID,
+		Prompt:         bytes.Clone(prompt),
+		ResponseSchema: bytes.Clone(responseSchema),
 	})
 }
 
@@ -230,10 +230,10 @@ func clonePendingSuspensions(values []PendingSuspension) []PendingSuspension {
 	cloned := make([]PendingSuspension, len(values))
 	for index, value := range values {
 		cloned[index] = PendingSuspension{
-			ProcessID:    value.ProcessID,
-			SuspensionID: value.SuspensionID,
-			Prompt:       bytes.Clone(value.Prompt),
-			ResumeSchema: bytes.Clone(value.ResumeSchema),
+			ProcessID:      value.ProcessID,
+			SuspensionID:   value.SuspensionID,
+			Prompt:         bytes.Clone(value.Prompt),
+			ResponseSchema: bytes.Clone(value.ResponseSchema),
 		}
 	}
 	return cloned

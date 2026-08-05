@@ -214,7 +214,7 @@ func TestEngine_TaskDelegationCountsChildCallsAgainstStepLimit(t *testing.T) {
 	if err != nil {
 		t.Fatalf("runTurnSync: %v", err)
 	}
-	if output.StopReason != agent.InteractionStopSteps {
+	if output.StopReason != agent.InteractionStopModelCalls {
 		t.Fatalf("StopReason = %q, want steps", output.StopReason)
 	}
 	if model.Calls() != 2 {

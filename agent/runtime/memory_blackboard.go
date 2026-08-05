@@ -49,7 +49,7 @@ type storedBlackboardValue struct {
 	data []byte
 }
 
-func storeBlackboardValue(value any) (storedBlackboardValue, error) {
+func newStoredBlackboardValue(value any) (storedBlackboardValue, error) {
 	stored := storedBlackboardValue{typ: reflect.TypeOf(value)}
 	if err := requirePortableType(stored.typ); err != nil {
 		return storedBlackboardValue{}, err
@@ -101,7 +101,7 @@ func (b *inMemoryBlackboard) Name() string { return inMemoryBlackboardName }
 // dual-record is what makes "give me the latest of type T" work via
 // Lookup("it", typeName).
 func (b *inMemoryBlackboard) Store(key string, value any) error {
-	stored, err := storeBlackboardValue(value)
+	stored, err := newStoredBlackboardValue(value)
 	if err != nil {
 		return fmt.Errorf("blackboard Store(%q): %w", key, err)
 	}
@@ -124,7 +124,7 @@ func (b *inMemoryBlackboard) Load(key string) (any, bool) {
 }
 
 func (b *inMemoryBlackboard) Add(value any) error {
-	stored, err := storeBlackboardValue(value)
+	stored, err := newStoredBlackboardValue(value)
 	if err != nil {
 		return fmt.Errorf("blackboard Add: %w", err)
 	}
@@ -151,7 +151,7 @@ func (b *inMemoryBlackboard) Objects() []any {
 // "it" AND at a type-derived key (UserInput → "user_input") so prompt
 // templates can refer to it by either name.
 func (b *inMemoryBlackboard) Bind(value any) error {
-	stored, err := storeBlackboardValue(value)
+	stored, err := newStoredBlackboardValue(value)
 	if err != nil {
 		return fmt.Errorf("blackboard Bind: %w", err)
 	}
@@ -173,7 +173,7 @@ func (b *inMemoryBlackboard) StoreAll(bindings core.Bindings) error {
 	}
 	values := make([]namedValue, 0, bindings.Len())
 	for key, value := range bindings.All() {
-		stored, err := storeBlackboardValue(value)
+		stored, err := newStoredBlackboardValue(value)
 		if err != nil {
 			return fmt.Errorf("blackboard StoreAll(%q): %w", key, err)
 		}
@@ -191,7 +191,7 @@ func (b *inMemoryBlackboard) StoreAll(bindings core.Bindings) error {
 }
 
 func (b *inMemoryBlackboard) Hide(target any) error {
-	stored, err := storeBlackboardValue(target)
+	stored, err := newStoredBlackboardValue(target)
 	if err != nil {
 		return fmt.Errorf("blackboard Hide: %w", err)
 	}
@@ -248,7 +248,7 @@ func (b *inMemoryBlackboard) ClearWorkingState() error {
 // Lookup resolves typed lookups:
 //
 //   - variable == "it" / empty: newest object whose stored type matches typeName.
-//   - variable == "last_result": newest object regardless of type.
+//   - variable == "latest_object": newest object regardless of type.
 //   - explicit name: the value stored at that name, only if its type matches.
 func (b *inMemoryBlackboard) Lookup(variable, typeName string) (any, bool) {
 	b.mu.RLock()
@@ -264,7 +264,7 @@ func (b *inMemoryBlackboard) lookup(variable, typeName string) (storedBlackboard
 	switch variable {
 	case "", core.DefaultBindingName:
 		return b.findLatestByType(typeName)
-	case core.LastResultBindingName:
+	case core.LatestObjectBindingName:
 		return b.findLatestVisible()
 	}
 

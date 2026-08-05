@@ -11,7 +11,7 @@ import (
 
 // ParallelConfig configures a fan-out across N sub-agents that all
 // consume the same In type and produce the same Element type, then a
-// single Joiner consolidates the per-agent outputs into Result.
+// single Join function consolidates the per-agent outputs into Result.
 //
 // Each parallel sub-agent runs as its own child process via
 // [runtime.Engine.RunChild]; child processes get a clean blackboard
@@ -35,10 +35,10 @@ type ParallelConfig[In, Element, Result any] struct {
 	// Element via its own goal/action declarations. Must be non-empty.
 	Agents []*core.Agent
 
-	// Joiner consolidates the per-agent outputs into the final Result.
+	// Join consolidates the per-agent outputs into the final Result.
 	// results is in the same order as Agents (slot indexing is
 	// preserved, not completion order). Required.
-	Joiner func(ctx context.Context, process *core.ProcessContext, results []Element) (Result, error)
+	Join func(ctx context.Context, process *core.ProcessContext, results []Element) (Result, error)
 }
 
 // Parallel compiles config into a deployable agent that runs every
@@ -51,14 +51,14 @@ type ParallelConfig[In, Element, Result any] struct {
 // in ScatterGather; Parallel only supplies the agent→generator adapter.
 // The compiled agent therefore carries ScatterGather's two actions
 // ("{Name}-scatter" / "{Name}-gather") and its single Result goal, so
-// [runtime.Engine.Run] terminates when the Joiner has bound the
+// [runtime.Engine.Run] terminates when Join has bound the
 // Result. Failure of any sub-agent (spawn error, non-Completed status,
 // or missing Element) cancels the errgroup and propagates as the
 // process failure, naming the offending agent.
 //
 // Returns an error on nil engine, missing Name, negative
 // MaxConcurrency, empty Agents, a nil or structurally invalid sub-agent, or nil
-// Joiner. All static validation finishes before the first child deployment.
+// Join. All static validation finishes before the first child deployment.
 func Parallel[In, Element, Result any](
 	ctx context.Context,
 	engine *runtime.Engine,
@@ -76,8 +76,8 @@ func Parallel[In, Element, Result any](
 	if len(config.Agents) == 0 {
 		return nil, errors.New("workflow.Parallel: Agents must not be empty")
 	}
-	if config.Joiner == nil {
-		return nil, errors.New("workflow.Parallel: Joiner must not be nil")
+	if config.Join == nil {
+		return nil, errors.New("workflow.Parallel: Join must not be nil")
 	}
 	for index, agent := range config.Agents {
 		if agent == nil {
@@ -108,7 +108,7 @@ func Parallel[In, Element, Result any](
 			if err != nil {
 				return zero, fmt.Errorf("agent %q: %w", name, err)
 			}
-			if err := child.TerminalError(); err != nil {
+			if err := child.CompletionError(); err != nil {
 				return zero, fmt.Errorf("agent %q: %w", name, err)
 			}
 			output, ok := core.Result[Element](child)
@@ -124,7 +124,7 @@ func Parallel[In, Element, Result any](
 		Description:    config.Description,
 		MaxConcurrency: config.MaxConcurrency,
 		Generators:     generators,
-		Joiner:         config.Joiner,
+		Join:           config.Join,
 	}, func(ctx context.Context, process *core.ProcessContext) context.Context {
 		return core.WithProcessView(ctx, process.Process())
 	})

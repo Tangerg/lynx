@@ -30,7 +30,7 @@ func TestMetrics_RecordedDuringRun(t *testing.T) {
 	reader := installRuntimeMetricCapture()
 	before := collectRuntimeMetrics(t, reader)
 
-	a := agent.New(agent.AgentConfig{Name: "metered", Actions: []agent.Action{agent.NewAction("count", func(_ context.Context, _ *core.ProcessContext, in word) (wordCount, error) {
+	a := agent.New(agent.Config{Name: "metered", Actions: []agent.Action{agent.NewAction("count", func(_ context.Context, _ *core.ProcessContext, in word) (wordCount, error) {
 		return wordCount{Count: len(in.Text)}, nil
 	}, core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[wordCount](core.GoalConfig{Description: "counted"})}})
 

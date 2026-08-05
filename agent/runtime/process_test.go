@@ -86,7 +86,7 @@ func (s stuckCounter) OnEvent(_ context.Context, e event.Event) {
 // action, one goal. Ensures the planner finds the (single) action and the
 // runtime executes it to completion.
 func TestRunSingleAction(t *testing.T) {
-	a := agent.New(agent.AgentConfig{Name: "test", Actions: []agent.Action{agent.NewAction("count", func(ctx context.Context, pc *core.ProcessContext, in word) (wordCount, error) {
+	a := agent.New(agent.Config{Name: "test", Actions: []agent.Action{agent.NewAction("count", func(ctx context.Context, pc *core.ProcessContext, in word) (wordCount, error) {
 		return wordCount{Count: len(in.Text)}, nil
 	}, core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[wordCount](core.GoalConfig{Description: "word counted"})}})
 
@@ -117,7 +117,7 @@ func TestRunSingleAction(t *testing.T) {
 
 func TestRunPreservesPanickedActionCause(t *testing.T) {
 	cause := errors.New("action sentinel")
-	a := agent.New(agent.AgentConfig{
+	a := agent.New(agent.Config{
 		Name: "panicking-action",
 		Actions: []agent.Action{agent.NewAction("panic", func(context.Context, *core.ProcessContext, word) (wordCount, error) {
 			panic(cause)
@@ -158,10 +158,10 @@ func TestRunFailsOnceOnInvalidActionStatus(t *testing.T) {
 		Inputs:  []core.Binding{input},
 		Outputs: []core.Binding{output},
 	}
-	metadata.Preconditions = core.ConditionSet{input.String(): core.True, metadata.RunCondition(): core.False}
-	metadata.Effects = core.ConditionSet{output.String(): core.True, metadata.RunCondition(): core.True}
+	metadata.Preconditions = core.ConditionSet{input.String(): core.True, metadata.SuccessCondition(): core.False}
+	metadata.Effects = core.ConditionSet{output.String(): core.True, metadata.SuccessCondition(): core.True}
 	action := &invalidStatusAction{metadata: metadata}
-	a := agent.New(agent.AgentConfig{
+	a := agent.New(agent.Config{
 		Name:    "invalid-status",
 		Actions: []agent.Action{action},
 		Goals:   []*agent.Goal{agent.NewOutputGoal[wordCount](core.GoalConfig{Description: "counted"})},
@@ -188,10 +188,10 @@ func TestRunRejectsSuccessfulOrHaltedStatusWithError(t *testing.T) {
 				status:   status,
 				err:      cause,
 			}
-			a := agent.New(agent.AgentConfig{
+			a := agent.New(agent.Config{
 				Name:    "invalid-result-" + status.String(),
 				Actions: []agent.Action{action},
-				Goals:   []*agent.Goal{agent.NewGoal(core.GoalConfig{Name: "goal", Preconditions: []string{"done"}})},
+				Goals:   []*agent.Goal{agent.NewGoal(core.GoalConfig{Name: "goal", RequiredConditions: []string{"done"}})},
 			})
 			process, err := agent.MustNewEngine(runtime.Config{}).Run(t.Context(), a, core.Bindings{}, core.ProcessOptions{})
 			if err != nil {
@@ -214,10 +214,10 @@ func TestRunNormalizesFailedActionWithoutError(t *testing.T) {
 		status:   core.ActionFailed,
 	}
 	capture := &actionFinishedCapture{}
-	a := agent.New(agent.AgentConfig{
+	a := agent.New(agent.Config{
 		Name:    "missing-action-error",
 		Actions: []agent.Action{action},
-		Goals:   []*agent.Goal{agent.NewGoal(core.GoalConfig{Name: "goal", Preconditions: []string{"done"}})},
+		Goals:   []*agent.Goal{agent.NewGoal(core.GoalConfig{Name: "goal", RequiredConditions: []string{"done"}})},
 	})
 	process, err := agent.MustNewEngine(runtime.Config{Extensions: []core.Extension{capture}}).Run(t.Context(), a, core.Bindings{}, core.ProcessOptions{})
 	if err != nil {
@@ -234,17 +234,17 @@ func TestRunNormalizesFailedActionWithoutError(t *testing.T) {
 	}
 }
 
-func TestRunFailsWhenActionRunConditionCannotBeRecorded(t *testing.T) {
+func TestRunFailsWhenActionSuccessConditionCannotBeRecorded(t *testing.T) {
 	cause := errors.New("store condition sentinel")
 	action := &fixedResultAction{
 		metadata: core.ActionMetadata{Name: "work", Effects: core.ConditionSet{"done": core.True}},
 		status:   core.ActionSucceeded,
 	}
 	capture := &actionFinishedCapture{}
-	definition := agent.New(agent.AgentConfig{
+	definition := agent.New(agent.Config{
 		Name:    "run-condition-write-failure",
 		Actions: []agent.Action{action},
-		Goals:   []*agent.Goal{agent.NewGoal(core.GoalConfig{Name: "goal", Preconditions: []string{"done"}})},
+		Goals:   []*agent.Goal{agent.NewGoal(core.GoalConfig{Name: "goal", RequiredConditions: []string{"done"}})},
 	})
 	engine := agent.MustNewEngine(runtime.Config{Extensions: []core.Extension{capture}})
 	blackboard, err := engine.NewBlackboard(definition)
@@ -267,7 +267,7 @@ func TestRunFailsWhenActionRunConditionCannotBeRecorded(t *testing.T) {
 }
 
 func TestRunFailsWhenConditionReturnsInvalidTruth(t *testing.T) {
-	a := agent.New(agent.AgentConfig{
+	a := agent.New(agent.Config{
 		Name: "invalid-truth",
 		Actions: []agent.Action{agent.NewAction("count", func(context.Context, *core.ProcessContext, word) (wordCount, error) {
 			return wordCount{Count: 1}, nil
@@ -299,7 +299,7 @@ func TestRunMultiStepPlanning(t *testing.T) {
 	type stage2 struct{ V int }
 	type stage3 struct{ V int }
 
-	a := agent.New(agent.AgentConfig{Name: "multi", Actions: []agent.Action{agent.NewAction("a", func(ctx context.Context, pc *core.ProcessContext, in word) (stage1, error) {
+	a := agent.New(agent.Config{Name: "multi", Actions: []agent.Action{agent.NewAction("a", func(ctx context.Context, pc *core.ProcessContext, in word) (stage1, error) {
 		return stage1{V: len(in.Text)}, nil
 	}, core.ActionConfig{}), agent.NewAction("b", func(ctx context.Context, pc *core.ProcessContext, in stage1) (stage2, error) {
 		return stage2{V: in.V * 2}, nil
@@ -353,7 +353,7 @@ func TestRunValidatesBeforeCreatingProcess(t *testing.T) {
 }
 
 func TestRunRejectsUnknownPlannerName(t *testing.T) {
-	a := agent.New(agent.AgentConfig{Name: "unknown-planner", Actions: []agent.Action{agent.NewAction("count", func(ctx context.Context, pc *core.ProcessContext, in word) (wordCount, error) {
+	a := agent.New(agent.Config{Name: "unknown-planner", Actions: []agent.Action{agent.NewAction("count", func(ctx context.Context, pc *core.ProcessContext, in word) (wordCount, error) {
 		return wordCount{Count: len(in.Text)}, nil
 	}, core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[wordCount](core.GoalConfig{Description: "word counted"})}, PlannerName: "nonexistent"})
 
@@ -393,7 +393,7 @@ func TestRunPublishesSingleStuckEvent(t *testing.T) {
 				core.ActionConfig{Effects: []string{"never"}},
 			),
 		},
-		Goals: []*core.Goal{core.NewGoal(core.GoalConfig{Name: "never", Preconditions: []string{"never"}})},
+		Goals: []*core.Goal{core.NewGoal(core.GoalConfig{Name: "never", RequiredConditions: []string{"never"}})},
 	})
 
 	stuckEvents := 0
@@ -496,7 +496,7 @@ func runUnplannableAgent(t *testing.T, policy core.StuckPolicy, extension core.E
 		Actions: []core.Action{core.NewAction("unavailable", func(context.Context, *core.ProcessContext, unavailableInput) (unusedOutput, error) {
 			return unusedOutput{}, nil
 		}, core.ActionConfig{Effects: []string{"ready"}})},
-		Goals: []*core.Goal{core.NewGoal(core.GoalConfig{Name: "ready", Preconditions: []string{"ready"}})},
+		Goals: []*core.Goal{core.NewGoal(core.GoalConfig{Name: "ready", RequiredConditions: []string{"ready"}})},
 	})
 	config := runtime.Config{}
 	if extension != nil {
@@ -516,7 +516,7 @@ func TestRunMarksCancelledDuringActionAsKilled(t *testing.T) {
 	actionErr := errors.New("transient")
 	attempts := 0
 
-	a := agent.New(agent.AgentConfig{Name: "cancel", Actions: []agent.Action{agent.NewAction("cancel", func(ctx context.Context, pc *core.ProcessContext, in word) (out, error) {
+	a := agent.New(agent.Config{Name: "cancel", Actions: []agent.Action{agent.NewAction("cancel", func(ctx context.Context, pc *core.ProcessContext, in word) (out, error) {
 		attempts++
 		cancel()
 		return out{}, actionErr

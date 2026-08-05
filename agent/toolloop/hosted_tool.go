@@ -139,7 +139,7 @@ func (t hostedTool) canContinueWithoutInput() (allowed bool, err error) {
 }
 
 // deferredNames asks a deferring tool which tools it can promote.
-func (t hostedTool) deferredNames(deferred DeferredTool) (names []string, err error) {
+func (t hostedTool) deferredNames(deferred ToolDeferrer) (names []string, err error) {
 	defer func() {
 		if recovered := recover(); recovered != nil {
 			names = nil

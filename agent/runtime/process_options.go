@@ -15,16 +15,16 @@ import (
 // Blackboard and Dependencies are prepared into dedicated Process fields and
 // therefore do not appear here.
 type processOptions struct {
-	childOptions   core.ChildOptionsFunc
+	configureChild core.ConfigureChildFunc
 	budget         core.Budget
 	extensions     []extensionEntry
 	chatMiddleware *core.ChatMiddleware
-	maxToolRounds  int
+	maxModelCalls  int
 }
 
 // snapshotProcessOptions validates the external composition boundary and
 // returns the immutable container state a Process retains. Capability objects
-// (extension implementations, middleware closures, and ChildOptions) are
+// (extension implementations, middleware closures, and ConfigureChild) are
 // intentionally not deep-copied; their contracts require lifetime safety.
 func snapshotProcessOptions(options core.ProcessOptions) (processOptions, error) {
 	if options.Blackboard != nil && nilvalue.Is(options.Blackboard) {
@@ -35,8 +35,8 @@ func snapshotProcessOptions(options core.ProcessOptions) (processOptions, error)
 		return processOptions{}, err
 	}
 	chatMiddleware := cloneChatMiddleware(options.ChatMiddleware)
-	if options.MaxToolRounds < 0 {
-		return processOptions{}, errors.New("ProcessOptions.MaxToolRounds must not be negative")
+	if options.MaxModelCalls < 0 {
+		return processOptions{}, errors.New("ProcessOptions.MaxModelCalls must not be negative")
 	}
 	budget := options.Budget
 	if err := budget.Validate(); err != nil {
@@ -44,11 +44,11 @@ func snapshotProcessOptions(options core.ProcessOptions) (processOptions, error)
 	}
 
 	return processOptions{
-		childOptions:   options.ChildOptions,
+		configureChild: options.ConfigureChild,
 		budget:         budget,
 		extensions:     extensions,
 		chatMiddleware: chatMiddleware,
-		maxToolRounds:  options.MaxToolRounds,
+		maxModelCalls:  options.MaxModelCalls,
 	}, nil
 }
 

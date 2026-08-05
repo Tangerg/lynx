@@ -18,9 +18,9 @@
 - **执行引擎**:Engine 管 deployment/process registry 与进程生命周期;进程是 observe → plan → act 的 tick 状态机,支持结构化子进程派生、事件多播、HITL 恢复。**加能力靠类型分发**(一个泛型 collector 按接口收集 Extension),而不是改 dispatch loop —— 这是本模块的 OCP 落点。
 - **能力切片**:planning(Planner 接口 + 各算法各一包)、routing、workflow(高阶组合器,但都**编译回普通 agent**,不是新 runtime)、event、interaction、hitl、toolloop。
 - **Blackboard 是 planner 可见性的枢纽**:action 之间**不直接传值**,一律按 name + type 读写黑板 —— 绕过它调度就坏;读写用分离的 reader / writer 面。
-- **HITL 是 first-class**:等待输入把进程切到 Waiting,operator 回复先写入可恢复 response,再从 action 入口重入;未回答 Waiting 恢复后进入 Resume，已回答 Waiting 恢复后直接 Continue。Suspension 只有 `FrameworkState` 一处 continuation，且不带"谁来回答"的分类（Framework 从不据此分支）；ToolLoop checkpoint 必须跳过已完成的模型轮次和工具。框架不尝试恢复任意 Go 调用栈。
+- **HITL 是 first-class**:等待输入把进程切到 Waiting,operator 通过 Respond 写入可恢复 response,再由 Continue 从 action 入口重入;已回答 Waiting 恢复后直接 Continue。Suspension 只有 `FrameworkState` 一处 continuation，且不带"谁来回答"的分类（Framework 从不据此分支）；ToolLoop checkpoint 必须跳过已完成的模型轮次和工具。框架不尝试恢复任意 Go 调用栈。
 - **协议与执行状态分离**:`toolloop.Runner` 直接消费 `core/chat.Request` 与消费方 `ToolResolver`；model/tool/pause/resume 通过 `toolloop.Event` 表达，不向 provider Response 塞运行时状态。Runner 是唯一工具循环：工具默认独占，显式安全的调用按 resource key 有界并发，但 event、continuation、checkpoint 始终按模型调用顺序提交；无自动 retry，可 checkpoint/resume。
-- **委派子进程默认使用干净黑板**,不继承父黑板 —— 全继承会预满足子 agent 的产出目标、让它静默不干活。只有两档明确语义:默认干净状态,或调用 `RunChildWithState` 显式复制完整工作状态。宿主请求上下文走 Go context,不进入 Blackboard。
+- **委派子进程默认使用干净黑板**,不继承父黑板 —— 全继承会预满足子 agent 的产出目标、让它静默不干活。只有两档明确语义:默认干净状态,或调用 `RunChildWithWorkingState` 显式复制完整工作状态。宿主请求上下文走 Go context,不进入 Blackboard。
 - **框架内部用具体类型**:内聚子系统的单实现依赖直接用具体类型;窄接口留给公开 SPI(Planner / Extension 子接口等)、跨模块消费边界和真实替换点。不能因为 Agent 是 framework 就为每个内部 struct 造 interface。
 - **构造边界取得配置所有权**:`runtime.Config` / `ProcessOptions` 是调用方 DTO,Engine/Process 只保留校验并快照后的私有状态;不能让 caller 后续修改 Extensions slice 或 ChatMiddleware 改写运行中的语义。模型调用所需的产品上下文由 Host 作为普通 Call/Stream middleware 注入；Agent 不定义 conversation/session 标识或绑定钩子。
 - **资源计数与产品账本分离**:Agent 只保存执行预算需要的直接/子树聚合计数（opaque cost、tokens、model calls、actions），不保存 provider/model 明细、USD 账单、embedding 调用、时间线或审计记录。Host 从 managed-interaction event 建立自己的账本，并与 process tree 在自己的事务中提交。Agent 的零值 Budget 无限制；成本单位和默认阈值是 Host policy。

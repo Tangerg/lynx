@@ -16,7 +16,7 @@ import (
 // parked process resumes into running framework code, so accepting a shape this
 // build does not understand would continue execution from state it cannot
 // interpret.
-const SuspensionSchemaVersion uint16 = 5
+const SuspensionSchemaVersion uint16 = 7
 
 var (
 	ErrInvalidSuspension  = errors.New("interaction: invalid suspension")
@@ -27,15 +27,16 @@ var (
 
 // Suspension is the complete JSON-safe state exposed when a process waits for
 // external input. It does not classify who must answer: the framework never
-// branches on that, and the waiting side's own Prompt says what is being asked. FrameworkState is opaque execution state owned exclusively by
-// the Agent runtime. Prompt and ResumeSchema are host-facing protocol values:
+// branches on that, and the waiting side's own Prompt says what is being asked.
+// FrameworkState is opaque execution state owned exclusively by the Agent
+// runtime. Prompt and ResponseSchema are host-facing protocol values:
 // whatever the waiting side needs to decide travels in Prompt, so a suspension
 // carries no second, framework-defined slot for producer metadata.
 type Suspension struct {
 	SchemaVersion  uint16          `json:"schema_version"`
 	ID             string          `json:"id"`
 	Prompt         json.RawMessage `json:"prompt"`
-	ResumeSchema   json.RawMessage `json:"resume_schema"`
+	ResponseSchema json.RawMessage `json:"response_schema"`
 	FrameworkState json.RawMessage `json:"framework_state,omitempty"`
 	Response       json.RawMessage `json:"response,omitempty"`
 	CreatedAt      time.Time       `json:"created_at"`
@@ -43,7 +44,7 @@ type Suspension struct {
 
 // Validate reports whether s is a suspension this build can resume from,
 // wrapping [ErrInvalidSuspension]. A stored Response is checked against
-// ResumeSchema as well, so a suspension is never valid while carrying an answer
+// ResponseSchema as well, so a suspension is never valid while carrying an answer
 // its own schema would reject.
 //
 // Both JSON boundaries call it, which is what keeps an invalid suspension from
@@ -61,8 +62,8 @@ func (s Suspension) Validate() error {
 	if !validJSON(s.Prompt) {
 		return fmt.Errorf("%w: prompt must be valid JSON", ErrInvalidSuspension)
 	}
-	if err := validateSchema(s.ResumeSchema); err != nil {
-		return fmt.Errorf("%w: resume_schema: %w", ErrInvalidSuspension, err)
+	if err := validateSchema(s.ResponseSchema); err != nil {
+		return fmt.Errorf("%w: response_schema: %w", ErrInvalidSuspension, err)
 	}
 	if len(s.FrameworkState) > 0 && !validJSON(s.FrameworkState) {
 		return fmt.Errorf("%w: framework_state must be valid JSON", ErrInvalidSuspension)
@@ -94,7 +95,7 @@ func (s Suspension) Responded() bool { return len(s.Response) > 0 }
 func (s Suspension) Clone() *Suspension {
 	cloned := s
 	cloned.Prompt = bytes.Clone(s.Prompt)
-	cloned.ResumeSchema = bytes.Clone(s.ResumeSchema)
+	cloned.ResponseSchema = bytes.Clone(s.ResponseSchema)
 	cloned.FrameworkState = bytes.Clone(s.FrameworkState)
 	cloned.Response = bytes.Clone(s.Response)
 	return &cloned
@@ -139,14 +140,14 @@ func (s *Suspension) UnmarshalJSON(data []byte) error {
 }
 
 // ValidateResponse converts response to its canonical JSON representation and
-// validates that value against ResumeSchema.
+// validates that value against ResponseSchema.
 func (s Suspension) ValidateResponse(response any) (json.RawMessage, error) {
 	canonical, value, err := canonicalJSON(response)
 	if err != nil {
 		return nil, fmt.Errorf("encode response: %w", err)
 	}
 	var schema jsonschema.Schema
-	if err := json.Unmarshal(s.ResumeSchema, &schema); err != nil {
+	if err := json.Unmarshal(s.ResponseSchema, &schema); err != nil {
 		return nil, fmt.Errorf("decode schema: %w", err)
 	}
 	resolved, err := schema.Resolve(nil)

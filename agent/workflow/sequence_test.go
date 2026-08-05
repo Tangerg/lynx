@@ -20,7 +20,7 @@ type seqDraft struct{ Body string }
 
 // makeOutlineAgent: takes seqTopic, produces seqOutline.
 func makeOutlineAgent() *core.Agent {
-	a := agent.New(agent.AgentConfig{Name: "outline-agent", Description: "expand a topic into an outline", Actions: []agent.Action{agent.NewAction("outline", func(_ context.Context, _ *core.ProcessContext, t seqTopic) (seqOutline, error) {
+	a := agent.New(agent.Config{Name: "outline-agent", Description: "expand a topic into an outline", Actions: []agent.Action{agent.NewAction("outline", func(_ context.Context, _ *core.ProcessContext, t seqTopic) (seqOutline, error) {
 		return seqOutline{Sections: []string{"intro", t.Word, "conclusion"}}, nil
 	}, core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[seqOutline](core.GoalConfig{Description: "outline produced"})}})
 	return a
@@ -28,7 +28,7 @@ func makeOutlineAgent() *core.Agent {
 
 // makeDraftAgent: takes seqOutline, produces seqDraft.
 func makeDraftAgent() *core.Agent {
-	a := agent.New(agent.AgentConfig{Name: "draft-agent", Description: "expand an outline into a draft", Actions: []agent.Action{agent.NewAction("draft", func(_ context.Context, _ *core.ProcessContext, o seqOutline) (seqDraft, error) {
+	a := agent.New(agent.Config{Name: "draft-agent", Description: "expand an outline into a draft", Actions: []agent.Action{agent.NewAction("draft", func(_ context.Context, _ *core.ProcessContext, o seqOutline) (seqDraft, error) {
 		return seqDraft{Body: strings.Join(o.Sections, " | ")}, nil
 	}, core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[seqDraft](core.GoalConfig{Description: "draft produced"})}})
 	return a
@@ -80,7 +80,7 @@ func TestSequence_TwoStepChain(t *testing.T) {
 
 // makeFailingAgent returns an agent whose only action returns the given error.
 func makeFailingAgent(name string, errMsg string) *core.Agent {
-	return agent.New(agent.AgentConfig{Name: name, Actions: []agent.Action{agent.NewAction("failing", func(_ context.Context, _ *core.ProcessContext, t seqTopic) (seqOutline, error) {
+	return agent.New(agent.Config{Name: name, Actions: []agent.Action{agent.NewAction("failing", func(_ context.Context, _ *core.ProcessContext, t seqTopic) (seqOutline, error) {
 		return seqOutline{}, fmt.Errorf("%s", errMsg)
 	}, core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[seqOutline](core.GoalConfig{Description: "outline (will fail)"})}})
 }

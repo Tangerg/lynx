@@ -42,41 +42,41 @@ func (a domainAction) Execute(ctx context.Context, process *core.ProcessContext)
 // domainCondition freezes planner-visible identity and cost while preserving
 // the supplied evaluator as the only executable capability.
 type domainCondition struct {
-	delegate core.Condition
-	name     string
-	cost     float64
+	delegate       core.Condition
+	name           string
+	evaluationCost float64
 }
 
-func (c domainCondition) Name() string  { return c.name }
-func (c domainCondition) Cost() float64 { return c.cost }
+func (c domainCondition) Name() string            { return c.name }
+func (c domainCondition) EvaluationCost() float64 { return c.evaluationCost }
 
 func (c domainCondition) Evaluate(ctx context.Context, environment *core.ConditionEnv) core.Truth {
 	return c.delegate.Evaluate(ctx, environment)
 }
 
-// ConditionKind identifies how the runtime obtains a condition's current value.
-type ConditionKind uint8
+// ConditionSourceKind identifies how the runtime obtains a condition's current value.
+type ConditionSourceKind uint8
 
 const (
-	ConditionFact ConditionKind = iota
+	ConditionFact ConditionSourceKind = iota
 	ConditionBinding
-	ConditionActionRun
+	ConditionActionSuccess
 	ConditionEvaluator
 )
 
 // Valid reports whether k identifies a framework-defined condition source.
-func (k ConditionKind) Valid() bool {
+func (k ConditionSourceKind) Valid() bool {
 	return k >= ConditionFact && k <= ConditionEvaluator
 }
 
-func (k ConditionKind) String() string {
+func (k ConditionSourceKind) String() string {
 	switch k {
 	case ConditionFact:
 		return "fact"
 	case ConditionBinding:
 		return "binding"
-	case ConditionActionRun:
-		return "action run"
+	case ConditionActionSuccess:
+		return "action success"
 	case ConditionEvaluator:
 		return "evaluator"
 	default:
@@ -85,14 +85,14 @@ func (k ConditionKind) String() string {
 }
 
 // ConditionRef identifies one planner-visible condition and its value source.
-// Binding is populated only when Kind is [ConditionBinding].
+// Binding is populated only when Source is [ConditionBinding].
 type ConditionRef struct {
 	Key     string
-	Kind    ConditionKind
+	Source  ConditionSourceKind
 	Binding core.Binding
-	// Cost is the relative evaluation cost when Kind is
-	// [ConditionEvaluator]. Other condition sources have zero cost.
-	Cost float64
+	// EvaluationCost is the relative evaluation cost when Source is
+	// [ConditionEvaluator]. Other condition sources have zero evaluation cost.
+	EvaluationCost float64
 }
 
 type conditionSource struct {
@@ -120,15 +120,15 @@ func newConditionSources() conditionSources {
 
 func (s *conditionSources) declare(ref ConditionRef, origin string) error {
 	if existing, ok := s.byKey[ref.Key]; ok {
-		if existing.ref.Kind == ref.Kind && ref.Kind == ConditionBinding {
+		if existing.ref.Source == ref.Source && ref.Source == ConditionBinding {
 			return nil
 		}
 		return fmt.Errorf(
 			"planning.NewDomain: condition %q has conflicting %s (%s) and %s (%s) sources",
 			ref.Key,
-			existing.ref.Kind,
+			existing.ref.Source,
 			existing.origin,
-			ref.Kind,
+			ref.Source,
 			origin,
 		)
 	}
@@ -144,7 +144,7 @@ func (s conditionSources) refFor(key string) ConditionRef {
 	if source, ok := s.byKey[key]; ok {
 		return source.ref
 	}
-	return ConditionRef{Key: key, Kind: ConditionFact}
+	return ConditionRef{Key: key, Source: ConditionFact}
 }
 
 // NewDomain constructs a domain from explicit slices. Pass nil for any unused
@@ -235,8 +235,8 @@ func snapshotDomainCondition(condition core.Condition) (snapshot core.Condition,
 		}
 	}()
 	name := condition.Name()
-	operation = "Cost"
-	return domainCondition{delegate: condition, name: name, cost: condition.Cost()}, nil
+	operation = "EvaluationCost"
+	return domainCondition{delegate: condition, name: name, evaluationCost: condition.EvaluationCost()}, nil
 }
 
 // Actions returns a snapshot of the available actions.
@@ -307,10 +307,10 @@ func DomainForAgents(agents []*core.Agent) (*Domain, error) {
 	return NewDomain(actions, goals, conditions)
 }
 
-// KnownConditions enumerates all conditions reachable through the domain.
+// ConditionRefs enumerates all conditions reachable through the domain.
 // Iteration is deterministic: action and goal declaration order first, with
 // map-backed keys sorted within each declaration, followed by named conditions.
-func (d *Domain) KnownConditions() iter.Seq[ConditionRef] {
+func (d *Domain) ConditionRefs() iter.Seq[ConditionRef] {
 	if d == nil {
 		return slices.Values([]ConditionRef(nil))
 	}
@@ -358,11 +358,11 @@ func (d *Domain) declareConditionSources() (conditionSources, error) {
 				return sources, fmt.Errorf("planning.NewDomain: action %q binding: %w", metadata.Name, err)
 			}
 			binding = binding.Canonical()
-			if err := sources.declare(ConditionRef{Key: binding.String(), Kind: ConditionBinding, Binding: binding}, origin); err != nil {
+			if err := sources.declare(ConditionRef{Key: binding.String(), Source: ConditionBinding, Binding: binding}, origin); err != nil {
 				return sources, err
 			}
 		}
-		if err := sources.declare(ConditionRef{Key: metadata.RunCondition(), Kind: ConditionActionRun}, origin); err != nil {
+		if err := sources.declare(ConditionRef{Key: metadata.SuccessCondition(), Source: ConditionActionSuccess}, origin); err != nil {
 			return sources, err
 		}
 	}
@@ -370,16 +370,16 @@ func (d *Domain) declareConditionSources() (conditionSources, error) {
 		if strings.TrimSpace(goal.Name()) == "" || strings.TrimSpace(goal.Name()) != goal.Name() {
 			return sources, fmt.Errorf("planning.NewDomain: goal name %q must be non-empty without surrounding whitespace", goal.Name())
 		}
-		if err := goal.Preconditions().Validate(); err != nil {
-			return sources, fmt.Errorf("planning.NewDomain: goal %q preconditions: %w", goal.Name(), err)
+		if err := goal.Requirements().Validate(); err != nil {
+			return sources, fmt.Errorf("planning.NewDomain: goal %q requirements: %w", goal.Name(), err)
 		}
 		origin := "goal " + goal.Name()
-		for _, binding := range goal.Inputs() {
+		for _, binding := range goal.RequiredBindings() {
 			if err := binding.Validate(); err != nil {
 				return sources, fmt.Errorf("planning.NewDomain: goal %q binding: %w", goal.Name(), err)
 			}
 			binding = binding.Canonical()
-			if err := sources.declare(ConditionRef{Key: binding.String(), Kind: ConditionBinding, Binding: binding}, origin); err != nil {
+			if err := sources.declare(ConditionRef{Key: binding.String(), Source: ConditionBinding, Binding: binding}, origin); err != nil {
 				return sources, err
 			}
 		}
@@ -389,10 +389,10 @@ func (d *Domain) declareConditionSources() (conditionSources, error) {
 		if strings.TrimSpace(name) == "" || strings.TrimSpace(name) != name {
 			return sources, fmt.Errorf("planning.NewDomain: condition name %q must be non-empty without surrounding whitespace", name)
 		}
-		if cost := condition.Cost(); math.IsNaN(cost) || math.IsInf(cost, 0) || cost < 0 {
-			return sources, fmt.Errorf("planning.NewDomain: condition %q cost %v must be finite and non-negative", name, cost)
+		if cost := condition.EvaluationCost(); math.IsNaN(cost) || math.IsInf(cost, 0) || cost < 0 {
+			return sources, fmt.Errorf("planning.NewDomain: condition %q evaluation cost %v must be finite and non-negative", name, cost)
 		}
-		if err := sources.declare(ConditionRef{Key: name, Kind: ConditionEvaluator, Cost: condition.Cost()}, "condition "+name); err != nil {
+		if err := sources.declare(ConditionRef{Key: name, Source: ConditionEvaluator, EvaluationCost: condition.EvaluationCost()}, "condition "+name); err != nil {
 			return sources, err
 		}
 	}
@@ -400,7 +400,7 @@ func (d *Domain) declareConditionSources() (conditionSources, error) {
 }
 
 // orderConditionRefs emits the vocabulary in the order a planner meets it:
-// action preconditions and effects, then goal preconditions, then evaluators,
+// action preconditions and effects, then goal requirements, then evaluators,
 // then anything declared but not yet reached. Keys inside each collection are
 // sorted, so one domain always compiles to one sequence.
 func (d *Domain) orderConditionRefs(sources conditionSources) []ConditionRef {
@@ -423,7 +423,7 @@ func (d *Domain) orderConditionRefs(sources conditionSources) []ConditionRef {
 		}
 	}
 	for _, goal := range d.goals {
-		for _, key := range slices.Sorted(maps.Keys(goal.Preconditions())) {
+		for _, key := range slices.Sorted(maps.Keys(goal.Requirements())) {
 			appendKey(key)
 		}
 	}

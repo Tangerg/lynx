@@ -19,7 +19,7 @@ type Evaluator[In, Out any] func(ctx context.Context, process *core.ProcessConte
 
 // RepeatUntilAcceptableConfig is a specialized wrapper over [RepeatUntilConfig]
 // that turns the "loop until LLM is satisfied" pattern into a
-// configuration: supply Task + Evaluator + AcceptableScore (required), and
+// configuration: supply Task + Evaluator + AcceptanceThreshold (required), and
 // the workflow loops until the evaluator's Score crosses the
 // threshold (or [RepeatUntilAcceptableConfig.MaxIterations] expires).
 //
@@ -40,10 +40,10 @@ type RepeatUntilAcceptableConfig[In, Out any] struct {
 	// [RepeatUntilConfig]); negative values are invalid.
 	MaxIterations int
 
-	// AcceptableScore is the required [Feedback.Score] threshold; the loop
+	// AcceptanceThreshold is the required [Feedback.Score] threshold; the loop
 	// terminates as soon as Evaluator returns Score ≥ this. It must be finite
 	// and greater than zero through one, inclusive.
-	AcceptableScore float64
+	AcceptanceThreshold float64
 
 	// Task produces a fresh attempt. Same shape as
 	// [RepeatUntilConfig.Task] — receives loop input, current
@@ -71,7 +71,7 @@ type RepeatUntilAcceptableConfig[In, Out any] struct {
 // once the best score crosses the threshold or MaxIterations is reached.
 //
 // Returns an error on missing Name, nil Task, nil Evaluator, a non-positive or
-// non-finite AcceptableScore, a score above one, or negative MaxIterations.
+// non-finite AcceptanceThreshold, a score above one, or negative MaxIterations.
 func RepeatUntilAcceptable[In, Out any](config RepeatUntilAcceptableConfig[In, Out]) (*core.Agent, error) {
 	if err := validateName("RepeatUntilAcceptable", config.Name); err != nil {
 		return nil, err
@@ -85,9 +85,9 @@ func RepeatUntilAcceptable[In, Out any](config RepeatUntilAcceptableConfig[In, O
 	// What counts as good enough is the author's judgement, not something this
 	// package can guess, so an unset threshold is an error rather than a number
 	// picked here.
-	threshold := config.AcceptableScore
+	threshold := config.AcceptanceThreshold
 	if math.IsNaN(threshold) || math.IsInf(threshold, 0) || threshold <= 0 || threshold > 1 {
-		return nil, fmt.Errorf("workflow.RepeatUntilAcceptable: AcceptableScore %v must be set and between 0 (exclusive) and 1", threshold)
+		return nil, fmt.Errorf("workflow.RepeatUntilAcceptable: AcceptanceThreshold %v must be set and between 0 (exclusive) and 1", threshold)
 	}
 	if config.MaxIterations < 0 {
 		return nil, fmt.Errorf("workflow.RepeatUntilAcceptable: MaxIterations %d must not be negative", config.MaxIterations)
@@ -95,19 +95,19 @@ func RepeatUntilAcceptable[In, Out any](config RepeatUntilAcceptableConfig[In, O
 	maxIterations := cmp.Or(config.MaxIterations, defaultRepeatIterations)
 
 	acceptKey := config.Name + "_acceptable"
-	historyState := core.NewBinding[AttemptHistory[Out]](config.Name + historyStateSuffix)
-	feedbackState := core.NewBinding[Feedback](config.Name + feedbackStateSuffix)
+	historyBinding := core.NewBinding[AttemptHistory[Out]](config.Name + historyStateSuffix)
+	feedbackBinding := core.NewBinding[Feedback](config.Name + feedbackStateSuffix)
 
 	return compileRepeatWorkflow(repeatWorkflowConfig[In, Out, AttemptHistory[Out]]{
-		name:          config.Name,
-		description:   config.Description,
-		actionName:    config.Name + "-task",
-		doneKey:       acceptKey,
-		maxIterations: maxIterations,
-		stateBinding:  historyState,
-		newState:      func() AttemptHistory[Out] { return AttemptHistory[Out]{} },
-		count:         AttemptHistory[Out].Count,
-		snapshotState: []core.Binding{feedbackState},
+		name:             config.Name,
+		description:      config.Description,
+		actionName:       config.Name + "-task",
+		doneKey:          acceptKey,
+		maxIterations:    maxIterations,
+		stateBinding:     historyBinding,
+		newState:         func() AttemptHistory[Out] { return AttemptHistory[Out]{} },
+		count:            AttemptHistory[Out].Count,
+		snapshotBindings: []core.Binding{feedbackBinding},
 		run: func(ctx context.Context, process *core.ProcessContext, input In, history AttemptHistory[Out]) (Out, AttemptHistory[Out], error) {
 			var zero Out
 
@@ -124,14 +124,14 @@ func RepeatUntilAcceptable[In, Out any](config RepeatUntilAcceptableConfig[In, O
 				return zero, history, fmt.Errorf("workflow.RepeatUntilAcceptable: evaluator feedback: %w", err)
 			}
 			history = history.withAttempt(output, feedback)
-			if err := process.Blackboard().Store(feedbackState.Name, feedback); err != nil {
+			if err := process.Blackboard().Store(feedbackBinding.Name, feedback); err != nil {
 				return zero, history, fmt.Errorf("workflow.RepeatUntilAcceptable: store feedback: %w", err)
 			}
 
 			best, _ := history.Best()
 			return best.Output, history, nil
 		},
-		stop: func(_ context.Context, _ In, history AttemptHistory[Out]) bool {
+		until: func(_ context.Context, _ In, history AttemptHistory[Out]) bool {
 			best, ok := history.Best()
 			return ok && best.Feedback.Acceptable(threshold)
 		},

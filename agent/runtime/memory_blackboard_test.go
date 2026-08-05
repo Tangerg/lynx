@@ -49,7 +49,7 @@ func TestInMemoryBlackboardSnapshotPreservesVisibility(t *testing.T) {
 	if err := restored.Restore(state); err != nil {
 		t.Fatal(err)
 	}
-	value, ok := restored.Lookup(core.LastResultBindingName, "")
+	value, ok := restored.Lookup(core.LatestObjectBindingName, "")
 	if !ok || value != fresh {
 		t.Fatalf("visible value after restore = %v/%v, want %v", value, ok, fresh)
 	}
@@ -73,9 +73,9 @@ func TestInMemoryBlackboardSpawnInheritsHidden(t *testing.T) {
 	}
 
 	// Lookup (the hidden-aware path the planner's typed binding + Sequence's
-	// last_result chaining use, unlike core.Last which scans all objects) must
+	// latest_object chaining use, unlike core.Last which scans all objects) must
 	// skip the hidden latest and return "fresh".
-	parentValue, ok := parent.Lookup(core.LastResultBindingName, "")
+	parentValue, ok := parent.Lookup(core.LatestObjectBindingName, "")
 	parentItem, typed := parentValue.(item)
 	if !ok || !typed || parentItem.Value != "fresh" {
 		t.Fatalf("parent visible-latest = %#v, %v/%v; want fresh", parentValue, ok, typed)
@@ -84,7 +84,7 @@ func TestInMemoryBlackboardSpawnInheritsHidden(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	childValue, ok := child.Lookup(core.LastResultBindingName, "")
+	childValue, ok := child.Lookup(core.LatestObjectBindingName, "")
 	childItem, typed := childValue.(item)
 	if !ok || !typed || childItem.Value != "fresh" {
 		t.Fatalf("child visible-latest = %#v, %v/%v; want fresh", childValue, ok, typed)

@@ -25,15 +25,15 @@ func TestRestoreAnsweredSuspensionContinues(t *testing.T) {
 	definition := restoreGateAgent("restore-answered")
 	mustDeploy(t, source, definition)
 
-	segment, err := source.Start(t.Context(), definition, core.Input(restoreGateInput{}), core.ProcessOptions{})
+	runHandle, err := source.Start(t.Context(), definition, core.Input(restoreGateInput{}), core.ProcessOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if completion := awaitSegment(t, segment); completion.Error() != nil {
+	if completion := awaitRun(t, runHandle); completion.Error() != nil {
 		t.Fatal(completion.Error())
 	}
-	process := segment.Process()
-	if err := source.Resume(t.Context(), process.ID(), "restore-approval", true); err != nil {
+	process := runHandle.Process()
+	if err := source.Respond(t.Context(), process.ID(), "restore-approval", true); err != nil {
 		t.Fatal(err)
 	}
 
@@ -70,14 +70,14 @@ func TestForeignSuspensionNeverAcquiresFrameworkState(t *testing.T) {
 	definition := producerToolSuspensionAgent()
 	mustDeploy(t, source, definition)
 
-	segment, err := source.Start(t.Context(), definition, core.Input(restoreGateInput{}), core.ProcessOptions{})
+	runHandle, err := source.Start(t.Context(), definition, core.Input(restoreGateInput{}), core.ProcessOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if completion := awaitSegment(t, segment); completion.Error() != nil {
+	if completion := awaitRun(t, runHandle); completion.Error() != nil {
 		t.Fatal(completion.Error())
 	}
-	process := segment.Process()
+	process := runHandle.Process()
 	if process.Status() != core.StatusWaiting {
 		t.Fatalf("process status = %s, want waiting", process.Status())
 	}
@@ -104,7 +104,7 @@ func TestForeignSuspensionNeverAcquiresFrameworkState(t *testing.T) {
 	if err != nil {
 		t.Fatalf("RestoreTree(producer tool suspension): %v", err)
 	}
-	if err := target.Resume(t.Context(), restored.ID(), "producer-tool", true); err != nil {
+	if err := target.Respond(t.Context(), restored.ID(), "producer-tool", true); err != nil {
 		t.Fatal(err)
 	}
 	if err := target.Continue(t.Context(), restored.ID()); err != nil {
@@ -128,7 +128,7 @@ func TestRestoreAnsweredNestedSuspensionContinuesWholeBranch(t *testing.T) {
 	source := agent.MustNewEngine(runtime.Config{})
 	sourceParent, sourceRef := deployNestedRestoreAgents(t, source)
 
-	segment, err := source.Start(
+	runHandle, err := source.Start(
 		t.Context(),
 		sourceParent,
 		core.Input(nestedRestoreInput{Value: 21}),
@@ -137,10 +137,10 @@ func TestRestoreAnsweredNestedSuspensionContinuesWholeBranch(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if completion := awaitSegment(t, segment); completion.Error() != nil {
+	if completion := awaitRun(t, runHandle); completion.Error() != nil {
 		t.Fatal(completion.Error())
 	}
-	root := segment.Process()
+	root := runHandle.Process()
 	pending, err := source.PendingSuspensions(t.Context(), root.ID())
 	if err != nil {
 		t.Fatalf("PendingSuspensions: %v", err)
@@ -150,7 +150,7 @@ func TestRestoreAnsweredNestedSuspensionContinuesWholeBranch(t *testing.T) {
 		pending[0].SuspensionID != "nested-approval" {
 		t.Fatalf("nested pending suspensions = %#v, want one child-owned approval", pending)
 	}
-	if err := source.Resume(t.Context(), root.ID(), "nested-approval", true); err != nil {
+	if err := source.Respond(t.Context(), root.ID(), "nested-approval", true); err != nil {
 		t.Fatal(err)
 	}
 	pending, err = source.PendingSuspensions(t.Context(), root.ID())
@@ -192,7 +192,7 @@ func TestRestoreAnsweredNestedSuspensionContinuesWholeBranch(t *testing.T) {
 }
 
 func restoreGateAgent(name string) *core.Agent {
-	return agent.New(agent.AgentConfig{
+	return agent.New(agent.Config{
 		Name: name,
 		Actions: []agent.Action{agent.NewAction(
 			"gate",
@@ -209,7 +209,7 @@ func restoreGateAgent(name string) *core.Agent {
 }
 
 func producerToolSuspensionAgent() *core.Agent {
-	return agent.New(agent.AgentConfig{
+	return agent.New(agent.Config{
 		Name: "producer-tool-suspension",
 		Actions: []agent.Action{agent.NewAction(
 			"wait-for-tool",
@@ -222,11 +222,11 @@ func producerToolSuspensionAgent() *core.Agent {
 					return restoreGateOutput{Approved: approved}, nil
 				}
 				return restoreGateOutput{}, &interaction.SuspendedError{Suspension: interaction.Suspension{
-					SchemaVersion: interaction.SuspensionSchemaVersion,
-					ID:            "producer-tool",
-					Prompt:        json.RawMessage(`"continue?"`),
-					ResumeSchema:  json.RawMessage(`{"type":"boolean"}`),
-					CreatedAt:     time.Now(),
+					SchemaVersion:  interaction.SuspensionSchemaVersion,
+					ID:             "producer-tool",
+					Prompt:         json.RawMessage(`"continue?"`),
+					ResponseSchema: json.RawMessage(`{"type":"boolean"}`),
+					CreatedAt:      time.Now(),
 				}}
 			},
 			core.ActionConfig{},
@@ -239,7 +239,7 @@ func producerToolSuspensionAgent() *core.Agent {
 
 func deployNestedRestoreAgents(t *testing.T, engine *runtime.Engine) (*core.Agent, core.DeploymentRef) {
 	t.Helper()
-	child := agent.New(agent.AgentConfig{
+	child := agent.New(agent.Config{
 		Name: "nested-restore-child",
 		Actions: []agent.Action{agent.NewAction(
 			"approve-and-double",
@@ -267,7 +267,7 @@ func deployNestedRestoreAgents(t *testing.T, engine *runtime.Engine) (*core.Agen
 	if err != nil {
 		t.Fatal(err)
 	}
-	parent := agent.New(agent.AgentConfig{
+	parent := agent.New(agent.Config{
 		Name: "nested-restore-parent",
 		Actions: []agent.Action{agent.NewAction(
 			"delegate",
@@ -321,18 +321,18 @@ func TestUnrestorableSnapshotIsAlwaysClassifiable(t *testing.T) {
 	definition := restoreGateAgent("restore-classifiable")
 	mustDeploy(t, source, definition)
 
-	segment, err := source.Start(t.Context(), definition, core.Input(restoreGateInput{}), core.ProcessOptions{})
+	runHandle, err := source.Start(t.Context(), definition, core.Input(restoreGateInput{}), core.ProcessOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if completion := awaitSegment(t, segment); completion.Error() != nil {
+	if completion := awaitRun(t, runHandle); completion.Error() != nil {
 		t.Fatal(completion.Error())
 	}
-	tree, err := source.SnapshotTree(t.Context(), segment.Process().ID())
+	tree, err := source.SnapshotTree(t.Context(), runHandle.Process().ID())
 	if err != nil {
 		t.Fatal(err)
 	}
-	resumable := snapshotByID(t, tree, segment.Process().ID())
+	resumable := snapshotByID(t, tree, runHandle.Process().ID())
 	if err := runtime.ValidateResumableSnapshot(resumable); err != nil {
 		t.Fatalf("captured snapshot is not resumable: %v", err)
 	}
@@ -353,10 +353,10 @@ func TestUnrestorableSnapshotIsAlwaysClassifiable(t *testing.T) {
 			s.Suspension.FrameworkState = json.RawMessage(`{"schema_version":9999}`)
 		},
 		"framework state has an unknown field": func(s *core.ProcessSnapshot) {
-			s.Suspension.FrameworkState = json.RawMessage(`{"schema_version":3,"invented":true}`)
+			s.Suspension.FrameworkState = json.RawMessage(`{"schema_version":5,"invented":true}`)
 		},
 		"framework state has a trailing value": func(s *core.ProcessSnapshot) {
-			s.Suspension.FrameworkState = json.RawMessage(`{"schema_version":3,"kind":"managed_interaction"} {}`)
+			s.Suspension.FrameworkState = json.RawMessage(`{"schema_version":5,"kind":"managed_interaction"} {}`)
 		},
 	}
 	for name, corruption := range corrupt {

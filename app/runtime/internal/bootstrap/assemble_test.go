@@ -533,11 +533,11 @@ func TestAssemblyRecoversParkedRunWithIncompatibleDeployment(t *testing.T) {
 		StartedAt:     createdAt,
 		Status:        core.StatusWaiting,
 		Suspension: &agent.Suspension{
-			SchemaVersion: agent.SuspensionSchemaVersion,
-			ID:            "suspension-park",
-			Prompt:        json.RawMessage(`"continue?"`),
-			ResumeSchema:  json.RawMessage(`{"type":"boolean"}`),
-			CreatedAt:     parkedAt,
+			SchemaVersion:  agent.SuspensionSchemaVersion,
+			ID:             "suspension-park",
+			Prompt:         json.RawMessage(`"continue?"`),
+			ResponseSchema: json.RawMessage(`{"type":"boolean"}`),
+			CreatedAt:      parkedAt,
 		},
 	})
 	if err := cfg.ExecutorCheckpoints.SaveCheckpoint(ctx, bootstrapCheckpoint(tree, sessionID, accounting.Snapshot{})); err != nil {

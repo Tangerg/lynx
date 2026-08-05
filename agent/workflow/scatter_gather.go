@@ -19,7 +19,7 @@ type scatterOutput[Element any] struct {
 
 // ScatterGatherConfig configures a scatter-gather workflow: every
 // Generator runs in parallel against the workflow input, then a
-// single Joiner consolidates the per-generator outputs into the
+// single Join function consolidates the per-generator outputs into the
 // final Result.
 //
 // Type parameters:
@@ -28,7 +28,7 @@ type scatterOutput[Element any] struct {
 //   - Result  — the joined output.
 //
 // Each generator runs in its own goroutine without access to the parent
-// ProcessContext. Joiner sees the slice of Elements in generator order only
+// ProcessContext. Join sees the slice of Elements in generator order only
 // after every started generator has returned. A generator error cancels the
 // shared context, but cancellation remains cooperative. If multiple generators
 // fail, the lowest-index non-cancellation failure wins so completion timing
@@ -49,9 +49,9 @@ type ScatterGatherConfig[In, Element, Result any] struct {
 	// In and produces an Element. Must be non-empty.
 	Generators []Generator[In, Element]
 
-	// Joiner consolidates the per-generator outputs into the final
+	// Join consolidates the per-generator outputs into the final
 	// Result. results is in the same order as Generators. Required.
-	Joiner func(ctx context.Context, process *core.ProcessContext, results []Element) (Result, error)
+	Join func(ctx context.Context, process *core.ProcessContext, results []Element) (Result, error)
 }
 
 // ScatterGather compiles config into a deployable [*core.Agent].
@@ -61,13 +61,13 @@ type ScatterGatherConfig[In, Element, Result any] struct {
 //  1. "{Name}-scatter" — runs every generator in parallel under
 //     errgroup and binds its private fan-out result on the blackboard.
 //  2. "{Name}-gather"  — preconditioned on the bound list; runs
-//     Joiner; binds Result.
+//     Join; binds Result.
 //
 // The single goal targets Result, so [runtime.Engine.Run] terminates
-// when Joiner has bound it.
+// when Join has bound it.
 //
 // Returns an error on missing Name, negative MaxConcurrency, empty Generators,
-// a nil Generator, or nil Joiner.
+// a nil Generator, or nil Join.
 func ScatterGather[In, Element, Result any](config ScatterGatherConfig[In, Element, Result]) (*core.Agent, error) {
 	return scatterGather(config, func(ctx context.Context, _ *core.ProcessContext) context.Context {
 		return core.WithProcessView(ctx, nil)
@@ -87,8 +87,8 @@ func scatterGather[In, Element, Result any](
 	if len(config.Generators) == 0 {
 		return nil, errors.New("workflow.ScatterGather: Generators must not be empty")
 	}
-	if config.Joiner == nil {
-		return nil, errors.New("workflow.ScatterGather: Joiner must not be nil")
+	if config.Join == nil {
+		return nil, errors.New("workflow.ScatterGather: Join must not be nil")
 	}
 	for index, generator := range config.Generators {
 		if generator == nil {
@@ -100,7 +100,7 @@ func scatterGather[In, Element, Result any](
 	description := config.Description
 	maxConcurrency := config.MaxConcurrency
 	generators := slices.Clone(config.Generators)
-	joiner := config.Joiner
+	join := config.Join
 
 	scatter := core.NewAction[In, scatterOutput[Element]](
 		name+"-scatter",
@@ -152,7 +152,7 @@ func scatterGather[In, Element, Result any](
 	gather := core.NewAction[scatterOutput[Element], Result](
 		name+"-gather",
 		func(ctx context.Context, process *core.ProcessContext, input scatterOutput[Element]) (Result, error) {
-			return joiner(ctx, process, input.Items)
+			return join(ctx, process, input.Items)
 		},
 		core.ActionConfig{},
 	)

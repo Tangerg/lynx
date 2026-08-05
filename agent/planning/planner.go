@@ -165,7 +165,7 @@ func (d *Domain) Plans(
 		}
 		plans = append(plans, accepted)
 	}
-	rankingState, err := d.ResolvedState(state, options.ConditionResolver)
+	rankingState, err := d.StateWithResolvedConditions(state, options.ConditionResolver)
 	if err != nil {
 		return nil, fmt.Errorf("planning.Domain.Plans: resolved ranking state: %w", err)
 	}
@@ -250,7 +250,7 @@ func (d *Domain) acceptPlan(ctx context.Context, plan *Plan, goal *core.Goal, st
 		canonical[index] = action
 		cursor = cursor.Apply(metadata.Effects)
 	}
-	satisfied, err := d.Satisfies(ctx, cursor, goal.Preconditions(), options.ConditionResolver)
+	satisfied, err := d.Satisfies(ctx, cursor, goal.Requirements(), options.ConditionResolver)
 	if err != nil {
 		return nil, fmt.Errorf("%w: goal %q preconditions: %w", errInvalidPlan, goal.Name(), err)
 	}

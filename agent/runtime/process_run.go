@@ -28,9 +28,9 @@ func (p *Process) runOwned(ctx context.Context) error {
 	return runErr
 }
 
-// runOwnedSegment publishes exactly one immutable completion after runtime
+// runOwnedHandle publishes exactly one immutable completion after runtime
 // observability work has completed.
-func (p *Process) runOwnedSegment(ctx context.Context, segment *Segment, beforeCompletion func(error)) {
+func (p *Process) runOwnedHandle(ctx context.Context, handle *RunHandle, beforeCompletion func(error)) {
 	runErr := p.driveOwned(ctx)
 	p.finishRunLoop(ctx)
 	if beforeCompletion != nil {
@@ -38,11 +38,11 @@ func (p *Process) runOwnedSegment(ctx context.Context, segment *Segment, beforeC
 	}
 	results := p.Blackboard().Objects()
 	outcome := p.state.endRun()
-	segment.complete(RunCompletion{
-		Status:  outcome.status,
-		Failure: outcome.failure,
-		Err:     runErr,
-		results: results,
+	handle.complete(RunCompletion{
+		Status:       outcome.status,
+		Failure:      outcome.failure,
+		RuntimeError: runErr,
+		results:      results,
 	})
 }
 
@@ -127,12 +127,12 @@ func (p *Process) tick(ctx context.Context) {
 		return
 	}
 
-	p.tickSimple(ctx, worldState)
+	p.planAndAct(ctx, worldState)
 }
 
 // observe runs the state reader and publishes the PlanningStarted event.
 func (p *Process) observe(ctx context.Context, span trace.Span) (core.WorldState, error) {
-	worldState, err := p.stateReader.read(ctx)
+	worldState, err := p.stateObserver.observe(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("runtime.Process.observe: %w", err)
 	}
@@ -157,14 +157,14 @@ func (p *Process) terminateOnRequest(ctx context.Context, reason string) {
 	}
 }
 
-// tickSimple runs the first applicable action of the best plan.
-func (p *Process) tickSimple(ctx context.Context, worldState core.WorldState) {
-	planResult, done := p.planForTick(ctx, worldState)
+// planAndAct runs the first applicable action of the best plan.
+func (p *Process) planAndAct(ctx context.Context, worldState core.WorldState) {
+	plan, done := p.planForTick(ctx, worldState)
 	if done {
 		return
 	}
 
-	actions := planResult.Actions()
+	actions := plan.Actions()
 	action := actions[0]
 	admitted, reason, err := p.budget.admitAction()
 	if err != nil {
@@ -192,7 +192,7 @@ func (p *Process) tickSimple(ctx context.Context, worldState core.WorldState) {
 	}
 }
 
-// planForTick is the prelude tickSimple runs before deciding which action to
+// planForTick is the prelude planAndAct runs before deciding which action to
 // execute. It plans and handles the three "no action this tick" outcomes
 // (planner error → fail, no plan → stuck, plan complete → goal achieved), and
 // on success sets the process goal and publishes [event.PlanCreated]. Every
@@ -201,33 +201,33 @@ func (p *Process) tickSimple(ctx context.Context, worldState core.WorldState) {
 //
 // Return shape:
 //
-//   - planResult, false — caller should proceed to execute the plan
-//   - nil,        true  — caller should return immediately (process
+//   - plan, false — caller should proceed to execute the plan
+//   - nil,  true  — caller should return immediately (process
 //     transitioned via failProcess / handleStuck / completeForGoal)
 func (p *Process) planForTick(ctx context.Context, worldState core.WorldState) (*planning.Plan, bool) {
 	planStart := time.Now()
-	planResult, err := p.formulatePlan(ctx, worldState)
+	plan, err := p.formulatePlan(ctx, worldState)
 	p.recordPlanMetric(ctx, time.Since(planStart))
 	if err != nil {
 		p.failProcess(err)
 		return nil, true
 	}
-	if planResult == nil {
+	if plan == nil {
 		p.handleStuck(ctx, worldState)
 		return nil, true
 	}
 	p.state.clearStuckReplan()
-	if planResult.Complete() {
-		p.completeForGoal(ctx, planResult.Goal())
+	if plan.Complete() {
+		p.completeForGoal(ctx, plan.Goal())
 		return nil, true
 	}
 
-	p.state.pursue(planResult.Goal())
+	p.state.pursue(plan.Goal())
 	p.publishEvent(ctx, event.PlanCreated{
 		Header: p.eventHeader(),
-		Plan:   planResult.Descriptor(),
+		Plan:   plan.Descriptor(),
 	})
-	return planResult, false
+	return plan, false
 }
 
 // formulatePlan runs the configured planner against the current world state,
@@ -267,7 +267,7 @@ func (p *Process) formulatePlan(ctx context.Context, worldState core.WorldState)
 		ctx, p.planner, worldState,
 		planning.Options{
 			ExcludedActions:   p.state.snapshotExclusions(),
-			ConditionResolver: p.stateReader,
+			ConditionResolver: p.stateObserver,
 		},
 	)
 }

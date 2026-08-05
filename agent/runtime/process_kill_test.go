@@ -12,7 +12,7 @@ import (
 )
 
 func blockingChild(name string, release <-chan struct{}) *core.Agent {
-	return agent.New(agent.AgentConfig{
+	return agent.New(agent.Config{
 		Name: name,
 		Actions: []agent.Action{agent.NewAction(
 			"work",
@@ -81,13 +81,13 @@ func TestKillListenerMayReenterSameProcessTree(t *testing.T) {
 	release := make(chan struct{})
 	definition := blockingChild("reentrant-kill", release)
 	mustDeploy(t, engine, definition)
-	segment, err := engine.Start(t.Context(), definition, core.Input(subInput{Value: 1}), core.ProcessOptions{})
+	runHandle, err := engine.Start(t.Context(), definition, core.Input(subInput{Value: 1}), core.ProcessOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	killDone := make(chan error, 1)
-	go func() { killDone <- engine.Kill(t.Context(), segment.Process().ID()) }()
+	go func() { killDone <- engine.Kill(t.Context(), runHandle.Process().ID()) }()
 	select {
 	case err := <-reentered:
 		if err != nil {
@@ -99,7 +99,7 @@ func TestKillListenerMayReenterSameProcessTree(t *testing.T) {
 	if err := <-killDone; err != nil {
 		t.Fatalf("outer Kill: %v", err)
 	}
-	awaitSegment(t, segment)
+	awaitRun(t, runHandle)
 	close(release)
 }
 
@@ -109,11 +109,11 @@ func TestRemoveTreeRejectsActiveProcess(t *testing.T) {
 	a := blockingChild("remove-active", release)
 	mustDeploy(t, engine, a)
 
-	segment, err := engine.Start(t.Context(), a, core.Input(subInput{Value: 1}), core.ProcessOptions{})
+	runHandle, err := engine.Start(t.Context(), a, core.Input(subInput{Value: 1}), core.ProcessOptions{})
 	if err != nil {
 		t.Fatalf("Start: %v", err)
 	}
-	proc := segment.Process()
+	proc := runHandle.Process()
 	if err := engine.RemoveTree(t.Context(), proc.ID()); !errors.Is(err, runtime.ErrProcessActive) {
 		t.Fatalf("RemoveTree active process error = %v, want ErrProcessActive", err)
 	}
@@ -123,7 +123,7 @@ func TestRemoveTreeRejectsActiveProcess(t *testing.T) {
 	if err := engine.Kill(t.Context(), proc.ID()); err != nil {
 		t.Fatalf("Kill: %v", err)
 	}
-	awaitSegment(t, segment)
+	awaitRun(t, runHandle)
 	close(release)
 	if err := engine.RemoveTree(t.Context(), proc.ID()); err != nil {
 		t.Fatalf("RemoveTree terminal process: %v", err)

@@ -138,11 +138,11 @@ func TestUsageLedgerProjectsExactProcessSubtrees(t *testing.T) {
 		}
 	}
 
-	childOutput, err := ledger.output(child, "child reply", agent.InteractionStopSteps)
+	childOutput, err := ledger.output(child, "child reply", agent.InteractionStopModelCalls)
 	if err != nil {
 		t.Fatalf("child output: %v", err)
 	}
-	if childOutput.StopReason != agent.InteractionStopSteps ||
+	if childOutput.StopReason != agent.InteractionStopModelCalls ||
 		childOutput.Usage.PromptTokens != 8 ||
 		childOutput.Usage.CompletionTokens != 2 ||
 		!sameCost(childOutput.CostUSD, 0.8) ||

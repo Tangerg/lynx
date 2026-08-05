@@ -38,11 +38,11 @@ func bootstrapWaitingSnapshot(id string) core.ProcessSnapshot {
 		StartedAt:     started,
 		Status:        core.StatusWaiting,
 		Suspension: &agent.Suspension{
-			SchemaVersion: agent.SuspensionSchemaVersion,
-			ID:            "suspension-" + id,
-			Prompt:        json.RawMessage(`"continue?"`),
-			ResumeSchema:  json.RawMessage(`{"type":"boolean"}`),
-			CreatedAt:     started,
+			SchemaVersion:  agent.SuspensionSchemaVersion,
+			ID:             "suspension-" + id,
+			Prompt:         json.RawMessage(`"continue?"`),
+			ResponseSchema: json.RawMessage(`{"type":"boolean"}`),
+			CreatedAt:      started,
 		},
 	}
 }

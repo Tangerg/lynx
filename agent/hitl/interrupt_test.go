@@ -26,42 +26,42 @@ func (r *suspensionRecorder) Suspend(_ context.Context, suspension interaction.S
 	return core.ActionWaiting, nil
 }
 
-func TestIsInterruptUsesUnifiedSuspensionSignal(t *testing.T) {
+func TestIsSuspendedUsesUnifiedSuspensionSignal(t *testing.T) {
 	interrupt := &interaction.SuspendedError{Suspension: interaction.Suspension{
-		SchemaVersion: interaction.SuspensionSchemaVersion,
-		ID:            "approval",
-		Prompt:        json.RawMessage(`"approve?"`),
-		ResumeSchema:  json.RawMessage(`{"type":"boolean"}`),
-		CreatedAt:     time.Now(),
+		SchemaVersion:  interaction.SuspensionSchemaVersion,
+		ID:             "approval",
+		Prompt:         json.RawMessage(`"approve?"`),
+		ResponseSchema: json.RawMessage(`{"type":"boolean"}`),
+		CreatedAt:      time.Now(),
 	}}
-	if !IsInterrupt(fmt.Errorf("wrapped: %w", interrupt)) {
+	if !IsSuspended(fmt.Errorf("wrapped: %w", interrupt)) {
 		t.Fatal("wrapped suspension was not recognized")
 	}
-	if IsInterrupt(&toolloop.AbortError{Err: errors.New("fatal")}) {
+	if IsSuspended(&toolloop.AbortError{Err: errors.New("fatal")}) {
 		t.Fatal("ordinary tool-loop abort must not be treated as an interrupt")
 	}
 }
 
-func TestHandleInterruptParksSuspensionAtUntypedActionBoundary(t *testing.T) {
+func TestHandleSuspensionParksAtUntypedActionBoundary(t *testing.T) {
 	interrupt := &interaction.SuspendedError{Suspension: interaction.Suspension{
-		SchemaVersion: interaction.SuspensionSchemaVersion,
-		ID:            "approval",
-		Prompt:        json.RawMessage(`"approve?"`),
-		ResumeSchema:  json.RawMessage(`{"type":"boolean"}`),
-		CreatedAt:     time.Now(),
+		SchemaVersion:  interaction.SuspensionSchemaVersion,
+		ID:             "approval",
+		Prompt:         json.RawMessage(`"approve?"`),
+		ResponseSchema: json.RawMessage(`{"type":"boolean"}`),
+		CreatedAt:      time.Now(),
 	}}
 	recorder := new(suspensionRecorder)
 	process := core.NewProcessContext(core.ProcessContextConfig{Control: recorder})
 
-	status, handled, err := HandleInterrupt(t.Context(), process, fmt.Errorf("wrapped: %w", interrupt))
+	status, handled, err := HandleSuspension(t.Context(), process, fmt.Errorf("wrapped: %w", interrupt))
 	if err != nil {
-		t.Fatalf("HandleInterrupt: %v", err)
+		t.Fatalf("HandleSuspension: %v", err)
 	}
 	if !handled || status != core.ActionWaiting || !recorder.called || recorder.suspension.ID != "approval" {
-		t.Fatalf("HandleInterrupt = status %s handled %v recorder %#v", status, handled, recorder)
+		t.Fatalf("HandleSuspension = status %s handled %v recorder %#v", status, handled, recorder)
 	}
 
-	status, handled, err = HandleInterrupt(t.Context(), process, errors.New("ordinary"))
+	status, handled, err = HandleSuspension(t.Context(), process, errors.New("ordinary"))
 	if err != nil || handled || status != 0 {
 		t.Fatalf("ordinary error = status %s handled %v err %v", status, handled, err)
 	}

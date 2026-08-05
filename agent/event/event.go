@@ -42,16 +42,16 @@ const (
 // It's an opaque value object: built via [NewHeader] and read through
 // the [Event] interface methods.
 type Header struct {
-	at        time.Time
+	timestamp time.Time
 	processID string
 }
 
-func (h Header) Timestamp() time.Time { return h.at }
+func (h Header) Timestamp() time.Time { return h.timestamp }
 func (h Header) ProcessID() string    { return h.processID }
 
 // NewHeader stamps a fresh event with the current time.
 func NewHeader(processID string) Header {
-	return Header{at: time.Now(), processID: processID}
+	return Header{timestamp: time.Now(), processID: processID}
 }
 
 // AgentDeployed fires when an agent is registered on an Engine.
@@ -62,7 +62,7 @@ type AgentDeployed struct {
 
 func (AgentDeployed) Kind() Kind { return KindAgentDeployed }
 
-// AgentUndeployed fires when an agent is removed from an Engine.
+// AgentUndeployed fires when an agent's active deployment route is removed.
 type AgentUndeployed struct {
 	Header
 	Deployment core.DeploymentRef

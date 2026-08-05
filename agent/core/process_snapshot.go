@@ -16,11 +16,11 @@ import (
 // ProcessSnapshotSchemaVersion is the only portable process wire schema this
 // development version accepts. Missing and unknown versions fail explicitly;
 // the framework never guesses an obsolete snapshot shape.
-const ProcessSnapshotSchemaVersion uint16 = 15
+const ProcessSnapshotSchemaVersion uint16 = 17
 
 var (
-	ErrSnapshotSchema  = errors.New("process snapshot: unsupported schema")
-	ErrInvalidSnapshot = errors.New("process snapshot: invalid")
+	ErrUnsupportedSnapshotSchema = errors.New("process snapshot: unsupported schema")
+	ErrInvalidSnapshot           = errors.New("process snapshot: invalid")
 )
 
 // ProcessFailure is the portable failure representation stored in a process
@@ -137,7 +137,7 @@ func (w processSnapshotWire) snapshot() (ProcessSnapshot, error) {
 // Validate checks the portable process state without mutating it.
 func (s ProcessSnapshot) Validate() error {
 	if s.SchemaVersion != ProcessSnapshotSchemaVersion {
-		return fmt.Errorf("%w: version %d", ErrSnapshotSchema, s.SchemaVersion)
+		return fmt.Errorf("%w: version %d", ErrUnsupportedSnapshotSchema, s.SchemaVersion)
 	}
 	if strings.TrimSpace(s.ID) == "" || strings.TrimSpace(s.ID) != s.ID {
 		return fmt.Errorf("%w: ID must be non-empty without surrounding whitespace", ErrInvalidSnapshot)

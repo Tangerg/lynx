@@ -252,7 +252,7 @@ func TestProcessChildAdmitterOverridesEngineFallback(t *testing.T) {
 		childAdmissionParent(engine, childDeployment),
 		core.Input(subInput{Value: 21}),
 		core.ProcessOptions{
-			ChildOptions: func(context.Context, core.ProcessView, core.AgentDescriptor) (core.ProcessOptions, error) {
+			ConfigureChild: func(context.Context, core.ProcessView, core.AgentDescriptor) (core.ProcessOptions, error) {
 				return core.ProcessOptions{Extensions: []core.Extension{processGate}}, nil
 			},
 		},
@@ -275,7 +275,7 @@ func TestProcessChildAdmitterOverridesEngineFallback(t *testing.T) {
 }
 
 func childAdmissionTestAgent(name string, executed *atomic.Bool) *core.Agent {
-	return agent.New(agent.AgentConfig{
+	return agent.New(agent.Config{
 		Name: name,
 		Actions: []agent.Action{agent.NewAction(
 			"complete-child",
@@ -290,7 +290,7 @@ func childAdmissionTestAgent(name string, executed *atomic.Bool) *core.Agent {
 }
 
 func childAdmissionParent(engine *runtime.Engine, child *runtime.Deployment) *core.Agent {
-	return agent.New(agent.AgentConfig{
+	return agent.New(agent.Config{
 		Name: "child-admission-parent",
 		Actions: []agent.Action{agent.NewAction(
 			"run-child",
@@ -312,7 +312,7 @@ func childAdmissionParent(engine *runtime.Engine, child *runtime.Deployment) *co
 }
 
 func childAdmissionToolParent(engine *runtime.Engine, child *runtime.Deployment) *core.Agent {
-	return agent.New(agent.AgentConfig{
+	return agent.New(agent.Config{
 		Name: "child-admission-tool-parent",
 		Actions: []agent.Action{agent.NewAction(
 			"run-child-tool",

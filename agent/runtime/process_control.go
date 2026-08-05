@@ -17,10 +17,10 @@ type processControl struct{ process *Process }
 // cancellation are delivered immediately through atomically owned cancel
 // functions.
 type processSignals struct {
-	terminationMu  sync.Mutex
-	termination    *terminationRequest
-	runCancel      atomic.Pointer[context.CancelFunc]
-	toolCallCancel atomic.Pointer[context.CancelFunc]
+	terminationMu        sync.Mutex
+	termination          *terminationRequest
+	runCancel            atomic.Pointer[context.CancelFunc]
+	activeToolCallCancel atomic.Pointer[context.CancelFunc]
 }
 
 type terminationRequest struct {
@@ -38,7 +38,7 @@ func (c processControl) Terminate(reason string) {
 }
 
 func (c processControl) CancelToolCall() {
-	c.process.signals.fireToolCallCancel()
+	c.process.signals.cancelActiveToolCall()
 }
 
 // Suspension returns a defensive copy of the resumable continuation currently
@@ -104,21 +104,21 @@ func (s *processSignals) registerRunCancel(cancel context.CancelFunc) (release f
 	}
 }
 
-// fireToolCallCancel cancels the active tool call, if any.
-func (s *processSignals) fireToolCallCancel() {
-	cancel := s.toolCallCancel.Load()
+// cancelActiveToolCall cancels the active tool call, if any.
+func (s *processSignals) cancelActiveToolCall() {
+	cancel := s.activeToolCallCancel.Load()
 	if cancel == nil || *cancel == nil {
 		return
 	}
 	(*cancel)()
 }
 
-// registerToolCallCancel installs a fresh cancel function and returns a
+// registerToolCallCancellation installs a fresh cancel function and returns a
 // release closure that clears it only while it still owns the slot.
-func (s *processSignals) registerToolCallCancel(cancel context.CancelFunc) (release func()) {
+func (s *processSignals) registerToolCallCancellation(cancel context.CancelFunc) (release func()) {
 	cell := &cancel
-	s.toolCallCancel.Store(cell)
+	s.activeToolCallCancel.Store(cell)
 	return func() {
-		s.toolCallCancel.CompareAndSwap(cell, nil)
+		s.activeToolCallCancel.CompareAndSwap(cell, nil)
 	}
 }

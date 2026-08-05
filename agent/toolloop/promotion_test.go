@@ -136,33 +136,33 @@ func hasToolResult(events []toolloop.Event, name, result string) bool {
 	return false
 }
 
-type advertiseTool struct {
+type manifestTool struct {
 	name     string
 	deferred []string
 }
 
-func (t advertiseTool) Definition() chat.ToolDefinition {
+func (t manifestTool) Definition() chat.ToolDefinition {
 	return chat.ToolDefinition{Name: t.name, InputSchema: json.RawMessage(`{"type":"object"}`)}
 }
 
-func (advertiseTool) Call(context.Context, string) (string, error) { return "", nil }
+func (manifestTool) Call(context.Context, string) (string, error) { return "", nil }
 
-func (t advertiseTool) DeferredToolNames() []string { return t.deferred }
+func (t manifestTool) DeferredToolNames() []string { return t.deferred }
 
-// TestAdvertiseWithholdsDeferredNames pins the half of promotion that decides
+// TestInitialManifestWithholdsDeferredNames pins the half of promotion that decides
 // what the model sees first: a deferring tool keeps its names out of the
 // manifest while they stay resolvable, and everything else is advertised in
 // name order.
-func TestAdvertiseWithholdsDeferredNames(t *testing.T) {
-	search := advertiseTool{name: "search_tools", deferred: []string{"catalog_b", "catalog_a", "absent"}}
-	manifest, err := toolloop.Advertise([]tool.Tool{
-		advertiseTool{name: "read"},
-		advertiseTool{name: "catalog_a"},
-		advertiseTool{name: "catalog_b"},
+func TestInitialManifestWithholdsDeferredNames(t *testing.T) {
+	search := manifestTool{name: "search_tools", deferred: []string{"catalog_b", "catalog_a", "absent"}}
+	manifest, err := toolloop.InitialManifest([]tool.Tool{
+		manifestTool{name: "read"},
+		manifestTool{name: "catalog_a"},
+		manifestTool{name: "catalog_b"},
 		search,
 	})
 	if err != nil {
-		t.Fatalf("Advertise: %v", err)
+		t.Fatalf("InitialManifest: %v", err)
 	}
 
 	var names []string
@@ -174,43 +174,43 @@ func TestAdvertiseWithholdsDeferredNames(t *testing.T) {
 	}
 }
 
-// TestAdvertiseKeepsEveryToolWithoutDeferral pins that the projection is
+// TestInitialManifestKeepsEveryToolWithoutDeferral pins that the projection is
 // transparent when no tool withholds anything.
-func TestAdvertiseKeepsEveryToolWithoutDeferral(t *testing.T) {
-	manifest, err := toolloop.Advertise([]tool.Tool{
-		advertiseTool{name: "write"},
-		advertiseTool{name: "read"},
+func TestInitialManifestKeepsEveryToolWithoutDeferral(t *testing.T) {
+	manifest, err := toolloop.InitialManifest([]tool.Tool{
+		manifestTool{name: "write"},
+		manifestTool{name: "read"},
 	})
 	if err != nil {
-		t.Fatalf("Advertise: %v", err)
+		t.Fatalf("InitialManifest: %v", err)
 	}
 	if len(manifest) != 2 || manifest[0].Name != "read" || manifest[1].Name != "write" {
 		t.Fatalf("manifest = %+v, want both tools in name order", manifest)
 	}
 }
 
-type wrappingAdvertiseTool struct{ inner tool.Tool }
+type wrappingManifestTool struct{ inner tool.Tool }
 
-func (w wrappingAdvertiseTool) Definition() chat.ToolDefinition { return w.inner.Definition() }
+func (w wrappingManifestTool) Definition() chat.ToolDefinition { return w.inner.Definition() }
 
-func (w wrappingAdvertiseTool) Call(ctx context.Context, arguments string) (string, error) {
+func (w wrappingManifestTool) Call(ctx context.Context, arguments string) (string, error) {
 	return w.inner.Call(ctx, arguments)
 }
 
-func (w wrappingAdvertiseTool) Unwrap() tool.Tool { return w.inner }
+func (w wrappingManifestTool) Unwrap() tool.Tool { return w.inner }
 
-// TestAdvertiseSeesThroughDecorators pins the reason WrappingTool exists: a host
+// TestInitialManifestSeesThroughDecorators pins the reason WrappingTool exists: a host
 // decorates every resolved tool, and a decorator that re-implements nothing must
 // not cost the inner tool its deferral — losing it would advertise the catalog
 // the deferral exists to withhold, with no error anywhere.
-func TestAdvertiseSeesThroughDecorators(t *testing.T) {
-	manifest, err := toolloop.Advertise([]tool.Tool{
-		wrappingAdvertiseTool{inner: advertiseTool{name: "search_tools", deferred: []string{"catalog_a"}}},
-		wrappingAdvertiseTool{inner: advertiseTool{name: "catalog_a"}},
-		wrappingAdvertiseTool{inner: advertiseTool{name: "read"}},
+func TestInitialManifestSeesThroughDecorators(t *testing.T) {
+	manifest, err := toolloop.InitialManifest([]tool.Tool{
+		wrappingManifestTool{inner: manifestTool{name: "search_tools", deferred: []string{"catalog_a"}}},
+		wrappingManifestTool{inner: manifestTool{name: "catalog_a"}},
+		wrappingManifestTool{inner: manifestTool{name: "read"}},
 	})
 	if err != nil {
-		t.Fatalf("Advertise: %v", err)
+		t.Fatalf("InitialManifest: %v", err)
 	}
 
 	var names []string
@@ -222,19 +222,19 @@ func TestAdvertiseSeesThroughDecorators(t *testing.T) {
 	}
 }
 
-func TestAdvertiseRejectsMalformedWrappingChain(t *testing.T) {
-	wrapped := &wrappingAdvertiseTool{}
+func TestInitialManifestRejectsMalformedWrappingChain(t *testing.T) {
+	wrapped := &wrappingManifestTool{}
 	wrapped.inner = wrapped
 
-	manifest, err := toolloop.Advertise([]tool.Tool{wrapped})
+	manifest, err := toolloop.InitialManifest([]tool.Tool{wrapped})
 	if manifest != nil || !errors.Is(err, tool.ErrInvalidWrappingChain) {
-		t.Fatalf("Advertise() = %#v, %v; want nil, ErrInvalidWrappingChain", manifest, err)
+		t.Fatalf("InitialManifest() = %#v, %v; want nil, ErrInvalidWrappingChain", manifest, err)
 	}
 }
 
-type panickingDeferredTool struct{ advertiseTool }
+type panickingToolDeferrer struct{ manifestTool }
 
-func (panickingDeferredTool) DeferredToolNames() []string { panic("deferred failure") }
+func (panickingToolDeferrer) DeferredToolNames() []string { panic("deferred failure") }
 
 type panickingDefinitionTool struct{}
 
@@ -243,15 +243,15 @@ func (panickingDefinitionTool) Call(context.Context, string) (string, error) {
 	return "", nil
 }
 
-func TestAdvertiseReturnsCapabilityPanics(t *testing.T) {
+func TestInitialManifestReturnsCapabilityPanics(t *testing.T) {
 	for name, candidate := range map[string]tool.Tool{
-		"deferred names": panickingDeferredTool{advertiseTool{name: "deferred"}},
+		"deferred names": panickingToolDeferrer{manifestTool{name: "deferred"}},
 		"definition":     panickingDefinitionTool{},
 	} {
 		t.Run(name, func(t *testing.T) {
-			manifest, err := toolloop.Advertise([]tool.Tool{candidate})
+			manifest, err := toolloop.InitialManifest([]tool.Tool{candidate})
 			if manifest != nil || err == nil {
-				t.Fatalf("Advertise() = %#v, %v; want nil and panic error", manifest, err)
+				t.Fatalf("InitialManifest() = %#v, %v; want nil and panic error", manifest, err)
 			}
 		})
 	}

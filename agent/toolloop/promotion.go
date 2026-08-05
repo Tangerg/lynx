@@ -14,12 +14,12 @@ import (
 
 // toolPromotions collects the tool definitions a running tool asked the loop to
 // advertise for the remainder of the interaction. The runner drains it into the
-// request's advertised toolset after each concurrency segment, so a tool the
+// request's advertised toolset after each concurrency batch, so a tool the
 // model discovers mid-loop — e.g. a search_tools meta-tool over a large MCP
 // catalog the initial manifest deliberately withheld — becomes directly callable
 // on the next model round without ever re-listing the whole catalog up front.
 //
-// A segment runs its calls under the runner's bounded errgroup, so several tools
+// A batch runs its calls under the runner's bounded errgroup, so several tools
 // may promote in parallel; add is therefore mutex-guarded.
 type toolPromotions struct {
 	mu      sync.Mutex
@@ -57,7 +57,7 @@ func withPromotions(ctx context.Context, sink *toolPromotions) context.Context {
 // pause/resume because the runner folds them into the request before it snapshots
 // the checkpoint.
 //
-// [Advertise] is the matching half: it builds the initial manifest that leaves
+// [InitialManifest] is the matching half: it builds the initial manifest that leaves
 // deferred tools out.
 //
 // Each definition must name a tool the interaction's [ToolResolver] can resolve
@@ -82,7 +82,7 @@ func PromoteTools(ctx context.Context, defs ...chat.ToolDefinition) {
 	sink.add(defs)
 }
 
-// DeferredTool is the optional capability a tool implements to keep other
+// ToolDeferrer is the optional capability a tool implements to keep other
 // resolvable tools out of the model's initial manifest. It is the withholding
 // half of [PromoteTools]: the named tools stay executable through the
 // interaction's [ToolResolver], but the model does not see them until this tool
@@ -91,14 +91,14 @@ func PromoteTools(ctx context.Context, defs ...chat.ToolDefinition) {
 // Like [ConcurrentTool] it lives here rather than in tools, so a tool can state
 // the intent without depending on a particular loop driver, and a driver that
 // ignores the advice stays correct — it simply advertises everything up front.
-type DeferredTool interface {
+type ToolDeferrer interface {
 	// DeferredToolNames reports the tool names this tool withholds. Names that
 	// do not appear among the candidates are ignored.
 	DeferredToolNames() []string
 }
 
-// Advertise returns the initial manifest for candidates: one definition per
-// tool, minus every name a [DeferredTool] among them withholds. Withheld tools
+// InitialManifest returns the initial manifest for candidates: one definition per
+// tool, minus every name a [ToolDeferrer] among them withholds. Withheld tools
 // are absent from the manifest but still resolvable, which is what makes a
 // mid-loop [PromoteTools] meaningful — advertising is the only thing promotion
 // changes.
@@ -108,12 +108,12 @@ type DeferredTool interface {
 // different subset can build the manifest themselves; this is the projection
 // that matches promotion. A malformed wrapping chain is returned as
 // [tool.ErrInvalidWrappingChain].
-func Advertise(candidates []tool.Tool) ([]chat.ToolDefinition, error) {
+func InitialManifest(candidates []tool.Tool) ([]chat.ToolDefinition, error) {
 	var withheld map[string]struct{}
 	for _, candidate := range candidates {
-		deferring, ok, err := tool.Capability[DeferredTool](candidate)
+		deferring, ok, err := tool.Capability[ToolDeferrer](candidate)
 		if err != nil {
-			return nil, fmt.Errorf("toolloop.Advertise: %w", err)
+			return nil, fmt.Errorf("toolloop.InitialManifest: %w", err)
 		}
 		if !ok {
 			continue

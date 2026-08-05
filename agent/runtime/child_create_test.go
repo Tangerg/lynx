@@ -21,13 +21,13 @@ func TestRunChildReturnsExtensionNamePanic(t *testing.T) {
 		t.Fatalf("deploy child: %v", err)
 	}
 
-	parentDef := agent.New(agent.AgentConfig{Name: "parent-extension-check", Actions: []agent.Action{agent.NewAction("delegate", func(ctx context.Context, _ *core.ProcessContext, input subInput) (parentOutput, error) {
+	parentDef := agent.New(agent.Config{Name: "parent-extension-check", Actions: []agent.Action{agent.NewAction("delegate", func(ctx context.Context, _ *core.ProcessContext, input subInput) (parentOutput, error) {
 		_, err := engine.RunChild(ctx, childDeployment, input)
 		return parentOutput{}, err
 	}, core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[parentOutput](core.GoalConfig{Description: "done"})}})
 	cause := errors.New("child extension identity unavailable")
 	parent, err := engine.Run(t.Context(), parentDef, core.Input(subInput{Value: 1}), core.ProcessOptions{
-		ChildOptions: func(context.Context, core.ProcessView, core.AgentDescriptor) (core.ProcessOptions, error) {
+		ConfigureChild: func(context.Context, core.ProcessView, core.AgentDescriptor) (core.ProcessOptions, error) {
 			return core.ProcessOptions{Extensions: []core.Extension{panickingChildExtension{cause: cause}}}, nil
 		},
 	})
@@ -45,13 +45,13 @@ func TestRunChildRejectsASecondTreeBudget(t *testing.T) {
 	if err != nil {
 		t.Fatalf("deploy child: %v", err)
 	}
-	parentDef := agent.New(agent.AgentConfig{Name: "parent-budget-check", Actions: []agent.Action{agent.NewAction("delegate", func(ctx context.Context, _ *core.ProcessContext, input subInput) (parentOutput, error) {
+	parentDef := agent.New(agent.Config{Name: "parent-budget-check", Actions: []agent.Action{agent.NewAction("delegate", func(ctx context.Context, _ *core.ProcessContext, input subInput) (parentOutput, error) {
 		_, err := engine.RunChild(ctx, childDeployment, input)
 		return parentOutput{}, err
 	}, core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[parentOutput](core.GoalConfig{Description: "done"})}})
 
 	parent, err := engine.Run(t.Context(), parentDef, core.Input(subInput{Value: 1}), core.ProcessOptions{
-		ChildOptions: func(context.Context, core.ProcessView, core.AgentDescriptor) (core.ProcessOptions, error) {
+		ConfigureChild: func(context.Context, core.ProcessView, core.AgentDescriptor) (core.ProcessOptions, error) {
 			return core.ProcessOptions{Budget: core.Budget{ActionLimit: 1}}, nil
 		},
 	})
@@ -70,7 +70,7 @@ func TestRunChildRejectsInactiveParent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	parentDef := agent.New(agent.AgentConfig{Name: "inactive-parent", Actions: []agent.Action{agent.NewAction("finish", func(_ context.Context, _ *core.ProcessContext, input subInput) (parentOutput, error) {
+	parentDef := agent.New(agent.Config{Name: "inactive-parent", Actions: []agent.Action{agent.NewAction("finish", func(_ context.Context, _ *core.ProcessContext, input subInput) (parentOutput, error) {
 		return parentOutput{Final: input.Value}, nil
 	}, core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[parentOutput](core.GoalConfig{Description: "done"})}})
 	parent, err := engine.Run(t.Context(), parentDef, core.Input(subInput{Value: 1}), core.ProcessOptions{})

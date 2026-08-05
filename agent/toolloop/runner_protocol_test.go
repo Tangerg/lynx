@@ -269,7 +269,7 @@ func TestRunnerPauseAndResumeDoesNotRepeatCompletedWork(t *testing.T) {
 		if !ok {
 			return "", approvalPause()
 		}
-		if resume.ID != "approve-1" || string(resume.Input) != `"approved"` {
+		if resume.ID != "approve-1" || string(resume.Response) != `"approved"` {
 			t.Fatalf("resume = %#v", resume)
 		}
 		approvedEffects++
@@ -315,7 +315,7 @@ func TestRunnerPauseAndResumeDoesNotRepeatCompletedWork(t *testing.T) {
 		t.Fatalf("Unmarshal pause: %v", err)
 	}
 
-	resume := toolloop.Resume{ID: "approve-1", Input: json.RawMessage(`"approved"`)}
+	resume := toolloop.Resume{ID: "approve-1", Response: json.RawMessage(`"approved"`)}
 	resumedEvents, err := collectRunnerEvents(runner.Resume(t.Context(), restored.Pause.Checkpoint, registry, resume))
 	if err != nil {
 		t.Fatalf("Resume: %v", err)
@@ -346,7 +346,7 @@ func TestRunnerControlFlowAndModelFailures(t *testing.T) {
 		{name: "cancel", err: fmt.Errorf("wrapped: %w", context.Canceled), want: context.Canceled},
 		{name: "deadline", err: context.DeadlineExceeded, want: context.DeadlineExceeded},
 		{name: "invalid pause", err: &toolloop.PauseError{ID: "missing-reason"}, want: toolloop.ErrInvalidControlFlow},
-		{name: "unstable pause ID", err: &toolloop.PauseError{ID: " pause ", Reason: "wait", Prompt: json.RawMessage(`true`), ResumeSchema: json.RawMessage(`{}`)}, want: interaction.ErrInvalidID},
+		{name: "unstable pause ID", err: &toolloop.PauseError{ID: " pause ", Reason: "wait", Prompt: json.RawMessage(`true`), ResponseSchema: json.RawMessage(`{}`)}, want: interaction.ErrInvalidID},
 		{name: "invalid abort", err: &toolloop.AbortError{}, want: toolloop.ErrInvalidControlFlow},
 	} {
 		t.Run(test.name, func(t *testing.T) {
@@ -421,13 +421,13 @@ func TestRunnerRoundLimitLazinessAndEarlyStop(t *testing.T) {
 	model := &scriptedModel{call: func(round int, _ *chat.Request) (*chat.Response, error) {
 		return runnerToolResponse(chat.ToolCall{ID: fmt.Sprintf("call-%d", round), Name: "again", Arguments: `{}`}), nil
 	}}
-	runner := newRunner(t, model, toolloop.Config{MaxRounds: 2})
+	runner := newRunner(t, model, toolloop.Config{MaxModelCalls: 2})
 	sequence := runner.Run(t.Context(), newRunnerRequest(t, registry), registry)
 	if model.calls != 0 || toolCalls != 0 {
 		t.Fatal("Run was not lazy")
 	}
 	_, err := collectRunnerEvents(sequence)
-	if !errors.Is(err, toolloop.ErrRoundLimit) || model.calls != 2 || toolCalls != 2 {
+	if !errors.Is(err, toolloop.ErrModelCallLimit) || model.calls != 2 || toolCalls != 2 {
 		t.Fatalf("limit result = %v, model %d, tools %d", err, model.calls, toolCalls)
 	}
 
@@ -456,10 +456,10 @@ func TestRunnerRejectsInvalidConfigRunAndResume(t *testing.T) {
 		t.Fatalf("typed nil model error = %v", err)
 	}
 	validModel := &scriptedModel{call: func(int, *chat.Request) (*chat.Response, error) { return runnerTextResponse("ok"), nil }}
-	if _, err := toolloop.NewRunner(validModel, toolloop.Config{MaxRounds: -1}); !errors.Is(err, toolloop.ErrInvalidConfig) {
+	if _, err := toolloop.NewRunner(validModel, toolloop.Config{MaxModelCalls: -1}); !errors.Is(err, toolloop.ErrInvalidConfig) {
 		t.Fatalf("negative rounds error = %v", err)
 	}
-	if _, err := toolloop.NewRunner(validModel, toolloop.Config{MaxConcurrentCalls: -1}); !errors.Is(err, toolloop.ErrInvalidConfig) {
+	if _, err := toolloop.NewRunner(validModel, toolloop.Config{MaxConcurrentToolCalls: -1}); !errors.Is(err, toolloop.ErrInvalidConfig) {
 		t.Fatalf("negative concurrency error = %v", err)
 	}
 	runner := newRunner(t, validModel, toolloop.Config{})
@@ -516,12 +516,12 @@ func TestRunnerRejectsInvalidConfigRunAndResume(t *testing.T) {
 	// Limits are policy the caller re-supplies on every run, not resumed state:
 	// a runner configured differently from the one that paused still continues
 	// the same checkpoint, so tuning a limit never orphans parked work.
-	serialRunner := newRunner(t, validModel, toolloop.Config{MaxConcurrentCalls: 1, MaxRounds: 9})
+	serialRunner := newRunner(t, validModel, toolloop.Config{MaxConcurrentToolCalls: 1, MaxModelCalls: 9})
 	events, err := collectRunnerEvents(serialRunner.Resume(
 		t.Context(),
 		checkpoint,
 		registry,
-		toolloop.Resume{ID: "approval-1", Input: json.RawMessage(`"approved"`)},
+		toolloop.Resume{ID: "approval-1", Response: json.RawMessage(`"approved"`)},
 	))
 	if err != nil {
 		t.Fatalf("resume under a different policy = %v", err)
@@ -639,10 +639,10 @@ func TestCheckpointValidationAndAtomicJSON(t *testing.T) {
 		{
 			Status: toolloop.CallPaused,
 			Pending: &toolloop.PendingCall{
-				ID:           "approval-1",
-				Reason:       "wait",
-				Prompt:       json.RawMessage(`"approve?"`),
-				ResumeSchema: json.RawMessage(`{"type":"string"}`),
+				ID:             "approval-1",
+				Reason:         "wait",
+				Prompt:         json.RawMessage(`"approve?"`),
+				ResponseSchema: json.RawMessage(`{"type":"string"}`),
 			},
 		},
 	}
@@ -700,10 +700,10 @@ func TestRuntimePolicyAndControlValues(t *testing.T) {
 
 func approvalPause() *toolloop.PauseError {
 	return &toolloop.PauseError{
-		ID:           "approve-1",
-		Reason:       "approval required",
-		Prompt:       json.RawMessage(`"approve?"`),
-		ResumeSchema: json.RawMessage(`{"type":"string"}`),
+		ID:             "approve-1",
+		Reason:         "approval required",
+		Prompt:         json.RawMessage(`"approve?"`),
+		ResponseSchema: json.RawMessage(`{"type":"string"}`),
 	}
 }
 

@@ -34,15 +34,15 @@ type Process struct {
 	signals processSignals
 	nested  nestedChildState
 
-	blackboard   core.Blackboard
-	dependencies *core.Dependencies
-	stateReader  *worldStateReader
-	planner      planning.Planner
-	domain       *planning.Domain
-	engine       *Engine
+	blackboard    core.Blackboard
+	dependencies  *core.Dependencies
+	stateObserver *worldStateObserver
+	planner       planning.Planner
+	domain        *planning.Domain
+	engine        *Engine
 
 	// processEvents is populated from the EventListener extensions on
-	// ProcessOptions.Extensions. A process built without [Process.wireRuntimeDeps]
+	// ProcessOptions.Extensions. A process built without [Process.wireProcessComponents]
 	// leaves it nil, which is why publishing nil-guards it.
 	processEvents *event.Multicast
 }
@@ -57,9 +57,9 @@ func (p *Process) releaseDeployment() {
 
 // newProcess assembles a process from its inputs. Internal — users
 // invoke Engine.Run which assembles every dependency. The
-// state reader and processEvents are populated by the caller after
+// state observer and processEvents are populated by the caller after
 // construction because both need the *Process pointer (the
-// state reader wires it as the [core.ProcessView] for user conditions; the
+// state observer wires it as the [core.ProcessView] for user conditions; the
 // multicast subscribes to per-process EventListener extensions).
 func newProcess(
 	id string,
@@ -95,12 +95,12 @@ func (p *Process) agent() *core.Agent {
 	return p.deployment.agent
 }
 
-// wireRuntimeDeps assigns the fields that close over the assembled *Process,
+// wireProcessComponents assigns the fields that close over the assembled *Process,
 // which is why they cannot be set in the constructor. Every path that builds a
 // process must call it: one that skips it panics on its first observe against a
-// nil state reader.
-func (p *Process) wireRuntimeDeps(extensions []extensionEntry) {
-	p.stateReader = newWorldStateReader(p.domain, p.blackboard, p)
+// nil state observer.
+func (p *Process) wireProcessComponents(extensions []extensionEntry) {
+	p.stateObserver = newWorldStateObserver(p.domain, p.blackboard, p)
 	p.processEvents = event.NewMulticast()
 	addEventListenerExtensions(p.processEvents, extensions)
 }
@@ -113,7 +113,7 @@ func (p *Process) SpawnCallID() string               { return p.spawnCallID }
 func (p *Process) StartedAt() time.Time              { return p.startedAt }
 func (p *Process) Blackboard() core.BlackboardReader { return p.blackboard }
 
-// DeploymentRef returns the exact immutable definition identity bound when
+// Deployment returns the exact immutable definition identity bound when
 // this process was created. Redeploying the same agent name cannot change it.
 func (p *Process) Deployment() core.DeploymentRef {
 	if p == nil || p.deployment == nil {

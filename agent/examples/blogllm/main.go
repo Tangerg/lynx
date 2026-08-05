@@ -39,7 +39,7 @@ func main() {
 
 	resolver := researchToolResolver{group: newResearchToolGroup()}
 
-	a := agent.New(agent.AgentConfig{Name: "BriefingAgent", Description: "ask the LLM for a topic brief, with a search tool available", Actions: []agent.Action{agent.NewAction("brief", func(ctx context.Context, pc *agent.ProcessContext, in Topic) (Brief, error) {
+	a := agent.New(agent.Config{Name: "BriefingAgent", Description: "ask the LLM for a topic brief, with a search tool available", Actions: []agent.Action{agent.NewAction("brief", func(ctx context.Context, pc *agent.ProcessContext, in Topic) (Brief, error) {
 		prompt := fmt.Sprintf("Write a one-paragraph brief on %q. Use the `research_search` tool to gather sources first, then return the summary and source URLs.", in.Title)
 		content, err := agent.Prompt(ctx, pc, prompt, agent.PromptConfig{
 			System: "You are a research analyst. Cite sources you used.",
@@ -48,7 +48,7 @@ func main() {
 			return Brief{}, err
 		}
 		return Brief{Topic: in.Title, Sources: content.Sources, Summary: content.Summary}, nil
-	}, agent.ActionConfig{ToolGroups: []string{researchToolRole}})}, Goals: []*agent.Goal{agent.NewOutputGoal[Brief](agent.GoalConfig{Description: "topic brief produced"})}})
+	}, agent.ActionConfig{ToolRoles: []string{researchToolRole}})}, Goals: []*agent.Goal{agent.NewOutputGoal[Brief](agent.GoalConfig{Description: "topic brief produced"})}})
 
 	engine := agent.MustNewEngine(agent.EngineConfig{
 		Chat:       agent.Chat(chatClient),

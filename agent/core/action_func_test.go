@@ -72,7 +72,7 @@ func TestTypedActionMetadataIsDefensive(t *testing.T) {
 	action := core.NewAction[string, int](
 		"defensive",
 		func(context.Context, *core.ProcessContext, string) (int, error) { return 1, nil },
-		core.ActionConfig{Inputs: inputs, Outputs: outputs, ToolGroups: groups},
+		core.ActionConfig{Inputs: inputs, Outputs: outputs, ToolRoles: groups},
 	)
 
 	inputs[0].Name = "mutated"
@@ -83,16 +83,16 @@ func TestTypedActionMetadataIsDefensive(t *testing.T) {
 	if metadata.Inputs[0].Name != "source" || metadata.Outputs[0].Name != "result" {
 		t.Fatalf("constructor retained caller slices: %#v", metadata)
 	}
-	if metadata.ToolGroups[0] != "filesystem" {
-		t.Fatalf("constructor retained caller tool groups: %#v", metadata.ToolGroups)
+	if metadata.ToolRoles[0] != "filesystem" {
+		t.Fatalf("constructor retained caller tool roles: %#v", metadata.ToolRoles)
 	}
 
 	metadata.Inputs[0].Name = "leaked"
 	metadata.Effects[metadata.Outputs[0].String()] = core.False
-	metadata.ToolGroups[0] = "leaked"
+	metadata.ToolRoles[0] = "leaked"
 	again := action.Metadata()
 	if again.Inputs[0].Name != "source" || again.Effects[again.Outputs[0].String()] != core.True ||
-		again.ToolGroups[0] != "filesystem" {
+		again.ToolRoles[0] != "filesystem" {
 		t.Fatalf("Metadata leaked stored maps/slices: %#v", again)
 	}
 }
@@ -103,7 +103,7 @@ func TestActionMetadataCloneOwnsCompositeValues(t *testing.T) {
 		Outputs:       []core.Binding{{Name: "output", Type: "string"}},
 		Preconditions: core.ConditionSet{"ready": core.True},
 		Effects:       core.ConditionSet{"done": core.True},
-		ToolGroups:    []string{"workspace"},
+		ToolRoles:     []string{"workspace"},
 		Cost:          core.FixedScore(1),
 	}
 	cloned := original.Clone()
@@ -111,11 +111,11 @@ func TestActionMetadataCloneOwnsCompositeValues(t *testing.T) {
 	cloned.Outputs[0].Name = "mutated"
 	cloned.Preconditions["ready"] = core.False
 	cloned.Effects["done"] = core.False
-	cloned.ToolGroups[0] = "mutated"
+	cloned.ToolRoles[0] = "mutated"
 
 	if original.Inputs[0].Name != "input" || original.Outputs[0].Name != "output" ||
 		original.Preconditions["ready"] != core.True || original.Effects["done"] != core.True ||
-		original.ToolGroups[0] != "workspace" {
+		original.ToolRoles[0] != "workspace" {
 		t.Fatalf("Clone shared composite values with source: %#v", original)
 	}
 }

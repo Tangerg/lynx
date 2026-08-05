@@ -105,7 +105,7 @@ func (e *Engine) buildProcessFromDeployment(
 
 	// state reader + per-process event multicast both close over the
 	// assembled pointer, so they're wired after construction.
-	process.wireRuntimeDeps(processOptions.extensions)
+	process.wireProcessComponents(processOptions.extensions)
 	return process, nil
 }
 
@@ -229,10 +229,10 @@ func (e *Engine) resolveBlackboard(codec core.SnapshotCodec, supplied core.Black
 	if err != nil {
 		return nil, err
 	}
-	if err := validateBlackboardContents(blackboard, codec); err != nil {
+	if err := validateBlackboardObjects(blackboard, codec); err != nil {
 		return nil, fmt.Errorf("validate existing blackboard state: %w", err)
 	}
-	return declareWrites(blackboard, codec), nil
+	return guardSnapshotWrites(blackboard, codec), nil
 }
 
 func (e *Engine) resolveBlackboardSource(supplied core.Blackboard) (core.Blackboard, error) {

@@ -170,7 +170,7 @@ func samePromotedSuspensionBoundary(parent, child *interaction.Suspension) bool 
 		child != nil &&
 		parent.ID == child.ID &&
 		bytes.Equal(parent.Prompt, child.Prompt) &&
-		bytes.Equal(parent.ResumeSchema, child.ResumeSchema) &&
+		bytes.Equal(parent.ResponseSchema, child.ResponseSchema) &&
 		bytes.Equal(parent.Response, child.Response)
 }
 

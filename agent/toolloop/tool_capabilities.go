@@ -9,7 +9,7 @@ import (
 // completes: a round consisting entirely of direct tools returns its final
 // ToolResult instead of making another model call.
 //
-// Like [ConcurrentTool] and [DeferredTool] it is named here so a tool — or a
+// Like [ConcurrentTool] and [ToolDeferrer] it is named here so a tool — or a
 // host asking what a tool declared — states the intent without depending on a
 // particular loop driver, and a driver that ignores the advice stays correct.
 // [Direct] wraps a tool to declare it; implementing this reports the same thing
@@ -37,21 +37,21 @@ func Direct(tool tool.Tool) tool.Tool {
 	if nilvalue.Is(tool) {
 		return nil
 	}
-	return directRuntimeTool{Tool: tool}
+	return directTool{Tool: tool}
 }
 
-type directRuntimeTool struct {
+type directTool struct {
 	tool.Tool
 }
 
 // Found by type assertion through the wrapping chain, so pin it.
 var (
-	_ DirectTool        = directRuntimeTool{}
-	_ tool.WrappingTool = directRuntimeTool{}
+	_ DirectTool        = directTool{}
+	_ tool.WrappingTool = directTool{}
 )
 
-func (directRuntimeTool) ReturnsDirect() bool { return true }
+func (directTool) ReturnsDirect() bool { return true }
 
 // Unwrap exposes the decorated tool so its optional capabilities remain
 // discoverable; this decorator overrides only the direct-return marker.
-func (t directRuntimeTool) Unwrap() tool.Tool { return t.Tool }
+func (t directTool) Unwrap() tool.Tool { return t.Tool }

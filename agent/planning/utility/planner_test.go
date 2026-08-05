@@ -44,7 +44,7 @@ func newAction(name string, pre, eff core.ConditionSet, cost, value float64) cor
 
 func TestUtilityPicksHighestNetValue(t *testing.T) {
 	start := planning.NewState(nil)
-	goal := core.NewGoal(core.GoalConfig{Name: "real", Preconditions: []string{"done"}})
+	goal := core.NewGoal(core.GoalConfig{Name: "real", RequiredConditions: []string{"done"}})
 	low := newAction("low", nil, core.ConditionSet{"done": core.True}, 1, 2)
 	high := newAction("high", nil, core.ConditionSet{"done": core.True}, 1, 10)
 	domain := mustDomain(t, []core.Action{low, high}, []*core.Goal{goal}, nil)
@@ -60,7 +60,7 @@ func TestUtilityPicksHighestNetValue(t *testing.T) {
 
 func TestUtility_AlreadySatisfiedNoActions(t *testing.T) {
 	start := planning.NewState(map[string]core.Truth{"goalKey": core.True})
-	g := core.NewGoal(core.GoalConfig{Name: "real", Preconditions: []string{"goalKey"}})
+	g := core.NewGoal(core.GoalConfig{Name: "real", RequiredConditions: []string{"goalKey"}})
 	domain := mustDomain(t, nil, []*core.Goal{g}, nil)
 
 	pl, err := utility.NewPlanner().PlanToGoal(t.Context(), start, domain, g, planning.Options{})
@@ -74,7 +74,7 @@ func TestUtility_AlreadySatisfiedNoActions(t *testing.T) {
 
 func TestUtility_OneStepLookaheadEmitsPlan(t *testing.T) {
 	start := planning.NewState(nil)
-	g := core.NewGoal(core.GoalConfig{Name: "real", Preconditions: []string{"done"}})
+	g := core.NewGoal(core.GoalConfig{Name: "real", RequiredConditions: []string{"done"}})
 
 	a := newAction("a", nil, core.ConditionSet{"done": core.True}, 1, 5)
 	domain := mustDomain(t, []core.Action{a}, []*core.Goal{g}, nil)
@@ -90,7 +90,7 @@ func TestUtility_OneStepLookaheadEmitsPlan(t *testing.T) {
 
 func TestUtility_OneStepLookaheadInsufficientReturnsNil(t *testing.T) {
 	start := planning.NewState(nil)
-	g := core.NewGoal(core.GoalConfig{Name: "real", Preconditions: []string{"step1", "step2"}})
+	g := core.NewGoal(core.GoalConfig{Name: "real", RequiredConditions: []string{"step1", "step2"}})
 
 	a := newAction("a", nil, core.ConditionSet{"step1": core.True}, 1, 5)
 	domain := mustDomain(t, []core.Action{a}, []*core.Goal{g}, nil)
@@ -106,7 +106,7 @@ func TestUtility_OneStepLookaheadInsufficientReturnsNil(t *testing.T) {
 
 func TestUtility_ExcludedActionsSkipped(t *testing.T) {
 	start := planning.NewState(nil)
-	g := core.NewGoal(core.GoalConfig{Name: "real", Preconditions: []string{"done"}})
+	g := core.NewGoal(core.GoalConfig{Name: "real", RequiredConditions: []string{"done"}})
 	a := newAction("a", nil, core.ConditionSet{"done": core.True}, 1, 5)
 	domain := mustDomain(t, []core.Action{a}, []*core.Goal{g}, nil)
 
@@ -139,7 +139,7 @@ func TestUtilityRejectsInvalidActionScores(t *testing.T) {
 			action := &fakeAction{meta: core.ActionMetadata{
 				Name: "invalid", Effects: core.ConditionSet{"done": core.True}, Cost: test.cost, Value: test.value,
 			}}
-			goal := core.NewGoal(core.GoalConfig{Name: "real", Preconditions: []string{"done"}})
+			goal := core.NewGoal(core.GoalConfig{Name: "real", RequiredConditions: []string{"done"}})
 			domain := mustDomain(t, []core.Action{action}, []*core.Goal{goal}, nil)
 			_, err := utility.NewPlanner().PlanToGoal(t.Context(), planning.NewState(nil), domain, goal, planning.Options{})
 			if err == nil || !strings.Contains(err.Error(), test.contains) {
@@ -159,7 +159,7 @@ func TestHybridUtility_SatisfiedFirstShortCircuit(t *testing.T) {
 	// applicable. Hybrid returns empty plan; classic Utility would
 	// pick the action.
 	start := planning.NewState(map[string]core.Truth{"goalKey": core.True})
-	g := core.NewGoal(core.GoalConfig{Name: "real", Preconditions: []string{"goalKey"}})
+	g := core.NewGoal(core.GoalConfig{Name: "real", RequiredConditions: []string{"goalKey"}})
 
 	stillRunnable := newAction("nop", nil, core.ConditionSet{"other": core.True}, 1, 99)
 	domain := mustDomain(t, []core.Action{stillRunnable}, []*core.Goal{g}, nil)
@@ -185,7 +185,7 @@ func TestHybridUtility_SatisfiedFirstShortCircuit(t *testing.T) {
 
 func TestHybridUtility_OneStepReachesGoal(t *testing.T) {
 	start := planning.NewState(nil)
-	g := core.NewGoal(core.GoalConfig{Name: "real", Preconditions: []string{"done"}})
+	g := core.NewGoal(core.GoalConfig{Name: "real", RequiredConditions: []string{"done"}})
 
 	a := newAction("a", nil, core.ConditionSet{"done": core.True}, 1, 5)
 	domain := mustDomain(t, []core.Action{a}, []*core.Goal{g}, nil)

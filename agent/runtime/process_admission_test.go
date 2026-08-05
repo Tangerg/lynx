@@ -36,11 +36,11 @@ func TestFreshProcessOwnsFirstRunBeforeCreatedEvent(t *testing.T) {
 			options := core.ProcessOptions{Extensions: []core.Extension{listener}}
 
 			if asynchronous {
-				segment, err := engine.Start(t.Context(), definition, core.Input(word{Text: "lynx"}), options)
+				runHandle, err := engine.Start(t.Context(), definition, core.Input(word{Text: "lynx"}), options)
 				if err != nil {
 					t.Fatalf("Start: %v", err)
 				}
-				awaitSegment(t, segment)
+				awaitRun(t, runHandle)
 			} else {
 				if _, err := engine.Run(t.Context(), definition, core.Input(word{Text: "lynx"}), options); err != nil {
 					t.Fatalf("Run: %v", err)
@@ -65,7 +65,7 @@ func TestFreshChildOwnsFirstRunBeforeCreatedEvent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("deploy child: %v", err)
 	}
-	parent := agent.New(agent.AgentConfig{
+	parent := agent.New(agent.Config{
 		Name: "child-admission-parent",
 		Actions: []agent.Action{agent.NewAction(
 			"run-child",

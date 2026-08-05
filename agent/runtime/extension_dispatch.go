@@ -374,7 +374,7 @@ func resolveToolGroupWith(
 func addEventListenerExtensions(multicast *event.Multicast, extensions []extensionEntry) {
 	for _, extension := range extensions {
 		if listener, ok := extension.value.(EventListener); ok {
-			multicast.Add(listener)
+			multicast.Subscribe(listener)
 		}
 	}
 }

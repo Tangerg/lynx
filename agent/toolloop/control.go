@@ -17,10 +17,10 @@ var ErrInvalidControlFlow = errors.New("toolloop: invalid control flow")
 // effects. ID must be stable across the resume attempt; Reason is suitable for
 // an operator or approval UI.
 type PauseError struct {
-	ID           string
-	Reason       string
-	Prompt       json.RawMessage
-	ResumeSchema json.RawMessage
+	ID             string
+	Reason         string
+	Prompt         json.RawMessage
+	ResponseSchema json.RawMessage
 }
 
 func (e *PauseError) Error() string {
@@ -43,8 +43,8 @@ func (e *PauseError) validate() error {
 	if !json.Valid(e.Prompt) {
 		return fmt.Errorf("%w: pause prompt must be valid JSON", ErrInvalidControlFlow)
 	}
-	if !json.Valid(e.ResumeSchema) {
-		return fmt.Errorf("%w: pause resume schema must be valid JSON", ErrInvalidControlFlow)
+	if !json.Valid(e.ResponseSchema) {
+		return fmt.Errorf("%w: pause response schema must be valid JSON", ErrInvalidControlFlow)
 	}
 	return nil
 }

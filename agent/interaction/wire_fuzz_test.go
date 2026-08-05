@@ -15,11 +15,11 @@ type interactionProtocolValue interface {
 
 func FuzzSuspensionJSON(f *testing.F) {
 	valid, err := json.Marshal(interaction.Suspension{
-		SchemaVersion: interaction.SuspensionSchemaVersion,
-		ID:            "approval-1",
-		Prompt:        json.RawMessage(`{"message":"approve?"}`),
-		ResumeSchema:  json.RawMessage(`{"type":"boolean"}`),
-		CreatedAt:     time.Unix(1_752_568_200, 0).UTC(),
+		SchemaVersion:  interaction.SuspensionSchemaVersion,
+		ID:             "approval-1",
+		Prompt:         json.RawMessage(`{"message":"approve?"}`),
+		ResponseSchema: json.RawMessage(`{"type":"boolean"}`),
+		CreatedAt:      time.Unix(1_752_568_200, 0).UTC(),
 	})
 	if err != nil {
 		f.Fatal(err)

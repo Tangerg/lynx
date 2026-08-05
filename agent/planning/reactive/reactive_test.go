@@ -68,7 +68,7 @@ func TestReactive_AlreadySatisfiedReturnsEmptyPlan(t *testing.T) {
 	start := planning.NewState(map[string]core.Truth{
 		"goalKey": core.True,
 	})
-	g := core.NewGoal(core.GoalConfig{Name: "g", Preconditions: []string{"goalKey"}})
+	g := core.NewGoal(core.GoalConfig{Name: "g", RequiredConditions: []string{"goalKey"}})
 	domain := mustDomain(t, nil, []*core.Goal{g}, nil)
 
 	pl, err := reactive.NewPlanner().PlanToGoal(t.Context(), start, domain, g, planning.Options{})
@@ -82,7 +82,7 @@ func TestReactive_AlreadySatisfiedReturnsEmptyPlan(t *testing.T) {
 
 func TestReactive_PicksHighestProgressAction(t *testing.T) {
 	start := planning.NewState(nil)
-	g := core.NewGoal(core.GoalConfig{Name: "g", Preconditions: []string{"a", "b"}})
+	g := core.NewGoal(core.GoalConfig{Name: "g", RequiredConditions: []string{"a", "b"}})
 
 	weak := newAction("weak", nil, core.ConditionSet{"a": core.True}, 1)
 	strong := newAction("strong", nil, core.ConditionSet{"a": core.True, "b": core.True}, 5)
@@ -102,11 +102,11 @@ func TestReactive_PicksHighestProgressAction(t *testing.T) {
 
 func TestReactiveResolvesGoalConditionsBeforeScoringProgress(t *testing.T) {
 	start := planning.NewState(core.ConditionSet{"missing": core.False})
-	goal := core.NewGoal(core.GoalConfig{Name: "goal", Preconditions: []string{"already", "missing"}})
+	goal := core.NewGoal(core.GoalConfig{Name: "goal", RequiredConditions: []string{"already", "missing"}})
 	irrelevant := newAction("irrelevant", nil, core.ConditionSet{"already": core.True}, 0)
 	progress := newAction("progress", nil, core.ConditionSet{"missing": core.True}, 1)
 	domain := mustDomain(t, []core.Action{irrelevant, progress}, []*core.Goal{goal}, []core.Condition{
-		core.NewCondition(core.ConditionConfig{Name: "already", Cost: 1}),
+		core.NewCondition(core.ConditionConfig{Name: "already", EvaluationCost: 1}),
 	})
 	resolver := newConditionResolver(func(_ context.Context, name string) (core.Truth, error) {
 		if name != "already" {
@@ -132,7 +132,7 @@ func TestReactiveResolvesGoalConditionsBeforeScoringProgress(t *testing.T) {
 
 func TestReactive_TieBreaksByLowerCost(t *testing.T) {
 	start := planning.NewState(nil)
-	g := core.NewGoal(core.GoalConfig{Name: "g", Preconditions: []string{"a"}})
+	g := core.NewGoal(core.GoalConfig{Name: "g", RequiredConditions: []string{"a"}})
 
 	cheap := newAction("cheap", nil, core.ConditionSet{"a": core.True}, 1)
 	expensive := newAction("expensive", nil, core.ConditionSet{"a": core.True}, 5)
@@ -149,7 +149,7 @@ func TestReactive_TieBreaksByLowerCost(t *testing.T) {
 
 func TestReactive_SkipsInapplicable(t *testing.T) {
 	start := planning.NewState(nil)
-	g := core.NewGoal(core.GoalConfig{Name: "g", Preconditions: []string{"a"}})
+	g := core.NewGoal(core.GoalConfig{Name: "g", RequiredConditions: []string{"a"}})
 
 	blocked := newAction("blocked",
 		core.ConditionSet{"setup": core.True}, // precondition not met in start
@@ -168,7 +168,7 @@ func TestReactive_SkipsInapplicable(t *testing.T) {
 
 func TestReactive_NoApplicableActionReturnsNil(t *testing.T) {
 	start := planning.NewState(nil)
-	g := core.NewGoal(core.GoalConfig{Name: "g", Preconditions: []string{"a"}})
+	g := core.NewGoal(core.GoalConfig{Name: "g", RequiredConditions: []string{"a"}})
 	junk := newAction("junk", nil, core.ConditionSet{"unrelated": core.True}, 1)
 
 	domain := mustDomain(t, []core.Action{junk}, []*core.Goal{g}, nil)
@@ -183,7 +183,7 @@ func TestReactive_NoApplicableActionReturnsNil(t *testing.T) {
 
 func TestReactive_RespectsExclusion(t *testing.T) {
 	start := planning.NewState(nil)
-	g := core.NewGoal(core.GoalConfig{Name: "g", Preconditions: []string{"a"}})
+	g := core.NewGoal(core.GoalConfig{Name: "g", RequiredConditions: []string{"a"}})
 
 	preferred := newAction("preferred", nil, core.ConditionSet{"a": core.True}, 1)
 	fallback := newAction("fallback", nil, core.ConditionSet{"a": core.True}, 5)
@@ -206,8 +206,8 @@ func TestReactive_BestValuePlanRanksByNetValue(t *testing.T) {
 	a := newAction("a", nil, core.ConditionSet{"x": core.True}, 1)
 	b := newAction("b", nil, core.ConditionSet{"y": core.True}, 1)
 
-	low := core.NewGoal(core.GoalConfig{Name: "low", Preconditions: []string{"x"}, Value: core.FixedScore(2)})
-	high := core.NewGoal(core.GoalConfig{Name: "high", Preconditions: []string{"y"}, Value: core.FixedScore(10)})
+	low := core.NewGoal(core.GoalConfig{Name: "low", RequiredConditions: []string{"x"}, Value: core.FixedScore(2)})
+	high := core.NewGoal(core.GoalConfig{Name: "high", RequiredConditions: []string{"y"}, Value: core.FixedScore(10)})
 
 	domain := mustDomain(t, []core.Action{a, b}, []*core.Goal{low, high}, nil)
 	pl, err := domain.BestPlan(t.Context(), reactive.NewPlanner(), start, planning.Options{})
@@ -233,7 +233,7 @@ func TestReactiveRejectsInvalidActionCosts(t *testing.T) {
 		{name: "panic", cost: func(core.WorldState) float64 { panic(cause) }, cause: cause},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			goal := core.NewGoal(core.GoalConfig{Name: "goal", Preconditions: []string{"done"}})
+			goal := core.NewGoal(core.GoalConfig{Name: "goal", RequiredConditions: []string{"done"}})
 			action := &fakeAction{meta: core.ActionMetadata{
 				Name: "finish", Effects: core.ConditionSet{"done": core.True}, Cost: test.cost,
 			}}

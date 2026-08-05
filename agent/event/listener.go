@@ -55,9 +55,9 @@ type subscription struct {
 // NewMulticast returns an empty Multicast.
 func NewMulticast() *Multicast { return &Multicast{} }
 
-// Add subscribes listener and returns an idempotent cancellation function.
+// Subscribe registers listener and returns an idempotent unsubscribe function.
 // Nil listeners, including interfaces holding a typed nil, are ignored.
-func (m *Multicast) Add(listener Listener) func() {
+func (m *Multicast) Subscribe(listener Listener) func() {
 	if nilvalue.Is(listener) {
 		return func() {}
 	}

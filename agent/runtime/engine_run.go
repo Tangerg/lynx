@@ -110,15 +110,15 @@ func finishAgentRunSpan(span trace.Span, process *Process, err error) {
 }
 
 // Start deploys/resolves the Agent definition and starts one background
-// [Segment]. Definition resolution and process construction errors are returned
-// synchronously with a nil segment. It has the same catalog and conflict
+// [RunHandle]. Definition resolution and process construction errors are returned
+// synchronously with a nil handle. It has the same catalog and conflict
 // semantics as [Engine.Run].
 func (e *Engine) Start(
 	ctx context.Context,
 	agent *core.Agent,
 	bindings core.Bindings,
 	options core.ProcessOptions,
-) (*Segment, error) {
+) (*RunHandle, error) {
 	if agent == nil {
 		return nil, errors.New("runtime.Engine.Start: agent definition is nil")
 	}
@@ -135,16 +135,16 @@ func (e *Engine) Start(
 	}
 	span.SetAttributes(attribute.String(attrProcessID, process.id))
 	process.publishCreated(ctx)
-	segment := newSegment(process)
-	go process.runOwnedSegment(ctx, segment, func(runErr error) {
+	handle := newRunHandle(process)
+	go process.runOwnedHandle(ctx, handle, func(runErr error) {
 		finishAgentRunSpan(span, process, runErr)
 		span.End()
 	})
-	return segment, nil
+	return handle, nil
 }
 
 // Continue re-enters the run loop on an already-created
-// process. After [Engine.Resume] records a suspension response,
+// process. After [Engine.Respond] records a suspension response,
 // or after a stuck policy stages new blackboard state,
 // Continue drives the OODA loop until the process exits
 // Running again (terminal, waiting, or paused).
@@ -164,21 +164,21 @@ func (e *Engine) Continue(ctx context.Context, id string) error {
 }
 
 // ContinueAsync is the background variant of [Engine.Continue]. Admission
-// errors are returned synchronously; a successful call returns the one Segment
+// errors are returned synchronously; a successful call returns the one RunHandle
 // that owns this continuation.
-func (e *Engine) ContinueAsync(ctx context.Context, id string) (*Segment, error) {
+func (e *Engine) ContinueAsync(ctx context.Context, id string) (*RunHandle, error) {
 	ctx = normalizeContext(ctx)
 	process, started, err := e.admitContinuation(ctx, id, "runtime.Engine.ContinueAsync")
 	if err != nil {
 		return nil, err
 	}
-	segment := newSegment(process)
+	handle := newRunHandle(process)
 	if !started {
-		segment.complete(process.captureCompletion(nil))
-		return segment, nil
+		handle.complete(process.captureCompletion(nil))
+		return handle, nil
 	}
-	go process.runOwnedSegment(ctx, segment, nil)
-	return segment, nil
+	go process.runOwnedHandle(ctx, handle, nil)
+	return handle, nil
 }
 
 func (e *Engine) admitContinuation(
@@ -220,108 +220,108 @@ func (p *Process) ensureContinuable() error {
 	return nil
 }
 
-// Resume validates and records a response for the exact suspension ID.
+// Respond validates and records a response for the exact suspension ID.
 // The process status stays [core.StatusWaiting] until Continue re-enters
 // the action and decodes the response at its original linear call site.
 //
 // Splitting "record response" from "drive the loop" lets the host control the
 // continuation (sync vs background) while ctx bounds admission behind another
 // mutation of the same process tree.
-func (e *Engine) Resume(ctx context.Context, id, suspensionID string, response any) error {
+func (e *Engine) Respond(ctx context.Context, id, suspensionID string, response any) error {
 	process, ok := e.Process(id)
 	if !ok {
-		return processNotFoundError("resume process", id)
+		return processNotFoundError("respond to process", id)
 	}
 	releaseMutation, err := e.processMutations.acquire(normalizeContext(ctx), e.processTreeRootID(process))
 	if err != nil {
-		return fmt.Errorf("resume process %q: acquire process tree: %w", id, err)
+		return fmt.Errorf("respond to process %q: acquire process tree: %w", id, err)
 	}
 	defer releaseMutation()
 	if !e.processes.available(process) {
-		return processNotFoundError("resume process", id)
+		return processNotFoundError("respond to process", id)
 	}
-	admission, err := e.prepareResume(process, suspensionID, response)
+	admission, err := e.prepareResponse(process, suspensionID, response)
 	if err != nil {
-		return fmt.Errorf("resume process %q: %w", id, err)
+		return fmt.Errorf("respond to process %q: %w", id, err)
 	}
 	defer admission.release()
 	if err := admission.apply(false); err != nil {
-		return fmt.Errorf("resume process %q: %w", id, err)
+		return fmt.Errorf("respond to process %q: %w", id, err)
 	}
 	return nil
 }
 
-// ResumeAsync atomically records a response and admits the continuation run.
+// RespondAndContinueAsync atomically records a response and admits the continuation run.
 // admissionCtx bounds waiting for exclusive process-tree ownership; runCtx owns
-// the admitted segment's lifetime. A returned error means the response was not
-// recorded. A successful call always returns the unique Segment driving the
+// the admitted run's lifetime. A returned error means the response was not
+// recorded. A successful call always returns the unique RunHandle driving the
 // continuation, so callers never need to repair a half-resumed process.
-func (e *Engine) ResumeAsync(
+func (e *Engine) RespondAndContinueAsync(
 	admissionCtx context.Context,
 	runCtx context.Context,
 	id, suspensionID string,
 	response any,
-) (*Segment, error) {
+) (*RunHandle, error) {
 	process, ok := e.Process(id)
 	if !ok {
-		return nil, processNotFoundError("resume process asynchronously", id)
+		return nil, processNotFoundError("respond to and continue process", id)
 	}
 	admissionCtx = normalizeContext(admissionCtx)
 	releaseMutation, err := e.processMutations.acquire(admissionCtx, e.processTreeRootID(process))
 	if err != nil {
-		return nil, fmt.Errorf("resume process %q asynchronously: acquire process tree: %w", id, err)
+		return nil, fmt.Errorf("respond to and continue process %q: acquire process tree: %w", id, err)
 	}
 	defer releaseMutation()
 	if !e.processes.available(process) {
-		return nil, processNotFoundError("resume process asynchronously", id)
+		return nil, processNotFoundError("respond to and continue process", id)
 	}
-	admission, err := e.prepareResume(process, suspensionID, response)
+	admission, err := e.prepareResponse(process, suspensionID, response)
 	if err != nil {
-		return nil, fmt.Errorf("resume process %q asynchronously: %w", id, err)
+		return nil, fmt.Errorf("respond to and continue process %q: %w", id, err)
 	}
 	defer admission.release()
 	if err := admission.apply(true); err != nil {
-		return nil, fmt.Errorf("resume process %q asynchronously: %w", id, err)
+		return nil, fmt.Errorf("respond to and continue process %q: %w", id, err)
 	}
 	admission.release()
-	segment := newSegment(process)
-	go process.runOwnedSegment(normalizeContext(runCtx), segment, nil)
-	return segment, nil
+	handle := newRunHandle(process)
+	go process.runOwnedHandle(normalizeContext(runCtx), handle, nil)
+	return handle, nil
 }
 
-type resumeResponse struct {
-	state      *processState
-	suspension string
-	response   json.RawMessage
+type suspensionResponse struct {
+	state        *processState
+	suspensionID string
+	responseJSON json.RawMessage
 }
 
-type resumeAdmission struct {
+type responseAdmission struct {
 	root      *Process
 	claims    []*processState
-	responses []resumeResponse
+	responses []suspensionResponse
 }
 
-func (e *Engine) prepareResume(process *Process, suspensionID string, response any) (*resumeAdmission, error) {
-	admission := &resumeAdmission{root: process}
-	if err := e.collectResume(admission, process, suspensionID, response, map[string]struct{}{}); err != nil {
+func (e *Engine) prepareResponse(process *Process, suspensionID string, response any) (*responseAdmission, error) {
+	admission := &responseAdmission{root: process}
+	if err := e.collectResponse(admission, process, suspensionID, response, map[string]struct{}{}); err != nil {
 		admission.release()
 		return nil, err
 	}
 	return admission, nil
 }
 
-// collectResume validates the complete active nested-child branch and claims
+// collectResponse validates the complete active nested-child branch and claims
 // every process checkpoint before recording any response. Sibling children
 // remain parked. Claims are acquired root → leaf, matching snapshot traversal.
-func (e *Engine) collectResume(
-	admission *resumeAdmission,
+func (e *Engine) collectResponse(
+	admission *responseAdmission,
 	process *Process,
 	suspensionID string,
 	response any,
 	visited map[string]struct{},
 ) error {
 	if process == nil {
-		return errors.New("resume process: process is nil")
+		return errors.New("respond to process: process is nil")
 	}
 	if _, duplicate := visited[process.ID()]; duplicate {
 		return fmt.Errorf("%w: nested process cycle at %q", interaction.ErrSuspensionConflict, process.ID())
@@ -361,20 +361,20 @@ func (e *Engine) collectResume(
 			return err
 		}
 		if childSuspension := child.Suspension(); childSuspension != nil && child.Status() == core.StatusWaiting {
-			if err := e.collectResume(admission, child, childSuspension.ID, response, visited); err != nil {
+			if err := e.collectResponse(admission, child, childSuspension.ID, response, visited); err != nil {
 				return err
 			}
 		}
 	}
-	admission.responses = append(admission.responses, resumeResponse{
-		state:      &process.state,
-		suspension: suspensionID,
-		response:   canonical,
+	admission.responses = append(admission.responses, suspensionResponse{
+		state:        &process.state,
+		suspensionID: suspensionID,
+		responseJSON: canonical,
 	})
 	return nil
 }
 
-func (admission *resumeAdmission) apply(start bool) error {
+func (admission *responseAdmission) apply(start bool) error {
 	type appliedResponse struct {
 		state    *processState
 		previous *interaction.Suspension
@@ -387,8 +387,8 @@ func (admission *resumeAdmission) apply(start bool) error {
 	}
 	for _, prepared := range admission.responses {
 		previous, err := prepared.state.installClaimedSuspensionResponse(
-			prepared.suspension,
-			prepared.response,
+			prepared.suspensionID,
+			prepared.responseJSON,
 		)
 		if err != nil {
 			revert()
@@ -411,7 +411,7 @@ func (admission *resumeAdmission) apply(start bool) error {
 	return nil
 }
 
-func (admission *resumeAdmission) release() {
+func (admission *responseAdmission) release() {
 	for index := len(admission.claims) - 1; index >= 0; index-- {
 		admission.claims[index].releaseCheckpoint()
 	}
@@ -463,7 +463,7 @@ func (e *Engine) killSubtreeOwned(process *Process) (bool, []*Process) {
 	won := process.state.markKilled(nil)
 	if won {
 		process.signals.fireRunCancel()
-		process.signals.fireToolCallCancel()
+		process.signals.cancelActiveToolCall()
 	}
 
 	children := e.directChildren(process.ID())

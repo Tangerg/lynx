@@ -65,7 +65,7 @@ func callsChat() func(context.Context, *core.ProcessContext, callIn) (callOut, e
 }
 
 func chatAgent() *core.Agent {
-	return agent.New(agent.AgentConfig{Name: "chat-router", Actions: []agent.Action{agent.NewAction("call", callsChat(), core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[callOut](core.GoalConfig{Description: "done"})}})
+	return agent.New(agent.Config{Name: "chat-router", Actions: []agent.Action{agent.NewAction("call", callsChat(), core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[callOut](core.GoalConfig{Description: "done"})}})
 }
 
 func mustChatClient(t *testing.T, model chat.Model) *chatclient.Client {

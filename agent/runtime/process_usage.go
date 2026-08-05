@@ -43,10 +43,10 @@ type budgetAuthority struct {
 type processBudget struct {
 	mu sync.RWMutex
 
-	authority       *budgetAuthority
-	children        []*Process
-	own             core.Usage
-	retiredChildren core.Usage
+	authority              *budgetAuthority
+	children               []*Process
+	ownUsageTotal          core.Usage
+	retiredChildUsageTotal core.Usage
 }
 
 func newProcessBudget(limit core.Budget) processBudget {
@@ -72,11 +72,11 @@ func (b *processBudget) admitAction() (bool, string, error) {
 
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	if b.own.Actions == math.MaxInt {
+	if b.ownUsageTotal.Actions == math.MaxInt {
 		return false, "", errors.New("runtime: process action usage exceeds int capacity")
 	}
 	authority.usage.Actions++
-	b.own.Actions++
+	b.ownUsageTotal.Actions++
 	return true, "", nil
 }
 
@@ -99,7 +99,7 @@ func (b *processBudget) reserveModelCall() (*modelCallReservation, interaction.S
 		return nil, interaction.StopBudget, nil
 	case authority.limit.ModelCallLimit > 0 &&
 		admittedModelCalls >= authority.limit.ModelCallLimit:
-		return nil, interaction.StopSteps, nil
+		return nil, interaction.StopModelCalls, nil
 	case authority.reservedModelCalls == math.MaxInt:
 		return nil, interaction.StopNone, errors.New("runtime: reserved model-call count exceeds int capacity")
 	}
@@ -144,12 +144,12 @@ func (r *modelCallReservation) commit(usage core.Usage) error {
 	}
 	r.budget.mu.Lock()
 	defer r.budget.mu.Unlock()
-	nextOwn, err := addUsage(r.budget.own, usage)
+	nextOwn, err := addUsage(r.budget.ownUsageTotal, usage)
 	if err != nil {
 		return err
 	}
 	authority.usage = nextTree
-	r.budget.own = nextOwn
+	r.budget.ownUsageTotal = nextOwn
 	return nil
 }
 
@@ -185,21 +185,21 @@ func (a *budgetAuthority) exhaustedLocked() (bool, string) {
 	}
 }
 
-func (b *processBudget) restore(usage core.Usage) {
+func (b *processBudget) restoreOwnUsage(usage core.Usage) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	b.own = usage
+	b.ownUsageTotal = usage
 }
 
-func (b *processBudget) restoreRetiredChildren(usage core.Usage) {
+func (b *processBudget) restoreRetiredChildUsage(usage core.Usage) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	b.retiredChildren = usage
+	b.retiredChildUsageTotal = usage
 }
 
-// restoreAuthority installs the aggregate rebuilt from all restored process
+// restoreAggregateUsage installs the aggregate rebuilt from all restored process
 // snapshots after parent-child links have been reconstructed.
-func (b *processBudget) restoreAuthority(usage core.Usage) error {
+func (b *processBudget) restoreAggregateUsage(usage core.Usage) error {
 	if err := usage.Validate(); err != nil {
 		return err
 	}
@@ -247,24 +247,24 @@ func (b *processBudget) hasChild(child *Process) bool {
 func (b *processBudget) replaceRetiredChildUsage(usage core.Usage) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	b.retiredChildren = usage
+	b.retiredChildUsageTotal = usage
 }
 
 func (b *processBudget) ownUsage() core.Usage {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
-	return b.own
+	return b.ownUsageTotal
 }
 
 func (b *processBudget) retiredChildUsage() core.Usage {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
-	return b.retiredChildren
+	return b.retiredChildUsageTotal
 }
 
 func (b *processBudget) usage() core.Usage {
 	b.mu.RLock()
-	usage := saturatingUsage(b.own, b.retiredChildren)
+	usage := saturatingUsage(b.ownUsageTotal, b.retiredChildUsageTotal)
 	children := append([]*Process(nil), b.children...)
 	b.mu.RUnlock()
 

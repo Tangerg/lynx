@@ -71,8 +71,8 @@ func (h History[T]) withAttempt(attempt T) History[T] {
 
 // Feedback is a scored, human-readable acceptance signal. Score is in [0, 1].
 type Feedback struct {
-	Score float64
-	Text  string
+	Score     float64
+	Rationale string
 }
 
 // Validate verifies the normalized score contract.

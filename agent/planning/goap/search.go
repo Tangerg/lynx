@@ -122,7 +122,7 @@ func (s *search) run(ctx context.Context) (*searchNode, error) {
 		}
 		s.expansions++
 
-		satisfied, err := s.domain.Satisfies(ctx, current.state, s.goal.Preconditions(), s.resolver)
+		satisfied, err := s.domain.Satisfies(ctx, current.state, s.goal.Requirements(), s.resolver)
 		if err != nil {
 			return nil, err
 		}
@@ -146,7 +146,7 @@ func (s *search) expand(ctx context.Context, current *searchNode) error {
 	if err != nil {
 		return err
 	}
-	scoreState, err := s.domain.ResolvedState(current.state, s.resolver)
+	scoreState, err := s.domain.StateWithResolvedConditions(current.state, s.resolver)
 	if err != nil {
 		return err
 	}
@@ -207,14 +207,14 @@ func (s *search) reconstructPath(goalKey string) ([]core.Action, error) {
 // burns the expansion cap; it is not a transitive reachability proof.
 func (s *search) hasGoalProducers() bool {
 	state := s.start.Conditions()
-	for key, required := range s.goal.Preconditions() {
+	for key, required := range s.goal.Requirements() {
 		if state[key] == required {
 			continue
 		}
 		// An evaluator-backed Unknown may satisfy this requirement when the
 		// search reaches a state where the rest of the goal holds. It does not
 		// need an action producer.
-		if ref, ok := s.domain.ConditionRef(key); ok && ref.Kind == planning.ConditionEvaluator && state[key] == core.Unknown {
+		if ref, ok := s.domain.ConditionRef(key); ok && ref.Source == planning.ConditionEvaluator && state[key] == core.Unknown {
 			continue
 		}
 		produced := false

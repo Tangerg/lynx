@@ -33,7 +33,7 @@ func (tv TaggedValue) Validate() error {
 
 // EncodeBlackboard converts snapshot values into their strict tagged wire form.
 // Every non-builtin concrete type must be declared by an action input/output or
-// by [AgentConfig.SnapshotState] on this Agent: the declaration is what lets
+// by [AgentConfig.SnapshotBindings] on this Agent: the declaration is what lets
 // [Agent.DecodeBlackboard] recover the exact Go type from a tag, so an
 // undeclared type is a value this Agent could encode but never restore.
 //
@@ -72,7 +72,7 @@ func (a *Agent) EncodeBlackboard(bindings Bindings, objects []any) (map[string]T
 
 // SnapshotCodec is the single authority on which values can cross a process
 // snapshot. A value survives only if its exact Go type is declared by this
-// Agent — an action input or output, or [AgentConfig.SnapshotState] — because
+// Agent — an action input or output, or [AgentConfig.SnapshotBindings] — because
 // the declaration is the only thing that turns a tag back into a
 // [reflect.Type]. An undeclared type is one the Agent could encode and never
 // restore.
@@ -93,18 +93,18 @@ func (a *Agent) SnapshotCodec() SnapshotCodec {
 	return SnapshotCodec{types: a.snapshotTypes()}
 }
 
-// Declares reports why value's type cannot cross a snapshot, or nil when it
+// ValidateDeclaredType reports why value's type cannot cross a snapshot, or nil when it
 // can. It answers from the declaration table alone, so it costs nothing to ask
 // and cannot catch a declared type whose value fails to encode —
 // [SnapshotCodec.Encode] is the complete check, and what the runtime gates
 // writes on.
-func (c SnapshotCodec) Declares(value any) error {
+func (c SnapshotCodec) ValidateDeclaredType(value any) error {
 	if value == nil {
 		return nil
 	}
 	typeName := snapshotTypeName(reflect.TypeOf(value))
 	if _, ok := c.types[typeName]; !ok {
-		return fmt.Errorf("%w: %q", ErrUndeclaredState, typeName)
+		return fmt.Errorf("%w: %q", ErrUndeclaredSnapshotType, typeName)
 	}
 	return nil
 }
@@ -114,7 +114,7 @@ func (c SnapshotCodec) Encode(value any) (TaggedValue, error) {
 	if value == nil {
 		return TaggedValue{Type: anyTypeName, Value: json.RawMessage(nullJSON)}, nil
 	}
-	if err := c.Declares(value); err != nil {
+	if err := c.ValidateDeclaredType(value); err != nil {
 		return TaggedValue{}, err
 	}
 	typeName := snapshotTypeName(reflect.TypeOf(value))
@@ -139,7 +139,7 @@ func (c SnapshotCodec) Decode(tagged TaggedValue) (any, error) {
 	}
 	typeValue, ok := c.types[tagged.Type]
 	if !ok || typeValue == nil {
-		return nil, fmt.Errorf("%w: %q", ErrUndeclaredState, tagged.Type)
+		return nil, fmt.Errorf("%w: %q", ErrUndeclaredSnapshotType, tagged.Type)
 	}
 	pointer := reflect.New(typeValue)
 	if err := json.Unmarshal(tagged.Value, pointer.Interface()); err != nil {
@@ -199,7 +199,7 @@ func (a *Agent) snapshotTypes() map[string]reflect.Type {
 			}
 		}
 	}
-	register(a.SnapshotState())
+	register(a.SnapshotBindings())
 	for _, action := range a.Actions() {
 		if nilvalue.Is(action) {
 			continue

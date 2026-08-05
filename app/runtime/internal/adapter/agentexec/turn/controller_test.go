@@ -5,7 +5,6 @@ import (
 	"errors"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/Tangerg/lynx/chatclient"
 	"github.com/Tangerg/lynx/chathistory/inmemory"
@@ -97,35 +96,9 @@ func TestController_StartTurn_EmitsExpectedEvents(t *testing.T) {
 		}
 	}
 
-	awaitTurnForgotten(t, controller, handle)
+	joinTurnCleanup(t, controller, handle)
 	if err := controller.Cancel(t.Context(), handle); !errors.Is(err, turn.ErrTurnNotFound) {
 		t.Errorf("Cancel after cleanup = %v, want ErrTurnNotFound", err)
-	}
-}
-
-// awaitTurnForgotten blocks until the controller has dropped the turn's state.
-//
-// Draining to TurnEnd is not enough to assert that directly: closing the event
-// stream and releasing the turn are separate steps, and they have to be. Release
-// discards the process, which reaches storage, and a consumer's completion
-// signal must not wait behind that I/O. So a drained stream means "no more
-// events", not "already cleaned up", and the gap widens under load.
-func awaitTurnForgotten(t *testing.T, controller turnDriver, handle turn.Handle) {
-	t.Helper()
-	// Generous because it separates a hang from a loaded machine, not because
-	// cleanup is expected to take any particular time. Go's test timeout
-	// backstops a genuine deadlock.
-	const bound = 30 * time.Second
-	deadline := time.Now().Add(bound)
-	for {
-		_, err := controller.Events(t.Context(), handle)
-		if errors.Is(err, turn.ErrTurnNotFound) {
-			return
-		}
-		if time.Now().After(deadline) {
-			t.Fatalf("turn still registered %v after TurnEnd: Events = %v", bound, err)
-		}
-		time.Sleep(time.Millisecond)
 	}
 }
 

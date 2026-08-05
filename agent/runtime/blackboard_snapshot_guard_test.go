@@ -17,7 +17,7 @@ type declaredOut struct{ Text string }
 type undeclaredArtifact struct{ Note string }
 
 func declaringAgent() *core.Agent {
-	return agent.New(agent.AgentConfig{
+	return agent.New(agent.Config{
 		Name: "declares-its-state",
 		Actions: []agent.Action{agent.NewAction("op", func(context.Context, *core.ProcessContext, declaredIn) (declaredOut, error) {
 			return declaredOut{}, nil
@@ -70,8 +70,8 @@ func TestBlackboardWritesAgreeWithTheSnapshotCodec(t *testing.T) {
 			if err == nil {
 				t.Fatal("accepted state no snapshot of this process could restore")
 			}
-			if !errors.Is(err, core.ErrUndeclaredState) {
-				t.Fatalf("error = %v, want it to wrap core.ErrUndeclaredState", err)
+			if !errors.Is(err, core.ErrUndeclaredSnapshotType) {
+				t.Fatalf("error = %v, want it to wrap core.ErrUndeclaredSnapshotType", err)
 			}
 			if _, ok := blackboard.Load("artifact"); ok {
 				t.Fatal("a rejected write still landed on the blackboard")
@@ -93,8 +93,8 @@ func TestDeclaredBlackboardKeepsItsGateAcrossClone(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Clone: %v", err)
 	}
-	if err := clone.Store("artifact", undeclaredArtifact{Note: "n"}); !errors.Is(err, core.ErrUndeclaredState) {
-		t.Fatalf("clone Store error = %v, want core.ErrUndeclaredState", err)
+	if err := clone.Store("artifact", undeclaredArtifact{Note: "n"}); !errors.Is(err, core.ErrUndeclaredSnapshotType) {
+		t.Fatalf("clone Store error = %v, want core.ErrUndeclaredSnapshotType", err)
 	}
 	if err := clone.Store("value", declaredIn{Text: "in"}); err != nil {
 		t.Fatalf("clone rejected declared state: %v", err)
@@ -145,7 +145,7 @@ func TestProcessRejectsExistingBlackboardStateItsAgentCannotRestore(t *testing.T
 	if err := blackboard.Store("input", declaredIn{Text: "in"}); err != nil {
 		t.Fatalf("Store: %v", err)
 	}
-	incompatible := agent.New(agent.AgentConfig{
+	incompatible := agent.New(agent.Config{
 		Name: "different-state-schema",
 		Actions: []agent.Action{agent.NewAction("op", func(context.Context, *core.ProcessContext, string) (string, error) {
 			return "done", nil
@@ -157,8 +157,8 @@ func TestProcessRejectsExistingBlackboardStateItsAgentCannotRestore(t *testing.T
 	if process != nil {
 		t.Fatalf("Run returned process %q with incompatible existing state", process.ID())
 	}
-	if !errors.Is(err, core.ErrUndeclaredState) {
-		t.Fatalf("Run error = %v, want core.ErrUndeclaredState", err)
+	if !errors.Is(err, core.ErrUndeclaredSnapshotType) {
+		t.Fatalf("Run error = %v, want core.ErrUndeclaredSnapshotType", err)
 	}
 }
 
@@ -176,8 +176,8 @@ func TestDeclaredBlackboardRejectsUndeclaredRestoreState(t *testing.T) {
 	err = restorer.Restore(runtime.BlackboardState{
 		Objects: []any{undeclaredArtifact{Note: "injected"}},
 	})
-	if !errors.Is(err, core.ErrUndeclaredState) {
-		t.Fatalf("Restore error = %v, want core.ErrUndeclaredState", err)
+	if !errors.Is(err, core.ErrUndeclaredSnapshotType) {
+		t.Fatalf("Restore error = %v, want core.ErrUndeclaredSnapshotType", err)
 	}
 	value, ok := blackboard.Load("value")
 	if !ok || value != (declaredIn{Text: "before"}) {

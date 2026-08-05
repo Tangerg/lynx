@@ -21,12 +21,12 @@ import (
 const llmIdleTimeout = 5 * time.Minute
 
 // Tool-loop policy. The Agent framework deliberately supplies no numbers here:
-// an unset round limit runs until the model stops asking for tools, and an unset
+// an unset model-call limit runs until the model stops asking for tools, and an unset
 // concurrency limit executes one call at a time. Both figures are product
 // decisions about how long a turn may iterate and how much local fan-out the
 // host tolerates, so Runtime states them.
 const (
-	turnMaxToolRounds          = 50
+	turnMaxModelCalls          = 50
 	turnMaxConcurrentToolCalls = 8
 )
 
@@ -190,7 +190,7 @@ func (e *Engine) runTurn(ctx context.Context, pc *core.ProcessContext, message s
 	result, err := pc.Interact(ctx, core.Interaction{
 		Request: prepared.request,
 		Tools:   prepared.registry,
-		Stream:  stream,
+		OnDelta: stream,
 		Limits:  interaction.Limits{MaxConcurrentToolCalls: turnMaxConcurrentToolCalls},
 	})
 	if err != nil {
@@ -208,7 +208,7 @@ func (e *Engine) prepareTurn(ctx context.Context, pc *core.ProcessContext, messa
 	if err != nil {
 		return preparedTurn{}, fmt.Errorf("agentexec: register action tools: %w", err)
 	}
-	manifest, err := toolloop.Advertise(actionTools)
+	manifest, err := toolloop.InitialManifest(actionTools)
 	if err != nil {
 		return preparedTurn{}, fmt.Errorf("agentexec: build advertised tool manifest: %w", err)
 	}

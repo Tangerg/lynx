@@ -163,7 +163,7 @@ func NewAction[In, Out any](
 		Inputs:            inputs,
 		Outputs:           outputs,
 		Repeatable:        config.Repeatable,
-		ToolGroups:        slices.Clone(config.ToolGroups),
+		ToolRoles:         slices.Clone(config.ToolRoles),
 		Cost:              cost,
 		Value:             value,
 		ClearWorkingState: config.ClearWorkingState,
@@ -175,7 +175,7 @@ func NewAction[In, Out any](
 
 // computePreconditionsAndEffects derives the planner state transition: every
 // input binding becomes a True precondition,
-// every output binding becomes a True effect, and the action_ran_<name>
+// every output binding becomes a True effect, and the action_succeeded_<name>
 // condition is toggled to keep non-repeatable actions from looping.
 func (m ActionMetadata) computePreconditionsAndEffects(extraPreconditions, extraEffects []string) (ConditionSet, ConditionSet) {
 	preconditions := ConditionSet{}
@@ -195,13 +195,13 @@ func (m ActionMetadata) computePreconditionsAndEffects(extraPreconditions, extra
 		effects[output.String()] = True
 	}
 
-	// "Have not run yet" is a precondition; "have run" is an effect. The
-	// world-state reader promotes the runtime's stored action-run condition into the
+	// "Has not succeeded yet" is a precondition; "has succeeded" is an effect. The
+	// world-state observer promotes the runtime's stored action-success condition into the
 	// world state so the planner can prune already-executed actions.
 	if !m.Repeatable {
-		preconditions[m.RunCondition()] = False
+		preconditions[m.SuccessCondition()] = False
 	}
-	effects[m.RunCondition()] = True
+	effects[m.SuccessCondition()] = True
 
 	return preconditions, effects
 }

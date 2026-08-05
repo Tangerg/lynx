@@ -56,7 +56,7 @@ func TestChildEventsReachParentProcessListener(t *testing.T) {
 		t.Fatalf("deploy child: %v", err)
 	}
 
-	parent := agent.New(agent.AgentConfig{Name: "parent-observed", Description: "spawns a child while a process-scope listener watches", Actions: []agent.Action{agent.NewAction("invoke-child", func(ctx context.Context, _ *core.ProcessContext, in subInput) (parentOutput, error) {
+	parent := agent.New(agent.Config{Name: "parent-observed", Description: "spawns a child while a process-scope listener watches", Actions: []agent.Action{agent.NewAction("invoke-child", func(ctx context.Context, _ *core.ProcessContext, in subInput) (parentOutput, error) {
 		tool, err := runtime.NewAgentTool[subInput, subOutput](engine, childDeployment)
 		if err != nil {
 			return parentOutput{}, err

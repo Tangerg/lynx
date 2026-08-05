@@ -136,18 +136,13 @@ func TestPromptCondition_CostDefaultsToOne(t *testing.T) {
 		Prompt: func(_ context.Context, _ *core.ConditionEnv) string { return "ok?" },
 		Parse:  core.ParseYesNo,
 	})
-	if cond.Cost() != 1 {
-		t.Fatalf("Cost = %f, want 1", cond.Cost())
+	if cond.EvaluationCost() != 1 {
+		t.Fatalf("EvaluationCost = %f, want 1", cond.EvaluationCost())
 	}
 
-	cond = mustPromptCondition(t, core.PromptConditionConfig{
-		Name:   "x",
-		Prompt: func(_ context.Context, _ *core.ConditionEnv) string { return "ok?" },
-		Parse:  core.ParseYesNo,
-		Cost:   2.5,
-	})
-	if cond.Cost() != 2.5 {
-		t.Fatalf("Cost = %f, want 2.5", cond.Cost())
+	cond = mustPromptCondition(t, core.PromptConditionConfig{Name: "x", Prompt: func(_ context.Context, _ *core.ConditionEnv) string { return "ok?" }, Parse: core.ParseYesNo, EvaluationCost: 2.5})
+	if cond.EvaluationCost() != 2.5 {
+		t.Fatalf("EvaluationCost = %f, want 2.5", cond.EvaluationCost())
 	}
 }
 
@@ -175,15 +170,11 @@ func TestPromptCondition_RejectsInvalidArgs(t *testing.T) {
 			return err
 		}},
 		{"NaN cost", func() error {
-			_, err := core.NewPromptCondition(core.PromptConditionConfig{
-				Name: "x", Prompt: func(_ context.Context, _ *core.ConditionEnv) string { return "" }, Parse: core.ParseYesNo, Cost: math.NaN(),
-			})
+			_, err := core.NewPromptCondition(core.PromptConditionConfig{Name: "x", Prompt: func(_ context.Context, _ *core.ConditionEnv) string { return "" }, Parse: core.ParseYesNo, EvaluationCost: math.NaN()})
 			return err
 		}},
 		{"infinite cost", func() error {
-			_, err := core.NewPromptCondition(core.PromptConditionConfig{
-				Name: "x", Prompt: func(_ context.Context, _ *core.ConditionEnv) string { return "" }, Parse: core.ParseYesNo, Cost: math.Inf(1),
-			})
+			_, err := core.NewPromptCondition(core.PromptConditionConfig{Name: "x", Prompt: func(_ context.Context, _ *core.ConditionEnv) string { return "" }, Parse: core.ParseYesNo, EvaluationCost: math.Inf(1)})
 			return err
 		}},
 	}

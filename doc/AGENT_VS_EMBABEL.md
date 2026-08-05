@@ -165,9 +165,9 @@ class HoroscopeAgent {
 
 ```go
 // agent/core
-type AgentConfig struct { Name, Description, Version string; Actions []Action; Goals []*Goal; Conditions []Condition; PlannerName string; StuckPolicy StuckPolicy }
+type AgentConfig struct { Name, Description, Version string; Actions []Action; Goals []*Goal; Conditions []Condition; SnapshotBindings []Binding; PlannerName string; StuckPolicy StuckPolicy }
 func NewAgent(config AgentConfig) *Agent               // read-only 定义聚合,构造期防御性快照
-type ActionMetadata struct { Name string; Inputs, Outputs []Binding; Preconditions, Effects ConditionSet; Cost, Value ScoreFunc; ToolGroups []string; ... }
+type ActionMetadata struct { Name string; Inputs, Outputs []Binding; Preconditions, Effects ConditionSet; Cost, Value ScoreFunc; ToolRoles []string; ... }
 // NewAction[In,Out](...) 捕获 In/Out 的 reflect.Type → 生成 input/output Binding
 func NewBinding[T any](name string) Binding            // reflect.TypeFor[T](),指针归一,pkgpath 限定
 func NewOutputGoal[T any](config GoalConfig) *Goal      // precondition = "类型 T 的产物在黑板上"
@@ -335,7 +335,7 @@ Session；当前 `ProcessSnapshot` schema 为 v9、`Suspension` schema 为 v2、
   不接收 conversation ID，也不承诺数据库或跨节点顺序。
 - **嵌套 AgentTool 的暂停是父子树的一部分**。lynx 以原始 `tool_call_id` 关联 child,child 暂停会把 suspension 推进父进程的 managed interaction,恢复时继续原 child。Embabel Subagent 遇到等待状态时主要把等待信息返回为工具文本,另走 process/callback 机制继续,没有同样透明的父调用栈续跑。
 - **`context.Context` 传进程,不用 `ThreadLocal`**。Go 无 ThreadLocal;进程/取消/trace 靠 `ctx` 显式传递,脱钩后台 goroutine 用 `context.WithoutCancel` 保 span。
-- **HITL 是显式 suspension + 幂等 Consume**,不是抛 `ProcessWaitingException`。lynx `hitl.Interrupt` 产出 suspension,`Engine.Resume` 记录 response 到精确 suspension,`Continue` 重入 —— park/interrupt 幂等。
+- **HITL 是显式 suspension + 精确响应**,不是抛 `ProcessWaitingException`。lynx `hitl.Interrupt` 产出 suspension,`Engine.Respond` 记录 response 到精确 suspension,`Continue` 重入 —— park/respond 边界明确。
 
 ---
 
@@ -351,8 +351,8 @@ Session；当前 `ProcessSnapshot` schema 为 v9、`Suspension` schema 为 v2、
   `ab30d8943` 新建的 Event Runner 只实现逐 call 串行；最后 `4f4fb5651` 迁移 App
   到新 Runner 时又删除了 observer 的能力透传。也就是说，底层工具上的
   `ConcurrencyKey` 方法仍在，但既没有 Runner 消费，也在 App 最外层包装处被遮蔽。
-- **toolloop 已恢复 conflict-aware 并发**。工具默认互斥;实现 `toolloop.ConcurrentTool` 后可返回 `(resourceKey,true)`:空 key 表示无已知冲突,同一非空 key 串行。`MaxConcurrentCalls` 默认 8,阻止模型 fan-out 击穿 provider/本地资源。
-- **执行顺序与提交顺序分离**。同一并发段内工具可乱序完成,但 `ToolResult` event、continuation tool message、下一轮 model/cache 输入始终按原 tool-call 顺序提交。checkpoint v2 为每个 call 保存 `queued/completed/paused` 独立状态、`NextResult` 与原 `MaxConcurrentCalls`,因此后完成的结果可以安全缓冲在前序 pause 后面,重启也不会静默换一套调度宽度。
+- **toolloop 已恢复 conflict-aware 并发**。工具默认互斥;实现 `toolloop.ConcurrentTool` 后可返回 `(resourceKey,true)`:空 key 表示无已知冲突,同一非空 key 串行。`MaxConcurrentToolCalls` 由 Host 显式配置；零值逐个执行，不由 Framework 猜默认宽度。
+- **执行顺序与提交顺序分离**。同一并发 batch 内工具可乱序完成,但 `ToolResult` event、continuation tool message、下一轮 model/cache 输入始终按原 tool-call 顺序提交。checkpoint v5 为每个 call 保存 `queued/completed/paused` 独立状态与 `NextResult`，因此后完成的结果可以安全缓冲在前序 pause 后面；调度宽度是每次 continuation 的 Host policy，不写入 checkpoint。
 - **插件失败被限制在工具边界**。工具 `Call` panic 被转换为当前位置的 recoverable error ToolResult,不会从并发 goroutine 击穿 Host;同批 sibling 的结果仍按调用顺序提交。
 - **AgentTool 是并发安全的子进程能力**。每个调用拥有隔离 child process,通过精确 `tool_call_id` 关联;同名、同参数的多个调用不会混淆。多个 child 同时暂停时,parent 对外仍只暴露 call-order 中最早的 suspension,其余 suspension 已持久化但不越序可见。
 - **workflow 组合器做显式 fan-out**:`scatter-gather`/`consensus` 的 generator 只接收 context 与 typed input，Framework 还会遮蔽 inherited `ProcessView`，因此父 Process 能力不可达；`parallel` 的内部 adapter 仅保留派生 child 所需的父身份，每个 child 拥有独立 Blackboard 与生命周期。结果按声明顺序 join，多个 failure 也按声明位置确定性选 cause；取消是协作式且等待已启动分支退出。这些组合器**都编译回普通 GOAP agent**,不是新 runtime 概念。

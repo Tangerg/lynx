@@ -41,7 +41,7 @@ func representativeAgentWireContracts(t *testing.T) map[string]any {
 
 	completedResult := chat.ToolResult{ID: "call-1", Name: "lookup", Result: "deployed"}
 	prompt := json.RawMessage(`{"message":"operator approval required"}`)
-	resumeSchema := json.RawMessage(`{"type":"string"}`)
+	responseSchema := json.RawMessage(`{"type":"string"}`)
 	checkpoint := &toolloop.Checkpoint{
 		SchemaVersion: toolloop.CheckpointSchemaVersion,
 		ID:            "approval-1",
@@ -54,10 +54,10 @@ func representativeAgentWireContracts(t *testing.T) map[string]any {
 			{
 				Status: toolloop.CallPaused,
 				Pending: &toolloop.PendingCall{
-					ID:           "approval-1",
-					Reason:       "operator approval required",
-					Prompt:       prompt,
-					ResumeSchema: resumeSchema,
+					ID:             "approval-1",
+					Reason:         "operator approval required",
+					Prompt:         prompt,
+					ResponseSchema: responseSchema,
 				},
 			},
 		},
@@ -84,7 +84,7 @@ func representativeAgentWireContracts(t *testing.T) map[string]any {
 			SchemaVersion:  interaction.SuspensionSchemaVersion,
 			ID:             checkpoint.ID,
 			Prompt:         prompt,
-			ResumeSchema:   resumeSchema,
+			ResponseSchema: responseSchema,
 			FrameworkState: json.RawMessage(`{"owner":"framework-fixture"}`),
 			CreatedAt:      startedAt.Add(4 * time.Minute),
 		},

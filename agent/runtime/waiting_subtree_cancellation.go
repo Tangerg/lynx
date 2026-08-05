@@ -412,7 +412,7 @@ func settleCanceledChild(
 		rewritten.FrameworkState, err = encodeSuspensionCheckpoint(suspensionCheckpoint{
 			SchemaVersion:  suspensionCheckpointSchemaVersion,
 			Kind:           suspensionCheckpointInteraction,
-			Owner:          envelope.Owner,
+			InteractionID:  envelope.InteractionID,
 			Deployment:     envelope.Deployment,
 			Checkpoint:     completed,
 			NestedChildren: relations,

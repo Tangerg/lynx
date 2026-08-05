@@ -39,10 +39,10 @@ func snapshotAgent() *core.Agent {
 		return snapshotOutput{Count: len(input.Text)}, nil
 	}, core.ActionConfig{})
 	return core.NewAgent(core.AgentConfig{
-		Name:          "snapshot",
-		Actions:       []core.Action{action},
-		Goals:         []*core.Goal{core.NewOutputGoal[snapshotOutput](core.GoalConfig{})},
-		SnapshotState: []core.Binding{core.NewBinding[*snapshotInput]("pointer_input")},
+		Name:             "snapshot",
+		Actions:          []core.Action{action},
+		Goals:            []*core.Goal{core.NewOutputGoal[snapshotOutput](core.GoalConfig{})},
+		SnapshotBindings: []core.Binding{core.NewBinding[*snapshotInput]("pointer_input")},
 	})
 }
 
@@ -93,7 +93,7 @@ func TestSnapshotCodecContainsInvalidActionMetadata(t *testing.T) {
 			Goals: []*core.Goal{core.NewGoal(core.GoalConfig{Name: "goal"})},
 		})
 		codec := definition.SnapshotCodec()
-		if err := codec.Declares(snapshotInput{}); err == nil {
+		if err := codec.ValidateDeclaredType(snapshotInput{}); err == nil {
 			t.Fatal("invalid action metadata unexpectedly declared snapshotInput")
 		}
 	}

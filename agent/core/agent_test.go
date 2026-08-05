@@ -15,11 +15,11 @@ type fakeAction struct {
 }
 
 type fakeCondition struct {
-	name string
-	cost float64
+	name           string
+	evaluationCost float64
 }
 
-type snapshotStateSample struct{ Value string }
+type snapshotValue struct{ Value string }
 
 type pointerStuckPolicy struct{}
 
@@ -48,12 +48,12 @@ func (metadataAction) Execute(context.Context, *core.ProcessContext) (core.Actio
 }
 
 type metadataCondition struct {
-	name      string
-	cost      float64
-	nameCalls *int
-	costCalls *int
-	namePanic error
-	costPanic error
+	name                string
+	evaluationCost      float64
+	nameCalls           *int
+	evaluationCostCalls *int
+	namePanic           error
+	evaluationCostPanic error
 }
 
 func (c metadataCondition) Name() string {
@@ -66,14 +66,14 @@ func (c metadataCondition) Name() string {
 	return c.name
 }
 
-func (c metadataCondition) Cost() float64 {
-	if c.costCalls != nil {
-		*c.costCalls++
+func (c metadataCondition) EvaluationCost() float64 {
+	if c.evaluationCostCalls != nil {
+		*c.evaluationCostCalls++
 	}
-	if c.costPanic != nil {
-		panic(c.costPanic)
+	if c.evaluationCostPanic != nil {
+		panic(c.evaluationCostPanic)
 	}
-	return c.cost
+	return c.evaluationCost
 }
 
 func (metadataCondition) Evaluate(context.Context, *core.ConditionEnv) core.Truth {
@@ -81,7 +81,7 @@ func (metadataCondition) Evaluate(context.Context, *core.ConditionEnv) core.Trut
 }
 
 func (c fakeCondition) Name() string                                          { return c.name }
-func (c fakeCondition) Cost() float64                                         { return c.cost }
+func (c fakeCondition) EvaluationCost() float64                               { return c.evaluationCost }
 func (fakeCondition) Evaluate(context.Context, *core.ConditionEnv) core.Truth { return core.Unknown }
 
 func (f fakeAction) Metadata() core.ActionMetadata { return f.meta }
@@ -139,8 +139,8 @@ func TestValidateContainsMetadataPanics(t *testing.T) {
 			cause: errors.New("condition name panic"), contains: "Name panicked",
 		},
 		{
-			name: "condition cost", action: fakeAction{meta: core.ActionMetadata{Name: "act"}},
-			cause: errors.New("condition cost panic"), contains: "Cost panicked",
+			name: "condition evaluation cost", action: fakeAction{meta: core.ActionMetadata{Name: "act"}},
+			cause: errors.New("condition evaluation cost panic"), contains: "EvaluationCost panicked",
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
@@ -151,8 +151,8 @@ func TestValidateContainsMetadataPanics(t *testing.T) {
 				action = metadataAction{cause: test.cause}
 			case "condition name":
 				conditions = []core.Condition{metadataCondition{namePanic: test.cause}}
-			case "condition cost":
-				conditions = []core.Condition{metadataCondition{name: "ready", costPanic: test.cause}}
+			case "condition evaluation cost":
+				conditions = []core.Condition{metadataCondition{name: "ready", evaluationCostPanic: test.cause}}
 			}
 			definition := core.NewAgent(core.AgentConfig{
 				Name: "metadata-panic", Actions: []core.Action{action},
@@ -168,7 +168,7 @@ func TestValidateContainsMetadataPanics(t *testing.T) {
 }
 
 func TestValidateReadsCapabilityMetadataOnce(t *testing.T) {
-	var actionCalls, conditionNameCalls, conditionCostCalls int
+	var actionCalls, conditionNameCalls, conditionEvaluationCostCalls int
 	definition := core.NewAgent(core.AgentConfig{
 		Name: "metadata-snapshot",
 		Actions: []core.Action{metadataAction{
@@ -176,14 +176,14 @@ func TestValidateReadsCapabilityMetadataOnce(t *testing.T) {
 		}},
 		Goals: []*core.Goal{core.NewGoal(core.GoalConfig{Name: "goal"})},
 		Conditions: []core.Condition{metadataCondition{
-			name: "ready", nameCalls: &conditionNameCalls, costCalls: &conditionCostCalls,
+			name: "ready", nameCalls: &conditionNameCalls, evaluationCostCalls: &conditionEvaluationCostCalls,
 		}},
 	})
 	if err := definition.Validate(); err != nil {
 		t.Fatal(err)
 	}
-	if actionCalls != 1 || conditionNameCalls != 1 || conditionCostCalls != 1 {
-		t.Fatalf("metadata calls = action %d, condition name/cost %d/%d; want one each", actionCalls, conditionNameCalls, conditionCostCalls)
+	if actionCalls != 1 || conditionNameCalls != 1 || conditionEvaluationCostCalls != 1 {
+		t.Fatalf("metadata calls = action %d, condition name/evaluation cost %d/%d; want one each", actionCalls, conditionNameCalls, conditionEvaluationCostCalls)
 	}
 }
 
@@ -226,44 +226,44 @@ func TestValidateRejectsInvalidConditions(t *testing.T) {
 	}
 }
 
-func TestValidateRejectsInvalidSnapshotState(t *testing.T) {
+func TestValidateRejectsInvalidSnapshotBindings(t *testing.T) {
 	base := core.AgentConfig{
-		Name:    "snapshot-state",
+		Name:    "snapshot-bindings",
 		Actions: []core.Action{fakeAction{meta: core.ActionMetadata{Name: "act"}}},
 		Goals:   []*core.Goal{core.NewGoal(core.GoalConfig{Name: "goal"})},
 	}
-	base.SnapshotState = []core.Binding{{Name: "state", Type: "example.State"}}
+	base.SnapshotBindings = []core.Binding{{Name: "state", Type: "example.State"}}
 	if err := core.NewAgent(base).Validate(); err == nil || !strings.Contains(err.Error(), "must be constructed with NewBinding") {
-		t.Fatalf("literal snapshot state error = %v", err)
+		t.Fatalf("literal snapshot binding error = %v", err)
 	}
-	binding := core.NewBinding[snapshotStateSample]("state")
-	base.SnapshotState = []core.Binding{binding, binding}
-	if err := core.NewAgent(base).Validate(); err == nil || !strings.Contains(err.Error(), "duplicate snapshot state") {
-		t.Fatalf("duplicate snapshot state error = %v", err)
+	binding := core.NewBinding[snapshotValue]("state")
+	base.SnapshotBindings = []core.Binding{binding, binding}
+	if err := core.NewAgent(base).Validate(); err == nil || !strings.Contains(err.Error(), "duplicate snapshot binding") {
+		t.Fatalf("duplicate snapshot binding error = %v", err)
 	}
 }
 
-func TestValidateRejectsInvalidToolGroupRole(t *testing.T) {
+func TestValidateRejectsInvalidToolRole(t *testing.T) {
 	for _, test := range []struct {
 		name  string
 		roles []string
 		want  string
 	}{
-		{name: "whitespace", roles: []string{" research "}, want: "role has surrounding whitespace"},
-		{name: "duplicate", roles: []string{"research", "research"}, want: "duplicate role \"research\""},
+		{name: "whitespace", roles: []string{" research "}, want: "tool role 0: value has surrounding whitespace"},
+		{name: "duplicate", roles: []string{"research", "research"}, want: "tool role 1: duplicate value \"research\""},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			config := core.AgentConfig{
 				Name: "tool-policy",
 				Actions: []core.Action{fakeAction{meta: core.ActionMetadata{
-					Name:       "act",
-					ToolGroups: test.roles,
+					Name:      "act",
+					ToolRoles: test.roles,
 				}}},
 				Goals: []*core.Goal{core.NewGoal(core.GoalConfig{Name: "goal"})},
 			}
 			err := core.NewAgent(config).Validate()
 			if err == nil || !strings.Contains(err.Error(), test.want) {
-				t.Fatalf("invalid tool group error = %v, want %q", err, test.want)
+				t.Fatalf("invalid tool role error = %v, want %q", err, test.want)
 			}
 		})
 	}
@@ -294,10 +294,7 @@ func TestValidateRejectsMalformedDefinitionIdentity(t *testing.T) {
 	agent := core.NewAgent(core.AgentConfig{
 		Name:    " malformed ",
 		Actions: []core.Action{action},
-		Goals: []*core.Goal{core.NewGoal(core.GoalConfig{
-			Name:          "done",
-			Preconditions: []string{" done "},
-		})},
+		Goals:   []*core.Goal{core.NewGoal(core.GoalConfig{Name: "done", RequiredConditions: []string{" done "}})},
 	})
 	err := agent.Validate()
 	if err == nil {
@@ -324,16 +321,16 @@ func TestValidateRejectsNonCanonicalVersion(t *testing.T) {
 	}
 }
 
-func TestValidateRejectsInvalidConditionCost(t *testing.T) {
+func TestValidateRejectsInvalidConditionEvaluationCost(t *testing.T) {
 	for _, cost := range []float64{-1, math.NaN(), math.Inf(1), math.Inf(-1)} {
 		agent := core.NewAgent(core.AgentConfig{
-			Name:       "condition-cost",
+			Name:       "condition-evaluation-cost",
 			Actions:    []core.Action{fakeAction{meta: core.ActionMetadata{Name: "act"}}},
 			Goals:      []*core.Goal{core.NewGoal(core.GoalConfig{Name: "goal"})},
-			Conditions: []core.Condition{fakeCondition{name: "ready", cost: cost}},
+			Conditions: []core.Condition{fakeCondition{name: "ready", evaluationCost: cost}},
 		})
 		if err := agent.Validate(); err == nil || !strings.Contains(err.Error(), "must be finite and non-negative") {
-			t.Errorf("Validate condition cost %v = %v", cost, err)
+			t.Errorf("Validate condition evaluation cost %v = %v", cost, err)
 		}
 	}
 }
@@ -345,15 +342,15 @@ func TestAgentOwnsConfigurationCollections(t *testing.T) {
 	actions := []core.Action{action}
 	goals := []*core.Goal{goal}
 	conditions := []core.Condition{condition}
-	snapshotState := []core.Binding{core.NewBinding[snapshotStateSample]("state")}
+	snapshotBindings := []core.Binding{core.NewBinding[snapshotValue]("state")}
 	config := core.AgentConfig{
-		Name:          "owned",
-		Description:   "original",
-		Version:       "1.2.3",
-		Actions:       actions,
-		Goals:         goals,
-		Conditions:    conditions,
-		SnapshotState: snapshotState,
+		Name:             "owned",
+		Description:      "original",
+		Version:          "1.2.3",
+		Actions:          actions,
+		Goals:            goals,
+		Conditions:       conditions,
+		SnapshotBindings: snapshotBindings,
 	}
 
 	agent := core.NewAgent(config)
@@ -362,12 +359,12 @@ func TestAgentOwnsConfigurationCollections(t *testing.T) {
 	actions[0] = nil
 	goals[0] = nil
 	conditions[0] = nil
-	snapshotState[0].Name = "mutated"
+	snapshotBindings[0].Name = "mutated"
 
 	returnedActions := agent.Actions()
 	returnedGoals := agent.Goals()
 	returnedConditions := agent.Conditions()
-	returnedState := agent.SnapshotState()
+	returnedState := agent.SnapshotBindings()
 	returnedActions[0] = nil
 	returnedGoals[0] = nil
 	returnedConditions[0] = nil
@@ -379,8 +376,8 @@ func TestAgentOwnsConfigurationCollections(t *testing.T) {
 	if agent.Actions()[0] == nil || agent.Goals()[0] != goal || agent.Conditions()[0] != condition {
 		t.Fatal("Agent leaked caller or accessor slice storage")
 	}
-	if state := agent.SnapshotState(); len(state) != 1 || state[0].Name != "state" {
-		t.Fatalf("Agent leaked snapshot state storage: %#v", state)
+	if state := agent.SnapshotBindings(); len(state) != 1 || state[0].Name != "state" {
+		t.Fatalf("Agent leaked snapshot binding storage: %#v", state)
 	}
 }
 
@@ -388,7 +385,7 @@ func TestAgentDescriptorOwnsItsNonExecutableProjection(t *testing.T) {
 	action := fakeAction{meta: core.ActionMetadata{
 		Name:          "act",
 		Description:   "perform work",
-		Inputs:        []core.Binding{core.NewBinding[snapshotStateSample]("input")},
+		Inputs:        []core.Binding{core.NewBinding[snapshotValue]("input")},
 		Preconditions: core.ConditionSet{"ready": core.True},
 		Cost: func(core.WorldState) float64 {
 			t.Fatal("descriptor invoked action scoring policy")
@@ -396,14 +393,14 @@ func TestAgentDescriptorOwnsItsNonExecutableProjection(t *testing.T) {
 		},
 	}}
 	agent := core.NewAgent(core.AgentConfig{
-		Name:          "described",
-		Description:   "description",
-		Version:       "1.2.3",
-		Actions:       []core.Action{action},
-		Goals:         []*core.Goal{core.NewGoal(core.GoalConfig{Name: "done", Preconditions: []string{"ready"}})},
-		Conditions:    []core.Condition{fakeCondition{name: "ready", cost: 2}},
-		SnapshotState: []core.Binding{core.NewBinding[snapshotStateSample]("state")},
-		PlannerName:   "goap",
+		Name:             "described",
+		Description:      "description",
+		Version:          "1.2.3",
+		Actions:          []core.Action{action},
+		Goals:            []*core.Goal{core.NewGoal(core.GoalConfig{Name: "done", RequiredConditions: []string{"ready"}})},
+		Conditions:       []core.Condition{fakeCondition{name: "ready", evaluationCost: 2}},
+		SnapshotBindings: []core.Binding{core.NewBinding[snapshotValue]("state")},
+		PlannerName:      "goap",
 	})
 
 	descriptor := agent.Descriptor()
@@ -413,7 +410,7 @@ func TestAgentDescriptorOwnsItsNonExecutableProjection(t *testing.T) {
 	goals := descriptor.Goals()
 	goalConditions := goals[0].RequiredConditions()
 	conditions := descriptor.Conditions()
-	state := descriptor.SnapshotState()
+	state := descriptor.SnapshotBindings()
 	actions[0] = core.ActionDescriptor{}
 	actionInputs[0].Name = "leaked"
 	actionPreconditions["ready"] = core.False
@@ -434,8 +431,8 @@ func TestAgentDescriptorOwnsItsNonExecutableProjection(t *testing.T) {
 		descriptor.Goals()[0].Name() != "done" ||
 		descriptor.Goals()[0].RequiredConditions()[0] != "ready" ||
 		descriptor.Conditions()[0].Name() != "ready" ||
-		descriptor.Conditions()[0].Cost() != 2 ||
-		descriptor.SnapshotState()[0].Name != "state" {
+		descriptor.Conditions()[0].EvaluationCost() != 2 ||
+		descriptor.SnapshotBindings()[0].Name != "state" {
 		t.Fatal("AgentDescriptor leaked accessor storage")
 	}
 }

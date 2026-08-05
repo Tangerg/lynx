@@ -35,11 +35,11 @@ const (
 
 // Pause identifies a resumable checkpoint and explains why execution stopped.
 type Pause struct {
-	ID           string
-	Reason       string
-	Prompt       json.RawMessage
-	ResumeSchema json.RawMessage
-	Checkpoint   *Checkpoint
+	ID             string
+	Reason         string
+	Prompt         json.RawMessage
+	ResponseSchema json.RawMessage
+	Checkpoint     *Checkpoint
 }
 
 // Validate verifies checkpoint identity and diagnostic context.
@@ -50,8 +50,8 @@ func (p Pause) Validate() error {
 	if strings.TrimSpace(p.Reason) == "" {
 		return fmt.Errorf("%w: pause reason must not be empty", ErrInvalidEvent)
 	}
-	if !json.Valid(p.Prompt) || !json.Valid(p.ResumeSchema) {
-		return fmt.Errorf("%w: pause prompt and resume schema must be valid JSON", ErrInvalidEvent)
+	if !json.Valid(p.Prompt) || !json.Valid(p.ResponseSchema) {
+		return fmt.Errorf("%w: pause prompt and response schema must be valid JSON", ErrInvalidEvent)
 	}
 	if p.Checkpoint == nil {
 		return fmt.Errorf("%w: pause checkpoint must not be nil", ErrInvalidEvent)

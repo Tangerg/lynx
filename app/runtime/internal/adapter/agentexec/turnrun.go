@@ -128,7 +128,7 @@ func (r TurnRequest) snapshot() TurnRequest {
 // — cancel, status, awaiting completion, output extraction — runs
 // against the agent runtime's [runtime.Process] rather than a
 // bare goroutine, so HITL integration (plan approval, tool approval)
-// drops in on the same Process via [runtime.Engine.Resume].
+// drops in on the same Process via [runtime.Engine.Respond].
 //
 // Observer attaches a process-scope [core.ToolMiddleware]; SessionID binds the
 // turn to the chat history middleware's keyed conversation.
@@ -168,19 +168,19 @@ func (e *Engine) StartTurn(ctx context.Context, request TurnRequest) (TurnProces
 	if err != nil {
 		return nil, fmt.Errorf("engine: configure chat process: %w", err)
 	}
-	segment, err := e.runtime.Start(runCtx, e.agent,
+	runHandle, err := e.runtime.Start(runCtx, e.agent,
 		core.Input(input),
 		processOptions,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("engine: start chat: %w", err)
 	}
-	if segment == nil || segment.Process() == nil {
-		return nil, errors.New("engine: start chat: agent runtime returned an invalid segment")
+	if runHandle == nil || runHandle.Process() == nil {
+		return nil, errors.New("engine: start chat: agent runtime returned an invalid run handle")
 	}
 	return &turnProcess{
-		process:        segment.Process(),
-		segment:        segment,
+		process:        runHandle.Process(),
+		runHandle:      runHandle,
 		owner:          e,
 		scope:          scope,
 		runCtx:         runCtx,
@@ -248,7 +248,7 @@ func (e *Engine) turnProcessOptions(
 		childMiddleware.StreamMiddlewares...,
 	)
 	options.ChatMiddleware = scopedMiddleware
-	options.ChildOptions = childOptions(
+	options.ConfigureChild = childOptions(
 		e,
 		dependencies,
 		client,
@@ -333,7 +333,7 @@ type RestoreTurnRequest struct {
 	WorkspaceCwd string
 	Isolated     bool
 	// GoalLeaseID binds autonomous-goal tool context to the same application
-	// lease whose terminal accounting will consume the resumed Segment.
+	// lease whose terminal accounting will consume the resumed run.
 	GoalLeaseID string
 
 	// Limits are the immutable tree-wide ceilings admitted by the application
@@ -463,7 +463,7 @@ func (e *Engine) RestoreTurn(ctx context.Context, rootProcessID string, request 
 func isExecutorCheckpointLoss(err error) bool {
 	return errors.Is(err, execution.ErrExecutorCheckpointNotFound) ||
 		errors.Is(err, execution.ErrInvalidExecutorCheckpoint) ||
-		errors.Is(err, core.ErrSnapshotSchema) ||
+		errors.Is(err, core.ErrUnsupportedSnapshotSchema) ||
 		errors.Is(err, core.ErrInvalidSnapshot) ||
 		errors.Is(err, agentruntime.ErrDeploymentNotFound)
 }

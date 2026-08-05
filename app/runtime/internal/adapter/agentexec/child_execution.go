@@ -52,7 +52,7 @@ func childOptions(
 	chatMiddleware *core.ChatMiddleware,
 	usage *usageLedger,
 	admitChild AdmitChildFunc,
-) core.ChildOptionsFunc {
+) core.ConfigureChildFunc {
 	return (childExecutionPolicy{
 		engine:          engine,
 		dependencies:    dependencies,
@@ -88,7 +88,7 @@ func (p childExecutionPolicy) options(_ context.Context, _ core.ProcessView, _ c
 	}
 	options := core.ProcessOptions{
 		Dependencies:   dependencies,
-		ChildOptions:   p.options,
+		ConfigureChild: p.options,
 		ChatMiddleware: p.chatMiddleware,
 	}
 	if p.observer != nil {

@@ -15,11 +15,11 @@ import (
 // ConditionResolver obtains the current truth of a named evaluator-backed
 // condition. The planning domain decides which conditions are needed and in
 // which cost order; the resolver owns observation and per-pass caching.
-// Resolve must be safe to call more than once for the same name and return one
+// Resolve must be safe to call more than once for the same key and return one
 // stable observation throughout a planning pass. ResolvedConditions returns a
 // defensive snapshot of every successful observation made in that pass.
 type ConditionResolver interface {
-	Resolve(ctx context.Context, name string) (core.Truth, error)
+	Resolve(ctx context.Context, key string) (core.Truth, error)
 	ResolvedConditions() core.ConditionSet
 }
 
@@ -27,10 +27,10 @@ type ConditionResolver interface {
 // truth is still unknown. Cost exists only to choose observation order; it is
 // never mixed with action cost or plan value.
 type conditionRequirement struct {
-	key      string
-	required core.Truth
-	cost     float64
-	order    int
+	key            string
+	required       core.Truth
+	evaluationCost float64
+	order          int
 }
 
 // Satisfies reports whether state meets every requirement. Evaluator-backed
@@ -51,7 +51,7 @@ func (d *Domain) Satisfies(
 		return false, errors.New("planning.Domain.Satisfies: world state is nil")
 	}
 	values := state.Conditions()
-	pending, matches := d.inspectRequirements(values, nil, requirements, !nilvalue.Is(resolver))
+	pending, matches := d.classifyRequirements(values, nil, requirements, !nilvalue.Is(resolver))
 	if !matches {
 		return false, nil
 	}
@@ -96,14 +96,14 @@ func (d *Domain) Unsatisfied(
 			continue
 		}
 		ref, ok := d.conditionRef(key)
-		if !ok || ref.Kind != ConditionEvaluator {
+		if !ok || ref.Source != ConditionEvaluator {
 			continue
 		}
 		pending = append(pending, conditionRequirement{
-			key:      key,
-			required: required,
-			cost:     ref.Cost,
-			order:    d.conditionOrder[key],
+			key:            key,
+			required:       required,
+			evaluationCost: ref.EvaluationCost,
+			order:          d.conditionOrder[key],
 		})
 	}
 	slices.SortFunc(pending, compareConditionRequirements)
@@ -117,7 +117,7 @@ func (d *Domain) Unsatisfied(
 	return values.Unsatisfied(requirements), nil
 }
 
-// ApplicableActions returns the domain actions in actions whose preconditions
+// ApplicableActions returns the candidate domain actions whose preconditions
 // hold in state. Inputs are resolved to the Domain's immutable action snapshots
 // by name; an action outside the domain is rejected. Evaluator-backed Unknown
 // values are resolved globally from lowest to highest cost. A resolved mismatch
@@ -126,7 +126,7 @@ func (d *Domain) Unsatisfied(
 func (d *Domain) ApplicableActions(
 	ctx context.Context,
 	state core.WorldState,
-	actions []core.Action,
+	candidates []core.Action,
 	resolver ConditionResolver,
 ) ([]core.Action, error) {
 	switch {
@@ -136,18 +136,18 @@ func (d *Domain) ApplicableActions(
 		return nil, errors.New("planning.Domain.ApplicableActions: world state is nil")
 	}
 
-	candidates, err := d.canonicalActionCandidates(actions)
+	canonicalCandidates, err := d.canonicalActionCandidates(candidates)
 	if err != nil {
 		return nil, fmt.Errorf("planning.Domain.ApplicableActions: %w", err)
 	}
 	values := state.Conditions()
 	resolved := make(core.ConditionSet)
 	for {
-		applicable := make([]core.Action, 0, len(candidates))
+		applicable := make([]core.Action, 0, len(canonicalCandidates))
 		pendingByKey := make(map[string]conditionRequirement)
-		for _, action := range candidates {
+		for _, action := range canonicalCandidates {
 			metadata := action.Metadata()
-			pending, matches := d.inspectRequirements(values, resolved, metadata.Preconditions, !nilvalue.Is(resolver))
+			pending, matches := d.classifyRequirements(values, resolved, metadata.Preconditions, !nilvalue.Is(resolver))
 			if !matches {
 				continue
 			}
@@ -180,32 +180,32 @@ func (d *Domain) ApplicableActions(
 	}
 }
 
-// ResolvedState overlays successful evaluator observations on state without
+// StateWithResolvedConditions overlays successful evaluator observations on state without
 // mutating the immutable search snapshot. Definite values already present in
 // state win, so simulated action effects cannot be overwritten by the base
 // observation. Planner score functions should use this view after resolving
 // applicability requirements.
-func (d *Domain) ResolvedState(state core.WorldState, resolver ConditionResolver) (core.WorldState, error) {
+func (d *Domain) StateWithResolvedConditions(state core.WorldState, resolver ConditionResolver) (core.WorldState, error) {
 	switch {
 	case d == nil:
-		return nil, errors.New("planning.Domain.ResolvedState: domain is nil")
+		return nil, errors.New("planning.Domain.StateWithResolvedConditions: domain is nil")
 	case nilvalue.Is(state):
-		return nil, errors.New("planning.Domain.ResolvedState: world state is nil")
+		return nil, errors.New("planning.Domain.StateWithResolvedConditions: world state is nil")
 	case nilvalue.Is(resolver):
 		return state, nil
 	}
 
 	resolved, err := snapshotResolvedConditions(resolver)
 	if err != nil {
-		return nil, fmt.Errorf("planning.Domain.ResolvedState: %w", err)
+		return nil, fmt.Errorf("planning.Domain.StateWithResolvedConditions: %w", err)
 	}
 	values := state.Conditions()
 	overlay := make(core.ConditionSet)
 	for _, key := range slices.Sorted(maps.Keys(resolved)) {
 		truth := resolved[key]
 		ref, ok := d.conditionRef(key)
-		if !ok || ref.Kind != ConditionEvaluator {
-			return nil, fmt.Errorf("planning.Domain.ResolvedState: condition resolver returned undeclared evaluator %q", key)
+		if !ok || ref.Source != ConditionEvaluator {
+			return nil, fmt.Errorf("planning.Domain.StateWithResolvedConditions: condition resolver returned undeclared evaluator %q", key)
 		}
 		if values[key] == core.Unknown && truth != core.Unknown {
 			overlay[key] = truth
@@ -241,11 +241,11 @@ func (d *Domain) canonicalActionCandidates(actions []core.Action) ([]core.Action
 	return candidates, nil
 }
 
-// inspectRequirements classifies a conjunction without running user code.
+// classifyRequirements classifies a conjunction without running user code.
 // Known mismatches dominate unresolved evaluators: when one requirement is
 // already false there is no reason to observe any other member of the same
 // conjunction.
-func (d *Domain) inspectRequirements(
+func (d *Domain) classifyRequirements(
 	values core.ConditionSet,
 	resolved core.ConditionSet,
 	requirements core.ConditionSet,
@@ -263,14 +263,14 @@ func (d *Domain) inspectRequirements(
 			continue
 		}
 		ref, ok := d.conditionRef(key)
-		if observed || actual != core.Unknown || !canResolve || !ok || ref.Kind != ConditionEvaluator {
+		if observed || actual != core.Unknown || !canResolve || !ok || ref.Source != ConditionEvaluator {
 			return nil, false
 		}
 		pending = append(pending, conditionRequirement{
-			key:      key,
-			required: required,
-			cost:     ref.Cost,
-			order:    d.conditionOrder[key],
+			key:            key,
+			required:       required,
+			evaluationCost: ref.EvaluationCost,
+			order:          d.conditionOrder[key],
 		})
 	}
 	return pending, true
@@ -282,10 +282,10 @@ func (d *Domain) conditionRef(key string) (ConditionRef, bool) {
 }
 
 func compareConditionRequirements(left, right conditionRequirement) int {
-	if left.cost < right.cost {
+	if left.evaluationCost < right.evaluationCost {
 		return -1
 	}
-	if left.cost > right.cost {
+	if left.evaluationCost > right.evaluationCost {
 		return 1
 	}
 	if left.order < right.order {

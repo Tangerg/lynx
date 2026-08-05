@@ -17,9 +17,9 @@ const (
 	// value of this type" when it sees this name.
 	DefaultBindingName = "it"
 
-	// LastResultBindingName addresses the single most-recently-added
+	// LatestObjectBindingName addresses the single most-recently-added
 	// object regardless of type.
-	LastResultBindingName = "last_result"
+	LatestObjectBindingName = "latest_object"
 )
 
 // Bindings is an ownership-aware set of initial blackboard values. Its zero

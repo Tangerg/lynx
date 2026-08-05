@@ -17,7 +17,7 @@ import (
 	"github.com/Tangerg/lynx/agent/planning"
 )
 
-const compiledDefinitionFormat = 1
+const compiledDefinitionFormatVersion = 2
 
 // Deployment is the immutable runtime-owned result of crossing the deployment
 // boundary. Runtime planning never reads caller-owned Agent slices, goals,
@@ -122,15 +122,15 @@ func (c deploymentCompiler) cloneAgent(source *core.Agent) *core.Agent {
 
 	actions := source.Actions()
 	config := core.AgentConfig{
-		Name:          source.Name(),
-		Description:   source.Description(),
-		Version:       source.Version(),
-		StuckPolicy:   source.StuckPolicy(),
-		Actions:       make([]core.Action, len(actions)),
-		Goals:         source.Goals(),
-		Conditions:    make([]core.Condition, len(source.Conditions())),
-		SnapshotState: source.SnapshotState(),
-		PlannerName:   source.PlannerName(),
+		Name:             source.Name(),
+		Description:      source.Description(),
+		Version:          source.Version(),
+		StuckPolicy:      source.StuckPolicy(),
+		Actions:          make([]core.Action, len(actions)),
+		Goals:            source.Goals(),
+		Conditions:       make([]core.Condition, len(source.Conditions())),
+		SnapshotBindings: source.SnapshotBindings(),
+		PlannerName:      source.PlannerName(),
 	}
 
 	for i, action := range actions {
@@ -145,9 +145,9 @@ func (c deploymentCompiler) cloneAgent(source *core.Agent) *core.Agent {
 			continue
 		}
 		config.Conditions[i] = frozenCondition{
-			delegate: condition,
-			name:     condition.Name(),
-			cost:     condition.Cost(),
+			delegate:       condition,
+			name:           condition.Name(),
+			evaluationCost: condition.EvaluationCost(),
 		}
 	}
 
@@ -168,13 +168,13 @@ func (a frozenAction) Execute(ctx context.Context, process *core.ProcessContext)
 }
 
 type frozenCondition struct {
-	delegate core.Condition
-	name     string
-	cost     float64
+	delegate       core.Condition
+	name           string
+	evaluationCost float64
 }
 
-func (c frozenCondition) Name() string  { return c.name }
-func (c frozenCondition) Cost() float64 { return c.cost }
+func (c frozenCondition) Name() string            { return c.name }
+func (c frozenCondition) EvaluationCost() float64 { return c.evaluationCost }
 
 func (c frozenCondition) Evaluate(ctx context.Context, environment *core.ConditionEnv) core.Truth {
 	return c.delegate.Evaluate(ctx, environment)
@@ -185,16 +185,16 @@ func (c deploymentCompiler) freezeAction(action core.Action) frozenAction {
 }
 
 type canonicalDefinition struct {
-	Format        int                  `json:"format"`
-	Name          string               `json:"name"`
-	Description   string               `json:"description,omitempty"`
-	Version       string               `json:"version,omitempty"`
-	Planner       string               `json:"planner,omitempty"`
-	Actions       []canonicalAction    `json:"actions"`
-	Goals         []canonicalGoal      `json:"goals"`
-	Conditions    []canonicalCondition `json:"conditions,omitempty"`
-	SnapshotState []canonicalBinding   `json:"snapshot_state,omitempty"`
-	StuckPolicy   string               `json:"stuck_policy,omitempty"`
+	FormatVersion    int                  `json:"format_version"`
+	Name             string               `json:"name"`
+	Description      string               `json:"description,omitempty"`
+	Version          string               `json:"version,omitempty"`
+	Planner          string               `json:"planner,omitempty"`
+	Actions          []canonicalAction    `json:"actions"`
+	Goals            []canonicalGoal      `json:"goals"`
+	Conditions       []canonicalCondition `json:"conditions,omitempty"`
+	SnapshotBindings []canonicalBinding   `json:"snapshot_bindings,omitempty"`
+	StuckPolicy      string               `json:"stuck_policy,omitempty"`
 }
 
 type canonicalAction struct {
@@ -205,8 +205,8 @@ type canonicalAction struct {
 	Outputs           []canonicalBinding `json:"outputs,omitempty"`
 	Preconditions     map[string]string  `json:"preconditions,omitempty"`
 	Effects           map[string]string  `json:"effects,omitempty"`
-	Repeatable        bool               `json:"can_rerun,omitempty"`
-	ToolGroups        []string           `json:"tool_groups,omitempty"`
+	Repeatable        bool               `json:"repeatable,omitempty"`
+	ToolRoles         []string           `json:"tool_roles,omitempty"`
 	CostConfigured    bool               `json:"cost_configured"`
 	ValueConfigured   bool               `json:"value_configured"`
 	ClearWorkingState bool               `json:"clear_working_state,omitempty"`
@@ -218,29 +218,29 @@ type canonicalBinding struct {
 }
 
 type canonicalGoal struct {
-	Name          string             `json:"name"`
-	Description   string             `json:"description,omitempty"`
-	Preconditions []string           `json:"pre,omitempty"`
-	Inputs        []canonicalBinding `json:"inputs,omitempty"`
+	Name               string             `json:"name"`
+	Description        string             `json:"description,omitempty"`
+	RequiredConditions []string           `json:"required_conditions,omitempty"`
+	RequiredBindings   []canonicalBinding `json:"required_bindings,omitempty"`
 }
 
 type canonicalCondition struct {
 	Name           string  `json:"name"`
-	Cost           float64 `json:"cost"`
+	EvaluationCost float64 `json:"evaluation_cost"`
 	Implementation string  `json:"implementation"`
 }
 
 func (c deploymentCompiler) canonicalDefinition(agent *core.Agent) ([]byte, error) {
 	definition := canonicalDefinition{
-		Format:        compiledDefinitionFormat,
-		Name:          agent.Name(),
-		Description:   agent.Description(),
-		Planner:       planning.EffectivePlannerName(agent.PlannerName()),
-		Actions:       make([]canonicalAction, 0, len(agent.Actions())),
-		Goals:         make([]canonicalGoal, 0, len(agent.Goals())),
-		Conditions:    make([]canonicalCondition, 0, len(agent.Conditions())),
-		SnapshotState: c.canonicalSnapshotState(agent.SnapshotState()),
-		StuckPolicy:   c.typeName(agent.StuckPolicy()),
+		FormatVersion:    compiledDefinitionFormatVersion,
+		Name:             agent.Name(),
+		Description:      agent.Description(),
+		Planner:          planning.EffectivePlannerName(agent.PlannerName()),
+		Actions:          make([]canonicalAction, 0, len(agent.Actions())),
+		Goals:            make([]canonicalGoal, 0, len(agent.Goals())),
+		Conditions:       make([]canonicalCondition, 0, len(agent.Conditions())),
+		SnapshotBindings: c.canonicalSnapshotBindings(agent.SnapshotBindings()),
+		StuckPolicy:      c.typeName(agent.StuckPolicy()),
 	}
 	definition.Version = agent.Version()
 
@@ -255,7 +255,7 @@ func (c deploymentCompiler) canonicalDefinition(agent *core.Agent) ([]byte, erro
 			Preconditions:     c.canonicalConditions(metadata.Preconditions),
 			Effects:           c.canonicalConditions(metadata.Effects),
 			Repeatable:        metadata.Repeatable,
-			ToolGroups:        slices.Clone(metadata.ToolGroups),
+			ToolRoles:         slices.Clone(metadata.ToolRoles),
 			CostConfigured:    metadata.Cost != nil,
 			ValueConfigured:   metadata.Value != nil,
 			ClearWorkingState: metadata.ClearWorkingState,
@@ -269,7 +269,7 @@ func (c deploymentCompiler) canonicalDefinition(agent *core.Agent) ([]byte, erro
 	for _, condition := range agent.Conditions() {
 		definition.Conditions = append(definition.Conditions, canonicalCondition{
 			Name:           condition.Name(),
-			Cost:           condition.Cost(),
+			EvaluationCost: condition.EvaluationCost(),
 			Implementation: c.conditionImplementation(condition),
 		})
 	}
@@ -283,10 +283,10 @@ func (c deploymentCompiler) canonicalDefinition(agent *core.Agent) ([]byte, erro
 
 func (c deploymentCompiler) canonicalGoal(goal *core.Goal) canonicalGoal {
 	return canonicalGoal{
-		Name:          goal.Name(),
-		Description:   goal.Description(),
-		Preconditions: c.normalizedStrings(goal.RequiredConditions()),
-		Inputs:        c.canonicalBindings(goal.Inputs()),
+		Name:               goal.Name(),
+		Description:        goal.Description(),
+		RequiredConditions: c.normalizedStrings(goal.RequiredConditions()),
+		RequiredBindings:   c.canonicalBindings(goal.RequiredBindings()),
 	}
 }
 
@@ -305,7 +305,7 @@ func (c deploymentCompiler) canonicalBindings(bindings []core.Binding) []canonic
 	return canonical
 }
 
-func (c deploymentCompiler) canonicalSnapshotState(bindings []core.Binding) []canonicalBinding {
+func (c deploymentCompiler) canonicalSnapshotBindings(bindings []core.Binding) []canonicalBinding {
 	canonical := c.canonicalBindings(bindings)
 	slices.SortFunc(canonical, func(left, right canonicalBinding) int {
 		if order := cmp.Compare(left.Name, right.Name); order != 0 {

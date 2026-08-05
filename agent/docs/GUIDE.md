@@ -41,7 +41,7 @@ type Topic struct{ Title string }
 type Post struct{ Body string }
 
 func main() {
-    writer := agent.New(agent.AgentConfig{
+    writer := agent.New(agent.Config{
         Name:        "writer",
         Description: "write a post from a topic",
         Actions: []agent.Action{
@@ -106,19 +106,19 @@ Deployment digest 共用同一归一规则，避免执行语义和缓存身份�
 
 `planning.Options.ExcludedActions` 使用零值可用的不可变 `planning.Exclusions`，通过
 `planning.NewExclusions` 构造；条件状态统一使用 `core.ConditionSet`。函数条件通过
-`agent.NewCondition(agent.ConditionConfig{Name, Cost, Evaluate})` 构造，其中 `Cost` 只表示观察成本，
+`agent.NewCondition(agent.ConditionConfig{Name, EvaluationCost, Evaluate})` 构造，其中 `EvaluationCost` 只表示观察成本，
 不参与 Action cost 或 Plan ranking。`planning.NewDomain` 在构造时校验条件来源冲突，并把每个条件
-编译为带 `ConditionKind` 和 evaluator cost 的 `ConditionRef`；`KnownConditions` 以稳定序列暴露这些
+编译为带 `ConditionSourceKind`、`Source` 和 `EvaluationCost` 的 `ConditionRef`；`ConditionRefs` 以稳定序列暴露这些
 引用，因此运行时不解析条件名，也不依赖 Go map 的随机迭代顺序。
 
-Runtime 每个 tick 先读取 Blackboard fact、binding 和 action-run marker；named evaluator 保持
+Runtime 每个 tick 先读取 Blackboard fact、binding 和 action-success marker；named evaluator 保持
 `Unknown`，直到 Planner 的 goal、action 或 HTN method applicability 真正依赖它。Planning 通过
 消费侧 `planning.ConditionResolver` 请求 Runtime 观察，并在整个 tick 缓存同一结果。一个合取条件
-中的已知 mismatch 会直接短路；其余 evaluator 按 `Cost` 从低到高解析，因此便宜条件失败时不会触发
+中的已知 mismatch 会直接短路；其余 evaluator 按 `EvaluationCost` 从低到高解析，因此便宜条件失败时不会触发
 昂贵的 prompt/remote probe。`And`/`Or` 组合条件同样先执行更便宜的 operand。自定义 Planner 应使用
 `Domain.Satisfies`、`Domain.Unsatisfied` 和 `Domain.ApplicableActions`，不要把 `Unknown` 直接当成
 `False`；只有确实需要完整差集的算法才调用 `Unsatisfied`，因为它必须观察全部相关 evaluator。
-动态 Action/Goal score 应读取 `Domain.ResolvedState` 返回的投影视图。只有被 goal/action/method
+动态 Action/Goal score 应读取 `Domain.StateWithResolvedConditions` 返回的投影视图。只有被 goal/action/method
 requirements 声明并实际请求的 evaluator 才会出现在该视图，未声明的 score 依赖仍是 `Unknown`。
 
 `Binding.Validate`、`ConditionSet.Validate` 与 `Truth.Valid` 共同封闭定义边界；非法值在 Deploy 前失败，
@@ -134,7 +134,7 @@ requirements 声明并实际请求的 evaluator 才会出现在该视图，未�
 - `Engine.Undeploy(ctx, name)` 只移除活动路由，不破坏历史定义。
 
 `Deployment` 只通过 `Descriptor` 暴露不可执行的 `AgentDescriptor`。该描述符包含 Agent
-身份、Action/Goal/Condition 声明与 snapshot state schema，但不含 `Action.Execute`、
+身份、Action/Goal/Condition 声明与 snapshot binding schema，但不含 `Action.Execute`、
 `Condition.Evaluate`、score function 或 `StuckPolicy`。路由 Candidate 和 filter 同样只接收
 Agent/Goal descriptor；只有 Engine 内部执行器、Planner 和 deploy-time `AgentValidator`
 持有完整定义。
@@ -146,7 +146,7 @@ Binding 时，使用 `ActionConfig.Inputs`、`Outputs` 和 `core.NewBinding[T]`�
 - `Preconditions`、`Effects`：显式业务条件；
 - `Repeatable`：允许同一进程多次选择该 Action；
 - `Cost`、`Value`：Planner 评分函数；
-- `ToolGroups`：抽象工具角色字符串；Resolver 在执行时把 role 解析为具体工具；
+- `ToolRoles`：抽象工具角色字符串；Resolver 在执行时把 role 解析为具体工具；
 - `ClearWorkingState`：成功后清理全部工作状态。
 
 Framework 对每次调度的 Action 只调用一次，不提供 Action 级自动 retry。需要重试的 provider、
@@ -157,11 +157,11 @@ tool 或业务写入应由对应实现结合真实副作用语义处理；框架
 `Engine` 是 framework 级主对象，支持多实例，没有 package-global registry：
 
 - `Run`：同步驱动到终态或 Waiting；
-- `Start`：同步返回持有 Process 与不可变完成结果的 `Segment`，以及 admission error；
+- `Start`：同步返回持有 Process 与不可变完成结果的 `RunHandle`，以及 admission error；
 - `Continue`：同步继续已存在的非终态 Process；
-- `ContinueAsync`：同步返回 admission error，成功后由 `Segment` 承载后台运行结果；
-- `Resume`：校验并记录 Suspension 响应，不暗中启动执行；
-- `ResumeAsync`：在同一个进程树临界区记录响应并取得 continuation 所有权，成功后返回唯一 `Segment`；
+- `ContinueAsync`：同步返回 admission error，成功后由 `RunHandle` 承载后台运行结果；
+- `Respond`：校验并记录 Suspension 响应，不暗中启动执行；
+- `RespondAndContinueAsync`：在同一个进程树临界区记录响应并取得 continuation 所有权，成功后返回唯一 `RunHandle`；
 - `PendingSuspensions`：在同一稳定快照上列出整棵树中真正等待外部输入的边界，并标明直接发起它的 Process；
 - `PlanWaitingSubtreeCancellation`：在稳定快照上计算 Waiting 子树取消后的状态，不保留锁或
   live ownership；
@@ -181,7 +181,7 @@ Agent 不定义 Store，也不执行 I/O、事务、幂等、重试或保留策�
 `ForgetDeployment`。Framework 会拒绝 active deployment 和仍被已注册进程树引用的定义，
 但不替 Host 选择保留期限。
 
-`Continue`、`Resume`、`Kill` 或 `RemoveTree` 指向已不存在的 Process 时，错误可通过
+`Continue`、`Respond`、`Kill` 或 `RemoveTree` 指向已不存在的 Process 时，错误可通过
 `errors.Is(err, runtime.ErrProcessNotFound)` 稳定分类；调用方不得解析错误文本。
 
 同一 Engine 内，同一 Process 同时只能有一个 active run 驱动执行。这是本机生命周期不变量，
@@ -264,7 +264,7 @@ deployment 或 Goal 元数据。
 
 同步 `NewAgentTool` 的 child 若进入 Waiting，Runtime 会把同一个 suspension 提升到
 parent Process，并保存原 model round、已完成工具结果、pending tool call 和 exact child
-relation。Host 始终对 parent process 调用 `Resume` / `Continue`；child terminal 后原工具调用
+relation。Host 始终对 parent process 调用 `Respond` / `Continue`；child terminal 后原工具调用
 才提交结果。恢复只跳过已经进入稳定 checkpoint 的模型轮次和已结算工具结果；工具外部副作用
 成功但结果尚未进入 checkpoint 的崩溃窗口，仍由工具或 Host 通过幂等、事务或补偿处理。
 
@@ -288,7 +288,7 @@ if !approved {
 `Process.Suspension()`，随后调用：
 
 ```go
-if err := engine.Resume(ctx, process.ID(), suspension.ID, response); err != nil {
+if err := engine.Respond(ctx, process.ID(), suspension.ID, response); err != nil {
     return err
 }
 if err := engine.Continue(ctx, process.ID()); err != nil {
@@ -297,10 +297,10 @@ if err := engine.Continue(ctx, process.ID()); err != nil {
 ```
 
 当 suspension 来自同步 AgentTool 的任意深度 child 时，仍使用 root/parent Process 的 ID。
-`Engine.Resume` 会沿已捕获的 child relation 把同一响应写到最深 waiting child，再由
+`Engine.Respond` 会沿已捕获的 child relation 把同一响应写到最深 waiting child，再由
 `Engine.Continue` 逐层完成原 continuation。
 
-`Resume` 只提交响应；`Continue` 才重新进入 Action。Human 输入与 Tool pause 使用同一
+`Respond` 只提交响应；`Continue` 才重新进入 Action。Human 输入与 Tool pause 使用同一
 Suspension 协议，且 Suspension 不区分"谁来回答"：Framework 从不据此分支，等待方决策所需
 的一切走 `Prompt`，需要自己的 interrupt 分类就在 Prompt 里表达。ToolLoop 和 nested child
 checkpoint 只进入 `FrameworkState`，不使用私有 Blackboard key：只有 `FrameworkState` 里的
@@ -314,9 +314,9 @@ DeploymentRef 不匹配或 checkpoint correlation 错误都会 fail closed。普
 channel、client 等会直接返回错误。运行时 handle 和 client 是能力而非 planner state，应通过
 `core.Dependencies` 或闭包注入，不进入 Blackboard。
 
-当前 ProcessSnapshot schema 为 v15，Suspension schema 为 v3，ToolLoop checkpoint 为 v4，
-Runtime 私有 suspension checkpoint envelope 为 v3。Waiting snapshot 同时允许
-“尚未回答”和“已回答、尚未 Continue”两种可恢复阶段：前者恢复后调用 `Resume`，后者恢复
+当前 ProcessSnapshot schema 为 v17，Suspension schema 为 v7，ToolLoop checkpoint 为 v5，
+Runtime 私有 suspension checkpoint envelope 为 v5。Waiting snapshot 同时允许
+“尚未回答”和“已回答、尚未 Continue”两种可恢复阶段：前者恢复后调用 `Respond`，后者恢复
 后直接 `Continue`。`OwnUsage` 只记录该 Process 的直接通用资源计数：
 Host 定义单位的 opaque cost、tokens、model-call 与 action count。Action 的名称、耗时和状态
 只通过 Event/OTel 输出，不再作为可恢复执行状态保存。Suspension 是否已回答只由 Response
@@ -338,7 +338,7 @@ Child 各自在 snapshot 中携带自己的 `OwnUsage`，Restore 通过父子关
 并发 tool call 或递归 AgentTool 会让一棵树同时存在多个真正需要回答的 Suspension。
 `Engine.PendingSuspensions` 基于同一种稳定完整树捕获返回这些直接等待源：普通 managed tool
 call 保持模型调用顺序，nested child 占据其父 tool call 的位置，除此之外的 sibling 按
-Process ID 排序。返回值只含 Process 归属、Suspension ID、Prompt 与 ResumeSchema；私有
+Process ID 排序。返回值只含 Process 归属、Suspension ID、Prompt 与 ResponseSchema；私有
 checkpoint 不跨出 Runtime。Host 应把整组响应作为一个产品事务接收，再按该顺序驱动
 continuation，不能把父进程为传播控制流而持有的 Suspension 副本误当成第二个用户问题。
 
@@ -359,8 +359,8 @@ detach canceled subtree 并发布 lifecycle event。框架不参与 Host 的 com
 或幂等策略。
 
 Apply 之后仍有 Pending 时进程树保持 Waiting；Host 需要驱动时先调用 `Continue` 消费
-framework-ready 边界，待 Runtime 暴露下一个真实输入边界后再 `Resume`。若 Pending 为空，
-直接 `Continue`。对 framework-ready boundary 调用 `Resume` 会以 stale 明确拒绝。
+framework-ready 边界，待 Runtime 暴露下一个真实输入边界后再 `Respond`。若 Pending 为空，
+直接 `Continue`。对 framework-ready boundary 调用 `Respond` 会以 stale 明确拒绝。
 
 Host 自己定义消费侧存储接口，并决定：
 
@@ -373,14 +373,14 @@ Host 自己定义消费侧存储接口，并决定：
 需要限制时只在 root `ProcessOptions` 显式传入 cost/token/action/model-call limit，且同一次
 执行中的 cost 单位必须一致。Runtime 为完整 Process tree 建立一个共享原子准入器：
 Action 在执行前计数，模型调用在 I/O 前预留，因此并发 sibling 不会重复消费同一份
-action/model-call 余量。`ChildOptions` 返回 Budget 会被拒绝（`runtime.ErrChildBudget`）：限额只在
+action/model-call 余量。`ConfigureChild` 返回 Budget 会被拒绝（`runtime.ErrChildBudget`）：限额只在
 root 有意义，接受一份 per-child 限额等于承诺一个没人执行的子树上限。Token 与 cost 只有响应后
 才能确定，因此属于 continuation ceiling：当前已准入调用可以越过阈值，但不会再准入下一项工作。
 
 托管 Interaction 不接受调用点传入的 raw Model、Cost 或 Observer。Runtime 每次从 Process
 作用域解析 `ChatProvider` 并套用 ChatMiddleware；Host 定价实现
 `InteractionCostProjector`，产品账本/UI/审计投影实现 `InteractionObserver`。流式调用只在
-`Interaction.Stream` 暴露 delta，底层 Streamer、最终响应累积、usage 与 suspension 仍由
+`Interaction.OnDelta` 暴露 delta，底层 Streamer、最终响应累积、usage 与 suspension 仍由
 Runtime 统一管理。`Prompt` 和 `PromptCondition` 使用同一条托管路径。
 
 Agent 不提供 conversation/session 标识或 context binder。Host 应通过 `ChatMiddleware` 安装普通
@@ -433,12 +433,12 @@ Child API 的状态继承是明确契约：
 
 | API | Blackboard | 使用场景 |
 |---|---|---|
-| `RunChildWithState` | 父 Blackboard 的完整副本 | 子任务确实需要父工作状态 |
+| `RunChildWithWorkingState` | 父 Blackboard 的完整副本 | 子任务确实需要父工作状态 |
 | `RunChild` | 干净状态，仅绑定显式 input | 默认、安全的自包含委派及 workflow branch |
 
 Child 使用精确 Deployment、整棵树共享的预算准入器，并仅继承父 Process 显式注册的
 `SubtreeEventListener`；普通 `EventListener` 只观察注册它的 Process。其他 Process extension、
-chat middleware、history partition 和 dependency override 都由 Host 的 `ChildOptions` 显式配置；
+chat middleware、history partition 和 dependency override 都由 Host 的 `ConfigureChild` 显式配置；
 callback 只获得 child 的 `AgentDescriptor`，不能通过配置策略取得或执行 child Action。
 
 `workflow.Sequence`、`Parallel`、`Loop`、`Team`、`RepeatUntil`、`RepeatUntilAcceptable`、
@@ -453,10 +453,10 @@ Blackboard、生命周期控制或托管 Interaction，普通调用方 context v
 所有已启动分支返回，且多个失败始终选择最低声明位置的非取消错误，不让完成时序改变 Process failure。
 
 ToolLoop 的并发是另一层语义：工具默认独占，实现 `toolloop.ConcurrentTool` 后可按
-resource key 有界并发。`toolloop.Config.MaxConcurrentCalls` 控制低层 Runner，
+resource key 有界并发。`toolloop.Config.MaxConcurrentToolCalls` 控制低层 Runner，
 `interaction.Limits.MaxConcurrentToolCalls` 控制托管 Interaction。两个限额都不带 framework
 默认值：未设并发即逐个执行，未设轮数上限即跑到模型不再请求工具为止。轮数上限未在
-Interaction 上给出时继承进程的 `MaxToolRounds`，因此宿主有一处就能约束全部托管交互；跑多久、
+Interaction 上给出时继承进程的 `MaxModelCalls`，因此宿主有一处就能约束全部托管交互；跑多久、
 容忍多少本地扇出属于产品决定，框架不替宿主选数字。限额也**不进 checkpoint**：它们是每次运行
 重新提供的策略，不是被恢复的状态，所以宿主调整数字不会让已 park 的续跑失效——新限额直接对
 恢复后的循环生效。执行完成顺序不影响可观察顺序：ToolResult、continuation 和 checkpoint 始终
@@ -476,7 +476,7 @@ Host 若已经用自己的控制面确定性结束了一个 paused call（例如
 child），应使用 `Checkpoint.CompletePausedCall` 生成新 checkpoint。它只写入结果事实，
 不执行工具也不推进可观察顺序：若结算的是当前边界，后续用 `Runner.Continue`；若结算的是
 尚未轮到的 sibling，当前 `AwaitingInput` 保持不变，普通 `Runner.Resume` 会先消费当前回答，
-再按模型顺序发布已结算 sibling。checkpoint v4 是唯一接受的 shape，不保留 v3 reader。
+再按模型顺序发布已结算 sibling。checkpoint v5 是唯一接受的 shape，不保留 v4 reader。
 若 paused tool 自己的 durable dependency 已在 ToolLoop 外变为可继续状态，Runtime 使用
 `Runner.ContinuePaused` 重新进入该 tool；该路径不携带外部输入，也不发布 `Resume` event。
 Runner 只允许显式实现 `InputlessContinuationTool` 的 tool 走此路径；普通 HITL tool 会在

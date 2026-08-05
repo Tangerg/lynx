@@ -23,7 +23,7 @@ func TestNamedEventListener(t *testing.T) {
 	}
 
 	multicast := event.NewMulticast()
-	multicast.Add(listener)
+	multicast.Subscribe(listener)
 	multicast.OnEvent(t.Context(), event.AgentDeployed{Header: event.NewHeader(""), Deployment: eventListenerDeployment})
 	multicast.OnEvent(t.Context(), event.AgentUndeployed{Header: event.NewHeader(""), Deployment: eventListenerDeployment})
 
@@ -49,7 +49,7 @@ func TestNamedEventListenerConcurrentDelivery(t *testing.T) {
 	})
 
 	multicast := event.NewMulticast()
-	multicast.Add(listener)
+	multicast.Subscribe(listener)
 
 	const deliveries = 100
 	var group sync.WaitGroup

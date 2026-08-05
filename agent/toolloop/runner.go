@@ -22,18 +22,18 @@ var (
 	ErrInvalidConfig = errors.New("toolloop: invalid config")
 	// ErrInvalidInput reports invalid Run or Resume input.
 	ErrInvalidInput = errors.New("toolloop: invalid input")
-	// ErrRoundLimit reports that the model kept requesting tools through the
-	// configured number of rounds.
-	ErrRoundLimit = errors.New("toolloop: round limit reached")
+	// ErrModelCallLimit reports that the model kept requesting tools through the
+	// configured number of model calls.
+	ErrModelCallLimit = errors.New("toolloop: model-call limit reached")
 )
 
 // Config controls loop policy. Both limits belong to whoever drives the loop,
-// so Runner never substitutes a value of its own: zero MaxRounds runs until the
-// model stops requesting tools, and zero MaxConcurrentCalls executes one call at
+// so Runner never substitutes a value of its own: zero MaxModelCalls runs until the
+// model stops requesting tools, and zero MaxConcurrentToolCalls executes one call at
 // a time. Negative values are invalid. Runner never retries model or tool calls.
 type Config struct {
-	MaxRounds          int
-	MaxConcurrentCalls int
+	MaxModelCalls          int
+	MaxConcurrentToolCalls int
 }
 
 // Runner drives a synchronous Model through tool calls. Run, Resume, Continue,
@@ -42,9 +42,9 @@ type Config struct {
 // Each run is independent and Runner is safe for concurrent use when
 // its Model and ToolResolver are safe for concurrent use.
 type Runner struct {
-	model              chat.Model
-	maxRounds          int
-	maxConcurrentCalls int
+	model                  chat.Model
+	maxModelCalls          int
+	maxConcurrentToolCalls int
 }
 
 // NewRunner validates model and config and returns an immutable Runner.
@@ -52,16 +52,16 @@ func NewRunner(model chat.Model, config Config) (*Runner, error) {
 	if nilvalue.Is(model) {
 		return nil, fmt.Errorf("%w: model must not be nil", ErrInvalidConfig)
 	}
-	if config.MaxRounds < 0 {
-		return nil, fmt.Errorf("%w: max rounds must not be negative", ErrInvalidConfig)
+	if config.MaxModelCalls < 0 {
+		return nil, fmt.Errorf("%w: max model calls must not be negative", ErrInvalidConfig)
 	}
-	if config.MaxConcurrentCalls < 0 {
-		return nil, fmt.Errorf("%w: max concurrent calls must not be negative", ErrInvalidConfig)
+	if config.MaxConcurrentToolCalls < 0 {
+		return nil, fmt.Errorf("%w: max concurrent tool calls must not be negative", ErrInvalidConfig)
 	}
 	return &Runner{
-		model:              model,
-		maxRounds:          config.MaxRounds,
-		maxConcurrentCalls: config.MaxConcurrentCalls,
+		model:                  model,
+		maxModelCalls:          config.MaxModelCalls,
+		maxConcurrentToolCalls: config.MaxConcurrentToolCalls,
 	}, nil
 }
 
@@ -213,7 +213,7 @@ func (r *Runner) checkpointState(ctx context.Context, checkpoint *Checkpoint, re
 }
 
 func (r *Runner) validateContext(ctx context.Context) error {
-	if r == nil || nilvalue.Is(r.model) || r.maxRounds < 0 || r.maxConcurrentCalls < 0 {
+	if r == nil || nilvalue.Is(r.model) || r.maxModelCalls < 0 || r.maxConcurrentToolCalls < 0 {
 		return fmt.Errorf("%w: uninitialized runner", ErrInvalidInput)
 	}
 	if ctx == nil {
@@ -231,8 +231,8 @@ func (r *Runner) execute(ctx context.Context, state *runnerState, yield func(Eve
 	ctx = withPromotions(ctx, &state.promotions)
 	for {
 		if len(state.calls) == 0 {
-			if r.maxRounds > 0 && state.round >= r.maxRounds {
-				yield(Event{}, fmt.Errorf("%w: limit %d", ErrRoundLimit, r.maxRounds))
+			if r.maxModelCalls > 0 && state.round >= r.maxModelCalls {
+				yield(Event{}, fmt.Errorf("%w: limit %d", ErrModelCallLimit, r.maxModelCalls))
 				return
 			}
 			if !r.callModel(ctx, state, yield) {
@@ -373,14 +373,14 @@ func (r *Runner) callTools(ctx context.Context, state *runnerState, yield func(E
 		if start == len(state.calls) {
 			return true, allDirect
 		}
-		end := segmentEnd(plans, start)
+		end := batchEnd(plans, start)
 		for index := start; index < end; index++ {
 			eventCall := state.calls[index]
 			if !yield(Event{Kind: EventToolCall, Round: state.round, ToolCall: &eventCall}, nil) {
 				return false, false
 			}
 		}
-		if err := r.runSegment(ctx, state, plans, start, end); err != nil {
+		if err := r.runBatch(ctx, state, plans, start, end); err != nil {
 			yield(Event{}, err)
 			return false, false
 		}
@@ -393,7 +393,7 @@ type toolOutcome struct {
 	err     error
 }
 
-func (r *Runner) runSegment(
+func (r *Runner) runBatch(
 	ctx context.Context,
 	state *runnerState,
 	plans []callPlan,
@@ -413,7 +413,7 @@ func (r *Runner) runSegment(
 	group, groupContext := errgroup.WithContext(ctx)
 	// Unset concurrency means one call at a time, which is also the floor: the
 	// scheduler never runs zero goroutines.
-	group.SetLimit(max(1, r.maxConcurrentCalls))
+	group.SetLimit(max(1, r.maxConcurrentToolCalls))
 	for index := start; index < end; index++ {
 		group.Go(func() error {
 			result, pending, err := invokeTool(groupContext, state.calls[index], plans[index].hosted, nil)
@@ -461,9 +461,9 @@ func (r *Runner) publishSettled(
 	allDirect bool,
 	yield func(Event, error) bool,
 ) (published, paused bool, err error) {
-	// Fold any tools promoted by the segment just run into the advertised
+	// Fold any tools promoted by the batch just run into the advertised
 	// toolset before this call can build a pause checkpoint or the loop can
-	// build the continuation request: every runSegment is followed by a
+	// build the continuation request: every runBatch is followed by a
 	// publishSettled, so this covers both the checkpoint and continuation paths
 	// with one merge point. request.Tools grows monotonically within a turn.
 	if err := r.mergePromotions(state); err != nil {
@@ -491,11 +491,11 @@ func (r *Runner) publishSettled(
 			}
 			pending := callState.Pending
 			yield(Event{Kind: EventPause, Round: state.round, Pause: &Pause{
-				ID:           pending.ID,
-				Reason:       pending.Reason,
-				Prompt:       pending.Prompt,
-				ResumeSchema: pending.ResumeSchema,
-				Checkpoint:   checkpoint,
+				ID:             pending.ID,
+				Reason:         pending.Reason,
+				Prompt:         pending.Prompt,
+				ResponseSchema: pending.ResponseSchema,
+				Checkpoint:     checkpoint,
 			}}, nil)
 			return true, true, nil
 		case CallQueued:
@@ -588,10 +588,10 @@ func invokeTool(
 			return chat.ToolResult{}, nil, validationErr
 		}
 		return chat.ToolResult{}, &PendingCall{
-			ID:           suspended.Suspension.ID,
-			Reason:       suspended.Error(),
-			Prompt:       suspended.Suspension.Prompt,
-			ResumeSchema: suspended.Suspension.ResumeSchema,
+			ID:             suspended.Suspension.ID,
+			Reason:         suspended.Error(),
+			Prompt:         suspended.Suspension.Prompt,
+			ResponseSchema: suspended.Suspension.ResponseSchema,
 		}, nil
 	}
 	if pause, ok := errors.AsType[*PauseError](err); ok {
@@ -599,10 +599,10 @@ func invokeTool(
 			return chat.ToolResult{}, nil, validationErr
 		}
 		return chat.ToolResult{}, &PendingCall{
-			ID:           pause.ID,
-			Reason:       pause.Reason,
-			Prompt:       pause.Prompt,
-			ResumeSchema: pause.ResumeSchema,
+			ID:             pause.ID,
+			Reason:         pause.Reason,
+			Prompt:         pause.Prompt,
+			ResponseSchema: pause.ResponseSchema,
 		}, nil
 	}
 	if abort, ok := errors.AsType[*AbortError](err); ok {

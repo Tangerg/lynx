@@ -16,7 +16,7 @@ type CountResult struct {
 }
 
 func main() {
-	a := agent.New(agent.AgentConfig{Name: "Hello", Description: "count uppercase characters of a phrase", Actions: []agent.Action{agent.NewAction("count_upper", func(ctx context.Context, pc *agent.ProcessContext, in string) (CountResult, error) {
+	a := agent.New(agent.Config{Name: "Hello", Description: "count uppercase characters of a phrase", Actions: []agent.Action{agent.NewAction("count_upper", func(ctx context.Context, pc *agent.ProcessContext, in string) (CountResult, error) {
 		upper := strings.ToUpper(in)
 		return CountResult{Length: len(upper)}, nil
 	}, agent.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[CountResult](agent.GoalConfig{Description: "uppercase length determined"})}})

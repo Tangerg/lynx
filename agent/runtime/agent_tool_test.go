@@ -24,13 +24,13 @@ type constrainedOutput struct{ Done bool }
 
 // childAgent doubles its input and binds the result.
 func childAgent() *core.Agent {
-	return agent.New(agent.AgentConfig{Name: "child-agent", Description: "doubles its input", Actions: []agent.Action{agent.NewAction("double", func(_ context.Context, _ *core.ProcessContext, in subInput) (subOutput, error) {
+	return agent.New(agent.Config{Name: "child-agent", Description: "doubles its input", Actions: []agent.Action{agent.NewAction("double", func(_ context.Context, _ *core.ProcessContext, in subInput) (subOutput, error) {
 		return subOutput{Doubled: in.Value * 2}, nil
 	}, core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[subOutput](core.GoalConfig{Description: "doubled"})}})
 }
 
 func constrainedChildAgent() *core.Agent {
-	return agent.New(agent.AgentConfig{
+	return agent.New(agent.Config{
 		Name:        "constrained-child",
 		Description: "runs one constrained instruction",
 		Actions: []agent.Action{agent.NewAction("run", func(_ context.Context, _ *core.ProcessContext, _ constrainedInput) (constrainedOutput, error) {
@@ -50,7 +50,7 @@ func TestAgentToolRunsChildAndReturnsResult(t *testing.T) {
 		t.Fatalf("deploy child: %v", err)
 	}
 
-	parent := agent.New(agent.AgentConfig{Name: "parent", Description: "calls the child", Actions: []agent.Action{agent.NewAction("invoke-child", func(ctx context.Context, _ *core.ProcessContext, in subInput) (parentOutput, error) {
+	parent := agent.New(agent.Config{Name: "parent", Description: "calls the child", Actions: []agent.Action{agent.NewAction("invoke-child", func(ctx context.Context, _ *core.ProcessContext, in subInput) (parentOutput, error) {
 		tool, err := runtime.NewAgentTool[subInput, subOutput](engine, childDeployment)
 		if err != nil {
 			return parentOutput{}, err

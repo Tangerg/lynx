@@ -30,13 +30,13 @@ func (a *planAction) Execute(context.Context, *core.ProcessContext) (core.Action
 }
 
 type planCondition struct {
-	name        string
-	cost        float64
-	evaluations int
+	name           string
+	evaluationCost float64
+	evaluations    int
 }
 
-func (c *planCondition) Name() string  { return c.name }
-func (c *planCondition) Cost() float64 { return c.cost }
+func (c *planCondition) Name() string            { return c.name }
+func (c *planCondition) EvaluationCost() float64 { return c.evaluationCost }
 func (c *planCondition) Evaluate(context.Context, *core.ConditionEnv) core.Truth {
 	c.evaluations++
 	return core.True
@@ -50,8 +50,8 @@ func (panickingDomainAction) Execute(context.Context, *core.ProcessContext) (cor
 }
 
 type panickingDomainCondition struct {
-	nameCause error
-	costCause error
+	nameCause           error
+	evaluationCostCause error
 }
 
 func (c panickingDomainCondition) Name() string {
@@ -60,9 +60,9 @@ func (c panickingDomainCondition) Name() string {
 	}
 	return "condition"
 }
-func (c panickingDomainCondition) Cost() float64 {
-	if c.costCause != nil {
-		panic(c.costCause)
+func (c panickingDomainCondition) EvaluationCost() float64 {
+	if c.evaluationCostCause != nil {
+		panic(c.evaluationCostCause)
 	}
 	return 0
 }
@@ -143,10 +143,10 @@ func TestEffectivePlannerName(t *testing.T) {
 	}
 }
 
-func TestDomainSatisfiesResolvesUnknownConditionsByCost(t *testing.T) {
+func TestDomainSatisfiesResolvesUnknownConditionsByEvaluationCost(t *testing.T) {
 	domain := mustDomain(t, nil, nil, []core.Condition{
-		core.NewCondition(core.ConditionConfig{Name: "expensive", Cost: 100}),
-		core.NewCondition(core.ConditionConfig{Name: "cheap", Cost: 1}),
+		core.NewCondition(core.ConditionConfig{Name: "expensive", EvaluationCost: 100}),
+		core.NewCondition(core.ConditionConfig{Name: "cheap", EvaluationCost: 1}),
 	})
 	state := planning.NewState(core.ConditionSet{"cheap": core.Unknown, "expensive": core.Unknown})
 	var resolved []string
@@ -175,11 +175,11 @@ func TestDomainSatisfiesResolvesUnknownConditionsByCost(t *testing.T) {
 	}
 }
 
-func TestDomainSatisfiesResolvesMultipleUnknownConditions(t *testing.T) {
+func TestDomainSatisfiesResolvesMultipleUnknownConditionsByEvaluationCost(t *testing.T) {
 	domain := mustDomain(t, nil, nil, []core.Condition{
-		core.NewCondition(core.ConditionConfig{Name: "third", Cost: 3}),
-		core.NewCondition(core.ConditionConfig{Name: "first", Cost: 1}),
-		core.NewCondition(core.ConditionConfig{Name: "second", Cost: 2}),
+		core.NewCondition(core.ConditionConfig{Name: "third", EvaluationCost: 3}),
+		core.NewCondition(core.ConditionConfig{Name: "first", EvaluationCost: 1}),
+		core.NewCondition(core.ConditionConfig{Name: "second", EvaluationCost: 2}),
 	})
 	var resolved []string
 	resolver := newConditionResolver(func(_ context.Context, name string) (core.Truth, error) {
@@ -206,7 +206,7 @@ func TestDomainSatisfiesResolvesMultipleUnknownConditions(t *testing.T) {
 
 func TestDomainSatisfiesSkipsEvaluationAfterKnownMismatch(t *testing.T) {
 	domain := mustDomain(t, nil, nil, []core.Condition{
-		core.NewCondition(core.ConditionConfig{Name: "remote", Cost: 1}),
+		core.NewCondition(core.ConditionConfig{Name: "remote", EvaluationCost: 1}),
 	})
 	resolver := newConditionResolver(func(context.Context, string) (core.Truth, error) {
 		t.Fatal("resolver called after a known mismatch")
@@ -234,8 +234,8 @@ func TestDomainApplicableActionsShortCircuitsExpensiveConditions(t *testing.T) {
 	}}
 	ready := &planAction{metadata: core.ActionMetadata{Name: "ready"}}
 	domain := mustDomain(t, []core.Action{blocked, ready}, nil, []core.Condition{
-		core.NewCondition(core.ConditionConfig{Name: "expensive", Cost: 100}),
-		core.NewCondition(core.ConditionConfig{Name: "cheap", Cost: 1}),
+		core.NewCondition(core.ConditionConfig{Name: "expensive", EvaluationCost: 100}),
+		core.NewCondition(core.ConditionConfig{Name: "cheap", EvaluationCost: 1}),
 	})
 	var resolved []string
 	resolver := newConditionResolver(func(_ context.Context, name string) (core.Truth, error) {
@@ -264,7 +264,7 @@ func TestDomainApplicableActionsTreatsObservedUnknownAsMismatch(t *testing.T) {
 		Preconditions: core.ConditionSet{"remote": core.True},
 	}}
 	domain := mustDomain(t, []core.Action{action}, nil, []core.Condition{
-		core.NewCondition(core.ConditionConfig{Name: "remote", Cost: 1}),
+		core.NewCondition(core.ConditionConfig{Name: "remote", EvaluationCost: 1}),
 	})
 	calls := 0
 	resolver := newConditionResolver(func(context.Context, string) (core.Truth, error) {
@@ -291,9 +291,9 @@ func TestDomainApplicableActionsRejectsActionsOutsideDomain(t *testing.T) {
 	}
 }
 
-func TestDomainResolvedStateOverlaysObservationsWithoutOverwritingEffects(t *testing.T) {
+func TestStateWithResolvedConditionsOverlaysObservationsWithoutOverwritingEffects(t *testing.T) {
 	domain := mustDomain(t, nil, nil, []core.Condition{
-		core.NewCondition(core.ConditionConfig{Name: "ready", Cost: 1}),
+		core.NewCondition(core.ConditionConfig{Name: "ready", EvaluationCost: 1}),
 	})
 	resolver := newConditionResolver(func(context.Context, string) (core.Truth, error) {
 		return core.True, nil
@@ -303,18 +303,18 @@ func TestDomainResolvedStateOverlaysObservationsWithoutOverwritingEffects(t *tes
 	}
 
 	base := planning.NewState(core.ConditionSet{"ready": core.Unknown})
-	resolved, err := domain.ResolvedState(base, resolver)
+	resolved, err := domain.StateWithResolvedConditions(base, resolver)
 	if err != nil {
-		t.Fatalf("ResolvedState: %v", err)
+		t.Fatalf("StateWithResolvedConditions: %v", err)
 	}
 	if resolved.Conditions()["ready"] != core.True || base.Conditions()["ready"] != core.Unknown {
 		t.Fatalf("resolved/base = %v/%v, want true/unknown", resolved.Conditions(), base.Conditions())
 	}
 
 	withEffect := base.Apply(core.ConditionSet{"ready": core.False})
-	resolved, err = domain.ResolvedState(withEffect, resolver)
+	resolved, err = domain.StateWithResolvedConditions(withEffect, resolver)
 	if err != nil {
-		t.Fatalf("ResolvedState with effect: %v", err)
+		t.Fatalf("StateWithResolvedConditions with effect: %v", err)
 	}
 	if resolved.Conditions()["ready"] != core.False {
 		t.Fatalf("resolved effect = %v, want false", resolved.Conditions())
@@ -323,7 +323,7 @@ func TestDomainResolvedStateOverlaysObservationsWithoutOverwritingEffects(t *tes
 
 func TestDomainContainsConditionResolverPanics(t *testing.T) {
 	domain := mustDomain(t, nil, nil, []core.Condition{
-		core.NewCondition(core.ConditionConfig{Name: "ready", Cost: 1}),
+		core.NewCondition(core.ConditionConfig{Name: "ready", EvaluationCost: 1}),
 	})
 	resolveCause := errors.New("resolve sentinel")
 	_, err := domain.Satisfies(
@@ -337,12 +337,12 @@ func TestDomainContainsConditionResolverPanics(t *testing.T) {
 	}
 
 	snapshotCause := errors.New("snapshot sentinel")
-	_, err = domain.ResolvedState(
+	_, err = domain.StateWithResolvedConditions(
 		planning.NewState(nil),
 		panickingConditionResolver{snapshotCause: snapshotCause},
 	)
 	if !errors.Is(err, snapshotCause) || !strings.Contains(err.Error(), "ResolvedConditions panicked") {
-		t.Fatalf("ResolvedState error = %v, want contained snapshot panic", err)
+		t.Fatalf("StateWithResolvedConditions error = %v, want contained snapshot panic", err)
 	}
 }
 
@@ -372,7 +372,7 @@ func TestExclusionsAreZeroValueUsableAndImmutable(t *testing.T) {
 }
 
 func domainAgent(name, actionName string) *core.Agent {
-	return agent.New(agent.AgentConfig{Name: name, Actions: []agent.Action{agent.NewAction(actionName, func(_ context.Context, _ *core.ProcessContext, input domainInput) (domainOutput, error) {
+	return agent.New(agent.Config{Name: name, Actions: []agent.Action{agent.NewAction(actionName, func(_ context.Context, _ *core.ProcessContext, input domainInput) (domainOutput, error) {
 		return domainOutput{Y: input.X + 1}, nil
 	}, core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[domainOutput](core.GoalConfig{Description: name + " goal"})}})
 }
@@ -407,10 +407,10 @@ func TestDomainForAgentsEmptyInputProducesEmptyDomain(t *testing.T) {
 	}
 }
 
-func TestNewDomainCopiesInputsAndOrdersKnownConditions(t *testing.T) {
+func TestNewDomainCopiesInputsAndOrdersConditionRefs(t *testing.T) {
 	action := domainAgent("copy", "copy:step").Actions()[0]
 	actions := []core.Action{action}
-	goals := []*core.Goal{core.NewGoal(core.GoalConfig{Name: "goal", Preconditions: []string{"z_done", "a_done"}})}
+	goals := []*core.Goal{core.NewGoal(core.GoalConfig{Name: "goal", RequiredConditions: []string{"z_done", "a_done"}})}
 	domain := mustDomain(t, actions, goals, nil)
 
 	actions[0] = nil
@@ -419,13 +419,13 @@ func TestNewDomainCopiesInputsAndOrdersKnownConditions(t *testing.T) {
 		t.Fatal("NewDomain retained caller-owned slice storage")
 	}
 
-	refs := slices.Collect(domain.KnownConditions())
+	refs := slices.Collect(domain.ConditionRefs())
 	conditions := make([]string, len(refs))
 	for index, ref := range refs {
 		conditions[index] = ref.Key
 	}
 	if !slices.Equal(conditions[len(conditions)-2:], []string{"a_done", "z_done"}) {
-		t.Fatalf("KnownConditions tail = %v, want deterministic goal keys", conditions)
+		t.Fatalf("ConditionRefs tail = %v, want deterministic goal keys", conditions)
 	}
 }
 
@@ -434,25 +434,25 @@ func TestNewDomainFreezesMetadataAndPreservesExecutionDelegates(t *testing.T) {
 		Name:          "work",
 		Preconditions: core.ConditionSet{"ready": core.True},
 		Effects:       core.ConditionSet{"done": core.True},
-		ToolGroups:    []string{"workspace"},
+		ToolRoles:     []string{"workspace"},
 	}}
-	condition := &planCondition{name: "ready", cost: 2}
+	condition := &planCondition{name: "ready", evaluationCost: 2}
 	domain := mustDomain(t, []core.Action{action}, nil, []core.Condition{condition})
 
 	action.metadata.Name = "mutated"
 	action.metadata.Preconditions["ready"] = core.False
 	action.metadata.Effects["done"] = core.False
-	action.metadata.ToolGroups[0] = "mutated"
+	action.metadata.ToolRoles[0] = "mutated"
 	condition.name = "mutated"
-	condition.cost = 99
+	condition.evaluationCost = 99
 
 	metadata := domain.Actions()[0].Metadata()
 	if metadata.Name != "work" || metadata.Preconditions["ready"] != core.True ||
-		metadata.Effects["done"] != core.True || !slices.Equal(metadata.ToolGroups, []string{"workspace"}) {
+		metadata.Effects["done"] != core.True || !slices.Equal(metadata.ToolRoles, []string{"workspace"}) {
 		t.Fatalf("frozen action metadata = %#v", metadata)
 	}
-	if got := domain.Conditions()[0]; got.Name() != "ready" || got.Cost() != 2 {
-		t.Fatalf("frozen condition metadata = %q/%v", got.Name(), got.Cost())
+	if got := domain.Conditions()[0]; got.Name() != "ready" || got.EvaluationCost() != 2 {
+		t.Fatalf("frozen condition metadata = %q/%v", got.Name(), got.EvaluationCost())
 	}
 
 	metadata.Effects["done"] = core.False
@@ -470,7 +470,7 @@ func TestNewDomainFreezesMetadataAndPreservesExecutionDelegates(t *testing.T) {
 func TestNewDomainContainsMetadataPanics(t *testing.T) {
 	actionCause := errors.New("action sentinel")
 	nameCause := errors.New("name sentinel")
-	costCause := errors.New("cost sentinel")
+	evaluationCostCause := errors.New("evaluation-cost sentinel")
 	for _, test := range []struct {
 		name       string
 		actions    []core.Action
@@ -487,8 +487,8 @@ func TestNewDomainContainsMetadataPanics(t *testing.T) {
 			cause: nameCause, contains: "Condition.Name panicked",
 		},
 		{
-			name: "condition cost", conditions: []core.Condition{panickingDomainCondition{costCause: costCause}},
-			cause: costCause, contains: "Condition.Cost panicked",
+			name: "condition evaluation cost", conditions: []core.Condition{panickingDomainCondition{evaluationCostCause: evaluationCostCause}},
+			cause: evaluationCostCause, contains: "Condition.EvaluationCost panicked",
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
@@ -502,7 +502,7 @@ func TestNewDomainContainsMetadataPanics(t *testing.T) {
 
 func TestNewDomainRejectsInvalidConditionCost(t *testing.T) {
 	for _, cost := range []float64{-1, math.NaN(), math.Inf(1)} {
-		_, err := planning.NewDomain(nil, nil, []core.Condition{&planCondition{name: "condition", cost: cost}})
+		_, err := planning.NewDomain(nil, nil, []core.Condition{&planCondition{name: "condition", evaluationCost: cost}})
 		if err == nil || !strings.Contains(err.Error(), "must be finite and non-negative") {
 			t.Fatalf("NewDomain cost %v error = %v", cost, err)
 		}
@@ -513,19 +513,19 @@ func TestNewDomainPreservesConditionSourcesWithoutParsingKeys(t *testing.T) {
 	action := domainAgent("worker", "worker:step").Actions()[0]
 	conditions := []core.Condition{
 		core.NewCondition(core.ConditionConfig{Name: "external:ready"}),
-		core.NewCondition(core.ConditionConfig{Name: "action_ran_external"}),
+		core.NewCondition(core.ConditionConfig{Name: "action_succeeded_external"}),
 	}
 	domain := mustDomain(t, []core.Action{action}, nil, conditions)
 
-	want := map[string]planning.ConditionKind{
-		action.Metadata().RunCondition(): planning.ConditionActionRun,
-		"external:ready":                 planning.ConditionEvaluator,
-		"action_ran_external":            planning.ConditionEvaluator,
+	want := map[string]planning.ConditionSourceKind{
+		action.Metadata().SuccessCondition(): planning.ConditionActionSuccess,
+		"external:ready":                     planning.ConditionEvaluator,
+		"action_succeeded_external":          planning.ConditionEvaluator,
 	}
-	for ref := range domain.KnownConditions() {
-		if kind, ok := want[ref.Key]; ok {
-			if ref.Kind != kind {
-				t.Errorf("condition %q kind = %v, want %v", ref.Key, ref.Kind, kind)
+	for ref := range domain.ConditionRefs() {
+		if source, ok := want[ref.Key]; ok {
+			if ref.Source != source {
+				t.Errorf("condition %q source = %v, want %v", ref.Key, ref.Source, source)
 			}
 			delete(want, ref.Key)
 		}
@@ -540,10 +540,10 @@ func TestNewDomainRejectsConflictingConditionSources(t *testing.T) {
 	_, err := planning.NewDomain(
 		[]core.Action{action},
 		nil,
-		[]core.Condition{core.NewCondition(core.ConditionConfig{Name: action.Metadata().RunCondition()})},
+		[]core.Condition{core.NewCondition(core.ConditionConfig{Name: action.Metadata().SuccessCondition()})},
 	)
 	if err == nil {
-		t.Fatal("NewDomain accepted an evaluator that shadows an action-run condition")
+		t.Fatal("NewDomain accepted an evaluator that shadows an action-success condition")
 	}
 }
 
@@ -621,8 +621,8 @@ func TestDomainRejectsInvalidPlannerResults(t *testing.T) {
 		Effects:       core.ConditionSet{"done": core.True},
 	}}
 	noop := &planAction{metadata: core.ActionMetadata{Name: "noop"}}
-	goal := core.NewGoal(core.GoalConfig{Name: "goal", Preconditions: []string{"done"}})
-	otherGoal := core.NewGoal(core.GoalConfig{Name: "other", Preconditions: []string{"done"}})
+	goal := core.NewGoal(core.GoalConfig{Name: "goal", RequiredConditions: []string{"done"}})
+	otherGoal := core.NewGoal(core.GoalConfig{Name: "other", RequiredConditions: []string{"done"}})
 	domain := mustDomain(t, []core.Action{canonical, blocked, noop}, []*core.Goal{goal}, nil)
 	state := planning.NewState(nil)
 
@@ -656,7 +656,7 @@ func TestDomainRejectsInvalidPlannerResults(t *testing.T) {
 func TestDomainContainsPlannerResultMetadataPanic(t *testing.T) {
 	cause := errors.New("candidate metadata sentinel")
 	canonical := &planAction{metadata: core.ActionMetadata{Name: "work", Effects: core.ConditionSet{"done": core.True}}}
-	goal := core.NewGoal(core.GoalConfig{Name: "goal", Preconditions: []string{"done"}})
+	goal := core.NewGoal(core.GoalConfig{Name: "goal", RequiredConditions: []string{"done"}})
 	domain := mustDomain(t, []core.Action{canonical}, []*core.Goal{goal}, nil)
 
 	_, err := domain.Plans(t.Context(), plannerFunc(func(goal *core.Goal) *planning.Plan {
@@ -671,7 +671,7 @@ func TestDomainContainsPlannerResultMetadataPanic(t *testing.T) {
 func TestDomainCanonicalizesPlannerActions(t *testing.T) {
 	canonical := &planAction{metadata: core.ActionMetadata{Name: "work", Effects: core.ConditionSet{"done": core.True}}}
 	lookalike := &planAction{metadata: canonical.metadata}
-	goal := core.NewGoal(core.GoalConfig{Name: "goal", Preconditions: []string{"done"}})
+	goal := core.NewGoal(core.GoalConfig{Name: "goal", RequiredConditions: []string{"done"}})
 	domain := mustDomain(t, []core.Action{canonical}, []*core.Goal{goal}, nil)
 
 	plans, err := domain.Plans(t.Context(), plannerFunc(func(goal *core.Goal) *planning.Plan {
@@ -709,7 +709,7 @@ func TestDomainRejectsInvalidPlanScores(t *testing.T) {
 			action := &planAction{metadata: core.ActionMetadata{
 				Name: "work", Effects: core.ConditionSet{"done": core.True}, Cost: test.cost, Value: test.value,
 			}}
-			goal := core.NewGoal(core.GoalConfig{Name: "goal", Preconditions: []string{"done"}, Value: test.goalValue})
+			goal := core.NewGoal(core.GoalConfig{Name: "goal", RequiredConditions: []string{"done"}, Value: test.goalValue})
 			domain := mustDomain(t, []core.Action{action}, []*core.Goal{goal}, nil)
 			_, err := domain.Plans(t.Context(), plannerFunc(func(goal *core.Goal) *planning.Plan {
 				return planning.NewPlan([]core.Action{action}, goal)

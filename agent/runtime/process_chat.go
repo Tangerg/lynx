@@ -108,12 +108,12 @@ func (p *Process) effectiveChatMiddleware() *core.ChatMiddleware {
 	}
 }
 
-func (p *Process) effectiveMaxToolRounds() int {
-	if p.options != nil && p.options.maxToolRounds != 0 {
-		return p.options.maxToolRounds
+func (p *Process) effectiveMaxModelCalls() int {
+	if p.options != nil && p.options.maxModelCalls != 0 {
+		return p.options.maxModelCalls
 	}
 	if p.engine != nil {
-		return p.engine.maxToolRounds
+		return p.engine.maxModelCalls
 	}
 	return 0
 }

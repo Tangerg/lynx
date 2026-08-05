@@ -15,7 +15,7 @@ import (
 type suspensionCheckpointKind string
 
 const (
-	suspensionCheckpointSchemaVersion uint16                   = 3
+	suspensionCheckpointSchemaVersion uint16                   = 5
 	suspensionCheckpointInteraction   suspensionCheckpointKind = "managed_interaction"
 	suspensionCheckpointNestedChild   suspensionCheckpointKind = "nested_child"
 	suspensionCheckpointChildCanceled suspensionCheckpointKind = "nested_child_canceled"
@@ -28,7 +28,7 @@ const (
 type suspensionCheckpoint struct {
 	SchemaVersion  uint16                   `json:"schema_version"`
 	Kind           suspensionCheckpointKind `json:"kind"`
-	Owner          string                   `json:"owner,omitempty"`
+	InteractionID  string                   `json:"interaction_id,omitempty"`
 	Deployment     core.DeploymentRef       `json:"deployment,omitzero"`
 	Checkpoint     *toolloop.Checkpoint     `json:"checkpoint,omitempty"`
 	NestedChildren []*nestedChildRelation   `json:"nested_children,omitempty"`
@@ -45,7 +45,7 @@ func (c *suspensionCheckpoint) validate() error {
 	}
 	switch c.Kind {
 	case suspensionCheckpointInteraction:
-		if c.Owner == "" || c.Checkpoint == nil || c.CanceledChild != nil {
+		if c.InteractionID == "" || c.Checkpoint == nil || c.CanceledChild != nil {
 			return errors.New("runtime: invalid managed interaction checkpoint envelope")
 		}
 		if err := c.Deployment.Validate(); err != nil {
@@ -59,7 +59,7 @@ func (c *suspensionCheckpoint) validate() error {
 			return errors.New("runtime: ready managed interaction has no active nested child")
 		}
 	case suspensionCheckpointNestedChild:
-		if c.Owner != "" || c.Checkpoint != nil || c.Deployment != (core.DeploymentRef{}) ||
+		if c.InteractionID != "" || c.Checkpoint != nil || c.Deployment != (core.DeploymentRef{}) ||
 			c.CanceledChild != nil {
 			return errors.New("runtime: direct nested child checkpoint contains interaction state")
 		}
@@ -67,7 +67,7 @@ func (c *suspensionCheckpoint) validate() error {
 			return errors.New("runtime: direct nested child checkpoint must contain exactly one child relation")
 		}
 	case suspensionCheckpointChildCanceled:
-		if c.Owner != "" || c.Checkpoint != nil || c.Deployment != (core.DeploymentRef{}) ||
+		if c.InteractionID != "" || c.Checkpoint != nil || c.Deployment != (core.DeploymentRef{}) ||
 			len(c.NestedChildren) != 0 || c.Ready {
 			return errors.New("runtime: canceled nested child checkpoint contains live continuation state")
 		}
@@ -249,7 +249,7 @@ func nestedChildrenFromSuspension(suspension *interaction.Suspension) (nestedChi
 		if awaitingInput &&
 			(suspension.ID != pending.ID ||
 				!bytes.Equal(suspension.Prompt, pending.Prompt) ||
-				!bytes.Equal(suspension.ResumeSchema, pending.ResumeSchema)) {
+				!bytes.Equal(suspension.ResponseSchema, pending.ResponseSchema)) {
 			return nestedChildCheckpoint{}, fmt.Errorf("%w: tool-loop checkpoint does not match parent suspension", interaction.ErrSuspensionStale)
 		}
 		if !awaitingInput && suspension.Responded() {

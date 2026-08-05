@@ -111,7 +111,7 @@ func TestSnapshotTreeRejectsActiveRun(t *testing.T) {
 	engine := agent.MustNewEngine(runtime.Config{})
 	entered := make(chan struct{})
 	release := make(chan struct{})
-	definition := agent.New(agent.AgentConfig{
+	definition := agent.New(agent.Config{
 		Name: "active-snapshot",
 		Actions: []agent.Action{agent.NewAction(
 			"block",
@@ -126,18 +126,18 @@ func TestSnapshotTreeRejectsActiveRun(t *testing.T) {
 			agent.NewOutputGoal[ssWordCount](core.GoalConfig{Description: "done"}),
 		},
 	})
-	segment, err := engine.Start(t.Context(), definition, core.Input(ssWord{Text: "lynx"}), core.ProcessOptions{})
+	runHandle, err := engine.Start(t.Context(), definition, core.Input(ssWord{Text: "lynx"}), core.ProcessOptions{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	<-entered
 
-	_, err = engine.SnapshotTree(t.Context(), segment.Process().ID())
+	_, err = engine.SnapshotTree(t.Context(), runHandle.Process().ID())
 	if !errors.Is(err, runtime.ErrProcessRunning) {
 		t.Fatalf("SnapshotTree error = %v, want ErrProcessRunning", err)
 	}
 	close(release)
-	if _, err := segment.Await(t.Context()); err != nil {
+	if _, err := runHandle.Await(t.Context()); err != nil {
 		t.Fatal(err)
 	}
 }

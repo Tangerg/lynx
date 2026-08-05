@@ -32,10 +32,7 @@ func TestPlannerFindsCheapestMultiEffectPlan(t *testing.T) {
 	setB := newStubAction("set-b", nil, core.ConditionSet{"b": core.True})
 	setB.meta.Cost = core.FixedScore(0.5)
 
-	goal := core.NewGoal(core.GoalConfig{
-		Name:          "both",
-		Preconditions: []string{"a", "b"},
-	})
+	goal := core.NewGoal(core.GoalConfig{Name: "both", RequiredConditions: []string{"a", "b"}})
 	domain := mustDomain(t,
 		[]core.Action{combined, setA, setB},
 		[]*core.Goal{goal},
@@ -78,7 +75,7 @@ func TestPlannerEvaluatesDynamicCostAgainstTransitionSource(t *testing.T) {
 	}
 	direct := newStubAction("direct", nil, core.ConditionSet{"done": core.True})
 	direct.meta.Cost = core.FixedScore(50)
-	goal := core.NewGoal(core.GoalConfig{Name: "done", Preconditions: []string{"done"}})
+	goal := core.NewGoal(core.GoalConfig{Name: "done", RequiredConditions: []string{"done"}})
 	domain := mustDomain(t, []core.Action{prepare, finish, direct}, []*core.Goal{goal}, nil)
 
 	plan, err := NewPlanner().PlanToGoal(
@@ -109,7 +106,7 @@ func TestPlannerPreservesActionsThatOnlyInfluenceLaterCost(t *testing.T) {
 		}
 		return 100
 	}
-	goal := core.NewGoal(core.GoalConfig{Name: "done", Preconditions: []string{"done"}})
+	goal := core.NewGoal(core.GoalConfig{Name: "done", RequiredConditions: []string{"done"}})
 	domain := mustDomain(t, []core.Action{discount, finish}, []*core.Goal{goal}, nil)
 
 	plan, err := NewPlanner().PlanToGoal(
@@ -140,7 +137,7 @@ func TestPlannerRejectsInvalidActionCost(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			action := newStubAction("invalid-cost", nil, core.ConditionSet{"done": core.True})
 			action.meta.Cost = core.FixedScore(test.cost)
-			goal := core.NewGoal(core.GoalConfig{Name: "done", Preconditions: []string{"done"}})
+			goal := core.NewGoal(core.GoalConfig{Name: "done", RequiredConditions: []string{"done"}})
 			domain := mustDomain(t, []core.Action{action}, []*core.Goal{goal}, nil)
 
 			_, err := NewPlanner().PlanToGoal(
@@ -161,7 +158,7 @@ func TestPlannerContainsPanickedActionCost(t *testing.T) {
 	cause := errors.New("cost sentinel")
 	action := newStubAction("panicked-cost", nil, core.ConditionSet{"done": core.True})
 	action.meta.Cost = func(core.WorldState) float64 { panic(cause) }
-	goal := core.NewGoal(core.GoalConfig{Name: "done", Preconditions: []string{"done"}})
+	goal := core.NewGoal(core.GoalConfig{Name: "done", RequiredConditions: []string{"done"}})
 	domain := mustDomain(t, []core.Action{action}, []*core.Goal{goal}, nil)
 
 	_, err := NewPlanner().PlanToGoal(t.Context(), planning.NewState(nil), domain, goal, planning.Options{})

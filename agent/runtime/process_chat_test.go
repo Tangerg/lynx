@@ -29,7 +29,7 @@ func TestProcessChatAppliesConfiguredCallMiddleware(t *testing.T) {
 		id: requestScope,
 		options: &processOptions{chatMiddleware: &core.ChatMiddleware{
 			CallMiddlewares: []chat.CallMiddleware{middleware},
-		}, maxToolRounds: 3},
+		}, maxModelCalls: 3},
 	}
 
 	scoped, err := process.scopeChat(core.ChatCapability{Model: model})

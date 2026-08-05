@@ -85,7 +85,7 @@ func (p *Planner) PlanToGoal(
 		return nil, err
 	}
 
-	satisfied, err := domain.Satisfies(ctx, start, goal.Preconditions(), options.ConditionResolver)
+	satisfied, err := domain.Satisfies(ctx, start, goal.Requirements(), options.ConditionResolver)
 	if err != nil {
 		return fail(err)
 	}

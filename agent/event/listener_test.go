@@ -23,16 +23,16 @@ func (*pointerEvent) Timestamp() time.Time { return time.Time{} }
 func (*pointerEvent) ProcessID() string    { return "" }
 func (*pointerEvent) Kind() event.Kind     { return "test" }
 
-func TestMulticastCancelListenerFunc(t *testing.T) {
+func TestMulticastUnsubscribeListenerFunc(t *testing.T) {
 	var calls int
 	multicast := event.NewMulticast()
-	cancel := multicast.Add(event.ListenerFunc(func(context.Context, event.Event) {
+	unsubscribe := multicast.Subscribe(event.ListenerFunc(func(context.Context, event.Event) {
 		calls++
 	}))
 
 	multicast.OnEvent(t.Context(), event.AgentDeployed{Header: event.NewHeader(""), Deployment: listenerDeployment})
-	cancel()
-	cancel()
+	unsubscribe()
+	unsubscribe()
 	multicast.OnEvent(t.Context(), event.AgentUndeployed{Header: event.NewHeader(""), Deployment: listenerDeployment})
 
 	if calls != 1 {
@@ -43,15 +43,15 @@ func TestMulticastCancelListenerFunc(t *testing.T) {
 func TestMulticastIgnoresTypedNilListener(t *testing.T) {
 	var listener *pointerListener
 	multicast := event.NewMulticast()
-	cancel := multicast.Add(listener)
+	unsubscribe := multicast.Subscribe(listener)
 	multicast.OnEvent(t.Context(), event.AgentDeployed{Header: event.NewHeader(""), Deployment: listenerDeployment})
-	cancel()
+	unsubscribe()
 }
 
 func TestMulticastIgnoresTypedNilEvent(t *testing.T) {
 	listener := &pointerListener{}
 	multicast := event.NewMulticast()
-	multicast.Add(listener)
+	multicast.Subscribe(listener)
 	multicast.OnEvent(t.Context(), (*pointerEvent)(nil))
 	if listener.calls != 0 {
 		t.Fatalf("listener calls = %d, want none", listener.calls)
@@ -80,10 +80,10 @@ func TestMulticastIsolatesInteractionBoundaryListeners(t *testing.T) {
 
 	var observed string
 	multicast := event.NewMulticast()
-	multicast.Add(event.ListenerFunc(func(_ context.Context, value event.Event) {
+	multicast.Subscribe(event.ListenerFunc(func(_ context.Context, value event.Event) {
 		value.(event.InteractionBoundary).Boundary.Response.Choices[0].Message.Parts[0].Text = "mutated"
 	}))
-	multicast.Add(event.ListenerFunc(func(_ context.Context, value event.Event) {
+	multicast.Subscribe(event.ListenerFunc(func(_ context.Context, value event.Event) {
 		observed = value.(event.InteractionBoundary).Boundary.Response.Text()
 	}))
 	multicast.OnEvent(t.Context(), boundary)
@@ -99,7 +99,7 @@ func TestActionEventsExposeOnlyImmutableDescriptions(t *testing.T) {
 	metadata := core.ActionMetadata{
 		Name:          "publish",
 		Preconditions: core.ConditionSet{"ready": core.True},
-		ToolGroups:    []string{"coding"},
+		ToolRoles:     []string{"coding"},
 	}
 	started := event.ActionStarted{
 		Header: event.NewHeader("process-1"),
@@ -109,24 +109,24 @@ func TestActionEventsExposeOnlyImmutableDescriptions(t *testing.T) {
 	var observedCondition core.Truth
 	var observedGroup string
 	multicast := event.NewMulticast()
-	multicast.Add(event.ListenerFunc(func(_ context.Context, value event.Event) {
+	multicast.Subscribe(event.ListenerFunc(func(_ context.Context, value event.Event) {
 		action := value.(event.ActionStarted).Action
 		preconditions := action.Preconditions()
 		preconditions["ready"] = core.False
-		groups := action.ToolGroups()
+		groups := action.ToolRoles()
 		groups[0] = "mutated"
 	}))
-	multicast.Add(event.ListenerFunc(func(_ context.Context, value event.Event) {
+	multicast.Subscribe(event.ListenerFunc(func(_ context.Context, value event.Event) {
 		action := value.(event.ActionStarted).Action
 		observedCondition = action.Preconditions()["ready"]
-		observedGroup = action.ToolGroups()[0]
+		observedGroup = action.ToolRoles()[0]
 	}))
 	multicast.OnEvent(t.Context(), started)
 
 	if observedCondition != core.True || observedGroup != "coding" {
 		t.Fatalf("observed %v/%q, want the values the event was published with", observedCondition, observedGroup)
 	}
-	if started.Action.Preconditions()["ready"] != core.True || started.Action.ToolGroups()[0] != "coding" {
+	if started.Action.Preconditions()["ready"] != core.True || started.Action.ToolRoles()[0] != "coding" {
 		t.Fatalf("publishing mutated the source descriptor")
 	}
 }

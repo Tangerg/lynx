@@ -178,11 +178,11 @@ func TestManagedInteractionHonorsConcurrentToolCallLimit(t *testing.T) {
 	engine := agent.MustNewEngine(runtime.Config{Chat: core.ChatCapability{Model: model}})
 	mustDeploy(t, engine, a)
 
-	segment, err := engine.Start(t.Context(), a, managedInput(), core.ProcessOptions{})
+	runHandle, err := engine.Start(t.Context(), a, managedInput(), core.ProcessOptions{})
 	if err != nil {
 		t.Fatalf("start: %v", err)
 	}
-	proc := segment.Process()
+	proc := runHandle.Process()
 	firstStarted := <-started
 	secondStarted := <-started
 	select {
@@ -195,7 +195,7 @@ func TestManagedInteractionHonorsConcurrentToolCallLimit(t *testing.T) {
 	thirdStarted := <-started
 	close(releases[secondStarted])
 	close(releases[thirdStarted])
-	if completion := awaitSegment(t, segment); completion.Error() != nil {
+	if completion := awaitRun(t, runHandle); completion.Error() != nil {
 		t.Fatal(completion.Error())
 	}
 	if proc.Status() != core.StatusCompleted || proc.Failure() != nil {
@@ -255,14 +255,14 @@ func TestManagedInteractionSuspendsAndResumesPendingToolExactly(t *testing.T) {
 	})
 	mustDeploy(t, engine, a)
 
-	segment, err := engine.Start(t.Context(), a, managedInput(), core.ProcessOptions{})
+	runHandle, err := engine.Start(t.Context(), a, managedInput(), core.ProcessOptions{})
 	if err != nil {
 		t.Fatalf("start: %v", err)
 	}
-	if completion := awaitSegment(t, segment); completion.Error() != nil {
+	if completion := awaitRun(t, runHandle); completion.Error() != nil {
 		t.Fatal(completion.Error())
 	}
-	proc := segment.Process()
+	proc := runHandle.Process()
 	if proc.Status() != core.StatusWaiting || proc.Suspension() == nil {
 		t.Fatalf("parked process = status %s suspension %#v", proc.Status(), proc.Suspension())
 	}
@@ -299,11 +299,11 @@ func TestManagedInteractionSuspendsAndResumesPendingToolExactly(t *testing.T) {
 	if model.Calls() != 1 || attempts != 1 {
 		t.Fatalf("before resume model=%d tool=%d", model.Calls(), attempts)
 	}
-	resumed, err := engine.ResumeAsync(t.Context(), t.Context(), proc.ID(), "approval-1", true)
+	resumed, err := engine.RespondAndContinueAsync(t.Context(), t.Context(), proc.ID(), "approval-1", true)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if completion := awaitSegment(t, resumed); completion.Error() != nil {
+	if completion := awaitRun(t, resumed); completion.Error() != nil {
 		t.Fatal(completion.Error())
 	}
 	if proc.Status() != core.StatusCompleted || model.Calls() != 2 || attempts != 2 {
@@ -374,14 +374,14 @@ func TestPendingSuspensionsReportsConcurrentCallsInModelOrder(t *testing.T) {
 	engine := agent.MustNewEngine(runtime.Config{Chat: core.ChatCapability{Model: model}})
 	mustDeploy(t, engine, a)
 
-	segment, err := engine.Start(t.Context(), a, managedInput(), core.ProcessOptions{})
+	runHandle, err := engine.Start(t.Context(), a, managedInput(), core.ProcessOptions{})
 	if err != nil {
 		t.Fatalf("start: %v", err)
 	}
-	if completion := awaitSegment(t, segment); completion.Error() != nil {
+	if completion := awaitRun(t, runHandle); completion.Error() != nil {
 		t.Fatal(completion.Error())
 	}
-	process := segment.Process()
+	process := runHandle.Process()
 	if process.Status() != core.StatusWaiting {
 		t.Fatalf("process status = %s, want waiting", process.Status())
 	}
@@ -441,7 +441,7 @@ func TestManagedInteractionStopsBeforeContinuationAtStepLimit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	a := managedInteractionAgent(t, "managed-steps", registry, interaction.Limits{MaxRounds: 1})
+	a := managedInteractionAgent(t, "managed-steps", registry, interaction.Limits{MaxModelCalls: 1})
 	engine := agent.MustNewEngine(runtime.Config{Chat: core.ChatCapability{Model: model}})
 	mustDeploy(t, engine, a)
 	proc, err := engine.Run(t.Context(), a, managedInput(), core.ProcessOptions{})
@@ -451,8 +451,8 @@ func TestManagedInteractionStopsBeforeContinuationAtStepLimit(t *testing.T) {
 	if model.Calls() != 1 || proc.Status() != core.StatusCompleted {
 		t.Fatalf("model calls=%d status=%s", model.Calls(), proc.Status())
 	}
-	if result, ok := agent.Result[string](proc); !ok || result != string(interaction.StopSteps) {
-		t.Fatalf("result = %q/%v, want %q", result, ok, interaction.StopSteps)
+	if result, ok := agent.Result[string](proc); !ok || result != string(interaction.StopModelCalls) {
+		t.Fatalf("result = %q/%v, want %q", result, ok, interaction.StopModelCalls)
 	}
 }
 
@@ -517,7 +517,7 @@ func TestManagedInteractionKeepsModelCallCapacityWhenResponseIsRejected(t *testi
 		t.Fatal(err)
 	}
 	var firstErr error
-	a := agent.New(agent.AgentConfig{Name: "managed-rejected-response", Actions: []agent.Action{agent.NewAction("interact", func(ctx context.Context, pc *core.ProcessContext, _ struct{}) (string, error) {
+	a := agent.New(agent.Config{Name: "managed-rejected-response", Actions: []agent.Action{agent.NewAction("interact", func(ctx context.Context, pc *core.ProcessContext, _ struct{}) (string, error) {
 		request, err := chat.NewRequest(chat.NewUserMessage(chat.NewTextPart("run")))
 		if err != nil {
 			return "", err
@@ -613,7 +613,7 @@ func TestManagedInteractionListenerPanicDoesNotFailModelResponse(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	a := agent.New(agent.AgentConfig{Name: "managed-listener-panic", Actions: []agent.Action{agent.NewAction("interact", func(ctx context.Context, pc *core.ProcessContext, _ struct{}) (string, error) {
+	a := agent.New(agent.Config{Name: "managed-listener-panic", Actions: []agent.Action{agent.NewAction("interact", func(ctx context.Context, pc *core.ProcessContext, _ struct{}) (string, error) {
 		request, err := chat.NewRequest(chat.NewUserMessage(chat.NewTextPart("run")))
 		if err != nil {
 			return "", err
@@ -659,7 +659,7 @@ func TestManagedInteractionRecordsHostCostAndPublishesIt(t *testing.T) {
 		t.Fatal(err)
 	}
 	var observedCost float64
-	a := agent.New(agent.AgentConfig{Name: "managed-cost", Actions: []agent.Action{agent.NewAction("interact", func(ctx context.Context, pc *core.ProcessContext, _ struct{}) (string, error) {
+	a := agent.New(agent.Config{Name: "managed-cost", Actions: []agent.Action{agent.NewAction("interact", func(ctx context.Context, pc *core.ProcessContext, _ struct{}) (string, error) {
 		request, err := chat.NewRequest(chat.NewUserMessage(chat.NewTextPart("run")))
 		if err != nil {
 			return "", err
@@ -703,7 +703,7 @@ func TestManagedInteractionIsolatesProjectorsAndObservers(t *testing.T) {
 		t.Fatal(err)
 	}
 	var observedModel string
-	a := agent.New(agent.AgentConfig{Name: "managed-isolated-projections", Actions: []agent.Action{agent.NewAction("interact", func(ctx context.Context, pc *core.ProcessContext, _ struct{}) (string, error) {
+	a := agent.New(agent.Config{Name: "managed-isolated-projections", Actions: []agent.Action{agent.NewAction("interact", func(ctx context.Context, pc *core.ProcessContext, _ struct{}) (string, error) {
 		request, err := chat.NewRequest(chat.NewUserMessage(chat.NewTextPart("run")))
 		if err != nil {
 			return "", err
@@ -762,7 +762,7 @@ func TestManagedInteractionContainsCostProjectorPanic(t *testing.T) {
 	}
 	cause := errors.New("pricing failed")
 	var observedResponse bool
-	a := agent.New(agent.AgentConfig{Name: "managed-cost-panic", Actions: []agent.Action{agent.NewAction("interact", func(ctx context.Context, pc *core.ProcessContext, _ struct{}) (string, error) {
+	a := agent.New(agent.Config{Name: "managed-cost-panic", Actions: []agent.Action{agent.NewAction("interact", func(ctx context.Context, pc *core.ProcessContext, _ struct{}) (string, error) {
 		request, err := chat.NewRequest(chat.NewUserMessage(chat.NewTextPart("run")))
 		if err != nil {
 			return "", err
@@ -859,14 +859,14 @@ func TestManagedInteractionRestoresAfterCrashWithoutReplayingCommittedWork(t *te
 	engine1 := agent.MustNewEngine(runtime.Config{Chat: core.ChatCapability{Model: model}})
 	mustDeploy(t, engine1, a)
 
-	segment, err := engine1.Start(t.Context(), a, managedInput(), core.ProcessOptions{})
+	runHandle, err := engine1.Start(t.Context(), a, managedInput(), core.ProcessOptions{})
 	if err != nil {
 		t.Fatalf("start: %v", err)
 	}
-	if completion := awaitSegment(t, segment); completion.Error() != nil {
+	if completion := awaitRun(t, runHandle); completion.Error() != nil {
 		t.Fatal(completion.Error())
 	}
-	proc := segment.Process()
+	proc := runHandle.Process()
 	if proc.Status() != core.StatusWaiting || model.Calls() != 1 || completedCalls != 1 || approvalAttempts != 1 {
 		t.Fatalf("before crash status=%s model=%d completed=%d approval=%d", proc.Status(), model.Calls(), completedCalls, approvalAttempts)
 	}
@@ -883,7 +883,7 @@ func TestManagedInteractionRestoresAfterCrashWithoutReplayingCommittedWork(t *te
 	engine2 := agent.MustNewEngine(runtime.Config{Chat: core.ChatCapability{Model: model}})
 	mustDeploy(t, engine2, a)
 	restored := restoreRoot(t, engine2, snapshot, core.ProcessOptions{})
-	if err := engine2.Resume(t.Context(), restored.ID(), "approval-crash", true); err != nil {
+	if err := engine2.Respond(t.Context(), restored.ID(), "approval-crash", true); err != nil {
 		t.Fatalf("resume after crash: %v", err)
 	}
 	if err := engine2.Continue(t.Context(), restored.ID()); err != nil {
@@ -901,7 +901,7 @@ func TestManagedInteractionCancellationAtRequestBoundarySkipsProviderCall(t *tes
 		t.Fatal(err)
 	}
 	ctx, cancel := context.WithCancel(t.Context())
-	a := agent.New(agent.AgentConfig{Name: "managed-cancel", Actions: []agent.Action{agent.NewAction("interact", func(ctx context.Context, pc *core.ProcessContext, _ struct{}) (string, error) {
+	a := agent.New(agent.Config{Name: "managed-cancel", Actions: []agent.Action{agent.NewAction("interact", func(ctx context.Context, pc *core.ProcessContext, _ struct{}) (string, error) {
 		request, err := chat.NewRequest(chat.NewUserMessage(chat.NewTextPart("run")))
 		if err != nil {
 			return "", err
@@ -921,15 +921,15 @@ func TestManagedInteractionCancellationAtRequestBoundarySkipsProviderCall(t *tes
 	})
 	mustDeploy(t, engine, a)
 
-	segment, err := engine.Start(ctx, a, managedInput(), core.ProcessOptions{})
+	runHandle, err := engine.Start(ctx, a, managedInput(), core.ProcessOptions{})
 	if err != nil {
 		t.Fatalf("start: %v", err)
 	}
-	completion := awaitSegment(t, segment)
-	if completion.Err != nil {
-		t.Fatalf("run control-flow error = %v", completion.Err)
+	completion := awaitRun(t, runHandle)
+	if completion.RuntimeError != nil {
+		t.Fatalf("run control-flow error = %v", completion.RuntimeError)
 	}
-	proc := segment.Process()
+	proc := runHandle.Process()
 	if proc.Status() != core.StatusKilled || !errors.Is(proc.Failure(), context.Canceled) {
 		t.Fatalf("canceled process status=%s failure=%v", proc.Status(), proc.Failure())
 	}
@@ -940,7 +940,7 @@ func TestManagedInteractionCancellationAtRequestBoundarySkipsProviderCall(t *tes
 
 func managedInteractionAgent(t *testing.T, name string, registry *tools.Registry, limits interaction.Limits) *core.Agent {
 	t.Helper()
-	return agent.New(agent.AgentConfig{Name: name, Actions: []agent.Action{agent.NewAction("interact", func(ctx context.Context, pc *core.ProcessContext, _ struct{}) (string, error) {
+	return agent.New(agent.Config{Name: name, Actions: []agent.Action{agent.NewAction("interact", func(ctx context.Context, pc *core.ProcessContext, _ struct{}) (string, error) {
 		request := &chat.Request{Messages: []chat.Message{chat.NewUserMessage(chat.NewTextPart("run"))}, Tools: registry.Definitions()}
 		result, err := pc.Interact(ctx, core.Interaction{Request: request, Tools: registry, Limits: limits})
 		if err != nil {
@@ -972,20 +972,20 @@ func TestManagedInteractionInheritsProcessToolRoundLimit(t *testing.T) {
 	// The interaction states no limit of its own, so the process limit governs
 	// it — the framework never substitutes a round count of its own. Reaching a
 	// limit the host configured is an outcome, so the interaction reports
-	// StopSteps and the process completes instead of failing.
+	// StopModelCalls and the process completes instead of failing.
 	a := managedInteractionAgent(t, "managed-process-rounds", registry, interaction.Limits{})
 	engine := agent.MustNewEngine(runtime.Config{Chat: core.ChatCapability{Model: model}})
 	mustDeploy(t, engine, a)
 
-	proc, err := engine.Run(t.Context(), a, managedInput(), core.ProcessOptions{MaxToolRounds: 1})
+	proc, err := engine.Run(t.Context(), a, managedInput(), core.ProcessOptions{MaxModelCalls: 1})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if proc.Status() != core.StatusCompleted || proc.Failure() != nil {
 		t.Fatalf("status = %s, failure = %v; want completed without failure", proc.Status(), proc.Failure())
 	}
-	if result, ok := agent.Result[string](proc); !ok || result != string(interaction.StopSteps) {
-		t.Fatalf("result = %q/%v, want %q", result, ok, interaction.StopSteps)
+	if result, ok := agent.Result[string](proc); !ok || result != string(interaction.StopModelCalls) {
+		t.Fatalf("result = %q/%v, want %q", result, ok, interaction.StopModelCalls)
 	}
 	if model.Calls() != 1 {
 		t.Fatalf("model calls = %d, want the process limit to stop the loop after one round", model.Calls())

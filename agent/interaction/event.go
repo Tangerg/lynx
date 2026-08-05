@@ -50,8 +50,8 @@ func (k EventKind) Valid() bool {
 
 // Resume is the structured input attached to a continued suspension.
 type Resume struct {
-	ID    string
-	Input json.RawMessage
+	ID       string
+	Response json.RawMessage
 }
 
 // Validate checks the continuation identity and input payload.
@@ -59,8 +59,8 @@ func (r Resume) Validate() error {
 	if err := ValidateID(r.ID); err != nil {
 		return fmt.Errorf("%w: resume ID: %w", ErrInvalidEvent, err)
 	}
-	if !json.Valid(r.Input) {
-		return fmt.Errorf("%w: resume input must be valid JSON", ErrInvalidEvent)
+	if !json.Valid(r.Response) {
+		return fmt.Errorf("%w: resume response must be valid JSON", ErrInvalidEvent)
 	}
 	return nil
 }
@@ -99,7 +99,7 @@ func (e Event) Clone() Event {
 	}
 	if e.Resume != nil {
 		resume := *e.Resume
-		resume.Input = bytes.Clone(e.Resume.Input)
+		resume.Response = bytes.Clone(e.Resume.Response)
 		cloned.Resume = &resume
 	}
 	return cloned
@@ -200,10 +200,10 @@ type ToolResolver interface {
 // negative values are invalid, so the framework never picks a number on the
 // host's behalf.
 type Limits struct {
-	// MaxRounds caps the model rounds of this interaction. Reaching it ends the
-	// interaction with StopSteps rather than an error: a bound the host asked
+	// MaxModelCalls caps model calls in this interaction. Reaching it ends the
+	// interaction with StopModelCalls rather than an error: a bound the host asked
 	// for is an expected outcome, not a fault.
-	MaxRounds int
+	MaxModelCalls int
 	// MaxConcurrentToolCalls caps conflict-free tool calls executing at once
 	// in one model round. Zero runs them one at a time. Exclusive tools and
 	// calls sharing a non-empty resource key still serialize.
@@ -215,7 +215,7 @@ var ErrInvalidLimits = errors.New("interaction limits: invalid")
 
 // Validate checks that every configured limit is non-negative.
 func (l Limits) Validate() error {
-	if l.MaxRounds < 0 || l.MaxConcurrentToolCalls < 0 {
+	if l.MaxModelCalls < 0 || l.MaxConcurrentToolCalls < 0 {
 		return fmt.Errorf("%w: integer limits must not be negative", ErrInvalidLimits)
 	}
 	return nil
@@ -230,15 +230,15 @@ const (
 	StopNone StopReason = ""
 	// StopBudget reports that the tree's cost or token budget is exhausted.
 	StopBudget StopReason = "budget"
-	// StopSteps reports that a step bound stopped continuation: either the
-	// tree's model-call budget or this interaction's Limits.MaxRounds.
-	StopSteps StopReason = "steps"
+	// StopModelCalls reports that either the tree's model-call budget or this
+	// interaction's Limits.MaxModelCalls stopped continuation.
+	StopModelCalls StopReason = "model_calls"
 )
 
 // Valid reports whether r is a framework-defined interaction stop reason.
 func (r StopReason) Valid() bool {
 	switch r {
-	case StopNone, StopBudget, StopSteps:
+	case StopNone, StopBudget, StopModelCalls:
 		return true
 	default:
 		return false

@@ -41,10 +41,10 @@ func FuzzCheckpointJSON(f *testing.F) {
 		CallStates: []CallCheckpoint{{
 			Status: CallPaused,
 			Pending: &PendingCall{
-				ID:           "approval-1",
-				Reason:       "approval required",
-				Prompt:       json.RawMessage(`"approve?"`),
-				ResumeSchema: json.RawMessage(`{"type":"string"}`),
+				ID:             "approval-1",
+				Reason:         "approval required",
+				Prompt:         json.RawMessage(`"approve?"`),
+				ResponseSchema: json.RawMessage(`{"type":"string"}`),
 			},
 		}},
 		NextResult: 0,

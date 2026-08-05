@@ -52,7 +52,7 @@ func (m *renderGuardModel) Call(context.Context, *chat.Request) (*chat.Response,
 }
 
 func makeSubAgent() *core.Agent {
-	return agent.New(agent.AgentConfig{Name: "worker", Actions: []agent.Action{agent.NewAction("work", func(_ context.Context, _ *core.ProcessContext, in supTopic) (supAnswer, error) {
+	return agent.New(agent.Config{Name: "worker", Actions: []agent.Action{agent.NewAction("work", func(_ context.Context, _ *core.ProcessContext, in supTopic) (supAnswer, error) {
 		return supAnswer{Text: "did " + in.Title}, nil
 	}, core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[supAnswer](core.GoalConfig{Name: "worker-goal"})}})
 }
@@ -84,7 +84,7 @@ func TestSupervisor_Validation(t *testing.T) {
 		{"no tools", workflow.SupervisorConfig[supTopic, supAnswer]{Name: "s", Parse: parse}},
 		{"nil tool", workflow.SupervisorConfig[supTopic, supAnswer]{Name: "s", Tools: []tool.Tool{nil}, Parse: parse}},
 		{"nil parse", workflow.SupervisorConfig[supTopic, supAnswer]{Name: "s", Tools: []tool.Tool{worker}}},
-		{"negative tool rounds", workflow.SupervisorConfig[supTopic, supAnswer]{Name: "s", Tools: []tool.Tool{worker}, Parse: parse, MaxToolRounds: -1}},
+		{"negative model calls", workflow.SupervisorConfig[supTopic, supAnswer]{Name: "s", Tools: []tool.Tool{worker}, Parse: parse, MaxModelCalls: -1}},
 	}
 	for _, test := range cases {
 		if _, err := workflow.Supervisor(test.config); err == nil {

@@ -25,7 +25,7 @@ type loopOut struct{ Value int }
 // agent itself is stateless — the counter lives in the closure.
 func makeIncrementingBody() (*core.Agent, *atomic.Int32) {
 	var iterCount atomic.Int32
-	body := agent.New(agent.AgentConfig{Name: "incrementing-body", Description: "returns loopOut whose Value is the call count", Actions: []agent.Action{agent.NewAction("step", func(_ context.Context, _ *core.ProcessContext, _ loopIn) (loopOut, error) {
+	body := agent.New(agent.Config{Name: "incrementing-body", Description: "returns loopOut whose Value is the call count", Actions: []agent.Action{agent.NewAction("step", func(_ context.Context, _ *core.ProcessContext, _ loopIn) (loopOut, error) {
 		v := iterCount.Add(1)
 		return loopOut{Value: int(v)}, nil
 	}, core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[loopOut](core.GoalConfig{Description: "loopOut produced"})}})
@@ -157,7 +157,7 @@ func TestLoop_BranchIsolation(t *testing.T) {
 	engine := agent.MustNewEngine(runtime.Config{})
 
 	var sawPriorOut atomic.Bool
-	body := agent.New(agent.AgentConfig{Name: "isolation-body", Actions: []agent.Action{agent.NewAction("step", func(_ context.Context, pc *core.ProcessContext, _ loopIn) (loopOut, error) {
+	body := agent.New(agent.Config{Name: "isolation-body", Actions: []agent.Action{agent.NewAction("step", func(_ context.Context, pc *core.ProcessContext, _ loopIn) (loopOut, error) {
 		if _, exists := core.Last[loopOut](pc.Blackboard()); exists {
 			sawPriorOut.Store(true)
 		}

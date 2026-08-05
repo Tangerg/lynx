@@ -18,10 +18,10 @@ type childPolicyOutput struct{ Path string }
 
 var childPolicyKey = core.MustDependencyKey[string]("runtime_test.child_policy")
 
-func TestChildOptionsApplyToTheWholeDelegationTree(t *testing.T) {
+func TestConfigureChildAppliesToTheWholeDelegationTree(t *testing.T) {
 	engine := agent.MustNewEngine(runtime.Config{})
 
-	leaf := agent.New(agent.AgentConfig{
+	leaf := agent.New(agent.Config{
 		Name: "policy-leaf",
 		Actions: []agent.Action{agent.NewAction("read-policy", func(_ context.Context, pc *core.ProcessContext, _ childPolicyInput) (childPolicyOutput, error) {
 			value, err := core.LookupDependency(pc.Dependencies(), childPolicyKey)
@@ -37,7 +37,7 @@ func TestChildOptionsApplyToTheWholeDelegationTree(t *testing.T) {
 		t.Fatalf("deploy leaf: %v", err)
 	}
 
-	middle := agent.New(agent.AgentConfig{
+	middle := agent.New(agent.Config{
 		Name: "policy-middle",
 		Actions: []agent.Action{agent.NewAction("run-leaf", func(ctx context.Context, pc *core.ProcessContext, _ childPolicyInput) (childPolicyOutput, error) {
 			middlePolicy, err := core.LookupDependency(pc.Dependencies(), childPolicyKey)
@@ -61,7 +61,7 @@ func TestChildOptionsApplyToTheWholeDelegationTree(t *testing.T) {
 		t.Fatalf("deploy middle: %v", err)
 	}
 
-	root := agent.New(agent.AgentConfig{
+	root := agent.New(agent.Config{
 		Name: "policy-root",
 		Actions: []agent.Action{agent.NewAction("run-middle", func(ctx context.Context, _ *core.ProcessContext, _ childPolicyInput) (childPolicyOutput, error) {
 			child, err := engine.RunChild(ctx, middleDeployment, childPolicyInput{})
@@ -85,7 +85,7 @@ func TestChildOptionsApplyToTheWholeDelegationTree(t *testing.T) {
 		configured []string
 	)
 	process, err := engine.Run(t.Context(), root, core.Input(childPolicyInput{}), core.ProcessOptions{
-		ChildOptions: func(_ context.Context, _ core.ProcessView, child core.AgentDescriptor) (core.ProcessOptions, error) {
+		ConfigureChild: func(_ context.Context, _ core.ProcessView, child core.AgentDescriptor) (core.ProcessOptions, error) {
 			dependencies := engine.Dependencies().Child()
 			if err := core.RegisterDependency(dependencies, childPolicyKey, child.Name()); err != nil {
 				return core.ProcessOptions{}, err
@@ -133,7 +133,7 @@ func TestKillCancelsRunningChildTree(t *testing.T) {
 	started := make(chan struct{})
 	exited := make(chan struct{})
 
-	leaf := agent.New(agent.AgentConfig{
+	leaf := agent.New(agent.Config{
 		Name: "cancel-leaf",
 		Actions: []agent.Action{agent.NewAction("block", func(ctx context.Context, _ *core.ProcessContext, _ childPolicyInput) (childPolicyOutput, error) {
 			close(started)
@@ -148,7 +148,7 @@ func TestKillCancelsRunningChildTree(t *testing.T) {
 		t.Fatalf("deploy leaf: %v", err)
 	}
 
-	root := agent.New(agent.AgentConfig{
+	root := agent.New(agent.Config{
 		Name: "cancel-root",
 		Actions: []agent.Action{agent.NewAction("run-leaf", func(ctx context.Context, _ *core.ProcessContext, _ childPolicyInput) (childPolicyOutput, error) {
 			child, err := engine.RunChild(ctx, leafDeployment, childPolicyInput{})
@@ -167,11 +167,11 @@ func TestKillCancelsRunningChildTree(t *testing.T) {
 		t.Fatalf("deploy root: %v", err)
 	}
 
-	segment, err := engine.Start(t.Context(), root, core.Input(childPolicyInput{}), core.ProcessOptions{})
+	runHandle, err := engine.Start(t.Context(), root, core.Input(childPolicyInput{}), core.ProcessOptions{})
 	if err != nil {
 		t.Fatalf("start root: %v", err)
 	}
-	process := segment.Process()
+	process := runHandle.Process()
 	select {
 	case <-started:
 	case <-time.After(time.Second):
@@ -192,7 +192,7 @@ func TestKillCancelsRunningChildTree(t *testing.T) {
 		t.Fatalf("Kill root: %v", err)
 	}
 
-	completion := awaitSegment(t, segment)
+	completion := awaitRun(t, runHandle)
 	if err := completion.Error(); err != nil && !errors.Is(err, context.Canceled) {
 		t.Fatalf("root completion error = %v, want nil or context cancellation", err)
 	}
@@ -216,10 +216,10 @@ func TestKillCancelsRunningChildTree(t *testing.T) {
 	}
 }
 
-func TestChildOptionsCannotCarryASecondBudget(t *testing.T) {
+func TestConfigureChildCannotCarryASecondBudget(t *testing.T) {
 	engine := agent.MustNewEngine(runtime.Config{})
 
-	leaf := agent.New(agent.AgentConfig{
+	leaf := agent.New(agent.Config{
 		Name: "budget-leaf",
 		Actions: []agent.Action{agent.NewAction("noop", func(context.Context, *core.ProcessContext, childPolicyInput) (childPolicyOutput, error) {
 			return childPolicyOutput{Path: "leaf"}, nil
@@ -231,7 +231,7 @@ func TestChildOptionsCannotCarryASecondBudget(t *testing.T) {
 		t.Fatalf("deploy leaf: %v", err)
 	}
 
-	root := agent.New(agent.AgentConfig{
+	root := agent.New(agent.Config{
 		Name: "budget-root",
 		Actions: []agent.Action{agent.NewAction("run-leaf", func(ctx context.Context, _ *core.ProcessContext, _ childPolicyInput) (childPolicyOutput, error) {
 			_, err := engine.RunChild(ctx, leafDeployment, childPolicyInput{})
@@ -245,7 +245,7 @@ func TestChildOptionsCannotCarryASecondBudget(t *testing.T) {
 
 	process, err := engine.Run(t.Context(), root, core.Input(childPolicyInput{}), core.ProcessOptions{
 		Budget: core.Budget{ModelCallLimit: 4},
-		ChildOptions: func(context.Context, core.ProcessView, core.AgentDescriptor) (core.ProcessOptions, error) {
+		ConfigureChild: func(context.Context, core.ProcessView, core.AgentDescriptor) (core.ProcessOptions, error) {
 			return core.ProcessOptions{Budget: core.Budget{ModelCallLimit: 1}}, nil
 		},
 	})

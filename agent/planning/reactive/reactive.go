@@ -32,7 +32,7 @@ func NewPlanner() *Planner { return &Planner{} }
 func (p *Planner) Name() string { return planning.ReactivePlannerName }
 
 // PlanToGoal scores each applicable action by how many still-
-// unsatisfied goal preconditions its effects would close, picks the
+// unsatisfied goal requirements its effects would close, picks the
 // best one (ties broken by lower cost), and returns it as a one-action
 // plan. Actions that would not close any precondition are rejected —
 // this guards against the planner repeatedly choosing a "do
@@ -68,7 +68,7 @@ func (p *Planner) PlanToGoal(
 		span.End()
 	}()
 
-	unsatisfied, err := domain.Unsatisfied(ctx, start, goal.Preconditions(), options.ConditionResolver)
+	unsatisfied, err := domain.Unsatisfied(ctx, start, goal.Requirements(), options.ConditionResolver)
 	if err != nil {
 		return nil, err
 	}
@@ -88,7 +88,7 @@ func (p *Planner) PlanToGoal(
 }
 
 // bestApplicable picks the action whose effects close the most
-// still-unsatisfied goal preconditions; ties broken by lower cost.
+// still-unsatisfied goal requirements; ties broken by lower cost.
 // Actions whose progress score is 0 (would not close any
 // precondition) are rejected — the planner returns nil rather than
 // picking a "do something useless" action.
@@ -120,7 +120,7 @@ func (p *Planner) bestApplicable(
 	if err != nil {
 		return nil, err
 	}
-	scoreState, err := domain.ResolvedState(start, options.ConditionResolver)
+	scoreState, err := domain.StateWithResolvedConditions(start, options.ConditionResolver)
 	if err != nil {
 		return nil, err
 	}

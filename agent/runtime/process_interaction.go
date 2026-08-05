@@ -26,31 +26,31 @@ func (p *Process) runInteraction(ctx context.Context, actionName string, input c
 	if err := validateInteraction(input); err != nil {
 		return interaction.Result{}, err
 	}
-	owner, err := p.interactionOwner(actionName, input)
+	interactionID, err := p.interactionID(actionName, input)
 	if err != nil {
 		return interaction.Result{}, err
 	}
-	model, err := p.managedInteractionModel(input.Stream)
+	model, err := p.managedInteractionModel(input.OnDelta)
 	if err != nil {
 		return interaction.Result{}, err
 	}
-	// An interaction that states no round limit of its own inherits the process
+	// An interaction that states no model-call limit of its own inherits the process
 	// limit, which is where a host bounds every managed interaction at once.
 	// Unset at both levels means the loop runs until the model stops asking for
 	// tools — the framework does not pick a number on the host's behalf.
-	rounds := input.Limits.MaxRounds
-	if rounds == 0 {
-		rounds = p.effectiveMaxToolRounds()
+	maxModelCalls := input.Limits.MaxModelCalls
+	if maxModelCalls == 0 {
+		maxModelCalls = p.effectiveMaxModelCalls()
 	}
 	runner, err := toolloop.NewRunner(model, toolloop.Config{
-		MaxRounds:          rounds,
-		MaxConcurrentCalls: input.Limits.MaxConcurrentToolCalls,
+		MaxModelCalls:          maxModelCalls,
+		MaxConcurrentToolCalls: input.Limits.MaxConcurrentToolCalls,
 	})
 	if err != nil {
 		return interaction.Result{}, err
 	}
 
-	sequence, resuming, err := p.resolveInteractionSequence(ctx, runner, input, owner)
+	sequence, resuming, err := p.resolveInteractionSequence(ctx, runner, input, interactionID)
 	if err != nil {
 		return interaction.Result{}, err
 	}
@@ -70,14 +70,14 @@ func (p *Process) runInteraction(ctx context.Context, actionName string, input c
 			// sequence has no other channel. A managed interaction does have one,
 			// and the bound came from the host, so it is reported as the outcome
 			// it is instead of failing the process.
-			if errors.Is(runErr, toolloop.ErrRoundLimit) {
-				return interaction.Result{StopReason: interaction.StopSteps}, nil
+			if errors.Is(runErr, toolloop.ErrModelCallLimit) {
+				return interaction.Result{StopReason: interaction.StopModelCalls}, nil
 			}
 			return interaction.Result{}, runErr
 		}
 		if boundary.Kind == toolloop.EventModelRequest {
 			frameworkEvent := projectInteractionEvent(boundary, nil, 0)
-			if err := p.publishInteractionBoundary(ctx, owner, frameworkEvent); err != nil {
+			if err := p.publishInteractionBoundary(ctx, interactionID, frameworkEvent); err != nil {
 				return interaction.Result{}, err
 			}
 			if err := ctx.Err(); err != nil {
@@ -113,11 +113,11 @@ func (p *Process) runInteraction(ctx context.Context, actionName string, input c
 				resuming = false
 			}
 		case toolloop.EventPause:
-			return interaction.Result{}, p.pauseInteraction(ctx, boundary, owner)
+			return interaction.Result{}, p.pauseInteraction(ctx, boundary, interactionID)
 		}
 
 		frameworkEvent := projectInteractionEvent(boundary, nil, recordedUsage.Cost)
-		publishErr := p.publishInteractionBoundary(ctx, owner, frameworkEvent)
+		publishErr := p.publishInteractionBoundary(ctx, interactionID, frameworkEvent)
 		if transitionErr != nil || publishErr != nil {
 			return interaction.Result{}, errors.Join(transitionErr, publishErr)
 		}
@@ -132,7 +132,7 @@ func (p *Process) runInteraction(ctx context.Context, actionName string, input c
 	return interaction.Result{}, errors.New("runtime: managed interaction ended without a final event")
 }
 
-func (p *Process) managedInteractionModel(stream func(*chat.Response)) (chat.Model, error) {
+func (p *Process) managedInteractionModel(onDelta func(*chat.Response)) (chat.Model, error) {
 	capability, err := p.effectiveChat()
 	if err != nil {
 		return nil, fmt.Errorf("runtime: resolve managed interaction model: %w", err)
@@ -140,23 +140,23 @@ func (p *Process) managedInteractionModel(stream func(*chat.Response)) (chat.Mod
 	if capability.Model == nil {
 		return nil, errors.New("runtime: managed interaction has no configured chat model")
 	}
-	if stream == nil {
+	if onDelta == nil {
 		return capability.Model, nil
 	}
 	if capability.Streamer == nil {
 		return nil, errors.New("runtime: managed interaction requested streaming but the configured chat capability has no streamer")
 	}
-	return managedStreamModel{streamer: capability.Streamer, observe: stream}, nil
+	return managedStreamModel{streamer: capability.Streamer, onDelta: onDelta}, nil
 }
 
 type managedStreamModel struct {
 	streamer chat.Streamer
-	observe  func(*chat.Response)
+	onDelta  func(*chat.Response)
 }
 
 func (m managedStreamModel) Call(ctx context.Context, request *chat.Request) (*chat.Response, error) {
 	return interaction.StreamCall(ctx, m.streamer, request, func(delta *chat.Response) {
-		m.observe(delta.Clone())
+		m.onDelta(delta.Clone())
 	})
 }
 
@@ -166,7 +166,7 @@ func (m managedStreamModel) Call(ctx context.Context, request *chat.Request) (*c
 // once the pending tool result arrives. Empty framework state and nested-child
 // state belong to other continuation paths and start a fresh interaction;
 // malformed framework state fails closed.
-func (p *Process) resolveInteractionSequence(ctx context.Context, runner *toolloop.Runner, input core.Interaction, owner string) (iter.Seq2[toolloop.Event, error], bool, error) {
+func (p *Process) resolveInteractionSequence(ctx context.Context, runner *toolloop.Runner, input core.Interaction, interactionID string) (iter.Seq2[toolloop.Event, error], bool, error) {
 	suspension := p.Suspension()
 	if suspension == nil {
 		return runner.Run(ctx, input.Request, input.Tools), false, nil
@@ -178,8 +178,8 @@ func (p *Process) resolveInteractionSequence(ctx context.Context, runner *toollo
 	if checkpoint == nil || checkpoint.Kind != suspensionCheckpointInteraction {
 		return runner.Run(ctx, input.Request, input.Tools), false, nil
 	}
-	if checkpoint.Owner != owner {
-		return nil, false, fmt.Errorf("%w: suspension owner %q does not match interaction %q", interaction.ErrSuspensionStale, checkpoint.Owner, owner)
+	if checkpoint.InteractionID != interactionID {
+		return nil, false, fmt.Errorf("%w: checkpoint interaction %q does not match interaction %q", interaction.ErrSuspensionStale, checkpoint.InteractionID, interactionID)
 	}
 	if checkpoint.Deployment != p.Deployment() {
 		return nil, false, fmt.Errorf("%w: suspension deployment does not match process deployment", interaction.ErrSuspensionStale)
@@ -197,7 +197,7 @@ func (p *Process) resolveInteractionSequence(ctx context.Context, runner *toollo
 	if !suspension.Responded() {
 		return nil, false, fmt.Errorf("%w: tool suspension %q has no response", interaction.ErrSuspensionStale, suspension.ID)
 	}
-	resume := toolloop.Resume{ID: suspension.ID, Input: suspension.Response}
+	resume := toolloop.Resume{ID: suspension.ID, Response: suspension.Response}
 	return runner.Resume(ctx, checkpoint.Checkpoint, input.Tools, resume), true, nil
 }
 
@@ -205,7 +205,7 @@ func (p *Process) resolveInteractionSequence(ctx context.Context, runner *toollo
 // publishes the pause boundary, and returns the SuspendedError that unwinds the
 // action. It reconciles the tool-loop pause with an active nested-child pause so
 // the two cannot disagree on suspension identity, prompt, or schema.
-func (p *Process) pauseInteraction(ctx context.Context, boundary toolloop.Event, owner string) error {
+func (p *Process) pauseInteraction(ctx context.Context, boundary toolloop.Event, interactionID string) error {
 	if boundary.Pause == nil || boundary.Pause.Checkpoint == nil {
 		return errors.New("runtime: tool loop paused without a checkpoint")
 	}
@@ -224,14 +224,14 @@ func (p *Process) pauseInteraction(ctx context.Context, boundary toolloop.Event,
 		}
 		if activeChild.ID != boundary.Pause.ID ||
 			!bytes.Equal(activeChild.Prompt, boundary.Pause.Prompt) ||
-			!bytes.Equal(activeChild.ResumeSchema, boundary.Pause.ResumeSchema) {
+			!bytes.Equal(activeChild.ResponseSchema, boundary.Pause.ResponseSchema) {
 			return fmt.Errorf("%w: nested child pause does not match tool-loop pause", interaction.ErrSuspensionConflict)
 		}
 	}
 	frameworkState, err := encodeSuspensionCheckpoint(suspensionCheckpoint{
 		SchemaVersion:  suspensionCheckpointSchemaVersion,
 		Kind:           suspensionCheckpointInteraction,
-		Owner:          owner,
+		InteractionID:  interactionID,
 		Deployment:     p.Deployment(),
 		Checkpoint:     boundary.Pause.Checkpoint,
 		NestedChildren: nested,
@@ -249,12 +249,12 @@ func (p *Process) pauseInteraction(ctx context.Context, boundary toolloop.Event,
 		SchemaVersion:  interaction.SuspensionSchemaVersion,
 		ID:             boundary.Pause.ID,
 		Prompt:         boundary.Pause.Prompt,
-		ResumeSchema:   boundary.Pause.ResumeSchema,
+		ResponseSchema: boundary.Pause.ResponseSchema,
 		FrameworkState: frameworkState,
 		CreatedAt:      createdAt,
 	}
 	frameworkEvent := projectInteractionEvent(boundary, &suspension, 0)
-	if err := p.publishInteractionBoundary(ctx, owner, frameworkEvent); err != nil {
+	if err := p.publishInteractionBoundary(ctx, interactionID, frameworkEvent); err != nil {
 		return err
 	}
 	return &interaction.SuspendedError{Suspension: suspension}
@@ -276,7 +276,7 @@ func validateInteraction(input core.Interaction) error {
 	return nil
 }
 
-func (p *Process) interactionOwner(actionName string, input core.Interaction) (string, error) {
+func (p *Process) interactionID(actionName string, input core.Interaction) (string, error) {
 	if input.ID != "" {
 		return input.ID, nil
 	}
@@ -290,7 +290,7 @@ func (p *Process) interactionOwner(actionName string, input core.Interaction) (s
 		Request:    input.Request,
 	})
 	if err != nil {
-		return "", fmt.Errorf("runtime: derive interaction owner: %w", err)
+		return "", fmt.Errorf("runtime: derive interaction ID: %w", err)
 	}
 	sum := sha256.Sum256(data)
 	return derivedInteractionIDPrefix + hex.EncodeToString(sum[:]), nil
@@ -370,19 +370,19 @@ func projectInteractionEvent(boundary toolloop.Event, suspension *interaction.Su
 		Suspension: suspension,
 	}
 	if boundary.Resume != nil {
-		event.Resume = &interaction.Resume{ID: boundary.Resume.ID, Input: boundary.Resume.Input}
+		event.Resume = &interaction.Resume{ID: boundary.Resume.ID, Response: boundary.Resume.Response}
 	}
 	return event
 }
 
-func (p *Process) publishInteractionBoundary(ctx context.Context, owner string, boundary interaction.Event) error {
+func (p *Process) publishInteractionBoundary(ctx context.Context, interactionID string, boundary interaction.Event) error {
 	if err := boundary.Validate(); err != nil {
 		return fmt.Errorf("runtime: project interaction event: %w", err)
 	}
 	p.publishEvent(ctx, event.InteractionBoundary{
 		Header:        p.eventHeader(),
 		Deployment:    p.Deployment(),
-		InteractionID: owner,
+		InteractionID: interactionID,
 		Boundary:      boundary.Clone(),
 	})
 	return nil

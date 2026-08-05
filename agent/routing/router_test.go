@@ -32,7 +32,7 @@ func (s *stubRanker) Rank(_ context.Context, _ string, candidates []routing.Cand
 }
 
 func newAgent(name string) *core.Agent {
-	return agent.New(agent.AgentConfig{Name: name, Description: "test agent " + name, Actions: []agent.Action{agent.NewAction("act-"+name, func(_ context.Context, _ *core.ProcessContext, in chooseIn) (chooseOut, error) {
+	return agent.New(agent.Config{Name: name, Description: "test agent " + name, Actions: []agent.Action{agent.NewAction("act-"+name, func(_ context.Context, _ *core.ProcessContext, in chooseIn) (chooseOut, error) {
 		return chooseOut{Done: true}, nil
 	}, core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[chooseOut](core.GoalConfig{Description: "test goal " + name})}})
 }
@@ -118,7 +118,7 @@ func TestRouterChoiceKeepsRankedDeploymentAcrossRouteReplacement(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	replacement := agent.New(agent.AgentConfig{
+	replacement := agent.New(agent.Config{
 		Name: "stable", Description: "replacement",
 		Actions: newAgent("stable").Actions(), Goals: newAgent("stable").Goals(),
 	})

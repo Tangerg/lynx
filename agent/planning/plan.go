@@ -79,12 +79,12 @@ func (p *Plan) Complete() bool {
 	return p == nil || len(p.actions) == 0
 }
 
-// Cost is the sum of action costs; the planner uses it to rank competing
+// TotalCost is the sum of action costs; the planner uses it to rank competing
 // plans. It samples each action's cost against the supplied world state so
 // dynamic-cost actions get evaluated correctly. Actions with a nil Cost
 // contribute nothing — the canonical construction path ([core.NewAction])
 // fills in [core.FixedScore](1.0).
-func (p *Plan) Cost(worldState core.WorldState) float64 {
+func (p *Plan) TotalCost(worldState core.WorldState) float64 {
 	if p == nil {
 		return 0
 	}
@@ -101,20 +101,20 @@ func (p *Plan) Cost(worldState core.WorldState) float64 {
 	return total
 }
 
-// Value evaluates the goal value. A nil goal contributes zero.
-func (p *Plan) Value(worldState core.WorldState) float64 {
+// GoalValue evaluates the goal value. A nil goal contributes zero.
+func (p *Plan) GoalValue(worldState core.WorldState) float64 {
 	if p == nil || p.goal == nil {
 		return 0
 	}
 	return p.goal.Value(worldState)
 }
 
-// ActionsValue is the sum of the plan's action values, sampled against the
+// TotalActionValue is the sum of the plan's action values, sampled against the
 // supplied world state so dynamic-value actions get evaluated correctly.
 // Actions with a nil Value contribute nothing — the canonical construction
 // path ([core.NewAction]) fills in [core.FixedScore](0), so this term is zero
 // unless an action opts into a non-trivial value.
-func (p *Plan) ActionsValue(worldState core.WorldState) float64 {
+func (p *Plan) TotalActionValue(worldState core.WorldState) float64 {
 	if p == nil {
 		return 0
 	}
@@ -131,12 +131,12 @@ func (p *Plan) ActionsValue(worldState core.WorldState) float64 {
 	return total
 }
 
-// NetValue ranks competing plans as goal value plus [Plan.ActionsValue] minus
-// [Plan.Cost]. The actions term is what stops the ranking from always preferring
+// NetValue ranks competing plans as goal value plus [Plan.TotalActionValue] minus
+// [Plan.TotalCost]. The actions term is what stops the ranking from always preferring
 // the cheapest path to a goal; most actions leave Value at
 // [core.FixedScore](0), so it contributes nothing unless an author opts in.
 func (p *Plan) NetValue(worldState core.WorldState) float64 {
-	return p.Value(worldState) + p.ActionsValue(worldState) - p.Cost(worldState)
+	return p.GoalValue(worldState) + p.TotalActionValue(worldState) - p.TotalCost(worldState)
 }
 
 // sortByNetValueDesc sorts plans in place by NetValue descending.

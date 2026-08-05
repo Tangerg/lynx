@@ -221,10 +221,10 @@ func TestStubEngineBudgetStop(t *testing.T) {
 
 // TestStubEngineStepStop — the same treatment for a step stop. This covers the
 // turn's own tool-round guardrail as well as a caller's MaxSteps, because both
-// arrive as InteractionStopSteps: reaching either is a real outcome carrying the
+// arrive as InteractionStopModelCalls: reaching either is a real outcome carrying the
 // partial reply, never an error with a client-facing problem attached.
 func TestStubEngineStepStop(t *testing.T) {
-	stub := &stubEngine{runReply: "partial answer", stopReason: agent.InteractionStopSteps}
+	stub := &stubEngine{runReply: "partial answer", stopReason: agent.InteractionStopModelCalls}
 	controller := mustTurn(turn.New(turnDeps(stub)))
 
 	handle, err := controller.StartTurn(context.Background(), runs.StartExecution{

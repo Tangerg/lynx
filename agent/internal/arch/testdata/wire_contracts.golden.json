@@ -3,7 +3,7 @@
     "message": "provider unavailable"
   },
   "process_snapshot": {
-    "schema_version": 15,
+    "schema_version": 17,
     "id": "process-1",
     "parent_id": "process-root",
     "spawn_call_id": "call-delegate-1",
@@ -15,12 +15,12 @@
     "started_at": "2026-07-15T08:30:00.123Z",
     "status": "waiting",
     "suspension": {
-      "schema_version": 5,
+      "schema_version": 7,
       "id": "approval-1",
       "prompt": {
         "message": "operator approval required"
       },
-      "resume_schema": {
+      "response_schema": {
         "type": "string"
       },
       "framework_state": {
@@ -75,7 +75,7 @@
     ]
   },
   "toolloop_checkpoint": {
-    "schema_version": 4,
+    "schema_version": 5,
     "id": "approval-1",
     "round": 2,
     "toolset_digest": "8f4d804e6c3d359b39e96baba43b430e1c81381ed321e8ce8e66bb32cb5e00f4",
@@ -149,7 +149,7 @@
           "prompt": {
             "message": "operator approval required"
           },
-          "resume_schema": {
+          "response_schema": {
             "type": "string"
           }
         }

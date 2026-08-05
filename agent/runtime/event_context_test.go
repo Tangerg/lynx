@@ -109,7 +109,7 @@ func TestProcessCreatedEventKeepsRunTrace(t *testing.T) {
 
 func TestProcessKilledEventKeepsCallerTrace(t *testing.T) {
 	exp := installRuntimeTraceCapture(t)
-	a := agent.New(agent.AgentConfig{Name: "kill-event-trace", Actions: []agent.Action{agent.NewAction("wait", func(ctx context.Context, _ *core.ProcessContext, _ word) (wordCount, error) {
+	a := agent.New(agent.Config{Name: "kill-event-trace", Actions: []agent.Action{agent.NewAction("wait", func(ctx context.Context, _ *core.ProcessContext, _ word) (wordCount, error) {
 		_, err := hitl.Interrupt[bool](ctx, "wait", "continue?")
 		return wordCount{}, err
 	}, core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[wordCount](core.GoalConfig{Description: "waited"})}})
@@ -140,7 +140,7 @@ func TestProcessKilledEventKeepsCallerTrace(t *testing.T) {
 func TestRuntimeEventPanicSpanKeepsRunTrace(t *testing.T) {
 	exp := installRuntimeTraceCapture(t)
 
-	a := agent.New(agent.AgentConfig{Name: "event-trace", Actions: []agent.Action{agent.NewAction("count", func(_ context.Context, _ *core.ProcessContext, in word) (wordCount, error) {
+	a := agent.New(agent.Config{Name: "event-trace", Actions: []agent.Action{agent.NewAction("count", func(_ context.Context, _ *core.ProcessContext, in word) (wordCount, error) {
 		return wordCount{Count: len(in.Text)}, nil
 	}, core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[wordCount](core.GoalConfig{Description: "counted"})}})
 
@@ -172,7 +172,7 @@ func TestRuntimeEventPanicSpanKeepsRunTrace(t *testing.T) {
 func TestProcessContextSuspendKeepsActionTrace(t *testing.T) {
 	exp := installRuntimeTraceCapture(t)
 
-	a := agent.New(agent.AgentConfig{Name: "await-event-trace", Actions: []agent.Action{agent.NewAction("wait", func(ctx context.Context, pc *core.ProcessContext, in word) (wordCount, error) {
+	a := agent.New(agent.Config{Name: "await-event-trace", Actions: []agent.Action{agent.NewAction("wait", func(ctx context.Context, pc *core.ProcessContext, in word) (wordCount, error) {
 		_, err := hitl.Interrupt[bool](ctx, "wait", "continue?")
 		return wordCount{Count: len(in.Text)}, err
 	}, core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[wordCount](core.GoalConfig{Description: "counted"})}})

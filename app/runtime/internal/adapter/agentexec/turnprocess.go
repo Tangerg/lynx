@@ -15,12 +15,12 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 )
 
-// TurnCompletion is the typed application projection of one Agent runtime
-// segment completion. Durable checkpoint policy is deliberately absent: a
+// TurnCompletion is the typed application projection of one Agent runtime run
+// completion. Durable checkpoint policy is deliberately absent: a
 // waiting checkpoint is captured only after the application accepts the
 // boundary, then committed by its tree-barrier transaction.
 //
-// A segment reports its process failure and its own driving error separately,
+// A run reports its process failure and its own driving error separately,
 // and how those two combine is the framework's rule — not something to restate
 // here. Err is exactly what that rule produced.
 type TurnCompletion struct {
@@ -56,13 +56,13 @@ type TurnProcess interface {
 	// ID is the private root process identity used to route executor control.
 	ID() string
 
-	// Await joins the active segment and captures its immutable completion.
-	// Exactly one owner calls Await for each initial or resumed segment.
+	// Await joins the active run and captures its immutable completion.
+	// Exactly one owner calls Await for each initial or resumed run.
 	Await() TurnCompletion
 
 	// Cancel marks the process [core.StatusKilled] via the engine. The ongoing
 	// tick observes the status flip at its next checkpoint and completes its
-	// active segment.
+	// active run.
 	Cancel(ctx context.Context) error
 
 	// CancelSubtree terminates exactly one descendant process and everything
@@ -72,7 +72,7 @@ type TurnProcess interface {
 
 	// Resume atomically accepts the complete answer set exposed by the last
 	// waiting boundary and starts its first continuation. Await automatically
-	// drives any intermediate runtime-only waiting segments until every accepted
+	// drives any intermediate runtime-only waiting runs until every accepted
 	// answer has been consumed or a new external boundary is reached.
 	Resume(ctx context.Context, answers []SuspensionAnswer) error
 
@@ -128,7 +128,7 @@ type WaitingSubtreeCancellationPlan interface {
 // runtime keeps lifecycle commands inside this execution adapter.
 type turnProcess struct {
 	process          *runtime.Process
-	segment          *runtime.Segment
+	runHandle        *runtime.RunHandle
 	owner            *Engine
 	scope            execution.ExecutionScope
 	runCtx           context.Context
@@ -146,21 +146,21 @@ type suspensionKey struct {
 func (p *turnProcess) ID() string { return p.process.ID() }
 
 func (p *turnProcess) Await() TurnCompletion {
-	if p == nil || p.process == nil || p.segment == nil {
-		return TurnCompletion{Err: errors.New("agentexec: await process: no active segment")}
+	if p == nil || p.process == nil || p.runHandle == nil {
+		return TurnCompletion{Err: errors.New("agentexec: await process: no active run")}
 	}
 	ctx := p.detachedRunContext()
 	for {
-		segmentCompletion, err := p.segment.Await(ctx)
+		runCompletion, err := p.runHandle.Await(ctx)
 		if err != nil {
 			return TurnCompletion{Err: err}
 		}
-		p.segment = nil
+		p.runHandle = nil
 		completion := TurnCompletion{
-			Status: segmentCompletion.Status,
-			Err:    segmentCompletion.Error(),
+			Status: runCompletion.Status,
+			Err:    runCompletion.Error(),
 		}
-		if output, ok := runtime.CompletionResult[TurnOutput](segmentCompletion); ok {
+		if output, ok := runtime.CompletionResult[TurnOutput](runCompletion); ok {
 			completion.Output = output
 			completion.HasOutput = true
 		}
@@ -187,7 +187,7 @@ func (p *turnProcess) Await() TurnCompletion {
 
 // detachedRunContext preserves the immutable execution scope, model selection,
 // and trace lineage while letting the process owner join and auto-continue a
-// segment independently of the request that initiated the Run.
+// run independently of the request that initiated it.
 func (p *turnProcess) detachedRunContext() context.Context {
 	if p == nil || p.runCtx == nil {
 		return context.Background()
@@ -316,13 +316,13 @@ func (plan *waitingSubtreeCancellationPlan) Continue(ctx context.Context) error 
 		return errors.New("agentexec: continue waiting subtree cancellation: incomplete plan")
 	}
 	process := plan.process
-	if process.segment != nil {
+	if process.runHandle != nil {
 		return fmt.Errorf(
-			"agentexec: continue waiting subtree cancellation: process %q already has an active segment",
+			"agentexec: continue waiting subtree cancellation: process %q already has an active run",
 			process.process.ID(),
 		)
 	}
-	segment, err := process.owner.runtime.ContinueAsync(ctx, process.process.ID())
+	runHandle, err := process.owner.runtime.ContinueAsync(ctx, process.process.ID())
 	if err != nil {
 		return fmt.Errorf(
 			"agentexec: continue waiting subtree cancellation for process %q: %w",
@@ -330,7 +330,7 @@ func (plan *waitingSubtreeCancellationPlan) Continue(ctx context.Context) error 
 			err,
 		)
 	}
-	process.segment = segment
+	process.runHandle = runHandle
 	return nil
 }
 
@@ -374,7 +374,7 @@ func (p *turnProcess) Resume(ctx context.Context, answers []SuspensionAnswer) er
 	if p == nil || p.process == nil || p.owner == nil || p.owner.runtime == nil {
 		return errors.New("agentexec: resume process: incomplete turn process")
 	}
-	if p.segment != nil {
+	if p.runHandle != nil {
 		return fmt.Errorf("agentexec: resume process %q: segment is already active", p.process.ID())
 	}
 	pending, err := p.PendingSuspensions(ctx)
@@ -438,9 +438,9 @@ func (p *turnProcess) resumeNext(ctx context.Context) error {
 	// A waiting-tree transformation may have made one framework-owned boundary
 	// internally ready ahead of the external answer set. Advance it first,
 	// without fabricating a Resume event or consuming a human response.
-	segment, continueErr := p.owner.runtime.ContinueAsync(ctx, p.process.ID())
+	runHandle, continueErr := p.owner.runtime.ContinueAsync(ctx, p.process.ID())
 	if continueErr == nil {
-		p.segment = segment
+		p.runHandle = runHandle
 		return nil
 	}
 	if !errors.Is(continueErr, interaction.ErrSuspensionStale) {
@@ -469,12 +469,12 @@ func (p *turnProcess) resumeNext(ctx context.Context) error {
 	if parked == nil {
 		return fmt.Errorf("agentexec: resume process %q: root has no promoted suspension", p.process.ID())
 	}
-	segment, err = p.owner.runtime.ResumeAsync(ctx, p.runCtx, p.process.ID(), parked.ID, response)
+	runHandle, err = p.owner.runtime.RespondAndContinueAsync(ctx, p.runCtx, p.process.ID(), parked.ID, response)
 	if err != nil {
 		return err
 	}
 	delete(p.pendingResponses, key)
-	p.segment = segment
+	p.runHandle = runHandle
 	return nil
 }
 

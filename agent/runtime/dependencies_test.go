@@ -19,7 +19,7 @@ func TestEngineProcessActionDependencyScopes(t *testing.T) {
 	shared := core.MustDependencyKey[string]("shared")
 	actionLocal := core.MustDependencyKey[string]("action-local")
 
-	agentDefinition := agent.New(agent.AgentConfig{Name: "dependency-scopes", Actions: []agent.Action{agent.NewAction("first", func(_ context.Context, processContext *core.ProcessContext, input dependencyInput) (dependencyIntermediate, error) {
+	agentDefinition := agent.New(agent.Config{Name: "dependency-scopes", Actions: []agent.Action{agent.NewAction("first", func(_ context.Context, processContext *core.ProcessContext, input dependencyInput) (dependencyIntermediate, error) {
 		value, err := core.LookupDependency(processContext.Dependencies(), shared)
 		if err != nil {
 			return dependencyIntermediate{}, err
@@ -78,7 +78,7 @@ func TestEngineProcessActionDependencyScopes(t *testing.T) {
 
 func TestProcessDependenciesMustBelongToEngine(t *testing.T) {
 	type output struct{ Value int }
-	agentDefinition := agent.New(agent.AgentConfig{Name: "dependency-scope-parent", Actions: []agent.Action{agent.NewAction("finish", func(_ context.Context, _ *core.ProcessContext, input dependencyInput) (output, error) {
+	agentDefinition := agent.New(agent.Config{Name: "dependency-scope-parent", Actions: []agent.Action{agent.NewAction("finish", func(_ context.Context, _ *core.ProcessContext, input dependencyInput) (output, error) {
 		return output(input), nil
 	}, core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[output](core.GoalConfig{Description: "done"})}})
 	engine := agent.MustNewEngine(runtime.Config{})
@@ -105,7 +105,7 @@ func TestProcessDependenciesMayNestHostLayers(t *testing.T) {
 	shared := core.MustDependencyKey[string]("nested-shared")
 	sessionScoped := core.MustDependencyKey[string]("nested-session")
 
-	agentDefinition := agent.New(agent.AgentConfig{Name: "dependency-scope-nesting", Actions: []agent.Action{agent.NewAction("finish", func(_ context.Context, processContext *core.ProcessContext, input dependencyInput) (dependencyOutput, error) {
+	agentDefinition := agent.New(agent.Config{Name: "dependency-scope-nesting", Actions: []agent.Action{agent.NewAction("finish", func(_ context.Context, processContext *core.ProcessContext, input dependencyInput) (dependencyOutput, error) {
 		value, err := core.LookupDependency(processContext.Dependencies(), shared)
 		if err != nil || value != "process" {
 			return dependencyOutput{}, errors.New("process layer did not shadow the engine registration")

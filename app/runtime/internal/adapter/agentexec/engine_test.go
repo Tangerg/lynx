@@ -654,7 +654,7 @@ func TestEngine_RunChat_ArtificialStopsPreservePartialText(t *testing.T) {
 		{
 			name:       "steps",
 			request:    TurnRequest{Message: "go", Limits: execution.RunLimits{MaxSteps: 1}},
-			wantReason: agent.InteractionStopSteps,
+			wantReason: agent.InteractionStopModelCalls,
 		},
 	}
 	for _, test := range tests {

@@ -24,11 +24,11 @@ var (
 // CheckpointSchemaVersion is the portable tool-loop checkpoint schema accepted
 // by this version of the runner. The framework intentionally accepts exactly
 // one schema: callers must not guess how to resume obsolete execution state.
-const CheckpointSchemaVersion uint16 = 4
+const CheckpointSchemaVersion uint16 = 5
 
 // CallStatus identifies the checkpoint state of one model-requested tool call.
 // Running is deliberately absent: Runner reaches a checkpoint only after every
-// call started in the current concurrency segment has settled.
+// call started in the current concurrency batch has settled.
 type CallStatus string
 
 const (
@@ -51,10 +51,10 @@ func (s CallStatus) Valid() bool {
 // It intentionally excludes executable runtime state; the matching Resume is
 // attached to the tool's context when that call is continued.
 type PendingCall struct {
-	ID           string          `json:"id"`
-	Reason       string          `json:"reason"`
-	Prompt       json.RawMessage `json:"prompt"`
-	ResumeSchema json.RawMessage `json:"resume_schema"`
+	ID             string          `json:"id"`
+	Reason         string          `json:"reason"`
+	Prompt         json.RawMessage `json:"prompt"`
+	ResponseSchema json.RawMessage `json:"response_schema"`
 }
 
 // Validate verifies the stable resume identity and JSON protocol values.
@@ -65,8 +65,8 @@ func (p PendingCall) Validate() error {
 	if strings.TrimSpace(p.Reason) == "" {
 		return fmt.Errorf("%w: pending call reason must not be empty", ErrInvalidCheckpoint)
 	}
-	if !json.Valid(p.Prompt) || !json.Valid(p.ResumeSchema) {
-		return fmt.Errorf("%w: pending call prompt and resume schema must be valid JSON", ErrInvalidCheckpoint)
+	if !json.Valid(p.Prompt) || !json.Valid(p.ResponseSchema) {
+		return fmt.Errorf("%w: pending call prompt and response schema must be valid JSON", ErrInvalidCheckpoint)
 	}
 	return nil
 }
@@ -249,7 +249,7 @@ func (c *Checkpoint) AwaitingInput() (PendingCall, bool, error) {
 	}
 	pending := *next.Pending
 	pending.Prompt = bytes.Clone(next.Pending.Prompt)
-	pending.ResumeSchema = bytes.Clone(next.Pending.ResumeSchema)
+	pending.ResponseSchema = bytes.Clone(next.Pending.ResponseSchema)
 	return pending, true, nil
 }
 
@@ -373,7 +373,7 @@ func cloneCallStates(states []CallCheckpoint) []CallCheckpoint {
 		if state.Pending != nil {
 			pending := *state.Pending
 			pending.Prompt = bytes.Clone(state.Pending.Prompt)
-			pending.ResumeSchema = bytes.Clone(state.Pending.ResumeSchema)
+			pending.ResponseSchema = bytes.Clone(state.Pending.ResponseSchema)
 			cloned[index].Pending = &pending
 		}
 	}

@@ -25,7 +25,7 @@ var agentTracer = otel.Tracer(agentTracerName)
 // publishEvent dispatches to both engine and process listener scopes.
 func (p *Process) publishEvent(ctx context.Context, event event.Event) {
 	if p.engine != nil {
-		p.engine.publishContext(ctx, event)
+		p.engine.publishEngineEvent(ctx, event)
 	}
 	if p.processEvents != nil && event != nil {
 		p.processEvents.OnEvent(ctx, event)

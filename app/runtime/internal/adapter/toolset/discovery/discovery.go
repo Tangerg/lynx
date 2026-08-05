@@ -108,10 +108,10 @@ func New(withheld []toolcontract.Tool) (*Search, error) {
 	return t, nil
 }
 
-// DeferredToolNames implements [toolloop.DeferredTool]: the framework's manifest
+// DeferredToolNames implements [toolloop.ToolDeferrer]: the framework's manifest
 // projection excludes these from the initial advertised toolset while keeping
 // them resolvable, so this tool can promote the ones the model picked.
-var _ toolloop.DeferredTool = (*Search)(nil)
+var _ toolloop.ToolDeferrer = (*Search)(nil)
 
 func (t *Search) DeferredToolNames() []string {
 	if t == nil {

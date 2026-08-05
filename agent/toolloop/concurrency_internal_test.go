@@ -2,7 +2,7 @@ package toolloop
 
 import "testing"
 
-func TestSegmentEndHonorsExclusiveCallsAndResourceConflicts(t *testing.T) {
+func TestBatchEndHonorsExclusiveCallsAndResourceConflicts(t *testing.T) {
 	tests := []struct {
 		name  string
 		plans []callPlan
@@ -15,7 +15,7 @@ func TestSegmentEndHonorsExclusiveCallsAndResourceConflicts(t *testing.T) {
 			want:  1,
 		},
 		{
-			name: "independent calls share segment",
+			name: "independent calls share batch",
 			plans: []callPlan{
 				{concurrent: true},
 				{concurrent: true, key: "a"},
@@ -24,7 +24,7 @@ func TestSegmentEndHonorsExclusiveCallsAndResourceConflicts(t *testing.T) {
 			want: 3,
 		},
 		{
-			name: "duplicate key starts next segment",
+			name: "duplicate key starts next batch",
 			plans: []callPlan{
 				{concurrent: true, key: "same"},
 				{concurrent: true, key: "other"},
@@ -42,7 +42,7 @@ func TestSegmentEndHonorsExclusiveCallsAndResourceConflicts(t *testing.T) {
 			want: 1,
 		},
 		{
-			name:  "later segment",
+			name:  "later batch",
 			plans: []callPlan{{}, {concurrent: true}, {concurrent: true}},
 			start: 1,
 			want:  3,
@@ -51,8 +51,8 @@ func TestSegmentEndHonorsExclusiveCallsAndResourceConflicts(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			if got := segmentEnd(test.plans, test.start); got != test.want {
-				t.Fatalf("segmentEnd() = %d, want %d", got, test.want)
+			if got := batchEnd(test.plans, test.start); got != test.want {
+				t.Fatalf("batchEnd() = %d, want %d", got, test.want)
 			}
 		})
 	}

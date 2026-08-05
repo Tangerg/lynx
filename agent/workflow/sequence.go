@@ -88,7 +88,7 @@ func Sequence[In, Out any](
 				if err != nil {
 					return zero, fmt.Errorf("step %d (%s): %w", index, agentName, err)
 				}
-				if err := child.TerminalError(); err != nil {
+				if err := child.CompletionError(); err != nil {
 					return zero, fmt.Errorf("step %d (%s): %w", index, agentName, err)
 				}
 
@@ -97,7 +97,7 @@ func Sequence[In, Out any](
 				// then makes it discoverable by type on the next child's
 				// blackboard.
 				if index < len(deployments)-1 {
-					nextInput, ok := child.Blackboard().Lookup(core.LastResultBindingName, "")
+					nextInput, ok := child.Blackboard().Lookup(core.LatestObjectBindingName, "")
 					if !ok {
 						return zero, fmt.Errorf("step %d (%s) produced no output to chain forward", index, agentName)
 					}

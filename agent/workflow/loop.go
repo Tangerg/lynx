@@ -126,7 +126,7 @@ func Loop[In, Out any](
 			if err != nil {
 				return zero, history, fmt.Errorf("iteration %d: %w", history.Count(), err)
 			}
-			if err := child.TerminalError(); err != nil {
+			if err := child.CompletionError(); err != nil {
 				return zero, history, fmt.Errorf("iteration %d (%s): %w", history.Count(), bodyName, err)
 			}
 
@@ -136,7 +136,7 @@ func Loop[In, Out any](
 			}
 			return output, history.withAttempt(output), nil
 		},
-		stop: func(ctx context.Context, input In, history History[Out]) bool {
+		until: func(ctx context.Context, input In, history History[Out]) bool {
 			last, ok := history.Last()
 			return ok && config.Until(ctx, input, last)
 		},

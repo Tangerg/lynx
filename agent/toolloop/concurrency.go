@@ -64,11 +64,11 @@ func planCalls(resolver ToolResolver, calls []chat.ToolCall) ([]callPlan, bool, 
 	return plans, allDirect, nil
 }
 
-// segmentEnd returns the exclusive end of the longest consecutive call range
+// batchEnd returns the exclusive end of the longest consecutive call range
 // that can start together without violating an exclusive declaration or
 // duplicating a non-empty resource key. A single exclusive call forms its own
-// segment.
-func segmentEnd(plans []callPlan, start int) int {
+// batch.
+func batchEnd(plans []callPlan, start int) int {
 	if start < 0 || start >= len(plans) || !plans[start].concurrent {
 		return start + 1
 	}

@@ -85,10 +85,10 @@ func TestProcessStateTerminalTransitionClearsSuspension(t *testing.T) {
 
 func testSuspension(id string) interaction.Suspension {
 	return interaction.Suspension{
-		SchemaVersion: interaction.SuspensionSchemaVersion,
-		ID:            id,
-		Prompt:        json.RawMessage(`"approve?"`),
-		ResumeSchema:  json.RawMessage(`{"type":"boolean"}`),
-		CreatedAt:     time.Now(),
+		SchemaVersion:  interaction.SuspensionSchemaVersion,
+		ID:             id,
+		Prompt:         json.RawMessage(`"approve?"`),
+		ResponseSchema: json.RawMessage(`{"type":"boolean"}`),
+		CreatedAt:      time.Now(),
 	}
 }

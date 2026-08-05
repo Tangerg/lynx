@@ -52,7 +52,7 @@ Engine scope，但同名并不是跨作用域冲突，而是显式 override。�
 | `runtime.SubtreeEventListener` | Process | 显式沿委派子树传播 | 子树观测与投影 |
 | `runtime.ChildAdmitter` | Engine / Process | Process scope 优先，只调用一个；同步确认后才发布并执行 child | Host 子进程准入 |
 
-默认 Chat、`ChatMiddleware`、Prompt tool-round limit 和 child-depth limit 是
+默认 Chat、`ChatMiddleware`、Prompt model-call limit 和 child-depth limit 是
 `runtime.Config` 的稳定执行配置，不因为“可替换”就进入 Extension registry。动态领域依赖
 使用 typed `core.Dependencies`，也不伪装成行为扩展。
 
@@ -81,7 +81,7 @@ Chat 横切行为直接使用 `core/chat.CallMiddleware` 与 `StreamMiddleware`�
 
 ## 5. ToolGroupResolver
 
-Action 通过 `ActionConfig.ToolGroups []string` 只声明抽象 role。
+Action 通过 `ActionConfig.ToolRoles []string` 只声明抽象 role。
 `ToolGroupResolver.Resolve(ctx, role)` 返回 `ToolGroup`；
 Runtime 在调用 `Tools` 前校验：
 

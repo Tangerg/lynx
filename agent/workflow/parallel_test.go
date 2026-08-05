@@ -24,7 +24,7 @@ type paSummary struct{ Total int }
 // makeScoringAgent: takes paIn, produces paScore. The score is parameterized
 // so we can build N distinct agents that produce different values.
 func makeScoringAgent(name string, score int) *core.Agent {
-	return agent.New(agent.AgentConfig{Name: name, Description: fmt.Sprintf("scoring agent yielding %d", score), Actions: []agent.Action{agent.NewAction("score", func(_ context.Context, _ *core.ProcessContext, _ paIn) (paScore, error) {
+	return agent.New(agent.Config{Name: name, Description: fmt.Sprintf("scoring agent yielding %d", score), Actions: []agent.Action{agent.NewAction("score", func(_ context.Context, _ *core.ProcessContext, _ paIn) (paScore, error) {
 		return paScore{Value: score}, nil
 	}, core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[paScore](core.GoalConfig{Description: "score produced"})}})
 }
@@ -46,7 +46,7 @@ func TestParallel_RunsAllAndJoins(t *testing.T) {
 		workflow.ParallelConfig[paIn, paScore, paSummary]{
 			Name:   "parallel-scoring",
 			Agents: []*core.Agent{a1, a2, a3},
-			Joiner: func(_ context.Context, _ *core.ProcessContext, items []paScore) (paSummary, error) {
+			Join: func(_ context.Context, _ *core.ProcessContext, items []paScore) (paSummary, error) {
 				sum := 0
 				for _, s := range items {
 					sum += s.Value
@@ -87,7 +87,7 @@ func TestParallel_SubAgentFailureCancels(t *testing.T) {
 	engine := agent.MustNewEngine(runtime.Config{})
 
 	good := makeScoringAgent("good", 5)
-	bad := agent.New(agent.AgentConfig{Name: "bad", Actions: []agent.Action{agent.NewAction("fail", func(_ context.Context, _ *core.ProcessContext, _ paIn) (paScore, error) {
+	bad := agent.New(agent.Config{Name: "bad", Actions: []agent.Action{agent.NewAction("fail", func(_ context.Context, _ *core.ProcessContext, _ paIn) (paScore, error) {
 		return paScore{}, errors.New("kaboom")
 	}, core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[paScore](core.GoalConfig{Description: "score (will fail)"})}})
 	mustDeploy(t, engine, good, bad)
@@ -97,7 +97,7 @@ func TestParallel_SubAgentFailureCancels(t *testing.T) {
 		workflow.ParallelConfig[paIn, paScore, paSummary]{
 			Name:   "parallel-fail",
 			Agents: []*core.Agent{good, bad},
-			Joiner: func(_ context.Context, _ *core.ProcessContext, items []paScore) (paSummary, error) {
+			Join: func(_ context.Context, _ *core.ProcessContext, items []paScore) (paSummary, error) {
 				return paSummary{Total: items[0].Value + items[1].Value}, nil
 			},
 		},
@@ -139,7 +139,7 @@ func TestParallel_MaxConcurrencyCaps(t *testing.T) {
 			}
 		}
 		mkProbed := func(name string, score int) *core.Agent {
-			return agent.New(agent.AgentConfig{Name: name, Actions: []agent.Action{agent.NewAction("score", func(ctx context.Context, _ *core.ProcessContext, _ paIn) (paScore, error) {
+			return agent.New(agent.Config{Name: name, Actions: []agent.Action{agent.NewAction("score", func(ctx context.Context, _ *core.ProcessContext, _ paIn) (paScore, error) {
 				now := inFlight.Add(1)
 				updatePeak(now)
 				defer inFlight.Add(-1)
@@ -164,7 +164,7 @@ func TestParallel_MaxConcurrencyCaps(t *testing.T) {
 				Name:           "capped",
 				MaxConcurrency: 2,
 				Agents:         subs,
-				Joiner: func(_ context.Context, _ *core.ProcessContext, items []paScore) (paSummary, error) {
+				Join: func(_ context.Context, _ *core.ProcessContext, items []paScore) (paSummary, error) {
 					return paSummary{}, nil
 				},
 			},
@@ -218,7 +218,7 @@ func TestParallel_RejectsEmptyAgents(t *testing.T) {
 		engine,
 		workflow.ParallelConfig[paIn, paScore, paSummary]{
 			Name: "empty",
-			Joiner: func(_ context.Context, _ *core.ProcessContext, _ []paScore) (paSummary, error) {
+			Join: func(_ context.Context, _ *core.ProcessContext, _ []paScore) (paSummary, error) {
 				return paSummary{}, nil
 			},
 		},
@@ -232,13 +232,13 @@ func TestParallelValidatesAllDefinitionsBeforeDeployingChildren(t *testing.T) {
 	for _, config := range []workflow.ParallelConfig[paIn, paScore, paSummary]{
 		{
 			Name: " invalid-parent ", Agents: []*core.Agent{makeScoringAgent("valid", 1)},
-			Joiner: func(_ context.Context, _ *core.ProcessContext, _ []paScore) (paSummary, error) {
+			Join: func(_ context.Context, _ *core.ProcessContext, _ []paScore) (paSummary, error) {
 				return paSummary{}, nil
 			},
 		},
 		{
 			Name: "parent", Agents: []*core.Agent{makeScoringAgent("valid", 1), invalidWorkflowAgent()},
-			Joiner: func(_ context.Context, _ *core.ProcessContext, _ []paScore) (paSummary, error) {
+			Join: func(_ context.Context, _ *core.ProcessContext, _ []paScore) (paSummary, error) {
 				return paSummary{}, nil
 			},
 		},
@@ -253,7 +253,7 @@ func TestParallelValidatesAllDefinitionsBeforeDeployingChildren(t *testing.T) {
 	}
 }
 
-func TestParallel_RejectsNilJoiner(t *testing.T) {
+func TestParallel_RejectsNilJoin(t *testing.T) {
 	engine := agent.MustNewEngine(runtime.Config{})
 	_, err := workflow.Parallel[paIn, paScore, paSummary](t.Context(),
 		engine,
@@ -275,7 +275,7 @@ func TestParallel_RejectsNegativeMaxConcurrency(t *testing.T) {
 			Name:           "negative-concurrency",
 			MaxConcurrency: -1,
 			Agents:         []*core.Agent{makeScoringAgent("a", 1)},
-			Joiner: func(_ context.Context, _ *core.ProcessContext, _ []paScore) (paSummary, error) {
+			Join: func(_ context.Context, _ *core.ProcessContext, _ []paScore) (paSummary, error) {
 				return paSummary{}, nil
 			},
 		},

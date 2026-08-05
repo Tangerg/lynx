@@ -223,7 +223,7 @@ func TestEngineFreezesExtensionNameAtRegistration(t *testing.T) {
 
 func extensionBoundaryAgent() *core.Agent {
 	type output struct{ Value string }
-	return agent.New(agent.AgentConfig{
+	return agent.New(agent.Config{
 		Name: "extension-boundary",
 		Actions: []agent.Action{agent.NewAction("work", func(context.Context, *core.ProcessContext, string) (output, error) {
 			return output{Value: "done"}, nil
@@ -426,7 +426,7 @@ func TestActionMiddlewareOnionOrdering(t *testing.T) {
 	type runOut struct{ V int }
 
 	rec := &orderRecorder{}
-	a := agent.New(agent.AgentConfig{Name: "actionMiddleware", Actions: []agent.Action{agent.NewAction("step", func(_ context.Context, _ *core.ProcessContext, in runIn) (runOut, error) {
+	a := agent.New(agent.Config{Name: "actionMiddleware", Actions: []agent.Action{agent.NewAction("step", func(_ context.Context, _ *core.ProcessContext, in runIn) (runOut, error) {
 		rec.record("body")
 		return runOut{V: in.V + 1}, nil
 	}, core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[runOut](core.GoalConfig{Description: "out"})}})
@@ -482,7 +482,7 @@ func TestActionMiddlewareOnionOrdering(t *testing.T) {
 
 func TestActionMiddlewareShortCircuitChargesDurableActionUsage(t *testing.T) {
 	type output struct{}
-	a := agent.New(agent.AgentConfig{
+	a := agent.New(agent.Config{
 		Name: "middleware-short-circuit",
 		Actions: []agent.Action{agent.NewAction("work", func(context.Context, *core.ProcessContext, struct{}) (output, error) {
 			return output{}, nil
@@ -514,7 +514,7 @@ func TestActionMiddlewareShortCircuitChargesDurableActionUsage(t *testing.T) {
 func TestActionMiddlewareNextRunsAtMostOnce(t *testing.T) {
 	type output struct{}
 	bodyRuns := 0
-	a := agent.New(agent.AgentConfig{
+	a := agent.New(agent.Config{
 		Name: "middleware-next-once",
 		Actions: []agent.Action{agent.NewAction("work", func(context.Context, *core.ProcessContext, struct{}) (output, error) {
 			bodyRuns++
@@ -545,7 +545,7 @@ func TestActionMiddlewareNextRunsAtMostOnce(t *testing.T) {
 func TestActionMiddlewarePanicFailsProcess(t *testing.T) {
 	type output struct{}
 	cause := errors.New("middleware panic")
-	a := agent.New(agent.AgentConfig{
+	a := agent.New(agent.Config{
 		Name: "middleware-panic",
 		Actions: []agent.Action{agent.NewAction("work", func(context.Context, *core.ProcessContext, struct{}) (output, error) {
 			return output{}, nil
@@ -602,7 +602,7 @@ func (v failingValidator) Validate(core.AgentDescriptor) error { return v.err }
 func TestAgentValidatorRejectsDeploy(t *testing.T) {
 	type vIn struct{}
 	type vOut struct{}
-	a := agent.New(agent.AgentConfig{Name: "validated", Actions: []agent.Action{agent.NewAction("op", func(_ context.Context, _ *core.ProcessContext, _ vIn) (vOut, error) {
+	a := agent.New(agent.Config{Name: "validated", Actions: []agent.Action{agent.NewAction("op", func(_ context.Context, _ *core.ProcessContext, _ vIn) (vOut, error) {
 		return vOut{}, nil
 	}, core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[vOut](core.GoalConfig{Description: "done"})}})
 
@@ -659,7 +659,7 @@ type extensionTestInput struct{}
 type extensionTestOutput struct{}
 
 func newExtensionTestAgent() *core.Agent {
-	return agent.New(agent.AgentConfig{
+	return agent.New(agent.Config{
 		Name: "validated-snapshot",
 		Actions: []agent.Action{agent.NewAction("op", func(context.Context, *core.ProcessContext, extensionTestInput) (extensionTestOutput, error) {
 			return extensionTestOutput{}, nil
@@ -674,9 +674,9 @@ func newExtensionTestAgent() *core.Agent {
 func TestDeploy_ReportsAllProblems(t *testing.T) {
 	type pIn struct{}
 	type pOut struct{}
-	a := agent.New(agent.AgentConfig{Name: "multi-problem", Actions: []agent.Action{agent.NewAction("step", func(_ context.Context, _ *core.ProcessContext, _ pIn) (pOut, error) {
+	a := agent.New(agent.Config{Name: "multi-problem", Actions: []agent.Action{agent.NewAction("step", func(_ context.Context, _ *core.ProcessContext, _ pIn) (pOut, error) {
 		return pOut{}, nil
-	}, core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[pOut](core.GoalConfig{Description: "needs missing conditions", Preconditions: []string{"never_a", "never_b"}})}})
+	}, core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[pOut](core.GoalConfig{Description: "needs missing conditions", RequiredConditions: []string{"never_a", "never_b"}})}})
 
 	engine := agent.MustNewEngine(runtime.Config{
 		Extensions: []core.Extension{
@@ -712,7 +712,7 @@ func (a panickingApprover) Approve(core.ProcessView, core.GoalDescriptor) bool {
 type panickingStopPolicy struct{ cause error }
 
 func (panickingStopPolicy) Name() string { return "panic-stop" }
-func (p panickingStopPolicy) Check(core.ProcessView) (bool, string) {
+func (p panickingStopPolicy) ShouldStop(core.ProcessView) (bool, string) {
 	panic(p.cause)
 }
 
@@ -721,7 +721,7 @@ func (p panickingStopPolicy) Check(core.ProcessView) (bool, string) {
 func TestGoalApproverVetoesPlan(t *testing.T) {
 	type vetoIn struct{}
 	type vetoOut struct{}
-	a := agent.New(agent.AgentConfig{Name: "vetoed", Actions: []agent.Action{agent.NewAction("op", func(_ context.Context, _ *core.ProcessContext, _ vetoIn) (vetoOut, error) {
+	a := agent.New(agent.Config{Name: "vetoed", Actions: []agent.Action{agent.NewAction("op", func(_ context.Context, _ *core.ProcessContext, _ vetoIn) (vetoOut, error) {
 		return vetoOut{}, nil
 	}, core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[vetoOut](core.GoalConfig{Description: "done"})}})
 
@@ -766,7 +766,7 @@ func TestExtensionDecisionPanicsFailProcess(t *testing.T) {
 func TestConditionPanicFailsObservation(t *testing.T) {
 	type output struct{}
 	cause := errors.New("condition sentinel")
-	definition := agent.New(agent.AgentConfig{
+	definition := agent.New(agent.Config{
 		Name: "panic-condition",
 		Actions: []agent.Action{agent.NewAction("work", func(context.Context, *core.ProcessContext, struct{}) (output, error) {
 			return output{}, nil
@@ -793,7 +793,7 @@ func TestConditionPanicFailsObservation(t *testing.T) {
 func TestProcessExtensionDedupErrors(t *testing.T) {
 	type dIn struct{}
 	type dOut struct{}
-	a := agent.New(agent.AgentConfig{Name: "proc-dup", Actions: []agent.Action{agent.NewAction("op", func(_ context.Context, _ *core.ProcessContext, _ dIn) (dOut, error) {
+	a := agent.New(agent.Config{Name: "proc-dup", Actions: []agent.Action{agent.NewAction("op", func(_ context.Context, _ *core.ProcessContext, _ dIn) (dOut, error) {
 		return dOut{}, nil
 	}, core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[dOut](core.GoalConfig{Description: "done"})}})
 
@@ -836,7 +836,7 @@ func (l processOnlyListener) OnEvent(_ context.Context, e event.Event) {
 // at all".)
 func TestProcessScopedListenerFires(t *testing.T) {
 	type pOut struct{ V int }
-	a := agent.New(agent.AgentConfig{Name: "proc-listener", Actions: []agent.Action{agent.NewAction("op", func(_ context.Context, _ *core.ProcessContext, in string) (pOut, error) {
+	a := agent.New(agent.Config{Name: "proc-listener", Actions: []agent.Action{agent.NewAction("op", func(_ context.Context, _ *core.ProcessContext, in string) (pOut, error) {
 		return pOut{V: len(in)}, nil
 	}, core.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[pOut](core.GoalConfig{Description: "done"})}})
 

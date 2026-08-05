@@ -69,7 +69,7 @@ func protocolCheckpoint(t *testing.T) *toolloop.Checkpoint {
 	registry := protocolRegistryWithCall(t, func(context.Context, string) (string, error) {
 		return "", &toolloop.PauseError{
 			ID: "approval-1", Reason: "wait",
-			Prompt: json.RawMessage(`"approve?"`), ResumeSchema: json.RawMessage(`{"type":"string"}`),
+			Prompt: json.RawMessage(`"approve?"`), ResponseSchema: json.RawMessage(`{"type":"string"}`),
 		}
 	})
 	model := &scriptedModel{call: func(int, *chat.Request) (*chat.Response, error) {

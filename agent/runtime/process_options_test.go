@@ -29,7 +29,7 @@ func TestSnapshotProcessOptionsOwnsMutableContainers(t *testing.T) {
 	snapshot, err := snapshotProcessOptions(core.ProcessOptions{
 		Extensions:     extensions,
 		ChatMiddleware: middleware,
-		MaxToolRounds:  4,
+		MaxModelCalls:  4,
 	})
 	if err != nil {
 		t.Fatalf("snapshotProcessOptions: %v", err)
@@ -42,8 +42,8 @@ func TestSnapshotProcessOptionsOwnsMutableContainers(t *testing.T) {
 	if len(snapshot.extensions) != 1 || snapshot.extensions[0].value != firstExtension {
 		t.Fatalf("extensions = %#v, want original extension", snapshot.extensions)
 	}
-	if snapshot.chatMiddleware == nil || snapshot.maxToolRounds != 4 {
-		t.Fatalf("chat config = %#v/%d, want middleware and MaxToolRounds 4", snapshot.chatMiddleware, snapshot.maxToolRounds)
+	if snapshot.chatMiddleware == nil || snapshot.maxModelCalls != 4 {
+		t.Fatalf("chat config = %#v/%d, want middleware and MaxModelCalls 4", snapshot.chatMiddleware, snapshot.maxModelCalls)
 	}
 	if snapshot.chatMiddleware.CallMiddlewares[0] == nil || snapshot.chatMiddleware.StreamMiddlewares[0] == nil {
 		t.Fatal("chat middleware slices alias caller storage")
@@ -60,7 +60,7 @@ func TestSnapshotProcessOptionsSeparatesConcurrentCallerMutation(t *testing.T) {
 	middleware := &core.ChatMiddleware{
 		CallMiddlewares: []chat.CallMiddleware{func(next chat.Model) chat.Model { return next }},
 	}
-	options := core.ProcessOptions{Extensions: extensions, ChatMiddleware: middleware, MaxToolRounds: 2}
+	options := core.ProcessOptions{Extensions: extensions, ChatMiddleware: middleware, MaxModelCalls: 2}
 	snapshot, err := snapshotProcessOptions(options)
 	if err != nil {
 		t.Fatalf("snapshotProcessOptions: %v", err)
@@ -72,7 +72,7 @@ func TestSnapshotProcessOptionsSeparatesConcurrentCallerMutation(t *testing.T) {
 		defer group.Done()
 		for index := range 1_000 {
 			extensions[0] = secondExtension
-			options.MaxToolRounds = index
+			options.MaxModelCalls = index
 			middleware.CallMiddlewares[0] = nil
 		}
 	}()
@@ -80,14 +80,14 @@ func TestSnapshotProcessOptionsSeparatesConcurrentCallerMutation(t *testing.T) {
 		defer group.Done()
 		for range 1_000 {
 			_ = snapshot.extensions[0].value
-			_ = snapshot.maxToolRounds
+			_ = snapshot.maxModelCalls
 			_ = snapshot.chatMiddleware.CallMiddlewares[0]
 		}
 	}()
 	group.Wait()
 
 	if snapshot.extensions[0].value != firstExtension ||
-		snapshot.maxToolRounds != 2 || snapshot.chatMiddleware.CallMiddlewares[0] == nil {
+		snapshot.maxModelCalls != 2 || snapshot.chatMiddleware.CallMiddlewares[0] == nil {
 		t.Fatalf("snapshot changed with caller state: %#v", snapshot)
 	}
 }
@@ -131,9 +131,9 @@ func TestSnapshotProcessOptionsRejectsInvalidCapabilities(t *testing.T) {
 			contains: "engine-only capabilities: AgentValidator",
 		},
 		{
-			name:     "negative tool rounds",
-			options:  core.ProcessOptions{MaxToolRounds: -1},
-			contains: "MaxToolRounds must not be negative",
+			name:     "negative model calls",
+			options:  core.ProcessOptions{MaxModelCalls: -1},
+			contains: "MaxModelCalls must not be negative",
 		},
 		{
 			name:     "negative action budget",
@@ -170,24 +170,24 @@ func TestNewSnapshotsEngineChatMiddleware(t *testing.T) {
 	middleware := &core.ChatMiddleware{
 		CallMiddlewares: []chat.CallMiddleware{callMiddleware},
 	}
-	engine, err := New(Config{ChatMiddleware: middleware, MaxToolRounds: 3})
+	engine, err := New(Config{ChatMiddleware: middleware, MaxModelCalls: 3})
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
 
 	middleware.CallMiddlewares[0] = nil
-	if engine.chatMiddleware == nil || engine.maxToolRounds != 3 {
-		t.Fatalf("engine chat config = %#v/%d, want independent snapshot", engine.chatMiddleware, engine.maxToolRounds)
+	if engine.chatMiddleware == nil || engine.maxModelCalls != 3 {
+		t.Fatalf("engine chat config = %#v/%d, want independent snapshot", engine.chatMiddleware, engine.maxModelCalls)
 	}
 	if engine.chatMiddleware.CallMiddlewares[0] == nil {
 		t.Fatal("engine chat middleware retained caller slice")
 	}
 }
 
-func TestNewRejectsNegativeEngineToolRounds(t *testing.T) {
-	engine, err := New(Config{MaxToolRounds: -1})
-	if engine != nil || err == nil || !strings.Contains(err.Error(), "MaxToolRounds must not be negative") {
-		t.Fatalf("New = %#v, %v; want nil engine and tool-round error", engine, err)
+func TestNewRejectsNegativeEngineModelCalls(t *testing.T) {
+	engine, err := New(Config{MaxModelCalls: -1})
+	if engine != nil || err == nil || !strings.Contains(err.Error(), "MaxModelCalls must not be negative") {
+		t.Fatalf("New = %#v, %v; want nil engine and model-call error", engine, err)
 	}
 }
 

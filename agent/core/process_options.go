@@ -7,10 +7,10 @@ import (
 	"math"
 )
 
-// ChildOptionsFunc supplies explicit per-child process configuration. Parallel
+// ConfigureChildFunc supplies explicit per-child process configuration. Parallel
 // child creation may call it concurrently, so an implementation owns
 // synchronization for whatever mutable state it captures.
-type ChildOptionsFunc func(
+type ConfigureChildFunc func(
 	ctx context.Context,
 	parent ProcessView,
 	child AgentDescriptor,
@@ -29,23 +29,23 @@ type ChildOptionsFunc func(
 type ProcessOptions struct {
 	Blackboard Blackboard
 
-	// ChildOptions configures every child process spawned by this process,
+	// ConfigureChild configures every child process spawned by this process,
 	// including agent-as-tool and workflow children. The callback receives the
 	// read-only parent and an inert description of the exact child definition. A
 	// nil returned Blackboard keeps the selected RunChild inheritance mode;
 	// other returned fields configure the child normally.
 	//
 	// The callback itself is inherited by descendants unless the returned
-	// ProcessOptions supplies a different non-nil ChildOptions, so one explicit
+	// ProcessOptions supplies a different non-nil ConfigureChild, so one explicit
 	// host policy can cover the whole delegation tree. nil preserves the
 	// framework default: children inherit only their declared blackboard mode
 	// and explicitly subtree-scoped event listeners.
-	ChildOptions ChildOptionsFunc
+	ConfigureChild ConfigureChildFunc
 
 	// Budget caps cumulative execution across the complete process tree rooted
 	// at this process. Children share one runtime-owned atomic admission
 	// authority with the root, so concurrent siblings cannot independently
-	// consume the same remaining capacity. ChildOptions must not configure a
+	// consume the same remaining capacity. ConfigureChild must not configure a
 	// second Budget; tree-wide limits belong on the root ProcessOptions.
 	Budget Budget
 
@@ -75,11 +75,11 @@ type ProcessOptions struct {
 	// context before shared middleware executes.
 	ChatMiddleware *ChatMiddleware
 
-	// MaxToolRounds bounds the tool rounds of every managed interaction this
+	// MaxModelCalls bounds the model calls of every managed interaction this
 	// process runs, including Prompt. Zero uses the engine default; zero at both
 	// levels leaves each interaction bounded only by what it states itself and by
 	// the tree Budget.
-	MaxToolRounds int
+	MaxModelCalls int
 }
 
 // Budget limits cumulative host-defined cost, action invocations, model calls,

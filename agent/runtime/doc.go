@@ -17,9 +17,9 @@
 //
 //	New → Deploy(agent) → immutable Deployment
 //	  → Run(ctx, agent, bindings, options)             // synchronous run
-//	  → Start                                          // background segment
-//	  → Resume(ctx, id, suspensionID, response) + Continue // record reply, re-enter loop
-//	  → ResumeAsync(admissionCtx, runCtx, ...)          // atomically reply + own a Segment
+//	  → Start                                          // background run handle
+//	  → Respond(ctx, id, suspensionID, response) + Continue // record reply, re-enter loop
+//	  → RespondAndContinueAsync(admissionCtx, runCtx, ...) // atomically reply + own a RunHandle
 //	  → PendingSuspensions                              // direct external waits across the tree
 //	  → SnapshotTree / RestoreTree                      // portable complete-tree state, no I/O
 //	  → PlanWaitingSubtreeCancellation / ApplyWaitingSubtreeCancellation
@@ -28,20 +28,20 @@
 //
 // HITL is a first-class state: when an action surfaces a suspension from
 // [hitl.Interrupt], the process waits in [core.StatusWaiting];
-// [Engine.Resume] records a response on the exact suspension while
+// [Engine.Respond] records a response on the exact suspension while
 // the process remains waiting; [Engine.Continue] re-enters the action
-// at that suspension point. [Engine.ResumeAsync] combines those two admission
+// at that suspension point. [Engine.RespondAndContinueAsync] combines those two admission
 // transitions atomically for asynchronous hosts. [Engine.PendingSuspensions]
 // gives a coordinating host the complete, source-attributed set of unanswered
 // boundaries without exposing framework checkpoints. A synchronous AgentTool
 // child that waits promotes the same suspension to its parent and retains the
-// exact child/tool-loop checkpoint, so Resume/Continue finishes the original
+// exact child/tool-loop checkpoint, so Respond/Continue finishes the original
 // tool call without replaying completed siblings.
 // [Engine.PlanWaitingSubtreeCancellation] computes a validated transition
 // without retaining runtime ownership; [Engine.ApplyWaitingSubtreeCancellation]
 // later applies it only if the observed process state is still current. Neither
 // method knows about persistence or application transactions.
-// [Engine.RunChildWithState] and [Engine.RunChild]
+// [Engine.RunChildWithWorkingState] and [Engine.RunChild]
 // bind an exact Deployment with explicit inheritance
 // semantics, join the parent's budget tree, and receive
 // its process-scope [SubtreeEventListener] extensions. Other process extensions,

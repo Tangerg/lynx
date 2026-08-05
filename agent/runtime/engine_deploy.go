@@ -87,7 +87,7 @@ func (e *Engine) deploy(ctx context.Context, agent *core.Agent, replace bool) (*
 		return nil, fmt.Errorf("runtime.Engine.%s: %w", operation, err)
 	}
 	if changed {
-		e.publishContext(ctx, event.AgentDeployed{
+		e.publishEngineEvent(ctx, event.AgentDeployed{
 			Header:     event.NewHeader(""),
 			Deployment: active.Ref(),
 		})
@@ -118,11 +118,11 @@ func (e *Engine) validateForDeploy(agent *core.Agent) error {
 // Undeploy removes an agent. Returns an error when the name is
 // unknown so callers don't silently miss typos.
 func (e *Engine) Undeploy(ctx context.Context, name string) error {
-	deployment, err := e.catalog.unregister(name)
+	deployment, err := e.catalog.deactivate(name)
 	if err != nil {
 		return fmt.Errorf("runtime.Engine.Undeploy: undeploy agent %q: %w", name, err)
 	}
-	e.publishContext(normalizeContext(ctx), event.AgentUndeployed{
+	e.publishEngineEvent(normalizeContext(ctx), event.AgentUndeployed{
 		Header:     event.NewHeader(""),
 		Deployment: deployment.Ref(),
 	})

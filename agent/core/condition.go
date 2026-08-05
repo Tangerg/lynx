@@ -27,11 +27,11 @@ type ConditionEnv struct {
 type Condition interface {
 	Name() string
 
-	// Cost estimates the relative work required to evaluate the condition.
+	// EvaluationCost estimates the relative work required to evaluate the condition.
 	// Planners resolve unknown evaluator-backed conditions from lower to higher
 	// cost so a cheap mismatch can avoid an expensive observation. It does not
 	// contribute to action cost or plan ranking.
-	Cost() float64
+	EvaluationCost() float64
 
 	Evaluate(ctx context.Context, env *ConditionEnv) Truth
 }
@@ -40,15 +40,15 @@ type Condition interface {
 // condition. It carries the planner's static evaluation-cost hint but no
 // Evaluate capability.
 type ConditionDescriptor struct {
-	name string
-	cost float64
+	name           string
+	evaluationCost float64
 }
 
 // Name returns the condition's identity.
 func (d ConditionDescriptor) Name() string { return d.name }
 
-// Cost returns the condition's static evaluation-cost hint.
-func (d ConditionDescriptor) Cost() float64 { return d.cost }
+// EvaluationCost returns the condition's static evaluation-cost hint.
+func (d ConditionDescriptor) EvaluationCost() float64 { return d.evaluationCost }
 
 // ConditionFunc is the function shape used by NewCondition — exported so
 // callers can name parameters in their own code without re-typing the
@@ -57,26 +57,26 @@ type ConditionFunc func(ctx context.Context, env *ConditionEnv) Truth
 
 // FuncCondition wraps a function — by far the common case.
 type FuncCondition struct {
-	name string
-	cost float64
-	fn   ConditionFunc
+	name           string
+	evaluationCost float64
+	fn             ConditionFunc
 }
 
-// ConditionConfig describes a function-backed condition. Cost is a relative
+// ConditionConfig describes a function-backed condition. EvaluationCost is a relative
 // evaluation-cost hint; zero is appropriate for an in-memory predicate.
 type ConditionConfig struct {
-	Name     string
-	Cost     float64
-	Evaluate ConditionFunc
+	Name           string
+	EvaluationCost float64
+	Evaluate       ConditionFunc
 }
 
 // NewCondition constructs a function-backed condition.
 func NewCondition(config ConditionConfig) *FuncCondition {
-	return &FuncCondition{name: config.Name, cost: config.Cost, fn: config.Evaluate}
+	return &FuncCondition{name: config.Name, evaluationCost: config.EvaluationCost, fn: config.Evaluate}
 }
 
-func (c *FuncCondition) Name() string  { return c.name }
-func (c *FuncCondition) Cost() float64 { return c.cost }
+func (c *FuncCondition) Name() string            { return c.name }
+func (c *FuncCondition) EvaluationCost() float64 { return c.evaluationCost }
 
 // Evaluate reports the condition's truth. A condition built without a function
 // is Unknown rather than False: three-valued logic already distinguishes "not
@@ -111,11 +111,11 @@ func (o operand) Name() string {
 	return "<unnamed>"
 }
 
-func (o operand) Cost() float64 {
+func (o operand) EvaluationCost() float64 {
 	if nilvalue.Is(o.condition) {
 		return 0
 	}
-	return o.condition.Cost()
+	return o.condition.EvaluationCost()
 }
 
 func (o operand) Evaluate(ctx context.Context, env *ConditionEnv) Truth {
@@ -135,14 +135,16 @@ func newBinaryCondition(left, right Condition) binaryCondition {
 	return binaryCondition{left: operand{condition: left}, right: operand{condition: right}}
 }
 
-func (c binaryCondition) Cost() float64 { return c.left.Cost() + c.right.Cost() }
+func (c binaryCondition) EvaluationCost() float64 {
+	return c.left.EvaluationCost() + c.right.EvaluationCost()
+}
 
 // evaluationOrder returns the cheaper operand first. AND and OR are
 // commutative, so this preserves their truth semantics while maximizing the
 // chance that short-circuiting avoids the more expensive observation. Equal
 // costs preserve declaration order.
 func (c binaryCondition) evaluationOrder() (operand, operand) {
-	if c.right.Cost() < c.left.Cost() {
+	if c.right.EvaluationCost() < c.left.EvaluationCost() {
 		return c.right, c.left
 	}
 	return c.left, c.right
@@ -193,8 +195,8 @@ type notCondition struct{ inner operand }
 // Not returns the three-valued negation of inner.
 func Not(inner Condition) Condition { return &notCondition{operand{condition: inner}} }
 
-func (c *notCondition) Name() string  { return "(NOT " + c.inner.Name() + ")" }
-func (c *notCondition) Cost() float64 { return c.inner.Cost() }
+func (c *notCondition) Name() string            { return "(NOT " + c.inner.Name() + ")" }
+func (c *notCondition) EvaluationCost() float64 { return c.inner.EvaluationCost() }
 
 func (c *notCondition) Evaluate(ctx context.Context, env *ConditionEnv) Truth {
 	return c.inner.Evaluate(ctx, env).Not()

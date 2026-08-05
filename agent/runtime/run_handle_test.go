@@ -14,8 +14,8 @@ func TestRunCompletionErrorPreservesIndependentFailures(t *testing.T) {
 	processFailure := errors.New("process failed")
 	finalizeFailure := errors.New("snapshot failed")
 	completion := RunCompletion{
-		Failure: processFailure,
-		Err:     finalizeFailure,
+		Failure:      processFailure,
+		RuntimeError: finalizeFailure,
 	}
 
 	if err := completion.Error(); !errors.Is(err, processFailure) || !errors.Is(err, finalizeFailure) {
@@ -28,7 +28,7 @@ func TestRunCompletionErrorDoesNotDuplicateNestedFailure(t *testing.T) {
 
 	processFailure := errors.New("process failed")
 	runFailure := errors.Join(processFailure, errors.New("snapshot failed"))
-	completion := RunCompletion{Failure: processFailure, Err: runFailure}
+	completion := RunCompletion{Failure: processFailure, RuntimeError: runFailure}
 
 	if err := completion.Error(); err != runFailure {
 		t.Fatalf("Error() = %v, want the encompassing run failure", err)
@@ -53,30 +53,30 @@ func TestCompletionResultFindsLatestValueOfRequestedType(t *testing.T) {
 	}
 }
 
-func TestSegmentAwaitCancellationDoesNotConsumeCompletion(t *testing.T) {
+func TestRunHandleAwaitCancellationDoesNotConsumeCompletion(t *testing.T) {
 	t.Parallel()
 
-	segment := &Segment{process: &Process{}, done: make(chan struct{})}
+	handle := &RunHandle{process: &Process{}, done: make(chan struct{})}
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
-	if _, err := segment.Await(ctx); !errors.Is(err, context.Canceled) {
+	if _, err := handle.Await(ctx); !errors.Is(err, context.Canceled) {
 		t.Fatalf("Await() = %v, want context.Canceled", err)
 	}
 
-	segment.completion = RunCompletion{Status: core.StatusCompleted}
-	close(segment.done)
-	completion, err := segment.Await(t.Context())
+	handle.completion = RunCompletion{Status: core.StatusCompleted}
+	close(handle.done)
+	completion, err := handle.Await(t.Context())
 	if err != nil || completion.Status != core.StatusCompleted {
 		t.Fatalf("second Await() = (%+v, %v), want completed", completion, err)
 	}
 }
 
-func TestSegmentAwaitPrefersObservableCompletion(t *testing.T) {
+func TestRunHandleAwaitPrefersObservableCompletion(t *testing.T) {
 	t.Parallel()
 
 	done := make(chan struct{})
 	close(done)
-	segment := &Segment{
+	handle := &RunHandle{
 		process:    &Process{},
 		done:       done,
 		completion: RunCompletion{Status: core.StatusWaiting},
@@ -84,7 +84,7 @@ func TestSegmentAwaitPrefersObservableCompletion(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
-	completion, err := segment.Await(ctx)
+	completion, err := handle.Await(ctx)
 	if err != nil || completion.Status != core.StatusWaiting {
 		t.Fatalf("Await() = (%+v, %v), want waiting completion", completion, err)
 	}

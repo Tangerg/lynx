@@ -29,13 +29,13 @@ func (m *ChatMiddleware) Empty() bool {
 }
 
 // PromptConfig configures one framework-managed model interaction. Its zero
-// value uses the process model, action tools, and process tool-round limit.
+// value uses the process model, action tools, and process model-call limit.
 type PromptConfig struct {
 	System             string
 	Options            *chat.Options
 	Tools              []tool.Tool
 	DisableActionTools bool
-	MaxToolRounds      int
+	MaxModelCalls      int
 }
 
 // Prompt runs one model interaction through the process tool loop and returns
@@ -48,7 +48,7 @@ func (pc *ProcessContext) Prompt(ctx context.Context, text string, config Prompt
 	result, err := pc.Interact(ctx, Interaction{
 		Request: call.request,
 		Tools:   call.registry,
-		Limits:  interaction.Limits{MaxRounds: call.maxRounds},
+		Limits:  interaction.Limits{MaxModelCalls: call.maxModelCalls},
 	})
 	if err != nil {
 		return "", err
@@ -74,9 +74,9 @@ func (pc *ProcessContext) Prompt(ctx context.Context, text string, config Prompt
 }
 
 type promptCall struct {
-	request   *chat.Request
-	registry  *tools.Registry
-	maxRounds int
+	request       *chat.Request
+	registry      *tools.Registry
+	maxModelCalls int
 }
 
 func (pc *ProcessContext) newPromptCall(ctx context.Context, text string, config PromptConfig) (*promptCall, error) {
@@ -105,17 +105,17 @@ func (pc *ProcessContext) newPromptCall(ctx context.Context, text string, config
 		return nil, fmt.Errorf("agent: prompt: validate request: %w", err)
 	}
 
-	maxRounds := pc.maxToolRounds
-	if config.MaxToolRounds != 0 {
-		maxRounds = config.MaxToolRounds
+	maxModelCalls := pc.maxModelCalls
+	if config.MaxModelCalls != 0 {
+		maxModelCalls = config.MaxModelCalls
 	}
-	if maxRounds < 0 {
-		return nil, errors.New("agent: prompt: max tool rounds must not be negative")
+	if maxModelCalls < 0 {
+		return nil, errors.New("agent: prompt: max model calls must not be negative")
 	}
 	return &promptCall{
-		request:   request,
-		registry:  registry,
-		maxRounds: maxRounds,
+		request:       request,
+		registry:      registry,
+		maxModelCalls: maxModelCalls,
 	}, nil
 }
 

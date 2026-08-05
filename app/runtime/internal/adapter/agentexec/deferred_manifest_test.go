@@ -42,9 +42,9 @@ func TestDeferredManifestSurvivesObservation(t *testing.T) {
 		middleware.WrapTool(nil, core.ActionDescriptor{}, catalogTool{name: "read"}),
 	}
 
-	manifest, err := toolloop.Advertise(observed)
+	manifest, err := toolloop.InitialManifest(observed)
 	if err != nil {
-		t.Fatalf("Advertise: %v", err)
+		t.Fatalf("InitialManifest: %v", err)
 	}
 	var advertised []string
 	for _, definition := range manifest {

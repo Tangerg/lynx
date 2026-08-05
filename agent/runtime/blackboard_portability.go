@@ -40,15 +40,15 @@ func requirePortableType(typ reflect.Type) error {
 		verdict, _ := cached.(error)
 		return verdict
 	}
-	verdict := portabilityOf(typ, map[reflect.Type]bool{})
+	verdict := validatePortableType(typ, map[reflect.Type]bool{})
 	portableVerdicts.Store(typ, verdict)
 	return verdict
 }
 
-// portabilityOf walks typ's shape. visiting carries the types already on the
+// validatePortableType walks typ's shape. visiting carries the types already on the
 // walk so a recursive type is decided by the rest of its shape instead of
 // looping.
-func portabilityOf(typ reflect.Type, visiting map[reflect.Type]bool) error {
+func validatePortableType(typ reflect.Type, visiting map[reflect.Type]bool) error {
 	if ownsPortableForm(typ) {
 		return nil
 	}
@@ -66,14 +66,14 @@ func portabilityOf(typ reflect.Type, visiting map[reflect.Type]bool) error {
 		reflect.String:
 		return nil
 	case reflect.Pointer, reflect.Slice, reflect.Array:
-		return portabilityOf(typ.Elem(), visiting)
+		return validatePortableType(typ.Elem(), visiting)
 	case reflect.Map:
-		if err := portabilityOf(typ.Key(), visiting); err != nil {
+		if err := validatePortableType(typ.Key(), visiting); err != nil {
 			return fmt.Errorf("map key: %w", err)
 		}
-		return portabilityOf(typ.Elem(), visiting)
+		return validatePortableType(typ.Elem(), visiting)
 	case reflect.Struct:
-		return portableStruct(typ, visiting)
+		return validatePortableStruct(typ, visiting)
 	case reflect.Interface:
 		return fmt.Errorf(
 			"%w: %s is an interface, and a JSON round trip cannot recover the concrete type behind it",
@@ -84,7 +84,7 @@ func portabilityOf(typ reflect.Type, visiting map[reflect.Type]bool) error {
 	}
 }
 
-func portableStruct(typ reflect.Type, visiting map[reflect.Type]bool) error {
+func validatePortableStruct(typ reflect.Type, visiting map[reflect.Type]bool) error {
 	for index := range typ.NumField() {
 		field := typ.Field(index)
 		if field.PkgPath != "" && !promotesExportedFields(field) {
@@ -99,7 +99,7 @@ func portableStruct(typ reflect.Type, visiting map[reflect.Type]bool) error {
 				core.ErrUnportableValue, typ, field.Name,
 			)
 		}
-		if err := portabilityOf(field.Type, visiting); err != nil {
+		if err := validatePortableType(field.Type, visiting); err != nil {
 			return fmt.Errorf("%s.%s: %w", typ, field.Name, err)
 		}
 	}

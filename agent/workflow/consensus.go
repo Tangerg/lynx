@@ -38,16 +38,16 @@ type ConsensusConfig[In, Element any] struct {
 	// returns an Element. Must be non-empty.
 	Voters []Generator[In, Element]
 
-	// Key projects each Element to a comparable string used to
+	// VoteKey projects each Element to a comparable string used to
 	// tally votes. Required when Element isn't directly comparable
 	// (string / numeric); for comparable types, supply
-	// [DefaultKey] or a custom projector that picks the salient
+	// [StringKey] or a custom projector that picks the salient
 	// field.
-	Key func(Element) string
+	VoteKey func(Element) string
 }
 
 // Consensus compiles config into an agent that runs every voter,
-// tallies via Key, and returns the Element whose Key occurs most
+// tallies via VoteKey, and returns the Element whose key occurs most
 // often. Ties are broken by voter order (the earliest voter whose
 // Key tied for the lead wins).
 //
@@ -63,8 +63,8 @@ func Consensus[In, Element any](config ConsensusConfig[In, Element]) (*core.Agen
 	if len(config.Voters) == 0 {
 		return nil, errors.New("workflow.Consensus: Voters must not be empty")
 	}
-	if config.Key == nil {
-		return nil, errors.New("workflow.Consensus: Key must not be nil")
+	if config.VoteKey == nil {
+		return nil, errors.New("workflow.Consensus: VoteKey must not be nil")
 	}
 
 	return ScatterGather(ScatterGatherConfig[In, Element, Element]{
@@ -72,16 +72,16 @@ func Consensus[In, Element any](config ConsensusConfig[In, Element]) (*core.Agen
 		Description:    config.Description,
 		MaxConcurrency: config.MaxConcurrency,
 		Generators:     config.Voters,
-		Joiner: func(_ context.Context, _ *core.ProcessContext, votes []Element) (Element, error) {
-			return pickConsensus(votes, config.Key), nil
+		Join: func(_ context.Context, _ *core.ProcessContext, votes []Element) (Element, error) {
+			return pickConsensus(votes, config.VoteKey), nil
 		},
 	})
 }
 
-// DefaultKey is a Key projector for Element types whose own string
+// StringKey is a VoteKey projector for Element types whose own string
 // representation is the right tally key (typically string Elements).
-// Use for `ConsensusConfig[..., string]{Key: workflow.DefaultKey[string]}`.
-func DefaultKey[Element ~string](element Element) string { return string(element) }
+// Use for `ConsensusConfig[..., string]{VoteKey: workflow.StringKey[string]}`.
+func StringKey[Element ~string](element Element) string { return string(element) }
 
 // pickConsensus tallies votes by key and returns the Element whose
 // key has the highest count. Stable: on a tie, the first-seen

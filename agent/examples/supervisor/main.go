@@ -40,11 +40,11 @@ func main() {
 	engine := agent.MustNewEngine(agent.EngineConfig{Chat: agent.ChatCapability{Model: chatClient, Streamer: chatClient}})
 
 	// ---- sub-agents ---------------------------------------------------
-	research := agent.New(agent.AgentConfig{Name: "research-agent", Description: "find sources for a topic", Actions: []agent.Action{agent.NewAction("search", func(_ context.Context, _ *agent.ProcessContext, in Topic) (Sources, error) {
+	research := agent.New(agent.Config{Name: "research-agent", Description: "find sources for a topic", Actions: []agent.Action{agent.NewAction("search", func(_ context.Context, _ *agent.ProcessContext, in Topic) (Sources, error) {
 		return Sources{URLs: []string{"https://example.com/" + slug(in.Title)}}, nil
 	}, agent.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[Sources](agent.GoalConfig{Description: "sources produced"})}})
 
-	summarize := agent.New(agent.AgentConfig{Name: "summarize-agent", Description: "summarize a list of sources", Actions: []agent.Action{agent.NewAction("summarize", func(_ context.Context, _ *agent.ProcessContext, in Sources) (Summary, error) {
+	summarize := agent.New(agent.Config{Name: "summarize-agent", Description: "summarize a list of sources", Actions: []agent.Action{agent.NewAction("summarize", func(_ context.Context, _ *agent.ProcessContext, in Sources) (Summary, error) {
 		return Summary{Text: fmt.Sprintf("Synthesized findings from %d sources: %s", len(in.URLs), strings.Join(in.URLs, ", "))}, nil
 	}, agent.ActionConfig{})}, Goals: []*agent.Goal{agent.NewOutputGoal[Summary](agent.GoalConfig{Description: "summary produced"})}})
 
@@ -58,7 +58,7 @@ func main() {
 	}
 
 	// ---- parent agent (the supervisor) -------------------------------
-	parent := agent.New(agent.AgentConfig{Name: "supervisor", Description: "orchestrates research + summarize via the LLM", Actions: []agent.Action{agent.NewAction("brief", func(ctx context.Context, pc *agent.ProcessContext, in Topic) (Brief, error) {
+	parent := agent.New(agent.Config{Name: "supervisor", Description: "orchestrates research + summarize via the LLM", Actions: []agent.Action{agent.NewAction("brief", func(ctx context.Context, pc *agent.ProcessContext, in Topic) (Brief, error) {
 		researchTool, err := runtime.NewAgentTool[Topic, Sources](engine, researchDeployment)
 		if err != nil {
 			return Brief{}, fmt.Errorf("create research agent tool: %w", err)

@@ -18,46 +18,42 @@ func (namespacedAction) Execute(context.Context, *core.ProcessContext) (core.Act
 	return core.ActionSucceeded, nil
 }
 
-func TestWorldStateReadsNamespacedActionRunCondition(t *testing.T) {
+func TestWorldStateObservesNamespacedActionSuccessCondition(t *testing.T) {
 	metadata := core.ActionMetadata{Name: "checkout:authorize"}
-	metadata.Preconditions = core.ConditionSet{metadata.RunCondition(): core.False}
-	metadata.Effects = core.ConditionSet{metadata.RunCondition(): core.True}
+	metadata.Preconditions = core.ConditionSet{metadata.SuccessCondition(): core.False}
+	metadata.Effects = core.ConditionSet{metadata.SuccessCondition(): core.True}
 	action := namespacedAction{metadata: metadata}
 	domain, err := planning.NewDomain([]core.Action{action}, nil, nil)
 	if err != nil {
 		t.Fatalf("NewDomain: %v", err)
 	}
 	blackboard := newInMemoryBlackboard()
-	if err := blackboard.StoreCondition(action.metadata.RunCondition(), true); err != nil {
+	if err := blackboard.StoreCondition(action.metadata.SuccessCondition(), true); err != nil {
 		t.Fatal(err)
 	}
 
-	state, err := newWorldStateReader(domain, blackboard, nil).read(t.Context())
+	state, err := newWorldStateObserver(domain, blackboard, nil).observe(t.Context())
 	if err != nil {
 		t.Fatalf("read: %v", err)
 	}
-	if got := state.Conditions()[action.metadata.RunCondition()]; got != core.True {
-		t.Fatalf("run condition = %v, want true", got)
+	if got := state.Conditions()[action.metadata.SuccessCondition()]; got != core.True {
+		t.Fatalf("success condition = %v, want true", got)
 	}
 }
 
 func TestWorldStateDefersAndCachesNamedConditionEvaluation(t *testing.T) {
 	evaluations := 0
-	condition := core.NewCondition(core.ConditionConfig{
-		Name: "remote_ready",
-		Cost: 5,
-		Evaluate: func(context.Context, *core.ConditionEnv) core.Truth {
-			evaluations++
-			return core.True
-		},
-	})
+	condition := core.NewCondition(core.ConditionConfig{Name: "remote_ready", EvaluationCost: 5, Evaluate: func(context.Context, *core.ConditionEnv) core.Truth {
+		evaluations++
+		return core.True
+	}})
 	domain, err := planning.NewDomain(nil, nil, []core.Condition{condition})
 	if err != nil {
 		t.Fatalf("NewDomain: %v", err)
 	}
-	reader := newWorldStateReader(domain, newInMemoryBlackboard(), nil)
+	observer := newWorldStateObserver(domain, newInMemoryBlackboard(), nil)
 
-	state, err := reader.read(t.Context())
+	state, err := observer.observe(t.Context())
 	if err != nil {
 		t.Fatalf("read: %v", err)
 	}
@@ -68,7 +64,7 @@ func TestWorldStateDefersAndCachesNamedConditionEvaluation(t *testing.T) {
 		t.Fatalf("unresolved state = %s, want unknown", got)
 	}
 	for range 2 {
-		truth, err := reader.Resolve(t.Context(), "remote_ready")
+		truth, err := observer.Resolve(t.Context(), "remote_ready")
 		if err != nil || truth != core.True {
 			t.Fatalf("Resolve = %s, %v; want true", truth, err)
 		}
@@ -76,19 +72,19 @@ func TestWorldStateDefersAndCachesNamedConditionEvaluation(t *testing.T) {
 	if evaluations != 1 {
 		t.Fatalf("evaluations after two resolves = %d, want one", evaluations)
 	}
-	resolved := reader.ResolvedConditions()
+	resolved := observer.ResolvedConditions()
 	if resolved["remote_ready"] != core.True {
 		t.Fatalf("resolved conditions = %v, want remote_ready=true", resolved)
 	}
 	resolved["remote_ready"] = core.False
-	if reader.ResolvedConditions()["remote_ready"] != core.True {
+	if observer.ResolvedConditions()["remote_ready"] != core.True {
 		t.Fatal("ResolvedConditions exposed mutable cache storage")
 	}
 
-	if _, err := reader.read(t.Context()); err != nil {
+	if _, err := observer.observe(t.Context()); err != nil {
 		t.Fatalf("second read: %v", err)
 	}
-	if _, err := reader.Resolve(t.Context(), "remote_ready"); err != nil {
+	if _, err := observer.Resolve(t.Context(), "remote_ready"); err != nil {
 		t.Fatalf("Resolve after second read: %v", err)
 	}
 	if evaluations != 2 {

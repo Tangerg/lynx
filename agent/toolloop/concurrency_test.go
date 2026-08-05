@@ -49,7 +49,7 @@ func TestRunnerExecutesIndependentCallsConcurrentlyAndPublishesInCallOrder(t *te
 	}}
 	// This test is about overlap, so it states the concurrency it needs: an
 	// unset limit executes one call at a time.
-	runner := newRunner(t, model, toolloop.Config{MaxConcurrentCalls: 2})
+	runner := newRunner(t, model, toolloop.Config{MaxConcurrentToolCalls: 2})
 
 	type runResult struct {
 		events []toolloop.Event
@@ -89,7 +89,7 @@ func TestRunnerExecutesIndependentCallsConcurrentlyAndPublishesInCallOrder(t *te
 	}
 }
 
-func TestRunnerHonorsMaxConcurrentCalls(t *testing.T) {
+func TestRunnerHonorsMaxConcurrentToolCalls(t *testing.T) {
 	started := make(chan string, 3)
 	releases := map[string]chan struct{}{
 		"first":  make(chan struct{}),
@@ -115,7 +115,7 @@ func TestRunnerHonorsMaxConcurrentCalls(t *testing.T) {
 		}
 		return runnerTextResponse("done"), nil
 	}}
-	runner := newRunner(t, model, toolloop.Config{MaxConcurrentCalls: 2})
+	runner := newRunner(t, model, toolloop.Config{MaxConcurrentToolCalls: 2})
 
 	done := make(chan error, 1)
 	go func() {
@@ -245,10 +245,10 @@ func TestRunnerCheckpointsMultiplePausedCallsAndCommitsInOrder(t *testing.T) {
 			resume, ok := toolloop.ResumeFromContext(ctx)
 			if !ok {
 				return "", &toolloop.PauseError{
-					ID:           pauseID,
-					Reason:       name + " approval",
-					Prompt:       json.RawMessage(`"` + name + `?"`),
-					ResumeSchema: json.RawMessage(`{"type":"boolean"}`),
+					ID:             pauseID,
+					Reason:         name + " approval",
+					Prompt:         json.RawMessage(`"` + name + `?"`),
+					ResponseSchema: json.RawMessage(`{"type":"boolean"}`),
 				}
 			}
 			if resume.ID != pauseID {
@@ -297,7 +297,7 @@ func TestRunnerCheckpointsMultiplePausedCallsAndCommitsInOrder(t *testing.T) {
 		t.Context(),
 		checkpoint,
 		registry,
-		toolloop.Resume{ID: "pause-1", Input: json.RawMessage(`true`)},
+		toolloop.Resume{ID: "pause-1", Response: json.RawMessage(`true`)},
 	))
 	if err != nil {
 		t.Fatalf("Resume first: %v", err)
@@ -322,7 +322,7 @@ func TestRunnerCheckpointsMultiplePausedCallsAndCommitsInOrder(t *testing.T) {
 		t.Context(),
 		secondPause.Pause.Checkpoint,
 		registry,
-		toolloop.Resume{ID: "pause-2", Input: json.RawMessage(`true`)},
+		toolloop.Resume{ID: "pause-2", Response: json.RawMessage(`true`)},
 	))
 	if err != nil {
 		t.Fatalf("Resume second: %v", err)
@@ -351,10 +351,10 @@ func TestRunnerContinuesHostCompletedPausedCallInOrder(t *testing.T) {
 				return name + " approved", nil
 			}
 			return "", &toolloop.PauseError{
-				ID:           pauseID,
-				Reason:       name + " approval",
-				Prompt:       json.RawMessage(`"` + name + `?"`),
-				ResumeSchema: json.RawMessage(`{"type":"boolean"}`),
+				ID:             pauseID,
+				Reason:         name + " approval",
+				Prompt:         json.RawMessage(`"` + name + `?"`),
+				ResponseSchema: json.RawMessage(`{"type":"boolean"}`),
 			}
 		})
 	}
@@ -415,7 +415,7 @@ func TestRunnerContinuesHostCompletedPausedCallInOrder(t *testing.T) {
 		t.Context(),
 		next,
 		registry,
-		toolloop.Resume{ID: "pause-2", Input: json.RawMessage(`true`)},
+		toolloop.Resume{ID: "pause-2", Response: json.RawMessage(`true`)},
 	))
 	if err != nil {
 		t.Fatalf("Resume: %v", err)
@@ -434,10 +434,10 @@ func TestRunnerContinuesInternallyReadyPausedToolWithoutResumeEvent(t *testing.T
 		}
 		if calls == 1 {
 			return "", &toolloop.PauseError{
-				ID:           "child-wait",
-				Reason:       "delegated child waiting",
-				Prompt:       json.RawMessage(`"wait?"`),
-				ResumeSchema: json.RawMessage(`{"type":"boolean"}`),
+				ID:             "child-wait",
+				Reason:         "delegated child waiting",
+				Prompt:         json.RawMessage(`"wait?"`),
+				ResponseSchema: json.RawMessage(`{"type":"boolean"}`),
 			}
 		}
 		return "child completed internally", nil
@@ -488,10 +488,10 @@ func TestRunnerRejectsInputlessContinuationWithoutToolCapability(t *testing.T) {
 	tool := newRunnerTool("approval", func(context.Context, string) (string, error) {
 		calls++
 		return "", &toolloop.PauseError{
-			ID:           "approval-wait",
-			Reason:       "approval required",
-			Prompt:       json.RawMessage(`"approve?"`),
-			ResumeSchema: json.RawMessage(`{"type":"boolean"}`),
+			ID:             "approval-wait",
+			Reason:         "approval required",
+			Prompt:         json.RawMessage(`"approve?"`),
+			ResponseSchema: json.RawMessage(`{"type":"boolean"}`),
 		}
 	})
 	registry := newRunnerRegistry(t, tool)
@@ -517,13 +517,13 @@ func TestCheckpointCompletesNonActivePausedCallWithoutMovingBoundary(t *testing.
 	first := newConcurrentRunnerTool("first", "", func(context.Context, string) (string, error) {
 		return "", &toolloop.PauseError{
 			ID: "pause-1", Reason: "first approval",
-			Prompt: json.RawMessage(`"first?"`), ResumeSchema: json.RawMessage(`{"type":"boolean"}`),
+			Prompt: json.RawMessage(`"first?"`), ResponseSchema: json.RawMessage(`{"type":"boolean"}`),
 		}
 	})
 	second := newConcurrentRunnerTool("second", "", func(context.Context, string) (string, error) {
 		return "", &toolloop.PauseError{
 			ID: "pause-2", Reason: "second approval",
-			Prompt: json.RawMessage(`"second?"`), ResumeSchema: json.RawMessage(`{"type":"boolean"}`),
+			Prompt: json.RawMessage(`"second?"`), ResponseSchema: json.RawMessage(`{"type":"boolean"}`),
 		}
 	})
 	registry := newRunnerRegistry(t, first, second)
@@ -561,10 +561,10 @@ func TestRunnerBuffersLaterCompletedResultBehindEarlierPause(t *testing.T) {
 	first := newConcurrentRunnerTool("first", "", func(ctx context.Context, _ string) (string, error) {
 		if _, ok := toolloop.ResumeFromContext(ctx); !ok {
 			return "", &toolloop.PauseError{
-				ID:           "pause-1",
-				Reason:       "approval",
-				Prompt:       json.RawMessage(`"approve?"`),
-				ResumeSchema: json.RawMessage(`{"type":"boolean"}`),
+				ID:             "pause-1",
+				Reason:         "approval",
+				Prompt:         json.RawMessage(`"approve?"`),
+				ResponseSchema: json.RawMessage(`{"type":"boolean"}`),
 			}
 		}
 		return "first", nil
@@ -603,7 +603,7 @@ func TestRunnerBuffersLaterCompletedResultBehindEarlierPause(t *testing.T) {
 		t.Context(),
 		checkpoint,
 		registry,
-		toolloop.Resume{ID: "pause-1", Input: json.RawMessage(`true`)},
+		toolloop.Resume{ID: "pause-1", Response: json.RawMessage(`true`)},
 	))
 	if err != nil {
 		t.Fatalf("Resume: %v", err)

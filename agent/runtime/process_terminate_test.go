@@ -27,7 +27,7 @@ func (capture *terminationCapture) OnEvent(_ context.Context, published event.Ev
 
 func TestProcessContextTerminateStopsProcessWithReason(t *testing.T) {
 	capture := new(terminationCapture)
-	definition := agent.New(agent.AgentConfig{
+	definition := agent.New(agent.Config{
 		Name: "self-terminating",
 		Actions: []agent.Action{agent.NewAction(
 			"request-stop",

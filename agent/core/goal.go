@@ -14,10 +14,10 @@ const defaultGoalValue = 1.0
 // GoalConfig is the construction input for [NewGoal]. It remains ordinary Go
 // data; Goal takes a defensive snapshot and owns the resulting value object.
 type GoalConfig struct {
-	Name          string
-	Description   string
-	Preconditions []string
-	Inputs        []Binding
+	Name               string
+	Description        string
+	RequiredConditions []string
+	RequiredBindings   []Binding
 
 	// Value is the planner's per-tick value probe. [NewOutputGoal]
 	// fills [FixedScore](1.0) when left nil.
@@ -25,33 +25,33 @@ type GoalConfig struct {
 }
 
 // Goal is an immutable target state. The planner finds an action sequence
-// whose cumulative effects satisfy Preconditions and ranks it using Value.
+// whose cumulative effects satisfy its requirements and ranks it using Value.
 type Goal struct {
-	name          string
-	description   string
-	preconditions []string
-	inputs        []Binding
-	value         ScoreFunc
+	name               string
+	description        string
+	requiredConditions []string
+	requiredBindings   []Binding
+	value              ScoreFunc
 }
 
 // GoalDescriptor is the immutable, non-executable projection of a planning
 // target. It deliberately excludes Value: observers can describe a goal without
 // invoking planner policy.
 type GoalDescriptor struct {
-	name          string
-	description   string
-	preconditions []string
-	inputs        []Binding
+	name               string
+	description        string
+	requiredConditions []string
+	requiredBindings   []Binding
 }
 
 // NewGoal constructs an immutable goal from config.
 func NewGoal(config GoalConfig) *Goal {
 	return &Goal{
-		name:          config.Name,
-		description:   config.Description,
-		preconditions: slices.Clone(config.Preconditions),
-		inputs:        slices.Clone(config.Inputs),
-		value:         config.Value,
+		name:               config.Name,
+		description:        config.Description,
+		requiredConditions: slices.Clone(config.RequiredConditions),
+		requiredBindings:   slices.Clone(config.RequiredBindings),
+		value:              config.Value,
 	}
 }
 
@@ -77,10 +77,10 @@ func (g *Goal) Descriptor() GoalDescriptor {
 		return GoalDescriptor{}
 	}
 	return GoalDescriptor{
-		name:          g.name,
-		description:   g.description,
-		preconditions: slices.Clone(g.preconditions),
-		inputs:        slices.Clone(g.inputs),
+		name:               g.name,
+		description:        g.description,
+		requiredConditions: slices.Clone(g.requiredConditions),
+		requiredBindings:   slices.Clone(g.requiredBindings),
 	}
 }
 
@@ -92,25 +92,25 @@ func (d GoalDescriptor) Description() string { return d.description }
 
 // RequiredConditions returns an independent snapshot of the named requirements.
 func (d GoalDescriptor) RequiredConditions() []string {
-	return slices.Clone(d.preconditions)
+	return slices.Clone(d.requiredConditions)
 }
 
-// Inputs returns an independent snapshot of the typed requirements.
-func (d GoalDescriptor) Inputs() []Binding { return slices.Clone(d.inputs) }
+// RequiredBindings returns an independent snapshot of the typed requirements.
+func (d GoalDescriptor) RequiredBindings() []Binding { return slices.Clone(d.requiredBindings) }
 
 func (g *Goal) validate() error {
 	if g == nil {
 		return errors.New("goal is nil")
 	}
 	var problems []error
-	for index, condition := range g.preconditions {
+	for index, condition := range g.requiredConditions {
 		if err := validateConditionKey(condition); err != nil {
-			problems = append(problems, fmt.Errorf("precondition %d: %w", index, err))
+			problems = append(problems, fmt.Errorf("required condition %d: %w", index, err))
 		}
 	}
-	for index, binding := range g.inputs {
+	for index, binding := range g.requiredBindings {
 		if err := binding.Validate(); err != nil {
-			problems = append(problems, fmt.Errorf("input binding %d: %w", index, err))
+			problems = append(problems, fmt.Errorf("required binding %d: %w", index, err))
 		}
 	}
 	return errors.Join(problems...)
@@ -121,15 +121,15 @@ func (g *Goal) RequiredConditions() []string {
 	if g == nil {
 		return nil
 	}
-	return slices.Clone(g.preconditions)
+	return slices.Clone(g.requiredConditions)
 }
 
-// Inputs returns the typed bindings required by the goal.
-func (g *Goal) Inputs() []Binding {
+// RequiredBindings returns the typed bindings required by the goal.
+func (g *Goal) RequiredBindings() []Binding {
 	if g == nil {
 		return nil
 	}
-	return slices.Clone(g.inputs)
+	return slices.Clone(g.requiredBindings)
 }
 
 // Value evaluates the goal value in worldState. An unconfigured value is zero.
@@ -140,25 +140,24 @@ func (g *Goal) Value(worldState WorldState) float64 {
 	return g.value(worldState)
 }
 
-// Preconditions merges the configured condition keys and typed inputs into a
-// single [ConditionSet]: each
-// listed precondition + each typed input contributes a True
-// condition the planner targets.
-func (g *Goal) Preconditions() ConditionSet {
+// Requirements merges the configured condition keys and typed bindings into a
+// single [ConditionSet]. Every requirement contributes a True condition that
+// the planner targets.
+func (g *Goal) Requirements() ConditionSet {
 	if g == nil {
 		return nil
 	}
-	preconditions := ConditionSet{}
-	for _, condition := range g.preconditions {
-		preconditions[condition] = True
+	requirements := ConditionSet{}
+	for _, condition := range g.requiredConditions {
+		requirements[condition] = True
 	}
-	for _, input := range g.inputs {
-		preconditions[input.String()] = True
+	for _, binding := range g.requiredBindings {
+		requirements[binding.String()] = True
 	}
-	return preconditions
+	return requirements
 }
 
-// SatisfiedBy reports whether worldState meets every goal precondition.
+// SatisfiedBy reports whether worldState meets every goal requirement.
 // It compares only the snapshot's current truth map and never evaluates
 // Unknown named conditions. Callers with evaluator-backed conditions must
 // resolve them before using this snapshot-only helper.
@@ -166,13 +165,13 @@ func (g *Goal) SatisfiedBy(worldState WorldState) bool {
 	if g == nil || nilvalue.Is(worldState) {
 		return false
 	}
-	return worldState.Conditions().Satisfies(g.Preconditions())
+	return worldState.Conditions().Satisfies(g.Requirements())
 }
 
-// NewOutputGoal builds a Goal whose precondition is "an artifact of
+// NewOutputGoal builds a Goal whose requirement is "an artifact of
 // type T exists on the blackboard" — the canonical "produce a
-// BlogPost" shape. The supplied template carries Description / Pre /
-// Value; missing Name + Inputs + Value default-fill from T.
+// BlogPost" shape. The supplied template carries Description, requirements,
+// and Value; missing Name, output binding, and Value default-fill from T.
 //
 //	core.NewOutputGoal[BlogPost](core.GoalConfig{Description: "blog post produced"})
 func NewOutputGoal[T any](config GoalConfig) *Goal {
@@ -182,7 +181,7 @@ func NewOutputGoal[T any](config GoalConfig) *Goal {
 	if config.Name == "" {
 		config.Name = "produce_" + typeName
 	}
-	config.Inputs = append(slices.Clone(config.Inputs), NewBinding[T](DefaultBindingName))
+	config.RequiredBindings = append(slices.Clone(config.RequiredBindings), NewBinding[T](DefaultBindingName))
 	if config.Value == nil {
 		config.Value = FixedScore(defaultGoalValue)
 	}

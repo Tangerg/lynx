@@ -44,11 +44,11 @@ type AgentConfig struct {
 	// determiner can evaluate alongside the auto-derived ones.
 	Conditions []Condition
 
-	// SnapshotState declares additional typed blackboard values owned by the
+	// SnapshotBindings declares additional typed blackboard values owned by the
 	// agent but not represented by action inputs or outputs. Generated workflows
 	// use it for loop checkpoints and history. Every entry must be constructed
 	// with NewBinding so snapshots can reconstruct its exact Go type.
-	SnapshotState []Binding
+	SnapshotBindings []Binding
 
 	// PlannerName selects which planner the runtime uses for this
 	// agent. It must match the [Extension.Name] of a planner
@@ -72,14 +72,14 @@ type Agent struct {
 // while deliberately excluding actions, conditions, and recovery policies
 // that can execute caller code.
 type AgentDescriptor struct {
-	name          string
-	description   string
-	version       string
-	actions       []ActionDescriptor
-	goals         []GoalDescriptor
-	conditions    []ConditionDescriptor
-	snapshotState []Binding
-	plannerName   string
+	name             string
+	description      string
+	version          string
+	actions          []ActionDescriptor
+	goals            []GoalDescriptor
+	conditions       []ConditionDescriptor
+	snapshotBindings []Binding
+	plannerName      string
 }
 
 // NewAgent constructs a read-only definition from config. Slice fields and the
@@ -94,7 +94,7 @@ func (c AgentConfig) clone() AgentConfig {
 	c.Actions = slices.Clone(c.Actions)
 	c.Goals = slices.Clone(c.Goals)
 	c.Conditions = slices.Clone(c.Conditions)
-	c.SnapshotState = slices.Clone(c.SnapshotState)
+	c.SnapshotBindings = slices.Clone(c.SnapshotBindings)
 	return c
 }
 
@@ -154,13 +154,13 @@ func (a *Agent) Conditions() []Condition {
 	return slices.Clone(a.config.Conditions)
 }
 
-// SnapshotState returns a snapshot of the agent-owned blackboard schema that is
+// SnapshotBindings returns a snapshot of the agent-owned blackboard schema that is
 // independent of action inputs and outputs.
-func (a *Agent) SnapshotState() []Binding {
+func (a *Agent) SnapshotBindings() []Binding {
 	if a == nil {
 		return nil
 	}
-	return slices.Clone(a.config.SnapshotState)
+	return slices.Clone(a.config.SnapshotBindings)
 }
 
 // PlannerName returns the requested planner extension name. Empty means the
@@ -179,14 +179,14 @@ func (a *Agent) Descriptor() AgentDescriptor {
 		return AgentDescriptor{}
 	}
 	descriptor := AgentDescriptor{
-		name:          a.config.Name,
-		description:   a.config.Description,
-		version:       a.config.Version,
-		actions:       make([]ActionDescriptor, len(a.config.Actions)),
-		goals:         make([]GoalDescriptor, len(a.config.Goals)),
-		conditions:    make([]ConditionDescriptor, len(a.config.Conditions)),
-		snapshotState: slices.Clone(a.config.SnapshotState),
-		plannerName:   a.config.PlannerName,
+		name:             a.config.Name,
+		description:      a.config.Description,
+		version:          a.config.Version,
+		actions:          make([]ActionDescriptor, len(a.config.Actions)),
+		goals:            make([]GoalDescriptor, len(a.config.Goals)),
+		conditions:       make([]ConditionDescriptor, len(a.config.Conditions)),
+		snapshotBindings: slices.Clone(a.config.SnapshotBindings),
+		plannerName:      a.config.PlannerName,
 	}
 	for index, action := range a.config.Actions {
 		if !nilvalue.Is(action) {
@@ -228,9 +228,9 @@ func (d AgentDescriptor) Conditions() []ConditionDescriptor {
 	return slices.Clone(d.conditions)
 }
 
-// SnapshotState returns an independent snapshot of the declared state schema.
-func (d AgentDescriptor) SnapshotState() []Binding {
-	return slices.Clone(d.snapshotState)
+// SnapshotBindings returns an independent snapshot of the declared binding schema.
+func (d AgentDescriptor) SnapshotBindings() []Binding {
+	return slices.Clone(d.snapshotBindings)
 }
 
 // PlannerName returns the requested planner extension name.
@@ -317,8 +317,8 @@ func (a *Agent) Validate() error {
 		conditionMetadata[index] = metadata
 		conditionReadable[index] = true
 		conditionNames[index].name = metadata.Name()
-		if cost := metadata.Cost(); math.IsNaN(cost) || math.IsInf(cost, 0) || cost < 0 {
-			problems = append(problems, fmt.Errorf("agent.Agent.Validate: invalid agent %q: condition %q cost %v must be finite and non-negative", a.Name(), metadata.Name(), cost))
+		if cost := metadata.EvaluationCost(); math.IsNaN(cost) || math.IsInf(cost, 0) || cost < 0 {
+			problems = append(problems, fmt.Errorf("agent.Agent.Validate: invalid agent %q: condition %q evaluation cost %v must be finite and non-negative", a.Name(), metadata.Name(), cost))
 		}
 	}
 	for _, collection := range []struct {
@@ -334,22 +334,22 @@ func (a *Agent) Validate() error {
 			problems = append(problems, err)
 		}
 	}
-	seenState := make(map[string]struct{}, len(a.config.SnapshotState))
-	for index, binding := range a.config.SnapshotState {
+	seenBindings := make(map[string]struct{}, len(a.config.SnapshotBindings))
+	for index, binding := range a.config.SnapshotBindings {
 		if err := binding.Validate(); err != nil {
-			problems = append(problems, fmt.Errorf("agent.Agent.Validate: invalid agent %q: snapshot state[%d]: %w", a.Name(), index, err))
+			problems = append(problems, fmt.Errorf("agent.Agent.Validate: invalid agent %q: snapshot binding[%d]: %w", a.Name(), index, err))
 			continue
 		}
 		if binding.goType == nil {
-			problems = append(problems, fmt.Errorf("agent.Agent.Validate: invalid agent %q: snapshot state[%d] %s must be constructed with NewBinding", a.Name(), index, binding))
+			problems = append(problems, fmt.Errorf("agent.Agent.Validate: invalid agent %q: snapshot binding[%d] %s must be constructed with NewBinding", a.Name(), index, binding))
 			continue
 		}
 		key := binding.String()
-		if _, duplicate := seenState[key]; duplicate {
-			problems = append(problems, fmt.Errorf("agent.Agent.Validate: invalid agent %q: duplicate snapshot state %s", a.Name(), binding))
+		if _, duplicate := seenBindings[key]; duplicate {
+			problems = append(problems, fmt.Errorf("agent.Agent.Validate: invalid agent %q: duplicate snapshot binding %s", a.Name(), binding))
 			continue
 		}
-		seenState[key] = struct{}{}
+		seenBindings[key] = struct{}{}
 	}
 	problems = append(problems, a.goalReachabilityErrors(actionMetadata, actionReadable, conditionMetadata, conditionReadable)...)
 	return errors.Join(problems...)
@@ -374,8 +374,8 @@ func inspectConditionMetadata(condition Condition) (metadata ConditionDescriptor
 		}
 	}()
 	name := condition.Name()
-	operation = "Cost"
-	return ConditionDescriptor{name: name, cost: condition.Cost()}, nil
+	operation = "EvaluationCost"
+	return ConditionDescriptor{name: name, evaluationCost: condition.EvaluationCost()}, nil
 }
 
 // goalReachabilityErrors does a conservative one-step producer scan: for
@@ -421,7 +421,7 @@ func (a *Agent) goalReachabilityErrors(
 		if goal == nil {
 			continue
 		}
-		for _, input := range goal.Inputs() {
+		for _, input := range goal.RequiredBindings() {
 			producible[input.String()] = struct{}{}
 		}
 	}
@@ -431,7 +431,7 @@ func (a *Agent) goalReachabilityErrors(
 		if goal == nil {
 			continue
 		}
-		for key, required := range goal.Preconditions() {
+		for key, required := range goal.Requirements() {
 			if required != True {
 				continue
 			}

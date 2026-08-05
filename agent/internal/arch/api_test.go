@@ -127,7 +127,7 @@ func TestRootFacadeBudget(t *testing.T) {
 
 	names := rootExportedNames(t)
 	for _, required := range []string{
-		"Action", "ActionConfig", "Agent", "Process", "DeploymentRef",
+		"Action", "ActionConfig", "Agent", "Config", "Descriptor", "Process", "DeploymentRef",
 		"Deployment", "Engine", "EngineConfig", "Goal", "MustNewEngine", "New", "NewAction",
 		"NewEngine", "ProcessContext", "PromptConfig", "ChatCapability",
 		"ProcessOptions", "Prompt", "Result",
@@ -139,7 +139,7 @@ func TestRootFacadeBudget(t *testing.T) {
 	for _, forbidden := range []string{
 		"ActionQoS", "ChatClientProvider", "AgentProcess", "AgentProcessStatus",
 		"AgentRef", "ComputedCondition", "Determination", "GoalExport", "IOBinding",
-		"Platform", "PlatformConfig", "ProcessType", "ServiceProvider", "Config",
+		"Platform", "PlatformConfig", "ProcessType", "ServiceProvider",
 		// JSON-specific prompt helpers would duplicate chatclient.Output instead
 		// of adapting that owner abstraction to the managed Agent path.
 		"PromptJSON",

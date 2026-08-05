@@ -100,13 +100,13 @@ func TestUsageTokenCountRejectsInvalidAndOverflowingValues(t *testing.T) {
 func TestProcessUsageSaturatesSubtreeAggregation(t *testing.T) {
 	parent := &Process{budget: newProcessBudget(core.Budget{})}
 	child := &Process{budget: newProcessBudget(core.Budget{})}
-	parent.budget.restore(core.Usage{
+	parent.budget.restoreOwnUsage(core.Usage{
 		Cost:       math.MaxFloat64,
 		Tokens:     math.MaxInt64,
 		ModelCalls: math.MaxInt,
 		Actions:    math.MaxInt,
 	})
-	child.budget.restore(core.Usage{Cost: 1, Tokens: 1, ModelCalls: 1, Actions: 1})
+	child.budget.restoreOwnUsage(core.Usage{Cost: 1, Tokens: 1, ModelCalls: 1, Actions: 1})
 	parent.budget.addChild(child)
 
 	usage := parent.Usage()
@@ -154,7 +154,7 @@ func TestConcurrentSiblingsShareModelCallAdmission(t *testing.T) {
 			admitted++
 			result.reservation.release()
 		}
-		if result.stop == interaction.StopSteps {
+		if result.stop == interaction.StopModelCalls {
 			stopped++
 		}
 	}

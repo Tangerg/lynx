@@ -44,7 +44,7 @@ func TestScatterGather_RunsAllGeneratorsAndJoins(t *testing.T) {
 		Generators: []workflow.Generator[sgIn, sgElement]{
 			gen(1), gen(2), gen(3),
 		},
-		Joiner: func(_ context.Context, _ *core.ProcessContext, items []sgElement) (sgResult, error) {
+		Join: func(_ context.Context, _ *core.ProcessContext, items []sgElement) (sgResult, error) {
 			sum := 0
 			for _, e := range items {
 				sum += e.Score
@@ -125,7 +125,7 @@ func TestScatterGatherMasksParentProcessView(t *testing.T) {
 	a, err := workflow.ScatterGather(workflow.ScatterGatherConfig[sgIn, sgElement, sgResult]{
 		Name:       "fanout-capability-isolation",
 		Generators: []workflow.Generator[sgIn, sgElement]{generator, generator},
-		Joiner: func(_ context.Context, _ *core.ProcessContext, items []sgElement) (sgResult, error) {
+		Join: func(_ context.Context, _ *core.ProcessContext, items []sgElement) (sgResult, error) {
 			return sgResult{Total: len(items)}, nil
 		},
 	})
@@ -169,7 +169,7 @@ func TestScatterGather_GeneratorErrorCancelsSiblingsAndWaitsForExit(t *testing.T
 				return sgElement{}, cause
 			},
 		},
-		Joiner: func(_ context.Context, _ *core.ProcessContext, items []sgElement) (sgResult, error) {
+		Join: func(_ context.Context, _ *core.ProcessContext, items []sgElement) (sgResult, error) {
 			return sgResult{Total: len(items)}, nil
 		},
 	})
@@ -231,7 +231,7 @@ func TestScatterGather_MultipleFailuresChooseLowestGeneratorIndex(t *testing.T) 
 				return sgElement{}, highIndexFailure
 			},
 		},
-		Joiner: func(context.Context, *core.ProcessContext, []sgElement) (sgResult, error) {
+		Join: func(context.Context, *core.ProcessContext, []sgElement) (sgResult, error) {
 			return sgResult{}, nil
 		},
 	})
@@ -260,7 +260,7 @@ func TestScatterGather_GeneratorPanicBecomesProcessFailure(t *testing.T) {
 				panic(cause)
 			},
 		},
-		Joiner: func(context.Context, *core.ProcessContext, []sgElement) (sgResult, error) {
+		Join: func(context.Context, *core.ProcessContext, []sgElement) (sgResult, error) {
 			return sgResult{}, nil
 		},
 	})
@@ -291,7 +291,7 @@ func TestScatterGather_GeneratorErrorPropagates(t *testing.T) {
 				return sgElement{}, errors.New("boom")
 			},
 		},
-		Joiner: func(_ context.Context, _ *core.ProcessContext, items []sgElement) (sgResult, error) {
+		Join: func(_ context.Context, _ *core.ProcessContext, items []sgElement) (sgResult, error) {
 			return sgResult{Total: len(items)}, nil
 		},
 	})
@@ -330,7 +330,7 @@ func TestScatterGather_CancelledQueuedGeneratorsDoNotStart(t *testing.T) {
 				return sgElement{}, nil
 			},
 		},
-		Joiner: func(context.Context, *core.ProcessContext, []sgElement) (sgResult, error) {
+		Join: func(context.Context, *core.ProcessContext, []sgElement) (sgResult, error) {
 			return sgResult{}, nil
 		},
 	})
@@ -362,7 +362,7 @@ func TestScatterGather_OwnsGeneratorSlice(t *testing.T) {
 	a, err := workflow.ScatterGather(workflow.ScatterGatherConfig[sgIn, sgElement, sgResult]{
 		Name:       "fanout-owned-config",
 		Generators: generators,
-		Joiner: func(_ context.Context, _ *core.ProcessContext, items []sgElement) (sgResult, error) {
+		Join: func(_ context.Context, _ *core.ProcessContext, items []sgElement) (sgResult, error) {
 			return sgResult{Total: items[0].Score}, nil
 		},
 	})
@@ -394,18 +394,18 @@ func TestScatterGather_RejectsInvalidSpec(t *testing.T) {
 			Generators: []workflow.Generator[sgIn, sgElement]{
 				func(context.Context, sgIn) (sgElement, error) { return sgElement{}, nil },
 			},
-			Joiner: func(context.Context, *core.ProcessContext, []sgElement) (sgResult, error) { return sgResult{}, nil },
+			Join: func(context.Context, *core.ProcessContext, []sgElement) (sgResult, error) { return sgResult{}, nil },
 		}},
 		{"name with surrounding whitespace", workflow.ScatterGatherConfig[sgIn, sgElement, sgResult]{
 			Name: " x ",
 			Generators: []workflow.Generator[sgIn, sgElement]{
 				func(context.Context, sgIn) (sgElement, error) { return sgElement{}, nil },
 			},
-			Joiner: func(context.Context, *core.ProcessContext, []sgElement) (sgResult, error) { return sgResult{}, nil },
+			Join: func(context.Context, *core.ProcessContext, []sgElement) (sgResult, error) { return sgResult{}, nil },
 		}},
 		{"empty generators", workflow.ScatterGatherConfig[sgIn, sgElement, sgResult]{
-			Name:   "x",
-			Joiner: func(context.Context, *core.ProcessContext, []sgElement) (sgResult, error) { return sgResult{}, nil },
+			Name: "x",
+			Join: func(context.Context, *core.ProcessContext, []sgElement) (sgResult, error) { return sgResult{}, nil },
 		}},
 		{"negative max concurrency", workflow.ScatterGatherConfig[sgIn, sgElement, sgResult]{
 			Name:           "x",
@@ -413,7 +413,7 @@ func TestScatterGather_RejectsInvalidSpec(t *testing.T) {
 			Generators: []workflow.Generator[sgIn, sgElement]{
 				func(context.Context, sgIn) (sgElement, error) { return sgElement{}, nil },
 			},
-			Joiner: func(context.Context, *core.ProcessContext, []sgElement) (sgResult, error) { return sgResult{}, nil },
+			Join: func(context.Context, *core.ProcessContext, []sgElement) (sgResult, error) { return sgResult{}, nil },
 		}},
 		{"nil joiner", workflow.ScatterGatherConfig[sgIn, sgElement, sgResult]{
 			Name: "x",
@@ -426,7 +426,7 @@ func TestScatterGather_RejectsInvalidSpec(t *testing.T) {
 			Generators: []workflow.Generator[sgIn, sgElement]{
 				nil,
 			},
-			Joiner: func(context.Context, *core.ProcessContext, []sgElement) (sgResult, error) { return sgResult{}, nil },
+			Join: func(context.Context, *core.ProcessContext, []sgElement) (sgResult, error) { return sgResult{}, nil },
 		}},
 	}
 	for _, tc := range cases {

@@ -30,10 +30,10 @@ func TestNetValueIncludesActionsValue(t *testing.T) {
 	)
 
 	// FixedScore cost/value ignore the world state, so nil is a valid sample.
-	if got := plan.ActionsValue(nil); got != 7 {
+	if got := plan.TotalActionValue(nil); got != 7 {
 		t.Fatalf("ActionsValue = %v, want 7 (3 + 4)", got)
 	}
-	if got := plan.Cost(nil); got != 3 {
+	if got := plan.TotalCost(nil); got != 3 {
 		t.Fatalf("Cost = %v, want 3 (2 + 1)", got)
 	}
 	// goal value (10) + actionsValue (7) − cost (3) = 14
@@ -57,7 +57,7 @@ func TestNetValueZeroActionsValueByDefault(t *testing.T) {
 		core.NewGoal(core.GoalConfig{Description: "g", Value: core.FixedScore(5)}),
 	)
 
-	if got := plan.ActionsValue(nil); got != 0 {
+	if got := plan.TotalActionValue(nil); got != 0 {
 		t.Fatalf("ActionsValue = %v, want 0", got)
 	}
 	if got := plan.NetValue(nil); got != 3 {

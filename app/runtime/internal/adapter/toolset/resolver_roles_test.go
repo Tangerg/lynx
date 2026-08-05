@@ -207,7 +207,7 @@ func TestProposeSkillIsRootOnlyAndDeferred(t *testing.T) {
 		if got := definitionNames(resolved)["propose_skill"]; got != tc.want {
 			t.Errorf("role %s propose_skill present=%v, want %v", tc.role, got, tc.want)
 		}
-		manifest, err := toolloop.Advertise(resolved)
+		manifest, err := toolloop.InitialManifest(resolved)
 		if err != nil {
 			t.Fatal(err)
 		}

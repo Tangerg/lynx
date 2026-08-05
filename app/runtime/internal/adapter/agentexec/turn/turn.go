@@ -99,7 +99,7 @@ func (s *controller) runTurn(request runs.StartExecution, st *turnState) {
 	s.drive(st)
 }
 
-// drive consumes one typed run-segment completion. When the process parks
+// drive consumes one typed Agent-runtime completion. When the process parks
 // on a HITL interrupt (StatusWaiting) it surfaces a [TurnInterrupted]
 // and leaves the turn registered (events channel open) for
 // [controller.Resume]. On a terminal state it drains steering, runs

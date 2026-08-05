@@ -14,29 +14,29 @@ import (
 // planning, event, interaction, and provider protocols remain at their owning
 // package boundaries.
 type (
-	Agent            = core.Agent
-	AgentConfig      = core.AgentConfig
-	AgentDescriptor  = core.AgentDescriptor
-	Action           = core.Action
-	ActionConfig     = core.ActionConfig
-	Goal             = core.Goal
-	GoalConfig       = core.GoalConfig
-	Condition        = core.Condition
-	ConditionConfig  = core.ConditionConfig
-	ConditionEnv     = core.ConditionEnv
-	Truth            = core.Truth
-	FuncCondition    = core.FuncCondition
-	StuckPolicy      = core.StuckPolicy
-	ProcessView      = core.ProcessView
-	ProcessContext   = core.ProcessContext
-	ProcessOptions   = core.ProcessOptions
-	ChildOptionsFunc = core.ChildOptionsFunc
-	PromptConfig     = core.PromptConfig
-	ChatCapability   = core.ChatCapability
-	DeploymentRef    = core.DeploymentRef
-	ProcessStatus    = core.ProcessStatus
-	Extension        = core.Extension
-	Bindings         = core.Bindings
+	Agent              = core.Agent
+	Config             = core.AgentConfig
+	Descriptor         = core.AgentDescriptor
+	Action             = core.Action
+	ActionConfig       = core.ActionConfig
+	Goal               = core.Goal
+	GoalConfig         = core.GoalConfig
+	Condition          = core.Condition
+	ConditionConfig    = core.ConditionConfig
+	ConditionEnv       = core.ConditionEnv
+	Truth              = core.Truth
+	FuncCondition      = core.FuncCondition
+	StuckPolicy        = core.StuckPolicy
+	ProcessView        = core.ProcessView
+	ProcessContext     = core.ProcessContext
+	ProcessOptions     = core.ProcessOptions
+	ConfigureChildFunc = core.ConfigureChildFunc
+	PromptConfig       = core.PromptConfig
+	ChatCapability     = core.ChatCapability
+	DeploymentRef      = core.DeploymentRef
+	ProcessStatus      = core.ProcessStatus
+	Extension          = core.Extension
+	Bindings           = core.Bindings
 
 	ToolGroup         = core.ToolGroup
 	ToolGroupResolver = core.ToolGroupResolver
@@ -51,7 +51,7 @@ type (
 	EngineConfig  = runtime.Config
 	Deployment    = runtime.Deployment
 	Process       = runtime.Process
-	Segment       = runtime.Segment
+	RunHandle     = runtime.RunHandle
 	RunCompletion = runtime.RunCompletion
 )
 
@@ -87,13 +87,13 @@ const (
 	InteractionEventPause         = interaction.EventPause
 	InteractionEventResume        = interaction.EventResume
 
-	InteractionStopNone   = interaction.StopNone
-	InteractionStopBudget = interaction.StopBudget
-	InteractionStopSteps  = interaction.StopSteps
+	InteractionStopNone       = interaction.StopNone
+	InteractionStopBudget     = interaction.StopBudget
+	InteractionStopModelCalls = interaction.StopModelCalls
 )
 
 // New constructs a read-only Agent definition from ordinary Go config.
-func New(config AgentConfig) *Agent { return core.NewAgent(config) }
+func New(config Config) *Agent { return core.NewAgent(config) }
 
 // Input returns initial blackboard bindings for one conventional input value.
 func Input(value any) Bindings { return core.Input(value) }
@@ -139,7 +139,7 @@ func Chat(model chat.Model) ChatCapability {
 
 // RequireType returns the precondition key for "a value of type T is present on
 // the default binding", for use in [ActionConfig].Preconditions or
-// [GoalConfig].Preconditions. It replaces hand-built binding-key strings.
+// [GoalConfig].RequiredConditions. It replaces hand-built binding-key strings.
 func RequireType[T any]() string {
 	return core.NewBinding[T]("").String()
 }

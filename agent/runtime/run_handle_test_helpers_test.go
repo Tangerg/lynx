@@ -8,13 +8,13 @@ import (
 	"github.com/Tangerg/lynx/agent/runtime"
 )
 
-func awaitSegment(t *testing.T, segment *runtime.Segment) runtime.RunCompletion {
+func awaitRun(t *testing.T, handle *runtime.RunHandle) runtime.RunCompletion {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
 	defer cancel()
-	completion, err := segment.Await(ctx)
+	completion, err := handle.Await(ctx)
 	if err != nil {
-		t.Fatalf("await segment: %v", err)
+		t.Fatalf("await run: %v", err)
 	}
 	return completion
 }

@@ -17,7 +17,7 @@ func TestProcessContextToolMethodsNormalizeNilContext(t *testing.T) {
 			calls++
 			return nil, nil
 		},
-		actionToolGroups: []string{"action-tools"},
+		actionToolRoles: []string{"action-tools"},
 	}
 
 	//lint:ignore SA1012 nil normalization is the contract under test
@@ -32,7 +32,7 @@ func TestProcessContextToolMethodsNormalizeNilContext(t *testing.T) {
 func TestProcessContextToolCallContextNormalizesNilParent(t *testing.T) {
 	var released bool
 	pc := &ProcessContext{
-		toolCallCancel: func(cancel context.CancelFunc) func() {
+		registerToolCallCancellation: func(cancel context.CancelFunc) func() {
 			if cancel == nil {
 				t.Fatal("registered nil cancel func")
 			}

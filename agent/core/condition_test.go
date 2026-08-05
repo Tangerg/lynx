@@ -41,22 +41,14 @@ func TestCompositeConditionsEvaluateCheaperOperandFirst(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			var evaluations []string
-			expensive := core.NewCondition(core.ConditionConfig{
-				Name: "expensive",
-				Cost: 100,
-				Evaluate: func(context.Context, *core.ConditionEnv) core.Truth {
-					evaluations = append(evaluations, "expensive")
-					return test.expensive
-				},
-			})
-			cheap := core.NewCondition(core.ConditionConfig{
-				Name: "cheap",
-				Cost: 1,
-				Evaluate: func(context.Context, *core.ConditionEnv) core.Truth {
-					evaluations = append(evaluations, "cheap")
-					return test.cheap
-				},
-			})
+			expensive := core.NewCondition(core.ConditionConfig{Name: "expensive", EvaluationCost: 100, Evaluate: func(context.Context, *core.ConditionEnv) core.Truth {
+				evaluations = append(evaluations, "expensive")
+				return test.expensive
+			}})
+			cheap := core.NewCondition(core.ConditionConfig{Name: "cheap", EvaluationCost: 1, Evaluate: func(context.Context, *core.ConditionEnv) core.Truth {
+				evaluations = append(evaluations, "cheap")
+				return test.cheap
+			}})
 
 			if got := test.composite(expensive, cheap).Evaluate(t.Context(), nil); got != test.want {
 				t.Fatalf("Evaluate = %s, want %s", got, test.want)
@@ -69,9 +61,9 @@ func TestCompositeConditionsEvaluateCheaperOperandFirst(t *testing.T) {
 }
 
 func TestNewConditionCarriesEvaluationCost(t *testing.T) {
-	condition := core.NewCondition(core.ConditionConfig{Name: "remote", Cost: 7.5})
-	if condition.Name() != "remote" || condition.Cost() != 7.5 {
-		t.Fatalf("condition = %q/%v, want remote/7.5", condition.Name(), condition.Cost())
+	condition := core.NewCondition(core.ConditionConfig{Name: "remote", EvaluationCost: 7.5})
+	if condition.Name() != "remote" || condition.EvaluationCost() != 7.5 {
+		t.Fatalf("condition = %q/%v, want remote/7.5", condition.Name(), condition.EvaluationCost())
 	}
 }
 

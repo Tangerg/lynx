@@ -80,12 +80,12 @@ func (e *Engine) buildTurnAgent() *core.Agent {
 		func(ctx context.Context, processCtx *core.ProcessContext, input turnInput) (TurnOutput, error) {
 			return e.runTurn(ctx, processCtx, input.Message, input.Media, input.Options)
 		},
-		core.ActionConfig{ToolGroups: []string{tool.GroupRoot}},
+		core.ActionConfig{ToolRoles: []string{tool.GroupRoot}},
 	)
 	replyGoal := agent.NewOutputGoal[TurnOutput](
 		core.GoalConfig{Description: "single-turn reply produced"},
 	)
-	return agent.New(agent.AgentConfig{
+	return agent.New(agent.Config{
 		Name:        "chat-agent",
 		Description: "Single-turn LLM chat with the root Agent tool set.",
 		Actions:     []agent.Action{chatAction},

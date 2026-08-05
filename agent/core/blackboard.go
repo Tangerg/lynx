@@ -14,9 +14,9 @@ import (
 // contract violation from a transport or storage failure.
 var ErrUnportableValue = errors.New("core: value has no portable form")
 
-// ErrUndeclaredState reports a value whose exact Go type the owning Agent never
+// ErrUndeclaredSnapshotType reports a value whose exact Go type the owning Agent never
 // declared, so no snapshot of it could be restored. See [SnapshotCodec].
-var ErrUndeclaredState = errors.New("core: type is not declared snapshot state")
+var ErrUndeclaredSnapshotType = errors.New("core: type is not declared for snapshots")
 
 // BlackboardReader is the read-only slice of [Blackboard] — passed to
 // contexts that observe state but should not mutate it (e.g. condition
@@ -30,7 +30,7 @@ type BlackboardReader interface {
 	// Lookup returns the value bound to (variable, typeName). When
 	// variable is DefaultBindingName ("it"), implementations search the
 	// objects list from newest to oldest for a type match. When variable
-	// is LastResultBindingName ("last_result"), it returns the most-recent
+	// is LatestObjectBindingName ("latest_object"), it returns the most-recent
 	// object regardless of type.
 	Lookup(variable, typeName string) (any, bool)
 

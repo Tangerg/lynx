@@ -22,10 +22,10 @@ var ErrChildParentInactive = errors.New("run child: parent process is not runnin
 // enforces.
 var ErrChildBudget = errors.New("run child: budget must be configured on the root process")
 
-// RunChildWithState runs a child with a copy of the parent's entire blackboard.
+// RunChildWithWorkingState runs a child with a copy of the parent's entire blackboard.
 // Use it only when the child needs the parent's working state. For ordinary
 // delegation, prefer [Engine.RunChild], which starts clean.
-func (e *Engine) RunChildWithState(
+func (e *Engine) RunChildWithWorkingState(
 	ctx context.Context,
 	deployment *Deployment,
 	input any,
@@ -192,10 +192,10 @@ func configureChildProcessOptions(
 	deployment *Deployment,
 	options core.ProcessOptions,
 ) (core.ProcessOptions, error) {
-	if parent == nil || parent.options == nil || parent.options.childOptions == nil {
+	if parent == nil || parent.options == nil || parent.options.configureChild == nil {
 		return options, nil
 	}
-	configure := parent.options.childOptions
+	configure := parent.options.configureChild
 	configured, err := configure(normalizeContext(ctx), parent, deployment.Descriptor())
 	if err != nil {
 		return core.ProcessOptions{}, err
@@ -206,8 +206,8 @@ func configureChildProcessOptions(
 	if configured.Blackboard == nil {
 		configured.Blackboard = options.Blackboard
 	}
-	if configured.ChildOptions == nil {
-		configured.ChildOptions = configure
+	if configured.ConfigureChild == nil {
+		configured.ConfigureChild = configure
 	}
 	return configured, nil
 }

@@ -45,7 +45,7 @@ func (v *countingFacadeValidator) Name() string {
 	return "counting-validator"
 }
 
-func (*countingFacadeValidator) Validate(AgentDescriptor) error { return nil }
+func (*countingFacadeValidator) Validate(Descriptor) error { return nil }
 
 func TestNewEngineReadsExtensionNameOnce(t *testing.T) {
 	validator := new(countingFacadeValidator)
@@ -63,8 +63,8 @@ func TestNewEngineReadsExtensionNameOnce(t *testing.T) {
 
 type reservedFacadeValidator struct{}
 
-func (reservedFacadeValidator) Name() string                   { return "goap" }
-func (reservedFacadeValidator) Validate(AgentDescriptor) error { return nil }
+func (reservedFacadeValidator) Name() string              { return "goap" }
+func (reservedFacadeValidator) Validate(Descriptor) error { return nil }
 
 func TestNewEngineRejectsBuiltInPlannerNameCollision(t *testing.T) {
 	engine, err := NewEngine(EngineConfig{Extensions: []Extension{reservedFacadeValidator{}}})

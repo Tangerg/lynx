@@ -82,9 +82,9 @@ func TestResolverInitialManifestSeparatesDirectAndDeferredCapabilities(t *testin
 		t.Fatalf("Tools: %v", err)
 	}
 	registered := definitionNames(resolved)
-	manifest, err := toolloop.Advertise(resolved)
+	manifest, err := toolloop.InitialManifest(resolved)
 	if err != nil {
-		t.Fatalf("Advertise: %v", err)
+		t.Fatalf("InitialManifest: %v", err)
 	}
 	advertised := make(map[string]bool, len(manifest))
 	for _, definition := range manifest {
