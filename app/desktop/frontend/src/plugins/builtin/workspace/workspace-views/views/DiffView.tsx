@@ -53,10 +53,9 @@ const WD_ADD_STYLE = wordMark("var(--color-diff-added-meta)");
 
 type WordDecoration = { start: number; end: number; properties: { style: string } };
 
-// Highlight one line for inline injection into a grid row. `decorations` wrap
-// the changed sub-range; Shiki splits the syntax token spans at the range
-// bounds so the word tint composites over the syntax colours rather than
-// replacing them.
+// Highlight one line for inline injection into a grid row. `decorations` wrap the
+// changed sub-range; Shiki splits the syntax token spans at the range bounds, so the
+// mark lands on exactly those characters and leaves their colours alone.
 function highlightInline(
   h: Highlighter,
   code: string,
@@ -93,15 +92,23 @@ function computeWordRanges(rows: WorkspaceDiffRow[]): Map<WorkspaceDiffRow, [num
   return ranges;
 }
 
-// The code cell — Shiki-highlighted token spans when ready, else the plain
-// text. `whitespace-pre` keeps indentation; the parent grid column is
-// `minmax(0,1fr)` so a long line scrolls (unified) / clips (split) instead of
-// blowing the column out.
+// The code cell. `pre-wrap` keeps indentation and still wraps, which is the only
+// mechanism that loses nothing here: this pane holds a file tree beside the diff, so
+// the code column measures ~125px, and it used to be `pre` inside `overflow-hidden`
+// — no wrap, no scrollbar, nothing in the ancestry scrolling. Every line longer than
+// the column lost its tail with no ellipsis and no way to reach it. A markdown code
+// block scrolls instead, and can: it owns the whole reading column.
+//
+// `wrap-anywhere` and not `break-words`: it also makes the min-content width one
+// character, so an unbreakable token — a minified line, a base64 blob — cannot blow
+// the grid column back out.
+const CODE_CELL = "min-w-0 whitespace-pre-wrap wrap-anywhere";
+
 function CodeCell({ code, html }: { code: string; html: string | undefined }) {
   return html ? (
-    <span className="overflow-hidden whitespace-pre" dangerouslySetInnerHTML={{ __html: html }} />
+    <span className={CODE_CELL} dangerouslySetInnerHTML={{ __html: html }} />
   ) : (
-    <span className="overflow-hidden whitespace-pre text-fg-soft">{code}</span>
+    <span className={`${CODE_CELL} text-fg-soft`}>{code}</span>
   );
 }
 
@@ -147,7 +154,13 @@ export function DiffView({
         const style = ROW_STYLE[row.type];
         const lnum = row.type === "deleted" ? row.leftLine : row.rightLine;
         return (
-          <div key={k} className={cn("grid grid-cols-[36px_36px_1fr] gap-1.5 px-3", style.tone)}>
+          <div
+            key={k}
+            className={cn(
+              "grid grid-cols-[36px_36px_minmax(0,1fr)] items-start gap-1.5 px-3",
+              style.tone,
+            )}
+          >
             <span className={cn("text-right text-ui-sm select-none", style.meta)}>{lnum}</span>
             <span className={cn("text-center text-ui-sm select-none", style.meta)}>
               {style.sign}
@@ -259,7 +272,12 @@ function DiffSide({
           : row.rightLine;
   const sign = row.type === "context" ? "" : style.sign;
   return (
-    <div className={cn("grid grid-cols-[34px_16px_minmax(0,1fr)] gap-1.5 px-3", style.tone)}>
+    <div
+      className={cn(
+        "grid grid-cols-[34px_16px_minmax(0,1fr)] items-start gap-1.5 px-3",
+        style.tone,
+      )}
+    >
       <span className={cn("text-right text-ui-sm select-none", style.meta)}>{lnum}</span>
       <span className={cn("text-center text-ui-sm select-none", style.meta)}>{sign}</span>
       <CodeCell code={row.code} html={highlighted?.get(row)} />

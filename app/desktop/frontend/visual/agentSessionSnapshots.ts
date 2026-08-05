@@ -200,7 +200,14 @@ const SHELL_EDIT: Item = {
           path: "/Users/visual/lynx/app/desktop/frontend/src/plugins/builtin/chat/tools/application/specialisedPreviewProjections.ts",
           status: "modified",
           diff: [
-            { type: "context", leftLine: 41, rightLine: 41, code: "func (s *Store) Commit(" },
+            {
+              type: "context",
+              leftLine: 41,
+              rightLine: 41,
+              // Long on purpose: a row that fits proves nothing about a row that
+              // does not, and the inline diff used to cut the overflow away.
+              code: "func (s *Store) Commit(ctx context.Context, session *Session, records []Record, opts CommitOptions) (Receipt, error) {",
+            },
             { type: "deleted", leftLine: 42, code: "\tif err := s.flush(); err != nil {" },
             { type: "added", rightLine: 42, code: "\tif err := s.flushLocked(); err != nil {" },
             { type: "added", rightLine: 43, code: "\t\ts.metrics.RecordFlushFailure()" },

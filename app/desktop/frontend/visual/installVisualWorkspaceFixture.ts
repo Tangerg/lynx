@@ -20,8 +20,8 @@ import {
   WORKSPACE_READ_FILE_KEY,
   type WorkspaceDiff,
   type WorkspaceFileChange,
-  type WorkspaceFileEntry,
   type WorkspaceFileContent,
+  type WorkspaceFileEntry,
 } from "@/plugins/builtin/workspace/application/workspaceQueries";
 import {
   diffView,
@@ -351,6 +351,7 @@ const DOCK_VIEW_BY_STATE: Partial<Record<VisualWorkspaceState, string>> = {
   "dock-light": "plan",
   "dock-inbox": "inbox",
   "dock-stats": "tool-stats",
+  "dock-file": "file",
 };
 
 export async function installVisualWorkspaceFixture(

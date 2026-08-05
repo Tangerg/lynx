@@ -43,16 +43,22 @@ export function FileView({ content, targetLine }: { content: string; targetLine:
           <div
             key={i}
             ref={isTarget ? targetRef : undefined}
-            className={cn("grid grid-cols-[44px_1fr] gap-2 px-3", isTarget && "bg-accent-wash")}
+            className={cn(
+              // Wraps rather than clips, for the reason spelled out in DiffView.
+              "grid grid-cols-[44px_minmax(0,1fr)] items-start gap-2 px-3",
+              isTarget && "bg-accent-wash",
+            )}
           >
             <span className="text-right text-ui-sm text-fg-faint select-none">{n}</span>
             {html !== undefined ? (
               <span
-                className="overflow-hidden whitespace-pre"
+                className="min-w-0 whitespace-pre-wrap wrap-anywhere"
                 dangerouslySetInnerHTML={{ __html: html }}
               />
             ) : (
-              <span className="overflow-hidden whitespace-pre text-fg-soft">{line || " "}</span>
+              <span className="min-w-0 whitespace-pre-wrap wrap-anywhere text-fg-soft">
+                {line || " "}
+              </span>
             )}
           </div>
         );

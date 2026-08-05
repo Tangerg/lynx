@@ -193,6 +193,62 @@ test("keyboard-only traversal reaches recovery, HITL, and settings actions", asy
   await expect(page.getByRole("heading", { name: "Providers" })).toBeVisible();
 });
 
+// Text that is simply gone: clipped by its own box, with no ellipsis to say so and
+// nothing in the ancestry that scrolls. Every code surface but one was like this —
+// the review diff, the file view and the transcript's inline diff all set `pre`
+// inside a clipped box, so any line longer than the column lost its tail silently.
+// The goldens could not see it: a cut line and a short line look identical.
+//
+// Run at the smallest window the shell allows and the largest UI type a user can
+// pick, because that is where a column runs out of room first.
+for (const route of ACCESSIBILITY_ROUTES.filter((r) => r.theme === "light")) {
+  test(`no text is cut off with no way to read it — ${route.fixture} ${route.state}`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1120, height: 720 });
+    await openFixture(page, { ...route, fontSize: 18 });
+
+    // Unfold what the page hides. Collapsed content is where the cutting was: the
+    // transcript's inline diff only exists inside an expanded tool row, so a check
+    // that measures the resting page measures none of it.
+    for (let i = 0; i < 6; i++) {
+      const shut = page.locator(
+        "[data-slot='agent-activity-disclosure'] button[aria-expanded='false']",
+      );
+      const n = await shut.count();
+      if (n === 0) break;
+      await shut
+        .first()
+        .click({ timeout: 2000 })
+        .catch(() => {});
+    }
+
+    const cut = await page.evaluate(() => {
+      const out: string[] = [];
+      for (const el of document.querySelectorAll<HTMLElement>("*")) {
+        // A 1-2px box holds no readable text by construction — that is how a
+        // screen-reader-only node is built, not a layout that ran out of room.
+        if (el.clientWidth <= 2 || el.clientHeight <= 2) continue;
+        if (el.scrollWidth <= el.clientWidth + 1) continue;
+        const style = getComputedStyle(el);
+        if (!(style.overflowX === "hidden" || style.overflowX === "clip")) continue;
+        if (style.textOverflow === "ellipsis") continue;
+        if (!el.textContent?.trim()) continue;
+        // No ancestor can rescue this: an ancestor scroller only ever sees this
+        // element's box, and the box is where the content was cut. An enclosing
+        // `overflow-x: auto` reads like an escape hatch and is not one — the review
+        // diff had one all along, with a scrollWidth that never grew.
+        out.push(
+          `${el.tagName}.${String(el.className).slice(0, 40)} ${el.clientWidth}<${el.scrollWidth}`,
+        );
+      }
+      return out;
+    });
+
+    expect(cut).toEqual([]);
+  });
+}
+
 // The mirror of the test above, and the half that was missing: every assertion here
 // had been "the keyboard can reach X", never "the keyboard cannot reach what is not on
 // screen". Two ways of hiding a control stop the pointer and neither stops Tab —

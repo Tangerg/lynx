@@ -30,8 +30,6 @@ import { defaultAccents } from "@/plugins/builtin/defaults";
 import goal from "@/plugins/builtin/chat/goal";
 import { GOAL_KEY, type GoalState } from "@/plugins/builtin/chat/goal/application/goalQueries";
 import planProgress from "@/plugins/builtin/chat/plan-progress";
-import { toolActions, toolIcons } from "@/plugins/builtin/chat/tools/meta";
-import { shellPreview, taskPreview } from "@/plugins/builtin/chat/tools/previews";
 import {
   MODELS_KEY,
   type SelectableModel,
@@ -40,6 +38,7 @@ import { installWorkspaceNavigationPort } from "@/plugins/builtin/workspace/adap
 import { installRuntimeCapabilityPort } from "@/plugins/builtin/runtime/adapters/runtimeCapabilityStore";
 import { queryClient } from "@/lib/queryClient";
 import { loadPlugin, usePluginStore } from "@/plugins/sdk";
+import { toolRenderingPlugins } from "@/plugins/builtin";
 import { useComposerStore } from "@/plugins/builtin/chat/composer/adapters/composerStore";
 import {
   AGENT_SESSION_SNAPSHOTS,
@@ -157,10 +156,11 @@ export async function installVisualAgentFixture(
     messageFeedback,
     goal,
     planProgress,
-    toolIcons,
-    toolActions,
-    shellPreview,
-    taskPreview,
+    // Production's own tool-rendering list, not a hand-picked subset of it: the
+    // subset held four of fifteen, so the previews for edit, read and grep — all of
+    // which the canonical snapshots carry results for — rendered as raw JSON here
+    // while the app rendered the real component.
+    ...toolRenderingPlugins,
   ]) {
     const result = await loadPlugin(plugin);
     if (result.kind !== "loaded") {

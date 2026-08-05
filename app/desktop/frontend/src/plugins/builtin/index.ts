@@ -158,8 +158,13 @@ const messageRendering: PluginSpec[] = [
 ];
 
 // Tool rendering — previews, header actions, icon glyph map.
-
-const toolRendering: PluginSpec[] = [
+//
+// Exported because the visual fixture renders transcripts and used to hand-pick four
+// of these, so the components for the rest — including the diff and grep previews the
+// canonical snapshots carry results for — drew raw JSON in every fixture while
+// production drew the real thing. A list to be kept in sync by hand is a list that
+// drifts silently.
+export const toolRenderingPlugins: PluginSpec[] = [
   shellPreview,
   diff,
   file,
@@ -265,7 +270,7 @@ export const builtinPlugins: PluginSpec[] = [
   ...protocol,
   ...infrastructure,
   ...messageRendering,
-  ...toolRendering,
+  ...toolRenderingPlugins,
   ...composer,
   ...panes,
   ...kernel,

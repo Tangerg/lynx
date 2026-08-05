@@ -56,11 +56,16 @@ function DiffPreview({ tool, onOpenView }: ToolPreviewProps) {
           }
           const style = ROW_STYLE[row.type];
           return (
-            <div key={i} className={cn("grid grid-cols-[18px_1fr] px-0.5", style.tone)}>
+            <div
+              key={i}
+              className={cn("grid grid-cols-[18px_minmax(0,1fr)] items-start px-0.5", style.tone)}
+            >
               <span className={cn("text-center text-ui-sm select-none", style.meta)}>
                 {style.sign}
               </span>
-              <span className={cn("whitespace-pre", style.codeTone)}>{row.code}</span>
+              <span className={cn("min-w-0 whitespace-pre-wrap wrap-anywhere", style.codeTone)}>
+                {row.code}
+              </span>
             </div>
           );
         })}

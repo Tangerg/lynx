@@ -66,7 +66,22 @@ async function waitForWorkspaceState(page: Page, state: VisualWorkspaceState): P
     await expect(page.getByText("Couldn't load the diff", { exact: true })).toBeVisible();
     return;
   }
-  await expect(page.getByRole("heading", { name: "Appearance" })).toBeVisible();
+  if (state === "dock-file") {
+    const view = page.locator(".agent-workspace-view:visible");
+    await expect(view).toContainText("8 lines");
+    // The tail of the file's longest line. Whether it can be READ is the clipping
+    // check's job; this only pins that the viewer renders the whole line.
+    await expect(view).toContainText("clampDockWidth(currentWidth + delta, row.clientWidth)");
+    return;
+  }
+  if (state === "settings") {
+    await expect(page.getByRole("heading", { name: "Appearance" })).toBeVisible();
+    return;
+  }
+  // Not a fallthrough. This used to end with the Settings assertion as its default,
+  // so a state added later was not merely unasserted — it was asserted against the
+  // wrong surface, and read as "Settings does not render".
+  throw new Error(`No expectation declared for workspace state "${state}"`);
 }
 
 for (const state of VISUAL_WORKSPACE_STATES) {

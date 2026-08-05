@@ -13,6 +13,7 @@ const STATE_LABELS: Record<VisualWorkspaceState, string> = {
   "dock-review": "Diff review",
   "dock-inbox": "Inbox",
   "dock-stats": "Tool stats",
+  "dock-file": "File viewer",
   "dock-empty": "Diff · empty",
   "dock-loading": "Diff · loading",
   "dock-error": "Diff · error",
