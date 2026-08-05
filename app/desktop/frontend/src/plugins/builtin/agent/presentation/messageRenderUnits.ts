@@ -82,18 +82,26 @@ export function planRenderUnits(
 }
 
 /**
- * Whether prose follows each block.
+ * Whether an answer follows each block.
  *
  * Backwards, because the question is about what comes AFTER it. A text block that is
  * still streaming counts: the answer has begun, which is exactly the moment the work
  * behind it should get out of the way.
+ *
+ * It has to carry TEXT to count. `item.started` creates the answer's block before a
+ * token of it exists, so treating the block's presence as the answer folded the
+ * thinking away the instant the model opened its reply — to a one-line row with
+ * nothing in it, while the answer it supposedly deferred to was still empty. For a
+ * provider that streams reasoning and prose from overlapping items, that is the whole
+ * time the model is thinking.
  */
 function answeredAfter(blocks: ContentBlock[]): boolean[] {
   const answered: boolean[] = Array.from({ length: blocks.length }, () => false);
   let seen = false;
   for (let index = blocks.length - 1; index >= 0; index -= 1) {
     answered[index] = seen;
-    if (blocks[index]!.kind === "text") seen = true;
+    const block = blocks[index]!;
+    if (block.kind === "text" && block.text.trim() !== "") seen = true;
   }
   return answered;
 }

@@ -128,6 +128,30 @@ describe("planRenderUnits", () => {
   });
 });
 
+// What "the answer has begun" means, which decides whether the thinking and the tool
+// work fold away. It is not "a text block exists": `item.started` creates the answer's
+// block empty, so that reading folded a running reasoning block the instant the model
+// opened its reply — leaving a one-line row with no preview in it and nothing yet on
+// screen that could have replaced it.
+describe("planRenderUnits · what counts as the answer", () => {
+  const superseded = (blocks: ContentBlock[]) =>
+    planRenderUnits(blocks, TOOLS).map((unit) => (unit.kind === "wave" ? "wave" : unit.superseded));
+
+  it("keeps thinking open while the answer's block is still empty", () => {
+    expect(superseded([reasoning("running"), text("", "running")])).toEqual([false, false]);
+    expect(superseded([reasoning("running"), text("\n  ", "running")])).toEqual([false, false]);
+  });
+
+  it("folds thinking as soon as the answer has words", () => {
+    expect(superseded([reasoning("running"), text("A", "running")])).toEqual([true, false]);
+  });
+
+  it("keeps tool work open on an empty answer block too", () => {
+    expect(superseded([toolBlock("shell"), text("", "running")])).toEqual([false, false]);
+    expect(superseded([toolBlock("shell"), text("done")])).toEqual([true, false]);
+  });
+});
+
 // Cases moved here from `chat/message/ui/renderUnits.test.ts`, which asserted this
 // ring's planner from another one — two homes for one function's contract.
 describe("planRenderUnits · read-only grouping", () => {

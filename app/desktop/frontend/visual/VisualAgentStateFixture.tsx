@@ -13,6 +13,7 @@ const STATE_LABELS: Record<VisualAgentState, string> = {
   empty: "Empty",
   idle: "Idle",
   running: "Running",
+  "answer-opening": "Answer opening",
   steer: "Steer",
   waiting: "Waiting",
   question: "Question",

@@ -193,6 +193,36 @@ test("keyboard-only traversal reaches recovery, HITL, and settings actions", asy
   await expect(page.getByRole("heading", { name: "Providers" })).toBeVisible();
 });
 
+// The vertical half of the same question. `truncate` clips both axes, so text set at a
+// line box the height of its own font size has the glyph box's descender outside it —
+// the sidebar's section labels were shaving the tail off the "j" in "Projects". A
+// `line-clamp` is exempt: it cuts on purpose and says so with an ellipsis.
+for (const route of ACCESSIBILITY_ROUTES.filter((r) => r.theme === "light")) {
+  test(`no text is cut off vertically — ${route.fixture} ${route.state}`, async ({ page }) => {
+    await page.setViewportSize({ width: 1120, height: 720 });
+    await openFixture(page, { ...route, fontSize: 18 });
+
+    const cut = await page.evaluate(() => {
+      const out: string[] = [];
+      for (const el of document.querySelectorAll<HTMLElement>("*")) {
+        if (el.clientHeight <= 2 || el.clientWidth <= 2) continue;
+        if (el.scrollHeight <= el.clientHeight + 1) continue;
+        const style = getComputedStyle(el);
+        if (!(style.overflowY === "hidden" || style.overflowY === "clip")) continue;
+        if (style.webkitLineClamp !== "none") continue;
+        if (el.closest("[inert]")) continue;
+        if (!el.textContent?.trim()) continue;
+        out.push(
+          `${el.tagName}.${String(el.className).slice(0, 44)} ${el.clientHeight}<${el.scrollHeight}`,
+        );
+      }
+      return out;
+    });
+
+    expect(cut).toEqual([]);
+  });
+}
+
 // Text that is simply gone: clipped by its own box, with no ellipsis to say so and
 // nothing in the ancestry that scrolls. Every code surface but one was like this —
 // the review diff, the file view and the transcript's inline diff all set `pre`

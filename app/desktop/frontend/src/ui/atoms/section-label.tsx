@@ -26,7 +26,12 @@ export function SectionLabel({
   return (
     <div
       className={cn(
-        "flex min-w-0 items-center gap-2 px-2 pb-2 pt-2 font-sans text-ui-xs font-medium leading-none text-fg-faint",
+        // `leading-tight` and not `leading-none`: the label truncates, and `truncate`
+        // clips both axes. At a line box the height of the font size, the 2px the glyph
+        // box needs below the baseline is outside it — so the `j` in "Projects" had its
+        // tail shaved off. 1.15 is the ladder's tightest step that still contains its
+        // own text.
+        "flex min-w-0 items-center gap-2 px-2 pb-2 pt-2 font-sans text-ui-xs font-medium leading-tight text-fg-faint",
         className,
       )}
     >

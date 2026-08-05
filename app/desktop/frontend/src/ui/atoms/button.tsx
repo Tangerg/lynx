@@ -18,7 +18,11 @@ import { ButtonPrimitive, type ButtonPrimitiveProps } from "@/ui/primitives";
 export const buttonStyles = cva(
   [
     "inline-flex shrink-0 items-center justify-center gap-1.5 whitespace-nowrap",
-    "border-[length:var(--control-edge-width)] border-transparent font-sans font-medium leading-none outline-none",
+    // `leading-tight`, not `leading-none`. The height comes from the size variant and
+    // the content is centred, so the line box does not move anything — but a label
+    // inside a button often truncates, and `truncate` clips vertically too, so at a
+    // line box the height of the font size the descenders were outside it.
+    "border-[length:var(--control-edge-width)] border-transparent font-sans font-medium leading-tight outline-none",
     "transition-[background-color,border-color,color,scale] duration-[var(--dur-fast)] ease-out",
     "disabled:cursor-not-allowed disabled:opacity-64 disabled:active:scale-100",
     "[&_svg:not([class*='opacity-'])]:opacity-80",

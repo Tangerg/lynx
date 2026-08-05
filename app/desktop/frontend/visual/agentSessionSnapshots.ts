@@ -6,6 +6,7 @@ export const VISUAL_AGENT_STATES = [
   "empty",
   "idle",
   "running",
+  "answer-opening",
   "steer",
   "waiting",
   "question",
@@ -90,6 +91,20 @@ const RUNNING_RESPONSE: Item = {
   status: "running",
   createdAt: CREATED_AT,
   content: [{ type: "text", text: "I’m tracing the ownership boundary and verifying" }],
+};
+
+// The answer's item as `item.started` actually delivers it: opened, with no content
+// yet. Every turn passes through this frame, and no fixture held it — the running
+// state's response arrives with a sentence already in it, which `item.started` never
+// carries. Freezing the frame is what makes "the thinking is still open here"
+// something a screenshot can be wrong about.
+const OPENING_RESPONSE: Item = {
+  type: "agentMessage",
+  id: "item_running_response",
+  runId: ROOT_RUN_ID,
+  status: "running",
+  createdAt: CREATED_AT,
+  content: [],
 };
 
 const RUNNING_REASONING: Item = {
@@ -466,6 +481,22 @@ export const AGENT_SESSION_SNAPSHOTS: Readonly<Record<VisualAgentState, AgentSes
     items: [PROMPT, RESPONSE],
     pendingInterruptSets: [],
   },
+  "answer-opening": {
+    runs: [run("running")],
+    items: [PROMPT],
+    pendingInterruptSets: [],
+    state: {
+      type: "plan",
+      sessionId: SESSION_ID,
+      revision: 3,
+      updatedAt: "2026-07-31T08:00:08.000Z",
+      plan: [
+        { id: "step_boundary", description: "Verify boundary ownership", status: "completed" },
+        { id: "step_visual", description: "Review visual evidence", status: "in_progress" },
+        { id: "step_gates", description: "Run quality gates", status: "pending" },
+      ],
+    },
+  },
   running: {
     runs: [run("running")],
     items: [PROMPT],
@@ -810,6 +841,15 @@ export const AGENT_SESSION_TAIL_EVENTS: Readonly<Record<VisualAgentState, RunEve
     tailEvent(3, { type: "item.started", item: RUNNING_READ }),
     tailEvent(4, { type: "item.started", item: RUNNING_TOOL }),
     tailEvent(5, { type: "item.started", item: RUNNING_RESPONSE }),
+  ],
+  // One frame earlier than `running`: the answer is open and empty. Nothing here is
+  // superseded yet, so the thinking stays readable and the live tool work stays
+  // unfolded — the empty block used to count as the answer and fold all of it.
+  "answer-opening": [
+    tailEvent(1, { type: "item.started", item: RUNNING_REASONING }),
+    tailEvent(3, { type: "item.started", item: RUNNING_READ }),
+    tailEvent(4, { type: "item.started", item: RUNNING_TOOL }),
+    tailEvent(5, { type: "item.started", item: OPENING_RESPONSE }),
   ],
   steer: [
     tailEvent(1, { type: "item.started", item: RUNNING_REASONING }),

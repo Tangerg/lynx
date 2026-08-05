@@ -5,6 +5,7 @@ const EXPECTED_ATTENTION: Record<VisualAgentState, string> = {
   empty: "idle",
   idle: "finished",
   running: "running",
+  "answer-opening": "running",
   steer: "running",
   waiting: "waiting",
   question: "waiting",
@@ -329,6 +330,28 @@ for (const state of ["long-content", "question", "delegated"] as const) {
 // test the rows themselves — the app's most-read surface — appeared in no
 // screenshot and in no browser assertion. What it pins is what a row REPORTS: the
 // subject it acted on, and for an edit the lines it changed.
+// The frame every turn passes through: the answer's item is open and still empty.
+// Nothing may be folded here — an empty block is not an answer, and treating it as one
+// collapsed the thinking to a one-line row with nothing in it, while the reply it
+// deferred to had not written a character.
+test("an opened but empty answer folds nothing behind it", async ({ page }) => {
+  await page.goto("/visual/?fixture=agent&theme=light&state=answer-opening");
+  await page.locator("html[data-visual-ready]").waitFor();
+
+  const thinking = page
+    .locator("[data-slot='agent-activity-disclosure']")
+    .filter({ hasText: "Thinking" });
+  await expect(thinking.locator("button[aria-expanded]").first()).toHaveAttribute(
+    "aria-expanded",
+    "true",
+  );
+  // Its body, not just its summary row.
+  await expect(thinking).toContainText("The framework must expose execution capability");
+
+  // And the live work is still a list of steps rather than one folded wave.
+  await expect(page.getByRole("button", { name: /steps/ })).toHaveCount(0);
+});
+
 test("an expanded tool row reports its subject and what it changed", async ({ page }) => {
   await page.goto("/visual/?fixture=agent&theme=light&state=tool-shells");
   await page.locator("html[data-visual-ready]").waitFor();
