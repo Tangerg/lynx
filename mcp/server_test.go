@@ -172,6 +172,37 @@ func TestRegister_RejectsInvalidSchema(t *testing.T) {
 	require.ErrorContains(t, err, `input schema type must be "object"`)
 }
 
+// The low-level AddTool path panics on a schema that does not declare an object, and
+// Register hands the schema straight to it. What stops the panic is the Registry
+// refusing the definition first, so every shape the server cannot hold is listed
+// here against the one validator that refuses it — a second copy of this rule inside
+// this module would be a second answer that drifts from the first.
+func TestRegister_RefusesEverySchemaShapeTheServerCannotHold(t *testing.T) {
+	for _, test := range []struct {
+		name   string
+		schema string
+	}{
+		{name: "absent", schema: ""},
+		{name: "null", schema: `null`},
+		{name: "not an object", schema: `[1,2]`},
+		{name: "unparseable", schema: `{not-json`},
+		{name: "no declared type", schema: `{}`},
+		{name: "declares another type", schema: `{"type":"array"}`},
+		{name: "type is not a string", schema: `{"type":123}`},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			srv := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "x", Version: "v0"}, nil)
+			err := lynxmcp.Register(srv, testTool{definition: corechat.ToolDefinition{
+				Name:        "shape",
+				InputSchema: json.RawMessage(test.schema),
+			}})
+			// The sentinel is the point: the definition's own package owns what a valid
+			// tool definition is, and the error says so all the way out to the caller.
+			require.ErrorIs(t, err, corechat.ErrInvalidToolDefinition)
+		})
+	}
+}
+
 func TestRegister_RejectsDuplicateBatchAtomically(t *testing.T) {
 	srv := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "x", Version: "v0"}, nil)
 	err := lynxmcp.Register(srv, newConstantTool("duplicate"), newConstantTool("duplicate"))

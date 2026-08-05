@@ -41,11 +41,7 @@ func Register(server *sdkmcp.Server, tools ...toolcontract.Tool) error {
 	prepared := make([]preparedTool, 0, len(tools))
 	for _, definition := range registry.Definitions() {
 		tool, _ := registry.Resolve(definition.Name)
-		pt, err := prepareOne(tool, definition)
-		if err != nil {
-			return err
-		}
-		prepared = append(prepared, pt)
+		prepared = append(prepared, prepareOne(tool, definition))
 	}
 	for _, pt := range prepared {
 		server.AddTool(pt.tool, pt.handler)
@@ -60,20 +56,23 @@ type preparedTool struct {
 	handler sdkmcp.ToolHandler
 }
 
-func prepareOne(tool toolcontract.Tool, definition corechat.ToolDefinition) (preparedTool, error) {
-	schema, err := schemaToAny(definition.InputSchema)
-	if err != nil {
-		return preparedTool{}, fmt.Errorf("mcp: register tool %q input schema: %w", definition.Name, err)
-	}
-
+// prepareOne builds one registration.
+//
+// The schema goes to the SDK as it stands. The low-level AddTool path panics on a
+// schema that does not declare an object, but a definition that reached here came
+// out of the Registry above, which refuses one — and the Registry's copy is a
+// fresh clone, so handing it to a server that keeps it aliases nothing. Repeating
+// either the check or the copy here would be a second answer to a question that
+// already has one, and the two would drift.
+func prepareOne(tool toolcontract.Tool, definition corechat.ToolDefinition) preparedTool {
 	return preparedTool{
 		tool: &sdkmcp.Tool{
 			Name:        definition.Name,
 			Description: definition.Description,
-			InputSchema: schema,
+			InputSchema: definition.InputSchema,
 		},
 		handler: serverHandler(tool, definition.Name),
-	}, nil
+	}
 }
 
 // serverHandler routes a tools/call RPC into a [tool.Tool]. Errors
