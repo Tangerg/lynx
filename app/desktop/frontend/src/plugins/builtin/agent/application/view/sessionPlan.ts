@@ -91,9 +91,19 @@ export function planStepsFromToolArgs(args: string): PlanStep[] {
   }
 }
 
-/** The step a reader is watching: the first one not finished, else the last. */
+/**
+ * The step a reader is watching: the one marked active, else the first not
+ * started, else none — a finished plan has no step in progress.
+ *
+ * The mark outranks position. "First one not done" reads the same on the common
+ * plan, but on a plan whose active step sits after an untouched one it names the
+ * wrong step — and that is the plan where a reader most needs to be told.
+ */
 export function activePlanStep(steps: readonly PlanStep[]): PlanStep | undefined {
-  return steps.find((step) => step.status !== "done") ?? steps.at(-1);
+  return (
+    steps.find((step) => step.status === "active") ??
+    steps.find((step) => step.status === "pending")
+  );
 }
 
 export function planProgress(steps: readonly PlanStep[]): { done: number; total: number } {

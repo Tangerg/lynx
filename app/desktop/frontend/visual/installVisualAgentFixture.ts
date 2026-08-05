@@ -27,6 +27,8 @@ import { builtinVisualStyles } from "@/plugins/builtin/theme/visualStyles";
 import lyraDark from "@/plugins/builtin/theme/themes/lyra-dark";
 import lyraLight from "@/plugins/builtin/theme/themes/lyra-light";
 import { defaultAccents } from "@/plugins/builtin/defaults";
+import goal from "@/plugins/builtin/chat/goal";
+import { GOAL_KEY, type GoalState } from "@/plugins/builtin/chat/goal/application/goalQueries";
 import planProgress from "@/plugins/builtin/chat/plan-progress";
 import { toolActions, toolIcons } from "@/plugins/builtin/chat/tools/meta";
 import { shellPreview, taskPreview } from "@/plugins/builtin/chat/tools/previews";
@@ -42,6 +44,7 @@ import { useComposerStore } from "@/plugins/builtin/chat/composer/adapters/compo
 import {
   AGENT_SESSION_SNAPSHOTS,
   AGENT_SESSION_TAIL_EVENTS,
+  VISUAL_GOALS,
   VISUAL_ROOT_RUN_ID,
   VISUAL_SESSION_ID,
   type VisualAgentState,
@@ -121,6 +124,14 @@ export async function installVisualAgentFixture(
   queryClient.setQueryData([AGENT_SESSIONS_KEY], [visualSession(state)]);
   queryClient.setQueryData([MODELS_KEY], VISUAL_MODELS);
   queryClient.setQueryData([APPROVAL_MODE_KEY], "ask");
+  // Seeded for EVERY state, null where there is no goal: an unseeded key would
+  // send the banner to a provider this fixture does not register, and "the
+  // request failed" and "there is no goal" would then look identical on screen.
+  queryClient.setQueryDefaults([GOAL_KEY], { staleTime: Infinity });
+  queryClient.setQueryData([GOAL_KEY, { sessionId: VISUAL_SESSION_ID }], {
+    available: true,
+    goal: VISUAL_GOALS[state] ?? null,
+  } satisfies GoalState);
 
   for (const plugin of [
     // The palettes and the geometry, or the fixture photographs globals.css's
@@ -144,6 +155,7 @@ export async function installVisualAgentFixture(
     messageEdit,
     messageRegenerate,
     messageFeedback,
+    goal,
     planProgress,
     toolIcons,
     toolActions,

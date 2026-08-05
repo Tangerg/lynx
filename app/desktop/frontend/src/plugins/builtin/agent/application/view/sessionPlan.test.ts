@@ -84,18 +84,38 @@ describe("what a row reports", () => {
     ],
   });
 
-  it("watches the first unfinished step", () => {
+  it("watches the step in flight", () => {
     expect(activePlanStep(steps)?.text).toBe("Write the fix");
   });
 
-  it("watches the last step once every step is done", () => {
+  it("watches the step in flight even when an untouched one comes first", () => {
+    const outOfOrder = planStepsFromArguments({
+      steps: [
+        { description: "Write the docs", status: "pending" },
+        { description: "Write the fix", status: "in_progress" },
+      ],
+    });
+    expect(activePlanStep(outOfOrder)?.text).toBe("Write the fix");
+  });
+
+  it("falls back to the next step not started", () => {
+    const notStarted = planStepsFromArguments({
+      steps: [
+        { description: "Read the code", status: "completed" },
+        { description: "Write the fix", status: "pending" },
+      ],
+    });
+    expect(activePlanStep(notStarted)?.text).toBe("Write the fix");
+  });
+
+  it("has nothing to watch once every step is done", () => {
     const done = planStepsFromArguments({
       steps: [
         { description: "Read the code", status: "completed" },
         { description: "Ship it", status: "completed" },
       ],
     });
-    expect(activePlanStep(done)?.text).toBe("Ship it");
+    expect(activePlanStep(done)).toBeUndefined();
   });
 
   it("has nothing to watch in an empty plan", () => {

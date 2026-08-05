@@ -59,6 +59,7 @@ import {
   messageFeedback,
   messageRegenerate,
 } from "./chat/message-actions";
+import goal from "./chat/goal";
 import narrativeRails from "./chat/narrative-rails";
 import planProgress from "./chat/plan-progress";
 import recipesSlash from "./chat/recipes";
@@ -81,11 +82,9 @@ import {
   diff,
   file,
   globPreview,
-  goalPreview,
   grep,
   httpPreviews,
   lspPreviews,
-  planPreview,
   recallPreviews,
   schedulePreview,
   skillPreview,
@@ -171,8 +170,6 @@ const toolRendering: PluginSpec[] = [
   webSearchPreview,
   recallPreviews,
   toolSearchPreviewPlugin,
-  planPreview,
-  goalPreview,
   schedulePreview,
   httpPreviews,
   toolActions,
@@ -253,6 +250,7 @@ const overlays: PluginSpec[] = [
   globalKeymap,
   iconGallery,
   narrativeRails,
+  goal,
   planProgress,
   providerSetup,
   sessionUsage,

@@ -362,6 +362,32 @@ test("an expanded tool row reports its subject and what it changed", async ({ pa
   await expect(row).toContainText("−1");
 });
 
+test("the goal banner reports the allowance that will run out first", async ({ page }) => {
+  await page.goto("/visual/?fixture=agent&theme=light&state=running");
+  await page.locator("html[data-visual-ready]").waitFor();
+
+  const trigger = page.getByRole("button", { name: "Show the allowance" });
+  await expect(trigger).toBeVisible();
+
+  // Cost is at 90% and runs at 35%; steps carries the biggest number and no cap
+  // at all. The collapsed row must name the axis that will stop the loop, not
+  // the loudest number on it.
+  await expect(trigger).toContainText("$4.50/$5.00");
+  await expect(trigger).not.toContainText("7/20");
+
+  await trigger.click();
+
+  // Every axis once open — and the uncapped one SAYS so instead of drawing a
+  // bar. A full track under "no limit" reads as "nearly spent", which is the
+  // opposite of what it means and which a golden cannot tell from a bar that is
+  // genuinely full.
+  const banner = page
+    .locator("[data-slot=agent-activity-disclosure]")
+    .filter({ hasText: "green on Linux" });
+  await expect(banner.locator("[role=progressbar]")).toHaveCount(2);
+  await expect(banner.getByText("no limit")).toBeVisible();
+});
+
 for (const theme of ["light", "dark"] as const) {
   for (const state of VISUAL_AGENT_STATES) {
     test(`agent golden ${theme} ${state}`, async ({ page }) => {

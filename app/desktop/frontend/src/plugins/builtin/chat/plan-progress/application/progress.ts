@@ -1,36 +1,35 @@
-import type { PlanStep } from "@/plugins/builtin/agent/public/plan";
+import { activePlanStep, planProgress, type PlanStep } from "@/plugins/builtin/agent/public/plan";
 
-export interface PlanProgress {
+/**
+ * The banner's own state: what the plan is, plus whether to be on screen.
+ *
+ * Only the visibility is decided here. Which step is current and how many are
+ * done are the plan's own projection — this module used to answer both again,
+ * with `currentPlanStep` disagreeing with `activePlanStep` about a plan whose
+ * active step follows an untouched one.
+ */
+export interface PlanBannerState {
   visible: boolean;
   total: number;
   done: number;
   percent: number;
-  current: PlanStep | null;
+  current: PlanStep | undefined;
 }
 
-export function planProgress(
+export function planBannerState(
   steps: readonly PlanStep[],
   runId: string | null,
   dismissedRunId: string | null,
-): PlanProgress {
-  const total = steps.length;
-  const done = steps.filter((step) => step.status === "done").length;
-  const current = currentPlanStep(steps);
+): PlanBannerState {
+  const { done, total } = planProgress(steps);
+  const current = activePlanStep(steps);
   const dismissed = runId !== null && runId === dismissedRunId;
 
   return {
-    visible: done < total && current !== null && !dismissed,
+    visible: current !== undefined && !dismissed,
     total,
     done,
     percent: total > 0 ? Math.round((done / total) * 100) : 0,
     current,
   };
-}
-
-export function currentPlanStep(steps: readonly PlanStep[]): PlanStep | null {
-  return (
-    steps.find((step) => step.status === "active") ??
-    steps.find((step) => step.status === "pending") ??
-    null
-  );
 }

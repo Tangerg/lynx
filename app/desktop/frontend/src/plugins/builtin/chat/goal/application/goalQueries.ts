@@ -1,8 +1,13 @@
-// The goal read model, and the key the runtime data provider fills and
-// `goals.changed` invalidates. No client reads it today: Goal mode's banner is
-// gone and how a goal surfaces instead is undecided. The KEY stays because the
-// provider and the invalidation are both live wiring on the runtime side of the
-// seam — what a future surface attaches to, not scaffolding for it.
+// The goal read model, the key the runtime data provider fills and
+// `goals.changed` invalidates, and the hook the standing banner reads it with.
+//
+// Read model, not tool results: `create_goal` / `get_goal` /
+// `report_goal_outcome` each answer a goal too, but they answer the goal AS OF
+// that call. A standing surface has to show what the goal IS, and an autonomous
+// loop moves it between calls — `goals.changed` is what keeps this current, and
+// it is why the banner does not poll.
+
+import { createParameterizedDataQuery } from "@/plugins/sdk";
 
 export const GOAL_KEY = "goal";
 
@@ -68,3 +73,5 @@ export interface GoalState {
 export interface GoalQuery {
   sessionId: string;
 }
+
+export const useGoal = createParameterizedDataQuery<GoalQuery, GoalState>(GOAL_KEY);

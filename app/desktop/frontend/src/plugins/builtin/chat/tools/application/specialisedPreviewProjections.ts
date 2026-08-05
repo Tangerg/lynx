@@ -143,35 +143,6 @@ export function projectToolSearchGroups(result: string | undefined): ToolSearchG
 
 // ── JSON-returning tools ─────────────────────────────────────────────────────
 
-export interface GoalPreview {
-  objective: string;
-  status: string;
-  reason: string;
-  runs: { used: number; max: number };
-  cost: { used: number; max: number };
-  steps: { used: number; max: number };
-  message: string;
-}
-
-/** The goal family answers `{goal: {...}, message?}` with snake_case fields. */
-export function projectGoalPreview(result: string | undefined): GoalPreview | undefined {
-  const parsed = parseJsonResult(result);
-  const goal = parsed?.goal;
-  if (typeof goal !== "object" || goal === null) return undefined;
-  const g = record(goal);
-  const budget = record(g.budget);
-  const usage = record(g.usage);
-  return {
-    objective: text(g.objective),
-    status: text(g.status),
-    reason: text(g.reason),
-    runs: { used: count(usage.runs), max: count(budget.max_runs) },
-    cost: { used: count(usage.cost_usd), max: count(budget.max_cost_usd) },
-    steps: { used: count(usage.steps), max: count(budget.max_steps) },
-    message: text(parsed?.message),
-  };
-}
-
 export interface SchedulePreview {
   id: string;
   title: string;
@@ -239,8 +210,4 @@ export function projectFetchedPage(result: string | undefined): FetchedPage | un
 
 function text(value: unknown): string {
   return typeof value === "string" ? value : "";
-}
-
-function count(value: unknown): number {
-  return typeof value === "number" && Number.isFinite(value) ? value : 0;
 }

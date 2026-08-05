@@ -4,7 +4,6 @@ import {
   projectConversationHits,
   projectFetchedPage,
   projectGlobPreview,
-  projectGoalPreview,
   projectHttpPreview,
   projectRecalledMemories,
   projectSchedulePreviews,
@@ -109,25 +108,6 @@ describe("prose tool results", () => {
 });
 
 describe("structured tool results", () => {
-  it("reads a goal's objective, status and both sides of every budget axis", () => {
-    expect(
-      projectGoalPreview(
-        '{"goal":{"session_id":"ses_1","objective":"Ship the retry fix","status":"active","budget":{"max_runs":20,"max_cost_usd":5},"usage":{"runs":7,"cost_usd":1.25,"steps":31}},"message":"Goal started."}',
-      ),
-    ).toEqual({
-      objective: "Ship the retry fix",
-      status: "active",
-      reason: "",
-      runs: { used: 7, max: 20 },
-      cost: { used: 1.25, max: 5 },
-      // An omitted max is uncapped on that axis, which the preview renders as no bar
-      // rather than as a full one.
-      steps: { used: 31, max: 0 },
-      message: "Goal started.",
-    });
-    expect(projectGoalPreview('{"message":"no goal"}')).toBeUndefined();
-  });
-
   it("reads one created schedule and a whole list through the same reader", () => {
     const one = projectSchedulePreviews(
       '{"schedule":{"schedule_id":"sch_1","title":"Nightly audit","cron":"0 3 * * *","instructions":"audit deps","enabled":true,"next_run_at":"2026-08-05T03:00:00Z"}}',

@@ -1,5 +1,6 @@
 import type { Item, RunEvent, RunProtocolProfile, RunRef, StreamEvent } from "@/rpc";
 import type { AgentSessionSnapshot } from "@/plugins/builtin/agent/application/ports/runtimeGateway";
+import type { GoalReadModel } from "@/plugins/builtin/chat/goal/application/goalQueries";
 
 export const VISUAL_AGENT_STATES = [
   "empty",
@@ -821,6 +822,39 @@ export const AGENT_SESSION_TAIL_EVENTS: Readonly<Record<VisualAgentState, RunEve
     tailEvent(1, { type: "item.started", item: WAVE_LIVE_REASONING }),
     tailEvent(2, { type: "item.started", item: WAVE_LIVE_TOOL }),
   ],
+};
+
+/**
+ * The session's standing order, for the states that have one.
+ *
+ * Beside the snapshot rather than inside it: a Goal is session state the runtime
+ * answers for through `goals.get`, not an Item in the transcript — which is the
+ * whole reason it gets a pinned banner instead of a card.
+ *
+ * `running` is deliberately the state that has one, so a golden frames the goal
+ * and plan banners STACKED — how much of the reading column those two claim
+ * together is the layout question, and neither alone can answer it.
+ */
+export const VISUAL_GOALS: Partial<Record<VisualAgentState, GoalReadModel>> = {
+  running: {
+    sessionId: SESSION_ID,
+    objective: "Get the desktop suite green on Linux without loosening any gate or skipping a test",
+    status: "active",
+    stop: null,
+    // Cost is at 90% while runs is at 35%: the collapsed row must report the axis
+    // that will stop the loop first, not the largest number on screen. Steps is
+    // uncapped, which the expanded view states instead of drawing a full bar.
+    budget: { maxRuns: 20, maxCostUsd: 5, maxSteps: 0 },
+    used: { runs: 7, costUsd: 4.5, steps: 31 },
+  },
+  terminal: {
+    sessionId: SESSION_ID,
+    objective: "Get the desktop suite green on Linux",
+    status: "paused",
+    stop: { code: "costBudgetReached", detail: "" },
+    budget: { maxRuns: 20, maxCostUsd: 5, maxSteps: 0 },
+    used: { runs: 12, costUsd: 5, steps: 58 },
+  },
 };
 
 export const VISUAL_SESSION_ID = SESSION_ID;

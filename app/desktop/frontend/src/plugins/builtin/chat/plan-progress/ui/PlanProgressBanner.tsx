@@ -7,7 +7,7 @@ import { disclosureTransition } from "@/lib/motion";
 import { useT } from "@/lib/i18n";
 import { useCurrentRootRunId } from "@/plugins/builtin/agent/public/run";
 import { useSessionPlan, type PlanStep } from "@/plugins/builtin/agent/public/plan";
-import { planProgress } from "../application/progress";
+import { planBannerState } from "../application/progress";
 
 export function PlanProgressBanner() {
   const t = useT();
@@ -15,7 +15,7 @@ export function PlanProgressBanner() {
   const runId = useCurrentRootRunId();
   const [dismissedRunId, setDismissedRunId] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
-  const progress = planProgress(steps, runId, dismissedRunId);
+  const progress = planBannerState(steps, runId, dismissedRunId);
 
   useEffect(() => {
     setExpanded(false);

@@ -5,11 +5,9 @@ import {
   diffToolPreviews,
   fileToolPreview,
   globToolPreview,
-  goalToolPreviews,
   grepToolPreview,
   httpToolPreviews,
   lspToolPreview,
-  planToolPreview,
   recallToolPreviews,
   scheduleToolPreviews,
   shellToolPreviews,
@@ -52,12 +50,6 @@ describe("tool preview contributions", () => {
       "search_conversations",
     ]);
     expect(keys(toolSearchPreview(Preview))).toEqual(["search_tools"]);
-    expect(keys(planToolPreview(Preview))).toEqual(["set_plan"]);
-    expect(keys(goalToolPreviews(Preview))).toEqual([
-      "create_goal",
-      "get_goal",
-      "report_goal_outcome",
-    ]);
     expect(keys(scheduleToolPreviews(Preview))).toEqual(["create_schedule", "list_schedules"]);
     expect(keys(httpToolPreviews(Preview, Preview))).toEqual(["http_request", "web_fetch"]);
   });
@@ -86,11 +78,9 @@ describe("tool preview contributions", () => {
         ...diffToolPreviews(Preview),
         ...fileToolPreview(Preview),
         ...globToolPreview(Preview),
-        ...goalToolPreviews(Preview),
         ...grepToolPreview(Preview),
         ...httpToolPreviews(Preview, Preview),
         ...lspToolPreview(Preview),
-        ...planToolPreview(Preview),
         ...recallToolPreviews(Preview, Preview),
         ...scheduleToolPreviews(Preview),
         ...shellToolPreviews(Preview),
@@ -109,6 +99,13 @@ describe("tool preview contributions", () => {
       "exit_plan_mode",
       "delete_schedule",
       "read_tool_result",
+      // The plan and goal families report through their own pinned banners, which
+      // show what the plan IS and what the allowance has LEFT. A card would answer
+      // the same question a second time, frozen at the moment of the call.
+      "set_plan",
+      "create_goal",
+      "get_goal",
+      "report_goal_outcome",
     ]);
 
     const undecided = Object.keys(DEFAULT_TOOL_ICONS).filter(

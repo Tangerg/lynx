@@ -78,17 +78,11 @@ export function toolSearchPreview(component: ToolPreviewComponent): ToolPreviewC
   return toolPreviews(component, ["search_tools"]);
 }
 
-// Only set_plan gets a preview: enter/exit answer in one sentence, and
-// exit_plan_mode's row is dropped whenever its question card is present.
-export function planToolPreview(component: ToolPreviewComponent): ToolPreviewContribution[] {
-  return toolPreviews(component, ["set_plan"]);
-}
-
-// The three goal operations answer the same { goal, message } envelope, so one
-// preview reads all three — what differs is which of them wrote it.
-export function goalToolPreviews(component: ToolPreviewComponent): ToolPreviewContribution[] {
-  return toolPreviews(component, ["create_goal", "get_goal", "report_goal_outcome"]);
-}
+// No preview for the plan or goal families. Both are STANDING state — what the
+// plan is, what the goal's allowance has left — and both have a pinned banner
+// that says so. A card in the transcript would answer the same question a second
+// time, as of whenever that call happened, and scroll away. The tool row still
+// records that the call was made and what it moved.
 
 // Creating answers with one schedule, listing with many; the preview renders rows
 // either way. delete_schedule answers `{schedule_id}` — a receipt, not a view.
