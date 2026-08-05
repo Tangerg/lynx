@@ -110,3 +110,29 @@
 - 当前 Host 将 executor checkpoint 当 opaque value 使用，这支持 Framework capture/restore 边界；Host 不应解析 Strategy state。子执行准入和持久提交仍是 Host 策略，不能升级成 Framework 的 Store、transaction、lease 或幂等模型。
 
 以上证据只约束行为和边界，不授权将任何 Host DTO、存储协议、产品生命周期或交付模型复制进 `agent2`。
+
+## 8. P3 Interaction 专项审计证据
+
+### 8.1 保留的领域规则
+
+- 旧 `toolloop` 已证明模型产生的 ToolCall 次序是后续 WorkingContext 的权威顺序；即使安全工具并行结算，ToolResult 也必须按原 ToolCall 顺序稳定归并。
+- 并行不能由 Runner 根据工具名或参数猜测。未声明的工具默认独占；只有工具显式声明可并行且资源键不冲突时，才能在配置上限内并行。
+- 暂停点必须携带已结算结果、待执行后缀、当前等待请求和完整 WorkingContext，从而在恢复后不重调模型、不重执行已结算工具，并继续产生确定的下一轮请求。
+- `chat.ResponseAccumulator` 是流式响应得到最终语义响应的权威机制；Delta 只是 best-effort 观察，不是恢复时的真相源。
+- `chatclient` 已经拥有请求快照、默认选项和 call/stream middleware，`tool` 已经拥有工具定义、严格入参解码和 decorator capability 查找；Interaction 必须复用这两个基础包，不复制 Model、Message、Tool 或 Schema 协议。
+
+### 8.2 治本式移除的旧设计
+
+- 不再同时公开 `interaction` 数据协议和 `toolloop.Runner` 两层概念；工具循环是 Interaction Execution 的内部推进机制，不是第二个生命周期入口。
+- 不复制旧 `Suspension.ID`/`PauseError.ID` 由 Tool 或 Strategy 铸造等待身份的做法；新 Interaction 只声明私有 WaitKey，WaitID 必须由 Engine 根据 prepared Effect 稳定铸造。
+- 不保留 `Continue`/`ContinuePaused`/`Resume` 多个 Runner 推进入口；所有正常推进只经 `Execution.Step`，外部回答和 steer 都是 Engine mailbox 中的 opaque Signal。
+- 不保留通过聊天 middleware 侧路注入 steer 的做法；Interaction 只在已开始的 model Effect 或 Tool batch 全部结算后、下一 model Effect 前的安全 Step 消费 steer。
+- 不保留同步 observer 失败或 panic 可以杀死运行的合同；Event/Delta listener 继续由 Engine 隔离，恢复不补播历史 Delta。
+- 不把产品 conversation/history、价格投影、run/segment、存储 checkpoint 或业务审批 DTO 带入 Interaction；其 ExecutionState 只持有精确恢复所需的 WorkingContext 和策略私有检查点。
+
+### 8.3 P3 实现边界
+
+- Model call 和 Tool batch 都是 dispatcher-owned Effect；Execution 只解释对应 settlement Signal 并产生下一个 Transition。
+- 工具要求外部输入时，Tool batch settlement 保存确定的已结算前缀和 Strategy-owned 等待 payload；随后的 Framework wait Effect 只负责返回 Engine-minted WaitID。
+- 对一个已经返回 definite settlement 的 Effect 绝不重投；恢复时处于 unknown 的不可证明副作用继续由 Process 显式裁决，Interaction 不擅自重试。
+- 工具的可恢复人机交互必须在产生副作用前请求输入，或自行使用其私有 continuation state 证明重新进入不会重复副作用；Framework 不虚构外部事务或补偿保证。
