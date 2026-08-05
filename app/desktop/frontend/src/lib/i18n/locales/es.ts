@@ -562,7 +562,7 @@ export const es: Record<string, string> = {
 
   // ── Paleta de comandos ──
   "commandPalette.label": "Paleta de comandos",
-  "commandPalette.placeholder": "Escribe un comando…",
+  "commandPalette.placeholder": "Buscar comandos, paneles y sesiones…",
   "commandPalette.empty": "Sin comandos coincidentes",
 
   // ── Atajos de teclado ──
@@ -940,6 +940,7 @@ export const es: Record<string, string> = {
   "codebase.unavailable.title": "La búsqueda en la base de código no está disponible",
   "codebase.unavailable.sub":
     "Este runtime no ha habilitado la capacidad de índice de la base de código.",
+  "commandPalette.panels": "Paneles",
   "commandPalette.sessions": "Sesiones",
   "diff.layoutAria": "Disposición del diff",
   "diff.layout.unified": "Unificada",

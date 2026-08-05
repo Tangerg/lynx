@@ -817,8 +817,9 @@ export const en: Record<string, string> = {
 
   // ── Command palette ──
   "commandPalette.label": "Command palette",
-  "commandPalette.placeholder": "Type a command or search sessions…",
+  "commandPalette.placeholder": "Search commands, panels and sessions…",
   "commandPalette.empty": "No commands match",
+  "commandPalette.panels": "Panels",
   "commandPalette.sessions": "Sessions",
 
   // ── Keyboard shortcuts ──

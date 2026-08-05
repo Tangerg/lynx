@@ -30,6 +30,10 @@ export function commandPaletteCommand(openPalette: CommandRun): CommandSpec {
     icon: "command",
     group: "command.group.general",
     keywords: ["palette", "search", "command"],
+    // Not a row inside the palette: "Open command palette" offered to open the
+    // thing already open. The command still exists because it owns the ⌘K
+    // binding — the shortcut is what it is for, the row was never useful.
+    when: "!paletteOpen",
     combo: "Mod+K",
     run: openPalette,
   };

@@ -555,7 +555,7 @@ export const ja: Record<string, string> = {
 
   // ── コマンドパレット ──
   "commandPalette.label": "コマンドパレット",
-  "commandPalette.placeholder": "コマンドを入力…",
+  "commandPalette.placeholder": "コマンド・パネル・セッションを検索…",
   "commandPalette.empty": "一致するコマンドはありません",
 
   // ── キーボードショートカット ──
@@ -930,6 +930,7 @@ export const ja: Record<string, string> = {
     "「設定 → プロバイダー」で埋め込みモデルを選ぶと、セマンティックコード検索が有効になります。",
   "codebase.unavailable.title": "コードベース検索は利用できません",
   "codebase.unavailable.sub": "このランタイムはコードベースインデックス機能を有効にしていません。",
+  "commandPalette.panels": "パネル",
   "commandPalette.sessions": "セッション",
   "diff.layoutAria": "差分レイアウト",
   "diff.layout.unified": "統合",

@@ -555,7 +555,7 @@ export const zhTW: Record<string, string> = {
 
   // ── 命令面板 ──
   "commandPalette.label": "命令面板",
-  "commandPalette.placeholder": "輸入命令…",
+  "commandPalette.placeholder": "搜尋命令、面板與工作階段…",
   "commandPalette.empty": "無符合命令",
 
   // ── 鍵盤快速鍵 ──
@@ -922,6 +922,7 @@ export const zhTW: Record<string, string> = {
   "codebase.disabled.sub": "在「設定 → 供應商」中選一個 embedding 模型即可啟用語意程式碼搜尋。",
   "codebase.unavailable.title": "程式庫搜尋不可用",
   "codebase.unavailable.sub": "此執行時未啟用程式庫索引能力。",
+  "commandPalette.panels": "面板",
   "commandPalette.sessions": "工作階段",
   "mcp.import.hint": '貼上一段 Claude Desktop 設定區塊 —— 在 "mcpServers" 下的一個或多個伺服器。',
 

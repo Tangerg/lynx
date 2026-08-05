@@ -24,7 +24,11 @@ export const floatingRowStyles = cva(
     "text-ui-md text-fg outline-none transition-colors",
     // Hover first so a selected row that is also hovered stays selected.
     "hover:bg-hover",
-    "aria-selected:bg-selected data-[highlighted]:bg-hover data-[selected]:bg-selected",
+    // Every one of these is VALUE-matched. `data-[selected]` tests the attribute's
+    // presence, and cmdk writes `data-selected="false"` on every item it renders —
+    // so the unselected rows took the selected wash too, and a command palette was
+    // a stack of filled pills with nothing to say which row the keyboard was on.
+    "aria-selected:bg-selected data-[highlighted]:bg-hover data-[selected=true]:bg-selected",
   ].join(" "),
   {
     variants: {

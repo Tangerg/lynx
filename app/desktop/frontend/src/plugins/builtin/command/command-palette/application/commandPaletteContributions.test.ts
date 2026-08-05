@@ -52,6 +52,9 @@ describe("commandPaletteCommand", () => {
       icon: "command",
       group: "command.group.general",
       keywords: ["palette", "search", "command"],
+      // Hidden while the palette is open: the row offered to open the thing
+      // already open. The command stays because it owns the ⌘K binding.
+      when: "!paletteOpen",
       combo: "Mod+K",
       run: openPalette,
     });

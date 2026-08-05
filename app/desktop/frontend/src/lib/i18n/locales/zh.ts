@@ -733,7 +733,7 @@ export const zh: Record<string, string> = {
 
   // ── 命令面板 ──
   "commandPalette.label": "命令面板",
-  "commandPalette.placeholder": "输入命令…",
+  "commandPalette.placeholder": "搜索命令、面板与会话…",
   "commandPalette.empty": "无匹配命令",
 
   // ── 键盘快捷键 ──
@@ -924,6 +924,7 @@ export const zh: Record<string, string> = {
   "agentMemory.noProject.title": "没有项目会话",
   "agentMemory.noProject.sub": "打开或选择一个会话以审阅其项目记忆。切到「用户」可查看跨项目记忆。",
   "agentMemory.error": "无法更新记忆。",
+  "commandPalette.panels": "面板",
   "commandPalette.sessions": "会话",
 
   "rpcError.session_has_active_run": "该会话已有一个运行中的任务 —— 请先介入、回应或取消它。",

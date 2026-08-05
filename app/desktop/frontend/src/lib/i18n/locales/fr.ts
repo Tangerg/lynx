@@ -564,7 +564,7 @@ export const fr: Record<string, string> = {
 
   // ── Palette de commandes ──
   "commandPalette.label": "Palette de commandes",
-  "commandPalette.placeholder": "Saisir une commande…",
+  "commandPalette.placeholder": "Rechercher commandes, panneaux et sessions…",
   "commandPalette.empty": "Aucune commande trouvée",
 
   // ── Raccourcis clavier ──
@@ -945,6 +945,7 @@ export const fr: Record<string, string> = {
     "Choisissez un modèle d'embedding dans Réglages → Fournisseurs pour activer la recherche sémantique de code.",
   "codebase.unavailable.title": "Recherche dans la base de code indisponible",
   "codebase.unavailable.sub": "Cette runtime n'a pas activé l'indexation de la base de code.",
+  "commandPalette.panels": "Panneaux",
   "commandPalette.sessions": "Sessions",
   "diff.layoutAria": "Disposition du diff",
   "diff.layout.unified": "Unifiée",

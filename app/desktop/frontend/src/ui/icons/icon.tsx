@@ -12,6 +12,7 @@ import {
   ChartColumn,
   Check,
   ChevronDown,
+  ChevronLeft,
   ChevronRight,
   ChevronUp,
   CircleHelp,
@@ -154,6 +155,7 @@ export type IconName =
   | "copy"
   | "chevron-up"
   | "chevron-down"
+  | "chevron-left"
   | "chevron-right"
   | "panel-r"
   | "arrow-down"
@@ -256,6 +258,7 @@ const ICON_MAP = {
   copy: Copy,
   "chevron-up": ChevronUp,
   "chevron-down": ChevronDown,
+  "chevron-left": ChevronLeft,
   "chevron-right": ChevronRight,
   "arrow-down": ArrowDown,
   "arrow-left": ArrowLeft,

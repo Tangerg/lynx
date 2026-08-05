@@ -551,7 +551,7 @@ export const ko: Record<string, string> = {
 
   // ── 명령 팔레트 ──
   "commandPalette.label": "명령 팔레트",
-  "commandPalette.placeholder": "명령 입력…",
+  "commandPalette.placeholder": "명령, 패널, 세션 검색…",
   "commandPalette.empty": "일치하는 명령 없음",
 
   // ── 키보드 단축키 ──
@@ -920,6 +920,7 @@ export const ko: Record<string, string> = {
   "codebase.disabled.sub": "설정 → 제공자에서 임베딩 모델을 고르면 의미 코드 검색이 켜집니다.",
   "codebase.unavailable.title": "코드베이스 검색을 사용할 수 없습니다",
   "codebase.unavailable.sub": "이 런타임은 코드베이스 색인 기능을 켜지 않았습니다.",
+  "commandPalette.panels": "패널",
   "commandPalette.sessions": "세션",
   "diff.layoutAria": "diff 레이아웃",
   "diff.layout.unified": "통합",

@@ -563,7 +563,7 @@ export const de: Record<string, string> = {
 
   // ── Befehlspalette ──
   "commandPalette.label": "Befehlspalette",
-  "commandPalette.placeholder": "Befehl eingeben…",
+  "commandPalette.placeholder": "Befehle, Panels und Sitzungen suchen…",
   "commandPalette.empty": "Keine Befehle gefunden",
 
   // ── Tastaturkürzel ──
@@ -943,6 +943,7 @@ export const de: Record<string, string> = {
     "Wähle in Einstellungen → Anbieter ein Embedding-Modell, um die semantische Code-Suche zu aktivieren.",
   "codebase.unavailable.title": "Codebasis-Suche nicht verfügbar",
   "codebase.unavailable.sub": "Diese Runtime hat die Codebasis-Index-Funktion nicht aktiviert.",
+  "commandPalette.panels": "Panels",
   "commandPalette.sessions": "Sitzungen",
   "diff.layoutAria": "Diff-Layout",
   "diff.layout.unified": "Vereinheitlicht",

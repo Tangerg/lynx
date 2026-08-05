@@ -1,4 +1,4 @@
-import type { CommandSpec, MessageRoleSpec, AccentSpec, WorkspaceViewSpec } from "@/plugins/sdk";
+import type { AccentSpec, CommandSpec, MessageRoleSpec } from "@/plugins/sdk";
 
 export type CommandRun = CommandSpec["run"];
 
@@ -11,17 +11,6 @@ export interface DefaultCommandRuns {
   historyBack: CommandRun;
   historyForward: CommandRun;
 }
-
-/** The two placements a view can be opened into. Which one a command uses is the
- *  view's own `splittable`, not the caller's guess — the palette used to send
- *  everything to the full card, so the same destination behaved differently
- *  depending on whether you reached it from the palette or the dock. */
-export interface WorkspaceViewOpeners {
-  openInDock: (id: WorkspaceViewSpec["id"]) => void;
-  openFull: (id: WorkspaceViewSpec["id"]) => void;
-}
-
-export type AccentSetter = (accent: AccentSpec["dark"]) => void;
 
 // The tool-window accent set. Each `dark` value is the hue as the language states
 // it; `light` is the same hue pulled down until it clears 4.5:1 as text on the
@@ -158,43 +147,4 @@ export function defaultStaticCommands(runs: DefaultCommandRuns): CommandSpec[] {
       run: runs.historyForward,
     },
   ];
-}
-
-export function defaultWorkspaceViewCommands(
-  views: WorkspaceViewSpec[],
-  open: WorkspaceViewOpeners,
-): CommandSpec[] {
-  return [...views]
-    .sort((a, b) => (a.order ?? 100) - (b.order ?? 100))
-    .map((view) => ({
-      id: `view.open.${view.id}`,
-      // The view's own title key; the group column beside it already says "View",
-      // which is what the old "View: {title}" label was repeating.
-      label: view.title,
-      icon: view.icon,
-      group: "command.group.view",
-      order: 10,
-      keywords: ["open", "show", view.id],
-      when: `mainView != "${view.id}"`,
-      run: () => (view.splittable ? open.openInDock(view.id) : open.openFull(view.id)),
-    }));
-}
-
-export function defaultAccentCommands(
-  accents: AccentSpec[],
-  setAccent: AccentSetter,
-): CommandSpec[] {
-  return [...accents]
-    .sort((a, b) => (a.order ?? 100) - (b.order ?? 100))
-    .map((accent) => ({
-      id: `theme.accent.${accent.id}`,
-      // A colour's own name — a proper noun, not copy, so it passes through the
-      // catalog unchanged. "accent" stays findable through the keywords.
-      label: accent.label,
-      icon: "spark",
-      group: "command.group.theme",
-      keywords: ["accent", "color", "colour"],
-      order: 10,
-      run: () => setAccent(accent.dark),
-    }));
 }
