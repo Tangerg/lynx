@@ -56,6 +56,13 @@ export interface ToolCall {
    *  failures set the toolCall Item's `error`. */
   exitCode?: number;
   result?: string;
+  /** fileEdit-category: the head of what a `write` put in the file, from the call's
+   *  own arguments — a write reports no diff rows, so this is the only route the
+   *  content has to the row that names it. Bounded on purpose: a session holds every
+   *  call it made, and the row can only show a handful of lines. */
+  written?: string[];
+  /** How many lines the write had in total, so the row can say what `written` omits. */
+  writtenLines?: number;
   /** command-category: the shell command this call ran (`arguments.command`). The
    *  label is the human `description` the runtime requires, so the command needs a
    *  field of its own — it is the line a reader verifies. */

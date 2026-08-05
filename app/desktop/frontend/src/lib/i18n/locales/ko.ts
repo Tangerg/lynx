@@ -105,6 +105,8 @@ export const ko: Record<string, string> = {
   "plan.complete": "{{total}}개 중 {{done}}개 완료",
 
   "tools.preview.openTerminal": "터미널에서 열기",
+  "tools.preview.idle.noChanges": "표시할 변경 사항이 없습니다",
+  "tools.overflow.lines2": "{{count}}줄 더",
   "tools.preview.openDiff": "전체 diff 열기",
   "tools.preview.viewFile": "전체 파일 보기",
   "tools.preview.viewMatches": "모든 일치 보기",

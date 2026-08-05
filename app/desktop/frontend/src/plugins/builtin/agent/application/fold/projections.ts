@@ -143,6 +143,31 @@ function editChanges(result: unknown): unknown[] {
  * so this returns {} rather than a fabricated zero — which the row would then have
  * to decide not to draw.
  */
+/**
+ * The head of what a `write` wrote, from the call's own arguments.
+ *
+ * A write reports `{path, status}` and no diff rows — there is nothing to diff a new
+ * file against — and `argsText` gives a non-generic tool no argument text, so the
+ * content reached the view through no route at all: the card's body was EMPTY, for a
+ * row that had just written the file it names.
+ *
+ * The HEAD, not the content. A session holds every call it ever made, and a write's
+ * argument can be a whole file; what the row can show is a handful of lines, so that
+ * is what is kept. The full text stays where it already is — on disk, behind the row's
+ * own "open" affordance.
+ */
+const WRITTEN_HEAD_LINES = 40;
+
+function writtenHead(args: Record<string, unknown> | undefined): Partial<ToolCall> {
+  const content = asString(args?.content);
+  if (content === undefined || content === "") return {};
+  const lines = content.replace(/\n+$/, "").split("\n");
+  return {
+    written: lines.slice(0, WRITTEN_HEAD_LINES),
+    writtenLines: lines.length,
+  };
+}
+
 function editLineCounts(result: unknown): Partial<ToolCall> {
   const changes = editChanges(result);
   if (changes.length === 0) return {};
@@ -337,6 +362,7 @@ function categoryFields(
       const changes = editChanges(tool.result);
       return {
         ...editLineCounts(tool.result),
+        ...writtenHead(tool.arguments),
         ...(changes.length > 1 ? { files: changes.length } : {}),
       };
     }

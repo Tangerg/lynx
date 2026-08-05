@@ -106,6 +106,8 @@ export const fr: Record<string, string> = {
   "plan.complete": "{{done}} sur {{total}} terminées",
 
   "tools.preview.openTerminal": "Ouvrir dans le terminal",
+  "tools.preview.idle.noChanges": "Aucune modification",
+  "tools.overflow.lines2": "{{count}} lignes de plus",
   "tools.preview.openDiff": "Ouvrir le diff complet",
   "tools.preview.viewFile": "Voir le fichier entier",
   "tools.preview.viewMatches": "Voir toutes les correspondances",

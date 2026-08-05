@@ -217,6 +217,32 @@ const SHELL_COMMAND: Item = {
   },
 };
 
+// A write, as a write actually arrives: {path, status} and no diff rows, because there
+// is nothing to diff a new file against. Its card body was blank until now, and no
+// fixture had one — every diff row in here came from an `edit`.
+const WRITE_NEW_FILE: Item = {
+  type: "toolCall",
+  safetyClass: "write",
+  id: "item_shells_write",
+  runId: ROOT_RUN_ID,
+  status: "completed",
+  startedAt: CREATED_AT,
+  durationMs: 40,
+  tool: {
+    name: "write",
+    arguments: {
+      path: "app/runtime/internal/session/atomicity.md",
+      content: [
+        "# Atomicity",
+        "",
+        "The framework exposes execution primitives.",
+        "The application owns persistence, idempotency and transaction policy.",
+      ].join("\n"),
+    },
+    result: { changes: [{ path: "app/runtime/internal/session/atomicity.md", status: "added" }] },
+  },
+};
+
 const SHELL_FAILED: Item = {
   type: "toolCall",
   safetyClass: "write",
@@ -851,7 +877,16 @@ export const AGENT_SESSION_SNAPSHOTS: Readonly<Record<VisualAgentState, AgentSes
         metrics: { steps: 5, activeDurationMs: 12_000 },
       }),
     ],
-    items: [PROMPT, SHELL_READ, SHELL_COMMAND, SHELL_EDIT, SHELL_FAILED, SHELL_DENIED, RESPONSE],
+    items: [
+      PROMPT,
+      SHELL_READ,
+      SHELL_COMMAND,
+      SHELL_EDIT,
+      WRITE_NEW_FILE,
+      SHELL_FAILED,
+      SHELL_DENIED,
+      RESPONSE,
+    ],
     pendingInterruptSets: [],
   },
 

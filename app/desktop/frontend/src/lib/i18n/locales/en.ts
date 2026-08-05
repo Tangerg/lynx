@@ -118,6 +118,8 @@ export const en: Record<string, string> = {
   "plan.complete": "{{done}} of {{total}} complete",
 
   "tools.preview.openTerminal": "Open in Terminal",
+  "tools.preview.idle.noChanges": "No changes to show",
+  "tools.overflow.lines2": "{{count}} more lines",
   "tools.preview.openDiff": "Open full diff",
   "tools.preview.viewFile": "View full file",
   "tools.preview.viewMatches": "View all matches",

@@ -105,6 +105,8 @@ export const ja: Record<string, string> = {
   "plan.complete": "{{total}} 件中 {{done}} 件完了",
 
   "tools.preview.openTerminal": "ターミナルで開く",
+  "tools.preview.idle.noChanges": "表示する変更はありません",
+  "tools.overflow.lines2": "他 {{count}} 行",
   "tools.preview.openDiff": "完全な diff を開く",
   "tools.preview.viewFile": "ファイル全体を表示",
   "tools.preview.viewMatches": "すべての一致を表示",

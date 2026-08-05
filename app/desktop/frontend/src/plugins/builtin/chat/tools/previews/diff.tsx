@@ -10,6 +10,7 @@ import { TOOL_PREVIEW } from "@/plugins/sdk/kernelPoints";
 import { useDiffToolPreview } from "@/plugins/builtin/chat/tools/application/toolPreviewQueries";
 import { diffToolPreviews } from "@/plugins/builtin/chat/tools/application/toolPreviewContributions";
 import { TEXT_PREVIEW_CLASS } from "./previewChrome";
+import { PreviewPlaceholder } from "@/plugins/builtin/chat/tools/public/previews/PreviewPlaceholder";
 
 const MAX_DIFF_ROWS = 8;
 
@@ -43,6 +44,49 @@ function DiffPreview({ tool, onOpenView }: ToolPreviewProps) {
   // (no call-scoped diff) or until the completed item carries one; each file's
   // path becomes a hunk-style separator row so MAX_DIFF_ROWS stays one slice.
   const { rows, truncated, hiddenRows } = useDiffToolPreview(tool, MAX_DIFF_ROWS);
+  // A write has no diff rows and no git history to make some from, so the body used to
+  // be blank — a row that had just written a file showed a path and a link to a diff
+  // that did not exist. What it wrote is in its own arguments.
+  const written = rows.length === 0 ? (tool.written ?? []) : [];
+  if (rows.length === 0) {
+    return (
+      <div className={TEXT_PREVIEW_CLASS}>
+        {written.length === 0 ? (
+          <PreviewPlaceholder
+            status={tool.status}
+            pending="tools.preview.pending.running"
+            idle="tools.preview.idle.noChanges"
+          />
+        ) : (
+          <>
+            <div className="font-mono text-ui-sm leading-body">
+              {written.slice(0, MAX_DIFF_ROWS).map((line, i) => (
+                <div
+                  key={i}
+                  className={cn(
+                    "grid grid-cols-[1.25rem_minmax(0,1fr)] items-start px-0.5",
+                    ROW_STYLE.added.tone,
+                  )}
+                >
+                  <span className={cn("text-center select-none", ROW_STYLE.added.meta)}>+</span>
+                  <span className="min-w-0 whitespace-pre-wrap wrap-anywhere">{line}</span>
+                </div>
+              ))}
+            </div>
+            {(tool.writtenLines ?? written.length) > MAX_DIFF_ROWS && (
+              <div className="pt-1 text-fg-faint">
+                …{" "}
+                {t("tools.overflow.lines2", {
+                  count: (tool.writtenLines ?? written.length) - MAX_DIFF_ROWS,
+                })}
+              </div>
+            )}
+          </>
+        )}
+        <PreviewFoot label="tools.preview.openDiff" onClick={onOpenView} />
+      </div>
+    );
+  }
   return (
     <div className={TEXT_PREVIEW_CLASS}>
       <div className="font-mono text-ui-sm leading-body">

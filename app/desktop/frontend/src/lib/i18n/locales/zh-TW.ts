@@ -107,6 +107,8 @@ export const zhTW: Record<string, string> = {
   "plan.complete": "已完成 {{done}} / {{total}}",
 
   "tools.preview.openTerminal": "在終端機開啟",
+  "tools.preview.idle.noChanges": "沒有可顯示的變更",
+  "tools.overflow.lines2": "還有 {{count}} 行",
   "tools.preview.openDiff": "開啟完整 diff",
   "tools.preview.viewFile": "檢視完整檔案",
   "tools.preview.viewMatches": "檢視所有符合",

@@ -113,6 +113,8 @@ export const zh: Record<string, string> = {
   "plan.complete": "已完成 {{done}} / {{total}}",
 
   "tools.preview.openTerminal": "在终端打开",
+  "tools.preview.idle.noChanges": "没有可显示的改动",
+  "tools.overflow.lines2": "还有 {{count}} 行",
   "tools.preview.openDiff": "打开完整 diff",
   "tools.preview.viewFile": "查看完整文件",
   "tools.preview.viewMatches": "查看所有匹配",
