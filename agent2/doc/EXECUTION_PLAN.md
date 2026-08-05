@@ -3,12 +3,12 @@
 > 状态：持续实施
 > 建立日期：2026-08-06
 > 最后更新：2026-08-06
-> 当前阶段：P0 模块边界与文档分层，5/5 完成
+> 当前阶段：P0 模块边界与设计合同，6/6 完成
 > 当前实施范围：仅 `agent2`
 > 临时模块路径：`github.com/Tangerg/lynx/agent2`
 > 最终模块路径：`github.com/Tangerg/lynx/agent`
 
-本文只记录实施范围、阶段任务、当前进度、风险、验证结果和执行日志。目标架构见 [`ARCHITECTURE.md`](ARCHITECTURE.md)，长期决策见 [`DECISIONS.md`](DECISIONS.md)，强制工程标准见 [`ENGINEERING_STANDARDS.md`](ENGINEERING_STANDARDS.md)。
+本文只记录实施范围、阶段任务、当前进度、风险、验证结果和执行日志。目标架构见 [`ARCHITECTURE.md`](ARCHITECTURE.md)，长期决策见 [`DECISIONS.md`](DECISIONS.md)，能力裁决与消费者证据见 [`CAPABILITY_LEDGER.md`](CAPABILITY_LEDGER.md)，强制工程标准见 [`ENGINEERING_STANDARDS.md`](ENGINEERING_STANDARDS.md)。
 
 ---
 
@@ -66,15 +66,15 @@ go test ./...
 
 | 阶段 | 状态 | 进度 | 目标 |
 |---|---|---:|---|
-| P0 模块边界与文档分层 | 完成 | 5/5 | 建立独立 module，拆分架构、决策、工程标准和进度事实，并接入模块级指引 |
-| P1 公共窄腰与状态机 | 未开始 | 0/7 | 用多策略原型验证 Definition/Execution/Transition/Process |
-| P2 Engine 最小执行闭环 | 未开始 | 0/6 | 单 Process 调度、生命周期、snapshot、event、limit |
-| P3 Interaction | 未开始 | 0/8 | 原生模型/工具循环、流、checkpoint、HITL、结构化输出 |
-| P4 子 Process 组合 | 未开始 | 0/7 | start/wait、递归、并行、预算、取消、恢复 |
+| P0 模块边界与设计合同 | 完成 | 6/6 | 建立独立 module、分层文档、能力台账和候选合同 |
+| P1 候选窄腰与消费审计 | 未开始 | 0/9 | 用只读审计和多策略 spike 验证 erased wire、协议与状态机，不冻结 API |
+| P2 Engine 最小执行闭环 | 未开始 | 0/8 | 单 Process、Signal、Effect、状态提交、snapshot、event/delta、limit |
+| P3 真实 Interaction 验证 | 未开始 | 0/9 | 真实模型/工具 dispatcher、流、HITL、steer，并接入 disposable consumer |
+| P4 子 Process 组合与合同冻结 | 未开始 | 0/9 | start/wait、递归、组合、预算、取消、恢复；多消费方验证后冻结窄腰 |
 | P5 Planning 与 GOAP | 未开始 | 0/8 | Planning 状态、Planner SPI、GOAP 搜索与 replan |
 | P6 Workflow | 未开始 | 0/8 | 原生 sequence/gate/router/fork/join/loop/agent call |
-| P7 Supervisor 与模式覆盖 | 未开始 | 0/7 | 动态 worker、typed artifacts、evaluator/optimizer、示例 |
-| P8 Platform 与治理 | 未开始 | 0/6 | deployment catalog、版本、路由、递归治理和观测 |
+| P7 组合模式与能力覆盖 | 未开始 | 0/7 | 动态 worker 组合、typed artifacts、evaluator/optimizer、示例 |
+| P8 Platform 与治理 | 未开始 | 0/7 | resolver、deployment catalog、版本、路由、递归治理和观测 |
 | P9 独立完整性验收 | 未开始 | 0/6 | API/wire/arch/race/fuzz/examples/standalone 全绿 |
 | P10 消费迁移 | 未开始 | 0/5 | 单独迁移 `app/runtime` 及批准的直接消费者 |
 | P11 原模块替换 | 未开始 | 0/5 | 删除旧模块、改回 `agent`、清零兼容和残留 |
@@ -89,47 +89,55 @@ go test ./...
 - [x] P0-02 建立不含进度噪声的目标架构文档。
 - [x] P0-03 将 ADR 和实施事实拆成独立文档，并明确旧模块参考规则。
 - [x] P0-04 建立宏观架构、微观代码/API、测试和批次完成定义的强制工程标准。
-- [x] P0-05 建立不复制正文的模块级指引，确保后续任务必须读取四份职责文档。
+- [x] P0-05 建立不复制正文的模块级指引，确保后续任务必须读取五份职责文档。
+- [x] P0-06 吸收复审裁决，建立能力台账和 Signal/Transition/Effect/Event/Delta、erased wire、终态、外部事实边界的候选合同。
 
-### P1：公共窄腰与状态机
+### P1：候选窄腰与消费审计
 
-- [ ] P1-01 审查旧 `agent` 对应实现，记录保留思想、重新实现和移除裁决。
-- [ ] P1-02 用最小 Interaction concrete prototype 证明自主交互需求。
-- [ ] P1-03 用两个 Action 的最小 Planning concrete prototype 证明规划需求。
-- [ ] P1-04 冻结 Definition、Descriptor、Deployment 和 DeploymentRef 语义。
-- [ ] P1-05 冻结 Execution、Step、Transition、ExecutionState 和 Process 状态机。
-- [ ] P1-06 建立类型、状态机和依赖架构 contract tests。
-- [ ] P1-07 删除未被多个真实实现共同证明的推测性抽象。
+- [ ] P1-01 依据能力台账审查旧 `agent`，记录保留思想、重新实现和移除裁决。
+- [ ] P1-02 只读审计 `app/runtime` 与其他真实消费者；只提取中性需求证据，不复制应用术语、存储协议或交付模型。
+- [ ] P1-03 用真实形态的 Interaction spike 验证模型、Tool、HITL、stream 和 steer 所需合同，spike 完成后可整体丢弃。
+- [ ] P1-04 用两个 Action 的 Planning spike 验证 Goal/Condition/Planner 专属状态与共同窄腰的边界。
+- [ ] P1-05 验证非泛型 `json.RawMessage` 窄腰、Descriptor schema/version/digest 和边缘 `Typed[I, O]` adapter。
+- [ ] P1-06 验证 Signal/WaitID、Transition、Effect/settlement、Event/Delta 的候选协议和 payload 所有权。
+- [ ] P1-07 验证 Definition、Deployment、ExecutionState、Process 状态机、last-stable/prepared capture、pre-dispatch durability gate 和终态映射矩阵。
+- [ ] P1-08 建立类型、codec、状态机、终态和依赖架构 contract tests。
+- [ ] P1-09 删除未被多个真实实现或真实消费者共同证明的推测性抽象；P1 只形成候选合同，不冻结公开 API/wire。
 
 ### P2：Engine 最小执行闭环
 
-- [ ] P2-01 实现 Definition 冻结与精确 Deployment 绑定。
-- [ ] P2-02 实现单 Process start/step/run/control 生命周期。
-- [ ] P2-03 实现合法 Transition gate 和终态不变量。
-- [ ] P2-04 实现 snapshot capture/validate/restore，不引入 Store。
-- [ ] P2-05 实现通用 event 与最小 usage/limit。
-- [ ] P2-06 完成 standalone build/vet/test/race 和公开 API 审查。
+- [ ] P2-01 实现 Definition 候选合同、Descriptor 校验和精确 Deployment 绑定。
+- [ ] P2-02 实现单 Process start/step/run/control 生命周期，并将 Process 构造权封装在 Engine。
+- [ ] P2-03 实现 Signal mailbox、Engine 铸造 WaitID、投递去重和安全边界消费。
+- [ ] P2-04 实现 Strategy-owned Effect dispatcher、稳定 EffectID、settlement Signal 和禁止隐式重投的默认策略。
+- [ ] P2-05 实现合法 Transition gate、last-stable ExecutionState、prepared/finalize 原子边界、失败实例丢弃和终态映射。
+- [ ] P2-06 实现 last-stable/prepared snapshot capture/validate/restore，并证明 durable recovery 启用时 Host 可在 dispatch 前同步确认 prepared boundary；不引入 Store、transaction、Host 水位或应用 revision。
+- [ ] P2-07 实现 attempt/committed Event、有界 best-effort Delta 和最小 usage/limit。
+- [ ] P2-08 完成 standalone build/vet/test/race、codec/terminal/effect contract 和公开 API 审查。
 
-### P3：Interaction
+### P3：真实 Interaction 验证
 
 - [ ] P3-01 审查旧 `toolloop`、interaction 和 runtime interaction 实现并记录裁决。
-- [ ] P3-02 使用 `chatclient` 和 `tool` 实现原生 Interaction Definition。
-- [ ] P3-03 支持普通与流式模型调用，保持事件顺序确定。
-- [ ] P3-04 支持模型/工具循环和清晰停止条件。
-- [ ] P3-05 支持工具 checkpoint、挂起和精确恢复。
-- [ ] P3-06 支持 HITL 和审批等待，不序列化调用栈。
-- [ ] P3-07 支持显式安全且有界的并行工具调用。
-- [ ] P3-08 通过 autonomous agent 和 direct-vs-managed 示例验收。
+- [ ] P3-02 使用 `chatclient` 和 `tool` 实现原生 Interaction Definition 与 Effect dispatcher。
+- [ ] P3-03 支持普通与流式模型调用；listener 失败隔离、Delta 有界丢弃可观测、恢复不补播。
+- [ ] P3-04 支持模型/工具循环、清晰停止条件和可独立于 Delta 导出的最终 Output。
+- [ ] P3-05 支持工具 checkpoint、挂起和精确恢复，验证 settlement 去重与不可重试副作用。
+- [ ] P3-06 支持 HITL；WaitID 由 Engine 铸造，业务 payload 只由 Interaction 解释。
+- [ ] P3-07 支持 steer，并为 Interaction 明确和测试 Signal 安全消费边界与最坏生效延迟。
+- [ ] P3-08 支持显式安全且有界的并行工具调用。
+- [ ] P3-09 用一个可随时删除的真实 consumer 接入完整路径，并通过 autonomous agent 和 direct-vs-managed 示例验收。
 
 ### P4：子 Process 组合
 
-- [ ] P4-01 冻结 StartChild 和 WaitForChildren 语义。
+- [ ] P4-01 实现 StartChild 和 WaitForChildren 的候选 Effect/Signal 语义。
 - [ ] P4-02 实现 parent/root/depth 和 Process tree 不变量。
 - [ ] P4-03 实现 all/any/quorum 等待与确定结果顺序。
 - [ ] P4-04 实现同 Definition 递归调用和不同 Strategy 嵌套。
 - [ ] P4-05 实现预算划拨、能力衰减、深度/fan-out/并行限制。
 - [ ] P4-06 实现取消传播、失败传播、幂等恢复和祖先等待拒绝。
-- [ ] P4-07 完成恢复、race、指数扩张防护和递归 contract tests。
+- [ ] P4-07 验证父子 Process 的 schema 校验、Effect settlement、snapshot 和终态传播。
+- [ ] P4-08 用第二个 disposable consumer 验证嵌入式 Engine 与组合式 Agent 应用共用同一窄腰，且没有应用抽象进入 Framework。
+- [ ] P4-09 完成恢复、race、指数扩张防护和递归 contract tests；只有 P3/P4 多实现、多消费者证据通过后才冻结首个公共 API/wire baseline。
 
 ### P5：Planning 与 GOAP
 
@@ -144,33 +152,34 @@ go test ./...
 
 ### P6：Workflow
 
-- [ ] P6-01 审查旧 workflow builders、并行与 supervisor 代码并记录裁决。
+- [ ] P6-01 审查旧 workflow builders、并行与 supervisor 代码并记录裁决；只保留组合能力，不复制独立 Supervisor Strategy。
 - [ ] P6-02 实现原生 Workflow Execution 和类型化节点合同。
 - [ ] P6-03 实现 Sequence、Prompt Chaining 和 Gate。
 - [ ] P6-04 实现 Router/Switch。
-- [ ] P6-05 实现 Fork/Join、Map/Reduce 和稳定聚合。
+- [ ] P6-05 实现 Fork/Join、Map/Reduce 和稳定聚合；每个独立分支必须是拥有独立身份、snapshot 和预算的真实 child Process。
 - [ ] P6-06 实现 Vote/Consensus。
 - [ ] P6-07 实现有明确终止条件的 Loop/Repeat Until。
-- [ ] P6-08 实现 Agent call node，并验证任意 Strategy 嵌套。
+- [ ] P6-08 实现 Agent call node，并验证任意 Strategy 嵌套、fan-out 硬限制和聚合 snapshot 成本。
 
-### P7：Supervisor 与模式覆盖
+### P7：组合模式与能力覆盖
 
 - [ ] P7-01 审查 Embabel supervisor、utility、hybrid 及旧实现并记录裁决。
 - [ ] P7-02 实现 Action-to-Tool adapter，不混淆 Action 与 Tool。
 - [ ] P7-03 实现 typed artifact state 和 completion validator。
-- [ ] P7-04 实现模型动态拆分、worker 调度和结果综合。
+- [ ] P7-04 使用 Workflow、Interaction、Planning 和 child Process 组合模型动态拆分、worker 调度和结果综合，不新增 Supervisor package/kind/lifecycle。
 - [ ] P7-05 实现 evaluator-optimizer 组合。
 - [ ] P7-06 为 Anthropic 所列每种模式建立行为测试和示例。
 - [ ] P7-07 比较简单实现与复杂编排，删除无实际收益的抽象。
 
 ### P8：Platform 与治理
 
-- [ ] P8-01 实现不可变 Deployment catalog 和精确 DeploymentRef。
-- [ ] P8-02 实现显式 Deploy/Replace/Undeploy 和版本冲突语义。
-- [ ] P8-03 实现 Definition 路由与选择，不建立全局注册表。
-- [ ] P8-04 实现跨 Process 的统一 budget、policy 和 capability guard。
-- [ ] P8-05 完成 Framework event 和 OTel decorator 边界。
-- [ ] P8-06 验证内嵌 Engine 与完整 Platform 使用同一执行语义。
+- [ ] P8-01 用真实 Engine 消费点冻结最小 DeploymentResolver 合同。
+- [ ] P8-02 实现不可变 Deployment catalog 和精确 DeploymentRef。
+- [ ] P8-03 实现显式 Deploy/Replace/Undeploy 和版本冲突语义。
+- [ ] P8-04 实现 Definition 路由与选择，不建立全局注册表或让 Engine 依赖 Platform concrete type。
+- [ ] P8-05 实现跨 Process 的统一 budget、policy 和 capability guard。
+- [ ] P8-06 完成 Framework Event 和 OTel decorator 边界。
+- [ ] P8-07 验证内嵌 Engine 与完整 Platform 使用同一执行语义。
 
 ### P9：独立完整性验收
 
@@ -183,8 +192,8 @@ go test ./...
 
 ### P10：消费迁移
 
-- [ ] P10-01 单独审计 `app/runtime` 的真实消费面和迁移影响。
-- [ ] P10-02 更新迁移决策并取得 breaking change 实施确认。
+- [ ] P10-01 复核 P1 只读消费审计结果与 P4 后冻结的合同，确认迁移范围没有新增应用抽象需求。
+- [ ] P10-02 更新迁移决策并确认 breaking change 实施批次。
 - [ ] P10-03 将聊天路径从单 Action GOAP wrapper 迁移为 Interaction Definition。
 - [ ] P10-04 迁移其他批准的直接消费者，不修改无关前端/TUI/CLI。
 - [ ] P10-05 删除应用侧框架通用编排并完成应用门禁。
@@ -202,10 +211,13 @@ go test ./...
 ## 6. 最终完成定义
 
 - Interaction、Planning、Workflow 都是原生 Execution，并通过共同 contract tests。
+- Signal、Transition、Effect、Event、Delta 的方向、所有权和可靠性等级唯一且通过合同测试。
+- Engine 以非泛型 erased contract 同构持有异构 Definition，typed adapter 只存在于边缘。
 - GOAP 的真实搜索、观察、执行和 replan 行为完整。
 - Anthropic 编排模式有行为测试和示例。
 - 同 Definition 递归子 Process 可暂停、恢复、取消和预算限制。
 - Framework snapshot 与 Host persistence 无交叉所有权。
+- 等待中的 Process 遇到 Host 外部事实失效时，由 Host 通过中性 lifecycle 能力清理；共同 snapshot 不含产品水位、删除集合或存储协议。
 - `app/runtime` 只依赖中性 Agent 生命周期，不解析策略 payload。
 - API、wire、race、fuzz、architecture 和 standalone module gate 全绿。
 - 旧 `agent` 和所有兼容路径被删除。
@@ -218,6 +230,7 @@ go test ./...
 | 风险 | 后果 | 控制 |
 |---|---|---|
 | 为统一而造 god `ExecutionContext` | 所有策略依赖无关能力 | 接口由消费方定义；P1 用多个 concrete prototype 反证 |
+| 把当前应用概念提升成 Framework 合同 | `agent2` 无法独立复用且再次泄露 | P1 只读消费审计只记录需求证据；公共类型脱离产品独立说明；architecture tests 禁止产品依赖 |
 | 把所有模式做成枚举 | 添加模式持续修改中心 switch | Definition/Execution 多态，显式装配 |
 | 复制旧目录和类型 | 历史耦合进入新模块 | 从行为合同和测试开始，按 owner 新建 package |
 | 忽略旧实现经验 | 重复已解决的并发、恢复和边界错误 | 每阶段先直接审查旧代码和测试并记录裁决 |
@@ -225,7 +238,10 @@ go test ./...
 | 过早设计 Platform | Engine 未稳定就形成 god object | Engine/Strategy 先行，Platform 在 P8 实现 |
 | 递归指数扩张 | 成本、延迟和错误快速放大 | 深度、fan-out、总量、预算划拨和并行硬限制 |
 | 子 Process 权限提升 | 安全边界失效 | capability attenuation，只允许父能力子集 |
-| snapshot 假持久化 | 恢复重复副作用或定义漂移 | 精确 DeploymentRef、幂等身份、严格 codec 和恢复测试 |
+| 把稳定 EffectID 误当外部 exactly-once | 恢复时重复不可逆副作用 | dispatcher 明确 retry 能力；默认不重投不可证明可去重的 Effect；Host/adapter 拥有事务和业务幂等 |
+| snapshot 假持久化 | 恢复重复副作用或定义漂移 | 精确 DeploymentRef、Effect settlement、严格 codec 和恢复测试 |
+| Delta 被当作权威历史 | 丢包或重连后语义不完整 | 有界 best-effort、显式 drop Event、恢复不补播、final Output 独立完整 |
+| P1 过早冻结公开合同 | spike 假设变成长期债务 | P1 只产候选合同；P3 真实 Interaction 与 P4 第二消费者共同通过后冻结 |
 | Host 解析策略 payload | `app/runtime` 再次抽象泄漏 | opaque envelope + architecture tests |
 | 多 Agent 复杂度被滥用 | 成本更高、效果更差 | direct-first，要求 eval 证明复杂编排收益 |
 
@@ -235,6 +251,7 @@ go test ./...
 
 | 日期 | 阶段 | 实际事实 | 验证与结果 |
 |---|---|---|---|
+| 2026-08-06 | P0 | 完整吸收二轮设计复审：新增能力裁决台账；补齐 opaque Signal/Engine-minted WaitID、Transition/Effect/Event/Delta、erased JSON + typed edge、终态矩阵、Prepared Step 两阶段提交、durability boundary、真实 child Process Fork/Map、stream/steer 和 Host 外部事实清理合同；Supervisor 降为 orchestrator-worker 组合；公共设计文档移除具体应用依赖，P1 改为候选验证、P3/P4 后才冻结 | 独立复审确认无剩余 blocker；稳定架构/ADR/工程标准无具体 Host module 引用；`git diff --check`、`go build ./...`、`go vet ./...`、`go test ./...`、`go test -race ./...` 全绿；P0 更新为 6/6 |
 | 2026-08-06 | P0 | 新增独立工程实施标准；明确治本式实施、恰当抽象、DAG、Framework/Host 边界、下游事务/幂等扩展、Go 风格充血模型、组合式 OOP、API 人体工程学和批次完成定义；新增三项 ADR；接入模块级指引且不复制四份职责文档正文 | 文档一致性和 diff check 通过；`go build ./...`、`go vet ./...`、`go test ./...` 全绿；P0 更新为 5/5 |
 | 2026-08-06 | P0 | 创建独立 `agent2` module 并加入 workspace；仅用根 `doc.go` 建立可验证的 package，未引入接口或占位实现；将稳定架构、ADR、实施进度拆为三份文档；明确旧 `agent` 是并存期直接参考实现但不是兼容规范；未修改旧 `agent` 或 `app/runtime` | `go build ./...`、`go vet ./...`、`go test ./...`、独立 module 解析和 diff check 全部通过；P0 3/3 完成 |
 
@@ -242,11 +259,11 @@ go test ./...
 
 ## 9. 当前下一步
 
-下一阶段是 P1。编码前先完成两个最小 spike：
+下一阶段是 P1。先依据能力台账审查旧 `agent`，并对 `app/runtime` 与其他消费者做只读审计；应用代码只提供需求和失败案例，不提供 Framework 术语或类型。随后建立两个可整体丢弃的 spike：
 
-1. 一个不含工具的最小 Interaction Definition。
-2. 一个只有两个 Action 的最小 Planning Definition。
+1. 一个具备真实模型、Tool、stream、HITL 和 steer 形态的 Interaction Definition/dispatcher。
+2. 一个只有两个 Action 的 Planning Definition。
 
-同时直接检查旧 `agent` 中对应的 Process、planning 和 interaction 实现及测试，提取已经被证明的不变量。用两个新 concrete implementation 共同需要的最小语义确定 Definition、Execution、Step、Transition、Process 和 ExecutionState；任何只被其中一个策略需要的字段都留在对应策略 package。
+用两个 concrete implementation 共同需要的最小语义验证 erased Definition/Execution、Signal/WaitID、Transition/Effect、Event/Delta、Process/ExecutionState 和终态矩阵；Strategy-specific state 留在对应 package。P1 只形成候选合同并删除试验性多余结构，不能冻结公开 API/wire。只有 P3 真实 Interaction 与 P4 child composition 以及第二个 disposable consumer 共同通过后，才建立首个 baseline。
 
-spike 通过后删除试验性多余结构，再冻结第一批公开合同。在 P1–P9 完成前，不迁移 `app/runtime`，不删除旧 `agent`，不发布 `agent2` 稳定版本。
+在 P1–P9 完成前，不迁移 `app/runtime`，不删除旧 `agent`，不发布 `agent2` 稳定版本。

@@ -7,6 +7,7 @@
 本文只记录影响长期结构的架构决策及其理由，不复述目标架构，不记录任务进度。
 
 - 目标设计见 [`ARCHITECTURE.md`](ARCHITECTURE.md)。
+- 能力取舍与消费者证据见 [`CAPABILITY_LEDGER.md`](CAPABILITY_LEDGER.md)。
 - 工程实施标准见 [`ENGINEERING_STANDARDS.md`](ENGINEERING_STANDARDS.md)。
 - 实施进度见 [`EXECUTION_PLAN.md`](EXECUTION_PLAN.md)。
 
@@ -130,3 +131,84 @@
 - 状态：已接受。
 - 决策：无 I/O 的不变量、派生值和状态转移归属领域实体/值对象；多态通过消费侧小接口，复用通过组合；不引入继承层次、单实现接口和 service object 数据袋。
 - 原因：让行为与 owner 收敛，同时保持 Go 的简单、显式和低耦合。
+
+## ADR-A2-020：Supervisor 先作为组合方式而非独立 Strategy
+
+- 状态：已接受；取代 ADR-A2-006 中将 Supervisor 预先列为平等 Strategy 的部分，Interaction、Planning 和 Workflow 的一等 Strategy 地位不变。
+- 决策：Supervisor 由 Interaction、Workflow、Action-to-Tool、typed artifacts、validator 和 child Process 组合，不预建独立 ExecutionState kind 或 package。
+- 原因：当前没有证据证明 Supervisor 拥有无法由既有 Strategy 表达的独立推进与恢复语义；预先升格违反新 Strategy 准入规则。
+- 后果：只有真实实现证明独立生命周期后，才能追加 ADR 重新申请准入。
+
+## ADR-A2-021：Signal、Transition、Effect、Event 和 Delta 各有唯一语义
+
+- 状态：已接受。
+- 决策：Signal 是 Execution 的唯一入站输入；Transition 是 Step 的候选状态与生命周期意图；Effect 是 Step 之外待执行的 Framework 或 dispatcher 操作意图；Event 是已发生事实；Delta 是非权威临时流输出。
+- 原因：命令、状态意图、外部操作、事实和展示增量混用会产生第二状态写入口、恢复歧义和错误的持久化依赖。
+- 限定：Signal 的共同信封只含 SignalID、可选 WaitID 路由、接收时间和 raw payload；kind/schema 属于 payload owner，不能成为共同 Process 类型。Effect 只允许区分封闭的 Framework 目标与 opaque dispatcher 目标，不能把具体 Strategy kind 提升进 Kernel。
+
+## ADR-A2-022：Step 只归约状态，外部操作通过策略 Effect dispatcher 执行
+
+- 状态：已接受，精确 Go SPI 待 P1–P3 prototype 验证。
+- 决策：Step 不直接调用模型、Tool、Action 或其他 I/O，只消费 Signal 并产生候选状态、Transition 和 Effect。Engine 只执行封闭的 Framework Effect；Deployment 绑定 Strategy-owned dispatcher 解释其余 opaque Effect。Engine 生成稳定 EffectID、调度、记录 settlement，并把结果作为 Signal 送回 Execution。
+- 原因：这样才能让 Signal 游标和 Execution state 保持单写者提交，并在失败时拒绝捕获半提交状态，同时不让 Engine 解析 Strategy payload。
+- 限定：Engine 的 EffectID 只保证 Framework 寻址和自身实体去重，不自动赋予外部业务事务、补偿或幂等；不能证明可安全重投的 Effect 默认不重放。
+
+## ADR-A2-023：公共 I/O 类型擦除，泛型只在边缘提供人体工程学
+
+- 状态：已接受，精确 value/codec API 待 P1 验证。
+- 决策：Engine、catalog 和根 Definition 使用严格、可移植的 JSON wire value；Descriptor 携带权威 input/output schema，schema 进入 Deployment identity。泛型 adapter 只负责 Go 类型与 wire value 的双向转换。
+- 原因：Engine 必须同构保存异构 Definition；泛型根接口无法进入统一目录和 Process 恢复合同。
+- 限定：Engine 只验证结构合同，Definition/typed adapter 负责 Go 类型和语义不变量；不把任意产品 JSON 或 `any` 塞入窄腰。
+
+## ADR-A2-024：一个 Process 只有一个顶层 Execution
+
+- 状态：已接受。
+- 决策：Process 只能由 Engine 构造，只拥有一个顶层 Execution 和 ExecutionState envelope；跨 Strategy 或需要独立生命周期的组合通过 child Process。
+- 原因：同 Process 嵌套 Execution 会递归化 snapshot/version/owner，并形成多个生命周期驱动者。
+- 后果：Workflow Fork/Map 的独立分支使用真实 child Process，必须在实现前冻结 branch deployment identity、fan-out、预算和聚合 snapshot 语义；无独立生命周期的轻量并发属于节点 Effect batch，不借 Fork/Map 名称绕过该不变量。
+
+## ADR-A2-025：WaitID 由 Engine 铸造且只能通过 Signal 写回 Execution
+
+- 状态：已接受。
+- 决策：Execution 先声明 logical wait；Engine 铸造 WaitID 并用内部 Signal 返回；Execution 在下一 Step 保存它并进入 Waiting。SignalID、WaitID、EffectID 和 logical key 分离命名。
+- 原因：Engine 在 Step 返回后直接回调或修改 Execution state 会破坏单写者；由 Execution 自行生成外部 WaitID 又会让框架失去稳定寻址和去重所有权。
+
+## ADR-A2-026：终态由已记录控制意图和执行结果共同裁决
+
+- 状态：已接受。
+- 决策：Engine 显式 kill 进入 Killed；父 Process 或 Host context 取消进入 Cancelled；Process deadline 或被提升为 Process 终止原因的 Effect deadline 进入 TimedOut；普通 Step error、外部失败、panic 和合同违约进入 Failed；已提交终态 first-terminal-wins。每个终态同时保留稳定 cause，不能仅凭返回 error 推断。
+- 原因：同一个 `context.Canceled` 可能来自不同 owner，单看 error 无法还原终止语义。
+- 限定：使用小型、表驱动的明确矩阵，不引入通用 ErrorClassifier、Transient/NonTransient 或 retry taxonomy。
+
+## ADR-A2-027：Delta 是有界且非权威的临时输出
+
+- 状态：已接受。
+- 决策：Delta 按调用内顺序发布、缓冲有界、允许显式可观察的丢弃、恢复后不重放；最终 Output 必须独立完整。观察 listener 失败不改变 Process 结果。
+- 原因：UI 或流消费者断开不能杀死执行，snapshot 也不能因 token chunk 无界增长；最终结果不能依赖可能丢失的增量拼装。
+- 限定：policy、admission、Effect settlement 和持久提交不是观察 listener，不能借该规则吞掉正确性错误。
+
+## ADR-A2-028：外部事实失效由 Host 清理，不进入共同 snapshot
+
+- 状态：已接受。
+- 决策：Strategy 精确恢复所需状态自足地保存在私有 ExecutionState；确需引用可变外部事实时，只保存 opaque revision/digest 并由 Strategy provider 校验。Host 对自身事实执行销毁、回滚、替换或恢复时，负责终止并清理失效关联的 Process/snapshot/continuation。
+- 原因：应用身份、历史水位、删除集合和 write-set 都不是通用 Agent Framework 语义；下沉会重演抽象泄漏。
+- 后果：外部事实已变化时不得静默重建旧 Execution；从新事实继续属于新 Process。Framework 只暴露中性 lifecycle/capture 能力。
+
+## ADR-A2-029：Engine 消费 DeploymentResolver，Platform 实现目录治理
+
+- 状态：已接受，精确 API 待 P2 验证。
+- 决策：Engine 的恢复路径依赖由消费位置定义的最小 DeploymentResolver，或显式接收已解析 Deployment；Platform 可以实现 durable catalog、版本路由和治理。
+- 原因：恢复必须精确定位 Deployment，但 Engine 与 Platform 不能各自拥有一份权威目录。
+
+## ADR-A2-030：公共合同在真实 Interaction 和 child composition 验证后冻结
+
+- 状态：已接受；细化 ADR-A2-005 的验证门禁。
+- 决策：P1 只形成 candidate contract；P3 用真实 streaming/tool/HITL/steer 与 disposable consumer spike 验证，P4 再用 child Process/递归/跨 Strategy 组合验证，之后才冻结根窄腰。
+- 原因：不含 Tool 的 Interaction 和两个 Action 的 Planning 原型无法触达入站 Signal、流、checkpoint、外部上下文和递归组合这些最硬需求。
+
+## ADR-A2-031：Effect 调度使用 prepared step 与 finalize 两个内部原子边界
+
+- 状态：已接受；补强 ADR-A2-022 的提交顺序。
+- 决策：Engine 在 dispatch 前原子记录 Prepared Step，其中包含 last-stable identity、候选 ExecutionState、拟消费 Signal 范围、Transition、稳定 EffectID 和冻结 payload，但不推进权威 state/cursor。取得 settlement 后再原子 finalize 状态、游标、settlement、结果 Signal 和 Process transition。
+- 原因：如果 Effect 先发生而 pending intent 尚无可恢复记录，崩溃后无法区分未执行与已执行但结算未知；Prepared Step 使未知结算可定位，又不把 Host Store/transaction 引入 Framework。
+- 限定：跨进程恢复只对 Host 已持久化 snapshot 生效；需要 durable recovery 时，Engine 必须在 dispatch 前允许 Host 同步确认 prepared boundary，但不定义 Store/transaction SPI。Engine 不承诺未持久化状态。Step 必须是确定性纯归约，dispatcher replay 仍受 ADR-A2-018/A2-022 的业务幂等边界约束。

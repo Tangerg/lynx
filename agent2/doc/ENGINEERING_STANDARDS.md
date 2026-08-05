@@ -9,6 +9,7 @@
 
 - 目标架构见 [`ARCHITECTURE.md`](ARCHITECTURE.md)。
 - 架构决策见 [`DECISIONS.md`](DECISIONS.md)。
+- 能力取舍与真实消费者证据见 [`CAPABILITY_LEDGER.md`](CAPABILITY_LEDGER.md)。
 - 阶段与实际进度见 [`EXECUTION_PLAN.md`](EXECUTION_PLAN.md)。
 - 仓库通用规则见 [`../../CLAUDE.md`](../../CLAUDE.md)、[`../../DESIGN_PHILOSOPHY.md`](../../DESIGN_PHILOSOPHY.md) 和 [`../../REFACTORING.md`](../../REFACTORING.md)。
 
@@ -99,7 +100,7 @@ Integration adapter → Agent contracts
 
 强制禁止：
 
-- Agent import `app/runtime` 或任何产品类型。
+- Agent import 任意 Host application module 或产品类型。
 - Kernel import Interaction、Planning、Workflow 或 Supervisor。
 - Engine 按具体 Strategy 做 type switch 来决定主控制流。
 - 基础模块 import Agent 以服务单一框架需求。
@@ -152,6 +153,8 @@ Integration adapter → Agent contracts
 
 Agent Framework 可以定义并执行自身生命周期，但不能拥有下游产品的业务协调。
 
+`agent2` 是可独立导入、可在任意 Go 程序中装配的库，不是某个产品后端的内部实现。任何公共抽象都必须能脱离具体 Host 完整说明；只能用某个产品名、数据库表或 UI 流程解释的类型没有进入 Framework 的资格。
+
 Framework 不得引入：
 
 - 产品 Session、Conversation、Turn、Workspace 或 User。
@@ -163,6 +166,8 @@ Framework 不得引入：
 
 Framework 可以提供中性扩展边界，使下游接入这些行为，但不能定义其应用模型或取得所有权。
 
+Host 自有事实被销毁、回滚、替换或恢复时，Host 负责同步终止和清理失效关联的 Process/snapshot/continuation。Framework 只能暴露中性 lifecycle/capture 能力；产品历史水位、删除集合、应用 revision 和 write-set 不进入共同 Process。Strategy 确需校验外部事实时，在自己的 ExecutionState 保存 opaque revision/digest，并由自己的 provider 解释。
+
 ### 3.6 事务、幂等和扩展点的准确边界
 
 事务和业务幂等属于下游应用或具体 Action/Tool integration：
@@ -171,6 +176,9 @@ Framework 可以提供中性扩展边界，使下游接入这些行为，但不�
 - 具有外部副作用的 Action/Tool 由下游 adapter、decorator 或 middleware 实现幂等、事务和补偿。
 - Agent 可以发布中性生命周期事实，供 Host 在自身事务内投影和提交。
 - Agent 不暴露 `Transaction`、`UnitOfWork`、`IdempotencyStore` 或 `Repository` 作为 Kernel SPI。
+- Engine 可以为 Effect 生成稳定 EffectID、保证 child/wait 等 Framework 实体不重复创建，并记录自身 settlement；这不是外部系统事务或业务 exactly-once 承诺。
+- 外部 Effect 无法证明可去重时默认不自动重投；不得以 Engine 拥有稳定 ID 为由隐式 retry 模型、Tool 或 Action。
+- dispatcher 必须声明 replay contract；未知结算只有在同一 EffectID 可证明代表同一逻辑操作时才允许自动重投，否则进入可观察、待显式裁决的状态。
 
 必须区分两类概念：
 
@@ -186,8 +194,32 @@ Extension 只承载可选横切行为。忽略后会破坏所有实现正确性�
 - Workflow 不复制 event/snapshot/child scheduler。
 - Extension 使用一个同质机制和结构化能力分发，不同时引入 Plugin、Hook、Advisor、Interceptor 等重叠体系。
 - Strategy 是主控制流，不伪装成 Extension。
+- 一个 Process 只有一个顶层 Execution；Process 构造只属于 Engine，跨 Strategy 或独立生命周期组合使用 child Process。
 
-### 3.8 阶段化交付不允许半成品
+### 3.8 Signal、Transition、Effect、Event 和 Delta 不得混用
+
+- Signal 是唯一入站执行输入；SignalID 负责投递去重。
+- WaitID 是 Engine 铸造的等待目标身份，不与 SignalID 或 strategy logical key 共用字段。
+- Transition 是候选状态和生命周期意图，不是已发生事实。
+- Effect 是待执行操作；Engine 只解释封闭的 Framework Effect，Strategy Effect payload 整体由其 dispatcher 解释。
+- Event 是已发生事实，区分 attempt 与 committed。
+- Delta 是非权威临时输出，允许有界、显式可观察的丢弃；最终 Output 必须独立完整。
+
+共同 Process 可以保存这些协议的不透明信封、顺序、游标和 settlement，但不能 import Strategy 类型或解析 payload。Signal 共同信封不含 Strategy kind/schema；所有 wire bytes 必须 defensive copy 并受大小限制，严格解码与 payload 版本校验由 schema owner 完成。
+
+### 3.9 Step 提交纪律
+
+- Step 只消费 Signal、归约 Execution state 并产生 Transition/Effect，不直接调用模型、Tool、Action、Store 或其他 I/O。
+- Step 对相同 ExecutionState 与 Signal 序列必须产生相同候选语义；clock、random 和外部变化先编码为 Signal，不允许 reducer 隐式读取。
+- Engine 执行封闭的 Framework Effect；Deployment 绑定 Strategy-owned dispatcher 解释其余 opaque Effect。dispatcher 不修改 Execution，只返回 Delta 和最终 settlement Signal。
+- Engine 在 Step 前保留 last-stable state。Step、Transition 或 candidate snapshot 失败时丢弃不可信实例、保留 failure，且不自动重放失败 Step。
+- prepare 原子记录候选状态、拟消费 Signal 范围、Transition、稳定 EffectID 和冻结 payload，但不推进权威 state/cursor；prepare 前不得 dispatch Effect。
+- 若调用方要求跨进程崩溃恢复，dispatch 前必须允许其取得 prepared snapshot 并确认 durability boundary；该握手只传中性 snapshot/ack，不引入 Store、transaction 或应用 write-set SPI。未确认时不得宣称该 Effect 已具备 durable recovery。
+- finalize 原子推进 candidate state、成功消费的 Signal 游标、Effect settlement、结果 Signal 入队和 Process transition，并清除 prepared step；这不宣称与 Host persistence 或外部系统原子。
+- 提交前的模型/Tool/Effect started/finished 是 attempt facts；只有状态和 settlement 成功推进后才发布 committed facts。
+- 固定顺序是 validate/capture/prepare → dispatch/settle → finalize → publish committed Event；snapshot 必须能保存 prepared step。每个崩溃点都必须有 contract test，未知外部结算按 dispatcher replay contract 处理。
+
+### 3.10 阶段化交付不允许半成品
 
 每个阶段可以只覆盖一个垂直切片，但必须同时包含：
 
@@ -224,6 +256,7 @@ Extension 只承载可选横切行为。忽略后会破坏所有实现正确性�
 - 避免 `Do`、`Handle`、`Process`、`Manage` 等脱离上下文无法判断行为的动词。
 - 避免 package stutter、`GetX/SetX`、`Impl/Service/Manager/Helper` 和泛文件名。
 - 字段名、JSON tag、事件字段和文档术语保持一致。
+- 共同协议只使用 `SignalID`、`WaitID`、`EffectID` 等具名身份；不得用 `Correlation`、`Token`、`Key` 同时表示投递、等待和副作用身份。
 - 模型可见的 Tool 名称、描述和参数名按模型视角编写，明确边界、格式和错误条件。
 - 重命名后同步修改注释、测试、wire 和文档，不留漂移引用。
 
@@ -308,6 +341,9 @@ Extension 只承载可选横切行为。忽略后会破坏所有实现正确性�
 - 小型不可变值优先按值返回；有身份、可变或较大的对象按指针返回。
 - `context.Context` 是可能阻塞/I/O 操作的首参数，不存入 struct 或 snapshot。
 - 流式拉取优先 `iter.Seq2`；不要用 channel 伪装普通迭代。
+- Framework 窄腰保持非泛型：Definition/Execution 的输入、输出和 snapshot wire 使用受大小限制的 `json.RawMessage`，Descriptor 提供权威 schema、版本和 digest；泛型 `Typed[I, O]` 只存在于注册与调用边缘。
+- Engine 依据目标 Definition 的 Descriptor 校验输入、输出和 child result，不用 Go 类型断言、反射或 `map[string]any` 代替 wire 合同。
+- raw JSON 的解释权必须唯一：共同层只复制、限长、校验 envelope/schema digest，不窥探 Strategy payload。
 - 不使用 fluent builder、全局注册表、隐式默认 Strategy 或 package-global Engine。
 - 同一行为只保留一个权威入口；便利 API 必须确实减少概念，而不是制造同义入口。
 - exported GoDoc 写清行为、参数、返回、错误、副作用、并发和恢复合同。
@@ -319,6 +355,9 @@ Extension 只承载可选横切行为。忽略后会破坏所有实现正确性�
 - 构造失败返回 nil/零值和 error，不返回可继续使用的半成品。
 - 普通运行时失败返回 error，不 panic；`MustXxx` 只用于明确的启动期程序员错误。
 - Tool/业务失败与框架内部错误保持边界，不能全部压成字符串。
+- Process 终态由 Engine 已记录的控制意图、deadline 来源和 Step 错误分类共同映射；不得仅凭 `context.Canceled` 或 `context.DeadlineExceeded` 决定 `Killed`、`Cancelled`、`TimedOut` 或 `Failed`。
+- Engine 发起 kill、父 Process 取消、Host context 到期和外部 Effect 取消是不同 cause；终态与 cause 都必须稳定、可测试、可恢复。
+- deadline 终止保留独立语义，不压成普通 `Failed`；合同违约、外部失败和 panic 使用不同失败分类。
 - 不同时记录日志并逐层返回同一错误；在真正的系统边界观测一次。
 - 错误必须包含当前操作语境，但不能泄露 secret、prompt 或未经授权的 payload。
 
@@ -327,6 +366,7 @@ Extension 只承载可选横切行为。忽略后会破坏所有实现正确性�
 - 长生命周期对象不保留调用方可变 slice/map/config 的引用。
 - 不存储能可靠即时计算的派生状态。
 - 不让多个 owner 修改同一 Execution state。
+- 一个 Process snapshot 只包含一个顶层 ExecutionState；跨 Strategy 状态只能属于 child Process，不能塞入联合状态或旁路字段。
 - snapshot 必须严格、版本化、可判别，并拒绝未知或非法状态。
 - 时间字段语义准确：`StartedAt`、`FinishedAt` 来自对应生命周期边界，`Duration` 与二者一致。
 - 不把 transient 连接、闭包、context、mutex、goroutine 或 provider client 放入 snapshot。
@@ -336,9 +376,12 @@ Extension 只承载可选横切行为。忽略后会破坏所有实现正确性�
 
 - 每个 goroutine 都有明确 owner、停止条件和 join 点。
 - Execution 默认单写者推进；并发分支隔离状态并确定性聚合。
+- Signal 只在 Strategy 声明并经过 contract test 的安全边界消费；steer 的最早生效点是当前不可中断 Effect 结算后的下一安全 Step，公开 GoDoc 必须说明这一延迟合同。
+- Workflow Fork/Map 的独立分支必须是有界 fan-out 的 child Process；每个分支拥有独立身份、snapshot 和预算，不在单一 Execution 内伪造多个生命周期。无独立生命周期的轻量并发只使用有界 Effect batch，不命名为 Fork/Map。
 - 锁只能解决 data race，不能代替业务冲突语义。
 - 并发度显式有界，取消和 deadline 沿 Process tree 传播。
 - event、tool result 和 branch output 的协议顺序不依赖调度完成顺序。
+- Delta listener 失败不得使 Step、Effect 或 Process 失败；缓冲必须有界，丢弃必须产生可观测事实，恢复后不补播历史 Delta。
 - 测试使用 channel、barrier 或 `testing/synctest`，禁止用 `time.Sleep` 猜测并发完成。
 
 ### 4.11 注释与文档
@@ -357,8 +400,14 @@ Extension 只承载可选横切行为。忽略后会破坏所有实现正确性�
 
 - 每个接口至少由真实消费者 contract test 验证，而不是只做 compile assertion。
 - 每个 Strategy 用同一 Process contract test 证明共同语义，用自身测试证明专属语义。
+- Step contract 在无取消条件下验证相同 state/Signal 输入产生规范化等价的 candidate/Transition/Effect，并禁止隐式 clock/random/global state。
 - 状态机覆盖所有合法和非法转换。
 - snapshot 覆盖每个合法挂起边界的 capture → restore → continue。
+- Signal contract 覆盖乱序到达、重复投递、未知 WaitID、消费游标与 candidate state 同步提交，以及失败 Step 不吞信号。
+- Effect contract 覆盖 prepare 前无 dispatch、durable recovery 启用时 acknowledgment 前无 dispatch、prepared snapshot 恢复、稳定 EffectID、dispatcher 恢复、settlement 去重、部分 batch 结算、确定性结果顺序、不可重试副作用和 attempt/committed 事实边界。
+- typed adapter contract 证明 schema 校验发生在边缘且 erased Engine 可以同构持有异构 Definition。
+- 终态矩阵覆盖 Engine/parent/Host/Effect 取消来源、deadline、合同违约、外部失败和 panic。
+- Delta contract 覆盖 listener 失败隔离、有界缓冲、显式丢弃、恢复不补播，以及 final Output 不依赖 Delta 重建。
 - child Process 覆盖递归、预算耗尽、取消、部分失败、祖先等待拒绝和恢复去重。
 - 并行路径验证稳定结果顺序，并运行 race tests。
 - wire/snapshot codec 使用 golden 和 fuzz 验证严格性。
@@ -378,6 +427,7 @@ Extension 只承载可选横切行为。忽略后会破坏所有实现正确性�
 
 - [ ] 问题和根因明确，修复落在正确 owner。
 - [ ] 没有新增抽象泄漏或反向依赖。
+- [ ] 所有公共类型都能脱离当前产品独立解释，没有应用身份、历史水位、存储协议或 UI 语义。
 - [ ] 新接口有真实消费者和替换理由。
 - [ ] 新类型、方法、字段和参数名称语义唯一准确。
 - [ ] 旧实现已完成“保留思想 / 重新实现 / 移除”裁决。

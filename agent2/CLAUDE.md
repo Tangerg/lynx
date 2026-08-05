@@ -10,10 +10,11 @@ following documents completely:
 2. [`doc/DECISIONS.md`](doc/DECISIONS.md) — architecture decisions and their rationale.
 3. [`doc/ENGINEERING_STANDARDS.md`](doc/ENGINEERING_STANDARDS.md) — mandatory implementation and quality standard.
 4. [`doc/EXECUTION_PLAN.md`](doc/EXECUTION_PLAN.md) — authorized scope, phases, progress, and verified facts.
+5. [`doc/CAPABILITY_LEDGER.md`](doc/CAPABILITY_LEDGER.md) — old-capability ownership, verdicts, and acceptance coverage.
 
 The documents have distinct owners. Do not copy progress into architecture,
-copy architecture into the execution log, or rewrite accepted decisions without
-a superseding ADR.
+copy architecture into the execution log, copy architecture into the capability
+ledger, or rewrite accepted decisions without a superseding ADR.
 
 Until the consumer migration phase begins:
 
