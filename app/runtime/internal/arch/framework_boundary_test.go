@@ -12,6 +12,57 @@ import (
 	"testing"
 )
 
+// TestSQLiteDoesNotDiscardRowsAffectedErrors protects compare-and-swap and
+// mutation outcomes from treating a driver failure as a successful zero count.
+func TestSQLiteDoesNotDiscardRowsAffectedErrors(t *testing.T) {
+	root := filepath.Join(moduleRoot(t), "internal", "infra", "storage", "sqlite")
+	err := filepath.WalkDir(root, func(path string, entry os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() || filepath.Ext(path) != ".go" || strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		file, parseErr := parser.ParseFile(token.NewFileSet(), path, nil, 0)
+		if parseErr != nil {
+			return parseErr
+		}
+		ast.Inspect(file, func(node ast.Node) bool {
+			assignment, ok := node.(*ast.AssignStmt)
+			if !ok {
+				return true
+			}
+			callsRowsAffected := false
+			for _, expression := range assignment.Rhs {
+				call, ok := expression.(*ast.CallExpr)
+				if !ok {
+					continue
+				}
+				selector, ok := call.Fun.(*ast.SelectorExpr)
+				if ok && selector.Sel.Name == "RowsAffected" {
+					callsRowsAffected = true
+					break
+				}
+			}
+			if !callsRowsAffected {
+				return true
+			}
+			if len(assignment.Lhs) < 2 {
+				return true
+			}
+			identifier, ok := assignment.Lhs[1].(*ast.Ident)
+			if ok && identifier.Name == "_" {
+				t.Errorf("%s discards a RowsAffected error", path)
+			}
+			return true
+		})
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("scan SQLite sources: %v", err)
+	}
+}
+
 // TestExecutorCheckpointRemainsOpaqueOutsideExecutionAdapter prevents the
 // application from reconstructing executor process topology. It may own only the aggregate
 // root identity, opaque payload, and host metadata required for lifecycle

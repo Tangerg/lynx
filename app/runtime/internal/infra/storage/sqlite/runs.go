@@ -280,7 +280,11 @@ func (s *RunStore) Suspend(ctx context.Context, run transcript.Run) error {
 		if err != nil {
 			return fmt.Errorf("sqlite: suspend run: %w", err)
 		}
-		if n, _ := res.RowsAffected(); n == 0 {
+		n, err := res.RowsAffected()
+		if err != nil {
+			return fmt.Errorf("sqlite: suspend run: read affected rows: %w", err)
+		}
+		if n == 0 {
 			return fmt.Errorf("sqlite: suspend run: state changed concurrently (was %s)", current)
 		}
 		return nil
@@ -325,7 +329,11 @@ func (s *RunStore) Resume(
 		if err != nil {
 			return fmt.Errorf("sqlite: resume run: %w", err)
 		}
-		if n, _ := res.RowsAffected(); n == 0 {
+		n, err := res.RowsAffected()
+		if err != nil {
+			return fmt.Errorf("sqlite: resume run: read affected rows: %w", err)
+		}
+		if n == 0 {
 			return fmt.Errorf("sqlite: resume run: state changed concurrently (was %s)", cur)
 		}
 		return nil
@@ -401,7 +409,11 @@ func (s *RunStore) finish(
 		if err != nil {
 			return fmt.Errorf("sqlite: %s run: %w", op, err)
 		}
-		if n, _ := res.RowsAffected(); n == 0 {
+		n, err := res.RowsAffected()
+		if err != nil {
+			return fmt.Errorf("sqlite: %s run: read affected rows: %w", op, err)
+		}
+		if n == 0 {
 			return fmt.Errorf("sqlite: %s run: state changed concurrently (was %s)", op, cur)
 		}
 		// The Run's end is also a boundary of the session's Plan, and this CAS is

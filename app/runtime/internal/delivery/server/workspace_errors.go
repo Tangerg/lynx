@@ -42,6 +42,7 @@ func wireWorkspaceError(err error) error {
 		return protocol.ErrPathOutsideRoot
 	case errors.Is(err, workspaceapp.ErrPathRequired),
 		errors.Is(err, workspaceapp.ErrInvalidFileRange),
+		errors.Is(err, workspaceapp.ErrInvalidFileGlob),
 		errors.Is(err, workspaceapp.ErrGrepQueryMissing),
 		errors.Is(err, workspaceapp.ErrFileListTooLarge),
 		errors.Is(err, workspaceapp.ErrPageLimit),

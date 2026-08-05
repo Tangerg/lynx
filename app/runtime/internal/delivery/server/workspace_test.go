@@ -157,6 +157,11 @@ func TestWorkspaceListFilesPaginatesInspectedEntries(t *testing.T) {
 	}); !errors.Is(err, protocol.ErrInvalidParams) {
 		t.Fatalf("cross-query cursor error = %v, want invalid_params", err)
 	}
+	if _, err := s.ListWorkspaceFiles(context.Background(), protocol.ListFilesRequest{
+		Glob: "[",
+	}); !errors.Is(err, protocol.ErrInvalidParams) {
+		t.Fatalf("invalid glob error = %v, want invalid_params", err)
+	}
 }
 
 func TestWorkspaceReadFileRejectsSymlinkEscape(t *testing.T) {

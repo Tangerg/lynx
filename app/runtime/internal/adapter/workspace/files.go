@@ -61,9 +61,14 @@ type ListFilesOptions struct {
 	IncludeIgnored bool
 }
 
-// ErrListingTooLarge asks the caller to narrow Path or Glob instead of
-// returning an incomplete result that looks authoritative.
-var ErrListingTooLarge = errors.New("workspace: file listing too large")
+var (
+	// ErrListingTooLarge asks the caller to narrow Path or Glob instead of
+	// returning an incomplete result that looks authoritative.
+	ErrListingTooLarge = errors.New("workspace: file listing too large")
+	// ErrInvalidGlob distinguishes malformed match syntax from a valid pattern
+	// that simply has no matching files.
+	ErrInvalidGlob = errors.New("workspace: invalid file glob")
+)
 
 // maxListEntries is a safety boundary, not a silent result cap. Crossing it
 // returns ErrListingTooLarge so callers can report precise invalid input.
@@ -89,6 +94,11 @@ func ListFiles(ctx context.Context, root string, opts ListFilesOptions) ([]FileE
 	sub := path.Clean(filepath.ToSlash(opts.Path))
 	if sub == "." || sub == "/" {
 		sub = ""
+	}
+	if opts.Glob != "" {
+		if _, err := matchGlob(opts.Glob, ""); err != nil {
+			return nil, fmt.Errorf("%w %q: %v", ErrInvalidGlob, opts.Glob, err)
+		}
 	}
 
 	files, err := candidateFiles(ctx, root, sub, opts.IncludeIgnored)
@@ -155,8 +165,14 @@ func walkFiles(ctx context.Context, root, sub string, includeIgnored bool) ([]st
 func recursiveFiles(root string, files []string, glob string) ([]FileEntry, error) {
 	out := make([]FileEntry, 0, len(files))
 	for _, f := range files {
-		if glob != "" && !matchGlob(glob, f) {
-			continue
+		if glob != "" {
+			matched, err := matchGlob(glob, f)
+			if err != nil {
+				return nil, fmt.Errorf("%w %q: %v", ErrInvalidGlob, glob, err)
+			}
+			if !matched {
+				continue
+			}
 		}
 		entry, exists, err := inspectEntry(root, f)
 		if err != nil {
@@ -248,15 +264,12 @@ func sortFileEntries(entries []FileEntry) {
 // matchGlob matches a doublestar-ish pattern against a slash path. Covers the
 // shapes that actually occur ("**/*.go" → suffix on the basename, "*.ts" →
 // basename, "src/*.go" → full path); not a complete doublestar engine.
-func matchGlob(pattern, relPath string) bool {
+func matchGlob(pattern, relPath string) (bool, error) {
 	if rest, ok := strings.CutPrefix(pattern, "**/"); ok {
-		matched, _ := path.Match(rest, path.Base(relPath))
-		return matched
+		return path.Match(rest, path.Base(relPath))
 	}
 	if strings.Contains(pattern, "/") {
-		matched, _ := path.Match(pattern, relPath)
-		return matched
+		return path.Match(pattern, relPath)
 	}
-	matched, _ := path.Match(pattern, path.Base(relPath))
-	return matched
+	return path.Match(pattern, path.Base(relPath))
 }

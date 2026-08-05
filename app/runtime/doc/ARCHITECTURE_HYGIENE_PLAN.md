@@ -1075,6 +1075,21 @@ Allowed status values: `Pending`, `In progress`, `Completed`, `Blocked`, `Revise
   and architecture tests, full standalone build/vet/test, race tests, static
   analysis, lint, formatting, dead-code analysis, and residue scans passed.
 
+### 2026-08-05 — Batch 51 completed
+
+- Closed the remaining discarded external-operation results found by the
+  counterexample audit. Run suspend, resume, and terminal transitions now fail
+  explicitly when the SQL driver cannot report affected rows; an AST fitness
+  rule prevents SQLite mutations from discarding that error again.
+- Made malformed workspace file globs a first-class invalid-input outcome.
+  Validation happens before candidate discovery, so even an empty workspace
+  cannot turn invalid syntax into an authoritative empty result; the adapter,
+  application, and Delivery error chain preserves the distinction through
+  `invalid_params`.
+- Focused SQLite, workspace, Delivery, and architecture tests, full standalone
+  build/vet/test, race tests, static analysis, lint, formatting, dead-code
+  analysis, and residue scans passed.
+
 ### 2026-08-04 — Batch 38 completed
 
 - Added application-owned validation for `OpeningCommit`, `TreeBarrierCommit`,

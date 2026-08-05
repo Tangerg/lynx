@@ -19,11 +19,15 @@ func (Reads) ListFiles(ctx context.Context, root string, options workspaceapp.Fi
 	entries, err := ListFiles(ctx, root, ListFilesOptions{
 		Path: options.Path, Glob: options.Glob, Recursive: options.Recursive, IncludeIgnored: options.IncludeIgnored,
 	})
-	if errors.Is(err, ErrListingTooLarge) {
-		return nil, workspaceapp.ErrFileListTooLarge
-	}
 	if err != nil {
-		return nil, err
+		switch {
+		case errors.Is(err, ErrListingTooLarge):
+			return nil, workspaceapp.ErrFileListTooLarge
+		case errors.Is(err, ErrInvalidGlob):
+			return nil, workspaceapp.ErrInvalidFileGlob
+		default:
+			return nil, err
+		}
 	}
 	out := make([]workspaceapp.FileEntry, 0, len(entries))
 	for _, entry := range entries {

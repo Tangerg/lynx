@@ -110,6 +110,15 @@ func TestListFiles_GlobFilters(t *testing.T) {
 	}
 }
 
+func TestListFilesRejectsInvalidGlob(t *testing.T) {
+	t.Parallel()
+
+	_, err := ListFiles(context.Background(), t.TempDir(), ListFilesOptions{Glob: "["})
+	if !errors.Is(err, ErrInvalidGlob) {
+		t.Fatalf("ListFiles() error = %v, want ErrInvalidGlob", err)
+	}
+}
+
 func TestListFilesInspectsMetadataAndSymlinks(t *testing.T) {
 	root := buildTree(t)
 	if err := os.Symlink("a.txt", filepath.Join(root, "a-link")); err != nil {
