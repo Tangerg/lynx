@@ -450,3 +450,10 @@
 - 唯一允许的 agent2 内部直连边是 Interaction/Planning/Workflow/OTel/Platform → root，以及 GOAP → Planning；声明图还会独立检查无环。因而 Kernel 反向 import Strategy、Strategy 横向耦合、GOAP 绕过 Planning contract、adapter 取得 Platform/Strategy 所有权都会失败。
 - Host `app`、旧 `agent`、`flow` 和 logging backend 对全部生产 package 禁入；OTel 只属于 `otel` adapter，chatclient/tool/core-chat 只属于 Interaction。OTel SDK、Host 抽象名称、Dispatcher lifecycle 和 sealed Workflow algebra 等 owner-specific 规则仍留在各自本地门禁，没有重复维护内部 Strategy 清单。
 - examples 故意作为图外公开消费者，可以组合多个 Strategy/Platform；它们不豁免独立编译和实跑。Workflow 仅吸收 `flow` 的显式组合、确定顺序与有界 fan-out 思想，代码依赖保持为零。
+
+### 13.4 全量静态、race 与 fuzz 验收
+
+- P9-04 在 P9-03 已提交态上执行，不以新增 API 或调整实现制造通过结果。standalone build、vet、staticcheck、禁用缓存普通测试和 race 测试覆盖全部 15 个 package，均无失败。
+- 根 6 个 fuzz target 覆盖 Input、DeploymentRef、ExecutionState、Transition、Process Snapshot 与 TreeSnapshot；Interaction 1 个覆盖完整私有状态恢复；Planning 5 个覆盖状态恢复、dispatcher protocol、WorldState、Plan 与 Output；Workflow 1 个覆盖完整私有状态恢复。
+- 13 个 fuzz target 各运行 3 秒、固定最多 4 个 worker，合计 2,245,920 次执行，没有 crash 或失败语料；fuzz 后再次禁用缓存回归全部 package，排除 fuzz 运行对普通测试环境产生隐藏污染。
+- 本轮没有生产代码、public API、wire、package DAG 或依赖变化；结果只证明当前提交满足既定质量合同，不声称测试能替代 P9-05 的真实独立消费者和文档验证。
