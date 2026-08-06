@@ -1,0 +1,63 @@
+package planning
+
+import (
+	"fmt"
+	"slices"
+)
+
+// GoalConfig contains the complete immutable description of a Planning goal.
+type GoalConfig struct {
+	// Name is the stable lower-case qualified goal identity.
+	Name string
+
+	// Description explains the desired state to a human consumer.
+	Description string
+
+	// Conditions are the known truths the final WorldState must establish.
+	Conditions []Condition
+}
+
+// Goal is an immutable set of desired condition truths.
+type Goal struct {
+	name        string
+	description string
+	conditions  []Condition
+}
+
+// NewGoal validates config and constructs an immutable goal.
+func NewGoal(config GoalConfig) (Goal, error) {
+	if !validName(config.Name) {
+		return Goal{}, fmt.Errorf("%w: invalid name %q", ErrInvalidGoal, config.Name)
+	}
+	if !validDescription(config.Description) {
+		return Goal{}, fmt.Errorf("%w: Description must be non-empty, trimmed UTF-8 within %d bytes", ErrInvalidGoal, maxDescriptionBytes)
+	}
+	conditions, err := canonicalConditions(config.Conditions)
+	if err != nil {
+		return Goal{}, fmt.Errorf("%w: conditions: %w", ErrInvalidGoal, err)
+	}
+	if len(conditions) == 0 {
+		return Goal{}, fmt.Errorf("%w: at least one condition is required", ErrInvalidGoal)
+	}
+	return Goal{name: config.Name, description: config.Description, conditions: conditions}, nil
+}
+
+// Name returns the stable goal identity.
+func (goal Goal) Name() string { return goal.name }
+
+// Description returns the human-readable desired state.
+func (goal Goal) Description() string { return goal.description }
+
+// Conditions returns an independently owned, key-sorted requirement set.
+func (goal Goal) Conditions() []Condition { return slices.Clone(goal.conditions) }
+
+// SatisfiedBy reports whether state establishes every goal condition.
+func (goal Goal) SatisfiedBy(state WorldState) bool {
+	return goal.Valid() && state.Valid() && state.Satisfies(goal.conditions...)
+}
+
+// Valid reports whether the Goal satisfies its construction invariants.
+func (goal Goal) Valid() bool {
+	return validName(goal.name) && validDescription(goal.description) && len(goal.conditions) > 0 &&
+		canonicalConditionSlice(goal.conditions)
+}
