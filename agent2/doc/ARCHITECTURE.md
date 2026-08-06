@@ -556,6 +556,8 @@ Platform 的 Catalog 是 exact Deployment binding 的不可变内存快照：零
 
 Deploy/Replace/Undeploy 只更新 Platform owner 持有的 catalog/route snapshot；Definition 路由只从一个已提交快照选择 exact DeploymentRef。二者不能把 Catalog 退化为 package-global mutable registry，也不能让 Engine 反向依赖 Platform。
 
+活跃 Deployment 的槽位键固定为 `(Definition name, semantic version)`：不同版本可以同时 active；同槽位的不同 complete digest 是冲突，必须显式 Replace。Replace 只改变同一槽位且保留旧 exact binding；新 SemVer 必须 Deploy 到新槽位。Undeploy 必须提交当前 exact DeploymentRef，陈旧引用不能下线已被替换的新 binding。所有本地变化一次性发布完整 immutable state；它们不声明外部持久化事务、分布式 CAS 或请求幂等。
+
 ### 11.3 Deployment 恢复
 
 - Deployment 冻结 Definition 及影响恢复语义的配置。

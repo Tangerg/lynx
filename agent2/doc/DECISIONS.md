@@ -381,3 +381,13 @@
 - 决策：`DeploymentRef.String` 返回 `name@version+complete-digest` 的稳定诊断文本，无效值返回明确 placeholder；它不是 JSON wire encoding。Catalog 的 not-found/duplicate 诊断真实消费该表示，避免仅打印 name 而掩盖 exact identity。
 - 原因：运行与恢复需要的是不可变 exact binding 集合，部署变更和路由需要的是其上层原子状态迁移。先把两者拆开，读路径可天然并发安全，Engine 仍只依赖最小接口，后续治理也不会重新创造 Engine-owned registry。
 - 后果：Catalog 保存包含 Go behavior binding 的 Deployment，不可序列化，也不承担 durable publication。Host/adapter 可从自己的发布事实构造 Catalog。根 API/GoDoc 因 `DeploymentRef.String` 显式修订；Platform API 在 P8 完整真实 consumer 验证前不提前冻结，snapshot/tree wire 不变。
+
+## ADR-A2-049：部署变化按 name/version 槽位显式推进并保留 exact 历史
+
+- 状态：已接受；完成 P8-03。
+- 证据：旧模块只有 `name -> active DeploymentRef`，因此发布新 SemVer 会强制替换旧版本，路由无法同时选择多个版本；同时 Undeploy 只收 name，陈旧调用可以下线已被并发 Replace 的新 binding。它正确保留了 replaced/undeployed exact history，但把状态直接放在 Engine mutable catalog 中。P8-02 已提供与 active route 解耦的不可变 exact Catalog。
+- 决策：`platform.Platform` 是部署聚合 owner，初始 Config all-or-nothing，并以本地临界区一次性替换完整 immutable deployment state；不同 Platform 实例绝不共享 package-global 状态。它直接实现 exact DeploymentResolver，但不创建、注册或运行 Process。
+- 决策：active slot 唯一键是 `(Definition name, canonical semantic version)`。不同版本可同时 active；`Deploy` 在空槽激活，重复同一 exact ref 保持不变，同槽不同 ref 返回带 Active/Requested 的 `DeploymentConflictError`。`Replace` 只改变 candidate 自身已存在的同 name/version 槽位；新版本必须另行 Deploy。所有被替换 exact refs 继续留在 Catalog，因此已有 snapshot 恢复不跟随 active route。
+- 决策：`Undeploy` 接收并校验当前 exact DeploymentRef，而不是裸 name/version。槽位为空返回 `ErrDeploymentNotActive`；引用陈旧则返回 conflict，不能误下线 replacement。成功只删除 active 选择，exact binding 继续可解析。首版不提供 Forget/Remove 历史 binding；Host 在证明外部 snapshot retention 后可重建新的 Platform，Framework 不猜 durable reachability。
+- 决策：Deploy/Replace/Undeploy 是同步、有界、无 context、无 I/O 的本地领域操作。临界区只保证一个 Platform 实例内状态快照的一致发布，不对 Host database 声明 transaction/CAS，不引入 idempotency key。生命周期 Event 与 OTel 留给 P8-06 的外部 decorator，不能反向让 Catalog 或 Engine 拥有 observation backend。
+- 后果：Platform API 仍是 P8 候选面，P8-04 路由只能读取一次 `ActiveDeployments` 快照并返回 exact ref；不能绕过版本槽位、扫描 historical Catalog 或把 active 选择塞进 Engine。根 API 和 snapshot/tree wire 本轮不变。

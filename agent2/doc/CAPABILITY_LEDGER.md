@@ -384,3 +384,11 @@
 - `platform.Catalog` 只收敛 exact bindings。零值为空；构造 all-or-nothing；无效 Deployment 或重复 exact reference 明确失败。同 name/version 的不同完整 digest 可以共存，证明 Catalog 没有暗中选择“当前版本”。
 - `Resolve` 对 invalid ref 与 valid-but-absent ref 分别返回准确 sentinel，不做 name/version fallback；同一 Catalog 可直接作为 Engine DeploymentResolver。`Deployments` 返回独立 slice，并按 name、SemVer、digest 排序，供后续路由从同一已提交快照投影候选。
 - Catalog 没有 mutex 或写方法，复制值后只读，天然支持并发解析/枚举。它不序列化 Definition/Dispatcher，不声称 durable，不依赖 Interaction/Planning/Workflow、旧 agent 或 Host package；architecture gate 固化该 DAG。
+
+### 12.3 显式部署变化与版本槽位
+
+- `platform.Platform` 只拥有 deployment aggregate，不拥有 Process。初始 Deployments 一次性验证；每次本地变化在单一临界区构造并发布完整 Catalog + active map + stable active list，不让读者看到半变更。两个 Platform 实例完全隔离，无 package-global registry。
+- active identity 是 name + canonical SemVer，不是裸 name。1.x/2.x 可同时 active；相同 name/version 的不同 complete digest 必须 Deploy conflict → 显式 Replace。Replace 一个版本不影响其他版本，旧 exact Deployment 永久保留供 resolver/restoration。
+- Deploy 当前 exact binding 是无变化；Replace 不存在的版本返回 not-active，不能借 Replace 偷建新版本；Undeploy 要求 current exact ref，stale ref 返回 Active/Requested conflict，成功后只移除 active route 而不删除 history。
+- Config conflict、invalid Platform/Deployment/Ref、not-found exact binding、not-active slot 和 occupied/stale conflict 各有独立 error 语义。并发测试覆盖不同版本的 Deploy、Replace 与同时 Active/Catalog read，所有 active ref 在任一已读 snapshot 后都仍可 exact Resolve。
+- 不实现 Forget/retention count、database transaction/CAS、idempotency key、remote deploy 或同步 listener。外部持久发布、历史清理政策和生命周期落库属于 Host；Framework observation 边界留给 P8-06。

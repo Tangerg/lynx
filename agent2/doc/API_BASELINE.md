@@ -72,6 +72,8 @@ P8-01 依据 ADR-A2-046 从真实 child start 与 tree restore 消费点修订�
 
 P8-02 依据 ADR-A2-048 新增尚未冻结的 `platform.Catalog` 候选 API，并以它的 exact missing/duplicate 诊断证明 `DeploymentRef` 需要稳定 String 表示。根 package 新增 `DeploymentRef.String()`，输出 `name@version+complete-digest` 且不冒充 wire encoding；根 API/GoDoc digest 显式更新。Platform package 要到 P8 完整变更、路由、治理与真实消费者验证后才进入公共 digest 守卫；既有四个 Strategy package 和 snapshot/tree wire 仍不变。
 
+P8-03 依据 ADR-A2-049 在 exact Catalog 之上增加尚未冻结的 Platform deployment aggregate：Config/New、ActiveDeployments、Deploy/Replace/Undeploy、exact Resolve 与精确 conflict/not-active errors。active slot 是 name + SemVer，历史 exact binding 只增不误删。该候选面没有修改根或四个 Strategy package，也没有改变共同 wire；P8-04～07 仍可依据真实 routing/governance consumer 治本修订它，不提供兼容 shim。
+
 ## 4. 明确不在基线中的能力
 
 Baseline 3 不冻结 P8 Platform catalog/routing/OTel decorator、P10 应用迁移 API 或最终模块替换路径。`flow` 保持独立 in-process 库，不形成 Agent adapter API 或依赖；未来编辑器图只能在更高层编译成已验证的 Workflow Definition，不能反向扩张 Kernel 或恢复 wire。
