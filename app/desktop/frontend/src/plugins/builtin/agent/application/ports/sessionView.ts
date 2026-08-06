@@ -9,7 +9,6 @@ import type {
   AgentRunOutcome,
   AgentSessionView,
   Message,
-  RunUsage,
   TimelineEntry,
   ToolCall,
 } from "@/plugins/sdk/types/agentSessionView";
@@ -78,8 +77,6 @@ export interface AgentSessionViewPort {
   useRunTree(): AgentRunTreeNode[];
   useProblem(): AgentProblem | null;
   useSharedState<T = unknown>(path?: string): T | undefined;
-  useCurrentRootUsage(): RunUsage;
-  useCurrentRootContextTokens(): number | undefined;
   useAction(kind: "stop"): StopCurrentRootRunAction | null;
   useAction(kind: "send"): SendAgentInputAction | null;
   getCurrentView(): AgentSessionView;

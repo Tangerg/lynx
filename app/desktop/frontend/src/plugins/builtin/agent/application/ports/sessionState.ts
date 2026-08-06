@@ -29,7 +29,6 @@ export interface AgentSessionStatePort {
   useDraftSessionIds(): Set<string>;
   /** Is this session a draft — created by a "New" gesture and never used? */
   isDraftSession(id: string): boolean;
-  useSelectSession(): (id: string) => void;
   reconcileSessions(liveIds: string[]): void;
   /**
    * Cold start: go to the session the user was last in, if the location doesn't
@@ -38,7 +37,6 @@ export interface AgentSessionStatePort {
    */
   restoreLastSession(): void;
   markDraftSession(id: string): void;
-  graduateDraftSession(id: string): void;
   setPendingMessage(id: string, message: PendingAgentMessage): void;
   takePendingMessage(id: string): PendingAgentMessage | undefined;
 }

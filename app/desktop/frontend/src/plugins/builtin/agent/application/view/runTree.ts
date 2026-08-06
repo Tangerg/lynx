@@ -3,15 +3,9 @@ import type {
   AgentRunView,
   AgentSessionView,
   Message,
-  RunUsage,
 } from "@/plugins/sdk/types/agentSessionView";
 
 const EMPTY_MESSAGES: Message[] = [];
-const EMPTY_USAGE: RunUsage = {
-  inputTokens: 0,
-  outputTokens: 0,
-  cacheReadTokens: 0,
-};
 
 export interface AgentRunTreeNode {
   run: AgentRunView;
@@ -122,10 +116,6 @@ export function selectRunTree(view: AgentSessionView): AgentRunTreeNode[] {
     else roots.push(node);
   }
   return roots;
-}
-
-export function selectRunUsage(run: AgentRunView | null): RunUsage {
-  return run?.progress?.usage ?? run?.metrics.usage ?? EMPTY_USAGE;
 }
 
 export function selectRunProblem(run: AgentRunView | null): AgentProblem | null {

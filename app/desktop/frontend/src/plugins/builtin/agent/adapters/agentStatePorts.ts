@@ -22,12 +22,10 @@ import {
   useAgentSessionTimeline,
   useAgentSharedState,
   useAgentToolCalls,
-  useCurrentRootContextTokens,
   useCurrentRootOutcome,
   useCurrentRootMetrics,
   useCurrentRootRunId,
   useCurrentRootSegmentId,
-  useCurrentRootUsage,
 } from "./agentViewSelectors";
 import { useAgentStore } from "./agentStore";
 
@@ -101,7 +99,6 @@ export function installAgentStatePorts(): () => void {
     },
     useDraftSessionIds: () => useAgentSessionStore((state) => state.draftSessionIds),
     isDraftSession: (id) => useAgentSessionStore.getState().draftSessionIds.has(id),
-    useSelectSession: () => goToSession,
     // Boot: drop open + active refs to sessions the runtime no longer has. The
     // location is corrected with `replace` — a session that turned out not to
     // exist was never a place the user went, so there is nothing to go back to.
@@ -128,7 +125,6 @@ export function installAgentStatePorts(): () => void {
       goToSession(lastSessionId);
     },
     markDraftSession: (id) => useAgentSessionStore.getState().markDraft(id),
-    graduateDraftSession: (id) => useAgentSessionStore.getState().graduateDraft(id),
     setPendingMessage: (id, message) =>
       useAgentSessionStore.getState().setPendingMessage(id, message),
     takePendingMessage: (id) => useAgentSessionStore.getState().takePendingMessage(id),
@@ -147,8 +143,6 @@ export function installAgentStatePorts(): () => void {
     useRunTree,
     useProblem: useAgentProblem,
     useSharedState: useAgentSharedState,
-    useCurrentRootUsage,
-    useCurrentRootContextTokens,
     useAction: useAgentAction,
     getCurrentView: getCurrentSessionView,
     getSessions: () => useAgentStore.getState().sessions,

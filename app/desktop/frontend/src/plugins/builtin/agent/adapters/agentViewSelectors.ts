@@ -6,7 +6,6 @@ import type {
   AgentRunOutcome,
   AgentSessionView,
   Message,
-  RunUsage,
   TimelineEntry,
   ToolCall,
 } from "@/plugins/sdk/types/agentSessionView";
@@ -15,7 +14,6 @@ import {
   selectCurrentRootRun,
   selectRootNarrativeMessages,
   selectRunTree,
-  selectRunUsage,
   selectVisibleProblem,
 } from "../application/view/runTree";
 import type { AgentRootAttention, AgentRunTreeNode } from "../application/view/runTree";
@@ -73,14 +71,6 @@ export function useCurrentRootRunId(): string | null {
 
 export function useCurrentRootSegmentId(): string | null {
   return useCurrentRoot()?.activeSegmentId ?? null;
-}
-
-export function useCurrentRootUsage(): RunUsage {
-  return selectRunUsage(useCurrentRoot());
-}
-
-export function useCurrentRootContextTokens(): number | undefined {
-  return useCurrentRoot()?.progress?.contextTokens;
 }
 
 export function useAgentToolCalls(): Record<string, ToolCall> {

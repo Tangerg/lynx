@@ -1359,28 +1359,41 @@ html.theme-dark {
    half a pixel here, a directional cast for a style that wants depth. A COLUMN
    boundary takes the stronger of the two hairline weights; the bar inside one takes
    the lighter. */
-/* Both boundary colours are element-LOCAL: each is written on the one element whose
-   own edge it describes, and read by that same element and nothing below it.
-   Declaring that is not tidiness, it is the drawer's animation.
+/* ── Element-local state colours ──────────────────────────────────────────────
+   Every custom property a STATE selector writes lives here, registered
+   non-inheriting. Each is written on the one element whose own edge it describes and
+   read by that same element and nothing below it, and declaring that is not tidiness —
+   it is what makes the state cheap to change.
+
    A custom property inherits by default, so writing `--shell-boundary` on the content
    card put every descendant of the card — the whole transcript, the composer, the dock
    — into style recalculation. Measured on a 200-turn transcript: collapsing the drawer
-   cost 37ms of recalc, 33ms of it this one declaration, landing as a single dropped
+   cost 37ms of recalc, 33ms of it that one declaration, landing as a single dropped
    frame at the start of a 240ms slide. Non-inheriting, the same toggle costs 4ms. The
-   dock was never affected because it keeps its state on itself (`[data-open]`) instead
-   of in an inherited variable — this makes the drawer as cheap as the dock has been.
-   The cost did NOT scale with transcript length, which is why it reads as a constant
+   dock was never affected because it keeps its state on itself (`[data-open]`) rather
+   than in an inherited variable — this makes the drawer as cheap as the dock has been.
+   The cost did NOT scale with transcript length, which is why it read as a constant
    hitch rather than "long sessions are slow".
-   `<color>` and not `*` so the box-shadow transition still has two colours to
-   interpolate between. Every writer resolves to one (`--color-border-soft`,
-   `--boundary-emphasis`, `transparent`); a non-colour would fail at computed-value
-   time and silently fall back to the initial value, which is a missing hairline. */
+
+   `<color>` and not `*` so a box-shadow transition still has two colours to interpolate
+   between. Every writer must resolve to one (`--color-border-soft`,
+   `--boundary-emphasis`, `--color-accent`, `transparent`); a non-colour fails at
+   computed-value time and silently falls back to the initial value, which is a missing
+   edge rather than a broken build.
+
+   `check-style-invalidation` keeps the list complete — a state-written property that
+   never gets here is the same 33ms, spent somewhere nobody is looking. */
 @property --shell-boundary {
   syntax: "<color>";
   inherits: false;
   initial-value: transparent;
 }
 @property --split-boundary {
+  syntax: "<color>";
+  inherits: false;
+  initial-value: transparent;
+}
+@property --composer-ring {
   syntax: "<color>";
   inherits: false;
   initial-value: transparent;
@@ -1537,18 +1550,14 @@ html.theme-dark {
   flex-direction: column;
   overflow: hidden;
   background: var(--app-dock-surface);
-  /* The BASIS jumps; it never animates. Animating it meant relaying out the chat
-     column on every frame, which re-wraps every visible message, fires
-     use-stick-to-bottom's ResizeObserver, and re-evaluates `content-visibility`
-     containment — sixty times a second, which is the stutter. It now changes once:
-     immediately on the way in, and delayed by the travel on the way out so the panel
-     still has a column to slide out of. Two reflows per toggle instead of fifteen. */
   /* The flank's own width travels, so the conversation beside it reflows WITH it
      rather than teleporting to its new measure and waiting for the panel to catch up.
-     Measured rather than assumed: over the 240ms travel this drops zero frames and
-     costs 0–4 layouts, because `content-visibility: auto` leaves every off-screen
-     message unlaid-out — the reflow is bounded to what is on screen no matter how
-     long the transcript is. A transform slide measured the same and looked worse. */
+     Measured rather than assumed, on a 200-turn transcript: the whole toggle costs one
+     layout and ~2ms of style, and drops no frames. `content-visibility: auto` is what
+     makes that true — it leaves every off-screen message unlaid-out, so the reflow is
+     bounded to what is on screen no matter how long the transcript is, and removing it
+     makes the same toggle ten times worse. A transform slide measured the same and
+     looked worse. */
   transition:
     flex-basis var(--dur-drawer) var(--ease-drawer),
     visibility 0s linear 0s;
@@ -1558,9 +1567,6 @@ html.theme-dark {
   transition:
     flex-basis var(--dur-drawer) var(--ease-drawer),
     visibility 0s linear var(--dur-drawer);
-}
-.agent-shell[data-resizing] .agent-context-dock {
-  transition: none;
 }
 /* Mid-drag the basis changes every pointer-move, so the travel curve would make the
    dock chase the cursor a third of a second behind it — the same reason the drawer's
