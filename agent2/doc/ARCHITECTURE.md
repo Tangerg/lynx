@@ -557,6 +557,8 @@ Platform 是建立在 Engine 上的可选完整形态，拥有 Deployment catalo
 
 本地嵌入式使用可以只创建 Engine 并运行显式 Definition；完整应用可以使用 Platform。二者共享 Process 和 Execution 语义，不建立两个 runtime。
 
+Platform 不包装、不创建也不代理 Engine。完整形态由 Host 把同一个 `platform.Platform` 作为 exact DeploymentResolver，与原有 ProcessAdmitter、EventListener 和 EngineConfig 显式装配；根 Deployment 仍由 Host 在 active Candidate snapshot 上完成选择后交给 `Engine.Start/Run`。因此 Platform 没有第二套 Start/Run、Process handle、scheduler 或 observation bus。
+
 Platform 的 Catalog 是 exact Deployment binding 的不可变内存快照：零值为空，同一 name/version 可以保留多个不同 digest 的历史定义，重复 exact DeploymentRef 必须拒绝而不能覆盖。枚举顺序固定为 Definition name、语义版本、完整 Deployment digest；返回集合与内部 slice 隔离。Catalog 直接实现 Engine 消费的 DeploymentResolver，但不包含 active route、变更命令、远程发现、Process 引用计数或 Host persistence。
 
 Deploy/Replace/Undeploy 只更新 Platform owner 持有的 catalog/route snapshot；Definition 路由只从一个已提交快照选择 exact DeploymentRef。二者不能把 Catalog 退化为 package-global mutable registry，也不能让 Engine 反向依赖 Platform。
@@ -565,6 +567,10 @@ Deploy/Replace/Undeploy 只更新 Platform owner 持有的 catalog/route snapsho
 
 Definition discovery/selection 只暴露一次 active snapshot 的 `DeploymentCandidate{exact ref, Descriptor}`；Candidate 没有 Dispatcher、Engine 或 Process capability。调用方提供的 DeploymentSelector 拥有 request-specific input 与选择政策，可使用 context 执行模型或网络 I/O，返回一个 exact DeploymentRef。Platform 校验该 ref 必须属于同一次候选快照，并返回快照中原始 Deployment；并发 Replace/Undeploy 不能把已完成选择重定向到另一个 binding。historical Catalog 只用于 exact restore，不自动进入路由候选。
 
+Platform 的零值是可用的空部署聚合；`New(deployments...)` 只为一次性构造初始 active set 并校验冲突。发现调用方只取得 non-executable DeploymentCandidates，不公开另一份 executable ActiveDeployments 枚举；需要精确恢复的代码使用 Catalog/Resolve，需要启动的代码使用 SelectDeployment 返回的 captured exact Deployment。P8 的单字段 Config 与重复 active executable view 在冻结前删除，不保留兼容入口。
+
+`embedded_vs_platform` 用完全相同的 Workflow root 与 exact worker 分别经过 caller-owned resolver 和 Platform selector/resolver 运行，并比较 Output、Status、Usage、两 Process tree、两次 admission 以及稳定 Process/Step/Effect Event 投影。不同运行中 child 可能在父 wait 注册前或后完成，所以 `signal.accepted` 与中间 running/waiting 事实可以合法不同；Platform 等价合同不谎称跨运行的 wall-clock、ProcessID 或完整 Event sequence 逐项相等。
+
 ### 11.3 Deployment 恢复
 
 - Deployment 冻结 Definition 及影响恢复语义的配置。
@@ -572,7 +578,7 @@ Definition discovery/selection 只暴露一次 active snapshot 的 `DeploymentCa
 - Engine 只依赖由自身消费位置定义的最小 DeploymentResolver，或在 restore 时显式接收已经解析的 Deployment。该 resolver 是无 context、同步、有界、确定且无远程 I/O 的 exact binding lookup；同一精确引用不能随调用方或调用时机改变结果。
 - 路由、租户/调用方选择和远程发布发现必须先产生精确 DeploymentRef，再进入 resolver；resolver 不承担这些职责。
 - same-reference child 直接复用当前 Deployment，不调用 resolver；tree restore 对每个 distinct DeploymentRef 至多解析一次，并在全部 Deployment 与 snapshot 校验成功后才注册整棵树。
-- Platform 是 durable catalog、版本路由和治理实现，不在 Engine 内再建立第二份权威目录。
+- Platform 是唯一的进程内 executable catalog、版本路由和治理实现，不在 Engine 内再建立第二份权威目录；Host 的 durable publication 负责在进程启动时重建它。
 - Catalog 保存 executable Deployment value，不能冒充可跨进程序列化的发布仓库；Host/adapter 负责从持久发布事实构造本地不可变快照。
 - 不使用 package-global registry。
 - 不通过 execution kind 猜测 concrete factory。

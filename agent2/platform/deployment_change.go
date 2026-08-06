@@ -9,11 +9,8 @@ import (
 )
 
 var (
-	// ErrInvalidConfig reports an inconsistent initial Platform configuration.
-	ErrInvalidConfig = errors.New("platform: invalid configuration")
-
-	// ErrInvalidPlatform reports a nil or uninitialized Platform receiver.
-	ErrInvalidPlatform = errors.New("platform: invalid platform")
+	// ErrNilPlatform reports a nil Platform receiver.
+	ErrNilPlatform = errors.New("platform: nil platform")
 
 	// ErrDeploymentConflict reports that a name/version slot is bound to a
 	// different exact Deployment.
@@ -58,13 +55,10 @@ func newDeploymentConflict(active, requested agent.DeploymentRef) error {
 // requires Replace.
 func (platform *Platform) Deploy(deployment agent.Deployment) error {
 	if platform == nil {
-		return ErrInvalidPlatform
+		return ErrNilPlatform
 	}
 	platform.mu.Lock()
 	defer platform.mu.Unlock()
-	if !platform.initialized {
-		return ErrInvalidPlatform
-	}
 	if !deployment.Valid() {
 		return agent.ErrInvalidDeployment
 	}
@@ -81,6 +75,9 @@ func (platform *Platform) Deploy(deployment agent.Deployment) error {
 		return fmt.Errorf("platform: deploy %s: %w", reference, err)
 	}
 	active := maps.Clone(platform.state.active)
+	if active == nil {
+		active = make(map[deploymentSlot]agent.DeploymentRef)
+	}
 	active[slot] = reference
 	state, err := deploymentStateFrom(catalog, active)
 	if err != nil {
@@ -95,13 +92,10 @@ func (platform *Platform) Deploy(deployment agent.Deployment) error {
 // A new semantic version must be introduced with Deploy, not Replace.
 func (platform *Platform) Replace(deployment agent.Deployment) error {
 	if platform == nil {
-		return ErrInvalidPlatform
+		return ErrNilPlatform
 	}
 	platform.mu.Lock()
 	defer platform.mu.Unlock()
-	if !platform.initialized {
-		return ErrInvalidPlatform
-	}
 	if !deployment.Valid() {
 		return agent.ErrInvalidDeployment
 	}
@@ -133,13 +127,10 @@ func (platform *Platform) Replace(deployment agent.Deployment) error {
 // of deactivating a replacement. The exact binding remains in Catalog.
 func (platform *Platform) Undeploy(reference agent.DeploymentRef) error {
 	if platform == nil {
-		return ErrInvalidPlatform
+		return ErrNilPlatform
 	}
 	platform.mu.Lock()
 	defer platform.mu.Unlock()
-	if !platform.initialized {
-		return ErrInvalidPlatform
-	}
 	if !reference.Valid() {
 		return agent.ErrInvalidDeploymentRef
 	}

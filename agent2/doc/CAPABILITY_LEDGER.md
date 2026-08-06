@@ -361,7 +361,7 @@
 | 普通 Go / `flow` | 0 Agent Process/node；同进程 typed control flow，可有自己的局部 run/journal 语义 | 节点不需要 Agent identity、预算、取消传播或 tree recovery |
 | Interaction | 1 Process；模型/Tool Effect、WorkingContext、HITL/steer/snapshot/limit | 自主循环需要托管但没有独立 worker tree |
 | managed Workflow | root + 每个真实 child Process；示例实际为 4/6/10 Process | 分支/迭代确实需要独立身份、预算、能力、取消和恢复 |
-| Platform | P8 尚未实现 | 多 Deployment catalog、版本选择和统一治理已由真实 consumer 证明 |
+| Platform | 启动前选择 + 同一个 Engine；示例仍为 2 Process | 需要多 Deployment catalog、版本选择和统一治理；不增加第二 runtime |
 
 - `go mod why github.com/Tangerg/flow` 证明 `flow` 不是 agent2 依赖；standalone package DAG 继续是 root ← Interaction/Planning/Workflow，GOAP 只依赖 Planning。生产源码扫描没有模式专用 Supervisor/PromptChain/Router/Vote/EvaluatorOptimizer/Team 类型，没有旧 `agent`/应用 import、Store/Blackboard 或第二 runtime。
 - P7 public surface 逐项有 owner/consumer：Delegate 由模型选择 exact child；Artifact/Artifacts/CompletionCandidate 分别承载 schema-owned evidence、稳定集合与两种完成候选；completion validator 提供纯反馈边界。Workflow 的 Transform/Call/Switch/Fork/Map/Loop 各有不同状态/恢复语义并被 command 或 contract tests 消费；Sequence/Gate/Vote/PromptChain 均由现有代数派生，没有近义入口。
@@ -390,7 +390,7 @@
 - `platform.Platform` 只拥有 deployment aggregate，不拥有 Process。初始 Deployments 一次性验证；每次本地变化在单一临界区构造并发布完整 Catalog + active map + stable active list，不让读者看到半变更。两个 Platform 实例完全隔离，无 package-global registry。
 - active identity 是 name + canonical SemVer，不是裸 name。1.x/2.x 可同时 active；相同 name/version 的不同 complete digest 必须 Deploy conflict → 显式 Replace。Replace 一个版本不影响其他版本，旧 exact Deployment 永久保留供 resolver/restoration。
 - Deploy 当前 exact binding 是无变化；Replace 不存在的版本返回 not-active，不能借 Replace 偷建新版本；Undeploy 要求 current exact ref，stale ref 返回 Active/Requested conflict，成功后只移除 active route 而不删除 history。
-- Config conflict、invalid Platform/Deployment/Ref、not-found exact binding、not-active slot 和 occupied/stale conflict 各有独立 error 语义。并发测试覆盖不同版本的 Deploy、Replace 与同时 Active/Catalog read，所有 active ref 在任一已读 snapshot 后都仍可 exact Resolve。
+- initial construction conflict、invalid Platform/Deployment/Ref、not-found exact binding、not-active slot 和 occupied/stale conflict 各有独立 error 语义。并发测试覆盖不同版本的 Deploy、Replace 与同时 Candidate/Catalog read，所有 active ref 在任一已读 snapshot 后都仍可 exact Resolve。
 - 不实现 Forget/retention count、database transaction/CAS、idempotency key、remote deploy 或同步 listener。外部持久发布、历史清理政策和生命周期落库属于 Host；Framework observation 边界留给 P8-06。
 
 ### 12.4 active Definition discovery 与 exact selection
@@ -417,3 +417,11 @@
 - Event/Delta listener 治本删除永远被忽略的 error 返回值并新增 Func adapter；panic 仍隔离。Event 实现承担 bounded/no-reentry 合同，Delta 继续使用 bounded async queue，drop 同时进入 Usage 与 Event。
 - `agent2/otel` 是单向 adapter，不是第二观察总线。生产代码只 import 根 Framework 与官方 OTel API；Kernel 禁止 OTel，adapter 禁止 SDK、Strategy、旧 agent 与 Host。SDK 只在测试中证明真实 spans、parenting、exact deployment attributes、status/target，以及 Process starts/exits、Step/Effect duration metrics。
 - raw payload、Input/Output、产品身份、日志 backend、exporter 生命周期都不进入 Framework 或默认 telemetry attributes。模型/Tool/Action 的 Strategy-specific observability 由相应 dispatcher/adapter owner 提供，Kernel 不通过 opaque Effect 猜测。
+
+### 12.7 embedded Engine 与完整 Platform 共用一个 runtime
+
+- 新增第八个独立公开 command `embedded_vs_platform`。同一个 Workflow root 通过 exact child Call 调用同一个 worker：嵌入式路径使用 caller-owned resolver 并直接提交 root；Platform 路径从 non-executable active candidates 选择 exact root，再把 Platform 本身作为 Engine resolver。两条路径没有共享 test helper，也没有调用 internal protocol。
+- 两次运行都通过同一个 EngineConfig 位置装配 ProcessAdmitter 与 EventListener。行为比较覆盖 typed Output、Completed、Usage、root/child exact Deployment tree、root/child admission facts，以及按 deployment/depth/step/target/status 归一化的 Process/Step/Effect lifecycle；专项普通 100 次与 race 20 次证明一致。
+- 真实运行也证明完整 Event sequence 不能成为跨运行等价条件：child 若在 wait 注册前完成，父可直接继续；若在注册后完成，父会提交 Waiting 并接收 Signal。该调度差异不改变 Result/tree/Usage/实际 Step 与 Effect 语义，文档不把 `signal.accepted`、中间 running/waiting、ID 或时间误写为 deterministic output。
+- 冻结前删除单字段 Config，构造收敛为 `New(deployments...)`；Platform 零值可直接 Deploy/Resolve/select empty。删除 executable `ActiveDeployments` 枚举，active discovery 只保留 immutable DeploymentCandidate，阻止 Dispatcher/Definition behavior 从发现面泄漏。Catalog/Resolve 继续服务 exact history，SelectDeployment 是 active executable binding 的唯一出口；nil Platform/selector 只返回精确的 ErrNilPlatform/ErrNilDeploymentSelector，不再冒充一般 Invalid。
+- Platform 不持有或包装 Engine，不提供 Start/Run/Restore/Process facade，不拥有 ProcessAdmitter、EventListener、OTel、Store 或 Host policy。Platform architecture gate 进一步禁止 OTel 与所有 Strategy/legacy/Host imports；完整形态只是 Host 对 selection + resolver + 同一个 Engine 的显式组合。

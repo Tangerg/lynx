@@ -425,3 +425,13 @@
 - 决策：Kernel production source 由 architecture gate 禁止 `go.opentelemetry.io/otel`；OTel adapter production source 禁止 SDK、Strategy、旧 agent 与 Host imports。SDK trace/metric 只用于真实 provider 测试，证明一个两 Step/一 Dispatcher Effect Process 产生一个 Process span、两个 Step span、一个 Effect span及 1/1/2/1 对应 metric observations。adapter panic 仍由 Engine listener boundary 隔离，不影响 Result。
 - 原因：Event 必须先成为自足、准确、中性的事实，telemetry 才能是可替换投影。让 Kernel 直接操作 span 或让 OTel adapter解析应用对象都会反转依赖；让 observer 返回 error 又会制造虚假的控制权。
 - 后果：根与新 OTel package API/GoDoc、Event/Delta observation wire 显式冻结；四个 Strategy API 与 Process Snapshot v3/TreeSnapshot v1 wire 不变。P8-07 只验证 Platform/embedded 装配共享同一个 Engine 语义，不再增加第二观察总线。
+
+## ADR-A2-053：Platform 只治理 Deployment，完整形态仍显式装配同一个 Engine
+
+- 状态：已接受；完成 P8-07，P8 完成。
+- 证据：公开 `embedded_vs_platform` command 用同一 exact Workflow root、worker、Input、ProcessAdmitter 与 EventListener 运行两次：嵌入式路径直接提交 root 并使用 caller-owned exact resolver；完整路径先从 active DeploymentCandidate snapshot 选择 root，再把 `platform.Platform` 作为同一 EngineConfig 的 DeploymentResolver。两者产生相同 Output、Completed、Usage、root/child exact tree、两次 admission 和稳定 Process/Step/Effect observation 投影。
+- 决策：Platform 不增加 Start、Run、Restore、Process handle、Engine facade、scheduler 或 observation bus。选择只产生 captured exact root Deployment，解析只服务 child/restore；生命周期始终由根 Engine 拥有。ProcessAdmitter 与 EventListener 继续直接装配进 EngineConfig，Platform 不代理、不复制也不扩充它们。
+- 决策：冻结前删除无行为价值的单字段 `Config`，`New` 直接接收 `deployments ...Deployment`；Platform 零值成为可用空 aggregate，不再维护 initialized 分支。删除公开 executable `ActiveDeployments` 副视图；发现只公开 non-executable `DeploymentCandidates`，执行 binding 只能来自 validated SelectDeployment，精确历史来自 Catalog/Resolve。只表示 nil/typed-nil 的 sentinel 收紧为 `ErrNilPlatform`/`ErrNilDeploymentSelector`，不再用过宽的 Invalid。没有 alias、旧构造器或双枚举兼容层。
+- 决策：跨两次独立运行只比较稳定语义，不伪造 deterministic scheduling。child 在 wait 注册前完成时父 Process 可继续 running；注册后完成时会出现 Waiting/Signal。`signal.accepted`、中间 running/waiting、ProcessID、wall-clock 和全局交错不是 Platform 等价合同；每 Process 的事实仍按自身 sequence 有序，最终 Result/tree/Usage 与实际 Step/Effect lifecycle 必须一致。
+- 原因：Platform 的价值是多 Deployment catalog、版本、selection 和治理，不是第二 runtime。真实 consumer 同时证明最小嵌入与完整装配只相差启动前的选择和 exact resolver 来源，因而没有理由新增 facade；冻结前删除冗余候选面也避免把可执行对象泄露给 discovery。
+- 后果：`platform` 公开 API/GoDoc 纳入 Baseline 3；根、Interaction、Planning、GOAP、Workflow、OTel API 与 Process Snapshot v3、TreeSnapshot v1、Event/Delta wire 不变。P8 7/7 完成，下一阶段只做 P9 独立完整性验收。

@@ -15,7 +15,7 @@ var _ agent.DeploymentResolver = (*platform.Platform)(nil)
 func TestPlatformDeployReplaceUndeployKeepsExactHistory(t *testing.T) {
 	firstV1 := catalogDeployment(t, "test.writer", "1.0.0", "v1-first")
 	v2 := catalogDeployment(t, "test.writer", "2.0.0", "v2")
-	platformInstance, err := platform.New(platform.Config{Deployments: []agent.Deployment{v2, firstV1}})
+	platformInstance, err := platform.New(v2, firstV1)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -67,28 +67,27 @@ func TestPlatformDeployReplaceUndeployKeepsExactHistory(t *testing.T) {
 func TestPlatformInitialConfigurationRejectsConflictingVersionSlot(t *testing.T) {
 	first := catalogDeployment(t, "test.conflict", "1.0.0", "first")
 	second := catalogDeployment(t, "test.conflict", "1.0.0", "second")
-	instance, err := platform.New(platform.Config{Deployments: []agent.Deployment{first, second}})
-	if instance != nil || !errors.Is(err, platform.ErrInvalidConfig) ||
-		!errors.Is(err, platform.ErrDeploymentConflict) {
+	instance, err := platform.New(first, second)
+	if instance != nil || !errors.Is(err, platform.ErrDeploymentConflict) {
 		t.Fatalf("New conflicting Platform = %#v, %v", instance, err)
 	}
 }
 
 func TestPlatformInstancesDoNotShareDeploymentState(t *testing.T) {
 	deployment := catalogDeployment(t, "test.isolated", "1.0.0", "only-left")
-	left, err := platform.New(platform.Config{})
+	left, err := platform.New()
 	if err != nil {
 		t.Fatal(err)
 	}
-	right, err := platform.New(platform.Config{})
+	right, err := platform.New()
 	if err != nil {
 		t.Fatal(err)
 	}
 	if err := left.Deploy(deployment); err != nil {
 		t.Fatal(err)
 	}
-	if len(left.ActiveDeployments()) != 1 || len(right.ActiveDeployments()) != 0 {
-		t.Fatalf("Platform state leaked: left=%d right=%d", len(left.ActiveDeployments()), len(right.ActiveDeployments()))
+	if len(left.DeploymentCandidates()) != 1 || len(right.DeploymentCandidates()) != 0 {
+		t.Fatalf("Platform state leaked: left=%d right=%d", len(left.DeploymentCandidates()), len(right.DeploymentCandidates()))
 	}
 	if _, err := right.Resolve(deployment.Reference()); !errors.Is(err, platform.ErrDeploymentNotFound) {
 		t.Fatalf("right Platform Resolve error = %v", err)
@@ -96,7 +95,7 @@ func TestPlatformInstancesDoNotShareDeploymentState(t *testing.T) {
 }
 
 func TestPlatformSerializesConcurrentChangesAndPublishesConsistentSnapshots(t *testing.T) {
-	instance, err := platform.New(platform.Config{})
+	instance, err := platform.New()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -120,9 +119,9 @@ func TestPlatformSerializesConcurrentChangesAndPublishesConsistentSnapshots(t *t
 	for range 16 {
 		group.Go(func() {
 			for range 100 {
-				active := instance.ActiveDeployments()
-				for _, deployment := range active {
-					if _, err := instance.Resolve(deployment.Reference()); err != nil {
+				candidates := instance.DeploymentCandidates()
+				for _, candidate := range candidates {
+					if _, err := instance.Resolve(candidate.Reference()); err != nil {
 						t.Errorf("active Deployment missing from Catalog: %v", err)
 						return
 					}
@@ -138,7 +137,7 @@ func TestPlatformSerializesConcurrentChangesAndPublishesConsistentSnapshots(t *t
 		})
 	}
 	group.Wait()
-	if got := len(instance.ActiveDeployments()); got != count {
+	if got := len(instance.DeploymentCandidates()); got != count {
 		t.Fatalf("active Deployments = %d, want %d", got, count)
 	}
 	if got := len(instance.Catalog().Deployments()); got != count*2 {
@@ -146,18 +145,23 @@ func TestPlatformSerializesConcurrentChangesAndPublishesConsistentSnapshots(t *t
 	}
 }
 
-func TestPlatformRejectsNilUninitializedAndInvalidChanges(t *testing.T) {
+func TestPlatformZeroValueIsUsableAndNilReceiverIsRejected(t *testing.T) {
 	var nilPlatform *platform.Platform
 	var zeroPlatform platform.Platform
-	for _, instance := range []*platform.Platform{nilPlatform, &zeroPlatform} {
-		if err := instance.Deploy(agent.Deployment{}); !errors.Is(err, platform.ErrInvalidPlatform) {
-			t.Fatalf("invalid Deploy error = %v", err)
-		}
-		if _, err := instance.Resolve(agent.DeploymentRef{}); !errors.Is(err, platform.ErrInvalidPlatform) {
-			t.Fatalf("invalid Resolve error = %v", err)
-		}
+	if err := nilPlatform.Deploy(agent.Deployment{}); !errors.Is(err, platform.ErrNilPlatform) {
+		t.Fatalf("nil Deploy error = %v", err)
 	}
-	instance, err := platform.New(platform.Config{})
+	if _, err := nilPlatform.Resolve(agent.DeploymentRef{}); !errors.Is(err, platform.ErrNilPlatform) {
+		t.Fatalf("nil Resolve error = %v", err)
+	}
+	deployment := catalogDeployment(t, "test.zero_platform", "1.0.0", "zero")
+	if err := zeroPlatform.Deploy(deployment); err != nil {
+		t.Fatalf("zero-value Deploy: %v", err)
+	}
+	if _, err := zeroPlatform.Resolve(deployment.Reference()); err != nil {
+		t.Fatalf("zero-value Resolve: %v", err)
+	}
+	instance, err := platform.New()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -171,13 +175,13 @@ func TestPlatformRejectsNilUninitializedAndInvalidChanges(t *testing.T) {
 
 func assertActiveReferences(t *testing.T, instance *platform.Platform, want ...agent.DeploymentRef) {
 	t.Helper()
-	active := instance.ActiveDeployments()
-	if len(active) != len(want) {
-		t.Fatalf("active Deployment count = %d, want %d", len(active), len(want))
+	candidates := instance.DeploymentCandidates()
+	if len(candidates) != len(want) {
+		t.Fatalf("active Deployment count = %d, want %d", len(candidates), len(want))
 	}
-	for index, deployment := range active {
-		if deployment.Reference() != want[index] {
-			t.Fatalf("active Deployment %d = %s, want %s", index, deployment.Reference(), want[index])
+	for index, candidate := range candidates {
+		if candidate.Reference() != want[index] {
+			t.Fatalf("active Deployment %d = %s, want %s", index, candidate.Reference(), want[index])
 		}
 	}
 }

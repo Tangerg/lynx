@@ -2,9 +2,9 @@
 
 > 状态：Baseline 3 已冻结
 > 冻结日期：2026-08-06
-> 适用范围：`agent2` 根 package、`agent2/interaction`、`agent2/planning`、`agent2/planning/goap`、`agent2/workflow`、`agent2/otel`、Process Snapshot v3、TreeSnapshot v1、Event/Delta observation wire
+> 适用范围：`agent2` 根 package、`agent2/interaction`、`agent2/planning`、`agent2/planning/goap`、`agent2/workflow`、`agent2/otel`、`agent2/platform`、Process Snapshot v3、TreeSnapshot v1、Event/Delta observation wire
 
-本文只记录已经由 P3 真实 Interaction、P4 child composition、七个独立 command consumer、P5 真实 Planning/GOAP、P6 managed Workflow 与恢复合同共同证明的公共合同基线。目标架构、ADR、工程标准和实施进度仍由各自文档拥有；这里不复制它们。
+本文只记录已经由 P3 真实 Interaction、P4 child composition、八个独立 command consumer、P5 真实 Planning/GOAP、P6 managed Workflow、P8 Platform 与恢复合同共同证明的公共合同基线。目标架构、ADR、工程标准和实施进度仍由各自文档拥有；这里不复制它们。
 
 ## 1. 基线的含义
 
@@ -43,7 +43,7 @@ Baseline 3 不是兼容承诺或发布版本。仓库仍允许 breaking change�
 
 ## 3. 自动守卫
 
-`baseline_test.go` 对六个已冻结公共 package 的完整 `go doc -all` 输出做 SHA-256 校验，因此 exported identifier、参数名、字段、签名和 GoDoc 的任何漂移都会失败。Baseline 3 digest：
+`baseline_test.go` 对七个已冻结公共 package 的完整 `go doc -all` 输出做 SHA-256 校验，因此 exported identifier、参数名、字段、签名和 GoDoc 的任何漂移都会失败。Baseline 3 digest：
 
 - root kernel：`9cfc3728580548301732bdc8cc9a33e9b5bde083215498e39c455d921730b617`
 - interaction：`9678f94265b227e7d085cc18a264ad3be4cac98709d94638f47c9ee7960e3fee`
@@ -51,6 +51,7 @@ Baseline 3 不是兼容承诺或发布版本。仓库仍允许 breaking change�
 - planning/goap：`da348e298e6976318b317873b44ec60829020fdea82947fae4bbc8e0d865b419`
 - workflow：`0493f8f7ae6e4cc5a3190735c5d02952ec0e0fdb230794bbb01735b8ecfae055`
 - otel：`aed81360b2fdedda8b08a2c27e7570a4f06f4584ff84e3f0904016d517c038ec`
+- platform：`9fef1861154434ca2f4fdd4d3b6bfad2b4c8326b15c49eb0d3c82fc0062f8713`
 
 同一测试对 Process Snapshot v3 与 TreeSnapshot v1 的 schema version、字段名、JSON tag、字段类型和嵌套 wire shape 做独立校验。Baseline 3 沿用的 wire digest：
 
@@ -83,6 +84,8 @@ P8-05 依据 ADR-A2-051 修订根 Engine 合同：新增 immutable `ProcessAdmis
 
 P8-06 依据 ADR-A2-052 修订根 observation 合同：Event 新增 exact DeploymentRef/ProcessRelation，统一 Framework Event 名称常量，补齐 Step 与两类 Effect 的真实 started/finished、target/status/duration；EventListener/DeltaListener 删除无效 error 返回并增加 Func adapter。新增独立 `agent2/otel` official-API adapter，Kernel 不 import OTel，production adapter 不 import SDK。根与 OTel API 以及 Event/Delta wire 显式冻结；四个 Strategy API 和 snapshot/tree wire 不变。
 
+P8-07 依据 ADR-A2-053 用第八个公开 command 同时运行 embedded 与 Platform 两条路径：同一 root/worker/Input、admission、Event listener 和 Engine 产生相同 Output、Status、Usage、exact tree 与稳定 Process/Step/Effect observation 投影。Platform 没有第二 Start/Run/runtime。冻结前删除单字段 Config 和 executable ActiveDeployments 副视图，构造收敛为 `New(deployments...)` 且零值可用；发现只保留 non-executable DeploymentCandidates。只表示 nil 的错误精确命名为 ErrNilPlatform/ErrNilDeploymentSelector。`platform` API/GoDoc 现纳入 digest 守卫；其余六个 API 与全部共同 wire 不变。
+
 ## 4. 明确不在基线中的能力
 
-Baseline 3 暂不冻结 P8 Platform catalog/routing、P10 应用迁移 API 或最终模块替换路径。`flow` 保持独立 in-process 库，不形成 Agent adapter API 或依赖；未来编辑器图只能在更高层编译成已验证的 Workflow Definition，不能反向扩张 Kernel 或恢复 wire。
+Baseline 3 暂不冻结 P10 应用迁移 API 或最终模块替换路径。`flow` 保持独立 in-process 库，不形成 Agent adapter API 或依赖；未来编辑器图只能在更高层编译成已验证的 Workflow Definition，不能反向扩张 Kernel 或恢复 wire。

@@ -11,8 +11,8 @@ import (
 )
 
 var (
-	// ErrInvalidDeploymentSelector reports a nil selector implementation.
-	ErrInvalidDeploymentSelector = errors.New("platform: invalid deployment selector")
+	// ErrNilDeploymentSelector reports a nil selector implementation.
+	ErrNilDeploymentSelector = errors.New("platform: nil deployment selector")
 
 	// ErrNoDeploymentCandidate reports that the active snapshot is empty.
 	ErrNoDeploymentCandidate = errors.New("platform: no deployment candidate")
@@ -71,9 +71,6 @@ func (platform *Platform) DeploymentCandidates() []DeploymentCandidate {
 	}
 	platform.mu.RLock()
 	defer platform.mu.RUnlock()
-	if !platform.initialized {
-		return nil
-	}
 	return candidatesFrom(platform.state.ordered)
 }
 
@@ -85,16 +82,12 @@ func (platform *Platform) SelectDeployment(
 	selector DeploymentSelector,
 ) (agent.Deployment, error) {
 	if platform == nil {
-		return agent.Deployment{}, ErrInvalidPlatform
+		return agent.Deployment{}, ErrNilPlatform
 	}
 	if nilDeploymentSelector(selector) {
-		return agent.Deployment{}, ErrInvalidDeploymentSelector
+		return agent.Deployment{}, ErrNilDeploymentSelector
 	}
 	platform.mu.RLock()
-	if !platform.initialized {
-		platform.mu.RUnlock()
-		return agent.Deployment{}, ErrInvalidPlatform
-	}
 	deployments := slices.Clone(platform.state.ordered)
 	platform.mu.RUnlock()
 	if len(deployments) == 0 {

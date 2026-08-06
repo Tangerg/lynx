@@ -52,8 +52,9 @@ func TestPlatformExcludesStrategiesLegacyAndHostPackages(t *testing.T) {
 				path == "github.com/Tangerg/lynx/app" || strings.HasPrefix(path, "github.com/Tangerg/lynx/app/") ||
 				strings.HasPrefix(path, "github.com/Tangerg/lynx/agent2/interaction") ||
 				strings.HasPrefix(path, "github.com/Tangerg/lynx/agent2/planning") ||
-				strings.HasPrefix(path, "github.com/Tangerg/lynx/agent2/workflow") {
-				t.Errorf("%s imports forbidden Strategy, legacy, or Host package %q", name, path)
+				strings.HasPrefix(path, "github.com/Tangerg/lynx/agent2/workflow") ||
+				strings.HasPrefix(path, "go.opentelemetry.io/otel") {
+				t.Errorf("%s imports forbidden Strategy, legacy, Host, or OTel package %q", name, path)
 			}
 		}
 	}

@@ -8,20 +8,13 @@ import (
 	agent "github.com/Tangerg/lynx/agent2"
 )
 
-// Config contains the complete initial Platform deployment state. Each entry
-// is initially active in its Definition-name and semantic-version slot.
-type Config struct {
-	// Deployments are the exact bindings initially active in the Platform.
-	Deployments []agent.Deployment
-}
-
 // Platform owns atomic deployment changes, active version slots, and an exact
 // historical Catalog above Engine. It does not own Process lifecycle or Host
-// persistence. A Platform must be constructed with New and must not be copied.
+// persistence. Its zero value is an empty usable Platform. A Platform must not
+// be copied after first use.
 type Platform struct {
-	mu          sync.RWMutex
-	initialized bool
-	state       deploymentState
+	mu    sync.RWMutex
+	state deploymentState
 }
 
 type deploymentState struct {
@@ -41,15 +34,15 @@ func slotFor(reference agent.DeploymentRef) deploymentSlot {
 	return deploymentSlot{name: reference.Name(), version: reference.Version()}
 }
 
-// New validates and atomically constructs the initial Platform. Deployments
+// New validates and atomically constructs a Platform. Deployments
 // with different semantic versions occupy independent active slots; different
 // exact references for the same name and version conflict.
-func New(config Config) (*Platform, error) {
-	state, err := initialDeploymentState(config.Deployments)
+func New(deployments ...agent.Deployment) (*Platform, error) {
+	state, err := initialDeploymentState(deployments)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %w", ErrInvalidConfig, err)
+		return nil, err
 	}
-	return &Platform{initialized: true, state: state}, nil
+	return &Platform{state: state}, nil
 }
 
 // Catalog returns the current immutable exact binding snapshot. Historical
@@ -60,24 +53,7 @@ func (platform *Platform) Catalog() Catalog {
 	}
 	platform.mu.RLock()
 	defer platform.mu.RUnlock()
-	if !platform.initialized {
-		return Catalog{}
-	}
 	return platform.state.catalog
-}
-
-// ActiveDeployments returns the current active bindings in stable Definition-
-// name, semantic-version, and Deployment-digest order.
-func (platform *Platform) ActiveDeployments() []agent.Deployment {
-	if platform == nil {
-		return nil
-	}
-	platform.mu.RLock()
-	defer platform.mu.RUnlock()
-	if !platform.initialized {
-		return nil
-	}
-	return slices.Clone(platform.state.ordered)
 }
 
 // Resolve performs one exact lookup against the current immutable Catalog and
@@ -85,13 +61,9 @@ func (platform *Platform) ActiveDeployments() []agent.Deployment {
 // resolvable so Process restoration never follows an active route by mistake.
 func (platform *Platform) Resolve(reference agent.DeploymentRef) (agent.Deployment, error) {
 	if platform == nil {
-		return agent.Deployment{}, ErrInvalidPlatform
+		return agent.Deployment{}, ErrNilPlatform
 	}
 	platform.mu.RLock()
-	if !platform.initialized {
-		platform.mu.RUnlock()
-		return agent.Deployment{}, ErrInvalidPlatform
-	}
 	catalog := platform.state.catalog
 	platform.mu.RUnlock()
 	return catalog.Resolve(reference)

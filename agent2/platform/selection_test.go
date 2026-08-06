@@ -13,7 +13,7 @@ import (
 func TestSelectDeploymentUsesOnlyStableActiveCandidateSnapshot(t *testing.T) {
 	first := catalogDeployment(t, "test.selector", "1.0.0", "first")
 	second := catalogDeployment(t, "test.selector", "2.0.0", "second")
-	instance, err := platform.New(platform.Config{Deployments: []agent.Deployment{second, first}})
+	instance, err := platform.New(second, first)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -42,7 +42,7 @@ func TestSelectDeploymentUsesOnlyStableActiveCandidateSnapshot(t *testing.T) {
 func TestSelectDeploymentDoesNotFollowConcurrentReplacement(t *testing.T) {
 	first := catalogDeployment(t, "test.snapshot_selection", "1.0.0", "first")
 	replacement := catalogDeployment(t, "test.snapshot_selection", "1.0.0", "replacement")
-	instance, err := platform.New(platform.Config{Deployments: []agent.Deployment{first}})
+	instance, err := platform.New(first)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -69,7 +69,7 @@ func TestSelectDeploymentDoesNotFollowConcurrentReplacement(t *testing.T) {
 	if selected.err != nil || selected.deployment.Reference() != first.Reference() {
 		t.Fatalf("selection followed replacement: %s, %v", selected.deployment.Reference(), selected.err)
 	}
-	if active := instance.ActiveDeployments(); len(active) != 1 || active[0].Reference() != replacement.Reference() {
+	if active := instance.DeploymentCandidates(); len(active) != 1 || active[0].Reference() != replacement.Reference() {
 		t.Fatalf("active replacement = %#v", active)
 	}
 }
@@ -77,7 +77,7 @@ func TestSelectDeploymentDoesNotFollowConcurrentReplacement(t *testing.T) {
 func TestSelectDeploymentRejectsHistoricalOrMalformedSelection(t *testing.T) {
 	first := catalogDeployment(t, "test.selection_contract", "1.0.0", "first")
 	replacement := catalogDeployment(t, "test.selection_contract", "1.0.0", "replacement")
-	instance, err := platform.New(platform.Config{Deployments: []agent.Deployment{first}})
+	instance, err := platform.New(first)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -107,7 +107,7 @@ func TestSelectDeploymentRejectsHistoricalOrMalformedSelection(t *testing.T) {
 
 func TestSelectDeploymentContainsSelectorFailureAndPanic(t *testing.T) {
 	deployment := catalogDeployment(t, "test.selection_failure", "1.0.0", "only")
-	instance, err := platform.New(platform.Config{Deployments: []agent.Deployment{deployment}})
+	instance, err := platform.New(deployment)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -141,7 +141,7 @@ func TestSelectDeploymentContainsSelectorFailureAndPanic(t *testing.T) {
 }
 
 func TestSelectDeploymentRejectsNilAndEmptyCandidateSet(t *testing.T) {
-	empty, err := platform.New(platform.Config{})
+	empty, err := platform.New()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -154,11 +154,11 @@ func TestSelectDeploymentRejectsNilAndEmptyCandidateSet(t *testing.T) {
 		t.Fatalf("empty selection = called %t, error %v", called, err)
 	}
 	var typedNil platform.DeploymentSelectorFunc
-	if _, err := empty.SelectDeployment(context.Background(), typedNil); !errors.Is(err, platform.ErrInvalidDeploymentSelector) {
+	if _, err := empty.SelectDeployment(context.Background(), typedNil); !errors.Is(err, platform.ErrNilDeploymentSelector) {
 		t.Fatalf("typed-nil selector error = %v", err)
 	}
 	var zero platform.Platform
-	if _, err := zero.SelectDeployment(context.Background(), selector); !errors.Is(err, platform.ErrInvalidPlatform) {
+	if _, err := zero.SelectDeployment(context.Background(), selector); !errors.Is(err, platform.ErrNoDeploymentCandidate) || called {
 		t.Fatalf("zero Platform selection error = %v", err)
 	}
 }
@@ -166,7 +166,7 @@ func TestSelectDeploymentRejectsNilAndEmptyCandidateSet(t *testing.T) {
 func TestDeploymentCandidatesExcludeUndeployedHistory(t *testing.T) {
 	first := catalogDeployment(t, "test.candidate_history", "1.0.0", "first")
 	second := catalogDeployment(t, "test.candidate_history", "2.0.0", "second")
-	instance, err := platform.New(platform.Config{Deployments: []agent.Deployment{first, second}})
+	instance, err := platform.New(first, second)
 	if err != nil {
 		t.Fatal(err)
 	}

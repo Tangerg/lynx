@@ -37,6 +37,11 @@ lifecycle, recovery, budget, cancellation, or governance is required.
   prompt chaining, routing, sectioning, declaration-order aggregation, and a
   stable consumer-owned tie break without adding pattern-specific Framework
   types.
+- `embedded_vs_platform` runs the same exact root/worker Deployments once with
+  a caller-owned resolver and once with Platform discovery plus exact
+  resolution. Output, terminal status, Usage, Process tree, admission facts,
+  and stable Process/Step/Effect observation semantics must match; Platform
+  does not wrap or replace Engine.
 
 All examples use deterministic local components so they run without credentials or
 network access:
@@ -49,4 +54,5 @@ GOWORK=off go run ./examples/workflow
 GOWORK=off go run ./examples/orchestrator_workers
 GOWORK=off go run ./examples/evaluator_optimizer
 GOWORK=off go run ./examples/workflow_patterns
+GOWORK=off go run ./examples/embedded_vs_platform
 ```

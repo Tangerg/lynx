@@ -3,6 +3,6 @@
 //
 // Catalog snapshots contain exact immutable Deployment bindings and implement
 // agent2.DeploymentResolver without owning Process lifecycle. Mutable deployment
-// commands, routing policy, and observation build on snapshots in this package;
-// they do not move application persistence or product policy into the Framework.
+// commands and routing policy build on these snapshots; application persistence,
+// product policy, and observation backends remain outside this package.
 package platform
