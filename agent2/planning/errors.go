@@ -18,4 +18,13 @@ var (
 	ErrInvalidPlan = errors.New("planning: invalid plan")
 	// ErrInvalidProblem reports an inconsistent Planning problem.
 	ErrInvalidProblem = errors.New("planning: invalid problem")
+	// ErrInvalidDefinitionConfig reports an incomplete Planning Definition.
+	ErrInvalidDefinitionConfig = errors.New("planning: invalid definition configuration")
+	// ErrInvalidDispatcherConfig reports an inconsistent external execution binding.
+	ErrInvalidDispatcherConfig = errors.New("planning: invalid dispatcher configuration")
+	// ErrInvalidExecutionState reports malformed or inconsistent Planning state.
+	ErrInvalidExecutionState = errors.New("planning: invalid execution state")
+	// ErrInvalidProtocol reports an unsupported or contradictory Planning Effect
+	// or Signal payload.
+	ErrInvalidProtocol = errors.New("planning: invalid protocol payload")
 )

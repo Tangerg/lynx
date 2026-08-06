@@ -838,6 +838,17 @@ func (execution *childTestExecution) Step(_ context.Context, signals []Signal) (
 		if err != nil {
 			return Transition{}, err
 		}
+		openedSpec := opened.Spec()
+		if len(openedSpec.Children) != len(execution.state.ChildIDs) {
+			return Transition{}, errors.New("child wait acknowledgement changed the requested children")
+		}
+		if len(openedSpec.Children) > 0 {
+			original := openedSpec.Children[0]
+			openedSpec.Children[0] = ProcessID{}
+			if opened.Spec().Children[0] != original {
+				return Transition{}, errors.New("child wait acknowledgement exposed mutable children")
+			}
+		}
 		execution.state.WaitID = opened.WaitID().String()
 		if len(signals) > 1 {
 			return execution.completeChildren(signals, uint32(len(signals)))

@@ -17,8 +17,10 @@ func TestExportedAPIBaseline(t *testing.T) {
 		directory string
 		want      string
 	}{
-		{name: "kernel", directory: ".", want: "3a53aee10161912baf58b506bc7d3b24f47c09d3e274e910034a422109ac0fd8"},
+		{name: "kernel", directory: ".", want: "52a43f16c1b71a099a660ddde520c345476de124855f55c65221f46911486146"},
 		{name: "interaction", directory: "interaction", want: "6861bf74171fb6ece89bdda06627ef6cb06ab3e7353c68f95ebd4c3ce4d91e26"},
+		{name: "planning", directory: "planning", want: "bb3a3fee5315afba3cc1f70ecc0486b4b91f88d4d4160aa93bf896b09ffc28a1"},
+		{name: "goap", directory: "planning/goap", want: "da348e298e6976318b317873b44ec60829020fdea82947fae4bbc8e0d865b419"},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

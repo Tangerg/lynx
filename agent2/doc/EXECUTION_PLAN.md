@@ -3,7 +3,7 @@
 > 状态：持续实施
 > 建立日期：2026-08-06
 > 最后更新：2026-08-06
-> 当前阶段：P5 Planning 与 GOAP，5/8 完成
+> 当前阶段：P6 Workflow，0/8 完成
 > 当前实施范围：仅 `agent2`
 > 临时模块路径：`github.com/Tangerg/lynx/agent2`
 > 最终模块路径：`github.com/Tangerg/lynx/agent`
@@ -71,7 +71,7 @@ go test ./...
 | P2 Engine 最小执行闭环 | 完成 | 8/8 | 单 Process、Signal、Effect、状态提交、snapshot、event/delta、limit |
 | P3 真实 Interaction 验证 | 完成 | 9/9 | 真实模型/工具 dispatcher、流、HITL、steer，并接入 disposable consumer |
 | P4 子 Process 组合与合同冻结 | 完成 | 9/9 | start/wait、递归、组合、预算、取消、恢复；多消费方验证后冻结窄腰 |
-| P5 Planning 与 GOAP | 进行中 | 5/8 | Planning 状态、Planner SPI、GOAP 搜索与 replan |
+| P5 Planning 与 GOAP | 完成 | 8/8 | Planning 状态、Planner SPI、GOAP 搜索与 replan |
 | P6 Workflow | 未开始 | 0/8 | 原生 sequence/gate/router/fork/join/loop/agent call |
 | P7 组合模式与能力覆盖 | 未开始 | 0/7 | 动态 worker 组合、typed artifacts、evaluator/optimizer、示例 |
 | P8 Platform 与治理 | 未开始 | 0/7 | resolver、deployment catalog、版本、路由、递归治理和观测 |
@@ -146,9 +146,9 @@ go test ./...
 - [x] P5-03 建立基础 Action 与 PlannedAction 的清晰分层。
 - [x] P5-04 用真实消费点定义最小 Planner SPI。
 - [x] P5-05 实现 GOAP 搜索、成本、前置条件和效果。
-- [ ] P5-06 实现 observe/plan/act/reobserve 和环境变化 replan。
-- [ ] P5-07 将 no-plan/stuck 留在 Planning policy，不污染 Process 状态。
-- [ ] P5-08 用多路线、不可达目标、动态环境和子 Agent Action 验收。
+- [x] P5-06 实现 observe/plan/act/reobserve 和环境变化 replan。
+- [x] P5-07 将 no-plan/stuck 留在 Planning policy，不污染 Process 状态。
+- [x] P5-08 用多路线、不可达目标、动态环境和子 Agent Action 验收。
 
 ### P6：Workflow
 
@@ -251,6 +251,7 @@ go test ./...
 
 | 日期 | 阶段 | 实际事实 | 验证与结果 |
 |---|---|---|---|
+| 2026-08-06 | P5 | 完成原生 Planning Definition/Execution/Dispatcher 纵切面。Definition 冻结 Goal、最小 Planner、ActionBinding 与 `MaxActionAttempts`；predictive Action 与 dispatcher `ActionExecutor`/精确 child Deployment capability 完全分离。Execution 严格执行 observe → plan → 单个 Action → reobserve：每轮只采用 Plan 首 Action，reobservation 才确认预测 Effects，definite failure/unconfirmed Action 在本 Process 排除后重新规划；child Action 使用真实 child Process、预算、能力衰减与 all-child wait，完成后仍以 Observer 为现实权威。首次 no-plan 输出 `unreachable`，尝试后无路线或达到上限输出 `stuck`，二者均为 Completed 的 Planning Output；观察失败、Planner error/非法 Plan、协议违约保持稳定 failure 分类。Observation Effect 因无副作用允许 same-identity replay；Action Effect 默认不可重投，unknown outcome 通过公开 definite settlement 显式裁决。真实 child consumer 还证明根 `ChildWaitOpened` 必须暴露 defensive-copy 的原始 Spec 供 Strategy 完整核对；已追加 ADR-A2-035 并冻结包含 Planning/GOAP 的 Baseline 2。P1 disposable Planning spike 已删除 | 多路线两步执行、每 Action 后 replan、现实未确认 fallback、definite failure fallback、unreachable/stuck、观察/Planner/能力失败、exact snapshot restore、unknown Action resolution、真实跨 Strategy child Process 全部通过。Planning state/protocol/Output strict codec 增加 fuzz seeds，architecture gate 保持 Kernel/Host/OTel 泄漏禁入；standalone build/vet/staticcheck/test/race 与定向 fuzz 全绿后提交。P5-06～P5-08 完成，P5 更新为 8/8 |
 | 2026-08-06 | P5 | 新增独立 `planning` 与 `planning/goap` 生产 package，完成纯规划纵切面。`Truth` 用 Unknown/False/True 区分未知与已知假，`Condition` 只表达已知命名事实，`WorldState` 是 zero-valid、规范排序、不可变且可严格恢复的观察值；Goal、WorldState、Plan 均不进入共同 Process。`Action` 只拥有预测性的 Name/Description/Preconditions/Effects/Cost，不执行 I/O；`PlannedAction` 只是稳定 Action 引用，彻底切断 planner metadata 与执行 capability。最小 Planner SPI 只有 `Plan(context.Context, Problem) (Plan, found, error)`，没有 Name、Extension、registry、default、Agent、Domain service 或 telemetry。GOAP 使用非负有限成本的 deterministic uniform-cost search：dynamic cost 在边源状态求值、相同成本保持声明顺序、同 state 只接受严格更低 cost predecessor、no-op successor 跳过、direct producer 仅保守短路、context cancellation 与显式 expansion limit 生效；已满足返回 found+empty Plan，完整 frontier 耗尽返回 no-plan，limit 命中返回 `ErrExpansionLimit` 而不谎报不可达。所有 Planner 输出再由 Problem 复算适用性、预测状态、总成本和 Goal satisfaction | standalone build/vet/staticcheck/test 全绿；Planning/GOAP 覆盖率分别 75.9%/87.5%，GOAP 确定性测试连续 50 次通过，Planning 全 race 连续 10 次通过。WorldState strict JSON fuzz 723930 次、Plan strict JSON fuzz 685151 次无失败；architecture gate 递归扫描 Planning packages，禁止旧 `agent`、`app`、OTel/slog、Blackboard、ProcessContext、ConditionEnv/Resolver 和 Host 持久化/产品身份声明。P5-02～P5-05 完成，P5 更新为 5/8 |
 | 2026-08-06 | P5 | 完成旧 Planning/GOAP/HTN/Utility/Reactive 的专项只读审计。保留三值 Truth、不可变 WorldState、规范 state key、非负有限成本的确定性 uniform-cost search、源状态动态成本、stable tie order、strictly-cheaper predecessor、no-op edge 跳过、expansion limit/context cancellation，以及 Action 后 reobserve/replan 的领域规则。Planning 将独占 Goal/Condition/WorldState/Plan；Action 的规划描述、PlannedAction 引用和真实执行 binding 分层。治本式移除 `Action.Execute(ProcessContext)`、可执行 Condition/ConditionEnv/ConditionResolver、Blackboard/binding/dependency scope、Agent identity、Domain registry、Planner Extension/name/default 和 Planning 内 OTel。HTN、Utility 与 Reactive 均无当前真实 consumer：P5 不预建对应 package，只保留已审计算法证据，未来必须通过同一最小 Planner SPI 和真实消费重新申请；Stuck/no-plan 保持 Planning Output，不进入共同 Process Status | 裁决已写入能力台账；只修改 `agent2` 事实文档，未改旧 `agent`、`app/runtime` 或生产实现。文档 diff check 通过；P5-01 完成，P5 更新为 1/8 |
 | 2026-08-06 | P4 | 完成 P4 最终合同审计并冻结 Baseline 1。公开面最后移除未被任何真实 consumer 使用、只暴露 Kernel 内部状态机规则的 `Status.CanTransitionTo`，以及重复回显调用方已知 wait contract 的 `ChildWaitOpened.Spec`；状态迁移检查保留为私有不变量，wait-opened 只返回 Engine-minted WaitID。根 package doc 从临时 greenfield/candidate 说明改为稳定 kernel owner 说明。新增 `API_BASELINE.md`，将 root kernel、`interaction`、Process Snapshot v3 与 TreeSnapshot v1 的精确范围、变更纪律和明确未冻结能力分离记录。自动守卫对完整 `go doc -all`（包含 exported names、参数名、字段、签名和 GoDoc）及 snapshot/tree schema version、JSON tag、字段类型、嵌套 wire shape 做 SHA-256 校验；breaking change 仍允许，但必须有真实证据、ADR、同提交 baseline 更新和全门禁，绝不以兼容 shim 迁就。新增二叉递归扩张合同：输入 depth 8 理论会产生 511 个 Process，Engine 在并发/调度无关的注册临界区将实际 tree 硬限制为 15，且所有 parent 仍通过真实 child wait 收口，不靠泄漏 goroutine 或软取消截断 | standalone build/vet/staticcheck/test/race 全绿；递归、depth/fan-out/active/tree limit、二叉指数扩张、Waiting tree restore、in-flight settlement capture、prepared child-start recovery 专项 race 连续 50 次通过。Input fuzz 164525、ExecutionState 227431、Transition 346225、DeploymentRef 288304、Process Snapshot 26、TreeSnapshot 20 次执行无失败；三个 examples 的 `go run` 输出符合合同，依赖扫描无旧 `agent`/`app`，空目录和非预期 TODO/FIXME/HACK 扫描无残留。P4-09 完成，P4 9/9 完成，Baseline 1 冻结 |

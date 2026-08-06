@@ -3,6 +3,7 @@ package planning_test
 import (
 	"bytes"
 	"encoding/json"
+	"io"
 	"testing"
 
 	"github.com/Tangerg/lynx/agent2/planning"
@@ -57,6 +58,31 @@ func FuzzPlanJSON(f *testing.F) {
 		restoredJSON := mustJSON(t, restored)
 		if !bytes.Equal(restoredJSON, encoded) {
 			t.Fatalf("round-trip Plan differs: before=%s after=%s", encoded, restoredJSON)
+		}
+	})
+}
+
+func FuzzOutputJSON(f *testing.F) {
+	f.Add([]byte(`{"outcome":"unreachable","world_state":{"conditions":[]},"attempts":[],"planning_passes":1}`))
+	f.Add([]byte(`{"outcome":"stuck","world_state":{"conditions":[]},"attempts":[{"action":"action.finish","status":"failed","diagnostic":"refused"}],"planning_passes":1}`))
+	f.Add([]byte(`{"outcome":"achieved","world_state":{"conditions":[]},"attempts":[],"planning_passes":0}`))
+	f.Fuzz(func(t *testing.T, data []byte) {
+		var output planning.Output
+		decoder := json.NewDecoder(bytes.NewReader(data))
+		decoder.DisallowUnknownFields()
+		if err := decoder.Decode(&output); err != nil {
+			return
+		}
+		if err := decoder.Decode(&struct{}{}); err != io.EOF || output.Validate() != nil {
+			return
+		}
+		encoded, err := json.Marshal(output)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var restored planning.Output
+		if err := json.Unmarshal(encoded, &restored); err != nil || restored.Validate() != nil {
+			t.Fatalf("accepted Output did not round trip: %v", err)
 		}
 	})
 }

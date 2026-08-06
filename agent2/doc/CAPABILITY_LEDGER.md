@@ -164,3 +164,11 @@
 - 旧 Reactive 是按固定优先级返回第一个适用 Action 的单步 planner，不是 ReAct，也没有独立推进/恢复语义。该 package 直接移除；未来若出现规则选择需求，必须以真实消费点决定落在 Planner、Workflow gate/router 或 Interaction。
 
 以上裁决保留能力证据而不保留旧 API。未来新增 HTN、Utility 或其他 Planner 只能消费 P5 由 GOAP 证明的最小 Planner SPI；不得要求共同 Process 增加 Goal、Plan、Blackboard、Agent identity、registry 或策略专属 snapshot 字段。
+
+### 9.4 P5 验证结论
+
+- Goal/Condition/Truth/WorldState、predictive Action/PlannedAction、Problem/Plan 与最小 Planner SPI 已在 `planning` 独立实现；GOAP 已在 `planning/goap` 以确定、有界的 uniform-cost search 实现。
+- managed Planning 已证明 dispatcher Action 与真实 child Process Action 两条执行路径；两者均遵守每个 Action 后 reobserve/replan，预测 Effects 不作为现实真相。
+- 多路线、动态环境未确认、definite failure、初始不可达、尝试后 stuck、attempt 上限、非法 Planner 输出、观察失败、能力拒绝、unknown Effect 显式裁决和 snapshot restore 均有行为合同。
+- 旧 `Action.Execute(ProcessContext)`、Blackboard、Condition evaluator/provider、Domain registry、Planner registry/default、Agent identity、Planning OTel 与 disposable Planning spike 均未进入正式实现；HTN、Utility、Reactive 保持未实现且没有占位 package。
+- Planning 专属 completion outcome 只存在于 Planning Output；共同 Status 和 snapshot wire 没有新增 Planning 字段。P5 台账项已验证完成。

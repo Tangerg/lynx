@@ -235,3 +235,13 @@
 - 决策：P3 真实 Interaction、P4 child composition 和第二个独立 consumer 全部通过后，将根 kernel、`interaction` package、Process Snapshot v3 与 TreeSnapshot v1 冻结为 Baseline 1。完整 exported signature、参数名、字段、GoDoc 和 snapshot/tree wire shape 由自动 digest 守卫，稳定合同说明独立记录在 `API_BASELINE.md`。
 - 原因：候选窄腰已经同时承载 direct Engine、模型/Tool/HITL/steer Interaction、同 Definition 递归、跨 Strategy child、完整 tree recovery 和三个独立 command consumer；继续不设基线会让无意命名/wire 漂移混入后续 Planning/Workflow 实施，反过来污染已证明的共同层。
 - 限定：Baseline 1 不是兼容层或发布承诺。开发阶段仍允许治本 breaking change，但必须先有真实实现/consumer 证据，追加 ADR，并在同一提交更新基线和全部门禁；禁止 alias、dual-read、dual-write 或预留未来字段。尚未实施的 Planning、Workflow、Platform 与应用迁移 API 不在本基线，不能因此提前占位。
+
+## ADR-A2-035：Planning 只执行一步预测并以现实重观测为权威
+
+- 状态：已接受。
+- 决策：Planning 的 Goal、Condition、Truth、WorldState、Action、Plan、attempt 和 completion outcome 全部留在 `planning`；共同 Process 只看到 opaque ExecutionState、Effect、Signal 和普通终态。Planner 只对不可变 Problem 搜索，Action 只描述预测语义；执行能力通过 dispatcher binding 或精确 child Deployment binding 单独冻结。
+- 决策：Planning Execution 每次规划只执行 Plan 的第一个 Action，随后必须重新观察现实、确认预测 Effects 并重新规划。definite failure 与未确认的 Action 在当前 Process 中排除；首次完整搜索无计划输出 `unreachable`，发生过尝试后无计划或达到 attempt 上限输出 `stuck`，两者都以 Completed Process 的 Planning Output 表达。Planner error、非法 Plan、协议违约和观察失败才进入共同 failure。
+- 决策：side-effect-free observation Effect 可以按相同 EffectID 重投；dispatcher Action Effect 不自动重投，未知外部结果必须由调用方使用原 EffectID 和 Planning 自有的 definite Action settlement 显式裁决。Framework 的稳定身份不提供外部业务 exactly-once。
+- 决策：child Action 是普通真实 Process，拥有独立 DeploymentRef、snapshot、预算和能力；parent 不把 child Output 当作现实状态，而在 child 终态后重新观察。Planning 的真实消费证明 Strategy 必须核对 child-start 的 DeploymentRef 和 child-wait acknowledgement 的完整 spec，因此根合同增加只读、defensive-copy 的 `ChildWaitOpened.Spec`。
+- 原因：预测效果不是真实事实；批量执行旧计划会在环境变化后继续沿过期路径。把执行 capability 放入 Action 或把 no-plan 变成共同状态会重新污染 Kernel。只校验 child WaitID 又无法证明 Engine 确认的是 Strategy 实际声明的等待集合。
+- 后果：P5 完成后冻结 Baseline 2，覆盖 root、Interaction、Planning 与 GOAP；HTN、Utility、Reactive、Planner registry/default、Blackboard、Planning telemetry 和 Host persistence 仍明确不实现。
