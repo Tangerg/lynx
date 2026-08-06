@@ -321,3 +321,14 @@
 - 决策：Planning 只有在子任务拥有可机器观察的 WorldState、Goal 与诚实 Action 预测时才可作为 exact worker。父 Interaction/Workflow 只看其 Input/Output 和 Process 终态，不读取 Plan/Action 内部状态，不驱动 Planning Step，也不把 Planning 当作开放式文本转换器。开放式 worker 继续使用 Interaction 或消费方 Definition。
 - 决策：本轮没有新公共 API、私有 ExecutionState 或 snapshot/tree wire。组合恢复、窗口与 Delegate artifact 的正确性分别由 P4/P6/P7-02～03 已有合同承担；本轮消费者证明这些合同可以无特权地跨 Strategy 闭合，不复制同一状态机。
 - 原因：orchestrator-worker 的独特之处是路径由模型按输入决定，不是独立的生命周期。既有 Interaction 已拥有模型决策，Workflow 已拥有确定调度，Engine 已拥有 child Process；再包一层 Supervisor 只会重复术语、状态和恢复事实源。
+
+## ADR-A2-043：evaluator-optimizer 是显式 typed Loop 组合
+
+- 状态：已接受；落实 ADR-A2-038 对 evaluator-optimizer 的派生组合裁决。
+- 证据：旧 Go `RepeatUntilAcceptable` 与 Embabel 同名实现都保留了 input、attempt/feedback history、latest feedback、best-so-far、acceptance criteria 与 iteration cap，这些是有效领域语义；但二者也把循环编译进 GOAP/Action，依赖 mutable Blackboard/runtime type binding，提供隐式默认上限/阈值，并让耗尽条件与真正 acceptable 共用一个停止事实。独立 `flow` 的 Loop 进一步证明 bounded iteration、失败保留上一合法 value 和停止判断属于通用控制流，但其 in-process runtime/Journal 不能成为 Agent tree 的第二恢复源。
+- 证据：独立 `examples/evaluator_optimizer` command 只用 Baseline 3 公开 API，把 consumer-owned typed state 交给 Workflow Loop。每轮 exact body Workflow 顺序创建 optimizer 与 evaluator 两个 exact child Process；optimizer 消费最新 feedback，evaluator 追加不可变 attempt 并只在严格更高分时替换 best。三轮成功树恰好包含 root、三个 body、三个 optimizer 和三个 evaluator 共十个 Process；首轮达标树恰好四个 Process。
+- 决策：Framework 不增加 `evaluator_optimizer`/`repeat_until_acceptable` package、Stage kind、Feedback/Score/AttemptHistory 公共类型或 builder。该模式唯一实现边界是既有 Workflow `Loop` + exact body/worker Deployments + consumer-owned typed state；optimizer/evaluator 可以换成任意满足 exact Descriptor 的 Definition，Workflow 不读取其业务语义。
+- 决策：consumer 必须显式给出正数 `MaxIterations`、评价合同和 acceptance threshold，并将所有影响行为的配置纳入 Deployment ConfigurationDigest。Framework 不假设分数一定是 `[0,1]`、越大越好或某个默认阈值；示例的归一化分数只是该消费者合同。
+- 决策：每轮只把 evaluator 已提交的 feedback 提供给下一轮 optimizer；history 保持执行顺序；best 只在严格更优时更新，因此同分稳定保留最早 attempt。达到标准映射为 `LoopResult.Satisfied=true`；上限耗尽映射为 `Satisfied=false` 的正常策略完成，最终仍返回 best，不把“停止”伪装成“已接受”。worker failure 沿用 Workflow child failure，不能拿半轮 candidate 覆盖上一个合法 state。
+- 决策：pure Transform、Loop predicate 和 Interaction completion validator 都不得执行外部 evaluator I/O。需要模型、Tool、网络或其他外部判断时，evaluator 必须装配为 exact managed child Process；是否值得增加该循环必须由清晰评价标准和效果评测证明，而不是因为模式目录存在。
+- 后果：本轮只新增 consumer/test/documentation，没有公共 API、Strategy state 或 snapshot/tree wire 变化；P7-07 仍需用直接实现对比该十 Process 组合的成本并删除没有实益的抽象。

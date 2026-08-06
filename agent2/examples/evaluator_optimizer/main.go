@@ -1,0 +1,473 @@
+// Command evaluator_optimizer demonstrates bounded evaluator-optimizer
+// composition with exact managed child Processes. It uses deterministic local
+// workers and requires no credentials or network access.
+package main
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"math"
+	"os"
+	"slices"
+	"strings"
+
+	agent "github.com/Tangerg/lynx/agent2"
+	"github.com/Tangerg/lynx/agent2/workflow"
+)
+
+func main() {
+	if err := run(context.Background(), os.Stdout); err != nil {
+		_, _ = fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+}
+
+func run(ctx context.Context, output io.Writer) error {
+	report, evidence, err := execute(
+		ctx,
+		optimizationRequest{Objective: "improve the release draft"},
+		[]float64{0.4, 0.7, 0.95},
+		0.9,
+		3,
+	)
+	if err != nil {
+		return err
+	}
+	_, err = fmt.Fprintf(
+		output,
+		"objective: %s\nbest: %s\nscore: %.2f\nattempts: %d\naccepted: %t\niterations: %d\nprocesses: %d\n",
+		report.Objective,
+		report.Best.Candidate.Content,
+		report.Best.Assessment.Score,
+		len(report.History),
+		report.Accepted,
+		report.Iterations,
+		evidence.ProcessCount,
+	)
+	return err
+}
+
+type optimizationRequest struct {
+	Objective string `json:"objective"`
+}
+
+type candidate struct {
+	Revision uint32 `json:"revision"`
+	Content  string `json:"content"`
+}
+
+type assessment struct {
+	Score    float64 `json:"score"`
+	Feedback string  `json:"feedback"`
+}
+
+type attempt struct {
+	Candidate  candidate  `json:"candidate"`
+	Assessment assessment `json:"assessment"`
+}
+
+type optimizationState struct {
+	Objective string    `json:"objective"`
+	History   []attempt `json:"history"`
+	Current   candidate `json:"current"`
+	Best      attempt   `json:"best"`
+	HasBest   bool      `json:"has_best"`
+	Accepted  bool      `json:"accepted"`
+}
+
+type optimizationReport struct {
+	Objective  string    `json:"objective"`
+	History    []attempt `json:"history"`
+	Best       attempt   `json:"best"`
+	Accepted   bool      `json:"accepted"`
+	Iterations uint32    `json:"iterations"`
+}
+
+type executionEvidence struct {
+	ProcessCount int
+	Deployments  map[string]int
+}
+
+func execute(
+	ctx context.Context,
+	request optimizationRequest,
+	scores []float64,
+	threshold float64,
+	maxIterations uint32,
+) (_ optimizationReport, _ executionEvidence, err error) {
+	root, resolver, err := newEvaluatorOptimizer(scores, threshold, maxIterations)
+	if err != nil {
+		return optimizationReport{}, executionEvidence{}, err
+	}
+	engine, err := agent.NewEngine(agent.EngineConfig{DeploymentResolver: resolver})
+	if err != nil {
+		return optimizationReport{}, executionEvidence{}, err
+	}
+	defer func() {
+		err = errors.Join(err, engine.Close())
+	}()
+
+	input, err := agent.EncodeInput(request)
+	if err != nil {
+		return optimizationReport{}, executionEvidence{}, err
+	}
+	process, err := engine.Start(ctx, root, input)
+	if err != nil {
+		return optimizationReport{}, executionEvidence{}, err
+	}
+	result, err := process.Await(ctx)
+	if err != nil {
+		return optimizationReport{}, executionEvidence{}, err
+	}
+	report, err := decodeCompleted[optimizationReport](result)
+	if err != nil {
+		return optimizationReport{}, executionEvidence{}, err
+	}
+	tree, err := engine.CaptureTree(ctx, process.ID())
+	if err != nil {
+		return optimizationReport{}, executionEvidence{}, err
+	}
+	snapshots := tree.ProcessSnapshots()
+	evidence := executionEvidence{
+		ProcessCount: len(snapshots),
+		Deployments:  make(map[string]int),
+	}
+	for _, snapshot := range snapshots {
+		evidence.Deployments[snapshot.DeploymentRef().Name()]++
+	}
+	return report, evidence, nil
+}
+
+func newEvaluatorOptimizer(
+	scores []float64,
+	threshold float64,
+	maxIterations uint32,
+) (agent.Deployment, deploymentResolver, error) {
+	if maxIterations == 0 || len(scores) != int(maxIterations) {
+		return agent.Deployment{}, nil, errors.New("score schedule must contain exactly one score per configured iteration")
+	}
+	if !validScore(threshold) || threshold == 0 {
+		return agent.Deployment{}, nil, errors.New("acceptance threshold must be within (0, 1]")
+	}
+	frozenScores := slices.Clone(scores[:maxIterations])
+	for index, score := range frozenScores {
+		if !validScore(score) {
+			return agent.Deployment{}, nil, fmt.Errorf("score schedule entry %d must be within [0, 1]", index)
+		}
+	}
+
+	optimizer, err := transformDeployment(
+		"example.evaluator_optimizer.optimizer",
+		"Produce one revised candidate from the objective and latest evaluator feedback.",
+		struct {
+			Threshold float64 `json:"threshold"`
+		}{Threshold: threshold},
+		func(state optimizationState) (optimizationState, error) {
+			if err := validateSettledState(state, threshold); err != nil {
+				return optimizationState{}, err
+			}
+			revision := uint32(len(state.History) + 1)
+			content := fmt.Sprintf("draft-v%d", revision)
+			if len(state.History) > 0 {
+				content += "; addressed: " + state.History[len(state.History)-1].Assessment.Feedback
+			}
+			state.Current = candidate{Revision: revision, Content: content}
+			return state, nil
+		},
+	)
+	if err != nil {
+		return agent.Deployment{}, nil, err
+	}
+	evaluator, err := transformDeployment(
+		"example.evaluator_optimizer.evaluator",
+		"Score one candidate, provide revision feedback, and retain the stable best attempt.",
+		struct {
+			Scores    []float64 `json:"scores"`
+			Threshold float64   `json:"threshold"`
+		}{Scores: frozenScores, Threshold: threshold},
+		func(state optimizationState) (optimizationState, error) {
+			if err := validatePendingState(state, threshold); err != nil {
+				return optimizationState{}, err
+			}
+			index := len(state.History)
+			score := frozenScores[index]
+			feedback := fmt.Sprintf("raise quality after revision %d", state.Current.Revision)
+			if score >= threshold {
+				feedback = "accept this revision"
+			}
+			latest := attempt{
+				Candidate:  state.Current,
+				Assessment: assessment{Score: score, Feedback: feedback},
+			}
+			state.History = append(slices.Clone(state.History), latest)
+			if !state.HasBest || score > state.Best.Assessment.Score {
+				state.Best = latest
+				state.HasBest = true
+			}
+			state.Accepted = state.Best.Assessment.Score >= threshold
+			if err := validateSettledState(state, threshold); err != nil {
+				return optimizationState{}, err
+			}
+			return state, nil
+		},
+	)
+	if err != nil {
+		return agent.Deployment{}, nil, err
+	}
+	workerBudget, err := agent.NewBudget(8, 4, 8)
+	if err != nil {
+		return agent.Deployment{}, nil, err
+	}
+	optimize, err := workflow.Call(workflow.CallConfig{
+		ID: "optimize", Deployment: optimizer, Budget: workerBudget,
+	})
+	if err != nil {
+		return agent.Deployment{}, nil, err
+	}
+	evaluate, err := workflow.Call(workflow.CallConfig{
+		ID: "evaluate", Deployment: evaluator, Budget: workerBudget,
+	})
+	if err != nil {
+		return agent.Deployment{}, nil, err
+	}
+	iterationDefinition, err := workflow.NewDefinition(workflow.DefinitionConfig{
+		Name:        "example.evaluator_optimizer.iteration",
+		Description: "Run one exact optimizer child followed by one exact evaluator child.",
+		Version:     "1.0.0", Stages: []workflow.Stage{optimize, evaluate},
+	})
+	if err != nil {
+		return agent.Deployment{}, nil, err
+	}
+	iteration, err := newWorkflowDeployment(
+		iterationDefinition,
+		"evaluator-optimizer-iteration-v1",
+		struct {
+			Optimizer    string       `json:"optimizer"`
+			Evaluator    string       `json:"evaluator"`
+			WorkerBudget agent.Budget `json:"worker_budget"`
+		}{
+			Optimizer:    optimizer.Reference().Digest().String(),
+			Evaluator:    evaluator.Reference().Digest().String(),
+			WorkerBudget: workerBudget,
+		},
+	)
+	if err != nil {
+		return agent.Deployment{}, nil, err
+	}
+
+	initialize, err := workflow.Transform("initialize", func(request optimizationRequest) (optimizationState, error) {
+		objective := strings.TrimSpace(request.Objective)
+		if objective == "" || objective != request.Objective {
+			return optimizationState{}, errors.New("objective must be non-empty and trimmed")
+		}
+		return optimizationState{Objective: objective, History: []attempt{}}, nil
+	})
+	if err != nil {
+		return agent.Deployment{}, nil, err
+	}
+	iterationBudget, err := agent.NewBudget(64, 32, 64)
+	if err != nil {
+		return agent.Deployment{}, nil, err
+	}
+	refine, err := workflow.Loop(workflow.LoopConfig[optimizationState]{
+		ID: "refine", Body: iteration, Budget: iterationBudget,
+		MaxIterations: maxIterations,
+		Predicate: func(state optimizationState) (bool, error) {
+			if err := validateSettledState(state, threshold); err != nil {
+				return false, err
+			}
+			return state.Accepted, nil
+		},
+	})
+	if err != nil {
+		return agent.Deployment{}, nil, err
+	}
+	finalize, err := workflow.Transform("finalize", func(
+		result workflow.LoopResult[optimizationState],
+	) (optimizationReport, error) {
+		state := result.Value
+		if !result.Valid() || result.Satisfied != state.Accepted {
+			return optimizationReport{}, errors.New("loop result and acceptance state disagree")
+		}
+		if err := validateSettledState(state, threshold); err != nil {
+			return optimizationReport{}, err
+		}
+		if !state.HasBest || uint32(len(state.History)) != result.Iterations {
+			return optimizationReport{}, errors.New("loop result has incomplete attempt history")
+		}
+		return optimizationReport{
+			Objective: state.Objective, History: slices.Clone(state.History), Best: state.Best,
+			Accepted: state.Accepted, Iterations: result.Iterations,
+		}, nil
+	})
+	if err != nil {
+		return agent.Deployment{}, nil, err
+	}
+	rootDefinition, err := workflow.NewDefinition(workflow.DefinitionConfig{
+		Name:        "example.evaluator_optimizer",
+		Description: "Refine candidates through bounded exact optimizer and evaluator child Processes.",
+		Version:     "1.0.0", Stages: []workflow.Stage{initialize, refine, finalize},
+	})
+	if err != nil {
+		return agent.Deployment{}, nil, err
+	}
+	root, err := newWorkflowDeployment(
+		rootDefinition,
+		"evaluator-optimizer-root-v1",
+		struct {
+			Iteration       string       `json:"iteration"`
+			IterationBudget agent.Budget `json:"iteration_budget"`
+			Threshold       float64      `json:"threshold"`
+			MaxIterations   uint32       `json:"max_iterations"`
+		}{
+			Iteration:       iteration.Reference().Digest().String(),
+			IterationBudget: iterationBudget,
+			Threshold:       threshold,
+			MaxIterations:   maxIterations,
+		},
+	)
+	if err != nil {
+		return agent.Deployment{}, nil, err
+	}
+	return root, deploymentResolver{
+		optimizer.Reference(): optimizer,
+		evaluator.Reference(): evaluator,
+		iteration.Reference(): iteration,
+	}, nil
+}
+
+func validatePendingState(state optimizationState, threshold float64) error {
+	if err := validateHistory(state, threshold); err != nil {
+		return err
+	}
+	wantRevision := uint32(len(state.History) + 1)
+	if state.Current.Revision != wantRevision || strings.TrimSpace(state.Current.Content) == "" {
+		return errors.New("optimizer did not produce the next complete revision")
+	}
+	return nil
+}
+
+func validateSettledState(state optimizationState, threshold float64) error {
+	if err := validateHistory(state, threshold); err != nil {
+		return err
+	}
+	if len(state.History) == 0 {
+		if state.Current != (candidate{}) {
+			return errors.New("initial state contains a current candidate")
+		}
+		return nil
+	}
+	if state.Current != state.History[len(state.History)-1].Candidate {
+		return errors.New("current candidate is not the latest evaluated revision")
+	}
+	return nil
+}
+
+func validateHistory(state optimizationState, threshold float64) error {
+	if strings.TrimSpace(state.Objective) == "" || state.Objective != strings.TrimSpace(state.Objective) {
+		return errors.New("optimization objective must be non-empty and trimmed")
+	}
+	if state.History == nil {
+		return errors.New("optimization history must be initialized")
+	}
+	if len(state.History) == 0 {
+		if state.HasBest || state.Best != (attempt{}) || state.Accepted {
+			return errors.New("empty history contains derived result state")
+		}
+		return nil
+	}
+	best := state.History[0]
+	for index, recorded := range state.History {
+		if recorded.Candidate.Revision != uint32(index+1) ||
+			strings.TrimSpace(recorded.Candidate.Content) == "" ||
+			!validScore(recorded.Assessment.Score) ||
+			strings.TrimSpace(recorded.Assessment.Feedback) == "" {
+			return fmt.Errorf("attempt %d is invalid", index)
+		}
+		if recorded.Assessment.Score > best.Assessment.Score {
+			best = recorded
+		}
+	}
+	if !state.HasBest || state.Best != best {
+		return errors.New("best attempt is not the earliest highest-scoring attempt")
+	}
+	if state.Accepted != (best.Assessment.Score >= threshold) {
+		return errors.New("acceptance state does not match the configured threshold")
+	}
+	return nil
+}
+
+func validScore(score float64) bool {
+	return !math.IsNaN(score) && !math.IsInf(score, 0) && score >= 0 && score <= 1
+}
+
+func transformDeployment[I, O any](
+	name string,
+	description string,
+	configuration any,
+	transform workflow.TransformFunc[I, O],
+) (agent.Deployment, error) {
+	stage, err := workflow.Transform("transform", transform)
+	if err != nil {
+		return agent.Deployment{}, err
+	}
+	definition, err := workflow.NewDefinition(workflow.DefinitionConfig{
+		Name: name, Description: description, Version: "1.0.0", Stages: []workflow.Stage{stage},
+	})
+	if err != nil {
+		return agent.Deployment{}, err
+	}
+	configurationJSON, err := json.Marshal(configuration)
+	if err != nil {
+		return agent.Deployment{}, fmt.Errorf("encode %s configuration: %w", name, err)
+	}
+	return agent.NewDeployment(agent.DeploymentConfig{
+		Definition: definition, Dispatcher: workflow.Dispatcher{},
+		ImplementationDigest: agent.ComputeDigest([]byte(name + "-transform-v1")),
+		ConfigurationDigest:  agent.ComputeDigest(configurationJSON),
+	})
+}
+
+func newWorkflowDeployment(
+	definition *workflow.Definition,
+	implementationIdentity string,
+	configuration any,
+) (agent.Deployment, error) {
+	configurationJSON, err := json.Marshal(configuration)
+	if err != nil {
+		return agent.Deployment{}, fmt.Errorf("encode %s configuration: %w", definition.Descriptor().Name(), err)
+	}
+	return agent.NewDeployment(agent.DeploymentConfig{
+		Definition: definition, Dispatcher: workflow.Dispatcher{},
+		ImplementationDigest: agent.ComputeDigest([]byte(implementationIdentity)),
+		ConfigurationDigest:  agent.ComputeDigest(configurationJSON),
+	})
+}
+
+func decodeCompleted[T any](result agent.Result) (T, error) {
+	var zero T
+	if result.Status() != agent.StatusCompleted {
+		return zero, fmt.Errorf("process ended with %s: %#v", result.Status(), result.Termination())
+	}
+	output, present := result.Output()
+	if !present {
+		return zero, errors.New("completed Process has no Output")
+	}
+	return agent.DecodeOutput[T](output)
+}
+
+type deploymentResolver map[agent.DeploymentRef]agent.Deployment
+
+func (resolver deploymentResolver) Resolve(
+	_ context.Context,
+	reference agent.DeploymentRef,
+) (agent.Deployment, error) {
+	deployment, found := resolver[reference]
+	if !found {
+		return agent.Deployment{}, fmt.Errorf("deployment %s is not registered", reference.Digest())
+	}
+	return deployment, nil
+}

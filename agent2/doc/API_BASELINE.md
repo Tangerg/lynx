@@ -4,7 +4,7 @@
 > 冻结日期：2026-08-06
 > 适用范围：`agent2` 根 package、`agent2/interaction`、`agent2/planning`、`agent2/planning/goap`、`agent2/workflow`、Process Snapshot v3、TreeSnapshot v1
 
-本文只记录已经由 P3 真实 Interaction、P4 child composition、五个独立 command consumer、P5 真实 Planning/GOAP、P6 managed Workflow 与恢复合同共同证明的公共合同基线。目标架构、ADR、工程标准和实施进度仍由各自文档拥有；这里不复制它们。
+本文只记录已经由 P3 真实 Interaction、P4 child composition、六个独立 command consumer、P5 真实 Planning/GOAP、P6 managed Workflow 与恢复合同共同证明的公共合同基线。目标架构、ADR、工程标准和实施进度仍由各自文档拥有；这里不复制它们。
 
 ## 1. 基线的含义
 
@@ -62,6 +62,8 @@ P7-03 依据 ADR-A2-041 再次审计修订 Interaction：新增 opaque `Artifact
 
 P7-04 依据 ADR-A2-042 用独立消费者证明两种 orchestrator-worker 组合：Interaction 直接选择 exact Planning Delegates；以及 decomposer Interaction 输出 typed task list、Workflow Map 确定调度 exact workers、synthesizer Interaction 聚合结果。实现没有增加 Supervisor/Worker/Task 公共抽象，也没有修改任何生产 package、ExecutionState 或共同 wire，因此五个 API digest 与 snapshot/tree digest 全部保持不变。
 
+P7-05 依据 ADR-A2-043 用独立消费者证明 evaluator-optimizer 可完全派生自 Workflow Loop、exact optimizer/evaluator child 和 consumer-owned typed state。显式 threshold/limit、feedback、history、best-so-far 与 accepted/exhausted 均未形成 Framework 公共类型；实现没有修改生产 package、ExecutionState 或共同 wire，因此全部 API/wire digest 继续保持不变。
+
 ## 4. 明确不在基线中的能力
 
-Baseline 3 不冻结 Platform catalog/routing、OTel decorator、应用迁移 API 或 P7-05 及之后尚未实现的组合形态。`flow` 保持独立 in-process 库，不形成 Agent adapter API 或依赖；未来编辑器图只能在更高层编译成已验证的 Workflow Definition，不能反向扩张 Kernel 或恢复 wire。
+Baseline 3 不冻结 Platform catalog/routing、OTel decorator、应用迁移 API 或 P7-06 及之后尚未实现的组合形态。`flow` 保持独立 in-process 库，不形成 Agent adapter API 或依赖；未来编辑器图只能在更高层编译成已验证的 Workflow Definition，不能反向扩张 Kernel 或恢复 wire。

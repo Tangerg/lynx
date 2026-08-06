@@ -436,7 +436,15 @@ Interaction 的 typed artifact 只代表已成功完成、再次通过 exact Del
 
 completion validator 是 Interaction Definition 冻结的有界、确定、无副作用纯函数，只在模型最终响应或 direct-Tool 结果形成候选完成时读取独立复制的当前 WorkingContext、candidate Output 与 artifacts。WorkingContext 是该 Execution 的模型上下文，不是 Host conversation/transcript，并且尚未包含当前候选。validator 返回显式二选一：接受；或拒绝并给出非空、有界 feedback。拒绝时，候选上下文与 feedback 作为下一轮 user message 进入 WorkingContext，仍由正数 `MaxModelCalls` 限制；耗尽以稳定 execution failure 终止，不能把未接受候选伪装成完成。需要模型、Tool、网络或其他外部判断的 evaluator 必须是 P7 组合中的 managed child Process，不能藏进 validator callback。
 
-### 7.5 新策略准入
+### 7.5 Evaluator-optimizer 组合
+
+Evaluator-optimizer 是 Workflow Loop 的派生组合，不是新 Strategy。Loop 的 typed value 由消费者定义，至少显式保存原目标、有序 attempt/feedback history、当前候选、best-so-far 与 accepted；每轮 body 是 exact child Workflow，先 Call 一个 exact optimizer child，再 Call 一个 exact evaluator child。optimizer 读取上一轮 evaluator feedback 产生新候选；evaluator 评分并给出下一轮 feedback；Loop 的 pure predicate 只读取已提交的 accepted 状态。
+
+最大迭代数、评价规则和 acceptance threshold 必须显式配置并进入 Deployment identity，Framework 不提供默认“好坏”标准。best-so-far 只在严格更优时更新，同分保留最早结果；达到阈值时 `LoopResult.Satisfied=true`，耗尽时正常完成但必须是 `Satisfied=false`，并返回 best attempt 而不是最后 attempt。attempt history、Score、Feedback、阈值范围和最终 report 都是 consumer-owned typed schema，不进入 Workflow/Kernel，也不借共享 Blackboard 或 runtime type 查询传播。
+
+optimizer/evaluator 的 exact child Deployment 必须满足该消费者声明的 typed state 合同；若底层能力来自 Interaction、Planning、普通 Tool 或其他 Definition，转换与状态合并必须由 consumer-owned adapter Deployment 显式完成，Workflow 不猜测也不改写其 Descriptor。需要模型、网络或其他外部判断的 evaluator 必须是 managed child Process，不能藏进 pure Loop predicate、Transform 或 Interaction completion validator。只有评价标准足够清晰、feedback 能被 optimizer 实际消费且评测证明循环优于单次生成时，才应使用该组合。
+
+### 7.6 新策略准入
 
 一个 Process 只有一个顶层 Execution 和一个顶层 ExecutionState envelope。Strategy 不得在同一 Process 内驱动另一个框架 Execution；组合跨越 Strategy 或需要独立暂停、恢复、预算、取消时必须创建 child Process。
 

@@ -325,3 +325,12 @@
 - 两条路径都只经 Engine `StartChild`/`WaitForChildren`、exact DeploymentRef、Descriptor schema 和既有 Strategy state 推进。代码没有增加 Supervisor/Worker/Task/Team package 或公共类型，没有让 Tool/Dispatcher 持有 Engine，没有让 Workflow 解析模型语义，也没有让父级检查或遥控 Planning 的 Plan/Action。
 - 组合审计确认：动态选择少量 known worker 用 Delegate；动态任务列表需要确定的限量、窗口、顺序和恢复时，用 Interaction 输出 typed plan，再交给 Workflow Map；Planning 只服务可机器验证 Goal 的 exact worker。业务 task/result schema、prompt、综合规则和 artifact persistence 始终属于消费者。
 - 该纵切面只增加 example 与行为测试，五个 package API digest、Interaction ExecutionState v3、Process Snapshot v3 和 TreeSnapshot v1 全部不变。它证明现有公开 API 已足够人体工程学，没有用 speculative convenience API 掩盖装配边界。
+
+### 11.5 Evaluator-optimizer 组合实现证据
+
+- 只读审计旧 Go 与 Embabel `RepeatUntilAcceptable`，保留 original input、ordered attempt/feedback history、latest feedback、best-so-far、显式 acceptance criteria 和 hard iteration cap；移除 GOAP/Action 包装、mutable Blackboard、runtime type binding、timestamp、默认 threshold/limit，以及把“上限停止”和“达到标准”混成同一个 acceptable 条件。`flow.Loop` 只作为 bounded value threading/失败保留上一合法 value 的设计证据，不形成依赖或第二 Journal。
+- `examples/evaluator_optimizer` 只使用公开 Workflow API。root Loop 的 consumer-owned `optimizationState` 显式携带 objective、history、current、best 和 accepted；每轮 body 是 exact Workflow child，内部按 Call 顺序启动 exact optimizer 和 evaluator child。optimizer 把最新 feedback 写入下一候选，evaluator 追加 attempt，并且只有严格更高 score 才替换 best，因此同分稳定保留最早结果。
+- score schedule、归一化 `[0,1]` 合同、threshold、feedback 文本与 report 都属于示例消费者；threshold、score schedule、max iterations 和 exact child refs 进入对应 Deployment configuration identity。Framework 没有新增 Score、Feedback、Attempt、Evaluator、Optimizer 或 RepeatUntil 类型，也不假设任何业务评分方向。
+- 行为测试覆盖三轮达到阈值、第一轮提前接受、三轮耗尽仍返回中间最高分而非最后低分、同分保留最早、feedback 确实进入下一候选，以及 zero iteration、score 数量错配、zero/NaN threshold、infinite score 的构造期拒绝。达到阈值时 `Satisfied=true`；耗尽时 `Accepted=false`，没有把停止冒充成功评价。
+- 三轮场景 TreeSnapshot 恰好十个 Process：root + 三个 iteration body + 三个 optimizer + 三个 evaluator；首轮达标场景按 exact Deployment 名称验证四 Process。worker 与 body 都沿用既有 child budget、schema、失败、取消和恢复合同，没有第二 scheduler、共享 history store 或隐藏 callback loop。
+- 该纵切面没有生产 package 变化，五个 API digest、Workflow state、Process Snapshot v3 和 TreeSnapshot v1 均不变。外部/模型 evaluator 将来只需替换 exact worker Deployment；不得把 I/O 放进 Transform、Loop predicate 或 completion validator。

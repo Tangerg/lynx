@@ -22,6 +22,11 @@ failures expose real consumer-facing contract problems.
   tests also prove that an Interaction can select exact Planning workers as
   Delegates when those tasks have machine-verifiable goals. No Supervisor
   Strategy, worker registry, or shared Blackboard is involved.
+- `evaluator_optimizer` uses a bounded Workflow Loop whose exact body Process
+  calls exact optimizer and evaluator child Processes. Consumer-owned typed
+  state carries ordered attempts, actionable feedback, stable best-so-far, and
+  acceptance separately from exhaustion; no evaluator-specific Framework type
+  or hidden callback loop is added.
 
 All examples use deterministic local components so they run without credentials or
 network access:
@@ -32,4 +37,5 @@ GOWORK=off go run ./examples/autonomous
 GOWORK=off go run ./examples/composition
 GOWORK=off go run ./examples/workflow
 GOWORK=off go run ./examples/orchestrator_workers
+GOWORK=off go run ./examples/evaluator_optimizer
 ```
