@@ -57,4 +57,4 @@ Baseline 2 对根 Kernel 的唯一修订是 `ChildWaitOpened.Spec`：Planning �
 
 ## 4. 明确不在基线中的能力
 
-Baseline 2 不冻结任何确定性编排/`flow` adapter、Platform catalog/routing、OTel decorator 或应用迁移 API。P6 的编排边界已暂停设计；这些能力必须继续通过后续真实实现与消费者证明，不能为了“保持 baseline”塞入当前窄腰或用预留字段占位。
+Baseline 2 不冻结 Workflow、Platform catalog/routing、OTel decorator 或应用迁移 API。P6 的 disposable consumer 已证明 Workflow 可以完全建立在现有 child Process 与 TreeSnapshot 窄腰上，因此不修改本基线；Workflow 自身的 Stage/Definition/state API 只有在正式实现、恢复合同和独立 consumer 通过后才进入后续 baseline。`flow` 保持独立 in-process 库，不形成 Agent adapter API 或依赖。

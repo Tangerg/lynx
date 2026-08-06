@@ -1,6 +1,6 @@
 # Agent Framework 绿色重构架构
 
-> 状态：已接受的目标设计基线；确定性编排边界暂停设计
+> 状态：已接受的目标设计基线
 > 建立日期：2026-08-06
 > 最后更新：2026-08-06
 > 实施范围：重构期间为 `agent2`；最终替换后为唯一的 `agent`
@@ -91,7 +91,7 @@
 4. **Execution Strategy 是主变化轴。** Interaction 和 Planning 不是 Extension；其他 Strategy 必须先证明独立推进与恢复语义。
 5. **Extension 只表达横切能力。** 事件观察、策略检查、instrumentation 等可以扩展；主控制流不能伪装成扩展。
 6. **生命周期只有一个所有者。** Engine 是唯一 Process 驱动循环，具体策略只推进一个有界步骤。
-7. **组合优于包装。** orchestrator-worker 语义由已成立的 Strategy 和 child Process 组合；普通同步控制流留在 `flow`，不为统一外观强塞进 Engine。
+7. **组合优于包装。** orchestrator-worker 语义由已成立的 Strategy 和 child Process 组合；普通同步控制流留在 `flow`，需要独立 Process 生命周期的确定编排才进入 managed Workflow。
 8. **状态归拥有者。** GOAP 状态归 Planning，消息和轮次归 Interaction；未来编排状态归最终被证明的 adapter 或 Strategy，不提前进入 Kernel。
 9. **框架状态与应用持久化分层。** Agent 捕获、验证和恢复执行快照；Host 决定何时、在哪里、以何种事务保存。
 10. **默认安全且确定。** 不默认重试任意副作用，不默认无限递归，不允许并发完成顺序决定业务结果。
@@ -201,14 +201,13 @@ flowchart TD
     Kernel --> Definition["Definition / Execution"]
     Definition --> Interaction["Interaction"]
     Definition --> Planning["Planning"]
-    Definition --> Patterns["Composition patterns"]
+    Definition --> Workflow["Workflow"]
     Interaction --> ChatClient["chatclient"]
     Interaction --> Tool["tool"]
     Planning --> Planner["GOAP / HTN / Utility"]
     Interaction --> Child
     Planning --> Child
-    Patterns --> Interaction
-    Patterns --> Child
+    Workflow --> Child
 ```
 
 ### 6.1 窄腰
@@ -266,6 +265,7 @@ Strategy Effect payload 和所有 Signal payload 对 Engine 不透明。每个 S
 |---|---|
 | Interaction | 消费模型/Tool/外部输入 Signal，决定下一 Effect、等待或完成 |
 | GOAP | 消费观察/Action 结果，推进 observe → plan → act → reobserve 状态 |
+| Workflow | 推进一个有序 Stage 的纯归约、child start/wait 或稳定聚合边界 |
 
 任何 Strategy 的 Step 都不能执行模型、Tool、Action 或其他外部 I/O，不能永久占有调度线程、隐藏无限循环或启动无所有者 goroutine。外部操作只能由 Effect 表达并由该 Strategy 的 dispatcher 执行；Effect 的成功、失败或不确定结算以 Signal 回到下一 Step。
 
@@ -279,11 +279,15 @@ Engine 在每次 Step 前保留 last-stable ExecutionState。Step 必须是对�
 
 prepared step 是 Framework snapshot 的中性恢复事实，不是 Host transaction。崩溃在 prepare 前发生时不得已有 Effect；prepare 后恢复时沿原 EffectID 和冻结 payload 继续，只按 dispatcher replay contract 重投，未知结算保持可观察、待显式裁决。Effect 执行期间已经发生的 started/delta/finished 属于 attempt facts，不能伪装成提交后的事实。该顺序只描述 Framework 内部一致性；跨进程崩溃只能恢复到 Host 实际持久化的最后一份 snapshot，Framework 不虚构未持久化保证。
 
-### 6.3 确定性编排边界（暂停）
+### 6.3 确定性编排边界
 
-当前不把 Workflow 预先确认为一等 Strategy，也不定义节点词汇、图 schema、ExecutionState 或 package API。独立 `flow` 库已经覆盖 typed sequence、selection、loop、map/race，以及 runtime-defined Graph/Spec、Store/Journal 和挂起恢复；P6 必须先判断应用侧直接组合或可选 adapter 是否已经满足真实需求。
+确定性编排保留两个按生命周期强度分开的正式入口：普通 Go/AI 同进程控制流直接使用独立 `flow`；每项工作需要独立 ProcessID、DeploymentRef、snapshot、预算、能力、取消和 tree recovery 时使用原生 managed Workflow。两者可以在 Host 组合，但不共享 runtime、Store、Journal 或恢复事实，也不建立强制 adapter。
 
-暂停不改变 Engine 的既有不变量：`Execution.Step` 仍只能纯归约状态，任何 I/O 仍只能通过 Effect，独立 Agent 生命周期仍只能是真实 child Process。`flow.Node.Run`、其 Graph goroutine scheduler 和 Journal 不能直接嵌入 Step；一个外层 adapter 即使可行，也只能承诺外层 Effect 粒度的 identity、恢复、预算和 replay contract。只有 disposable spike 证明还缺少图内 managed child Process 语义后，才恢复 Strategy 设计并追加 ADR。
+Workflow Definition 冻结一个有序 Stage 序列。一个 Stage 消费当前 immutable、schema-validated value 并产生下一 value；相邻 schema 在构造时精确衔接。首个封闭词汇只有 `Transform`、`Call`、`Switch`、`Fork`、`Map` 和 `Loop`：Sequence 是 Stage 声明顺序，Prompt Chaining 是连续 Call，Gate 由 Transform/Switch 表达，Vote 是 Fork 后的纯 reducer，evaluator-optimizer 是 Loop 组合。多阶段分支通过调用另一个 Workflow Deployment 组合，不在同一 Process 内嵌第二个 Execution。
+
+Transform、selector、reducer 和 predicate 是一个 Step 内的有界确定纯函数。Call、被选择分支、Fork branch、Map item 和 Loop iteration 都启动 exact Deployment 的真实 child Process。Fork/Map 显式有界并按窗口启动，结果按声明顺序归位；Loop 有显式正数迭代上限并准确区分 predicate satisfied 与 limit exhausted。ExecutionState 只保存 Stage/value/case/window/item/iteration 游标和 child/wait/result 身份，不保存函数、Deployment concrete value、Engine、goroutine、Store/Journal 或 Host 数据。
+
+`flow.Node.Run`、Graph scheduler 和 Journal 仍不能进入 `Execution.Step`。Workflow 不产生 dispatcher Effect；它只通过 Framework child Effect 组合，包内 Dispatcher 仅拒绝意外 dispatcher Effect。这样 Engine 继续是唯一 Process loop、Effect 提交与 tree recovery owner。
 
 ### 6.4 Process 状态机
 
@@ -417,11 +421,11 @@ GOAP 适合目标可机器验证、存在多条路径、Action 前置条件/效�
 
 ### 7.3 确定性编排
 
-设计已按 ADR-A2-037 暂停。当前正式能力只有两条清晰路径：普通 Go 程序直接使用 `flow` 做 in-process 组合；Agent 内需要独立生命周期的工作使用 Engine-owned child Process。是否需要连接两者的可选 adapter，或者需要新的 managed orchestration Strategy，留给真实消费者和 disposable spike 裁决，本文不预先定义第三套控制流语言。
+`flow` 是普通 in-process 组合库；Workflow 是只编排真实 child Process 的原生 Strategy。Workflow 使用有序 Stage 而不是任意 DAG/Registry，不复制 `flow` runtime，也不编译成 GOAP。它的独立状态是当前 value、Stage 游标、branch/item/iteration 窗口和 child wait；这些状态已经由 disposable public-API consumer 的完整 tree restore 证明。
 
 ### 7.4 Orchestrator-worker 组合
 
-旧语境中所谓 Supervisor 当前统一称为 orchestrator-worker 组合：它由 Interaction、Action-to-Tool adapter、typed artifacts、completion validator 和 child Process 构成，不是独立 Strategy、独立 ExecutionState kind 或预建 package。只有未来实现证明它具有 Interaction、Planning 与 child Process 组合无法表达的独立推进与恢复语义，才通过新 ADR 重新申请 Strategy 准入。
+旧语境中所谓 Supervisor 当前统一称为 orchestrator-worker 组合：它由 Interaction、Workflow、Action-to-Tool adapter、typed artifacts、completion validator 和 child Process 构成，不是独立 Strategy、独立 ExecutionState kind 或预建 package。只有未来实现证明它具有这些既有能力无法表达的独立推进与恢复语义，才通过新 ADR 重新申请 Strategy 准入。
 
 ### 7.5 新策略准入
 
@@ -500,14 +504,14 @@ Process tree 是执行、取消、预算和恢复的共同单位。如果未来�
 | 模式 | 目标实现 | 路径由谁决定 |
 |---|---|---|
 | Augmented LLM | `chatclient` + retrieval + tools + memory | 单次模型调用 |
-| Prompt Chaining | `flow` 组合；managed 形态待 P6 裁决 | 代码 |
-| Routing | `flow.Switch` 或 Platform 路由；managed 形态待 P6 裁决 | 代码、分类器或模型 |
-| Parallel Sectioning | `flow.Map`/`flowx.FanOut`；独立 Agent 生命周期使用 child Process | 代码 |
-| Parallel Voting | `flow` 并行组合 + typed reducer；managed 形态待 P6 裁决 | 代码 |
+| Prompt Chaining | `flow.Then` 或 Workflow 连续 Call | 代码 |
+| Routing | `flow.Switch`、Workflow Switch 或 Platform 路由 | 代码、分类器或模型 |
+| Parallel Sectioning | `flow.Map`/`flowx.FanOut` 或 Workflow Fork/Map | 代码 |
+| Parallel Voting | `flow` 并行组合，或 Workflow Fork + typed reducer | 代码 |
 | Orchestrator-workers | Interaction 与 child Process 组合 | 模型 |
-| Evaluator-optimizer | `flow.Loop` 或 child Process 组合；managed 形态待 P6 裁决 | 代码控制循环，可由模型评估 |
+| Evaluator-optimizer | `flow.Loop` 或 Workflow Loop + evaluator child | 代码控制循环，可由模型评估 |
 | Autonomous Agent | Interaction + tools +环境反馈 +停止条件 | 模型 |
-| Pattern Composition | `flow` 与 child Process 按生命周期边界组合 | 代码与模型按边界组合 |
+| Pattern Composition | `flow`、Workflow、Interaction 与 child Process 按生命周期边界组合 | 代码与模型按边界组合 |
 
 验收不能只证明类型存在，必须为每种模式提供行为测试和最小可运行示例。
 
@@ -620,6 +624,7 @@ agent2/
 │   ├── goap/                GOAP 实现
 │   ├── htn/                 HTN 实现（需求验证后）
 │   └── utility/             Utility 实现（需求验证后）
+├── workflow/                managed child Process 的确定性有序编排
 ├── hitl/                    有真实独立消费时的 typed helpers
 ├── internal/                仅用于确需编译器约束的共享实现
 ├── examples/                验证公共使用路径的可运行示例
@@ -682,4 +687,4 @@ agent2/
 - architecture tests：依赖 DAG、禁止旧 `agent`/Host application import、策略状态和产品外部事实不进入共同 Process、Process 只能由 Engine 构造。
 - examples：每一种正式公开编排方式至少一个最小可运行示例。
 
-最终完成必须满足：Interaction 与 Planning 都是经过真实消费者验证的原生 Execution；确定性编排必须基于 P6 的 `flow` 复用证据选择唯一实现边界，不能同时保留两套术语或运行时；GOAP 真实可重规划；Anthropic 编排模式有行为测试；递归 child Process 可恢复、取消和预算限制；Framework snapshot 与 Host persistence 无交叉；Host 只消费中性合同；旧模块和兼容路径全部删除；临时 `agent2` 路径改回唯一 `agent`。
+最终完成必须满足：Interaction、Planning 与 Workflow 都是经过真实消费者验证的原生 Execution；`flow` 与 Workflow 按 in-process/managed-Process 生命周期各自只有一个准确边界，不共享或复制 runtime；GOAP 真实可重规划；Anthropic 编排模式有行为测试；递归 child Process 可恢复、取消和预算限制；Framework snapshot 与 Host persistence 无交叉；Host 只消费中性合同；旧模块和兼容路径全部删除；临时 `agent2` 路径改回唯一 `agent`。

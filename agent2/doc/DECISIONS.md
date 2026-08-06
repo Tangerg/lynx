@@ -261,10 +261,24 @@
 
 ## ADR-A2-037：暂停 Workflow Strategy 设计并先验证 `flow` 复用边界
 
-- 状态：已接受；取代 ADR-A2-006、ADR-A2-007、ADR-A2-020、ADR-A2-024 中预先确认 Workflow 为一等 Strategy 的部分，并整体取代 ADR-A2-036。旧结论只保留为历史决策，不再是实施合同。
+- 状态：已被 ADR-A2-038 取代；曾取代 ADR-A2-006、ADR-A2-007、ADR-A2-020、ADR-A2-024 中预先确认 Workflow 为一等 Strategy 的部分，并整体取代 ADR-A2-036。旧结论只保留为历史决策，不再是实施合同。
 - 事实：独立仓库 `github.com/Tangerg/flow` 已经提供 typed `Node[I, O]`、派生组合子、runtime-defined `workflow.Graph`/`Spec`、有界并发、稳定顺序、Store/Journal、挂起恢复、流式输出和严格 JSON 解码。仓库自身明确定位为无中心 orchestrator、无后台 scheduler 的 in-process control-flow library；它不依赖 Agent、Host、持久化或产品抽象。
 - 决策：P6 的 Workflow API、节点词汇、ExecutionState 和 package 结构立即暂停设计与实施。当前不创建 `agent2/workflow`，不把 `flow` 加入 Kernel 依赖，也不以旧 P6 计划为由复制一套 Sequence/Fork/Map/Loop。
 - 决策：`flow.Node.Run` 可以执行任意工作，`workflow.Graph` 会启动 goroutine，`Journal` 自行记录 Step 边界；这些行为不能在只允许纯状态归约的 `Execution.Step` 中直接运行。将编译后的 `flow` Step 直接包进 Agent Execution 会形成第二执行循环、第二恢复事实源，并允许副作用绕过 prepared Effect/EffectID，因此明确禁止。
 - 决策：已证明安全的复用形态只有两类候选，而且当前均不升级为 Workflow Strategy。Host 可以直接使用 `flow` 组合普通 Go 能力；未来可由独立可选 adapter 把一个完整 `flow.Node` 调度成单个 dispatcher-owned Effect。后一形态只有外层 Effect 粒度的 Process identity、恢复、预算和 replay contract，不能宣称内部节点各自拥有 child Process 语义。
 - 决策：是否还需要 managed deterministic orchestration Strategy，必须由真实消费和 disposable adapter spike 证明。只有当需求明确要求图内每个 Agent 分支拥有独立 ProcessID、snapshot、预算、能力衰减、取消和 tree recovery，且 `flow` 的外层封装无法满足时，才能重新设计；届时还要在“扩展 `flow` 的中性编译边界”与“最小 Agent-owned Strategy”之间重新裁决，不能默认选择后者。
 - 原因：`flow` 与 Agent Kernel 的职责都已经清晰，重复实现会制造两套控制流语言；强行直接复用运行时又会破坏 Engine 单写者与 Effect 事务语义。先冻结问题而不是冻结方案，才能同时避免重复建设、抽象泄露和为了复用而扭曲两个独立库。
+
+## ADR-A2-038：恢复 managed Workflow，并采用最小有序 Stage 代数
+
+- 状态：已接受；整体取代 ADR-A2-037 的暂停结论，并取代 ADR-A2-036 的任意 DAG 与八类节点方案。ADR-A2-037 对 `flow.Node.Run` 不得进入纯 Step、不得建立双恢复真相的边界继续有效。
+- 证据：一个只依赖冻结公共 API 的 disposable consumer 已实现串行 child Call、固定三路 Fork、并发窗口 2、child pause、完整 TreeSnapshot capture/restore 和逆序完成。快照时第三路尚未创建；恢复后前两路逆序完成仍按声明顺序聚合，第二窗口只创建一次。专项测试与 race 各连续运行 20 次通过，随后 spike 已整体删除。
+- 决策：`flow` 继续作为普通 Go/AI 同进程控制流的首选库，也是组合代数、定义/运行分离、有界并发和稳定顺序的设计证据；`agent2` 不依赖或封装其 runtime。只有当每项工作必须拥有独立 ProcessID、DeploymentRef、snapshot、预算、能力、取消和 tree recovery 时，才使用原生 managed Workflow Strategy。
+- 决策：Workflow Definition 冻结一个有序 Stage 序列，不建立可任意连边的 visual-editor DAG、共享 Store、Journal、Node registry 或第二 scheduler。一个 Stage 消费当前 immutable、schema-validated value 并产生下一个 value；相邻 Stage 的 schema 必须在构造时精确衔接。嵌套或多阶段分支通过调用另一个 Workflow Deployment 获得组合闭包，不在同一 Process 内嵌第二个 Execution。
+- 决策：P6 只允许六个具有独立语义的 Stage：`Transform`、`Call`、`Switch`、`Fork`、`Map` 和 `Loop`。定义中的有序 Stage 本身就是 Sequence；Prompt Chaining 是连续 Call；Gate 由 Transform 校验或 Switch 表达；Vote 是 Fork 后的确定性 reducer；evaluator-optimizer 是 Loop 组合。它们不再各占一个节点 kind 或近义入口。
+- 决策：Transform、Switch selector、Fork reducer 和 Loop predicate 必须是有界、确定、无 I/O 的纯函数，只能在 `Execution.Step` 内归约一次。Call、Switch 被选分支、Fork 每个 branch、Map 每个 item 和 Loop 每轮 body 都是 exact Deployment 对应的真实 child Process。Workflow 不产生 dispatcher Effect；包内 zero-state Dispatcher 只拒绝协议违约，不成为第二执行能力。
+- 决策：Fork 和 Map 必须显式配置正数并发度并按窗口启动；Map 另有正数 item limit。已经启动的窗口全部终止后才能启动下一窗口，输出按 branch/item 声明顺序归位。child start failure、非 Completed 终态、缺失 Output 或 schema 不匹配按最低声明索引稳定归因并使 Workflow 失败；首版不预留 fail-fast/partial/fallback enum。
+- 决策：Loop 至少调用一次 child，必须有正数最大迭代数。predicate 满足与迭代上限耗尽都以带最终值、迭代数和 `Satisfied` 的策略 Output 完成；耗尽不伪装成 predicate 成功，也不创造共同 Process 状态。
+- 决策：ExecutionState 只保存 Stage 索引、当前 raw value、所选 case、窗口/item/iteration 游标、稳定 ChildKey/ProcessID、WaitID 和已按声明位置结算的 raw Output。它不保存函数、Deployment concrete value、Engine、resolver、context、goroutine、Store/Journal 或 Host 数据。Definition/Deployment 的 exact code/config digest 仍是恢复这些纯函数与 child binding 的唯一行为身份。
+- 原因：真实 spike 证明 managed orchestration 的差异不是“另一套画图 API”，而是 Engine-owned child lifecycle 和一致 tree recovery。最小有序代数吸收 `flow` 的可组合性与可派生性，同时避免复制其 runtime、重新引入 GOAP 编译、或用八类节点表达本可组合得到的同一语义。
+- 后果：P6 先按 Call/Transform 纵切面实现共同状态机，再增加 Switch/Fork、Map 和 Loop；完整恢复、race、fuzz、architecture gate 和真实 command consumer 通过后才冻结 Workflow 公共 API。未来若需要编辑器 DAG，应在 Platform/Host 侧把外部定义编译成已验证的 Workflow Deployment，不能把 Registry、Store 或应用图协议下沉进 Kernel。

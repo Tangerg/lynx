@@ -191,7 +191,7 @@ Extension 只承载可选横切行为。忽略后会破坏所有实现正确性�
 
 - Engine 是唯一 Process loop owner。
 - Strategy 只推进有界 Step，不创建第二套 runtime。
-- 任何未来编排 adapter 或 Strategy 都不复制 event/snapshot/child scheduler。
+- Workflow 不复制 event/snapshot/child scheduler；它只通过 Framework Effects 编排真实 child Process。
 - Extension 使用一个同质机制和结构化能力分发，不同时引入 Plugin、Hook、Advisor、Interceptor 等重叠体系。
 - Strategy 是主控制流，不伪装成 Extension。
 - 一个 Process 只有一个顶层 Execution；Process 构造只属于 Engine，跨 Strategy 或独立生命周期组合使用 child Process。
@@ -320,7 +320,7 @@ Extension 只承载可选横切行为。忽略后会破坏所有实现正确性�
 |---|---|---|
 | Strategy | Execution Strategy、Planner | 真实存在替换，不为单实现造接口 |
 | State | Process 合法状态转换 | 状态较少时直接方法/表驱动，不建立类层次 |
-| Composite | `flow` 或其他已成立的同层组合 | 组合必须共享真实输入输出和生命周期合同；不能跨越 Process owner 假装同层 |
+| Composite | `flow` 的同进程 Node、Workflow 的有序 Stage | 组合必须共享真实输入输出和生命周期合同；不能跨越 Process owner 假装同层 |
 | Adapter | Action-to-Tool、外部集成 | 只转换边界，不吸收业务策略 |
 | Decorator/Middleware | Tool、Action、模型调用横切行为 | 顺序、副作用和错误语义明确 |
 | Factory | Definition 创建/恢复 Execution | 无替换边界时返回 concrete value；窄腰处遵守 Execution 合同，不建立抽象工厂家族 |

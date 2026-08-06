@@ -59,10 +59,10 @@
 | Utility planner | utility selection | 未来 Planning 扩展或代码选择 | 当前重写移除，仅保留已审查的排序证据 | P5、P7 | 不预建 `planning/utility`；先由真实选择语义证明 owner |
 | Reactive planner | 旧 planning/reactive | 无 | 移除旧形态 | P5 | 不建立 `reactive` package；单步规则选择不是 ReAct，也未证明独立生命周期 |
 | routing Ranker/Candidate/Choice | Definition/worker selection | 代码选择或 Platform routing | 拆分裁决 | P6、P8 | 不建立重复 router abstraction |
-| sequence/gate/switch/loop | 代码确定路径 | `flow` 或未来经证明的 adapter | 暂停 Agent 内重写 | P6 | 不在 Step 内直接执行 `flow.Node`; 不预建 Workflow Strategy |
-| fork/map/join | 并行 section/vote/reduce | `flow`；独立 Agent 生命周期使用 child Process | 暂停统一封装 | P4、P6 | 先区分普通 goroutine 组合与独立 Process，不混称 |
+| sequence/gate/switch/loop | 代码确定路径 | `flow`（in-process）或 Workflow（managed Process） | 按生命周期拆分重写 | P6 | Stage 顺序/Transform/Switch/Loop；不在 Step 内执行 `flow.Node` |
+| fork/map/join | 并行 section/vote/reduce | `flow`（in-process）或 Workflow + child Process（managed） | 按生命周期拆分重写 | P4、P6 | 显式窗口、真实 child、声明顺序和 tree restore |
 | Supervisor | 动态 worker、结果综合 | Interaction + child Process composition | 移除独立 Strategy 预设 | P7 | 无独立 kind/package；组合行为测试 |
-| evaluator-optimizer | Anthropic pattern | `flow` 或 Definitions + child Process | 延后重写 | P7 | 明确终止条件和质量门槛；受 P6 边界裁决约束 |
+| evaluator-optimizer | Anthropic pattern | `flow.Loop` 或 Workflow Loop + evaluator child | 延后重写 | P7 | 明确终止条件、质量门槛和 limit exhausted 结果 |
 | Action-to-Tool adapter | 模型选择 framework Action | Interaction 与 child Process 组合 | 重新实现 | P7 | 名称/schema/结果准确，不混淆 Action/Tool |
 
 ## 5. 扩展、依赖与观察
@@ -175,7 +175,7 @@
 
 ## 10. P6 确定性编排专项审计证据
 
-10.1–10.3 记录的是旧 `agent` 提供过的组合语义和当时形成的候选约束，不再是已接受的 P6 实施方案。ADR-A2-037 已暂停 Workflow Strategy 设计；当前复用裁决以 10.4 为准。
+10.1–10.3 记录旧 `agent` 提供过的组合语义和第一版候选约束；10.4 记录 `flow` 的独立边界。ADR-A2-038 已依据 10.5 的真实 spike 恢复 managed Workflow，但采用更小的有序 Stage 代数，不恢复任意 DAG 和八类节点设计。
 
 ### 10.1 保留的组合语义
 
@@ -226,4 +226,14 @@
 | 直接把 `workflow.Graph`/`Spec` 当成 managed Agent Workflow Definition | 暂不成立 | 现有端口类型只是可选的粗粒度 edit-time `ValueType`，Store 持有 `any` 借用值；NodeFactory 产出可执行 Step，branch/condition 允许 I/O；并发零值可无界，分支共享一个 run/Store/Journal，不是独立 child Process |
 | 为 Agent 编写自定义 compiler/interpreter 消费 `flow` Graph/Spec | 延后裁决 | 技术上可行，但会绕过大部分现有 `workflow` runtime 并重新实现 validation/scheduling/recovery，已经不是“直接封装”；只有真实 managed child Process 消费点才能证明值得做 |
 
-由此，`flow` 可以直接承担应用侧普通控制流，也可以成为以后可选 coarse-grained Agent adapter 的下层依赖；它当前不能直接替代 Engine-managed child Process 编排。P6 在用户恢复设计前不创建 `agent2/workflow`，也不修改 `flow` 来迎合尚未成立的 Agent backend SPI。
+由此，`flow` 直接承担应用侧普通控制流，不能直接替代 Engine-managed child Process 编排。用户随后明确恢复 Workflow 设计，并要求只吸收 `flow` 的部分思想、不强求复用；因此不再实施 coarse-grained adapter，也不修改 `flow` 或把它加入 `agent2` 依赖。
+
+### 10.5 managed Workflow disposable consumer 证据
+
+- spike 只使用 Baseline 2 的公开 API，自行实现最小有序状态机：先串行启动并等待一个 prepare child，再以 concurrency window 2 编排三个 fork child。它没有访问 Engine 私有字段、解析 Framework 私有 Effect/Signal wire，或把 Engine/Deployment concrete value 写入 ExecutionState。
+- 前两路 child 在副作用前进入 Paused，root 进入带 Engine-minted WaitID 的 Waiting。完整 TreeSnapshot 此时包含 prepare child 与前两路 fork child，明确不含第三路，证明 concurrency 不是依赖 Engine 拒绝超额的软约定。
+- 原树被显式销毁后，在新 Engine 通过 exact resolver 恢复；第二路先于第一路 Resume/Completed，Workflow 仍按声明索引保存结果。第一窗口全部终止后才创建第三路，最终 tree 恰好包含四个 child，没有丢失或重复创建。
+- 定向行为测试连续 20 次、race 连续 20 次通过；spike 随后整体删除，没有临时类型、测试 package 或依赖进入生产模块。
+- 证据证明 Workflow 的独立状态是 Stage/value/window/child/wait/result 游标，并且能完全建立在现有 StartChild/WaitForChildren/TreeSnapshot 窄腰上；它不需要 Strategy dispatcher、Kernel 字段、`flow` Store/Journal 或第二 scheduler。
+
+据此唯一实施边界确定为：普通同进程组合继续直接使用 `flow`；managed Workflow 是只编排真实 child Process 的原生 Definition/Execution。正式词汇收敛为 Transform、Call、Switch、Fork、Map、Loop；Sequence、Gate、Vote、evaluator-optimizer 等可组合语义不再各建节点 kind。
