@@ -283,7 +283,15 @@ Engine 在每次 Step 前保留 last-stable ExecutionState。Step 必须是对�
 
 prepared step 是 Framework snapshot 的中性恢复事实，不是 Host transaction。崩溃在 prepare 前发生时不得已有 Effect；prepare 后恢复时沿原 EffectID 和冻结 payload 继续，只按 dispatcher replay contract 重投，未知结算保持可观察、待显式裁决。Effect 执行期间已经发生的 started/delta/finished 属于 attempt facts，不能伪装成提交后的事实。该顺序只描述 Framework 内部一致性；跨进程崩溃只能恢复到 Host 实际持久化的最后一份 snapshot，Framework 不虚构未持久化保证。
 
-### 6.3 Process 状态机
+### 6.3 Workflow 图与节点边界
+
+Workflow 使用原生 ExecutionState 保存确定性控制流，不编译成 Planning。Definition 是一个 schema 化 DAG：稳定 NodeID 标识节点，入口 schema 必须等于 Definition input，每条边的前后 schema 必须精确一致，每条路径最终都到达符合 Definition output schema 的 terminal。普通边禁止成环；受限重复只由拥有显式迭代上限的 Loop 节点表达。
+
+节点词汇保持唯一：Transform 做本地纯值转换；Gate 做二选一；Switch 在显式 case 表中选路；Call 调用一个 exact child Deployment；Fork/Join 执行固定分支；Map/Reduce 执行动态有界 item；Vote 做稳定多数聚合；Loop 重复一个 child body。Prompt Chaining 是多个 Call 的顺序组合，不新增节点或 Strategy。Router、Parallel、ScatterGather、Consensus、Repeat、SubAgent 都不作为同义公共 API。
+
+Transform/Gate/Switch/Join/Expand/Reduce/Vote key/Until 都是 Step 内的确定性纯函数。需要 I/O 或独立生命周期的工作只能成为 child Process。Fork/Map 按显式并发窗口分批启动真实 child，结果按声明/item 顺序聚合；Map 另有 item 数上限。Execution snapshot 只携带当前值、NodeID、分支或 item 游标、child/wait identity、已结算结果和迭代数，不携带 Engine、Deployment concrete value、callback、goroutine 或 Host 状态。
+
+### 6.4 Process 状态机
 
 共同 Process 只使用以下状态：
 
@@ -337,7 +345,7 @@ Effect 自己的取消或 deadline 先作为 settlement Signal 交给 Strategy�
 - 产品 Session、Conversation、Turn
 - provider、model、USD 账本
 
-### 6.4 Execution state envelope
+### 6.5 Execution state envelope
 
 共同 snapshot 只保存可判别的策略状态信封：
 
@@ -355,7 +363,7 @@ type ExecutionState struct {
 - Host 可以持久化 envelope，但不得依据 `Kind` 解析 payload 并参与策略控制流。
 - 恢复必须通过精确 `DeploymentRef` 找回 Definition；禁止全局 `kind → factory` 巨型 switch。
 
-### 6.5 Signal、等待与安全消费
+### 6.6 Signal、等待与安全消费
 
 Signal 是唯一进入 Execution 的运行时输入。共同信封只包含稳定 SignalID、可选 WaitID 路由、准确接收时间和不透明 JSON payload；Engine 另行记录自身分配的单调序号、投递状态和消费游标。Signal 的 kind/schema 若有需要也必须封装在 owner 自有 payload 内，不能成为共同 Process 可解释的类型。Engine 不依据 payload 决定策略控制流，也不把具体 Signal 类型放进共同 Process。
 
@@ -371,7 +379,7 @@ WaitID 由 Engine 铸造，Execution 不能自行生成外部等待身份。Exec
 
 不同 Strategy 必须声明自己的安全消费边界并用 contract tests 证明。Interaction 默认在已开始的模型调用和 Tool batch 结算后、下一模型 Effect 前消费 steer；其可观察生效延迟上界是当前不可中断 Effect 的剩余时长加下一 Step 的调度延迟，必须写入公开 GoDoc。通用 Engine 选择“等待结算”，不提供会遗弃不确定副作用的 interrupt-and-restart，也不假装拥有外部补偿语义。
 
-### 6.6 Effect 与结算
+### 6.7 Effect 与结算
 
 Effect 是 Execution 请求 Step 之外操作的唯一方式。候选信封只区分 Framework 自有目标与 Deployment dispatcher 目标，并携带 owner-owned raw payload；Engine 依据 ProcessID、Step sequence 与 effect index 生成 EffectID 并冻结 payload。Engine 只解释 child/wait/timer 等封闭的 Framework Effect，Strategy Effect 整体交给绑定的 dispatcher 解释。dispatcher 不修改 Execution，只产生 Delta 和最终 settlement Signal；不得把模型、Tool、Action kind 提升为 Kernel union。
 
@@ -379,7 +387,7 @@ Engine-owned Effect 必须用 EffectID 保证重复调度不重复创建 child�
 
 同一 Transition 的 Effect batch 可以按声明显式有界并发，但 EffectID 和 settlement 按 effect index 确定性归位；所需 settlement 未全部确定前不得提交候选状态。部分已完成、部分未知时保留每项结算事实，只按各自 replay contract 恢复，不能重跑整个 batch 或按完成先后生成协议结果。
 
-### 6.7 输入、输出与 typed adapter
+### 6.8 输入、输出与 typed adapter
 
 Engine 必须同构保存并运行异构 Definition，因此根窄腰不泛型化。Input、Output、Signal、Effect 和 ExecutionState 的 wire value 均使用被 owner 防御性复制且受大小限制的 JSON 表示，不用 `any` 或共享可变 `json.RawMessage` 绕过合同；严格解码和 payload 版本校验由拥有其 schema 的 Definition、Execution 或 dispatcher 完成。
 

@@ -245,3 +245,16 @@
 - 决策：child Action 是普通真实 Process，拥有独立 DeploymentRef、snapshot、预算和能力；parent 不把 child Output 当作现实状态，而在 child 终态后重新观察。Planning 的真实消费证明 Strategy 必须核对 child-start 的 DeploymentRef 和 child-wait acknowledgement 的完整 spec，因此根合同增加只读、defensive-copy 的 `ChildWaitOpened.Spec`。
 - 原因：预测效果不是真实事实；批量执行旧计划会在环境变化后继续沿过期路径。把执行 capability 放入 Action 或把 no-plan 变成共同状态会重新污染 Kernel。只校验 child WaitID 又无法证明 Engine 确认的是 Strategy 实际声明的等待集合。
 - 后果：P5 完成后冻结 Baseline 2，覆盖 root、Interaction、Planning 与 GOAP；HTN、Utility、Reactive、Planner registry/default、Blackboard、Planning telemetry 和 Host persistence 仍明确不实现。
+
+## ADR-A2-036：Workflow 使用 schema 化 DAG 与受限原生节点
+
+- 状态：已接受。
+- 决策：Workflow 是原生 Definition/Execution，不编译成 GOAP，也不建立自己的 runtime。Definition 冻结一个以稳定 `NodeID` 标识的有向无环图；每个节点声明精确 input/output schema，Definition 构造时验证入口 schema、每条边的 schema、可达性和所有 terminal output。普通图禁止环，唯一循环能力由有显式正数迭代上限的 `Loop` 节点内部拥有。
+- 决策：P6 的唯一节点词汇是 `Transform`、`Gate`、`Switch`、`Call`、`Fork`、`Map`、`Vote` 和 `Loop`。Prompt Chaining 是连续 `Call` 的 Sequence 用法，不建立新节点；Vote 是具名的稳定多数聚合，不公开 Consensus 别名；Fork 同时拥有 Join，不公开 Parallel/ScatterGather；Map 同时拥有 Reduce；Loop 不公开 Repeat/RepeatUntil；Workflow 内不使用 Router，以免和 P8 Deployment routing 混淆。
+- 决策：节点之间只传递 immutable、schema-validated JSON value。公开泛型构造器只在边缘把 Go 类型严格转换为 erased value；ExecutionState 保存 raw value、当前 NodeID、branch/item 游标、child key/ProcessID/wait、已结算结果和 loop iteration，不保存 callback、Deployment concrete value、Engine、context、goroutine 或 Host 数据。
+- 决策：Transform、Gate、Switch、Join、Map expansion/Reduce、Vote key 和 Loop predicate 是 `Step` 内有界、确定、无 I/O 的纯函数。任何模型、Tool、网络、文件或其他外部行为必须是一个 exact child Deployment；`Call`、Fork 的每个 branch、Map 的每个 item 和 Loop 的每轮 body 都启动普通 child Process。
+- 决策：Fork/Map 使用显式正数 concurrency window；Map 另有显式正数 item limit。Execution 分批启动 child、等待本批全部终止，再启动下一批；由此并发上限是正常调度语义，而不是靠 Engine 拒绝超额 child。结果始终按 branch/item 声明顺序聚合，不能按完成顺序排列。P6 的首个明确失败策略是任何 child 非 Completed 或缺少 Output 都使 Workflow 失败；Execution 等待已启动批次收口后按最低 index 归因，不静默遗弃副作用。新的容错/部分聚合策略必须有真实消费者后另行设计，不能预留 enum。
+- 决策：Loop 至少执行一次。predicate 满足时产生带最终 value、iteration count 和 `Satisfied=true` 的 typed result；达到上限仍未满足时以 `Satisfied=false` 完成，而不是谎称 predicate 成功或制造共同 Process 状态。调用方可用后续 Gate 明确选择接受、fallback 或失败。
+- 决策：Workflow 不产生 Strategy dispatcher Effect，但当前共同 Deployment 合同要求精确 dispatcher binding，因此 `workflow` 提供只拒绝意外 dispatcher Effect 的包内 Dispatcher；它是协议守卫，不拥有第二套执行能力。
+- 原因：Workflow 的真实状态是节点游标、分支等待和迭代恢复，不是 Goal search。schema DAG 可以在构造期消除隐式 Blackboard 数据流和无界环；真实 child Process 保持组合闭包、预算、能力、取消与 snapshot 只有一个 owner；明确的纯函数边界避免在 Step 内重新泄漏 I/O。
+- 后果：P6 可以逐个增加节点 concrete behavior，而不修改 Kernel。节点集合是当前经过验收的封闭语义，不是允许任意用户节点绕过 Process/Effect 边界的 plugin SPI；未来新增节点必须先证明独立状态与恢复语义。
