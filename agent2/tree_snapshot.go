@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	treeSnapshotSchemaVersion = 2
+	treeSnapshotSchemaVersion = 3
 	maxTreeSnapshotBytes      = 512 << 20
 )
 
@@ -129,9 +129,9 @@ func (snapshot TreeSnapshot) wire() (treeSnapshotWire, error) {
 }
 
 type childWaitSnapshotWire struct {
-	Parent ProcessID         `json:"parent"`
-	WaitID WaitID            `json:"wait_id"`
-	Spec   childWaitSpecWire `json:"spec"`
+	ParentProcessID ProcessID         `json:"parent_process_id"`
+	WaitID          WaitID            `json:"wait_id"`
+	Spec            childWaitSpecWire `json:"spec"`
 }
 
 type treeSnapshotWire struct {
@@ -223,7 +223,7 @@ func validateTreeSnapshot(wire treeSnapshotWire) error {
 	}
 	waits := make(map[WaitID]struct{}, len(wire.ChildWaits))
 	for _, encoded := range wire.ChildWaits {
-		parent, exists := processes[encoded.Parent]
+		parent, exists := processes[encoded.ParentProcessID]
 		spec, err := encoded.Spec.value()
 		if !exists || err != nil || !encoded.WaitID.Valid() || parent.Status.Terminal() {
 			return fmt.Errorf("%w: invalid child wait", ErrInvalidTreeSnapshot)
@@ -232,14 +232,14 @@ func validateTreeSnapshot(wire treeSnapshotWire) error {
 			return fmt.Errorf("%w: duplicate child WaitID", ErrInvalidTreeSnapshot)
 		}
 		waitRecord, exists := findWaitRecord(parent.Mailbox, encoded.WaitID)
-		if !exists || waitRecord.ExternallyAddressable || waitRecord.Closed || waitRecord.Key != spec.Key {
+		if !exists || waitRecord.ExternallyAddressable || waitRecord.Closed || waitRecord.WaitKey != spec.Key {
 			return fmt.Errorf("%w: child wait is absent from parent mailbox", ErrInvalidTreeSnapshot)
 		}
 		for _, childID := range spec.Children {
 			child, exists := processes[childID]
 			relation, _ := processRelationFromWire(childID, child.Relation)
 			parentID, isChild := relation.ParentID()
-			if !exists || !isChild || parentID != encoded.Parent {
+			if !exists || !isChild || parentID != encoded.ParentProcessID {
 				return fmt.Errorf("%w: wait references a non-direct child", ErrInvalidTreeSnapshot)
 			}
 		}
@@ -248,7 +248,7 @@ func validateTreeSnapshot(wire treeSnapshotWire) error {
 	for _, processWire := range processes {
 		for _, wait := range processWire.Mailbox.Waits {
 			if !wait.ExternallyAddressable && !wait.Closed {
-				if _, exists := waits[wait.ID]; !exists {
+				if _, exists := waits[wait.WaitID]; !exists {
 					return fmt.Errorf("%w: active child wait registration is missing", ErrInvalidTreeSnapshot)
 				}
 			}
@@ -259,7 +259,7 @@ func validateTreeSnapshot(wire treeSnapshotWire) error {
 
 func findWaitRecord(mailbox mailboxWire, id WaitID) (waitRecordWire, bool) {
 	for _, record := range mailbox.Waits {
-		if record.ID == id {
+		if record.WaitID == id {
 			return record, true
 		}
 	}
@@ -356,7 +356,7 @@ func (engine *Engine) CaptureTree(ctx context.Context, rootID ProcessID) (TreeSn
 			continue
 		}
 		wire.ChildWaits = append(wire.ChildWaits, childWaitSnapshotWire{
-			Parent: registration.parent, WaitID: registration.waitID,
+			ParentProcessID: registration.parent, WaitID: registration.waitID,
 			Spec: childWaitSpecWireFromValue(registration.spec),
 		})
 	}
@@ -473,7 +473,7 @@ func (engine *Engine) RestoreTree(
 			return nil, fmt.Errorf("%w: child wait: %w", ErrInvalidTreeSnapshot, err)
 		}
 		waitRegistrations = append(waitRegistrations, &childWaitRegistration{
-			parent: encoded.Parent, waitID: encoded.WaitID, spec: spec,
+			parent: encoded.ParentProcessID, waitID: encoded.WaitID, spec: spec,
 		})
 	}
 	if err := engine.registerRestoredTree(restored, waitRegistrations); err != nil {

@@ -207,6 +207,8 @@ Extension 只承载可选横切行为。忽略后会破坏所有实现正确性�
 
 共同 Process 可以保存这些协议的不透明信封、顺序、游标和 settlement，但不能 import Strategy 类型或解析 payload。Signal 共同信封不含 Strategy kind/schema；所有 wire bytes 必须 defensive copy 并受大小限制，严格解码与 payload 版本校验由 schema owner 完成。
 
+每个 schema owner 还必须独立冻结自己的完整 wire：Kernel baseline 只覆盖共同 snapshot/protocol/Event，Strategy baseline 只覆盖自己的 ExecutionState 与 Effect/Signal/Delta payload。共同 baseline 不递归解释 opaque Strategy bytes；Strategy 也不能把自己的 phase/cursor 提升进共同 Process。baseline 必须同时检测已登记 shape 漂移和新增 production wire 未登记，任何 breaking revision 都要在同一提交升级 owner schema version、增加 prior-version rejection，并禁止 dual-read/dual-write。
+
 ### 3.9 Step 提交纪律
 
 - Step 只消费 Signal、归约 Execution state 并产生 Transition/Effect，不直接调用模型、Tool、Action、Store 或其他 I/O。

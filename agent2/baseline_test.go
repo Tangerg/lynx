@@ -229,23 +229,65 @@ func isErrorCauseName(name string) bool {
 func TestSnapshotWireBaseline(t *testing.T) {
 	shape := snapshotWireShape()
 	got := fmt.Sprintf("%x", sha256.Sum256([]byte(shape)))
-	const want = "90977e6796f73877d0f60b68d2048346f1d1bde4df1963b4908982a5f27c4764"
+	const want = "1b93af3cb1f0fcb8267b2c160a38e61317397c7c40c3b2a24c51f4f61eeb4066"
 	if got != want {
 		t.Fatalf("snapshot wire changed: got %s, want %s\n%s", got, want, shape)
+	}
+}
+
+func TestWireBaselinesCoverEveryProductionWireType(t *testing.T) {
+	covered := make(map[string]struct{})
+	for _, wireType := range append(snapshotWireTypes(), observationWireTypes()...) {
+		covered[wireType.Name()] = struct{}{}
+	}
+	entries, err := os.ReadDir(".")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, entry := range entries {
+		name := entry.Name()
+		if entry.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
+			continue
+		}
+		file, err := parser.ParseFile(token.NewFileSet(), name, nil, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, declaration := range file.Decls {
+			general, ok := declaration.(*ast.GenDecl)
+			if !ok {
+				continue
+			}
+			for _, specification := range general.Specs {
+				typeSpec, ok := specification.(*ast.TypeSpec)
+				if !ok {
+					continue
+				}
+				_, isStruct := typeSpec.Type.(*ast.StructType)
+				baselineOwned := strings.HasSuffix(typeSpec.Name.Name, "Wire") ||
+					strings.HasSuffix(typeSpec.Name.Name, "EventPayload")
+				if !isStruct || !baselineOwned {
+					continue
+				}
+				if _, found := covered[typeSpec.Name.Name]; !found {
+					t.Errorf("%s: production wire type %s is absent from a wire baseline", name, typeSpec.Name.Name)
+				}
+			}
+		}
 	}
 }
 
 func TestObservationWireBaseline(t *testing.T) {
 	shape := observationWireShape()
 	got := fmt.Sprintf("%x", sha256.Sum256([]byte(shape)))
-	const want = "de73e9036fcd556eee94f1f24d244b06901ecfe07d9e5f9574a7b5f40dce4807"
+	const want = "4006d3d24440922ba1e1ba9616bde3a88352fcc2625d918b839e1de283b631cb"
 	if got != want {
 		t.Fatalf("observation wire changed: got %s, want %s\n%s", got, want, shape)
 	}
 }
 
 func observationWireShape() string {
-	types := []reflect.Type{reflect.TypeOf(eventWire{}), reflect.TypeOf(deltaWire{})}
+	types := observationWireTypes()
 	slices.SortFunc(types, func(left, right reflect.Type) int {
 		return strings.Compare(left.Name(), right.Name())
 	})
@@ -263,8 +305,48 @@ func observationWireShape() string {
 	return shape.String()
 }
 
+func observationWireTypes() []reflect.Type {
+	return []reflect.Type{
+		reflect.TypeOf(deltaDroppedEventPayload{}),
+		reflect.TypeOf(deltaWire{}),
+		reflect.TypeOf(effectFinishedEventPayload{}),
+		reflect.TypeOf(effectStartedEventPayload{}),
+		reflect.TypeOf(eventWire{}),
+		reflect.TypeOf(processFinishedEventPayload{}),
+		reflect.TypeOf(signalAcceptedEventPayload{}),
+		reflect.TypeOf(stepCommittedEventPayload{}),
+		reflect.TypeOf(stepFinishedEventPayload{}),
+	}
+}
+
 func snapshotWireShape() string {
-	types := []reflect.Type{
+	types := snapshotWireTypes()
+	slices.SortFunc(types, func(left, right reflect.Type) int {
+		return strings.Compare(left.Name(), right.Name())
+	})
+	var shape strings.Builder
+	fmt.Fprintf(
+		&shape, "process=%d tree=%d child=%d framework_effect=%d\n",
+		processSnapshotSchemaVersion, treeSnapshotSchemaVersion,
+		childProtocolSchemaVersion, frameworkEffectSchemaVersion,
+	)
+	for _, wireType := range types {
+		fmt.Fprintf(&shape, "%s\n", wireType.Name())
+		for index := range wireType.NumField() {
+			field := wireType.Field(index)
+			fmt.Fprintf(
+				&shape, "  %s %s json=%q\n",
+				field.Name, field.Type.String(), field.Tag.Get("json"),
+			)
+		}
+	}
+	return shape.String()
+}
+
+func snapshotWireTypes() []reflect.Type {
+	return []reflect.Type{
+		reflect.TypeOf(descriptorContractWire{}),
+		reflect.TypeOf(descriptorWire{}),
 		reflect.TypeOf(processSnapshotWire{}),
 		reflect.TypeOf(processRelationWire{}),
 		reflect.TypeOf(preparedStepWire{}),
@@ -287,30 +369,16 @@ func snapshotWireShape() string {
 		reflect.TypeOf(childWaitConditionWire{}),
 		reflect.TypeOf(childWaitSpecWire{}),
 		reflect.TypeOf(childOutcomeWire{}),
+		reflect.TypeOf(childWaitEffectWire{}),
+		reflect.TypeOf(childWaitOpenedWire{}),
+		reflect.TypeOf(childrenCompletedWire{}),
+		reflect.TypeOf(childStartEffectWire{}),
+		reflect.TypeOf(childStartResultWire{}),
+		reflect.TypeOf(waitRequestWire{}),
 		reflect.TypeOf(resultWire{}),
 		reflect.TypeOf(Budget{}),
 		reflect.TypeOf(Limits{}),
 		reflect.TypeOf(TreeLimits{}),
 		reflect.TypeOf(Usage{}),
 	}
-	slices.SortFunc(types, func(left, right reflect.Type) int {
-		return strings.Compare(left.Name(), right.Name())
-	})
-	var shape strings.Builder
-	fmt.Fprintf(
-		&shape, "process=%d tree=%d child=%d framework_effect=%d\n",
-		processSnapshotSchemaVersion, treeSnapshotSchemaVersion,
-		childProtocolSchemaVersion, frameworkEffectSchemaVersion,
-	)
-	for _, wireType := range types {
-		fmt.Fprintf(&shape, "%s\n", wireType.Name())
-		for index := range wireType.NumField() {
-			field := wireType.Field(index)
-			fmt.Fprintf(
-				&shape, "  %s %s json=%q\n",
-				field.Name, field.Type.String(), field.Tag.Get("json"),
-			)
-		}
-	}
-	return shape.String()
 }

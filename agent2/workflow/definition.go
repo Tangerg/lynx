@@ -11,7 +11,7 @@ import (
 
 const (
 	executionStateKind          = "workflow"
-	executionStateSchemaVersion = 1
+	executionStateSchemaVersion = 2
 )
 
 // DefinitionConfig contains one immutable managed Workflow behavior. Stages
@@ -86,7 +86,7 @@ func (definition *Definition) Start(input agent.Input) (agent.Execution, error) 
 	if err := definition.descriptor.ValidateInput(input); err != nil {
 		return nil, err
 	}
-	state := executionState{Phase: phaseReady, Value: input.JSON()}
+	state := executionState{Phase: phaseReady, CurrentValue: input.JSON()}
 	return &execution{definition: definition, state: state}, nil
 }
 

@@ -24,37 +24,37 @@ func TestArtifactStateRestoreRejectsInvalidProvenanceAndValue(t *testing.T) {
 		{
 			name: "unknown Delegate",
 			artifacts: []artifactRecord{{
-				ModelCall: 1, CallIndex: 0, CallID: "call_1",
+				ModelCallSequence: 1, ToolCallIndex: 0, ToolCallID: "call_1",
 				DelegateName: "missing", Output: validOutput,
 			}},
 		},
 		{
 			name: "wrong schema",
 			artifacts: []artifactRecord{{
-				ModelCall: 1, CallIndex: 0, CallID: "call_1",
+				ModelCallSequence: 1, ToolCallIndex: 0, ToolCallID: "call_1",
 				DelegateName: "delegate_fuzz", Output: wrongOutput,
 			}},
 		},
 		{
 			name: "duplicate identity",
 			artifacts: []artifactRecord{
-				{ModelCall: 1, CallIndex: 0, CallID: "same", DelegateName: "delegate_fuzz", Output: validOutput},
-				{ModelCall: 1, CallIndex: 1, CallID: "same", DelegateName: "delegate_fuzz", Output: validOutput},
+				{ModelCallSequence: 1, ToolCallIndex: 0, ToolCallID: "same", DelegateName: "delegate_fuzz", Output: validOutput},
+				{ModelCallSequence: 1, ToolCallIndex: 1, ToolCallID: "same", DelegateName: "delegate_fuzz", Output: validOutput},
 			},
 		},
 		{
 			name: "reversed position",
 			artifacts: []artifactRecord{
-				{ModelCall: 1, CallIndex: 1, CallID: "later", DelegateName: "delegate_fuzz", Output: validOutput},
-				{ModelCall: 1, CallIndex: 0, CallID: "earlier", DelegateName: "delegate_fuzz", Output: validOutput},
+				{ModelCallSequence: 1, ToolCallIndex: 1, ToolCallID: "later", DelegateName: "delegate_fuzz", Output: validOutput},
+				{ModelCallSequence: 1, ToolCallIndex: 0, ToolCallID: "earlier", DelegateName: "delegate_fuzz", Output: validOutput},
 			},
 		},
 	}
 	for _, test := range cases {
 		t.Run(test.name, func(t *testing.T) {
 			state := executionState{
-				Phase: phaseAwaitingModel, Request: request.Clone(), ModelCalls: 2,
-				Artifacts: test.artifacts,
+				Phase: phaseAwaitingModel, WorkingContext: request.Clone(), ModelCallCount: 2,
+				ArtifactRecords: test.artifacts,
 			}
 			payload, err := json.Marshal(state)
 			if err != nil {
@@ -71,24 +71,24 @@ func TestArtifactStateRestoreRejectsInvalidProvenanceAndValue(t *testing.T) {
 	}
 }
 
-func TestArtifactStateDoesNotReadExecutionStateV2(t *testing.T) {
+func TestInteractionDoesNotReadPriorExecutionState(t *testing.T) {
 	definition := fuzzInteractionDefinition(t)
 	state := executionState{
 		Phase: phaseAwaitingModel,
-		Request: &chat.Request{Messages: []chat.Message{
+		WorkingContext: &chat.Request{Messages: []chat.Message{
 			chat.NewUserMessage(chat.NewTextPart("old state")),
 		}},
-		ModelCalls: 1,
+		ModelCallCount: 1,
 	}
 	payload, err := json.Marshal(state)
 	if err != nil {
 		t.Fatal(err)
 	}
-	old, err := agent.NewExecutionState(executionStateKind, 2, payload)
+	old, err := agent.NewExecutionState(executionStateKind, executionStateSchemaVersion-1, payload)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if _, err := definition.Restore(old); !errors.Is(err, ErrInvalidExecutionState) {
-		t.Fatalf("Restore(v2) error=%v, want ErrInvalidExecutionState", err)
+		t.Fatalf("Restore(prior version) error=%v, want ErrInvalidExecutionState", err)
 	}
 }

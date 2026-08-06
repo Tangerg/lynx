@@ -15,7 +15,7 @@ func (execution *execution) startDelegateSegment(
 	consumedSignals uint32,
 	calls []chat.ToolCall,
 ) (agent.Transition, bool, error) {
-	start := execution.state.NextCall
+	start := execution.state.NextToolCallIndex
 	end := start
 	for end < uint32(len(calls)) {
 		if _, delegated := execution.definition.delegate(calls[end].Name); !delegated {
@@ -35,15 +35,15 @@ func (execution *execution) startDelegateSegment(
 		input, err := agent.ParseInput([]byte(arguments))
 		if err != nil {
 			result := delegateErrorResult(call, "arguments are not valid JSON: "+err.Error())
-			segment.Invocations[offset].Result = &result
+			segment.Invocations[offset].ToolResult = &result
 			continue
 		}
 		if err := delegate.validateInput(input); err != nil {
 			result := delegateErrorResult(call, "arguments violate the delegated worker input contract: "+err.Error())
-			segment.Invocations[offset].Result = &result
+			segment.Invocations[offset].ToolResult = &result
 			continue
 		}
-		key, err := delegateChildKey(execution.state.ModelCalls, call)
+		key, err := delegateChildKey(execution.state.ModelCallCount, call)
 		if err != nil {
 			return agent.Transition{}, false, err
 		}
@@ -54,19 +54,19 @@ func (execution *execution) startDelegateSegment(
 		if err != nil {
 			return agent.Transition{}, false, err
 		}
-		segment.Invocations[offset].Key = &key
+		segment.Invocations[offset].ChildKey = &key
 		effects = append(effects, effect)
 	}
-	execution.state.ActiveCallEnd = end
+	execution.state.ActiveToolCallEndIndex = end
 	execution.state.DelegateSegment = &segment
 	if len(effects) == 0 {
 		results, err := delegateSegmentResults(segment)
 		if err != nil {
 			return agent.Transition{}, false, err
 		}
-		execution.state.SettledResults = append(execution.state.SettledResults, results...)
-		execution.state.NextCall = end
-		execution.state.ActiveCallEnd = 0
+		execution.state.SettledToolResults = append(execution.state.SettledToolResults, results...)
+		execution.state.NextToolCallIndex = end
+		execution.state.ActiveToolCallEndIndex = 0
 		execution.state.DelegateSegment = nil
 		return agent.Transition{}, false, nil
 	}
@@ -88,7 +88,7 @@ func (execution *execution) acceptDelegateStarts(signals []agent.Signal) (agent.
 	next := 0
 	for index := range execution.state.DelegateSegment.Invocations {
 		invocation := &execution.state.DelegateSegment.Invocations[index]
-		if invocation.Key == nil || invocation.Result != nil {
+		if invocation.ChildKey == nil || invocation.ToolResult != nil {
 			continue
 		}
 		if next >= len(starts) {
@@ -97,21 +97,21 @@ func (execution *execution) acceptDelegateStarts(signals []agent.Signal) (agent.
 		start := starts[next]
 		next++
 		delegate, _ := execution.definition.delegate(calls[index].Name)
-		if start.Key() != *invocation.Key || start.DeploymentRef() != delegate.deploymentRef {
+		if start.Key() != *invocation.ChildKey || start.DeploymentRef() != delegate.deploymentRef {
 			return agent.Transition{}, fmt.Errorf("%w: Delegate child-start result mismatch", ErrInvalidExecutionState)
 		}
 		if failure, failed := start.Failure(); failed {
 			result := delegateErrorResult(
 				calls[index], "child start failed: "+failure.Code()+": "+failure.Message(),
 			)
-			invocation.Result = &result
+			invocation.ToolResult = &result
 			continue
 		}
 		processID, started := start.ProcessID()
 		if !started {
 			return agent.Transition{}, fmt.Errorf("%w: Delegate child start has no outcome", ErrInvalidExecutionState)
 		}
-		invocation.ProcessID = &processID
+		invocation.ChildProcessID = &processID
 	}
 	if next != len(starts) {
 		return agent.Transition{}, fmt.Errorf("%w: unexpected Delegate child-start result", ErrInvalidExecutionState)
@@ -122,13 +122,13 @@ func (execution *execution) acceptDelegateStarts(signals []agent.Signal) (agent.
 		if err != nil {
 			return agent.Transition{}, err
 		}
-		execution.state.SettledResults = append(execution.state.SettledResults, results...)
-		execution.state.NextCall = execution.state.ActiveCallEnd
-		execution.state.ActiveCallEnd = 0
+		execution.state.SettledToolResults = append(execution.state.SettledToolResults, results...)
+		execution.state.NextToolCallIndex = execution.state.ActiveToolCallEndIndex
+		execution.state.ActiveToolCallEndIndex = 0
 		execution.state.DelegateSegment = nil
 		return execution.advanceToolCallBatch(consumedSignals)
 	}
-	waitKey, err := delegateWaitKey(execution.state.ModelCalls, *execution.state.DelegateSegment)
+	waitKey, err := delegateWaitKey(execution.state.ModelCallCount, *execution.state.DelegateSegment)
 	if err != nil {
 		return agent.Transition{}, err
 	}
@@ -186,16 +186,16 @@ func (execution *execution) acceptDelegates(signals []agent.Signal) (agent.Trans
 	results := make([]chat.ToolResult, len(calls))
 	artifacts := make([]artifactRecord, 0, len(calls))
 	for index, invocation := range execution.state.DelegateSegment.Invocations {
-		if invocation.Result != nil {
-			results[index] = *invocation.Result
+		if invocation.ToolResult != nil {
+			results[index] = *invocation.ToolResult
 			continue
 		}
-		if invocation.Key == nil || invocation.ProcessID == nil || next >= len(outcomes) {
+		if invocation.ChildKey == nil || invocation.ChildProcessID == nil || next >= len(outcomes) {
 			return agent.Transition{}, fmt.Errorf("%w: missing Delegate child outcome", ErrInvalidExecutionState)
 		}
 		outcome := outcomes[next]
 		next++
-		if outcome.Key() != *invocation.Key || outcome.Result().ProcessID() != *invocation.ProcessID {
+		if outcome.Key() != *invocation.ChildKey || outcome.Result().ProcessID() != *invocation.ChildProcessID {
 			return agent.Transition{}, fmt.Errorf("%w: Delegate child outcome mismatch", ErrInvalidExecutionState)
 		}
 		result := outcome.Result()
@@ -218,18 +218,18 @@ func (execution *execution) acceptDelegates(signals []agent.Signal) (agent.Trans
 			ID: calls[index].ID, Name: calls[index].Name, Result: string(output.JSON()),
 		}
 		artifacts = append(artifacts, artifactRecord{
-			ModelCall: execution.state.ModelCalls,
-			CallIndex: execution.state.NextCall + uint32(index),
-			CallID:    calls[index].ID, DelegateName: calls[index].Name, Output: output,
+			ModelCallSequence: execution.state.ModelCallCount,
+			ToolCallIndex:     execution.state.NextToolCallIndex + uint32(index),
+			ToolCallID:        calls[index].ID, DelegateName: calls[index].Name, Output: output,
 		})
 	}
 	if next != len(outcomes) {
 		return agent.Transition{}, fmt.Errorf("%w: unexpected Delegate child outcome", ErrInvalidExecutionState)
 	}
-	execution.state.SettledResults = append(execution.state.SettledResults, results...)
-	execution.state.Artifacts = append(execution.state.Artifacts, artifacts...)
-	execution.state.NextCall = execution.state.ActiveCallEnd
-	execution.state.ActiveCallEnd = 0
+	execution.state.SettledToolResults = append(execution.state.SettledToolResults, results...)
+	execution.state.ArtifactRecords = append(execution.state.ArtifactRecords, artifacts...)
+	execution.state.NextToolCallIndex = execution.state.ActiveToolCallEndIndex
+	execution.state.ActiveToolCallEndIndex = 0
 	execution.state.DelegateSegment = nil
 	execution.state.WaitID = nil
 	return execution.advanceToolCallBatch(consumedSignals)
@@ -241,8 +241,8 @@ func (execution *execution) delegateChildren() []agent.ProcessID {
 	}
 	children := make([]agent.ProcessID, 0, len(execution.state.DelegateSegment.Invocations))
 	for _, invocation := range execution.state.DelegateSegment.Invocations {
-		if invocation.ProcessID != nil {
-			children = append(children, *invocation.ProcessID)
+		if invocation.ChildProcessID != nil {
+			children = append(children, *invocation.ChildProcessID)
 		}
 	}
 	return children
@@ -252,7 +252,7 @@ func (execution *execution) delegateWaitSpec() (agent.ChildWaitSpec, error) {
 	if execution.state.DelegateSegment == nil {
 		return agent.ChildWaitSpec{}, ErrInvalidExecutionState
 	}
-	key, err := delegateWaitKey(execution.state.ModelCalls, *execution.state.DelegateSegment)
+	key, err := delegateWaitKey(execution.state.ModelCallCount, *execution.state.DelegateSegment)
 	if err != nil {
 		return agent.ChildWaitSpec{}, err
 	}
@@ -315,10 +315,10 @@ func collectChildrenCompleted(signals []agent.Signal) (agent.ChildrenCompleted, 
 func delegateSegmentResults(segment delegateSegmentState) ([]chat.ToolResult, error) {
 	results := make([]chat.ToolResult, len(segment.Invocations))
 	for index, invocation := range segment.Invocations {
-		if invocation.Result == nil {
+		if invocation.ToolResult == nil {
 			return nil, fmt.Errorf("%w: Delegate call %d is not settled", ErrInvalidExecutionState, index)
 		}
-		results[index] = *invocation.Result
+		results[index] = *invocation.ToolResult
 	}
 	return results, nil
 }
@@ -330,9 +330,9 @@ func delegateErrorResult(call chat.ToolCall, diagnostic string) chat.ToolResult 
 	}
 }
 
-func delegateChildKey(modelCalls uint32, call chat.ToolCall) (agent.ChildKey, error) {
+func delegateChildKey(modelCallCount uint32, call chat.ToolCall) (agent.ChildKey, error) {
 	hash := sha256.New()
-	hash.Write([]byte(strconv.FormatUint(uint64(modelCalls), 10)))
+	hash.Write([]byte(strconv.FormatUint(uint64(modelCallCount), 10)))
 	hash.Write([]byte{0})
 	hash.Write([]byte(call.ID))
 	hash.Write([]byte{0})
@@ -340,17 +340,17 @@ func delegateChildKey(modelCalls uint32, call chat.ToolCall) (agent.ChildKey, er
 	return agent.ParseChildKey("interaction.delegate.child." + hex.EncodeToString(hash.Sum(nil)))
 }
 
-func delegateWaitKey(modelCalls uint32, segment delegateSegmentState) (agent.WaitKey, error) {
+func delegateWaitKey(modelCallCount uint32, segment delegateSegmentState) (agent.WaitKey, error) {
 	hash := sha256.New()
-	hash.Write([]byte(strconv.FormatUint(uint64(modelCalls), 10)))
+	hash.Write([]byte(strconv.FormatUint(uint64(modelCallCount), 10)))
 	for _, invocation := range segment.Invocations {
-		if invocation.ProcessID == nil || invocation.Key == nil {
+		if invocation.ChildProcessID == nil || invocation.ChildKey == nil {
 			continue
 		}
 		hash.Write([]byte{0})
-		hash.Write([]byte(invocation.Key.String()))
+		hash.Write([]byte(invocation.ChildKey.String()))
 		hash.Write([]byte{0})
-		hash.Write([]byte(invocation.ProcessID.String()))
+		hash.Write([]byte(invocation.ChildProcessID.String()))
 	}
 	return agent.ParseWaitKey("interaction.delegate.wait." + hex.EncodeToString(hash.Sum(nil)))
 }

@@ -162,9 +162,7 @@ func (loop *processLoop) dispatchStrategyEffect(
 			if count := dropped.Load(); count > 0 {
 				loop.usage.DroppedDeltas += count
 				loop.updateView()
-				payload, _ := json.Marshal(struct {
-					Count uint64 `json:"count"`
-				}{Count: count})
+				payload, _ := json.Marshal(deltaDroppedEventPayload{DroppedDeltaCount: count})
 				loop.publishEvent(ctx, EventDeltaDropped, EventPhaseAttempt, loop.prepared.wire.StepSequence, record.ID, payload)
 			}
 			loop.publishSettlementEvent(

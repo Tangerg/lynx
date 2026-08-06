@@ -12,19 +12,19 @@ import (
 
 func (execution *execution) startFanoutWindow(consumedSignals uint32) (agent.Transition, error) {
 	stage := execution.stage()
-	count, err := stage.fanoutCount(execution.state.Value)
+	count, err := stage.fanoutCount(execution.state.CurrentValue)
 	if err != nil || count == 0 || stage.fanoutWindowSize() == 0 {
 		return agent.Transition{}, errors.Join(ErrInvalidStage, err)
 	}
 	if execution.state.FanoutOutputs == nil {
 		execution.state.FanoutOutputs = make([]*json.RawMessage, count)
 	}
-	start := execution.state.FanoutNext
+	start := execution.state.NextFanoutIndex
 	if start >= count {
 		return agent.Transition{}, ErrInvalidExecutionState
 	}
 	end := start + min(stage.fanoutWindowSize(), count-start)
-	inputs, err := stage.fanoutWindowInputs(start, end, execution.state.Value)
+	inputs, err := stage.fanoutWindowInputs(start, end, execution.state.CurrentValue)
 	if err != nil || len(inputs) != int(end-start) {
 		return agent.Transition{}, errors.Join(ErrInvalidExecutionState, err)
 	}
@@ -47,23 +47,23 @@ func (execution *execution) startFanoutWindow(consumedSignals uint32) (agent.Tra
 		if err != nil {
 			return agent.Transition{}, err
 		}
-		window = append(window, fanoutChildState{Index: index})
+		window = append(window, fanoutChildState{FanoutIndex: index})
 		effects = append(effects, effect)
 	}
-	execution.state.FanoutNext = end
-	execution.state.FanoutWindow = window
+	execution.state.NextFanoutIndex = end
+	execution.state.ActiveFanoutWindow = window
 	execution.state.Phase = phaseAwaitingFanoutStarts
 	return agent.Continue(consumedSignals, effects...)
 }
 
 func (execution *execution) acceptFanoutStarts(signals []agent.Signal) (agent.Transition, error) {
-	window := execution.state.FanoutWindow
+	window := execution.state.ActiveFanoutWindow
 	if len(signals) < len(window) {
 		return agent.Transition{}, fmt.Errorf("%w: fan-out child starts require one settlement Signal per member", ErrInvalidProtocol)
 	}
 	childIDs := make([]agent.ProcessID, 0, len(window))
 	for offset := range window {
-		index := window[offset].Index
+		index := window[offset].FanoutIndex
 		binding, found := execution.stage().fanoutBinding(index)
 		memberID, identified := execution.stage().fanoutMemberID(index)
 		result, err := agent.ParseChildStartResult(signals[offset])
@@ -83,14 +83,14 @@ func (execution *execution) acceptFanoutStarts(signals []agent.Signal) (agent.Tr
 			if err != nil {
 				return agent.Transition{}, err
 			}
-			execution.state.FanoutWindow[offset].Failure = &attributed
+			execution.state.ActiveFanoutWindow[offset].Failure = &attributed
 			continue
 		}
 		processID, started := result.ProcessID()
 		if !started {
 			return agent.Transition{}, fmt.Errorf("%w: fan-out child-start result has no Process", ErrInvalidProtocol)
 		}
-		execution.state.FanoutWindow[offset].ProcessID = &processID
+		execution.state.ActiveFanoutWindow[offset].ChildProcessID = &processID
 		childIDs = append(childIDs, processID)
 	}
 	consumedSignals := uint32(len(window))
@@ -144,18 +144,18 @@ func (execution *execution) acceptFanoutCompletion(signals []agent.Signal) (agen
 	}
 	windowOutputs := make(map[uint32]json.RawMessage, len(outcomes))
 	outcomeIndex := 0
-	for offset := range execution.state.FanoutWindow {
-		child := &execution.state.FanoutWindow[offset]
-		if child.ProcessID == nil {
+	for offset := range execution.state.ActiveFanoutWindow {
+		child := &execution.state.ActiveFanoutWindow[offset]
+		if child.ChildProcessID == nil {
 			continue
 		}
 		outcome := outcomes[outcomeIndex]
 		outcomeIndex++
-		wantChildKey, err := execution.fanoutChildKey(child.Index)
-		if err != nil || outcome.Key() != wantChildKey || outcome.Result().ProcessID() != *child.ProcessID {
+		wantChildKey, err := execution.fanoutChildKey(child.FanoutIndex)
+		if err != nil || outcome.Key() != wantChildKey || outcome.Result().ProcessID() != *child.ChildProcessID {
 			return agent.Transition{}, fmt.Errorf("%w: fan-out member outcome mismatch", ErrInvalidProtocol)
 		}
-		failure, output, err := execution.fanoutOutcome(child.Index, outcome.Result())
+		failure, output, err := execution.fanoutOutcome(child.FanoutIndex, outcome.Result())
 		if err != nil {
 			return agent.Transition{}, err
 		}
@@ -163,7 +163,7 @@ func (execution *execution) acceptFanoutCompletion(signals []agent.Signal) (agen
 			child.Failure = failure
 			continue
 		}
-		windowOutputs[child.Index] = output
+		windowOutputs[child.FanoutIndex] = output
 	}
 	if failure := execution.lowestFanoutFailure(); failure.Valid() {
 		return agent.Fail(1, failure)
@@ -173,12 +173,12 @@ func (execution *execution) acceptFanoutCompletion(signals []agent.Signal) (agen
 		execution.state.FanoutOutputs[index] = &owned
 	}
 	execution.state.WaitID = nil
-	execution.state.FanoutWindow = nil
-	count, err := execution.stage().fanoutCount(execution.state.Value)
+	execution.state.ActiveFanoutWindow = nil
+	count, err := execution.stage().fanoutCount(execution.state.CurrentValue)
 	if err != nil {
 		return agent.Transition{}, err
 	}
-	if execution.state.FanoutNext < count {
+	if execution.state.NextFanoutIndex < count {
 		return execution.startFanoutWindow(1)
 	}
 	outputs := make([]json.RawMessage, len(execution.state.FanoutOutputs))
@@ -192,7 +192,7 @@ func (execution *execution) acceptFanoutCompletion(signals []agent.Signal) (agen
 	if err != nil {
 		return agent.Transition{}, err
 	}
-	execution.state.Value = value
+	execution.state.CurrentValue = value
 	execution.state.Phase = phaseReady
 	return execution.finishStage(1)
 }
@@ -235,7 +235,7 @@ func (execution *execution) fanoutFailureMessage(index uint32, diagnostic string
 }
 
 func (execution *execution) lowestFanoutFailure() agent.Failure {
-	for _, child := range execution.state.FanoutWindow {
+	for _, child := range execution.state.ActiveFanoutWindow {
 		if child.Failure != nil && child.Failure.Valid() {
 			return *child.Failure
 		}
@@ -244,10 +244,10 @@ func (execution *execution) lowestFanoutFailure() agent.Failure {
 }
 
 func (execution *execution) fanoutStartedChildren() []agent.ProcessID {
-	children := make([]agent.ProcessID, 0, len(execution.state.FanoutWindow))
-	for _, child := range execution.state.FanoutWindow {
-		if child.ProcessID != nil {
-			children = append(children, *child.ProcessID)
+	children := make([]agent.ProcessID, 0, len(execution.state.ActiveFanoutWindow))
+	for _, child := range execution.state.ActiveFanoutWindow {
+		if child.ChildProcessID != nil {
+			children = append(children, *child.ChildProcessID)
 		}
 	}
 	return children
@@ -262,7 +262,7 @@ func (execution *execution) fanoutChildKey(index uint32) (agent.ChildKey, error)
 }
 
 func (execution *execution) fanoutWaitKey() (agent.WaitKey, error) {
-	windowStart := execution.state.FanoutNext - uint32(len(execution.state.FanoutWindow))
+	windowStart := execution.state.NextFanoutIndex - uint32(len(execution.state.ActiveFanoutWindow))
 	return workflowWaitKey(
 		execution.stage().kind.String(), execution.stage().id,
 		strconv.FormatUint(uint64(windowStart), 10),
@@ -270,7 +270,7 @@ func (execution *execution) fanoutWaitKey() (agent.WaitKey, error) {
 }
 
 func (execution *execution) clearFanout() {
-	execution.state.FanoutNext = 0
-	execution.state.FanoutWindow = nil
+	execution.state.NextFanoutIndex = 0
+	execution.state.ActiveFanoutWindow = nil
 	execution.state.FanoutOutputs = nil
 }

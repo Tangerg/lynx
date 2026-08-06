@@ -1,14 +1,14 @@
 # Agent Framework 公共合同基线
 
-> 状态：Baseline 4 已冻结
+> 状态：Baseline 5 已冻结
 > 冻结日期：2026-08-06
-> 适用范围：`agent2` 根 package、`agent2/interaction`、`agent2/planning`、`agent2/planning/goap`、`agent2/workflow`、`agent2/otel`、`agent2/platform`、Process Snapshot v4、TreeSnapshot v2、child/framework-effect protocol v2、Event/Delta observation wire
+> 适用范围：`agent2` 根 package、`agent2/interaction`、`agent2/planning`、`agent2/planning/goap`、`agent2/workflow`、`agent2/otel`、`agent2/platform`、Process Snapshot v5、TreeSnapshot v3、child/framework-effect protocol v2、Interaction state/protocol v4/v2、Planning state/protocol v3/v1、Workflow state v2、Event/Delta observation wire
 
 本文只记录已经由 P3 真实 Interaction、P4 child composition、八个独立 command consumer、P5 真实 Planning/GOAP、P6 managed Workflow、P8 Platform 与恢复合同共同证明的公共合同基线。目标架构、ADR、工程标准和实施进度仍由各自文档拥有；这里不复制它们。
 
 ## 1. 基线的含义
 
-Baseline 4 不是兼容承诺或发布版本。仓库仍允许 breaking change，但任何公共名称、参数名、签名、GoDoc、sentinel error、Process snapshot wire 或 tree snapshot wire 的变化都必须是显式设计决策：
+Baseline 5 不是兼容承诺或发布版本。仓库仍允许 breaking change，但任何公共名称、参数名、签名、GoDoc、sentinel error、Framework/Strategy recovery wire 或 observation wire 的变化都必须是显式设计决策：
 
 1. 先用真实 Strategy 或 consumer 证明变化必要；
 2. 更新或追加 ADR，不保留 alias、双读、双写或兼容 shim；
@@ -43,7 +43,7 @@ Baseline 4 不是兼容承诺或发布版本。仓库仍允许 breaking change�
 
 ## 3. 自动守卫
 
-`baseline_test.go` 对七个已冻结公共 package 的完整 `go doc -all` 输出做 SHA-256 校验，因此 exported identifier、参数名、字段、签名和 GoDoc 的任何漂移都会失败；AST 守卫还要求所有公开声明/字段有精确 GoDoc、公开 callable 的参数有语义名称，并禁止 error cause 通过 `%v` 丢失 `errors.Is/As` 链。Baseline 4 digest：
+`baseline_test.go` 对七个已冻结公共 package 的完整 `go doc -all` 输出做 SHA-256 校验，因此 exported identifier、参数名、字段、签名和 GoDoc 的任何漂移都会失败；AST 守卫还要求所有公开声明/字段有精确 GoDoc、公开 callable 的参数有语义名称，并禁止 error cause 通过 `%v` 丢失 `errors.Is/As` 链。Baseline 5 public digest：
 
 - root kernel：`73b6f2270e4010886234cb080c277ba1960dcb09c8c123b550ba0c0a8ff6fb90`
 - interaction：`b5fdabbea94d2b9aa346446a7cafb4accde928b23489012ba2763c77a517da91`
@@ -53,10 +53,13 @@ Baseline 4 不是兼容承诺或发布版本。仓库仍允许 breaking change�
 - otel：`0725fbef9fbd28ba9b6999ab8b427dd9a4376f83aef9839a9f15f60c16422016`
 - platform：`748f5ea1ef3b09c702a792ab6e16a3b4ae6be9776ef1a4ba51e856757abff078`
 
-同一测试对 Process Snapshot v4、TreeSnapshot v2、child/framework-effect protocol v2 的 schema version、字段名、JSON tag、字段类型和嵌套 wire shape 做独立校验。Baseline 4 wire digest：
+Kernel 测试独立冻结其全部 production `*Wire`、Framework Event payload 与 schema version；每个 Strategy package 冻结自己的私有 ExecutionState 和 Effect/Signal/Delta protocol。覆盖守卫要求新增 production wire 或私有 JSON struct 必须进入所有者 baseline，Kernel 始终只保存 opaque `ExecutionState.Payload`，不会递归解释 Strategy shape。Baseline 5 wire digest：
 
-- snapshot/tree wire：`90977e6796f73877d0f60b68d2048346f1d1bde4df1963b4908982a5f27c4764`
-- Event/Delta observation wire：`de73e9036fcd556eee94f1f24d244b06901ecfe07d9e5f9574a7b5f40dce4807`
+- Kernel snapshot/protocol wire：`1b93af3cb1f0fcb8267b2c160a38e61317397c7c40c3b2a24c51f4f61eeb4066`
+- Framework Event/Delta observation wire：`4006d3d24440922ba1e1ba9616bde3a88352fcc2625d918b839e1de283b631cb`
+- Interaction state/protocol wire：`fdc75d1030debefa49d42ffd02c460e143ddc2aee09375630760e799f8ee220a`
+- Planning state/protocol wire：`2d23947979849161f5d997b17c7510a95bc15274c78dc7aae70c21af1beee439`
+- Workflow state wire：`d6666ac8046b8b1e14de9eb322abbea21ba98bf696a1cebed6e55a68f3583078`
 
 Digest 只用于发现未审计漂移，不替代 strict codec、round-trip、malformed input、restore、fuzz 或 consumer behavior tests。
 
@@ -88,6 +91,8 @@ P8-07 依据 ADR-A2-053 用第八个公开 command 同时运行 embedded 与 Pla
 
 P9-01 依据 ADR-A2-054 对七个 package 的公开/私有词汇、参数、字段、GoDoc、error 与 wire 名称做独立终审，并一次性形成 Baseline 4。公共面不再以 `Reference`、`Index`、`Deployment` 等宽词表示 `DeploymentRef`、Effect batch index 或 exact child ref；Signal consumption、Process/Event/Effect sequence 与 mailbox cursor 全部以 owner-qualified 名称表达。Planning output 的 `Attempt.ActionName` 和 dispatcher `ActionExecutors` 同步修正；完整 error cause 统一 `%w`。这批变化故意不保留 alias、旧 tag 或双读：Process Snapshot 升为 v4、TreeSnapshot 升为 v2、child/framework-effect protocol 升为 v2、Planning ExecutionState 升为 v2，旧格式明确不属于当前合同。
 
+P9-02 依据 ADR-A2-055 独立复核后发现 Baseline 4 只冻结了共同 snapshot 外层，没有冻结其中 opaque Strategy payload 的所有者协议；Framework Event payload 也由匿名 struct 生成而未进入 observation digest。Baseline 5 将这两个漏口治本关闭：Interaction、Planning、Workflow 分别拥有并冻结自己的 state/protocol，Kernel 只冻结共同 envelope；Framework Event payload 收敛为命名 wire，并使用 `process_status`、`termination_cause`、`step_status`、`effect_target`、`settlement_status`、`dropped_delta_count` 等准确字段。Process Snapshot 升为 v5、TreeSnapshot 升为 v3、Interaction state/protocol 升为 v4/v2、Planning state 升为 v3、Workflow state 升为 v2；旧版本与旧 tag 直接拒绝，七个 public digest 不变。
+
 ## 4. 明确不在基线中的能力
 
-Baseline 4 暂不冻结 P10 应用迁移 API 或最终模块替换路径。`flow` 保持独立 in-process 库，不形成 Agent adapter API 或依赖；Workflow 吸收其显式拓扑、确定顺序和有界组合思想，但不强求复用或建立 adapter。未来编辑器图只能在更高层编译成已验证的 Workflow Definition，不能反向扩张 Kernel 或恢复 wire。
+Baseline 5 暂不冻结 P10 应用迁移 API 或最终模块替换路径。`flow` 保持独立 in-process 库，不形成 Agent adapter API 或依赖；Workflow 吸收其显式拓扑、确定顺序和有界组合思想，但不强求复用或建立 adapter。未来编辑器图只能在更高层编译成已验证的 Workflow Definition，不能反向扩张 Kernel 或恢复 wire。

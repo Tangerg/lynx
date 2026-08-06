@@ -10,7 +10,7 @@ import (
 
 const (
 	executionStateKind          = "planning"
-	executionStateSchemaVersion = 2
+	executionStateSchemaVersion = 3
 )
 
 // DefinitionConfig contains one immutable managed Planning behavior. Goal,

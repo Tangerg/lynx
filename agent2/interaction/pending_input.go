@@ -99,7 +99,7 @@ func PendingToolInputFromSnapshot(snapshot agent.Snapshot) (PendingToolInput, bo
 	if state.Phase != phaseWaitingInput || state.WaitID == nil || !ok || outerWaitID != *state.WaitID || state.ToolCheckpoint == nil {
 		return PendingToolInput{}, false, ErrInvalidPendingToolInput
 	}
-	request, err := state.ToolCheckpoint.Input.inputRequest()
+	request, err := state.ToolCheckpoint.InputRequest.inputRequest()
 	if err != nil {
 		return PendingToolInput{}, false, fmt.Errorf("%w: %w", ErrInvalidPendingToolInput, err)
 	}

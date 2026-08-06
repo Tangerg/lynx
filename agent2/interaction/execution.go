@@ -71,7 +71,7 @@ func (execution *execution) Snapshot() (agent.ExecutionState, error) {
 }
 
 func (execution *execution) requestModel(consumedSignals uint32) (agent.Transition, error) {
-	if execution.state.ModelCalls >= execution.definition.maxModelCalls {
+	if execution.state.ModelCallCount >= execution.definition.maxModelCalls {
 		return execution.fail(
 			consumedSignals,
 			agent.FailureKindExecution,
@@ -79,7 +79,7 @@ func (execution *execution) requestModel(consumedSignals uint32) (agent.Transiti
 			"Interaction reached its configured model-call limit before a final response",
 		)
 	}
-	envelope, err := newModelEffect(execution.state.Request)
+	envelope, err := newModelEffect(execution.state.WorkingContext)
 	if err != nil {
 		return agent.Transition{}, err
 	}
@@ -91,7 +91,7 @@ func (execution *execution) requestModel(consumedSignals uint32) (agent.Transiti
 	if err != nil {
 		return agent.Transition{}, err
 	}
-	execution.state.ModelCalls++
+	execution.state.ModelCallCount++
 	execution.state.Phase = phaseAwaitingModel
 	return agent.Continue(consumedSignals, effect)
 }
@@ -103,7 +103,7 @@ func (execution *execution) acceptModel(signals []agent.Signal) (agent.Transitio
 	}
 	execution.addSteering(steering)
 	if envelope.ModelResult.Error != "" {
-		execution.state.Steering = nil
+		execution.state.SteeringMessages = nil
 		return execution.fail(
 			consumedSignals,
 			agent.FailureKindExternal,
@@ -117,14 +117,14 @@ func (execution *execution) acceptModel(signals []agent.Signal) (agent.Transitio
 		return agent.Transition{}, err
 	}
 	if len(calls) == 0 {
-		if len(execution.state.Steering) > 0 {
+		if len(execution.state.SteeringMessages) > 0 {
 			choice := response.First()
 			if choice == nil || choice.Message == nil || choice.FinishReason == "" {
 				return agent.Transition{}, fmt.Errorf("%w: steered response has no finished assistant message", ErrInvalidExecutionState)
 			}
-			request := execution.state.Request.Clone()
+			request := execution.state.WorkingContext.Clone()
 			request.Messages = append(request.Messages, choice.Message.Clone())
-			execution.state.Request = request
+			execution.state.WorkingContext = request
 			if err := execution.applySteering(); err != nil {
 				return agent.Transition{}, err
 			}
@@ -138,15 +138,15 @@ func (execution *execution) acceptModel(signals []agent.Signal) (agent.Transitio
 		return execution.finishOrRetry(consumedSignals, Output{
 			Source:        CompletionSourceModelResponse,
 			ModelResponse: response,
-			ModelCalls:    execution.state.ModelCalls,
+			ModelCalls:    execution.state.ModelCallCount,
 		}, []chat.Message{choice.Message.Clone()})
 	}
 
-	execution.state.PendingResponse = response
-	execution.state.NextCall = 0
-	execution.state.ActiveCallEnd = 0
-	execution.state.SettledResults = nil
-	execution.state.DirectResultEligible = true
+	execution.state.PendingModelResponse = response
+	execution.state.NextToolCallIndex = 0
+	execution.state.ActiveToolCallEndIndex = 0
+	execution.state.SettledToolResults = nil
+	execution.state.DirectToolResultEligible = true
 	return execution.advanceToolCallBatch(consumedSignals)
 }
 
@@ -170,9 +170,9 @@ func (execution *execution) acceptTools(signals []agent.Signal) (agent.Transitio
 	if err := validateToolResults(calls, results); err != nil {
 		return agent.Transition{}, err
 	}
-	execution.state.SettledResults = append(execution.state.SettledResults, results...)
-	execution.state.NextCall = execution.state.ActiveCallEnd
-	execution.state.DirectResultEligible = execution.state.DirectResultEligible && envelope.ToolResult.Direct
+	execution.state.SettledToolResults = append(execution.state.SettledToolResults, results...)
+	execution.state.NextToolCallIndex = execution.state.ActiveToolCallEndIndex
+	execution.state.DirectToolResultEligible = execution.state.DirectToolResultEligible && envelope.ToolResult.Direct
 	execution.state.ToolCheckpoint = nil
 	execution.state.WaitID = nil
 	return execution.advanceToolCallBatch(consumedSignals)
@@ -192,7 +192,7 @@ func (execution *execution) requestInputWait(
 	if err := checkpoint.validate(calls); err != nil {
 		return agent.Transition{}, err
 	}
-	waitOpened := checkpoint.Input
+	waitOpened := checkpoint.InputRequest
 	payload, err := encodeProtocol(signalEnvelope{
 		SchemaVersion: protocolSchemaVersion,
 		Operation:     operationWaitOpened,
@@ -201,7 +201,7 @@ func (execution *execution) requestInputWait(
 	if err != nil {
 		return agent.Transition{}, err
 	}
-	waitKey, err := checkpointWaitKey(execution.state.ModelCalls, calls[checkpoint.Next].ID, checkpoint.Pauses)
+	waitKey, err := checkpointWaitKey(execution.state.ModelCallCount, calls[checkpoint.NextToolCallIndex].ID, checkpoint.PauseCount)
 	if err != nil {
 		return agent.Transition{}, err
 	}
@@ -234,7 +234,7 @@ func (execution *execution) acceptWaitID(signals []agent.Signal) (agent.Transiti
 	if !ok {
 		return agent.Transition{}, fmt.Errorf("%w: Engine did not attach a WaitID", ErrInvalidExecutionState)
 	}
-	want, err := execution.state.ToolCheckpoint.Input.inputRequest()
+	want, err := execution.state.ToolCheckpoint.InputRequest.inputRequest()
 	if err != nil {
 		return agent.Transition{}, err
 	}
@@ -263,7 +263,7 @@ func (execution *execution) acceptInputResponse(signals []agent.Signal) (agent.T
 	if !addressed || execution.state.WaitID == nil || waitID != *execution.state.WaitID {
 		return agent.Transition{}, fmt.Errorf("%w: input response addressed the wrong wait", ErrInvalidExecutionState)
 	}
-	request, err := execution.state.ToolCheckpoint.Input.inputRequest()
+	request, err := execution.state.ToolCheckpoint.InputRequest.inputRequest()
 	if err != nil {
 		return agent.Transition{}, err
 	}
@@ -303,7 +303,7 @@ func (execution *execution) complete(consumedSignals uint32, output Output) (age
 	execution.state.Phase = phaseCompleted
 	execution.clearToolCallBatch()
 	execution.state.WaitID = nil
-	execution.state.Steering = nil
+	execution.state.SteeringMessages = nil
 	execution.state.FinalOutput = &output
 	return agent.Complete(consumedSignals, encoded)
 }
@@ -317,9 +317,9 @@ func (execution *execution) finishOrRetry(
 		return agent.Transition{}, err
 	}
 	candidate := CompletionCandidate{
-		workingContext: execution.state.Request.Clone(),
+		workingContext: execution.state.WorkingContext.Clone(),
 		output:         cloneOutput(output),
-		artifacts:      newArtifacts(execution.state.Artifacts),
+		artifacts:      newArtifacts(execution.state.ArtifactRecords),
 	}
 	decision := CompletionDecision{Accepted: true}
 	if execution.definition.completionValidator != nil {
@@ -345,50 +345,50 @@ func (execution *execution) finishOrRetry(
 	if decision.Accepted {
 		return execution.complete(consumedSignals, output)
 	}
-	request := execution.state.Request.Clone()
+	request := execution.state.WorkingContext.Clone()
 	request.Messages = append(request.Messages, cloneMessages(completionContext)...)
 	request.Messages = append(request.Messages, chat.NewUserMessage(chat.NewTextPart(decision.Feedback)))
 	if err := request.Validate(); err != nil {
 		return agent.Transition{}, fmt.Errorf("%w: completion retry request: %w", ErrInvalidExecutionState, err)
 	}
-	execution.state.Request = request
+	execution.state.WorkingContext = request
 	execution.clearToolCallBatch()
 	execution.state.WaitID = nil
-	execution.state.Steering = nil
+	execution.state.SteeringMessages = nil
 	execution.state.Phase = phaseReadyModel
 	return execution.requestModel(consumedSignals)
 }
 
 func (execution *execution) advanceToolCallBatch(consumedSignals uint32) (agent.Transition, error) {
 	for {
-		calls, assistant, err := responseToolCalls(execution.state.PendingResponse)
+		calls, assistant, err := responseToolCalls(execution.state.PendingModelResponse)
 		if err != nil || uint64(len(calls)) > uint64(^uint32(0)) ||
-			uint64(execution.state.NextCall) > uint64(len(calls)) {
+			uint64(execution.state.NextToolCallIndex) > uint64(len(calls)) {
 			return agent.Transition{}, fmt.Errorf("%w: invalid pending ToolCall batch", ErrInvalidExecutionState)
 		}
-		if execution.state.NextCall == uint32(len(calls)) {
-			results := append([]chat.ToolResult(nil), execution.state.SettledResults...)
-			if execution.state.DirectResultEligible && len(execution.state.Steering) == 0 {
+		if execution.state.NextToolCallIndex == uint32(len(calls)) {
+			results := append([]chat.ToolResult(nil), execution.state.SettledToolResults...)
+			if execution.state.DirectToolResultEligible && len(execution.state.SteeringMessages) == 0 {
 				return execution.finishOrRetry(consumedSignals, Output{
 					Source:            CompletionSourceDirectToolResults,
-					DirectToolResults: results, ModelCalls: execution.state.ModelCalls,
+					DirectToolResults: results, ModelCalls: execution.state.ModelCallCount,
 				}, []chat.Message{assistant.Clone(), chat.NewToolMessage(results...)})
 			}
-			request := execution.state.Request.Clone()
+			request := execution.state.WorkingContext.Clone()
 			request.Messages = append(request.Messages, assistant.Clone(), chat.NewToolMessage(results...))
-			execution.state.Request = request
+			execution.state.WorkingContext = request
 			execution.clearToolCallBatch()
 			if err := execution.applySteering(); err != nil {
 				return agent.Transition{}, err
 			}
-			if err := execution.state.Request.Validate(); err != nil {
+			if err := execution.state.WorkingContext.Validate(); err != nil {
 				return agent.Transition{}, fmt.Errorf("%w: continuation request: %w", ErrInvalidExecutionState, err)
 			}
 			execution.state.Phase = phaseReadyModel
 			return execution.requestModel(consumedSignals)
 		}
-		if _, delegated := execution.definition.delegate(calls[execution.state.NextCall].Name); delegated {
-			execution.state.DirectResultEligible = false
+		if _, delegated := execution.definition.delegate(calls[execution.state.NextToolCallIndex].Name); delegated {
+			execution.state.DirectToolResultEligible = false
 			transition, started, err := execution.startDelegateSegment(consumedSignals, calls)
 			if err != nil {
 				return agent.Transition{}, err
@@ -398,14 +398,14 @@ func (execution *execution) advanceToolCallBatch(consumedSignals uint32) (agent.
 			}
 			continue
 		}
-		end := execution.state.NextCall + 1
+		end := execution.state.NextToolCallIndex + 1
 		for end < uint32(len(calls)) {
 			if _, delegated := execution.definition.delegate(calls[end].Name); delegated {
 				break
 			}
 			end++
 		}
-		effectEnvelope, err := newToolBatchEffect(calls[execution.state.NextCall:end], nil, nil)
+		effectEnvelope, err := newToolBatchEffect(calls[execution.state.NextToolCallIndex:end], nil, nil)
 		if err != nil {
 			return agent.Transition{}, err
 		}
@@ -417,46 +417,46 @@ func (execution *execution) advanceToolCallBatch(consumedSignals uint32) (agent.
 		if err != nil {
 			return agent.Transition{}, err
 		}
-		execution.state.ActiveCallEnd = end
+		execution.state.ActiveToolCallEndIndex = end
 		execution.state.Phase = phaseAwaitingTools
 		return agent.Continue(consumedSignals, effect)
 	}
 }
 
 func (execution *execution) activeCallSegment() ([]chat.ToolCall, *chat.Message, error) {
-	calls, assistant, err := responseToolCalls(execution.state.PendingResponse)
-	if err != nil || execution.state.NextCall >= execution.state.ActiveCallEnd ||
-		uint64(execution.state.ActiveCallEnd) > uint64(len(calls)) {
+	calls, assistant, err := responseToolCalls(execution.state.PendingModelResponse)
+	if err != nil || execution.state.NextToolCallIndex >= execution.state.ActiveToolCallEndIndex ||
+		uint64(execution.state.ActiveToolCallEndIndex) > uint64(len(calls)) {
 		return nil, nil, fmt.Errorf("%w: invalid active ToolCall segment", ErrInvalidExecutionState)
 	}
-	return calls[execution.state.NextCall:execution.state.ActiveCallEnd], assistant, nil
+	return calls[execution.state.NextToolCallIndex:execution.state.ActiveToolCallEndIndex], assistant, nil
 }
 
 func (execution *execution) clearToolCallBatch() {
-	execution.state.PendingResponse = nil
-	execution.state.NextCall = 0
-	execution.state.ActiveCallEnd = 0
-	execution.state.SettledResults = nil
-	execution.state.DirectResultEligible = false
+	execution.state.PendingModelResponse = nil
+	execution.state.NextToolCallIndex = 0
+	execution.state.ActiveToolCallEndIndex = 0
+	execution.state.SettledToolResults = nil
+	execution.state.DirectToolResultEligible = false
 	execution.state.ToolCheckpoint = nil
 	execution.state.DelegateSegment = nil
 }
 
 func (execution *execution) addSteering(messages []chat.Message) {
-	execution.state.Steering = append(execution.state.Steering, cloneMessages(messages)...)
+	execution.state.SteeringMessages = append(execution.state.SteeringMessages, cloneMessages(messages)...)
 }
 
 func (execution *execution) applySteering() error {
-	if len(execution.state.Steering) == 0 {
+	if len(execution.state.SteeringMessages) == 0 {
 		return nil
 	}
-	request := execution.state.Request.Clone()
-	request.Messages = append(request.Messages, cloneMessages(execution.state.Steering)...)
+	request := execution.state.WorkingContext.Clone()
+	request.Messages = append(request.Messages, cloneMessages(execution.state.SteeringMessages)...)
 	if err := request.Validate(); err != nil {
 		return fmt.Errorf("%w: steered model request: %w", ErrInvalidExecutionState, err)
 	}
-	execution.state.Request = request
-	execution.state.Steering = nil
+	execution.state.WorkingContext = request
+	execution.state.SteeringMessages = nil
 	return nil
 }
 
@@ -527,13 +527,13 @@ func signalForOperation(signals []agent.Signal, expected operation) (agent.Signa
 	return agent.Signal{}, false
 }
 
-func checkpointWaitKey(modelCalls uint32, callID string, pauses uint32) (agent.WaitKey, error) {
+func checkpointWaitKey(modelCallCount uint32, toolCallID string, pauseCount uint32) (agent.WaitKey, error) {
 	hash := sha256.New()
-	hash.Write([]byte(strconv.FormatUint(uint64(modelCalls), 10)))
+	hash.Write([]byte(strconv.FormatUint(uint64(modelCallCount), 10)))
 	hash.Write([]byte{0})
-	hash.Write([]byte(callID))
+	hash.Write([]byte(toolCallID))
 	hash.Write([]byte{0})
-	hash.Write([]byte(strconv.FormatUint(uint64(pauses), 10)))
+	hash.Write([]byte(strconv.FormatUint(uint64(pauseCount), 10)))
 	return agent.ParseWaitKey("interaction.input." + hex.EncodeToString(hash.Sum(nil)))
 }
 

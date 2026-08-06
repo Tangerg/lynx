@@ -236,8 +236,8 @@ type signalRecordWire struct {
 }
 
 type waitRecordWire struct {
-	Key                   WaitKey `json:"key"`
-	ID                    WaitID  `json:"id"`
+	WaitKey               WaitKey `json:"wait_key"`
+	WaitID                WaitID  `json:"wait_id"`
 	ExternallyAddressable bool    `json:"externally_addressable"`
 	Answered              bool    `json:"answered"`
 	Closed                bool    `json:"closed"`
@@ -258,12 +258,12 @@ func (mailbox *signalMailbox) snapshot() mailboxWire {
 	}
 	for _, record := range mailbox.waits {
 		wire.Waits = append(wire.Waits, waitRecordWire{
-			Key: record.key, ID: record.id, ExternallyAddressable: record.externallyAddressable,
+			WaitKey: record.key, WaitID: record.id, ExternallyAddressable: record.externallyAddressable,
 			Answered: record.answered, Closed: record.closed,
 		})
 	}
 	slices.SortFunc(wire.Waits, func(left, right waitRecordWire) int {
-		return cmp.Compare(left.ID.String(), right.ID.String())
+		return cmp.Compare(left.WaitID.String(), right.WaitID.String())
 	})
 	return wire
 }
@@ -293,20 +293,20 @@ func restoreSignalMailbox(wire mailboxWire) (signalMailbox, error) {
 	}
 	openKeys := make(map[WaitKey]struct{})
 	for _, record := range wire.Waits {
-		if !record.Key.Valid() || !record.ID.Valid() {
+		if !record.WaitKey.Valid() || !record.WaitID.Valid() {
 			return signalMailbox{}, errWaitState
 		}
-		if _, duplicate := mailbox.waits[record.ID]; duplicate {
+		if _, duplicate := mailbox.waits[record.WaitID]; duplicate {
 			return signalMailbox{}, fmt.Errorf("%w: duplicate WaitID", errWaitState)
 		}
 		if !record.Closed {
-			if _, duplicate := openKeys[record.Key]; duplicate {
+			if _, duplicate := openKeys[record.WaitKey]; duplicate {
 				return signalMailbox{}, fmt.Errorf("%w: duplicate open WaitKey", errWaitState)
 			}
-			openKeys[record.Key] = struct{}{}
+			openKeys[record.WaitKey] = struct{}{}
 		}
-		mailbox.waits[record.ID] = waitRecord{
-			key: record.Key, id: record.ID, externallyAddressable: record.ExternallyAddressable,
+		mailbox.waits[record.WaitID] = waitRecord{
+			key: record.WaitKey, id: record.WaitID, externallyAddressable: record.ExternallyAddressable,
 			answered: record.Answered, closed: record.Closed,
 		}
 	}

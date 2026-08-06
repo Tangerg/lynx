@@ -435,3 +435,11 @@
 - error sentinel 按真实失败条件命名；普通 cause 全部用 `%w` 保留 `errors.Is/As`，panic recovered value 和数字等非 error 值才允许 `%v`。静态门禁会阻止 `err`、`*Err`、`*Error` 再通过 `%v` 断链。
 - 私有实现同一标尺收敛：Engine-owned goroutine 是 processLoop，不叫 runtime；controller identity、last-stable state、pending control、final output 和 terminal snapshot 都直接写明 owner/提交含义。职责文件同步按 input/output/capability/error/name/json/typed-nil 拆分，没有恢复 `types.go`、`util.go` 或 `helpers.go` 杂物桶。
 - wire 改名是显式 breaking revision：Process Snapshot v4、TreeSnapshot v2、child/framework-effect protocol v2 与 Planning ExecutionState v2 只读当前精确字段，不保留旧 tag、alias 或双读。Event/Delta 使用 ProcessSequence/EffectSequence 与 exact DeploymentRef，并由 observation wire digest 独立守卫。
+
+### 13.2 API 与完整 wire baseline 覆盖
+
+- 独立复核证明 Baseline 4 的 public `go doc` 守卫完整，但共同 snapshot digest 无法看见 opaque Strategy payload 内部 shape；这不是 Kernel 应该取得解释权，而是各 Strategy schema owner 缺少自己的恢复/协议 baseline。
+- Interaction baseline 现覆盖 ExecutionState v4、dispatcher Effect/Signal protocol v2、model Delta、Tool checkpoint、Delegate settlement 与 artifact provenance；Planning baseline 覆盖 ExecutionState v3、observe/action protocol v1、Condition/WorldState/Plan wire；Workflow baseline 覆盖 ExecutionState v2 与 fan-out child window。各包新增 private JSON struct 未登记时直接失败。
+- Kernel baseline 现覆盖全部 production `*Wire`，包含 Descriptor、Framework wait/child Effect/Signal、Process Snapshot v5、TreeSnapshot v3 及其嵌套值；新增 production wire 未登记时直接失败。Kernel 仍只校验 opaque ExecutionState envelope，不 import 或解析任何 Strategy phase/state。
+- Framework-owned Event payload 从匿名 struct 收敛为命名合同并进入 observation baseline；OTel adapter 只按 Event 名称投影 `process_status`、`termination_cause`、`step_status`、`effect_target`、`settlement_status` 与 `dropped_delta_count`，没有反向进入 Kernel。
+- prior-version tests 明确拒绝 Process v4、Tree v2、Interaction state v3/protocol v1、Planning state v2 与 Workflow state v1；没有兼容 alias、双 tag、dual-read 或迁移 helper。七个 public API digest 未变化，P9-02 只修复真实 baseline 覆盖缺口。

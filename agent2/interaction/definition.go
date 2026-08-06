@@ -11,7 +11,7 @@ import (
 
 const (
 	executionStateKind          = "interaction"
-	executionStateSchemaVersion = 3
+	executionStateSchemaVersion = 4
 )
 
 // DefinitionConfig describes immutable Interaction behavior. MaxModelCalls is
@@ -127,8 +127,8 @@ func (definition *Definition) Start(input agent.Input) (agent.Execution, error) 
 	return &execution{
 		definition: definition,
 		state: executionState{
-			Phase:   phaseReadyModel,
-			Request: request,
+			Phase:          phaseReadyModel,
+			WorkingContext: request,
 		},
 	}, nil
 }

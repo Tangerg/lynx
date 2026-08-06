@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	processSnapshotSchemaVersion = 4
+	processSnapshotSchemaVersion = 5
 	maxSnapshotBytes             = 128 << 20
 )
 
@@ -175,30 +175,30 @@ type pendingControlWire struct {
 }
 
 type processSnapshotWire struct {
-	SchemaVersion      uint16              `json:"schema_version"`
-	ProcessID          ProcessID           `json:"process_id"`
-	Relation           processRelationWire `json:"relation"`
-	ChildRequestDigest *Digest             `json:"child_request_digest,omitempty"`
-	DeploymentRef      DeploymentRef       `json:"deployment_ref"`
-	StartedAt          time.Time           `json:"started_at"`
-	FinishedAt         *time.Time          `json:"finished_at,omitempty"`
-	Status             Status              `json:"status"`
-	CommittedSteps     uint64              `json:"committed_steps"`
-	EventSequence      uint64              `json:"event_sequence"`
-	Limits             Limits              `json:"limits"`
-	TreeLimits         TreeLimits          `json:"tree_limits"`
-	Budget             Budget              `json:"budget"`
-	ReservedBudget     Budget              `json:"reserved_child_budget"`
-	Capabilities       CapabilitySet       `json:"capabilities"`
-	Usage              Usage               `json:"usage"`
-	LastStableState    ExecutionState      `json:"last_stable_state"`
-	Mailbox            mailboxWire         `json:"mailbox"`
-	Prepared           *preparedStepWire   `json:"prepared,omitempty"`
-	CurrentWaitID      *WaitID             `json:"current_wait_id,omitempty"`
-	PauseReason        string              `json:"pause_reason,omitempty"`
-	PendingControl     pendingControlWire  `json:"pending_control"`
-	Output             *Output             `json:"output,omitempty"`
-	Termination        *Termination        `json:"termination,omitempty"`
+	SchemaVersion        uint16              `json:"schema_version"`
+	ProcessID            ProcessID           `json:"process_id"`
+	Relation             processRelationWire `json:"relation"`
+	ChildRequestDigest   *Digest             `json:"child_request_digest,omitempty"`
+	DeploymentRef        DeploymentRef       `json:"deployment_ref"`
+	StartedAt            time.Time           `json:"started_at"`
+	FinishedAt           *time.Time          `json:"finished_at,omitempty"`
+	Status               Status              `json:"status"`
+	CommittedSteps       uint64              `json:"committed_steps"`
+	ProcessEventSequence uint64              `json:"process_event_sequence"`
+	Limits               Limits              `json:"limits"`
+	TreeLimits           TreeLimits          `json:"tree_limits"`
+	Budget               Budget              `json:"budget"`
+	ReservedBudget       Budget              `json:"reserved_child_budget"`
+	Capabilities         CapabilitySet       `json:"capabilities"`
+	Usage                Usage               `json:"usage"`
+	LastStableState      ExecutionState      `json:"last_stable_state"`
+	Mailbox              mailboxWire         `json:"mailbox"`
+	Prepared             *preparedStepWire   `json:"prepared,omitempty"`
+	CurrentWaitID        *WaitID             `json:"current_wait_id,omitempty"`
+	PauseReason          string              `json:"pause_reason,omitempty"`
+	PendingControl       pendingControlWire  `json:"pending_control"`
+	Output               *Output             `json:"output,omitempty"`
+	Termination          *Termination        `json:"termination,omitempty"`
 }
 
 func decodeProcessSnapshot(data []byte) (processSnapshotWire, error) {

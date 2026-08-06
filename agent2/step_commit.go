@@ -22,10 +22,9 @@ func (loop *processLoop) prepareNextStep(ctx context.Context) {
 	if err != nil {
 		stepStatus = "failed"
 	}
-	stepPayload, _ := json.Marshal(struct {
-		Status     string `json:"status"`
-		DurationMS int64  `json:"duration_ms"`
-	}{Status: stepStatus, DurationMS: time.Since(stepStartedAt).Milliseconds()})
+	stepPayload, _ := json.Marshal(stepFinishedEventPayload{
+		StepStatus: stepStatus, DurationMS: time.Since(stepStartedAt).Milliseconds(),
+	})
 	loop.publishEvent(ctx, EventStepFinished, EventPhaseAttempt, sequence, EffectID{}, stepPayload)
 	if err != nil {
 		loop.observeHostError(ctx)
@@ -269,9 +268,7 @@ func (loop *processLoop) finalizePrepared(ctx context.Context) (returnErr error)
 		return ErrInvalidTransition
 	}
 	loop.updateView()
-	payload, _ := json.Marshal(struct {
-		Status string `json:"status"`
-	}{Status: loop.status.String()})
+	payload, _ := json.Marshal(stepCommittedEventPayload{ProcessStatus: loop.status.String()})
 	loop.publishEvent(ctx, EventStepCommitted, EventPhaseCommitted, loop.committedSteps, EffectID{}, payload)
 	for _, waitID := range consumedChildWaits {
 		loop.engine.unregisterChildWait(waitID)

@@ -14,27 +14,27 @@ type processLoop struct {
 	deployment Deployment
 	execution  Execution
 
-	startedAt       time.Time
-	finishedAt      time.Time
-	status          Status
-	committedSteps  uint64
-	eventSequence   uint64
-	lastStableState ExecutionState
-	mailbox         signalMailbox
-	prepared        *preparedStep
-	currentWaitID   WaitID
-	pauseReason     string
-	pendingControl  pendingControl
-	finalOutput     Output
-	termination     Termination
-	limits          Limits
-	treeLimits      TreeLimits
-	budget          Budget
-	reservedBudget  Budget
-	capabilities    CapabilitySet
-	usage           Usage
-	restored        bool
-	quiescence      *processQuiescence
+	startedAt            time.Time
+	finishedAt           time.Time
+	status               Status
+	committedSteps       uint64
+	processEventSequence uint64
+	lastStableState      ExecutionState
+	mailbox              signalMailbox
+	prepared             *preparedStep
+	currentWaitID        WaitID
+	pauseReason          string
+	pendingControl       pendingControl
+	finalOutput          Output
+	termination          Termination
+	limits               Limits
+	treeLimits           TreeLimits
+	budget               Budget
+	reservedBudget       Budget
+	capabilities         CapabilitySet
+	usage                Usage
+	restored             bool
+	quiescence           *processQuiescence
 }
 
 type processQuiescence struct {
@@ -257,10 +257,9 @@ func (loop *processLoop) deliverChildrenCompleted(ctx context.Context, signal Si
 		loop.currentWaitID = WaitID{}
 	}
 	loop.updateView()
-	payload, _ := json.Marshal(struct {
-		SignalID string `json:"signal_id"`
-		WaitID   string `json:"wait_id"`
-	}{SignalID: signal.ID().String(), WaitID: commandSignalWaitID(signal)})
+	payload, _ := json.Marshal(signalAcceptedEventPayload{
+		SignalID: signal.ID().String(), WaitID: commandSignalWaitID(signal),
+	})
 	loop.publishEvent(ctx, EventSignalAccepted, EventPhaseCommitted, 0, EffectID{}, payload)
 	return true
 }
@@ -332,10 +331,9 @@ func (loop *processLoop) deliver(ctx context.Context, command processCommand) {
 	if accepted {
 		loop.usage.AcceptedSignals++
 		loop.updateView()
-		payload, _ := json.Marshal(struct {
-			SignalID string `json:"signal_id"`
-			WaitID   string `json:"wait_id,omitempty"`
-		}{SignalID: signal.ID().String(), WaitID: commandWaitID(command.signalRequest)})
+		payload, _ := json.Marshal(signalAcceptedEventPayload{
+			SignalID: signal.ID().String(), WaitID: commandWaitID(command.signalRequest),
+		})
 		loop.publishEvent(ctx, EventSignalAccepted, EventPhaseCommitted, 0, EffectID{}, payload)
 	}
 	command.reply(processResponse{accepted: accepted})
@@ -416,10 +414,9 @@ func (loop *processLoop) resolveEffect(command processCommand) {
 }
 
 func (loop *processLoop) finish(ctx context.Context) {
-	payload, _ := json.Marshal(struct {
-		Status string `json:"status"`
-		Cause  string `json:"cause"`
-	}{Status: loop.status.String(), Cause: loop.termination.Cause().String()})
+	payload, _ := json.Marshal(processFinishedEventPayload{
+		ProcessStatus: loop.status.String(), TerminationCause: loop.termination.Cause().String(),
+	})
 	loop.publishEvent(ctx, EventProcessFinished, EventPhaseCommitted, 0, EffectID{}, payload)
 	snapshot, err := loop.capture()
 	loop.controller.complete(loop.result(), snapshot, err)

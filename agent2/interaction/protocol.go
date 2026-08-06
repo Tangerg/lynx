@@ -8,7 +8,7 @@ import (
 	"github.com/Tangerg/lynx/core/chat"
 )
 
-const protocolSchemaVersion uint16 = 1
+const protocolSchemaVersion uint16 = 2
 
 type operation string
 
@@ -68,10 +68,10 @@ type toolBatchResult struct {
 }
 
 type toolCheckpoint struct {
-	Completed []chat.ToolResult `json:"completed"`
-	Next      uint32            `json:"next"`
-	Pauses    uint32            `json:"pauses"`
-	Input     inputRequestWire  `json:"input"`
+	CompletedResults  []chat.ToolResult `json:"completed_results"`
+	NextToolCallIndex uint32            `json:"next_tool_call_index"`
+	PauseCount        uint32            `json:"pause_count"`
+	InputRequest      inputRequestWire  `json:"input_request"`
 }
 
 type inputRequestWire struct {
@@ -125,7 +125,7 @@ func newToolBatchEffect(
 		if err := checkpoint.validate(cloned); err != nil {
 			return effectEnvelope{}, err
 		}
-		response, err := checkpoint.Input.inputRequest()
+		response, err := checkpoint.InputRequest.inputRequest()
 		if err != nil {
 			return effectEnvelope{}, err
 		}
@@ -176,7 +176,7 @@ func (envelope effectEnvelope) validate() error {
 			if err := envelope.ToolBatch.Checkpoint.validate(envelope.ToolBatch.Calls); err != nil {
 				return err
 			}
-			request, err := envelope.ToolBatch.Checkpoint.Input.inputRequest()
+			request, err := envelope.ToolBatch.Checkpoint.InputRequest.inputRequest()
 			if err != nil {
 				return err
 			}
@@ -217,7 +217,7 @@ func (envelope signalEnvelope) validate() error {
 			if envelope.ToolResult.Direct {
 				return errors.New("interaction: paused tool_result cannot be direct")
 			}
-			if _, err := envelope.ToolResult.Checkpoint.Input.inputRequest(); err != nil {
+			if _, err := envelope.ToolResult.Checkpoint.InputRequest.inputRequest(); err != nil {
 				return err
 			}
 		} else {
@@ -254,23 +254,23 @@ func (envelope signalEnvelope) validate() error {
 
 func (checkpoint toolCheckpoint) clone() toolCheckpoint {
 	cloned := checkpoint
-	cloned.Completed = append([]chat.ToolResult(nil), checkpoint.Completed...)
-	cloned.Input.Prompt = append(json.RawMessage(nil), checkpoint.Input.Prompt...)
-	cloned.Input.ResponseSchema = append(json.RawMessage(nil), checkpoint.Input.ResponseSchema...)
-	cloned.Input.ContinuationState = append(json.RawMessage(nil), checkpoint.Input.ContinuationState...)
+	cloned.CompletedResults = append([]chat.ToolResult(nil), checkpoint.CompletedResults...)
+	cloned.InputRequest.Prompt = append(json.RawMessage(nil), checkpoint.InputRequest.Prompt...)
+	cloned.InputRequest.ResponseSchema = append(json.RawMessage(nil), checkpoint.InputRequest.ResponseSchema...)
+	cloned.InputRequest.ContinuationState = append(json.RawMessage(nil), checkpoint.InputRequest.ContinuationState...)
 	return cloned
 }
 
 func (checkpoint toolCheckpoint) validate(calls []chat.ToolCall) error {
-	if checkpoint.Pauses == 0 || checkpoint.Next != uint32(len(checkpoint.Completed)) ||
-		int(checkpoint.Next) >= len(calls) {
+	if checkpoint.PauseCount == 0 || checkpoint.NextToolCallIndex != uint32(len(checkpoint.CompletedResults)) ||
+		int(checkpoint.NextToolCallIndex) >= len(calls) {
 		return errors.New("interaction: invalid tool checkpoint position")
 	}
-	if _, err := checkpoint.Input.inputRequest(); err != nil {
+	if _, err := checkpoint.InputRequest.inputRequest(); err != nil {
 		return fmt.Errorf("interaction: tool checkpoint input: %w", err)
 	}
-	for index := range checkpoint.Completed {
-		result := checkpoint.Completed[index]
+	for index := range checkpoint.CompletedResults {
+		result := checkpoint.CompletedResults[index]
 		if err := result.Validate(); err != nil {
 			return fmt.Errorf("interaction: tool checkpoint result %d: %w", index, err)
 		}

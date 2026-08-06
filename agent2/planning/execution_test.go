@@ -64,7 +64,7 @@ func TestPlanningDefinitionRejectsPriorExecutionStateSchema(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	prior, err := agent.NewExecutionState(state.Kind(), 1, state.Payload())
+	prior, err := agent.NewExecutionState(state.Kind(), state.SchemaVersion()-1, state.Payload())
 	if err != nil {
 		t.Fatal(err)
 	}

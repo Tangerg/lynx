@@ -109,21 +109,21 @@ func fuzzInteractionStates(f testing.TB, definition *Definition) []agent.Executi
 	artifactOutput, _ := agent.EncodeOutput(fuzzDelegateOutput{Result: "settled"})
 	states := []executionState{
 		{
-			Phase: phaseAwaitingDelegateStarts, Request: request.Clone(), ModelCalls: 1,
-			PendingResponse: response.Clone(), ActiveCallEnd: 1,
-			DelegateSegment: &delegateSegmentState{Invocations: []delegateInvocationState{{Key: &key}}},
+			Phase: phaseAwaitingDelegateStarts, WorkingContext: request.Clone(), ModelCallCount: 1,
+			PendingModelResponse: response.Clone(), ActiveToolCallEndIndex: 1,
+			DelegateSegment: &delegateSegmentState{Invocations: []delegateInvocationState{{ChildKey: &key}}},
 		},
 		{
-			Phase: phaseWaitingDelegates, Request: request.Clone(), ModelCalls: 1,
-			PendingResponse: response.Clone(), ActiveCallEnd: 1, WaitID: &waitID,
+			Phase: phaseWaitingDelegates, WorkingContext: request.Clone(), ModelCallCount: 1,
+			PendingModelResponse: response.Clone(), ActiveToolCallEndIndex: 1, WaitID: &waitID,
 			DelegateSegment: &delegateSegmentState{Invocations: []delegateInvocationState{{
-				Key: &key, ProcessID: &processID,
+				ChildKey: &key, ChildProcessID: &processID,
 			}}},
 		},
 		{
-			Phase: phaseAwaitingModel, Request: request.Clone(), ModelCalls: 2,
-			Artifacts: []artifactRecord{{
-				ModelCall: 1, CallIndex: 0, CallID: "call_settled",
+			Phase: phaseAwaitingModel, WorkingContext: request.Clone(), ModelCallCount: 2,
+			ArtifactRecords: []artifactRecord{{
+				ModelCallSequence: 1, ToolCallIndex: 0, ToolCallID: "call_settled",
 				DelegateName: "delegate_fuzz", Output: artifactOutput,
 			}},
 		},

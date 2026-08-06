@@ -59,7 +59,7 @@ func restoreProcessLoop(
 	loop := &processLoop{
 		engine: engine, controller: controller, deployment: deployment, execution: execution,
 		startedAt: wire.StartedAt, status: wire.Status, committedSteps: wire.CommittedSteps,
-		eventSequence: wire.EventSequence, lastStableState: wire.LastStableState, mailbox: mailbox, restored: true,
+		processEventSequence: wire.ProcessEventSequence, lastStableState: wire.LastStableState, mailbox: mailbox, restored: true,
 		pauseReason: wire.PauseReason, limits: wire.Limits, treeLimits: wire.TreeLimits,
 		budget: wire.Budget, reservedBudget: wire.ReservedBudget,
 		capabilities: wire.Capabilities, usage: wire.Usage,
@@ -97,7 +97,7 @@ func (loop *processLoop) capture() (Snapshot, error) {
 		SchemaVersion: processSnapshotSchemaVersion, ProcessID: loop.controller.processID,
 		Relation:      loop.controller.relation.wire(),
 		DeploymentRef: loop.deployment.DeploymentRef(), StartedAt: loop.startedAt,
-		Status: loop.status, CommittedSteps: loop.committedSteps, EventSequence: loop.eventSequence,
+		Status: loop.status, CommittedSteps: loop.committedSteps, ProcessEventSequence: loop.processEventSequence,
 		Limits: loop.limits, TreeLimits: loop.treeLimits,
 		Budget: loop.budget, ReservedBudget: loop.reservedBudget,
 		Capabilities: loop.capabilities, Usage: loop.usage,

@@ -338,8 +338,8 @@ Effect 自己的取消或 deadline 先作为 settlement Signal 交给 Strategy�
 
 共同 Process 不拥有：
 
-- Goal、WorldState、Blackboard、Plan
-- Messages、Round、Tool checkpoint
+- Goal、WorldState、Plan
+- WorkingContext、model-call/ToolCall cursor、Tool checkpoint
 - 任意具体 Strategy 的私有 cursor、branch 或 join state
 - 产品 Session、Conversation、Turn
 - provider、model、USD 账本
@@ -356,11 +356,14 @@ type ExecutionState struct {
 }
 ```
 
-- Planning payload 拥有 Goal、WorldState、Blackboard、Plan exclusion 等。
-- Interaction payload 拥有 WorkingContext、Round、pending tool call 和 checkpoint。
+- Planning payload 拥有 WorldState、Planning pass、Action attempt/exclusion/confirmation 和 child wait 状态；Goal、Action binding 与 Planner 留在 exact Definition。
+- Interaction payload 拥有 WorkingContext、model-call count、pending model response、ToolCall cursor/checkpoint、Delegate settlement 和 artifact provenance。
+- Workflow payload 拥有 Stage index、current value、selected case、fan-out window/output、Loop iteration 和 child wait 状态。
 - 未来 Strategy payload 只拥有自身经过准入的恢复状态；共同 envelope 不预留字段。
 - Host 可以持久化 envelope，但不得依据 `Kind` 解析 payload 并参与策略控制流。
 - 恢复必须通过精确 `DeploymentRef` 找回 Definition；禁止全局 `kind → factory` 巨型 switch。
+
+共同 snapshot 只冻结 envelope，不递归解释 payload。每个 Strategy schema owner 在自己的 package 独立冻结 ExecutionState 与 Effect/Signal/Delta wire，并以覆盖守卫阻止新增私有 JSON shape 漏登记；Kernel 对这些 baseline 没有导入或解释权。
 
 ### 6.6 Signal、等待与安全消费
 
@@ -416,7 +419,7 @@ Planning Definition
     └─ 后续有真实需求的新 Planner
 ```
 
-Planning 独占 Goal、Condition、Truth、WorldState、Blackboard、PlannedAction metadata 和 replan/no-plan policy。
+Planning 独占 Goal、Condition、Truth、WorldState、PlannedAction metadata 和 replan/no-plan policy。
 
 GOAP 适合目标可机器验证、存在多条路径、Action 前置条件/效果/成本可声明且环境会变化的场景。GOAP 不作为默认 Agent 语义，也不用于包装固定控制流或开放式 ReAct 循环。
 

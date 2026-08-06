@@ -199,18 +199,18 @@ func (dispatcher *Dispatcher) dispatchToolBatch(
 	}
 	results := make([]chat.ToolResult, 0, len(batch.Calls))
 	start := 0
-	pauses := uint32(0)
+	pauseCount := uint32(0)
 	var continuation *ToolInputContinuation
 	if batch.Checkpoint != nil {
 		checkpoint := batch.Checkpoint
-		results = append(results, checkpoint.Completed...)
-		start = int(checkpoint.Next)
-		pauses = checkpoint.Pauses
-		if pauses == ^uint32(0) {
+		results = append(results, checkpoint.CompletedResults...)
+		start = int(checkpoint.NextToolCallIndex)
+		pauseCount = checkpoint.PauseCount
+		if pauseCount == ^uint32(0) {
 			return agent.Settlement{}, errors.New("interaction: tool checkpoint pause count exhausted")
 		}
 		continuation = &ToolInputContinuation{
-			state:    append(json.RawMessage(nil), checkpoint.Input.ContinuationState...),
+			state:    append(json.RawMessage(nil), checkpoint.InputRequest.ContinuationState...),
 			response: append(json.RawMessage(nil), batch.InputResponse...),
 		}
 	}
@@ -224,10 +224,10 @@ func (dispatcher *Dispatcher) dispatchToolBatch(
 		}
 		if required != nil {
 			checkpoint := &toolCheckpoint{
-				Completed: append([]chat.ToolResult(nil), results...),
-				Next:      uint32(start),
-				Pauses:    pauses + 1,
-				Input:     wireInputRequest(*required),
+				CompletedResults:  append([]chat.ToolResult(nil), results...),
+				NextToolCallIndex: uint32(start),
+				PauseCount:        pauseCount + 1,
+				InputRequest:      wireInputRequest(*required),
 			}
 			return toolCheckpointSettlement(effectID, checkpoint)
 		}
@@ -258,10 +258,10 @@ func (dispatcher *Dispatcher) dispatchToolBatch(
 					)
 				}
 				checkpoint := &toolCheckpoint{
-					Completed: append([]chat.ToolResult(nil), results...),
-					Next:      uint32(start + offset),
-					Pauses:    pauses + 1,
-					Input:     wireInputRequest(*outcome.required),
+					CompletedResults:  append([]chat.ToolResult(nil), results...),
+					NextToolCallIndex: uint32(start + offset),
+					PauseCount:        pauseCount + 1,
+					InputRequest:      wireInputRequest(*outcome.required),
 				}
 				return toolCheckpointSettlement(effectID, checkpoint)
 			}

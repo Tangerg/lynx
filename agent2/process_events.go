@@ -14,9 +14,9 @@ func (loop *processLoop) publishEvent(
 	effectID EffectID,
 	payload json.RawMessage,
 ) {
-	loop.eventSequence++
+	loop.processEventSequence++
 	event, err := newEvent(
-		loop.eventSequence, loop.controller.processID, loop.deployment.DeploymentRef(),
+		loop.processEventSequence, loop.controller.processID, loop.deployment.DeploymentRef(),
 		loop.controller.relation, step, effectID, name, phase, time.Now(), payload,
 	)
 	if err != nil {
@@ -31,9 +31,7 @@ func (loop *processLoop) publishEffectStarted(
 	effectID EffectID,
 	target EffectTarget,
 ) time.Time {
-	payload, _ := json.Marshal(struct {
-		Target string `json:"target"`
-	}{Target: target.String()})
+	payload, _ := json.Marshal(effectStartedEventPayload{EffectTarget: target.String()})
 	loop.publishEvent(ctx, EventEffectStarted, EventPhaseAttempt, step, effectID, payload)
 	return time.Now()
 }
@@ -45,12 +43,8 @@ func (loop *processLoop) publishSettlementEvent(
 	status SettlementStatus,
 	startedAt time.Time,
 ) {
-	payload, err := json.Marshal(struct {
-		Target     string `json:"target"`
-		Status     string `json:"status"`
-		DurationMS int64  `json:"duration_ms"`
-	}{
-		Target: target.String(), Status: status.String(),
+	payload, err := json.Marshal(effectFinishedEventPayload{
+		EffectTarget: target.String(), SettlementStatus: status.String(),
 		DurationMS: time.Since(startedAt).Milliseconds(),
 	})
 	if err != nil {

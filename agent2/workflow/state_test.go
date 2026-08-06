@@ -16,10 +16,10 @@ type stateFixture struct {
 func TestRestoreRejectsUnknownAndContradictoryState(t *testing.T) {
 	definition := stateTestDefinition(t)
 	for name, payload := range map[string]json.RawMessage{
-		"unknown field":            json.RawMessage(`{"phase":"ready","stage":0,"value":{"value":1},"unknown":true}`),
-		"finished as ready":        json.RawMessage(`{"phase":"ready","stage":1,"value":{"value":1}}`),
-		"child in transform":       json.RawMessage(`{"phase":"awaiting_child_start","stage":0,"value":{"value":1}}`),
-		"Loop cursor in Transform": json.RawMessage(`{"phase":"ready","stage":0,"value":{"value":1},"loop_iteration":1}`),
+		"unknown field":            json.RawMessage(`{"phase":"ready","stage_index":0,"current_value":{"value":1},"unknown":true}`),
+		"finished as ready":        json.RawMessage(`{"phase":"ready","stage_index":1,"current_value":{"value":1}}`),
+		"child in transform":       json.RawMessage(`{"phase":"awaiting_child_start","stage_index":0,"current_value":{"value":1}}`),
+		"Loop cursor in Transform": json.RawMessage(`{"phase":"ready","stage_index":0,"current_value":{"value":1},"loop_iteration":1}`),
 	} {
 		t.Run(name, func(t *testing.T) {
 			state, err := agent.NewExecutionState(executionStateKind, executionStateSchemaVersion, payload)
@@ -31,11 +31,11 @@ func TestRestoreRejectsUnknownAndContradictoryState(t *testing.T) {
 			}
 		})
 	}
-	validPayload := json.RawMessage(`{"phase":"ready","stage":0,"value":{"value":1}}`)
+	validPayload := json.RawMessage(`{"phase":"ready","stage_index":0,"current_value":{"value":1}}`)
 	for _, envelope := range []struct {
 		kind    string
 		version uint16
-	}{{kind: "other", version: 1}, {kind: executionStateKind, version: 2}} {
+	}{{kind: "other", version: 1}, {kind: executionStateKind, version: executionStateSchemaVersion - 1}} {
 		state, err := agent.NewExecutionState(envelope.kind, envelope.version, validPayload)
 		if err != nil {
 			t.Fatal(err)
@@ -54,27 +54,27 @@ func TestExecutionRejectsMissingProtocolSignals(t *testing.T) {
 	}{
 		"child start": {
 			definition: callDefinition,
-			payload:    `{"phase":"awaiting_child_start","stage":0,"value":{"value":1}}`,
+			payload:    `{"phase":"awaiting_child_start","stage_index":0,"current_value":{"value":1}}`,
 		},
 		"child wait opening": {
 			definition: callDefinition,
-			payload:    `{"phase":"awaiting_child_wait_open","stage":0,"value":{"value":1},"child_process_id":"child"}`,
+			payload:    `{"phase":"awaiting_child_wait_open","stage_index":0,"current_value":{"value":1},"child_process_id":"child"}`,
 		},
 		"child completion": {
 			definition: callDefinition,
-			payload:    `{"phase":"waiting_child","stage":0,"value":{"value":1},"child_process_id":"child","wait_id":"wait"}`,
+			payload:    `{"phase":"waiting_child","stage_index":0,"current_value":{"value":1},"child_process_id":"child","wait_id":"wait"}`,
 		},
 		"fan-out starts": {
 			definition: fanoutDefinition,
-			payload:    `{"phase":"awaiting_fanout_starts","stage":0,"value":{"value":1},"fanout_next":1,"fanout_window":[{"index":0}],"fanout_outputs":[null]}`,
+			payload:    `{"phase":"awaiting_fanout_starts","stage_index":0,"current_value":{"value":1},"next_fanout_index":1,"active_fanout_window":[{"fanout_index":0}],"fanout_outputs":[null]}`,
 		},
 		"fan-out wait opening": {
 			definition: fanoutDefinition,
-			payload:    `{"phase":"awaiting_fanout_wait_open","stage":0,"value":{"value":1},"fanout_next":1,"fanout_window":[{"index":0,"process_id":"child"}],"fanout_outputs":[null]}`,
+			payload:    `{"phase":"awaiting_fanout_wait_open","stage_index":0,"current_value":{"value":1},"next_fanout_index":1,"active_fanout_window":[{"fanout_index":0,"child_process_id":"child"}],"fanout_outputs":[null]}`,
 		},
 		"fan-out completion": {
 			definition: fanoutDefinition,
-			payload:    `{"phase":"waiting_fanout","stage":0,"value":{"value":1},"wait_id":"wait","fanout_next":1,"fanout_window":[{"index":0,"process_id":"child"}],"fanout_outputs":[null]}`,
+			payload:    `{"phase":"waiting_fanout","stage_index":0,"current_value":{"value":1},"wait_id":"wait","next_fanout_index":1,"active_fanout_window":[{"fanout_index":0,"child_process_id":"child"}],"fanout_outputs":[null]}`,
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -97,10 +97,10 @@ func TestExecutionRejectsMissingProtocolSignals(t *testing.T) {
 
 func FuzzWorkflowExecutionStateRestore(f *testing.F) {
 	definition := stateTestDefinition(f)
-	f.Add([]byte(`{"phase":"ready","stage":0,"value":{"value":1}}`))
-	f.Add([]byte(`{"phase":"completed","stage":1,"value":{"value":1}}`))
-	f.Add([]byte(`{"phase":"waiting_fanout","stage":0,"value":{"value":1}}`))
-	f.Add([]byte(`{"phase":"ready","stage":0,"value":{"value":1},"unknown":true}`))
+	f.Add([]byte(`{"phase":"ready","stage_index":0,"current_value":{"value":1}}`))
+	f.Add([]byte(`{"phase":"completed","stage_index":1,"current_value":{"value":1}}`))
+	f.Add([]byte(`{"phase":"waiting_fanout","stage_index":0,"current_value":{"value":1}}`))
+	f.Add([]byte(`{"phase":"ready","stage_index":0,"current_value":{"value":1},"unknown":true}`))
 	f.Fuzz(func(t *testing.T, payload []byte) {
 		state, err := agent.NewExecutionState(executionStateKind, executionStateSchemaVersion, payload)
 		if err != nil {

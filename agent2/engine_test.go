@@ -793,19 +793,20 @@ func TestEventLifecycleCarriesExactBindingAndAttemptDurations(t *testing.T) {
 		}
 	}
 	for _, event := range events {
-		if event.Name() != EventStepFinished && event.Name() != EventEffectFinished {
-			continue
-		}
-		var payload struct {
-			Target     string `json:"target"`
-			Status     string `json:"status"`
-			DurationMS int64  `json:"duration_ms"`
-		}
-		if err := json.Unmarshal(event.Payload(), &payload); err != nil || payload.DurationMS < 0 || payload.Status != "succeeded" {
-			t.Fatalf("event %q payload = %s, error = %v", event.Name(), event.Payload(), err)
-		}
-		if event.Name() == EventEffectFinished && payload.Target != "dispatcher" {
-			t.Fatalf("Effect target = %q", payload.Target)
+		switch event.Name() {
+		case EventStepFinished:
+			var payload stepFinishedEventPayload
+			if err := json.Unmarshal(event.Payload(), &payload); err != nil ||
+				payload.DurationMS < 0 || payload.StepStatus != "succeeded" {
+				t.Fatalf("event %q payload = %s, error = %v", event.Name(), event.Payload(), err)
+			}
+		case EventEffectFinished:
+			var payload effectFinishedEventPayload
+			if err := json.Unmarshal(event.Payload(), &payload); err != nil ||
+				payload.DurationMS < 0 || payload.SettlementStatus != "succeeded" ||
+				payload.EffectTarget != "dispatcher" {
+				t.Fatalf("event %q payload = %s, error = %v", event.Name(), event.Payload(), err)
+			}
 		}
 	}
 }
@@ -839,9 +840,9 @@ func TestFrameworkEffectPublishesTheSameLifecycleContract(t *testing.T) {
 			continue
 		}
 		var payload struct {
-			Target string `json:"target"`
+			EffectTarget string `json:"effect_target"`
 		}
-		if err := json.Unmarshal(event.Payload(), &payload); err != nil || payload.Target != "framework" {
+		if err := json.Unmarshal(event.Payload(), &payload); err != nil || payload.EffectTarget != "framework" {
 			continue
 		}
 		started = started || event.Name() == EventEffectStarted

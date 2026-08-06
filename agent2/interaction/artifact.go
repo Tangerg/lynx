@@ -15,10 +15,10 @@ const maxCompletionFeedbackBytes = 4096
 // identified by the exact Delegate binding, never by a Go runtime type name or
 // an application artifact store.
 type Artifact struct {
-	modelCall    uint32
-	callID       string
-	delegateName string
-	output       agent.Output
+	modelCallSequence uint32
+	toolCallID        string
+	delegateName      string
+	output            agent.Output
 }
 
 // DelegateName returns the exact model-facing Delegate name.
@@ -43,7 +43,7 @@ func DecodeArtifact[T any](artifact Artifact) (T, error) {
 }
 
 func (artifact Artifact) valid() bool {
-	return artifact.modelCall > 0 && artifact.callID != "" &&
+	return artifact.modelCallSequence > 0 && artifact.toolCallID != "" &&
 		artifact.delegateName != "" && artifact.output.Valid()
 }
 
@@ -63,7 +63,7 @@ func newArtifacts(records []artifactRecord) Artifacts {
 	values := make([]Artifact, len(records))
 	for index, record := range records {
 		values[index] = Artifact{
-			modelCall: record.ModelCall, callID: record.CallID,
+			modelCallSequence: record.ModelCallSequence, toolCallID: record.ToolCallID,
 			delegateName: record.DelegateName, output: record.Output,
 		}
 	}

@@ -32,7 +32,7 @@ func TestTreeSnapshotRejectsPriorSchemaVersion(t *testing.T) {
 	if err := json.Unmarshal(tree.JSON(), &fields); err != nil {
 		t.Fatal(err)
 	}
-	fields["schema_version"] = json.RawMessage(`1`)
+	fields["schema_version"] = json.RawMessage(`2`)
 	data, err := json.Marshal(fields)
 	if err != nil {
 		t.Fatal(err)

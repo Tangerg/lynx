@@ -61,16 +61,16 @@ func (execution *execution) advance(signals []agent.Signal) (agent.Transition, e
 	stage := execution.stage()
 	switch stage.kind {
 	case stageKindTransform:
-		value, err := stage.transform(execution.state.Value)
+		value, err := stage.transform(execution.state.CurrentValue)
 		if err != nil {
 			return agent.Transition{}, err
 		}
-		execution.state.Value = value
+		execution.state.CurrentValue = value
 		return execution.finishStage(0)
 	case stageKindCall:
 		return execution.startSingleChild(0, stage.call)
 	case stageKindSwitch:
-		selected, err := stage.switcher.selectCase(execution.state.Value)
+		selected, err := stage.switcher.selectCase(execution.state.CurrentValue)
 		if err != nil {
 			var unknown unknownSwitchCase
 			if errors.As(err, &unknown) {
@@ -85,12 +85,12 @@ func (execution *execution) advance(signals []agent.Signal) (agent.Transition, e
 		if !found {
 			return agent.Transition{}, ErrInvalidStage
 		}
-		execution.state.SelectedCase = selected
+		execution.state.SelectedCaseID = selected
 		return execution.startSingleChild(0, binding)
 	case stageKindFork:
 		return execution.startFanoutWindow(0)
 	case stageKindMap:
-		count, err := stage.fanoutCount(execution.state.Value)
+		count, err := stage.fanoutCount(execution.state.CurrentValue)
 		if err != nil {
 			var exceeded mapItemLimitExceeded
 			if errors.As(err, &exceeded) {
@@ -108,7 +108,7 @@ func (execution *execution) advance(signals []agent.Signal) (agent.Transition, e
 		if err != nil {
 			return agent.Transition{}, err
 		}
-		execution.state.Value = value
+		execution.state.CurrentValue = value
 		return execution.finishStage(0)
 	case stageKindLoop:
 		execution.state.LoopIteration = 1
@@ -119,7 +119,7 @@ func (execution *execution) advance(signals []agent.Signal) (agent.Transition, e
 }
 
 func (execution *execution) startSingleChild(consumedSignals uint32, binding childBinding) (agent.Transition, error) {
-	input, err := agent.ParseInput(execution.state.Value)
+	input, err := agent.ParseInput(execution.state.CurrentValue)
 	if err != nil {
 		return agent.Transition{}, err
 	}
@@ -144,7 +144,7 @@ func (execution *execution) singleChildBinding() (childBinding, bool) {
 	case stageKindCall:
 		return stage.call, true
 	case stageKindSwitch:
-		return stage.switcher.binding(execution.state.SelectedCase)
+		return stage.switcher.binding(execution.state.SelectedCaseID)
 	case stageKindLoop:
 		return stage.loop.binding, stage.loop.valid()
 	default:
@@ -153,14 +153,14 @@ func (execution *execution) singleChildBinding() (childBinding, bool) {
 }
 
 func (execution *execution) clearSingleChild() {
-	execution.state.SelectedCase = ""
+	execution.state.SelectedCaseID = ""
 	execution.state.ChildProcessID = nil
 	execution.state.WaitID = nil
 }
 
 func (execution *execution) singleChildID() string {
 	if execution.stage().kind == stageKindSwitch {
-		return execution.stage().id + ".case." + execution.state.SelectedCase
+		return execution.stage().id + ".case." + execution.state.SelectedCaseID
 	}
 	if execution.stage().kind == stageKindLoop {
 		return execution.stage().id + ".iteration." + strconv.FormatUint(uint64(execution.state.LoopIteration), 10)
@@ -261,7 +261,7 @@ func (execution *execution) acceptChildCompletion(signals []agent.Signal) (agent
 	if execution.stage().kind == stageKindLoop {
 		return execution.finishLoopIteration(1, output)
 	}
-	execution.state.Value = output.JSON()
+	execution.state.CurrentValue = output.JSON()
 	execution.clearSingleChild()
 	execution.state.Phase = phaseReady
 	return execution.finishStage(1)
@@ -271,12 +271,12 @@ func (execution *execution) finishStage(consumedSignals uint32) (agent.Transitio
 	execution.clearSingleChild()
 	execution.clearFanout()
 	execution.state.LoopIteration = 0
-	execution.state.Stage++
-	if execution.state.Stage < uint32(len(execution.definition.stages)) {
+	execution.state.StageIndex++
+	if execution.state.StageIndex < uint32(len(execution.definition.stages)) {
 		execution.state.Phase = phaseReady
 		return agent.Continue(consumedSignals)
 	}
-	output, err := agent.ParseOutput(execution.state.Value)
+	output, err := agent.ParseOutput(execution.state.CurrentValue)
 	if err != nil {
 		return agent.Transition{}, err
 	}
@@ -306,19 +306,19 @@ func (*execution) fail(
 }
 
 func (execution *execution) stage() Stage {
-	return execution.definition.stages[execution.state.Stage]
+	return execution.definition.stages[execution.state.StageIndex]
 }
 
 func (execution *execution) childKey() (agent.ChildKey, error) {
 	return workflowChildKey(
-		"single", execution.stage().id, execution.state.SelectedCase,
+		"single", execution.stage().id, execution.state.SelectedCaseID,
 		strconv.FormatUint(uint64(execution.state.LoopIteration), 10),
 	)
 }
 
 func (execution *execution) waitKey() (agent.WaitKey, error) {
 	return workflowWaitKey(
-		"single", execution.stage().id, execution.state.SelectedCase,
+		"single", execution.stage().id, execution.state.SelectedCaseID,
 		strconv.FormatUint(uint64(execution.state.LoopIteration), 10),
 	)
 }
@@ -339,13 +339,13 @@ func (execution *execution) finishLoopIteration(
 	if err != nil {
 		return agent.Transition{}, err
 	}
-	execution.state.Value = output.JSON()
+	execution.state.CurrentValue = output.JSON()
 	if satisfied || execution.state.LoopIteration == stage.loop.maxIterations {
-		value, err := stage.loop.result(execution.state.Value, execution.state.LoopIteration, satisfied)
+		value, err := stage.loop.result(execution.state.CurrentValue, execution.state.LoopIteration, satisfied)
 		if err != nil {
 			return agent.Transition{}, err
 		}
-		execution.state.Value = value
+		execution.state.CurrentValue = value
 		execution.clearSingleChild()
 		execution.state.Phase = phaseReady
 		return execution.finishStage(consumedSignals)
