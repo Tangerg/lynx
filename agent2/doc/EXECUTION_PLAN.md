@@ -3,7 +3,7 @@
 > 状态：持续实施
 > 建立日期：2026-08-06
 > 最后更新：2026-08-06
-> 当前阶段：P7 组合模式与能力覆盖，6/7 完成
+> 当前阶段：P8 Platform 与治理，0/7 完成
 > 当前实施范围：仅 `agent2`
 > 临时模块路径：`github.com/Tangerg/lynx/agent2`
 > 最终模块路径：`github.com/Tangerg/lynx/agent`
@@ -73,7 +73,7 @@ go test ./...
 | P4 子 Process 组合与合同冻结 | 完成 | 9/9 | start/wait、递归、组合、预算、取消、恢复；多消费方验证后冻结窄腰 |
 | P5 Planning 与 GOAP | 完成 | 8/8 | Planning 状态、Planner SPI、GOAP 搜索与 replan |
 | P6 managed Workflow | 完成 | 11/11 | 以有序 Stage 和真实 child Process 实现可恢复确定性编排，`flow` 保持独立 in-process 边界 |
-| P7 组合模式与能力覆盖 | 进行中 | 6/7 | 动态 worker 组合、typed artifacts、evaluator/optimizer、示例 |
+| P7 组合模式与能力覆盖 | 完成 | 7/7 | 动态 worker 组合、typed artifacts、evaluator/optimizer、示例 |
 | P8 Platform 与治理 | 未开始 | 0/7 | resolver、deployment catalog、版本、路由、递归治理和观测 |
 | P9 独立完整性验收 | 未开始 | 0/6 | API/wire/arch/race/fuzz/examples/standalone 全绿 |
 | P10 消费迁移 | 未开始 | 0/5 | 单独迁移 `app/runtime` 及批准的直接消费者 |
@@ -172,7 +172,7 @@ go test ./...
 - [x] P7-04 使用 P6 最终裁决的唯一确定性编排边界、Interaction、Planning 和 child Process 组合模型动态拆分、worker 调度和结果综合，不新增 Supervisor package/kind/lifecycle。
 - [x] P7-05 实现 evaluator-optimizer 组合。
 - [x] P7-06 为 Anthropic 所列每种模式建立行为测试和示例。
-- [ ] P7-07 比较简单实现与复杂编排，删除无实际收益的抽象。
+- [x] P7-07 比较简单实现与复杂编排，删除无实际收益的抽象。
 
 ### P8：Platform 与治理
 
@@ -254,6 +254,7 @@ go test ./...
 
 | 日期 | 阶段 | 实际事实 | 验证与结果 |
 |---|---|---|---|
+| 2026-08-06 | P7 | 完成 direct-first 复杂度—收益与抽象删除终审。冻结选择阶梯：direct `chatclient` → 普通 Go/独立 `flow` → 单 Process Interaction → Workflow/exact child tree → P8 Platform；只有下一层的暂停/恢复、Signal/Effect、预算/能力、取消/tree 或版本治理价值被需求证明时才升级。实际 command tree 为 direct 0 Process、managed Interaction 1、最小 Workflow 4、orchestrator-worker 6、三轮 evaluator 与 workflow-patterns 各 10；纯 Transform topology fixture 不代表业务函数应默认变 Process。逐项审计 Delegate/artifact/validator、Transform/Call/Switch/Fork/Map/Loop 与七个独立 commands，确认各有不同 owner/真实消费；Sequence/Gate/Vote/PromptChain 均已派生，无近义入口 | `go mod why` 证明 agent2 不需要 `flow`；standalone package DAG 为 root ← Interaction/Planning/Workflow、GOAP ← Planning，生产扫描无 Supervisor/PromptChain/Router/Vote/EvaluatorOptimizer/Team、旧 agent/app import、Store/Blackboard、第二 runtime、空目录或未消费 P7 abstraction。保留 minimal workflow 与复杂模式例，避免复杂例取代最小人体工程学证据；不抽 shared example helper，保证每个 command 独立编译公开 API。前序已实际删除 StageKind/metadata getter、Supervisor、通用 Action-to-Tool 和 pattern-specific kinds，本轮没有为制造 diff 误删已证明能力，也未新增 facade。standalone mod tidy/diff/build/vet/staticcheck/test/race、七个 examples 与全部 fuzz targets 全绿；API/wire digest 不变。P7-07 完成，P7 7/7 完成 |
 | 2026-08-06 | P7 | 完成 Anthropic 模式覆盖矩阵。逐项核对 Augmented LLM、Prompt Chaining、Routing、Parallel Sectioning/Voting、Orchestrator-workers、Evaluator-optimizer、Autonomous Agent、Pattern Composition 与现有公开消费者/contract tests；明确模式名称是验收词汇，不是 package/Strategy/type 目录，retrieval 沿用 Tool/provider，WorkingContext 不升级为长期 memory。真正缺口只剩四种确定 topology 的联合 command 证据，因此新增 `workflow_patterns`：两个 exact Call 串行传值、Switch 二选一 exact route、Fork 两个 section、再把两份 typed evidence 交给四个 exact voter；业务 chain/route/finding/ballot/report 与 tie-break 全留在 consumer | command 稳定输出 normalized→summary chain、urgent route、facts/risks、approve 2/4 和十 Process。urgent/standard 双场景都证明只创建 selected route；parallel sections 保持声明顺序且结果进入 voter context；四 voter 以 window=2 分两窗，2–2 同票由 reducer 稳定选择最早声明 approve。exact Deployment name 断言完整树为 root + 2 chain + 1 route + 2 section + 4 voter。七个 commands 均 `GOWORK=off` 无凭据运行；standalone mod tidy/diff/build/vet/staticcheck/test/race 全绿。未新增生产 API/state/wire，五个 package digest、Snapshot v3、TreeSnapshot v1 不变；P7-06 完成，P7 更新为 6/7 |
 | 2026-08-06 | P7 | 完成 evaluator-optimizer 组合纵切面。只读审计旧 Go/Embabel `RepeatUntilAcceptable` 与独立 `flow` Loop：保留 original input、ordered attempt/feedback、latest feedback、best-so-far、显式 acceptance criteria 和 hard limit；移除 GOAP/Action 包装、mutable Blackboard、runtime type/timestamp、默认 threshold/limit、第二 Journal，以及把 limit stop 混成 acceptable。新增独立 command consumer，只用 Workflow Loop + exact body/optimizer/evaluator child；typed objective/history/current/best/accepted 全属 consumer。optimizer 消费最新 feedback，evaluator 追加 immutable attempt，仅严格更高分替换 best；同分保留最早。threshold、score schedule、max iterations 与 exact child refs 均进入相关 Deployment identity | command 三轮在 0.95 达到显式 0.9 阈值，稳定输出 best revision、score、attempts、accepted、iterations 和十 Process tree。行为测试覆盖首轮提前接受并按 exact Deployment 名验证 root/body/optimizer/evaluator 四 Process；三轮耗尽以 accepted=false 正常完成并返回第二轮 0.9 best 而非最后 0.3；同分保留首轮；第二候选包含首轮 feedback；zero iteration、score 数量错配、zero/NaN threshold、infinite score 均构造期拒绝。未新增生产 package/API/state/wire，五个 package digest、Snapshot v3、TreeSnapshot v1 不变。standalone mod tidy/diff/build/vet/staticcheck/test/race 与六个 examples 全绿；P7-05 完成，P7 更新为 5/7 |
 | 2026-08-06 | P7 | 完成 orchestrator-worker 组合纵切面，不新增 Supervisor/Worker/Task package、Strategy、kind、dispatcher、registry 或 facade。新增独立 command consumer：decomposer Interaction 按输入产生 consumer-owned typed task list，Workflow Map 以显式 item limit/window 创建 exact worker child 并稳定聚合，synthesizer Interaction 形成 typed report；最终 tree 为 root + 两个 Interaction child + 三个 worker child。新增公开 API 行为测试证明另一条正交组合：Interaction 同轮选择两个 exact Planning Delegates，两个 GOAP child 独立达到可观察 Goal，模型消费有序 ToolResult，completion validator 再从两个 immutable typed `planning.Output` artifacts 确认 Achieved；父级不读取 Plan/Action 内部状态 | command 稳定输出 objective、三个声明顺序 worker、综合摘要和 `processes: 6`；Planning Delegate 测试验证两个真实 Action execution、两个 exact Planning child 和三 Process tree。反向审计确认 task/result/prompt/综合规则均留在 consumer，Planning 只用于 machine-verifiable goal，Workflow 只负责确定调度，Tool/Dispatcher 不获得 Engine。五个 package API digest、Interaction State v3、Snapshot v3 与 TreeSnapshot v1 均无变化。standalone mod tidy/diff/build/vet/staticcheck/test/race 与五个 examples 全绿；P7-04 完成，P7 更新为 4/7 |
@@ -306,6 +307,6 @@ go test ./...
 
 ## 9. 当前下一步
 
-P1–P6 与 P7-01～P7-06 已完成。Baseline 3 继续由 Interaction、Planning、GOAP、Workflow、七个独立 command consumer、managed Delegate、typed artifact、completion validator、递归 child Process、tree recovery、race 和 fuzz 保护。下一轮 P7-07 对 direct `chatclient`、`flow`、单 Process Interaction 与 managed Workflow/tree 做复杂度—收益终审；删除不能由独立生命周期、恢复、预算、取消、治理或 eval 收益证明的抽象/示例重复，完成 P7 最终反向审计。
+P1–P7 已完成。Baseline 3 由 Interaction、Planning、GOAP、Workflow、七个独立 command consumer、managed Delegate、typed artifact、completion validator、递归 child Process、tree recovery、race 和 fuzz 保护。下一轮 P8-01 只从真实 Engine resolution/restore 消费点审计并冻结最小 DeploymentResolver 合同；Platform 不能成为 Engine 的反向依赖、第二 Process owner 或全局 registry。
 
 在 P1–P9 完成前，不迁移 `app/runtime`，不删除旧 `agent`，不发布 `agent2` 稳定版本。

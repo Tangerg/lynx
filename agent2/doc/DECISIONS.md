@@ -343,3 +343,14 @@
 - 决策：managed pattern 示例使用 deterministic exact worker 来隔离并证明 topology、typed value、Process identity 和稳定聚合；将 worker 换成模型/Tool 实现时必须保持 exact Descriptor，并通过 consumer-owned adapter 显式转换。模式覆盖不要求为每种 topology 复制一套模型调用代码。
 - 决策：公开示例可以一项覆盖多个模式，只要每项都有独立行为断言。P7-06 的七个 command consumers 与生产 contract tests 已覆盖完整矩阵；本轮不新增生产 API/state/wire。P7-07 仍必须比较 direct/`flow`/managed 成本，删除没有可测收益的复杂组合或抽象。
 - 原因：文章的价值是帮助选择控制流，不是提供类名清单。把每个图都升格为 Framework 概念会制造术语重复、恢复状态重复和模型/API 混淆，反而降低正确性。
+
+## ADR-A2-045：P7 以 direct-first 复杂度阶梯收口且不新增 facade
+
+- 状态：已接受；完成 P7-07 最终简化审计。
+- 证据：`go mod why github.com/Tangerg/flow` 明确显示 `agent2` 不依赖 `flow`；standalone package DAG 只有根 Kernel、Interaction、Planning/GOAP、Workflow 与独立 examples，根不反向依赖任何 Strategy。生产源码没有 Supervisor、PromptChain、Router、Vote、EvaluatorOptimizer、Team 或模式目录；P7 新增的 Delegate/artifact/validator 与 Workflow 六个 Stage 均有真实 command 或 contract consumer。无空目录、旧 `agent`/应用 import、共享 Store/Blackboard 或第二 runtime。
+- 证据：真实 command tree 给出复杂度下限：direct `chatclient` 为零 Process，managed Interaction 为一个；最小 managed Workflow 为四个；orchestrator-worker 为六个；三轮 evaluator-optimizer 和 workflow-patterns 各十个。`flow` 的普通 Node 在同进程运行，不为每节点提供 Agent Process identity；它与 managed tree 不是两个等价 API 的重复实现。
+- 决策：选择顺序固定为 direct `chatclient` → 普通 Go/`flow` → 单 Process Interaction → Workflow/exact child tree → P8 Platform。只有下一层新增的独立暂停/恢复、Signal/Effect、预算/能力、取消、Process tree 或版本治理价值被需求证明时才升级；不能因为“agent 应该高级”或模式名称存在而跳级。
+- 决策：保留七个独立 command consumer。`direct_vs_managed` 是零/一 Process 对照；`autonomous` 证明模型拥有 Tool/停止决策；`composition` 证明自定义 Definition 的嵌入与异构 child；`workflow` 是最小 managed Call/Fork；其余三个分别承担动态 worker、评价循环和确定模式矩阵。复杂示例不能替代最小示例，抽取共享 example helper 又会掩盖每个 command 对公开 API 的独立编译证据，因此不做假 DRY。
+- 决策：保留 `Artifact`/`Artifacts`/`CompletionCandidate` 的最小只读面。`WorkingContext`、candidate Output、ordered artifacts 和 typed decode 分别由完成反馈、两种 completion source、不可变/顺序和 schema 归属合同使用；`Len` 避免只为计数复制集合。保留 Transform/Call/Switch/Fork/Map/Loop，因为它们分别拥有纯变换、单 child、单选 child、静态 fan-out、动态 fan-out、可恢复迭代的独立状态语义；Sequence/Gate/Vote/PromptChain 等继续只由组合派生。
+- 决策：本轮没有为了满足“删除”动作而误删已证明能力，也没有增加 helper/facade。此前 P6/P7 已实际删除 StageKind/metadata getters、Supervisor Strategy、通用 Action-to-Tool、Blackboard、pattern-specific kinds 等无收益抽象；当前审计的零新增删除是这些前置清洗成功的事实，不是跳过审查。
+- 后果：P7 完成。P8 只能增加经过真实 Engine consumer 证明的 catalog/routing/governance 能力，不能重新引入本阶段拒绝的 facade、全局 registry 或第二生命周期。

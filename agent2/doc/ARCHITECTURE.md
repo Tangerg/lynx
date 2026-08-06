@@ -522,6 +522,19 @@ Process tree 是执行、取消、预算和恢复的共同单位。如果未来�
 
 验收同时要求可运行示例和行为断言；只有 topology 类型或文档中的模式名不算实现。若普通 Go/`chatclient` 已足够，就不创建 Process；只有独立生命周期、恢复、预算、取消或治理确有价值时才升级为 managed composition。
 
+复杂度选择遵循最小充分阶梯：
+
+| 需求 | 首选边界 | 不应承担 |
+|---|---|---|
+| 一次或少量模型调用，不需要托管生命周期 | 直接 `chatclient` | Process、snapshot、child tree |
+| 同进程确定控制流，节点无需独立身份/预算/恢复 | 普通 Go 或独立 `flow` | Agent Engine、每节点 Process |
+| 模型/Tool 循环需要暂停、恢复、steer、limit 或事件 | 单个 Interaction Process | Workflow、worker catalog |
+| 分支/迭代必须各自拥有身份、预算、取消和 tree recovery | Workflow + exact child Process | 第二 scheduler、共享 Store/Blackboard |
+| 模型动态选择 worker | Interaction Delegate；需要确定任务调度时再组合 Workflow | Supervisor Strategy、字符串 registry |
+| 多 Deployment 的版本选择和统一治理 | P8 Platform | 反向扩张 Engine 或 Strategy state |
+
+managed 复杂度按真实树线性显现：最小 Workflow 示例是四个 Process；orchestrator-worker 是六个；三轮 evaluator-optimizer 与完整 workflow-patterns 各十个。Process 数本身不是价值，只有这些身份真实承担独立恢复、资源、取消或观察边界时才合理。纯 Transform 在示例中作为 topology fixture 创建 child，不代表业务代码应把普通函数默认升级为 Process。
+
 ---
 
 ## 11. Engine 与 Platform

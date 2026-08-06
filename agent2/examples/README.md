@@ -4,6 +4,11 @@ These commands are disposable consumers of the public `agent2` API. They do
 not share test-only helpers or import internal protocol types, so build and test
 failures expose real consumer-facing contract problems.
 
+They are contract evidence, not a recommendation to turn every function into a
+Process. Prefer direct `chatclient` for simple calls and ordinary Go or `flow`
+for in-process control flow; use managed examples only when independent
+lifecycle, recovery, budget, cancellation, or governance is required.
+
 - `direct_vs_managed` contrasts a direct `chatclient` call with an Engine-owned
   Interaction Process. Direct calls remain the smallest embedding level;
   managed calls add lifecycle, signals, Effects, snapshots, limits, and events.

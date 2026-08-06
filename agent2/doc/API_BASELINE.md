@@ -66,6 +66,8 @@ P7-05 依据 ADR-A2-043 用独立消费者证明 evaluator-optimizer 可完全�
 
 P7-06 依据 ADR-A2-044 用 `workflow_patterns` 补齐 prompt chaining、routing、parallel sectioning/voting 的联合 consumer 证据，并与既有六个 command 形成完整 Anthropic 模式矩阵。模式名称没有变成 Framework package/type/kind；实现仍只组合冻结 API，因此全部 API/wire digest 继续保持不变。
 
+P7-07 依据 ADR-A2-045 完成 direct `chatclient`、普通 Go/`flow`、单 Process Interaction、managed Workflow/tree 的复杂度—收益终审。Delegate/artifact/validator 与六个 Workflow Stage 均有独立语义和真实消费，当前没有应为制造 diff 而删除的生产抽象；也没有新增 facade。P7 最终仍保持全部 API/wire digest 不变。
+
 ## 4. 明确不在基线中的能力
 
-Baseline 3 不冻结 Platform catalog/routing、OTel decorator、应用迁移 API 或 P7-07 及之后尚未完成的简化裁决。`flow` 保持独立 in-process 库，不形成 Agent adapter API 或依赖；未来编辑器图只能在更高层编译成已验证的 Workflow Definition，不能反向扩张 Kernel 或恢复 wire。
+Baseline 3 不冻结 P8 Platform catalog/routing/OTel decorator、P10 应用迁移 API 或最终模块替换路径。`flow` 保持独立 in-process 库，不形成 Agent adapter API 或依赖；未来编辑器图只能在更高层编译成已验证的 Workflow Definition，不能反向扩张 Kernel 或恢复 wire。

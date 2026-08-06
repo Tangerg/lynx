@@ -352,3 +352,18 @@
 - `workflow_patterns` 每次运行的 TreeSnapshot 恰好十个 Process：root、两个 prompt-chain child、一个 selected route、两个 section、四个 voter。行为测试按 exact Deployment name 验证 standard route 不创建 urgent child，并验证 urgent 完整树；稳定 output 是 chain、route、facts/risks、approve 2/4 和 process count。
 - 七个 command 都是公开 API consumer，不共享 test-only/internal protocol helper，使用 deterministic local component，可在 `GOWORK=off` 下无凭据运行。一个 command 可以覆盖多个模式，但表中每一行都有独立行为断言；只有类型存在或文档名称不算覆盖。
 - 模式名称没有进入生产 package/type/kind。新增 consumer 只组合已有 Call/Switch/Fork/Map/Loop、Interaction/Tool/Delegate 和 child Process；retrieval 是 Tool/provider，WorkingContext 不是长期 memory。全部五个 package API digest、Strategy state 与 snapshot/tree wire 保持不变。
+
+### 11.7 P7 direct-first 与抽象删除终审
+
+| 层级 | 实际成本/边界 | 选择条件 |
+|---|---|---|
+| direct `chatclient` | 0 Process；调用方自己拥有上下文、错误和重试 | 一次/少量模型调用，无托管生命周期 |
+| 普通 Go / `flow` | 0 Agent Process/node；同进程 typed control flow，可有自己的局部 run/journal 语义 | 节点不需要 Agent identity、预算、取消传播或 tree recovery |
+| Interaction | 1 Process；模型/Tool Effect、WorkingContext、HITL/steer/snapshot/limit | 自主循环需要托管但没有独立 worker tree |
+| managed Workflow | root + 每个真实 child Process；示例实际为 4/6/10 Process | 分支/迭代确实需要独立身份、预算、能力、取消和恢复 |
+| Platform | P8 尚未实现 | 多 Deployment catalog、版本选择和统一治理已由真实 consumer 证明 |
+
+- `go mod why github.com/Tangerg/flow` 证明 `flow` 不是 agent2 依赖；standalone package DAG 继续是 root ← Interaction/Planning/Workflow，GOAP 只依赖 Planning。生产源码扫描没有模式专用 Supervisor/PromptChain/Router/Vote/EvaluatorOptimizer/Team 类型，没有旧 `agent`/应用 import、Store/Blackboard 或第二 runtime。
+- P7 public surface 逐项有 owner/consumer：Delegate 由模型选择 exact child；Artifact/Artifacts/CompletionCandidate 分别承载 schema-owned evidence、稳定集合与两种完成候选；completion validator 提供纯反馈边界。Workflow 的 Transform/Call/Switch/Fork/Map/Loop 各有不同状态/恢复语义并被 command 或 contract tests 消费；Sequence/Gate/Vote/PromptChain 均由现有代数派生，没有近义入口。
+- 七个 command consumer 不合并：最小 direct/managed、自主 Tool loop、自定义 Definition/heterogeneous composition、最小 managed Workflow、动态 worker、评价循环、完整确定模式矩阵各自承担不同公开 API 证据。复杂示例明确是 topology fixture；纯函数业务默认应留在 Go/`flow`，不是为了制造 tree 而创建 Process。
+- 本轮没有发现应删除的当前生产抽象。P6/P7 前序已经实际移除了 StageKind/metadata getter、独立 Supervisor、通用 Action-to-Tool、Blackboard、pattern-specific kinds 等无收益设计；终审不为制造 diff 误删已被真实消费证明的能力，也不新增 facade/shared example helper。
