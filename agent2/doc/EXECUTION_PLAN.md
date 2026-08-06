@@ -3,7 +3,7 @@
 > 状态：持续实施
 > 建立日期：2026-08-06
 > 最后更新：2026-08-06
-> 当前阶段：P9 独立完整性验收，4/6 完成
+> 当前阶段：P9 独立完整性验收，5/6 完成
 > 当前实施范围：仅 `agent2`
 > 临时模块路径：`github.com/Tangerg/lynx/agent2`
 > 最终模块路径：`github.com/Tangerg/lynx/agent`
@@ -75,7 +75,7 @@ go test ./...
 | P6 managed Workflow | 完成 | 11/11 | 以有序 Stage 和真实 child Process 实现可恢复确定性编排，`flow` 保持独立 in-process 边界 |
 | P7 组合模式与能力覆盖 | 完成 | 7/7 | 动态 worker 组合、typed artifacts、evaluator/optimizer、示例 |
 | P8 Platform 与治理 | 完成 | 7/7 | resolver、deployment catalog、版本、路由、递归治理和观测 |
-| P9 独立完整性验收 | 进行中 | 4/6 | API/wire/arch/race/fuzz/examples/standalone 全绿 |
+| P9 独立完整性验收 | 进行中 | 5/6 | API/wire/arch/race/fuzz/examples/standalone 全绿 |
 | P10 消费迁移 | 未开始 | 0/5 | 单独迁移 `app/runtime` 及批准的直接消费者 |
 | P11 原模块替换 | 未开始 | 0/5 | 删除旧模块、改回 `agent`、清零兼容和残留 |
 
@@ -190,7 +190,7 @@ go test ./...
 - [x] P9-02 建立 exported API 和 snapshot wire baseline。
 - [x] P9-03 建立完整 package DAG 和边界守卫。
 - [x] P9-04 完成全量 build/vet/test/static analysis/race/fuzz。
-- [ ] P9-05 完成独立 module、examples 和文档验证。
+- [x] P9-05 完成独立 module、examples 和文档验证。
 - [ ] P9-06 清除空目录、漂移注释、dead code、TODO 债务和兼容残留。
 
 ### P10：消费迁移
@@ -254,6 +254,7 @@ go test ./...
 
 | 日期 | 阶段 | 实际事实 | 验证与结果 |
 |---|---|---|---|
+| 2026-08-06 | P9 | 将完整 `agent2` 源码复制到仓库外临时目录，关闭 workspace，并使用全新 module/build cache 与只读 module 模式从零解析；过程中重新下载 Go 1.26.5 toolchain 和全部依赖，不复用仓库 workspace、原 module cache 或 build cache。确认 `go.mod` 无 replace，readonly module graph 完整且 `flow` 不在依赖图。七个 public package 均可生成完整 `go doc -all`；35 个 Markdown 本地链接逐项存在；README 声明的八个 example 与实际 command 目录集合完全一致 | clean copy 中 `go mod download all`、`go mod verify`、`go list -mod=readonly` 和 15 package 禁用缓存测试全绿；八个 deterministic command 在 clean cache 下全部实跑成功，无凭据或运行期网络依赖。首次 replace 检查把 JSON 的 `Replace: null` 误判为存在条目，读取原始 JSON 后以精确 null/entry 条件复验通过，未修改代码规避检查。P9-05 完成，P9 更新为 5/6 |
 | 2026-08-06 | P9 | 对 P9-03 已推送提交态执行独立全量质量验收，不新增能力或为制造 diff 修改生产代码。15 个 package 均在 standalone module 下重新 build/vet/staticcheck，并以 `-count=1 -shuffle=on` 完成普通与 race 测试；随后逐个执行根 6 个、Interaction 1 个、Planning 5 个、Workflow 1 个共 13 个 fuzz target，覆盖 Input/DeploymentRef/ExecutionState/Transition、Process/tree snapshot、Strategy restore 与 Planning protocol/domain wire | 全部静态和动态门禁零失败；13 个 fuzz target 共执行 2,245,920 次，无 crash 或失败语料；fuzz 后再次对 15 个 package 执行禁用缓存普通测试全绿。七个 public API、全部 owner wire、依赖 DAG 与生产代码均未改变。P9-04 完成，P9 更新为 4/6 |
 | 2026-08-06 | P9 | 将分散的 import denylist 收敛为唯一完整生产 package 图。精确 package 集合为 root、Interaction、Planning、Planning/GOAP、Workflow、OTel、Platform；唯一内部直连边为五个上层 package → root 与 GOAP → Planning，Kernel 无出边。全图门禁扫描所有非测试 production `.go`（包括 build-tag 文件），新增 package、未允许边或声明环都失败；统一禁止旧 `agent`、Host `app`、`flow`、logging backend，并把 OTel 和 chatclient/tool/core-chat 分别约束到 OTel adapter 与 Interaction owner。局部门禁只保留 SDK、Host 类型命名、Dispatcher lifecycle、sealed Stage 等 owner-specific 规则，删除重复 Strategy 清单 | 新增 ADR-A2-056、能力证据与精确现状目录；Workflow 继续只吸收 `flow` 思想、不形成依赖。七个 public API、全部 owner wire 与运行语义未变。standalone `mod tidy` 零漂移、build/vet/staticcheck/test/race 全绿，八个 command consumer 全部实跑成功，diff check 通过；P9-03 完成，P9 更新为 3/6 |
 | 2026-08-06 | P9 | 独立复核 Baseline 4 后确认 public API digest 完整，但共同 snapshot 只能看到 opaque `ExecutionState.Payload`，无法冻结 Strategy owner 的恢复/Effect/Signal wire；Framework Event payload 也由匿名 struct 生成而逃逸 observation digest。按 ADR-A2-055 治本分层：Kernel baseline 覆盖全部 production `*Wire` 与命名 Framework Event payload，并以 AST 阻止新增 wire 漏登记；Interaction/Planning/Workflow 各自覆盖全部 private JSON state/protocol，并保持 Kernel 不解析具体 Strategy payload。持久字段同步收敛为 WorkingContext/model/Tool/delegate/artifact、WorldState/Action confirmation、Stage/current value/fan-out 与 Process/Wait owner-qualified 语义；Event payload 明确 process/step/effect settlement/dropped Delta 事实。旧 tag/version 不双读 | Process Snapshot v5、TreeSnapshot v3、Interaction state/protocol v4/v2、Planning state v3、Workflow state v2；child/framework protocol v2 与 Planning protocol v1 不变。七个 public digest 不变，新增五个 owner wire digest 与 prior-version tests；`GOWORK=off` standalone build/vet/test/race、staticcheck、mod tidy、diff check 与八个 command consumer 实跑全绿。P9-02 完成，P9 更新为 2/6 |
@@ -318,6 +319,6 @@ go test ./...
 
 ## 9. 当前下一步
 
-P1–P8 与 P9-01～04 已完成。七个 public package、全部 owner wire、精确生产 package DAG 以及 15 个 package 的全量静态/race/fuzz 门禁均已独立验收；Kernel 仍不解释 Strategy payload、不反向依赖高层，Workflow 不依赖 `flow`。下一轮 P9-05 从一个干净的模块边界验证独立解析、八个 command consumer 与文档中的公开路径，不能用当前 workspace 或测试私有 helper 掩盖缺失依赖和不可用 API。
+P1–P8 与 P9-01～05 已完成。七个 public package、全部 owner wire、精确生产 package DAG、全量静态/race/fuzz，以及仓库外 clean-cache module/docs/examples 均已独立验收。下一轮 P9-06 对整个 `agent2` 做最终零债清扫：空目录、漂移或事实过期注释、dead/unreachable code、TODO/FIXME、compat/legacy/shim、未消费抽象和测试坏味道必须逐项给出零残留证据；发现真实问题就治本修复后重跑完整门禁，不能只靠关键词结果宣布完成。
 
 在 P1–P9 完成前，不迁移 `app/runtime`，不删除旧 `agent`，不发布 `agent2` 稳定版本。

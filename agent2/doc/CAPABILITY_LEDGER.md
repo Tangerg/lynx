@@ -457,3 +457,10 @@
 - 根 6 个 fuzz target 覆盖 Input、DeploymentRef、ExecutionState、Transition、Process Snapshot 与 TreeSnapshot；Interaction 1 个覆盖完整私有状态恢复；Planning 5 个覆盖状态恢复、dispatcher protocol、WorldState、Plan 与 Output；Workflow 1 个覆盖完整私有状态恢复。
 - 13 个 fuzz target 各运行 3 秒、固定最多 4 个 worker，合计 2,245,920 次执行，没有 crash 或失败语料；fuzz 后再次禁用缓存回归全部 package，排除 fuzz 运行对普通测试环境产生隐藏污染。
 - 本轮没有生产代码、public API、wire、package DAG 或依赖变化；结果只证明当前提交满足既定质量合同，不声称测试能替代 P9-05 的真实独立消费者和文档验证。
+
+### 13.5 独立 module、公开文档与 command consumers
+
+- 完整源码在仓库外临时目录、`GOWORK=off`、全新 module cache 和 build cache 下重新解析；Go toolchain 与依赖均重新下载，`go mod verify` 全绿。`go.mod` 没有 replace，readonly module graph 可解析，因而构建不依赖父仓库 workspace 或本机源码路径。
+- clean copy 中 15 个 package 全部禁用缓存测试通过，七个公开 package 都能生成完整 `go doc -all`。35 个 Markdown 本地链接逐项可达，没有指向已删除设计文件或旧 package 的漂移链接。
+- examples README 与文件系统精确拥有相同的八个 command；八个 command 在 clean cache 中逐一运行并产生确定结果。它们只使用公开 API，不共享测试 helper，也不需要凭据或运行期网络。
+- `go mod why github.com/Tangerg/flow` 明确返回主模块不需要该 package。Workflow 的公共文档继续只承诺 Framework-managed child Process 编排；普通 in-process flow 保持框架外选择。
