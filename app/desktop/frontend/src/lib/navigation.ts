@@ -54,6 +54,18 @@ export interface Navigator {
    * clears one. `replace` overwrites the current history entry instead of
    * pushing — for corrections that were never a place the user went, like
    * seeding the last session on a cold start.
+   *
+   * Do NOT wrap a call to this in `startTransition` expecting the render it causes to
+   * be deferred. Switching session re-renders the whole transcript — measured at
+   * 12–34ms of script per turn, so a few hundred ms on a long one — and a transition is
+   * the obvious way to keep the click responsive. It does not work here, and the reason
+   * is not obvious enough to rediscover: React de-opts a transition to a SYNCHRONOUS
+   * render when the update arrives through `useSyncExternalStore`, which is how both
+   * halves of this reach a component — the location through `use()` above, the transcript
+   * through Zustand. Measured in a real browser on React 19.2: with `useState` as the
+   * source the first frame after the click still carries the old content and `isPending`
+   * is true; with an external store that frame already carries the new content, so
+   * nothing was deferred and the second render a transition costs is spent for nothing.
    */
   go(patch: LocationPatch, options?: { replace?: boolean }): void;
   back(): void;
