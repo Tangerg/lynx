@@ -10,6 +10,9 @@ failures expose real consumer-facing contract problems.
 - `autonomous` runs a model-directed `model -> Tool -> model` loop. The model
   selects the Tool and stop point while the Definition supplies a hard local
   model-call limit.
+- `composition` runs one local Definition directly through an embedded Engine,
+  then composes the same Definition with an Interaction as two heterogeneous
+  child Processes. Both paths use the same public execution narrow waist.
 
 Both examples use deterministic local models so they run without credentials or
 network access:
@@ -17,4 +20,5 @@ network access:
 ```sh
 GOWORK=off go run ./examples/direct_vs_managed
 GOWORK=off go run ./examples/autonomous
+GOWORK=off go run ./examples/composition
 ```

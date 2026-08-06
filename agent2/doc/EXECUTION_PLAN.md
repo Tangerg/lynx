@@ -3,7 +3,7 @@
 > 状态：持续实施
 > 建立日期：2026-08-06
 > 最后更新：2026-08-06
-> 当前阶段：P4 子 Process 组合与合同冻结，7/9 完成
+> 当前阶段：P4 子 Process 组合与合同冻结，8/9 完成
 > 当前实施范围：仅 `agent2`
 > 临时模块路径：`github.com/Tangerg/lynx/agent2`
 > 最终模块路径：`github.com/Tangerg/lynx/agent`
@@ -70,7 +70,7 @@ go test ./...
 | P1 候选窄腰与消费审计 | 完成 | 9/9 | 用只读审计和多策略 spike 验证 erased wire、协议与状态机，不冻结 API |
 | P2 Engine 最小执行闭环 | 完成 | 8/8 | 单 Process、Signal、Effect、状态提交、snapshot、event/delta、limit |
 | P3 真实 Interaction 验证 | 完成 | 9/9 | 真实模型/工具 dispatcher、流、HITL、steer，并接入 disposable consumer |
-| P4 子 Process 组合与合同冻结 | 进行中 | 7/9 | start/wait、递归、组合、预算、取消、恢复；多消费方验证后冻结窄腰 |
+| P4 子 Process 组合与合同冻结 | 进行中 | 8/9 | start/wait、递归、组合、预算、取消、恢复；多消费方验证后冻结窄腰 |
 | P5 Planning 与 GOAP | 未开始 | 0/8 | Planning 状态、Planner SPI、GOAP 搜索与 replan |
 | P6 Workflow | 未开始 | 0/8 | 原生 sequence/gate/router/fork/join/loop/agent call |
 | P7 组合模式与能力覆盖 | 未开始 | 0/7 | 动态 worker 组合、typed artifacts、evaluator/optimizer、示例 |
@@ -136,7 +136,7 @@ go test ./...
 - [x] P4-05 实现预算划拨、能力衰减、深度/fan-out/并行限制。
 - [x] P4-06 实现取消传播、失败传播、幂等恢复和祖先等待拒绝。
 - [x] P4-07 验证父子 Process 的 schema 校验、Effect settlement、snapshot 和终态传播。
-- [ ] P4-08 用第二个 disposable consumer 验证嵌入式 Engine 与组合式 Agent 应用共用同一窄腰，且没有应用抽象进入 Framework。
+- [x] P4-08 用第二个 disposable consumer 验证嵌入式 Engine 与组合式 Agent 应用共用同一窄腰，且没有应用抽象进入 Framework。
 - [ ] P4-09 完成恢复、race、指数扩张防护和递归 contract tests；只有 P3/P4 多实现、多消费者证据通过后才冻结首个公共 API/wire baseline。
 
 ### P5：Planning 与 GOAP
@@ -251,6 +251,7 @@ go test ./...
 
 | 日期 | 阶段 | 实际事实 | 验证与结果 |
 |---|---|---|---|
+| 2026-08-06 | P4 | 新增第二个可整体删除的 public-API consumer `examples/composition`，以同一程序中的两个真实路径反证是否需要第二套 runtime 抽象。embedded 路径把一个纯本地 uppercase Definition 直接交给 Engine.Run；composed 路径把同一个 exact Deployment 与一个真实 Interaction Deployment 作为异构 child Processes，由第三个 composition Definition 仅通过公开 `StartChild`、`ParseChildStartResult`、`WaitForChildren`、`ParseChildrenCompleted`、erased Input/Output 和 `DeploymentResolver` 组合。parent 不持有 `*Engine`，不解析 Framework 私有 Effect/Signal/state wire；resolver 只做 exact binding；本地与模型 child 各有独立身份、schema、ExecutionState、budget 和 Result。示例没有 Session、Conversation、Workspace、Store、transaction、UI 或应用 revision 概念，也没有为了 consumer 新增 Framework API | `GOWORK=off go test`、race 连续 50 次、vet、staticcheck、`go run` 全绿；依赖扫描确认不 import 旧 `agent`、`app`、TUI 或 CLI。可执行输出同时证明 embedded 结果 `EMBEDDED` 与 composed 结果 `COMPOSITION | model: composition`。P4-08 完成，P4 更新为 8/9 |
 | 2026-08-06 | P4 | 实现完整 Process tree 的一致 capture/restore，并收口 P4-06/P4-07。新增严格、版本化、规范排序的 `TreeSnapshot`：只包含每个 portable Process `Snapshot` 和 Engine-owned active direct-child wait；不含 Store、transaction、revision、lease、resolver 实例或应用 identity。`CaptureTree` 使用 Engine 私有 quiescence barrier：按 root→descendant 阻止新 Step/child expansion，prepared/in-flight Effect 必须先按原 settlement 合同收口；barrier 内仍同步吸收 child completion 与 parent termination，外部控制命令延后到释放后按到达顺序执行，因此不会产生“child 已终态、parent mailbox 尚未记账”的丢信 cut。终态 Process 另有 tree-settled join point，确保跨 Process 通知完成后才进入整树快照。`RestoreTree` 对 root/parent/depth/ChildKey、TreeLimits、能力子集、父级 reserved budget 与直接 child budget 总和、active child wait/mailbox、每个 exact DeploymentRef 和终态 Output schema 做全量校验；所有 Definition/Deployment 解析成功后才在一个 Engine 临界区注册整棵树，失败不留下半棵树。普通 `Restore` 只接受从未形成 child relation、child budget 或 child wait 的独立 root，残缺树明确返回 `ErrTreeSnapshotRequired`。child wait completion 改为同步确认后标记 delivered，已消费或 parent 终态时立即注销，恢复时由 terminal facts + stable SignalID 重建投递缓存而不持久化派生状态。prepared child-start 恢复沿原 EffectID 派生同一 ProcessID/request digest，只创建一次；child failure 仍由父 Strategy 显式裁决 | 独立 build/vet/staticcheck/test/race 全绿；tree capture/restore 专项 race 重复 20 次通过。测试覆盖三 child Waiting/Paused tree 继续执行、in-flight child Effect 未结算时 capture 必须等待且恢复可继续、prepared child-start crash cut 的稳定身份与 exactly-one Framework entity、跨 Strategy exact resolver、单 Process 残缺恢复拒绝、终态 Output 对 exact Descriptor schema 的恢复校验、strict unknown-field 拒绝和 TreeSnapshot JSON round-trip fuzz seed。P4-06、P4-07 完成，P4 更新为 7/9 |
 | 2026-08-06 | P4 | 收口 structured tree lifecycle 的取消、deadline、失败与等待边界。任意父级终态都会向仍活动的直接 child 投递 Engine 内部控制命令，再由 child 终态逐层传播，不建立第二状态写入口；父级 deadline 在后代保留 `ParentDeadline`，父级 completion/failure/kill/cancellation 则准确记为 `ParentCancellation`，不会把后代伪装成被 Engine 直接 kill。传播只记录控制意图，不抢占正在结算的 Effect；child 先完成 prepared settlement，再于安全边界提交终态。child failure 仍作为 `ChildOutcome` 进入 parent Execution，由 Strategy 显式选择 Fail、fallback 或继续；Engine 不替编排策略猜测。直接 child 检查成为硬约束，parent 无法越层注册 descendant wait。为满足“终态父不留孤儿”，递归测试 Definition 改为显式等待 child 后再完成，不保留 fire-and-forget 假设 | 全量与 race 门禁通过；专项重复测试证明父正常完成和 kill 都只在阻塞 child Effect 结算后产生 `Cancelled/ParentCancellation`，Host deadline 父产生 `TimedOut/HostDeadline`、后代产生 `TimedOut/ParentDeadline`，child execution failure 由 parent 显式映射为自己的稳定 Failure，跨层 descendant wait 被确定拒绝。P4-06 的结构化终止、失败输入与祖先等待部分完成；幂等 tree recovery 留在下一轮与 P4-07 一并验证，P4 总进度保持 5/9 |
 | 2026-08-06 | P4 | 完成递归/跨 Strategy 组合和 Engine-owned 结构、预算、能力约束。same-Definition recursion 每层都是新 ProcessID、独立 ExecutionState/结果/预算的真 child，不是 Go 调用栈重入或同 Process 内嵌套 Execution。跨 Strategy 只经最小 `DeploymentResolver.Resolve(context, DeploymentRef)`；Engine 再校验返回 Deployment 的 exact reference，错 binding 产生 definite child-start Failure 且不构造 Process，resolver 不获得生命周期所有权。新增与本地 `Limits` 正交的 `TreeLimits`：`MaxDepth`、`MaxChildren` 终生 fan-out、`MaxActiveChildren`、`MaxTreeProcesses` 均在 child 注册的 Engine 临界区内硬校验。`Budget{Steps,Effects,Signals}` 是非可再生的 Framework work-unit 划拨；child 必须显式请求正值 budget，一旦成功则从父级可用余额中永久保留，不复制全额、不静默回收；父级自身后续 Step/Effect/Signal 同样受已划拨额度约束。`Capability` 只是 Framework 不解释业务含义的 qualified authority；root 从 EngineConfig 获得上限，child 只能请求父级 `CapabilitySet` 子集。`NewDispatcherEffect(payload, required...)` 将真实能力需求冻结进 Effect wire，Engine 在 prepare 前校验；无权 Effect 零 dispatch，因此 capability 不是无行为的 metadata。budget/capability/tree limits 和 child request digest 全部进入严格 snapshot，不引入用户、订阅、工作区、锁或事务概念 | 独立 build/vet/staticcheck/test/race 全绿；递归、跨 Strategy、限制与衰减专项连续 50 次通过。测试证明三层递归共享 root 但 depth 严格递增，exact resolver 能启动不同 Strategy 且错 binding 被拒绝；depth、fan-out、active-child 和 tree-process 四种上限各自独立命中；合法 capability 子集与 budget 准确进入 child，capability/budget 提权产生稳定 Failure；根 Process 缺失 Effect 所需 capability 时 dispatcher 调用数为 0。P4-04–P4-05 完成，P4 更新为 5/9 |
@@ -284,6 +285,6 @@ go test ./...
 
 P1–P2 已完成，得到经过旧模块/Host 审计、Interaction/Planning spike、Prepared Step 恢复 harness、完整终态表、strict codec/fuzz 和依赖架构守卫共同验证的候选窄腰与单 Process Engine。它仍不是冻结的 API/wire baseline；只有 P3 真实 Interaction 与 P4 child composition 以及第二个 disposable consumer 共同通过后，才建立首个 baseline。
 
-P1–P3 和 P4-01–P4-07 已完成。下一轮用第二个 disposable consumer 同时验证嵌入式 Engine 与跨 Strategy 组合式 Agent 应用共用同一窄腰；consumer 只依赖公开 API，不读取私有 Effect/Signal/state wire，不把应用抽象反向推入 Framework。之后执行 P4 恢复/race/递归/指数扩张总合同，审计并冻结首个公共 API 与 wire baseline。
+P1–P3 和 P4-01–P4-08 已完成。下一轮执行 P4 最终恢复/race/递归/指数扩张合同，审计公开 API、错误和 snapshot/tree wire，并建立首个冻结 baseline；只有门禁全部通过才结束 P4，随后从旧 Planning/GOAP/HTN/Utility 的只读裁决开始 P5。
 
 在 P1–P9 完成前，不迁移 `app/runtime`，不删除旧 `agent`，不发布 `agent2` 稳定版本。
