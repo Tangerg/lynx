@@ -307,6 +307,9 @@ func (runtime *processRuntime) commitTermination(outcome stepOutcome) {
 	runtime.currentWaitID = WaitID{}
 	runtime.pauseReason = ""
 	runtime.control = pendingControl{}
+	for _, waitID := range runtime.mailbox.closeAllWaits() {
+		runtime.engine.unregisterChildWait(waitID)
+	}
 	runtime.updateView()
 }
 

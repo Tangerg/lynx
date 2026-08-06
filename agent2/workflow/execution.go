@@ -170,7 +170,7 @@ func (execution *execution) singleChildID() string {
 
 func (execution *execution) acceptChildStart(signals []agent.Signal) (agent.Transition, error) {
 	if len(signals) == 0 {
-		return agent.Transition{}, errors.New("workflow: child start requires its settlement Signal")
+		return agent.Transition{}, fmt.Errorf("%w: child start requires its settlement Signal", ErrInvalidProtocol)
 	}
 	result, err := agent.ParseChildStartResult(signals[0])
 	key, keyErr := execution.childKey()
@@ -207,7 +207,7 @@ func (execution *execution) acceptChildStart(signals []agent.Signal) (agent.Tran
 
 func (execution *execution) acceptChildWaitOpen(signals []agent.Signal) (agent.Transition, error) {
 	if len(signals) == 0 || execution.state.ChildProcessID == nil {
-		return agent.Transition{}, errors.New("workflow: child wait opening requires its settlement Signal")
+		return agent.Transition{}, fmt.Errorf("%w: child wait opening requires its settlement Signal", ErrInvalidProtocol)
 	}
 	opened, err := agent.ParseChildWaitOpened(signals[0])
 	wantKey, keyErr := execution.waitKey()
@@ -224,7 +224,7 @@ func (execution *execution) acceptChildWaitOpen(signals []agent.Signal) (agent.T
 
 func (execution *execution) acceptChildCompletion(signals []agent.Signal) (agent.Transition, error) {
 	if len(signals) == 0 || execution.state.ChildProcessID == nil || execution.state.WaitID == nil {
-		return agent.Transition{}, errors.New("workflow: child completion requires one active child wait Signal")
+		return agent.Transition{}, fmt.Errorf("%w: child completion requires one active child wait Signal", ErrInvalidProtocol)
 	}
 	completed, err := agent.ParseChildrenCompleted(signals[0])
 	wantWaitKey, keyErr := execution.waitKey()

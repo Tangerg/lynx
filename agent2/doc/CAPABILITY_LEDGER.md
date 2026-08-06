@@ -269,3 +269,11 @@
 - 每轮 Budget 都是独立永久 child 划拨，每轮 ChildKey/WaitKey 纳入一基 iteration。LoopIteration 是 Strategy-owned state；Body Deployment concrete value、predicate、context、goroutine 和调用栈不进入 snapshot。
 - Loop 复用单 child 的 start/wait/completion 状态机，只在上轮完整结算后声明下一轮 StartChild Effect。Body failure、非完成终态和 Output 违约均保留 Loop Stage/iteration 归因。
 - 满足、耗尽和“初值已满足仍执行一次”三个真实 Engine 测试的 TreeSnapshot 都严格包含 root + Iterations 个 Process；这证明 Loop 没有把 body 降级成同 Process 内调用。
+
+### 10.10 恢复、协议与资源边界验收
+
+- Workflow ExecutionState 仍使用单一 versioned strict codec；未知字段、错误 kind/version、完成游标伪装、Stage 不允许的 child/fan-out/loop 进度都确定拒绝。所有缺失或错配的 Framework settlement Signal 统一归入 `ErrInvalidProtocol`，zero-state Dispatcher 对任意 dispatcher Effect 也只返回该协议错误。
+- 真实 Fork tree 在 root Waiting、两个第一窗口 child Paused 时完整 capture；原 Engine 销毁后，新 Engine 通过 exact Deployment resolver 恢复相同 Process identity。第一窗口逆序恢复后，第二窗口 child 恰好创建一次，结果仍按声明顺序，最终 tree 恰好包含 root 与三个 child。
+- Host cancel 在 managed Call 等待 Paused child 时，root 终态来源是 host cancellation，child 终态来源是 parent cancellation。Workflow 请求超过 parent 剩余 Budget 或父级不持有的 Capability 时，由共同 Engine 的 child allocation invariant 拒绝，不存在 Strategy 绕过路径。
+- tree 合同暴露并修复了共同 Kernel 的一个既存缺口：Process 在未消费 child completion 前终止时，mailbox 中的 child wait 曾保持 open，而 Engine registration 已删除，导致 terminal TreeSnapshot 自相矛盾。终止提交现在统一关闭全部 wait，并以稳定顺序注销内部 child wait；未新增 Workflow snapshot 字段、Store、Journal 或第二恢复真相源。
+- Stage 代数由 AST 架构守卫持续封闭：生产 `workflow` 不允许 exported behavior interface，`Stage` 必须是无公开可变字段的 value；Host/legacy/`flow`/Store/Journal/Graph/Scheduler 禁入规则继续生效。全量 standalone race、50 次 Workflow race、50 次 Kernel 终态 wait 回归和 260682 次 state fuzz 均通过。

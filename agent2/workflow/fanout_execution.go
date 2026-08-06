@@ -59,7 +59,7 @@ func (execution *execution) startFanoutWindow(consumed uint32) (agent.Transition
 func (execution *execution) acceptFanoutStarts(signals []agent.Signal) (agent.Transition, error) {
 	window := execution.state.FanoutWindow
 	if len(signals) < len(window) {
-		return agent.Transition{}, errors.New("workflow: fan-out child starts require one settlement Signal per member")
+		return agent.Transition{}, fmt.Errorf("%w: fan-out child starts require one settlement Signal per member", ErrInvalidProtocol)
 	}
 	childIDs := make([]agent.ProcessID, 0, len(window))
 	for offset := range window {
@@ -113,7 +113,7 @@ func (execution *execution) acceptFanoutStarts(signals []agent.Signal) (agent.Tr
 
 func (execution *execution) acceptFanoutWaitOpen(signals []agent.Signal) (agent.Transition, error) {
 	if len(signals) == 0 {
-		return agent.Transition{}, errors.New("workflow: fan-out wait opening requires its settlement Signal")
+		return agent.Transition{}, fmt.Errorf("%w: fan-out wait opening requires its settlement Signal", ErrInvalidProtocol)
 	}
 	opened, err := agent.ParseChildWaitOpened(signals[0])
 	wantKey, keyErr := execution.fanoutWaitKey()
@@ -131,7 +131,7 @@ func (execution *execution) acceptFanoutWaitOpen(signals []agent.Signal) (agent.
 
 func (execution *execution) acceptFanoutCompletion(signals []agent.Signal) (agent.Transition, error) {
 	if len(signals) == 0 || execution.state.WaitID == nil {
-		return agent.Transition{}, errors.New("workflow: fan-out completion requires one active child wait Signal")
+		return agent.Transition{}, fmt.Errorf("%w: fan-out completion requires one active child wait Signal", ErrInvalidProtocol)
 	}
 	completed, err := agent.ParseChildrenCompleted(signals[0])
 	wantKey, keyErr := execution.fanoutWaitKey()

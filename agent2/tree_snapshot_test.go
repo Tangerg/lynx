@@ -126,6 +126,37 @@ func TestEngineCapturesAndRestoresCompleteWaitingTree(t *testing.T) {
 	}
 }
 
+func TestTerminalTreeSnapshotClosesUnconsumedChildWait(t *testing.T) {
+	deployment := newChildTestDeployment(t)
+	engine, err := NewEngine(EngineConfig{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	input, _ := EncodeInput(childTestInput{Mode: "wait:paused"})
+	root, err := engine.Start(context.Background(), deployment, input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitForProcessStatus(t, root, StatusWaiting)
+	if err := root.Kill(context.Background(), "capture terminal tree"); err != nil {
+		t.Fatal(err)
+	}
+	if result := mustAwait(t, root); result.Status() != StatusKilled {
+		t.Fatalf("root status = %s", result.Status())
+	}
+	tree, err := engine.CaptureTree(context.Background(), root.ID())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ParseTreeSnapshot(tree.JSON()); err != nil {
+		t.Fatalf("terminal TreeSnapshot is not self-consistent: %v", err)
+	}
+	assertNoChildWaitRegistrations(t, engine)
+	if err := engine.Close(); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestTreeCaptureWaitsForInflightChildEffectsToSettle(t *testing.T) {
 	dispatcher := newBlockingChildDispatcher("first", "second", "third")
 	t.Cleanup(dispatcher.ReleaseAll)

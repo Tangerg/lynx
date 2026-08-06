@@ -149,6 +149,27 @@ func (mailbox *signalMailbox) closeWait(id WaitID) error {
 	return nil
 }
 
+// closeAllWaits makes every remaining wait terminal with its Process. It
+// returns child-wait identities whose Engine registrations must be removed
+// before the terminal Snapshot is captured.
+func (mailbox *signalMailbox) closeAllWaits() []WaitID {
+	var childWaits []WaitID
+	for id, record := range mailbox.waits {
+		if record.closed {
+			continue
+		}
+		record.closed = true
+		mailbox.waits[id] = record
+		if !record.externallyAddressable {
+			childWaits = append(childWaits, id)
+		}
+	}
+	slices.SortFunc(childWaits, func(left, right WaitID) int {
+		return cmp.Compare(left.String(), right.String())
+	})
+	return childWaits
+}
+
 func (mailbox *signalMailbox) pending() []Signal {
 	if mailbox.cursor >= uint64(len(mailbox.records)) {
 		return nil
