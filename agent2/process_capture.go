@@ -2,6 +2,52 @@ package agent2
 
 import "fmt"
 
+func prepareRestoredProcess(
+	engine *Engine,
+	deployment Deployment,
+	snapshot Snapshot,
+) (*processController, *processRuntime, processSnapshotWire, error) {
+	wire, err := snapshot.wire()
+	if err != nil {
+		return nil, nil, processSnapshotWire{}, err
+	}
+	if wire.Deployment != deployment.Reference() {
+		return nil, nil, processSnapshotWire{}, fmt.Errorf(
+			"%w: exact Deployment does not match", ErrInvalidSnapshot,
+		)
+	}
+	if wire.Output != nil {
+		if err := deployment.Descriptor().ValidateOutput(*wire.Output); err != nil {
+			return nil, nil, processSnapshotWire{}, fmt.Errorf(
+				"%w: output schema: %w", ErrInvalidSnapshot, err,
+			)
+		}
+	}
+	execution, err := restoreExecution(deployment.Definition(), wire.LastStable)
+	if err != nil {
+		return nil, nil, processSnapshotWire{}, fmt.Errorf(
+			"%w: restore Execution: %w", ErrInvalidSnapshot, err,
+		)
+	}
+	mailbox, err := restoreSignalMailbox(wire.Mailbox)
+	if err != nil {
+		return nil, nil, processSnapshotWire{}, fmt.Errorf("%w: mailbox: %w", ErrInvalidSnapshot, err)
+	}
+	relation, err := processRelationFromWire(wire.ProcessID, wire.Relation)
+	if err != nil {
+		return nil, nil, processSnapshotWire{}, fmt.Errorf("%w: relation: %w", ErrInvalidSnapshot, err)
+	}
+	controller := newProcessController(
+		relation, wire.Deployment, wire.Budget, wire.Capabilities, wire.TreeLimits,
+		wire.StartedAt, wire.Status,
+	)
+	runtime, err := restoreProcessRuntime(engine, controller, deployment, execution, mailbox, wire)
+	if err != nil {
+		return nil, nil, processSnapshotWire{}, err
+	}
+	return controller, runtime, wire, nil
+}
+
 func restoreProcessRuntime(
 	engine *Engine,
 	controller *processController,

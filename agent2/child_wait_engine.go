@@ -1,5 +1,7 @@
 package agent2
 
+import "context"
+
 type childWaitRegistration struct {
 	parent    ProcessID
 	waitID    WaitID
@@ -68,6 +70,11 @@ func (engine *Engine) processFinished(controller *processController) {
 	var deliveries []childCompletionDelivery
 	var activeChildren []*processController
 	engine.mu.Lock()
+	for waitID, registration := range engine.childWaits {
+		if registration.parent == controller.id {
+			delete(engine.childWaits, waitID)
+		}
+	}
 	for _, candidate := range engine.processes {
 		parentID, child := candidate.relation.ParentID()
 		if child && parentID == controller.id && !candidate.status().Terminal() {
@@ -86,14 +93,19 @@ func (engine *Engine) processFinished(controller *processController) {
 		if err != nil {
 			continue
 		}
-		registration.delivered = true
 		deliveries = append(deliveries, childCompletionDelivery{
 			parent: registration.parent, signal: signal,
 		})
 	}
 	engine.mu.Unlock()
 	for _, delivery := range deliveries {
-		engine.deliverChildCompletion(delivery)
+		if engine.deliverChildCompletion(delivery) {
+			engine.mu.Lock()
+			if registration := engine.childWaits[signalWaitID(delivery.signal)]; registration != nil {
+				registration.delivered = true
+			}
+			engine.mu.Unlock()
+		}
 	}
 	parentTermination := controller.terminalResult().Termination()
 	for _, child := range activeChildren {
@@ -102,12 +114,9 @@ func (engine *Engine) processFinished(controller *processController) {
 }
 
 func (*Engine) deliverParentTermination(child *processController, parent Termination) {
-	select {
-	case child.commands <- processCommand{
+	_, _ = (&Process{controller: child}).request(context.Background(), processCommand{
 		kind: commandParentTerminated, parentTermination: parent,
-	}:
-	case <-child.done:
-	}
+	})
 }
 
 func (engine *Engine) childWaitOutcomesLocked(
@@ -130,19 +139,22 @@ func (engine *Engine) childWaitOutcomesLocked(
 	return outcomes, err == nil && uint32(len(outcomes)) >= required
 }
 
-func (engine *Engine) deliverChildCompletion(delivery childCompletionDelivery) {
+func (engine *Engine) deliverChildCompletion(delivery childCompletionDelivery) bool {
 	engine.mu.RLock()
 	controller := engine.processes[delivery.parent]
 	engine.mu.RUnlock()
 	if controller == nil {
-		return
+		return false
 	}
-	select {
-	case controller.commands <- processCommand{
+	response, err := (&Process{controller: controller}).request(context.Background(), processCommand{
 		kind: commandChildrenCompleted, internalSignal: delivery.signal,
-	}:
-	case <-controller.done:
-	}
+	})
+	return err == nil && response.accepted
+}
+
+func signalWaitID(signal Signal) WaitID {
+	waitID, _ := signal.WaitID()
+	return waitID
 }
 
 func childWaitContains(spec ChildWaitSpec, childID ProcessID) bool {

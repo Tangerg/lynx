@@ -128,6 +128,10 @@ func (runtime *processRuntime) finalizePrepared(ctx context.Context) (returnErr 
 	if err != nil {
 		return err
 	}
+	consumedChildWaits, err := mailbox.consumedChildWaitIDs(prepared.wire.Transition.Consumed())
+	if err != nil {
+		return err
+	}
 	if err := mailbox.commit(prepared.wire.Transition.Consumed()); err != nil {
 		return err
 	}
@@ -258,6 +262,9 @@ func (runtime *processRuntime) finalizePrepared(ctx context.Context) (returnErr 
 		Status string `json:"status"`
 	}{Status: runtime.status.String()})
 	runtime.publishEvent(ctx, "agent.step.committed", EventPhaseCommitted, runtime.committedSteps, EffectID{}, payload)
+	for _, waitID := range consumedChildWaits {
+		runtime.engine.unregisterChildWait(waitID)
+	}
 	committed = true
 	return nil
 }

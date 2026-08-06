@@ -34,6 +34,12 @@ type processRuntime struct {
 	capabilities   CapabilitySet
 	usage          Usage
 	restored       bool
+	quiescence     *processQuiescence
+}
+
+type processQuiescence struct {
+	command  processCommand
+	deferred []processCommand
 }
 
 type preparedStep struct {
@@ -76,6 +82,10 @@ func (runtime *processRuntime) run(ctx context.Context) {
 	hostDone := ctx.Done()
 	for !runtime.status.Terminal() {
 		runtime.observeHostContext(ctx, &hostDone)
+		if runtime.quiescence != nil && runtime.prepared == nil {
+			runtime.holdQuiescence(ctx, &hostDone)
+			continue
+		}
 		if runtime.prepared != nil {
 			if runtime.control.hasTerminalIntent() && runtime.prepared.hasUnknownSettlement() {
 				runtime.discardPrepared()
@@ -190,9 +200,17 @@ func (runtime *processRuntime) applyCommand(ctx context.Context, command process
 		snapshot, err := runtime.capture()
 		command.reply(processResponse{snapshot: snapshot, err: err})
 	case commandChildrenCompleted:
-		runtime.deliverChildrenCompleted(ctx, command.internalSignal)
+		delivered := runtime.deliverChildrenCompleted(ctx, command.internalSignal)
+		command.reply(processResponse{accepted: delivered})
 	case commandParentTerminated:
 		runtime.recordParentTermination(command.parentTermination)
+		command.reply(processResponse{accepted: true})
+	case commandQuiesce:
+		if command.release == nil || runtime.quiescence != nil {
+			command.reply(processResponse{err: ErrProcessNotRunning})
+			return
+		}
+		runtime.quiescence = &processQuiescence{command: command}
 	default:
 		command.reply(processResponse{err: ErrProcessNotRunning})
 	}
@@ -218,20 +236,20 @@ func (runtime *processRuntime) recordParentTermination(parent Termination) {
 	}
 }
 
-func (runtime *processRuntime) deliverChildrenCompleted(ctx context.Context, signal Signal) {
+func (runtime *processRuntime) deliverChildrenCompleted(ctx context.Context, signal Signal) bool {
 	if runtime.usage.AcceptedSignals >= runtime.limits.MaxSignals ||
 		runtime.mailbox.pendingCount() >= runtime.limits.MaxPendingSignals ||
 		runtime.usage.AcceptedSignals+1+runtime.reservedBudget.Signals > runtime.budget.Signals {
 		runtime.fail(ctx, FailureKindExecution, "engine.limit.child_completion_signal", ErrLimitExceeded)
-		return
+		return false
 	}
 	accepted, err := runtime.mailbox.enqueueChildCompletion(runtime.status, signal)
 	if err != nil {
 		runtime.fail(ctx, FailureKindContract, "engine.child.completion.invalid", err)
-		return
+		return false
 	}
 	if !accepted {
-		return
+		return runtime.mailbox.contains(signal.ID())
 	}
 	runtime.usage.AcceptedSignals++
 	if runtime.status == StatusWaiting {
@@ -244,6 +262,35 @@ func (runtime *processRuntime) deliverChildrenCompleted(ctx context.Context, sig
 		WaitID   string `json:"wait_id"`
 	}{SignalID: signal.ID().String(), WaitID: commandSignalWaitID(signal)})
 	runtime.publishEvent(ctx, "agent.signal.accepted", EventPhaseCommitted, 0, EffectID{}, payload)
+	return true
+}
+
+func (runtime *processRuntime) holdQuiescence(ctx context.Context, hostDone *<-chan struct{}) {
+	quiescence := runtime.quiescence
+	quiescence.command.reply(processResponse{accepted: true})
+	for {
+		select {
+		case <-quiescence.command.release:
+			runtime.quiescence = nil
+			for _, command := range quiescence.deferred {
+				runtime.applyCommand(ctx, command)
+				if runtime.status.Terminal() {
+					return
+				}
+			}
+			return
+		case command := <-runtime.controller.commands:
+			switch command.kind {
+			case commandCapture, commandChildrenCompleted, commandParentTerminated:
+				runtime.applyCommand(ctx, command)
+			default:
+				quiescence.deferred = append(quiescence.deferred, command)
+			}
+		case <-*hostDone:
+			runtime.recordHostTermination(ctx.Err())
+			*hostDone = nil
+		}
+	}
 }
 
 func commandSignalWaitID(signal Signal) string {
@@ -377,6 +424,7 @@ func (runtime *processRuntime) finish(ctx context.Context) {
 	snapshot, err := runtime.capture()
 	runtime.controller.complete(runtime.result(), snapshot, err)
 	runtime.engine.processFinished(runtime.controller)
+	runtime.controller.markTreeSettled()
 }
 
 func (runtime *processRuntime) updateView() {

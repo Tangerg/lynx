@@ -627,6 +627,10 @@ func (execution *childTestExecution) Step(_ context.Context, signals []Signal) (
 			output, _ := EncodeOutput(childTestOutput{})
 			return Complete(0, output)
 		}
+		if execution.state.Mode == "leaf_pause" {
+			execution.state.Phase = "leaf_paused"
+			return Pause(0, "child paused for tree capture")
+		}
 		if execution.state.Mode == "leaf_fail" {
 			execution.state.Phase = "done"
 			failure, _ := NewFailure(FailureKindExecution, "test.leaf.failed", "leaf failed as requested")
@@ -648,6 +652,9 @@ func (execution *childTestExecution) Step(_ context.Context, signals []Signal) (
 			var effects []Effect
 			for _, name := range []string{"first", "second", "third"} {
 				mode := "leaf:" + name
+				if execution.state.Mode == "wait:paused" {
+					mode = "leaf_pause"
+				}
 				if execution.state.Mode == "wait:failure" {
 					mode = "leaf"
 					if name == "first" {
@@ -782,6 +789,10 @@ func (execution *childTestExecution) Step(_ context.Context, signals []Signal) (
 		execution.state.Phase = "done"
 		output, _ := EncodeOutput(childTestOutput{})
 		return Complete(1, output)
+	case "leaf_paused":
+		execution.state.Phase = "done"
+		output, _ := EncodeOutput(childTestOutput{})
+		return Complete(0, output)
 	default:
 		return Transition{}, errors.New("child test execution cannot advance")
 	}

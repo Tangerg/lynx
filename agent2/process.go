@@ -237,6 +237,7 @@ type processController struct {
 	startedAt          time.Time
 	commands           chan processCommand
 	done               chan struct{}
+	treeSettled        chan struct{}
 
 	viewMu      sync.RWMutex
 	viewStatus  Status
@@ -259,7 +260,8 @@ func newProcessController(
 	return &processController{
 		id: relation.ProcessID(), deployment: deployment, relation: relation,
 		budget: budget, capabilities: capabilities, treeLimits: treeLimits, startedAt: startedAt,
-		commands: make(chan processCommand, 32), done: make(chan struct{}), viewStatus: status,
+		commands: make(chan processCommand, 32), done: make(chan struct{}),
+		treeSettled: make(chan struct{}), viewStatus: status,
 	}
 }
 
@@ -317,6 +319,8 @@ func (controller *processController) complete(result Result, snapshot Snapshot, 
 	close(controller.done)
 }
 
+func (controller *processController) markTreeSettled() { close(controller.treeSettled) }
+
 func (controller *processController) terminalResult() Result {
 	controller.viewMu.RLock()
 	defer controller.viewMu.RUnlock()
@@ -348,6 +352,7 @@ const (
 	commandCapture
 	commandChildrenCompleted
 	commandParentTerminated
+	commandQuiesce
 )
 
 type processCommand struct {
@@ -356,6 +361,7 @@ type processCommand struct {
 	settlement        Settlement
 	internalSignal    Signal
 	parentTermination Termination
+	release           <-chan struct{}
 	reason            string
 	response          chan processResponse
 }

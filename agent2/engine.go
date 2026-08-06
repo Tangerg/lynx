@@ -68,12 +68,13 @@ type EngineConfig struct {
 // Signal delivery, Effect dispatch, and snapshot boundaries. It contains no
 // Deployment catalog or Host persistence abstraction.
 type Engine struct {
-	acknowledger PreparedStepAcknowledger
-	resolver     DeploymentResolver
-	observation  *observationBus
-	limits       Limits
-	treeLimits   TreeLimits
-	capabilities CapabilitySet
+	acknowledger    PreparedStepAcknowledger
+	resolver        DeploymentResolver
+	observation     *observationBus
+	limits          Limits
+	treeLimits      TreeLimits
+	capabilities    CapabilitySet
+	treeOperationMu sync.Mutex
 
 	mu         sync.RWMutex
 	processes  map[ProcessID]*processController
@@ -202,38 +203,19 @@ func (engine *Engine) Restore(ctx context.Context, deployment Deployment, snapsh
 	if !deployment.Valid() {
 		return nil, ErrInvalidDeployment
 	}
-	wire, err := snapshot.wire()
+	controller, runtime, wire, err := prepareRestoredProcess(engine, deployment, snapshot)
 	if err != nil {
 		return nil, err
 	}
-	if wire.Deployment != deployment.Reference() {
-		return nil, fmt.Errorf("%w: exact Deployment does not match", ErrInvalidSnapshot)
-	}
-	execution, err := restoreExecution(deployment.Definition(), wire.LastStable)
-	if err != nil {
-		return nil, fmt.Errorf("%w: restore Execution: %w", ErrInvalidSnapshot, err)
-	}
-	mailbox, err := restoreSignalMailbox(wire.Mailbox)
-	if err != nil {
-		return nil, fmt.Errorf("%w: mailbox: %w", ErrInvalidSnapshot, err)
-	}
-	relation, err := processRelationFromWire(wire.ProcessID, wire.Relation)
-	if err != nil {
-		return nil, fmt.Errorf("%w: relation: %w", ErrInvalidSnapshot, err)
-	}
-	controller := newProcessController(
-		relation, wire.Deployment, wire.Budget, wire.Capabilities, wire.TreeLimits,
-		wire.StartedAt, wire.Status,
-	)
-	runtime, err := restoreProcessRuntime(engine, controller, deployment, execution, mailbox, wire)
-	if err != nil {
-		return nil, err
+	if !controller.relation.IsRoot() || wire.ReservedBudget != (Budget{}) || hasOpenChildWait(wire.Mailbox) {
+		return nil, ErrTreeSnapshotRequired
 	}
 	if err := engine.register(controller); err != nil {
 		return nil, err
 	}
 	if wire.Status.Terminal() {
 		controller.complete(runtime.result(), snapshot, nil)
+		controller.markTreeSettled()
 		return &Process{controller: controller}, nil
 	}
 	go runtime.run(normalizedContext(ctx))

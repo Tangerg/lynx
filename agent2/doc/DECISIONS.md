@@ -220,3 +220,11 @@
 - 决策：child failure 不自动改写 parent 终态，而是作为 `ChildOutcome` 交给 parent Execution 显式裁决；child wait 只能引用直接 child，不能跨层等待 descendant 或 ancestor。
 - 原因：树形身份必须对应树形所有权。让子级脱离已终止父级会破坏预算、能力、恢复和清理边界；另一方面，把任一 child failure 硬编码成 parent failure 会抹掉 all/any/quorum、fallback 和容错编排的策略语义。
 - 限定：传播不抢占正在结算的 Effect。in-flight 副作用先按 prepared-step 合同取得 definite/unknown settlement，然后才在安全边界提交后代终态；Framework 不提供静默放弃副作用的旁路。
+
+## ADR-A2-033：Process tree 是不可拆分的恢复单位
+
+- 状态：已接受；补强 ADR-A2-012、ADR-A2-024 和 ADR-A2-031。
+- 决策：单 `Snapshot` 只恢复没有 child relation、未划拨 child budget、没有活动 child wait 的独立 root；一旦形成 Process tree，必须通过包含全部 Process snapshot 与 Engine-owned 活动 direct-child wait 的 `TreeSnapshot` capture/restore。不能把 child snapshot 伪装成新 root，也不能只恢复父级并丢弃其预算和后代。
+- 决策：一致 tree capture 使用 Engine 私有、不可观察为 Process 状态的 quiescence barrier。每个 Process 在 prepared Effect 按既有 settlement 合同收口后的安全边界停止新 Step；barrier 期间仍接受 child completion 与 parent termination，其他控制命令延后并在释放后保持到达顺序。tree restore 在任何 goroutine 启动前完成全部 schema、exact Deployment、relation、attenuation、budget、limit 与 wait 校验，并在一个 Engine 临界区原子注册整棵树。
+- 原因：逐个 Process 的独立 snapshot 无法单独表达 Engine 拥有的 parent/child identity 和 active child wait，顺序 capture 还可能在 child 已终态而 parent completion 尚未入 mailbox 的间隙永久丢信。将这些事实留在完整 tree wire，并让内部通知在 barrier 中排空，才能得到可重放的一致 cut。
+- 限定：`TreeSnapshot` 仍只是 Framework portable value，不拥有 Store、transaction、CAS、revision、lease、retention 或恢复调度政策。prepared dispatcher Effect 的业务幂等仍遵守原 replay contract；tree snapshot 不把稳定 EffectID 夸大为外部 exactly-once。

@@ -177,6 +177,22 @@ func (mailbox *signalMailbox) commit(consumed uint32) error {
 	return nil
 }
 
+func (mailbox *signalMailbox) consumedChildWaitIDs(consumed uint32) ([]WaitID, error) {
+	remaining := uint64(len(mailbox.records)) - mailbox.cursor
+	if uint64(consumed) > remaining {
+		return nil, errMailboxCursor
+	}
+	var waitIDs []WaitID
+	for _, record := range mailbox.records[mailbox.cursor : mailbox.cursor+uint64(consumed)] {
+		waitID, addressed := record.signal.WaitID()
+		wait, exists := mailbox.waits[waitID]
+		if addressed && !record.opensWait && exists && !wait.externallyAddressable {
+			waitIDs = append(waitIDs, waitID)
+		}
+	}
+	return waitIDs, nil
+}
+
 func (mailbox *signalMailbox) sequence() uint64 { return uint64(len(mailbox.records)) }
 
 func (mailbox *signalMailbox) consumedSequence() uint64 { return mailbox.cursor }
