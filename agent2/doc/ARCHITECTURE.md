@@ -129,8 +129,9 @@
 | `Engine` | 驱动 Process、执行状态迁移和父子调度的唯一执行内核 | 产品 Session runtime、部署市场 |
 | `Platform` | 可选的多 Definition 部署、目录、路由和治理容器 | Engine 的同义词 |
 | `Strategy` | Interaction、Planning 及通过准入的新主执行语义 | Extension |
-| `Action` | 框架内可组合、具有类型化输入输出的操作 | LLM Tool 的同义词 |
+| `Planning Action` | Planning 中具有前置条件、预测效果和成本的不可变搜索操作 | 可执行函数、LLM Tool |
 | `Tool` | 暴露给模型选择和调用的 JSON/Schema 能力 | 所有 Action |
+| `Delegate` | 以模型可理解的 Tool 合同暴露一个 exact child Deployment 的 Interaction 组合值 | 通用 Action、Platform 路由、Dispatcher 私自启动 Process |
 | `Child Process` | 由另一个 Process 启动的普通 Process | 独立的 `SubAgent` 类型 |
 | `Snapshot` | 可移植的执行状态捕获 | Store、事务或审计日志 |
 | `Waiting` | 正在等待已声明的外部条件 | 人工暂停 |
@@ -425,7 +426,7 @@ GOAP 适合目标可机器验证、存在多条路径、Action 前置条件/效�
 
 ### 7.4 Orchestrator-worker 组合
 
-旧语境中所谓 Supervisor 当前统一称为 orchestrator-worker 组合：它由 Interaction、Workflow、Action-to-Tool adapter、typed artifacts、completion validator 和 child Process 构成，不是独立 Strategy、独立 ExecutionState kind 或预建 package。只有未来实现证明它具有这些既有能力无法表达的独立推进与恢复语义，才通过新 ADR 重新申请 Strategy 准入。
+旧语境中所谓 Supervisor 当前统一称为 orchestrator-worker 组合：它由 Interaction、Workflow、managed Delegate、typed artifacts、completion validator 和 child Process 构成，不是独立 Strategy、独立 ExecutionState kind 或预建 package。只有未来实现证明它具有这些既有能力无法表达的独立推进与恢复语义，才通过新 ADR 重新申请 Strategy 准入。
 
 ### 7.5 新策略准入
 
@@ -435,27 +436,15 @@ GOAP 适合目标可机器验证、存在多条路径、Action 前置条件/效�
 
 ---
 
-## 8. Action 与 Tool
+## 8. Planning Action、Tool 与 Delegate
 
-Action 是框架可组合的类型化操作，表达稳定名称、准确描述、输入输出契约、执行行为以及明确错误和副作用语义。Execution 不在 Step 内直接执行 Action；Strategy dispatcher 按 Effect 执行并把结果作为 Signal 返回。Planning 使用 `PlannedAction` 为 Action 增加 Preconditions、Effects、Cost 和 Value，不污染所有 Action。
+`planning.Action` 只表达 Planning 搜索使用的稳定名称、准确描述、Preconditions、预测 Effects 和 Cost。它没有 JSON 输入输出、执行函数或外部副作用语义；`ActionBinding` 才把预测操作绑定到 dispatcher executor 或 exact child Deployment，`PlannedAction` 只是 Planner 输出的稳定引用。因此 Framework 不再虚构一个与 `planning.Action` 同名的通用可执行 Action，也不提供无法从预测元数据推出的通用 Action-to-Tool adapter。
 
-Tool 是提供给模型的可调用协议，强调模型可理解的名称、描述、参数 schema 和结果。Action 可以适配成 Tool，但二者不是同义词：
+Tool 是提供给模型的可调用协议，强调模型可理解的名称、描述、参数 schema 和文本结果。Tool 可以直接来自 MCP、Host 或普通 Go adapter，不一定参与 Planning；权限、sandbox、once-only、产品审批、事务和业务幂等属于具体装配边界。
 
-- 普通框架 Action 不一定应暴露给模型。
-- Tool 可能直接来自 MCP 或 Host，不一定参与 GOAP。
-- 权限、sandbox、once-only、产品审批和事务属于 Host 装配策略。
+当模型必须选择一个拥有独立生命周期的 worker 时，Interaction 使用 `Delegate`：它冻结模型友好的 Tool 名称/描述、一个 exact child Deployment、每次调用的 Budget 与衰减 Capabilities。模型参数只表达目标 child Descriptor 的业务 Input；ProcessID、DeploymentRef、递归深度、预算、权限、版本和父子关系都由 Definition 与 Engine 决定，不能让模型填写。Interaction Execution 识别 Delegate 调用并通过 Framework `StartChild`/`WaitForChildren` 推进；Dispatcher 和普通 Tool 不获得第二个 Process 创建入口。
 
-子 Process 是 Engine 原语。在 Interaction 及 orchestrator-worker 组合中，可以把它适配成模型友好的 `delegate_task` Tool；Planning 直接使用框架组合 API。
-
-模型参数只表达任务语义：
-
-```text
-task             子任务的具体目标和边界
-expected_output  返回结果和验收要求
-agent            可选目标 Definition；省略时由明确路由策略选择
-```
-
-Process ID、递归深度、预算、权限、版本和父子关系由 Engine 决定，不泄露给模型填写。
+未来 P8 若由 Platform catalog 动态路由 worker，必须另行证明一个通用 `delegate_task` Tool 的选择、版本和权限合同；它不能偷偷把 exact Delegate 变成字符串 registry lookup。
 
 ---
 

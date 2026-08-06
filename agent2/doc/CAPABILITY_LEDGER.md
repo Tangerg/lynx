@@ -63,7 +63,7 @@
 | fork/map/join | 并行 section/vote/reduce | `flow`（in-process）或 Workflow + child Process（managed） | 按生命周期拆分重写 | P4、P6 | 显式窗口、真实 child、声明顺序和 tree restore |
 | Supervisor | 动态 worker、结果综合 | Interaction + child Process composition | 移除独立 Strategy 预设 | P7 | 无独立 kind/package；组合行为测试 |
 | evaluator-optimizer | Anthropic pattern | `flow.Loop` 或 Workflow Loop + evaluator child | 延后重写 | P7 | 明确终止条件、质量门槛和 limit exhausted 结果 |
-| Action-to-Tool adapter | 模型选择 framework Action | Interaction 与 child Process 组合 | 重新实现 | P7 | 名称/schema/结果准确，不混淆 Action/Tool |
+| managed Delegate | 模型选择 exact framework worker | Interaction 与 child Process 组合 | 重新实现；取代不可成立的通用 Action-to-Tool | P7 | 模型名称/描述/schema 准确；Execution 经 Framework Effects 启动 child |
 
 ## 5. 扩展、依赖与观察
 
@@ -194,7 +194,7 @@
 - 移除 Sequence 的 `LatestObjectBindingName`、Loop/Repeat 的 Blackboard History/Binding/computed Condition、Team 的 Definition 合并和 snapshot binding 拼接。数据流必须是严格 schema 的 immutable wire value，跨 Strategy 状态只存在于 child Process。
 - 移除 Parallel/ScatterGather、Loop/RepeatUntil、Vote/Consensus 等重复公共入口；每组只保留一个准确术语。旧默认迭代次数不复制，Loop 的终止上限必须显式。
 - `RepeatUntilAcceptable`/Feedback/AttemptHistory 不在 P6 建立独立节点；其真实语义属于 P7 evaluator-optimizer，由 Loop、child evaluator Definition 与 typed artifact 组合。
-- `Supervisor` 不建立独立 Workflow kind/package；继续遵守 ADR-A2-020，在 P7 由 Interaction、Workflow、Action-to-Tool 和 child Process 组合。
+- `Supervisor` 不建立独立 Workflow kind/package；继续遵守 ADR-A2-020，在 P7 由 Interaction、Workflow、managed Delegate 和 child Process 组合。
 - `Team` 将多个 Agent 的 Action/Goal/Condition 合并为一个共享生命周期，会重新引入名称冲突、状态串扰和 GOAP 中心化，整体移除；组合只通过显式节点和 child Process。
 - 旧 `routing.Router` 对活动 Deployment catalog 的 Candidate/Ranker/Confidence 选择属于 P8 Platform routing，不进入 Workflow。P6 Switch 只在一个已冻结 Definition 的显式分支表内选择，不扫描 catalog。
 
@@ -284,3 +284,20 @@
 - API 人体工程学审计将 Fork/Map 参数从容易暗示滑动补位的 `Concurrency` 治本改名为 `WindowSize`；GoDoc 明确整窗 start/settle 后才进入下一窗。代码、测试、架构、ADR、台账和示例只保留这一术语，没有 alias 或兼容字段。
 - 无真实消费者的 `StageKind`、Stage metadata getters 与 `Definition.Stages` 已收回包内。它们只能形成不完整反射面，无法重建 pure function、child binding 或 configuration digest，也没有资格预占未来 P8 catalog/编辑器合同。Stage 仍只暴露 sealed value、typed constructors 与零值有效性判断。
 - Baseline 3 新增 workflow 完整 exported API/GoDoc digest `0493f8f7ae6e4cc5a3190735c5d02952ec0e0fdb230794bbb01735b8ecfae055`；root、Interaction、Planning、GOAP 与 snapshot/tree wire digest 沿用 Baseline 2 并继续通过。P6 没有为 Workflow 扩张 Kernel 公开合同或 wire。
+
+## 11. P7 组合模式专项审计证据
+
+### 11.1 Embabel supervisor/utility/hybrid 与旧模块裁决
+
+审计基线是 clean `/Users/tangerg/Desktop/embabel-agent` main `e2d7b987c`，以及当前仓库旧 `agent` 的 supervisor、utility、AgentTool 与 RepeatUntilAcceptable 实现。上游 targeted tests 的源代码一并核对；本机没有 Maven wrapper 或 `mvn` 可执行文件，因此本轮不伪报运行了 Embabel 测试。Anthropic 的 [Building effective agents](https://www.anthropic.com/engineering/building-effective-agents) 继续作为模式定义证据：orchestrator-workers 的差异是子任务由模型按输入动态决定，evaluator-optimizer 只有在评价标准清晰且反馈能可测改善结果时才值得增加复杂度。
+
+| 证据 | 保留的语义 | 治本拒绝的实现形态 | P7 owner |
+|---|---|---|---|
+| Embabel `HybridUtilityPlanner` 与旧 `planning/utility` | goal-satisfied 必须先于候选评分；同分保持声明顺序；非法 cost/value 必须失败 | NIRVANA sentinel、多 Goal 暗中仲裁、单步 greedy 被包装成新 Strategy、未有消费者就恢复 utility package | 继续作为未来 `planning.Planner` 证据；P7 不实现 |
+| Embabel `SupervisorInvocation`/`SupervisorAction` | schema-informed worker 描述、typed goal、每轮重看已结算结果、显式正数上限 | 把全部 worker 藏进一个 synthetic Action、Action 内模型 while-loop、hard-coded 10、到限只日志、按 Blackboard 类型存在猜完成 | Interaction + managed Delegate + completion validator |
+| Embabel `CurriedActionTool`/typed supervisor tests | 模型参数应尽量只含尚需提供的任务语义，名称/描述/schema 必须针对模型设计 | mutable Blackboard、thread-local AgentProcess、按运行时类型 currying 并改变 Tool schema、直接 `Action.execute` | exact Delegate 的静态 Tool schema；已知 artifact 进入模型上下文，不改写冻结 manifest |
+| Embabel artifact sinks | Tool/worker 结果可作为后续模型决策的结构化证据 | `Any` sink、全局 Blackboard、按 class name 过滤、把产品 artifact store 下沉 Framework | Strategy-owned immutable typed artifact state |
+| 旧 Go `workflow.Supervisor`/`runtime.AgentTool` | 模型可以选择 worker；worker 应有 child Process identity、预算、取消和恢复 | builder 持有 Engine、Tool callback 从 context 反查 parent、直接 RunChild、GOAP 外壳套 ReAct | Interaction Execution 经 StartChild/WaitForChildren；Tool/Dispatcher 无 Engine |
+| 旧 `RepeatUntilAcceptable` | attempt/feedback history、显式 threshold/limit、best-so-far 不被较差后续结果覆盖 | Task/Evaluator I/O 藏在 Action、Blackboard binding、默认 limit、把 loop 编译成 GOAP | Workflow Loop + optimizer/evaluator child + typed state |
+
+关键结论：当前代码没有一个“通用 framework Action”。`planning.Action` 是预测搜索值，缺少 Tool 的 JSON I/O 和执行行为；从它自动产生 Tool 在类型和副作用语义上都不成立。P7-02 因此按 ADR-A2-040 改为 exact child Deployment 的 managed Delegate。该桥接必须把模型友好的 name/description 与 Engine-owned child identity 分开，参数直接采用目标 Input schema，结果验证目标 Output schema；它不引入 Supervisor package、动态 registry 或第二 Process 启动入口。

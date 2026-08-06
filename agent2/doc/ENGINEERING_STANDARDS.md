@@ -321,7 +321,7 @@ Extension 只承载可选横切行为。忽略后会破坏所有实现正确性�
 | Strategy | Execution Strategy、Planner | 真实存在替换，不为单实现造接口 |
 | State | Process 合法状态转换 | 状态较少时直接方法/表驱动，不建立类层次 |
 | Composite | `flow` 的同进程 Node、Workflow 的有序 Stage | 组合必须共享真实输入输出和生命周期合同；不能跨越 Process owner 假装同层 |
-| Adapter | Action-to-Tool、外部集成 | 只转换边界，不吸收业务策略 |
+| Adapter | managed Delegate、外部集成 | 只转换边界，不吸收业务策略 |
 | Decorator/Middleware | Tool、Action、模型调用横切行为 | 顺序、副作用和错误语义明确 |
 | Factory | Definition 创建/恢复 Execution | 无替换边界时返回 concrete value；窄腰处遵守 Execution 合同，不建立抽象工厂家族 |
 | Specification | Planning Condition | 仅在组合和可解释评估确有价值时使用 |

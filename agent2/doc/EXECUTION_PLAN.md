@@ -3,7 +3,7 @@
 > 状态：持续实施
 > 建立日期：2026-08-06
 > 最后更新：2026-08-06
-> 当前阶段：P6 managed Workflow，11/11 完成
+> 当前阶段：P7 组合模式与能力覆盖，1/7 完成
 > 当前实施范围：仅 `agent2`
 > 临时模块路径：`github.com/Tangerg/lynx/agent2`
 > 最终模块路径：`github.com/Tangerg/lynx/agent`
@@ -73,7 +73,7 @@ go test ./...
 | P4 子 Process 组合与合同冻结 | 完成 | 9/9 | start/wait、递归、组合、预算、取消、恢复；多消费方验证后冻结窄腰 |
 | P5 Planning 与 GOAP | 完成 | 8/8 | Planning 状态、Planner SPI、GOAP 搜索与 replan |
 | P6 managed Workflow | 完成 | 11/11 | 以有序 Stage 和真实 child Process 实现可恢复确定性编排，`flow` 保持独立 in-process 边界 |
-| P7 组合模式与能力覆盖 | 未开始 | 0/7 | 动态 worker 组合、typed artifacts、evaluator/optimizer、示例 |
+| P7 组合模式与能力覆盖 | 进行中 | 1/7 | 动态 worker 组合、typed artifacts、evaluator/optimizer、示例 |
 | P8 Platform 与治理 | 未开始 | 0/7 | resolver、deployment catalog、版本、路由、递归治理和观测 |
 | P9 独立完整性验收 | 未开始 | 0/6 | API/wire/arch/race/fuzz/examples/standalone 全绿 |
 | P10 消费迁移 | 未开始 | 0/5 | 单独迁移 `app/runtime` 及批准的直接消费者 |
@@ -166,8 +166,8 @@ go test ./...
 
 ### P7：组合模式与能力覆盖
 
-- [ ] P7-01 审查 Embabel supervisor、utility、hybrid 及旧实现并记录裁决。
-- [ ] P7-02 实现 Action-to-Tool adapter，不混淆 Action 与 Tool。
+- [x] P7-01 审查 Embabel supervisor、utility、hybrid 及旧实现并记录裁决。
+- [ ] P7-02 实现 exact child Deployment 的 managed Delegate，不虚构通用 Action-to-Tool，Tool/Dispatcher 不直接启动 Process。
 - [ ] P7-03 实现 typed artifact state 和 completion validator。
 - [ ] P7-04 使用 P6 最终裁决的唯一确定性编排边界、Interaction、Planning 和 child Process 组合模型动态拆分、worker 调度和结果综合，不新增 Supervisor package/kind/lifecycle。
 - [ ] P7-05 实现 evaluator-optimizer 组合。
@@ -254,6 +254,7 @@ go test ./...
 
 | 日期 | 阶段 | 实际事实 | 验证与结果 |
 |---|---|---|---|
+| 2026-08-06 | P7 | 只读审计 clean Embabel main `e2d7b987c` 的 HybridUtilityPlanner、UtilityPlanner、SupervisorInvocation、SupervisorAction、CurriedActionTool、typed supervisor/artifact tests，以及旧 Go supervisor、utility、AgentTool、RepeatUntilAcceptable。确认 Embabel Hybrid 是 satisfaction-first 的单步 greedy planner，不是新执行生命周期；Supervisor 本质是一个 synthetic Action 内的模型 Tool loop，依靠 mutable Blackboard、runtime type currying、thread-local Process 和直接 Action execution，且 max iterations 硬编码为 10、耗尽只记录日志。保留 schema-informed worker manifest、typed goal、每轮重看结果、显式 limit、attempt/feedback/best-of-N；拒绝 Blackboard/type-name completion/Action 内 while-loop/Engine-owning Tool。审计同时发现目标架构虚构了尚不存在的通用 Framework Action：当前 `planning.Action` 明确只有预测语义，无法诚实推出 Tool schema 或执行行为。追加 ADR-A2-040，将 P7-02 治本改为 Interaction-owned managed Delegate：模型友好 Tool 合同 + exact child Deployment，Execution 只经 Framework child Effects 推进 | Embabel 仓库保持 clean；targeted upstream tests 源码已核对。本机没有 Maven wrapper 或 `mvn`，因此没有虚报上游测试执行。`agent2` 仅修改事实/架构文档，Baseline 3 代码和 wire 零变化；diff check 与 standalone build/vet/test 保持全绿。P7-01 完成，P7 更新为 1/7 |
 | 2026-08-06 | P6 | 完成独立 `examples/workflow` command consumer：只使用公开 API 装配一个 Call→Fork root Workflow，Call 的 normalizer 与两个 Fork reviewer 都是独立 Workflow Deployment；Engine resolver 只按 exact DeploymentRef 提供三个 child，最终 tree 恰好包含 root + 3 child。消费者审计发现公开 `Concurrency` 实际表达“整窗结算后再开下一窗”，不是持续补位的并发池，因此在冻结前治本改名为 `WindowSize`，生产字段、内部状态、测试、GoDoc 和稳定文档统一术语。反向审计进一步删除没有真实消费者的 `StageKind`、Stage ID/kind/schema getters 与 `Definition.Stages`；这些半套反射 API 既不能重建配置，也不应提前冒充 P8 编辑器/catalog 合同。保留的 Stage 仍是 sealed immutable value，只经六个 typed constructor 产生。追加 ADR-A2-039，并将 workflow exported API/GoDoc 纳入 Baseline 3；根公开 API、Snapshot v3 与 TreeSnapshot v1 wire digest 均未变化 | command 输出稳定为规范化请求、声明顺序 reviews 和 `processes: 4`；四个独立 examples 全部真实运行。workflow API digest 冻结为 `0493f8f7ae6e4cc5a3190735c5d02952ec0e0fdb230794bbb01735b8ecfae055`，既有四个 package digest 与 snapshot/tree wire digest 继续通过。standalone mod tidy/build/vet/staticcheck/test/race 全绿；P6-11 完成，P6 更新为 11/11 |
 | 2026-08-06 | P6 | 完成 Workflow 恢复与边界合同。ExecutionState strict codec 继续拒绝未知字段、错误 kind/version 及与 Stage/phase 矛盾的 child/fan-out/loop 游标；所有缺失或错配的 child start、wait-open、completion Signal 以及任何 dispatcher Effect 都统一归类为 `ErrInvalidProtocol`。真实 Fork tree 在 root Waiting、两个 child Paused 时 capture，销毁原 Engine 后由 exact resolver 恢复；逆序恢复第一窗口只创建一次第三 child，最终输出与四 Process tree 都稳定。Host cancel 正确映射 root/child 的 host/parent cancellation；child Budget 与 Capability 继续由 Engine 拒绝升级。等待恢复测试发现共同 Kernel 在 parent 于 child wait 期间终止时只注销 Engine 登记、却未关闭 terminal Snapshot 中 mailbox wait 的不变量缺口；现由终止提交统一关闭全部 wait，并以稳定顺序注销内部 child wait，没有增加 Workflow 字段或改变 snapshot wire | 新增终态 tree 回归、恢复无重复 child、取消传播、预算/能力衰减、零协议 Dispatcher、sealed Stage AST 与 strict-state fuzz 合同；fuzz 2 秒执行 260682 次无失败，Workflow statement coverage 78.5%。standalone build/vet/staticcheck/test/race 全绿，Workflow race 连续 50 次、Kernel 终态 wait 回归 race 连续 50 次全绿；P6-10 完成，P6 更新为 10/11 |
 | 2026-08-06 | P6 | 新增 typed `Loop[T]` Stage，唯一合同是输入 T、每轮 exact Body child 执行 T→T、最终输出 `LoopResult[T]{Value,Iterations,Satisfied}`。Body、每轮 Budget、attenuated Capabilities、正数 MaxIterations 与 pure Predicate 全部在构造期冻结；Body 输入/输出 schema 必须与 T 精确相等。Execution 总是先启动 iteration=1 的真实 child，只在 child 成功并验证 Output 后执行 predicate；满足时以 Satisfied=true 完成，未满足且达到上限时以 Satisfied=false 正常完成，不把 exhausted 伪装成 predicate 成功或 Process failure。每轮 ChildKey/WaitKey 纳入一基 iteration，下一轮只有上一轮 child 完整结算后才开始；LoopIteration 进入 strict ExecutionState，最终离开 Stage 时清零。Loop 沿用单 child start/wait 状态机，没有内嵌第二 Execution、Go for-loop 执行 body 或独立 scheduler | 三个真实 Engine 场景分别验证 0→3 在第 3 轮 satisfied、0→2 在第 2 轮 exhausted、初值 3 仍先执行一次得到 4/iterations=1/satisfied。每个终态 TreeSnapshot 恰好包含 root + Iterations 个 Process，直接证明每轮独立身份与至少一次语义；body execution failure 映射为 `workflow.loop.child_failed`。zero MaxIterations、nil Predicate 和非 T→T Body 在构造期拒绝，零值 LoopResult 非法。standalone race、vet、staticcheck 全绿；P6-09 完成，P6 更新为 9/11 |
@@ -300,6 +301,6 @@ go test ./...
 
 ## 9. 当前下一步
 
-P1–P6 已完成。Baseline 3 已由 Interaction、Planning、GOAP、Workflow、四个独立 command consumer、递归 child Process、tree recovery、race 和 fuzz 共同冻结；`flow` 继续只负责 in-process 组合，Workflow 只负责编排真实 child Process，二者没有依赖或 adapter。下一轮从 P7-01 开始重新审查 Embabel supervisor/utility/hybrid 与旧实现，再按真实组合需求实施 Action-to-Tool、typed artifacts、completion validator、orchestrator-worker 和 evaluator-optimizer；不得新增 Supervisor runtime 或污染已冻结窄腰。
+P1–P6 已完成，P7-01 已完成。Baseline 3 继续由 Interaction、Planning、GOAP、Workflow、四个独立 command consumer、递归 child Process、tree recovery、race 和 fuzz 保护。下一轮 P7-02 只实现 Interaction-owned managed Delegate：exact child Deployment 显式变成模型可见能力，但 child start/wait/restore 仍由 Interaction Execution 经 Framework Effects 推进；不创建通用 Action、Supervisor runtime、Engine-owning Tool、动态 registry 或 Kernel 字段。
 
 在 P1–P9 完成前，不迁移 `app/runtime`，不删除旧 `agent`，不发布 `agent2` 稳定版本。

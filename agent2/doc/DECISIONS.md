@@ -78,9 +78,9 @@
 
 ## ADR-A2-011：Action 与 Tool 分离
 
-- 状态：已接受。
-- 决策：Action 是框架类型化操作，Tool 是模型可调用协议；通过 adapter 组合，不共享含混基类型。
-- 原因：二者的消费者、描述要求和治理边界不同。
+- 状态：已接受；由 ADR-A2-040 按真实 P5/P7 类型模型细化。
+- 决策：`planning.Action` 是 Planning 的预测搜索操作，Tool 是模型可调用协议；两者不共享含混基类型，也不存在通用自动 adapter。exact child worker 通过 Interaction-owned Delegate 暴露为模型能力。
+- 原因：二者的消费者、描述要求和治理边界不同；预测 Preconditions/Effects/Cost 无法推出 Tool 的 JSON I/O 或执行行为。
 
 ## ADR-A2-012：Framework snapshot 与 Host persistence 分层
 
@@ -135,7 +135,7 @@
 ## ADR-A2-020：Supervisor 先作为组合方式而非独立 Strategy
 
 - 状态：已接受；取代 ADR-A2-006 中将 Supervisor 预先列为平等 Strategy 的部分，Interaction、Planning 和 Workflow 的一等 Strategy 地位不变。
-- 决策：Supervisor 由 Interaction、Workflow、Action-to-Tool、typed artifacts、validator 和 child Process 组合，不预建独立 ExecutionState kind 或 package。
+- 决策：Supervisor 由 Interaction、Workflow、managed Delegate、typed artifacts、validator 和 child Process 组合，不预建独立 ExecutionState kind 或 package。
 - 原因：当前没有证据证明 Supervisor 拥有无法由既有 Strategy 表达的独立推进与恢复语义；预先升格违反新 Strategy 准入规则。
 - 后果：只有真实实现证明独立生命周期后，才能追加 ADR 重新申请准入。
 
@@ -290,3 +290,12 @@
 - 决策：Baseline 3 在 Baseline 2 的 root、Interaction、Planning、GOAP、Process Snapshot v3 与 TreeSnapshot v1 之上新增 `workflow` package 的完整 exported API/GoDoc digest。P6 没有改变根公开 API 或 snapshot/tree wire；terminal child wait 修复只闭合既有私有不变量。
 - 决策：Fork/Map 的公开窗口参数最终冻结为 `WindowSize`，因为实现是整窗结算后再开下一窗，不是持续补位的并发池。Stage 继续是不可由用户实现的 sealed value；未被真实消费者证明的 `StageKind`、Stage metadata getters 与 `Definition.Stages` 全部收回包内，避免把半套反射 API 误冻成编辑器合同。保留的 Definition、typed constructors、zero-state Dispatcher 与四类 sentinel error 都由真实实现和 consumer 直接使用或审计，不再增加 builder、registry、adapter、alias 或 convenience wrapper。
 - 限定：Baseline 3 仍不是发布兼容承诺。开发阶段允许有证据的治本 breaking change，但必须先追加决策、同步基线守卫并重跑所有消费者；P7 组合 helper、P8 Platform 和 P10 应用迁移不能借此向 Workflow 注入 Host、Store、Journal、Graph 或 scheduler 抽象。
+
+## ADR-A2-040：拒绝通用 Action-to-Tool，并以 managed Delegate 组合 worker
+
+- 状态：已接受；细化 ADR-A2-011 与 ADR-A2-020，并纠正目标架构中尚未被代码证明的通用 Action 假设。
+- 证据：当前 `planning.Action` 已由 P5/Baseline 3 冻结为纯预测搜索值，只拥有名称、描述、Preconditions、预测 Effects 和 Cost；执行能力单独存在于 dispatcher/child `ActionBinding`。它没有 Tool 所需的参数/result schema，也没有可在 Tool 调用中诚实执行的函数。旧 Go 模块的 Supervisor/AgentTool 与 Embabel `SupervisorAction`/`CurriedActionTool` 都通过 Engine/ProcessContext/Blackboard/thread-local 反向获得执行能力并直接驱动 child 或 Action，正是新架构已移除的第二生命周期入口与共享可变状态。
+- 决策：Framework 不新增通用可执行 `Action`、不把 `planning.Action` 改装成 Tool，也不保留 `Action-to-Tool` 名称。普通外部能力直接实现 Tool；Planning 继续只经 `ActionBinding` 执行。模型选择 framework worker 的唯一 P7 桥接命名为 `Delegate`，它是 Interaction-owned 的 immutable composition value，而不是新 Strategy 或通用基类。
+- 决策：Delegate 必须显式冻结模型友好的 Tool 名称和描述、exact child Deployment、每次调用 Budget 与 attenuated Capabilities；参数 schema 取自目标 Descriptor Input，成功结果必须由目标 Descriptor Output 验证。Interaction Execution 经 Framework child Effect 启动、等待和恢复 child，Dispatcher、Tool callback 和 adapter 不持有 Engine 或直接创建 Process。首版只支持静态 exact Delegate；动态 catalog/routing 留给 P8。
+- 决策：Embabel 值得保留的思想是 schema-informed worker manifest、显式 typed goal、每轮根据已结算 artifact 决策、单次选择一个动作和正数 iteration limit。拒绝 mutable Blackboard、按 type-name 猜完成、运行时 currying 改写 Tool schema、一个 Action 内 while-loop/直接执行其他 Action、hard-coded limit 以及把到达 limit 只写日志。typed artifacts 和 completion validator 必须是 Strategy-owned portable state/显式结果，不进入 Kernel。
+- 限定：如果未来真实实现证明多个模型 Tool 需要共享一个非 child 的通用可执行 operation，必须以新的名称和独立消费证据申请；不能重新占用 Action 或让一个 adapter 同时拥有 Planning、Tool、Process lifecycle 和 Host policy。
