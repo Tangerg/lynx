@@ -80,10 +80,7 @@ func (status Status) Valid() bool { return status >= StatusNotStarted && status 
 // Terminal reports whether the Process may never transition again.
 func (status Status) Terminal() bool { return status >= StatusCompleted && status <= StatusKilled }
 
-// CanTransitionTo reports whether the common Process state machine permits one
-// committed transition from status to next. Terminal statuses always return
-// false, which enforces first-terminal-wins.
-func (status Status) CanTransitionTo(next Status) bool {
+func (status Status) canTransitionTo(next Status) bool {
 	switch status {
 	case StatusNotStarted:
 		return next == StatusRunning

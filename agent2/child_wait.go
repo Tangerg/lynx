@@ -124,9 +124,6 @@ type ChildWaitOpened struct {
 // WaitID returns the Engine-minted wait identity to store in Execution state.
 func (opened ChildWaitOpened) WaitID() WaitID { return opened.waitID }
 
-// Spec returns an independently owned copy of the registered wait contract.
-func (opened ChildWaitOpened) Spec() ChildWaitSpec { return cloneChildWaitSpec(opened.spec) }
-
 // Valid reports whether the acknowledgement contains one complete wait.
 func (opened ChildWaitOpened) Valid() bool { return opened.waitID.Valid() && opened.spec.Valid() }
 

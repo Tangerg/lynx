@@ -11,6 +11,7 @@ following documents completely:
 3. [`doc/ENGINEERING_STANDARDS.md`](doc/ENGINEERING_STANDARDS.md) — mandatory implementation and quality standard.
 4. [`doc/EXECUTION_PLAN.md`](doc/EXECUTION_PLAN.md) — authorized scope, phases, progress, and verified facts.
 5. [`doc/CAPABILITY_LEDGER.md`](doc/CAPABILITY_LEDGER.md) — old-capability ownership, verdicts, and acceptance coverage.
+6. [`doc/API_BASELINE.md`](doc/API_BASELINE.md) — accepted exported API and snapshot/tree wire baseline.
 
 The documents have distinct owners. Do not copy progress into architecture,
 copy architecture into the execution log, copy architecture into the capability

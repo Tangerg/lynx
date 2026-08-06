@@ -26,8 +26,8 @@ func TestStatusTransitionMatrix(t *testing.T) {
 	}
 	for _, from := range statuses {
 		for _, to := range statuses {
-			if got, want := from.CanTransitionTo(to), legal[from][to]; got != want {
-				t.Errorf("%s.CanTransitionTo(%s) = %t, want %t", from, to, got, want)
+			if got, want := from.canTransitionTo(to), legal[from][to]; got != want {
+				t.Errorf("%s.canTransitionTo(%s) = %t, want %t", from, to, got, want)
 			}
 		}
 	}

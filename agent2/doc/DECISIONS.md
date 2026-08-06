@@ -228,3 +228,10 @@
 - 决策：一致 tree capture 使用 Engine 私有、不可观察为 Process 状态的 quiescence barrier。每个 Process 在 prepared Effect 按既有 settlement 合同收口后的安全边界停止新 Step；barrier 期间仍接受 child completion 与 parent termination，其他控制命令延后并在释放后保持到达顺序。tree restore 在任何 goroutine 启动前完成全部 schema、exact Deployment、relation、attenuation、budget、limit 与 wait 校验，并在一个 Engine 临界区原子注册整棵树。
 - 原因：逐个 Process 的独立 snapshot 无法单独表达 Engine 拥有的 parent/child identity 和 active child wait，顺序 capture 还可能在 child 已终态而 parent completion 尚未入 mailbox 的间隙永久丢信。将这些事实留在完整 tree wire，并让内部通知在 barrier 中排空，才能得到可重放的一致 cut。
 - 限定：`TreeSnapshot` 仍只是 Framework portable value，不拥有 Store、transaction、CAS、revision、lease、retention 或恢复调度政策。prepared dispatcher Effect 的业务幂等仍遵守原 replay contract；tree snapshot 不把稳定 EffectID 夸大为外部 exactly-once。
+
+## ADR-A2-034：冻结首个经过多策略和多消费者证明的公共基线
+
+- 状态：已接受；落实 ADR-A2-030。
+- 决策：P3 真实 Interaction、P4 child composition 和第二个独立 consumer 全部通过后，将根 kernel、`interaction` package、Process Snapshot v3 与 TreeSnapshot v1 冻结为 Baseline 1。完整 exported signature、参数名、字段、GoDoc 和 snapshot/tree wire shape 由自动 digest 守卫，稳定合同说明独立记录在 `API_BASELINE.md`。
+- 原因：候选窄腰已经同时承载 direct Engine、模型/Tool/HITL/steer Interaction、同 Definition 递归、跨 Strategy child、完整 tree recovery 和三个独立 command consumer；继续不设基线会让无意命名/wire 漂移混入后续 Planning/Workflow 实施，反过来污染已证明的共同层。
+- 限定：Baseline 1 不是兼容层或发布承诺。开发阶段仍允许治本 breaking change，但必须先有真实实现/consumer 证据，追加 ADR，并在同一提交更新基线和全部门禁；禁止 alias、dual-read、dual-write 或预留未来字段。尚未实施的 Planning、Workflow、Platform 与应用迁移 API 不在本基线，不能因此提前占位。

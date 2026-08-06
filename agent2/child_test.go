@@ -310,6 +310,48 @@ func TestEngineEnforcesChildDepthFanoutActiveAndTreeLimits(t *testing.T) {
 	})
 }
 
+func TestTreeProcessLimitBoundsRecursiveBinaryExpansion(t *testing.T) {
+	deployment := newChildTestDeployment(t)
+	limits := DefaultLimits()
+	limits.MaxSteps = 100_000
+	limits.MaxEffects = 100_000
+	limits.MaxSignals = 100_000
+	limits.MaxPendingSignals = 100_000
+	engine, err := NewEngine(EngineConfig{
+		Limits: limits,
+		TreeLimits: TreeLimits{
+			MaxDepth: 8, MaxChildren: 2, MaxActiveChildren: 2, MaxTreeProcesses: 15,
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	input, _ := EncodeInput(childTestInput{Mode: "binary:8"})
+	root, err := engine.Start(context.Background(), deployment, input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result := mustAwait(t, root); result.Status() != StatusCompleted {
+		t.Fatalf("root status = %s", result.Status())
+	}
+	engine.mu.RLock()
+	processCount := 0
+	var deepest uint32
+	for _, controller := range engine.processes {
+		if controller.relation.RootID() == root.ID() {
+			processCount++
+			deepest = max(deepest, controller.relation.Depth())
+		}
+	}
+	engine.mu.RUnlock()
+	if processCount != 15 || deepest > 8 {
+		t.Fatalf("bounded tree Process count = %d, deepest = %d", processCount, deepest)
+	}
+	if err := engine.Close(); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestEngineAttenuatesChildBudgetAndCapabilities(t *testing.T) {
 	read, _ := ParseCapability("resource.read")
 	rootCapabilities, _ := NewCapabilitySet(read)
@@ -622,7 +664,8 @@ type childTestExecution struct {
 func (execution *childTestExecution) Step(_ context.Context, signals []Signal) (Transition, error) {
 	switch execution.state.Phase {
 	case "ready":
-		if execution.state.Mode == "leaf" || execution.state.Mode == "recurse:0" {
+		if execution.state.Mode == "leaf" || execution.state.Mode == "recurse:0" ||
+			execution.state.Mode == "binary:0" {
 			execution.state.Phase = "done"
 			output, _ := EncodeOutput(childTestOutput{})
 			return Complete(0, output)
@@ -664,6 +707,26 @@ func (execution *childTestExecution) Step(_ context.Context, signals []Signal) (
 				childInput, _ := EncodeInput(childTestInput{Mode: mode})
 				key, _ := ParseChildKey(name)
 				effect, err := StartChild(childTestSpec(key, execution.reference, childInput))
+				if err != nil {
+					return Transition{}, err
+				}
+				effects = append(effects, effect)
+			}
+			return Continue(0, effects...)
+		}
+		if strings.HasPrefix(execution.state.Mode, "binary:") {
+			depth, err := strconv.Atoi(strings.TrimPrefix(execution.state.Mode, "binary:"))
+			if err != nil || depth <= 0 || depth > 16 {
+				return Transition{}, errors.New("invalid binary child depth")
+			}
+			var effects []Effect
+			for _, name := range []string{"left", "right"} {
+				childInput, _ := EncodeInput(childTestInput{Mode: fmt.Sprintf("binary:%d", depth-1)})
+				key, _ := ParseChildKey(name)
+				spec := childTestSpec(key, execution.reference, childInput)
+				units := uint64(20*(1<<uint(depth-1)) - 10)
+				spec.Budget, _ = NewBudget(units, units, units)
+				effect, err := StartChild(spec)
 				if err != nil {
 					return Transition{}, err
 				}
@@ -741,7 +804,8 @@ func (execution *childTestExecution) Step(_ context.Context, signals []Signal) (
 			}
 		}
 		needsChildWait := len(output.ChildIDs) > 0 && (strings.HasPrefix(execution.state.Mode, "wait:") ||
-			strings.HasPrefix(execution.state.Mode, "recurse:"))
+			strings.HasPrefix(execution.state.Mode, "recurse:") ||
+			strings.HasPrefix(execution.state.Mode, "binary:"))
 		if !needsChildWait {
 			execution.state.Phase = "done"
 			erased, _ := EncodeOutput(output)
