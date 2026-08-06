@@ -207,11 +207,12 @@ func (execution *engineTestExecution) Snapshot() (ExecutionState, error) {
 		return ExecutionState{}, err
 	}
 	name := "engine.effect"
-	if execution.mode == "wait" {
+	switch execution.mode {
+	case "wait":
 		name = "engine.wait"
-	} else if execution.mode == "fail" {
+	case "fail":
 		name = "engine.fail"
-	} else if execution.mode == "batch" {
+	case "batch":
 		name = "engine.batch"
 	}
 	return NewExecutionState(name, 1, payload)
@@ -423,13 +424,12 @@ func TestUnknownSettlementRequiresExplicitResolutionAndSurvivesRestore(t *testin
 	if err != nil {
 		t.Fatal(err)
 	}
-	time.Sleep(20 * time.Millisecond)
-	if dispatcher.calls.Load() != 1 {
-		t.Fatalf("ReplayPolicyNever dispatcher calls=%d, want 1", dispatcher.calls.Load())
-	}
 	unknown, err := restored.UnknownEffectIDs(context.Background())
 	if err != nil || len(unknown) != 1 || unknown[0] != effectID {
 		t.Fatalf("unknown Effects=%v err=%v", unknown, err)
+	}
+	if dispatcher.calls.Load() != 1 {
+		t.Fatalf("ReplayPolicyNever dispatcher calls=%d, want 1", dispatcher.calls.Load())
 	}
 	payload, _ := json.Marshal(engineTestMessage{Kind: "result", Value: "resolved"})
 	settlement, _ := NewSettlement(effectID, SettlementStatusSucceeded, payload)
@@ -469,7 +469,10 @@ func TestPartialEffectBatchPreservesSettlementsAndDeclarationOrder(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	time.Sleep(20 * time.Millisecond)
+	unknown, err := restored.UnknownEffectIDs(context.Background())
+	if err != nil || len(unknown) != 1 || unknown[0] != wire.Prepared.Effects[1].ID {
+		t.Fatalf("unknown Effects=%v err=%v", unknown, err)
+	}
 	if dispatcher.calls.Load() != 2 {
 		t.Fatalf("dispatcher calls=%d, want 2", dispatcher.calls.Load())
 	}
@@ -604,7 +607,7 @@ func TestStartContextCancellationMapsToHostCancellation(t *testing.T) {
 	waitForStatus(t, process, StatusWaiting)
 	cancel()
 	result := awaitResult(t, process)
-	if result.Status() != StatusCancelled || result.Termination().Cause() != TerminationCauseHostCancellation {
+	if result.Status() != StatusCanceled || result.Termination().Cause() != TerminationCauseHostCancellation {
 		t.Fatalf("termination=%+v", result.Termination())
 	}
 }

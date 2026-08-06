@@ -92,7 +92,7 @@
 5. **Extension 只表达横切能力。** 事件观察、策略检查、instrumentation 等可以扩展；主控制流不能伪装成扩展。
 6. **生命周期只有一个所有者。** Engine 是唯一 Process 驱动循环，具体策略只推进一个有界步骤。
 7. **组合优于包装。** orchestrator-worker 语义由已成立的 Strategy 和 child Process 组合；普通同步控制流留在 `flow`，需要独立 Process 生命周期的确定编排才进入 managed Workflow。
-8. **状态归拥有者。** GOAP 状态归 Planning，消息和轮次归 Interaction；未来编排状态归最终被证明的 adapter 或 Strategy，不提前进入 Kernel。
+8. **状态归拥有者。** GOAP 状态归 Planning，消息和轮次归 Interaction，Stage/branch/fan-out 游标归 Workflow；未来新策略的状态同样留在其 owner，不提前进入 Kernel。
 9. **框架状态与应用持久化分层。** Agent 捕获、验证和恢复执行快照；Host 决定何时、在哪里、以何种事务保存。
 10. **默认安全且确定。** 不默认重试任意副作用，不默认无限递归，不允许并发完成顺序决定业务结果。
 11. **透明胜过魔法。** 不做扫描、注解、全局 DI、隐式策略注册或隐藏模型调用。
@@ -160,7 +160,7 @@
 - Signal 接受、排序、去重、等待寻址和成功消费确认。
 - Effect 稳定身份、调度顺序和框架内结算事实。
 - 通用 usage/budget 限制。
-- Waiting、Paused、Completed、Failed、Cancelled、TimedOut、Killed 生命周期。
+- Waiting、Paused、Completed、Failed、Canceled、TimedOut、Killed 生命周期。
 - Framework event 和通用可观测事实。
 - snapshot envelope、校验和恢复协议。
 - 执行策略的显式装配。
@@ -237,7 +237,7 @@ Engine
   └─ 在满足等待条件时恢复父 Process
 ```
 
-方向性接口如下；P1 只验证候选形态，精确 Go 签名必须经过 P3 真实 Interaction、P4 child composition 和两个 disposable consumer 后才能冻结：
+冻结后的执行窄腰如下；精确参数名、GoDoc 和完整公开面由 `API_BASELINE.md` 与自动 digest 守卫：
 
 ```go
 type Definition interface {
@@ -254,7 +254,7 @@ type Execution interface {
 
 公共窄腰使用可移植、类型擦除的 JSON value；泛型只用于边缘 typed adapter，不能把 `Definition[I, O]` 放进 Engine 必须同构保存的根合同。Descriptor 的输入输出 schema 是权威结构合同并进入 Deployment identity；Definition/typed adapter 仍负责 Go 类型和语义不变量。
 
-Strategy Effect payload 和所有 Signal payload 对 Engine 不透明。每个 Strategy 在自己的 package 定义最小 dispatcher/codec，Deployment 冻结并绑定这些能力；Engine 只理解 Framework 自有 Effect、信封身份、路由、顺序、limit 和 settlement，不 import 或 type-switch 具体 Strategy。精确 dispatcher Go 签名与 raw value 封装仍须由 P1–P3 concrete prototypes 证明。
+Strategy Effect payload 和所有 Signal payload 对 Engine 不透明。每个 Strategy 在自己的 package 定义最小 dispatcher/codec，Deployment 冻结并绑定这些能力；Engine 只理解 Framework 自有 Effect、信封身份、路由、顺序、limit 和 settlement，不 import 或 type-switch 具体 Strategy。dispatcher 与 erased raw value 的精确公开合同已经由 Interaction、Planning、Workflow 和独立消费者共同冻结。
 
 如果子 Process 能力需要注入 Execution，应由真实消费包定义最小接口，不能把完整 `*Engine` 或不断膨胀的 `ExecutionContext` 传给所有策略。子创建、等待、模型调用、Tool 和 Action 都通过 Transition 声明 Effect，使 Engine 继续拥有生命周期顺序，而 Strategy 继续拥有具体执行语义。
 
@@ -296,29 +296,29 @@ Transform、selector、reducer 和 predicate 是一个 Step 内的有界确定�
 
 ```text
 NotStarted → Running
-Running    → Waiting | Paused | Completed | Failed | Cancelled | TimedOut | Killed
-Waiting    → Running | Failed | Cancelled | TimedOut | Killed
-Paused     → Running | Cancelled | TimedOut | Killed
+Running    → Waiting | Paused | Completed | Failed | Canceled | TimedOut | Killed
+Waiting    → Running | Failed | Canceled | TimedOut | Killed
+Paused     → Running | Canceled | TimedOut | Killed
 ```
 
 - `Continue`：仍可立即调度下一 Step。
 - `Waiting`：等待工具结果、人类输入、时间、子 Process 或其他已声明条件。
 - `Completed`：产生符合 Definition 输出契约的结果。
 - 终态由 Engine 已记录的控制意图和 Step 结果共同决定，不能只按 error 文本或 `context.Canceled` 推断。
-- Engine 显式 kill 映射为 `Killed`；父 Process 或 Host context 取消映射为 `Cancelled`，并用 cause 区分发起方。
+- Engine 显式 kill 映射为 `Killed`；父 Process 或 Host context 取消映射为 `Canceled`，并用 cause 区分发起方。
 - Process 或被提升为 Process 终止原因的 Effect deadline 映射为 `TimedOut`；deadline 不压成普通 `Failed`。
 - 普通 Step error、外部失败、panic 或合同违约映射为 `Failed`，并保留稳定错误分类。
 - 已提交终态 first-terminal-wins；迟到取消或 deadline 不能覆盖它。
 - `Stuck` 不是共同状态；GOAP 无可行计划属于 Planning 的结果和策略决定。
 
-候选终态矩阵按优先级匹配，P1 必须固化为表驱动合同：
+终态矩阵按以下优先级匹配，并由表驱动合同持续守卫：
 
 | 已记录原因 | deadline 已到达 | Step/Effect 结果 | 终态 | cause |
 |---|---:|---|---|---|
 | Engine 显式 kill | 任意 | 任意 | `Killed` | Engine kill reason |
 | Process/parent/Host deadline | 是 | 任意 | `TimedOut` | 准确 deadline owner |
-| parent 取消 | 否 | 任意 | `Cancelled` | parent cancellation |
-| Host context 取消 | 否 | 任意 | `Cancelled` | host cancellation |
+| parent 取消 | 否 | 任意 | `Canceled` | parent cancellation |
+| Host context 取消 | 否 | 任意 | `Canceled` | host cancellation |
 | 无控制面取消 | 否 | 合同违约、外部失败或 panic | `Failed` | 稳定错误分类 |
 | 无控制面取消 | 否 | 合法完成 | `Completed` | completion |
 
@@ -403,7 +403,7 @@ Descriptor 携带权威 input/output schema；schema 及影响编码语义的配
 
 Interaction 是模型根据环境反馈自主选择工具的原生 ReAct 类执行策略，适用于编码、研究、聊天和开放式任务。
 
-目标能力包括普通与流式模型调用、稳定 Tool 边界、多轮循环、checkpoint、精确恢复、有界工具并行、HITL、steer、usage 和完整生命周期事件。Interaction 的私有 WorkingContext 是当前 Execution 精确恢复所需的模型工作集，不等同于 Host 拥有的跨 Process 产品历史或 UI 记录。
+能力包括普通与流式模型调用、稳定 Tool 边界、多轮循环、checkpoint、精确恢复、有界工具并行、HITL、steer、usage 和完整生命周期事件。Interaction 的私有 WorkingContext 是当前 Execution 精确恢复所需的模型工作集，不等同于 Host 拥有的跨 Process 产品历史或 UI 记录。
 
 不长期保留 `toolloop` 与 `interaction` 两套公共概念。工具循环是 Interaction 的实现机制；是否暴露更小的直接 Runner，必须由独立消费者证明，不能仅为了迁移旧代码保留。
 
@@ -425,7 +425,7 @@ GOAP 适合目标可机器验证、存在多条路径、Action 前置条件/效�
 
 ### 7.3 确定性编排
 
-`flow` 是可选的普通 in-process 组合库；Workflow 是只编排真实 child Process 的原生 Strategy。Workflow 使用有序 Stage 而不是任意 DAG/Registry，不依赖或复制 `flow` runtime，也不编译成 GOAP；后续设计可以选择性吸收已被 `flow` 证明的组合规律，而不以代码复用为目标。它的独立状态是当前 value、Stage 游标、branch/item/iteration 窗口和 child wait；这些状态已经由 disposable public-API consumer 的完整 tree restore 证明。
+`flow` 是可选的普通 in-process 组合库；Workflow 是只编排真实 child Process 的原生 Strategy。Workflow 使用有序 Stage 而不是任意 DAG/Registry，不依赖或复制 `flow` runtime，也不编译成 GOAP；后续设计可以选择性吸收已被 `flow` 证明的组合规律，而不以代码复用为目标。它的独立状态是当前 value、Stage 游标、branch/item/iteration 窗口和 child wait；这些状态已经由独立 public-API consumer 的完整 tree restore 证明。
 
 ### 7.4 Orchestrator-worker 组合
 
@@ -437,7 +437,7 @@ Planning 可以作为 exact worker Deployment，但仅适用于其目标能够�
 
 Interaction 的 typed artifact 只代表已成功完成、再次通过 exact Delegate Output schema 的 child 结果。它以模型轮次与 ToolCall 位置保持稳定顺序，在 ExecutionState 中保存 portable `agent.Output`，对 validator 则只暴露 immutable `Artifact`、exact Delegate name 与 erased/typed decode 边缘。普通 Tool 结果、参数违约、start failure、非 Completed child 和任意 `IsError` ToolResult 都不是 artifact；Framework 不按 Go type name 猜测、不过滤 `any`、不发布到共享 Blackboard，也不拥有产品 artifact store。若应用要长期保存或跨 Process 分享结果，必须在自己的 Definition Output 或 Host 聚合中显式建模。
 
-completion validator 是 Interaction Definition 冻结的有界、确定、无副作用纯函数，只在模型最终响应或 direct-Tool 结果形成候选完成时读取独立复制的当前 WorkingContext、candidate Output 与 artifacts。WorkingContext 是该 Execution 的模型上下文，不是 Host conversation/transcript，并且尚未包含当前候选。validator 返回显式二选一：接受；或拒绝并给出非空、有界 feedback。拒绝时，候选上下文与 feedback 作为下一轮 user message 进入 WorkingContext，仍由正数 `MaxModelCalls` 限制；耗尽以稳定 execution failure 终止，不能把未接受候选伪装成完成。需要模型、Tool、网络或其他外部判断的 evaluator 必须是 P7 组合中的 managed child Process，不能藏进 validator callback。
+completion validator 是 Interaction Definition 冻结的有界、确定、无副作用纯函数，只在模型最终响应或 direct-Tool 结果形成候选完成时读取独立复制的当前 WorkingContext、candidate Output 与 artifacts。WorkingContext 是该 Execution 的模型上下文，不是 Host conversation/transcript，并且尚未包含当前候选。validator 返回显式二选一：接受；或拒绝并给出非空、有界 feedback。拒绝时，候选上下文与 feedback 作为下一轮 user message 进入 WorkingContext，仍由正数 `MaxModelCalls` 限制；耗尽以稳定 execution failure 终止，不能把未接受候选伪装成完成。需要模型、Tool、网络或其他外部判断的 evaluator 必须是 managed child Process，不能藏进 validator callback。
 
 ### 7.5 Evaluator-optimizer 组合
 
@@ -465,7 +465,7 @@ Tool 是提供给模型的可调用协议，强调模型可理解的名称、描
 
 一个模型 ToolCall batch 可以同时包含普通 Tool 与 Delegate。Interaction 只按原始顺序切分连续区段：普通 Tool 区段继续由 Dispatcher 执行并保留有界并发/HITL，Delegate 区段声明一批 child start 并 wait-all；全部结算后只向 WorkingContext 追加原 assistant message 和一个严格按原 ToolCall 顺序排列的 ToolResult message。无效 Delegate 参数、确定的 child start failure 和 child 非 Completed 终态是模型可重新决策的错误 ToolResult；错配的 Framework Signal、身份或成功 Output schema 是执行合同违约，不能伪装成普通 worker 失败。
 
-未来 P8 若由 Platform catalog 动态路由 worker，必须另行证明一个通用 `delegate_task` Tool 的选择、版本和权限合同；它不能偷偷把 exact Delegate 变成字符串 registry lookup。
+Platform 只在 Process 启动前选择 active root Deployment，不把 Interaction 的 exact Delegate 偷换成字符串 registry lookup。若未来需要模型在一次 Interaction 中从动态 catalog 选择 worker，必须另行证明选择、版本和权限合同，不能绕过 exact child Deployment 与 Engine 准入。
 
 ---
 
@@ -536,7 +536,7 @@ Process tree 是执行、取消、预算和恢复的共同单位。如果未来�
 | 模型/Tool 循环需要暂停、恢复、steer、limit 或事件 | 单个 Interaction Process | Workflow、worker catalog |
 | 分支/迭代必须各自拥有身份、预算、取消和 tree recovery | Workflow + exact child Process | 第二 scheduler、共享 Store/Blackboard |
 | 模型动态选择 worker | Interaction Delegate；需要确定任务调度时再组合 Workflow | Supervisor Strategy、字符串 registry |
-| 多 Deployment 的版本选择和统一治理 | P8 Platform | 反向扩张 Engine 或 Strategy state |
+| 多 Deployment 的版本选择和统一治理 | Platform | 反向扩张 Engine 或 Strategy state |
 
 managed 复杂度按真实树线性显现：最小 Workflow 示例是四个 Process；orchestrator-worker 是六个；三轮 evaluator-optimizer 与完整 workflow-patterns 各十个。Process 数本身不是价值，只有这些身份真实承担独立恢复、资源、取消或观察边界时才合理。纯 Transform 在示例中作为 topology fixture 创建 child，不代表业务代码应把普通函数默认升级为 Process。
 
@@ -570,7 +570,7 @@ Deploy/Replace/Undeploy 只更新 Platform owner 持有的 catalog/route snapsho
 
 Definition discovery/selection 只暴露一次 active snapshot 的 `DeploymentCandidate{exact ref, Descriptor}`；Candidate 没有 Dispatcher、Engine 或 Process capability。调用方提供的 DeploymentSelector 拥有 request-specific input 与选择政策，可使用 context 执行模型或网络 I/O，返回一个 exact DeploymentRef。Platform 校验该 ref 必须属于同一次候选快照，并返回快照中原始 Deployment；并发 Replace/Undeploy 不能把已完成选择重定向到另一个 binding。historical Catalog 只用于 exact restore，不自动进入路由候选。
 
-Platform 的零值是可用的空部署聚合；`New(deployments...)` 只为一次性构造初始 active set 并校验冲突。发现调用方只取得 non-executable DeploymentCandidates，不公开另一份 executable ActiveDeployments 枚举；需要精确恢复的代码使用 Catalog/Resolve，需要启动的代码使用 SelectDeployment 返回的 captured exact Deployment。P8 的单字段 Config 与重复 active executable view 在冻结前删除，不保留兼容入口。
+Platform 的零值是可用的空部署聚合；`New(deployments...)` 只为一次性构造初始 active set 并校验冲突。发现调用方只取得 non-executable DeploymentCandidates，不公开另一份 executable ActiveDeployments 枚举；需要精确恢复的代码使用 Catalog/Resolve，需要启动的代码使用 SelectDeployment 返回的 captured exact Deployment。不存在单字段 Config、重复 active executable view 或兼容入口。
 
 `embedded_vs_platform` 用完全相同的 Workflow root 与 exact worker 分别经过 caller-owned resolver 和 Platform selector/resolver 运行，并比较 Output、Status、Usage、两 Process tree、两次 admission 以及稳定 Process/Step/Effect Event 投影。不同运行中 child 可能在父 wait 注册前或后完成，所以 `signal.accepted` 与中间 running/waiting 事实可以合法不同；Platform 等价合同不谎称跨运行的 wall-clock、ProcessID 或完整 Event sequence 逐项相等。
 
@@ -605,7 +605,7 @@ Host 负责 Store、transaction、CAS、lease、幂等、retention、产品身�
 - TreeSnapshot 严格保存每个 Process snapshot 和 Engine-owned 活动 direct-child wait，不保存 dispatcher、resolver 或 Host persistence 对象。capture 使用 Engine 私有的安全边界栅栏：停止新 Step 和新 child 创建，等待 in-flight Effect 依既有 settlement 合同收口，同时继续吸收 child completion 与 parent termination，取得一致 cut 后立即释放；栅栏不是公开 Process 状态或第二执行入口。
 - tree restore 先校验 root/parent/depth/ChildKey、预算总和、能力衰减、tree limits、活动 child wait 和每个精确 DeploymentRef，再原子注册完整树；任一校验或解析失败不得留下部分 Process。
 - Process admission 只属于首次 root/child start；restore 不重复调用 admitter，也不把 live policy 结果写入共同 snapshot。Host 若不允许恢复，必须在调用恢复前拒绝或显式终止已恢复 Process。
-- 只有在 Effect dispatch 前已向 Host 暴露 prepared snapshot 且 Host 明确认可该 durability boundary 时，Engine 才能宣称跨进程崩溃可恢复该 Effect；精确握手由 P1–P2 真实消费验证，但不得演变为 Framework Store/transaction SPI。未启用该边界的运行必须诚实标记为只恢复到最后已持久化 snapshot。
+- 只有在 Effect dispatch 前已向 Host 暴露 prepared snapshot 且 Host 明确认可该 durability boundary 时，Engine 才能宣称跨进程崩溃可恢复该 Effect；该握手不得演变为 Framework Store/transaction SPI。未启用该边界的运行必须诚实标记为只恢复到最后已持久化 snapshot。
 - 外部副作用用幂等键、外部事实或显式 checkpoint 协议处理，不能只靠 snapshot 猜测。
 - snapshot schema 在开发阶段直接 breaking，不保留长期 dual-read。
 

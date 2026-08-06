@@ -107,7 +107,7 @@ func (process *Process) Resume(ctx context.Context) error {
 }
 
 // Cancel records a caller-owned cancellation. It is committed at the next safe
-// boundary and maps to StatusCancelled with a host-cancellation cause.
+// boundary and maps to StatusCanceled with a host-cancellation cause.
 func (process *Process) Cancel(ctx context.Context, reason string) error {
 	_, err := process.request(ctx, processCommand{kind: commandCancel, reason: reason})
 	return err
@@ -148,7 +148,7 @@ func (process *Process) Capture(ctx context.Context) (Snapshot, error) {
 }
 
 // Await waits for the immutable terminal result and the Engine's immediate
-// parent/child bookkeeping for that termination. Cancelling ctx stops only the
+// parent/child bookkeeping for that termination. Canceling ctx stops only the
 // wait; Process cancellation is explicit or follows the context passed to Start.
 func (process *Process) Await(ctx context.Context) (Result, error) {
 	if process == nil || process.controller == nil {
@@ -192,7 +192,7 @@ func (process *Process) request(ctx context.Context, command processCommand) (pr
 }
 
 // Result is the immutable terminal outcome of one Process. A failed or
-// cancelled execution is represented by Termination, not by Await's error.
+// canceled execution is represented by Termination, not by Await's error.
 type Result struct {
 	processID   ProcessID
 	startedAt   time.Time

@@ -160,7 +160,7 @@ type childIdentity struct {
 func nilOrConcrete(value any) bool { return value == nil || !nilInterface(value) }
 
 // Start validates Input, creates exactly one Execution, registers its Process,
-// and starts the Engine-owned loop. Cancelling ctx records a Host cancellation
+// and starts the Engine-owned loop. Canceling ctx records a Host cancellation
 // or deadline; use a longer-lived context for execution beyond a request.
 func (engine *Engine) Start(ctx context.Context, deployment Deployment, input Input) (*Process, error) {
 	if engine == nil {
@@ -209,7 +209,7 @@ func (engine *Engine) Start(ctx context.Context, deployment Deployment, input In
 }
 
 // Run starts one Process and waits for its terminal result. Once Start succeeds,
-// Run waits for safe finalization even if ctx is cancelled; the same ctx has
+// Run waits for safe finalization even if ctx is canceled; the same ctx has
 // already recorded the Process termination intent.
 func (engine *Engine) Run(ctx context.Context, deployment Deployment, input Input) (Result, error) {
 	process, err := engine.Start(ctx, deployment, input)

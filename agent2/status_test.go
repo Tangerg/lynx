@@ -11,18 +11,18 @@ func TestStatusTransitionMatrix(t *testing.T) {
 		StatusNotStarted: {StatusRunning: true},
 		StatusRunning: {
 			StatusWaiting: true, StatusPaused: true, StatusCompleted: true, StatusFailed: true,
-			StatusCancelled: true, StatusTimedOut: true, StatusKilled: true,
+			StatusCanceled: true, StatusTimedOut: true, StatusKilled: true,
 		},
 		StatusWaiting: {
-			StatusRunning: true, StatusFailed: true, StatusCancelled: true, StatusTimedOut: true, StatusKilled: true,
+			StatusRunning: true, StatusFailed: true, StatusCanceled: true, StatusTimedOut: true, StatusKilled: true,
 		},
 		StatusPaused: {
-			StatusRunning: true, StatusCancelled: true, StatusTimedOut: true, StatusKilled: true,
+			StatusRunning: true, StatusCanceled: true, StatusTimedOut: true, StatusKilled: true,
 		},
 	}
 	statuses := []Status{
 		StatusNotStarted, StatusRunning, StatusWaiting, StatusPaused, StatusCompleted,
-		StatusFailed, StatusCancelled, StatusTimedOut, StatusKilled,
+		StatusFailed, StatusCanceled, StatusTimedOut, StatusKilled,
 	}
 	for _, from := range statuses {
 		for _, to := range statuses {
@@ -38,8 +38,8 @@ func TestResolveTerminationPriorityMatrix(t *testing.T) {
 	processDeadline, _ := newDeadlineIntent(deadlineOwnerProcess, "process deadline reached")
 	parentDeadline, _ := newDeadlineIntent(deadlineOwnerParent, "parent deadline reached")
 	hostDeadline, _ := newDeadlineIntent(deadlineOwnerHost, "host deadline reached")
-	parentCancellation, _ := newCancellationIntent(cancellationOwnerParent, "parent cancelled")
-	hostCancellation, _ := newCancellationIntent(cancellationOwnerHost, "host cancelled")
+	parentCancellation, _ := newCancellationIntent(cancellationOwnerParent, "parent canceled")
+	hostCancellation, _ := newCancellationIntent(cancellationOwnerHost, "host canceled")
 	executionFailure, _ := NewFailure(FailureKindExecution, "step.failed", "Step failed.")
 	contractFailure, _ := NewFailure(FailureKindContract, "transition.invalid", "Transition is invalid.")
 	externalFailure, _ := NewFailure(FailureKindExternal, "provider.failed", "Provider failed.")
@@ -59,8 +59,8 @@ func TestResolveTerminationPriorityMatrix(t *testing.T) {
 		{name: "process deadline", facts: terminationFacts{deadline: processDeadline, outcome: externalFailed}, want: StatusTimedOut, cause: TerminationCauseProcessDeadline},
 		{name: "parent deadline", facts: terminationFacts{deadline: parentDeadline, outcome: externalFailed}, want: StatusTimedOut, cause: TerminationCauseParentDeadline},
 		{name: "host deadline wins cancellation and failure", facts: terminationFacts{deadline: hostDeadline, cancellation: parentCancellation, outcome: externalFailed}, want: StatusTimedOut, cause: TerminationCauseHostDeadline},
-		{name: "parent cancellation wins failure", facts: terminationFacts{cancellation: parentCancellation, outcome: externalFailed}, want: StatusCancelled, cause: TerminationCauseParentCancellation},
-		{name: "host cancellation wins failure", facts: terminationFacts{cancellation: hostCancellation, outcome: externalFailed}, want: StatusCancelled, cause: TerminationCauseHostCancellation},
+		{name: "parent cancellation wins failure", facts: terminationFacts{cancellation: parentCancellation, outcome: externalFailed}, want: StatusCanceled, cause: TerminationCauseParentCancellation},
+		{name: "host cancellation wins failure", facts: terminationFacts{cancellation: hostCancellation, outcome: externalFailed}, want: StatusCanceled, cause: TerminationCauseHostCancellation},
 		{name: "execution failure", facts: terminationFacts{outcome: executionFailed}, want: StatusFailed, cause: TerminationCauseExecutionFailure},
 		{name: "contract failure", facts: terminationFacts{outcome: contractFailed}, want: StatusFailed, cause: TerminationCauseContractFailure},
 		{name: "external failure", facts: terminationFacts{outcome: externalFailed}, want: StatusFailed, cause: TerminationCauseExternalFailure},
@@ -81,10 +81,24 @@ func TestResolveTerminationPriorityMatrix(t *testing.T) {
 }
 
 func TestStatusStrictJSONRoundTrip(t *testing.T) {
+	wireNames := map[Status]string{
+		StatusNotStarted: "not_started",
+		StatusRunning:    "running",
+		StatusWaiting:    "waiting",
+		StatusPaused:     "paused",
+		StatusCompleted:  "completed",
+		StatusFailed:     "failed",
+		StatusCanceled:   "canceled",
+		StatusTimedOut:   "timed_out",
+		StatusKilled:     "killed",
+	}
 	for status := StatusNotStarted; status <= StatusKilled; status++ {
 		data, err := json.Marshal(status)
 		if err != nil {
 			t.Fatal(err)
+		}
+		if got, want := string(data), `"`+wireNames[status]+`"`; got != want {
+			t.Fatalf("Status %d JSON = %s, want %s", status, got, want)
 		}
 		var decoded Status
 		if err := json.Unmarshal(data, &decoded); err != nil {
@@ -96,6 +110,11 @@ func TestStatusStrictJSONRoundTrip(t *testing.T) {
 	}
 	if _, err := json.Marshal(StatusInvalid); !errors.Is(err, ErrInvalidStatus) {
 		t.Fatalf("marshal invalid Status error = %v, want ErrInvalidStatus", err)
+	}
+	var decoded Status
+	priorSpelling := []byte{'"', 'c', 'a', 'n', 'c', 'e', 'l', 'l', 'e', 'd', '"'}
+	if err := json.Unmarshal(priorSpelling, &decoded); !errors.Is(err, ErrInvalidStatus) {
+		t.Fatalf("prior Status spelling error = %v, want ErrInvalidStatus", err)
 	}
 }
 

@@ -464,3 +464,11 @@
 - clean copy 中 15 个 package 全部禁用缓存测试通过，七个公开 package 都能生成完整 `go doc -all`。35 个 Markdown 本地链接逐项可达，没有指向已删除设计文件或旧 package 的漂移链接。
 - examples README 与文件系统精确拥有相同的八个 command；八个 command 在 clean cache 中逐一运行并产生确定结果。它们只使用公开 API，不共享测试 helper，也不需要凭据或运行期网络。
 - `go mod why github.com/Tangerg/flow` 明确返回主模块不需要该 package。Workflow 的公共文档继续只承诺 Framework-managed child Process 编排；普通 in-process flow 保持框架外选择。
+
+### 13.6 最终零债清扫
+
+- 完整项目 lint 首次发现 13 项被较窄 staticcheck 门禁漏过的真实问题：import 分组、无效测试赋值、枚举 switch 可读性，以及 `Cancelled` 与项目统一美式英文和 Go `context.Canceled` 不一致。修复后把完整项目 `golangci-lint` 纳入阶段验收，结果为零问题；额外 duplicate scan 同样为零。
+- 状态合同只保留 `StatusCanceled` 与 JSON `"canceled"`，不保留旧拼写 alias 或 dual-read。Process Snapshot 升为 v6、TreeSnapshot 升为 v4，prior-version 与 prior-spelling tests 均明确拒绝旧合同；其余 Strategy/observation wire 不变。
+- P1 的 Interaction 与 prepared-Step disposable spike 已被正式 Interaction、Engine、snapshot、restore、unknown Effect 与事务提交测试完整取代，因而整体删除。删除过程暴露出的普通测试 helper 依赖被收回各自 owner；Interaction 重复 Deployment 构造则收敛到测试 package 既有唯一 helper。
+- 稳定架构文档只保留当前事实，P1/P3/P8 的未来时态已移回执行日志；示例统一称独立消费者。空目录、空文件、production TODO/FIXME/HACK、兼容 shim、旧模块/Host/`flow` 依赖、未登记 package/依赖边和 production/test duplicate 均为零。
+- 最终提交态 standalone build、vet、staticcheck、完整项目 lint、禁用缓存普通测试与 race 全绿；13 个 fuzz target 各 3 秒共执行 2,092,394 次且无失败，fuzz 后普通测试再次通过；八个 command consumer 全部实跑并保持确定输出。

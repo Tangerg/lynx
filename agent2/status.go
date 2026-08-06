@@ -27,8 +27,8 @@ const (
 	StatusCompleted
 	// StatusFailed identifies terminal execution failure.
 	StatusFailed
-	// StatusCancelled identifies cooperative cancellation.
-	StatusCancelled
+	// StatusCanceled identifies cooperative cancellation.
+	StatusCanceled
 	// StatusTimedOut identifies deadline termination.
 	StatusTimedOut
 	// StatusKilled identifies an explicit Engine kill.
@@ -50,8 +50,8 @@ func (status Status) String() string {
 		return "completed"
 	case StatusFailed:
 		return "failed"
-	case StatusCancelled:
-		return "cancelled"
+	case StatusCanceled:
+		return "canceled"
 	case StatusTimedOut:
 		return "timed_out"
 	case StatusKilled:
@@ -75,8 +75,8 @@ func parseStatus(value string) (Status, error) {
 		return StatusCompleted, nil
 	case "failed":
 		return StatusFailed, nil
-	case "cancelled":
-		return StatusCancelled, nil
+	case "canceled":
+		return StatusCanceled, nil
 	case "timed_out":
 		return StatusTimedOut, nil
 	case "killed":
@@ -99,9 +99,9 @@ func (status Status) canTransitionTo(next Status) bool {
 	case StatusRunning:
 		return next == StatusWaiting || next == StatusPaused || next.Terminal()
 	case StatusWaiting:
-		return next == StatusRunning || next == StatusFailed || next == StatusCancelled || next == StatusTimedOut || next == StatusKilled
+		return next == StatusRunning || next == StatusFailed || next == StatusCanceled || next == StatusTimedOut || next == StatusKilled
 	case StatusPaused:
-		return next == StatusRunning || next == StatusCancelled || next == StatusTimedOut || next == StatusKilled
+		return next == StatusRunning || next == StatusCanceled || next == StatusTimedOut || next == StatusKilled
 	default:
 		return false
 	}

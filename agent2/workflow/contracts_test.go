@@ -139,7 +139,7 @@ func TestWorkflowCancellationPropagatesToPausedChild(t *testing.T) {
 		t.Fatal(err)
 	}
 	result, err := root.Await(context.Background())
-	if err != nil || result.Status() != agent.StatusCancelled ||
+	if err != nil || result.Status() != agent.StatusCanceled ||
 		result.Termination().Cause() != agent.TerminationCauseHostCancellation {
 		t.Fatalf("root cancellation = %#v, %v", result.Termination(), err)
 	}
@@ -154,7 +154,7 @@ func TestWorkflowCancellationPropagatesToPausedChild(t *testing.T) {
 				t.Fatalf("child %s was not registered", process.ProcessID())
 			}
 			childResult, err := child.Await(context.Background())
-			if err != nil || childResult.Status() != agent.StatusCancelled ||
+			if err != nil || childResult.Status() != agent.StatusCanceled ||
 				childResult.Termination().Cause() != agent.TerminationCauseParentCancellation {
 				t.Fatalf("child cancellation = %#v, %v", childResult.Termination(), err)
 			}

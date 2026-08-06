@@ -11,7 +11,6 @@ import (
 
 	agent "github.com/Tangerg/lynx/agent2"
 	"github.com/Tangerg/lynx/agent2/interaction"
-	"github.com/Tangerg/lynx/chatclient"
 	"github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/tool"
 )
@@ -31,7 +30,7 @@ func TestToolCheckpointRestoresWithoutRepeatingSettledPrefix(t *testing.T) {
 	waiting := newInputRequestTool()
 	t.Cleanup(waiting.Release)
 	model := &checkpointModel{}
-	deployment := checkpointDeployment(t, model, []tool.Tool{prefix, waiting})
+	deployment := newDeployment(t, model, []tool.Tool{prefix, waiting}, 3)
 
 	firstEngine, err := agent.NewEngine(agent.EngineConfig{})
 	if err != nil {
@@ -159,7 +158,7 @@ func TestPreparedToolEffectIsNotRetriedAfterRestore(t *testing.T) {
 	blocking := newBlockingTool()
 	t.Cleanup(blocking.Release)
 	model := &singleToolCallModel{call: chat.ToolCall{ID: "call_block", Name: "block", Arguments: `{}`}}
-	deployment := checkpointDeployment(t, model, []tool.Tool{blocking})
+	deployment := newDeployment(t, model, []tool.Tool{blocking}, 3)
 	firstEngine, err := agent.NewEngine(agent.EngineConfig{})
 	if err != nil {
 		t.Fatal(err)
@@ -332,37 +331,6 @@ func (value *blockingTool) Call(context.Context, string) (string, error) {
 
 func (value *blockingTool) Release() {
 	value.releaseOnce.Do(func() { close(value.release) })
-}
-
-func checkpointDeployment(t *testing.T, model chat.Model, tools []tool.Tool) agent.Deployment {
-	t.Helper()
-	client, err := chatclient.New(model, chatclient.Config{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	definition, err := interaction.NewDefinition(interaction.DefinitionConfig{
-		Name:          "interaction.checkpoint",
-		Description:   "Verify exact Tool checkpoint and restoration behavior.",
-		Version:       "1.0.0",
-		MaxModelCalls: 3,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	dispatcher, err := interaction.NewDispatcher(definition, interaction.DispatcherConfig{Client: client, Tools: tools})
-	if err != nil {
-		t.Fatal(err)
-	}
-	deployment, err := agent.NewDeployment(agent.DeploymentConfig{
-		Definition:           definition,
-		Dispatcher:           dispatcher,
-		ImplementationDigest: agent.ComputeDigest([]byte("interaction-checkpoint-implementation")),
-		ConfigurationDigest:  agent.ComputeDigest([]byte("interaction-checkpoint-configuration")),
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	return deployment
 }
 
 func waitForStatus(t *testing.T, process *agent.Process, want agent.Status) {

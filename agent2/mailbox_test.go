@@ -38,7 +38,7 @@ func TestMailboxCommitsOnlyAnExplicitSignalPrefix(t *testing.T) {
 	mailbox := newSignalMailbox()
 	for index := 1; index <= 3; index++ {
 		id, _ := ParseSignalID("signal:" + strconv.Itoa(index))
-		signal := mustSignal(t, id.String(), WaitID{}, time.Unix(int64(index), 0), json.RawMessage(`{"kind":"input"}`))
+		signal := mustMailboxSignal(t, id.String(), WaitID{}, time.Unix(int64(index), 0), json.RawMessage(`{"kind":"input"}`))
 		if _, err := mailbox.enqueue(StatusRunning, signal); err != nil {
 			t.Fatal(err)
 		}
@@ -83,7 +83,7 @@ func TestMailboxRoutesWaitAnswersAndHandlesEarlyArrival(t *testing.T) {
 	}
 
 	secondID, _ := ParseSignalID("signal:second-answer")
-	second := mustSignal(t, secondID.String(), waitID, time.Unix(2, 0), json.RawMessage(`{"approved":false}`))
+	second := mustMailboxSignal(t, secondID.String(), waitID, time.Unix(2, 0), json.RawMessage(`{"approved":false}`))
 	if _, err := mailbox.enqueue(StatusWaiting, second); !errors.Is(err, ErrSignalRejected) {
 		t.Fatalf("second answer error = %v, want ErrSignalRejected", err)
 	}
@@ -97,12 +97,12 @@ func TestMailboxRoutesWaitAnswersAndHandlesEarlyArrival(t *testing.T) {
 
 func TestMailboxRejectsUnaddressedWaitingAndAddressedPausedSignals(t *testing.T) {
 	mailbox := newSignalMailbox()
-	unaddressed := mustSignal(t, "signal:plain", WaitID{}, time.Unix(1, 0), json.RawMessage(`{}`))
+	unaddressed := mustMailboxSignal(t, "signal:plain", WaitID{}, time.Unix(1, 0), json.RawMessage(`{}`))
 	if _, err := mailbox.enqueue(StatusWaiting, unaddressed); !errors.Is(err, ErrSignalRejected) {
 		t.Fatalf("unaddressed Waiting error = %v", err)
 	}
 	waitID, _ := ParseWaitID("wait:1")
-	addressed := mustSignal(t, "signal:answer", waitID, time.Unix(2, 0), json.RawMessage(`{}`))
+	addressed := mustMailboxSignal(t, "signal:answer", waitID, time.Unix(2, 0), json.RawMessage(`{}`))
 	if _, err := mailbox.enqueue(StatusPaused, addressed); !errors.Is(err, ErrSignalRejected) {
 		t.Fatalf("addressed Paused error = %v", err)
 	}
@@ -118,11 +118,11 @@ func TestMailboxSnapshotRestoresDeduplicationCursorAndWaitFacts(t *testing.T) {
 	if err := mailbox.registerWait(key, waitID, true); err != nil {
 		t.Fatal(err)
 	}
-	answer := mustSignal(t, "signal:answer", waitID, time.Unix(1, 0), json.RawMessage(`{"approved":true}`))
+	answer := mustMailboxSignal(t, "signal:answer", waitID, time.Unix(1, 0), json.RawMessage(`{"approved":true}`))
 	if _, err := mailbox.enqueue(StatusRunning, answer); err != nil {
 		t.Fatal(err)
 	}
-	plain := mustSignal(t, "signal:plain", WaitID{}, time.Unix(2, 0), json.RawMessage(`{"kind":"steer"}`))
+	plain := mustMailboxSignal(t, "signal:plain", WaitID{}, time.Unix(2, 0), json.RawMessage(`{"kind":"steer"}`))
 	if _, err := mailbox.enqueue(StatusRunning, plain); err != nil {
 		t.Fatal(err)
 	}
@@ -161,7 +161,7 @@ func TestMailboxWaitOpenedSignalDoesNotAnswerOrCloseWait(t *testing.T) {
 	if err := mailbox.registerWait(key, waitID, true); err != nil {
 		t.Fatal(err)
 	}
-	opened := mustSignal(t, "signal:opened", waitID, time.Unix(1, 0), json.RawMessage(`{"kind":"wait_opened"}`))
+	opened := mustMailboxSignal(t, "signal:opened", waitID, time.Unix(1, 0), json.RawMessage(`{"kind":"wait_opened"}`))
 	if err := mailbox.enqueueWaitOpened(opened); err != nil {
 		t.Fatal(err)
 	}
@@ -174,7 +174,7 @@ func TestMailboxWaitOpenedSignalDoesNotAnswerOrCloseWait(t *testing.T) {
 }
 
 func TestMailboxRestoreRejectsInvalidWire(t *testing.T) {
-	signal := mustSignal(t, "signal:1", WaitID{}, time.Unix(1, 0), json.RawMessage(`{}`))
+	signal := mustMailboxSignal(t, "signal:1", WaitID{}, time.Unix(1, 0), json.RawMessage(`{}`))
 	for _, wire := range []mailboxWire{
 		{SignalCursor: 1},
 		{Signals: []signalRecordWire{{ArrivalSequence: 2, Signal: signal}}},
@@ -184,4 +184,17 @@ func TestMailboxRestoreRejectsInvalidWire(t *testing.T) {
 			t.Fatalf("restoreSignalMailbox(%+v) unexpectedly succeeded", wire)
 		}
 	}
+}
+
+func mustMailboxSignal(t testing.TB, value string, waitID WaitID, receivedAt time.Time, payload json.RawMessage) Signal {
+	t.Helper()
+	signalID, err := ParseSignalID(value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	signal, err := newSignal(signalID, waitID, receivedAt, payload)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return signal
 }

@@ -1,6 +1,6 @@
 # Agent Framework examples
 
-These commands are disposable consumers of the public `agent2` API. They do
+These commands are independent consumers of the public `agent2` API. They do
 not share test-only helpers or import internal protocol types, so build and test
 failures expose real consumer-facing contract problems.
 

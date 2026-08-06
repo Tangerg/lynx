@@ -124,7 +124,7 @@ func TestExportedAPIBaseline(t *testing.T) {
 		directory string
 		want      string
 	}{
-		{name: "kernel", directory: ".", want: "73b6f2270e4010886234cb080c277ba1960dcb09c8c123b550ba0c0a8ff6fb90"},
+		{name: "kernel", directory: ".", want: "19339ca04489469a3c06f2c8f9a763a65eaf47ad2b31a67e4eb402290c44394c"},
 		{name: "interaction", directory: "interaction", want: "b5fdabbea94d2b9aa346446a7cafb4accde928b23489012ba2763c77a517da91"},
 		{name: "planning", directory: "planning", want: "15c48c52b7d4765ba86da2e5fd11822669c163c01e98dd4cb3668f71f7c5f30a"},
 		{name: "goap", directory: "planning/goap", want: "dd5a007a20ddbeac2112bbed10718f5256fe2449376fd7dcc1400e25578253ec"},
@@ -229,7 +229,7 @@ func isErrorCauseName(name string) bool {
 func TestSnapshotWireBaseline(t *testing.T) {
 	shape := snapshotWireShape()
 	got := fmt.Sprintf("%x", sha256.Sum256([]byte(shape)))
-	const want = "1b93af3cb1f0fcb8267b2c160a38e61317397c7c40c3b2a24c51f4f61eeb4066"
+	const want = "0e245506ccda1ef6c1697a782a67e3d5c01e8417bc8d7ff8686eca138b5a43c5"
 	if got != want {
 		t.Fatalf("snapshot wire changed: got %s, want %s\n%s", got, want, shape)
 	}

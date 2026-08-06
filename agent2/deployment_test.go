@@ -34,7 +34,15 @@ func TestDeploymentBindsExactDefinitionAndDispatcher(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	request := newEffectRequest(mustProcessID("process:deployment"), 1, 0, mustEffectID("process:deployment:step:1:effect:0"), effect)
+	processID, err := ParseProcessID("process:deployment")
+	if err != nil {
+		t.Fatal(err)
+	}
+	effectID, err := ParseEffectID("process:deployment:step:1:effect:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := newEffectRequest(processID, 1, 0, effectID, effect)
 	copyOfEffect := request.Effect()
 	copyOfEffect.payload[0] = '['
 	if !request.valid() || string(request.Effect().Payload()) != `{"operation":"test"}` {

@@ -230,7 +230,7 @@ func TestWaitingManagedDelegateTreeRestoresWithoutRestartingChild(t *testing.T) 
 	if !found {
 		t.Fatalf("original child %s was not registered", childID)
 	}
-	if childResult, err := originalChild.Await(context.Background()); err != nil || childResult.Status() != agent.StatusCancelled {
+	if childResult, err := originalChild.Await(context.Background()); err != nil || childResult.Status() != agent.StatusCanceled {
 		t.Fatalf("original child result = %#v, %v", childResult.Termination(), err)
 	}
 	if err := engine.Close(); err != nil {

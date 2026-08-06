@@ -46,9 +46,9 @@ func TestEngineStartsSameDeploymentChildWithStableRelation(t *testing.T) {
 	}
 	completed := childResult.Status() == StatusCompleted &&
 		childResult.Termination().Cause() == TerminationCauseCompletion
-	parentCancelled := childResult.Status() == StatusCancelled &&
+	parentCanceled := childResult.Status() == StatusCanceled &&
 		childResult.Termination().Cause() == TerminationCauseParentCancellation
-	if !completed && !parentCancelled {
+	if !completed && !parentCanceled {
 		t.Fatalf("child termination = %#v", childResult.Termination())
 	}
 	childSnapshot, err := child.Capture(context.Background())
@@ -422,11 +422,11 @@ func TestParentTerminationPropagatesAtChildSafeBoundary(t *testing.T) {
 	}{
 		{
 			name: "completion", wantParent: StatusCompleted,
-			wantChild: StatusCancelled, wantCause: TerminationCauseParentCancellation,
+			wantChild: StatusCanceled, wantCause: TerminationCauseParentCancellation,
 		},
 		{
 			name: "kill", wantParent: StatusKilled,
-			wantChild: StatusCancelled, wantCause: TerminationCauseParentCancellation,
+			wantChild: StatusCanceled, wantCause: TerminationCauseParentCancellation,
 			terminate: func(t *testing.T, process *Process) {
 				t.Helper()
 				if err := process.Kill(context.Background(), "stop parent tree"); err != nil {

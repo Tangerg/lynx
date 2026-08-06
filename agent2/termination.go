@@ -290,7 +290,7 @@ func terminationForCancellation(intent cancellationIntent) Termination {
 	if intent.owner == cancellationOwnerHost {
 		cause = TerminationCauseHostCancellation
 	}
-	return Termination{status: StatusCancelled, cause: cause, reason: intent.reason}
+	return Termination{status: StatusCanceled, cause: cause, reason: intent.reason}
 }
 
 func terminationForFailure(failure Failure) Termination {
@@ -343,7 +343,7 @@ func (termination Termination) Valid() bool {
 			termination.cause == TerminationCauseContractFailure ||
 			termination.cause == TerminationCauseExternalFailure ||
 			termination.cause == TerminationCausePanic
-	case StatusCancelled:
+	case StatusCanceled:
 		return (termination.cause == TerminationCauseParentCancellation || termination.cause == TerminationCauseHostCancellation) &&
 			termination.reason != "" && !termination.failure.Valid()
 	case StatusTimedOut:

@@ -7,6 +7,7 @@ import (
 	"slices"
 
 	"github.com/Masterminds/semver/v3"
+
 	agent "github.com/Tangerg/lynx/agent2"
 )
 

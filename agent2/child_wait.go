@@ -179,7 +179,7 @@ func (outcome ChildOutcome) Valid() bool { return outcome.key.Valid() && outcome
 
 // ChildrenCompleted is one condition-satisfying, request-ordered child result
 // set. For any or quorum it includes every child already terminal at the atomic
-// satisfaction check, without cancelling or omitting based on status.
+// satisfaction check, without canceling or omitting based on status.
 type ChildrenCompleted struct {
 	waitID   WaitID
 	key      WaitKey

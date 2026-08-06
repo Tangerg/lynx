@@ -10,14 +10,13 @@ import (
 
 	agent "github.com/Tangerg/lynx/agent2"
 	"github.com/Tangerg/lynx/agent2/interaction"
-	"github.com/Tangerg/lynx/chatclient"
 	"github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/tool"
 )
 
 func TestSteerDuringModelCallIsVisibleOnlyToNextModelCall(t *testing.T) {
 	model := newSteeredModel()
-	deployment := steerDeployment(t, model, nil)
+	deployment := newDeployment(t, model, nil, 3)
 	engine, err := agent.NewEngine(agent.EngineConfig{})
 	if err != nil {
 		t.Fatal(err)
@@ -67,7 +66,7 @@ func TestSteerDuringToolBatchWaitsForWholeBatchSettlement(t *testing.T) {
 	blocking := newSteeredTool()
 	t.Cleanup(blocking.Release)
 	model := &toolSteerModel{}
-	deployment := steerDeployment(t, model, []tool.Tool{blocking})
+	deployment := newDeployment(t, model, []tool.Tool{blocking}, 3)
 	engine, err := agent.NewEngine(agent.EngineConfig{})
 	if err != nil {
 		t.Fatal(err)
@@ -217,35 +216,4 @@ func (model *toolSteerModel) Calls() int {
 	model.mu.Lock()
 	defer model.mu.Unlock()
 	return model.calls
-}
-
-func steerDeployment(t *testing.T, model chat.Model, tools []tool.Tool) agent.Deployment {
-	t.Helper()
-	client, err := chatclient.New(model, chatclient.Config{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	definition, err := interaction.NewDefinition(interaction.DefinitionConfig{
-		Name:          "interaction.steer",
-		Description:   "Verify safe-boundary Interaction steering behavior.",
-		Version:       "1.0.0",
-		MaxModelCalls: 3,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	dispatcher, err := interaction.NewDispatcher(definition, interaction.DispatcherConfig{Client: client, Tools: tools})
-	if err != nil {
-		t.Fatal(err)
-	}
-	deployment, err := agent.NewDeployment(agent.DeploymentConfig{
-		Definition:           definition,
-		Dispatcher:           dispatcher,
-		ImplementationDigest: agent.ComputeDigest([]byte("interaction-steer-implementation")),
-		ConfigurationDigest:  agent.ComputeDigest([]byte("interaction-steer-configuration")),
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	return deployment
 }

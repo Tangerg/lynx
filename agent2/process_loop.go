@@ -170,7 +170,7 @@ func (loop *processLoop) recordHostTermination(err error) {
 		}
 		return
 	}
-	intent, _ := newCancellationIntent(cancellationOwnerHost, "host context cancelled")
+	intent, _ := newCancellationIntent(cancellationOwnerHost, "host context canceled")
 	if !loop.pendingControl.cancellation.valid() {
 		loop.pendingControl.cancellation = intent
 	}

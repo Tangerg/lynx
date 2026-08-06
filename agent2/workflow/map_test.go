@@ -117,7 +117,7 @@ func TestMapRequiresExplicitLimitsAndMatchingChildContract(t *testing.T) {
 		}),
 	), "wrong-map-child")
 	valid := workflow.MapConfig[forkInput, numberOutput]{
-		ID: "items", Deployment: child, Budget: mustBudget(t), WindowSize: 1, ItemLimit: 2,
+		ID: "items", Budget: mustBudget(t),
 	}
 	for name, config := range map[string]workflow.MapConfig[forkInput, numberOutput]{
 		"zero window size": {ID: valid.ID, Deployment: child, Budget: valid.Budget, ItemLimit: 2},

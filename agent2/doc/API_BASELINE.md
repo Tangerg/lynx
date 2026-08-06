@@ -1,14 +1,14 @@
 # Agent Framework 公共合同基线
 
-> 状态：Baseline 5 已冻结
+> 状态：Baseline 6 已冻结
 > 冻结日期：2026-08-06
-> 适用范围：`agent2` 根 package、`agent2/interaction`、`agent2/planning`、`agent2/planning/goap`、`agent2/workflow`、`agent2/otel`、`agent2/platform`、Process Snapshot v5、TreeSnapshot v3、child/framework-effect protocol v2、Interaction state/protocol v4/v2、Planning state/protocol v3/v1、Workflow state v2、Event/Delta observation wire
+> 适用范围：`agent2` 根 package、`agent2/interaction`、`agent2/planning`、`agent2/planning/goap`、`agent2/workflow`、`agent2/otel`、`agent2/platform`、Process Snapshot v6、TreeSnapshot v4、child/framework-effect protocol v2、Interaction state/protocol v4/v2、Planning state/protocol v3/v1、Workflow state v2、Event/Delta observation wire
 
 本文只记录已经由 P3 真实 Interaction、P4 child composition、八个独立 command consumer、P5 真实 Planning/GOAP、P6 managed Workflow、P8 Platform 与恢复合同共同证明的公共合同基线。目标架构、ADR、工程标准和实施进度仍由各自文档拥有；这里不复制它们。
 
 ## 1. 基线的含义
 
-Baseline 5 不是兼容承诺或发布版本。仓库仍允许 breaking change，但任何公共名称、参数名、签名、GoDoc、sentinel error、Framework/Strategy recovery wire 或 observation wire 的变化都必须是显式设计决策：
+Baseline 6 不是兼容承诺或发布版本。仓库仍允许 breaking change，但任何公共名称、参数名、签名、GoDoc、sentinel error、Framework/Strategy recovery wire 或 observation wire 的变化都必须是显式设计决策：
 
 1. 先用真实 Strategy 或 consumer 证明变化必要；
 2. 更新或追加 ADR，不保留 alias、双读、双写或兼容 shim；
@@ -43,9 +43,9 @@ Baseline 5 不是兼容承诺或发布版本。仓库仍允许 breaking change�
 
 ## 3. 自动守卫
 
-`baseline_test.go` 对七个已冻结公共 package 的完整 `go doc -all` 输出做 SHA-256 校验，因此 exported identifier、参数名、字段、签名和 GoDoc 的任何漂移都会失败；AST 守卫还要求所有公开声明/字段有精确 GoDoc、公开 callable 的参数有语义名称，并禁止 error cause 通过 `%v` 丢失 `errors.Is/As` 链。Baseline 5 public digest：
+`baseline_test.go` 对七个已冻结公共 package 的完整 `go doc -all` 输出做 SHA-256 校验，因此 exported identifier、参数名、字段、签名和 GoDoc 的任何漂移都会失败；AST 守卫还要求所有公开声明/字段有精确 GoDoc、公开 callable 的参数有语义名称，并禁止 error cause 通过 `%v` 丢失 `errors.Is/As` 链。Baseline 6 public digest：
 
-- root kernel：`73b6f2270e4010886234cb080c277ba1960dcb09c8c123b550ba0c0a8ff6fb90`
+- root kernel：`19339ca04489469a3c06f2c8f9a763a65eaf47ad2b31a67e4eb402290c44394c`
 - interaction：`b5fdabbea94d2b9aa346446a7cafb4accde928b23489012ba2763c77a517da91`
 - planning：`15c48c52b7d4765ba86da2e5fd11822669c163c01e98dd4cb3668f71f7c5f30a`
 - planning/goap：`dd5a007a20ddbeac2112bbed10718f5256fe2449376fd7dcc1400e25578253ec`
@@ -53,9 +53,9 @@ Baseline 5 不是兼容承诺或发布版本。仓库仍允许 breaking change�
 - otel：`0725fbef9fbd28ba9b6999ab8b427dd9a4376f83aef9839a9f15f60c16422016`
 - platform：`748f5ea1ef3b09c702a792ab6e16a3b4ae6be9776ef1a4ba51e856757abff078`
 
-Kernel 测试独立冻结其全部 production `*Wire`、Framework Event payload 与 schema version；每个 Strategy package 冻结自己的私有 ExecutionState 和 Effect/Signal/Delta protocol。覆盖守卫要求新增 production wire 或私有 JSON struct 必须进入所有者 baseline，Kernel 始终只保存 opaque `ExecutionState.Payload`，不会递归解释 Strategy shape。Baseline 5 wire digest：
+Kernel 测试独立冻结其全部 production `*Wire`、Framework Event payload 与 schema version；每个 Strategy package 冻结自己的私有 ExecutionState 和 Effect/Signal/Delta protocol。覆盖守卫要求新增 production wire 或私有 JSON struct 必须进入所有者 baseline，Kernel 始终只保存 opaque `ExecutionState.Payload`，不会递归解释 Strategy shape。Baseline 6 wire digest：
 
-- Kernel snapshot/protocol wire：`1b93af3cb1f0fcb8267b2c160a38e61317397c7c40c3b2a24c51f4f61eeb4066`
+- Kernel snapshot/protocol wire：`0e245506ccda1ef6c1697a782a67e3d5c01e8417bc8d7ff8686eca138b5a43c5`
 - Framework Event/Delta observation wire：`4006d3d24440922ba1e1ba9616bde3a88352fcc2625d918b839e1de283b631cb`
 - Interaction state/protocol wire：`fdc75d1030debefa49d42ffd02c460e143ddc2aee09375630760e799f8ee220a`
 - Planning state/protocol wire：`2d23947979849161f5d997b17c7510a95bc15274c78dc7aae70c21af1beee439`
@@ -95,6 +95,8 @@ P9-02 依据 ADR-A2-055 独立复核后发现 Baseline 4 只冻结了共同 snap
 
 P9-03 依据 ADR-A2-056 将七个生产 package 及其允许内部直连边冻结为单一可执行 DAG，并集中守卫 Host/旧模块、`flow`、logging backend、OTel 与 Interaction-owned protocol 的外部归属。该验收只改变 architecture tests 与文档；七个 exported API digest、全部 owner wire digest 和 Baseline 5 版本均不变。
 
+P9-06 依据 ADR-A2-057 完成最终零债清扫，并形成 Baseline 6。公开状态名从非项目语言规范的 `StatusCancelled` 治本替换为 `StatusCanceled`，JSON wire 同步只接受 `"canceled"`；没有 alias 或旧拼写双读。Process Snapshot 升为 v6、TreeSnapshot 升为 v4，立即拒绝含旧状态拼写的既有格式。P1 disposable spike 测试在正式 Strategy、Engine 与恢复合同已经接管其证据后删除，普通测试不再跨文件借用 spike helper；其余六个 public package、Strategy protocol 和 observation wire 均不变。
+
 ## 4. 明确不在基线中的能力
 
-Baseline 5 暂不冻结 P10 应用迁移 API 或最终模块替换路径。`flow` 保持独立 in-process 库，不形成 Agent adapter API 或依赖；Workflow 吸收其显式拓扑、确定顺序和有界组合思想，但不强求复用或建立 adapter。未来编辑器图只能在更高层编译成已验证的 Workflow Definition，不能反向扩张 Kernel 或恢复 wire。
+Baseline 6 暂不冻结 P10 应用迁移 API 或最终模块替换路径。`flow` 保持独立 in-process 库，不形成 Agent adapter API 或依赖；Workflow 吸收其显式拓扑、确定顺序和有界组合思想，但不强求复用或建立 adapter。未来编辑器图只能在更高层编译成已验证的 Workflow Definition，不能反向扩张 Kernel 或恢复 wire。

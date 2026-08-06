@@ -30,7 +30,7 @@ func TestSnapshotRejectsPriorSchemaVersion(t *testing.T) {
 	if err := json.Unmarshal(snapshot.JSON(), &fields); err != nil {
 		t.Fatal(err)
 	}
-	fields["schema_version"] = json.RawMessage(`4`)
+	fields["schema_version"] = json.RawMessage(`5`)
 	data, err := json.Marshal(fields)
 	if err != nil {
 		t.Fatal(err)

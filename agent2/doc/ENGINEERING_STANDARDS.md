@@ -361,7 +361,7 @@ Extension 只承载可选横切行为。忽略后会破坏所有实现正确性�
 - 构造失败返回 nil/零值和 error，不返回可继续使用的半成品。
 - 普通运行时失败返回 error，不 panic；`MustXxx` 只用于明确的启动期程序员错误。
 - Tool/业务失败与框架内部错误保持边界，不能全部压成字符串。
-- Process 终态由 Engine 已记录的控制意图、deadline 来源和 Step 错误分类共同映射；不得仅凭 `context.Canceled` 或 `context.DeadlineExceeded` 决定 `Killed`、`Cancelled`、`TimedOut` 或 `Failed`。
+- Process 终态由 Engine 已记录的控制意图、deadline 来源和 Step 错误分类共同映射；不得仅凭 `context.Canceled` 或 `context.DeadlineExceeded` 决定 `Killed`、`Canceled`、`TimedOut` 或 `Failed`。
 - Engine 发起 kill、父 Process 取消、Host context 到期和外部 Effect 取消是不同 cause；终态与 cause 都必须稳定、可测试、可恢复。
 - deadline 终止保留独立语义，不压成普通 `Failed`；合同违约、外部失败和 panic 使用不同失败分类。
 - 不同时记录日志并逐层返回同一错误；在真正的系统边界观测一次。

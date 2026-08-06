@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	treeSnapshotSchemaVersion = 3
+	treeSnapshotSchemaVersion = 4
 	maxTreeSnapshotBytes      = 512 << 20
 )
 

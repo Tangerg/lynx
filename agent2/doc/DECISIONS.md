@@ -176,7 +176,7 @@
 ## ADR-A2-026：终态由已记录控制意图和执行结果共同裁决
 
 - 状态：已接受。
-- 决策：Engine 显式 kill 进入 Killed；父 Process 或 Host context 取消进入 Cancelled；Process deadline 或被提升为 Process 终止原因的 Effect deadline 进入 TimedOut；普通 Step error、外部失败、panic 和合同违约进入 Failed；已提交终态 first-terminal-wins。每个终态同时保留稳定 cause，不能仅凭返回 error 推断。
+- 决策：Engine 显式 kill 进入 Killed；父 Process 或 Host context 取消进入 Canceled；Process deadline 或被提升为 Process 终止原因的 Effect deadline 进入 TimedOut；普通 Step error、外部失败、panic 和合同违约进入 Failed；已提交终态 first-terminal-wins。每个终态同时保留稳定 cause，不能仅凭返回 error 推断。
 - 原因：同一个 `context.Canceled` 可能来自不同 owner，单看 error 无法还原终止语义。
 - 限定：使用小型、表驱动的明确矩阵，不引入通用 ErrorClassifier、Transient/NonTransient 或 retry taxonomy。
 
@@ -463,3 +463,12 @@
 - 决策：同一全图门禁集中禁止所有生产包 import 旧 `agent`、Host `app`、`flow` 与 `log/slog`；OpenTelemetry 只能由 `otel` adapter import，`chatclient`、`tool` 与 `core/chat` 只能由 Interaction import。OTel package 的 SDK 禁入、Kernel/Strategy 的 Host 抽象命名、Dispatcher 不拥有 Process lifecycle、Workflow sealed Stage 等 package-specific 所有权继续由本地门禁负责；已被全图合同覆盖的重复 import 扫描删除。
 - 决策：examples 明确排除于生产 package 集合，因为它们的职责就是像真实消费者一样组合多个公开 package；它们仍由独立编译、执行和 public API baseline 验收。Workflow 继续吸收 `flow` 已证明的设计思想，但生产代码不依赖、包装或复制 `flow` runtime；未来若真实 adapter 被证明，必须作为新 package/边重新裁决。
 - 后果：架构门禁从“已知坏边黑名单”升级为“唯一允许图 + owner-specific 限制”。本轮只修改测试和架构事实，不改变七个 public API digest、任何 snapshot/state/protocol/Event wire 或运行语义。
+
+## ADR-A2-057：取消状态使用 Go 生态一致的唯一拼写并显式升级恢复合同
+
+- 状态：已接受；完成 P9-06，P9 完成。
+- 证据：最终完整项目 lint 发现根公共 API 使用 `StatusCancelled` 与 JSON `"cancelled"`，既不符合仓库统一美式英文，也与 Go 标准库 `context.Canceled` 的既有术语冲突。同一轮还发现 P1 的两个 disposable spike 在正式实现和行为合同已完整接管后仍留在主测试集合，普通测试甚至借用了 spike 文件中的 helper；稳定架构文档也残留已完成阶段的未来时态。它们分别属于公共词汇不一致、验证资产生命周期失守和事实文档漂移，不能以关闭 lint、保留别名或改写历史解释掩盖。
+- 决策：公共状态只叫 `StatusCanceled`，wire 只接受 `"canceled"`。不提供 `StatusCancelled` alias，不接受旧 JSON 拼写，不建立迁移 decoder。由于 Status 嵌入 Process Snapshot/TreeSnapshot，schema 分别从 v5/v3 升为 v6/v4；prior-version 与 prior-spelling tests 直接证明旧格式被拒绝。其余 Strategy protocol 与 Event/Delta wire 没有变化，不为统一版本号而无意义升级。
+- 决策：P1 disposable spike 在正式 Interaction、Engine、prepared Step、snapshot/restore 与 unknown Effect 合同全部有 owner 测试后整体删除。任何仍需要的普通测试装配只能由真实测试 owner 自己拥有；同 package 的重复 Interaction Deployment 构造收敛为一个已存在 helper，不形成生产测试框架。稳定架构文档只陈述当前冻结事实，阶段性计划、spike 与验收过程只进入执行计划和能力台账。
+- 决策：阶段完成门禁使用项目完整 `golangci-lint` 配置，而不把 `staticcheck` 当作其替代。额外 duplicate/complexity 指标只用于发现证据：重复职责必须修复；sealed union validator、状态机和测试 fixture 的完整分支不为追逐任意阈值拆散领域不变量。
+- 后果：形成 Baseline 6，根 public digest 与 Kernel snapshot/protocol digest 显式更新；其余六个 public package、Strategy owner wire、Event/Delta wire 与 production package DAG 保持不变。P9 结束时不再有 disposable spike、跨 spike helper、事实过期的稳定设计语句或已知静态问题。
