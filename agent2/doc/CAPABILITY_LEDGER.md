@@ -245,3 +245,11 @@
 - Call 构造时消费 concrete Deployment 仅用于验证并提取 DeploymentRef、input/output schema；Stage 不保存 Deployment、Dispatcher、Engine 或 resolver。每次调用必须显式给出正数 Budget，CapabilitySet 零值准确表示无权限。
 - ExecutionState v1 只保存 phase、Stage index、当前 raw value、ChildProcessID 与 WaitID。Call 通过 Framework Effects 推进 child start、wait registration 和 completion；zero-state Workflow Dispatcher 对任何 dispatcher Effect 都返回协议违约。
 - 真实 Engine consumer 已跑通 Transform→Call→Transform，并通过每个 Step 的 capture/restore 候选重建。child start/终态/Output 违约由 Workflow 自己给出带 Stage 语义的稳定失败码，不把 child failure 无上下文地冒充 parent failure。
+
+### 10.7 Switch/Fork 正式纵切面
+
+- Switch selector 是 typed edge 上的纯函数，只返回一个已声明 case ID；每个 case 是 exact child Deployment。构造期同时验证所有 case 的输入与 Switch 输入精确相等、输出彼此精确相等，未选择 case 不会创建 Process。
+- Fork 首版明确是 homogeneous fan-out + reducer：所有 branch 接受同一 I 并产生同一 B，reducer 按声明顺序把 `[]B` 变成 O。需要异构内部步骤的 branch 必须先用 child Workflow 暴露共同 B，不能把 `any`、共享 Store 或隐式 binding 带回父级。
+- Fork Concurrency 是显式正数窗口上限且不得超过 branch 数；Execution 只启动当前窗口，等待该窗口全部已启动 child 终止后才启动下一窗口。start failure 不会遗弃同窗已经启动的 child，所有失败按最低声明索引稳定归因。
+- Fork state 用 branch index、ProcessID、Failure 与 nullable raw Output 槽位区分未启动、已启动、已失败和已结算；字面 JSON `null` 不能冒充一个未结算槽位。窗口与单 child 的 ChildKey/WaitKey 都由完整逻辑身份稳定哈希，避免合法组合超出 Kernel identity 长度。
+- 真实 dispatcher-backed child 测试证明 window=2 不会提前启动第三路、逆序完成不改变 reducer 顺序、同窗多失败不受完成时序影响。Switch/Fork 没有增加 Kernel API、dispatcher 协议、goroutine scheduler 或 `flow` 依赖。

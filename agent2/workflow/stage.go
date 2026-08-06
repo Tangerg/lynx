@@ -18,6 +18,8 @@ const (
 	StageKindInvalid StageKind = iota
 	StageKindTransform
 	StageKindCall
+	StageKindSwitch
+	StageKindFork
 )
 
 func (kind StageKind) String() string {
@@ -26,6 +28,10 @@ func (kind StageKind) String() string {
 		return "transform"
 	case StageKindCall:
 		return "call"
+	case StageKindSwitch:
+		return "switch"
+	case StageKindFork:
+		return "fork"
 	default:
 		return "invalid"
 	}
@@ -38,7 +44,7 @@ type TransformFunc[I, O any] func(I) (O, error)
 
 type transformStage func(json.RawMessage) (json.RawMessage, error)
 
-type callStage struct {
+type childBinding struct {
 	deployment   agent.DeploymentRef
 	budget       agent.Budget
 	capabilities agent.CapabilitySet
@@ -52,7 +58,9 @@ type Stage struct {
 	inputSchema  agent.Schema
 	outputSchema agent.Schema
 	transform    transformStage
-	call         callStage
+	call         childBinding
+	switcher     switchStage
+	fork         forkStage
 }
 
 // CallConfig declares one exact child Deployment and its non-renewable
@@ -128,7 +136,7 @@ func Call(config CallConfig) (Stage, error) {
 	return Stage{
 		id: config.ID, kind: StageKindCall,
 		inputSchema: descriptor.InputSchema(), outputSchema: descriptor.OutputSchema(),
-		call: callStage{
+		call: childBinding{
 			deployment: config.Deployment.Reference(), budget: config.Budget,
 			capabilities: config.Capabilities,
 		},
@@ -155,10 +163,20 @@ func (stage Stage) Valid() bool {
 	switch stage.kind {
 	case StageKindTransform:
 		return stage.transform != nil && !stage.call.deployment.Valid() &&
-			!stage.call.budget.Valid() && stage.call.capabilities.Valid()
+			!stage.call.budget.Valid() && stage.call.capabilities.Valid() &&
+			!stage.switcher.valid() && !stage.fork.valid()
 	case StageKindCall:
 		return stage.transform == nil && stage.call.deployment.Valid() &&
-			stage.call.budget.Valid() && stage.call.capabilities.Valid()
+			stage.call.budget.Valid() && stage.call.capabilities.Valid() &&
+			!stage.switcher.valid() && !stage.fork.valid()
+	case StageKindSwitch:
+		return stage.transform == nil && !stage.call.deployment.Valid() &&
+			!stage.call.budget.Valid() && stage.call.capabilities.Valid() &&
+			stage.switcher.valid() && !stage.fork.valid()
+	case StageKindFork:
+		return stage.transform == nil && !stage.call.deployment.Valid() &&
+			!stage.call.budget.Valid() && stage.call.capabilities.Valid() &&
+			!stage.switcher.valid() && stage.fork.valid()
 	default:
 		return false
 	}

@@ -29,6 +29,12 @@ func (execution *execution) Step(_ context.Context, signals []agent.Signal) (age
 		return execution.acceptChildWaitOpen(signals)
 	case phaseWaitingChild:
 		return execution.acceptChildCompletion(signals)
+	case phaseAwaitingForkStarts:
+		return execution.acceptForkStarts(signals)
+	case phaseAwaitingForkWaitOpen:
+		return execution.acceptForkWaitOpen(signals)
+	case phaseWaitingFork:
+		return execution.acceptForkCompletion(signals)
 	case phaseCompleted:
 		return agent.Transition{}, fmt.Errorf("%w: completed Execution cannot advance", ErrInvalidProtocol)
 	default:
@@ -60,26 +66,75 @@ func (execution *execution) advance(signals []agent.Signal) (agent.Transition, e
 		execution.state.Value = value
 		return execution.finishStage(0)
 	case StageKindCall:
-		input, err := agent.ParseInput(execution.state.Value)
+		return execution.startSingleChild(0, stage.call)
+	case StageKindSwitch:
+		selected, err := stage.switcher.selectCase(execution.state.Value)
 		if err != nil {
+			var unknown unknownSwitchCase
+			if errors.As(err, &unknown) {
+				return execution.failContract(
+					0, "workflow.switch.case_unknown",
+					"Switch Stage "+stage.id+" selected an undeclared case",
+				)
+			}
 			return agent.Transition{}, err
 		}
-		key, err := execution.childKey()
-		if err != nil {
-			return agent.Transition{}, err
+		binding, found := stage.switcher.binding(selected)
+		if !found {
+			return agent.Transition{}, ErrInvalidStage
 		}
-		effect, err := agent.StartChild(agent.ChildSpec{
-			Key: key, Deployment: stage.call.deployment, Input: input,
-			Budget: stage.call.budget, Capabilities: stage.call.capabilities,
-		})
-		if err != nil {
-			return agent.Transition{}, err
-		}
-		execution.state.Phase = phaseAwaitingChildStart
-		return agent.Continue(0, effect)
+		execution.state.SelectedCase = selected
+		return execution.startSingleChild(0, binding)
+	case StageKindFork:
+		return execution.startForkWindow(0)
 	default:
 		return agent.Transition{}, ErrInvalidStage
 	}
+}
+
+func (execution *execution) startSingleChild(consumed uint32, binding childBinding) (agent.Transition, error) {
+	input, err := agent.ParseInput(execution.state.Value)
+	if err != nil {
+		return agent.Transition{}, err
+	}
+	key, err := execution.childKey()
+	if err != nil {
+		return agent.Transition{}, err
+	}
+	effect, err := agent.StartChild(agent.ChildSpec{
+		Key: key, Deployment: binding.deployment, Input: input,
+		Budget: binding.budget, Capabilities: binding.capabilities,
+	})
+	if err != nil {
+		return agent.Transition{}, err
+	}
+	execution.state.Phase = phaseAwaitingChildStart
+	return agent.Continue(consumed, effect)
+}
+
+func (execution *execution) singleChildBinding() (childBinding, bool) {
+	stage := execution.stage()
+	switch stage.kind {
+	case StageKindCall:
+		return stage.call, true
+	case StageKindSwitch:
+		return stage.switcher.binding(execution.state.SelectedCase)
+	default:
+		return childBinding{}, false
+	}
+}
+
+func (execution *execution) clearSingleChild() {
+	execution.state.SelectedCase = ""
+	execution.state.ChildProcessID = nil
+	execution.state.WaitID = nil
+}
+
+func (execution *execution) singleChildID() string {
+	if execution.stage().kind == StageKindSwitch {
+		return execution.stage().id + ".case." + execution.state.SelectedCase
+	}
+	return execution.stage().id
 }
 
 func (execution *execution) acceptChildStart(signals []agent.Signal) (agent.Transition, error) {
@@ -88,14 +143,15 @@ func (execution *execution) acceptChildStart(signals []agent.Signal) (agent.Tran
 	}
 	result, err := agent.ParseChildStartResult(signals[0])
 	key, keyErr := execution.childKey()
+	binding, bound := execution.singleChildBinding()
 	stage := execution.stage()
-	if err != nil || keyErr != nil || result.Key() != key || result.DeploymentRef() != stage.call.deployment {
+	if err != nil || keyErr != nil || !bound || result.Key() != key || result.DeploymentRef() != binding.deployment {
 		return agent.Transition{}, fmt.Errorf("%w: child-start result does not match Stage %q", ErrInvalidProtocol, stage.id)
 	}
 	if failure, failed := result.Failure(); failed {
 		return execution.fail(
-			1, "workflow.call.start_failed",
-			"Child Process start failed for Stage "+stage.id+": "+failure.Code(),
+			1, "workflow."+stage.Kind().String()+".start_failed",
+			"Child Process start failed for Stage "+execution.singleChildID()+": "+failure.Code(),
 			failure.Kind(),
 		)
 	}
@@ -154,31 +210,32 @@ func (execution *execution) acceptChildCompletion(signals []agent.Signal) (agent
 	if result.Status() != agent.StatusCompleted {
 		if failure, failed := result.Termination().Failure(); failed {
 			return execution.failExternal(
-				1, "workflow.call.child_failed",
-				"Child Process failed for Stage "+execution.stage().id+": "+failure.Code(),
+				1, "workflow."+execution.stage().Kind().String()+".child_failed",
+				"Child Process failed for Stage "+execution.singleChildID()+": "+failure.Code(),
 			)
 		}
 		return execution.failExternal(
 			1,
-			"workflow.call.child_not_completed",
-			"Child Process for Stage "+execution.stage().id+" terminated with status "+result.Status().String(),
+			"workflow."+execution.stage().Kind().String()+".child_not_completed",
+			"Child Process for Stage "+execution.singleChildID()+" terminated with status "+result.Status().String(),
 		)
 	}
 	output, present := result.Output()
 	if !present {
-		return execution.failContract(1, "workflow.call.output_missing", "Completed child Process returned no Output")
+		return execution.failContract(1, "workflow."+execution.stage().Kind().String()+".output_missing", "Completed child Process returned no Output")
 	}
 	if err := execution.stage().outputSchema.ValidateOutput(output); err != nil {
-		return execution.failContract(1, "workflow.call.output_invalid", "Child Process Output violated the Stage contract")
+		return execution.failContract(1, "workflow."+execution.stage().Kind().String()+".output_invalid", "Child Process Output violated the Stage contract")
 	}
 	execution.state.Value = output.JSON()
-	execution.state.ChildProcessID = nil
-	execution.state.WaitID = nil
+	execution.clearSingleChild()
 	execution.state.Phase = phaseReady
 	return execution.finishStage(1)
 }
 
 func (execution *execution) finishStage(consumed uint32) (agent.Transition, error) {
+	execution.clearSingleChild()
+	execution.clearFork()
 	execution.state.Stage++
 	if execution.state.Stage < uint32(len(execution.definition.stages)) {
 		execution.state.Phase = phaseReady
@@ -218,11 +275,11 @@ func (execution *execution) stage() Stage {
 }
 
 func (execution *execution) childKey() (agent.ChildKey, error) {
-	return agent.ParseChildKey("workflow.stage." + execution.stage().id)
+	return workflowChildKey("single", execution.stage().id, execution.state.SelectedCase)
 }
 
 func (execution *execution) waitKey() (agent.WaitKey, error) {
-	return agent.ParseWaitKey("workflow.stage." + execution.stage().id)
+	return workflowWaitKey("single", execution.stage().id, execution.state.SelectedCase)
 }
 
 var _ agent.Execution = (*execution)(nil)
