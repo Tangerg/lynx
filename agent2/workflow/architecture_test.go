@@ -6,7 +6,6 @@ import (
 	"go/token"
 	"io/fs"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"testing"
 )
@@ -28,18 +27,6 @@ func TestWorkflowExcludesHostLegacyAndSecondRuntimeAbstractions(t *testing.T) {
 		file, err := parser.ParseFile(files, path, nil, 0)
 		if err != nil {
 			return err
-		}
-		for _, imported := range file.Imports {
-			importPath, err := strconv.Unquote(imported.Path.Value)
-			if err != nil {
-				return err
-			}
-			if importPath == "github.com/Tangerg/flow" || strings.HasPrefix(importPath, "github.com/Tangerg/flow/") ||
-				importPath == "github.com/Tangerg/lynx/agent" || strings.HasPrefix(importPath, "github.com/Tangerg/lynx/agent/") ||
-				importPath == "github.com/Tangerg/lynx/app" || strings.HasPrefix(importPath, "github.com/Tangerg/lynx/app/") ||
-				strings.HasPrefix(importPath, "go.opentelemetry.io/") || importPath == "log/slog" {
-				t.Errorf("%s imports forbidden package %q", path, importPath)
-			}
 		}
 		ast.Inspect(file, func(node ast.Node) bool {
 			for _, name := range workflowDeclaredNames(node) {

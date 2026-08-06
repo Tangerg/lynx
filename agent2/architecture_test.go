@@ -8,7 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -65,7 +64,7 @@ func TestEventContainsOnlyFrameworkObservationContracts(t *testing.T) {
 	}
 }
 
-func TestFrameworkRootExcludesLegacyAndHostDependencies(t *testing.T) {
+func TestFrameworkRootExcludesHostAbstractions(t *testing.T) {
 	entries, err := os.ReadDir(".")
 	if err != nil {
 		t.Fatal(err)
@@ -83,19 +82,6 @@ func TestFrameworkRootExcludesLegacyAndHostDependencies(t *testing.T) {
 		file, err := parser.ParseFile(files, filepath.Clean(name), nil, 0)
 		if err != nil {
 			t.Fatal(err)
-		}
-		for _, imported := range file.Imports {
-			path, err := strconv.Unquote(imported.Path.Value)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if path == "github.com/Tangerg/lynx/agent" || strings.HasPrefix(path, "github.com/Tangerg/lynx/agent/") ||
-				path == "github.com/Tangerg/lynx/app" || strings.HasPrefix(path, "github.com/Tangerg/lynx/app/") {
-				t.Errorf("%s imports forbidden legacy or Host package %q", name, path)
-			}
-			if strings.HasPrefix(path, "go.opentelemetry.io/otel") {
-				t.Errorf("%s imports OpenTelemetry into the Kernel instead of the otel adapter: %q", name, path)
-			}
 		}
 		ast.Inspect(file, func(node ast.Node) bool {
 			for _, identifier := range declaredIdentifiers(node) {

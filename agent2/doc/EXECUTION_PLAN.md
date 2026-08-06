@@ -3,7 +3,7 @@
 > 状态：持续实施
 > 建立日期：2026-08-06
 > 最后更新：2026-08-06
-> 当前阶段：P9 独立完整性验收，2/6 完成
+> 当前阶段：P9 独立完整性验收，3/6 完成
 > 当前实施范围：仅 `agent2`
 > 临时模块路径：`github.com/Tangerg/lynx/agent2`
 > 最终模块路径：`github.com/Tangerg/lynx/agent`
@@ -75,7 +75,7 @@ go test ./...
 | P6 managed Workflow | 完成 | 11/11 | 以有序 Stage 和真实 child Process 实现可恢复确定性编排，`flow` 保持独立 in-process 边界 |
 | P7 组合模式与能力覆盖 | 完成 | 7/7 | 动态 worker 组合、typed artifacts、evaluator/optimizer、示例 |
 | P8 Platform 与治理 | 完成 | 7/7 | resolver、deployment catalog、版本、路由、递归治理和观测 |
-| P9 独立完整性验收 | 进行中 | 2/6 | API/wire/arch/race/fuzz/examples/standalone 全绿 |
+| P9 独立完整性验收 | 进行中 | 3/6 | API/wire/arch/race/fuzz/examples/standalone 全绿 |
 | P10 消费迁移 | 未开始 | 0/5 | 单独迁移 `app/runtime` 及批准的直接消费者 |
 | P11 原模块替换 | 未开始 | 0/5 | 删除旧模块、改回 `agent`、清零兼容和残留 |
 
@@ -188,7 +188,7 @@ go test ./...
 
 - [x] P9-01 审计所有公开名称、参数、描述和 error 语义。
 - [x] P9-02 建立 exported API 和 snapshot wire baseline。
-- [ ] P9-03 建立完整 package DAG 和边界守卫。
+- [x] P9-03 建立完整 package DAG 和边界守卫。
 - [ ] P9-04 完成全量 build/vet/test/static analysis/race/fuzz。
 - [ ] P9-05 完成独立 module、examples 和文档验证。
 - [ ] P9-06 清除空目录、漂移注释、dead code、TODO 债务和兼容残留。
@@ -254,6 +254,7 @@ go test ./...
 
 | 日期 | 阶段 | 实际事实 | 验证与结果 |
 |---|---|---|---|
+| 2026-08-06 | P9 | 将分散的 import denylist 收敛为唯一完整生产 package 图。精确 package 集合为 root、Interaction、Planning、Planning/GOAP、Workflow、OTel、Platform；唯一内部直连边为五个上层 package → root 与 GOAP → Planning，Kernel 无出边。全图门禁扫描所有非测试 production `.go`（包括 build-tag 文件），新增 package、未允许边或声明环都失败；统一禁止旧 `agent`、Host `app`、`flow`、logging backend，并把 OTel 和 chatclient/tool/core-chat 分别约束到 OTel adapter 与 Interaction owner。局部门禁只保留 SDK、Host 类型命名、Dispatcher lifecycle、sealed Stage 等 owner-specific 规则，删除重复 Strategy 清单 | 新增 ADR-A2-056、能力证据与精确现状目录；Workflow 继续只吸收 `flow` 思想、不形成依赖。七个 public API、全部 owner wire 与运行语义未变。standalone `mod tidy` 零漂移、build/vet/staticcheck/test/race 全绿，八个 command consumer 全部实跑成功，diff check 通过；P9-03 完成，P9 更新为 3/6 |
 | 2026-08-06 | P9 | 独立复核 Baseline 4 后确认 public API digest 完整，但共同 snapshot 只能看到 opaque `ExecutionState.Payload`，无法冻结 Strategy owner 的恢复/Effect/Signal wire；Framework Event payload 也由匿名 struct 生成而逃逸 observation digest。按 ADR-A2-055 治本分层：Kernel baseline 覆盖全部 production `*Wire` 与命名 Framework Event payload，并以 AST 阻止新增 wire 漏登记；Interaction/Planning/Workflow 各自覆盖全部 private JSON state/protocol，并保持 Kernel 不解析具体 Strategy payload。持久字段同步收敛为 WorkingContext/model/Tool/delegate/artifact、WorldState/Action confirmation、Stage/current value/fan-out 与 Process/Wait owner-qualified 语义；Event payload 明确 process/step/effect settlement/dropped Delta 事实。旧 tag/version 不双读 | Process Snapshot v5、TreeSnapshot v3、Interaction state/protocol v4/v2、Planning state v3、Workflow state v2；child/framework protocol v2 与 Planning protocol v1 不变。七个 public digest 不变，新增五个 owner wire digest 与 prior-version tests；`GOWORK=off` standalone build/vet/test/race、staticcheck、mod tidy、diff check 与八个 command consumer 实跑全绿。P9-02 完成，P9 更新为 2/6 |
 | 2026-08-06 | P9 | 完成七个公共 package 与 Kernel/Strategy 私有实现的独立语义命名终审。完整 Deployment 与 exact DeploymentRef 不再混称：`Deployment.DeploymentRef`、`DeploymentCandidate.DeploymentRef`、Planning `ChildBindingConfig.DeploymentRef` 形成唯一术语；Effect request 改为 `BatchIndex`，Transition 改为 `ConsumedSignals`，Event/Delta/mailbox/prepared Step 分别使用 Process/Step/Effect/Arrival sequence 与 Signal cursor。sentinel 收敛为真实失败条件，所有普通 error cause 统一 `%w`。公开 callable 参数全部具名，公开 declaration/field GoDoc 精确起始；新增 AST 门禁阻止匿名参数、字段注释漂移和 `%v` error 断链。私有 `processRuntime`/宽泛 controller/loop 字段收敛为 `processLoop`、`processID`、`lastStableState`、`pendingControl`、`finalOutput`、`terminalSnapshot`；Interaction/Planning 杂物文件按真实职责拆分。无 alias、shim 或双术语 | wire 随语义一次性 breaking revision：Process Snapshot v4、TreeSnapshot v2、child/framework-effect protocol v2、Planning ExecutionState v2；旧 tag/版本不双读。新增 prior-version 行为测试逐项证明旧 Process/tree、Framework/child protocol 与 Planning state 被拒绝。七个 API digest、snapshot/tree 与 observation wire digest 显式更新为 Baseline 4，并新增 ADR-A2-054 与能力证据。`GOWORK=off` standalone build/vet/test/race、staticcheck、diff check 与八个 command consumer 实跑全绿。P9-01 完成，P9 更新为 1/6 |
 | 2026-08-06 | P8 | 完成 embedded Engine 与完整 Platform 共用执行语义的真实纵切面，并在冻结前删减候选 API。新增第八个独立 command `embedded_vs_platform`：同一 exact Workflow root/worker/Input 分别经 caller-owned resolver 直接运行，以及经 active DeploymentCandidate selection + Platform exact resolver 运行；两边直接在同一个 EngineConfig 位置装配 ProcessAdmitter/EventListener，没有 Platform Start/Run facade、第二 scheduler、Process owner 或 observation bus。比较 typed Output、Completed、Usage、两 Process exact tree、两次 admission 和稳定 Process/Step/Effect lifecycle。真实重复运行发现 child 在 wait 注册前/后完成会合法改变 `signal.accepted` 与中间 running/waiting，因此等价合同只比较稳定语义，不谎称 ID、时间或完整 Event sequence deterministic | 消费前 API 审计删除单字段 Config 与 executable ActiveDeployments 副视图，构造收敛为 `New(deployments...)`，Platform 零值成为可用空 aggregate；active discovery 只保留 immutable non-executable DeploymentCandidate，Catalog/Resolve 继续拥有 exact history；nil/typed-nil sentinel 精确收敛为 ErrNilPlatform/ErrNilDeploymentSelector。Platform architecture gate 新增 OTel 禁入并继续禁止 Strategy/旧 agent/Host。新 command 普通 100 次、race 20 次全绿；Platform package 专项 race 20 次全绿。`platform` API/GoDoc digest 冻结为 `9fef1861154434ca2f4fdd4d3b6bfad2b4c8326b15c49eb0d3c82fc0062f8713`，其余六个 API 与 snapshot/tree/observation wire 不变。standalone tidy/diff/build/vet/staticcheck/test/race、八个 commands 全绿；最终提交态 13 个 fuzz targets 共 1003015 次执行无失败。P8-07 完成，P8 7/7 完成，进入 P9 |
@@ -316,6 +317,6 @@ go test ./...
 
 ## 9. 当前下一步
 
-P1–P8 与 P9-01～02 已完成。七个 public package、Kernel-owned wire/Framework Event payload，以及 Interaction/Planning/Workflow owner 私有恢复/协议 wire 均已形成可自动发现漏登记的 Baseline 5；Kernel 仍不解释 Strategy payload，没有兼容 alias、旧 tag 或双读。下一轮 P9-03 独立复核完整 package DAG 与边界守卫，不能把已有局部 architecture tests 当作全图证明。
+P1–P8 与 P9-01～03 已完成。七个 public package、全部 owner wire 和精确生产 package DAG 均有自动覆盖守卫；Kernel 仍不解释 Strategy payload、不反向依赖高层，Workflow 不依赖 `flow`，没有兼容 alias、旧 tag 或双读。下一轮 P9-04 对提交态执行全量 build/vet/static analysis/test/race/fuzz，并记录可复现的运行次数与结果。
 
 在 P1–P9 完成前，不迁移 `app/runtime`，不删除旧 `agent`，不发布 `agent2` 稳定版本。

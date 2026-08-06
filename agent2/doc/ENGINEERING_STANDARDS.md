@@ -108,6 +108,8 @@ Integration adapter → Agent contracts
 
 包依赖规则必须由 architecture tests 守卫，不能只写在文档里。
 
+门禁必须覆盖完整生产图，而不是让每个 package 各自维护一份容易漏项的 denylist：生产 package 集合和所有允许的 Agent 内部直连边集中声明；任何新增 package、内部依赖边或反向依赖都默认失败。Host/旧模块、`flow`、logging backend、OpenTelemetry 与 Interaction 专属协议等具有架构含义的外部依赖也必须按 owner 集中约束；各 package 的本地 architecture test 只守自己独有的类型所有权和实现限制，避免同一规则多处漂移。
+
 ### 3.4 抽象必须恰好足够
 
 #### 抽象成立的证据

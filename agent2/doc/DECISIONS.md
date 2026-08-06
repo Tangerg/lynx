@@ -454,3 +454,12 @@
 - 决策：baseline 必须同时防止“已覆盖 shape 漂移”和“新增 shape 未纳入”。根 AST 守卫要求新增 production `*Wire`/`*EventPayload` 进入 Kernel baseline；三个 Strategy 的 AST 守卫要求每个新增 private JSON struct 进入对应 owner baseline。digest 变化仍必须结合 strict codec、prior-version rejection、round-trip、restore、fuzz 与 consumer behavior 审计，不能以更新 hash 代替设计。
 - 决策：审计中发现的宽泛持久字段一次性改为 owner-qualified 语义：Process event sequence、child-wait parent ProcessID、mailbox WaitKey/WaitID；Interaction WorkingContext/model/Tool/delegate/artifact 游标与记录；Planning WorldState/excluded/current Action/confirmation；Workflow Stage/current value/case/fan-out window。Framework Event payload 也明确区分 process、step、effect settlement 与 dropped Delta 事实。旧 tag 不双读，旧 state/snapshot 版本不兼容恢复。
 - 后果：形成 Baseline 5。Process Snapshot v5、TreeSnapshot v3、Interaction ExecutionState/protocol v4/v2、Planning ExecutionState v3、Workflow ExecutionState v2；child/framework-effect protocol 保持 v2，Planning protocol 保持 v1。七个公开 API digest 不变，说明本轮只关闭 owner 私有恢复/观察协议漏口。Workflow 继续是原生 managed Strategy，`flow` 只提供显式拓扑、typed composition、确定顺序和有界 fan-out 等设计参考，不形成强制依赖或复用目标。
+
+## ADR-A2-056：生产 package 集合与允许依赖边构成单一可执行合同
+
+- 状态：已接受；完成 P9-03。
+- 证据：P1–P8 的局部 architecture tests 能禁止旧 `agent`、Host、具体 Strategy 或 OTel SDK 等若干 import，却没有一个守卫能枚举全部生产 package、证明 Kernel 无内部出边，或让新增未审计 package/边立即失败。Platform 与 OTel 又各自复制具体 Strategy denylist，同一边界会随新增 Strategy 漂移。`go list` 显示当前真实生产图只有 root、Interaction、Planning、GOAP、Workflow、OTel 和 Platform 七个 package；examples 是外部式组合消费者，不是生产依赖层。
+- 决策：建立唯一完整生产 package 图：Interaction、Planning、Workflow、OTel、Platform 只可直连 root；GOAP 只可直连 Planning；root 不可 import 任何 agent2 子 package。门禁遍历所有非测试生产 `.go` 源码而不按 build tag 隐藏文件，精确比对 package 集合和允许的内部直连边，并验证声明图自身无环。新增 package 或边必须先以真实职责和消费者通过 ADR 修改该合同，不能通过更新散落 denylist 偷渡。
+- 决策：同一全图门禁集中禁止所有生产包 import 旧 `agent`、Host `app`、`flow` 与 `log/slog`；OpenTelemetry 只能由 `otel` adapter import，`chatclient`、`tool` 与 `core/chat` 只能由 Interaction import。OTel package 的 SDK 禁入、Kernel/Strategy 的 Host 抽象命名、Dispatcher 不拥有 Process lifecycle、Workflow sealed Stage 等 package-specific 所有权继续由本地门禁负责；已被全图合同覆盖的重复 import 扫描删除。
+- 决策：examples 明确排除于生产 package 集合，因为它们的职责就是像真实消费者一样组合多个公开 package；它们仍由独立编译、执行和 public API baseline 验收。Workflow 继续吸收 `flow` 已证明的设计思想，但生产代码不依赖、包装或复制 `flow` runtime；未来若真实 adapter 被证明，必须作为新 package/边重新裁决。
+- 后果：架构门禁从“已知坏边黑名单”升级为“唯一允许图 + owner-specific 限制”。本轮只修改测试和架构事实，不改变七个 public API digest、任何 snapshot/state/protocol/Event wire 或运行语义。

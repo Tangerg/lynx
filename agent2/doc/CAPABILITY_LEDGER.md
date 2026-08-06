@@ -443,3 +443,10 @@
 - Kernel baseline 现覆盖全部 production `*Wire`，包含 Descriptor、Framework wait/child Effect/Signal、Process Snapshot v5、TreeSnapshot v3 及其嵌套值；新增 production wire 未登记时直接失败。Kernel 仍只校验 opaque ExecutionState envelope，不 import 或解析任何 Strategy phase/state。
 - Framework-owned Event payload 从匿名 struct 收敛为命名合同并进入 observation baseline；OTel adapter 只按 Event 名称投影 `process_status`、`termination_cause`、`step_status`、`effect_target`、`settlement_status` 与 `dropped_delta_count`，没有反向进入 Kernel。
 - prior-version tests 明确拒绝 Process v4、Tree v2、Interaction state v3/protocol v1、Planning state v2 与 Workflow state v1；没有兼容 alias、双 tag、dual-read 或迁移 helper。七个 public API digest 未变化，P9-02 只修复真实 baseline 覆盖缺口。
+
+### 13.3 完整 package DAG 与边界门禁
+
+- 当前生产 package 集合精确锁定为 root、Interaction、Planning、Planning/GOAP、Workflow、OTel 与 Platform；新增目录中出现 production Go package 会直接失败，不再依赖人工发现。
+- 唯一允许的 agent2 内部直连边是 Interaction/Planning/Workflow/OTel/Platform → root，以及 GOAP → Planning；声明图还会独立检查无环。因而 Kernel 反向 import Strategy、Strategy 横向耦合、GOAP 绕过 Planning contract、adapter 取得 Platform/Strategy 所有权都会失败。
+- Host `app`、旧 `agent`、`flow` 和 logging backend 对全部生产 package 禁入；OTel 只属于 `otel` adapter，chatclient/tool/core-chat 只属于 Interaction。OTel SDK、Host 抽象名称、Dispatcher lifecycle 和 sealed Workflow algebra 等 owner-specific 规则仍留在各自本地门禁，没有重复维护内部 Strategy 清单。
+- examples 故意作为图外公开消费者，可以组合多个 Strategy/Platform；它们不豁免独立编译和实跑。Workflow 仅吸收 `flow` 的显式组合、确定顺序与有界 fan-out 思想，代码依赖保持为零。

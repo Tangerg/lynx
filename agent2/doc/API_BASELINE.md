@@ -93,6 +93,8 @@ P9-01 依据 ADR-A2-054 对七个 package 的公开/私有词汇、参数、字�
 
 P9-02 依据 ADR-A2-055 独立复核后发现 Baseline 4 只冻结了共同 snapshot 外层，没有冻结其中 opaque Strategy payload 的所有者协议；Framework Event payload 也由匿名 struct 生成而未进入 observation digest。Baseline 5 将这两个漏口治本关闭：Interaction、Planning、Workflow 分别拥有并冻结自己的 state/protocol，Kernel 只冻结共同 envelope；Framework Event payload 收敛为命名 wire，并使用 `process_status`、`termination_cause`、`step_status`、`effect_target`、`settlement_status`、`dropped_delta_count` 等准确字段。Process Snapshot 升为 v5、TreeSnapshot 升为 v3、Interaction state/protocol 升为 v4/v2、Planning state 升为 v3、Workflow state 升为 v2；旧版本与旧 tag 直接拒绝，七个 public digest 不变。
 
+P9-03 依据 ADR-A2-056 将七个生产 package 及其允许内部直连边冻结为单一可执行 DAG，并集中守卫 Host/旧模块、`flow`、logging backend、OTel 与 Interaction-owned protocol 的外部归属。该验收只改变 architecture tests 与文档；七个 exported API digest、全部 owner wire digest 和 Baseline 5 版本均不变。
+
 ## 4. 明确不在基线中的能力
 
 Baseline 5 暂不冻结 P10 应用迁移 API 或最终模块替换路径。`flow` 保持独立 in-process 库，不形成 Agent adapter API 或依赖；Workflow 吸收其显式拓扑、确定顺序和有界组合思想，但不强求复用或建立 adapter。未来编辑器图只能在更高层编译成已验证的 Workflow Definition，不能反向扩张 Kernel 或恢复 wire。

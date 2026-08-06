@@ -643,41 +643,35 @@ Delta 是与 Event 不同的临时流输出。Delta 缓冲显式有界、按调�
 
 ## 14. 依赖与目标包结构
 
-目标依赖方向：
+当前已验收的生产依赖方向如下；箭头表示 Go import：
 
 ```text
-Host Application ──────────┐
-                            ▼
-                        agent facade
-                            ▼
-                     Engine / Platform
-                            ▼
-               Definition / Execution / Process
-                  ▲          ▲
-                  │          │
-           interaction   planning
-                              ▲
-                              │
-                       goap/htn/utility
+Host / examples ──> root, platform, otel, concrete Strategies
 
-interaction ──> chatclient + tool + core/chat
-agent2 ──X──> old agent
-agent2 ──X──> Host application modules
+platform ─────────┐
+otel ─────────────┤
+interaction ──────┤
+planning ─────────┼──> root Kernel
+workflow ─────────┘
+planning/goap ───────> planning
+
+interaction ─────────> chatclient + tool + core/chat
+root Kernel ──────X──> every agent2 subpackage
+all production ───X──> old agent / Host app / flow / logging backend
+non-otel packages ─X─> OpenTelemetry
 ```
 
-目录只在对应实现出现时创建：
+当前生产 package 集合精确为：
 
 ```text
 agent2/
 ├── root package files       公共窄腰、Engine、Process、常用入口
 ├── interaction/             模型/工具自主交互 Definition
 ├── planning/                Planning domain 与 Planner contract
-│   ├── goap/                GOAP 实现
-│   ├── htn/                 HTN 实现（需求验证后）
-│   └── utility/             Utility 实现（需求验证后）
+│   └── goap/                GOAP 实现，只依赖 Planning contract
 ├── workflow/                managed child Process 的确定性有序编排
-├── hitl/                    有真实独立消费时的 typed helpers
-├── internal/                仅用于确需编译器约束的共享实现
+├── otel/                    Framework Event 的 OpenTelemetry adapter
+├── platform/                Deployment catalog、选择与治理
 ├── examples/                验证公共使用路径的可运行示例
 └── doc/                     架构、决策与执行记录
 ```
@@ -686,10 +680,11 @@ agent2/
 
 - 不预建 `core/`、`runtime/`、`service/`、`manager/`、`common/`、`utils/` 等层次或泛名 package。
 - 根 package 承载真正共同且不可再分的公共语义；策略专属类型留在策略 package。
-- `internal` 只在两个以上内部 package 需要共享且不能公开时建立。
+- 新 package 只有在独立变化原因和真实消费者已被证明、ADR 已更新生产 package 集合与允许边后才能建立；`htn`、`utility`、`hitl`、`internal` 目前都不存在。
 - 不为“整洁”机械拆包，以独立变化原因、依赖切断和真实消费者作为依据。
 - 根 facade 不通过大量 alias 重导出所有高级类型。
 - `Process` 的构造权只属于 Engine；公开只读/控制面不能绕过合法状态机创建或改写 Process。
+- 全图 architecture test 扫描所有非测试生产 `.go` 文件（包括受 build tag 约束的文件），锁定 package 集合、允许的内部直连边和关键外部依赖归属；examples 作为组合公共 API 的消费者单独验收，不进入生产 DAG。
 
 ---
 
