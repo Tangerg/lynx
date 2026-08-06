@@ -3,7 +3,7 @@
 > 状态：持续实施
 > 建立日期：2026-08-06
 > 最后更新：2026-08-06
-> 当前阶段：P6 Workflow，1/8 完成
+> 当前阶段：P6 确定性编排边界复核，2/3 完成；Workflow 设计与实现按用户要求暂停
 > 当前实施范围：仅 `agent2`
 > 临时模块路径：`github.com/Tangerg/lynx/agent2`
 > 最终模块路径：`github.com/Tangerg/lynx/agent`
@@ -72,7 +72,7 @@ go test ./...
 | P3 真实 Interaction 验证 | 完成 | 9/9 | 真实模型/工具 dispatcher、流、HITL、steer，并接入 disposable consumer |
 | P4 子 Process 组合与合同冻结 | 完成 | 9/9 | start/wait、递归、组合、预算、取消、恢复；多消费方验证后冻结窄腰 |
 | P5 Planning 与 GOAP | 完成 | 8/8 | Planning 状态、Planner SPI、GOAP 搜索与 replan |
-| P6 Workflow | 进行中 | 1/8 | 原生 sequence/gate/router/fork/join/loop/agent call |
+| P6 确定性编排边界复核 | 进行中 | 2/3 | 先裁决独立 `flow` 的直接使用、可选 adapter 与 managed child Process 编排边界；当前暂停实施 |
 | P7 组合模式与能力覆盖 | 未开始 | 0/7 | 动态 worker 组合、typed artifacts、evaluator/optimizer、示例 |
 | P8 Platform 与治理 | 未开始 | 0/7 | resolver、deployment catalog、版本、路由、递归治理和观测 |
 | P9 独立完整性验收 | 未开始 | 0/6 | API/wire/arch/race/fuzz/examples/standalone 全绿 |
@@ -150,23 +150,18 @@ go test ./...
 - [x] P5-07 将 no-plan/stuck 留在 Planning policy，不污染 Process 状态。
 - [x] P5-08 用多路线、不可达目标、动态环境和子 Agent Action 验收。
 
-### P6：Workflow
+### P6：确定性编排边界复核
 
 - [x] P6-01 审查旧 workflow builders、并行与 supervisor 代码并记录裁决；只保留组合能力，不复制独立 Supervisor Strategy。
-- [ ] P6-02 实现原生 Workflow Execution 和类型化节点合同。
-- [ ] P6-03 实现 Sequence、Prompt Chaining 和 Gate。
-- [ ] P6-04 实现 Router/Switch。
-- [ ] P6-05 实现 Fork/Join、Map/Reduce 和稳定聚合；每个独立分支必须是拥有独立身份、snapshot 和预算的真实 child Process。
-- [ ] P6-06 实现 Vote/Consensus。
-- [ ] P6-07 实现有明确终止条件的 Loop/Repeat Until。
-- [ ] P6-08 实现 Agent call node，并验证任意 Strategy 嵌套、fan-out 硬限制和聚合 snapshot 成本。
+- [x] P6-02 只读审查独立 `flow` 仓库，验证直接使用、整个 Node 的 dispatcher adapter、Graph/Spec managed 编排三种边界，并撤回未经实现证明的原生 Workflow 设计。
+- [ ] P6-03 仅在用户恢复设计后，以真实 consumer 和 disposable adapter spike 裁决唯一实施路径，再重写后续 P6 任务；此前不创建 `agent2/workflow` 或修改 `flow`。
 
 ### P7：组合模式与能力覆盖
 
 - [ ] P7-01 审查 Embabel supervisor、utility、hybrid 及旧实现并记录裁决。
 - [ ] P7-02 实现 Action-to-Tool adapter，不混淆 Action 与 Tool。
 - [ ] P7-03 实现 typed artifact state 和 completion validator。
-- [ ] P7-04 使用 Workflow、Interaction、Planning 和 child Process 组合模型动态拆分、worker 调度和结果综合，不新增 Supervisor package/kind/lifecycle。
+- [ ] P7-04 使用 P6 最终裁决的唯一确定性编排边界、Interaction、Planning 和 child Process 组合模型动态拆分、worker 调度和结果综合，不新增 Supervisor package/kind/lifecycle。
 - [ ] P7-05 实现 evaluator-optimizer 组合。
 - [ ] P7-06 为 Anthropic 所列每种模式建立行为测试和示例。
 - [ ] P7-07 比较简单实现与复杂编排，删除无实际收益的抽象。
@@ -210,7 +205,7 @@ go test ./...
 
 ## 6. 最终完成定义
 
-- Interaction、Planning、Workflow 都是原生 Execution，并通过共同 contract tests。
+- Interaction 与 Planning 都是原生 Execution，并通过共同 contract tests；确定性编排依据 P6 复用证据只保留一个准确边界，不强制升格为 Strategy。
 - Signal、Transition、Effect、Event、Delta 的方向、所有权和可靠性等级唯一且通过合同测试。
 - Engine 以非泛型 erased contract 同构持有异构 Definition，typed adapter 只存在于边缘。
 - GOAP 的真实搜索、观察、执行和 replan 行为完整。
@@ -251,6 +246,7 @@ go test ./...
 
 | 日期 | 阶段 | 实际事实 | 验证与结果 |
 |---|---|---|---|
+| 2026-08-06 | P6 | 按用户要求立即暂停 Workflow 模式设计与实施，删除尚未提交的 `agent2/workflow` 空骨架；只读审查独立 `github.com/Tangerg/flow`。确认 `flow` 已以 typed Node、派生组合子、runtime Graph/Spec、copy-on-write Store、Journal、suspension/resumption、streaming 和 deterministic merge 覆盖普通 in-process control flow，且准确排除 distributed scheduler、durable timer 与 exactly-once。裁决 Host 可直接使用 `flow`；未来可以 disposable spike 验证把整个 Node 作为单个 dispatcher Effect 的 coarse-grained adapter；禁止在纯 `Execution.Step` 内调用 `Node.Run`/`workflow.Step.Run`，也不把共享 Store/Journal/goroutine scheduler 误称为独立 child Process。ADR-A2-037 已整体取代预先冻结原生 Workflow 的 ADR-A2-036，目标架构不再声明节点词汇或 package | 审查基线为 clean `flow` main `6280bfc4` 且与 `origin/main` 一致；Go 1.26 module 的 vet、staticcheck、test、race 全绿，所有生产 package statement coverage 100%。`flow` 仓库零修改，`agent2` 零 Workflow 生产代码；P6-02 完成，P6 更新为 2/3 并保持暂停实施 |
 | 2026-08-06 | P6 | 在生产代码前接受 ADR-A2-036 并将稳定边界写入目标架构：Workflow 是 schema 化 DAG 的原生 Execution，普通图禁止环，Loop 独占有界重复；唯一节点词汇为 Transform/Gate/Switch/Call/Fork/Map/Vote/Loop。所有 I/O 与独立 branch/iteration 都是真实 child Process，纯回调只在 Step 内归约；Fork/Map 以显式 concurrency window 分批启动，Map 另受 item limit，聚合按声明顺序。Loop 输出显式区分 predicate satisfied 与 iteration limit exhausted。Workflow 不建立任意节点 plugin SPI、第二 runtime 或 Strategy dispatcher 能力 | 文档职责保持分离：长期取舍进入 DECISIONS，稳定结构进入 ARCHITECTURE，实施事实只记本行；未把设计批次误报为 P6-02 完成，P6 保持 1/8 |
 | 2026-08-06 | P6 | 完成旧 `workflow`、`routing` 与 supervisor example 的只读审计。保留 Sequence 显式值流、真实 child Process、Fork/Map 有界并发与声明顺序聚合、Gate/Switch 确定选择、Vote 稳定同票、Loop 显式终止和完整恢复。确定唯一术语：Workflow 内用 Switch 而非 Router、Fork 而非 Parallel/ScatterGather、Vote 而非 Consensus、Loop 而非 Repeat/RepeatUntil、Call 而非 SubAgent。治本式移除 Workflow 编译 GOAP、builder 持有 Engine/构造期 Deploy、Action 内 RunChild、Blackboard latest-object/history/computed condition、裸 goroutine Generator、Team definition 合并、独立 Supervisor Strategy；RepeatUntilAcceptable 留给 P7 evaluator-optimizer 组合，catalog Ranker/Confidence 留给 P8 Platform routing | 审计覆盖旧 Workflow 14 个生产文件及对应 Sequence/Parallel/ScatterGather/Consensus/Loop/Repeat/Supervisor/Team 行为测试，并核对 routing 的 candidate identity、稳定 tie、filter/panic 语义。裁决已写入能力台账，只修改 `agent2` 事实文档；P6-01 完成，P6 更新为 1/8 |
 | 2026-08-06 | P5 | 完成原生 Planning Definition/Execution/Dispatcher 纵切面。Definition 冻结 Goal、最小 Planner、ActionBinding 与 `MaxActionAttempts`；predictive Action 与 dispatcher `ActionExecutor`/精确 child Deployment capability 完全分离。Execution 严格执行 observe → plan → 单个 Action → reobserve：每轮只采用 Plan 首 Action，reobservation 才确认预测 Effects，definite failure/unconfirmed Action 在本 Process 排除后重新规划；child Action 使用真实 child Process、预算、能力衰减与 all-child wait，完成后仍以 Observer 为现实权威。首次 no-plan 输出 `unreachable`，尝试后无路线或达到上限输出 `stuck`，二者均为 Completed 的 Planning Output；观察失败、Planner error/非法 Plan、协议违约保持稳定 failure 分类。Observation Effect 因无副作用允许 same-identity replay；Action Effect 默认不可重投，unknown outcome 通过公开 definite settlement 显式裁决。真实 child consumer 还证明根 `ChildWaitOpened` 必须暴露 defensive-copy 的原始 Spec 供 Strategy 完整核对；已追加 ADR-A2-035 并冻结包含 Planning/GOAP 的 Baseline 2。P1 disposable Planning spike 已删除 | 多路线两步执行、每 Action 后 replan、现实未确认 fallback、definite failure fallback、unreachable/stuck、观察/Planner/能力失败、exact snapshot restore、unknown Action resolution、真实跨 Strategy child Process 全部通过。Planning state/protocol/Output strict codec 增加 fuzz seeds，architecture gate 保持 Kernel/Host/OTel 泄漏禁入；standalone build/vet/staticcheck/test/race 与定向 fuzz 全绿后提交。P5-06～P5-08 完成，P5 更新为 8/8 |
@@ -291,6 +287,6 @@ go test ./...
 
 P1–P2 已完成，得到经过旧模块/Host 审计、Interaction/Planning spike、Prepared Step 恢复 harness、完整终态表、strict codec/fuzz 和依赖架构守卫共同验证的候选窄腰与单 Process Engine。它仍不是冻结的 API/wire baseline；只有 P3 真实 Interaction 与 P4 child composition 以及第二个 disposable consumer 共同通过后，才建立首个 baseline。
 
-P1–P4 已完成，Baseline 1 已由多策略、多 consumer、递归、恢复、race 和 fuzz 共同冻结。P5 已完成纯领域模型、最小 Planner SPI 和 GOAP 搜索；下一轮只在 `planning` 内接入原生 Definition/Execution/Dispatcher 与 child Action，完成 observe/plan/act/reobserve、动态环境 replan 和 Planning-owned no-plan/stuck Output，不改变共同 Process 合同。
+P1–P5 已完成；Baseline 2 已由 Interaction、Planning、GOAP、多个 consumer、递归 child Process、恢复、race 和 fuzz 共同冻结。P6 已完成旧实现与独立 `flow` 的两轮只读审计，但 Workflow 设计与实施按用户要求暂停。当前没有 `agent2/workflow` 生产代码，也没有 `flow` 依赖；只有用户恢复设计并允许用真实 consumer 做 disposable adapter spike 后，才裁决 Host 直接组合、coarse-grained dispatcher adapter 或 managed child Process 编排中的唯一边界。
 
 在 P1–P9 完成前，不迁移 `app/runtime`，不删除旧 `agent`，不发布 `agent2` 稳定版本。

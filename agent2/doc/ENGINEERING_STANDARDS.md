@@ -101,7 +101,7 @@ Integration adapter → Agent contracts
 强制禁止：
 
 - Agent import 任意 Host application module 或产品类型。
-- Kernel import Interaction、Planning、Workflow 或 Supervisor。
+- Kernel import Interaction、Planning、具体编排 adapter 或 Supervisor。
 - Engine 按具体 Strategy 做 type switch 来决定主控制流。
 - 基础模块 import Agent 以服务单一框架需求。
 - 通过共享 `common`/`utils` package 隐藏双向概念耦合。
@@ -125,7 +125,7 @@ Integration adapter → Agent contracts
 - 高层直接依赖具体 Planner、Strategy、Store 或 Client。
 - 新增 Strategy 必须修改 Engine 中心 switch。
 - 多个 package 复制 Process loop、event bus 或 snapshot 逻辑。
-- 共同 Process 暴露 Goal、Messages、Workflow cursor 等策略状态。
+- 共同 Process 暴露 Goal、Messages 或具体编排 cursor 等策略状态。
 - 状态转移规则散落在多个自由函数或调用方。
 - 调用者需要理解被调用包的内部字段才能正确使用 API。
 
@@ -191,7 +191,7 @@ Extension 只承载可选横切行为。忽略后会破坏所有实现正确性�
 
 - Engine 是唯一 Process loop owner。
 - Strategy 只推进有界 Step，不创建第二套 runtime。
-- Workflow 不复制 event/snapshot/child scheduler。
+- 任何未来编排 adapter 或 Strategy 都不复制 event/snapshot/child scheduler。
 - Extension 使用一个同质机制和结构化能力分发，不同时引入 Plugin、Hook、Advisor、Interceptor 等重叠体系。
 - Strategy 是主控制流，不伪装成 Extension。
 - 一个 Process 只有一个顶层 Execution；Process 构造只属于 Engine，跨 Strategy 或独立生命周期组合使用 child Process。
@@ -320,7 +320,7 @@ Extension 只承载可选横切行为。忽略后会破坏所有实现正确性�
 |---|---|---|
 | Strategy | Execution Strategy、Planner | 真实存在替换，不为单实现造接口 |
 | State | Process 合法状态转换 | 状态较少时直接方法/表驱动，不建立类层次 |
-| Composite | Workflow 节点组合 | 组合必须共享真实输入输出和生命周期合同 |
+| Composite | `flow` 或其他已成立的同层组合 | 组合必须共享真实输入输出和生命周期合同；不能跨越 Process owner 假装同层 |
 | Adapter | Action-to-Tool、外部集成 | 只转换边界，不吸收业务策略 |
 | Decorator/Middleware | Tool、Action、模型调用横切行为 | 顺序、副作用和错误语义明确 |
 | Factory | Definition 创建/恢复 Execution | 无替换边界时返回 concrete value；窄腰处遵守 Execution 合同，不建立抽象工厂家族 |
@@ -377,7 +377,7 @@ Extension 只承载可选横切行为。忽略后会破坏所有实现正确性�
 - 每个 goroutine 都有明确 owner、停止条件和 join 点。
 - Execution 默认单写者推进；并发分支隔离状态并确定性聚合。
 - Signal 只在 Strategy 声明并经过 contract test 的安全边界消费；steer 的最早生效点是当前不可中断 Effect 结算后的下一安全 Step，公开 GoDoc 必须说明这一延迟合同。
-- Workflow Fork/Map 的独立分支必须是有界 fan-out 的 child Process；每个分支拥有独立身份、snapshot 和预算，不在单一 Execution 内伪造多个生命周期。无独立生命周期的轻量并发只使用有界 Effect batch，不命名为 Fork/Map。
+- 需要独立 Agent 生命周期的并发分支必须是有界 fan-out 的 child Process；每个分支拥有独立身份、snapshot 和预算，不在单一 Execution 或 `flow` goroutine 内伪造多个生命周期。普通 in-process 并发留在 `flow` 或有界 Effect batch，并准确说明它没有 child Process 语义。
 - 锁只能解决 data race，不能代替业务冲突语义。
 - 并发度显式有界，取消和 deadline 沿 Process tree 传播。
 - event、tool result 和 branch output 的协议顺序不依赖调度完成顺序。

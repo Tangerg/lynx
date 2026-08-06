@@ -258,3 +258,13 @@
 - 决策：Workflow 不产生 Strategy dispatcher Effect，但当前共同 Deployment 合同要求精确 dispatcher binding，因此 `workflow` 提供只拒绝意外 dispatcher Effect 的包内 Dispatcher；它是协议守卫，不拥有第二套执行能力。
 - 原因：Workflow 的真实状态是节点游标、分支等待和迭代恢复，不是 Goal search。schema DAG 可以在构造期消除隐式 Blackboard 数据流和无界环；真实 child Process 保持组合闭包、预算、能力、取消与 snapshot 只有一个 owner；明确的纯函数边界避免在 Step 内重新泄漏 I/O。
 - 后果：P6 可以逐个增加节点 concrete behavior，而不修改 Kernel。节点集合是当前经过验收的封闭语义，不是允许任意用户节点绕过 Process/Effect 边界的 plugin SPI；未来新增节点必须先证明独立状态与恢复语义。
+
+## ADR-A2-037：暂停 Workflow Strategy 设计并先验证 `flow` 复用边界
+
+- 状态：已接受；取代 ADR-A2-006、ADR-A2-007、ADR-A2-020、ADR-A2-024 中预先确认 Workflow 为一等 Strategy 的部分，并整体取代 ADR-A2-036。旧结论只保留为历史决策，不再是实施合同。
+- 事实：独立仓库 `github.com/Tangerg/flow` 已经提供 typed `Node[I, O]`、派生组合子、runtime-defined `workflow.Graph`/`Spec`、有界并发、稳定顺序、Store/Journal、挂起恢复、流式输出和严格 JSON 解码。仓库自身明确定位为无中心 orchestrator、无后台 scheduler 的 in-process control-flow library；它不依赖 Agent、Host、持久化或产品抽象。
+- 决策：P6 的 Workflow API、节点词汇、ExecutionState 和 package 结构立即暂停设计与实施。当前不创建 `agent2/workflow`，不把 `flow` 加入 Kernel 依赖，也不以旧 P6 计划为由复制一套 Sequence/Fork/Map/Loop。
+- 决策：`flow.Node.Run` 可以执行任意工作，`workflow.Graph` 会启动 goroutine，`Journal` 自行记录 Step 边界；这些行为不能在只允许纯状态归约的 `Execution.Step` 中直接运行。将编译后的 `flow` Step 直接包进 Agent Execution 会形成第二执行循环、第二恢复事实源，并允许副作用绕过 prepared Effect/EffectID，因此明确禁止。
+- 决策：已证明安全的复用形态只有两类候选，而且当前均不升级为 Workflow Strategy。Host 可以直接使用 `flow` 组合普通 Go 能力；未来可由独立可选 adapter 把一个完整 `flow.Node` 调度成单个 dispatcher-owned Effect。后一形态只有外层 Effect 粒度的 Process identity、恢复、预算和 replay contract，不能宣称内部节点各自拥有 child Process 语义。
+- 决策：是否还需要 managed deterministic orchestration Strategy，必须由真实消费和 disposable adapter spike 证明。只有当需求明确要求图内每个 Agent 分支拥有独立 ProcessID、snapshot、预算、能力衰减、取消和 tree recovery，且 `flow` 的外层封装无法满足时，才能重新设计；届时还要在“扩展 `flow` 的中性编译边界”与“最小 Agent-owned Strategy”之间重新裁决，不能默认选择后者。
+- 原因：`flow` 与 Agent Kernel 的职责都已经清晰，重复实现会制造两套控制流语言；强行直接复用运行时又会破坏 Engine 单写者与 Effect 事务语义。先冻结问题而不是冻结方案，才能同时避免重复建设、抽象泄露和为了复用而扭曲两个独立库。

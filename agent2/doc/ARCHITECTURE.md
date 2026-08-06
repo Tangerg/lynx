@@ -1,6 +1,6 @@
 # Agent Framework 绿色重构架构
 
-> 状态：已接受的目标设计基线，生产实现尚未开始
+> 状态：已接受的目标设计基线；确定性编排边界暂停设计
 > 建立日期：2026-08-06
 > 最后更新：2026-08-06
 > 实施范围：重构期间为 `agent2`；最终替换后为唯一的 `agent`
@@ -24,7 +24,7 @@
 新的共同 Process 不再以 Planning 为中心。继续在旧模块内改变 Process、snapshot 和执行循环的本质，会让框架验证与应用迁移互相阻塞，因此采用平行模块绿色重构：
 
 1. 在 `agent2` 内从最小执行窄腰开始，不承担旧公开 API 和 snapshot 兼容。
-2. 用真实 Interaction、Planning 和 Workflow 实现反向验证共同抽象。
+2. 用真实 Interaction、Planning、child Process 和独立消费者反向验证共同抽象；新的执行策略必须另有真实推进与恢复证据。
 3. 在新模块独立闭合能力和测试之前，不迁移现有 Host consumer。
 4. 完成后一次性迁移消费者、删除旧模块并把新模块改回 `agent`。
 
@@ -51,7 +51,7 @@
 
 ## 2. 总体定位
 
-> Agent 是一个可嵌入、可组合、拥有统一执行生命周期的 Go Framework；它允许 Interaction、Planning、Workflow 以及未来被真实推进和恢复语义证明的新执行策略成为平等且可嵌套的 Agent Definition。
+> Agent 是一个可嵌入、可组合、拥有统一执行生命周期的 Go Framework；它允许 Interaction、Planning 以及未来被真实推进和恢复语义证明的新执行策略成为平等且可嵌套的 Agent Definition。
 
 ### 2.1 从直接能力到完整应用
 
@@ -73,7 +73,7 @@
 
 “嵌入式”不是一种 Execution Mode，不建立 `EmbeddedMode`。可嵌入性来自显式依赖、无全局容器、可选持久化，以及同一 Engine 可以在普通 Go 进程内运行。
 
-直接模型调用永远是一等路径。只需要一次或少量明确模型调用的程序应直接使用 `chatclient`，不应被迫创建 Agent、Process 或 Workflow。
+直接模型调用永远是一等路径。只需要一次或少量明确模型调用的程序应直接使用 `chatclient`；普通同步控制流可以直接使用独立的 `flow` 库，不应被迫创建 Agent 或 Process。
 
 ### 2.2 能力上限
 
@@ -87,16 +87,16 @@
 
 1. **最小正确抽象优先。** 不为完整感预建 package、接口、配置或扩展点。
 2. **一个概念只有一个术语。** 不同时保留 plan/todo、run/execution、sub-agent/child-agent 等近义公共概念。
-3. **抽象程度向下递增，具体度向上累积。** 共同 Kernel 不承载 GOAP、ReAct、Workflow 或产品 Session 的专属状态。
-4. **Execution Strategy 是主变化轴。** Interaction、Planning 和 Workflow 不是 Extension。
+3. **抽象程度向下递增，具体度向上累积。** 共同 Kernel 不承载 GOAP、ReAct、任意编排实现或产品 Session 的专属状态。
+4. **Execution Strategy 是主变化轴。** Interaction 和 Planning 不是 Extension；其他 Strategy 必须先证明独立推进与恢复语义。
 5. **Extension 只表达横切能力。** 事件观察、策略检查、instrumentation 等可以扩展；主控制流不能伪装成扩展。
 6. **生命周期只有一个所有者。** Engine 是唯一 Process 驱动循环，具体策略只推进一个有界步骤。
-7. **组合优于包装。** Workflow 不编译成伪 GOAP Agent；orchestrator-worker 语义由已成立的 Strategy 和 child Process 组合。
-8. **状态归拥有者。** GOAP 状态归 Planning，消息和轮次归 Interaction，游标和分支归 Workflow。
+7. **组合优于包装。** orchestrator-worker 语义由已成立的 Strategy 和 child Process 组合；普通同步控制流留在 `flow`，不为统一外观强塞进 Engine。
+8. **状态归拥有者。** GOAP 状态归 Planning，消息和轮次归 Interaction；未来编排状态归最终被证明的 adapter 或 Strategy，不提前进入 Kernel。
 9. **框架状态与应用持久化分层。** Agent 捕获、验证和恢复执行快照；Host 决定何时、在哪里、以何种事务保存。
 10. **默认安全且确定。** 不默认重试任意副作用，不默认无限递归，不允许并发完成顺序决定业务结果。
 11. **透明胜过魔法。** 不做扫描、注解、全局 DI、隐式策略注册或隐藏模型调用。
-12. **简单方案先行。** 只有评测证明需要时，才从直接调用升级到 Workflow、多 Agent 或自主 Agent。
+12. **简单方案先行。** 只有评测证明需要时，才从直接调用或 `flow` 组合升级到 managed child Process、多 Agent 或自主 Agent。
 13. **输入、意图和事实严格分离。** Signal 进入 Execution，Transition 表达意图，Event 记录事实；三者不得互相冒充。
 14. **状态推进与外部效果分离。** Step 只产生候选状态和 Effect 意图；模型、Tool、Action 和其他 I/O 由策略拥有的 Effect dispatcher 执行。
 
@@ -128,7 +128,7 @@
 | `Delta` | 执行期间产生的临时流式增量 | 完成结果、可恢复状态、权威记录 |
 | `Engine` | 驱动 Process、执行状态迁移和父子调度的唯一执行内核 | 产品 Session runtime、部署市场 |
 | `Platform` | 可选的多 Definition 部署、目录、路由和治理容器 | Engine 的同义词 |
-| `Strategy` | Interaction、Planning、Workflow 等主执行语义 | Extension |
+| `Strategy` | Interaction、Planning 及通过准入的新主执行语义 | Extension |
 | `Action` | 框架内可组合、具有类型化输入输出的操作 | LLM Tool 的同义词 |
 | `Tool` | 暴露给模型选择和调用的 JSON/Schema 能力 | 所有 Action |
 | `Child Process` | 由另一个 Process 启动的普通 Process | 独立的 `SubAgent` 类型 |
@@ -186,7 +186,7 @@ Agent 复用这些能力，不复制 Client、Model、Tool、Message、Embedding
 - checkpoint 的提交时机与应用 write-set。
 - 使应用自有事实失效的销毁、回滚、替换和恢复策略，以及关联 Process 的生命周期清理。
 
-Host 最终只依赖 Agent 的中性生命周期合同，不解析 Planning、Interaction 或 Workflow 的内部 snapshot payload。
+Host 最终只依赖 Agent 的中性生命周期合同，不解析 Planning、Interaction 或未来 Strategy 的内部 snapshot payload。
 
 ---
 
@@ -201,16 +201,13 @@ flowchart TD
     Kernel --> Definition["Definition / Execution"]
     Definition --> Interaction["Interaction"]
     Definition --> Planning["Planning"]
-    Definition --> Workflow["Workflow"]
     Definition --> Patterns["Composition patterns"]
     Interaction --> ChatClient["chatclient"]
     Interaction --> Tool["tool"]
     Planning --> Planner["GOAP / HTN / Utility"]
-    Workflow --> Child["Child Process composition"]
     Interaction --> Child
     Planning --> Child
     Patterns --> Interaction
-    Patterns --> Workflow
     Patterns --> Child
 ```
 
@@ -269,7 +266,6 @@ Strategy Effect payload 和所有 Signal payload 对 Engine 不透明。每个 S
 |---|---|
 | Interaction | 消费模型/Tool/外部输入 Signal，决定下一 Effect、等待或完成 |
 | GOAP | 消费观察/Action 结果，推进 observe → plan → act → reobserve 状态 |
-| Workflow | 消费节点/子 Process 结果，推进一个节点、分支或 join |
 
 任何 Strategy 的 Step 都不能执行模型、Tool、Action 或其他外部 I/O，不能永久占有调度线程、隐藏无限循环或启动无所有者 goroutine。外部操作只能由 Effect 表达并由该 Strategy 的 dispatcher 执行；Effect 的成功、失败或不确定结算以 Signal 回到下一 Step。
 
@@ -283,13 +279,11 @@ Engine 在每次 Step 前保留 last-stable ExecutionState。Step 必须是对�
 
 prepared step 是 Framework snapshot 的中性恢复事实，不是 Host transaction。崩溃在 prepare 前发生时不得已有 Effect；prepare 后恢复时沿原 EffectID 和冻结 payload 继续，只按 dispatcher replay contract 重投，未知结算保持可观察、待显式裁决。Effect 执行期间已经发生的 started/delta/finished 属于 attempt facts，不能伪装成提交后的事实。该顺序只描述 Framework 内部一致性；跨进程崩溃只能恢复到 Host 实际持久化的最后一份 snapshot，Framework 不虚构未持久化保证。
 
-### 6.3 Workflow 图与节点边界
+### 6.3 确定性编排边界（暂停）
 
-Workflow 使用原生 ExecutionState 保存确定性控制流，不编译成 Planning。Definition 是一个 schema 化 DAG：稳定 NodeID 标识节点，入口 schema 必须等于 Definition input，每条边的前后 schema 必须精确一致，每条路径最终都到达符合 Definition output schema 的 terminal。普通边禁止成环；受限重复只由拥有显式迭代上限的 Loop 节点表达。
+当前不把 Workflow 预先确认为一等 Strategy，也不定义节点词汇、图 schema、ExecutionState 或 package API。独立 `flow` 库已经覆盖 typed sequence、selection、loop、map/race，以及 runtime-defined Graph/Spec、Store/Journal 和挂起恢复；P6 必须先判断应用侧直接组合或可选 adapter 是否已经满足真实需求。
 
-节点词汇保持唯一：Transform 做本地纯值转换；Gate 做二选一；Switch 在显式 case 表中选路；Call 调用一个 exact child Deployment；Fork/Join 执行固定分支；Map/Reduce 执行动态有界 item；Vote 做稳定多数聚合；Loop 重复一个 child body。Prompt Chaining 是多个 Call 的顺序组合，不新增节点或 Strategy。Router、Parallel、ScatterGather、Consensus、Repeat、SubAgent 都不作为同义公共 API。
-
-Transform/Gate/Switch/Join/Expand/Reduce/Vote key/Until 都是 Step 内的确定性纯函数。需要 I/O 或独立生命周期的工作只能成为 child Process。Fork/Map 按显式并发窗口分批启动真实 child，结果按声明/item 顺序聚合；Map 另有 item 数上限。Execution snapshot 只携带当前值、NodeID、分支或 item 游标、child/wait identity、已结算结果和迭代数，不携带 Engine、Deployment concrete value、callback、goroutine 或 Host 状态。
+暂停不改变 Engine 的既有不变量：`Execution.Step` 仍只能纯归约状态，任何 I/O 仍只能通过 Effect，独立 Agent 生命周期仍只能是真实 child Process。`flow.Node.Run`、其 Graph goroutine scheduler 和 Journal 不能直接嵌入 Step；一个外层 adapter 即使可行，也只能承诺外层 Effect 粒度的 identity、恢复、预算和 replay contract。只有 disposable spike 证明还缺少图内 managed child Process 语义后，才恢复 Strategy 设计并追加 ADR。
 
 ### 6.4 Process 状态机
 
@@ -341,7 +335,7 @@ Effect 自己的取消或 deadline 先作为 settlement Signal 交给 Strategy�
 
 - Goal、WorldState、Blackboard、Plan
 - Messages、Round、Tool checkpoint
-- Workflow cursor、branch、join
+- 任意具体 Strategy 的私有 cursor、branch 或 join state
 - 产品 Session、Conversation、Turn
 - provider、model、USD 账本
 
@@ -359,7 +353,7 @@ type ExecutionState struct {
 
 - Planning payload 拥有 Goal、WorldState、Blackboard、Plan exclusion 等。
 - Interaction payload 拥有 WorkingContext、Round、pending tool call 和 checkpoint。
-- Workflow payload 拥有 cursor、branch state 和 join state。
+- 未来 Strategy payload 只拥有自身经过准入的恢复状态；共同 envelope 不预留字段。
 - Host 可以持久化 envelope，但不得依据 `Kind` 解析 payload 并参与策略控制流。
 - 恢复必须通过精确 `DeploymentRef` 找回 Definition；禁止全局 `kind → factory` 巨型 switch。
 
@@ -419,19 +413,15 @@ Planning Definition
 
 Planning 独占 Goal、Condition、Truth、WorldState、Blackboard、PlannedAction metadata 和 replan/no-plan policy。
 
-GOAP 适合目标可机器验证、存在多条路径、Action 前置条件/效果/成本可声明且环境会变化的场景。GOAP 不作为默认 Agent 语义，也不用于包装固定 Workflow 或开放式 ReAct 循环。
+GOAP 适合目标可机器验证、存在多条路径、Action 前置条件/效果/成本可声明且环境会变化的场景。GOAP 不作为默认 Agent 语义，也不用于包装固定控制流或开放式 ReAct 循环。
 
-### 7.3 Workflow
+### 7.3 确定性编排
 
-Workflow 是预定义代码路径的原生 Execution，不编译回 GOAP。它原生表达 Sequence、Gate、Router/Switch、Fork/Join、Map/Reduce、Vote/Consensus、Loop 和 Agent call node。
-
-节点具有显式输入、输出和失败语义。Sequence、Gate、Router 和单节点推进留在当前 Workflow Execution；Workflow 中命名为 Fork/Map 的每个独立分支以真实 child Process 运行，拥有独立身份、ExecutionState、snapshot 和预算。只需要并行执行一批无独立生命周期操作的节点不得伪称 Fork/Map，应由当前节点声明有界 Effect batch。父 Workflow 只保存 branch identity、等待条件与确定性聚合状态，不在同一 Process 内嵌套或驱动其他 Execution。
-
-并行分支受 fan-out、并发、总 Process 和预算硬限制。结果按定义顺序或明确 key 聚合，不能以 goroutine 完成顺序提交协议结果。branch Definition/Deployment identity 必须稳定可恢复，不能依赖临时 closure 或数组下标碰巧不变。
+设计已按 ADR-A2-037 暂停。当前正式能力只有两条清晰路径：普通 Go 程序直接使用 `flow` 做 in-process 组合；Agent 内需要独立生命周期的工作使用 Engine-owned child Process。是否需要连接两者的可选 adapter，或者需要新的 managed orchestration Strategy，留给真实消费者和 disposable spike 裁决，本文不预先定义第三套控制流语言。
 
 ### 7.4 Orchestrator-worker 组合
 
-旧语境中所谓 Supervisor 当前统一称为 orchestrator-worker 组合：它由 Interaction、Action-to-Tool adapter、typed artifacts、completion validator 和 child Process 构成，不是独立 Strategy、独立 ExecutionState kind 或预建 package。只有未来实现证明它具有 Interaction/Workflow 无法表达的独立推进与恢复语义，才通过新 ADR 重新申请 Strategy 准入。
+旧语境中所谓 Supervisor 当前统一称为 orchestrator-worker 组合：它由 Interaction、Action-to-Tool adapter、typed artifacts、completion validator 和 child Process 构成，不是独立 Strategy、独立 ExecutionState kind 或预建 package。只有未来实现证明它具有 Interaction、Planning 与 child Process 组合无法表达的独立推进与恢复语义，才通过新 ADR 重新申请 Strategy 准入。
 
 ### 7.5 新策略准入
 
@@ -447,11 +437,11 @@ Action 是框架可组合的类型化操作，表达稳定名称、准确描述�
 
 Tool 是提供给模型的可调用协议，强调模型可理解的名称、描述、参数 schema 和结果。Action 可以适配成 Tool，但二者不是同义词：
 
-- 普通 Workflow Action 不一定应暴露给模型。
+- 普通框架 Action 不一定应暴露给模型。
 - Tool 可能直接来自 MCP 或 Host，不一定参与 GOAP。
 - 权限、sandbox、once-only、产品审批和事务属于 Host 装配策略。
 
-子 Process 是 Engine 原语。在 Interaction 及 orchestrator-worker 组合中，可以把它适配成模型友好的 `delegate_task` Tool；Workflow 和 Planning 直接使用框架组合 API。
+子 Process 是 Engine 原语。在 Interaction 及 orchestrator-worker 组合中，可以把它适配成模型友好的 `delegate_task` Tool；Planning 直接使用框架组合 API。
 
 模型参数只表达任务语义：
 
@@ -510,14 +500,14 @@ Process tree 是执行、取消、预算和恢复的共同单位。如果未来�
 | 模式 | 目标实现 | 路径由谁决定 |
 |---|---|---|
 | Augmented LLM | `chatclient` + retrieval + tools + memory | 单次模型调用 |
-| Prompt Chaining | Workflow Sequence + Gate | 代码 |
-| Routing | Workflow Router/Switch 或 Platform 路由 | 代码、分类器或模型 |
-| Parallel Sectioning | Workflow Fork + Join | 代码 |
-| Parallel Voting | Fork + Vote/Reduce | 代码 |
+| Prompt Chaining | `flow` 组合；managed 形态待 P6 裁决 | 代码 |
+| Routing | `flow.Switch` 或 Platform 路由；managed 形态待 P6 裁决 | 代码、分类器或模型 |
+| Parallel Sectioning | `flow.Map`/`flowx.FanOut`；独立 Agent 生命周期使用 child Process | 代码 |
+| Parallel Voting | `flow` 并行组合 + typed reducer；managed 形态待 P6 裁决 | 代码 |
 | Orchestrator-workers | Interaction 与 child Process 组合 | 模型 |
-| Evaluator-optimizer | Workflow Loop + generator/evaluator Definitions | 代码控制循环，可由模型评估 |
+| Evaluator-optimizer | `flow.Loop` 或 child Process 组合；managed 形态待 P6 裁决 | 代码控制循环，可由模型评估 |
 | Autonomous Agent | Interaction + tools +环境反馈 +停止条件 | 模型 |
-| Pattern Composition | Agent call node 与 child Process | 代码与模型按边界组合 |
+| Pattern Composition | `flow` 与 child Process 按生命周期边界组合 | 代码与模型按边界组合 |
 
 验收不能只证明类型存在，必须为每种模式提供行为测试和最小可运行示例。
 
@@ -608,11 +598,11 @@ Host Application ──────────┐
                      Engine / Platform
                             ▼
                Definition / Execution / Process
-                  ▲          ▲          ▲
-                  │          │          │
-           interaction   planning   workflow
-                              ▲          ▲
-                              │          │
+                  ▲          ▲
+                  │          │
+           interaction   planning
+                              ▲
+                              │
                        goap/htn/utility
 
 interaction ──> chatclient + tool + core/chat
@@ -630,7 +620,6 @@ agent2/
 │   ├── goap/                GOAP 实现
 │   ├── htn/                 HTN 实现（需求验证后）
 │   └── utility/             Utility 实现（需求验证后）
-├── workflow/                原生确定性编排 Definition
 ├── hitl/                    有真实独立消费时的 typed helpers
 ├── internal/                仅用于确需编译器约束的共享实现
 ├── examples/                验证公共使用路径的可运行示例
@@ -693,4 +682,4 @@ agent2/
 - architecture tests：依赖 DAG、禁止旧 `agent`/Host application import、策略状态和产品外部事实不进入共同 Process、Process 只能由 Engine 构造。
 - examples：每一种正式公开编排方式至少一个最小可运行示例。
 
-最终完成必须满足：Interaction、Planning、Workflow 都是原生 Execution；GOAP 真实可重规划；Anthropic 编排模式有行为测试；递归子 Process 可恢复、取消和预算限制；Framework snapshot 与 Host persistence 无交叉；Host 只消费中性合同；旧模块和兼容路径全部删除；临时 `agent2` 路径改回唯一 `agent`。
+最终完成必须满足：Interaction 与 Planning 都是经过真实消费者验证的原生 Execution；确定性编排必须基于 P6 的 `flow` 复用证据选择唯一实现边界，不能同时保留两套术语或运行时；GOAP 真实可重规划；Anthropic 编排模式有行为测试；递归 child Process 可恢复、取消和预算限制；Framework snapshot 与 Host persistence 无交叉；Host 只消费中性合同；旧模块和兼容路径全部删除；临时 `agent2` 路径改回唯一 `agent`。

@@ -49,21 +49,21 @@
 | WorkingContext | Tool loop、resume、模型请求 | Interaction ExecutionState | 重新实现 | P3 | 与产品历史术语分离；恢复自足有界 |
 | InteractionCostProjector | 产品价格与成本投影 | Host observer/accounting | 从 Framework Kernel 移除 | P3、P10 | Framework 只发中性 usage，不认识价格表 |
 
-## 4. Planning、Workflow 与组合
+## 4. Planning、确定性编排与组合
 
 | 旧能力 | 真实消费者/证据 | 新 owner | 裁决 | 阶段 | 验收 |
 |---|---|---|---|---|---|
 | Goal/Condition/Truth/WorldState/Blackboard | GOAP/HTN/Utility | Planning | Goal/Condition/Truth/WorldState 保留思想并重写；Blackboard 移除 | P5 | Planning 状态不进入共同 Process/snapshot；无全局可变 Blackboard |
 | GOAP planner | 多路线、动态重规划 | `planning/goap` | 保留算法思想并重写 | P5 | 搜索、成本、reobserve/replan |
 | HTN planner | 层次任务规划 | 未来 Planning 扩展 | 当前重写移除，仅保留已审计算法证据 | P5 | 不预建 `planning/htn`；真实消费者出现后按同一 Planner SPI 重新申请 |
-| Utility planner | utility selection | 未来 Planning 扩展或 Workflow routing | 当前重写移除，仅保留已审查的排序证据 | P5、P7 | 不预建 `planning/utility`；先由真实选择语义证明 owner |
+| Utility planner | utility selection | 未来 Planning 扩展或代码选择 | 当前重写移除，仅保留已审查的排序证据 | P5、P7 | 不预建 `planning/utility`；先由真实选择语义证明 owner |
 | Reactive planner | 旧 planning/reactive | 无 | 移除旧形态 | P5 | 不建立 `reactive` package；单步规则选择不是 ReAct，也未证明独立生命周期 |
-| routing Ranker/Candidate/Choice | Definition/worker selection | Workflow Router 或 Platform routing | 拆分裁决 | P6、P8 | 不建立重复 router abstraction |
-| Workflow sequence/gate/router/loop | 代码确定路径 | Workflow | 重新实现 | P6 | 原生 Execution，不编译 GOAP |
-| Workflow fork/map/join | 并行 section/vote/reduce | child Process + Workflow join state | 重新实现 | P4、P6 | 分支独立 snapshot/预算、fan-out 有界、确定聚合 |
-| Supervisor | 动态 worker、结果综合 | Interaction/Workflow composition | 移除独立 Strategy 预设 | P7 | 无独立 kind/package；组合行为测试 |
-| evaluator-optimizer | Anthropic pattern | Workflow + Definitions | 重新实现为组合 | P7 | 明确终止条件和质量门槛 |
-| Action-to-Tool adapter | 模型选择 framework Action | Interaction/Workflow 组合 | 重新实现 | P7 | 名称/schema/结果准确，不混淆 Action/Tool |
+| routing Ranker/Candidate/Choice | Definition/worker selection | 代码选择或 Platform routing | 拆分裁决 | P6、P8 | 不建立重复 router abstraction |
+| sequence/gate/switch/loop | 代码确定路径 | `flow` 或未来经证明的 adapter | 暂停 Agent 内重写 | P6 | 不在 Step 内直接执行 `flow.Node`; 不预建 Workflow Strategy |
+| fork/map/join | 并行 section/vote/reduce | `flow`；独立 Agent 生命周期使用 child Process | 暂停统一封装 | P4、P6 | 先区分普通 goroutine 组合与独立 Process，不混称 |
+| Supervisor | 动态 worker、结果综合 | Interaction + child Process composition | 移除独立 Strategy 预设 | P7 | 无独立 kind/package；组合行为测试 |
+| evaluator-optimizer | Anthropic pattern | `flow` 或 Definitions + child Process | 延后重写 | P7 | 明确终止条件和质量门槛；受 P6 边界裁决约束 |
+| Action-to-Tool adapter | 模型选择 framework Action | Interaction 与 child Process 组合 | 重新实现 | P7 | 名称/schema/结果准确，不混淆 Action/Tool |
 
 ## 5. 扩展、依赖与观察
 
@@ -160,8 +160,8 @@
 ### 9.3 暂不重建的 planner 变体
 
 - 旧 HTN 已证明的顺序分解、method fallback、状态穿行、循环/深度保护是未来证据；当前仓库没有真实 consumer 证明需要公开 `planning/htn`。预建可变 task registry 或以 Goal name 隐式选择根 task 都会增加第二套领域语言，因此 P5 不实现。
-- 旧 Utility 与 GoalFirst 只是单步适用 Action 的 value-cost 排序，并依赖动态 Goal value 与 planner name registry。选择能力可能属于未来 Planning policy，也可能属于 Workflow Router；owner 未被真实消费证明前不实现 `planning/utility`。
-- 旧 Reactive 是按固定优先级返回第一个适用 Action 的单步 planner，不是 ReAct，也没有独立推进/恢复语义。该 package 直接移除；未来若出现规则选择需求，必须以真实消费点决定落在 Planner、Workflow gate/router 或 Interaction。
+- 旧 Utility 与 GoalFirst 只是单步适用 Action 的 value-cost 排序，并依赖动态 Goal value 与 planner name registry。选择能力可能属于未来 Planning policy，也可能只是普通代码选择；owner 未被真实消费证明前不实现 `planning/utility`。
+- 旧 Reactive 是按固定优先级返回第一个适用 Action 的单步 planner，不是 ReAct，也没有独立推进/恢复语义。该 package 直接移除；未来若出现规则选择需求，必须以真实消费点决定落在 Planner、`flow` 组合、Platform routing 或 Interaction。
 
 以上裁决保留能力证据而不保留旧 API。未来新增 HTN、Utility 或其他 Planner 只能消费 P5 由 GOAP 证明的最小 Planner SPI；不得要求共同 Process 增加 Goal、Plan、Blackboard、Agent identity、registry 或策略专属 snapshot 字段。
 
@@ -173,7 +173,9 @@
 - 旧 `Action.Execute(ProcessContext)`、Blackboard、Condition evaluator/provider、Domain registry、Planner registry/default、Agent identity、Planning OTel 与 disposable Planning spike 均未进入正式实现；HTN、Utility、Reactive 保持未实现且没有占位 package。
 - Planning 专属 completion outcome 只存在于 Planning Output；共同 Status 和 snapshot wire 没有新增 Planning 字段。P5 台账项已验证完成。
 
-## 10. P6 Workflow 专项审计证据
+## 10. P6 确定性编排专项审计证据
+
+10.1–10.3 记录的是旧 `agent` 提供过的组合语义和当时形成的候选约束，不再是已接受的 P6 实施方案。ADR-A2-037 已暂停 Workflow Strategy 设计；当前复用裁决以 10.4 为准。
 
 ### 10.1 保留的组合语义
 
@@ -203,3 +205,25 @@
 - Join、Reduce、Gate、Switch、Vote key 和 Loop predicate 是 Step 内的确定性纯函数，不得执行 I/O；需要模型、Tool 或其他副作用时必须建成 child Definition。
 - Workflow state 只保存节点身份、当前 immutable value、branch/item 游标、child identity、wait identity、迭代数和已结算结果；不保存 Engine、Deployment、callback、context、goroutine、Host identity 或 persistence 协议。
 - branch failure 不由 Kernel 自动改写 parent。Workflow 节点按自己的明确策略决定 fail-fast、聚合或容错；任何策略都必须确定、可恢复且不静默遗弃已启动 child。
+
+### 10.4 独立 `flow` 仓库复用审计
+
+审计基线是 `/Users/tangerg/Desktop/flow` 的 clean `main`，提交 `6280bfc4cb8d15876422ac8b136ede10a755cd54` 与 `origin/main` 一致。模块 `github.com/Tangerg/flow` 使用 Go 1.26；build、vet、staticcheck、全量 test、race 全绿，`flow`、`flowx`、`workflow`、`workflow/expr` 和 `workflow/diagram` 的 statement coverage 均为 100%。本轮没有修改该仓库。
+
+已确认的能力与边界：
+
+- 根 `flow` 以 `Node[I, O].Run(context.Context, I) (O, error)` 为唯一协议，提供 Then、Switch、Loop、Map、Race；`flowx` 只提供可由根原语派生的 FanOut、Combine、Chain、Fallback。定义与单次运行状态分离，泛型边缘清晰，没有 Agent、Host、Store provider、transaction、lease 或产品身份泄漏。
+- `workflow` 提供 copy-on-write Store、named ports、flat Graph、nested Spec、Registry、config JSON Schema、条件 gate、dependency-driven scheduling、Subgraph、同步 Event/Chunk、Journal 和 checkpoint-and-restart。并发输出按声明顺序合并，Map/Race 等启动的 goroutine 有 owner 且等待收口；仓库准确声明不提供 distributed scheduler、durable timer、exactly-once 或定义迁移。
+- `flow` 的恢复真相是 Store + Journal + application-owned active suspensions。Journal 在 Leaf 完成后写入结果，不能覆盖“外部副作用已成功但结果尚未记录”的崩溃窗口；这与 Agent prepared Effect/EffectID/unknown settlement 是不同强度和不同 owner 的合同，不得混称。
+
+复用形态裁决：
+
+| 形态 | 裁决 | 原因 |
+|---|---|---|
+| Host 直接使用 `flow` 组合普通 Go/AI 能力 | 保留 | 完全符合 `flow` 的 in-process 定位，不需要 Agent Process、snapshot 或 child tree 时复杂度最低 |
+| 可选 adapter 将一个完整 `flow.Node` 作为一个 dispatcher-owned Effect 执行 | 可做 disposable spike | I/O 位于 Step 之外，能够继承外层 EffectID、取消、Delta 和 definite/unknown settlement；但内部节点没有独立 Process identity、预算、能力或 tree snapshot，replay contract 默认必须是 never |
+| 在 `Execution.Step` 内直接调用 `flow.Node.Run` 或编译后的 `workflow.Step.Run` | 移除 | Node 可执行任意 I/O，Graph 另起 goroutine scheduler，Journal 另写恢复事实；会同时破坏纯 Step、Engine 单写者和 Effect 事务边界 |
+| 直接把 `workflow.Graph`/`Spec` 当成 managed Agent Workflow Definition | 暂不成立 | 现有端口类型只是可选的粗粒度 edit-time `ValueType`，Store 持有 `any` 借用值；NodeFactory 产出可执行 Step，branch/condition 允许 I/O；并发零值可无界，分支共享一个 run/Store/Journal，不是独立 child Process |
+| 为 Agent 编写自定义 compiler/interpreter 消费 `flow` Graph/Spec | 延后裁决 | 技术上可行，但会绕过大部分现有 `workflow` runtime 并重新实现 validation/scheduling/recovery，已经不是“直接封装”；只有真实 managed child Process 消费点才能证明值得做 |
+
+由此，`flow` 可以直接承担应用侧普通控制流，也可以成为以后可选 coarse-grained Agent adapter 的下层依赖；它当前不能直接替代 Engine-managed child Process 编排。P6 在用户恢复设计前不创建 `agent2/workflow`，也不修改 `flow` 来迎合尚未成立的 Agent backend SPI。
