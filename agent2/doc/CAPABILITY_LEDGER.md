@@ -53,11 +53,11 @@
 
 | 旧能力 | 真实消费者/证据 | 新 owner | 裁决 | 阶段 | 验收 |
 |---|---|---|---|---|---|
-| Goal/Condition/Truth/WorldState/Blackboard | GOAP/HTN/Utility | Planning | 保留思想并重写 | P5 | 不进入共同 Process/snapshot |
+| Goal/Condition/Truth/WorldState/Blackboard | GOAP/HTN/Utility | Planning | Goal/Condition/Truth/WorldState 保留思想并重写；Blackboard 移除 | P5 | Planning 状态不进入共同 Process/snapshot；无全局可变 Blackboard |
 | GOAP planner | 多路线、动态重规划 | `planning/goap` | 保留算法思想并重写 | P5 | 搜索、成本、reobserve/replan |
-| HTN planner | 层次任务规划 | `planning/htn` | 待真实需求复核 | P5 | 无真实消费者则不预建 package |
-| Utility planner | utility selection | `planning/utility` | 待真实需求复核 | P5 | 与 Planning 生命周期共用 Planner SPI |
-| Reactive planner | 旧 planning/reactive | Planning 内 Planner 或移除 | 待审查 | P5 | 明确区别 ReAct；不得静默遗漏 |
+| HTN planner | 层次任务规划 | 未来 Planning 扩展 | 当前重写移除，仅保留已审计算法证据 | P5 | 不预建 `planning/htn`；真实消费者出现后按同一 Planner SPI 重新申请 |
+| Utility planner | utility selection | 未来 Planning 扩展或 Workflow routing | 当前重写移除，仅保留已审查的排序证据 | P5、P7 | 不预建 `planning/utility`；先由真实选择语义证明 owner |
+| Reactive planner | 旧 planning/reactive | 无 | 移除旧形态 | P5 | 不建立 `reactive` package；单步规则选择不是 ReAct，也未证明独立生命周期 |
 | routing Ranker/Candidate/Choice | Definition/worker selection | Workflow Router 或 Platform routing | 拆分裁决 | P6、P8 | 不建立重复 router abstraction |
 | Workflow sequence/gate/router/loop | 代码确定路径 | Workflow | 重新实现 | P6 | 原生 Execution，不编译 GOAP |
 | Workflow fork/map/join | 并行 section/vote/reduce | child Process + Workflow join state | 重新实现 | P4、P6 | 分支独立 snapshot/预算、fan-out 有界、确定聚合 |
@@ -136,3 +136,31 @@
 - 工具要求外部输入时，Tool batch settlement 保存确定的已结算前缀和 Strategy-owned 等待 payload；随后的 Framework wait Effect 只负责返回 Engine-minted WaitID。
 - 对一个已经返回 definite settlement 的 Effect 绝不重投；恢复时处于 unknown 的不可证明副作用继续由 Process 显式裁决，Interaction 不擅自重试。
 - 工具的可恢复人机交互必须在产生副作用前请求输入，或自行使用其私有 continuation state 证明重新进入不会重复副作用；Framework 不虚构外部事务或补偿保证。
+
+## 9. P5 Planning 专项审计证据
+
+### 9.1 保留的领域规则与算法性质
+
+- `Truth` 必须区分 Unknown、False 和 True；WorldState 是一次不可变观察，模拟效果只能产生新状态，不能修改原观察。用于搜索去重的 state key 必须由规范排序后的 condition truth 唯一导出，不能包含 clock、pointer 或 map 迭代顺序。
+- Goal 是 Planning 独占的目标条件集合；Condition 是可验证的命名事实，不是携带 Process、Blackboard、模型或 Host dependency 的 I/O evaluator。外部世界如何产生完整 WorldState 属于 Planning dispatcher 的 observation 边界。
+- GOAP 保留非负有限边权上的 uniform-cost search。动态 Action cost 在每条候选边的源 WorldState 上求值；相同累计成本按 Action 声明顺序稳定展开；仅在严格更低成本时替换已知路径；无状态变化的 Action 必须跳过；搜索必须响应 context cancellation 并受显式 expansion limit 约束。
+- 旧 GOAP 的 direct-producer 检查只是一项安全的保守短路，不是完整可达性证明；真正的 reachable/unreachable 结论仍由搜索得到。成本函数 panic、NaN、Infinity 或负值都必须被归因并拒绝，不能静默改写排序。
+- Planning Execution 必须在每次 Action 结算后重新观察真实环境，并从新 WorldState 重新规划；预测 Effects 只服务搜索，不能冒充 Action 已实际成功。环境变化、Action 失败与无进展都通过排除已失败候选并 reobserve/replan 收口。
+- Action 的规划描述与一次计划中的 `PlannedAction` 必须分层：前者定义身份、前置条件、预测效果和成本；后者只是 Planner 输出的稳定引用。执行能力由显式 dispatcher binding 或 child Process spec 提供，不进入 Planner 的纯搜索模型。
+
+### 9.2 治本式移除的旧设计
+
+- 不复制 `Action.Execute(ctx, *ProcessContext)`。旧 Action 同时读取依赖、Blackboard、WorkingState、Tool roles、binding 和 child 控制，是 Planning 与共同 Kernel/Host 装配的聚合泄漏；新 Step 只声明 dispatcher Effect 或 Framework child Effect。
+- 不复制可执行 `Condition`、`ConditionEnv` 或 `ConditionResolver`。观察 I/O 不在 Planner 内按 evaluation cost 隐式发生；Observer 一次产生自足的 WorldState，Planner 对同一 Problem 保持纯且确定。
+- 不复制全局 Blackboard、typed binding、动态 dependency scope、Agent identity、Domain-for-Agent 或 planner Extension registry。Planning Definition 构造时显式冻结 Goal、Actions、Planner 与执行 binding，不按名称发现或选择默认 Planner。
+- 不复制 Planning core 内的 OTel tracer、span attribute 或 logger。Planner 只返回 plan/no-plan/error；框架中性 Event 与后续外部 decorator 负责观察。
+- 不把旧 `StuckPolicy` 或无计划结果提升成共同 Process Status。Goal 初始不可达和尝试后无进展是 Planning-owned terminal Output；合同违约、Planner error 和 dispatcher protocol error 才是 Process failure。
+- 不保留同时携带 Action、Goal、Condition registry 和运行时 provider 的可变 Domain service。构造边界冻结最小 Planning Definition，搜索输入是按值、不可变的 Problem。
+
+### 9.3 暂不重建的 planner 变体
+
+- 旧 HTN 已证明的顺序分解、method fallback、状态穿行、循环/深度保护是未来证据；当前仓库没有真实 consumer 证明需要公开 `planning/htn`。预建可变 task registry 或以 Goal name 隐式选择根 task 都会增加第二套领域语言，因此 P5 不实现。
+- 旧 Utility 与 GoalFirst 只是单步适用 Action 的 value-cost 排序，并依赖动态 Goal value 与 planner name registry。选择能力可能属于未来 Planning policy，也可能属于 Workflow Router；owner 未被真实消费证明前不实现 `planning/utility`。
+- 旧 Reactive 是按固定优先级返回第一个适用 Action 的单步 planner，不是 ReAct，也没有独立推进/恢复语义。该 package 直接移除；未来若出现规则选择需求，必须以真实消费点决定落在 Planner、Workflow gate/router 或 Interaction。
+
+以上裁决保留能力证据而不保留旧 API。未来新增 HTN、Utility 或其他 Planner 只能消费 P5 由 GOAP 证明的最小 Planner SPI；不得要求共同 Process 增加 Goal、Plan、Blackboard、Agent identity、registry 或策略专属 snapshot 字段。
