@@ -3,7 +3,7 @@
 > 状态：持续实施
 > 建立日期：2026-08-06
 > 最后更新：2026-08-06
-> 当前阶段：P6 Workflow，0/8 完成
+> 当前阶段：P6 Workflow，1/8 完成
 > 当前实施范围：仅 `agent2`
 > 临时模块路径：`github.com/Tangerg/lynx/agent2`
 > 最终模块路径：`github.com/Tangerg/lynx/agent`
@@ -72,7 +72,7 @@ go test ./...
 | P3 真实 Interaction 验证 | 完成 | 9/9 | 真实模型/工具 dispatcher、流、HITL、steer，并接入 disposable consumer |
 | P4 子 Process 组合与合同冻结 | 完成 | 9/9 | start/wait、递归、组合、预算、取消、恢复；多消费方验证后冻结窄腰 |
 | P5 Planning 与 GOAP | 完成 | 8/8 | Planning 状态、Planner SPI、GOAP 搜索与 replan |
-| P6 Workflow | 未开始 | 0/8 | 原生 sequence/gate/router/fork/join/loop/agent call |
+| P6 Workflow | 进行中 | 1/8 | 原生 sequence/gate/router/fork/join/loop/agent call |
 | P7 组合模式与能力覆盖 | 未开始 | 0/7 | 动态 worker 组合、typed artifacts、evaluator/optimizer、示例 |
 | P8 Platform 与治理 | 未开始 | 0/7 | resolver、deployment catalog、版本、路由、递归治理和观测 |
 | P9 独立完整性验收 | 未开始 | 0/6 | API/wire/arch/race/fuzz/examples/standalone 全绿 |
@@ -152,7 +152,7 @@ go test ./...
 
 ### P6：Workflow
 
-- [ ] P6-01 审查旧 workflow builders、并行与 supervisor 代码并记录裁决；只保留组合能力，不复制独立 Supervisor Strategy。
+- [x] P6-01 审查旧 workflow builders、并行与 supervisor 代码并记录裁决；只保留组合能力，不复制独立 Supervisor Strategy。
 - [ ] P6-02 实现原生 Workflow Execution 和类型化节点合同。
 - [ ] P6-03 实现 Sequence、Prompt Chaining 和 Gate。
 - [ ] P6-04 实现 Router/Switch。
@@ -251,6 +251,7 @@ go test ./...
 
 | 日期 | 阶段 | 实际事实 | 验证与结果 |
 |---|---|---|---|
+| 2026-08-06 | P6 | 完成旧 `workflow`、`routing` 与 supervisor example 的只读审计。保留 Sequence 显式值流、真实 child Process、Fork/Map 有界并发与声明顺序聚合、Gate/Switch 确定选择、Vote 稳定同票、Loop 显式终止和完整恢复。确定唯一术语：Workflow 内用 Switch 而非 Router、Fork 而非 Parallel/ScatterGather、Vote 而非 Consensus、Loop 而非 Repeat/RepeatUntil、Call 而非 SubAgent。治本式移除 Workflow 编译 GOAP、builder 持有 Engine/构造期 Deploy、Action 内 RunChild、Blackboard latest-object/history/computed condition、裸 goroutine Generator、Team definition 合并、独立 Supervisor Strategy；RepeatUntilAcceptable 留给 P7 evaluator-optimizer 组合，catalog Ranker/Confidence 留给 P8 Platform routing | 审计覆盖旧 Workflow 14 个生产文件及对应 Sequence/Parallel/ScatterGather/Consensus/Loop/Repeat/Supervisor/Team 行为测试，并核对 routing 的 candidate identity、稳定 tie、filter/panic 语义。裁决已写入能力台账，只修改 `agent2` 事实文档；P6-01 完成，P6 更新为 1/8 |
 | 2026-08-06 | P5 | 完成原生 Planning Definition/Execution/Dispatcher 纵切面。Definition 冻结 Goal、最小 Planner、ActionBinding 与 `MaxActionAttempts`；predictive Action 与 dispatcher `ActionExecutor`/精确 child Deployment capability 完全分离。Execution 严格执行 observe → plan → 单个 Action → reobserve：每轮只采用 Plan 首 Action，reobservation 才确认预测 Effects，definite failure/unconfirmed Action 在本 Process 排除后重新规划；child Action 使用真实 child Process、预算、能力衰减与 all-child wait，完成后仍以 Observer 为现实权威。首次 no-plan 输出 `unreachable`，尝试后无路线或达到上限输出 `stuck`，二者均为 Completed 的 Planning Output；观察失败、Planner error/非法 Plan、协议违约保持稳定 failure 分类。Observation Effect 因无副作用允许 same-identity replay；Action Effect 默认不可重投，unknown outcome 通过公开 definite settlement 显式裁决。真实 child consumer 还证明根 `ChildWaitOpened` 必须暴露 defensive-copy 的原始 Spec 供 Strategy 完整核对；已追加 ADR-A2-035 并冻结包含 Planning/GOAP 的 Baseline 2。P1 disposable Planning spike 已删除 | 多路线两步执行、每 Action 后 replan、现实未确认 fallback、definite failure fallback、unreachable/stuck、观察/Planner/能力失败、exact snapshot restore、unknown Action resolution、真实跨 Strategy child Process 全部通过。Planning state/protocol/Output strict codec 增加 fuzz seeds，architecture gate 保持 Kernel/Host/OTel 泄漏禁入；standalone build/vet/staticcheck/test/race 与定向 fuzz 全绿后提交。P5-06～P5-08 完成，P5 更新为 8/8 |
 | 2026-08-06 | P5 | 新增独立 `planning` 与 `planning/goap` 生产 package，完成纯规划纵切面。`Truth` 用 Unknown/False/True 区分未知与已知假，`Condition` 只表达已知命名事实，`WorldState` 是 zero-valid、规范排序、不可变且可严格恢复的观察值；Goal、WorldState、Plan 均不进入共同 Process。`Action` 只拥有预测性的 Name/Description/Preconditions/Effects/Cost，不执行 I/O；`PlannedAction` 只是稳定 Action 引用，彻底切断 planner metadata 与执行 capability。最小 Planner SPI 只有 `Plan(context.Context, Problem) (Plan, found, error)`，没有 Name、Extension、registry、default、Agent、Domain service 或 telemetry。GOAP 使用非负有限成本的 deterministic uniform-cost search：dynamic cost 在边源状态求值、相同成本保持声明顺序、同 state 只接受严格更低 cost predecessor、no-op successor 跳过、direct producer 仅保守短路、context cancellation 与显式 expansion limit 生效；已满足返回 found+empty Plan，完整 frontier 耗尽返回 no-plan，limit 命中返回 `ErrExpansionLimit` 而不谎报不可达。所有 Planner 输出再由 Problem 复算适用性、预测状态、总成本和 Goal satisfaction | standalone build/vet/staticcheck/test 全绿；Planning/GOAP 覆盖率分别 75.9%/87.5%，GOAP 确定性测试连续 50 次通过，Planning 全 race 连续 10 次通过。WorldState strict JSON fuzz 723930 次、Plan strict JSON fuzz 685151 次无失败；architecture gate 递归扫描 Planning packages，禁止旧 `agent`、`app`、OTel/slog、Blackboard、ProcessContext、ConditionEnv/Resolver 和 Host 持久化/产品身份声明。P5-02～P5-05 完成，P5 更新为 5/8 |
 | 2026-08-06 | P5 | 完成旧 Planning/GOAP/HTN/Utility/Reactive 的专项只读审计。保留三值 Truth、不可变 WorldState、规范 state key、非负有限成本的确定性 uniform-cost search、源状态动态成本、stable tie order、strictly-cheaper predecessor、no-op edge 跳过、expansion limit/context cancellation，以及 Action 后 reobserve/replan 的领域规则。Planning 将独占 Goal/Condition/WorldState/Plan；Action 的规划描述、PlannedAction 引用和真实执行 binding 分层。治本式移除 `Action.Execute(ProcessContext)`、可执行 Condition/ConditionEnv/ConditionResolver、Blackboard/binding/dependency scope、Agent identity、Domain registry、Planner Extension/name/default 和 Planning 内 OTel。HTN、Utility 与 Reactive 均无当前真实 consumer：P5 不预建对应 package，只保留已审计算法证据，未来必须通过同一最小 Planner SPI 和真实消费重新申请；Stuck/no-plan 保持 Planning Output，不进入共同 Process Status | 裁决已写入能力台账；只修改 `agent2` 事实文档，未改旧 `agent`、`app/runtime` 或生产实现。文档 diff check 通过；P5-01 完成，P5 更新为 1/8 |

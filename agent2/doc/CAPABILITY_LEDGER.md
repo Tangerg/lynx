@@ -172,3 +172,34 @@
 - 多路线、动态环境未确认、definite failure、初始不可达、尝试后 stuck、attempt 上限、非法 Planner 输出、观察失败、能力拒绝、unknown Effect 显式裁决和 snapshot restore 均有行为合同。
 - 旧 `Action.Execute(ProcessContext)`、Blackboard、Condition evaluator/provider、Domain registry、Planner registry/default、Agent identity、Planning OTel 与 disposable Planning spike 均未进入正式实现；HTN、Utility、Reactive 保持未实现且没有占位 package。
 - Planning 专属 completion outcome 只存在于 Planning Output；共同 Status 和 snapshot wire 没有新增 Planning 字段。P5 台账项已验证完成。
+
+## 10. P6 Workflow 专项审计证据
+
+### 10.1 保留的组合语义
+
+- Sequence 保留声明顺序、前一节点 Output 显式成为后一节点 Input、任一节点失败可归因，以及每个 Agent 节点使用真实 child Process 的语义；不保留“从 Blackboard 最新对象猜下一个输入”的隐式传值。
+- Fork/Join 与 Map/Reduce 保留独立 branch identity、声明顺序聚合、显式并发上限、失败不受完成顺序影响、取消后等待已启动 branch 收口，以及输出只经 Join/Reduce 越过分支边界。动态 Map 还必须有独立 item 上限，不能把 Engine tree limit 当作正常调度器。
+- Gate 与 Switch 保留确定、无 I/O 的本地选择；Workflow 内只使用 `Switch` 表示基于当前值选择下一节点，`Router` 留给 P8 的 Deployment 选择，避免同一概念两套术语。
+- Vote 保留按稳定 key 计数、最高票获胜和同票按声明顺序裁决；公共合同只使用 `Vote`，不再同时暴露 Consensus 别名。
+- Loop 保留至少执行一次、显式最大迭代数、每轮 body 使用新 child Process、最新 Output 成为下一轮 Input、终止谓词与完整 snapshot；公共合同只使用 `Loop`，不再同时公开 Repeat/RepeatUntil 近义入口。
+- Prompt Chaining 是 Sequence 中连续 child Agent 调用的组合用法，不建立 PromptChain Strategy、Process 状态或第二套执行器。Agent call 是 Workflow 的 `Call` 节点，不建立 SubAgent 类型。
+
+### 10.2 治本式移除的旧实现形态
+
+- 不再把 Workflow 编译成普通 GOAP Agent。Sequence、Fork、Map、Switch、Vote 和 Loop 拥有分支游标、child wait、聚合与迭代恢复语义，直接由原生 Workflow ExecutionState 表达；Planning 不再承担确定性工作流控制。
+- 不复制 builder 接收 `*runtime.Engine`、构造期调用 Deploy、Action 内调用 `RunChild` 的反向依赖。Workflow Definition 只冻结 exact child DeploymentRef、schema、预算和能力；Engine 仍是唯一 Process 创建与调度 owner。
+- 移除 ScatterGather/Generator 的裸 goroutine 分支，以及 Parallel 对它的第二层包装。需要独立生命周期的 branch 一律是真实 child Process；无生命周期的纯转换不冒充 Fork/Map。
+- 移除 Sequence 的 `LatestObjectBindingName`、Loop/Repeat 的 Blackboard History/Binding/computed Condition、Team 的 Definition 合并和 snapshot binding 拼接。数据流必须是严格 schema 的 immutable wire value，跨 Strategy 状态只存在于 child Process。
+- 移除 Parallel/ScatterGather、Loop/RepeatUntil、Vote/Consensus 等重复公共入口；每组只保留一个准确术语。旧默认迭代次数不复制，Loop 的终止上限必须显式。
+- `RepeatUntilAcceptable`/Feedback/AttemptHistory 不在 P6 建立独立节点；其真实语义属于 P7 evaluator-optimizer，由 Loop、child evaluator Definition 与 typed artifact 组合。
+- `Supervisor` 不建立独立 Workflow kind/package；继续遵守 ADR-A2-020，在 P7 由 Interaction、Workflow、Action-to-Tool 和 child Process 组合。
+- `Team` 将多个 Agent 的 Action/Goal/Condition 合并为一个共享生命周期，会重新引入名称冲突、状态串扰和 GOAP 中心化，整体移除；组合只通过显式节点和 child Process。
+- 旧 `routing.Router` 对活动 Deployment catalog 的 Candidate/Ranker/Confidence 选择属于 P8 Platform routing，不进入 Workflow。P6 Switch 只在一个已冻结 Definition 的显式分支表内选择，不扫描 catalog。
+
+### 10.3 P6 实现约束
+
+- Workflow 节点合同使用 erased、schema-validated immutable wire value；泛型只在节点构造边缘负责 Go 类型 codec，不让泛型进入 Engine 窄腰。
+- 每个独立 branch/iteration 是真实 child Process，拥有 exact DeploymentRef、ProcessID、snapshot、预算和 attenuated capabilities。fan-out 必须按显式并发窗口分批启动，结果按声明/item 顺序聚合。
+- Join、Reduce、Gate、Switch、Vote key 和 Loop predicate 是 Step 内的确定性纯函数，不得执行 I/O；需要模型、Tool 或其他副作用时必须建成 child Definition。
+- Workflow state 只保存节点身份、当前 immutable value、branch/item 游标、child identity、wait identity、迭代数和已结算结果；不保存 Engine、Deployment、callback、context、goroutine、Host identity 或 persistence 协议。
+- branch failure 不由 Kernel 自动改写 parent。Workflow 节点按自己的明确策略决定 fail-fast、聚合或容错；任何策略都必须确定、可恢复且不静默遗弃已启动 child。
