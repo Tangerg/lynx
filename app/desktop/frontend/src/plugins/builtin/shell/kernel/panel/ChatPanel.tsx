@@ -1,3 +1,4 @@
+import { Activity } from "react";
 import { DOCK_COLUMN, DOCK_COLUMN_COLLAPSED, dockWidthRow } from "./dockWidth";
 import type { UserInput } from "@/plugins/builtin/chat/composer/public/input";
 import type { ViewPlacement } from "@/plugins/builtin/workspace/public/viewPlacement";
@@ -147,11 +148,23 @@ export function ChatPanel({ onSend }: Props) {
 
   return (
     <AgentContentCard label={t("shell.region.workspace")}>
-      {activeMainView ? (
+      {activeMainView !== null && (
         <ViewPlacementProvider value={placementFor(activeMainView, "full")}>
           <WorkspaceViewBody viewId={activeMainView} />
         </ViewPlacementProvider>
-      ) : (
+      )}
+      {/* The conversation steps aside for a full-window view; it does not get torn down
+          for one. `Activity` keeps it mounted and hides it (`display: none`), running
+          its effect cleanups on the way out — so nothing behind Settings is still
+          subscribed, and coming back is a re-show rather than a rebuild.
+
+          Rebuilding was the visible cost: every wave and tool card you had opened
+          closed itself, because that disclosure state is component state, and the whole
+          transcript re-planned its render units and re-highlighted its code on the way
+          back in. A ternary here cannot express any of that — an unmounted subtree has
+          no state to return to. The full view above IS a ternary, deliberately: you
+          come back to the conversation, not to whichever pane you passed through. */}
+      <Activity mode={activeMainView === null ? "visible" : "hidden"}>
         <div className="flex min-h-0 flex-1" style={dockWidthRow(dockWidth)}>
           <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
             <AgentSurfaceHeader windowCorner>
@@ -204,27 +217,31 @@ export function ChatPanel({ onSend }: Props) {
             >
               <DockHeader tabs={dockTabs} groups={catalog} openViewIds={openViewIds} />
               <div className="relative min-h-0 flex-1">
-                {dock.viewIds.map((viewId) => {
-                  const active = viewId === dock.activeViewId;
-                  return (
-                    <div
-                      key={viewId}
-                      data-dock-view-id={viewId}
-                      inert={active ? undefined : true}
-                      aria-hidden={active ? undefined : true}
-                      className={active ? "absolute inset-0 flex flex-col" : "hidden"}
-                    >
+                {/* Every open tab stays mounted so switching between them keeps each
+                    one's scroll, selection and expansion — but only the visible one is
+                    allowed to be doing anything. `Activity` is what separates those:
+                    hiding a tab runs its effect cleanups, so a diff behind another tab
+                    stops watching the tree and a terminal stops following output,
+                    instead of polling forever behind `display: none`.
+
+                    It owns the hiding too, with `display: none !important` — the `inert`
+                    and `aria-hidden` this used to carry were saying the same thing a
+                    third and fourth time, and three mechanisms for one state is three
+                    places to disagree. */}
+                {dock.viewIds.map((viewId) => (
+                  <Activity key={viewId} mode={viewId === dock.activeViewId ? "visible" : "hidden"}>
+                    <div data-dock-view-id={viewId} className="absolute inset-0 flex flex-col">
                       <ViewPlacementProvider value={placementFor(viewId, "dock")}>
                         <WorkspaceViewBody viewId={viewId} />
                       </ViewPlacementProvider>
                     </div>
-                  );
-                })}
+                  </Activity>
+                ))}
               </div>
             </AgentContextDock>
           }
         </div>
-      )}
+      </Activity>
     </AgentContentCard>
   );
 }
