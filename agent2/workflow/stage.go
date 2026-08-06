@@ -20,6 +20,7 @@ const (
 	StageKindCall
 	StageKindSwitch
 	StageKindFork
+	StageKindMap
 )
 
 func (kind StageKind) String() string {
@@ -32,6 +33,8 @@ func (kind StageKind) String() string {
 		return "switch"
 	case StageKindFork:
 		return "fork"
+	case StageKindMap:
+		return "map"
 	default:
 		return "invalid"
 	}
@@ -61,6 +64,7 @@ type Stage struct {
 	call         childBinding
 	switcher     switchStage
 	fork         forkStage
+	mapper       mapStage
 }
 
 // CallConfig declares one exact child Deployment and its non-renewable
@@ -164,19 +168,23 @@ func (stage Stage) Valid() bool {
 	case StageKindTransform:
 		return stage.transform != nil && !stage.call.deployment.Valid() &&
 			!stage.call.budget.Valid() && stage.call.capabilities.Valid() &&
-			!stage.switcher.valid() && !stage.fork.valid()
+			!stage.switcher.valid() && !stage.fork.valid() && !stage.mapper.valid()
 	case StageKindCall:
 		return stage.transform == nil && stage.call.deployment.Valid() &&
 			stage.call.budget.Valid() && stage.call.capabilities.Valid() &&
-			!stage.switcher.valid() && !stage.fork.valid()
+			!stage.switcher.valid() && !stage.fork.valid() && !stage.mapper.valid()
 	case StageKindSwitch:
 		return stage.transform == nil && !stage.call.deployment.Valid() &&
 			!stage.call.budget.Valid() && stage.call.capabilities.Valid() &&
-			stage.switcher.valid() && !stage.fork.valid()
+			stage.switcher.valid() && !stage.fork.valid() && !stage.mapper.valid()
 	case StageKindFork:
 		return stage.transform == nil && !stage.call.deployment.Valid() &&
 			!stage.call.budget.Valid() && stage.call.capabilities.Valid() &&
-			!stage.switcher.valid() && stage.fork.valid()
+			!stage.switcher.valid() && stage.fork.valid() && !stage.mapper.valid()
+	case StageKindMap:
+		return stage.transform == nil && !stage.call.deployment.Valid() &&
+			!stage.call.budget.Valid() && stage.call.capabilities.Valid() &&
+			!stage.switcher.valid() && !stage.fork.valid() && stage.mapper.valid()
 	default:
 		return false
 	}

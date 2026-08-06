@@ -2,6 +2,7 @@ package workflow
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -29,12 +30,12 @@ func (execution *execution) Step(_ context.Context, signals []agent.Signal) (age
 		return execution.acceptChildWaitOpen(signals)
 	case phaseWaitingChild:
 		return execution.acceptChildCompletion(signals)
-	case phaseAwaitingForkStarts:
-		return execution.acceptForkStarts(signals)
-	case phaseAwaitingForkWaitOpen:
-		return execution.acceptForkWaitOpen(signals)
-	case phaseWaitingFork:
-		return execution.acceptForkCompletion(signals)
+	case phaseAwaitingFanoutStarts:
+		return execution.acceptFanoutStarts(signals)
+	case phaseAwaitingFanoutWaitOpen:
+		return execution.acceptFanoutWaitOpen(signals)
+	case phaseWaitingFanout:
+		return execution.acceptFanoutCompletion(signals)
 	case phaseCompleted:
 		return agent.Transition{}, fmt.Errorf("%w: completed Execution cannot advance", ErrInvalidProtocol)
 	default:
@@ -86,7 +87,28 @@ func (execution *execution) advance(signals []agent.Signal) (agent.Transition, e
 		execution.state.SelectedCase = selected
 		return execution.startSingleChild(0, binding)
 	case StageKindFork:
-		return execution.startForkWindow(0)
+		return execution.startFanoutWindow(0)
+	case StageKindMap:
+		count, err := stage.fanoutCount(execution.state.Value)
+		if err != nil {
+			var exceeded mapItemLimitExceeded
+			if errors.As(err, &exceeded) {
+				return execution.failContract(
+					0, "workflow.map.item_limit_exceeded",
+					"Map Stage "+stage.id+" input exceeds its configured item limit",
+				)
+			}
+			return agent.Transition{}, err
+		}
+		if count > 0 {
+			return execution.startFanoutWindow(0)
+		}
+		value, err := stage.fanoutComplete([]json.RawMessage{})
+		if err != nil {
+			return agent.Transition{}, err
+		}
+		execution.state.Value = value
+		return execution.finishStage(0)
 	default:
 		return agent.Transition{}, ErrInvalidStage
 	}
@@ -235,7 +257,7 @@ func (execution *execution) acceptChildCompletion(signals []agent.Signal) (agent
 
 func (execution *execution) finishStage(consumed uint32) (agent.Transition, error) {
 	execution.clearSingleChild()
-	execution.clearFork()
+	execution.clearFanout()
 	execution.state.Stage++
 	if execution.state.Stage < uint32(len(execution.definition.stages)) {
 		execution.state.Phase = phaseReady

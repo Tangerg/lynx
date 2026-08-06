@@ -12,21 +12,21 @@ import (
 type phase string
 
 const (
-	phaseReady                 phase = "ready"
-	phaseAwaitingChildStart    phase = "awaiting_child_start"
-	phaseAwaitingChildWaitOpen phase = "awaiting_child_wait_open"
-	phaseWaitingChild          phase = "waiting_child"
-	phaseAwaitingForkStarts    phase = "awaiting_fork_starts"
-	phaseAwaitingForkWaitOpen  phase = "awaiting_fork_wait_open"
-	phaseWaitingFork           phase = "waiting_fork"
-	phaseCompleted             phase = "completed"
+	phaseReady                  phase = "ready"
+	phaseAwaitingChildStart     phase = "awaiting_child_start"
+	phaseAwaitingChildWaitOpen  phase = "awaiting_child_wait_open"
+	phaseWaitingChild           phase = "waiting_child"
+	phaseAwaitingFanoutStarts   phase = "awaiting_fanout_starts"
+	phaseAwaitingFanoutWaitOpen phase = "awaiting_fanout_wait_open"
+	phaseWaitingFanout          phase = "waiting_fanout"
+	phaseCompleted              phase = "completed"
 )
 
 func (value phase) valid() bool {
 	switch value {
 	case phaseReady, phaseAwaitingChildStart, phaseAwaitingChildWaitOpen,
-		phaseWaitingChild, phaseAwaitingForkStarts, phaseAwaitingForkWaitOpen,
-		phaseWaitingFork, phaseCompleted:
+		phaseWaitingChild, phaseAwaitingFanoutStarts, phaseAwaitingFanoutWaitOpen,
+		phaseWaitingFanout, phaseCompleted:
 		return true
 	default:
 		return false
@@ -40,13 +40,13 @@ type executionState struct {
 	SelectedCase   string             `json:"selected_case,omitempty"`
 	ChildProcessID *agent.ProcessID   `json:"child_process_id,omitempty"`
 	WaitID         *agent.WaitID      `json:"wait_id,omitempty"`
-	ForkNext       uint32             `json:"fork_next,omitempty"`
-	ForkWindow     []forkChildState   `json:"fork_window,omitempty"`
-	ForkOutputs    []*json.RawMessage `json:"fork_outputs,omitempty"`
+	FanoutNext     uint32             `json:"fanout_next,omitempty"`
+	FanoutWindow   []fanoutChildState `json:"fanout_window,omitempty"`
+	FanoutOutputs  []*json.RawMessage `json:"fanout_outputs,omitempty"`
 }
 
-type forkChildState struct {
-	Branch    uint32           `json:"branch"`
+type fanoutChildState struct {
+	Index     uint32           `json:"index"`
 	ProcessID *agent.ProcessID `json:"process_id,omitempty"`
 	Failure   *agent.Failure   `json:"failure,omitempty"`
 }
@@ -77,22 +77,22 @@ func (state executionState) validate(definition *Definition) error {
 			return ErrInvalidExecutionState
 		}
 	case phaseAwaitingChildStart:
-		if !state.singleChildStage(definition) || state.ChildProcessID != nil || state.WaitID != nil || state.hasForkProgress() {
+		if !state.singleChildStage(definition) || state.ChildProcessID != nil || state.WaitID != nil || state.hasFanoutProgress() {
 			return ErrInvalidExecutionState
 		}
 	case phaseAwaitingChildWaitOpen:
-		if !state.singleChildStage(definition) || !hasChild || state.WaitID != nil || state.hasForkProgress() {
+		if !state.singleChildStage(definition) || !hasChild || state.WaitID != nil || state.hasFanoutProgress() {
 			return ErrInvalidExecutionState
 		}
 	case phaseWaitingChild:
-		if !state.singleChildStage(definition) || !hasChild || !hasWait || state.hasForkProgress() {
+		if !state.singleChildStage(definition) || !hasChild || !hasWait || state.hasFanoutProgress() {
 			return ErrInvalidExecutionState
 		}
-	case phaseAwaitingForkStarts, phaseAwaitingForkWaitOpen, phaseWaitingFork:
+	case phaseAwaitingFanoutStarts, phaseAwaitingFanoutWaitOpen, phaseWaitingFanout:
 		if state.SelectedCase != "" || state.ChildProcessID != nil {
 			return ErrInvalidExecutionState
 		}
-		if err := state.validateFork(definition); err != nil {
+		if err := state.validateFanout(definition); err != nil {
 			return ErrInvalidExecutionState
 		}
 	case phaseCompleted:
@@ -121,29 +121,29 @@ func (state executionState) singleChildStage(definition *Definition) bool {
 
 func (state executionState) noProgress() bool {
 	return state.SelectedCase == "" && state.ChildProcessID == nil && state.WaitID == nil &&
-		state.ForkNext == 0 && state.ForkWindow == nil && state.ForkOutputs == nil
+		state.FanoutNext == 0 && state.FanoutWindow == nil && state.FanoutOutputs == nil
 }
 
-func (state executionState) hasForkProgress() bool {
-	return state.ForkNext != 0 || state.ForkWindow != nil || state.ForkOutputs != nil
+func (state executionState) hasFanoutProgress() bool {
+	return state.FanoutNext != 0 || state.FanoutWindow != nil || state.FanoutOutputs != nil
 }
 
-func (state executionState) validateFork(definition *Definition) error {
+func (state executionState) validateFanout(definition *Definition) error {
 	if state.Stage >= uint32(len(definition.stages)) {
 		return ErrInvalidExecutionState
 	}
 	stage := definition.stages[state.Stage]
-	if stage.kind != StageKindFork || !stage.fork.valid() || state.ForkNext == 0 ||
-		uint64(state.ForkNext) > uint64(len(stage.fork.branches)) || len(state.ForkWindow) == 0 ||
-		uint64(len(state.ForkWindow)) > uint64(stage.fork.concurrency) ||
-		len(state.ForkOutputs) != len(stage.fork.branches) {
+	count, err := stage.fanoutCount(state.Value)
+	if err != nil || count == 0 || state.FanoutNext == 0 || state.FanoutNext > count ||
+		len(state.FanoutWindow) == 0 || uint64(len(state.FanoutWindow)) > uint64(stage.fanoutConcurrency()) ||
+		uint64(len(state.FanoutOutputs)) != uint64(count) {
 		return ErrInvalidExecutionState
 	}
-	windowStart := state.ForkNext - uint32(len(state.ForkWindow))
+	windowStart := state.FanoutNext - uint32(len(state.FanoutWindow))
 	resolved := 0
 	started := 0
-	for offset, child := range state.ForkWindow {
-		if child.Branch != windowStart+uint32(offset) {
+	for offset, child := range state.FanoutWindow {
+		if child.Index != windowStart+uint32(offset) {
 			return ErrInvalidExecutionState
 		}
 		hasProcess := child.ProcessID != nil && child.ProcessID.Valid()
@@ -158,10 +158,10 @@ func (state executionState) validateFork(definition *Definition) error {
 			started++
 		}
 	}
-	if resolved != 0 && resolved != len(state.ForkWindow) {
+	if resolved != 0 && resolved != len(state.FanoutWindow) {
 		return ErrInvalidExecutionState
 	}
-	for index, output := range state.ForkOutputs {
+	for index, output := range state.FanoutOutputs {
 		if uint32(index) < windowStart {
 			if output == nil {
 				return ErrInvalidExecutionState
@@ -170,7 +170,7 @@ func (state executionState) validateFork(definition *Definition) error {
 			if err != nil {
 				return ErrInvalidExecutionState
 			}
-			if err := stage.fork.branchSchema.ValidateOutput(value); err != nil {
+			if err := stage.fanoutOutputSchema().ValidateOutput(value); err != nil {
 				return ErrInvalidExecutionState
 			}
 		} else if output != nil {
@@ -178,21 +178,21 @@ func (state executionState) validateFork(definition *Definition) error {
 		}
 	}
 	switch state.Phase {
-	case phaseAwaitingForkStarts:
+	case phaseAwaitingFanoutStarts:
 		if state.WaitID != nil || resolved != 0 && started != 0 {
 			return ErrInvalidExecutionState
 		}
-	case phaseAwaitingForkWaitOpen:
-		if state.WaitID != nil || resolved != len(state.ForkWindow) || started == 0 {
+	case phaseAwaitingFanoutWaitOpen:
+		if state.WaitID != nil || resolved != len(state.FanoutWindow) || started == 0 {
 			return ErrInvalidExecutionState
 		}
-		for _, child := range state.ForkWindow {
+		for _, child := range state.FanoutWindow {
 			if child.ProcessID != nil && child.Failure != nil {
 				return ErrInvalidExecutionState
 			}
 		}
-	case phaseWaitingFork:
-		if state.WaitID == nil || !state.WaitID.Valid() || resolved != len(state.ForkWindow) || started == 0 {
+	case phaseWaitingFanout:
+		if state.WaitID == nil || !state.WaitID.Valid() || resolved != len(state.FanoutWindow) || started == 0 {
 			return ErrInvalidExecutionState
 		}
 	default:

@@ -251,5 +251,13 @@
 - Switch selector 是 typed edge 上的纯函数，只返回一个已声明 case ID；每个 case 是 exact child Deployment。构造期同时验证所有 case 的输入与 Switch 输入精确相等、输出彼此精确相等，未选择 case 不会创建 Process。
 - Fork 首版明确是 homogeneous fan-out + reducer：所有 branch 接受同一 I 并产生同一 B，reducer 按声明顺序把 `[]B` 变成 O。需要异构内部步骤的 branch 必须先用 child Workflow 暴露共同 B，不能把 `any`、共享 Store 或隐式 binding 带回父级。
 - Fork Concurrency 是显式正数窗口上限且不得超过 branch 数；Execution 只启动当前窗口，等待该窗口全部已启动 child 终止后才启动下一窗口。start failure 不会遗弃同窗已经启动的 child，所有失败按最低声明索引稳定归因。
-- Fork state 用 branch index、ProcessID、Failure 与 nullable raw Output 槽位区分未启动、已启动、已失败和已结算；字面 JSON `null` 不能冒充一个未结算槽位。窗口与单 child 的 ChildKey/WaitKey 都由完整逻辑身份稳定哈希，避免合法组合超出 Kernel identity 长度。
+- indexed fan-out state 用 member index、ProcessID、Failure 与 nullable raw Output 槽位区分未启动、已启动、已失败和已结算；字面 JSON `null` 不能冒充一个未结算槽位。窗口与单 child 的 ChildKey/WaitKey 都由完整逻辑身份稳定哈希，避免合法组合超出 Kernel identity 长度。
 - 真实 dispatcher-backed child 测试证明 window=2 不会提前启动第三路、逆序完成不改变 reducer 顺序、同窗多失败不受完成时序影响。Switch/Fork 没有增加 Kernel API、dispatcher 协议、goroutine scheduler 或 `flow` 依赖。
+
+### 10.8 Map 正式纵切面
+
+- Map 的唯一公共语义是 `[]I → []O`：一个 exact Deployment 对每个 item 执行 I→O，输出严格按原 item index 排列。它不暴露动态 Graph、Generator、共享 Store、keyed binding 或隐式 flatten。
+- Concurrency 与 ItemLimit 都是显式正数，且 concurrency 不得超过 item limit。item limit 在声明任何 StartChild Effect 前检查；空输入准确完成为空切片，不创建一个伪 child 或返回 JSON null。
+- Fork 与 Map 共用包内 sealed indexed fan-out 生命周期和同一 ExecutionState 字段；差异只存在于 Stage-owned binding/input/collect 行为。该收敛没有形成公开 fan-out interface，新增 Stage 不能绕过封闭代数。
+- 每个窗口只解码一次原始 `[]I`，只为当前窗口编码 item Input；snapshot 继续保存权威原始 value、窗口游标和已结算 Output，不保存 Go slice、Deployment concrete value 或第二份 Journal。
+- 真实 Engine 测试覆盖多窗口稳定顺序、空输入、超限先拒绝和构造期 schema/limit 违约；Fork 原有逆序完成与最低索引失败合同在共用状态机后保持不变。
