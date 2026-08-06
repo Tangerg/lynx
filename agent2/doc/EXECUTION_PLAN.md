@@ -3,8 +3,8 @@
 > 状态：持续实施
 > 建立日期：2026-08-06
 > 最后更新：2026-08-06
-> 当前阶段：P10 消费迁移，2/5 完成
-> 当前实施范围：仅 `agent2`
+> 当前阶段：P1–P9 独立框架已完成；P10/P11 留待 App 深度重写专项
+> 当前实施范围：仅 `agent2`；不分析或修改 `app/runtime`
 > 临时模块路径：`github.com/Tangerg/lynx/agent2`
 > 最终模块路径：`github.com/Tangerg/lynx/agent`
 
@@ -32,6 +32,8 @@ P1–P9 默认只修改 `agent2` 以及为其独立编译所必需的 workspace/
 - 不修改旧 `agent` 来为 `agent2` 提供兼容入口。
 - `agent2` 不 import 旧 `agent`，旧 `agent` 不 import `agent2`。
 - 消费迁移集中在 P10，旧模块删除和目录归一集中在 P11。
+
+2026-08-06 用户进一步裁决：当前实施批次在 P1–P9 与为真实消费者已证明的 Framework 合同处收口，不继续分析或修改 `app/runtime`。P10-01/P10-02 及其后形成的 Baseline 7/8 是已完成的独立 Framework 事实，继续保留；P10-03 至 P11 必须进入后续 App 深度重写专项，不能在本批次夹带 adapter、迁移桥或旧模块替换。该排期变化不改变最终架构目标，也不把未实施的 P10/P11 标记为完成。
 
 旧 `agent` 在并存期保留为可直接阅读和运行的参考实现。每个能力阶段开始时必须检查对应旧代码及测试，形成以下裁决之一：
 
@@ -76,8 +78,8 @@ go test ./...
 | P7 组合模式与能力覆盖 | 完成 | 7/7 | 动态 worker 组合、typed artifacts、evaluator/optimizer、示例 |
 | P8 Platform 与治理 | 完成 | 7/7 | resolver、deployment catalog、版本、路由、递归治理和观测 |
 | P9 独立完整性验收 | 完成 | 6/6 | API/wire/arch/race/fuzz/examples/standalone 全绿 |
-| P10 消费迁移 | 进行中 | 2/5 | 单独迁移 `app/runtime` 及批准的直接消费者 |
-| P11 原模块替换 | 未开始 | 0/5 | 删除旧模块、改回 `agent`、清零兼容和残留 |
+| P10 消费迁移 | 进行中 | 2/5 | 已完成合同冻结；代码迁移留待 App 深度重写专项 |
+| P11 原模块替换 | 未开始 | 0/5 | 在后续专项删除旧模块、改回 `agent`、清零兼容和残留 |
 
 ---
 
@@ -193,15 +195,15 @@ go test ./...
 - [x] P9-05 完成独立 module、examples 和文档验证。
 - [x] P9-06 清除空目录、漂移注释、dead code、TODO 债务和兼容残留。
 
-### P10：消费迁移
+### P10：消费迁移（后续 App 深度重写专项）
 
 - [x] P10-01 复核 P1 只读消费审计结果与 P4 后冻结的合同，确认迁移范围没有新增应用抽象需求。
 - [x] P10-02 更新迁移决策并确认 breaking change 实施批次。
-- [ ] P10-03 将聊天路径从单 Action GOAP wrapper 迁移为 Interaction Definition。
-- [ ] P10-04 迁移其他批准的直接消费者，不修改无关前端/TUI/CLI。
-- [ ] P10-05 删除应用侧框架通用编排并完成应用门禁。
+- [ ] P10-03 后续专项将聊天路径从单 Action GOAP wrapper 迁移为 Interaction Definition。
+- [ ] P10-04 后续专项迁移其他批准的直接消费者，不修改无关前端/TUI/CLI。
+- [ ] P10-05 后续专项删除应用侧框架通用编排并完成应用门禁。
 
-### P11：原模块替换
+### P11：原模块替换（后续 App 深度重写专项）
 
 - [ ] P11-01 确认旧 `agent` 无剩余消费者或独有能力。
 - [ ] P11-02 删除旧 `agent`，不保留兼容层。
@@ -254,6 +256,7 @@ go test ./...
 
 | 日期 | 阶段 | 实际事实 | 验证与结果 |
 |---|---|---|---|
+| 2026-08-06 | 范围收口 | 用户明确把 `app/runtime` 分析、接线、迁移与深度重写移出当前实施批次；收到裁决后即停止继续读取和分析应用实现。本轮没有修改 App、旧 `agent`、前端、TUI 或 CLI；P10-01/P10-02 与 Baseline 7/8 作为已经完成且独立成立的 Framework 合同保留，P10-03 至 P11 不伪装完成，也不建立过渡实现 | 对最新 Baseline 8 重新执行 `go mod tidy -diff`、standalone build/vet/staticcheck、完整项目 lint、禁用缓存全量测试和全量 race，15 个 package 全绿且 lint 为 0 issues；八个公开 command consumer 全部实际 `go run` 成功。代码、public API、wire、依赖图与 module graph 均未改变；当前批次以 P1–P9 独立框架完整、P10/P11 后续专项为准确事实边界 |
 | 2026-08-06 | P10 | 实现 ADR-A2-058 的 Interaction 纵切面。新增只在实际调用 context 中可读的 immutable ModelInvocation/ToolInvocation，携带 exact ProcessRelation、DeploymentRef、EffectID、Step/model-call sequence 和 ToolCall index/value；公开唯一 DelegateChildKey 派生。Dispatcher 将普通工具明确分成初始可见 Tools 与冻结、可执行但初始隐藏的 DeferredTools；AdvertiseTools 只能暂存 exact 已绑定名称，随成功 Tool settlement 提交。失败/panic/cancel/当前 HITL pause 丢弃当前调用广告，checkpoint 保留已完成前缀，并行结果按模型 ToolCall 顺序合并；恢复态保存权威广告集合，没有动态 authority、registry、Engine handle 或 Host 抽象 | 形成 Baseline 8：Interaction public digest `4d7c875e…5bf5`，state/protocol v5/v3 与 wire digest `1f991ad1…308a`；Kernel、其余六个 public package、Process Snapshot v6、TreeSnapshot v4 和 observation wire 不变。行为测试覆盖完整归因、广告/执行、非法名称、失败回滚、HITL checkpoint、恢复、并行乱序、Delegate key 和绑定冲突。standalone build/vet/staticcheck、完整 lint、禁用缓存全量测试/race 全绿，Interaction state fuzz 3 秒执行 111,450 次无失败；P10-03 继续进行，下一纵切面迁移 root chat 为原生 Interaction |
 | 2026-08-06 | P10 | 实现 ADR-A2-058 的第一个 Kernel 纵切面。`ProcessAdmitter.Admit` 改为 context-aware，`ProcessAdmission` 新增 admission 成功后与 Process 完全相同的 UTC StartedAt；root/child 均在 Definition.Start 和发布前请求，恢复仍不重复。`EffectRequest` 新增 exact DeploymentRef 与 ProcessRelation，并强化 relation/identity 一致性校验。调用位置直接传 Engine 已有事实，没有引入 ProcessContext、Host metadata 或应用依赖 | 形成 Baseline 7：root public digest 更新为 `9bd5705e…a53c`，其余六个 public digest、Process Snapshot v6、TreeSnapshot v4、全部 owner wire 与 package DAG 不变。测试新增 context 传播、root/child StartedAt 和完整 Effect attribution；P10-03 继续进行，下一纵切面实现 Interaction-owned invocation context 与 Delegate ChildKey |
 | 2026-08-06 | P10 | 依据 P10-01 证据新增 ADR-A2-058，将迁移缺口冻结为六个且只有六个中性合同：context-aware ProcessAdmitter + prospective StartedAt；携带 exact deployment/relation 的 EffectRequest；Interaction-owned ModelInvocation/ToolInvocation context；`Tools`/`DeferredTools` 与可恢复 `AdvertiseTools`；唯一 `DelegateChildKey`；Kernel-owned `WaitingSubtreeCancellationPlan`。等待子树结果保留终态 Process/预算、由 Kernel child completion Signal 推进并把父级停在消费前，Host 只保存 opaque tree 与自身 write-set。实施顺序固定为 Framework 合同、root 原生 Interaction、child/HITL/toolset、旧应用编排清零四批，且前端/TUI/CLI 明确排除 | 本轮只修订候选后的正式迁移决策，不改变 production API/wire；没有新增 Host package/name/import。P10-02 完成，P10 更新为 2/5；P10-03 从 Kernel/Interaction owner contracts 纵切实现并先独立验收 |
