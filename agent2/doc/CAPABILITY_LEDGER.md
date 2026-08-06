@@ -472,3 +472,36 @@
 - P1 的 Interaction 与 prepared-Step disposable spike 已被正式 Interaction、Engine、snapshot、restore、unknown Effect 与事务提交测试完整取代，因而整体删除。删除过程暴露出的普通测试 helper 依赖被收回各自 owner；Interaction 重复 Deployment 构造则收敛到测试 package 既有唯一 helper。
 - 稳定架构文档只保留当前事实，P1/P3/P8 的未来时态已移回执行日志；示例统一称独立消费者。空目录、空文件、production TODO/FIXME/HACK、兼容 shim、旧模块/Host/`flow` 依赖、未登记 package/依赖边和 production/test duplicate 均为零。
 - 最终提交态 standalone build、vet、staticcheck、完整项目 lint、禁用缓存普通测试与 race 全绿；13 个 fuzz target 各 3 秒共执行 2,092,394 次且无失败，fuzz 后普通测试再次通过；八个 command consumer 全部实跑并保持确定输出。
+
+## 14. P10 真实消费者复核证据
+
+### 14.1 迁移边界与依赖现状
+
+- P10 开始时，`app/runtime` 仍有 54 个 Go 文件直接 import 旧 `agent`：39 个位于 `internal/adapter/agentexec`，9 个位于 `internal/adapter/toolset`，其余是 bootstrap、runsegment 与 architecture tests。数量与 P1 审计一致，说明 P2–P9 没有把迁移半成品或 Host 类型提前带入 `agent2`。
+- `internal/adapter/agentexec` 是唯一应该理解 Agent Framework 的反腐层；Application、Domain 与 Delivery 继续只依赖 executor、checkpoint、interrupt、event 等应用端口。迁移可以重写该 adapter 及其直接 toolset 装配，但不得让 `agent2` import `app/runtime`，也不得让 Framework 的 Process、Signal、Effect 或 Strategy payload 穿透到 Application。
+- 根聊天当前仍是“GOAP 单 Action 包裹完整 Interaction”。真实行为只需要原生 Interaction Definition；普通聊天没有 Planning world state、Goal 搜索或 replan 语义，P10 必须删除该多余组合，而不是在新 Framework 中复制。
+- 每个 turn 使用独立 Engine、精确 root/child Interaction Deployment 和 caller-owned resolver 足以承载 per-run model、tools、limits、observer 与 restore。Platform 不是迁移前置条件，Runtime 也不需要第二个全局 Agent facade。
+
+### 14.2 已冻结合同可以直接承载的能力
+
+- `TreeSnapshot` 继续作为 Application 之外不可解析的 executor payload；BuildID、Session/CWD、model selection、产品 limits 与 token/cost snapshot 留在 Host checkpoint metadata。恢复时 adapter 重建同一 exact Deployment 集并校验 DeploymentRef，不向 Framework snapshot 加 Host revision、水位或 child Run binding。
+- root/child identity、parent/root/depth、ChildKey、Event、Delta、Result、Usage、capture/restore、Signal/WaitID、steer、cancel/kill 和 exact resolver 已能覆盖生命周期主体。等待边界可由 adapter 在 Event 唤醒后读取 Process/TreeSnapshot，并只把 Interaction 公开 helper 识别出的外部输入请求投影给 Application；Kernel 不解析审批或提问 DTO。
+- 模型 token/cost、历史、prompt layers、工具展示、审批、offload、doom-loop、hooks、workspace 和产品预算仍是 Runtime 的 chat/tool decorator 与 observer 行为。Framework Usage 只保留 Steps/Effects/Signals/Delta 等中性资源事实，不吸收价格表或产品 accounting。
+- managed Delegate 的 child Process 是 first-class application Run 的唯一来源；Workflow/Planning 等其他内部 child 是否投影为产品 Run，由 adapter 根据 exact Deployment/Strategy composition 决定，不能把 `Run` 标记放进 ChildSpec 或 ProcessRelation。
+
+### 14.3 真实消费者证明的最小合同缺口
+
+- **context-aware pre-publication admission**：Runtime 必须在 child 发布和执行前，通过串行 executor stream 完成 durable child Run admission。现有 `ProcessAdmitter` 的位置、稳定 prospective ProcessID 与拒绝语义正确，但“无 context、禁止任何外部 I/O”的约束过窄。P10 只需把它修订为 context-aware、可阻塞但必须有界的 caller-owned admission；重放仍使用同一 Process identity，Framework 不定义 Store、transaction、CAS、lease、Run 或业务幂等。
+- **model/tool invocation attribution**：Runtime 的 chat middleware、Tool decorator、approval、transcript、history partition 与 accounting 需要知道当前 ProcessRelation、EffectID、Step sequence、Interaction model-call sequence 和精确 ToolCall。该事实属于 Interaction adapter context，不应恢复 `ProcessContext` 或全局 dependency scope。Kernel `EffectRequest` 只需补齐它已拥有的 relation/exact deployment；Interaction 用不可变 context value 暴露 model/tool invocation。
+- **deferred tool advertisement**：`search_tools` 的真实语义是“工具早已冻结且可执行，只把选中的 schema 从下一模型轮开始加入 manifest”。现有 Dispatcher 每轮无条件广告全部工具，无法保留该能力。promotion 必须成为 Interaction ExecutionState 的确定状态，并随 tool settlement 提交/恢复；公开 seam 只按已绑定 deferred tool name 广告，不允许动态增加 executable authority、live registry 或 Host catalog。
+- **authoritative host observation**：Framework Delta 明确是 best-effort，不能承载 Runtime 持久 transcript。Runtime 必须在 chat/tool 调用链内同步投影模型 chunk、最终 ToolCall、Tool result 与 usage；Event/Delta 只承担 Framework lifecycle 与非权威观察。为此需要 invocation context，而不是改变 Delta 可靠性或让 listener 反向 veto Process。
+- **waiting subtree transition**：用户在整棵树因 HITL 停住时取消一个等待中的 child，Application 需要先得到确定的 resulting checkpoint 与 surviving external waits，提交自身事务后再把同一变换应用到 live tree。该能力只涉及 Process tree、Engine-owned child wait/mailbox、终态和 opaque ExecutionState，因此 owner 是 Kernel；Runtime 不能解析或改写 Interaction state，Kernel 也不能认识 application transaction。实现应保留终态 child snapshot 和其永久预算划拨，用中性 child-completion Signal 推进直接父级，而不是复制旧模块的 Blackboard/suspension 特例或删除树节点。
+- **delegate causal projection**：产品 child Run 必须关联到父 Interaction 的确切 delegate ToolCall。Interaction 已拥有 model-call sequence、ToolCall 与 ChildKey 派生规则；应公开一个确定性的 Delegate child-key helper，并让 Runtime 在 model observation 与 Process admission 两端使用同一值。无需给 Kernel 新增 `SpawnCallID`、ToolCall 或产品 metadata。
+
+### 14.4 明确拒绝的迁移捷径
+
+- 不把 `TurnProcess`、Run/Segment、Pending、ChildRunBinding、approval、history、pricing、tool presentation 或 hook 类型提升到 `agent2`。
+- 不让 Runtime 解析 `ExecutionState.Payload`、Interaction private phase、mailbox wire 或 child protocol JSON；策略数据只能经 owner package 的公开 typed helper 读取。
+- 不把动态工具发现实现成可变 Dispatcher registry、全局 catalog 或执行中新增 Tool；只允许冻结 manifest 内从 deferred 到 advertised 的单调状态变化。
+- 不把可靠 transcript 改建在 best-effort Delta 上，不让 Event listener 阻塞/失败成为执行控制入口；正确性观察留在 caller-owned model/tool 调用链。
+- 不以保留旧 API 为目标建立 adapter-on-adapter、alias、dual wire 或两套 Agent engine。P10 可分批重写内部实现，但完成时旧 Framework import 必须归零。
