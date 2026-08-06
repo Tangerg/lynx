@@ -45,7 +45,7 @@ func TestLoopRunsAtLeastOnceAndReportsSatisfiedOrExhausted(t *testing.T) {
 			}
 			deployment := mustDeployment(t, mustDefinition(t, "test.workflow.loop_"+test.name, stage), "loop-"+test.name)
 			engine, err := agent.NewEngine(agent.EngineConfig{
-				DeploymentResolver: deploymentResolver{body.Reference(): body},
+				DeploymentResolver: deploymentResolver{body.DeploymentRef(): body},
 			})
 			if err != nil {
 				t.Fatal(err)
@@ -89,7 +89,7 @@ func TestLoopAttributesBodyFailure(t *testing.T) {
 	}
 	deployment := mustDeployment(t, mustDefinition(t, "test.workflow.failing_loop", stage), "failing-loop")
 	engine, _ := agent.NewEngine(agent.EngineConfig{
-		DeploymentResolver: deploymentResolver{body.Reference(): body},
+		DeploymentResolver: deploymentResolver{body.DeploymentRef(): body},
 	})
 	input, _ := agent.EncodeInput(loopValue{})
 	result, err := engine.Run(context.Background(), deployment, input)

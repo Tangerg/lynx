@@ -5,7 +5,9 @@ import (
 	"fmt"
 )
 
-var ErrLimitExceeded = errors.New("agent: process limit exceeded")
+// ErrResourceLimitExceeded reports exhaustion of a Process or tree resource
+// bound.
+var ErrResourceLimitExceeded = errors.New("agent: resource limit exceeded")
 
 // Limits bounds Framework-owned execution growth. Zero-valued fields in
 // EngineConfig inherit DefaultLimits; Snapshot stores effective non-zero values
@@ -87,8 +89,11 @@ func (usage Usage) validFor(limits Limits) bool {
 // allocation is permanently transferred from its parent's remaining budget;
 // unused units are not silently reclaimed or duplicated.
 type Budget struct {
-	Steps   uint64 `json:"steps"`
+	// Steps is the maximum committed Step count allocated to the child.
+	Steps uint64 `json:"steps"`
+	// Effects is the maximum prepared Effect count allocated to the child.
 	Effects uint64 `json:"effects"`
+	// Signals is the maximum accepted Signal count allocated to the child.
 	Signals uint64 `json:"signals"`
 }
 
@@ -96,7 +101,7 @@ type Budget struct {
 func NewBudget(steps, effects, signals uint64) (Budget, error) {
 	budget := Budget{Steps: steps, Effects: effects, Signals: signals}
 	if !budget.Valid() {
-		return Budget{}, ErrLimitExceeded
+		return Budget{}, ErrResourceLimitExceeded
 	}
 	return budget, nil
 }
@@ -112,7 +117,7 @@ func budgetFromLimits(limits Limits) Budget {
 
 func limitsFromBudget(parent Limits, budget Budget) (Limits, error) {
 	if !budget.Valid() {
-		return Limits{}, ErrLimitExceeded
+		return Limits{}, ErrResourceLimitExceeded
 	}
 	pending := min(parent.MaxPendingSignals, budget.Signals)
 	limits := Limits{
@@ -120,7 +125,7 @@ func limitsFromBudget(parent Limits, budget Budget) (Limits, error) {
 		MaxSignals: budget.Signals, MaxPendingSignals: pending,
 	}
 	if !limits.Valid() {
-		return Limits{}, fmt.Errorf("%w: child budget cannot form valid limits", ErrLimitExceeded)
+		return Limits{}, fmt.Errorf("%w: child budget cannot form valid limits", ErrResourceLimitExceeded)
 	}
 	return limits, nil
 }
@@ -154,10 +159,14 @@ func (budget Budget) add(other Budget) (Budget, bool) {
 // TreeLimits bounds structural expansion independently of per-Process work
 // limits. Every zero field in EngineConfig inherits DefaultTreeLimits.
 type TreeLimits struct {
-	MaxDepth          uint32 `json:"max_depth"`
-	MaxChildren       uint32 `json:"max_children"`
+	// MaxDepth bounds the root-relative depth of any Process.
+	MaxDepth uint32 `json:"max_depth"`
+	// MaxChildren bounds the lifetime child count of one Process.
+	MaxChildren uint32 `json:"max_children"`
+	// MaxActiveChildren bounds concurrent non-terminal children of one Process.
 	MaxActiveChildren uint32 `json:"max_active_children"`
-	MaxTreeProcesses  uint32 `json:"max_tree_processes"`
+	// MaxTreeProcesses bounds the lifetime Process count of one tree.
+	MaxTreeProcesses uint32 `json:"max_tree_processes"`
 }
 
 // DefaultTreeLimits returns conservative structured-concurrency bounds.

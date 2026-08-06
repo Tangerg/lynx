@@ -12,29 +12,36 @@ import (
 // WorldState. Input is the original Planning Process input; EffectID is stable
 // for the prepared attempt.
 type ObservationRequest struct {
+	// EffectID is the stable identity of the prepared observation attempt.
 	EffectID agent.EffectID
-	Input    agent.Input
+	// Input is the original immutable Planning Process input.
+	Input agent.Input
 }
 
 // ActionRequest is one external dispatcher Action invocation selected against
 // an observed WorldState. Input and WorldState are immutable values.
 type ActionRequest struct {
-	EffectID    agent.EffectID
-	Input       agent.Input
-	ActionName  string
-	Description string
-	WorldState  WorldState
+	// EffectID is the stable identity of the prepared Action attempt.
+	EffectID agent.EffectID
+	// Input is the original immutable Planning Process input.
+	Input agent.Input
+	// ActionName is the exact frozen Action identity.
+	ActionName string
+	// ActionDescription is the exact frozen model-facing Action description.
+	ActionDescription string
+	// WorldState is the complete observation against which the Action was selected.
+	WorldState WorldState
 }
 
 // Observer produces one complete WorldState without externally visible side
 // effects. A returned error is a definite observation failure and terminates
 // Planning; an Observer must not use error to report an unknown side effect.
 type Observer interface {
-	Observe(context.Context, ObservationRequest) (WorldState, error)
+	Observe(ctx context.Context, request ObservationRequest) (WorldState, error)
 }
 
 // ObserverFunc adapts a function to Observer.
-type ObserverFunc func(context.Context, ObservationRequest) (WorldState, error)
+type ObserverFunc func(ctx context.Context, request ObservationRequest) (WorldState, error)
 
 // Observe calls function with request.
 func (function ObserverFunc) Observe(
@@ -49,11 +56,11 @@ func (function ObserverFunc) Observe(
 // unknown, so Dispatcher returns an unknown Effect settlement and never retries
 // it implicitly.
 type ActionExecutor interface {
-	Execute(context.Context, ActionRequest) (ActionResult, error)
+	Execute(ctx context.Context, request ActionRequest) (ActionResult, error)
 }
 
 // ActionExecutorFunc adapts a function to ActionExecutor.
-type ActionExecutorFunc func(context.Context, ActionRequest) (ActionResult, error)
+type ActionExecutorFunc func(ctx context.Context, request ActionRequest) (ActionResult, error)
 
 // Execute calls function with request.
 func (function ActionExecutorFunc) Execute(
@@ -124,7 +131,7 @@ func validateObservationRequest(request ObservationRequest) error {
 
 func validateActionRequest(request ActionRequest) error {
 	if !request.EffectID.Valid() || !request.Input.Valid() || !validName(request.ActionName) ||
-		!validDescription(request.Description) || !request.WorldState.Valid() {
+		!validDescription(request.ActionDescription) || !request.WorldState.Valid() {
 		return fmt.Errorf("planning: invalid Action request for %q", request.ActionName)
 	}
 	return nil

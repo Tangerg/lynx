@@ -8,10 +8,15 @@ import (
 )
 
 var (
-	ErrProcessFinished   = errors.New("agent: process has finished")
+	// ErrProcessFinished reports a control request made after terminal commit.
+	ErrProcessFinished = errors.New("agent: process has finished")
+	// ErrProcessNotRunning reports an operation requiring an active Process.
 	ErrProcessNotRunning = errors.New("agent: process is not running")
-	ErrEffectNotPending  = errors.New("agent: effect does not require resolution")
-	ErrInvalidControl    = errors.New("agent: invalid process control request")
+	// ErrEffectNotPending reports resolution of an Effect without an unknown
+	// pending settlement.
+	ErrEffectNotPending = errors.New("agent: effect does not require resolution")
+	// ErrInvalidProcessControl reports a malformed Process lifecycle request.
+	ErrInvalidProcessControl = errors.New("agent: invalid process control request")
 )
 
 // Process is an Engine-issued handle to one managed execution. Its fields and
@@ -26,7 +31,7 @@ func (process *Process) ID() ProcessID {
 	if process == nil || process.controller == nil {
 		return ProcessID{}
 	}
-	return process.controller.id
+	return process.controller.processID
 }
 
 // DeploymentRef returns the exact Definition and dispatcher binding identity.
@@ -34,7 +39,7 @@ func (process *Process) DeploymentRef() DeploymentRef {
 	if process == nil || process.controller == nil {
 		return DeploymentRef{}
 	}
-	return process.controller.deployment
+	return process.controller.deploymentRef
 }
 
 // Relation returns the immutable parent/root/depth location assigned by the
@@ -83,7 +88,7 @@ func (process *Process) WaitID() (WaitID, bool) {
 // the next Strategy-safe Step boundary; Waiting input must address WaitID.
 // accepted is false, with nil error, when SignalID was already accepted.
 func (process *Process) DeliverSignal(ctx context.Context, request SignalRequest) (accepted bool, err error) {
-	response, err := process.request(ctx, processCommand{kind: commandDeliver, signal: request})
+	response, err := process.request(ctx, processCommand{kind: commandDeliver, signalRequest: request})
 	return response.accepted, err
 }
 
@@ -126,7 +131,7 @@ func (process *Process) ResolveEffect(ctx context.Context, settlement Settlement
 // explicit ResolveEffect decision. Payloads remain owned by the Dispatcher.
 func (process *Process) UnknownEffectIDs(ctx context.Context) ([]EffectID, error) {
 	response, err := process.request(ctx, processCommand{kind: commandQueryUnknownEffectIDs})
-	return response.effectIDs, err
+	return response.unknownEffectIDs, err
 }
 
 // Capture returns a consistent last-stable or prepared-step snapshot. Capture
@@ -149,7 +154,7 @@ func (process *Process) Await(ctx context.Context) (Result, error) {
 	if process == nil || process.controller == nil {
 		return Result{}, ErrProcessNotRunning
 	}
-	ctx = normalizedContext(ctx)
+	ctx = contextOrBackground(ctx)
 	select {
 	case <-process.controller.treeSettled:
 		return process.controller.terminalResult(), nil
@@ -162,7 +167,7 @@ func (process *Process) request(ctx context.Context, command processCommand) (pr
 	if process == nil || process.controller == nil {
 		return processResponse{}, ErrProcessNotRunning
 	}
-	ctx = normalizedContext(ctx)
+	ctx = contextOrBackground(ctx)
 	command.response = make(chan processResponse, 1)
 	select {
 	case process.controller.commands <- command:
@@ -228,8 +233,8 @@ func (result Result) Valid() bool {
 }
 
 type processController struct {
-	id                 ProcessID
-	deployment         DeploymentRef
+	processID          ProcessID
+	deploymentRef      DeploymentRef
 	relation           ProcessRelation
 	childRequestDigest Digest
 	budget             Budget
@@ -240,18 +245,18 @@ type processController struct {
 	done               chan struct{}
 	treeSettled        chan struct{}
 
-	viewMu      sync.RWMutex
-	viewStatus  Status
-	viewWaitID  WaitID
-	viewUsage   Usage
-	result      Result
-	lastCapture Snapshot
-	captureErr  error
+	viewMu              sync.RWMutex
+	viewStatus          Status
+	viewWaitID          WaitID
+	viewUsage           Usage
+	result              Result
+	terminalSnapshot    Snapshot
+	terminalSnapshotErr error
 }
 
 func newProcessController(
 	relation ProcessRelation,
-	deployment DeploymentRef,
+	deploymentRef DeploymentRef,
 	budget Budget,
 	capabilities CapabilitySet,
 	treeLimits TreeLimits,
@@ -259,7 +264,7 @@ func newProcessController(
 	status Status,
 ) *processController {
 	return &processController{
-		id: relation.ProcessID(), deployment: deployment, relation: relation,
+		processID: relation.ProcessID(), deploymentRef: deploymentRef, relation: relation,
 		budget: budget, capabilities: capabilities, treeLimits: treeLimits, startedAt: startedAt,
 		commands: make(chan processCommand, 32), done: make(chan struct{}),
 		treeSettled: make(chan struct{}), viewStatus: status,
@@ -314,8 +319,8 @@ func (controller *processController) complete(result Result, snapshot Snapshot, 
 	controller.viewWaitID = WaitID{}
 	controller.viewUsage = result.usage
 	controller.result = result
-	controller.lastCapture = snapshot
-	controller.captureErr = captureErr
+	controller.terminalSnapshot = snapshot
+	controller.terminalSnapshotErr = captureErr
 	controller.viewMu.Unlock()
 	close(controller.done)
 }
@@ -333,7 +338,7 @@ func (controller *processController) finishedSnapshot() (Snapshot, error, bool) 
 	case <-controller.done:
 		controller.viewMu.RLock()
 		defer controller.viewMu.RUnlock()
-		return controller.lastCapture, controller.captureErr, true
+		return controller.terminalSnapshot, controller.terminalSnapshotErr, true
 	default:
 		return Snapshot{}, nil, false
 	}
@@ -358,7 +363,7 @@ const (
 
 type processCommand struct {
 	kind              commandKind
-	signal            SignalRequest
+	signalRequest     SignalRequest
 	settlement        Settlement
 	internalSignal    Signal
 	parentTermination Termination
@@ -368,10 +373,10 @@ type processCommand struct {
 }
 
 type processResponse struct {
-	accepted  bool
-	snapshot  Snapshot
-	effectIDs []EffectID
-	err       error
+	accepted         bool
+	snapshot         Snapshot
+	unknownEffectIDs []EffectID
+	err              error
 }
 
 func (command processCommand) reply(response processResponse) {
@@ -381,7 +386,7 @@ func (command processCommand) reply(response processResponse) {
 	command.response <- response
 }
 
-func normalizedContext(ctx context.Context) context.Context {
+func contextOrBackground(ctx context.Context) context.Context {
 	if ctx == nil {
 		return context.Background()
 	}

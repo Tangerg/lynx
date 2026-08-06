@@ -59,16 +59,16 @@ func (state executionState) validate(definition *Definition) error {
 	previouslyExcluded := make(map[string]struct{})
 	for index, attempt := range state.Attempts {
 		if err := attempt.Validate(); err != nil {
-			return fmt.Errorf("%w: attempt %d: %v", ErrInvalidExecutionState, index, err)
+			return fmt.Errorf("%w: attempt %d: %w", ErrInvalidExecutionState, index, err)
 		}
-		if _, found := definition.binding(attempt.Action); !found {
-			return fmt.Errorf("%w: attempt references unknown Action %q", ErrInvalidExecutionState, attempt.Action)
+		if _, found := definition.binding(attempt.ActionName); !found {
+			return fmt.Errorf("%w: attempt references unknown Action %q", ErrInvalidExecutionState, attempt.ActionName)
 		}
-		if _, excluded := previouslyExcluded[attempt.Action]; excluded {
-			return fmt.Errorf("%w: Action %q was attempted after exclusion", ErrInvalidExecutionState, attempt.Action)
+		if _, excluded := previouslyExcluded[attempt.ActionName]; excluded {
+			return fmt.Errorf("%w: Action %q was attempted after exclusion", ErrInvalidExecutionState, attempt.ActionName)
 		}
 		if attempt.Status != AttemptSucceeded {
-			previouslyExcluded[attempt.Action] = struct{}{}
+			previouslyExcluded[attempt.ActionName] = struct{}{}
 		}
 	}
 	if uint64(len(state.Attempts)) > uint64(definition.maxActionAttempts) ||
@@ -78,7 +78,7 @@ func (state executionState) validate(definition *Definition) error {
 	wantExcluded := make([]string, 0, len(state.Attempts))
 	for _, attempt := range state.Attempts {
 		if attempt.Status != AttemptSucceeded {
-			wantExcluded = append(wantExcluded, attempt.Action)
+			wantExcluded = append(wantExcluded, attempt.ActionName)
 		}
 	}
 	slices.Sort(wantExcluded)

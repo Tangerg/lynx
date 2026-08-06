@@ -9,7 +9,7 @@ import (
 
 // SwitchSelector is a bounded, deterministic, side-effect-free case selector.
 // It returns the exact SwitchCase ID to invoke for the current value.
-type SwitchSelector[I any] func(I) (string, error)
+type SwitchSelector[I any] func(input I) (caseID string, err error)
 
 // SwitchCase declares one exact child Deployment for a selected case.
 type SwitchCase struct {
@@ -66,7 +66,7 @@ func (stage switchStage) valid() bool {
 }
 
 func (binding childBinding) valid() bool {
-	return binding.deployment.Valid() && binding.budget.Valid() && binding.capabilities.Valid()
+	return binding.deploymentRef.Valid() && binding.budget.Valid() && binding.capabilities.Valid()
 }
 
 // Switch constructs one selected managed child-Process Stage. Every case must
@@ -77,7 +77,7 @@ func Switch[I any](config SwitchConfig[I]) (Stage, error) {
 	}
 	inputSchema, err := agent.SchemaFor[I]()
 	if err != nil {
-		return Stage{}, fmt.Errorf("%w: Switch %q input schema: %v", ErrInvalidStage, config.ID, err)
+		return Stage{}, fmt.Errorf("%w: Switch %q input schema: %w", ErrInvalidStage, config.ID, err)
 	}
 	cases := make([]switchCase, 0, len(config.Cases))
 	indices := make(map[string]int, len(config.Cases))
@@ -103,7 +103,7 @@ func Switch[I any](config SwitchConfig[I]) (Stage, error) {
 		cases = append(cases, switchCase{
 			id: candidate.ID,
 			binding: childBinding{
-				deployment: candidate.Deployment.Reference(), budget: candidate.Budget,
+				deploymentRef: candidate.Deployment.DeploymentRef(), budget: candidate.Budget,
 				capabilities: candidate.Capabilities,
 			},
 		})

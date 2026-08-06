@@ -9,14 +9,17 @@ import (
 
 // LoopPredicate is a bounded, deterministic, side-effect-free completion test
 // evaluated after each successful body child Process.
-type LoopPredicate[T any] func(T) (bool, error)
+type LoopPredicate[T any] func(value T) (bool, error)
 
 // LoopResult is the exact semantic output of a Loop Stage. Satisfied is false
 // when MaxIterations was exhausted; that outcome is still a valid completion.
 type LoopResult[T any] struct {
-	Value      T      `json:"value"`
+	// Value is the latest body output, or the initial input before any iteration.
+	Value T `json:"value"`
+	// Iterations is the number of completed body child Processes.
 	Iterations uint32 `json:"iterations"`
-	Satisfied  bool   `json:"satisfied"`
+	// Satisfied reports whether Predicate accepted Value.
+	Satisfied bool `json:"satisfied"`
 }
 
 // Valid reports whether at least one body iteration produced this result.
@@ -65,11 +68,11 @@ func Loop[T any](config LoopConfig[T]) (Stage, error) {
 	}
 	valueSchema, err := agent.SchemaFor[T]()
 	if err != nil {
-		return Stage{}, fmt.Errorf("%w: Loop %q value schema: %v", ErrInvalidStage, config.ID, err)
+		return Stage{}, fmt.Errorf("%w: Loop %q value schema: %w", ErrInvalidStage, config.ID, err)
 	}
 	resultSchema, err := agent.SchemaFor[LoopResult[T]]()
 	if err != nil {
-		return Stage{}, fmt.Errorf("%w: Loop %q result schema: %v", ErrInvalidStage, config.ID, err)
+		return Stage{}, fmt.Errorf("%w: Loop %q result schema: %w", ErrInvalidStage, config.ID, err)
 	}
 	descriptor := config.Body.Descriptor()
 	if !schemasEqual(valueSchema, descriptor.InputSchema()) ||
@@ -122,7 +125,7 @@ func Loop[T any](config LoopConfig[T]) (Stage, error) {
 		inputSchema: valueSchema, outputSchema: resultSchema,
 		loop: loopStage{
 			binding: childBinding{
-				deployment: config.Body.Reference(), budget: config.Budget,
+				deploymentRef: config.Body.DeploymentRef(), budget: config.Budget,
 				capabilities: config.Capabilities,
 			},
 			maxIterations: config.MaxIterations, valueSchema: valueSchema,

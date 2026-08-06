@@ -14,6 +14,7 @@ const maxSchemaBytes = 1 << 20
 
 const schemaResourceURL = "urn:lynx:agent2:schema"
 
+// ErrInvalidSchema reports malformed, unsupported, or unresolved JSON Schema.
 var ErrInvalidSchema = errors.New("agent: invalid schema")
 
 // Schema is an immutable, resolved JSON Schema. It is safe for concurrent
@@ -99,6 +100,7 @@ func (s Schema) clone() Schema {
 	return Schema{data: bytes.Clone(s.data), compiled: s.compiled}
 }
 
+// MarshalJSON returns the validated canonical JSON Schema document.
 func (s Schema) MarshalJSON() ([]byte, error) {
 	if !s.Valid() {
 		return nil, ErrInvalidSchema
@@ -106,6 +108,7 @@ func (s Schema) MarshalJSON() ([]byte, error) {
 	return bytes.Clone(s.data), nil
 }
 
+// UnmarshalJSON replaces s with a parsed and resolved JSON Schema.
 func (s *Schema) UnmarshalJSON(data []byte) error {
 	if s == nil {
 		return fmt.Errorf("%w: nil receiver", ErrInvalidSchema)

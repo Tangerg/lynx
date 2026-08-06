@@ -21,13 +21,13 @@ func TestCatalogResolvesOnlyExactDeploymentReferences(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, want := range []agent.Deployment{first, replacement} {
-		got, err := catalog.Resolve(want.Reference())
-		if err != nil || got.Reference() != want.Reference() {
-			t.Fatalf("Resolve(%s) = %s, %v", want.Reference(), got.Reference(), err)
+		got, err := catalog.Resolve(want.DeploymentRef())
+		if err != nil || got.DeploymentRef() != want.DeploymentRef() {
+			t.Fatalf("Resolve(%s) = %s, %v", want.DeploymentRef(), got.DeploymentRef(), err)
 		}
 	}
 	missingReference, err := agent.NewDeploymentRef(
-		first.Descriptor(), first.Reference().ImplementationDigest(),
+		first.Descriptor(), first.DeploymentRef().ImplementationDigest(),
 		agent.ComputeDigest([]byte("missing configuration")),
 	)
 	if err != nil {
@@ -73,7 +73,7 @@ func TestCatalogEnumerationIsStableAndOwnershipIsolated(t *testing.T) {
 	want := []string{"test.alpha@1.2.0", "test.alpha@1.10.0", "test.zebra@1.0.0"}
 	got := make([]string, len(listed))
 	for index, deployment := range listed {
-		got[index] = deployment.Reference().Name() + "@" + deployment.Reference().Version()
+		got[index] = deployment.DeploymentRef().Name() + "@" + deployment.DeploymentRef().Version()
 	}
 	if !slices.Equal(got, want) {
 		t.Fatalf("catalog order = %v, want %v", got, want)
@@ -98,13 +98,13 @@ func TestCatalogZeroValueIsEmptyAndConcurrentSafe(t *testing.T) {
 	for range 32 {
 		group.Go(func() {
 			for range 100 {
-				resolved, err := catalog.Resolve(deployment.Reference())
-				if err != nil || resolved.Reference() != deployment.Reference() {
-					t.Errorf("concurrent Resolve() = %s, %v", resolved.Reference(), err)
+				resolved, err := catalog.Resolve(deployment.DeploymentRef())
+				if err != nil || resolved.DeploymentRef() != deployment.DeploymentRef() {
+					t.Errorf("concurrent Resolve() = %s, %v", resolved.DeploymentRef(), err)
 					return
 				}
 				listed := catalog.Deployments()
-				if len(listed) != 1 || listed[0].Reference() != deployment.Reference() {
+				if len(listed) != 1 || listed[0].DeploymentRef() != deployment.DeploymentRef() {
 					t.Errorf("concurrent Deployments() = %#v", listed)
 					return
 				}

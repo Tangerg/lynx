@@ -86,7 +86,7 @@ func (search *search) run(ctx context.Context) (searchNode, bool, error) {
 			continue
 		}
 		if search.expansions == search.maxExpansions {
-			return searchNode{}, false, fmt.Errorf("%w: %d", ErrExpansionLimit, search.maxExpansions)
+			return searchNode{}, false, fmt.Errorf("%w: %d", ErrExpansionLimitReached, search.maxExpansions)
 		}
 		search.expansions++
 		if search.problem.Goal().SatisfiedBy(current.state) {

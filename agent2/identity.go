@@ -7,6 +7,7 @@ import (
 
 const maxIdentityBytes = 256
 
+// ErrInvalidIdentity reports a malformed Framework identity value.
 var ErrInvalidIdentity = errors.New("agent: invalid identity")
 
 type identity struct {
@@ -69,6 +70,28 @@ func ParseProcessID(value string) (ProcessID, error) {
 	return ProcessID{id}, err
 }
 
+// String returns the stable Process identity.
+func (id ProcessID) String() string { return id.identity.String() }
+
+// Valid reports whether id contains a valid Process identity.
+func (id ProcessID) Valid() bool { return id.identity.Valid() }
+
+// MarshalText returns the validated Process identity.
+func (id ProcessID) MarshalText() ([]byte, error) { return id.identity.MarshalText() }
+
+// UnmarshalText replaces id with a validated Process identity.
+func (id *ProcessID) UnmarshalText(text []byte) error {
+	if id == nil {
+		return fmt.Errorf("%w: nil ProcessID receiver", ErrInvalidIdentity)
+	}
+	value, err := ParseProcessID(string(text))
+	if err != nil {
+		return err
+	}
+	*id = value
+	return nil
+}
+
 // SignalID is the stable identity used to deduplicate one Signal delivery.
 type SignalID struct{ identity }
 
@@ -77,6 +100,28 @@ type SignalID struct{ identity }
 func ParseSignalID(value string) (SignalID, error) {
 	id, err := parseIdentity("signal ID", value)
 	return SignalID{id}, err
+}
+
+// String returns the stable Signal delivery identity.
+func (id SignalID) String() string { return id.identity.String() }
+
+// Valid reports whether id contains a valid Signal delivery identity.
+func (id SignalID) Valid() bool { return id.identity.Valid() }
+
+// MarshalText returns the validated Signal delivery identity.
+func (id SignalID) MarshalText() ([]byte, error) { return id.identity.MarshalText() }
+
+// UnmarshalText replaces id with a validated Signal delivery identity.
+func (id *SignalID) UnmarshalText(text []byte) error {
+	if id == nil {
+		return fmt.Errorf("%w: nil SignalID receiver", ErrInvalidIdentity)
+	}
+	value, err := ParseSignalID(string(text))
+	if err != nil {
+		return err
+	}
+	*id = value
+	return nil
 }
 
 // WaitID identifies one Engine-created external wait target. Parsing a WaitID
@@ -89,6 +134,28 @@ func ParseWaitID(value string) (WaitID, error) {
 	return WaitID{id}, err
 }
 
+// String returns the Engine-created wait identity.
+func (id WaitID) String() string { return id.identity.String() }
+
+// Valid reports whether id contains a valid wait identity.
+func (id WaitID) Valid() bool { return id.identity.Valid() }
+
+// MarshalText returns the validated wait identity.
+func (id WaitID) MarshalText() ([]byte, error) { return id.identity.MarshalText() }
+
+// UnmarshalText replaces id with a validated wait identity.
+func (id *WaitID) UnmarshalText(text []byte) error {
+	if id == nil {
+		return fmt.Errorf("%w: nil WaitID receiver", ErrInvalidIdentity)
+	}
+	value, err := ParseWaitID(string(text))
+	if err != nil {
+		return err
+	}
+	*id = value
+	return nil
+}
+
 // EffectID identifies one Effect at a stable Process, Step, and batch index.
 type EffectID struct{ identity }
 
@@ -96,6 +163,28 @@ type EffectID struct{ identity }
 func ParseEffectID(value string) (EffectID, error) {
 	id, err := parseIdentity("effect ID", value)
 	return EffectID{id}, err
+}
+
+// String returns the stable Effect identity.
+func (id EffectID) String() string { return id.identity.String() }
+
+// Valid reports whether id contains a valid Effect identity.
+func (id EffectID) Valid() bool { return id.identity.Valid() }
+
+// MarshalText returns the validated Effect identity.
+func (id EffectID) MarshalText() ([]byte, error) { return id.identity.MarshalText() }
+
+// UnmarshalText replaces id with a validated Effect identity.
+func (id *EffectID) UnmarshalText(text []byte) error {
+	if id == nil {
+		return fmt.Errorf("%w: nil EffectID receiver", ErrInvalidIdentity)
+	}
+	value, err := ParseEffectID(string(text))
+	if err != nil {
+		return err
+	}
+	*id = value
+	return nil
 }
 
 // WaitKey is an Execution-owned logical key used to associate a requested wait
@@ -108,6 +197,28 @@ func ParseWaitKey(value string) (WaitKey, error) {
 	return WaitKey{id}, err
 }
 
+// String returns the Execution-owned logical wait key.
+func (id WaitKey) String() string { return id.identity.String() }
+
+// Valid reports whether id contains a valid logical wait key.
+func (id WaitKey) Valid() bool { return id.identity.Valid() }
+
+// MarshalText returns the validated logical wait key.
+func (id WaitKey) MarshalText() ([]byte, error) { return id.identity.MarshalText() }
+
+// UnmarshalText replaces id with a validated logical wait key.
+func (id *WaitKey) UnmarshalText(text []byte) error {
+	if id == nil {
+		return fmt.Errorf("%w: nil WaitKey receiver", ErrInvalidIdentity)
+	}
+	value, err := ParseWaitKey(string(text))
+	if err != nil {
+		return err
+	}
+	*id = value
+	return nil
+}
+
 // ChildKey is an Execution-owned stable identity for one logical child start.
 // The Engine combines it with the parent Process identity and prepared Effect
 // identity to make retries and restoration idempotent.
@@ -117,4 +228,26 @@ type ChildKey struct{ identity }
 func ParseChildKey(value string) (ChildKey, error) {
 	id, err := parseIdentity("child key", value)
 	return ChildKey{id}, err
+}
+
+// String returns the Execution-owned logical child key.
+func (id ChildKey) String() string { return id.identity.String() }
+
+// Valid reports whether id contains a valid logical child key.
+func (id ChildKey) Valid() bool { return id.identity.Valid() }
+
+// MarshalText returns the validated logical child key.
+func (id ChildKey) MarshalText() ([]byte, error) { return id.identity.MarshalText() }
+
+// UnmarshalText replaces id with a validated logical child key.
+func (id *ChildKey) UnmarshalText(text []byte) error {
+	if id == nil {
+		return fmt.Errorf("%w: nil ChildKey receiver", ErrInvalidIdentity)
+	}
+	value, err := ParseChildKey(string(text))
+	if err != nil {
+		return err
+	}
+	*id = value
+	return nil
 }

@@ -8,6 +8,7 @@ import (
 	"time"
 )
 
+// ErrInvalidSignalRequest reports malformed caller-supplied Signal input.
 var ErrInvalidSignalRequest = errors.New("agent: invalid signal request")
 
 // SignalRequest is an immutable request to deliver Strategy-owned input to a

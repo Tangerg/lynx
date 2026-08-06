@@ -10,10 +10,11 @@ import (
 )
 
 const (
-	processSnapshotSchemaVersion = 3
+	processSnapshotSchemaVersion = 4
 	maxSnapshotBytes             = 128 << 20
 )
 
+// ErrInvalidSnapshot reports malformed or internally inconsistent Process state.
 var ErrInvalidSnapshot = errors.New("agent: invalid process snapshot")
 
 // Snapshot is an immutable, portable capture of one Engine-owned Process.
@@ -22,7 +23,7 @@ var ErrInvalidSnapshot = errors.New("agent: invalid process snapshot")
 type Snapshot struct {
 	data           json.RawMessage
 	processID      ProcessID
-	deployment     DeploymentRef
+	deploymentRef  DeploymentRef
 	status         Status
 	executionState ExecutionState
 	waitID         WaitID
@@ -47,9 +48,9 @@ func ParseSnapshot(data json.RawMessage) (Snapshot, error) {
 	return Snapshot{
 		data:           normalized,
 		processID:      wire.ProcessID,
-		deployment:     wire.Deployment,
+		deploymentRef:  wire.DeploymentRef,
 		status:         wire.Status,
-		executionState: wire.LastStable,
+		executionState: wire.LastStableState,
 		waitID:         snapshotWaitID(wire.CurrentWaitID),
 		relation:       mustProcessRelation(wire.ProcessID, wire.Relation),
 		budget:         wire.Budget,
@@ -72,7 +73,7 @@ func (snapshot Snapshot) JSON() json.RawMessage { return bytes.Clone(snapshot.da
 func (snapshot Snapshot) ProcessID() ProcessID { return snapshot.processID }
 
 // DeploymentRef returns the exact execution binding required for restoration.
-func (snapshot Snapshot) DeploymentRef() DeploymentRef { return snapshot.deployment }
+func (snapshot Snapshot) DeploymentRef() DeploymentRef { return snapshot.deploymentRef }
 
 // Relation returns the immutable parent/root/depth location captured with the
 // Process.
@@ -103,7 +104,7 @@ func (snapshot Snapshot) WaitID() (WaitID, bool) {
 
 // Valid reports whether the snapshot passed the strict wire boundary.
 func (snapshot Snapshot) Valid() bool {
-	return len(snapshot.data) > 0 && snapshot.processID.Valid() && snapshot.deployment.Valid() &&
+	return len(snapshot.data) > 0 && snapshot.processID.Valid() && snapshot.deploymentRef.Valid() &&
 		snapshot.status.Valid() && snapshot.executionState.Valid() && snapshot.relation.Valid() &&
 		snapshot.budget.Valid() && snapshot.capabilities.Valid()
 }
@@ -120,6 +121,7 @@ func snapshotWaitID(waitID *WaitID) WaitID {
 	return *waitID
 }
 
+// MarshalJSON returns the validated portable Process snapshot.
 func (snapshot Snapshot) MarshalJSON() ([]byte, error) {
 	if !snapshot.Valid() {
 		return nil, ErrInvalidSnapshot
@@ -127,6 +129,7 @@ func (snapshot Snapshot) MarshalJSON() ([]byte, error) {
 	return bytes.Clone(snapshot.data), nil
 }
 
+// UnmarshalJSON replaces snapshot with a strictly decoded Process snapshot.
 func (snapshot *Snapshot) UnmarshalJSON(data []byte) error {
 	if snapshot == nil {
 		return fmt.Errorf("%w: nil receiver", ErrInvalidSnapshot)
@@ -154,10 +157,10 @@ type preparedEffectWire struct {
 }
 
 type preparedStepWire struct {
-	Sequence         uint64               `json:"sequence"`
+	StepSequence     uint64               `json:"step_sequence"`
 	LastStableDigest Digest               `json:"last_stable_digest"`
 	CandidateState   ExecutionState       `json:"candidate_state"`
-	ConsumeThrough   uint64               `json:"consume_through"`
+	SignalCursor     uint64               `json:"signal_cursor"`
 	Transition       Transition           `json:"transition"`
 	Effects          []preparedEffectWire `json:"effects,omitempty"`
 }
@@ -176,7 +179,7 @@ type processSnapshotWire struct {
 	ProcessID          ProcessID           `json:"process_id"`
 	Relation           processRelationWire `json:"relation"`
 	ChildRequestDigest *Digest             `json:"child_request_digest,omitempty"`
-	Deployment         DeploymentRef       `json:"deployment"`
+	DeploymentRef      DeploymentRef       `json:"deployment_ref"`
 	StartedAt          time.Time           `json:"started_at"`
 	FinishedAt         *time.Time          `json:"finished_at,omitempty"`
 	Status             Status              `json:"status"`
@@ -188,7 +191,7 @@ type processSnapshotWire struct {
 	ReservedBudget     Budget              `json:"reserved_child_budget"`
 	Capabilities       CapabilitySet       `json:"capabilities"`
 	Usage              Usage               `json:"usage"`
-	LastStable         ExecutionState      `json:"last_stable"`
+	LastStableState    ExecutionState      `json:"last_stable_state"`
 	Mailbox            mailboxWire         `json:"mailbox"`
 	Prepared           *preparedStepWire   `json:"prepared,omitempty"`
 	CurrentWaitID      *WaitID             `json:"current_wait_id,omitempty"`
@@ -221,8 +224,8 @@ func validateProcessSnapshot(wire processSnapshotWire) error {
 	if wire.SchemaVersion != processSnapshotSchemaVersion {
 		return fmt.Errorf("%w: unsupported schema version %d", ErrInvalidSnapshot, wire.SchemaVersion)
 	}
-	if !wire.ProcessID.Valid() || !wire.Deployment.Valid() || wire.StartedAt.IsZero() ||
-		!wire.Status.Valid() || wire.Status == StatusNotStarted || !wire.LastStable.Valid() ||
+	if !wire.ProcessID.Valid() || !wire.DeploymentRef.Valid() || wire.StartedAt.IsZero() ||
+		!wire.Status.Valid() || wire.Status == StatusNotStarted || !wire.LastStableState.Valid() ||
 		!wire.Limits.Valid() || !wire.TreeLimits.Valid() || !wire.Budget.Valid() ||
 		!wire.Capabilities.Valid() || !wire.Usage.validFor(wire.Limits) ||
 		wire.Usage.CommittedSteps != wire.CommittedSteps ||
@@ -248,7 +251,7 @@ func validateProcessSnapshot(wire processSnapshotWire) error {
 		if wire.Status != StatusRunning || wire.Termination != nil || wire.FinishedAt != nil {
 			return fmt.Errorf("%w: prepared Step requires a nonterminal Running Process", ErrInvalidSnapshot)
 		}
-		if err := validatePreparedStep(wire.ProcessID, wire.CommittedSteps+1, wire.LastStable, mailbox, *wire.Prepared); err != nil {
+		if err := validatePreparedStep(wire.ProcessID, wire.CommittedSteps+1, wire.LastStableState, mailbox, *wire.Prepared); err != nil {
 			return fmt.Errorf("%w: %w", ErrInvalidSnapshot, err)
 		}
 	}
@@ -300,15 +303,15 @@ func validateSnapshotLifecycle(wire processSnapshotWire) error {
 }
 
 func validatePreparedStep(processID ProcessID, sequence uint64, lastStable ExecutionState, mailbox signalMailbox, prepared preparedStepWire) error {
-	if prepared.Sequence != sequence || !prepared.CandidateState.Valid() || !prepared.Transition.Valid() ||
-		prepared.ConsumeThrough < mailbox.consumedSequence() || prepared.ConsumeThrough > mailbox.sequence() {
+	if prepared.StepSequence != sequence || !prepared.CandidateState.Valid() || !prepared.Transition.Valid() ||
+		prepared.SignalCursor < mailbox.committedSignalCursor() || prepared.SignalCursor > mailbox.arrivalSequence() {
 		return errors.New("invalid prepared Step boundary")
 	}
 	digest, err := executionStateDigest(lastStable)
 	if err != nil || digest != prepared.LastStableDigest {
 		return errors.New("prepared Step does not identify last-stable state")
 	}
-	if prepared.ConsumeThrough != mailbox.consumedSequence()+uint64(prepared.Transition.Consumed()) {
+	if prepared.SignalCursor != mailbox.committedSignalCursor()+uint64(prepared.Transition.ConsumedSignals()) {
 		return errors.New("prepared Step consumption does not match Transition")
 	}
 	effects := prepared.Transition.Effects()

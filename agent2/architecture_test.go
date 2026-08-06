@@ -21,7 +21,7 @@ func TestProcessAdmissionContainsOnlyFrameworkStartContracts(t *testing.T) {
 		typeOf reflect.Type
 	}{
 		{name: "relation", typeOf: reflect.TypeFor[ProcessRelation]()},
-		{name: "deployment", typeOf: reflect.TypeFor[DeploymentRef]()},
+		{name: "deploymentRef", typeOf: reflect.TypeFor[DeploymentRef]()},
 		{name: "descriptor", typeOf: reflect.TypeFor[Descriptor]()},
 		{name: "budget", typeOf: reflect.TypeFor[Budget]()},
 		{name: "capabilities", typeOf: reflect.TypeFor[CapabilitySet]()},
@@ -43,11 +43,11 @@ func TestEventContainsOnlyFrameworkObservationContracts(t *testing.T) {
 		name   string
 		typeOf reflect.Type
 	}{
-		{name: "sequence", typeOf: reflect.TypeFor[uint64]()},
+		{name: "processSequence", typeOf: reflect.TypeFor[uint64]()},
 		{name: "processID", typeOf: reflect.TypeFor[ProcessID]()},
-		{name: "deployment", typeOf: reflect.TypeFor[DeploymentRef]()},
+		{name: "deploymentRef", typeOf: reflect.TypeFor[DeploymentRef]()},
 		{name: "relation", typeOf: reflect.TypeFor[ProcessRelation]()},
-		{name: "step", typeOf: reflect.TypeFor[uint64]()},
+		{name: "stepSequence", typeOf: reflect.TypeFor[uint64]()},
 		{name: "effectID", typeOf: reflect.TypeFor[EffectID]()},
 		{name: "name", typeOf: reflect.TypeFor[string]()},
 		{name: "phase", typeOf: reflect.TypeFor[EventPhase]()},

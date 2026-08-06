@@ -6,6 +6,7 @@ import (
 	"reflect"
 )
 
+// ErrInvalidDeployment reports an incomplete or contradictory exact binding.
 var ErrInvalidDeployment = errors.New("agent: invalid deployment")
 
 // DeploymentConfig contains the complete behavior binding of one Deployment.
@@ -58,8 +59,8 @@ func NewDeployment(config DeploymentConfig) (Deployment, error) {
 	}, nil
 }
 
-// Reference returns the exact value identity stored in Process snapshots.
-func (deployment Deployment) Reference() DeploymentRef { return deployment.reference }
+// DeploymentRef returns the exact value identity stored in Process snapshots.
+func (deployment Deployment) DeploymentRef() DeploymentRef { return deployment.reference }
 
 // Descriptor returns the frozen static Definition contract.
 func (deployment Deployment) Descriptor() Descriptor { return deployment.descriptor }

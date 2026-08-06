@@ -26,7 +26,7 @@ func TestDeploymentBindsExactDefinitionAndDispatcher(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !deployment.Valid() || deployment.Reference().ContractDigest() != definition.Descriptor().Digest() || deployment.Definition() != definition {
+	if !deployment.Valid() || deployment.DeploymentRef().ContractDigest() != definition.Descriptor().Digest() || deployment.Definition() != definition {
 		t.Fatalf("Deployment = %+v", deployment)
 	}
 

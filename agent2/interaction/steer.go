@@ -40,7 +40,7 @@ func validateSteeringMessages(messages []chat.Message) error {
 	for index := range messages {
 		message := messages[index]
 		if err := message.Validate(); err != nil {
-			return fmt.Errorf("%w: message %d: %v", ErrInvalidSteer, index, err)
+			return fmt.Errorf("%w: message %d: %w", ErrInvalidSteer, index, err)
 		}
 		if message.Role != chat.RoleUser {
 			return fmt.Errorf("%w: message %d must have user role", ErrInvalidSteer, index)

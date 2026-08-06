@@ -3,7 +3,7 @@
 > 状态：持续实施
 > 建立日期：2026-08-06
 > 最后更新：2026-08-06
-> 当前阶段：P9 独立完整性验收，0/6 完成
+> 当前阶段：P9 独立完整性验收，1/6 完成
 > 当前实施范围：仅 `agent2`
 > 临时模块路径：`github.com/Tangerg/lynx/agent2`
 > 最终模块路径：`github.com/Tangerg/lynx/agent`
@@ -75,7 +75,7 @@ go test ./...
 | P6 managed Workflow | 完成 | 11/11 | 以有序 Stage 和真实 child Process 实现可恢复确定性编排，`flow` 保持独立 in-process 边界 |
 | P7 组合模式与能力覆盖 | 完成 | 7/7 | 动态 worker 组合、typed artifacts、evaluator/optimizer、示例 |
 | P8 Platform 与治理 | 完成 | 7/7 | resolver、deployment catalog、版本、路由、递归治理和观测 |
-| P9 独立完整性验收 | 进行中 | 0/6 | API/wire/arch/race/fuzz/examples/standalone 全绿 |
+| P9 独立完整性验收 | 进行中 | 1/6 | API/wire/arch/race/fuzz/examples/standalone 全绿 |
 | P10 消费迁移 | 未开始 | 0/5 | 单独迁移 `app/runtime` 及批准的直接消费者 |
 | P11 原模块替换 | 未开始 | 0/5 | 删除旧模块、改回 `agent`、清零兼容和残留 |
 
@@ -186,7 +186,7 @@ go test ./...
 
 ### P9：独立完整性验收
 
-- [ ] P9-01 审计所有公开名称、参数、描述和 error 语义。
+- [x] P9-01 审计所有公开名称、参数、描述和 error 语义。
 - [ ] P9-02 建立 exported API 和 snapshot wire baseline。
 - [ ] P9-03 建立完整 package DAG 和边界守卫。
 - [ ] P9-04 完成全量 build/vet/test/static analysis/race/fuzz。
@@ -254,6 +254,7 @@ go test ./...
 
 | 日期 | 阶段 | 实际事实 | 验证与结果 |
 |---|---|---|---|
+| 2026-08-06 | P9 | 完成七个公共 package 与 Kernel/Strategy 私有实现的独立语义命名终审。完整 Deployment 与 exact DeploymentRef 不再混称：`Deployment.DeploymentRef`、`DeploymentCandidate.DeploymentRef`、Planning `ChildBindingConfig.DeploymentRef` 形成唯一术语；Effect request 改为 `BatchIndex`，Transition 改为 `ConsumedSignals`，Event/Delta/mailbox/prepared Step 分别使用 Process/Step/Effect/Arrival sequence 与 Signal cursor。sentinel 收敛为真实失败条件，所有普通 error cause 统一 `%w`。公开 callable 参数全部具名，公开 declaration/field GoDoc 精确起始；新增 AST 门禁阻止匿名参数、字段注释漂移和 `%v` error 断链。私有 `processRuntime`/宽泛 controller/loop 字段收敛为 `processLoop`、`processID`、`lastStableState`、`pendingControl`、`finalOutput`、`terminalSnapshot`；Interaction/Planning 杂物文件按真实职责拆分。无 alias、shim 或双术语 | wire 随语义一次性 breaking revision：Process Snapshot v4、TreeSnapshot v2、child/framework-effect protocol v2、Planning ExecutionState v2；旧 tag/版本不双读。新增 prior-version 行为测试逐项证明旧 Process/tree、Framework/child protocol 与 Planning state 被拒绝。七个 API digest、snapshot/tree 与 observation wire digest 显式更新为 Baseline 4，并新增 ADR-A2-054 与能力证据。`GOWORK=off` standalone build/vet/test/race、staticcheck、diff check 与八个 command consumer 实跑全绿。P9-01 完成，P9 更新为 1/6 |
 | 2026-08-06 | P8 | 完成 embedded Engine 与完整 Platform 共用执行语义的真实纵切面，并在冻结前删减候选 API。新增第八个独立 command `embedded_vs_platform`：同一 exact Workflow root/worker/Input 分别经 caller-owned resolver 直接运行，以及经 active DeploymentCandidate selection + Platform exact resolver 运行；两边直接在同一个 EngineConfig 位置装配 ProcessAdmitter/EventListener，没有 Platform Start/Run facade、第二 scheduler、Process owner 或 observation bus。比较 typed Output、Completed、Usage、两 Process exact tree、两次 admission 和稳定 Process/Step/Effect lifecycle。真实重复运行发现 child 在 wait 注册前/后完成会合法改变 `signal.accepted` 与中间 running/waiting，因此等价合同只比较稳定语义，不谎称 ID、时间或完整 Event sequence deterministic | 消费前 API 审计删除单字段 Config 与 executable ActiveDeployments 副视图，构造收敛为 `New(deployments...)`，Platform 零值成为可用空 aggregate；active discovery 只保留 immutable non-executable DeploymentCandidate，Catalog/Resolve 继续拥有 exact history；nil/typed-nil sentinel 精确收敛为 ErrNilPlatform/ErrNilDeploymentSelector。Platform architecture gate 新增 OTel 禁入并继续禁止 Strategy/旧 agent/Host。新 command 普通 100 次、race 20 次全绿；Platform package 专项 race 20 次全绿。`platform` API/GoDoc digest 冻结为 `9fef1861154434ca2f4fdd4d3b6bfad2b4c8326b15c49eb0d3c82fc0062f8713`，其余六个 API 与 snapshot/tree/observation wire 不变。standalone tidy/diff/build/vet/staticcheck/test/race、八个 commands 全绿；最终提交态 13 个 fuzz targets 共 1003015 次执行无失败。P8-07 完成，P8 7/7 完成，进入 P9 |
 | 2026-08-06 | P8 | 完成自足 Framework Event 与独立 OpenTelemetry adapter。Event envelope 新增 exact DeploymentRef/ProcessRelation 并 strict JSON round-trip，根 package 统一 13 个稳定事件名；Execution.Step 与真实 Framework/Dispatcher Effect 都发布准确 started/finished attempt，携带 owner 测量的非负 duration，Effect 同时携带 target/status。ReplayPolicy 跳过的 Dispatcher Effect 没有发生新尝试，因此不伪造 lifecycle。EventListener/DeltaListener 移除永远被丢弃的 error 返回，保留 panic isolation；Event 同步有界、Delta 异步有界并以 dropped Event/Usage 显式报告。新增 `agent2/otel.Observer`，只消费中性 Event 并直接使用官方 OTel API，形成 Process/Step/Effect spans 与 starts/exits/duration/drop metrics；不输出 raw payload、Input/Output 或 Host identity，不建立第二 observation bus | architecture gates 固化 Event 十个 private 中性字段，禁止 Kernel import OTel，并禁止 OTel adapter production import SDK、Strategy、旧 agent 或 Host。真实 Engine + 官方 SDK 测试证明一个两 Step/一 Dispatcher Effect Process 稳定产生 1 Process、2 Step、1 Effect spans 与 1/1/2/1 metric observations；另以真实 child 验证 Framework Effect 使用相同 lifecycle。根 API digest 更新为 `9cfc3728580548301732bdc8cc9a33e9b5bde083215498e39c455d921730b617`，新增 OTel API digest `aed81360b2fdedda8b08a2c27e7570a4f06f4584ff84e3f0904016d517c038ec`，Event/Delta wire digest `b5a32c7dd19858ee0e256f19973010cffff30f6e961d2b04d7cb80947f121ad4`；四个 Strategy 与 snapshot/tree wire 不变。standalone tidy/diff/build/vet/staticcheck/test/race、七个 commands 全绿；OTel 与 lifecycle 专项 race 各 20 次全绿；最终 13 个 fuzz targets 共 1201448 次执行无失败。P8-06 完成，P8 更新为 6/7 |
 | 2026-08-06 | P8 | 完成根/子 Process 共用的启动准入纵切面，并治本收敛术语为唯一 `ProcessAdmission`/`ProcessAdmitter`，不并存 Policy/Guard/Middleware/Extension registry。Admission 只含 private ProcessRelation、exact DeploymentRef、Descriptor、Budget、CapabilitySet；一个 EngineConfig 只有一个 admitter。root/child 均在 Definition.Start 与 Process publication 前调用；root 拒绝返回 `ErrProcessAdmissionRejected` 且保留 cause，child 拒绝形成 External `engine.child.admission.rejected`、释放预算且不留 Process。提交前控制面复审进一步把 admitter 收紧为同步、有界、无 I/O、不重入 Process、decision-only、并发安全且 panic-contained，不用误导性 context 合法化 Framework Effect 内的远端阻塞；root 远端审批在 Start 前完成，child 远端审批先显式结算 Dispatcher Effect。prepared child 恢复可能重判，已有 Process snapshot/tree restore 不重复准入。既有 Engine Budget/TreeLimits/capability attenuation 仍是唯一状态与执行者，批准不能绕过提权拒绝；不重建 StopPolicy，Limits、显式 control 与 Strategy completion 保持各自 owner | 行为 tests 覆盖 root/child 两次准确 admission facts、拒绝发生于 Definition.Start 前、zero published root、zero ghost child、ordinary cause、typed nil、panic、批准无法覆盖 capability attenuation、terminal snapshot restore 零重判；reflection architecture gate 固化 Admission 五个 private 中性字段。专项 admission race 20 次全绿。根 API/GoDoc digest 显式修订为 `c7f58108633689f2accb7742d8177465e8291dd6f5a38205762c98de9423b809`，四个 Strategy digest 与 Snapshot v3/TreeSnapshot v1 wire 不变。standalone tidy/diff/build/vet/staticcheck/test/race、七个 commands 全绿；最终提交态 13 个 fuzz targets 共 1007768 次执行无失败。P8-05 完成，P8 更新为 5/7 |
@@ -314,6 +315,6 @@ go test ./...
 
 ## 9. 当前下一步
 
-P1–P8 已完成。embedded 与 Platform 真实 command consumer 证明 catalog/selection/resolver 只改变启动前 binding 来源，两条路径共用同一个 Engine、admission、observation 和 Process/tree 语义；Platform API 已删减并冻结。下一轮 P9-01 从全部 exported/private 命名、参数、GoDoc、error 和 ownership 语义开始独立完整性终审。
+P1–P8 与 P9-01 已完成。七个 package 的公开/私有词汇、参数、GoDoc、error 与 owner-qualified wire 已完成一次性 breaking 清洗并形成 Baseline 4；没有兼容 alias、旧 tag 或双读。下一轮 P9-02 独立复核 exported API、Process/tree/protocol/state 与 observation wire 的 baseline 覆盖是否完整，不能把“本轮已更新 digest”当作覆盖证明。
 
 在 P1–P9 完成前，不迁移 `app/runtime`，不删除旧 `agent`，不发布 `agent2` 稳定版本。

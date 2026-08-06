@@ -26,6 +26,22 @@ func TestTreeSnapshotStrictlyRejectsUnknownFields(t *testing.T) {
 	}
 }
 
+func TestTreeSnapshotRejectsPriorSchemaVersion(t *testing.T) {
+	tree := completedTreeSnapshot(t)
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(tree.JSON(), &fields); err != nil {
+		t.Fatal(err)
+	}
+	fields["schema_version"] = json.RawMessage(`1`)
+	data, err := json.Marshal(fields)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ParseTreeSnapshot(data); !errors.Is(err, ErrInvalidTreeSnapshot) {
+		t.Fatalf("prior schema error = %v, want ErrInvalidTreeSnapshot", err)
+	}
+}
+
 func FuzzTreeSnapshotJSONRoundTrip(f *testing.F) {
 	tree := completedTreeSnapshot(f)
 	f.Add([]byte(tree.JSON()))
@@ -225,8 +241,8 @@ func TestTreeCaptureWaitsForInflightChildEffectsToSettle(t *testing.T) {
 
 func TestTreeRestoreResolvesEveryExactDeployment(t *testing.T) {
 	childDeployment := newChildTestDeployment(t)
-	parentDeployment := newCrossParentDeployment(t, childDeployment.Reference())
-	resolver := deploymentMapResolver{childDeployment.Reference(): childDeployment}
+	parentDeployment := newCrossParentDeployment(t, childDeployment.DeploymentRef())
+	resolver := deploymentMapResolver{childDeployment.DeploymentRef(): childDeployment}
 	engine, _ := NewEngine(EngineConfig{DeploymentResolver: resolver})
 	input, _ := EncodeInput(struct{}{})
 	root, err := engine.Start(context.Background(), parentDeployment, input)
@@ -258,7 +274,7 @@ func TestTreeRestoreResolvesEveryExactDeployment(t *testing.T) {
 	}
 	childID, _ := ParseProcessID(output.ChildIDs[0])
 	restoredChild, found := restoredEngine.Process(childID)
-	if !found || restoredChild.DeploymentRef() != childDeployment.Reference() {
+	if !found || restoredChild.DeploymentRef() != childDeployment.DeploymentRef() {
 		t.Fatal("cross-Strategy child binding was not restored exactly")
 	}
 	_ = mustAwait(t, restoredChild)
@@ -287,7 +303,7 @@ func TestTreeRestoreReplaysPreparedChildStartWithStableIdentity(t *testing.T) {
 	wantChildID := deriveChildProcessID(preparedWire.Prepared.Effects[0].ID)
 	tree, err := newTreeSnapshot(treeSnapshotWire{
 		SchemaVersion: treeSnapshotSchemaVersion,
-		RootID:        prepared.ProcessID(), Processes: []Snapshot{prepared},
+		RootID:        prepared.ProcessID(), ProcessSnapshots: []Snapshot{prepared},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -379,7 +395,7 @@ func TestTreeRestoreValidatesTerminalOutputAgainstExactDeployment(t *testing.T) 
 	}
 	tree, err := newTreeSnapshot(treeSnapshotWire{
 		SchemaVersion: treeSnapshotSchemaVersion,
-		RootID:        forged.ProcessID(), Processes: []Snapshot{forged},
+		RootID:        forged.ProcessID(), ProcessSnapshots: []Snapshot{forged},
 	})
 	if err != nil {
 		t.Fatal(err)

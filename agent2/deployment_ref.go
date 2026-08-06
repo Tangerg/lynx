@@ -7,6 +7,7 @@ import (
 	"fmt"
 )
 
+// ErrInvalidDeploymentRef reports a malformed exact Deployment identity.
 var ErrInvalidDeploymentRef = errors.New("agent: invalid deployment reference")
 
 const invalidDeploymentRefText = "<invalid-deployment-ref>"
@@ -91,6 +92,7 @@ func (reference DeploymentRef) Valid() bool {
 	return err == nil && want == reference.digest
 }
 
+// MarshalJSON returns the validated exact Deployment identity.
 func (reference DeploymentRef) MarshalJSON() ([]byte, error) {
 	if !reference.Valid() {
 		return nil, ErrInvalidDeploymentRef
@@ -101,6 +103,7 @@ func (reference DeploymentRef) MarshalJSON() ([]byte, error) {
 	})
 }
 
+// UnmarshalJSON replaces reference with a strictly decoded exact identity.
 func (reference *DeploymentRef) UnmarshalJSON(data []byte) error {
 	if reference == nil {
 		return fmt.Errorf("%w: nil receiver", ErrInvalidDeploymentRef)

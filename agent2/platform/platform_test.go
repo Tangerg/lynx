@@ -19,7 +19,7 @@ func TestPlatformDeployReplaceUndeployKeepsExactHistory(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	assertActiveReferences(t, platformInstance, firstV1.Reference(), v2.Reference())
+	assertActiveReferences(t, platformInstance, firstV1.DeploymentRef(), v2.DeploymentRef())
 
 	if err := platformInstance.Deploy(firstV1); err != nil {
 		t.Fatalf("reapply exact Deployment: %v", err)
@@ -29,16 +29,16 @@ func TestPlatformDeployReplaceUndeployKeepsExactHistory(t *testing.T) {
 		t.Fatalf("conflicting Deploy error = %v", err)
 	} else {
 		var conflict *platform.DeploymentConflictError
-		if !errors.As(err, &conflict) || conflict.Active != firstV1.Reference() ||
-			conflict.Requested != replacementV1.Reference() {
+		if !errors.As(err, &conflict) || conflict.Active != firstV1.DeploymentRef() ||
+			conflict.Requested != replacementV1.DeploymentRef() {
 			t.Fatalf("Deploy conflict = %#v", conflict)
 		}
 	}
 	if err := platformInstance.Replace(replacementV1); err != nil {
 		t.Fatal(err)
 	}
-	assertActiveReferences(t, platformInstance, replacementV1.Reference(), v2.Reference())
-	if _, err := platformInstance.Resolve(firstV1.Reference()); err != nil {
+	assertActiveReferences(t, platformInstance, replacementV1.DeploymentRef(), v2.DeploymentRef())
+	if _, err := platformInstance.Resolve(firstV1.DeploymentRef()); err != nil {
 		t.Fatalf("replaced historical Deployment is not exact-resolvable: %v", err)
 	}
 
@@ -46,17 +46,17 @@ func TestPlatformDeployReplaceUndeployKeepsExactHistory(t *testing.T) {
 	if err := platformInstance.Replace(v3); !errors.Is(err, platform.ErrDeploymentNotActive) {
 		t.Fatalf("Replace into new version error = %v", err)
 	}
-	if err := platformInstance.Undeploy(firstV1.Reference()); !errors.Is(err, platform.ErrDeploymentConflict) {
+	if err := platformInstance.Undeploy(firstV1.DeploymentRef()); !errors.Is(err, platform.ErrDeploymentConflict) {
 		t.Fatalf("stale Undeploy error = %v", err)
 	}
-	if err := platformInstance.Undeploy(replacementV1.Reference()); err != nil {
+	if err := platformInstance.Undeploy(replacementV1.DeploymentRef()); err != nil {
 		t.Fatal(err)
 	}
-	assertActiveReferences(t, platformInstance, v2.Reference())
-	if _, err := platformInstance.Resolve(replacementV1.Reference()); err != nil {
+	assertActiveReferences(t, platformInstance, v2.DeploymentRef())
+	if _, err := platformInstance.Resolve(replacementV1.DeploymentRef()); err != nil {
 		t.Fatalf("undeployed historical Deployment is not exact-resolvable: %v", err)
 	}
-	if err := platformInstance.Undeploy(replacementV1.Reference()); !errors.Is(err, platform.ErrDeploymentNotActive) {
+	if err := platformInstance.Undeploy(replacementV1.DeploymentRef()); !errors.Is(err, platform.ErrDeploymentNotActive) {
 		t.Fatalf("repeated Undeploy error = %v", err)
 	}
 	if got := len(platformInstance.Catalog().Deployments()); got != 3 {
@@ -89,7 +89,7 @@ func TestPlatformInstancesDoNotShareDeploymentState(t *testing.T) {
 	if len(left.DeploymentCandidates()) != 1 || len(right.DeploymentCandidates()) != 0 {
 		t.Fatalf("Platform state leaked: left=%d right=%d", len(left.DeploymentCandidates()), len(right.DeploymentCandidates()))
 	}
-	if _, err := right.Resolve(deployment.Reference()); !errors.Is(err, platform.ErrDeploymentNotFound) {
+	if _, err := right.Resolve(deployment.DeploymentRef()); !errors.Is(err, platform.ErrDeploymentNotFound) {
 		t.Fatalf("right Platform Resolve error = %v", err)
 	}
 }
@@ -121,7 +121,7 @@ func TestPlatformSerializesConcurrentChangesAndPublishesConsistentSnapshots(t *t
 			for range 100 {
 				candidates := instance.DeploymentCandidates()
 				for _, candidate := range candidates {
-					if _, err := instance.Resolve(candidate.Reference()); err != nil {
+					if _, err := instance.Resolve(candidate.DeploymentRef()); err != nil {
 						t.Errorf("active Deployment missing from Catalog: %v", err)
 						return
 					}
@@ -158,7 +158,7 @@ func TestPlatformZeroValueIsUsableAndNilReceiverIsRejected(t *testing.T) {
 	if err := zeroPlatform.Deploy(deployment); err != nil {
 		t.Fatalf("zero-value Deploy: %v", err)
 	}
-	if _, err := zeroPlatform.Resolve(deployment.Reference()); err != nil {
+	if _, err := zeroPlatform.Resolve(deployment.DeploymentRef()); err != nil {
 		t.Fatalf("zero-value Resolve: %v", err)
 	}
 	instance, err := platform.New()
@@ -180,8 +180,8 @@ func assertActiveReferences(t *testing.T, instance *platform.Platform, want ...a
 		t.Fatalf("active Deployment count = %d, want %d", len(candidates), len(want))
 	}
 	for index, candidate := range candidates {
-		if candidate.Reference() != want[index] {
-			t.Fatalf("active Deployment %d = %s, want %s", index, candidate.Reference(), want[index])
+		if candidate.DeploymentRef() != want[index] {
+			t.Fatalf("active Deployment %d = %s, want %s", index, candidate.DeploymentRef(), want[index])
 		}
 	}
 }

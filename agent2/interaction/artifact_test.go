@@ -79,7 +79,7 @@ func TestCompletionValidatorUsesOrderedTypedDelegateArtifacts(t *testing.T) {
 		t, model, nil, []interaction.Delegate{delegate}, validator, 4,
 	)
 	engine, err := agent.NewEngine(agent.EngineConfig{
-		DeploymentResolver: delegateResolver{child.Reference(): child},
+		DeploymentResolver: delegateResolver{child.DeploymentRef(): child},
 	})
 	if err != nil {
 		t.Fatal(err)

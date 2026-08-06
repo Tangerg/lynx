@@ -27,6 +27,7 @@ func (action PlannedAction) Name() string { return action.name }
 // Valid reports whether the reference contains a valid Action identity.
 func (action PlannedAction) Valid() bool { return validName(action.name) }
 
+// MarshalJSON returns the validated Action reference.
 func (action PlannedAction) MarshalJSON() ([]byte, error) {
 	if !action.Valid() {
 		return nil, ErrInvalidPlan
@@ -34,6 +35,7 @@ func (action PlannedAction) MarshalJSON() ([]byte, error) {
 	return json.Marshal(action.name)
 }
 
+// UnmarshalJSON replaces action with a strictly decoded Action reference.
 func (action *PlannedAction) UnmarshalJSON(data []byte) error {
 	if action == nil {
 		return fmt.Errorf("%w: nil PlannedAction receiver", ErrInvalidPlan)
@@ -95,6 +97,7 @@ func (plan Plan) Valid() bool {
 	return true
 }
 
+// MarshalJSON returns the validated ordered Planner result.
 func (plan Plan) MarshalJSON() ([]byte, error) {
 	if !plan.Valid() {
 		return nil, ErrInvalidPlan
@@ -106,6 +109,7 @@ func (plan Plan) MarshalJSON() ([]byte, error) {
 	return json.Marshal(planWire{Actions: actions, TotalCost: plan.totalCost})
 }
 
+// UnmarshalJSON replaces plan with a strictly decoded Planner result.
 func (plan *Plan) UnmarshalJSON(data []byte) error {
 	if plan == nil {
 		return fmt.Errorf("%w: nil receiver", ErrInvalidPlan)

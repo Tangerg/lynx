@@ -18,8 +18,8 @@ func TestSelectDeploymentUsesOnlyStableActiveCandidateSnapshot(t *testing.T) {
 		t.Fatal(err)
 	}
 	candidates := instance.DeploymentCandidates()
-	if len(candidates) != 2 || candidates[0].Reference() != first.Reference() ||
-		candidates[1].Reference() != second.Reference() ||
+	if len(candidates) != 2 || candidates[0].DeploymentRef() != first.DeploymentRef() ||
+		candidates[1].DeploymentRef() != second.DeploymentRef() ||
 		candidates[0].Descriptor().Digest() != first.Descriptor().Digest() {
 		t.Fatalf("DeploymentCandidates = %#v", candidates)
 	}
@@ -28,14 +28,14 @@ func TestSelectDeploymentUsesOnlyStableActiveCandidateSnapshot(t *testing.T) {
 		_ context.Context,
 		offered []platform.DeploymentCandidate,
 	) (agent.DeploymentRef, error) {
-		if len(offered) != 2 || offered[0].Reference() != first.Reference() {
+		if len(offered) != 2 || offered[0].DeploymentRef() != first.DeploymentRef() {
 			t.Fatalf("offered candidates = %#v", offered)
 		}
-		return offered[1].Reference(), nil
+		return offered[1].DeploymentRef(), nil
 	})
 	selected, err := instance.SelectDeployment(context.Background(), selector)
-	if err != nil || selected.Reference() != second.Reference() {
-		t.Fatalf("SelectDeployment = %s, %v", selected.Reference(), err)
+	if err != nil || selected.DeploymentRef() != second.DeploymentRef() {
+		t.Fatalf("SelectDeployment = %s, %v", selected.DeploymentRef(), err)
 	}
 }
 
@@ -56,7 +56,7 @@ func TestSelectDeploymentDoesNotFollowConcurrentReplacement(t *testing.T) {
 		) (agent.DeploymentRef, error) {
 			close(captured)
 			<-release
-			return candidates[0].Reference(), nil
+			return candidates[0].DeploymentRef(), nil
 		}))
 		result <- selectionResult{deployment: selected, err: err}
 	}()
@@ -66,10 +66,10 @@ func TestSelectDeploymentDoesNotFollowConcurrentReplacement(t *testing.T) {
 	}
 	close(release)
 	selected := <-result
-	if selected.err != nil || selected.deployment.Reference() != first.Reference() {
-		t.Fatalf("selection followed replacement: %s, %v", selected.deployment.Reference(), selected.err)
+	if selected.err != nil || selected.deployment.DeploymentRef() != first.DeploymentRef() {
+		t.Fatalf("selection followed replacement: %s, %v", selected.deployment.DeploymentRef(), selected.err)
 	}
-	if active := instance.DeploymentCandidates(); len(active) != 1 || active[0].Reference() != replacement.Reference() {
+	if active := instance.DeploymentCandidates(); len(active) != 1 || active[0].DeploymentRef() != replacement.DeploymentRef() {
 		t.Fatalf("active replacement = %#v", active)
 	}
 }
@@ -88,7 +88,7 @@ func TestSelectDeploymentRejectsHistoricalOrMalformedSelection(t *testing.T) {
 		name      string
 		selection agent.DeploymentRef
 	}{
-		{name: "historical", selection: first.Reference()},
+		{name: "historical", selection: first.DeploymentRef()},
 		{name: "invalid", selection: agent.DeploymentRef{}},
 	} {
 		t.Run(test.name, func(t *testing.T) {
@@ -150,7 +150,7 @@ func TestSelectDeploymentRejectsNilAndEmptyCandidateSet(t *testing.T) {
 		called = true
 		return agent.DeploymentRef{}, nil
 	})
-	if _, err := empty.SelectDeployment(context.Background(), selector); !errors.Is(err, platform.ErrNoDeploymentCandidate) || called {
+	if _, err := empty.SelectDeployment(context.Background(), selector); !errors.Is(err, platform.ErrNoDeploymentCandidates) || called {
 		t.Fatalf("empty selection = called %t, error %v", called, err)
 	}
 	var typedNil platform.DeploymentSelectorFunc
@@ -158,7 +158,7 @@ func TestSelectDeploymentRejectsNilAndEmptyCandidateSet(t *testing.T) {
 		t.Fatalf("typed-nil selector error = %v", err)
 	}
 	var zero platform.Platform
-	if _, err := zero.SelectDeployment(context.Background(), selector); !errors.Is(err, platform.ErrNoDeploymentCandidate) || called {
+	if _, err := zero.SelectDeployment(context.Background(), selector); !errors.Is(err, platform.ErrNoDeploymentCandidates) || called {
 		t.Fatalf("zero Platform selection error = %v", err)
 	}
 }
@@ -170,18 +170,18 @@ func TestDeploymentCandidatesExcludeUndeployedHistory(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := instance.Undeploy(first.Reference()); err != nil {
+	if err := instance.Undeploy(first.DeploymentRef()); err != nil {
 		t.Fatal(err)
 	}
 	candidates := instance.DeploymentCandidates()
 	got := make([]agent.DeploymentRef, len(candidates))
 	for index, candidate := range candidates {
-		got[index] = candidate.Reference()
+		got[index] = candidate.DeploymentRef()
 	}
-	if !slices.Equal(got, []agent.DeploymentRef{second.Reference()}) {
+	if !slices.Equal(got, []agent.DeploymentRef{second.DeploymentRef()}) {
 		t.Fatalf("active candidates = %v", got)
 	}
-	if _, err := instance.Resolve(first.Reference()); err != nil {
+	if _, err := instance.Resolve(first.DeploymentRef()); err != nil {
 		t.Fatalf("undeployed history is not exact-resolvable: %v", err)
 	}
 }

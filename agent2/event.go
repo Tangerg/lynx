@@ -39,6 +39,7 @@ const (
 	EventDeltaDropped = "agent.delta.dropped"
 )
 
+// ErrInvalidEvent reports a malformed Framework observation fact.
 var ErrInvalidEvent = errors.New("agent: invalid event")
 
 // EventPhase distinguishes an attempted external operation from a fact that the
@@ -46,11 +47,15 @@ var ErrInvalidEvent = errors.New("agent: invalid event")
 type EventPhase uint8
 
 const (
+	// EventPhaseInvalid is the invalid zero value.
 	EventPhaseInvalid EventPhase = iota
+	// EventPhaseAttempt identifies work observed before authoritative commit.
 	EventPhaseAttempt
+	// EventPhaseCommitted identifies a fact published after authoritative commit.
 	EventPhaseCommitted
 )
 
+// String returns the stable Event phase name.
 func (phase EventPhase) String() string {
 	switch phase {
 	case EventPhaseAttempt:
@@ -77,37 +82,37 @@ func parseEventPhase(value string) (EventPhase, error) {
 // project or instrument it, but observer failure never changes Process state.
 // Payload is descriptive data, never a Signal or state mutation command.
 type Event struct {
-	sequence   uint64
-	processID  ProcessID
-	deployment DeploymentRef
-	relation   ProcessRelation
-	step       uint64
-	effectID   EffectID
-	name       string
-	phase      EventPhase
-	occurredAt time.Time
-	payload    json.RawMessage
+	processSequence uint64
+	processID       ProcessID
+	deploymentRef   DeploymentRef
+	relation        ProcessRelation
+	stepSequence    uint64
+	effectID        EffectID
+	name            string
+	phase           EventPhase
+	occurredAt      time.Time
+	payload         json.RawMessage
 }
 
 func newEvent(
-	sequence uint64,
+	processSequence uint64,
 	processID ProcessID,
-	deployment DeploymentRef,
+	deploymentRef DeploymentRef,
 	relation ProcessRelation,
-	step uint64,
+	stepSequence uint64,
 	effectID EffectID,
 	name string,
 	phase EventPhase,
 	occurredAt time.Time,
 	payload json.RawMessage,
 ) (Event, error) {
-	if sequence == 0 {
-		return Event{}, fmt.Errorf("%w: sequence must be greater than zero", ErrInvalidEvent)
+	if processSequence == 0 {
+		return Event{}, fmt.Errorf("%w: Process sequence must be greater than zero", ErrInvalidEvent)
 	}
 	if !processID.Valid() {
 		return Event{}, fmt.Errorf("%w: process ID: %w", ErrInvalidEvent, ErrInvalidIdentity)
 	}
-	if !deployment.Valid() {
+	if !deploymentRef.Valid() {
 		return Event{}, fmt.Errorf("%w: deployment: %w", ErrInvalidEvent, ErrInvalidDeploymentRef)
 	}
 	if !relation.Valid() || relation.ProcessID() != processID {
@@ -127,34 +132,36 @@ func newEvent(
 		return Event{}, fmt.Errorf("%w: payload: %w", ErrInvalidEvent, err)
 	}
 	return Event{
-		sequence:   sequence,
-		processID:  processID,
-		deployment: deployment,
-		relation:   relation,
-		step:       step,
-		effectID:   effectID,
-		name:       name,
-		phase:      phase,
-		occurredAt: occurredAt.Round(0).UTC(),
-		payload:    normalized,
+		processSequence: processSequence,
+		processID:       processID,
+		deploymentRef:   deploymentRef,
+		relation:        relation,
+		stepSequence:    stepSequence,
+		effectID:        effectID,
+		name:            name,
+		phase:           phase,
+		occurredAt:      occurredAt.Round(0).UTC(),
+		payload:         normalized,
 	}, nil
 }
 
-// Sequence returns the Process-local publication order.
-func (e Event) Sequence() uint64 { return e.sequence }
+// ProcessSequence returns the Process-local publication order.
+func (e Event) ProcessSequence() uint64 { return e.processSequence }
 
 // ProcessID returns the Process whose fact is described.
 func (e Event) ProcessID() ProcessID { return e.processID }
 
 // DeploymentRef returns the exact execution binding that emitted the fact.
-func (e Event) DeploymentRef() DeploymentRef { return e.deployment }
+func (e Event) DeploymentRef() DeploymentRef { return e.deploymentRef }
 
 // Relation returns the Process tree location that emitted the fact.
 func (e Event) Relation() ProcessRelation { return e.relation }
 
 // StepSequence returns the one-based Step sequence and true, or zero and false
 // for a Process fact outside a Step.
-func (e Event) StepSequence() (uint64, bool) { return e.step, e.step > 0 }
+func (e Event) StepSequence() (uint64, bool) {
+	return e.stepSequence, e.stepSequence > 0
+}
 
 // EffectID returns the related Effect identity and true when this is an Effect
 // fact.
@@ -174,26 +181,27 @@ func (e Event) Payload() json.RawMessage { return bytes.Clone(e.payload) }
 
 // Valid reports whether the Event has a complete immutable envelope.
 func (e Event) Valid() bool {
-	return e.sequence > 0 && e.processID.Valid() && e.deployment.Valid() &&
+	return e.processSequence > 0 && e.processID.Valid() && e.deploymentRef.Valid() &&
 		e.relation.Valid() && e.relation.ProcessID() == e.processID && validQualifiedName(e.name) &&
 		(e.phase == EventPhaseAttempt || e.phase == EventPhaseCommitted) &&
 		!e.occurredAt.IsZero() && len(e.payload) > 0
 }
 
+// MarshalJSON returns the validated self-attributing Event fact.
 func (e Event) MarshalJSON() ([]byte, error) {
 	if !e.Valid() {
 		return nil, ErrInvalidEvent
 	}
 	wire := eventWire{
-		Sequence:   e.sequence,
-		ProcessID:  e.processID,
-		Deployment: e.deployment,
-		Relation:   e.relation.wire(),
-		Step:       e.step,
-		Name:       e.name,
-		Phase:      e.phase.String(),
-		OccurredAt: e.occurredAt,
-		Payload:    e.payload,
+		ProcessSequence: e.processSequence,
+		ProcessID:       e.processID,
+		DeploymentRef:   e.deploymentRef,
+		Relation:        e.relation.wire(),
+		StepSequence:    e.stepSequence,
+		Name:            e.name,
+		Phase:           e.phase.String(),
+		OccurredAt:      e.occurredAt,
+		Payload:         e.payload,
 	}
 	if e.effectID.Valid() {
 		wire.EffectID = &e.effectID
@@ -201,6 +209,7 @@ func (e Event) MarshalJSON() ([]byte, error) {
 	return json.Marshal(wire)
 }
 
+// UnmarshalJSON replaces e with a strictly decoded Event.
 func (e *Event) UnmarshalJSON(data []byte) error {
 	if e == nil {
 		return fmt.Errorf("%w: nil receiver", ErrInvalidEvent)
@@ -227,7 +236,7 @@ func (e *Event) UnmarshalJSON(data []byte) error {
 		return fmt.Errorf("%w: relation: %w", ErrInvalidEvent, err)
 	}
 	value, err := newEvent(
-		wire.Sequence, wire.ProcessID, wire.Deployment, relation, wire.Step,
+		wire.ProcessSequence, wire.ProcessID, wire.DeploymentRef, relation, wire.StepSequence,
 		effectID, wire.Name, phase, wire.OccurredAt, wire.Payload,
 	)
 	if err != nil {
@@ -238,14 +247,14 @@ func (e *Event) UnmarshalJSON(data []byte) error {
 }
 
 type eventWire struct {
-	Sequence   uint64              `json:"sequence"`
-	ProcessID  ProcessID           `json:"process_id"`
-	Deployment DeploymentRef       `json:"deployment"`
-	Relation   processRelationWire `json:"relation"`
-	Step       uint64              `json:"step_sequence,omitempty"`
-	EffectID   *EffectID           `json:"effect_id,omitempty"`
-	Name       string              `json:"name"`
-	Phase      string              `json:"phase"`
-	OccurredAt time.Time           `json:"occurred_at"`
-	Payload    json.RawMessage     `json:"payload"`
+	ProcessSequence uint64              `json:"process_sequence"`
+	ProcessID       ProcessID           `json:"process_id"`
+	DeploymentRef   DeploymentRef       `json:"deployment_ref"`
+	Relation        processRelationWire `json:"relation"`
+	StepSequence    uint64              `json:"step_sequence,omitempty"`
+	EffectID        *EffectID           `json:"effect_id,omitempty"`
+	Name            string              `json:"name"`
+	Phase           string              `json:"phase"`
+	OccurredAt      time.Time           `json:"occurred_at"`
+	Payload         json.RawMessage     `json:"payload"`
 }

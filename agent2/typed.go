@@ -5,6 +5,7 @@ import (
 	"fmt"
 )
 
+// ErrInvalidTypedAdapter reports a nil or malformed erased Definition binding.
 var ErrInvalidTypedAdapter = errors.New("agent: invalid typed adapter")
 
 // Typed provides Go type ergonomics at a Definition boundary while preserving

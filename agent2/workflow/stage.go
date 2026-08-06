@@ -44,14 +44,14 @@ func (kind stageKind) String() string {
 // TransformFunc is a bounded, deterministic, side-effect-free value
 // transformation. It must not perform I/O, read clock or random state, mutate
 // shared state, or start goroutines.
-type TransformFunc[I, O any] func(I) (O, error)
+type TransformFunc[I, O any] func(input I) (O, error)
 
 type transformStage func(json.RawMessage) (json.RawMessage, error)
 
 type childBinding struct {
-	deployment   agent.DeploymentRef
-	budget       agent.Budget
-	capabilities agent.CapabilitySet
+	deploymentRef agent.DeploymentRef
+	budget        agent.Budget
+	capabilities  agent.CapabilitySet
 }
 
 // Stage is an immutable operation in one Workflow Definition. Values can only
@@ -94,11 +94,11 @@ func Transform[I, O any](id string, transform TransformFunc[I, O]) (Stage, error
 	}
 	inputSchema, err := agent.SchemaFor[I]()
 	if err != nil {
-		return Stage{}, fmt.Errorf("%w: transform %q input schema: %v", ErrInvalidStage, id, err)
+		return Stage{}, fmt.Errorf("%w: transform %q input schema: %w", ErrInvalidStage, id, err)
 	}
 	outputSchema, err := agent.SchemaFor[O]()
 	if err != nil {
-		return Stage{}, fmt.Errorf("%w: transform %q output schema: %v", ErrInvalidStage, id, err)
+		return Stage{}, fmt.Errorf("%w: transform %q output schema: %w", ErrInvalidStage, id, err)
 	}
 	apply := func(raw json.RawMessage) (json.RawMessage, error) {
 		input, err := agent.ParseInput(raw)
@@ -143,7 +143,7 @@ func Call(config CallConfig) (Stage, error) {
 		id: config.ID, kind: stageKindCall,
 		inputSchema: descriptor.InputSchema(), outputSchema: descriptor.OutputSchema(),
 		call: childBinding{
-			deployment: config.Deployment.Reference(), budget: config.Budget,
+			deploymentRef: config.Deployment.DeploymentRef(), budget: config.Budget,
 			capabilities: config.Capabilities,
 		},
 	}, nil
@@ -156,27 +156,27 @@ func (stage Stage) Valid() bool {
 	}
 	switch stage.kind {
 	case stageKindTransform:
-		return stage.transform != nil && !stage.call.deployment.Valid() &&
+		return stage.transform != nil && !stage.call.deploymentRef.Valid() &&
 			!stage.call.budget.Valid() && stage.call.capabilities.Valid() &&
 			!stage.switcher.valid() && !stage.fork.valid() && !stage.mapper.valid() && !stage.loop.valid()
 	case stageKindCall:
-		return stage.transform == nil && stage.call.deployment.Valid() &&
+		return stage.transform == nil && stage.call.deploymentRef.Valid() &&
 			stage.call.budget.Valid() && stage.call.capabilities.Valid() &&
 			!stage.switcher.valid() && !stage.fork.valid() && !stage.mapper.valid() && !stage.loop.valid()
 	case stageKindSwitch:
-		return stage.transform == nil && !stage.call.deployment.Valid() &&
+		return stage.transform == nil && !stage.call.deploymentRef.Valid() &&
 			!stage.call.budget.Valid() && stage.call.capabilities.Valid() &&
 			stage.switcher.valid() && !stage.fork.valid() && !stage.mapper.valid() && !stage.loop.valid()
 	case stageKindFork:
-		return stage.transform == nil && !stage.call.deployment.Valid() &&
+		return stage.transform == nil && !stage.call.deploymentRef.Valid() &&
 			!stage.call.budget.Valid() && stage.call.capabilities.Valid() &&
 			!stage.switcher.valid() && stage.fork.valid() && !stage.mapper.valid() && !stage.loop.valid()
 	case stageKindMap:
-		return stage.transform == nil && !stage.call.deployment.Valid() &&
+		return stage.transform == nil && !stage.call.deploymentRef.Valid() &&
 			!stage.call.budget.Valid() && stage.call.capabilities.Valid() &&
 			!stage.switcher.valid() && !stage.fork.valid() && stage.mapper.valid() && !stage.loop.valid()
 	case stageKindLoop:
-		return stage.transform == nil && !stage.call.deployment.Valid() &&
+		return stage.transform == nil && !stage.call.deploymentRef.Valid() &&
 			!stage.call.budget.Valid() && stage.call.capabilities.Valid() &&
 			!stage.switcher.valid() && !stage.fork.valid() && !stage.mapper.valid() && stage.loop.valid()
 	default:

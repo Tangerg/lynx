@@ -20,6 +20,7 @@ import (
 
 const instrumentationName = "github.com/Tangerg/lynx/agent2/otel"
 
+// ErrInvalidConfig reports a typed-nil provider or unusable instrument setup.
 var ErrInvalidConfig = errors.New("agent otel: invalid configuration")
 
 // Config selects the official OpenTelemetry providers used by Observer. A nil
@@ -386,7 +387,7 @@ func (observer *Observer) addProcessEvent(event agent.Event) {
 		return
 	}
 	attributes := []attribute.KeyValue{
-		attribute.Int64("agent.event.sequence", int64(event.Sequence())),
+		attribute.Int64("agent.process.event_sequence", int64(event.ProcessSequence())),
 		attribute.String("agent.event.phase", event.Phase().String()),
 	}
 	if step, ok := event.StepSequence(); ok {

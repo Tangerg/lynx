@@ -249,8 +249,8 @@ func newEvaluatorOptimizer(
 			Evaluator    string       `json:"evaluator"`
 			WorkerBudget agent.Budget `json:"worker_budget"`
 		}{
-			Optimizer:    optimizer.Reference().Digest().String(),
-			Evaluator:    evaluator.Reference().Digest().String(),
+			Optimizer:    optimizer.DeploymentRef().Digest().String(),
+			Evaluator:    evaluator.DeploymentRef().Digest().String(),
 			WorkerBudget: workerBudget,
 		},
 	)
@@ -323,7 +323,7 @@ func newEvaluatorOptimizer(
 			Threshold       float64      `json:"threshold"`
 			MaxIterations   uint32       `json:"max_iterations"`
 		}{
-			Iteration:       iteration.Reference().Digest().String(),
+			Iteration:       iteration.DeploymentRef().Digest().String(),
 			IterationBudget: iterationBudget,
 			Threshold:       threshold,
 			MaxIterations:   maxIterations,
@@ -333,9 +333,9 @@ func newEvaluatorOptimizer(
 		return agent.Deployment{}, nil, err
 	}
 	return root, deploymentResolver{
-		optimizer.Reference(): optimizer,
-		evaluator.Reference(): evaluator,
-		iteration.Reference(): iteration,
+		optimizer.DeploymentRef(): optimizer,
+		evaluator.DeploymentRef(): evaluator,
+		iteration.DeploymentRef(): iteration,
 	}, nil
 }
 

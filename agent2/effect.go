@@ -7,6 +7,7 @@ import (
 	"fmt"
 )
 
+// ErrInvalidEffect reports a malformed or contradictory Effect intent.
 var ErrInvalidEffect = errors.New("agent: invalid effect")
 
 // EffectTarget identifies which of the two execution boundaries owns an Effect.
@@ -15,11 +16,15 @@ var ErrInvalidEffect = errors.New("agent: invalid effect")
 type EffectTarget uint8
 
 const (
+	// EffectTargetInvalid is the invalid zero value.
 	EffectTargetInvalid EffectTarget = iota
+	// EffectTargetFramework identifies an Engine-interpreted Effect.
 	EffectTargetFramework
+	// EffectTargetDispatcher identifies a Strategy dispatcher Effect.
 	EffectTargetDispatcher
 )
 
+// String returns the stable Effect target name.
 func (target EffectTarget) String() string {
 	switch target {
 	case EffectTargetFramework:
@@ -133,6 +138,7 @@ func (e Effect) clone() Effect {
 	return Effect{target: e.target, payload: bytes.Clone(e.payload), requirements: requirements}
 }
 
+// MarshalJSON returns the validated immutable Effect intent.
 func (e Effect) MarshalJSON() ([]byte, error) {
 	if !e.Valid() {
 		return nil, ErrInvalidEffect
@@ -143,6 +149,7 @@ func (e Effect) MarshalJSON() ([]byte, error) {
 	})
 }
 
+// UnmarshalJSON replaces e with a strictly decoded Effect.
 func (e *Effect) UnmarshalJSON(data []byte) error {
 	if e == nil {
 		return fmt.Errorf("%w: nil receiver", ErrInvalidEffect)
@@ -179,7 +186,7 @@ type effectWire struct {
 }
 
 const (
-	frameworkEffectSchemaVersion = 1
+	frameworkEffectSchemaVersion = 2
 	frameworkEffectWait          = "wait"
 	frameworkEffectStartChild    = "start_child"
 	frameworkEffectWaitChildren  = "wait_children"

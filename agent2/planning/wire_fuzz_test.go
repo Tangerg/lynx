@@ -64,7 +64,7 @@ func FuzzPlanJSON(f *testing.F) {
 
 func FuzzOutputJSON(f *testing.F) {
 	f.Add([]byte(`{"outcome":"unreachable","world_state":{"conditions":[]},"attempts":[],"planning_passes":1}`))
-	f.Add([]byte(`{"outcome":"stuck","world_state":{"conditions":[]},"attempts":[{"action":"action.finish","status":"failed","diagnostic":"refused"}],"planning_passes":1}`))
+	f.Add([]byte(`{"outcome":"stuck","world_state":{"conditions":[]},"attempts":[{"action_name":"action.finish","status":"failed","diagnostic":"refused"}],"planning_passes":1}`))
 	f.Add([]byte(`{"outcome":"achieved","world_state":{"conditions":[]},"attempts":[],"planning_passes":0}`))
 	f.Fuzz(func(t *testing.T, data []byte) {
 		var output planning.Output

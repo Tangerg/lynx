@@ -256,6 +256,7 @@ Extension 只承载可选横切行为。忽略后会破坏所有实现正确性�
 - 避免 `Do`、`Handle`、`Process`、`Manage` 等脱离上下文无法判断行为的动词。
 - 避免 package stutter、`GetX/SetX`、`Impl/Service/Manager/Helper` 和泛文件名。
 - 字段名、JSON tag、事件字段和文档术语保持一致。
+- sequence、cursor、index、reference 等相对词必须带 owner 或作用域；只保存 exact identity 的值不得借用完整 behavior binding 的名称。
 - 共同协议只使用 `SignalID`、`WaitID`、`EffectID` 等具名身份；不得用 `Correlation`、`Token`、`Key` 同时表示投递、等待和副作用身份。
 - 模型可见的 Tool 名称、描述和参数名按模型视角编写，明确边界、格式和错误条件。
 - 重命名后同步修改注释、测试、wire 和文档，不留漂移引用。
@@ -347,6 +348,7 @@ Extension 只承载可选横切行为。忽略后会破坏所有实现正确性�
 - 不使用 fluent builder、全局注册表、隐式默认 Strategy 或 package-global Engine。
 - 同一行为只保留一个权威入口；便利 API 必须确实减少概念，而不是制造同义入口。
 - exported GoDoc 写清行为、参数、返回、错误、副作用、并发和恢复合同。
+- exported callable 参数必须具名；每个 exported struct field 独立说明自身语义，不能用一条漂移注释覆盖多个字段。
 
 ### 4.8 Error 与失败语义
 

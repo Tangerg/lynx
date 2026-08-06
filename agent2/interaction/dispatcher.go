@@ -13,6 +13,25 @@ import (
 	"github.com/Tangerg/lynx/tool"
 )
 
+// DispatcherConfig binds external capabilities for one Deployment.
+type DispatcherConfig struct {
+	// Client provides complete and optional streaming model calls.
+	Client *chatclient.Client
+
+	// Tools is the frozen ordinary model-visible and executable Tool manifest.
+	// Managed Delegate definitions come from the bound Definition.
+	Tools []tool.Tool
+
+	// MaxConcurrentToolCalls bounds calls that explicitly declare safe overlap.
+	// Zero preserves serial execution; negative values are invalid. Undeclared
+	// calls and calls with the same non-empty concurrency key remain serial.
+	MaxConcurrentToolCalls int
+
+	// StreamModelResponses selects Client.Stream and publishes each validated
+	// response chunk as a best-effort ModelResponseDelta. False uses Client.Call.
+	StreamModelResponses bool
+}
+
 type boundTool struct {
 	executable tool.Tool
 	direct     bool
@@ -51,7 +70,7 @@ func NewDispatcher(definition *Definition, config DispatcherConfig) (*Dispatcher
 		maxParallel: maxParallel,
 	}
 	for index, executable := range config.Tools {
-		if nilValue(executable) {
+		if isNilTool(executable) {
 			return nil, fmt.Errorf("%w: Tools[%d] is nil", ErrInvalidDispatcherConfig, index)
 		}
 		definition, err := toolDefinition(executable)
@@ -117,7 +136,7 @@ func (dispatcher *Dispatcher) Dispatch(
 // ReplayPolicy is deliberately conservative. Model calls may incur cost and
 // produce a different answer, while Tools may have irreversible side effects;
 // neither is replayed after a crash without an explicit Process resolution.
-func (*Dispatcher) ReplayPolicy(agent.Effect) agent.ReplayPolicy {
+func (*Dispatcher) ReplayPolicy(effect agent.Effect) agent.ReplayPolicy {
 	return agent.ReplayPolicyNever
 }
 
@@ -362,7 +381,7 @@ func toolDefinition(executable tool.Tool) (definition chat.ToolDefinition, err e
 	defer func() {
 		if recovered := recover(); recovered != nil {
 			definition = chat.ToolDefinition{}
-			err = fmt.Errorf("Definition panicked: %v", recovered)
+			err = fmt.Errorf("tool definition panicked: %v", recovered)
 		}
 	}()
 	definition = executable.Definition()
@@ -380,7 +399,7 @@ func cloneDefinitions(definitions []chat.ToolDefinition) []chat.ToolDefinition {
 	return cloned
 }
 
-func nilValue(value any) bool {
+func isNilTool(value any) bool {
 	if value == nil {
 		return true
 	}

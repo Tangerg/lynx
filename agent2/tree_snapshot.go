@@ -11,12 +11,15 @@ import (
 )
 
 const (
-	treeSnapshotSchemaVersion = 1
+	treeSnapshotSchemaVersion = 2
 	maxTreeSnapshotBytes      = 512 << 20
 )
 
 var (
-	ErrInvalidTreeSnapshot  = errors.New("agent: invalid process tree snapshot")
+	// ErrInvalidTreeSnapshot reports malformed or inconsistent tree state.
+	ErrInvalidTreeSnapshot = errors.New("agent: invalid process tree snapshot")
+	// ErrTreeSnapshotRequired reports an operation that would omit related
+	// Processes from an existing tree.
 	ErrTreeSnapshotRequired = errors.New("agent: process belongs to a tree; use a tree snapshot")
 )
 
@@ -60,7 +63,7 @@ func ParseTreeSnapshot(data json.RawMessage) (TreeSnapshot, error) {
 		)
 	}
 	return TreeSnapshot{
-		data: normalized, rootID: wire.RootID, processes: slices.Clone(wire.Processes),
+		data: normalized, rootID: wire.RootID, processes: slices.Clone(wire.ProcessSnapshots),
 	}, nil
 }
 
@@ -88,6 +91,7 @@ func (snapshot TreeSnapshot) Valid() bool {
 	return len(snapshot.data) > 0 && snapshot.rootID.Valid() && len(snapshot.processes) > 0
 }
 
+// MarshalJSON returns the validated portable Process tree snapshot.
 func (snapshot TreeSnapshot) MarshalJSON() ([]byte, error) {
 	if !snapshot.Valid() {
 		return nil, ErrInvalidTreeSnapshot
@@ -95,6 +99,7 @@ func (snapshot TreeSnapshot) MarshalJSON() ([]byte, error) {
 	return bytes.Clone(snapshot.data), nil
 }
 
+// UnmarshalJSON replaces snapshot with a strictly decoded tree snapshot.
 func (snapshot *TreeSnapshot) UnmarshalJSON(data []byte) error {
 	if snapshot == nil {
 		return fmt.Errorf("%w: nil receiver", ErrInvalidTreeSnapshot)
@@ -130,14 +135,14 @@ type childWaitSnapshotWire struct {
 }
 
 type treeSnapshotWire struct {
-	SchemaVersion uint16                  `json:"schema_version"`
-	RootID        ProcessID               `json:"root_id"`
-	Processes     []Snapshot              `json:"processes"`
-	ChildWaits    []childWaitSnapshotWire `json:"child_waits,omitempty"`
+	SchemaVersion    uint16                  `json:"schema_version"`
+	RootID           ProcessID               `json:"root_id"`
+	ProcessSnapshots []Snapshot              `json:"process_snapshots"`
+	ChildWaits       []childWaitSnapshotWire `json:"child_waits,omitempty"`
 }
 
 func normalizeTreeSnapshot(wire *treeSnapshotWire) {
-	slices.SortFunc(wire.Processes, compareSnapshots)
+	slices.SortFunc(wire.ProcessSnapshots, compareSnapshots)
 	slices.SortFunc(wire.ChildWaits, func(left, right childWaitSnapshotWire) int {
 		return cmp.Compare(left.WaitID.String(), right.WaitID.String())
 	})
@@ -151,11 +156,11 @@ func compareSnapshots(left, right Snapshot) int {
 }
 
 func validateTreeSnapshot(wire treeSnapshotWire) error {
-	if wire.SchemaVersion != treeSnapshotSchemaVersion || !wire.RootID.Valid() || len(wire.Processes) == 0 {
+	if wire.SchemaVersion != treeSnapshotSchemaVersion || !wire.RootID.Valid() || len(wire.ProcessSnapshots) == 0 {
 		return fmt.Errorf("%w: incomplete tree identity", ErrInvalidTreeSnapshot)
 	}
-	processes := make(map[ProcessID]processSnapshotWire, len(wire.Processes))
-	for _, snapshot := range wire.Processes {
+	processes := make(map[ProcessID]processSnapshotWire, len(wire.ProcessSnapshots))
+	for _, snapshot := range wire.ProcessSnapshots {
 		processWire, err := snapshot.wire()
 		if err != nil {
 			return fmt.Errorf("%w: Process: %w", ErrInvalidTreeSnapshot, err)
@@ -277,7 +282,7 @@ func (engine *Engine) CaptureTree(ctx context.Context, rootID ProcessID) (TreeSn
 	if engine == nil || !rootID.Valid() {
 		return TreeSnapshot{}, ErrInvalidProcessRelation
 	}
-	ctx = normalizedContext(ctx)
+	ctx = contextOrBackground(ctx)
 	engine.treeOperationMu.Lock()
 	defer engine.treeOperationMu.Unlock()
 	release := make(chan struct{})
@@ -296,7 +301,7 @@ func (engine *Engine) CaptureTree(ctx context.Context, rootID ProcessID) (TreeSn
 				}
 				continue
 			}
-			if _, ready := quiesced[controller.id]; ready {
+			if _, ready := quiesced[controller.processID]; ready {
 				continue
 			}
 			complete = false
@@ -313,9 +318,9 @@ func (engine *Engine) CaptureTree(ctx context.Context, rootID ProcessID) (TreeSn
 				return TreeSnapshot{}, err
 			}
 			if !response.accepted {
-				return TreeSnapshot{}, ErrEngineBusy
+				return TreeSnapshot{}, ErrEngineQuiescenceUnavailable
 			}
-			quiesced[controller.id] = struct{}{}
+			quiesced[controller.processID] = struct{}{}
 		}
 		if complete {
 			break
@@ -332,7 +337,7 @@ func (engine *Engine) CaptureTree(ctx context.Context, rootID ProcessID) (TreeSn
 			var ok bool
 			snapshot, err, ok = controller.finishedSnapshot()
 			if !ok {
-				return TreeSnapshot{}, ErrEngineBusy
+				return TreeSnapshot{}, ErrEngineQuiescenceUnavailable
 			}
 		} else {
 			response, requestErr := (&Process{controller: controller}).request(ctx, processCommand{kind: commandCapture})
@@ -342,7 +347,7 @@ func (engine *Engine) CaptureTree(ctx context.Context, rootID ProcessID) (TreeSn
 		if err != nil {
 			return TreeSnapshot{}, err
 		}
-		wire.Processes = append(wire.Processes, snapshot)
+		wire.ProcessSnapshots = append(wire.ProcessSnapshots, snapshot)
 	}
 	engine.mu.RLock()
 	for _, registration := range engine.childWaits {
@@ -376,7 +381,7 @@ func (engine *Engine) treeControllers(rootID ProcessID) ([]*processController, e
 		if order := cmp.Compare(left.relation.Depth(), right.relation.Depth()); order != 0 {
 			return order
 		}
-		return cmp.Compare(left.id.String(), right.id.String())
+		return cmp.Compare(left.processID.String(), right.processID.String())
 	})
 	return controllers, nil
 }
@@ -393,7 +398,7 @@ func waitTreeSettled(ctx context.Context, controller *processController) error {
 type restoredTreeProcess struct {
 	snapshot   Snapshot
 	controller *processController
-	runtime    *processRuntime
+	loop       *processLoop
 	wire       processSnapshotWire
 }
 
@@ -416,15 +421,15 @@ func (engine *Engine) RestoreTree(
 	if err != nil {
 		return nil, err
 	}
-	rootSnapshot := snapshotByID(wire.Processes, wire.RootID)
-	if !rootSnapshot.Valid() || rootSnapshot.DeploymentRef() != rootDeployment.Reference() {
+	rootSnapshot := snapshotByID(wire.ProcessSnapshots, wire.RootID)
+	if !rootSnapshot.Valid() || rootSnapshot.DeploymentRef() != rootDeployment.DeploymentRef() {
 		return nil, fmt.Errorf("%w: exact root Deployment does not match", ErrInvalidTreeSnapshot)
 	}
 	engine.treeOperationMu.Lock()
 	defer engine.treeOperationMu.Unlock()
-	deployments := map[DeploymentRef]Deployment{rootDeployment.Reference(): rootDeployment}
-	restored := make([]restoredTreeProcess, 0, len(wire.Processes))
-	for _, processSnapshot := range wire.Processes {
+	deployments := map[DeploymentRef]Deployment{rootDeployment.DeploymentRef(): rootDeployment}
+	restored := make([]restoredTreeProcess, 0, len(wire.ProcessSnapshots))
+	for _, processSnapshot := range wire.ProcessSnapshots {
 		deployment := deployments[processSnapshot.DeploymentRef()]
 		if !deployment.Valid() {
 			if engine.resolver == nil {
@@ -434,25 +439,31 @@ func (engine *Engine) RestoreTree(
 				)
 			}
 			deployment, err = resolveDeployment(engine.resolver, processSnapshot.DeploymentRef())
-			if err != nil || !deployment.Valid() || deployment.Reference() != processSnapshot.DeploymentRef() {
+			if err != nil {
 				return nil, fmt.Errorf(
-					"%w: resolve exact Deployment %s: %v",
+					"%w: resolve exact Deployment %s: %w",
 					ErrInvalidTreeSnapshot, processSnapshot.DeploymentRef().Name(), err,
+				)
+			}
+			if !deployment.Valid() || deployment.DeploymentRef() != processSnapshot.DeploymentRef() {
+				return nil, fmt.Errorf(
+					"%w: resolver returned a mismatched Deployment for %s",
+					ErrInvalidTreeSnapshot, processSnapshot.DeploymentRef().Name(),
 				)
 			}
 			deployments[processSnapshot.DeploymentRef()] = deployment
 		}
-		controller, runtime, processWire, err := prepareRestoredProcess(
+		controller, loop, processWire, err := prepareRestoredProcess(
 			engine, deployment, processSnapshot,
 		)
 		if err != nil {
 			return nil, fmt.Errorf(
-				"%w: restore Process %s: %v", ErrInvalidTreeSnapshot,
+				"%w: restore Process %s: %w", ErrInvalidTreeSnapshot,
 				processSnapshot.ProcessID(), err,
 			)
 		}
 		restored = append(restored, restoredTreeProcess{
-			snapshot: processSnapshot, controller: controller, runtime: runtime, wire: processWire,
+			snapshot: processSnapshot, controller: controller, loop: loop, wire: processWire,
 		})
 	}
 	waitRegistrations := make([]*childWaitRegistration, 0, len(wire.ChildWaits))
@@ -469,21 +480,21 @@ func (engine *Engine) RestoreTree(
 		return nil, err
 	}
 	startGate := make(chan struct{})
-	rootContext := normalizedContext(ctx)
+	rootContext := contextOrBackground(ctx)
 	for index := range restored {
 		entry := &restored[index]
 		if entry.wire.Status.Terminal() {
-			entry.controller.complete(entry.runtime.result(), entry.snapshot, nil)
+			entry.controller.complete(entry.loop.result(), entry.snapshot, nil)
 			continue
 		}
-		entry.runtime.quiescence = &processQuiescence{
+		entry.loop.quiescence = &processQuiescence{
 			command: processCommand{release: startGate},
 		}
 		runContext := context.Background()
-		if entry.controller.id == wire.RootID {
+		if entry.controller.processID == wire.RootID {
 			runContext = rootContext
 		}
-		go entry.runtime.run(runContext)
+		go entry.loop.run(runContext)
 	}
 	for index := len(restored) - 1; index >= 0; index-- {
 		entry := &restored[index]
@@ -508,13 +519,13 @@ func (engine *Engine) registerRestoredTree(
 		return ErrEngineClosed
 	}
 	for _, process := range processes {
-		if _, exists := engine.processes[process.controller.id]; exists {
-			return ErrProcessExists
+		if _, exists := engine.processes[process.controller.processID]; exists {
+			return ErrProcessAlreadyExists
 		}
 		if parentID, child := process.controller.relation.ParentID(); child {
 			key, _ := process.controller.relation.ChildKey()
 			if _, exists := engine.children[childIdentity{parent: parentID, key: key}]; exists {
-				return ErrInvalidChild
+				return ErrInvalidChildStart
 			}
 		}
 	}
@@ -525,10 +536,10 @@ func (engine *Engine) registerRestoredTree(
 	}
 	for _, process := range processes {
 		controller := process.controller
-		engine.processes[controller.id] = controller
+		engine.processes[controller.processID] = controller
 		if parentID, child := controller.relation.ParentID(); child {
 			key, _ := controller.relation.ChildKey()
-			engine.children[childIdentity{parent: parentID, key: key}] = controller.id
+			engine.children[childIdentity{parent: parentID, key: key}] = controller.processID
 		}
 	}
 	for _, wait := range waits {
@@ -548,7 +559,7 @@ func snapshotByID(snapshots []Snapshot, id ProcessID) Snapshot {
 
 func restoredProcessByID(processes []restoredTreeProcess, id ProcessID) restoredTreeProcess {
 	for _, process := range processes {
-		if process.controller.id == id {
+		if process.controller.processID == id {
 			return process
 		}
 	}

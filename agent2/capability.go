@@ -8,6 +8,7 @@ import (
 	"slices"
 )
 
+// ErrInvalidCapability reports a malformed capability name or set.
 var ErrInvalidCapability = errors.New("agent: invalid capability")
 
 // Capability is one stable qualified authority name understood by a
@@ -29,6 +30,7 @@ func (capability Capability) String() string { return capability.name }
 // Valid reports whether the capability has a valid qualified name.
 func (capability Capability) Valid() bool { return validQualifiedName(capability.name) }
 
+// MarshalText returns the validated qualified capability name.
 func (capability Capability) MarshalText() ([]byte, error) {
 	if !capability.Valid() {
 		return nil, ErrInvalidCapability
@@ -36,6 +38,7 @@ func (capability Capability) MarshalText() ([]byte, error) {
 	return []byte(capability.name), nil
 }
 
+// UnmarshalText replaces capability with a validated qualified name.
 func (capability *Capability) UnmarshalText(text []byte) error {
 	if capability == nil {
 		return ErrInvalidCapability
@@ -104,6 +107,7 @@ func (set CapabilitySet) Valid() bool {
 	return true
 }
 
+// MarshalJSON returns the canonical ordered capability set.
 func (set CapabilitySet) MarshalJSON() ([]byte, error) {
 	if !set.Valid() {
 		return nil, ErrInvalidCapability
@@ -111,6 +115,7 @@ func (set CapabilitySet) MarshalJSON() ([]byte, error) {
 	return json.Marshal(set.values)
 }
 
+// UnmarshalJSON replaces set with a validated canonical capability set.
 func (set *CapabilitySet) UnmarshalJSON(data []byte) error {
 	if set == nil {
 		return ErrInvalidCapability
@@ -118,10 +123,10 @@ func (set *CapabilitySet) UnmarshalJSON(data []byte) error {
 	var values []Capability
 	decoder := json.NewDecoder(bytes.NewReader(data))
 	if err := decoder.Decode(&values); err != nil {
-		return fmt.Errorf("%w: %v", ErrInvalidCapability, err)
+		return fmt.Errorf("%w: %w", ErrInvalidCapability, err)
 	}
 	if err := requireJSONEOF(decoder); err != nil {
-		return fmt.Errorf("%w: %v", ErrInvalidCapability, err)
+		return fmt.Errorf("%w: %w", ErrInvalidCapability, err)
 	}
 	value, err := NewCapabilitySet(values...)
 	if err != nil || len(value.values) != len(values) {

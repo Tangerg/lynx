@@ -34,6 +34,7 @@ func (condition Condition) Valid() bool {
 	return validName(condition.key) && condition.truth.known()
 }
 
+// MarshalJSON returns the validated immutable condition.
 func (condition Condition) MarshalJSON() ([]byte, error) {
 	if !condition.Valid() {
 		return nil, ErrInvalidCondition
@@ -41,6 +42,7 @@ func (condition Condition) MarshalJSON() ([]byte, error) {
 	return json.Marshal(conditionWire{Key: condition.key, Truth: condition.truth})
 }
 
+// UnmarshalJSON replaces condition with a strictly decoded known truth.
 func (condition *Condition) UnmarshalJSON(data []byte) error {
 	if condition == nil {
 		return fmt.Errorf("%w: nil receiver", ErrInvalidCondition)

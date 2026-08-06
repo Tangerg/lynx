@@ -76,39 +76,39 @@ type delegateSegmentState struct {
 
 func (state executionState) Validate(definition *Definition) error {
 	if !definition.valid() {
-		return ErrInvalidState
+		return ErrInvalidExecutionState
 	}
 	if !state.Phase.valid() {
-		return fmt.Errorf("%w: unknown phase %q", ErrInvalidState, state.Phase)
+		return fmt.Errorf("%w: unknown phase %q", ErrInvalidExecutionState, state.Phase)
 	}
 	if state.Request == nil {
-		return fmt.Errorf("%w: request is required", ErrInvalidState)
+		return fmt.Errorf("%w: request is required", ErrInvalidExecutionState)
 	}
 	if err := state.Request.Validate(); err != nil {
-		return fmt.Errorf("%w: request: %w", ErrInvalidState, err)
+		return fmt.Errorf("%w: request: %w", ErrInvalidExecutionState, err)
 	}
 	if len(state.Request.Tools) != 0 {
-		return fmt.Errorf("%w: executable tool definitions do not belong in WorkingContext", ErrInvalidState)
+		return fmt.Errorf("%w: executable tool definitions do not belong in WorkingContext", ErrInvalidExecutionState)
 	}
 	if state.ModelCalls > definition.maxModelCalls {
-		return fmt.Errorf("%w: model call count exceeds configured limit", ErrInvalidState)
+		return fmt.Errorf("%w: model call count exceeds configured limit", ErrInvalidExecutionState)
 	}
 	if err := state.validateArtifacts(definition); err != nil {
 		return err
 	}
 	if len(state.Steering) > 0 {
 		if err := validateSteeringMessages(state.Steering); err != nil {
-			return fmt.Errorf("%w: %v", ErrInvalidState, err)
+			return fmt.Errorf("%w: %w", ErrInvalidExecutionState, err)
 		}
 	}
 	switch state.Phase {
 	case phaseReadyModel:
 		if state.hasPendingBatch() || state.WaitID != nil || len(state.Steering) != 0 || state.FinalOutput != nil {
-			return fmt.Errorf("%w: ready_model has inconsistent pending response or limit", ErrInvalidState)
+			return fmt.Errorf("%w: ready_model has inconsistent pending response or limit", ErrInvalidExecutionState)
 		}
 	case phaseAwaitingModel:
 		if state.hasPendingBatch() || state.WaitID != nil || len(state.Steering) != 0 || state.FinalOutput != nil || state.ModelCalls == 0 {
-			return fmt.Errorf("%w: awaiting_model has inconsistent pending response or limit", ErrInvalidState)
+			return fmt.Errorf("%w: awaiting_model has inconsistent pending response or limit", ErrInvalidExecutionState)
 		}
 	case phaseAwaitingTools, phaseAwaitingWaitID, phaseWaitingInput,
 		phaseAwaitingDelegateStarts, phaseAwaitingDelegateWaitID, phaseWaitingDelegates:
@@ -122,64 +122,64 @@ func (state executionState) Validate(definition *Definition) error {
 		for _, call := range active {
 			_, delegated := definition.delegate(call.Name)
 			if delegated != delegateSegment {
-				return fmt.Errorf("%w: active call segment mixes Tool and Delegate ownership", ErrInvalidState)
+				return fmt.Errorf("%w: active call segment mixes Tool and Delegate ownership", ErrInvalidExecutionState)
 			}
 		}
 		if delegateSegment {
 			if state.ToolCheckpoint != nil || state.DelegateSegment == nil {
-				return fmt.Errorf("%w: Delegate phase has inconsistent batch state", ErrInvalidState)
+				return fmt.Errorf("%w: Delegate phase has inconsistent batch state", ErrInvalidExecutionState)
 			}
 			if err := state.DelegateSegment.validate(state.Phase, active); err != nil {
 				return err
 			}
 		} else if state.DelegateSegment != nil {
-			return fmt.Errorf("%w: Tool phase contains Delegate state", ErrInvalidState)
+			return fmt.Errorf("%w: Tool phase contains Delegate state", ErrInvalidExecutionState)
 		}
 		switch state.Phase {
 		case phaseAwaitingTools:
 			if state.WaitID != nil {
-				return fmt.Errorf("%w: awaiting_tools contains a WaitID", ErrInvalidState)
+				return fmt.Errorf("%w: awaiting_tools contains a WaitID", ErrInvalidExecutionState)
 			}
 			if state.ToolCheckpoint != nil {
 				if err := state.ToolCheckpoint.validate(active); err != nil {
-					return fmt.Errorf("%w: %w", ErrInvalidState, err)
+					return fmt.Errorf("%w: %w", ErrInvalidExecutionState, err)
 				}
 			}
 		case phaseAwaitingWaitID, phaseWaitingInput:
 			if state.ToolCheckpoint == nil {
-				return fmt.Errorf("%w: input waiting phase requires a Tool checkpoint", ErrInvalidState)
+				return fmt.Errorf("%w: input waiting phase requires a Tool checkpoint", ErrInvalidExecutionState)
 			}
 			if err := state.ToolCheckpoint.validate(active); err != nil {
-				return fmt.Errorf("%w: %w", ErrInvalidState, err)
+				return fmt.Errorf("%w: %w", ErrInvalidExecutionState, err)
 			}
 			if state.Phase == phaseAwaitingWaitID && state.WaitID != nil {
-				return fmt.Errorf("%w: awaiting_wait_id already has a WaitID", ErrInvalidState)
+				return fmt.Errorf("%w: awaiting_wait_id already has a WaitID", ErrInvalidExecutionState)
 			}
 			if state.Phase == phaseWaitingInput && (state.WaitID == nil || !state.WaitID.Valid()) {
-				return fmt.Errorf("%w: waiting_input requires an Engine WaitID", ErrInvalidState)
+				return fmt.Errorf("%w: waiting_input requires an Engine WaitID", ErrInvalidExecutionState)
 			}
 		case phaseAwaitingDelegateStarts:
 			if state.WaitID != nil {
-				return fmt.Errorf("%w: awaiting Delegate starts contains a WaitID", ErrInvalidState)
+				return fmt.Errorf("%w: awaiting Delegate starts contains a WaitID", ErrInvalidExecutionState)
 			}
 		case phaseAwaitingDelegateWaitID:
 			if state.WaitID != nil {
-				return fmt.Errorf("%w: awaiting Delegate wait contains a WaitID", ErrInvalidState)
+				return fmt.Errorf("%w: awaiting Delegate wait contains a WaitID", ErrInvalidExecutionState)
 			}
 		case phaseWaitingDelegates:
 			if state.WaitID == nil || !state.WaitID.Valid() {
-				return fmt.Errorf("%w: waiting_delegates requires an Engine WaitID", ErrInvalidState)
+				return fmt.Errorf("%w: waiting_delegates requires an Engine WaitID", ErrInvalidExecutionState)
 			}
 		}
 	case phaseCompleted:
 		if state.hasPendingBatch() || state.WaitID != nil || len(state.Steering) != 0 || state.FinalOutput == nil || state.ModelCalls == 0 {
-			return fmt.Errorf("%w: completed state requires only its final Output", ErrInvalidState)
+			return fmt.Errorf("%w: completed state requires only its final Output", ErrInvalidExecutionState)
 		}
 		if err := state.FinalOutput.Validate(); err != nil {
-			return fmt.Errorf("%w: final Output: %w", ErrInvalidState, err)
+			return fmt.Errorf("%w: final Output: %w", ErrInvalidExecutionState, err)
 		}
 		if state.FinalOutput.ModelCalls != state.ModelCalls {
-			return fmt.Errorf("%w: final Output model-call count does not match state", ErrInvalidState)
+			return fmt.Errorf("%w: final Output model-call count does not match state", ErrInvalidExecutionState)
 		}
 	}
 	return nil
@@ -197,19 +197,19 @@ func (state executionState) validateArtifacts(definition *Definition) error {
 		delegate, found := definition.delegate(artifact.DelegateName)
 		if artifact.ModelCall == 0 || artifact.ModelCall > state.ModelCalls ||
 			artifact.CallID == "" || !found || !artifact.Output.Valid() {
-			return fmt.Errorf("%w: artifact %d has invalid identity or output", ErrInvalidState, index)
+			return fmt.Errorf("%w: artifact %d has invalid identity or output", ErrInvalidExecutionState, index)
 		}
 		if index > 0 && (artifact.ModelCall < previousModelCall ||
 			artifact.ModelCall == previousModelCall && artifact.CallIndex <= previousCallIndex) {
-			return fmt.Errorf("%w: artifacts are not in strict ToolCall order", ErrInvalidState)
+			return fmt.Errorf("%w: artifacts are not in strict ToolCall order", ErrInvalidExecutionState)
 		}
 		identity := artifactIdentity{modelCall: artifact.ModelCall, callID: artifact.CallID}
 		if _, duplicate := seen[identity]; duplicate {
-			return fmt.Errorf("%w: duplicate artifact ToolCall identity", ErrInvalidState)
+			return fmt.Errorf("%w: duplicate artifact ToolCall identity", ErrInvalidExecutionState)
 		}
 		seen[identity] = struct{}{}
 		if err := delegate.outputSchema.ValidateOutput(artifact.Output); err != nil {
-			return fmt.Errorf("%w: artifact %d violates Delegate output contract", ErrInvalidState, index)
+			return fmt.Errorf("%w: artifact %d violates Delegate output contract", ErrInvalidExecutionState, index)
 		}
 		previousModelCall = artifact.ModelCall
 		previousCallIndex = artifact.CallIndex
@@ -223,29 +223,29 @@ func (state executionState) validateCurrentBatchArtifacts(definition *Definition
 	}
 	calls, _, err := responseToolCalls(state.PendingResponse)
 	if err != nil {
-		return fmt.Errorf("%w: current-round artifact has no pending ToolCall batch", ErrInvalidState)
+		return fmt.Errorf("%w: current-round artifact has no pending ToolCall batch", ErrInvalidExecutionState)
 	}
 	for _, artifact := range state.Artifacts {
 		if artifact.ModelCall != state.ModelCalls {
 			continue
 		}
 		if artifact.CallIndex >= state.NextCall || uint64(artifact.CallIndex) >= uint64(len(calls)) {
-			return fmt.Errorf("%w: current-round artifact is not settled", ErrInvalidState)
+			return fmt.Errorf("%w: current-round artifact is not settled", ErrInvalidExecutionState)
 		}
 		if uint64(artifact.CallIndex) >= uint64(len(state.SettledResults)) {
-			return fmt.Errorf("%w: current-round artifact has no settled result", ErrInvalidState)
+			return fmt.Errorf("%w: current-round artifact has no settled result", ErrInvalidExecutionState)
 		}
 		call := calls[artifact.CallIndex]
 		if call.ID != artifact.CallID || call.Name != artifact.DelegateName {
-			return fmt.Errorf("%w: current-round artifact does not match ToolCall", ErrInvalidState)
+			return fmt.Errorf("%w: current-round artifact does not match ToolCall", ErrInvalidExecutionState)
 		}
 		if _, found := definition.delegate(call.Name); !found {
-			return fmt.Errorf("%w: current-round artifact is not a Delegate output", ErrInvalidState)
+			return fmt.Errorf("%w: current-round artifact is not a Delegate output", ErrInvalidExecutionState)
 		}
 		result := state.SettledResults[artifact.CallIndex]
 		if result.IsError || result.ID != call.ID || result.Name != call.Name ||
 			result.Result != string(artifact.Output.JSON()) {
-			return fmt.Errorf("%w: current-round artifact does not match settled result", ErrInvalidState)
+			return fmt.Errorf("%w: current-round artifact does not match settled result", ErrInvalidExecutionState)
 		}
 	}
 	return nil
@@ -259,44 +259,44 @@ func (state executionState) hasPendingBatch() bool {
 
 func (state executionState) validatePendingBatch(definition *Definition) ([]chat.ToolCall, error) {
 	if state.PendingResponse == nil || state.FinalOutput != nil || state.ModelCalls == 0 {
-		return nil, fmt.Errorf("%w: active call phase requires a model response", ErrInvalidState)
+		return nil, fmt.Errorf("%w: active call phase requires a model response", ErrInvalidExecutionState)
 	}
 	if err := state.PendingResponse.Validate(); err != nil {
-		return nil, fmt.Errorf("%w: pending response: %w", ErrInvalidState, err)
+		return nil, fmt.Errorf("%w: pending response: %w", ErrInvalidExecutionState, err)
 	}
 	calls, _, err := responseToolCalls(state.PendingResponse)
 	if err != nil || len(calls) == 0 || uint64(len(calls)) > uint64(^uint32(0)) {
-		return nil, fmt.Errorf("%w: pending response has no bounded unambiguous tool calls", ErrInvalidState)
+		return nil, fmt.Errorf("%w: pending response has no bounded unambiguous tool calls", ErrInvalidExecutionState)
 	}
 	if state.NextCall != uint32(len(state.SettledResults)) ||
 		state.NextCall >= state.ActiveCallEnd || uint64(state.ActiveCallEnd) > uint64(len(calls)) {
-		return nil, fmt.Errorf("%w: pending call cursor is inconsistent", ErrInvalidState)
+		return nil, fmt.Errorf("%w: pending call cursor is inconsistent", ErrInvalidExecutionState)
 	}
 	if err := validateToolResults(calls[:state.NextCall], state.SettledResults); err != nil {
 		return nil, err
 	}
 	if !state.DirectResultEligible && state.NextCall == 0 && state.Phase == phaseAwaitingTools {
-		return nil, fmt.Errorf("%w: fresh Tool batch lost its direct-result candidate", ErrInvalidState)
+		return nil, fmt.Errorf("%w: fresh Tool batch lost its direct-result candidate", ErrInvalidExecutionState)
 	}
 	return calls, nil
 }
 
 func (segment delegateSegmentState) validate(current phase, calls []chat.ToolCall) error {
 	if len(segment.Invocations) != len(calls) {
-		return fmt.Errorf("%w: Delegate batch length does not match calls", ErrInvalidState)
+		return fmt.Errorf("%w: Delegate batch length does not match calls", ErrInvalidExecutionState)
 	}
 	pending := 0
 	started := 0
 	for index, invocation := range segment.Invocations {
 		if invocation.Key != nil && !invocation.Key.Valid() ||
 			invocation.ProcessID != nil && !invocation.ProcessID.Valid() {
-			return fmt.Errorf("%w: Delegate call %d has invalid Framework identity", ErrInvalidState, index)
+			return fmt.Errorf("%w: Delegate call %d has invalid Framework identity", ErrInvalidExecutionState, index)
 		}
 		if invocation.Result != nil {
 			if err := invocation.Result.Validate(); err != nil ||
 				invocation.Result.ID != calls[index].ID || invocation.Result.Name != calls[index].Name ||
 				!invocation.Result.IsError {
-				return fmt.Errorf("%w: Delegate result %d does not match its call", ErrInvalidState, index)
+				return fmt.Errorf("%w: Delegate result %d does not match its call", ErrInvalidExecutionState, index)
 			}
 		}
 		switch {
@@ -306,13 +306,13 @@ func (segment delegateSegmentState) validate(current phase, calls []chat.ToolCal
 			started++
 		case invocation.ProcessID == nil && invocation.Result != nil:
 		default:
-			return fmt.Errorf("%w: Delegate call %d has contradictory settlement", ErrInvalidState, index)
+			return fmt.Errorf("%w: Delegate call %d has contradictory settlement", ErrInvalidExecutionState, index)
 		}
 	}
 	if current == phaseAwaitingDelegateStarts && (pending == 0 || started != 0) ||
 		current != phaseAwaitingDelegateStarts && pending != 0 ||
 		(current == phaseAwaitingDelegateWaitID || current == phaseWaitingDelegates) && started == 0 {
-		return fmt.Errorf("%w: Delegate batch phase does not match settlements", ErrInvalidState)
+		return fmt.Errorf("%w: Delegate batch phase does not match settlements", ErrInvalidExecutionState)
 	}
 	return nil
 }
@@ -321,15 +321,15 @@ func (state executionState) validatePendingToolInput() error {
 	if state.Phase != phaseWaitingInput || state.Request == nil || state.ModelCalls == 0 ||
 		state.PendingResponse == nil || state.FinalOutput != nil || state.DelegateSegment != nil ||
 		state.ToolCheckpoint == nil || state.WaitID == nil || !state.WaitID.Valid() {
-		return ErrInvalidState
+		return ErrInvalidExecutionState
 	}
 	if err := state.Request.Validate(); err != nil || len(state.Request.Tools) != 0 {
-		return ErrInvalidState
+		return ErrInvalidExecutionState
 	}
 	calls, _, err := responseToolCalls(state.PendingResponse)
 	if err != nil || state.NextCall != uint32(len(state.SettledResults)) ||
 		state.NextCall >= state.ActiveCallEnd || uint64(state.ActiveCallEnd) > uint64(len(calls)) {
-		return ErrInvalidState
+		return ErrInvalidExecutionState
 	}
 	if err := validateToolResults(calls[:state.NextCall], state.SettledResults); err != nil {
 		return err

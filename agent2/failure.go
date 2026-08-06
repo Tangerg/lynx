@@ -13,6 +13,7 @@ const (
 	maxFailureMessageBytes = 4096
 )
 
+// ErrInvalidFailure reports a malformed stable execution failure fact.
 var ErrInvalidFailure = errors.New("agent: invalid failure")
 
 // FailureKind is the stable framework-level classification of a failed
@@ -20,13 +21,19 @@ var ErrInvalidFailure = errors.New("agent: invalid failure")
 type FailureKind uint8
 
 const (
+	// FailureKindInvalid is the invalid zero value.
 	FailureKindInvalid FailureKind = iota
+	// FailureKindExecution identifies an ordinary Strategy execution failure.
 	FailureKindExecution
+	// FailureKindContract identifies a violated Framework or Strategy contract.
 	FailureKindContract
+	// FailureKindExternal identifies failed external infrastructure.
 	FailureKindExternal
+	// FailureKindPanic identifies a recovered panic at an execution boundary.
 	FailureKindPanic
 )
 
+// String returns the stable failure-kind name.
 func (kind FailureKind) String() string {
 	switch kind {
 	case FailureKindExecution:
@@ -95,6 +102,7 @@ func (f Failure) Valid() bool {
 		validQualifiedName(f.code) && f.message != ""
 }
 
+// MarshalJSON returns the validated portable failure fact.
 func (f Failure) MarshalJSON() ([]byte, error) {
 	if !f.Valid() {
 		return nil, ErrInvalidFailure
@@ -102,6 +110,7 @@ func (f Failure) MarshalJSON() ([]byte, error) {
 	return json.Marshal(failureWire{Kind: f.kind.String(), Code: f.code, Message: f.message})
 }
 
+// UnmarshalJSON replaces f with a strictly decoded Failure.
 func (f *Failure) UnmarshalJSON(data []byte) error {
 	if f == nil {
 		return fmt.Errorf("%w: nil receiver", ErrInvalidFailure)

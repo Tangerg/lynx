@@ -14,6 +14,35 @@ const (
 	executionStateSchemaVersion = 3
 )
 
+// DefinitionConfig describes immutable Interaction behavior. MaxModelCalls is
+// required because a model-directed loop must have an explicit local stop
+// condition in addition to Engine-wide Effect and Step limits.
+type DefinitionConfig struct {
+	// Name is the stable qualified Definition name.
+	Name string
+
+	// Description states the managed behavior for discovery.
+	Description string
+
+	// Version is the semantic version of the Definition contract.
+	Version string
+
+	// MaxModelCalls bounds model Effects in one Interaction. It must be positive.
+	MaxModelCalls uint32
+
+	// Delegates is the frozen model-visible manifest of exact child
+	// Deployments. Names must be unique within this slice and must not collide
+	// with ordinary Tools bound by the Dispatcher.
+	Delegates []Delegate
+
+	// CompletionValidator optionally verifies a proposed final semantic output
+	// against the current WorkingContext and accumulated typed Delegate
+	// Artifacts. It is a pure Strategy callback whose identity must be covered by
+	// the Deployment's ConfigurationDigest. Nil accepts every otherwise valid
+	// completion.
+	CompletionValidator CompletionValidator
+}
+
 // Definition is an immutable managed model/Tool-loop definition. It contains
 // no model client or executable Tool; those external capabilities belong to
 // the Deployment-bound Dispatcher.
@@ -110,11 +139,11 @@ func (definition *Definition) Restore(state agent.ExecutionState) (agent.Executi
 		return nil, ErrInvalidDefinitionConfig
 	}
 	if state.Kind() != executionStateKind || state.SchemaVersion() != executionStateSchemaVersion {
-		return nil, fmt.Errorf("%w: unsupported kind or schema version", ErrInvalidState)
+		return nil, fmt.Errorf("%w: unsupported kind or schema version", ErrInvalidExecutionState)
 	}
 	var decoded executionState
 	if err := decodeStrict(state.Payload(), &decoded); err != nil {
-		return nil, fmt.Errorf("%w: decode: %w", ErrInvalidState, err)
+		return nil, fmt.Errorf("%w: decode: %w", ErrInvalidExecutionState, err)
 	}
 	if err := decoded.Validate(definition); err != nil {
 		return nil, err
@@ -128,7 +157,7 @@ func (definition *Definition) valid() bool {
 		return false
 	}
 	for _, delegate := range definition.delegates {
-		if !delegate.Valid() || definition.delegateByName[delegate.definition.Name].deployment != delegate.deployment {
+		if !delegate.Valid() || definition.delegateByName[delegate.definition.Name].deploymentRef != delegate.deploymentRef {
 			return false
 		}
 	}

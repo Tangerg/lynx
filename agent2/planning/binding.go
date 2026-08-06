@@ -18,12 +18,14 @@ const (
 // Planning Process input and its latest WorldState. It must perform no I/O and
 // must return the same Input for the same arguments. Nil reuses the Planning
 // Process input unchanged.
-type ChildInputFunc func(agent.Input, WorldState) (agent.Input, error)
+type ChildInputFunc func(processInput agent.Input, worldState WorldState) (agent.Input, error)
 
 // DispatcherBindingConfig binds a predictive Action to the Planning
 // Dispatcher. RequiredCapabilities are enforced by Engine before dispatch.
 type DispatcherBindingConfig struct {
-	Action               Action
+	// Action is the immutable predictive behavior bound to a dispatcher target.
+	Action Action
+	// RequiredCapabilities is the authority required before dispatch.
 	RequiredCapabilities []agent.Capability
 }
 
@@ -31,10 +33,15 @@ type DispatcherBindingConfig struct {
 // Every attempt starts a new child Process with a stable Engine-derived
 // identity, explicit budget, and attenuated capabilities.
 type ChildBindingConfig struct {
-	Action       Action
-	Deployment   agent.DeploymentRef
-	Input        ChildInputFunc
-	Budget       agent.Budget
+	// Action is the immutable predictive behavior delegated to a child Process.
+	Action Action
+	// DeploymentRef identifies the exact child behavior binding.
+	DeploymentRef agent.DeploymentRef
+	// Input deterministically derives child input; nil reuses Process input.
+	Input ChildInputFunc
+	// Budget is permanently allocated to each child attempt.
+	Budget agent.Budget
+	// Capabilities is the attenuated authority granted to each child attempt.
 	Capabilities agent.CapabilitySet
 }
 
@@ -64,14 +71,14 @@ func NewDispatcherBinding(config DispatcherBindingConfig) (ActionBinding, error)
 // NewChildBinding binds an Action to an exact child Process specification. The
 // parent-scoped ChildKey and derived Input are supplied per attempt.
 func NewChildBinding(config ChildBindingConfig) (ActionBinding, error) {
-	if !config.Action.Valid() || !config.Deployment.Valid() || !config.Budget.Valid() || !config.Capabilities.Valid() {
+	if !config.Action.Valid() || !config.DeploymentRef.Valid() || !config.Budget.Valid() || !config.Capabilities.Valid() {
 		return ActionBinding{}, fmt.Errorf("%w: invalid child binding", ErrInvalidAction)
 	}
 	return ActionBinding{
 		action: config.Action,
 		target: bindingTargetChild,
 		child: agent.ChildSpec{
-			Deployment: config.Deployment, Budget: config.Budget, Capabilities: config.Capabilities,
+			DeploymentRef: config.DeploymentRef, Budget: config.Budget, Capabilities: config.Capabilities,
 		},
 		childInput: config.Input,
 	}, nil
@@ -87,10 +94,10 @@ func (binding ActionBinding) Valid() bool {
 	}
 	switch binding.target {
 	case bindingTargetDispatcher:
-		return !binding.child.Deployment.Valid() && !binding.child.Budget.Valid() &&
+		return !binding.child.DeploymentRef.Valid() && !binding.child.Budget.Valid() &&
 			binding.childInput == nil
 	case bindingTargetChild:
-		return len(binding.required.Values()) == 0 && binding.child.Deployment.Valid() &&
+		return len(binding.required.Values()) == 0 && binding.child.DeploymentRef.Valid() &&
 			binding.child.Budget.Valid() && binding.child.Capabilities.Valid()
 	default:
 		return false

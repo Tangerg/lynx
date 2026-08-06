@@ -202,17 +202,17 @@ func newOrchestratorWorkers() (agent.Deployment, deploymentResolver, error) {
 		Definition: definition, Dispatcher: workflow.Dispatcher{},
 		ImplementationDigest: agent.ComputeDigest([]byte("example-orchestrator-workers-implementation")),
 		ConfigurationDigest: agent.ComputeDigest([]byte(
-			"example-orchestrator-workers:" + decomposer.Reference().Digest().String() + ":" +
-				worker.Reference().Digest().String() + ":" + synthesizer.Reference().Digest().String(),
+			"example-orchestrator-workers:" + decomposer.DeploymentRef().Digest().String() + ":" +
+				worker.DeploymentRef().Digest().String() + ":" + synthesizer.DeploymentRef().Digest().String(),
 		)),
 	})
 	if err != nil {
 		return agent.Deployment{}, nil, err
 	}
 	return root, deploymentResolver{
-		decomposer.Reference():  decomposer,
-		worker.Reference():      worker,
-		synthesizer.Reference(): synthesizer,
+		decomposer.DeploymentRef():  decomposer,
+		worker.DeploymentRef():      worker,
+		synthesizer.DeploymentRef(): synthesizer,
 	}, nil
 }
 

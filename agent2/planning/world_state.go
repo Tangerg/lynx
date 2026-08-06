@@ -106,6 +106,7 @@ func (state WorldState) Valid() bool {
 	return true
 }
 
+// MarshalJSON returns the validated canonical world state.
 func (state WorldState) MarshalJSON() ([]byte, error) {
 	if !state.Valid() {
 		return nil, ErrInvalidWorldState
@@ -117,6 +118,7 @@ func (state WorldState) MarshalJSON() ([]byte, error) {
 	return json.Marshal(worldStateWire{Conditions: conditions})
 }
 
+// UnmarshalJSON replaces state with a strictly decoded canonical world state.
 func (state *WorldState) UnmarshalJSON(data []byte) error {
 	if state == nil {
 		return fmt.Errorf("%w: nil receiver", ErrInvalidWorldState)

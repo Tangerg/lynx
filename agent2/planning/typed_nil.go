@@ -2,7 +2,7 @@ package planning
 
 import "reflect"
 
-func nilValue(value any) bool {
+func isNilImplementation(value any) bool {
 	if value == nil {
 		return true
 	}

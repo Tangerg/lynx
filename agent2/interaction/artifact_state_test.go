@@ -64,8 +64,8 @@ func TestArtifactStateRestoreRejectsInvalidProvenanceAndValue(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if _, err := definition.Restore(envelope); !errors.Is(err, ErrInvalidState) {
-				t.Fatalf("Restore error=%v, want ErrInvalidState", err)
+			if _, err := definition.Restore(envelope); !errors.Is(err, ErrInvalidExecutionState) {
+				t.Fatalf("Restore error=%v, want ErrInvalidExecutionState", err)
 			}
 		})
 	}
@@ -88,7 +88,7 @@ func TestArtifactStateDoesNotReadExecutionStateV2(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := definition.Restore(old); !errors.Is(err, ErrInvalidState) {
-		t.Fatalf("Restore(v2) error=%v, want ErrInvalidState", err)
+	if _, err := definition.Restore(old); !errors.Is(err, ErrInvalidExecutionState) {
+		t.Fatalf("Restore(v2) error=%v, want ErrInvalidExecutionState", err)
 	}
 }

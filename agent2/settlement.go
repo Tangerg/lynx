@@ -7,6 +7,7 @@ import (
 	"fmt"
 )
 
+// ErrInvalidSettlement reports a malformed or misaddressed Effect outcome.
 var ErrInvalidSettlement = errors.New("agent: invalid effect settlement")
 
 // SettlementStatus records whether an Effect definitely succeeded, definitely
@@ -14,12 +15,17 @@ var ErrInvalidSettlement = errors.New("agent: invalid effect settlement")
 type SettlementStatus uint8
 
 const (
+	// SettlementStatusInvalid is the invalid zero value.
 	SettlementStatusInvalid SettlementStatus = iota
+	// SettlementStatusSucceeded records a definite successful outcome.
 	SettlementStatusSucceeded
+	// SettlementStatusFailed records a definite failed outcome.
 	SettlementStatusFailed
+	// SettlementStatusUnknown records an externally indeterminate outcome.
 	SettlementStatusUnknown
 )
 
+// String returns the stable settlement-status name.
 func (status SettlementStatus) String() string {
 	switch status {
 	case SettlementStatusSucceeded:
@@ -85,6 +91,7 @@ func (s Settlement) Valid() bool {
 		s.status <= SettlementStatusUnknown && len(s.payload) > 0
 }
 
+// MarshalJSON returns the validated immutable Effect settlement.
 func (s Settlement) MarshalJSON() ([]byte, error) {
 	if !s.Valid() {
 		return nil, ErrInvalidSettlement
@@ -92,6 +99,7 @@ func (s Settlement) MarshalJSON() ([]byte, error) {
 	return json.Marshal(settlementWire{EffectID: s.effectID, Status: s.status.String(), Payload: s.payload})
 }
 
+// UnmarshalJSON replaces s with a strictly decoded Settlement.
 func (s *Settlement) UnmarshalJSON(data []byte) error {
 	if s == nil {
 		return fmt.Errorf("%w: nil receiver", ErrInvalidSettlement)

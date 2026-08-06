@@ -8,11 +8,11 @@ import "context"
 // means the search proved no plan within its algorithm's complete search space;
 // resource exhaustion must be returned as an error instead.
 type Planner interface {
-	Plan(context.Context, Problem) (plan Plan, found bool, err error)
+	Plan(ctx context.Context, problem Problem) (plan Plan, found bool, err error)
 }
 
 // PlannerFunc adapts a function to Planner.
-type PlannerFunc func(context.Context, Problem) (plan Plan, found bool, err error)
+type PlannerFunc func(ctx context.Context, problem Problem) (plan Plan, found bool, err error)
 
 // Plan calls function with problem.
 func (function PlannerFunc) Plan(

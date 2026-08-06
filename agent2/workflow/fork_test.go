@@ -33,7 +33,7 @@ func TestForkUsesBoundedWindowsAndDeclarationOrder(t *testing.T) {
 	resolver := deploymentResolver{}
 	for _, id := range []string{"first", "second", "third"} {
 		deployment := newManagedBranchDeployment(t, id, tracker)
-		resolver[deployment.Reference()] = deployment
+		resolver[deployment.DeploymentRef()] = deployment
 		branches = append(branches, workflow.ForkBranch{
 			ID: id, Deployment: deployment, Budget: mustBudget(t),
 		})
@@ -111,7 +111,7 @@ func TestForkAttributesLowestFailingBranch(t *testing.T) {
 				return branchOutput{}, fmt.Errorf("%s failed", branchID)
 			}),
 		), "fork-failure-"+id)
-		resolver[child.Reference()] = child
+		resolver[child.DeploymentRef()] = child
 		branches = append(branches, workflow.ForkBranch{ID: id, Deployment: child, Budget: mustBudget(t)})
 	}
 	stage, err := workflow.Fork(workflow.ForkConfig[forkInput, branchOutput, forkOutput]{

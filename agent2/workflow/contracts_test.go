@@ -18,7 +18,7 @@ func TestWaitingForkTreeRestoresWithoutDuplicateChildren(t *testing.T) {
 	resolver := deploymentResolver{}
 	for _, id := range []string{"first", "second", "third"} {
 		deployment := newPausingBranchDeployment(t, id)
-		resolver[deployment.Reference()] = deployment
+		resolver[deployment.DeploymentRef()] = deployment
 		branches = append(branches, workflow.ForkBranch{
 			ID: id, Deployment: deployment, Budget: mustBudget(t),
 		})
@@ -127,7 +127,7 @@ func TestWorkflowCancellationPropagatesToPausedChild(t *testing.T) {
 	}
 	rootDeployment := mustDeployment(t, mustDefinition(t, "test.workflow.cancel", call), "cancel")
 	engine, _ := agent.NewEngine(agent.EngineConfig{
-		DeploymentResolver: deploymentResolver{childDeployment.Reference(): childDeployment},
+		DeploymentResolver: deploymentResolver{childDeployment.DeploymentRef(): childDeployment},
 	})
 	input, _ := agent.EncodeInput(forkInput{Value: 1})
 	root, err := engine.Start(context.Background(), rootDeployment, input)

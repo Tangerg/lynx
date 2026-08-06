@@ -156,20 +156,33 @@ type terminationFacts struct {
 type TerminationCause uint8
 
 const (
+	// TerminationCauseInvalid is the invalid zero value.
 	TerminationCauseInvalid TerminationCause = iota
+	// TerminationCauseCompletion identifies successful semantic completion.
 	TerminationCauseCompletion
+	// TerminationCauseEngineKill identifies an explicit Engine kill.
 	TerminationCauseEngineKill
+	// TerminationCauseProcessDeadline identifies the Process's own deadline.
 	TerminationCauseProcessDeadline
+	// TerminationCauseParentDeadline identifies deadline propagation from a parent.
 	TerminationCauseParentDeadline
+	// TerminationCauseHostDeadline identifies expiry of the Host context.
 	TerminationCauseHostDeadline
+	// TerminationCauseParentCancellation identifies cancellation by a parent Process.
 	TerminationCauseParentCancellation
+	// TerminationCauseHostCancellation identifies cancellation by the Host context.
 	TerminationCauseHostCancellation
+	// TerminationCauseExecutionFailure identifies an ordinary Strategy failure.
 	TerminationCauseExecutionFailure
+	// TerminationCauseContractFailure identifies a contract violation.
 	TerminationCauseContractFailure
+	// TerminationCauseExternalFailure identifies failed external infrastructure.
 	TerminationCauseExternalFailure
+	// TerminationCausePanic identifies a recovered execution-boundary panic.
 	TerminationCausePanic
 )
 
+// String returns the stable termination-cause name.
 func (cause TerminationCause) String() string {
 	switch cause {
 	case TerminationCauseCompletion:
@@ -343,6 +356,7 @@ func (termination Termination) Valid() bool {
 	}
 }
 
+// MarshalJSON returns the validated immutable terminal fact.
 func (termination Termination) MarshalJSON() ([]byte, error) {
 	if !termination.Valid() {
 		return nil, errInvalidTermination
@@ -358,6 +372,7 @@ func (termination Termination) MarshalJSON() ([]byte, error) {
 	return json.Marshal(wire)
 }
 
+// UnmarshalJSON replaces termination with a strictly decoded terminal fact.
 func (termination *Termination) UnmarshalJSON(data []byte) error {
 	if termination == nil {
 		return fmt.Errorf("%w: nil receiver", errInvalidTermination)

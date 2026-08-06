@@ -8,15 +8,17 @@ import (
 )
 
 var (
+	// ErrSignalRejected reports a duplicate, stale, misaddressed, or
+	// over-capacity Signal delivery.
 	ErrSignalRejected = errors.New("agent: signal rejected")
 	errMailboxCursor  = errors.New("agent: invalid signal cursor")
 	errWaitState      = errors.New("agent: invalid wait state")
 )
 
 type signalRecord struct {
-	sequence  uint64
-	signal    Signal
-	opensWait bool
+	arrivalSequence uint64
+	signal          Signal
+	opensWait       bool
 }
 
 type waitRecord struct {
@@ -28,10 +30,10 @@ type waitRecord struct {
 }
 
 type signalMailbox struct {
-	records []signalRecord
-	seen    map[SignalID]struct{}
-	waits   map[WaitID]waitRecord
-	cursor  uint64
+	records      []signalRecord
+	seen         map[SignalID]struct{}
+	waits        map[WaitID]waitRecord
+	signalCursor uint64
 }
 
 func newSignalMailbox() signalMailbox {
@@ -62,8 +64,8 @@ func (mailbox *signalMailbox) enqueue(status Status, signal Signal) (bool, error
 	}
 	mailbox.seen[signal.ID()] = struct{}{}
 	mailbox.records = append(mailbox.records, signalRecord{
-		sequence: uint64(len(mailbox.records) + 1),
-		signal:   signal,
+		arrivalSequence: uint64(len(mailbox.records) + 1),
+		signal:          signal,
 	})
 	return true, nil
 }
@@ -85,7 +87,7 @@ func (mailbox *signalMailbox) enqueueChildCompletion(status Status, signal Signa
 	mailbox.waits[waitID] = record
 	mailbox.seen[signal.ID()] = struct{}{}
 	mailbox.records = append(mailbox.records, signalRecord{
-		sequence: uint64(len(mailbox.records) + 1), signal: signal,
+		arrivalSequence: uint64(len(mailbox.records) + 1), signal: signal,
 	})
 	return true, nil
 }
@@ -106,9 +108,9 @@ func (mailbox *signalMailbox) enqueueWaitOpened(signal Signal) error {
 	}
 	mailbox.seen[signal.ID()] = struct{}{}
 	mailbox.records = append(mailbox.records, signalRecord{
-		sequence:  uint64(len(mailbox.records) + 1),
-		signal:    signal,
-		opensWait: true,
+		arrivalSequence: uint64(len(mailbox.records) + 1),
+		signal:          signal,
+		opensWait:       true,
 	})
 	return nil
 }
@@ -171,10 +173,10 @@ func (mailbox *signalMailbox) closeAllWaits() []WaitID {
 }
 
 func (mailbox *signalMailbox) pending() []Signal {
-	if mailbox.cursor >= uint64(len(mailbox.records)) {
+	if mailbox.signalCursor >= uint64(len(mailbox.records)) {
 		return nil
 	}
-	pending := mailbox.records[mailbox.cursor:]
+	pending := mailbox.records[mailbox.signalCursor:]
 	signals := make([]Signal, len(pending))
 	for index := range pending {
 		signals[index] = pending[index].signal
@@ -182,29 +184,29 @@ func (mailbox *signalMailbox) pending() []Signal {
 	return signals
 }
 
-func (mailbox *signalMailbox) commit(consumed uint32) error {
-	remaining := uint64(len(mailbox.records)) - mailbox.cursor
-	if uint64(consumed) > remaining {
+func (mailbox *signalMailbox) commit(consumedSignals uint32) error {
+	remaining := uint64(len(mailbox.records)) - mailbox.signalCursor
+	if uint64(consumedSignals) > remaining {
 		return errMailboxCursor
 	}
-	for _, record := range mailbox.records[mailbox.cursor : mailbox.cursor+uint64(consumed)] {
+	for _, record := range mailbox.records[mailbox.signalCursor : mailbox.signalCursor+uint64(consumedSignals)] {
 		if waitID, addressed := record.signal.WaitID(); addressed && !record.opensWait {
 			if err := mailbox.closeWait(waitID); err != nil {
 				return err
 			}
 		}
 	}
-	mailbox.cursor += uint64(consumed)
+	mailbox.signalCursor += uint64(consumedSignals)
 	return nil
 }
 
-func (mailbox *signalMailbox) consumedChildWaitIDs(consumed uint32) ([]WaitID, error) {
-	remaining := uint64(len(mailbox.records)) - mailbox.cursor
-	if uint64(consumed) > remaining {
+func (mailbox *signalMailbox) consumedChildWaitIDs(consumedSignals uint32) ([]WaitID, error) {
+	remaining := uint64(len(mailbox.records)) - mailbox.signalCursor
+	if uint64(consumedSignals) > remaining {
 		return nil, errMailboxCursor
 	}
 	var waitIDs []WaitID
-	for _, record := range mailbox.records[mailbox.cursor : mailbox.cursor+uint64(consumed)] {
+	for _, record := range mailbox.records[mailbox.signalCursor : mailbox.signalCursor+uint64(consumedSignals)] {
 		waitID, addressed := record.signal.WaitID()
 		wait, exists := mailbox.waits[waitID]
 		if addressed && !record.opensWait && exists && !wait.externallyAddressable {
@@ -214,11 +216,13 @@ func (mailbox *signalMailbox) consumedChildWaitIDs(consumed uint32) ([]WaitID, e
 	return waitIDs, nil
 }
 
-func (mailbox *signalMailbox) sequence() uint64 { return uint64(len(mailbox.records)) }
+func (mailbox *signalMailbox) arrivalSequence() uint64 { return uint64(len(mailbox.records)) }
 
-func (mailbox *signalMailbox) consumedSequence() uint64 { return mailbox.cursor }
+func (mailbox *signalMailbox) committedSignalCursor() uint64 { return mailbox.signalCursor }
 
-func (mailbox *signalMailbox) pendingCount() uint64 { return mailbox.sequence() - mailbox.cursor }
+func (mailbox *signalMailbox) pendingCount() uint64 {
+	return mailbox.arrivalSequence() - mailbox.signalCursor
+}
 
 func (mailbox *signalMailbox) contains(id SignalID) bool {
 	_, exists := mailbox.seen[id]
@@ -226,9 +230,9 @@ func (mailbox *signalMailbox) contains(id SignalID) bool {
 }
 
 type signalRecordWire struct {
-	Sequence  uint64 `json:"sequence"`
-	Signal    Signal `json:"signal"`
-	OpensWait bool   `json:"opens_wait,omitempty"`
+	ArrivalSequence uint64 `json:"arrival_sequence"`
+	Signal          Signal `json:"signal"`
+	OpensWait       bool   `json:"opens_wait,omitempty"`
 }
 
 type waitRecordWire struct {
@@ -240,16 +244,16 @@ type waitRecordWire struct {
 }
 
 type mailboxWire struct {
-	Signals []signalRecordWire `json:"signals,omitempty"`
-	Cursor  uint64             `json:"cursor"`
-	Waits   []waitRecordWire   `json:"waits,omitempty"`
+	Signals      []signalRecordWire `json:"signals,omitempty"`
+	SignalCursor uint64             `json:"signal_cursor"`
+	Waits        []waitRecordWire   `json:"waits,omitempty"`
 }
 
 func (mailbox *signalMailbox) snapshot() mailboxWire {
-	wire := mailboxWire{Cursor: mailbox.cursor}
+	wire := mailboxWire{SignalCursor: mailbox.signalCursor}
 	for _, record := range mailbox.records {
 		wire.Signals = append(wire.Signals, signalRecordWire{
-			Sequence: record.sequence, Signal: record.signal, OpensWait: record.opensWait,
+			ArrivalSequence: record.arrivalSequence, Signal: record.signal, OpensWait: record.opensWait,
 		})
 	}
 	for _, record := range mailbox.waits {
@@ -265,13 +269,13 @@ func (mailbox *signalMailbox) snapshot() mailboxWire {
 }
 
 func restoreSignalMailbox(wire mailboxWire) (signalMailbox, error) {
-	if wire.Cursor > uint64(len(wire.Signals)) {
+	if wire.SignalCursor > uint64(len(wire.Signals)) {
 		return signalMailbox{}, errMailboxCursor
 	}
 	mailbox := newSignalMailbox()
-	mailbox.cursor = wire.Cursor
+	mailbox.signalCursor = wire.SignalCursor
 	for index, record := range wire.Signals {
-		if record.Sequence != uint64(index+1) || !record.Signal.Valid() {
+		if record.ArrivalSequence != uint64(index+1) || !record.Signal.Valid() {
 			return signalMailbox{}, fmt.Errorf("%w: invalid Signal record", errMailboxCursor)
 		}
 		if _, duplicate := mailbox.seen[record.Signal.ID()]; duplicate {
@@ -284,7 +288,7 @@ func restoreSignalMailbox(wire mailboxWire) (signalMailbox, error) {
 			}
 		}
 		mailbox.records = append(mailbox.records, signalRecord{
-			sequence: record.Sequence, signal: record.Signal, opensWait: record.OpensWait,
+			arrivalSequence: record.ArrivalSequence, signal: record.Signal, opensWait: record.OpensWait,
 		})
 	}
 	openKeys := make(map[WaitKey]struct{})

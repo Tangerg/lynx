@@ -877,7 +877,7 @@ func (execution *childTestExecution) Step(_ context.Context, signals []Signal) (
 	}
 }
 
-func (execution *childTestExecution) completeChildren(signals []Signal, consumed uint32) (Transition, error) {
+func (execution *childTestExecution) completeChildren(signals []Signal, consumedSignals uint32) (Transition, error) {
 	if len(signals) == 0 {
 		return Transition{}, errors.New("children-completed Signal is required")
 	}
@@ -893,19 +893,19 @@ func (execution *childTestExecution) completeChildren(signals []Signal, consumed
 		if outcome.Result().Status() == StatusFailed {
 			execution.state.Phase = "done"
 			failure, _ := NewFailure(FailureKindExecution, "test.child.failed", "a child Process failed")
-			return Fail(consumed, failure)
+			return Fail(consumedSignals, failure)
 		}
 		output.CompletedKeys = append(output.CompletedKeys, outcome.Key().String())
 	}
 	execution.state.Phase = "done"
 	erased, _ := EncodeOutput(output)
-	return Complete(consumed, erased)
+	return Complete(consumedSignals, erased)
 }
 
 func childTestSpec(key ChildKey, deployment DeploymentRef, input Input) ChildSpec {
 	budget, _ := NewBudget(20, 20, 40)
 	return ChildSpec{
-		Key: key, Deployment: deployment, Input: input, Budget: budget,
+		Key: key, DeploymentRef: deployment, Input: input, Budget: budget,
 		Capabilities: CapabilitySet{},
 	}
 }
@@ -1040,7 +1040,7 @@ func directChildIDs(t *testing.T, engine *Engine, parentID ProcessID) []string {
 	for _, controller := range engine.processes {
 		actualParent, child := controller.relation.ParentID()
 		if child && actualParent == parentID {
-			ids = append(ids, controller.id.String())
+			ids = append(ids, controller.processID.String())
 		}
 	}
 	slices.Sort(ids)

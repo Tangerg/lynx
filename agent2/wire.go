@@ -11,7 +11,9 @@ import (
 const maxWireBytes = 64 << 20
 
 var (
-	ErrInvalidInput  = errors.New("agent: invalid input")
+	// ErrInvalidInput reports an empty, oversized, or malformed erased input.
+	ErrInvalidInput = errors.New("agent: invalid input")
+	// ErrInvalidOutput reports an empty, oversized, or malformed erased output.
 	ErrInvalidOutput = errors.New("agent: invalid output")
 )
 
@@ -56,6 +58,7 @@ func (i Input) JSON() json.RawMessage { return bytes.Clone(i.data) }
 // Valid reports whether the Input contains one validated JSON value.
 func (i Input) Valid() bool { return len(i.data) > 0 }
 
+// MarshalJSON returns the validated independently owned input value.
 func (i Input) MarshalJSON() ([]byte, error) {
 	if !i.Valid() {
 		return nil, ErrInvalidInput
@@ -63,6 +66,7 @@ func (i Input) MarshalJSON() ([]byte, error) {
 	return bytes.Clone(i.data), nil
 }
 
+// UnmarshalJSON replaces i with a validated independently owned input value.
 func (i *Input) UnmarshalJSON(data []byte) error {
 	if i == nil {
 		return fmt.Errorf("%w: nil receiver", ErrInvalidInput)
@@ -115,6 +119,7 @@ func (o Output) JSON() json.RawMessage { return bytes.Clone(o.data) }
 // Valid reports whether the Output contains one validated JSON value.
 func (o Output) Valid() bool { return len(o.data) > 0 }
 
+// MarshalJSON returns the validated independently owned output value.
 func (o Output) MarshalJSON() ([]byte, error) {
 	if !o.Valid() {
 		return nil, ErrInvalidOutput
@@ -122,6 +127,7 @@ func (o Output) MarshalJSON() ([]byte, error) {
 	return bytes.Clone(o.data), nil
 }
 
+// UnmarshalJSON replaces o with a validated independently owned output value.
 func (o *Output) UnmarshalJSON(data []byte) error {
 	if o == nil {
 		return fmt.Errorf("%w: nil receiver", ErrInvalidOutput)

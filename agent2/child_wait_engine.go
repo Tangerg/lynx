@@ -71,18 +71,18 @@ func (engine *Engine) processFinished(controller *processController) {
 	var activeChildren []*processController
 	engine.mu.Lock()
 	for waitID, registration := range engine.childWaits {
-		if registration.parent == controller.id {
+		if registration.parent == controller.processID {
 			delete(engine.childWaits, waitID)
 		}
 	}
 	for _, candidate := range engine.processes {
 		parentID, child := candidate.relation.ParentID()
-		if child && parentID == controller.id && !candidate.status().Terminal() {
+		if child && parentID == controller.processID && !candidate.status().Terminal() {
 			activeChildren = append(activeChildren, candidate)
 		}
 	}
 	for _, registration := range engine.childWaits {
-		if registration.delivered || !childWaitContains(registration.spec, controller.id) {
+		if registration.delivered || !childWaitContains(registration.spec, controller.processID) {
 			continue
 		}
 		outcomes, ready := engine.childWaitOutcomesLocked(registration)

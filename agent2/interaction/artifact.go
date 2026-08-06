@@ -97,7 +97,9 @@ func (candidate CompletionCandidate) Artifacts() Artifacts { return candidate.ar
 // non-empty Feedback that will be appended as a user message before the next
 // model call.
 type CompletionDecision struct {
+	// Accepted permits completion with the proposed final semantic output.
 	Accepted bool
+	// Feedback explains a rejection to the model and is empty when accepted.
 	Feedback string
 }
 
@@ -116,7 +118,7 @@ func (decision CompletionDecision) Valid() bool {
 // A rejected candidate must return actionable Feedback; MaxModelCalls remains
 // the hard bound on retry rounds. Evaluation requiring external work belongs
 // in a managed child Process, not this callback.
-type CompletionValidator func(CompletionCandidate) (CompletionDecision, error)
+type CompletionValidator func(candidate CompletionCandidate) (CompletionDecision, error)
 
 func cloneOutput(output Output) Output {
 	cloned := output

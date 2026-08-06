@@ -55,7 +55,7 @@ func TestManagedDelegatePreservesMixedToolCallOrder(t *testing.T) {
 	model := &mixedDelegateModel{}
 	root := delegateInteraction(t, model, []tool.Tool{echo}, []interaction.Delegate{delegate})
 	engine, err := agent.NewEngine(agent.EngineConfig{
-		DeploymentResolver: delegateResolver{child.Reference(): child}, Capabilities: capabilities,
+		DeploymentResolver: delegateResolver{child.DeploymentRef(): child}, Capabilities: capabilities,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -213,7 +213,7 @@ func TestWaitingManagedDelegateTreeRestoresWithoutRestartingChild(t *testing.T) 
 	}
 	model := &restorableDelegateModel{}
 	rootDeployment := delegateInteraction(t, model, nil, []interaction.Delegate{delegate})
-	resolver := delegateResolver{child.Reference(): child}
+	resolver := delegateResolver{child.DeploymentRef(): child}
 	engine, _ := agent.NewEngine(agent.EngineConfig{DeploymentResolver: resolver})
 	root, err := engine.Start(context.Background(), rootDeployment, interactionInput(t, "pause and restore"))
 	if err != nil {

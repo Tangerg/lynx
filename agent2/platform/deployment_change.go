@@ -62,7 +62,7 @@ func (platform *Platform) Deploy(deployment agent.Deployment) error {
 	if !deployment.Valid() {
 		return agent.ErrInvalidDeployment
 	}
-	reference := deployment.Reference()
+	reference := deployment.DeploymentRef()
 	slot := slotFor(reference)
 	if current, occupied := platform.state.active[slot]; occupied {
 		if current == reference {
@@ -99,7 +99,7 @@ func (platform *Platform) Replace(deployment agent.Deployment) error {
 	if !deployment.Valid() {
 		return agent.ErrInvalidDeployment
 	}
-	reference := deployment.Reference()
+	reference := deployment.DeploymentRef()
 	slot := slotFor(reference)
 	current, occupied := platform.state.active[slot]
 	if !occupied {
@@ -153,7 +153,7 @@ func (platform *Platform) Undeploy(reference agent.DeploymentRef) error {
 }
 
 func catalogWith(catalog Catalog, deployment agent.Deployment) (Catalog, error) {
-	if _, err := catalog.Resolve(deployment.Reference()); err == nil {
+	if _, err := catalog.Resolve(deployment.DeploymentRef()); err == nil {
 		return catalog, nil
 	} else if !errors.Is(err, ErrDeploymentNotFound) {
 		return Catalog{}, err

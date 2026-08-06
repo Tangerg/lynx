@@ -35,14 +35,14 @@ func run(ctx context.Context, output io.Writer) error {
 		return err
 	}
 	compositionDeployment, err := newCompositionDeployment(
-		localDeployment.Reference(), modelDeployment.Reference(),
+		localDeployment.DeploymentRef(), modelDeployment.DeploymentRef(),
 	)
 	if err != nil {
 		return err
 	}
 	resolver := deploymentResolver{
-		localDeployment.Reference(): localDeployment,
-		modelDeployment.Reference(): modelDeployment,
+		localDeployment.DeploymentRef(): localDeployment,
+		modelDeployment.DeploymentRef(): modelDeployment,
 	}
 	engine, err := agent.NewEngine(agent.EngineConfig{DeploymentResolver: resolver})
 	if err != nil {
@@ -292,13 +292,13 @@ func (execution *compositionExecution) startChildren() (agent.Transition, error)
 	modelKey, _ := agent.ParseChildKey("model")
 	budget, _ := agent.NewBudget(20, 20, 40)
 	localEffect, err := agent.StartChild(agent.ChildSpec{
-		Key: localKey, Deployment: execution.local, Input: localInput, Budget: budget,
+		Key: localKey, DeploymentRef: execution.local, Input: localInput, Budget: budget,
 	})
 	if err != nil {
 		return agent.Transition{}, err
 	}
 	modelEffect, err := agent.StartChild(agent.ChildSpec{
-		Key: modelKey, Deployment: execution.model, Input: modelInput, Budget: budget,
+		Key: modelKey, DeploymentRef: execution.model, Input: modelInput, Budget: budget,
 	})
 	if err != nil {
 		return agent.Transition{}, err
@@ -339,7 +339,7 @@ func (execution *compositionExecution) waitForChildren(signals []agent.Signal) (
 
 func (execution *compositionExecution) complete(
 	signals []agent.Signal,
-	consumed uint32,
+	consumedSignals uint32,
 ) (agent.Transition, error) {
 	if len(signals) == 0 {
 		return agent.Transition{}, errors.New("composition child results are missing")
@@ -358,7 +358,7 @@ func (execution *compositionExecution) complete(
 			failure, _ := agent.NewFailure(
 				agent.FailureKindExecution, "example.child.failed", "a composition child did not complete",
 			)
-			return agent.Fail(consumed, failure)
+			return agent.Fail(consumedSignals, failure)
 		}
 		erased, _ := result.Output()
 		switch outcome.Key().String() {
@@ -380,7 +380,7 @@ func (execution *compositionExecution) complete(
 	}
 	execution.state.Phase = "done"
 	erased, _ := agent.EncodeOutput(output)
-	return agent.Complete(consumed, erased)
+	return agent.Complete(consumedSignals, erased)
 }
 
 func (execution *compositionExecution) Snapshot() (agent.ExecutionState, error) {

@@ -15,6 +15,8 @@ var (
 	errUnknownSettlement      = errors.New("effect settlement is unknown")
 )
 
+const preparedSpikeSnapshotSchemaVersion uint16 = 2
+
 type preparedSpikeInput struct {
 	Value string `json:"value"`
 }
@@ -158,8 +160,8 @@ func newPreparedSpikeDeployment(t *testing.T, definition Definition, implementat
 }
 
 type preparedSpikeSignalRecord struct {
-	Sequence uint64 `json:"sequence"`
-	Signal   Signal `json:"signal"`
+	ArrivalSequence uint64 `json:"arrival_sequence"`
+	Signal          Signal `json:"signal"`
 }
 
 type preparedSpikeEffect struct {
@@ -169,24 +171,24 @@ type preparedSpikeEffect struct {
 }
 
 type preparedSpikeStep struct {
-	Sequence         uint64                `json:"sequence"`
+	StepSequence     uint64                `json:"step_sequence"`
 	LastStableDigest Digest                `json:"last_stable_digest"`
 	CandidateState   ExecutionState        `json:"candidate_state"`
-	ConsumeThrough   uint64                `json:"consume_through"`
+	SignalCursor     uint64                `json:"signal_cursor"`
 	Transition       Transition            `json:"transition"`
 	Effects          []preparedSpikeEffect `json:"effects,omitempty"`
 }
 
 type preparedSpikeSnapshot struct {
-	SchemaVersion uint16                      `json:"schema_version"`
-	ProcessID     ProcessID                   `json:"process_id"`
-	Deployment    DeploymentRef               `json:"deployment"`
-	Status        Status                      `json:"status"`
-	Step          uint64                      `json:"step"`
-	LastStable    ExecutionState              `json:"last_stable"`
-	Signals       []preparedSpikeSignalRecord `json:"signals,omitempty"`
-	Cursor        uint64                      `json:"cursor"`
-	Prepared      *preparedSpikeStep          `json:"prepared,omitempty"`
+	SchemaVersion    uint16                      `json:"schema_version"`
+	ProcessID        ProcessID                   `json:"process_id"`
+	DeploymentRef    DeploymentRef               `json:"deployment_ref"`
+	Status           Status                      `json:"status"`
+	NextStepSequence uint64                      `json:"next_step_sequence"`
+	LastStableState  ExecutionState              `json:"last_stable_state"`
+	Signals          []preparedSpikeSignalRecord `json:"signals,omitempty"`
+	SignalCursor     uint64                      `json:"signal_cursor"`
+	Prepared         *preparedSpikeStep          `json:"prepared,omitempty"`
 }
 
 type preparedSpikeEngine struct {
@@ -215,12 +217,12 @@ func newPreparedSpikeEngine(t *testing.T, deployment preparedSpikeDeployment, va
 		deployment: deployment,
 		execution:  execution,
 		snapshot: preparedSpikeSnapshot{
-			SchemaVersion: 1,
-			ProcessID:     mustProcessID("process:prepared"),
-			Deployment:    deployment.reference,
-			Status:        StatusRunning,
-			Step:          1,
-			LastStable:    state,
+			SchemaVersion:    preparedSpikeSnapshotSchemaVersion,
+			ProcessID:        mustProcessID("process:prepared"),
+			DeploymentRef:    deployment.reference,
+			Status:           StatusRunning,
+			NextStepSequence: 1,
+			LastStableState:  state,
 		},
 	}
 }
@@ -233,7 +235,7 @@ func restorePreparedSpikeEngine(data []byte, deployment preparedSpikeDeployment)
 	if err := validatePreparedSpikeSnapshot(snapshot, deployment.reference); err != nil {
 		return nil, err
 	}
-	state := snapshot.LastStable
+	state := snapshot.LastStableState
 	if snapshot.Prepared != nil && len(snapshot.Prepared.Effects) == 0 {
 		state = snapshot.Prepared.CandidateState
 	}
@@ -250,12 +252,12 @@ func restorePreparedSpikeEngine(data []byte, deployment preparedSpikeDeployment)
 }
 
 func validatePreparedSpikeSnapshot(snapshot preparedSpikeSnapshot, reference DeploymentRef) error {
-	if snapshot.SchemaVersion != 1 || !snapshot.ProcessID.Valid() || snapshot.Deployment != reference ||
-		snapshot.Status != StatusRunning || !snapshot.LastStable.Valid() || snapshot.Cursor > uint64(len(snapshot.Signals)) {
+	if snapshot.SchemaVersion != preparedSpikeSnapshotSchemaVersion || !snapshot.ProcessID.Valid() || snapshot.DeploymentRef != reference ||
+		snapshot.Status != StatusRunning || !snapshot.LastStableState.Valid() || snapshot.SignalCursor > uint64(len(snapshot.Signals)) {
 		return errors.New("invalid prepared Process snapshot")
 	}
 	for index, record := range snapshot.Signals {
-		if record.Sequence != uint64(index+1) || !record.Signal.Valid() {
+		if record.ArrivalSequence != uint64(index+1) || !record.Signal.Valid() {
 			return errors.New("invalid prepared Signal record")
 		}
 	}
@@ -263,11 +265,11 @@ func validatePreparedSpikeSnapshot(snapshot preparedSpikeSnapshot, reference Dep
 		return nil
 	}
 	prepared := snapshot.Prepared
-	if prepared.Sequence != snapshot.Step || !prepared.CandidateState.Valid() || !prepared.Transition.Valid() ||
-		prepared.ConsumeThrough < snapshot.Cursor || prepared.ConsumeThrough > uint64(len(snapshot.Signals)) {
+	if prepared.StepSequence != snapshot.NextStepSequence || !prepared.CandidateState.Valid() || !prepared.Transition.Valid() ||
+		prepared.SignalCursor < snapshot.SignalCursor || prepared.SignalCursor > uint64(len(snapshot.Signals)) {
 		return errors.New("invalid prepared Step")
 	}
-	lastStableDigest, err := digestExecutionState(snapshot.LastStable)
+	lastStableDigest, err := digestExecutionState(snapshot.LastStableState)
 	if err != nil || lastStableDigest != prepared.LastStableDigest {
 		return errors.New("prepared Step does not identify the last stable state")
 	}
@@ -276,7 +278,7 @@ func validatePreparedSpikeSnapshot(snapshot preparedSpikeSnapshot, reference Dep
 		return errors.New("prepared Effect count does not match Transition")
 	}
 	for index, effect := range prepared.Effects {
-		wantID := preparedEffectID(snapshot.ProcessID, prepared.Sequence, index)
+		wantID := preparedEffectID(snapshot.ProcessID, prepared.StepSequence, index)
 		if effect.ID != wantID || string(effect.Effect.Payload()) != string(transitionEffects[index].Payload()) || effect.Effect.Target() != transitionEffects[index].Target() {
 			return errors.New("prepared Effect identity or frozen payload changed")
 		}
@@ -289,8 +291,8 @@ func validatePreparedSpikeSnapshot(snapshot preparedSpikeSnapshot, reference Dep
 
 func (engine *preparedSpikeEngine) enqueue(signal Signal) {
 	engine.snapshot.Signals = append(engine.snapshot.Signals, preparedSpikeSignalRecord{
-		Sequence: uint64(len(engine.snapshot.Signals) + 1),
-		Signal:   signal,
+		ArrivalSequence: uint64(len(engine.snapshot.Signals) + 1),
+		Signal:          signal,
 	})
 }
 
@@ -298,39 +300,39 @@ func (engine *preparedSpikeEngine) prepare(ctx context.Context) error {
 	if engine.snapshot.Prepared != nil {
 		return errors.New("a Step is already prepared")
 	}
-	pending := engine.snapshot.Signals[engine.snapshot.Cursor:]
+	pending := engine.snapshot.Signals[engine.snapshot.SignalCursor:]
 	signals := make([]Signal, len(pending))
 	for index := range pending {
 		signals[index] = pending[index].Signal
 	}
 	transition, err := engine.execution.Step(ctx, signals)
 	if err != nil {
-		engine.execution, _ = engine.deployment.definition.Restore(engine.snapshot.LastStable)
+		engine.execution, _ = engine.deployment.definition.Restore(engine.snapshot.LastStableState)
 		return err
 	}
-	if !transition.Valid() || uint64(transition.Consumed()) > uint64(len(signals)) {
-		engine.execution, _ = engine.deployment.definition.Restore(engine.snapshot.LastStable)
+	if !transition.Valid() || uint64(transition.ConsumedSignals()) > uint64(len(signals)) {
+		engine.execution, _ = engine.deployment.definition.Restore(engine.snapshot.LastStableState)
 		return errors.New("Step returned an invalid Transition")
 	}
 	candidate, err := engine.execution.Snapshot()
 	if err != nil {
-		engine.execution, _ = engine.deployment.definition.Restore(engine.snapshot.LastStable)
+		engine.execution, _ = engine.deployment.definition.Restore(engine.snapshot.LastStableState)
 		return err
 	}
-	lastStableDigest, err := digestExecutionState(engine.snapshot.LastStable)
+	lastStableDigest, err := digestExecutionState(engine.snapshot.LastStableState)
 	if err != nil {
 		return err
 	}
 	prepared := &preparedSpikeStep{
-		Sequence:         engine.snapshot.Step,
+		StepSequence:     engine.snapshot.NextStepSequence,
 		LastStableDigest: lastStableDigest,
 		CandidateState:   candidate,
-		ConsumeThrough:   engine.snapshot.Cursor + uint64(transition.Consumed()),
+		SignalCursor:     engine.snapshot.SignalCursor + uint64(transition.ConsumedSignals()),
 		Transition:       transition,
 	}
 	for index, effect := range transition.Effects() {
 		prepared.Effects = append(prepared.Effects, preparedSpikeEffect{
-			ID:     preparedEffectID(engine.snapshot.ProcessID, engine.snapshot.Step, index),
+			ID:     preparedEffectID(engine.snapshot.ProcessID, engine.snapshot.NextStepSequence, index),
 			Effect: effect,
 		})
 	}
@@ -414,13 +416,13 @@ func (engine *preparedSpikeEngine) finalize() error {
 		}
 		engine.enqueue(mustSignalFromSettlement(effect.ID, *effect.Settlement, uint64(len(engine.snapshot.Signals)+1)))
 	}
-	engine.snapshot.LastStable = prepared.CandidateState
-	engine.snapshot.Cursor = prepared.ConsumeThrough
+	engine.snapshot.LastStableState = prepared.CandidateState
+	engine.snapshot.SignalCursor = prepared.SignalCursor
 	transition := prepared.Transition
 	engine.snapshot.Prepared = nil
-	engine.snapshot.Step++
+	engine.snapshot.NextStepSequence++
 	engine.acknowledged = false
-	execution, err := engine.deployment.definition.Restore(engine.snapshot.LastStable)
+	execution, err := engine.deployment.definition.Restore(engine.snapshot.LastStableState)
 	if err != nil {
 		return err
 	}
@@ -492,8 +494,8 @@ func TestPreparedStepRequiresDurableAcknowledgmentBeforeDispatch(t *testing.T) {
 	if err := engine.dispatchPrepared(dispatcher); !errors.Is(err, errPreparedAcknowledgment) {
 		t.Fatalf("dispatch before acknowledgment error = %v", err)
 	}
-	if dispatcher.calls != 0 || engine.snapshot.Cursor != 0 || engine.snapshot.LastStable.Kind() != "prepared.spike" {
-		t.Fatalf("pre-ack state changed: calls=%d cursor=%d", dispatcher.calls, engine.snapshot.Cursor)
+	if dispatcher.calls != 0 || engine.snapshot.SignalCursor != 0 || engine.snapshot.LastStableState.Kind() != "prepared.spike" {
+		t.Fatalf("pre-ack state changed: calls=%d cursor=%d", dispatcher.calls, engine.snapshot.SignalCursor)
 	}
 
 	var durableSnapshot []byte
@@ -513,8 +515,8 @@ func TestPreparedStepRequiresDurableAcknowledgmentBeforeDispatch(t *testing.T) {
 	if err := restored.dispatchPrepared(dispatcher); err != nil {
 		t.Fatal(err)
 	}
-	if dispatcher.calls != 1 || restored.snapshot.Cursor != 1 || restored.snapshot.Prepared != nil {
-		t.Fatalf("finalize state: calls=%d cursor=%d prepared=%v", dispatcher.calls, restored.snapshot.Cursor, restored.snapshot.Prepared)
+	if dispatcher.calls != 1 || restored.snapshot.SignalCursor != 1 || restored.snapshot.Prepared != nil {
+		t.Fatalf("finalize state: calls=%d cursor=%d prepared=%v", dispatcher.calls, restored.snapshot.SignalCursor, restored.snapshot.Prepared)
 	}
 
 	if err := restored.prepare(context.Background()); err != nil {
@@ -541,15 +543,15 @@ func TestPreparedStepFailureDiscardsInstanceWithoutConsumingSignal(t *testing.T)
 	if err := engine.prepare(context.Background()); err == nil {
 		t.Fatal("prepare unexpectedly accepted failing Step")
 	}
-	if engine.snapshot.Cursor != 0 || engine.snapshot.Prepared != nil {
-		t.Fatalf("failed Step consumed state: cursor=%d prepared=%v", engine.snapshot.Cursor, engine.snapshot.Prepared)
+	if engine.snapshot.SignalCursor != 0 || engine.snapshot.Prepared != nil {
+		t.Fatalf("failed Step consumed state: cursor=%d prepared=%v", engine.snapshot.SignalCursor, engine.snapshot.Prepared)
 	}
 	state, err := engine.execution.Snapshot()
 	if err != nil {
 		t.Fatal(err)
 	}
 	stateJSON, _ := json.Marshal(state)
-	lastStableJSON, _ := json.Marshal(engine.snapshot.LastStable)
+	lastStableJSON, _ := json.Marshal(engine.snapshot.LastStableState)
 	if string(stateJSON) != string(lastStableJSON) {
 		t.Fatalf("failed Execution instance was not rebuilt from last stable state")
 	}

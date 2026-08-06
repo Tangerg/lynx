@@ -58,11 +58,11 @@ func (state executionState) validate(definition *Definition) error {
 	}
 	input, err := agent.ParseInput(state.Value)
 	if err != nil {
-		return fmt.Errorf("%w: Value: %v", ErrInvalidExecutionState, err)
+		return fmt.Errorf("%w: Value: %w", ErrInvalidExecutionState, err)
 	}
 	if state.Stage < uint32(len(definition.stages)) {
 		if err := definition.stages[state.Stage].inputSchema.ValidateInput(input); err != nil {
-			return fmt.Errorf("%w: Value does not satisfy current Stage: %v", ErrInvalidExecutionState, err)
+			return fmt.Errorf("%w: Value does not satisfy current Stage: %w", ErrInvalidExecutionState, err)
 		}
 	} else {
 		output, err := agent.ParseOutput(state.Value)

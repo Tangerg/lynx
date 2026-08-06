@@ -8,14 +8,14 @@ import (
 	"time"
 )
 
-func (runtime *processRuntime) dispatchPrepared(ctx context.Context, hostDone *<-chan struct{}) {
-	for index := range runtime.prepared.wire.Effects {
-		record := &runtime.prepared.wire.Effects[index]
+func (loop *processLoop) dispatchPrepared(ctx context.Context, hostDone *<-chan struct{}) {
+	for index := range loop.prepared.wire.Effects {
+		record := &loop.prepared.wire.Effects[index]
 		if record.Settlement != nil {
 			continue
 		}
-		if runtime.prepared.fromSnapshot && record.Effect.Target() == EffectTargetDispatcher {
-			policy := dispatcherReplayPolicy(runtime.deployment.effectDispatcher(), record.Effect)
+		if loop.prepared.fromSnapshot && record.Effect.Target() == EffectTargetDispatcher {
+			policy := dispatcherReplayPolicy(loop.deployment.effectDispatcher(), record.Effect)
 			if policy != ReplayPolicySameIdentity {
 				settlement, _ := NewSettlement(record.ID, SettlementStatusUnknown, json.RawMessage("null"))
 				record.Settlement = &settlement
@@ -23,38 +23,38 @@ func (runtime *processRuntime) dispatchPrepared(ctx context.Context, hostDone *<
 			}
 		}
 		if record.Effect.Target() == EffectTargetFramework {
-			startedAt := runtime.publishEffectStarted(
-				ctx, runtime.prepared.wire.Sequence, record.ID, EffectTargetFramework,
+			startedAt := loop.publishEffectStarted(
+				ctx, loop.prepared.wire.StepSequence, record.ID, EffectTargetFramework,
 			)
-			runtime.dispatchFrameworkEffect(ctx, record)
-			runtime.publishSettlementEvent(
+			loop.dispatchFrameworkEffect(ctx, record)
+			loop.publishSettlementEvent(
 				ctx, record.ID, EffectTargetFramework, record.Settlement.Status(), startedAt,
 			)
 			continue
 		}
-		runtime.dispatchStrategyEffect(ctx, hostDone, uint32(index), record)
+		loop.dispatchStrategyEffect(ctx, hostDone, uint32(index), record)
 	}
 }
 
-func (runtime *processRuntime) dispatchFrameworkEffect(ctx context.Context, record *preparedEffectWire) {
+func (loop *processLoop) dispatchFrameworkEffect(ctx context.Context, record *preparedEffectWire) {
 	var header struct {
 		Operation string `json:"operation"`
 	}
 	if err := json.Unmarshal(record.Effect.Payload(), &header); err != nil {
-		runtime.markFrameworkEffectUnknown(record)
+		loop.markFrameworkEffectUnknown(record)
 		return
 	}
 	switch header.Operation {
 	case frameworkEffectWait:
 		_, payload, err := decodeWaitRequest(record.Effect)
 		if err != nil {
-			runtime.markFrameworkEffectUnknown(record)
+			loop.markFrameworkEffectUnknown(record)
 			return
 		}
 		waitID := deriveWaitID(record.ID)
 		settlement, err := NewSettlement(record.ID, SettlementStatusSucceeded, payload)
 		if err != nil {
-			runtime.markFrameworkEffectUnknown(record)
+			loop.markFrameworkEffectUnknown(record)
 			return
 		}
 		record.WaitID = &waitID
@@ -62,13 +62,13 @@ func (runtime *processRuntime) dispatchFrameworkEffect(ctx context.Context, reco
 	case frameworkEffectStartChild:
 		spec, err := decodeChildStartEffect(record.Effect.Payload())
 		if err != nil {
-			runtime.markFrameworkEffectUnknown(record)
+			loop.markFrameworkEffectUnknown(record)
 			return
 		}
-		result := runtime.startChild(record.ID, spec)
+		result := loop.startChild(record.ID, spec)
 		payload, err := encodeChildStartResult(result)
 		if err != nil {
-			runtime.markFrameworkEffectUnknown(record)
+			loop.markFrameworkEffectUnknown(record)
 			return
 		}
 		status := SettlementStatusSucceeded
@@ -77,35 +77,35 @@ func (runtime *processRuntime) dispatchFrameworkEffect(ctx context.Context, reco
 		}
 		settlement, err := NewSettlement(record.ID, status, payload)
 		if err != nil {
-			runtime.markFrameworkEffectUnknown(record)
+			loop.markFrameworkEffectUnknown(record)
 			return
 		}
 		record.Settlement = &settlement
 	case frameworkEffectWaitChildren:
 		spec, err := decodeChildWaitEffect(record.Effect.Payload())
 		if err != nil {
-			runtime.markFrameworkEffectUnknown(record)
+			loop.markFrameworkEffectUnknown(record)
 			return
 		}
 		payload, err := encodeChildWaitOpened(spec)
 		if err != nil {
-			runtime.markFrameworkEffectUnknown(record)
+			loop.markFrameworkEffectUnknown(record)
 			return
 		}
 		waitID := deriveWaitID(record.ID)
 		settlement, err := NewSettlement(record.ID, SettlementStatusSucceeded, payload)
 		if err != nil {
-			runtime.markFrameworkEffectUnknown(record)
+			loop.markFrameworkEffectUnknown(record)
 			return
 		}
 		record.WaitID = &waitID
 		record.Settlement = &settlement
 	default:
-		runtime.markFrameworkEffectUnknown(record)
+		loop.markFrameworkEffectUnknown(record)
 	}
 }
 
-func (runtime *processRuntime) markFrameworkEffectUnknown(record *preparedEffectWire) {
+func (loop *processLoop) markFrameworkEffectUnknown(record *preparedEffectWire) {
 	settlement, _ := NewSettlement(record.ID, SettlementStatusUnknown, json.RawMessage("null"))
 	record.Settlement = &settlement
 }
@@ -115,15 +115,15 @@ type dispatchResult struct {
 	err        error
 }
 
-func (runtime *processRuntime) dispatchStrategyEffect(
+func (loop *processLoop) dispatchStrategyEffect(
 	ctx context.Context,
 	hostDone *<-chan struct{},
 	index uint32,
 	record *preparedEffectWire,
 ) {
-	request := newEffectRequest(runtime.controller.id, runtime.prepared.wire.Sequence, index, record.ID, record.Effect)
-	startedAt := runtime.publishEffectStarted(
-		ctx, runtime.prepared.wire.Sequence, record.ID, EffectTargetDispatcher,
+	request := newEffectRequest(loop.controller.processID, loop.prepared.wire.StepSequence, index, record.ID, record.Effect)
+	startedAt := loop.publishEffectStarted(
+		ctx, loop.prepared.wire.StepSequence, record.ID, EffectTargetDispatcher,
 	)
 	var deltaSequence atomic.Uint64
 	var dropped atomic.Uint64
@@ -134,23 +134,23 @@ func (runtime *processRuntime) dispatchStrategyEffect(
 			return
 		}
 		sequence := deltaSequence.Add(1)
-		delta, err := newDelta(runtime.controller.id, record.ID, sequence, time.Now(), payload)
-		if err != nil || !runtime.engine.observation.offerDelta(delta) {
+		delta, err := newDelta(loop.controller.processID, record.ID, sequence, time.Now(), payload)
+		if err != nil || !loop.engine.observation.offerDelta(delta) {
 			dropped.Add(1)
 		}
 	}
 	result := make(chan dispatchResult, 1)
 	dispatchCtx := context.WithoutCancel(ctx)
 	go func() {
-		settlement, err := dispatchEffect(runtime.deployment.effectDispatcher(), dispatchCtx, request, emit)
+		settlement, err := dispatchEffect(loop.deployment.effectDispatcher(), dispatchCtx, request, emit)
 		result <- dispatchResult{settlement: settlement, err: err}
 	}()
 	for {
 		select {
-		case command := <-runtime.controller.commands:
-			runtime.applyCommand(ctx, command)
+		case command := <-loop.controller.commands:
+			loop.applyCommand(ctx, command)
 		case <-*hostDone:
-			runtime.recordHostTermination(ctx.Err())
+			loop.recordHostTermination(ctx.Err())
 			*hostDone = nil
 		case outcome := <-result:
 			acceptingDeltas.Store(false)
@@ -160,14 +160,14 @@ func (runtime *processRuntime) dispatchStrategyEffect(
 			}
 			record.Settlement = &settlement
 			if count := dropped.Load(); count > 0 {
-				runtime.usage.DroppedDeltas += count
-				runtime.updateView()
+				loop.usage.DroppedDeltas += count
+				loop.updateView()
 				payload, _ := json.Marshal(struct {
 					Count uint64 `json:"count"`
 				}{Count: count})
-				runtime.publishEvent(ctx, EventDeltaDropped, EventPhaseAttempt, runtime.prepared.wire.Sequence, record.ID, payload)
+				loop.publishEvent(ctx, EventDeltaDropped, EventPhaseAttempt, loop.prepared.wire.StepSequence, record.ID, payload)
 			}
-			runtime.publishSettlementEvent(
+			loop.publishSettlementEvent(
 				ctx, record.ID, EffectTargetDispatcher, settlement.Status(), startedAt,
 			)
 			return

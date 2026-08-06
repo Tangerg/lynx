@@ -32,7 +32,7 @@ func TestTransformAndCallRunAsManagedChildProcess(t *testing.T) {
 		}),
 	), "parent")
 	engine, err := agent.NewEngine(agent.EngineConfig{
-		DeploymentResolver: deploymentResolver{child.Reference(): child},
+		DeploymentResolver: deploymentResolver{child.DeploymentRef(): child},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -78,7 +78,7 @@ func TestCallPropagatesChildFailure(t *testing.T) {
 	}
 	parent := mustDeployment(t, mustDefinition(t, "test.workflow.failure_parent", call), "failure-parent")
 	engine, err := agent.NewEngine(agent.EngineConfig{
-		DeploymentResolver: deploymentResolver{child.Reference(): child},
+		DeploymentResolver: deploymentResolver{child.DeploymentRef(): child},
 	})
 	if err != nil {
 		t.Fatal(err)

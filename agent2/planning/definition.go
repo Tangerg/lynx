@@ -10,7 +10,7 @@ import (
 
 const (
 	executionStateKind          = "planning"
-	executionStateSchemaVersion = 1
+	executionStateSchemaVersion = 2
 )
 
 // DefinitionConfig contains one immutable managed Planning behavior. Goal,
@@ -57,7 +57,7 @@ type Definition struct {
 
 // NewDefinition validates config and constructs a managed Planning Definition.
 func NewDefinition(config DefinitionConfig) (*Definition, error) {
-	if !config.InputSchema.Valid() || !config.Goal.Valid() || nilValue(config.Planner) || config.MaxActionAttempts == 0 {
+	if !config.InputSchema.Valid() || !config.Goal.Valid() || isNilImplementation(config.Planner) || config.MaxActionAttempts == 0 {
 		return nil, ErrInvalidDefinitionConfig
 	}
 	bindings := slices.Clone(config.Actions)
@@ -130,7 +130,7 @@ func (definition *Definition) Restore(state agent.ExecutionState) (agent.Executi
 
 func (definition *Definition) valid() bool {
 	if definition == nil || !definition.descriptor.Valid() || !definition.goal.Valid() ||
-		nilValue(definition.planner) || definition.maxActionAttempts == 0 || len(definition.bindings) != len(definition.byName) {
+		isNilImplementation(definition.planner) || definition.maxActionAttempts == 0 || len(definition.bindings) != len(definition.byName) {
 		return false
 	}
 	for _, binding := range definition.bindings {
@@ -195,11 +195,11 @@ const planningOutputSchema = `{
         "type":"object",
         "additionalProperties":false,
         "properties":{
-          "action":{"type":"string","pattern":"^[a-z][a-z0-9._-]{0,127}$"},
+		  "action_name":{"type":"string","pattern":"^[a-z][a-z0-9._-]{0,127}$"},
           "status":{"enum":["succeeded","failed","unconfirmed"]},
           "diagnostic":{"type":"string","minLength":1,"maxLength":4096}
         },
-        "required":["action","status"]
+		"required":["action_name","status"]
       }
     },
     "planning_passes":{"type":"integer","minimum":0,"maximum":4294967295}

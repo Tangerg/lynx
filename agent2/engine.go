@@ -11,10 +11,19 @@ import (
 )
 
 var (
+	// ErrInvalidEngineConfig reports incomplete execution infrastructure or
+	// contradictory limits.
 	ErrInvalidEngineConfig = errors.New("agent: invalid engine configuration")
-	ErrEngineClosed        = errors.New("agent: engine is closed")
-	ErrEngineBusy          = errors.New("agent: engine has active processes")
-	ErrProcessExists       = errors.New("agent: process identity already exists")
+	// ErrEngineClosed reports an operation attempted after Engine closure.
+	ErrEngineClosed = errors.New("agent: engine is closed")
+	// ErrEngineQuiescenceUnavailable reports an operation that cannot obtain a consistent
+	// Engine-wide quiescent boundary.
+	ErrEngineQuiescenceUnavailable = errors.New("agent: engine cannot become quiescent")
+	// ErrEngineHasActiveProcesses reports closure attempted before every
+	// Process reaches a terminal state.
+	ErrEngineHasActiveProcesses = errors.New("agent: engine has active processes")
+	// ErrProcessAlreadyExists reports a duplicate Process identity registration.
+	ErrProcessAlreadyExists = errors.New("agent: process identity already exists")
 )
 
 // PreparedStepAcknowledger is the optional durability boundary immediately
@@ -22,7 +31,7 @@ var (
 // Snapshot reached the caller's chosen durable boundary; it does not grant the
 // Framework ownership of the caller's persistence or atomicity semantics.
 type PreparedStepAcknowledger interface {
-	AcknowledgePreparedStep(context.Context, Snapshot) error
+	AcknowledgePreparedStep(ctx context.Context, snapshot Snapshot) error
 }
 
 // EngineConfig contains only cross-Strategy execution mechanics. Definition,
@@ -187,15 +196,15 @@ func (engine *Engine) Start(ctx context.Context, deployment Deployment, input In
 	}
 	startedAt := time.Now().Round(0).UTC()
 	controller := newProcessController(
-		relation, deployment.Reference(), budget, engine.capabilities,
+		relation, deployment.DeploymentRef(), budget, engine.capabilities,
 		engine.treeLimits,
 		startedAt, StatusRunning,
 	)
-	runtime := newProcessRuntime(engine, controller, deployment, execution, state, startedAt, engine.limits)
+	loop := newProcessLoop(engine, controller, deployment, execution, state, startedAt, engine.limits)
 	if err := engine.register(controller); err != nil {
 		return nil, err
 	}
-	go runtime.run(normalizedContext(ctx))
+	go loop.run(contextOrBackground(ctx))
 	return &Process{controller: controller}, nil
 }
 
@@ -207,7 +216,7 @@ func (engine *Engine) Run(ctx context.Context, deployment Deployment, input Inpu
 	if err != nil {
 		return Result{}, err
 	}
-	return process.Await(context.WithoutCancel(normalizedContext(ctx)))
+	return process.Await(context.WithoutCancel(contextOrBackground(ctx)))
 }
 
 // Restore recreates one Process from a strict Snapshot and the exact bound
@@ -219,7 +228,7 @@ func (engine *Engine) Restore(ctx context.Context, deployment Deployment, snapsh
 	if !deployment.Valid() {
 		return nil, ErrInvalidDeployment
 	}
-	controller, runtime, wire, err := prepareRestoredProcess(engine, deployment, snapshot)
+	controller, loop, wire, err := prepareRestoredProcess(engine, deployment, snapshot)
 	if err != nil {
 		return nil, err
 	}
@@ -230,11 +239,11 @@ func (engine *Engine) Restore(ctx context.Context, deployment Deployment, snapsh
 		return nil, err
 	}
 	if wire.Status.Terminal() {
-		controller.complete(runtime.result(), snapshot, nil)
+		controller.complete(loop.result(), snapshot, nil)
 		controller.markTreeSettled()
 		return &Process{controller: controller}, nil
 	}
-	go runtime.run(normalizedContext(ctx))
+	go loop.run(contextOrBackground(ctx))
 	return &Process{controller: controller}, nil
 }
 
@@ -266,7 +275,7 @@ func (engine *Engine) Close() error {
 	for _, controller := range engine.processes {
 		if !controller.status().Terminal() {
 			engine.mu.Unlock()
-			return ErrEngineBusy
+			return ErrEngineHasActiveProcesses
 		}
 	}
 	engine.closed = true
@@ -281,10 +290,10 @@ func (engine *Engine) register(controller *processController) error {
 	if engine.closed {
 		return ErrEngineClosed
 	}
-	if _, exists := engine.processes[controller.id]; exists {
-		return ErrProcessExists
+	if _, exists := engine.processes[controller.processID]; exists {
+		return ErrProcessAlreadyExists
 	}
-	engine.processes[controller.id] = controller
+	engine.processes[controller.processID] = controller
 	return nil
 }
 
@@ -303,14 +312,14 @@ func (engine *Engine) registerChild(controller *processController, requestDigest
 	}
 	if existingID, exists := engine.children[identity]; exists {
 		existing := engine.processes[existingID]
-		if existing != nil && existing.id == controller.id &&
-			existing.deployment == controller.deployment && existing.childRequestDigest == requestDigest {
+		if existing != nil && existing.processID == controller.processID &&
+			existing.deploymentRef == controller.deploymentRef && existing.childRequestDigest == requestDigest {
 			return nil
 		}
-		return ErrInvalidChild
+		return ErrInvalidChildStart
 	}
-	if _, exists := engine.processes[controller.id]; exists {
-		return ErrProcessExists
+	if _, exists := engine.processes[controller.processID]; exists {
+		return ErrProcessAlreadyExists
 	}
 	if _, exists := engine.processes[parentID]; !exists {
 		return ErrInvalidProcessRelation
@@ -318,7 +327,7 @@ func (engine *Engine) registerChild(controller *processController, requestDigest
 	parent := engine.processes[parentID]
 	if parent == nil || controller.treeLimits != parent.treeLimits ||
 		relation.depth > controller.treeLimits.MaxDepth {
-		return ErrLimitExceeded
+		return ErrResourceLimitExceeded
 	}
 	var childCount, activeChildCount, treeProcessCount uint32
 	for _, existing := range engine.processes {
@@ -335,11 +344,11 @@ func (engine *Engine) registerChild(controller *processController, requestDigest
 	if childCount >= controller.treeLimits.MaxChildren ||
 		activeChildCount >= controller.treeLimits.MaxActiveChildren ||
 		treeProcessCount >= controller.treeLimits.MaxTreeProcesses {
-		return ErrLimitExceeded
+		return ErrResourceLimitExceeded
 	}
 	controller.childRequestDigest = requestDigest
-	engine.processes[controller.id] = controller
-	engine.children[identity] = controller.id
+	engine.processes[controller.processID] = controller
+	engine.children[identity] = controller.processID
 	return nil
 }
 

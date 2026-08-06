@@ -7,6 +7,7 @@ import (
 	"fmt"
 )
 
+// ErrInvalidExecutionState reports a malformed Strategy-owned state envelope.
 var ErrInvalidExecutionState = errors.New("agent: invalid execution state")
 
 // ExecutionState is an immutable, versioned envelope owned by one Execution
@@ -54,6 +55,7 @@ func (s ExecutionState) clone() ExecutionState {
 	}
 }
 
+// MarshalJSON returns the validated Strategy-owned state envelope.
 func (s ExecutionState) MarshalJSON() ([]byte, error) {
 	if !s.Valid() {
 		return nil, ErrInvalidExecutionState
@@ -65,6 +67,7 @@ func (s ExecutionState) MarshalJSON() ([]byte, error) {
 	})
 }
 
+// UnmarshalJSON replaces s with a strictly decoded ExecutionState.
 func (s *ExecutionState) UnmarshalJSON(data []byte) error {
 	if s == nil {
 		return fmt.Errorf("%w: nil receiver", ErrInvalidExecutionState)

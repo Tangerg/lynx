@@ -10,8 +10,8 @@ import (
 
 func TestEngineStartsChildFromAnotherStrategyThroughExactResolver(t *testing.T) {
 	childDeployment := newChildTestDeployment(t)
-	parentDeployment := newCrossParentDeployment(t, childDeployment.Reference())
-	resolver := deploymentMapResolver{childDeployment.Reference(): childDeployment}
+	parentDeployment := newCrossParentDeployment(t, childDeployment.DeploymentRef())
+	resolver := deploymentMapResolver{childDeployment.DeploymentRef(): childDeployment}
 	engine, err := NewEngine(EngineConfig{DeploymentResolver: resolver})
 	if err != nil {
 		t.Fatal(err)
@@ -30,7 +30,7 @@ func TestEngineStartsChildFromAnotherStrategyThroughExactResolver(t *testing.T) 
 	if !found {
 		t.Fatal("resolved child is missing")
 	}
-	if child.DeploymentRef() != childDeployment.Reference() ||
+	if child.DeploymentRef() != childDeployment.DeploymentRef() ||
 		child.Relation().RootID() != parent.ID() || child.Relation().Depth() != 1 {
 		t.Fatalf("resolved child binding = %#v, relation = %#v", child.DeploymentRef(), child.Relation())
 	}
@@ -42,8 +42,8 @@ func TestEngineStartsChildFromAnotherStrategyThroughExactResolver(t *testing.T) 
 
 func TestEngineRejectsResolverBindingMismatch(t *testing.T) {
 	childDeployment := newChildTestDeployment(t)
-	parentDeployment := newCrossParentDeployment(t, childDeployment.Reference())
-	resolver := deploymentMapResolver{childDeployment.Reference(): parentDeployment}
+	parentDeployment := newCrossParentDeployment(t, childDeployment.DeploymentRef())
+	resolver := deploymentMapResolver{childDeployment.DeploymentRef(): parentDeployment}
 	engine, err := NewEngine(EngineConfig{DeploymentResolver: resolver})
 	if err != nil {
 		t.Fatal(err)
@@ -65,7 +65,7 @@ func TestEngineRejectsResolverBindingMismatch(t *testing.T) {
 
 func TestEngineContainsDeploymentResolverPanic(t *testing.T) {
 	childDeployment := newChildTestDeployment(t)
-	parentDeployment := newCrossParentDeployment(t, childDeployment.Reference())
+	parentDeployment := newCrossParentDeployment(t, childDeployment.DeploymentRef())
 	resolver := deploymentResolverFunc(func(DeploymentRef) (Deployment, error) {
 		panic("resolver failure")
 	})

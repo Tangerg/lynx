@@ -12,7 +12,7 @@ func TestEventSeparatesAttemptFromCommittedFacts(t *testing.T) {
 	deployment := newChildTestDeployment(t)
 	relation := rootProcessRelation(processID)
 	event, err := newEvent(
-		7, processID, deployment.Reference(), relation, 2, effectID,
+		7, processID, deployment.DeploymentRef(), relation, 2, effectID,
 		EventEffectStarted, EventPhaseAttempt, time.Unix(20, 0),
 		json.RawMessage(`{"attempt":1}`),
 	)
@@ -27,10 +27,10 @@ func TestEventSeparatesAttemptFromCommittedFacts(t *testing.T) {
 	if err := json.Unmarshal(data, &decoded); err != nil {
 		t.Fatal(err)
 	}
-	if decoded.Phase() != EventPhaseAttempt || decoded.Name() != EventEffectStarted || decoded.Sequence() != 7 {
+	if decoded.Phase() != EventPhaseAttempt || decoded.Name() != EventEffectStarted || decoded.ProcessSequence() != 7 {
 		t.Fatalf("decoded Event = %+v", decoded)
 	}
-	if decoded.DeploymentRef() != deployment.Reference() || decoded.Relation() != relation {
+	if decoded.DeploymentRef() != deployment.DeploymentRef() || decoded.Relation() != relation {
 		t.Fatalf("decoded Deployment = %s, relation = %#v", decoded.DeploymentRef(), decoded.Relation())
 	}
 	if got, ok := decoded.EffectID(); !ok || got != effectID {
@@ -49,8 +49,8 @@ func TestDeltaIsEffectLocalAndImmutable(t *testing.T) {
 	payload[3] = 'x'
 	copyOfPayload := delta.Payload()
 	copyOfPayload[0] = '['
-	if delta.Sequence() != 1 || string(delta.Payload()) != `{"text":"partial"}` {
-		t.Fatalf("Delta = sequence %d payload %s", delta.Sequence(), delta.Payload())
+	if delta.EffectSequence() != 1 || string(delta.Payload()) != `{"text":"partial"}` {
+		t.Fatalf("Delta = sequence %d payload %s", delta.EffectSequence(), delta.Payload())
 	}
 	data, err := json.Marshal(delta)
 	if err != nil {

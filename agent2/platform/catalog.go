@@ -43,7 +43,7 @@ func NewCatalog(deployments ...agent.Deployment) (Catalog, error) {
 				ErrInvalidCatalog, index, agent.ErrInvalidDeployment,
 			)
 		}
-		reference := deployment.Reference()
+		reference := deployment.DeploymentRef()
 		if _, duplicate := byReference[reference]; duplicate {
 			return Catalog{}, fmt.Errorf(
 				"%w: duplicate exact reference %s", ErrInvalidCatalog, reference,
@@ -77,8 +77,8 @@ func (catalog Catalog) Deployments() []agent.Deployment {
 }
 
 func compareDeployment(left, right agent.Deployment) int {
-	leftReference := left.Reference()
-	rightReference := right.Reference()
+	leftReference := left.DeploymentRef()
+	rightReference := right.DeploymentRef()
 	if order := cmp.Compare(leftReference.Name(), rightReference.Name()); order != 0 {
 		return order
 	}

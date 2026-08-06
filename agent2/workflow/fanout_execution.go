@@ -10,7 +10,7 @@ import (
 	agent "github.com/Tangerg/lynx/agent2"
 )
 
-func (execution *execution) startFanoutWindow(consumed uint32) (agent.Transition, error) {
+func (execution *execution) startFanoutWindow(consumedSignals uint32) (agent.Transition, error) {
 	stage := execution.stage()
 	count, err := stage.fanoutCount(execution.state.Value)
 	if err != nil || count == 0 || stage.fanoutWindowSize() == 0 {
@@ -41,7 +41,7 @@ func (execution *execution) startFanoutWindow(consumed uint32) (agent.Transition
 			return agent.Transition{}, err
 		}
 		effect, err := agent.StartChild(agent.ChildSpec{
-			Key: key, Deployment: binding.deployment, Input: input,
+			Key: key, DeploymentRef: binding.deploymentRef, Input: input,
 			Budget: binding.budget, Capabilities: binding.capabilities,
 		})
 		if err != nil {
@@ -53,7 +53,7 @@ func (execution *execution) startFanoutWindow(consumed uint32) (agent.Transition
 	execution.state.FanoutNext = end
 	execution.state.FanoutWindow = window
 	execution.state.Phase = phaseAwaitingFanoutStarts
-	return agent.Continue(consumed, effects...)
+	return agent.Continue(consumedSignals, effects...)
 }
 
 func (execution *execution) acceptFanoutStarts(signals []agent.Signal) (agent.Transition, error) {
@@ -69,7 +69,7 @@ func (execution *execution) acceptFanoutStarts(signals []agent.Signal) (agent.Tr
 		result, err := agent.ParseChildStartResult(signals[offset])
 		key, keyErr := execution.fanoutChildKey(index)
 		if err != nil || keyErr != nil || !found || !identified ||
-			result.Key() != key || result.DeploymentRef() != binding.deployment {
+			result.Key() != key || result.DeploymentRef() != binding.deploymentRef {
 			return agent.Transition{}, fmt.Errorf(
 				"%w: %s Stage %q member %q start result mismatch",
 				ErrInvalidProtocol, execution.stage().kind, execution.stage().id, memberID,
@@ -93,9 +93,9 @@ func (execution *execution) acceptFanoutStarts(signals []agent.Signal) (agent.Tr
 		execution.state.FanoutWindow[offset].ProcessID = &processID
 		childIDs = append(childIDs, processID)
 	}
-	consumed := uint32(len(window))
+	consumedSignals := uint32(len(window))
 	if len(childIDs) == 0 {
-		return agent.Fail(consumed, execution.lowestFanoutFailure())
+		return agent.Fail(consumedSignals, execution.lowestFanoutFailure())
 	}
 	waitKey, err := execution.fanoutWaitKey()
 	if err != nil {
@@ -108,7 +108,7 @@ func (execution *execution) acceptFanoutStarts(signals []agent.Signal) (agent.Tr
 		return agent.Transition{}, err
 	}
 	execution.state.Phase = phaseAwaitingFanoutWaitOpen
-	return agent.Continue(consumed, effect)
+	return agent.Continue(consumedSignals, effect)
 }
 
 func (execution *execution) acceptFanoutWaitOpen(signals []agent.Signal) (agent.Transition, error) {

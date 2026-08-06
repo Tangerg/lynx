@@ -76,7 +76,7 @@ func initialDeploymentState(deployments []agent.Deployment) (deploymentState, er
 	}
 	active := make(map[deploymentSlot]agent.DeploymentRef, len(deployments))
 	for _, deployment := range deployments {
-		reference := deployment.Reference()
+		reference := deployment.DeploymentRef()
 		slot := slotFor(reference)
 		if current, occupied := active[slot]; occupied && current != reference {
 			return deploymentState{}, newDeploymentConflict(current, reference)

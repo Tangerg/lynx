@@ -5,6 +5,7 @@ import (
 	"fmt"
 )
 
+// ErrInvalidStatus reports an unknown common Process lifecycle state.
 var ErrInvalidStatus = errors.New("agent: invalid status")
 
 // Status is the complete common lifecycle state of a Process. Strategy-specific
@@ -12,18 +13,29 @@ var ErrInvalidStatus = errors.New("agent: invalid status")
 type Status uint8
 
 const (
+	// StatusInvalid is the invalid zero value.
 	StatusInvalid Status = iota
+	// StatusNotStarted identifies a Process before execution begins.
 	StatusNotStarted
+	// StatusRunning identifies a Process eligible to advance.
 	StatusRunning
+	// StatusWaiting identifies a Process awaiting a WaitID-addressed Signal.
 	StatusWaiting
+	// StatusPaused identifies an explicitly suspended Process.
 	StatusPaused
+	// StatusCompleted identifies successful semantic completion.
 	StatusCompleted
+	// StatusFailed identifies terminal execution failure.
 	StatusFailed
+	// StatusCancelled identifies cooperative cancellation.
 	StatusCancelled
+	// StatusTimedOut identifies deadline termination.
 	StatusTimedOut
+	// StatusKilled identifies an explicit Engine kill.
 	StatusKilled
 )
 
+// String returns the stable lifecycle-state name.
 func (status Status) String() string {
 	switch status {
 	case StatusNotStarted:
@@ -95,6 +107,7 @@ func (status Status) canTransitionTo(next Status) bool {
 	}
 }
 
+// MarshalText returns the validated stable lifecycle-state name.
 func (status Status) MarshalText() ([]byte, error) {
 	if !status.Valid() {
 		return nil, ErrInvalidStatus
@@ -102,6 +115,7 @@ func (status Status) MarshalText() ([]byte, error) {
 	return []byte(status.String()), nil
 }
 
+// UnmarshalText replaces status with a parsed lifecycle state.
 func (status *Status) UnmarshalText(text []byte) error {
 	if status == nil {
 		return fmt.Errorf("%w: nil receiver", ErrInvalidStatus)

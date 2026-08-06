@@ -35,12 +35,12 @@ type DelegateConfig struct {
 // Deployment. It is a composition value owned by Interaction, not an
 // executable Tool or a second Process-start entry point.
 type Delegate struct {
-	definition   chat.ToolDefinition
-	deployment   agent.DeploymentRef
-	inputSchema  agent.Schema
-	outputSchema agent.Schema
-	budget       agent.Budget
-	capabilities agent.CapabilitySet
+	definition    chat.ToolDefinition
+	deploymentRef agent.DeploymentRef
+	inputSchema   agent.Schema
+	outputSchema  agent.Schema
+	budget        agent.Budget
+	capabilities  agent.CapabilitySet
 }
 
 // NewDelegate validates and freezes one managed worker binding. The target
@@ -58,10 +58,10 @@ func NewDelegate(config DelegateConfig) (Delegate, error) {
 		InputSchema: descriptor.InputSchema().JSON(),
 	}
 	if err := definition.Validate(); err != nil {
-		return Delegate{}, fmt.Errorf("%w: model contract: %v", ErrInvalidDelegate, err)
+		return Delegate{}, fmt.Errorf("%w: model contract: %w", ErrInvalidDelegate, err)
 	}
 	return Delegate{
-		definition: definition.Clone(), deployment: config.Deployment.Reference(),
+		definition: definition.Clone(), deploymentRef: config.Deployment.DeploymentRef(),
 		inputSchema: descriptor.InputSchema(), outputSchema: descriptor.OutputSchema(), budget: config.Budget,
 		capabilities: config.Capabilities,
 	}, nil
@@ -73,7 +73,7 @@ func (delegate Delegate) Valid() bool {
 	return delegate.definition.Validate() == nil && delegate.definition.Description != "" &&
 		strings.TrimSpace(delegate.definition.Description) == delegate.definition.Description &&
 		len(delegate.definition.Description) <= maxDelegateDescriptionBytes &&
-		delegate.deployment.Valid() && delegate.inputSchema.Valid() && delegate.outputSchema.Valid() &&
+		delegate.deploymentRef.Valid() && delegate.inputSchema.Valid() && delegate.outputSchema.Valid() &&
 		delegate.budget.Valid() && delegate.capabilities.Valid()
 }
 

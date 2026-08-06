@@ -425,3 +425,13 @@
 - 真实运行也证明完整 Event sequence 不能成为跨运行等价条件：child 若在 wait 注册前完成，父可直接继续；若在注册后完成，父会提交 Waiting 并接收 Signal。该调度差异不改变 Result/tree/Usage/实际 Step 与 Effect 语义，文档不把 `signal.accepted`、中间 running/waiting、ID 或时间误写为 deterministic output。
 - 冻结前删除单字段 Config，构造收敛为 `New(deployments...)`；Platform 零值可直接 Deploy/Resolve/select empty。删除 executable `ActiveDeployments` 枚举，active discovery 只保留 immutable DeploymentCandidate，阻止 Dispatcher/Definition behavior 从发现面泄漏。Catalog/Resolve 继续服务 exact history，SelectDeployment 是 active executable binding 的唯一出口；nil Platform/selector 只返回精确的 ErrNilPlatform/ErrNilDeploymentSelector，不再冒充一般 Invalid。
 - Platform 不持有或包装 Engine，不提供 Start/Run/Restore/Process facade，不拥有 ProcessAdmitter、EventListener、OTel、Store 或 Host policy。Platform architecture gate 进一步禁止 OTel 与所有 Strategy/legacy/Host imports；完整形态只是 Host 对 selection + resolver + 同一个 Engine 的显式组合。
+
+## 13. P9 独立完整性验收证据
+
+### 13.1 名称、参数、GoDoc 与 error 合同
+
+- 七个公共 package 已逐项通过 `go doc -all` 和源码 AST 复审。完整 behavior binding 只叫 Deployment，exact identity 只叫 DeploymentRef；同理 Process/Event/Effect/Signal 的 sequence、cursor、consumption 和 batch index 都带 owner，不再靠调用位置猜含义。
+- 所有公开 callable 参数都有语义名称，所有公开 declaration/struct field 都有以 exact identifier 开头的 GoDoc。门禁直接扫描 production source，后续匿名 interface 参数、合并字段注释或 promoted callable 文档缺失都会失败。
+- error sentinel 按真实失败条件命名；普通 cause 全部用 `%w` 保留 `errors.Is/As`，panic recovered value 和数字等非 error 值才允许 `%v`。静态门禁会阻止 `err`、`*Err`、`*Error` 再通过 `%v` 断链。
+- 私有实现同一标尺收敛：Engine-owned goroutine 是 processLoop，不叫 runtime；controller identity、last-stable state、pending control、final output 和 terminal snapshot 都直接写明 owner/提交含义。职责文件同步按 input/output/capability/error/name/json/typed-nil 拆分，没有恢复 `types.go`、`util.go` 或 `helpers.go` 杂物桶。
+- wire 改名是显式 breaking revision：Process Snapshot v4、TreeSnapshot v2、child/framework-effect protocol v2 与 Planning ExecutionState v2 只读当前精确字段，不保留旧 tag、alias 或双读。Event/Delta 使用 ProcessSequence/EffectSequence 与 exact DeploymentRef，并由 observation wire digest 独立守卫。

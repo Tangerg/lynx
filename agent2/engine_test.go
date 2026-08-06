@@ -275,7 +275,7 @@ func (dispatcher *partialBatchDispatcher) Dispatch(
 	if err != nil {
 		return Settlement{}, err
 	}
-	if request.Index() == 1 {
+	if request.BatchIndex() == 1 {
 		return Settlement{}, errors.New("second Effect result is unknown")
 	}
 	payload, _ := json.Marshal(engineTestMessage{Kind: "result", Value: message.Value})
@@ -652,9 +652,9 @@ func TestStepFailureDiscardsMutatedExecutionAndPreservesCursor(t *testing.T) {
 		t.Fatal(err)
 	}
 	wire, _ := snapshot.wire()
-	state, _ := decodeJSON[engineTestState](wire.LastStable.Payload())
-	if state.Phase != "ready" || wire.Mailbox.Cursor != 0 || wire.Prepared != nil {
-		t.Fatalf("last stable state=%+v cursor=%d prepared=%v", state, wire.Mailbox.Cursor, wire.Prepared)
+	state, _ := decodeJSON[engineTestState](wire.LastStableState.Payload())
+	if state.Phase != "ready" || wire.Mailbox.SignalCursor != 0 || wire.Prepared != nil {
+		t.Fatalf("last stable state=%+v cursor=%d prepared=%v", state, wire.Mailbox.SignalCursor, wire.Prepared)
 	}
 }
 
@@ -786,8 +786,8 @@ func TestEventLifecycleCarriesExactBindingAndAttemptDurations(t *testing.T) {
 		if event.Name() != wantNames[index] {
 			t.Fatalf("event[%d] = %q, want %q", index, event.Name(), wantNames[index])
 		}
-		if event.Sequence() != uint64(index+1) || event.ProcessID() != result.ProcessID() ||
-			event.DeploymentRef() != deployment.Reference() ||
+		if event.ProcessSequence() != uint64(index+1) || event.ProcessID() != result.ProcessID() ||
+			event.DeploymentRef() != deployment.DeploymentRef() ||
 			event.Relation().ProcessID() != result.ProcessID() || !event.Relation().IsRoot() {
 			t.Fatalf("event[%d] envelope = %+v", index, event)
 		}

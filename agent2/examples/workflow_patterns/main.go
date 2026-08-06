@@ -298,8 +298,8 @@ func newWorkflowPatterns() (agent.Deployment, deploymentResolver, error) {
 	}{Budget: budget, SectionWindow: 2, VoteWindow: 2}
 	resolver := make(deploymentResolver, len(children))
 	for _, child := range children {
-		configuration.Children = append(configuration.Children, child.Reference().Digest().String())
-		resolver[child.Reference()] = child
+		configuration.Children = append(configuration.Children, child.DeploymentRef().Digest().String())
+		resolver[child.DeploymentRef()] = child
 	}
 	configurationJSON, err := json.Marshal(configuration)
 	if err != nil {

@@ -14,8 +14,8 @@ var (
 	// ErrNilDeploymentSelector reports a nil selector implementation.
 	ErrNilDeploymentSelector = errors.New("platform: nil deployment selector")
 
-	// ErrNoDeploymentCandidate reports that the active snapshot is empty.
-	ErrNoDeploymentCandidate = errors.New("platform: no deployment candidate")
+	// ErrNoDeploymentCandidates reports that the active snapshot is empty.
+	ErrNoDeploymentCandidates = errors.New("platform: no deployment candidates")
 
 	// ErrInvalidDeploymentSelection reports a selector panic or a reference
 	// that was not present in the exact candidate snapshot it received.
@@ -30,8 +30,8 @@ type DeploymentCandidate struct {
 	descriptor agent.Descriptor
 }
 
-// Reference returns the candidate's exact immutable Deployment identity.
-func (candidate DeploymentCandidate) Reference() agent.DeploymentRef {
+// DeploymentRef returns the candidate's exact immutable Deployment identity.
+func (candidate DeploymentCandidate) DeploymentRef() agent.DeploymentRef {
 	return candidate.reference
 }
 
@@ -45,13 +45,13 @@ func (candidate DeploymentCandidate) Descriptor() agent.Descriptor {
 // and must be safe for concurrent calls when shared. Request-specific routing
 // input belongs to the implementation rather than a Framework payload type.
 type DeploymentSelector interface {
-	Select(context.Context, []DeploymentCandidate) (agent.DeploymentRef, error)
+	Select(ctx context.Context, candidates []DeploymentCandidate) (agent.DeploymentRef, error)
 }
 
 // DeploymentSelectorFunc adapts a function to DeploymentSelector.
 type DeploymentSelectorFunc func(
-	context.Context,
-	[]DeploymentCandidate,
+	ctx context.Context,
+	candidates []DeploymentCandidate,
 ) (agent.DeploymentRef, error)
 
 // Select invokes selector.
@@ -91,12 +91,12 @@ func (platform *Platform) SelectDeployment(
 	deployments := slices.Clone(platform.state.ordered)
 	platform.mu.RUnlock()
 	if len(deployments) == 0 {
-		return agent.Deployment{}, ErrNoDeploymentCandidate
+		return agent.Deployment{}, ErrNoDeploymentCandidates
 	}
 	candidates := candidatesFrom(deployments)
 	offered := make(map[agent.DeploymentRef]agent.Deployment, len(deployments))
 	for _, deployment := range deployments {
-		offered[deployment.Reference()] = deployment
+		offered[deployment.DeploymentRef()] = deployment
 	}
 	if ctx == nil {
 		ctx = context.Background()
@@ -125,7 +125,7 @@ func candidatesFrom(deployments []agent.Deployment) []DeploymentCandidate {
 	candidates := make([]DeploymentCandidate, len(deployments))
 	for index, deployment := range deployments {
 		candidates[index] = DeploymentCandidate{
-			reference: deployment.Reference(), descriptor: deployment.Descriptor(),
+			reference: deployment.DeploymentRef(), descriptor: deployment.Descriptor(),
 		}
 	}
 	return candidates

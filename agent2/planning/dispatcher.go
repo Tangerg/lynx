@@ -10,10 +10,12 @@ import (
 
 // DispatcherConfig binds side-effect-free observation and the exact set of
 // dispatcher-targeted Action executors required by a Definition. Child-bound
-// Actions must not appear in Executors.
+// Actions must not appear in ActionExecutors.
 type DispatcherConfig struct {
-	Observer  Observer
-	Executors map[string]ActionExecutor
+	// Observer supplies each complete WorldState observation.
+	Observer Observer
+	// ActionExecutors maps dispatcher-bound Action names to exact executors.
+	ActionExecutors map[string]ActionExecutor
 }
 
 type boundExecutor struct {
@@ -34,15 +36,15 @@ type Dispatcher struct {
 // by definition. Missing, extra, typed-nil, or child-Action executors are
 // rejected before Deployment assembly.
 func NewDispatcher(definition *Definition, config DispatcherConfig) (*Dispatcher, error) {
-	if !definition.valid() || nilValue(config.Observer) {
+	if !definition.valid() || isNilImplementation(config.Observer) {
 		return nil, ErrInvalidDispatcherConfig
 	}
 	executors := make(map[string]boundExecutor)
 	for _, binding := range definition.bindings {
-		executor, supplied := config.Executors[binding.action.name]
+		executor, supplied := config.ActionExecutors[binding.action.name]
 		switch binding.target {
 		case bindingTargetDispatcher:
-			if !supplied || nilValue(executor) {
+			if !supplied || isNilImplementation(executor) {
 				return nil, fmt.Errorf("%w: missing executor for Action %q", ErrInvalidDispatcherConfig, binding.action.name)
 			}
 			executors[binding.action.name] = boundExecutor{action: binding.action, executor: executor}
@@ -54,8 +56,8 @@ func NewDispatcher(definition *Definition, config DispatcherConfig) (*Dispatcher
 			return nil, ErrInvalidDispatcherConfig
 		}
 	}
-	for name, executor := range config.Executors {
-		if !validName(name) || nilValue(executor) {
+	for name, executor := range config.ActionExecutors {
+		if !validName(name) || isNilImplementation(executor) {
 			return nil, fmt.Errorf("%w: invalid executor %q", ErrInvalidDispatcherConfig, name)
 		}
 		if _, found := executors[name]; !found {
@@ -75,7 +77,7 @@ func (dispatcher *Dispatcher) Dispatch(
 	request agent.EffectRequest,
 	_ agent.DeltaEmitter,
 ) (agent.Settlement, error) {
-	if dispatcher == nil || !dispatcher.descriptor.Valid() || nilValue(dispatcher.observer) {
+	if dispatcher == nil || !dispatcher.descriptor.Valid() || isNilImplementation(dispatcher.observer) {
 		return agent.Settlement{}, ErrInvalidDispatcherConfig
 	}
 	envelope, err := decodeEffect(request.Effect().Payload())
@@ -83,7 +85,7 @@ func (dispatcher *Dispatcher) Dispatch(
 		return agent.Settlement{}, err
 	}
 	if err := dispatcher.descriptor.ValidateInput(envelope.Input); err != nil {
-		return agent.Settlement{}, fmt.Errorf("%w: Effect Input: %v", ErrInvalidProtocol, err)
+		return agent.Settlement{}, fmt.Errorf("%w: Effect Input: %w", ErrInvalidProtocol, err)
 	}
 	switch envelope.Operation {
 	case operationObserve:
@@ -142,7 +144,7 @@ func (dispatcher *Dispatcher) execute(
 	}
 	request := ActionRequest{
 		EffectID: effectID, Input: input, ActionName: call.Name,
-		Description: call.Description, WorldState: call.WorldState,
+		ActionDescription: call.Description, WorldState: call.WorldState,
 	}
 	if err := validateActionRequest(request); err != nil {
 		return agent.Settlement{}, err

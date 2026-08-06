@@ -435,3 +435,13 @@
 - 决策：跨两次独立运行只比较稳定语义，不伪造 deterministic scheduling。child 在 wait 注册前完成时父 Process 可继续 running；注册后完成时会出现 Waiting/Signal。`signal.accepted`、中间 running/waiting、ProcessID、wall-clock 和全局交错不是 Platform 等价合同；每 Process 的事实仍按自身 sequence 有序，最终 Result/tree/Usage 与实际 Step/Effect lifecycle 必须一致。
 - 原因：Platform 的价值是多 Deployment catalog、版本、selection 和治理，不是第二 runtime。真实 consumer 同时证明最小嵌入与完整装配只相差启动前的选择和 exact resolver 来源，因而没有理由新增 facade；冻结前删除冗余候选面也避免把可执行对象泄露给 discovery。
 - 后果：`platform` 公开 API/GoDoc 纳入 Baseline 3；根、Interaction、Planning、GOAP、Workflow、OTel API 与 Process Snapshot v3、TreeSnapshot v1、Event/Delta wire 不变。P8 7/7 完成，下一阶段只做 P9 独立完整性验收。
+
+## ADR-A2-054：P9 以 owner-qualified 词汇一次性替换宽泛名称
+
+- 状态：已接受；完成 P9-01。
+- 证据：P1–P8 的真实消费者已经证明领域边界稳定，但独立 `go doc -all`、wire shape 和私有实现审计仍发现同一概念存在不同精度：完整 `Deployment` 与仅含 exact identity 的配置都叫 `Deployment`；Deployment/Candidate 对 exact identity 使用宽泛 `Reference`；Effect batch index 只叫 `Index`；Event、Delta、Signal mailbox 与 prepared Step 的多种 sequence/cursor 缺 owner；Transition consumption 在 API 与 wire 上没有明确指向 Signal；若干公开接口参数匿名、公开字段缺独立 GoDoc，error cause 仍有 `%v` 断链。私有 loop/controller 也有 `runtime`、`id`、`lastStable`、`control`、`output` 等无法单独说明所有权或提交状态的宽词。
+- 决策：词汇按 owner-qualified 语义一次性收敛，不保留近义入口。完整行为绑定始终叫 `Deployment`；exact value identity 始终叫 `DeploymentRef`，因此公开方法为 `Deployment.DeploymentRef`/`DeploymentCandidate.DeploymentRef`，Planning child 配置字段为 `DeploymentRef`。Effect request 使用 `StepSequence`/`BatchIndex`；Event 使用 `ProcessSequence`/`StepSequence`，Delta 使用 `EffectSequence`；mailbox 使用 `ArrivalSequence`/`SignalCursor`；Transition 使用 `ConsumedSignals`。私有 Kernel 统一为 `processLoop`、`processID`、`lastStableState`、`pendingControl`、`finalOutput` 和 `terminalSnapshot`。
+- 决策：公开 callable 的每个参数必须有语义名称；所有公开声明和公开 struct field 必须以 exact identifier 开头的 GoDoc 说明 owner、单位或零值；AST 门禁自动阻止匿名参数、漂移字段注释和 `%v` 格式化 error cause。sentinel 同样使用准确结果词汇，例如 `ErrEngineQuiescenceUnavailable`、`ErrProcessAlreadyExists`、`ErrNoDeploymentCandidates`、`ErrExpansionLimitReached`，不以 Busy/Exists/Limit 等宽词掩盖条件。
+- 决策：wire 名称同步一次性修正，不双写/双读旧 tag。Process Snapshot schema 从 v3 升为 v4，TreeSnapshot 从 v1 升为 v2，child 与 Framework Effect protocol 从 v1 升为 v2；Planning `Attempt.ActionName` 进入 output/state wire，其 ExecutionState 从 v1 升为 v2。Event/Delta 是严格 observation wire，直接使用新 owner-qualified tag 并由独立 digest 固化。旧 snapshot/protocol/state 明确拒绝，不增加 alias、compat codec 或迁移 helper。
+- 原因：名称是 Framework 的可执行合同，而不是装饰。相同词必须表达相同抽象强度，不同 owner 的序号/游标不能共享一个模糊名称；否则使用者和模型会把 exact ref 当完整 binding、把 arrival sequence 当 committed cursor，或忽略 error cause。绿色重写尚无稳定发布兼容负担，此时一次性治本比长期保留双术语更便宜也更安全。
+- 后果：七个公共 package、Process/tree/protocol 与 observation wire 显式修订为 Baseline 4。P9-02 仍需独立验证 baseline 守卫覆盖完整且不存在未纳入的持久/观察 wire；本 ADR 不改变 Framework/Host 边界、Process 状态机、Strategy 行为或 Workflow 的 `flow` 独立边界。

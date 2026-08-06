@@ -3,13 +3,120 @@ package agent2
 import (
 	"crypto/sha256"
 	"fmt"
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"reflect"
 	"slices"
 	"strings"
 	"testing"
 )
+
+func TestExportedContractsAreDocumentedAndNamed(t *testing.T) {
+	directories := []string{".", "interaction", "planning", "planning/goap", "workflow", "otel", "platform"}
+	for _, directory := range directories {
+		entries, err := os.ReadDir(directory)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, entry := range entries {
+			name := entry.Name()
+			if entry.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
+				continue
+			}
+			path := filepath.Join(directory, name)
+			file, err := parser.ParseFile(token.NewFileSet(), path, nil, parser.ParseComments)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, declaration := range file.Decls {
+				switch declaration := declaration.(type) {
+				case *ast.FuncDecl:
+					publicReceiver := declaration.Recv == nil || token.IsExported(receiverTypeName(declaration.Recv))
+					if declaration.Name.IsExported() && publicReceiver {
+						assertGoDocStartsWithName(t, path, declaration.Name.Name, declaration.Doc)
+						assertParametersAreNamed(t, path, declaration.Name.Name, declaration.Type.Params)
+					}
+				case *ast.GenDecl:
+					for _, specification := range declaration.Specs {
+						switch specification := specification.(type) {
+						case *ast.TypeSpec:
+							if specification.Name.IsExported() {
+								doc := specification.Doc
+								if doc == nil {
+									doc = declaration.Doc
+								}
+								assertGoDocStartsWithName(t, path, specification.Name.Name, doc)
+								assertExportedTypeContract(t, path, specification)
+							}
+						case *ast.ValueSpec:
+							for _, identifier := range specification.Names {
+								if !identifier.IsExported() {
+									continue
+								}
+								doc := specification.Doc
+								if doc == nil {
+									doc = declaration.Doc
+								}
+								assertGoDocStartsWithName(t, path, identifier.Name, doc)
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+}
+
+func assertExportedTypeContract(t *testing.T, path string, specification *ast.TypeSpec) {
+	t.Helper()
+	switch declaration := specification.Type.(type) {
+	case *ast.StructType:
+		for _, field := range declaration.Fields.List {
+			for _, name := range field.Names {
+				if name.IsExported() {
+					assertGoDocStartsWithName(t, path, name.Name, field.Doc)
+				}
+			}
+		}
+	case *ast.InterfaceType:
+		for _, method := range declaration.Methods.List {
+			function, ok := method.Type.(*ast.FuncType)
+			if !ok {
+				continue
+			}
+			name := specification.Name.Name
+			if len(method.Names) > 0 {
+				name += "." + method.Names[0].Name
+			}
+			assertParametersAreNamed(t, path, name, function.Params)
+		}
+	case *ast.FuncType:
+		assertParametersAreNamed(t, path, specification.Name.Name, declaration.Params)
+	}
+}
+
+func assertParametersAreNamed(t *testing.T, path, callable string, parameters *ast.FieldList) {
+	t.Helper()
+	if parameters == nil {
+		return
+	}
+	for _, parameter := range parameters.List {
+		if len(parameter.Names) == 0 {
+			t.Errorf("%s: exported callable %s requires semantically named parameters", path, callable)
+		}
+	}
+}
+
+func assertGoDocStartsWithName(t *testing.T, path, name string, doc *ast.CommentGroup) {
+	t.Helper()
+	if doc == nil || !strings.HasPrefix(strings.TrimSpace(doc.Text()), name) {
+		t.Errorf("%s: exported %s requires GoDoc beginning with its exact name", path, name)
+	}
+}
 
 func TestExportedAPIBaseline(t *testing.T) {
 	tests := []struct {
@@ -17,13 +124,13 @@ func TestExportedAPIBaseline(t *testing.T) {
 		directory string
 		want      string
 	}{
-		{name: "kernel", directory: ".", want: "9cfc3728580548301732bdc8cc9a33e9b5bde083215498e39c455d921730b617"},
-		{name: "interaction", directory: "interaction", want: "9678f94265b227e7d085cc18a264ad3be4cac98709d94638f47c9ee7960e3fee"},
-		{name: "planning", directory: "planning", want: "bb3a3fee5315afba3cc1f70ecc0486b4b91f88d4d4160aa93bf896b09ffc28a1"},
-		{name: "goap", directory: "planning/goap", want: "da348e298e6976318b317873b44ec60829020fdea82947fae4bbc8e0d865b419"},
-		{name: "workflow", directory: "workflow", want: "0493f8f7ae6e4cc5a3190735c5d02952ec0e0fdb230794bbb01735b8ecfae055"},
-		{name: "otel", directory: "otel", want: "aed81360b2fdedda8b08a2c27e7570a4f06f4584ff84e3f0904016d517c038ec"},
-		{name: "platform", directory: "platform", want: "9fef1861154434ca2f4fdd4d3b6bfad2b4c8326b15c49eb0d3c82fc0062f8713"},
+		{name: "kernel", directory: ".", want: "73b6f2270e4010886234cb080c277ba1960dcb09c8c123b550ba0c0a8ff6fb90"},
+		{name: "interaction", directory: "interaction", want: "b5fdabbea94d2b9aa346446a7cafb4accde928b23489012ba2763c77a517da91"},
+		{name: "planning", directory: "planning", want: "15c48c52b7d4765ba86da2e5fd11822669c163c01e98dd4cb3668f71f7c5f30a"},
+		{name: "goap", directory: "planning/goap", want: "dd5a007a20ddbeac2112bbed10718f5256fe2449376fd7dcc1400e25578253ec"},
+		{name: "workflow", directory: "workflow", want: "a0e4815dc7c9bb69f215702434b8547e2abdb446400efc445d3fdb35ff752094"},
+		{name: "otel", directory: "otel", want: "0725fbef9fbd28ba9b6999ab8b427dd9a4376f83aef9839a9f15f60c16422016"},
+		{name: "platform", directory: "platform", want: "748f5ea1ef3b09c702a792ab6e16a3b4ae6be9776ef1a4ba51e856757abff078"},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -34,6 +141,7 @@ func TestExportedAPIBaseline(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			assertGoDocHasNoUndocumentedCallables(t, output)
 			got := fmt.Sprintf("%x", sha256.Sum256(output))
 			if got != test.want {
 				t.Fatalf(
@@ -45,10 +153,83 @@ func TestExportedAPIBaseline(t *testing.T) {
 	}
 }
 
+func assertGoDocHasNoUndocumentedCallables(t *testing.T, output []byte) {
+	t.Helper()
+	lines := strings.Split(string(output), "\n")
+	for index, line := range lines {
+		if !strings.HasPrefix(line, "func ") || index+1 >= len(lines) {
+			continue
+		}
+		if lines[index+1] == "" {
+			t.Errorf("go doc exposes an undocumented callable: %s", line)
+		}
+	}
+}
+
+func TestErrorCausesAreWrapped(t *testing.T) {
+	directories := []string{".", "interaction", "planning", "planning/goap", "workflow", "otel", "platform"}
+	for _, directory := range directories {
+		entries, err := os.ReadDir(directory)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, entry := range entries {
+			name := entry.Name()
+			if entry.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
+				continue
+			}
+			path := filepath.Join(directory, name)
+			file, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
+			if err != nil {
+				t.Fatal(err)
+			}
+			ast.Inspect(file, func(node ast.Node) bool {
+				call, ok := node.(*ast.CallExpr)
+				if !ok || len(call.Args) < 2 || !isFmtErrorf(call.Fun) {
+					return true
+				}
+				format, ok := stringLiteral(call.Args[0])
+				if !ok || !strings.Contains(format, "%v") {
+					return true
+				}
+				for _, argument := range call.Args[1:] {
+					identifier, ok := argument.(*ast.Ident)
+					if ok && isErrorCauseName(identifier.Name) {
+						t.Errorf("%s: fmt.Errorf formats cause %s with %%v; preserve errors.Is/As with %%w", path, identifier.Name)
+					}
+				}
+				return true
+			})
+		}
+	}
+}
+
+func isFmtErrorf(expression ast.Expr) bool {
+	selector, ok := expression.(*ast.SelectorExpr)
+	if !ok || selector.Sel.Name != "Errorf" {
+		return false
+	}
+	packageName, ok := selector.X.(*ast.Ident)
+	return ok && packageName.Name == "fmt"
+}
+
+func stringLiteral(expression ast.Expr) (string, bool) {
+	literal, ok := expression.(*ast.BasicLit)
+	if !ok || literal.Kind != token.STRING {
+		return "", false
+	}
+	return strings.Trim(literal.Value, "`\""), true
+}
+
+func isErrorCauseName(name string) bool {
+	return name == "err" || name == "cause" ||
+		strings.HasSuffix(name, "Err") || strings.HasSuffix(name, "Error")
+}
+
 func TestSnapshotWireBaseline(t *testing.T) {
 	shape := snapshotWireShape()
 	got := fmt.Sprintf("%x", sha256.Sum256([]byte(shape)))
-	const want = "6f4a919ed0c681e9fb021f5571de0cdaf4e97d0cad8e4170fede3453a31c0c9d"
+	const want = "90977e6796f73877d0f60b68d2048346f1d1bde4df1963b4908982a5f27c4764"
 	if got != want {
 		t.Fatalf("snapshot wire changed: got %s, want %s\n%s", got, want, shape)
 	}
@@ -57,7 +238,7 @@ func TestSnapshotWireBaseline(t *testing.T) {
 func TestObservationWireBaseline(t *testing.T) {
 	shape := observationWireShape()
 	got := fmt.Sprintf("%x", sha256.Sum256([]byte(shape)))
-	const want = "b5a32c7dd19858ee0e256f19973010cffff30f6e961d2b04d7cb80947f121ad4"
+	const want = "de73e9036fcd556eee94f1f24d244b06901ecfe07d9e5f9574a7b5f40dce4807"
 	if got != want {
 		t.Fatalf("observation wire changed: got %s, want %s\n%s", got, want, shape)
 	}

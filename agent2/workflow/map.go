@@ -59,19 +59,19 @@ func Map[I, O any](config MapConfig[I, O]) (Stage, error) {
 	}
 	inputSchema, err := agent.SchemaFor[[]I]()
 	if err != nil {
-		return Stage{}, fmt.Errorf("%w: Map %q input schema: %v", ErrInvalidStage, config.ID, err)
+		return Stage{}, fmt.Errorf("%w: Map %q input schema: %w", ErrInvalidStage, config.ID, err)
 	}
 	itemSchema, err := agent.SchemaFor[I]()
 	if err != nil {
-		return Stage{}, fmt.Errorf("%w: Map %q item schema: %v", ErrInvalidStage, config.ID, err)
+		return Stage{}, fmt.Errorf("%w: Map %q item schema: %w", ErrInvalidStage, config.ID, err)
 	}
 	itemOutputSchema, err := agent.SchemaFor[O]()
 	if err != nil {
-		return Stage{}, fmt.Errorf("%w: Map %q item output schema: %v", ErrInvalidStage, config.ID, err)
+		return Stage{}, fmt.Errorf("%w: Map %q item output schema: %w", ErrInvalidStage, config.ID, err)
 	}
 	outputSchema, err := agent.SchemaFor[[]O]()
 	if err != nil {
-		return Stage{}, fmt.Errorf("%w: Map %q output schema: %v", ErrInvalidStage, config.ID, err)
+		return Stage{}, fmt.Errorf("%w: Map %q output schema: %w", ErrInvalidStage, config.ID, err)
 	}
 	descriptor := config.Deployment.Descriptor()
 	if !schemasEqual(itemSchema, descriptor.InputSchema()) ||
@@ -151,7 +151,7 @@ func Map[I, O any](config MapConfig[I, O]) (Stage, error) {
 		inputSchema: inputSchema, outputSchema: outputSchema,
 		mapper: mapStage{
 			binding: childBinding{
-				deployment: config.Deployment.Reference(), budget: config.Budget,
+				deploymentRef: config.Deployment.DeploymentRef(), budget: config.Budget,
 				capabilities: config.Capabilities,
 			},
 			windowSize: config.WindowSize, itemLimit: config.ItemLimit,

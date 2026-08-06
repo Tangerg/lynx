@@ -40,7 +40,7 @@ func TestSwitchRunsOnlyTheSelectedManagedChild(t *testing.T) {
 		t.Fatalf("Switch Stage = %#v", stage)
 	}
 	deployment := mustDeployment(t, mustDefinition(t, "test.workflow.switch", stage), "switch")
-	resolver := deploymentResolver{left.Reference(): left, right.Reference(): right}
+	resolver := deploymentResolver{left.DeploymentRef(): left, right.DeploymentRef(): right}
 	for _, test := range []struct {
 		selected string
 		want     int

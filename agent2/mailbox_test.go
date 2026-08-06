@@ -29,8 +29,8 @@ func TestSignalRequestAndMailboxOwnPayloadAndDeduplicate(t *testing.T) {
 	if err != nil || accepted {
 		t.Fatalf("duplicate enqueue = %t, %v", accepted, err)
 	}
-	if mailbox.sequence() != 1 || len(mailbox.pending()) != 1 || string(mailbox.pending()[0].Payload()) != `{"kind":"steer"}` {
-		t.Fatalf("mailbox = sequence %d pending %+v", mailbox.sequence(), mailbox.pending())
+	if mailbox.arrivalSequence() != 1 || len(mailbox.pending()) != 1 || string(mailbox.pending()[0].Payload()) != `{"kind":"steer"}` {
+		t.Fatalf("mailbox = sequence %d pending %+v", mailbox.arrivalSequence(), mailbox.pending())
 	}
 }
 
@@ -46,13 +46,13 @@ func TestMailboxCommitsOnlyAnExplicitSignalPrefix(t *testing.T) {
 	if err := mailbox.commit(2); err != nil {
 		t.Fatal(err)
 	}
-	if mailbox.consumedSequence() != 2 || len(mailbox.pending()) != 1 || mailbox.pending()[0].ID().String() != "signal:3" {
-		t.Fatalf("mailbox cursor = %d pending %+v", mailbox.consumedSequence(), mailbox.pending())
+	if mailbox.committedSignalCursor() != 2 || len(mailbox.pending()) != 1 || mailbox.pending()[0].ID().String() != "signal:3" {
+		t.Fatalf("mailbox cursor = %d pending %+v", mailbox.committedSignalCursor(), mailbox.pending())
 	}
 	if err := mailbox.commit(2); !errors.Is(err, errMailboxCursor) {
 		t.Fatalf("over-consume error = %v, want errMailboxCursor", err)
 	}
-	if mailbox.consumedSequence() != 2 {
+	if mailbox.committedSignalCursor() != 2 {
 		t.Fatal("failed cursor commit changed the authoritative cursor")
 	}
 }
@@ -143,8 +143,8 @@ func TestMailboxSnapshotRestoresDeduplicationCursorAndWaitFacts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if restored.consumedSequence() != 1 || len(restored.pending()) != 1 || restored.pending()[0].ID() != plain.ID() {
-		t.Fatalf("restored mailbox cursor=%d pending=%+v", restored.consumedSequence(), restored.pending())
+	if restored.committedSignalCursor() != 1 || len(restored.pending()) != 1 || restored.pending()[0].ID() != plain.ID() {
+		t.Fatalf("restored mailbox cursor=%d pending=%+v", restored.committedSignalCursor(), restored.pending())
 	}
 	if accepted, err := restored.enqueue(StatusRunning, answer); err != nil || accepted {
 		t.Fatalf("restored duplicate enqueue = %t, %v", accepted, err)
@@ -176,9 +176,9 @@ func TestMailboxWaitOpenedSignalDoesNotAnswerOrCloseWait(t *testing.T) {
 func TestMailboxRestoreRejectsInvalidWire(t *testing.T) {
 	signal := mustSignal(t, "signal:1", WaitID{}, time.Unix(1, 0), json.RawMessage(`{}`))
 	for _, wire := range []mailboxWire{
-		{Cursor: 1},
-		{Signals: []signalRecordWire{{Sequence: 2, Signal: signal}}},
-		{Signals: []signalRecordWire{{Sequence: 1, Signal: signal}, {Sequence: 2, Signal: signal}}},
+		{SignalCursor: 1},
+		{Signals: []signalRecordWire{{ArrivalSequence: 2, Signal: signal}}},
+		{Signals: []signalRecordWire{{ArrivalSequence: 1, Signal: signal}, {ArrivalSequence: 2, Signal: signal}}},
 	} {
 		if _, err := restoreSignalMailbox(wire); err == nil {
 			t.Fatalf("restoreSignalMailbox(%+v) unexpectedly succeeded", wire)

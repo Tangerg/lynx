@@ -118,7 +118,7 @@ func (execution *execution) advance(signals []agent.Signal) (agent.Transition, e
 	}
 }
 
-func (execution *execution) startSingleChild(consumed uint32, binding childBinding) (agent.Transition, error) {
+func (execution *execution) startSingleChild(consumedSignals uint32, binding childBinding) (agent.Transition, error) {
 	input, err := agent.ParseInput(execution.state.Value)
 	if err != nil {
 		return agent.Transition{}, err
@@ -128,14 +128,14 @@ func (execution *execution) startSingleChild(consumed uint32, binding childBindi
 		return agent.Transition{}, err
 	}
 	effect, err := agent.StartChild(agent.ChildSpec{
-		Key: key, Deployment: binding.deployment, Input: input,
+		Key: key, DeploymentRef: binding.deploymentRef, Input: input,
 		Budget: binding.budget, Capabilities: binding.capabilities,
 	})
 	if err != nil {
 		return agent.Transition{}, err
 	}
 	execution.state.Phase = phaseAwaitingChildStart
-	return agent.Continue(consumed, effect)
+	return agent.Continue(consumedSignals, effect)
 }
 
 func (execution *execution) singleChildBinding() (childBinding, bool) {
@@ -176,7 +176,7 @@ func (execution *execution) acceptChildStart(signals []agent.Signal) (agent.Tran
 	key, keyErr := execution.childKey()
 	binding, bound := execution.singleChildBinding()
 	stage := execution.stage()
-	if err != nil || keyErr != nil || !bound || result.Key() != key || result.DeploymentRef() != binding.deployment {
+	if err != nil || keyErr != nil || !bound || result.Key() != key || result.DeploymentRef() != binding.deploymentRef {
 		return agent.Transition{}, fmt.Errorf("%w: child-start result does not match Stage %q", ErrInvalidProtocol, stage.id)
 	}
 	if failure, failed := result.Failure(); failed {
@@ -267,33 +267,33 @@ func (execution *execution) acceptChildCompletion(signals []agent.Signal) (agent
 	return execution.finishStage(1)
 }
 
-func (execution *execution) finishStage(consumed uint32) (agent.Transition, error) {
+func (execution *execution) finishStage(consumedSignals uint32) (agent.Transition, error) {
 	execution.clearSingleChild()
 	execution.clearFanout()
 	execution.state.LoopIteration = 0
 	execution.state.Stage++
 	if execution.state.Stage < uint32(len(execution.definition.stages)) {
 		execution.state.Phase = phaseReady
-		return agent.Continue(consumed)
+		return agent.Continue(consumedSignals)
 	}
 	output, err := agent.ParseOutput(execution.state.Value)
 	if err != nil {
 		return agent.Transition{}, err
 	}
 	execution.state.Phase = phaseCompleted
-	return agent.Complete(consumed, output)
+	return agent.Complete(consumedSignals, output)
 }
 
-func (execution *execution) failContract(consumed uint32, code, message string) (agent.Transition, error) {
-	return execution.fail(consumed, code, message, agent.FailureKindContract)
+func (execution *execution) failContract(consumedSignals uint32, code, message string) (agent.Transition, error) {
+	return execution.fail(consumedSignals, code, message, agent.FailureKindContract)
 }
 
-func (execution *execution) failExternal(consumed uint32, code, message string) (agent.Transition, error) {
-	return execution.fail(consumed, code, message, agent.FailureKindExternal)
+func (execution *execution) failExternal(consumedSignals uint32, code, message string) (agent.Transition, error) {
+	return execution.fail(consumedSignals, code, message, agent.FailureKindExternal)
 }
 
 func (*execution) fail(
-	consumed uint32,
+	consumedSignals uint32,
 	code string,
 	message string,
 	kind agent.FailureKind,
@@ -302,7 +302,7 @@ func (*execution) fail(
 	if err != nil {
 		return agent.Transition{}, err
 	}
-	return agent.Fail(consumed, failure)
+	return agent.Fail(consumedSignals, failure)
 }
 
 func (execution *execution) stage() Stage {
@@ -331,7 +331,7 @@ func (execution *execution) singleChildOutputSchema() agent.Schema {
 }
 
 func (execution *execution) finishLoopIteration(
-	consumed uint32,
+	consumedSignals uint32,
 	output agent.Output,
 ) (agent.Transition, error) {
 	stage := execution.stage()
@@ -348,11 +348,11 @@ func (execution *execution) finishLoopIteration(
 		execution.state.Value = value
 		execution.clearSingleChild()
 		execution.state.Phase = phaseReady
-		return execution.finishStage(consumed)
+		return execution.finishStage(consumedSignals)
 	}
 	execution.clearSingleChild()
 	execution.state.LoopIteration++
-	return execution.startSingleChild(consumed, stage.loop.binding)
+	return execution.startSingleChild(consumedSignals, stage.loop.binding)
 }
 
 var _ agent.Execution = (*execution)(nil)

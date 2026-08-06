@@ -10,7 +10,7 @@ import (
 
 // ForkReducer combines branch outputs in declaration order. It must be
 // bounded, deterministic, side-effect-free, and must not retain the slice.
-type ForkReducer[B, O any] func([]B) (O, error)
+type ForkReducer[B, O any] func(branchOutputs []B) (O, error)
 
 // ForkBranch declares one exact managed child Deployment.
 type ForkBranch struct {
@@ -85,15 +85,15 @@ func Fork[I, B, O any](config ForkConfig[I, B, O]) (Stage, error) {
 	}
 	inputSchema, err := agent.SchemaFor[I]()
 	if err != nil {
-		return Stage{}, fmt.Errorf("%w: Fork %q input schema: %v", ErrInvalidStage, config.ID, err)
+		return Stage{}, fmt.Errorf("%w: Fork %q input schema: %w", ErrInvalidStage, config.ID, err)
 	}
 	branchSchema, err := agent.SchemaFor[B]()
 	if err != nil {
-		return Stage{}, fmt.Errorf("%w: Fork %q branch schema: %v", ErrInvalidStage, config.ID, err)
+		return Stage{}, fmt.Errorf("%w: Fork %q branch schema: %w", ErrInvalidStage, config.ID, err)
 	}
 	outputSchema, err := agent.SchemaFor[O]()
 	if err != nil {
-		return Stage{}, fmt.Errorf("%w: Fork %q output schema: %v", ErrInvalidStage, config.ID, err)
+		return Stage{}, fmt.Errorf("%w: Fork %q output schema: %w", ErrInvalidStage, config.ID, err)
 	}
 	branches := make([]forkBranch, 0, len(config.Branches))
 	seen := make(map[string]struct{}, len(config.Branches))
@@ -114,7 +114,7 @@ func Fork[I, B, O any](config ForkConfig[I, B, O]) (Stage, error) {
 		branches = append(branches, forkBranch{
 			id: branch.ID,
 			binding: childBinding{
-				deployment: branch.Deployment.Reference(), budget: branch.Budget,
+				deploymentRef: branch.Deployment.DeploymentRef(), budget: branch.Budget,
 				capabilities: branch.Capabilities,
 			},
 		})

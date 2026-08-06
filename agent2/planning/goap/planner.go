@@ -10,9 +10,9 @@ import (
 
 const defaultMaxExpansions uint32 = 10_000
 
-// ErrExpansionLimit reports that search stopped before exhausting the frontier.
+// ErrExpansionLimitReached reports that search stopped before exhausting the frontier.
 // It is not equivalent to a proven unreachable Goal.
-var ErrExpansionLimit = errors.New("goap: expansion limit reached")
+var ErrExpansionLimitReached = errors.New("goap: expansion limit reached")
 
 // Config contains the bounded search policy for a GOAP Planner.
 type Config struct {
@@ -38,7 +38,7 @@ func New(config Config) *Planner {
 
 // Plan finds the least-cost Action sequence that predicts satisfaction of the
 // Problem Goal. An exhausted frontier returns found=false; hitting the bounded
-// expansion limit returns ErrExpansionLimit because reachability remains
+// expansion limit returns ErrExpansionLimitReached because reachability remains
 // unknown.
 func (planner *Planner) Plan(ctx context.Context, problem planning.Problem) (planning.Plan, bool, error) {
 	if planner == nil || planner.maxExpansions == 0 || !problem.Valid() {

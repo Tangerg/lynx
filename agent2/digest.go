@@ -8,6 +8,7 @@ import (
 	"strings"
 )
 
+// ErrInvalidDigest reports a non-canonical SHA-256 content identity.
 var ErrInvalidDigest = errors.New("agent: invalid digest")
 
 // Digest is a canonical SHA-256 content identity. Its zero value is invalid.
@@ -46,6 +47,7 @@ func (digest Digest) Valid() bool {
 	return err == nil
 }
 
+// MarshalText returns the canonical sha256-prefixed identity.
 func (digest Digest) MarshalText() ([]byte, error) {
 	if !digest.Valid() {
 		return nil, ErrInvalidDigest
@@ -53,6 +55,7 @@ func (digest Digest) MarshalText() ([]byte, error) {
 	return []byte(digest.value), nil
 }
 
+// UnmarshalText replaces digest with a canonical SHA-256 identity.
 func (digest *Digest) UnmarshalText(text []byte) error {
 	if digest == nil {
 		return fmt.Errorf("%w: nil receiver", ErrInvalidDigest)

@@ -50,7 +50,7 @@ func (pending PendingToolInput) ResponseSignal(
 	}
 	request, err := NewToolInputRequest(pending.prompt, pending.responseSchema, json.RawMessage("null"))
 	if err != nil {
-		return agent.SignalRequest{}, fmt.Errorf("%w: %v", ErrInvalidPendingToolInput, err)
+		return agent.SignalRequest{}, fmt.Errorf("%w: %w", ErrInvalidPendingToolInput, err)
 	}
 	response, err = request.validateResponse(response)
 	if err != nil {
@@ -90,10 +90,10 @@ func PendingToolInputFromSnapshot(snapshot agent.Snapshot) (PendingToolInput, bo
 	}
 	var state executionState
 	if err := decodeStrict(stateEnvelope.Payload(), &state); err != nil {
-		return PendingToolInput{}, false, fmt.Errorf("%w: decode state: %v", ErrInvalidPendingToolInput, err)
+		return PendingToolInput{}, false, fmt.Errorf("%w: decode state: %w", ErrInvalidPendingToolInput, err)
 	}
 	if err := state.validatePendingToolInput(); err != nil {
-		return PendingToolInput{}, false, fmt.Errorf("%w: %v", ErrInvalidPendingToolInput, err)
+		return PendingToolInput{}, false, fmt.Errorf("%w: %w", ErrInvalidPendingToolInput, err)
 	}
 	outerWaitID, ok := snapshot.WaitID()
 	if state.Phase != phaseWaitingInput || state.WaitID == nil || !ok || outerWaitID != *state.WaitID || state.ToolCheckpoint == nil {
@@ -101,7 +101,7 @@ func PendingToolInputFromSnapshot(snapshot agent.Snapshot) (PendingToolInput, bo
 	}
 	request, err := state.ToolCheckpoint.Input.inputRequest()
 	if err != nil {
-		return PendingToolInput{}, false, fmt.Errorf("%w: %v", ErrInvalidPendingToolInput, err)
+		return PendingToolInput{}, false, fmt.Errorf("%w: %w", ErrInvalidPendingToolInput, err)
 	}
 	return PendingToolInput{
 		waitID: outerWaitID, prompt: request.Prompt(), responseSchema: request.ResponseSchema(),

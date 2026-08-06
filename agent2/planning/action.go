@@ -11,7 +11,7 @@ import (
 // a specific WorldState. It must be deterministic, side-effect-free, and safe
 // for concurrent planning. Invalid values, returned errors, and panics reject
 // the planning pass.
-type CostFunc func(WorldState) (float64, error)
+type CostFunc func(source WorldState) (float64, error)
 
 // FixedCost returns a CostFunc that always returns value. Validation occurs
 // when an Action evaluates the cost so the same error contract covers fixed and

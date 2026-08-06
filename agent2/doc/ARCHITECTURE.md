@@ -282,7 +282,7 @@ prepared step 是 Framework snapshot 的中性恢复事实，不是 Host transac
 
 ### 6.3 确定性编排边界
 
-确定性编排保留两个按生命周期强度分开的正式入口：普通 Go/AI 同进程控制流直接使用独立 `flow`；每项工作需要独立 ProcessID、DeploymentRef、snapshot、预算、能力、取消和 tree recovery 时使用原生 managed Workflow。两者可以在 Host 组合，但不共享 runtime、Store、Journal 或恢复事实，也不建立强制 adapter。
+确定性编排按生命周期强度分边界：普通 Go/AI 同进程控制流可以直接写 Go，也可以选择独立 `flow`；每项工作需要独立 ProcessID、DeploymentRef、snapshot、预算、能力、取消和 tree recovery 时使用原生 managed Workflow。`flow` 是可参考的既有实现而不是 Agent Framework 的必选依赖：Workflow 可以吸收其显式拓扑、typed composition、确定顺序和有界 fan-out 思想，但不强求复用、不建立强制 adapter，也不共享 runtime、Store、Journal 或恢复事实。
 
 Workflow Definition 冻结一个有序 Stage 序列。一个 Stage 消费当前 immutable、schema-validated value 并产生下一 value；相邻 schema 在构造时精确衔接。首个封闭词汇只有 `Transform`、`Call`、`Switch`、`Fork`、`Map` 和 `Loop`：Sequence 是 Stage 声明顺序，Prompt Chaining 是连续 Call，Gate 由 Transform/Switch 表达，Vote 是 Fork 后的纯 reducer，evaluator-optimizer 是 Loop 组合。多阶段分支通过调用另一个 Workflow Deployment 组合，不在同一 Process 内嵌第二个 Execution。
 
@@ -422,7 +422,7 @@ GOAP 适合目标可机器验证、存在多条路径、Action 前置条件/效�
 
 ### 7.3 确定性编排
 
-`flow` 是普通 in-process 组合库；Workflow 是只编排真实 child Process 的原生 Strategy。Workflow 使用有序 Stage 而不是任意 DAG/Registry，不复制 `flow` runtime，也不编译成 GOAP。它的独立状态是当前 value、Stage 游标、branch/item/iteration 窗口和 child wait；这些状态已经由 disposable public-API consumer 的完整 tree restore 证明。
+`flow` 是可选的普通 in-process 组合库；Workflow 是只编排真实 child Process 的原生 Strategy。Workflow 使用有序 Stage 而不是任意 DAG/Registry，不依赖或复制 `flow` runtime，也不编译成 GOAP；后续设计可以选择性吸收已被 `flow` 证明的组合规律，而不以代码复用为目标。它的独立状态是当前 value、Stage 游标、branch/item/iteration 窗口和 child wait；这些状态已经由 disposable public-API consumer 的完整 tree restore 证明。
 
 ### 7.4 Orchestrator-worker 组合
 

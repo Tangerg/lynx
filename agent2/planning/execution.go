@@ -63,7 +63,7 @@ func (execution *execution) Snapshot() (agent.ExecutionState, error) {
 	return encodeExecutionState(execution.state)
 }
 
-func (execution *execution) requestObservation(consumed uint32) (agent.Transition, error) {
+func (execution *execution) requestObservation(consumedSignals uint32) (agent.Transition, error) {
 	input, err := execution.state.input()
 	if err != nil {
 		return agent.Transition{}, err
@@ -73,7 +73,7 @@ func (execution *execution) requestObservation(consumed uint32) (agent.Transitio
 		return agent.Transition{}, err
 	}
 	execution.state.Phase = phaseAwaitingObservation
-	return agent.Continue(consumed, effect)
+	return agent.Continue(consumedSignals, effect)
 }
 
 func (execution *execution) acceptObservation(
@@ -88,10 +88,10 @@ func (execution *execution) acceptObservation(
 	if err != nil || envelope.Operation != operationObserve {
 		return agent.Transition{}, fmt.Errorf("%w: expected observation Signal", ErrInvalidProtocol)
 	}
-	consumed := uint32(len(signals))
+	consumedSignals := uint32(len(signals))
 	if envelope.Observation.Error != "" {
 		return execution.fail(
-			consumed, agent.FailureKindExternal, "planning.observation.failed", envelope.Observation.Error,
+			consumedSignals, agent.FailureKindExternal, "planning.observation.failed", envelope.Observation.Error,
 		)
 	}
 	execution.state.World = *envelope.Observation.WorldState
@@ -101,24 +101,24 @@ func (execution *execution) acceptObservation(
 		}
 	}
 	if execution.definition.goal.SatisfiedBy(execution.state.World) {
-		return execution.complete(consumed, OutcomeAchieved)
+		return execution.complete(consumedSignals, OutcomeAchieved)
 	}
 	if uint64(len(execution.state.Attempts)) >= uint64(execution.definition.maxActionAttempts) {
-		return execution.complete(consumed, OutcomeStuck)
+		return execution.complete(consumedSignals, OutcomeStuck)
 	}
 	if execution.state.PlanningPasses == math.MaxUint32 {
 		return execution.fail(
-			consumed, agent.FailureKindExecution, "planning.limit.planning_passes",
+			consumedSignals, agent.FailureKindExecution, "planning.limit.planning_passes",
 			"Planning exhausted its representable planning-pass count",
 		)
 	}
 	problem, err := execution.definition.problem(execution.state.World, execution.state.ExcludedActions)
 	if err != nil {
-		return execution.fail(consumed, agent.FailureKindContract, "planning.problem.invalid", err.Error())
+		return execution.fail(consumedSignals, agent.FailureKindContract, "planning.problem.invalid", err.Error())
 	}
 	plan, found, err := execution.definition.planner.Plan(ctx, problem)
 	if err != nil {
-		return execution.fail(consumed, agent.FailureKindExecution, "planning.planner.failed", err.Error())
+		return execution.fail(consumedSignals, agent.FailureKindExecution, "planning.planner.failed", err.Error())
 	}
 	if !found {
 		execution.state.PlanningPasses++
@@ -126,24 +126,24 @@ func (execution *execution) acceptObservation(
 		if len(execution.state.Attempts) > 0 {
 			outcome = OutcomeStuck
 		}
-		return execution.complete(consumed, outcome)
+		return execution.complete(consumedSignals, outcome)
 	}
 	if err := problem.ValidatePlan(plan); err != nil {
-		return execution.fail(consumed, agent.FailureKindContract, "planning.planner.contract", err.Error())
+		return execution.fail(consumedSignals, agent.FailureKindContract, "planning.planner.contract", err.Error())
 	}
 	actions := plan.Actions()
 	binding, found := execution.definition.binding(actions[0].Name())
 	if !found {
 		return execution.fail(
-			consumed, agent.FailureKindContract, "planning.planner.contract",
+			consumedSignals, agent.FailureKindContract, "planning.planner.contract",
 			"Planner selected an Action outside the Planning Definition",
 		)
 	}
-	return execution.startAction(consumed, binding)
+	return execution.startAction(consumedSignals, binding)
 }
 
 func (execution *execution) startAction(
-	consumed uint32,
+	consumedSignals uint32,
 	binding ActionBinding,
 ) (agent.Transition, error) {
 	input, err := execution.state.input()
@@ -159,20 +159,20 @@ func (execution *execution) startAction(
 		execution.state.PlanningPasses++
 		execution.state.CurrentAction = binding.action.name
 		execution.state.Phase = phaseAwaitingAction
-		return agent.Continue(consumed, effect)
+		return agent.Continue(consumedSignals, effect)
 	case bindingTargetChild:
 		childInput := input
 		if binding.childInput != nil {
 			childInput, err = binding.childInput(input, execution.state.World)
 			if err != nil {
 				return execution.fail(
-					consumed, agent.FailureKindContract, "planning.child.input.failed", err.Error(),
+					consumedSignals, agent.FailureKindContract, "planning.child.input.failed", err.Error(),
 				)
 			}
 		}
 		if !childInput.Valid() {
 			return execution.fail(
-				consumed, agent.FailureKindContract, "planning.child.input.invalid",
+				consumedSignals, agent.FailureKindContract, "planning.child.input.invalid",
 				"Child input function returned an invalid Input",
 			)
 		}
@@ -188,7 +188,7 @@ func (execution *execution) startAction(
 		execution.state.CurrentAction = binding.action.name
 		execution.state.ChildKey = &key
 		execution.state.Phase = phaseAwaitingChildStart
-		return agent.Continue(consumed, effect)
+		return agent.Continue(consumedSignals, effect)
 	default:
 		return agent.Transition{}, ErrInvalidAction
 	}
@@ -203,13 +203,13 @@ func (execution *execution) acceptAction(signals []agent.Signal) (agent.Transiti
 	if err != nil || envelope.Operation != operationAction {
 		return agent.Transition{}, fmt.Errorf("%w: expected Action Signal", ErrInvalidProtocol)
 	}
-	consumed := uint32(len(signals))
+	consumedSignals := uint32(len(signals))
 	if envelope.Action.Succeeded {
 		execution.state.PendingConfirm = true
-		return execution.requestObservation(consumed)
+		return execution.requestObservation(consumedSignals)
 	}
 	execution.recordFailedAction(envelope.Action.Diagnostic)
-	return execution.requestObservation(consumed)
+	return execution.requestObservation(consumedSignals)
 }
 
 func (execution *execution) acceptChildStart(signals []agent.Signal) (agent.Transition, error) {
@@ -219,14 +219,14 @@ func (execution *execution) acceptChildStart(signals []agent.Signal) (agent.Tran
 	result, err := agent.ParseChildStartResult(signals[0])
 	binding, found := execution.definition.binding(execution.state.CurrentAction)
 	if err != nil || !found || binding.target != bindingTargetChild || execution.state.ChildKey == nil ||
-		result.Key() != *execution.state.ChildKey || result.DeploymentRef() != binding.child.Deployment {
+		result.Key() != *execution.state.ChildKey || result.DeploymentRef() != binding.child.DeploymentRef {
 		return agent.Transition{}, fmt.Errorf("%w: child-start result mismatch", ErrInvalidProtocol)
 	}
-	consumed := uint32(len(signals))
+	consumedSignals := uint32(len(signals))
 	if failure, failed := result.Failure(); failed {
 		execution.recordFailedAction(failure.Code() + ": " + failure.Message())
 		execution.clearChild()
-		return execution.requestObservation(consumed)
+		return execution.requestObservation(consumedSignals)
 	}
 	childID, started := result.ProcessID()
 	if !started {
@@ -244,7 +244,7 @@ func (execution *execution) acceptChildStart(signals []agent.Signal) (agent.Tran
 	}
 	execution.state.ChildProcessID = &childID
 	execution.state.Phase = phaseAwaitingChildWaitOpen
-	return agent.Continue(consumed, effect)
+	return agent.Continue(consumedSignals, effect)
 }
 
 func (execution *execution) acceptChildWaitOpen(signals []agent.Signal) (agent.Transition, error) {
@@ -253,7 +253,7 @@ func (execution *execution) acceptChildWaitOpen(signals []agent.Signal) (agent.T
 	}
 	opened, err := agent.ParseChildWaitOpened(signals[0])
 	if err != nil {
-		return agent.Transition{}, fmt.Errorf("%w: child wait opening: %v", ErrInvalidProtocol, err)
+		return agent.Transition{}, fmt.Errorf("%w: child wait opening: %w", ErrInvalidProtocol, err)
 	}
 	wantKey, err := planningChildWaitKey(*execution.state.ChildKey, *execution.state.ChildProcessID)
 	spec := opened.Spec()
@@ -301,11 +301,11 @@ func (execution *execution) confirmAction() error {
 	}
 	if execution.state.World.Satisfies(binding.action.effects...) {
 		execution.state.Attempts = append(execution.state.Attempts, Attempt{
-			Action: execution.state.CurrentAction, Status: AttemptSucceeded,
+			ActionName: execution.state.CurrentAction, Status: AttemptSucceeded,
 		})
 	} else {
 		execution.state.Attempts = append(execution.state.Attempts, Attempt{
-			Action: execution.state.CurrentAction, Status: AttemptUnconfirmed,
+			ActionName: execution.state.CurrentAction, Status: AttemptUnconfirmed,
 			Diagnostic: "Reobservation did not establish the Action's predicted effects",
 		})
 		execution.state.exclude(execution.state.CurrentAction)
@@ -317,7 +317,7 @@ func (execution *execution) confirmAction() error {
 
 func (execution *execution) recordFailedAction(reason string) {
 	execution.state.Attempts = append(execution.state.Attempts, Attempt{
-		Action: execution.state.CurrentAction, Status: AttemptFailed, Diagnostic: diagnostic(reason),
+		ActionName: execution.state.CurrentAction, Status: AttemptFailed, Diagnostic: diagnostic(reason),
 	})
 	execution.state.exclude(execution.state.CurrentAction)
 	execution.state.CurrentAction = ""
@@ -330,7 +330,7 @@ func (execution *execution) clearChild() {
 	execution.state.WaitID = nil
 }
 
-func (execution *execution) complete(consumed uint32, outcome Outcome) (agent.Transition, error) {
+func (execution *execution) complete(consumedSignals uint32, outcome Outcome) (agent.Transition, error) {
 	attempts := slices.Clone(execution.state.Attempts)
 	if attempts == nil {
 		attempts = []Attempt{}
@@ -354,11 +354,11 @@ func (execution *execution) complete(consumed uint32, outcome Outcome) (agent.Tr
 	execution.state.PendingConfirm = false
 	execution.clearChild()
 	execution.state.FinalOutput = &output
-	return agent.Complete(consumed, erased)
+	return agent.Complete(consumedSignals, erased)
 }
 
 func (execution *execution) fail(
-	consumed uint32,
+	consumedSignals uint32,
 	kind agent.FailureKind,
 	code string,
 	message string,
@@ -367,7 +367,7 @@ func (execution *execution) fail(
 	if err != nil {
 		return agent.Transition{}, err
 	}
-	return agent.Fail(consumed, failure)
+	return agent.Fail(consumedSignals, failure)
 }
 
 func planningChildKey(action string, attempt uint32) (agent.ChildKey, error) {

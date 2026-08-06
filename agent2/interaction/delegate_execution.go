@@ -12,7 +12,7 @@ import (
 )
 
 func (execution *execution) startDelegateSegment(
-	consumed uint32,
+	consumedSignals uint32,
 	calls []chat.ToolCall,
 ) (agent.Transition, bool, error) {
 	start := execution.state.NextCall
@@ -48,7 +48,7 @@ func (execution *execution) startDelegateSegment(
 			return agent.Transition{}, false, err
 		}
 		effect, err := agent.StartChild(agent.ChildSpec{
-			Key: key, Deployment: delegate.deployment, Input: input,
+			Key: key, DeploymentRef: delegate.deploymentRef, Input: input,
 			Budget: delegate.budget, Capabilities: delegate.capabilities,
 		})
 		if err != nil {
@@ -71,19 +71,19 @@ func (execution *execution) startDelegateSegment(
 		return agent.Transition{}, false, nil
 	}
 	execution.state.Phase = phaseAwaitingDelegateStarts
-	transition, err := agent.Continue(consumed, effects...)
+	transition, err := agent.Continue(consumedSignals, effects...)
 	return transition, true, err
 }
 
 func (execution *execution) acceptDelegateStarts(signals []agent.Signal) (agent.Transition, error) {
-	starts, steering, consumed, err := collectChildStarts(signals)
+	starts, steering, consumedSignals, err := collectChildStarts(signals)
 	if err != nil {
 		return agent.Transition{}, err
 	}
 	execution.addSteering(steering)
 	calls, _, err := execution.activeCallSegment()
 	if err != nil || execution.state.DelegateSegment == nil {
-		return agent.Transition{}, ErrInvalidState
+		return agent.Transition{}, ErrInvalidExecutionState
 	}
 	next := 0
 	for index := range execution.state.DelegateSegment.Invocations {
@@ -92,13 +92,13 @@ func (execution *execution) acceptDelegateStarts(signals []agent.Signal) (agent.
 			continue
 		}
 		if next >= len(starts) {
-			return agent.Transition{}, fmt.Errorf("%w: missing Delegate child-start result", ErrInvalidState)
+			return agent.Transition{}, fmt.Errorf("%w: missing Delegate child-start result", ErrInvalidExecutionState)
 		}
 		start := starts[next]
 		next++
 		delegate, _ := execution.definition.delegate(calls[index].Name)
-		if start.Key() != *invocation.Key || start.DeploymentRef() != delegate.deployment {
-			return agent.Transition{}, fmt.Errorf("%w: Delegate child-start result mismatch", ErrInvalidState)
+		if start.Key() != *invocation.Key || start.DeploymentRef() != delegate.deploymentRef {
+			return agent.Transition{}, fmt.Errorf("%w: Delegate child-start result mismatch", ErrInvalidExecutionState)
 		}
 		if failure, failed := start.Failure(); failed {
 			result := delegateErrorResult(
@@ -109,12 +109,12 @@ func (execution *execution) acceptDelegateStarts(signals []agent.Signal) (agent.
 		}
 		processID, started := start.ProcessID()
 		if !started {
-			return agent.Transition{}, fmt.Errorf("%w: Delegate child start has no outcome", ErrInvalidState)
+			return agent.Transition{}, fmt.Errorf("%w: Delegate child start has no outcome", ErrInvalidExecutionState)
 		}
 		invocation.ProcessID = &processID
 	}
 	if next != len(starts) {
-		return agent.Transition{}, fmt.Errorf("%w: unexpected Delegate child-start result", ErrInvalidState)
+		return agent.Transition{}, fmt.Errorf("%w: unexpected Delegate child-start result", ErrInvalidExecutionState)
 	}
 	children := execution.delegateChildren()
 	if len(children) == 0 {
@@ -126,7 +126,7 @@ func (execution *execution) acceptDelegateStarts(signals []agent.Signal) (agent.
 		execution.state.NextCall = execution.state.ActiveCallEnd
 		execution.state.ActiveCallEnd = 0
 		execution.state.DelegateSegment = nil
-		return execution.advanceToolCallBatch(consumed)
+		return execution.advanceToolCallBatch(consumedSignals)
 	}
 	waitKey, err := delegateWaitKey(execution.state.ModelCalls, *execution.state.DelegateSegment)
 	if err != nil {
@@ -139,16 +139,16 @@ func (execution *execution) acceptDelegateStarts(signals []agent.Signal) (agent.
 		return agent.Transition{}, err
 	}
 	execution.state.Phase = phaseAwaitingDelegateWaitID
-	return agent.Continue(consumed, effect)
+	return agent.Continue(consumedSignals, effect)
 }
 
 func (execution *execution) acceptDelegateWaitID(signals []agent.Signal) (agent.Transition, error) {
 	if len(signals) == 0 {
-		return agent.Transition{}, fmt.Errorf("%w: Delegate wait-opened Signal is missing", ErrInvalidState)
+		return agent.Transition{}, fmt.Errorf("%w: Delegate wait-opened Signal is missing", ErrInvalidExecutionState)
 	}
 	opened, err := agent.ParseChildWaitOpened(signals[0])
 	if err != nil {
-		return agent.Transition{}, fmt.Errorf("%w: invalid Delegate wait-opened Signal", ErrInvalidState)
+		return agent.Transition{}, fmt.Errorf("%w: invalid Delegate wait-opened Signal", ErrInvalidExecutionState)
 	}
 	want, err := execution.delegateWaitSpec()
 	if err != nil {
@@ -156,7 +156,7 @@ func (execution *execution) acceptDelegateWaitID(signals []agent.Signal) (agent.
 	}
 	got := opened.Spec()
 	if got.Key != want.Key || got.Condition != want.Condition || !sameProcessIDs(got.Children, want.Children) {
-		return agent.Transition{}, fmt.Errorf("%w: Delegate child-wait opening mismatch", ErrInvalidState)
+		return agent.Transition{}, fmt.Errorf("%w: Delegate child-wait opening mismatch", ErrInvalidExecutionState)
 	}
 	waitID := opened.WaitID()
 	execution.state.WaitID = &waitID
@@ -165,17 +165,17 @@ func (execution *execution) acceptDelegateWaitID(signals []agent.Signal) (agent.
 }
 
 func (execution *execution) acceptDelegates(signals []agent.Signal) (agent.Transition, error) {
-	completed, steering, consumed, err := collectChildrenCompleted(signals)
+	completed, steering, consumedSignals, err := collectChildrenCompleted(signals)
 	if err != nil {
 		return agent.Transition{}, err
 	}
 	execution.addSteering(steering)
 	if execution.state.WaitID == nil || completed.WaitID() != *execution.state.WaitID {
-		return agent.Transition{}, fmt.Errorf("%w: Delegate child completion addressed the wrong wait", ErrInvalidState)
+		return agent.Transition{}, fmt.Errorf("%w: Delegate child completion addressed the wrong wait", ErrInvalidExecutionState)
 	}
 	want, err := execution.delegateWaitSpec()
 	if err != nil || completed.Key() != want.Key {
-		return agent.Transition{}, fmt.Errorf("%w: Delegate child completion wait mismatch", ErrInvalidState)
+		return agent.Transition{}, fmt.Errorf("%w: Delegate child completion wait mismatch", ErrInvalidExecutionState)
 	}
 	calls, _, err := execution.activeCallSegment()
 	if err != nil {
@@ -191,12 +191,12 @@ func (execution *execution) acceptDelegates(signals []agent.Signal) (agent.Trans
 			continue
 		}
 		if invocation.Key == nil || invocation.ProcessID == nil || next >= len(outcomes) {
-			return agent.Transition{}, fmt.Errorf("%w: missing Delegate child outcome", ErrInvalidState)
+			return agent.Transition{}, fmt.Errorf("%w: missing Delegate child outcome", ErrInvalidExecutionState)
 		}
 		outcome := outcomes[next]
 		next++
 		if outcome.Key() != *invocation.Key || outcome.Result().ProcessID() != *invocation.ProcessID {
-			return agent.Transition{}, fmt.Errorf("%w: Delegate child outcome mismatch", ErrInvalidState)
+			return agent.Transition{}, fmt.Errorf("%w: Delegate child outcome mismatch", ErrInvalidExecutionState)
 		}
 		result := outcome.Result()
 		if result.Status() != agent.StatusCompleted {
@@ -212,7 +212,7 @@ func (execution *execution) acceptDelegates(signals []agent.Signal) (agent.Trans
 		output, present := result.Output()
 		delegate, found := execution.definition.delegate(calls[index].Name)
 		if !present || !found || delegate.outputSchema.ValidateOutput(output) != nil {
-			return agent.Transition{}, fmt.Errorf("%w: Delegate child output violates its frozen contract", ErrInvalidState)
+			return agent.Transition{}, fmt.Errorf("%w: Delegate child output violates its frozen contract", ErrInvalidExecutionState)
 		}
 		results[index] = chat.ToolResult{
 			ID: calls[index].ID, Name: calls[index].Name, Result: string(output.JSON()),
@@ -224,7 +224,7 @@ func (execution *execution) acceptDelegates(signals []agent.Signal) (agent.Trans
 		})
 	}
 	if next != len(outcomes) {
-		return agent.Transition{}, fmt.Errorf("%w: unexpected Delegate child outcome", ErrInvalidState)
+		return agent.Transition{}, fmt.Errorf("%w: unexpected Delegate child outcome", ErrInvalidExecutionState)
 	}
 	execution.state.SettledResults = append(execution.state.SettledResults, results...)
 	execution.state.Artifacts = append(execution.state.Artifacts, artifacts...)
@@ -232,7 +232,7 @@ func (execution *execution) acceptDelegates(signals []agent.Signal) (agent.Trans
 	execution.state.ActiveCallEnd = 0
 	execution.state.DelegateSegment = nil
 	execution.state.WaitID = nil
-	return execution.advanceToolCallBatch(consumed)
+	return execution.advanceToolCallBatch(consumedSignals)
 }
 
 func (execution *execution) delegateChildren() []agent.ProcessID {
@@ -250,7 +250,7 @@ func (execution *execution) delegateChildren() []agent.ProcessID {
 
 func (execution *execution) delegateWaitSpec() (agent.ChildWaitSpec, error) {
 	if execution.state.DelegateSegment == nil {
-		return agent.ChildWaitSpec{}, ErrInvalidState
+		return agent.ChildWaitSpec{}, ErrInvalidExecutionState
 	}
 	key, err := delegateWaitKey(execution.state.ModelCalls, *execution.state.DelegateSegment)
 	if err != nil {
@@ -260,7 +260,7 @@ func (execution *execution) delegateWaitSpec() (agent.ChildWaitSpec, error) {
 		Key: key, Children: execution.delegateChildren(), Condition: agent.AllChildren(),
 	}
 	if !spec.Valid() {
-		return agent.ChildWaitSpec{}, ErrInvalidState
+		return agent.ChildWaitSpec{}, ErrInvalidExecutionState
 	}
 	return spec, nil
 }
@@ -271,19 +271,19 @@ func collectChildStarts(signals []agent.Signal) ([]agent.ChildStartResult, []cha
 	for _, signal := range signals {
 		if envelope, err := decodeSignal(signal.Payload()); err == nil {
 			if envelope.Operation != operationSteer {
-				return nil, nil, 0, fmt.Errorf("%w: unexpected Interaction Signal while awaiting Delegate starts", ErrInvalidState)
+				return nil, nil, 0, fmt.Errorf("%w: unexpected Interaction Signal while awaiting Delegate starts", ErrInvalidExecutionState)
 			}
 			steering = append(steering, cloneMessages(envelope.Steer.Messages)...)
 			continue
 		}
 		start, err := agent.ParseChildStartResult(signal)
 		if err != nil {
-			return nil, nil, 0, fmt.Errorf("%w: invalid Delegate child-start Signal", ErrInvalidState)
+			return nil, nil, 0, fmt.Errorf("%w: invalid Delegate child-start Signal", ErrInvalidExecutionState)
 		}
 		starts = append(starts, start)
 	}
 	if len(starts) == 0 {
-		return nil, nil, 0, fmt.Errorf("%w: Delegate child-start Signal is missing", ErrInvalidState)
+		return nil, nil, 0, fmt.Errorf("%w: Delegate child-start Signal is missing", ErrInvalidExecutionState)
 	}
 	return starts, steering, uint32(len(signals)), nil
 }
@@ -295,19 +295,19 @@ func collectChildrenCompleted(signals []agent.Signal) (agent.ChildrenCompleted, 
 	for _, signal := range signals {
 		if envelope, err := decodeSignal(signal.Payload()); err == nil {
 			if envelope.Operation != operationSteer {
-				return agent.ChildrenCompleted{}, nil, 0, fmt.Errorf("%w: unexpected Interaction Signal while awaiting Delegates", ErrInvalidState)
+				return agent.ChildrenCompleted{}, nil, 0, fmt.Errorf("%w: unexpected Interaction Signal while awaiting Delegates", ErrInvalidExecutionState)
 			}
 			steering = append(steering, cloneMessages(envelope.Steer.Messages)...)
 			continue
 		}
 		value, err := agent.ParseChildrenCompleted(signal)
 		if err != nil || found {
-			return agent.ChildrenCompleted{}, nil, 0, fmt.Errorf("%w: invalid or duplicate Delegate completion Signal", ErrInvalidState)
+			return agent.ChildrenCompleted{}, nil, 0, fmt.Errorf("%w: invalid or duplicate Delegate completion Signal", ErrInvalidExecutionState)
 		}
 		completed, found = value, true
 	}
 	if !found {
-		return agent.ChildrenCompleted{}, nil, 0, fmt.Errorf("%w: Delegate completion Signal is missing", ErrInvalidState)
+		return agent.ChildrenCompleted{}, nil, 0, fmt.Errorf("%w: Delegate completion Signal is missing", ErrInvalidExecutionState)
 	}
 	return completed, steering, uint32(len(signals)), nil
 }
@@ -316,7 +316,7 @@ func delegateSegmentResults(segment delegateSegmentState) ([]chat.ToolResult, er
 	results := make([]chat.ToolResult, len(segment.Invocations))
 	for index, invocation := range segment.Invocations {
 		if invocation.Result == nil {
-			return nil, fmt.Errorf("%w: Delegate call %d is not settled", ErrInvalidState, index)
+			return nil, fmt.Errorf("%w: Delegate call %d is not settled", ErrInvalidExecutionState, index)
 		}
 		results[index] = *invocation.Result
 	}

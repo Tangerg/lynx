@@ -90,7 +90,7 @@ func TestInteractionCanDelegateExactPlanningWorkers(t *testing.T) {
 		t.Fatal(err)
 	}
 	engine, err := agent.NewEngine(agent.EngineConfig{
-		DeploymentResolver: deploymentResolver{planningWorker.Reference(): planningWorker},
+		DeploymentResolver: deploymentResolver{planningWorker.DeploymentRef(): planningWorker},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -132,7 +132,7 @@ func TestInteractionCanDelegateExactPlanningWorkers(t *testing.T) {
 	}
 	planningChildren := 0
 	for _, snapshot := range snapshots {
-		if snapshot.DeploymentRef() == planningWorker.Reference() {
+		if snapshot.DeploymentRef() == planningWorker.DeploymentRef() {
 			planningChildren++
 		}
 	}
@@ -229,7 +229,7 @@ func newPlanningWorker(t *testing.T) (agent.Deployment, *planningTaskState) {
 		return planning.ActionSucceeded(), nil
 	})
 	dispatcher, err := planning.NewDispatcher(definition, planning.DispatcherConfig{
-		Observer: observer, Executors: map[string]planning.ActionExecutor{"review": executor},
+		Observer: observer, ActionExecutors: map[string]planning.ActionExecutor{"review": executor},
 	})
 	if err != nil {
 		t.Fatal(err)

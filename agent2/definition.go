@@ -9,8 +9,8 @@ import "context"
 // identities, storage protocols, or mutable global registration.
 type Definition interface {
 	Descriptor() Descriptor
-	Start(Input) (Execution, error)
-	Restore(ExecutionState) (Execution, error)
+	Start(input Input) (Execution, error)
+	Restore(state ExecutionState) (Execution, error)
 }
 
 // Execution is the single Strategy-owned state machine inside one Process.
@@ -23,6 +23,6 @@ type Definition interface {
 // Execution. If Step or Snapshot fails, the instance is discarded and may only
 // be rebuilt from the last stable ExecutionState.
 type Execution interface {
-	Step(context.Context, []Signal) (Transition, error)
+	Step(ctx context.Context, signals []Signal) (Transition, error)
 	Snapshot() (ExecutionState, error)
 }

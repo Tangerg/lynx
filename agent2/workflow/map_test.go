@@ -28,7 +28,7 @@ func TestMapUsesManagedChildrenAndPreservesItemOrder(t *testing.T) {
 	}
 	deployment := mustDeployment(t, mustDefinition(t, "test.workflow.map", stage), "map")
 	engine, err := agent.NewEngine(agent.EngineConfig{
-		DeploymentResolver: deploymentResolver{child.Reference(): child},
+		DeploymentResolver: deploymentResolver{child.DeploymentRef(): child},
 	})
 	if err != nil {
 		t.Fatal(err)

@@ -1,14 +1,14 @@
 # Agent Framework 公共合同基线
 
-> 状态：Baseline 3 已冻结
+> 状态：Baseline 4 已冻结
 > 冻结日期：2026-08-06
-> 适用范围：`agent2` 根 package、`agent2/interaction`、`agent2/planning`、`agent2/planning/goap`、`agent2/workflow`、`agent2/otel`、`agent2/platform`、Process Snapshot v3、TreeSnapshot v1、Event/Delta observation wire
+> 适用范围：`agent2` 根 package、`agent2/interaction`、`agent2/planning`、`agent2/planning/goap`、`agent2/workflow`、`agent2/otel`、`agent2/platform`、Process Snapshot v4、TreeSnapshot v2、child/framework-effect protocol v2、Event/Delta observation wire
 
 本文只记录已经由 P3 真实 Interaction、P4 child composition、八个独立 command consumer、P5 真实 Planning/GOAP、P6 managed Workflow、P8 Platform 与恢复合同共同证明的公共合同基线。目标架构、ADR、工程标准和实施进度仍由各自文档拥有；这里不复制它们。
 
 ## 1. 基线的含义
 
-Baseline 3 不是兼容承诺或发布版本。仓库仍允许 breaking change，但任何公共名称、参数名、签名、GoDoc、sentinel error、Process snapshot wire 或 tree snapshot wire 的变化都必须是显式设计决策：
+Baseline 4 不是兼容承诺或发布版本。仓库仍允许 breaking change，但任何公共名称、参数名、签名、GoDoc、sentinel error、Process snapshot wire 或 tree snapshot wire 的变化都必须是显式设计决策：
 
 1. 先用真实 Strategy 或 consumer 证明变化必要；
 2. 更新或追加 ADR，不保留 alias、双读、双写或兼容 shim；
@@ -43,20 +43,20 @@ Baseline 3 不是兼容承诺或发布版本。仓库仍允许 breaking change�
 
 ## 3. 自动守卫
 
-`baseline_test.go` 对七个已冻结公共 package 的完整 `go doc -all` 输出做 SHA-256 校验，因此 exported identifier、参数名、字段、签名和 GoDoc 的任何漂移都会失败。Baseline 3 digest：
+`baseline_test.go` 对七个已冻结公共 package 的完整 `go doc -all` 输出做 SHA-256 校验，因此 exported identifier、参数名、字段、签名和 GoDoc 的任何漂移都会失败；AST 守卫还要求所有公开声明/字段有精确 GoDoc、公开 callable 的参数有语义名称，并禁止 error cause 通过 `%v` 丢失 `errors.Is/As` 链。Baseline 4 digest：
 
-- root kernel：`9cfc3728580548301732bdc8cc9a33e9b5bde083215498e39c455d921730b617`
-- interaction：`9678f94265b227e7d085cc18a264ad3be4cac98709d94638f47c9ee7960e3fee`
-- planning：`bb3a3fee5315afba3cc1f70ecc0486b4b91f88d4d4160aa93bf896b09ffc28a1`
-- planning/goap：`da348e298e6976318b317873b44ec60829020fdea82947fae4bbc8e0d865b419`
-- workflow：`0493f8f7ae6e4cc5a3190735c5d02952ec0e0fdb230794bbb01735b8ecfae055`
-- otel：`aed81360b2fdedda8b08a2c27e7570a4f06f4584ff84e3f0904016d517c038ec`
-- platform：`9fef1861154434ca2f4fdd4d3b6bfad2b4c8326b15c49eb0d3c82fc0062f8713`
+- root kernel：`73b6f2270e4010886234cb080c277ba1960dcb09c8c123b550ba0c0a8ff6fb90`
+- interaction：`b5fdabbea94d2b9aa346446a7cafb4accde928b23489012ba2763c77a517da91`
+- planning：`15c48c52b7d4765ba86da2e5fd11822669c163c01e98dd4cb3668f71f7c5f30a`
+- planning/goap：`dd5a007a20ddbeac2112bbed10718f5256fe2449376fd7dcc1400e25578253ec`
+- workflow：`a0e4815dc7c9bb69f215702434b8547e2abdb446400efc445d3fdb35ff752094`
+- otel：`0725fbef9fbd28ba9b6999ab8b427dd9a4376f83aef9839a9f15f60c16422016`
+- platform：`748f5ea1ef3b09c702a792ab6e16a3b4ae6be9776ef1a4ba51e856757abff078`
 
-同一测试对 Process Snapshot v3 与 TreeSnapshot v1 的 schema version、字段名、JSON tag、字段类型和嵌套 wire shape 做独立校验。Baseline 3 沿用的 wire digest：
+同一测试对 Process Snapshot v4、TreeSnapshot v2、child/framework-effect protocol v2 的 schema version、字段名、JSON tag、字段类型和嵌套 wire shape 做独立校验。Baseline 4 wire digest：
 
-- snapshot/tree wire：`6f4a919ed0c681e9fb021f5571de0cdaf4e97d0cad8e4170fede3453a31c0c9d`
-- Event/Delta observation wire：`b5a32c7dd19858ee0e256f19973010cffff30f6e961d2b04d7cb80947f121ad4`
+- snapshot/tree wire：`90977e6796f73877d0f60b68d2048346f1d1bde4df1963b4908982a5f27c4764`
+- Event/Delta observation wire：`de73e9036fcd556eee94f1f24d244b06901ecfe07d9e5f9574a7b5f40dce4807`
 
 Digest 只用于发现未审计漂移，不替代 strict codec、round-trip、malformed input、restore、fuzz 或 consumer behavior tests。
 
@@ -86,6 +86,8 @@ P8-06 依据 ADR-A2-052 修订根 observation 合同：Event 新增 exact Deploy
 
 P8-07 依据 ADR-A2-053 用第八个公开 command 同时运行 embedded 与 Platform 两条路径：同一 root/worker/Input、admission、Event listener 和 Engine 产生相同 Output、Status、Usage、exact tree 与稳定 Process/Step/Effect observation 投影。Platform 没有第二 Start/Run/runtime。冻结前删除单字段 Config 和 executable ActiveDeployments 副视图，构造收敛为 `New(deployments...)` 且零值可用；发现只保留 non-executable DeploymentCandidates。只表示 nil 的错误精确命名为 ErrNilPlatform/ErrNilDeploymentSelector。`platform` API/GoDoc 现纳入 digest 守卫；其余六个 API 与全部共同 wire 不变。
 
+P9-01 依据 ADR-A2-054 对七个 package 的公开/私有词汇、参数、字段、GoDoc、error 与 wire 名称做独立终审，并一次性形成 Baseline 4。公共面不再以 `Reference`、`Index`、`Deployment` 等宽词表示 `DeploymentRef`、Effect batch index 或 exact child ref；Signal consumption、Process/Event/Effect sequence 与 mailbox cursor 全部以 owner-qualified 名称表达。Planning output 的 `Attempt.ActionName` 和 dispatcher `ActionExecutors` 同步修正；完整 error cause 统一 `%w`。这批变化故意不保留 alias、旧 tag 或双读：Process Snapshot 升为 v4、TreeSnapshot 升为 v2、child/framework-effect protocol 升为 v2、Planning ExecutionState 升为 v2，旧格式明确不属于当前合同。
+
 ## 4. 明确不在基线中的能力
 
-Baseline 3 暂不冻结 P10 应用迁移 API 或最终模块替换路径。`flow` 保持独立 in-process 库，不形成 Agent adapter API 或依赖；未来编辑器图只能在更高层编译成已验证的 Workflow Definition，不能反向扩张 Kernel 或恢复 wire。
+Baseline 4 暂不冻结 P10 应用迁移 API 或最终模块替换路径。`flow` 保持独立 in-process 库，不形成 Agent adapter API 或依赖；Workflow 吸收其显式拓扑、确定顺序和有界组合思想，但不强求复用或建立 adapter。未来编辑器图只能在更高层编译成已验证的 Workflow Definition，不能反向扩张 Kernel 或恢复 wire。

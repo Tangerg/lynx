@@ -14,6 +14,7 @@ const (
 	maxDescriptionBytes = 4096
 )
 
+// ErrInvalidDescriptor reports a malformed static Definition contract.
 var ErrInvalidDescriptor = errors.New("agent: invalid descriptor")
 
 // DescriptorConfig contains the complete static contract of a Definition.
@@ -108,6 +109,7 @@ func (d Descriptor) ValidateOutput(output Output) error {
 	return d.outputSchema.ValidateOutput(output)
 }
 
+// MarshalJSON returns the validated static Definition contract.
 func (d Descriptor) MarshalJSON() ([]byte, error) {
 	if !d.Valid() {
 		return nil, ErrInvalidDescriptor
@@ -118,6 +120,7 @@ func (d Descriptor) MarshalJSON() ([]byte, error) {
 	})
 }
 
+// UnmarshalJSON replaces d with a strictly decoded Descriptor.
 func (d *Descriptor) UnmarshalJSON(data []byte) error {
 	if d == nil {
 		return fmt.Errorf("%w: nil receiver", ErrInvalidDescriptor)

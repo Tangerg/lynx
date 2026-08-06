@@ -82,7 +82,7 @@ func fuzzInteractionDefinition(f testing.TB) *Definition {
 			Name: "delegate_fuzz", Description: "Delegate one fuzz task to the exact worker.",
 			InputSchema: inputSchema.JSON(),
 		},
-		deployment: reference, inputSchema: inputSchema, outputSchema: outputSchema,
+		deploymentRef: reference, inputSchema: inputSchema, outputSchema: outputSchema,
 		budget: budget, capabilities: agent.CapabilitySet{},
 	}
 	definition, err := NewDefinition(DefinitionConfig{

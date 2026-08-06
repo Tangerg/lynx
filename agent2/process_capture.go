@@ -6,12 +6,12 @@ func prepareRestoredProcess(
 	engine *Engine,
 	deployment Deployment,
 	snapshot Snapshot,
-) (*processController, *processRuntime, processSnapshotWire, error) {
+) (*processController, *processLoop, processSnapshotWire, error) {
 	wire, err := snapshot.wire()
 	if err != nil {
 		return nil, nil, processSnapshotWire{}, err
 	}
-	if wire.Deployment != deployment.Reference() {
+	if wire.DeploymentRef != deployment.DeploymentRef() {
 		return nil, nil, processSnapshotWire{}, fmt.Errorf(
 			"%w: exact Deployment does not match", ErrInvalidSnapshot,
 		)
@@ -23,7 +23,7 @@ func prepareRestoredProcess(
 			)
 		}
 	}
-	execution, err := restoreExecution(deployment.Definition(), wire.LastStable)
+	execution, err := restoreExecution(deployment.Definition(), wire.LastStableState)
 	if err != nil {
 		return nil, nil, processSnapshotWire{}, fmt.Errorf(
 			"%w: restore Execution: %w", ErrInvalidSnapshot, err,
@@ -38,28 +38,28 @@ func prepareRestoredProcess(
 		return nil, nil, processSnapshotWire{}, fmt.Errorf("%w: relation: %w", ErrInvalidSnapshot, err)
 	}
 	controller := newProcessController(
-		relation, wire.Deployment, wire.Budget, wire.Capabilities, wire.TreeLimits,
+		relation, wire.DeploymentRef, wire.Budget, wire.Capabilities, wire.TreeLimits,
 		wire.StartedAt, wire.Status,
 	)
-	runtime, err := restoreProcessRuntime(engine, controller, deployment, execution, mailbox, wire)
+	loop, err := restoreProcessLoop(engine, controller, deployment, execution, mailbox, wire)
 	if err != nil {
 		return nil, nil, processSnapshotWire{}, err
 	}
-	return controller, runtime, wire, nil
+	return controller, loop, wire, nil
 }
 
-func restoreProcessRuntime(
+func restoreProcessLoop(
 	engine *Engine,
 	controller *processController,
 	deployment Deployment,
 	execution Execution,
 	mailbox signalMailbox,
 	wire processSnapshotWire,
-) (*processRuntime, error) {
-	runtime := &processRuntime{
+) (*processLoop, error) {
+	loop := &processLoop{
 		engine: engine, controller: controller, deployment: deployment, execution: execution,
 		startedAt: wire.StartedAt, status: wire.Status, committedSteps: wire.CommittedSteps,
-		eventSequence: wire.EventSequence, lastStable: wire.LastStable, mailbox: mailbox, restored: true,
+		eventSequence: wire.EventSequence, lastStableState: wire.LastStableState, mailbox: mailbox, restored: true,
 		pauseReason: wire.PauseReason, limits: wire.Limits, treeLimits: wire.TreeLimits,
 		budget: wire.Budget, reservedBudget: wire.ReservedBudget,
 		capabilities: wire.Capabilities, usage: wire.Usage,
@@ -68,74 +68,74 @@ func restoreProcessRuntime(
 		controller.childRequestDigest = *wire.ChildRequestDigest
 	}
 	if wire.FinishedAt != nil {
-		runtime.finishedAt = *wire.FinishedAt
+		loop.finishedAt = *wire.FinishedAt
 	}
 	if wire.CurrentWaitID != nil {
-		runtime.currentWaitID = *wire.CurrentWaitID
+		loop.currentWaitID = *wire.CurrentWaitID
 	}
 	if wire.Output != nil {
-		runtime.output = *wire.Output
+		loop.finalOutput = *wire.Output
 	}
 	if wire.Termination != nil {
-		runtime.termination = *wire.Termination
+		loop.termination = *wire.Termination
 	}
 	control, err := pendingControlFromWire(wire.PendingControl)
 	if err != nil {
 		return nil, fmt.Errorf("%w: pending control: %w", ErrInvalidSnapshot, err)
 	}
-	runtime.control = control
+	loop.pendingControl = control
 	if wire.Prepared != nil {
 		copy := clonePreparedStep(*wire.Prepared)
-		runtime.prepared = &preparedStep{wire: copy, acknowledged: true, fromSnapshot: true}
+		loop.prepared = &preparedStep{wire: copy, acknowledged: true, fromSnapshot: true}
 	}
-	controller.updateView(runtime.status, runtime.currentWaitID, runtime.usage)
-	return runtime, nil
+	controller.updateView(loop.status, loop.currentWaitID, loop.usage)
+	return loop, nil
 }
 
-func (runtime *processRuntime) capture() (Snapshot, error) {
+func (loop *processLoop) capture() (Snapshot, error) {
 	wire := processSnapshotWire{
-		SchemaVersion: processSnapshotSchemaVersion, ProcessID: runtime.controller.id,
-		Relation:   runtime.controller.relation.wire(),
-		Deployment: runtime.deployment.Reference(), StartedAt: runtime.startedAt,
-		Status: runtime.status, CommittedSteps: runtime.committedSteps, EventSequence: runtime.eventSequence,
-		Limits: runtime.limits, TreeLimits: runtime.treeLimits,
-		Budget: runtime.budget, ReservedBudget: runtime.reservedBudget,
-		Capabilities: runtime.capabilities, Usage: runtime.usage,
-		LastStable: runtime.lastStable, Mailbox: runtime.mailbox.snapshot(),
-		PauseReason: runtime.pauseReason, PendingControl: runtime.control.wire(),
+		SchemaVersion: processSnapshotSchemaVersion, ProcessID: loop.controller.processID,
+		Relation:      loop.controller.relation.wire(),
+		DeploymentRef: loop.deployment.DeploymentRef(), StartedAt: loop.startedAt,
+		Status: loop.status, CommittedSteps: loop.committedSteps, EventSequence: loop.eventSequence,
+		Limits: loop.limits, TreeLimits: loop.treeLimits,
+		Budget: loop.budget, ReservedBudget: loop.reservedBudget,
+		Capabilities: loop.capabilities, Usage: loop.usage,
+		LastStableState: loop.lastStableState, Mailbox: loop.mailbox.snapshot(),
+		PauseReason: loop.pauseReason, PendingControl: loop.pendingControl.wire(),
 	}
-	if runtime.controller.childRequestDigest.Valid() {
-		digest := runtime.controller.childRequestDigest
+	if loop.controller.childRequestDigest.Valid() {
+		digest := loop.controller.childRequestDigest
 		wire.ChildRequestDigest = &digest
 	}
-	if !runtime.finishedAt.IsZero() {
-		finishedAt := runtime.finishedAt
+	if !loop.finishedAt.IsZero() {
+		finishedAt := loop.finishedAt
 		wire.FinishedAt = &finishedAt
 	}
-	if runtime.currentWaitID.Valid() {
-		waitID := runtime.currentWaitID
+	if loop.currentWaitID.Valid() {
+		waitID := loop.currentWaitID
 		wire.CurrentWaitID = &waitID
 	}
-	if runtime.output.Valid() {
-		output := runtime.output
+	if loop.finalOutput.Valid() {
+		output := loop.finalOutput
 		wire.Output = &output
 	}
-	if runtime.termination.Valid() {
-		termination := runtime.termination
+	if loop.termination.Valid() {
+		termination := loop.termination
 		wire.Termination = &termination
 	}
-	if runtime.prepared != nil {
-		prepared := clonePreparedStep(runtime.prepared.wire)
+	if loop.prepared != nil {
+		prepared := clonePreparedStep(loop.prepared.wire)
 		wire.Prepared = &prepared
 	}
 	return newSnapshot(wire)
 }
 
-func (runtime *processRuntime) result() Result {
+func (loop *processLoop) result() Result {
 	return Result{
-		processID: runtime.controller.id, startedAt: runtime.startedAt,
-		finishedAt: runtime.finishedAt, output: runtime.output,
-		termination: runtime.termination, usage: runtime.usage,
+		processID: loop.controller.processID, startedAt: loop.startedAt,
+		finishedAt: loop.finishedAt, output: loop.finalOutput,
+		termination: loop.termination, usage: loop.usage,
 	}
 }
 

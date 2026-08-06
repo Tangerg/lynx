@@ -2,6 +2,7 @@ package agent2
 
 import "errors"
 
+// ErrInvalidProcessRelation reports a malformed root or child relation.
 var ErrInvalidProcessRelation = errors.New("agent: invalid process relation")
 
 // ProcessRelation is the immutable location of one Process in an Engine-owned

@@ -37,7 +37,7 @@ func run(ctx context.Context, output io.Writer) error {
 	}
 	embedded, err := execute(
 		ctx,
-		staticResolver{worker.Reference(): worker},
+		staticResolver{worker.DeploymentRef(): worker},
 		root,
 		input,
 	)
@@ -56,8 +56,8 @@ func run(ctx context.Context, output io.Writer) error {
 			candidates []platform.DeploymentCandidate,
 		) (agent.DeploymentRef, error) {
 			for _, candidate := range candidates {
-				if candidate.Descriptor().Name() == root.Reference().Name() {
-					return candidate.Reference(), nil
+				if candidate.Descriptor().Name() == root.DeploymentRef().Name() {
+					return candidate.DeploymentRef(), nil
 				}
 			}
 			return agent.DeploymentRef{}, fmt.Errorf("root Definition is not active")
@@ -144,7 +144,7 @@ func newDeployments() (agent.Deployment, agent.Deployment, error) {
 		Dispatcher:           workflow.Dispatcher{},
 		ImplementationDigest: agent.ComputeDigest([]byte("example-platform-root-implementation")),
 		ConfigurationDigest: agent.ComputeDigest([]byte(
-			"example-platform-root:" + worker.Reference().Digest().String(),
+			"example-platform-root:" + worker.DeploymentRef().Digest().String(),
 		)),
 	})
 	return root, worker, err

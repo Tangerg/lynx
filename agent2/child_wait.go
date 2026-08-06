@@ -8,6 +8,7 @@ import (
 	"time"
 )
 
+// ErrInvalidChildWait reports a malformed child wait request or Signal.
 var ErrInvalidChildWait = errors.New("agent: invalid child wait")
 
 // ChildWaitCondition identifies when a set of child Processes releases its
@@ -70,8 +71,11 @@ func (condition ChildWaitCondition) required(total int) (uint32, error) {
 // ChildWaitSpec names one stable logical wait, its direct children in result
 // order, and the completion predicate.
 type ChildWaitSpec struct {
-	Key       WaitKey
-	Children  []ProcessID
+	// Key is the Execution-owned logical identity of this wait request.
+	Key WaitKey
+	// Children lists direct child identities in result order.
+	Children []ProcessID
+	// Condition declares how many listed children must become terminal.
 	Condition ChildWaitCondition
 }
 
@@ -109,7 +113,7 @@ func WaitForChildren(spec ChildWaitSpec) (Effect, error) {
 		Spec: childWaitSpecWireFromValue(spec),
 	})
 	if err != nil {
-		return Effect{}, fmt.Errorf("%w: encode request: %v", ErrInvalidChildWait, err)
+		return Effect{}, fmt.Errorf("%w: encode request: %w", ErrInvalidChildWait, err)
 	}
 	return newEffect(EffectTargetFramework, payload)
 }
@@ -143,7 +147,7 @@ func ParseChildWaitOpened(signal Signal) (ChildWaitOpened, error) {
 	}
 	var wire childWaitOpenedWire
 	if err := decodeStrictJSON(signal.Payload(), &wire); err != nil {
-		return ChildWaitOpened{}, fmt.Errorf("%w: decode opened Signal: %v", ErrInvalidChildWait, err)
+		return ChildWaitOpened{}, fmt.Errorf("%w: decode opened Signal: %w", ErrInvalidChildWait, err)
 	}
 	spec, err := wire.Spec.value()
 	if err != nil || wire.SchemaVersion != childProtocolSchemaVersion ||
@@ -220,7 +224,7 @@ func ParseChildrenCompleted(signal Signal) (ChildrenCompleted, error) {
 	}
 	var wire childrenCompletedWire
 	if err := decodeStrictJSON(signal.Payload(), &wire); err != nil {
-		return ChildrenCompleted{}, fmt.Errorf("%w: decode completion Signal: %v", ErrInvalidChildWait, err)
+		return ChildrenCompleted{}, fmt.Errorf("%w: decode completion Signal: %w", ErrInvalidChildWait, err)
 	}
 	if wire.SchemaVersion != childProtocolSchemaVersion ||
 		wire.Operation != childSignalChildrenCompleted || !wire.Key.Valid() || len(wire.Outcomes) == 0 {
@@ -316,7 +320,7 @@ func cloneChildWaitSpec(spec ChildWaitSpec) ChildWaitSpec {
 func decodeChildWaitEffect(payload json.RawMessage) (ChildWaitSpec, error) {
 	var wire childWaitEffectWire
 	if err := decodeStrictJSON(payload, &wire); err != nil {
-		return ChildWaitSpec{}, fmt.Errorf("%w: decode request: %v", ErrInvalidChildWait, err)
+		return ChildWaitSpec{}, fmt.Errorf("%w: decode request: %w", ErrInvalidChildWait, err)
 	}
 	if wire.Operation != frameworkEffectWaitChildren || wire.SchemaVersion != frameworkEffectSchemaVersion {
 		return ChildWaitSpec{}, ErrInvalidChildWait

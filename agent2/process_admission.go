@@ -14,18 +14,18 @@ var ErrProcessAdmissionRejected = errors.New("agent: process admission rejected"
 // ProcessAdmitter immediately before one root or child Process starts. It does
 // not expose Input, Execution, Dispatcher, product identity, or Host state.
 type ProcessAdmission struct {
-	relation     ProcessRelation
-	deployment   DeploymentRef
-	descriptor   Descriptor
-	budget       Budget
-	capabilities CapabilitySet
+	relation      ProcessRelation
+	deploymentRef DeploymentRef
+	descriptor    Descriptor
+	budget        Budget
+	capabilities  CapabilitySet
 }
 
 // Relation returns the prospective Process identity and tree location.
 func (admission ProcessAdmission) Relation() ProcessRelation { return admission.relation }
 
 // DeploymentRef returns the exact prospective Deployment identity.
-func (admission ProcessAdmission) DeploymentRef() DeploymentRef { return admission.deployment }
+func (admission ProcessAdmission) DeploymentRef() DeploymentRef { return admission.deploymentRef }
 
 // Descriptor returns the prospective Definition's static contract.
 func (admission ProcessAdmission) Descriptor() Descriptor { return admission.descriptor }
@@ -39,12 +39,12 @@ func (admission ProcessAdmission) Capabilities() CapabilitySet { return admissio
 // Valid reports whether the admission contains one coherent prospective
 // Process. Only the Engine constructs admission values.
 func (admission ProcessAdmission) Valid() bool {
-	return admission.relation.Valid() && admission.deployment.Valid() &&
+	return admission.relation.Valid() && admission.deploymentRef.Valid() &&
 		admission.descriptor.Valid() && admission.budget.Valid() &&
 		admission.capabilities.Valid() &&
-		admission.deployment.Name() == admission.descriptor.Name() &&
-		admission.deployment.Version() == admission.descriptor.Version() &&
-		admission.deployment.ContractDigest() == admission.descriptor.Digest()
+		admission.deploymentRef.Name() == admission.descriptor.Name() &&
+		admission.deploymentRef.Version() == admission.descriptor.Version() &&
+		admission.deploymentRef.ContractDigest() == admission.descriptor.Digest()
 }
 
 // ProcessAdmitter decides whether one prospective root or child Process may
@@ -59,11 +59,11 @@ func (admission ProcessAdmission) Valid() bool {
 // by an admitter. Restore does not repeat admission for a Process whose admitted
 // state was captured.
 type ProcessAdmitter interface {
-	Admit(ProcessAdmission) error
+	Admit(admission ProcessAdmission) error
 }
 
 // ProcessAdmitterFunc adapts a function to ProcessAdmitter.
-type ProcessAdmitterFunc func(ProcessAdmission) error
+type ProcessAdmitterFunc func(admission ProcessAdmission) error
 
 // Admit invokes admitter.
 func (admitter ProcessAdmitterFunc) Admit(admission ProcessAdmission) error {
@@ -77,7 +77,7 @@ func newProcessAdmission(
 	capabilities CapabilitySet,
 ) ProcessAdmission {
 	return ProcessAdmission{
-		relation: relation, deployment: deployment.Reference(),
+		relation: relation, deploymentRef: deployment.DeploymentRef(),
 		descriptor: deployment.Descriptor(), budget: budget,
 		capabilities: capabilities,
 	}

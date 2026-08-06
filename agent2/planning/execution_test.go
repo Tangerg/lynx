@@ -49,6 +49,30 @@ func TestManagedPlanningReobservesAndReplansAfterEveryAction(t *testing.T) {
 	}
 }
 
+func TestPlanningDefinitionRejectsPriorExecutionStateSchema(t *testing.T) {
+	done := mustCondition(t, "world.done", planning.True)
+	definition := newManagedDefinition(t, managedDeploymentConfig{goal: mustGoal(t, done)})
+	input, err := agent.EncodeInput(struct{}{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	execution, err := definition.Start(input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	state, err := execution.Snapshot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	prior, err := agent.NewExecutionState(state.Kind(), 1, state.Payload())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := definition.Restore(prior); !errors.Is(err, planning.ErrInvalidExecutionState) {
+		t.Fatalf("prior schema error = %v, want ErrInvalidExecutionState", err)
+	}
+}
+
 func TestManagedPlanningExcludesUnconfirmedActionAndReplans(t *testing.T) {
 	done := mustCondition(t, "world.done", planning.True)
 	optimistic := mustAction(t, planning.ActionConfig{
@@ -189,7 +213,7 @@ func TestManagedPlanningUsesSemanticCompletionOutcomes(t *testing.T) {
 		})
 		output := managedOutput(t, runManaged(t, agent.EngineConfig{}, deployment))
 		if output.Outcome != planning.OutcomeStuck || len(output.Attempts) != 1 ||
-			output.Attempts[0].Action != "action.first" || world.truth("world.done") != planning.Unknown {
+			output.Attempts[0].ActionName != "action.first" || world.truth("world.done") != planning.Unknown {
 			t.Fatalf("output = %#v", output)
 		}
 	})
@@ -294,7 +318,7 @@ func TestManagedPlanningUnknownActionRequiresExplicitResolution(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
-		if err := engine.Close(); err != nil && !errors.Is(err, agent.ErrEngineBusy) {
+		if err := engine.Close(); err != nil && !errors.Is(err, agent.ErrEngineHasActiveProcesses) {
 			t.Errorf("Close: %v", err)
 		}
 	})
@@ -360,7 +384,7 @@ func TestManagedPlanningExecutesChildProcessAction(t *testing.T) {
 	}
 	var inputCalls int
 	childBinding, err := planning.NewChildBinding(planning.ChildBindingConfig{
-		Action: delegate, Deployment: childDeployment.Reference(), Budget: budget,
+		Action: delegate, DeploymentRef: childDeployment.DeploymentRef(), Budget: budget,
 		Input: func(input agent.Input, observed planning.WorldState) (agent.Input, error) {
 			inputCalls++
 			if !input.Valid() || observed.Truth("world.done") != planning.Unknown {
@@ -376,11 +400,11 @@ func TestManagedPlanningExecutesChildProcessAction(t *testing.T) {
 		name: "planning.parent", goal: mustGoal(t, done),
 		bindings: []planning.ActionBinding{childBinding}, observer: world,
 	})
-	resolver := managedResolver{childDeployment.Reference(): childDeployment}
+	resolver := managedResolver{childDeployment.DeploymentRef(): childDeployment}
 	result := runManaged(t, agent.EngineConfig{DeploymentResolver: resolver}, parentDeployment)
 	output := managedOutput(t, result)
 	if output.Outcome != planning.OutcomeAchieved || inputCalls != 1 || len(output.Attempts) != 1 ||
-		output.Attempts[0].Action != "action.delegate" || output.Attempts[0].Status != planning.AttemptSucceeded {
+		output.Attempts[0].ActionName != "action.delegate" || output.Attempts[0].Status != planning.AttemptSucceeded {
 		t.Fatalf("output = %#v, child input calls = %d", output, inputCalls)
 	}
 }
@@ -421,7 +445,7 @@ func TestManagedPlanningValidatesDispatcherBindingsAndCapabilities(t *testing.T)
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			if _, err := planning.NewDispatcher(definition, planning.DispatcherConfig{
-				Observer: test.observer, Executors: test.executors,
+				Observer: test.observer, ActionExecutors: test.executors,
 			}); !errors.Is(err, planning.ErrInvalidDispatcherConfig) {
 				t.Fatalf("error = %v", err)
 			}
@@ -556,7 +580,7 @@ func newManagedDeployment(t testing.TB, config managedDeploymentConfig) agent.De
 		observer = world
 	}
 	dispatcher, err := planning.NewDispatcher(definition, planning.DispatcherConfig{
-		Observer: observer, Executors: config.executors,
+		Observer: observer, ActionExecutors: config.executors,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -636,7 +660,7 @@ func assertFailure(t testing.TB, result agent.Result, kind agent.FailureKind, co
 func attemptNames(attempts []planning.Attempt) []string {
 	names := make([]string, len(attempts))
 	for index, attempt := range attempts {
-		names[index] = attempt.Action
+		names[index] = attempt.ActionName
 	}
 	return names
 }

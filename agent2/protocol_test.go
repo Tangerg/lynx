@@ -139,6 +139,51 @@ func TestWaitRequestKeepsEngineKeySeparateFromStrategySignalPayload(t *testing.T
 	}
 }
 
+func TestFrameworkAndChildProtocolsRejectPriorSchemaVersions(t *testing.T) {
+	key, _ := ParseWaitKey("approval:prior-version")
+	waitEffect, err := RequestWait(key, json.RawMessage(`{"kind":"opened"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	priorWaitPayload := withSchemaVersion(t, waitEffect.Payload(), 1)
+	if _, _, err := decodeWaitRequestPayload(priorWaitPayload); !errors.Is(err, ErrInvalidEffect) {
+		t.Fatalf("prior Framework Effect error = %v, want ErrInvalidEffect", err)
+	}
+
+	childKey, _ := ParseChildKey("child:prior-version")
+	processID, _ := ParseProcessID("process:prior-version")
+	deployment := newChildTestDeployment(t)
+	result := ChildStartResult{
+		key: childKey, processID: processID, deploymentRef: deployment.DeploymentRef(),
+	}
+	currentResult, err := encodeChildStartResult(result)
+	if err != nil {
+		t.Fatal(err)
+	}
+	priorResult := withSchemaVersion(t, currentResult, 1)
+	if _, err := decodeChildStartResult(priorResult); !errors.Is(err, ErrInvalidChildStart) {
+		t.Fatalf("prior child protocol error = %v, want ErrInvalidChildStart", err)
+	}
+}
+
+func withSchemaVersion(t *testing.T, payload json.RawMessage, version uint16) json.RawMessage {
+	t.Helper()
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(payload, &fields); err != nil {
+		t.Fatal(err)
+	}
+	encoded, err := json.Marshal(version)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fields["schema_version"] = encoded
+	updated, err := json.Marshal(fields)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return updated
+}
+
 func TestFrameworkEffectRejectsUnknownOperations(t *testing.T) {
 	data := []byte(`{"target":"framework","payload":{"operation":"tool","schema_version":1,"key":"approval","signal_payload":{}}}`)
 	var effect Effect

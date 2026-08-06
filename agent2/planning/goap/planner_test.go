@@ -122,7 +122,7 @@ func TestPlannerDistinguishesSatisfiedUnreachableAndBoundedSearch(t *testing.T) 
 			action(t, "action.finish", []planning.Condition{ready}, []planning.Condition{done}, 1),
 		)
 		_, found, err := goap.New(goap.Config{MaxExpansions: 1}).Plan(t.Context(), problem)
-		if found || !errors.Is(err, goap.ErrExpansionLimit) {
+		if found || !errors.Is(err, goap.ErrExpansionLimitReached) {
 			t.Fatalf("found=%t error=%v", found, err)
 		}
 	})

@@ -17,7 +17,7 @@ func TestTransitionConstructorsEnforceOwnedFields(t *testing.T) {
 	}
 	effects := transition.Effects()
 	effects[0].payload[0] = '['
-	if transition.Kind() != TransitionKindContinue || transition.Consumed() != 2 || string(transition.Effects()[0].Payload()) != `{"request":"model"}` {
+	if transition.Kind() != TransitionKindContinue || transition.ConsumedSignals() != 2 || string(transition.Effects()[0].Payload()) != `{"request":"model"}` {
 		t.Fatalf("Continue transition mutated: %+v", transition)
 	}
 
@@ -53,7 +53,7 @@ func TestTransitionStrictUnionJSON(t *testing.T) {
 		t.Fatalf("decoded WaitID = %v, %t", got, ok)
 	}
 
-	invalid := []byte(`{"kind":"wait","consumed":1,"wait_id":"wait:1","reason":"not allowed"}`)
+	invalid := []byte(`{"kind":"wait","consumed_signals":1,"wait_id":"wait:1","reason":"not allowed"}`)
 	if err := json.Unmarshal(invalid, &decoded); !errors.Is(err, ErrInvalidTransition) {
 		t.Fatalf("invalid union error = %v, want ErrInvalidTransition", err)
 	}
@@ -81,9 +81,9 @@ func TestFailureStrictRoundTrip(t *testing.T) {
 }
 
 func FuzzTransitionJSONRoundTrip(f *testing.F) {
-	f.Add([]byte(`{"kind":"continue","consumed":1,"effects":[{"target":"dispatcher","payload":{"operation":"model"}}]}`))
-	f.Add([]byte(`{"kind":"continue","consumed":0,"effects":[{"target":"framework","payload":{"operation":"wait","schema_version":1,"key":"approval","signal_payload":{"kind":"wait_id"}}}]}`))
-	f.Add([]byte(`{"kind":"wait","consumed":1,"wait_id":"wait:1"}`))
+	f.Add([]byte(`{"kind":"continue","consumed_signals":1,"effects":[{"target":"dispatcher","payload":{"operation":"model"}}]}`))
+	f.Add([]byte(`{"kind":"continue","consumed_signals":0,"effects":[{"target":"framework","payload":{"operation":"wait","schema_version":1,"key":"approval","signal_payload":{"kind":"wait_id"}}}]}`))
+	f.Add([]byte(`{"kind":"wait","consumed_signals":1,"wait_id":"wait:1"}`))
 	f.Fuzz(func(t *testing.T, data []byte) {
 		var transition Transition
 		if err := json.Unmarshal(data, &transition); err != nil {
@@ -97,7 +97,7 @@ func FuzzTransitionJSONRoundTrip(f *testing.F) {
 		if err := json.Unmarshal(encoded, &decoded); err != nil {
 			t.Fatal(err)
 		}
-		if decoded.Kind() != transition.Kind() || decoded.Consumed() != transition.Consumed() || len(decoded.Effects()) != len(transition.Effects()) {
+		if decoded.Kind() != transition.Kind() || decoded.ConsumedSignals() != transition.ConsumedSignals() || len(decoded.Effects()) != len(transition.Effects()) {
 			t.Fatalf("round trip = %+v, want %+v", decoded, transition)
 		}
 	})

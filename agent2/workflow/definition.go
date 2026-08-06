@@ -101,7 +101,7 @@ func (definition *Definition) Restore(state agent.ExecutionState) (agent.Executi
 	}
 	var decoded executionState
 	if err := decodeStrict(state.Payload(), &decoded); err != nil {
-		return nil, fmt.Errorf("%w: decode: %v", ErrInvalidExecutionState, err)
+		return nil, fmt.Errorf("%w: decode: %w", ErrInvalidExecutionState, err)
 	}
 	if err := decoded.validate(definition); err != nil {
 		return nil, err

@@ -219,7 +219,7 @@ func (execution *interactionSpikeExecution) Step(ctx context.Context, signals []
 	}
 }
 
-func interactionSpikeContinue(consumed uint32, value interactionSpikeEffect) (Transition, error) {
+func interactionSpikeContinue(consumedSignals uint32, value interactionSpikeEffect) (Transition, error) {
 	payload, err := json.Marshal(value)
 	if err != nil {
 		return Transition{}, err
@@ -228,7 +228,7 @@ func interactionSpikeContinue(consumed uint32, value interactionSpikeEffect) (Tr
 	if err != nil {
 		return Transition{}, err
 	}
-	return Continue(consumed, effect)
+	return Continue(consumedSignals, effect)
 }
 
 func decodeInteractionSpikeSignal(signal Signal) (interactionSpikeSignal, error) {

@@ -18,7 +18,7 @@ func TestProcessAdmitterReceivesRootAndChildResourceContracts(t *testing.T) {
 		t.Fatal(err)
 	}
 	childDeployment := newChildTestDeployment(t)
-	parentDeployment := newCrossParentDeployment(t, childDeployment.Reference())
+	parentDeployment := newCrossParentDeployment(t, childDeployment.DeploymentRef())
 	var mu sync.Mutex
 	var admissions []ProcessAdmission
 	admitter := ProcessAdmitterFunc(func(admission ProcessAdmission) error {
@@ -28,7 +28,7 @@ func TestProcessAdmitterReceivesRootAndChildResourceContracts(t *testing.T) {
 		return nil
 	})
 	engine, err := NewEngine(EngineConfig{
-		DeploymentResolver: deploymentMapResolver{childDeployment.Reference(): childDeployment},
+		DeploymentResolver: deploymentMapResolver{childDeployment.DeploymentRef(): childDeployment},
 		ProcessAdmitter:    admitter,
 		Capabilities:       capabilities,
 	})
@@ -60,7 +60,7 @@ func TestProcessAdmitterReceivesRootAndChildResourceContracts(t *testing.T) {
 	rootAdmission, childAdmission := got[0], got[1]
 	if !rootAdmission.Valid() || !rootAdmission.Relation().IsRoot() ||
 		rootAdmission.Relation().ProcessID() != parent.ID() ||
-		rootAdmission.DeploymentRef() != parentDeployment.Reference() ||
+		rootAdmission.DeploymentRef() != parentDeployment.DeploymentRef() ||
 		rootAdmission.Descriptor().Digest() != parentDeployment.Descriptor().Digest() ||
 		rootAdmission.Budget() != budgetFromLimits(DefaultLimits()) ||
 		!rootAdmission.Capabilities().Contains(read) {
@@ -69,7 +69,7 @@ func TestProcessAdmitterReceivesRootAndChildResourceContracts(t *testing.T) {
 	parentID, hasParent := childAdmission.Relation().ParentID()
 	if !childAdmission.Valid() || !hasParent || parentID != parent.ID() ||
 		childAdmission.Relation().Depth() != 1 ||
-		childAdmission.DeploymentRef() != childDeployment.Reference() ||
+		childAdmission.DeploymentRef() != childDeployment.DeploymentRef() ||
 		childAdmission.Budget() != (Budget{Steps: 20, Effects: 20, Signals: 40}) ||
 		len(childAdmission.Capabilities().Values()) != 0 {
 		t.Fatalf("child admission = %#v", childAdmission)
@@ -119,7 +119,7 @@ func TestProcessAdmitterRejectsBeforeDefinitionStarts(t *testing.T) {
 
 func TestProcessAdmitterRejectsChildWithoutPublishingIt(t *testing.T) {
 	childDeployment := newChildTestDeployment(t)
-	parentDeployment := newCrossParentDeployment(t, childDeployment.Reference())
+	parentDeployment := newCrossParentDeployment(t, childDeployment.DeploymentRef())
 	var calls atomic.Uint32
 	admitter := ProcessAdmitterFunc(func(admission ProcessAdmission) error {
 		calls.Add(1)
@@ -129,7 +129,7 @@ func TestProcessAdmitterRejectsChildWithoutPublishingIt(t *testing.T) {
 		return nil
 	})
 	engine, err := NewEngine(EngineConfig{
-		DeploymentResolver: deploymentMapResolver{childDeployment.Reference(): childDeployment},
+		DeploymentResolver: deploymentMapResolver{childDeployment.DeploymentRef(): childDeployment},
 		ProcessAdmitter:    admitter,
 	})
 	if err != nil {
