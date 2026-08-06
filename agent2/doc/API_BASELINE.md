@@ -74,6 +74,8 @@ P8-02 依据 ADR-A2-048 新增尚未冻结的 `platform.Catalog` 候选 API，�
 
 P8-03 依据 ADR-A2-049 在 exact Catalog 之上增加尚未冻结的 Platform deployment aggregate：Config/New、ActiveDeployments、Deploy/Replace/Undeploy、exact Resolve 与精确 conflict/not-active errors。active slot 是 name + SemVer，历史 exact binding 只增不误删。该候选面没有修改根或四个 Strategy package，也没有改变共同 wire；P8-04～07 仍可依据真实 routing/governance consumer 治本修订它，不提供兼容 shim。
 
+P8-04 依据 ADR-A2-050 为尚未冻结的 Platform 增加唯一 Definition selection 合同：non-executable DeploymentCandidate、DeploymentSelector/func adapter、DeploymentCandidates 与 SelectDeployment。没有 Router/Ranker/Choice/Confidence 近义层；request-specific policy 留在 selector。选择结果严格属于当次 active snapshot，并在并发 route change 后返回 captured exact Deployment。根、四个 Strategy package 与共同 wire 均未变化。
+
 ## 4. 明确不在基线中的能力
 
 Baseline 3 不冻结 P8 Platform catalog/routing/OTel decorator、P10 应用迁移 API 或最终模块替换路径。`flow` 保持独立 in-process 库，不形成 Agent adapter API 或依赖；未来编辑器图只能在更高层编译成已验证的 Workflow Definition，不能反向扩张 Kernel 或恢复 wire。

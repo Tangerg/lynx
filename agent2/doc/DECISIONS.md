@@ -369,6 +369,7 @@
 - 状态：已接受；P8-01 完整 race 门禁发现并关闭既有时间窗口。
 - 证据：Process loop 先把 immutable Result 写入 controller 并关闭 `done`，随后才调用 Engine 的 `processFinished` 注销父 wait、通知等待该 child 的父级，并向所有活动 direct child 同步投递 parent termination。旧 `Await` 只等待 `done`，因此 caller 在拿到父级 terminal Result 后可以立即释放 child 的 in-flight Effect；child 偶发先正常完成，越过尚未投递的 parent cancellation。race 门禁真实复现该违约。
 - 决策：`Process.Await` 等待该 controller 的 tree-settlement barrier：terminal Result 已提交，并且 `processFinished` 对这次终止直接触发的 wait 注销、父完成通知与 direct-child termination 投递已经完成。它不等待所有后代真正达到终态，也不把 Process Result 与整棵树完成混成一个概念；`Status` 仍可在 barrier 前观察到已提交终态。
+- 限定：parent termination 只投递给扫描时仍 active 的 child；已经先行完成的 child 保留 Completion。未显式 WaitForChildren 的父子 run loop 不承诺谁先完成，relation 测试只能接受“先完成”或“仍 active 后 parent-cancel”两个合法结果；需要 child 结果的 Strategy 必须建立 wait，不得把 scheduler timing 当协议。
 - 原因：Await 是 caller 继续操作的同步边界。若它早于 Engine 自身的终止 bookkeeping 返回，公开终态就不是可组合的线性化事实，父级取消传播会取决于 caller 在纳秒级窗口中的动作。
 - 后果：父终止后 caller 可以安全处理 direct children，不会抢在控制意图投递前推动其下一安全边界。改动只收紧 Await 的返回时点与 GoDoc，不改变状态、Result、snapshot/tree wire 或 child 的异步终止语义。
 
@@ -391,3 +392,13 @@
 - 决策：`Undeploy` 接收并校验当前 exact DeploymentRef，而不是裸 name/version。槽位为空返回 `ErrDeploymentNotActive`；引用陈旧则返回 conflict，不能误下线 replacement。成功只删除 active 选择，exact binding 继续可解析。首版不提供 Forget/Remove 历史 binding；Host 在证明外部 snapshot retention 后可重建新的 Platform，Framework 不猜 durable reachability。
 - 决策：Deploy/Replace/Undeploy 是同步、有界、无 context、无 I/O 的本地领域操作。临界区只保证一个 Platform 实例内状态快照的一致发布，不对 Host database 声明 transaction/CAS，不引入 idempotency key。生命周期 Event 与 OTel 留给 P8-06 的外部 decorator，不能反向让 Catalog 或 Engine 拥有 observation backend。
 - 后果：Platform API 仍是 P8 候选面，P8-04 路由只能读取一次 `ActiveDeployments` 快照并返回 exact ref；不能绕过版本槽位、扫描 historical Catalog 或把 active 选择塞进 Engine。根 API 和 snapshot/tree wire 本轮不变。
+
+## ADR-A2-050：Definition 选择只使用 active Candidate snapshot 与一个 Selector 合同
+
+- 状态：已接受；完成 P8-04。
+- 证据：旧 routing package 同时公开 Router、Ranker、Candidate、Choice、Confidence、Rationale、agent filter 与 goal filter，并从 Engine mutable catalog 动态读取；这些类型把一种评分实现误写成 Framework 路由本体。新 Descriptor 没有旧 Goal catalog，P7 也已裁决模型 worker selection 可以由 Interaction Delegate 完成。P8 的真实缺口只有：发现 active Definition 静态合同、让 caller policy 选择、验证 exact identity，并在并发部署变化下保持同一次选择一致。
+- 决策：唯一词汇为 `DeploymentCandidate`、`DeploymentSelector` 与 `SelectDeployment`，不再增加 Router/Ranker/Choice/Confidence 或另一套 registry。Candidate 只暴露 exact DeploymentRef 与 Descriptor，不暴露 Deployment behavior、Dispatcher、Engine 或 Process；`DeploymentCandidates` 返回 stable、ownership-isolated active snapshot，replaced/undeployed historical bindings 明确排除。
+- 决策：Selector 接收 caller context 和一次候选 slice，返回 exact DeploymentRef。request text、typed input、model、threshold、rationale、filter 与业务授权全部由 selector implementation/adapter 拥有，Framework 不发明通用 routing payload 或固定 `[0,1]` score。Selector 可以外部 I/O 且必须 honor context；共享实现必须并发安全。nil/typed nil、panic、invalid ref 与 unoffered ref 分别被稳定拒绝，普通 selector error 保留 cause。
+- 决策：SelectDeployment 在调用 selector 前冻结 active Deployment values 与候选 membership，在 Platform lock 外执行 selector，完成后只从该 captured set 返回 exact Deployment。并发 Replace/Undeploy 后旧 ref 仍由 Catalog 保留，所以选择不会 TOCTOU 跟随新 active route，也不会因为 route 变化变成不可执行。Selector 不能返回调用期间新部署但未被 offered 的 ref。
+- 原因：选择政策是可替换扩展，候选快照与 exact identity validation 才是 Platform invariant。用一个最小 selector 合同可以承载代码、模型或其他实现，同时避免把某种 scoring vocabulary、产品请求或执行入口固化进 Framework。
+- 后果：Engine 继续只消费 exact resolver，不依赖 Platform 或 selector。P8-05 guard 只能约束候选/启动边界，不能把权限字段塞进 Candidate 或让 selector 创建 Process。Platform API 仍待 P8-07 真实 command consumer 后冻结；根/Strategy API 与共同 wire 不变。

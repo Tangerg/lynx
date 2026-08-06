@@ -3,7 +3,7 @@
 > 状态：持续实施
 > 建立日期：2026-08-06
 > 最后更新：2026-08-06
-> 当前阶段：P8 Platform 与治理，3/7 完成
+> 当前阶段：P8 Platform 与治理，4/7 完成
 > 当前实施范围：仅 `agent2`
 > 临时模块路径：`github.com/Tangerg/lynx/agent2`
 > 最终模块路径：`github.com/Tangerg/lynx/agent`
@@ -74,7 +74,7 @@ go test ./...
 | P5 Planning 与 GOAP | 完成 | 8/8 | Planning 状态、Planner SPI、GOAP 搜索与 replan |
 | P6 managed Workflow | 完成 | 11/11 | 以有序 Stage 和真实 child Process 实现可恢复确定性编排，`flow` 保持独立 in-process 边界 |
 | P7 组合模式与能力覆盖 | 完成 | 7/7 | 动态 worker 组合、typed artifacts、evaluator/optimizer、示例 |
-| P8 Platform 与治理 | 进行中 | 3/7 | resolver、deployment catalog、版本、路由、递归治理和观测 |
+| P8 Platform 与治理 | 进行中 | 4/7 | resolver、deployment catalog、版本、路由、递归治理和观测 |
 | P9 独立完整性验收 | 未开始 | 0/6 | API/wire/arch/race/fuzz/examples/standalone 全绿 |
 | P10 消费迁移 | 未开始 | 0/5 | 单独迁移 `app/runtime` 及批准的直接消费者 |
 | P11 原模块替换 | 未开始 | 0/5 | 删除旧模块、改回 `agent`、清零兼容和残留 |
@@ -179,7 +179,7 @@ go test ./...
 - [x] P8-01 用真实 Engine 消费点冻结最小 DeploymentResolver 合同。
 - [x] P8-02 实现不可变 Deployment catalog 和精确 DeploymentRef。
 - [x] P8-03 实现显式 Deploy/Replace/Undeploy 和版本冲突语义。
-- [ ] P8-04 实现 Definition 路由与选择，不建立全局注册表或让 Engine 依赖 Platform concrete type。
+- [x] P8-04 实现 Definition 路由与选择，不建立全局注册表或让 Engine 依赖 Platform concrete type。
 - [ ] P8-05 实现跨 Process 的统一 budget、policy 和 capability guard。
 - [ ] P8-06 完成 Framework Event 和 OTel decorator 边界。
 - [ ] P8-07 验证内嵌 Engine 与完整 Platform 使用同一执行语义。
@@ -254,6 +254,7 @@ go test ./...
 
 | 日期 | 阶段 | 实际事实 | 验证与结果 |
 |---|---|---|---|
+| 2026-08-06 | P8 | 以一个最小选择合同完成 active Definition discovery/routing，不复制旧 Router/Ranker/Choice/Confidence。DeploymentCandidate 只暴露 exact ref + Descriptor；DeploymentCandidates 是 stable ownership-isolated active snapshot，历史 binding 排除。DeploymentSelector/func adapter 自己拥有 request/model/threshold/filter/rationale，可在 lock 外用 context 做 I/O；Platform 只隔离 panic、保留普通 error 并验证返回 exact ref 属于当次 offered set。SelectDeployment 返回 captured Deployment，不重新跟随 current active route；selector 无 Engine/Process/Dispatcher | 外部 tests 覆盖 stable candidate order/Descriptor、caller slice mutation 隔离、从 active 选择、historical/invalid/unoffered 拒绝、ordinary failure cause、panic containment、typed-nil、empty set 零调用、zero Platform、undeployed history 排除但 exact resolve 保留。阻塞 selector 期间同版本 Replace 的真实并发测试证明最终返回旧 captured binding，新 binding 保持 active；专项 race 50 次全绿。完整门禁另发现早期 relation 测试把未 wait 的快速 child 调度结果误写成固定 Completion，并在 completion case 等待可能已被取消、永不进入 Dispatcher 的三个 started 通知；普通/race 各 100 次证明合法合同是“先完成则 Completion、仍 active 则 parent cancellation”，测试只在主动 Kill 前等待 blocking Effects，不再引入 scheduler-dependent deadlock。Platform API 待 P8-07 consumer 冻结，根/Strategy API 与 snapshot/tree wire 不变。standalone tidy/diff/build/vet/staticcheck/test/race 均禁用缓存重跑且七个 commands 全绿；P8-04 完成，P8 更新为 4/7 |
 | 2026-08-06 | P8 | 新增 Platform deployment aggregate：Config 初始状态 all-or-nothing，本地变化在单临界区发布完整 immutable Catalog + active map/list，不把写入口交给 Engine。active slot 定为 name + canonical SemVer，因此多版本可同时 active；Deploy 同 exact 无变化、同槽不同 digest 返回结构化 conflict；Replace 只改已存在同版本槽，新版本必须 Deploy；Undeploy 要求 current exact ref，stale ref 冲突而不能误下线 replacement。Replace/Undeploy 都保留 exact history，Platform 本身实现 resolver。明确不实现 Forget/retain count、Host transaction/CAS/idempotency、远程发布或同步 listener | 外部 API tests 覆盖两版本并存、同版本 conflict details、replace 历史恢复、replace 新版本拒绝、stale/current/repeated undeploy、三份 exact history、初始冲突 all-or-nothing、实例隔离、nil/zero/invalid errors。24 个版本并发 Deploy + Replace 并与 16 readers 交错；专项 race 20 次全绿且任一 active ref 均可 exact Resolve。Platform API 仍待 P8-07 consumer 冻结，根/Strategy API 与 snapshot/tree wire 不变。standalone tidy/diff/build/vet/staticcheck/test/race 与七个 commands 全绿；P8-03 完成，P8 更新为 3/7 |
 | 2026-08-06 | P8 | 新增上层 `platform` package 的不可变 exact Catalog snapshot，不把 mutable registry 塞回 Engine。Catalog 零值为空，构造 all-or-nothing；无效 Deployment 与重复 exact ref 明确失败，同 name/version 的不同 digest 可共存。只提供 exact Resolve 与 stable ownership-isolated Deployments；不包含 active route、Deploy/Replace/Undeploy、retain/forget、remote discovery、Process owner 或 Host persistence。枚举按 name、SemVer、complete digest 排序。新增 `DeploymentRef.String` 的 `name@version+digest` 诊断表示，由 Catalog missing/duplicate 错误真实消费 | 外部 package tests 证明 exact 双历史 binding、missing 不按 name/version fallback、duplicate/invalid 零部分结果、返回 slice 不可反向修改、零值有效与 32 goroutine 并发读；compile-time 证明 Catalog 满足 DeploymentResolver。architecture gate 禁止 Platform import Strategy、旧 agent 或 Host package。根 API digest 显式修订为 `6d113e12dcdc2f87e0bd064d8ad25da4342b8d88b3144ca55db9a0868818b1b0`，Platform API 待 P8 完整 consumer 后冻结，snapshot/tree wire 不变。standalone tidy/diff/build/vet/staticcheck/test/race、七个 commands 与 DeploymentRef fuzz 3 秒 227049 次全绿；P8-02 完成，P8 更新为 2/7 |
 | 2026-08-06 | P8 | 从跨 Deployment child start 与完整 tree restore 两个真实消费点冻结最小 DeploymentResolver。治本移除 `Resolve` 的 `context.Context` 参数：exact DeploymentRef 已经完成路由，resolver 只允许并发安全、同步有界、确定、无远程 I/O 的本地绑定查询；same-reference child 直接复用当前 Deployment，tree restore 按 distinct exact reference 缓存且继续 all-or-nothing。Engine 保留 Valid/exact ref 复验并隔离 resolver panic，resolver 不创建 Process、不拥有 Engine/生命周期。全部现有 consumer 一次性迁移新签名，无 alias/shim/双接口 | 新增 resolver panic containment 与 same-reference zero-call 行为测试；既有跨 Strategy exact binding、错 binding 零 child、tree restore missing/exact resolver 合同继续通过。完整 race 首轮真实捕获旧 Await 早于 `processFinished` 返回的父终止传播窗口；治本改为等待 termination bookkeeping barrier，专项 race 100 次全绿。根 API/GoDoc digest 显式修订为 `0a2f6c3efadd05b767f303bde1512c38e4b5522dfac979e693537226dfef89af`，四个 Strategy digest 与 Snapshot v3/TreeSnapshot v1 wire 不变。standalone tidy/diff/build/vet/staticcheck/test/race、七个 commands 与 13 个 fuzz targets 全绿；P8-01 完成，P8 更新为 1/7 |
@@ -310,6 +311,6 @@ go test ./...
 
 ## 9. 当前下一步
 
-P1–P7 与 P8-01～03 已完成。Platform 已有独立 exact Catalog 和显式 name/SemVer deployment aggregate，Engine 仍不感知 active route。下一轮 P8-04 实现一次快照上的 Definition 路由与 exact 选择，不建立全局 registry、historical fallback 或第二 Process 入口。
+P1–P7 与 P8-01～04 已完成。Platform discovery/selection 只在一次 active Candidate snapshot 上返回 exact Deployment，不运行 Process。下一轮 P8-05 实现跨 Process 的统一 budget、policy 与 capability guard；guard 必须是 Framework 中性 admission/attenuation，不得泄露用户、订阅、价格表或 Host transaction。
 
 在 P1–P9 完成前，不迁移 `app/runtime`，不删除旧 `agent`，不发布 `agent2` 稳定版本。

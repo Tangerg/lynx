@@ -494,6 +494,7 @@ Process A₀
 - 父上下文按任务投影，不默认复制完整消息、Blackboard 或秘密。
 - deadline 和 cancellation 向下传播。
 - 父 Process 的任意终态都不能遗留活动孤儿；父 deadline 在后代保留准确来源，其他父终态作为 parent cancellation 逐层传播。
+- 父终态只向当时仍 active 的 direct child 投递控制意图；已先行合法完成的 child 保持 Completion。若父级结果依赖 child，Strategy 必须显式 WaitForChildren，不能依赖两条并发 run loop 的调度先后。
 - `Process.Await` 只在线性化该 Process 的 terminal Result 且 Engine 已完成这次终止直接触发的父完成通知、子终止投递和 wait 注销后返回；它不承诺整棵后代树已经全部终止。
 - child start 使用稳定请求身份，恢复时不能重复创建。
 - 子输出满足目标 Definition 的输出契约。
@@ -557,6 +558,8 @@ Platform 的 Catalog 是 exact Deployment binding 的不可变内存快照：零
 Deploy/Replace/Undeploy 只更新 Platform owner 持有的 catalog/route snapshot；Definition 路由只从一个已提交快照选择 exact DeploymentRef。二者不能把 Catalog 退化为 package-global mutable registry，也不能让 Engine 反向依赖 Platform。
 
 活跃 Deployment 的槽位键固定为 `(Definition name, semantic version)`：不同版本可以同时 active；同槽位的不同 complete digest 是冲突，必须显式 Replace。Replace 只改变同一槽位且保留旧 exact binding；新 SemVer 必须 Deploy 到新槽位。Undeploy 必须提交当前 exact DeploymentRef，陈旧引用不能下线已被替换的新 binding。所有本地变化一次性发布完整 immutable state；它们不声明外部持久化事务、分布式 CAS 或请求幂等。
+
+Definition discovery/selection 只暴露一次 active snapshot 的 `DeploymentCandidate{exact ref, Descriptor}`；Candidate 没有 Dispatcher、Engine 或 Process capability。调用方提供的 DeploymentSelector 拥有 request-specific input 与选择政策，可使用 context 执行模型或网络 I/O，返回一个 exact DeploymentRef。Platform 校验该 ref 必须属于同一次候选快照，并返回快照中原始 Deployment；并发 Replace/Undeploy 不能把已完成选择重定向到另一个 binding。historical Catalog 只用于 exact restore，不自动进入路由候选。
 
 ### 11.3 Deployment 恢复
 

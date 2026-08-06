@@ -392,3 +392,11 @@
 - Deploy 当前 exact binding 是无变化；Replace 不存在的版本返回 not-active，不能借 Replace 偷建新版本；Undeploy 要求 current exact ref，stale ref 返回 Active/Requested conflict，成功后只移除 active route 而不删除 history。
 - Config conflict、invalid Platform/Deployment/Ref、not-found exact binding、not-active slot 和 occupied/stale conflict 各有独立 error 语义。并发测试覆盖不同版本的 Deploy、Replace 与同时 Active/Catalog read，所有 active ref 在任一已读 snapshot 后都仍可 exact Resolve。
 - 不实现 Forget/retention count、database transaction/CAS、idempotency key、remote deploy 或同步 listener。外部持久发布、历史清理政策和生命周期落库属于 Host；Framework observation 边界留给 P8-06。
+
+### 12.4 active Definition discovery 与 exact selection
+
+- 旧 Router/Ranker/Candidate/Choice/Confidence 只保留“stable candidates + caller-owned policy + exact result validation”思想，不复制 Goal catalog、固定 score/rationale、filter 组合或 Engine-owned router。新唯一入口是 `DeploymentSelector.Select`，函数实现可用 `DeploymentSelectorFunc` 直接适配。
+- `DeploymentCandidate` 只包含 exact ref 与 frozen Descriptor；selector 无法取得 Dispatcher/Definition、Engine 或 Process。candidate list 来自一次 stable active snapshot，按 name/SemVer/digest 排序并与 caller mutation 隔离；historical Catalog binding 不进入发现。
+- Selector 自己封装 request-specific typed/text input、model、threshold/filter 与 rationale，因此 Framework 不定义 `any`/RawMessage 路由 payload，也不假设 confidence 范围。外部 I/O 允许且受 caller context；nil/typed nil、panic、ordinary error、invalid/unoffered ref 都有明确合同。
+- Platform 在 selector 返回后从原 captured Deployment map 取值，而不是重新查 active route。并发 replacement 测试在 selector 阻塞期间切换同版本 binding，最终仍返回旧 exact selected Deployment，同时新 binding 保持 active、旧 binding 继续可 Resolve。
+- 该能力只选择，不运行。Engine 不 import Platform concrete type，Selector 不拥有 Process lifecycle；动态模型 worker 的 Delegate 与全局 Definition discovery 没有被混成同一个概念。

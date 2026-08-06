@@ -44,8 +44,12 @@ func TestEngineStartsSameDeploymentChildWithStableRelation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if childResult.Status() != StatusCompleted {
-		t.Fatalf("child status = %s", childResult.Status())
+	completed := childResult.Status() == StatusCompleted &&
+		childResult.Termination().Cause() == TerminationCauseCompletion
+	parentCancelled := childResult.Status() == StatusCancelled &&
+		childResult.Termination().Cause() == TerminationCauseParentCancellation
+	if !completed && !parentCancelled {
+		t.Fatalf("child termination = %#v", childResult.Termination())
 	}
 	childSnapshot, err := child.Capture(context.Background())
 	if err != nil {
@@ -449,10 +453,10 @@ func TestParentTerminationPropagatesAtChildSafeBoundary(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			for range 3 {
-				<-dispatcher.started
-			}
 			if test.terminate != nil {
+				for range 3 {
+					<-dispatcher.started
+				}
 				waitForProcessStatus(t, parent, StatusWaiting)
 				test.terminate(t, parent)
 			}

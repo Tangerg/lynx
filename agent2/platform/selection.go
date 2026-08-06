@@ -1,0 +1,166 @@
+package platform
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"reflect"
+	"slices"
+
+	agent "github.com/Tangerg/lynx/agent2"
+)
+
+var (
+	// ErrInvalidDeploymentSelector reports a nil selector implementation.
+	ErrInvalidDeploymentSelector = errors.New("platform: invalid deployment selector")
+
+	// ErrNoDeploymentCandidate reports that the active snapshot is empty.
+	ErrNoDeploymentCandidate = errors.New("platform: no deployment candidate")
+
+	// ErrInvalidDeploymentSelection reports a selector panic or a reference
+	// that was not present in the exact candidate snapshot it received.
+	ErrInvalidDeploymentSelection = errors.New("platform: invalid deployment selection")
+)
+
+// DeploymentCandidate is one non-executable active binding offered to a
+// DeploymentSelector. It exposes the exact identity and static Definition
+// contract, never Dispatcher or Process lifecycle capabilities.
+type DeploymentCandidate struct {
+	reference  agent.DeploymentRef
+	descriptor agent.Descriptor
+}
+
+// Reference returns the candidate's exact immutable Deployment identity.
+func (candidate DeploymentCandidate) Reference() agent.DeploymentRef {
+	return candidate.reference
+}
+
+// Descriptor returns the candidate's frozen static Definition contract.
+func (candidate DeploymentCandidate) Descriptor() agent.Descriptor {
+	return candidate.descriptor
+}
+
+// DeploymentSelector chooses one exact reference from a stable active
+// candidate snapshot. Implementations may perform external I/O, must honor ctx,
+// and must be safe for concurrent calls when shared. Request-specific routing
+// input belongs to the implementation rather than a Framework payload type.
+type DeploymentSelector interface {
+	Select(context.Context, []DeploymentCandidate) (agent.DeploymentRef, error)
+}
+
+// DeploymentSelectorFunc adapts a function to DeploymentSelector.
+type DeploymentSelectorFunc func(
+	context.Context,
+	[]DeploymentCandidate,
+) (agent.DeploymentRef, error)
+
+// Select invokes selector.
+func (selector DeploymentSelectorFunc) Select(
+	ctx context.Context,
+	candidates []DeploymentCandidate,
+) (agent.DeploymentRef, error) {
+	return selector(ctx, candidates)
+}
+
+// DeploymentCandidates returns a stable snapshot of active, non-executable
+// candidates. Replaced, undeployed, and other historical Catalog bindings are
+// intentionally excluded. The returned slice is independently owned.
+func (platform *Platform) DeploymentCandidates() []DeploymentCandidate {
+	if platform == nil {
+		return nil
+	}
+	platform.mu.RLock()
+	defer platform.mu.RUnlock()
+	if !platform.initialized {
+		return nil
+	}
+	return candidatesFrom(platform.state.ordered)
+}
+
+// SelectDeployment asks selector to choose from one stable active snapshot and
+// returns the exact Deployment captured in that snapshot. Concurrent Replace or
+// Undeploy cannot redirect the completed selection to a different binding.
+func (platform *Platform) SelectDeployment(
+	ctx context.Context,
+	selector DeploymentSelector,
+) (agent.Deployment, error) {
+	if platform == nil {
+		return agent.Deployment{}, ErrInvalidPlatform
+	}
+	if nilDeploymentSelector(selector) {
+		return agent.Deployment{}, ErrInvalidDeploymentSelector
+	}
+	platform.mu.RLock()
+	if !platform.initialized {
+		platform.mu.RUnlock()
+		return agent.Deployment{}, ErrInvalidPlatform
+	}
+	deployments := slices.Clone(platform.state.ordered)
+	platform.mu.RUnlock()
+	if len(deployments) == 0 {
+		return agent.Deployment{}, ErrNoDeploymentCandidate
+	}
+	candidates := candidatesFrom(deployments)
+	offered := make(map[agent.DeploymentRef]agent.Deployment, len(deployments))
+	for _, deployment := range deployments {
+		offered[deployment.Reference()] = deployment
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	reference, err := callDeploymentSelector(ctx, selector, slices.Clone(candidates))
+	if err != nil {
+		return agent.Deployment{}, fmt.Errorf("platform: select Deployment: %w", err)
+	}
+	if !reference.Valid() {
+		return agent.Deployment{}, fmt.Errorf(
+			"%w: selector returned an invalid exact reference",
+			ErrInvalidDeploymentSelection,
+		)
+	}
+	deployment, found := offered[reference]
+	if !found {
+		return agent.Deployment{}, fmt.Errorf(
+			"%w: selector returned unoffered reference %s",
+			ErrInvalidDeploymentSelection, reference,
+		)
+	}
+	return deployment, nil
+}
+
+func candidatesFrom(deployments []agent.Deployment) []DeploymentCandidate {
+	candidates := make([]DeploymentCandidate, len(deployments))
+	for index, deployment := range deployments {
+		candidates[index] = DeploymentCandidate{
+			reference: deployment.Reference(), descriptor: deployment.Descriptor(),
+		}
+	}
+	return candidates
+}
+
+func callDeploymentSelector(
+	ctx context.Context,
+	selector DeploymentSelector,
+	candidates []DeploymentCandidate,
+) (reference agent.DeploymentRef, err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			reference = agent.DeploymentRef{}
+			err = fmt.Errorf("%w: selector panicked: %v", ErrInvalidDeploymentSelection, recovered)
+		}
+	}()
+	return selector.Select(ctx, candidates)
+}
+
+func nilDeploymentSelector(selector DeploymentSelector) bool {
+	if selector == nil {
+		return true
+	}
+	value := reflect.ValueOf(selector)
+	switch value.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
+		return value.IsNil()
+	default:
+		return false
+	}
+}
