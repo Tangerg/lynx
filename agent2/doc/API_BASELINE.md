@@ -44,7 +44,7 @@ Baseline 3 不是兼容承诺或发布版本。仓库仍允许 breaking change�
 
 `baseline_test.go` 对五个公共 package 的完整 `go doc -all` 输出做 SHA-256 校验，因此 exported identifier、参数名、字段、签名和 GoDoc 的任何漂移都会失败。Baseline 3 digest：
 
-- root kernel：`0a2f6c3efadd05b767f303bde1512c38e4b5522dfac979e693537226dfef89af`
+- root kernel：`6d113e12dcdc2f87e0bd064d8ad25da4342b8d88b3144ca55db9a0868818b1b0`
 - interaction：`9678f94265b227e7d085cc18a264ad3be4cac98709d94638f47c9ee7960e3fee`
 - planning：`bb3a3fee5315afba3cc1f70ecc0486b4b91f88d4d4160aa93bf896b09ffc28a1`
 - planning/goap：`da348e298e6976318b317873b44ec60829020fdea82947fae4bbc8e0d865b419`
@@ -69,6 +69,8 @@ P7-06 依据 ADR-A2-044 用 `workflow_patterns` 补齐 prompt chaining、routing
 P7-07 依据 ADR-A2-045 完成 direct `chatclient`、普通 Go/`flow`、单 Process Interaction、managed Workflow/tree 的复杂度—收益终审。Delegate/artifact/validator 与六个 Workflow Stage 均有独立语义和真实消费，当前没有应为制造 diff 而删除的生产抽象；也没有新增 facade。P7 最终仍保持全部 API/wire digest 不变。
 
 P8-01 依据 ADR-A2-046 从真实 child start 与 tree restore 消费点修订根合同：`DeploymentResolver.Resolve` 移除误导性的 `context.Context`，只表达同步、有界、确定、无远程 I/O 的 exact binding lookup；路由和调用方选择必须先于该合同完成。Engine 继续复验 exact reference、隔离 resolver panic、绕过 same-reference child lookup，并在 tree restore 中按 distinct reference 缓存且维持 all-or-nothing。完整 race 门禁又依据 ADR-A2-047 修正 `Process.Await` 的线性化点：返回 terminal Result 前，Engine 已提交该终止直接触发的父子 bookkeeping，不再给 caller 留出越过 parent termination propagation 的窗口。根 API/GoDoc digest 更新为当前值；四个 Strategy package 与共同 snapshot/tree wire digest 不变。
+
+P8-02 依据 ADR-A2-048 新增尚未冻结的 `platform.Catalog` 候选 API，并以它的 exact missing/duplicate 诊断证明 `DeploymentRef` 需要稳定 String 表示。根 package 新增 `DeploymentRef.String()`，输出 `name@version+complete-digest` 且不冒充 wire encoding；根 API/GoDoc digest 显式更新。Platform package 要到 P8 完整变更、路由、治理与真实消费者验证后才进入公共 digest 守卫；既有四个 Strategy package 和 snapshot/tree wire 仍不变。
 
 ## 4. 明确不在基线中的能力
 

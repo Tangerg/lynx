@@ -9,6 +9,8 @@ import (
 
 var ErrInvalidDeploymentRef = errors.New("agent: invalid deployment reference")
 
+const invalidDeploymentRefText = "<invalid-deployment-ref>"
+
 // DeploymentRef is the immutable value identity of one exact Definition
 // implementation and frozen execution configuration. It contains no registry
 // pointer and is sufficient to reject restore against a different Deployment.
@@ -68,6 +70,15 @@ func (reference DeploymentRef) ConfigurationDigest() Digest { return reference.c
 
 // Digest returns the complete Deployment value identity.
 func (reference DeploymentRef) Digest() Digest { return reference.digest }
+
+// String returns a compact diagnostic form containing the stable name,
+// semantic version, and complete Deployment digest. It is not a wire encoding.
+func (reference DeploymentRef) String() string {
+	if !reference.Valid() {
+		return invalidDeploymentRefText
+	}
+	return reference.name + "@" + reference.version + "+" + reference.digest.String()
+}
 
 // Valid reports whether all identity components and their derived digest agree.
 func (reference DeploymentRef) Valid() bool {

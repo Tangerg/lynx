@@ -552,6 +552,10 @@ Platform 是建立在 Engine 上的可选完整形态，拥有 Deployment catalo
 
 本地嵌入式使用可以只创建 Engine 并运行显式 Definition；完整应用可以使用 Platform。二者共享 Process 和 Execution 语义，不建立两个 runtime。
 
+Platform 的 Catalog 是 exact Deployment binding 的不可变内存快照：零值为空，同一 name/version 可以保留多个不同 digest 的历史定义，重复 exact DeploymentRef 必须拒绝而不能覆盖。枚举顺序固定为 Definition name、语义版本、完整 Deployment digest；返回集合与内部 slice 隔离。Catalog 直接实现 Engine 消费的 DeploymentResolver，但不包含 active route、变更命令、远程发现、Process 引用计数或 Host persistence。
+
+Deploy/Replace/Undeploy 只更新 Platform owner 持有的 catalog/route snapshot；Definition 路由只从一个已提交快照选择 exact DeploymentRef。二者不能把 Catalog 退化为 package-global mutable registry，也不能让 Engine 反向依赖 Platform。
+
 ### 11.3 Deployment 恢复
 
 - Deployment 冻结 Definition 及影响恢复语义的配置。
@@ -560,6 +564,7 @@ Platform 是建立在 Engine 上的可选完整形态，拥有 Deployment catalo
 - 路由、租户/调用方选择和远程发布发现必须先产生精确 DeploymentRef，再进入 resolver；resolver 不承担这些职责。
 - same-reference child 直接复用当前 Deployment，不调用 resolver；tree restore 对每个 distinct DeploymentRef 至多解析一次，并在全部 Deployment 与 snapshot 校验成功后才注册整棵树。
 - Platform 是 durable catalog、版本路由和治理实现，不在 Engine 内再建立第二份权威目录。
+- Catalog 保存 executable Deployment value，不能冒充可跨进程序列化的发布仓库；Host/adapter 负责从持久发布事实构造本地不可变快照。
 - 不使用 package-global registry。
 - 不通过 execution kind 猜测 concrete factory。
 - Go 函数地址不能作为可靠实现身份；需要发布或 Host 提供稳定版本身份。

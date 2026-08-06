@@ -377,3 +377,10 @@
 - Engine 对 resolver 返回值执行 Valid 与 exact reference 双重校验；错绑定和缺失绑定不会创建 child，panic 被收敛为确定解析失败。tree restore 在全部 Deployment、Snapshot 与 child wait 都准备成功后才注册，解析失败不留下部分 Process。
 - Platform catalog 将实现该窄腰，但 Engine 不依赖 Platform concrete type。可取消的远程发布同步、调用方/租户选择、版本范围路由和业务权限属于 catalog 构造或更高层选择，不得塞回 resolver。
 - 本轮完整 race 门禁暴露旧 Await 先于 `processFinished` 返回的窗口。现 Await 以 termination bookkeeping barrier 为线性化点：Result 已提交且 direct parent/child 通知已完成，但不等待全部后代终止；因此父终态事实不能再被 caller 抢跑成孤儿 child 的正常完成。
+
+### 12.2 不可变 exact Deployment catalog
+
+- 旧 deployment catalog 的有效证据是：replacement 后历史 exact Deployment 必须继续可恢复；并发读需要一致快照；枚举必须稳定。拒绝复制它把 active route、历史 binding、retain/forget、mutable registry 和 Engine lifecycle 混成一个 owner 的实现。
+- `platform.Catalog` 只收敛 exact bindings。零值为空；构造 all-or-nothing；无效 Deployment 或重复 exact reference 明确失败。同 name/version 的不同完整 digest 可以共存，证明 Catalog 没有暗中选择“当前版本”。
+- `Resolve` 对 invalid ref 与 valid-but-absent ref 分别返回准确 sentinel，不做 name/version fallback；同一 Catalog 可直接作为 Engine DeploymentResolver。`Deployments` 返回独立 slice，并按 name、SemVer、digest 排序，供后续路由从同一已提交快照投影候选。
+- Catalog 没有 mutex 或写方法，复制值后只读，天然支持并发解析/枚举。它不序列化 Definition/Dispatcher，不声称 durable，不依赖 Interaction/Planning/Workflow、旧 agent 或 Host package；architecture gate 固化该 DAG。

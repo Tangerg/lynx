@@ -371,3 +371,13 @@
 - 决策：`Process.Await` 等待该 controller 的 tree-settlement barrier：terminal Result 已提交，并且 `processFinished` 对这次终止直接触发的 wait 注销、父完成通知与 direct-child termination 投递已经完成。它不等待所有后代真正达到终态，也不把 Process Result 与整棵树完成混成一个概念；`Status` 仍可在 barrier 前观察到已提交终态。
 - 原因：Await 是 caller 继续操作的同步边界。若它早于 Engine 自身的终止 bookkeeping 返回，公开终态就不是可组合的线性化事实，父级取消传播会取决于 caller 在纳秒级窗口中的动作。
 - 后果：父终止后 caller 可以安全处理 direct children，不会抢在控制意图投递前推动其下一安全边界。改动只收紧 Await 的返回时点与 GoDoc，不改变状态、Result、snapshot/tree wire 或 child 的异步终止语义。
+
+## ADR-A2-048：Catalog 是 exact binding 的不可变快照
+
+- 状态：已接受；完成 P8-02。
+- 证据：旧模块的 deploymentCatalog 用一个可变 RWMutex 聚合 active route、全部历史 Deployment、Process retain count、forget policy 与 exact lookup，并由 Engine 直接暴露 Deploy/Replace/Undeploy。它证明历史 exact definition、稳定枚举和并发读取是真需求，也证明把变更命令、生命周期引用和解析放进同一个目录会让 Engine 与治理互相泄漏。新 Engine 已由 P8-01 证明只消费 context-free exact lookup。
+- 决策：新增上层 `platform.Catalog`，仅表示 exact Deployment bindings 的不可变内存快照并直接实现 `DeploymentResolver`。零值为空；构造一次性验证全部 Deployment；重复 exact DeploymentRef 使构造整体失败，不覆盖、不幂等吞掉。不同 exact reference 即使 name/version 相同也可共存，以保留 replacement/historical definition。
+- 决策：Catalog 只提供 exact `Resolve` 和 ownership-isolated `Deployments` 枚举。解析不按 name/version fallback；枚举按 Definition name、语义版本、完整 digest 稳定排序。Catalog 没有 mutex、active 标记、Deploy/Replace/Undeploy、Process retain count、remote discovery、Store 或 global singleton；P8-03/04 必须在 Catalog 之上分别建立显式变更与路由，而不能反向污染 exact snapshot。
+- 决策：`DeploymentRef.String` 返回 `name@version+complete-digest` 的稳定诊断文本，无效值返回明确 placeholder；它不是 JSON wire encoding。Catalog 的 not-found/duplicate 诊断真实消费该表示，避免仅打印 name 而掩盖 exact identity。
+- 原因：运行与恢复需要的是不可变 exact binding 集合，部署变更和路由需要的是其上层原子状态迁移。先把两者拆开，读路径可天然并发安全，Engine 仍只依赖最小接口，后续治理也不会重新创造 Engine-owned registry。
+- 后果：Catalog 保存包含 Go behavior binding 的 Deployment，不可序列化，也不承担 durable publication。Host/adapter 可从自己的发布事实构造 Catalog。根 API/GoDoc 因 `DeploymentRef.String` 显式修订；Platform API 在 P8 完整真实 consumer 验证前不提前冻结，snapshot/tree wire 不变。

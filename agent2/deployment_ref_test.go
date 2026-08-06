@@ -17,6 +17,10 @@ func TestDeploymentRefBindsContractImplementationAndConfiguration(t *testing.T) 
 	if !reference.Valid() || reference.ContractDigest() != descriptor.Digest() || reference.ImplementationDigest() != implementation || reference.ConfigurationDigest() != configuration {
 		t.Fatalf("DeploymentRef = %+v", reference)
 	}
+	wantText := descriptor.Name() + "@" + descriptor.Version() + "+" + reference.Digest().String()
+	if reference.String() != wantText || (DeploymentRef{}).String() != invalidDeploymentRefText {
+		t.Fatalf("DeploymentRef text = %q, invalid = %q", reference.String(), (DeploymentRef{}).String())
+	}
 
 	changedImplementation, err := NewDeploymentRef(descriptor, digestBytes([]byte("interaction implementation v2")), configuration)
 	if err != nil {
