@@ -334,3 +334,21 @@
 - 行为测试覆盖三轮达到阈值、第一轮提前接受、三轮耗尽仍返回中间最高分而非最后低分、同分保留最早、feedback 确实进入下一候选，以及 zero iteration、score 数量错配、zero/NaN threshold、infinite score 的构造期拒绝。达到阈值时 `Satisfied=true`；耗尽时 `Accepted=false`，没有把停止冒充成功评价。
 - 三轮场景 TreeSnapshot 恰好十个 Process：root + 三个 iteration body + 三个 optimizer + 三个 evaluator；首轮达标场景按 exact Deployment 名称验证四 Process。worker 与 body 都沿用既有 child budget、schema、失败、取消和恢复合同，没有第二 scheduler、共享 history store 或隐藏 callback loop。
 - 该纵切面没有生产 package 变化，五个 API digest、Workflow state、Process Snapshot v3 和 TreeSnapshot v1 均不变。外部/模型 evaluator 将来只需替换 exact worker Deployment；不得把 I/O 放进 Transform、Loop predicate 或 completion validator。
+
+### 11.6 Anthropic 模式覆盖证据
+
+| 模式 | 可运行 consumer | 关键行为断言 |
+|---|---|---|
+| Augmented LLM | `direct_vs_managed`、`autonomous` | direct/managed 共用 chat contract；Tool 结果进入 WorkingContext 后模型停止；retrieval 沿用 Tool/provider 而非专用 Strategy |
+| Prompt Chaining | `workflow_patterns` | normalize 与 summarize 两个 exact child 串行，后者只能读取前者 typed output |
+| Routing | `workflow_patterns` | urgent/standard 两种输入都只创建被选 exact route child，未选 branch 不出现在 tree |
+| Parallel Sectioning | `workflow_patterns`、`workflow` | facts/risks 与 clarity/safety exact child 按显式窗口执行，结果始终按声明顺序归位 |
+| Parallel Voting | `workflow_patterns` | 四个 exact voter 消费两份 typed section evidence 并分两个 window；2–2 同票由 consumer reducer 稳定保留最早声明 choice |
+| Orchestrator-workers | `orchestrator_workers` | 模型动态任务列表→有界 Map→综合；模型同轮选择两个 exact Planning Delegates |
+| Evaluator-optimizer | `evaluator_optimizer` | latest feedback 进入下一候选；提前接受；exhausted best-not-last；同分保留最早 |
+| Autonomous Agent | `autonomous` | model→Tool→model final，模型决定 Tool/停止，Definition 提供 hard `MaxModelCalls` |
+| Pattern Composition | `composition`、`orchestrator_workers`、`evaluator_optimizer` | Interaction/Planning/Workflow 经同一 child Process 窄腰嵌套，无第二 runtime |
+
+- `workflow_patterns` 每次运行的 TreeSnapshot 恰好十个 Process：root、两个 prompt-chain child、一个 selected route、两个 section、四个 voter。行为测试按 exact Deployment name 验证 standard route 不创建 urgent child，并验证 urgent 完整树；稳定 output 是 chain、route、facts/risks、approve 2/4 和 process count。
+- 七个 command 都是公开 API consumer，不共享 test-only/internal protocol helper，使用 deterministic local component，可在 `GOWORK=off` 下无凭据运行。一个 command 可以覆盖多个模式，但表中每一行都有独立行为断言；只有类型存在或文档名称不算覆盖。
+- 模式名称没有进入生产 package/type/kind。新增 consumer 只组合已有 Call/Switch/Fork/Map/Loop、Interaction/Tool/Delegate 和 child Process；retrieval 是 Tool/provider，WorkingContext 不是长期 memory。全部五个 package API digest、Strategy state 与 snapshot/tree wire 保持不变。

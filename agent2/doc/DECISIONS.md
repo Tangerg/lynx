@@ -332,3 +332,14 @@
 - 决策：每轮只把 evaluator 已提交的 feedback 提供给下一轮 optimizer；history 保持执行顺序；best 只在严格更优时更新，因此同分稳定保留最早 attempt。达到标准映射为 `LoopResult.Satisfied=true`；上限耗尽映射为 `Satisfied=false` 的正常策略完成，最终仍返回 best，不把“停止”伪装成“已接受”。worker failure 沿用 Workflow child failure，不能拿半轮 candidate 覆盖上一个合法 state。
 - 决策：pure Transform、Loop predicate 和 Interaction completion validator 都不得执行外部 evaluator I/O。需要模型、Tool、网络或其他外部判断时，evaluator 必须装配为 exact managed child Process；是否值得增加该循环必须由清晰评价标准和效果评测证明，而不是因为模式目录存在。
 - 后果：本轮只新增 consumer/test/documentation，没有公共 API、Strategy state 或 snapshot/tree wire 变化；P7-07 仍需用直接实现对比该十 Process 组合的成本并删除没有实益的抽象。
+
+## ADR-A2-044：Anthropic 模式是组合验收词汇而非类型目录
+
+- 状态：已接受；完成 P7 模式覆盖矩阵，但不改变 ADR-A2-007 的最小模式代数和 ADR-A2-038 的 Workflow Stage 代数。
+- 证据：P3～P7 已有 `direct_vs_managed`、`autonomous`、`composition`、`workflow`、`orchestrator_workers`、`evaluator_optimizer` 六个独立 command consumer，分别证明 direct/managed augmented model、model-owned Tool loop、heterogeneous child composition、managed Call/Fork、model-directed worker 与 evaluator feedback Loop。Workflow 自身已有 Switch/Fork/Map/Loop 的选择、窗口、顺序、恢复和失败合同，但 prompt chaining、routing、parallel sectioning/voting 尚缺一个统一的公开 API command 证据。
+- 证据：新增 `examples/workflow_patterns`，用一个 root Workflow 顺序 Call normalize/summarize 两个 exact child，Switch urgent/standard exact route，Fork facts/risks exact section，再把两份 typed section evidence 交给四个 exact voter。urgent 与 standard 行为测试都证明未选 case 不创建；section 保持声明顺序；voter 以 window=2 执行，最终 2–2 时 consumer-owned reducer 稳定选择最早声明的 approve。每次 tree 恰好 root + 2 chain + 1 route + 2 section + 4 voter 共十个 Process。
+- 决策：Augmented LLM、Prompt Chaining、Routing、Parallel Sectioning、Parallel Voting、Orchestrator-workers、Evaluator-optimizer、Autonomous Agent 和 Pattern Composition 只作为架构映射与验收词汇。Framework 不按文章标题增加 `chain`、`router`、`vote`、`supervisor`、`evaluator_optimizer` 或 `autonomous` package/Strategy/kind；它们必须由 `chatclient`、Interaction、Planning、Workflow、Tool 和 child Process 的既有职责组合。
+- 决策：retrieval 是普通 Tool/provider contract，不建立 Framework Retrieval Strategy；Interaction WorkingContext 是单 Execution 的模型上下文，不冒充产品长期 memory；跨 Process/长期 memory 继续由明确的 consumer/Host owner 管理。Pattern 表不能成为把产品知识库、conversation store 或 memory service 下沉 Kernel 的入口。
+- 决策：managed pattern 示例使用 deterministic exact worker 来隔离并证明 topology、typed value、Process identity 和稳定聚合；将 worker 换成模型/Tool 实现时必须保持 exact Descriptor，并通过 consumer-owned adapter 显式转换。模式覆盖不要求为每种 topology 复制一套模型调用代码。
+- 决策：公开示例可以一项覆盖多个模式，只要每项都有独立行为断言。P7-06 的七个 command consumers 与生产 contract tests 已覆盖完整矩阵；本轮不新增生产 API/state/wire。P7-07 仍必须比较 direct/`flow`/managed 成本，删除没有可测收益的复杂组合或抽象。
+- 原因：文章的价值是帮助选择控制流，不是提供类名清单。把每个图都升格为 Framework 概念会制造术语重复、恢复状态重复和模型/API 混淆，反而降低正确性。

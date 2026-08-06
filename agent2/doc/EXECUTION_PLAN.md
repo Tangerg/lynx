@@ -3,7 +3,7 @@
 > 状态：持续实施
 > 建立日期：2026-08-06
 > 最后更新：2026-08-06
-> 当前阶段：P7 组合模式与能力覆盖，5/7 完成
+> 当前阶段：P7 组合模式与能力覆盖，6/7 完成
 > 当前实施范围：仅 `agent2`
 > 临时模块路径：`github.com/Tangerg/lynx/agent2`
 > 最终模块路径：`github.com/Tangerg/lynx/agent`
@@ -73,7 +73,7 @@ go test ./...
 | P4 子 Process 组合与合同冻结 | 完成 | 9/9 | start/wait、递归、组合、预算、取消、恢复；多消费方验证后冻结窄腰 |
 | P5 Planning 与 GOAP | 完成 | 8/8 | Planning 状态、Planner SPI、GOAP 搜索与 replan |
 | P6 managed Workflow | 完成 | 11/11 | 以有序 Stage 和真实 child Process 实现可恢复确定性编排，`flow` 保持独立 in-process 边界 |
-| P7 组合模式与能力覆盖 | 进行中 | 5/7 | 动态 worker 组合、typed artifacts、evaluator/optimizer、示例 |
+| P7 组合模式与能力覆盖 | 进行中 | 6/7 | 动态 worker 组合、typed artifacts、evaluator/optimizer、示例 |
 | P8 Platform 与治理 | 未开始 | 0/7 | resolver、deployment catalog、版本、路由、递归治理和观测 |
 | P9 独立完整性验收 | 未开始 | 0/6 | API/wire/arch/race/fuzz/examples/standalone 全绿 |
 | P10 消费迁移 | 未开始 | 0/5 | 单独迁移 `app/runtime` 及批准的直接消费者 |
@@ -171,7 +171,7 @@ go test ./...
 - [x] P7-03 实现 typed artifact state 和 completion validator。
 - [x] P7-04 使用 P6 最终裁决的唯一确定性编排边界、Interaction、Planning 和 child Process 组合模型动态拆分、worker 调度和结果综合，不新增 Supervisor package/kind/lifecycle。
 - [x] P7-05 实现 evaluator-optimizer 组合。
-- [ ] P7-06 为 Anthropic 所列每种模式建立行为测试和示例。
+- [x] P7-06 为 Anthropic 所列每种模式建立行为测试和示例。
 - [ ] P7-07 比较简单实现与复杂编排，删除无实际收益的抽象。
 
 ### P8：Platform 与治理
@@ -254,6 +254,7 @@ go test ./...
 
 | 日期 | 阶段 | 实际事实 | 验证与结果 |
 |---|---|---|---|
+| 2026-08-06 | P7 | 完成 Anthropic 模式覆盖矩阵。逐项核对 Augmented LLM、Prompt Chaining、Routing、Parallel Sectioning/Voting、Orchestrator-workers、Evaluator-optimizer、Autonomous Agent、Pattern Composition 与现有公开消费者/contract tests；明确模式名称是验收词汇，不是 package/Strategy/type 目录，retrieval 沿用 Tool/provider，WorkingContext 不升级为长期 memory。真正缺口只剩四种确定 topology 的联合 command 证据，因此新增 `workflow_patterns`：两个 exact Call 串行传值、Switch 二选一 exact route、Fork 两个 section、再把两份 typed evidence 交给四个 exact voter；业务 chain/route/finding/ballot/report 与 tie-break 全留在 consumer | command 稳定输出 normalized→summary chain、urgent route、facts/risks、approve 2/4 和十 Process。urgent/standard 双场景都证明只创建 selected route；parallel sections 保持声明顺序且结果进入 voter context；四 voter 以 window=2 分两窗，2–2 同票由 reducer 稳定选择最早声明 approve。exact Deployment name 断言完整树为 root + 2 chain + 1 route + 2 section + 4 voter。七个 commands 均 `GOWORK=off` 无凭据运行；standalone mod tidy/diff/build/vet/staticcheck/test/race 全绿。未新增生产 API/state/wire，五个 package digest、Snapshot v3、TreeSnapshot v1 不变；P7-06 完成，P7 更新为 6/7 |
 | 2026-08-06 | P7 | 完成 evaluator-optimizer 组合纵切面。只读审计旧 Go/Embabel `RepeatUntilAcceptable` 与独立 `flow` Loop：保留 original input、ordered attempt/feedback、latest feedback、best-so-far、显式 acceptance criteria 和 hard limit；移除 GOAP/Action 包装、mutable Blackboard、runtime type/timestamp、默认 threshold/limit、第二 Journal，以及把 limit stop 混成 acceptable。新增独立 command consumer，只用 Workflow Loop + exact body/optimizer/evaluator child；typed objective/history/current/best/accepted 全属 consumer。optimizer 消费最新 feedback，evaluator 追加 immutable attempt，仅严格更高分替换 best；同分保留最早。threshold、score schedule、max iterations 与 exact child refs 均进入相关 Deployment identity | command 三轮在 0.95 达到显式 0.9 阈值，稳定输出 best revision、score、attempts、accepted、iterations 和十 Process tree。行为测试覆盖首轮提前接受并按 exact Deployment 名验证 root/body/optimizer/evaluator 四 Process；三轮耗尽以 accepted=false 正常完成并返回第二轮 0.9 best 而非最后 0.3；同分保留首轮；第二候选包含首轮 feedback；zero iteration、score 数量错配、zero/NaN threshold、infinite score 均构造期拒绝。未新增生产 package/API/state/wire，五个 package digest、Snapshot v3、TreeSnapshot v1 不变。standalone mod tidy/diff/build/vet/staticcheck/test/race 与六个 examples 全绿；P7-05 完成，P7 更新为 5/7 |
 | 2026-08-06 | P7 | 完成 orchestrator-worker 组合纵切面，不新增 Supervisor/Worker/Task package、Strategy、kind、dispatcher、registry 或 facade。新增独立 command consumer：decomposer Interaction 按输入产生 consumer-owned typed task list，Workflow Map 以显式 item limit/window 创建 exact worker child 并稳定聚合，synthesizer Interaction 形成 typed report；最终 tree 为 root + 两个 Interaction child + 三个 worker child。新增公开 API 行为测试证明另一条正交组合：Interaction 同轮选择两个 exact Planning Delegates，两个 GOAP child 独立达到可观察 Goal，模型消费有序 ToolResult，completion validator 再从两个 immutable typed `planning.Output` artifacts 确认 Achieved；父级不读取 Plan/Action 内部状态 | command 稳定输出 objective、三个声明顺序 worker、综合摘要和 `processes: 6`；Planning Delegate 测试验证两个真实 Action execution、两个 exact Planning child 和三 Process tree。反向审计确认 task/result/prompt/综合规则均留在 consumer，Planning 只用于 machine-verifiable goal，Workflow 只负责确定调度，Tool/Dispatcher 不获得 Engine。五个 package API digest、Interaction State v3、Snapshot v3 与 TreeSnapshot v1 均无变化。standalone mod tidy/diff/build/vet/staticcheck/test/race 与五个 examples 全绿；P7-04 完成，P7 更新为 4/7 |
 | 2026-08-06 | P7 | 完成 Interaction-owned typed artifact 与 completion validator 纵切面。成功 Delegate child 只有在 Completed、Output 存在且再次通过 exact frozen schema 后，才按模型轮次/原 ToolCall 位置追加 immutable portable record；普通 Tool、错误结果、start failure 与非 Completed child 均不进入。公开 `Artifact` 只暴露 exact Delegate name、immutable erased Output 与 `DecodeArtifact[T]`，WorkingContext/candidate Output/`Artifacts.All` 均防御性复制；不暴露 Process/child/Host identity、runtime type、Blackboard 或产品 store。可选 `CompletionValidator` 冻结于 Definition，以当前 Interaction WorkingContext + candidate Output + artifacts 返回显式 Accepted/Feedback；拒绝模型或 direct-Tool 候选都会保留准确上下文、追加 user feedback 并进入下一模型轮次，仍受 MaxModelCalls 硬限制。私有 Interaction ExecutionState 从 v2 直接升级 v3，strict restore 复验 artifact 顺序、identity 与 schema，v2 不双读；Kernel 与共同 snapshot/tree wire 不变 | 真实 Workflow Delegate consumer 证明 typed output 可严格解码、过早模型答案被拒绝、feedback 后第三轮完成；篡改 WorkingContext/`Artifacts.All` 返回值不能影响状态。direct-result consumer 证明 assistant ToolCall→ToolResult→feedback 顺序；非法 decision 进入稳定 contract failure，拒绝后耗尽得到稳定 `interaction.limit.model_calls`。strict tests 拒绝未知 Delegate、错误 schema、重复 identity、逆序 record；state fuzz 3 秒执行 334388 次无失败。Interaction API digest 显式修订为 `9678f94265b227e7d085cc18a264ad3be4cac98709d94638f47c9ee7960e3fee`，其余 API/wire digest 不变。standalone mod tidy/diff/build/vet/staticcheck/test/race 与四个 examples 全绿；P7-03 完成，P7 更新为 3/7 |
@@ -305,6 +306,6 @@ go test ./...
 
 ## 9. 当前下一步
 
-P1–P6 与 P7-01～P7-05 已完成。Baseline 3 继续由 Interaction、Planning、GOAP、Workflow、六个独立 command consumer、managed Delegate、typed artifact、completion validator、递归 child Process、tree recovery、race 和 fuzz 保护。下一轮 P7-06 逐项核对 Anthropic 模式表与现有行为证据，只补真正缺失的测试/最小示例；不为模式名称新增近义 API，不把已有 composition 重写成专用 Strategy。
+P1–P6 与 P7-01～P7-06 已完成。Baseline 3 继续由 Interaction、Planning、GOAP、Workflow、七个独立 command consumer、managed Delegate、typed artifact、completion validator、递归 child Process、tree recovery、race 和 fuzz 保护。下一轮 P7-07 对 direct `chatclient`、`flow`、单 Process Interaction 与 managed Workflow/tree 做复杂度—收益终审；删除不能由独立生命周期、恢复、预算、取消、治理或 eval 收益证明的抽象/示例重复，完成 P7 最终反向审计。
 
 在 P1–P9 完成前，不迁移 `app/runtime`，不删除旧 `agent`，不发布 `agent2` 稳定版本。

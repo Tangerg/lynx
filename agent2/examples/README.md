@@ -27,6 +27,11 @@ failures expose real consumer-facing contract problems.
   state carries ordered attempts, actionable feedback, stable best-so-far, and
   acceptance separately from exhaustion; no evaluator-specific Framework type
   or hidden callback loop is added.
+- `workflow_patterns` composes two exact Calls, one selected Switch case, two
+  parallel section workers, and four parallel voters in one tree. It proves
+  prompt chaining, routing, sectioning, declaration-order aggregation, and a
+  stable consumer-owned tie break without adding pattern-specific Framework
+  types.
 
 All examples use deterministic local components so they run without credentials or
 network access:
@@ -38,4 +43,5 @@ GOWORK=off go run ./examples/composition
 GOWORK=off go run ./examples/workflow
 GOWORK=off go run ./examples/orchestrator_workers
 GOWORK=off go run ./examples/evaluator_optimizer
+GOWORK=off go run ./examples/workflow_patterns
 ```

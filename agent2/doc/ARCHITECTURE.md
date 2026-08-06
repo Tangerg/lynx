@@ -506,21 +506,21 @@ Process tree 是执行、取消、预算和恢复的共同单位。如果未来�
 
 ## 10. Anthropic 编排模式覆盖
 
-依据 [Building effective agents](https://www.anthropic.com/engineering/building-effective-agents) 的分类，目标覆盖如下：
+依据 [Building effective agents](https://www.anthropic.com/engineering/building-effective-agents) 的分类，覆盖与证据如下。模式名称是组合词汇，不是必须各建一个 Strategy/package/type 的清单。
 
-| 模式 | 目标实现 | 路径由谁决定 |
-|---|---|---|
-| Augmented LLM | `chatclient` + retrieval + tools + memory | 单次模型调用 |
-| Prompt Chaining | `flow.Then` 或 Workflow 连续 Call | 代码 |
-| Routing | `flow.Switch`、Workflow Switch 或 Platform 路由 | 代码、分类器或模型 |
-| Parallel Sectioning | `flow.Map`/`flowx.FanOut` 或 Workflow Fork/Map | 代码 |
-| Parallel Voting | `flow` 并行组合，或 Workflow Fork + typed reducer | 代码 |
-| Orchestrator-workers | Interaction Delegate，或 decomposer Interaction + Workflow Map + synthesizer Interaction；worker 始终是 child Process | 模型拆分/选择，Workflow 只确定调度与聚合 |
-| Evaluator-optimizer | `flow.Loop` 或 Workflow Loop + evaluator child | 代码控制循环，可由模型评估 |
-| Autonomous Agent | Interaction + tools +环境反馈 +停止条件 | 模型 |
-| Pattern Composition | `flow`、Workflow、Interaction 与 child Process 按生命周期边界组合 | 代码与模型按边界组合 |
+| 模式 | 实现边界 | 路径由谁决定 | 行为证据 |
+|---|---|---|---|
+| Augmented LLM | `chatclient`/Interaction + Tools + WorkingContext；retrieval 是 Tool/provider，长期 memory 属于明确 owner | 单次模型调用或 Interaction 轮次 | `direct_vs_managed`、`autonomous`、Interaction Tool/WorkingContext tests |
+| Prompt Chaining | `flow.Then` 或 Workflow 连续 Call | 代码 | `workflow_patterns` 两个 exact child 串行并传递 typed value |
+| Routing | `flow.Switch`、Workflow Switch 或 Platform 路由 | 代码、分类器或模型 | `workflow_patterns` urgent/standard 双输入均只创建被选 exact child |
+| Parallel Sectioning | `flow.Map`/`flowx.FanOut` 或 Workflow Fork/Map | 代码 | `workflow_patterns` facts/risks 稳定声明顺序；Workflow Fork/Map contract tests |
+| Parallel Voting | `flow` 并行组合，或 Workflow Fork + consumer-owned typed reducer | 代码 | `workflow_patterns` 四 voter 两窗执行，2–2 同票稳定选择最早声明结果 |
+| Orchestrator-workers | Interaction Delegate，或 decomposer Interaction + Workflow Map + synthesizer Interaction；worker 始终是 child Process | 模型拆分/选择，Workflow 只确定调度与聚合 | `orchestrator_workers` 动态任务与 exact Planning Delegate tests |
+| Evaluator-optimizer | `flow.Loop` 或 Workflow Loop + exact optimizer/evaluator child | 代码控制循环，可由模型评估 | `evaluator_optimizer` feedback、提前接受、exhausted best-not-last 与稳定同分 tests |
+| Autonomous Agent | Interaction + Tools + 环境反馈 + 显式停止/上限 | 模型 | `autonomous` model→Tool→model final 与 Interaction limit tests |
+| Pattern Composition | `flow`、Workflow、Interaction 与 child Process 按生命周期边界组合 | 代码与模型按边界组合 | `composition`、`orchestrator_workers`、`evaluator_optimizer` 的 heterogeneous Process trees |
 
-验收不能只证明类型存在，必须为每种模式提供行为测试和最小可运行示例。
+验收同时要求可运行示例和行为断言；只有 topology 类型或文档中的模式名不算实现。若普通 Go/`chatclient` 已足够，就不创建 Process；只有独立生命周期、恢复、预算、取消或治理确有价值时才升级为 managed composition。
 
 ---
 
