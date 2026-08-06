@@ -367,3 +367,13 @@
 - P7 public surface 逐项有 owner/consumer：Delegate 由模型选择 exact child；Artifact/Artifacts/CompletionCandidate 分别承载 schema-owned evidence、稳定集合与两种完成候选；completion validator 提供纯反馈边界。Workflow 的 Transform/Call/Switch/Fork/Map/Loop 各有不同状态/恢复语义并被 command 或 contract tests 消费；Sequence/Gate/Vote/PromptChain 均由现有代数派生，没有近义入口。
 - 七个 command consumer 不合并：最小 direct/managed、自主 Tool loop、自定义 Definition/heterogeneous composition、最小 managed Workflow、动态 worker、评价循环、完整确定模式矩阵各自承担不同公开 API 证据。复杂示例明确是 topology fixture；纯函数业务默认应留在 Go/`flow`，不是为了制造 tree 而创建 Process。
 - 本轮没有发现应删除的当前生产抽象。P6/P7 前序已经实际移除了 StageKind/metadata getter、独立 Supervisor、通用 Action-to-Tool、Blackboard、pattern-specific kinds 等无收益设计；终审不为制造 diff 误删已被真实消费证明的能力，也不新增 facade/shared example helper。
+
+## 12. P8 Platform 与治理专项证据
+
+### 12.1 DeploymentResolver 消费合同
+
+- 真实消费点只有跨 Deployment child start 与完整 tree restore；两处输入都已经是 exact DeploymentRef，不需要也不允许 resolver 再做路由。same-reference child 复用当前 Deployment，tree restore 以 root Deployment 为首个绑定并按 distinct reference 缓存其余绑定。
+- `DeploymentResolver.Resolve(DeploymentRef)` 是并发安全、同步有界、确定、无远程 I/O 的本地绑定查询。移除 `context.Context` 是语义修复：旧参数全部被忽略且 Engine 主动剥离取消，它只会暗示 tenant/context routing 或远程发现可以潜入恢复窄腰。
+- Engine 对 resolver 返回值执行 Valid 与 exact reference 双重校验；错绑定和缺失绑定不会创建 child，panic 被收敛为确定解析失败。tree restore 在全部 Deployment、Snapshot 与 child wait 都准备成功后才注册，解析失败不留下部分 Process。
+- Platform catalog 将实现该窄腰，但 Engine 不依赖 Platform concrete type。可取消的远程发布同步、调用方/租户选择、版本范围路由和业务权限属于 catalog 构造或更高层选择，不得塞回 resolver。
+- 本轮完整 race 门禁暴露旧 Await 先于 `processFinished` 返回的窗口。现 Await 以 termination bookkeeping barrier 为线性化点：Result 已提交且 direct parent/child 通知已完成，但不等待全部后代终止；因此父终态事实不能再被 caller 抢跑成孤儿 child 的正常完成。

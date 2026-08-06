@@ -643,10 +643,10 @@ func attemptNames(attempts []planning.Attempt) []string {
 
 type managedResolver map[agent.DeploymentRef]agent.Deployment
 
-func (resolver managedResolver) Resolve(_ context.Context, reference agent.DeploymentRef) (agent.Deployment, error) {
+func (resolver managedResolver) Resolve(reference agent.DeploymentRef) (agent.Deployment, error) {
 	deployment, found := resolver[reference]
 	if !found {
-		return agent.Deployment{}, errors.New("Deployment not found")
+		return agent.Deployment{}, errors.New("deployment not found")
 	}
 	return deployment, nil
 }

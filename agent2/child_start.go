@@ -9,7 +9,6 @@ import (
 )
 
 func (runtime *processRuntime) startChild(
-	ctx context.Context,
 	effectID EffectID,
 	spec ChildSpec,
 ) ChildStartResult {
@@ -45,7 +44,7 @@ func (runtime *processRuntime) startChild(
 	if err != nil {
 		return failedChildStart(spec, FailureKindExecution, "engine.child.budget_invalid", err)
 	}
-	deployment, err := runtime.resolveChildDeployment(ctx, spec.Deployment)
+	deployment, err := runtime.resolveChildDeployment(spec.Deployment)
 	if err != nil {
 		return failedChildStart(spec, FailureKindExternal, "engine.child.deployment_unavailable", err)
 	}
@@ -112,7 +111,6 @@ func (runtime *processRuntime) releaseChildBudget(released Budget) {
 }
 
 func (runtime *processRuntime) resolveChildDeployment(
-	ctx context.Context,
 	reference DeploymentRef,
 ) (Deployment, error) {
 	if reference == runtime.deployment.Reference() {
@@ -121,7 +119,7 @@ func (runtime *processRuntime) resolveChildDeployment(
 	if runtime.engine.resolver == nil {
 		return Deployment{}, fmt.Errorf("%w: no resolver for %s", ErrInvalidDeployment, reference.Name())
 	}
-	deployment, err := resolveDeployment(runtime.engine.resolver, ctx, reference)
+	deployment, err := resolveDeployment(runtime.engine.resolver, reference)
 	if err != nil {
 		return Deployment{}, err
 	}
@@ -133,7 +131,6 @@ func (runtime *processRuntime) resolveChildDeployment(
 
 func resolveDeployment(
 	resolver DeploymentResolver,
-	ctx context.Context,
 	reference DeploymentRef,
 ) (deployment Deployment, err error) {
 	defer func() {
@@ -142,7 +139,7 @@ func resolveDeployment(
 			err = fmt.Errorf("deployment resolver panicked: %v", recovered)
 		}
 	}()
-	return resolver.Resolve(context.WithoutCancel(ctx), reference)
+	return resolver.Resolve(reference)
 }
 
 func failedChildStart(spec ChildSpec, kind FailureKind, code string, cause error) ChildStartResult {

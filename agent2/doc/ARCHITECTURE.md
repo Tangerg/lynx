@@ -494,6 +494,7 @@ Process A₀
 - 父上下文按任务投影，不默认复制完整消息、Blackboard 或秘密。
 - deadline 和 cancellation 向下传播。
 - 父 Process 的任意终态都不能遗留活动孤儿；父 deadline 在后代保留准确来源，其他父终态作为 parent cancellation 逐层传播。
+- `Process.Await` 只在线性化该 Process 的 terminal Result 且 Engine 已完成这次终止直接触发的父完成通知、子终止投递和 wait 注销后返回；它不承诺整棵后代树已经全部终止。
 - child start 使用稳定请求身份，恢复时不能重复创建。
 - 子输出满足目标 Definition 的输出契约。
 - 子 Process 不得等待祖先 Process。
@@ -555,7 +556,9 @@ Platform 是建立在 Engine 上的可选完整形态，拥有 Deployment catalo
 
 - Deployment 冻结 Definition 及影响恢复语义的配置。
 - Process snapshot 始终记录精确 DeploymentRef。
-- Engine 只依赖由自身消费位置定义的最小 DeploymentResolver，或在 restore 时显式接收已经解析的 Deployment。
+- Engine 只依赖由自身消费位置定义的最小 DeploymentResolver，或在 restore 时显式接收已经解析的 Deployment。该 resolver 是无 context、同步、有界、确定且无远程 I/O 的 exact binding lookup；同一精确引用不能随调用方或调用时机改变结果。
+- 路由、租户/调用方选择和远程发布发现必须先产生精确 DeploymentRef，再进入 resolver；resolver 不承担这些职责。
+- same-reference child 直接复用当前 Deployment，不调用 resolver；tree restore 对每个 distinct DeploymentRef 至多解析一次，并在全部 Deployment 与 snapshot 校验成功后才注册整棵树。
 - Platform 是 durable catalog、版本路由和治理实现，不在 Engine 内再建立第二份权威目录。
 - 不使用 package-global registry。
 - 不通过 execution kind 猜测 concrete factory。

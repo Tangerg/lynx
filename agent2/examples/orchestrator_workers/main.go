@@ -351,7 +351,6 @@ func jsonResponse(value any) (*chat.Response, error) {
 type deploymentResolver map[agent.DeploymentRef]agent.Deployment
 
 func (resolver deploymentResolver) Resolve(
-	_ context.Context,
 	reference agent.DeploymentRef,
 ) (agent.Deployment, error) {
 	deployment, found := resolver[reference]

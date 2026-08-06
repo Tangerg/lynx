@@ -125,7 +125,7 @@ func mustDeployment(t *testing.T, definition agent.Definition, identity string) 
 
 type deploymentResolver map[agent.DeploymentRef]agent.Deployment
 
-func (resolver deploymentResolver) Resolve(_ context.Context, reference agent.DeploymentRef) (agent.Deployment, error) {
+func (resolver deploymentResolver) Resolve(reference agent.DeploymentRef) (agent.Deployment, error) {
 	deployment, found := resolver[reference]
 	if !found {
 		return agent.Deployment{}, errors.New("deployment not found")

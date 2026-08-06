@@ -354,3 +354,20 @@
 - 决策：保留 `Artifact`/`Artifacts`/`CompletionCandidate` 的最小只读面。`WorkingContext`、candidate Output、ordered artifacts 和 typed decode 分别由完成反馈、两种 completion source、不可变/顺序和 schema 归属合同使用；`Len` 避免只为计数复制集合。保留 Transform/Call/Switch/Fork/Map/Loop，因为它们分别拥有纯变换、单 child、单选 child、静态 fan-out、动态 fan-out、可恢复迭代的独立状态语义；Sequence/Gate/Vote/PromptChain 等继续只由组合派生。
 - 决策：本轮没有为了满足“删除”动作而误删已证明能力，也没有增加 helper/facade。此前 P6/P7 已实际删除 StageKind/metadata getters、Supervisor Strategy、通用 Action-to-Tool、Blackboard、pattern-specific kinds 等无收益抽象；当前审计的零新增删除是这些前置清洗成功的事实，不是跳过审查。
 - 后果：P7 完成。P8 只能增加经过真实 Engine consumer 证明的 catalog/routing/governance 能力，不能重新引入本阶段拒绝的 facade、全局 registry 或第二生命周期。
+
+## ADR-A2-046：精确 Deployment 解析是无上下文的本地绑定查询
+
+- 状态：已接受；完成 P8-01。
+- 证据：Engine 只有两个解析消费点：跨 Deployment child start 与完整 tree restore。二者收到的都是已经冻结在 ChildSpec 或 Snapshot 中的 exact DeploymentRef；same-reference child 直接复用当前 Deployment，restore 也按 distinct reference 缓存。此前 `Resolve(context.Context, DeploymentRef)` 的实现全部忽略 context，Engine 又主动剥离取消；该参数既不控制真实生命周期，也会错误暗示 resolver 可以按 tenant/context value 改变绑定或进行远程 I/O，使相同 snapshot 的恢复行为不再确定。
+- 决策：`DeploymentResolver` 唯一方法治本改为 `Resolve(DeploymentRef) (Deployment, error)`。实现必须并发安全、同步有界、确定、无远程 I/O，且不得重入任何 Process。路由、调用方/租户选择、权限判断和远程发布发现必须在更高层完成并产出 exact DeploymentRef；它们不属于 resolver。
+- 决策：Engine 始终复验返回 Deployment 的有效性与 exact reference。resolver panic 被隔离为确定的解析失败；same-reference child 不调用 resolver；tree restore 对每个 distinct exact reference 至多调用一次，并维持整树注册 all-or-nothing。resolver 不创建 Process、不持有 Engine，也不取得生命周期所有权。
+- 原因：DeploymentRef 是恢复和 child composition 的行为身份，不是待补充条件的查询。将 context 留在窄腰只会制造第二个隐式路由入口，并让确定性依赖不可见调用上下文；取消也无法使一个违反“有界本地查询”合同的实现变得正确。
+- 后果：P8 Platform catalog 必须直接实现这一最小接口；可取消的远程同步、动态路由和 Host policy 只能发生在 exact reference 被选定或部署快照被构造之前。根公开 API/GoDoc 基线显式修订，Process Snapshot v3 与 TreeSnapshot v1 wire 不变。
+
+## ADR-A2-047：Await 在线性化终态的直接父子 bookkeeping 后返回
+
+- 状态：已接受；P8-01 完整 race 门禁发现并关闭既有时间窗口。
+- 证据：Process loop 先把 immutable Result 写入 controller 并关闭 `done`，随后才调用 Engine 的 `processFinished` 注销父 wait、通知等待该 child 的父级，并向所有活动 direct child 同步投递 parent termination。旧 `Await` 只等待 `done`，因此 caller 在拿到父级 terminal Result 后可以立即释放 child 的 in-flight Effect；child 偶发先正常完成，越过尚未投递的 parent cancellation。race 门禁真实复现该违约。
+- 决策：`Process.Await` 等待该 controller 的 tree-settlement barrier：terminal Result 已提交，并且 `processFinished` 对这次终止直接触发的 wait 注销、父完成通知与 direct-child termination 投递已经完成。它不等待所有后代真正达到终态，也不把 Process Result 与整棵树完成混成一个概念；`Status` 仍可在 barrier 前观察到已提交终态。
+- 原因：Await 是 caller 继续操作的同步边界。若它早于 Engine 自身的终止 bookkeeping 返回，公开终态就不是可组合的线性化事实，父级取消传播会取决于 caller 在纳秒级窗口中的动作。
+- 后果：父终止后 caller 可以安全处理 direct children，不会抢在控制意图投递前推动其下一安全边界。改动只收紧 Await 的返回时点与 GoDoc，不改变状态、Result、snapshot/tree wire 或 child 的异步终止语义。

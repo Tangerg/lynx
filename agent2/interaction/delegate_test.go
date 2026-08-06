@@ -463,7 +463,7 @@ func delegateWorkflow[I, O any](t *testing.T, name string, transform workflow.Tr
 
 type delegateResolver map[agent.DeploymentRef]agent.Deployment
 
-func (resolver delegateResolver) Resolve(_ context.Context, reference agent.DeploymentRef) (agent.Deployment, error) {
+func (resolver delegateResolver) Resolve(reference agent.DeploymentRef) (agent.Deployment, error) {
 	deployment, found := resolver[reference]
 	if !found {
 		return agent.Deployment{}, errors.New("delegated Deployment is unavailable")

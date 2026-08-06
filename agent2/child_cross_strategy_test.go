@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"sync/atomic"
 	"testing"
 )
 
@@ -62,14 +63,79 @@ func TestEngineRejectsResolverBindingMismatch(t *testing.T) {
 	}
 }
 
+func TestEngineContainsDeploymentResolverPanic(t *testing.T) {
+	childDeployment := newChildTestDeployment(t)
+	parentDeployment := newCrossParentDeployment(t, childDeployment.Reference())
+	resolver := deploymentResolverFunc(func(DeploymentRef) (Deployment, error) {
+		panic("resolver failure")
+	})
+	engine, err := NewEngine(EngineConfig{DeploymentResolver: resolver})
+	if err != nil {
+		t.Fatal(err)
+	}
+	input, _ := EncodeInput(struct{}{})
+	parent, err := engine.Start(context.Background(), parentDeployment, input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	output := childTestResult(t, mustAwait(t, parent))
+	if output.Failures != 1 || len(output.ChildIDs) != 0 ||
+		len(output.FailureCodes) != 1 || output.FailureCodes[0] != "engine.child.deployment_unavailable" {
+		t.Fatalf("panicking resolver output = %#v", output)
+	}
+	if err := engine.Close(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestEngineBypassesResolverForSameDeploymentChild(t *testing.T) {
+	deployment := newChildTestDeployment(t)
+	var calls atomic.Uint32
+	resolver := deploymentResolverFunc(func(DeploymentRef) (Deployment, error) {
+		calls.Add(1)
+		return Deployment{}, errors.New("same Deployment unexpectedly resolved")
+	})
+	engine, err := NewEngine(EngineConfig{DeploymentResolver: resolver})
+	if err != nil {
+		t.Fatal(err)
+	}
+	input, _ := EncodeInput(childTestInput{Mode: "parent"})
+	parent, err := engine.Start(context.Background(), deployment, input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	output := childTestResult(t, mustAwait(t, parent))
+	if len(output.ChildIDs) != 1 || output.Failures != 0 {
+		t.Fatalf("same-Deployment output = %#v", output)
+	}
+	childID, _ := ParseProcessID(output.ChildIDs[0])
+	child, found := engine.Process(childID)
+	if !found {
+		t.Fatal("same-Deployment child is missing")
+	}
+	_ = mustAwait(t, child)
+	if got := calls.Load(); got != 0 {
+		t.Fatalf("same-Deployment resolver calls = %d, want 0", got)
+	}
+	if err := engine.Close(); err != nil {
+		t.Fatal(err)
+	}
+}
+
 type deploymentMapResolver map[DeploymentRef]Deployment
 
-func (resolver deploymentMapResolver) Resolve(_ context.Context, reference DeploymentRef) (Deployment, error) {
+func (resolver deploymentMapResolver) Resolve(reference DeploymentRef) (Deployment, error) {
 	deployment, found := resolver[reference]
 	if !found {
 		return Deployment{}, errors.New("deployment not found")
 	}
 	return deployment, nil
+}
+
+type deploymentResolverFunc func(DeploymentRef) (Deployment, error)
+
+func (resolve deploymentResolverFunc) Resolve(reference DeploymentRef) (Deployment, error) {
+	return resolve(reference)
 }
 
 type crossParentDefinition struct {

@@ -2,7 +2,6 @@ package agent2
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -12,12 +11,14 @@ const childProtocolSchemaVersion uint16 = 1
 
 var ErrInvalidChild = errors.New("agent: invalid child process request")
 
-// DeploymentResolver supplies an exact immutable Deployment for a child
-// Process. The Engine accepts only a result whose reference exactly matches the
-// requested reference. Implementations must be safe for concurrent use and
-// must not re-enter the requesting Process.
+// DeploymentResolver performs one bounded, deterministic, context-free lookup
+// of an exact immutable Deployment. The Engine accepts only a result whose
+// reference exactly matches the requested reference. Implementations must be
+// safe for concurrent use, must not perform remote I/O, and must not re-enter
+// any Process. Routing and caller-specific selection happen before an exact
+// DeploymentRef reaches this contract.
 type DeploymentResolver interface {
-	Resolve(context.Context, DeploymentRef) (Deployment, error)
+	Resolve(DeploymentRef) (Deployment, error)
 }
 
 // ChildSpec is the complete Strategy-declared intent for one child Process.

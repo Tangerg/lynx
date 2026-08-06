@@ -34,9 +34,10 @@ type EngineConfig struct {
 	// represented by the supplied Snapshot.
 	PreparedStepAcknowledger PreparedStepAcknowledger
 
-	// DeploymentResolver supplies exact Deployments requested by child Effects.
-	// It is unnecessary for same-Deployment recursion. Resolution is a binding
-	// lookup only; the resolver does not own Process construction or lifecycle.
+	// DeploymentResolver supplies exact Deployments requested by child Effects
+	// and tree restoration. It is unnecessary for same-Deployment recursion.
+	// Resolution is a bounded, context-free local binding lookup only; the
+	// resolver does not perform routing or own Process construction or lifecycle.
 	DeploymentResolver DeploymentResolver
 
 	// EventListeners receive ordered facts for each Process. Different

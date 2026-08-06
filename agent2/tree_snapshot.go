@@ -433,9 +433,7 @@ func (engine *Engine) RestoreTree(
 					processSnapshot.DeploymentRef().Name(),
 				)
 			}
-			deployment, err = resolveDeployment(
-				engine.resolver, normalizedContext(ctx), processSnapshot.DeploymentRef(),
-			)
+			deployment, err = resolveDeployment(engine.resolver, processSnapshot.DeploymentRef())
 			if err != nil || !deployment.Valid() || deployment.Reference() != processSnapshot.DeploymentRef() {
 				return nil, fmt.Errorf(
 					"%w: resolve exact Deployment %s: %v",

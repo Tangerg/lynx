@@ -60,7 +60,7 @@ func (runtime *processRuntime) dispatchFrameworkEffect(ctx context.Context, reco
 			runtime.markFrameworkEffectUnknown(record)
 			return
 		}
-		result := runtime.startChild(ctx, record.ID, spec)
+		result := runtime.startChild(record.ID, spec)
 		payload, err := encodeChildStartResult(result)
 		if err != nil {
 			runtime.markFrameworkEffectUnknown(record)

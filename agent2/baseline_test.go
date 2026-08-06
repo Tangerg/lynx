@@ -17,7 +17,7 @@ func TestExportedAPIBaseline(t *testing.T) {
 		directory string
 		want      string
 	}{
-		{name: "kernel", directory: ".", want: "52a43f16c1b71a099a660ddde520c345476de124855f55c65221f46911486146"},
+		{name: "kernel", directory: ".", want: "0a2f6c3efadd05b767f303bde1512c38e4b5522dfac979e693537226dfef89af"},
 		{name: "interaction", directory: "interaction", want: "9678f94265b227e7d085cc18a264ad3be4cac98709d94638f47c9ee7960e3fee"},
 		{name: "planning", directory: "planning", want: "bb3a3fee5315afba3cc1f70ecc0486b4b91f88d4d4160aa93bf896b09ffc28a1"},
 		{name: "goap", directory: "planning/goap", want: "da348e298e6976318b317873b44ec60829020fdea82947fae4bbc8e0d865b419"},

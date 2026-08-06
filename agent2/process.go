@@ -142,7 +142,8 @@ func (process *Process) Capture(ctx context.Context) (Snapshot, error) {
 	return response.snapshot, err
 }
 
-// Await waits for the immutable terminal result. Cancelling ctx stops only the
+// Await waits for the immutable terminal result and the Engine's immediate
+// parent/child bookkeeping for that termination. Cancelling ctx stops only the
 // wait; Process cancellation is explicit or follows the context passed to Start.
 func (process *Process) Await(ctx context.Context) (Result, error) {
 	if process == nil || process.controller == nil {
@@ -150,7 +151,7 @@ func (process *Process) Await(ctx context.Context) (Result, error) {
 	}
 	ctx = normalizedContext(ctx)
 	select {
-	case <-process.controller.done:
+	case <-process.controller.treeSettled:
 		return process.controller.terminalResult(), nil
 	case <-ctx.Done():
 		return Result{}, ctx.Err()
