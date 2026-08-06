@@ -76,7 +76,7 @@ go test ./...
 | P7 组合模式与能力覆盖 | 完成 | 7/7 | 动态 worker 组合、typed artifacts、evaluator/optimizer、示例 |
 | P8 Platform 与治理 | 完成 | 7/7 | resolver、deployment catalog、版本、路由、递归治理和观测 |
 | P9 独立完整性验收 | 完成 | 6/6 | API/wire/arch/race/fuzz/examples/standalone 全绿 |
-| P10 消费迁移 | 进行中 | 1/5 | 单独迁移 `app/runtime` 及批准的直接消费者 |
+| P10 消费迁移 | 进行中 | 2/5 | 单独迁移 `app/runtime` 及批准的直接消费者 |
 | P11 原模块替换 | 未开始 | 0/5 | 删除旧模块、改回 `agent`、清零兼容和残留 |
 
 ---
@@ -196,7 +196,7 @@ go test ./...
 ### P10：消费迁移
 
 - [x] P10-01 复核 P1 只读消费审计结果与 P4 后冻结的合同，确认迁移范围没有新增应用抽象需求。
-- [ ] P10-02 更新迁移决策并确认 breaking change 实施批次。
+- [x] P10-02 更新迁移决策并确认 breaking change 实施批次。
 - [ ] P10-03 将聊天路径从单 Action GOAP wrapper 迁移为 Interaction Definition。
 - [ ] P10-04 迁移其他批准的直接消费者，不修改无关前端/TUI/CLI。
 - [ ] P10-05 删除应用侧框架通用编排并完成应用门禁。
@@ -254,6 +254,7 @@ go test ./...
 
 | 日期 | 阶段 | 实际事实 | 验证与结果 |
 |---|---|---|---|
+| 2026-08-06 | P10 | 依据 P10-01 证据新增 ADR-A2-058，将迁移缺口冻结为六个且只有六个中性合同：context-aware ProcessAdmitter + prospective StartedAt；携带 exact deployment/relation 的 EffectRequest；Interaction-owned ModelInvocation/ToolInvocation context；`Tools`/`DeferredTools` 与可恢复 `AdvertiseTools`；唯一 `DelegateChildKey`；Kernel-owned `WaitingSubtreeCancellationPlan`。等待子树结果保留终态 Process/预算、由 Kernel child completion Signal 推进并把父级停在消费前，Host 只保存 opaque tree 与自身 write-set。实施顺序固定为 Framework 合同、root 原生 Interaction、child/HITL/toolset、旧应用编排清零四批，且前端/TUI/CLI 明确排除 | 本轮只修订候选后的正式迁移决策，不改变 production API/wire；没有新增 Host package/name/import。P10-02 完成，P10 更新为 2/5；P10-03 从 Kernel/Interaction owner contracts 纵切实现并先独立验收 |
 | 2026-08-06 | P10 | 复核 P1 的 54 文件旧 Framework 消费图并逐条读透 root Interaction、child durable admission、model/tool observation、deferred tool discovery、HITL tree checkpoint、waiting child cancellation 与 subagent projection。确认应用/领域/交付层没有新的 Framework 抽象需求，迁移继续收敛在 `internal/adapter/agentexec` 与直接 toolset 装配。冻结合同已覆盖主体生命周期；真实 consumer 只证明六处中性缺口：context-aware admission、Effect/Interaction invocation attribution、可恢复的 deferred advertisement、同步权威 model/tool observation、Kernel-owned waiting subtree transition、确定 Delegate child key。明确拒绝把 Run/transaction/history/pricing/approval 等 Host 类型或 private Strategy wire 带入 Framework | `agent2` production 与 API/wire 本轮未变；工作树开始/结束均无运行代码修改。P10-01 完成，P10 更新为 1/5，下一批先以 ADR 冻结 breaking contract 与实施顺序，再改代码 |
 | 2026-08-06 | P9 | 完成整个 `agent2` 最终零债清扫。完整项目 lint 捕获并修复 import 分组、无效测试赋值、枚举 switch 与美式英文等 13 项遗漏；公共 `StatusCancelled`/`"cancelled"` 治本替换为唯一 `StatusCanceled`/`"canceled"`，无 alias 或双读，Process Snapshot/TreeSnapshot 分别升级为 v6/v4 并拒绝旧版本/拼写。删除已被正式 Interaction/Engine/恢复合同完整取代的两个 P1 disposable spike，修复普通测试对 spike helper 的隐藏依赖，并将重复 Interaction Deployment 装配收敛到既有测试 owner。删除 blind sleep，改用 Process loop 命令屏障；稳定架构文档移除已完成阶段的未来时态，示例统一为独立消费者 | Baseline 6 显式更新根 public 与 Kernel snapshot/protocol digest，其余六个 public package、Strategy/observation wire 和 package DAG 不变。空目录、空文件、production TODO/FIXME/HACK、compat/shim、旧模块/Host/`flow` import 与 duplicate scan 均为零；standalone build/vet/staticcheck、完整项目 lint、禁用缓存普通测试/race 全绿，13 个 fuzz target 各 3 秒共执行 2,092,394 次且无失败，fuzz 后普通测试再次通过，八个 command consumer 全部实跑成功。P9-06 完成，P9 6/6 完成，进入 P10 |
 | 2026-08-06 | P9 | 将完整 `agent2` 源码复制到仓库外临时目录，关闭 workspace，并使用全新 module/build cache 与只读 module 模式从零解析；过程中重新下载 Go 1.26.5 toolchain 和全部依赖，不复用仓库 workspace、原 module cache 或 build cache。确认 `go.mod` 无 replace，readonly module graph 完整且 `flow` 不在依赖图。七个 public package 均可生成完整 `go doc -all`；35 个 Markdown 本地链接逐项存在；README 声明的八个 example 与实际 command 目录集合完全一致 | clean copy 中 `go mod download all`、`go mod verify`、`go list -mod=readonly` 和 15 package 禁用缓存测试全绿；八个 deterministic command 在 clean cache 下全部实跑成功，无凭据或运行期网络依赖。首次 replace 检查把 JSON 的 `Replace: null` 误判为存在条目，读取原始 JSON 后以精确 null/entry 条件复验通过，未修改代码规避检查。P9-05 完成，P9 更新为 5/6 |
@@ -321,6 +322,6 @@ go test ./...
 
 ## 9. 当前下一步
 
-P1–P9 与 P10-01 已完成。下一轮 P10-02 依据真实 consumer 证据冻结 context-aware admission、Effect/Interaction invocation attribution、deferred tool advertisement、waiting subtree transition 与 Delegate causal projection 的最小 breaking contract，并明确它们的 owner、wire revision 和迁移批次；不把产品 conversation/transcript、持久化、事务、UI 或交付抽象反向带入 Framework。
+P1–P9 与 P10-01/P10-02 已完成。P10-03 先实现 ADR-A2-058 的 Kernel admission/Effect attribution 与 Interaction invocation/deferred/Delegate 合同，完成 public/wire baseline、恢复、race 和独立 consumer 验收；随后用这些稳定合同把 root chat 从单 Action GOAP wrapper 治本替换为原生 Interaction Definition。
 
 P10 只修改 `app/runtime` 以及因直接消费新 Framework 必须变化的后端路径，不修改前端、TUI 或 CLI；P11 前不删除旧 `agent`，不发布临时 `agent2` 路径为稳定版本。
