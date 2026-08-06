@@ -204,7 +204,7 @@
 - 每个独立 branch/iteration 是真实 child Process，拥有 exact DeploymentRef、ProcessID、snapshot、预算和 attenuated capabilities。fan-out 必须按显式并发窗口分批启动，结果按声明/item 顺序聚合。
 - Join、Reduce、Gate、Switch、Vote key 和 Loop predicate 是 Step 内的确定性纯函数，不得执行 I/O；需要模型、Tool 或其他副作用时必须建成 child Definition。
 - Workflow state 只保存节点身份、当前 immutable value、branch/item 游标、child identity、wait identity、迭代数和已结算结果；不保存 Engine、Deployment、callback、context、goroutine、Host identity 或 persistence 协议。
-- branch failure 不由 Kernel 自动改写 parent。Workflow 节点按自己的明确策略决定 fail-fast、聚合或容错；任何策略都必须确定、可恢复且不静默遗弃已启动 child。
+- branch failure 不由 Kernel 自动改写 parent。Workflow 首版等待当前已启动窗口全部收口，再按最低声明索引稳定失败；不提供 fail-fast、partial、fallback 或容错 enum，也不静默遗弃已启动 child。新的失败策略只有经真实消费者证明后才能新增。
 
 ### 10.4 独立 `flow` 仓库复用审计
 
@@ -237,3 +237,11 @@
 - 证据证明 Workflow 的独立状态是 Stage/value/window/child/wait/result 游标，并且能完全建立在现有 StartChild/WaitForChildren/TreeSnapshot 窄腰上；它不需要 Strategy dispatcher、Kernel 字段、`flow` Store/Journal 或第二 scheduler。
 
 据此唯一实施边界确定为：普通同进程组合继续直接使用 `flow`；managed Workflow 是只编排真实 child Process 的原生 Definition/Execution。正式词汇收敛为 Transform、Call、Switch、Fork、Map、Loop；Sequence、Gate、Vote、evaluator-optimizer 等可组合语义不再各建节点 kind。
+
+### 10.6 Transform/Call 正式纵切面
+
+- `workflow` 已作为独立 Strategy package 实现，不改 Kernel。sealed Stage 只有包内 concrete behavior；首轮公开构造器为 typed pure Transform 和 `Call(CallConfig)`，没有 Node interface、builder、Registry 或通用 callback SPI。
+- Definition 冻结有序 Stage slice，要求唯一稳定 ID，并以规范化 schema 的精确相等验证每一条相邻数据边。Descriptor 只暴露首个输入和末个输出合同；调用方的 Deployment configuration digest 必须覆盖完整 Stage 配置、纯函数与 child binding。
+- Call 构造时消费 concrete Deployment 仅用于验证并提取 DeploymentRef、input/output schema；Stage 不保存 Deployment、Dispatcher、Engine 或 resolver。每次调用必须显式给出正数 Budget，CapabilitySet 零值准确表示无权限。
+- ExecutionState v1 只保存 phase、Stage index、当前 raw value、ChildProcessID 与 WaitID。Call 通过 Framework Effects 推进 child start、wait registration 和 completion；zero-state Workflow Dispatcher 对任何 dispatcher Effect 都返回协议违约。
+- 真实 Engine consumer 已跑通 Transform→Call→Transform，并通过每个 Step 的 capture/restore 候选重建。child start/终态/Output 违约由 Workflow 自己给出带 Stage 语义的稳定失败码，不把 child failure 无上下文地冒充 parent failure。

@@ -3,7 +3,7 @@
 > 状态：持续实施
 > 建立日期：2026-08-06
 > 最后更新：2026-08-06
-> 当前阶段：P6 managed Workflow，4/11 完成
+> 当前阶段：P6 managed Workflow，6/11 完成
 > 当前实施范围：仅 `agent2`
 > 临时模块路径：`github.com/Tangerg/lynx/agent2`
 > 最终模块路径：`github.com/Tangerg/lynx/agent`
@@ -156,8 +156,8 @@ go test ./...
 - [x] P6-02 只读审查独立 `flow` 仓库，验证直接使用、整个 Node 的 dispatcher adapter、Graph/Spec managed 编排三种边界，并撤回未经实现证明的原生 Workflow 设计。
 - [x] P6-03 用户恢复设计后，以只依赖 Baseline 2 公开 API 的 disposable consumer 验证串行 Call、窗口化 Fork、tree capture/restore、逆序完成稳定聚合和无重复 child；随后整体删除 spike。
 - [x] P6-04 追加 ADR-A2-038，裁决唯一边界为 `flow` 负责 in-process 组合、原生 Workflow 负责 managed child Process；词汇收敛为 Transform/Call/Switch/Fork/Map/Loop，不恢复任意 DAG 或第二 runtime。
-- [ ] P6-05 实现 sealed Stage value、Definition 构造校验、精确 schema 衔接和只拒绝协议违约的 Dispatcher。
-- [ ] P6-06 实现 Transform/Call 的有序纵切面、child resource allocation、失败归因和每个合法边界的恢复。
+- [x] P6-05 实现 sealed Stage value、Definition 构造校验、精确 schema 衔接和只拒绝协议违约的 Dispatcher。
+- [x] P6-06 实现 Transform/Call 的有序纵切面、child resource allocation、失败归因和每个合法边界的恢复。
 - [ ] P6-07 实现 Switch/Fork、显式 concurrency window、声明顺序聚合和最低索引稳定失败。
 - [ ] P6-08 实现 Map、显式 item limit、窗口调度和稳定 item 结果。
 - [ ] P6-09 实现至少一次的 Loop、正数 iteration limit 和 `Satisfied`/exhausted 精确结果。
@@ -254,6 +254,7 @@ go test ./...
 
 | 日期 | 阶段 | 实际事实 | 验证与结果 |
 |---|---|---|---|
+| 2026-08-06 | P6 | 新增独立 `workflow` 生产 package，完成 sealed Stage、Definition、Execution 与 zero-state Dispatcher 的首个纵切面。Stage 只能由 typed `Transform` 或配置化 `Call` 构造，不存在用户节点 SPI；Definition 要求非空、唯一稳定 Stage ID，并在构造期逐边精确比较规范化 schema。Transform 只接受文档合同明确的有界确定纯函数；Call 从 concrete Deployment 提取 exact DeploymentRef 与权威输入/输出 schema，冻结正数 child budget 和合法 capability set，不保存 Deployment、resolver 或 Engine。Execution 以 ordered Stage/value/phase/child/wait 的 strict state 推进；Call 只经 StartChild/WaitForChildren Framework Effects 创建和等待真实 child，按 Stage ID 形成稳定 ChildKey/WaitKey，能够正确处理 wait-open 与已完成 child Signal 同时排队。child start、child terminal failure、缺失输出和 schema 违约都有 Workflow-owned 稳定归因；Dispatcher 明确拒绝全部 dispatcher Effect，不形成第二执行边界 | 外部测试 package 只用公开 API 装配 Transform→Call→Transform，真实 Engine 启动 exact child Deployment 并完成结果；失败 child 被 parent 映射为 `workflow.call.child_failed`。Engine 在每个 Step 提交前 capture 并用 Definition.Restore 重建候选，实际遍历 ready、awaiting child start、awaiting wait open、waiting child 与 completed 的合法恢复边界。strict state 测试拒绝未知字段、完成游标伪装为 ready 和 Transform 上伪造 child phase；architecture gate 禁止 `flow`、旧 `agent`、`app`、OTel/slog、Store/Journal/Registry/Graph/Scheduler 与 Host 术语。standalone build/vet/staticcheck/test/race 全绿；P6-05、P6-06 完成，P6 更新为 6/11 |
 | 2026-08-06 | P6 | 用户明确恢复 Workflow 设计，只要求吸收独立 `flow` 的部分思想、不强求复用。完成一个仅消费 Baseline 2 公开 API 的 disposable managed Workflow consumer：串行 prepare child 后，以 window=2 分批启动三个 fork child；前两路 Paused 后 capture 完整 tree，销毁原树，在新 Engine exact restore，再以第二路、第一路的逆序完成。第三路在第一窗口收口前不存在，收口后只创建一次；最终结果仍按 first/second/third 声明顺序聚合。由此接受 ADR-A2-038：`flow` 继续独立负责 in-process 组合；原生 Workflow 只负责 managed child Process；定义使用有序 Stage，最小词汇为 Transform/Call/Switch/Fork/Map/Loop，其他模式从中组合，不恢复任意 DAG、Registry、Store/Journal、第二 scheduler 或强制 adapter | 定向行为测试 `-count=20` 与 race `-count=20` 全绿；完整 tree 在恢复前只含 prepare + fork[0:2]，恢复完成后恰好含 prepare + fork[0:3]，证明窗口、稳定身份、声明顺序与无重复创建。spike 随后整体删除，`flow` 仓库和 `agent2` 生产代码零修改；P6-03、P6-04 完成，P6 重写为 11 项并更新为 4/11 |
 | 2026-08-06 | P6 | 按用户要求立即暂停 Workflow 模式设计与实施，删除尚未提交的 `agent2/workflow` 空骨架；只读审查独立 `github.com/Tangerg/flow`。确认 `flow` 已以 typed Node、派生组合子、runtime Graph/Spec、copy-on-write Store、Journal、suspension/resumption、streaming 和 deterministic merge 覆盖普通 in-process control flow，且准确排除 distributed scheduler、durable timer 与 exactly-once。裁决 Host 可直接使用 `flow`；未来可以 disposable spike 验证把整个 Node 作为单个 dispatcher Effect 的 coarse-grained adapter；禁止在纯 `Execution.Step` 内调用 `Node.Run`/`workflow.Step.Run`，也不把共享 Store/Journal/goroutine scheduler 误称为独立 child Process。ADR-A2-037 已整体取代预先冻结原生 Workflow 的 ADR-A2-036，目标架构不再声明节点词汇或 package | 审查基线为 clean `flow` main `6280bfc4` 且与 `origin/main` 一致；Go 1.26 module 的 vet、staticcheck、test、race 全绿，所有生产 package statement coverage 100%。`flow` 仓库零修改，`agent2` 零 Workflow 生产代码；P6-02 完成，P6 更新为 2/3 并保持暂停实施 |
 | 2026-08-06 | P6 | 在生产代码前接受 ADR-A2-036 并将稳定边界写入目标架构：Workflow 是 schema 化 DAG 的原生 Execution，普通图禁止环，Loop 独占有界重复；唯一节点词汇为 Transform/Gate/Switch/Call/Fork/Map/Vote/Loop。所有 I/O 与独立 branch/iteration 都是真实 child Process，纯回调只在 Step 内归约；Fork/Map 以显式 concurrency window 分批启动，Map 另受 item limit，聚合按声明顺序。Loop 输出显式区分 predicate satisfied 与 iteration limit exhausted。Workflow 不建立任意节点 plugin SPI、第二 runtime 或 Strategy dispatcher 能力 | 文档职责保持分离：长期取舍进入 DECISIONS，稳定结构进入 ARCHITECTURE，实施事实只记本行；未把设计批次误报为 P6-02 完成，P6 保持 1/8 |
@@ -294,6 +295,6 @@ go test ./...
 
 ## 9. 当前下一步
 
-P1–P5 已完成；Baseline 2 已由 Interaction、Planning、GOAP、多个 consumer、递归 child Process、恢复、race 和 fuzz 共同冻结。P6 已完成旧实现与独立 `flow` 的两轮审计，以及 managed Workflow 的 disposable public-API consumer 验证；唯一边界已经裁决为 `flow` 负责 in-process 组合、Workflow 负责真实 child Process 编排。下一轮从 P6-05 开始实现 sealed Stage、Definition 校验与 Transform/Call 纵切面；当前仍没有 `agent2/workflow` 生产代码或 `flow` 依赖。
+P1–P5 已完成；Baseline 2 已由 Interaction、Planning、GOAP、多个 consumer、递归 child Process、恢复、race 和 fuzz 共同冻结。P6 的唯一边界已经裁决为 `flow` 负责 in-process 组合、Workflow 负责真实 child Process 编排；sealed Stage、Definition、Dispatcher 与 Transform/Call 的正式纵切面已经实现。下一轮从 P6-07 开始实现 Switch/Fork，重点验证显式 concurrency window、声明顺序聚合、最低索引稳定失败和窗口边界恢复；`agent2` 仍不依赖或封装 `flow`。
 
 在 P1–P9 完成前，不迁移 `app/runtime`，不删除旧 `agent`，不发布 `agent2` 稳定版本。
