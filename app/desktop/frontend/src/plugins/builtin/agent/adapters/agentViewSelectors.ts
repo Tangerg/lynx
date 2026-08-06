@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useRef } from "react";
 import { navigator } from "@/lib/navigation";
 import type {
   AgentProblem,
@@ -13,17 +13,18 @@ import type {
 import { EMPTY_AGENT_SESSION_VIEW } from "@/plugins/sdk/types/agentSessionView";
 import {
   selectCurrentRootRun,
-  selectDelegatedRunNarratives,
   selectRootNarrativeMessages,
   selectRunTree,
   selectRunUsage,
   selectVisibleProblem,
 } from "../application/view/runTree";
-import type {
-  AgentRootAttention,
-  AgentRunTreeNode,
-  DelegatedRunNarrativesByItemId,
-} from "../application/view/runTree";
+import type { AgentRootAttention, AgentRunTreeNode } from "../application/view/runTree";
+import {
+  buildTranscriptRows,
+  EMPTY_TRANSCRIPT_ROW_CACHE,
+  type TranscriptRow,
+  type TranscriptRowCache,
+} from "../application/conversation/transcriptRows";
 import type {
   SendAgentInputAction,
   StopCurrentRootRunAction,
@@ -91,9 +92,19 @@ export function useRootNarrativeMessages(): Message[] {
   return useMemo(() => selectRootNarrativeMessages(view), [view]);
 }
 
-export function useDelegatedRunNarratives(): DelegatedRunNarrativesByItemId {
+export function useTranscriptRows(): readonly TranscriptRow[] {
   const view = useActiveAgentView((current) => current);
-  return useMemo(() => selectDelegatedRunNarratives(view), [view]);
+  // The cache has to outlive the build that produced it — reusing the previous rows is
+  // the entire mechanism, and a value closed over by `useMemo` is discarded the moment
+  // its deps change. Writing a ref during render is safe here because the build is pure
+  // in `(view, cache)`: a render React throws away leaves rows that are still valid for
+  // the view they were built from, so the next build either reuses or replaces them.
+  const cache = useRef<TranscriptRowCache>(EMPTY_TRANSCRIPT_ROW_CACHE);
+  return useMemo(() => {
+    const built = buildTranscriptRows(view, cache.current);
+    cache.current = built.cache;
+    return built.rows;
+  }, [view]);
 }
 
 export function useRunTree(): AgentRunTreeNode[] {

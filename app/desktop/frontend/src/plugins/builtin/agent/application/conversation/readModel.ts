@@ -1,7 +1,7 @@
 import type { Message, TimelineEntry, ToolCall } from "@/plugins/sdk/types/agentSessionView";
 import { agentSessionView } from "../ports/sessionView";
-import type { DelegatedRunNarrativesByItemId } from "../view/runTree";
 import { selectRootNarrativeMessages } from "../view/runTree";
+import type { TranscriptRow } from "./transcriptRows";
 
 interface ActiveConversationSnapshot {
   messages: Message[];
@@ -9,12 +9,19 @@ interface ActiveConversationSnapshot {
   toolCalls: Record<string, ToolCall>;
 }
 
+/** The turns alone — for consumers that navigate the transcript rather than render it. */
 export function useActiveConversationMessages(): Message[] {
   return agentSessionView().useRootNarrativeMessages();
 }
 
-export function useDelegatedConversationRuns(): DelegatedRunNarrativesByItemId {
-  return agentSessionView().useDelegatedRunNarratives();
+/**
+ * The transcript as rows, each carrying only the session facts that row shows.
+ *
+ * What the renderer consumes. The narrowing is load-bearing, not tidiness — see
+ * `TurnFacts`.
+ */
+export function useActiveConversationRows(): readonly TranscriptRow[] {
+  return agentSessionView().useTranscriptRows();
 }
 
 export function getActiveConversationSnapshot(): ActiveConversationSnapshot {

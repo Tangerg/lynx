@@ -1,8 +1,17 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import type { AgentRunView, Message, ToolCall } from "@/plugins/builtin/agent/public/viewState";
+import type { TurnFacts } from "@/plugins/builtin/agent/public/conversation";
 import type { BlockCtx } from "./BlockRenderer";
 import { renderBlock } from "./BlockRenderer";
+
+// The transcript's shared context holds no session data by design, so every test
+// needs the same inert one — the interesting half is `facts`.
+const CTX: BlockCtx = {
+  onSelectTool: vi.fn(),
+  expandedIds: new Set(),
+  onToggleExpand: vi.fn(),
+};
 
 const agentRunCommands = vi.hoisted(() => ({ cancel: vi.fn() }));
 vi.mock("@/plugins/builtin/agent/public/run", () => ({
@@ -60,12 +69,15 @@ describe("delegated Run rendering", () => {
   it("mounts child and nested narratives under their exact parent task Items", () => {
     const parentTool = tool("task-root");
     const nestedTool = { ...tool("task-child"), runId: "child-run" };
-    const ctx: BlockCtx = {
+    // One turn's facts reach through delegation: the nested task's call and the run IT
+    // spawned are in here because the projection walks the whole delegation chain when
+    // it slices a row.
+    const facts: TurnFacts = {
       toolCalls: {
         [parentTool.id]: parentTool,
         [nestedTool.id]: nestedTool,
       },
-      delegatedRunsByItemId: {
+      delegatedRuns: {
         [parentTool.id]: [
           {
             run: run("child-run", "root-run", "root-run", parentTool.id),
@@ -79,12 +91,9 @@ describe("delegated Run rendering", () => {
           },
         ],
       },
-      onSelectTool: vi.fn(),
-      expandedIds: new Set(),
-      onToggleExpand: vi.fn(),
     };
 
-    render(renderBlock({ kind: "tool", toolCallId: parentTool.id }, 0, ctx));
+    render(renderBlock({ kind: "tool", toolCallId: parentTool.id }, 0, facts, CTX));
     expect(screen.getAllByText("Sub-agent")).toHaveLength(1);
     expect(screen.queryByText("No narrative material yet.")).toBeNull();
 
@@ -98,9 +107,9 @@ describe("delegated Run rendering", () => {
   it("targets the exact descendant Run when its disclosure is canceled", () => {
     agentRunCommands.cancel.mockClear();
     const parentTool = tool("task-root");
-    const ctx: BlockCtx = {
+    const facts: TurnFacts = {
       toolCalls: { [parentTool.id]: parentTool },
-      delegatedRunsByItemId: {
+      delegatedRuns: {
         [parentTool.id]: [
           {
             run: run("child-run", "root-run", "root-run", parentTool.id, "running"),
@@ -108,12 +117,9 @@ describe("delegated Run rendering", () => {
           },
         ],
       },
-      onSelectTool: vi.fn(),
-      expandedIds: new Set(),
-      onToggleExpand: vi.fn(),
     };
 
-    render(renderBlock({ kind: "tool", toolCallId: parentTool.id }, 0, ctx));
+    render(renderBlock({ kind: "tool", toolCallId: parentTool.id }, 0, facts, CTX));
     fireEvent.click(screen.getByRole("button", { name: "Cancel this run" }));
 
     expect(agentRunCommands.cancel).toHaveBeenCalledOnce();

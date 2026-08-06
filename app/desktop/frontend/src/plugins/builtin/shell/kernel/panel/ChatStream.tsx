@@ -8,10 +8,7 @@
 
 import type { UserInput } from "@/plugins/builtin/chat/composer/public/input";
 import { useEffect, useMemo, useRef } from "react";
-import {
-  useActiveConversationMessages,
-  useDelegatedConversationRuns,
-} from "@/plugins/builtin/agent/public/conversation";
+import { useActiveConversationRows } from "@/plugins/builtin/agent/public/conversation";
 import { useActiveSessionToolCalls } from "@/plugins/builtin/agent/public/run";
 import { useActiveSessionId } from "@/plugins/builtin/agent/public/session";
 import { cn } from "@/lib/classNames";
@@ -61,8 +58,7 @@ const RAIL =
 
 export function ChatStream({ onSend }: Props) {
   const resetKey = useActiveSessionId();
-  const messages = useActiveConversationMessages();
-  const delegatedRunsByItemId = useDelegatedConversationRuns();
+  const rows = useActiveConversationRows();
   const toolCalls = useActiveSessionToolCalls();
 
   const expandedToolIds = useExpandedWorkspaceToolIds();
@@ -89,27 +85,22 @@ export function ChatStream({ onSend }: Props) {
     selectInitialWorkspaceTool(latestToolId);
   }, [latestToolId]);
 
-  // Stable ctx identity — without useMemo, this object literal is
-  // recreated on every render, which (combined with the React.memo on
-  // MessageBlock) would kick every message in the stream into a fresh
-  // render path on every token delta. Memoised, the ref only changes
-  // when one of the underlying slices actually changes, so pure text
-  // streaming (no tool churn) keeps non-tail messages off the
-  // render path entirely.
+  // The transcript's shared context, and every member of it is session-independent by
+  // construction — see BlockCtx. That is what makes the memo on each turn able to bail:
+  // this object survives a whole run untouched, so a streaming token changes nothing
+  // except the one row it belongs to. Session facts reach a turn through its row.
   const ctx = useMemo(
     () => ({
-      toolCalls,
-      delegatedRunsByItemId,
       onSelectTool: selectTool,
       expandedIds: expandedToolIds,
       onToggleExpand: toggleExpandedTool,
       typewriter,
     }),
-    [toolCalls, delegatedRunsByItemId, selectTool, expandedToolIds, toggleExpandedTool, typewriter],
+    [selectTool, expandedToolIds, toggleExpandedTool, typewriter],
   );
 
   const composer = <ComposerSurface onSend={onSend} />;
-  const started = messages.length > 0;
+  const started = rows.length > 0;
 
   const paneRef = useRef<HTMLDivElement>(null);
 
@@ -185,7 +176,7 @@ export function ChatStream({ onSend }: Props) {
             application puts it and the only place it isn't in the way. */}
         <div className="relative flex min-h-0 flex-1 flex-col">
           <ChatErrorBoundary resetKey={resetKey} label={`session:${resetKey}`}>
-            <MessageStream messages={messages} ctx={ctx} resetKey={resetKey} />
+            <MessageStream rows={rows} ctx={ctx} resetKey={resetKey} />
           </ChatErrorBoundary>
         </div>
 

@@ -14,23 +14,25 @@ import type { MessageRenderUnit } from "@/plugins/builtin/agent/public/messagePr
 import { waveStepCount } from "@/plugins/builtin/agent/public/messagePresentation";
 import { AgentActivityDisclosure } from "@/ui/agent";
 import { useT } from "@/lib/i18n";
+import type { TurnFacts } from "@/plugins/builtin/agent/public/conversation";
 import { unitSeamClass } from "../application/renderUnitRhythm";
 import type { BlockCtx } from "./blockContext";
 import { waveGlyphs } from "./narrativeWaveGlyphs";
 
 interface Props {
   units: MessageRenderUnit[];
+  facts: TurnFacts;
   ctx: BlockCtx;
   /** The transcript's own unit dispatcher, injected rather than imported: a fold is
    *  one CASE of that dispatch, so importing it back would close a cycle. Same
    *  arrangement DelegatedNarrative uses for the same reason. */
-  renderUnit: (unit: MessageRenderUnit, ctx: BlockCtx) => ReactNode;
+  renderUnit: (unit: MessageRenderUnit, facts: TurnFacts, ctx: BlockCtx) => ReactNode;
 }
 
-export function NarrativeWave({ units, ctx, renderUnit }: Props) {
+export function NarrativeWave({ units, facts, ctx, renderUnit }: Props) {
   const t = useT();
   const [open, setOpen] = useState(false);
-  const glyphs = waveGlyphs(units, ctx.toolCalls);
+  const glyphs = waveGlyphs(units, facts.toolCalls);
 
   return (
     <AgentActivityDisclosure
@@ -53,7 +55,7 @@ export function NarrativeWave({ units, ctx, renderUnit }: Props) {
           have shown inline, so it has to space them the same way. */}
       {units.map((unit, index) => (
         <div key={index} className={unitSeamClass(units[index - 1], unit)}>
-          {renderUnit(unit, ctx)}
+          {renderUnit(unit, facts, ctx)}
         </div>
       ))}
     </AgentActivityDisclosure>

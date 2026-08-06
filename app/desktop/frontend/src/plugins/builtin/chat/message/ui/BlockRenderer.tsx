@@ -1,6 +1,7 @@
 // Message block dispatcher — maps each ContentBlock (text, tool, reasoning,
 // approval, question, compaction, search, code, checkpoint) to its React card.
-import type { ContentBlock, Message } from "@/plugins/builtin/agent/public/viewState";
+import type { ContentBlock } from "@/plugins/builtin/agent/public/viewState";
+import type { TranscriptRow, TurnFacts } from "@/plugins/builtin/agent/public/conversation";
 import type { MessageRenderUnit } from "@/plugins/builtin/agent/public/messagePresentation";
 import type { BlockCtx } from "./blockContext";
 export type { BlockCtx } from "./blockContext";
@@ -31,6 +32,7 @@ import { NarrativeWave } from "./NarrativeWave";
 export function renderBlock(
   block: ContentBlock,
   key: number,
+  facts: TurnFacts,
   ctx: BlockCtx,
   // Whether the turn has already started answering past this block. Only the blocks
   // that decide their OWN open state read it — see messageBlockRenderUnits.
@@ -56,9 +58,9 @@ export function renderBlock(
       return <ImageBlock key={key} mime={block.mime} data={block.data} />;
 
     case "tool": {
-      const tool = ctx.toolCalls[block.toolCallId];
+      const tool = facts.toolCalls[block.toolCallId];
       if (!tool) return null;
-      const delegatedRuns = ctx.delegatedRunsByItemId[block.toolCallId] ?? [];
+      const delegatedRuns = facts.delegatedRuns[block.toolCallId] ?? [];
       return (
         <div id={block.toolCallId} key={block.toolCallId}>
           <ToolCard
@@ -75,6 +77,7 @@ export function renderBlock(
               narrative={narrative}
               ordinal={index + 1}
               siblingCount={delegatedRuns.length}
+              facts={facts}
               ctx={ctx}
               renderMessageBlocks={renderMessageBlocks}
             />
@@ -156,9 +159,9 @@ export function renderBlock(
  * Render one planned unit. Shared by the transcript and by a folded wave, which holds
  * the same units it would otherwise have rendered inline.
  */
-export function renderUnit(unit: MessageRenderUnit, ctx: BlockCtx) {
+export function renderUnit(unit: MessageRenderUnit, facts: TurnFacts, ctx: BlockCtx) {
   if (unit.kind === "wave")
-    return <NarrativeWave units={unit.units} ctx={ctx} renderUnit={renderUnit} />;
+    return <NarrativeWave units={unit.units} facts={facts} ctx={ctx} renderUnit={renderUnit} />;
   if (unit.kind === "toolGroup") {
     return (
       <ToolGroup
@@ -170,7 +173,7 @@ export function renderUnit(unit: MessageRenderUnit, ctx: BlockCtx) {
       />
     );
   }
-  return renderBlock(unit.block, unit.index, ctx, unit.superseded);
+  return renderBlock(unit.block, unit.index, facts, ctx, unit.superseded);
 }
 
 // Whether a tool has a surface of its own that stays on screen. Read here rather than
@@ -178,10 +181,10 @@ export function renderUnit(unit: MessageRenderUnit, ctx: BlockCtx) {
 const standingTool = (name: string) =>
   lookupExtensionByKey(TOOL_STANDING_SURFACE, name) !== undefined;
 
-export function renderMessageBlocks(message: Message, ctx: BlockCtx) {
+export function renderMessageBlocks({ message, facts }: TranscriptRow, ctx: BlockCtx) {
   const units = messageBlockRenderUnits(
-    narratedBlocks(message.blocks, ctx.toolCalls, standingTool),
-    ctx.toolCalls,
+    narratedBlocks(message.blocks, facts.toolCalls, standingTool),
+    facts.toolCalls,
   );
   return units.map((unit, index) => {
     const anchor = renderUnitAnchor(message.id, unit);
@@ -191,7 +194,7 @@ export function renderMessageBlocks(message: Message, ctx: BlockCtx) {
         {...{ [BLOCK_ANCHOR_ATTR]: anchor }}
         className={cn(unitSeamClass(units[index - 1], unit), unitIndentClass(unit))}
       >
-        {renderUnit(unit, ctx)}
+        {renderUnit(unit, facts, ctx)}
       </div>
     );
   });

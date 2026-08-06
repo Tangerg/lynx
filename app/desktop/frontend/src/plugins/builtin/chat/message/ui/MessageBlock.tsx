@@ -1,5 +1,5 @@
 import type { BlockCtx } from "./BlockRenderer";
-import type { Message } from "@/plugins/builtin/agent/public/viewState";
+import type { TranscriptRow } from "@/plugins/builtin/agent/public/conversation";
 import { memo, useMemo } from "react";
 import { useCitationSources } from "@/plugins/sdk";
 import { Slot } from "@/plugins/host/Slot";
@@ -19,12 +19,12 @@ import { MessageContextMenu } from "./MessageContextMenu";
 import { renderBlock, renderMessageBlocks } from "./BlockRenderer";
 
 function MessageBlockInner({
-  msg,
+  row,
   ctx,
   isLast,
   isRunning,
 }: {
-  msg: Message;
+  row: TranscriptRow;
   ctx: BlockCtx;
   /** Last turn in the thread — its action bar stays pinned open. */
   isLast: boolean;
@@ -32,6 +32,7 @@ function MessageBlockInner({
    *  Flips only at run boundaries, so it never churns this memo per token. */
   isRunning: boolean;
 }) {
+  const msg = row.message;
   const isUser = msg.role === "user";
   const t = useT();
 
@@ -46,7 +47,7 @@ function MessageBlockInner({
     return (
       <MessageContext.Provider value={msg}>
         <div className={MESSAGE_CONTENT_CLASS}>
-          {msg.blocks.map((block, index) => renderBlock(block, index, ctx))}
+          {msg.blocks.map((block, index) => renderBlock(block, index, row.facts, ctx))}
         </div>
       </MessageContext.Provider>
     );
@@ -54,7 +55,7 @@ function MessageBlockInner({
 
   const blockCtx: BlockCtx = messageBlocksRenderInstant(msg.role) ? { ...ctx, instant: true } : ctx;
 
-  const content = renderMessageBlocks(msg, blockCtx);
+  const content = renderMessageBlocks(row, blockCtx);
 
   const actionsClass = cn(
     "flex shrink-0 transition-[opacity,visibility] duration-[var(--dur-fast)]",
@@ -147,13 +148,19 @@ function MessageBlockInner({
   );
 }
 
-// React.memo with default shallow comparison. The reducer's
-// updateMessage keeps non-modified messages at the same reference, so
-// during pure text streaming only the tail message's `msg` prop ref
-// changes — every other MessageBlock bails out of the render path
-// (with 200 messages on screen this was 199× redundant work per token
-// delta). ctx identity is stabilised in ChatStream via useMemo so
-// non-tool / non-plan churn doesn't invalidate this memo either.
+// React.memo with default shallow comparison, and both props are shaped to make it
+// actually bail out:
+//
+//   * `row` comes from the transcript projection, which reuses a row whose message and
+//     facts are all unchanged. The fold keeps untouched messages at the same reference,
+//     so during pure text streaming only the tail row is new.
+//   * `ctx` holds no session data at all, so nothing a run does can invalidate it.
+//
+// Both halves are load-bearing and the second one used to be false: `ctx` carried the
+// session's tool-call map and its delegated-run narratives, and the narratives were
+// rebuilt from scratch on every delta. That gave every message a new `ctx` on every
+// token, so this memo never bailed once during a run — with 200 messages on screen,
+// 199× redundant renders per token, each one re-planning its render units.
 export const MessageBlock = memo(MessageBlockInner);
 
 // How each action-bar visibility state looks. The state machine is the

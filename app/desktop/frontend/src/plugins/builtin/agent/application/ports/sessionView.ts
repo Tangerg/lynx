@@ -13,11 +13,8 @@ import type {
   TimelineEntry,
   ToolCall,
 } from "@/plugins/sdk/types/agentSessionView";
-import type {
-  AgentRootAttention,
-  AgentRunTreeNode,
-  DelegatedRunNarrativesByItemId,
-} from "../view/runTree";
+import type { AgentRootAttention, AgentRunTreeNode } from "../view/runTree";
+import type { TranscriptRow } from "../conversation/transcriptRows";
 
 export type ResolvePatch = {
   decision?: ApprovalDecision;
@@ -76,7 +73,8 @@ export interface AgentSessionViewPort {
   useToolCalls(): Record<string, ToolCall>;
   useSessionTimeline(): TimelineEntry[];
   useRootNarrativeMessages(): Message[];
-  useDelegatedRunNarratives(): DelegatedRunNarrativesByItemId;
+  /** The transcript as rows, each holding only the session facts it renders. */
+  useTranscriptRows(): readonly TranscriptRow[];
   useRunTree(): AgentRunTreeNode[];
   useProblem(): AgentProblem | null;
   useSharedState<T = unknown>(path?: string): T | undefined;

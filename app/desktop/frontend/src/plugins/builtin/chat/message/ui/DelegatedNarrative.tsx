@@ -1,7 +1,11 @@
 import type { ReactNode } from "react";
 import { useMemo } from "react";
 import type { Message } from "@/plugins/builtin/agent/public/viewState";
-import type { DelegatedRunNarrative } from "@/plugins/builtin/agent/public/conversation";
+import type {
+  DelegatedRunNarrative,
+  TranscriptRow,
+  TurnFacts,
+} from "@/plugins/builtin/agent/public/conversation";
 import { cancelActiveSessionRun } from "@/plugins/builtin/agent/public/run";
 import { MessageContext } from "@/plugins/sdk/messageContext";
 import { useCitationSources } from "@/plugins/sdk";
@@ -17,14 +21,19 @@ interface Props {
   narrative: DelegatedRunNarrative;
   ordinal: number;
   siblingCount: number;
+  /** The spawning turn's facts. A delegated turn renders with them: the projection
+   *  reaches through delegation when it slices a row, so a subagent's own tool calls
+   *  and any run IT spawned are already in here. */
+  facts: TurnFacts;
   ctx: BlockCtx;
-  renderMessageBlocks: (message: Message, ctx: BlockCtx) => ReactNode;
+  renderMessageBlocks: (row: TranscriptRow, ctx: BlockCtx) => ReactNode;
 }
 
 export function DelegatedNarrative({
   narrative,
   ordinal,
   siblingCount,
+  facts,
   ctx,
   renderMessageBlocks,
 }: Props) {
@@ -46,6 +55,7 @@ export function DelegatedNarrative({
           <DelegatedMessage
             key={message.id}
             message={message}
+            facts={facts}
             ctx={ctx}
             renderMessageBlocks={renderMessageBlocks}
           />
@@ -57,10 +67,12 @@ export function DelegatedNarrative({
 
 function DelegatedMessage({
   message,
+  facts,
   ctx,
   renderMessageBlocks,
 }: {
   message: Message;
+  facts: TurnFacts;
   ctx: BlockCtx;
   renderMessageBlocks: Props["renderMessageBlocks"];
 }) {
@@ -81,7 +93,7 @@ function DelegatedMessage({
             message.role === "user" && "rounded-md bg-sunken px-3 py-2 text-fg",
           )}
         >
-          {renderMessageBlocks(message, blockCtx)}
+          {renderMessageBlocks({ message, facts }, blockCtx)}
         </div>
       </CitationContext.Provider>
     </MessageContext.Provider>

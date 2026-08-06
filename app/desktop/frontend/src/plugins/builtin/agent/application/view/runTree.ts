@@ -80,12 +80,24 @@ export function selectRootNarrativeMessages(view: AgentSessionView): Message[] {
 export function selectDelegatedRunNarratives(
   view: AgentSessionView,
 ): DelegatedRunNarrativesByItemId {
+  // Bucket messages by run in ONE pass rather than re-scanning the transcript per
+  // delegated run. This runs on every stream delta, so the difference is O(messages +
+  // runs) against O(messages × runs) — a session with twenty subagents and a long
+  // transcript was walking the whole thing twenty times per token.
+  const messagesByRunId = new Map<string, Message[]>();
+  for (const message of view.messages) {
+    if (message.runId === null) continue;
+    const bucket = messagesByRunId.get(message.runId);
+    if (bucket === undefined) messagesByRunId.set(message.runId, [message]);
+    else bucket.push(message);
+  }
+
   const byItemId: DelegatedRunNarrativesByItemId = {};
   for (const run of Object.values(view.runsById).sort(compareRuns)) {
     if (run.parentRunId === null || run.spawnedByItemId === null) continue;
     const narrative: DelegatedRunNarrative = {
       run,
-      messages: view.messages.filter((message) => message.runId === run.id),
+      messages: messagesByRunId.get(run.id) ?? EMPTY_MESSAGES,
     };
     (byItemId[run.spawnedByItemId] ??= []).push(narrative);
   }
