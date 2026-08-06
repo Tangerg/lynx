@@ -18,9 +18,50 @@ const FLOATING_SURFACE_BASE = [
   // to keep the blur's `-z-1` above its own background. A z-index here reads as
   // competing with the page and cannot — the positioner's transform boxes it in.
   "relative isolate overflow-hidden text-fg",
-  "bg-[var(--app-floating-surface)] shadow-[var(--shadow-popover)] animate-rise-in",
+  "bg-[var(--app-floating-surface)] shadow-[var(--shadow-popover)]",
   "before:pointer-events-none before:absolute before:inset-0 before:-z-1",
   "before:rounded-[inherit] before:backdrop-blur-2xl before:backdrop-saturate-150",
+].join(" ");
+
+/**
+ * How a surface driven by a Base UI part arrives and leaves.
+ *
+ * A transition, not the `rise-in` keyframe, and the difference is the leaving. Base UI
+ * marks a closing part `data-ending-style` and holds it mounted until its animations
+ * finish, so a panel can withdraw the way it came — where before every popover, menu,
+ * tooltip and dialog in the app rose in politely and then blinked out of existence, an
+ * asymmetry you feel as the UI being faster to discard your attention than to earn it.
+ *
+ * Interruptible too, which a keyframe is not: reopen a panel mid-dismiss and a
+ * transition continues from wherever it had got to, while a keyframe restarts from its
+ * own first frame — visibly, on the double-click that opens a menu you just closed.
+ *
+ * Leaving is quicker than arriving. An entrance introduces something and can afford to
+ * be watched; a dismissal answers a click that already happened, and giving the two the
+ * same duration makes the pointer feel like it is waiting for the interface to keep up.
+ *
+ * `scale` and `translate` rather than `transform`: the positioner owns `transform` to
+ * place the panel, and this rides the popup inside it — two properties that compose
+ * instead of one they would have to share.
+ */
+export const FLOATING_MOTION = [
+  "transition-[opacity,scale,translate] ease-[var(--ease-out)] duration-[var(--dur-fast)]",
+  "data-[starting-style]:scale-[0.97] data-[starting-style]:translate-y-1",
+  "data-[ending-style]:scale-[0.97] data-[ending-style]:translate-y-1",
+  "data-[starting-style]:opacity-0 data-[ending-style]:opacity-0",
+  "data-[ending-style]:duration-[var(--dur-instant)]",
+].join(" ");
+
+/**
+ * The dim behind a modal. Fades with the surface it dims, on the same clock: a scrim
+ * that appears in one frame under a panel that takes 150ms to arrive announces the
+ * modal before the modal is there.
+ */
+export const MODAL_SCRIM = [
+  "fixed inset-0 z-[var(--layer-modal)] bg-scrim",
+  "transition-opacity ease-[var(--ease-out)] duration-[var(--dur-fast)]",
+  "data-[starting-style]:opacity-0 data-[ending-style]:opacity-0",
+  "data-[ending-style]:duration-[var(--dur-instant)]",
 ].join(" ");
 
 /**
@@ -36,20 +77,35 @@ const FLOATING_SURFACE_BASE = [
 export const FLOATING_LAYER = "z-[var(--layer-floating)]";
 
 /** Menus, popovers, command panels — anything holding rows the pointer travels. */
-export const FLOATING_PANEL = `${FLOATING_SURFACE_BASE} rounded-[var(--floating-panel-radius)]`;
+export const FLOATING_PANEL = `${FLOATING_SURFACE_BASE} ${FLOATING_MOTION} rounded-[var(--floating-panel-radius)]`;
 
 /** Tooltips and hover cards. Tighter radius: they wrap a line or two, and a panel
  *  radius on something that small reads as a lozenge. */
-export const FLOATING_TIP = `${FLOATING_SURFACE_BASE} rounded-[var(--floating-tip-radius)]`;
+export const FLOATING_TIP = `${FLOATING_SURFACE_BASE} ${FLOATING_MOTION} rounded-[var(--floating-tip-radius)]`;
 
 /**
  * A floating panel with no behaviour of its own — for a surface the ring's popover,
  * menu and tooltip models cannot host, such as the composer's pickers, which are
  * anchored inline so the caret never leaves the textarea.
+ *
+ * Keeps the one-shot `rise-in` keyframe rather than `FLOATING_MOTION`: nothing marks
+ * this element as starting or ending, because its caller mounts and unmounts it
+ * directly. A transition with no state to transition FROM animates nothing at all, so
+ * the keyframe is what an entrance means here — and an exit is not reachable without an
+ * owner willing to keep the node alive long enough to play one.
  */
 export function FloatingSurface({
   className,
   ...props
 }: ComponentProps<"div"> & { className?: string }) {
-  return <div {...props} className={cn(FLOATING_PANEL, className)} />;
+  return (
+    <div
+      {...props}
+      className={cn(
+        FLOATING_SURFACE_BASE,
+        "animate-rise-in rounded-[var(--floating-panel-radius)]",
+        className,
+      )}
+    />
+  );
 }

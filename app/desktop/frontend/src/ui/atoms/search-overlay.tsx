@@ -3,6 +3,7 @@ import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { cn } from "@/lib/classNames";
 import { DialogPrimitive } from "@/ui/primitives";
 import { Icon } from "@/ui/icons";
+import { FLOATING_MOTION, MODAL_SCRIM } from "./floating-surface";
 import { Kbd } from "./kbd";
 import { OptionRow } from "./option-row";
 import { TextField } from "./text-field";
@@ -82,10 +83,7 @@ export function SearchOverlay({
   return (
     <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
       <DialogPrimitive.Portal>
-        <DialogPrimitive.Backdrop
-          data-slot="search-overlay-backdrop"
-          className="fixed inset-0 z-[var(--layer-modal)] bg-scrim"
-        />
+        <DialogPrimitive.Backdrop data-slot="search-overlay-backdrop" className={MODAL_SCRIM} />
         <DialogPrimitive.Popup
           data-slot="search-overlay"
           aria-label={label}
@@ -107,7 +105,8 @@ export function SearchOverlay({
             // ConfirmDialog gives. The ring's frosted fill is for a popover: small,
             // anchored, read as glass. Over a whole transcript at 520px it was a
             // window onto the prose underneath.
-            "bg-canvas shadow-[var(--shadow-modal)] data-[open]:animate-rise-in",
+            "bg-canvas shadow-[var(--shadow-modal)]",
+            FLOATING_MOTION,
           )}
         >
           <div className="flex items-center gap-2.5 border-b border-line-soft px-3.5 py-2.5 text-fg-muted">

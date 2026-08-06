@@ -1,6 +1,8 @@
 import type { ReactNode } from "react";
+import { cn } from "@/lib/classNames";
 import { Button } from "./button";
 import { DialogPrimitive } from "@/ui/primitives";
+import { FLOATING_MOTION, MODAL_SCRIM } from "./floating-surface";
 
 interface ConfirmDialogProps {
   open: boolean;
@@ -38,13 +40,14 @@ export function ConfirmDialog({
   return (
     <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
       <DialogPrimitive.Portal>
-        <DialogPrimitive.Backdrop
-          data-slot="confirm-dialog-backdrop"
-          className="fixed inset-0 z-[var(--layer-modal)] bg-scrim"
-        />
+        <DialogPrimitive.Backdrop data-slot="confirm-dialog-backdrop" className={MODAL_SCRIM} />
         <DialogPrimitive.Popup
           data-slot="confirm-dialog"
-          className="fixed inset-0 z-[var(--layer-modal)] m-auto h-fit w-[min(400px,calc(100vw-32px))] rounded-[var(--floating-panel-radius)] bg-canvas p-4 shadow-[var(--shadow-modal)] outline-none data-[open]:animate-rise-in"
+          className={cn(
+            "fixed inset-0 z-[var(--layer-modal)] m-auto h-fit w-[min(400px,calc(100vw-32px))]",
+            "rounded-[var(--floating-panel-radius)] bg-canvas p-4 shadow-[var(--shadow-modal)] outline-none",
+            FLOATING_MOTION,
+          )}
         >
           <DialogPrimitive.Title className="text-display-sm font-semibold text-fg">
             {title}

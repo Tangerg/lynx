@@ -278,8 +278,11 @@
     "JetBrains Mono", ui-monospace, "SF Mono", SFMono-Regular, Menlo, "Cascadia Code", Consolas,
     monospace;
 
-  /* Animations — `animate-shimmer` powers Skeleton, `animate-pulse-dot`
-     the running indicator, `animate-rise-in` popover entry. */
+  /* Animations — `animate-shimmer` powers Skeleton, `animate-pulse-dot` the running
+     indicator, `animate-rise-in` the entrance of a surface whose owner mounts it
+     directly (the composer's inline pickers, the drag-to-drop overlay). Anything a
+     Base UI part drives transitions instead — see FLOATING_MOTION, which needs the
+     symmetry a keyframe cannot give it. */
   /* Keyframe durations ride `--motion-scale`, the same as every `--dur-*` token.
      They used to be bare literals, which meant the app had TWO speed authorities
      and the keyframe one ignored the user's Motion preference entirely: Off and
