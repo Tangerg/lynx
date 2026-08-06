@@ -92,7 +92,7 @@ func PendingToolInputFromSnapshot(snapshot agent.Snapshot) (PendingToolInput, bo
 	if err := decodeStrict(stateEnvelope.Payload(), &state); err != nil {
 		return PendingToolInput{}, false, fmt.Errorf("%w: decode state: %v", ErrInvalidPendingToolInput, err)
 	}
-	if err := state.Validate(^uint32(0)); err != nil {
+	if err := state.validatePendingToolInput(); err != nil {
 		return PendingToolInput{}, false, fmt.Errorf("%w: %v", ErrInvalidPendingToolInput, err)
 	}
 	outerWaitID, ok := snapshot.WaitID()

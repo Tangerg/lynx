@@ -243,7 +243,14 @@ func TestDispatcherRejectsNegativeToolConcurrencyLimit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = interaction.NewDispatcher(interaction.DispatcherConfig{
+	definition, err := interaction.NewDefinition(interaction.DefinitionConfig{
+		Name: "interaction.invalid_concurrency", Description: "Reject an invalid Tool concurrency limit.",
+		Version: "1.0.0", MaxModelCalls: 1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = interaction.NewDispatcher(definition, interaction.DispatcherConfig{
 		Client: client, MaxConcurrentToolCalls: -1,
 	})
 	if !errors.Is(err, interaction.ErrInvalidDispatcherConfig) {
@@ -383,7 +390,7 @@ func startConcurrentInteraction(
 	if err != nil {
 		t.Fatal(err)
 	}
-	dispatcher, err := interaction.NewDispatcher(interaction.DispatcherConfig{
+	dispatcher, err := interaction.NewDispatcher(definition, interaction.DispatcherConfig{
 		Client: client, Tools: tools, MaxConcurrentToolCalls: maxConcurrent,
 	})
 	if err != nil {

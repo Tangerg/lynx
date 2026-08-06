@@ -63,7 +63,7 @@
 | fork/map/join | 并行 section/vote/reduce | `flow`（in-process）或 Workflow + child Process（managed） | 按生命周期拆分重写 | P4、P6 | 显式窗口、真实 child、声明顺序和 tree restore |
 | Supervisor | 动态 worker、结果综合 | Interaction + child Process composition | 移除独立 Strategy 预设 | P7 | 无独立 kind/package；组合行为测试 |
 | evaluator-optimizer | Anthropic pattern | `flow.Loop` 或 Workflow Loop + evaluator child | 延后重写 | P7 | 明确终止条件、质量门槛和 limit exhausted 结果 |
-| managed Delegate | 模型选择 exact framework worker | Interaction 与 child Process 组合 | 重新实现；取代不可成立的通用 Action-to-Tool | P7 | 模型名称/描述/schema 准确；Execution 经 Framework Effects 启动 child |
+| managed Delegate | 模型选择 exact framework worker | Interaction 与 child Process 组合 | 已重新实现；取代不可成立的通用 Action-to-Tool | P7 | 模型名称/描述/schema 准确；Execution 经 Framework Effects 启动 child |
 
 ## 5. 扩展、依赖与观察
 
@@ -301,3 +301,11 @@
 | 旧 `RepeatUntilAcceptable` | attempt/feedback history、显式 threshold/limit、best-so-far 不被较差后续结果覆盖 | Task/Evaluator I/O 藏在 Action、Blackboard binding、默认 limit、把 loop 编译成 GOAP | Workflow Loop + optimizer/evaluator child + typed state |
 
 关键结论：当前代码没有一个“通用 framework Action”。`planning.Action` 是预测搜索值，缺少 Tool 的 JSON I/O 和执行行为；从它自动产生 Tool 在类型和副作用语义上都不成立。P7-02 因此按 ADR-A2-040 改为 exact child Deployment 的 managed Delegate。该桥接必须把模型友好的 name/description 与 Engine-owned child identity 分开，参数直接采用目标 Input schema，结果验证目标 Output schema；它不引入 Supervisor package、动态 registry 或第二 Process 启动入口。
+
+### 11.2 Managed Delegate 实现证据
+
+- `interaction.NewDelegate` 从 concrete target Deployment 冻结 model-facing name/description、exact DeploymentRef、权威 Input/Output schema、每次调用 Budget 与 attenuated Capabilities。目标 Input 不是 JSON object，Description 为空、未裁剪或过长，预算非法或 Deployment 不完整都会在构造期拒绝；`DefinitionConfig.Delegates` 拒绝同名项，`NewDispatcher(definition, config)` 拒绝 Delegate 与普通 Tool 重名。
+- Interaction ExecutionState v2 以 `NextCall`、`ActiveCallEnd`、`SettledResults`、`DelegateSegment`、child key/ProcessID/WaitID 表达完整恢复状态。模型 batch 按连续普通 Tool/Delegate 区段推进；普通 Tool 保留既有并发和 HITL checkpoint，多个 Delegate 以同一 Framework Effect batch 启动并 wait-all，最终 ToolResult 始终恢复为原模型调用顺序。
+- 空参数按标准空 object 处理；非法 JSON/输入 schema、definite child-start failure 和 child 非 Completed 终态都形成有界 `IsError` ToolResult，允许模型在下一轮改选。Completed child 必须存在 Output 且再次通过该 Delegate 冻结的 Output schema；身份、wait spec、结果顺序或 schema 错配按合同错误终止父 Process。
+- 真实跨 Strategy 测试以 Workflow child 验证普通 Tool + 两个同区段 Delegate + 普通 Tool 的混合 batch、exact manifest、声明顺序结果、独立 Process、每 child Budget/Capability。另一个测试覆盖非法参数与 resolver 不可用不会创建幽灵 child；等待态测试在 parent Waiting/child Paused 时 capture 整棵树，销毁原树后 exact restore、恢复既有 child 并完成，最终仍只有 root + one child。
+- `interaction/dispatcher.go` 的 AST guard 禁止 Engine、Process、`StartChild`、`WaitForChildren`，证明 schema exposition 没有长出第二生命周期入口。strict restore fuzz 覆盖 awaiting-start 与 waiting-child 状态，race 和完整 examples 共同保护恢复与并发边界。

@@ -14,17 +14,17 @@ import (
 )
 
 type execution struct {
-	maxModelCalls uint32
-	state         executionState
+	definition *Definition
+	state      executionState
 }
 
 // Step advances exactly one pure Interaction boundary. Model and tool I/O are
 // represented as dispatcher Effects and therefore never occur in this method.
 func (execution *execution) Step(_ context.Context, signals []agent.Signal) (agent.Transition, error) {
-	if execution == nil || execution.maxModelCalls == 0 {
+	if execution == nil || !execution.definition.valid() {
 		return agent.Transition{}, ErrInvalidState
 	}
-	if err := execution.state.Validate(execution.maxModelCalls); err != nil {
+	if err := execution.state.Validate(execution.definition); err != nil {
 		return agent.Transition{}, err
 	}
 	switch execution.state.Phase {
@@ -46,6 +46,12 @@ func (execution *execution) Step(_ context.Context, signals []agent.Signal) (age
 		return execution.acceptWaitID(signals)
 	case phaseWaitingInput:
 		return execution.acceptInputResponse(signals)
+	case phaseAwaitingDelegateStarts:
+		return execution.acceptDelegateStarts(signals)
+	case phaseAwaitingDelegateWaitID:
+		return execution.acceptDelegateWaitID(signals)
+	case phaseWaitingDelegates:
+		return execution.acceptDelegates(signals)
 	case phaseCompleted:
 		return agent.Transition{}, fmt.Errorf("%w: completed execution cannot advance", ErrInvalidState)
 	default:
@@ -55,17 +61,17 @@ func (execution *execution) Step(_ context.Context, signals []agent.Signal) (age
 
 // Snapshot returns a complete, self-sufficient WorkingContext and checkpoint.
 func (execution *execution) Snapshot() (agent.ExecutionState, error) {
-	if execution == nil || execution.maxModelCalls == 0 {
+	if execution == nil || !execution.definition.valid() {
 		return agent.ExecutionState{}, ErrInvalidState
 	}
-	if err := execution.state.Validate(execution.maxModelCalls); err != nil {
+	if err := execution.state.Validate(execution.definition); err != nil {
 		return agent.ExecutionState{}, err
 	}
 	return encodeState(execution.state)
 }
 
 func (execution *execution) requestModel(consumed uint32) (agent.Transition, error) {
-	if execution.state.ModelCalls >= execution.maxModelCalls {
+	if execution.state.ModelCalls >= execution.definition.maxModelCalls {
 		return execution.fail(
 			consumed,
 			agent.FailureKindExecution,
@@ -132,21 +138,12 @@ func (execution *execution) acceptModel(signals []agent.Signal) (agent.Transitio
 		})
 	}
 
-	effectEnvelope, err := newToolBatchEffect(calls, nil, nil)
-	if err != nil {
-		return agent.Transition{}, err
-	}
-	payload, err := encodeProtocol(effectEnvelope)
-	if err != nil {
-		return agent.Transition{}, err
-	}
-	effect, err := agent.NewDispatcherEffect(payload)
-	if err != nil {
-		return agent.Transition{}, err
-	}
-	execution.state.Phase = phaseAwaitingTools
 	execution.state.PendingResponse = response
-	return agent.Continue(consumed, effect)
+	execution.state.NextCall = 0
+	execution.state.ActiveCallEnd = 0
+	execution.state.SettledResults = nil
+	execution.state.DirectResultEligible = true
+	return execution.advanceToolCallBatch(consumed)
 }
 
 func (execution *execution) acceptTools(signals []agent.Signal) (agent.Transition, error) {
@@ -155,7 +152,7 @@ func (execution *execution) acceptTools(signals []agent.Signal) (agent.Transitio
 		return agent.Transition{}, err
 	}
 	execution.addSteering(steering)
-	calls, assistant, err := responseToolCalls(execution.state.PendingResponse)
+	calls, _, err := execution.activeCallSegment()
 	if err != nil {
 		return agent.Transition{}, err
 	}
@@ -169,29 +166,12 @@ func (execution *execution) acceptTools(signals []agent.Signal) (agent.Transitio
 	if err := validateToolResults(calls, results); err != nil {
 		return agent.Transition{}, err
 	}
-	if envelope.ToolResult.Direct && len(execution.state.Steering) == 0 {
-		return execution.complete(consumed, Output{
-			Source:            CompletionSourceDirectToolResults,
-			DirectToolResults: append([]chat.ToolResult(nil), results...),
-			ModelCalls:        execution.state.ModelCalls,
-		})
-	}
-	request := execution.state.Request.Clone()
-	request.Messages = append(request.Messages, assistant.Clone(), chat.NewToolMessage(results...))
-	execution.state.Request = request
-	if err := execution.applySteering(); err != nil {
-		return agent.Transition{}, err
-	}
-	request = execution.state.Request
-	if err := request.Validate(); err != nil {
-		return agent.Transition{}, fmt.Errorf("%w: continuation request: %w", ErrInvalidState, err)
-	}
-	execution.state.Request = request
-	execution.state.PendingResponse = nil
+	execution.state.SettledResults = append(execution.state.SettledResults, results...)
+	execution.state.NextCall = execution.state.ActiveCallEnd
+	execution.state.DirectResultEligible = execution.state.DirectResultEligible && envelope.ToolResult.Direct
 	execution.state.ToolCheckpoint = nil
 	execution.state.WaitID = nil
-	execution.state.Phase = phaseReadyModel
-	return execution.requestModel(consumed)
+	return execution.advanceToolCallBatch(consumed)
 }
 
 func (execution *execution) requestInputWait(
@@ -201,7 +181,7 @@ func (execution *execution) requestInputWait(
 	if checkpoint == nil {
 		return agent.Transition{}, fmt.Errorf("%w: missing Tool checkpoint", ErrInvalidState)
 	}
-	calls, _, err := responseToolCalls(execution.state.PendingResponse)
+	calls, _, err := execution.activeCallSegment()
 	if err != nil {
 		return agent.Transition{}, err
 	}
@@ -287,7 +267,7 @@ func (execution *execution) acceptInputResponse(signals []agent.Signal) (agent.T
 	if err != nil {
 		return agent.Transition{}, err
 	}
-	calls, _, err := responseToolCalls(execution.state.PendingResponse)
+	calls, _, err := execution.activeCallSegment()
 	if err != nil {
 		return agent.Transition{}, err
 	}
@@ -317,12 +297,94 @@ func (execution *execution) complete(consumed uint32, output Output) (agent.Tran
 		return agent.Transition{}, err
 	}
 	execution.state.Phase = phaseCompleted
-	execution.state.PendingResponse = nil
-	execution.state.ToolCheckpoint = nil
+	execution.clearToolCallBatch()
 	execution.state.WaitID = nil
 	execution.state.Steering = nil
 	execution.state.FinalOutput = &output
 	return agent.Complete(consumed, encoded)
+}
+
+func (execution *execution) advanceToolCallBatch(consumed uint32) (agent.Transition, error) {
+	for {
+		calls, assistant, err := responseToolCalls(execution.state.PendingResponse)
+		if err != nil || uint64(len(calls)) > uint64(^uint32(0)) ||
+			uint64(execution.state.NextCall) > uint64(len(calls)) {
+			return agent.Transition{}, fmt.Errorf("%w: invalid pending ToolCall batch", ErrInvalidState)
+		}
+		if execution.state.NextCall == uint32(len(calls)) {
+			results := append([]chat.ToolResult(nil), execution.state.SettledResults...)
+			if execution.state.DirectResultEligible && len(execution.state.Steering) == 0 {
+				return execution.complete(consumed, Output{
+					Source:            CompletionSourceDirectToolResults,
+					DirectToolResults: results, ModelCalls: execution.state.ModelCalls,
+				})
+			}
+			request := execution.state.Request.Clone()
+			request.Messages = append(request.Messages, assistant.Clone(), chat.NewToolMessage(results...))
+			execution.state.Request = request
+			execution.clearToolCallBatch()
+			if err := execution.applySteering(); err != nil {
+				return agent.Transition{}, err
+			}
+			if err := execution.state.Request.Validate(); err != nil {
+				return agent.Transition{}, fmt.Errorf("%w: continuation request: %w", ErrInvalidState, err)
+			}
+			execution.state.Phase = phaseReadyModel
+			return execution.requestModel(consumed)
+		}
+		if _, delegated := execution.definition.delegate(calls[execution.state.NextCall].Name); delegated {
+			execution.state.DirectResultEligible = false
+			transition, started, err := execution.startDelegateSegment(consumed, calls)
+			if err != nil {
+				return agent.Transition{}, err
+			}
+			if started {
+				return transition, nil
+			}
+			continue
+		}
+		end := execution.state.NextCall + 1
+		for end < uint32(len(calls)) {
+			if _, delegated := execution.definition.delegate(calls[end].Name); delegated {
+				break
+			}
+			end++
+		}
+		effectEnvelope, err := newToolBatchEffect(calls[execution.state.NextCall:end], nil, nil)
+		if err != nil {
+			return agent.Transition{}, err
+		}
+		payload, err := encodeProtocol(effectEnvelope)
+		if err != nil {
+			return agent.Transition{}, err
+		}
+		effect, err := agent.NewDispatcherEffect(payload)
+		if err != nil {
+			return agent.Transition{}, err
+		}
+		execution.state.ActiveCallEnd = end
+		execution.state.Phase = phaseAwaitingTools
+		return agent.Continue(consumed, effect)
+	}
+}
+
+func (execution *execution) activeCallSegment() ([]chat.ToolCall, *chat.Message, error) {
+	calls, assistant, err := responseToolCalls(execution.state.PendingResponse)
+	if err != nil || execution.state.NextCall >= execution.state.ActiveCallEnd ||
+		uint64(execution.state.ActiveCallEnd) > uint64(len(calls)) {
+		return nil, nil, fmt.Errorf("%w: invalid active ToolCall segment", ErrInvalidState)
+	}
+	return calls[execution.state.NextCall:execution.state.ActiveCallEnd], assistant, nil
+}
+
+func (execution *execution) clearToolCallBatch() {
+	execution.state.PendingResponse = nil
+	execution.state.NextCall = 0
+	execution.state.ActiveCallEnd = 0
+	execution.state.SettledResults = nil
+	execution.state.DirectResultEligible = false
+	execution.state.ToolCheckpoint = nil
+	execution.state.DelegateSegment = nil
 }
 
 func (execution *execution) addSteering(messages []chat.Message) {

@@ -19,23 +19,24 @@ type boundTool struct {
 	concurrent ConcurrentTool
 }
 
-// Dispatcher executes model calls and tool batches emitted by an Interaction
-// Execution. It is immutable after construction and may serve Processes
-// concurrently when the supplied Client and Tools support concurrent use.
+// Dispatcher executes model calls and ordinary Tool segments emitted by an
+// Interaction Execution. It is immutable after construction and may serve
+// Processes concurrently when the supplied Client and Tools support concurrent use.
 type Dispatcher struct {
 	client      *chatclient.Client
 	tools       map[string]boundTool
+	delegates   map[string]struct{}
 	definitions []chat.ToolDefinition
 	stream      bool
 	maxParallel int
 }
 
-// NewDispatcher freezes the model-visible tool manifest and binds executable
-// capabilities. Tool names must be unique, definitions must be valid, and
-// typed-nil tools are rejected at construction rather than during a Process.
-func NewDispatcher(config DispatcherConfig) (*Dispatcher, error) {
-	if config.Client == nil {
-		return nil, fmt.Errorf("%w: Client is required", ErrInvalidDispatcherConfig)
+// NewDispatcher binds one exact Definition's Delegate manifest alongside its
+// executable Tools. All model-visible names must be unique; malformed or
+// typed-nil capabilities are rejected before any Process starts.
+func NewDispatcher(definition *Definition, config DispatcherConfig) (*Dispatcher, error) {
+	if !definition.valid() || config.Client == nil {
+		return nil, fmt.Errorf("%w: Definition and Client are required", ErrInvalidDispatcherConfig)
 	}
 	if config.MaxConcurrentToolCalls < 0 {
 		return nil, fmt.Errorf("%w: MaxConcurrentToolCalls must not be negative", ErrInvalidDispatcherConfig)
@@ -44,7 +45,8 @@ func NewDispatcher(config DispatcherConfig) (*Dispatcher, error) {
 	dispatcher := &Dispatcher{
 		client:      config.Client,
 		tools:       make(map[string]boundTool, len(config.Tools)),
-		definitions: make([]chat.ToolDefinition, 0, len(config.Tools)),
+		delegates:   make(map[string]struct{}, len(definition.delegates)),
+		definitions: make([]chat.ToolDefinition, 0, len(config.Tools)+len(definition.delegates)),
 		stream:      config.StreamModelResponses,
 		maxParallel: maxParallel,
 	}
@@ -74,6 +76,14 @@ func NewDispatcher(config DispatcherConfig) (*Dispatcher, error) {
 			concurrent: concurrent,
 		}
 		dispatcher.definitions = append(dispatcher.definitions, definition.Clone())
+	}
+	for _, delegate := range definition.delegates {
+		name := delegate.definition.Name
+		if _, duplicate := dispatcher.tools[name]; duplicate {
+			return nil, fmt.Errorf("%w: Delegate name %q collides with a Tool", ErrInvalidDispatcherConfig, name)
+		}
+		dispatcher.delegates[name] = struct{}{}
+		dispatcher.definitions = append(dispatcher.definitions, delegate.definition.Clone())
 	}
 	return dispatcher, nil
 }
@@ -160,6 +170,14 @@ func (dispatcher *Dispatcher) dispatchToolBatch(
 	effectID agent.EffectID,
 	batch *toolBatchCall,
 ) (agent.Settlement, error) {
+	for _, call := range batch.Calls {
+		if _, delegated := dispatcher.delegates[call.Name]; delegated {
+			return agent.Settlement{}, fmt.Errorf(
+				"interaction: Delegate %q must be executed by the managed Execution boundary",
+				call.Name,
+			)
+		}
+	}
 	results := make([]chat.ToolResult, 0, len(batch.Calls))
 	start := 0
 	pauses := uint32(0)

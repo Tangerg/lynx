@@ -349,7 +349,7 @@ func checkpointDeployment(t *testing.T, model chat.Model, tools []tool.Tool) age
 	if err != nil {
 		t.Fatal(err)
 	}
-	dispatcher, err := interaction.NewDispatcher(interaction.DispatcherConfig{Client: client, Tools: tools})
+	dispatcher, err := interaction.NewDispatcher(definition, interaction.DispatcherConfig{Client: client, Tools: tools})
 	if err != nil {
 		t.Fatal(err)
 	}

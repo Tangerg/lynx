@@ -13,8 +13,10 @@ var (
 	// ErrInvalidDefinitionConfig reports an incomplete or contradictory
 	// Interaction Definition configuration.
 	ErrInvalidDefinitionConfig = errors.New("interaction: invalid definition configuration")
-	// ErrInvalidDispatcherConfig reports an unusable model or tool binding.
+	// ErrInvalidDispatcherConfig reports an unusable model or Tool binding.
 	ErrInvalidDispatcherConfig = errors.New("interaction: invalid dispatcher configuration")
+	// ErrInvalidDelegate reports an unusable model-facing child binding.
+	ErrInvalidDelegate = errors.New("interaction: invalid delegate")
 	// ErrInvalidInput reports malformed managed Interaction input.
 	ErrInvalidInput = errors.New("interaction: invalid input")
 	// ErrInvalidState reports malformed or inconsistent Interaction state.
@@ -31,8 +33,8 @@ const (
 	// without requesting another tool round.
 	CompletionSourceModelResponse CompletionSource = "model_response"
 
-	// CompletionSourceDirectToolResults means every tool in one model-requested
-	// batch explicitly declared that its results complete the Interaction.
+	// CompletionSourceDirectToolResults means every call in one model-requested
+	// batch targeted a DirectResultTool and returned successfully.
 	CompletionSourceDirectToolResults CompletionSource = "direct_tool_results"
 )
 
@@ -42,7 +44,7 @@ func (source CompletionSource) Valid() bool {
 }
 
 // Input is the complete caller-supplied starting working context. Tools are
-// deliberately absent: a Deployment freezes executable tools in its
+// deliberately absent: a Deployment freezes executable Tools in its
 // Dispatcher so model-visible definitions and executable behavior cannot drift
 // per Process.
 type Input struct {
@@ -158,6 +160,11 @@ type DefinitionConfig struct {
 
 	// MaxModelCalls bounds model Effects in one Interaction. It must be positive.
 	MaxModelCalls uint32
+
+	// Delegates is the frozen model-visible manifest of exact child
+	// Deployments. Names must be unique within this slice and must not collide
+	// with ordinary Tools bound by the Dispatcher.
+	Delegates []Delegate
 }
 
 // DispatcherConfig binds external capabilities for one Deployment.
@@ -165,7 +172,8 @@ type DispatcherConfig struct {
 	// Client provides complete and optional streaming model calls.
 	Client *chatclient.Client
 
-	// Tools is the frozen model-visible and executable tool manifest.
+	// Tools is the frozen ordinary model-visible and executable Tool manifest.
+	// Managed Delegate definitions come from the bound Definition.
 	Tools []tool.Tool
 
 	// MaxConcurrentToolCalls bounds calls that explicitly declare safe overlap.

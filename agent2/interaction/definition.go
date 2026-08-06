@@ -3,6 +3,7 @@ package interaction
 import (
 	"encoding/json"
 	"fmt"
+	"slices"
 
 	agent "github.com/Tangerg/lynx/agent2"
 	"github.com/Tangerg/lynx/core/chat"
@@ -10,18 +11,22 @@ import (
 
 const (
 	executionStateKind          = "interaction"
-	executionStateSchemaVersion = 1
+	executionStateSchemaVersion = 2
 )
 
-// Definition is an immutable managed model/tool-loop definition. It contains
-// no model client or executable tool; those external capabilities belong to
+// Definition is an immutable managed model/Tool-loop definition. It contains
+// no model client or executable Tool; those external capabilities belong to
 // the Deployment-bound Dispatcher.
 type Definition struct {
-	descriptor    agent.Descriptor
-	maxModelCalls uint32
+	descriptor     agent.Descriptor
+	maxModelCalls  uint32
+	delegates      []Delegate
+	delegateByName map[string]Delegate
 }
 
 // NewDefinition validates config and constructs an Interaction Definition.
+// A Deployment's ConfigurationDigest must cover the ordered Delegate bindings
+// because they affect model behavior and child execution.
 func NewDefinition(config DefinitionConfig) (*Definition, error) {
 	if config.MaxModelCalls == 0 {
 		return nil, fmt.Errorf("%w: MaxModelCalls must be positive", ErrInvalidDefinitionConfig)
@@ -44,7 +49,24 @@ func NewDefinition(config DefinitionConfig) (*Definition, error) {
 	if err != nil {
 		return nil, fmt.Errorf("%w: descriptor: %w", ErrInvalidDefinitionConfig, err)
 	}
-	return &Definition{descriptor: descriptor, maxModelCalls: config.MaxModelCalls}, nil
+	delegates := slices.Clone(config.Delegates)
+	byName := make(map[string]Delegate, len(delegates))
+	for index, delegate := range delegates {
+		if !delegate.Valid() {
+			return nil, fmt.Errorf("%w: Delegates[%d]: %w", ErrInvalidDefinitionConfig, index, ErrInvalidDelegate)
+		}
+		name := delegate.definition.Name
+		if _, duplicate := byName[name]; duplicate {
+			return nil, fmt.Errorf("%w: duplicate Delegate name %q", ErrInvalidDefinitionConfig, name)
+		}
+		delegate = delegate.clone()
+		delegates[index] = delegate
+		byName[name] = delegate
+	}
+	return &Definition{
+		descriptor: descriptor, maxModelCalls: config.MaxModelCalls,
+		delegates: delegates, delegateByName: byName,
+	}, nil
 }
 
 // Descriptor returns the immutable model-visible Definition contract.
@@ -57,7 +79,7 @@ func (definition *Definition) Descriptor() agent.Descriptor {
 
 // Start creates a fresh Interaction from validated caller input.
 func (definition *Definition) Start(input agent.Input) (agent.Execution, error) {
-	if definition == nil || !definition.descriptor.Valid() || definition.maxModelCalls == 0 {
+	if !definition.valid() {
 		return nil, ErrInvalidDefinitionConfig
 	}
 	decoded, err := agent.DecodeInput[Input](input)
@@ -72,7 +94,7 @@ func (definition *Definition) Start(input agent.Input) (agent.Execution, error) 
 		Options:  decoded.Options.Clone(),
 	}
 	return &execution{
-		maxModelCalls: definition.maxModelCalls,
+		definition: definition,
 		state: executionState{
 			Phase:   phaseReadyModel,
 			Request: request,
@@ -82,7 +104,7 @@ func (definition *Definition) Start(input agent.Input) (agent.Execution, error) 
 
 // Restore recreates an Interaction solely from its opaque, versioned state.
 func (definition *Definition) Restore(state agent.ExecutionState) (agent.Execution, error) {
-	if definition == nil || !definition.descriptor.Valid() || definition.maxModelCalls == 0 {
+	if !definition.valid() {
 		return nil, ErrInvalidDefinitionConfig
 	}
 	if state.Kind() != executionStateKind || state.SchemaVersion() != executionStateSchemaVersion {
@@ -92,10 +114,31 @@ func (definition *Definition) Restore(state agent.ExecutionState) (agent.Executi
 	if err := decodeStrict(state.Payload(), &decoded); err != nil {
 		return nil, fmt.Errorf("%w: decode: %w", ErrInvalidState, err)
 	}
-	if err := decoded.Validate(definition.maxModelCalls); err != nil {
+	if err := decoded.Validate(definition); err != nil {
 		return nil, err
 	}
-	return &execution{maxModelCalls: definition.maxModelCalls, state: decoded}, nil
+	return &execution{definition: definition, state: decoded}, nil
+}
+
+func (definition *Definition) valid() bool {
+	if definition == nil || !definition.descriptor.Valid() || definition.maxModelCalls == 0 ||
+		len(definition.delegates) != len(definition.delegateByName) {
+		return false
+	}
+	for _, delegate := range definition.delegates {
+		if !delegate.Valid() || definition.delegateByName[delegate.definition.Name].deployment != delegate.deployment {
+			return false
+		}
+	}
+	return true
+}
+
+func (definition *Definition) delegate(name string) (Delegate, bool) {
+	if definition == nil {
+		return Delegate{}, false
+	}
+	delegate, found := definition.delegateByName[name]
+	return delegate, found && delegate.Valid()
 }
 
 func encodeState(state executionState) (agent.ExecutionState, error) {

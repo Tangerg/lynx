@@ -13,10 +13,11 @@ var ErrInvalidSteer = errors.New("interaction: invalid steer")
 
 // NewSteerSignal constructs one deduplicated, model-visible steering input.
 // The Signal never interrupts an in-flight operation. When accepted during a
-// model call or Tool batch, its earliest visible boundary is the next model
-// request after that entire operation settles. Worst-case application latency
-// is therefore the remaining duration of the current non-interruptible model
-// call or Tool batch plus Engine Step scheduling time.
+// model call, Tool segment, or Delegate start phase, its earliest visible
+// boundary is the next model request after that entire ToolCall batch settles.
+// A Process already Waiting for Tool input or child completion rejects
+// unaddressed steering. Worst-case accepted-steer latency is therefore the
+// remaining duration of the active operation plus Engine Step scheduling time.
 func NewSteerSignal(id agent.SignalID, messages ...chat.Message) (agent.SignalRequest, error) {
 	if err := validateSteeringMessages(messages); err != nil {
 		return agent.SignalRequest{}, err

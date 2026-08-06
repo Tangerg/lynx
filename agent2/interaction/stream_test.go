@@ -172,7 +172,7 @@ func newStreamingDeployment(t *testing.T, streamer chat.Streamer) agent.Deployme
 	if err != nil {
 		t.Fatal(err)
 	}
-	dispatcher, err := interaction.NewDispatcher(interaction.DispatcherConfig{
+	dispatcher, err := interaction.NewDispatcher(definition, interaction.DispatcherConfig{
 		Client: client, StreamModelResponses: true,
 	})
 	if err != nil {

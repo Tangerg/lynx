@@ -234,7 +234,7 @@ func steerDeployment(t *testing.T, model chat.Model, tools []tool.Tool) agent.De
 	if err != nil {
 		t.Fatal(err)
 	}
-	dispatcher, err := interaction.NewDispatcher(interaction.DispatcherConfig{Client: client, Tools: tools})
+	dispatcher, err := interaction.NewDispatcher(definition, interaction.DispatcherConfig{Client: client, Tools: tools})
 	if err != nil {
 		t.Fatal(err)
 	}

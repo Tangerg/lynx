@@ -444,6 +444,8 @@ Tool 是提供给模型的可调用协议，强调模型可理解的名称、描
 
 当模型必须选择一个拥有独立生命周期的 worker 时，Interaction 使用 `Delegate`：它冻结模型友好的 Tool 名称/描述、一个 exact child Deployment、每次调用的 Budget 与衰减 Capabilities。模型参数只表达目标 child Descriptor 的业务 Input；ProcessID、DeploymentRef、递归深度、预算、权限、版本和父子关系都由 Definition 与 Engine 决定，不能让模型填写。Interaction Execution 识别 Delegate 调用并通过 Framework `StartChild`/`WaitForChildren` 推进；Dispatcher 和普通 Tool 不获得第二个 Process 创建入口。
 
+一个模型 ToolCall batch 可以同时包含普通 Tool 与 Delegate。Interaction 只按原始顺序切分连续区段：普通 Tool 区段继续由 Dispatcher 执行并保留有界并发/HITL，Delegate 区段声明一批 child start 并 wait-all；全部结算后只向 WorkingContext 追加原 assistant message 和一个严格按原 ToolCall 顺序排列的 ToolResult message。无效 Delegate 参数、确定的 child start failure 和 child 非 Completed 终态是模型可重新决策的错误 ToolResult；错配的 Framework Signal、身份或成功 Output schema 是执行合同违约，不能伪装成普通 worker 失败。
+
 未来 P8 若由 Platform catalog 动态路由 worker，必须另行证明一个通用 `delegate_task` Tool 的选择、版本和权限合同；它不能偷偷把 exact Delegate 变成字符串 registry lookup。
 
 ---
