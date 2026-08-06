@@ -39,7 +39,7 @@ func TestForkUsesBoundedWindowsAndDeclarationOrder(t *testing.T) {
 		})
 	}
 	stage, err := workflow.Fork(workflow.ForkConfig[forkInput, branchOutput, forkOutput]{
-		ID: "workers", Branches: branches, Concurrency: 2,
+		ID: "workers", Branches: branches, WindowSize: 2,
 		Reduce: func(values []branchOutput) (forkOutput, error) {
 			result := forkOutput{Branches: make([]string, len(values))}
 			for index, value := range values {
@@ -52,7 +52,7 @@ func TestForkUsesBoundedWindowsAndDeclarationOrder(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !stage.Valid() || stage.Kind() != workflow.StageKindFork || stage.Kind().String() != "fork" {
+	if !stage.Valid() {
 		t.Fatalf("Fork Stage = %#v", stage)
 	}
 	deployment := mustDeployment(t, mustDefinition(t, "test.workflow.fork", stage), "fork")
@@ -115,7 +115,7 @@ func TestForkAttributesLowestFailingBranch(t *testing.T) {
 		branches = append(branches, workflow.ForkBranch{ID: id, Deployment: child, Budget: mustBudget(t)})
 	}
 	stage, err := workflow.Fork(workflow.ForkConfig[forkInput, branchOutput, forkOutput]{
-		ID: "workers", Branches: branches, Concurrency: 2,
+		ID: "workers", Branches: branches, WindowSize: 2,
 		Reduce: func([]branchOutput) (forkOutput, error) { return forkOutput{}, nil },
 	})
 	if err != nil {
@@ -146,16 +146,16 @@ func TestForkRequiresExplicitValidWindowAndContracts(t *testing.T) {
 	), "fork-valid")
 	validBranch := workflow.ForkBranch{ID: "valid", Deployment: child, Budget: mustBudget(t)}
 	for name, config := range map[string]workflow.ForkConfig[forkInput, branchOutput, forkOutput]{
-		"empty": {ID: "workers", Concurrency: 1, Reduce: func([]branchOutput) (forkOutput, error) { return forkOutput{}, nil }},
-		"zero concurrency": {
+		"empty": {ID: "workers", WindowSize: 1, Reduce: func([]branchOutput) (forkOutput, error) { return forkOutput{}, nil }},
+		"zero window size": {
 			ID: "workers", Branches: []workflow.ForkBranch{validBranch},
 			Reduce: func([]branchOutput) (forkOutput, error) { return forkOutput{}, nil },
 		},
-		"oversized concurrency": {
-			ID: "workers", Branches: []workflow.ForkBranch{validBranch}, Concurrency: 2,
+		"oversized window": {
+			ID: "workers", Branches: []workflow.ForkBranch{validBranch}, WindowSize: 2,
 			Reduce: func([]branchOutput) (forkOutput, error) { return forkOutput{}, nil },
 		},
-		"nil reducer": {ID: "workers", Branches: []workflow.ForkBranch{validBranch}, Concurrency: 1},
+		"nil reducer": {ID: "workers", Branches: []workflow.ForkBranch{validBranch}, WindowSize: 1},
 	} {
 		t.Run(name, func(t *testing.T) {
 			if _, err := workflow.Fork(config); !errors.Is(err, workflow.ErrInvalidStage) {
@@ -193,7 +193,7 @@ func (tracker *branchTracker) assertNotStarted(t *testing.T) {
 	t.Helper()
 	select {
 	case id := <-tracker.started:
-		t.Fatalf("branch %q escaped the concurrency window", id)
+		t.Fatalf("branch %q escaped the execution window", id)
 	case <-time.After(50 * time.Millisecond):
 	}
 }

@@ -110,12 +110,12 @@ func (state executionState) singleChildStage(definition *Definition) bool {
 	}
 	stage := definition.stages[state.Stage]
 	switch stage.kind {
-	case StageKindCall:
+	case stageKindCall:
 		return state.SelectedCase == "" && state.LoopIteration == 0
-	case StageKindSwitch:
+	case stageKindSwitch:
 		_, found := stage.switcher.binding(state.SelectedCase)
 		return found && state.LoopIteration == 0
-	case StageKindLoop:
+	case stageKindLoop:
 		return state.SelectedCase == "" && state.LoopIteration > 0 &&
 			state.LoopIteration <= stage.loop.maxIterations
 	default:
@@ -140,7 +140,7 @@ func (state executionState) validateFanout(definition *Definition) error {
 	stage := definition.stages[state.Stage]
 	count, err := stage.fanoutCount(state.Value)
 	if err != nil || count == 0 || state.FanoutNext == 0 || state.FanoutNext > count ||
-		len(state.FanoutWindow) == 0 || uint64(len(state.FanoutWindow)) > uint64(stage.fanoutConcurrency()) ||
+		len(state.FanoutWindow) == 0 || uint64(len(state.FanoutWindow)) > uint64(stage.fanoutWindowSize()) ||
 		uint64(len(state.FanoutOutputs)) != uint64(count) {
 		return ErrInvalidExecutionState
 	}

@@ -78,14 +78,6 @@ func (definition *Definition) Descriptor() agent.Descriptor {
 	return definition.descriptor
 }
 
-// Stages returns the immutable ordered Stage sequence.
-func (definition *Definition) Stages() []Stage {
-	if definition == nil {
-		return nil
-	}
-	return slices.Clone(definition.stages)
-}
-
 // Start creates a fresh Workflow from validated caller input.
 func (definition *Definition) Start(input agent.Input) (agent.Execution, error) {
 	if !definition.valid() {

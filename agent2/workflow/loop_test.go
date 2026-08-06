@@ -40,7 +40,7 @@ func TestLoopRunsAtLeastOnceAndReportsSatisfiedOrExhausted(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if !stage.Valid() || stage.Kind() != workflow.StageKindLoop || stage.Kind().String() != "loop" {
+			if !stage.Valid() {
 				t.Fatalf("Loop Stage = %#v", stage)
 			}
 			deployment := mustDeployment(t, mustDefinition(t, "test.workflow.loop_"+test.name, stage), "loop-"+test.name)

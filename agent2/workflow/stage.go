@@ -10,33 +10,31 @@ import (
 
 const maxStageIDBytes = 128
 
-// StageKind identifies one sealed Workflow operation. It is descriptive; new
-// behavior cannot be injected by implementing an interface.
-type StageKind uint8
+type stageKind uint8
 
 const (
-	StageKindInvalid StageKind = iota
-	StageKindTransform
-	StageKindCall
-	StageKindSwitch
-	StageKindFork
-	StageKindMap
-	StageKindLoop
+	stageKindInvalid stageKind = iota
+	stageKindTransform
+	stageKindCall
+	stageKindSwitch
+	stageKindFork
+	stageKindMap
+	stageKindLoop
 )
 
-func (kind StageKind) String() string {
+func (kind stageKind) String() string {
 	switch kind {
-	case StageKindTransform:
+	case stageKindTransform:
 		return "transform"
-	case StageKindCall:
+	case stageKindCall:
 		return "call"
-	case StageKindSwitch:
+	case stageKindSwitch:
 		return "switch"
-	case StageKindFork:
+	case stageKindFork:
 		return "fork"
-	case StageKindMap:
+	case stageKindMap:
 		return "map"
-	case StageKindLoop:
+	case stageKindLoop:
 		return "loop"
 	default:
 		return "invalid"
@@ -60,7 +58,7 @@ type childBinding struct {
 // be constructed by this package, keeping the execution algebra closed.
 type Stage struct {
 	id           string
-	kind         StageKind
+	kind         stageKind
 	inputSchema  agent.Schema
 	outputSchema agent.Schema
 	transform    transformStage
@@ -128,7 +126,7 @@ func Transform[I, O any](id string, transform TransformFunc[I, O]) (Stage, error
 		return erased.JSON(), nil
 	}
 	return Stage{
-		id: id, kind: StageKindTransform,
+		id: id, kind: stageKindTransform,
 		inputSchema: inputSchema, outputSchema: outputSchema, transform: apply,
 	}, nil
 }
@@ -142,7 +140,7 @@ func Call(config CallConfig) (Stage, error) {
 	}
 	descriptor := config.Deployment.Descriptor()
 	return Stage{
-		id: config.ID, kind: StageKindCall,
+		id: config.ID, kind: stageKindCall,
 		inputSchema: descriptor.InputSchema(), outputSchema: descriptor.OutputSchema(),
 		call: childBinding{
 			deployment: config.Deployment.Reference(), budget: config.Budget,
@@ -151,45 +149,33 @@ func Call(config CallConfig) (Stage, error) {
 	}, nil
 }
 
-// ID returns the stable Definition-local Stage identity.
-func (stage Stage) ID() string { return stage.id }
-
-// Kind returns the sealed operation kind.
-func (stage Stage) Kind() StageKind { return stage.kind }
-
-// InputSchema returns the authoritative structural input contract.
-func (stage Stage) InputSchema() agent.Schema { return stage.inputSchema }
-
-// OutputSchema returns the authoritative structural output contract.
-func (stage Stage) OutputSchema() agent.Schema { return stage.outputSchema }
-
 // Valid reports whether the Stage was constructed successfully.
 func (stage Stage) Valid() bool {
 	if !validStageID(stage.id) || !stage.inputSchema.Valid() || !stage.outputSchema.Valid() {
 		return false
 	}
 	switch stage.kind {
-	case StageKindTransform:
+	case stageKindTransform:
 		return stage.transform != nil && !stage.call.deployment.Valid() &&
 			!stage.call.budget.Valid() && stage.call.capabilities.Valid() &&
 			!stage.switcher.valid() && !stage.fork.valid() && !stage.mapper.valid() && !stage.loop.valid()
-	case StageKindCall:
+	case stageKindCall:
 		return stage.transform == nil && stage.call.deployment.Valid() &&
 			stage.call.budget.Valid() && stage.call.capabilities.Valid() &&
 			!stage.switcher.valid() && !stage.fork.valid() && !stage.mapper.valid() && !stage.loop.valid()
-	case StageKindSwitch:
+	case stageKindSwitch:
 		return stage.transform == nil && !stage.call.deployment.Valid() &&
 			!stage.call.budget.Valid() && stage.call.capabilities.Valid() &&
 			stage.switcher.valid() && !stage.fork.valid() && !stage.mapper.valid() && !stage.loop.valid()
-	case StageKindFork:
+	case stageKindFork:
 		return stage.transform == nil && !stage.call.deployment.Valid() &&
 			!stage.call.budget.Valid() && stage.call.capabilities.Valid() &&
 			!stage.switcher.valid() && stage.fork.valid() && !stage.mapper.valid() && !stage.loop.valid()
-	case StageKindMap:
+	case stageKindMap:
 		return stage.transform == nil && !stage.call.deployment.Valid() &&
 			!stage.call.budget.Valid() && stage.call.capabilities.Valid() &&
 			!stage.switcher.valid() && !stage.fork.valid() && stage.mapper.valid() && !stage.loop.valid()
-	case StageKindLoop:
+	case stageKindLoop:
 		return stage.transform == nil && !stage.call.deployment.Valid() &&
 			!stage.call.budget.Valid() && stage.call.capabilities.Valid() &&
 			!stage.switcher.valid() && !stage.fork.valid() && !stage.mapper.valid() && stage.loop.valid()

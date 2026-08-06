@@ -285,7 +285,7 @@ prepared step 是 Framework snapshot 的中性恢复事实，不是 Host transac
 
 Workflow Definition 冻结一个有序 Stage 序列。一个 Stage 消费当前 immutable、schema-validated value 并产生下一 value；相邻 schema 在构造时精确衔接。首个封闭词汇只有 `Transform`、`Call`、`Switch`、`Fork`、`Map` 和 `Loop`：Sequence 是 Stage 声明顺序，Prompt Chaining 是连续 Call，Gate 由 Transform/Switch 表达，Vote 是 Fork 后的纯 reducer，evaluator-optimizer 是 Loop 组合。多阶段分支通过调用另一个 Workflow Deployment 组合，不在同一 Process 内嵌第二个 Execution。
 
-Transform、selector、reducer 和 predicate 是一个 Step 内的有界确定纯函数。Call、被选择分支、Fork branch、Map item 和 Loop iteration 都启动 exact Deployment 的真实 child Process。Fork/Map 显式有界并按窗口启动，结果按声明顺序归位；Loop 有显式正数迭代上限并准确区分 predicate satisfied 与 limit exhausted。ExecutionState 只保存 Stage/value/case/window/item/iteration 游标和 child/wait/result 身份，不保存函数、Deployment concrete value、Engine、goroutine、Store/Journal 或 Host 数据。
+Transform、selector、reducer 和 predicate 是一个 Step 内的有界确定纯函数。Call、被选择分支、Fork branch、Map item 和 Loop iteration 都启动 exact Deployment 的真实 child Process。Fork/Map 必须显式配置正数 `WindowSize`，每个固定窗口完整结算后才启动下一窗口，结果按声明顺序归位；该名称不承诺持续补位的滑动并发池。Loop 有显式正数迭代上限并准确区分 predicate satisfied 与 limit exhausted。ExecutionState 只保存 Stage/value/case/window/item/iteration 游标和 child/wait/result 身份，不保存函数、Deployment concrete value、Engine、goroutine、Store/Journal 或 Host 数据。
 
 `flow.Node.Run`、Graph scheduler 和 Journal 仍不能进入 `Execution.Step`。Workflow 不产生 dispatcher Effect；它只通过 Framework child Effect 组合，包内 Dispatcher 仅拒绝意外 dispatcher Effect。这样 Engine 继续是唯一 Process loop、Effect 提交与 tree recovery owner。
 

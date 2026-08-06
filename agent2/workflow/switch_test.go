@@ -36,7 +36,7 @@ func TestSwitchRunsOnlyTheSelectedManagedChild(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !stage.Valid() || stage.Kind() != workflow.StageKindSwitch || stage.Kind().String() != "switch" {
+	if !stage.Valid() {
 		t.Fatalf("Switch Stage = %#v", stage)
 	}
 	deployment := mustDeployment(t, mustDefinition(t, "test.workflow.switch", stage), "switch")

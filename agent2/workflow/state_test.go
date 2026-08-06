@@ -163,9 +163,9 @@ func protocolTestDefinitions(t testing.TB) (*Definition, *Definition) {
 		t.Fatal(err)
 	}
 	fanout, err := Fork(ForkConfig[stateFixture, stateFixture, stateFixture]{
-		ID:          "fanout",
-		Branches:    []ForkBranch{{ID: "only", Deployment: child, Budget: budget}},
-		Concurrency: 1,
+		ID:         "fanout",
+		Branches:   []ForkBranch{{ID: "only", Deployment: child, Budget: budget}},
+		WindowSize: 1,
 		Reduce: func(values []stateFixture) (stateFixture, error) {
 			return values[0], nil
 		},

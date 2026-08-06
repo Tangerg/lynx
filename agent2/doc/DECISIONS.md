@@ -253,7 +253,7 @@
 - 决策：P6 的唯一节点词汇是 `Transform`、`Gate`、`Switch`、`Call`、`Fork`、`Map`、`Vote` 和 `Loop`。Prompt Chaining 是连续 `Call` 的 Sequence 用法，不建立新节点；Vote 是具名的稳定多数聚合，不公开 Consensus 别名；Fork 同时拥有 Join，不公开 Parallel/ScatterGather；Map 同时拥有 Reduce；Loop 不公开 Repeat/RepeatUntil；Workflow 内不使用 Router，以免和 P8 Deployment routing 混淆。
 - 决策：节点之间只传递 immutable、schema-validated JSON value。公开泛型构造器只在边缘把 Go 类型严格转换为 erased value；ExecutionState 保存 raw value、当前 NodeID、branch/item 游标、child key/ProcessID/wait、已结算结果和 loop iteration，不保存 callback、Deployment concrete value、Engine、context、goroutine 或 Host 数据。
 - 决策：Transform、Gate、Switch、Join、Map expansion/Reduce、Vote key 和 Loop predicate 是 `Step` 内有界、确定、无 I/O 的纯函数。任何模型、Tool、网络、文件或其他外部行为必须是一个 exact child Deployment；`Call`、Fork 的每个 branch、Map 的每个 item 和 Loop 的每轮 body 都启动普通 child Process。
-- 决策：Fork/Map 使用显式正数 concurrency window；Map 另有显式正数 item limit。Execution 分批启动 child、等待本批全部终止，再启动下一批；由此并发上限是正常调度语义，而不是靠 Engine 拒绝超额 child。结果始终按 branch/item 声明顺序聚合，不能按完成顺序排列。P6 的首个明确失败策略是任何 child 非 Completed 或缺少 Output 都使 Workflow 失败；Execution 等待已启动批次收口后按最低 index 归因，不静默遗弃副作用。新的容错/部分聚合策略必须有真实消费者后另行设计，不能预留 enum。
+- 决策：Fork/Map 使用显式正数固定执行窗口；Map 另有显式正数 item limit。Execution 分批启动 child、等待本批全部终止，再启动下一批；由此活跃上限是正常调度语义，而不是靠 Engine 拒绝超额 child。结果始终按 branch/item 声明顺序聚合，不能按完成顺序排列。P6 的首个明确失败策略是任何 child 非 Completed 或缺少 Output 都使 Workflow 失败；Execution 等待已启动批次收口后按最低 index 归因，不静默遗弃副作用。新的容错/部分聚合策略必须有真实消费者后另行设计，不能预留 enum。
 - 决策：Loop 至少执行一次。predicate 满足时产生带最终 value、iteration count 和 `Satisfied=true` 的 typed result；达到上限仍未满足时以 `Satisfied=false` 完成，而不是谎称 predicate 成功或制造共同 Process 状态。调用方可用后续 Gate 明确选择接受、fallback 或失败。
 - 决策：Workflow 不产生 Strategy dispatcher Effect，但当前共同 Deployment 合同要求精确 dispatcher binding，因此 `workflow` 提供只拒绝意外 dispatcher Effect 的包内 Dispatcher；它是协议守卫，不拥有第二套执行能力。
 - 原因：Workflow 的真实状态是节点游标、分支等待和迭代恢复，不是 Goal search。schema DAG 可以在构造期消除隐式 Blackboard 数据流和无界环；真实 child Process 保持组合闭包、预算、能力、取消与 snapshot 只有一个 owner；明确的纯函数边界避免在 Step 内重新泄漏 I/O。
@@ -277,8 +277,16 @@
 - 决策：Workflow Definition 冻结一个有序 Stage 序列，不建立可任意连边的 visual-editor DAG、共享 Store、Journal、Node registry 或第二 scheduler。一个 Stage 消费当前 immutable、schema-validated value 并产生下一个 value；相邻 Stage 的 schema 必须在构造时精确衔接。嵌套或多阶段分支通过调用另一个 Workflow Deployment 获得组合闭包，不在同一 Process 内嵌第二个 Execution。
 - 决策：P6 只允许六个具有独立语义的 Stage：`Transform`、`Call`、`Switch`、`Fork`、`Map` 和 `Loop`。定义中的有序 Stage 本身就是 Sequence；Prompt Chaining 是连续 Call；Gate 由 Transform 校验或 Switch 表达；Vote 是 Fork 后的确定性 reducer；evaluator-optimizer 是 Loop 组合。它们不再各占一个节点 kind 或近义入口。
 - 决策：Transform、Switch selector、Fork reducer 和 Loop predicate 必须是有界、确定、无 I/O 的纯函数，只能在 `Execution.Step` 内归约一次。Call、Switch 被选分支、Fork 每个 branch、Map 每个 item 和 Loop 每轮 body 都是 exact Deployment 对应的真实 child Process。Workflow 不产生 dispatcher Effect；包内 zero-state Dispatcher 只拒绝协议违约，不成为第二执行能力。
-- 决策：Fork 和 Map 必须显式配置正数并发度并按窗口启动；Map 另有正数 item limit。已经启动的窗口全部终止后才能启动下一窗口，输出按 branch/item 声明顺序归位。child start failure、非 Completed 终态、缺失 Output 或 schema 不匹配按最低声明索引稳定归因并使 Workflow 失败；首版不预留 fail-fast/partial/fallback enum。
+- 决策：Fork 和 Map 必须显式配置正数 `WindowSize`；Map 另有正数 item limit。一个固定执行窗口内的 child 全部终止后才能启动下一窗口，输出按 branch/item 声明顺序归位。公开名称不使用 `Concurrency`，因为首版不是持续补位的滑动并发池。child start failure、非 Completed 终态、缺失 Output 或 schema 不匹配按最低声明索引稳定归因并使 Workflow 失败；首版不预留 fail-fast/partial/fallback enum。
 - 决策：Loop 至少调用一次 child，必须有正数最大迭代数。predicate 满足与迭代上限耗尽都以带最终值、迭代数和 `Satisfied` 的策略 Output 完成；耗尽不伪装成 predicate 成功，也不创造共同 Process 状态。
 - 决策：ExecutionState 只保存 Stage 索引、当前 raw value、所选 case、窗口/item/iteration 游标、稳定 ChildKey/ProcessID、WaitID 和已按声明位置结算的 raw Output。它不保存函数、Deployment concrete value、Engine、resolver、context、goroutine、Store/Journal 或 Host 数据。Definition/Deployment 的 exact code/config digest 仍是恢复这些纯函数与 child binding 的唯一行为身份。
 - 原因：真实 spike 证明 managed orchestration 的差异不是“另一套画图 API”，而是 Engine-owned child lifecycle 和一致 tree recovery。最小有序代数吸收 `flow` 的可组合性与可派生性，同时避免复制其 runtime、重新引入 GOAP 编译、或用八类节点表达本可组合得到的同一语义。
 - 后果：P6 先按 Call/Transform 纵切面实现共同状态机，再增加 Switch/Fork、Map 和 Loop；完整恢复、race、fuzz、architecture gate 和真实 command consumer 通过后才冻结 Workflow 公共 API。未来若需要编辑器 DAG，应在 Platform/Host 侧把外部定义编译成已验证的 Workflow Deployment，不能把 Registry、Store 或应用图协议下沉进 Kernel。
+
+## ADR-A2-039：以真实 managed consumer 冻结 Workflow 公共基线
+
+- 状态：已接受；将 ADR-A2-038 的冻结条件落实为 Baseline 3。
+- 证据：六类 sealed Stage、strict ExecutionState、完整 tree capture/restore、逆序窗口结算、无重复 child、取消传播、预算/能力衰减、malformed protocol、race、fuzz 和 architecture gate 全部通过。独立 `examples/workflow` command 只消费公开 API，装配 Call→Fork 的 root Workflow 与三个 exact child Workflow Deployment，并以最终四 Process tree 证明没有隐藏生命周期或第二 runtime。
+- 决策：Baseline 3 在 Baseline 2 的 root、Interaction、Planning、GOAP、Process Snapshot v3 与 TreeSnapshot v1 之上新增 `workflow` package 的完整 exported API/GoDoc digest。P6 没有改变根公开 API 或 snapshot/tree wire；terminal child wait 修复只闭合既有私有不变量。
+- 决策：Fork/Map 的公开窗口参数最终冻结为 `WindowSize`，因为实现是整窗结算后再开下一窗，不是持续补位的并发池。Stage 继续是不可由用户实现的 sealed value；未被真实消费者证明的 `StageKind`、Stage metadata getters 与 `Definition.Stages` 全部收回包内，避免把半套反射 API 误冻成编辑器合同。保留的 Definition、typed constructors、zero-state Dispatcher 与四类 sentinel error 都由真实实现和 consumer 直接使用或审计，不再增加 builder、registry、adapter、alias 或 convenience wrapper。
+- 限定：Baseline 3 仍不是发布兼容承诺。开发阶段允许有证据的治本 breaking change，但必须先追加决策、同步基线守卫并重跑所有消费者；P7 组合 helper、P8 Platform 和 P10 应用迁移不能借此向 Workflow 注入 Host、Store、Journal、Graph 或 scheduler 抽象。

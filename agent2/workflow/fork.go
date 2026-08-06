@@ -32,12 +32,13 @@ type ForkConfig[I, B, O any] struct {
 	// ID is unique within the Workflow and remains stable across restoration.
 	ID string
 
-	// Branches is a non-empty set in stable declaration order. Every branch
+	// Branches is a non-empty list in stable declaration order. Every branch
 	// accepts I and produces B.
 	Branches []ForkBranch
 
-	// Concurrency is the positive number of branches in each execution window.
-	Concurrency uint32
+	// WindowSize is the positive number of branches started and settled as one
+	// execution window before the next window begins.
+	WindowSize uint32
 
 	// Reduce combines all B values after every branch succeeds.
 	Reduce ForkReducer[B, O]
@@ -50,14 +51,14 @@ type forkBranch struct {
 
 type forkStage struct {
 	branches     []forkBranch
-	concurrency  uint32
+	windowSize   uint32
 	branchSchema agent.Schema
 	reduce       func([]json.RawMessage) (json.RawMessage, error)
 }
 
 func (stage forkStage) valid() bool {
-	if len(stage.branches) == 0 || stage.concurrency == 0 || !stage.branchSchema.Valid() ||
-		uint64(stage.concurrency) > uint64(len(stage.branches)) || stage.reduce == nil {
+	if len(stage.branches) == 0 || stage.windowSize == 0 || !stage.branchSchema.Valid() ||
+		uint64(stage.windowSize) > uint64(len(stage.branches)) || stage.reduce == nil {
 		return false
 	}
 	seen := make(map[string]struct{}, len(stage.branches))
@@ -79,7 +80,7 @@ func (stage forkStage) valid() bool {
 func Fork[I, B, O any](config ForkConfig[I, B, O]) (Stage, error) {
 	if !validStageID(config.ID) || len(config.Branches) == 0 ||
 		uint64(len(config.Branches)) > math.MaxUint32 || config.Reduce == nil ||
-		config.Concurrency == 0 || uint64(config.Concurrency) > uint64(len(config.Branches)) {
+		config.WindowSize == 0 || uint64(config.WindowSize) > uint64(len(config.Branches)) {
 		return Stage{}, ErrInvalidStage
 	}
 	inputSchema, err := agent.SchemaFor[I]()
@@ -149,10 +150,10 @@ func Fork[I, B, O any](config ForkConfig[I, B, O]) (Stage, error) {
 		return erased.JSON(), nil
 	}
 	return Stage{
-		id: config.ID, kind: StageKindFork,
+		id: config.ID, kind: stageKindFork,
 		inputSchema: inputSchema, outputSchema: outputSchema,
 		fork: forkStage{
-			branches: branches, concurrency: config.Concurrency,
+			branches: branches, windowSize: config.WindowSize,
 			branchSchema: branchSchema, reduce: reduce,
 		},
 	}, nil

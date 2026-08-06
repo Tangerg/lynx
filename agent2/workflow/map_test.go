@@ -18,12 +18,12 @@ func TestMapUsesManagedChildrenAndPreservesItemOrder(t *testing.T) {
 	), "map-child")
 	stage, err := workflow.Map(workflow.MapConfig[forkInput, numberOutput]{
 		ID: "items", Deployment: child, Budget: mustBudget(t),
-		Concurrency: 2, ItemLimit: 3,
+		WindowSize: 2, ItemLimit: 3,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !stage.Valid() || stage.Kind() != workflow.StageKindMap || stage.Kind().String() != "map" {
+	if !stage.Valid() {
 		t.Fatalf("Map Stage = %#v", stage)
 	}
 	deployment := mustDeployment(t, mustDefinition(t, "test.workflow.map", stage), "map")
@@ -55,7 +55,7 @@ func TestMapEmptyInputProducesNonNilEmptyOutput(t *testing.T) {
 	), "empty-map-child")
 	stage, err := workflow.Map(workflow.MapConfig[forkInput, numberOutput]{
 		ID: "items", Deployment: child, Budget: mustBudget(t),
-		Concurrency: 1, ItemLimit: 4,
+		WindowSize: 1, ItemLimit: 4,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -84,7 +84,7 @@ func TestMapRejectsInputAboveItemLimitBeforeStartingChildren(t *testing.T) {
 	), "limited-map-child")
 	stage, err := workflow.Map(workflow.MapConfig[forkInput, numberOutput]{
 		ID: "items", Deployment: child, Budget: mustBudget(t),
-		Concurrency: 2, ItemLimit: 2,
+		WindowSize: 2, ItemLimit: 2,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -117,16 +117,16 @@ func TestMapRequiresExplicitLimitsAndMatchingChildContract(t *testing.T) {
 		}),
 	), "wrong-map-child")
 	valid := workflow.MapConfig[forkInput, numberOutput]{
-		ID: "items", Deployment: child, Budget: mustBudget(t), Concurrency: 1, ItemLimit: 2,
+		ID: "items", Deployment: child, Budget: mustBudget(t), WindowSize: 1, ItemLimit: 2,
 	}
 	for name, config := range map[string]workflow.MapConfig[forkInput, numberOutput]{
-		"zero concurrency": {ID: valid.ID, Deployment: child, Budget: valid.Budget, ItemLimit: 2},
-		"zero item limit":  {ID: valid.ID, Deployment: child, Budget: valid.Budget, Concurrency: 1},
-		"oversized concurrency": {
-			ID: valid.ID, Deployment: child, Budget: valid.Budget, Concurrency: 3, ItemLimit: 2,
+		"zero window size": {ID: valid.ID, Deployment: child, Budget: valid.Budget, ItemLimit: 2},
+		"zero item limit":  {ID: valid.ID, Deployment: child, Budget: valid.Budget, WindowSize: 1},
+		"oversized window": {
+			ID: valid.ID, Deployment: child, Budget: valid.Budget, WindowSize: 3, ItemLimit: 2,
 		},
 		"schema mismatch": {
-			ID: valid.ID, Deployment: wrong, Budget: valid.Budget, Concurrency: 1, ItemLimit: 2,
+			ID: valid.ID, Deployment: wrong, Budget: valid.Budget, WindowSize: 1, ItemLimit: 2,
 		},
 	} {
 		t.Run(name, func(t *testing.T) {

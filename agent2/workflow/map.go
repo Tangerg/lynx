@@ -25,8 +25,9 @@ type MapConfig[I, O any] struct {
 	// Capabilities is the attenuated authority set granted to each child.
 	Capabilities agent.CapabilitySet
 
-	// Concurrency is the positive number of items in each execution window.
-	Concurrency uint32
+	// WindowSize is the positive number of items started and settled as one
+	// execution window before the next window begins.
+	WindowSize uint32
 
 	// ItemLimit is the positive maximum accepted input length.
 	ItemLimit uint32
@@ -34,7 +35,7 @@ type MapConfig[I, O any] struct {
 
 type mapStage struct {
 	binding          childBinding
-	concurrency      uint32
+	windowSize       uint32
 	itemLimit        uint32
 	itemOutputSchema agent.Schema
 	count            func(json.RawMessage) (uint32, error)
@@ -43,8 +44,8 @@ type mapStage struct {
 }
 
 func (stage mapStage) valid() bool {
-	return stage.binding.valid() && stage.concurrency > 0 && stage.itemLimit > 0 &&
-		stage.concurrency <= stage.itemLimit && stage.itemOutputSchema.Valid() &&
+	return stage.binding.valid() && stage.windowSize > 0 && stage.itemLimit > 0 &&
+		stage.windowSize <= stage.itemLimit && stage.itemOutputSchema.Valid() &&
 		stage.count != nil && stage.windowInputs != nil && stage.collect != nil
 }
 
@@ -53,7 +54,7 @@ func (stage mapStage) valid() bool {
 func Map[I, O any](config MapConfig[I, O]) (Stage, error) {
 	if !validStageID(config.ID) || !config.Deployment.Valid() ||
 		!config.Budget.Valid() || !config.Capabilities.Valid() ||
-		config.Concurrency == 0 || config.ItemLimit == 0 || config.Concurrency > config.ItemLimit {
+		config.WindowSize == 0 || config.ItemLimit == 0 || config.WindowSize > config.ItemLimit {
 		return Stage{}, ErrInvalidStage
 	}
 	inputSchema, err := agent.SchemaFor[[]I]()
@@ -146,14 +147,14 @@ func Map[I, O any](config MapConfig[I, O]) (Stage, error) {
 		return erased.JSON(), nil
 	}
 	return Stage{
-		id: config.ID, kind: StageKindMap,
+		id: config.ID, kind: stageKindMap,
 		inputSchema: inputSchema, outputSchema: outputSchema,
 		mapper: mapStage{
 			binding: childBinding{
 				deployment: config.Deployment.Reference(), budget: config.Budget,
 				capabilities: config.Capabilities,
 			},
-			concurrency: config.Concurrency, itemLimit: config.ItemLimit,
+			windowSize: config.WindowSize, itemLimit: config.ItemLimit,
 			itemOutputSchema: itemOutputSchema, count: count,
 			windowInputs: windowInputs, collect: collect,
 		},

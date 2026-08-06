@@ -230,8 +230,8 @@
 
 ### 10.5 managed Workflow disposable consumer 证据
 
-- spike 只使用 Baseline 2 的公开 API，自行实现最小有序状态机：先串行启动并等待一个 prepare child，再以 concurrency window 2 编排三个 fork child。它没有访问 Engine 私有字段、解析 Framework 私有 Effect/Signal wire，或把 Engine/Deployment concrete value 写入 ExecutionState。
-- 前两路 child 在副作用前进入 Paused，root 进入带 Engine-minted WaitID 的 Waiting。完整 TreeSnapshot 此时包含 prepare child 与前两路 fork child，明确不含第三路，证明 concurrency 不是依赖 Engine 拒绝超额的软约定。
+- spike 只使用 Baseline 2 的公开 API，自行实现最小有序状态机：先串行启动并等待一个 prepare child，再以固定执行窗口大小 2 编排三个 fork child。它没有访问 Engine 私有字段、解析 Framework 私有 Effect/Signal wire，或把 Engine/Deployment concrete value 写入 ExecutionState。
+- 前两路 child 在副作用前进入 Paused，root 进入带 Engine-minted WaitID 的 Waiting。完整 TreeSnapshot 此时包含 prepare child 与前两路 fork child，明确不含第三路，证明窗口调度不是依赖 Engine 拒绝超额的软约定。
 - 原树被显式销毁后，在新 Engine 通过 exact resolver 恢复；第二路先于第一路 Resume/Completed，Workflow 仍按声明索引保存结果。第一窗口全部终止后才创建第三路，最终 tree 恰好包含四个 child，没有丢失或重复创建。
 - 定向行为测试连续 20 次、race 连续 20 次通过；spike 随后整体删除，没有临时类型、测试 package 或依赖进入生产模块。
 - 证据证明 Workflow 的独立状态是 Stage/value/window/child/wait/result 游标，并且能完全建立在现有 StartChild/WaitForChildren/TreeSnapshot 窄腰上；它不需要 Strategy dispatcher、Kernel 字段、`flow` Store/Journal 或第二 scheduler。
@@ -250,14 +250,14 @@
 
 - Switch selector 是 typed edge 上的纯函数，只返回一个已声明 case ID；每个 case 是 exact child Deployment。构造期同时验证所有 case 的输入与 Switch 输入精确相等、输出彼此精确相等，未选择 case 不会创建 Process。
 - Fork 首版明确是 homogeneous fan-out + reducer：所有 branch 接受同一 I 并产生同一 B，reducer 按声明顺序把 `[]B` 变成 O。需要异构内部步骤的 branch 必须先用 child Workflow 暴露共同 B，不能把 `any`、共享 Store 或隐式 binding 带回父级。
-- Fork Concurrency 是显式正数窗口上限且不得超过 branch 数；Execution 只启动当前窗口，等待该窗口全部已启动 child 终止后才启动下一窗口。start failure 不会遗弃同窗已经启动的 child，所有失败按最低声明索引稳定归因。
+- Fork `WindowSize` 是显式正数固定窗口大小且不得超过 branch 数；Execution 只启动当前窗口，等待该窗口全部已启动 child 终止后才启动下一窗口。它不是完成一个就补位一个的滑动并发池。start failure 不会遗弃同窗已经启动的 child，所有失败按最低声明索引稳定归因。
 - indexed fan-out state 用 member index、ProcessID、Failure 与 nullable raw Output 槽位区分未启动、已启动、已失败和已结算；字面 JSON `null` 不能冒充一个未结算槽位。窗口与单 child 的 ChildKey/WaitKey 都由完整逻辑身份稳定哈希，避免合法组合超出 Kernel identity 长度。
 - 真实 dispatcher-backed child 测试证明 window=2 不会提前启动第三路、逆序完成不改变 reducer 顺序、同窗多失败不受完成时序影响。Switch/Fork 没有增加 Kernel API、dispatcher 协议、goroutine scheduler 或 `flow` 依赖。
 
 ### 10.8 Map 正式纵切面
 
 - Map 的唯一公共语义是 `[]I → []O`：一个 exact Deployment 对每个 item 执行 I→O，输出严格按原 item index 排列。它不暴露动态 Graph、Generator、共享 Store、keyed binding 或隐式 flatten。
-- Concurrency 与 ItemLimit 都是显式正数，且 concurrency 不得超过 item limit。item limit 在声明任何 StartChild Effect 前检查；空输入准确完成为空切片，不创建一个伪 child 或返回 JSON null。
+- `WindowSize` 与 `ItemLimit` 都是显式正数，且 window size 不得超过 item limit。item limit 在声明任何 StartChild Effect 前检查；空输入准确完成为空切片，不创建一个伪 child 或返回 JSON null。
 - Fork 与 Map 共用包内 sealed indexed fan-out 生命周期和同一 ExecutionState 字段；差异只存在于 Stage-owned binding/input/collect 行为。该收敛没有形成公开 fan-out interface，新增 Stage 不能绕过封闭代数。
 - 每个窗口只解码一次原始 `[]I`，只为当前窗口编码 item Input；snapshot 继续保存权威原始 value、窗口游标和已结算 Output，不保存 Go slice、Deployment concrete value 或第二份 Journal。
 - 真实 Engine 测试覆盖多窗口稳定顺序、空输入、超限先拒绝和构造期 schema/limit 违约；Fork 原有逆序完成与最低索引失败合同在共用状态机后保持不变。
@@ -277,3 +277,10 @@
 - Host cancel 在 managed Call 等待 Paused child 时，root 终态来源是 host cancellation，child 终态来源是 parent cancellation。Workflow 请求超过 parent 剩余 Budget 或父级不持有的 Capability 时，由共同 Engine 的 child allocation invariant 拒绝，不存在 Strategy 绕过路径。
 - tree 合同暴露并修复了共同 Kernel 的一个既存缺口：Process 在未消费 child completion 前终止时，mailbox 中的 child wait 曾保持 open，而 Engine registration 已删除，导致 terminal TreeSnapshot 自相矛盾。终止提交现在统一关闭全部 wait，并以稳定顺序注销内部 child wait；未新增 Workflow snapshot 字段、Store、Journal 或第二恢复真相源。
 - Stage 代数由 AST 架构守卫持续封闭：生产 `workflow` 不允许 exported behavior interface，`Stage` 必须是无公开可变字段的 value；Host/legacy/`flow`/Store/Journal/Graph/Scheduler 禁入规则继续生效。全量 standalone race、50 次 Workflow race、50 次 Kernel 终态 wait 回归和 260682 次 state fuzz 均通过。
+
+### 10.11 独立消费者与 Baseline 3
+
+- `examples/workflow` 是与生产 package 分离的 command consumer，只消费公开根 API 与 `workflow` API。它装配 Call→Fork 的 root Definition，三个被调行为 exact child Workflow Deployment；最终 TreeSnapshot 的四个 Process 证明 Call 与 branch 没有被降级为本地函数或隐藏 goroutine。
+- API 人体工程学审计将 Fork/Map 参数从容易暗示滑动补位的 `Concurrency` 治本改名为 `WindowSize`；GoDoc 明确整窗 start/settle 后才进入下一窗。代码、测试、架构、ADR、台账和示例只保留这一术语，没有 alias 或兼容字段。
+- 无真实消费者的 `StageKind`、Stage metadata getters 与 `Definition.Stages` 已收回包内。它们只能形成不完整反射面，无法重建 pure function、child binding 或 configuration digest，也没有资格预占未来 P8 catalog/编辑器合同。Stage 仍只暴露 sealed value、typed constructors 与零值有效性判断。
+- Baseline 3 新增 workflow 完整 exported API/GoDoc digest `0493f8f7ae6e4cc5a3190735c5d02952ec0e0fdb230794bbb01735b8ecfae055`；root、Interaction、Planning、GOAP 与 snapshot/tree wire digest 沿用 Baseline 2 并继续通过。P6 没有为 Workflow 扩张 Kernel 公开合同或 wire。

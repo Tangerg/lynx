@@ -1,4 +1,4 @@
-# Interaction examples
+# Agent Framework examples
 
 These commands are disposable consumers of the public `agent2` API. They do
 not share test-only helpers or import internal protocol types, so build and test
@@ -13,12 +13,16 @@ failures expose real consumer-facing contract problems.
 - `composition` runs one local Definition directly through an embedded Engine,
   then composes the same Definition with an Interaction as two heterogeneous
   child Processes. Both paths use the same public execution narrow waist.
+- `workflow` composes a managed Call and a two-branch Fork. Its final tree has
+  one root and three exact child Processes, showing that ordered orchestration
+  does not create a second runtime or hide branch lifecycles.
 
-Both examples use deterministic local models so they run without credentials or
+All examples use deterministic local components so they run without credentials or
 network access:
 
 ```sh
 GOWORK=off go run ./examples/direct_vs_managed
 GOWORK=off go run ./examples/autonomous
 GOWORK=off go run ./examples/composition
+GOWORK=off go run ./examples/workflow
 ```

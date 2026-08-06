@@ -13,7 +13,7 @@ import (
 func (execution *execution) startFanoutWindow(consumed uint32) (agent.Transition, error) {
 	stage := execution.stage()
 	count, err := stage.fanoutCount(execution.state.Value)
-	if err != nil || count == 0 || stage.fanoutConcurrency() == 0 {
+	if err != nil || count == 0 || stage.fanoutWindowSize() == 0 {
 		return agent.Transition{}, errors.Join(ErrInvalidStage, err)
 	}
 	if execution.state.FanoutOutputs == nil {
@@ -23,7 +23,7 @@ func (execution *execution) startFanoutWindow(consumed uint32) (agent.Transition
 	if start >= count {
 		return agent.Transition{}, ErrInvalidExecutionState
 	}
-	end := start + min(stage.fanoutConcurrency(), count-start)
+	end := start + min(stage.fanoutWindowSize(), count-start)
 	inputs, err := stage.fanoutWindowInputs(start, end, execution.state.Value)
 	if err != nil || len(inputs) != int(end-start) {
 		return agent.Transition{}, errors.Join(ErrInvalidExecutionState, err)
@@ -72,7 +72,7 @@ func (execution *execution) acceptFanoutStarts(signals []agent.Signal) (agent.Tr
 			result.Key() != key || result.DeploymentRef() != binding.deployment {
 			return agent.Transition{}, fmt.Errorf(
 				"%w: %s Stage %q member %q start result mismatch",
-				ErrInvalidProtocol, execution.stage().Kind(), execution.stage().id, memberID,
+				ErrInvalidProtocol, execution.stage().kind, execution.stage().id, memberID,
 			)
 		}
 		if failure, failed := result.Failure(); failed {
@@ -230,7 +230,7 @@ func (execution *execution) fanoutOutcome(
 }
 
 func (execution *execution) fanoutFailureMessage(index uint32, diagnostic string) string {
-	return execution.stage().Kind().String() + " Stage " + execution.stage().id + " " +
+	return execution.stage().kind.String() + " Stage " + execution.stage().id + " " +
 		execution.stage().fanoutMemberLabel(index) + " " + diagnostic
 }
 
@@ -258,13 +258,13 @@ func (execution *execution) fanoutChildKey(index uint32) (agent.ChildKey, error)
 	if !found {
 		return agent.ChildKey{}, ErrInvalidExecutionState
 	}
-	return workflowChildKey(execution.stage().Kind().String(), execution.stage().id, memberID)
+	return workflowChildKey(execution.stage().kind.String(), execution.stage().id, memberID)
 }
 
 func (execution *execution) fanoutWaitKey() (agent.WaitKey, error) {
 	windowStart := execution.state.FanoutNext - uint32(len(execution.state.FanoutWindow))
 	return workflowWaitKey(
-		execution.stage().Kind().String(), execution.stage().id,
+		execution.stage().kind.String(), execution.stage().id,
 		strconv.FormatUint(uint64(windowStart), 10),
 	)
 }

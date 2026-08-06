@@ -24,7 +24,7 @@ func TestWaitingForkTreeRestoresWithoutDuplicateChildren(t *testing.T) {
 		})
 	}
 	stage, err := workflow.Fork(workflow.ForkConfig[forkInput, branchOutput, forkOutput]{
-		ID: "workers", Branches: branches, Concurrency: 2,
+		ID: "workers", Branches: branches, WindowSize: 2,
 		Reduce: func(values []branchOutput) (forkOutput, error) {
 			result := forkOutput{Branches: make([]string, len(values))}
 			for index, value := range values {
