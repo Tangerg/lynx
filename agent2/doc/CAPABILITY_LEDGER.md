@@ -512,3 +512,12 @@
 - admission context 只提供取消、deadline 和 caller value 传播，不携带 Engine handle。实现可完成自身外部准入，但 contract 明确要求有界、并发安全、不重入，并自行承担同一 prospective identity 重放的业务正确性；Kernel 没有新增 persistence、transaction、charge 或 idempotency 类型。
 - `EffectRequest` 现自足携带 ProcessID、exact DeploymentRef、ProcessRelation、StepSequence、BatchIndex、EffectID 与 immutable Effect。relation 的 ProcessID 必须与请求 identity 一致；Strategy dispatcher 不再需要 god ProcessContext 或反查 Engine 才能做模型、Tool 与 tracing 归因。
 - Baseline 7 只改变根 public GoDoc/signature；Process Snapshot v6、TreeSnapshot v4、Kernel/Strategy protocol 与 Event/Delta wire 均未变化。普通测试同时证明 root/child StartedAt 精确一致、Start context 到达 admitter、拒绝前零 Definition.Start/零发布、restore 零 readmission，以及 EffectRequest attribution/Effect 防御性复制。
+
+### 14.6 Interaction invocation 与 deferred manifest 实现证据
+
+- `ModelInvocation` 与 `ToolInvocation` 只在对应实际调用的 context 生命周期内存在，自足携带 ProcessRelation、exact DeploymentRef、EffectID、Step sequence，以及 Interaction-owned model-call sequence；Tool 调用另有整个模型响应内的零基 ToolCall index 和 exact ToolCall value。它们没有 Engine handle、Host metadata、Run、history、pricing 或 transaction。
+- model-call sequence 是 Interaction 内一基稳定序号；ToolCall index 是原模型响应内零基位置，即使普通 Tool/Delegate 分段、HITL checkpoint 或并行 Tool 完成乱序也不改变。公开 `DelegateChildKey(modelCallSequence, toolCall)` 与 Execution 使用同一确定算法，使模型观察和 child admission 可以投影同一因果 identity，而无需 Kernel 认识 ToolCall。
+- Dispatcher 的 `Tools` 是冻结且初始可见的普通工具，`DeferredTools` 是同样冻结并已具执行权限但初始隐藏的普通工具。`AdvertiseTools` 只能在实际 Tool 调用内按 exact deferred name 暂存可见性，不能添加 executable、schema 或 registry entry；空白、未知、初始可见名称和 typed-nil/重名绑定均确定拒绝。
+- 广告与当前 Tool settlement 同一语义提交：成功才进入下一 model manifest；普通失败、panic、取消或当前 Tool 请求 HITL 时均不提交该调用的暂存广告。checkpoint 只保存此前已成功 Tool 的广告，恢复后继续；并行 Tool 各自暂存，最终严格按模型 ToolCall 顺序合并，而不是按 goroutine 完成时序。
+- Interaction ExecutionState/dispatcher protocol 直接升级为 v5/v3，分别保存权威 advertised name 集、model/tool 序号和 checkpoint 广告；旧版本不双读。Baseline 8 只改变 Interaction public/wire digest，Kernel、其他 Strategy、Process Snapshot v6、TreeSnapshot v4 和 observation wire 均不变。
+- 行为测试真实跑通三次模型调用、两次工具调用的完整 Process/Deployment/Effect/Step 归因，deferred Tool 从隐藏到可见再执行，非法广告、失败回滚、HITL checkpoint 保留/丢弃边界、恢复、并行乱序稳定提交、Delegate key 和 Dispatcher binding 验证。standalone build/vet/staticcheck、完整 lint、禁用缓存全量测试/race 全绿；Interaction state fuzz 3 秒执行 111,450 次无失败。

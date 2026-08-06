@@ -3,7 +3,7 @@
 > 状态：持续实施
 > 建立日期：2026-08-06
 > 最后更新：2026-08-06
-> 当前阶段：P10 消费迁移，0/5 完成
+> 当前阶段：P10 消费迁移，2/5 完成
 > 当前实施范围：仅 `agent2`
 > 临时模块路径：`github.com/Tangerg/lynx/agent2`
 > 最终模块路径：`github.com/Tangerg/lynx/agent`
@@ -254,6 +254,7 @@ go test ./...
 
 | 日期 | 阶段 | 实际事实 | 验证与结果 |
 |---|---|---|---|
+| 2026-08-06 | P10 | 实现 ADR-A2-058 的 Interaction 纵切面。新增只在实际调用 context 中可读的 immutable ModelInvocation/ToolInvocation，携带 exact ProcessRelation、DeploymentRef、EffectID、Step/model-call sequence 和 ToolCall index/value；公开唯一 DelegateChildKey 派生。Dispatcher 将普通工具明确分成初始可见 Tools 与冻结、可执行但初始隐藏的 DeferredTools；AdvertiseTools 只能暂存 exact 已绑定名称，随成功 Tool settlement 提交。失败/panic/cancel/当前 HITL pause 丢弃当前调用广告，checkpoint 保留已完成前缀，并行结果按模型 ToolCall 顺序合并；恢复态保存权威广告集合，没有动态 authority、registry、Engine handle 或 Host 抽象 | 形成 Baseline 8：Interaction public digest `4d7c875e…5bf5`，state/protocol v5/v3 与 wire digest `1f991ad1…308a`；Kernel、其余六个 public package、Process Snapshot v6、TreeSnapshot v4 和 observation wire 不变。行为测试覆盖完整归因、广告/执行、非法名称、失败回滚、HITL checkpoint、恢复、并行乱序、Delegate key 和绑定冲突。standalone build/vet/staticcheck、完整 lint、禁用缓存全量测试/race 全绿，Interaction state fuzz 3 秒执行 111,450 次无失败；P10-03 继续进行，下一纵切面迁移 root chat 为原生 Interaction |
 | 2026-08-06 | P10 | 实现 ADR-A2-058 的第一个 Kernel 纵切面。`ProcessAdmitter.Admit` 改为 context-aware，`ProcessAdmission` 新增 admission 成功后与 Process 完全相同的 UTC StartedAt；root/child 均在 Definition.Start 和发布前请求，恢复仍不重复。`EffectRequest` 新增 exact DeploymentRef 与 ProcessRelation，并强化 relation/identity 一致性校验。调用位置直接传 Engine 已有事实，没有引入 ProcessContext、Host metadata 或应用依赖 | 形成 Baseline 7：root public digest 更新为 `9bd5705e…a53c`，其余六个 public digest、Process Snapshot v6、TreeSnapshot v4、全部 owner wire 与 package DAG 不变。测试新增 context 传播、root/child StartedAt 和完整 Effect attribution；P10-03 继续进行，下一纵切面实现 Interaction-owned invocation context 与 Delegate ChildKey |
 | 2026-08-06 | P10 | 依据 P10-01 证据新增 ADR-A2-058，将迁移缺口冻结为六个且只有六个中性合同：context-aware ProcessAdmitter + prospective StartedAt；携带 exact deployment/relation 的 EffectRequest；Interaction-owned ModelInvocation/ToolInvocation context；`Tools`/`DeferredTools` 与可恢复 `AdvertiseTools`；唯一 `DelegateChildKey`；Kernel-owned `WaitingSubtreeCancellationPlan`。等待子树结果保留终态 Process/预算、由 Kernel child completion Signal 推进并把父级停在消费前，Host 只保存 opaque tree 与自身 write-set。实施顺序固定为 Framework 合同、root 原生 Interaction、child/HITL/toolset、旧应用编排清零四批，且前端/TUI/CLI 明确排除 | 本轮只修订候选后的正式迁移决策，不改变 production API/wire；没有新增 Host package/name/import。P10-02 完成，P10 更新为 2/5；P10-03 从 Kernel/Interaction owner contracts 纵切实现并先独立验收 |
 | 2026-08-06 | P10 | 复核 P1 的 54 文件旧 Framework 消费图并逐条读透 root Interaction、child durable admission、model/tool observation、deferred tool discovery、HITL tree checkpoint、waiting child cancellation 与 subagent projection。确认应用/领域/交付层没有新的 Framework 抽象需求，迁移继续收敛在 `internal/adapter/agentexec` 与直接 toolset 装配。冻结合同已覆盖主体生命周期；真实 consumer 只证明六处中性缺口：context-aware admission、Effect/Interaction invocation attribution、可恢复的 deferred advertisement、同步权威 model/tool observation、Kernel-owned waiting subtree transition、确定 Delegate child key。明确拒绝把 Run/transaction/history/pricing/approval 等 Host 类型或 private Strategy wire 带入 Framework | `agent2` production 与 API/wire 本轮未变；工作树开始/结束均无运行代码修改。P10-01 完成，P10 更新为 1/5，下一批先以 ADR 冻结 breaking contract 与实施顺序，再改代码 |
@@ -323,6 +324,6 @@ go test ./...
 
 ## 9. 当前下一步
 
-P1–P9 与 P10-01/P10-02 已完成，P10-03 的 Kernel admission/Effect attribution 已形成 Baseline 7。下一纵切面实现 Interaction-owned ModelInvocation/ToolInvocation context、明确 model/tool 序号和唯一 DelegateChildKey；再实现可恢复 deferred advertisement，完成 public/wire baseline、race 与独立 consumer 验收后，才开始 root chat 的原生 Interaction 替换。
+P1–P9 与 P10-01/P10-02 已完成；P10-03 的 Kernel admission/Effect attribution 和 Interaction invocation/deferred manifest 已分别形成 Baseline 7/8。下一纵切面开始 root chat 的原生 Interaction 替换，以 caller-owned model/tool wrapper 产生权威 Host observation；Framework Delta 继续保持 best-effort，不承载 transcript 真相。
 
 P10 只修改 `app/runtime` 以及因直接消费新 Framework 必须变化的后端路径，不修改前端、TUI 或 CLI；P11 前不删除旧 `agent`，不发布临时 `agent2` 路径为稳定版本。

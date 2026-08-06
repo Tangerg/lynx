@@ -22,6 +22,11 @@ type DispatcherConfig struct {
 	// Managed Delegate definitions come from the bound Definition.
 	Tools []tool.Tool
 
+	// DeferredTools is the frozen ordinary executable Tool set omitted from the
+	// initial model manifest. An executing Tool may make exact names visible on
+	// later model calls through AdvertiseTools; authority never changes.
+	DeferredTools []tool.Tool
+
 	// MaxConcurrentToolCalls bounds calls that explicitly declare safe overlap.
 	// Zero preserves serial execution; negative values are invalid. Undeclared
 	// calls and calls with the same non-empty concurrency key remain serial.
@@ -34,6 +39,8 @@ type DispatcherConfig struct {
 
 type boundTool struct {
 	executable tool.Tool
+	definition chat.ToolDefinition
+	deferred   bool
 	direct     bool
 	concurrent ConcurrentTool
 }
@@ -42,12 +49,13 @@ type boundTool struct {
 // Interaction Execution. It is immutable after construction and may serve
 // Processes concurrently when the supplied Client and Tools support concurrent use.
 type Dispatcher struct {
-	client      *chatclient.Client
-	tools       map[string]boundTool
-	delegates   map[string]struct{}
-	definitions []chat.ToolDefinition
-	stream      bool
-	maxParallel int
+	client             *chatclient.Client
+	tools              map[string]boundTool
+	delegates          map[string]struct{}
+	initialDefinitions []chat.ToolDefinition
+	deferredToolNames  map[string]struct{}
+	stream             bool
+	maxParallel        int
 }
 
 // NewDispatcher binds one exact Definition's Delegate manifest alongside its
@@ -62,39 +70,25 @@ func NewDispatcher(definition *Definition, config DispatcherConfig) (*Dispatcher
 	}
 	maxParallel := max(1, config.MaxConcurrentToolCalls)
 	dispatcher := &Dispatcher{
-		client:      config.Client,
-		tools:       make(map[string]boundTool, len(config.Tools)),
-		delegates:   make(map[string]struct{}, len(definition.delegates)),
-		definitions: make([]chat.ToolDefinition, 0, len(config.Tools)+len(definition.delegates)),
-		stream:      config.StreamModelResponses,
-		maxParallel: maxParallel,
+		client:    config.Client,
+		tools:     make(map[string]boundTool, len(config.Tools)+len(config.DeferredTools)),
+		delegates: make(map[string]struct{}, len(definition.delegates)),
+		initialDefinitions: make(
+			[]chat.ToolDefinition, 0, len(config.Tools)+len(definition.delegates),
+		),
+		deferredToolNames: make(map[string]struct{}, len(config.DeferredTools)),
+		stream:            config.StreamModelResponses,
+		maxParallel:       maxParallel,
 	}
 	for index, executable := range config.Tools {
-		if isNilTool(executable) {
-			return nil, fmt.Errorf("%w: Tools[%d] is nil", ErrInvalidDispatcherConfig, index)
-		}
-		definition, err := toolDefinition(executable)
-		if err != nil {
+		if err := dispatcher.bindTool(executable, false); err != nil {
 			return nil, fmt.Errorf("%w: Tools[%d]: %w", ErrInvalidDispatcherConfig, index, err)
 		}
-		if _, duplicate := dispatcher.tools[definition.Name]; duplicate {
-			return nil, fmt.Errorf("%w: duplicate tool name %q", ErrInvalidDispatcherConfig, definition.Name)
+	}
+	for index, executable := range config.DeferredTools {
+		if err := dispatcher.bindTool(executable, true); err != nil {
+			return nil, fmt.Errorf("%w: DeferredTools[%d]: %w", ErrInvalidDispatcherConfig, index, err)
 		}
-		definition = definition.Clone()
-		direct, err := directResultCapability(executable)
-		if err != nil {
-			return nil, fmt.Errorf("%w: Tools[%d]: %w", ErrInvalidDispatcherConfig, index, err)
-		}
-		concurrent, err := concurrentToolCapability(executable)
-		if err != nil {
-			return nil, fmt.Errorf("%w: Tools[%d]: %w", ErrInvalidDispatcherConfig, index, err)
-		}
-		dispatcher.tools[definition.Name] = boundTool{
-			executable: executable,
-			direct:     direct,
-			concurrent: concurrent,
-		}
-		dispatcher.definitions = append(dispatcher.definitions, definition.Clone())
 	}
 	for _, delegate := range definition.delegates {
 		name := delegate.definition.Name
@@ -102,9 +96,43 @@ func NewDispatcher(definition *Definition, config DispatcherConfig) (*Dispatcher
 			return nil, fmt.Errorf("%w: Delegate name %q collides with a Tool", ErrInvalidDispatcherConfig, name)
 		}
 		dispatcher.delegates[name] = struct{}{}
-		dispatcher.definitions = append(dispatcher.definitions, delegate.definition.Clone())
+		dispatcher.initialDefinitions = append(
+			dispatcher.initialDefinitions, delegate.definition.Clone(),
+		)
 	}
 	return dispatcher, nil
+}
+
+func (dispatcher *Dispatcher) bindTool(executable tool.Tool, deferred bool) error {
+	if isNilTool(executable) {
+		return errors.New("tool is nil")
+	}
+	definition, err := toolDefinition(executable)
+	if err != nil {
+		return err
+	}
+	if _, duplicate := dispatcher.tools[definition.Name]; duplicate {
+		return fmt.Errorf("duplicate tool name %q", definition.Name)
+	}
+	direct, err := directResultCapability(executable)
+	if err != nil {
+		return err
+	}
+	concurrent, err := concurrentToolCapability(executable)
+	if err != nil {
+		return err
+	}
+	definition = definition.Clone()
+	dispatcher.tools[definition.Name] = boundTool{
+		executable: executable, definition: definition.Clone(), deferred: deferred,
+		direct: direct, concurrent: concurrent,
+	}
+	if deferred {
+		dispatcher.deferredToolNames[definition.Name] = struct{}{}
+	} else {
+		dispatcher.initialDefinitions = append(dispatcher.initialDefinitions, definition.Clone())
+	}
+	return nil
 }
 
 // Dispatch executes one validated Interaction protocol operation and returns a
@@ -125,9 +153,9 @@ func (dispatcher *Dispatcher) Dispatch(
 	}
 	switch envelope.Operation {
 	case operationModelCall:
-		return dispatcher.dispatchModel(ctx, request.ID(), envelope.ModelCall, emit)
+		return dispatcher.dispatchModel(ctx, request, envelope.ModelCall, emit)
 	case operationToolBatch:
-		return dispatcher.dispatchToolBatch(ctx, request.ID(), envelope.ToolBatch)
+		return dispatcher.dispatchToolBatch(ctx, request, envelope.ToolBatch)
 	default:
 		return agent.Settlement{}, errors.New("interaction: unsupported dispatcher operation")
 	}
@@ -142,24 +170,32 @@ func (*Dispatcher) ReplayPolicy(effect agent.Effect) agent.ReplayPolicy {
 
 func (dispatcher *Dispatcher) dispatchModel(
 	ctx context.Context,
-	effectID agent.EffectID,
+	request agent.EffectRequest,
 	call *modelCall,
 	emit agent.DeltaEmitter,
 ) (agent.Settlement, error) {
 	modelRequest := call.Request.Clone()
-	modelRequest.Tools = cloneDefinitions(dispatcher.definitions)
+	definitions, err := dispatcher.modelDefinitions(call.AdvertisedToolNames)
+	if err != nil {
+		return agent.Settlement{}, err
+	}
+	modelRequest.Tools = definitions
 	if err := modelRequest.Validate(); err != nil {
 		return agent.Settlement{}, fmt.Errorf("interaction: prepare model request: %w", err)
 	}
+	ctx = withModelInvocation(
+		ctx,
+		modelInvocationFromRequest(request, call.ModelCallSequence),
+	)
 	response, err := dispatcher.callModel(ctx, modelRequest, emit)
 	if err != nil {
-		return modelFailureSettlement(effectID, err)
+		return modelFailureSettlement(request.ID(), err)
 	}
 	if response == nil {
-		return modelFailureSettlement(effectID, errors.New("model returned a nil response"))
+		return modelFailureSettlement(request.ID(), errors.New("model returned a nil response"))
 	}
 	if err := response.Validate(); err != nil {
-		return modelFailureSettlement(effectID, fmt.Errorf("invalid model response: %w", err))
+		return modelFailureSettlement(request.ID(), fmt.Errorf("invalid model response: %w", err))
 	}
 	payload, err := encodeProtocol(signalEnvelope{
 		SchemaVersion: protocolSchemaVersion,
@@ -169,7 +205,22 @@ func (dispatcher *Dispatcher) dispatchModel(
 	if err != nil {
 		return agent.Settlement{}, err
 	}
-	return agent.NewSettlement(effectID, agent.SettlementStatusSucceeded, payload)
+	return agent.NewSettlement(request.ID(), agent.SettlementStatusSucceeded, payload)
+}
+
+func (dispatcher *Dispatcher) modelDefinitions(advertisedToolNames []string) ([]chat.ToolDefinition, error) {
+	if err := validateAdvertisedToolNames(advertisedToolNames); err != nil {
+		return nil, fmt.Errorf("interaction: advertised Tools: %w", err)
+	}
+	definitions := cloneDefinitions(dispatcher.initialDefinitions)
+	for _, name := range advertisedToolNames {
+		hosted, found := dispatcher.tools[name]
+		if !found || !hosted.deferred {
+			return nil, fmt.Errorf("interaction: tool %q is not a bound deferred Tool", name)
+		}
+		definitions = append(definitions, hosted.definition.Clone())
+	}
+	return definitions, nil
 }
 
 func modelFailureSettlement(effectID agent.EffectID, cause error) (agent.Settlement, error) {
@@ -186,7 +237,7 @@ func modelFailureSettlement(effectID agent.EffectID, cause error) (agent.Settlem
 
 func (dispatcher *Dispatcher) dispatchToolBatch(
 	ctx context.Context,
-	effectID agent.EffectID,
+	request agent.EffectRequest,
 	batch *toolBatchCall,
 ) (agent.Settlement, error) {
 	for _, call := range batch.Calls {
@@ -198,12 +249,14 @@ func (dispatcher *Dispatcher) dispatchToolBatch(
 		}
 	}
 	results := make([]chat.ToolResult, 0, len(batch.Calls))
+	advertisedToolNames := make([]string, 0)
 	start := 0
 	pauseCount := uint32(0)
 	var continuation *ToolInputContinuation
 	if batch.Checkpoint != nil {
 		checkpoint := batch.Checkpoint
 		results = append(results, checkpoint.CompletedResults...)
+		advertisedToolNames = append(advertisedToolNames, checkpoint.AdvertisedToolNames...)
 		start = int(checkpoint.NextToolCallIndex)
 		pauseCount = checkpoint.PauseCount
 		if pauseCount == ^uint32(0) {
@@ -218,20 +271,31 @@ func (dispatcher *Dispatcher) dispatchToolBatch(
 	if continuation != nil {
 		callContext := ctx
 		callContext = withToolInputContinuation(callContext, *continuation)
-		result, required, err := dispatcher.callTool(callContext, batch.Calls[start])
+		result, newlyAdvertised, required, err := dispatcher.callTool(
+			callContext,
+			request,
+			batch.ModelCallSequence,
+			batch.FirstToolCallIndex+uint32(start),
+			batch.Calls[start],
+		)
 		if err != nil {
 			return agent.Settlement{}, fmt.Errorf("interaction: tool call %q: %w", batch.Calls[start].ID, err)
 		}
 		if required != nil {
 			checkpoint := &toolCheckpoint{
-				CompletedResults:  append([]chat.ToolResult(nil), results...),
-				NextToolCallIndex: uint32(start),
-				PauseCount:        pauseCount + 1,
-				InputRequest:      wireInputRequest(*required),
+				CompletedResults:    append([]chat.ToolResult(nil), results...),
+				AdvertisedToolNames: append([]string(nil), advertisedToolNames...),
+				NextToolCallIndex:   uint32(start),
+				PauseCount:          pauseCount + 1,
+				InputRequest:        wireInputRequest(*required),
 			}
-			return toolCheckpointSettlement(effectID, checkpoint)
+			return toolCheckpointSettlement(request.ID(), checkpoint)
 		}
 		results = append(results, result)
+		advertisedToolNames, err = mergeAdvertisedToolNames(advertisedToolNames, newlyAdvertised)
+		if err != nil {
+			return agent.Settlement{}, err
+		}
 		start++
 	}
 
@@ -244,7 +308,13 @@ func (dispatcher *Dispatcher) dispatchToolBatch(
 		if dispatcher.maxParallel > 1 {
 			end = concurrentBatchEnd(plans, offset)
 		}
-		outcomes := dispatcher.callToolBatch(ctx, batch.Calls[start+offset:start+end])
+		outcomes := dispatcher.callToolBatch(
+			ctx,
+			request,
+			batch.ModelCallSequence,
+			batch.FirstToolCallIndex+uint32(start+offset),
+			batch.Calls[start+offset:start+end],
+		)
 		for index, outcome := range outcomes {
 			call := batch.Calls[start+offset+index]
 			if outcome.err != nil {
@@ -258,28 +328,39 @@ func (dispatcher *Dispatcher) dispatchToolBatch(
 					)
 				}
 				checkpoint := &toolCheckpoint{
-					CompletedResults:  append([]chat.ToolResult(nil), results...),
-					NextToolCallIndex: uint32(start + offset),
-					PauseCount:        pauseCount + 1,
-					InputRequest:      wireInputRequest(*outcome.required),
+					CompletedResults:    append([]chat.ToolResult(nil), results...),
+					AdvertisedToolNames: append([]string(nil), advertisedToolNames...),
+					NextToolCallIndex:   uint32(start + offset),
+					PauseCount:          pauseCount + 1,
+					InputRequest:        wireInputRequest(*outcome.required),
 				}
-				return toolCheckpointSettlement(effectID, checkpoint)
+				return toolCheckpointSettlement(request.ID(), checkpoint)
 			}
 		}
 		for _, outcome := range outcomes {
 			results = append(results, outcome.result)
+			advertisedToolNames, err = mergeAdvertisedToolNames(
+				advertisedToolNames,
+				outcome.advertisedToolNames,
+			)
+			if err != nil {
+				return agent.Settlement{}, err
+			}
 		}
 		offset = end
 	}
 	payload, err := encodeProtocol(signalEnvelope{
 		SchemaVersion: protocolSchemaVersion,
 		Operation:     operationToolBatch,
-		ToolResult:    &toolBatchResult{Results: results, Direct: allDirect},
+		ToolResult: &toolBatchResult{
+			Results: results, Direct: allDirect,
+			AdvertisedToolNames: advertisedToolNames,
+		},
 	})
 	if err != nil {
 		return agent.Settlement{}, err
 	}
-	return agent.NewSettlement(effectID, agent.SettlementStatusSucceeded, payload)
+	return agent.NewSettlement(request.ID(), agent.SettlementStatusSucceeded, payload)
 }
 
 func toolCheckpointSettlement(
@@ -299,18 +380,33 @@ func toolCheckpointSettlement(
 
 func (dispatcher *Dispatcher) callTool(
 	ctx context.Context,
+	request agent.EffectRequest,
+	modelCallSequence uint32,
+	toolCallIndex uint32,
 	call chat.ToolCall,
-) (result chat.ToolResult, required *ToolInputRequest, err error) {
+) (
+	result chat.ToolResult,
+	advertisedToolNames []string,
+	required *ToolInputRequest,
+	err error,
+) {
 	hosted, found := dispatcher.tools[call.Name]
 	if !found {
 		return chat.ToolResult{
 			ID: call.ID, Name: call.Name,
 			Result: fmt.Sprintf("error: tool %q is not available", call.Name), IsError: true,
-		}, nil, nil
+		}, nil, nil, nil
 	}
+	invocation := toolInvocationFromRequest(
+		request, modelCallSequence, toolCallIndex, call,
+	)
+	advertiser := newToolAdvertiser(dispatcher.deferredToolNames)
+	ctx = withToolInvocation(ctx, invocation)
+	ctx = withToolAdvertiser(ctx, advertiser)
 	defer func() {
 		if recovered := recover(); recovered != nil {
 			result = chat.ToolResult{}
+			advertisedToolNames = nil
 			required = nil
 			err = fmt.Errorf("tool panicked: %v", recovered)
 		}
@@ -318,22 +414,23 @@ func (dispatcher *Dispatcher) callTool(
 	output, err := hosted.executable.Call(ctx, call.Arguments)
 	if err != nil {
 		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-			return chat.ToolResult{}, nil, err
+			return chat.ToolResult{}, nil, nil, err
 		}
 		var inputRequired *ToolInputRequiredError
 		if errors.As(err, &inputRequired) {
 			request, valid := inputRequired.inputRequest()
 			if !valid {
-				return chat.ToolResult{}, nil, ErrInvalidToolInputRequest
+				return chat.ToolResult{}, nil, nil, ErrInvalidToolInputRequest
 			}
-			return chat.ToolResult{}, &request, nil
+			return chat.ToolResult{}, nil, &request, nil
 		}
 		return chat.ToolResult{
 			ID: call.ID, Name: call.Name,
 			Result: fmt.Sprintf("error: tool %q failed: %s", call.Name, boundedDiagnostic(err.Error())), IsError: true,
-		}, nil, nil
+		}, nil, nil, nil
 	}
-	return chat.ToolResult{ID: call.ID, Name: call.Name, Result: output}, nil, nil
+	return chat.ToolResult{ID: call.ID, Name: call.Name, Result: output},
+		advertiser.advertisedNames(), nil, nil
 }
 
 func (dispatcher *Dispatcher) allCallsDirect(calls []chat.ToolCall) bool {

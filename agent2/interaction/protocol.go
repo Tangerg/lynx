@@ -4,11 +4,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 
 	"github.com/Tangerg/lynx/core/chat"
 )
 
-const protocolSchemaVersion uint16 = 2
+const protocolSchemaVersion uint16 = 3
 
 type operation string
 
@@ -33,13 +34,17 @@ type effectEnvelope struct {
 }
 
 type modelCall struct {
-	Request chat.Request `json:"request"`
+	ModelCallSequence   uint32       `json:"model_call_sequence"`
+	Request             chat.Request `json:"request"`
+	AdvertisedToolNames []string     `json:"advertised_tool_names,omitempty"`
 }
 
 type toolBatchCall struct {
-	Calls         []chat.ToolCall `json:"calls"`
-	Checkpoint    *toolCheckpoint `json:"checkpoint,omitempty"`
-	InputResponse json.RawMessage `json:"input_response,omitempty"`
+	ModelCallSequence  uint32          `json:"model_call_sequence"`
+	FirstToolCallIndex uint32          `json:"first_tool_call_index"`
+	Calls              []chat.ToolCall `json:"calls"`
+	Checkpoint         *toolCheckpoint `json:"checkpoint,omitempty"`
+	InputResponse      json.RawMessage `json:"input_response,omitempty"`
 }
 
 type signalEnvelope struct {
@@ -62,16 +67,18 @@ type steerInput struct {
 }
 
 type toolBatchResult struct {
-	Results    []chat.ToolResult `json:"results"`
-	Direct     bool              `json:"direct"`
-	Checkpoint *toolCheckpoint   `json:"checkpoint,omitempty"`
+	Results             []chat.ToolResult `json:"results"`
+	Direct              bool              `json:"direct"`
+	AdvertisedToolNames []string          `json:"advertised_tool_names,omitempty"`
+	Checkpoint          *toolCheckpoint   `json:"checkpoint,omitempty"`
 }
 
 type toolCheckpoint struct {
-	CompletedResults  []chat.ToolResult `json:"completed_results"`
-	NextToolCallIndex uint32            `json:"next_tool_call_index"`
-	PauseCount        uint32            `json:"pause_count"`
-	InputRequest      inputRequestWire  `json:"input_request"`
+	CompletedResults    []chat.ToolResult `json:"completed_results"`
+	AdvertisedToolNames []string          `json:"advertised_tool_names,omitempty"`
+	NextToolCallIndex   uint32            `json:"next_tool_call_index"`
+	PauseCount          uint32            `json:"pause_count"`
+	InputRequest        inputRequestWire  `json:"input_request"`
 }
 
 type inputRequestWire struct {
@@ -91,9 +98,19 @@ func (wire inputRequestWire) inputRequest() (ToolInputRequest, error) {
 	return NewToolInputRequest(wire.Prompt, wire.ResponseSchema, wire.ContinuationState)
 }
 
-func newModelEffect(request *chat.Request) (effectEnvelope, error) {
+func newModelEffect(
+	request *chat.Request,
+	modelCallSequence uint32,
+	advertisedToolNames []string,
+) (effectEnvelope, error) {
 	if request == nil {
 		return effectEnvelope{}, errors.New("interaction: model request is nil")
+	}
+	if modelCallSequence == 0 {
+		return effectEnvelope{}, errors.New("interaction: model call sequence is required")
+	}
+	if err := validateAdvertisedToolNames(advertisedToolNames); err != nil {
+		return effectEnvelope{}, fmt.Errorf("interaction: advertised Tools: %w", err)
 	}
 	cloned := request.Clone()
 	if err := cloned.Validate(); err != nil {
@@ -102,17 +119,28 @@ func newModelEffect(request *chat.Request) (effectEnvelope, error) {
 	return effectEnvelope{
 		SchemaVersion: protocolSchemaVersion,
 		Operation:     operationModelCall,
-		ModelCall:     &modelCall{Request: *cloned},
+		ModelCall: &modelCall{
+			ModelCallSequence: modelCallSequence,
+			Request:           *cloned, AdvertisedToolNames: slices.Clone(advertisedToolNames),
+		},
 	}, nil
 }
 
 func newToolBatchEffect(
+	modelCallSequence uint32,
+	firstToolCallIndex uint32,
 	calls []chat.ToolCall,
 	checkpoint *toolCheckpoint,
 	inputResponse json.RawMessage,
 ) (effectEnvelope, error) {
+	if modelCallSequence == 0 {
+		return effectEnvelope{}, errors.New("interaction: model call sequence is required")
+	}
 	if len(calls) == 0 {
-		return effectEnvelope{}, errors.New("interaction: tool batch is empty")
+		return effectEnvelope{}, errors.New("interaction: Tool batch is empty")
+	}
+	if uint64(firstToolCallIndex)+uint64(len(calls)) > uint64(^uint32(0))+1 {
+		return effectEnvelope{}, errors.New("interaction: Tool batch index range overflows")
 	}
 	cloned := append([]chat.ToolCall(nil), calls...)
 	for index := range cloned {
@@ -120,7 +148,11 @@ func newToolBatchEffect(
 			return effectEnvelope{}, fmt.Errorf("interaction: tool batch call %d: %w", index, err)
 		}
 	}
-	batch := &toolBatchCall{Calls: cloned}
+	batch := &toolBatchCall{
+		ModelCallSequence:  modelCallSequence,
+		FirstToolCallIndex: firstToolCallIndex,
+		Calls:              cloned,
+	}
 	if checkpoint != nil {
 		if err := checkpoint.validate(cloned); err != nil {
 			return effectEnvelope{}, err
@@ -153,14 +185,20 @@ func (envelope effectEnvelope) validate() error {
 	}
 	switch envelope.Operation {
 	case operationModelCall:
-		if envelope.ModelCall == nil || envelope.ToolBatch != nil {
+		if envelope.ModelCall == nil || envelope.ToolBatch != nil ||
+			envelope.ModelCall.ModelCallSequence == 0 {
 			return errors.New("interaction: model_call effect has an invalid payload set")
 		}
 		if err := envelope.ModelCall.Request.Validate(); err != nil {
 			return fmt.Errorf("interaction: model_call request: %w", err)
 		}
+		if err := validateAdvertisedToolNames(envelope.ModelCall.AdvertisedToolNames); err != nil {
+			return fmt.Errorf("interaction: model_call advertised Tools: %w", err)
+		}
 	case operationToolBatch:
-		if envelope.ModelCall != nil || envelope.ToolBatch == nil || len(envelope.ToolBatch.Calls) == 0 {
+		if envelope.ModelCall != nil || envelope.ToolBatch == nil ||
+			envelope.ToolBatch.ModelCallSequence == 0 || len(envelope.ToolBatch.Calls) == 0 ||
+			uint64(envelope.ToolBatch.FirstToolCallIndex)+uint64(len(envelope.ToolBatch.Calls)) > uint64(^uint32(0))+1 {
 			return errors.New("interaction: tool_batch effect has an invalid payload set")
 		}
 		for index := range envelope.ToolBatch.Calls {
@@ -214,8 +252,8 @@ func (envelope signalEnvelope) validate() error {
 			return errors.New("interaction: tool_result requires complete results or a checkpoint")
 		}
 		if envelope.ToolResult.Checkpoint != nil {
-			if envelope.ToolResult.Direct {
-				return errors.New("interaction: paused tool_result cannot be direct")
+			if envelope.ToolResult.Direct || len(envelope.ToolResult.AdvertisedToolNames) != 0 {
+				return errors.New("interaction: paused tool_result must carry only its checkpoint")
 			}
 			if _, err := envelope.ToolResult.Checkpoint.InputRequest.inputRequest(); err != nil {
 				return err
@@ -226,6 +264,9 @@ func (envelope signalEnvelope) validate() error {
 					return fmt.Errorf("interaction: tool_result %d: %w", index, err)
 				}
 			}
+		}
+		if err := validateAdvertisedToolNames(envelope.ToolResult.AdvertisedToolNames); err != nil {
+			return fmt.Errorf("interaction: tool_result advertised Tools: %w", err)
 		}
 	case operationWaitOpened:
 		if envelope.ModelResult != nil || envelope.ToolResult != nil || envelope.WaitOpened == nil || len(envelope.InputResponse) != 0 || envelope.Steer != nil {
@@ -255,6 +296,7 @@ func (envelope signalEnvelope) validate() error {
 func (checkpoint toolCheckpoint) clone() toolCheckpoint {
 	cloned := checkpoint
 	cloned.CompletedResults = append([]chat.ToolResult(nil), checkpoint.CompletedResults...)
+	cloned.AdvertisedToolNames = slices.Clone(checkpoint.AdvertisedToolNames)
 	cloned.InputRequest.Prompt = append(json.RawMessage(nil), checkpoint.InputRequest.Prompt...)
 	cloned.InputRequest.ResponseSchema = append(json.RawMessage(nil), checkpoint.InputRequest.ResponseSchema...)
 	cloned.InputRequest.ContinuationState = append(json.RawMessage(nil), checkpoint.InputRequest.ContinuationState...)
@@ -268,6 +310,9 @@ func (checkpoint toolCheckpoint) validate(calls []chat.ToolCall) error {
 	}
 	if _, err := checkpoint.InputRequest.inputRequest(); err != nil {
 		return fmt.Errorf("interaction: tool checkpoint input: %w", err)
+	}
+	if err := validateAdvertisedToolNames(checkpoint.AdvertisedToolNames); err != nil {
+		return fmt.Errorf("interaction: tool checkpoint advertised Tools: %w", err)
 	}
 	for index := range checkpoint.CompletedResults {
 		result := checkpoint.CompletedResults[index]

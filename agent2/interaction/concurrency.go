@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sync"
 
+	agent "github.com/Tangerg/lynx/agent2"
 	"github.com/Tangerg/lynx/core/chat"
 )
 
@@ -14,9 +15,10 @@ type toolCallPlan struct {
 }
 
 type toolCallOutcome struct {
-	result   chat.ToolResult
-	required *ToolInputRequest
-	err      error
+	result              chat.ToolResult
+	advertisedToolNames []string
+	required            *ToolInputRequest
+	err                 error
 }
 
 func (dispatcher *Dispatcher) planToolCalls(calls []chat.ToolCall) ([]toolCallPlan, error) {
@@ -77,11 +79,17 @@ func concurrentBatchEnd(plans []toolCallPlan, start int) int {
 
 func (dispatcher *Dispatcher) callToolBatch(
 	ctx context.Context,
+	request agent.EffectRequest,
+	modelCallSequence uint32,
+	firstToolCallIndex uint32,
 	calls []chat.ToolCall,
 ) []toolCallOutcome {
 	outcomes := make([]toolCallOutcome, len(calls))
 	if len(calls) == 1 {
-		outcomes[0].result, outcomes[0].required, outcomes[0].err = dispatcher.callTool(ctx, calls[0])
+		outcomes[0].result, outcomes[0].advertisedToolNames,
+			outcomes[0].required, outcomes[0].err = dispatcher.callTool(
+			ctx, request, modelCallSequence, firstToolCallIndex, calls[0],
+		)
 		return outcomes
 	}
 
@@ -93,8 +101,14 @@ func (dispatcher *Dispatcher) callToolBatch(
 		go func() {
 			defer group.Done()
 			for index := range jobs {
-				outcomes[index].result, outcomes[index].required, outcomes[index].err =
-					dispatcher.callTool(ctx, calls[index])
+				outcomes[index].result, outcomes[index].advertisedToolNames,
+					outcomes[index].required, outcomes[index].err = dispatcher.callTool(
+					ctx,
+					request,
+					modelCallSequence,
+					firstToolCallIndex+uint32(index),
+					calls[index],
+				)
 			}
 		}()
 	}

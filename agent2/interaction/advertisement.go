@@ -1,0 +1,122 @@
+package interaction
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"slices"
+	"strings"
+	"sync"
+)
+
+var (
+	// ErrToolAdvertisementUnavailable reports an AdvertiseTools call made
+	// outside an active Interaction Tool invocation.
+	ErrToolAdvertisementUnavailable = errors.New("interaction: tool advertisement unavailable")
+	// ErrInvalidToolAdvertisement reports an empty, unknown, or initially
+	// advertised Tool name supplied to AdvertiseTools.
+	ErrInvalidToolAdvertisement = errors.New("interaction: invalid tool advertisement")
+)
+
+type toolAdvertisementContextKey struct{}
+
+// AdvertiseTools stages already-bound deferred Tools for model visibility from
+// the next model call onward. The change commits only if the current Tool call
+// succeeds. It never adds executable authority. Names must be exact deferred
+// Tool names; repeated names are idempotent.
+func AdvertiseTools(ctx context.Context, names ...string) error {
+	if ctx == nil {
+		return ErrToolAdvertisementUnavailable
+	}
+	advertiser, present := ctx.Value(toolAdvertisementContextKey{}).(*toolAdvertiser)
+	if !present || advertiser == nil {
+		return ErrToolAdvertisementUnavailable
+	}
+	return advertiser.advertise(names)
+}
+
+type toolAdvertiser struct {
+	mu      sync.Mutex
+	allowed map[string]struct{}
+	seen    map[string]struct{}
+	names   []string
+}
+
+func newToolAdvertiser(allowed map[string]struct{}) *toolAdvertiser {
+	return &toolAdvertiser{
+		allowed: allowed,
+		seen:    make(map[string]struct{}),
+	}
+}
+
+func (advertiser *toolAdvertiser) advertise(names []string) error {
+	if len(names) == 0 {
+		return fmt.Errorf("%w: at least one Tool name is required", ErrInvalidToolAdvertisement)
+	}
+	advertiser.mu.Lock()
+	defer advertiser.mu.Unlock()
+	for _, name := range names {
+		if name == "" || strings.TrimSpace(name) != name {
+			return fmt.Errorf("%w: tool name %q is empty or has surrounding whitespace", ErrInvalidToolAdvertisement, name)
+		}
+		if _, allowed := advertiser.allowed[name]; !allowed {
+			return fmt.Errorf("%w: tool %q is not deferred", ErrInvalidToolAdvertisement, name)
+		}
+	}
+	for _, name := range names {
+		if _, duplicate := advertiser.seen[name]; duplicate {
+			continue
+		}
+		advertiser.seen[name] = struct{}{}
+		advertiser.names = append(advertiser.names, name)
+	}
+	return nil
+}
+
+func (advertiser *toolAdvertiser) advertisedNames() []string {
+	advertiser.mu.Lock()
+	defer advertiser.mu.Unlock()
+	return slices.Clone(advertiser.names)
+}
+
+func withToolAdvertiser(ctx context.Context, advertiser *toolAdvertiser) context.Context {
+	return context.WithValue(ctx, toolAdvertisementContextKey{}, advertiser)
+}
+
+func validateAdvertisedToolNames(names []string) error {
+	seen := make(map[string]struct{}, len(names))
+	for index, name := range names {
+		if name == "" || strings.TrimSpace(name) != name {
+			return fmt.Errorf("advertised Tool name %d is empty or has surrounding whitespace", index)
+		}
+		if _, duplicate := seen[name]; duplicate {
+			return fmt.Errorf("advertised Tool name %q is duplicated", name)
+		}
+		seen[name] = struct{}{}
+	}
+	return nil
+}
+
+func mergeAdvertisedToolNames(current []string, additions ...[]string) ([]string, error) {
+	if err := validateAdvertisedToolNames(current); err != nil {
+		return nil, err
+	}
+	merged := slices.Clone(current)
+	seen := make(map[string]struct{}, len(current))
+	for _, name := range current {
+		seen[name] = struct{}{}
+	}
+	for _, names := range additions {
+		if err := validateAdvertisedToolNames(names); err != nil {
+			return nil, err
+		}
+		for _, name := range names {
+			if _, duplicate := seen[name]; duplicate {
+				continue
+			}
+			seen[name] = struct{}{}
+			merged = append(merged, name)
+		}
+	}
+	return merged, nil
+}

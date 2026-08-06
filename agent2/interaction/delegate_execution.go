@@ -43,7 +43,7 @@ func (execution *execution) startDelegateSegment(
 			segment.Invocations[offset].ToolResult = &result
 			continue
 		}
-		key, err := delegateChildKey(execution.state.ModelCallCount, call)
+		key, err := DelegateChildKey(execution.state.ModelCallCount, call)
 		if err != nil {
 			return agent.Transition{}, false, err
 		}
@@ -330,13 +330,22 @@ func delegateErrorResult(call chat.ToolCall, diagnostic string) chat.ToolResult 
 	}
 }
 
-func delegateChildKey(modelCallCount uint32, call chat.ToolCall) (agent.ChildKey, error) {
+// DelegateChildKey derives the exact managed ChildKey used for one Delegate
+// ToolCall. Consumers can use the same value to correlate model observation
+// with the child Process without exposing ToolCall to the Kernel.
+func DelegateChildKey(modelCallSequence uint32, toolCall chat.ToolCall) (agent.ChildKey, error) {
+	if modelCallSequence == 0 {
+		return agent.ChildKey{}, fmt.Errorf("%w: model call sequence is required", ErrInvalidDelegate)
+	}
+	if err := toolCall.Validate(); err != nil {
+		return agent.ChildKey{}, fmt.Errorf("%w: ToolCall: %w", ErrInvalidDelegate, err)
+	}
 	hash := sha256.New()
-	hash.Write([]byte(strconv.FormatUint(uint64(modelCallCount), 10)))
+	hash.Write([]byte(strconv.FormatUint(uint64(modelCallSequence), 10)))
 	hash.Write([]byte{0})
-	hash.Write([]byte(call.ID))
+	hash.Write([]byte(toolCall.ID))
 	hash.Write([]byte{0})
-	hash.Write([]byte(call.Name))
+	hash.Write([]byte(toolCall.Name))
 	return agent.ParseChildKey("interaction.delegate.child." + hex.EncodeToString(hash.Sum(nil)))
 }
 

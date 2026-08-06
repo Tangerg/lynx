@@ -103,7 +103,7 @@ func fuzzInteractionStates(f testing.TB, definition *Definition) []agent.Executi
 	response := &chat.Response{Choices: []chat.Choice{{
 		Index: 0, Message: &message, FinishReason: chat.FinishReasonToolCalls,
 	}}}
-	key, _ := delegateChildKey(1, call)
+	key, _ := DelegateChildKey(1, call)
 	processID, _ := agent.ParseProcessID("process:fuzz-child")
 	waitID, _ := agent.ParseWaitID("wait:fuzz-child")
 	artifactOutput, _ := agent.EncodeOutput(fuzzDelegateOutput{Result: "settled"})

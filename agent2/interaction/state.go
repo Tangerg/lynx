@@ -43,6 +43,7 @@ type executionState struct {
 	Phase                    phase                 `json:"phase"`
 	WorkingContext           *chat.Request         `json:"working_context"`
 	ModelCallCount           uint32                `json:"model_call_count"`
+	AdvertisedToolNames      []string              `json:"advertised_tool_names,omitempty"`
 	PendingModelResponse     *chat.Response        `json:"pending_model_response,omitempty"`
 	NextToolCallIndex        uint32                `json:"next_tool_call_index,omitempty"`
 	ActiveToolCallEndIndex   uint32                `json:"active_tool_call_end_index,omitempty"`
@@ -92,6 +93,9 @@ func (state executionState) Validate(definition *Definition) error {
 	}
 	if state.ModelCallCount > definition.maxModelCalls {
 		return fmt.Errorf("%w: model call count exceeds configured limit", ErrInvalidExecutionState)
+	}
+	if err := validateAdvertisedToolNames(state.AdvertisedToolNames); err != nil {
+		return fmt.Errorf("%w: advertised Tools: %w", ErrInvalidExecutionState, err)
 	}
 	if err := state.validateArtifacts(definition); err != nil {
 		return err

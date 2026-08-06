@@ -79,7 +79,12 @@ func (execution *execution) requestModel(consumedSignals uint32) (agent.Transiti
 			"Interaction reached its configured model-call limit before a final response",
 		)
 	}
-	envelope, err := newModelEffect(execution.state.WorkingContext)
+	modelCallSequence := execution.state.ModelCallCount + 1
+	envelope, err := newModelEffect(
+		execution.state.WorkingContext,
+		modelCallSequence,
+		execution.state.AdvertisedToolNames,
+	)
 	if err != nil {
 		return agent.Transition{}, err
 	}
@@ -91,7 +96,7 @@ func (execution *execution) requestModel(consumedSignals uint32) (agent.Transiti
 	if err != nil {
 		return agent.Transition{}, err
 	}
-	execution.state.ModelCallCount++
+	execution.state.ModelCallCount = modelCallSequence
 	execution.state.Phase = phaseAwaitingModel
 	return agent.Continue(consumedSignals, effect)
 }
@@ -170,6 +175,14 @@ func (execution *execution) acceptTools(signals []agent.Signal) (agent.Transitio
 	if err := validateToolResults(calls, results); err != nil {
 		return agent.Transition{}, err
 	}
+	advertisedToolNames, err := mergeAdvertisedToolNames(
+		execution.state.AdvertisedToolNames,
+		envelope.ToolResult.AdvertisedToolNames,
+	)
+	if err != nil {
+		return agent.Transition{}, fmt.Errorf("%w: advertised Tools: %w", ErrInvalidExecutionState, err)
+	}
+	execution.state.AdvertisedToolNames = advertisedToolNames
 	execution.state.SettledToolResults = append(execution.state.SettledToolResults, results...)
 	execution.state.NextToolCallIndex = execution.state.ActiveToolCallEndIndex
 	execution.state.DirectToolResultEligible = execution.state.DirectToolResultEligible && envelope.ToolResult.Direct
@@ -275,7 +288,13 @@ func (execution *execution) acceptInputResponse(signals []agent.Signal) (agent.T
 	if err != nil {
 		return agent.Transition{}, err
 	}
-	effectEnvelope, err := newToolBatchEffect(calls, execution.state.ToolCheckpoint, response)
+	effectEnvelope, err := newToolBatchEffect(
+		execution.state.ModelCallCount,
+		execution.state.NextToolCallIndex,
+		calls,
+		execution.state.ToolCheckpoint,
+		response,
+	)
 	if err != nil {
 		return agent.Transition{}, err
 	}
@@ -405,7 +424,13 @@ func (execution *execution) advanceToolCallBatch(consumedSignals uint32) (agent.
 			}
 			end++
 		}
-		effectEnvelope, err := newToolBatchEffect(calls[execution.state.NextToolCallIndex:end], nil, nil)
+		effectEnvelope, err := newToolBatchEffect(
+			execution.state.ModelCallCount,
+			execution.state.NextToolCallIndex,
+			calls[execution.state.NextToolCallIndex:end],
+			nil,
+			nil,
+		)
 		if err != nil {
 			return agent.Transition{}, err
 		}
