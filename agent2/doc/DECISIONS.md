@@ -311,3 +311,13 @@
 - 决策：validator 不接收 context、Engine、Process、Dispatcher 或 Host capability，不允许 I/O、时钟、随机数、共享写入或 goroutine；其实现身份必须进入 Deployment ConfigurationDigest。需要外部评价的逻辑必须以 exact managed child Definition 组合。`MaxModelCalls` 继续是唯一局部轮次硬上限；validator 拒绝后已耗尽时沿用 `interaction.limit.model_calls`，不会返回未接受的候选。
 - 决策：artifact record 进入 Interaction 私有 ExecutionState v3，strict restore 验证顺序、同轮 ToolCall identity、Delegate 存在性与 Output schema；v2 不兼容读取，不增加 Kernel、Process Snapshot v3 或 TreeSnapshot v1 字段。最终 `interaction.Output` 不自动变成产品 artifact store；需要向下游输出哪些业务结果由组合 Definition 自己声明。
 - 原因：artifact 是 Interaction 推进和完成判断所需的 typed evidence，不是共同生命周期事实；completion rule 是 Strategy policy，不是 Engine terminal status。把两者留在 Interaction 可以保住 schema、恢复与模型反馈语义，同时避免重新创造 Blackboard、Supervisor Strategy 或第二执行入口。
+
+## ADR-A2-042：orchestrator-worker 只形成既有 Strategy 的组合合同
+
+- 状态：已接受；以真实消费者落实 ADR-A2-020，并约束 ADR-A2-040/041 的组合边界。
+- 证据：独立 `examples/orchestrator_workers` command 只使用 Baseline 3 公开 API，完成 decomposer Interaction → typed task list → 有界 Workflow Map → 三个 exact worker child → synthesizer Interaction；最终 tree 恰好是 root、两个 Interaction child 和三个 worker child。另一个公开 API 行为测试由同一 Interaction 在一个 ToolCall batch 中选择两个 exact Planning Delegates，两个 GOAP child 分别达到可观察 Goal，模型读取有序结果后完成，validator 再从两个 typed `planning.Output` artifacts 独立确认成功；tree 恰好是 Interaction root 和两个 Planning child。
+- 决策：不增加 `supervisor` package、Strategy、ExecutionState kind、dispatcher、scheduler、registry 或 helper facade。模型直接选择已知 worker 时使用 exact Delegate；模型先动态产生任务集合而调度必须确定时，任务分解和综合分别是 Interaction child，Workflow Map 只负责显式 item limit、固定 window、exact child lifecycle 与声明顺序聚合。两者可以嵌套，但不形成第二 Process 创建或恢复入口。
+- 决策：通用 Task/Result/Worker 接口不进入 Framework。task schema、result schema、拆分 prompt、worker 语义、综合规则和 completion policy 均由组合消费者拥有；Framework 只校验各 Definition Descriptor 和相邻 Workflow Stage schema。若未来 P8 需要动态 catalog 选择，必须另行定义版本、权限与 exact DeploymentRef 决策，不能把本轮 exact binding 偷换成字符串 worker registry。
+- 决策：Planning 只有在子任务拥有可机器观察的 WorldState、Goal 与诚实 Action 预测时才可作为 exact worker。父 Interaction/Workflow 只看其 Input/Output 和 Process 终态，不读取 Plan/Action 内部状态，不驱动 Planning Step，也不把 Planning 当作开放式文本转换器。开放式 worker 继续使用 Interaction 或消费方 Definition。
+- 决策：本轮没有新公共 API、私有 ExecutionState 或 snapshot/tree wire。组合恢复、窗口与 Delegate artifact 的正确性分别由 P4/P6/P7-02～03 已有合同承担；本轮消费者证明这些合同可以无特权地跨 Strategy 闭合，不复制同一状态机。
+- 原因：orchestrator-worker 的独特之处是路径由模型按输入决定，不是独立的生命周期。既有 Interaction 已拥有模型决策，Workflow 已拥有确定调度，Engine 已拥有 child Process；再包一层 Supervisor 只会重复术语、状态和恢复事实源。

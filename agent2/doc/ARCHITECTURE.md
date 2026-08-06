@@ -428,6 +428,10 @@ GOAP 适合目标可机器验证、存在多条路径、Action 前置条件/效�
 
 旧语境中所谓 Supervisor 当前统一称为 orchestrator-worker 组合：它由 Interaction、Workflow、managed Delegate、typed artifacts、completion validator 和 child Process 构成，不是独立 Strategy、独立 ExecutionState kind 或预建 package。只有未来实现证明它具有这些既有能力无法表达的独立推进与恢复语义，才通过新 ADR 重新申请 Strategy 准入。
 
+orchestrator-worker 有两种正交且可组合的形态。模型需要直接选择少量已知 worker 时，Interaction 把 exact Deployment 暴露为 Delegate，模型的 ToolCall 直接创建对应 child Process。任务集合由模型按输入动态拆分、但调度顺序、窗口、数量上限和聚合必须确定时，decomposer Interaction 先输出 consumer-owned typed task list，Workflow Map 再为每项创建 exact worker child，最后由另一个 Interaction 综合有序 typed results。两种形态都只使用既有 Process 窄腰；Framework 不增加通用 Worker、Task、Result、Team、Supervisor 或共享 Blackboard 类型。
+
+Planning 可以作为 exact worker Deployment，但仅适用于其目标能够由 WorldState/Goal 验证、Action 具有诚实预测语义的子任务。编排层只能提交该 Planning Definition 的 Input 并消费其 Output，不能检查计划、逐步遥控 Action、把 Planning 当作任意内容变换器，或把业务 task/result schema 下沉进 Planning/Workflow。开放式分析 worker 应使用 Interaction 或消费方自己的 Definition。
+
 Interaction 的 typed artifact 只代表已成功完成、再次通过 exact Delegate Output schema 的 child 结果。它以模型轮次与 ToolCall 位置保持稳定顺序，在 ExecutionState 中保存 portable `agent.Output`，对 validator 则只暴露 immutable `Artifact`、exact Delegate name 与 erased/typed decode 边缘。普通 Tool 结果、参数违约、start failure、非 Completed child 和任意 `IsError` ToolResult 都不是 artifact；Framework 不按 Go type name 猜测、不过滤 `any`、不发布到共享 Blackboard，也不拥有产品 artifact store。若应用要长期保存或跨 Process 分享结果，必须在自己的 Definition Output 或 Host 聚合中显式建模。
 
 completion validator 是 Interaction Definition 冻结的有界、确定、无副作用纯函数，只在模型最终响应或 direct-Tool 结果形成候选完成时读取独立复制的当前 WorkingContext、candidate Output 与 artifacts。WorkingContext 是该 Execution 的模型上下文，不是 Host conversation/transcript，并且尚未包含当前候选。validator 返回显式二选一：接受；或拒绝并给出非空、有界 feedback。拒绝时，候选上下文与 feedback 作为下一轮 user message 进入 WorkingContext，仍由正数 `MaxModelCalls` 限制；耗尽以稳定 execution failure 终止，不能把未接受候选伪装成完成。需要模型、Tool、网络或其他外部判断的 evaluator 必须是 P7 组合中的 managed child Process，不能藏进 validator callback。
@@ -503,7 +507,7 @@ Process tree 是执行、取消、预算和恢复的共同单位。如果未来�
 | Routing | `flow.Switch`、Workflow Switch 或 Platform 路由 | 代码、分类器或模型 |
 | Parallel Sectioning | `flow.Map`/`flowx.FanOut` 或 Workflow Fork/Map | 代码 |
 | Parallel Voting | `flow` 并行组合，或 Workflow Fork + typed reducer | 代码 |
-| Orchestrator-workers | Interaction 与 child Process 组合 | 模型 |
+| Orchestrator-workers | Interaction Delegate，或 decomposer Interaction + Workflow Map + synthesizer Interaction；worker 始终是 child Process | 模型拆分/选择，Workflow 只确定调度与聚合 |
 | Evaluator-optimizer | `flow.Loop` 或 Workflow Loop + evaluator child | 代码控制循环，可由模型评估 |
 | Autonomous Agent | Interaction + tools +环境反馈 +停止条件 | 模型 |
 | Pattern Composition | `flow`、Workflow、Interaction 与 child Process 按生命周期边界组合 | 代码与模型按边界组合 |

@@ -317,3 +317,11 @@
 - 真实跨 Strategy 测试先由 Workflow child 产生 typed Delegate output，再让模型给出过早答案；validator 成功严格解码 artifact 后拒绝，下一模型请求精确保留原 assistant candidate 并追加 actionable user feedback，第三轮被接受。测试同时篡改 `Artifacts.All()` 返回切片，证明无法反向修改 Execution state。
 - direct-result 测试证明同一 validator 能拒绝 `CompletionSourceDirectToolResults`，并精确保留 assistant ToolCall、ToolResult、feedback 顺序；模型最终响应随后正常完成。零值/矛盾 decision 进入稳定 contract failure，validator error 与 panic 分别保留 execution/panic 分类；拒绝后达到 `MaxModelCalls` 进入既有稳定 limit failure，不泄漏未接受候选。
 - strict restore 单测拒绝未知 Delegate、错误 Output schema、重复 ToolCall identity 与逆序 artifact；state fuzz 新增携带 settled artifact 的 awaiting-model seed。实现只修改 Interaction 私有 state 和 Interaction API，没有新增 Kernel 字段、Supervisor package、产品 Store 或第二 dispatcher/lifecycle。
+
+### 11.4 Orchestrator-worker 组合实现证据
+
+- `examples/orchestrator_workers` 是独立可运行 command consumer，不依赖 test-only helper 或内部协议。一个 decomposer Interaction 按输入生成 consumer-owned `[]workerTask`，Workflow Map 以 `ItemLimit=8`、`WindowSize=2` 创建三个 exact worker child 并按任务顺序收集 typed results，另一个 synthesizer Interaction 生成最终 consumer-owned report。最终 TreeSnapshot 恰好包含 root + decomposer + 三个 worker + synthesizer 六个 Process。
+- 同一 consumer 的行为测试证明另一条正交路径：Interaction 将同一个 exact Planning Deployment 暴露为 Delegate，模型同轮选择两个不同 typed task；两个 GOAP child 各自 observe/plan/act/reobserve 并达到 Goal，返回两个 `planning.Output`。模型从有序 ToolResult 综合答案，completion validator 从 immutable artifacts 独立严格解码并确认两个 Outcome 均为 Achieved；最终树恰好包含 root + 两个 exact Planning child。
+- 两条路径都只经 Engine `StartChild`/`WaitForChildren`、exact DeploymentRef、Descriptor schema 和既有 Strategy state 推进。代码没有增加 Supervisor/Worker/Task/Team package 或公共类型，没有让 Tool/Dispatcher 持有 Engine，没有让 Workflow 解析模型语义，也没有让父级检查或遥控 Planning 的 Plan/Action。
+- 组合审计确认：动态选择少量 known worker 用 Delegate；动态任务列表需要确定的限量、窗口、顺序和恢复时，用 Interaction 输出 typed plan，再交给 Workflow Map；Planning 只服务可机器验证 Goal 的 exact worker。业务 task/result schema、prompt、综合规则和 artifact persistence 始终属于消费者。
+- 该纵切面只增加 example 与行为测试，五个 package API digest、Interaction ExecutionState v3、Process Snapshot v3 和 TreeSnapshot v1 全部不变。它证明现有公开 API 已足够人体工程学，没有用 speculative convenience API 掩盖装配边界。
