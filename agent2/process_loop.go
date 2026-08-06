@@ -75,9 +75,9 @@ func newProcessRuntime(
 
 func (runtime *processRuntime) run(ctx context.Context) {
 	if runtime.restored {
-		runtime.publishEvent(ctx, "agent.process.restored", EventPhaseCommitted, 0, EffectID{}, emptyEventPayload())
+		runtime.publishEvent(ctx, EventProcessRestored, EventPhaseCommitted, 0, EffectID{}, emptyEventPayload())
 	} else {
-		runtime.publishEvent(ctx, "agent.process.started", EventPhaseCommitted, 0, EffectID{}, emptyEventPayload())
+		runtime.publishEvent(ctx, EventProcessStarted, EventPhaseCommitted, 0, EffectID{}, emptyEventPayload())
 	}
 	hostDone := ctx.Done()
 	for !runtime.status.Terminal() {
@@ -120,7 +120,7 @@ func (runtime *processRuntime) run(ctx context.Context) {
 			runtime.pauseReason = runtime.control.pauseReason
 			runtime.control.pauseReason = ""
 			runtime.updateView()
-			runtime.publishEvent(ctx, "agent.process.paused", EventPhaseCommitted, 0, EffectID{}, emptyEventPayload())
+			runtime.publishEvent(ctx, EventProcessPaused, EventPhaseCommitted, 0, EffectID{}, emptyEventPayload())
 			continue
 		}
 		switch runtime.status {
@@ -261,7 +261,7 @@ func (runtime *processRuntime) deliverChildrenCompleted(ctx context.Context, sig
 		SignalID string `json:"signal_id"`
 		WaitID   string `json:"wait_id"`
 	}{SignalID: signal.ID().String(), WaitID: commandSignalWaitID(signal)})
-	runtime.publishEvent(ctx, "agent.signal.accepted", EventPhaseCommitted, 0, EffectID{}, payload)
+	runtime.publishEvent(ctx, EventSignalAccepted, EventPhaseCommitted, 0, EffectID{}, payload)
 	return true
 }
 
@@ -336,7 +336,7 @@ func (runtime *processRuntime) deliver(ctx context.Context, command processComma
 			SignalID string `json:"signal_id"`
 			WaitID   string `json:"wait_id,omitempty"`
 		}{SignalID: signal.ID().String(), WaitID: commandWaitID(command.signal)})
-		runtime.publishEvent(ctx, "agent.signal.accepted", EventPhaseCommitted, 0, EffectID{}, payload)
+		runtime.publishEvent(ctx, EventSignalAccepted, EventPhaseCommitted, 0, EffectID{}, payload)
 	}
 	command.reply(processResponse{accepted: accepted})
 }
@@ -365,7 +365,7 @@ func (runtime *processRuntime) resume(ctx context.Context, command processComman
 	runtime.pauseReason = ""
 	runtime.control.pauseReason = ""
 	runtime.updateView()
-	runtime.publishEvent(ctx, "agent.process.resumed", EventPhaseCommitted, 0, EffectID{}, emptyEventPayload())
+	runtime.publishEvent(ctx, EventProcessResumed, EventPhaseCommitted, 0, EffectID{}, emptyEventPayload())
 	command.reply(processResponse{})
 }
 
@@ -420,7 +420,7 @@ func (runtime *processRuntime) finish(ctx context.Context) {
 		Status string `json:"status"`
 		Cause  string `json:"cause"`
 	}{Status: runtime.status.String(), Cause: runtime.termination.Cause().String()})
-	runtime.publishEvent(ctx, "agent.process.finished", EventPhaseCommitted, 0, EffectID{}, payload)
+	runtime.publishEvent(ctx, EventProcessFinished, EventPhaseCommitted, 0, EffectID{}, payload)
 	snapshot, err := runtime.capture()
 	runtime.controller.complete(runtime.result(), snapshot, err)
 	runtime.engine.processFinished(runtime.controller)

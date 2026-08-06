@@ -691,7 +691,13 @@ type recordingEventListener struct {
 	panic  bool
 }
 
-func (listener *recordingEventListener) OnEvent(_ context.Context, event Event) error {
+func (listener *recordingEventListener) snapshot() []Event {
+	listener.mu.Lock()
+	defer listener.mu.Unlock()
+	return append([]Event(nil), listener.events...)
+}
+
+func (listener *recordingEventListener) OnEvent(_ context.Context, event Event) {
 	listener.mu.Lock()
 	listener.events = append(listener.events, event)
 	shouldPanic := listener.panic
@@ -699,7 +705,6 @@ func (listener *recordingEventListener) OnEvent(_ context.Context, event Event) 
 	if shouldPanic {
 		panic("observer failure")
 	}
-	return errors.New("observer failure")
 }
 
 func (listener *recordingEventListener) has(name string) bool {
@@ -719,13 +724,12 @@ type blockingDeltaListener struct {
 	once    sync.Once
 }
 
-func (listener *blockingDeltaListener) OnDelta(context.Context, Delta) error {
+func (listener *blockingDeltaListener) OnDelta(context.Context, Delta) {
 	listener.once.Do(func() { close(listener.entered) })
 	<-listener.release
-	return errors.New("disconnected")
 }
 
-func TestDeltaBufferDropsAreObservableAndListenerFailureIsolated(t *testing.T) {
+func TestDeltaBufferDropsAreObservableAndListenerPanicIsIsolated(t *testing.T) {
 	definition := newEngineTestDefinition(t, "engine.effect", "effect")
 	dispatcher := &engineTestDispatcher{policy: ReplayPolicyNever, deltas: 100}
 	deployment := engineTestDeployment(t, definition, dispatcher)
@@ -749,6 +753,111 @@ func TestDeltaBufferDropsAreObservableAndListenerFailureIsolated(t *testing.T) {
 	if err := engine.Close(); err != nil {
 		t.Fatal(err)
 	}
+}
+
+func TestEventLifecycleCarriesExactBindingAndAttemptDurations(t *testing.T) {
+	definition := newEngineTestDefinition(t, "engine.effect", "effect")
+	deployment := engineTestDeployment(t, definition, &engineTestDispatcher{policy: ReplayPolicyNever})
+	listener := &recordingEventListener{}
+	engine, err := NewEngine(EngineConfig{EventListeners: []EventListener{listener}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	input, _ := EncodeInput(engineTestInput{Value: "events"})
+	result, err := engine.Run(context.Background(), deployment, input)
+	if err != nil || result.Status() != StatusCompleted {
+		t.Fatalf("result=%+v err=%v", result, err)
+	}
+	if err := engine.Close(); err != nil {
+		t.Fatal(err)
+	}
+	events := listener.snapshot()
+	wantNames := []string{
+		EventProcessStarted,
+		EventStepStarted, EventStepFinished, EventStepPrepared,
+		EventEffectStarted, EventEffectFinished, EventStepCommitted,
+		EventStepStarted, EventStepFinished, EventStepPrepared, EventStepCommitted,
+		EventProcessFinished,
+	}
+	if len(events) != len(wantNames) {
+		t.Fatalf("events = %d, want %d: %#v", len(events), len(wantNames), eventNames(events))
+	}
+	for index, event := range events {
+		if event.Name() != wantNames[index] {
+			t.Fatalf("event[%d] = %q, want %q", index, event.Name(), wantNames[index])
+		}
+		if event.Sequence() != uint64(index+1) || event.ProcessID() != result.ProcessID() ||
+			event.DeploymentRef() != deployment.Reference() ||
+			event.Relation().ProcessID() != result.ProcessID() || !event.Relation().IsRoot() {
+			t.Fatalf("event[%d] envelope = %+v", index, event)
+		}
+	}
+	for _, event := range events {
+		if event.Name() != EventStepFinished && event.Name() != EventEffectFinished {
+			continue
+		}
+		var payload struct {
+			Target     string `json:"target"`
+			Status     string `json:"status"`
+			DurationMS int64  `json:"duration_ms"`
+		}
+		if err := json.Unmarshal(event.Payload(), &payload); err != nil || payload.DurationMS < 0 || payload.Status != "succeeded" {
+			t.Fatalf("event %q payload = %s, error = %v", event.Name(), event.Payload(), err)
+		}
+		if event.Name() == EventEffectFinished && payload.Target != "dispatcher" {
+			t.Fatalf("Effect target = %q", payload.Target)
+		}
+	}
+}
+
+func TestFrameworkEffectPublishesTheSameLifecycleContract(t *testing.T) {
+	deployment := newChildTestDeployment(t)
+	listener := &recordingEventListener{}
+	engine, err := NewEngine(EngineConfig{EventListeners: []EventListener{listener}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	input, _ := EncodeInput(childTestInput{Mode: "parent"})
+	root, err := engine.Start(context.Background(), deployment, input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	output := childTestResult(t, mustAwait(t, root))
+	if len(output.ChildIDs) != 1 {
+		t.Fatalf("root output = %#v", output)
+	}
+	childID, _ := ParseProcessID(output.ChildIDs[0])
+	child, _ := engine.Process(childID)
+	_ = mustAwait(t, child)
+	if err := engine.Close(); err != nil {
+		t.Fatal(err)
+	}
+	var started, finished bool
+	for _, event := range listener.snapshot() {
+		if event.ProcessID() != root.ID() ||
+			(event.Name() != EventEffectStarted && event.Name() != EventEffectFinished) {
+			continue
+		}
+		var payload struct {
+			Target string `json:"target"`
+		}
+		if err := json.Unmarshal(event.Payload(), &payload); err != nil || payload.Target != "framework" {
+			continue
+		}
+		started = started || event.Name() == EventEffectStarted
+		finished = finished || event.Name() == EventEffectFinished
+	}
+	if !started || !finished {
+		t.Fatalf("Framework Effect lifecycle started=%t finished=%t", started, finished)
+	}
+}
+
+func eventNames(events []Event) []string {
+	names := make([]string, len(events))
+	for index, event := range events {
+		names[index] = event.Name()
+	}
+	return names
 }
 
 func engineTestDeployment(t testing.TB, definition Definition, dispatcher Dispatcher) Deployment {

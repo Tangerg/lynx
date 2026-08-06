@@ -17,8 +17,8 @@ import (
 func TestStreamingOutputDoesNotDependOnDeltaListeners(t *testing.T) {
 	collector := &deltaCollector{}
 	engine, err := agent.NewEngine(agent.EngineConfig{
-		EventListeners: []agent.EventListener{failingEventListener{}, panickingEventListener{}},
-		DeltaListeners: []agent.DeltaListener{collector, failingDeltaListener{}, panickingDeltaListener{}},
+		EventListeners: []agent.EventListener{passiveEventListener{}, panickingEventListener{}},
+		DeltaListeners: []agent.DeltaListener{collector, passiveDeltaListener{}, panickingDeltaListener{}},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -223,15 +223,14 @@ type deltaCollector struct {
 	responses []*chat.Response
 }
 
-func (collector *deltaCollector) OnDelta(_ context.Context, delta agent.Delta) error {
+func (collector *deltaCollector) OnDelta(_ context.Context, delta agent.Delta) {
 	decoded, err := interaction.ParseModelResponseDelta(delta.Payload())
 	if err != nil {
-		return err
+		return
 	}
 	collector.mu.Lock()
 	collector.responses = append(collector.responses, decoded.Response())
 	collector.mu.Unlock()
-	return nil
 }
 
 func (collector *deltaCollector) Responses() []*chat.Response {
@@ -244,27 +243,23 @@ func (collector *deltaCollector) Responses() []*chat.Response {
 	return responses
 }
 
-type failingDeltaListener struct{}
+type passiveDeltaListener struct{}
 
-func (failingDeltaListener) OnDelta(context.Context, agent.Delta) error {
-	return errors.New("delta listener failed")
-}
+func (passiveDeltaListener) OnDelta(context.Context, agent.Delta) {}
 
 type panickingDeltaListener struct{}
 
-func (panickingDeltaListener) OnDelta(context.Context, agent.Delta) error {
+func (panickingDeltaListener) OnDelta(context.Context, agent.Delta) {
 	panic("delta listener panicked")
 }
 
-type failingEventListener struct{}
+type passiveEventListener struct{}
 
-func (failingEventListener) OnEvent(context.Context, agent.Event) error {
-	return errors.New("event listener failed")
-}
+func (passiveEventListener) OnEvent(context.Context, agent.Event) {}
 
 type panickingEventListener struct{}
 
-func (panickingEventListener) OnEvent(context.Context, agent.Event) error {
+func (panickingEventListener) OnEvent(context.Context, agent.Event) {
 	panic("event listener panicked")
 }
 
@@ -279,10 +274,9 @@ func newBlockingDeltaListener() *blockingDeltaListener {
 	return &blockingDeltaListener{started: make(chan struct{}), release: make(chan struct{})}
 }
 
-func (listener *blockingDeltaListener) OnDelta(context.Context, agent.Delta) error {
+func (listener *blockingDeltaListener) OnDelta(context.Context, agent.Delta) {
 	listener.startedOnce.Do(func() { close(listener.started) })
 	<-listener.release
-	return nil
 }
 
 func (listener *blockingDeltaListener) Release() {
@@ -294,11 +288,10 @@ type eventRecorder struct {
 	names []string
 }
 
-func (recorder *eventRecorder) OnEvent(_ context.Context, event agent.Event) error {
+func (recorder *eventRecorder) OnEvent(_ context.Context, event agent.Event) {
 	recorder.mu.Lock()
 	recorder.names = append(recorder.names, event.Name())
 	recorder.mu.Unlock()
-	return nil
 }
 
 func (recorder *eventRecorder) Contains(name string) bool {

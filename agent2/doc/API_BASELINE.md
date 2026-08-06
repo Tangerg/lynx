@@ -2,7 +2,7 @@
 
 > 状态：Baseline 3 已冻结
 > 冻结日期：2026-08-06
-> 适用范围：`agent2` 根 package、`agent2/interaction`、`agent2/planning`、`agent2/planning/goap`、`agent2/workflow`、Process Snapshot v3、TreeSnapshot v1
+> 适用范围：`agent2` 根 package、`agent2/interaction`、`agent2/planning`、`agent2/planning/goap`、`agent2/workflow`、`agent2/otel`、Process Snapshot v3、TreeSnapshot v1、Event/Delta observation wire
 
 本文只记录已经由 P3 真实 Interaction、P4 child composition、七个独立 command consumer、P5 真实 Planning/GOAP、P6 managed Workflow 与恢复合同共同证明的公共合同基线。目标架构、ADR、工程标准和实施进度仍由各自文档拥有；这里不复制它们。
 
@@ -30,7 +30,7 @@ Baseline 3 不是兼容承诺或发布版本。仓库仍允许 breaking change�
 - StartChild/WaitForChildren/ChildOutcome：跨 Strategy 组合的最小 Framework Effect/Signal 协议。
 - Budget/Limits/TreeLimits/CapabilitySet/Usage：本地工作上限、tree expansion、authority attenuation 与事实计数。
 - ProcessAdmission/ProcessAdmitter：根与子 Process 共用、只读且 decision-only 的启动准入边界。
-- Event/Delta：权威已发生事实与 best-effort 临时增量。
+- Event/Delta：自足携带 exact execution attribution 的权威已发生事实与 best-effort 临时增量；listener 无 veto/error 通道。
 - Typed/EncodeInput/DecodeOutput：只存在于类型擦除边缘的人体工程学 adapter。
 
 `interaction` package 冻结为一个原生 Strategy：Definition 拥有 WorkingContext、模型/Tool 状态机、exact managed Delegate、typed Delegate artifacts 与可选 pure completion validator，Dispatcher 只拥有模型和普通 Tool I/O。Delegate 将目标 Descriptor Input 暴露为模型 Tool schema，但只能由 Execution 经 Framework `StartChild`/`WaitForChildren` 推进；成功 child Output 经 exact schema 复验后进入 immutable validator view，validator 读取防御性复制的当前 WorkingContext/candidate/artifacts，拒绝候选时以有界 feedback 进入下一模型轮次；HITL/steer/stream/tool concurrency 仍通过根窄腰表达。它不拥有 Process lifecycle、产品 history、artifact store、UI 或 approval policy。
@@ -43,17 +43,19 @@ Baseline 3 不是兼容承诺或发布版本。仓库仍允许 breaking change�
 
 ## 3. 自动守卫
 
-`baseline_test.go` 对五个公共 package 的完整 `go doc -all` 输出做 SHA-256 校验，因此 exported identifier、参数名、字段、签名和 GoDoc 的任何漂移都会失败。Baseline 3 digest：
+`baseline_test.go` 对六个已冻结公共 package 的完整 `go doc -all` 输出做 SHA-256 校验，因此 exported identifier、参数名、字段、签名和 GoDoc 的任何漂移都会失败。Baseline 3 digest：
 
-- root kernel：`c7f58108633689f2accb7742d8177465e8291dd6f5a38205762c98de9423b809`
+- root kernel：`9cfc3728580548301732bdc8cc9a33e9b5bde083215498e39c455d921730b617`
 - interaction：`9678f94265b227e7d085cc18a264ad3be4cac98709d94638f47c9ee7960e3fee`
 - planning：`bb3a3fee5315afba3cc1f70ecc0486b4b91f88d4d4160aa93bf896b09ffc28a1`
 - planning/goap：`da348e298e6976318b317873b44ec60829020fdea82947fae4bbc8e0d865b419`
 - workflow：`0493f8f7ae6e4cc5a3190735c5d02952ec0e0fdb230794bbb01735b8ecfae055`
+- otel：`aed81360b2fdedda8b08a2c27e7570a4f06f4584ff84e3f0904016d517c038ec`
 
 同一测试对 Process Snapshot v3 与 TreeSnapshot v1 的 schema version、字段名、JSON tag、字段类型和嵌套 wire shape 做独立校验。Baseline 3 沿用的 wire digest：
 
 - snapshot/tree wire：`6f4a919ed0c681e9fb021f5571de0cdaf4e97d0cad8e4170fede3453a31c0c9d`
+- Event/Delta observation wire：`b5a32c7dd19858ee0e256f19973010cffff30f6e961d2b04d7cb80947f121ad4`
 
 Digest 只用于发现未审计漂移，不替代 strict codec、round-trip、malformed input、restore、fuzz 或 consumer behavior tests。
 
@@ -79,6 +81,8 @@ P8-04 依据 ADR-A2-050 为尚未冻结的 Platform 增加唯一 Definition sele
 
 P8-05 依据 ADR-A2-051 修订根 Engine 合同：新增 immutable `ProcessAdmission`、单一 `ProcessAdmitter`/func adapter、`ErrProcessAdmissionRejected` 与 EngineConfig consumption point。一个 admitter 同构覆盖 root/child start，只能拒绝，不能修改由 Engine 唯一拥有的 Budget、TreeLimits 或 CapabilitySet attenuation；其合同同步、有界、无 I/O、不重入 Process，因此没有误导性 context，恢复也不重复 admission。没有增加 Policy/Guard/Extension registry、通用 StopPolicy 或 Platform-owned runtime，四个 Strategy API 与共同 snapshot/tree wire 均未变化。
 
+P8-06 依据 ADR-A2-052 修订根 observation 合同：Event 新增 exact DeploymentRef/ProcessRelation，统一 Framework Event 名称常量，补齐 Step 与两类 Effect 的真实 started/finished、target/status/duration；EventListener/DeltaListener 删除无效 error 返回并增加 Func adapter。新增独立 `agent2/otel` official-API adapter，Kernel 不 import OTel，production adapter 不 import SDK。根与 OTel API 以及 Event/Delta wire 显式冻结；四个 Strategy API 和 snapshot/tree wire 不变。
+
 ## 4. 明确不在基线中的能力
 
-Baseline 3 不冻结 P8 Platform catalog/routing/OTel decorator、P10 应用迁移 API 或最终模块替换路径。`flow` 保持独立 in-process 库，不形成 Agent adapter API 或依赖；未来编辑器图只能在更高层编译成已验证的 Workflow Definition，不能反向扩张 Kernel 或恢复 wire。
+Baseline 3 暂不冻结 P8 Platform catalog/routing、P10 应用迁移 API 或最终模块替换路径。`flow` 保持独立 in-process 库，不形成 Agent adapter API 或依赖；未来编辑器图只能在更高层编译成已验证的 Workflow Definition，不能反向扩张 Kernel 或恢复 wire。

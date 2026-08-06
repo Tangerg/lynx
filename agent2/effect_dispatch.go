@@ -19,12 +19,17 @@ func (runtime *processRuntime) dispatchPrepared(ctx context.Context, hostDone *<
 			if policy != ReplayPolicySameIdentity {
 				settlement, _ := NewSettlement(record.ID, SettlementStatusUnknown, json.RawMessage("null"))
 				record.Settlement = &settlement
-				runtime.publishSettlementEvent(ctx, record.ID, SettlementStatusUnknown)
 				continue
 			}
 		}
 		if record.Effect.Target() == EffectTargetFramework {
+			startedAt := runtime.publishEffectStarted(
+				ctx, runtime.prepared.wire.Sequence, record.ID, EffectTargetFramework,
+			)
 			runtime.dispatchFrameworkEffect(ctx, record)
+			runtime.publishSettlementEvent(
+				ctx, record.ID, EffectTargetFramework, record.Settlement.Status(), startedAt,
+			)
 			continue
 		}
 		runtime.dispatchStrategyEffect(ctx, hostDone, uint32(index), record)
@@ -117,7 +122,9 @@ func (runtime *processRuntime) dispatchStrategyEffect(
 	record *preparedEffectWire,
 ) {
 	request := newEffectRequest(runtime.controller.id, runtime.prepared.wire.Sequence, index, record.ID, record.Effect)
-	runtime.publishEvent(ctx, "agent.effect.started", EventPhaseAttempt, runtime.prepared.wire.Sequence, record.ID, emptyEventPayload())
+	startedAt := runtime.publishEffectStarted(
+		ctx, runtime.prepared.wire.Sequence, record.ID, EffectTargetDispatcher,
+	)
 	var deltaSequence atomic.Uint64
 	var dropped atomic.Uint64
 	var acceptingDeltas atomic.Bool
@@ -158,9 +165,11 @@ func (runtime *processRuntime) dispatchStrategyEffect(
 				payload, _ := json.Marshal(struct {
 					Count uint64 `json:"count"`
 				}{Count: count})
-				runtime.publishEvent(ctx, "agent.delta.dropped", EventPhaseAttempt, runtime.prepared.wire.Sequence, record.ID, payload)
+				runtime.publishEvent(ctx, EventDeltaDropped, EventPhaseAttempt, runtime.prepared.wire.Sequence, record.ID, payload)
 			}
-			runtime.publishSettlementEvent(ctx, record.ID, settlement.Status())
+			runtime.publishSettlementEvent(
+				ctx, record.ID, EffectTargetDispatcher, settlement.Status(), startedAt,
+			)
 			return
 		}
 	}

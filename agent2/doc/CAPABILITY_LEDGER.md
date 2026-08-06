@@ -408,3 +408,12 @@
 - 根与 child 使用同一 EngineConfig admitter。真实跨 Strategy child 测试证明 root 收到完整默认 Budget/最大 capability，child 收到 Strategy 申请且已衰减的 20/20/40 Budget/空 capability；两者 relation、exact ref 与 Descriptor 都准确。拒绝发生在 Definition.Start 与 Engine publication 前，root 保留 ordinary cause，child 返回稳定 `engine.child.admission.rejected` 且不留下幽灵 Process。
 - typed nil 与 panic 都不会逃逸 Engine。admitter 必须同步、有界、无外部 I/O、不重入 Process、并发安全且 decision-only，并容忍 prepared child start recovery 后对同一稳定身份重判；它不是 durable charge、Store 或幂等协议。root 远端审批在 Start 前完成，child 远端审批先显式结算 Dispatcher Effect，准入不偷成第二副作用入口。
 - Restore 不调用 admitter。恢复严格复用 snapshot 中已准入的 exact Deployment、Budget、Capabilities 与 tree relation；live authorization 由 Host 在 restore 前决定，不能潜入 deterministic restoration。没有通用 StopPolicy：资源终止、外部控制与 Strategy completion 分别由现有唯一 owner 处理。
+
+### 12.6 自足 Framework Event 与 OTel adapter
+
+- 原 Event 缺 exact Deployment 与 ProcessRelation，`step.prepared/committed` 也不是 Execution.Step 的 started/finished；Dispatcher 与 Framework Effect 的观察面不对称。P8-06 没有用 OTel 猜补这些事实，而是先修正 Framework owner 的 Event 合同。
+- Event envelope 现在自足携带 Process-local sequence、ProcessID、exact DeploymentRef、ProcessRelation、可选 StepSequence/EffectID、name、phase、OccurredAt 与 immutable payload。strict JSON round-trip 验证 exact binding/relation，独立 observation wire digest 固化 Event/Delta shape。
+- 根发布点只使用统一 Event 常量。真实两 Step/一 Effect 运行的顺序固定为 Process started → Step started/finished/prepared → Effect started/finished → Step committed → Step started/finished/prepared/committed → Process finished；每个 Event 的 sequence、exact ref、root relation 都有行为断言。Framework StartChild 另有测试证明使用同一 Effect lifecycle 且 target=framework。
+- Event/Delta listener 治本删除永远被忽略的 error 返回值并新增 Func adapter；panic 仍隔离。Event 实现承担 bounded/no-reentry 合同，Delta 继续使用 bounded async queue，drop 同时进入 Usage 与 Event。
+- `agent2/otel` 是单向 adapter，不是第二观察总线。生产代码只 import 根 Framework 与官方 OTel API；Kernel 禁止 OTel，adapter 禁止 SDK、Strategy、旧 agent 与 Host。SDK 只在测试中证明真实 spans、parenting、exact deployment attributes、status/target，以及 Process starts/exits、Step/Effect duration metrics。
+- raw payload、Input/Output、产品身份、日志 backend、exporter 生命周期都不进入 Framework 或默认 telemetry attributes。模型/Tool/Action 的 Strategy-specific observability 由相应 dispatcher/adapter owner 提供，Kernel 不通过 opaque Effect 猜测。

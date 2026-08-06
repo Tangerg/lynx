@@ -13,8 +13,20 @@ func (runtime *processRuntime) prepareNextStep(ctx context.Context) {
 		runtime.fail(ctx, FailureKindExecution, "engine.limit.steps", ErrLimitExceeded)
 		return
 	}
+	sequence := runtime.committedSteps + 1
+	runtime.publishEvent(ctx, EventStepStarted, EventPhaseAttempt, sequence, EffectID{}, emptyEventPayload())
+	stepStartedAt := time.Now()
 	signals := runtime.mailbox.pending()
 	transition, err := stepExecution(ctx, runtime.execution, signals)
+	stepStatus := "succeeded"
+	if err != nil {
+		stepStatus = "failed"
+	}
+	stepPayload, _ := json.Marshal(struct {
+		Status     string `json:"status"`
+		DurationMS int64  `json:"duration_ms"`
+	}{Status: stepStatus, DurationMS: time.Since(stepStartedAt).Milliseconds()})
+	runtime.publishEvent(ctx, EventStepFinished, EventPhaseAttempt, sequence, EffectID{}, stepPayload)
 	if err != nil {
 		runtime.observeHostError(ctx)
 		runtime.discardExecution()
@@ -73,7 +85,6 @@ func (runtime *processRuntime) prepareNextStep(ctx context.Context) {
 		runtime.fail(ctx, FailureKindContract, "engine.last_stable.invalid", err)
 		return
 	}
-	sequence := runtime.committedSteps + 1
 	wire := preparedStepWire{
 		Sequence: sequence, LastStableDigest: digest, CandidateState: candidateState,
 		ConsumeThrough: runtime.mailbox.consumedSequence() + uint64(transition.Consumed()),
@@ -89,7 +100,7 @@ func (runtime *processRuntime) prepareNextStep(ctx context.Context) {
 	}
 	runtime.usage.PreparedEffects += effectCount
 	runtime.updateView()
-	runtime.publishEvent(ctx, "agent.step.prepared", EventPhaseAttempt, sequence, EffectID{}, emptyEventPayload())
+	runtime.publishEvent(ctx, EventStepPrepared, EventPhaseAttempt, sequence, EffectID{}, emptyEventPayload())
 }
 
 func (runtime *processRuntime) acknowledgePrepared(ctx context.Context) bool {
@@ -261,7 +272,7 @@ func (runtime *processRuntime) finalizePrepared(ctx context.Context) (returnErr 
 	payload, _ := json.Marshal(struct {
 		Status string `json:"status"`
 	}{Status: runtime.status.String()})
-	runtime.publishEvent(ctx, "agent.step.committed", EventPhaseCommitted, runtime.committedSteps, EffectID{}, payload)
+	runtime.publishEvent(ctx, EventStepCommitted, EventPhaseCommitted, runtime.committedSteps, EffectID{}, payload)
 	for _, waitID := range consumedChildWaits {
 		runtime.engine.unregisterChildWait(waitID)
 	}

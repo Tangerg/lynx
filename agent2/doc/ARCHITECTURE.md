@@ -610,21 +610,25 @@ Host 对自身事实执行销毁、回滚、替换或恢复时，必须在自己
 
 横切替换点按真实消费位置定义一个准确的小接口，不建立通用 Extension marker、capability registry 或按运行时类型分派的 god scope。`ProcessAdmitter` 只负责启动准入；`EventListener`/`DeltaListener` 只负责观察；prepared-step acknowledgment 只负责 pre-dispatch durability handshake。它们语义不同，不合并成 Policy/Guard/Middleware 近义层。只有一个实现且没有外部替换需求的内部依赖直接使用 concrete type。
 
-Event 描述已经发生的框架事实，不承担 Signal、命令、Transition 或产品协议。Event 分为 attempt facts 与 committed facts：前者证明一次模型、Tool 或 Effect 确实尝试过，后者证明状态或 Effect settlement 已由 Engine 提交。
+Event 描述已经发生的框架事实，不承担 Signal、命令、Transition 或产品协议。每个 Event 都携带 Process-local sequence、ProcessID、exact DeploymentRef、ProcessRelation、可选 Step/Effect identity、稳定名称、phase、OccurredAt 与独立 payload，因此 child、版本和恢复归因不依赖 Host 查询。Event 分为 attempt facts 与 committed facts：前者证明一次 Step 或 Effect 确实尝试过，后者证明 Process/Signal/Step 状态已由 Engine 提交。
 
-- Process started/status changed/finished
-- Step started/finished
-- model call started/finished
-- tool call started/finished
-- child started/settled
-- suspension created/resolved
-- budget consumed/exhausted
+当前 Framework 事实集合固定为：
+
+- Process started/restored/paused/resumed/finished
+- Signal accepted
+- Step started/finished/prepared/committed
+- Framework 或 Dispatcher Effect started/finished
+- Delta dropped
+
+Event 名称由根 package 常量统一，不能在发布点散落字符串。Step finished 与 Effect finished payload 都携带同一 owner 测得的非负 `duration_ms`；Effect lifecycle 同时携带准确 target 与 settlement status。模型、Tool、Planning Action 等 Strategy-specific lifecycle 不能由不理解 opaque Effect 的 Kernel 猜测；需要时由相应 dispatcher/adapter 使用官方 OTel API 或它自己的中性观察合同，不污染 Framework Event 名称。
+
+EventListener 与 DeltaListener 都是无错误返回的观察接口：返回值既不会改变事实，也不应制造“可否决执行”的误解。实现必须有界、并发安全且不得重入被观察 Process；panic 被隔离。Event 在每个 Process 内同步保持顺序，不承诺不同 Process 的全局顺序；Delta 继续通过独立有界队列异步投递。
 
 Delta 是与 Event 不同的临时流输出。Delta 缓冲显式有界、按调用内 sequence 排序、恢复后不重放；慢消费者造成的丢弃必须通过 gap/dropped count 可观察。观察型 listener 失败不改变 Step 或 Process 结果，也不得产生无 owner goroutine。完成 Output 必须由最终 Effect settlement/Transition 独立导出，不能由 delta 拼接成为唯一真相。
 
 事件时间字段具有准确语义；duration 从成对时间计算或由同一 owner 生成。Host 可以投影 UI、审计和账本，Agent 不反向依赖投影。
 
-执行边界使用官方 OTel API 或外部 `otel` 模块提供的 decorator，不在 Kernel 重造 tracer/meter/logger 接口，也不以散落日志弥补缺失的生命周期事件。
+独立 `agent2/otel` adapter 只消费 Framework Event 并直接使用官方 OTel trace/metric API：Process/Step/Effect 形成 span，Process start/exit、Step/Effect duration 和 Delta drop 形成 metric。provider 由 Config 显式注入，nil 时遵循 OTel global provider；typed nil 构造期拒绝。adapter 不把 raw payload、Input、Output 或产品身份写入 telemetry，只使用 Framework-owned identity/status/target/count。Kernel architecture gate 禁止任何 OTel import，adapter production gate 禁止 OTel SDK、Strategy、旧 agent 与 Host import；SDK 只用于行为测试。
 
 ---
 

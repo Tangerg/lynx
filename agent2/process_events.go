@@ -15,22 +15,49 @@ func (runtime *processRuntime) publishEvent(
 	payload json.RawMessage,
 ) {
 	runtime.eventSequence++
-	event, err := newEvent(runtime.eventSequence, runtime.controller.id, step, effectID, name, phase, time.Now(), payload)
+	event, err := newEvent(
+		runtime.eventSequence, runtime.controller.id, runtime.deployment.Reference(),
+		runtime.controller.relation, step, effectID, name, phase, time.Now(), payload,
+	)
 	if err != nil {
 		return
 	}
 	runtime.engine.observation.publishEvent(context.WithoutCancel(ctx), event)
 }
 
-func (runtime *processRuntime) publishSettlementEvent(ctx context.Context, effectID EffectID, status SettlementStatus) {
+func (runtime *processRuntime) publishEffectStarted(
+	ctx context.Context,
+	step uint64,
+	effectID EffectID,
+	target EffectTarget,
+) time.Time {
+	payload, _ := json.Marshal(struct {
+		Target string `json:"target"`
+	}{Target: target.String()})
+	runtime.publishEvent(ctx, EventEffectStarted, EventPhaseAttempt, step, effectID, payload)
+	return time.Now()
+}
+
+func (runtime *processRuntime) publishSettlementEvent(
+	ctx context.Context,
+	effectID EffectID,
+	target EffectTarget,
+	status SettlementStatus,
+	startedAt time.Time,
+) {
 	payload, err := json.Marshal(struct {
-		Status string `json:"status"`
-	}{Status: status.String()})
+		Target     string `json:"target"`
+		Status     string `json:"status"`
+		DurationMS int64  `json:"duration_ms"`
+	}{
+		Target: target.String(), Status: status.String(),
+		DurationMS: time.Since(startedAt).Milliseconds(),
+	})
 	if err != nil {
 		return
 	}
 	runtime.publishEvent(
-		ctx, "agent.effect.finished", EventPhaseAttempt,
+		ctx, EventEffectFinished, EventPhaseAttempt,
 		runtime.prepared.wire.Sequence, effectID, payload,
 	)
 }

@@ -9,7 +9,13 @@ import (
 func TestEventSeparatesAttemptFromCommittedFacts(t *testing.T) {
 	processID, _ := ParseProcessID("process:1")
 	effectID, _ := ParseEffectID("process:1:step:2:effect:0")
-	event, err := newEvent(7, processID, 2, effectID, "effect.started", EventPhaseAttempt, time.Unix(20, 0), json.RawMessage(`{"attempt":1}`))
+	deployment := newChildTestDeployment(t)
+	relation := rootProcessRelation(processID)
+	event, err := newEvent(
+		7, processID, deployment.Reference(), relation, 2, effectID,
+		EventEffectStarted, EventPhaseAttempt, time.Unix(20, 0),
+		json.RawMessage(`{"attempt":1}`),
+	)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -21,8 +27,11 @@ func TestEventSeparatesAttemptFromCommittedFacts(t *testing.T) {
 	if err := json.Unmarshal(data, &decoded); err != nil {
 		t.Fatal(err)
 	}
-	if decoded.Phase() != EventPhaseAttempt || decoded.Name() != "effect.started" || decoded.Sequence() != 7 {
+	if decoded.Phase() != EventPhaseAttempt || decoded.Name() != EventEffectStarted || decoded.Sequence() != 7 {
 		t.Fatalf("decoded Event = %+v", decoded)
+	}
+	if decoded.DeploymentRef() != deployment.Reference() || decoded.Relation() != relation {
+		t.Fatalf("decoded Deployment = %s, relation = %#v", decoded.DeploymentRef(), decoded.Relation())
 	}
 	if got, ok := decoded.EffectID(); !ok || got != effectID {
 		t.Fatalf("decoded EffectID = %v, %t", got, ok)

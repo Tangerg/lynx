@@ -10,6 +10,35 @@ import (
 
 const maxEventBytes = 1 << 20
 
+const (
+	// EventProcessStarted reports initial Process execution.
+	EventProcessStarted = "agent.process.started"
+	// EventProcessRestored reports execution resumed from a Snapshot.
+	EventProcessRestored = "agent.process.restored"
+	// EventProcessPaused reports a committed scheduling pause.
+	EventProcessPaused = "agent.process.paused"
+	// EventProcessResumed reports committed scheduling resumption.
+	EventProcessResumed = "agent.process.resumed"
+	// EventProcessFinished reports one immutable terminal outcome.
+	EventProcessFinished = "agent.process.finished"
+	// EventSignalAccepted reports one newly accepted Signal.
+	EventSignalAccepted = "agent.signal.accepted"
+	// EventStepStarted reports an Execution.Step call about to begin.
+	EventStepStarted = "agent.step.started"
+	// EventStepFinished reports an Execution.Step return or failure.
+	EventStepFinished = "agent.step.finished"
+	// EventStepPrepared reports a validated candidate Step transaction.
+	EventStepPrepared = "agent.step.prepared"
+	// EventStepCommitted reports authoritative Step state publication.
+	EventStepCommitted = "agent.step.committed"
+	// EventEffectStarted reports a Framework or Dispatcher Effect attempt.
+	EventEffectStarted = "agent.effect.started"
+	// EventEffectFinished reports a definite or unknown attempt settlement.
+	EventEffectFinished = "agent.effect.finished"
+	// EventDeltaDropped reports best-effort increments lost to backpressure.
+	EventDeltaDropped = "agent.delta.dropped"
+)
+
 var ErrInvalidEvent = errors.New("agent: invalid event")
 
 // EventPhase distinguishes an attempted external operation from a fact that the
@@ -50,6 +79,8 @@ func parseEventPhase(value string) (EventPhase, error) {
 type Event struct {
 	sequence   uint64
 	processID  ProcessID
+	deployment DeploymentRef
+	relation   ProcessRelation
 	step       uint64
 	effectID   EffectID
 	name       string
@@ -58,12 +89,29 @@ type Event struct {
 	payload    json.RawMessage
 }
 
-func newEvent(sequence uint64, processID ProcessID, step uint64, effectID EffectID, name string, phase EventPhase, occurredAt time.Time, payload json.RawMessage) (Event, error) {
+func newEvent(
+	sequence uint64,
+	processID ProcessID,
+	deployment DeploymentRef,
+	relation ProcessRelation,
+	step uint64,
+	effectID EffectID,
+	name string,
+	phase EventPhase,
+	occurredAt time.Time,
+	payload json.RawMessage,
+) (Event, error) {
 	if sequence == 0 {
 		return Event{}, fmt.Errorf("%w: sequence must be greater than zero", ErrInvalidEvent)
 	}
 	if !processID.Valid() {
 		return Event{}, fmt.Errorf("%w: process ID: %w", ErrInvalidEvent, ErrInvalidIdentity)
+	}
+	if !deployment.Valid() {
+		return Event{}, fmt.Errorf("%w: deployment: %w", ErrInvalidEvent, ErrInvalidDeploymentRef)
+	}
+	if !relation.Valid() || relation.ProcessID() != processID {
+		return Event{}, fmt.Errorf("%w: relation: %w", ErrInvalidEvent, ErrInvalidProcessRelation)
 	}
 	if !validQualifiedName(name) {
 		return Event{}, fmt.Errorf("%w: name must be a lowercase qualified name", ErrInvalidEvent)
@@ -81,6 +129,8 @@ func newEvent(sequence uint64, processID ProcessID, step uint64, effectID Effect
 	return Event{
 		sequence:   sequence,
 		processID:  processID,
+		deployment: deployment,
+		relation:   relation,
 		step:       step,
 		effectID:   effectID,
 		name:       name,
@@ -95,6 +145,12 @@ func (e Event) Sequence() uint64 { return e.sequence }
 
 // ProcessID returns the Process whose fact is described.
 func (e Event) ProcessID() ProcessID { return e.processID }
+
+// DeploymentRef returns the exact execution binding that emitted the fact.
+func (e Event) DeploymentRef() DeploymentRef { return e.deployment }
+
+// Relation returns the Process tree location that emitted the fact.
+func (e Event) Relation() ProcessRelation { return e.relation }
 
 // StepSequence returns the one-based Step sequence and true, or zero and false
 // for a Process fact outside a Step.
@@ -118,7 +174,8 @@ func (e Event) Payload() json.RawMessage { return bytes.Clone(e.payload) }
 
 // Valid reports whether the Event has a complete immutable envelope.
 func (e Event) Valid() bool {
-	return e.sequence > 0 && e.processID.Valid() && validQualifiedName(e.name) &&
+	return e.sequence > 0 && e.processID.Valid() && e.deployment.Valid() &&
+		e.relation.Valid() && e.relation.ProcessID() == e.processID && validQualifiedName(e.name) &&
 		(e.phase == EventPhaseAttempt || e.phase == EventPhaseCommitted) &&
 		!e.occurredAt.IsZero() && len(e.payload) > 0
 }
@@ -130,6 +187,8 @@ func (e Event) MarshalJSON() ([]byte, error) {
 	wire := eventWire{
 		Sequence:   e.sequence,
 		ProcessID:  e.processID,
+		Deployment: e.deployment,
+		Relation:   e.relation.wire(),
 		Step:       e.step,
 		Name:       e.name,
 		Phase:      e.phase.String(),
@@ -163,7 +222,14 @@ func (e *Event) UnmarshalJSON(data []byte) error {
 	if wire.EffectID != nil {
 		effectID = *wire.EffectID
 	}
-	value, err := newEvent(wire.Sequence, wire.ProcessID, wire.Step, effectID, wire.Name, phase, wire.OccurredAt, wire.Payload)
+	relation, err := processRelationFromWire(wire.ProcessID, wire.Relation)
+	if err != nil {
+		return fmt.Errorf("%w: relation: %w", ErrInvalidEvent, err)
+	}
+	value, err := newEvent(
+		wire.Sequence, wire.ProcessID, wire.Deployment, relation, wire.Step,
+		effectID, wire.Name, phase, wire.OccurredAt, wire.Payload,
+	)
 	if err != nil {
 		return err
 	}
@@ -172,12 +238,14 @@ func (e *Event) UnmarshalJSON(data []byte) error {
 }
 
 type eventWire struct {
-	Sequence   uint64          `json:"sequence"`
-	ProcessID  ProcessID       `json:"process_id"`
-	Step       uint64          `json:"step_sequence,omitempty"`
-	EffectID   *EffectID       `json:"effect_id,omitempty"`
-	Name       string          `json:"name"`
-	Phase      string          `json:"phase"`
-	OccurredAt time.Time       `json:"occurred_at"`
-	Payload    json.RawMessage `json:"payload"`
+	Sequence   uint64              `json:"sequence"`
+	ProcessID  ProcessID           `json:"process_id"`
+	Deployment DeploymentRef       `json:"deployment"`
+	Relation   processRelationWire `json:"relation"`
+	Step       uint64              `json:"step_sequence,omitempty"`
+	EffectID   *EffectID           `json:"effect_id,omitempty"`
+	Name       string              `json:"name"`
+	Phase      string              `json:"phase"`
+	OccurredAt time.Time           `json:"occurred_at"`
+	Payload    json.RawMessage     `json:"payload"`
 }

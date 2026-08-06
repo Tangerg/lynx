@@ -1,6 +1,7 @@
 package agent2
 
 import (
+	"encoding/json"
 	"go/ast"
 	"go/parser"
 	"go/token"
@@ -10,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestProcessAdmissionContainsOnlyFrameworkStartContracts(t *testing.T) {
@@ -31,6 +33,34 @@ func TestProcessAdmissionContainsOnlyFrameworkStartContracts(t *testing.T) {
 		field := typeOf.Field(index)
 		if field.IsExported() || field.Name != expected.name || field.Type != expected.typeOf {
 			t.Fatalf("ProcessAdmission field %d = %s %v", index, field.Name, field.Type)
+		}
+	}
+}
+
+func TestEventContainsOnlyFrameworkObservationContracts(t *testing.T) {
+	typeOf := reflect.TypeFor[Event]()
+	want := []struct {
+		name   string
+		typeOf reflect.Type
+	}{
+		{name: "sequence", typeOf: reflect.TypeFor[uint64]()},
+		{name: "processID", typeOf: reflect.TypeFor[ProcessID]()},
+		{name: "deployment", typeOf: reflect.TypeFor[DeploymentRef]()},
+		{name: "relation", typeOf: reflect.TypeFor[ProcessRelation]()},
+		{name: "step", typeOf: reflect.TypeFor[uint64]()},
+		{name: "effectID", typeOf: reflect.TypeFor[EffectID]()},
+		{name: "name", typeOf: reflect.TypeFor[string]()},
+		{name: "phase", typeOf: reflect.TypeFor[EventPhase]()},
+		{name: "occurredAt", typeOf: reflect.TypeFor[time.Time]()},
+		{name: "payload", typeOf: reflect.TypeFor[json.RawMessage]()},
+	}
+	if typeOf.NumField() != len(want) {
+		t.Fatalf("Event fields = %d, want %d", typeOf.NumField(), len(want))
+	}
+	for index, expected := range want {
+		field := typeOf.Field(index)
+		if field.IsExported() || field.Name != expected.name || field.Type != expected.typeOf {
+			t.Fatalf("Event field %d = %s %v", index, field.Name, field.Type)
 		}
 	}
 }
@@ -62,6 +92,9 @@ func TestFrameworkRootExcludesLegacyAndHostDependencies(t *testing.T) {
 			if path == "github.com/Tangerg/lynx/agent" || strings.HasPrefix(path, "github.com/Tangerg/lynx/agent/") ||
 				path == "github.com/Tangerg/lynx/app" || strings.HasPrefix(path, "github.com/Tangerg/lynx/app/") {
 				t.Errorf("%s imports forbidden legacy or Host package %q", name, path)
+			}
+			if strings.HasPrefix(path, "go.opentelemetry.io/otel") {
+				t.Errorf("%s imports OpenTelemetry into the Kernel instead of the otel adapter: %q", name, path)
 			}
 		}
 		ast.Inspect(file, func(node ast.Node) bool {
