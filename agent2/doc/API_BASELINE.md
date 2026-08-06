@@ -32,7 +32,7 @@ Baseline 3 不是兼容承诺或发布版本。仓库仍允许 breaking change�
 - Event/Delta：权威已发生事实与 best-effort 临时增量。
 - Typed/EncodeInput/DecodeOutput：只存在于类型擦除边缘的人体工程学 adapter。
 
-`interaction` package 冻结为一个原生 Strategy：Definition 拥有 WorkingContext、模型/Tool 状态机与 exact managed Delegate，Dispatcher 只拥有模型和普通 Tool I/O。Delegate 将目标 Descriptor Input 暴露为模型 Tool schema，但只能由 Execution 经 Framework `StartChild`/`WaitForChildren` 推进；HITL/steer/stream/tool concurrency 仍通过根窄腰表达。它不拥有 Process lifecycle、产品 history、Store、UI 或 approval policy。
+`interaction` package 冻结为一个原生 Strategy：Definition 拥有 WorkingContext、模型/Tool 状态机、exact managed Delegate、typed Delegate artifacts 与可选 pure completion validator，Dispatcher 只拥有模型和普通 Tool I/O。Delegate 将目标 Descriptor Input 暴露为模型 Tool schema，但只能由 Execution 经 Framework `StartChild`/`WaitForChildren` 推进；成功 child Output 经 exact schema 复验后进入 immutable validator view，validator 读取防御性复制的当前 WorkingContext/candidate/artifacts，拒绝候选时以有界 feedback 进入下一模型轮次；HITL/steer/stream/tool concurrency 仍通过根窄腰表达。它不拥有 Process lifecycle、产品 history、artifact store、UI 或 approval policy。
 
 `planning` package 冻结为另一个原生 Strategy：Goal、Condition、Truth、WorldState、Action、Plan 和 Planning outcome 全部由 Planning 拥有；Planner 只做无副作用搜索，Observer/ActionExecutor 只存在于 dispatcher 边界。Execution 每次只执行 Plan 的第一个 Action，随后重新观察、确认预测效果并重新规划。dispatcher Action 与 child Process Action 共用同一预测模型，但不共享执行 capability；unreachable/stuck 是 Planning Output，不是共同 Process 状态。
 
@@ -45,7 +45,7 @@ Baseline 3 不是兼容承诺或发布版本。仓库仍允许 breaking change�
 `baseline_test.go` 对五个公共 package 的完整 `go doc -all` 输出做 SHA-256 校验，因此 exported identifier、参数名、字段、签名和 GoDoc 的任何漂移都会失败。Baseline 3 digest：
 
 - root kernel：`52a43f16c1b71a099a660ddde520c345476de124855f55c65221f46911486146`
-- interaction：`086f0c7c0897ddb8a851c9ec45266ee6b97eddfb9c29f495c132f074109e4ff8`
+- interaction：`9678f94265b227e7d085cc18a264ad3be4cac98709d94638f47c9ee7960e3fee`
 - planning：`bb3a3fee5315afba3cc1f70ecc0486b4b91f88d4d4160aa93bf896b09ffc28a1`
 - planning/goap：`da348e298e6976318b317873b44ec60829020fdea82947fae4bbc8e0d865b419`
 - workflow：`0493f8f7ae6e4cc5a3190735c5d02952ec0e0fdb230794bbb01735b8ecfae055`
@@ -58,6 +58,8 @@ Digest 只用于发现未审计漂移，不替代 strict codec、round-trip、ma
 
 Baseline 2 对根 Kernel 的唯一公开修订是 `ChildWaitOpened.Spec`：Planning 的真实 child Action 证明 Strategy 必须校验 Engine 确认的完整 child-wait request，而不能只相信 WaitID。Baseline 3 最初加入 Workflow；P7-02 依据 ADR-A2-040 对 Interaction 做了一次显式审计修订：新增 `Delegate`/`DelegateConfig`/`ErrInvalidDelegate`，`DefinitionConfig` 新增 `Delegates`，`NewDispatcher` 必须接收 exact `*Definition` 以冻结同一模型 manifest。Interaction 私有 ExecutionState 从 v1 直接升级为 v2，不双读旧状态。根公开 API、Process Snapshot v3、TreeSnapshot v1 及其 wire digest 均未变化。
 
+P7-03 依据 ADR-A2-041 再次审计修订 Interaction：新增 opaque `Artifact`/`Artifacts`/`CompletionCandidate`、`CompletionDecision`、`CompletionValidator`、`DecodeArtifact[T]` 与 `ErrInvalidArtifact`，`DefinitionConfig` 新增可选 `CompletionValidator`。这些 API 只服务已实现的 exact Delegate typed evidence 与显式完成反馈，不形成产品 store 或新 Strategy。Interaction 私有 ExecutionState 从 v2 直接升级为 v3，不双读旧状态；根、Planning、GOAP、Workflow API 与共同 snapshot/tree wire 均未改变。
+
 ## 4. 明确不在基线中的能力
 
-Baseline 3 不冻结 Platform catalog/routing、OTel decorator、应用迁移 API 或 P7-03 之后尚未实现的组合 helper。`flow` 保持独立 in-process 库，不形成 Agent adapter API 或依赖；未来编辑器图只能在更高层编译成已验证的 Workflow Definition，不能反向扩张 Kernel 或恢复 wire。
+Baseline 3 不冻结 Platform catalog/routing、OTel decorator、应用迁移 API 或 P7-04 及之后尚未实现的组合形态。`flow` 保持独立 in-process 库，不形成 Agent adapter API 或依赖；未来编辑器图只能在更高层编译成已验证的 Workflow Definition，不能反向扩张 Kernel 或恢复 wire。

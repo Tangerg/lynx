@@ -3,7 +3,7 @@
 > 状态：持续实施
 > 建立日期：2026-08-06
 > 最后更新：2026-08-06
-> 当前阶段：P7 组合模式与能力覆盖，2/7 完成
+> 当前阶段：P7 组合模式与能力覆盖，3/7 完成
 > 当前实施范围：仅 `agent2`
 > 临时模块路径：`github.com/Tangerg/lynx/agent2`
 > 最终模块路径：`github.com/Tangerg/lynx/agent`
@@ -73,7 +73,7 @@ go test ./...
 | P4 子 Process 组合与合同冻结 | 完成 | 9/9 | start/wait、递归、组合、预算、取消、恢复；多消费方验证后冻结窄腰 |
 | P5 Planning 与 GOAP | 完成 | 8/8 | Planning 状态、Planner SPI、GOAP 搜索与 replan |
 | P6 managed Workflow | 完成 | 11/11 | 以有序 Stage 和真实 child Process 实现可恢复确定性编排，`flow` 保持独立 in-process 边界 |
-| P7 组合模式与能力覆盖 | 进行中 | 2/7 | 动态 worker 组合、typed artifacts、evaluator/optimizer、示例 |
+| P7 组合模式与能力覆盖 | 进行中 | 3/7 | 动态 worker 组合、typed artifacts、evaluator/optimizer、示例 |
 | P8 Platform 与治理 | 未开始 | 0/7 | resolver、deployment catalog、版本、路由、递归治理和观测 |
 | P9 独立完整性验收 | 未开始 | 0/6 | API/wire/arch/race/fuzz/examples/standalone 全绿 |
 | P10 消费迁移 | 未开始 | 0/5 | 单独迁移 `app/runtime` 及批准的直接消费者 |
@@ -168,7 +168,7 @@ go test ./...
 
 - [x] P7-01 审查 Embabel supervisor、utility、hybrid 及旧实现并记录裁决。
 - [x] P7-02 实现 exact child Deployment 的 managed Delegate，不虚构通用 Action-to-Tool，Tool/Dispatcher 不直接启动 Process。
-- [ ] P7-03 实现 typed artifact state 和 completion validator。
+- [x] P7-03 实现 typed artifact state 和 completion validator。
 - [ ] P7-04 使用 P6 最终裁决的唯一确定性编排边界、Interaction、Planning 和 child Process 组合模型动态拆分、worker 调度和结果综合，不新增 Supervisor package/kind/lifecycle。
 - [ ] P7-05 实现 evaluator-optimizer 组合。
 - [ ] P7-06 为 Anthropic 所列每种模式建立行为测试和示例。
@@ -254,6 +254,7 @@ go test ./...
 
 | 日期 | 阶段 | 实际事实 | 验证与结果 |
 |---|---|---|---|
+| 2026-08-06 | P7 | 完成 Interaction-owned typed artifact 与 completion validator 纵切面。成功 Delegate child 只有在 Completed、Output 存在且再次通过 exact frozen schema 后，才按模型轮次/原 ToolCall 位置追加 immutable portable record；普通 Tool、错误结果、start failure 与非 Completed child 均不进入。公开 `Artifact` 只暴露 exact Delegate name、immutable erased Output 与 `DecodeArtifact[T]`，WorkingContext/candidate Output/`Artifacts.All` 均防御性复制；不暴露 Process/child/Host identity、runtime type、Blackboard 或产品 store。可选 `CompletionValidator` 冻结于 Definition，以当前 Interaction WorkingContext + candidate Output + artifacts 返回显式 Accepted/Feedback；拒绝模型或 direct-Tool 候选都会保留准确上下文、追加 user feedback 并进入下一模型轮次，仍受 MaxModelCalls 硬限制。私有 Interaction ExecutionState 从 v2 直接升级 v3，strict restore 复验 artifact 顺序、identity 与 schema，v2 不双读；Kernel 与共同 snapshot/tree wire 不变 | 真实 Workflow Delegate consumer 证明 typed output 可严格解码、过早模型答案被拒绝、feedback 后第三轮完成；篡改 WorkingContext/`Artifacts.All` 返回值不能影响状态。direct-result consumer 证明 assistant ToolCall→ToolResult→feedback 顺序；非法 decision 进入稳定 contract failure，拒绝后耗尽得到稳定 `interaction.limit.model_calls`。strict tests 拒绝未知 Delegate、错误 schema、重复 identity、逆序 record；state fuzz 3 秒执行 334388 次无失败。Interaction API digest 显式修订为 `9678f94265b227e7d085cc18a264ad3be4cac98709d94638f47c9ee7960e3fee`，其余 API/wire digest 不变。standalone mod tidy/diff/build/vet/staticcheck/test/race 与四个 examples 全绿；P7-03 完成，P7 更新为 3/7 |
 | 2026-08-06 | P7 | 完成 Interaction-owned managed Delegate 纵切面。`NewDelegate` 冻结模型专用 name/description、exact child DeploymentRef、目标 Descriptor Input/Output schema、每次调用 Budget 与 attenuated Capabilities；非 object Input、重复 Delegate 名、普通 Tool/Delegate 重名均在启动前拒绝。`NewDispatcher` breaking 改为接收 exact Definition，只负责发出普通 Tool + Delegate 的统一模型 manifest 和执行普通 Tool；AST guard 禁止 Dispatcher 引用 Engine/Process/StartChild/WaitForChildren。Interaction 将一个模型 ToolCall batch 按原顺序切为普通 Tool/Delegate 连续区段：普通区段沿用并发/HITL，Delegate 区段批量声明 Framework StartChild、wait-all，并在完整结算后合成一个原顺序 ToolResult message。非法参数、确定 start failure、child 非 Completed 终态是模型可见 `IsError`；身份/wait/output schema 违约是父 Interaction 合同失败。完整 Delegate cursor/child/wait/result 进入 strict ExecutionState v2，v1 不双读，根 snapshot/tree wire 不变 | 真实 Workflow child consumer 验证普通 Tool + 两个 Delegate + 普通 Tool 混合 batch、三个 Process、原序结果、exact child Budget/Capability；非法参数与缺 resolver 不创建 child；parent Waiting/child Paused 的 tree 在销毁后 exact restore，复用原 ChildID 并完成，最终无重复 child。新增 awaiting-start/waiting-child strict restore fuzz；3 秒 147362 次无失败。Baseline 3 的 Interaction API digest 显式修订为 `086f0c7c0897ddb8a851c9ec45266ee6b97eddfb9c29f495c132f074109e4ff8`，其余 API 与 snapshot/tree digest 不变。standalone mod tidy/build/vet/staticcheck/test/race、四个 examples 全绿；P7-02 完成，P7 更新为 2/7 |
 | 2026-08-06 | P7 | 只读审计 clean Embabel main `e2d7b987c` 的 HybridUtilityPlanner、UtilityPlanner、SupervisorInvocation、SupervisorAction、CurriedActionTool、typed supervisor/artifact tests，以及旧 Go supervisor、utility、AgentTool、RepeatUntilAcceptable。确认 Embabel Hybrid 是 satisfaction-first 的单步 greedy planner，不是新执行生命周期；Supervisor 本质是一个 synthetic Action 内的模型 Tool loop，依靠 mutable Blackboard、runtime type currying、thread-local Process 和直接 Action execution，且 max iterations 硬编码为 10、耗尽只记录日志。保留 schema-informed worker manifest、typed goal、每轮重看结果、显式 limit、attempt/feedback/best-of-N；拒绝 Blackboard/type-name completion/Action 内 while-loop/Engine-owning Tool。审计同时发现目标架构虚构了尚不存在的通用 Framework Action：当前 `planning.Action` 明确只有预测语义，无法诚实推出 Tool schema 或执行行为。追加 ADR-A2-040，将 P7-02 治本改为 Interaction-owned managed Delegate：模型友好 Tool 合同 + exact child Deployment，Execution 只经 Framework child Effects 推进 | Embabel 仓库保持 clean；targeted upstream tests 源码已核对。本机没有 Maven wrapper 或 `mvn`，因此没有虚报上游测试执行。`agent2` 仅修改事实/架构文档，Baseline 3 代码和 wire 零变化；diff check 与 standalone build/vet/test 保持全绿。P7-01 完成，P7 更新为 1/7 |
 | 2026-08-06 | P6 | 完成独立 `examples/workflow` command consumer：只使用公开 API 装配一个 Call→Fork root Workflow，Call 的 normalizer 与两个 Fork reviewer 都是独立 Workflow Deployment；Engine resolver 只按 exact DeploymentRef 提供三个 child，最终 tree 恰好包含 root + 3 child。消费者审计发现公开 `Concurrency` 实际表达“整窗结算后再开下一窗”，不是持续补位的并发池，因此在冻结前治本改名为 `WindowSize`，生产字段、内部状态、测试、GoDoc 和稳定文档统一术语。反向审计进一步删除没有真实消费者的 `StageKind`、Stage ID/kind/schema getters 与 `Definition.Stages`；这些半套反射 API 既不能重建配置，也不应提前冒充 P8 编辑器/catalog 合同。保留的 Stage 仍是 sealed immutable value，只经六个 typed constructor 产生。追加 ADR-A2-039，并将 workflow exported API/GoDoc 纳入 Baseline 3；根公开 API、Snapshot v3 与 TreeSnapshot v1 wire digest 均未变化 | command 输出稳定为规范化请求、声明顺序 reviews 和 `processes: 4`；四个独立 examples 全部真实运行。workflow API digest 冻结为 `0493f8f7ae6e4cc5a3190735c5d02952ec0e0fdb230794bbb01735b8ecfae055`，既有四个 package digest 与 snapshot/tree wire digest 继续通过。standalone mod tidy/build/vet/staticcheck/test/race 全绿；P6-11 完成，P6 更新为 11/11 |
@@ -302,6 +303,6 @@ go test ./...
 
 ## 9. 当前下一步
 
-P1–P6 与 P7-01～P7-02 已完成。Baseline 3 继续由 Interaction、Planning、GOAP、Workflow、四个独立 command consumer、managed Delegate、递归 child Process、tree recovery、race 和 fuzz 保护。下一轮 P7-03 只实现 Strategy-owned portable typed artifact state 与显式 completion validator；不得恢复 Blackboard、按类型名猜完成、产品 artifact store、Host identity 或 Kernel 字段。
+P1–P6 与 P7-01～P7-03 已完成。Baseline 3 继续由 Interaction、Planning、GOAP、Workflow、四个独立 command consumer、managed Delegate、typed artifact、completion validator、递归 child Process、tree recovery、race 和 fuzz 保护。下一轮 P7-04 只组合模型动态拆分、managed worker 调度与结果综合，不新增 Supervisor package/kind/lifecycle，不把业务 task/artifact schema、catalog、Host identity 或产品 persistence 下沉 Framework。
 
 在 P1–P9 完成前，不迁移 `app/runtime`，不删除旧 `agent`，不发布 `agent2` 稳定版本。

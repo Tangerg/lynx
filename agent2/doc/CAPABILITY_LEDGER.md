@@ -309,3 +309,11 @@
 - 空参数按标准空 object 处理；非法 JSON/输入 schema、definite child-start failure 和 child 非 Completed 终态都形成有界 `IsError` ToolResult，允许模型在下一轮改选。Completed child 必须存在 Output 且再次通过该 Delegate 冻结的 Output schema；身份、wait spec、结果顺序或 schema 错配按合同错误终止父 Process。
 - 真实跨 Strategy 测试以 Workflow child 验证普通 Tool + 两个同区段 Delegate + 普通 Tool 的混合 batch、exact manifest、声明顺序结果、独立 Process、每 child Budget/Capability。另一个测试覆盖非法参数与 resolver 不可用不会创建幽灵 child；等待态测试在 parent Waiting/child Paused 时 capture 整棵树，销毁原树后 exact restore、恢复既有 child 并完成，最终仍只有 root + one child。
 - `interaction/dispatcher.go` 的 AST guard 禁止 Engine、Process、`StartChild`、`WaitForChildren`，证明 schema exposition 没有长出第二生命周期入口。strict restore fuzz 覆盖 awaiting-start 与 waiting-child 状态，race 和完整 examples 共同保护恢复与并发边界。
+
+### 11.3 Typed artifact 与 completion validator 实现证据
+
+- Interaction ExecutionState v3 新增严格有序的私有 artifact records。每条记录只在 exact Delegate child Completed、Output 存在且再次通过冻结 schema 后一次性追加；同模型轮次按原 ToolCall index 严格递增，重复 call identity、未知 Delegate、错序或错误 schema 在 restore 时确定拒绝。普通 Tool、失败 Delegate 与应用 artifact store 没有进入该状态。
+- validator 只看到 opaque `CompletionCandidate` 的 defensive-copy Interaction WorkingContext、Output 与 immutable `Artifacts`；WorkingContext 明确不是 Host conversation/transcript 且不含当前候选。`Artifact` 只公开 exact Delegate name、immutable erased Output 和 typed `DecodeArtifact[T]`。ProcessID、ChildKey、CallID、Go reflect type、Blackboard binding、Host identity 与 mutable slice 均没有进入公共完成合同。
+- 真实跨 Strategy 测试先由 Workflow child 产生 typed Delegate output，再让模型给出过早答案；validator 成功严格解码 artifact 后拒绝，下一模型请求精确保留原 assistant candidate 并追加 actionable user feedback，第三轮被接受。测试同时篡改 `Artifacts.All()` 返回切片，证明无法反向修改 Execution state。
+- direct-result 测试证明同一 validator 能拒绝 `CompletionSourceDirectToolResults`，并精确保留 assistant ToolCall、ToolResult、feedback 顺序；模型最终响应随后正常完成。零值/矛盾 decision 进入稳定 contract failure，validator error 与 panic 分别保留 execution/panic 分类；拒绝后达到 `MaxModelCalls` 进入既有稳定 limit failure，不泄漏未接受候选。
+- strict restore 单测拒绝未知 Delegate、错误 Output schema、重复 ToolCall identity 与逆序 artifact；state fuzz 新增携带 settled artifact 的 awaiting-model seed。实现只修改 Interaction 私有 state 和 Interaction API，没有新增 Kernel 字段、Supervisor package、产品 Store 或第二 dispatcher/lifecycle。

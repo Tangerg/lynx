@@ -184,6 +184,7 @@ func (execution *execution) acceptDelegates(signals []agent.Signal) (agent.Trans
 	outcomes := completed.Outcomes()
 	next := 0
 	results := make([]chat.ToolResult, len(calls))
+	artifacts := make([]artifactRecord, 0, len(calls))
 	for index, invocation := range execution.state.DelegateSegment.Invocations {
 		if invocation.Result != nil {
 			results[index] = *invocation.Result
@@ -216,11 +217,17 @@ func (execution *execution) acceptDelegates(signals []agent.Signal) (agent.Trans
 		results[index] = chat.ToolResult{
 			ID: calls[index].ID, Name: calls[index].Name, Result: string(output.JSON()),
 		}
+		artifacts = append(artifacts, artifactRecord{
+			ModelCall: execution.state.ModelCalls,
+			CallIndex: execution.state.NextCall + uint32(index),
+			CallID:    calls[index].ID, DelegateName: calls[index].Name, Output: output,
+		})
 	}
 	if next != len(outcomes) {
 		return agent.Transition{}, fmt.Errorf("%w: unexpected Delegate child outcome", ErrInvalidState)
 	}
 	execution.state.SettledResults = append(execution.state.SettledResults, results...)
+	execution.state.Artifacts = append(execution.state.Artifacts, artifacts...)
 	execution.state.NextCall = execution.state.ActiveCallEnd
 	execution.state.ActiveCallEnd = 0
 	execution.state.DelegateSegment = nil

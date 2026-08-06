@@ -17,6 +17,9 @@ var (
 	ErrInvalidDispatcherConfig = errors.New("interaction: invalid dispatcher configuration")
 	// ErrInvalidDelegate reports an unusable model-facing child binding.
 	ErrInvalidDelegate = errors.New("interaction: invalid delegate")
+	// ErrInvalidArtifact reports a malformed or undecodable successful
+	// Delegate output value.
+	ErrInvalidArtifact = errors.New("interaction: invalid artifact")
 	// ErrInvalidInput reports malformed managed Interaction input.
 	ErrInvalidInput = errors.New("interaction: invalid input")
 	// ErrInvalidState reports malformed or inconsistent Interaction state.
@@ -165,6 +168,13 @@ type DefinitionConfig struct {
 	// Deployments. Names must be unique within this slice and must not collide
 	// with ordinary Tools bound by the Dispatcher.
 	Delegates []Delegate
+
+	// CompletionValidator optionally verifies a proposed final semantic output
+	// against the current WorkingContext and accumulated typed Delegate
+	// Artifacts. It is a pure Strategy callback whose identity must be covered by
+	// the Deployment's ConfigurationDigest. Nil accepts every otherwise valid
+	// completion.
+	CompletionValidator CompletionValidator
 }
 
 // DispatcherConfig binds external capabilities for one Deployment.

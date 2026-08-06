@@ -131,11 +131,15 @@ func (execution *execution) acceptModel(signals []agent.Signal) (agent.Transitio
 			execution.state.Phase = phaseReadyModel
 			return execution.requestModel(consumed)
 		}
-		return execution.complete(consumed, Output{
+		choice := response.First()
+		if choice == nil || choice.Message == nil || choice.FinishReason == "" {
+			return agent.Transition{}, fmt.Errorf("%w: final response has no finished assistant message", ErrInvalidState)
+		}
+		return execution.finishOrRetry(consumed, Output{
 			Source:        CompletionSourceModelResponse,
 			ModelResponse: response,
 			ModelCalls:    execution.state.ModelCalls,
-		})
+		}, []chat.Message{choice.Message.Clone()})
 	}
 
 	execution.state.PendingResponse = response
@@ -304,6 +308,57 @@ func (execution *execution) complete(consumed uint32, output Output) (agent.Tran
 	return agent.Complete(consumed, encoded)
 }
 
+func (execution *execution) finishOrRetry(
+	consumed uint32,
+	output Output,
+	completionContext []chat.Message,
+) (agent.Transition, error) {
+	if err := output.Validate(); err != nil {
+		return agent.Transition{}, err
+	}
+	candidate := CompletionCandidate{
+		workingContext: execution.state.Request.Clone(),
+		output:         cloneOutput(output),
+		artifacts:      newArtifacts(execution.state.Artifacts),
+	}
+	decision := CompletionDecision{Accepted: true}
+	if execution.definition.completionValidator != nil {
+		var err error
+		decision, err = execution.definition.completionValidator(candidate)
+		if err != nil {
+			return execution.fail(
+				consumed,
+				agent.FailureKindExecution,
+				"interaction.completion.validator_failed",
+				err.Error(),
+			)
+		}
+	}
+	if !decision.Valid() {
+		return execution.fail(
+			consumed,
+			agent.FailureKindContract,
+			"interaction.completion.decision_invalid",
+			"CompletionValidator returned an invalid decision",
+		)
+	}
+	if decision.Accepted {
+		return execution.complete(consumed, output)
+	}
+	request := execution.state.Request.Clone()
+	request.Messages = append(request.Messages, cloneMessages(completionContext)...)
+	request.Messages = append(request.Messages, chat.NewUserMessage(chat.NewTextPart(decision.Feedback)))
+	if err := request.Validate(); err != nil {
+		return agent.Transition{}, fmt.Errorf("%w: completion retry request: %v", ErrInvalidState, err)
+	}
+	execution.state.Request = request
+	execution.clearToolCallBatch()
+	execution.state.WaitID = nil
+	execution.state.Steering = nil
+	execution.state.Phase = phaseReadyModel
+	return execution.requestModel(consumed)
+}
+
 func (execution *execution) advanceToolCallBatch(consumed uint32) (agent.Transition, error) {
 	for {
 		calls, assistant, err := responseToolCalls(execution.state.PendingResponse)
@@ -314,10 +369,10 @@ func (execution *execution) advanceToolCallBatch(consumed uint32) (agent.Transit
 		if execution.state.NextCall == uint32(len(calls)) {
 			results := append([]chat.ToolResult(nil), execution.state.SettledResults...)
 			if execution.state.DirectResultEligible && len(execution.state.Steering) == 0 {
-				return execution.complete(consumed, Output{
+				return execution.finishOrRetry(consumed, Output{
 					Source:            CompletionSourceDirectToolResults,
 					DirectToolResults: results, ModelCalls: execution.state.ModelCalls,
-				})
+				}, []chat.Message{assistant.Clone(), chat.NewToolMessage(results...)})
 			}
 			request := execution.state.Request.Clone()
 			request.Messages = append(request.Messages, assistant.Clone(), chat.NewToolMessage(results...))

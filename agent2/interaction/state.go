@@ -52,7 +52,16 @@ type executionState struct {
 	DelegateSegment      *delegateSegmentState `json:"delegate_segment,omitempty"`
 	WaitID               *agent.WaitID         `json:"wait_id,omitempty"`
 	Steering             []chat.Message        `json:"steering,omitempty"`
+	Artifacts            []artifactRecord      `json:"artifacts,omitempty"`
 	FinalOutput          *Output               `json:"final_output,omitempty"`
+}
+
+type artifactRecord struct {
+	ModelCall    uint32       `json:"model_call"`
+	CallIndex    uint32       `json:"call_index"`
+	CallID       string       `json:"call_id"`
+	DelegateName string       `json:"delegate_name"`
+	Output       agent.Output `json:"output"`
 }
 
 type delegateInvocationState struct {
@@ -83,6 +92,9 @@ func (state executionState) Validate(definition *Definition) error {
 	}
 	if state.ModelCalls > definition.maxModelCalls {
 		return fmt.Errorf("%w: model call count exceeds configured limit", ErrInvalidState)
+	}
+	if err := state.validateArtifacts(definition); err != nil {
+		return err
 	}
 	if len(state.Steering) > 0 {
 		if err := validateSteeringMessages(state.Steering); err != nil {
@@ -168,6 +180,72 @@ func (state executionState) Validate(definition *Definition) error {
 		}
 		if state.FinalOutput.ModelCalls != state.ModelCalls {
 			return fmt.Errorf("%w: final Output model-call count does not match state", ErrInvalidState)
+		}
+	}
+	return nil
+}
+
+func (state executionState) validateArtifacts(definition *Definition) error {
+	var previousModelCall uint32
+	var previousCallIndex uint32
+	type artifactIdentity struct {
+		modelCall uint32
+		callID    string
+	}
+	seen := make(map[artifactIdentity]struct{}, len(state.Artifacts))
+	for index, artifact := range state.Artifacts {
+		delegate, found := definition.delegate(artifact.DelegateName)
+		if artifact.ModelCall == 0 || artifact.ModelCall > state.ModelCalls ||
+			artifact.CallID == "" || !found || !artifact.Output.Valid() {
+			return fmt.Errorf("%w: artifact %d has invalid identity or output", ErrInvalidState, index)
+		}
+		if index > 0 && (artifact.ModelCall < previousModelCall ||
+			artifact.ModelCall == previousModelCall && artifact.CallIndex <= previousCallIndex) {
+			return fmt.Errorf("%w: artifacts are not in strict ToolCall order", ErrInvalidState)
+		}
+		identity := artifactIdentity{modelCall: artifact.ModelCall, callID: artifact.CallID}
+		if _, duplicate := seen[identity]; duplicate {
+			return fmt.Errorf("%w: duplicate artifact ToolCall identity", ErrInvalidState)
+		}
+		seen[identity] = struct{}{}
+		if err := delegate.outputSchema.ValidateOutput(artifact.Output); err != nil {
+			return fmt.Errorf("%w: artifact %d violates Delegate output contract", ErrInvalidState, index)
+		}
+		previousModelCall = artifact.ModelCall
+		previousCallIndex = artifact.CallIndex
+	}
+	return state.validateCurrentBatchArtifacts(definition)
+}
+
+func (state executionState) validateCurrentBatchArtifacts(definition *Definition) error {
+	if len(state.Artifacts) == 0 || state.Artifacts[len(state.Artifacts)-1].ModelCall != state.ModelCalls {
+		return nil
+	}
+	calls, _, err := responseToolCalls(state.PendingResponse)
+	if err != nil {
+		return fmt.Errorf("%w: current-round artifact has no pending ToolCall batch", ErrInvalidState)
+	}
+	for _, artifact := range state.Artifacts {
+		if artifact.ModelCall != state.ModelCalls {
+			continue
+		}
+		if artifact.CallIndex >= state.NextCall || uint64(artifact.CallIndex) >= uint64(len(calls)) {
+			return fmt.Errorf("%w: current-round artifact is not settled", ErrInvalidState)
+		}
+		if uint64(artifact.CallIndex) >= uint64(len(state.SettledResults)) {
+			return fmt.Errorf("%w: current-round artifact has no settled result", ErrInvalidState)
+		}
+		call := calls[artifact.CallIndex]
+		if call.ID != artifact.CallID || call.Name != artifact.DelegateName {
+			return fmt.Errorf("%w: current-round artifact does not match ToolCall", ErrInvalidState)
+		}
+		if _, found := definition.delegate(call.Name); !found {
+			return fmt.Errorf("%w: current-round artifact is not a Delegate output", ErrInvalidState)
+		}
+		result := state.SettledResults[artifact.CallIndex]
+		if result.IsError || result.ID != call.ID || result.Name != call.Name ||
+			result.Result != string(artifact.Output.JSON()) {
+			return fmt.Errorf("%w: current-round artifact does not match settled result", ErrInvalidState)
 		}
 	}
 	return nil

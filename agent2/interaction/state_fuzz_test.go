@@ -51,7 +51,7 @@ func FuzzExecutionStateRestore(f *testing.F) {
 	})
 }
 
-func fuzzInteractionDefinition(f *testing.F) *Definition {
+func fuzzInteractionDefinition(f testing.TB) *Definition {
 	f.Helper()
 	inputSchema, err := agent.SchemaFor[fuzzDelegateInput]()
 	if err != nil {
@@ -95,7 +95,7 @@ func fuzzInteractionDefinition(f *testing.F) *Definition {
 	return definition
 }
 
-func fuzzInteractionStates(f *testing.F, definition *Definition) []agent.ExecutionState {
+func fuzzInteractionStates(f testing.TB, definition *Definition) []agent.ExecutionState {
 	f.Helper()
 	request := &chat.Request{Messages: []chat.Message{chat.NewUserMessage(chat.NewTextPart("fuzz"))}}
 	call := chat.ToolCall{ID: "call_fuzz", Name: "delegate_fuzz", Arguments: `{"task":"check"}`}
@@ -106,6 +106,7 @@ func fuzzInteractionStates(f *testing.F, definition *Definition) []agent.Executi
 	key, _ := delegateChildKey(1, call)
 	processID, _ := agent.ParseProcessID("process:fuzz-child")
 	waitID, _ := agent.ParseWaitID("wait:fuzz-child")
+	artifactOutput, _ := agent.EncodeOutput(fuzzDelegateOutput{Result: "settled"})
 	states := []executionState{
 		{
 			Phase: phaseAwaitingDelegateStarts, Request: request.Clone(), ModelCalls: 1,
@@ -118,6 +119,13 @@ func fuzzInteractionStates(f *testing.F, definition *Definition) []agent.Executi
 			DelegateSegment: &delegateSegmentState{Invocations: []delegateInvocationState{{
 				Key: &key, ProcessID: &processID,
 			}}},
+		},
+		{
+			Phase: phaseAwaitingModel, Request: request.Clone(), ModelCalls: 2,
+			Artifacts: []artifactRecord{{
+				ModelCall: 1, CallIndex: 0, CallID: "call_settled",
+				DelegateName: "delegate_fuzz", Output: artifactOutput,
+			}},
 		},
 	}
 	encoded := make([]agent.ExecutionState, 0, len(states))

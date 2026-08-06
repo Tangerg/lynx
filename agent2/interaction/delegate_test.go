@@ -396,6 +396,17 @@ func delegateInteraction(
 	tools []tool.Tool,
 	delegates []interaction.Delegate,
 ) agent.Deployment {
+	return delegateInteractionWithValidator(t, model, tools, delegates, nil, 3)
+}
+
+func delegateInteractionWithValidator(
+	t *testing.T,
+	model chat.Model,
+	tools []tool.Tool,
+	delegates []interaction.Delegate,
+	validator interaction.CompletionValidator,
+	maxModelCalls uint32,
+) agent.Deployment {
 	t.Helper()
 	client, err := chatclient.New(model, chatclient.Config{})
 	if err != nil {
@@ -403,7 +414,8 @@ func delegateInteraction(
 	}
 	definition, err := interaction.NewDefinition(interaction.DefinitionConfig{
 		Name: "interaction.delegate_root", Description: "Exercise exact managed worker delegation.",
-		Version: "1.0.0", MaxModelCalls: 3, Delegates: delegates,
+		Version: "1.0.0", MaxModelCalls: maxModelCalls, Delegates: delegates,
+		CompletionValidator: validator,
 	})
 	if err != nil {
 		t.Fatal(err)

@@ -11,17 +11,18 @@ import (
 
 const (
 	executionStateKind          = "interaction"
-	executionStateSchemaVersion = 2
+	executionStateSchemaVersion = 3
 )
 
 // Definition is an immutable managed model/Tool-loop definition. It contains
 // no model client or executable Tool; those external capabilities belong to
 // the Deployment-bound Dispatcher.
 type Definition struct {
-	descriptor     agent.Descriptor
-	maxModelCalls  uint32
-	delegates      []Delegate
-	delegateByName map[string]Delegate
+	descriptor          agent.Descriptor
+	maxModelCalls       uint32
+	delegates           []Delegate
+	delegateByName      map[string]Delegate
+	completionValidator CompletionValidator
 }
 
 // NewDefinition validates config and constructs an Interaction Definition.
@@ -66,6 +67,7 @@ func NewDefinition(config DefinitionConfig) (*Definition, error) {
 	return &Definition{
 		descriptor: descriptor, maxModelCalls: config.MaxModelCalls,
 		delegates: delegates, delegateByName: byName,
+		completionValidator: config.CompletionValidator,
 	}, nil
 }
 
