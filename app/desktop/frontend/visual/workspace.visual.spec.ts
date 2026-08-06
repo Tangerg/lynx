@@ -60,7 +60,13 @@ async function waitForWorkspaceState(page: Page, state: VisualWorkspaceState): P
     return;
   }
   if (state === "dock-loading") {
-    await expect(page.locator(".agent-context-dock output[aria-busy=true]")).toBeVisible();
+    // Scoped to the tab on screen. Every open tab stays mounted, and a tab that is
+    // hidden has its effects torn down — so its query never subscribes and it renders
+    // its own busy state indefinitely. Unscoped, this matched three spinners and
+    // asserted on the first, which is whichever tab happens to be leftmost.
+    await expect(
+      page.locator(".agent-context-dock [data-dock-view-id]:visible output[aria-busy=true]"),
+    ).toBeVisible();
     return;
   }
   if (state === "dock-error") {
