@@ -402,3 +402,14 @@
 - 决策：SelectDeployment 在调用 selector 前冻结 active Deployment values 与候选 membership，在 Platform lock 外执行 selector，完成后只从该 captured set 返回 exact Deployment。并发 Replace/Undeploy 后旧 ref 仍由 Catalog 保留，所以选择不会 TOCTOU 跟随新 active route，也不会因为 route 变化变成不可执行。Selector 不能返回调用期间新部署但未被 offered 的 ref。
 - 原因：选择政策是可替换扩展，候选快照与 exact identity validation 才是 Platform invariant。用一个最小 selector 合同可以承载代码、模型或其他实现，同时避免把某种 scoring vocabulary、产品请求或执行入口固化进 Framework。
 - 后果：Engine 继续只消费 exact resolver，不依赖 Platform 或 selector。P8-05 guard 只能约束候选/启动边界，不能把权限字段塞进 Candidate 或让 selector 创建 Process。Platform API 仍待 P8-07 真实 command consumer 后冻结；根/Strategy API 与共同 wire 不变。
+
+## ADR-A2-051：ProcessAdmitter 是根与子启动共用的唯一准入合同
+
+- 状态：已接受；完成 P8-05。
+- 证据：P4 已经由 Engine 单独实现并持久化每 Process Budget、父子永久划拨、TreeLimits、root 最大 CapabilitySet、child subset attenuation 与 Dispatcher Effect capability enforcement；这些是正确性不变量，不能在 P8 再造一份可变 policy state。旧模块的 `StopPolicy` 在每个 tick 读取胖 ProcessView，`ChildAdmitter` 只覆盖 child 且通过通用 Extension registry 动态分派；前者混淆资源限制、Strategy stop rule 与 Host control，后者让 root/child 使用不同准入术语和入口。
+- 决策：公共词汇只增加 `ProcessAdmission` 与 `ProcessAdmitter`，不同时增加 Policy、Guard、Middleware 或 Extension marker。ProcessAdmission 是 Engine-only constructed immutable value，只暴露 ProcessRelation、exact DeploymentRef、frozen Descriptor、Budget 和 CapabilitySet；所有字段私有，不包含 Input、Execution、Dispatcher、Engine、用户/租户、订阅、价格、Store、transaction 或幂等键。一个 EngineConfig 只接收一个 admitter，因此每个 prospective Process 只有一个准入裁决者。
+- 决策：同一个 admitter 消费 root Start 与 Framework StartChild。root 在 Definition.Start 和注册前请求准入；child 在 exact resolution、输入合同验证、预算可用性与 capability subset 检查后、Definition.Start 和注册前请求准入。拒绝 root 返回 `ErrProcessAdmissionRejected` 并保留 ordinary cause；拒绝 child 形成 External `engine.child.admission.rejected` settlement，释放预留预算且不发布 Process。panic 与 typed nil 被稳定隔离，admitter 不能批准 capability escalation 或扩充 Budget/TreeLimits。
+- 决策：admitter 必须同步、有界、无外部 I/O、不得重入 Process、支持并发调用并保持 decision-only，因此其方法不接收误导性的 context。prepared child Step 在 crash restore 后可能以同一稳定 Process identity 再次请求准入，所以实现不能把调用本身当成一次 durable charge 或产生不可逆副作用。root 的远端审批由 Host 在 Start 前完成；child 的远端审批必须由 Strategy 先声明 Dispatcher Effect，再根据 settlement 声明 StartChild，不能藏进 Framework Effect 的本地准入路径。已经 capture 的 root/tree restore 不重复 admission：snapshot 中的 exact binding、预算、能力和关系就是已准入事实；若 Host 当前政策禁止恢复，应在调用 restore 前拒绝，或用明确控制终止，而不是让 Kernel 恢复取决于隐藏 live policy。
+- 决策：不重建通用 StopPolicy。Framework 资源耗尽由 Limits/Budget 直接终止，外部撤销由 Process Cancel/Kill，Planning no-plan 与 Interaction completion 各归 Strategy policy。ProcessAdmitter 只拥有 start boundary，不在每 Step 重复判断，不观察 Event，也不取得生命周期所有权。Platform selection policy 继续属于 Selector；P8-07 只把 Platform resolver 与同一个 EngineConfig 装配起来，不建立第二 runtime。
+- 原因：准入是正确性路径，观察不是；但准入扩展也不能成为第二资源 owner。一个中性、只读、根子同构的消费侧接口提供必要可替换点，同时保住 Engine 的单写者资源/权限不变量和 Framework/Host 边界。
+- 后果：根公共 API/GoDoc 显式修订，四个 Strategy API 与 Snapshot v3/TreeSnapshot v1 wire 不变。P8-06 只补 Event/OTel decorator，不得把 observation failure 或 generic extension registry 混入 admission。

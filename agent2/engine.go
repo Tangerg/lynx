@@ -40,6 +40,11 @@ type EngineConfig struct {
 	// resolver does not perform routing or own Process construction or lifecycle.
 	DeploymentResolver DeploymentResolver
 
+	// ProcessAdmitter is the optional decision boundary immediately before any
+	// root or child Process starts. It observes immutable Framework facts and
+	// may reject, but cannot modify resource or capability allocation.
+	ProcessAdmitter ProcessAdmitter
+
 	// EventListeners receive ordered facts for each Process. Different
 	// Processes may call a listener concurrently.
 	EventListeners []EventListener
@@ -71,6 +76,7 @@ type EngineConfig struct {
 type Engine struct {
 	acknowledger    PreparedStepAcknowledger
 	resolver        DeploymentResolver
+	admitter        ProcessAdmitter
 	observation     *observationBus
 	limits          Limits
 	treeLimits      TreeLimits
@@ -94,6 +100,9 @@ func NewEngine(config EngineConfig) (*Engine, error) {
 	}
 	if !nilOrConcrete(config.DeploymentResolver) {
 		return nil, fmt.Errorf("%w: DeploymentResolver is typed nil", ErrInvalidEngineConfig)
+	}
+	if !nilOrConcrete(config.ProcessAdmitter) {
+		return nil, fmt.Errorf("%w: ProcessAdmitter is typed nil", ErrInvalidEngineConfig)
 	}
 	for index, listener := range config.EventListeners {
 		if nilInterface(listener) {
@@ -123,6 +132,7 @@ func NewEngine(config EngineConfig) (*Engine, error) {
 	return &Engine{
 		acknowledger: config.PreparedStepAcknowledger,
 		resolver:     config.DeploymentResolver,
+		admitter:     config.ProcessAdmitter,
 		observation:  newObservationBus(config.EventListeners, config.DeltaListeners, capacity),
 		limits:       limits,
 		treeLimits:   treeLimits,
@@ -153,6 +163,16 @@ func (engine *Engine) Start(ctx context.Context, deployment Deployment, input In
 	if err := deployment.Descriptor().ValidateInput(input); err != nil {
 		return nil, err
 	}
+	id, err := newProcessID()
+	if err != nil {
+		return nil, err
+	}
+	relation := rootProcessRelation(id)
+	budget := budgetFromLimits(engine.limits)
+	admission := newProcessAdmission(relation, deployment, budget, engine.capabilities)
+	if err := requestProcessAdmission(engine.admitter, admission); err != nil {
+		return nil, err
+	}
 	execution, err := startExecution(deployment.Definition(), input)
 	if err != nil {
 		return nil, fmt.Errorf("agent: start Execution: %w", err)
@@ -165,14 +185,9 @@ func (engine *Engine) Start(ctx context.Context, deployment Deployment, input In
 	if err != nil {
 		return nil, fmt.Errorf("agent: validate initial Execution state: %w", err)
 	}
-	id, err := newProcessID()
-	if err != nil {
-		return nil, err
-	}
 	startedAt := time.Now().Round(0).UTC()
-	relation := rootProcessRelation(id)
 	controller := newProcessController(
-		relation, deployment.Reference(), budgetFromLimits(engine.limits), engine.capabilities,
+		relation, deployment.Reference(), budget, engine.capabilities,
 		engine.treeLimits,
 		startedAt, StatusRunning,
 	)

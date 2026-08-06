@@ -32,7 +32,7 @@
 | Engine deployment catalog | deploy、restore | Engine resolver consumer + Platform catalog | 拆分重写 | P2、P8 | 单一真相源、精确 DeploymentRef |
 | child Process 与递归 | delegation、workflow、supervisor composition | Engine Process tree | 保留思想并重新实现 | P4 | 恢复、取消、预算、深度、fan-out |
 | usage、budget、limit | 所有托管执行 | Engine 中性资源事实 | 重新实现 | P2、P4 | 单调累计、父子划拨、终止原因准确 |
-| StuckPolicy/ProcessPolicy | GOAP 无计划、运行限制 | Planning policy / Engine 中性 policy | 拆分重写 | P2、P5 | Stuck 不进入共同状态 |
+| StuckPolicy/ProcessPolicy | GOAP 无计划、运行限制 | Planning policy / Engine Limits、ProcessAdmitter 与显式 control | 拆分重写 | P2、P5、P8 | Stuck 不进入共同状态；无每 Step 通用 StopPolicy |
 
 ## 3. Interaction、Tool 与人机协作
 
@@ -70,7 +70,7 @@
 | 旧能力 | 真实消费者/证据 | 新 owner | 裁决 | 阶段 | 验收 |
 |---|---|---|---|---|---|
 | `core.Dependencies` typed scope chain | 动态 Action、应用装配 | 构造/闭包优先；经真实 Strategy 证明后才建局部 typed provider | 移除共同 scope，局部需求重新实现 | P1、对应 Strategy | 无全局 DI、无 service locator、无共同 god scope |
-| Extension marker/capability dispatch | policy、middleware、listener、planner | 单一横切扩展机制；主 Strategy 移出 | 拆分重写 | P2、P8 | 忽略扩展不破坏 Kernel 正确性 |
+| Extension marker/capability dispatch | policy、middleware、listener、planner | 按消费位置命名的小接口；无 marker/registry | 拆分重写 | P2、P8 | admission 与 observation 不共用动态分派；主 Strategy 移出 |
 | Event multicast | runtime observer、Host projection | Framework Event | 重新实现 | P2 | attempt/committed 区分、顺序、listener 隔离 |
 | model/tool lifecycle event | UI、usage、observability | Strategy dispatcher → Framework Event | 重新实现 | P2–P3 | 时间语义、Process/Step/Effect identity 完整 |
 | OTel instrumentation | tracing/metrics/logs | 外部 `otel` decorator | 保留边界 | P8 | Kernel 不 import OTel，不重造 tracer SPI |
@@ -400,3 +400,11 @@
 - Selector 自己封装 request-specific typed/text input、model、threshold/filter 与 rationale，因此 Framework 不定义 `any`/RawMessage 路由 payload，也不假设 confidence 范围。外部 I/O 允许且受 caller context；nil/typed nil、panic、ordinary error、invalid/unoffered ref 都有明确合同。
 - Platform 在 selector 返回后从原 captured Deployment map 取值，而不是重新查 active route。并发 replacement 测试在 selector 阻塞期间切换同版本 binding，最终仍返回旧 exact selected Deployment，同时新 binding 保持 active、旧 binding 继续可 Resolve。
 - 该能力只选择，不运行。Engine 不 import Platform concrete type，Selector 不拥有 Process lifecycle；动态模型 worker 的 Delegate 与全局 Definition discovery 没有被混成同一个概念。
+
+### 12.5 根与子 Process 的统一启动准入
+
+- P4 已完整实现跨 Process 的 Budget 永久划拨、TreeLimits、CapabilitySet subset attenuation 与 Effect required-capability enforcement；P8 不复制这些状态，也不允许 policy 扩充它们。一个专项测试证明即使 admitter 返回批准，capability escalation 仍在 admitter 调用前被 Engine 拒绝。
+- 唯一公共术语是 `ProcessAdmission`/`ProcessAdmitter`。Admission 只有 private ProcessRelation、exact DeploymentRef、Descriptor、Budget、CapabilitySet；architecture reflection gate 锁定字段数量、类型和私有性，Input、Execution、Dispatcher、Engine 与 Host 产品概念均不能渗入。
+- 根与 child 使用同一 EngineConfig admitter。真实跨 Strategy child 测试证明 root 收到完整默认 Budget/最大 capability，child 收到 Strategy 申请且已衰减的 20/20/40 Budget/空 capability；两者 relation、exact ref 与 Descriptor 都准确。拒绝发生在 Definition.Start 与 Engine publication 前，root 保留 ordinary cause，child 返回稳定 `engine.child.admission.rejected` 且不留下幽灵 Process。
+- typed nil 与 panic 都不会逃逸 Engine。admitter 必须同步、有界、无外部 I/O、不重入 Process、并发安全且 decision-only，并容忍 prepared child start recovery 后对同一稳定身份重判；它不是 durable charge、Store 或幂等协议。root 远端审批在 Start 前完成，child 远端审批先显式结算 Dispatcher Effect，准入不偷成第二副作用入口。
+- Restore 不调用 admitter。恢复严格复用 snapshot 中已准入的 exact Deployment、Budget、Capabilities 与 tree relation；live authorization 由 Host 在 restore 前决定，不能潜入 deterministic restoration。没有通用 StopPolicy：资源终止、外部控制与 Strategy completion 分别由现有唯一 owner 处理。

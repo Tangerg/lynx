@@ -6,10 +6,34 @@ import (
 	"go/token"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strconv"
 	"strings"
 	"testing"
 )
+
+func TestProcessAdmissionContainsOnlyFrameworkStartContracts(t *testing.T) {
+	typeOf := reflect.TypeFor[ProcessAdmission]()
+	want := []struct {
+		name   string
+		typeOf reflect.Type
+	}{
+		{name: "relation", typeOf: reflect.TypeFor[ProcessRelation]()},
+		{name: "deployment", typeOf: reflect.TypeFor[DeploymentRef]()},
+		{name: "descriptor", typeOf: reflect.TypeFor[Descriptor]()},
+		{name: "budget", typeOf: reflect.TypeFor[Budget]()},
+		{name: "capabilities", typeOf: reflect.TypeFor[CapabilitySet]()},
+	}
+	if typeOf.NumField() != len(want) {
+		t.Fatalf("ProcessAdmission fields = %d, want %d", typeOf.NumField(), len(want))
+	}
+	for index, expected := range want {
+		field := typeOf.Field(index)
+		if field.IsExported() || field.Name != expected.name || field.Type != expected.typeOf {
+			t.Fatalf("ProcessAdmission field %d = %s %v", index, field.Name, field.Type)
+		}
+	}
+}
 
 func TestFrameworkRootExcludesLegacyAndHostDependencies(t *testing.T) {
 	entries, err := os.ReadDir(".")

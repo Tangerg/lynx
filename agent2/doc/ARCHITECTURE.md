@@ -547,6 +547,10 @@ Engine 是最小托管执行边界：启动、推进、暂停、恢复和终止 
 
 Engine 不拥有产品 Session、数据库事务、模型 catalog、价格表或 UI 协议。
 
+EngineConfig 为每棵 root tree 冻结 Limits、TreeLimits 与最大 CapabilitySet；child 只能从父预算永久划拨并衰减能力。可选 `ProcessAdmitter` 是根与子 Process 共用的唯一启动准入合同：它只读取 immutable `ProcessAdmission` 中的 ProcessRelation、exact DeploymentRef、Descriptor、Budget 与 CapabilitySet，并返回批准或拒绝。它不能修改分配、创建 Process 或成为计费/持久化入口；Engine 的预算、能力子集和树限额始终先后在唯一 Kernel 状态中执行。产品身份、订阅、价格与 transaction 不进入该值。
+
+准入发生在 Definition.Start 和 Process 发布之前；拒绝的 root 不启动，拒绝的 child 形成稳定 child-start failure。admitter 必须同步、有界、无外部 I/O、不得重入 Process，并保持 decision-only；同一 prepared child start 在恢复后可能再次请求准入。root 所需的远端审批由 Host 在 Start 前完成；child 所需的远端审批必须先由 Strategy 声明 Dispatcher Effect，再根据明确 settlement 声明 StartChild，不能藏进 Framework Effect 的本地准入步骤。已经捕获的 Process 恢复其原 admission，不按当前 admitter 再判一次；撤销授权由 Host 在恢复前决定或通过明确的 Process control 表达，不能让 snapshot 恢复结果依赖隐藏的实时政策。
+
 ### 11.2 Platform
 
 Platform 是建立在 Engine 上的可选完整形态，拥有 Deployment catalog、版本/digest、Definition 路由、多 Agent 组合发现和面向 Host 的治理入口。
@@ -591,6 +595,7 @@ Host 负责 Store、transaction、CAS、lease、幂等、retention、产品身�
 - 单 Process snapshot 只允许恢复从未分配 child budget、没有 child relation 或活动 child wait 的独立 root；一旦形成 Process tree，恢复单位必须是完整 TreeSnapshot，禁止把 child 当新 root 或只恢复父级。
 - TreeSnapshot 严格保存每个 Process snapshot 和 Engine-owned 活动 direct-child wait，不保存 dispatcher、resolver 或 Host persistence 对象。capture 使用 Engine 私有的安全边界栅栏：停止新 Step 和新 child 创建，等待 in-flight Effect 依既有 settlement 合同收口，同时继续吸收 child completion 与 parent termination，取得一致 cut 后立即释放；栅栏不是公开 Process 状态或第二执行入口。
 - tree restore 先校验 root/parent/depth/ChildKey、预算总和、能力衰减、tree limits、活动 child wait 和每个精确 DeploymentRef，再原子注册完整树；任一校验或解析失败不得留下部分 Process。
+- Process admission 只属于首次 root/child start；restore 不重复调用 admitter，也不把 live policy 结果写入共同 snapshot。Host 若不允许恢复，必须在调用恢复前拒绝或显式终止已恢复 Process。
 - 只有在 Effect dispatch 前已向 Host 暴露 prepared snapshot 且 Host 明确认可该 durability boundary 时，Engine 才能宣称跨进程崩溃可恢复该 Effect；精确握手由 P1–P2 真实消费验证，但不得演变为 Framework Store/transaction SPI。未启用该边界的运行必须诚实标记为只恢复到最后已持久化 snapshot。
 - 外部副作用用幂等键、外部事实或显式 checkpoint 协议处理，不能只靠 snapshot 猜测。
 - snapshot schema 在开发阶段直接 breaking，不保留长期 dual-read。
@@ -603,7 +608,7 @@ Host 对自身事实执行销毁、回滚、替换或恢复时，必须在自己
 
 ## 13. Extension、事件与可观测性
 
-Extension 只用于横切行为，并保持一个同质扩展机制。候选能力包括 execution policy、event observation、guardrail 和 instrumentation decorator。只有一个实现且没有外部替换需求的内部依赖直接使用 concrete type。
+横切替换点按真实消费位置定义一个准确的小接口，不建立通用 Extension marker、capability registry 或按运行时类型分派的 god scope。`ProcessAdmitter` 只负责启动准入；`EventListener`/`DeltaListener` 只负责观察；prepared-step acknowledgment 只负责 pre-dispatch durability handshake。它们语义不同，不合并成 Policy/Guard/Middleware 近义层。只有一个实现且没有外部替换需求的内部依赖直接使用 concrete type。
 
 Event 描述已经发生的框架事实，不承担 Signal、命令、Transition 或产品协议。Event 分为 attempt facts 与 committed facts：前者证明一次模型、Tool 或 Effect 确实尝试过，后者证明状态或 Effect settlement 已由 Engine 提交。
 

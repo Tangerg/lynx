@@ -29,6 +29,7 @@ Baseline 3 不是兼容承诺或发布版本。仓库仍允许 breaking change�
 - Snapshot/TreeSnapshot：单独 root 与完整 Process tree 的 portable capture；不包含 Host persistence 抽象。
 - StartChild/WaitForChildren/ChildOutcome：跨 Strategy 组合的最小 Framework Effect/Signal 协议。
 - Budget/Limits/TreeLimits/CapabilitySet/Usage：本地工作上限、tree expansion、authority attenuation 与事实计数。
+- ProcessAdmission/ProcessAdmitter：根与子 Process 共用、只读且 decision-only 的启动准入边界。
 - Event/Delta：权威已发生事实与 best-effort 临时增量。
 - Typed/EncodeInput/DecodeOutput：只存在于类型擦除边缘的人体工程学 adapter。
 
@@ -44,7 +45,7 @@ Baseline 3 不是兼容承诺或发布版本。仓库仍允许 breaking change�
 
 `baseline_test.go` 对五个公共 package 的完整 `go doc -all` 输出做 SHA-256 校验，因此 exported identifier、参数名、字段、签名和 GoDoc 的任何漂移都会失败。Baseline 3 digest：
 
-- root kernel：`6d113e12dcdc2f87e0bd064d8ad25da4342b8d88b3144ca55db9a0868818b1b0`
+- root kernel：`c7f58108633689f2accb7742d8177465e8291dd6f5a38205762c98de9423b809`
 - interaction：`9678f94265b227e7d085cc18a264ad3be4cac98709d94638f47c9ee7960e3fee`
 - planning：`bb3a3fee5315afba3cc1f70ecc0486b4b91f88d4d4160aa93bf896b09ffc28a1`
 - planning/goap：`da348e298e6976318b317873b44ec60829020fdea82947fae4bbc8e0d865b419`
@@ -75,6 +76,8 @@ P8-02 依据 ADR-A2-048 新增尚未冻结的 `platform.Catalog` 候选 API，�
 P8-03 依据 ADR-A2-049 在 exact Catalog 之上增加尚未冻结的 Platform deployment aggregate：Config/New、ActiveDeployments、Deploy/Replace/Undeploy、exact Resolve 与精确 conflict/not-active errors。active slot 是 name + SemVer，历史 exact binding 只增不误删。该候选面没有修改根或四个 Strategy package，也没有改变共同 wire；P8-04～07 仍可依据真实 routing/governance consumer 治本修订它，不提供兼容 shim。
 
 P8-04 依据 ADR-A2-050 为尚未冻结的 Platform 增加唯一 Definition selection 合同：non-executable DeploymentCandidate、DeploymentSelector/func adapter、DeploymentCandidates 与 SelectDeployment。没有 Router/Ranker/Choice/Confidence 近义层；request-specific policy 留在 selector。选择结果严格属于当次 active snapshot，并在并发 route change 后返回 captured exact Deployment。根、四个 Strategy package 与共同 wire 均未变化。
+
+P8-05 依据 ADR-A2-051 修订根 Engine 合同：新增 immutable `ProcessAdmission`、单一 `ProcessAdmitter`/func adapter、`ErrProcessAdmissionRejected` 与 EngineConfig consumption point。一个 admitter 同构覆盖 root/child start，只能拒绝，不能修改由 Engine 唯一拥有的 Budget、TreeLimits 或 CapabilitySet attenuation；其合同同步、有界、无 I/O、不重入 Process，因此没有误导性 context，恢复也不重复 admission。没有增加 Policy/Guard/Extension registry、通用 StopPolicy 或 Platform-owned runtime，四个 Strategy API 与共同 snapshot/tree wire 均未变化。
 
 ## 4. 明确不在基线中的能力
 

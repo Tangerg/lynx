@@ -51,6 +51,12 @@ func (runtime *processRuntime) startChild(
 	if err := deployment.Descriptor().ValidateInput(spec.Input); err != nil {
 		return failedChildStart(spec, FailureKindContract, "engine.child.input.invalid", err)
 	}
+	admission := newProcessAdmission(relation, deployment, spec.Budget, spec.Capabilities)
+	if err := requestProcessAdmission(runtime.engine.admitter, admission); err != nil {
+		return failedChildStart(
+			spec, FailureKindExternal, "engine.child.admission.rejected", err,
+		)
+	}
 	execution, err := startExecution(deployment.Definition(), spec.Input)
 	if err != nil {
 		return failedChildStart(spec, failureKindForError(err), "engine.child.start.failed", err)
