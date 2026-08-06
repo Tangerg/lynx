@@ -21,6 +21,7 @@ const (
 	StageKindSwitch
 	StageKindFork
 	StageKindMap
+	StageKindLoop
 )
 
 func (kind StageKind) String() string {
@@ -35,6 +36,8 @@ func (kind StageKind) String() string {
 		return "fork"
 	case StageKindMap:
 		return "map"
+	case StageKindLoop:
+		return "loop"
 	default:
 		return "invalid"
 	}
@@ -65,6 +68,7 @@ type Stage struct {
 	switcher     switchStage
 	fork         forkStage
 	mapper       mapStage
+	loop         loopStage
 }
 
 // CallConfig declares one exact child Deployment and its non-renewable
@@ -168,23 +172,27 @@ func (stage Stage) Valid() bool {
 	case StageKindTransform:
 		return stage.transform != nil && !stage.call.deployment.Valid() &&
 			!stage.call.budget.Valid() && stage.call.capabilities.Valid() &&
-			!stage.switcher.valid() && !stage.fork.valid() && !stage.mapper.valid()
+			!stage.switcher.valid() && !stage.fork.valid() && !stage.mapper.valid() && !stage.loop.valid()
 	case StageKindCall:
 		return stage.transform == nil && stage.call.deployment.Valid() &&
 			stage.call.budget.Valid() && stage.call.capabilities.Valid() &&
-			!stage.switcher.valid() && !stage.fork.valid() && !stage.mapper.valid()
+			!stage.switcher.valid() && !stage.fork.valid() && !stage.mapper.valid() && !stage.loop.valid()
 	case StageKindSwitch:
 		return stage.transform == nil && !stage.call.deployment.Valid() &&
 			!stage.call.budget.Valid() && stage.call.capabilities.Valid() &&
-			stage.switcher.valid() && !stage.fork.valid() && !stage.mapper.valid()
+			stage.switcher.valid() && !stage.fork.valid() && !stage.mapper.valid() && !stage.loop.valid()
 	case StageKindFork:
 		return stage.transform == nil && !stage.call.deployment.Valid() &&
 			!stage.call.budget.Valid() && stage.call.capabilities.Valid() &&
-			!stage.switcher.valid() && stage.fork.valid() && !stage.mapper.valid()
+			!stage.switcher.valid() && stage.fork.valid() && !stage.mapper.valid() && !stage.loop.valid()
 	case StageKindMap:
 		return stage.transform == nil && !stage.call.deployment.Valid() &&
 			!stage.call.budget.Valid() && stage.call.capabilities.Valid() &&
-			!stage.switcher.valid() && !stage.fork.valid() && stage.mapper.valid()
+			!stage.switcher.valid() && !stage.fork.valid() && stage.mapper.valid() && !stage.loop.valid()
+	case StageKindLoop:
+		return stage.transform == nil && !stage.call.deployment.Valid() &&
+			!stage.call.budget.Valid() && stage.call.capabilities.Valid() &&
+			!stage.switcher.valid() && !stage.fork.valid() && !stage.mapper.valid() && stage.loop.valid()
 	default:
 		return false
 	}

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 
 	agent "github.com/Tangerg/lynx/agent2"
 )
@@ -109,6 +110,9 @@ func (execution *execution) advance(signals []agent.Signal) (agent.Transition, e
 		}
 		execution.state.Value = value
 		return execution.finishStage(0)
+	case StageKindLoop:
+		execution.state.LoopIteration = 1
+		return execution.startSingleChild(0, stage.loop.binding)
 	default:
 		return agent.Transition{}, ErrInvalidStage
 	}
@@ -141,6 +145,8 @@ func (execution *execution) singleChildBinding() (childBinding, bool) {
 		return stage.call, true
 	case StageKindSwitch:
 		return stage.switcher.binding(execution.state.SelectedCase)
+	case StageKindLoop:
+		return stage.loop.binding, stage.loop.valid()
 	default:
 		return childBinding{}, false
 	}
@@ -155,6 +161,9 @@ func (execution *execution) clearSingleChild() {
 func (execution *execution) singleChildID() string {
 	if execution.stage().kind == StageKindSwitch {
 		return execution.stage().id + ".case." + execution.state.SelectedCase
+	}
+	if execution.stage().kind == StageKindLoop {
+		return execution.stage().id + ".iteration." + strconv.FormatUint(uint64(execution.state.LoopIteration), 10)
 	}
 	return execution.stage().id
 }
@@ -246,8 +255,11 @@ func (execution *execution) acceptChildCompletion(signals []agent.Signal) (agent
 	if !present {
 		return execution.failContract(1, "workflow."+execution.stage().Kind().String()+".output_missing", "Completed child Process returned no Output")
 	}
-	if err := execution.stage().outputSchema.ValidateOutput(output); err != nil {
+	if err := execution.singleChildOutputSchema().ValidateOutput(output); err != nil {
 		return execution.failContract(1, "workflow."+execution.stage().Kind().String()+".output_invalid", "Child Process Output violated the Stage contract")
+	}
+	if execution.stage().kind == StageKindLoop {
+		return execution.finishLoopIteration(1, output)
 	}
 	execution.state.Value = output.JSON()
 	execution.clearSingleChild()
@@ -258,6 +270,7 @@ func (execution *execution) acceptChildCompletion(signals []agent.Signal) (agent
 func (execution *execution) finishStage(consumed uint32) (agent.Transition, error) {
 	execution.clearSingleChild()
 	execution.clearFanout()
+	execution.state.LoopIteration = 0
 	execution.state.Stage++
 	if execution.state.Stage < uint32(len(execution.definition.stages)) {
 		execution.state.Phase = phaseReady
@@ -297,11 +310,49 @@ func (execution *execution) stage() Stage {
 }
 
 func (execution *execution) childKey() (agent.ChildKey, error) {
-	return workflowChildKey("single", execution.stage().id, execution.state.SelectedCase)
+	return workflowChildKey(
+		"single", execution.stage().id, execution.state.SelectedCase,
+		strconv.FormatUint(uint64(execution.state.LoopIteration), 10),
+	)
 }
 
 func (execution *execution) waitKey() (agent.WaitKey, error) {
-	return workflowWaitKey("single", execution.stage().id, execution.state.SelectedCase)
+	return workflowWaitKey(
+		"single", execution.stage().id, execution.state.SelectedCase,
+		strconv.FormatUint(uint64(execution.state.LoopIteration), 10),
+	)
+}
+
+func (execution *execution) singleChildOutputSchema() agent.Schema {
+	if execution.stage().kind == StageKindLoop {
+		return execution.stage().loop.valueSchema
+	}
+	return execution.stage().outputSchema
+}
+
+func (execution *execution) finishLoopIteration(
+	consumed uint32,
+	output agent.Output,
+) (agent.Transition, error) {
+	stage := execution.stage()
+	satisfied, err := stage.loop.predicate(output.JSON())
+	if err != nil {
+		return agent.Transition{}, err
+	}
+	execution.state.Value = output.JSON()
+	if satisfied || execution.state.LoopIteration == stage.loop.maxIterations {
+		value, err := stage.loop.result(execution.state.Value, execution.state.LoopIteration, satisfied)
+		if err != nil {
+			return agent.Transition{}, err
+		}
+		execution.state.Value = value
+		execution.clearSingleChild()
+		execution.state.Phase = phaseReady
+		return execution.finishStage(consumed)
+	}
+	execution.clearSingleChild()
+	execution.state.LoopIteration++
+	return execution.startSingleChild(consumed, stage.loop.binding)
 }
 
 var _ agent.Execution = (*execution)(nil)

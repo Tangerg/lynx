@@ -43,6 +43,7 @@ type executionState struct {
 	FanoutNext     uint32             `json:"fanout_next,omitempty"`
 	FanoutWindow   []fanoutChildState `json:"fanout_window,omitempty"`
 	FanoutOutputs  []*json.RawMessage `json:"fanout_outputs,omitempty"`
+	LoopIteration  uint32             `json:"loop_iteration,omitempty"`
 }
 
 type fanoutChildState struct {
@@ -89,7 +90,7 @@ func (state executionState) validate(definition *Definition) error {
 			return ErrInvalidExecutionState
 		}
 	case phaseAwaitingFanoutStarts, phaseAwaitingFanoutWaitOpen, phaseWaitingFanout:
-		if state.SelectedCase != "" || state.ChildProcessID != nil {
+		if state.SelectedCase != "" || state.ChildProcessID != nil || state.LoopIteration != 0 {
 			return ErrInvalidExecutionState
 		}
 		if err := state.validateFanout(definition); err != nil {
@@ -110,10 +111,13 @@ func (state executionState) singleChildStage(definition *Definition) bool {
 	stage := definition.stages[state.Stage]
 	switch stage.kind {
 	case StageKindCall:
-		return state.SelectedCase == ""
+		return state.SelectedCase == "" && state.LoopIteration == 0
 	case StageKindSwitch:
 		_, found := stage.switcher.binding(state.SelectedCase)
-		return found
+		return found && state.LoopIteration == 0
+	case StageKindLoop:
+		return state.SelectedCase == "" && state.LoopIteration > 0 &&
+			state.LoopIteration <= stage.loop.maxIterations
 	default:
 		return false
 	}
@@ -121,7 +125,8 @@ func (state executionState) singleChildStage(definition *Definition) bool {
 
 func (state executionState) noProgress() bool {
 	return state.SelectedCase == "" && state.ChildProcessID == nil && state.WaitID == nil &&
-		state.FanoutNext == 0 && state.FanoutWindow == nil && state.FanoutOutputs == nil
+		state.FanoutNext == 0 && state.FanoutWindow == nil && state.FanoutOutputs == nil &&
+		state.LoopIteration == 0
 }
 
 func (state executionState) hasFanoutProgress() bool {

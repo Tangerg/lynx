@@ -261,3 +261,11 @@
 - Fork 与 Map 共用包内 sealed indexed fan-out 生命周期和同一 ExecutionState 字段；差异只存在于 Stage-owned binding/input/collect 行为。该收敛没有形成公开 fan-out interface，新增 Stage 不能绕过封闭代数。
 - 每个窗口只解码一次原始 `[]I`，只为当前窗口编码 item Input；snapshot 继续保存权威原始 value、窗口游标和已结算 Output，不保存 Go slice、Deployment concrete value 或第二份 Journal。
 - 真实 Engine 测试覆盖多窗口稳定顺序、空输入、超限先拒绝和构造期 schema/limit 违约；Fork 原有逆序完成与最低索引失败合同在共用状态机后保持不变。
+
+### 10.9 Loop 正式纵切面
+
+- Loop 的唯一公共语义是 T 经至少一个 exact T→T Body child 迭代后，输出 `LoopResult[T]`。Predicate 只在 child 成功且 Output 通过 T schema 后执行，不在首轮前短路，也不执行 I/O。
+- MaxIterations 必须显式为正；达到上限仍未满足时准确输出最新 Value、实际 Iterations 与 `Satisfied=false`，由后续 Stage/consumer 决定 fallback 或失败。共同 Process 不增加 exhausted/stuck 状态。
+- 每轮 Budget 都是独立永久 child 划拨，每轮 ChildKey/WaitKey 纳入一基 iteration。LoopIteration 是 Strategy-owned state；Body Deployment concrete value、predicate、context、goroutine 和调用栈不进入 snapshot。
+- Loop 复用单 child 的 start/wait/completion 状态机，只在上轮完整结算后声明下一轮 StartChild Effect。Body failure、非完成终态和 Output 违约均保留 Loop Stage/iteration 归因。
+- 满足、耗尽和“初值已满足仍执行一次”三个真实 Engine 测试的 TreeSnapshot 都严格包含 root + Iterations 个 Process；这证明 Loop 没有把 body 降级成同 Process 内调用。
