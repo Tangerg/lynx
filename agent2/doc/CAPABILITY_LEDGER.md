@@ -505,3 +505,10 @@
 - 不把动态工具发现实现成可变 Dispatcher registry、全局 catalog 或执行中新增 Tool；只允许冻结 manifest 内从 deferred 到 advertised 的单调状态变化。
 - 不把可靠 transcript 改建在 best-effort Delta 上，不让 Event listener 阻塞/失败成为执行控制入口；正确性观察留在 caller-owned model/tool 调用链。
 - 不以保留旧 API 为目标建立 adapter-on-adapter、alias、dual wire 或两套 Agent engine。P10 可分批重写内部实现，但完成时旧 Framework import 必须归零。
+
+### 14.5 Kernel admission 与 Effect 归因实现证据
+
+- `ProcessAdmitter` 已按 ADR-A2-058 治本修订为 context-aware 单一入口。root 与 child 都先生成 prospective ProcessID/Relation/StartedAt，再把 immutable admission 交给实现；成功后 Definition.Start、controller 和 Event 使用同一 StartedAt，拒绝仍发生在任何 Process 发布或执行之前。恢复不重复 admission，typed nil/panic/capability attenuation 规则保持不变。
+- admission context 只提供取消、deadline 和 caller value 传播，不携带 Engine handle。实现可完成自身外部准入，但 contract 明确要求有界、并发安全、不重入，并自行承担同一 prospective identity 重放的业务正确性；Kernel 没有新增 persistence、transaction、charge 或 idempotency 类型。
+- `EffectRequest` 现自足携带 ProcessID、exact DeploymentRef、ProcessRelation、StepSequence、BatchIndex、EffectID 与 immutable Effect。relation 的 ProcessID 必须与请求 identity 一致；Strategy dispatcher 不再需要 god ProcessContext 或反查 Engine 才能做模型、Tool 与 tracing 归因。
+- Baseline 7 只改变根 public GoDoc/signature；Process Snapshot v6、TreeSnapshot v4、Kernel/Strategy protocol 与 Event/Delta wire 均未变化。普通测试同时证明 root/child StartedAt 精确一致、Start context 到达 admitter、拒绝前零 Definition.Start/零发布、restore 零 readmission，以及 EffectRequest attribution/Effect 防御性复制。

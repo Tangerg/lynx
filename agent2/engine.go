@@ -49,7 +49,7 @@ type EngineConfig struct {
 	// resolver does not perform routing or own Process construction or lifecycle.
 	DeploymentResolver DeploymentResolver
 
-	// ProcessAdmitter is the optional decision boundary immediately before any
+	// ProcessAdmitter is the optional admission boundary immediately before any
 	// root or child Process starts. It observes immutable Framework facts and
 	// may reject, but cannot modify resource or capability allocation.
 	ProcessAdmitter ProcessAdmitter
@@ -178,8 +178,11 @@ func (engine *Engine) Start(ctx context.Context, deployment Deployment, input In
 	}
 	relation := rootProcessRelation(id)
 	budget := budgetFromLimits(engine.limits)
-	admission := newProcessAdmission(relation, deployment, budget, engine.capabilities)
-	if err := requestProcessAdmission(engine.admitter, admission); err != nil {
+	startedAt := time.Now().Round(0).UTC()
+	admission := newProcessAdmission(
+		relation, deployment, budget, engine.capabilities, startedAt,
+	)
+	if err := requestProcessAdmission(ctx, engine.admitter, admission); err != nil {
 		return nil, err
 	}
 	execution, err := startExecution(deployment.Definition(), input)
@@ -194,7 +197,6 @@ func (engine *Engine) Start(ctx context.Context, deployment Deployment, input In
 	if err != nil {
 		return nil, fmt.Errorf("agent: validate initial Execution state: %w", err)
 	}
-	startedAt := time.Now().Round(0).UTC()
 	controller := newProcessController(
 		relation, deployment.DeploymentRef(), budget, engine.capabilities,
 		engine.treeLimits,

@@ -1,8 +1,10 @@
 package agent2
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"time"
 )
 
 // ErrProcessAdmissionRejected reports that the configured ProcessAdmitter did
@@ -19,6 +21,7 @@ type ProcessAdmission struct {
 	descriptor    Descriptor
 	budget        Budget
 	capabilities  CapabilitySet
+	startedAt     time.Time
 }
 
 // Relation returns the prospective Process identity and tree location.
@@ -36,38 +39,45 @@ func (admission ProcessAdmission) Budget() Budget { return admission.budget }
 // Capabilities returns the prospective Process's immutable authority set.
 func (admission ProcessAdmission) Capabilities() CapabilitySet { return admission.capabilities }
 
+// StartedAt returns the prospective Process start time. Once admission
+// succeeds, this exact UTC value becomes the Process lifecycle start.
+func (admission ProcessAdmission) StartedAt() time.Time { return admission.startedAt }
+
 // Valid reports whether the admission contains one coherent prospective
 // Process. Only the Engine constructs admission values.
 func (admission ProcessAdmission) Valid() bool {
 	return admission.relation.Valid() && admission.deploymentRef.Valid() &&
 		admission.descriptor.Valid() && admission.budget.Valid() &&
-		admission.capabilities.Valid() &&
+		admission.capabilities.Valid() && !admission.startedAt.IsZero() &&
+		admission.startedAt.Location() == time.UTC &&
 		admission.deploymentRef.Name() == admission.descriptor.Name() &&
 		admission.deploymentRef.Version() == admission.descriptor.Version() &&
 		admission.deploymentRef.ContractDigest() == admission.descriptor.Digest()
 }
 
 // ProcessAdmitter decides whether one prospective root or child Process may
-// start. Implementations are decision-only: they must not create a Process,
-// mutate the admission, allocate resources, or treat a call as a durable
-// charge. A prepared Step may replay the same child admission after recovery.
+// start. Implementations may coordinate caller-owned external admission work,
+// but must not create a Process, mutate the admission, or allocate Framework
+// resources. A prepared Step may replay the same child admission with the same
+// prospective Process identity after recovery.
 //
-// Implementations must be synchronous, bounded, safe for concurrent calls when
-// shared, and must not perform external I/O or re-enter a Process. Returning an
-// error rejects only this prospective Process. Budget allocation, capability
+// Implementations must respect ctx, return in bounded time, be safe for
+// concurrent calls when shared, and must not re-enter the Engine or a Process.
+// Framework identity is stable, but persistence, transactionality, charging,
+// and business idempotency remain implementation responsibilities. Returning
+// an error rejects only this prospective Process. Budget allocation, capability
 // attenuation, and tree limits remain Engine invariants and cannot be changed
-// by an admitter. Restore does not repeat admission for a Process whose admitted
-// state was captured.
+// by an admitter. Restore does not repeat admission for a captured Process.
 type ProcessAdmitter interface {
-	Admit(admission ProcessAdmission) error
+	Admit(ctx context.Context, admission ProcessAdmission) error
 }
 
 // ProcessAdmitterFunc adapts a function to ProcessAdmitter.
-type ProcessAdmitterFunc func(admission ProcessAdmission) error
+type ProcessAdmitterFunc func(ctx context.Context, admission ProcessAdmission) error
 
 // Admit invokes admitter.
-func (admitter ProcessAdmitterFunc) Admit(admission ProcessAdmission) error {
-	return admitter(admission)
+func (admitter ProcessAdmitterFunc) Admit(ctx context.Context, admission ProcessAdmission) error {
+	return admitter(ctx, admission)
 }
 
 func newProcessAdmission(
@@ -75,15 +85,17 @@ func newProcessAdmission(
 	deployment Deployment,
 	budget Budget,
 	capabilities CapabilitySet,
+	startedAt time.Time,
 ) ProcessAdmission {
 	return ProcessAdmission{
 		relation: relation, deploymentRef: deployment.DeploymentRef(),
 		descriptor: deployment.Descriptor(), budget: budget,
-		capabilities: capabilities,
+		capabilities: capabilities, startedAt: startedAt,
 	}
 }
 
 func requestProcessAdmission(
+	ctx context.Context,
 	admitter ProcessAdmitter,
 	admission ProcessAdmission,
 ) (err error) {
@@ -101,7 +113,7 @@ func requestProcessAdmission(
 			)
 		}
 	}()
-	if err := admitter.Admit(admission); err != nil {
+	if err := admitter.Admit(contextOrBackground(ctx), admission); err != nil {
 		return fmt.Errorf("%w: %w", ErrProcessAdmissionRejected, err)
 	}
 	return nil

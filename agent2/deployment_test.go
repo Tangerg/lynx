@@ -42,10 +42,14 @@ func TestDeploymentBindsExactDefinitionAndDispatcher(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	request := newEffectRequest(processID, 1, 0, effectID, effect)
+	relation := rootProcessRelation(processID)
+	request := newEffectRequest(
+		processID, deployment.DeploymentRef(), relation, 1, 0, effectID, effect,
+	)
 	copyOfEffect := request.Effect()
 	copyOfEffect.payload[0] = '['
-	if !request.valid() || string(request.Effect().Payload()) != `{"operation":"test"}` {
+	if !request.valid() || request.DeploymentRef() != deployment.DeploymentRef() ||
+		request.Relation() != relation || string(request.Effect().Payload()) != `{"operation":"test"}` {
 		t.Fatalf("EffectRequest did not freeze Effect: %+v", request)
 	}
 	settlement, err := deployment.effectDispatcher().Dispatch(context.Background(), request, func(json.RawMessage) {})

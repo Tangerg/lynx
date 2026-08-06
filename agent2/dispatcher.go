@@ -33,28 +33,39 @@ func (policy ReplayPolicy) String() string {
 
 // EffectRequest is the immutable dispatch context prepared by the Engine.
 type EffectRequest struct {
-	processID    ProcessID
-	stepSequence uint64
-	batchIndex   uint32
-	id           EffectID
-	effect       Effect
+	processID     ProcessID
+	deploymentRef DeploymentRef
+	relation      ProcessRelation
+	stepSequence  uint64
+	batchIndex    uint32
+	id            EffectID
+	effect        Effect
 }
 
 func newEffectRequest(
 	processID ProcessID,
+	deploymentRef DeploymentRef,
+	relation ProcessRelation,
 	stepSequence uint64,
 	batchIndex uint32,
 	id EffectID,
 	effect Effect,
 ) EffectRequest {
 	return EffectRequest{
-		processID: processID, stepSequence: stepSequence, batchIndex: batchIndex,
-		id: id, effect: effect.clone(),
+		processID: processID, deploymentRef: deploymentRef, relation: relation,
+		stepSequence: stepSequence, batchIndex: batchIndex, id: id,
+		effect: effect.clone(),
 	}
 }
 
 // ProcessID returns the Process that owns the Effect.
 func (request EffectRequest) ProcessID() ProcessID { return request.processID }
+
+// DeploymentRef returns the exact behavior binding executing the Effect.
+func (request EffectRequest) DeploymentRef() DeploymentRef { return request.deploymentRef }
+
+// Relation returns the immutable Process tree location executing the Effect.
+func (request EffectRequest) Relation() ProcessRelation { return request.relation }
 
 // StepSequence returns the one-based Step sequence that declared the Effect.
 func (request EffectRequest) StepSequence() uint64 { return request.stepSequence }
@@ -69,7 +80,9 @@ func (request EffectRequest) ID() EffectID { return request.id }
 func (request EffectRequest) Effect() Effect { return request.effect.clone() }
 
 func (request EffectRequest) valid() bool {
-	return request.processID.Valid() && request.stepSequence > 0 && request.id.Valid() && request.effect.Valid()
+	return request.processID.Valid() && request.deploymentRef.Valid() &&
+		request.relation.Valid() && request.relation.ProcessID() == request.processID &&
+		request.stepSequence > 0 && request.id.Valid() && request.effect.Valid()
 }
 
 // DeltaEmitter accepts Strategy-owned streaming payloads while Dispatch is

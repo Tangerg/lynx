@@ -65,7 +65,7 @@ func (loop *processLoop) dispatchFrameworkEffect(ctx context.Context, record *pr
 			loop.markFrameworkEffectUnknown(record)
 			return
 		}
-		result := loop.startChild(record.ID, spec)
+		result := loop.startChild(ctx, record.ID, spec)
 		payload, err := encodeChildStartResult(result)
 		if err != nil {
 			loop.markFrameworkEffectUnknown(record)
@@ -121,7 +121,15 @@ func (loop *processLoop) dispatchStrategyEffect(
 	index uint32,
 	record *preparedEffectWire,
 ) {
-	request := newEffectRequest(loop.controller.processID, loop.prepared.wire.StepSequence, index, record.ID, record.Effect)
+	request := newEffectRequest(
+		loop.controller.processID,
+		loop.controller.deploymentRef,
+		loop.controller.relation,
+		loop.prepared.wire.StepSequence,
+		index,
+		record.ID,
+		record.Effect,
+	)
 	startedAt := loop.publishEffectStarted(
 		ctx, loop.prepared.wire.StepSequence, record.ID, EffectTargetDispatcher,
 	)

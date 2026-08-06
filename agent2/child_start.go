@@ -9,6 +9,7 @@ import (
 )
 
 func (loop *processLoop) startChild(
+	ctx context.Context,
 	effectID EffectID,
 	spec ChildSpec,
 ) ChildStartResult {
@@ -51,8 +52,11 @@ func (loop *processLoop) startChild(
 	if err := deployment.Descriptor().ValidateInput(spec.Input); err != nil {
 		return failedChildStart(spec, FailureKindContract, "engine.child.input.invalid", err)
 	}
-	admission := newProcessAdmission(relation, deployment, spec.Budget, spec.Capabilities)
-	if err := requestProcessAdmission(loop.engine.admitter, admission); err != nil {
+	startedAt := time.Now().Round(0).UTC()
+	admission := newProcessAdmission(
+		relation, deployment, spec.Budget, spec.Capabilities, startedAt,
+	)
+	if err := requestProcessAdmission(ctx, loop.engine.admitter, admission); err != nil {
 		return failedChildStart(
 			spec, FailureKindExternal, "engine.child.admission.rejected", err,
 		)
@@ -69,7 +73,6 @@ func (loop *processLoop) startChild(
 	if err != nil {
 		return failedChildStart(spec, failureKindForError(err), "engine.child.snapshot.unrestorable", err)
 	}
-	startedAt := time.Now().Round(0).UTC()
 	controller := newProcessController(
 		relation, deployment.DeploymentRef(), spec.Budget, spec.Capabilities, loop.treeLimits,
 		startedAt, StatusRunning,

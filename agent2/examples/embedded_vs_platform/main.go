@@ -191,7 +191,7 @@ type recorder struct {
 	events     []eventFact
 }
 
-func (recorder *recorder) Admit(admission agent.ProcessAdmission) error {
+func (recorder *recorder) Admit(_ context.Context, admission agent.ProcessAdmission) error {
 	capabilities := admission.Capabilities().Values()
 	names := make([]string, len(capabilities))
 	for index, capability := range capabilities {

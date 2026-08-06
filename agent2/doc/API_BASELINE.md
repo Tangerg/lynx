@@ -1,6 +1,6 @@
 # Agent Framework 公共合同基线
 
-> 状态：Baseline 6 已冻结
+> 状态：Baseline 7 已冻结
 > 冻结日期：2026-08-06
 > 适用范围：`agent2` 根 package、`agent2/interaction`、`agent2/planning`、`agent2/planning/goap`、`agent2/workflow`、`agent2/otel`、`agent2/platform`、Process Snapshot v6、TreeSnapshot v4、child/framework-effect protocol v2、Interaction state/protocol v4/v2、Planning state/protocol v3/v1、Workflow state v2、Event/Delta observation wire
 
@@ -8,7 +8,7 @@
 
 ## 1. 基线的含义
 
-Baseline 6 不是兼容承诺或发布版本。仓库仍允许 breaking change，但任何公共名称、参数名、签名、GoDoc、sentinel error、Framework/Strategy recovery wire 或 observation wire 的变化都必须是显式设计决策：
+Baseline 7 不是兼容承诺或发布版本。仓库仍允许 breaking change，但任何公共名称、参数名、签名、GoDoc、sentinel error、Framework/Strategy recovery wire 或 observation wire 的变化都必须是显式设计决策：
 
 1. 先用真实 Strategy 或 consumer 证明变化必要；
 2. 更新或追加 ADR，不保留 alias、双读、双写或兼容 shim；
@@ -29,7 +29,7 @@ Baseline 6 不是兼容承诺或发布版本。仓库仍允许 breaking change�
 - Snapshot/TreeSnapshot：单独 root 与完整 Process tree 的 portable capture；不包含 Host persistence 抽象。
 - StartChild/WaitForChildren/ChildOutcome：跨 Strategy 组合的最小 Framework Effect/Signal 协议。
 - Budget/Limits/TreeLimits/CapabilitySet/Usage：本地工作上限、tree expansion、authority attenuation 与事实计数。
-- ProcessAdmission/ProcessAdmitter：根与子 Process 共用、只读且 decision-only 的启动准入边界。
+- ProcessAdmission/ProcessAdmitter：根与子 Process 共用、只读、context-aware 且不能修改 Framework 资源的启动准入边界。
 - Event/Delta：自足携带 exact execution attribution 的权威已发生事实与 best-effort 临时增量；listener 无 veto/error 通道。
 - Typed/EncodeInput/DecodeOutput：只存在于类型擦除边缘的人体工程学 adapter。
 
@@ -43,9 +43,9 @@ Baseline 6 不是兼容承诺或发布版本。仓库仍允许 breaking change�
 
 ## 3. 自动守卫
 
-`baseline_test.go` 对七个已冻结公共 package 的完整 `go doc -all` 输出做 SHA-256 校验，因此 exported identifier、参数名、字段、签名和 GoDoc 的任何漂移都会失败；AST 守卫还要求所有公开声明/字段有精确 GoDoc、公开 callable 的参数有语义名称，并禁止 error cause 通过 `%v` 丢失 `errors.Is/As` 链。Baseline 6 public digest：
+`baseline_test.go` 对七个已冻结公共 package 的完整 `go doc -all` 输出做 SHA-256 校验，因此 exported identifier、参数名、字段、签名和 GoDoc 的任何漂移都会失败；AST 守卫还要求所有公开声明/字段有精确 GoDoc、公开 callable 的参数有语义名称，并禁止 error cause 通过 `%v` 丢失 `errors.Is/As` 链。Baseline 7 public digest：
 
-- root kernel：`19339ca04489469a3c06f2c8f9a763a65eaf47ad2b31a67e4eb402290c44394c`
+- root kernel：`9bd5705e7ad607b0d94d01ef2dfd7d666701510d5bbc636a3e5959b6d265a53c`
 - interaction：`b5fdabbea94d2b9aa346446a7cafb4accde928b23489012ba2763c77a517da91`
 - planning：`15c48c52b7d4765ba86da2e5fd11822669c163c01e98dd4cb3668f71f7c5f30a`
 - planning/goap：`dd5a007a20ddbeac2112bbed10718f5256fe2449376fd7dcc1400e25578253ec`
@@ -53,7 +53,7 @@ Baseline 6 不是兼容承诺或发布版本。仓库仍允许 breaking change�
 - otel：`0725fbef9fbd28ba9b6999ab8b427dd9a4376f83aef9839a9f15f60c16422016`
 - platform：`748f5ea1ef3b09c702a792ab6e16a3b4ae6be9776ef1a4ba51e856757abff078`
 
-Kernel 测试独立冻结其全部 production `*Wire`、Framework Event payload 与 schema version；每个 Strategy package 冻结自己的私有 ExecutionState 和 Effect/Signal/Delta protocol。覆盖守卫要求新增 production wire 或私有 JSON struct 必须进入所有者 baseline，Kernel 始终只保存 opaque `ExecutionState.Payload`，不会递归解释 Strategy shape。Baseline 6 wire digest：
+Kernel 测试独立冻结其全部 production `*Wire`、Framework Event payload 与 schema version；每个 Strategy package 冻结自己的私有 ExecutionState 和 Effect/Signal/Delta protocol。覆盖守卫要求新增 production wire 或私有 JSON struct 必须进入所有者 baseline，Kernel 始终只保存 opaque `ExecutionState.Payload`，不会递归解释 Strategy shape。Baseline 7 wire digest：
 
 - Kernel snapshot/protocol wire：`0e245506ccda1ef6c1697a782a67e3d5c01e8417bc8d7ff8686eca138b5a43c5`
 - Framework Event/Delta observation wire：`4006d3d24440922ba1e1ba9616bde3a88352fcc2625d918b839e1de283b631cb`
@@ -97,6 +97,8 @@ P9-03 依据 ADR-A2-056 将七个生产 package 及其允许内部直连边冻�
 
 P9-06 依据 ADR-A2-057 完成最终零债清扫，并形成 Baseline 6。公开状态名从非项目语言规范的 `StatusCancelled` 治本替换为 `StatusCanceled`，JSON wire 同步只接受 `"canceled"`；没有 alias 或旧拼写双读。Process Snapshot 升为 v6、TreeSnapshot 升为 v4，立即拒绝含旧状态拼写的既有格式。P1 disposable spike 测试在正式 Strategy、Engine 与恢复合同已经接管其证据后删除，普通测试不再跨文件借用 spike helper；其余六个 public package、Strategy protocol 和 observation wire 均不变。
 
+P10-03 第一纵切依据 ADR-A2-058 形成 Baseline 7。`ProcessAdmitter.Admit` 新增语义必要的 `context.Context`，`ProcessAdmission.StartedAt` 暴露 admission 成功后使用的同一 UTC 生命周期时间；实现可协调 caller-owned 外部 admission，但仍不能重入 Engine/Process 或修改 Framework 资源。`EffectRequest` 新增 exact `DeploymentRef` 与 `ProcessRelation`，使 Strategy dispatcher 无需 ProcessContext 就能完整归因。root/child 都在 Definition.Start 与发布前 admission，restore 不重复；Snapshot/TreeSnapshot、Framework/Strategy protocol、Event/Delta 与其余六个 public package 均未改变。
+
 ## 4. 明确不在基线中的能力
 
-Baseline 6 暂不冻结 P10 应用迁移 API 或最终模块替换路径。`flow` 保持独立 in-process 库，不形成 Agent adapter API 或依赖；Workflow 吸收其显式拓扑、确定顺序和有界组合思想，但不强求复用或建立 adapter。未来编辑器图只能在更高层编译成已验证的 Workflow Definition，不能反向扩张 Kernel 或恢复 wire。
+Baseline 7 尚未冻结 P10 后续 Interaction invocation/deferred manifest、waiting subtree plan、应用 adapter 迁移或最终模块替换路径。`flow` 保持独立 in-process 库，不形成 Agent adapter API 或依赖；Workflow 吸收其显式拓扑、确定顺序和有界组合思想，但不强求复用或建立 adapter。未来编辑器图只能在更高层编译成已验证的 Workflow Definition，不能反向扩张 Kernel 或恢复 wire。

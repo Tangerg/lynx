@@ -3,6 +3,7 @@ package agent2
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -21,7 +22,7 @@ func TestProcessAdmitterReceivesRootAndChildResourceContracts(t *testing.T) {
 	parentDeployment := newCrossParentDeployment(t, childDeployment.DeploymentRef())
 	var mu sync.Mutex
 	var admissions []ProcessAdmission
-	admitter := ProcessAdmitterFunc(func(admission ProcessAdmission) error {
+	admitter := ProcessAdmitterFunc(func(_ context.Context, admission ProcessAdmission) error {
 		mu.Lock()
 		admissions = append(admissions, admission)
 		mu.Unlock()
@@ -63,7 +64,8 @@ func TestProcessAdmitterReceivesRootAndChildResourceContracts(t *testing.T) {
 		rootAdmission.DeploymentRef() != parentDeployment.DeploymentRef() ||
 		rootAdmission.Descriptor().Digest() != parentDeployment.Descriptor().Digest() ||
 		rootAdmission.Budget() != budgetFromLimits(DefaultLimits()) ||
-		!rootAdmission.Capabilities().Contains(read) {
+		!rootAdmission.Capabilities().Contains(read) ||
+		rootAdmission.StartedAt() != parent.StartedAt() {
 		t.Fatalf("root admission = %#v", rootAdmission)
 	}
 	parentID, hasParent := childAdmission.Relation().ParentID()
@@ -71,7 +73,8 @@ func TestProcessAdmitterReceivesRootAndChildResourceContracts(t *testing.T) {
 		childAdmission.Relation().Depth() != 1 ||
 		childAdmission.DeploymentRef() != childDeployment.DeploymentRef() ||
 		childAdmission.Budget() != (Budget{Steps: 20, Effects: 20, Signals: 40}) ||
-		len(childAdmission.Capabilities().Values()) != 0 {
+		len(childAdmission.Capabilities().Values()) != 0 ||
+		childAdmission.StartedAt() != child.StartedAt() {
 		t.Fatalf("child admission = %#v", childAdmission)
 	}
 	if err := engine.Close(); err != nil {
@@ -93,7 +96,7 @@ func TestProcessAdmitterRejectsBeforeDefinitionStarts(t *testing.T) {
 	}
 	rejection := errors.New("deployment is disabled")
 	engine, err := NewEngine(EngineConfig{ProcessAdmitter: ProcessAdmitterFunc(
-		func(ProcessAdmission) error { return rejection },
+		func(context.Context, ProcessAdmission) error { return rejection },
 	)})
 	if err != nil {
 		t.Fatal(err)
@@ -121,7 +124,7 @@ func TestProcessAdmitterRejectsChildWithoutPublishingIt(t *testing.T) {
 	childDeployment := newChildTestDeployment(t)
 	parentDeployment := newCrossParentDeployment(t, childDeployment.DeploymentRef())
 	var calls atomic.Uint32
-	admitter := ProcessAdmitterFunc(func(admission ProcessAdmission) error {
+	admitter := ProcessAdmitterFunc(func(_ context.Context, admission ProcessAdmission) error {
 		calls.Add(1)
 		if !admission.Relation().IsRoot() {
 			return errors.New("child deployment denied")
@@ -163,7 +166,7 @@ func TestProcessAdmitterCannotOverrideCapabilityAttenuation(t *testing.T) {
 	deployment := newChildTestDeployment(t)
 	var calls atomic.Uint32
 	engine, err := NewEngine(EngineConfig{ProcessAdmitter: ProcessAdmitterFunc(
-		func(ProcessAdmission) error {
+		func(context.Context, ProcessAdmission) error {
 			calls.Add(1)
 			return nil
 		},
@@ -196,7 +199,7 @@ func TestProcessAdmitterPanicAndTypedNilAreRejected(t *testing.T) {
 	}
 	deployment := newChildTestDeployment(t)
 	engine, err := NewEngine(EngineConfig{ProcessAdmitter: ProcessAdmitterFunc(
-		func(ProcessAdmission) error { panic("admission panic") },
+		func(context.Context, ProcessAdmission) error { panic("admission panic") },
 	)})
 	if err != nil {
 		t.Fatal(err)
@@ -232,7 +235,7 @@ func TestRestoreDoesNotReadmitPreviouslyAdmittedProcess(t *testing.T) {
 	}
 	var calls atomic.Uint32
 	restoredEngine, err := NewEngine(EngineConfig{ProcessAdmitter: ProcessAdmitterFunc(
-		func(ProcessAdmission) error {
+		func(context.Context, ProcessAdmission) error {
 			calls.Add(1)
 			return errors.New("live policy changed")
 		},
@@ -251,6 +254,33 @@ func TestRestoreDoesNotReadmitPreviouslyAdmittedProcess(t *testing.T) {
 		t.Fatalf("restored status = %s", result.Status())
 	}
 	if err := restoredEngine.Close(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestProcessAdmitterReceivesStartContext(t *testing.T) {
+	type contextKey struct{}
+	want := "admission-context"
+	engine, err := NewEngine(EngineConfig{ProcessAdmitter: ProcessAdmitterFunc(
+		func(ctx context.Context, _ ProcessAdmission) error {
+			if got, _ := ctx.Value(contextKey{}).(string); got != want {
+				return fmt.Errorf("admission context value = %q, want %q", got, want)
+			}
+			return nil
+		},
+	)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	deployment := newChildTestDeployment(t)
+	input, _ := EncodeInput(childTestInput{Mode: "leaf"})
+	ctx := context.WithValue(context.Background(), contextKey{}, want)
+	process, err := engine.Start(ctx, deployment, input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = mustAwait(t, process)
+	if err := engine.Close(); err != nil {
 		t.Fatal(err)
 	}
 }
