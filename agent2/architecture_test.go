@@ -5,9 +5,11 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -141,6 +143,82 @@ func TestProcessConstructionRemainsEngineOwned(t *testing.T) {
 			}
 		}
 	}
+}
+
+func TestTimeSleepIsScopedToSynctestCallback(t *testing.T) {
+	files := token.NewFileSet()
+	err := filepath.WalkDir(".", func(path string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() || !strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		file, err := parser.ParseFile(files, filepath.Clean(path), nil, 0)
+		if err != nil {
+			return err
+		}
+		timePackage := importedPackageName(file, "time")
+		if timePackage == "" {
+			return nil
+		}
+		synctestPackage := importedPackageName(file, "testing/synctest")
+		fakeClockSleeps := make(map[token.Pos]struct{})
+		if synctestPackage != "" {
+			ast.Inspect(file, func(node ast.Node) bool {
+				call, ok := node.(*ast.CallExpr)
+				if !ok || !isPackageCall(call, synctestPackage, "Test") || len(call.Args) != 2 {
+					return true
+				}
+				ast.Inspect(call.Args[1], func(callbackNode ast.Node) bool {
+					callbackCall, ok := callbackNode.(*ast.CallExpr)
+					if ok && isPackageCall(callbackCall, timePackage, "Sleep") {
+						fakeClockSleeps[callbackCall.Pos()] = struct{}{}
+					}
+					return true
+				})
+				return true
+			})
+		}
+		ast.Inspect(file, func(node ast.Node) bool {
+			call, ok := node.(*ast.CallExpr)
+			if !ok || !isPackageCall(call, timePackage, "Sleep") {
+				return true
+			}
+			if _, allowed := fakeClockSleeps[call.Pos()]; !allowed {
+				position := files.Position(call.Pos())
+				t.Errorf("%s uses time.Sleep outside synctest.Test; use a channel or Process barrier", position)
+			}
+			return true
+		})
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func importedPackageName(file *ast.File, path string) string {
+	for _, specification := range file.Imports {
+		importPath, err := strconv.Unquote(specification.Path.Value)
+		if err != nil || importPath != path {
+			continue
+		}
+		if specification.Name != nil {
+			return specification.Name.Name
+		}
+		return filepath.Base(path)
+	}
+	return ""
+}
+
+func isPackageCall(call *ast.CallExpr, packageName, functionName string) bool {
+	selector, ok := call.Fun.(*ast.SelectorExpr)
+	if !ok || selector.Sel.Name != functionName {
+		return false
+	}
+	identifier, ok := selector.X.(*ast.Ident)
+	return ok && identifier.Name == packageName
 }
 
 func assertProcessFieldsArePrivate(t *testing.T, filename string, declaration *ast.GenDecl) {

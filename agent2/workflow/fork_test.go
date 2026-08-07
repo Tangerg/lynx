@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	agent "github.com/Tangerg/lynx/agent2"
@@ -28,6 +29,10 @@ type forkOutput struct {
 }
 
 func TestForkUsesBoundedWindowsAndDeclarationOrder(t *testing.T) {
+	synctest.Test(t, testForkUsesBoundedWindowsAndDeclarationOrder)
+}
+
+func testForkUsesBoundedWindowsAndDeclarationOrder(t *testing.T) {
 	tracker := newBranchTracker("first", "second", "third")
 	branches := make([]workflow.ForkBranch, 0, 3)
 	resolver := deploymentResolver{}
@@ -191,10 +196,11 @@ func (tracker *branchTracker) awaitStart(t *testing.T) string {
 
 func (tracker *branchTracker) assertNotStarted(t *testing.T) {
 	t.Helper()
+	synctest.Wait()
 	select {
 	case id := <-tracker.started:
 		t.Fatalf("branch %q escaped the execution window", id)
-	case <-time.After(50 * time.Millisecond):
+	default:
 	}
 }
 

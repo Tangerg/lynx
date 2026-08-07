@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -239,9 +240,10 @@ func awaitPausedWindow(
 	wantProcesses int,
 ) agent.TreeSnapshot {
 	t.Helper()
-	deadline := time.Now().Add(5 * time.Second)
-	for time.Now().Before(deadline) {
-		snapshot, err := engine.CaptureTree(context.Background(), rootID)
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+	for {
+		snapshot, err := engine.CaptureTree(ctx, rootID)
 		if err == nil && len(snapshot.ProcessSnapshots()) == wantProcesses {
 			rootWaiting := false
 			paused := 0
@@ -256,10 +258,11 @@ func awaitPausedWindow(
 				return snapshot
 			}
 		}
-		time.Sleep(5 * time.Millisecond)
+		if err := ctx.Err(); err != nil {
+			t.Fatalf("tree %s did not reach %d Processes with a paused window: %v", rootID, wantProcesses, err)
+		}
+		runtime.Gosched()
 	}
-	t.Fatalf("tree %s did not reach %d Processes with a paused window", rootID, wantProcesses)
-	return agent.TreeSnapshot{}
 }
 
 func childSnapshotIDs(snapshot agent.TreeSnapshot) []agent.ProcessID {

@@ -7,7 +7,7 @@ import (
 	"errors"
 	"sync"
 	"testing"
-	"time"
+	"testing/synctest"
 )
 
 func TestTreeSnapshotStrictlyRejectsUnknownFields(t *testing.T) {
@@ -174,6 +174,10 @@ func TestTerminalTreeSnapshotClosesUnconsumedChildWait(t *testing.T) {
 }
 
 func TestTreeCaptureWaitsForInflightChildEffectsToSettle(t *testing.T) {
+	synctest.Test(t, testTreeCaptureWaitsForInflightChildEffectsToSettle)
+}
+
+func testTreeCaptureWaitsForInflightChildEffectsToSettle(t *testing.T) {
 	dispatcher := newBlockingChildDispatcher("first", "second", "third")
 	t.Cleanup(dispatcher.ReleaseAll)
 	deployment := newChildTestDeploymentWithDispatcher(t, dispatcher)
@@ -199,10 +203,11 @@ func TestTreeCaptureWaitsForInflightChildEffectsToSettle(t *testing.T) {
 		snapshot, err := engine.CaptureTree(context.Background(), root.ID())
 		captured <- captureResult{snapshot: snapshot, err: err}
 	}()
+	synctest.Wait()
 	select {
 	case result := <-captured:
 		t.Fatalf("CaptureTree crossed unsettled Effects: %#v", result)
-	case <-time.After(20 * time.Millisecond):
+	default:
 	}
 	dispatcher.ReleaseAll()
 	result := <-captured

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"runtime"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -219,11 +220,12 @@ func (execution *engineTestExecution) Snapshot() (ExecutionState, error) {
 }
 
 type engineTestDispatcher struct {
-	policy ReplayPolicy
-	calls  atomic.Int32
-	block  <-chan struct{}
-	check  func() error
-	deltas int
+	policy  ReplayPolicy
+	calls   atomic.Int32
+	started chan struct{}
+	block   <-chan struct{}
+	check   func() error
+	deltas  int
 }
 
 func (dispatcher *engineTestDispatcher) Dispatch(
@@ -232,6 +234,9 @@ func (dispatcher *engineTestDispatcher) Dispatch(
 	emit DeltaEmitter,
 ) (Settlement, error) {
 	dispatcher.calls.Add(1)
+	if dispatcher.started != nil {
+		dispatcher.started <- struct{}{}
+	}
 	if dispatcher.check != nil {
 		if err := dispatcher.check(); err != nil {
 			return Settlement{}, err
@@ -494,7 +499,11 @@ func TestPartialEffectBatchPreservesSettlementsAndDeclarationOrder(t *testing.T)
 func TestPausedProcessCapturesRestoresAndResumesAtSafeBoundary(t *testing.T) {
 	definition := newEngineTestDefinition(t, "engine.effect", "effect")
 	release := make(chan struct{})
-	dispatcher := &engineTestDispatcher{policy: ReplayPolicySameIdentity, block: release}
+	dispatcher := &engineTestDispatcher{
+		policy:  ReplayPolicySameIdentity,
+		started: make(chan struct{}, 1),
+		block:   release,
+	}
 	deployment := engineTestDeployment(t, definition, dispatcher)
 	engine, _ := NewEngine(EngineConfig{})
 	input, _ := EncodeInput(engineTestInput{Value: "paused"})
@@ -502,7 +511,7 @@ func TestPausedProcessCapturesRestoresAndResumesAtSafeBoundary(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	waitForCalls(t, &dispatcher.calls, 1)
+	<-dispatcher.started
 	if err := process.Pause(context.Background(), "operator inspection"); err != nil {
 		t.Fatal(err)
 	}
@@ -615,7 +624,11 @@ func TestStartContextCancellationMapsToHostCancellation(t *testing.T) {
 func TestKillWaitsForInflightEffectSettlement(t *testing.T) {
 	definition := newEngineTestDefinition(t, "engine.effect", "effect")
 	release := make(chan struct{})
-	dispatcher := &engineTestDispatcher{policy: ReplayPolicyNever, block: release}
+	dispatcher := &engineTestDispatcher{
+		policy:  ReplayPolicyNever,
+		started: make(chan struct{}, 1),
+		block:   release,
+	}
 	deployment := engineTestDeployment(t, definition, dispatcher)
 	engine, _ := NewEngine(EngineConfig{})
 	input, _ := EncodeInput(engineTestInput{Value: "slow"})
@@ -623,7 +636,7 @@ func TestKillWaitsForInflightEffectSettlement(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	waitForCalls(t, &dispatcher.calls, 1)
+	<-dispatcher.started
 	if err := process.Kill(context.Background(), "operator requested stop"); err != nil {
 		t.Fatal(err)
 	}
@@ -890,33 +903,26 @@ func awaitResult(t *testing.T, process *Process) Result {
 
 func waitForStatus(t *testing.T, process *Process, want Status) {
 	t.Helper()
-	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) {
-		if process.Status() == want {
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
+	defer cancel()
+	for {
+		snapshot, err := process.Capture(ctx)
+		if err != nil {
+			t.Fatalf("capture Process while waiting for %s: %v", want, err)
+		}
+		if snapshot.Status() == want {
 			return
 		}
-		time.Sleep(time.Millisecond)
+		runtime.Gosched()
 	}
-	t.Fatalf("status=%s, want %s", process.Status(), want)
-}
-
-func waitForCalls(t *testing.T, calls *atomic.Int32, want int32) {
-	t.Helper()
-	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) {
-		if calls.Load() >= want {
-			return
-		}
-		time.Sleep(time.Millisecond)
-	}
-	t.Fatalf("dispatcher calls=%d, want at least %d", calls.Load(), want)
 }
 
 func waitForUnknownSettlement(t *testing.T, process *Process) Snapshot {
 	t.Helper()
-	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) {
-		snapshot, err := process.Capture(context.Background())
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
+	defer cancel()
+	for {
+		snapshot, err := process.Capture(ctx)
 		if err == nil {
 			wire, _ := snapshot.wire()
 			if wire.Prepared != nil {
@@ -927,8 +933,9 @@ func waitForUnknownSettlement(t *testing.T, process *Process) Snapshot {
 				}
 			}
 		}
-		time.Sleep(time.Millisecond)
+		if err := ctx.Err(); err != nil {
+			t.Fatalf("Process never exposed unknown Effect settlement: %v", err)
+		}
+		runtime.Gosched()
 	}
-	t.Fatal("Process never exposed unknown Effect settlement")
-	return Snapshot{}
 }

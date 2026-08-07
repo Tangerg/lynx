@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"runtime"
 	"slices"
 	"strconv"
 	"strings"
@@ -1029,14 +1030,18 @@ type childTestRelease struct {
 
 func waitForProcessStatus(t *testing.T, process *Process, want Status) {
 	t.Helper()
-	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) {
-		if process.Status() == want {
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
+	defer cancel()
+	for {
+		snapshot, err := process.Capture(ctx)
+		if err != nil {
+			t.Fatalf("capture Process while waiting for %s: %v", want, err)
+		}
+		if snapshot.Status() == want {
 			return
 		}
-		time.Sleep(time.Millisecond)
+		runtime.Gosched()
 	}
-	t.Fatalf("Process status = %s, want %s", process.Status(), want)
 }
 
 func childTestResult(t *testing.T, result Result) childTestOutput {

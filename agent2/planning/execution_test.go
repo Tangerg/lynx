@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"runtime"
 	"slices"
 	"sync"
 	"testing"
@@ -328,11 +329,12 @@ func TestManagedPlanningUnknownActionRequiresExplicitResolution(t *testing.T) {
 		t.Fatal(err)
 	}
 	request := <-requestSeen
-	deadline := time.Now().Add(5 * time.Second)
+	queryContext, cancelQuery := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancelQuery()
 	for {
-		unknown, queryErr := process.UnknownEffectIDs(context.Background())
+		unknown, queryErr := process.UnknownEffectIDs(queryContext)
 		if queryErr != nil {
-			t.Fatal(queryErr)
+			t.Fatalf("query unknown Action Effect: %v", queryErr)
 		}
 		if len(unknown) == 1 {
 			if unknown[0] != request.EffectID {
@@ -340,10 +342,7 @@ func TestManagedPlanningUnknownActionRequiresExplicitResolution(t *testing.T) {
 			}
 			break
 		}
-		if time.Now().After(deadline) {
-			t.Fatal("Action Effect did not become unknown")
-		}
-		time.Sleep(time.Millisecond)
+		runtime.Gosched()
 	}
 	world.applyState(t, action)
 	settlement, err := planning.NewActionSettlement(request.EffectID, planning.ActionSucceeded())

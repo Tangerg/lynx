@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"runtime"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -335,14 +336,18 @@ func (value *blockingTool) Release() {
 
 func waitForStatus(t *testing.T, process *agent.Process, want agent.Status) {
 	t.Helper()
-	deadline := time.Now().Add(5 * time.Second)
-	for time.Now().Before(deadline) {
-		if process.Status() == want {
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+	for {
+		snapshot, err := process.Capture(ctx)
+		if err != nil {
+			t.Fatalf("capture Process while waiting for %s: %v", want, err)
+		}
+		if snapshot.Status() == want {
 			return
 		}
-		time.Sleep(time.Millisecond)
+		runtime.Gosched()
 	}
-	t.Fatalf("status = %s, want %s", process.Status(), want)
 }
 
 func toolCallsResponse(calls ...chat.ToolCall) *chat.Response {

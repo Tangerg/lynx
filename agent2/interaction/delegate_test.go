@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -562,11 +563,12 @@ func awaitWaitingDelegateTree(
 	rootID agent.ProcessID,
 ) (agent.TreeSnapshot, agent.ProcessID) {
 	t.Helper()
-	deadline := time.Now().Add(5 * time.Second)
-	for time.Now().Before(deadline) {
-		tree, err := engine.CaptureTree(context.Background(), rootID)
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+	for {
+		tree, err := engine.CaptureTree(ctx, rootID)
 		if err != nil {
-			t.Fatal(err)
+			t.Fatalf("capture Delegate tree: %v", err)
 		}
 		var rootWaiting bool
 		var childID agent.ProcessID
@@ -583,8 +585,6 @@ func awaitWaitingDelegateTree(
 		if rootWaiting && childID.Valid() {
 			return tree, childID
 		}
-		time.Sleep(time.Millisecond)
+		runtime.Gosched()
 	}
-	t.Fatal("Delegate tree did not reach a recoverable waiting boundary")
-	return agent.TreeSnapshot{}, agent.ProcessID{}
 }

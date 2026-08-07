@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"runtime"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -438,16 +439,18 @@ func pointerMessage(message chat.Message) *chat.Message { return &message }
 
 func waitForUnknownEffects(t *testing.T, process *agent.Process) []agent.EffectID {
 	t.Helper()
-	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) {
-		ids, err := process.UnknownEffectIDs(context.Background())
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
+	defer cancel()
+	for {
+		ids, err := process.UnknownEffectIDs(ctx)
 		if err == nil && len(ids) > 0 {
 			return ids
 		}
-		time.Sleep(time.Millisecond)
+		if err := ctx.Err(); err != nil {
+			t.Fatalf("Process never exposed an unknown Tool Effect: %v", err)
+		}
+		runtime.Gosched()
 	}
-	t.Fatal("Process never exposed an unknown Tool Effect")
-	return nil
 }
 
 var _ interaction.ConcurrentTool = (*scheduledTool)(nil)
