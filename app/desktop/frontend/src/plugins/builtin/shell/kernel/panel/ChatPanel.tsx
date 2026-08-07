@@ -2,12 +2,13 @@ import { Activity } from "react";
 import { dockWidthRow } from "./dockWidth";
 import type { UserInput } from "@/plugins/builtin/chat/composer/public/input";
 import type { ViewPlacement } from "@/plugins/builtin/workspace/public/viewPlacement";
-import { CatalogPicker, IconButton, type CatalogPickerGroup, type IconName } from "@/ui";
+import { CatalogPicker, type CatalogPickerGroup, type IconName } from "@/ui";
 import {
   AgentContentCard,
   AgentContextDock,
   type AgentDockTab,
   AgentDockTabs,
+  AgentDockToggle,
   AgentStatusPill,
   AgentSurfaceHeader,
 } from "@/ui/agent";
@@ -91,13 +92,6 @@ function DockHeader({
     <AgentSurfaceHeader className="gap-1">
       <AgentDockTabs tabs={tabs} ariaLabel={t("dock.tabs.label")} />
       <AddDockViewPicker groups={groups} openViewIds={openViewIds} />
-      <IconButton
-        icon="panel-r"
-        hoverIcon="x"
-        size="sm"
-        title={t("dock.action.hide")}
-        onClick={collapseWorkspaceDock}
-      />
     </AgentSurfaceHeader>
   );
 }
@@ -165,7 +159,15 @@ export function ChatPanel({ onSend }: Props) {
           no state to return to. The full view above IS a ternary, deliberately: you
           come back to the conversation, not to whichever pane you passed through. */}
       <Activity mode={activeMainView === null ? "visible" : "hidden"}>
-        <div className="flex min-h-0 flex-1" style={dockWidthRow(dockWidth)}>
+        {/* The row declares whether the flank is showing, and it is the only place that
+            does. Three things answer to it — the flank travels, the conversation reflows,
+            and the bar that ends up at the plane's trailing corner yields the strip the
+            toggle sits in — and only the row contains all three. */}
+        <div
+          className="agent-dock-row flex min-h-0 flex-1"
+          data-dock={dockOpen ? "open" : "collapsed"}
+          style={dockWidthRow(dockWidth)}
+        >
           <div className="relative flex min-h-0 min-w-0 flex-1 flex-col">
             <AgentSurfaceHeader windowCorner>
               {/* Where, then what. The workspace name is the quieter half on
@@ -193,14 +195,6 @@ export function ChatPanel({ onSend }: Props) {
                   also the one place it cannot push the transcript around. */}
               <Slot name="chat.header.meta" />
               <HeaderDiffStat />
-              {!dock.open && (
-                <IconButton
-                  icon="panel-r"
-                  size="sm"
-                  title={t("dock.action.show")}
-                  onClick={showWorkspaceDock}
-                />
-              )}
             </AgentSurfaceHeader>
             <ChatStream onSend={onSend} />
           </div>
@@ -209,7 +203,7 @@ export function ChatPanel({ onSend }: Props) {
               did not occupy on the previous frame, and the first view opened in a session
               is exactly the case where there is no previous frame to leave unless the
               flank was already there, held outside the window by its end margin. */}
-          <AgentContextDock open={dockOpen}>
+          <AgentContextDock>
             <DockHeader tabs={dockTabs} groups={catalog} openViewIds={openViewIds} />
             <div className="relative min-h-0 flex-1">
               {/* Every open tab stays mounted so switching between them keeps each
@@ -234,6 +228,16 @@ export function ChatPanel({ onSend }: Props) {
               ))}
             </div>
           </AgentContextDock>
+          {/* Pinned to the row's trailing corner rather than placed in either bar — see
+              AgentDockToggle. Last in the row so it paints over the flank it moves. */}
+          <div className="agent-dock-control">
+            <AgentDockToggle
+              open={dockOpen}
+              onToggle={dockOpen ? collapseWorkspaceDock : showWorkspaceDock}
+              showLabel={t("dock.action.show")}
+              hideLabel={t("dock.action.hide")}
+            />
+          </div>
         </div>
       </Activity>
     </AgentContentCard>

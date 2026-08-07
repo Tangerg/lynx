@@ -25,24 +25,14 @@ export interface AgentDockTab {
  * against. It lives inside the content card, so its left edge is an internal pane
  * split and takes the active visual style's boundary rather than inventing its
  * own background step.
+ *
+ * It carries no state of its own. Whether the flank is showing is a fact about the row
+ * it and the conversation share — the row is what has to reflow, and the bar that
+ * reaches the plane's trailing corner has to know it too — so the row declares it once
+ * and this stays pure structure, the same way the drawer reads it off the shell.
  */
-export function AgentContextDock({
-  open,
-  children,
-}: {
-  /** Whether the dock is showing. Declared rather than expressed as a hidden style,
-   *  because how a flanking pane leaves and returns is the shell's geometry and not
-   *  the page's — the same split the drawer already makes. And it is the whole of that
-   *  state: the flank's measure comes from the row it sits in, so this attribute is the
-   *  only thing that says whether it is here. */
-  open: boolean;
-  children: ReactNode;
-}) {
-  return (
-    <aside data-open={open ? "" : undefined} className="agent-context-dock agent-pane-split">
-      {children}
-    </aside>
-  );
+export function AgentContextDock({ children }: { children: ReactNode }) {
+  return <aside className="agent-context-dock agent-pane-split">{children}</aside>;
 }
 
 /** Dock tabs share one structural pattern while the visual style chooses the

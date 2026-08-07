@@ -1196,6 +1196,12 @@ html.theme-light .panel-scroll::-webkit-scrollbar-thumb:hover {
   --color-media-canvas: #ffffff;
   --color-on-media: #ffffff;
   --window-sidebar-control-span: 36px;
+  /* How much of a chrome bar the dock toggle covers at the reading plane's trailing
+     corner: the 6px it is inset by, its own 26px, and the 4px the dock's bar puts
+     between its controls. Whichever bar reaches that corner yields exactly this, which
+     is why removing the flank's own hide button changed nothing you can see — the
+     picker beside it keeps the position it already had. */
+  --dock-control-span: 36px;
   /* Chrome bar height. Shared by the sidebar header and every content header so
      the two line up across the seam — the single number the macOS traffic-light
      gutter is centred against. First-paint mirror of the visual style. */
@@ -1254,6 +1260,24 @@ html.theme-dark {
   z-index: 40;
   display: flex;
   height: calc(var(--window-controls-centre) * 2);
+  align-items: center;
+  -webkit-app-region: no-drag;
+  --wails-draggable: no-drag;
+}
+
+/* The same rule on the other side, for the same reason — one owner for the dock
+   toggle, at the reading plane's trailing corner, whichever bar happens to reach it.
+   Centred on the chrome bar rather than on the window controls: nothing of the
+   platform's is drawn over here, so the bar's own centre is the only centre there is.
+   It outranks the flank (`.agent-pane-split`, z-index 1) so it stays put while the
+   panel it toggles travels underneath. */
+.agent-dock-control {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-end: 6px;
+  z-index: 30;
+  display: flex;
+  height: var(--surface-header-height);
   align-items: center;
   -webkit-app-region: no-drag;
   --wails-draggable: no-drag;
@@ -1370,8 +1394,8 @@ html.theme-dark {
    — into style recalculation. Measured on a 200-turn transcript: collapsing the drawer
    cost 37ms of recalc, 33ms of it that one declaration, landing as a single dropped
    frame at the start of a 240ms slide. Non-inheriting, the same toggle costs 4ms. The
-   dock was never affected because it keeps its state on itself (`[data-open]`) rather
-   than in an inherited variable — this makes the drawer as cheap as the dock has been.
+   dock was never affected because its state selector writes no variable at all — this
+   makes the drawer as cheap as the dock has been.
    The cost did NOT scale with transcript length, which is why it read as a constant
    hitch rather than "long sessions are slow".
 
@@ -1424,6 +1448,29 @@ html.theme-dark {
 
 .agent-shell:has(.agent-seam-rail:is(:hover, :focus-visible, :active)) .agent-content-card {
   --shell-boundary: var(--boundary-emphasis);
+}
+
+/* The trailing seam's hit target — the leading rail's mirror, and out of flow for the
+   same reason: the handle must not be part of the geometry it adjusts. In flow at 8px it
+   was the last frame-0 jump left in the toggle, because hiding the flank unmounts it and
+   the conversation's bar stepped 8px sideways while everything else travelled. It also
+   meant the chat's content stopped 8px short of a split it looked flush against, over
+   invisible dead space that existed only because the handle was in the row.
+   Same 10px target straddling the boundary as the rail on the other edge: the rule below
+   already says these two are one gesture, and a gesture with two hit widths is not. */
+.agent-pane-resizer {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-end: var(--dock-measure);
+  z-index: 25;
+  width: 10px;
+  transform: translateX(5px);
+  cursor: col-resize;
+  touch-action: none;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  outline: none;
 }
 
 /* Pane resizer — the shell's seam rail and this splitter are the same gesture on
@@ -1511,7 +1558,9 @@ html.theme-dark {
    It cannot underlap the controls on the way: at every point of the travel the sum is
    at least the strip, with equality only at the collapsed end. */
 .agent-surface-header[data-window-corner] {
-  transition: padding-inline-start var(--dur-drawer) var(--ease-drawer);
+  transition:
+    padding-inline-start var(--dur-drawer) var(--ease-drawer),
+    padding-inline-end var(--dur-drawer) var(--ease-drawer);
 }
 .agent-shell[data-sidebar="collapsed"] .agent-surface-header[data-window-corner] {
   padding-inline-start: calc(var(--window-controls-gutter) + var(--window-sidebar-control-span));
@@ -1555,6 +1604,13 @@ html.theme-dark {
 
 /* ---------- Context dock ---------- */
 
+/* The reading plane's split, and the dock's shell: what `.agent-shell` is to the
+   drawer, this is to the flank. It owns the one declaration of whether the flank is
+   showing, and it is positioned because the toggle is pinned to its trailing corner. */
+.agent-dock-row {
+  position: relative;
+}
+
 /* The right flank leaves and returns the same WAY as the left one, not merely on the
    same curve — it keeps its measure and travels, and the conversation grows into the
    space it gives up.
@@ -1590,12 +1646,22 @@ html.theme-dark {
     margin-inline-end var(--dur-drawer) var(--ease-drawer),
     visibility 0s linear 0s;
 }
-.agent-context-dock:not([data-open]) {
+.agent-dock-row[data-dock="collapsed"] .agent-context-dock {
   visibility: hidden;
   margin-inline-end: calc(-1 * var(--dock-measure));
   transition:
     margin-inline-end var(--dur-drawer) var(--ease-drawer),
     visibility 0s linear var(--dur-drawer);
+}
+
+/* The trailing mirror of the leading yield below: the bar that ends up at the plane's
+   trailing corner gives the toggle its strip, and gives it on the flank's clock because
+   the corner is being handed over while the flank travels. The dock's own bar yields it
+   unconditionally — it is only ever at that corner when it is on screen at all — so only
+   the conversation's bar has anything to interpolate. Both ends of that bar are now
+   yields that travel, which is the whole of what made the gesture read as one motion. */
+.agent-dock-row[data-dock="collapsed"] .agent-surface-header[data-window-corner] {
+  padding-inline-end: var(--dock-control-span);
 }
 
 /* A workspace view is a page when it owns the card and content when it sits in
@@ -1616,7 +1682,9 @@ html.theme-dark {
    enough of its own material to be the thing you see there. */
 .agent-context-dock > .agent-surface-header:first-child {
   gap: 4px;
-  padding-inline: 14px 6px;
+  /* The trailing inset is the strip the pinned toggle covers, not density — this bar is
+     at the plane's trailing corner whenever it is on screen. */
+  padding-inline: 14px var(--dock-control-span);
 }
 
 .agent-dock-tabs {

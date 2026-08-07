@@ -16,7 +16,7 @@ export function DockResizer() {
   return (
     <ResizeHandle
       aria-label={t("dock.action.resize")}
-      className="agent-pane-resizer relative w-2 shrink-0 cursor-col-resize touch-none"
+      className="agent-pane-resizer"
       edge="start"
       value={width}
       container={(rail) => rail.parentElement}

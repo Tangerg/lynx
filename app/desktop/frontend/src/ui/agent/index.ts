@@ -7,7 +7,7 @@ export { AgentRow } from "./navigation-row";
 export { AgentStatusPill } from "./status-pill";
 // AgentDrawerToggle is deliberately NOT re-exported: the shell mounts the one
 // instance itself, and a second one anywhere else is a second collapse control.
-export { AgentSurfaceHeader } from "./surface-header";
+export { AgentDockToggle, AgentSurfaceHeader } from "./surface-header";
 export {
   AgentWorkIndexBody,
   AgentWorkIndexFooter,
