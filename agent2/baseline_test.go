@@ -15,6 +15,26 @@ import (
 	"testing"
 )
 
+const (
+	currentAPIBaseline         = 9
+	currentAPIBaselineFrozenOn = "2026-08-07"
+)
+
+var exportedAPIBaselines = []struct {
+	name      string
+	label     string
+	directory string
+	want      string
+}{
+	{name: "kernel", label: "root kernel", directory: ".", want: "53d6b5a835e7a27371f119c0429ef6fef4edb6c112ddeb1d769630d9ab8207a2"},
+	{name: "interaction", label: "interaction", directory: "interaction", want: "4d7c875e6eb422a82c010bb41553155c643d1be70b41970d6f8332ab12025bf5"},
+	{name: "planning", label: "planning", directory: "planning", want: "15c48c52b7d4765ba86da2e5fd11822669c163c01e98dd4cb3668f71f7c5f30a"},
+	{name: "goap", label: "planning/goap", directory: "planning/goap", want: "dd5a007a20ddbeac2112bbed10718f5256fe2449376fd7dcc1400e25578253ec"},
+	{name: "workflow", label: "workflow", directory: "workflow", want: "a0e4815dc7c9bb69f215702434b8547e2abdb446400efc445d3fdb35ff752094"},
+	{name: "otel", label: "otel", directory: "otel", want: "0725fbef9fbd28ba9b6999ab8b427dd9a4376f83aef9839a9f15f60c16422016"},
+	{name: "platform", label: "platform", directory: "platform", want: "748f5ea1ef3b09c702a792ab6e16a3b4ae6be9776ef1a4ba51e856757abff078"},
+}
+
 func TestExportedContractsAreDocumentedAndNamed(t *testing.T) {
 	directories := []string{".", "interaction", "planning", "planning/goap", "workflow", "otel", "platform"}
 	for _, directory := range directories {
@@ -119,20 +139,7 @@ func assertGoDocStartsWithName(t *testing.T, path, name string, doc *ast.Comment
 }
 
 func TestExportedAPIBaseline(t *testing.T) {
-	tests := []struct {
-		name      string
-		directory string
-		want      string
-	}{
-		{name: "kernel", directory: ".", want: "53d6b5a835e7a27371f119c0429ef6fef4edb6c112ddeb1d769630d9ab8207a2"},
-		{name: "interaction", directory: "interaction", want: "4d7c875e6eb422a82c010bb41553155c643d1be70b41970d6f8332ab12025bf5"},
-		{name: "planning", directory: "planning", want: "15c48c52b7d4765ba86da2e5fd11822669c163c01e98dd4cb3668f71f7c5f30a"},
-		{name: "goap", directory: "planning/goap", want: "dd5a007a20ddbeac2112bbed10718f5256fe2449376fd7dcc1400e25578253ec"},
-		{name: "workflow", directory: "workflow", want: "a0e4815dc7c9bb69f215702434b8547e2abdb446400efc445d3fdb35ff752094"},
-		{name: "otel", directory: "otel", want: "0725fbef9fbd28ba9b6999ab8b427dd9a4376f83aef9839a9f15f60c16422016"},
-		{name: "platform", directory: "platform", want: "748f5ea1ef3b09c702a792ab6e16a3b4ae6be9776ef1a4ba51e856757abff078"},
-	}
-	for _, test := range tests {
+	for _, test := range exportedAPIBaselines {
 		t.Run(test.name, func(t *testing.T) {
 			command := exec.CommandContext(t.Context(), "go", "doc", "-all", ".")
 			command.Dir = test.directory
@@ -150,6 +157,29 @@ func TestExportedAPIBaseline(t *testing.T) {
 				)
 			}
 		})
+	}
+}
+
+func TestAPIBaselineDocumentMatchesFrozenPublicContracts(t *testing.T) {
+	document, err := os.ReadFile("doc/API_BASELINE.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(document)
+	required := []string{
+		fmt.Sprintf("> 状态：Baseline %d 已冻结", currentAPIBaseline),
+		fmt.Sprintf("> 冻结日期：%s", currentAPIBaselineFrozenOn),
+		fmt.Sprintf("Baseline %d 不是兼容承诺或发布版本。", currentAPIBaseline),
+		fmt.Sprintf("Baseline %d public digest：", currentAPIBaseline),
+		fmt.Sprintf("Baseline %d wire digest：", currentAPIBaseline),
+	}
+	for _, baseline := range exportedAPIBaselines {
+		required = append(required, fmt.Sprintf("- %s：`%s`", baseline.label, baseline.want))
+	}
+	for _, contract := range required {
+		if !strings.Contains(text, contract) {
+			t.Errorf("API baseline document is missing current contract %q", contract)
+		}
 	}
 }
 

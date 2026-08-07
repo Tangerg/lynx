@@ -1,14 +1,14 @@
 # Agent Framework 公共合同基线
 
-> 状态：Baseline 8 已冻结
-> 冻结日期：2026-08-06
+> 状态：Baseline 9 已冻结
+> 冻结日期：2026-08-07
 > 适用范围：`agent2` 根 package、`agent2/interaction`、`agent2/planning`、`agent2/planning/goap`、`agent2/workflow`、`agent2/otel`、`agent2/platform`、Process Snapshot v6、TreeSnapshot v4、child/framework-effect protocol v2、Interaction state/protocol v5/v3、Planning state/protocol v3/v1、Workflow state v2、Event/Delta observation wire
 
 本文只记录已经由 P3 真实 Interaction、P4 child composition、八个独立 command consumer、P5 真实 Planning/GOAP、P6 managed Workflow、P8 Platform 与恢复合同共同证明的公共合同基线。目标架构、ADR、工程标准和实施进度仍由各自文档拥有；这里不复制它们。
 
 ## 1. 基线的含义
 
-Baseline 8 不是兼容承诺或发布版本。仓库仍允许 breaking change，但任何公共名称、参数名、签名、GoDoc、sentinel error、Framework/Strategy recovery wire 或 observation wire 的变化都必须是显式设计决策：
+Baseline 9 不是兼容承诺或发布版本。仓库仍允许 breaking change，但任何公共名称、参数名、签名、GoDoc、sentinel error、Framework/Strategy recovery wire 或 observation wire 的变化都必须是显式设计决策：
 
 1. 先用真实 Strategy 或 consumer 证明变化必要；
 2. 更新或追加 ADR，不保留 alias、双读、双写或兼容 shim；
@@ -44,9 +44,9 @@ Baseline 8 不是兼容承诺或发布版本。仓库仍允许 breaking change�
 
 ## 3. 自动守卫
 
-`baseline_test.go` 对七个已冻结公共 package 的完整 `go doc -all` 输出做 SHA-256 校验，因此 exported identifier、参数名、字段、签名和 GoDoc 的任何漂移都会失败；AST 守卫还要求所有公开声明/字段有精确 GoDoc、公开 callable 的参数有语义名称，并禁止 error cause 通过 `%v` 丢失 `errors.Is/As` 链。Baseline 8 public digest：
+`baseline_test.go` 对七个已冻结公共 package 的完整 `go doc -all` 输出做 SHA-256 校验，因此 exported identifier、参数名、字段、签名和 GoDoc 的任何漂移都会失败；AST 守卫还要求所有公开声明/字段有精确 GoDoc、公开 callable 的参数有语义名称，并禁止 error cause 通过 `%v` 丢失 `errors.Is/As` 链。Baseline 9 public digest：
 
-- root kernel：`9bd5705e7ad607b0d94d01ef2dfd7d666701510d5bbc636a3e5959b6d265a53c`
+- root kernel：`53d6b5a835e7a27371f119c0429ef6fef4edb6c112ddeb1d769630d9ab8207a2`
 - interaction：`4d7c875e6eb422a82c010bb41553155c643d1be70b41970d6f8332ab12025bf5`
 - planning：`15c48c52b7d4765ba86da2e5fd11822669c163c01e98dd4cb3668f71f7c5f30a`
 - planning/goap：`dd5a007a20ddbeac2112bbed10718f5256fe2449376fd7dcc1400e25578253ec`
@@ -54,7 +54,7 @@ Baseline 8 不是兼容承诺或发布版本。仓库仍允许 breaking change�
 - otel：`0725fbef9fbd28ba9b6999ab8b427dd9a4376f83aef9839a9f15f60c16422016`
 - platform：`748f5ea1ef3b09c702a792ab6e16a3b4ae6be9776ef1a4ba51e856757abff078`
 
-Kernel 测试独立冻结其全部 production `*Wire`、Framework Event payload 与 schema version；每个 Strategy package 冻结自己的私有 ExecutionState 和 Effect/Signal/Delta protocol。覆盖守卫要求新增 production wire 或私有 JSON struct 必须进入所有者 baseline，Kernel 始终只保存 opaque `ExecutionState.Payload`，不会递归解释 Strategy shape。Baseline 8 wire digest：
+Kernel 测试独立冻结其全部 production `*Wire`、Framework Event payload 与 schema version；每个 Strategy package 冻结自己的私有 ExecutionState 和 Effect/Signal/Delta protocol。覆盖守卫要求新增 production wire 或私有 JSON struct 必须进入所有者 baseline，Kernel 始终只保存 opaque `ExecutionState.Payload`，不会递归解释 Strategy shape。Baseline 9 wire digest：
 
 - Kernel snapshot/protocol wire：`0e245506ccda1ef6c1697a782a67e3d5c01e8417bc8d7ff8686eca138b5a43c5`
 - Framework Event/Delta observation wire：`4006d3d24440922ba1e1ba9616bde3a88352fcc2625d918b839e1de283b631cb`
@@ -102,7 +102,7 @@ P10-03 第一纵切依据 ADR-A2-058 形成 Baseline 7。`ProcessAdmitter.Admit`
 
 P10-03 第二纵切依据 ADR-A2-058 形成 Baseline 8。Interaction 新增只在实际调用期间可读的 immutable `ModelInvocation`/`ToolInvocation`，自足携带 ProcessRelation、exact DeploymentRef、EffectID、Step sequence、model-call sequence 与 ToolCall index/value；新增唯一 `DelegateChildKey` 供 caller 以同一算法投影 child 因果关系。Dispatcher 将冻结普通工具明确分成初始可见 `Tools` 与初始隐藏但已具执行权限的 `DeferredTools`；`AdvertiseTools` 只能在成功 Tool 调用内按 exact 已绑定名称单调广告，失败、panic 或当前 HITL pause 均不提交。广告状态随完整 settlement、checkpoint 和 ExecutionState 原子推进并恢复，Interaction state/protocol 因而直接升级为 v5/v3，不双读旧格式。Kernel、其他 Strategy、共同 snapshot/tree 和 observation wire 均未变化。
 
-P10-03 第三纵切依据 ADR-A2-058/A2-059 形成 Baseline 9。Kernel 新增唯一 immutable `WaitingSubtreeCancellationPlan` 与 `Engine.PlanWaitingSubtreeCancellation`/`ApplyWaitingSubtreeCancellation`：非 root Waiting target 的活动子树保留为准确 host-/parent-canceled 终态，关闭等待而不回收永久预算；Kernel child outcome 使直接父级在消费前进入 Paused。计划只持有纯 source identity/digest、确定 resulting TreeSnapshot 与 canceled/paused IDs；Apply 先完成 same-Engine/source/staged projection 验证，stale 零修改，跨 apply gate 后保留既有 Process handle 并完成 finalization。Process Snapshot v6、TreeSnapshot v4、Kernel/Strategy protocol 与 observation wire无需升级，其余六个 public digest 不变。
+P10-03 第三纵切依据 ADR-A2-058/A2-059 形成 Baseline 9。Kernel 新增唯一 immutable `WaitingSubtreeCancellationPlan` 与 `Engine.PlanWaitingSubtreeCancellation`/`ApplyWaitingSubtreeCancellation`：非 root Waiting target 的活动子树保留为准确 host-/parent-canceled 终态，关闭等待而不回收永久预算；Kernel child outcome 使直接父级在消费前进入 Paused。计划只持有纯 source identity/digest、确定 resulting TreeSnapshot 与 canceled/paused IDs；Apply 先完成 same-Engine/source/staged projection 验证，stale 零修改，跨 apply gate 后保留既有 Process handle 并完成 finalization。Process Snapshot v6、TreeSnapshot v4、Kernel/Strategy protocol 与 observation wire 无需升级，其余六个 public digest 不变。
 
 ## 4. 明确不在基线中的能力
 

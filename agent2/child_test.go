@@ -707,11 +707,17 @@ func (execution *childTestExecution) Step(_ context.Context, signals []Signal) (
 		if strings.HasPrefix(execution.state.Mode, "wait:") {
 			var effects []Effect
 			names := []string{"first", "second", "third"}
-			if execution.state.Mode == "wait:subtree" {
+			switch execution.state.Mode {
+			case "wait:subtree":
 				names = []string{"target"}
+			case "wait:subtree_all":
+				names = []string{"target", "sibling"}
 			}
 			for _, name := range names {
 				mode := "leaf:" + name
+				if execution.state.Mode == "wait:subtree_all" && name == "sibling" {
+					mode = "leaf_pause"
+				}
 				if execution.state.Mode == "wait:paused" {
 					mode = "leaf_pause"
 				}
@@ -721,7 +727,8 @@ func (execution *childTestExecution) Step(_ context.Context, signals []Signal) (
 						mode = "leaf_fail"
 					}
 				}
-				if execution.state.Mode == "wait:subtree" {
+				if (execution.state.Mode == "wait:subtree" || execution.state.Mode == "wait:subtree_all") &&
+					name == "target" {
 					mode = "nested_wait"
 				}
 				childInput, _ := EncodeInput(childTestInput{Mode: mode})

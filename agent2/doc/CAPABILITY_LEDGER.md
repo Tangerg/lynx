@@ -2,7 +2,7 @@
 
 > 状态：持续维护的实施事实
 > 建立日期：2026-08-06
-> 最后更新：2026-08-06
+> 最后更新：2026-08-07
 
 本文只追踪旧能力是否被新 Framework 认领、归谁拥有、如何裁决和在哪一阶段验收。它不定义目标架构、不复制 ADR、不记录逐提交进度。
 
@@ -527,4 +527,4 @@
 - Kernel 现以唯一 `WaitingSubtreeCancellationPlan` 表达等待子树的 prospective Framework 变换。计划由完整 tree quiescent cut 产生，只携带纯 value Engine identity、source root/digest、确定 resulting TreeSnapshot 与 canceled/paused Process IDs；公开 slice 防御性复制，计划不保留 Engine pointer、live lock、Execution 或调用方资源。
 - target 必须是同树非 root Waiting Process。结果保留 target 和所有既有 descendant：target 进入 host-canceled，活动 descendant 进入 parent-canceled，等待全部关闭，opaque ExecutionState 不变，永久 child budget allocation 不回收。满足边界 child wait 时，Kernel 使用稳定 WaitID 派生自己的 ChildrenCompleted Signal，直接父级在消费前进入 Paused，继续仍只走普通 `Process.Resume`。
 - Apply 在任何 live 修改前复验 same-Engine identity、完整 source digest 和每个受影响 Process source snapshot；所有 projection 先暂存在既有单写者 loop，共享 apply gate 之前的 stale/foreign/stage 失败均零修改。跨 gate 后保留原 controller/Process handle，终态继续复用既有 finish、event 与 parent/child bookkeeping；没有第二 scheduler、controller replacement、snapshot private mutation 或 Host transaction abstraction。
-- Process Snapshot v6、TreeSnapshot v4、Kernel child protocol 与 observation wire 足以表达结果，Baseline 9 只增加根 public API。owner tests 覆盖 planning 不改变 live tree、parent-before-child IDs/cause、外部 wait 关闭、child outcome、pause/resume、exact result equality、stale/foreign rejection和从 resulting TreeSnapshot 恢复继续。
+- Process Snapshot v6、TreeSnapshot v4、Kernel child protocol 与 observation wire 足以表达结果，Baseline 9 只增加根 public API。owner tests 覆盖 planning 不改变 live tree、parent-before-child IDs/cause、外部 wait 关闭、child outcome、未满足 wait-all 条件时保留等待、parent pause/resume、apply gate 前取消零修改、exact result equality、stale/foreign rejection 和从 resulting TreeSnapshot 恢复继续。
