@@ -6,7 +6,7 @@ Drop any folder here into `~/.lyra/plugins/` and restart the app to load it.
 
 ```bash
 cp -r frontend/sample-plugins/hello-sideload ~/.lyra/plugins/
-# restart wails dev
+# restart wails3 dev
 ```
 
 After restart, open **Settings → Plugins** — `user.hello-sideload` should

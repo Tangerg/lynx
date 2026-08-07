@@ -1,0 +1,89 @@
+# Tasks shared by every platform target. Trimmed from what `wails3 init` scaffolds: the
+# yarn/pnpm/bun runners, server mode, the Docker images and the CSS-vendoring task are all
+# gone, because this project is npm and desktop, and carrying the other branches would
+# mean four ways to run one command that nobody uses three of.
+#
+# `generate:bindings` is deliberately absent. v3 can emit typed wrappers into
+# frontend/bindings, but the two methods that cross this boundary are already declared —
+# with Zod schemas that validate what comes back, which generated bindings do not do and
+# which this repo requires at a trust boundary. Generating them would put the shapes in
+# two places and validate in neither. See frontend/src/rpc/desktopHost.ts.
+version: '3'
+
+tasks:
+  go:mod:tidy:
+    summary: Runs `go mod tidy`
+    internal: true
+    # Universal builds invoke this concurrently from parallel deps, and two `go mod tidy`
+    # processes racing on go.mod can corrupt it (wails#4637).
+    run: once
+    cmds:
+      - go mod tidy
+
+  install:frontend:deps:
+    summary: Install frontend dependencies
+    run: once
+    dir: frontend
+    sources:
+      - package.json
+      - package-lock.json
+    generates:
+      - node_modules
+    preconditions:
+      - sh: npm version
+        msg: "npm is missing. It ships with Node: https://nodejs.org/en/download/"
+    cmds:
+      - npm install
+
+  build:frontend:
+    summary: Build the frontend project
+    # A production build runs the typecheck; the dev build skips it, because in the dev
+    # loop this exists only so `//go:embed all:frontend/dist` has something to embed — the
+    # webview is served by Vite, not out of dist.
+    run: once
+    dir: frontend
+    sources:
+      - "**/*"
+      - exclude: node_modules/**/*
+    generates:
+      - dist/**/*
+    deps:
+      - task: install:frontend:deps
+    cmds:
+      - npm run {{if eq .DEV "true"}}build:dev{{else}}build{{end}}
+    env:
+      PRODUCTION: '{{if eq .DEV "true"}}false{{else}}true{{end}}'
+
+  dev:frontend:
+    summary: Runs the frontend in development mode
+    deps:
+      - task: install:frontend:deps
+    dir: frontend
+    cmds:
+      - npm run dev -- --port {{.VITE_PORT}} --strictPort
+    env:
+      # Vite reads this to pin its HMR client to the same port. The webview's page origin
+      # is the Wails dev server, not Vite, so the HMR socket has to be told where to go —
+      # `--port` above cannot say that, only this can.
+      WAILS_VITE_PORT: "{{.VITE_PORT}}"
+
+  generate:icons:
+    summary: Generates the macOS `.icns` and its icon-composer assets from build/appicon.png
+    run: once
+    dir: build
+    sources:
+      - "appicon.png"
+    generates:
+      - "darwin/icons.icns"
+    cmds:
+      # The generator has no way to be asked for only the Mac assets — it always writes a
+      # Windows .ico as well — so that byproduct is aimed at the ignored build output
+      # rather than at a build/windows tree this project does not keep.
+      - mkdir -p bin
+      - wails3 generate icons -input appicon.png -macfilename darwin/icons.icns -macassetdir darwin -windowsfilename bin/icon.ico
+
+  update:build-assets:
+    summary: Regenerates the bundle metadata from build/config.yml
+    dir: build
+    cmds:
+      - wails3 update build-assets -name "{{.APP_NAME}}" -binaryname "{{.APP_NAME}}" -config config.yml -dir .

@@ -89,8 +89,11 @@ expect(
 // canvas: the shell can't read a preference the WebView owns, and light is the
 // app's default scheme. A dark-theme launch shows this frame briefly — the cost
 // of not giving Go a second copy of the theme to read.
+// v3 spells this `application.NewRGB(r, g, b)` on the WINDOW's options, where v2 had a
+// `&options.RGBA{...}` literal on the application's. Matching the constructor rather than
+// a struct literal is also why this reads as a call: there is no field to name.
 const rgba = shell.match(
-  /BackgroundColour:\s*&options\.RGBA\{R:\s*(\d+),\s*G:\s*(\d+),\s*B:\s*(\d+)/,
+  /BackgroundColour:\s*application\.NewRGB\(\s*(\d+),\s*(\d+),\s*(\d+)\s*\)/,
 );
 const shellHex =
   rgba &&

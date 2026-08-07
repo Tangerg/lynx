@@ -1,0 +1,52 @@
+# Build-asset configuration. `info` seeds the generated bundle metadata — after editing
+# it, run `wails3 task common:update:build-assets` to regenerate the plists. That
+# overwrites hand edits to them, which is why the edits belong here.
+#
+# This file replaces v2's wails.json. The dev-server port is NOT here: it is VITE_PORT in
+# the root Taskfile, the one place both halves of the dev loop read it from.
+version: '3'
+
+info:
+  companyName: "tangerg"
+  productName: "lyra"
+  productIdentifier: "com.tangerg.lyra"
+  description: "Agent client for the Lyra Runtime"
+  copyright: "(c) 2026, tangerg"
+  comments: ""
+  version: "0.0.1"
+
+# `wails3 dev` watches the Go side and restarts the app. The frontend is served by Vite
+# with its own HMR, so nothing here rebuilds it on change — `dev:frontend` starts it once
+# in the background and Vite owns everything after that.
+dev_mode:
+  root_path: .
+  log_level: warn
+  debounce: 1000
+  ignore:
+    dir:
+      - .git
+      - node_modules
+      - frontend
+      - build/bin
+      - bin
+    file:
+      - .DS_Store
+      - .gitignore
+      - .gitkeep
+    watched_extension:
+      - "*.go"
+    git_ignore: true
+  executes:
+    - cmd: wails3 task common:install:frontend:deps
+      type: once
+    - cmd: wails3 task common:dev:frontend
+      type: background
+    - cmd: go mod tidy
+      type: blocking
+    # DEV=true, or a Go change costs a full production frontend build: typecheck plus a
+    # minified bundle, neither of which the webview loads — it is served by Vite. The dev
+    # build exists only so `//go:embed all:frontend/dist` has something to embed.
+    - cmd: wails3 task build DEV=true
+      type: blocking
+    - cmd: wails3 task run
+      type: primary

@@ -1,37 +1,38 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
-import { readFileSync } from "node:fs";
 import path from "node:path";
 
-// Where the dev server lives is declared once, in the shell manifest Wails reads
-// at startup (`frontend:dev:serverUrl`) — the file a human edits to move it. This
-// derives from that instead of restating the number: the port used to be spelled
-// four times across two languages, and the host disagreed outright (`localhost`
-// there, `127.0.0.1` here), which resolves to ::1 on some machines and leaves the
-// WebView pointed at a port nothing is listening on.
-const devServer = new URL(
-  (
-    JSON.parse(readFileSync(path.resolve(import.meta.dirname, "../wails.json"), "utf8")) as {
-      "frontend:dev:serverUrl": string;
-    }
-  )["frontend:dev:serverUrl"],
-);
+// The dev-server port is declared once, as VITE_PORT in the Taskfile, and handed to both
+// halves of the dev loop: to Vite as `--port`, to the webview as `wails3 dev -port`. It
+// reaches this file as an environment variable because ONE thing here cannot be set from
+// the command line — see `hmr` below.
+//
+// Absent means Vite is running on its own (a browser, the visual fixtures), and then none
+// of this applies: there is no webview whose origin differs from Vite's, so Vite's own
+// defaults are right and pinning a port would only make two dev servers collide.
+const webviewPort = process.env.WAILS_VITE_PORT;
+const host = "127.0.0.1";
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
-  // Wails serves the webview through its OWN dev server (a different port than
-  // Vite), so the page origin is NOT Vite's port. Without `hmr.clientPort` the
-  // Vite HMR client in the WebView would open its WebSocket against the page
-  // origin (the Wails dev-server port) instead of Vite — the handshake fails
-  // silently and updates compile but never reach the window. Pinning the port
-  // (strict, no fallback drift) + clientPort makes the HMR socket deterministic.
-  server: {
-    host: devServer.hostname,
-    port: Number(devServer.port),
-    strictPort: true,
-    hmr: { protocol: "ws", host: devServer.hostname, clientPort: Number(devServer.port) },
-  },
+  // Wails serves the webview through its OWN dev server on a different port, so the page
+  // origin is NOT Vite's. Without `hmr.clientPort` the Vite HMR client in the WebView
+  // opens its WebSocket against the page origin instead of Vite — the handshake fails
+  // silently, and updates compile but never reach the window. Pinning the port (strict,
+  // no fallback drift) plus clientPort makes the HMR socket deterministic.
+  //
+  // `127.0.0.1` and not `localhost`: the two disagreed here once, and `localhost`
+  // resolves to ::1 on some machines, which leaves the WebView pointed at a port nothing
+  // is listening on.
+  server: webviewPort
+    ? {
+        host,
+        port: Number(webviewPort),
+        strictPort: true,
+        hmr: { protocol: "ws", host, clientPort: Number(webviewPort) },
+      }
+    : undefined,
   resolve: {
     alias: {
       "@": path.resolve(import.meta.dirname, "./src"),

@@ -50,7 +50,7 @@
 - **Headless 基件**：**Base UI primitives first**（带交互 / 焦点 / 键盘 / aria 的一律先用 Base UI，没有的才自写）。Base UI 只作为行为 primitive；视觉、主题 token、阴影、圆角、密度归 Lyra 自己。
 - **状态 / 数据 / 路由**：Zustand（多小 store）/ TanStack React Query / TanStack Router。
 - **协议**：自研 Lyra Runtime Protocol v2（JSON-RPC 2.0，已弃用 AG-UI），见 `docs/protocol/`。
-- **桌面壳**：Wails。**测试**：Vitest + Testing Library。**构建 / 质检**：VoidZero 栈（Vite + Rolldown / Vitest / OxLint）+ prettier + knip。
+- **桌面壳**：Wails v3（beta，版本钉在 `go.mod`）。**测试**：Vitest + Testing Library。**构建 / 质检**：VoidZero 栈（Vite + Rolldown / Vitest / OxLint）+ prettier + knip。
 - 具体库（命令面板 / Toast / 图标 / 高亮 / i18n / 动画 等）见 `package.json` 与 §3「不重复造轮子」。
 
 ---
@@ -128,7 +128,7 @@ perf 排查沉淀的硬规则 —— 几个"看似没事其实在累积"的坑�
 
 ## 7 · 工作流
 
-- **开发**：`wails dev`（自动起 vite + Go backend）。
+- **开发**：`wails3 dev`（在 `app/desktop/` 跑；自动起 vite + Go backend）。构建编排在 `Taskfile.yml` + `build/`（v3 取代 v2 的 `wails.json`），走 CLI 自带的 task runner —— `wails3 task build` / `run` / `package`，不需要单独装 `task`。CLI 自身：`go install github.com/wailsapp/wails/v3/cmd/wails3@<go.mod 里钉的版本>`。
 - **质量门禁**（在 `frontend/` 跑）：`npm run check` —— 类型 / lint / 格式 / 测试 / 死码 / 架构守卫 / 视觉与文案守卫 / 产物体积，全绿才往下走（单项可单跑，名字见 `package.json` 的 `check:*`）。**不在这里列举守卫清单** —— 它只会漂：曾列 8 项时实际已有 14 项。
 - **会漂的量（测试数 / 插件数 / 文件数）直接跑命令查，不在本文件维护硬编码数字。**
 - **沟通约定**：中文回复（用户偏好），代码 / 注释保持英文；破坏性或结构性改动前先算爆炸半径（grep 所有消费方）+ 给方案 + 权衡，等用户确认再动；改动后跑 `npm run check`，commit message 写清 _why_，commit 后默认推送；commit trailer 用 `Co-Authored-By: Claude <当前实际模型名> <noreply@anthropic.com>`（署名以实际生成该 commit 的模型为准，不硬编码型号）。

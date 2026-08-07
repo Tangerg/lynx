@@ -39,9 +39,23 @@ export interface WindowChrome {
   controlsInlineEnd: number;
 }
 
-interface DesktopHostBinding {
-  Bootstrap(): Promise<unknown>;
-  WindowChrome(): Promise<unknown>;
+/**
+ * The two Go methods this app can reach, by the name the runtime knows them by.
+ *
+ * `package.Type.Method`, which for a `main` package is what Go's own reflection reports —
+ * so these are the full names, not a shortened form. v3 can generate typed wrappers for
+ * them instead; this calls by name deliberately, because a wrapper returns `any` and
+ * validates nothing, and everything crossing this boundary is Zod-checked below. Two
+ * names against two schemas beats generated shapes that agree with nothing.
+ */
+const HOST_METHOD = {
+  bootstrap: "main.DesktopHost.Bootstrap",
+  windowChrome: "main.DesktopHost.WindowChrome",
+} as const;
+
+/** How a call reaches Go. The app installs the Wails runtime's; tests pass their own. */
+export interface DesktopHostBinding {
+  call(method: string): Promise<unknown>;
 }
 
 export interface DesktopHostClient {
@@ -67,11 +81,20 @@ const DesktopBootstrapSchema = z.object({
   sideloadIssues: z.array(z.object({ id: z.string().min(1), detail: z.string().min(1) })),
 });
 
-function wailsDesktopHostBinding(): DesktopHostBinding | undefined {
-  const root = globalThis as typeof globalThis & {
-    go?: { main?: { DesktopHost?: DesktopHostBinding } };
-  };
-  return root.go?.main?.DesktopHost;
+/**
+ * The Wails runtime, or nothing.
+ *
+ * `window._wails` is what the injected runtime installs, so its presence is the honest
+ * test for "is there a host to ask". The import is dynamic because of what is on the
+ * other side of that question: `@wailsio/runtime` has side effects on import — it
+ * installs listeners and starts talking to a host — and this module is loaded in a plain
+ * browser too, by the visual fixtures. Importing it eagerly would run all of that in a
+ * page with no Wails behind it.
+ */
+async function wailsDesktopHostBinding(): Promise<DesktopHostBinding | undefined> {
+  if (!("_wails" in globalThis)) return undefined;
+  const { Call } = await import("@wailsio/runtime");
+  return { call: (method) => Call.ByName(method) };
 }
 
 export function createDesktopHostClient(binding?: DesktopHostBinding): DesktopHostClient {
@@ -79,11 +102,11 @@ export function createDesktopHostClient(binding?: DesktopHostBinding): DesktopHo
   return {
     bootstrap() {
       pending ??= (async () => {
-        const host = binding ?? wailsDesktopHostBinding();
+        const host = binding ?? (await wailsDesktopHostBinding());
         if (!host) return null;
         let value: unknown;
         try {
-          value = await host.Bootstrap();
+          value = await host.call(HOST_METHOD.bootstrap);
         } catch (error) {
           throw new RpcTransportError(`desktop host bootstrap failed: ${errorMessage(error)}`);
         }
@@ -98,13 +121,13 @@ export function createDesktopHostClient(binding?: DesktopHostBinding): DesktopHo
       return pending;
     },
     async windowChrome() {
-      const host = binding ?? wailsDesktopHostBinding();
+      const host = binding ?? (await wailsDesktopHostBinding());
       if (!host) return null;
       // Geometry the layout can fall back on: a throw here, or a shape the host
       // no longer speaks, must leave the stylesheet's declared values standing
       // rather than collapse the header to zero.
       try {
-        const parsed = WindowChromeSchema.safeParse(await host.WindowChrome());
+        const parsed = WindowChromeSchema.safeParse(await host.call(HOST_METHOD.windowChrome));
         if (!parsed.success || !parsed.data.measured) return null;
         return {
           controlsCentreY: parsed.data.controlsCentreY,

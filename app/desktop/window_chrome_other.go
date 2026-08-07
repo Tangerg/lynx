@@ -13,5 +13,3 @@ package main
 func nativeWindowChrome() (controlsCentreY, controlsInlineEnd float64, measured bool) {
 	return 0, 0, false
 }
-
-func useCompactWindowToolbar() {}

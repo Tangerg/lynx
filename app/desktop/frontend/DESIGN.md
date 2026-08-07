@@ -847,5 +847,5 @@ ink cannot be:
 1. When adding a new surface, reference its component spec in the frontmatter `components:` block. If none exists, propose one (commit + this doc together).
 2. Verify BOTH schemes (the default follows the OS) before merging visual changes.
 3. Run `npx tsc --noEmit && npx vitest run` after any token change.
-4. Visually verify in `wails dev` — type/spacing changes especially.
+4. Visually verify in `wails3 dev` — type/spacing changes especially.
 5. Treat the accent as scarce: ask "is this live?" — if no, use grey.

@@ -1,0 +1,45 @@
+# Build orchestration, which in v3 replaces wails.json. Run it through the CLI's own task
+# runner — `wails3 task <name>` — so no separate `task` binary is needed.
+#
+# Only darwin is wired. The Go side still compiles elsewhere (window_chrome_other.go is
+# the non-macOS path), but nothing builds or ships those, and carrying three more
+# platforms' packaging trees to say so would be three more trees nobody runs. `wails3
+# update build-assets` writes them the day a platform gets a target; until then a build on
+# Linux fails saying there is no linux target, which is true.
+version: '3'
+
+vars:
+  APP_NAME: "lyra"
+  BIN_DIR: "build/bin"
+  PACKAGE_MANAGER: '{{.PACKAGE_MANAGER | default "npm"}}'
+  # THE dev-server port. Vite listens on it, `wails3 dev` points the webview at it, and
+  # Vite's HMR client is pinned to it — see frontend/vite.config.ts for why that last one
+  # cannot be left to infer itself. Spelled once here and handed to both halves; it used
+  # to be spelled four times across two languages, with the host disagreeing outright.
+  VITE_PORT: '{{.WAILS_VITE_PORT | default 5174}}'
+  GOOS: '{{.GOOS | default OS}}'
+
+includes:
+  common: ./build/Taskfile.yml
+  darwin: ./build/darwin/Taskfile.yml
+
+tasks:
+  build:
+    summary: Builds the application
+    cmds:
+      - task: "{{.GOOS}}:build"
+
+  package:
+    summary: Packages a production build of the application
+    cmds:
+      - task: "{{.GOOS}}:package"
+
+  run:
+    summary: Runs the application
+    cmds:
+      - task: "{{.GOOS}}:run"
+
+  dev:
+    summary: Runs the application in development mode
+    cmds:
+      - wails3 dev -config ./build/config.yml -port {{.VITE_PORT}}

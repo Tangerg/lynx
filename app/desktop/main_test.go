@@ -3,35 +3,62 @@ package main
 import (
 	"fmt"
 	"os"
+	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/wailsapp/wails/v3/pkg/application"
 )
 
-func TestDesktopApplicationWindowGeometry(t *testing.T) {
-	app := desktopApplicationOptions(newDesktopHost(t.TempDir()))
+func TestDesktopWindowGeometry(t *testing.T) {
+	window := desktopWindowOptions()
 
-	if app.Width != 1440 || app.Height != 900 {
-		t.Fatalf("default window size = %dx%d, want 1440x900", app.Width, app.Height)
+	if window.Width != 1440 || window.Height != 900 {
+		t.Fatalf("default window size = %dx%d, want 1440x900", window.Width, window.Height)
 	}
-	if app.MinWidth != 1120 || app.MinHeight != 720 {
-		t.Fatalf("minimum window size = %dx%d, want 1120x720", app.MinWidth, app.MinHeight)
+	if window.MinWidth != 1120 || window.MinHeight != 720 {
+		t.Fatalf("minimum window size = %dx%d, want 1120x720", window.MinWidth, window.MinHeight)
 	}
-	if app.MinWidth > app.Width || app.MinHeight > app.Height {
+	if window.MinWidth > window.Width || window.MinHeight > window.Height {
 		t.Fatalf(
 			"minimum window size %dx%d exceeds default %dx%d",
-			app.MinWidth,
-			app.MinHeight,
-			app.Width,
-			app.Height,
+			window.MinWidth,
+			window.MinHeight,
+			window.Width,
+			window.Height,
 		)
 	}
 }
 
-func TestDesktopApplicationBindsHost(t *testing.T) {
+// The one assertion that replaced a file. The compact toolbar style is what pins the
+// titlebar at 40pt, and 40pt is what puts the platform's marks on the centre line of the
+// app's 42pt header; the automatic style resolves to 66pt and drops them 26pt down, well
+// below any header. It used to be set from Objective-C after the window existed, because
+// v2 had no option for it — so nothing could assert it. Here it is a value.
+func TestDesktopWindowPinsTheCompactToolbarStyle(t *testing.T) {
+	titleBar := desktopWindowOptions().Mac.TitleBar
+
+	if titleBar.ToolbarStyle != application.MacToolbarStyleUnifiedCompact {
+		t.Fatalf("toolbar style = %v, want unified compact", titleBar.ToolbarStyle)
+	}
+	if !titleBar.UseToolbar {
+		t.Fatal("a toolbar style with no toolbar is not applied; UseToolbar must stay true")
+	}
+	// Dropping NSWindowStyleMaskTitled takes the frame buttons and the window frame with
+	// them — square corners, no shadow. The app draws its header under the platform's
+	// title bar rather than replacing it.
+	if titleBar.Hide {
+		t.Fatal("the title bar is transparent, not hidden")
+	}
+}
+
+func TestDesktopApplicationBindsHostAsItsOnlyService(t *testing.T) {
 	host := newDesktopHost(t.TempDir())
-	app := desktopApplicationOptions(host)
-	if len(app.Bind) != 1 || app.Bind[0] != host {
-		t.Fatalf("desktop host binding = %#v, want the configured host", app.Bind)
+	services := desktopApplicationOptions(host).Services
+
+	want := []application.Service{application.NewService(host)}
+	if !reflect.DeepEqual(services, want) {
+		t.Fatalf("services = %#v, want exactly the configured host", services)
 	}
 }
 
