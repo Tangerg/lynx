@@ -2,14 +2,21 @@
 // rounded thumbnail; click zooms it full-size in a dialog lightbox. The wire form is mime + raw base64
 // (MULTIMODAL_IMAGE_INPUT, API.md §4.3); the data URL is rebuilt here for <img>.
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { LightboxDialog, Pressable } from "@/ui";
+import { imageSizeFromBase64 } from "@/lib/imageHeader";
 import { useT } from "@/lib/i18n";
 
 export function ImageBlock({ mime, data }: { mime: string; data: string }) {
   const t = useT();
   const [zoomed, setZoomed] = useState(false);
   const src = `data:${mime};base64,${data}`;
+  // The transcript has to know how tall this is before it decodes. Undimensioned, the
+  // row measured 0 -> 0 -> 256px across the frames after mount, and everything below a
+  // message is what moves. `imageSizeFromBase64` reads the header rather than the image,
+  // so the ratio is available on the first render; null means an unreadable header, and
+  // then the browser decides as it did before.
+  const size = useMemo(() => imageSizeFromBase64(data), [data]);
   return (
     <LightboxDialog
       open={zoomed}
@@ -26,6 +33,8 @@ export function ImageBlock({ mime, data }: { mime: string; data: string }) {
           <img
             src={src}
             alt=""
+            width={size?.width}
+            height={size?.height}
             className="max-h-64 max-w-full rounded-md object-contain media-edge"
           />
         </Pressable>
@@ -34,6 +43,8 @@ export function ImageBlock({ mime, data }: { mime: string; data: string }) {
       <img
         src={src}
         alt=""
+        width={size?.width}
+        height={size?.height}
         className="max-h-[86vh] max-w-full rounded-lg object-contain media-edge"
       />
     </LightboxDialog>

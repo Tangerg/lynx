@@ -1,4 +1,10 @@
 import { expect, test, type Page } from "@playwright/test";
+import { en } from "@/lib/i18n/locales/en";
+
+// Named from the catalogue, not copied out of it. This string had seven literal copies
+// across three spec files, so changing one character of the copy broke five tests that
+// have nothing to do with the copy.
+const SETTINGS_SEARCH = { name: en["settings.searchPlaceholder"]! };
 
 test.use({ browserName: "webkit" });
 
@@ -92,7 +98,7 @@ test("WebKit settings menu dismisses and returns focus", async ({ page }) => {
     fontSize: 18,
   });
 
-  const search = page.getByRole("searchbox", { name: "Search settings..." });
+  const search = page.getByRole("searchbox", SETTINGS_SEARCH);
   await expect(search).toBeVisible();
   const theme = page.getByRole("button", { name: "Theme" });
   await theme.click();

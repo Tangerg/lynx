@@ -224,7 +224,7 @@ export const zh: Record<string, string> = {
 
   "settings.title": "设置",
   "settings.backToApp": "返回应用",
-  "settings.searchPlaceholder": "搜索设置...",
+  "settings.searchPlaceholder": "搜索设置…",
   "settings.group.general": "通用",
   "settings.group.models": "模型",
   "settings.group.agent": "代理",

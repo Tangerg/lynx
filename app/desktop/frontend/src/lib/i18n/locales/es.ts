@@ -219,7 +219,7 @@ export const es: Record<string, string> = {
 
   "settings.title": "Ajustes",
   "settings.backToApp": "Volver a la app",
-  "settings.searchPlaceholder": "Buscar ajustes...",
+  "settings.searchPlaceholder": "Buscar ajustes…",
   "settings.pane.appearance": "Apariencia",
   "settings.pane.plugins": "Plugins",
   "settings.pane.shortcuts": "Atajos de teclado",

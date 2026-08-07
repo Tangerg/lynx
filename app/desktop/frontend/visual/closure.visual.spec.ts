@@ -4,6 +4,12 @@ import { WORKBENCH_MOTION } from "@/plugins/builtin/theme/visualStyles/tokens";
 import { VISUAL_AGENT_STATES } from "./agentSessionSnapshots";
 import { VISUAL_WORK_INDEX_STATES } from "./shellFixtureStates";
 import { VISUAL_WORKSPACE_STATES } from "./workspaceFixtureStates";
+import { en } from "@/lib/i18n/locales/en";
+
+// Named from the catalogue, not copied out of it. This string had seven literal copies
+// across three spec files, so changing one character of the copy broke five tests that
+// have nothing to do with the copy.
+const SETTINGS_SEARCH = { name: en["settings.searchPlaceholder"]! };
 
 const VISUAL_URL = "http://127.0.0.1:4174/visual/";
 const WCAG_TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"] as const;
@@ -167,7 +173,7 @@ test("coarse pointers receive real 44px controls without overlapping hit targets
     }
 
     await openFixture(page, { fixture: "workspace", state: "settings" });
-    const search = page.getByRole("searchbox", { name: "Search settings..." });
+    const search = page.getByRole("searchbox", SETTINGS_SEARCH);
     const searchBox = await search.boundingBox();
     if (!searchBox) throw new Error("Settings search has no layout box");
     expect(searchBox.height).toBeGreaterThanOrEqual(44);
@@ -191,7 +197,7 @@ test("keyboard-only traversal reaches recovery, HITL, and settings actions", asy
   await expect(page.getByText("Approved", { exact: true })).toBeVisible();
 
   await openFixture(page, { fixture: "workspace", state: "settings", theme: "light" });
-  const search = page.getByRole("searchbox", { name: "Search settings..." });
+  const search = page.getByRole("searchbox", SETTINGS_SEARCH);
   await tabTo(page, search);
   await assertVisibleKeyboardFocus(search);
   await page.keyboard.type("Providers");
@@ -586,7 +592,7 @@ for (const theme of ["light", "dark"] as const) {
     await openFixture(page, { fixture: "workspace", state: "settings", theme, fontSize: 18 });
     await expect(page.locator("body")).toHaveCSS("font-size", "18px");
     expect(await pageHorizontalOverflow(page)).toBeLessThanOrEqual(0);
-    await expect(page.getByRole("searchbox", { name: "Search settings..." })).toBeVisible();
+    await expect(page.getByRole("searchbox", SETTINGS_SEARCH)).toBeVisible();
     await expect(page).toHaveScreenshot(`closure-${theme}-settings-font18-1280x800.png`);
   });
 }

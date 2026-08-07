@@ -89,6 +89,13 @@
 //      a dropped `{{count}}` renders a sentence with the number silently gone.
 //      (The 1265 non-English strings are unreviewed by native speakers — that
 //      part no build can check. This checks what it can.)
+//  12. No value writes "..." where it means "…". Three periods is a different
+//      glyph at a different width, so it does not line up with the real one in
+//      the row above it. The catalogs had settled on `…` in 43 strings and one
+//      search placeholder on "..." — in all eight locales, because whoever wrote
+//      it copied the row. The typography is the smaller half of the argument:
+//      the convention already existed and one string sat outside it unseen,
+//      which is the shape every other rule here guards.
 //
 // `en` is the reference: add a key there and the build names the seven files
 // that still owe a translation.
@@ -253,6 +260,13 @@ for (const [locale, keys] of catalogs) {
     [...en].filter((key) => !keys.has(key)),
     "key(s) missing",
   );
+}
+
+// Rule 12 — one character, not three periods. See the header for why it earns a gate.
+for (const [locale] of catalogs) {
+  for (const [key, value] of valuesOf(`${locale}.ts`)) {
+    if (value.includes("...")) failures.push(`${locale}: "${key}" writes "..." — use "…"`);
+  }
 }
 
 const enValues = valuesOf("en.ts");

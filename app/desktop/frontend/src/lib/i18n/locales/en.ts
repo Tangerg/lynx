@@ -230,7 +230,7 @@ export const en: Record<string, string> = {
 
   "settings.title": "Settings",
   "settings.backToApp": "Back to app",
-  "settings.searchPlaceholder": "Search settings...",
+  "settings.searchPlaceholder": "Search settings…",
   "settings.group.general": "General",
   "settings.group.models": "Models",
   "settings.group.agent": "Agent",

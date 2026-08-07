@@ -1,9 +1,14 @@
 import { expect, test, type Page } from "@playwright/test";
+import { en } from "@/lib/i18n/locales/en";
 import {
   VISUAL_WORKSPACE_STATES,
   type VisualWorkspaceState,
   type VisualWorkspaceTheme,
 } from "./workspaceFixtureStates";
+
+// Named from the catalogue, not copied out of it. Three literals of this string lived
+// here, so changing the copy broke a test that has nothing to do with the copy.
+const SETTINGS_SEARCH = { name: en["settings.searchPlaceholder"]! };
 
 interface WorkspaceRoute {
   state: VisualWorkspaceState;
@@ -280,7 +285,7 @@ test("settings filtering and menu dismissal stay inside production semantics", a
   await openWorkspace(page, { state: "settings" });
   await waitForWorkspaceState(page, "settings");
 
-  const search = page.getByRole("searchbox", { name: "Search settings..." });
+  const search = page.getByRole("searchbox", SETTINGS_SEARCH);
   await search.fill("missing pane");
   await expect(page.getByRole("heading", { name: "Appearance" })).toHaveCount(0);
   await search.fill("Appearance");
@@ -297,7 +302,7 @@ test("settings filtering and menu dismissal stay inside production semantics", a
 test("settings hosts shortcut contributions without a second page frame", async ({ page }) => {
   await openWorkspace(page, { state: "settings" });
 
-  await page.getByRole("searchbox", { name: "Search settings..." }).fill("Keyboard shortcuts");
+  await page.getByRole("searchbox", SETTINGS_SEARCH).fill("Keyboard shortcuts");
   await expect(page.getByRole("heading", { name: "Keyboard shortcuts" })).toHaveCount(1);
   await expect(page.getByText("New session", { exact: true })).toBeVisible();
 
@@ -310,7 +315,7 @@ test("settings hosts shortcut contributions without a second page frame", async 
 test("provider and model settings keep validation local to their form", async ({ page }) => {
   await openWorkspace(page, { state: "settings" });
 
-  await page.getByRole("searchbox", { name: "Search settings..." }).fill("Providers");
+  await page.getByRole("searchbox", SETTINGS_SEARCH).fill("Providers");
   await expect(page.getByRole("heading", { name: "Providers" })).toBeVisible();
   await expect(page.getByText("Utility model", { exact: true })).toBeVisible();
   await expect(page.getByText("Embedding model", { exact: true })).toBeVisible();

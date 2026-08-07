@@ -217,7 +217,7 @@ export const ko: Record<string, string> = {
 
   "settings.title": "설정",
   "settings.backToApp": "앱으로 돌아가기",
-  "settings.searchPlaceholder": "설정 검색...",
+  "settings.searchPlaceholder": "설정 검색…",
   "settings.pane.appearance": "외관",
   "settings.pane.plugins": "플러그인",
   "settings.pane.shortcuts": "키보드 단축키",

@@ -218,7 +218,7 @@ export const ja: Record<string, string> = {
 
   "settings.title": "設定",
   "settings.backToApp": "アプリに戻る",
-  "settings.searchPlaceholder": "設定を検索...",
+  "settings.searchPlaceholder": "設定を検索…",
   "settings.pane.appearance": "外観",
   "settings.pane.plugins": "プラグイン",
   "settings.pane.shortcuts": "キーボードショートカット",

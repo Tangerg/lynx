@@ -112,14 +112,15 @@ export function ChatPanel({ onSend }: Props) {
   // and the column width — three places that were each spelling it.
   const dockOpen = dock.open && dock.activeViewId !== null && dock.viewIds.length > 0;
 
+  const viewsById = new Map(views.map((view) => [view.id, view]));
+
   const placementFor = (id: string, placement: "full" | "dock"): ViewPlacement => ({
     placement,
-    splittable: views.find((view) => view.id === id)?.splittable ?? false,
+    splittable: viewsById.get(id)?.splittable ?? false,
     onOpenInDock: () => openWorkspaceViewInDock(id),
     onClose: () => (placement === "dock" ? closeWorkspaceDockView(id) : closeWorkspaceView(id)),
   });
 
-  const viewsById = new Map(views.map((view) => [view.id, view]));
   const dockTabs = dock.viewIds.map((id) => {
     const view = viewsById.get(id);
     const title = view ? t(view.title) : id;

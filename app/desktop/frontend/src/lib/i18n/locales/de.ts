@@ -220,7 +220,7 @@ export const de: Record<string, string> = {
 
   "settings.title": "Einstellungen",
   "settings.backToApp": "Zur App",
-  "settings.searchPlaceholder": "Einstellungen suchen...",
+  "settings.searchPlaceholder": "Einstellungen suchen…",
   "settings.pane.appearance": "Darstellung",
   "settings.pane.plugins": "Plugins",
   "settings.pane.shortcuts": "Tastenkürzel",
