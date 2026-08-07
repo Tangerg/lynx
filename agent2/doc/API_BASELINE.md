@@ -28,6 +28,7 @@ Baseline 8 不是兼容承诺或发布版本。仓库仍允许 breaking change�
 - Transition/Effect/EffectRequest/Settlement：Step 候选意图、边界外操作、dispatcher 请求与确定/未知结算。
 - Snapshot/TreeSnapshot：单独 root 与完整 Process tree 的 portable capture；不包含 Host persistence 抽象。
 - StartChild/WaitForChildren/ChildOutcome：跨 Strategy 组合的最小 Framework Effect/Signal 协议。
+- WaitingSubtreeCancellationPlan：等待非 root Process 活动子树的纯 prospective tree 变换，以及 same-source Engine apply 边界。
 - Budget/Limits/TreeLimits/CapabilitySet/Usage：本地工作上限、tree expansion、authority attenuation 与事实计数。
 - ProcessAdmission/ProcessAdmitter：根与子 Process 共用、只读、context-aware 且不能修改 Framework 资源的启动准入边界。
 - Event/Delta：自足携带 exact execution attribution 的权威已发生事实与 best-effort 临时增量；listener 无 veto/error 通道。
@@ -101,6 +102,8 @@ P10-03 第一纵切依据 ADR-A2-058 形成 Baseline 7。`ProcessAdmitter.Admit`
 
 P10-03 第二纵切依据 ADR-A2-058 形成 Baseline 8。Interaction 新增只在实际调用期间可读的 immutable `ModelInvocation`/`ToolInvocation`，自足携带 ProcessRelation、exact DeploymentRef、EffectID、Step sequence、model-call sequence 与 ToolCall index/value；新增唯一 `DelegateChildKey` 供 caller 以同一算法投影 child 因果关系。Dispatcher 将冻结普通工具明确分成初始可见 `Tools` 与初始隐藏但已具执行权限的 `DeferredTools`；`AdvertiseTools` 只能在成功 Tool 调用内按 exact 已绑定名称单调广告，失败、panic 或当前 HITL pause 均不提交。广告状态随完整 settlement、checkpoint 和 ExecutionState 原子推进并恢复，Interaction state/protocol 因而直接升级为 v5/v3，不双读旧格式。Kernel、其他 Strategy、共同 snapshot/tree 和 observation wire 均未变化。
 
+P10-03 第三纵切依据 ADR-A2-058/A2-059 形成 Baseline 9。Kernel 新增唯一 immutable `WaitingSubtreeCancellationPlan` 与 `Engine.PlanWaitingSubtreeCancellation`/`ApplyWaitingSubtreeCancellation`：非 root Waiting target 的活动子树保留为准确 host-/parent-canceled 终态，关闭等待而不回收永久预算；Kernel child outcome 使直接父级在消费前进入 Paused。计划只持有纯 source identity/digest、确定 resulting TreeSnapshot 与 canceled/paused IDs；Apply 先完成 same-Engine/source/staged projection 验证，stale 零修改，跨 apply gate 后保留既有 Process handle 并完成 finalization。Process Snapshot v6、TreeSnapshot v4、Kernel/Strategy protocol 与 observation wire无需升级，其余六个 public digest 不变。
+
 ## 4. 明确不在基线中的能力
 
-Baseline 8 尚未冻结 P10 后续 waiting subtree plan、应用 adapter 迁移或最终模块替换路径。`flow` 保持独立 in-process 库，不形成 Agent adapter API 或依赖；Workflow 吸收其显式拓扑、确定顺序和有界 fan-out 思想，但不强求复用或建立 adapter。未来编辑器图只能在更高层编译成已验证的 Workflow Definition，不能反向扩张 Kernel 或恢复 wire。
+Baseline 9 尚未冻结应用 adapter 迁移或最终模块替换路径。`flow` 保持独立 in-process 库，不形成 Agent adapter API 或依赖；Workflow 吸收其显式拓扑、确定顺序和有界 fan-out 思想，但不强求复用或建立 adapter。未来编辑器图只能在更高层编译成已验证的 Workflow Definition，不能反向扩张 Kernel 或恢复 wire。

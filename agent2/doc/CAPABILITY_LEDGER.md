@@ -521,3 +521,10 @@
 - 广告与当前 Tool settlement 同一语义提交：成功才进入下一 model manifest；普通失败、panic、取消或当前 Tool 请求 HITL 时均不提交该调用的暂存广告。checkpoint 只保存此前已成功 Tool 的广告，恢复后继续；并行 Tool 各自暂存，最终严格按模型 ToolCall 顺序合并，而不是按 goroutine 完成时序。
 - Interaction ExecutionState/dispatcher protocol 直接升级为 v5/v3，分别保存权威 advertised name 集、model/tool 序号和 checkpoint 广告；旧版本不双读。Baseline 8 只改变 Interaction public/wire digest，Kernel、其他 Strategy、Process Snapshot v6、TreeSnapshot v4 和 observation wire 均不变。
 - 行为测试真实跑通三次模型调用、两次工具调用的完整 Process/Deployment/Effect/Step 归因，deferred Tool 从隐藏到可见再执行，非法广告、失败回滚、HITL checkpoint 保留/丢弃边界、恢复、并行乱序稳定提交、Delegate key 和 Dispatcher binding 验证。standalone build/vet/staticcheck、完整 lint、禁用缓存全量测试/race 全绿；Interaction state fuzz 3 秒执行 111,450 次无失败。
+
+### 14.7 Waiting subtree cancellation 实现证据
+
+- Kernel 现以唯一 `WaitingSubtreeCancellationPlan` 表达等待子树的 prospective Framework 变换。计划由完整 tree quiescent cut 产生，只携带纯 value Engine identity、source root/digest、确定 resulting TreeSnapshot 与 canceled/paused Process IDs；公开 slice 防御性复制，计划不保留 Engine pointer、live lock、Execution 或调用方资源。
+- target 必须是同树非 root Waiting Process。结果保留 target 和所有既有 descendant：target 进入 host-canceled，活动 descendant 进入 parent-canceled，等待全部关闭，opaque ExecutionState 不变，永久 child budget allocation 不回收。满足边界 child wait 时，Kernel 使用稳定 WaitID 派生自己的 ChildrenCompleted Signal，直接父级在消费前进入 Paused，继续仍只走普通 `Process.Resume`。
+- Apply 在任何 live 修改前复验 same-Engine identity、完整 source digest 和每个受影响 Process source snapshot；所有 projection 先暂存在既有单写者 loop，共享 apply gate 之前的 stale/foreign/stage 失败均零修改。跨 gate 后保留原 controller/Process handle，终态继续复用既有 finish、event 与 parent/child bookkeeping；没有第二 scheduler、controller replacement、snapshot private mutation 或 Host transaction abstraction。
+- Process Snapshot v6、TreeSnapshot v4、Kernel child protocol 与 observation wire 足以表达结果，Baseline 9 只增加根 public API。owner tests 覆盖 planning 不改变 live tree、parent-before-child IDs/cause、外部 wait 关闭、child outcome、pause/resume、exact result equality、stale/foreign rejection和从 resulting TreeSnapshot 恢复继续。

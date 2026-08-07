@@ -550,9 +550,9 @@ Engine 是最小托管执行边界：启动、推进、暂停、恢复和终止 
 
 Engine 不拥有产品 Session、数据库事务、模型 catalog、价格表或 UI 协议。
 
-EngineConfig 为每棵 root tree 冻结 Limits、TreeLimits 与最大 CapabilitySet；child 只能从父预算永久划拨并衰减能力。可选 `ProcessAdmitter` 是根与子 Process 共用的唯一启动准入合同：它只读取 immutable `ProcessAdmission` 中的 ProcessRelation、exact DeploymentRef、Descriptor、Budget 与 CapabilitySet，并返回批准或拒绝。它不能修改分配、创建 Process 或成为计费/持久化入口；Engine 的预算、能力子集和树限额始终先后在唯一 Kernel 状态中执行。产品身份、订阅、价格与 transaction 不进入该值。
+EngineConfig 为每棵 root tree 冻结 Limits、TreeLimits 与最大 CapabilitySet；child 只能从父预算永久划拨并衰减能力。可选 `ProcessAdmitter` 是根与子 Process 共用的唯一启动准入合同：它读取 immutable `ProcessAdmission` 中的 ProcessRelation、exact DeploymentRef、Descriptor、Budget、CapabilitySet 与 prospective StartedAt，并以启动方的 context 返回批准或拒绝。它不能修改分配、创建 Process 或取得 Engine/Process 控制权；Engine 的预算、能力子集和树限额始终在唯一 Kernel 状态中执行。产品身份、订阅、价格与 transaction 不进入该值。
 
-准入发生在 Definition.Start 和 Process 发布之前；拒绝的 root 不启动，拒绝的 child 形成稳定 child-start failure。admitter 必须同步、有界、无外部 I/O、不得重入 Process，并保持 decision-only；同一 prepared child start 在恢复后可能再次请求准入。root 所需的远端审批由 Host 在 Start 前完成；child 所需的远端审批必须先由 Strategy 声明 Dispatcher Effect，再根据明确 settlement 声明 StartChild，不能藏进 Framework Effect 的本地准入步骤。已经捕获的 Process 恢复其原 admission，不按当前 admitter 再判一次；撤销授权由 Host 在恢复前决定或通过明确的 Process control 表达，不能让 snapshot 恢复结果依赖隐藏的实时政策。
+准入发生在 Definition.Start 和 Process 发布之前；拒绝的 root 不启动，拒绝的 child 形成稳定 child-start failure。admitter 可以协调 caller-owned 外部准入，但必须尊重 context、保持有界和并发安全、不得重入 Engine/Process，并对同一 prospective ProcessID 的可能重放自行保证业务正确性；Framework 不因此定义 Store、transaction、charge、lease 或幂等 SPI。已经捕获的 Process 恢复其原 admission，不按当前 admitter 再判一次；撤销授权由调用方在恢复前决定或通过明确的 Process control 表达，不能让 snapshot 恢复结果依赖隐藏的实时政策。
 
 ### 11.2 Platform
 
@@ -604,6 +604,8 @@ Host 负责 Store、transaction、CAS、lease、幂等、retention、产品身�
 - 单 Process snapshot 只允许恢复从未分配 child budget、没有 child relation 或活动 child wait 的独立 root；一旦形成 Process tree，恢复单位必须是完整 TreeSnapshot，禁止把 child 当新 root 或只恢复父级。
 - TreeSnapshot 严格保存每个 Process snapshot 和 Engine-owned 活动 direct-child wait，不保存 dispatcher、resolver 或 Host persistence 对象。capture 使用 Engine 私有的安全边界栅栏：停止新 Step 和新 child 创建，等待 in-flight Effect 依既有 settlement 合同收口，同时继续吸收 child completion 与 parent termination，取得一致 cut 后立即释放；栅栏不是公开 Process 状态或第二执行入口。
 - tree restore 先校验 root/parent/depth/ChildKey、预算总和、能力衰减、tree limits、活动 child wait 和每个精确 DeploymentRef，再原子注册完整树；任一校验或解析失败不得留下部分 Process。
+- 等待子树取消是 Kernel 自有的两步中性变换：`PlanWaitingSubtreeCancellation` 在完整 tree quiescent cut 上只生成 source identity/digest、确定 resulting TreeSnapshot、parent-before-child 的 canceled Process IDs 和需要显式继续的 paused parent IDs，不修改 live tree；`ApplyWaitingSubtreeCancellation` 只接受同一 Engine 且 source tree 未变化的计划，陈旧计划零修改失败。
+- 计划结果保留被取消 Process 及永久 child budget allocation，以 host-canceled target、parent-canceled active descendants、已关闭等待和 Kernel-owned child-completion Signal 表达事实；直接父级在消费完成 Signal 前进入 Paused。应用在同一 tree barrier 内先验证并暂存所有 Process projection，再以单一 apply gate 发布；它保留既有 Process handle，不替换 controller，不解析或修改 opaque ExecutionState，也不引入 persistence、transaction 或产品删除模型。
 - Process admission 只属于首次 root/child start；restore 不重复调用 admitter，也不把 live policy 结果写入共同 snapshot。Host 若不允许恢复，必须在调用恢复前拒绝或显式终止已恢复 Process。
 - 只有在 Effect dispatch 前已向 Host 暴露 prepared snapshot 且 Host 明确认可该 durability boundary 时，Engine 才能宣称跨进程崩溃可恢复该 Effect；该握手不得演变为 Framework Store/transaction SPI。未启用该边界的运行必须诚实标记为只恢复到最后已持久化 snapshot。
 - 外部副作用用幂等键、外部事实或显式 checkpoint 协议处理，不能只靠 snapshot 猜测。

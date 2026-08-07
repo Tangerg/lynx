@@ -285,19 +285,48 @@ func (engine *Engine) CaptureTree(ctx context.Context, rootID ProcessID) (TreeSn
 	ctx = contextOrBackground(ctx)
 	engine.treeOperationMu.Lock()
 	defer engine.treeOperationMu.Unlock()
+	quiescence, err := engine.quiesceTree(ctx, rootID)
+	if err != nil {
+		return TreeSnapshot{}, err
+	}
+	defer quiescence.release()
+	return engine.captureQuiescedTree(ctx, rootID, quiescence.controllers)
+}
+
+type treeQuiescence struct {
+	controllers []*processController
+	releaseGate chan struct{}
+	released    bool
+}
+
+func (quiescence *treeQuiescence) release() {
+	if quiescence == nil || quiescence.released {
+		return
+	}
+	close(quiescence.releaseGate)
+	quiescence.released = true
+}
+
+// quiesceTree requires treeOperationMu ownership. It returns every controller
+// in a complete tree after active loops have reached Strategy-safe boundaries.
+func (engine *Engine) quiesceTree(
+	ctx context.Context,
+	rootID ProcessID,
+) (*treeQuiescence, error) {
 	release := make(chan struct{})
-	defer close(release)
 	quiesced := make(map[ProcessID]struct{})
 	for {
 		controllers, err := engine.treeControllers(rootID)
 		if err != nil {
-			return TreeSnapshot{}, err
+			close(release)
+			return nil, err
 		}
 		complete := true
 		for _, controller := range controllers {
 			if controller.status().Terminal() {
 				if err := waitTreeSettled(ctx, controller); err != nil {
-					return TreeSnapshot{}, err
+					close(release)
+					return nil, err
 				}
 				continue
 			}
@@ -311,14 +340,17 @@ func (engine *Engine) CaptureTree(ctx context.Context, rootID ProcessID) (TreeSn
 			if err != nil {
 				if errors.Is(err, ErrProcessFinished) {
 					if err := waitTreeSettled(ctx, controller); err != nil {
-						return TreeSnapshot{}, err
+						close(release)
+						return nil, err
 					}
 					continue
 				}
-				return TreeSnapshot{}, err
+				close(release)
+				return nil, err
 			}
 			if !response.accepted {
-				return TreeSnapshot{}, ErrEngineQuiescenceUnavailable
+				close(release)
+				return nil, ErrEngineQuiescenceUnavailable
 			}
 			quiesced[controller.processID] = struct{}{}
 		}
@@ -328,8 +360,20 @@ func (engine *Engine) CaptureTree(ctx context.Context, rootID ProcessID) (TreeSn
 	}
 	controllers, err := engine.treeControllers(rootID)
 	if err != nil {
-		return TreeSnapshot{}, err
+		close(release)
+		return nil, err
 	}
+	return &treeQuiescence{controllers: controllers, releaseGate: release}, nil
+}
+
+// captureQuiescedTree requires treeOperationMu ownership and a barrier returned
+// by quiesceTree that has not yet been released.
+func (engine *Engine) captureQuiescedTree(
+	ctx context.Context,
+	rootID ProcessID,
+	controllers []*processController,
+) (TreeSnapshot, error) {
+	var err error
 	wire := treeSnapshotWire{SchemaVersion: treeSnapshotSchemaVersion, RootID: rootID}
 	for _, controller := range controllers {
 		var snapshot Snapshot

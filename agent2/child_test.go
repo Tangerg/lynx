@@ -683,6 +683,15 @@ func (execution *childTestExecution) Step(_ context.Context, signals []Signal) (
 			failure, _ := NewFailure(FailureKindExecution, "test.leaf.failed", "leaf failed as requested")
 			return Fail(0, failure)
 		}
+		if execution.state.Mode == "external_wait" {
+			execution.state.Phase = "external_wait_opened"
+			key, _ := ParseWaitKey("external_input")
+			effect, err := RequestWait(key, json.RawMessage(`{"kind":"external_input"}`))
+			if err != nil {
+				return Transition{}, err
+			}
+			return Continue(0, effect)
+		}
 		if strings.HasPrefix(execution.state.Mode, "leaf:") {
 			payload, _ := json.Marshal(struct {
 				Name string `json:"name"`
@@ -697,7 +706,11 @@ func (execution *childTestExecution) Step(_ context.Context, signals []Signal) (
 		execution.state.Phase = "started"
 		if strings.HasPrefix(execution.state.Mode, "wait:") {
 			var effects []Effect
-			for _, name := range []string{"first", "second", "third"} {
+			names := []string{"first", "second", "third"}
+			if execution.state.Mode == "wait:subtree" {
+				names = []string{"target"}
+			}
+			for _, name := range names {
 				mode := "leaf:" + name
 				if execution.state.Mode == "wait:paused" {
 					mode = "leaf_pause"
@@ -707,6 +720,9 @@ func (execution *childTestExecution) Step(_ context.Context, signals []Signal) (
 					if name == "first" {
 						mode = "leaf_fail"
 					}
+				}
+				if execution.state.Mode == "wait:subtree" {
+					mode = "nested_wait"
 				}
 				childInput, _ := EncodeInput(childTestInput{Mode: mode})
 				key, _ := ParseChildKey(name)
@@ -765,9 +781,15 @@ func (execution *childTestExecution) Step(_ context.Context, signals []Signal) (
 			recursiveDepth = depth
 			childMode = fmt.Sprintf("recurse:%d", depth-1)
 		}
+		if execution.state.Mode == "nested_wait" {
+			childMode = "external_wait"
+		}
 		childInput, _ := EncodeInput(childTestInput{Mode: childMode})
 		key, _ := ParseChildKey("worker")
 		spec := childTestSpec(key, execution.reference, childInput)
+		if execution.state.Mode == "nested_wait" {
+			spec.Budget, _ = NewBudget(5, 5, 5)
+		}
 		if recursiveDepth > 0 {
 			units := uint64(recursiveDepth * 50)
 			spec.Budget, _ = NewBudget(units, units, units)
@@ -809,7 +831,7 @@ func (execution *childTestExecution) Step(_ context.Context, signals []Signal) (
 		}
 		needsChildWait := len(output.ChildIDs) > 0 && (strings.HasPrefix(execution.state.Mode, "wait:") ||
 			strings.HasPrefix(execution.state.Mode, "recurse:") ||
-			strings.HasPrefix(execution.state.Mode, "binary:"))
+			strings.HasPrefix(execution.state.Mode, "binary:") || execution.state.Mode == "nested_wait")
 		if !needsChildWait {
 			execution.state.Phase = "done"
 			erased, _ := EncodeOutput(output)
@@ -861,6 +883,24 @@ func (execution *childTestExecution) Step(_ context.Context, signals []Signal) (
 		return Wait(1, opened.WaitID())
 	case "waiting":
 		return execution.completeChildren(signals, uint32(len(signals)))
+	case "external_wait_opened":
+		if len(signals) != 1 {
+			return Transition{}, errors.New("external wait-opened Signal is required")
+		}
+		waitID, addressed := signals[0].WaitID()
+		if !addressed {
+			return Transition{}, errors.New("external wait-opened Signal has no WaitID")
+		}
+		execution.state.WaitID = waitID.String()
+		execution.state.Phase = "external_waiting"
+		return Wait(1, waitID)
+	case "external_waiting":
+		if len(signals) != 1 {
+			return Transition{}, errors.New("external wait response is required")
+		}
+		execution.state.Phase = "done"
+		output, _ := EncodeOutput(childTestOutput{})
+		return Complete(1, output)
 	case "leaf_effect":
 		if len(signals) != 1 {
 			return Transition{}, errors.New("leaf Effect settlement is required")

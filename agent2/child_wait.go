@@ -383,6 +383,15 @@ func encodeChildrenCompleted(
 	key WaitKey,
 	outcomes []ChildOutcome,
 ) (Signal, error) {
+	return encodeChildrenCompletedAt(waitID, key, outcomes, time.Now())
+}
+
+func encodeChildrenCompletedAt(
+	waitID WaitID,
+	key WaitKey,
+	outcomes []ChildOutcome,
+	receivedAt time.Time,
+) (Signal, error) {
 	completed := ChildrenCompleted{waitID: waitID, key: key, outcomes: slices.Clone(outcomes)}
 	if !completed.Valid() {
 		return Signal{}, ErrInvalidChildWait
@@ -402,7 +411,7 @@ func encodeChildrenCompleted(
 	if err != nil {
 		return Signal{}, err
 	}
-	return newSignal(deriveChildCompletionSignalID(waitID), waitID, time.Now(), payload)
+	return newSignal(deriveChildCompletionSignalID(waitID), waitID, receivedAt, payload)
 }
 
 func deriveChildCompletionSignalID(waitID WaitID) SignalID {

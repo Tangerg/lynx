@@ -2,8 +2,8 @@
 
 > 状态：持续实施
 > 建立日期：2026-08-06
-> 最后更新：2026-08-06
-> 当前阶段：P1–P9 独立框架已完成；P10/P11 留待 App 深度重写专项
+> 最后更新：2026-08-07
+> 当前阶段：P1–P9 与 ADR-A2-058 全部 Framework 合同已完成；P10/P11 App 迁移留待深度重写专项
 > 当前实施范围：仅 `agent2`；不分析或修改 `app/runtime`
 > 临时模块路径：`github.com/Tangerg/lynx/agent2`
 > 最终模块路径：`github.com/Tangerg/lynx/agent`
@@ -33,7 +33,7 @@ P1–P9 默认只修改 `agent2` 以及为其独立编译所必需的 workspace/
 - `agent2` 不 import 旧 `agent`，旧 `agent` 不 import `agent2`。
 - 消费迁移集中在 P10，旧模块删除和目录归一集中在 P11。
 
-2026-08-06 用户进一步裁决：当前实施批次在 P1–P9 与为真实消费者已证明的 Framework 合同处收口，不继续分析或修改 `app/runtime`。P10-01/P10-02 及其后形成的 Baseline 7/8 是已完成的独立 Framework 事实，继续保留；P10-03 至 P11 必须进入后续 App 深度重写专项，不能在本批次夹带 adapter、迁移桥或旧模块替换。该排期变化不改变最终架构目标，也不把未实施的 P10/P11 标记为完成。
+2026-08-06 用户进一步裁决：当前实施批次在 P1–P9 与为真实消费者已证明的 Framework 合同处收口，不继续分析或修改 `app/runtime`。P10-01/P10-02 及其后形成的 Baseline 7/8/9 是已完成的独立 Framework 事实，继续保留；应用迁移与 P11 必须进入后续 App 深度重写专项，不能在本批次夹带 adapter、迁移桥或旧模块替换。该排期变化不改变最终架构目标，也不把未实施的 App 迁移/P11 标记为完成。
 
 旧 `agent` 在并存期保留为可直接阅读和运行的参考实现。每个能力阶段开始时必须检查对应旧代码及测试，形成以下裁决之一：
 
@@ -199,9 +199,10 @@ go test ./...
 
 - [x] P10-01 复核 P1 只读消费审计结果与 P4 后冻结的合同，确认迁移范围没有新增应用抽象需求。
 - [x] P10-02 更新迁移决策并确认 breaking change 实施批次。
-- [ ] P10-03 后续专项将聊天路径从单 Action GOAP wrapper 迁移为 Interaction Definition。
-- [ ] P10-04 后续专项迁移其他批准的直接消费者，不修改无关前端/TUI/CLI。
-- [ ] P10-05 后续专项删除应用侧框架通用编排并完成应用门禁。
+- [x] P10-03 在 `agent2` 内完成 ADR-A2-058 的 admission/attribution、Interaction invocation/deferred manifest、Delegate causal projection 与 waiting subtree cancellation 全部 Framework 合同。
+- [ ] P10-04 后续专项将聊天路径从单 Action GOAP wrapper 迁移为 Interaction Definition。
+- [ ] P10-05 后续专项迁移其他批准的直接消费者，不修改无关前端/TUI/CLI。
+- [ ] P10-06 后续专项删除应用侧框架通用编排并完成应用门禁。
 
 ### P11：原模块替换（后续 App 深度重写专项）
 
@@ -256,8 +257,9 @@ go test ./...
 
 | 日期 | 阶段 | 实际事实 | 验证与结果 |
 |---|---|---|---|
-| 2026-08-06 | 范围收口 | 用户明确把 `app/runtime` 分析、接线、迁移与深度重写移出当前实施批次；收到裁决后即停止继续读取和分析应用实现。本轮没有修改 App、旧 `agent`、前端、TUI 或 CLI；P10-01/P10-02 与 Baseline 7/8 作为已经完成且独立成立的 Framework 合同保留，P10-03 至 P11 不伪装完成，也不建立过渡实现 | 对最新 Baseline 8 重新执行 `go mod tidy -diff`、standalone build/vet/staticcheck、完整项目 lint、禁用缓存全量测试和全量 race，15 个 package 全绿且 lint 为 0 issues；八个公开 command consumer 全部实际 `go run` 成功。代码、public API、wire、依赖图与 module graph 均未改变；当前批次以 P1–P9 独立框架完整、P10/P11 后续专项为准确事实边界 |
-| 2026-08-06 | P10 | 实现 ADR-A2-058 的 Interaction 纵切面。新增只在实际调用 context 中可读的 immutable ModelInvocation/ToolInvocation，携带 exact ProcessRelation、DeploymentRef、EffectID、Step/model-call sequence 和 ToolCall index/value；公开唯一 DelegateChildKey 派生。Dispatcher 将普通工具明确分成初始可见 Tools 与冻结、可执行但初始隐藏的 DeferredTools；AdvertiseTools 只能暂存 exact 已绑定名称，随成功 Tool settlement 提交。失败/panic/cancel/当前 HITL pause 丢弃当前调用广告，checkpoint 保留已完成前缀，并行结果按模型 ToolCall 顺序合并；恢复态保存权威广告集合，没有动态 authority、registry、Engine handle 或 Host 抽象 | 形成 Baseline 8：Interaction public digest `4d7c875e…5bf5`，state/protocol v5/v3 与 wire digest `1f991ad1…308a`；Kernel、其余六个 public package、Process Snapshot v6、TreeSnapshot v4 和 observation wire 不变。行为测试覆盖完整归因、广告/执行、非法名称、失败回滚、HITL checkpoint、恢复、并行乱序、Delegate key 和绑定冲突。standalone build/vet/staticcheck、完整 lint、禁用缓存全量测试/race 全绿，Interaction state fuzz 3 秒执行 111,450 次无失败；P10-03 继续进行，下一纵切面迁移 root chat 为原生 Interaction |
+| 2026-08-07 | P10 | 完成 ADR-A2-058 最后一个 Framework-owned 纵切面。新增 immutable WaitingSubtreeCancellationPlan 与 Engine plan/apply：完整 tree quiescent cut 只投影 Kernel lifecycle/mailbox/child-wait state，target/active descendants 保留为 host-/parent-canceled，关闭等待且不回收永久预算；稳定 ChildrenCompleted Signal 将直接父级停在消费前。计划只持有纯 value Engine identity、source root/digest、resulting TreeSnapshot 与 defensive canceled/paused IDs。Apply 在任何修改前复验完整 source 与每个 Process snapshot，先把 projection 暂存在既有单写者 loop，再经共享 gate 应用；stale/foreign/stage failure 零修改，跨 gate 后保留 Process handle并完成既有 finalization。没有读取或修改 `app/runtime`、旧 `agent`、前端、TUI 或 CLI | 形成 Baseline 9：根 public digest `53d6b5a8…07a2`；Process Snapshot v6、TreeSnapshot v4、Kernel/Strategy protocol、observation wire 与其余六个 public digest不变。合同测试证明 plan 无 live 副作用、合法 target、parent-before-child IDs/cause、外部 wait 关闭、Kernel child outcome、parent pause/resume、exact live/result equality、stale/foreign rejection 和 resulting tree 跨 Engine 恢复。`go mod tidy -diff`、build/vet/staticcheck、完整 lint（0 issues）、禁用缓存且 shuffle 的全量普通测试/race 全绿；13 个 fuzz target 各至少 5 秒，共执行 6,719,075 次。一个 5 秒 Planning fuzz 首轮在停止阶段报告 `context deadline exceeded`，同一 target 独立延长到 10 秒执行 1,585,268 次通过且无失败语料；八个公开 command consumer 全部实际 `go run` 成功 |
+| 2026-08-06 | 范围收口 | 用户明确把 `app/runtime` 分析、接线、迁移与深度重写移出当前实施批次；收到裁决后即停止继续读取和分析应用实现。本轮没有修改 App、旧 `agent`、前端、TUI 或 CLI；P10-01/P10-02 与 Baseline 7/8 作为已经完成且独立成立的 Framework 合同保留，尚未实施的 App 迁移与 P11 不伪装完成，也不建立过渡实现 | 对最新 Baseline 8 重新执行 `go mod tidy -diff`、standalone build/vet/staticcheck、完整项目 lint、禁用缓存全量测试和全量 race，15 个 package 全绿且 lint 为 0 issues；八个公开 command consumer 全部实际 `go run` 成功。代码、public API、wire、依赖图与 module graph 均未改变；当前批次以 P1–P9 独立框架完整、App 迁移/P11 后续专项为准确事实边界 |
+| 2026-08-06 | P10 | 实现 ADR-A2-058 的 Interaction 纵切面。新增只在实际调用 context 中可读的 immutable ModelInvocation/ToolInvocation，携带 exact ProcessRelation、DeploymentRef、EffectID、Step/model-call sequence 和 ToolCall index/value；公开唯一 DelegateChildKey 派生。Dispatcher 将普通工具明确分成初始可见 Tools 与冻结、可执行但初始隐藏的 DeferredTools；AdvertiseTools 只能暂存 exact 已绑定名称，随成功 Tool settlement 提交。失败/panic/cancel/当前 HITL pause 丢弃当前调用广告，checkpoint 保留已完成前缀，并行结果按模型 ToolCall 顺序合并；恢复态保存权威广告集合，没有动态 authority、registry、Engine handle 或 Host 抽象 | 形成 Baseline 8：Interaction public digest `4d7c875e…5bf5`，state/protocol v5/v3 与 wire digest `1f991ad1…308a`；Kernel、其余六个 public package、Process Snapshot v6、TreeSnapshot v4 和 observation wire 不变。行为测试覆盖完整归因、广告/执行、非法名称、失败回滚、HITL checkpoint、恢复、并行乱序、Delegate key 和绑定冲突。standalone build/vet/staticcheck、完整 lint、禁用缓存全量测试/race 全绿，Interaction state fuzz 3 秒执行 111,450 次无失败；ADR-A2-058 尚余 waiting subtree Kernel 合同未实现 |
 | 2026-08-06 | P10 | 实现 ADR-A2-058 的第一个 Kernel 纵切面。`ProcessAdmitter.Admit` 改为 context-aware，`ProcessAdmission` 新增 admission 成功后与 Process 完全相同的 UTC StartedAt；root/child 均在 Definition.Start 和发布前请求，恢复仍不重复。`EffectRequest` 新增 exact DeploymentRef 与 ProcessRelation，并强化 relation/identity 一致性校验。调用位置直接传 Engine 已有事实，没有引入 ProcessContext、Host metadata 或应用依赖 | 形成 Baseline 7：root public digest 更新为 `9bd5705e…a53c`，其余六个 public digest、Process Snapshot v6、TreeSnapshot v4、全部 owner wire 与 package DAG 不变。测试新增 context 传播、root/child StartedAt 和完整 Effect attribution；P10-03 继续进行，下一纵切面实现 Interaction-owned invocation context 与 Delegate ChildKey |
 | 2026-08-06 | P10 | 依据 P10-01 证据新增 ADR-A2-058，将迁移缺口冻结为六个且只有六个中性合同：context-aware ProcessAdmitter + prospective StartedAt；携带 exact deployment/relation 的 EffectRequest；Interaction-owned ModelInvocation/ToolInvocation context；`Tools`/`DeferredTools` 与可恢复 `AdvertiseTools`；唯一 `DelegateChildKey`；Kernel-owned `WaitingSubtreeCancellationPlan`。等待子树结果保留终态 Process/预算、由 Kernel child completion Signal 推进并把父级停在消费前，Host 只保存 opaque tree 与自身 write-set。实施顺序固定为 Framework 合同、root 原生 Interaction、child/HITL/toolset、旧应用编排清零四批，且前端/TUI/CLI 明确排除 | 本轮只修订候选后的正式迁移决策，不改变 production API/wire；没有新增 Host package/name/import。P10-02 完成，P10 更新为 2/5；P10-03 从 Kernel/Interaction owner contracts 纵切实现并先独立验收 |
 | 2026-08-06 | P10 | 复核 P1 的 54 文件旧 Framework 消费图并逐条读透 root Interaction、child durable admission、model/tool observation、deferred tool discovery、HITL tree checkpoint、waiting child cancellation 与 subagent projection。确认应用/领域/交付层没有新的 Framework 抽象需求，迁移继续收敛在 `internal/adapter/agentexec` 与直接 toolset 装配。冻结合同已覆盖主体生命周期；真实 consumer 只证明六处中性缺口：context-aware admission、Effect/Interaction invocation attribution、可恢复的 deferred advertisement、同步权威 model/tool observation、Kernel-owned waiting subtree transition、确定 Delegate child key。明确拒绝把 Run/transaction/history/pricing/approval 等 Host 类型或 private Strategy wire 带入 Framework | `agent2` production 与 API/wire 本轮未变；工作树开始/结束均无运行代码修改。P10-01 完成，P10 更新为 1/5，下一批先以 ADR 冻结 breaking contract 与实施顺序，再改代码 |
@@ -327,6 +329,6 @@ go test ./...
 
 ## 9. 当前下一步
 
-P1–P9 与 P10-01/P10-02 已完成；P10-03 的 Kernel admission/Effect attribution 和 Interaction invocation/deferred manifest 已分别形成 Baseline 7/8。下一纵切面开始 root chat 的原生 Interaction 替换，以 caller-owned model/tool wrapper 产生权威 Host observation；Framework Delta 继续保持 best-effort，不承载 transcript 真相。
+P1–P9 与 ADR-A2-058 的全部 Framework 合同已经完成，Baseline 9 是当前唯一 `agent2` 基线。当前批次不再分析或修改 `app/runtime`；root chat 原生 Interaction、其余消费者迁移、应用侧旧编排删除与 P11 模块替换统一留待后续 App 深度重写专项。
 
-P10 只修改 `app/runtime` 以及因直接消费新 Framework 必须变化的后端路径，不修改前端、TUI 或 CLI；P11 前不删除旧 `agent`，不发布临时 `agent2` 路径为稳定版本。
+后续专项只修改 App 及其直接后端爆炸半径，不修改无关前端、TUI 或 CLI；P11 前不删除旧 `agent`，也不把临时 `agent2` 路径作为稳定发布路径。

@@ -359,6 +359,7 @@ const (
 	commandChildrenCompleted
 	commandParentTerminated
 	commandQuiesce
+	commandStagePlannedProcessState
 )
 
 type processCommand struct {
@@ -367,6 +368,7 @@ type processCommand struct {
 	settlement        Settlement
 	internalSignal    Signal
 	parentTermination Termination
+	plannedState      *plannedProcessState
 	release           <-chan struct{}
 	reason            string
 	response          chan processResponse
