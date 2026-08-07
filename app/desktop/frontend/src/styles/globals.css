@@ -721,7 +721,7 @@
   --dur-med-base: 200ms;
   --dur-disclosure-base: 220ms;
   --dur-slow-base: 360ms;
-  --dur-drawer-base: 240ms;
+  --dur-drawer-base: 180ms;
   --animation-duration: calc(var(--dur-fast-base) * var(--motion-scale));
   --ease-out: cubic-bezier(0.3, 0, 0, 1);
   --ease-in-out: cubic-bezier(0.45, 0, 0.55, 1);
@@ -1206,10 +1206,16 @@ html.theme-light .panel-scroll::-webkit-scrollbar-thumb:hover {
      the two line up across the seam — the single number the macOS traffic-light
      gutter is centred against. First-paint mirror of the visual style. */
   --surface-header-height: 42px;
-  /* Drawer slide. One duration + curve for the sidebar container, its spacer,
-     the seam corner, and the card's depth shadow, so they move as one object. */
+  /* Drawer slide. One duration + curve for both flanks, their spacers, the yielded
+     window-control strips, the seam corner and the card's depth shadow, so they move as
+     one object.
+     A rigid body travelling: near-uniform speed, with a ramp at each end so it neither
+     parks nor stops dead. The reasoning and the measurements behind the four numbers
+     live on `easeDrawer` in visualStyles/tokens.ts, which publishes this at runtime —
+     what is here is the first-paint mirror, and the two have to say the same thing or
+     the frame before hydration moves on a different curve. */
   --dur-drawer: calc(var(--dur-drawer-base) * var(--motion-scale));
-  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+  --ease-drawer: cubic-bezier(0.3, 0.12, 0.7, 0.88);
 }
 
 html,

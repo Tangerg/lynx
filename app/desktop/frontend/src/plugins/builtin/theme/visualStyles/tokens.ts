@@ -211,11 +211,26 @@ export const WORKBENCH_MOTION = {
   mediumMs: 200,
   disclosureMs: 220,
   slowMs: 360,
-  drawerMs: 240,
+  // Short on purpose: a flank's travel is not only an edge moving, it is also the
+  // reading plane taking a new measure, and the two have to finish together. At 240ms
+  // with the sheet curve below they did not — see easeDrawer.
+  drawerMs: 180,
   easeOut: [0.22, 1, 0.36, 1],
   easeInOut: [0.45, 0, 0.55, 1],
   easeEmphasized: [0.16, 1, 0.3, 1],
-  easeDrawer: [0.32, 0.72, 0, 1],
+  // A rigid body travelling: near-uniform speed with a real ramp at each end.
+  // Measured as multiples of the mean speed — this enters and leaves at 0.58x and peaks
+  // at 1.26x. The two curves it replaces each failed at one end. The sheet curve
+  // [0.32, 0.72, 0, 1] entered at 2.53x and left at 0.01x, so it was 92% done at 40% of
+  // the duration: the edge parked while the plane behind it was still re-laying out, and
+  // one gesture on two apparent clocks is what reads as incoherent. Pure linear
+  // [0, 0, 1, 1] fixed that and broke the other end — full speed into a dead stop, which
+  // reads as a jerk, and because the eye judges arrival by deceleration a curve that
+  // never decelerates also reads as slower at the same duration.
+  // Not the `easeInOut` above, which is the same idea overdone: 0.16x at the ends is a
+  // crawl and 1.82x in the middle is a visible surge.
+  // `--ease-drawer` in globals.css mirrors this for the frame before it is published.
+  easeDrawer: [0.3, 0.12, 0.7, 0.88],
   pressScale: 0.98,
 } as const;
 

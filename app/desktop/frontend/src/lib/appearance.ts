@@ -63,18 +63,26 @@ export interface VisualStyleMotion {
   pressScale: number;
 }
 
+/**
+ * What motion is before a visual style publishes its own — the first frames, and any
+ * consumer standing without the theme pack installed.
+ *
+ * Every value here has to match the shipped style (WORKBENCH_MOTION); a fallback that
+ * disagrees is a fallback nobody notices is wrong. `drawerMs` had drifted to 300 against
+ * the style's 240 that way.
+ */
 const DEFAULT_MOTION: VisualStyleMotion = {
   instantMs: 80,
   fastMs: 150,
   mediumMs: 200,
   disclosureMs: 220,
   slowMs: 360,
-  drawerMs: 300,
+  drawerMs: 180,
   easeOut: [0.22, 1, 0.36, 1],
   easeInOut: [0.45, 0, 0.55, 1],
   easeEmphasized: [0.16, 1, 0.3, 1],
-  easeDrawer: [0.32, 0.72, 0, 1],
-  pressScale: 0.96,
+  easeDrawer: [0.3, 0.12, 0.7, 0.88],
+  pressScale: 0.98,
 };
 
 let scheme: Scheme = "dark";

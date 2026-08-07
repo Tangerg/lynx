@@ -1,5 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Browser, type Page } from "@playwright/test";
+import { WORKBENCH_MOTION } from "@/plugins/builtin/theme/visualStyles/tokens";
 import { VISUAL_AGENT_STATES } from "./agentSessionSnapshots";
 import { VISUAL_WORK_INDEX_STATES } from "./shellFixtureStates";
 import { VISUAL_WORKSPACE_STATES } from "./workspaceFixtureStates";
@@ -127,8 +128,12 @@ test("motion preference and OS reduced motion share one final authority", async 
   // The drawer PANEL — `left` and `width` travel together, `visibility` is the
   // discrete third entry that waits for them.
   const drawer = page.locator(".agent-drawer");
-  // The shipped visual style declares a 240ms drawer (WORKBENCH_MOTION.drawerMs).
-  await expect(drawer).toHaveCSS("transition-duration", "0.24s, 0.24s, 0s");
+  // Read from the style rather than copied out of it: what this asserts is that the
+  // shipped duration is the one that reaches CSS, and a literal here would only assert
+  // that someone updated two places at once. It did not survive the first time the
+  // design value moved.
+  const declared = `${WORKBENCH_MOTION.drawerMs / 1000}s`;
+  await expect(drawer).toHaveCSS("transition-duration", `${declared}, ${declared}, 0s`);
 
   await page.emulateMedia({ reducedMotion: "reduce" });
   await expect(drawer).toHaveCSS("transition-duration", "0.001s");
