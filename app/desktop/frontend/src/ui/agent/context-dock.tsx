@@ -1,4 +1,4 @@
-import { useRef, type CSSProperties, type ReactNode } from "react";
+import { useRef, type ReactNode } from "react";
 import { cn } from "@/lib/classNames";
 import { Icon, type IconName } from "@/ui/icons";
 import { IconButton } from "@/ui/atoms/icon-button";
@@ -28,26 +28,18 @@ export interface AgentDockTab {
  */
 export function AgentContextDock({
   open,
-  className,
-  style,
   children,
 }: {
   /** Whether the dock is showing. Declared rather than expressed as a hidden style,
    *  because how a flanking pane leaves and returns is the shell's geometry and not
-   *  the page's — the same split the drawer already makes. */
+   *  the page's — the same split the drawer already makes. And it is the whole of that
+   *  state: the flank's measure comes from the row it sits in, so this attribute is the
+   *  only thing that says whether it is here. */
   open: boolean;
-  className?: string;
-  /** Carries the resizable width, which lives in a custom property so a drag
-   *  doesn't re-render the card. */
-  style?: CSSProperties;
   children: ReactNode;
 }) {
   return (
-    <aside
-      data-open={open ? "" : undefined}
-      className={cn("agent-context-dock agent-pane-split", className)}
-      style={style}
-    >
+    <aside data-open={open ? "" : undefined} className="agent-context-dock agent-pane-split">
       {children}
     </aside>
   );

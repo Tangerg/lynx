@@ -1406,7 +1406,15 @@ html.theme-dark {
   min-height: 0;
   flex: 1;
   flex-direction: column;
-  overflow: hidden;
+  /* `clip`, not `hidden`: the plane clips what leaves it and must never be scrollable.
+     A hidden dock rests at its full measure just past this edge, which under `hidden`
+     gave the card 336px of scrollable overflow — invisible, with no scrollbar, and
+     reachable all the same by `scrollIntoView` or a stray `scrollLeft`, which would
+     slide the whole reading plane sideways with no way to put it back. `clip` creates no
+     scroll container at all, so the region does not exist, and it stops there rather
+     than propagating to the shell. The one place this window scrolls horizontally is a
+     code surface that asked to. */
+  overflow: clip;
   background: var(--app-content-surface);
   border-radius: 0;
   --shell-boundary: var(--color-border-soft);
@@ -1490,7 +1498,21 @@ html.theme-dark {
 
 /* When the drawer collapses, the content bar reaches the window corner and
    yields the exact strip occupied by traffic lights plus the persistent toggle.
-   Page identity starts after that strip without mounting another control. */
+   Page identity starts after that strip without mounting another control.
+
+   The yielded strip travels on the drawer's clock because the edge it clears is
+   travelling. Yielded instantly, it was the one discontinuity in the whole gesture and
+   it pointed the wrong way: at frame one the bar's contents jumped 94px to the RIGHT —
+   the width of the strip — and then slid 256px back to the LEFT with the panel, so
+   350px of movement bought 162px of displacement and the session title visibly
+   bounced off its own destination. Interpolated, the two add up: the card's leading
+   edge falls by the drawer's width while this inset rises by the strip's, on one curve,
+   and the title travels the difference once in the direction it is going.
+   It cannot underlap the controls on the way: at every point of the travel the sum is
+   at least the strip, with equality only at the collapsed end. */
+.agent-surface-header[data-window-corner] {
+  transition: padding-inline-start var(--dur-drawer) var(--ease-drawer);
+}
 .agent-shell[data-sidebar="collapsed"] .agent-surface-header[data-window-corner] {
   padding-inline-start: calc(var(--window-controls-gutter) + var(--window-sidebar-control-span));
 }
@@ -1533,46 +1555,47 @@ html.theme-dark {
 
 /* ---------- Context dock ---------- */
 
-/* The right flank leaves and returns on the same curve as the left one.
-   It used to be toggled with `display: none`, which is not a state a transition can
-   start from or land on — so one side of the same window slid and the other blinked.
-   The width comes from the inline column style (see dockWidth.ts); what is declared
-   here is only how it travels, and that its content stops existing for the pointer
-   and for assistive tech once it has finished leaving. `visibility` is delayed by the
-   duration on the way out and immediate on the way back, the same two-line trick the
-   drawer uses, because a panel that goes invisible at frame one has nothing left to
-   animate. */
+/* The right flank leaves and returns the same WAY as the left one, not merely on the
+   same curve — it keeps its measure and travels, and the conversation grows into the
+   space it gives up.
+   That is what the negative end margin buys. A flex item's outer size is its margin
+   box, so an end margin of minus its own measure claims no space at all while the item
+   itself stays exactly as wide as it was: the reading plane takes the room, pushes the
+   flank's leading edge along, and the card's `overflow: hidden` clips whatever has left
+   the window. The measure is one expression used twice, so the two cannot disagree —
+   see dockWidth.ts for why the percentages inside it survive to be resolved here.
+   It used to animate `flex-basis`, which shrinks the box the content is laid out in: the
+   tab strip went 440px → 0, the diff re-wrapped at every width on the way, and the whole
+   flank crumpled inward while the drawer on the other side of the same window slid out
+   intact. Measured mid-gesture: 124 of 323 elements inside it were being re-laid-out per
+   frame; now none are, for the same ~3ms of layout. Two mechanisms for one gesture is
+   what read as incoherent — before that it was `display: none`, which is not a state a
+   transition can start from or land on, so one side slid and the other blinked.
+   `visibility` is delayed by the duration on the way out and immediate on the way back,
+   the same two-line trick the drawer uses, because a panel that goes invisible at frame
+   one has nothing left to animate.
+   Nothing here opts out mid-drag, unlike the drawer: the stored width reaches the basis,
+   which is not a transitioned property, so a drag lands on the frame it happens. */
 .agent-context-dock {
   position: relative;
   display: flex;
   min-width: 0;
   min-height: 0;
+  flex: 0 0 var(--dock-measure);
   flex-direction: column;
   overflow: hidden;
+  margin-inline-end: 0;
   background: var(--app-dock-surface);
-  /* The flank's own width travels, so the conversation beside it reflows WITH it
-     rather than teleporting to its new measure and waiting for the panel to catch up.
-     Measured rather than assumed, on a 200-turn transcript: the whole toggle costs one
-     layout and ~2ms of style, and drops no frames. `content-visibility: auto` is what
-     makes that true — it leaves every off-screen message unlaid-out, so the reflow is
-     bounded to what is on screen no matter how long the transcript is, and removing it
-     makes the same toggle ten times worse. A transform slide measured the same and
-     looked worse. */
   transition:
-    flex-basis var(--dur-drawer) var(--ease-drawer),
+    margin-inline-end var(--dur-drawer) var(--ease-drawer),
     visibility 0s linear 0s;
 }
 .agent-context-dock:not([data-open]) {
   visibility: hidden;
+  margin-inline-end: calc(-1 * var(--dock-measure));
   transition:
-    flex-basis var(--dur-drawer) var(--ease-drawer),
+    margin-inline-end var(--dur-drawer) var(--ease-drawer),
     visibility 0s linear var(--dur-drawer);
-}
-/* Mid-drag the basis changes every pointer-move, so the travel curve would make the
-   dock chase the cursor a third of a second behind it — the same reason the drawer's
-   gap opts out. */
-.agent-shell[data-resizing] .agent-context-dock {
-  transition: none;
 }
 
 /* A workspace view is a page when it owns the card and content when it sits in

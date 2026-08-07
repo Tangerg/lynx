@@ -339,6 +339,32 @@ for (const route of ACCESSIBILITY_ROUTES.filter((r) => r.theme === "light")) {
 
     const cut = await page.evaluate(() => {
       const out: string[] = [];
+      // Something the user can SEE reaches past the edge that clips it. `scrollWidth`
+      // alone cannot say that: it counts every box beyond the edge, including ones
+      // deliberately parked there. The context dock rests one full measure past the
+      // reading plane while hidden, so that returning is a slide rather than an
+      // appearance — and that made the plane report 336px of overflow that cuts no text.
+      //
+      // Asking whether a visible CHILD BOX sticks out is not enough, and getting that
+      // wrong would have quietly retired this whole check: the defect it was written for
+      // is a `pre` whose box fits its column exactly while its text runs past the end of
+      // it, so the boxes all agree and only the glyphs are gone. Measure the text.
+      const visibleContentPast = (el: HTMLElement, edge: number) => {
+        for (const child of el.querySelectorAll<HTMLElement>("*")) {
+          if (getComputedStyle(child).visibility === "hidden") continue;
+          if (child.getBoundingClientRect().right > edge + 1) return true;
+        }
+        const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+        const range = document.createRange();
+        for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+          if (!node.nodeValue?.trim()) continue;
+          const owner = node.parentElement;
+          if (!owner || getComputedStyle(owner).visibility === "hidden") continue;
+          range.selectNodeContents(node);
+          if (range.getBoundingClientRect().right > edge + 1) return true;
+        }
+        return false;
+      };
       for (const el of document.querySelectorAll<HTMLElement>("*")) {
         // A 1-2px box holds no readable text by construction — that is how a
         // screen-reader-only node is built, not a layout that ran out of room.
@@ -348,6 +374,9 @@ for (const route of ACCESSIBILITY_ROUTES.filter((r) => r.theme === "light")) {
         if (!(style.overflowX === "hidden" || style.overflowX === "clip")) continue;
         if (style.textOverflow === "ellipsis") continue;
         if (!el.textContent?.trim()) continue;
+        const box = el.getBoundingClientRect();
+        const clipEdge = box.left + Number.parseFloat(style.borderLeftWidth) + el.clientWidth;
+        if (!visibleContentPast(el, clipEdge)) continue;
         // No ancestor can rescue this: an ancestor scroller only ever sees this
         // element's box, and the box is where the content was cut. An enclosing
         // `overflow-x: auto` reads like an escape hatch and is not one — the review

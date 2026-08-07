@@ -1,5 +1,5 @@
 import { Activity } from "react";
-import { DOCK_COLUMN, DOCK_COLUMN_COLLAPSED, dockWidthRow } from "./dockWidth";
+import { dockWidthRow } from "./dockWidth";
 import type { UserInput } from "@/plugins/builtin/chat/composer/public/input";
 import type { ViewPlacement } from "@/plugins/builtin/workspace/public/viewPlacement";
 import { CatalogPicker, IconButton, type CatalogPickerGroup, type IconName } from "@/ui";
@@ -205,19 +205,14 @@ export function ChatPanel({ onSend }: Props) {
             <ChatStream onSend={onSend} />
           </div>
           {dockOpen && <DockResizer />}
-          {/* Always mounted, even with nothing open: a pane cannot animate in from a
-              width it did not have on the previous frame, and the first view opened in
-              a session is exactly the case where 0 → 336 has no starting value unless
-              the element was already there at zero. */}
-          {
-            <AgentContextDock
-              open={dockOpen}
-              className="shrink-0 grow-0"
-              style={dockOpen ? DOCK_COLUMN : DOCK_COLUMN_COLLAPSED}
-            >
-              <DockHeader tabs={dockTabs} groups={catalog} openViewIds={openViewIds} />
-              <div className="relative min-h-0 flex-1">
-                {/* Every open tab stays mounted so switching between them keeps each
+          {/* Always mounted, even with nothing open: a pane cannot travel from a place it
+              did not occupy on the previous frame, and the first view opened in a session
+              is exactly the case where there is no previous frame to leave unless the
+              flank was already there, held outside the window by its end margin. */}
+          <AgentContextDock open={dockOpen}>
+            <DockHeader tabs={dockTabs} groups={catalog} openViewIds={openViewIds} />
+            <div className="relative min-h-0 flex-1">
+              {/* Every open tab stays mounted so switching between them keeps each
                     one's scroll, selection and expansion — but only the visible one is
                     allowed to be doing anything. `Activity` is what separates those:
                     hiding a tab runs its effect cleanups, so a diff behind another tab
@@ -228,18 +223,17 @@ export function ChatPanel({ onSend }: Props) {
                     and `aria-hidden` this used to carry were saying the same thing a
                     third and fourth time, and three mechanisms for one state is three
                     places to disagree. */}
-                {dock.viewIds.map((viewId) => (
-                  <Activity key={viewId} mode={viewId === dock.activeViewId ? "visible" : "hidden"}>
-                    <div data-dock-view-id={viewId} className="absolute inset-0 flex flex-col">
-                      <ViewPlacementProvider value={placementFor(viewId, "dock")}>
-                        <WorkspaceViewBody viewId={viewId} />
-                      </ViewPlacementProvider>
-                    </div>
-                  </Activity>
-                ))}
-              </div>
-            </AgentContextDock>
-          }
+              {dock.viewIds.map((viewId) => (
+                <Activity key={viewId} mode={viewId === dock.activeViewId ? "visible" : "hidden"}>
+                  <div data-dock-view-id={viewId} className="absolute inset-0 flex flex-col">
+                    <ViewPlacementProvider value={placementFor(viewId, "dock")}>
+                      <WorkspaceViewBody viewId={viewId} />
+                    </ViewPlacementProvider>
+                  </div>
+                </Activity>
+              ))}
+            </div>
+          </AgentContextDock>
         </div>
       </Activity>
     </AgentContentCard>
