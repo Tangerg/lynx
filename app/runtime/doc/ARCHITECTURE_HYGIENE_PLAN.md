@@ -3,12 +3,14 @@
 > Status: Completed
 > Started: 2026-07-22  
 > Scope: `app/runtime`  
-> Architecture baseline: [EXECUTION_CENTERED_ARCHITECTURE.md](EXECUTION_CENTERED_ARCHITECTURE.md)
+> Architecture baseline at completion time: [EXECUTION_CENTERED_ARCHITECTURE.md](EXECUTION_CENTERED_ARCHITECTURE.md)
 >
 > Historical implementation ledger. Names such as Todo or `task` below describe
 > the code that existed during those completed batches and are not current
-> contracts. Use [TOOL_SYSTEM_VNEXT.md](TOOL_SYSTEM_VNEXT.md) and the architecture
-> baseline above for the normative Plan, Goal, and `delegate_task` vocabulary.
+> contracts. The new Runtime rewrite is governed by [ARCHITECTURE.md](ARCHITECTURE.md),
+> [EXECUTION_PLAN.md](EXECUTION_PLAN.md), and [CAPABILITY_LEDGER.md](CAPABILITY_LEDGER.md).
+> Use [TOOL_SYSTEM_VNEXT.md](TOOL_SYSTEM_VNEXT.md) for the normative Plan, Goal,
+> and `delegate_task` vocabulary.
 
 ## 1. Objective
 

@@ -1,13 +1,16 @@
 # Lyra 的端口与可替换性边界
 
+> 状态：迁移前当前端口参考。目标边界以 [`ARCHITECTURE.md`](ARCHITECTURE.md) 为准；P3 只建立最小 root 候选，P4–P7 由真实 consumers 逐步修订，P8 切换前才冻结，本文不构成兼容合同。
+
 Lyra 使用接口有两个理由：
 
 1. 内层消费者需要定义一片稳定能力面，隔离外层技术实现；
 2. 产品确实允许组合根注入另一种策略或后端。
 
 Run 生命周期、Agent process 装配、私有模型回合状态机、协议 dispatch 和资源关闭顺序是产品
-机制，不因为测试方便就抽象成插件。整体分层见
-[`EXECUTION_CENTERED_ARCHITECTURE.md`](EXECUTION_CENTERED_ARCHITECTURE.md)。
+机制，不因为测试方便就抽象成插件。迁移前实现见
+[`EXECUTION_CENTERED_ARCHITECTURE.md`](EXECUTION_CENTERED_ARCHITECTURE.md)，目标分层见
+[`ARCHITECTURE.md`](ARCHITECTURE.md)。
 
 ## 1. 判断准则
 

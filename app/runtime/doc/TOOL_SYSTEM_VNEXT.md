@@ -1,5 +1,7 @@
 # Tool System vNext
 
+> 状态：当前模型工具合同与已完成专项台账。工具名称、描述、参数、schema、可见性和删除裁决仍由本文拥有；旧 Agent/toolloop 接线细节将在 Runtime P5 按 [`ARCHITECTURE.md`](ARCHITECTURE.md) 重写，不能作为 Agent2 兼容要求。
+
 本文是 `app/runtime` 新工具体系的活文档，也是分批实施台账。代码、协议、提示词、持久化和桌面 UI 必须使用同一套领域词汇；不保留旧名称、别名字段或双路径兼容。
 
 本轮只实施服务端。允许服务端 breaking wire change 暂时使前端接线失效，但不修改 `app/desktop`、TypeScript 或桌面协议文档；前端适配在服务端契约稳定后单独进行。

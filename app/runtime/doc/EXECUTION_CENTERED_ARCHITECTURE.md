@@ -1,6 +1,8 @@
-# Execution-Centered Architecture — `app/runtime` 架构基准
+# Execution-Centered Architecture — `app/runtime` 迁移前实现参考
 
-> 状态：现行架构基准。
+> 状态：迁移前当前实现参考；不再是重构目标合同。
+>
+> 新目标架构以 [`ARCHITECTURE.md`](ARCHITECTURE.md) 为准，阶段与当前事实分别以 [`EXECUTION_PLAN.md`](EXECUTION_PLAN.md) 和 [`CAPABILITY_LEDGER.md`](CAPABILITY_LEDGER.md) 为准。本文保留旧 Agent/Turn 实现细节，供迁移期间核对真实能力；不得据此要求新实现兼容，重构完成后删除。
 
 Lyra Runtime 以 Run 生命周期为中心，而不是以某个 agent loop 类型或 transport 为中心。
 Delivery 接收 wire request，Application 拥有完整用例和副作用顺序，Adapter/Infra

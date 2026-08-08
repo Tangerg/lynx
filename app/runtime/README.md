@@ -2,26 +2,28 @@
 
 **Lyra Runtime — 产品级通用 agent 运行时后端（Go）。** 实现 Lyra Runtime Protocol（JSON-RPC 2.0，MCP-inspired），通过 streamable HTTP 服务桌面、Web 与独立进程客户端，并为同进程 CLI/TUI 提供 inprocess transport。
 
-> 模块级上下文（设计原则 / 分层 / Go idiom / 协议约定）见 [`CLAUDE.md`](./CLAUDE.md)；架构基准见 [`doc/EXECUTION_CENTERED_ARCHITECTURE.md`](./doc/EXECUTION_CENTERED_ARCHITECTURE.md)；文档总目录见 [`doc/README.md`](./doc/README.md)。
+> 模块级上下文见 [`CLAUDE.md`](./CLAUDE.md)；重构目标架构见 [`doc/ARCHITECTURE.md`](./doc/ARCHITECTURE.md)；阶段、当前事实和全部文档入口见 [`doc/README.md`](./doc/README.md)。
 
 ---
 
 ## 这是什么
 
-基于 [lynx-agent](../agent) 框架的 agent 服务运行时，以 **Run 生命周期**（而非 agent loop）为中心。**协议层薄、业务层厚、传输层可换**：`internal/delivery` 是 wire 契约 + 传输，`internal/application/*` 是驱动 Run/Session/能力生命周期的用例协调器，`internal/adapter/*`（含 `agentexec`）适配外部能力与 agent SDK，`internal/domain/*` 按限界上下文切业务，`internal/infra/*` 是技术设施。客户端独立消费 Runtime 发布的 JSON-RPC / contract 制品，不共享服务端实现类型。
+以 **Run 生命周期**（而非 agent loop）为中心的 Agent 应用后端。**协议层薄、业务层厚、传输层可换**：`internal/delivery` 是 wire 边界，`internal/application/*` 驱动 Run/Session/能力生命周期，`internal/adapter/agentexec` 隔离 Agent Framework，`internal/domain/*` 按限界上下文表达产品规则，`internal/infra/*` 提供技术机制。客户端独立消费 Runtime 发布的 JSON-RPC / contract 制品，不共享服务端实现类型。
+
+当前生产代码仍消费旧 [`agent`](../../agent)，正在依据 [`agent2`](../../agent2) Baseline 9 设计原位重构；旧实现不是新 API 的兼容规范。
 
 ## 架构（Clean Arch 同心环，依赖向内，`internal/arch` 机器强制）
 
 ```
-composition (internal/{bootstrap,config}, cmd)  装配 + host 生命周期；wires 每一环，无环 import 它
-delivery    (internal/delivery)      协议契约 + HTTP+SSE / inprocess 传输 + dispatch
-adapter     (internal/adapter/*)     能力适配器（含 agentexec：驱动 agent loop 的 ACL over agent SDK）
-application (internal/application/*) 用例协调器：runs / sessions / capabilities / workspace / schedules
-infra       (internal/infra/*)       driven adapter：sqlite / git / lsp / mcp / a2a / exec / checkpoint
-domain      (internal/domain/*)      限界上下文：entities + repo ports + domain services
+composition (internal/{bootstrap,config}, cmd)  唯一装配与 Host 生命周期 owner
+delivery    (internal/delivery)      protocol / server / dispatch / transport
+adapter     (internal/adapter/*)     应用能力与外部 SDK 的防腐/翻译
+application (internal/application/*) Run / Session / capability use cases 与 consumer ports
+infra       (internal/infra/*)       sqlite / git / lsp / mcp / a2a / exec 等技术 mechanism
+domain      (internal/domain/*)      entity / value / aggregate behavior / pure domain policy
 ```
 
-依赖一律向内（domain 是核心）；application 依赖 domain、consumer ports、中立 Core chat/media 值契约与无领域语义 component 原语，adapter 实现 application/domain port，delivery 驱动协调器。详见 [`doc/EXECUTION_CENTERED_ARCHITECTURE.md`](./doc/EXECUTION_CENTERED_ARCHITECTURE.md)。
+依赖一律向内（Domain 是核心）；Application 依赖 Domain 和消费方端口，Adapter/Infra 实现外部能力，Delivery 只驱动 Application，Bootstrap 是唯一组合根。详见 [`doc/ARCHITECTURE.md`](./doc/ARCHITECTURE.md)。
 
 ## 能力（现状）
 
