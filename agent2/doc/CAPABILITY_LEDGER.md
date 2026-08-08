@@ -542,3 +542,9 @@
 - Runtime 的完整 tree restore 需要重建已存在 child Process 与原始模型 Delegate ToolCall 的观察归因；该事实来自 Interaction committed state，不属于 Kernel，也不能由 Host checkpoint 复制为第二真相源。
 - `ActiveDelegateChildrenFromSnapshot` 只在 Interaction package 解释自己的 opaque state，返回 immutable `ActiveDelegateChild`：ModelCallSequence、ToolCallIndex、ToolCall、ChildKey、ProcessID。它不包含 Run、Segment、Store、transaction、checkpoint、lease、产品状态、Engine handle 或应用 callback。
 - helper 复验 active Delegate phase、WorkingContext、ToolCall cursor、settled prefix、Delegate segment、WaitID 和 `DelegateChildKey`；非 Interaction/无 active segment 返回未找到，畸形 Strategy state 明确失败。Kernel Snapshot/TreeSnapshot 与全部 owner wire不变，Baseline 12 只改变 Interaction public API。
+
+### 14.10 Interaction 等待原因 typed inspection 实现证据
+
+- Runtime 的完整 waiting Delegate tree 证明共同 `StatusWaiting` 不能等同于 Tool 输入等待。等待原因仍由 Interaction private phase 拥有，Kernel Status/Snapshot 不新增策略枚举，Host 不解析 opaque payload。
+- `PendingToolInputFromSnapshot` 对 `waiting_input` 继续完整验证 Tool checkpoint、ResponseSchema 与 outer/committed WaitID；对合法 `waiting_delegates` 使用 Delegate owner validator 并复验同一 WaitID 后返回未找到。其他 waiting phase 或身份错配继续明确失败，不以 `found=false` 掩盖损坏。
+- `PendingToolInputFromSnapshot` 与 `ActiveDelegateChildrenFromSnapshot` 各自返回不同的 Strategy-owned typed view，没有合并成通用 wait DTO，也没有 Run、Store、transaction、checkpoint、lease 或产品状态进入 Framework。Baseline 13 的 public API 和全部 wire digest均保持 Baseline 12 的值。

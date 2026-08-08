@@ -92,11 +92,24 @@ func PendingToolInputFromSnapshot(snapshot agent.Snapshot) (PendingToolInput, bo
 	if err := decodeStrict(stateEnvelope.Payload(), &state); err != nil {
 		return PendingToolInput{}, false, fmt.Errorf("%w: decode state: %w", ErrInvalidPendingToolInput, err)
 	}
+	outerWaitID, ok := snapshot.WaitID()
+	switch state.Phase {
+	case phaseWaitingDelegates:
+		if _, err := state.activeDelegateCalls(); err != nil {
+			return PendingToolInput{}, false, fmt.Errorf("%w: %w", ErrInvalidPendingToolInput, err)
+		}
+		if state.WaitID == nil || !ok || outerWaitID != *state.WaitID {
+			return PendingToolInput{}, false, ErrInvalidPendingToolInput
+		}
+		return PendingToolInput{}, false, nil
+	case phaseWaitingInput:
+	default:
+		return PendingToolInput{}, false, ErrInvalidPendingToolInput
+	}
 	if err := state.validatePendingToolInput(); err != nil {
 		return PendingToolInput{}, false, fmt.Errorf("%w: %w", ErrInvalidPendingToolInput, err)
 	}
-	outerWaitID, ok := snapshot.WaitID()
-	if state.Phase != phaseWaitingInput || state.WaitID == nil || !ok || outerWaitID != *state.WaitID || state.ToolCheckpoint == nil {
+	if state.WaitID == nil || !ok || outerWaitID != *state.WaitID || state.ToolCheckpoint == nil {
 		return PendingToolInput{}, false, ErrInvalidPendingToolInput
 	}
 	request, err := state.ToolCheckpoint.InputRequest.inputRequest()

@@ -16,7 +16,7 @@ import (
 )
 
 const (
-	currentAPIBaseline         = 12
+	currentAPIBaseline         = 13
 	currentAPIBaselineFrozenOn = "2026-08-09"
 )
 

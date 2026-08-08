@@ -525,3 +525,12 @@
 - 决策：helper 只解释 Snapshot 的 committed Interaction ExecutionState，保持 Kernel 对 payload 不透明。非 Interaction 或没有 active Delegate segment 返回 `found=false`；Interaction state 的 phase、cursor、pending response、segment settlement、WaitID 或 ChildKey 派生不一致时以 `ErrInvalidExecutionState` 失败。结果保持模型 ToolCall 顺序并只包含已经获得 ProcessID、尚未结算的 child；pending start 没有伪造 child identity。
 - 原因：Strategy owner 的 typed inspection helper 与既有 `PendingToolInputFromSnapshot` 是同一层次的恢复人体工程学。它提供恢复必需的最小语义事实，同时避免 Host 解释 wire、Kernel 认识模型协议、或应用 checkpoint 复制执行真相。
 - 后果：Interaction public API/GoDoc 形成 Baseline 12；Interaction state/protocol v5/v3、Process Snapshot v6、TreeSnapshot v4、Kernel、其他 Strategy 和 observation wire均不变。真实 waiting Delegate tree 测试证明 capture 后可恢复 exact ToolCall/ChildKey/ProcessID 且原 child 不重启。
+
+## ADR-A2-063：Interaction typed inspector 必须区分合法等待原因
+
+- 状态：已接受；作为 P10-06 Runtime 真实恢复反证形成 Baseline 13。
+- 证据：Interaction Process 的 `Waiting` 共同状态既可能表示普通 Tool 正在等待外部输入，也可能表示父 Interaction 正在等待 managed Delegate children。`PendingToolInputFromSnapshot` 原实现把所有 `Waiting` Interaction 都按 Tool checkpoint 校验，因此合法的 Delegate wait 被误报为损坏状态。让 Runtime 读取 phase、探测错误文本或忽略所有 inspector error 都会把 Strategy private state 泄漏到 Host，并掩盖真正的 snapshot/state 不一致。
+- 决策：`PendingToolInputFromSnapshot` 仍是只读 Tool-input inspector，不扩张为通用 wait union。它只在 `waiting_input` 返回 `PendingToolInput`；对完整合法的 `waiting_delegates` 返回 `found=false`，并分别使用各自 owner validator 复验 Strategy state。其他与共同 `Waiting` 不相容的 Interaction phase，以及 Engine-minted outer WaitID 与 Strategy committed WaitID 不一致，继续返回 `ErrInvalidPendingToolInput`。
+- 决策：等待原因仍只属于 Interaction private state，不进入 Kernel Status、Snapshot wire或新的公共枚举。Delegate 恢复归因继续由 `ActiveDelegateChildrenFromSnapshot` 提供；Tool 输入继续由 `PendingToolInputFromSnapshot` 提供。两者不是近义入口，而是各自拥有不同结果类型、验证合同和消费者的正交 typed view。
+- 原因：Kernel 只应知道 Process 正在等待哪个 WaitID，等待的业务/策略原因必须由 Strategy owner 解释。精确区分“不是该 inspector 的能力”与“该 owner state 已损坏”，既保持窄腰不透明，也避免 Host 通过错误分支猜 private phase。
+- 后果：形成 Baseline 13。七个 public API digest、Process Snapshot v6、TreeSnapshot v4、Interaction state/protocol v5/v3、其余 owner wire与 observation wire全部不变；新增行为测试证明合法 Delegate wait 返回 `found=false`，真实 Runtime 完整 tree restore 不需要绕过错误。

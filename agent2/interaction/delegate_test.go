@@ -232,6 +232,14 @@ func TestWaitingManagedDelegateTreeRestoresWithoutRestartingChild(t *testing.T) 
 	if err != nil || !found || len(activeChildren) != 1 {
 		t.Fatalf("active Delegate children = %#v, found = %t, error = %v", activeChildren, found, err)
 	}
+	if pending, found, err := interaction.PendingToolInputFromSnapshot(rootSnapshot); err != nil || found {
+		t.Fatalf(
+			"Delegate-waiting root pending Tool input = %#v, found = %t, error = %v",
+			pending,
+			found,
+			err,
+		)
+	}
 	activeChild := activeChildren[0]
 	if !activeChild.Valid() || activeChild.ModelCallSequence() != 1 ||
 		activeChild.ToolCallIndex() != 0 || activeChild.ToolCall().ID != "call_paused" ||
