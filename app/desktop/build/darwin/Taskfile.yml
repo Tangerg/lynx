@@ -106,16 +106,21 @@ tasks:
     cmds:
       - >-
         wails3 tool package --format dmg --name "{{.APP_NAME}}" --out "{{.BIN_DIR}}"
-        --background "{{.DMG_BACKGROUND}}"
+        {{if .DMG_BACKGROUND}}--background "{{.DMG_BACKGROUND}}"{{end}}
         --volume-icon "{{.DMG_VOLUME_ICON}}"
-        --file-icon "{{.DMG_FILE_ICON}}"
+        {{if .DMG_FILE_ICON}}--file-icon "{{.DMG_FILE_ICON}}"{{end}}
         --window-width "{{.DMG_WINDOW_WIDTH}}"
         --window-height "{{.DMG_WINDOW_HEIGHT}}"
         {{if .DMG_FILES}}--files "{{.DMG_FILES}}"{{end}}
     vars:
-      DMG_BACKGROUND: '{{.DMG_BACKGROUND | default "build/darwin/dmg-background.png"}}'
+      # No default background or Finder file icon: the scaffold ships Wails-branded
+      # artwork for both, and a template's logo is not this app's. Both flags are
+      # optional, so unset means the tool's own plain treatment; pass them to use art
+      # this project actually owns. The volume icon is the real app icon, generated
+      # from build/appicon.png.
+      DMG_BACKGROUND: '{{.DMG_BACKGROUND | default ""}}'
       DMG_VOLUME_ICON: '{{.DMG_VOLUME_ICON | default "build/darwin/icons.icns"}}'
-      DMG_FILE_ICON: '{{.DMG_FILE_ICON | default "build/darwin/dmg-file-icon.icns"}}'
+      DMG_FILE_ICON: '{{.DMG_FILE_ICON | default ""}}'
       DMG_WINDOW_WIDTH: '{{.DMG_WINDOW_WIDTH | default "540"}}'
       DMG_WINDOW_HEIGHT: '{{.DMG_WINDOW_HEIGHT | default "380"}}'
       DMG_FILES: '{{.DMG_FILES | default ""}}'
