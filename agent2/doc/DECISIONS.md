@@ -2,7 +2,7 @@
 
 > 状态：持续维护
 > 建立日期：2026-08-06
-> 最后更新：2026-08-07
+> 最后更新：2026-08-09
 
 本文只记录影响长期结构的架构决策及其理由，不复述目标架构，不记录任务进度。
 
@@ -496,3 +496,13 @@
 - 决策：应用复用 tree capture 的唯一 barrier。完整 source digest 比对和每个 Process source snapshot 复验都发生在任何修改前；随后所有 projection 只暂存在对应单写者 loop 中。Engine 先把同树 child-wait registration 收敛到计划结果，再关闭一个共享 apply gate；各 loop 只安装已验证的 Framework state，终态仍走既有 finish/bookkeeping，现有 controller 与 Process handle 不替换。stale、foreign、malformed 或 stage 失败均在 gate 前返回，因此 live Framework state 零修改；跨过 gate 后即使调用 context 取消也完成有界 finalization。
 - 决策：共同 Process Snapshot v6、TreeSnapshot v4、child/framework protocol 与 Event/Delta wire 足以表达全部结果，不新增 cancellation-plan wire、第二 snapshot 版本或 Strategy 字段。quiescence 期间新到 Host context 终止只暂存在 barrier，释放后再进入原控制面，避免在 source capture 与 apply gate 之间形成隐藏第二写者。计划 API 不出现 commit、transaction、Run、Pending、checkpoint store 或 disposition。
 - 后果：根 public API/GoDoc 形成 Baseline 9；其余六个 public package 和全部 owner wire digest 不变。合同测试证明 planning 无副作用、parent-before-child 终态 cause、外部 wait 关闭、Kernel child outcome、parent pause/resume、exact live/result equality、foreign/stale rejection 零修改，以及 resulting TreeSnapshot 在新 Engine 中不接触 private Strategy state 即可恢复和继续。
+
+## ADR-A2-060：已接受准入必须以中性 start outcome 闭合
+
+- 状态：已接受；完成 P10-04，形成 Baseline 10。
+- 证据：`ProcessAdmitter` 的 durable consumer 可以先接受 prospective root/child identity，随后 `Definition.Start`、initial `Execution.Snapshot` 或 `Definition.Restore` 仍然失败。原合同只把错误返回直接调用方；child failure Signal 又故意不暴露 prospective ProcessID，best-effort Event 也没有 error/veto 通道，因此 caller 无法把“已接受但从未发布”的 identity 与精确失败闭合。把产品 Run 状态、Store transaction、reconcile callback 或 child-specific durable handle带入 Kernel 会修复症状却污染 Framework；让 Event 承担正确性又违反观察合同。
+- 决策：根公共面增加唯一 `ProcessStartOutcomeAcknowledger`，不增加 StartObserver、LifecycleHook、AdmissionPermit 或通用 callback registry。对每个返回 nil 的 `ProcessAdmitter.Admit`，Engine 在同一次 live start 中构造且只构造一个 immutable `ProcessStartOutcome`：它只包含原 `ProcessAdmission`、`ProcessStartOutcomeStatus` 和可选 Framework `Failure`。初始化及 initial capture/restore 全部完成时 status 为 `started`；任一边界失败时 status 为 `aborted` 且 Failure 使用稳定 kind/code/message。admission reject 与 tree/process restore 都不产生 outcome。
+- 决策：outcome acknowledgment 是同步 correctness boundary，不是 Event。Engine 在 admission 前为 prospective Process 建立私有 start reservation，并让 Close、duplicate identity、child key 与 tree-limit 检查看到它；外部 admitter/acknowledger 调用期间不持有 Engine lock。started outcome acknowledgment 返回 nil 是发布线性化门，随后只执行 reservation 到 controller 的无失败内部迁移并启动 loop；返回 error 或 panic 时不发布，也不再发送互相矛盾的 aborted outcome。aborted outcome acknowledgment 后始终丢弃 reservation且永不发布；ack error 与原初始化 error 一并保留。caller 可为同一 prospective identity 实现幂等 acknowledgment，但 Framework 不定义其 Store、transaction、charge、Run、lease 或 reconcile 状态。
+- 决策：`ProcessStartOutcomeAcknowledger` 只接收 detached-cancellation、保留 value 的 context，必须有界、并发安全、不得重入 Engine/Process；typed nil 和 panic 都明确拒绝或隔离。start reservation 是 Engine 私有并发状态，不进入 Snapshot/TreeSnapshot、Event、Process handle 或任何 public wire。完整 tree restore 在原子注册前同时拒绝 live Process 与 pending start identity/key 冲突。
+- 原因：准入、初始化结论与观察是三种不同职责。中性 outcome 正好补足 Framework 自己已经知道、而 caller 无法可靠推断的一项生命周期事实；reservation 保证 acknowledgement 与发布之间没有可恢复业务分支，同时没有让 Kernel 认识任何下游应用聚合。
+- 后果：根 public API/GoDoc 形成 Baseline 10；Process Snapshot v6、TreeSnapshot v4、Framework/Strategy protocol、Event/Delta wire与其余六个 public package不变。owner tests 覆盖 root/child started、root/child aborted、ack error/panic、typed nil、admission reject/restore 零 outcome、ack 前零发布、pending start 阻止 Close，以及 architecture reflection 对 outcome 私有字段的精确锁定。

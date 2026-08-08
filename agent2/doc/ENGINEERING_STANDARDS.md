@@ -2,7 +2,7 @@
 
 > 状态：强制实施基线
 > 建立日期：2026-08-06
-> 最后更新：2026-08-06
+> 最后更新：2026-08-09
 > 适用范围：`agent2` 的设计、编码、测试、评审和提交；最终替换后适用于 `agent`
 
 本文定义新 Agent Framework 应当以什么技术标准实施。它不描述目标架构、不记录 ADR、不记录进度：
@@ -177,6 +177,7 @@ Host 自有事实被销毁、回滚、替换或恢复时，Host 负责同步终�
 - Host 决定 snapshot 与应用 write-set 如何原子提交。
 - 具有外部副作用的 Action/Tool 由下游 adapter、decorator 或 middleware 实现幂等、事务和补偿。
 - Agent 可以发布中性生命周期事实，供 Host 在自身事务内投影和提交。
+- caller 若需要闭合已接受的 Process admission，只能消费 Framework 提供的中性、同步 start outcome；outcome 不得携带产品状态、存储 handle、回调能力或应用 disposition。Engine 必须在 acknowledgment 返回 nil 前保持 prospective Process 未发布，并保证 accepted admission 只产生一个 started/aborted 结论。
 - Agent 不暴露 `Transaction`、`UnitOfWork`、`IdempotencyStore` 或 `Repository` 作为 Kernel SPI。
 - Engine 可以为 Effect 生成稳定 EffectID、保证 child/wait 等 Framework 实体不重复创建，并记录自身 settlement；这不是外部系统事务或业务 exactly-once 承诺。
 - 外部 Effect 无法证明可去重时默认不自动重投；不得以 Engine 拥有稳定 ID 为由隐式 retry 模型、Tool 或 Action。
@@ -415,6 +416,7 @@ Extension 只承载可选横切行为。忽略后会破坏所有实现正确性�
 - 终态矩阵覆盖 Engine/parent/Host/Effect 取消来源、deadline、合同违约、外部失败和 panic。
 - Delta contract 覆盖 listener 失败隔离、有界缓冲、显式丢弃、恢复不补播，以及 final Output 不依赖 Delta 重建。
 - child Process 覆盖递归、预算耗尽、取消、部分失败、祖先等待拒绝和恢复去重。
+- Process admission contract 覆盖 reject 前零 Definition.Start、accepted 后 started/aborted 唯一结论、ack 前零发布、ack failure/panic、root/child 同构身份、pending start 与 Close/tree limit 的并发边界，以及 restore 零 admission/outcome。
 - 并行路径验证稳定结果顺序，并运行 race tests。
 - wire/snapshot codec 使用 golden 和 fuzz 验证严格性。
 - 错误测试使用 `errors.Is/As`，不比较脆弱完整字符串。

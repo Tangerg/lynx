@@ -39,8 +39,9 @@ func (admission ProcessAdmission) Budget() Budget { return admission.budget }
 // Capabilities returns the prospective Process's immutable authority set.
 func (admission ProcessAdmission) Capabilities() CapabilitySet { return admission.capabilities }
 
-// StartedAt returns the prospective Process start time. Once admission
-// succeeds, this exact UTC value becomes the Process lifecycle start.
+// StartedAt returns the prospective Process start time. If the accepted
+// admission concludes with a started outcome, this exact UTC value becomes the
+// Process lifecycle start.
 func (admission ProcessAdmission) StartedAt() time.Time { return admission.startedAt }
 
 // Valid reports whether the admission contains one coherent prospective
@@ -56,7 +57,7 @@ func (admission ProcessAdmission) Valid() bool {
 }
 
 // ProcessAdmitter decides whether one prospective root or child Process may
-// start. Implementations may coordinate caller-owned external admission work,
+// initialize. Implementations may coordinate caller-owned external admission work,
 // but must not create a Process, mutate the admission, or allocate Framework
 // resources. A prepared Step may replay the same child admission with the same
 // prospective Process identity after recovery.
@@ -67,7 +68,9 @@ func (admission ProcessAdmission) Valid() bool {
 // and business idempotency remain implementation responsibilities. Returning
 // an error rejects only this prospective Process. Budget allocation, capability
 // attenuation, and tree limits remain Engine invariants and cannot be changed
-// by an admitter. Restore does not repeat admission for a captured Process.
+// by an admitter. Every accepted admission concludes with exactly one
+// ProcessStartOutcome when an acknowledger is configured. Restore repeats
+// neither admission nor its outcome for a captured Process.
 type ProcessAdmitter interface {
 	Admit(ctx context.Context, admission ProcessAdmission) error
 }

@@ -233,13 +233,21 @@ func TestRestoreDoesNotReadmitPreviouslyAdmittedProcess(t *testing.T) {
 	if err := first.Close(); err != nil {
 		t.Fatal(err)
 	}
-	var calls atomic.Uint32
-	restoredEngine, err := NewEngine(EngineConfig{ProcessAdmitter: ProcessAdmitterFunc(
-		func(context.Context, ProcessAdmission) error {
-			calls.Add(1)
+	var admissionCalls atomic.Uint32
+	var outcomeCalls atomic.Uint32
+	restoredEngine, err := NewEngine(EngineConfig{
+		ProcessAdmitter: ProcessAdmitterFunc(func(context.Context, ProcessAdmission) error {
+			admissionCalls.Add(1)
 			return errors.New("live policy changed")
-		},
-	)})
+		}),
+		ProcessStartOutcomeAcknowledger: ProcessStartOutcomeAcknowledgerFunc(func(
+			context.Context,
+			ProcessStartOutcome,
+		) error {
+			outcomeCalls.Add(1)
+			return errors.New("outcome must not be requested")
+		}),
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -247,8 +255,11 @@ func TestRestoreDoesNotReadmitPreviouslyAdmittedProcess(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := calls.Load(); got != 0 {
+	if got := admissionCalls.Load(); got != 0 {
 		t.Fatalf("restore admission calls = %d, want 0", got)
+	}
+	if got := outcomeCalls.Load(); got != 0 {
+		t.Fatalf("restore outcome calls = %d, want 0", got)
 	}
 	if result := mustAwait(t, restored); result.Status() != StatusCompleted {
 		t.Fatalf("restored status = %s", result.Status())

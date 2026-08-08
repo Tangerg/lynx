@@ -2,9 +2,9 @@
 
 > 状态：持续实施
 > 建立日期：2026-08-06
-> 最后更新：2026-08-07
-> 当前阶段：P1–P9 与 ADR-A2-058 全部 Framework 合同已完成；P10/P11 App 迁移留待深度重写专项
-> 当前实施范围：仅 `agent2`；不分析或修改 `app/runtime`
+> 最后更新：2026-08-09
+> 当前阶段：P1–P9 完成；P10 4/8 完成，下一批 P10-05
+> 当前实施范围：只在 `agent2` 实施真实 Runtime consumer 证明的中性合同；App 迁移事实由 `app/runtime` 专项文档拥有
 > 临时模块路径：`github.com/Tangerg/lynx/agent2`
 > 最终模块路径：`github.com/Tangerg/lynx/agent`
 
@@ -195,14 +195,16 @@ go test ./...
 - [x] P9-05 完成独立 module、examples 和文档验证。
 - [x] P9-06 清除空目录、漂移注释、dead code、TODO 债务和兼容残留。
 
-### P10：消费迁移（后续 App 深度重写专项）
+### P10：真实消费迁移
 
 - [x] P10-01 复核 P1 只读消费审计结果与 P4 后冻结的合同，确认迁移范围没有新增应用抽象需求。
 - [x] P10-02 更新迁移决策并确认 breaking change 实施批次。
 - [x] P10-03 在 `agent2` 内完成 ADR-A2-058 的 admission/attribution、Interaction invocation/deferred manifest、Delegate causal projection 与 waiting subtree cancellation 全部 Framework 合同。
-- [ ] P10-04 后续专项将聊天路径从单 Action GOAP wrapper 迁移为 Interaction Definition。
-- [ ] P10-05 后续专项迁移其他批准的直接消费者，不修改无关前端/TUI/CLI。
-- [ ] P10-06 后续专项删除应用侧框架通用编排并完成应用门禁。
+- [x] P10-04 以 Runtime durable admission 反例补齐中性 `ProcessStartOutcome`，闭合 accepted → started/aborted，且不引入任何 App 抽象。
+- [ ] P10-05 将 waiting subtree cancellation 治本收敛为一次性 prepared capability，在 Apply/Discard 前持续冻结 source tree。
+- [ ] P10-06 由 App 专项将聊天路径从单 Action GOAP wrapper 迁移为 Interaction Definition。
+- [ ] P10-07 由 App 专项迁移其他批准的直接消费者，不修改无关前端/TUI/CLI。
+- [ ] P10-08 由 App 专项删除应用侧框架通用编排并完成应用门禁。
 
 ### P11：原模块替换（后续 App 深度重写专项）
 
@@ -257,6 +259,7 @@ go test ./...
 
 | 日期 | 阶段 | 实际事实 | 验证与结果 |
 |---|---|---|---|
+| 2026-08-09 | P10-04 | 真实 Runtime consumer 证明 admission 返回 nil 后，Definition.Start、initial Snapshot 或 Restore 仍可能失败，而 child failure Signal/Event 都无法以 prospective ProcessID 闭合已接受 identity。新增唯一 immutable `ProcessStartOutcome` 与同步 `ProcessStartOutcomeAcknowledger`：root/child accepted admission 各只产生一个 started/aborted 结论，reject/restore 零 outcome；Engine 私有 start reservation 让 acknowledgment 前零发布，并把 Close、duplicate identity、child key 与 tree limits 纳入同一并发不变量。实现审计同时把 root/child 重复的三段初始化收回唯一 Execution boundary，并把初始化 Failure code 统一为 `engine.process.*`；没有引入 Run、checkpoint、Store、transaction、lease、产品状态或 App callback | 形成 Baseline 10：root public digest `e89c1960…8589`；Process Snapshot v6、TreeSnapshot v4、Kernel/Strategy protocol、Event/Delta wire 与其余六个 public digest不变。standalone build/vet/staticcheck、完整 lint（0 issues）、禁用缓存且 shuffle 的全量普通测试/race 全绿；start-outcome contract 在 race 下连续 20 次通过；六个 root fuzz target 各运行 2 秒，共执行 168,055 次且无失败；八个公开 command consumer 全部实际运行成功。`go mod tidy -diff`、`git diff --check`、空文件/空目录、production TODO/FIXME/HACK/compat/shim 与新代码 Host 抽象扫描均为零 |
 | 2026-08-07 | 并发测试同步语义清洗 | 仅审计并修改 `agent2` 测试与架构门禁，未读取或分析 App。确认保留的两个 5 秒 `time.After` 只承担失败超时保险；移除九处依赖墙钟让出调度的 `time.Sleep`：Dispatcher 启动改为明确 channel 信号，Process 状态/unknown Effect/可恢复 tree 条件改为带 deadline 的 Process/Tree 命令栅栏，两个“尚未发生”断言改由 `testing/synctest` 证明所有 goroutine 已确定阻塞后再检查。新增递归 AST 门禁，只允许 `time.Sleep` 直接位于 `synctest.Test` fake-clock callback 内，防止重新引入真实时间并发猜测 | production、public API、owner wire、snapshot/tree schema、Event/Delta 与依赖图均未变化。`go mod tidy -diff`、standalone build/vet/staticcheck、完整 lint（0 issues）、禁用缓存且 shuffle 的全量普通测试/race 全绿；受影响的 Kernel、Interaction、Planning、Workflow 同步合同在 race 下连续 20 次通过；八个公开 command consumer 全部实际 `go run` 成功。`time.Sleep` 扫描为零，保留的 `time.After` 均为有界失败保护而非完成判定 |
 | 2026-08-07 | Baseline 9 完成性反证审计 | 完整重读六份权威文档并仅扫描 `agent2` 的公开 API、owner wire、生产依赖图、并发边界和测试证据；未读取、分析或修改 `app/runtime`。确认生产实现与 Baseline 9 合同一致，但发现 `API_BASELINE.md` 抬头及 root digest 仍停在 Baseline 8/7，且既有门禁没有约束权威文档与公开 digest 同步。现把 Baseline 版本、冻结日期与七个 public digest 提升为同一测试 owner，新增文档一致性守卫；同时补齐等待子树取消的两个反例：wait-all 尚未满足时保留 parent Waiting/active child-wait registration，Apply 在共享 gate 前收到 context cancellation 时 live tree 零修改。P10 阶段事实同步修正为 Framework 3/6 已完成，后续三项仍留给 App 深度重写专项 | public API、Process Snapshot v6、TreeSnapshot v4、Kernel/Strategy protocol、observation wire 与生产依赖图均未变化。`go mod tidy -diff`、build/vet/staticcheck、完整 lint（0 issues）、禁用缓存且 shuffle 的全量普通测试/race 全绿；两个新增 cancellation owner tests 在 race 下连续 20 次通过；13 个 fuzz target 各运行 3 秒，共执行 2,342,343 次且无失败；八个公开 command consumer 全部实际 `go run` 成功。空目录、空文件、production TODO/FIXME/HACK、兼容残留和 Baseline 旧抬头扫描为零 |
 | 2026-08-07 | P10 | 完成 ADR-A2-058 最后一个 Framework-owned 纵切面。新增 immutable WaitingSubtreeCancellationPlan 与 Engine plan/apply：完整 tree quiescent cut 只投影 Kernel lifecycle/mailbox/child-wait state，target/active descendants 保留为 host-/parent-canceled，关闭等待且不回收永久预算；稳定 ChildrenCompleted Signal 将直接父级停在消费前。计划只持有纯 value Engine identity、source root/digest、resulting TreeSnapshot 与 defensive canceled/paused IDs。Apply 在任何修改前复验完整 source 与每个 Process snapshot，先把 projection 暂存在既有单写者 loop，再经共享 gate 应用；stale/foreign/stage failure 零修改，跨 gate 后保留 Process handle并完成既有 finalization。没有读取或修改 `app/runtime`、旧 `agent`、前端、TUI 或 CLI | 形成 Baseline 9：根 public digest `53d6b5a8…07a2`；Process Snapshot v6、TreeSnapshot v4、Kernel/Strategy protocol、observation wire 与其余六个 public digest不变。合同测试证明 plan 无 live 副作用、合法 target、parent-before-child IDs/cause、外部 wait 关闭、Kernel child outcome、parent pause/resume、exact live/result equality、stale/foreign rejection 和 resulting tree 跨 Engine 恢复。`go mod tidy -diff`、build/vet/staticcheck、完整 lint（0 issues）、禁用缓存且 shuffle 的全量普通测试/race 全绿；13 个 fuzz target 各至少 5 秒，共执行 6,719,075 次。一个 5 秒 Planning fuzz 首轮在停止阶段报告 `context deadline exceeded`，同一 target 独立延长到 10 秒执行 1,585,268 次通过且无失败语料；八个公开 command consumer 全部实际 `go run` 成功 |

@@ -566,9 +566,16 @@ func (engine *Engine) registerRestoredTree(
 		if _, exists := engine.processes[process.controller.processID]; exists {
 			return ErrProcessAlreadyExists
 		}
+		if _, exists := engine.startReservations[process.controller.processID]; exists {
+			return ErrProcessAlreadyExists
+		}
 		if parentID, child := process.controller.relation.ParentID(); child {
 			key, _ := process.controller.relation.ChildKey()
-			if _, exists := engine.children[childIdentity{parent: parentID, key: key}]; exists {
+			identity := childIdentity{parent: parentID, key: key}
+			if _, exists := engine.children[identity]; exists {
+				return ErrInvalidChildStart
+			}
+			if _, exists := engine.childStartReservations[identity]; exists {
 				return ErrInvalidChildStart
 			}
 		}

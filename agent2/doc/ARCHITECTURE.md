@@ -2,7 +2,7 @@
 
 > 状态：已接受的目标设计基线
 > 建立日期：2026-08-06
-> 最后更新：2026-08-07
+> 最后更新：2026-08-09
 > 实施范围：重构期间为 `agent2`；最终替换后为唯一的 `agent`
 
 本文只定义新 Agent Framework 的定位、领域语言、边界、目标结构和不可变量，不记录阶段进度、提交或临时实施细节。
@@ -552,7 +552,11 @@ Engine 不拥有产品 Session、数据库事务、模型 catalog、价格表或
 
 EngineConfig 为每棵 root tree 冻结 Limits、TreeLimits 与最大 CapabilitySet；child 只能从父预算永久划拨并衰减能力。可选 `ProcessAdmitter` 是根与子 Process 共用的唯一启动准入合同：它读取 immutable `ProcessAdmission` 中的 ProcessRelation、exact DeploymentRef、Descriptor、Budget、CapabilitySet 与 prospective StartedAt，并以启动方的 context 返回批准或拒绝。它不能修改分配、创建 Process 或取得 Engine/Process 控制权；Engine 的预算、能力子集和树限额始终在唯一 Kernel 状态中执行。产品身份、订阅、价格与 transaction 不进入该值。
 
-准入发生在 Definition.Start 和 Process 发布之前；拒绝的 root 不启动，拒绝的 child 形成稳定 child-start failure。admitter 可以协调 caller-owned 外部准入，但必须尊重 context、保持有界和并发安全、不得重入 Engine/Process，并对同一 prospective ProcessID 的可能重放自行保证业务正确性；Framework 不因此定义 Store、transaction、charge、lease 或幂等 SPI。已经捕获的 Process 恢复其原 admission，不按当前 admitter 再判一次；撤销授权由调用方在恢复前决定或通过明确的 Process control 表达，不能让 snapshot 恢复结果依赖隐藏的实时政策。
+准入发生在 Definition.Start 和 Process 发布之前；拒绝的 root 不启动，拒绝的 child 形成稳定 child-start failure。admitter 可以协调 caller-owned 外部准入，但必须尊重 context、保持有界和并发安全、不得重入 Engine/Process，并对同一 prospective ProcessID 的可能重放自行保证业务正确性；Framework 不因此定义 Store、transaction、charge、lease 或幂等 SPI。
+
+准入成功只表示允许初始化，不代表 Process 已经发布。可选 `ProcessStartOutcomeAcknowledger` 对每个已接受 admission 接收且只接收一个中性结论：初始化与初始 snapshot 自证完成时为 `started`，任一初始化边界失败时为带稳定 `Failure` 的 `aborted`。outcome 只复用原 `ProcessAdmission`、Framework status 与 Failure；不携带产品 identity、持久化对象、应用状态或回调 capability。Engine 在内部保留 prospective start reservation：`started` 在 acknowledgment 返回 nil 后才无失败地发布；`aborted` 永不发布；acknowledgment 失败同样不发布。Event listener 没有 veto/error 通道，不能替代该同步正确性边界。
+
+已经捕获的 Process 恢复其原 admission，不按当前 admitter 再判一次，也不重放 start outcome；撤销授权由调用方在恢复前决定或通过明确的 Process control 表达，不能让 snapshot 恢复结果依赖隐藏的实时政策。
 
 ### 11.2 Platform
 
@@ -606,7 +610,7 @@ Host 负责 Store、transaction、CAS、lease、幂等、retention、产品身�
 - tree restore 先校验 root/parent/depth/ChildKey、预算总和、能力衰减、tree limits、活动 child wait 和每个精确 DeploymentRef，再原子注册完整树；任一校验或解析失败不得留下部分 Process。
 - 等待子树取消是 Kernel 自有的两步中性变换：`PlanWaitingSubtreeCancellation` 在完整 tree quiescent cut 上只生成 source identity/digest、确定 resulting TreeSnapshot、parent-before-child 的 canceled Process IDs 和需要显式继续的 paused parent IDs，不修改 live tree；`ApplyWaitingSubtreeCancellation` 只接受同一 Engine 且 source tree 未变化的计划，陈旧计划零修改失败。
 - 计划结果保留被取消 Process 及永久 child budget allocation，以 host-canceled target、parent-canceled active descendants、已关闭等待和 Kernel-owned child-completion Signal 表达事实；直接父级在消费完成 Signal 前进入 Paused。应用在同一 tree barrier 内先验证并暂存所有 Process projection，再以单一 apply gate 发布；它保留既有 Process handle，不替换 controller，不解析或修改 opaque ExecutionState，也不引入 persistence、transaction 或产品删除模型。
-- Process admission 只属于首次 root/child start；restore 不重复调用 admitter，也不把 live policy 结果写入共同 snapshot。Host 若不允许恢复，必须在调用恢复前拒绝或显式终止已恢复 Process。
+- Process admission 与其 conclusive start outcome 只属于首次 root/child start；restore 不重复调用 admitter/acknowledger，也不把 live policy 或 outcome 写入共同 snapshot。Host 若不允许恢复，必须在调用恢复前拒绝或显式终止已恢复 Process。
 - 只有在 Effect dispatch 前已向 Host 暴露 prepared snapshot 且 Host 明确认可该 durability boundary 时，Engine 才能宣称跨进程崩溃可恢复该 Effect；该握手不得演变为 Framework Store/transaction SPI。未启用该边界的运行必须诚实标记为只恢复到最后已持久化 snapshot。
 - 外部副作用用幂等键、外部事实或显式 checkpoint 协议处理，不能只靠 snapshot 猜测。
 - snapshot schema 在开发阶段直接 breaking，不保留长期 dual-read。
@@ -619,7 +623,7 @@ Host 对自身事实执行销毁、回滚、替换或恢复时，必须在自己
 
 ## 13. Extension、事件与可观测性
 
-横切替换点按真实消费位置定义一个准确的小接口，不建立通用 Extension marker、capability registry 或按运行时类型分派的 god scope。`ProcessAdmitter` 只负责启动准入；`EventListener`/`DeltaListener` 只负责观察；prepared-step acknowledgment 只负责 pre-dispatch durability handshake。它们语义不同，不合并成 Policy/Guard/Middleware 近义层。只有一个实现且没有外部替换需求的内部依赖直接使用 concrete type。
+横切替换点按真实消费位置定义一个准确的小接口，不建立通用 Extension marker、capability registry 或按运行时类型分派的 god scope。`ProcessAdmitter` 只负责启动准入；`ProcessStartOutcomeAcknowledger` 只负责接受已准入初始化的唯一 started/aborted 结论；`EventListener`/`DeltaListener` 只负责观察；prepared-step acknowledgment 只负责 pre-dispatch durability handshake。它们语义不同，不合并成 Policy/Guard/Middleware 近义层。只有一个实现且没有外部替换需求的内部依赖直接使用 concrete type。
 
 Event 描述已经发生的框架事实，不承担 Signal、命令、Transition 或产品协议。每个 Event 都携带 Process-local sequence、ProcessID、exact DeploymentRef、ProcessRelation、可选 Step/Effect identity、稳定名称、phase、OccurredAt 与独立 payload，因此 child、版本和恢复归因不依赖 Host 查询。Event 分为 attempt facts 与 committed facts：前者证明一次 Step 或 Effect 确实尝试过，后者证明 Process/Signal/Step 状态已由 Engine 提交。
 

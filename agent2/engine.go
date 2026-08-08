@@ -43,6 +43,11 @@ type EngineConfig struct {
 	// represented by the supplied Snapshot.
 	PreparedStepAcknowledger PreparedStepAcknowledger
 
+	// ProcessStartOutcomeAcknowledger enables the optional conclusive handshake
+	// after an accepted admission. A started outcome is acknowledged before
+	// Process publication; an aborted outcome guarantees no publication.
+	ProcessStartOutcomeAcknowledger ProcessStartOutcomeAcknowledger
+
 	// DeploymentResolver supplies exact Deployments requested by child Effects
 	// and tree restoration. It is unnecessary for same-Deployment recursion.
 	// Resolution is a bounded, context-free local binding lookup only; the
@@ -50,7 +55,7 @@ type EngineConfig struct {
 	DeploymentResolver DeploymentResolver
 
 	// ProcessAdmitter is the optional admission boundary immediately before any
-	// root or child Process starts. It observes immutable Framework facts and
+	// root or child Process initializes. It observes immutable Framework facts and
 	// may reject, but cannot modify resource or capability allocation.
 	ProcessAdmitter ProcessAdmitter
 
@@ -83,21 +88,24 @@ type EngineConfig struct {
 // Signal delivery, Effect dispatch, and snapshot boundaries. It contains no
 // Deployment catalog or Host persistence abstraction.
 type Engine struct {
-	identity        engineIdentity
-	acknowledger    PreparedStepAcknowledger
-	resolver        DeploymentResolver
-	admitter        ProcessAdmitter
-	observation     *observationBus
-	limits          Limits
-	treeLimits      TreeLimits
-	capabilities    CapabilitySet
-	treeOperationMu sync.Mutex
+	identity                 engineIdentity
+	acknowledger             PreparedStepAcknowledger
+	startOutcomeAcknowledger ProcessStartOutcomeAcknowledger
+	resolver                 DeploymentResolver
+	admitter                 ProcessAdmitter
+	observation              *observationBus
+	limits                   Limits
+	treeLimits               TreeLimits
+	capabilities             CapabilitySet
+	treeOperationMu          sync.Mutex
 
-	mu         sync.RWMutex
-	processes  map[ProcessID]*processController
-	children   map[childIdentity]ProcessID
-	childWaits map[WaitID]*childWaitRegistration
-	closed     bool
+	mu                     sync.RWMutex
+	processes              map[ProcessID]*processController
+	startReservations      map[ProcessID]processStartReservation
+	children               map[childIdentity]ProcessID
+	childStartReservations map[childIdentity]ProcessID
+	childWaits             map[WaitID]*childWaitRegistration
+	closed                 bool
 }
 
 // engineIdentity is an immutable, process-local capability token. It lets an
@@ -122,6 +130,9 @@ func NewEngine(config EngineConfig) (*Engine, error) {
 	}
 	if !nilOrConcrete(config.PreparedStepAcknowledger) {
 		return nil, fmt.Errorf("%w: PreparedStepAcknowledger is typed nil", ErrInvalidEngineConfig)
+	}
+	if !nilOrConcrete(config.ProcessStartOutcomeAcknowledger) {
+		return nil, fmt.Errorf("%w: ProcessStartOutcomeAcknowledger is typed nil", ErrInvalidEngineConfig)
 	}
 	if !nilOrConcrete(config.DeploymentResolver) {
 		return nil, fmt.Errorf("%w: DeploymentResolver is typed nil", ErrInvalidEngineConfig)
@@ -159,17 +170,20 @@ func NewEngine(config EngineConfig) (*Engine, error) {
 		return nil, err
 	}
 	return &Engine{
-		identity:     identity,
-		acknowledger: config.PreparedStepAcknowledger,
-		resolver:     config.DeploymentResolver,
-		admitter:     config.ProcessAdmitter,
-		observation:  newObservationBus(config.EventListeners, config.DeltaListeners, capacity),
-		limits:       limits,
-		treeLimits:   treeLimits,
-		capabilities: config.Capabilities,
-		processes:    make(map[ProcessID]*processController),
-		children:     make(map[childIdentity]ProcessID),
-		childWaits:   make(map[WaitID]*childWaitRegistration),
+		identity:                 identity,
+		acknowledger:             config.PreparedStepAcknowledger,
+		startOutcomeAcknowledger: config.ProcessStartOutcomeAcknowledger,
+		resolver:                 config.DeploymentResolver,
+		admitter:                 config.ProcessAdmitter,
+		observation:              newObservationBus(config.EventListeners, config.DeltaListeners, capacity),
+		limits:                   limits,
+		treeLimits:               treeLimits,
+		capabilities:             config.Capabilities,
+		processes:                make(map[ProcessID]*processController),
+		startReservations:        make(map[ProcessID]processStartReservation),
+		children:                 make(map[childIdentity]ProcessID),
+		childStartReservations:   make(map[childIdentity]ProcessID),
+		childWaits:               make(map[WaitID]*childWaitRegistration),
 	}, nil
 }
 
@@ -203,20 +217,20 @@ func (engine *Engine) Start(ctx context.Context, deployment Deployment, input In
 	admission := newProcessAdmission(
 		relation, deployment, budget, engine.capabilities, startedAt,
 	)
-	if err := requestProcessAdmission(ctx, engine.admitter, admission); err != nil {
+	if err := engine.reserveProcessStart(
+		relation, deployment.DeploymentRef(), engine.treeLimits, Digest{},
+	); err != nil {
 		return nil, err
 	}
-	execution, err := startExecution(deployment.Definition(), input)
-	if err != nil {
-		return nil, fmt.Errorf("agent: start Execution: %w", err)
+	if err := requestProcessAdmission(ctx, engine.admitter, admission); err != nil {
+		engine.discardProcessStartReservation(id)
+		return nil, err
 	}
-	state, err := captureExecution(execution)
+	execution, state, failure, err := initializeExecution(deployment.Definition(), input)
 	if err != nil {
-		return nil, fmt.Errorf("agent: capture initial Execution state: %w", err)
-	}
-	execution, err = restoreExecution(deployment.Definition(), state)
-	if err != nil {
-		return nil, fmt.Errorf("agent: validate initial Execution state: %w", err)
+		acknowledgeErr := engine.acknowledgeAbortedProcessOutcome(ctx, admission, failure)
+		engine.discardProcessStartReservation(id)
+		return nil, errors.Join(fmt.Errorf("agent: initialize Process: %w", err), acknowledgeErr)
 	}
 	controller := newProcessController(
 		relation, deployment.DeploymentRef(), budget, engine.capabilities,
@@ -224,9 +238,11 @@ func (engine *Engine) Start(ctx context.Context, deployment Deployment, input In
 		startedAt, StatusRunning,
 	)
 	loop := newProcessLoop(engine, controller, deployment, execution, state, startedAt, engine.limits)
-	if err := engine.register(controller); err != nil {
+	if err := engine.acknowledgeStartedProcessOutcome(ctx, admission); err != nil {
+		engine.discardProcessStartReservation(id)
 		return nil, err
 	}
+	engine.publishReservedProcess(controller)
 	go loop.run(contextOrBackground(ctx))
 	return &Process{controller: controller}, nil
 }
@@ -295,6 +311,10 @@ func (engine *Engine) Close() error {
 		engine.mu.Unlock()
 		return nil
 	}
+	if len(engine.startReservations) != 0 {
+		engine.mu.Unlock()
+		return ErrEngineHasActiveProcesses
+	}
 	for _, controller := range engine.processes {
 		if !controller.status().Terminal() {
 			engine.mu.Unlock()
@@ -316,62 +336,10 @@ func (engine *Engine) register(controller *processController) error {
 	if _, exists := engine.processes[controller.processID]; exists {
 		return ErrProcessAlreadyExists
 	}
-	engine.processes[controller.processID] = controller
-	return nil
-}
-
-func (engine *Engine) registerChild(controller *processController, requestDigest Digest) error {
-	relation := controller.relation
-	parentID, child := relation.ParentID()
-	key, keyed := relation.ChildKey()
-	if !child || !keyed || !requestDigest.Valid() {
-		return ErrInvalidProcessRelation
-	}
-	identity := childIdentity{parent: parentID, key: key}
-	engine.mu.Lock()
-	defer engine.mu.Unlock()
-	if engine.closed {
-		return ErrEngineClosed
-	}
-	if existingID, exists := engine.children[identity]; exists {
-		existing := engine.processes[existingID]
-		if existing != nil && existing.processID == controller.processID &&
-			existing.deploymentRef == controller.deploymentRef && existing.childRequestDigest == requestDigest {
-			return nil
-		}
-		return ErrInvalidChildStart
-	}
-	if _, exists := engine.processes[controller.processID]; exists {
+	if _, exists := engine.startReservations[controller.processID]; exists {
 		return ErrProcessAlreadyExists
 	}
-	if _, exists := engine.processes[parentID]; !exists {
-		return ErrInvalidProcessRelation
-	}
-	parent := engine.processes[parentID]
-	if parent == nil || controller.treeLimits != parent.treeLimits ||
-		relation.depth > controller.treeLimits.MaxDepth {
-		return ErrResourceLimitExceeded
-	}
-	var childCount, activeChildCount, treeProcessCount uint32
-	for _, existing := range engine.processes {
-		if existing.relation.rootID == relation.rootID {
-			treeProcessCount++
-		}
-		if existing.relation.parentID == parentID {
-			childCount++
-			if !existing.status().Terminal() {
-				activeChildCount++
-			}
-		}
-	}
-	if childCount >= controller.treeLimits.MaxChildren ||
-		activeChildCount >= controller.treeLimits.MaxActiveChildren ||
-		treeProcessCount >= controller.treeLimits.MaxTreeProcesses {
-		return ErrResourceLimitExceeded
-	}
-	controller.childRequestDigest = requestDigest
 	engine.processes[controller.processID] = controller
-	engine.children[identity] = controller.processID
 	return nil
 }
 

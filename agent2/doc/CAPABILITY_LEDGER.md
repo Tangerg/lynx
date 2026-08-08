@@ -2,7 +2,7 @@
 
 > 状态：持续维护的实施事实
 > 建立日期：2026-08-06
-> 最后更新：2026-08-07
+> 最后更新：2026-08-09
 
 本文只追踪旧能力是否被新 Framework 认领、归谁拥有、如何裁决和在哪一阶段验收。它不定义目标架构、不复制 ADR、不记录逐提交进度。
 
@@ -492,6 +492,7 @@
 ### 14.3 真实消费者证明的最小合同缺口
 
 - **context-aware pre-publication admission**：Runtime 必须在 child 发布和执行前，通过串行 executor stream 完成 durable child Run admission。现有 `ProcessAdmitter` 的位置、稳定 prospective ProcessID 与拒绝语义正确，但“无 context、禁止任何外部 I/O”的约束过窄。P10 只需把它修订为 context-aware、可阻塞但必须有界的 caller-owned admission；重放仍使用同一 Process identity，Framework 不定义 Store、transaction、CAS、lease、Run 或业务幂等。
+- **conclusive post-admission start outcome**：admission 已被 caller 接受后，Definition 初始化、initial capture 或 restore 仍可能失败；直接 root error、无 prospective ProcessID 的 child failure Signal和不可 veto 的 Event 都不能让 caller 可靠闭合该 identity。Framework 只需提供同构 root/child、同步且中性的 started/aborted outcome；产品状态、持久化和 reconcile 仍完全属于 consumer。
 - **model/tool invocation attribution**：Runtime 的 chat middleware、Tool decorator、approval、transcript、history partition 与 accounting 需要知道当前 ProcessRelation、EffectID、Step sequence、Interaction model-call sequence 和精确 ToolCall。该事实属于 Interaction adapter context，不应恢复 `ProcessContext` 或全局 dependency scope。Kernel `EffectRequest` 只需补齐它已拥有的 relation/exact deployment；Interaction 用不可变 context value 暴露 model/tool invocation。
 - **deferred tool advertisement**：`search_tools` 的真实语义是“工具早已冻结且可执行，只把选中的 schema 从下一模型轮开始加入 manifest”。现有 Dispatcher 每轮无条件广告全部工具，无法保留该能力。promotion 必须成为 Interaction ExecutionState 的确定状态，并随 tool settlement 提交/恢复；公开 seam 只按已绑定 deferred tool name 广告，不允许动态增加 executable authority、live registry 或 Host catalog。
 - **authoritative host observation**：Framework Delta 明确是 best-effort，不能承载 Runtime 持久 transcript。Runtime 必须在 chat/tool 调用链内同步投影模型 chunk、最终 ToolCall、Tool result 与 usage；Event/Delta 只承担 Framework lifecycle 与非权威观察。为此需要 invocation context，而不是改变 Delta 可靠性或让 listener 反向 veto Process。
@@ -508,7 +509,7 @@
 
 ### 14.5 Kernel admission 与 Effect 归因实现证据
 
-- `ProcessAdmitter` 已按 ADR-A2-058 治本修订为 context-aware 单一入口。root 与 child 都先生成 prospective ProcessID/Relation/StartedAt，再把 immutable admission 交给实现；成功后 Definition.Start、controller 和 Event 使用同一 StartedAt，拒绝仍发生在任何 Process 发布或执行之前。恢复不重复 admission，typed nil/panic/capability attenuation 规则保持不变。
+- `ProcessAdmitter` 已按 ADR-A2-058 治本修订为 context-aware 单一入口。root 与 child 都先生成 prospective ProcessID/Relation/StartedAt，再把 immutable admission 交给实现；accepted admission 只有在后续 concluded as started 时，controller 和 Event 才使用同一 StartedAt，aborted 不发布。拒绝仍发生在任何 Process 初始化或发布之前；恢复不重复 admission，typed nil/panic/capability attenuation 规则保持不变。
 - admission context 只提供取消、deadline 和 caller value 传播，不携带 Engine handle。实现可完成自身外部准入，但 contract 明确要求有界、并发安全、不重入，并自行承担同一 prospective identity 重放的业务正确性；Kernel 没有新增 persistence、transaction、charge 或 idempotency 类型。
 - `EffectRequest` 现自足携带 ProcessID、exact DeploymentRef、ProcessRelation、StepSequence、BatchIndex、EffectID 与 immutable Effect。relation 的 ProcessID 必须与请求 identity 一致；Strategy dispatcher 不再需要 god ProcessContext 或反查 Engine 才能做模型、Tool 与 tracing 归因。
 - Baseline 7 只改变根 public GoDoc/signature；Process Snapshot v6、TreeSnapshot v4、Kernel/Strategy protocol 与 Event/Delta wire 均未变化。普通测试同时证明 root/child StartedAt 精确一致、Start context 到达 admitter、拒绝前零 Definition.Start/零发布、restore 零 readmission，以及 EffectRequest attribution/Effect 防御性复制。
@@ -528,3 +529,10 @@
 - target 必须是同树非 root Waiting Process。结果保留 target 和所有既有 descendant：target 进入 host-canceled，活动 descendant 进入 parent-canceled，等待全部关闭，opaque ExecutionState 不变，永久 child budget allocation 不回收。满足边界 child wait 时，Kernel 使用稳定 WaitID 派生自己的 ChildrenCompleted Signal，直接父级在消费前进入 Paused，继续仍只走普通 `Process.Resume`。
 - Apply 在任何 live 修改前复验 same-Engine identity、完整 source digest 和每个受影响 Process source snapshot；所有 projection 先暂存在既有单写者 loop，共享 apply gate 之前的 stale/foreign/stage 失败均零修改。跨 gate 后保留原 controller/Process handle，终态继续复用既有 finish、event 与 parent/child bookkeeping；没有第二 scheduler、controller replacement、snapshot private mutation 或 Host transaction abstraction。
 - Process Snapshot v6、TreeSnapshot v4、Kernel child protocol 与 observation wire 足以表达结果，Baseline 9 只增加根 public API。owner tests 覆盖 planning 不改变 live tree、parent-before-child IDs/cause、外部 wait 关闭、child outcome、未满足 wait-all 条件时保留等待、parent pause/resume、apply gate 前取消零修改、exact result equality、stale/foreign rejection 和从 resulting TreeSnapshot 恢复继续。
+
+### 14.8 Accepted admission start outcome 实现证据
+
+- 根与 child start 共用一个 `ProcessStartOutcomeAcknowledger`。outcome 是 Engine-only constructed immutable value，私有字段精确锁定为原 `ProcessAdmission`、`ProcessStartOutcomeStatus` 与 `Failure`；没有 Run、checkpoint、Store、transaction、lease、产品 revision、应用 disposition 或 Engine/Process handle。
+- admission reject 在 Definition.Start 前结束且不产生 outcome。accepted admission 在 initial Definition.Start、Execution snapshot 与 Definition.Restore 全部自证后只提出 `started`；任一边界失败只提出带稳定 Framework Failure 的 `aborted`。restore 重放既有 Process，不重新 admission，也不产生新 start outcome。
+- Engine 的私有 start reservation 让 prospective ProcessID、child identity、tree limits 与 Close 在外部 acknowledgment 期间仍保持一致。started acknowledgment 返回 nil 后才把 reservation 无失败迁移为 published controller；error/panic 不发布且不再提出相反 outcome。aborted 无论 acknowledgment 是否成功都丢弃 reservation且永不发布。
+- owner tests 覆盖 root/child started 与 aborted、ack 前 `Engine.Process` 不可见、ack error/panic/typed nil、admission reject/restore 零 outcome、pending start 阻止 Close、failure code 和 relation/StartedAt 精确一致；architecture reflection gate 阻止 outcome 字段未来吸收 Host 抽象。Baseline 10 只改变根 public API/GoDoc，全部 snapshot、Strategy、child 与 observation wire保持不变。

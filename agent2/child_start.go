@@ -56,22 +56,30 @@ func (loop *processLoop) startChild(
 	admission := newProcessAdmission(
 		relation, deployment, spec.Budget, spec.Capabilities, startedAt,
 	)
+	if err := loop.engine.reserveProcessStart(
+		relation, deployment.DeploymentRef(), loop.treeLimits, requestDigest,
+	); err != nil {
+		if errors.Is(err, ErrResourceLimitExceeded) {
+			return failedChildStart(spec, FailureKindExecution, "engine.child.tree_limit", err)
+		}
+		if errors.Is(err, ErrEngineClosed) {
+			return failedChildStart(spec, FailureKindExternal, "engine.child.start.unavailable", err)
+		}
+		return failedChildStart(spec, FailureKindContract, "engine.child.identity_conflict", err)
+	}
 	if err := requestProcessAdmission(ctx, loop.engine.admitter, admission); err != nil {
+		loop.engine.discardProcessStartReservation(childID)
 		return failedChildStart(
 			spec, FailureKindExternal, "engine.child.admission.rejected", err,
 		)
 	}
-	execution, err := startExecution(deployment.Definition(), spec.Input)
+	execution, state, failure, err := initializeExecution(deployment.Definition(), spec.Input)
 	if err != nil {
-		return failedChildStart(spec, failureKindForError(err), "engine.child.start.failed", err)
-	}
-	state, err := captureExecution(execution)
-	if err != nil {
-		return failedChildStart(spec, failureKindForError(err), "engine.child.snapshot.failed", err)
-	}
-	execution, err = restoreExecution(deployment.Definition(), state)
-	if err != nil {
-		return failedChildStart(spec, failureKindForError(err), "engine.child.snapshot.unrestorable", err)
+		acknowledgeErr := loop.engine.acknowledgeAbortedProcessOutcome(ctx, admission, failure)
+		loop.engine.discardProcessStartReservation(childID)
+		return failedChildStart(
+			spec, failure.Kind(), failure.Code(), errors.Join(err, acknowledgeErr),
+		)
 	}
 	controller := newProcessController(
 		relation, deployment.DeploymentRef(), spec.Budget, spec.Capabilities, loop.treeLimits,
@@ -80,17 +88,13 @@ func (loop *processLoop) startChild(
 	childLoop := newProcessLoop(
 		loop.engine, controller, deployment, execution, state, startedAt, childLimits,
 	)
-	if err := loop.engine.registerChild(controller, requestDigest); err != nil {
-		if existing, exists := loop.engine.Process(childID); exists &&
-			existing.Relation() == relation && existing.DeploymentRef() == spec.DeploymentRef &&
-			existing.controller.childRequestDigest == requestDigest {
-			return ChildStartResult{key: spec.Key, processID: childID, deploymentRef: spec.DeploymentRef}
-		}
-		if errors.Is(err, ErrResourceLimitExceeded) {
-			return failedChildStart(spec, FailureKindExecution, "engine.child.tree_limit", err)
-		}
-		return failedChildStart(spec, FailureKindContract, "engine.child.register.failed", err)
+	if err := loop.engine.acknowledgeStartedProcessOutcome(ctx, admission); err != nil {
+		loop.engine.discardProcessStartReservation(childID)
+		return failedChildStart(
+			spec, FailureKindExternal, "engine.child.start_outcome.unacknowledged", err,
+		)
 	}
+	loop.engine.publishReservedProcess(controller)
 	budgetCommitted = true
 	go childLoop.run(context.Background())
 	return ChildStartResult{key: spec.Key, processID: childID, deploymentRef: spec.DeploymentRef}
