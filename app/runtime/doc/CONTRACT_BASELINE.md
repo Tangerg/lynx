@@ -1,6 +1,6 @@
 # Lyra Runtime 合同基线
 
-> 状态：P0 Baseline 0
+> 状态：P1 Architecture Baseline 1
 >
 > 基线日期：2026-08-08
 >
@@ -171,17 +171,24 @@ all rings   -/> bootstrap composition objects
 
 同一 ring 内的 package 仍必须形成 DAG；不能用同层身份为循环或 god package 辩护。
 
-## 7. 自动守卫计划
+## 7. 自动守卫
 
-P1–P10 应逐步建立：
+P1 已建立：
+
+- production target package DAG，以及会被稳定拒绝的 Delivery → Adapter 反例 fixture；
+- Agent2 importing leaf 与 imported public package 的双重 exact allowlist；
+- 旧 Agent import 的逐文件、逐数量、逐 owner 和删除阶段台账；
+- Domain、Application 与 Delivery 既有 external SDK denylist；
+- context-based Domain I/O port、`component` direct package、旧 private snapshot decoder 和旧 lifecycle owner 的精确 Temporary 台账；
+- compatibility/legacy/versioned source directory 禁令。
+
+机器 owner 是 `internal/arch/target_architecture_test.go` 与 `internal/arch/temporary_architecture_test.go`；本文件不复制易漂移的逐文件集合。
+
+P2–P10 继续逐步建立：
 
 - protocol artifact digest/drift test；
 - SQLite schema epoch 和 prior-version rejection test；
 - checkpoint envelope strict codec、size、copy、round-trip 和 prior-version rejection；
-- exact Agent2 import allowlist；
-- old Agent import monotonic-non-increase/zero guard；
-- target package DAG；
-- Domain/Application/Delivery external SDK denylist；
 - Agent2 type/name leakage AST guard；
 - no `component/common/core/utils` package guard；
 - no alias/dual codec/legacy path guard；

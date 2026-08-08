@@ -21,10 +21,10 @@ import (
 	deliveryserver "github.com/Tangerg/lynx/app/runtime/internal/delivery/server"
 )
 
-// TestDependencyRule enforces Clean Architecture's Dependency Rule for the lyra
-// module: source dependencies point INWARD, toward the domain. Outer rings may
+// TestDependencyRule enforces Clean Architecture's Dependency Rule for Runtime:
+// source dependencies point INWARD, toward Domain and Application. Outer rings may
 // depend on inner rings; the reverse — or a driven/adapter ring reaching up into
-// the composition root — is forbidden. See doc/EXECUTION_CENTERED_ARCHITECTURE.md.
+// the composition root — is forbidden. See doc/ARCHITECTURE.md §6.
 //
 // Rings (outer → inner):
 //
@@ -37,37 +37,31 @@ import (
 //	application    internal/application/**        use-case coordinators (runs / sessions / capabilities /
 //	                                              workspace / schedules) — engine- and wire-neutral
 //	infra          internal/infra/**             sqlite / git / lsp / mcp / exec — driven adapters & frameworks
-//	domain         internal/domain/**            bounded contexts: entities + repository ports + domain services
+//	domain         internal/domain/**            bounded contexts: entities, values, invariants, pure policies
 //
 // Forbidden edges (an inner ring learning about an outer one, a driven ring
 // reaching sideways/up, or anything importing the composition root):
 //
 //	domain      ↛ application, adapter, infra, delivery, composition
-//	application ↛ adapter, infra, delivery, composition   (§19: application imports no SDK/SQLite/protocol)
-//	infra       ↛ application, adapter, delivery, composition   (driven adapter: imports only domain)
+//	application ↛ adapter, infra, delivery, composition   (Application owns use cases, not implementations)
+//	infra       ↛ application, adapter, delivery, composition   (technical mechanism: imports only domain)
 //	adapter     ↛ delivery, composition
-//	delivery    ↛ infra, composition   (drives ports/adapters, never raw storage)
+//	delivery    ↛ adapter, infra, composition   (drives Application, never implementations)
 //
-// Intentionally allowed inward / hexagonal edges (EXECUTION_CENTERED_ARCHITECTURE.md §3 / §6):
+// Intentionally allowed inward / hexagonal edges (ARCHITECTURE.md §6):
 //
 //	application → domain          coordinators depend on entities + consumer-side ports
-//	adapter → domain, application capability + agent-execution adapters implement application/domain ports
+//	adapter → domain, application capability + agent-execution adapters implement application ports
 //	adapter → adapter, infra      sibling adapters compose; capability adapters wrap driven capabilities
-//	infra   → domain              driven adapters implement domain repo ports
-//	delivery → domain, application, adapter
+//	infra   → domain              technical mechanisms may use stable domain values
+//	delivery → domain, application
 //	composition → anything        the root wires every ring
 //
-// The dependency edges above are the backbone; §16's remaining rules get their
-// own dedicated tests below so each invariant is independently guarded, not left
-// to a transitive consequence: rule 2/domain-purity (incl. the internal/component
-// concurrency-primitive edge the ring rule leaves unclassified), rule 4/5/8, rule
-// 9 (application ↛ protocol, TestApplicationEventFreeOfProtocol) and rule 10
-// (protocol ↛ domain/application, TestProtocolStaysWireOnly). Rule 11's domain
-// DAG is the Go compiler's (import cycles don't build).
+// The ring rule is the backbone. Dedicated tests below cover the unclassified
+// component umbrella, framework imports, wire isolation, and semantic ownership.
+// The Go compiler enforces the remaining package DAG by rejecting import cycles.
 func TestDependencyRule(t *testing.T) {
-	const modulePath = "github.com/Tangerg/lynx/app/runtime"
 	root := moduleRoot(t)
-	fset := token.NewFileSet()
 
 	violations := 0
 	walkErr := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
@@ -96,21 +90,13 @@ func TestDependencyRule(t *testing.T) {
 			return nil // unclassified importer (e.g. a module-root helper)
 		}
 
-		f, err := parser.ParseFile(fset, path, nil, parser.ImportsOnly)
+		fileViolations, err := dependencyViolationsInFile(path, from)
 		if err != nil {
 			return err
 		}
-		for _, imp := range f.Imports {
-			ip := strings.Trim(imp.Path.Value, `"`)
-			rest, ok := strings.CutPrefix(ip, modulePath+"/")
-			if !ok {
-				continue
-			}
-			to := layerOf(rest)
-			if to != "" && forbidden(from, to) {
-				violations++
-				t.Errorf("dependency-rule violation: %s (%s) imports %s (%s)", rel, from, rest, to)
-			}
+		for _, violation := range fileViolations {
+			violations++
+			t.Errorf("dependency-rule violation: %s (%s) imports %s (%s)", rel, from, violation.importPath, violation.toRing)
 		}
 		return nil
 	})
@@ -467,7 +453,7 @@ func TestComponentStaysDomainFree(t *testing.T) {
 	forbidExternalImports(t, filepath.Join(root, "internal", "component"), []string{domainPkg})
 }
 
-// TestApplicationStaysFrameworkFree enforces §19's headline application-purity
+// TestApplicationStaysFrameworkFree enforces ARCHITECTURE.md §6.2's application-purity
 // clause directly for EXTERNAL dependencies (the ring rule already forbids the
 // internal SDK/SQLite/protocol edges): a use-case coordinator imports no agent
 // SDK, concrete chat client, SQLite driver, Git, MCP, or LSP library. Its only
@@ -521,17 +507,17 @@ func TestApplicationDoesNotInterpretAgentContinuationState(t *testing.T) {
 	}
 }
 
-// TestAgentSDKStaysBehindExecutionAdapters keeps the reusable framework at the
-// application's anti-corruption edge. agentexec translates process/runtime values;
-// toolset implements framework tool capabilities. Domain, application,
-// delivery, infrastructure, and unrelated adapters must see only application-owned
-// values and ports.
-func TestAgentSDKStaysBehindExecutionAdapters(t *testing.T) {
-	root := moduleRoot(t)
-	allowed := []string{
-		filepath.Join(root, "internal", "adapter", "agentexec"),
-		filepath.Join(root, "internal", "adapter", "toolset"),
+// TestAgent2StaysBehindAgentexec keeps the replacement framework at Runtime's
+// single anti-corruption edge. Both the importing Runtime leaf and the imported
+// Agent2 packages are explicit: widening either set requires a reviewed contract
+// decision instead of silently turning an umbrella prefix into an allowlist.
+func TestAgent2StaysBehindAgentexec(t *testing.T) {
+	const agentexecDir = "internal/adapter/agentexec"
+	allowedImports := map[string]struct{}{
+		"github.com/Tangerg/lynx/agent2":             {},
+		"github.com/Tangerg/lynx/agent2/interaction": {},
 	}
+	root := moduleRoot(t)
 	fset := token.NewFileSet()
 	walkErr := filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
 		if err != nil {
@@ -544,7 +530,7 @@ func TestAgentSDKStaysBehindExecutionAdapters(t *testing.T) {
 			}
 			return nil
 		}
-		if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+		if !strings.HasSuffix(path, ".go") {
 			return nil
 		}
 		file, err := parser.ParseFile(fset, path, nil, parser.ImportsOnly)
@@ -553,20 +539,21 @@ func TestAgentSDKStaysBehindExecutionAdapters(t *testing.T) {
 		}
 		for _, imported := range file.Imports {
 			importPath := strings.Trim(imported.Path.Value, `"`)
-			if importPath != "github.com/Tangerg/lynx/agent" &&
-				!strings.HasPrefix(importPath, "github.com/Tangerg/lynx/agent/") {
+			if importPath != "github.com/Tangerg/lynx/agent2" &&
+				!strings.HasPrefix(importPath, "github.com/Tangerg/lynx/agent2/") {
 				continue
 			}
-			contained := false
-			for _, dir := range allowed {
-				if path == dir || strings.HasPrefix(path, dir+string(filepath.Separator)) {
-					contained = true
-					break
-				}
+			relativePath, relErr := filepath.Rel(root, path)
+			if relErr != nil {
+				return relErr
 			}
-			if !contained {
-				relativePath, _ := filepath.Rel(root, path)
-				t.Errorf("Agent SDK import escaped execution adapters: %s imports %q", relativePath, importPath)
+			relativePath = filepath.ToSlash(relativePath)
+			relativeDir := filepath.ToSlash(filepath.Dir(relativePath))
+			if relativeDir != agentexecDir && !strings.HasPrefix(relativeDir, agentexecDir+"/") {
+				t.Errorf("Agent2 import escaped %s: %s imports %q", agentexecDir, relativePath, importPath)
+			}
+			if _, allowed := allowedImports[importPath]; !allowed {
+				t.Errorf("unreviewed Agent2 package import: %s imports %q", relativePath, importPath)
 			}
 		}
 		return nil
@@ -576,8 +563,8 @@ func TestAgentSDKStaysBehindExecutionAdapters(t *testing.T) {
 	}
 }
 
-// TestExecutionDomainStaysPure enforces §16 rule 2: the core execution context
-// (domain/execution + its sub-contexts) is the innermost, most-protected code —
+// TestExecutionDomainStaysPure protects the current execution bounded context.
+// Domain/execution and its sub-contexts are the innermost, most-protected code:
 // it must not touch the filesystem, a SQL driver, HTTP, OTel, the agent SDK, or a
 // concurrency/wiring primitive (internal/component/*). (The accounting sub-context
 // maps the SDK's token counts at the agentexec boundary, so it holds only the
@@ -590,11 +577,11 @@ func TestExecutionDomainStaysPure(t *testing.T) {
 		[]string{"os", "database/sql", "net", "net/http", "go.opentelemetry.io", "github.com/Tangerg/lynx/agent", componentPkg})
 }
 
-// TestDeliveryStaysAdapterOnly enforces §16 rule 4: delivery drives ports, so it
-// imports no agent SDK / SQLite driver / Git / MCP / LSP library directly (the
+// TestDeliveryStaysFrameworkFree keeps Delivery free of external implementation
+// packages: no agent SDK, SQLite driver, Git, MCP, or LSP library directly (the
 // ring rule already forbids the internal infra edge; this covers the EXTERNAL
 // libraries). net/http is NOT banned — it is delivery's own transport.
-func TestDeliveryStaysAdapterOnly(t *testing.T) {
+func TestDeliveryStaysFrameworkFree(t *testing.T) {
 	root := moduleRoot(t)
 	forbidExternalImports(t, filepath.Join(root, "internal", "delivery"), externalSDKs)
 }
@@ -2089,8 +2076,8 @@ func forbidden(from, to string) bool {
 	case ringApplication:
 		return to != ringDomain && to != ringApplication
 	case ringInfra:
-		// A driven adapter implements domain ports; it must never reach out to
-		// application, sibling adapters, delivery, or the composition root.
+		// Infra is a reusable technical mechanism. I/O consumer ports belong to
+		// Application and are translated by Adapter, so Infra never reaches either.
 		return to != ringDomain && to != ringInfra
 	case ringAdapter:
 		// Adapters implement domain/application ports and wrap infra; they must
@@ -2098,9 +2085,9 @@ func forbidden(from, to string) bool {
 		// let assembly logic hide inside a capability adapter).
 		return to == ringDelivery || to == ringComposition
 	case ringDelivery:
-		// Delivery drives coordinators + adapters through ports; it never touches
-		// raw storage (infra) or imports the root that wires it.
-		return to == ringInfra || to == ringComposition
+		// Delivery drives Application use cases and projects domain values. It
+		// never reaches a concrete Adapter, raw Infra, or the composition root.
+		return to == ringAdapter || to == ringInfra || to == ringComposition
 	default: // composition imports anything inward
 		return false
 	}

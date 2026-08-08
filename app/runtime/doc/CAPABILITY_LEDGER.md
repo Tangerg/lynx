@@ -20,11 +20,11 @@
 
 ### 2.1 规模与依赖
 
-- `app/runtime/internal` 当前有 951 个 Go 文件；
+- `app/runtime/internal` 当前有 954 个 Go 文件（含 P1 architecture tests 与反例 fixture）；
 - `adapter/agentexec` 有 103 个 Go 文件，`adapter/toolset` 有 68 个；
-- 54 个 Runtime Go 文件直接 import 旧 `github.com/Tangerg/lynx/agent`；
+- 53 个 Runtime Go 文件存在旧 `github.com/Tangerg/lynx/agent` import declaration，共 88 条；P0 的 54 文件文本命中包含了 architecture guard 自身的字符串，P1 已改用 AST 精确盘点；
 - 其中 39 个位于 `adapter/agentexec`，9 个位于 `adapter/toolset`；
-- 剩余 direct imports 位于 runsegment tests、bootstrap tests 和 architecture tests；
+- 剩余 direct imports 位于 runsegment tests 与 bootstrap tests；
 - `app/runtime/go.mod` 仍依赖旧 `agent`，生产代码尚未 import `agent2`；
 - Domain、Application 和 Delivery 生产代码目前对旧 Agent Framework 零 import；
 - 当前 Agent dependency 已经主要集中在执行防腐层，这是原位重构而非完整 runtime2 的关键依据。
@@ -35,11 +35,11 @@
 |---|---|---|---|
 | Run lifecycle | `application/runs` 拥有 start、pump、waiting、cancel、terminal ordering | Retain + Refactor ports | P2–P3 |
 | Session lifecycle | 独立 application/domain，拥有 workspace/admission 产品语义 | Retain | P2/P8 |
-| Domain framework isolation | 已有 architecture tests 强制 Domain/Application framework-free | Retain + strengthen | P1 |
+| Domain framework isolation | P1 已冻结 Target DAG，并把十个 context-based Domain I/O port 锁进逐项 P2 删除台账 | Retain + strengthen | P1 已完成；P2 删除例外 |
 | Agent anti-corruption | 已集中于 `adapter/agentexec`，但内部复制旧 Framework lifecycle | Rewrite | P4–P7 |
-| Delivery separation | protocol/dispatch/server/transport 已有不同职责 | Retain + naming audit | P9–P10 |
+| Delivery separation | P1 起 target DAG 禁止 Delivery import 任意 concrete Adapter；protocol/dispatch/server/transport 继续按现有职责迁移 | Retain + naming audit | P1 guard；P9–P10 收口 |
 | Adapter/Infra direction | 当前主要为 Adapter 使用 Infra，Infra 不反向 import Adapter | Retain + package audit | P9 |
-| Component primitives | completion/keyset/taskgroup 等已有真实消费者，但 umbrella 名过宽 | Refactor ownership | P9 |
+| Component primitives | 十个 direct package 已由 P1 exact ledger 锁定，不能新增；umbrella 名仍过宽 | Refactor ownership | P9 |
 | Contract generation | `contract/` 已生成 manifest/OpenRPC/schema/TypeScript | Retain | P10 |
 | SQLite exact epoch | 单一 schema epoch，无生产 migration chain | Retain | P8/P10 |
 

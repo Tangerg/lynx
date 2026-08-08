@@ -1,6 +1,6 @@
 # Lyra Runtime 重构实施计划
 
-> 状态：P0 设计基线已完成；生产实现尚未授权开始
+> 状态：P1 目标依赖 DAG 与迁移守卫已完成；下一阶段 P2
 >
 > 工作方式：原模块内治本重构，按可验证纵切分批完成；不创建完整 `runtime2`
 
@@ -8,14 +8,14 @@
 
 ## 1. 当前授权范围
 
-当前轮次只允许：
+当前实施 goal 已授权：
 
-- 读取并审计 `app/runtime`、旧 `agent` 和 `agent2` 的相关代码与文档；
-- 建立 Runtime 重构文档基线；
-- 更新 Runtime 文档入口和状态说明；
-- 校验文档链接、事实、一致性和工作区无生产代码改动。
+- 严格按本文 P1–P12 的依赖顺序重构 `app/runtime`；
+- 每完成一个可独立验收批次，同步本计划和 Capability Ledger，统一验证、提交并推送；
+- 允许服务端内部与 Runtime Protocol breaking change，不建立兼容路径；
+- 读取旧 `agent` 与 `agent2` 作为实现证据，但 Runtime 对 Framework 只依赖 Agent2 公共合同。
 
-当前轮次不允许开始生产实现、调整协议 shape、修改数据库 schema、切换 Bootstrap 或接线前端/TUI/CLI。实现必须由后续独立 goal 明确启动。
+本 goal 不修改前端、TUI、CLI，也不为它们保留兼容字段；消费端接线在服务端完成后专项处理。跨出 `app/runtime` 的 Framework 合同变化仍需单独满足 P7 的证据与授权约束，不能在 Runtime 内伪造替代合同。
 
 ## 2. 全程约束
 
@@ -33,7 +33,7 @@
 | 阶段 | 目标 | 依赖 | 状态 |
 |---|---|---|---|
 | P0 | 文档、事实和边界基线 | 无 | 已完成 |
-| P1 | 目标依赖 DAG 与迁移守卫 | P0 | 未开始 |
+| P1 | 目标依赖 DAG 与迁移守卫 | P0 | 已完成 |
 | P2 | Run 领域语言与 bounded contexts | P1 | 未开始 |
 | P3 | Application root use cases 与候选消费端口 | P2 | 未开始 |
 | P4 | 原生 Interaction 的 root 纵切 | P3 | 未开始 |
@@ -378,9 +378,8 @@
 |---|---|---|---|
 | 2026-08-08 | P0 | 只读盘点 Runtime 当前 package、旧 Agent import、Agent2 Baseline 9、协议制品与 SQLite schema epoch；确认选择原模块内局部绿色重写，不创建 runtime2 | 生产代码未修改；事实写入 Capability Ledger 与 Contract Baseline |
 | 2026-08-08 | P0 | 建立并交叉收口六份核心文档，冻结 DDD/Clean Architecture 边界、Agent2 防腐合同、P1–P12 依赖、parallel harness/P8 cutover、恢复与副作用失败语义；识别并裁决 P7 两项 Agent2 中性前置合同 | 独立 Go spec review 结论 Approved/Ready；本 goal 未修改生产代码；本地链接检查与 `git diff --check` 通过 |
+| 2026-08-08 | P1 | 冻结目标六环 DAG；Delivery 开始禁止 concrete Adapter；Agent2 只允许从 `adapter/agentexec` 导入两个已批准 public package；旧 Agent import、Domain context I/O ports、`component` umbrella、旧 private snapshot decoder 和唯一旧 lifecycle owner 全部进入精确 Temporary 台账 | 错误 Delivery→Adapter fixture 被稳定拒绝；`go test ./...`、`go vet ./...`、`go build ./...` 通过 |
 
 ## 18. 当前下一步
 
-P0 已完成并在此停止。本轮不开始 P1。
-
-后续由用户显式创建新的实施 goal，再从 P1 目标架构守卫开始；每完成一批，更新本文件和 Capability Ledger，提交并推送。
+P1 已完成。下一批从 P2 的 `domain/execution` → `domain/run` 一次性统一语言开始，并把当前十个 context-based Domain I/O port 归还 Application consumer。
