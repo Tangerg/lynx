@@ -116,7 +116,7 @@ func (state executionState) Validate(definition *Definition) error {
 		}
 	case phaseAwaitingTools, phaseAwaitingWaitID, phaseWaitingInput,
 		phaseAwaitingDelegateStarts, phaseAwaitingDelegateWaitID, phaseWaitingDelegates:
-		calls, err := state.validatePendingBatch(definition)
+		calls, err := state.validatePendingBatch()
 		if err != nil {
 			return err
 		}
@@ -264,7 +264,7 @@ func (state executionState) hasPendingBatch() bool {
 		state.DelegateSegment != nil
 }
 
-func (state executionState) validatePendingBatch(definition *Definition) ([]chat.ToolCall, error) {
+func (state executionState) validatePendingBatch() ([]chat.ToolCall, error) {
 	if state.PendingModelResponse == nil || state.FinalOutput != nil || state.ModelCallCount == 0 {
 		return nil, fmt.Errorf("%w: active call phase requires a model response", ErrInvalidExecutionState)
 	}
@@ -342,6 +342,43 @@ func (state executionState) validatePendingToolInput() error {
 		return err
 	}
 	return state.ToolCheckpoint.validate(calls[state.NextToolCallIndex:state.ActiveToolCallEndIndex])
+}
+
+func (state executionState) activeDelegateCalls() ([]chat.ToolCall, error) {
+	if state.Phase != phaseAwaitingDelegateStarts &&
+		state.Phase != phaseAwaitingDelegateWaitID &&
+		state.Phase != phaseWaitingDelegates ||
+		state.WorkingContext == nil || state.ModelCallCount == 0 ||
+		state.FinalOutput != nil || state.ToolCheckpoint != nil || state.DelegateSegment == nil {
+		return nil, ErrInvalidExecutionState
+	}
+	if err := state.WorkingContext.Validate(); err != nil || len(state.WorkingContext.Tools) != 0 {
+		return nil, ErrInvalidExecutionState
+	}
+	if len(state.SteeringMessages) > 0 {
+		if err := validateSteeringMessages(state.SteeringMessages); err != nil {
+			return nil, err
+		}
+	}
+	calls, err := state.validatePendingBatch()
+	if err != nil {
+		return nil, err
+	}
+	active := calls[state.NextToolCallIndex:state.ActiveToolCallEndIndex]
+	if err := state.DelegateSegment.validate(state.Phase, active); err != nil {
+		return nil, err
+	}
+	switch state.Phase {
+	case phaseAwaitingDelegateStarts, phaseAwaitingDelegateWaitID:
+		if state.WaitID != nil {
+			return nil, ErrInvalidExecutionState
+		}
+	case phaseWaitingDelegates:
+		if state.WaitID == nil || !state.WaitID.Valid() {
+			return nil, ErrInvalidExecutionState
+		}
+	}
+	return active, nil
 }
 
 func cloneMessages(messages []chat.Message) []chat.Message {

@@ -536,3 +536,9 @@
 - admission reject 在 Definition.Start 前结束且不产生 outcome。accepted admission 在 initial Definition.Start、Execution snapshot 与 Definition.Restore 全部自证后只提出 `started`；任一边界失败只提出带稳定 Framework Failure 的 `aborted`。restore 重放既有 Process，不重新 admission，也不产生新 start outcome。
 - Engine 的私有 start reservation 让 prospective ProcessID、child identity、tree limits 与 Close 在外部 acknowledgment 期间仍保持一致。started acknowledgment 返回 nil 后才把 reservation 无失败迁移为 published controller；error/panic 不发布且不再提出相反 outcome。aborted 无论 acknowledgment 是否成功都丢弃 reservation且永不发布。
 - owner tests 覆盖 root/child started 与 aborted、ack 前 `Engine.Process` 不可见、ack error/panic/typed nil、admission reject/restore 零 outcome、pending start 阻止 Close、failure code 和 relation/StartedAt 精确一致；architecture reflection gate 阻止 outcome 字段未来吸收 Host 抽象。Baseline 10 只改变根 public API/GoDoc，全部 snapshot、Strategy、child 与 observation wire保持不变。
+
+### 14.9 Interaction Delegate 恢复归因实现证据
+
+- Runtime 的完整 tree restore 需要重建已存在 child Process 与原始模型 Delegate ToolCall 的观察归因；该事实来自 Interaction committed state，不属于 Kernel，也不能由 Host checkpoint 复制为第二真相源。
+- `ActiveDelegateChildrenFromSnapshot` 只在 Interaction package 解释自己的 opaque state，返回 immutable `ActiveDelegateChild`：ModelCallSequence、ToolCallIndex、ToolCall、ChildKey、ProcessID。它不包含 Run、Segment、Store、transaction、checkpoint、lease、产品状态、Engine handle 或应用 callback。
+- helper 复验 active Delegate phase、WorkingContext、ToolCall cursor、settled prefix、Delegate segment、WaitID 和 `DelegateChildKey`；非 Interaction/无 active segment 返回未找到，畸形 Strategy state 明确失败。Kernel Snapshot/TreeSnapshot 与全部 owner wire不变，Baseline 12 只改变 Interaction public API。

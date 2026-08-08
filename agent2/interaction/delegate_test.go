@@ -221,6 +221,23 @@ func TestWaitingManagedDelegateTreeRestoresWithoutRestartingChild(t *testing.T) 
 		t.Fatal(err)
 	}
 	tree, childID := awaitWaitingDelegateTree(t, engine, root.ID())
+	var rootSnapshot agent.Snapshot
+	for _, snapshot := range tree.ProcessSnapshots() {
+		if snapshot.Relation().IsRoot() {
+			rootSnapshot = snapshot
+			break
+		}
+	}
+	activeChildren, found, err := interaction.ActiveDelegateChildrenFromSnapshot(rootSnapshot)
+	if err != nil || !found || len(activeChildren) != 1 {
+		t.Fatalf("active Delegate children = %#v, found = %t, error = %v", activeChildren, found, err)
+	}
+	activeChild := activeChildren[0]
+	if !activeChild.Valid() || activeChild.ModelCallSequence() != 1 ||
+		activeChild.ToolCallIndex() != 0 || activeChild.ToolCall().ID != "call_paused" ||
+		activeChild.ChildKey().String() == "" || activeChild.ProcessID() != childID {
+		t.Fatalf("active Delegate child = %#v", activeChild)
+	}
 	if err := root.Kill(context.Background(), "replace captured Delegate tree"); err != nil {
 		t.Fatal(err)
 	}
