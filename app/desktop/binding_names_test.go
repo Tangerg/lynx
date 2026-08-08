@@ -24,7 +24,7 @@ const hostPackage = "main"
 // binary never registers. Verified in both directions with a minimal module: `go build`
 // yields "main", `go test` yields the module path.
 func TestDesktopHostMethodNamesMatchTheFrontend(t *testing.T) {
-	hostType := reflect.TypeOf(&DesktopHost{})
+	hostType := reflect.TypeFor[*DesktopHost]()
 
 	source, err := os.ReadFile("frontend/src/rpc/desktopHost.ts")
 	if err != nil {

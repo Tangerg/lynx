@@ -46,9 +46,19 @@ tasks:
       GOOS: darwin
       CGO_ENABLED: 1
       GOARCH: '{{.ARCH | default ARCH}}'
-      CGO_CFLAGS: "-mmacosx-version-min=12.0"
-      CGO_LDFLAGS: "-mmacosx-version-min=12.0"
-      MACOSX_DEPLOYMENT_TARGET: "12.0"
+      # 10.13, not the 12.0 the scaffold ships, because that is the floor the framework
+      # itself declares (every wails/v3 darwin file carries
+      # `-mmacosx-version-min=10.13`). Asking for 12.0 while the framework asks for 10.13
+      # is what made every build print twenty `ld: warning: object file ... was built for
+      # newer 'macOS' version (26.0) than being linked (11.0)` lines: on arm64 the link
+      # target is clamped to 11.0, and Go compiles its own cgo support objects with
+      # whatever CGO_CFLAGS says — 12.0 exceeds the link, so each one warns. Matching the
+      # framework makes them agree, and it lowers what the compiler may assume rather
+      # than what the app requires: the real runtime floor is the plist's
+      # LSMinimumSystemVersion and, on Apple silicon, 11.0 regardless.
+      CGO_CFLAGS: "-mmacosx-version-min=10.13"
+      CGO_LDFLAGS: "-mmacosx-version-min=10.13"
+      MACOSX_DEPLOYMENT_TARGET: "10.13"
 
 
   build:universal:

@@ -1,8 +1,18 @@
 package main
 
 /*
-#cgo CFLAGS: -x objective-c
-#cgo LDFLAGS: -framework Cocoa
+// 10.13 is the floor every wails/v3 darwin file declares, and this states the same one
+// for ours. Left unset, this file's objects are compiled against the host SDK while the
+// link target is clamped to arm64's 11.0, and each mismatched object costs an `ld:
+// warning: object file ... was built for newer 'macOS' version` line.
+//
+// It fixes this file's three objects and no more. Go compiles its own cgo support objects
+// with whatever CGO_CFLAGS says, which no `#cgo` directive can reach — so `wails3 task
+// build` is silent (build/darwin/Taskfile.yml sets the same floor build-wide, which is
+// the whole of that fix) while a bare `go build` still prints seventeen. Worth knowing
+// before going looking: nothing is wrong with the tree when it does.
+#cgo CFLAGS: -mmacosx-version-min=10.13 -x objective-c
+#cgo LDFLAGS: -framework Cocoa -mmacosx-version-min=10.13
 #import <Cocoa/Cocoa.h>
 
 typedef struct {
