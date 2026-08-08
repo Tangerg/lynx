@@ -4,13 +4,15 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/codeintel"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/persistence"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/approvals"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/codebase"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/goals"
 	mcpapp "github.com/Tangerg/lynx/app/runtime/internal/application/mcp"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/models"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/codebaseindex"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/mcp"
 	sqlitestore "github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 )
@@ -107,19 +109,19 @@ type Config struct {
 	// ExecutorCheckpoints stores the opaque, root-owned executor continuation
 	// referenced by a parked interrupt. Required so lifecycle write-sets can save
 	// or remove that continuation atomically without interpreting its payload.
-	ExecutorCheckpoints *sqlitestore.ExecutorCheckpointStore
+	ExecutorCheckpoints *persistence.ExecutorCheckpointStore
 
 	// WorkspaceMutationStore is the §8.5 recoverable operation log for file
 	// rollbacks: the intent recorded before a working-tree + history rollback and
 	// cleared once both commit, so a crash is re-driven at boot. nil disables the
 	// log (rollback runs best-effort). The composition root injects the
 	// sqlite-backed store.
-	WorkspaceMutationStore *sqlitestore.WorkspaceMutationStore
+	WorkspaceMutationStore *persistence.WorkspaceMutationStore
 
 	// InterruptStore records open HITL interrupts (R-model resume discovery).
 	// Required; injected sqlite-backed, same as SessionStore (concrete for the
 	// same single-backend / composition-ring reason).
-	InterruptStore *sqlitestore.InterruptStore
+	InterruptStore *persistence.InterruptStore
 
 	// TranscriptStore persists the durable Item history that items.list is
 	// served from (authoritative completed Items + their RunRefs). Required;
@@ -133,7 +135,7 @@ type Config struct {
 	// ProviderRegistry is the runtime-mutable provider registry (per-provider
 	// credentials, persisted). Required; the composition root injects the
 	// sqlite-backed registry and seeds the configured provider into it.
-	ProviderRegistry provider.Registry
+	ProviderRegistry models.ProviderRegistry
 
 	// PlanStore persists per-session plan lists for the set_plan tool.
 	// Optional; nil disables the feature (no tool, no prompt injection). The
@@ -143,7 +145,7 @@ type Config struct {
 	// PermissionModeStore persists session-scoped Plan-mode entry and the exact
 	// permission mode restored on exit. Optional only for tests that do not expose
 	// Plan-mode tools; product composition always supplies SQLite.
-	PermissionModeStore approval.ModeStore
+	PermissionModeStore approvals.ModeStore
 
 	// GoalStore persists per-session autonomous goals (Goal mode). Optional; nil
 	// disables the feature (no Goal tools; goals.* report
@@ -212,7 +214,7 @@ type Config struct {
 	// persists the index itself; nil disables the @codebase feature entirely
 	// (no tool, no RPC). The composition root injects the sqlite-backed stores.
 	EmbeddingRoleStore EmbeddingRoleStore
-	CodebaseStore      codebaseindex.Store
+	CodebaseStore      codebase.Store
 
 	// ToolResultStore persists tool-result bodies offloaded on context eviction
 	// (read back by read_tool_result). Injected sqlite-backed for the same

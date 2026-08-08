@@ -8,8 +8,9 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
 // withClientCapabilities builds the request context a client's `_meta` produces.
@@ -137,7 +138,7 @@ func TestNegotiationDeclinedFeatureIsNotARefusal(t *testing.T) {
 	if capabilities.ChildRuns {
 		t.Fatal("declined subagents unexpectedly enabled child runs")
 	}
-	want := []execution.InterruptKind{execution.ApprovalInterrupt, execution.QuestionInterrupt}
+	want := []interrupt.Kind{interrupt.Approval, interrupt.Question}
 	if len(capabilities.InterruptKinds) != len(want) {
 		t.Fatalf("interruptKinds = %v, want %v", capabilities.InterruptKinds, want)
 	}
@@ -183,14 +184,14 @@ func TestResumeRunRefusesACallerThatCannotFollowTheRun(t *testing.T) {
 		"process_parked",
 		[]transcript.Interrupt{{
 			ItemID:   "item_1",
-			Kind:     execution.ApprovalInterrupt,
+			Kind:     interrupt.Approval,
 			Approval: &transcript.Approval{Tool: transcript.ToolInvocation{Name: "shell"}, Risk: "medium"},
 		}},
 		time.Unix(1, 0).UTC(),
 	)
 	pending.Continuations[0].ModelSelection = mustResumeSelection(t, "openai", "gpt")
-	pending.Capabilities = execution.RunCapabilities{
-		InterruptKinds: []execution.InterruptKind{execution.ApprovalInterrupt, execution.QuestionInterrupt},
+	pending.Capabilities = run.RunCapabilities{
+		InterruptKinds: []interrupt.Kind{interrupt.Approval, interrupt.Question},
 	}
 	if err := rt.interrupts.Open(ctx, pending); err != nil {
 		t.Fatalf("seed interrupt: %v", err)

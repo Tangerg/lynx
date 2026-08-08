@@ -94,7 +94,7 @@ func TestProtocolLifecycleSurvivesColdRestart(t *testing.T) {
 		RootRunID: started.RunID,
 	})
 	if err != nil {
-		t.Fatalf("interrupts.list: %v", err)
+		t.Fatalf("interrupt.list: %v", err)
 	}
 	if len(pending.Data) != 1 || len(pending.Data[0].Interrupts) != 1 {
 		t.Fatalf("pending interrupts = %+v, want one complete set with one interrupt", pending.Data)

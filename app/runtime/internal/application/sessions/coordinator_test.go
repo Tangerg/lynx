@@ -8,13 +8,14 @@ import (
 
 	"github.com/Tangerg/lynx/core/chat"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
 func TestClaimIdleSessionHoldsAndReleasesSession(t *testing.T) {
-	stores := coordinatorStores{interrupts: &coordinatorInterrupts{pending: map[string]interrupts.Pending{}}}
+	stores := coordinatorStores{interrupts: &coordinatorInterrupts{pending: map[string]runs.Pending{}}}
 	claimer := &testClaimer{}
 
 	admission, err := newCoordinatorWithAdmissions(stores, nil, claimer).ClaimIdleSession(context.Background(), "ses_1")
@@ -42,7 +43,7 @@ func TestClaimIdleSessionHoldsAndReleasesSession(t *testing.T) {
 func TestClaimIdleSessionRejectsOpenInterrupt(t *testing.T) {
 	stores := coordinatorStores{
 		interrupts: &coordinatorInterrupts{
-			pending: map[string]interrupts.Pending{
+			pending: map[string]runs.Pending{
 				"run_1": {RootRunID: "run_1", SessionID: "ses_1"},
 			},
 		},
@@ -62,7 +63,7 @@ func TestClaimIdleSessionRejectsOpenInterrupt(t *testing.T) {
 }
 
 func TestClaimIdleSessionRejectsActiveClaim(t *testing.T) {
-	stores := coordinatorStores{interrupts: &coordinatorInterrupts{pending: map[string]interrupts.Pending{}}}
+	stores := coordinatorStores{interrupts: &coordinatorInterrupts{pending: map[string]runs.Pending{}}}
 	claimer := &testClaimer{claimed: map[string]bool{"ses_1": true}}
 
 	_, err := newCoordinatorWithAdmissions(stores, nil, claimer).ClaimIdleSession(context.Background(), "ses_1")
@@ -77,7 +78,7 @@ func TestClaimIdleSessionRejectsActiveClaim(t *testing.T) {
 func TestClaimSessionMutationAllowsOpenInterrupt(t *testing.T) {
 	stores := coordinatorStores{
 		interrupts: &coordinatorInterrupts{
-			pending: map[string]interrupts.Pending{
+			pending: map[string]runs.Pending{
 				"run_1": {RootRunID: "run_1", SessionID: "ses_1"},
 			},
 		},
@@ -100,20 +101,20 @@ func TestApplyRunCancelProjectsTerminalTranscript(t *testing.T) {
 	question := &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Continue?"}}}
 	var applied TerminalPlan
 	stores := coordinatorStores{
-		interrupts: &coordinatorInterrupts{pending: map[string]interrupts.Pending{
+		interrupts: &coordinatorInterrupts{pending: map[string]runs.Pending{
 			"run_1": {
 				RootRunID: "run_1", SessionID: "ses_1", ExecutorID: "turn_1",
-				Capabilities: execution.RunCapabilities{
-					InterruptKinds: []execution.InterruptKind{execution.QuestionInterrupt},
+				Capabilities: run.RunCapabilities{
+					InterruptKinds: []interrupt.Kind{interrupt.Question},
 				},
 				Interrupts: []transcript.Interrupt{{
 					ItemID: "item_1", ItemOccurredAt: createdAt,
-					RunID: "run_1", Kind: execution.QuestionInterrupt, Question: question,
+					RunID: "run_1", Kind: interrupt.Question, Question: question,
 				}},
-				Suspensions: []interrupts.SuspensionBinding{{
+				Suspensions: []runs.SuspensionBinding{{
 					InterruptItemID: "item_1", ProcessID: "proc_1", SuspensionID: "suspension_1",
 				}},
-				Continuations: []interrupts.Continuation{{
+				Continuations: []runs.Continuation{{
 					RunID: "run_1", ProcessID: "proc_1", RunCreatedAt: createdAt,
 				}},
 				CreatedAt: createdAt.Add(time.Second),
@@ -122,11 +123,11 @@ func TestApplyRunCancelProjectsTerminalTranscript(t *testing.T) {
 		snapshot: Snapshot{
 			Messages: []chat.Message{chat.NewUserMessage(chat.NewTextPart("hello")), chat.NewAssistantMessage(chat.NewTextPart("hi"))},
 			Runs: []transcript.Run{{
-				ID: "run_1", SessionID: "ses_1", State: execution.Interrupted,
-				Capabilities: execution.RunCapabilities{
-					InterruptKinds: []execution.InterruptKind{execution.QuestionInterrupt},
+				ID: "run_1", SessionID: "ses_1", State: run.Waiting,
+				Capabilities: run.RunCapabilities{
+					InterruptKinds: []interrupt.Kind{interrupt.Question},
 				},
-				Interrupts: []transcript.Interrupt{{ItemID: "item_1", ItemOccurredAt: createdAt, Kind: execution.QuestionInterrupt}},
+				Interrupts: []transcript.Interrupt{{ItemID: "item_1", ItemOccurredAt: createdAt, Kind: interrupt.Question}},
 				CreatedAt:  createdAt, MessageMark: -1,
 			}},
 			Items: []transcript.Item{{
@@ -142,14 +143,14 @@ func TestApplyRunCancelProjectsTerminalTranscript(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ApplyRunCancel: %v", err)
 	}
-	if terminal.ID != "run_1" || terminal.State != execution.Canceled {
+	if terminal.ID != "run_1" || terminal.State != run.Canceled {
 		t.Fatalf("returned terminal run = %+v, want canceled run_1", terminal)
 	}
 	appliedRoot, ok := applied.RootRun()
 	if !ok {
 		t.Fatal("terminal plan has no root Run")
 	}
-	if appliedRoot.State != execution.Canceled || appliedRoot.Outcome == nil || *appliedRoot.Outcome != execution.OutcomeCanceled {
+	if appliedRoot.State != run.Canceled || appliedRoot.Outcome == nil || *appliedRoot.Outcome != run.OutcomeCanceled {
 		t.Fatalf("terminal Run = %+v, want canceled", appliedRoot)
 	}
 	if appliedRoot.Detail != "user stopped" || !appliedRoot.FinishedAt.Equal(finishedAt) {
@@ -173,20 +174,20 @@ func TestApplyRunLostProjectsTerminalTranscript(t *testing.T) {
 	approval := &transcript.Approval{Tool: transcript.ToolInvocation{Name: "shell"}, Risk: "medium"}
 	var applied TerminalPlan
 	stores := coordinatorStores{
-		interrupts: &coordinatorInterrupts{pending: map[string]interrupts.Pending{
+		interrupts: &coordinatorInterrupts{pending: map[string]runs.Pending{
 			"run_1": {
 				RootRunID: "run_1", SessionID: "ses_1", ExecutorID: "turn_1", GoalLeaseID: "lease_1",
-				Capabilities: execution.RunCapabilities{
-					InterruptKinds: []execution.InterruptKind{execution.ApprovalInterrupt},
+				Capabilities: run.RunCapabilities{
+					InterruptKinds: []interrupt.Kind{interrupt.Approval},
 				},
 				Interrupts: []transcript.Interrupt{{
 					ItemID: "item_1", ItemOccurredAt: createdAt,
-					RunID: "run_1", Kind: execution.ApprovalInterrupt, Approval: approval,
+					RunID: "run_1", Kind: interrupt.Approval, Approval: approval,
 				}},
-				Suspensions: []interrupts.SuspensionBinding{{
+				Suspensions: []runs.SuspensionBinding{{
 					InterruptItemID: "item_1", ProcessID: "proc_1", SuspensionID: "suspension_1",
 				}},
-				Continuations: []interrupts.Continuation{{
+				Continuations: []runs.Continuation{{
 					RunID: "run_1", ProcessID: "proc_1", RunCreatedAt: createdAt,
 					Metrics: transcript.RunMetrics{Steps: 4, Usage: &transcript.Usage{
 						ModelUsage: transcript.ModelUsage{CostUSD: &costUSD},
@@ -198,15 +199,15 @@ func TestApplyRunLostProjectsTerminalTranscript(t *testing.T) {
 		snapshot: Snapshot{
 			Messages: []chat.Message{chat.NewUserMessage(chat.NewTextPart("hello"))},
 			Runs: []transcript.Run{{
-				ID: "run_1", SessionID: "ses_1", State: execution.Interrupted,
+				ID: "run_1", SessionID: "ses_1", State: run.Waiting,
 				GoalLeaseID: "lease_1",
-				Capabilities: execution.RunCapabilities{
-					InterruptKinds: []execution.InterruptKind{execution.ApprovalInterrupt},
+				Capabilities: run.RunCapabilities{
+					InterruptKinds: []interrupt.Kind{interrupt.Approval},
 				},
 				Metrics: transcript.RunMetrics{Steps: 4, Usage: &transcript.Usage{
 					ModelUsage: transcript.ModelUsage{CostUSD: &costUSD},
 				}},
-				Interrupts: []transcript.Interrupt{{ItemID: "item_1", ItemOccurredAt: createdAt, Kind: execution.ApprovalInterrupt}},
+				Interrupts: []transcript.Interrupt{{ItemID: "item_1", ItemOccurredAt: createdAt, Kind: interrupt.Approval}},
 				CreatedAt:  createdAt, MessageMark: -1,
 			}},
 			Items: []transcript.Item{{
@@ -226,8 +227,8 @@ func TestApplyRunLostProjectsTerminalTranscript(t *testing.T) {
 	if !ok {
 		t.Fatal("terminal plan has no root Run")
 	}
-	if appliedRoot.State != execution.Failed || appliedRoot.Outcome == nil || *appliedRoot.Outcome != execution.OutcomeError {
-		t.Fatalf("terminal Run = %+v, want failed/error", appliedRoot)
+	if appliedRoot.State != run.Failed || appliedRoot.Outcome == nil || *appliedRoot.Outcome != run.OutcomeLost {
+		t.Fatalf("terminal Run = %+v, want failed/lost", appliedRoot)
 	}
 	// This path is the only one that knows the run died parked on an interrupt
 	// with an unrestorable snapshot, so it is the one that has to say so. Leaving
@@ -248,7 +249,7 @@ func TestApplyRunLostProjectsTerminalTranscript(t *testing.T) {
 	}
 	if applied.GoalRun == nil || applied.GoalRun.SessionID != "ses_1" ||
 		applied.GoalRun.LeaseID != "lease_1" || applied.GoalRun.RunID != "run_1" ||
-		applied.GoalRun.Outcome != execution.OutcomeError || applied.GoalRun.CostUSD != costUSD ||
+		applied.GoalRun.Outcome != run.OutcomeLost || applied.GoalRun.CostUSD != costUSD ||
 		applied.GoalRun.Steps != 4 || !applied.GoalRun.CompletedAt.Equal(finishedAt) {
 		t.Fatalf("terminal Goal Run = %+v", applied.GoalRun)
 	}
@@ -258,22 +259,22 @@ func TestApplyRunLostTerminalizesWholeParkedTreeInPostorder(t *testing.T) {
 	createdAt := time.Date(2026, 7, 17, 2, 0, 0, 0, time.UTC)
 	finishedAt := createdAt.Add(time.Minute)
 	question := &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Continue child?"}}}
-	childLineage := execution.RunLineage{
+	childLineage := run.RunLineage{
 		SpawnedByItemID: "item_spawn", ParentRunID: "run_root", RootRunID: "run_root",
 	}
-	pending := interrupts.Pending{
+	pending := runs.Pending{
 		RootRunID: "run_root", SessionID: "ses_1", ExecutorID: "turn_1",
-		Capabilities: execution.RunCapabilities{
-			ChildRuns: true, InterruptKinds: []execution.InterruptKind{execution.QuestionInterrupt},
+		Capabilities: run.RunCapabilities{
+			ChildRuns: true, InterruptKinds: []interrupt.Kind{interrupt.Question},
 		},
 		Interrupts: []transcript.Interrupt{{
 			ItemID: "item_question", ItemOccurredAt: createdAt,
-			RunID: "run_child", Kind: execution.QuestionInterrupt, Question: question,
+			RunID: "run_child", Kind: interrupt.Question, Question: question,
 		}},
-		Suspensions: []interrupts.SuspensionBinding{{
+		Suspensions: []runs.SuspensionBinding{{
 			InterruptItemID: "item_question", ProcessID: "proc_child", SuspensionID: "suspension_child",
 		}},
-		Continuations: []interrupts.Continuation{
+		Continuations: []runs.Continuation{
 			{
 				RunID: "run_child", ProcessID: "proc_child",
 				Lineage: childLineage, RunCreatedAt: createdAt,
@@ -284,17 +285,17 @@ func TestApplyRunLostTerminalizesWholeParkedTreeInPostorder(t *testing.T) {
 	}
 	var applied TerminalPlan
 	stores := coordinatorStores{
-		interrupts: &coordinatorInterrupts{pending: map[string]interrupts.Pending{"run_root": pending}},
+		interrupts: &coordinatorInterrupts{pending: map[string]runs.Pending{"run_root": pending}},
 		snapshot: Snapshot{
 			Messages: []chat.Message{chat.NewUserMessage(chat.NewTextPart("hello"))},
 			Runs: []transcript.Run{
 				{
-					ID: "run_root", SessionID: "ses_1", State: execution.Interrupted,
+					ID: "run_root", SessionID: "ses_1", State: run.Waiting,
 					Capabilities: pending.Capabilities,
 					CreatedAt:    createdAt, MessageMark: transcript.UnknownMessageMark,
 				},
 				{
-					ID: "run_child", SessionID: "ses_1", State: execution.Interrupted,
+					ID: "run_child", SessionID: "ses_1", State: run.Waiting,
 					Capabilities:    pending.Capabilities,
 					SpawnedByItemID: childLineage.SpawnedByItemID,
 					ParentRunID:     childLineage.ParentRunID, RootRunID: childLineage.RootRunID,
@@ -311,12 +312,12 @@ func TestApplyRunLostTerminalizesWholeParkedTreeInPostorder(t *testing.T) {
 	}
 	corruptSnapshot := stores.snapshot
 	corruptSnapshot.Runs = append([]transcript.Run(nil), stores.snapshot.Runs...)
-	corruptSnapshot.Runs[1].Capabilities = execution.RunCapabilities{
-		InterruptKinds: []execution.InterruptKind{execution.QuestionInterrupt},
+	corruptSnapshot.Runs[1].Capabilities = run.RunCapabilities{
+		InterruptKinds: []interrupt.Kind{interrupt.Question},
 	}
 	corruptApplied := TerminalPlan{}
 	corruptStores := coordinatorStores{
-		interrupts: &coordinatorInterrupts{pending: map[string]interrupts.Pending{"run_root": pending}},
+		interrupts: &coordinatorInterrupts{pending: map[string]runs.Pending{"run_root": pending}},
 		snapshot:   corruptSnapshot,
 		terminal:   &corruptApplied,
 	}
@@ -333,10 +334,10 @@ func TestApplyRunLostTerminalizesWholeParkedTreeInPostorder(t *testing.T) {
 	if len(applied.Runs) != 2 || applied.Runs[0].ID != "run_child" || applied.Runs[1].ID != "run_root" {
 		t.Fatalf("terminal Run order = %+v, want child then root", applied.Runs)
 	}
-	for _, run := range applied.Runs {
-		if run.State != execution.Failed || run.Outcome == nil || *run.Outcome != execution.OutcomeError ||
-			run.Error == nil || run.Error.Kind != transcript.RunLostProblem || !run.FinishedAt.Equal(finishedAt) {
-			t.Fatalf("terminal Run = %+v", run)
+	for _, record := range applied.Runs {
+		if record.State != run.Failed || record.Outcome == nil || *record.Outcome != run.OutcomeLost ||
+			record.Error == nil || record.Error.Kind != transcript.RunLostProblem || !record.FinishedAt.Equal(finishedAt) {
+			t.Fatalf("terminal Run = %+v", record)
 		}
 	}
 	if len(applied.Items) != 1 || applied.Items[0].RunID != "run_child" ||
@@ -351,23 +352,23 @@ func TestApplyRunLostTerminalizesWholeParkedTreeInPostorder(t *testing.T) {
 func TestApplyRunLostRejectsContinuationFactDriftBeforeTerminalCommit(t *testing.T) {
 	createdAt := time.Date(2026, 7, 18, 2, 0, 0, 0, time.UTC)
 	question := &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Continue?"}}}
-	interrupt := transcript.Interrupt{
+	pendingInterrupt := transcript.Interrupt{
 		ItemID: "item_question", ItemOccurredAt: createdAt, RunID: "run_root",
-		Kind: execution.QuestionInterrupt, Question: question,
+		Kind: interrupt.Question, Question: question,
 	}
-	capabilities := execution.RunCapabilities{
-		InterruptKinds: []execution.InterruptKind{execution.QuestionInterrupt},
+	capabilities := run.RunCapabilities{
+		InterruptKinds: []interrupt.Kind{interrupt.Question},
 	}
-	pending := interrupts.Pending{
+	pending := runs.Pending{
 		RootRunID: "run_root", SessionID: "ses_1", ExecutorID: "turn_1",
 		Capabilities: capabilities,
-		Interrupts:   []transcript.Interrupt{interrupt},
-		Suspensions: []interrupts.SuspensionBinding{{
-			InterruptItemID: interrupt.ItemID,
+		Interrupts:   []transcript.Interrupt{pendingInterrupt},
+		Suspensions: []runs.SuspensionBinding{{
+			InterruptItemID: pendingInterrupt.ItemID,
 			ProcessID:       "process_root",
 			SuspensionID:    "suspension_root",
 		}},
-		Continuations: []interrupts.Continuation{{
+		Continuations: []runs.Continuation{{
 			RunID: "run_root", ProcessID: "process_root", RunCreatedAt: createdAt,
 			Metrics: transcript.RunMetrics{Steps: 2},
 		}},
@@ -375,15 +376,15 @@ func TestApplyRunLostRejectsContinuationFactDriftBeforeTerminalCommit(t *testing
 	}
 	var applied TerminalPlan
 	stores := coordinatorStores{
-		interrupts: &coordinatorInterrupts{pending: map[string]interrupts.Pending{"run_root": pending}},
+		interrupts: &coordinatorInterrupts{pending: map[string]runs.Pending{"run_root": pending}},
 		snapshot: Snapshot{
 			Runs: []transcript.Run{{
-				ID: "run_root", SessionID: "ses_1", State: execution.Interrupted,
+				ID: "run_root", SessionID: "ses_1", State: run.Waiting,
 				Metrics: transcript.RunMetrics{Steps: 1}, Capabilities: capabilities,
 				CreatedAt: createdAt, MessageMark: transcript.UnknownMessageMark,
 			}},
 			Items: []transcript.Item{{
-				ID: interrupt.ItemID, SessionID: "ses_1", RunID: "run_root",
+				ID: pendingInterrupt.ItemID, SessionID: "ses_1", RunID: "run_root",
 				Kind: transcript.QuestionItem, Status: transcript.ItemRunning,
 				Question: question, OccurredAt: createdAt,
 			}},

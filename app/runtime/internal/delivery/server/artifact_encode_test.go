@@ -4,8 +4,8 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
 func TestArtifactFromPortableRejectsUnknownDomainEnums(t *testing.T) {
@@ -16,13 +16,13 @@ func TestArtifactFromPortableRejectsUnknownDomainEnums(t *testing.T) {
 		{
 			name: "outcome",
 			portable: sessions.PortableSnapshot{Runs: []sessions.PortableRun{{
-				ID: "run_1", Outcome: execution.Outcome(99),
+				ID: "run_1", Outcome: run.Outcome(99),
 			}}},
 		},
 		{
 			name: "problem",
 			portable: sessions.PortableSnapshot{Runs: []sessions.PortableRun{{
-				ID: "run_1", Outcome: execution.OutcomeError,
+				ID: "run_1", Outcome: run.OutcomeFailed,
 				Error: &transcript.Problem{Kind: transcript.ProblemKind(99)},
 			}}},
 		},

@@ -9,9 +9,8 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
 // CommitWaitingSubtreeCancellation claims the prepared Pending snapshot and
@@ -87,7 +86,7 @@ func (e *Effects) CommitWaitingSubtreeCancellation(
 				RunID:     planned.ID,
 				SessionID: planned.SessionID,
 				State:     runs.StateTerminalize,
-				Outcome:   execution.OutcomeCanceled,
+				Outcome:   run.OutcomeCanceled,
 				Run:       &planned,
 			})
 			if err != nil {
@@ -122,7 +121,7 @@ func (e *Effects) CommitWaitingSubtreeCancellation(
 				return fmt.Errorf("runsegment: resume surviving Run %q: %w", draft.RunID, err)
 			}
 			if draft.RunID == commit.RootRunID {
-				root.State = execution.Running
+				root.State = run.Running
 				root.ActiveSegmentID = draft.SegmentID
 				root.Interrupts = nil
 				root.UpdatedAt = commit.Resume.ResumedAt.UTC()
@@ -167,7 +166,7 @@ func (e *Effects) requireWaitingCancellationStores() error {
 	}
 }
 
-func directInterrupts(pending interrupts.Pending, runID string) []transcript.Interrupt {
+func directInterrupts(pending runs.Pending, runID string) []transcript.Interrupt {
 	out := make([]transcript.Interrupt, 0, len(pending.Interrupts))
 	for _, interrupt := range pending.Interrupts {
 		if interrupt.RunID == runID {
@@ -180,11 +179,11 @@ func directInterrupts(pending interrupts.Pending, runID string) []transcript.Int
 // samePendingSnapshot compares the frozen optimistic-lock value with the row
 // claimed inside the transaction. SQLite may round-trip equivalent empty slices
 // and time representations differently, so those storage forms are normalized.
-func samePendingSnapshot(left, right interrupts.Pending) bool {
+func samePendingSnapshot(left, right runs.Pending) bool {
 	return reflect.DeepEqual(normalizePendingSnapshot(left), normalizePendingSnapshot(right))
 }
 
-func normalizePendingSnapshot(pending interrupts.Pending) interrupts.Pending {
+func normalizePendingSnapshot(pending runs.Pending) runs.Pending {
 	pending.Interrupts = slices.Clone(pending.Interrupts)
 	pending.Suspensions = slices.Clone(pending.Suspensions)
 	pending.Continuations = slices.Clone(pending.Continuations)
@@ -213,7 +212,7 @@ func normalizePendingSnapshot(pending interrupts.Pending) interrupts.Pending {
 	return pending
 }
 
-func normalizeContinuationSnapshot(continuation interrupts.Continuation) interrupts.Continuation {
+func normalizeContinuationSnapshot(continuation runs.Continuation) runs.Continuation {
 	continuation.RunCreatedAt = timeFromUnixNano(continuation.RunCreatedAt)
 	for index := range continuation.DrainedTools {
 		continuation.DrainedTools[index].ItemOccurredAt = timeFromUnixNano(continuation.DrainedTools[index].ItemOccurredAt)
@@ -234,7 +233,7 @@ func normalizeContinuationSnapshot(continuation interrupts.Continuation) interru
 	return continuation
 }
 
-func normalizeCapabilities(capabilities execution.RunCapabilities) execution.RunCapabilities {
+func normalizeCapabilities(capabilities run.RunCapabilities) run.RunCapabilities {
 	capabilities = capabilities.Normalized()
 	if len(capabilities.InterruptKinds) == 0 {
 		capabilities.InterruptKinds = nil

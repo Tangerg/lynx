@@ -11,10 +11,10 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
 // StartRun translates runs.start into in-process execution
@@ -45,7 +45,7 @@ func (s *Server) StartRun(ctx context.Context, in protocol.StartRunRequest) (*pr
 		SessionID:            in.SessionID,
 		DefaultWorkspacePath: s.serverInfo.DefaultWorkspace.Path,
 		ModelSelection:       selection,
-		Limits: execution.RunLimits{
+		Limits: run.RunLimits{
 			MaxTotalTokens: in.MaxTotalTokens,
 			MaxSteps:       in.MaxSteps,
 			MaxBudgetUSD:   in.MaxBudgetUSD,

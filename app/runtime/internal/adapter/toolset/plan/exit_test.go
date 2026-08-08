@@ -6,10 +6,10 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/executionctx"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/approvals"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
 	plandomain "github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
 )
 
@@ -33,12 +33,12 @@ func (r planReader) List(context.Context, string) ([]plandomain.Step, error) { r
 
 func planContext(t *testing.T, sessionID string) context.Context {
 	t.Helper()
-	return executionctx.WithScope(t.Context(), execution.ExecutionScope{SessionID: sessionID})
+	return executionctx.WithScope(t.Context(), runs.ExecutionScope{SessionID: sessionID})
 }
 
-func planPolicy(t *testing.T, mode approval.Mode) *approval.RuntimePolicy {
+func planPolicy(t *testing.T, mode approval.Mode) *approvals.RuntimePolicy {
 	t.Helper()
-	policy, err := approval.New(mode, nil, &modeStore{states: make(map[string]approval.SessionMode)})
+	policy, err := approvals.NewRuntimePolicy(mode, nil, &modeStore{states: make(map[string]approval.SessionMode)})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -112,11 +112,11 @@ func TestRejectionKeepsPlanMode(t *testing.T) {
 	if _, err := policy.EnterPlanMode(t.Context(), sessionID); err != nil {
 		t.Fatal(err)
 	}
-	interrupt := func(_ context.Context, _ string, pending runs.Interrupt) (interrupts.Resolution, error) {
+	interrupt := func(_ context.Context, _ string, pending runs.Interrupt) (interrupt.Resolution, error) {
 		if pending.Question == nil || !strings.Contains(pending.Question.Fields[0].Prompt, "inspect") {
 			t.Fatalf("prompt does not present the canonical Plan: %+v", pending.Question)
 		}
-		return interrupts.Resolution{Answers: [][]string{{rejectLabel}}}, nil
+		return interrupt.Resolution{Answers: [][]string{{rejectLabel}}}, nil
 	}
 	tool, err := newExit(policy, planReader{steps: []plandomain.Step{{Description: "inspect", Status: plandomain.StatusInProgress}}}, interrupt)
 	if err != nil {
@@ -140,11 +140,11 @@ func TestApprovalRestoresModeCapturedOnEntry(t *testing.T) {
 	if err := policy.SetDefaultMode(t.Context(), approval.ModeYolo); err != nil {
 		t.Fatal(err)
 	}
-	interrupt := func(_ context.Context, _ string, pending runs.Interrupt) (interrupts.Resolution, error) {
+	interrupt := func(_ context.Context, _ string, pending runs.Interrupt) (interrupt.Resolution, error) {
 		if got := pending.Question.Arguments; got != `{}` {
 			t.Fatalf("interrupt arguments = %q", got)
 		}
-		return interrupts.Resolution{Answers: [][]string{{approveLabel}}}, nil
+		return interrupt.Resolution{Answers: [][]string{{approveLabel}}}, nil
 	}
 	tool, err := newExit(policy, planReader{steps: []plandomain.Step{{Description: "implement", Status: plandomain.StatusPending}}}, interrupt)
 	if err != nil {

@@ -8,45 +8,47 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/persistence"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 )
 
-func newInterruptStore(t *testing.T) *sqlite.InterruptStore {
+func newInterruptStore(t *testing.T) *persistence.InterruptStore {
 	t.Helper()
 	db, err := sqlite.Open(t.Context(), filepath.Join(t.TempDir(), "lyra.db"))
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
 	t.Cleanup(func() { _ = db.Close() })
-	return sqlite.NewInterruptStore(db)
+	return persistence.NewInterruptStore(sqlite.NewInterruptStore(db))
 }
 
 func TestInterruptStore_OpenGetListDelete(t *testing.T) {
 	ctx := context.Background()
 	store := newInterruptStore(t)
 
-	p := interrupts.Pending{
+	p := runs.Pending{
 		RootRunID:   "run_1",
 		SessionID:   "ses_a",
 		ExecutorID:  "turn_1",
 		GoalLeaseID: "goal-lease-1",
-		Capabilities: execution.RunCapabilities{
-			InterruptKinds: []execution.InterruptKind{execution.QuestionInterrupt},
+		Capabilities: run.RunCapabilities{
+			InterruptKinds: []interrupt.Kind{interrupt.Question},
 		},
 		Interrupts: []transcript.Interrupt{{
-			ItemID: "item_question", ItemOccurredAt: time.Unix(2, 0).UTC(), RunID: "run_1", Kind: execution.QuestionInterrupt,
+			ItemID: "item_question", ItemOccurredAt: time.Unix(2, 0).UTC(), RunID: "run_1", Kind: interrupt.Question,
 			Question: &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Choose"}}},
 		}},
-		Suspensions: []interrupts.SuspensionBinding{{
+		Suspensions: []runs.SuspensionBinding{{
 			InterruptItemID: "item_question",
 			ProcessID:       "proc_1",
 			SuspensionID:    "suspension_1",
 		}},
-		Continuations: []interrupts.Continuation{{
+		Continuations: []runs.Continuation{{
 			RunID:          "run_1",
 			ProcessID:      "proc_1",
 			ModelSelection: testModelSelection(t, "anthropic", "claude-opus-4-8"),
@@ -118,26 +120,26 @@ func TestInterruptStore_ConsumeIsAtomic(t *testing.T) {
 		t.Fatalf("Consume(empty) = ok=%v err=%v, want ok=false", ok, err)
 	}
 
-	if err := store.Open(ctx, interrupts.Pending{
+	if err := store.Open(ctx, runs.Pending{
 		RootRunID:  "run_1",
 		SessionID:  "ses_a",
 		ExecutorID: "turn_1",
-		Capabilities: execution.RunCapabilities{
-			InterruptKinds: []execution.InterruptKind{execution.ApprovalInterrupt},
+		Capabilities: run.RunCapabilities{
+			InterruptKinds: []interrupt.Kind{interrupt.Approval},
 		},
 		Interrupts: []transcript.Interrupt{{
-			ItemID: "item_approval", ItemOccurredAt: time.Unix(2, 0).UTC(), RunID: "run_1", Kind: execution.ApprovalInterrupt,
+			ItemID: "item_approval", ItemOccurredAt: time.Unix(2, 0).UTC(), RunID: "run_1", Kind: interrupt.Approval,
 			Approval: &transcript.Approval{
 				Tool: transcript.ToolInvocation{Name: "shell", Arguments: arguments},
 				Risk: tool.RiskHigh, Reason: "executes tests", Rememberable: true,
 			},
 		}},
-		Suspensions: []interrupts.SuspensionBinding{{
+		Suspensions: []runs.SuspensionBinding{{
 			InterruptItemID: "item_approval",
 			ProcessID:       "proc_1",
 			SuspensionID:    "suspension_1",
 		}},
-		Continuations: []interrupts.Continuation{{
+		Continuations: []runs.Continuation{{
 			RunID: "run_1", ProcessID: "proc_1", RunCreatedAt: time.Unix(1, 0).UTC(),
 		}},
 		CreatedAt: time.Unix(7, 0).UTC(),
@@ -168,19 +170,19 @@ func TestInterruptStore_ConsumeIsAtomic(t *testing.T) {
 
 func TestInterruptStoreRejectsForeignSessionMutation(t *testing.T) {
 	store := newInterruptStore(t)
-	pending := interrupts.Pending{
+	pending := runs.Pending{
 		RootRunID: "run_1", SessionID: "ses_a", ExecutorID: "turn_1",
-		Capabilities: execution.RunCapabilities{
-			InterruptKinds: []execution.InterruptKind{execution.QuestionInterrupt},
+		Capabilities: run.RunCapabilities{
+			InterruptKinds: []interrupt.Kind{interrupt.Question},
 		},
 		Interrupts: []transcript.Interrupt{{
-			ItemID: "item_question", ItemOccurredAt: time.Unix(2, 0).UTC(), RunID: "run_1", Kind: execution.QuestionInterrupt,
+			ItemID: "item_question", ItemOccurredAt: time.Unix(2, 0).UTC(), RunID: "run_1", Kind: interrupt.Question,
 			Question: &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Continue?"}}},
 		}},
-		Suspensions: []interrupts.SuspensionBinding{{
+		Suspensions: []runs.SuspensionBinding{{
 			InterruptItemID: "item_question", ProcessID: "process_root", SuspensionID: "suspension_root",
 		}},
-		Continuations: []interrupts.Continuation{{
+		Continuations: []runs.Continuation{{
 			RunID: "run_1", ProcessID: "process_root", RunCreatedAt: time.Unix(1, 0).UTC(),
 		}},
 		CreatedAt: time.Unix(2, 0).UTC(),
@@ -202,34 +204,34 @@ func TestInterruptStoreRejectsForeignSessionMutation(t *testing.T) {
 func TestInterruptStoreRoundTripsAppLineageWithoutExecutorTopology(t *testing.T) {
 	store := newInterruptStore(t)
 	createdAt := time.Unix(10, 0).UTC()
-	lineage := execution.RunLineage{
+	lineage := run.RunLineage{
 		SpawnedByItemID: "item_spawn_child",
 		ParentRunID:     "run_root",
 		RootRunID:       "run_root",
 	}
-	pending := interrupts.Pending{
+	pending := runs.Pending{
 		RootRunID:  "run_root",
 		SessionID:  "session_1",
 		ExecutorID: "turn_1",
-		Capabilities: execution.RunCapabilities{
-			ChildRuns: true, InterruptKinds: []execution.InterruptKind{execution.QuestionInterrupt},
+		Capabilities: run.RunCapabilities{
+			ChildRuns: true, InterruptKinds: []interrupt.Kind{interrupt.Question},
 		},
 		Interrupts: []transcript.Interrupt{{
-			ItemID: "item_child", ItemOccurredAt: time.Unix(2, 0).UTC(), RunID: "run_child", Kind: execution.QuestionInterrupt,
+			ItemID: "item_child", ItemOccurredAt: time.Unix(2, 0).UTC(), RunID: "run_child", Kind: interrupt.Question,
 			Question: &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Continue?"}}},
 		}},
-		Suspensions: []interrupts.SuspensionBinding{{
+		Suspensions: []runs.SuspensionBinding{{
 			InterruptItemID: "item_child",
 			ProcessID:       "process_child",
 			SuspensionID:    "suspension_child",
 		}},
-		Continuations: []interrupts.Continuation{
+		Continuations: []runs.Continuation{
 			{
 				RunID:        "run_child",
 				ProcessID:    "process_child",
 				Lineage:      lineage,
 				RunCreatedAt: createdAt,
-				DrainedTools: []interrupts.DrainedTool{{
+				DrainedTools: []runs.DrainedTool{{
 					ItemID: "item_open", ItemOccurredAt: createdAt.Add(time.Second),
 					CallID: "call_open", Name: "shell", Arguments: "{}",
 				}},
@@ -238,7 +240,7 @@ func TestInterruptStoreRoundTripsAppLineageWithoutExecutorTopology(t *testing.T)
 				RunID:        "run_root",
 				ProcessID:    "process_root",
 				RunCreatedAt: createdAt,
-				CommittedTools: []interrupts.CommittedTool{{
+				CommittedTools: []runs.CommittedTool{{
 					ItemID: "item_spawn_child", CallID: "call_child", Name: "delegate_task", Arguments: "{}",
 					Problem: transcript.Problem{
 						Kind:   transcript.ChildRunCanceledProblem,
@@ -278,20 +280,20 @@ func TestInterruptStoreRejectsUnknownExecutorTopologyFields(t *testing.T) {
 		t.Fatalf("Open database: %v", err)
 	}
 	t.Cleanup(func() { _ = database.Close() })
-	store := sqlite.NewInterruptStore(database)
-	pending := interrupts.Pending{
+	store := persistence.NewInterruptStore(sqlite.NewInterruptStore(database))
+	pending := runs.Pending{
 		RootRunID: "run_root", SessionID: "session_1", ExecutorID: "turn_1",
-		Capabilities: execution.RunCapabilities{
-			InterruptKinds: []execution.InterruptKind{execution.QuestionInterrupt},
+		Capabilities: run.RunCapabilities{
+			InterruptKinds: []interrupt.Kind{interrupt.Question},
 		},
 		Interrupts: []transcript.Interrupt{{
-			ItemID: "item_question", ItemOccurredAt: time.Unix(2, 0).UTC(), RunID: "run_root", Kind: execution.QuestionInterrupt,
+			ItemID: "item_question", ItemOccurredAt: time.Unix(2, 0).UTC(), RunID: "run_root", Kind: interrupt.Question,
 			Question: &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Continue?"}}},
 		}},
-		Suspensions: []interrupts.SuspensionBinding{{
+		Suspensions: []runs.SuspensionBinding{{
 			InterruptItemID: "item_question", ProcessID: "process_root", SuspensionID: "suspension_root",
 		}},
-		Continuations: []interrupts.Continuation{{
+		Continuations: []runs.Continuation{{
 			RunID: "run_root", ProcessID: "process_root", RunCreatedAt: time.Unix(1, 0).UTC(),
 		}},
 		CreatedAt: time.Unix(2, 0).UTC(),
@@ -333,21 +335,21 @@ func TestInterruptStoreExecutorRootHasOnePendingOwner(t *testing.T) {
 	store := newInterruptStore(t)
 	ctx := t.Context()
 	for _, runID := range []string{"run_1", "run_2"} {
-		err := store.Open(ctx, interrupts.Pending{
+		err := store.Open(ctx, runs.Pending{
 			RootRunID: runID, SessionID: "ses_" + runID, ExecutorID: "turn_" + runID,
-			Capabilities: execution.RunCapabilities{
-				InterruptKinds: []execution.InterruptKind{execution.QuestionInterrupt},
+			Capabilities: run.RunCapabilities{
+				InterruptKinds: []interrupt.Kind{interrupt.Question},
 			},
 			Interrupts: []transcript.Interrupt{{
 				ItemID: "item_" + runID, ItemOccurredAt: time.Unix(2, 0).UTC(), RunID: runID,
-				Kind: execution.QuestionInterrupt, Question: &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "continue?"}}},
+				Kind: interrupt.Question, Question: &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "continue?"}}},
 			}},
-			Suspensions: []interrupts.SuspensionBinding{{
+			Suspensions: []runs.SuspensionBinding{{
 				InterruptItemID: "item_" + runID,
 				ProcessID:       "proc_shared",
 				SuspensionID:    "suspension_" + runID,
 			}},
-			Continuations: []interrupts.Continuation{{
+			Continuations: []runs.Continuation{{
 				RunID: runID, ProcessID: "proc_shared", RunCreatedAt: time.Unix(1, 0).UTC(),
 			}},
 			CreatedAt: time.Unix(2, 0).UTC(),

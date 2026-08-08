@@ -3,8 +3,6 @@ package sessions
 import (
 	"context"
 	"testing"
-
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 )
 
 func TestMutationCompletionDetachesFromCallerCancellation(t *testing.T) {
@@ -29,7 +27,7 @@ type observingMutations struct {
 	bounded  bool
 }
 
-func (*observingMutations) Record(context.Context, execution.WorkspaceMutation) error { return nil }
+func (*observingMutations) Record(context.Context, WorkspaceMutation) error { return nil }
 
 func (m *observingMutations) Complete(ctx context.Context, _ string) error {
 	m.canceled = ctx.Err() != nil
@@ -37,6 +35,6 @@ func (m *observingMutations) Complete(ctx context.Context, _ string) error {
 	return nil
 }
 
-func (*observingMutations) ListPending(context.Context) ([]execution.WorkspaceMutation, error) {
+func (*observingMutations) ListPending(context.Context) ([]WorkspaceMutation, error) {
 	return nil, nil
 }

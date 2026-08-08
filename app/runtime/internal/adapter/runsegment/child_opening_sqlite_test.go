@@ -9,9 +9,9 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/runsegment"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 )
 
@@ -24,7 +24,7 @@ func TestChildOpeningAtomicallyCommitsRunAndParentSpawningItem(t *testing.T) {
 
 	runStore := sqlite.NewRunStore(db)
 	transcriptStore := sqlite.NewTranscriptStore(db)
-	root := execution.RunDraft{
+	root := run.RunDraft{
 		RunID: "run_root", SessionID: "session_1", SegmentID: "segment_root",
 		CreatedAt: time.Unix(1, 0),
 	}
@@ -54,7 +54,7 @@ func TestChildOpeningAtomicallyCommitsRunAndParentSpawningItem(t *testing.T) {
 			Arguments: arguments,
 		},
 	}
-	child := execution.RunDraft{
+	child := run.RunDraft{
 		RunID: "run_child", SessionID: "session_1", SegmentID: "segment_child",
 		SpawnedByItemID: spawningItem.ID, ParentRunID: root.RunID, RootRunID: root.RunID,
 		CreatedAt: time.Unix(3, 0),

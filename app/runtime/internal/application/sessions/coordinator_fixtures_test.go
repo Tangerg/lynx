@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
 type coordinatorStores struct {
@@ -78,14 +78,14 @@ func (s coordinatorStores) ApplyTerminal(ctx context.Context, plan TerminalPlan)
 }
 
 type coordinatorInterrupts struct {
-	pending  map[string]interrupts.Pending
+	pending  map[string]runs.Pending
 	deleted  []string
 	onDelete func(string)
 }
 
-func (s *coordinatorInterrupts) Open(_ context.Context, p interrupts.Pending) error {
+func (s *coordinatorInterrupts) Open(_ context.Context, p runs.Pending) error {
 	if s.pending == nil {
-		s.pending = map[string]interrupts.Pending{}
+		s.pending = map[string]runs.Pending{}
 	}
 	if _, exists := s.pending[p.RootRunID]; exists {
 		return transcript.ErrIdentityConflict
@@ -94,8 +94,8 @@ func (s *coordinatorInterrupts) Open(_ context.Context, p interrupts.Pending) er
 	return nil
 }
 
-func (s *coordinatorInterrupts) List(_ context.Context, sessionID string) ([]interrupts.Pending, error) {
-	out := make([]interrupts.Pending, 0, len(s.pending))
+func (s *coordinatorInterrupts) List(_ context.Context, sessionID string) ([]runs.Pending, error) {
+	out := make([]runs.Pending, 0, len(s.pending))
 	for _, p := range s.pending {
 		if sessionID == "" || p.SessionID == sessionID {
 			out = append(out, p)
@@ -104,15 +104,15 @@ func (s *coordinatorInterrupts) List(_ context.Context, sessionID string) ([]int
 	return out, nil
 }
 
-func (s *coordinatorInterrupts) Get(_ context.Context, parentRunID string) (interrupts.Pending, bool, error) {
+func (s *coordinatorInterrupts) Get(_ context.Context, parentRunID string) (runs.Pending, bool, error) {
 	p, ok := s.pending[parentRunID]
 	return p, ok, nil
 }
 
-func (s *coordinatorInterrupts) Consume(_ context.Context, sessionID, parentRunID string) (interrupts.Pending, bool, error) {
+func (s *coordinatorInterrupts) Consume(_ context.Context, sessionID, parentRunID string) (runs.Pending, bool, error) {
 	p, ok := s.pending[parentRunID]
 	if ok && p.SessionID != sessionID {
-		return interrupts.Pending{}, false, nil
+		return runs.Pending{}, false, nil
 	}
 	if ok {
 		delete(s.pending, parentRunID)

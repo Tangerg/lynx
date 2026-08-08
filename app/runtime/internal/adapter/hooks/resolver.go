@@ -3,7 +3,7 @@ package hooks
 import (
 	"context"
 
-	domainhooks "github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
+	apphooks "github.com/Tangerg/lynx/app/runtime/internal/application/hooks"
 )
 
 // Resolver binds the hooks.json cascade to a working directory: it loads the
@@ -14,7 +14,7 @@ type Resolver struct {
 	// trusted reports whether a project root's project-scope hooks may run.
 	// nil means project hooks are never trusted.
 	trusted func(context.Context, string) (bool, error)
-	runner  *domainhooks.Runner
+	runner  *apphooks.Runner
 }
 
 // NewResolver builds a Resolver. home is the user's home dir for the global
@@ -23,14 +23,14 @@ func NewResolver(home string, trusted func(context.Context, string) (bool, error
 	return &Resolver{
 		home:    home,
 		trusted: trusted,
-		runner:  domainhooks.NewRunner(Shell{}, onError),
+		runner:  apphooks.NewRunner(Shell{}, onError),
 	}
 }
 
 // For returns the current global hooks plus the project's hooks when the
 // project is trusted. Discovery and trust are read on every call so edits and
 // revocations take effect on the next Run without a process restart.
-func (r *Resolver) For(ctx context.Context, cwd string) (*domainhooks.Bound, error) {
+func (r *Resolver) For(ctx context.Context, cwd string) (*apphooks.Bound, error) {
 	if r == nil || cwd == "" {
 		return nil, nil
 	}
@@ -47,28 +47,28 @@ func (r *Resolver) For(ctx context.Context, cwd string) (*domainhooks.Bound, err
 	if err != nil {
 		return nil, err
 	}
-	return domainhooks.NewBound(all, r.runner), nil
+	return apphooks.NewBound(all, r.runner), nil
 }
 
 // Inspect returns every discovered hook plus the project trust state. It does
 // not trust-filter, so management UIs can review hooks before granting trust.
-func (r *Resolver) Inspect(ctx context.Context, cwd string) (domainhooks.Inspection, error) {
+func (r *Resolver) Inspect(ctx context.Context, cwd string) (apphooks.Inspection, error) {
 	if r == nil || cwd == "" {
-		return domainhooks.Inspection{}, nil
+		return apphooks.Inspection{}, nil
 	}
 	root := ProjectRoot(cwd)
 	all, err := Load(ctx, cwd, r.home)
 	if err != nil {
-		return domainhooks.Inspection{}, err
+		return apphooks.Inspection{}, err
 	}
 	projectTrusted := false
 	if r.trusted != nil {
 		projectTrusted, err = r.trusted(ctx, root)
 		if err != nil {
-			return domainhooks.Inspection{}, err
+			return apphooks.Inspection{}, err
 		}
 	}
-	return domainhooks.Inspection{
+	return apphooks.Inspection{
 		ProjectRoot:    root,
 		ProjectTrusted: projectTrusted,
 		Hooks:          all,

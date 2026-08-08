@@ -6,19 +6,18 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
 func TestResolveResumeResponsesValidatesExactTypedCoverage(t *testing.T) {
-	approvalPending := interrupts.Pending{Interrupts: []transcript.Interrupt{{
+	approvalPending := Pending{Interrupts: []transcript.Interrupt{{
 		ItemID: "item_approval",
-		Kind:   execution.ApprovalInterrupt,
+		Kind:   interrupt.Approval,
 		Approval: &transcript.Approval{
 			Tool: transcript.ToolInvocation{Name: "shell"}, Risk: "medium", Rememberable: true,
 		},
-	}}, Suspensions: []interrupts.SuspensionBinding{{
+	}}, Suspensions: []SuspensionBinding{{
 		InterruptItemID: "item_approval", ProcessID: "process_approval", SuspensionID: "suspension_approval",
 	}}}
 	answers, err := resolveResumeResponses(approvalPending, []ResumeResponse{{
@@ -53,14 +52,14 @@ func TestResolveResumeResponsesValidatesExactTypedCoverage(t *testing.T) {
 		t.Fatalf("denial resolution = %#v", denied)
 	}
 
-	questionPending := interrupts.Pending{Interrupts: []transcript.Interrupt{{
+	questionPending := Pending{Interrupts: []transcript.Interrupt{{
 		ItemID: "item_question",
-		Kind:   execution.QuestionInterrupt,
+		Kind:   interrupt.Question,
 		Question: &transcript.Question{Fields: []transcript.QuestionField{{
 			Prompt: "Choose", Kind: transcript.QuestionChoice,
 			Options: []transcript.QuestionOption{{Label: "Go"}, {Label: "Stop"}},
 		}}},
-	}}, Suspensions: []interrupts.SuspensionBinding{{
+	}}, Suspensions: []SuspensionBinding{{
 		InterruptItemID: "item_question", ProcessID: "process_question", SuspensionID: "suspension_question",
 	}}}
 	answers, err = resolveResumeResponses(questionPending, []ResumeResponse{{
@@ -80,7 +79,7 @@ func TestResolveResumeResponsesValidatesExactTypedCoverage(t *testing.T) {
 
 	tests := []struct {
 		name      string
-		pending   interrupts.Pending
+		pending   Pending
 		responses []ResumeResponse
 		want      error
 	}{
@@ -99,12 +98,12 @@ func TestResolveResumeResponsesValidatesExactTypedCoverage(t *testing.T) {
 			ItemID: "item_question", Kind: QuestionResponseKind,
 			Question: &QuestionResponse{Answers: [][]string{{"Rust"}}},
 		}}, want: ErrInvalidInterruptResponse},
-		{name: "one-off approval cannot be remembered", pending: interrupts.Pending{
+		{name: "one-off approval cannot be remembered", pending: Pending{
 			Interrupts: []transcript.Interrupt{{
-				ItemID: "item_one_off", Kind: execution.ApprovalInterrupt,
+				ItemID: "item_one_off", Kind: interrupt.Approval,
 				Approval: &transcript.Approval{Tool: transcript.ToolInvocation{Name: "shell"}, Risk: "medium"},
 			}},
-			Suspensions: []interrupts.SuspensionBinding{{
+			Suspensions: []SuspensionBinding{{
 				InterruptItemID: "item_one_off", ProcessID: "process_one_off", SuspensionID: "suspension_one_off",
 			}},
 		}, responses: []ResumeResponse{{
@@ -123,24 +122,24 @@ func TestResolveResumeResponsesValidatesExactTypedCoverage(t *testing.T) {
 }
 
 func TestResolveResumeResponsesPreservesCompleteBarrierInCanonicalOrder(t *testing.T) {
-	pending := interrupts.Pending{
+	pending := Pending{
 		Interrupts: []transcript.Interrupt{
 			{
 				ItemID: "item_a",
-				Kind:   execution.ApprovalInterrupt,
+				Kind:   interrupt.Approval,
 				Approval: &transcript.Approval{
 					Tool: transcript.ToolInvocation{Name: "shell"}, Risk: "medium",
 				},
 			},
 			{
 				ItemID: "item_b",
-				Kind:   execution.ApprovalInterrupt,
+				Kind:   interrupt.Approval,
 				Approval: &transcript.Approval{
 					Tool: transcript.ToolInvocation{Name: "write"}, Risk: "medium",
 				},
 			},
 		},
-		Suspensions: []interrupts.SuspensionBinding{
+		Suspensions: []SuspensionBinding{
 			{InterruptItemID: "item_a", ProcessID: "process_a", SuspensionID: "suspension_a"},
 			{InterruptItemID: "item_b", ProcessID: "process_b", SuspensionID: "suspension_b"},
 		},
@@ -186,7 +185,7 @@ func TestResolveQuestionResponseUsesOrderedExactAnswers(t *testing.T) {
 			Options: []transcript.QuestionOption{{Label: "A"}, {Label: "B"}},
 		},
 	}}
-	interrupt := transcript.Interrupt{ItemID: "item_question", Kind: execution.QuestionInterrupt, Question: question}
+	interrupt := transcript.Interrupt{ItemID: "item_question", Kind: interrupt.Question, Question: question}
 	response := func(answers [][]string) ResumeResponse {
 		return ResumeResponse{
 			ItemID: "item_question", Kind: QuestionResponseKind,

@@ -12,9 +12,9 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
 var errTerminalOutcomeMissing = errors.New("goals: terminal run has no outcome")
@@ -303,7 +303,7 @@ func drainTerminal(events iter.Seq[runs.Event]) *transcript.Run {
 
 // outcomeOf reads a terminal run's outcome. A SegmentFinished without one
 // violates the Run contract and must not be treated as a successful Run.
-func outcomeOf(run *transcript.Run) (execution.Outcome, error) {
+func outcomeOf(run *transcript.Run) (run.Outcome, error) {
 	if run.Outcome == nil {
 		return 0, errTerminalOutcomeMissing
 	}

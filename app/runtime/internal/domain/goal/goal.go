@@ -4,7 +4,7 @@
 // The use case driving Runs owns the loop; this package holds the entity,
 // its status vocabulary, and the cross-Run budget accounting. A goal is
 // deliberately session-scoped, not run-scoped: it spans the
-// many runs the loop launches, so it lives outside the per-run execution.RunState
+// many runs the loop launches, so it lives outside the per-run run.RunState
 // machine (which has no paused state and terminalizes a lost run on restart).
 package goal
 
@@ -15,8 +15,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 )
 
 // Status is where a goal sits in the autonomous loop.
@@ -276,7 +276,7 @@ type RunRecord struct {
 	SessionID   string
 	LeaseID     string
 	RunID       string
-	Outcome     execution.Outcome
+	Outcome     run.Outcome
 	CostUSD     float64
 	Steps       int
 	CompletedAt time.Time
@@ -300,7 +300,7 @@ func (record RunRecord) Validate() error {
 			return fmt.Errorf("goal: Run %s has surrounding whitespace", identity.name)
 		}
 	}
-	if _, ok := execution.ParseOutcome(record.Outcome.String()); !ok {
+	if _, ok := run.ParseOutcome(record.Outcome.String()); !ok {
 		return fmt.Errorf("goal: Run has unknown outcome %d", record.Outcome)
 	}
 	if record.CostUSD < 0 || math.IsNaN(record.CostUSD) || math.IsInf(record.CostUSD, 0) {
@@ -329,7 +329,7 @@ func (g *Goal) RecordRun(record RunRecord) {
 	if g.Status != StatusActive {
 		return
 	}
-	if record.Outcome != execution.OutcomeCompleted {
+	if record.Outcome != run.OutcomeCompleted {
 		g.Pause(ReasonRunNotCompleted, record.Outcome.String(), record.CompletedAt)
 		return
 	}

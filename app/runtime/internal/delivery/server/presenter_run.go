@@ -3,21 +3,22 @@ package server
 import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
+	rundomain "github.com/Tangerg/lynx/app/runtime/internal/domain/run"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
 // presentRunStatus publishes a lifecycle position. Which state IS which position
-// is the domain's answer ([execution.RunState.Status]) — the durable status filter
+// is the domain's answer ([rundomain.RunState.Status]) — the durable status filter
 // reads the same one, so a run selected as waiting cannot be published as
 // finished; this only spells it for the wire.
-func presentRunStatus(status execution.RunStatus) protocol.RunStatus {
+func presentRunStatus(status rundomain.RunStatus) protocol.RunStatus {
 	switch status {
-	case execution.StatusRunning:
+	case rundomain.StatusRunning:
 		return protocol.RunStatusRunning
-	case execution.StatusWaiting:
+	case rundomain.StatusWaiting:
 		return protocol.RunStatusWaiting
-	case execution.StatusFinished:
+	case rundomain.StatusFinished:
 		return protocol.RunStatusFinished
 	default:
 		panic("server: unknown run status")
@@ -73,7 +74,7 @@ func presentCancelResult(result runs.CancelResult) *protocol.CancelRunResponse {
 // presentRunProtocolProfile maps the Run's capabilities to the external
 // protocol contract. Both sets are allocated even when empty: the Minimal
 // Profile is known, not null.
-func presentRunProtocolProfile(capabilities execution.RunCapabilities) protocol.RunProtocolProfile {
+func presentRunProtocolProfile(capabilities rundomain.RunCapabilities) protocol.RunProtocolProfile {
 	out := protocol.RunProtocolProfile{
 		RequiredFeatures: make([]protocol.RunProtocolFeature, 0, 1),
 		InterruptTypes:   make([]protocol.InterruptType, 0, len(capabilities.InterruptKinds)),
@@ -91,7 +92,7 @@ func presentRunProtocolProfile(capabilities execution.RunCapabilities) protocol.
 // the event publishes: why the segment stopped, and what the run has consumed.
 func presentSegmentFinished(run transcript.Run) (protocol.SegmentOutcome, protocol.RunMetrics) {
 	metrics := presentMetrics(run.Metrics)
-	if run.State == execution.Interrupted {
+	if run.State == rundomain.Waiting {
 		if len(run.Interrupts) == 0 {
 			return protocol.SegmentOutcome{Type: protocol.SegmentSuspended}, metrics
 		}
@@ -114,16 +115,20 @@ func presentOutcome(run transcript.Run) protocol.RunOutcome {
 	}
 	var kind protocol.RunOutcomeType
 	switch *run.Outcome {
-	case execution.OutcomeCompleted:
+	case rundomain.OutcomeCompleted:
 		kind = protocol.OutcomeCompleted
-	case execution.OutcomeCanceled:
+	case rundomain.OutcomeCanceled:
 		kind = protocol.OutcomeCanceled
-	case execution.OutcomeError:
-		kind = protocol.OutcomeError
-	case execution.OutcomeMaxBudget:
+	case rundomain.OutcomeTimedOut:
+		kind = protocol.OutcomeTimedOut
+	case rundomain.OutcomeFailed:
+		kind = protocol.OutcomeFailed
+	case rundomain.OutcomeMaxBudget:
 		kind = protocol.OutcomeMaxBudget
-	case execution.OutcomeMaxSteps:
+	case rundomain.OutcomeMaxSteps:
 		kind = protocol.OutcomeMaxSteps
+	case rundomain.OutcomeLost:
+		kind = protocol.OutcomeLost
 	default:
 		panic("server: unknown run outcome")
 	}
@@ -138,7 +143,7 @@ func presentMetrics(metrics transcript.RunMetrics) protocol.RunMetrics {
 	}
 }
 
-func presentLimits(limits execution.RunLimits) *protocol.RunLimits {
+func presentLimits(limits rundomain.RunLimits) *protocol.RunLimits {
 	if limits.IsZero() {
 		return nil
 	}
@@ -220,25 +225,25 @@ func presentProblem(problem *transcript.Problem) *protocol.ProblemData {
 
 func presentInterrupts(interrupts []transcript.Interrupt) []protocol.Interrupt {
 	out := make([]protocol.Interrupt, 0, len(interrupts))
-	for _, interrupt := range interrupts {
-		entry := protocol.Interrupt{ItemID: interrupt.ItemID, RunID: interrupt.RunID}
-		entry.Type = presentInterruptType(interrupt.Kind)
-		switch interrupt.Kind {
-		case execution.ApprovalInterrupt:
-			if interrupt.Approval == nil {
+	for _, request := range interrupts {
+		entry := protocol.Interrupt{ItemID: request.ItemID, RunID: request.RunID}
+		entry.Type = presentInterruptType(request.Kind)
+		switch request.Kind {
+		case interrupt.Approval:
+			if request.Approval == nil {
 				panic("server: approval interrupt has no approval payload")
 			}
 			entry.Payload = &protocol.InterruptPayload{
-				Tool:         new(presentTool(interrupt.Approval.Tool)),
-				Risk:         presentApprovalRisk(interrupt.Approval.Risk),
-				Reason:       interrupt.Approval.Reason,
-				Rememberable: interrupt.Approval.Rememberable,
+				Tool:         new(presentTool(request.Approval.Tool)),
+				Risk:         presentApprovalRisk(request.Approval.Risk),
+				Reason:       request.Approval.Reason,
+				Rememberable: request.Approval.Rememberable,
 			}
-		case execution.QuestionInterrupt:
-			if interrupt.Question == nil {
+		case interrupt.Question:
+			if request.Question == nil {
 				panic("server: question interrupt has no question payload")
 			}
-			entry.Payload = &protocol.InterruptPayload{Question: new(presentQuestion(*interrupt.Question))}
+			entry.Payload = &protocol.InterruptPayload{Question: new(presentQuestion(*request.Question))}
 		}
 		out = append(out, entry)
 	}

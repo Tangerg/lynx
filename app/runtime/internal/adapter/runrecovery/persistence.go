@@ -9,10 +9,9 @@ import (
 	"fmt"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
 type RunStore interface {
@@ -25,7 +24,7 @@ type SessionStore interface {
 }
 
 type InterruptStore interface {
-	List(ctx context.Context, sessionID string) ([]interrupts.Pending, error)
+	List(ctx context.Context, sessionID string) ([]runs.Pending, error)
 	Delete(ctx context.Context, sessionID, rootRunID string) error
 }
 
@@ -110,7 +109,7 @@ func (p *Persistence) ListNonTerminalRuns(ctx context.Context) ([]transcript.Run
 	return p.runs.ListNonTerminalRuns(ctx)
 }
 
-func (p *Persistence) ListPendingInterrupts(ctx context.Context) ([]interrupts.Pending, error) {
+func (p *Persistence) ListPendingInterrupts(ctx context.Context) ([]runs.Pending, error) {
 	return p.interrupts.List(ctx, "")
 }
 

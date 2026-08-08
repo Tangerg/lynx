@@ -7,8 +7,8 @@ import (
 	"slices"
 
 	"github.com/Tangerg/lynx/agent/core"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/toolresult"
 	"github.com/Tangerg/lynx/core/chat"
 	toolcontract "github.com/Tangerg/lynx/tool"
 )
@@ -101,7 +101,7 @@ func (o *observedTool) Call(ctx context.Context, arguments string) (string, erro
 
 	output, err := o.inner.Call(ctx, arguments)
 	displayed := output
-	var ref *offload.Ref
+	var ref *toolresult.Ref
 	if err == nil {
 		// Evict an oversized body to the blob store, substituting a bounded preview
 		// for BOTH the transcript (finish → OnToolCallEnd) and the model (the

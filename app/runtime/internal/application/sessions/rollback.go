@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
 // applyRollback truncates the chat history log to the boundary watermark and drops each run's

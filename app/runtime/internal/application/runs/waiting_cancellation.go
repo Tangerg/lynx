@@ -6,18 +6,17 @@ import (
 	"slices"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	rundomain "github.com/Tangerg/lynx/app/runtime/internal/domain/run"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
 type waitingCancellationTransformation struct {
 	terminalRuns   []transcript.Run
 	terminalItems  []ItemReplacement
 	parentItem     ItemReplacement
-	remaining      *interrupts.Pending
+	remaining      *Pending
 	continuation   *treeContinuation
-	checkpoint     execution.ExecutorCheckpoint
+	checkpoint     ExecutorCheckpoint
 	root           transcript.Run
 	targetRunID    string
 	canceledRunIDs []string
@@ -30,7 +29,7 @@ func prepareWaitingCancellationTransformation(
 	prepared PreparedWaitingSubtreeCancellation,
 ) (waitingCancellationTransformation, error) {
 	switch {
-	case plan.treeState != execution.Interrupted:
+	case plan.treeState != rundomain.Waiting:
 		return waitingCancellationTransformation{}, fmt.Errorf(
 			"runs: waiting cancellation plan is %s",
 			plan.treeState,
@@ -58,7 +57,7 @@ func prepareWaitingCancellationTransformation(
 			"runs: prepared waiting subtree checkpoint goal lease %q does not match Pending %q: %w",
 			prepared.Checkpoint.Scope.GoalLeaseID,
 			plan.pending.GoalLeaseID,
-			execution.ErrInvalidExecutorCheckpoint,
+			ErrInvalidExecutorCheckpoint,
 		)
 	}
 	if prepared.Checkpoint.ModelSelection != rootContinuation.ModelSelection {
@@ -68,7 +67,7 @@ func prepareWaitingCancellationTransformation(
 			prepared.Checkpoint.ModelSelection.Model(),
 			rootContinuation.ModelSelection.Provider(),
 			rootContinuation.ModelSelection.Model(),
-			execution.ErrInvalidExecutorCheckpoint,
+			ErrInvalidExecutorCheckpoint,
 		)
 	}
 	if prepared.Checkpoint.Limits != rootContinuation.Limits {
@@ -76,7 +75,7 @@ func prepareWaitingCancellationTransformation(
 			"runs: prepared waiting subtree checkpoint limits %+v do not match root continuation %+v: %w",
 			prepared.Checkpoint.Limits,
 			rootContinuation.Limits,
-			execution.ErrInvalidExecutorCheckpoint,
+			ErrInvalidExecutorCheckpoint,
 		)
 	}
 
@@ -157,7 +156,7 @@ func prepareWaitingCancellationTransformation(
 		})
 	}
 
-	continuations := make([]interrupts.Continuation, 0, len(plan.survivingTree))
+	continuations := make([]Continuation, 0, len(plan.survivingTree))
 	parentToolMoved := false
 	for _, continuation := range plan.pending.Continuations {
 		if _, canceled := canceledProcessSet[continuation.ProcessID]; canceled {
@@ -167,8 +166,8 @@ func prepareWaitingCancellationTransformation(
 		clone.DrainedTools = slices.Clone(continuation.DrainedTools)
 		clone.CommittedTools = slices.Clone(continuation.CommittedTools)
 		if continuation.RunID == plan.target.run.ParentRunID {
-			var matches []interrupts.DrainedTool
-			clone.DrainedTools = slices.DeleteFunc(clone.DrainedTools, func(tool interrupts.DrainedTool) bool {
+			var matches []DrainedTool
+			clone.DrainedTools = slices.DeleteFunc(clone.DrainedTools, func(tool DrainedTool) bool {
 				if tool.ItemID != parentItem.ID {
 					return false
 				}
@@ -191,7 +190,7 @@ func prepareWaitingCancellationTransformation(
 					parentItem.ID,
 				)
 			}
-			clone.CommittedTools = append(clone.CommittedTools, interrupts.CommittedTool{
+			clone.CommittedTools = append(clone.CommittedTools, CommittedTool{
 				ItemID:    tool.ItemID,
 				CallID:    tool.CallID,
 				Name:      tool.Name,
@@ -219,7 +218,7 @@ func prepareWaitingCancellationTransformation(
 	}
 	pendingSuspensions := prepared.PendingSuspensions
 	remainingInterrupts := make([]transcript.Interrupt, 0, len(pendingSuspensions))
-	remainingBindings := make([]interrupts.SuspensionBinding, 0, len(pendingSuspensions))
+	remainingBindings := make([]SuspensionBinding, 0, len(pendingSuspensions))
 	keptBindings := make(map[int]struct{}, len(pendingSuspensions))
 	for _, boundary := range pendingSuspensions {
 		if err := boundary.Interrupt.Validate(); err != nil {
@@ -296,7 +295,7 @@ func prepareWaitingCancellationTransformation(
 		)
 	}
 
-	var remaining *interrupts.Pending
+	var remaining *Pending
 	if len(remainingInterrupts) > 0 {
 		reduced := plan.pending
 		reduced.Interrupts = remainingInterrupts
@@ -325,8 +324,8 @@ func prepareWaitingCancellationTransformation(
 }
 
 func canceledWaitingRun(run transcript.Run, reason string, finishedAt time.Time) transcript.Run {
-	outcome := execution.OutcomeCanceled
-	run.State = execution.Canceled
+	outcome := rundomain.OutcomeCanceled
+	run.State = rundomain.Canceled
 	run.ActiveSegmentID = ""
 	run.Outcome = &outcome
 	run.Detail = reason
@@ -343,7 +342,7 @@ func suspensionIdentity(processID, suspensionID string) string {
 }
 
 func (transformation waitingCancellationTransformation) durableCommit(
-	expected interrupts.Pending,
+	expected Pending,
 ) WaitingSubtreeCancellationCommit {
 	return WaitingSubtreeCancellationCommit{
 		RootRunID:        expected.RootRunID,

@@ -8,14 +8,14 @@ package executionctx
 import (
 	"context"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 )
 
 type scopeKey struct{}
 
 // WithScope returns a context carrying scope. The value is immutable and safe
 // to share across the complete delegation tree.
-func WithScope(ctx context.Context, scope execution.ExecutionScope) context.Context {
+func WithScope(ctx context.Context, scope runs.ExecutionScope) context.Context {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -23,11 +23,11 @@ func WithScope(ctx context.Context, scope execution.ExecutionScope) context.Cont
 }
 
 // Scope returns the application scope attached at the root Run boundary.
-func Scope(ctx context.Context) (execution.ExecutionScope, bool) {
+func Scope(ctx context.Context) (runs.ExecutionScope, bool) {
 	if ctx == nil {
-		return execution.ExecutionScope{}, false
+		return runs.ExecutionScope{}, false
 	}
-	scope, ok := ctx.Value(scopeKey{}).(execution.ExecutionScope)
+	scope, ok := ctx.Value(scopeKey{}).(runs.ExecutionScope)
 	return scope, ok
 }
 

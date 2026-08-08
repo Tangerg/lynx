@@ -17,12 +17,11 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/toolresult"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
 // SessionStore is the run-segment side-effect view of session persistence.
@@ -53,8 +52,8 @@ type GoalRunRecorder interface {
 // A stream segment only records newly-opened interrupts; claim/resume/delete
 // belongs to lifecycle.
 type InterruptStore interface {
-	Open(ctx context.Context, p interrupts.Pending) error
-	Consume(ctx context.Context, sessionID, rootRunID string) (interrupts.Pending, bool, error)
+	Open(ctx context.Context, p runs.Pending) error
+	Consume(ctx context.Context, sessionID, rootRunID string) (runs.Pending, bool, error)
 }
 
 // TranscriptStore is the run-segment append side of durable transcript
@@ -68,8 +67,8 @@ type ItemReplacer interface {
 }
 
 type ToolResultStore interface {
-	Bind(ctx context.Context, sessionID, itemID, preview string, ref offload.Ref) error
-	Discard(ctx context.Context, sessionID string, ref offload.Ref) error
+	Bind(ctx context.Context, sessionID, itemID, preview string, ref toolresult.Ref) error
+	Discard(ctx context.Context, sessionID string, ref toolresult.Ref) error
 }
 
 // RunWriter applies the run's lifecycle transitions inside the event commit
@@ -80,8 +79,8 @@ type ToolResultStore interface {
 // a durable commit, so what the Run had spent by then is committed with it. The
 // sqlite RunStore satisfies it.
 type RunWriter interface {
-	Admit(ctx context.Context, draft execution.RunDraft) error
-	Resume(ctx context.Context, sessionID string, draft execution.RunResumeDraft, resumedAt time.Time) error
+	Admit(ctx context.Context, draft run.RunDraft) error
+	Resume(ctx context.Context, sessionID string, draft run.RunResumeDraft, resumedAt time.Time) error
 	Suspend(ctx context.Context, run transcript.Run) error
 	Terminalize(ctx context.Context, run transcript.Run) error
 }
@@ -90,7 +89,7 @@ type RunWriter interface {
 // checkpoints selected by the Run lifecycle. It never interprets the
 // payload.
 type ExecutorCheckpointStore interface {
-	SaveCheckpoint(ctx context.Context, checkpoint execution.ExecutorCheckpoint) error
+	SaveCheckpoint(ctx context.Context, checkpoint runs.ExecutorCheckpoint) error
 	DeleteCheckpoints(ctx context.Context, sessionID string, rootIDs []string) error
 }
 

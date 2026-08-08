@@ -8,7 +8,7 @@ import (
 
 	"github.com/Tangerg/lynx/embeddingclient"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/codebaseindex"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/codebase"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/llm"
 )
@@ -20,16 +20,16 @@ import (
 type EmbeddingResolver struct {
 	providers CredentialLookup
 	mu        sync.Mutex
-	cache     map[string]codebaseindex.Embedder
+	cache     map[string]codebase.Embedder
 }
 
 // NewEmbeddingResolver returns a resolver over the provider credential lookup.
 func NewEmbeddingResolver(providers CredentialLookup) *EmbeddingResolver {
-	return &EmbeddingResolver{providers: providers, cache: map[string]codebaseindex.Embedder{}}
+	return &EmbeddingResolver{providers: providers, cache: map[string]codebase.Embedder{}}
 }
 
 // Resolve builds (or returns a cached) embedder for selection.
-func (r *EmbeddingResolver) Resolve(ctx context.Context, selection modelref.Selection) (codebaseindex.Embedder, error) {
+func (r *EmbeddingResolver) Resolve(ctx context.Context, selection modelref.Selection) (codebase.Embedder, error) {
 	if !selection.Configured() {
 		return nil, errors.New("modelclient: explicit model selection is required")
 	}
@@ -76,7 +76,7 @@ func (r *EmbeddingResolver) ValidateEmbeddingModel(ctx context.Context, provider
 	return err
 }
 
-// embedder adapts an embeddingclient.Client to [codebaseindex.Embedder], converting
+// embedder adapts an embeddingclient.Client to [codebase.Embedder], converting
 // the float64 vectors to the float32 the index stores.
 type embedder struct {
 	id     string

@@ -9,7 +9,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 )
 
 // Meter scope + metric names. These measure the lyra-runtime turn
@@ -52,7 +52,7 @@ func millis(d time.Duration) float64 { return float64(d.Microseconds()) / 1000.0
 // recordTurnDuration records one finished turn's wall-clock against the
 // duration histogram, dimensioned by outcome + model (both low
 // cardinality; the session / run ids stay on the span + logs).
-func recordTurnDuration(ctx context.Context, reason execution.Outcome, model string, dur time.Duration) {
+func recordTurnDuration(ctx context.Context, reason run.Outcome, model string, dur time.Duration) {
 	loadTurnMetrics().duration.Record(ctx, millis(dur), metric.WithAttributes(
 		attribute.String(attrRunOutcome, reason.String()),
 		attribute.String(attrGenAIRequestModel, model),

@@ -1,6 +1,6 @@
 # Lyra Runtime 能力迁移台账
 
-> 状态：P0 当前事实基线，随每个实施批次更新
+> 状态：P2 当前事实，随每个实施批次更新
 >
 > 基线日期：2026-08-08
 
@@ -20,13 +20,15 @@
 
 ### 2.1 规模与依赖
 
-- `app/runtime/internal` 当前有 954 个 Go 文件（含 P1 architecture tests 与反例 fixture）；
+- `app/runtime/internal` 当前有 963 个 Go 文件（含 architecture tests 与反例 fixture）；
 - `adapter/agentexec` 有 103 个 Go 文件，`adapter/toolset` 有 68 个；
 - 53 个 Runtime Go 文件存在旧 `github.com/Tangerg/lynx/agent` import declaration，共 88 条；P0 的 54 文件文本命中包含了 architecture guard 自身的字符串，P1 已改用 AST 精确盘点；
 - 其中 39 个位于 `adapter/agentexec`，9 个位于 `adapter/toolset`；
 - 剩余 direct imports 位于 runsegment tests 与 bootstrap tests；
 - `app/runtime/go.mod` 仍依赖旧 `agent`，生产代码尚未 import `agent2`；
 - Domain、Application 和 Delivery 生产代码目前对旧 Agent Framework 零 import；
+- P2 已删除 `domain/execution` 及全部 forwarding/alias path；Domain 生产代码与测试对 Application/Adapter/Infra/Delivery/Bootstrap 零 import，context-based I/O port 为零；
+- Run、Accounting、Conversation、Transcript、Interrupt、ToolResult 已成为准确顶层 bounded-context package；executor checkpoint/ref、pending continuation 与 workspace mutation 由 Application consumer 拥有；
 - 当前 Agent dependency 已经主要集中在执行防腐层，这是原位重构而非完整 runtime2 的关键依据。
 
 ### 2.2 当前架构基础
@@ -35,7 +37,7 @@
 |---|---|---|---|
 | Run lifecycle | `application/runs` 拥有 start、pump、waiting、cancel、terminal ordering | Retain + Refactor ports | P2–P3 |
 | Session lifecycle | 独立 application/domain，拥有 workspace/admission 产品语义 | Retain | P2/P8 |
-| Domain framework isolation | P1 已冻结 Target DAG，并把十个 context-based Domain I/O port 锁进逐项 P2 删除台账 | Retain + strengthen | P1 已完成；P2 删除例外 |
+| Domain framework isolation | P2 已删除十个 context-based Domain I/O port，生产与测试均由机器守卫禁止向外依赖 | Retain + strengthen | P2 已完成；例外为零 |
 | Agent anti-corruption | 已集中于 `adapter/agentexec`，但内部复制旧 Framework lifecycle | Rewrite | P4–P7 |
 | Delivery separation | P1 起 target DAG 禁止 Delivery import 任意 concrete Adapter；protocol/dispatch/server/transport 继续按现有职责迁移 | Retain + naming audit | P1 guard；P9–P10 收口 |
 | Adapter/Infra direction | 当前主要为 Adapter 使用 Infra，Infra 不反向 import Adapter | Retain + package audit | P9 |
@@ -49,11 +51,11 @@
 
 | 当前能力 | 当前 owner | 目标 | Verdict | 验收 |
 |---|---|---|---|---|
-| Run identity/state/outcome | `domain/execution` | `domain/run` | Refactor | 旧 path 归零，状态行为测试全绿 |
-| Segment identity/lifecycle | `domain/execution` + `application/runs` | `domain/run` + runs use case | Refactor | resume 保持 RunID、打开新 Segment |
-| Run limits/capabilities | `domain/execution` | `domain/run` | Retain + rename | admission/restore 同值，不能重新谈判 |
-| Terminal outcome taxonomy | Completed/Canceled/Error/MaxBudget/MaxSteps；timeout 混在 failure | Completed/Canceled/TimedOut/Failed/MaxBudget/MaxSteps/Lost 的精确产品事实 | Refactor | Application intent + Agent2 Termination matrix |
-| ExecutorRef/checkpoint | `domain/execution` | `application/runs` owned opaque executor binding/checkpoint | Refactor | Run entity 不保存执行端口细节，无 Agent2 concrete type/payload parsing |
+| Run identity/state/outcome | `domain/run` | 保持 | Retain | P2 旧 path 归零，状态行为测试全绿 |
+| Segment identity/lifecycle | `domain/run` + `application/runs` | 保持；P3 重推 root port | Retain + Refactor port | resume 保持 RunID、打开新 Segment |
+| Run limits/capabilities | `domain/run` | 保持 | Retain | admission/restore 同值，不能重新谈判 |
+| Terminal outcome taxonomy | Completed/Canceled/TimedOut/Failed/MaxBudget/MaxSteps/Lost | P8 结合 Agent2 Termination 冻结完整映射 | Retain + complete mapping | P2 产品与 wire taxonomy 已精确；P8 完成新 Framework matrix |
+| ExecutorRef/checkpoint | `application/runs` opaque executor binding/checkpoint | P3/P6 按真实 consumer 演进 | Refactor port | Run entity 不保存执行端口细节，无 Agent2 concrete type/payload parsing |
 | ProcessID product exposure | execution/continuation/child binding | 准确的 executor member identity | Refactor | Application 不使用 Framework Process 语言 |
 | Step count | Run usage | 保留产品需要的计数，区分 Agent2 Step | Refactor | 不把两种 Step 当同一类型 |
 
@@ -61,9 +63,9 @@
 
 | 当前能力 | 当前 owner | 目标 | Verdict | 验收 |
 |---|---|---|---|---|
-| Conversation message log | `domain/execution/conversation` | 独立 `domain/conversation` | Refactor | Count/Truncate/Seed 不依赖 Run executor |
-| Transcript Items/Runs | `domain/execution/transcript` | 独立 `domain/transcript` | Refactor | rollback/fork/item timing 保持权威 |
-| Offloaded transcript content | `domain/execution/offload` | Transcript-owned capability 或准确独立 package | Refactor after consumer audit | 无泛化 blob service |
+| Conversation message log | `domain/conversation` + `application/conversations` I/O | 保持 | Retain | Count/Truncate/Seed 不依赖 Run executor |
+| Transcript Items/Runs | `domain/transcript` | 保持 | Retain | rollback/fork/item timing 保持权威 |
+| Offloaded transcript content | `domain/toolresult` | 保持准确独立 capability | Retain | 无泛化 blob service |
 | Knowledge/LYRA.md | `domain/knowledge` | 保持独立 | Retain | 用户编辑与 Agent state 无关 |
 | WorkingContext | 旧 agent interaction/history bridge | Agent2 Interaction private state | Remove Runtime duplicate | restore 不从 Conversation 重算 |
 
@@ -71,7 +73,8 @@
 
 | 当前能力 | 当前 owner | 目标 | Verdict | 验收 |
 |---|---|---|---|---|
-| Pending interrupts | `domain/execution/interrupts` | `domain/interrupt` | Refactor | 一个 root tree 一个 pending boundary |
+| Interrupt semantics | `domain/interrupt` | 保持 | Retain | Kind/Key/Resolution 纯领域值，无 I/O/executor |
+| Pending continuation | `application/runs.Pending` + `adapter/persistence` mapping | P6 重写 bridge，保持 owner | Refactor port | 一个 root tree 一个 pending hand-off；Infra 只见 technical record |
 | Approval domain | `domain/approval` | 保持产品策略 | Retain + remove I/O ports | 不进入 Agent2 |
 | Ask-user/approval tool input | toolset + old HITL codec | agentexec public Interaction helper → product Interrupt | Rewrite bridge | 不解析 private suspension JSON |
 | Answer/resolution | runs + suspension adapter | semantic Application command → Signal | Rewrite bridge | 无任意 Signal API |
@@ -80,7 +83,7 @@
 
 | 当前能力 | 当前 owner | 目标 | Verdict | 验收 |
 |---|---|---|---|---|
-| Token/model-call accounting | execution/accounting + agent observer | `domain/accounting` + authoritative decorators | Refactor | Delta drop 不丢 usage |
+| Token/model-call accounting | `domain/accounting` + legacy agent observer | authoritative decorators | Refactor bridge | P2 value owner 已完成；P5 保证 Delta drop 不丢 usage |
 | Pricing/USD | adapter/pricing + observer | Runtime adapter/domain value | Retain | Agent2 Usage 无价格字段 |
 | Framework resource usage | old Agent aggregate | Agent2 Usage | Replace | 只翻译需要的中性事实 |
 | Goal budget attribution | goals/runs | 保持 Application | Retain | child/root、resume、lost 归属准确 |
@@ -97,7 +100,7 @@
 | Model/provider catalog | domain/application/adapters | Retain | 每 Run exact model binding 进入 deployment assembly |
 | MCP/A2A/LSP | domain/application/infra/toolset | Retain | 保持技术能力，不进入 Agent2 Kernel |
 | Workspace/change/isolation | application/adapters/infra | Retain + recovery audit | 外部事实失效由 Host policy 处理 |
-| Hooks | domain/adapter | Retain | 真实 model/tool/child 边界触发 |
+| Hooks | domain/application/adapter | Retain | command I/O 由 Application consumer 拥有；P5 在真实 model/tool/child 边界触发 |
 | Feedback/codebase index | domain/application | Retain | 与 execution migration 无直接耦合 |
 
 ## 4. Application 能力

@@ -5,13 +5,13 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/application/conversations"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/conversation"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
+	rundomain "github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/toolresult"
 	sqlitestore "github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 )
 
@@ -21,10 +21,10 @@ import (
 type SessionStores struct {
 	sessions            *sqlitestore.SessionStore
 	transcript          *sqlitestore.TranscriptStore
-	interrupts          *sqlitestore.InterruptStore
+	interrupts          *InterruptStore
 	runs                *sqlitestore.RunStore
-	executorCheckpoints *sqlitestore.ExecutorCheckpointStore
-	history             *conversation.Messages
+	executorCheckpoints *ExecutorCheckpointStore
+	history             *conversations.Messages
 	plan                planProjection
 	approvals           approvalRuleCleaner
 	toolResults         *sqlitestore.ToolResultStore
@@ -36,10 +36,10 @@ type SessionStores struct {
 type SessionStoresConfig struct {
 	Sessions            *sqlitestore.SessionStore
 	Transcript          *sqlitestore.TranscriptStore
-	Interrupts          *sqlitestore.InterruptStore
+	Interrupts          *InterruptStore
 	Runs                *sqlitestore.RunStore
-	ExecutorCheckpoints *sqlitestore.ExecutorCheckpointStore
-	History             *conversation.Messages
+	ExecutorCheckpoints *ExecutorCheckpointStore
+	History             *conversations.Messages
 	Plan                planProjection
 	Approvals           approvalRuleCleaner
 	ToolResults         *sqlitestore.ToolResultStore
@@ -111,7 +111,7 @@ func (s *SessionStores) ReadSnapshot(ctx context.Context, sessionID string) (ses
 		if err != nil {
 			return err
 		}
-		var toolResults []offload.ToolResultBlob
+		var toolResults []toolresult.Blob
 		if s.toolResults != nil {
 			toolResults, err = s.toolResults.List(ctx, sessionID)
 			if err != nil {
@@ -350,11 +350,11 @@ func (s *SessionStores) ApplyTerminal(ctx context.Context, plan sessions.Termina
 				return fmt.Errorf("persistence: terminal Run %q outcome is required", run.ID)
 			}
 			switch *run.Outcome {
-			case execution.OutcomeCanceled:
+			case rundomain.OutcomeCanceled:
 				if err := s.runs.Terminalize(ctx, run); err != nil {
 					return err
 				}
-			case execution.OutcomeError:
+			case rundomain.OutcomeLost:
 				if err := s.runs.RecoverLost(ctx, run); err != nil {
 					return err
 				}

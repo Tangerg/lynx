@@ -6,9 +6,9 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
 // artifactFromPortable maps the terminal archive projection to the versioned
@@ -106,7 +106,7 @@ func artifactRunFromPortable(run sessions.PortableRun) (protocol.ArtifactRun, er
 // published under, and
 // nothing for a child — a child reads its root's, and writing a second copy is how
 // the two come to disagree.
-func presentArtifactProtocolProfile(capabilities *execution.RunCapabilities) *protocol.RunProtocolProfile {
+func presentArtifactProtocolProfile(capabilities *run.RunCapabilities) *protocol.RunProtocolProfile {
 	if capabilities == nil {
 		return nil
 	}
@@ -114,18 +114,22 @@ func presentArtifactProtocolProfile(capabilities *execution.RunCapabilities) *pr
 	return &presented
 }
 
-func artifactOutcomeType(outcome execution.Outcome) (protocol.ArtifactOutcomeType, error) {
+func artifactOutcomeType(outcome run.Outcome) (protocol.ArtifactOutcomeType, error) {
 	switch outcome {
-	case execution.OutcomeCompleted:
+	case run.OutcomeCompleted:
 		return protocol.ArtifactOutcomeCompleted, nil
-	case execution.OutcomeCanceled:
+	case run.OutcomeCanceled:
 		return protocol.ArtifactOutcomeCanceled, nil
-	case execution.OutcomeError:
-		return protocol.ArtifactOutcomeError, nil
-	case execution.OutcomeMaxBudget:
+	case run.OutcomeTimedOut:
+		return protocol.ArtifactOutcomeTimedOut, nil
+	case run.OutcomeFailed:
+		return protocol.ArtifactOutcomeFailed, nil
+	case run.OutcomeMaxBudget:
 		return protocol.ArtifactOutcomeMaxBudget, nil
-	case execution.OutcomeMaxSteps:
+	case run.OutcomeMaxSteps:
 		return protocol.ArtifactOutcomeMaxSteps, nil
+	case run.OutcomeLost:
+		return protocol.ArtifactOutcomeLost, nil
 	default:
 		return "", fmt.Errorf("unknown value %d", outcome)
 	}
@@ -139,7 +143,7 @@ func artifactMetricsFromDomain(metrics transcript.RunMetrics) protocol.ArtifactR
 	}
 }
 
-func artifactLimitsFromDomain(limits execution.RunLimits) *protocol.ArtifactRunLimits {
+func artifactLimitsFromDomain(limits run.RunLimits) *protocol.ArtifactRunLimits {
 	if limits.IsZero() {
 		return nil
 	}

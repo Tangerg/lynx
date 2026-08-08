@@ -6,11 +6,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/toolresult"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
 func TestSnapshotNormalizeForRestoreProjectsPreviewWithoutMutatingSource(t *testing.T) {
@@ -89,7 +90,7 @@ func TestSnapshotValidateToolResultsRejectsBrokenRelationships(t *testing.T) {
 }
 
 func offloadedSnapshot(result string) Snapshot {
-	ref := &offload.Ref{ID: "BLOB234"}
+	ref := &toolresult.Ref{ID: "BLOB234"}
 	value := tool.StringResult(result)
 	return Snapshot{
 		Session: session.Session{ID: "ses_1"},
@@ -97,7 +98,7 @@ func offloadedSnapshot(result string) Snapshot {
 			SessionID: "ses_1", ID: "item_1", Kind: transcript.ToolCall,
 			Tool: &transcript.ToolInvocation{Name: "shell", Result: &value, Offload: ref},
 		}},
-		ToolResults: []offload.ToolResultBlob{{
+		ToolResults: []toolresult.Blob{{
 			ID: "BLOB234", SessionID: "ses_1", ItemID: "item_1", ToolName: "shell",
 			Preview: "bounded preview", Body: "full body", CreatedAt: time.Unix(1, 0).UTC(),
 		}},
@@ -109,10 +110,10 @@ func offloadedSnapshot(result string) Snapshot {
 // no presence rule can condition on. So they are checked where the archive
 // becomes a session — before anything is written.
 func TestPortableSnapshotRefusesABrokenRunLineage(t *testing.T) {
-	capabilities := execution.RunCapabilities{}
+	capabilities := run.RunCapabilities{}
 	root := func() PortableRun {
 		return PortableRun{
-			SessionID: "ses_1", ID: "run_root", Outcome: execution.OutcomeCompleted,
+			SessionID: "ses_1", ID: "run_root", Outcome: run.OutcomeCompleted,
 			Capabilities: &capabilities,
 		}
 	}
@@ -120,23 +121,23 @@ func TestPortableSnapshotRefusesABrokenRunLineage(t *testing.T) {
 		// A root with no capabilities is an archive that lost an admitted fact.
 		// Defaulting it to empty would import a different Run.
 		"root without capabilities": {
-			{SessionID: "ses_1", ID: "run_root", Outcome: execution.OutcomeCompleted},
+			{SessionID: "ses_1", ID: "run_root", Outcome: run.OutcomeCompleted},
 		},
 		// A child reads its root's contract; one of its own is a second statement of
 		// something the archive already says once.
 		"child with its own capabilities": {root(), {
-			SessionID: "ses_1", ID: "run_child", Outcome: execution.OutcomeCompleted,
+			SessionID: "ses_1", ID: "run_child", Outcome: run.OutcomeCompleted,
 			SpawnedByItemID: "item_1", ParentRunID: "run_root", RootRunID: "run_root",
 			Capabilities: &capabilities,
 		}},
 		"child naming itself as its own root": {root(), {
-			SessionID: "ses_1", ID: "run_child", Outcome: execution.OutcomeCompleted,
+			SessionID: "ses_1", ID: "run_child", Outcome: run.OutcomeCompleted,
 			SpawnedByItemID: "item_1", ParentRunID: "run_root", RootRunID: "run_child",
 		}},
 		// A child whose root is not in the archive imports a tree that cannot be
 		// walked — and a contract that cannot be read.
 		"child whose root is absent": {{
-			SessionID: "ses_1", ID: "run_child", Outcome: execution.OutcomeCompleted,
+			SessionID: "ses_1", ID: "run_child", Outcome: run.OutcomeCompleted,
 			SpawnedByItemID: "item_1", ParentRunID: "run_gone", RootRunID: "run_gone",
 		}},
 	} {
@@ -155,9 +156,9 @@ func TestPortableSnapshotRefusesABrokenRunLineage(t *testing.T) {
 // A child inherits rather than restating its root's capabilities, so the
 // restored Run must carry the root value rather than an empty set.
 func TestPortableSnapshotChildInheritsRootCapabilities(t *testing.T) {
-	capabilities := execution.RunCapabilities{
+	capabilities := run.RunCapabilities{
 		ChildRuns:      true,
-		InterruptKinds: []execution.InterruptKind{execution.ApprovalInterrupt},
+		InterruptKinds: []interrupt.Kind{interrupt.Approval},
 	}
 	at := time.Unix(1, 0).UTC()
 	portable := PortableSnapshot{
@@ -173,12 +174,12 @@ func TestPortableSnapshotChildInheritsRootCapabilities(t *testing.T) {
 		}},
 		Runs: []PortableRun{
 			{
-				SessionID: "ses_1", ID: "run_root", Outcome: execution.OutcomeCompleted,
+				SessionID: "ses_1", ID: "run_root", Outcome: run.OutcomeCompleted,
 				Capabilities: &capabilities,
 				CreatedAt:    at, FinishedAt: at, UpdatedAt: at,
 			},
 			{
-				SessionID: "ses_1", ID: "run_child", Outcome: execution.OutcomeCompleted,
+				SessionID: "ses_1", ID: "run_child", Outcome: run.OutcomeCompleted,
 				SpawnedByItemID: "item_1", ParentRunID: "run_root", RootRunID: "run_root",
 				CreatedAt: at, FinishedAt: at, UpdatedAt: at,
 			},

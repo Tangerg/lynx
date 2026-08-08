@@ -19,17 +19,16 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/component/keyset"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/codebaseindex"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/knowledge"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/schedule"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/skills"
 	toolsvc "github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
 // Every interface below is defined by Delivery — the consuming side. They keep
@@ -104,7 +103,7 @@ type runUseCases interface {
 
 type queryUseCases interface {
 	ListItemPage(ctx context.Context, scope queries.ItemScope, order transcript.SequenceOrder, cursor string, limit int) (queries.ItemPage, error)
-	ListPendingInterruptPage(ctx context.Context, sessionID, rootRunID string, caller execution.RunCapabilities, cursor string, limit int) (keyset.Page[interrupts.Pending], error)
+	ListPendingInterruptPage(ctx context.Context, sessionID, rootRunID string, caller run.RunCapabilities, cursor string, limit int) (keyset.Page[runs.Pending], error)
 	Run(ctx context.Context, runID string) (transcript.Run, bool, error)
 	PlanState(ctx context.Context, sessionID string) (plan.State, error)
 	ListRunPage(ctx context.Context, filter queries.RunPageFilter, cursor string, limit int) (keyset.Page[transcript.Run], error)

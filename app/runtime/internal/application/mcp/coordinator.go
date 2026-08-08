@@ -1,5 +1,5 @@
 // Package mcp coordinates durable server configuration, live connections, and
-// the tool policy consumed by execution.
+// the tool policy consumed by run.
 package mcp
 
 import (

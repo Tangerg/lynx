@@ -18,7 +18,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/executionctx"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/catalog"
-	resultoffload "github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
+	resultoffload "github.com/Tangerg/lynx/app/runtime/internal/domain/toolresult"
 )
 
 // defaultReadWindow bounds a read that names no limit, so a naive

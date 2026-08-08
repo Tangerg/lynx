@@ -12,6 +12,7 @@ import (
 	"github.com/Tangerg/lynx/chatclient"
 	"github.com/Tangerg/lynx/core/chat"
 
+	agentmemoryapp "github.com/Tangerg/lynx/app/runtime/internal/application/agentmemory"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/agentmemory"
 )
 
@@ -72,7 +73,7 @@ type Extractor struct {
 	history  messageReader
 	memory   agentMemory
 	client   ClientFunc
-	embedder func(context.Context) (agentmemory.Embedder, error)
+	embedder func(context.Context) (agentmemoryapp.Embedder, error)
 	config   CurationConfig
 	minMsgs  int
 	now      func() time.Time
@@ -80,7 +81,7 @@ type Extractor struct {
 
 // NewExtractor builds the Run-boundary extraction and curation worker.
 // embedder is optional (nil = keyword-only memory search).
-func NewExtractor(store messageReader, memory agentMemory, client ClientFunc, embedder func(context.Context) (agentmemory.Embedder, error), config CurationConfig) *Extractor {
+func NewExtractor(store messageReader, memory agentMemory, client ClientFunc, embedder func(context.Context) (agentmemoryapp.Embedder, error), config CurationConfig) *Extractor {
 	return &Extractor{
 		history:  store,
 		memory:   memory,

@@ -6,8 +6,8 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 )
 
@@ -120,7 +120,7 @@ func TestPlanBoundaryIsRecordedByTheRunThatEnds(t *testing.T) {
 	if err := runs.Admit(ctx, runDraft("run_1", "ses_A")); err != nil {
 		t.Fatalf("admit run_1: %v", err)
 	}
-	if err := runs.Terminalize(ctx, finishedRun("run_1", "ses_A", execution.OutcomeCompleted)); err != nil {
+	if err := runs.Terminalize(ctx, finishedRun("run_1", "ses_A", run.OutcomeCompleted)); err != nil {
 		t.Fatalf("terminalize run_1: %v", err)
 	}
 
@@ -131,7 +131,7 @@ func TestPlanBoundaryIsRecordedByTheRunThatEnds(t *testing.T) {
 	if err := runs.Admit(ctx, runDraft("run_2", "ses_A")); err != nil {
 		t.Fatalf("admit run_2: %v", err)
 	}
-	if err := runs.Terminalize(ctx, finishedRun("run_2", "ses_A", execution.OutcomeCompleted)); err != nil {
+	if err := runs.Terminalize(ctx, finishedRun("run_2", "ses_A", run.OutcomeCompleted)); err != nil {
 		t.Fatalf("terminalize run_2: %v", err)
 	}
 
@@ -160,7 +160,7 @@ func TestPlanBoundaryDistinguishesEmptyFromUnrecorded(t *testing.T) {
 	if err := runs.Admit(ctx, runDraft("run_1", "ses_A")); err != nil {
 		t.Fatalf("admit: %v", err)
 	}
-	if err := runs.Terminalize(ctx, finishedRun("run_1", "ses_A", execution.OutcomeCompleted)); err != nil {
+	if err := runs.Terminalize(ctx, finishedRun("run_1", "ses_A", run.OutcomeCompleted)); err != nil {
 		t.Fatalf("terminalize: %v", err)
 	}
 	got, recorded, err := plans.Boundary(ctx, "run_1")
@@ -174,7 +174,7 @@ func TestPlanBoundaryDistinguishesEmptyFromUnrecorded(t *testing.T) {
 
 	// An imported Run finished in another runtime: stamping the importing session's
 	// live list would invent a boundary that Run never had.
-	if err := runs.Restore(ctx, finishedRun("run_imported", "ses_B", execution.OutcomeCompleted)); err != nil {
+	if err := runs.Restore(ctx, finishedRun("run_imported", "ses_B", run.OutcomeCompleted)); err != nil {
 		t.Fatalf("restore: %v", err)
 	}
 	if _, recorded, err = plans.Boundary(ctx, "run_imported"); err != nil || recorded {
@@ -195,7 +195,7 @@ func TestPlanBoundaryDiesWithItsRun(t *testing.T) {
 	if err := runs.Admit(ctx, runDraft("run_1", "ses_A")); err != nil {
 		t.Fatalf("admit: %v", err)
 	}
-	if err := runs.Terminalize(ctx, finishedRun("run_1", "ses_A", execution.OutcomeCompleted)); err != nil {
+	if err := runs.Terminalize(ctx, finishedRun("run_1", "ses_A", run.OutcomeCompleted)); err != nil {
 		t.Fatalf("terminalize: %v", err)
 	}
 	if _, recorded, err := plans.Boundary(ctx, "run_1"); err != nil || !recorded {

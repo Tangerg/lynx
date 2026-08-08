@@ -10,7 +10,7 @@ const (
 
 // Tool is the metadata of one registered tool. Schema is the JSON Schema
 // the model is shown; SafetyClass drives the default approval flow
-// (see approval.RuntimePolicy).
+// (see approvals.RuntimePolicy).
 type Tool struct {
 	Name        string
 	Description string

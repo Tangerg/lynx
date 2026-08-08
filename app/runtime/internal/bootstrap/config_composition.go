@@ -9,15 +9,15 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/persistence"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/pricing"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/models"
 	"github.com/Tangerg/lynx/app/runtime/internal/config"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
-	providersvc "github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
 	"github.com/Tangerg/lynx/chatclient"
 )
 
 // ComposeConfig translates process settings and already-opened adapters into
 // the construction input consumed by [NewAssembly].
-func ComposeConfig(cfg config.Settings, stores *persistence.Bundle, client *chatclient.Client, providers providersvc.Registry, hooks HookResolver, buildID string) Config {
+func ComposeConfig(cfg config.Settings, stores *persistence.Bundle, client *chatclient.Client, providers models.ProviderRegistry, hooks HookResolver, buildID string) Config {
 	return Config{
 		Resources:     []ShutdownResource{stores},
 		SkillsUserDir: filepath.Join(stores.DataDirectory, "skills"),

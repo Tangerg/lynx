@@ -7,9 +7,9 @@ import (
 	"strings"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 	corechat "github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/core/media"
 )
@@ -98,12 +98,12 @@ type StartCommand struct {
 	DefaultWorkspacePath string
 	NewSessionTitle      string
 	ModelSelection       modelref.Selection
-	Limits               execution.RunLimits
+	Limits               run.RunLimits
 	Options              *corechat.Options
 	// Capabilities is the optional behavior enabled for this Run, already resolved
 	// by the caller against what this build can execute. The use case freezes it at
 	// admission rather than deriving or renegotiating it later.
-	Capabilities execution.RunCapabilities
+	Capabilities run.RunCapabilities
 	Input        []transcript.ContentBlock
 	// GoalLeaseID stamps a Goal-mode autonomous run with the goal incarnation
 	// that launched it, so the Run's reported outcome only affects that Goal
@@ -208,7 +208,7 @@ type ResumeCommand struct {
 	// CallerCapabilities is what this request can handle. A resume does not
 	// renegotiate the Run's frozen capabilities; a caller missing any of them is
 	// refused rather than served reduced behavior.
-	CallerCapabilities execution.RunCapabilities
+	CallerCapabilities run.RunCapabilities
 }
 
 type ResumeResponseKind string
@@ -297,7 +297,7 @@ type SubscribeRequest struct {
 	Cursor string
 	// CallerCapabilities is what this request can handle. It must cover the Run's
 	// frozen capabilities before the subscriber attaches to the stream.
-	CallerCapabilities execution.RunCapabilities
+	CallerCapabilities run.RunCapabilities
 }
 
 // Subscription is an attached caller's view of a live segment.
@@ -332,7 +332,7 @@ func (r StartExecution) Validate() error {
 	if err := r.ModelSelection.Validate(); err != nil {
 		return fmt.Errorf("runs: model selection: %w", err)
 	}
-	if err := (execution.RunCapabilities{
+	if err := (run.RunCapabilities{
 		ChildRuns:      r.ChildRunAdmissionEnabled,
 		InterruptKinds: r.InterruptKinds,
 	}).Validate(); err != nil {
@@ -367,7 +367,7 @@ func validateOptions(options *corechat.Options) error {
 // sentinel would leave the caller to go find out what blocked it.
 type ActiveRunConflict struct {
 	RunID  string
-	Status execution.RunStatus
+	Status run.RunStatus
 }
 
 func (e *ActiveRunConflict) Error() string {

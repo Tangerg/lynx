@@ -1,0 +1,206 @@
+package run
+
+// RunState is the lifecycle position of a Run and the single authority for its
+// legal transitions.
+//
+// The state machine (see the transition methods below):
+//
+//	Running ──Suspend──▶ Waiting
+//	   │  ▲                   │
+//	   │  └──────Resume───────┘
+//	   │                      │
+//	Terminate(o)       Terminate(Canceled)
+//	   │                      │
+//	   ▼                      ▼
+//	Completed / Failed / Canceled
+//
+// A Run reaches exactly one terminal state. Root admission ("one non-terminal
+// root Run per Session") keys on [RunState.IsTerminal]; descendants share their
+// root tree's admission.
+type RunState uint8
+
+const (
+	// Running — a segment is actively executing.
+	Running RunState = iota
+	// Waiting — parked on a HITL interrupt, awaiting Resume or Cancel. NOT
+	// terminal: the run is resumable, its durable interrupt record committed.
+	Waiting
+	// Completed — the model finished normally.
+	Completed
+	// Failed — the Run stopped without completing. The exact reason remains in
+	// its Outcome: TimedOut, Failed, MaxBudget, MaxSteps, or Lost.
+	Failed
+	// Canceled — the caller canceled the run, or its context was canceled.
+	Canceled
+)
+
+// IsTerminal reports whether s is an end state (Completed, Failed, or Canceled)
+// — no further transition is legal, and the run no longer holds a Session's
+// single-writer admission slot.
+func (s RunState) IsTerminal() bool {
+	return s == Completed || s == Failed || s == Canceled
+}
+
+// Suspend parks a running run on a HITL interrupt (Running → Waiting). It
+// reports false from any other state.
+func (s RunState) Suspend() (RunState, bool) {
+	if s == Running {
+		return Waiting, true
+	}
+	return s, false
+}
+
+// Resume continues a parked run (Waiting → Running). It reports false from
+// any other state.
+func (s RunState) Resume() (RunState, bool) {
+	if s == Waiting {
+		return Running, true
+	}
+	return s, false
+}
+
+// Terminate ends a run with outcome o, returning the resulting terminal state.
+// It is legal from Running for any outcome, and from Waiting only for
+// [OutcomeCanceled] — a parked run can be canceled outright, but reaching any
+// other terminal requires resuming first. It reports false (leaving s unchanged)
+// from any other state or an illegal (Waiting, non-cancel) pair.
+func (s RunState) Terminate(o Outcome) (RunState, bool) {
+	if !o.valid() {
+		return s, false
+	}
+	switch s {
+	case Running:
+		return o.terminalState(), true
+	case Waiting:
+		if o == OutcomeCanceled {
+			return Canceled, true
+		}
+	}
+	return s, false
+}
+
+// RecoverLost ends a non-terminal run whose executor disappeared without a
+// resumable interrupt. Loss is a recovery transition rather than a normal
+// executor outcome: both Running and an inconsistent orphaned Waiting run
+// become Failed, while terminal states are immutable.
+func (s RunState) RecoverLost() (RunState, bool) {
+	if s == Running || s == Waiting {
+		return Failed, true
+	}
+	return s, false
+}
+
+func (s RunState) String() string {
+	switch s {
+	case Running:
+		return "running"
+	case Waiting:
+		return "waiting"
+	case Completed:
+		return "completed"
+	case Failed:
+		return "failed"
+	case Canceled:
+		return "canceled"
+	default:
+		return "unknown"
+	}
+}
+
+// Outcome is why a Run reached a terminal state. Persistence and presentation
+// both project from this single terminal-reason taxonomy.
+//
+// An interrupt is deliberately NOT an Outcome: parking is the [Waiting]
+// state, not a terminal reason. A run that ends while parked ends via
+// [OutcomeCanceled].
+type Outcome uint8
+
+const (
+	// OutcomeCompleted — the model returned a stop-marker normally. → Completed.
+	OutcomeCompleted Outcome = iota
+	// OutcomeCanceled — the caller canceled, or the context was canceled. →
+	// Canceled.
+	OutcomeCanceled
+	// OutcomeTimedOut — the Run exceeded its governing deadline. This is not a
+	// generic failure: callers may apply a distinct retry and alerting policy. →
+	// Failed.
+	OutcomeTimedOut
+	// OutcomeFailed — the run aborted on an error. → Failed.
+	OutcomeFailed
+	// OutcomeMaxBudget — the run hit its token/cost budget and stopped cleanly
+	// after the current round (the partial reply already streamed). → Failed.
+	OutcomeMaxBudget
+	// OutcomeMaxSteps — the run hit its delegation-tree model-call cap and
+	// stopped cleanly. Distinct from OutcomeMaxBudget because the exhausted
+	// allowance is a different terminal fact. → Failed.
+	OutcomeMaxSteps
+	// OutcomeLost — recovery proved that no live executor or valid checkpoint
+	// can continue the Run. It is produced by recovery, never by an executor. →
+	// Failed.
+	OutcomeLost
+)
+
+// terminalState maps a terminal outcome to the [RunState] it produces: normal
+// completion → Completed, cancellation → Canceled, and every non-success
+// terminal reason → Failed.
+func (o Outcome) terminalState() RunState {
+	switch o {
+	case OutcomeCompleted:
+		return Completed
+	case OutcomeCanceled:
+		return Canceled
+	default:
+		return Failed
+	}
+}
+
+func (o Outcome) valid() bool {
+	return o <= OutcomeLost
+}
+
+// ParseOutcome maps an outcome's [Outcome.String] form back to the value,
+// reporting false for anything else. It sits next to String because they are one
+// mapping read in two directions: a durable record must come back as the same
+// terminal reason it was written as, and a second hand-written table somewhere
+// downstream would be free to disagree with this one.
+func ParseOutcome(s string) (Outcome, bool) {
+	switch s {
+	case "completed":
+		return OutcomeCompleted, true
+	case "canceled":
+		return OutcomeCanceled, true
+	case "timedOut":
+		return OutcomeTimedOut, true
+	case "failed":
+		return OutcomeFailed, true
+	case "maxBudget":
+		return OutcomeMaxBudget, true
+	case "maxSteps":
+		return OutcomeMaxSteps, true
+	case "lost":
+		return OutcomeLost, true
+	default:
+		return 0, false
+	}
+}
+
+func (o Outcome) String() string {
+	switch o {
+	case OutcomeCompleted:
+		return "completed"
+	case OutcomeCanceled:
+		return "canceled"
+	case OutcomeTimedOut:
+		return "timedOut"
+	case OutcomeFailed:
+		return "failed"
+	case OutcomeMaxBudget:
+		return "maxBudget"
+	case OutcomeMaxSteps:
+		return "maxSteps"
+	case OutcomeLost:
+		return "lost"
+	default:
+		return "unknown"
+	}
+}

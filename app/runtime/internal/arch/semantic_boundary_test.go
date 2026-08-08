@@ -14,7 +14,7 @@ import (
 
 func TestContentEncodingStaysAtOuterBoundaries(t *testing.T) {
 	root := moduleRoot(t)
-	modelPath := filepath.Join(root, "internal", "domain", "execution", "transcript", "model.go")
+	modelPath := filepath.Join(root, "internal", "domain", "transcript", "model.go")
 	model, err := parser.ParseFile(token.NewFileSet(), modelPath, nil, 0)
 	if err != nil {
 		t.Fatalf("parse transcript model: %v", err)
@@ -121,7 +121,7 @@ func TestSQLiteOwnsTranscriptAndInterruptPayloadShapes(t *testing.T) {
 
 func TestRunCapabilitiesStaySemanticInsideTheProtocolBoundary(t *testing.T) {
 	root := moduleRoot(t)
-	capabilitiesPath := filepath.Join(root, "internal", "domain", "execution", "run_capabilities.go")
+	capabilitiesPath := filepath.Join(root, "internal", "domain", "run", "capabilities.go")
 	capabilitiesFile, err := parser.ParseFile(token.NewFileSet(), capabilitiesPath, nil, 0)
 	if err != nil {
 		t.Fatalf("parse Run capabilities: %v", err)
@@ -178,7 +178,7 @@ func TestRunCapabilitiesStaySemanticInsideTheProtocolBoundary(t *testing.T) {
 
 func TestExecutorAndGoalVocabularyDoesNotLeakAcrossBoundaries(t *testing.T) {
 	root := moduleRoot(t)
-	executorRefPath := filepath.Join(root, "internal", "domain", "execution", "executor_ref.go")
+	executorRefPath := filepath.Join(root, "internal", "application", "runs", "executor_ref.go")
 	executorRefFile, err := parser.ParseFile(token.NewFileSet(), executorRefPath, nil, 0)
 	if err != nil {
 		t.Fatalf("parse executor reference: %v", err)
@@ -187,7 +187,7 @@ func TestExecutorAndGoalVocabularyDoesNotLeakAcrossBoundaries(t *testing.T) {
 		t.Fatalf("ExecutorRef fields = %v, want durable executor identity", fields)
 	}
 
-	scopePath := filepath.Join(root, "internal", "domain", "execution", "executor_checkpoint.go")
+	scopePath := filepath.Join(root, "internal", "application", "runs", "executor_checkpoint.go")
 	scopeFile, err := parser.ParseFile(token.NewFileSet(), scopePath, nil, 0)
 	if err != nil {
 		t.Fatalf("parse execution scope: %v", err)

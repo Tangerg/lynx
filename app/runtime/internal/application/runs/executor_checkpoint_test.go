@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 )
 
@@ -16,12 +16,12 @@ func mustCheckpointSelection(provider, model string) modelref.Selection {
 	return selection
 }
 
-func testExecutorCheckpoint() execution.ExecutorCheckpoint {
-	return execution.ExecutorCheckpoint{
+func testExecutorCheckpoint() ExecutorCheckpoint {
+	return ExecutorCheckpoint{
 		RootProcessID:  "process_root",
 		Payload:        []byte(`{"root":"process_root"}`),
 		BuildID:        "build",
-		Scope:          execution.ExecutionScope{SessionID: "ses_1"},
+		Scope:          ExecutionScope{SessionID: "ses_1"},
 		ModelSelection: mustCheckpointSelection("openai", "model"),
 	}
 }
@@ -47,7 +47,7 @@ func TestTreeInterruptedRejectsCheckpointBoundToDifferentApplicationFacts(t *tes
 					ProcessID:    "process_root",
 					SuspensionID: "suspension_root",
 					Interrupt: Interrupt{
-						Kind: execution.QuestionInterrupt,
+						Kind: interrupt.Question,
 						Question: &QuestionPrompt{
 							ToolName:  "ask_user",
 							Arguments: `{}`,
@@ -56,7 +56,7 @@ func TestTreeInterruptedRejectsCheckpointBoundToDifferentApplicationFacts(t *tes
 					},
 				}},
 			}
-			if err := barrier.validateFor(test.root, test.session, test.goalLeaseID, test.selection); !errors.Is(err, execution.ErrInvalidExecutorCheckpoint) {
+			if err := barrier.validateFor(test.root, test.session, test.goalLeaseID, test.selection); !errors.Is(err, ErrInvalidExecutorCheckpoint) {
 				t.Fatalf("validateFor error = %v, want ErrInvalidExecutorCheckpoint", err)
 			}
 		})

@@ -9,10 +9,10 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/mcpconnection"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/skill"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/agentmemory"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/approvals"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/goals"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/agentmemory"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/skillauthoring"
 )
 
@@ -29,7 +29,7 @@ func buildToolEnvironment(
 	ctx context.Context,
 	cfg Config,
 	ecfg agentexec.Config,
-	approvalPolicy *approval.RuntimePolicy,
+	approvalPolicy *approvals.RuntimePolicy,
 	mcpEnv mcpEnvironment,
 	agentMemorySearcher *agentmemory.Searcher,
 	scheduleCoord *schedules.Coordinator,

@@ -9,8 +9,8 @@ import (
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/accounting"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/accounting"
 	"github.com/Tangerg/lynx/chatclient"
 )
 
@@ -69,7 +69,7 @@ func TestRestoreTurnMissingSnapshotIsStateLoss(t *testing.T) {
 		t.Fatalf("New: %v", err)
 	}
 	process, err := engine.RestoreTurn(t.Context(), "missing", RestoreTurnRequest{})
-	if process != nil || !errors.Is(err, ErrExecutorCheckpointLost) || !errors.Is(err, execution.ErrExecutorCheckpointNotFound) {
+	if process != nil || !errors.Is(err, ErrExecutorCheckpointLost) || !errors.Is(err, runs.ErrExecutorCheckpointNotFound) {
 		t.Fatalf("RestoreTurn = (%T, %v), want checkpoint loss wrapping not found", process, err)
 	}
 }
@@ -217,7 +217,7 @@ type checkpointReaderProbe struct {
 	loads atomic.Int32
 }
 
-func (reader *checkpointReaderProbe) LoadCheckpoint(context.Context, string) (execution.ExecutorCheckpoint, error) {
+func (reader *checkpointReaderProbe) LoadCheckpoint(context.Context, string) (runs.ExecutorCheckpoint, error) {
 	reader.loads.Add(1)
-	return execution.ExecutorCheckpoint{}, execution.ErrExecutorCheckpointNotFound
+	return runs.ExecutorCheckpoint{}, runs.ErrExecutorCheckpointNotFound
 }

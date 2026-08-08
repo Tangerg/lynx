@@ -113,7 +113,7 @@ func installCurrentSchema(ctx context.Context, db *sql.DB, path string) error {
 		`CREATE INDEX IF NOT EXISTS idx_executor_checkpoints_session
 			ON executor_checkpoints(session_id)`,
 		// One row per root or child Run. state is the coarse admission position —
-		// 'running' | 'interrupted' | 'terminal' — and the partial unique index
+		// 'running' | 'waiting' | 'terminal' — and the partial unique index
 		// below is the durable "one non-terminal root Run tree per Session"
 		// guarantee. Descendants share that tree's admission and therefore do not
 		// compete for a second Session slot.

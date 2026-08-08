@@ -2473,7 +2473,13 @@
           "tag": "completed"
         },
         {
-          "tag": "error",
+          "tag": "timedOut",
+          "required": [
+            "error"
+          ]
+        },
+        {
+          "tag": "failed",
           "required": [
             "error"
           ]
@@ -2494,6 +2500,12 @@
           "tag": "canceled",
           "optional": [
             "detail"
+          ]
+        },
+        {
+          "tag": "lost",
+          "required": [
+            "error"
           ]
         }
       ]
@@ -2515,7 +2527,13 @@
           "tag": "completed"
         },
         {
-          "tag": "error",
+          "tag": "timedOut",
+          "required": [
+            "error"
+          ]
+        },
+        {
+          "tag": "failed",
           "required": [
             "error"
           ]
@@ -2536,6 +2554,12 @@
           "tag": "canceled",
           "optional": [
             "detail"
+          ]
+        },
+        {
+          "tag": "lost",
+          "required": [
+            "error"
           ]
         }
       ]
@@ -3216,7 +3240,13 @@
           "tag": "completed"
         },
         {
-          "tag": "error",
+          "tag": "timedOut",
+          "required": [
+            "error"
+          ]
+        },
+        {
+          "tag": "failed",
           "required": [
             "error"
           ]
@@ -3237,6 +3267,12 @@
           "tag": "canceled",
           "optional": [
             "detail"
+          ]
+        },
+        {
+          "tag": "lost",
+          "required": [
+            "error"
           ]
         }
       ]
@@ -3813,7 +3849,37 @@
             {
               "field": "type",
               "operator": "equals",
-              "value": "error"
+              "value": "timedOut"
+            }
+          ],
+          "required": [
+            "error"
+          ],
+          "forbidden": [
+            "detail"
+          ]
+        },
+        {
+          "when": [
+            {
+              "field": "type",
+              "operator": "equals",
+              "value": "failed"
+            }
+          ],
+          "required": [
+            "error"
+          ],
+          "forbidden": [
+            "detail"
+          ]
+        },
+        {
+          "when": [
+            {
+              "field": "type",
+              "operator": "equals",
+              "value": "lost"
             }
           ],
           "required": [
@@ -3833,7 +3899,37 @@
             {
               "field": "type",
               "operator": "equals",
-              "value": "error"
+              "value": "timedOut"
+            }
+          ],
+          "required": [
+            "error"
+          ],
+          "forbidden": [
+            "detail"
+          ]
+        },
+        {
+          "when": [
+            {
+              "field": "type",
+              "operator": "equals",
+              "value": "failed"
+            }
+          ],
+          "required": [
+            "error"
+          ],
+          "forbidden": [
+            "detail"
+          ]
+        },
+        {
+          "when": [
+            {
+              "field": "type",
+              "operator": "equals",
+              "value": "lost"
             }
           ],
           "required": [
@@ -3948,7 +4044,37 @@
             {
               "field": "type",
               "operator": "equals",
-              "value": "error"
+              "value": "timedOut"
+            }
+          ],
+          "required": [
+            "error"
+          ],
+          "forbidden": [
+            "detail"
+          ]
+        },
+        {
+          "when": [
+            {
+              "field": "type",
+              "operator": "equals",
+              "value": "failed"
+            }
+          ],
+          "required": [
+            "error"
+          ],
+          "forbidden": [
+            "detail"
+          ]
+        },
+        {
+          "when": [
+            {
+              "field": "type",
+              "operator": "equals",
+              "value": "lost"
             }
           ],
           "required": [

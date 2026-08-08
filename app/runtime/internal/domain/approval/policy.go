@@ -17,12 +17,10 @@ package approval
 import "errors"
 
 var (
-	ErrInvalidMode          = errors.New("approval: invalid mode")
-	ErrInvalidSessionMode   = errors.New("approval: invalid session mode")
-	ErrModeStoreUnavailable = errors.New("approval: session mode store unavailable")
-	ErrInvalidQuery         = errors.New("approval: invalid query")
-	ErrInvalidRule          = errors.New("approval: invalid rule")
-	ErrRuleStoreUnavailable = errors.New("approval: rule store unavailable")
+	ErrInvalidMode        = errors.New("approval: invalid mode")
+	ErrInvalidSessionMode = errors.New("approval: invalid session mode")
+	ErrInvalidQuery       = errors.New("approval: invalid query")
+	ErrInvalidRule        = errors.New("approval: invalid rule")
 )
 
 // Mode is one effective tool-permission stance. Safe, balanced, and yolo may be
@@ -65,7 +63,9 @@ func (m Mode) Valid() bool {
 	}
 }
 
-func (m Mode) defaultValid() bool {
+// ValidDefault reports whether m may be configured as the runtime fallback.
+// Plan is session-scoped and therefore excluded.
+func (m Mode) ValidDefault() bool {
 	return m == ModeSafe || m == ModeBalanced || m == ModeYolo
 }
 

@@ -7,20 +7,20 @@ import (
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
 func TestPlanTurnEndRejectsCompletedProcessWithoutOutput(t *testing.T) {
 	plan := planTurnEnd(agentexec.TurnCompletion{Status: core.StatusCompleted})
-	if plan.reason != execution.OutcomeError || plan.problem == nil || plan.problem.Kind != transcript.InternalProblem {
+	if plan.reason != run.OutcomeFailed || plan.problem == nil || plan.problem.Kind != transcript.InternalProblem {
 		t.Fatalf("planTurnEnd = %+v, want internal error", plan)
 	}
 }
 
 func TestPlanTurnEndUsesJoinedKilledStatus(t *testing.T) {
 	plan := planTurnEnd(agentexec.TurnCompletion{Status: core.StatusKilled})
-	if plan.reason != execution.OutcomeCanceled || plan.problem != nil {
+	if plan.reason != run.OutcomeCanceled || plan.problem != nil {
 		t.Fatalf("planTurnEnd = %+v, want canceled", plan)
 	}
 }
@@ -40,7 +40,7 @@ func TestPlanChildTurnEndDoesNotDisguiseProjectionFailureAsCancellation(t *testi
 		Err:         errors.New("usage projection failed"),
 		CompletedAt: at.Add(time.Second),
 	})
-	if plan.reason != execution.OutcomeError ||
+	if plan.reason != run.OutcomeFailed ||
 		plan.problem == nil ||
 		plan.problem.Kind != transcript.InternalProblem {
 		t.Fatalf("planChildTurnEnd = %+v, want internal error", plan)

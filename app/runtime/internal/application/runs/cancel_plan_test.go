@@ -5,18 +5,18 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
 func TestCancellationPlanPartitionsCanonicalSubtree(t *testing.T) {
-	runs := cancellationTree(execution.Running)
+	runs := cancellationTree(run.Running)
 	processes := cancellationProcesses()
 
 	plan, err := newCancellationPlan(
 		"run_a",
 		runs,
-		execution.ExecutorRef{SessionID: "ses_1", ExecutorID: "turn_1"},
+		ExecutorRef{SessionID: "ses_1", ExecutorID: "turn_1"},
 		processes,
 		nil,
 	)
@@ -26,7 +26,7 @@ func TestCancellationPlanPartitionsCanonicalSubtree(t *testing.T) {
 	if plan.root.run.ID != "run_root" || plan.target.run.ID != "run_a" {
 		t.Fatalf("root/target = %q/%q, want run_root/run_a", plan.root.run.ID, plan.target.run.ID)
 	}
-	if plan.treeState != execution.Running || plan.hasPending {
+	if plan.treeState != run.Running || plan.hasPending {
 		t.Fatalf("tree state/pending = %s/%t, want running/false", plan.treeState, plan.hasPending)
 	}
 	if got, want := cancellationRunIDs(plan.targetSubtree), []string{"run_a0", "run_a1", "run_a"}; !sameStrings(got, want) {
@@ -56,7 +56,7 @@ func TestCancellationPlanRejectsInconsistentTreeFacts(t *testing.T) {
 		{
 			name: "mixed live state",
 			mutate: func(runs []transcript.Run, _ map[string]string) {
-				runs[0].State = execution.Interrupted
+				runs[0].State = run.Waiting
 				runs[0].ActiveSegmentID = ""
 			},
 			want: "while root",
@@ -85,13 +85,13 @@ func TestCancellationPlanRejectsInconsistentTreeFacts(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			runs := cancellationTree(execution.Running)
+			runs := cancellationTree(run.Running)
 			processes := cancellationProcesses()
 			test.mutate(runs, processes)
 			_, err := newCancellationPlan(
 				"run_a",
 				runs,
-				execution.ExecutorRef{SessionID: "ses_1", ExecutorID: "turn_1"},
+				ExecutorRef{SessionID: "ses_1", ExecutorID: "turn_1"},
 				processes,
 				nil,
 			)
@@ -135,7 +135,7 @@ func TestCancellationRejectsLiveOwnerFactDrift(t *testing.T) {
 	}
 }
 
-func cancellationTree(state execution.RunState) []transcript.Run {
+func cancellationTree(state run.RunState) []transcript.Run {
 	createdAt := time.Date(2026, 7, 30, 1, 2, 3, 0, time.UTC)
 	run := func(id, parent string) transcript.Run {
 		value := transcript.Run{

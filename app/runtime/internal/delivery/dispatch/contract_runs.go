@@ -42,7 +42,7 @@ func registerRuns(r *Registry) {
 	// Its refusals are the vocabulary of addressing one live segment: the run is a
 	// child, is waiting, has finished, has moved on, or the caller's replay cursor
 	// cannot be served. Each is declared because each sends the client somewhere
-	// different — rootRunId, interrupts.list, items.list, runs.get, or a cursorless
+	// different — rootRunId, interrupt.list, items.list, runs.get, or a cursorless
 	// reattach — and one collapsed run_not_found would send it nowhere.
 	Subscription(r, MethodMeta{
 		Name: "runs.subscribe",

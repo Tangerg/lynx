@@ -8,9 +8,9 @@ import (
 
 	"github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/accounting"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/accounting"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/chatclient"
 	"github.com/Tangerg/lynx/core/chat"
 )
@@ -155,7 +155,7 @@ func TestEngine_TaskDelegationDoesNotStartChildAfterTokenBudgetIsSpent(t *testin
 
 	output, err := engine.runTurnSync(t.Context(), TurnRequest{
 		Message: "delegate this",
-		Limits:  execution.RunLimits{MaxTotalTokens: 2},
+		Limits:  run.RunLimits{MaxTotalTokens: 2},
 	})
 	if err != nil {
 		t.Fatalf("runTurnSync: %v", err)
@@ -188,7 +188,7 @@ func TestEngine_TaskDelegationDoesNotStartChildAfterCostBudgetIsSpent(t *testing
 	}
 	output, err := engine.runTurnSync(t.Context(), TurnRequest{
 		Message: "delegate this",
-		Limits:  execution.RunLimits{MaxBudgetUSD: 1},
+		Limits:  run.RunLimits{MaxBudgetUSD: 1},
 	})
 	if err != nil {
 		t.Fatalf("runTurnSync: %v", err)
@@ -209,7 +209,7 @@ func TestEngine_TaskDelegationCountsChildCallsAgainstStepLimit(t *testing.T) {
 
 	output, err := engine.runTurnSync(t.Context(), TurnRequest{
 		Message: "delegate this",
-		Limits:  execution.RunLimits{MaxSteps: 2},
+		Limits:  run.RunLimits{MaxSteps: 2},
 	})
 	if err != nil {
 		t.Fatalf("runTurnSync: %v", err)
@@ -239,7 +239,7 @@ func TestEngine_RunChat_StopsOnBudget(t *testing.T) {
 	}
 
 	out, err := eng.runTurnSync(context.Background(), TurnRequest{
-		Message: "go", Limits: execution.RunLimits{MaxTotalTokens: 10},
+		Message: "go", Limits: run.RunLimits{MaxTotalTokens: 10},
 	})
 	if err != nil {
 		t.Fatalf("runTurnSync: %v", err)
@@ -271,7 +271,7 @@ func TestEngine_RunChat_StopsOnCostBudget(t *testing.T) {
 	}
 
 	out, err := eng.runTurnSync(context.Background(), TurnRequest{
-		Message: "go", Limits: execution.RunLimits{MaxBudgetUSD: 10},
+		Message: "go", Limits: run.RunLimits{MaxBudgetUSD: 10},
 	})
 	if err != nil {
 		t.Fatalf("runTurnSync: %v", err)

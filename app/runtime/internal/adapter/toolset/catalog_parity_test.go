@@ -12,19 +12,20 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/catalog"
 	goaladapter "github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/goal"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/approvals"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/goals"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	scheduleapp "github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/agentmemory"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
-	resultoffload "github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/schedule"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/skills"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
+	resultoffload "github.com/Tangerg/lynx/app/runtime/internal/domain/toolresult"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
 type activeGoalStub struct{}
@@ -125,7 +126,7 @@ func assertBuiltInToolContract(t *testing.T, candidate toolcontract.Tool) {
 }
 
 func TestRootResolverIncludesConfiguredConditionalTools(t *testing.T) {
-	policy, err := approval.New(approval.ModeBalanced, nil, nil)
+	policy, err := approvals.NewRuntimePolicy(approval.ModeBalanced, nil, nil)
 	if err != nil {
 		t.Fatalf("approval policy: %v", err)
 	}
@@ -136,8 +137,8 @@ func TestRootResolverIncludesConfiguredConditionalTools(t *testing.T) {
 		Plan:         rolePlanStore{},
 		GoalReader:   activeGoalStub{},
 		GoalReporter: activeGoalStub{},
-		Interrupt: func(context.Context, string, runs.Interrupt) (interrupts.Resolution, error) {
-			return interrupts.Resolution{}, nil
+		Interrupt: func(context.Context, string, runs.Interrupt) (interrupt.Resolution, error) {
+			return interrupt.Resolution{}, nil
 		},
 	})
 	if err != nil {
@@ -174,7 +175,7 @@ func TestRootResolverIncludesConfiguredConditionalTools(t *testing.T) {
 // The resolver is built with every optional subsystem wired, because a name is
 // only unreachable if NO configuration reaches it.
 func TestDescriptorCatalogMatchesBuiltInTools(t *testing.T) {
-	policy, err := approval.New(approval.ModeBalanced, nil, nil)
+	policy, err := approvals.NewRuntimePolicy(approval.ModeBalanced, nil, nil)
 	if err != nil {
 		t.Fatalf("approval policy: %v", err)
 	}
@@ -196,8 +197,8 @@ func TestDescriptorCatalogMatchesBuiltInTools(t *testing.T) {
 			TavilyAPIKey:     "test-tavily",
 			HTTPAllowedHosts: []string{"example.com"}, // backs http_request
 		},
-		Interrupt: func(context.Context, string, runs.Interrupt) (interrupts.Resolution, error) {
-			return interrupts.Resolution{}, nil
+		Interrupt: func(context.Context, string, runs.Interrupt) (interrupt.Resolution, error) {
+			return interrupt.Resolution{}, nil
 		},
 	})
 	if err != nil {

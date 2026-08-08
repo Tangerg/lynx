@@ -5,8 +5,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	rundomain "github.com/Tangerg/lynx/app/runtime/internal/domain/run"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
 // childCancellation is the root handle's one active child-cancel boundary.
@@ -34,7 +34,7 @@ func (h *handle) beginChildCancellation(
 	if !plan.target.run.Lineage().IsChild() {
 		return nil, fmt.Errorf("runs: cancellation target %q is not a child Run", plan.target.run.ID)
 	}
-	if plan.treeState != execution.Running {
+	if plan.treeState != rundomain.Running {
 		return nil, fmt.Errorf(
 			"runs: live child cancellation requires a running tree, got %s",
 			plan.treeState,
@@ -234,9 +234,9 @@ func (h *handle) recordTerminalRun(run transcript.Run) {
 	if attempt == nil || run.ID != attempt.targetRunID {
 		return
 	}
-	if run.State != execution.Canceled ||
+	if run.State != rundomain.Canceled ||
 		run.Outcome == nil ||
-		*run.Outcome != execution.OutcomeCanceled {
+		*run.Outcome != rundomain.OutcomeCanceled {
 		attempt.err = fmt.Errorf(
 			"%w: %q completed as %s",
 			ErrRunFinished,

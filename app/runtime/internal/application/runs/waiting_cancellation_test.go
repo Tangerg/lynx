@@ -10,11 +10,11 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/admission"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/change"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
 type fakeItemProjection struct {
@@ -36,7 +36,7 @@ func (projection *fakeItemProjection) Item(
 type fakePreparedWaitingCancellation struct {
 	canceled    []string
 	suspensions []ProcessSuspension
-	checkpoint  *execution.ExecutorCheckpoint
+	checkpoint  *ExecutorCheckpoint
 	commitErr   error
 	// settleOnCommitError models the executor's post-commit Continue
 	// failure: the planned runtime transition is already applied, so Abort must
@@ -64,14 +64,14 @@ func (prepared *fakePreparedWaitingCancellation) value() PreparedWaitingSubtreeC
 
 func TestPrepareWaitingCancellationRejectsCheckpointBoundToDifferentApplicationFacts(t *testing.T) {
 	plan := waitingCancellationPlan(t, "run_a", false)
-	for name, mutate := range map[string]func(*execution.ExecutorCheckpoint){
-		"root":       func(checkpoint *execution.ExecutorCheckpoint) { checkpoint.RootProcessID = "other_root" },
-		"session":    func(checkpoint *execution.ExecutorCheckpoint) { checkpoint.Scope.SessionID = "other_session" },
-		"goal lease": func(checkpoint *execution.ExecutorCheckpoint) { checkpoint.Scope.GoalLeaseID = "other_goal" },
-		"provider": func(checkpoint *execution.ExecutorCheckpoint) {
+	for name, mutate := range map[string]func(*ExecutorCheckpoint){
+		"root":       func(checkpoint *ExecutorCheckpoint) { checkpoint.RootProcessID = "other_root" },
+		"session":    func(checkpoint *ExecutorCheckpoint) { checkpoint.Scope.SessionID = "other_session" },
+		"goal lease": func(checkpoint *ExecutorCheckpoint) { checkpoint.Scope.GoalLeaseID = "other_goal" },
+		"provider": func(checkpoint *ExecutorCheckpoint) {
 			checkpoint.ModelSelection = mustSelection("anthropic", checkpoint.ModelSelection.Model())
 		},
-		"model": func(checkpoint *execution.ExecutorCheckpoint) {
+		"model": func(checkpoint *ExecutorCheckpoint) {
 			checkpoint.ModelSelection = mustSelection(checkpoint.ModelSelection.Provider(), "other-model")
 		},
 	} {
@@ -88,7 +88,7 @@ func TestPrepareWaitingCancellationRejectsCheckpointBoundToDifferentApplicationF
 				time.Date(2026, 7, 30, 2, 3, 4, 0, time.UTC),
 				prepared.value(),
 			)
-			if !errors.Is(err, execution.ErrInvalidExecutorCheckpoint) {
+			if !errors.Is(err, ErrInvalidExecutorCheckpoint) {
 				t.Fatalf("prepare error = %v, want ErrInvalidExecutorCheckpoint", err)
 			}
 			if prepared.committed != 0 || prepared.aborted != 0 {
@@ -168,13 +168,13 @@ func TestPrepareWaitingCancellationKeepsSurvivingExternalBoundary(t *testing.T) 
 	if got := continuationRunIDs(transformation.continuation.continuations); !slices.Equal(got, []string{"run_b", "run_1"}) {
 		t.Fatalf("continuation Runs = %v, want [run_b run_1]", got)
 	}
-	for _, run := range transformation.terminalRuns {
-		if run.State != execution.Canceled ||
-			run.Outcome == nil ||
-			*run.Outcome != execution.OutcomeCanceled ||
-			run.Detail != "stop delegated branch" ||
-			!run.FinishedAt.Equal(finishedAt) {
-			t.Fatalf("terminal Run = %+v, want exact canceled snapshot", run)
+	for _, record := range transformation.terminalRuns {
+		if record.State != run.Canceled ||
+			record.Outcome == nil ||
+			*record.Outcome != run.OutcomeCanceled ||
+			record.Detail != "stop delegated branch" ||
+			!record.FinishedAt.Equal(finishedAt) {
+			t.Fatalf("terminal Run = %+v, want exact canceled snapshot", record)
 		}
 	}
 }
@@ -294,8 +294,8 @@ func TestCancelWaitingChildCommitsReducedPendingBeforeRuntimeTransition(t *testi
 	}
 	if result.Run.ID != plan.target.run.ID ||
 		result.RootRun == nil ||
-		result.RootRun.State != execution.Interrupted {
-		t.Fatalf("Cancel result = %+v, want canceled child and interrupted root", result)
+		result.RootRun.State != run.Waiting {
+		t.Fatalf("Cancel result = %+v, want canceled child and waiting root", result)
 	}
 	if prepared.committed != 1 ||
 		prepared.disposition != WaitingSubtreeRemainsInterrupted ||
@@ -361,11 +361,11 @@ func TestCancelWaitingChildRecoversCommittedTreeWhenRuntimeApplyFails(t *testing
 	if sessions.lostRunID != plan.root.run.ID {
 		t.Fatalf("recovered Run = %q, want root %q", sessions.lostRunID, plan.root.run.ID)
 	}
-	if !reflect.DeepEqual(control.canceled, []execution.ExecutorRef{plan.executor}) {
+	if !reflect.DeepEqual(control.canceled, []ExecutorRef{plan.executor}) {
 		t.Fatalf("canceled control = %+v, want [%+v]", control.canceled, plan.executor)
 	}
-	if !slices.Equal(operations, []string{"durable.lost", "execution.cancel"}) {
-		t.Fatalf("recovery operations = %v, want durable.lost then execution.cancel", operations)
+	if !slices.Equal(operations, []string{"durable.lost", "run.cancel"}) {
+		t.Fatalf("recovery operations = %v, want durable.lost then run.cancel", operations)
 	}
 }
 
@@ -390,7 +390,7 @@ func TestCancelWaitingChildRehydratesParkedTurnAfterProcessRestart(t *testing.T)
 		},
 	}
 	coordinator, control := waitingCancellationCoordinator(t, plan, prepared, effects, &fakeExecutor{})
-	control.prepared = execution.ExecutorRef{}
+	control.prepared = ExecutorRef{}
 	control.prepareErr = ErrExecutorNotLive
 	control.rehydrated = plan.executor
 
@@ -425,7 +425,7 @@ func TestCancelWaitingChildOpensContinuationWhenFinalBoundaryIsRemoved(t *testin
 		canceled: []string{"process_a", "process_grandchild"},
 	}
 	rootAfterCommit := plan.root.run
-	rootAfterCommit.State = execution.Running
+	rootAfterCommit.State = run.Running
 	rootAfterCommit.ActiveSegmentID = "seg_root_continuation"
 	rootAfterCommit.Interrupts = nil
 	effects := &fakeEffects{
@@ -467,7 +467,7 @@ func TestCancelWaitingChildOpensContinuationWhenFinalBoundaryIsRemoved(t *testin
 		t.Fatalf("Cancel final waiting child: %v", err)
 	}
 	if result.RootRun == nil ||
-		result.RootRun.State != execution.Running ||
+		result.RootRun.State != run.Running ||
 		result.RootRun.ActiveSegmentID != "seg_root_continuation" {
 		t.Fatalf("Cancel result root = %+v, want opened continuation", result.RootRun)
 	}
@@ -502,7 +502,7 @@ func TestCancelWaitingChildTerminalizesCommittedTreeWhenActivationFails(t *testi
 		settleOnCommitError: true,
 	}
 	rootAfterCommit := plan.root.run
-	rootAfterCommit.State = execution.Running
+	rootAfterCommit.State = run.Running
 	rootAfterCommit.ActiveSegmentID = "seg_root_continuation"
 	rootAfterCommit.Interrupts = nil
 	effects := &fakeEffects{
@@ -542,7 +542,7 @@ func TestCancelWaitingChildTerminalizesCommittedTreeWhenActivationFails(t *testi
 	}
 	if result.RootRun == nil ||
 		result.RootRun.ID != plan.root.run.ID ||
-		result.RootRun.State != execution.Running ||
+		result.RootRun.State != run.Running ||
 		result.RootRun.ActiveSegmentID != "seg_root_continuation" {
 		t.Fatalf("Cancel result root = %+v, want exact committed continuation", result.RootRun)
 	}
@@ -580,7 +580,7 @@ func TestCancelWaitingChildTerminalizesCommittedTreeWhenActivationFails(t *testi
 			continue
 		}
 		if commit.Run.Outcome == nil ||
-			*commit.Run.Outcome != execution.OutcomeError ||
+			*commit.Run.Outcome != run.OutcomeFailed ||
 			commit.Run.Error == nil ||
 			commit.Run.Error.Kind != transcript.InternalProblem {
 			t.Fatalf("failed continuation terminal = %+v, want internal error outcome", commit.Run)
@@ -642,7 +642,7 @@ func waitingCancellationCoordinator(
 	}
 	control := &fakeExecutionControl{prepared: plan.executor}
 	control.prepareWaiting = func(
-		ref execution.ExecutorRef,
+		ref ExecutorRef,
 		processID string,
 	) (PreparedWaitingSubtreeCancellation, error) {
 		if ref != plan.executor {
@@ -655,7 +655,7 @@ func waitingCancellationCoordinator(
 	}
 	sessions := &fakeRunSessions{
 		sess: session.Session{ID: plan.pending.SessionID, CWD: "/work"},
-		pending: map[string]interrupts.Pending{
+		pending: map[string]Pending{
 			plan.pending.RootRunID: plan.pending,
 		},
 	}
@@ -699,7 +699,7 @@ func waitingCancellationPlan(
 			SpawnedByItemID: continuation.Lineage.SpawnedByItemID,
 			ParentRunID:     continuation.Lineage.ParentRunID,
 			RootRunID:       continuation.Lineage.RootRunID,
-			State:           execution.Interrupted,
+			State:           run.Waiting,
 			CreatedAt:       continuation.RunCreatedAt,
 			UpdatedAt:       pending.CreatedAt,
 			ModelSelection:  continuation.ModelSelection,
@@ -719,7 +719,7 @@ func waitingCancellationPlan(
 		}
 		pending.Continuations[index].DrainedTools = append(
 			pending.Continuations[index].DrainedTools,
-			interrupts.DrainedTool{
+			DrainedTool{
 				ItemID: target.SpawnedByItemID, ItemOccurredAt: createdAt,
 				CallID: callID, Name: "delegate_task", Arguments: "{}",
 			},
@@ -736,7 +736,7 @@ func waitingCancellationPlan(
 	plan, err := newCancellationPlan(
 		targetRunID,
 		runValues,
-		execution.ExecutorRef{SessionID: pending.SessionID, ExecutorID: pending.ExecutorID},
+		ExecutorRef{SessionID: pending.SessionID, ExecutorID: pending.ExecutorID},
 		processes,
 		&pending,
 	)
@@ -761,26 +761,26 @@ func waitingCancellationPlan(
 	for _, member := range plan.targetSubtree {
 		targetRunIDs[member.run.ID] = struct{}{}
 	}
-	for _, interrupt := range pending.Interrupts {
-		if _, targeted := targetRunIDs[interrupt.RunID]; !targeted {
+	for _, pendingInterrupt := range pending.Interrupts {
+		if _, targeted := targetRunIDs[pendingInterrupt.RunID]; !targeted {
 			continue
 		}
 		item := transcript.Item{
-			ID:         interrupt.ItemID,
+			ID:         pendingInterrupt.ItemID,
 			SessionID:  pending.SessionID,
-			RunID:      interrupt.RunID,
+			RunID:      pendingInterrupt.RunID,
 			Status:     transcript.ItemRunning,
 			OccurredAt: createdAt,
 		}
-		switch interrupt.Kind {
-		case execution.QuestionInterrupt:
+		switch pendingInterrupt.Kind {
+		case interrupt.Question:
 			item.Kind = transcript.QuestionItem
-			item.Question = interrupt.Question
-		case execution.ApprovalInterrupt:
+			item.Question = pendingInterrupt.Question
+		case interrupt.Approval:
 			item.Kind = transcript.ToolCall
-			item.Tool = &interrupt.Approval.Tool
+			item.Tool = &pendingInterrupt.Approval.Tool
 		default:
-			t.Fatalf("unsupported fixture interrupt kind %s", interrupt.Kind)
+			t.Fatalf("unsupported fixture interrupt kind %s", pendingInterrupt.Kind)
 		}
 		plan.targetInterruptItems = append(plan.targetInterruptItems, item)
 	}
@@ -815,7 +815,7 @@ func assertSettledParentTool(
 	if !ok {
 		t.Fatal("continuation has no root")
 	}
-	if slices.ContainsFunc(root.DrainedTools, func(tool interrupts.DrainedTool) bool {
+	if slices.ContainsFunc(root.DrainedTools, func(tool DrainedTool) bool {
 		return tool.ItemID == itemID
 	}) {
 		t.Fatalf("settled Item %q remained in drained tools", itemID)
@@ -835,7 +835,7 @@ func runIDs(runs []transcript.Run) []string {
 	return ids
 }
 
-func continuationRunIDs(continuations []interrupts.Continuation) []string {
+func continuationRunIDs(continuations []Continuation) []string {
 	ids := make([]string, len(continuations))
 	for index, continuation := range continuations {
 		ids[index] = continuation.RunID
@@ -845,7 +845,7 @@ func continuationRunIDs(continuations []interrupts.Continuation) []string {
 
 func waitingQuestionPrompt() Interrupt {
 	return Interrupt{
-		Kind: execution.QuestionInterrupt,
+		Kind: interrupt.Question,
 		Question: &QuestionPrompt{
 			ToolName:  "ask_user",
 			Arguments: "{}",

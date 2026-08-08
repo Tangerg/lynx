@@ -13,8 +13,8 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/change"
 	"github.com/Tangerg/lynx/app/runtime/internal/component/replaycursor"
 	"github.com/Tangerg/lynx/app/runtime/internal/component/taskgroup"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	rundomain "github.com/Tangerg/lynx/app/runtime/internal/domain/run"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
 // ErrClosed is returned by [Coordinator.Start] once the Coordinator is closing:
@@ -251,14 +251,14 @@ func (c *Coordinator) commitOpening(ctx context.Context, spec segmentSpec, route
 	}
 	opening := OpeningCommit{}
 	if spec.Continuation != nil {
-		opening.Resume = &execution.TreeResumeDraft{
+		opening.Resume = &rundomain.TreeResumeDraft{
 			RootRunID: spec.RunID,
 			SessionID: spec.SessionID,
 			ResumedAt: c.now().UTC(),
-			Runs:      make([]execution.RunResumeDraft, 0, len(ordered)),
+			Runs:      make([]rundomain.RunResumeDraft, 0, len(ordered)),
 		}
 	} else {
-		opening.Admit = &execution.RunDraft{
+		opening.Admit = &rundomain.RunDraft{
 			RunID:          spec.RunID,
 			SessionID:      spec.SessionID,
 			SegmentID:      spec.SegmentID,
@@ -296,7 +296,7 @@ func (c *Coordinator) commitOpening(ctx context.Context, spec segmentSpec, route
 			}
 		}
 		if opening.Resume != nil {
-			opening.Resume.Runs = append(opening.Resume.Runs, execution.RunResumeDraft{
+			opening.Resume.Runs = append(opening.Resume.Runs, rundomain.RunResumeDraft{
 				RunID:     route.runID,
 				SegmentID: route.segmentID,
 			})
@@ -332,7 +332,7 @@ func (c *Coordinator) event(runID, segmentID string, reduced reduction) Event {
 // write-set committed. The rejection cause and teardown failure are both
 // preserved: hiding the latter would report a clean rejection while leaking an
 // executor the application never admitted.
-func (c *Coordinator) rejectUnadmittedExecution(ctx context.Context, ref execution.ExecutorRef, cause error) error {
+func (c *Coordinator) rejectUnadmittedExecution(ctx context.Context, ref ExecutorRef, cause error) error {
 	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), runCleanupTimeout)
 	defer cancel()
 	if err := c.executor.CancelExecution(cleanupCtx, ref); err != nil {
@@ -350,7 +350,7 @@ func (c *Coordinator) rejectUnadmittedExecution(ctx context.Context, ref executi
 // Refusals name what the caller should do instead: [ErrRunNotFound],
 // [transcript.ErrNotRoot], [ErrRunWaiting], [ErrRunFinished],
 // [ErrStaleSegment], [ErrReplayCursorInvalid], [ErrReplayUnavailable], and
-// [execution.InsufficientCapabilities] when the caller could not follow what this run
+// [rundomain.InsufficientCapabilities] when the caller could not follow what this run
 // publishes — the same rule a resume applies, kept here rather than at each
 // caller so the two entry points into an existing Run cannot disagree about it.
 func (c *Coordinator) Subscribe(ctx context.Context, req SubscribeRequest) (Subscription, error) {
@@ -359,7 +359,7 @@ func (c *Coordinator) Subscribe(ctx context.Context, req SubscribeRequest) (Subs
 		return Subscription{}, err
 	}
 	if gap := live.record.Capabilities.MissingFrom(req.CallerCapabilities); !gap.IsEmpty() {
-		return Subscription{}, &execution.InsufficientCapabilities{RunID: req.RunID, Missing: gap}
+		return Subscription{}, &rundomain.InsufficientCapabilities{RunID: req.RunID, Missing: gap}
 	}
 	attached, err := live.handle.hub.attach(req.Cursor)
 	if err != nil {
@@ -402,11 +402,11 @@ func (c *Coordinator) addressLiveSegment(ctx context.Context, runID, segmentID s
 		return liveSegment{}, fmt.Errorf("%w: %q", transcript.ErrNotRoot, runID)
 	}
 	switch status := run.State.Status(); status {
-	case execution.StatusWaiting:
+	case rundomain.StatusWaiting:
 		return liveSegment{}, fmt.Errorf("%w: %q", ErrRunWaiting, runID)
-	case execution.StatusFinished:
+	case rundomain.StatusFinished:
 		return liveSegment{}, fmt.Errorf("%w: %q", ErrRunFinished, runID)
-	case execution.StatusRunning:
+	case rundomain.StatusRunning:
 	default:
 		return liveSegment{}, fmt.Errorf("runs: run %q has unknown status %d", runID, status)
 	}

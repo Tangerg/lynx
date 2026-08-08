@@ -9,8 +9,8 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/toolresult"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
 // ExportSession serializes a session to a portable artifact (AUX_API §4.3).
@@ -118,7 +118,7 @@ func (s *Server) ImportSession(ctx context.Context, in protocol.ImportSessionReq
 		if errors.Is(err, sessions.ErrInvalidPortableSnapshot) {
 			return nil, fmt.Errorf("%w: %v", protocol.ErrInvalidParams, err)
 		}
-		if errors.Is(err, transcript.ErrIdentityConflict) || errors.Is(err, offload.ErrIdentityConflict) {
+		if errors.Is(err, transcript.ErrIdentityConflict) || errors.Is(err, toolresult.ErrIdentityConflict) {
 			return nil, fmt.Errorf("%w: %w", protocol.ErrInvalidParams, err)
 		}
 		return nil, wireSessionErr(err)

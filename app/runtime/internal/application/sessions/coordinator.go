@@ -17,12 +17,11 @@ import (
 	"github.com/Tangerg/lynx/core/chat"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/change"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/toolresult"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
 // Store is the coordinator's consumer view of session persistence: the
@@ -40,12 +39,12 @@ type Store interface {
 }
 
 // InterruptStore is the lifecycle coordinator's read view of open HITL
-// interrupts. Consuming an interrupt is part of the run coordinator's atomic
+// interrupt. Consuming an interrupt is part of the run coordinator's atomic
 // segment-opening commit; deleting one is part of an atomic write-set
 // ([WriteSets.ApplyRollback] / ApplyDelete / ApplyTerminal), not a lone call.
 type InterruptStore interface {
-	List(ctx context.Context, sessionID string) ([]interrupts.Pending, error)
-	Get(ctx context.Context, runID string) (interrupts.Pending, bool, error)
+	List(ctx context.Context, sessionID string) ([]runs.Pending, error)
+	Get(ctx context.Context, runID string) (runs.Pending, bool, error)
 }
 
 // TranscriptStore is the lifecycle coordinator's read view of a session's item
@@ -120,7 +119,7 @@ type Snapshot struct {
 	Messages    []chat.Message
 	Items       []transcript.Item
 	Runs        []transcript.Run
-	ToolResults []offload.ToolResultBlob
+	ToolResults []toolresult.Blob
 	// Plan is the session-scoped Plan as a semantic VALUE — items only, no
 	// revision and no update time. Those are this runtime's ordering tokens: a
 	// snapshot that carried them could hand a restored value a position in the
@@ -179,16 +178,16 @@ type GoalMutationGuard interface {
 // out of transaction. nil disables the log (rollback runs without a recovery
 // record, degrading to best-effort).
 type WorkspaceMutations interface {
-	Record(ctx context.Context, m execution.WorkspaceMutation) error
+	Record(ctx context.Context, m WorkspaceMutation) error
 	Complete(ctx context.Context, sessionID string) error
-	ListPending(ctx context.Context) ([]execution.WorkspaceMutation, error)
+	ListPending(ctx context.Context) ([]WorkspaceMutation, error)
 }
 
 // ExecutionCleanup is the engine-neutral process cleanup slice the session lifecycle
 // coordinator uses when delete/rollback abandons parked executions. User-visible
 // resume/cancel/steer orchestration belongs to application/runs.
 type ExecutionCleanup interface {
-	Cancel(ctx context.Context, ref execution.ExecutorRef) error
+	Cancel(ctx context.Context, ref runs.ExecutorRef) error
 }
 
 // Coordinator executes session/run lifecycle write-sets across the domain

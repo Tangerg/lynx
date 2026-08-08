@@ -8,10 +8,9 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
 // resumeOKExecution is an execution controller whose Resume succeeds and whose
@@ -19,7 +18,7 @@ import (
 // the failing continuation Start is what's under test.
 type resumeOKExecution struct{ executionStub }
 
-func (resumeOKExecution) Resume(context.Context, execution.ExecutorRef, []interrupts.SuspensionAnswer, []execution.InterruptKind) error {
+func (resumeOKExecution) Resume(context.Context, runs.ExecutorRef, []runs.SuspensionAnswer, []interrupt.Kind) error {
 	return nil
 }
 
@@ -40,7 +39,7 @@ func TestResumeRun_KeepsInterruptOpenWhenStartFails(t *testing.T) {
 		"process_parked",
 		[]transcript.Interrupt{{
 			ItemID: "item_1",
-			Kind:   execution.ApprovalInterrupt,
+			Kind:   interrupt.Approval,
 			Approval: &transcript.Approval{
 				Tool: transcript.ToolInvocation{Name: "shell"}, Risk: "medium",
 			},
@@ -105,7 +104,7 @@ func TestResumeRunRejectsMissingAndUnknownItemCoverage(t *testing.T) {
 		"process_parked",
 		[]transcript.Interrupt{{
 			ItemID: "item_open",
-			Kind:   execution.ApprovalInterrupt,
+			Kind:   interrupt.Approval,
 			Approval: &transcript.Approval{
 				Tool: transcript.ToolInvocation{Name: "shell"}, Risk: "medium",
 			},

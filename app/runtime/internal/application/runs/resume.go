@@ -5,8 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 )
 
 // Resume claims the parked Run's Session, prepares or rehydrates its executor,
@@ -27,7 +26,7 @@ func (c *Coordinator) Resume(ctx context.Context, cmd ResumeCommand) (StartResul
 		return StartResult{}, fmt.Errorf("runs: invalid pending interrupt set: %w", err)
 	}
 	if gap := pending.Capabilities.MissingFrom(cmd.CallerCapabilities); !gap.IsEmpty() {
-		return StartResult{}, &execution.InsufficientCapabilities{RunID: cmd.RunID, Missing: gap}
+		return StartResult{}, &run.InsufficientCapabilities{RunID: cmd.RunID, Missing: gap}
 	}
 	answers, err := resolveResumeResponses(pending, cmd.Responses)
 	if err != nil {
@@ -122,19 +121,19 @@ func (c *Coordinator) Resume(ctx context.Context, cmd ResumeCommand) (StartResul
 	return result, nil
 }
 
-func (c *Coordinator) prepareExecution(ctx context.Context, pending interrupts.Pending, cwd string, isolated bool) (execution.ExecutorRef, error) {
-	ref, err := c.control.Prepare(ctx, execution.ExecutorRef{SessionID: pending.SessionID, ExecutorID: pending.ExecutorID})
+func (c *Coordinator) prepareExecution(ctx context.Context, pending Pending, cwd string, isolated bool) (ExecutorRef, error) {
+	ref, err := c.control.Prepare(ctx, ExecutorRef{SessionID: pending.SessionID, ExecutorID: pending.ExecutorID})
 	if err == nil {
 		if err := ref.ValidateFor(pending.SessionID); err != nil {
-			return execution.ExecutorRef{}, err
+			return ExecutorRef{}, err
 		}
 		return ref, nil
 	}
 	if errors.Is(err, ErrExecutionClaimed) {
-		return execution.ExecutorRef{}, ErrInterruptNotOpen
+		return ExecutorRef{}, ErrInterruptNotOpen
 	}
 	if !errors.Is(err, ErrExecutorNotLive) {
-		return execution.ExecutorRef{}, err
+		return ExecutorRef{}, err
 	}
 	// The parked execution is not live in this process, so its executor died. For
 	// an isolated Run that means its sandbox copy, which is process-local, died
@@ -145,11 +144,11 @@ func (c *Coordinator) prepareExecution(ctx context.Context, pending interrupts.P
 	// resumable. ErrExecutorStateLost routes it through the same durable
 	// lost-run cleanup as a missing executor checkpoint.
 	if isolated {
-		return execution.ExecutorRef{}, fmt.Errorf("%w: an isolated run cannot resume after its sandbox process ended", ErrExecutorStateLost)
+		return ExecutorRef{}, fmt.Errorf("%w: an isolated run cannot resume after its sandbox process ended", ErrExecutorStateLost)
 	}
 	root, ok := pending.RootContinuation()
 	if !ok {
-		return execution.ExecutorRef{}, errors.Join(
+		return ExecutorRef{}, errors.Join(
 			ErrRunNotFound,
 			errors.New("runs: interrupt has no root continuation"),
 		)
@@ -169,15 +168,15 @@ func (c *Coordinator) prepareExecution(ctx context.Context, pending interrupts.P
 		ChildRunAdmissionEnabled: pending.Capabilities.ChildRuns,
 	})
 	if err != nil {
-		return execution.ExecutorRef{}, errors.Join(ErrRunNotFound, err)
+		return ExecutorRef{}, errors.Join(ErrRunNotFound, err)
 	}
 	if err := ref.ValidateFor(pending.SessionID); err != nil {
-		return execution.ExecutorRef{}, err
+		return ExecutorRef{}, err
 	}
 	return ref, nil
 }
 
-func childRunBindingsFromPending(pending interrupts.Pending) []ChildRunBinding {
+func childRunBindingsFromPending(pending Pending) []ChildRunBinding {
 	bindings := make([]ChildRunBinding, 0, len(pending.Continuations)-1)
 	for _, continuation := range pending.Continuations {
 		if !continuation.Lineage.IsChild() {

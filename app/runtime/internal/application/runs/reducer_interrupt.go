@@ -7,9 +7,9 @@ import (
 	"slices"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
 func (r *reducer) interrupt(e SegmentInterrupted) ([]RunEvent, error) {
@@ -54,29 +54,29 @@ func (r *reducer) interrupt(e SegmentInterrupted) ([]RunEvent, error) {
 	pending := make([]transcript.Interrupt, 0, len(e.Interrupts))
 	for index, in := range e.Interrupts {
 		var item transcript.Item
-		var interrupt transcript.Interrupt
+		var pendingInterrupt transcript.Interrupt
 		switch in.Kind {
-		case execution.ApprovalInterrupt:
+		case interrupt.Approval:
 			if matchedItem, ok := approvalItems[index]; ok {
 				item = matchedItem
-				interrupt = approvalTranscriptInterrupt(item, *in.Approval)
+				pendingInterrupt = approvalTranscriptInterrupt(item, *in.Approval)
 			} else {
 				var err error
-				item, interrupt, err = r.approvalInterrupt(in)
+				item, pendingInterrupt, err = r.approvalInterrupt(in)
 				if err != nil {
 					return nil, err
 				}
 				out = append(out, ItemStarted{Item: item})
 			}
-		case execution.QuestionInterrupt:
-			item, interrupt = r.questionInterrupt(in)
+		case interrupt.Question:
+			item, pendingInterrupt = r.questionInterrupt(in)
 			out = append(out, ItemStarted{Item: item})
 		}
-		pending = append(pending, interrupt)
+		pending = append(pending, pendingInterrupt)
 	}
 
 	r.segmentDuration = e.Duration
-	run := r.runRecord(execution.Interrupted)
+	run := r.runRecord(run.Waiting)
 	run.Interrupts = pending
 	return append(out, SegmentFinished{Run: run}), nil
 }
@@ -110,7 +110,7 @@ func (r *reducer) suspend(duration time.Duration) ([]RunEvent, error) {
 		out = append(out, incomplete)
 	}
 	r.segmentDuration = duration
-	return append(out, SegmentFinished{Run: r.runRecord(execution.Interrupted)}), nil
+	return append(out, SegmentFinished{Run: r.runRecord(run.Waiting)}), nil
 }
 
 func (r *reducer) approvalInterrupt(in Interrupt) (transcript.Item, transcript.Interrupt, error) {
@@ -151,7 +151,7 @@ func approvalTranscriptInterrupt(item transcript.Item, prompt ApprovalPrompt) tr
 		ItemID:         item.ID,
 		ItemOccurredAt: item.OccurredAt,
 		RunID:          item.RunID,
-		Kind:           execution.ApprovalInterrupt,
+		Kind:           interrupt.Approval,
 		Approval: &transcript.Approval{
 			Tool: *item.Tool, Risk: prompt.Risk, Reason: prompt.Reason, Rememberable: prompt.Rememberable,
 		},
@@ -161,7 +161,7 @@ func approvalTranscriptInterrupt(item transcript.Item, prompt ApprovalPrompt) tr
 func matchApprovalTools(open []*openTool, values []Interrupt) (map[*openTool]int, error) {
 	matched := make(map[*openTool]int)
 	for index, value := range values {
-		if value.Kind != execution.ApprovalInterrupt || value.Approval == nil {
+		if value.Kind != interrupt.Approval || value.Approval == nil {
 			continue
 		}
 		prompt := value.Approval
@@ -190,12 +190,12 @@ func matchApprovalTools(open []*openTool, values []Interrupt) (map[*openTool]int
 	return matched, nil
 }
 
-func drainedToolRefs(open []*openTool, matched map[*openTool]int) []interrupts.DrainedTool {
-	var drained []interrupts.DrainedTool
+func drainedToolRefs(open []*openTool, matched map[*openTool]int) []DrainedTool {
+	var drained []DrainedTool
 	for _, ref := range open {
 		_, activeApproval := matched[ref]
 		if ref.end == nil && !activeApproval {
-			drained = append(drained, interrupts.DrainedTool{
+			drained = append(drained, DrainedTool{
 				ItemID: ref.id, ItemOccurredAt: ref.startedAt,
 				CallID: ref.callID, Name: ref.name, Arguments: ref.arguments.Canonical(),
 			})
@@ -204,8 +204,8 @@ func drainedToolRefs(open []*openTool, matched map[*openTool]int) []interrupts.D
 	return drained
 }
 
-func mergeDrainedTools(groups ...[]interrupts.DrainedTool) []interrupts.DrainedTool {
-	var merged []interrupts.DrainedTool
+func mergeDrainedTools(groups ...[]DrainedTool) []DrainedTool {
+	var merged []DrainedTool
 	seen := make(map[string]struct{})
 	for _, group := range groups {
 		for _, tool := range group {
@@ -220,7 +220,7 @@ func mergeDrainedTools(groups ...[]interrupts.DrainedTool) []interrupts.DrainedT
 }
 
 func (r *reducer) removeDrained(itemID string) {
-	r.drained = slices.DeleteFunc(r.drained, func(tool interrupts.DrainedTool) bool {
+	r.drained = slices.DeleteFunc(r.drained, func(tool DrainedTool) bool {
 		return tool.ItemID == itemID
 	})
 }
@@ -250,7 +250,7 @@ func (r *reducer) questionInterrupt(in Interrupt) (transcript.Item, transcript.I
 	}
 	return item, transcript.Interrupt{
 		ItemID: id, ItemOccurredAt: item.OccurredAt,
-		RunID: r.cfg.RunID, Kind: execution.QuestionInterrupt, Question: &question,
+		RunID: r.cfg.RunID, Kind: interrupt.Question, Question: &question,
 	}
 }
 

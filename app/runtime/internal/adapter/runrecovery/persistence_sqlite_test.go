@@ -6,13 +6,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/persistence"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 )
 
@@ -20,7 +21,7 @@ type alwaysResumable struct{}
 
 func (alwaysResumable) CanResumeCheckpoint(
 	context.Context,
-	execution.ExecutorCheckpointExpectation,
+	runs.ExecutorCheckpointExpectation,
 ) (bool, error) {
 	return true, nil
 }
@@ -42,11 +43,11 @@ func TestRecoveryRepairsWholeDurableLifecycle(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("seed Session: %v", err)
 	}
-	interruptStore := sqlite.NewInterruptStore(db)
+	interruptStore := persistence.NewInterruptStore(sqlite.NewInterruptStore(db))
 	transcriptStore := sqlite.NewTranscriptStore(db)
 	messageStore := sqlite.NewMessageStore(db)
 	goalStore := sqlite.NewGoalStore(db)
-	checkpointStore := sqlite.NewExecutorCheckpointStore(db)
+	checkpointStore := persistence.NewExecutorCheckpointStore(sqlite.NewExecutorCheckpointStore(db))
 	goalValue, err := goal.New("session", "finish recovery", modelref.Selection{}, goal.Budget{}, "lease_recovery", createdAt)
 	if err != nil {
 		t.Fatalf("New Goal: %v", err)
@@ -54,7 +55,7 @@ func TestRecoveryRepairsWholeDurableLifecycle(t *testing.T) {
 	if _, applied, err := goalStore.Save(ctx, goalValue, goal.Version{}); err != nil || !applied {
 		t.Fatalf("Save Goal: applied=%t err=%v", applied, err)
 	}
-	if err := runStore.Admit(ctx, execution.RunDraft{
+	if err := runStore.Admit(ctx, run.RunDraft{
 		RunID: "run_lost", SessionID: "session", SegmentID: "segment", GoalLeaseID: goalValue.LeaseID, CreatedAt: createdAt,
 	}); err != nil {
 		t.Fatalf("Admit: %v", err)
@@ -67,11 +68,11 @@ func TestRecoveryRepairsWholeDurableLifecycle(t *testing.T) {
 	if err := transcriptStore.AppendItem(ctx, item); err != nil {
 		t.Fatalf("AppendItem: %v", err)
 	}
-	checkpoint := execution.ExecutorCheckpoint{
+	checkpoint := runs.ExecutorCheckpoint{
 		RootProcessID: "orphan_checkpoint",
 		Payload:       []byte(`{"opaque":true}`),
 		BuildID:       "build",
-		Scope:         execution.ExecutionScope{SessionID: "session"},
+		Scope:         runs.ExecutionScope{SessionID: "session"},
 	}
 	if err := checkpointStore.SaveCheckpoint(ctx, checkpoint); err != nil {
 		t.Fatalf("SaveCheckpoint: %v", err)
@@ -104,7 +105,7 @@ func TestRecoveryRepairsWholeDurableLifecycle(t *testing.T) {
 		t.Fatalf("recovered Runs = %d, want 1", recovered)
 	}
 	stored, found, err := runStore.Run(ctx, "run_lost")
-	if err != nil || !found || stored.State != execution.Failed ||
+	if err != nil || !found || stored.State != run.Failed ||
 		stored.Error == nil || stored.Error.Kind != transcript.RunLostProblem {
 		t.Fatalf("recovered Run = found:%t value:%+v err:%v", found, stored, err)
 	}
@@ -112,7 +113,7 @@ func TestRecoveryRepairsWholeDurableLifecycle(t *testing.T) {
 	if err != nil || !found || storedItem.Status != transcript.ItemIncomplete {
 		t.Fatalf("recovered Item = found:%t value:%+v err:%v", found, storedItem, err)
 	}
-	if _, err := checkpointStore.LoadCheckpoint(ctx, checkpoint.RootProcessID); !errors.Is(err, execution.ErrExecutorCheckpointNotFound) {
+	if _, err := checkpointStore.LoadCheckpoint(ctx, checkpoint.RootProcessID); !errors.Is(err, runs.ErrExecutorCheckpointNotFound) {
 		t.Fatalf("orphan checkpoint after recovery = %v", err)
 	}
 	storedGoal, found, err := goalStore.Get(ctx, goalValue.SessionID)
@@ -138,42 +139,42 @@ func TestRecoveryRejectsPartialParkWithoutMutatingIt(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("seed Session: %v", err)
 	}
-	interruptStore := sqlite.NewInterruptStore(db)
+	interruptStore := persistence.NewInterruptStore(sqlite.NewInterruptStore(db))
 	transcriptStore := sqlite.NewTranscriptStore(db)
-	checkpointStore := sqlite.NewExecutorCheckpointStore(db)
-	if err := runStore.Admit(ctx, execution.RunDraft{
+	checkpointStore := persistence.NewExecutorCheckpointStore(sqlite.NewExecutorCheckpointStore(db))
+	if err := runStore.Admit(ctx, run.RunDraft{
 		RunID: "run_partial", SessionID: "session", SegmentID: "segment", CreatedAt: createdAt,
-		Capabilities: execution.RunCapabilities{
-			InterruptKinds: []execution.InterruptKind{execution.QuestionInterrupt},
+		Capabilities: run.RunCapabilities{
+			InterruptKinds: []interrupt.Kind{interrupt.Question},
 		},
 	}); err != nil {
 		t.Fatalf("Admit: %v", err)
 	}
 	question := &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Continue?"}}}
-	interrupt := transcript.Interrupt{
+	pendingInterrupt := transcript.Interrupt{
 		ItemID: "item_missing", ItemOccurredAt: createdAt.Add(time.Second),
-		RunID: "run_partial", Kind: execution.QuestionInterrupt, Question: question,
+		RunID: "run_partial", Kind: interrupt.Question, Question: question,
 	}
 	if err := runStore.Suspend(ctx, transcript.Run{
-		ID: "run_partial", SessionID: "session", State: execution.Interrupted,
-		Capabilities: execution.RunCapabilities{
-			InterruptKinds: []execution.InterruptKind{execution.QuestionInterrupt},
+		ID: "run_partial", SessionID: "session", State: run.Waiting,
+		Capabilities: run.RunCapabilities{
+			InterruptKinds: []interrupt.Kind{interrupt.Question},
 		},
-		Interrupts: []transcript.Interrupt{interrupt}, CreatedAt: createdAt,
+		Interrupts: []transcript.Interrupt{pendingInterrupt}, CreatedAt: createdAt,
 		UpdatedAt: createdAt.Add(time.Second), MessageMark: transcript.UnknownMessageMark,
 	}); err != nil {
 		t.Fatalf("Suspend: %v", err)
 	}
-	pending := interrupts.Pending{
+	pending := runs.Pending{
 		RootRunID: "run_partial", SessionID: "session", ExecutorID: "turn_partial",
-		Capabilities: execution.RunCapabilities{
-			InterruptKinds: []execution.InterruptKind{execution.QuestionInterrupt},
+		Capabilities: run.RunCapabilities{
+			InterruptKinds: []interrupt.Kind{interrupt.Question},
 		},
-		Interrupts: []transcript.Interrupt{interrupt},
-		Suspensions: []interrupts.SuspensionBinding{{
-			InterruptItemID: interrupt.ItemID, ProcessID: "process_root", SuspensionID: "suspension_root",
+		Interrupts: []transcript.Interrupt{pendingInterrupt},
+		Suspensions: []runs.SuspensionBinding{{
+			InterruptItemID: pendingInterrupt.ItemID, ProcessID: "process_root", SuspensionID: "suspension_root",
 		}},
-		Continuations: []interrupts.Continuation{{
+		Continuations: []runs.Continuation{{
 			RunID: "run_partial", ProcessID: "process_root", RunCreatedAt: createdAt,
 		}},
 		CreatedAt: createdAt.Add(time.Second),
@@ -181,9 +182,9 @@ func TestRecoveryRejectsPartialParkWithoutMutatingIt(t *testing.T) {
 	if err := interruptStore.Open(ctx, pending); err != nil {
 		t.Fatalf("Open Pending: %v", err)
 	}
-	checkpoint := execution.ExecutorCheckpoint{
+	checkpoint := runs.ExecutorCheckpoint{
 		RootProcessID: "process_root", Payload: []byte(`{"opaque":true}`), BuildID: "build",
-		Scope: execution.ExecutionScope{SessionID: "session"},
+		Scope: runs.ExecutionScope{SessionID: "session"},
 	}
 	if err := checkpointStore.SaveCheckpoint(ctx, checkpoint); err != nil {
 		t.Fatalf("SaveCheckpoint: %v", err)
@@ -210,7 +211,7 @@ func TestRecoveryRejectsPartialParkWithoutMutatingIt(t *testing.T) {
 		t.Fatalf("Pending after rejection = found:%t err:%v, want preserved", found, err)
 	}
 	stored, found, err := runStore.Run(ctx, pending.RootRunID)
-	if err != nil || !found || stored.State != execution.Interrupted {
+	if err != nil || !found || stored.State != run.Waiting {
 		t.Fatalf("Run after rejection = found:%t value:%+v err:%v", found, stored, err)
 	}
 	if _, err := checkpointStore.LoadCheckpoint(ctx, checkpoint.RootProcessID); err != nil {

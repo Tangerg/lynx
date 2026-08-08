@@ -3,9 +3,10 @@ package bootstrap
 import (
 	"context"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/application/models"
 	"github.com/Tangerg/lynx/app/runtime/internal/config"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
-	providersvc "github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
 )
 
 // SeedConfiguredProvider ensures the config-file provider is present in the
@@ -13,20 +14,20 @@ import (
 // provider enabled by a stored key is left untouched — runtime edits win over
 // the config file. An environment key is never copied into storage; only a
 // missing configured endpoint is seeded beside it.
-func SeedConfiguredProvider(ctx context.Context, svc providersvc.Registry, cfg config.Settings) error {
+func SeedConfiguredProvider(ctx context.Context, svc models.ProviderRegistry, cfg config.Settings) error {
 	id := cfg.Provider
 	existing, ok, err := svc.Get(ctx, id)
 	if err != nil {
 		return err
 	}
 	if ok && existing.Enabled() {
-		if existing.KeySource != providersvc.KeyEnv || existing.BaseURL != "" || cfg.BaseURL == "" {
+		if existing.KeySource != provider.KeyEnv || existing.BaseURL != "" || cfg.BaseURL == "" {
 			return nil
 		}
-		_, err = svc.Update(ctx, id, providersvc.Patch{BaseURL: &cfg.BaseURL})
+		_, err = svc.Update(ctx, id, provider.Patch{BaseURL: &cfg.BaseURL})
 		return err
 	}
-	_, err = svc.Update(ctx, id, providersvc.Patch{
+	_, err = svc.Update(ctx, id, provider.Patch{
 		APIKey:  &cfg.APIKey,
 		BaseURL: &cfg.BaseURL,
 	})

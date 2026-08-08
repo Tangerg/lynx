@@ -9,6 +9,7 @@ import (
 	"github.com/Tangerg/lynx/agent/event"
 	agentruntime "github.com/Tangerg/lynx/agent/runtime"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
+	apphooks "github.com/Tangerg/lynx/app/runtime/internal/application/hooks"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
 )
@@ -20,7 +21,7 @@ type subagentLifecycle struct {
 	rootID    string // turn's root process id; empty until the first ProcessCreated
 	sessionID string
 	cwd       string
-	hooks     *hooks.Bound
+	hooks     *apphooks.Bound
 	childRun  func(string) (runs.ChildRunBinding, bool)
 	project   func(string) (agentexec.SubagentProjection, bool)
 }
@@ -28,7 +29,7 @@ type subagentLifecycle struct {
 func newSubagentLifecycle(
 	sessionID string,
 	cwd string,
-	bound *hooks.Bound,
+	bound *apphooks.Bound,
 	childRun func(string) (runs.ChildRunBinding, bool),
 	project func(string) (agentexec.SubagentProjection, bool),
 ) *subagentLifecycle {

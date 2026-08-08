@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/providerregistry"
 	"github.com/Tangerg/lynx/app/runtime/internal/config"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
@@ -93,7 +94,7 @@ func TestSeedConfiguredProvider(t *testing.T) {
 
 func TestSeedConfiguredProviderKeepsEnvironmentKeyOutOfStorageButPersistsEndpoint(t *testing.T) {
 	inner := &providerRegistry{stored: map[string]provider.Provider{}}
-	registry := provider.WithEnvKeys(inner, map[string]string{"openai-compatible": "sk-env"})
+	registry := providerregistry.WithEnvironmentKeys(inner, map[string]string{"openai-compatible": "sk-env"})
 	cfg := config.Settings{
 		Provider: "openai-compatible",
 		APIKey:   "sk-env",

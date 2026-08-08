@@ -8,12 +8,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
 var (
@@ -44,7 +43,7 @@ type reducerConfig struct {
 	RunID          string
 	SegmentID      string
 	SessionID      string
-	Lineage        execution.RunLineage
+	Lineage        run.RunLineage
 	CWD            string
 	ExecutorID     string
 	GoalLeaseID    string
@@ -58,10 +57,10 @@ type reducerConfig struct {
 	Metrics transcript.RunMetrics
 	// Limits is the allowance in force for the whole Run, frozen at admission and
 	// carried unchanged through every continuation.
-	Limits execution.RunLimits
+	Limits run.RunLimits
 	// Capabilities is the Run's frozen optional behavior. Every record this reducer
 	// commits carries the admission value, including continuation records.
-	Capabilities execution.RunCapabilities
+	Capabilities run.RunCapabilities
 	Continuation *treeContinuation
 	Now          func() time.Time
 	CancelReason func() string
@@ -88,7 +87,7 @@ type reducer struct {
 	text            *openText
 	reasoning       *openText
 	tools           openTools
-	drained         []interrupts.DrainedTool
+	drained         []DrainedTool
 	errProblem      *transcript.Problem
 	// plan is the last state snapshot this segment published, kept so the segment
 	// can fence its final value before finishing. Nil means this segment never
@@ -154,7 +153,7 @@ func (r *reducer) open() (reductionBatch, error) {
 	// The opening Run record goes through runRecord like every other one, so a
 	// resumed segment announces the Run's accrual and allowance rather than a fresh
 	// Run's zeros. Only the creation stamp differs: an opening may have to mint one.
-	opening := r.runRecord(execution.Running)
+	opening := r.runRecord(run.Running)
 	opening.CreatedAt = createdAt
 	out := []RunEvent{SegmentStarted{Run: opening}}
 	out = append(out, r.openUserMessage()...)
@@ -223,16 +222,16 @@ func (r *reducer) synthesizeTerminal() (reductionBatch, error) {
 	// No SegmentEnded arrived, so nothing fresh was reported: the Segment's accrual
 	// stands as last reported and is committed as-is.
 	var failure *transcript.Problem
-	outcome := execution.OutcomeCanceled
+	outcome := run.OutcomeCanceled
 	if r.errProblem != nil {
-		outcome = execution.OutcomeError
+		outcome = run.OutcomeFailed
 		failure, err = runResultProblem(*r.errProblem)
 		if err != nil {
 			return reductionBatch{}, fmt.Errorf("%w: synthesize terminal: %w", errReducerInvariant, err)
 		}
 	}
 	detail := ""
-	if outcome == execution.OutcomeCanceled && r.cfg.CancelReason != nil {
+	if outcome == run.OutcomeCanceled && r.cfg.CancelReason != nil {
 		detail = r.cfg.CancelReason()
 	}
 	terminal, err := r.finishedRun(outcome, failure, detail)
@@ -276,7 +275,7 @@ func (r *reducer) project(events []RunEvent) (reductionBatch, error) {
 	}
 
 	// A park is one persistence boundary: any drained/closed items, its running
-	// approval/question items, open interrupt record, interrupted transcript run,
+	// approval/question items, open interrupt record, waiting transcript Run,
 	// and admission transition must commit together before ANY event in this
 	// batch is published. Build an explicit batch-owned write-set instead of
 	// moving it onto a privileged event position.
@@ -371,7 +370,7 @@ func (r *reducer) projectOne(event RunEvent) (reduction, error) {
 		}
 	case SegmentFinished:
 		commit.Run = &e.Run
-		if e.Run.State == execution.Interrupted {
+		if e.Run.State == run.Waiting {
 			commit.State = StateSuspend
 			return reduction{Event: event, Commit: &commit}, nil
 		}
@@ -508,8 +507,8 @@ func validateParkReductionBatch(batch reductionBatch, terminalAt int) error {
 		return fmt.Errorf("%w: park batch has no projection commit", errReducerInvariant)
 	case commit.State != StateSuspend:
 		return fmt.Errorf("%w: park batch commit does not suspend the run", errReducerInvariant)
-	case commit.Run == nil || commit.Run.State != execution.Interrupted:
-		return fmt.Errorf("%w: park batch commit has no interrupted run", errReducerInvariant)
+	case commit.Run == nil || commit.Run.State != run.Waiting:
+		return fmt.Errorf("%w: park batch commit has no waiting Run", errReducerInvariant)
 	case terminalAt != len(batch.events)-1:
 		return fmt.Errorf("%w: park batch has no terminal boundary event", errReducerInvariant)
 	}
@@ -533,7 +532,7 @@ func validateTerminalReduction(reduced reduction) error {
 	if err := commit.Validate(); err != nil {
 		return fmt.Errorf("%w: %w", errReducerInvariant, err)
 	}
-	wantState, ok := execution.Running.Terminate(commit.Outcome)
+	wantState, ok := run.Running.Terminate(commit.Outcome)
 	if !ok || commit.Run.State != wantState {
 		return fmt.Errorf("%w: terminal event commit has an invalid lifecycle transition", errReducerInvariant)
 	}

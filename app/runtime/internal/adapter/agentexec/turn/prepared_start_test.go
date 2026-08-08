@@ -6,7 +6,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 )
 
 func TestPreparedTurnDoesNotEnterEngineBeforeActivation(t *testing.T) {
@@ -65,7 +65,7 @@ func TestCancelPreparedTurnNeverEntersEngineAndTerminatesStream(t *testing.T) {
 			terminal = end
 		}
 	}
-	if terminal.Reason != execution.OutcomeCanceled {
+	if terminal.Reason != run.OutcomeCanceled {
 		t.Fatalf("terminal reason = %q, want canceled", terminal.Reason)
 	}
 	if got := engine.runTurnCalls.Load(); got != 0 {

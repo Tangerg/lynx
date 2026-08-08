@@ -12,10 +12,10 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/suspension"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/catalog"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/approvals"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/approvals/approvaltest"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval/approvaltest"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
@@ -131,13 +131,13 @@ func TestApproveToolCallSurfacesApprovalPolicyFailures(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		response, err := suspension.EncodeResolution(interrupts.Resolution{
+		response, err := suspension.EncodeResolution(interrupt.Resolution{
 			Approved: true, RememberScope: approval.ScopeSession,
 		})
 		if err != nil {
 			t.Fatal(err)
 		}
-		key := interrupts.InterruptKey(execution.ApprovalInterrupt.String(), "shell", arguments)
+		key := interrupt.InterruptKey(interrupt.Approval.String(), "shell", arguments)
 		ctx := core.WithProcessView(t.Context(), suspendedProcessView{value: &interaction.Suspension{
 			ID: key, Prompt: prompt, Response: response,
 		}})
@@ -161,13 +161,13 @@ func TestApproveToolCallSurfacesApprovalPolicyFailures(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		response, err := suspension.EncodeResolution(interrupts.Resolution{
+		response, err := suspension.EncodeResolution(interrupt.Resolution{
 			Approved: true, RememberScope: approval.ScopeSession,
 		})
 		if err != nil {
 			t.Fatal(err)
 		}
-		key := interrupts.InterruptKey(execution.ApprovalInterrupt.String(), "shell", arguments)
+		key := interrupt.InterruptKey(interrupt.Approval.String(), "shell", arguments)
 		ctx := core.WithProcessView(t.Context(), suspendedProcessView{value: &interaction.Suspension{
 			ID: key, Prompt: prompt, Response: response,
 		}})
@@ -226,9 +226,9 @@ type suspendedProcessView struct {
 
 func (p suspendedProcessView) Suspension() *interaction.Suspension { return p.value }
 
-func newTestApprovalPolicy(t *testing.T, mode approval.Mode) *approval.RuntimePolicy {
+func newTestApprovalPolicy(t *testing.T, mode approval.Mode) *approvals.RuntimePolicy {
 	t.Helper()
-	policy, err := approval.New(mode, approvaltest.NewMemoryStore(), nil)
+	policy, err := approvals.NewRuntimePolicy(mode, approvaltest.NewMemoryStore(), nil)
 	if err != nil {
 		t.Fatalf("new approval policy: %v", err)
 	}

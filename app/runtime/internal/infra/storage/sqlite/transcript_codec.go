@@ -9,8 +9,8 @@ import (
 	"io"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
 type transcriptItemPayload struct {

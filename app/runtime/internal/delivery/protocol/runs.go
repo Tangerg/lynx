@@ -59,7 +59,7 @@ const (
 	// RunStatusRunning — a segment is executing.
 	RunStatusRunning RunStatus = "running"
 	// RunStatusWaiting — no segment is executing and the run holds open
-	// interrupts. It is resumable, and it has NO outcome: "why did it stop" is
+	// interrupt. It is resumable, and it has NO outcome: "why did it stop" is
 	// answered by the interrupts, not by a terminal reason.
 	RunStatusWaiting RunStatus = "waiting"
 	// RunStatusFinished — no segment, no open interrupt, and a terminal outcome.
@@ -189,10 +189,12 @@ type RunOutcomeType string
 
 const (
 	OutcomeCompleted RunOutcomeType = "completed"
-	OutcomeError     RunOutcomeType = "error"
+	OutcomeTimedOut  RunOutcomeType = "timedOut"
+	OutcomeFailed    RunOutcomeType = "failed"
 	OutcomeMaxSteps  RunOutcomeType = "maxSteps"
 	OutcomeMaxBudget RunOutcomeType = "maxBudget"
 	OutcomeCanceled  RunOutcomeType = "canceled"
+	OutcomeLost      RunOutcomeType = "lost"
 )
 
 // RunOutcome is a tag-discriminated union over why a run STOPPED FOR GOOD
@@ -239,10 +241,12 @@ const (
 	// contains RunOutcome, so a terminal renamed on one side must be renamed on
 	// the other, and a second spelling is exactly how that stops happening.
 	SegmentCompleted = SegmentOutcomeType(OutcomeCompleted)
-	SegmentError     = SegmentOutcomeType(OutcomeError)
+	SegmentTimedOut  = SegmentOutcomeType(OutcomeTimedOut)
+	SegmentFailed    = SegmentOutcomeType(OutcomeFailed)
 	SegmentMaxSteps  = SegmentOutcomeType(OutcomeMaxSteps)
 	SegmentMaxBudget = SegmentOutcomeType(OutcomeMaxBudget)
 	SegmentCanceled  = SegmentOutcomeType(OutcomeCanceled)
+	SegmentLost      = SegmentOutcomeType(OutcomeLost)
 )
 
 // SegmentOutcome is why a SEGMENT stopped (§4.3): either the run stopped for good
@@ -375,7 +379,7 @@ type GetRunRequest struct {
 	RunID string `json:"runId"`
 }
 
-// ListInterruptsRequest is the interrupts.list body. Both filters are optional and
+// ListInterruptsRequest is the interrupt.list body. Both filters are optional and
 // independent: given together they must both match, and given neither the read
 // pages every waiting run tree the runtime holds.
 type ListInterruptsRequest struct {

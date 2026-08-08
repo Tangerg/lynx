@@ -5,10 +5,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
 func usd(v float64) *float64 { return &v }
@@ -16,7 +16,7 @@ func usd(v float64) *float64 { return &v }
 func finishedRun(t *testing.T, provider, model string, at time.Time, usage transcript.Usage) transcript.Run {
 	t.Helper()
 	return transcript.Run{
-		ID: "run_x", ModelSelection: mustUsageSelection(t, provider, model), State: execution.Completed,
+		ID: "run_x", ModelSelection: mustUsageSelection(t, provider, model), State: run.Completed,
 		FinishedAt: at, Metrics: transcript.RunMetrics{Usage: &usage},
 	}
 }
@@ -128,8 +128,8 @@ func TestFoldRunPrefersByModelSplit(t *testing.T) {
 func TestFoldRunSkipsUnfinishedAndOld(t *testing.T) {
 	total := accumulator{}
 
-	foldRun(transcript.Run{State: execution.Running}, time.Time{}, "", "", &total, nil, nil, nil)
-	noUsage := transcript.Run{State: execution.Completed}
+	foldRun(transcript.Run{State: run.Running}, time.Time{}, "", "", &total, nil, nil, nil)
+	noUsage := transcript.Run{State: run.Completed}
 	foldRun(noUsage, time.Time{}, "", "", &total, nil, nil, nil)
 	old := finishedRun(t, "anthropic", "m", time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC),
 		transcript.Usage{ModelUsage: transcript.ModelUsage{InputTokens: 99}})

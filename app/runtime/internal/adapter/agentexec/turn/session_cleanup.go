@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 )
 
 type sessionTurnCanceler interface {
@@ -21,7 +21,7 @@ func NewSessionExecutionCleanup(controller sessionTurnCanceler) SessionExecution
 	return SessionExecutionCleanup{controller: controller}
 }
 
-func (t SessionExecutionCleanup) Cancel(ctx context.Context, ref execution.ExecutorRef) error {
+func (t SessionExecutionCleanup) Cancel(ctx context.Context, ref runs.ExecutorRef) error {
 	err := t.controller.Cancel(ctx, Handle{SessionID: ref.SessionID, TurnID: ref.ExecutorID})
 	if errors.Is(err, ErrTurnNotFound) {
 		return nil

@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 )
 
 // Steer addresses the Segment the command names through execution control.
@@ -23,7 +21,7 @@ func (c *Coordinator) Steer(ctx context.Context, cmd SteerCommand) error {
 		return err
 	}
 	rec := live.record
-	if err := c.control.Steer(ctx, execution.ExecutorRef{SessionID: rec.SessionID, ExecutorID: rec.ExecutorID}, cmd.Input); err != nil {
+	if err := c.control.Steer(ctx, ExecutorRef{SessionID: rec.SessionID, ExecutorID: rec.ExecutorID}, cmd.Input); err != nil {
 		if errors.Is(err, ErrExecutorNotLive) {
 			// Execution ended between resolving the record and delivering: the Run is
 			// finishing, which is the same thing the durable record would say a moment

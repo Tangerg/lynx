@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/persistence"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/runsegment"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/workspacepath"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/admission"
@@ -17,12 +18,12 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/toolresult"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 	"github.com/Tangerg/lynx/core/chat"
 )
@@ -41,7 +42,7 @@ func serverPending(
 	runID, sessionID, executorID, processID string,
 	open []transcript.Interrupt,
 	createdAt time.Time,
-) interrupts.Pending {
+) runs.Pending {
 	if executorID == "" {
 		executorID = "exec_" + runID
 	}
@@ -55,7 +56,7 @@ func serverPending(
 		open = []transcript.Interrupt{{
 			ItemID: "interrupt_" + runID, ItemOccurredAt: createdAt,
 			RunID:    runID,
-			Kind:     execution.QuestionInterrupt,
+			Kind:     interrupt.Question,
 			Question: &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Continue?"}}},
 		}}
 	} else {
@@ -69,24 +70,24 @@ func serverPending(
 			}
 		}
 	}
-	bindings := make([]interrupts.SuspensionBinding, len(open))
-	capabilities := execution.RunCapabilities{}
+	bindings := make([]runs.SuspensionBinding, len(open))
+	capabilities := run.RunCapabilities{}
 	for index, interrupt := range open {
 		capabilities.InterruptKinds = append(capabilities.InterruptKinds, interrupt.Kind)
-		bindings[index] = interrupts.SuspensionBinding{
+		bindings[index] = runs.SuspensionBinding{
 			InterruptItemID: interrupt.ItemID,
 			ProcessID:       processID,
 			SuspensionID:    fmt.Sprintf("suspension_%s_%d", processID, index),
 		}
 	}
-	return interrupts.Pending{
+	return runs.Pending{
 		RootRunID:    runID,
 		SessionID:    sessionID,
 		ExecutorID:   executorID,
 		Interrupts:   open,
 		Suspensions:  bindings,
 		Capabilities: capabilities.Normalized(),
-		Continuations: []interrupts.Continuation{{
+		Continuations: []runs.Continuation{{
 			RunID:        runID,
 			ProcessID:    processID,
 			RunCreatedAt: createdAt,
@@ -113,9 +114,9 @@ type stubRuntime struct {
 	hist        *sqlite.TranscriptStore   // durable Item history
 	runs        *sqlite.RunStore          // durable Run records (rollback/fork read runs)
 	toolResults *sqlite.ToolResultStore
-	plan        *sqlite.PlanStore              // session-scoped state: exported, restored, dropped with the session
-	interrupts  *sqlite.InterruptStore         // open-interrupt registry (rollback clears dropped)
-	muts        *sqlite.WorkspaceMutationStore // §8.5 recoverable file-rollback log
+	plan        *sqlite.PlanStore                   // session-scoped state: exported, restored, dropped with the session
+	interrupts  *persistence.InterruptStore         // open-interrupt registry (rollback clears dropped)
+	muts        *persistence.WorkspaceMutationStore // §8.5 recoverable file-rollback log
 	execution   executionRuntime
 	admissions  *admission.Gate
 }
@@ -217,8 +218,8 @@ func serverWithTools(useCases toolUseCases) *Server {
 	return &Server{tools: useCases}
 }
 
-func (s stubRuntime) Transcript() *sqlite.TranscriptStore { return s.hist }
-func (s stubRuntime) Interrupts() *sqlite.InterruptStore  { return s.interrupts }
+func (s stubRuntime) Transcript() *sqlite.TranscriptStore     { return s.hist }
+func (s stubRuntime) Interrupts() *persistence.InterruptStore { return s.interrupts }
 
 // MessageCount and TruncateMessages operate on the in-memory history map,
 // mirroring the engine's conversation-history store closely enough for
@@ -249,44 +250,44 @@ func (s stubRuntime) TruncateMessages(_ context.Context, id string, keepN int) e
 // accidental call deterministic instead of dispatching through a nil embed.
 type executionStub struct{}
 
-func (executionStub) Events(context.Context, execution.ExecutorRef) (iter.Seq[runs.ExecutorEvent], error) {
+func (executionStub) Events(context.Context, runs.ExecutorRef) (iter.Seq[runs.ExecutorEvent], error) {
 	return func(func(runs.ExecutorEvent) bool) {}, nil
 }
 func (executionStub) ValidateStart(req runs.StartExecution) error { return req.Validate() }
-func (executionStub) PrepareStart(_ context.Context, req runs.StartExecution) (execution.ExecutorRef, error) {
-	return execution.ExecutorRef{SessionID: req.SessionID, ExecutorID: "exec_test"}, nil
+func (executionStub) PrepareStart(_ context.Context, req runs.StartExecution) (runs.ExecutorRef, error) {
+	return runs.ExecutorRef{SessionID: req.SessionID, ExecutorID: "exec_test"}, nil
 }
-func (executionStub) Activate(context.Context, execution.ExecutorRef) error { return nil }
-func (executionStub) Prepare(_ context.Context, ref execution.ExecutorRef) (execution.ExecutorRef, error) {
+func (executionStub) Activate(context.Context, runs.ExecutorRef) error { return nil }
+func (executionStub) Prepare(_ context.Context, ref runs.ExecutorRef) (runs.ExecutorRef, error) {
 	return ref, nil
 }
-func (executionStub) Resume(context.Context, execution.ExecutorRef, []interrupts.SuspensionAnswer, []execution.InterruptKind) error {
+func (executionStub) Resume(context.Context, runs.ExecutorRef, []runs.SuspensionAnswer, []interrupt.Kind) error {
 	return nil
 }
-func (executionStub) Rehydrate(_ context.Context, req runs.RehydrateExecution) (execution.ExecutorRef, error) {
-	return execution.ExecutorRef{SessionID: req.SessionID, ExecutorID: req.ExecutorID}, nil
+func (executionStub) Rehydrate(_ context.Context, req runs.RehydrateExecution) (runs.ExecutorRef, error) {
+	return runs.ExecutorRef{SessionID: req.SessionID, ExecutorID: req.ExecutorID}, nil
 }
-func (executionStub) CancelExecution(context.Context, execution.ExecutorRef) error { return nil }
-func (executionStub) CancelSubtree(context.Context, execution.ExecutorRef, string) error {
+func (executionStub) CancelExecution(context.Context, runs.ExecutorRef) error { return nil }
+func (executionStub) CancelSubtree(context.Context, runs.ExecutorRef, string) error {
 	return nil
 }
 func (executionStub) PrepareWaitingSubtreeCancellation(
 	context.Context,
-	execution.ExecutorRef,
+	runs.ExecutorRef,
 	string,
 ) (runs.PreparedWaitingSubtreeCancellation, error) {
 	return runs.PreparedWaitingSubtreeCancellation{}, errors.New("test execution: waiting subtree cancellation is unavailable")
 }
-func (executionStub) Steer(context.Context, execution.ExecutorRef, []transcript.ContentBlock) error {
+func (executionStub) Steer(context.Context, runs.ExecutorRef, []transcript.ContentBlock) error {
 	return nil
 }
 
 type recordingExecutions struct {
 	executionStub
-	canceled []execution.ExecutorRef
+	canceled []runs.ExecutorRef
 }
 
-func (r *recordingExecutions) CancelExecution(_ context.Context, ref execution.ExecutorRef) error {
+func (r *recordingExecutions) CancelExecution(_ context.Context, ref runs.ExecutorRef) error {
 	r.canceled = append(r.canceled, ref)
 	return nil
 }
@@ -298,7 +299,7 @@ func (s stubRuntime) executionController() executionRuntime {
 	return executionStub{}
 }
 
-func (s stubRuntime) Events(ctx context.Context, ref execution.ExecutorRef) (iter.Seq[runs.ExecutorEvent], error) {
+func (s stubRuntime) Events(ctx context.Context, ref runs.ExecutorRef) (iter.Seq[runs.ExecutorEvent], error) {
 	return s.executionController().Events(ctx, ref)
 }
 
@@ -306,33 +307,33 @@ func (s stubRuntime) ValidateStart(req runs.StartExecution) error {
 	return s.executionController().ValidateStart(req)
 }
 
-func (s stubRuntime) PrepareStart(ctx context.Context, req runs.StartExecution) (execution.ExecutorRef, error) {
+func (s stubRuntime) PrepareStart(ctx context.Context, req runs.StartExecution) (runs.ExecutorRef, error) {
 	return s.executionController().PrepareStart(ctx, req)
 }
 
-func (s stubRuntime) Activate(ctx context.Context, ref execution.ExecutorRef) error {
+func (s stubRuntime) Activate(ctx context.Context, ref runs.ExecutorRef) error {
 	return s.executionController().Activate(ctx, ref)
 }
 
-func (s stubRuntime) Prepare(ctx context.Context, ref execution.ExecutorRef) (execution.ExecutorRef, error) {
+func (s stubRuntime) Prepare(ctx context.Context, ref runs.ExecutorRef) (runs.ExecutorRef, error) {
 	return s.executionController().Prepare(ctx, ref)
 }
 
-func (s stubRuntime) Resume(ctx context.Context, prepared execution.ExecutorRef, answers []interrupts.SuspensionAnswer, interruptKinds []execution.InterruptKind) error {
+func (s stubRuntime) Resume(ctx context.Context, prepared runs.ExecutorRef, answers []runs.SuspensionAnswer, interruptKinds []interrupt.Kind) error {
 	return s.executionController().Resume(ctx, prepared, answers, interruptKinds)
 }
 
-func (s stubRuntime) Rehydrate(ctx context.Context, req runs.RehydrateExecution) (execution.ExecutorRef, error) {
+func (s stubRuntime) Rehydrate(ctx context.Context, req runs.RehydrateExecution) (runs.ExecutorRef, error) {
 	return s.executionController().Rehydrate(ctx, req)
 }
 
-func (s stubRuntime) Cancel(ctx context.Context, ref execution.ExecutorRef) error {
+func (s stubRuntime) Cancel(ctx context.Context, ref runs.ExecutorRef) error {
 	return s.executionController().CancelExecution(ctx, ref)
 }
 
 func (s stubRuntime) CancelSubtree(
 	ctx context.Context,
-	ref execution.ExecutorRef,
+	ref runs.ExecutorRef,
 	processID string,
 ) error {
 	return s.executionController().CancelSubtree(ctx, ref, processID)
@@ -340,7 +341,7 @@ func (s stubRuntime) CancelSubtree(
 
 func (s stubRuntime) PrepareWaitingSubtreeCancellation(
 	ctx context.Context,
-	ref execution.ExecutorRef,
+	ref runs.ExecutorRef,
 	processID string,
 ) (runs.PreparedWaitingSubtreeCancellation, error) {
 	return s.executionController().PrepareWaitingSubtreeCancellation(
@@ -350,11 +351,11 @@ func (s stubRuntime) PrepareWaitingSubtreeCancellation(
 	)
 }
 
-func (s stubRuntime) Steer(ctx context.Context, ref execution.ExecutorRef, input []transcript.ContentBlock) error {
+func (s stubRuntime) Steer(ctx context.Context, ref runs.ExecutorRef, input []transcript.ContentBlock) error {
 	return s.executionController().Steer(ctx, ref, input)
 }
 
-func (s stubRuntime) CancelExecution(ctx context.Context, ref execution.ExecutorRef) error {
+func (s stubRuntime) CancelExecution(ctx context.Context, ref runs.ExecutorRef) error {
 	return s.executionController().CancelExecution(ctx, ref)
 }
 
@@ -362,8 +363,8 @@ type stubExecutionCleanup struct {
 	rt *stubRuntime
 }
 
-func (t stubExecutionCleanup) Cancel(ctx context.Context, ref execution.ExecutorRef) error {
-	return t.rt.CancelExecution(ctx, execution.ExecutorRef{SessionID: ref.SessionID, ExecutorID: ref.ExecutorID})
+func (t stubExecutionCleanup) Cancel(ctx context.Context, ref runs.ExecutorRef) error {
+	return t.rt.CancelExecution(ctx, runs.ExecutorRef{SessionID: ref.SessionID, ExecutorID: ref.ExecutorID})
 }
 
 type stubLifecycleStores struct {
@@ -395,7 +396,7 @@ func (s stubLifecycleStores) ReadSnapshot(ctx context.Context, id string) (sessi
 	if err != nil {
 		return sessions.Snapshot{}, err
 	}
-	var toolResults []offload.ToolResultBlob
+	var toolResults []toolresult.Blob
 	if s.rt.toolResults != nil {
 		toolResults, err = s.rt.toolResults.List(ctx, id)
 		if err != nil {
@@ -545,14 +546,14 @@ func (s stubLifecycleStores) ApplyTerminal(ctx context.Context, plan sessions.Te
 	if err := s.rt.interrupts.Delete(ctx, root.SessionID, root.ID); err != nil {
 		return err
 	}
-	for _, run := range plan.Runs {
-		if run.Outcome != nil && *run.Outcome == execution.OutcomeError {
-			if err := s.rt.runs.RecoverLost(ctx, run); err != nil {
+	for _, record := range plan.Runs {
+		if record.Outcome != nil && *record.Outcome == run.OutcomeLost {
+			if err := s.rt.runs.RecoverLost(ctx, record); err != nil {
 				return err
 			}
 			continue
 		}
-		if err := s.rt.runs.Terminalize(ctx, run); err != nil {
+		if err := s.rt.runs.Terminalize(ctx, record); err != nil {
 			return err
 		}
 	}
@@ -645,11 +646,11 @@ func (s stubRuntime) runWriter() runsegment.RunWriter {
 
 type stubRunState struct{}
 
-func (stubRunState) Admit(context.Context, execution.RunDraft) error { return nil }
+func (stubRunState) Admit(context.Context, run.RunDraft) error { return nil }
 func (stubRunState) Resume(
 	context.Context,
 	string,
-	execution.RunResumeDraft,
+	run.RunResumeDraft,
 	time.Time,
 ) error {
 	return nil
@@ -682,6 +683,6 @@ func newSessionServer(t *testing.T) (*Server, *sqlite.SessionStore, *stubRuntime
 	svc := sqlite.NewSessionStore(db)
 	// Interrupts is always wired in production (runtime composition root), and
 	// the wire status now reads it (liveStatus), so give the stub a real store.
-	runtime := &stubRuntime{sess: svc, model: "default-model", interrupts: sqlite.NewInterruptStore(db)}
+	runtime := &stubRuntime{sess: svc, model: "default-model", interrupts: persistence.NewInterruptStore(sqlite.NewInterruptStore(db))}
 	return newTestServer(runtime), svc, runtime
 }

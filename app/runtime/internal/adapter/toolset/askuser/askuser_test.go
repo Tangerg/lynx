@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
 )
 
 // TestAskUser_Validation: malformed args and an empty questions list are
@@ -37,9 +37,9 @@ func TestAskUser_Validation(t *testing.T) {
 
 func TestAskUserKeepsOptionsOpenToARealUserAnswer(t *testing.T) {
 	var captured runs.Interrupt
-	tool, err := New(func(_ context.Context, _ string, interrupt runs.Interrupt) (interrupts.Resolution, error) {
-		captured = interrupt
-		return interrupts.Resolution{Answers: [][]string{{"another database"}}}, nil
+	tool, err := New(func(_ context.Context, _ string, request runs.Interrupt) (interrupt.Resolution, error) {
+		captured = request
+		return interrupt.Resolution{Answers: [][]string{{"another database"}}}, nil
 	})
 	if err != nil {
 		t.Fatal(err)

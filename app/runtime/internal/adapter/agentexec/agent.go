@@ -5,7 +5,7 @@ import (
 
 	"github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/core"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/accounting"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/accounting"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/core/media"
@@ -50,7 +50,7 @@ type TurnOutput struct {
 
 	// StopReason is the framework's own account of which configured bound ended
 	// the interaction, carried through rather than re-labeled: the values are
-	// identical and only the domain [execution.Outcome] mapping is Runtime's to
+	// identical and only the domain [run.Outcome] mapping is Runtime's to
 	// make. Empty on normal completion; otherwise Reply holds whatever text
 	// streamed before the bound was reached.
 	StopReason agent.InteractionStopReason

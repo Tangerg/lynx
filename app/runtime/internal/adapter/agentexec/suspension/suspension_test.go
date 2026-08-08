@@ -7,14 +7,13 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
 
 func TestDecodePromptDiscriminatesAndRejectsGuesses(t *testing.T) {
 	question := runs.Interrupt{
-		Kind: execution.QuestionInterrupt,
+		Kind: interrupt.Question,
 		Question: &runs.QuestionPrompt{
 			ToolName:  "ask_user",
 			Arguments: `{"questions":[{"question":"Continue?"}]}`,
@@ -37,13 +36,13 @@ func TestDecodePromptDiscriminatesAndRejectsGuesses(t *testing.T) {
 	if err != nil {
 		t.Fatalf("DecodePrompt: %v", err)
 	}
-	if got.Kind != execution.QuestionInterrupt || got.Question == nil || got.Question.ToolName != "ask_user" ||
+	if got.Kind != interrupt.Question || got.Question == nil || got.Question.ToolName != "ask_user" ||
 		!got.Question.Fields[0].AllowCustom {
 		t.Fatalf("decoded = %#v", got)
 	}
 
 	approval := runs.Interrupt{
-		Kind: execution.ApprovalInterrupt,
+		Kind: interrupt.Approval,
 		Approval: &runs.ApprovalPrompt{
 			ToolName: "webfetch", Arguments: `{"url":"https://example.com"}`,
 			SafetyClass: tool.SafetyClassNetwork, Risk: tool.RiskHigh,
@@ -78,7 +77,7 @@ func TestDecodePromptDiscriminatesAndRejectsGuesses(t *testing.T) {
 }
 
 func TestResolutionCodecUsesAgentWireVocabulary(t *testing.T) {
-	raw, err := EncodeResolution(interrupts.Resolution{
+	raw, err := EncodeResolution(interrupt.Resolution{
 		Approved: true, Arguments: `{"command":"go test","description":"Run tests"}`, Answers: [][]string{{"yes"}},
 		RememberScope: approval.ScopeSession,
 	})

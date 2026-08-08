@@ -4,15 +4,16 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 )
 
 func TestRunCapabilitiesCodecOwnsCanonicalStorageShape(t *testing.T) {
-	want := execution.RunCapabilities{
+	want := run.RunCapabilities{
 		ChildRuns: true,
-		InterruptKinds: []execution.InterruptKind{
-			execution.ApprovalInterrupt,
-			execution.QuestionInterrupt,
+		InterruptKinds: []interrupt.Kind{
+			interrupt.Approval,
+			interrupt.Question,
 		},
 	}
 	encoded, err := encodeRunCapabilities(want)

@@ -9,7 +9,8 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 )
 
-// ApprovalRuleStore implements approval.RuleStore against SQLite — the
+// ApprovalRuleStore persists approval rules in SQLite. It satisfies the
+// Application consumer interface structurally without importing it. This is the
 // persistent home for fine-grained "remember this decision" rules. Put is an
 // upsert by the deterministic rule id (only the decision changes on
 // re-remember; created_at is preserved). The DB must have been opened via
@@ -18,9 +19,7 @@ type ApprovalRuleStore struct {
 	db *sql.DB
 }
 
-var _ approval.RuleStore = (*ApprovalRuleStore)(nil)
-
-// NewApprovalRuleStore wires the given *sql.DB to the approval.RuleStore surface.
+// NewApprovalRuleStore binds the rule store to db.
 func NewApprovalRuleStore(db *sql.DB) *ApprovalRuleStore {
 	return &ApprovalRuleStore{db: db}
 }

@@ -7,11 +7,12 @@ import (
 	"testing"
 	"time"
 
+	apphooks "github.com/Tangerg/lynx/app/runtime/internal/application/hooks"
 	domainhooks "github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
 )
 
 func TestShell_CommandReceivesStdin(t *testing.T) {
-	got := Shell{}.RunHookCommand(context.Background(), domainhooks.CommandRequest{
+	got := Shell{}.RunHookCommand(context.Background(), apphooks.CommandRequest{
 		Command: `grep -q '"event":"UserPromptSubmit"' && echo '{"injectContext":"saw-event"}'`,
 		Input:   domainhooks.Input{Event: domainhooks.UserPromptSubmit},
 		Timeout: time.Second,
@@ -46,7 +47,7 @@ func TestSubagentHookWireUsesApplicationRunIdentity(t *testing.T) {
 }
 
 func TestShell_Timeout(t *testing.T) {
-	got := Shell{}.RunHookCommand(context.Background(), domainhooks.CommandRequest{
+	got := Shell{}.RunHookCommand(context.Background(), apphooks.CommandRequest{
 		Command: `sleep 5`,
 		Timeout: 40 * time.Millisecond,
 	})

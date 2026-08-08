@@ -581,7 +581,11 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
       }, ["type"]),
       fields({
         detail: absent(),
-        type: literal("error"),
+        type: literal("timedOut"),
+      }, ["error", "type"]),
+      fields({
+        detail: absent(),
+        type: literal("failed"),
       }, ["error", "type"]),
       fields({
         error: absent(),
@@ -595,17 +599,37 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
         error: absent(),
         type: literal("canceled"),
       }, ["type"]),
+      fields({
+        detail: absent(),
+        type: literal("lost"),
+      }, ["error", "type"]),
     ]),
     ifThen(
       fields({
-        type: literal("error"),
+        type: literal("timedOut"),
+      }, ["type"]),
+      fields({
+        detail: absent(),
+      }, ["error"]),
+    ),
+    ifThen(
+      fields({
+        type: literal("failed"),
+      }, ["type"]),
+      fields({
+        detail: absent(),
+      }, ["error"]),
+    ),
+    ifThen(
+      fields({
+        type: literal("lost"),
       }, ["type"]),
       fields({
         detail: absent(),
       }, ["error"]),
     ),
   ]),
-  ArtifactOutcomeType: enumOf(["completed", "error", "maxSteps", "maxBudget", "canceled"]),
+  ArtifactOutcomeType: enumOf(["completed", "timedOut", "failed", "maxSteps", "maxBudget", "canceled", "lost"]),
   ArtifactProblem: object({
     detail: text(),
     docUrl: text(),
@@ -2294,7 +2318,11 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
       }, ["type"]),
       fields({
         detail: absent(),
-        type: literal("error"),
+        type: literal("timedOut"),
+      }, ["error", "type"]),
+      fields({
+        detail: absent(),
+        type: literal("failed"),
       }, ["error", "type"]),
       fields({
         error: absent(),
@@ -2308,17 +2336,37 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
         error: absent(),
         type: literal("canceled"),
       }, ["type"]),
+      fields({
+        detail: absent(),
+        type: literal("lost"),
+      }, ["error", "type"]),
     ]),
     ifThen(
       fields({
-        type: literal("error"),
+        type: literal("timedOut"),
+      }, ["type"]),
+      fields({
+        detail: absent(),
+      }, ["error"]),
+    ),
+    ifThen(
+      fields({
+        type: literal("failed"),
+      }, ["type"]),
+      fields({
+        detail: absent(),
+      }, ["error"]),
+    ),
+    ifThen(
+      fields({
+        type: literal("lost"),
       }, ["type"]),
       fields({
         detail: absent(),
       }, ["error"]),
     ),
   ]),
-  RunOutcomeType: enumOf(["completed", "error", "maxSteps", "maxBudget", "canceled"]),
+  RunOutcomeType: enumOf(["completed", "timedOut", "failed", "maxSteps", "maxBudget", "canceled", "lost"]),
   RunProgress: object({
     activity: text(),
     contextTokens: integer(),
@@ -2682,7 +2730,12 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
       fields({
         detail: absent(),
         interrupts: absent(),
-        type: literal("error"),
+        type: literal("timedOut"),
+      }, ["error", "type"]),
+      fields({
+        detail: absent(),
+        interrupts: absent(),
+        type: literal("failed"),
       }, ["error", "type"]),
       fields({
         error: absent(),
@@ -2699,10 +2752,31 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
         interrupts: absent(),
         type: literal("canceled"),
       }, ["type"]),
+      fields({
+        detail: absent(),
+        interrupts: absent(),
+        type: literal("lost"),
+      }, ["error", "type"]),
     ]),
     ifThen(
       fields({
-        type: literal("error"),
+        type: literal("timedOut"),
+      }, ["type"]),
+      fields({
+        detail: absent(),
+      }, ["error"]),
+    ),
+    ifThen(
+      fields({
+        type: literal("failed"),
+      }, ["type"]),
+      fields({
+        detail: absent(),
+      }, ["error"]),
+    ),
+    ifThen(
+      fields({
+        type: literal("lost"),
       }, ["type"]),
       fields({
         detail: absent(),
@@ -2728,7 +2802,7 @@ const CHECKS: Record<WireTypeName, WireCheck> = {
       }, []),
     ),
   ]),
-  SegmentOutcomeType: enumOf(["interrupt", "suspended", "completed", "error", "maxSteps", "maxBudget", "canceled"]),
+  SegmentOutcomeType: enumOf(["interrupt", "suspended", "completed", "timedOut", "failed", "maxSteps", "maxBudget", "canceled", "lost"]),
   ServerCapabilities: object({
     features: record(ref(() => CHECKS.FeatureCapability)),
     limits: ref(() => CHECKS.RuntimeLimits),

@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 )
@@ -40,7 +40,7 @@ func TestGoalStoreRecordRunIsIdempotentAndBlocksAtBudget(t *testing.T) {
 	}
 	record := goal.RunRecord{
 		SessionID: sessionID, LeaseID: g.LeaseID, RunID: "run_goal_run",
-		Outcome: execution.OutcomeCompleted, CostUSD: 0.25, Steps: 3, CompletedAt: now.Add(time.Minute),
+		Outcome: run.OutcomeCompleted, CostUSD: 0.25, Steps: 3, CompletedAt: now.Add(time.Minute),
 	}
 	if err := store.RecordRun(t.Context(), record); err != nil {
 		t.Fatalf("RecordRun: %v", err)
@@ -322,7 +322,7 @@ func TestGoalStoreCascadesWithSessionDeletion(t *testing.T) {
 	}
 	record := goal.RunRecord{
 		SessionID: sessionID, LeaseID: g.LeaseID, RunID: "run-reusable-after-delete",
-		Outcome: execution.OutcomeCompleted, CompletedAt: time.Unix(1, 0),
+		Outcome: run.OutcomeCompleted, CompletedAt: time.Unix(1, 0),
 	}
 	if err := store.RecordRun(t.Context(), record); err != nil {
 		t.Fatalf("record old Goal Run: %v", err)

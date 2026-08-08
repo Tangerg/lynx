@@ -6,9 +6,9 @@ import (
 	toolcontract "github.com/Tangerg/lynx/tool"
 
 	"github.com/Tangerg/lynx/agent/core"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/accounting"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/agentmemory"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/accounting"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/knowledge"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
 	"github.com/Tangerg/lynx/chatclient"
@@ -45,7 +45,7 @@ type AgentMemorySearcher interface {
 // aggregate; writes belong to the application transaction that consumes a
 // captured checkpoint.
 type CheckpointReader interface {
-	LoadCheckpoint(ctx context.Context, rootProcessID string) (execution.ExecutorCheckpoint, error)
+	LoadCheckpoint(ctx context.Context, rootProcessID string) (runs.ExecutorCheckpoint, error)
 }
 
 // ToolResolver is the execution adapter's view of model-facing tool groups.
@@ -110,7 +110,7 @@ type Config struct {
 
 	// ToolResolver supplies the execution-time role groups and accepts the task
 	// delegation tool that can only be built after the subtask Agent deploys.
-	// Catalogs, MCP controls, and shutdown hooks remain outside execution.
+	// Catalogs, MCP controls, and shutdown hooks remain outside run.
 	ToolResolver ToolResolver
 
 	// Pricing optionally computes per-round USD cost from the round's

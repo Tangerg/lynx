@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"slices"
 	"time"
-
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 )
 
 type reductionPublication struct {
@@ -124,7 +122,7 @@ func (p treePublisher) publishTreeBarrier(
 		return reductionPublication{}, err
 	}
 
-	pending := interrupts.Pending{
+	pending := Pending{
 		RootRunID:    routes.root.runID,
 		SessionID:    p.rootSpec.SessionID,
 		ExecutorID:   p.rootSpec.ExecutorID,
@@ -184,13 +182,13 @@ func (p treePublisher) publishTreeBarrier(
 		}
 		pending.Interrupts = append(pending.Interrupts, run.Interrupts...)
 		for index, suspension := range direct {
-			pending.Suspensions = append(pending.Suspensions, interrupts.SuspensionBinding{
+			pending.Suspensions = append(pending.Suspensions, SuspensionBinding{
 				InterruptItemID: run.Interrupts[index].ItemID,
 				ProcessID:       suspension.ProcessID,
 				SuspensionID:    suspension.SuspensionID,
 			})
 		}
-		pending.Continuations = append(pending.Continuations, interrupts.Continuation{
+		pending.Continuations = append(pending.Continuations, Continuation{
 			RunID:          route.runID,
 			ProcessID:      route.source.ProcessID,
 			Lineage:        route.lineage,

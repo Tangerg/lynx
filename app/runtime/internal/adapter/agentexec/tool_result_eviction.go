@@ -3,14 +3,14 @@ package agentexec
 import (
 	"context"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/toolresult"
 )
 
 // toolResultOffloader is the narrow write capability the observer needs to
 // persist a body after its candidate preview has proven worth evicting. nil
 // disables eviction.
 type toolResultOffloader interface {
-	Stage(ctx context.Context, stage offload.ToolResultStage) error
+	Stage(ctx context.Context, stage toolresult.Stage) error
 }
 
 // toolResultPreviewBytes bounds the head+tail preview left inline once a body is

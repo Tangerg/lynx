@@ -9,11 +9,11 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/toolresult"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
 // invalidArtifact is the protocol adapter's structural-document error. Semantic
@@ -54,13 +54,13 @@ func portableArtifactFromWire(art protocol.SessionArtifact) (sessions.PortableSn
 		}
 		items = append(items, item)
 	}
-	toolResults := make([]offload.ToolResultBlob, 0, len(art.ToolResults))
+	toolResults := make([]toolresult.Blob, 0, len(art.ToolResults))
 	for index, encoded := range art.ToolResults {
-		id, err := offload.ParseID(encoded.ID)
+		id, err := toolresult.ParseID(encoded.ID)
 		if err != nil {
 			return sessions.PortableSnapshot{}, invalidArtifact(fmt.Sprintf("artifact.toolResults[%d].id", index), "%v", err)
 		}
-		toolResults = append(toolResults, offload.ToolResultBlob{
+		toolResults = append(toolResults, toolresult.Blob{
 			ID: id, SessionID: art.Session.ID, ItemID: encoded.ItemID, ToolName: encoded.ToolName,
 			Preview: encoded.Preview, Body: encoded.Body, CreatedAt: encoded.CreatedAt,
 		})
@@ -157,11 +157,11 @@ func portableRunFromArtifact(path string, artifact protocol.ArtifactRun) (sessio
 // enforces. An interrupt type this runtime cannot raise is refused rather than
 // dropped: importing the run without it would silently rewrite the contract the
 // archive recorded.
-func portableCapabilitiesFromArtifact(path string, profile *protocol.RunProtocolProfile) (*execution.RunCapabilities, error) {
+func portableCapabilitiesFromArtifact(path string, profile *protocol.RunProtocolProfile) (*run.RunCapabilities, error) {
 	if profile == nil {
 		return nil, nil
 	}
-	var out execution.RunCapabilities
+	var out run.RunCapabilities
 	for _, feature := range profile.RequiredFeatures {
 		switch feature {
 		case protocol.RunProtocolFeatureSubagents:
@@ -181,18 +181,22 @@ func portableCapabilitiesFromArtifact(path string, profile *protocol.RunProtocol
 	return &normalized, nil
 }
 
-func portableOutcomeFromArtifact(path string, value protocol.ArtifactOutcomeType) (execution.Outcome, error) {
+func portableOutcomeFromArtifact(path string, value protocol.ArtifactOutcomeType) (run.Outcome, error) {
 	switch value {
 	case protocol.ArtifactOutcomeCompleted:
-		return execution.OutcomeCompleted, nil
+		return run.OutcomeCompleted, nil
 	case protocol.ArtifactOutcomeCanceled:
-		return execution.OutcomeCanceled, nil
-	case protocol.ArtifactOutcomeError:
-		return execution.OutcomeError, nil
+		return run.OutcomeCanceled, nil
+	case protocol.ArtifactOutcomeTimedOut:
+		return run.OutcomeTimedOut, nil
+	case protocol.ArtifactOutcomeFailed:
+		return run.OutcomeFailed, nil
 	case protocol.ArtifactOutcomeMaxBudget:
-		return execution.OutcomeMaxBudget, nil
+		return run.OutcomeMaxBudget, nil
 	case protocol.ArtifactOutcomeMaxSteps:
-		return execution.OutcomeMaxSteps, nil
+		return run.OutcomeMaxSteps, nil
+	case protocol.ArtifactOutcomeLost:
+		return run.OutcomeLost, nil
 	default:
 		return 0, invalidArtifact(path, "unknown value %q", value)
 	}
@@ -206,11 +210,11 @@ func portableMetricsFromArtifact(artifact protocol.ArtifactRunMetrics) transcrip
 	}
 }
 
-func portableLimitsFromArtifact(artifact *protocol.ArtifactRunLimits) execution.RunLimits {
+func portableLimitsFromArtifact(artifact *protocol.ArtifactRunLimits) run.RunLimits {
 	if artifact == nil {
-		return execution.RunLimits{}
+		return run.RunLimits{}
 	}
-	return execution.RunLimits{
+	return run.RunLimits{
 		MaxTotalTokens: artifact.MaxTotalTokens, MaxSteps: artifact.MaxSteps, MaxBudgetUSD: artifact.MaxBudgetUSD,
 	}
 }

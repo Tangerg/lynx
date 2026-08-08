@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/approvals"
+	apphooks "github.com/Tangerg/lynx/app/runtime/internal/application/hooks"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/schedule"
@@ -36,7 +36,7 @@ type PlanStore interface {
 // ApprovalRuleStore is the composition-root union shared by the domain policy
 // evaluator and session lifecycle cleanup.
 type ApprovalRuleStore interface {
-	approval.RuleStore
+	approvals.RuleStore
 	DeleteSession(ctx context.Context, sessionID string) error
 }
 
@@ -59,8 +59,8 @@ type ScheduleStore interface {
 
 // HookResolver is the runtime's consumer view of lifecycle-hook resolution.
 type HookResolver interface {
-	For(ctx context.Context, cwd string) (*hooks.Bound, error)
-	Inspect(ctx context.Context, cwd string) (hooks.Inspection, error)
+	For(ctx context.Context, cwd string) (*apphooks.Bound, error)
+	Inspect(ctx context.Context, cwd string) (apphooks.Inspection, error)
 }
 
 // Transactor runs fn inside a single storage transaction; the seam the

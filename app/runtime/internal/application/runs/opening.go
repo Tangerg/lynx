@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/admission"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 )
 
@@ -102,7 +102,7 @@ func (c *Coordinator) Start(ctx context.Context, cmd StartCommand) (StartResult,
 		// The durable unique index rejected the INSERT, which means another writer got
 		// there first. Naming that Run is the same answer the pre-admission check gives:
 		// what changed is only who noticed.
-		if errors.Is(err, execution.ErrSessionBusy) {
+		if errors.Is(err, run.ErrSessionBusy) {
 			if active, lookupErr := c.activeRunConflict(ctx, sess.ID); lookupErr == nil && active != nil {
 				return StartResult{}, active
 			}
@@ -186,7 +186,7 @@ func (c *Coordinator) executionCWD(ctx context.Context, sess session.Session) (c
 	return copyDir, true, nil
 }
 
-func (c *Coordinator) validatePreparedExecution(ctx context.Context, ref execution.ExecutorRef, sessionID string) error {
+func (c *Coordinator) validatePreparedExecution(ctx context.Context, ref ExecutorRef, sessionID string) error {
 	if err := ref.ValidateFor(sessionID); err != nil {
 		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), runCleanupTimeout)
 		defer cancel()

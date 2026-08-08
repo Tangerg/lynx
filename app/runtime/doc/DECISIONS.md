@@ -273,3 +273,10 @@
 - 状态：已接受。
 - 决策：Application 在同一事务中 claim answer、记录答案，并把旧 waiting checkpoint 标记为 `Resuming`/不可自动恢复；只有事务成功后才 RestoreTree 并提交 semantic Signal。从该线性化点到下一个 quiescent checkpoint 提交前，进程崩溃一律 `RunLost`，不能再次恢复旧 snapshot 重放 answer 或 Effect。
 - 后果：claim 前崩溃仍可使用 waiting checkpoint；claim 后、restore 后、Signal accepted 后的崩溃都不能回退。新 checkpoint 提交后恢复能力重新建立。P6 必须覆盖全部 crash points。
+
+## ADR-RT-044：Interrupt 纯语义与 pending continuation envelope 分层
+
+- 状态：已接受，P2 已实施。
+- 背景：一个 durable pending hand-off 同时携带产品 Interrupt、Run tree continuation、opaque executor member binding 和恢复元数据。把完整 envelope 放进 Domain 会迫使 `interrupt` 认识 Application/executor；把 Interrupt 语义留在 Application 又会让领域语言失去 owner。
+- 决策：`domain/interrupt` 只拥有 Kind、Key、Resolution 和纯决策语义；`domain/transcript` 拥有可观察 question/approval Item projection；`application/runs.Pending` 是跨聚合、跨 executor 的 root-tree continuation envelope。SQLite 只持 technical record，`adapter/persistence` 负责 Application value 与 record 的双向映射。
+- 后果：Domain 不出现 Store、context 或 executor binding；Infra 不反向 import Application；P6 可以重写 waiting/restore port，而无需破坏 Interrupt 领域语言或伪造第二套 Framework snapshot。

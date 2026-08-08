@@ -8,9 +8,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
+	rundomain "github.com/Tangerg/lynx/app/runtime/internal/domain/run"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
 // executorRoute is the pump-local binding from one immutable executor process
@@ -23,10 +23,10 @@ type executorRoute struct {
 	runID            string
 	segmentID        string
 	rootRunID        string
-	lineage          execution.RunLineage
+	lineage          rundomain.RunLineage
 	modelSelection   modelref.Selection
-	limits           execution.RunLimits
-	capabilities     execution.RunCapabilities
+	limits           rundomain.RunLimits
+	capabilities     rundomain.RunCapabilities
 	reducer          *reducer
 	segmentStartedAt time.Time
 	segmentFinished  bool
@@ -193,18 +193,18 @@ func (routes *executorRoutes) unfinishedInPostorder() ([]*executorRoute, error) 
 		return nil, errors.New("runs: executor routes have no root")
 	}
 	byRunID := make(map[string]*executorRoute, len(routes.admissionOrder))
-	members := make([]execution.RunTreeMember, 0, len(routes.admissionOrder))
+	members := make([]rundomain.RunTreeMember, 0, len(routes.admissionOrder))
 	for _, route := range routes.admissionOrder {
 		if route == nil {
 			return nil, errors.New("runs: executor routes contain a nil route")
 		}
 		byRunID[route.runID] = route
-		members = append(members, execution.RunTreeMember{
+		members = append(members, rundomain.RunTreeMember{
 			RunID:   route.runID,
 			Lineage: route.lineage,
 		})
 	}
-	tree, err := execution.NewRunTree(routes.root.runID, members)
+	tree, err := rundomain.NewRunTree(routes.root.runID, members)
 	if err != nil {
 		return nil, fmt.Errorf("runs: executor routes: %w", err)
 	}
@@ -478,7 +478,7 @@ func validateRouteRun(route *executorRoute, sessionID string, run transcript.Run
 			route.lineage,
 		)
 	}
-	if run.State == execution.Running && run.ActiveSegmentID != route.segmentID {
+	if run.State == rundomain.Running && run.ActiveSegmentID != route.segmentID {
 		return fmt.Errorf(
 			"%w: route %q running segment is %q, want %q",
 			errReducerInvariant,
@@ -546,7 +546,7 @@ func (c *Coordinator) openChildRun(
 	if childSegmentID == "" {
 		return nil, reductionBatch{}, errors.New("runs: child opening generated an empty segment id")
 	}
-	lineage := execution.RunLineage{
+	lineage := rundomain.RunLineage{
 		SpawnedByItemID: spawningItem.ID,
 		ParentRunID:     parent.runID,
 		RootRunID:       parent.rootRunID,
@@ -595,7 +595,7 @@ func (c *Coordinator) openChildRun(
 		return nil, reductionBatch{}, fmt.Errorf("runs: child process %q produced an invalid opening batch", source.ProcessID)
 	}
 	opening := OpeningCommit{
-		Admit: &execution.RunDraft{
+		Admit: &rundomain.RunDraft{
 			RunID:           child.runID,
 			SessionID:       spec.SessionID,
 			SpawnedByItemID: child.lineage.SpawnedByItemID,

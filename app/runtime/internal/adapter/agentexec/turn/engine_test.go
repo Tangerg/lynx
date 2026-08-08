@@ -12,10 +12,12 @@ import (
 	"github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
+	apphooks "github.com/Tangerg/lynx/app/runtime/internal/application/hooks"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 	"github.com/Tangerg/lynx/chatclient"
 	corechat "github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/core/media"
@@ -92,9 +94,9 @@ func TestStartTurnPreservesHookResolutionFailure(t *testing.T) {
 // injection.
 func TestPromptHookInjectedContextReachesTurn(t *testing.T) {
 	stub := &stubEngine{runReply: "ok"}
-	bound := hooks.NewBound(
+	bound := apphooks.NewBound(
 		[]hooks.Hook{{Event: hooks.UserPromptSubmit, Inject: "remember: use tabs", Source: "test"}},
-		hooks.NewRunner(nil, nil), // declarative inject needs no command runner
+		apphooks.NewRunner(nil, nil), // declarative inject needs no command runner
 	)
 	controller := mustTurn(turn.New(turnDeps(stub, func(deps *turn.Dependencies) {
 		deps.Hooks = staticHookResolver{bound: bound}
@@ -178,7 +180,7 @@ func TestControllerFailsClosedWhenWaitingCheckpointCommitFails(t *testing.T) {
 	if interrupted {
 		t.Fatal("turn exposed an interrupt without a durable checkpoint")
 	}
-	if terminal == nil || terminal.Reason != execution.OutcomeError ||
+	if terminal == nil || terminal.Reason != run.OutcomeFailed ||
 		terminal.Problem == nil || terminal.Problem.Kind != transcript.InternalProblem {
 		t.Fatalf("terminal = %+v, want internal error", terminal)
 	}
@@ -189,7 +191,7 @@ func TestControllerFailsClosedWhenWaitingCheckpointCommitFails(t *testing.T) {
 }
 
 // TestStubEngineBudgetStop — a turn whose process reports
-// StopReasonBudget ends with Reason=execution.OutcomeMaxBudget, not a plain
+// StopReasonBudget ends with Reason=run.OutcomeMaxBudget, not a plain
 // completion, so clients can tell "stopped at the ceiling" apart from
 // "model finished".
 func TestStubEngineBudgetStop(t *testing.T) {
@@ -199,7 +201,7 @@ func TestStubEngineBudgetStop(t *testing.T) {
 	handle, err := controller.StartTurn(context.Background(), runs.StartExecution{
 		SessionID: "s",
 		Message:   "go",
-		Limits:    execution.RunLimits{MaxTotalTokens: 1},
+		Limits:    run.RunLimits{MaxTotalTokens: 1},
 	})
 	if err != nil {
 		t.Fatalf("StartTurn: %v", err)
@@ -210,7 +212,7 @@ func TestStubEngineBudgetStop(t *testing.T) {
 
 	for ev := range events {
 		if end, ok := ev.Payload.(runs.SegmentEnded); ok {
-			if end.Reason != execution.OutcomeMaxBudget {
+			if end.Reason != run.OutcomeMaxBudget {
 				t.Fatalf("TurnEnd reason = %v, want budget_exceeded", end.Reason)
 			}
 			return
@@ -240,7 +242,7 @@ func TestStubEngineStepStop(t *testing.T) {
 
 	for ev := range events {
 		if end, ok := ev.Payload.(runs.SegmentEnded); ok {
-			if end.Reason != execution.OutcomeMaxSteps {
+			if end.Reason != run.OutcomeMaxSteps {
 				t.Fatalf("TurnEnd reason = %v, want max steps", end.Reason)
 			}
 			if end.Problem != nil {
@@ -277,7 +279,7 @@ func TestStubEngineInvalidStopReasonBecomesEngineError(t *testing.T) {
 	for event := range events {
 		switch value := event.Payload.(type) {
 		case runs.SegmentEnded:
-			sawEnd = value.Reason == execution.OutcomeError && value.Problem != nil && value.Problem.Kind == transcript.InternalProblem
+			sawEnd = value.Reason == run.OutcomeFailed && value.Problem != nil && value.Problem.Kind == transcript.InternalProblem
 		}
 	}
 	if !sawEnd {
@@ -310,7 +312,7 @@ func TestStubEngineCancelsCleanly(t *testing.T) {
 		return
 	}
 	for ev := range events {
-		if end, ok := ev.Payload.(runs.SegmentEnded); ok && end.Reason == execution.OutcomeCanceled {
+		if end, ok := ev.Payload.(runs.SegmentEnded); ok && end.Reason == run.OutcomeCanceled {
 			return
 		}
 	}
@@ -365,7 +367,7 @@ func TestRehydrateResumesRestoredTurn(t *testing.T) {
 			sawDelta = true
 		case runs.SegmentEnded:
 			sawEnd = true
-			if e.Reason != execution.OutcomeCompleted {
+			if e.Reason != run.OutcomeCompleted {
 				t.Errorf("TurnEnd reason = %s, want completed", e.Reason)
 			}
 		}
@@ -409,7 +411,7 @@ func TestRehydrate_ResumeError_ReturnsError(t *testing.T) {
 	var sawEnd bool
 	for ev := range events {
 		if end, ok := ev.Payload.(runs.SegmentEnded); ok {
-			sawEnd = end.Reason == execution.OutcomeError && end.Problem != nil
+			sawEnd = end.Reason == run.OutcomeFailed && end.Problem != nil
 		}
 	}
 	if !sawEnd {
@@ -575,7 +577,7 @@ func TestStartTurnSnapshotsMutableRequestValues(t *testing.T) {
 		Stop:             []string{"done"},
 	}
 	images := []*media.Media{image}
-	interruptKinds := []execution.InterruptKind{execution.ApprovalInterrupt}
+	interruptKinds := []interrupt.Kind{interrupt.Approval}
 
 	handle, err := controller.StartTurn(context.Background(), runs.StartExecution{
 		SessionID:      "session",
@@ -595,7 +597,7 @@ func TestStartTurnSnapshotsMutableRequestValues(t *testing.T) {
 	options.Stop[0] = "changed"
 	image.Source.Bytes[0] = 9
 	images[0] = nil
-	interruptKinds[0] = execution.QuestionInterrupt
+	interruptKinds[0] = interrupt.Question
 	close(engine.release)
 
 	events, err := controller.Events(context.Background(), handle)
@@ -671,7 +673,7 @@ func TestStartTurnCancelRacingProcessCreationFailureTerminatesAsCanceled(t *test
 	for event := range events {
 		if end, ok := event.Payload.(runs.SegmentEnded); ok {
 			terminals++
-			if end.Reason != execution.OutcomeCanceled || end.Problem != nil {
+			if end.Reason != run.OutcomeCanceled || end.Problem != nil {
 				t.Errorf("TurnEnd = %+v, want cancellation without a problem", end)
 			}
 		}
@@ -703,7 +705,7 @@ func assertCreateFailureEvents(t *testing.T, events iter.Seq[runs.ExecutorEvent]
 		switch value := event.Payload.(type) {
 		case runs.SegmentEnded:
 			terminals++
-			if value.Reason != execution.OutcomeError || value.Problem == nil || value.Problem.Kind != transcript.InternalProblem {
+			if value.Reason != run.OutcomeFailed || value.Problem == nil || value.Problem.Kind != transcript.InternalProblem {
 				t.Errorf("TurnEnd = %+v, want error with an internal problem", value)
 			}
 			if value.Problem != nil && strings.Contains(value.Problem.Detail, startErr.Error()) {

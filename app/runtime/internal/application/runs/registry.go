@@ -4,8 +4,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 )
 
 // Record is the observable state of an active run segment.
@@ -19,7 +19,7 @@ type Record struct {
 	ModelSelection modelref.Selection
 	// Capabilities is the Run's frozen optional behavior, carried on the live
 	// record so an insufficient subscriber is refused before attachment.
-	Capabilities execution.RunCapabilities
+	Capabilities run.RunCapabilities
 	CancelReason string
 }
 

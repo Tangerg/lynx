@@ -9,8 +9,9 @@ import (
 	"github.com/Tangerg/lynx/agent/interaction"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/suspension"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/approvals"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
 )
 
 // TestDoomLoopCounterTracksNoProgress checks the state machine that backs the
@@ -79,7 +80,7 @@ func TestDoomLoopBrakesRepeatedNoProgressCall(t *testing.T) {
 	if err != nil {
 		t.Fatalf("decode doom-loop interrupt: %v", err)
 	}
-	if pending.Kind != execution.ApprovalInterrupt || pending.Approval == nil {
+	if pending.Kind != interrupt.Approval || pending.Approval == nil {
 		t.Fatalf("doom-loop interrupt = %+v, want an approval prompt", pending)
 	}
 	if pending.Approval.Rememberable {
@@ -116,7 +117,7 @@ func TestDoomLoopIgnoresProgressingPolls(t *testing.T) {
 }
 
 func yoloTestApproval() ApprovalGate {
-	policy, err := approval.New(approval.ModeYolo, nil, nil)
+	policy, err := approvals.NewRuntimePolicy(approval.ModeYolo, nil, nil)
 	if err != nil {
 		panic(err)
 	}

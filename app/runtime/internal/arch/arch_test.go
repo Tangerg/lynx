@@ -563,18 +563,25 @@ func TestAgent2StaysBehindAgentexec(t *testing.T) {
 	}
 }
 
-// TestExecutionDomainStaysPure protects the current execution bounded context.
-// Domain/execution and its sub-contexts are the innermost, most-protected code:
+// TestDomainStaysPure protects every bounded context in the innermost ring:
 // it must not touch the filesystem, a SQL driver, HTTP, OTel, the agent SDK, or a
 // concurrency/wiring primitive (internal/component/*). (The accounting sub-context
 // maps the SDK's token counts at the agentexec boundary, so it holds only the
 // neutral core chat model, never agent/*.) The component ban is listed explicitly
 // because layerOf leaves internal/component unclassified — the ring rule would not
 // otherwise catch a domain → component/taskgroup edge.
-func TestExecutionDomainStaysPure(t *testing.T) {
+func TestDomainStaysPure(t *testing.T) {
 	root := moduleRoot(t)
-	forbidExternalImports(t, filepath.Join(root, "internal", "domain", "execution"),
+	domain := filepath.Join(root, "internal", "domain")
+	forbidExternalImports(t, domain,
 		[]string{"os", "database/sql", "net", "net/http", "go.opentelemetry.io", "github.com/Tangerg/lynx/agent", componentPkg})
+	forbidTestImports(t, domain, []string{
+		"github.com/Tangerg/lynx/app/runtime/internal/application",
+		"github.com/Tangerg/lynx/app/runtime/internal/adapter",
+		"github.com/Tangerg/lynx/app/runtime/internal/infra",
+		"github.com/Tangerg/lynx/app/runtime/internal/delivery",
+		"github.com/Tangerg/lynx/app/runtime/internal/bootstrap",
+	})
 }
 
 // TestDeliveryStaysFrameworkFree keeps Delivery free of external implementation
@@ -1333,7 +1340,7 @@ func TestStartCommandHasOneInputRepresentation(t *testing.T) {
 // call a ToolCall start a creation time.
 func TestTranscriptItemUsesOneNeutralDomainTimestamp(t *testing.T) {
 	root := moduleRoot(t)
-	path := filepath.Join(root, "internal", "domain", "execution", "transcript", "model.go")
+	path := filepath.Join(root, "internal", "domain", "transcript", "model.go")
 	if got := namedStructFieldTypeOptional(t, path, "Item", "OccurredAt"); got != "time.Time" {
 		t.Errorf("transcript.Item.OccurredAt = %q, want time.Time", got)
 	}
@@ -1421,8 +1428,8 @@ func forbidInterfaceMethods(t *testing.T, path string, banned map[string]map[str
 func TestCanonicalExecutionRecordsStayTyped(t *testing.T) {
 	root := moduleRoot(t)
 	dirs := []string{
-		filepath.Join(root, "internal", "domain", "execution", "transcript"),
-		filepath.Join(root, "internal", "domain", "execution", "interrupts"),
+		filepath.Join(root, "internal", "domain", "transcript"),
+		filepath.Join(root, "internal", "domain", "interrupt"),
 	}
 	for _, dir := range dirs {
 		walkErr := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
@@ -1472,7 +1479,7 @@ func TestRuntimeInterruptValuesStayWireFree(t *testing.T) {
 	root := moduleRoot(t)
 	paths := []string{
 		filepath.Join(root, "internal", "application", "runs", "interrupt_contract.go"),
-		filepath.Join(root, "internal", "domain", "execution", "interrupts", "resolution.go"),
+		filepath.Join(root, "internal", "domain", "interrupt", "resolution.go"),
 	}
 	for _, path := range paths {
 		f, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
@@ -1506,7 +1513,7 @@ func TestRememberScopeUsesApprovalDomainType(t *testing.T) {
 		structName string
 	}{
 		{filepath.Join(root, "internal", "application", "runs", "commands.go"), "ApprovalResponse"},
-		{filepath.Join(root, "internal", "domain", "execution", "interrupts", "resolution.go"), "Resolution"},
+		{filepath.Join(root, "internal", "domain", "interrupt", "resolution.go"), "Resolution"},
 	}
 	for _, check := range checks {
 		if got := namedStructFieldType(t, check.path, check.structName, "RememberScope"); got != "approval.Scope" {

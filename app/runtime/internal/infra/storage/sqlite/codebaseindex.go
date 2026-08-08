@@ -19,9 +19,8 @@ type CodebaseIndexStore struct {
 	db *sql.DB
 }
 
-var _ codebaseindex.Store = (*CodebaseIndexStore)(nil)
-
-// NewCodebaseIndexStore wires the given *sql.DB to the codebaseindex.Store surface.
+// NewCodebaseIndexStore binds the semantic-index mechanism to db. It satisfies
+// the Application consumer interface structurally without importing it.
 func NewCodebaseIndexStore(db *sql.DB) *CodebaseIndexStore {
 	return &CodebaseIndexStore{db: db}
 }

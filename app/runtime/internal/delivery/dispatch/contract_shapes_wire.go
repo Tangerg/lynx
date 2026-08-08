@@ -186,10 +186,12 @@ func registerRunUnions(s *Shapes) {
 func runOutcomeVariants() []VariantSpec {
 	return []VariantSpec{
 		{Tag: string(protocol.OutcomeCompleted)},
-		{Tag: string(protocol.OutcomeError), Required: []string{"error"}},
+		{Tag: string(protocol.OutcomeTimedOut), Required: []string{"error"}},
+		{Tag: string(protocol.OutcomeFailed), Required: []string{"error"}},
 		{Tag: string(protocol.OutcomeMaxSteps), Optional: []string{"detail"}},
 		{Tag: string(protocol.OutcomeMaxBudget), Optional: []string{"detail"}},
 		{Tag: string(protocol.OutcomeCanceled), Optional: []string{"detail"}},
+		{Tag: string(protocol.OutcomeLost), Required: []string{"error"}},
 	}
 }
 
@@ -400,10 +402,12 @@ func registerArtifactUnions(s *Shapes) {
 		Discriminator: "type",
 		Variants: []VariantSpec{
 			{Tag: string(protocol.ArtifactOutcomeCompleted)},
-			{Tag: string(protocol.ArtifactOutcomeError), Required: []string{"error"}},
+			{Tag: string(protocol.ArtifactOutcomeTimedOut), Required: []string{"error"}},
+			{Tag: string(protocol.ArtifactOutcomeFailed), Required: []string{"error"}},
 			{Tag: string(protocol.ArtifactOutcomeMaxSteps), Optional: []string{"detail"}},
 			{Tag: string(protocol.ArtifactOutcomeMaxBudget), Optional: []string{"detail"}},
 			{Tag: string(protocol.ArtifactOutcomeCanceled), Optional: []string{"detail"}},
+			{Tag: string(protocol.ArtifactOutcomeLost), Required: []string{"error"}},
 		},
 	})
 
@@ -504,10 +508,10 @@ func registerObjectConstraints(s *Shapes) {
 		Rules: []PresenceRule{{
 			When:      []FieldCondition{{Field: "status.type", Operator: OperatorEquals, Value: string(protocol.MCPAuthorizationAttemptPending)}},
 			Forbidden: []string{"finishedAt"},
-		}, {
+		}, PresenceRule{
 			When:     []FieldCondition{{Field: "status.type", Operator: OperatorEquals, Value: string(protocol.MCPAuthorizationAttemptSucceeded)}},
 			Required: []string{"finishedAt"},
-		}, {
+		}, PresenceRule{
 			When:     []FieldCondition{{Field: "status.type", Operator: OperatorEquals, Value: string(protocol.MCPAuthorizationAttemptFailed)}},
 			Required: []string{"finishedAt"},
 		}, {
@@ -561,7 +565,7 @@ func registerObjectConstraints(s *Shapes) {
 	// failure two prose fields and let them disagree.
 	s.constraint(ObjectConstraintSpec{
 		GoType: typeOf[protocol.RunOutcome](),
-		Rules:  []PresenceRule{errorTerminalRule()},
+		Rules:  failureTerminalRules(),
 	})
 
 	// The same rule for the segment union, plus the two non-terminal stops: an
@@ -569,14 +573,14 @@ func registerObjectConstraints(s *Shapes) {
 	// interrupts because they belong to the run that raised them.
 	s.constraint(ObjectConstraintSpec{
 		GoType: typeOf[protocol.SegmentOutcome](),
-		Rules: []PresenceRule{errorTerminalRule(), {
+		Rules: append(failureTerminalRules(), PresenceRule{
 			When:      []FieldCondition{{Field: "type", Operator: OperatorEquals, Value: string(protocol.SegmentInterrupt)}},
 			Required:  []string{"interrupts"},
 			Forbidden: []string{"error", "detail"},
-		}, {
+		}, PresenceRule{
 			When:      []FieldCondition{{Field: "type", Operator: OperatorEquals, Value: string(protocol.SegmentSuspended)}},
 			Forbidden: []string{"interrupts", "error", "detail"},
-		}},
+		}),
 	})
 
 	// A pending set with no interrupts is not a thing to resume — it would leave
@@ -605,17 +609,21 @@ func registerObjectConstraints(s *Shapes) {
 		}}, childLineageRules()...),
 	})
 
-	// An error outcome's explanation lives on `error`, and only there — the
+	// A failure outcome's explanation lives on `error`, and only there — the
 	// archive's copy of the live rule, because an exported run has to say why it
 	// failed as unambiguously as a live one.
 	s.constraint(ObjectConstraintSpec{
 		GoType: typeOf[protocol.ArtifactOutcome](),
-		Rules: []PresenceRule{{
-			When:      []FieldCondition{{Field: "type", Operator: OperatorEquals, Value: string(protocol.ArtifactOutcomeError)}},
-			Required:  []string{"error"},
-			Forbidden: []string{"detail"},
-		}},
+		Rules:  failureArtifactRules(),
 	})
+}
+
+func failureArtifactRules() []PresenceRule {
+	return []PresenceRule{
+		{When: []FieldCondition{{Field: "type", Operator: OperatorEquals, Value: string(protocol.ArtifactOutcomeTimedOut)}}, Required: []string{"error"}, Forbidden: []string{"detail"}},
+		{When: []FieldCondition{{Field: "type", Operator: OperatorEquals, Value: string(protocol.ArtifactOutcomeFailed)}}, Required: []string{"error"}, Forbidden: []string{"detail"}},
+		{When: []FieldCondition{{Field: "type", Operator: OperatorEquals, Value: string(protocol.ArtifactOutcomeLost)}}, Required: []string{"error"}, Forbidden: []string{"detail"}},
+	}
 }
 
 // childLineageRules say the three child edges are all-or-none: a run either
@@ -642,13 +650,13 @@ func childLineageRules() []PresenceRule {
 	return rules
 }
 
-// errorTerminalRule is the error terminal's shape, stated once for both unions
-// that contain it.
-func errorTerminalRule() PresenceRule {
-	return PresenceRule{
-		When:      []FieldCondition{{Field: "type", Operator: OperatorEquals, Value: string(protocol.OutcomeError)}},
-		Required:  []string{"error"},
-		Forbidden: []string{"detail"},
+// failureTerminalRules define the terminal outcomes whose typed problem is
+// mandatory and mutually exclusive with the free-form detail field.
+func failureTerminalRules() []PresenceRule {
+	return []PresenceRule{
+		{When: []FieldCondition{{Field: "type", Operator: OperatorEquals, Value: string(protocol.OutcomeTimedOut)}}, Required: []string{"error"}, Forbidden: []string{"detail"}},
+		{When: []FieldCondition{{Field: "type", Operator: OperatorEquals, Value: string(protocol.OutcomeFailed)}}, Required: []string{"error"}, Forbidden: []string{"detail"}},
+		{When: []FieldCondition{{Field: "type", Operator: OperatorEquals, Value: string(protocol.OutcomeLost)}}, Required: []string{"error"}, Forbidden: []string{"detail"}},
 	}
 }
 

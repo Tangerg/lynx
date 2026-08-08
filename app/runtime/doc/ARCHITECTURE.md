@@ -137,7 +137,7 @@ Application checkpoint 包含：
 
 ### 5.5 `interrupt`
 
-`interrupt` 拥有外部请求、答案、scope、open/answered/removed 不变量和一个 root Run tree 的 pending boundary。Agent2 pending input 只在防腐层被翻译为这里的产品值。
+`interrupt` 拥有外部请求、答案、scope 与 Kind/Resolution 等纯语义。可观察的 question/approval Item 仍由 `transcript` 投影；把一个 root Run tree 的产品事实、executor binding 和 continuation 组合成可恢复 pending hand-off 的职责属于 `application/runs`，不能为了把它塞进 Domain 而让 `interrupt` 依赖 Application 或 executor 类型。Agent2 pending input 只在防腐层被翻译为这些产品值。
 
 ### 5.6 `accounting`
 

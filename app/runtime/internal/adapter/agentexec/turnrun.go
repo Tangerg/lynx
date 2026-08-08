@@ -12,8 +12,9 @@ import (
 	"github.com/Tangerg/lynx/core/media"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/executionctx"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 )
 
 // SteerSource yields user messages queued for mid-run injection. It is
@@ -65,7 +66,7 @@ type TurnRequest struct {
 	// Limits are the immutable cumulative ceilings for the complete delegation
 	// tree. Token and cost dimensions are continuation ceilings; model-call
 	// admission is strict. Zero leaves a dimension unbounded.
-	Limits execution.RunLimits
+	Limits run.RunLimits
 
 	// Options carries per-run generation tuning (temperature, max tokens, stop
 	// sequences). Model selection stays on ModelSelection/ChatClient; these options
@@ -134,7 +135,7 @@ func (r TurnRequest) snapshot() TurnRequest {
 // turn to the chat history middleware's keyed conversation.
 func (e *Engine) StartTurn(ctx context.Context, request TurnRequest) (TurnProcess, error) {
 	request = request.snapshot()
-	scope := execution.ExecutionScope{
+	scope := runs.ExecutionScope{
 		SessionID:    request.SessionID,
 		CWD:          request.CWD,
 		WorkspaceCWD: request.WorkspaceCWD,
@@ -197,7 +198,7 @@ func (e *Engine) StartTurn(ctx context.Context, request TurnRequest) (TurnProces
 func (e *Engine) turnProcessOptions(
 	sessionID string,
 	provider string,
-	limits execution.RunLimits,
+	limits run.RunLimits,
 	observer executionObserver,
 	listener core.Extension,
 	client *chatclient.Client,
@@ -338,7 +339,7 @@ type RestoreTurnRequest struct {
 
 	// Limits are the immutable tree-wide ceilings admitted by the application
 	// Run. Restore rejects a checkpoint that carries a different policy.
-	Limits execution.RunLimits
+	Limits run.RunLimits
 
 	// Observer receives the continuation's streaming tool-call + text
 	// deltas, exactly as on a fresh turn. May be nil.
@@ -388,7 +389,7 @@ func (e *Engine) RestoreTurn(ctx context.Context, rootProcessID string, request 
 		}
 		return nil, fmt.Errorf("engine: load process tree: %w", err)
 	}
-	if err := checkpoint.ValidateFor(execution.ExecutorCheckpointExpectation{
+	if err := checkpoint.ValidateFor(runs.ExecutorCheckpointExpectation{
 		RootProcessID:  rootProcessID,
 		SessionID:      request.SessionID,
 		CWD:            request.CWD,
@@ -461,8 +462,8 @@ func (e *Engine) RestoreTurn(ctx context.Context, rootProcessID string, request 
 }
 
 func isExecutorCheckpointLoss(err error) bool {
-	return errors.Is(err, execution.ErrExecutorCheckpointNotFound) ||
-		errors.Is(err, execution.ErrInvalidExecutorCheckpoint) ||
+	return errors.Is(err, runs.ErrExecutorCheckpointNotFound) ||
+		errors.Is(err, runs.ErrInvalidExecutorCheckpoint) ||
 		errors.Is(err, core.ErrUnsupportedSnapshotSchema) ||
 		errors.Is(err, core.ErrInvalidSnapshot) ||
 		errors.Is(err, agentruntime.ErrDeploymentNotFound)

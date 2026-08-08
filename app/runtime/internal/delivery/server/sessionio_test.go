@@ -10,11 +10,12 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	resultoffload "github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
+	resultoffload "github.com/Tangerg/lynx/app/runtime/internal/domain/toolresult"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 	"github.com/Tangerg/lynx/core/chat"
 )
 
@@ -142,7 +143,7 @@ func TestSessionExportImportCarriesOffloadedToolResultsAcrossDatabases(t *testin
 	putRun(t, sourceRuntime, ses.ID, "run_offload", 1, 1)
 	body := strings.Repeat("portable-result-", 100)
 	id := resultoffload.NewID()
-	if err := sourceRuntime.toolResults.Stage(ctx, resultoffload.ToolResultStage{
+	if err := sourceRuntime.toolResults.Stage(ctx, resultoffload.Stage{
 		ID: id, SessionID: ses.ID, ToolName: "vendor_tool", Body: body,
 	}); err != nil {
 		t.Fatalf("stage source result: %v", err)
@@ -355,20 +356,20 @@ func TestCancelParkedRunProducesPortableTerminalSnapshot(t *testing.T) {
 	}
 	rt.history[ses.ID] = []chat.Message{chat.NewUserMessage(chat.NewTextPart("hello")), chat.NewAssistantMessage(chat.NewTextPart("waiting"))}
 	parkedAt := time.Unix(1, 0).UTC()
-	capabilities := execution.RunCapabilities{
-		InterruptKinds: []execution.InterruptKind{execution.QuestionInterrupt},
+	capabilities := run.RunCapabilities{
+		InterruptKinds: []interrupt.Kind{interrupt.Question},
 	}
-	if err := rt.runs.Admit(ctx, execution.RunDraft{SegmentID: "seg_open",
+	if err := rt.runs.Admit(ctx, run.RunDraft{SegmentID: "seg_open",
 		RunID: "run_parked", SessionID: ses.ID, Capabilities: capabilities, CreatedAt: parkedAt,
 	}); err != nil {
 		t.Fatalf("admit parked run: %v", err)
 	}
 	if err := rt.runs.Suspend(ctx, transcript.Run{
-		SessionID: ses.ID, ID: "run_parked", State: execution.Interrupted,
+		SessionID: ses.ID, ID: "run_parked", State: run.Waiting,
 		Capabilities: capabilities,
 		Interrupts: []transcript.Interrupt{{
 			ItemID: "item_question", ItemOccurredAt: parkedAt,
-			RunID: "run_parked", Kind: execution.QuestionInterrupt,
+			RunID: "run_parked", Kind: interrupt.Question,
 			Question: &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Continue?"}}},
 		}},
 		CreatedAt: parkedAt, MessageMark: transcript.UnknownMessageMark,
@@ -390,7 +391,7 @@ func TestCancelParkedRunProducesPortableTerminalSnapshot(t *testing.T) {
 		"process_parked",
 		[]transcript.Interrupt{{
 			ItemID:   "item_question",
-			Kind:     execution.QuestionInterrupt,
+			Kind:     interrupt.Question,
 			Question: &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Continue?"}}},
 		}},
 		parkedAt,
@@ -545,7 +546,7 @@ func TestSessionImportRejectsAFailedRunWithoutItsFailure(t *testing.T) {
 			Runs: []protocol.ArtifactRun{{
 				ID: "run_1", SessionID: "ses_unexplained",
 				// Failed by its own account, with nothing that says how.
-				Outcome:   protocol.ArtifactOutcome{Type: protocol.ArtifactOutcomeError},
+				Outcome:   protocol.ArtifactOutcome{Type: protocol.ArtifactOutcomeFailed},
 				CreatedAt: created, FinishedAt: created, UpdatedAt: created,
 			}},
 		},

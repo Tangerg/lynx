@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/component/keyset"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 )
 
@@ -90,7 +90,7 @@ func (s *crudStores) Interrupts() InterruptStore {
 	if s.interrupts != nil {
 		return s.interrupts
 	}
-	return &coordinatorInterrupts{pending: map[string]interrupts.Pending{}}
+	return &coordinatorInterrupts{pending: map[string]runs.Pending{}}
 }
 func (*crudStores) Transcript() TranscriptStore                            { return emptyTranscript{} }
 func (*crudStores) Runs() RunStore                                         { return emptyTranscript{} }
@@ -219,7 +219,7 @@ func TestCoordinatorUpdateRejectsExecutionPolicyChangeWhileParked(t *testing.T) 
 			store := &crudSessionStore{}
 			stores := &crudStores{
 				session: store,
-				interrupts: &coordinatorInterrupts{pending: map[string]interrupts.Pending{
+				interrupts: &coordinatorInterrupts{pending: map[string]runs.Pending{
 					"run_1": {RootRunID: "run_1", SessionID: "ses_1"},
 				}},
 			}

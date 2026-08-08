@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/application/codebase"
 	domain "github.com/Tangerg/lynx/app/runtime/internal/domain/codebaseindex"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/git"
 )
@@ -25,7 +26,7 @@ const (
 // Source discovers and chunks indexable code files from a project directory.
 type Source struct{}
 
-var _ domain.Source = Source{}
+var _ codebase.Source = Source{}
 
 // codeExtensions is the allowlist of source extensions worth indexing — keeps
 // the index code-centric (not data / lock / binary files) and bounds cost.

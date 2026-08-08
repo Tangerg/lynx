@@ -9,9 +9,10 @@ import (
 
 	"github.com/Tangerg/lynx/core/chat"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/persistence"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 )
 
@@ -29,7 +30,7 @@ func TestRunInTx_AtomicAcrossStores(t *testing.T) {
 	t.Cleanup(func() { _ = db.Close() })
 	sess := sqlite.NewSessionStore(db)
 	msg := sqlite.NewMessageStore(db)
-	ints := sqlite.NewInterruptStore(db)
+	ints := persistence.NewInterruptStore(sqlite.NewInterruptStore(db))
 	ctx := context.Background()
 
 	// A multi-store write-set that fails mid-way must leave NO partial state.
@@ -76,7 +77,7 @@ func TestRunInTx_AtomicAcrossStores(t *testing.T) {
 			"proc_1",
 			[]transcript.Interrupt{{
 				ItemID:   "item_1",
-				Kind:     execution.QuestionInterrupt,
+				Kind:     interrupt.Question,
 				Question: &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Continue?"}}},
 			}},
 			time.Unix(2, 0).UTC(),

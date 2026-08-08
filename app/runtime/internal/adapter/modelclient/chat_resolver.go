@@ -12,9 +12,9 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/llm"
 	"github.com/Tangerg/lynx/chatclient"
 )
@@ -58,8 +58,8 @@ func (r *ChatResolver) ResolveChat(ctx context.Context, selection modelref.Selec
 		return nil, err
 	}
 	if !ok || !entry.Enabled() {
-		return nil, &execution.Failure{
-			Kind: execution.FailureInvalidCredentials,
+		return nil, &run.Failure{
+			Kind: run.FailureInvalidCredentials,
 			Err:  fmt.Errorf("modelclient: provider %q is not configured (set its API key first)", providerID),
 		}
 	}

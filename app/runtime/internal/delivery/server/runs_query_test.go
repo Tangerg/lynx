@@ -8,38 +8,39 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/admission"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/queries"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
 // fakeInterruptReader backs the query coordinator's interrupt read for the
 // ListOpenInterrupts wire-projection test.
 type fakeInterruptReader struct {
 	sessionID string
-	pending   []interrupts.Pending
+	pending   []runs.Pending
 	err       error
 }
 
-func (r *fakeInterruptReader) List(_ context.Context, sessionID string) ([]interrupts.Pending, error) {
+func (r *fakeInterruptReader) List(_ context.Context, sessionID string) ([]runs.Pending, error) {
 	r.sessionID = sessionID
 	return r.pending, r.err
 }
 
-func (r *fakeInterruptReader) ListPage(ctx context.Context, sessionID, _ string, _ int64, _ string, _ int) ([]interrupts.Pending, error) {
+func (r *fakeInterruptReader) ListPage(ctx context.Context, sessionID, _ string, _ int64, _ string, _ int) ([]runs.Pending, error) {
 	return r.List(ctx, sessionID)
 }
 
-func (r *fakeInterruptReader) Get(_ context.Context, runID string) (interrupts.Pending, bool, error) {
+func (r *fakeInterruptReader) Get(_ context.Context, runID string) (runs.Pending, bool, error) {
 	for _, pending := range r.pending {
 		if pending.RootRunID == runID {
 			return pending, true, r.err
 		}
 	}
-	return interrupts.Pending{}, false, r.err
+	return runs.Pending{}, false, r.err
 }
 
 // TestListRunsPublishesTheWholeHistoryNewestFirst is runs.list's delivery half: the
@@ -258,11 +259,11 @@ func assertSubagentCapabilityGap(t *testing.T, operation string, err error) {
 
 func putChildRun(t *testing.T, rt *stubRuntime, sessionID, runID string, atUnix int64, mark int) {
 	t.Helper()
-	outcome := execution.OutcomeCompleted
+	outcome := run.OutcomeCompleted
 	if err := rt.runs.Restore(t.Context(), transcript.Run{
 		SessionID: sessionID, ID: runID, SpawnedByItemID: "item_spawn",
 		ParentRunID: "run_root", RootRunID: "run_root",
-		State: execution.Completed, Outcome: &outcome,
+		State: run.Completed, Outcome: &outcome,
 		CreatedAt: time.Unix(atUnix, 0).UTC(), FinishedAt: time.Unix(atUnix, 0).UTC(),
 		UpdatedAt: time.Unix(atUnix, 0).UTC(), MessageMark: mark,
 	}); err != nil {
@@ -414,12 +415,12 @@ func TestListInterruptsProjectsToWire(t *testing.T) {
 	if err != nil {
 		t.Fatalf("tool arguments: %v", err)
 	}
-	reader := &fakeInterruptReader{pending: []interrupts.Pending{
+	reader := &fakeInterruptReader{pending: []runs.Pending{
 		{
 			RootRunID: "run_waiting",
 			SessionID: "ses_1",
 			Interrupts: []transcript.Interrupt{{
-				ItemID: "item_1", RunID: "run_child", Kind: execution.ApprovalInterrupt,
+				ItemID: "item_1", RunID: "run_child", Kind: interrupt.Approval,
 				Approval: &transcript.Approval{
 					Tool: transcript.ToolInvocation{Name: "shell", Arguments: arguments},
 					Risk: tool.RiskHigh, Reason: "Runs commands in the workspace.", Rememberable: true,

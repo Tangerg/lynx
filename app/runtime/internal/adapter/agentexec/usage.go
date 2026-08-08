@@ -14,7 +14,7 @@ import (
 	"github.com/Tangerg/lynx/agent/event"
 	"github.com/Tangerg/lynx/agent/interaction"
 	agentruntime "github.com/Tangerg/lynx/agent/runtime"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/accounting"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/accounting"
 	"github.com/Tangerg/lynx/core/chat"
 )
 

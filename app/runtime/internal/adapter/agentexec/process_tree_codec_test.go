@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/agent/core"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 )
 
 func TestProcessTreeCodecKeepsFrameworkTopologyInsideExecutionAdapter(t *testing.T) {
@@ -35,11 +35,11 @@ func TestProcessTreeCodecKeepsFrameworkTopologyInsideExecutionAdapter(t *testing
 	if err != nil {
 		t.Fatalf("encodeProcessTree: %v", err)
 	}
-	checkpoint := execution.ExecutorCheckpoint{
+	checkpoint := runs.ExecutorCheckpoint{
 		RootProcessID: tree.RootID,
 		Payload:       payload,
 		BuildID:       "build",
-		Scope:         execution.ExecutionScope{SessionID: "session"},
+		Scope:         runs.ExecutionScope{SessionID: "session"},
 	}
 	if err := checkpoint.Validate(); err != nil {
 		t.Fatalf("validate checkpoint: %v", err)

@@ -7,8 +7,8 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/executionctx"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/catalog"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	resultoffload "github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
+	resultoffload "github.com/Tangerg/lynx/app/runtime/internal/domain/toolresult"
 )
 
 type fakeStore struct {
@@ -25,7 +25,7 @@ func (f *fakeStore) Fetch(_ context.Context, session string, id resultoffload.ID
 }
 
 func sessionCtx(session string) context.Context {
-	return executionctx.WithScope(context.Background(), execution.ExecutionScope{SessionID: session})
+	return executionctx.WithScope(context.Background(), runs.ExecutionScope{SessionID: session})
 }
 
 func TestNew_NilStoreOmitted(t *testing.T) {

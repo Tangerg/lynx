@@ -25,7 +25,7 @@ func (s *ToolPolicyState) Replace(policy mcpserver.ToolPolicy) {
 	s.policy.Store(&policy)
 }
 
-// ToolDisabled reports whether ref is hidden from execution.
+// ToolDisabled reports whether ref is hidden from run.
 func (s *ToolPolicyState) ToolDisabled(ref mcpserver.ToolRef) bool {
 	if s == nil {
 		return false

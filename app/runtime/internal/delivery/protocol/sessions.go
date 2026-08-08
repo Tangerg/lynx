@@ -291,10 +291,12 @@ type ArtifactOutcomeType string
 
 const (
 	ArtifactOutcomeCompleted ArtifactOutcomeType = "completed"
-	ArtifactOutcomeError     ArtifactOutcomeType = "error"
+	ArtifactOutcomeTimedOut  ArtifactOutcomeType = "timedOut"
+	ArtifactOutcomeFailed    ArtifactOutcomeType = "failed"
 	ArtifactOutcomeMaxSteps  ArtifactOutcomeType = "maxSteps"
 	ArtifactOutcomeMaxBudget ArtifactOutcomeType = "maxBudget"
 	ArtifactOutcomeCanceled  ArtifactOutcomeType = "canceled"
+	ArtifactOutcomeLost      ArtifactOutcomeType = "lost"
 )
 
 type ArtifactUsage struct {

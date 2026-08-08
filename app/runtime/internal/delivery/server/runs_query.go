@@ -11,8 +11,8 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/transport"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
 // GetRun returns one run by id, in whatever state the durable record has it. The
@@ -67,16 +67,16 @@ func (s *Server) ListRuns(ctx context.Context, in protocol.ListRunsRequest) (*pr
 // decoder puts any string into a named string type, so a value outside the enum
 // arrives here and must be refused rather than dropped — a dropped filter value
 // silently widens the page.
-func runStatusesFromWire(statuses []protocol.RunStatus) ([]execution.RunStatus, error) {
-	out := make([]execution.RunStatus, 0, len(statuses))
+func runStatusesFromWire(statuses []protocol.RunStatus) ([]run.RunStatus, error) {
+	out := make([]run.RunStatus, 0, len(statuses))
 	for _, status := range statuses {
 		switch status {
 		case protocol.RunStatusRunning:
-			out = append(out, execution.StatusRunning)
+			out = append(out, run.StatusRunning)
 		case protocol.RunStatusWaiting:
-			out = append(out, execution.StatusWaiting)
+			out = append(out, run.StatusWaiting)
 		case protocol.RunStatusFinished:
-			out = append(out, execution.StatusFinished)
+			out = append(out, run.StatusFinished)
 		default:
 			return nil, fmt.Errorf("%w: statuses contains unknown run status %q", protocol.ErrInvalidParams, status)
 		}
@@ -119,7 +119,7 @@ func (s *Server) ListInterrupts(ctx context.Context, in protocol.ListInterruptsR
 // wireInterruptPageError maps the read's two refusals. Both name something the
 // caller can act on: declare the capabilities, or ask under the root.
 func wireInterruptPageError(err error) error {
-	if uncovered, ok := errors.AsType[*execution.InsufficientCapabilities](err); ok {
+	if uncovered, ok := errors.AsType[*run.InsufficientCapabilities](err); ok {
 		return capabilityGap(uncovered.Missing)
 	}
 	switch {
@@ -169,7 +169,7 @@ func (s *Server) SubscribeRun(ctx context.Context, in protocol.SubscribeRunReque
 // into run_not_found: "the run is waiting", "the run finished", "you are holding
 // the wrong segment" and "your cursor is too old" have four different remedies.
 func wireLiveSegmentError(err error) error {
-	if uncovered, ok := errors.AsType[*execution.InsufficientCapabilities](err); ok {
+	if uncovered, ok := errors.AsType[*run.InsufficientCapabilities](err); ok {
 		return capabilityGap(uncovered.Missing)
 	}
 	switch {

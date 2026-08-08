@@ -9,9 +9,9 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/suspension"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/chatclient"
 )
 
@@ -145,7 +145,7 @@ func (s *controller) handleWaiting(st *turnState, process agentexec.TurnProcess)
 	// will answer — terminate the suspended process and emit the terminal.
 	if st.ctx.Err() != nil {
 		recordTurnCleanupError(st, cancelTurnProcess(st.ctx, process))
-		recordTurnCleanupError(st, s.finishTurn(st, execution.OutcomeCanceled))
+		recordTurnCleanupError(st, s.finishTurn(st, run.OutcomeCanceled))
 		return
 	}
 	pending, err := process.PendingSuspensions(st.ctx)
@@ -180,7 +180,7 @@ func (s *controller) handleWaiting(st *turnState, process agentexec.TurnProcess)
 		answers[index] = agentexec.SuspensionAnswer{
 			ProcessID:    boundary.ProcessID,
 			SuspensionID: boundary.SuspensionID,
-			Resolution:   interrupts.Resolution{Approved: false},
+			Resolution:   interrupt.Resolution{Approved: false},
 		}
 	}
 	// Client can't answer every kind — deny the whole accepted set and drive the
@@ -210,7 +210,7 @@ func (s *controller) emitInterrupt(
 		// the turn can't linger parked on a dead ctx. (handleWaiting's top check
 		// catches cancel-before-handleWaiting; this closes the cancel-during gap.)
 		recordTurnCleanupError(st, cancelTurnProcess(st.ctx, process))
-		recordTurnCleanupError(st, s.finishTurn(st, execution.OutcomeCanceled))
+		recordTurnCleanupError(st, s.finishTurn(st, run.OutcomeCanceled))
 		return
 	}
 	barrier := runs.TreeInterrupted{

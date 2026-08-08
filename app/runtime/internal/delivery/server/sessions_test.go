@@ -7,10 +7,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/persistence"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 	"github.com/Tangerg/lynx/core/chat"
 )
@@ -96,7 +97,7 @@ func TestUpdateSession(t *testing.T) {
 
 // TestDeleteSession_Cascade verifies a deleted session takes its session-scoped
 // data with it: transcript runs+items, conversation messages, and open
-// interrupts. Without the cascade the sessions row vanishes but those rows
+// interrupt. Without the cascade the sessions row vanishes but those rows
 // orphan (the bug: items.list / runs.listOpenInterrupts kept resolving a
 // deleted session).
 func TestDeleteSession_Cascade(t *testing.T) {
@@ -110,7 +111,7 @@ func TestDeleteSession_Cascade(t *testing.T) {
 	svc := sqlite.NewSessionStore(db)
 	hist := sqlite.NewTranscriptStore(db)
 	runStore := sqlite.NewRunStore(db)
-	ints := sqlite.NewInterruptStore(db)
+	ints := persistence.NewInterruptStore(sqlite.NewInterruptStore(db))
 	created, _ := svc.Create(ctx, "doomed", "/w")
 	id := created.ID
 	now := time.Now().UTC()
@@ -120,7 +121,7 @@ func TestDeleteSession_Cascade(t *testing.T) {
 	}
 
 	// Seed one of every session-scoped row.
-	if err := runStore.Admit(ctx, execution.RunDraft{SegmentID: "seg_open", RunID: "run_1", SessionID: id, CreatedAt: now}); err != nil {
+	if err := runStore.Admit(ctx, run.RunDraft{SegmentID: "seg_open", RunID: "run_1", SessionID: id, CreatedAt: now}); err != nil {
 		t.Fatalf("seed run: %v", err)
 	}
 	if err := hist.AppendItem(ctx, transcript.Item{SessionID: id, RunID: "run_1", ID: "item_1", OccurredAt: now}); err != nil {
@@ -189,7 +190,7 @@ func TestDeleteSession_CancelsParkedTurn(t *testing.T) {
 
 	svc := sqlite.NewSessionStore(db)
 	hist := sqlite.NewTranscriptStore(db)
-	ints := sqlite.NewInterruptStore(db)
+	ints := persistence.NewInterruptStore(sqlite.NewInterruptStore(db))
 	created, _ := svc.Create(ctx, "parked", "/w")
 	id := created.ID
 	if err := ints.Open(ctx, serverPending(

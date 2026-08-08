@@ -8,14 +8,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/accounting"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/accounting"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
 func testReducerConfig() reducerConfig {
@@ -34,14 +34,14 @@ func TestReducerTerminalIncludesGoalRunRecord(t *testing.T) {
 	mustReduce(t, reducer, ToolCallStarted{CallID: "call_1", ToolName: "inspect", Arguments: `{}`})
 	mustReduce(t, reducer, ToolCallFinished{CallID: "call_1", Result: testToolResult(t, "ok")})
 	reductions := mustReduce(t, reducer, SegmentEnded{
-		Reason: execution.OutcomeCompleted,
+		Reason: run.OutcomeCompleted,
 		Usage:  &SegmentUsage{CostUSD: 0.75, Steps: 1},
 	})
 	commit := reductions[len(reductions)-1].Commit
 	if commit == nil || commit.GoalRun == nil {
 		t.Fatal("terminal commit did not carry Goal Run accounting")
 	}
-	want := goal.RunRecord{SessionID: "ses_1", LeaseID: "goal_lease", RunID: "run_1", Outcome: execution.OutcomeCompleted, CostUSD: 0.75, Steps: 1, CompletedAt: config.Now()}
+	want := goal.RunRecord{SessionID: "ses_1", LeaseID: "goal_lease", RunID: "run_1", Outcome: run.OutcomeCompleted, CostUSD: 0.75, Steps: 1, CompletedAt: config.Now()}
 	if got := *commit.GoalRun; got != want {
 		t.Fatalf("GoalRun = %+v", got)
 	}
@@ -55,7 +55,7 @@ func TestReducerStepsCountModelCallsRatherThanParallelTools(t *testing.T) {
 	mustReduce(t, reducer, ToolCallFinished{CallID: "call_2", Result: testToolResult(t, "two")})
 	mustReduce(t, reducer, ToolCallFinished{CallID: "call_1", Result: testToolResult(t, "one")})
 	finished := mustReduce(t, reducer, SegmentEnded{
-		Reason: execution.OutcomeCompleted,
+		Reason: run.OutcomeCompleted,
 		Usage:  &SegmentUsage{Steps: 1},
 	})
 	run := finished[len(finished)-1].Event.(SegmentFinished).Run
@@ -79,7 +79,7 @@ func TestReducerTreatsExecutorAccountingAsCumulativeAcrossResume(t *testing.T) {
 		Steps:      3,
 	})
 	finished := mustReduce(t, reducer, SegmentEnded{
-		Reason: execution.OutcomeCompleted,
+		Reason: run.OutcomeCompleted,
 		Usage: &SegmentUsage{
 			Tokens: accounting.TokenUsage{PromptTokens: 15},
 			Steps:  3,
@@ -363,7 +363,7 @@ func TestReducerParksConcurrentToolsWithoutLosingCompletedResults(t *testing.T) 
 	}
 
 	parked := mustReduce(t, reducer, SegmentInterrupted{Interrupts: []Interrupt{{
-		Kind: execution.ApprovalInterrupt,
+		Kind: interrupt.Approval,
 		Approval: &ApprovalPrompt{
 			CallID: "call-1", ToolName: "approval", Arguments: `{"path":"a"}`, SafetyClass: "write", Risk: "medium",
 		},
@@ -400,7 +400,7 @@ func TestReducerCarriesLaterPausedCallIdentityAcrossSequentialResumes(t *testing
 		CallID: "call-2", ToolName: "approval", Arguments: `{"path":"b"}`, SafetyClass: "write",
 	}))
 	firstCommit := mustReduce(t, first, SegmentInterrupted{Interrupts: []Interrupt{{
-		Kind: execution.ApprovalInterrupt,
+		Kind: interrupt.Approval,
 		Approval: &ApprovalPrompt{
 			CallID: "call-1", ToolName: "approval", Arguments: `{"path":"a"}`, SafetyClass: "write", Risk: "medium",
 		},
@@ -415,10 +415,10 @@ func TestReducerCarriesLaterPausedCallIdentityAcrossSequentialResumes(t *testing
 
 	config := testReducerConfig()
 	config.SegmentID = "seg_2"
-	config.Continuation = testTreeContinuation(interrupts.Pending{
+	config.Continuation = testTreeContinuation(Pending{
 		RootRunID:  "run_1",
 		Interrupts: firstCommit.Run.Interrupts,
-		Continuations: []interrupts.Continuation{{
+		Continuations: []Continuation{{
 			RunID: "run_1", DrainedTools: slices.Clone(first.drained),
 		}},
 	})
@@ -432,7 +432,7 @@ func TestReducerCarriesLaterPausedCallIdentityAcrossSequentialResumes(t *testing
 	mustReduce(t, resumed, ToolCallFinished{CallID: "call-1", Result: testToolResult(t, "approved")})
 
 	secondCommit := mustReduce(t, resumed, SegmentInterrupted{Interrupts: []Interrupt{{
-		Kind: execution.ApprovalInterrupt,
+		Kind: interrupt.Approval,
 		Approval: &ApprovalPrompt{
 			CallID: "call-2", ToolName: "approval", Arguments: `{"path":"b"}`, SafetyClass: "write", Risk: "medium",
 		},
@@ -482,7 +482,7 @@ func TestReducerCanonicalProgressSnapshotsAndOutcomes(t *testing.T) {
 	// segment finishes, so whoever receives the finish has received the final value
 	// — see reducer.fenceFinalState.
 	terminal := mustReduce(t, reducer, SegmentEnded{
-		Reason: execution.OutcomeMaxBudget, Duration: 1500 * time.Millisecond,
+		Reason: run.OutcomeMaxBudget, Duration: 1500 * time.Millisecond,
 		Usage: &SegmentUsage{
 			Tokens: accounting.TokenUsage{
 				PromptTokens:     1200,
@@ -517,7 +517,7 @@ func TestReducerClassifiesErrorsWithoutLeakingProviderDetails(t *testing.T) {
 	for _, test := range cases {
 		t.Run(test.name, func(t *testing.T) {
 			reducer := newReducer(testReducerConfig())
-			terminal := mustReduce(t, reducer, SegmentEnded{Reason: execution.OutcomeError, Problem: &test.problem})
+			terminal := mustReduce(t, reducer, SegmentEnded{Reason: run.OutcomeFailed, Problem: &test.problem})
 			finished := terminal[len(terminal)-1].Event.(SegmentFinished)
 			problem := finished.Run.Error
 			if problem == nil || *problem != (transcript.Problem{
@@ -535,8 +535,8 @@ func TestReducerRejectsIncoherentTerminalProblems(t *testing.T) {
 		name  string
 		event SegmentEnded
 	}{
-		{name: "error without problem", event: SegmentEnded{Reason: execution.OutcomeError}},
-		{name: "completed with problem", event: SegmentEnded{Reason: execution.OutcomeCompleted, Problem: &transcript.Problem{Kind: transcript.InternalProblem}}},
+		{name: "error without problem", event: SegmentEnded{Reason: run.OutcomeFailed}},
+		{name: "completed with problem", event: SegmentEnded{Reason: run.OutcomeCompleted, Problem: &transcript.Problem{Kind: transcript.InternalProblem}}},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -553,11 +553,11 @@ func TestReducerResumeReusesInterruptedItems(t *testing.T) {
 	approvalAt := time.Unix(1, 0).UTC()
 	questionAt := time.Unix(2, 0).UTC()
 	config := testReducerConfig()
-	config.Continuation = testTreeContinuation(interrupts.Pending{
+	config.Continuation = testTreeContinuation(Pending{
 		RootRunID: "run_1", SessionID: "ses_1",
 		Interrupts: []transcript.Interrupt{
-			{ItemID: "item_approval", ItemOccurredAt: approvalAt, RunID: "run_1", Kind: execution.ApprovalInterrupt, Approval: &transcript.Approval{Tool: transcript.ToolInvocation{Name: "shell", Arguments: testToolArguments(t, map[string]any{"command": "go test", "description": "Run tests"})}, Risk: "medium"}},
-			{ItemID: "item_question", ItemOccurredAt: questionAt, RunID: "run_1", Kind: execution.QuestionInterrupt, Question: question},
+			{ItemID: "item_approval", ItemOccurredAt: approvalAt, RunID: "run_1", Kind: interrupt.Approval, Approval: &transcript.Approval{Tool: transcript.ToolInvocation{Name: "shell", Arguments: testToolArguments(t, map[string]any{"command": "go test", "description": "Run tests"})}, Risk: "medium"}},
+			{ItemID: "item_question", ItemOccurredAt: questionAt, RunID: "run_1", Kind: interrupt.Question, Question: question},
 		},
 	})
 	reducer := newReducer(config)
@@ -595,10 +595,10 @@ func TestReducerResumeReusesInterruptedItems(t *testing.T) {
 func TestReducerProjectsParkAsOneAtomicWriteSetBeforeFirstInterruptEvent(t *testing.T) {
 	reducer := newReducer(testReducerConfig())
 	batch := mustReduceBatch(t, reducer, SegmentInterrupted{Interrupts: []Interrupt{
-		{Kind: execution.ApprovalInterrupt, Approval: &ApprovalPrompt{
+		{Kind: interrupt.Approval, Approval: &ApprovalPrompt{
 			ToolName: "shell", Arguments: `{}`, SafetyClass: "exec", Risk: "high",
 		}},
-		{Kind: execution.QuestionInterrupt, Question: &QuestionPrompt{
+		{Kind: interrupt.Question, Question: &QuestionPrompt{
 			ToolName: "ask_user", Arguments: `{"questions":[{"question":"Continue?"}]}`,
 			Fields: []QuestionFieldSpec{{Prompt: "Continue?"}},
 		}},
@@ -634,8 +634,8 @@ func TestReducerRejectsExecutorProtocolViolations(t *testing.T) {
 		event ExecutionFact
 	}{
 		{name: "unknown event", event: unsupportedEngineEvent{}},
-		{name: "invalid terminal outcome", event: SegmentEnded{Reason: execution.Outcome(255)}},
-		{name: "malformed interrupt", event: SegmentInterrupted{Interrupts: []Interrupt{{Kind: execution.InterruptKind(9)}}}},
+		{name: "invalid terminal outcome", event: SegmentEnded{Reason: run.Outcome(255)}},
+		{name: "malformed interrupt", event: SegmentInterrupted{Interrupts: []Interrupt{{Kind: interrupt.Kind(9)}}}},
 	}
 
 	for _, test := range tests {
@@ -707,11 +707,11 @@ func TestReducerRejectsInvalidToolLifecycle(t *testing.T) {
 func TestReducerUsesCanonicalArgumentsForResumeIdentity(t *testing.T) {
 	itemOccurredAt := time.Unix(1, 0).UTC()
 	config := testReducerConfig()
-	config.Continuation = testTreeContinuation(interrupts.Pending{
+	config.Continuation = testTreeContinuation(Pending{
 		RootRunID: "run_1", SessionID: "ses_1",
-		Continuations: []interrupts.Continuation{{
+		Continuations: []Continuation{{
 			RunID: "run_1",
-			DrainedTools: []interrupts.DrainedTool{{
+			DrainedTools: []DrainedTool{{
 				ItemID: "item_original", ItemOccurredAt: itemOccurredAt, CallID: "old_call", Name: "lookup",
 				Arguments: `{"b":2,"a":{"enabled":true}}`,
 			}},
@@ -734,11 +734,11 @@ func TestReducerUsesCanonicalArgumentsForResumeIdentity(t *testing.T) {
 
 func TestReducerRejectsMalformedDurableResumeArguments(t *testing.T) {
 	config := testReducerConfig()
-	config.Continuation = testTreeContinuation(interrupts.Pending{
+	config.Continuation = testTreeContinuation(Pending{
 		RootRunID: "run_1", SessionID: "ses_1",
-		Continuations: []interrupts.Continuation{{
+		Continuations: []Continuation{{
 			RunID: "run_1",
-			DrainedTools: []interrupts.DrainedTool{{
+			DrainedTools: []DrainedTool{{
 				ItemID: "item_broken", ItemOccurredAt: time.Unix(1, 0).UTC(), Name: "lookup", Arguments: "[]",
 			}},
 		}},
@@ -751,11 +751,11 @@ func TestReducerRejectsMalformedDurableResumeArguments(t *testing.T) {
 
 func TestReducerConsumesHostCommittedToolResultWithoutDuplicatingTranscriptItem(t *testing.T) {
 	config := testReducerConfig()
-	config.Continuation = testTreeContinuation(interrupts.Pending{
+	config.Continuation = testTreeContinuation(Pending{
 		RootRunID: "run_1", SessionID: "ses_1",
-		Continuations: []interrupts.Continuation{{
+		Continuations: []Continuation{{
 			RunID: "run_1",
-			CommittedTools: []interrupts.CommittedTool{{
+			CommittedTools: []CommittedTool{{
 				ItemID: "item_child", CallID: "call_child", Name: "delegate_task", Arguments: "{}",
 				Problem: transcript.Problem{
 					Kind:   transcript.ChildRunCanceledProblem,
@@ -791,11 +791,11 @@ func TestReducerConsumesHostCommittedToolResultWithoutDuplicatingTranscriptItem(
 }
 
 func TestReducerRejectsReexecutionOrSuccessForHostCommittedTool(t *testing.T) {
-	continuation := testTreeContinuation(interrupts.Pending{
+	continuation := testTreeContinuation(Pending{
 		RootRunID: "run_1", SessionID: "ses_1",
-		Continuations: []interrupts.Continuation{{
+		Continuations: []Continuation{{
 			RunID: "run_1",
-			CommittedTools: []interrupts.CommittedTool{{
+			CommittedTools: []CommittedTool{{
 				ItemID: "item_child", CallID: "call_child", Name: "delegate_task", Arguments: "{}",
 				Problem: transcript.Problem{
 					Kind:  transcript.ChildRunCanceledProblem,
@@ -829,20 +829,20 @@ func TestReducerRejectsReexecutionOrSuccessForHostCommittedTool(t *testing.T) {
 }
 
 func TestReducerRejectsInvalidInterruptProjection(t *testing.T) {
-	interrupted := SegmentFinished{Run: transcript.Run{State: execution.Interrupted}}
+	waiting := SegmentFinished{Run: transcript.Run{State: run.Waiting}}
 	tests := []struct {
 		name   string
 		events []RunEvent
 	}{
 		{
 			name:   "multiple interrupt boundaries",
-			events: []RunEvent{interrupted, interrupted},
+			events: []RunEvent{waiting, waiting},
 		},
 		{
 			name: "additional lifecycle transition",
 			events: []RunEvent{
-				SegmentStarted{Run: transcript.Run{State: execution.Running}},
-				interrupted,
+				SegmentStarted{Run: transcript.Run{State: run.Running}},
+				waiting,
 			},
 		},
 	}
@@ -859,19 +859,19 @@ func TestReducerRejectsInvalidInterruptProjection(t *testing.T) {
 
 func TestValidateReductionBatchRejectsMalformedBoundaries(t *testing.T) {
 	parkCommit := func() *EventCommit {
-		run := transcript.Run{State: execution.Interrupted}
+		run := transcript.Run{State: run.Waiting}
 		return &EventCommit{
 			State: StateSuspend,
 			Run:   &run,
 		}
 	}
 	terminalCommit := func() *EventCommit {
-		outcome := execution.OutcomeCompleted
-		run := transcript.Run{State: execution.Completed, Outcome: &outcome}
+		outcome := run.OutcomeCompleted
+		run := transcript.Run{State: run.Completed, Outcome: &outcome}
 		return &EventCommit{State: StateTerminalize, Outcome: outcome, Run: &run}
 	}
 	invalidTerminalCommit := terminalCommit()
-	invalidTerminalCommit.Run.State = execution.Failed
+	invalidTerminalCommit.Run.State = run.Failed
 	tests := []struct {
 		name  string
 		batch reductionBatch
@@ -1003,13 +1003,13 @@ func completedToolNames(reductions []reduction) []string {
 // announcing a minimal capability set would tell it to expect fewer frames than the Run
 // can produce.
 func TestReducerReportsFrozenRunCapabilitiesOnEverySegment(t *testing.T) {
-	frozen := execution.RunCapabilities{
+	frozen := run.RunCapabilities{
 		ChildRuns:      true,
-		InterruptKinds: []execution.InterruptKind{execution.ApprovalInterrupt},
+		InterruptKinds: []interrupt.Kind{interrupt.Approval},
 	}
 	config := testReducerConfig()
 	config.Capabilities = frozen
-	config.Continuation = testTreeContinuation(interrupts.Pending{
+	config.Continuation = testTreeContinuation(Pending{
 		RootRunID: "run_1", SessionID: "ses_1", Capabilities: frozen,
 	})
 
@@ -1022,7 +1022,7 @@ func TestReducerReportsFrozenRunCapabilitiesOnEverySegment(t *testing.T) {
 	assertFrozenCapabilities(t, started.Run.Capabilities, frozen, "segment.started")
 
 	batch := mustReduceBatch(t, reducer, SegmentInterrupted{Interrupts: []Interrupt{
-		{Kind: execution.ApprovalInterrupt, Approval: &ApprovalPrompt{
+		{Kind: interrupt.Approval, Approval: &ApprovalPrompt{
 			ToolName: "shell", Arguments: `{}`, SafetyClass: "exec", Risk: "high",
 		}},
 	}})
@@ -1032,7 +1032,7 @@ func TestReducerReportsFrozenRunCapabilitiesOnEverySegment(t *testing.T) {
 	assertFrozenCapabilities(t, batch.parkCommit.Run.Capabilities, frozen, "parked run record")
 }
 
-func assertFrozenCapabilities(t *testing.T, got, want execution.RunCapabilities, where string) {
+func assertFrozenCapabilities(t *testing.T, got, want run.RunCapabilities, where string) {
 	t.Helper()
 	if got.ChildRuns != want.ChildRuns || !slices.Equal(got.InterruptKinds, want.InterruptKinds) {
 		t.Fatalf("%s capabilities = %v, want %v", where, got, want)
@@ -1059,7 +1059,7 @@ func TestSegmentFencesItsFinalStateBeforeFinishing(t *testing.T) {
 		Revision: 4, UpdatedAt: time.Unix(11, 0).UTC(),
 	}})
 
-	terminal := mustReduce(t, reducer, SegmentEnded{Reason: execution.OutcomeCompleted})
+	terminal := mustReduce(t, reducer, SegmentEnded{Reason: run.OutcomeCompleted})
 	if len(terminal) < 2 {
 		t.Fatalf("terminal batch = %d events, want the fence and the finish", len(terminal))
 	}
@@ -1075,7 +1075,7 @@ func TestSegmentFencesItsFinalStateBeforeFinishing(t *testing.T) {
 	}
 
 	untouched := newReducer(testReducerConfig())
-	quiet := mustReduce(t, untouched, SegmentEnded{Reason: execution.OutcomeCompleted})
+	quiet := mustReduce(t, untouched, SegmentEnded{Reason: run.OutcomeCompleted})
 	for _, reduced := range quiet {
 		if snapshot, ok := reduced.Event.(StateSnapshot); ok {
 			t.Fatalf("a segment that changed no state published %+v", snapshot)

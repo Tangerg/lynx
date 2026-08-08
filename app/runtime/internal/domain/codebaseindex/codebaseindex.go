@@ -5,7 +5,6 @@
 package codebaseindex
 
 import (
-	"context"
 	"errors"
 	"time"
 )
@@ -63,38 +62,4 @@ type Meta struct {
 	FileCount  int
 	ChunkCount int
 	Truncated  bool
-}
-
-// Embedder embeds texts into vectors. The interface lives here (consumer side):
-// a caller supplies an implementation over the selected embedding model.
-// ID is "provider:model" — it tags the stored vectors so a model change
-// invalidates them.
-type Embedder interface {
-	Embed(ctx context.Context, texts []string) ([][]float32, error)
-	ID() string
-}
-
-// Store persists a cwd's semantic index.
-type Store interface {
-	// Meta returns the cwd's index header; ok=false when never indexed.
-	Meta(ctx context.Context, cwd string) (Meta, bool, error)
-	// SetMeta upserts the cwd's index header after a build pass.
-	SetMeta(ctx context.Context, m Meta) error
-	// FileHashes returns path→content-hash for cwd — the incremental diff input.
-	FileHashes(ctx context.Context, cwd string) (map[string]string, error)
-	// ReplaceFile atomically swaps one file's chunks + hash (delete old, insert
-	// new) — the per-file incremental update.
-	ReplaceFile(ctx context.Context, cwd, path, hash string, chunks []Chunk) error
-	// DeleteFile drops a file's chunks + hash (the file left the project).
-	DeleteFile(ctx context.Context, cwd, path string) error
-	// AllChunks loads every chunk (with embedding) for cwd — the search corpus.
-	AllChunks(ctx context.Context, cwd string) ([]Chunk, error)
-	// Clear wipes a cwd's whole index (model changed / forced rebuild).
-	Clear(ctx context.Context, cwd string) error
-}
-
-// Source reads a cwd's indexable project files and chunks their text.
-type Source interface {
-	Files(ctx context.Context, cwd string) (files []string, truncated bool, err error)
-	Chunks(cwd, path string) (chunks []Chunk, hash string, ok bool)
 }

@@ -6,8 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
 // ErrCheckpointUnavailable reports that a file rollback can't restore the working
@@ -110,7 +109,7 @@ func (c *Coordinator) Rollback(ctx context.Context, spec RollbackSpec) (Rollback
 	// that operation from the cross-resource files+history variant.
 	restoreLogged := spec.RestoreFiles && c.mutations != nil
 	if restoreLogged {
-		if err := c.recordMutation(ctx, execution.WorkspaceMutation{
+		if err := c.recordMutation(ctx, WorkspaceMutation{
 			SessionID: spec.SessionID, CWD: cwd, ToRunID: spec.ToRunID,
 			RestoreHistory: spec.RestoreHistory,
 		}); err != nil {
@@ -189,7 +188,7 @@ func (c *Coordinator) RecoverWorkspaceMutations(ctx context.Context) error {
 	return nil
 }
 
-func (c *Coordinator) recoverRollback(ctx context.Context, m execution.WorkspaceMutation) error {
+func (c *Coordinator) recoverRollback(ctx context.Context, m WorkspaceMutation) error {
 	var boundary transcript.Boundary
 	if m.RestoreHistory {
 		if c.runs == nil {
@@ -218,7 +217,7 @@ func (c *Coordinator) recoverRollback(ctx context.Context, m execution.Workspace
 // recordMutation / completeMutation drive the recoverable operation log,
 // no-oping when it is disabled (nil) so a build without the log degrades to a
 // best-effort rollback rather than nil-panicking.
-func (c *Coordinator) recordMutation(ctx context.Context, m execution.WorkspaceMutation) error {
+func (c *Coordinator) recordMutation(ctx context.Context, m WorkspaceMutation) error {
 	if c.mutations == nil {
 		return nil
 	}

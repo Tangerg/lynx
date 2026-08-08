@@ -8,9 +8,10 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/providerregistry"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/models"
 	"github.com/Tangerg/lynx/app/runtime/internal/config"
 	mcpserversvc "github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
-	providersvc "github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/llm"
 	"github.com/Tangerg/lynx/chatclient"
 )
@@ -55,8 +56,8 @@ func DefaultClient(cfg config.Settings) (*chatclient.Client, error) {
 }
 
 // ProviderRegistry wraps the durable provider registry with env-key fallback.
-func ProviderRegistry(reg providersvc.Registry) providersvc.Registry {
-	return providersvc.WithEnvKeys(reg, llm.EnvKeys())
+func ProviderRegistry(reg models.ProviderRegistry) models.ProviderRegistry {
+	return providerregistry.WithEnvironmentKeys(reg, llm.EnvKeys())
 }
 
 // MCPServers projects config-file MCP entries into the runtime registry model.

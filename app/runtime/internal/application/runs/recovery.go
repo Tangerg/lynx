@@ -8,11 +8,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
+	rundomain "github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
 // RecoveryStore exposes durable application facts and atomically applies the
@@ -20,7 +19,7 @@ import (
 // decides which Run tree survives.
 type RecoveryStore interface {
 	ListNonTerminalRuns(ctx context.Context) ([]transcript.Run, error)
-	ListPendingInterrupts(ctx context.Context) ([]interrupts.Pending, error)
+	ListPendingInterrupts(ctx context.Context) ([]Pending, error)
 	SessionByID(ctx context.Context, sessionID string) (session.Session, error)
 	ListTranscript(ctx context.Context, sessionID string) ([]transcript.Item, error)
 	CountMessages(ctx context.Context, sessionID string) (int, error)
@@ -31,7 +30,7 @@ type RecoveryStore interface {
 // false, nil means the opaque continuation is unavailable or incompatible;
 // an error means validation itself failed and startup must stop without writes.
 type CheckpointResumability interface {
-	CanResumeCheckpoint(ctx context.Context, expected execution.ExecutorCheckpointExpectation) (bool, error)
+	CanResumeCheckpoint(ctx context.Context, expected ExecutorCheckpointExpectation) (bool, error)
 }
 
 // RecoveryCommit is the complete atomic write-set for boot reconciliation.
@@ -74,7 +73,7 @@ func NewRecovery(store RecoveryStore, checkpoints CheckpointResumability) (*Reco
 	return &Recovery{store: store, checkpoints: checkpoints, now: time.Now}, nil
 }
 
-// Reconcile preserves only complete interrupted trees whose durable hand-off
+// Reconcile preserves only complete waiting trees whose durable hand-off
 // and opaque executor checkpoint remain coherent. Every other non-terminal tree
 // is recovered as run_lost in one application transaction.
 func (r *Recovery) Reconcile(ctx context.Context) (int, error) {
@@ -87,7 +86,7 @@ func (r *Recovery) Reconcile(ctx context.Context) (int, error) {
 		return 0, fmt.Errorf("runs: load pending interrupts for recovery: %w", err)
 	}
 
-	pendingByRun := make(map[string]interrupts.Pending, len(pending))
+	pendingByRun := make(map[string]Pending, len(pending))
 	checkpointOwners := make(map[string]string, len(pending))
 	for _, open := range pending {
 		if _, duplicate := pendingByRun[open.RootRunID]; duplicate {
@@ -138,7 +137,7 @@ func (r *Recovery) Reconcile(ctx context.Context) (int, error) {
 		}
 
 		open, hasInterrupt := pendingByRun[rootRunID]
-		if tree.root.State == execution.Interrupted && hasInterrupt {
+		if tree.root.State == rundomain.Waiting && hasInterrupt {
 			sess, ok := sessions[tree.root.SessionID]
 			if !ok {
 				sess, err = r.store.SessionByID(ctx, tree.root.SessionID)
@@ -244,13 +243,13 @@ func groupRecoveryRunTrees(active []transcript.Run) (map[string]recoveryRunTree,
 
 	trees := make(map[string]recoveryRunTree, len(grouped))
 	for rootRunID, runs := range grouped {
-		members := make([]execution.RunTreeMember, 0, len(runs))
+		members := make([]rundomain.RunTreeMember, 0, len(runs))
 		runsByID := make(map[string]transcript.Run, len(runs))
 		for _, run := range runs {
-			members = append(members, execution.RunTreeMember{RunID: run.ID, Lineage: run.Lineage()})
+			members = append(members, rundomain.RunTreeMember{RunID: run.ID, Lineage: run.Lineage()})
 			runsByID[run.ID] = run
 		}
-		topology, err := execution.NewRunTree(rootRunID, members)
+		topology, err := rundomain.NewRunTree(rootRunID, members)
 		if err != nil {
 			return nil, fmt.Errorf("runs: assemble recovery Run tree %q: %w", rootRunID, err)
 		}
@@ -303,7 +302,7 @@ func recoverLostTree(
 		if !ok {
 			return nil, nil, fmt.Errorf("runs: recover lost Run %q: state %s is not recoverable", active.ID, active.State)
 		}
-		outcome := execution.OutcomeError
+		outcome := rundomain.OutcomeLost
 		active.State = next
 		active.ActiveSegmentID = ""
 		active.Outcome = &outcome

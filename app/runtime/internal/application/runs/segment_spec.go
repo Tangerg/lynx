@@ -5,10 +5,10 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/admission"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
 // segmentSpec is the prepared input to the package's segment supervisor.
@@ -30,8 +30,8 @@ type segmentSpec struct {
 	Input            []transcript.ContentBlock
 	// Limits and Capabilities are admission policy for a fresh Run. A
 	// continuation reads the frozen values carried by Continuation.
-	Limits       execution.RunLimits
-	Capabilities execution.RunCapabilities
+	Limits       run.RunLimits
+	Capabilities run.RunCapabilities
 	Continuation *treeContinuation
 	// admission transfers the pre-commit reservation to the live Run only after
 	// its opening write-set commits.
@@ -43,8 +43,8 @@ type segmentSpec struct {
 	CommitOpening func(context.Context, OpeningCommit) error
 }
 
-func (s segmentSpec) executorRef() execution.ExecutorRef {
-	return execution.ExecutorRef{SessionID: s.SessionID, ExecutorID: s.ExecutorID}
+func (s segmentSpec) executorRef() ExecutorRef {
+	return ExecutorRef{SessionID: s.SessionID, ExecutorID: s.ExecutorID}
 }
 
 func (s segmentSpec) priorMetrics() transcript.RunMetrics {
@@ -55,7 +55,7 @@ func (s segmentSpec) priorMetrics() transcript.RunMetrics {
 	return root.Metrics
 }
 
-func (s segmentSpec) effectiveLimits() execution.RunLimits {
+func (s segmentSpec) effectiveLimits() run.RunLimits {
 	if s.Continuation == nil {
 		return s.Limits
 	}
@@ -63,7 +63,7 @@ func (s segmentSpec) effectiveLimits() execution.RunLimits {
 	return root.Limits
 }
 
-func (s segmentSpec) effectiveCapabilities() execution.RunCapabilities {
+func (s segmentSpec) effectiveCapabilities() run.RunCapabilities {
 	if s.Continuation == nil {
 		return s.Capabilities
 	}

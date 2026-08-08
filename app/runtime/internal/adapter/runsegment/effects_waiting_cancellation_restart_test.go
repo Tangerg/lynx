@@ -7,9 +7,11 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/agent/core"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/persistence"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/queries"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 )
 
@@ -60,9 +62,9 @@ func TestWaitingSubtreeCancellationSurvivesSQLiteRestart(t *testing.T) {
 			}
 			t.Cleanup(func() { _ = db.Close() })
 			runStore := sqlite.NewRunStore(db)
-			interruptStore := sqlite.NewInterruptStore(db)
+			interruptStore := persistence.NewInterruptStore(sqlite.NewInterruptStore(db))
 			transcriptStore := sqlite.NewTranscriptStore(db)
-			checkpointStore := sqlite.NewExecutorCheckpointStore(db)
+			checkpointStore := persistence.NewExecutorCheckpointStore(sqlite.NewExecutorCheckpointStore(db))
 			query := queries.New(queries.Dependencies{Runs: runStore})
 
 			target := queryRun(t, query, fixture.childRun.ID)
@@ -86,16 +88,16 @@ func TestWaitingSubtreeCancellationSurvivesSQLiteRestart(t *testing.T) {
 			if err != nil {
 				t.Fatalf("read tree through canceled child ID: %v", err)
 			}
-			members := make([]execution.RunTreeMember, 0, len(treeRuns))
+			members := make([]run.RunTreeMember, 0, len(treeRuns))
 			runsByID := make(map[string]transcript.Run, len(treeRuns))
-			for _, run := range treeRuns {
-				members = append(members, execution.RunTreeMember{
-					RunID:   run.ID,
-					Lineage: run.Lineage(),
+			for _, record := range treeRuns {
+				members = append(members, run.RunTreeMember{
+					RunID:   record.ID,
+					Lineage: record.Lineage(),
 				})
-				runsByID[run.ID] = run
+				runsByID[record.ID] = record
 			}
-			topology, err := execution.NewRunTree(fixture.rootRun.ID, members)
+			topology, err := run.NewRunTree(fixture.rootRun.ID, members)
 			if err != nil {
 				t.Fatalf("assemble restarted Run tree: %v", err)
 			}
@@ -106,11 +108,11 @@ func TestWaitingSubtreeCancellationSurvivesSQLiteRestart(t *testing.T) {
 				fixture.grandchildRun.ID,
 				fixture.childRun.ID,
 			} {
-				run := runsByID[runID]
-				if run.State != execution.Canceled ||
-					run.Outcome == nil ||
-					*run.Outcome != execution.OutcomeCanceled {
-					t.Fatalf("canceled subtree Run %q = %+v", runID, run)
+				record := runsByID[runID]
+				if record.State != run.Canceled ||
+					record.Outcome == nil ||
+					*record.Outcome != run.OutcomeCanceled {
+					t.Fatalf("canceled subtree Run %q = %+v", runID, record)
 				}
 			}
 
@@ -213,7 +215,7 @@ func queryRun(
 func assertReplacementCheckpoint(
 	t *testing.T,
 	tree core.ProcessSnapshotTree,
-	checkpoint execution.ExecutorCheckpoint,
+	checkpoint runs.ExecutorCheckpoint,
 	fixture waitingCancellationSQLiteFixture,
 ) {
 	t.Helper()
@@ -243,9 +245,9 @@ func assertRestartedWaitingBoundary(
 	t *testing.T,
 	fixture waitingCancellationSQLiteFixture,
 	runStore *sqlite.RunStore,
-	interruptStore *sqlite.InterruptStore,
+	interruptStore *persistence.InterruptStore,
 	transcriptStore *sqlite.TranscriptStore,
-	checkpointStore *sqlite.ExecutorCheckpointStore,
+	checkpointStore *persistence.ExecutorCheckpointStore,
 ) {
 	t.Helper()
 	pending, found, err := interruptStore.Get(fixture.ctx, fixture.rootRun.ID)
@@ -280,13 +282,13 @@ func assertRestartedWaitingBoundary(
 		t.Fatalf("restarted executor checkpoint = (%+v, %v), want committed replacement", checkpoint, err)
 	}
 	for _, runID := range []string{"run_sibling", fixture.rootRun.ID} {
-		run, found, err := runStore.Run(fixture.ctx, runID)
-		if err != nil || !found || run.State != execution.Interrupted {
+		record, found, err := runStore.Run(fixture.ctx, runID)
+		if err != nil || !found || record.State != run.Waiting {
 			t.Fatalf(
-				"surviving Run %q after boot = found:%t value:%+v err:%v, want Interrupted",
+				"surviving Run %q after boot = found:%t value:%+v err:%v, want Waiting",
 				runID,
 				found,
-				run,
+				record,
 				err,
 			)
 		}
@@ -297,7 +299,7 @@ func assertRestartedRunningBoundary(
 	t *testing.T,
 	fixture waitingCancellationSQLiteFixture,
 	runStore *sqlite.RunStore,
-	interruptStore *sqlite.InterruptStore,
+	interruptStore *persistence.InterruptStore,
 ) {
 	t.Helper()
 	if pending, found, err := interruptStore.Get(fixture.ctx, fixture.rootRun.ID); err != nil || found {
@@ -311,7 +313,7 @@ func assertRestartedRunningBoundary(
 	root, found, err := runStore.Run(fixture.ctx, fixture.rootRun.ID)
 	if err != nil ||
 		!found ||
-		root.State != execution.Running ||
+		root.State != run.Running ||
 		root.Outcome != nil ||
 		root.Error != nil {
 		t.Fatalf(
@@ -325,13 +327,13 @@ func assertRestartedRunningBoundary(
 		fixture.grandchildRun.ID,
 		fixture.childRun.ID,
 	} {
-		run, found, err := runStore.Run(fixture.ctx, runID)
-		if err != nil || !found || run.State != execution.Canceled {
+		record, found, err := runStore.Run(fixture.ctx, runID)
+		if err != nil || !found || record.State != run.Canceled {
 			t.Fatalf(
 				"canceled Run %q after root recovery = found:%t value:%+v err:%v",
 				runID,
 				found,
-				run,
+				record,
 				err,
 			)
 		}

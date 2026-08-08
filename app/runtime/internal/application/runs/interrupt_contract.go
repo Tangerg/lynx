@@ -7,20 +7,19 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
 
 // InterruptFunc is the consumer-owned capability a tool uses to park the
 // current execution on one application interrupt. Tool packages depend only on
 // this contract and never on execution internals.
-type InterruptFunc func(context.Context, string, Interrupt) (interrupts.Resolution, error)
+type InterruptFunc func(context.Context, string, Interrupt) (interrupt.Resolution, error)
 
 // InterruptUnavailable is the fail-closed default for a tool environment that
 // has no execution interrupt provider.
-func InterruptUnavailable(context.Context, string, Interrupt) (interrupts.Resolution, error) {
-	return interrupts.Resolution{}, errors.New("runs: execution interrupts are unavailable")
+func InterruptUnavailable(context.Context, string, Interrupt) (interrupt.Resolution, error) {
+	return interrupt.Resolution{}, errors.New("runs: execution interrupts are unavailable")
 }
 
 // ApprovalPrompt is the complete durable plan for one gated tool call.
@@ -68,7 +67,7 @@ type QuestionOptionSpec struct {
 // one payload must be present and must match Kind. Executor continuation data is
 // deliberately absent.
 type Interrupt struct {
-	Kind     execution.InterruptKind
+	Kind     interrupt.Kind
 	Approval *ApprovalPrompt
 	Question *QuestionPrompt
 }
@@ -76,11 +75,11 @@ type Interrupt struct {
 // Tool returns the logical tool call that owns this interrupt.
 func (i Interrupt) Tool() (name, arguments string) {
 	switch i.Kind {
-	case execution.ApprovalInterrupt:
+	case interrupt.Approval:
 		if i.Approval != nil {
 			return i.Approval.ToolName, i.Approval.Arguments
 		}
-	case execution.QuestionInterrupt:
+	case interrupt.Question:
 		if i.Question != nil {
 			return i.Question.ToolName, i.Question.Arguments
 		}
@@ -92,12 +91,12 @@ func (i Interrupt) Tool() (name, arguments string) {
 // a durable Pending aggregate or application events.
 func (i Interrupt) Validate() error {
 	switch i.Kind {
-	case execution.ApprovalInterrupt:
+	case interrupt.Approval:
 		if i.Approval == nil || i.Question != nil {
 			return errors.New("runs: malformed approval interrupt")
 		}
 		return i.Approval.validate()
-	case execution.QuestionInterrupt:
+	case interrupt.Question:
 		if i.Question == nil || i.Approval != nil {
 			return errors.New("runs: malformed question interrupt")
 		}

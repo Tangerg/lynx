@@ -5,7 +5,8 @@ import (
 	"math"
 	"testing"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	corechat "github.com/Tangerg/lynx/core/chat"
 )
 
@@ -59,16 +60,16 @@ func TestStartExecutionValidateRejectsNonCanonicalAdmissionPolicy(t *testing.T) 
 
 	for name, execution := range map[string]StartExecution{
 		"negative token limit": {
-			Message: "hello", Limits: execution.RunLimits{MaxTotalTokens: -1},
+			Message: "hello", Limits: run.RunLimits{MaxTotalTokens: -1},
 		},
 		"non-finite budget": {
-			Message: "hello", Limits: execution.RunLimits{MaxBudgetUSD: math.Inf(1)},
+			Message: "hello", Limits: run.RunLimits{MaxBudgetUSD: math.Inf(1)},
 		},
 		"duplicate interrupt kind": {
 			Message: "hello",
-			InterruptKinds: []execution.InterruptKind{
-				execution.ApprovalInterrupt,
-				execution.ApprovalInterrupt,
+			InterruptKinds: []interrupt.Kind{
+				interrupt.Approval,
+				interrupt.Approval,
 			},
 		},
 		"goal lease whitespace": {

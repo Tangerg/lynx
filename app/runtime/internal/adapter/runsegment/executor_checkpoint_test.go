@@ -3,26 +3,26 @@ package runsegment
 import (
 	"context"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 )
 
-func testExecutorCheckpoint(rootProcessID string) execution.ExecutorCheckpoint {
+func testExecutorCheckpoint(rootProcessID string) runs.ExecutorCheckpoint {
 	selection, err := modelref.New("anthropic", "claude")
 	if err != nil {
 		panic(err)
 	}
-	return execution.ExecutorCheckpoint{
+	return runs.ExecutorCheckpoint{
 		RootProcessID:  rootProcessID,
 		Payload:        []byte(`{"root":"` + rootProcessID + `"}`),
 		BuildID:        "build",
-		Scope:          execution.ExecutionScope{SessionID: "ses_1"},
+		Scope:          runs.ExecutionScope{SessionID: "ses_1"},
 		ModelSelection: selection,
 	}
 }
 
 type recordingExecutorCheckpointStore struct {
-	saved     []execution.ExecutorCheckpoint
+	saved     []runs.ExecutorCheckpoint
 	deleted   [][]string
 	saveErr   error
 	deleteErr error
@@ -30,7 +30,7 @@ type recordingExecutorCheckpointStore struct {
 
 func (store *recordingExecutorCheckpointStore) SaveCheckpoint(
 	_ context.Context,
-	checkpoint execution.ExecutorCheckpoint,
+	checkpoint runs.ExecutorCheckpoint,
 ) error {
 	store.saved = append(store.saved, checkpoint.Clone())
 	return store.saveErr

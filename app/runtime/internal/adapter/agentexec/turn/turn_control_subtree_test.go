@@ -10,7 +10,7 @@ import (
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
 )
 
 type subtreeTurnProcess struct {
@@ -104,7 +104,7 @@ func (plan *stubWaitingSubtreePlan) PendingSuspensions() []agentexec.PendingSusp
 	return append([]agentexec.PendingSuspension(nil), plan.pending...)
 }
 
-func (*stubWaitingSubtreePlan) Checkpoint() execution.ExecutorCheckpoint {
+func (*stubWaitingSubtreePlan) Checkpoint() runs.ExecutorCheckpoint {
 	return testWaitingCheckpointValue().Checkpoint
 }
 
@@ -151,7 +151,7 @@ func TestPrepareWaitingCancellationProjectsTypedBoundaryAndReleasesClaimOnAbort(
 	if len(pending) != 1 ||
 		pending[0].ProcessID != "process_sibling" ||
 		pending[0].SuspensionID != "suspension_sibling" ||
-		pending[0].Interrupt.Kind != execution.QuestionInterrupt {
+		pending[0].Interrupt.Kind != interrupt.Question {
 		t.Fatalf("projected pending suspensions = %+v", pending)
 	}
 	prepared.Mutation.Abort()

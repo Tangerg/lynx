@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/Tangerg/lynx/agent/core"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 )
 
 // encodeProcessTree closes the Agent-to-application checkpoint boundary. The
@@ -26,7 +26,7 @@ func encodeProcessTree(tree core.ProcessSnapshotTree) ([]byte, error) {
 // validated opaque executor payload. The decoded root must agree with the
 // application-owned aggregate identity so storage corruption cannot redirect a
 // continuation.
-func decodeValidatedProcessTree(checkpoint execution.ExecutorCheckpoint) (core.ProcessSnapshotTree, error) {
+func decodeValidatedProcessTree(checkpoint runs.ExecutorCheckpoint) (core.ProcessSnapshotTree, error) {
 	var tree core.ProcessSnapshotTree
 	if err := json.Unmarshal(checkpoint.Payload, &tree); err != nil {
 		return core.ProcessSnapshotTree{}, fmt.Errorf(

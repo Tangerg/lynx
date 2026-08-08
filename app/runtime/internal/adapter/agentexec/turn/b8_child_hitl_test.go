@@ -13,12 +13,14 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/suspension"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/persistence"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
+	apphooks "github.com/Tangerg/lynx/app/runtime/internal/application/hooks"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 	"github.com/Tangerg/lynx/chatclient"
 	history "github.com/Tangerg/lynx/chathistory"
@@ -32,18 +34,18 @@ func TestChildToolsShareRootHITLAndHookContract(t *testing.T) {
 			name:             "approval with human edited arguments",
 			childTool:        "shell",
 			childArguments:   `{"command":"echo original","description":"Print original"}`,
-			interruptKinds:   []execution.InterruptKind{execution.ApprovalInterrupt},
-			wantInterrupt:    new(execution.ApprovalInterrupt),
-			resolution:       interrupts.Resolution{Approved: true, Arguments: `{"command":"echo human","description":"Print human"}`},
+			interruptKinds:   []interrupt.Kind{interrupt.Approval},
+			wantInterrupt:    new(interrupt.Approval),
+			resolution:       interrupt.Resolution{Approved: true, Arguments: `{"command":"echo human","description":"Print human"}`},
 			rewriteArguments: `{"command":"echo hook","description":"Print hook"}`,
 		},
 		{
 			name:             "approval denial",
 			childTool:        "shell",
 			childArguments:   `{"command":"echo original","description":"Print original"}`,
-			interruptKinds:   []execution.InterruptKind{execution.ApprovalInterrupt},
-			wantInterrupt:    new(execution.ApprovalInterrupt),
-			resolution:       interrupts.Resolution{Approved: false, Reason: "not this time"},
+			interruptKinds:   []interrupt.Kind{interrupt.Approval},
+			wantInterrupt:    new(interrupt.Approval),
+			resolution:       interrupt.Resolution{Approved: false, Reason: "not this time"},
 			rewriteArguments: `{"command":"echo hook","description":"Print hook"}`,
 		},
 		{
@@ -55,9 +57,9 @@ func TestChildToolsShareRootHITLAndHookContract(t *testing.T) {
 			name:           "child question",
 			childTool:      "ask_user",
 			childArguments: `{"questions":[{"question":"Continue?","options":[{"label":"Yes"},{"label":"No"}]}]}`,
-			interruptKinds: []execution.InterruptKind{execution.QuestionInterrupt},
-			wantInterrupt:  new(execution.QuestionInterrupt),
-			resolution: interrupts.Resolution{
+			interruptKinds: []interrupt.Kind{interrupt.Question},
+			wantInterrupt:  new(interrupt.Question),
+			resolution: interrupt.Resolution{
 				Approved: true,
 				Answers:  [][]string{{"Yes"}},
 			},
@@ -76,25 +78,25 @@ type childHITLScenario struct {
 	name             string
 	childTool        string
 	childArguments   string
-	interruptKinds   []execution.InterruptKind
-	wantInterrupt    *execution.InterruptKind
-	resolution       interrupts.Resolution
+	interruptKinds   []interrupt.Kind
+	wantInterrupt    *interrupt.Kind
+	resolution       interrupt.Resolution
 	rewriteArguments string
 }
 
 type childHITLOutcome struct {
 	interruptCount int
 	childEvents    int
-	endReason      execution.Outcome
+	endReason      run.Outcome
 }
 
 func runChildHITLScenario(t *testing.T, scenario childHITLScenario) (childHITLOutcome, *hookCommandRecorder) {
 	t.Helper()
 	recorder := &hookCommandRecorder{rewriteTool: scenario.childTool, rewriteArguments: scenario.rewriteArguments}
-	bound := hooks.NewBound([]hooks.Hook{
+	bound := apphooks.NewBound([]hooks.Hook{
 		{Event: hooks.PreToolUse, Command: "record", Source: "test"},
 		{Event: hooks.PostToolUse, Command: "record", Source: "test"},
-	}, hooks.NewRunner(recorder, nil))
+	}, apphooks.NewRunner(recorder, nil))
 	policy := mustApprovalPolicy(t, approval.ModeBalanced, nil)
 	controller := buildB8Controller(t, &childToolModel{
 		defaults:       &chat.Options{Model: "b8-child-hitl"},
@@ -160,7 +162,7 @@ func assertChildHITLOutcome(t *testing.T, scenario childHITLScenario, outcome ch
 	if scenario.wantInterrupt != nil && outcome.interruptCount != 1 {
 		t.Fatalf("interrupt count = %d, want 1", outcome.interruptCount)
 	}
-	if outcome.endReason != execution.OutcomeCompleted {
+	if outcome.endReason != run.OutcomeCompleted {
 		t.Fatalf("turn end = %q, want completed", outcome.endReason)
 	}
 	if outcome.childEvents != 0 {
@@ -182,10 +184,10 @@ func assertChildHITLOutcome(t *testing.T, scenario childHITLScenario, outcome ch
 
 func TestChildCanSuspendTwiceOnTheSameRun(t *testing.T) {
 	recorder := &hookCommandRecorder{}
-	bound := hooks.NewBound([]hooks.Hook{
+	bound := apphooks.NewBound([]hooks.Hook{
 		{Event: hooks.PreToolUse, Command: "record", Source: "test"},
 		{Event: hooks.PostToolUse, Command: "record", Source: "test"},
-	}, hooks.NewRunner(recorder, nil))
+	}, apphooks.NewRunner(recorder, nil))
 	policy := mustApprovalPolicy(t, approval.ModeBalanced, nil)
 	controller := buildB8Controller(t, &twoQuestionChildModel{
 		defaults: &chat.Options{Model: "b8-two-questions"},
@@ -195,7 +197,7 @@ func TestChildCanSuspendTwiceOnTheSameRun(t *testing.T) {
 		SessionID:      "sess-b8-two-questions",
 		Message:        "delegate this work",
 		CWD:            t.TempDir(),
-		InterruptKinds: []execution.InterruptKind{execution.QuestionInterrupt},
+		InterruptKinds: []interrupt.Kind{interrupt.Question},
 	})
 	if err != nil {
 		t.Fatalf("StartTurn: %v", err)
@@ -206,17 +208,17 @@ func TestChildCanSuspendTwiceOnTheSameRun(t *testing.T) {
 	}
 
 	interruptCount := 0
-	endReason := execution.OutcomeError
+	endReason := run.OutcomeFailed
 	for event := range events {
 		switch event := event.Payload.(type) {
 		case runs.TreeInterrupted:
 			persistTreeBarrier(t, event)
 			interruptCount++
 			if len(event.Suspensions) != 1 ||
-				event.Suspensions[0].Interrupt.Kind != execution.QuestionInterrupt {
+				event.Suspensions[0].Interrupt.Kind != interrupt.Question {
 				t.Fatalf("interrupt %d = %#v", interruptCount, event.Suspensions)
 			}
-			resolution := interrupts.Resolution{
+			resolution := interrupt.Resolution{
 				Approved: true,
 				Answers:  [][]string{{"answer"}},
 			}
@@ -224,7 +226,7 @@ func TestChildCanSuspendTwiceOnTheSameRun(t *testing.T) {
 				t.Context(),
 				handle,
 				answersForBarrier(event, resolution),
-				[]execution.InterruptKind{execution.QuestionInterrupt},
+				[]interrupt.Kind{interrupt.Question},
 			); err != nil {
 				t.Fatalf("Resume %d: %v", interruptCount, err)
 			}
@@ -235,7 +237,7 @@ func TestChildCanSuspendTwiceOnTheSameRun(t *testing.T) {
 	if interruptCount != 2 {
 		t.Fatalf("interrupt count = %d, want 2", interruptCount)
 	}
-	if endReason != execution.OutcomeCompleted {
+	if endReason != run.OutcomeCompleted {
 		t.Fatalf("turn end = %q, want completed", endReason)
 	}
 	if got := recorder.count(hooks.PreToolUse, "ask_user"); got != 2 {
@@ -257,7 +259,7 @@ func TestCompleteAnswerSetDrivesParallelChildSuspensionsWithoutSecondBarrier(t *
 		SessionID:      "sess-b8-parallel-questions",
 		Message:        "delegate this work",
 		CWD:            t.TempDir(),
-		InterruptKinds: []execution.InterruptKind{execution.QuestionInterrupt},
+		InterruptKinds: []interrupt.Kind{interrupt.Question},
 	})
 	if err != nil {
 		t.Fatalf("StartTurn: %v", err)
@@ -268,7 +270,7 @@ func TestCompleteAnswerSetDrivesParallelChildSuspensionsWithoutSecondBarrier(t *
 	}
 
 	interruptCount := 0
-	endReason := execution.OutcomeError
+	endReason := run.OutcomeFailed
 	for event := range events {
 		switch event := event.Payload.(type) {
 		case runs.TreeInterrupted:
@@ -282,7 +284,7 @@ func TestCompleteAnswerSetDrivesParallelChildSuspensionsWithoutSecondBarrier(t *
 				answers[index] = agentexec.SuspensionAnswer{
 					ProcessID:    boundary.ProcessID,
 					SuspensionID: boundary.SuspensionID,
-					Resolution: interrupts.Resolution{
+					Resolution: interrupt.Resolution{
 						Approved: true,
 						Answers:  [][]string{{fmt.Sprintf("answer-%d", index+1)}},
 					},
@@ -292,7 +294,7 @@ func TestCompleteAnswerSetDrivesParallelChildSuspensionsWithoutSecondBarrier(t *
 				t.Context(),
 				handle,
 				answers,
-				[]execution.InterruptKind{execution.QuestionInterrupt},
+				[]interrupt.Kind{interrupt.Question},
 			); err != nil {
 				t.Fatalf("Resume complete answer set: %v", err)
 			}
@@ -303,7 +305,7 @@ func TestCompleteAnswerSetDrivesParallelChildSuspensionsWithoutSecondBarrier(t *
 	if interruptCount != 1 {
 		t.Fatalf("TreeInterrupted count = %d, want one atomic application barrier", interruptCount)
 	}
-	if endReason != execution.OutcomeCompleted {
+	if endReason != run.OutcomeCompleted {
 		t.Fatalf("turn end = %q, want completed", endReason)
 	}
 }
@@ -329,7 +331,7 @@ func TestRestartResumesCompleteSiblingAnswerSetWithoutReplayingBarrier(t *testin
 		defaults: &chat.Options{Model: "b8-restart-parallel-questions"},
 	}
 	policy := mustApprovalPolicy(t, approval.ModeBalanced, nil)
-	firstCheckpoints := sqlite.NewExecutorCheckpointStore(firstDatabase)
+	firstCheckpoints := persistence.NewExecutorCheckpointStore(sqlite.NewExecutorCheckpointStore(firstDatabase))
 	first := buildB8PersistentController(
 		t,
 		model,
@@ -343,7 +345,7 @@ func TestRestartResumesCompleteSiblingAnswerSetWithoutReplayingBarrier(t *testin
 		SessionID:      sess.ID,
 		Message:        "delegate this work",
 		CWD:            cwd,
-		InterruptKinds: []execution.InterruptKind{execution.QuestionInterrupt},
+		InterruptKinds: []interrupt.Kind{interrupt.Question},
 	})
 	if err != nil {
 		t.Fatalf("StartTurn: %v", err)
@@ -378,7 +380,7 @@ func TestRestartResumesCompleteSiblingAnswerSetWithoutReplayingBarrier(t *testin
 		model,
 		policy,
 		staticHookResolver{},
-		sqlite.NewExecutorCheckpointStore(restoredDatabase),
+		persistence.NewExecutorCheckpointStore(sqlite.NewExecutorCheckpointStore(restoredDatabase)),
 		sqlite.NewMessageStore(restoredDatabase),
 		buildID,
 	)
@@ -401,7 +403,7 @@ func TestRestartResumesCompleteSiblingAnswerSetWithoutReplayingBarrier(t *testin
 		answers[index] = agentexec.SuspensionAnswer{
 			ProcessID:    boundary.ProcessID,
 			SuspensionID: boundary.SuspensionID,
-			Resolution: interrupts.Resolution{
+			Resolution: interrupt.Resolution{
 				Approved: true,
 				Answers:  [][]string{{fmt.Sprintf("restored-answer-%d", index+1)}},
 			},
@@ -411,12 +413,12 @@ func TestRestartResumesCompleteSiblingAnswerSetWithoutReplayingBarrier(t *testin
 		t.Context(),
 		restoredHandle,
 		answers,
-		[]execution.InterruptKind{execution.QuestionInterrupt},
+		[]interrupt.Kind{interrupt.Question},
 	); err != nil {
 		t.Fatalf("restored Resume: %v", err)
 	}
 	replayedBarriers := 0
-	endReason := execution.OutcomeError
+	endReason := run.OutcomeFailed
 	for event := range restoredEvents {
 		switch payload := event.Payload.(type) {
 		case runs.TreeInterrupted:
@@ -429,7 +431,7 @@ func TestRestartResumesCompleteSiblingAnswerSetWithoutReplayingBarrier(t *testin
 	if replayedBarriers != 0 {
 		t.Fatalf("restored continuation published %d intermediate barriers, want none", replayedBarriers)
 	}
-	if endReason != execution.OutcomeCompleted {
+	if endReason != run.OutcomeCompleted {
 		t.Fatalf("restored turn end = %q, want completed", endReason)
 	}
 }
@@ -457,7 +459,7 @@ func TestCompleteAnswerSetDoesNotPersistDuringLiveContinuation(t *testing.T) {
 		SessionID:      "sess-b8-parallel-checkpoint-failure",
 		Message:        "delegate this work",
 		CWD:            t.TempDir(),
-		InterruptKinds: []execution.InterruptKind{execution.QuestionInterrupt},
+		InterruptKinds: []interrupt.Kind{interrupt.Question},
 	})
 	if err != nil {
 		t.Fatalf("StartTurn: %v", err)
@@ -481,13 +483,13 @@ func TestCompleteAnswerSetDoesNotPersistDuringLiveContinuation(t *testing.T) {
 				t.Context(),
 				handle,
 				questionAnswersForBarrier(payload, "checkpoint-failure"),
-				[]execution.InterruptKind{execution.QuestionInterrupt},
+				[]interrupt.Kind{interrupt.Question},
 			); err != nil {
 				t.Fatalf("Resume complete answer set: %v", err)
 			}
 		case runs.SegmentEnded:
 			terminalCount++
-			if payload.Reason != execution.OutcomeCompleted || payload.Problem != nil {
+			if payload.Reason != run.OutcomeCompleted || payload.Problem != nil {
 				t.Fatalf("TurnEnd = %+v, want completed without hidden checkpoint I/O", payload)
 			}
 		}
@@ -524,7 +526,7 @@ func TestCompleteAnswerSetEncodingFailurePrecedesAnyContinuationSideEffect(t *te
 		SessionID:      "sess-b8-parallel-encoding-failure",
 		Message:        "delegate this work",
 		CWD:            t.TempDir(),
-		InterruptKinds: []execution.InterruptKind{execution.QuestionInterrupt},
+		InterruptKinds: []interrupt.Kind{interrupt.Question},
 	})
 	if err != nil {
 		t.Fatalf("StartTurn: %v", err)
@@ -547,14 +549,14 @@ func TestCompleteAnswerSetEncodingFailurePrecedesAnyContinuationSideEffect(t *te
 				t.Context(),
 				handle,
 				answers,
-				[]execution.InterruptKind{execution.QuestionInterrupt},
+				[]interrupt.Kind{interrupt.Question},
 			)
 			if err == nil || !strings.Contains(err.Error(), "unknown remember scope") {
 				t.Fatalf("Resume encoding error = %v, want invalid remember scope", err)
 			}
 		case runs.SegmentEnded:
 			terminalCount++
-			if payload.Reason != execution.OutcomeError || payload.Problem == nil {
+			if payload.Reason != run.OutcomeFailed || payload.Problem == nil {
 				t.Fatalf("TurnEnd = %+v, want canonical error terminal", payload)
 			}
 		}
@@ -587,17 +589,17 @@ func TestRestartRestoresParkedChildWithoutReplayingPreHook(t *testing.T) {
 		rewriteTool: "shell", rewriteArguments: `{"command":"echo first-hook","description":"Print first hook"}`,
 	}
 	first := buildB8PersistentController(t, model, policy, staticHookResolver{
-		bound: hooks.NewBound([]hooks.Hook{
+		bound: apphooks.NewBound([]hooks.Hook{
 			{Event: hooks.PreToolUse, Command: "record", Source: "test"},
 			{Event: hooks.PostToolUse, Command: "record", Source: "test"},
-		}, hooks.NewRunner(firstHooks, nil)),
+		}, apphooks.NewRunner(firstHooks, nil)),
 	}, store, historyStore, buildID)
 
 	original, err := first.StartTurn(t.Context(), runs.StartExecution{
 		SessionID:      "sess-b8-restart",
 		Message:        "delegate this work",
 		CWD:            cwd,
-		InterruptKinds: []execution.InterruptKind{execution.ApprovalInterrupt},
+		InterruptKinds: []interrupt.Kind{interrupt.Approval},
 	})
 	if err != nil {
 		t.Fatalf("StartTurn: %v", err)
@@ -632,12 +634,12 @@ func TestRestartRestoresParkedChildWithoutReplayingPreHook(t *testing.T) {
 		rewriteTool: "shell", rewriteArguments: `{"command":"echo must-not-run","description":"Print forbidden output"}`,
 	}
 	restored := buildB8PersistentController(t, model, policy, staticHookResolver{
-		bound: hooks.NewBound([]hooks.Hook{
+		bound: apphooks.NewBound([]hooks.Hook{
 			{Event: hooks.PreToolUse, Command: "record", Source: "test"},
 			{Event: hooks.PostToolUse, Command: "record", Source: "test"},
 			{Event: hooks.SubagentStart, Command: "record", Source: "test"},
 			{Event: hooks.SubagentStop, Command: "record", Source: "test"},
-		}, hooks.NewRunner(restoredHooks, nil)),
+		}, apphooks.NewRunner(restoredHooks, nil)),
 	}, store, historyStore, buildID)
 	restoredHandle, err := restored.Rehydrate(t.Context(), runs.RehydrateExecution{
 		SessionID:  original.SessionID,
@@ -662,13 +664,13 @@ func TestRestartRestoresParkedChildWithoutReplayingPreHook(t *testing.T) {
 	if err := restored.Resume(
 		t.Context(),
 		restoredHandle,
-		answersForBarrier(barrier, interrupts.Resolution{Approved: true, Arguments: humanArguments}),
-		[]execution.InterruptKind{execution.ApprovalInterrupt},
+		answersForBarrier(barrier, interrupt.Resolution{Approved: true, Arguments: humanArguments}),
+		[]interrupt.Kind{interrupt.Approval},
 	); err != nil {
 		t.Fatalf("restored Resume: %v", err)
 	}
 
-	endReason := execution.OutcomeError
+	endReason := run.OutcomeFailed
 	leakedChildEvents := 0
 	for event := range restoredEvents {
 		switch event := event.Payload.(type) {
@@ -680,7 +682,7 @@ func TestRestartRestoresParkedChildWithoutReplayingPreHook(t *testing.T) {
 			endReason = event.Reason
 		}
 	}
-	if endReason != execution.OutcomeCompleted {
+	if endReason != run.OutcomeCompleted {
 		t.Fatalf("restored turn end = %q, want completed", endReason)
 	}
 	if leakedChildEvents != 0 {
@@ -741,7 +743,7 @@ func TestCancelParkedChildCleansWholeProcessTree(t *testing.T) {
 		SessionID:      "sess-b8-child-cancel",
 		Message:        "delegate this work",
 		CWD:            t.TempDir(),
-		InterruptKinds: []execution.InterruptKind{execution.ApprovalInterrupt},
+		InterruptKinds: []interrupt.Kind{interrupt.Approval},
 	})
 	if err != nil {
 		t.Fatalf("StartTurn: %v", err)
@@ -753,7 +755,7 @@ func TestCancelParkedChildCleansWholeProcessTree(t *testing.T) {
 
 	interruptsSeen := 0
 	terminalCount := 0
-	endReason := execution.OutcomeError
+	endReason := run.OutcomeFailed
 	var processID string
 	for event := range events {
 		switch event := event.Payload.(type) {
@@ -772,7 +774,7 @@ func TestCancelParkedChildCleansWholeProcessTree(t *testing.T) {
 			endReason = event.Reason
 		}
 	}
-	if interruptsSeen != 1 || terminalCount != 1 || endReason != execution.OutcomeCanceled {
+	if interruptsSeen != 1 || terminalCount != 1 || endReason != run.OutcomeCanceled {
 		t.Fatalf("interrupts/terminals/reason = %d/%d/%q", interruptsSeen, terminalCount, endReason)
 	}
 	if err := controller.Cancel(t.Context(), handle); err != nil && !errors.Is(err, turn.ErrTurnNotFound) {
@@ -810,7 +812,7 @@ func TestRehydrateRejectsCorruptCheckpointPayload(t *testing.T) {
 		SessionID:      "sess-b8-child-missing",
 		Message:        "delegate this work",
 		CWD:            t.TempDir(),
-		InterruptKinds: []execution.InterruptKind{execution.ApprovalInterrupt},
+		InterruptKinds: []interrupt.Kind{interrupt.Approval},
 	})
 	if err != nil {
 		t.Fatalf("StartTurn: %v", err)
@@ -867,7 +869,7 @@ func TestChildApproveCancelRaceHasOneTerminal(t *testing.T) {
 			SessionID:      "sess-b8-race-" + string(rune('a'+index)),
 			Message:        "delegate this work",
 			CWD:            t.TempDir(),
-			InterruptKinds: []execution.InterruptKind{execution.ApprovalInterrupt},
+			InterruptKinds: []interrupt.Kind{interrupt.Approval},
 		})
 		if err != nil {
 			t.Fatalf("iteration %d StartTurn: %v", index, err)
@@ -898,8 +900,8 @@ func TestChildApproveCancelRaceHasOneTerminal(t *testing.T) {
 					resumeErr = controller.Resume(
 						t.Context(),
 						handle,
-						answersForBarrier(event, interrupts.Resolution{Approved: true}),
-						[]execution.InterruptKind{execution.ApprovalInterrupt},
+						answersForBarrier(event, interrupt.Resolution{Approved: true}),
+						[]interrupt.Kind{interrupt.Approval},
 					)
 				}()
 				go func() {
@@ -950,7 +952,7 @@ func TestCompleteSiblingAnswerSetCancelRaceHasOneTerminalAndNoSecondBarrier(t *t
 			SessionID:      fmt.Sprintf("sess-b8-parallel-race-%d", index),
 			Message:        "delegate this work",
 			CWD:            t.TempDir(),
-			InterruptKinds: []execution.InterruptKind{execution.QuestionInterrupt},
+			InterruptKinds: []interrupt.Kind{interrupt.Question},
 		})
 		if err != nil {
 			t.Fatalf("iteration %d StartTurn: %v", index, err)
@@ -985,7 +987,7 @@ func TestCompleteSiblingAnswerSetCancelRaceHasOneTerminalAndNoSecondBarrier(t *t
 						t.Context(),
 						handle,
 						answers,
-						[]execution.InterruptKind{execution.QuestionInterrupt},
+						[]interrupt.Kind{interrupt.Question},
 					)
 				}()
 				go func() {
@@ -1013,8 +1015,8 @@ func TestCompleteSiblingAnswerSetCancelRaceHasOneTerminalAndNoSecondBarrier(t *t
 				}
 			case runs.SegmentEnded:
 				terminalCount++
-				if payload.Reason != execution.OutcomeCompleted &&
-					payload.Reason != execution.OutcomeCanceled {
+				if payload.Reason != run.OutcomeCompleted &&
+					payload.Reason != run.OutcomeCanceled {
 					t.Fatalf("iteration %d TurnEnd reason = %q", index, payload.Reason)
 				}
 			}
@@ -1253,7 +1255,7 @@ func questionAnswersForBarrier(
 		answers[index] = agentexec.SuspensionAnswer{
 			ProcessID:    boundary.ProcessID,
 			SuspensionID: boundary.SuspensionID,
-			Resolution: interrupts.Resolution{
+			Resolution: interrupt.Resolution{
 				Approved: true,
 				Answers:  [][]string{{fmt.Sprintf("%s-%d", prefix, index+1)}},
 			},
@@ -1263,11 +1265,11 @@ func questionAnswersForBarrier(
 }
 
 type staticHookResolver struct {
-	bound *hooks.Bound
+	bound *apphooks.Bound
 	err   error
 }
 
-func (r staticHookResolver) For(context.Context, string) (*hooks.Bound, error) {
+func (r staticHookResolver) For(context.Context, string) (*apphooks.Bound, error) {
 	return r.bound, r.err
 }
 
@@ -1278,16 +1280,16 @@ type hookCommandRecorder struct {
 	rewriteArguments string
 }
 
-func (r *hookCommandRecorder) RunHookCommand(_ context.Context, request hooks.CommandRequest) hooks.CommandResult {
+func (r *hookCommandRecorder) RunHookCommand(_ context.Context, request apphooks.CommandRequest) apphooks.CommandResult {
 	input := request.Input
 	r.mu.Lock()
 	r.inputs = append(r.inputs, input)
 	r.mu.Unlock()
 	if input.Event == hooks.PreToolUse && input.Tool != nil &&
 		input.Tool.Name == r.rewriteTool && r.rewriteArguments != "" {
-		return hooks.CommandResult{Decision: hooks.CommandDecision{RewriteArguments: r.rewriteArguments}}
+		return apphooks.CommandResult{Decision: apphooks.CommandDecision{RewriteArguments: r.rewriteArguments}}
 	}
-	return hooks.CommandResult{}
+	return apphooks.CommandResult{}
 }
 
 func (r *hookCommandRecorder) count(event hooks.Event, toolName string) int {

@@ -77,6 +77,10 @@ type manifestPolicyRule struct {
 }
 
 type manifestErrors struct {
+	// Codes is the previous manifest representation. Keeping it in the release
+	// reader lets the compatibility gate compare an old release with the current
+	// richer registry instead of silently treating the baseline as empty.
+	Codes map[string]int  `json:"codes"`
 	Types []manifestError `json:"types"`
 }
 
@@ -193,7 +197,10 @@ func diffCapabilityPolicy(before, after releaseManifest, out *compatibility) {
 
 func diffErrors(before, after releaseManifest, out *compatibility) {
 	codes := func(m releaseManifest) map[string]int {
-		byType := make(map[string]int, len(m.Errors.Types))
+		byType := maps.Clone(m.Errors.Codes)
+		if byType == nil {
+			byType = make(map[string]int, len(m.Errors.Types))
+		}
 		for _, entry := range m.Errors.Types {
 			byType[entry.Type] = entry.Code
 		}

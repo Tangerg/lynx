@@ -9,12 +9,12 @@ import (
 
 	"github.com/Tangerg/lynx/core/chat"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
+	rundomain "github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/toolresult"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
 // RollbackPlan is the atomic durable command for truncating a session back to a
@@ -50,7 +50,7 @@ type RestorePlan struct {
 	Messages    []chat.Message
 	Items       []transcript.Item
 	Runs        []transcript.Run
-	ToolResults []offload.ToolResultBlob
+	ToolResults []toolresult.Blob
 	// Plan is the restored Plan's semantic value. It is REPLACED rather than
 	// cleared-and-rewritten: the projection's revision must come out greater than
 	// whatever the target session already published, and a delete would restart the
@@ -133,7 +133,7 @@ func (plan TerminalPlan) Validate() error {
 	if !ok {
 		return errors.New("sessions: terminal plan must end with one root Run")
 	}
-	members := make([]execution.RunTreeMember, 0, len(plan.Runs))
+	members := make([]rundomain.RunTreeMember, 0, len(plan.Runs))
 	ownedRuns := make(map[string]struct{}, len(plan.Runs))
 	actualOrder := make([]string, 0, len(plan.Runs))
 	for index, run := range plan.Runs {
@@ -151,9 +151,9 @@ func (plan TerminalPlan) Validate() error {
 		}
 		ownedRuns[run.ID] = struct{}{}
 		actualOrder = append(actualOrder, run.ID)
-		members = append(members, execution.RunTreeMember{RunID: run.ID, Lineage: run.Lineage()})
+		members = append(members, rundomain.RunTreeMember{RunID: run.ID, Lineage: run.Lineage()})
 	}
-	tree, err := execution.NewRunTree(root.ID, members)
+	tree, err := rundomain.NewRunTree(root.ID, members)
 	if err != nil {
 		return fmt.Errorf("sessions: terminal plan Run tree: %w", err)
 	}

@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 )
 
 type agentTurnCanceler struct {
@@ -17,7 +17,7 @@ func (c agentTurnCanceler) Cancel(context.Context, turn.Handle) error { return c
 
 func TestSessionExecutionCleanupTreatsMissingTurnAsIdempotent(t *testing.T) {
 	cleanup := turn.NewSessionExecutionCleanup(agentTurnCanceler{err: turn.ErrTurnNotFound})
-	if err := cleanup.Cancel(t.Context(), execution.ExecutorRef{SessionID: "ses_1", ExecutorID: "exec_1"}); err != nil {
+	if err := cleanup.Cancel(t.Context(), runs.ExecutorRef{SessionID: "ses_1", ExecutorID: "exec_1"}); err != nil {
 		t.Fatalf("Cancel error = %v, want nil", err)
 	}
 }
@@ -25,7 +25,7 @@ func TestSessionExecutionCleanupTreatsMissingTurnAsIdempotent(t *testing.T) {
 func TestSessionExecutionCleanupPreservesFailure(t *testing.T) {
 	want := errors.New("process cleanup failed")
 	cleanup := turn.NewSessionExecutionCleanup(agentTurnCanceler{err: want})
-	if err := cleanup.Cancel(t.Context(), execution.ExecutorRef{SessionID: "ses_1", ExecutorID: "exec_1"}); !errors.Is(err, want) {
+	if err := cleanup.Cancel(t.Context(), runs.ExecutorRef{SessionID: "ses_1", ExecutorID: "exec_1"}); !errors.Is(err, want) {
 		t.Fatalf("Cancel error = %v, want cleanup failure", err)
 	}
 }

@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
 // validateRecoveryParkedTree checks the complete durable hand-off barrier before
@@ -21,7 +21,7 @@ import (
 func validateRecoveryParkedTree(
 	ctx context.Context,
 	tree recoveryRunTree,
-	pending interrupts.Pending,
+	pending Pending,
 	sess session.Session,
 	items []transcript.Item,
 	checkpoints CheckpointResumability,
@@ -105,7 +105,7 @@ func validateRecoveryParkedTree(
 	if sess.Isolated {
 		return false, nil
 	}
-	resumable, err := checkpoints.CanResumeCheckpoint(ctx, execution.ExecutorCheckpointExpectation{
+	resumable, err := checkpoints.CanResumeCheckpoint(ctx, ExecutorCheckpointExpectation{
 		RootProcessID:  rootContinuation.ProcessID,
 		SessionID:      pending.SessionID,
 		CWD:            sess.CWD,
@@ -128,7 +128,7 @@ func validateRecoveryParkedTree(
 func validateRecoveryContinuation(
 	active transcript.Run,
 	root transcript.Run,
-	continuation interrupts.Continuation,
+	continuation Continuation,
 ) error {
 	switch {
 	case active.SessionID != root.SessionID:
@@ -139,9 +139,9 @@ func validateRecoveryContinuation(
 			active.SessionID,
 			root.SessionID,
 		)
-	case active.State != execution.Interrupted:
+	case active.State != run.Waiting:
 		return fmt.Errorf(
-			"runs: validate recovery Run tree %q: Run %q is %s, want interrupted",
+			"runs: validate recovery Run tree %q: Run %q is %s, want waiting",
 			root.ID,
 			active.ID,
 			active.State,
@@ -170,66 +170,66 @@ func validateRecoveryInterruptItems(
 	itemsByID map[string]transcript.Item,
 ) (map[string]struct{}, error) {
 	seen := make(map[string]struct{}, len(open))
-	for _, interrupt := range open {
-		if _, duplicate := seen[interrupt.ItemID]; duplicate {
+	for _, request := range open {
+		if _, duplicate := seen[request.ItemID]; duplicate {
 			return nil, fmt.Errorf(
 				"runs: validate recovery Run tree %q: duplicate interrupt Item %q",
 				tree.root.ID,
-				interrupt.ItemID,
+				request.ItemID,
 			)
 		}
-		seen[interrupt.ItemID] = struct{}{}
-		if _, active := tree.runsByID[interrupt.RunID]; !active {
+		seen[request.ItemID] = struct{}{}
+		if _, active := tree.runsByID[request.RunID]; !active {
 			return nil, fmt.Errorf(
 				"runs: validate recovery Run tree %q: interrupt Item %q belongs to non-active Run %q",
 				tree.root.ID,
-				interrupt.ItemID,
-				interrupt.RunID,
+				request.ItemID,
+				request.RunID,
 			)
 		}
-		item, found := itemsByID[interrupt.ItemID]
+		item, found := itemsByID[request.ItemID]
 		if !found ||
 			item.SessionID != tree.root.SessionID ||
-			item.RunID != interrupt.RunID ||
+			item.RunID != request.RunID ||
 			item.Status != transcript.ItemRunning {
 			return nil, fmt.Errorf(
 				"runs: validate recovery Run tree %q: interrupt Item %q is not Running in Run %q",
 				tree.root.ID,
-				interrupt.ItemID,
-				interrupt.RunID,
+				request.ItemID,
+				request.RunID,
 			)
 		}
-		switch interrupt.Kind {
-		case execution.ApprovalInterrupt:
-			if interrupt.Approval == nil ||
-				interrupt.Question != nil ||
+		switch request.Kind {
+		case interrupt.Approval:
+			if request.Approval == nil ||
+				request.Question != nil ||
 				item.Kind != transcript.ToolCall ||
 				item.Tool == nil ||
-				!reflect.DeepEqual(*item.Tool, interrupt.Approval.Tool) {
+				!reflect.DeepEqual(*item.Tool, request.Approval.Tool) {
 				return nil, fmt.Errorf(
 					"runs: validate recovery Run tree %q: malformed approval Item %q",
 					tree.root.ID,
-					interrupt.ItemID,
+					request.ItemID,
 				)
 			}
-		case execution.QuestionInterrupt:
-			if interrupt.Question == nil ||
-				interrupt.Approval != nil ||
+		case interrupt.Question:
+			if request.Question == nil ||
+				request.Approval != nil ||
 				item.Kind != transcript.QuestionItem ||
 				item.Question == nil ||
-				!reflect.DeepEqual(item.Question, interrupt.Question) {
+				!reflect.DeepEqual(item.Question, request.Question) {
 				return nil, fmt.Errorf(
 					"runs: validate recovery Run tree %q: malformed question Item %q",
 					tree.root.ID,
-					interrupt.ItemID,
+					request.ItemID,
 				)
 			}
 		default:
 			return nil, fmt.Errorf(
 				"runs: validate recovery Run tree %q: interrupt Item %q has unknown kind %d",
 				tree.root.ID,
-				interrupt.ItemID,
-				interrupt.Kind,
+				request.ItemID,
+				request.Kind,
 			)
 		}
 	}
@@ -259,7 +259,7 @@ func validateRecoveryRunningItems(
 
 func validateRecoveryContinuationTools(
 	rootRunID string,
-	continuation interrupts.Continuation,
+	continuation Continuation,
 	itemsByID map[string]transcript.Item,
 	claimedItems map[string]string,
 ) error {

@@ -8,22 +8,22 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
+	rundomain "github.com/Tangerg/lynx/app/runtime/internal/domain/run"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
 // Validate proves that a boot-recovery write-set is self-contained and
 // owner-bound before its transaction begins.
 func (commit RecoveryCommit) Validate() error {
 	lostByID := make(map[string]transcript.Run, len(commit.LostRuns))
-	treeMembers := make(map[string][]execution.RunTreeMember)
+	treeMembers := make(map[string][]rundomain.RunTreeMember)
 	actualOrder := make([]string, 0, len(commit.LostRuns))
 	for index, run := range commit.LostRuns {
 		if err := run.Validate(); err != nil {
 			return fmt.Errorf("runs: recovery commit lost Run[%d]: %w", index, err)
 		}
-		if run.Outcome == nil || *run.Outcome != execution.OutcomeError ||
+		if run.Outcome == nil || *run.Outcome != rundomain.OutcomeLost ||
 			run.Error == nil || run.Error.Kind != transcript.RunLostProblem {
 			return fmt.Errorf("runs: recovery commit Run %q is not a run-lost terminal", run.ID)
 		}
@@ -32,7 +32,7 @@ func (commit RecoveryCommit) Validate() error {
 		}
 		lostByID[run.ID] = run
 		rootID := run.Lineage().TreeRootID(run.ID)
-		treeMembers[rootID] = append(treeMembers[rootID], execution.RunTreeMember{
+		treeMembers[rootID] = append(treeMembers[rootID], rundomain.RunTreeMember{
 			RunID:   run.ID,
 			Lineage: run.Lineage(),
 		})
@@ -46,7 +46,7 @@ func (commit RecoveryCommit) Validate() error {
 	expectedOrder := make([]string, 0, len(commit.LostRuns))
 	for _, rootID := range rootIDs {
 		members := treeMembers[rootID]
-		tree, err := execution.NewRunTree(rootID, members)
+		tree, err := rundomain.NewRunTree(rootID, members)
 		if err != nil {
 			return fmt.Errorf("runs: recovery commit tree %q: %w", rootID, err)
 		}

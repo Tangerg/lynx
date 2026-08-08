@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/toolresult"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
 // defaultTranscriptSearchLimit caps a transcript search that names no limit.
@@ -31,7 +31,7 @@ func (s *TranscriptStore) AppendItem(ctx context.Context, item transcript.Item) 
 	if err := item.Validate(); err != nil {
 		return fmt.Errorf("sqlite: history item %q: %w", item.ID, err)
 	}
-	var offloadID offload.ID
+	var offloadID toolresult.ID
 	if item.Tool != nil && item.Tool.Offload != nil {
 		if err := item.Tool.Offload.Validate(); err != nil {
 			return fmt.Errorf("sqlite: history item offload: %w", err)
@@ -208,7 +208,7 @@ func materializeTranscriptItem(
 		}
 		return item, nil
 	}
-	id, err := offload.ParseID(rawOffloadID)
+	id, err := toolresult.ParseID(rawOffloadID)
 	if err != nil {
 		return transcript.Item{}, fmt.Errorf("sqlite: decode history item %q offload: %w", itemID, err)
 	}
@@ -224,7 +224,7 @@ func materializeTranscriptItem(
 	if !offloaded.Valid {
 		return transcript.Item{}, fmt.Errorf("sqlite: history item %q references missing tool result %q", itemID, id)
 	}
-	item.Tool.Offload = &offload.Ref{ID: id}
+	item.Tool.Offload = &toolresult.Ref{ID: id}
 	body := tool.StringResult(offloaded.String)
 	item.Tool.Result = &body
 	if err := item.Validate(); err != nil {

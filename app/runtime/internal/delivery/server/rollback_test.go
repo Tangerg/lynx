@@ -6,11 +6,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/persistence"
 	appRuns "github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 	"github.com/Tangerg/lynx/core/chat"
 )
@@ -31,8 +32,8 @@ func rollbackHarness(t *testing.T) (*Server, *stubRuntime) {
 		hist:        sqlite.NewTranscriptStore(db),
 		runs:        sqlite.NewRunStore(db),
 		toolResults: sqlite.NewToolResultStore(db),
-		interrupts:  sqlite.NewInterruptStore(db),
-		muts:        sqlite.NewWorkspaceMutationStore(db),
+		interrupts:  persistence.NewInterruptStore(sqlite.NewInterruptStore(db)),
+		muts:        persistence.NewWorkspaceMutationStore(sqlite.NewWorkspaceMutationStore(db)),
 		plan:        sqlite.NewPlanStore(db),
 	}
 	return newTestServer(rt), rt
@@ -52,9 +53,9 @@ func putSession(t *testing.T, rt *stubRuntime, sessionID string) {
 
 func putRun(t *testing.T, rt *stubRuntime, sessionID, runID string, atUnix int64, mark int) {
 	t.Helper()
-	outcome := execution.OutcomeCompleted
+	outcome := run.OutcomeCompleted
 	if err := rt.runs.Restore(t.Context(), transcript.Run{
-		SessionID: sessionID, ID: runID, State: execution.Completed,
+		SessionID: sessionID, ID: runID, State: run.Completed,
 		Outcome:   &outcome,
 		CreatedAt: time.Unix(atUnix, 0).UTC(), FinishedAt: time.Unix(atUnix, 0).UTC(),
 		UpdatedAt: time.Unix(atUnix, 0).UTC(), MessageMark: mark,
@@ -222,15 +223,15 @@ func TestPersistRunCarriesCreatedAt(t *testing.T) {
 	sess, _ := rt.sess.Create(ctx, "s", "/w")
 
 	started := time.Now().Add(-time.Minute).UTC().Truncate(time.Second)
-	if err := rt.runs.Admit(ctx, execution.RunDraft{SegmentID: "seg_open", RunID: "run_1", SessionID: sess.ID, CreatedAt: started}); err != nil {
+	if err := rt.runs.Admit(ctx, run.RunDraft{SegmentID: "seg_open", RunID: "run_1", SessionID: sess.ID, CreatedAt: started}); err != nil {
 		t.Fatalf("admit run: %v", err)
 	}
 
-	outcome := execution.OutcomeCompleted
+	outcome := run.OutcomeCompleted
 	commit := appRuns.EventCommit{
 		RunID: "run_1", SessionID: sess.ID, State: appRuns.StateTerminalize, Outcome: outcome,
 		Run: &transcript.Run{
-			ID: "run_1", SessionID: sess.ID, State: execution.Completed, Outcome: &outcome,
+			ID: "run_1", SessionID: sess.ID, State: run.Completed, Outcome: &outcome,
 			CreatedAt: started, FinishedAt: started.Add(time.Minute),
 			UpdatedAt: started.Add(time.Minute), MessageMark: transcript.UnknownMessageMark,
 		},

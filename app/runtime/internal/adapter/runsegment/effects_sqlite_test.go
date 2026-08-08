@@ -11,14 +11,15 @@ import (
 
 	"github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/core"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/persistence"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/accounting"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/accounting"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 )
 
@@ -50,11 +51,11 @@ func TestCommitOpeningResumeRollsBackConsume(t *testing.T) {
 		t.Fatalf("open: %v", err)
 	}
 	t.Cleanup(func() { _ = db.Close() })
-	ints := sqlite.NewInterruptStore(db)
+	ints := persistence.NewInterruptStore(sqlite.NewInterruptStore(db))
 	history := sqlite.NewTranscriptStore(db)
 	state := sqlite.NewRunStore(db)
 	ctx := context.Background()
-	if err := state.Admit(ctx, execution.RunDraft{RunID: "run_actual", SessionID: "ses_1", SegmentID: "seg_open", CreatedAt: time.Now().UTC()}); err != nil {
+	if err := state.Admit(ctx, run.RunDraft{RunID: "run_actual", SessionID: "ses_1", SegmentID: "seg_open", CreatedAt: time.Now().UTC()}); err != nil {
 		t.Fatalf("admit: %v", err)
 	}
 	if err := state.Suspend(ctx, parkedRunRecord("run_actual", "ses_1", time.Now().UTC())); err != nil {
@@ -72,11 +73,11 @@ func TestCommitOpeningResumeRollsBackConsume(t *testing.T) {
 		RunState: state,
 		Tx:       func(ctx context.Context, fn func(context.Context) error) error { return sqlite.RunInTx(ctx, db, fn) },
 	})
-	resume := execution.TreeResumeDraft{
+	resume := run.TreeResumeDraft{
 		RootRunID: "run_stale",
 		SessionID: "ses_1",
 		ResumedAt: time.Now().UTC(),
-		Runs:      []execution.RunResumeDraft{{RunID: "run_stale", SegmentID: "seg_next"}},
+		Runs:      []run.RunResumeDraft{{RunID: "run_stale", SegmentID: "seg_next"}},
 	}
 	err = effects.CommitOpening(ctx, runs.OpeningCommit{Resume: &resume, Events: []runs.EventCommit{{RunID: "run_stale", SessionID: "ses_1"}}})
 	if err == nil {
@@ -93,12 +94,12 @@ func TestCommitOpeningResumeCommitsWholeWriteSet(t *testing.T) {
 		t.Fatalf("open: %v", err)
 	}
 	t.Cleanup(func() { _ = db.Close() })
-	ints := sqlite.NewInterruptStore(db)
+	ints := persistence.NewInterruptStore(sqlite.NewInterruptStore(db))
 	history := sqlite.NewTranscriptStore(db)
 	state := sqlite.NewRunStore(db)
 	ctx := context.Background()
 	created := time.Now().UTC()
-	if err := state.Admit(ctx, execution.RunDraft{RunID: "run_1", SessionID: "ses_1", SegmentID: "seg_open", CreatedAt: created}); err != nil {
+	if err := state.Admit(ctx, run.RunDraft{RunID: "run_1", SessionID: "ses_1", SegmentID: "seg_open", CreatedAt: created}); err != nil {
 		t.Fatalf("admit: %v", err)
 	}
 	if err := state.Suspend(ctx, parkedRunRecord("run_1", "ses_1", created)); err != nil {
@@ -116,11 +117,11 @@ func TestCommitOpeningResumeCommitsWholeWriteSet(t *testing.T) {
 		RunState: state,
 		Tx:       func(ctx context.Context, fn func(context.Context) error) error { return sqlite.RunInTx(ctx, db, fn) },
 	})
-	resume := execution.TreeResumeDraft{
+	resume := run.TreeResumeDraft{
 		RootRunID: "run_1",
 		SessionID: "ses_1",
 		ResumedAt: time.Now().UTC(),
-		Runs:      []execution.RunResumeDraft{{RunID: "run_1", SegmentID: "seg_next"}},
+		Runs:      []run.RunResumeDraft{{RunID: "run_1", SegmentID: "seg_next"}},
 	}
 	opening := runs.OpeningCommit{
 		Resume: &resume,
@@ -179,19 +180,19 @@ func TestCommitOpeningResumesRunTreeAtomically(t *testing.T) {
 			t.Cleanup(func() { _ = db.Close() })
 			ctx := t.Context()
 			state := sqlite.NewRunStore(db)
-			ints := sqlite.NewInterruptStore(db)
+			ints := persistence.NewInterruptStore(sqlite.NewInterruptStore(db))
 			createdAt := time.Now().UTC()
-			if err := state.Admit(ctx, execution.RunDraft{
+			if err := state.Admit(ctx, run.RunDraft{
 				RunID: "run_root", SessionID: "session_1", SegmentID: "segment_root", CreatedAt: createdAt,
 			}); err != nil {
 				t.Fatalf("admit root: %v", err)
 			}
-			lineage := execution.RunLineage{
+			lineage := run.RunLineage{
 				SpawnedByItemID: "item_spawn_child",
 				ParentRunID:     "run_root",
 				RootRunID:       "run_root",
 			}
-			if err := state.Admit(ctx, execution.RunDraft{
+			if err := state.Admit(ctx, run.RunDraft{
 				RunID: "run_child", SessionID: "session_1", SegmentID: "segment_child",
 				SpawnedByItemID: lineage.SpawnedByItemID,
 				ParentRunID:     lineage.ParentRunID,
@@ -200,7 +201,7 @@ func TestCommitOpeningResumesRunTreeAtomically(t *testing.T) {
 			}); err != nil {
 				t.Fatalf("admit child: %v", err)
 			}
-			childRun := interruptedTreeRun(
+			childRun := waitingTreeRun(
 				"run_child",
 				"session_1",
 				lineage,
@@ -211,10 +212,10 @@ func TestCommitOpeningResumesRunTreeAtomically(t *testing.T) {
 				t.Fatalf("suspend child: %v", err)
 			}
 			if test.suspendRoot {
-				rootRun := interruptedTreeRun(
+				rootRun := waitingTreeRun(
 					"run_root",
 					"session_1",
-					execution.RunLineage{},
+					run.RunLineage{},
 					createdAt,
 					nil,
 				)
@@ -222,21 +223,21 @@ func TestCommitOpeningResumesRunTreeAtomically(t *testing.T) {
 					t.Fatalf("suspend root: %v", err)
 				}
 			}
-			pending := interrupts.Pending{
+			pending := runs.Pending{
 				RootRunID:  "run_root",
 				SessionID:  "session_1",
 				ExecutorID: "turn_1",
-				Capabilities: execution.RunCapabilities{
+				Capabilities: run.RunCapabilities{
 					ChildRuns:      true,
-					InterruptKinds: []execution.InterruptKind{execution.QuestionInterrupt},
+					InterruptKinds: []interrupt.Kind{interrupt.Question},
 				},
 				Interrupts: childRun.Interrupts,
-				Suspensions: []interrupts.SuspensionBinding{{
+				Suspensions: []runs.SuspensionBinding{{
 					InterruptItemID: "item_child",
 					ProcessID:       "process_child",
 					SuspensionID:    "suspension_child",
 				}},
-				Continuations: []interrupts.Continuation{
+				Continuations: []runs.Continuation{
 					{
 						RunID:        "run_child",
 						ProcessID:    "process_child",
@@ -260,11 +261,11 @@ func TestCommitOpeningResumesRunTreeAtomically(t *testing.T) {
 					return sqlite.RunInTx(ctx, db, fn)
 				},
 			})
-			resume := execution.TreeResumeDraft{
+			resume := run.TreeResumeDraft{
 				RootRunID: "run_root",
 				SessionID: "session_1",
 				ResumedAt: time.Now().UTC(),
-				Runs: []execution.RunResumeDraft{
+				Runs: []run.RunResumeDraft{
 					{RunID: "run_child", SegmentID: "segment_child_resumed"},
 					{RunID: "run_root", SegmentID: "segment_root_resumed"},
 				},
@@ -272,9 +273,9 @@ func TestCommitOpeningResumesRunTreeAtomically(t *testing.T) {
 			err = effects.CommitOpening(ctx, runs.OpeningCommit{Resume: &resume})
 			if test.wantError {
 				if err == nil {
-					t.Fatal("CommitOpening succeeded with a root Run that was not interrupted")
+					t.Fatal("CommitOpening succeeded with a root Run that was not waiting")
 				}
-				assertStoredRunState(t, db, "run_child", "interrupted")
+				assertStoredRunState(t, db, "run_child", "waiting")
 				assertStoredRunState(t, db, "run_root", "running")
 				if _, found, getErr := ints.Get(ctx, "run_root"); getErr != nil || !found {
 					t.Fatalf("pending after rollback found=%v err=%v, want open", found, getErr)
@@ -296,7 +297,7 @@ func TestCommitOpeningResumesRunTreeAtomically(t *testing.T) {
 func treeQuestion(itemID, runID string) transcript.Interrupt {
 	return transcript.Interrupt{
 		ItemID: itemID, ItemOccurredAt: time.Unix(1, 0).UTC(),
-		RunID: runID, Kind: execution.QuestionInterrupt,
+		RunID: runID, Kind: interrupt.Question,
 		Question: &transcript.Question{
 			Fields: []transcript.QuestionField{{
 				Prompt: "Continue?", Kind: transcript.QuestionText,
@@ -305,10 +306,10 @@ func treeQuestion(itemID, runID string) transcript.Interrupt {
 	}
 }
 
-func interruptedTreeRun(
+func waitingTreeRun(
 	runID string,
 	sessionID string,
-	lineage execution.RunLineage,
+	lineage run.RunLineage,
 	createdAt time.Time,
 	open []transcript.Interrupt,
 ) transcript.Run {
@@ -318,7 +319,7 @@ func interruptedTreeRun(
 		SpawnedByItemID: lineage.SpawnedByItemID,
 		ParentRunID:     lineage.ParentRunID,
 		RootRunID:       lineage.RootRunID,
-		State:           execution.Interrupted,
+		State:           run.Waiting,
 		Interrupts:      open,
 		CreatedAt:       createdAt,
 		MessageMark:     transcript.UnknownMessageMark,
@@ -357,7 +358,7 @@ func TestCommitOpeningRollsBackScheduledSession(t *testing.T) {
 		Tx:              func(ctx context.Context, fn func(context.Context) error) error { return sqlite.RunInTx(ctx, db, fn) },
 	})
 	created := time.Now().UTC()
-	draft := execution.RunDraft{RunID: "run_scheduled", SessionID: "ses_scheduled", SegmentID: "seg_open", CreatedAt: created}
+	draft := run.RunDraft{RunID: "run_scheduled", SessionID: "ses_scheduled", SegmentID: "seg_open", CreatedAt: created}
 	scheduled := session.Session{ID: draft.SessionID, Title: "scheduled", CWD: "/work", StartedAt: created, UpdatedAt: created, Revision: 1}
 	err = effects.CommitOpening(ctx, runs.OpeningCommit{
 		Admit:            &draft,
@@ -406,7 +407,7 @@ func TestCommitEventRecordsGoalRunWithTerminalRun(t *testing.T) {
 		t.Fatalf("seed goal saved=%v err=%v", saved, err)
 	}
 	state := sqlite.NewRunStore(db)
-	draft := execution.RunDraft{
+	draft := run.RunDraft{
 		RunID: "run_goal", SessionID: g.SessionID, SegmentID: "seg_open",
 		GoalLeaseID: g.LeaseID, CreatedAt: created,
 	}
@@ -420,7 +421,7 @@ func TestCommitEventRecordsGoalRunWithTerminalRun(t *testing.T) {
 		Tx:       func(ctx context.Context, fn func(context.Context) error) error { return sqlite.RunInTx(ctx, db, fn) },
 	})
 	// The watermark is already resolved, so this commit needs no message store.
-	finished := finishedRunRecord(draft.RunID, draft.SessionID, execution.OutcomeCompleted)
+	finished := finishedRunRecord(draft.RunID, draft.SessionID, run.OutcomeCompleted)
 	finished.GoalLeaseID = g.LeaseID
 	costUSD := 0.25
 	finished.Metrics = transcript.RunMetrics{
@@ -430,11 +431,11 @@ func TestCommitEventRecordsGoalRunWithTerminalRun(t *testing.T) {
 	finished.MessageMark = 0
 	if err := effects.CommitEvent(ctx, runs.EventCommit{
 		RunID: draft.RunID, SessionID: draft.SessionID, State: runs.StateTerminalize,
-		Outcome: execution.OutcomeCompleted,
+		Outcome: run.OutcomeCompleted,
 		Run:     finished,
 		GoalRun: &goal.RunRecord{
 			SessionID: g.SessionID, LeaseID: g.LeaseID, RunID: draft.RunID,
-			Outcome: execution.OutcomeCompleted, CostUSD: costUSD, Steps: 2, CompletedAt: finished.FinishedAt,
+			Outcome: run.OutcomeCompleted, CostUSD: costUSD, Steps: 2, CompletedAt: finished.FinishedAt,
 		},
 	}); err != nil {
 		t.Fatalf("CommitEvent: %v", err)
@@ -462,17 +463,17 @@ func TestCommitTreeBarrierProducesDurableTriplet(t *testing.T) {
 		t.Fatalf("open: %v", err)
 	}
 	t.Cleanup(func() { _ = db.Close() })
-	ints := sqlite.NewInterruptStore(db)
+	ints := persistence.NewInterruptStore(sqlite.NewInterruptStore(db))
 	history := sqlite.NewTranscriptStore(db)
 	state := sqlite.NewRunStore(db)
 	ctx := t.Context()
 	createdAt := time.Unix(1, 0).UTC()
 	parkedAt := time.Unix(2, 0).UTC()
-	if err := state.Admit(ctx, execution.RunDraft{
+	if err := state.Admit(ctx, run.RunDraft{
 		RunID: "run_1", SessionID: "ses_1", SegmentID: "seg_open",
 		ModelSelection: mustEffectSelection(t, "anthropic", "claude"),
-		Capabilities: execution.RunCapabilities{
-			InterruptKinds: []execution.InterruptKind{execution.QuestionInterrupt},
+		Capabilities: run.RunCapabilities{
+			InterruptKinds: []interrupt.Kind{interrupt.Question},
 		},
 		CreatedAt: createdAt,
 	}); err != nil {
@@ -483,10 +484,10 @@ func TestCommitTreeBarrierProducesDurableTriplet(t *testing.T) {
 		RootID:    snapshot.ID,
 		Snapshots: []core.ProcessSnapshot{snapshot},
 	}
-	checkpointStore := sqlite.NewExecutorCheckpointStore(db)
-	checkpoint := executorCheckpoint(t, tree, execution.ExecutorCheckpoint{
+	checkpointStore := persistence.NewExecutorCheckpointStore(sqlite.NewExecutorCheckpointStore(db))
+	checkpoint := executorCheckpoint(t, tree, runs.ExecutorCheckpoint{
 		BuildID:        checkpointBuildID,
-		Scope:          execution.ExecutionScope{SessionID: "ses_1"},
+		Scope:          runs.ExecutionScope{SessionID: "ses_1"},
 		ModelSelection: mustEffectSelection(t, "anthropic", "claude"),
 		Usage:          accounting.Snapshot{},
 	})
@@ -494,7 +495,7 @@ func TestCommitTreeBarrierProducesDurableTriplet(t *testing.T) {
 	open := []transcript.Interrupt{{
 		ItemID:   "item_question",
 		RunID:    "run_1",
-		Kind:     execution.QuestionInterrupt,
+		Kind:     interrupt.Question,
 		Question: question,
 	}}
 	effects := sqliteEffects(sqliteOpeningStores{interrupts: ints, transcript: history}, Config{
@@ -518,7 +519,7 @@ func TestCommitTreeBarrierProducesDurableTriplet(t *testing.T) {
 				Question: question, OccurredAt: parkedAt,
 			}},
 			Run: &transcript.Run{
-				SessionID: "ses_1", ID: "run_1", State: execution.Interrupted,
+				SessionID: "ses_1", ID: "run_1", State: run.Waiting,
 				ModelSelection: pending.Continuations[0].ModelSelection,
 				Capabilities:   pending.Capabilities,
 				Interrupts:     open, CreatedAt: createdAt, UpdatedAt: parkedAt, MessageMark: -1,
@@ -531,7 +532,7 @@ func TestCommitTreeBarrierProducesDurableTriplet(t *testing.T) {
 	if stored, err := checkpointStore.LoadCheckpoint(ctx, snapshot.ID); err != nil || stored.RootProcessID != snapshot.ID {
 		t.Fatalf("stored executor checkpoint = (%+v, %v)", stored, err)
 	}
-	if err := state.Admit(ctx, execution.RunDraft{RunID: "run_next", SessionID: "ses_1", SegmentID: "seg_open", CreatedAt: parkedAt}); !errors.Is(err, execution.ErrSessionBusy) {
+	if err := state.Admit(ctx, run.RunDraft{RunID: "run_next", SessionID: "ses_1", SegmentID: "seg_open", CreatedAt: parkedAt}); !errors.Is(err, run.ErrSessionBusy) {
 		t.Fatalf("admit after intact park = %v, want ErrSessionBusy", err)
 	}
 }
@@ -547,16 +548,16 @@ func TestCommitTreeBarrierRollsBackCheckpointWhenRunSuspendFails(t *testing.T) {
 	createdAt := time.Unix(1, 0).UTC()
 	parkedAt := time.Unix(2, 0).UTC()
 	snapshot := waitingProcessSnapshot("proc_rollback", createdAt, parkedAt)
-	checkpointStore := sqlite.NewExecutorCheckpointStore(db)
+	checkpointStore := persistence.NewExecutorCheckpointStore(sqlite.NewExecutorCheckpointStore(db))
 	checkpoint := executorCheckpoint(t, core.ProcessSnapshotTree{
 		RootID: snapshot.ID, Snapshots: []core.ProcessSnapshot{snapshot},
-	}, execution.ExecutorCheckpoint{
+	}, runs.ExecutorCheckpoint{
 		BuildID:        checkpointBuildID,
-		Scope:          execution.ExecutionScope{SessionID: "ses_rollback"},
+		Scope:          runs.ExecutionScope{SessionID: "ses_rollback"},
 		ModelSelection: mustEffectSelection(t, "anthropic", "claude"),
 		Usage:          accounting.Snapshot{},
 	})
-	interruptStore := sqlite.NewInterruptStore(db)
+	interruptStore := persistence.NewInterruptStore(sqlite.NewInterruptStore(db))
 	effects := sqliteEffects(sqliteOpeningStores{
 		interrupts: interruptStore,
 		transcript: sqlite.NewTranscriptStore(db),
@@ -584,7 +585,7 @@ func TestCommitTreeBarrierRollsBackCheckpointWhenRunSuspendFails(t *testing.T) {
 	if err == nil {
 		t.Fatal("CommitTreeBarrier succeeded without an admitted Run")
 	}
-	if _, loadErr := checkpointStore.LoadCheckpoint(ctx, snapshot.ID); !errors.Is(loadErr, execution.ErrExecutorCheckpointNotFound) {
+	if _, loadErr := checkpointStore.LoadCheckpoint(ctx, snapshot.ID); !errors.Is(loadErr, runs.ErrExecutorCheckpointNotFound) {
 		t.Fatalf("checkpoint survived failed tree barrier: %v", loadErr)
 	}
 	if _, found, getErr := interruptStore.Get(ctx, pending.RootRunID); getErr != nil || found {
@@ -609,19 +610,19 @@ func TestCommitTerminalOwnsExecutorCheckpointDeletion(t *testing.T) {
 			ctx := t.Context()
 			createdAt := time.Unix(1, 0).UTC()
 			runStore := sqlite.NewRunStore(db)
-			if err := runStore.Admit(ctx, execution.RunDraft{
+			if err := runStore.Admit(ctx, run.RunDraft{
 				RunID: "run_terminal", SessionID: "ses_terminal", SegmentID: "seg_terminal",
 				CreatedAt: createdAt,
 			}); err != nil {
 				t.Fatalf("admit: %v", err)
 			}
-			checkpointStore := sqlite.NewExecutorCheckpointStore(db)
+			checkpointStore := persistence.NewExecutorCheckpointStore(sqlite.NewExecutorCheckpointStore(db))
 			snapshot := waitingProcessSnapshot("proc_terminal", createdAt, createdAt.Add(time.Second))
 			if err := checkpointStore.SaveCheckpoint(ctx, executorCheckpoint(t, core.ProcessSnapshotTree{
 				RootID: snapshot.ID, Snapshots: []core.ProcessSnapshot{snapshot},
-			}, execution.ExecutorCheckpoint{
+			}, runs.ExecutorCheckpoint{
 				BuildID: checkpointBuildID,
-				Scope:   execution.ExecutionScope{SessionID: "ses_terminal"},
+				Scope:   runs.ExecutionScope{SessionID: "ses_terminal"},
 				Usage:   accounting.Snapshot{},
 			})); err != nil {
 				t.Fatalf("seed checkpoint: %v", err)
@@ -641,18 +642,18 @@ func TestCommitTerminalOwnsExecutorCheckpointDeletion(t *testing.T) {
 					return sqlite.RunInTx(ctx, db, fn)
 				},
 			})
-			finished := finishedRunRecord("run_terminal", "ses_terminal", execution.OutcomeCompleted)
+			finished := finishedRunRecord("run_terminal", "ses_terminal", run.OutcomeCompleted)
 			finished.MessageMark = 0
 			err = effects.CommitEvent(ctx, runs.EventCommit{
 				RunID: "run_terminal", SessionID: "ses_terminal", State: runs.StateTerminalize,
-				Outcome: execution.OutcomeCompleted, Run: finished, ObsoleteCheckpointRootID: snapshot.ID,
+				Outcome: run.OutcomeCompleted, Run: finished, ObsoleteCheckpointRootID: snapshot.ID,
 			})
 			if test.deleteFail {
 				if err == nil {
 					t.Fatal("terminal commit succeeded after checkpoint deletion failed")
 				}
 				runsAfter, listErr := runStore.ListRuns(ctx, "ses_terminal")
-				if listErr != nil || len(runsAfter) != 1 || runsAfter[0].State != execution.Running {
+				if listErr != nil || len(runsAfter) != 1 || runsAfter[0].State != run.Running {
 					t.Fatalf("Run after rollback = %+v, %v; want running", runsAfter, listErr)
 				}
 				if _, loadErr := checkpointStore.LoadCheckpoint(ctx, snapshot.ID); loadErr != nil {
@@ -663,7 +664,7 @@ func TestCommitTerminalOwnsExecutorCheckpointDeletion(t *testing.T) {
 			if err != nil {
 				t.Fatalf("CommitEvent: %v", err)
 			}
-			if _, loadErr := checkpointStore.LoadCheckpoint(ctx, snapshot.ID); !errors.Is(loadErr, execution.ErrExecutorCheckpointNotFound) {
+			if _, loadErr := checkpointStore.LoadCheckpoint(ctx, snapshot.ID); !errors.Is(loadErr, runs.ErrExecutorCheckpointNotFound) {
 				t.Fatalf("terminal checkpoint survived: %v", loadErr)
 			}
 		})
@@ -689,9 +690,9 @@ func TestCommitWaitingSubtreeCancellationCommitsCompleteWriteSet(t *testing.T) {
 		t.Fatalf("CommitWaitingSubtreeCancellation: %v", err)
 	}
 	if result.TargetRun.ID != fixture.childRun.ID ||
-		result.TargetRun.State != execution.Canceled ||
+		result.TargetRun.State != run.Canceled ||
 		result.RootRun.ID != fixture.rootRun.ID ||
-		result.RootRun.State != execution.Running ||
+		result.RootRun.State != run.Running ||
 		result.RootRun.ActiveSegmentID != "segment_root_resumed" {
 		t.Fatalf("result = %+v, want exact canceled child and resumed root", result)
 	}
@@ -753,9 +754,9 @@ func TestCommitWaitingSubtreeCancellationRollsBackCheckpointAndApplicationFacts(
 	if err != nil || !found || storedItem.Error != nil {
 		t.Fatalf("parent Item after rollback found=%t item=%+v err=%v", found, storedItem, err)
 	}
-	assertStoredRunState(t, fixture.db, fixture.childRun.ID, "interrupted")
-	assertStoredRunState(t, fixture.db, fixture.grandchildRun.ID, "interrupted")
-	assertStoredRunState(t, fixture.db, fixture.rootRun.ID, "interrupted")
+	assertStoredRunState(t, fixture.db, fixture.childRun.ID, "waiting")
+	assertStoredRunState(t, fixture.db, fixture.grandchildRun.ID, "waiting")
+	assertStoredRunState(t, fixture.db, fixture.rootRun.ID, "waiting")
 	checkpoint, err := fixture.checkpoints.LoadCheckpoint(fixture.ctx, "process_root")
 	if err != nil {
 		t.Fatalf("load rolled-back process tree: %v", err)
@@ -775,9 +776,9 @@ type waitingCancellationSQLiteFixture struct {
 	ctx                   context.Context
 	db                    *sql.DB
 	effects               *Effects
-	interrupts            *sqlite.InterruptStore
+	interrupts            *persistence.InterruptStore
 	transcript            *sqlite.TranscriptStore
-	checkpoints           *sqlite.ExecutorCheckpointStore
+	checkpoints           *persistence.ExecutorCheckpointStore
 	runState              *sqlite.RunStore
 	rootRun               transcript.Run
 	childRun              transcript.Run
@@ -785,9 +786,9 @@ type waitingCancellationSQLiteFixture struct {
 	parentItem            transcript.Item
 	originalItems         []transcript.Item
 	originalTree          core.ProcessSnapshotTree
-	originalCheckpoint    execution.ExecutorCheckpoint
+	originalCheckpoint    runs.ExecutorCheckpoint
 	replacementTree       core.ProcessSnapshotTree
-	replacementCheckpoint execution.ExecutorCheckpoint
+	replacementCheckpoint runs.ExecutorCheckpoint
 	commit                runs.WaitingSubtreeCancellationCommit
 }
 
@@ -818,28 +819,28 @@ func newWaitingCancellationSQLiteFixtureAt(
 	ctx := t.Context()
 	createdAt := time.Date(2026, 7, 30, 1, 2, 3, 0, time.UTC)
 	finishedAt := createdAt.Add(time.Minute)
-	rootLineage := execution.RunLineage{}
-	childLineage := execution.RunLineage{
+	rootLineage := run.RunLineage{}
+	childLineage := run.RunLineage{
 		SpawnedByItemID: "item_spawn_child",
 		ParentRunID:     "run_root",
 		RootRunID:       "run_root",
 	}
-	grandchildLineage := execution.RunLineage{
+	grandchildLineage := run.RunLineage{
 		SpawnedByItemID: "item_spawn_grandchild",
 		ParentRunID:     "run_child",
 		RootRunID:       "run_root",
 	}
-	siblingLineage := execution.RunLineage{
+	siblingLineage := run.RunLineage{
 		SpawnedByItemID: "item_spawn_sibling",
 		ParentRunID:     "run_root",
 		RootRunID:       "run_root",
 	}
 	state := sqlite.NewRunStore(db)
-	capabilities := execution.RunCapabilities{
+	capabilities := run.RunCapabilities{
 		ChildRuns:      true,
-		InterruptKinds: []execution.InterruptKind{execution.QuestionInterrupt},
+		InterruptKinds: []interrupt.Kind{interrupt.Question},
 	}
-	if err := state.Admit(ctx, execution.RunDraft{
+	if err := state.Admit(ctx, run.RunDraft{
 		RunID: "run_root", SessionID: "session_1", SegmentID: "segment_root",
 		Capabilities: capabilities,
 		CreatedAt:    createdAt,
@@ -860,7 +861,7 @@ func newWaitingCancellationSQLiteFixtureAt(
 	if err := transcriptStore.AppendItem(ctx, parentItem); err != nil {
 		t.Fatalf("seed spawning Item: %v", err)
 	}
-	if err := state.Admit(ctx, execution.RunDraft{
+	if err := state.Admit(ctx, run.RunDraft{
 		RunID:           "run_child",
 		SessionID:       "session_1",
 		SegmentID:       "segment_child",
@@ -871,7 +872,7 @@ func newWaitingCancellationSQLiteFixtureAt(
 	}); err != nil {
 		t.Fatalf("admit child: %v", err)
 	}
-	if err := state.Admit(ctx, execution.RunDraft{
+	if err := state.Admit(ctx, run.RunDraft{
 		RunID:           "run_grandchild",
 		SessionID:       "session_1",
 		SegmentID:       "segment_grandchild",
@@ -883,7 +884,7 @@ func newWaitingCancellationSQLiteFixtureAt(
 		t.Fatalf("admit grandchild: %v", err)
 	}
 	if survivingBoundary {
-		if err := state.Admit(ctx, execution.RunDraft{
+		if err := state.Admit(ctx, run.RunDraft{
 			RunID:           "run_sibling",
 			SessionID:       "session_1",
 			SegmentID:       "segment_sibling",
@@ -896,7 +897,7 @@ func newWaitingCancellationSQLiteFixtureAt(
 		}
 	}
 	grandchildQuestion := treeQuestion("item_grandchild_question", "run_grandchild")
-	grandchildRun := interruptedTreeRun(
+	grandchildRun := waitingTreeRun(
 		"run_grandchild",
 		"session_1",
 		grandchildLineage,
@@ -906,7 +907,7 @@ func newWaitingCancellationSQLiteFixtureAt(
 	grandchildRun.Capabilities = capabilities
 	grandchildRun.UpdatedAt = finishedAt
 	childQuestion := treeQuestion("item_child_question", "run_child")
-	childRun := interruptedTreeRun(
+	childRun := waitingTreeRun(
 		"run_child",
 		"session_1",
 		childLineage,
@@ -918,7 +919,7 @@ func newWaitingCancellationSQLiteFixtureAt(
 	var siblingRun transcript.Run
 	if survivingBoundary {
 		siblingQuestion := treeQuestion("item_sibling_question", "run_sibling")
-		siblingRun = interruptedTreeRun(
+		siblingRun = waitingTreeRun(
 			"run_sibling",
 			"session_1",
 			siblingLineage,
@@ -928,7 +929,7 @@ func newWaitingCancellationSQLiteFixtureAt(
 		siblingRun.Capabilities = capabilities
 		siblingRun.UpdatedAt = finishedAt
 	}
-	rootRun := interruptedTreeRun(
+	rootRun := waitingTreeRun(
 		"run_root",
 		"session_1",
 		rootLineage,
@@ -993,7 +994,7 @@ func newWaitingCancellationSQLiteFixtureAt(
 	}
 
 	pendingInterrupts := []transcript.Interrupt{grandchildQuestion, childQuestion}
-	pendingSuspensions := []interrupts.SuspensionBinding{
+	pendingSuspensions := []runs.SuspensionBinding{
 		{
 			InterruptItemID: grandchildQuestion.ItemID,
 			ProcessID:       "process_grandchild",
@@ -1005,7 +1006,7 @@ func newWaitingCancellationSQLiteFixtureAt(
 			SuspensionID:    "suspension-process_child",
 		},
 	}
-	pendingContinuations := []interrupts.Continuation{
+	pendingContinuations := []runs.Continuation{
 		{
 			RunID:        grandchildRun.ID,
 			ProcessID:    "process_grandchild",
@@ -1022,28 +1023,28 @@ func newWaitingCancellationSQLiteFixtureAt(
 	if survivingBoundary {
 		siblingQuestion := siblingRun.Interrupts[0]
 		pendingInterrupts = append(pendingInterrupts, siblingQuestion)
-		pendingSuspensions = append(pendingSuspensions, interrupts.SuspensionBinding{
+		pendingSuspensions = append(pendingSuspensions, runs.SuspensionBinding{
 			InterruptItemID: siblingQuestion.ItemID,
 			ProcessID:       "process_sibling",
 			SuspensionID:    "suspension-process_sibling",
 		})
-		pendingContinuations = append(pendingContinuations, interrupts.Continuation{
+		pendingContinuations = append(pendingContinuations, runs.Continuation{
 			RunID:        siblingRun.ID,
 			ProcessID:    "process_sibling",
 			Lineage:      siblingLineage,
 			RunCreatedAt: createdAt,
 		})
 	}
-	pendingContinuations = append(pendingContinuations, interrupts.Continuation{
+	pendingContinuations = append(pendingContinuations, runs.Continuation{
 		RunID:        rootRun.ID,
 		ProcessID:    "process_root",
 		RunCreatedAt: createdAt,
-		DrainedTools: []interrupts.DrainedTool{{
+		DrainedTools: []runs.DrainedTool{{
 			ItemID: parentItem.ID, ItemOccurredAt: parentItem.OccurredAt,
 			CallID: "call_child", Name: "delegate_task", Arguments: "{}",
 		}},
 	})
-	pending := interrupts.Pending{
+	pending := runs.Pending{
 		RootRunID:     rootRun.ID,
 		SessionID:     rootRun.SessionID,
 		ExecutorID:    "turn_1",
@@ -1056,12 +1057,12 @@ func newWaitingCancellationSQLiteFixtureAt(
 	if err := pending.Validate(); err != nil {
 		t.Fatalf("pending fixture: %v", err)
 	}
-	interruptStore := sqlite.NewInterruptStore(db)
+	interruptStore := persistence.NewInterruptStore(sqlite.NewInterruptStore(db))
 	if err := interruptStore.Open(ctx, pending); err != nil {
 		t.Fatalf("seed Pending: %v", err)
 	}
 
-	checkpointStore := sqlite.NewExecutorCheckpointStore(db)
+	checkpointStore := persistence.NewExecutorCheckpointStore(sqlite.NewExecutorCheckpointStore(db))
 	originalRoot := waitingProcessSnapshot("process_root", createdAt, finishedAt)
 	originalRoot.Suspension.Prompt = json.RawMessage(`"before-cancel"`)
 	originalChild := waitingProcessSnapshot("process_child", createdAt, finishedAt)
@@ -1083,9 +1084,9 @@ func newWaitingCancellationSQLiteFixtureAt(
 		RootID:    originalRoot.ID,
 		Snapshots: originalSnapshots,
 	}
-	originalCheckpoint := executorCheckpoint(t, originalTree, execution.ExecutorCheckpoint{
+	originalCheckpoint := executorCheckpoint(t, originalTree, runs.ExecutorCheckpoint{
 		BuildID: "original-build",
-		Scope:   execution.ExecutionScope{SessionID: rootRun.SessionID},
+		Scope:   runs.ExecutionScope{SessionID: rootRun.SessionID},
 		Usage: accounting.Snapshot{Models: []accounting.ModelUsage{{
 			Model:      "test-model",
 			TokenUsage: accounting.TokenUsage{PromptTokens: 3, CompletionTokens: 2},
@@ -1109,9 +1110,9 @@ func newWaitingCancellationSQLiteFixtureAt(
 		Snapshots: replacementSnapshots,
 	}
 
-	outcome := execution.OutcomeCanceled
+	outcome := run.OutcomeCanceled
 	terminalChild := childRun
-	terminalChild.State = execution.Canceled
+	terminalChild.State = run.Canceled
 	terminalChild.Outcome = &outcome
 	terminalChild.Detail = "stop delegated branch"
 	terminalChild.Interrupts = nil
@@ -1119,7 +1120,7 @@ func newWaitingCancellationSQLiteFixtureAt(
 	terminalChild.UpdatedAt = finishedAt
 	terminalChild.MessageMark = 0
 	terminalGrandchild := grandchildRun
-	terminalGrandchild.State = execution.Canceled
+	terminalGrandchild.State = run.Canceled
 	terminalGrandchild.Outcome = &outcome
 	terminalGrandchild.Detail = terminalChild.Detail
 	terminalGrandchild.Interrupts = nil
@@ -1143,8 +1144,8 @@ func newWaitingCancellationSQLiteFixtureAt(
 		})
 	}
 	var (
-		remainingPending *interrupts.Pending
-		resume           *execution.TreeResumeDraft
+		remainingPending *runs.Pending
+		resume           *run.TreeResumeDraft
 	)
 	if survivingBoundary {
 		reduced := pending
@@ -1152,14 +1153,14 @@ func newWaitingCancellationSQLiteFixtureAt(
 		reduced.Suspensions = slices.Clone(pending.Suspensions[2:])
 		rootContinuation := pending.Continuations[len(pending.Continuations)-1]
 		rootContinuation.DrainedTools = nil
-		rootContinuation.CommittedTools = []interrupts.CommittedTool{{
+		rootContinuation.CommittedTools = []runs.CommittedTool{{
 			ItemID:    parentItem.ID,
 			CallID:    "call_child",
 			Name:      "delegate_task",
 			Arguments: "{}",
 			Problem:   problem,
 		}}
-		reduced.Continuations = []interrupts.Continuation{
+		reduced.Continuations = []runs.Continuation{
 			pending.Continuations[2],
 			rootContinuation,
 		}
@@ -1168,18 +1169,18 @@ func newWaitingCancellationSQLiteFixtureAt(
 		}
 		remainingPending = &reduced
 	} else {
-		resume = &execution.TreeResumeDraft{
+		resume = &run.TreeResumeDraft{
 			RootRunID: rootRun.ID,
 			SessionID: rootRun.SessionID,
 			ResumedAt: finishedAt,
-			Runs: []execution.RunResumeDraft{{
+			Runs: []run.RunResumeDraft{{
 				RunID: rootRun.ID, SegmentID: "segment_root_resumed",
 			}},
 		}
 	}
-	replacementCheckpoint := executorCheckpoint(t, replacementTree, execution.ExecutorCheckpoint{
+	replacementCheckpoint := executorCheckpoint(t, replacementTree, runs.ExecutorCheckpoint{
 		BuildID: "original-build",
-		Scope:   execution.ExecutionScope{SessionID: rootRun.SessionID},
+		Scope:   runs.ExecutionScope{SessionID: rootRun.SessionID},
 		Usage: accounting.Snapshot{Models: []accounting.ModelUsage{{
 			Model:      "test-model",
 			TokenUsage: accounting.TokenUsage{PromptTokens: 8, CompletionTokens: 5},
@@ -1248,8 +1249,8 @@ func processSnapshotByID(
 func executorCheckpoint(
 	t *testing.T,
 	tree core.ProcessSnapshotTree,
-	checkpoint execution.ExecutorCheckpoint,
-) execution.ExecutorCheckpoint {
+	checkpoint runs.ExecutorCheckpoint,
+) runs.ExecutorCheckpoint {
 	t.Helper()
 	payload, err := json.Marshal(tree)
 	if err != nil {
@@ -1263,7 +1264,7 @@ func executorCheckpoint(
 	return checkpoint
 }
 
-func restoredProcessTree(t *testing.T, checkpoint execution.ExecutorCheckpoint) core.ProcessSnapshotTree {
+func restoredProcessTree(t *testing.T, checkpoint runs.ExecutorCheckpoint) core.ProcessSnapshotTree {
 	t.Helper()
 	var tree core.ProcessSnapshotTree
 	if err := json.Unmarshal(checkpoint.Payload, &tree); err != nil {
@@ -1276,7 +1277,7 @@ func restoredProcessTree(t *testing.T, checkpoint execution.ExecutorCheckpoint) 
 }
 
 type sqliteOpeningStores struct {
-	interrupts *sqlite.InterruptStore
+	interrupts *persistence.InterruptStore
 	transcript *sqlite.TranscriptStore
 }
 
@@ -1304,7 +1305,7 @@ func TestCommitOpeningRefusesASecondOpenRun(t *testing.T) {
 	created := time.Now().UTC()
 	history := sqlite.NewTranscriptStore(db)
 	state := sqlite.NewRunStore(db)
-	if err := state.Admit(ctx, execution.RunDraft{RunID: "run_1", SessionID: "ses_1", SegmentID: "seg_open", CreatedAt: created}); err != nil {
+	if err := state.Admit(ctx, run.RunDraft{RunID: "run_1", SessionID: "ses_1", SegmentID: "seg_open", CreatedAt: created}); err != nil {
 		t.Fatalf("admit the first run: %v", err)
 	}
 
@@ -1312,7 +1313,7 @@ func TestCommitOpeningRefusesASecondOpenRun(t *testing.T) {
 		RunState: state,
 		Tx:       func(ctx context.Context, fn func(context.Context) error) error { return sqlite.RunInTx(ctx, db, fn) },
 	})
-	second := execution.RunDraft{RunID: "run_2", SessionID: "ses_1", SegmentID: "seg_open", CreatedAt: created}
+	second := run.RunDraft{RunID: "run_2", SessionID: "ses_1", SegmentID: "seg_open", CreatedAt: created}
 	err = effects.CommitOpening(ctx, runs.OpeningCommit{
 		Admit: &second,
 		Events: []runs.EventCommit{{
@@ -1325,7 +1326,7 @@ func TestCommitOpeningRefusesASecondOpenRun(t *testing.T) {
 			}},
 		}},
 	})
-	if !errors.Is(err, execution.ErrSessionBusy) {
+	if !errors.Is(err, run.ErrSessionBusy) {
 		t.Fatalf("CommitOpening against a busy session = %v, want ErrSessionBusy", err)
 	}
 	recorded, listErr := history.List(ctx, "ses_1")
@@ -1358,7 +1359,7 @@ func TestCommitEventPersistsTheTerminalRunsResult(t *testing.T) {
 	ctx := t.Context()
 	history := sqlite.NewTranscriptStore(db)
 	state := sqlite.NewRunStore(db)
-	draft := execution.RunDraft{RunID: "run_1", SessionID: "ses_1", SegmentID: "seg_open", CreatedAt: time.Unix(1, 0).UTC()}
+	draft := run.RunDraft{RunID: "run_1", SessionID: "ses_1", SegmentID: "seg_open", CreatedAt: time.Unix(1, 0).UTC()}
 	if err := state.Admit(ctx, draft); err != nil {
 		t.Fatalf("admit: %v", err)
 	}
@@ -1367,14 +1368,14 @@ func TestCommitEventPersistsTheTerminalRunsResult(t *testing.T) {
 		RunState: state,
 		Tx:       func(ctx context.Context, fn func(context.Context) error) error { return sqlite.RunInTx(ctx, db, fn) },
 	})
-	finished := finishedRunRecord(draft.RunID, draft.SessionID, execution.OutcomeError)
+	finished := finishedRunRecord(draft.RunID, draft.SessionID, run.OutcomeFailed)
 	finished.MessageMark = 0
 	finished.Detail = "the provider rejected the request"
 	finished.Metrics = transcript.RunMetrics{Steps: 3}
 	finished.Error = &transcript.Problem{Kind: transcript.ProviderRejectedProblem, Detail: "rejected"}
 	if err := effects.CommitEvent(ctx, runs.EventCommit{
 		RunID: draft.RunID, SessionID: draft.SessionID, State: runs.StateTerminalize,
-		Outcome: execution.OutcomeError, Run: finished,
+		Outcome: run.OutcomeFailed, Run: finished,
 	}); err != nil {
 		t.Fatalf("CommitEvent: %v", err)
 	}
@@ -1383,28 +1384,28 @@ func TestCommitEventPersistsTheTerminalRunsResult(t *testing.T) {
 	if err != nil || len(recorded) != 1 {
 		t.Fatalf("ListRuns = %d runs, %v", len(recorded), err)
 	}
-	run := recorded[0]
+	record := recorded[0]
 	switch {
-	case run.State != execution.Failed:
-		t.Errorf("run state = %v, want Failed", run.State)
-	case run.Outcome == nil || *run.Outcome != execution.OutcomeError:
-		t.Errorf("run outcome = %v, want the outcome it terminated with", run.Outcome)
-	case run.Metrics.Steps != 3:
-		t.Errorf("run metrics = %+v, want the accrual the terminal commit carried", run.Metrics)
-	case run.Detail != "the provider rejected the request":
-		t.Errorf("run detail = %q, want the explanation it ended with", run.Detail)
-	case run.FinishedAt.IsZero():
+	case record.State != run.Failed:
+		t.Errorf("run state = %v, want Failed", record.State)
+	case record.Outcome == nil || *record.Outcome != run.OutcomeFailed:
+		t.Errorf("run outcome = %v, want the outcome it terminated with", record.Outcome)
+	case record.Metrics.Steps != 3:
+		t.Errorf("run metrics = %+v, want the accrual the terminal commit carried", record.Metrics)
+	case record.Detail != "the provider rejected the request":
+		t.Errorf("run detail = %q, want the explanation it ended with", record.Detail)
+	case record.FinishedAt.IsZero():
 		t.Error("terminal run has no finish time")
 	}
 }
 
 // parkedRunRecord is the record a park hands to Suspend: the run moving to
-// Interrupted with the interrupt it is parked on.
+// Waiting with the interrupt it is parked on.
 func parkedRunRecord(runID, sessionID string, createdAt time.Time) transcript.Run {
 	return transcript.Run{
-		SessionID: sessionID, ID: runID, State: execution.Interrupted,
+		SessionID: sessionID, ID: runID, State: run.Waiting,
 		Interrupts: []transcript.Interrupt{{
-			ItemID: "item_" + runID, Kind: execution.QuestionInterrupt,
+			ItemID: "item_" + runID, Kind: interrupt.Question,
 			Question: &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "continue?"}}},
 		}},
 		CreatedAt: createdAt, MessageMark: transcript.UnknownMessageMark,

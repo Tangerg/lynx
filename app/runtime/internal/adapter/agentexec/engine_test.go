@@ -19,8 +19,9 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/executionctx"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 )
 
 // TestEngine_RunChat_ToolCallObserved drives the engine with a stub
@@ -648,12 +649,12 @@ func TestEngine_RunChat_ArtificialStopsPreservePartialText(t *testing.T) {
 	}{
 		{
 			name:       "budget",
-			request:    TurnRequest{Message: "go", Limits: execution.RunLimits{MaxTotalTokens: 10}},
+			request:    TurnRequest{Message: "go", Limits: run.RunLimits{MaxTotalTokens: 10}},
 			wantReason: agent.InteractionStopBudget,
 		},
 		{
 			name:       "steps",
-			request:    TurnRequest{Message: "go", Limits: execution.RunLimits{MaxSteps: 1}},
+			request:    TurnRequest{Message: "go", Limits: run.RunLimits{MaxSteps: 1}},
 			wantReason: agent.InteractionStopModelCalls,
 		},
 	}
@@ -816,7 +817,7 @@ func TestEngine_RestoreChat_PreservesOptionsFromSnapshot(t *testing.T) {
 	temp := 0.42
 	maxTokens := int64(321)
 	observer := &hitlApprovalObserver{}
-	wantScope := execution.ExecutionScope{
+	wantScope := runs.ExecutionScope{
 		SessionID:    "session-restore",
 		CWD:          "/sandbox/restore",
 		WorkspaceCWD: "/workspace/restore",
@@ -825,7 +826,7 @@ func TestEngine_RestoreChat_PreservesOptionsFromSnapshot(t *testing.T) {
 	}
 	wantProvider := "selected-provider"
 	wantSelection := mustTestSelection(t, wantProvider, "selected-model")
-	wantLimits := execution.RunLimits{
+	wantLimits := run.RunLimits{
 		MaxTotalTokens: 10_000,
 		MaxBudgetUSD:   10,
 		MaxSteps:       4,
@@ -976,7 +977,7 @@ func TestEngine_RestoreChat_PreservesOptionsFromSnapshot(t *testing.T) {
 		answers[index] = SuspensionAnswer{
 			ProcessID:    boundary.ProcessID,
 			SuspensionID: boundary.SuspensionID,
-			Resolution:   interrupts.Resolution{Approved: true},
+			Resolution:   interrupt.Resolution{Approved: true},
 		}
 	}
 	if err := restored.Resume(context.Background(), answers); err != nil {

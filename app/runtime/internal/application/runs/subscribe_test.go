@@ -5,8 +5,9 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
 // fakeRunProjection is the durable answer to "what is this run", which is what a
@@ -42,7 +43,7 @@ func (f *fakeRunProjection) RunTree(_ context.Context, runID string) ([]transcri
 	return tree, nil
 }
 
-func runRecord(state execution.RunState, activeSegmentID, spawnedBy string) transcript.Run {
+func runRecord(state run.RunState, activeSegmentID, spawnedBy string) transcript.Run {
 	run := transcript.Run{
 		ID: testRunID, SessionID: "ses_1", State: state,
 		ActiveSegmentID: activeSegmentID, SpawnedByItemID: spawnedBy,
@@ -80,25 +81,25 @@ func TestSubscribeRefusesWithTheReasonTheCallerCanActOn(t *testing.T) {
 		want      error
 	}{
 		"child run": {
-			run: runRecord(execution.Running, testSegmentID, "item_9"), segmentID: testSegmentID,
+			run: runRecord(run.Running, testSegmentID, "item_9"), segmentID: testSegmentID,
 			want: transcript.ErrNotRoot,
 		},
 		"waiting on a person": {
-			run: runRecord(execution.Interrupted, "", ""), segmentID: testSegmentID,
+			run: runRecord(run.Waiting, "", ""), segmentID: testSegmentID,
 			want: ErrRunWaiting,
 		},
 		"already finished": {
-			run: runRecord(execution.Completed, "", ""), segmentID: testSegmentID,
+			run: runRecord(run.Completed, "", ""), segmentID: testSegmentID,
 			want: ErrRunFinished,
 		},
 		"canceled counts as finished": {
-			run: runRecord(execution.Canceled, "", ""), segmentID: testSegmentID,
+			run: runRecord(run.Canceled, "", ""), segmentID: testSegmentID,
 			want: ErrRunFinished,
 		},
 		// The case a resume creates: the run is still running, but not the segment
 		// this caller was watching.
 		"another segment": {
-			run: runRecord(execution.Running, "seg_2", ""), segmentID: testSegmentID,
+			run: runRecord(run.Running, "seg_2", ""), segmentID: testSegmentID,
 			want: ErrStaleSegment,
 		},
 	} {
@@ -131,7 +132,7 @@ func TestSubscribeReportsAnUnknownRunAsNotFound(t *testing.T) {
 }
 
 func TestSubscribeWithoutACursorTailsAndNamesTheHead(t *testing.T) {
-	c, hub := liveCoordinator(t, runRecord(execution.Running, testSegmentID, ""))
+	c, hub := liveCoordinator(t, runRecord(run.Running, testSegmentID, ""))
 	hub.Append(ev(true)) // already published: history, not this subscription's
 
 	attached, err := c.Subscribe(t.Context(), SubscribeRequest{RunID: testRunID, SegmentID: testSegmentID})
@@ -154,7 +155,7 @@ func TestSubscribeWithoutACursorTailsAndNamesTheHead(t *testing.T) {
 // The head cursor of one subscription is a legal cursor for the next: that round
 // trip is the whole reconnect contract.
 func TestSubscribeResumesFromTheHeadItWasHandedEarlier(t *testing.T) {
-	c, hub := liveCoordinator(t, runRecord(execution.Running, testSegmentID, ""))
+	c, hub := liveCoordinator(t, runRecord(run.Running, testSegmentID, ""))
 	hub.Append(ev(true))
 	connection, drop := context.WithCancel(t.Context())
 	first, err := c.Subscribe(connection, SubscribeRequest{RunID: testRunID, SegmentID: testSegmentID})
@@ -180,7 +181,7 @@ func TestSubscribeResumesFromTheHeadItWasHandedEarlier(t *testing.T) {
 // resolved: its sequence would name a real position in this stream, and serving it
 // would hand the client a different execution's events under its own cursor.
 func TestSubscribeRefusesACursorFromAnotherSegment(t *testing.T) {
-	c, hub := liveCoordinator(t, runRecord(execution.Running, testSegmentID, ""))
+	c, hub := liveCoordinator(t, runRecord(run.Running, testSegmentID, ""))
 	hub.Append(ev(true))
 	other := newJournal(streamScope{Epoch: c.epoch, RunID: testRunID, SegmentID: "seg_previous"}, c.retention)
 	other.Append(ev(true))
@@ -199,14 +200,14 @@ func TestSubscribeRefusesACursorFromAnotherSegment(t *testing.T) {
 // durable projection remains readable afterward, which is the cold truth a
 // client combines with a new tail subscription.
 func TestSubscribeRefusesACursorFromAnotherProcess(t *testing.T) {
-	previous, previousHub := liveCoordinator(t, runRecord(execution.Running, testSegmentID, ""))
+	previous, previousHub := liveCoordinator(t, runRecord(run.Running, testSegmentID, ""))
 	previousHub.Append(ev(true))
 	before, err := previous.Subscribe(t.Context(), SubscribeRequest{RunID: testRunID, SegmentID: testSegmentID})
 	if err != nil {
 		t.Fatalf("first Subscribe: %v", err)
 	}
 
-	restarted, hub := liveCoordinator(t, runRecord(execution.Running, testSegmentID, ""))
+	restarted, hub := liveCoordinator(t, runRecord(run.Running, testSegmentID, ""))
 	hub.Append(ev(true))
 	_, err = restarted.Subscribe(t.Context(), SubscribeRequest{
 		RunID: testRunID, SegmentID: testSegmentID, Cursor: before.HeadCursor,
@@ -216,7 +217,7 @@ func TestSubscribeRefusesACursorFromAnotherProcess(t *testing.T) {
 	}
 	cold, found, queryErr := restarted.runs.Run(t.Context(), testRunID)
 	if queryErr != nil || !found ||
-		cold.State != execution.Running ||
+		cold.State != run.Running ||
 		cold.ActiveSegmentID != testSegmentID {
 		t.Fatalf(
 			"durable recovery after unavailable replay = found:%t Run:%+v err:%v",
@@ -231,7 +232,7 @@ func TestSubscribeRefusesACursorFromAnotherProcess(t *testing.T) {
 // settled an orphan as run_lost, lifecycle truth outranks cursor inspection:
 // subscribe returns run_finished and the cold query exposes the terminal reason.
 func TestSubscribeAfterOrphanRecoveryUsesFinishedStateBeforeOldCursor(t *testing.T) {
-	previous, previousHub := liveCoordinator(t, runRecord(execution.Running, testSegmentID, ""))
+	previous, previousHub := liveCoordinator(t, runRecord(run.Running, testSegmentID, ""))
 	previousHub.Append(ev(true))
 	before, err := previous.Subscribe(t.Context(), SubscribeRequest{
 		RunID: testRunID, SegmentID: testSegmentID,
@@ -240,8 +241,8 @@ func TestSubscribeAfterOrphanRecoveryUsesFinishedStateBeforeOldCursor(t *testing
 		t.Fatalf("first Subscribe: %v", err)
 	}
 
-	outcome := execution.OutcomeError
-	recovered := runRecord(execution.Failed, "", "")
+	outcome := run.OutcomeFailed
+	recovered := runRecord(run.Failed, "", "")
 	recovered.Outcome = &outcome
 	recovered.Error = &transcript.Problem{
 		Kind:  transcript.RunLostProblem,
@@ -269,18 +270,18 @@ func TestSubscribeAfterOrphanRecoveryUsesFinishedStateBeforeOldCursor(t *testing
 }
 
 func TestSubscribeRefusesACallerThatCouldNotFollowTheRun(t *testing.T) {
-	run := runRecord(execution.Running, testSegmentID, "")
+	record := runRecord(run.Running, testSegmentID, "")
 	c := NewCoordinator(Dependencies{
-		Runs: &fakeRunProjection{runs: map[string]transcript.Run{testRunID: run}},
+		Runs: &fakeRunProjection{runs: map[string]transcript.Run{testRunID: record}},
 	})
-	capabilities := execution.RunCapabilities{InterruptKinds: []execution.InterruptKind{execution.ApprovalInterrupt}}
+	capabilities := run.RunCapabilities{InterruptKinds: []interrupt.Kind{interrupt.Approval}}
 	hub := newJournal(streamScope{Epoch: c.epoch, RunID: testRunID, SegmentID: testSegmentID}, c.retention)
 	c.registry.Open(Record{
 		ID: testRunID, SegmentID: testSegmentID, SessionID: "ses_1", Capabilities: capabilities,
 	}, &handle{hub: hub})
 
 	_, err := c.Subscribe(t.Context(), SubscribeRequest{RunID: testRunID, SegmentID: testSegmentID})
-	if _, ok := errors.AsType[*execution.InsufficientCapabilities](err); !ok {
+	if _, ok := errors.AsType[*run.InsufficientCapabilities](err); !ok {
 		t.Fatalf("Subscribe err = %v, want InsufficientCapabilities", err)
 	}
 }
@@ -291,7 +292,7 @@ func TestSubscribeRefusesACallerThatCouldNotFollowTheRun(t *testing.T) {
 // refusal would teach the client something untrue about the run.
 func TestSubscribeReportsAMissingLiveStreamAsAnInternalFault(t *testing.T) {
 	c := NewCoordinator(Dependencies{Runs: &fakeRunProjection{
-		runs: map[string]transcript.Run{testRunID: runRecord(execution.Running, testSegmentID, "")},
+		runs: map[string]transcript.Run{testRunID: runRecord(run.Running, testSegmentID, "")},
 	}})
 	_, err := c.Subscribe(t.Context(), SubscribeRequest{RunID: testRunID, SegmentID: testSegmentID})
 	switch {

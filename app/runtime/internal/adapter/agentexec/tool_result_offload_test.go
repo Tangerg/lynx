@@ -7,26 +7,26 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/executionctx"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/toolresult"
 )
 
 const testToolResultReaderName = "read_tool_result"
 
 type fakeOffloader struct {
 	calls     int
-	lastStage offload.ToolResultStage
+	lastStage toolresult.Stage
 	err       error
 }
 
-func (f *fakeOffloader) Stage(_ context.Context, stage offload.ToolResultStage) error {
+func (f *fakeOffloader) Stage(_ context.Context, stage toolresult.Stage) error {
 	f.calls++
 	f.lastStage = stage
 	return f.err
 }
 
 func sessionCtx(session string) context.Context {
-	return executionctx.WithScope(context.Background(), execution.ExecutionScope{SessionID: session})
+	return executionctx.WithScope(context.Background(), runs.ExecutionScope{SessionID: session})
 }
 
 func newObservationWith(store toolResultOffloader, threshold int) *toolObservation {

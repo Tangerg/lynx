@@ -6,9 +6,8 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
 // treeContinuation is the application-private execution hand-off shared by
@@ -22,11 +21,11 @@ type treeContinuation struct {
 	executorID    string
 	goalLeaseID   string
 	interrupts    []transcript.Interrupt
-	continuations []interrupts.Continuation
-	capabilities  execution.RunCapabilities
+	continuations []Continuation
+	capabilities  run.RunCapabilities
 }
 
-func treeContinuationFromPending(pending interrupts.Pending) (*treeContinuation, error) {
+func treeContinuationFromPending(pending Pending) (*treeContinuation, error) {
 	if err := pending.Validate(); err != nil {
 		return nil, err
 	}
@@ -64,7 +63,7 @@ func (continuation *treeContinuation) validate() error {
 
 	runIDs := make(map[string]struct{}, len(continuation.continuations))
 	processOwners := make(map[string]string, len(continuation.continuations))
-	members := make([]execution.RunTreeMember, 0, len(continuation.continuations))
+	members := make([]run.RunTreeMember, 0, len(continuation.continuations))
 	for index, member := range continuation.continuations {
 		if err := member.Validate(); err != nil {
 			return fmt.Errorf("runs: tree continuation Run[%d]: %w", index, err)
@@ -82,12 +81,12 @@ func (continuation *treeContinuation) validate() error {
 		}
 		runIDs[member.RunID] = struct{}{}
 		processOwners[member.ProcessID] = member.RunID
-		members = append(members, execution.RunTreeMember{
+		members = append(members, run.RunTreeMember{
 			RunID:   member.RunID,
 			Lineage: member.Lineage,
 		})
 	}
-	tree, err := execution.NewRunTree(continuation.rootRunID, members)
+	tree, err := run.NewRunTree(continuation.rootRunID, members)
 	if err != nil {
 		return fmt.Errorf("runs: tree continuation topology: %w", err)
 	}
@@ -117,26 +116,26 @@ func (continuation *treeContinuation) validate() error {
 	return nil
 }
 
-func (continuation *treeContinuation) root() (interrupts.Continuation, bool) {
+func (continuation *treeContinuation) root() (Continuation, bool) {
 	if continuation == nil {
-		return interrupts.Continuation{}, false
+		return Continuation{}, false
 	}
 	for _, member := range continuation.continuations {
 		if member.RunID == continuation.rootRunID {
 			return member, true
 		}
 	}
-	return interrupts.Continuation{}, false
+	return Continuation{}, false
 }
 
-func (continuation *treeContinuation) forRun(runID string) (interrupts.Continuation, bool) {
+func (continuation *treeContinuation) forRun(runID string) (Continuation, bool) {
 	if continuation == nil {
-		return interrupts.Continuation{}, false
+		return Continuation{}, false
 	}
 	for _, member := range continuation.continuations {
 		if member.RunID == runID {
 			return member, true
 		}
 	}
-	return interrupts.Continuation{}, false
+	return Continuation{}, false
 }

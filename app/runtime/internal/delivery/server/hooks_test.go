@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	apphooks "github.com/Tangerg/lynx/app/runtime/internal/application/hooks"
 	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
 	domainhooks "github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
@@ -73,19 +74,19 @@ func TestSetHookTrustRejectsUnavailableProjectRoot(t *testing.T) {
 
 type failingHookInspector struct{ err error }
 
-func (i failingHookInspector) Inspect(context.Context, string) (domainhooks.Inspection, error) {
-	return domainhooks.Inspection{}, i.err
+func (i failingHookInspector) Inspect(context.Context, string) (apphooks.Inspection, error) {
+	return apphooks.Inspection{}, i.err
 }
 
-type staticHookInspector struct{ inspection domainhooks.Inspection }
+type staticHookInspector struct{ inspection apphooks.Inspection }
 
-func (i staticHookInspector) Inspect(context.Context, string) (domainhooks.Inspection, error) {
+func (i staticHookInspector) Inspect(context.Context, string) (apphooks.Inspection, error) {
 	return i.inspection, nil
 }
 
 func TestListHooksPreservesCompleteHookDefinition(t *testing.T) {
 	root := t.TempDir()
-	s := newWorkspaceServerWithConfig(root, workspaceTestConfig{Hooks: staticHookInspector{inspection: domainhooks.Inspection{
+	s := newWorkspaceServerWithConfig(root, workspaceTestConfig{Hooks: staticHookInspector{inspection: apphooks.Inspection{
 		ProjectRoot: root,
 		Hooks: []domainhooks.Hook{{
 			Event: domainhooks.SubagentStart, Command: "audit", TimeoutMillis: 2500,

@@ -11,13 +11,13 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/component/keyset"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
 // Each namespace binds a cursor to one application read so another read cannot
@@ -66,7 +66,7 @@ type SessionReader interface {
 // filters are optional and independent: empty means "every", and given together they
 // both apply.
 type InterruptReader interface {
-	ListPage(ctx context.Context, sessionID, rootRunID string, afterCreatedAt int64, afterRootRunID string, limit int) ([]interrupts.Pending, error)
+	ListPage(ctx context.Context, sessionID, rootRunID string, afterCreatedAt int64, afterRootRunID string, limit int) ([]runs.Pending, error)
 }
 
 // RunReader is the coordinator's view of the durable Run record: one Run by id,
@@ -76,7 +76,7 @@ type InterruptReader interface {
 type RunReader interface {
 	Run(ctx context.Context, runID string) (transcript.Run, bool, error)
 	RunsWithAncestors(ctx context.Context, runIDs []string) ([]transcript.Run, error)
-	PageRuns(ctx context.Context, sessionID string, statuses []execution.RunStatus, includeDescendants bool, beforeCreatedAt int64, beforeRunID string, limit int) ([]transcript.Run, error)
+	PageRuns(ctx context.Context, sessionID string, statuses []run.RunStatus, includeDescendants bool, beforeCreatedAt int64, beforeRunID string, limit int) ([]transcript.Run, error)
 }
 
 // Coordinator serves the session read projections. Stateless beyond its store
@@ -328,7 +328,7 @@ func (c *Coordinator) Run(ctx context.Context, runID string) (transcript.Run, bo
 // identity to bind.
 type RunPageFilter struct {
 	SessionID          string
-	Statuses           []execution.RunStatus
+	Statuses           []run.RunStatus
 	IncludeDescendants bool
 }
 
@@ -380,7 +380,7 @@ func (c *Coordinator) ListRunPage(ctx context.Context, filter RunPageFilter, cur
 // two requests asking for the same set mint the same cursor. Sorting is by the
 // domain's own declaration order — the enum IS the order, so there is nothing else
 // to agree with.
-func normalizeStatuses(statuses []execution.RunStatus) []execution.RunStatus {
+func normalizeStatuses(statuses []run.RunStatus) []run.RunStatus {
 	if len(statuses) == 0 {
 		return nil
 	}
@@ -392,7 +392,7 @@ func normalizeStatuses(statuses []execution.RunStatus) []execution.RunStatus {
 // statusFilter is the normalized status set as one cursor filter value. The empty
 // set is every status, which is a different collection from any explicit set — and
 // it reads as such, since no status is spelled "".
-func statusFilter(statuses []execution.RunStatus) string {
+func statusFilter(statuses []run.RunStatus) string {
 	names := make([]string, 0, len(statuses))
 	for _, status := range statuses {
 		names = append(names, status.String())
@@ -411,36 +411,36 @@ func statusFilter(statuses []execution.RunStatus) string {
 // storage rather than a rule this read has to remember.
 //
 // caller is what the requester declared it can follow. A set whose Run
-// publishes more than that is REFUSED — [execution.ErrInsufficientCapabilities] — rather
+// publishes more than that is REFUSED — [run.ErrInsufficientCapabilities] — rather
 // than returned with the parts the caller understands: answering a
 // trimmed set would leave the rest of it open forever, and the run would stay
 // waiting on interrupts the requester believes it resolved.
 //
 // rootRunID must name a root. A child id is [transcript.ErrNotRoot], because the
 // set it belongs to exists — under the root — and an empty page would say otherwise.
-func (c *Coordinator) ListPendingInterruptPage(ctx context.Context, sessionID, rootRunID string, caller execution.RunCapabilities, cursor string, limit int) (keyset.Page[interrupts.Pending], error) {
+func (c *Coordinator) ListPendingInterruptPage(ctx context.Context, sessionID, rootRunID string, caller run.RunCapabilities, cursor string, limit int) (keyset.Page[runs.Pending], error) {
 	filters := []string{sessionID, rootRunID}
 	afterCreatedAt, afterID, err := timeAndIDAnchor(cursor, interruptPageNamespace, filters)
 	if err != nil {
-		return keyset.Page[interrupts.Pending]{}, err
+		return keyset.Page[runs.Pending]{}, err
 	}
 	size, err := keyset.Limit(limit, interruptPageLimit)
 	if err != nil {
-		return keyset.Page[interrupts.Pending]{}, err
+		return keyset.Page[runs.Pending]{}, err
 	}
 	if err := c.requireRoot(ctx, rootRunID); err != nil {
-		return keyset.Page[interrupts.Pending]{}, err
+		return keyset.Page[runs.Pending]{}, err
 	}
 	rows, err := c.interrupts.ListPage(ctx, sessionID, rootRunID, afterCreatedAt, afterID, size+1)
 	if err != nil {
-		return keyset.Page[interrupts.Pending]{}, err
+		return keyset.Page[runs.Pending]{}, err
 	}
-	page := keyset.PageOf(rows, size, interruptPageNamespace, filters, func(pending interrupts.Pending) []string {
+	page := keyset.PageOf(rows, size, interruptPageNamespace, filters, func(pending runs.Pending) []string {
 		return []string{strconv.FormatInt(pending.CreatedAt.UnixNano(), 10), pending.RootRunID}
 	})
 	for _, pending := range page.Rows {
 		if gap := pending.Capabilities.MissingFrom(caller); !gap.IsEmpty() {
-			return keyset.Page[interrupts.Pending]{}, &execution.InsufficientCapabilities{RunID: pending.RootRunID, Missing: gap}
+			return keyset.Page[runs.Pending]{}, &run.InsufficientCapabilities{RunID: pending.RootRunID, Missing: gap}
 		}
 	}
 	return page, nil

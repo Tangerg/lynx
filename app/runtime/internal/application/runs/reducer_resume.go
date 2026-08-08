@@ -7,10 +7,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
 type resumeBinding struct {
@@ -18,8 +17,8 @@ type resumeBinding struct {
 	toolItems map[string]resumableItem
 	byName    map[string]resumableItem
 	questions []resumedQuestion
-	drained   []interrupts.DrainedTool
-	committed map[string]interrupts.CommittedTool
+	drained   []DrainedTool
+	committed map[string]CommittedTool
 	consumed  map[string]struct{}
 	err       error
 }
@@ -58,18 +57,18 @@ func resumeBindingFrom(continuation treeContinuation, runID string) *resumeBindi
 			continue
 		}
 		switch in.Kind {
-		case execution.ApprovalInterrupt:
+		case interrupt.Approval:
 			if in.Approval != nil && in.Approval.Tool.Name != "" {
 				addItem("", in.Approval.Tool.Name, argumentIdentity(in.Approval.Tool.Arguments), in.ItemID, in.ItemOccurredAt)
 			}
-		case execution.QuestionInterrupt:
+		case interrupt.Question:
 			questions = append(questions, resumedQuestion{
 				itemID: in.ItemID, occurredAt: in.ItemOccurredAt, question: in.Question,
 			})
 		}
 	}
-	var drained []interrupts.DrainedTool
-	committed := make(map[string]interrupts.CommittedTool)
+	var drained []DrainedTool
+	committed := make(map[string]CommittedTool)
 	if member, ok := continuation.forRun(runID); ok {
 		drained = member.DrainedTools
 		for _, tool := range drained {
@@ -132,11 +131,11 @@ func (b *resumeBinding) consumeToolItem(id string) {
 	maps.DeleteFunc(b.byName, func(_ string, candidate resumableItem) bool { return candidate.id == id })
 }
 
-func (b *resumeBinding) remainingDrainedTools() []interrupts.DrainedTool {
+func (b *resumeBinding) remainingDrainedTools() []DrainedTool {
 	if b == nil || len(b.drained) == 0 {
 		return nil
 	}
-	out := make([]interrupts.DrainedTool, 0, len(b.drained))
+	out := make([]DrainedTool, 0, len(b.drained))
 	for _, tool := range b.drained {
 		if _, consumed := b.consumed[tool.ItemID]; !consumed {
 			out = append(out, tool)
@@ -199,15 +198,15 @@ func (b *resumeBinding) consumeCommittedTool(event ToolCallFinished) (bool, erro
 	return true, nil
 }
 
-func (b *resumeBinding) remainingCommittedTools() []interrupts.CommittedTool {
+func (b *resumeBinding) remainingCommittedTools() []CommittedTool {
 	if b == nil || len(b.committed) == 0 {
 		return nil
 	}
-	out := make([]interrupts.CommittedTool, 0, len(b.committed))
+	out := make([]CommittedTool, 0, len(b.committed))
 	for _, committed := range b.committed {
 		out = append(out, committed)
 	}
-	slices.SortFunc(out, func(left, right interrupts.CommittedTool) int {
+	slices.SortFunc(out, func(left, right CommittedTool) int {
 		return strings.Compare(left.CallID, right.CallID)
 	})
 	return out

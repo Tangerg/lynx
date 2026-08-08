@@ -13,9 +13,10 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/approvals"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	"github.com/Tangerg/lynx/chatclient"
 	corechat "github.com/Tangerg/lynx/core/chat"
@@ -23,7 +24,7 @@ import (
 
 func answersForBarrier(
 	barrier runs.TreeInterrupted,
-	resolution interrupts.Resolution,
+	resolution interrupt.Resolution,
 ) []agentexec.SuspensionAnswer {
 	answers := make([]agentexec.SuspensionAnswer, len(barrier.Suspensions))
 	for index, boundary := range barrier.Suspensions {
@@ -59,7 +60,7 @@ func turnDeps(engine testEngine, opts ...func(*turn.Dependencies)) turn.Dependen
 }
 
 func explicitYoloPolicy() turn.ApprovalGate {
-	policy, err := approval.New(approval.ModeYolo, nil, nil)
+	policy, err := approvals.NewRuntimePolicy(approval.ModeYolo, nil, nil)
 	if err != nil {
 		panic(err)
 	}
@@ -72,9 +73,9 @@ func withApproval(policy turn.ApprovalGate) func(*turn.Dependencies) {
 	}
 }
 
-func mustApprovalPolicy(t testing.TB, mode approval.Mode, store approval.RuleStore) *approval.RuntimePolicy {
+func mustApprovalPolicy(t testing.TB, mode approval.Mode, store approvals.RuleStore) *approvals.RuntimePolicy {
 	t.Helper()
-	policy, err := approval.New(mode, store, nil)
+	policy, err := approvals.NewRuntimePolicy(mode, store, nil)
 	if err != nil {
 		t.Fatalf("new approval policy: %v", err)
 	}

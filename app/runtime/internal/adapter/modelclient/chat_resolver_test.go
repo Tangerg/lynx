@@ -5,9 +5,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	sqlitestore "github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 )
 
@@ -27,8 +27,8 @@ func TestChatResolverRejectsUnconfigured(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected an error resolving against an unconfigured provider")
 	}
-	var failure *execution.Failure
-	if !errors.As(err, &failure) || failure.Kind != execution.FailureInvalidCredentials {
+	var failure *run.Failure
+	if !errors.As(err, &failure) || failure.Kind != run.FailureInvalidCredentials {
 		t.Fatalf("unconfigured provider error = %#v, want invalid-credentials failure", err)
 	}
 

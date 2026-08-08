@@ -4,9 +4,14 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 )
+
+type WorkspaceMutationRecord struct {
+	SessionID      string
+	CWD            string
+	ToRunID        string
+	RestoreHistory bool
+}
 
 // WorkspaceMutationStore is the recoverable operation log for file rollbacks
 // (§8.5), backed by the pending_workspace_mutations table. Unlike the write-set
@@ -32,7 +37,7 @@ func NewWorkspaceMutationStore(db *sql.DB) *WorkspaceMutationStore {
 // INSERT OR REPLACE is idempotent against a leftover row for the same session
 // (the mutation slot admits one in-flight rollback per session, so this is
 // effectively an insert). created_at is stamped by the DB default.
-func (s *WorkspaceMutationStore) Record(ctx context.Context, m execution.WorkspaceMutation) error {
+func (s *WorkspaceMutationStore) Record(ctx context.Context, m WorkspaceMutationRecord) error {
 	if s == nil {
 		return nil
 	}
@@ -62,7 +67,7 @@ func (s *WorkspaceMutationStore) Complete(ctx context.Context, sessionID string)
 
 // ListPending returns every rollback a crash left unfinished, oldest first, for
 // boot recovery to re-drive.
-func (s *WorkspaceMutationStore) ListPending(ctx context.Context) ([]execution.WorkspaceMutation, error) {
+func (s *WorkspaceMutationStore) ListPending(ctx context.Context) ([]WorkspaceMutationRecord, error) {
 	if s == nil {
 		return nil, nil
 	}
@@ -73,9 +78,9 @@ func (s *WorkspaceMutationStore) ListPending(ctx context.Context) ([]execution.W
 	}
 	defer rows.Close()
 
-	var out []execution.WorkspaceMutation
+	var out []WorkspaceMutationRecord
 	for rows.Next() {
-		var m execution.WorkspaceMutation
+		var m WorkspaceMutationRecord
 		if err := rows.Scan(&m.SessionID, &m.CWD, &m.ToRunID, &m.RestoreHistory); err != nil {
 			return nil, fmt.Errorf("sqlite: scan workspace mutation: %w", err)
 		}

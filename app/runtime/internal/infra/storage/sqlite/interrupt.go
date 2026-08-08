@@ -10,11 +10,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
 // InterruptStore is the SQLite-backed registry of root-owned pending interrupt
@@ -22,6 +22,94 @@ import (
 // protocol payloads and Go field names never define this storage shape.
 type InterruptStore struct {
 	db *sql.DB
+}
+
+// InterruptRecord is SQLite's technical representation of one durable
+// waiting-tree hand-off. Application semantics belong to the persistence
+// adapter; this record only names the values required by the storage codec.
+type InterruptRecord struct {
+	RootRunID     string
+	SessionID     string
+	ExecutorID    string
+	GoalLeaseID   string
+	Interrupts    []transcript.Interrupt
+	Suspensions   []SuspensionBindingRecord
+	Continuations []ContinuationRecord
+	Capabilities  run.RunCapabilities
+	CreatedAt     time.Time
+}
+
+// ContinuationRecord is the stored continuation row for one Run.
+type ContinuationRecord struct {
+	RunID          string
+	ProcessID      string
+	Lineage        run.RunLineage
+	ModelSelection modelref.Selection
+	DrainedTools   []DrainedToolRecord
+	CommittedTools []CommittedToolRecord
+	RunCreatedAt   time.Time
+	Metrics        transcript.RunMetrics
+	Limits         run.RunLimits
+}
+
+// SuspensionBindingRecord is the stored item-to-suspension correspondence.
+type SuspensionBindingRecord struct {
+	InterruptItemID string
+	ProcessID       string
+	SuspensionID    string
+}
+
+// DrainedToolRecord is the stored identity of an open tool invocation.
+type DrainedToolRecord struct {
+	ItemID         string
+	ItemOccurredAt time.Time
+	CallID         string
+	Name           string
+	Arguments      string
+}
+
+// CommittedToolRecord is the stored identity and outcome of a settled tool.
+type CommittedToolRecord struct {
+	ItemID    string
+	CallID    string
+	Name      string
+	Arguments string
+	Problem   transcript.Problem
+}
+
+func (record InterruptRecord) rootContinuation() (ContinuationRecord, bool) {
+	for _, continuation := range record.Continuations {
+		if continuation.RunID == record.RootRunID {
+			return continuation, true
+		}
+	}
+	return ContinuationRecord{}, false
+}
+
+func (record InterruptRecord) validateStorageShape() error {
+	switch {
+	case strings.TrimSpace(record.RootRunID) == "" || record.RootRunID != strings.TrimSpace(record.RootRunID):
+		return errors.New("root Run ID must be non-empty without surrounding whitespace")
+	case strings.TrimSpace(record.SessionID) == "" || record.SessionID != strings.TrimSpace(record.SessionID):
+		return errors.New("session ID must be non-empty without surrounding whitespace")
+	case strings.TrimSpace(record.ExecutorID) == "" || record.ExecutorID != strings.TrimSpace(record.ExecutorID):
+		return errors.New("executor ID must be non-empty without surrounding whitespace")
+	case record.GoalLeaseID != strings.TrimSpace(record.GoalLeaseID):
+		return errors.New("goal lease ID has surrounding whitespace")
+	case record.CreatedAt.IsZero():
+		return errors.New("creation time is required")
+	case len(record.Interrupts) == 0:
+		return errors.New("interrupt payload is required")
+	case len(record.Continuations) == 0:
+		return errors.New("continuation payload is required")
+	case len(record.Suspensions) != len(record.Interrupts):
+		return errors.New("suspension bindings do not match interrupts")
+	}
+	root, ok := record.rootContinuation()
+	if !ok || strings.TrimSpace(root.ProcessID) == "" {
+		return errors.New("root continuation and process ID are required")
+	}
+	return nil
 }
 
 type drainedToolRow struct {
@@ -85,11 +173,11 @@ func NewInterruptStore(db *sql.DB) *InterruptStore {
 // Open records a newly reached barrier. An existing root Run or executor root
 // is an identity conflict; a barrier is replaced only after its owner consumes
 // the previous one in the same application transaction.
-func (s *InterruptStore) Open(ctx context.Context, p interrupts.Pending) error {
-	if err := p.Validate(); err != nil {
+func (s *InterruptStore) Open(ctx context.Context, p InterruptRecord) error {
+	if err := p.validateStorageShape(); err != nil {
 		return fmt.Errorf("sqlite: open interrupt: %w", err)
 	}
-	root, _ := p.RootContinuation()
+	root, _ := p.rootContinuation()
 	interrupts, err := interruptPayloads(p.Interrupts)
 	if err != nil {
 		return fmt.Errorf("sqlite: encode interrupts: %w", err)
@@ -144,18 +232,18 @@ func (s *InterruptStore) Open(ctx context.Context, p interrupts.Pending) error {
 
 const interruptColumns = `root_run_id, session_id, executor_id, goal_lease_id, root_process_id, payload, continuations, suspension_bindings, capabilities, created_at`
 
-func (s *InterruptStore) List(ctx context.Context, sessionID string) ([]interrupts.Pending, error) {
+func (s *InterruptStore) List(ctx context.Context, sessionID string) ([]InterruptRecord, error) {
 	return s.list(ctx, sessionID, "", 0, "", 0)
 }
 
 // ListPage returns open interrupts oldest first, bounded by the query. after is
 // the (open time, run id) position a previous page ended at; the pair is what
 // makes the order total, since two runs can park in the same nanosecond.
-func (s *InterruptStore) ListPage(ctx context.Context, sessionID, rootRunID string, afterCreatedAt int64, afterRootRunID string, limit int) ([]interrupts.Pending, error) {
+func (s *InterruptStore) ListPage(ctx context.Context, sessionID, rootRunID string, afterCreatedAt int64, afterRootRunID string, limit int) ([]InterruptRecord, error) {
 	return s.list(ctx, sessionID, rootRunID, afterCreatedAt, afterRootRunID, limit)
 }
 
-func (s *InterruptStore) list(ctx context.Context, sessionID, rootRunID string, afterCreatedAt int64, afterRunID string, limit int) ([]interrupts.Pending, error) {
+func (s *InterruptStore) list(ctx context.Context, sessionID, rootRunID string, afterCreatedAt int64, afterRunID string, limit int) ([]InterruptRecord, error) {
 	query := `SELECT ` + interruptColumns + ` FROM interrupts`
 	args := []any{}
 	var conditions []string
@@ -186,7 +274,7 @@ func (s *InterruptStore) list(ctx context.Context, sessionID, rootRunID string, 
 	}
 	defer rows.Close()
 
-	out := make([]interrupts.Pending, 0)
+	out := make([]InterruptRecord, 0)
 	for rows.Next() {
 		p, err := scanPending(rows)
 		if err != nil {
@@ -200,15 +288,15 @@ func (s *InterruptStore) list(ctx context.Context, sessionID, rootRunID string, 
 	return out, nil
 }
 
-func (s *InterruptStore) Get(ctx context.Context, runID string) (interrupts.Pending, bool, error) {
+func (s *InterruptStore) Get(ctx context.Context, runID string) (InterruptRecord, bool, error) {
 	row := conn(ctx, s.db).QueryRowContext(ctx,
 		`SELECT `+interruptColumns+` FROM interrupts WHERE root_run_id = ?`, runID)
 	p, err := scanPending(row)
 	if errors.Is(err, sql.ErrNoRows) {
-		return interrupts.Pending{}, false, nil
+		return InterruptRecord{}, false, nil
 	}
 	if err != nil {
-		return interrupts.Pending{}, false, err
+		return InterruptRecord{}, false, err
 	}
 	return p, true, nil
 }
@@ -218,9 +306,9 @@ func (s *InterruptStore) Get(ctx context.Context, runID string) (interrupts.Pend
 // claim contract. A single statement means two concurrent resumes can't both
 // observe the same open interrupt: one claims it, the other gets ok=false, so a
 // non-idempotent tool never re-fires.
-func (s *InterruptStore) Consume(ctx context.Context, sessionID, runID string) (interrupts.Pending, bool, error) {
+func (s *InterruptStore) Consume(ctx context.Context, sessionID, runID string) (InterruptRecord, bool, error) {
 	if err := validatePendingOwner(sessionID, runID); err != nil {
-		return interrupts.Pending{}, false, fmt.Errorf("sqlite: consume interrupt: %w", err)
+		return InterruptRecord{}, false, fmt.Errorf("sqlite: consume interrupt: %w", err)
 	}
 	row := conn(ctx, s.db).QueryRowContext(ctx,
 		`DELETE FROM interrupts WHERE session_id = ? AND root_run_id = ?
@@ -229,12 +317,12 @@ func (s *InterruptStore) Consume(ctx context.Context, sessionID, runID string) (
 	p, err := scanPending(row)
 	if errors.Is(err, sql.ErrNoRows) {
 		if err := s.rejectForeignPendingOwner(ctx, sessionID, runID); err != nil {
-			return interrupts.Pending{}, false, err
+			return InterruptRecord{}, false, err
 		}
-		return interrupts.Pending{}, false, nil
+		return InterruptRecord{}, false, nil
 	}
 	if err != nil {
-		return interrupts.Pending{}, false, err
+		return InterruptRecord{}, false, err
 	}
 	return p, true, nil
 }
@@ -292,9 +380,9 @@ func (s *InterruptStore) rejectForeignPendingOwner(ctx context.Context, sessionI
 
 // scanRow abstracts *sql.Row and *sql.Rows so one scan path serves Get +
 // List.
-func scanPending(row scanRow) (interrupts.Pending, error) {
+func scanPending(row scanRow) (InterruptRecord, error) {
 	var (
-		p             interrupts.Pending
+		p             InterruptRecord
 		payload       string
 		rootProcessID string
 		continuations string
@@ -315,36 +403,36 @@ func scanPending(row scanRow) (interrupts.Pending, error) {
 		&createdNs,
 	); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return interrupts.Pending{}, err
+			return InterruptRecord{}, err
 		}
-		return interrupts.Pending{}, fmt.Errorf("sqlite: scan interrupt: %w", err)
+		return InterruptRecord{}, fmt.Errorf("sqlite: scan interrupt: %w", err)
 	}
 	var err error
 	if p.Interrupts, err = decodeInterrupts(payload); err != nil {
-		return interrupts.Pending{}, fmt.Errorf("sqlite: decode interrupts: %w", err)
+		return InterruptRecord{}, fmt.Errorf("sqlite: decode interrupts: %w", err)
 	}
 	var continuationValues []continuationRow
 	if err := decodeInterruptJSON(continuations, &continuationValues); err != nil {
-		return interrupts.Pending{}, fmt.Errorf("sqlite: decode interrupt continuations: %w", err)
+		return InterruptRecord{}, fmt.Errorf("sqlite: decode interrupt continuations: %w", err)
 	}
 	if p.Continuations, err = continuationsFromRows(continuationValues); err != nil {
-		return interrupts.Pending{}, fmt.Errorf("sqlite: decode interrupt continuations: %w", err)
+		return InterruptRecord{}, fmt.Errorf("sqlite: decode interrupt continuations: %w", err)
 	}
 	var bindingValues []suspensionBindingRow
 	if err := decodeInterruptJSON(suspensions, &bindingValues); err != nil {
-		return interrupts.Pending{}, fmt.Errorf("sqlite: decode interrupt suspension bindings: %w", err)
+		return InterruptRecord{}, fmt.Errorf("sqlite: decode interrupt suspension bindings: %w", err)
 	}
 	p.Suspensions = suspensionBindingsFromRows(bindingValues)
 	if p.Capabilities, err = decodeRunCapabilities(capabilities); err != nil {
-		return interrupts.Pending{}, err
+		return InterruptRecord{}, err
 	}
 	p.CreatedAt = time.Unix(0, createdNs).UTC()
-	if err := p.Validate(); err != nil {
-		return interrupts.Pending{}, fmt.Errorf("sqlite: decode interrupt %q: %w", p.RootRunID, err)
+	if err := p.validateStorageShape(); err != nil {
+		return InterruptRecord{}, fmt.Errorf("sqlite: decode interrupt %q: %w", p.RootRunID, err)
 	}
-	root, _ := p.RootContinuation()
+	root, _ := p.rootContinuation()
 	if root.ProcessID != rootProcessID {
-		return interrupts.Pending{}, fmt.Errorf(
+		return InterruptRecord{}, fmt.Errorf(
 			"sqlite: decode interrupt %q: root process index %q does not match continuation %q",
 			p.RootRunID,
 			rootProcessID,
@@ -384,7 +472,7 @@ func decodeInterruptJSON(encoded string, target any) error {
 	return nil
 }
 
-func drainedToolRows(tools []interrupts.DrainedTool) []drainedToolRow {
+func drainedToolRows(tools []DrainedToolRecord) []drainedToolRow {
 	rows := make([]drainedToolRow, len(tools))
 	for index, tool := range tools {
 		rows[index] = drainedToolRow{
@@ -395,10 +483,10 @@ func drainedToolRows(tools []interrupts.DrainedTool) []drainedToolRow {
 	return rows
 }
 
-func drainedToolsFromRows(rows []drainedToolRow) []interrupts.DrainedTool {
-	tools := make([]interrupts.DrainedTool, len(rows))
+func drainedToolsFromRows(rows []drainedToolRow) []DrainedToolRecord {
+	tools := make([]DrainedToolRecord, len(rows))
 	for index, row := range rows {
-		tools[index] = interrupts.DrainedTool{
+		tools[index] = DrainedToolRecord{
 			ItemID: row.ItemID, ItemOccurredAt: time.Unix(0, row.ItemOccurredAt).UTC(),
 			CallID: row.CallID, Name: row.Name, Arguments: row.Arguments,
 		}
@@ -406,7 +494,7 @@ func drainedToolsFromRows(rows []drainedToolRow) []interrupts.DrainedTool {
 	return tools
 }
 
-func committedToolRows(tools []interrupts.CommittedTool) ([]committedToolRow, error) {
+func committedToolRows(tools []CommittedToolRecord) ([]committedToolRow, error) {
 	rows := make([]committedToolRow, len(tools))
 	for index, committed := range tools {
 		problem, err := encodeProblemPayload(committed.Problem)
@@ -424,14 +512,14 @@ func committedToolRows(tools []interrupts.CommittedTool) ([]committedToolRow, er
 	return rows, nil
 }
 
-func committedToolsFromRows(rows []committedToolRow) ([]interrupts.CommittedTool, error) {
-	tools := make([]interrupts.CommittedTool, len(rows))
+func committedToolsFromRows(rows []committedToolRow) ([]CommittedToolRecord, error) {
+	tools := make([]CommittedToolRecord, len(rows))
 	for index, row := range rows {
 		problem, err := decodeProblemPayload(row.Problem)
 		if err != nil {
 			return nil, fmt.Errorf("committed tool[%d] problem: %w", index, err)
 		}
-		tools[index] = interrupts.CommittedTool{
+		tools[index] = CommittedToolRecord{
 			ItemID:    row.ItemID,
 			CallID:    row.CallID,
 			Name:      row.Name,
@@ -442,7 +530,7 @@ func committedToolsFromRows(rows []committedToolRow) ([]interrupts.CommittedTool
 	return tools, nil
 }
 
-func continuationRows(values []interrupts.Continuation) ([]continuationRow, error) {
+func continuationRows(values []ContinuationRecord) ([]continuationRow, error) {
 	rows := make([]continuationRow, len(values))
 	for index, value := range values {
 		committedTools, err := committedToolRows(value.CommittedTools)
@@ -466,8 +554,8 @@ func continuationRows(values []interrupts.Continuation) ([]continuationRow, erro
 	return rows, nil
 }
 
-func continuationsFromRows(rows []continuationRow) ([]interrupts.Continuation, error) {
-	values := make([]interrupts.Continuation, len(rows))
+func continuationsFromRows(rows []continuationRow) ([]ContinuationRecord, error) {
+	values := make([]ContinuationRecord, len(rows))
 	for index, row := range rows {
 		selection, err := modelref.New(row.Provider, row.Model)
 		if err != nil {
@@ -481,10 +569,10 @@ func continuationsFromRows(rows []continuationRow) ([]interrupts.Continuation, e
 		if err != nil {
 			return nil, fmt.Errorf("continuation[%d]: %w", index, err)
 		}
-		values[index] = interrupts.Continuation{
+		values[index] = ContinuationRecord{
 			RunID:     row.RunID,
 			ProcessID: row.ProcessID,
-			Lineage: execution.RunLineage{
+			Lineage: run.RunLineage{
 				SpawnedByItemID: row.SpawnedByItemID,
 				ParentRunID:     row.ParentRunID,
 				RootRunID:       row.RootRunID,
@@ -508,7 +596,7 @@ func interruptPayloads(values []transcript.Interrupt) ([]interruptPayload, error
 			RunID: value.RunID, Kind: value.Kind.String(),
 		}
 		switch value.Kind {
-		case execution.ApprovalInterrupt:
+		case interrupt.Approval:
 			if value.Approval == nil {
 				return nil, fmt.Errorf("interrupt[%d] approval payload is missing", index)
 			}
@@ -517,7 +605,7 @@ func interruptPayloads(values []transcript.Interrupt) ([]interruptPayload, error
 				Risk: string(value.Approval.Risk), Reason: value.Approval.Reason,
 				Rememberable: value.Approval.Rememberable,
 			}
-		case execution.QuestionInterrupt:
+		case interrupt.Question:
 			if value.Question == nil {
 				return nil, fmt.Errorf("interrupt[%d] question payload is missing", index)
 			}
@@ -537,7 +625,7 @@ func interruptPayloads(values []transcript.Interrupt) ([]interruptPayload, error
 func interruptsFromPayloads(rows []interruptPayload) ([]transcript.Interrupt, error) {
 	values := make([]transcript.Interrupt, len(rows))
 	for index, row := range rows {
-		kind, ok := execution.ParseInterruptKind(row.Kind)
+		kind, ok := interrupt.ParseKind(row.Kind)
 		if !ok {
 			return nil, fmt.Errorf("interrupt[%d] has unknown kind %q", index, row.Kind)
 		}
@@ -546,7 +634,7 @@ func interruptsFromPayloads(rows []interruptPayload) ([]transcript.Interrupt, er
 			RunID: row.RunID, Kind: kind,
 		}
 		switch kind {
-		case execution.ApprovalInterrupt:
+		case interrupt.Approval:
 			if row.Approval == nil || row.Question != nil {
 				return nil, fmt.Errorf("interrupt[%d] approval payload is invalid", index)
 			}
@@ -558,7 +646,7 @@ func interruptsFromPayloads(rows []interruptPayload) ([]transcript.Interrupt, er
 				Tool: invocation, Risk: tool.RiskLevel(row.Approval.Risk),
 				Reason: row.Approval.Reason, Rememberable: row.Approval.Rememberable,
 			}
-		case execution.QuestionInterrupt:
+		case interrupt.Question:
 			if row.Question == nil || row.Approval != nil {
 				return nil, fmt.Errorf("interrupt[%d] question payload is invalid", index)
 			}
@@ -573,7 +661,7 @@ func interruptsFromPayloads(rows []interruptPayload) ([]transcript.Interrupt, er
 	return values, nil
 }
 
-func suspensionBindingRows(values []interrupts.SuspensionBinding) []suspensionBindingRow {
+func suspensionBindingRows(values []SuspensionBindingRecord) []suspensionBindingRow {
 	rows := make([]suspensionBindingRow, len(values))
 	for index, value := range values {
 		rows[index] = suspensionBindingRow{
@@ -585,10 +673,10 @@ func suspensionBindingRows(values []interrupts.SuspensionBinding) []suspensionBi
 	return rows
 }
 
-func suspensionBindingsFromRows(rows []suspensionBindingRow) []interrupts.SuspensionBinding {
-	values := make([]interrupts.SuspensionBinding, len(rows))
+func suspensionBindingsFromRows(rows []suspensionBindingRow) []SuspensionBindingRecord {
+	values := make([]SuspensionBindingRecord, len(rows))
 	for index, row := range rows {
-		values[index] = interrupts.SuspensionBinding{
+		values[index] = SuspensionBindingRecord{
 			InterruptItemID: row.InterruptItemID,
 			ProcessID:       row.ProcessID,
 			SuspensionID:    row.SuspensionID,

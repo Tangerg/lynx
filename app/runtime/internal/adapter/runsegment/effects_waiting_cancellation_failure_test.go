@@ -12,10 +12,9 @@ import (
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 )
 
@@ -24,7 +23,7 @@ type failingWaitingCheckpointStore struct {
 	err error
 }
 
-func (store failingWaitingCheckpointStore) SaveCheckpoint(context.Context, execution.ExecutorCheckpoint) error {
+func (store failingWaitingCheckpointStore) SaveCheckpoint(context.Context, runs.ExecutorCheckpoint) error {
 	return store.err
 }
 
@@ -54,7 +53,7 @@ type failingWaitingRunWriter struct {
 func (writer failingWaitingRunWriter) Resume(
 	ctx context.Context,
 	sessionID string,
-	draft execution.RunResumeDraft,
+	draft run.RunResumeDraft,
 	resumedAt time.Time,
 ) error {
 	if writer.resumeErr != nil {
@@ -80,7 +79,7 @@ type failingWaitingInterruptStore struct {
 
 func (store failingWaitingInterruptStore) Open(
 	ctx context.Context,
-	pending interrupts.Pending,
+	pending runs.Pending,
 ) error {
 	if store.putErr != nil {
 		return store.putErr
@@ -128,15 +127,15 @@ func TestCommitWaitingSubtreeCancellationRejectsStalePendingWithoutMutation(t *t
 }
 
 func TestCommitWaitingSubtreeCancellationRejectsMismatchedCheckpointBindingWithoutMutation(t *testing.T) {
-	for name, mutate := range map[string]func(*execution.ExecutorCheckpoint){
-		"root":       func(checkpoint *execution.ExecutorCheckpoint) { checkpoint.RootProcessID = "other_root" },
-		"session":    func(checkpoint *execution.ExecutorCheckpoint) { checkpoint.Scope.SessionID = "other_session" },
-		"goal lease": func(checkpoint *execution.ExecutorCheckpoint) { checkpoint.Scope.GoalLeaseID = "other_goal" },
-		"limits":     func(checkpoint *execution.ExecutorCheckpoint) { checkpoint.Limits.MaxTotalTokens++ },
-		"provider": func(checkpoint *execution.ExecutorCheckpoint) {
+	for name, mutate := range map[string]func(*runs.ExecutorCheckpoint){
+		"root":       func(checkpoint *runs.ExecutorCheckpoint) { checkpoint.RootProcessID = "other_root" },
+		"session":    func(checkpoint *runs.ExecutorCheckpoint) { checkpoint.Scope.SessionID = "other_session" },
+		"goal lease": func(checkpoint *runs.ExecutorCheckpoint) { checkpoint.Scope.GoalLeaseID = "other_goal" },
+		"limits":     func(checkpoint *runs.ExecutorCheckpoint) { checkpoint.Limits.MaxTotalTokens++ },
+		"provider": func(checkpoint *runs.ExecutorCheckpoint) {
 			checkpoint.ModelSelection, _ = modelref.New("openai", "model")
 		},
-		"model": func(checkpoint *execution.ExecutorCheckpoint) {
+		"model": func(checkpoint *runs.ExecutorCheckpoint) {
 			checkpoint.ModelSelection, _ = modelref.New("anthropic", "other-model")
 		},
 	} {
@@ -144,7 +143,7 @@ func TestCommitWaitingSubtreeCancellationRejectsMismatchedCheckpointBindingWitho
 			fixture := newWaitingCancellationSQLiteFixture(t)
 			mutate(&fixture.commit.Checkpoint)
 			_, err := fixture.effects.CommitWaitingSubtreeCancellation(fixture.ctx, fixture.commit)
-			if !errors.Is(err, execution.ErrInvalidExecutorCheckpoint) {
+			if !errors.Is(err, runs.ErrInvalidExecutorCheckpoint) {
 				t.Fatalf("ownership error = %v, want ErrInvalidExecutorCheckpoint", err)
 			}
 			assertWaitingCancellationUnchanged(t, fixture, fixture.commit.ExpectedPending)
@@ -360,7 +359,7 @@ func (fixture *waitingCancellationSQLiteFixture) replaceEffects(
 func assertWaitingCancellationUnchanged(
 	t *testing.T,
 	fixture waitingCancellationSQLiteFixture,
-	expectedPending interrupts.Pending,
+	expectedPending runs.Pending,
 ) {
 	t.Helper()
 	pending, found, err := fixture.interrupts.Get(fixture.ctx, fixture.rootRun.ID)
@@ -404,7 +403,7 @@ func assertWaitingCancellationUnchanged(
 	}
 
 	for _, continuation := range fixture.commit.ExpectedPending.Continuations {
-		assertStoredRunState(t, fixture.db, continuation.RunID, "interrupted")
+		assertStoredRunState(t, fixture.db, continuation.RunID, "waiting")
 	}
 
 	checkpoint, err := fixture.checkpoints.LoadCheckpoint(fixture.ctx, fixture.originalTree.RootID)
@@ -451,8 +450,8 @@ func normalizedProcessTree(tree core.ProcessSnapshotTree) core.ProcessSnapshotTr
 }
 
 func normalizedExecutorCheckpoint(
-	checkpoint execution.ExecutorCheckpoint,
-) execution.ExecutorCheckpoint {
+	checkpoint runs.ExecutorCheckpoint,
+) runs.ExecutorCheckpoint {
 	checkpoint.Usage.Models = slices.Clone(checkpoint.Usage.Models)
 	if len(checkpoint.Usage.Models) == 0 {
 		checkpoint.Usage.Models = nil

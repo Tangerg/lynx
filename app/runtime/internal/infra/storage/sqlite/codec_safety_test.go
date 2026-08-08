@@ -3,7 +3,7 @@ package sqlite
 import (
 	"testing"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
 func TestStoredEnumDecodersRejectNarrowingOverflow(t *testing.T) {

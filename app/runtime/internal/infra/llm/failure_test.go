@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/core/chat"
 )
 
@@ -39,11 +39,11 @@ func TestClassifyModelErrorUsesTypedProviderStatus(t *testing.T) {
 		header: http.Header{"Retry-After": []string{"12"}},
 	}
 	err := classifyModelError(providerErr)
-	var failure *execution.Failure
+	var failure *run.Failure
 	if !errors.As(err, &failure) {
-		t.Fatalf("classified error = %T, want *execution.Failure", err)
+		t.Fatalf("classified error = %T, want *run.Failure", err)
 	}
-	if failure.Kind != execution.FailureRateLimited || failure.RetryAfter != 12*time.Second {
+	if failure.Kind != run.FailureRateLimited || failure.RetryAfter != 12*time.Second {
 		t.Fatalf("failure = %+v, want rate limited with 12s retry", failure)
 	}
 	if !errors.Is(err, providerErr) {
@@ -55,8 +55,8 @@ func TestClassifyModelErrorPreservesCancellationAndClassifiesDeadline(t *testing
 	if got := classifyModelError(context.Canceled); !errors.Is(got, context.Canceled) {
 		t.Fatalf("cancellation = %v", got)
 	}
-	var failure *execution.Failure
-	if err := classifyModelError(context.DeadlineExceeded); !errors.As(err, &failure) || failure.Kind != execution.FailureTimeout {
+	var failure *run.Failure
+	if err := classifyModelError(context.DeadlineExceeded); !errors.As(err, &failure) || failure.Kind != run.FailureTimeout {
 		t.Fatalf("deadline = %#v, want timeout failure", err)
 	}
 }
@@ -64,14 +64,14 @@ func TestClassifyModelErrorPreservesCancellationAndClassifiesDeadline(t *testing
 func TestFailureKindForHTTPStatus(t *testing.T) {
 	cases := []struct {
 		status int
-		want   execution.FailureKind
+		want   run.FailureKind
 	}{
-		{http.StatusUnauthorized, execution.FailureInvalidCredentials},
-		{http.StatusForbidden, execution.FailureInvalidCredentials},
-		{http.StatusRequestTimeout, execution.FailureTimeout},
-		{http.StatusTooManyRequests, execution.FailureRateLimited},
-		{http.StatusBadRequest, execution.FailureProviderRejected},
-		{http.StatusServiceUnavailable, execution.FailureProviderUnavailable},
+		{http.StatusUnauthorized, run.FailureInvalidCredentials},
+		{http.StatusForbidden, run.FailureInvalidCredentials},
+		{http.StatusRequestTimeout, run.FailureTimeout},
+		{http.StatusTooManyRequests, run.FailureRateLimited},
+		{http.StatusBadRequest, run.FailureProviderRejected},
+		{http.StatusServiceUnavailable, run.FailureProviderUnavailable},
 	}
 	for _, test := range cases {
 		if got := failureKindForHTTPStatus(test.status); got != test.want {

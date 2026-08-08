@@ -13,17 +13,18 @@ import (
 	"github.com/Tangerg/lynx/core/chat"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/persistence"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/conversations"
+	runsapp "github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/sessions"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/accounting"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/accounting"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/conversation"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 	sqlite "github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 )
 
@@ -55,16 +56,16 @@ func bootstrapCheckpoint(
 	tree core.ProcessSnapshotTree,
 	sessionID string,
 	usage accounting.Snapshot,
-) execution.ExecutorCheckpoint {
+) runsapp.ExecutorCheckpoint {
 	payload, err := json.Marshal(tree)
 	if err != nil {
 		panic(err)
 	}
-	return execution.ExecutorCheckpoint{
+	return runsapp.ExecutorCheckpoint{
 		RootProcessID: tree.RootID,
 		Payload:       payload,
 		BuildID:       bootstrapCheckpointBuildID,
-		Scope:         execution.ExecutionScope{SessionID: sessionID},
+		Scope:         runsapp.ExecutionScope{SessionID: sessionID},
 		Usage:         usage,
 	}
 }
@@ -72,27 +73,27 @@ func bootstrapCheckpoint(
 func bootstrapPending(
 	runID, sessionID, processID, itemID string,
 	runCreatedAt, barrierCreatedAt time.Time,
-) interrupts.Pending {
+) runsapp.Pending {
 	question := &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Continue?"}}}
-	return interrupts.Pending{
+	return runsapp.Pending{
 		RootRunID:  runID,
 		SessionID:  sessionID,
 		ExecutorID: "turn_" + runID,
-		Capabilities: execution.RunCapabilities{
-			InterruptKinds: []execution.InterruptKind{execution.QuestionInterrupt},
+		Capabilities: run.RunCapabilities{
+			InterruptKinds: []interrupt.Kind{interrupt.Question},
 		},
 		Interrupts: []transcript.Interrupt{{
 			ItemID: itemID, ItemOccurredAt: parkCreatedAt,
 			RunID:    runID,
-			Kind:     execution.QuestionInterrupt,
+			Kind:     interrupt.Question,
 			Question: question,
 		}},
-		Suspensions: []interrupts.SuspensionBinding{{
+		Suspensions: []runsapp.SuspensionBinding{{
 			InterruptItemID: itemID,
 			ProcessID:       processID,
 			SuspensionID:    "suspension-" + processID,
 		}},
-		Continuations: []interrupts.Continuation{{
+		Continuations: []runsapp.Continuation{{
 			RunID:        runID,
 			ProcessID:    processID,
 			RunCreatedAt: runCreatedAt,
@@ -107,10 +108,10 @@ type sessionStores struct {
 	*persistence.SessionStores
 	sessions    *sqlite.SessionStore
 	transcript  *sqlite.TranscriptStore
-	interrupts  *sqlite.InterruptStore
+	interrupts  *persistence.InterruptStore
 	runs        *sqlite.RunStore
-	checkpoints *sqlite.ExecutorCheckpointStore
-	history     *conversation.Messages
+	checkpoints *persistence.ExecutorCheckpointStore
+	history     *conversations.Messages
 	plan        *sqlite.PlanStore
 	approvals   *sqlite.ApprovalRuleStore
 	goals       *sqlite.GoalStore
@@ -118,7 +119,7 @@ type sessionStores struct {
 
 // newWriteSetFixture builds the persistence adapter over a fresh sqlite
 // database so the atomic write-sets run against the real stores + transactor.
-func newWriteSetFixture(t *testing.T) (sessionStores, *sqlite.RunStore, *sqlite.InterruptStore) {
+func newWriteSetFixture(t *testing.T) (sessionStores, *sqlite.RunStore, *persistence.InterruptStore) {
 	t.Helper()
 	db, err := sqlite.Open(t.Context(), filepath.Join(t.TempDir(), "lyra.db"))
 	if err != nil {
@@ -126,7 +127,7 @@ func newWriteSetFixture(t *testing.T) (sessionStores, *sqlite.RunStore, *sqlite.
 	}
 	t.Cleanup(func() { _ = db.Close() })
 	runs := sqlite.NewRunStore(db)
-	ints := sqlite.NewInterruptStore(db)
+	ints := persistence.NewInterruptStore(sqlite.NewInterruptStore(db))
 	plan := sqlite.NewPlanStore(db)
 	approvals := sqlite.NewApprovalRuleStore(db)
 	ss := sessionStores{
@@ -134,8 +135,8 @@ func newWriteSetFixture(t *testing.T) (sessionStores, *sqlite.RunStore, *sqlite.
 		transcript:  sqlite.NewTranscriptStore(db),
 		interrupts:  ints,
 		runs:        runs,
-		checkpoints: sqlite.NewExecutorCheckpointStore(db),
-		history:     conversation.NewMessages(sqlite.NewMessageStore(db)),
+		checkpoints: persistence.NewExecutorCheckpointStore(sqlite.NewExecutorCheckpointStore(db)),
+		history:     conversations.NewMessages(sqlite.NewMessageStore(db)),
 		plan:        plan,
 		approvals:   approvals,
 		goals:       sqlite.NewGoalStore(db),
@@ -158,9 +159,9 @@ var parkCreatedAt = time.Unix(1, 0).UTC()
 // restore accepts, since a Run that has not ended cannot be replayed into a
 // session from the outside.
 func restoredRun(sessionID, runID string, at time.Time) transcript.Run {
-	outcome := execution.OutcomeCompleted
+	outcome := run.OutcomeCompleted
 	return transcript.Run{
-		SessionID: sessionID, ID: runID, State: execution.Completed,
+		SessionID: sessionID, ID: runID, State: run.Completed,
 		Outcome:   &outcome,
 		CreatedAt: at, FinishedAt: at, UpdatedAt: at, MessageMark: 0,
 	}
@@ -170,8 +171,8 @@ func park(
 	t *testing.T,
 	sessions *sqlite.SessionStore,
 	runs *sqlite.RunStore,
-	ints *sqlite.InterruptStore,
-	checkpoints *sqlite.ExecutorCheckpointStore,
+	ints *persistence.InterruptStore,
+	checkpoints *persistence.ExecutorCheckpointStore,
 	sessionID, runID string,
 ) string {
 	return parkWithGoalLease(t, sessions, runs, ints, checkpoints, sessionID, runID, "")
@@ -181,8 +182,8 @@ func parkWithGoalLease(
 	t *testing.T,
 	sessions *sqlite.SessionStore,
 	runs *sqlite.RunStore,
-	ints *sqlite.InterruptStore,
-	checkpoints *sqlite.ExecutorCheckpointStore,
+	ints *persistence.InterruptStore,
+	checkpoints *persistence.ExecutorCheckpointStore,
 	sessionID, runID, goalLeaseID string,
 ) string {
 	t.Helper()
@@ -202,25 +203,25 @@ func parkWithGoalLease(
 	if err := checkpoints.SaveCheckpoint(ctx, checkpoint); err != nil {
 		t.Fatalf("save executor checkpoint: %v", err)
 	}
-	if err := runs.Admit(ctx, execution.RunDraft{
+	if err := runs.Admit(ctx, run.RunDraft{
 		RunID: runID, SessionID: sessionID, SegmentID: "seg_open",
 		GoalLeaseID: goalLeaseID,
-		Capabilities: execution.RunCapabilities{
-			InterruptKinds: []execution.InterruptKind{execution.QuestionInterrupt},
+		Capabilities: run.RunCapabilities{
+			InterruptKinds: []interrupt.Kind{interrupt.Question},
 		},
 		CreatedAt: parkCreatedAt,
 	}); err != nil {
 		t.Fatalf("admit: %v", err)
 	}
 	if err := runs.Suspend(ctx, transcript.Run{
-		SessionID: sessionID, ID: runID, State: execution.Interrupted,
+		SessionID: sessionID, ID: runID, State: run.Waiting,
 		GoalLeaseID: goalLeaseID,
-		Capabilities: execution.RunCapabilities{
-			InterruptKinds: []execution.InterruptKind{execution.QuestionInterrupt},
+		Capabilities: run.RunCapabilities{
+			InterruptKinds: []interrupt.Kind{interrupt.Question},
 		},
 		Interrupts: []transcript.Interrupt{{
 			ItemID: "item_" + runID, ItemOccurredAt: parkCreatedAt,
-			RunID: runID, Kind: execution.QuestionInterrupt,
+			RunID: runID, Kind: interrupt.Question,
 			Question: &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Continue?"}}},
 		}},
 		CreatedAt:   parkCreatedAt,
@@ -259,11 +260,11 @@ func TestApplyTerminalDropsInterruptAndTerminalizes(t *testing.T) {
 	if err := ss.checkpoints.SaveCheckpoint(ctx, bootstrapCheckpoint(tree, "ses_A", accounting.Snapshot{})); err != nil {
 		t.Fatalf("save root executor checkpoint containing a child: %v", err)
 	}
-	outcome := execution.OutcomeCanceled
+	outcome := run.OutcomeCanceled
 	finishedAt := time.Date(2026, 7, 13, 2, 3, 4, 0, time.UTC)
 
 	if err := ss.ApplyTerminal(ctx, sessions.TerminalPlan{CheckpointRootID: processID, Runs: []transcript.Run{{
-		SessionID: "ses_A", ID: "run_1", State: execution.Canceled,
+		SessionID: "ses_A", ID: "run_1", State: run.Canceled,
 		Outcome: &outcome, CreatedAt: parkCreatedAt,
 		FinishedAt: finishedAt, UpdatedAt: finishedAt, MessageMark: 0,
 	}}}); err != nil {
@@ -272,18 +273,18 @@ func TestApplyTerminalDropsInterruptAndTerminalizes(t *testing.T) {
 	if open, _ := ints.List(ctx, "ses_A"); len(open) != 0 {
 		t.Fatalf("interrupt survived cancel: %+v", open)
 	}
-	if _, err := ss.checkpoints.LoadCheckpoint(ctx, processID); !errors.Is(err, execution.ErrExecutorCheckpointNotFound) {
+	if _, err := ss.checkpoints.LoadCheckpoint(ctx, processID); !errors.Is(err, runsapp.ErrExecutorCheckpointNotFound) {
 		t.Fatalf("executor checkpoint after cancel = %v, want not found", err)
 	}
-	if _, err := ss.checkpoints.LoadCheckpoint(ctx, child.ID); !errors.Is(err, execution.ErrExecutorCheckpointNotFound) {
+	if _, err := ss.checkpoints.LoadCheckpoint(ctx, child.ID); !errors.Is(err, runsapp.ErrExecutorCheckpointNotFound) {
 		t.Fatalf("independent child checkpoint after cancel = %v, want not found", err)
 	}
 	// The admission row is terminal, so the session can start a fresh run.
-	if err := runs.Admit(ctx, execution.RunDraft{RunID: "run_2", SessionID: "ses_A", SegmentID: "seg_open", CreatedAt: parkCreatedAt.Add(time.Minute)}); err != nil {
+	if err := runs.Admit(ctx, run.RunDraft{RunID: "run_2", SessionID: "ses_A", SegmentID: "seg_open", CreatedAt: parkCreatedAt.Add(time.Minute)}); err != nil {
 		t.Fatalf("admit after cancel = %v, want the slot freed", err)
 	}
 	storedRuns, err := runs.ListRuns(ctx, "ses_A")
-	if err != nil || len(storedRuns) != 2 || storedRuns[0].State != execution.Canceled {
+	if err != nil || len(storedRuns) != 2 || storedRuns[0].State != run.Canceled {
 		t.Fatalf("terminal runs = %+v (err %v), want the canceled run and its successor", storedRuns, err)
 	}
 }
@@ -302,11 +303,11 @@ func TestApplyTerminalRecoversLostParkAtomically(t *testing.T) {
 	if err := ss.checkpoints.SaveCheckpoint(ctx, bootstrapCheckpoint(tree, "ses_A", accounting.Snapshot{})); err != nil {
 		t.Fatalf("save root executor checkpoint containing a child: %v", err)
 	}
-	outcome := execution.OutcomeError
+	outcome := run.OutcomeLost
 	finishedAt := time.Date(2026, 7, 16, 2, 3, 4, 0, time.UTC)
 
 	if err := ss.ApplyTerminal(ctx, sessions.TerminalPlan{CheckpointRootID: processID, Runs: []transcript.Run{{
-		SessionID: "ses_A", ID: "run_1", State: execution.Failed,
+		SessionID: "ses_A", ID: "run_1", State: run.Failed,
 		Outcome: &outcome, Error: &transcript.Problem{
 			Kind: transcript.RunLostProblem, Scope: transcript.RunProblem,
 		},
@@ -318,13 +319,13 @@ func TestApplyTerminalRecoversLostParkAtomically(t *testing.T) {
 	if open, _ := ints.List(ctx, "ses_A"); len(open) != 0 {
 		t.Fatalf("interrupt survived run_lost: %+v", open)
 	}
-	if _, err := ss.checkpoints.LoadCheckpoint(ctx, processID); !errors.Is(err, execution.ErrExecutorCheckpointNotFound) {
+	if _, err := ss.checkpoints.LoadCheckpoint(ctx, processID); !errors.Is(err, runsapp.ErrExecutorCheckpointNotFound) {
 		t.Fatalf("executor checkpoint after run_lost = %v, want not found", err)
 	}
-	if _, err := ss.checkpoints.LoadCheckpoint(ctx, child.ID); !errors.Is(err, execution.ErrExecutorCheckpointNotFound) {
+	if _, err := ss.checkpoints.LoadCheckpoint(ctx, child.ID); !errors.Is(err, runsapp.ErrExecutorCheckpointNotFound) {
 		t.Fatalf("independent child checkpoint after run_lost = %v, want not found", err)
 	}
-	if err := runs.Admit(ctx, execution.RunDraft{RunID: "run_2", SessionID: "ses_A", SegmentID: "seg_open", CreatedAt: parkCreatedAt.Add(time.Minute)}); err != nil {
+	if err := runs.Admit(ctx, run.RunDraft{RunID: "run_2", SessionID: "ses_A", SegmentID: "seg_open", CreatedAt: parkCreatedAt.Add(time.Minute)}); err != nil {
 		t.Fatalf("admit after run_lost = %v, want the slot freed", err)
 	}
 	storedRuns, err := runs.ListRuns(ctx, "ses_A")
@@ -364,11 +365,11 @@ func TestApplyTerminalChargesGoalOwnedParkAtomically(t *testing.T) {
 	}
 
 	costUSD := 0.75
-	outcome := execution.OutcomeError
+	outcome := run.OutcomeLost
 	finishedAt := parkCreatedAt.Add(time.Minute)
 	terminal := transcript.Run{
 		SessionID: "ses_A", ID: "run_goal", GoalLeaseID: leaseID,
-		State: execution.Failed, Outcome: &outcome,
+		State: run.Failed, Outcome: &outcome,
 		Error: &transcript.Problem{
 			Kind: transcript.RunLostProblem, Scope: transcript.RunProblem,
 		},
@@ -401,7 +402,7 @@ func TestApplyTerminalChargesGoalOwnedParkAtomically(t *testing.T) {
 		t.Fatalf("Goal after terminal park = %+v", storedGoal)
 	}
 	storedRun, found, err := runs.Run(ctx, terminal.ID)
-	if err != nil || !found || storedRun.State != execution.Failed {
+	if err != nil || !found || storedRun.State != run.Failed {
 		t.Fatalf("Run after terminal park = found:%t value:%+v err:%v", found, storedRun, err)
 	}
 	if open, err := ints.List(ctx, "ses_A"); err != nil || len(open) != 0 {
@@ -438,10 +439,10 @@ func TestApplyRollbackDropsRunsAndFreesAdmission(t *testing.T) {
 	if open, _ := ints.List(ctx, "ses_A"); len(open) != 0 {
 		t.Fatalf("dropped run's interrupt survived rollback: %+v", open)
 	}
-	if _, err := ss.checkpoints.LoadCheckpoint(ctx, processID); !errors.Is(err, execution.ErrExecutorCheckpointNotFound) {
+	if _, err := ss.checkpoints.LoadCheckpoint(ctx, processID); !errors.Is(err, runsapp.ErrExecutorCheckpointNotFound) {
 		t.Fatalf("executor checkpoint after rollback = %v, want not found", err)
 	}
-	if err := runs.Admit(ctx, execution.RunDraft{RunID: "run_2", SessionID: "ses_A", SegmentID: "seg_open", CreatedAt: parkCreatedAt.Add(time.Minute)}); err != nil {
+	if err := runs.Admit(ctx, run.RunDraft{RunID: "run_2", SessionID: "ses_A", SegmentID: "seg_open", CreatedAt: parkCreatedAt.Add(time.Minute)}); err != nil {
 		t.Fatalf("admit after rollback = %v, want the slot freed", err)
 	}
 	// The rollback carries no recorded boundary, so the plan is left exactly as it
@@ -608,10 +609,10 @@ func TestApplyDeleteRemovesRunRows(t *testing.T) {
 	if open, _ := ints.List(ctx, "ses_A"); len(open) != 0 {
 		t.Fatalf("interrupt survived delete: %+v", open)
 	}
-	if _, err := ss.checkpoints.LoadCheckpoint(ctx, processID); !errors.Is(err, execution.ErrExecutorCheckpointNotFound) {
+	if _, err := ss.checkpoints.LoadCheckpoint(ctx, processID); !errors.Is(err, runsapp.ErrExecutorCheckpointNotFound) {
 		t.Fatalf("executor checkpoint after delete = %v, want not found", err)
 	}
-	if _, err := ss.checkpoints.LoadCheckpoint(ctx, orphanProcessID); !errors.Is(err, execution.ErrExecutorCheckpointNotFound) {
+	if _, err := ss.checkpoints.LoadCheckpoint(ctx, orphanProcessID); !errors.Is(err, runsapp.ErrExecutorCheckpointNotFound) {
 		t.Fatalf("orphan executor checkpoint after delete = %v, want not found", err)
 	}
 	if _, err := ss.sessions.Get(ctx, "ses_A"); !errors.Is(err, session.ErrNotFound) {
@@ -625,7 +626,7 @@ func TestApplyDeleteRemovesRunRows(t *testing.T) {
 	}
 	// The non-terminal admission row is gone (not just terminal), so a fresh admit
 	// succeeds — proving the delete cascade dropped the runs rows.
-	if err := runs.Admit(ctx, execution.RunDraft{RunID: "run_2", SessionID: "ses_A", SegmentID: "seg_open", CreatedAt: parkCreatedAt.Add(time.Minute)}); err != nil {
+	if err := runs.Admit(ctx, run.RunDraft{RunID: "run_2", SessionID: "ses_A", SegmentID: "seg_open", CreatedAt: parkCreatedAt.Add(time.Minute)}); err != nil {
 		t.Fatalf("admit after delete = %v, want the slot freed", err)
 	}
 }

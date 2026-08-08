@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
+	apphooks "github.com/Tangerg/lynx/app/runtime/internal/application/hooks"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
 )
@@ -15,9 +16,9 @@ func TestRehydrateRestoresCWDAndToolHooks(t *testing.T) {
 		rewritten = `{"command":"echo restored","description":"Print restored"}`
 	)
 	recorder := &hookCommandRecorder{rewriteTool: "shell", rewriteArguments: rewritten}
-	bound := hooks.NewBound([]hooks.Hook{
+	bound := apphooks.NewBound([]hooks.Hook{
 		{Event: hooks.PreToolUse, Command: "record", Source: "test"},
-	}, hooks.NewRunner(recorder, nil))
+	}, apphooks.NewRunner(recorder, nil))
 	engine := &stubEngine{
 		restoreGateTool:      "shell",
 		restoreGateArguments: `{"command":"echo original","description":"Print original"}`,

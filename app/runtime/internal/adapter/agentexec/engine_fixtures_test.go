@@ -18,11 +18,10 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/suspension"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/accounting"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/accounting"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/toolresult"
 )
 
 // newHistoryStore keeps persistent-store tests focused on the shared history
@@ -125,7 +124,7 @@ func captureWaitingCheckpoint(t *testing.T, process TurnProcess) WaitingCheckpoi
 func persistWaitingCheckpoint(
 	t *testing.T,
 	store interface {
-		SaveCheckpoint(context.Context, execution.ExecutorCheckpoint) error
+		SaveCheckpoint(context.Context, runs.ExecutorCheckpoint) error
 	},
 	process TurnProcess,
 ) WaitingCheckpoint {
@@ -138,9 +137,9 @@ func persistWaitingCheckpoint(
 }
 
 func expectationForCheckpoint(
-	checkpoint execution.ExecutorCheckpoint,
-) execution.ExecutorCheckpointExpectation {
-	return execution.ExecutorCheckpointExpectation{
+	checkpoint runs.ExecutorCheckpoint,
+) runs.ExecutorCheckpointExpectation {
+	return runs.ExecutorCheckpointExpectation{
 		RootProcessID:  checkpoint.RootProcessID,
 		SessionID:      checkpoint.Scope.SessionID,
 		CWD:            checkpoint.Scope.CWD,
@@ -224,7 +223,7 @@ func (r *recordingObserver) OnToolCallStart(process ProcessRef, callID, sourceCa
 	r.order = append(r.order, "tool-start:"+process.ID+":"+toolName)
 }
 
-func (r *recordingObserver) OnToolCallEnd(process ProcessRef, callID, toolName, arguments, output string, _ *offload.Ref, mutatedPaths []string, err error) {
+func (r *recordingObserver) OnToolCallEnd(process ProcessRef, callID, toolName, arguments, output string, _ *toolresult.Ref, mutatedPaths []string, err error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.endList = append(r.endList, endCall{
@@ -314,13 +313,13 @@ type hitlApprovalObserver struct {
 
 func (o *hitlApprovalObserver) ApproveToolCall(ctx context.Context, _, toolName, arguments string, _ ToolApprovalTarget) ToolApprovalVerdict {
 	pending := runs.Interrupt{
-		Kind: execution.ApprovalInterrupt,
+		Kind: interrupt.Approval,
 		Approval: &runs.ApprovalPrompt{
 			ToolName: toolName, Arguments: arguments, SafetyClass: tool.SafetyClassExec, Risk: tool.RiskHigh,
 		},
 	}
 	res, err := suspension.Interrupt(ctx,
-		interrupts.InterruptKey("kernel-test.approval", toolName, arguments),
+		interrupt.InterruptKey("kernel-test.approval", toolName, arguments),
 		pending,
 	)
 	if err != nil {
@@ -334,16 +333,16 @@ func (o *hitlApprovalObserver) ApproveToolCall(ctx context.Context, _, toolName,
 
 type memoryCheckpointStore struct {
 	mu          sync.Mutex
-	checkpoints map[string]execution.ExecutorCheckpoint
+	checkpoints map[string]runs.ExecutorCheckpoint
 }
 
 func newMemoryCheckpointStore() *memoryCheckpointStore {
 	return &memoryCheckpointStore{
-		checkpoints: map[string]execution.ExecutorCheckpoint{},
+		checkpoints: map[string]runs.ExecutorCheckpoint{},
 	}
 }
 
-func (s *memoryCheckpointStore) SaveCheckpoint(_ context.Context, checkpoint execution.ExecutorCheckpoint) error {
+func (s *memoryCheckpointStore) SaveCheckpoint(_ context.Context, checkpoint runs.ExecutorCheckpoint) error {
 	if err := checkpoint.Validate(); err != nil {
 		return err
 	}
@@ -352,18 +351,18 @@ func (s *memoryCheckpointStore) SaveCheckpoint(_ context.Context, checkpoint exe
 	if stored, exists := s.checkpoints[checkpoint.RootProcessID]; exists &&
 		(stored.Scope != checkpoint.Scope || stored.BuildID != checkpoint.BuildID ||
 			stored.ModelSelection != checkpoint.ModelSelection || stored.Limits != checkpoint.Limits) {
-		return execution.ErrInvalidExecutorCheckpoint
+		return runs.ErrInvalidExecutorCheckpoint
 	}
 	s.checkpoints[checkpoint.RootProcessID] = checkpoint.Clone()
 	return nil
 }
 
-func (s *memoryCheckpointStore) LoadCheckpoint(_ context.Context, id string) (execution.ExecutorCheckpoint, error) {
+func (s *memoryCheckpointStore) LoadCheckpoint(_ context.Context, id string) (runs.ExecutorCheckpoint, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	checkpoint, ok := s.checkpoints[id]
 	if !ok {
-		return execution.ExecutorCheckpoint{}, fmt.Errorf("memory checkpoint store: load %q: %w", id, execution.ErrExecutorCheckpointNotFound)
+		return runs.ExecutorCheckpoint{}, fmt.Errorf("memory checkpoint store: load %q: %w", id, runs.ErrExecutorCheckpointNotFound)
 	}
 	return checkpoint.Clone(), nil
 }

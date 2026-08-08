@@ -7,11 +7,11 @@ import (
 
 	"github.com/Tangerg/lynx/core/chat"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/persistence"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/runsegment"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 )
 
@@ -35,7 +35,7 @@ func newBlockingServer(t *testing.T) *Server {
 		sess:       sqlite.NewSessionStore(db),
 		hist:       sqlite.NewTranscriptStore(db),
 		runs:       sqlite.NewRunStore(db),
-		interrupts: sqlite.NewInterruptStore(db),
+		interrupts: persistence.NewInterruptStore(sqlite.NewInterruptStore(db)),
 		history:    map[string][]chat.Message{},
 	}})
 }
@@ -44,20 +44,20 @@ func (*blockingRunRuntime) SessionByID(context.Context, string) (session.Session
 	return session.Session{ID: "ses_1", CWD: "/work"}, nil
 }
 
-func (*blockingRunRuntime) Events(ctx context.Context, _ execution.ExecutorRef) (iter.Seq[runs.ExecutorEvent], error) {
+func (*blockingRunRuntime) Events(ctx context.Context, _ runs.ExecutorRef) (iter.Seq[runs.ExecutorEvent], error) {
 	return func(func(runs.ExecutorEvent) bool) { <-ctx.Done() }, nil
 }
 
-func (*blockingRunRuntime) CancelExecution(context.Context, execution.ExecutorRef) error { return nil }
-func (*blockingRunRuntime) CancelSubtree(context.Context, execution.ExecutorRef, string) error {
+func (*blockingRunRuntime) CancelExecution(context.Context, runs.ExecutorRef) error { return nil }
+func (*blockingRunRuntime) CancelSubtree(context.Context, runs.ExecutorRef, string) error {
 	return nil
 }
 
-func (*blockingRunRuntime) PrepareStart(_ context.Context, req runs.StartExecution) (execution.ExecutorRef, error) {
-	return execution.ExecutorRef{SessionID: req.SessionID, ExecutorID: "exec_blocking"}, nil
+func (*blockingRunRuntime) PrepareStart(_ context.Context, req runs.StartExecution) (runs.ExecutorRef, error) {
+	return runs.ExecutorRef{SessionID: req.SessionID, ExecutorID: "exec_blocking"}, nil
 }
 
-func (*blockingRunRuntime) Activate(context.Context, execution.ExecutorRef) error { return nil }
+func (*blockingRunRuntime) Activate(context.Context, runs.ExecutorRef) error { return nil }
 
 // RunSegmentEffects writes the Run to the real table. Item history is stubbed —
 // these tests are about the live stream — but the Run record cannot be: addressing

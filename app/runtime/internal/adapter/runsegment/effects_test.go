@@ -15,13 +15,13 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	workspaceapp "github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/toolresult"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
 var (
@@ -55,28 +55,28 @@ func singleRunPending(
 	t testing.TB,
 	runID, sessionID, processID, suspensionID, itemID string,
 	runCreatedAt, barrierCreatedAt time.Time,
-) interrupts.Pending {
+) runs.Pending {
 	t.Helper()
 	question := &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Continue?"}}}
-	return interrupts.Pending{
+	return runs.Pending{
 		RootRunID:  runID,
 		SessionID:  sessionID,
 		ExecutorID: "turn_" + runID,
-		Capabilities: execution.RunCapabilities{
-			InterruptKinds: []execution.InterruptKind{execution.QuestionInterrupt},
+		Capabilities: run.RunCapabilities{
+			InterruptKinds: []interrupt.Kind{interrupt.Question},
 		},
 		Interrupts: []transcript.Interrupt{{
 			ItemID: itemID, ItemOccurredAt: barrierCreatedAt,
 			RunID:    runID,
-			Kind:     execution.QuestionInterrupt,
+			Kind:     interrupt.Question,
 			Question: question,
 		}},
-		Suspensions: []interrupts.SuspensionBinding{{
+		Suspensions: []runs.SuspensionBinding{{
 			InterruptItemID: itemID,
 			ProcessID:       processID,
 			SuspensionID:    suspensionID,
 		}},
-		Continuations: []interrupts.Continuation{{
+		Continuations: []runs.Continuation{{
 			RunID:          runID,
 			ProcessID:      processID,
 			ModelSelection: mustEffectSelection(t, "anthropic", "claude"),
@@ -99,11 +99,11 @@ func TestCommitEventPersistsTranscriptAndTerminalizes(t *testing.T) {
 		RunID:     "run_1",
 		SessionID: "ses_1",
 		State:     runs.StateTerminalize,
-		Outcome:   execution.OutcomeCompleted,
+		Outcome:   run.OutcomeCompleted,
 		Items: []transcript.Item{{
 			SessionID: "ses_1", RunID: "run_1", ID: "item_1", OccurredAt: time.Unix(1, 0).UTC(),
 		}},
-		Run: finishedRunRecord("run_1", "ses_1", execution.OutcomeCompleted),
+		Run: finishedRunRecord("run_1", "ses_1", run.OutcomeCompleted),
 	})
 	if err != nil {
 		t.Fatalf("CommitEvent: %v", err)
@@ -116,7 +116,7 @@ func TestCommitEventPersistsTranscriptAndTerminalizes(t *testing.T) {
 		t.Fatalf("terminalized = %+v, want one finished run", runState.terminalized)
 	}
 	finished := runState.terminalized[0]
-	if finished.SessionID != "ses_1" || finished.ID != "run_1" || *finished.Outcome != execution.OutcomeCompleted {
+	if finished.SessionID != "ses_1" || finished.ID != "run_1" || *finished.Outcome != run.OutcomeCompleted {
 		t.Fatalf("terminalized run = %+v", finished)
 	}
 	if finished.MessageMark != 7 {
@@ -131,7 +131,7 @@ func TestCommitEventBindsOffloadedResultWithTranscriptItem(t *testing.T) {
 	toolResults := new(fakeToolResults)
 	stores := &fakeStores{transcript: new(fakeTranscript), toolResults: toolResults}
 	effects := testEffects(stores, Config{Tx: new(fakeTx).run})
-	ref := &offload.Ref{ID: "BLOB234"}
+	ref := &toolresult.Ref{ID: "BLOB234"}
 	preview := tool.StringResult("preview")
 
 	err := effects.CommitEvent(t.Context(), runs.EventCommit{
@@ -164,7 +164,7 @@ func TestCommitEventDiscardsStagedOffloadAfterCommitFailure(t *testing.T) {
 			return want
 		},
 	})
-	ref := &offload.Ref{ID: "BLOB234"}
+	ref := &toolresult.Ref{ID: "BLOB234"}
 	preview := tool.StringResult("preview")
 
 	err := effects.CommitEvent(t.Context(), runs.EventCommit{
@@ -194,8 +194,8 @@ func TestCommitEventRejectsUnresolvedTerminalMessageWatermark(t *testing.T) {
 		RunID:     "run_1",
 		SessionID: "ses_1",
 		State:     runs.StateTerminalize,
-		Outcome:   execution.OutcomeCompleted,
-		Run:       finishedRunRecord("run_1", "ses_1", execution.OutcomeCompleted),
+		Outcome:   run.OutcomeCompleted,
+		Run:       finishedRunRecord("run_1", "ses_1", run.OutcomeCompleted),
 	})
 	if !errors.Is(err, want) {
 		t.Fatalf("CommitEvent error = %v, want %v", err, want)
@@ -224,7 +224,7 @@ func TestCommitOpeningAdmitsAndProjectsInOneTransaction(t *testing.T) {
 	runState := &fakeRunState{}
 	tx := &fakeTx{}
 	effects := testEffects(stores, Config{RunState: runState, Tx: tx.run})
-	draft := execution.RunDraft{RunID: "run_1", SessionID: "ses_1", SegmentID: "seg_open"}
+	draft := run.RunDraft{RunID: "run_1", SessionID: "ses_1", SegmentID: "seg_open"}
 
 	err := effects.CommitOpening(context.Background(), runs.OpeningCommit{
 		Admit: &draft,
@@ -253,11 +253,11 @@ func TestCommitOpeningConsumesInterruptAndResumes(t *testing.T) {
 	runState := &fakeRunState{}
 	tx := &fakeTx{}
 	effects := testEffects(stores, Config{RunState: runState, Tx: tx.run})
-	resume := execution.TreeResumeDraft{
+	resume := run.TreeResumeDraft{
 		RootRunID: "run_1",
 		SessionID: "ses_1",
 		ResumedAt: now,
-		Runs:      []execution.RunResumeDraft{{RunID: "run_1", SegmentID: "seg_next"}},
+		Runs:      []run.RunResumeDraft{{RunID: "run_1", SegmentID: "seg_next"}},
 	}
 
 	err := effects.CommitOpening(context.Background(), runs.OpeningCommit{
@@ -279,7 +279,7 @@ func TestCommitOpeningConsumesInterruptAndResumes(t *testing.T) {
 }
 
 // TestCommitTreeBarrierRecordsPendingSetAndSuspends: one tree barrier persists
-// the complete executor hand-off beside the interrupted Run — atomically.
+// the complete executor hand-off beside the waiting Run — atomically.
 func TestCommitTreeBarrierRecordsPendingSetAndSuspends(t *testing.T) {
 	stores := &fakeStores{interrupts: &fakeInterrupts{}, transcript: &fakeTranscript{}}
 	runState := &fakeRunState{}
@@ -292,7 +292,7 @@ func TestCommitTreeBarrierRecordsPendingSetAndSuspends(t *testing.T) {
 		"run_1", "ses_1", "proc_1", "susp_1", "int_1",
 		runCreatedAt, barrierCreatedAt,
 	)
-	pending.Continuations[0].DrainedTools = []interrupts.DrainedTool{{
+	pending.Continuations[0].DrainedTools = []runs.DrainedTool{{
 		ItemID: "tool_1", ItemOccurredAt: barrierCreatedAt,
 		CallID: "call_1", Name: "ask_user", Arguments: "{}",
 	}}
@@ -306,7 +306,7 @@ func TestCommitTreeBarrierRecordsPendingSetAndSuspends(t *testing.T) {
 			SessionID: "ses_1",
 			State:     runs.StateSuspend,
 			Run: &transcript.Run{
-				SessionID: "ses_1", ID: "run_1", State: execution.Interrupted,
+				SessionID: "ses_1", ID: "run_1", State: run.Waiting,
 				ModelSelection: pending.Continuations[0].ModelSelection,
 				Interrupts:     pending.Interrupts,
 				Metrics:        transcript.RunMetrics{Steps: 2},
@@ -361,7 +361,7 @@ func TestCommitTreeBarrierRejectsIncompleteContinuation(t *testing.T) {
 		Runs: []runs.EventCommit{{
 			RunID: "run_1", SessionID: "ses_1", State: runs.StateSuspend,
 			Run: &transcript.Run{
-				SessionID: "ses_1", ID: "run_1", State: execution.Interrupted,
+				SessionID: "ses_1", ID: "run_1", State: run.Waiting,
 				Interrupts: pending.Interrupts, CreatedAt: createdAt,
 				MessageMark: transcript.UnknownMessageMark,
 			},
@@ -388,15 +388,15 @@ func TestCommitTreeBarrierRejectsMismatchedCheckpointBindingBeforeTransaction(t 
 		"run_1", "ses_1", "proc_1", "susp_1", "int_1",
 		createdAt, createdAt.Add(time.Second),
 	)
-	for name, mutate := range map[string]func(*execution.ExecutorCheckpoint){
-		"root":       func(checkpoint *execution.ExecutorCheckpoint) { checkpoint.RootProcessID = "other_proc" },
-		"session":    func(checkpoint *execution.ExecutorCheckpoint) { checkpoint.Scope.SessionID = "other_session" },
-		"goal lease": func(checkpoint *execution.ExecutorCheckpoint) { checkpoint.Scope.GoalLeaseID = "other_goal" },
-		"limits":     func(checkpoint *execution.ExecutorCheckpoint) { checkpoint.Limits.MaxTotalTokens++ },
-		"provider": func(checkpoint *execution.ExecutorCheckpoint) {
+	for name, mutate := range map[string]func(*runs.ExecutorCheckpoint){
+		"root":       func(checkpoint *runs.ExecutorCheckpoint) { checkpoint.RootProcessID = "other_proc" },
+		"session":    func(checkpoint *runs.ExecutorCheckpoint) { checkpoint.Scope.SessionID = "other_session" },
+		"goal lease": func(checkpoint *runs.ExecutorCheckpoint) { checkpoint.Scope.GoalLeaseID = "other_goal" },
+		"limits":     func(checkpoint *runs.ExecutorCheckpoint) { checkpoint.Limits.MaxTotalTokens++ },
+		"provider": func(checkpoint *runs.ExecutorCheckpoint) {
 			checkpoint.ModelSelection, _ = modelref.New("openai", checkpoint.ModelSelection.Model())
 		},
-		"model": func(checkpoint *execution.ExecutorCheckpoint) {
+		"model": func(checkpoint *runs.ExecutorCheckpoint) {
 			checkpoint.ModelSelection, _ = modelref.New(checkpoint.ModelSelection.Provider(), "other-model")
 		},
 	} {
@@ -412,13 +412,13 @@ func TestCommitTreeBarrierRejectsMismatchedCheckpointBindingBeforeTransaction(t 
 				Runs: []runs.EventCommit{{
 					RunID: "run_1", SessionID: "ses_1", State: runs.StateSuspend,
 					Run: &transcript.Run{
-						SessionID: "ses_1", ID: "run_1", State: execution.Interrupted,
+						SessionID: "ses_1", ID: "run_1", State: run.Waiting,
 						Interrupts: pending.Interrupts, CreatedAt: createdAt,
 						MessageMark: transcript.UnknownMessageMark,
 					},
 				}},
 			})
-			if !errors.Is(err, execution.ErrInvalidExecutorCheckpoint) {
+			if !errors.Is(err, runs.ErrInvalidExecutorCheckpoint) {
 				t.Fatalf("CommitTreeBarrier error = %v, want ErrInvalidExecutorCheckpoint", err)
 			}
 			if tx.calls != 0 {
@@ -434,35 +434,35 @@ func TestCommitTreeBarrierRejectsMismatchedCheckpointBindingBeforeTransaction(t 
 func TestCommitTreeBarrierRejectsRunContinuationFactDriftBeforeTransaction(t *testing.T) {
 	tests := []struct {
 		name   string
-		mutate func(*interrupts.Pending, *transcript.Run)
+		mutate func(*runs.Pending, *transcript.Run)
 	}{
 		{
 			name: "cumulative metrics",
-			mutate: func(_ *interrupts.Pending, run *transcript.Run) {
+			mutate: func(_ *runs.Pending, run *transcript.Run) {
 				run.Metrics.Steps++
 			},
 		},
 		{
 			name: "frozen limits",
-			mutate: func(_ *interrupts.Pending, run *transcript.Run) {
+			mutate: func(_ *runs.Pending, run *transcript.Run) {
 				run.Limits.MaxSteps++
 			},
 		},
 		{
 			name: "frozen model selection",
-			mutate: func(_ *interrupts.Pending, run *transcript.Run) {
+			mutate: func(_ *runs.Pending, run *transcript.Run) {
 				run.ModelSelection = mustEffectSelection(t, "openai", "gpt")
 			},
 		},
 		{
 			name: "frozen run capabilities",
-			mutate: func(_ *interrupts.Pending, run *transcript.Run) {
+			mutate: func(_ *runs.Pending, run *transcript.Run) {
 				run.Capabilities.ChildRuns = true
 			},
 		},
 		{
 			name: "root goal lease",
-			mutate: func(_ *interrupts.Pending, run *transcript.Run) {
+			mutate: func(_ *runs.Pending, run *transcript.Run) {
 				run.GoalLeaseID = "other-lease"
 			},
 		},
@@ -477,13 +477,13 @@ func TestCommitTreeBarrierRejectsRunContinuationFactDriftBeforeTransaction(t *te
 			)
 			pending.GoalLeaseID = "goal-lease"
 			pending.Continuations[0].Metrics = transcript.RunMetrics{Steps: 2}
-			pending.Continuations[0].Limits = execution.RunLimits{MaxSteps: 5}
+			pending.Continuations[0].Limits = run.RunLimits{MaxSteps: 5}
 			run := transcript.Run{
 				SessionID:      pending.SessionID,
 				ID:             pending.RootRunID,
 				ModelSelection: pending.Continuations[0].ModelSelection,
 				GoalLeaseID:    pending.GoalLeaseID,
-				State:          execution.Interrupted,
+				State:          run.Waiting,
 				Interrupts:     pending.Interrupts,
 				Metrics:        pending.Continuations[0].Metrics,
 				Limits:         pending.Continuations[0].Limits,
@@ -710,8 +710,8 @@ func (s *fakeStores) Generate(context.Context, string) (string, error) {
 // finishedRunRecord is the terminal Run a reducer hands to a terminal commit: it
 // carries its outcome and result but leaves the message watermark unknown, since
 // resolving that is the committer's job.
-func finishedRunRecord(runID, sessionID string, outcome execution.Outcome) *transcript.Run {
-	state, _ := execution.Running.Terminate(outcome)
+func finishedRunRecord(runID, sessionID string, outcome run.Outcome) *transcript.Run {
+	state, _ := run.Running.Terminate(outcome)
 	return &transcript.Run{
 		SessionID: sessionID, ID: runID, State: state, Outcome: &outcome,
 		CreatedAt:   time.Unix(1, 0).UTC(),
@@ -722,18 +722,18 @@ func finishedRunRecord(runID, sessionID string, outcome execution.Outcome) *tran
 
 // fakeRunState records the run-state transitions the commit applies.
 type fakeRunState struct {
-	admitted     []execution.RunDraft
+	admitted     []run.RunDraft
 	resumed      []string
 	suspended    []transcript.Run
 	terminalized []transcript.Run
 }
 
-func (r *fakeRunState) Admit(_ context.Context, draft execution.RunDraft) error {
+func (r *fakeRunState) Admit(_ context.Context, draft run.RunDraft) error {
 	r.admitted = append(r.admitted, draft)
 	return nil
 }
 
-func (r *fakeRunState) Resume(_ context.Context, sessionID string, _ execution.RunResumeDraft, _ time.Time) error {
+func (r *fakeRunState) Resume(_ context.Context, sessionID string, _ run.RunResumeDraft, _ time.Time) error {
 	r.resumed = append(r.resumed, sessionID)
 	return nil
 }
@@ -764,7 +764,7 @@ type toolResultBinding struct {
 	sessionID string
 	itemID    string
 	preview   string
-	ref       offload.Ref
+	ref       toolresult.Ref
 }
 
 type fakeToolResults struct {
@@ -772,14 +772,14 @@ type fakeToolResults struct {
 	discarded []toolResultBinding
 }
 
-func (s *fakeToolResults) Bind(_ context.Context, sessionID, itemID, preview string, ref offload.Ref) error {
+func (s *fakeToolResults) Bind(_ context.Context, sessionID, itemID, preview string, ref toolresult.Ref) error {
 	s.bindings = append(s.bindings, toolResultBinding{
 		sessionID: sessionID, itemID: itemID, preview: preview, ref: ref,
 	})
 	return nil
 }
 
-func (s *fakeToolResults) Discard(_ context.Context, sessionID string, ref offload.Ref) error {
+func (s *fakeToolResults) Discard(_ context.Context, sessionID string, ref toolresult.Ref) error {
 	s.discarded = append(s.discarded, toolResultBinding{sessionID: sessionID, ref: ref})
 	return nil
 }
@@ -790,10 +790,10 @@ func (s *fakeTranscript) AppendItem(_ context.Context, it transcript.Item) error
 }
 
 type fakeInterrupts struct {
-	pending interrupts.Pending
+	pending runs.Pending
 }
 
-func (s *fakeInterrupts) Open(_ context.Context, p interrupts.Pending) error {
+func (s *fakeInterrupts) Open(_ context.Context, p runs.Pending) error {
 	if s.pending.RootRunID != "" {
 		return transcript.ErrIdentityConflict
 	}
@@ -801,12 +801,12 @@ func (s *fakeInterrupts) Open(_ context.Context, p interrupts.Pending) error {
 	return nil
 }
 
-func (s *fakeInterrupts) Consume(_ context.Context, sessionID, runID string) (interrupts.Pending, bool, error) {
+func (s *fakeInterrupts) Consume(_ context.Context, sessionID, runID string) (runs.Pending, bool, error) {
 	if s.pending.SessionID != sessionID || s.pending.RootRunID != runID {
-		return interrupts.Pending{}, false, nil
+		return runs.Pending{}, false, nil
 	}
 	pending := s.pending
-	s.pending = interrupts.Pending{}
+	s.pending = runs.Pending{}
 	return pending, true, nil
 }
 

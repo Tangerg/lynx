@@ -8,8 +8,8 @@ import (
 	"slices"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
 // RunReader reads the durable run history for one session.

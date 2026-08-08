@@ -8,7 +8,9 @@ import (
 
 // topKHits scores every chunk against the query vector by cosine similarity and
 // returns the k highest, descending.
-func topKHits(query []float32, chunks []Chunk, k int) []Hit {
+// Rank returns the k chunks most similar to query without acquiring or storing
+// either the corpus or its embeddings.
+func Rank(query []float32, chunks []Chunk, k int) []Hit {
 	qn := norm(query)
 	if qn == 0 {
 		return nil

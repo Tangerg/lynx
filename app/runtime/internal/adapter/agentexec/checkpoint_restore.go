@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	agentruntime "github.com/Tangerg/lynx/agent/runtime"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 )
 
 // ErrExecutorCheckpointLost reports that a parked process cannot be
@@ -18,7 +18,7 @@ var ErrExecutorCheckpointLost = errors.New("agentexec: executor checkpoint lost"
 // continuation owned by this engine and the same application Run/Session.
 func (e *Engine) CanResumeCheckpoint(
 	ctx context.Context,
-	expected execution.ExecutorCheckpointExpectation,
+	expected runs.ExecutorCheckpointExpectation,
 ) (bool, error) {
 	if e == nil || e.agentRuntime == nil {
 		return false, errors.New("engine: agent runtime is required")

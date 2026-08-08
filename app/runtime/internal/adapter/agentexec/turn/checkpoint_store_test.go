@@ -10,13 +10,12 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 )
 
 const testProcessBuildID = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 
 func validWaitingCheckpoint() agentexec.WaitingCheckpoint {
-	return agentexec.WaitingCheckpoint{Checkpoint: execution.ExecutorCheckpoint{
+	return agentexec.WaitingCheckpoint{Checkpoint: runs.ExecutorCheckpoint{
 		RootProcessID: "process_root",
 		Payload:       []byte(`{"root":"process_root"}`),
 		BuildID:       testProcessBuildID,
@@ -24,8 +23,8 @@ func validWaitingCheckpoint() agentexec.WaitingCheckpoint {
 }
 
 type testCheckpointStore interface {
-	LoadCheckpoint(context.Context, string) (execution.ExecutorCheckpoint, error)
-	SaveCheckpoint(context.Context, execution.ExecutorCheckpoint) error
+	LoadCheckpoint(context.Context, string) (runs.ExecutorCheckpoint, error)
+	SaveCheckpoint(context.Context, runs.ExecutorCheckpoint) error
 	DeleteCheckpoints(context.Context, string, []string) error
 }
 
@@ -50,7 +49,7 @@ type failNthSaveCheckpointStore struct {
 
 func (s *failNthSaveCheckpointStore) SaveCheckpoint(
 	ctx context.Context,
-	checkpoint execution.ExecutorCheckpoint,
+	checkpoint runs.ExecutorCheckpoint,
 ) error {
 	if s.saves.Add(1) == s.failAt {
 		return s.err
@@ -60,14 +59,14 @@ func (s *failNthSaveCheckpointStore) SaveCheckpoint(
 
 type memoryCheckpointStore struct {
 	mu          sync.Mutex
-	checkpoints map[string]execution.ExecutorCheckpoint
+	checkpoints map[string]runs.ExecutorCheckpoint
 }
 
 func newMemoryCheckpointStore() *memoryCheckpointStore {
-	return &memoryCheckpointStore{checkpoints: make(map[string]execution.ExecutorCheckpoint)}
+	return &memoryCheckpointStore{checkpoints: make(map[string]runs.ExecutorCheckpoint)}
 }
 
-func (s *memoryCheckpointStore) SaveCheckpoint(_ context.Context, checkpoint execution.ExecutorCheckpoint) error {
+func (s *memoryCheckpointStore) SaveCheckpoint(_ context.Context, checkpoint runs.ExecutorCheckpoint) error {
 	if err := checkpoint.Validate(); err != nil {
 		return err
 	}
@@ -76,18 +75,18 @@ func (s *memoryCheckpointStore) SaveCheckpoint(_ context.Context, checkpoint exe
 	if stored, exists := s.checkpoints[checkpoint.RootProcessID]; exists &&
 		(stored.Scope != checkpoint.Scope || stored.BuildID != checkpoint.BuildID ||
 			stored.ModelSelection != checkpoint.ModelSelection || stored.Limits != checkpoint.Limits) {
-		return execution.ErrInvalidExecutorCheckpoint
+		return runs.ErrInvalidExecutorCheckpoint
 	}
 	s.checkpoints[checkpoint.RootProcessID] = checkpoint.Clone()
 	return nil
 }
 
-func (s *memoryCheckpointStore) LoadCheckpoint(_ context.Context, rootID string) (execution.ExecutorCheckpoint, error) {
+func (s *memoryCheckpointStore) LoadCheckpoint(_ context.Context, rootID string) (runs.ExecutorCheckpoint, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	checkpoint, ok := s.checkpoints[rootID]
 	if !ok {
-		return execution.ExecutorCheckpoint{}, fmt.Errorf("%w: %s", execution.ErrExecutorCheckpointNotFound, rootID)
+		return runs.ExecutorCheckpoint{}, fmt.Errorf("%w: %s", runs.ErrExecutorCheckpointNotFound, rootID)
 	}
 	return checkpoint.Clone(), nil
 }
@@ -97,7 +96,7 @@ func (s *memoryCheckpointStore) DeleteCheckpoints(_ context.Context, sessionID s
 	defer s.mu.Unlock()
 	for _, rootID := range rootIDs {
 		if checkpoint, exists := s.checkpoints[rootID]; exists && checkpoint.Scope.SessionID != sessionID {
-			return execution.ErrInvalidExecutorCheckpoint
+			return runs.ErrInvalidExecutorCheckpoint
 		}
 	}
 	for _, rootID := range rootIDs {

@@ -8,10 +8,9 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/admission"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/change"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
 // changeRecorder collects notices from the pump goroutine as well as the request
@@ -63,7 +62,7 @@ func TestStartAndTerminalPublishRunAndSessionChanges(t *testing.T) {
 	exec := &fakeExecutor{}
 	effects := &fakeEffects{}
 	sessions := &fakeRunSessions{sess: session.Session{ID: "ses_1", CWD: "/work"}}
-	control := &fakeExecutionControl{startRef: execution.ExecutorRef{SessionID: "ses_1", ExecutorID: "turn_1"}}
+	control := &fakeExecutionControl{startRef: ExecutorRef{SessionID: "ses_1", ExecutorID: "turn_1"}}
 	changes := &changeRecorder{}
 	c := NewCoordinator(Dependencies{
 		Segments:     exec,
@@ -122,7 +121,7 @@ func TestCommittedStateChangeReachesOtherWindows(t *testing.T) {
 	changes := &changeRecorder{}
 	c := NewCoordinator(Dependencies{
 		Segments:     exec,
-		Control:      &fakeExecutionControl{startRef: execution.ExecutorRef{SessionID: "ses_1", ExecutorID: "turn_1"}},
+		Control:      &fakeExecutionControl{startRef: ExecutorRef{SessionID: "ses_1", ExecutorID: "turn_1"}},
 		Sessions:     &fakeRunSessions{sess: session.Session{ID: "ses_1", CWD: "/work"}},
 		Effects:      &fakeEffects{},
 		Now:          func() time.Time { return time.Date(2026, 7, 29, 1, 2, 3, 0, time.UTC) },

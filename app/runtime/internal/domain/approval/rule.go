@@ -10,6 +10,12 @@ import (
 
 type ruleSet []Rule
 
+// Decide evaluates visible rules against q using the domain's specificity and
+// deny-on-conflict policy.
+func Decide(rules []Rule, q Query) (Decision, bool, error) {
+	return ruleSet(rules).decide(q)
+}
+
 // NewRule constructs one durable rule and derives its deterministic identity.
 func NewRule(scope Scope, scopeKey, toolName, subject string, decision Decision) (Rule, error) {
 	rule := Rule{
@@ -144,7 +150,8 @@ func (s Scope) key(sessionID, projectDir string) (string, bool) {
 	}
 }
 
-func (req RememberRequest) rule() (Rule, error) {
+// Rule derives and validates the durable rule represented by req.
+func (req RememberRequest) Rule() (Rule, error) {
 	key, ok := req.Scope.key(req.SessionID, req.ProjectDir)
 	if !ok {
 		return Rule{}, fmt.Errorf("%w: scope %q has no usable key", ErrInvalidRule, req.Scope)

@@ -5,7 +5,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 )
 
 func TestCancelBetweenParkAndInterruptPublishClosesSafely(t *testing.T) {
@@ -35,7 +35,7 @@ func TestCancelBetweenParkAndInterruptPublishClosesSafely(t *testing.T) {
 	for ev := range st.events {
 		if end, ok := ev.Payload.(runs.SegmentEnded); ok {
 			endCount++
-			if end.Reason != execution.OutcomeCanceled {
+			if end.Reason != run.OutcomeCanceled {
 				t.Fatalf("runs.TurnEnd reason = %s, want canceled", end.Reason)
 			}
 		}

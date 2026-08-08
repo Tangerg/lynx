@@ -5,14 +5,14 @@ import (
 	"fmt"
 	"math"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/accounting"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/accounting"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
 func (r *reducer) segmentEnd(e SegmentEnded) ([]RunEvent, error) {
-	if e.Reason != execution.OutcomeError && e.Problem != nil {
-		return nil, errors.New("non-error outcome carries a problem")
+	if e.Reason != run.OutcomeFailed && e.Reason != run.OutcomeTimedOut && e.Problem != nil {
+		return nil, errors.New("outcome does not allow a problem")
 	}
 	if e.Usage != nil {
 		if err := r.applyUsage(*e.Usage); err != nil {
@@ -23,16 +23,16 @@ func (r *reducer) segmentEnd(e SegmentEnded) ([]RunEvent, error) {
 	var failure *transcript.Problem
 	detail := ""
 	switch e.Reason {
-	case execution.OutcomeError:
+	case run.OutcomeFailed, run.OutcomeTimedOut:
 		if e.Problem == nil {
-			return nil, errors.New("error outcome is missing a problem")
+			return nil, errors.New("failure outcome is missing a problem")
 		}
 		var err error
 		failure, err = runResultProblem(*e.Problem)
 		if err != nil {
 			return nil, err
 		}
-	case execution.OutcomeCanceled:
+	case run.OutcomeCanceled:
 		if r.cfg.CancelReason != nil {
 			detail = r.cfg.CancelReason()
 		}
@@ -50,12 +50,12 @@ func (r *reducer) segmentEnd(e SegmentEnded) ([]RunEvent, error) {
 	return append(out, terminal), nil
 }
 
-func (r *reducer) runRecord(state execution.RunState) transcript.Run {
+func (r *reducer) runRecord(state run.RunState) transcript.Run {
 	// Only a running Run names a segment: the record that parks or ends it clears
 	// the identity in the same commit, so nothing can attach to a stream that
 	// stopped.
 	activeSegment := ""
-	if state == execution.Running {
+	if state == run.Running {
 		activeSegment = r.cfg.SegmentID
 	}
 	return transcript.Run{
@@ -115,8 +115,8 @@ func (r *reducer) applyUsage(reported SegmentUsage) error {
 	return nil
 }
 
-func (r *reducer) finishedRun(outcome execution.Outcome, failure *transcript.Problem, detail string) (SegmentFinished, error) {
-	state, ok := execution.Running.Terminate(outcome)
+func (r *reducer) finishedRun(outcome run.Outcome, failure *transcript.Problem, detail string) (SegmentFinished, error) {
+	state, ok := run.Running.Terminate(outcome)
 	if !ok {
 		return SegmentFinished{}, fmt.Errorf("outcome %d does not terminate a running run", outcome)
 	}

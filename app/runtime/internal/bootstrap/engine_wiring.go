@@ -6,12 +6,12 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/catalog"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/conversation"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/conversations"
 )
 
 type messageEnvironment struct {
-	store        conversation.Store
-	conversation *conversation.Messages
+	store        conversations.Store
+	conversation *conversations.Messages
 }
 
 func prepareEngineConfig(cfg Config) (agentexec.Config, messageEnvironment, error) {
@@ -42,13 +42,13 @@ func buildMessageEnvironment(ecfg *agentexec.Config) (messageEnvironment, error)
 	if ecfg.HistoryStore == nil {
 		return messageEnvironment{}, errors.New("runtime: Engine.HistoryStore is required")
 	}
-	store, ok := ecfg.HistoryStore.(conversation.Store)
+	store, ok := ecfg.HistoryStore.(conversations.Store)
 	if !ok {
 		return messageEnvironment{}, errors.New("runtime: Engine.HistoryStore must support atomic replace and count")
 	}
 	return messageEnvironment{
 		store:        store,
-		conversation: conversation.NewMessages(store),
+		conversation: conversations.NewMessages(store),
 	}, nil
 }
 

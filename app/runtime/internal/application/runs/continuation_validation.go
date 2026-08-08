@@ -3,16 +3,15 @@ package runs
 import (
 	"fmt"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	rundomain "github.com/Tangerg/lynx/app/runtime/internal/domain/run"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
 // validatePendingRunTree cross-checks the complete active Run tree before a
 // continuation can drive an executor or a lifecycle transformation. Terminal
 // descendants may remain in the historical tree, but every non-terminal Run is
-// Interrupted and represented by exactly one canonical continuation.
-func validatePendingRunTree(pending interrupts.Pending, values []transcript.Run) error {
+// Waiting and represented by exactly one canonical continuation.
+func validatePendingRunTree(pending Pending, values []transcript.Run) error {
 	if err := pending.Validate(); err != nil {
 		return fmt.Errorf("runs: validate parked Run tree %q: %w", pending.RootRunID, err)
 	}
@@ -40,7 +39,7 @@ func validatePendingRunTree(pending interrupts.Pending, values []transcript.Run)
 	if !found || !root.Lineage().IsRoot() {
 		return fmt.Errorf("runs: validate parked Run tree %q: root Run is missing", pending.RootRunID)
 	}
-	if root.SessionID != pending.SessionID || root.State != execution.Interrupted {
+	if root.SessionID != pending.SessionID || root.State != rundomain.Waiting {
 		return fmt.Errorf("runs: validate parked Run tree %q: root Run scope or state differs from Pending", pending.RootRunID)
 	}
 	if root.GoalLeaseID != pending.GoalLeaseID {
@@ -59,9 +58,9 @@ func validatePendingRunTree(pending interrupts.Pending, values []transcript.Run)
 	}
 	for _, continuation := range pending.Continuations {
 		run, found := active[continuation.RunID]
-		if !found || run.SessionID != pending.SessionID || run.State != execution.Interrupted {
+		if !found || run.SessionID != pending.SessionID || run.State != rundomain.Waiting {
 			return fmt.Errorf(
-				"runs: validate parked Run tree %q: continuation Run %q is not active and interrupted",
+				"runs: validate parked Run tree %q: continuation Run %q is not active and waiting",
 				pending.RootRunID,
 				continuation.RunID,
 			)
@@ -87,7 +86,7 @@ func validatePendingRunTree(pending interrupts.Pending, values []transcript.Run)
 func validateContinuationRunFacts(
 	rootRunID string,
 	run transcript.Run,
-	continuation interrupts.Continuation,
+	continuation Continuation,
 ) error {
 	switch {
 	case run.ID != continuation.RunID:

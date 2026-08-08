@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 )
 
 func TestCoalesceTextDeltas_MergesConsecutive(t *testing.T) {
@@ -27,7 +27,7 @@ func TestCoalesceTextDeltas_MergesConsecutive(t *testing.T) {
 func TestCoalesceTextDeltas_SpillsAtKindBoundary(t *testing.T) {
 	ch := make(chan runs.ExecutorEvent, 8)
 	ch <- rootExecutorEvent(runs.MessageDelta{Text: "b"})
-	ch <- rootExecutorEvent(runs.SegmentEnded{Reason: execution.OutcomeCompleted})
+	ch <- rootExecutorEvent(runs.SegmentEnded{Reason: run.OutcomeCompleted})
 	ch <- rootExecutorEvent(runs.MessageDelta{Text: "c"}) // past the boundary — must NOT be merged in
 	var spill *runs.ExecutorEvent
 	got := coalesceTextDeltas(rootExecutorEvent(runs.MessageDelta{Text: "a"}), ch, &spill)

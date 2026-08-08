@@ -4,11 +4,11 @@ import (
 	"context"
 	"testing"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 )
 
 func TestScopeAccessorsShareOneImmutableTurnValue(t *testing.T) {
-	want := execution.ExecutionScope{
+	want := runs.ExecutionScope{
 		SessionID:    "session-1",
 		CWD:          "/sandbox/project",
 		WorkspaceCWD: "/workspace/project",

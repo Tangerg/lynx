@@ -6,13 +6,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/accounting"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/accounting"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/toolresult"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
 // ExecutorSource is the executor-owned identity of the process that produced an
@@ -124,7 +124,7 @@ type ToolCallFinished struct {
 	CallID       string
 	Arguments    string
 	Result       *tool.Result
-	Offload      *offload.Ref
+	Offload      *toolresult.Ref
 	OutputText   string
 	MutatedPaths []string
 	// Problem is the one structured failure channel for a completed tool call.
@@ -158,7 +158,7 @@ type TreeInterrupted struct {
 	// Checkpoint is the immutable executor state captured at the same waiting
 	// boundary as Suspensions. The Coordinator never interprets it; it only
 	// places its write into the tree-barrier transaction.
-	Checkpoint  execution.ExecutorCheckpoint
+	Checkpoint  ExecutorCheckpoint
 	Suspensions []ProcessSuspension
 }
 
@@ -210,7 +210,7 @@ func (barrier TreeInterrupted) validateFor(
 			"runs: executor tree interrupt checkpoint goal lease %q does not match Run %q: %w",
 			barrier.Checkpoint.Scope.GoalLeaseID,
 			goalLeaseID,
-			execution.ErrInvalidExecutorCheckpoint,
+			ErrInvalidExecutorCheckpoint,
 		)
 	}
 	if barrier.Checkpoint.ModelSelection != selection {
@@ -220,7 +220,7 @@ func (barrier TreeInterrupted) validateFor(
 			barrier.Checkpoint.ModelSelection.Model(),
 			selection.Provider(),
 			selection.Model(),
-			execution.ErrInvalidExecutorCheckpoint,
+			ErrInvalidExecutorCheckpoint,
 		)
 	}
 	return nil
@@ -251,8 +251,8 @@ func (e SegmentInterrupted) validate() error {
 
 type SegmentEnded struct {
 	executionFactBase
-	Reason execution.Outcome
-	// Problem is present exactly when Reason is OutcomeError. It is already a
+	Reason run.Outcome
+	// Problem is present exactly when Reason is OutcomeFailed. It is already a
 	// stable, client-safe application problem; executor diagnostics never enter
 	// the event stream.
 	Problem *transcript.Problem

@@ -14,19 +14,18 @@ import (
 	"github.com/Tangerg/lynx/agent/hitl"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
 
 // Interrupt serializes an application interrupt only at the agent boundary.
-func Interrupt(ctx context.Context, key string, prompt runs.Interrupt) (interrupts.Resolution, error) {
+func Interrupt(ctx context.Context, key string, prompt runs.Interrupt) (interrupt.Resolution, error) {
 	if err := prompt.Validate(); err != nil {
-		return interrupts.Resolution{}, err
+		return interrupt.Resolution{}, err
 	}
 	response, err := hitl.Interrupt[resolutionWire](ctx, key, promptWireFrom(prompt))
 	if err != nil {
-		return interrupts.Resolution{}, err
+		return interrupt.Resolution{}, err
 	}
 	return response.resolution()
 }
@@ -50,17 +49,17 @@ func DecodePrompt(raw []byte) (runs.Interrupt, error) {
 
 // DecodeResolution restores a typed user decision from persisted agent-process
 // response JSON.
-func DecodeResolution(raw []byte) (interrupts.Resolution, error) {
+func DecodeResolution(raw []byte) (interrupt.Resolution, error) {
 	var wire resolutionWire
 	if err := decode(raw, &wire); err != nil {
-		return interrupts.Resolution{}, fmt.Errorf("agent suspension: decode resolution: %w", err)
+		return interrupt.Resolution{}, fmt.Errorf("agent suspension: decode resolution: %w", err)
 	}
 	return wire.resolution()
 }
 
 // EncodeResolution converts a typed human decision to the JSON the agent
 // process validates against its suspension schema before continuing.
-func EncodeResolution(resolution interrupts.Resolution) (json.RawMessage, error) {
+func EncodeResolution(resolution interrupt.Resolution) (json.RawMessage, error) {
 	if resolution.RememberScope != "" && !resolution.RememberScope.Valid() {
 		return nil, fmt.Errorf("agent suspension: unknown remember scope %q", resolution.RememberScope)
 	}
@@ -230,12 +229,12 @@ type resolutionWire struct {
 	RememberScope rememberScopeWire `json:"remember_scope,omitempty"`
 }
 
-func (wire resolutionWire) resolution() (interrupts.Resolution, error) {
+func (wire resolutionWire) resolution() (interrupt.Resolution, error) {
 	rememberScope, err := wire.RememberScope.scope()
 	if err != nil {
-		return interrupts.Resolution{}, err
+		return interrupt.Resolution{}, err
 	}
-	return interrupts.Resolution{
+	return interrupt.Resolution{
 		Approved: wire.Approved, Arguments: wire.Arguments, Answers: wire.Answers,
 		Reason: wire.Reason, RememberScope: rememberScope,
 	}, nil
@@ -243,11 +242,11 @@ func (wire resolutionWire) resolution() (interrupts.Resolution, error) {
 
 type interruptKindWire string
 
-func interruptKindWireFrom(kind execution.InterruptKind) interruptKindWire {
+func interruptKindWireFrom(kind interrupt.Kind) interruptKindWire {
 	switch kind {
-	case execution.ApprovalInterrupt:
+	case interrupt.Approval:
 		return "approval"
-	case execution.QuestionInterrupt:
+	case interrupt.Question:
 		return "question"
 	default:
 		// Not encodable. Emitting the kind's own name keeps the failure loud: the
@@ -257,12 +256,12 @@ func interruptKindWireFrom(kind execution.InterruptKind) interruptKindWire {
 	}
 }
 
-func (wire interruptKindWire) interruptKind() (execution.InterruptKind, error) {
+func (wire interruptKindWire) interruptKind() (interrupt.Kind, error) {
 	switch wire {
 	case "approval":
-		return execution.ApprovalInterrupt, nil
+		return interrupt.Approval, nil
 	case "question":
-		return execution.QuestionInterrupt, nil
+		return interrupt.Question, nil
 	default:
 		return 0, fmt.Errorf("agent suspension: unknown interrupt kind %q", wire)
 	}

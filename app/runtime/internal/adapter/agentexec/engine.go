@@ -11,7 +11,7 @@ import (
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/runtime"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/delegation"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/accounting"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/accounting"
 	history "github.com/Tangerg/lynx/chathistory"
 	"github.com/Tangerg/lynx/chathistory/inmemory"
 )

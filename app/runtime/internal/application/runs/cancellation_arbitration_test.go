@@ -7,9 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
 type blockingWaitingCancellationEffects struct {
@@ -330,8 +329,8 @@ func TestWaitingChildCancellationAndResumeHaveOneApplicationOwner(t *testing.T) 
 func TestLiveChildCancellationAndNaturalTerminalHaveOneTreeOwner(t *testing.T) {
 	plan := runningChildCancellationPlan()
 	completed := plan.target.run
-	completed.State = execution.Completed
-	outcome := execution.OutcomeCompleted
+	completed.State = run.Completed
+	outcome := run.OutcomeCompleted
 	completed.Outcome = &outcome
 
 	t.Run("child cancellation commits first", func(t *testing.T) {
@@ -341,8 +340,8 @@ func TestLiveChildCancellationAndNaturalTerminalHaveOneTreeOwner(t *testing.T) {
 			t.Fatalf("begin child cancellation: %v", err)
 		}
 		canceled := plan.target.run
-		canceled.State = execution.Canceled
-		canceledOutcome := execution.OutcomeCanceled
+		canceled.State = run.Canceled
+		canceledOutcome := run.OutcomeCanceled
 		canceled.Outcome = &canceledOutcome
 		handle.recordTerminalRun(canceled)
 		handle.recordChildCancellationItem(
@@ -362,7 +361,7 @@ func TestLiveChildCancellationAndNaturalTerminalHaveOneTreeOwner(t *testing.T) {
 			t.Fatalf("wait child cancellation: %v", err)
 		}
 		if target.ID != plan.target.run.ID ||
-			target.State != execution.Canceled ||
+			target.State != run.Canceled ||
 			root.ID != plan.root.run.ID {
 			t.Fatalf("child cancellation result = target:%+v root:%+v", target, root)
 		}
@@ -408,13 +407,13 @@ func runningChildCancellationPlan() cancellationPlan {
 		SpawnedByItemID: "item_spawn",
 		ParentRunID:     "run_root",
 		RootRunID:       "run_root",
-		State:           execution.Running,
+		State:           run.Running,
 	}
 	return cancellationPlan{
 		root: cancellationRun{run: transcript.Run{
 			ID:        "run_root",
 			SessionID: "session",
-			State:     execution.Running,
+			State:     run.Running,
 		}},
 		target: cancellationRun{
 			run:        child,
@@ -422,7 +421,7 @@ func runningChildCancellationPlan() cancellationPlan {
 			hasProcess: true,
 		},
 		targetSubtree: []cancellationRun{{run: child}},
-		treeState:     execution.Running,
+		treeState:     run.Running,
 	}
 }
 
@@ -450,7 +449,7 @@ func waitingCancellationEffects(plan cancellationPlan, reason string) *fakeEffec
 	}
 }
 
-func waitingQuestionResponses(pending interrupts.Pending) []ResumeResponse {
+func waitingQuestionResponses(pending Pending) []ResumeResponse {
 	responses := make([]ResumeResponse, len(pending.Interrupts))
 	for index, interrupt := range pending.Interrupts {
 		responses[index] = ResumeResponse{

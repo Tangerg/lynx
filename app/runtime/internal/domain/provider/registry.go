@@ -1,12 +1,8 @@
 // Package provider models the credentials and enablement registry used by model
-// execution. Model metadata, pricing, capabilities, and connection construction are
+// run. Model metadata, pricing, capabilities, and connection construction are
 // separate concerns; this package owns only provider identity, configuration,
 // provenance, and registry operations.
 package provider
-
-import (
-	"context"
-)
 
 // Provider is one registry entry: a stable provider id plus the credentials
 // used for model access. The id also keys model reference data.
@@ -67,20 +63,4 @@ func (p Provider) Apply(patch Patch) Provider {
 // Empty reports whether patch preserves every persisted field.
 func (patch Patch) Empty() bool {
 	return patch.APIKey == nil && patch.BaseURL == nil
-}
-
-// Registry is the provider registry. All methods are safe for concurrent use.
-type Registry interface {
-	// List returns every known provider (the seeded supported set plus any
-	// configured at runtime), enabled or not, sorted by ID.
-	List(ctx context.Context) ([]Provider, error)
-
-	// Get returns one provider by id; ok is false when unknown.
-	Get(ctx context.Context, id string) (Provider, bool, error)
-
-	// Update atomically applies patch to the provider identified by id, creating
-	// an empty entry first when the id has not been persisted. It returns the
-	// resulting persisted value; decorators may project effective credentials
-	// onto that result without changing what is stored.
-	Update(ctx context.Context, id string, patch Patch) (Provider, error)
 }

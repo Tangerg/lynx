@@ -9,7 +9,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 )
 
 // ResumeRun answers an open interrupt by opening a NEW segment of the SAME run
@@ -41,7 +41,7 @@ func (s *Server) ResumeRun(ctx context.Context, in protocol.ResumeRunRequest) (*
 		// caller can still follow it.
 		CallerCapabilities: caller,
 	})
-	if uncovered, ok := errors.AsType[*execution.InsufficientCapabilities](err); ok {
+	if uncovered, ok := errors.AsType[*run.InsufficientCapabilities](err); ok {
 		return nil, nil, capabilityGap(uncovered.Missing)
 	}
 	if answerError, ok := errors.AsType[*runs.QuestionAnswerError](err); ok {

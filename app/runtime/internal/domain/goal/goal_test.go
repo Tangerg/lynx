@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 )
 
 func TestNewValidates(t *testing.T) {
@@ -136,7 +136,7 @@ func TestRecordRunPreservesPriorTerminalReport(t *testing.T) {
 	}
 	g.Block(ReasonBlockedByModel, "need a credential", now)
 	g.RecordRun(RunRecord{
-		SessionID: "s", LeaseID: "lease", RunID: "run_1", Outcome: execution.OutcomeCompleted,
+		SessionID: "s", LeaseID: "lease", RunID: "run_1", Outcome: run.OutcomeCompleted,
 		CostUSD: 0.25, Steps: 2, CompletedAt: now.Add(time.Second),
 	})
 	if g.Status != StatusBlocked || g.Reason != (Reason{Code: ReasonBlockedByModel, Detail: "need a credential"}) {

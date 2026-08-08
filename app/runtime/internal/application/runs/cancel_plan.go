@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
+	rundomain "github.com/Tangerg/lynx/app/runtime/internal/domain/run"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
 // cancellationRun is one immutable member of a command-bound cancellation
@@ -30,9 +30,9 @@ type cancellationPlan struct {
 	target               cancellationRun
 	targetSubtree        []cancellationRun
 	survivingTree        []cancellationRun
-	treeState            execution.RunState
-	executor             execution.ExecutorRef
-	pending              interrupts.Pending
+	treeState            rundomain.RunState
+	executor             ExecutorRef
+	pending              Pending
 	hasPending           bool
 	spawningItem         transcript.Item
 	hasSpawningItem      bool
@@ -84,11 +84,11 @@ func (c *Coordinator) cancellationPlanFor(
 	live, liveFound := c.registry.Get(rootRunID)
 
 	var (
-		executor  execution.ExecutorRef
+		executor  ExecutorRef
 		processes map[string]string
 	)
 	switch root.State {
-	case execution.Running:
+	case rundomain.Running:
 		if pendingFound {
 			return cancellationPlan{}, liveSegment{}, false, fmt.Errorf(
 				"runs: running tree %q has an open interrupt",
@@ -125,12 +125,12 @@ func (c *Coordinator) cancellationPlanFor(
 		if err := validateCancellationLiveRoot(live, root); err != nil {
 			return cancellationPlan{}, liveSegment{}, false, err
 		}
-		executor = execution.ExecutorRef{SessionID: live.record.SessionID, ExecutorID: live.record.ExecutorID}
+		executor = ExecutorRef{SessionID: live.record.SessionID, ExecutorID: live.record.ExecutorID}
 		processes = live.handle.executorProcessSnapshot()
-	case execution.Interrupted:
+	case rundomain.Waiting:
 		if !pendingFound {
 			return cancellationPlan{}, liveSegment{}, false, fmt.Errorf(
-				"runs: interrupted tree %q has no open interrupt",
+				"runs: waiting tree %q has no open interrupt",
 				rootRunID,
 			)
 		}
@@ -141,7 +141,7 @@ func (c *Coordinator) cancellationPlanFor(
 				err,
 			)
 		}
-		executor = execution.ExecutorRef{SessionID: pending.SessionID, ExecutorID: pending.ExecutorID}
+		executor = ExecutorRef{SessionID: pending.SessionID, ExecutorID: pending.ExecutorID}
 		processes = make(map[string]string, len(pending.Continuations))
 		for _, continuation := range pending.Continuations {
 			processes[continuation.RunID] = continuation.ProcessID
@@ -149,7 +149,7 @@ func (c *Coordinator) cancellationPlanFor(
 		if liveFound {
 			if live.handle == nil {
 				return cancellationPlan{}, liveSegment{}, false, fmt.Errorf(
-					"runs: interrupted tree %q has a live registry entry without a handle",
+					"runs: waiting tree %q has a live registry entry without a handle",
 					rootRunID,
 				)
 			}
@@ -158,7 +158,7 @@ func (c *Coordinator) cancellationPlanFor(
 			}
 			if live.record.ExecutorID != pending.ExecutorID {
 				return cancellationPlan{}, liveSegment{}, false, fmt.Errorf(
-					"runs: interrupted tree %q live executor %q differs from pending executor %q",
+					"runs: waiting tree %q live executor %q differs from pending executor %q",
 					rootRunID,
 					live.record.ExecutorID,
 					pending.ExecutorID,
@@ -174,7 +174,7 @@ func (c *Coordinator) cancellationPlanFor(
 		)
 	}
 
-	var pendingPlan *interrupts.Pending
+	var pendingPlan *Pending
 	if pendingFound {
 		pendingCopy := pending
 		pendingPlan = &pendingCopy
@@ -183,7 +183,7 @@ func (c *Coordinator) cancellationPlanFor(
 	if err != nil {
 		return cancellationPlan{}, liveSegment{}, false, err
 	}
-	if plan.treeState == execution.Interrupted && plan.target.run.Lineage().IsChild() {
+	if plan.treeState == rundomain.Waiting && plan.target.run.Lineage().IsChild() {
 		if c.items == nil {
 			return cancellationPlan{}, liveSegment{}, false, errors.New(
 				"runs: transcript item projection is required for waiting child cancellation",
@@ -244,16 +244,16 @@ func (c *Coordinator) cancellationPlanFor(
 
 func validateWaitingCancellationInterruptItem(
 	plan cancellationPlan,
-	interrupt transcript.Interrupt,
+	request transcript.Interrupt,
 	item transcript.Item,
 ) error {
 	switch {
-	case item.ID != interrupt.ItemID:
+	case item.ID != request.ItemID:
 		return fmt.Errorf(
 			"runs: waiting interrupt for Run %q resolved Item %q, want %q",
-			interrupt.RunID,
+			request.RunID,
 			item.ID,
-			interrupt.ItemID,
+			request.ItemID,
 		)
 	case item.SessionID != plan.root.run.SessionID:
 		return fmt.Errorf(
@@ -262,12 +262,12 @@ func validateWaitingCancellationInterruptItem(
 			item.SessionID,
 			plan.root.run.SessionID,
 		)
-	case item.RunID != interrupt.RunID:
+	case item.RunID != request.RunID:
 		return fmt.Errorf(
 			"runs: waiting interrupt Item %q belongs to Run %q, want %q",
 			item.ID,
 			item.RunID,
-			interrupt.RunID,
+			request.RunID,
 		)
 	case item.Status != transcript.ItemRunning:
 		return fmt.Errorf(
@@ -276,22 +276,22 @@ func validateWaitingCancellationInterruptItem(
 			item.Status,
 		)
 	}
-	switch interrupt.Kind {
-	case execution.QuestionInterrupt:
+	switch request.Kind {
+	case interrupt.Question:
 		if item.Kind != transcript.QuestionItem ||
 			item.Question == nil ||
-			interrupt.Question == nil ||
-			!reflect.DeepEqual(item.Question, interrupt.Question) {
+			request.Question == nil ||
+			!reflect.DeepEqual(item.Question, request.Question) {
 			return fmt.Errorf(
 				"runs: waiting question Item %q differs from its interrupt",
 				item.ID,
 			)
 		}
-	case execution.ApprovalInterrupt:
+	case interrupt.Approval:
 		if item.Kind != transcript.ToolCall ||
 			item.Tool == nil ||
-			interrupt.Approval == nil ||
-			!reflect.DeepEqual(*item.Tool, interrupt.Approval.Tool) {
+			request.Approval == nil ||
+			!reflect.DeepEqual(*item.Tool, request.Approval.Tool) {
 			return fmt.Errorf(
 				"runs: waiting approval Item %q differs from its interrupt",
 				item.ID,
@@ -301,7 +301,7 @@ func validateWaitingCancellationInterruptItem(
 		return fmt.Errorf(
 			"runs: waiting interrupt Item %q has unsupported kind %s",
 			item.ID,
-			interrupt.Kind,
+			request.Kind,
 		)
 	}
 	return nil
@@ -383,9 +383,9 @@ func validateCancellationLiveRoot(live liveSegment, root transcript.Run) error {
 func newCancellationPlan(
 	targetRunID string,
 	runs []transcript.Run,
-	executor execution.ExecutorRef,
+	executor ExecutorRef,
 	processes map[string]string,
-	pending *interrupts.Pending,
+	pending *Pending,
 ) (cancellationPlan, error) {
 	target, found := runByID(runs, targetRunID)
 	if !found {
@@ -411,7 +411,7 @@ func newCancellationPlan(
 	}
 
 	byRunID := make(map[string]transcript.Run, len(runs))
-	members := make([]execution.RunTreeMember, 0, len(runs))
+	members := make([]rundomain.RunTreeMember, 0, len(runs))
 	for index, run := range runs {
 		if err := run.Validate(); err != nil {
 			return cancellationPlan{}, fmt.Errorf(
@@ -439,13 +439,13 @@ func newCancellationPlan(
 			)
 		}
 		byRunID[run.ID] = run
-		members = append(members, execution.RunTreeMember{RunID: run.ID, Lineage: run.Lineage()})
+		members = append(members, rundomain.RunTreeMember{RunID: run.ID, Lineage: run.Lineage()})
 	}
-	tree, err := execution.NewRunTree(rootRunID, members)
+	tree, err := rundomain.NewRunTree(rootRunID, members)
 	if err != nil {
 		return cancellationPlan{}, fmt.Errorf("runs: build cancellation plan: %w", err)
 	}
-	if root.State != execution.Running && root.State != execution.Interrupted {
+	if root.State != rundomain.Running && root.State != rundomain.Waiting {
 		return cancellationPlan{}, fmt.Errorf(
 			"runs: build cancellation plan: root Run %q is %s",
 			rootRunID,
@@ -601,9 +601,9 @@ func validateCancellationPending(
 	root transcript.Run,
 	openRunIDs []string,
 	bindings map[string]cancellationRun,
-	pending *interrupts.Pending,
+	pending *Pending,
 ) error {
-	if root.State == execution.Running {
+	if root.State == rundomain.Running {
 		if pending != nil {
 			return fmt.Errorf(
 				"runs: build cancellation plan: running tree %q carries a pending set",
@@ -614,7 +614,7 @@ func validateCancellationPending(
 	}
 	if pending == nil {
 		return fmt.Errorf(
-			"runs: build cancellation plan: interrupted tree %q has no pending set",
+			"runs: build cancellation plan: waiting tree %q has no pending set",
 			root.ID,
 		)
 	}

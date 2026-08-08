@@ -1,6 +1,6 @@
 # Lyra Runtime 重构实施计划
 
-> 状态：P1 目标依赖 DAG 与迁移守卫已完成；下一阶段 P2
+> 状态：P2 Run 领域语言与 bounded contexts 已完成；下一阶段 P3
 >
 > 工作方式：原模块内治本重构，按可验证纵切分批完成；不创建完整 `runtime2`
 
@@ -34,7 +34,7 @@
 |---|---|---|---|
 | P0 | 文档、事实和边界基线 | 无 | 已完成 |
 | P1 | 目标依赖 DAG 与迁移守卫 | P0 | 已完成 |
-| P2 | Run 领域语言与 bounded contexts | P1 | 未开始 |
+| P2 | Run 领域语言与 bounded contexts | P1 | 已完成 |
 | P3 | Application root use cases 与候选消费端口 | P2 | 未开始 |
 | P4 | 原生 Interaction 的 root 纵切 | P3 | 未开始 |
 | P5 | 权威 model/tool observation 与 Tool 接线 | P4 | 未开始 |
@@ -379,7 +379,9 @@
 | 2026-08-08 | P0 | 只读盘点 Runtime 当前 package、旧 Agent import、Agent2 Baseline 9、协议制品与 SQLite schema epoch；确认选择原模块内局部绿色重写，不创建 runtime2 | 生产代码未修改；事实写入 Capability Ledger 与 Contract Baseline |
 | 2026-08-08 | P0 | 建立并交叉收口六份核心文档，冻结 DDD/Clean Architecture 边界、Agent2 防腐合同、P1–P12 依赖、parallel harness/P8 cutover、恢复与副作用失败语义；识别并裁决 P7 两项 Agent2 中性前置合同 | 独立 Go spec review 结论 Approved/Ready；本 goal 未修改生产代码；本地链接检查与 `git diff --check` 通过 |
 | 2026-08-08 | P1 | 冻结目标六环 DAG；Delivery 开始禁止 concrete Adapter；Agent2 只允许从 `adapter/agentexec` 导入两个已批准 public package；旧 Agent import、Domain context I/O ports、`component` umbrella、旧 private snapshot decoder 和唯一旧 lifecycle owner 全部进入精确 Temporary 台账 | 错误 Delivery→Adapter fixture 被稳定拒绝；`go test ./...`、`go vet ./...`、`go build ./...` 通过 |
+| 2026-08-08 | P2 | 一次性删除 `domain/execution`：Run、Accounting、Conversation、Transcript、Interrupt 与 ToolResult 按 bounded context 提升；executor ref/checkpoint、pending continuation、workspace mutation 归还 Application；Approval、Agent Memory、Codebase、Hooks、Provider 的十个 context I/O port 全部移到真实 Application consumer，Domain 生产与测试均禁止向外依赖 | Domain context I/O port 从精确十项例外降为零；旧 path、alias、空目录为零；Run 状态/lineage/capabilities、Conversation seed/truncate、usage monotonicity 与 checkpoint expectation 行为测试通过 |
+| 2026-08-08 | P2 | SQLite executor checkpoint、pending interrupt 和 workspace mutation 改为 technical records，由 `adapter/persistence` 显式映射 Application values，清除 Infra→Application 反向依赖；终态统一为 Completed/Canceled/TimedOut/Failed/MaxBudget/MaxSteps/Lost，并同步服务端 protocol/schema/generated artifacts | architecture target DAG、Domain test isolation、strict storage codecs、outcome round-trip 与 compatibility differ 通过；`go test ./...`、`go vet ./...`、`go build ./...` 通过 |
 
 ## 18. 当前下一步
 
-P1 已完成。下一批从 P2 的 `domain/execution` → `domain/run` 一次性统一语言开始，并把当前十个 context-based Domain I/O port 归还 Application consumer。
+P2 已完成。下一批进入 P3：从 root Start/Observe/Cancel 的真实 Application consumers 重新推导最小候选 executor port；waiting、steer、restore、child/subtree 的精确方法继续由 P6/P7 纵切发现，不在 P3 预设计。

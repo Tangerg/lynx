@@ -7,10 +7,10 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/change"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
+	rundomain "github.com/Tangerg/lynx/app/runtime/internal/domain/run"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
 const turnCleanupTimeout = 5 * time.Second
@@ -24,12 +24,12 @@ type RunExecutionBinding struct {
 	CheckpointRootID string
 }
 
-func (r RunExecutionBinding) executorRef() execution.ExecutorRef {
-	return execution.ExecutorRef{SessionID: r.SessionID, ExecutorID: r.ExecutorID}
+func (r RunExecutionBinding) executorRef() runs.ExecutorRef {
+	return runs.ExecutorRef{SessionID: r.SessionID, ExecutorID: r.ExecutorID}
 }
 
 // ListOpenInterrupts exposes the run-admission read needed by application/runs.
-func (c *Coordinator) ListOpenInterrupts(ctx context.Context, sessionID string) ([]interrupts.Pending, error) {
+func (c *Coordinator) ListOpenInterrupts(ctx context.Context, sessionID string) ([]runs.Pending, error) {
 	if c.interrupts == nil {
 		return nil, errors.New("sessions: interrupt store is unavailable")
 	}
@@ -57,9 +57,9 @@ func (c *Coordinator) ActiveRun(ctx context.Context, sessionID string) (transcri
 
 // LookupOpenInterrupt returns the parked run identified by runID without claiming
 // or consuming it. The run use case owns the subsequent admission ordering.
-func (c *Coordinator) LookupOpenInterrupt(ctx context.Context, runID string) (interrupts.Pending, bool, error) {
+func (c *Coordinator) LookupOpenInterrupt(ctx context.Context, runID string) (runs.Pending, bool, error) {
 	if c.interrupts == nil {
-		return interrupts.Pending{}, false, errors.New("sessions: interrupt store is unavailable")
+		return runs.Pending{}, false, errors.New("sessions: interrupt store is unavailable")
 	}
 	return c.interrupts.Get(ctx, runID)
 }
@@ -68,18 +68,18 @@ func (c *Coordinator) LookupOpenInterrupt(ctx context.Context, runID string) (in
 // teardown is owned by application/runs for run commands; session rollback and
 // deletion continue to use the coordinator's narrow cleanup collaborator.
 func (c *Coordinator) ApplyRunCancel(ctx context.Context, sessionID, runID, reason string, finishedAt time.Time) (transcript.Run, error) {
-	return c.terminalizeParkedRun(ctx, sessionID, runID, finishedAt, execution.OutcomeCanceled, reason)
+	return c.terminalizeParkedRun(ctx, sessionID, runID, finishedAt, rundomain.OutcomeCanceled, reason)
 }
 
 // ApplyRunLost atomically ends a parked run whose executor checkpoint cannot be
-// restored. It uses the recovery transition because the interrupted Run never
+// restored. It uses the recovery transition because the waiting Run never
 // resumed into a normal executor terminal path.
 func (c *Coordinator) ApplyRunLost(ctx context.Context, sessionID, runID string, finishedAt time.Time) error {
-	_, err := c.terminalizeParkedRun(ctx, sessionID, runID, finishedAt, execution.OutcomeError, "")
+	_, err := c.terminalizeParkedRun(ctx, sessionID, runID, finishedAt, rundomain.OutcomeLost, "")
 	return err
 }
 
-func (c *Coordinator) terminalizeParkedRun(ctx context.Context, sessionID, runID string, finishedAt time.Time, outcome execution.Outcome, detail string) (transcript.Run, error) {
+func (c *Coordinator) terminalizeParkedRun(ctx context.Context, sessionID, runID string, finishedAt time.Time, outcome rundomain.Outcome, detail string) (transcript.Run, error) {
 	if finishedAt.IsZero() {
 		return transcript.Run{}, fmt.Errorf("sessions: terminalize parked run %q: finished time is required", runID)
 	}
@@ -137,7 +137,7 @@ func (c *Coordinator) terminalizeParkedRun(ctx context.Context, sessionID, runID
 		if !found {
 			return transcript.Run{}, fmt.Errorf("sessions: terminalize parked Run tree %q: Run %q is missing", runID, continuation.RunID)
 		}
-		if run.SessionID != sessionID || run.State != execution.Interrupted ||
+		if run.SessionID != sessionID || run.State != rundomain.Waiting ||
 			run.Lineage() != continuation.Lineage || run.ModelSelection != continuation.ModelSelection ||
 			!run.CreatedAt.Equal(continuation.RunCreatedAt) ||
 			!run.Metrics.Equal(continuation.Metrics) || run.Limits != continuation.Limits ||
@@ -149,13 +149,13 @@ func (c *Coordinator) terminalizeParkedRun(ctx context.Context, sessionID, runID
 			)
 		}
 		var (
-			state execution.RunState
+			state rundomain.RunState
 			ok    bool
 		)
 		switch outcome {
-		case execution.OutcomeCanceled:
+		case rundomain.OutcomeCanceled:
 			state, ok = run.State.Terminate(outcome)
-		case execution.OutcomeError:
+		case rundomain.OutcomeLost:
 			state, ok = run.State.RecoverLost()
 		default:
 			return transcript.Run{}, fmt.Errorf("sessions: terminalize parked Run tree %q: unsupported outcome %s", runID, outcome)
@@ -165,7 +165,7 @@ func (c *Coordinator) terminalizeParkedRun(ctx context.Context, sessionID, runID
 		}
 		run.State = state
 		run.Outcome = &outcome
-		if outcome == execution.OutcomeError {
+		if outcome == rundomain.OutcomeLost {
 			run.Error = &transcript.Problem{
 				Kind:   transcript.RunLostProblem,
 				Scope:  transcript.RunProblem,
@@ -207,7 +207,7 @@ func (c *Coordinator) terminalizeParkedRun(ctx context.Context, sessionID, runID
 		item.Status = transcript.ItemIncomplete
 		if item.Kind == transcript.ToolCall {
 			item.FinishedAt = finishedAt.UTC()
-			if outcome == execution.OutcomeError {
+			if outcome == rundomain.OutcomeLost {
 				item.Error = &transcript.Problem{
 					Kind:  transcript.ToolFailedProblem,
 					Scope: transcript.ToolProblem,

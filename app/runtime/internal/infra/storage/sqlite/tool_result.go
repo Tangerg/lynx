@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/toolresult"
 )
 
 // ToolResultStore is the single full-body source for oversized tool outputs.
@@ -27,7 +27,7 @@ func NewToolResultStore(db *sql.DB) *ToolResultStore {
 // Stage persists a body under its precomputed identity after the observer has
 // verified that replacing it with a preview reduces model context. ToolName is
 // retained for relationship validation and diagnostics.
-func (s *ToolResultStore) Stage(ctx context.Context, stage offload.ToolResultStage) error {
+func (s *ToolResultStore) Stage(ctx context.Context, stage toolresult.Stage) error {
 	if err := stage.Validate(); err != nil {
 		return fmt.Errorf("sqlite: stage tool result: %w", err)
 	}
@@ -45,7 +45,7 @@ func (s *ToolResultStore) Stage(ctx context.Context, stage offload.ToolResultSta
 // with a nil error — when no such row exists (an unknown id is a recoverable
 // miss the caller surfaces to the model, not a failure). Scoping the read by
 // session id keeps one session from reading another's offloaded output.
-func (s *ToolResultStore) Fetch(ctx context.Context, sessionID string, id offload.ID) (body string, found bool, err error) {
+func (s *ToolResultStore) Fetch(ctx context.Context, sessionID string, id toolresult.ID) (body string, found bool, err error) {
 	if strings.TrimSpace(sessionID) == "" {
 		return "", false, errors.New("sqlite: fetch tool result requires a session ID")
 	}
@@ -67,7 +67,7 @@ func (s *ToolResultStore) Fetch(ctx context.Context, sessionID string, id offloa
 // Bind attaches a freshly offloaded body to the transcript item committed in
 // the same transaction. Exact retries are idempotent; another item or preview
 // attempting to claim the ID is an identity conflict.
-func (s *ToolResultStore) Bind(ctx context.Context, sessionID, itemID, preview string, ref offload.Ref) error {
+func (s *ToolResultStore) Bind(ctx context.Context, sessionID, itemID, preview string, ref toolresult.Ref) error {
 	if err := ref.Validate(); err != nil {
 		return fmt.Errorf("sqlite: bind tool result: %w", err)
 	}
@@ -102,11 +102,11 @@ func (s *ToolResultStore) Bind(ctx context.Context, sessionID, itemID, preview s
 		return fmt.Errorf("sqlite: inspect conflicting tool-result binding %q: %w", ref.ID, err)
 	}
 	return fmt.Errorf("%w: tool result %q belongs to session %q item %q with preview length %d",
-		offload.ErrIdentityConflict, ref.ID, ownerSession, ownerItem, len(ownerPreview))
+		toolresult.ErrIdentityConflict, ref.ID, ownerSession, ownerItem, len(ownerPreview))
 }
 
 // List returns every transcript-bound blob owned by sessionID in stable order.
-func (s *ToolResultStore) List(ctx context.Context, sessionID string) ([]offload.ToolResultBlob, error) {
+func (s *ToolResultStore) List(ctx context.Context, sessionID string) ([]toolresult.Blob, error) {
 	if strings.TrimSpace(sessionID) == "" {
 		return nil, errors.New("sqlite: list tool results requires a session ID")
 	}
@@ -120,15 +120,15 @@ func (s *ToolResultStore) List(ctx context.Context, sessionID string) ([]offload
 		return nil, fmt.Errorf("sqlite: list tool results: %w", err)
 	}
 	defer rows.Close()
-	var blobs []offload.ToolResultBlob
+	var blobs []toolresult.Blob
 	for rows.Next() {
-		var blob offload.ToolResultBlob
+		var blob toolresult.Blob
 		var rawID string
 		var createdAt int64
 		if err := rows.Scan(&rawID, &blob.SessionID, &blob.ItemID, &blob.ToolName, &blob.Preview, &blob.Body, &createdAt); err != nil {
 			return nil, fmt.Errorf("sqlite: scan tool result: %w", err)
 		}
-		blob.ID, err = offload.ParseID(rawID)
+		blob.ID, err = toolresult.ParseID(rawID)
 		if err != nil {
 			return nil, fmt.Errorf("sqlite: decode tool-result ID %q: %w", rawID, err)
 		}
@@ -146,7 +146,7 @@ func (s *ToolResultStore) List(ctx context.Context, sessionID string) ([]offload
 
 // Restore inserts one artifact blob under its exact identity. It never adopts
 // an ID owned by another session.
-func (s *ToolResultStore) Restore(ctx context.Context, blob offload.ToolResultBlob) error {
+func (s *ToolResultStore) Restore(ctx context.Context, blob toolresult.Blob) error {
 	if err := blob.Validate(); err != nil {
 		return fmt.Errorf("sqlite: restore tool result: %w", err)
 	}
@@ -163,7 +163,7 @@ func (s *ToolResultStore) Restore(ctx context.Context, blob offload.ToolResultBl
 		`SELECT session_id FROM tool_result_blobs WHERE id = ?`, blob.ID,
 	).Scan(&owner)
 	if ownerErr == nil {
-		return fmt.Errorf("%w: tool result %q is already owned by session %q", offload.ErrIdentityConflict, blob.ID, owner)
+		return fmt.Errorf("%w: tool result %q is already owned by session %q", toolresult.ErrIdentityConflict, blob.ID, owner)
 	}
 	if !errors.Is(ownerErr, sql.ErrNoRows) {
 		return fmt.Errorf("sqlite: inspect tool-result restore conflict %q: %w", blob.ID, errors.Join(err, ownerErr))
@@ -174,7 +174,7 @@ func (s *ToolResultStore) Restore(ctx context.Context, blob offload.ToolResultBl
 // Discard removes a staged blob only while it is still unbound. It is the
 // compensation path for a failed atomic event commit: a concurrently or
 // ambiguously committed binding is never deleted.
-func (s *ToolResultStore) Discard(ctx context.Context, sessionID string, ref offload.Ref) error {
+func (s *ToolResultStore) Discard(ctx context.Context, sessionID string, ref toolresult.Ref) error {
 	if strings.TrimSpace(sessionID) == "" {
 		return errors.New("sqlite: discard tool result requires a session ID")
 	}

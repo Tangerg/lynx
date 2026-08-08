@@ -7,9 +7,8 @@ import (
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
 // CommitOpening accepts one segment atomically. A fresh segment admits its Run;
@@ -189,7 +188,7 @@ func (e *Effects) applyCommit(ctx context.Context, commit runs.EventCommit) erro
 	return nil
 }
 
-func (e *Effects) consumeResume(ctx context.Context, resume execution.TreeResumeDraft) error {
+func (e *Effects) consumeResume(ctx context.Context, resume run.TreeResumeDraft) error {
 	if err := resume.Validate(); err != nil {
 		return fmt.Errorf("runsegment: invalid tree resume: %w", err)
 	}
@@ -248,7 +247,7 @@ func (e *Effects) runInTx(ctx context.Context, fn func(context.Context) error) e
 	return e.tx(ctx, fn)
 }
 
-func (e *Effects) openInterrupt(ctx context.Context, p interrupts.Pending) error {
+func (e *Effects) openInterrupt(ctx context.Context, p runs.Pending) error {
 	if e.interrupts == nil {
 		return errors.New("runsegment: interrupt persistence is unavailable")
 	}

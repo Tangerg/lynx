@@ -8,8 +8,8 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
 type executorFakeController struct {
@@ -43,7 +43,7 @@ func (*executorFakeController) PrepareTurn(context.Context, runs.StartExecution)
 	return Handle{}, nil
 }
 func (*executorFakeController) ActivateTurn(context.Context, Handle) error { return nil }
-func (*executorFakeController) Resume(context.Context, Handle, []agentexec.SuspensionAnswer, []execution.InterruptKind) error {
+func (*executorFakeController) Resume(context.Context, Handle, []agentexec.SuspensionAnswer, []interrupt.Kind) error {
 	return nil
 }
 func (*executorFakeController) ProcessID(context.Context, Handle) (string, error) { return "", nil }
@@ -56,7 +56,7 @@ func (*executorFakeController) Rehydrate(context.Context, runs.RehydrateExecutio
 func TestExecutorTranslatesReference(t *testing.T) {
 	ctx := context.Background()
 	handle := Handle{SessionID: "ses_1", TurnID: "run_1"}
-	ref := execution.ExecutorRef{SessionID: handle.SessionID, ExecutorID: handle.TurnID}
+	ref := runs.ExecutorRef{SessionID: handle.SessionID, ExecutorID: handle.TurnID}
 	disp := &executorFakeController{events: func(func(runs.ExecutorEvent) bool) {}}
 	exec := NewExecutor(disp)
 
@@ -92,7 +92,7 @@ func TestExecutorMapsLostProcessSnapshot(t *testing.T) {
 func TestExecutorMapsMissingTurnOnBothCancelPorts(t *testing.T) {
 	controller := &executorFakeController{cancelErr: ErrTurnNotFound}
 	executor := NewExecutor(controller)
-	ref := execution.ExecutorRef{SessionID: "ses_1", ExecutorID: "turn_1"}
+	ref := runs.ExecutorRef{SessionID: "ses_1", ExecutorID: "turn_1"}
 
 	tests := []struct {
 		name   string

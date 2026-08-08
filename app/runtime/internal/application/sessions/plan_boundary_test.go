@@ -8,10 +8,10 @@ import (
 
 	"github.com/Tangerg/lynx/core/chat"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
 // recordedBoundaries answers for the runs it knows and reports "never recorded"
@@ -39,7 +39,7 @@ func boundaryCoordinator(stores testStores, boundaries PlanBoundaries) *Coordina
 
 func idleStores(rolledBack *RollbackPlan) coordinatorStores {
 	return coordinatorStores{
-		interrupts: &coordinatorInterrupts{pending: map[string]interrupts.Pending{}},
+		interrupts: &coordinatorInterrupts{pending: map[string]runs.Pending{}},
 		rolledBack: rolledBack,
 	}
 }
@@ -110,11 +110,11 @@ func TestRollbackToBeforeEveryRunClearsWithoutALookup(t *testing.T) {
 func TestForkSeedsTheBoundaryPlanList(t *testing.T) {
 	var applied ForkPlan
 	stores := coordinatorStores{
-		interrupts: &coordinatorInterrupts{pending: map[string]interrupts.Pending{}},
+		interrupts: &coordinatorInterrupts{pending: map[string]runs.Pending{}},
 		snapshot: Snapshot{
 			Messages: []chat.Message{chat.NewUserMessage(chat.NewTextPart("one"))},
 			Runs: []transcript.Run{
-				{ID: "run_1", State: execution.Completed, CreatedAt: time.Unix(1, 0), MessageMark: 1},
+				{ID: "run_1", State: run.Completed, CreatedAt: time.Unix(1, 0), MessageMark: 1},
 			},
 			Plan: []plan.Step{{Description: "work after the boundary", Status: plan.StatusInProgress}},
 		},

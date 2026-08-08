@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	apphooks "github.com/Tangerg/lynx/app/runtime/internal/application/hooks"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
 )
 
@@ -22,7 +23,7 @@ func TestRuntimeInspectReturnsEmptyWhenUnconfigured(t *testing.T) {
 
 func TestRuntimeInspectUsesInspectionPort(t *testing.T) {
 	inspector := &fakeHookInspector{
-		inspection: hooks.Inspection{
+		inspection: apphooks.Inspection{
 			ProjectRoot:    "/repo",
 			ProjectTrusted: true,
 			Hooks: []hooks.Hook{{
@@ -47,11 +48,11 @@ func TestRuntimeInspectUsesInspectionPort(t *testing.T) {
 
 type fakeHookInspector struct {
 	cwd        string
-	inspection hooks.Inspection
+	inspection apphooks.Inspection
 	err        error
 }
 
-func (i *fakeHookInspector) Inspect(_ context.Context, cwd string) (hooks.Inspection, error) {
+func (i *fakeHookInspector) Inspect(_ context.Context, cwd string) (apphooks.Inspection, error) {
 	i.cwd = cwd
 	return i.inspection, i.err
 }

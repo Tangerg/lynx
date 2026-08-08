@@ -11,10 +11,10 @@ import (
 
 	"github.com/google/uuid"
 
+	apphooks "github.com/Tangerg/lynx/app/runtime/internal/application/hooks"
 	"github.com/Tangerg/lynx/app/runtime/internal/component/shutdown"
 	"github.com/Tangerg/lynx/app/runtime/internal/component/taskgroup"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	"github.com/Tangerg/lynx/chatclient"
@@ -43,7 +43,7 @@ const turnIDPrefix = "turn_"
 func newTurnID() string { return turnIDPrefix + uuid.NewString() }
 
 type hookResolver interface {
-	For(ctx context.Context, cwd string) (*hooks.Bound, error)
+	For(ctx context.Context, cwd string) (*apphooks.Bound, error)
 }
 
 // Dependencies names the collaborators needed by the in-process controller.

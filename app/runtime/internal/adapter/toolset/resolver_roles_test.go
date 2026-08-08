@@ -6,11 +6,12 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/agent/toolloop"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/approvals"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/goals"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
 	domaintool "github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	toolcontract "github.com/Tangerg/lynx/tool"
@@ -43,7 +44,7 @@ func (roleGoalStub) Report(context.Context, goals.ReportCommand) (goals.ReportRe
 }
 
 func TestPlanModeToolsAreRootOnly(t *testing.T) {
-	policy, err := approval.New(approval.ModeBalanced, nil, nil)
+	policy, err := approvals.NewRuntimePolicy(approval.ModeBalanced, nil, nil)
 	if err != nil {
 		t.Fatalf("approval policy: %v", err)
 	}
@@ -52,8 +53,8 @@ func TestPlanModeToolsAreRootOnly(t *testing.T) {
 		UserHome:   t.TempDir(),
 		PlanMode:   policy,
 		Plan:       rolePlanStore{},
-		Interrupt: func(context.Context, string, runs.Interrupt) (interrupts.Resolution, error) {
-			return interrupts.Resolution{}, nil
+		Interrupt: func(context.Context, string, runs.Interrupt) (interrupt.Resolution, error) {
+			return interrupt.Resolution{}, nil
 		},
 	})
 	if err != nil {

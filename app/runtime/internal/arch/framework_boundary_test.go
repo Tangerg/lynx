@@ -69,7 +69,7 @@ func TestSQLiteDoesNotDiscardRowsAffectedErrors(t *testing.T) {
 // policy.
 func TestExecutorCheckpointRemainsOpaqueOutsideExecutionAdapter(t *testing.T) {
 	root := moduleRoot(t)
-	checkpointPath := filepath.Join(root, "internal", "domain", "execution", "executor_checkpoint.go")
+	checkpointPath := filepath.Join(root, "internal", "application", "runs", "executor_checkpoint.go")
 	checkpointFile, err := parser.ParseFile(token.NewFileSet(), checkpointPath, nil, 0)
 	if err != nil {
 		t.Fatalf("parse executor checkpoint: %v", err)
@@ -103,7 +103,7 @@ func TestExecutorCheckpointRemainsOpaqueOutsideExecutionAdapter(t *testing.T) {
 // per-model-call GenerationParams.MaxTokens option.
 func TestRunLimitsRemainTheSingleApplicationPolicy(t *testing.T) {
 	root := moduleRoot(t)
-	domainPath := filepath.Join(root, "internal", "domain", "execution", "admission.go")
+	domainPath := filepath.Join(root, "internal", "domain", "run", "admission.go")
 	domainFile, err := parser.ParseFile(token.NewFileSet(), domainPath, nil, 0)
 	if err != nil {
 		t.Fatalf("parse execution admission: %v", err)
@@ -113,7 +113,7 @@ func TestRunLimitsRemainTheSingleApplicationPolicy(t *testing.T) {
 		t.Fatalf("RunLimits fields = %v, want the single policy carrier %v", fields, wantLimits)
 	}
 
-	accountingRoot := filepath.Join(root, "internal", "domain", "execution", "accounting")
+	accountingRoot := filepath.Join(root, "internal", "domain", "accounting")
 	err = filepath.WalkDir(accountingRoot, func(path string, entry os.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
@@ -295,7 +295,7 @@ func TestExecutionContextIsNeutralBetweenPeerAdapters(t *testing.T) {
 // routing events through the adapter boundary.
 func TestPendingStoresOnlyOpaqueExecutorBindings(t *testing.T) {
 	root := moduleRoot(t)
-	interruptPath := filepath.Join(root, "internal", "domain", "execution", "interrupts", "interrupts.go")
+	interruptPath := filepath.Join(root, "internal", "application", "runs", "pending.go")
 	interruptFile, err := parser.ParseFile(token.NewFileSet(), interruptPath, nil, 0)
 	if err != nil {
 		t.Fatalf("parse interrupt domain: %v", err)
@@ -668,8 +668,15 @@ func TestPendingAndRecoveryMutationsCarryTheirOwners(t *testing.T) {
 			t.Errorf("interrupt store restores overwrite seam %q", forbidden)
 		}
 	}
+	persistencePath := filepath.Join(root, "internal", "adapter", "persistence", "interrupts.go")
+	persistenceSource, err := os.ReadFile(persistencePath)
+	if err != nil {
+		t.Fatalf("read interrupt persistence adapter: %v", err)
+	}
+	if !strings.Contains(string(persistenceSource), "Open(ctx context.Context, pending runs.Pending)") {
+		t.Error("interrupt persistence adapter no longer accepts the Application-owned Pending value")
+	}
 	for _, required := range []string{
-		"Open(ctx context.Context, p interrupts.Pending)",
 		"Consume(ctx context.Context, sessionID, runID string)",
 		"Delete(ctx context.Context, sessionID, runID string)",
 		"WHERE session_id = ? AND root_run_id = ?",
@@ -687,7 +694,7 @@ func TestPendingAndRecoveryMutationsCarryTheirOwners(t *testing.T) {
 	}
 	for _, required := range []string{
 		"Runs             []transcript.Run",
-		"execution.NewRunTree",
+		"rundomain.NewRunTree",
 		"tree.Postorder()",
 		"validateTerminalGoalRun",
 	} {
@@ -736,7 +743,7 @@ func TestPendingAndRecoveryMutationsCarryTheirOwners(t *testing.T) {
 func TestParkedContinuationFactsAreCrossCheckedAtEveryLifecycleBoundary(t *testing.T) {
 	root := moduleRoot(t)
 	checks := map[string][]string{
-		filepath.Join("internal", "domain", "execution", "interrupts", "interrupts.go"): {
+		filepath.Join("internal", "application", "runs", "pending.go"): {
 			"p.Capabilities.Validate()",
 			"p.Capabilities.ChildRuns",
 			"slices.Contains(p.Capabilities.InterruptKinds, interrupt.Kind)",

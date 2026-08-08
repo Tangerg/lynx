@@ -15,16 +15,19 @@ import (
 	"github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/persistence"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/skill"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/agentmemory"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/approvals"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/goals"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	scheduleapp "github.com/Tangerg/lynx/app/runtime/internal/application/schedules"
 	"github.com/Tangerg/lynx/app/runtime/internal/component/shutdown"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/agentmemory"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/accounting"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/accounting"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/skillauthoring"
 	sqlitestore "github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 	"github.com/Tangerg/lynx/chatclient"
@@ -242,7 +245,7 @@ func TestAssemblyFailureReclaimsToolsAndOwnedResources(t *testing.T) {
 		ctx context.Context,
 		cfg Config,
 		ecfg agentexec.Config,
-		policy *approval.RuntimePolicy,
+		policy *approvals.RuntimePolicy,
 		mcpEnv mcpEnvironment,
 		searcher *agentmemory.Searcher,
 		scheduleCoord *scheduleapp.Coordinator,
@@ -285,7 +288,7 @@ func TestAssemblyBuilderFailureReclaimsReturnedAcquisitions(t *testing.T) {
 		context.Context,
 		Config,
 		agentexec.Config,
-		*approval.RuntimePolicy,
+		*approvals.RuntimePolicy,
 		mcpEnvironment,
 		*agentmemory.Searcher,
 		*scheduleapp.Coordinator,
@@ -330,7 +333,7 @@ func TestAssemblyFailureRetainsRetryableCleanupOwner(t *testing.T) {
 		ctx context.Context,
 		cfg Config,
 		ecfg agentexec.Config,
-		policy *approval.RuntimePolicy,
+		policy *approvals.RuntimePolicy,
 		mcpEnv mcpEnvironment,
 		searcher *agentmemory.Searcher,
 		scheduleCoord *scheduleapp.Coordinator,
@@ -386,7 +389,7 @@ func TestAssemblyDirectToolsDoNotDependOnAgentResolver(t *testing.T) {
 		ctx context.Context,
 		cfg Config,
 		ecfg agentexec.Config,
-		policy *approval.RuntimePolicy,
+		policy *approvals.RuntimePolicy,
 		mcpEnv mcpEnvironment,
 		searcher *agentmemory.Searcher,
 		scheduleCoord *scheduleapp.Coordinator,
@@ -434,7 +437,7 @@ func runtimeConfigWithRequiredDeps(t *testing.T) Config {
 		t.Fatalf("open sqlite: %v", err)
 	}
 
-	checkpoints := sqlitestore.NewExecutorCheckpointStore(db)
+	checkpoints := persistence.NewExecutorCheckpointStore(sqlitestore.NewExecutorCheckpointStore(db))
 	mcpServers := sqlitestore.NewMCPServerStore(db)
 	return Config{
 		UserHome:             t.TempDir(),
@@ -448,7 +451,7 @@ func runtimeConfigWithRequiredDeps(t *testing.T) Config {
 		MCPRegistry:         mcpServers,
 		MCPOAuthSessions:    mcpServers,
 		SessionStore:        sqlitestore.NewSessionStore(db),
-		InterruptStore:      sqlitestore.NewInterruptStore(db),
+		InterruptStore:      persistence.NewInterruptStore(sqlitestore.NewInterruptStore(db)),
 		TranscriptStore:     sqlitestore.NewTranscriptStore(db),
 		FeedbackStore:       sqlitestore.NewFeedbackStore(db),
 		RunStore:            sqlitestore.NewRunStore(db),
@@ -489,7 +492,7 @@ func TestAssemblyRecoversParkedRunWithIncompatibleDeployment(t *testing.T) {
 	question := &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Continue?"}}}
 	open := []transcript.Interrupt{{
 		ItemID: "item_park", ItemOccurredAt: parkedAt,
-		RunID: runID, Kind: execution.QuestionInterrupt, Question: question,
+		RunID: runID, Kind: interrupt.Question, Question: question,
 	}}
 
 	if _, err := cfg.SessionStore.Ensure(ctx, session.Session{
@@ -497,17 +500,17 @@ func TestAssemblyRecoversParkedRunWithIncompatibleDeployment(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("ensure session: %v", err)
 	}
-	profile := execution.RunCapabilities{
-		InterruptKinds: []execution.InterruptKind{execution.QuestionInterrupt},
+	profile := run.RunCapabilities{
+		InterruptKinds: []interrupt.Kind{interrupt.Question},
 	}
-	if err := cfg.RunStore.Admit(ctx, execution.RunDraft{
+	if err := cfg.RunStore.Admit(ctx, run.RunDraft{
 		RunID: runID, SessionID: sessionID, SegmentID: "seg_open",
 		Capabilities: profile, CreatedAt: createdAt,
 	}); err != nil {
 		t.Fatalf("admit: %v", err)
 	}
 	if err := cfg.RunStore.Suspend(ctx, transcript.Run{
-		SessionID: sessionID, ID: runID, State: execution.Interrupted,
+		SessionID: sessionID, ID: runID, State: run.Waiting,
 		Capabilities: profile,
 		Interrupts:   open, CreatedAt: createdAt, MessageMark: transcript.UnknownMessageMark,
 	}); err != nil {
@@ -558,7 +561,7 @@ func TestAssemblyRecoversParkedRunWithIncompatibleDeployment(t *testing.T) {
 	if pending, err := cfg.InterruptStore.List(ctx, sessionID); err != nil || len(pending) != 0 {
 		t.Fatalf("pending after assemble = (%+v, %v), want none", pending, err)
 	}
-	if _, err := cfg.ExecutorCheckpoints.LoadCheckpoint(ctx, processID); !errors.Is(err, execution.ErrExecutorCheckpointNotFound) {
+	if _, err := cfg.ExecutorCheckpoints.LoadCheckpoint(ctx, processID); !errors.Is(err, runs.ErrExecutorCheckpointNotFound) {
 		t.Fatalf("executor checkpoint after assemble = %v, want not found", err)
 	}
 	runs, err := cfg.RunStore.ListRuns(ctx, sessionID)

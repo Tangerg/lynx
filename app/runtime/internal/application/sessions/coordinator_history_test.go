@@ -6,8 +6,8 @@ import (
 
 	"github.com/Tangerg/lynx/core/chat"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
 func TestResolveForkBoundary(t *testing.T) {
@@ -17,8 +17,8 @@ func TestResolveForkBoundary(t *testing.T) {
 		chat.NewUserMessage(chat.NewTextPart("three")),
 	}
 	runs := []transcript.Run{
-		{ID: "run_1", State: execution.Completed, CreatedAt: time.Unix(1, 0), MessageMark: 2},
-		{ID: "run_2", State: execution.Completed, CreatedAt: time.Unix(3, 0), MessageMark: 3},
+		{ID: "run_1", State: run.Completed, CreatedAt: time.Unix(1, 0), MessageMark: 2},
+		{ID: "run_2", State: run.Completed, CreatedAt: time.Unix(3, 0), MessageMark: 3},
 	}
 
 	got, err := ResolveForkBoundary(msgs, runs, "run_1")
@@ -42,12 +42,12 @@ func TestResolveForkBoundaryExcludesActiveTail(t *testing.T) {
 		chat.NewUserMessage(chat.NewTextPart("active")),
 	}
 	runs := []transcript.Run{
-		{ID: "run_1", State: execution.Completed, CreatedAt: time.Unix(1, 0), MessageMark: 2},
-		{ID: "run_2", State: execution.Running, CreatedAt: time.Unix(2, 0), MessageMark: -1},
+		{ID: "run_1", State: run.Completed, CreatedAt: time.Unix(1, 0), MessageMark: 2},
+		{ID: "run_2", State: run.Running, CreatedAt: time.Unix(2, 0), MessageMark: -1},
 		{
 			ID: "run_2_child", SpawnedByItemID: "item_task",
 			ParentRunID: "run_2", RootRunID: "run_2",
-			State: execution.Completed, CreatedAt: time.Unix(3, 0), MessageMark: 3,
+			State: run.Completed, CreatedAt: time.Unix(3, 0), MessageMark: 3,
 		},
 	}
 
@@ -64,7 +64,7 @@ func TestResolveForkBoundaryExcludesActiveTail(t *testing.T) {
 }
 
 func TestResolveForkBoundaryRejectsActiveTarget(t *testing.T) {
-	runs := []transcript.Run{{ID: "run_active", State: execution.Running, CreatedAt: time.Unix(1, 0), MessageMark: -1}}
+	runs := []transcript.Run{{ID: "run_active", State: run.Running, CreatedAt: time.Unix(1, 0), MessageMark: -1}}
 	if _, err := ResolveForkBoundary([]chat.Message{chat.NewUserMessage(chat.NewTextPart("active"))}, runs, "run_active"); err != transcript.ErrRunNotFound {
 		t.Fatalf("resolve active target error = %v, want ErrRunNotFound", err)
 	}

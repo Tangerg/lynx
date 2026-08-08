@@ -8,16 +8,17 @@ import (
 
 	"github.com/Tangerg/lynx/agent/event"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
+	apphooks "github.com/Tangerg/lynx/app/runtime/internal/application/hooks"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
 )
 
 func TestSubagentLifecycleHooks(t *testing.T) {
 	rec := &recordHookCommands{}
-	bound := hooks.NewBound([]hooks.Hook{
+	bound := apphooks.NewBound([]hooks.Hook{
 		{Event: hooks.SubagentStart, Command: "record", Source: "test"},
 		{Event: hooks.SubagentStop, Command: "record", Source: "test"},
-	}, hooks.NewRunner(rec, nil))
+	}, apphooks.NewRunner(rec, nil))
 	lifecycle := &subagentLifecycle{
 		rootID:    "root",
 		sessionID: "sess",
@@ -69,9 +70,9 @@ func TestSubagentLifecycleHooks(t *testing.T) {
 
 func TestSubagentLifecycleProjectsRestoredChildOnStop(t *testing.T) {
 	rec := &recordHookCommands{}
-	bound := hooks.NewBound(
+	bound := apphooks.NewBound(
 		[]hooks.Hook{{Event: hooks.SubagentStop, Command: "record", Source: "test"}},
-		hooks.NewRunner(rec, nil),
+		apphooks.NewRunner(rec, nil),
 	)
 	lifecycle := &subagentLifecycle{
 		sessionID: "sess",
@@ -115,9 +116,9 @@ func TestSubagentLifecycleProjectsRestoredChildOnStop(t *testing.T) {
 
 func TestSubagentLifecyclePreservesNestedParentage(t *testing.T) {
 	rec := &recordHookCommands{}
-	bound := hooks.NewBound([]hooks.Hook{
+	bound := apphooks.NewBound([]hooks.Hook{
 		{Event: hooks.SubagentStart, Command: "record", Source: "test"},
-	}, hooks.NewRunner(rec, nil))
+	}, apphooks.NewRunner(rec, nil))
 	lifecycle := &subagentLifecycle{
 		sessionID: "sess",
 		cwd:       "/work",
@@ -152,9 +153,9 @@ func TestSubagentLifecyclePreservesNestedParentage(t *testing.T) {
 
 func TestSubagentLifecycleIgnoresFrameworkInternalChild(t *testing.T) {
 	rec := &recordHookCommands{}
-	bound := hooks.NewBound(
+	bound := apphooks.NewBound(
 		[]hooks.Hook{{Event: hooks.SubagentStart, Command: "record", Source: "test"}},
-		hooks.NewRunner(rec, nil),
+		apphooks.NewRunner(rec, nil),
 	)
 	lifecycle := &subagentLifecycle{
 		rootID: "root", sessionID: "sess", cwd: "/work", hooks: bound,
@@ -179,11 +180,11 @@ func TestSubagentLifecycleRejectsMismatchedReturnedRoot(t *testing.T) {
 }
 
 func TestSubagentLifecycleExistsOnlyForRelevantHooks(t *testing.T) {
-	stopOnly := hooks.NewBound([]hooks.Hook{{Event: hooks.Stop}}, nil)
+	stopOnly := apphooks.NewBound([]hooks.Hook{{Event: hooks.Stop}}, nil)
 	if lifecycle := newSubagentLifecycle("session", "/work", stopOnly, nil, nil); lifecycle != nil {
 		t.Fatal("installed a subtree listener for unrelated hooks")
 	}
-	subagent := hooks.NewBound([]hooks.Hook{{Event: hooks.SubagentStart}}, nil)
+	subagent := apphooks.NewBound([]hooks.Hook{{Event: hooks.SubagentStart}}, nil)
 	if lifecycle := newSubagentLifecycle("session", "/work", subagent, nil, nil); lifecycle == nil {
 		t.Fatal("did not install a subtree listener for subagent hooks")
 	}
@@ -214,7 +215,7 @@ type recordHookCommands struct {
 	inputs []hooks.Input
 }
 
-func (r *recordHookCommands) RunHookCommand(_ context.Context, req hooks.CommandRequest) hooks.CommandResult {
+func (r *recordHookCommands) RunHookCommand(_ context.Context, req apphooks.CommandRequest) apphooks.CommandResult {
 	r.inputs = append(r.inputs, req.Input)
-	return hooks.CommandResult{}
+	return apphooks.CommandResult{}
 }

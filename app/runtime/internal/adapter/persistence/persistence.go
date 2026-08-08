@@ -14,7 +14,6 @@ import (
 
 	history "github.com/Tangerg/lynx/chathistory"
 
-	providersvc "github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage"
 	sqlitestore "github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 )
@@ -33,14 +32,14 @@ type Bundle struct {
 
 	Sessions            *sqlitestore.SessionStore
 	Runs                *sqlitestore.RunStore
-	WorkspaceMutations  *sqlitestore.WorkspaceMutationStore
+	WorkspaceMutations  *WorkspaceMutationStore
 	Knowledge           *storage.FileKnowledgeStore
 	AgentMemory         *sqlitestore.AgentMemoryStore
-	ExecutorCheckpoints *sqlitestore.ExecutorCheckpointStore
-	Interrupts          *sqlitestore.InterruptStore
+	ExecutorCheckpoints *ExecutorCheckpointStore
+	Interrupts          *InterruptStore
 	Transcript          *sqlitestore.TranscriptStore
 	Feedback            *sqlitestore.FeedbackStore
-	Providers           providersvc.Registry
+	Providers           *sqlitestore.ProviderStore
 	MCPServers          *sqlitestore.MCPServerStore
 	ChatHistory         history.Store
 	Plan                *sqlitestore.PlanStore
@@ -97,11 +96,11 @@ func Open(ctx context.Context, config Config) (*Bundle, error) {
 		},
 		Sessions:            sqlitestore.NewSessionStore(db),
 		Runs:                sqlitestore.NewRunStore(db),
-		WorkspaceMutations:  sqlitestore.NewWorkspaceMutationStore(db),
+		WorkspaceMutations:  NewWorkspaceMutationStore(sqlitestore.NewWorkspaceMutationStore(db)),
 		Knowledge:           knowledgeStore,
 		AgentMemory:         sqlitestore.NewAgentMemoryStore(db),
-		ExecutorCheckpoints: sqlitestore.NewExecutorCheckpointStore(db),
-		Interrupts:          sqlitestore.NewInterruptStore(db),
+		ExecutorCheckpoints: NewExecutorCheckpointStore(sqlitestore.NewExecutorCheckpointStore(db)),
+		Interrupts:          NewInterruptStore(sqlitestore.NewInterruptStore(db)),
 		Transcript:          sqlitestore.NewTranscriptStore(db),
 		Feedback:            sqlitestore.NewFeedbackStore(db),
 		Providers:           sqlitestore.NewProviderStore(db),

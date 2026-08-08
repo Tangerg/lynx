@@ -3,9 +3,9 @@ package sessions
 import (
 	"fmt"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/toolresult"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
 // ValidateToolResults verifies that every typed transcript offload has exactly
@@ -14,8 +14,8 @@ import (
 // restore projection carries the inline preview; both representations are
 // valid as long as the typed relationship and content agree with the blob.
 func (snapshot Snapshot) ValidateToolResults() error {
-	byItem := make(map[string]offload.ToolResultBlob, len(snapshot.ToolResults))
-	byID := make(map[offload.ID]string, len(snapshot.ToolResults))
+	byItem := make(map[string]toolresult.Blob, len(snapshot.ToolResults))
+	byID := make(map[toolresult.ID]string, len(snapshot.ToolResults))
 	for index, blob := range snapshot.ToolResults {
 		if err := blob.Validate(); err != nil {
 			return fmt.Errorf("sessions: tool result %d: %w", index, err)
@@ -78,7 +78,7 @@ func (snapshot Snapshot) NormalizeForRestore() (Snapshot, error) {
 		return snapshot, nil
 	}
 
-	byItem := make(map[string]offload.ToolResultBlob, len(snapshot.ToolResults))
+	byItem := make(map[string]toolresult.Blob, len(snapshot.ToolResults))
 	for _, blob := range snapshot.ToolResults {
 		byItem[blob.ItemID] = blob
 	}
@@ -94,7 +94,7 @@ func (snapshot Snapshot) NormalizeForRestore() (Snapshot, error) {
 		invocation := *item.Tool
 		preview := tool.StringResult(blob.Preview)
 		invocation.Result = &preview
-		invocation.Offload = &offload.Ref{ID: blob.ID}
+		invocation.Offload = &toolresult.Ref{ID: blob.ID}
 		item.Tool = &invocation
 	}
 	return normalized, nil

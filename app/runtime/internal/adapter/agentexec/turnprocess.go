@@ -10,9 +10,10 @@ import (
 	"github.com/Tangerg/lynx/agent/interaction"
 	"github.com/Tangerg/lynx/agent/runtime"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/suspension"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 )
 
 // TurnCompletion is the typed application projection of one Agent runtime run
@@ -44,7 +45,7 @@ type PendingSuspension struct {
 type SuspensionAnswer struct {
 	ProcessID    string
 	SuspensionID string
-	Resolution   interrupts.Resolution
+	Resolution   interrupt.Resolution
 }
 
 // TurnProcess is the handle [Engine.StartTurn] returns. It exposes one typed
@@ -97,7 +98,7 @@ type TurnProcess interface {
 // Suspensions are the external boundaries captured from that exact immutable
 // tree.
 type WaitingCheckpoint struct {
-	Checkpoint  execution.ExecutorCheckpoint
+	Checkpoint  runs.ExecutorCheckpoint
 	Suspensions []PendingSuspension
 }
 
@@ -118,7 +119,7 @@ type WaitingSubtreePlanner interface {
 type WaitingSubtreeCancellationPlan interface {
 	CanceledProcessIDs() []string
 	PendingSuspensions() []PendingSuspension
-	Checkpoint() execution.ExecutorCheckpoint
+	Checkpoint() runs.ExecutorCheckpoint
 	Apply(ctx context.Context) error
 	Continue(ctx context.Context) error
 }
@@ -130,11 +131,11 @@ type turnProcess struct {
 	process          *runtime.Process
 	runHandle        *runtime.RunHandle
 	owner            *Engine
-	scope            execution.ExecutionScope
+	scope            runs.ExecutionScope
 	runCtx           context.Context
 	usage            *usageLedger
 	modelSelection   modelref.Selection
-	limits           execution.RunLimits
+	limits           run.RunLimits
 	pendingResponses map[suspensionKey]json.RawMessage
 }
 
@@ -270,7 +271,7 @@ func (p *turnProcess) PlanWaitingSubtreeCancellation(
 type waitingSubtreeCancellationPlan struct {
 	process     *turnProcess
 	runtimePlan *runtime.WaitingSubtreeCancellationPlan
-	checkpoint  execution.ExecutorCheckpoint
+	checkpoint  runs.ExecutorCheckpoint
 }
 
 func (plan *waitingSubtreeCancellationPlan) CanceledProcessIDs() []string {
@@ -296,9 +297,9 @@ func (plan *waitingSubtreeCancellationPlan) PendingSuspensions() []PendingSuspen
 	return out
 }
 
-func (plan *waitingSubtreeCancellationPlan) Checkpoint() execution.ExecutorCheckpoint {
+func (plan *waitingSubtreeCancellationPlan) Checkpoint() runs.ExecutorCheckpoint {
 	if plan == nil {
-		return execution.ExecutorCheckpoint{}
+		return runs.ExecutorCheckpoint{}
 	}
 	return plan.checkpoint.Clone()
 }
@@ -546,25 +547,25 @@ func (p *turnProcess) Discard(ctx context.Context) error {
 
 func (p *turnProcess) captureProcessTree(
 	tree core.ProcessSnapshotTree,
-) (execution.ExecutorCheckpoint, error) {
+) (runs.ExecutorCheckpoint, error) {
 	if p == nil || p.process == nil || p.owner == nil {
-		return execution.ExecutorCheckpoint{}, errors.New("agentexec: capture process tree: incomplete turn process")
+		return runs.ExecutorCheckpoint{}, errors.New("agentexec: capture process tree: incomplete turn process")
 	}
 	if p.usage == nil {
-		return execution.ExecutorCheckpoint{}, errors.New("agentexec: capture process tree: usage ledger is missing")
+		return runs.ExecutorCheckpoint{}, errors.New("agentexec: capture process tree: usage ledger is missing")
 	}
 	usage, err := p.usage.snapshot()
 	if err != nil {
-		return execution.ExecutorCheckpoint{}, fmt.Errorf("agentexec: capture process tree usage: %w", err)
+		return runs.ExecutorCheckpoint{}, fmt.Errorf("agentexec: capture process tree usage: %w", err)
 	}
 	if err := validateCheckpointUsage(tree, usage); err != nil {
-		return execution.ExecutorCheckpoint{}, fmt.Errorf("agentexec: capture process tree usage: %w", err)
+		return runs.ExecutorCheckpoint{}, fmt.Errorf("agentexec: capture process tree usage: %w", err)
 	}
 	payload, err := encodeProcessTree(tree)
 	if err != nil {
-		return execution.ExecutorCheckpoint{}, fmt.Errorf("agentexec: capture process tree: %w", err)
+		return runs.ExecutorCheckpoint{}, fmt.Errorf("agentexec: capture process tree: %w", err)
 	}
-	checkpoint := execution.ExecutorCheckpoint{
+	checkpoint := runs.ExecutorCheckpoint{
 		RootProcessID:  tree.RootID,
 		Payload:        payload,
 		BuildID:        p.owner.buildID,
@@ -574,7 +575,7 @@ func (p *turnProcess) captureProcessTree(
 		Usage:          usage,
 	}
 	if err := checkpoint.Validate(); err != nil {
-		return execution.ExecutorCheckpoint{}, fmt.Errorf("agentexec: capture process tree: %w", err)
+		return runs.ExecutorCheckpoint{}, fmt.Errorf("agentexec: capture process tree: %w", err)
 	}
 	return checkpoint, nil
 }

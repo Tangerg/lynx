@@ -6,7 +6,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 )
 
-// agentEngine is the controller's complete consumer-side view of Agent execution.
+// agentEngine is the controller's complete consumer-side view of Agent run.
 // The concrete agentexec.Engine remains behind this process boundary.
 type agentEngine interface {
 	StartTurn(ctx context.Context, request agentexec.TurnRequest) (agentexec.TurnProcess, error)

@@ -5,17 +5,17 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
 func portableSnapshot() Snapshot {
-	outcome := execution.OutcomeCompleted
+	outcome := run.OutcomeCompleted
 	return Snapshot{
 		Session: session.Session{ID: "ses_1"},
 		Runs: []transcript.Run{{
-			SessionID: "ses_1", ID: "run_1", State: execution.Completed,
+			SessionID: "ses_1", ID: "run_1", State: run.Completed,
 			Outcome:   &outcome,
 			CreatedAt: time.Unix(1, 0), FinishedAt: time.Unix(2, 0), MessageMark: 0,
 		}},
@@ -33,7 +33,7 @@ func TestValidateSnapshotRejectsInconsistentPortableState(t *testing.T) {
 	}{
 		{"wrong run session", func(s *Snapshot) { s.Runs[0].SessionID = "ses_other" }},
 		{"duplicate run", func(s *Snapshot) { s.Runs = append(s.Runs, s.Runs[0]) }},
-		{"state outcome mismatch", func(s *Snapshot) { s.Runs[0].State = execution.Failed }},
+		{"state outcome mismatch", func(s *Snapshot) { s.Runs[0].State = run.Failed }},
 		{"missing finished time", func(s *Snapshot) { s.Runs[0].FinishedAt = time.Time{} }},
 		{"missing creation time", func(s *Snapshot) { s.Runs[0].CreatedAt = time.Time{} }},
 		{"wrong item session", func(s *Snapshot) { s.Items[0].SessionID = "ses_other" }},

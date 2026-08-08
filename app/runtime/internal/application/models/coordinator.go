@@ -78,7 +78,7 @@ type EmbeddingRoleSaver interface {
 // Coordinator owns provider + model configuration. Any nil dependency disables
 // the corresponding capability.
 type Coordinator struct {
-	providers provider.Registry
+	providers ProviderRegistry
 	catalog   ProviderCatalog
 	prober    ProviderProber
 	lister    ProviderModelLister
@@ -99,7 +99,7 @@ type Coordinator struct {
 
 // Config bundles the Coordinator's dependencies.
 type Config struct {
-	Providers provider.Registry
+	Providers ProviderRegistry
 	Catalog   ProviderCatalog
 	Prober    ProviderProber
 	Lister    ProviderModelLister

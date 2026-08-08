@@ -8,14 +8,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
+	rundomain "github.com/Tangerg/lynx/app/runtime/internal/domain/run"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
 type waitingCancellationValidation struct {
 	commit              WaitingSubtreeCancellationCommit
-	continuationByRunID map[string]interrupts.Continuation
+	continuationByRunID map[string]Continuation
 	canceledRunIDs      []string
 	canceledProcessIDs  map[string]struct{}
 	survivingRunIDs     []string
@@ -61,7 +61,7 @@ func newWaitingCancellationValidation(
 	if c.RootRun.ID != c.RootRunID ||
 		c.RootRun.SessionID != c.SessionID ||
 		!c.RootRun.Lineage().IsRoot() ||
-		c.RootRun.State != execution.Interrupted {
+		c.RootRun.State != rundomain.Waiting {
 		return waitingCancellationValidation{}, errors.New("runs: waiting cancellation root snapshot is invalid")
 	}
 	if err := c.ExpectedPending.Validate(); err != nil {
@@ -91,7 +91,7 @@ func newWaitingCancellationValidation(
 		c.Checkpoint.Limits != rootContinuation.Limits {
 		return waitingCancellationValidation{}, fmt.Errorf(
 			"runs: waiting cancellation checkpoint differs from root continuation: %w",
-			execution.ErrInvalidExecutorCheckpoint,
+			ErrInvalidExecutorCheckpoint,
 		)
 	}
 	if (c.RemainingPending == nil) == (c.Resume == nil) {
@@ -116,13 +116,13 @@ func newWaitingCancellationValidation(
 		}
 	}
 
-	members := make([]execution.RunTreeMember, 0, len(c.ExpectedPending.Continuations))
-	continuationByRunID := make(map[string]interrupts.Continuation, len(c.ExpectedPending.Continuations))
+	members := make([]rundomain.RunTreeMember, 0, len(c.ExpectedPending.Continuations))
+	continuationByRunID := make(map[string]Continuation, len(c.ExpectedPending.Continuations))
 	for _, continuation := range c.ExpectedPending.Continuations {
-		members = append(members, execution.RunTreeMember{RunID: continuation.RunID, Lineage: continuation.Lineage})
+		members = append(members, rundomain.RunTreeMember{RunID: continuation.RunID, Lineage: continuation.Lineage})
 		continuationByRunID[continuation.RunID] = continuation
 	}
-	tree, err := execution.NewRunTree(c.RootRunID, members)
+	tree, err := rundomain.NewRunTree(c.RootRunID, members)
 	if err != nil {
 		return waitingCancellationValidation{}, fmt.Errorf("runs: waiting cancellation tree: %w", err)
 	}
@@ -184,7 +184,7 @@ func (v *waitingCancellationValidation) validateTerminalRuns() error {
 			return fmt.Errorf("runs: waiting cancellation Run[%d] capabilities mismatch", index)
 		case run.GoalLeaseID != "":
 			return fmt.Errorf("runs: waiting cancellation child Run[%d] carries a root Goal lease", index)
-		case run.State != execution.Canceled || run.Outcome == nil || *run.Outcome != execution.OutcomeCanceled:
+		case run.State != rundomain.Canceled || run.Outcome == nil || *run.Outcome != rundomain.OutcomeCanceled:
 			return fmt.Errorf("runs: waiting cancellation Run[%d] is not canceled", index)
 		}
 		if _, duplicate := v.terminalRunIDs[run.ID]; duplicate {
@@ -226,24 +226,24 @@ func (v waitingCancellationValidation) validateTerminalItems() error {
 }
 
 func validateTerminalItemReplacement(
-	interrupt transcript.Interrupt,
+	request transcript.Interrupt,
 	replacement ItemReplacement,
 	finishedAt time.Time,
 ) error {
-	switch interrupt.Kind {
-	case execution.QuestionInterrupt:
+	switch request.Kind {
+	case interrupt.Question:
 		if replacement.Expected.Kind != transcript.QuestionItem ||
-			replacement.Expected.Question == nil || interrupt.Question == nil ||
-			!reflect.DeepEqual(replacement.Expected.Question, interrupt.Question) {
+			replacement.Expected.Question == nil || request.Question == nil ||
+			!reflect.DeepEqual(replacement.Expected.Question, request.Question) {
 			return errors.New("question differs from its interrupt")
 		}
-	case execution.ApprovalInterrupt:
+	case interrupt.Approval:
 		if replacement.Expected.Kind != transcript.ToolCall || replacement.Expected.Tool == nil ||
-			interrupt.Approval == nil || !reflect.DeepEqual(*replacement.Expected.Tool, interrupt.Approval.Tool) {
+			request.Approval == nil || !reflect.DeepEqual(*replacement.Expected.Tool, request.Approval.Tool) {
 			return errors.New("approval tool differs from its interrupt")
 		}
 	default:
-		return fmt.Errorf("unsupported interrupt kind %s", interrupt.Kind)
+		return fmt.Errorf("unsupported interrupt kind %s", request.Kind)
 	}
 	expected := replacement.Expected
 	expected.Status = transcript.ItemIncomplete
@@ -308,8 +308,8 @@ func (v waitingCancellationValidation) validateDisposition() error {
 	for _, actual := range c.RemainingPending.Continuations {
 		expected := v.continuationByRunID[actual.RunID]
 		if actual.RunID == target.Lineage.ParentRunID {
-			var matched []interrupts.DrainedTool
-			expected.DrainedTools = slices.DeleteFunc(slices.Clone(expected.DrainedTools), func(candidate interrupts.DrainedTool) bool {
+			var matched []DrainedTool
+			expected.DrainedTools = slices.DeleteFunc(slices.Clone(expected.DrainedTools), func(candidate DrainedTool) bool {
 				if candidate.ItemID != c.ParentItem.Expected.ID {
 					return false
 				}
@@ -320,7 +320,7 @@ func (v waitingCancellationValidation) validateDisposition() error {
 				return fmt.Errorf("runs: waiting cancellation parent continuation has %d spawning tools", len(matched))
 			}
 			settled := matched[0]
-			expected.CommittedTools = append(slices.Clone(expected.CommittedTools), interrupts.CommittedTool{
+			expected.CommittedTools = append(slices.Clone(expected.CommittedTools), CommittedTool{
 				ItemID: settled.ItemID, CallID: settled.CallID, Name: settled.Name,
 				Arguments: settled.Arguments, Problem: *c.ParentItem.Replacement.Error,
 			})
@@ -376,7 +376,7 @@ func (v waitingCancellationValidation) validateParentItem() error {
 	return nil
 }
 
-func validateWaitingRunContinuation(run transcript.Run, continuation interrupts.Continuation) error {
+func validateWaitingRunContinuation(run transcript.Run, continuation Continuation) error {
 	switch {
 	case run.ID != continuation.RunID:
 		return errors.New("identity differs from continuation")
@@ -395,11 +395,11 @@ func validateWaitingRunContinuation(run transcript.Run, continuation interrupts.
 	}
 }
 
-func sameContinuationValue(left, right interrupts.Continuation) bool {
+func sameContinuationValue(left, right Continuation) bool {
 	return reflect.DeepEqual(normalizeContinuationValue(left), normalizeContinuationValue(right))
 }
 
-func normalizeContinuationValue(value interrupts.Continuation) interrupts.Continuation {
+func normalizeContinuationValue(value Continuation) Continuation {
 	value.RunCreatedAt = canonicalTime(value.RunCreatedAt)
 	value.DrainedTools = slices.Clone(value.DrainedTools)
 	for index := range value.DrainedTools {

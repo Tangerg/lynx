@@ -10,10 +10,10 @@ import (
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/accounting"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/accounting"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
 // cleanupTurnOwned releases a terminal turn exactly once after the Agent
@@ -57,15 +57,15 @@ func discardProcess(ctx context.Context, process agentexec.TurnProcess) error {
 // Cancel and a failed Resume — where no drive
 // goroutine will run [emitTurnEnd]. The clean path goes through
 // emitTurnEnd (which carries usage) followed by terminal cleanup in [drive].
-func (s *controller) finishTurn(st *turnState, reason execution.Outcome) error {
+func (s *controller) finishTurn(st *turnState, reason run.Outcome) error {
 	return s.completeTurn(st, func() { s.emitFinishedTurn(st, reason) })
 }
 
-func (s *controller) finishTurnOwned(ctx context.Context, st *turnState, reason execution.Outcome) error {
+func (s *controller) finishTurnOwned(ctx context.Context, st *turnState, reason run.Outcome) error {
 	return s.completeTurnOwned(ctx, st, func() { s.emitFinishedTurn(st, reason) })
 }
 
-func (s *controller) emitFinishedTurn(st *turnState, reason execution.Outcome) {
+func (s *controller) emitFinishedTurn(st *turnState, reason run.Outcome) {
 	dur := st.segmentElapsed()
 	finishTurnSpan(st.span, reason, accounting.TokenUsage{}, false, "")
 	recordTurnDuration(st.ctx, reason, st.model, dur)
@@ -82,9 +82,9 @@ func (s *controller) finishFailedTurn(st *turnState, problem transcript.Problem,
 		if err != nil {
 			errMsg = err.Error()
 		}
-		finishTurnSpan(st.span, execution.OutcomeError, accounting.TokenUsage{}, false, errMsg)
-		recordTurnDuration(st.ctx, execution.OutcomeError, st.model, dur)
-		s.emitRootEvent(st, runs.SegmentEnded{Reason: execution.OutcomeError, Problem: &problem, Duration: dur})
+		finishTurnSpan(st.span, run.OutcomeFailed, accounting.TokenUsage{}, false, errMsg)
+		recordTurnDuration(st.ctx, run.OutcomeFailed, st.model, dur)
+		s.emitRootEvent(st, runs.SegmentEnded{Reason: run.OutcomeFailed, Problem: &problem, Duration: dur})
 		s.fireStop(st, errMsg)
 	})
 }
@@ -97,7 +97,7 @@ func (s *controller) finishFailedTurn(st *turnState, problem transcript.Problem,
 // losing either fact.
 func (s *controller) finishExecutionError(st *turnState, problem transcript.Problem, err error) error {
 	if st.cancelRequested() {
-		return s.finishTurn(st, execution.OutcomeCanceled)
+		return s.finishTurn(st, run.OutcomeCanceled)
 	}
 	return s.finishFailedTurn(st, problem, err)
 }
@@ -223,7 +223,7 @@ func (s *controller) fireStop(st *turnState, detail string) {
 // problem for an error terminal. Child projection may additionally attach an
 // authoritative subtree report to a cancellation or failure.
 type turnEndPlan struct {
-	reason    execution.Outcome
+	reason    run.Outcome
 	withUsage bool
 	errMsg    string // local tracing and hook diagnostic only
 	problem   *transcript.Problem
@@ -244,12 +244,12 @@ func planTurnEnd(completion agentexec.TurnCompletion) turnEndPlan {
 		}
 		return completedPlan(completion.Output)
 	case core.StatusKilled, core.StatusTerminated:
-		return turnEndPlan{reason: execution.OutcomeCanceled}
+		return turnEndPlan{reason: run.OutcomeCanceled}
 	case core.StatusFailed, core.StatusPaused:
 		return failurePlan(completionErr)
 	case core.StatusStuck:
-		problem := problemForFailure(execution.FailureAgentStuck, 0)
-		return turnEndPlan{reason: execution.OutcomeError, errMsg: "agent stuck — no forward progress", problem: &problem}
+		problem := problemForFailure(run.FailureAgentStuck, 0)
+		return turnEndPlan{reason: run.OutcomeFailed, errMsg: "agent stuck — no forward progress", problem: &problem}
 	default:
 		return failurePlan(fmt.Errorf("agent process joined in non-terminal status %s", completion.Status))
 	}
@@ -260,7 +260,12 @@ func failurePlan(err error) turnEndPlan {
 		err = errors.New("agent process failed without an error")
 	}
 	problem := problemFromError(err)
-	return turnEndPlan{reason: execution.OutcomeError, errMsg: err.Error(), problem: &problem}
+	outcome := run.OutcomeFailed
+	var failure *run.Failure
+	if errors.As(err, &failure) && failure.Kind == run.FailureTimeout {
+		outcome = run.OutcomeTimedOut
+	}
+	return turnEndPlan{reason: outcome, errMsg: err.Error(), problem: &problem}
 }
 
 // completedPlan maps a cleanly-completed turn's output to its reason. This is
@@ -269,51 +274,51 @@ func failurePlan(err error) turnEndPlan {
 func completedPlan(out agentexec.TurnOutput) turnEndPlan {
 	switch out.StopReason {
 	case agent.InteractionStopModelCalls:
-		return turnEndPlan{reason: execution.OutcomeMaxSteps, withUsage: true}
+		return turnEndPlan{reason: run.OutcomeMaxSteps, withUsage: true}
 	case agent.InteractionStopBudget:
-		return turnEndPlan{reason: execution.OutcomeMaxBudget, withUsage: true}
+		return turnEndPlan{reason: run.OutcomeMaxBudget, withUsage: true}
 	case agent.InteractionStopNone:
-		return turnEndPlan{reason: execution.OutcomeCompleted, withUsage: true}
+		return turnEndPlan{reason: run.OutcomeCompleted, withUsage: true}
 	default:
 		problem := internalRunProblem()
-		return turnEndPlan{reason: execution.OutcomeError, errMsg: fmt.Sprintf("invalid turn stop reason %q", out.StopReason), problem: &problem}
+		return turnEndPlan{reason: run.OutcomeFailed, errMsg: fmt.Sprintf("invalid turn stop reason %q", out.StopReason), problem: &problem}
 	}
 }
 
 func problemFromError(err error) transcript.Problem {
-	var failure *execution.Failure
+	var failure *run.Failure
 	if errors.As(err, &failure) {
 		return problemForFailure(failure.Kind, failure.RetryAfter)
 	}
 	return internalRunProblem()
 }
 
-func problemForFailure(kind execution.FailureKind, retryAfter time.Duration) transcript.Problem {
+func problemForFailure(kind run.FailureKind, retryAfter time.Duration) transcript.Problem {
 	problem := transcript.Problem{Scope: transcript.RunProblem}
 	// A provider's backoff hint only means something for the failures that
 	// waiting can clear. Naming those kinds here is what a transient/permanent
 	// flag was standing in for.
 	acceptsBackoff := false
 	switch kind {
-	case execution.FailureAgentStuck:
+	case run.FailureAgentStuck:
 		problem.Kind = transcript.AgentStuckProblem
 		problem.Detail = "the agent stopped because it could not make forward progress"
-	case execution.FailureRateLimited:
+	case run.FailureRateLimited:
 		problem.Kind = transcript.RateLimitedProblem
 		problem.Detail = "the model provider rate-limited the request; retry shortly"
 		acceptsBackoff = true
-	case execution.FailureInvalidCredentials:
+	case run.FailureInvalidCredentials:
 		problem.Kind = transcript.InvalidAPIKeyProblem
 		problem.Detail = "the model provider rejected the credentials; check the provider API key"
-	case execution.FailureTimeout:
+	case run.FailureTimeout:
 		problem.Kind = transcript.TimeoutProblem
 		problem.Detail = "the model provider request timed out or the connection failed; retry shortly"
 		acceptsBackoff = true
-	case execution.FailureProviderUnavailable:
+	case run.FailureProviderUnavailable:
 		problem.Kind = transcript.ProviderUnavailableProblem
 		problem.Detail = "the model provider is temporarily unavailable; retry shortly"
 		acceptsBackoff = true
-	case execution.FailureProviderRejected:
+	case run.FailureProviderRejected:
 		problem.Kind = transcript.ProviderRejectedProblem
 		problem.Detail = "the model provider rejected the request as invalid"
 	default:

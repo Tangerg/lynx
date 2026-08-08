@@ -9,9 +9,10 @@ import (
 	"io"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
+	rundomain "github.com/Tangerg/lynx/app/runtime/internal/domain/run"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
 // The Run row's JSON columns. Token accounting, a failure classification, and
@@ -51,7 +52,7 @@ type runAccountingRow struct {
 	MaxBudgetUSD     float64      `json:"maxBudgetUsd,omitzero"`
 }
 
-func runAccountingRowOf(metrics transcript.RunMetrics, limits execution.RunLimits) runAccountingRow {
+func runAccountingRowOf(metrics transcript.RunMetrics, limits rundomain.RunLimits) runAccountingRow {
 	return runAccountingRow{
 		Steps:            metrics.Steps,
 		ActiveDurationNs: int64(metrics.ActiveDuration),
@@ -62,20 +63,20 @@ func runAccountingRowOf(metrics transcript.RunMetrics, limits execution.RunLimit
 	}
 }
 
-func (row runAccountingRow) values() (transcript.RunMetrics, execution.RunLimits, error) {
+func (row runAccountingRow) values() (transcript.RunMetrics, rundomain.RunLimits, error) {
 	metrics := transcript.RunMetrics{
 		Usage:          row.Usage.usage(),
 		Steps:          row.Steps,
 		ActiveDuration: time.Duration(row.ActiveDurationNs),
 	}
-	limits := execution.RunLimits{
+	limits := rundomain.RunLimits{
 		MaxTotalTokens: row.MaxTotalTokens, MaxSteps: row.MaxSteps, MaxBudgetUSD: row.MaxBudgetUSD,
 	}
 	if err := metrics.Validate(); err != nil {
-		return transcript.RunMetrics{}, execution.RunLimits{}, fmt.Errorf("metrics: %w", err)
+		return transcript.RunMetrics{}, rundomain.RunLimits{}, fmt.Errorf("metrics: %w", err)
 	}
 	if err := limits.Validate(); err != nil {
-		return transcript.RunMetrics{}, execution.RunLimits{}, fmt.Errorf("limits: %w", err)
+		return transcript.RunMetrics{}, rundomain.RunLimits{}, fmt.Errorf("limits: %w", err)
 	}
 	return metrics, limits, nil
 }
@@ -90,7 +91,7 @@ type runCapabilitiesRow struct {
 
 // encodeRunCapabilities returns the empty string for no optional capabilities,
 // keeping one representation instead of both null and an empty object.
-func encodeRunCapabilities(capabilities execution.RunCapabilities) (string, error) {
+func encodeRunCapabilities(capabilities rundomain.RunCapabilities) (string, error) {
 	if err := capabilities.Validate(); err != nil {
 		return "", fmt.Errorf("encode run capabilities: %w", err)
 	}
@@ -108,34 +109,34 @@ func encodeRunCapabilities(capabilities execution.RunCapabilities) (string, erro
 	return string(encoded), nil
 }
 
-func decodeRunCapabilities(encoded string) (execution.RunCapabilities, error) {
+func decodeRunCapabilities(encoded string) (rundomain.RunCapabilities, error) {
 	if encoded == "" {
-		return execution.RunCapabilities{}, nil
+		return rundomain.RunCapabilities{}, nil
 	}
 	var row runCapabilitiesRow
 	decoder := json.NewDecoder(bytes.NewReader([]byte(encoded)))
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(&row); err != nil {
-		return execution.RunCapabilities{}, fmt.Errorf("decode run capabilities: %w", err)
+		return rundomain.RunCapabilities{}, fmt.Errorf("decode run capabilities: %w", err)
 	}
 	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
 		if err == nil {
 			err = errors.New("multiple JSON values")
 		}
-		return execution.RunCapabilities{}, fmt.Errorf("decode run capabilities: %w", err)
+		return rundomain.RunCapabilities{}, fmt.Errorf("decode run capabilities: %w", err)
 	}
-	capabilities := execution.RunCapabilities{ChildRuns: row.ChildRuns}
+	capabilities := rundomain.RunCapabilities{ChildRuns: row.ChildRuns}
 	for _, name := range row.InterruptKinds {
-		kind, ok := execution.ParseInterruptKind(name)
+		kind, ok := interrupt.ParseKind(name)
 		if !ok {
 			// A stored kind this build cannot raise would let the Run park on
 			// something nothing answers. Refusing the row is the honest outcome.
-			return execution.RunCapabilities{}, fmt.Errorf("decode run capabilities: unknown interrupt kind %q", name)
+			return rundomain.RunCapabilities{}, fmt.Errorf("decode run capabilities: unknown interrupt kind %q", name)
 		}
 		capabilities.InterruptKinds = append(capabilities.InterruptKinds, kind)
 	}
 	if err := capabilities.Validate(); err != nil {
-		return execution.RunCapabilities{}, fmt.Errorf("decode run capabilities: %w", err)
+		return rundomain.RunCapabilities{}, fmt.Errorf("decode run capabilities: %w", err)
 	}
 	return capabilities, nil
 }
@@ -223,7 +224,7 @@ func encodeRunProblem(problem *transcript.Problem) (string, error) {
 	return string(encoded), nil
 }
 
-// pendingReadPolicy says whether an Interrupted Run must have its root-owned
+// pendingReadPolicy says whether an Waiting Run must have its root-owned
 // Pending set. Ordinary reads require it because a complete parked
 // Run is inseparable from that set. Boot recovery is the one exception: it must
 // still be able to read and terminalize a row whose pending set was lost in the
@@ -237,7 +238,7 @@ const (
 
 // scanRun decodes one complete Run row plus the joined open-interrupt payload.
 //
-// The fine [execution.RunState] is rebuilt from the coarse admission state and
+// The fine [rundomain.RunState] is rebuilt from the coarse admission state and
 // the terminal reason beside it rather than stored a second time, and the
 // terminal facts are materialized exactly when the state says they exist — the
 // equivalence [transcript.Run.Validate] enforces on the way in.
@@ -247,7 +248,7 @@ func scanRun(row scanRow) (transcript.Run, error) {
 
 // scanRunForRecovery uses the same complete durable Run decoder as every normal
 // read, but tolerates the one broken relation reconciliation exists to repair:
-// an Interrupted row whose root-owned pending set is missing.
+// an Waiting row whose root-owned pending set is missing.
 func scanRunForRecovery(row scanRow) (transcript.Run, error) {
 	return scanRunRow(row, allowMissingPendingSet)
 }
@@ -314,15 +315,15 @@ func scanRunRow(row scanRow, pendingPolicy pendingReadPolicy) (transcript.Run, e
 
 	switch coarse {
 	case runStateRunning:
-		run.State = execution.Running
-	case runStateInterrupted:
-		run.State = execution.Interrupted
+		run.State = rundomain.Running
+	case runStateWaiting:
+		run.State = rundomain.Waiting
 		// Every suspended Run must join its root-owned pending set. Only interrupts
 		// raised by this Run are projected onto it; an empty filtered result means
 		// the Run was suspended by another source in the tree.
 		if !interruptsSuspended.Valid {
 			if pendingPolicy == requirePendingSet {
-				return transcript.Run{}, fmt.Errorf("run %q is interrupted with no root-owned Pending set", run.ID)
+				return transcript.Run{}, fmt.Errorf("run %q is waiting with no root-owned Pending set", run.ID)
 			}
 			break
 		}
@@ -337,11 +338,11 @@ func scanRunRow(row scanRow, pendingPolicy pendingReadPolicy) (transcript.Run, e
 			}
 		}
 	case runStateTerminal:
-		reason, ok := execution.ParseOutcome(outcome)
+		reason, ok := rundomain.ParseOutcome(outcome)
 		if !ok {
 			return transcript.Run{}, fmt.Errorf("run %q has unknown outcome %q", run.ID, outcome)
 		}
-		state, ok := execution.Running.Terminate(reason)
+		state, ok := rundomain.Running.Terminate(reason)
 		if !ok {
 			return transcript.Run{}, fmt.Errorf("run %q outcome %s reaches no terminal state", run.ID, reason)
 		}

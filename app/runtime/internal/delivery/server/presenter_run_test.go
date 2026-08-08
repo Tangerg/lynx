@@ -4,8 +4,8 @@ import (
 	"testing"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
 // Why a run stopped is a domain fact, and a sentence explaining it to a person
@@ -15,7 +15,7 @@ import (
 // way through this path and another through the Artifact encoder, and shipped
 // English no translator could see.
 func TestPresentationDoesNotAuthorOutcomeOrProblemDetail(t *testing.T) {
-	maxBudget := execution.OutcomeMaxBudget
+	maxBudget := run.OutcomeMaxBudget
 	if outcome := presentOutcome(transcript.Run{Outcome: &maxBudget}); outcome.Detail != "" {
 		t.Fatalf("budget outcome detail = %q, want the domain's silence preserved", outcome.Detail)
 	}
@@ -25,7 +25,7 @@ func TestPresentationDoesNotAuthorOutcomeOrProblemDetail(t *testing.T) {
 		t.Fatalf("run-lost problem = %+v, want the type alone", problem)
 	}
 
-	canceled := execution.OutcomeCanceled
+	canceled := run.OutcomeCanceled
 	spoken := presentOutcome(transcript.Run{Outcome: &canceled, Detail: "user asked to stop"})
 	if spoken.Detail != "user asked to stop" {
 		t.Fatalf("canceled outcome detail = %q, want it verbatim", spoken.Detail)

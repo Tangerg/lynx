@@ -8,8 +8,8 @@ import (
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/accounting"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/accounting"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 )
 
 func TestTurnObserverProjectsAdmittedChildOntoExactExecutorSource(t *testing.T) {
@@ -99,7 +99,7 @@ func TestTurnObserverProjectsAdmittedChildOntoExactExecutorSource(t *testing.T) 
 	if !ok {
 		t.Fatalf("payload[5] = %T, want TurnEnd", payloads[5])
 	}
-	if end.Reason != execution.OutcomeCompleted ||
+	if end.Reason != run.OutcomeCompleted ||
 		end.Duration != 2*time.Second ||
 		end.Usage == nil ||
 		end.Usage.Tokens.PromptTokens != 8 ||

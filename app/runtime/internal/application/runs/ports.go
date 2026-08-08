@@ -8,11 +8,11 @@ import (
 	corechat "github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/core/media"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
 // The ports this package consumes to run a Segment. They are defined here on the
@@ -21,14 +21,14 @@ import (
 // The application drives execution through implementation-neutral
 // [SegmentExecutor] and [ExecutionControl] ports. It observes the
 // application-owned [ExecutionFact] family and addresses work through durable
-// [execution.ExecutorRef] values.
+// [ExecutorRef] values.
 
 // ExecutionCanceler tears down a live or parked execution by durable identity. It is a
 // shared capability both the pump ([SegmentExecutor]) and the control surface
 // ([ExecutionControl]) need; naming it once keeps an implementation from exposing the
 // same teardown under two method names.
 type ExecutionCanceler interface {
-	CancelExecution(ctx context.Context, ref execution.ExecutorRef) error
+	CancelExecution(ctx context.Context, ref ExecutorRef) error
 }
 
 // WaitingSubtreeDisposition is the application decision applied after a
@@ -57,14 +57,14 @@ type WaitingSubtreeMutation interface {
 type PreparedWaitingSubtreeCancellation struct {
 	CanceledProcessIDs []string
 	PendingSuspensions []ProcessSuspension
-	Checkpoint         execution.ExecutorCheckpoint
+	Checkpoint         ExecutorCheckpoint
 	Mutation           WaitingSubtreeMutation
 }
 
 // SegmentExecutor is what the run pump needs to observe and cancel the
 // execution backing a Run Segment.
 type SegmentExecutor interface {
-	Events(ctx context.Context, ref execution.ExecutorRef) (iter.Seq[ExecutorEvent], error)
+	Events(ctx context.Context, ref ExecutorRef) (iter.Seq[ExecutorEvent], error)
 	ExecutionCanceler
 }
 
@@ -77,8 +77,8 @@ type SessionLifecycle interface {
 	Create(ctx context.Context, title, cwd string) (session.Session, error)
 	PrepareScheduled(ctx context.Context, id, title, cwd string) (session.Session, error)
 	ActiveRun(ctx context.Context, sessionID string) (transcript.Run, bool, error)
-	ListOpenInterrupts(ctx context.Context, sessionID string) ([]interrupts.Pending, error)
-	LookupOpenInterrupt(ctx context.Context, runID string) (interrupts.Pending, bool, error)
+	ListOpenInterrupts(ctx context.Context, sessionID string) ([]Pending, error)
+	LookupOpenInterrupt(ctx context.Context, runID string) (Pending, bool, error)
 	ApplyRunCancel(ctx context.Context, sessionID, runID, reason string, finishedAt time.Time) (transcript.Run, error)
 	ApplyRunLost(ctx context.Context, sessionID, runID string, finishedAt time.Time) error
 }
@@ -117,9 +117,9 @@ type StartExecution struct {
 	WorkspaceCWD   string
 	Isolated       bool
 	ModelSelection modelref.Selection
-	Limits         execution.RunLimits
+	Limits         run.RunLimits
 	Options        *corechat.Options
-	InterruptKinds []execution.InterruptKind
+	InterruptKinds []interrupt.Kind
 	// ChildRunAdmissionEnabled installs the executor-to-application admission
 	// handshake for AgentTool children. It is deliberately explicit and defaults
 	// off; the Run's frozen application policy is its sole production source.
@@ -144,7 +144,7 @@ type RehydrateExecution struct {
 	WorkspaceCWD             string
 	Isolated                 bool
 	GoalLeaseID              string
-	Limits                   execution.RunLimits
+	Limits                   run.RunLimits
 	ChildRunAdmissionEnabled bool
 }
 
@@ -159,25 +159,25 @@ type IsolationProvider interface {
 // surface. Validation happens before Session creation.
 type ExecutionControl interface {
 	ValidateStart(start StartExecution) error
-	PrepareStart(ctx context.Context, req StartExecution) (execution.ExecutorRef, error)
-	Activate(ctx context.Context, ref execution.ExecutorRef) error
-	Prepare(ctx context.Context, ref execution.ExecutorRef) (execution.ExecutorRef, error)
-	Resume(ctx context.Context, ref execution.ExecutorRef, answers []interrupts.SuspensionAnswer, interruptKinds []execution.InterruptKind) error
-	Rehydrate(ctx context.Context, req RehydrateExecution) (execution.ExecutorRef, error)
+	PrepareStart(ctx context.Context, req StartExecution) (ExecutorRef, error)
+	Activate(ctx context.Context, ref ExecutorRef) error
+	Prepare(ctx context.Context, ref ExecutorRef) (ExecutorRef, error)
+	Resume(ctx context.Context, ref ExecutorRef, answers []SuspensionAnswer, interruptKinds []interrupt.Kind) error
+	Rehydrate(ctx context.Context, req RehydrateExecution) (ExecutorRef, error)
 	ExecutionCanceler
 	// CancelSubtree terminates exactly the addressed executor process and its
 	// descendants while the owning execution continues. processID is an opaque
 	// identity previously observed through ExecutorSource; the implementation must
 	// prove that it belongs to ref before crossing the executor side effect.
-	CancelSubtree(ctx context.Context, ref execution.ExecutorRef, processID string) error
+	CancelSubtree(ctx context.Context, ref ExecutorRef, processID string) error
 	// PrepareWaitingSubtreeCancellation claims a parked execution and computes an
 	// executor transition plan without changing live execution or retaining an
 	// executor lock. The returned capability owns the application claim until Commit or
 	// Abort.
 	PrepareWaitingSubtreeCancellation(
 		ctx context.Context,
-		ref execution.ExecutorRef,
+		ref ExecutorRef,
 		processID string,
 	) (PreparedWaitingSubtreeCancellation, error)
-	Steer(ctx context.Context, ref execution.ExecutorRef, input []transcript.ContentBlock) error
+	Steer(ctx context.Context, ref ExecutorRef, input []transcript.ContentBlock) error
 }

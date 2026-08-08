@@ -5,8 +5,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	rundomain "github.com/Tangerg/lynx/app/runtime/internal/domain/run"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
 // Cancel handles both live and parked runs under the same run/session admission
@@ -25,7 +25,7 @@ func (c *Coordinator) Cancel(ctx context.Context, cmd CancelCommand) (CancelResu
 	}
 	if plan.target.run.Lineage().IsChild() {
 		switch plan.treeState {
-		case execution.Running:
+		case rundomain.Running:
 			if !live || entry.handle == nil {
 				return CancelResult{}, fmt.Errorf(
 					"runs: running child Run %q has no live root owner",
@@ -33,7 +33,7 @@ func (c *Coordinator) Cancel(ctx context.Context, cmd CancelCommand) (CancelResu
 				)
 			}
 			return c.cancelLiveChild(ctx, cmd, plan, entry.handle)
-		case execution.Interrupted:
+		case rundomain.Waiting:
 			return c.cancelWaitingChild(ctx, cmd, plan)
 		default:
 			return CancelResult{}, fmt.Errorf(
@@ -85,7 +85,7 @@ func (c *Coordinator) Cancel(ctx context.Context, cmd CancelCommand) (CancelResu
 			plan.root.run.ID,
 		)
 	}
-	if terminal.State != execution.Canceled {
+	if terminal.State != rundomain.Canceled {
 		return CancelResult{}, fmt.Errorf(
 			"%w: %q completed as %s",
 			ErrRunFinished,
@@ -126,9 +126,9 @@ func (c *Coordinator) cancelLiveChild(
 		return CancelResult{}, err
 	}
 	if target.ID != plan.target.run.ID ||
-		target.State != execution.Canceled ||
+		target.State != rundomain.Canceled ||
 		target.Outcome == nil ||
-		*target.Outcome != execution.OutcomeCanceled {
+		*target.Outcome != rundomain.OutcomeCanceled {
 		return CancelResult{}, fmt.Errorf(
 			"runs: child cancellation for %q committed invalid target snapshot %q in state %s",
 			plan.target.run.ID,
@@ -153,7 +153,7 @@ func (c *Coordinator) cancelLiveChild(
 // executor checkpoint commit in one transaction; only after that durable boundary may
 // the live transition be applied.
 //
-// When another external boundary survives, the tree stays Interrupted. Removing
+// When another external boundary survives, the tree stays Waiting. Removing
 // the final boundary instead opens continuation Segments in the same transaction
 // and immediately continues the already-settled runtime tree—there is no
 // synthetic human answer and no transient Running row without an owner.
@@ -218,7 +218,7 @@ func (c *Coordinator) cancelWaitingChild(
 			)
 		}
 	}
-	if plan.treeState != execution.Interrupted || !plan.target.run.Lineage().IsChild() {
+	if plan.treeState != rundomain.Waiting || !plan.target.run.Lineage().IsChild() {
 		return CancelResult{}, fmt.Errorf(
 			"runs: waiting child cancellation for %q resolved a %s root/child state",
 			cmd.RunID,
@@ -396,9 +396,9 @@ func validateWaitingChildCancellationResult(
 ) error {
 	target := result.TargetRun
 	if target.ID != plan.target.run.ID ||
-		target.State != execution.Canceled ||
+		target.State != rundomain.Canceled ||
 		target.Outcome == nil ||
-		*target.Outcome != execution.OutcomeCanceled {
+		*target.Outcome != rundomain.OutcomeCanceled {
 		return fmt.Errorf(
 			"runs: waiting child cancellation for %q committed invalid target snapshot %q in state %s",
 			plan.target.run.ID,
@@ -409,7 +409,7 @@ func validateWaitingChildCancellationResult(
 	root := result.RootRun
 	if root.ID != plan.root.run.ID ||
 		!root.Lineage().IsRoot() ||
-		(root.State != execution.Interrupted && root.State != execution.Running) {
+		(root.State != rundomain.Waiting && root.State != rundomain.Running) {
 		return fmt.Errorf(
 			"runs: waiting child cancellation for %q committed invalid root snapshot %q in state %s",
 			plan.target.run.ID,
@@ -458,7 +458,7 @@ func (c *Coordinator) publishWaitingChildCancellation(
 // classifies a real terminal race; a still-running orphan is an invariant fault,
 // never run_not_found.
 func (c *Coordinator) cancelWithoutLiveSegment(ctx context.Context, cmd CancelCommand, run transcript.Run) (CancelResult, error) {
-	if run.State == execution.Interrupted {
+	if run.State == rundomain.Waiting {
 		cleanupCtx, cancel := (*handle)(nil).cleanupContext(ctx)
 		defer cancel()
 		return c.cancelParkedRun(cleanupCtx, cmd, run)
@@ -471,11 +471,11 @@ func (c *Coordinator) cancelWithoutLiveSegment(ctx context.Context, cmd CancelCo
 		return CancelResult{}, fmt.Errorf("runs: run %q disappeared after it was resolved", cmd.RunID)
 	case refreshed.State.IsTerminal():
 		return CancelResult{}, fmt.Errorf("%w: %q completed as %s", ErrRunFinished, cmd.RunID, refreshed.State)
-	case refreshed.State == execution.Interrupted:
+	case refreshed.State == rundomain.Waiting:
 		cleanupCtx, cancel := (*handle)(nil).cleanupContext(ctx)
 		defer cancel()
 		return c.cancelParkedRun(cleanupCtx, cmd, refreshed)
-	case refreshed.State == execution.Running:
+	case refreshed.State == rundomain.Running:
 		return CancelResult{}, fmt.Errorf(
 			"runs: run %q is running segment %q with no live owner",
 			cmd.RunID, refreshed.ActiveSegmentID,
@@ -519,7 +519,7 @@ func (c *Coordinator) cancelParkedRun(ctx context.Context, cmd CancelCommand, ru
 			cmd.RunID, run.SessionID, pending.SessionID,
 		)
 	}
-	return c.cancelClaimedParkedRun(ctx, cmd, execution.ExecutorRef{
+	return c.cancelClaimedParkedRun(ctx, cmd, ExecutorRef{
 		SessionID:  pending.SessionID,
 		ExecutorID: pending.ExecutorID,
 	})
@@ -533,7 +533,7 @@ func (c *Coordinator) cancelKnownParkedRun(
 	ctx context.Context,
 	cmd CancelCommand,
 	run transcript.Run,
-	ref execution.ExecutorRef,
+	ref ExecutorRef,
 ) (CancelResult, error) {
 	if ref.SessionID != run.SessionID {
 		return CancelResult{}, fmt.Errorf(
@@ -549,7 +549,7 @@ func (c *Coordinator) cancelKnownParkedRun(
 	return c.cancelClaimedParkedRun(ctx, cmd, ref)
 }
 
-func (c *Coordinator) cancelClaimedParkedRun(ctx context.Context, cmd CancelCommand, ref execution.ExecutorRef) (CancelResult, error) {
+func (c *Coordinator) cancelClaimedParkedRun(ctx context.Context, cmd CancelCommand, ref ExecutorRef) (CancelResult, error) {
 	terminal, err := c.sessions.ApplyRunCancel(ctx, ref.SessionID, cmd.RunID, cmd.Reason, c.now().UTC())
 	if err != nil {
 		return CancelResult{}, err
@@ -568,7 +568,7 @@ func rootCancelResult(run transcript.Run) (CancelResult, error) {
 	if run.Lineage().IsChild() {
 		return CancelResult{}, fmt.Errorf("runs: canceled root result %q is a child run", run.ID)
 	}
-	if run.State != execution.Canceled || run.Outcome == nil || *run.Outcome != execution.OutcomeCanceled {
+	if run.State != rundomain.Canceled || run.Outcome == nil || *run.Outcome != rundomain.OutcomeCanceled {
 		return CancelResult{}, fmt.Errorf("runs: cancel committed invalid terminal run %q in state %s", run.ID, run.State)
 	}
 	return CancelResult{Run: run}, nil

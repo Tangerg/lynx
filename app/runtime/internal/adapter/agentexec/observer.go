@@ -11,13 +11,13 @@ import (
 	"github.com/Tangerg/lynx/agent"
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/executionctx"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/accounting"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/accounting"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/toolresult"
 	"github.com/Tangerg/lynx/core/chat"
 )
 
-// ErrToolDenied marks a call the approval gate denied before execution.
+// ErrToolDenied marks a call the approval gate denied before run.
 // Observers use errors.Is to distinguish it from a tool execution failure.
 var ErrToolDenied = errors.New("agentexec: tool call denied by user")
 
@@ -112,7 +112,7 @@ type executionObserver interface {
 	// SpawnCallID resolve to the exact parent Item without parsing either ID or
 	// guessing from event order.
 	OnToolCallStart(process ProcessRef, callID, sourceCallID, toolName, arguments string)
-	OnToolCallEnd(process ProcessRef, callID, toolName, arguments, output string, ref *offload.Ref, mutatedPaths []string, err error)
+	OnToolCallEnd(process ProcessRef, callID, toolName, arguments, output string, ref *toolresult.Ref, mutatedPaths []string, err error)
 
 	// OnMessageDelta is invoked for every non-empty text chunk the model streams
 	// out. Implementations forward it to the owning execution event stream.
@@ -165,7 +165,7 @@ var toolObservationKey = core.MustDependencyKey[*toolObservation]("lyra.tool_obs
 //     chat tool loop propagates the durable Suspension so the action parks. On resume
 //     the gate is consulted again and returns one of the outcomes below.
 //   - Denied           → short-circuit with DenyReason as a recoverable
-//     tool result (the model adapts), no execution.
+//     tool result (the model adapts), no run.
 //   - zero value       → run the tool. Arguments, when non-empty, overrides
 //     the call's arguments (the "approve with edits" affordance).
 type ToolApprovalVerdict struct {
@@ -342,7 +342,7 @@ func (o *toolObservation) publishStarts(calls []*observedModelCall) {
 	}
 }
 
-func (o *toolObservation) finish(call *observedModelCall, bound bool, arguments, output string, ref *offload.Ref, mutatedPaths []string, err error) {
+func (o *toolObservation) finish(call *observedModelCall, bound bool, arguments, output string, ref *toolresult.Ref, mutatedPaths []string, err error) {
 	if bound {
 		o.mu.Lock()
 		o.finished[call.id] = struct{}{}
@@ -396,7 +396,7 @@ func (o *toolObservation) resultRef(ref ProcessRef, round int, result chat.ToolR
 // scope the blob under, the tool is the read-back tool (evicting its output
 // would loop), or the offload fails (best-effort — degrade to the full body
 // rather than fail an otherwise-successful call).
-func (o *toolObservation) evict(ctx context.Context, toolName, output string) (string, *offload.Ref) {
+func (o *toolObservation) evict(ctx context.Context, toolName, output string) (string, *toolresult.Ref) {
 	if o.evictStore == nil || o.evictThreshold <= 0 || len(output) <= o.evictThreshold {
 		return output, nil
 	}
@@ -407,17 +407,17 @@ func (o *toolObservation) evict(ctx context.Context, toolName, output string) (s
 	if sessionID == "" {
 		return output, nil
 	}
-	id := offload.NewID()
+	id := toolresult.NewID()
 	preview := renderToolResultPreview(output, string(id), o.readToolName, min(toolResultPreviewBytes, o.evictThreshold))
 	if len(preview) >= len(output) {
 		// Very small configured thresholds can make the retrieval marker larger
 		// than the body. Keep the body inline without staging any durable state.
 		return output, nil
 	}
-	if err := o.evictStore.Stage(ctx, offload.ToolResultStage{
+	if err := o.evictStore.Stage(ctx, toolresult.Stage{
 		ID: id, SessionID: sessionID, ToolName: toolName, Body: output,
 	}); err != nil {
 		return output, nil
 	}
-	return preview, &offload.Ref{ID: id}
+	return preview, &toolresult.Ref{ID: id}
 }

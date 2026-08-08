@@ -136,12 +136,14 @@ export interface ArtifactModelUsage {
 
 export type ArtifactOutcome =
   | { type: "completed" }
-  | { type: "error"; error: ArtifactProblem }
+  | { type: "timedOut"; error: ArtifactProblem }
+  | { type: "failed"; error: ArtifactProblem }
   | { type: "maxSteps"; detail?: string }
   | { type: "maxBudget"; detail?: string }
-  | { type: "canceled"; detail?: string };
+  | { type: "canceled"; detail?: string }
+  | { type: "lost"; error: ArtifactProblem };
 
-export type ArtifactOutcomeType = "completed" | "error" | "maxSteps" | "maxBudget" | "canceled";
+export type ArtifactOutcomeType = "completed" | "timedOut" | "failed" | "maxSteps" | "maxBudget" | "canceled" | "lost";
 
 export interface ArtifactProblem {
   detail?: string;
@@ -1103,12 +1105,14 @@ export interface RunMetrics {
 
 export type RunOutcome =
   | { type: "completed" }
-  | { type: "error"; error: ProblemData }
+  | { type: "timedOut"; error: ProblemData }
+  | { type: "failed"; error: ProblemData }
   | { type: "maxSteps"; detail?: string }
   | { type: "maxBudget"; detail?: string }
-  | { type: "canceled"; detail?: string };
+  | { type: "canceled"; detail?: string }
+  | { type: "lost"; error: ProblemData };
 
-export type RunOutcomeType = "completed" | "error" | "maxSteps" | "maxBudget" | "canceled";
+export type RunOutcomeType = "completed" | "timedOut" | "failed" | "maxSteps" | "maxBudget" | "canceled" | "lost";
 
 export interface RunProgress {
   activity?: string;
@@ -1242,12 +1246,14 @@ export type SegmentOutcome =
   | { type: "interrupt"; interrupts: Interrupt[] }
   | { type: "suspended" }
   | { type: "completed" }
-  | { type: "error"; error: ProblemData }
+  | { type: "timedOut"; error: ProblemData }
+  | { type: "failed"; error: ProblemData }
   | { type: "maxSteps"; detail?: string }
   | { type: "maxBudget"; detail?: string }
-  | { type: "canceled"; detail?: string };
+  | { type: "canceled"; detail?: string }
+  | { type: "lost"; error: ProblemData };
 
-export type SegmentOutcomeType = "interrupt" | "suspended" | "completed" | "error" | "maxSteps" | "maxBudget" | "canceled";
+export type SegmentOutcomeType = "interrupt" | "suspended" | "completed" | "timedOut" | "failed" | "maxSteps" | "maxBudget" | "canceled" | "lost";
 
 export interface ServerCapabilities {
   features: Record<string, FeatureCapability>;
@@ -1574,7 +1580,7 @@ export const WIRE_ENUMS = {
   ApprovalRisk: ["low", "medium", "high"],
   ApprovalRuleDecision: ["allow", "deny"],
   ApprovalRuleScope: ["session", "project", "global"],
-  ArtifactOutcomeType: ["completed", "error", "maxSteps", "maxBudget", "canceled"],
+  ArtifactOutcomeType: ["completed", "timedOut", "failed", "maxSteps", "maxBudget", "canceled", "lost"],
   ArtifactProblemType: ["internalError", "runLost", "agentStuck", "rateLimited", "invalidApiKey", "timeout", "providerUnavailable", "providerRejected", "deniedByUser", "toolFailed", "childRunCanceled"],
   ArtifactStateType: ["plan"],
   CancelRunResponseType: ["root", "child"],
@@ -1613,14 +1619,14 @@ export const WIRE_ENUMS = {
   RecipeScope: ["project", "global"],
   RememberScopeKind: ["session", "project", "global"],
   RestoreType: ["history", "files", "both"],
-  RunOutcomeType: ["completed", "error", "maxSteps", "maxBudget", "canceled"],
+  RunOutcomeType: ["completed", "timedOut", "failed", "maxSteps", "maxBudget", "canceled", "lost"],
   RunProtocolFeature: ["subagents"],
   RunReplayScope: ["processRootSegment"],
   RunStatus: ["running", "waiting", "finished"],
   RuntimeEventType: ["files.changed", "skills.changed", "mcp.changed", "schedules.changed", "sessions.changed", "runs.changed", "state.changed", "goals.changed", "interrupts.changed", "resync"],
   RuntimeTopic: ["files.changed", "skills.changed", "mcp.changed", "schedules.changed", "sessions.changed", "runs.changed", "state.changed", "goals.changed", "interrupts.changed"],
   SafetyClass: ["safe", "write", "exec", "network"],
-  SegmentOutcomeType: ["interrupt", "suspended", "completed", "error", "maxSteps", "maxBudget", "canceled"],
+  SegmentOutcomeType: ["interrupt", "suspended", "completed", "timedOut", "failed", "maxSteps", "maxBudget", "canceled", "lost"],
   SessionStatus: ["running", "waiting", "idle"],
   SkillLifecycle: ["active", "archived"],
   SkillProposalOrigin: ["requested", "mined"],

@@ -4,17 +4,15 @@ import (
 	"errors"
 	"strings"
 	"testing"
-
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
 )
 
 func TestLiveChildCancellationReleasesClaimWhenExecutorTeardownFails(t *testing.T) {
 	plan := runningChildCancellationPlan()
-	plan.executor = execution.ExecutorRef{SessionID: "session", ExecutorID: "turn_root"}
+	plan.executor = ExecutorRef{SessionID: "session", ExecutorID: "turn_root"}
 	teardownErr := errors.New("subtree teardown failed")
 	control := &fakeExecutionControl{
-		cancelSubtree: func(ref execution.ExecutorRef, processID string) error {
-			if ref != (execution.ExecutorRef{SessionID: "session", ExecutorID: "turn_root"}) {
+		cancelSubtree: func(ref ExecutorRef, processID string) error {
+			if ref != (ExecutorRef{SessionID: "session", ExecutorID: "turn_root"}) {
 				t.Fatalf("CancelSubtree execution = %+v, want session/exec_root", ref)
 			}
 			if processID != plan.target.processID {

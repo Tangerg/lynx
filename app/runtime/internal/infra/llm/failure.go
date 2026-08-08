@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/core/chat"
 )
 
@@ -58,15 +58,15 @@ func classifyModelError(err error) error {
 	if err == nil || errors.Is(err, context.Canceled) {
 		return err
 	}
-	var classified *execution.Failure
+	var classified *run.Failure
 	if errors.As(err, &classified) {
 		return err
 	}
 	if errors.Is(err, context.DeadlineExceeded) {
-		return &execution.Failure{Kind: execution.FailureTimeout, Err: err}
+		return &run.Failure{Kind: run.FailureTimeout, Err: err}
 	}
 	if status, header, ok := providerHTTPError(err); ok {
-		return &execution.Failure{
+		return &run.Failure{
 			Kind:       failureKindForHTTPStatus(status),
 			RetryAfter: retryAfter(header, time.Now()),
 			Err:        err,
@@ -74,11 +74,11 @@ func classifyModelError(err error) error {
 	}
 	var netErr net.Error
 	if errors.As(err, &netErr) {
-		kind := execution.FailureProviderUnavailable
+		kind := run.FailureProviderUnavailable
 		if netErr.Timeout() {
-			kind = execution.FailureTimeout
+			kind = run.FailureTimeout
 		}
-		return &execution.Failure{Kind: kind, Err: err}
+		return &run.Failure{Kind: kind, Err: err}
 	}
 	return err
 }
@@ -94,20 +94,20 @@ func providerHTTPError(err error) (int, http.Header, bool) {
 	return responseError.HTTPStatus(), responseError.HTTPHeader(), true
 }
 
-func failureKindForHTTPStatus(status int) execution.FailureKind {
+func failureKindForHTTPStatus(status int) run.FailureKind {
 	switch {
 	case status == http.StatusUnauthorized || status == http.StatusForbidden:
-		return execution.FailureInvalidCredentials
+		return run.FailureInvalidCredentials
 	case status == http.StatusRequestTimeout || status == http.StatusGatewayTimeout:
-		return execution.FailureTimeout
+		return run.FailureTimeout
 	case status == http.StatusTooManyRequests:
-		return execution.FailureRateLimited
+		return run.FailureRateLimited
 	case status >= http.StatusInternalServerError:
-		return execution.FailureProviderUnavailable
+		return run.FailureProviderUnavailable
 	case status >= http.StatusBadRequest:
-		return execution.FailureProviderRejected
+		return run.FailureProviderRejected
 	default:
-		return execution.FailureInternal
+		return run.FailureInternal
 	}
 }
 

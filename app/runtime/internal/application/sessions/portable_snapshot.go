@@ -7,12 +7,12 @@ import (
 
 	"github.com/Tangerg/lynx/core/chat"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/toolresult"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
 // ErrInvalidPortableSnapshot marks a structurally decoded archive that cannot
@@ -27,7 +27,7 @@ type PortableSnapshot struct {
 	Messages    []chat.Message
 	Items       []transcript.Item
 	Runs        []PortableRun
-	ToolResults []offload.ToolResultBlob
+	ToolResults []toolresult.Blob
 	// Plan is the session's Plan, carried as a value so an archive restores
 	// the work plan attached to the conversation rather than just the conversation.
 	Plan []plan.Step
@@ -58,14 +58,14 @@ type PortableRun struct {
 	RootRunID   string
 	Provider    string
 	Model       string
-	Outcome     execution.Outcome
+	Outcome     run.Outcome
 	Error       *transcript.Problem
 	Metrics     transcript.RunMetrics
-	Limits      execution.RunLimits
+	Limits      run.RunLimits
 	// Capabilities is a pointer because an empty set is a known minimal Run while
 	// nil means the archive omitted the root-owned fact. A root must carry it; a
 	// child must not and inherits its root's value.
-	Capabilities *execution.RunCapabilities
+	Capabilities *run.RunCapabilities
 	Detail       string
 	CreatedAt    time.Time
 	FinishedAt   time.Time
@@ -90,7 +90,7 @@ func (p PortableRun) rootID() string {
 // is the ABSENCE of the child edges, which no presence rule can condition on — so
 // they belong to the transaction that turns an archive into a session.
 func (p PortableRun) validateLineage() error {
-	lineage := execution.RunLineage{
+	lineage := run.RunLineage{
 		SpawnedByItemID: p.SpawnedByItemID,
 		ParentRunID:     p.ParentRunID,
 		RootRunID:       p.RootRunID,
@@ -117,7 +117,7 @@ func (p PortableSnapshot) CanonicalSnapshot() (Snapshot, error) {
 		Session:     p.Session.session(),
 		Messages:    p.Messages,
 		Items:       append([]transcript.Item(nil), p.Items...),
-		ToolResults: append([]offload.ToolResultBlob(nil), p.ToolResults...),
+		ToolResults: append([]toolresult.Blob(nil), p.ToolResults...),
 		Runs:        make([]transcript.Run, 0, len(p.Runs)),
 		Plan:        append([]plan.Step(nil), p.Plan...),
 	}
@@ -126,7 +126,7 @@ func (p PortableSnapshot) CanonicalSnapshot() (Snapshot, error) {
 	}
 	// A child reads its root's capabilities, so root values are collected before
 	// any Run is rebuilt. The archive states each value exactly once.
-	capabilitySets := make(map[string]execution.RunCapabilities, len(p.Runs))
+	capabilitySets := make(map[string]run.RunCapabilities, len(p.Runs))
 	for _, portable := range p.Runs {
 		if portable.Capabilities != nil {
 			capabilitySets[portable.ID] = *portable.Capabilities
@@ -144,7 +144,7 @@ func (p PortableSnapshot) CanonicalSnapshot() (Snapshot, error) {
 		if err != nil {
 			return Snapshot{}, fmt.Errorf("%w: run %q model selection: %w", ErrInvalidPortableSnapshot, portable.ID, err)
 		}
-		state, ok := execution.Running.Terminate(portable.Outcome)
+		state, ok := run.Running.Terminate(portable.Outcome)
 		if !ok {
 			return Snapshot{}, fmt.Errorf("%w: run %q has invalid outcome %s", ErrInvalidPortableSnapshot, portable.ID, portable.Outcome)
 		}
@@ -208,7 +208,7 @@ func bindPortableToolResults(snapshot *Snapshot) error {
 			return fmt.Errorf("sessions: portable tool result %q references non-tool item %q", blob.ID, item.ID)
 		}
 		invocation := *item.Tool
-		invocation.Offload = &offload.Ref{ID: blob.ID}
+		invocation.Offload = &toolresult.Ref{ID: blob.ID}
 		item.Tool = &invocation
 	}
 	return nil

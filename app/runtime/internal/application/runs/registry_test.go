@@ -4,7 +4,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 )
 
 func TestRegistryRemovesCompletedRun(t *testing.T) {
@@ -44,20 +45,20 @@ func TestRegistryCancelReason(t *testing.T) {
 
 func TestRegistryOwnsRunCapabilities(t *testing.T) {
 	var registry registry
-	capabilities := execution.RunCapabilities{
-		InterruptKinds: []execution.InterruptKind{execution.ApprovalInterrupt},
+	capabilities := run.RunCapabilities{
+		InterruptKinds: []interrupt.Kind{interrupt.Approval},
 	}
 	registry.Open(Record{ID: "run_1", Capabilities: capabilities}, nil)
-	capabilities.InterruptKinds[0] = execution.QuestionInterrupt
+	capabilities.InterruptKinds[0] = interrupt.Question
 
 	first, ok := registry.Get("run_1")
-	if !ok || first.record.Capabilities.InterruptKinds[0] != execution.ApprovalInterrupt {
+	if !ok || first.record.Capabilities.InterruptKinds[0] != interrupt.Approval {
 		t.Fatalf("stored capabilities followed caller mutation: %+v", first.record.Capabilities)
 	}
-	first.record.Capabilities.InterruptKinds[0] = execution.QuestionInterrupt
+	first.record.Capabilities.InterruptKinds[0] = interrupt.Question
 
 	second, ok := registry.Get("run_1")
-	if !ok || second.record.Capabilities.InterruptKinds[0] != execution.ApprovalInterrupt {
+	if !ok || second.record.Capabilities.InterruptKinds[0] != interrupt.Approval {
 		t.Fatalf("Get leaked stored capabilities ownership: %+v", second.record.Capabilities)
 	}
 }

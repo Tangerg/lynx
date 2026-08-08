@@ -12,8 +12,8 @@ import (
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/agent/toolloop"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/toolresult"
 	"github.com/Tangerg/lynx/core/chat"
 	toolcontract "github.com/Tangerg/lynx/tool"
 )
@@ -57,7 +57,7 @@ func (noopObserver) ApproveToolCall(context.Context, string, string, string, Too
 	return ToolApprovalVerdict{}
 }
 func (noopObserver) OnToolCallStart(ProcessRef, string, string, string, string) {}
-func (noopObserver) OnToolCallEnd(ProcessRef, string, string, string, string, *offload.Ref, []string, error) {
+func (noopObserver) OnToolCallEnd(ProcessRef, string, string, string, string, *toolresult.Ref, []string, error) {
 }
 func (noopObserver) OnMessageDelta(ProcessRef, string)   {}
 func (noopObserver) OnReasoningDelta(ProcessRef, string) {}

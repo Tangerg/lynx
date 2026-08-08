@@ -4,8 +4,8 @@ import (
 	"context"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/schedule"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
 // RunUseCases is schedule firing's narrow view of the complete Run entry point.

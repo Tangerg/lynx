@@ -5,7 +5,8 @@ import (
 	"fmt"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 )
 
 // Capability negotiation: what a request is entitled to, resolved once.
@@ -27,15 +28,15 @@ import (
 //
 // Absent capabilities map to the Minimal Profile, not an error — §8.3 makes "send a
 // message, watch the reply, reload the history" a complete client.
-func (s *Server) negotiateCapabilities(ctx context.Context) (execution.RunCapabilities, error) {
+func (s *Server) negotiateCapabilities(ctx context.Context) (run.RunCapabilities, error) {
 	caps, ok := protocol.ClientCapabilitiesFrom(ctx)
 	if !ok {
-		return execution.RunCapabilities{}, nil
+		return run.RunCapabilities{}, nil
 	}
 
 	advertised := s.capabilities().Features
 
-	var capabilities execution.RunCapabilities
+	var capabilities run.RunCapabilities
 	for key, preference := range caps.Features {
 		if !preference.Enabled {
 			// Declining a feature is always honorable, including one this build has
@@ -44,7 +45,7 @@ func (s *Server) negotiateCapabilities(ctx context.Context) (execution.RunCapabi
 		}
 		published, known := protocol.LookupFeature(key)
 		if !known || !advertised[key].Enabled {
-			return execution.RunCapabilities{}, protocol.NewCapabilityGap(protocol.CapabilityRequirement{
+			return run.RunCapabilities{}, protocol.NewCapabilityGap(protocol.CapabilityRequirement{
 				Type: protocol.RequirementFeature, Name: key,
 			})
 		}
@@ -56,7 +57,7 @@ func (s *Server) negotiateCapabilities(ctx context.Context) (execution.RunCapabi
 			case protocol.FeatureSubagents:
 				capabilities.ChildRuns = true
 			default:
-				return execution.RunCapabilities{}, fmt.Errorf(
+				return run.RunCapabilities{}, fmt.Errorf(
 					"server: required Run protocol feature %q has no application policy mapping",
 					key,
 				)
@@ -75,12 +76,12 @@ func (s *Server) negotiateCapabilities(ctx context.Context) (execution.RunCapabi
 			// runtime can only produce it with features.clientTools. Both gaps are named:
 			// the type the caller asked for and the feature that would make it possible,
 			// because fixing only one of them changes nothing.
-			return execution.RunCapabilities{}, protocol.NewCapabilityGap(
+			return run.RunCapabilities{}, protocol.NewCapabilityGap(
 				protocol.CapabilityRequirement{Type: protocol.RequirementInterruptType, Name: string(declared)},
 				protocol.CapabilityRequirement{Type: protocol.RequirementFeature, Name: protocol.FeatureClientTools},
 			)
 		}
-		return execution.RunCapabilities{}, fmt.Errorf("%w: unknown interruptTypes value %q", protocol.ErrInvalidParams, declared)
+		return run.RunCapabilities{}, fmt.Errorf("%w: unknown interruptTypes value %q", protocol.ErrInvalidParams, declared)
 	}
 	return capabilities.Normalized(), nil
 }
@@ -117,7 +118,7 @@ func (s *Server) requestCanUseFeature(ctx context.Context, feature string) bool 
 //
 // Every gap at once, because a caller told about one at a time cannot get itself into
 // a state where the call succeeds.
-func capabilityGap(missing execution.RunCapabilities) *protocol.CapabilityGap {
+func capabilityGap(missing run.RunCapabilities) *protocol.CapabilityGap {
 	requirements := make([]protocol.CapabilityRequirement, 0,
 		1+len(missing.InterruptKinds))
 	if missing.ChildRuns {
@@ -136,12 +137,12 @@ func capabilityGap(missing execution.RunCapabilities) *protocol.CapabilityGap {
 // interruptKindFromWire maps a declared interrupt type onto the durable kind the
 // runtime raises. It reports false for a type no kind backs — which is not the
 // same as an unknown value, and the caller distinguishes them.
-func interruptKindFromWire(kind protocol.InterruptType) (execution.InterruptKind, bool) {
+func interruptKindFromWire(kind protocol.InterruptType) (interrupt.Kind, bool) {
 	switch kind {
 	case protocol.InterruptApproval:
-		return execution.ApprovalInterrupt, true
+		return interrupt.Approval, true
 	case protocol.InterruptQuestion:
-		return execution.QuestionInterrupt, true
+		return interrupt.Question, true
 	default:
 		return 0, false
 	}
@@ -149,11 +150,11 @@ func interruptKindFromWire(kind protocol.InterruptType) (execution.InterruptKind
 
 // presentInterruptType is the same mapping read outward, for a protocol profile or an
 // interrupt on its way to the wire.
-func presentInterruptType(kind execution.InterruptKind) protocol.InterruptType {
+func presentInterruptType(kind interrupt.Kind) protocol.InterruptType {
 	switch kind {
-	case execution.ApprovalInterrupt:
+	case interrupt.Approval:
 		return protocol.InterruptApproval
-	case execution.QuestionInterrupt:
+	case interrupt.Question:
 		return protocol.InterruptQuestion
 	default:
 		panic("server: unknown interrupt kind")

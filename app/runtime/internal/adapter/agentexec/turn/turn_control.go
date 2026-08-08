@@ -8,7 +8,8 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 )
 
 // Cancel stops a turn. The ctx cancel is the primary signal: it aborts any
@@ -30,13 +31,13 @@ func (s *controller) Cancel(ctx context.Context, handle Handle) error {
 	state.cancel()
 	switch state.requestCancellation() {
 	case cancelFinish:
-		return s.finishTurnOwned(ctx, state, execution.OutcomeCanceled)
+		return s.finishTurnOwned(ctx, state, run.OutcomeCanceled)
 	case cancelProcess:
 		if process := state.process(); process != nil {
 			if err := cancelTurnProcess(ctx, process); err != nil {
 				return err
 			}
-			return s.finishTurnOwned(ctx, state, execution.OutcomeCanceled)
+			return s.finishTurnOwned(ctx, state, run.OutcomeCanceled)
 		}
 		return nil
 	case cancelComplete:
@@ -258,7 +259,7 @@ func cancelTurnProcess(ctx context.Context, process agentexec.TurnProcess) error
 // delivers the bool decision to the agent process, and drives the continuation
 // segment onto the same event channel. Returns [ErrTurnNotFound] when the turn
 // isn't parked (unknown / already resumed / terminal).
-func (s *controller) Resume(ctx context.Context, handle Handle, answers []agentexec.SuspensionAnswer, interruptKinds []execution.InterruptKind) error {
+func (s *controller) Resume(ctx context.Context, handle Handle, answers []agentexec.SuspensionAnswer, interruptKinds []interrupt.Kind) error {
 	state, err := s.findTurn(handle.TurnID)
 	if err != nil {
 		return err

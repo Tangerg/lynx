@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 )
 
 // DeleteSession atomically removes all durable session state (the atomic
@@ -21,7 +21,7 @@ func (c *Coordinator) DeleteSession(ctx context.Context, sessionID string) error
 	}
 	defer admission.Release()
 
-	var pending []interrupts.Pending
+	var pending []runs.Pending
 	return c.withGoalMutation(
 		ctx,
 		[]string{sessionID},

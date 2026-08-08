@@ -195,10 +195,12 @@ publish one namespaced pattern branch without weakening first-party tags.
 | tag | required | optional |
 | --- | --- | --- |
 | `completed` | — | — |
-| `error` | `error` | — |
+| `timedOut` | `error` | — |
+| `failed` | `error` | — |
 | `maxSteps` | — | `detail` |
 | `maxBudget` | — | `detail` |
 | `canceled` | — | `detail` |
+| `lost` | `error` | — |
 
 ### `SegmentOutcome`
 
@@ -207,10 +209,12 @@ publish one namespaced pattern branch without weakening first-party tags.
 | `interrupt` | `interrupts` | — |
 | `suspended` | — | — |
 | `completed` | — | — |
-| `error` | `error` | — |
+| `timedOut` | `error` | — |
+| `failed` | `error` | — |
 | `maxSteps` | — | `detail` |
 | `maxBudget` | — | `detail` |
 | `canceled` | — | `detail` |
+| `lost` | `error` | — |
 
 ### `ArtifactState`
 
@@ -394,10 +398,12 @@ Forbidden on every variant: `durable`.
 | tag | required | optional |
 | --- | --- | --- |
 | `completed` | — | — |
-| `error` | `error` | — |
+| `timedOut` | `error` | — |
+| `failed` | `error` | — |
 | `maxSteps` | — | `detail` |
 | `maxBudget` | — | `detail` |
 | `canceled` | — | `detail` |
+| `lost` | `error` | — |
 
 ### `ArtifactItem`
 

@@ -48,9 +48,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/component/shutdown"
 	"github.com/Tangerg/lynx/app/runtime/internal/component/signal"
 	"github.com/Tangerg/lynx/app/runtime/internal/component/taskgroup"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/agentmemory"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/codebaseindex"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/skills"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/skillauthoring"
 )
@@ -108,9 +105,9 @@ type toolEnvironmentBuilder func(
 	context.Context,
 	Config,
 	agentexec.Config,
-	*approval.RuntimePolicy,
+	*approvals.RuntimePolicy,
 	mcpEnvironment,
-	*agentmemory.Searcher,
+	*agentmemoryapp.Searcher,
 	*schedules.Coordinator,
 	*goals.Reader,
 	*goals.OutcomeReporter,
@@ -230,15 +227,15 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 	liveEmbedder := modelclient.NewRoleEmbedder(embeddingResolver, embeddingRoleState)
 	var codebaseUseCases codebase.Index
 	if cfg.CodebaseStore != nil {
-		index := codebaseindex.New(cfg.CodebaseStore, liveEmbedder.Resolve, codebaseindexadapter.Source{})
+		index := codebase.NewIndex(cfg.CodebaseStore, liveEmbedder.Resolve, codebaseindexadapter.Source{})
 		codebaseUseCases = index
 	}
 	// Agent-memory search (search_memory + the extractor's vector backfill) embeds
 	// through the same live embedding role as @codebase. The searcher is nil when
 	// no memory store is wired; keyword search works without an embedder.
-	var agentMemorySearcher *agentmemory.Searcher
+	var agentMemorySearcher *agentmemoryapp.Searcher
 	if cfg.AgentMemoryStore != nil {
-		agentMemorySearcher = agentmemory.NewSearcher(cfg.AgentMemoryStore, liveEmbedder.ResolveMemory)
+		agentMemorySearcher = agentmemoryapp.NewSearcher(cfg.AgentMemoryStore, liveEmbedder.ResolveMemory)
 	}
 
 	// Tool environment: assembled outside the core (constructs the code-intel /
@@ -248,7 +245,7 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 	// Permission policy is built early because Plan-mode tools and the execution gate
 	// share its narrow session-mode views. The policy owns no Agent execution
 	// state: Plan-mode persistence remains a runtime/session concern.
-	approvalPolicy, err := approval.New(cfg.ApprovalMode, cfg.ApprovalRuleStore, cfg.PermissionModeStore)
+	approvalPolicy, err := approvals.NewRuntimePolicy(cfg.ApprovalMode, cfg.ApprovalRuleStore, cfg.PermissionModeStore)
 	if err != nil {
 		return nil, fmt.Errorf("runtime: approval policy: %w", err)
 	}

@@ -193,7 +193,8 @@ type Decision struct {
 // match, and for the tool events the hook's matcher (a glob) must match the
 // tool name. An empty matcher matches every tool. Discovery rejects malformed
 // globs; matches still treats one defensively as non-matching.
-func (h Hook) matches(in Input) bool {
+// Matches reports whether h applies to in.
+func (h Hook) Matches(in Input) bool {
 	if h.Event != in.Event {
 		return false
 	}
@@ -214,7 +215,9 @@ func (h Hook) matches(in Input) bool {
 // fold merges one hook's outcome into the running decision. block latches (the
 // first denying hook owns the reason); ask is a softer escalation; injected
 // context concatenates; the first rewrite wins (deterministic).
-func (d *Decision) fold(block, ask bool, reason, inject, rewrite string) {
+// Fold combines one matching hook outcome using first-deny and first-rewrite
+// precedence while accumulating injected context.
+func (d *Decision) Fold(block, ask bool, reason, inject, rewrite string) {
 	if block && !d.Block {
 		d.Block = true
 		d.Reason = reason

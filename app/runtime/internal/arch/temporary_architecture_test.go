@@ -121,18 +121,7 @@ type temporaryDomainPort struct {
 	deletePhase string
 }
 
-var temporaryDomainIOPorts = map[string]temporaryDomainPort{
-	"internal/domain/agentmemory/search.go:Embedder":               {"agentmemory search", "P2"},
-	"internal/domain/agentmemory/search.go:itemSearchStore":        {"agentmemory search", "P2"},
-	"internal/domain/approval/runtime_policy.go:ModeStore":         {"approval runtime policy", "P2"},
-	"internal/domain/approval/store.go:RuleStore":                  {"approval rule policy", "P2"},
-	"internal/domain/codebaseindex/codebaseindex.go:Embedder":      {"codebase indexing", "P2"},
-	"internal/domain/codebaseindex/codebaseindex.go:Source":        {"codebase indexing", "P2"},
-	"internal/domain/codebaseindex/codebaseindex.go:Store":         {"codebase indexing", "P2"},
-	"internal/domain/execution/conversation/conversation.go:Store": {"conversation history", "P2"},
-	"internal/domain/hooks/runner.go:CommandRunner":                {"hook evaluation", "P2"},
-	"internal/domain/provider/registry.go:Registry":                {"provider configuration", "P2"},
-}
+var temporaryDomainIOPorts = map[string]temporaryDomainPort{}
 
 func TestTemporaryDomainIOPortsAreExact(t *testing.T) {
 	root := moduleRoot(t)

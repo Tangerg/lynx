@@ -9,16 +9,15 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/provider"
 )
 
-// ProviderStore implements provider.Registry against a SQLite database.
-// One row per provider id; Update is an atomic partial upsert. The DB must have been
+// ProviderStore persists provider configuration in SQLite. One row per
+// provider id; Update is an atomic partial upsert. The DB must have been
 // opened via [Open] so the providers table exists.
 type ProviderStore struct {
 	db *sql.DB
 }
 
-var _ provider.Registry = (*ProviderStore)(nil)
-
-// NewProviderStore wires the given *sql.DB to the provider.Registry surface.
+// NewProviderStore binds provider persistence to db. Application consumer
+// interfaces are satisfied structurally without an Infra-to-Application import.
 func NewProviderStore(db *sql.DB) *ProviderStore {
 	return &ProviderStore{db: db}
 }

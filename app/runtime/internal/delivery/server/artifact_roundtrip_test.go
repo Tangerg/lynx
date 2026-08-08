@@ -13,13 +13,14 @@ import (
 	"github.com/Tangerg/lynx/core/chat"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/toolresult"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
 // TestArtifactVersionIsTheOneVNextFroze is half of contract §11.4 gate 15: the
@@ -98,11 +99,11 @@ func TestExportPreservesRunTreeLineage(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
-	outcome := execution.OutcomeCompleted
+	outcome := run.OutcomeCompleted
 	if err := rt.runs.Restore(ctx, transcript.Run{
-		SessionID: ses.ID, ID: "run_root", State: execution.Completed,
+		SessionID: ses.ID, ID: "run_root", State: run.Completed,
 		Outcome:      &outcome,
-		Capabilities: execution.RunCapabilities{ChildRuns: true},
+		Capabilities: run.RunCapabilities{ChildRuns: true},
 		CreatedAt:    time.Unix(1, 0).UTC(),
 		FinishedAt:   time.Unix(1, 0).UTC(),
 		UpdatedAt:    time.Unix(1, 0).UTC(),
@@ -121,7 +122,7 @@ func TestExportPreservesRunTreeLineage(t *testing.T) {
 	if err := rt.runs.Restore(ctx, transcript.Run{
 		SessionID: ses.ID, ID: "run_child", SpawnedByItemID: "item_spawn",
 		ParentRunID: "run_root", RootRunID: "run_root",
-		State: execution.Completed, Outcome: &outcome,
+		State: run.Completed, Outcome: &outcome,
 		CreatedAt: time.Unix(2, 0).UTC(), FinishedAt: time.Unix(2, 0).UTC(),
 		UpdatedAt: time.Unix(2, 0).UTC(),
 	}); err != nil {
@@ -368,15 +369,15 @@ func seedMaximalSession(t *testing.T, s *Server, rt *stubRuntime) string {
 func seedCompletedRun(t *testing.T, rt *stubRuntime, sessionID string) {
 	t.Helper()
 	cost := 1.25
-	outcome := execution.OutcomeCompleted
+	outcome := run.OutcomeCompleted
 	selection, err := modelref.New("anthropic", "claude-opus-5")
 	if err != nil {
 		t.Fatalf("model selection: %v", err)
 	}
 	if err := rt.runs.Restore(t.Context(), transcript.Run{
-		SessionID: sessionID, ID: "run_done", State: execution.Completed,
+		SessionID: sessionID, ID: "run_done", State: run.Completed,
 		ModelSelection: selection, Outcome: &outcome,
-		Limits: execution.RunLimits{MaxTotalTokens: 32_768, MaxSteps: 12, MaxBudgetUSD: 3.5},
+		Limits: run.RunLimits{MaxTotalTokens: 32_768, MaxSteps: 12, MaxBudgetUSD: 3.5},
 		Metrics: transcript.RunMetrics{
 			Usage: &transcript.Usage{
 				ModelUsage: transcript.ModelUsage{
@@ -393,9 +394,9 @@ func seedCompletedRun(t *testing.T, rt *stubRuntime, sessionID string) {
 			Steps:          2,
 			ActiveDuration: 1500 * time.Millisecond,
 		},
-		Capabilities: execution.RunCapabilities{
+		Capabilities: run.RunCapabilities{
 			ChildRuns:      true,
-			InterruptKinds: []execution.InterruptKind{execution.ApprovalInterrupt},
+			InterruptKinds: []interrupt.Kind{interrupt.Approval},
 		},
 		CreatedAt: time.Unix(2, 0).UTC(), FinishedAt: time.Unix(3, 0).UTC(),
 		UpdatedAt: time.Unix(3, 0).UTC(), MessageMark: 1,
@@ -406,13 +407,13 @@ func seedCompletedRun(t *testing.T, rt *stubRuntime, sessionID string) {
 
 func seedChildRun(t *testing.T, rt *stubRuntime, sessionID string) {
 	t.Helper()
-	outcome := execution.OutcomeCompleted
+	outcome := run.OutcomeCompleted
 	selection, err := modelref.New("openai", "gpt-child")
 	if err != nil {
 		t.Fatalf("child model selection: %v", err)
 	}
 	if err := rt.runs.Restore(t.Context(), transcript.Run{
-		SessionID: sessionID, ID: "run_child", State: execution.Completed,
+		SessionID: sessionID, ID: "run_child", State: run.Completed,
 		SpawnedByItemID: "item_tool", ParentRunID: "run_done", RootRunID: "run_done",
 		ModelSelection: selection,
 		Outcome:        &outcome,
@@ -427,9 +428,9 @@ func seedChildRun(t *testing.T, rt *stubRuntime, sessionID string) {
 
 func seedFailedRun(t *testing.T, rt *stubRuntime, sessionID string) {
 	t.Helper()
-	outcome := execution.OutcomeError
+	outcome := run.OutcomeFailed
 	if err := rt.runs.Restore(t.Context(), transcript.Run{
-		SessionID: sessionID, ID: "run_failed", State: execution.Failed,
+		SessionID: sessionID, ID: "run_failed", State: run.Failed,
 		Outcome: &outcome,
 		Detail:  "the provider gave up",
 		Error: &transcript.Problem{
@@ -438,8 +439,8 @@ func seedFailedRun(t *testing.T, rt *stubRuntime, sessionID string) {
 			RetryAfterSeconds: 30,
 		},
 		Metrics: transcript.RunMetrics{Steps: 1, ActiveDuration: 500 * time.Millisecond},
-		Capabilities: execution.RunCapabilities{
-			InterruptKinds: []execution.InterruptKind{execution.QuestionInterrupt},
+		Capabilities: run.RunCapabilities{
+			InterruptKinds: []interrupt.Kind{interrupt.Question},
 		},
 		CreatedAt: time.Unix(4, 0).UTC(), FinishedAt: time.Unix(5, 0).UTC(),
 		UpdatedAt: time.Unix(5, 0).UTC(), MessageMark: 2,
@@ -531,8 +532,8 @@ func seedOffloadedToolResult(t *testing.T, rt *stubRuntime, sessionID string) {
 	t.Helper()
 	ctx := t.Context()
 	body := strings.Repeat("offloaded-", 200)
-	id := offload.NewID()
-	if err := rt.toolResults.Stage(ctx, offload.ToolResultStage{
+	id := toolresult.NewID()
+	if err := rt.toolResults.Stage(ctx, toolresult.Stage{
 		ID: id, SessionID: sessionID, ToolName: "vendor_tool", Body: body,
 	}); err != nil {
 		t.Fatalf("stage tool result: %v", err)
@@ -544,12 +545,12 @@ func seedOffloadedToolResult(t *testing.T, rt *stubRuntime, sessionID string) {
 		Kind: transcript.ToolCall, Status: transcript.ItemCompleted,
 		OccurredAt: time.Unix(10, 0).UTC(), FinishedAt: time.Unix(11, 0).UTC(),
 		Tool: &transcript.ToolInvocation{
-			Name: "vendor_tool", Result: &previewValue, Offload: &offload.Ref{ID: id},
+			Name: "vendor_tool", Result: &previewValue, Offload: &toolresult.Ref{ID: id},
 		},
 	}); err != nil {
 		t.Fatalf("seed offloaded item: %v", err)
 	}
-	if err := rt.toolResults.Bind(ctx, sessionID, "item_offload", preview, offload.Ref{ID: id}); err != nil {
+	if err := rt.toolResults.Bind(ctx, sessionID, "item_offload", preview, toolresult.Ref{ID: id}); err != nil {
 		t.Fatalf("bind tool result: %v", err)
 	}
 }

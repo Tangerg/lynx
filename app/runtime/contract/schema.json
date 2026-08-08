@@ -763,7 +763,19 @@
           "properties": {
             "detail": false,
             "type": {
-              "const": "error"
+              "const": "timedOut"
+            }
+          },
+          "required": [
+            "error",
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "detail": false,
+            "type": {
+              "const": "failed"
             }
           },
           "required": [
@@ -803,6 +815,18 @@
           "required": [
             "type"
           ]
+        },
+        {
+          "properties": {
+            "detail": false,
+            "type": {
+              "const": "lost"
+            }
+          },
+          "required": [
+            "error",
+            "type"
+          ]
         }
       ],
       "allOf": [
@@ -810,7 +834,47 @@
           "if": {
             "properties": {
               "type": {
-                "const": "error"
+                "const": "timedOut"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "properties": {
+              "detail": false
+            },
+            "required": [
+              "error"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "failed"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "properties": {
+              "detail": false
+            },
+            "required": [
+              "error"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "lost"
               }
             },
             "required": [
@@ -832,10 +896,12 @@
       "type": "string",
       "enum": [
         "completed",
-        "error",
+        "timedOut",
+        "failed",
         "maxSteps",
         "maxBudget",
-        "canceled"
+        "canceled",
+        "lost"
       ]
     },
     "ArtifactProblem": {
@@ -5959,7 +6025,19 @@
           "properties": {
             "detail": false,
             "type": {
-              "const": "error"
+              "const": "timedOut"
+            }
+          },
+          "required": [
+            "error",
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "detail": false,
+            "type": {
+              "const": "failed"
             }
           },
           "required": [
@@ -5999,6 +6077,18 @@
           "required": [
             "type"
           ]
+        },
+        {
+          "properties": {
+            "detail": false,
+            "type": {
+              "const": "lost"
+            }
+          },
+          "required": [
+            "error",
+            "type"
+          ]
         }
       ],
       "allOf": [
@@ -6006,7 +6096,47 @@
           "if": {
             "properties": {
               "type": {
-                "const": "error"
+                "const": "timedOut"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "properties": {
+              "detail": false
+            },
+            "required": [
+              "error"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "failed"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "properties": {
+              "detail": false
+            },
+            "required": [
+              "error"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "lost"
               }
             },
             "required": [
@@ -6028,10 +6158,12 @@
       "type": "string",
       "enum": [
         "completed",
-        "error",
+        "timedOut",
+        "failed",
         "maxSteps",
         "maxBudget",
-        "canceled"
+        "canceled",
+        "lost"
       ]
     },
     "RunProgress": {
@@ -7027,7 +7159,20 @@
             "detail": false,
             "interrupts": false,
             "type": {
-              "const": "error"
+              "const": "timedOut"
+            }
+          },
+          "required": [
+            "error",
+            "type"
+          ]
+        },
+        {
+          "properties": {
+            "detail": false,
+            "interrupts": false,
+            "type": {
+              "const": "failed"
             }
           },
           "required": [
@@ -7070,6 +7215,19 @@
           "required": [
             "type"
           ]
+        },
+        {
+          "properties": {
+            "detail": false,
+            "interrupts": false,
+            "type": {
+              "const": "lost"
+            }
+          },
+          "required": [
+            "error",
+            "type"
+          ]
         }
       ],
       "allOf": [
@@ -7077,7 +7235,47 @@
           "if": {
             "properties": {
               "type": {
-                "const": "error"
+                "const": "timedOut"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "properties": {
+              "detail": false
+            },
+            "required": [
+              "error"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "failed"
+              }
+            },
+            "required": [
+              "type"
+            ]
+          },
+          "then": {
+            "properties": {
+              "detail": false
+            },
+            "required": [
+              "error"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "lost"
               }
             },
             "required": [
@@ -7141,10 +7339,12 @@
         "interrupt",
         "suspended",
         "completed",
-        "error",
+        "timedOut",
+        "failed",
         "maxSteps",
         "maxBudget",
-        "canceled"
+        "canceled",
+        "lost"
       ]
     },
     "ServerCapabilities": {

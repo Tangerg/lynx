@@ -7,8 +7,8 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/delivery/protocol"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
 type cancelRunUseCaseStub struct {
@@ -24,9 +24,9 @@ func (s *cancelRunUseCaseStub) Cancel(_ context.Context, command runs.CancelComm
 }
 
 func TestCancelRunPresentsCommittedRootSnapshot(t *testing.T) {
-	outcome := execution.OutcomeCanceled
+	outcome := run.OutcomeCanceled
 	useCases := &cancelRunUseCaseStub{result: runs.CancelResult{Run: transcript.Run{
-		ID: "run_1", SessionID: "ses_1", State: execution.Canceled,
+		ID: "run_1", SessionID: "ses_1", State: run.Canceled,
 		Outcome: &outcome, Detail: "user stopped",
 	}}}
 	server := &Server{runs: useCases}
@@ -50,9 +50,9 @@ func TestCancelRunPresentsCommittedRootSnapshot(t *testing.T) {
 }
 
 func TestCancelRunPassesNegotiatedChildAuthorityWithoutBlockingARoot(t *testing.T) {
-	outcome := execution.OutcomeCanceled
+	outcome := run.OutcomeCanceled
 	useCases := &cancelRunUseCaseStub{result: runs.CancelResult{Run: transcript.Run{
-		ID: "run_1", SessionID: "ses_1", State: execution.Canceled, Outcome: &outcome,
+		ID: "run_1", SessionID: "ses_1", State: run.Canceled, Outcome: &outcome,
 	}}}
 	server := &Server{runs: useCases}
 	ctx := withClientCapabilities(protocol.ClientCapabilities{

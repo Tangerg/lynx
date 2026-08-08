@@ -6,16 +6,15 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
 // resolveResumeResponses validates exact item coverage and the kind-specific
 // answer schema, then binds every decision to its exact executor suspension.
 // Output follows the pending barrier's canonical order, independent of request
 // ordering, so every downstream layer observes one representation of the set.
-func resolveResumeResponses(pending interrupts.Pending, responses []ResumeResponse) ([]interrupts.SuspensionAnswer, error) {
+func resolveResumeResponses(pending Pending, responses []ResumeResponse) ([]SuspensionAnswer, error) {
 	open := make(map[string]transcript.Interrupt, len(pending.Interrupts))
 	for _, interrupt := range pending.Interrupts {
 		if interrupt.ItemID == "" {
@@ -31,9 +30,9 @@ func resolveResumeResponses(pending interrupts.Pending, responses []ResumeRespon
 	}
 
 	seen := make(map[string]struct{}, len(responses))
-	resolutions := make(map[string]interrupts.Resolution, len(responses))
+	resolutions := make(map[string]interrupt.Resolution, len(responses))
 	for _, response := range responses {
-		interrupt, exists := open[response.ItemID]
+		request, exists := open[response.ItemID]
 		if !exists {
 			return nil, fmt.Errorf("%w: item %q", ErrInterruptNotOpen, response.ItemID)
 		}
@@ -43,16 +42,16 @@ func resolveResumeResponses(pending interrupts.Pending, responses []ResumeRespon
 		seen[response.ItemID] = struct{}{}
 
 		var (
-			itemResolution interrupts.Resolution
+			itemResolution interrupt.Resolution
 			err            error
 		)
-		switch interrupt.Kind {
-		case execution.ApprovalInterrupt:
-			itemResolution, err = resolveApprovalResponse(interrupt, response)
-		case execution.QuestionInterrupt:
-			itemResolution, err = resolveQuestionResponse(interrupt, response)
+		switch request.Kind {
+		case interrupt.Approval:
+			itemResolution, err = resolveApprovalResponse(request, response)
+		case interrupt.Question:
+			itemResolution, err = resolveQuestionResponse(request, response)
 		default:
-			err = fmt.Errorf("unknown open interrupt kind %d", interrupt.Kind)
+			err = fmt.Errorf("unknown open interrupt kind %d", request.Kind)
 		}
 		if err != nil {
 			return nil, fmt.Errorf("%w: item %q: %w", ErrInvalidInterruptResponse, response.ItemID, err)
@@ -73,7 +72,7 @@ func resolveResumeResponses(pending interrupts.Pending, responses []ResumeRespon
 			len(pending.Interrupts),
 		)
 	}
-	answers := make([]interrupts.SuspensionAnswer, len(pending.Suspensions))
+	answers := make([]SuspensionAnswer, len(pending.Suspensions))
 	for index, binding := range pending.Suspensions {
 		resolution, ok := resolutions[binding.InterruptItemID]
 		if !ok {
@@ -83,7 +82,7 @@ func resolveResumeResponses(pending interrupts.Pending, responses []ResumeRespon
 				binding.InterruptItemID,
 			)
 		}
-		answers[index] = interrupts.SuspensionAnswer{
+		answers[index] = SuspensionAnswer{
 			InterruptItemID: binding.InterruptItemID,
 			ProcessID:       binding.ProcessID,
 			SuspensionID:    binding.SuspensionID,
@@ -93,29 +92,29 @@ func resolveResumeResponses(pending interrupts.Pending, responses []ResumeRespon
 	return answers, nil
 }
 
-func resolveApprovalResponse(interrupt transcript.Interrupt, response ResumeResponse) (interrupts.Resolution, error) {
+func resolveApprovalResponse(request transcript.Interrupt, response ResumeResponse) (interrupt.Resolution, error) {
 	if response.Kind != ApprovalResponseKind || response.Approval == nil || response.Question != nil {
-		return interrupts.Resolution{}, errors.New("approval response is required")
+		return interrupt.Resolution{}, errors.New("approval response is required")
 	}
 	approval := response.Approval
 	if approval.RememberScope != "" && !approval.RememberScope.Valid() {
-		return interrupts.Resolution{}, fmt.Errorf("unknown remember scope %q", approval.RememberScope)
+		return interrupt.Resolution{}, fmt.Errorf("unknown remember scope %q", approval.RememberScope)
 	}
-	if approval.RememberScope != "" && (interrupt.Approval == nil || !interrupt.Approval.Rememberable) {
-		return interrupts.Resolution{}, errors.New("approval cannot be remembered")
+	if approval.RememberScope != "" && (request.Approval == nil || !request.Approval.Rememberable) {
+		return interrupt.Resolution{}, errors.New("approval cannot be remembered")
 	}
 	if approval.Arguments != "" {
 		if !approval.Approved {
-			return interrupts.Resolution{}, errors.New("denial cannot edit arguments")
+			return interrupt.Resolution{}, errors.New("denial cannot edit arguments")
 		}
 		if err := validateArguments(approval.Arguments); err != nil {
-			return interrupts.Resolution{}, fmt.Errorf("edited arguments: %w", err)
+			return interrupt.Resolution{}, fmt.Errorf("edited arguments: %w", err)
 		}
 	}
 	if approval.Approved && strings.TrimSpace(approval.Reason) != "" {
-		return interrupts.Resolution{}, errors.New("approval cannot carry a denial reason")
+		return interrupt.Resolution{}, errors.New("approval cannot carry a denial reason")
 	}
-	return interrupts.Resolution{
+	return interrupt.Resolution{
 		Approved:      approval.Approved,
 		Arguments:     approval.Arguments,
 		Reason:        strings.TrimSpace(approval.Reason),
@@ -123,32 +122,32 @@ func resolveApprovalResponse(interrupt transcript.Interrupt, response ResumeResp
 	}, nil
 }
 
-func resolveQuestionResponse(interrupt transcript.Interrupt, response ResumeResponse) (interrupts.Resolution, error) {
+func resolveQuestionResponse(request transcript.Interrupt, response ResumeResponse) (interrupt.Resolution, error) {
 	if response.Kind != QuestionResponseKind || response.Question == nil || response.Approval != nil {
-		return interrupts.Resolution{}, errors.New("question response is required")
+		return interrupt.Resolution{}, errors.New("question response is required")
 	}
-	if interrupt.Question == nil || len(interrupt.Question.Fields) == 0 {
-		return interrupts.Resolution{}, errors.New("open question has no fields")
+	if request.Question == nil || len(request.Question.Fields) == 0 {
+		return interrupt.Resolution{}, errors.New("open question has no fields")
 	}
 	answers := response.Question.Answers
-	if len(answers) != len(interrupt.Question.Fields) {
-		return interrupts.Resolution{}, &QuestionAnswerError{
+	if len(answers) != len(request.Question.Fields) {
+		return interrupt.Resolution{}, &QuestionAnswerError{
 			ItemID: response.ItemID,
 			Index:  -1,
-			Detail: fmt.Sprintf("must contain %d entries, got %d", len(interrupt.Question.Fields), len(answers)),
+			Detail: fmt.Sprintf("must contain %d entries, got %d", len(request.Question.Fields), len(answers)),
 		}
 	}
-	for index, field := range interrupt.Question.Fields {
+	for index, field := range request.Question.Fields {
 		values := answers[index]
 		if err := validateQuestionAnswer(field, values); err != nil {
-			return interrupts.Resolution{}, &QuestionAnswerError{
+			return interrupt.Resolution{}, &QuestionAnswerError{
 				ItemID: response.ItemID,
 				Index:  index,
 				Detail: err.Error(),
 			}
 		}
 	}
-	return interrupts.Resolution{Approved: true, Answers: cloneAnswers(answers)}, nil
+	return interrupt.Resolution{Approved: true, Answers: cloneAnswers(answers)}, nil
 }
 
 func validateQuestionAnswer(field transcript.QuestionField, values []string) error {

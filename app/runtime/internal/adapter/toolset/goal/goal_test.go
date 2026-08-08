@@ -8,7 +8,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/executionctx"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/goals"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	goalstate "github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 )
@@ -61,7 +61,7 @@ func activeGoal(session string) goalstate.Goal {
 }
 
 func sessionCtx(session string) context.Context {
-	return executionctx.WithScope(context.Background(), execution.ExecutionScope{SessionID: session})
+	return executionctx.WithScope(context.Background(), runs.ExecutionScope{SessionID: session})
 }
 
 func newGetter(t *testing.T, store goals.Store) *getter {
@@ -165,7 +165,7 @@ func TestReportGoalOutcomeSupersededStampRefused(t *testing.T) {
 	store.put(current)
 
 	// The run carries the lease it was launched under, since superseded.
-	ctx := executionctx.WithScope(context.Background(), execution.ExecutionScope{
+	ctx := executionctx.WithScope(context.Background(), runs.ExecutionScope{
 		SessionID:   "s1",
 		GoalLeaseID: "lease-stale",
 	})

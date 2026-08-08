@@ -17,9 +17,9 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
 	planadapter "github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/plan"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
 // turnDriver is the external-package test's view of a constructed controller.
@@ -31,7 +31,7 @@ type turnDriver interface {
 	ActivateTurn(context.Context, turn.Handle) error
 	Events(context.Context, turn.Handle) (iter.Seq[runs.ExecutorEvent], error)
 	InjectSteering(context.Context, turn.Handle, []transcript.ContentBlock) error
-	Resume(context.Context, turn.Handle, []agentexec.SuspensionAnswer, []execution.InterruptKind) error
+	Resume(context.Context, turn.Handle, []agentexec.SuspensionAnswer, []interrupt.Kind) error
 	ProcessID(context.Context, turn.Handle) (string, error)
 	Rehydrate(context.Context, runs.RehydrateExecution) (turn.Handle, error)
 	Cancel(context.Context, turn.Handle) error

@@ -9,9 +9,9 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
+	apphooks "github.com/Tangerg/lynx/app/runtime/internal/application/hooks"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 )
 
@@ -53,7 +53,7 @@ type turnState struct {
 	// hooks is the resolved (trust-filtered) lifecycle-hook set for this turn's
 	// cwd, bound once at the entry point. Nil when no hooks apply; every seam
 	// calls st.hooks.Run(...) unguarded (the nil Bound no-ops).
-	hooks *hooks.Bound
+	hooks *apphooks.Bound
 
 	// ctx is the turn's own lifetime context — derived via
 	// context.WithoutCancel from the entry ctx so it outlives the
@@ -79,7 +79,7 @@ type turnState struct {
 
 	// interruptKinds is the set of HITL kinds the current client can answer
 	// for this turn. Nil / empty means no HITL kind may surface.
-	interruptKinds map[execution.InterruptKind]struct{}
+	interruptKinds map[interrupt.Kind]struct{}
 
 	// --- mu-guarded: mutated/read across the turn + caller goroutines ---
 	mu sync.Mutex
@@ -266,8 +266,8 @@ func newTurnState(ctx context.Context, handle Handle, phase turnPhase) *turnStat
 	}
 }
 
-func (st *turnState) setInterruptKinds(kinds []execution.InterruptKind) {
-	st.interruptKinds = make(map[execution.InterruptKind]struct{}, len(kinds))
+func (st *turnState) setInterruptKinds(kinds []interrupt.Kind) {
+	st.interruptKinds = make(map[interrupt.Kind]struct{}, len(kinds))
 	for _, kind := range kinds {
 		if kind.Valid() {
 			st.interruptKinds[kind] = struct{}{}
@@ -292,7 +292,7 @@ func (st *turnState) releaseEvents() {
 	st.mu.Unlock()
 }
 
-func (st *turnState) canSurface(kind execution.InterruptKind) bool {
+func (st *turnState) canSurface(kind interrupt.Kind) bool {
 	_, ok := st.interruptKinds[kind]
 	return ok
 }

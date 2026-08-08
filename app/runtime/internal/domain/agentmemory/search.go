@@ -2,79 +2,28 @@ package agentmemory
 
 import (
 	"cmp"
-	"context"
 	"math"
 	"slices"
 	"strings"
 	"unicode"
 )
 
-// Embedder turns text into vectors for semantic memory search. [Searcher]
-// treats it as optional and best-effort.
-type Embedder interface {
-	Embed(ctx context.Context, texts []string) ([][]float32, error)
-	ID() string
-}
-
-// itemSearchStore fetches the project's embedded items for in-process ranking.
-type itemSearchStore interface {
-	ItemsForSearch(ctx context.Context, scope Scope, project string) ([]Item, error)
-}
-
-// Searcher ranks a project's memory items against a query, fusing a keyword
-// signal with cosine similarity over item embeddings. The keyword signal is
-// always available; the vector half is added only when an embedder is
-// configured, and a configured embedder that fails degrades to keyword-only
-// rather than failing the search. The item corpus is small, so both signals are
-// computed in-process over the fetched items.
-type Searcher struct {
-	store           itemSearchStore
-	resolveEmbedder func(context.Context) (Embedder, error)
-}
-
-// NewSearcher builds a searcher over store. resolveEmbedder may be nil (keyword
-// only) or return an error when no embedding model is configured.
-func NewSearcher(store itemSearchStore, resolveEmbedder func(context.Context) (Embedder, error)) *Searcher {
-	return &Searcher{store: store, resolveEmbedder: resolveEmbedder}
-}
-
 // searchOverfetch widens each signal's candidate list before fusion so a
 // keyword-only or vector-only match still competes for the final top-k.
 const searchOverfetch = 3
 
-// Search returns up to topK items most relevant to query, fusing keyword and
-// vector rankings by reciprocal rank.
-func (s *Searcher) Search(ctx context.Context, scope Scope, project, query string, topK int) ([]Item, error) {
-	if s == nil || s.store == nil || topK <= 0 {
-		return nil, nil
-	}
-	items, err := s.store.ItemsForSearch(ctx, scope, project)
-	if err != nil {
-		return nil, err
-	}
-	if len(items) == 0 {
-		return nil, nil
+// Rank fuses keyword relevance with an optional query embedding by reciprocal
+// rank. An empty queryVector selects keyword-only ranking.
+func Rank(query string, queryVector []float32, items []Item, topK int) []Item {
+	if topK <= 0 || len(items) == 0 {
+		return nil
 	}
 	keyword := keywordRanked(query, items, topK*searchOverfetch)
-	vector := s.vectorRanked(ctx, query, items, topK*searchOverfetch)
-	return fuseByRank(keyword, vector, topK), nil
-}
-
-// vectorRanked is best-effort: no embedder, an unconfigured role, or an embed
-// failure yields no vector signal (keyword still stands), never an error.
-func (s *Searcher) vectorRanked(ctx context.Context, query string, items []Item, limit int) []Item {
-	if s.resolveEmbedder == nil {
-		return nil
+	var vector []Item
+	if len(queryVector) != 0 {
+		vector = topKByCosine(queryVector, items, topK*searchOverfetch)
 	}
-	embedder, err := s.resolveEmbedder(ctx)
-	if err != nil || embedder == nil {
-		return nil
-	}
-	vecs, err := embedder.Embed(ctx, []string{query})
-	if err != nil || len(vecs) != 1 {
-		return nil
-	}
-	return topKByCosine(vecs[0], items, limit)
+	return fuseByRank(keyword, vector, topK)
 }
 
 // keywordRanked scores items by how many distinct query terms appear in their

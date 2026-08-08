@@ -5,11 +5,10 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
 type ItemReplacement struct {
@@ -18,19 +17,19 @@ type ItemReplacement struct {
 }
 
 // WaitingSubtreeCancellationCommit is the immutable write-set for canceling a
-// child while its Run tree is interrupted.
+// child while its Run tree is waiting.
 type WaitingSubtreeCancellationCommit struct {
 	RootRunID        string
 	TargetRunID      string
 	SessionID        string
 	RootRun          transcript.Run
-	ExpectedPending  interrupts.Pending
-	RemainingPending *interrupts.Pending
-	Checkpoint       execution.ExecutorCheckpoint
+	ExpectedPending  Pending
+	RemainingPending *Pending
+	Checkpoint       ExecutorCheckpoint
 	TerminalRuns     []transcript.Run
 	TerminalItems    []ItemReplacement
 	ParentItem       ItemReplacement
-	Resume           *execution.TreeResumeDraft
+	Resume           *run.TreeResumeDraft
 	OpeningEvents    []EventCommit
 }
 
@@ -42,8 +41,8 @@ type WaitingSubtreeCancellationResult struct {
 // OpeningCommit is the atomic acceptance write-set for one fresh admission or
 // one continuation.
 type OpeningCommit struct {
-	Admit            *execution.RunDraft
-	Resume           *execution.TreeResumeDraft
+	Admit            *run.RunDraft
+	Resume           *run.TreeResumeDraft
 	ScheduledSession *session.Session
 	SessionModel     *SessionModelUpdate
 	ScheduleFiring   string
@@ -68,7 +67,7 @@ type EventCommit struct {
 	RunID     string
 	SessionID string
 	State     StateChange
-	Outcome   execution.Outcome
+	Outcome   run.Outcome
 	Items     []transcript.Item
 	Run       *transcript.Run
 	GoalRun   *goal.RunRecord
@@ -110,8 +109,8 @@ func (c EventCommit) Validate() error {
 		}
 		return nil
 	case StateSuspend:
-		if c.Run == nil || c.Run.State != execution.Interrupted {
-			return errors.New("runs: suspend event commit has no interrupted Run")
+		if c.Run == nil || c.Run.State != run.Waiting {
+			return errors.New("runs: suspend event commit has no waiting Run")
 		}
 		if c.GoalRun != nil || c.ObsoleteCheckpointRootID != "" {
 			return errors.New("runs: suspend event commit carries terminal facts")
@@ -221,14 +220,14 @@ func (c OpeningCommit) Validate() error {
 // Runs contains one StateSuspend commit for every active Run in deterministic
 // postorder. No individual Run commit may write or consume the root-owned set.
 type TreeBarrierCommit struct {
-	Pending    interrupts.Pending
+	Pending    Pending
 	Runs       []EventCommit
-	Checkpoint execution.ExecutorCheckpoint
+	Checkpoint ExecutorCheckpoint
 }
 
 // Validate proves that the barrier is the complete suspension projection for
 // the pending continuation tree and that its checkpoint belongs to the same
-// execution. The Effects port only persists this already-defined write-set.
+// run. The Effects port only persists this already-defined write-set.
 func (c TreeBarrierCommit) Validate() error {
 	if err := c.Pending.Validate(); err != nil {
 		return fmt.Errorf("runs: tree barrier Pending: %w", err)
@@ -245,14 +244,14 @@ func (c TreeBarrierCommit) Validate() error {
 			"runs: tree barrier checkpoint goal lease %q does not match Pending %q: %w",
 			c.Checkpoint.Scope.GoalLeaseID,
 			c.Pending.GoalLeaseID,
-			execution.ErrInvalidExecutorCheckpoint,
+			ErrInvalidExecutorCheckpoint,
 		)
 	}
 	if c.Checkpoint.ModelSelection != rootContinuation.ModelSelection {
-		return fmt.Errorf("runs: tree barrier checkpoint model differs from root continuation: %w", execution.ErrInvalidExecutorCheckpoint)
+		return fmt.Errorf("runs: tree barrier checkpoint model differs from root continuation: %w", ErrInvalidExecutorCheckpoint)
 	}
 	if c.Checkpoint.Limits != rootContinuation.Limits {
-		return fmt.Errorf("runs: tree barrier checkpoint limits differ from root continuation: %w", execution.ErrInvalidExecutorCheckpoint)
+		return fmt.Errorf("runs: tree barrier checkpoint limits differ from root continuation: %w", ErrInvalidExecutorCheckpoint)
 	}
 	if len(c.Runs) != len(c.Pending.Continuations) {
 		return fmt.Errorf(
@@ -261,7 +260,7 @@ func (c TreeBarrierCommit) Validate() error {
 			len(c.Pending.Continuations),
 		)
 	}
-	continuations := make(map[string]interrupts.Continuation, len(c.Pending.Continuations))
+	continuations := make(map[string]Continuation, len(c.Pending.Continuations))
 	for _, continuation := range c.Pending.Continuations {
 		continuations[continuation.RunID] = continuation
 	}
@@ -270,8 +269,8 @@ func (c TreeBarrierCommit) Validate() error {
 		if err := commit.Validate(); err != nil {
 			return fmt.Errorf("runs: tree barrier Run[%d]: %w", index, err)
 		}
-		if commit.State != StateSuspend || commit.Run == nil || commit.Run.State != execution.Interrupted {
-			return fmt.Errorf("runs: tree barrier Run[%d] is not an interrupted Run projection", index)
+		if commit.State != StateSuspend || commit.Run == nil || commit.Run.State != run.Waiting {
+			return fmt.Errorf("runs: tree barrier Run[%d] is not an waiting Run projection", index)
 		}
 		if commit.SessionID != c.Pending.SessionID || commit.Run.SessionID != c.Pending.SessionID {
 			return fmt.Errorf("runs: tree barrier Run[%d] Session differs from Pending", index)

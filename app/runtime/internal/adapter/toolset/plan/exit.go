@@ -12,8 +12,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/catalog"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
 	plandomain "github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
 )
 
@@ -75,7 +74,7 @@ func (t *exiter) exit(ctx context.Context, _ exitArgs) (string, error) {
 
 	arguments := `{}`
 	pending := runs.Interrupt{
-		Kind: execution.QuestionInterrupt,
+		Kind: interrupt.Question,
 		Question: &runs.QuestionPrompt{
 			ToolName:  catalog.ExitPlanMode,
 			Arguments: arguments,
@@ -94,7 +93,7 @@ func (t *exiter) exit(ctx context.Context, _ exitArgs) (string, error) {
 	}
 	resolution, err := t.interrupt(
 		ctx,
-		interrupts.InterruptKey(execution.QuestionInterrupt.String(), catalog.ExitPlanMode, arguments),
+		interrupt.InterruptKey(interrupt.Question.String(), catalog.ExitPlanMode, arguments),
 		pending,
 	)
 	if err != nil {

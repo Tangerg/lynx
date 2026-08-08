@@ -12,8 +12,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/catalog"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
 )
 
 // askUserArgs is the model-facing argument shape; [toolcontract.NewFunc] derives
@@ -98,14 +97,14 @@ func (t *asker) ask(ctx context.Context, a askUserArgs) (string, error) {
 		Arguments: arguments,
 		Fields:    a.toFields(),
 	}
-	pending := runs.Interrupt{Kind: execution.QuestionInterrupt, Question: &in}
+	pending := runs.Interrupt{Kind: interrupt.Question, Question: &in}
 	if err := pending.Validate(); err != nil {
 		return "", fmt.Errorf("ask_user: %w", err)
 	}
 	// First pass interrupts (bubbles up, parks); resume returns the human's
 	// structured answers at this same call site.
 	res, err := t.interrupt(ctx,
-		interrupts.InterruptKey(execution.QuestionInterrupt.String(), catalog.AskUser, arguments),
+		interrupt.InterruptKey(interrupt.Question.String(), catalog.AskUser, arguments),
 		pending,
 	)
 	if err != nil {

@@ -14,13 +14,12 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/component/pathidentity"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/interrupts"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/offload"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution/transcript"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/toolresult"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
 // doomLoopThreshold is how many consecutive identical, no-new-output calls must
@@ -142,7 +141,7 @@ type toolGate struct {
 //     Suspension error (the tool loop exits, the action parks at
 //     StatusWaiting, then a continuation supplies the answer); on resume the gate
 //     is consulted again at the same pending call and Interrupt returns the
-//     human's [interrupts.Resolution], so the gate runs / denies /
+//     human's [interrupt.Resolution], so the gate runs / denies /
 //     runs-with-edited-args accordingly.
 //
 // The interrupt key is the stable tool name + arguments rather than an
@@ -288,15 +287,15 @@ func (t *toolGate) doomLoopEscalation(ctx context.Context, callID, toolName, arg
 	return approvalResolutionVerdict(res, arguments)
 }
 
-func (t *toolGate) awaitApproval(ctx context.Context, toolName, arguments string, prompt runs.ApprovalPrompt) (interrupts.Resolution, error) {
-	pending := runs.Interrupt{Kind: execution.ApprovalInterrupt, Approval: &prompt}
+func (t *toolGate) awaitApproval(ctx context.Context, toolName, arguments string, prompt runs.ApprovalPrompt) (interrupt.Resolution, error) {
+	pending := runs.Interrupt{Kind: interrupt.Approval, Approval: &prompt}
 	if err := pending.Validate(); err != nil {
-		return interrupts.Resolution{}, fmt.Errorf("turn: build approval interrupt: %w", err)
+		return interrupt.Resolution{}, fmt.Errorf("turn: build approval interrupt: %w", err)
 	}
-	return suspension.Interrupt(ctx, interrupts.InterruptKey(execution.ApprovalInterrupt.String(), toolName, arguments), pending)
+	return suspension.Interrupt(ctx, interrupt.InterruptKey(interrupt.Approval.String(), toolName, arguments), pending)
 }
 
-func (t *toolGate) rememberApproval(ctx context.Context, toolName, subject string, resolution interrupts.Resolution) error {
+func (t *toolGate) rememberApproval(ctx context.Context, toolName, subject string, resolution interrupt.Resolution) error {
 	if resolution.RememberScope == "" {
 		return nil
 	}
@@ -313,7 +312,7 @@ func (t *toolGate) rememberApproval(ctx context.Context, toolName, subject strin
 	return nil
 }
 
-func approvalResolutionVerdict(resolution interrupts.Resolution, fallbackArguments string) agentexec.ToolApprovalVerdict {
+func approvalResolutionVerdict(resolution interrupt.Resolution, fallbackArguments string) agentexec.ToolApprovalVerdict {
 	if !resolution.Approved {
 		return agentexec.ToolApprovalVerdict{Denied: true, DenyReason: denialReason(resolution.Reason)}
 	}
@@ -381,9 +380,9 @@ func (t *toolGate) resumedToolVerdict(ctx context.Context, toolName string) (age
 	}
 
 	switch pending.Kind {
-	case execution.QuestionInterrupt:
+	case interrupt.Question:
 		return agentexec.ToolApprovalVerdict{Arguments: effectiveArguments}, true
-	case execution.ApprovalInterrupt:
+	case interrupt.Approval:
 		rememberedArguments, err := tool.ParseArguments(effectiveArguments)
 		if err != nil {
 			return agentexec.ToolApprovalVerdict{
@@ -436,7 +435,7 @@ func (t *turnObserver) OnToolCallStart(process agentexec.ProcessRef, callID, sou
 	})
 }
 
-func (t *turnObserver) OnToolCallEnd(process agentexec.ProcessRef, callID, toolName, arguments, output string, ref *offload.Ref, mutatedPaths []string, err error) {
+func (t *turnObserver) OnToolCallEnd(process agentexec.ProcessRef, callID, toolName, arguments, output string, ref *toolresult.Ref, mutatedPaths []string, err error) {
 	if !t.projects(process) {
 		// A suspension is an unfinished call, not a tool result. Its logical
 		// completion will be observed after the resumed child call returns.

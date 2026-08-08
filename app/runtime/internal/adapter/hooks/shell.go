@@ -7,6 +7,7 @@ import (
 	"errors"
 	"os/exec"
 
+	apphooks "github.com/Tangerg/lynx/app/runtime/internal/application/hooks"
 	domainhooks "github.com/Tangerg/lynx/app/runtime/internal/domain/hooks"
 )
 
@@ -15,14 +16,14 @@ type Shell struct{}
 
 // RunHookCommand runs req.Command via `sh -c`, encoding the typed domain input
 // into the external hook JSON contract at this adapter boundary.
-func (Shell) RunHookCommand(ctx context.Context, req domainhooks.CommandRequest) domainhooks.CommandResult {
+func (Shell) RunHookCommand(ctx context.Context, req apphooks.CommandRequest) apphooks.CommandResult {
 	cctx, cancel := context.WithTimeout(ctx, req.Timeout)
 	defer cancel()
 
 	cmd := exec.CommandContext(cctx, "sh", "-c", req.Command)
 	stdin, err := json.Marshal(hookInputWireFrom(req.Input))
 	if err != nil {
-		return domainhooks.CommandResult{Err: err, ExitCode: -1}
+		return apphooks.CommandResult{Err: err, ExitCode: -1}
 	}
 	cmd.Stdin = bytes.NewReader(stdin)
 	if req.CWD != "" {
@@ -33,7 +34,7 @@ func (Shell) RunHookCommand(ctx context.Context, req domainhooks.CommandRequest)
 	cmd.Stderr = &stderr
 
 	err = cmd.Run()
-	return domainhooks.CommandResult{
+	return apphooks.CommandResult{
 		Decision: hookDecisionFromWire(stdout.Bytes()),
 		Stderr:   stderr.String(),
 		ExitCode: exitCodeOf(err),
@@ -90,23 +91,23 @@ type hookDecisionWire struct {
 	RewriteArguments string `json:"rewriteArguments,omitempty"`
 }
 
-func hookDecisionFromWire(stdout []byte) domainhooks.CommandDecision {
+func hookDecisionFromWire(stdout []byte) apphooks.CommandDecision {
 	var wire hookDecisionWire
 	_ = json.Unmarshal(stdout, &wire) // malformed stdout is exit-code-only.
-	return domainhooks.CommandDecision{
+	return apphooks.CommandDecision{
 		Verdict: hookVerdictFromWire(wire.Decision), Reason: wire.Reason,
 		InjectContext: wire.InjectContext, RewriteArguments: wire.RewriteArguments,
 	}
 }
 
-func hookVerdictFromWire(verdict string) domainhooks.CommandVerdict {
+func hookVerdictFromWire(verdict string) apphooks.CommandVerdict {
 	switch verdict {
 	case "deny":
-		return domainhooks.CommandDeny
+		return apphooks.CommandDeny
 	case "ask":
-		return domainhooks.CommandAsk
+		return apphooks.CommandAsk
 	default:
-		return domainhooks.CommandAllow
+		return apphooks.CommandAllow
 	}
 }
 

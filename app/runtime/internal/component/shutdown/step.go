@@ -26,7 +26,7 @@ type attempt struct {
 	err  error
 }
 
-// Attempt is one immutable Step execution. It lets an owner start several
+// Attempt is one immutable Step run. It lets an owner start several
 // teardown steps before joining them.
 type Attempt struct {
 	state *attempt

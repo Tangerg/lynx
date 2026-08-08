@@ -1,0 +1,123 @@
+package approvals
+
+import (
+	"context"
+	"errors"
+	"testing"
+
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
+)
+
+func TestDefaultModeGetSet(t *testing.T) {
+	policy := mustRuntimePolicy(t, approval.ModeYolo, nil)
+	if mode, _ := policy.DefaultMode(t.Context()); mode != approval.ModeYolo {
+		t.Fatalf("initial mode = %v, want Yolo", mode)
+	}
+	if err := policy.SetDefaultMode(t.Context(), approval.ModeBalanced); err != nil {
+		t.Fatalf("SetDefaultMode: %v", err)
+	}
+	if mode, _ := policy.Mode(t.Context(), "session-1"); mode != approval.ModeBalanced {
+		t.Fatalf("mode after set = %v, want Balanced", mode)
+	}
+}
+
+func TestNilRuleStore(t *testing.T) {
+	policy := mustRuntimePolicy(t, approval.ModeSafe, nil)
+	request := approval.RememberRequest{
+		Scope: approval.ScopeGlobal, Tool: "shell", Subject: "go test", Decision: approval.Allow,
+	}
+	if err := policy.Remember(t.Context(), request); !errors.Is(err, ErrRuleStoreUnavailable) {
+		t.Fatalf("Remember error = %v, want ErrRuleStoreUnavailable", err)
+	}
+	if _, ok, _ := policy.Decide(t.Context(), approval.Query{Tool: "shell", Subject: "go test"}); ok {
+		t.Fatal("nil store matched a rule")
+	}
+	if rules, _ := policy.Rules(t.Context(), "s1", "/p"); rules != nil {
+		t.Fatalf("Rules = %+v, want nil", rules)
+	}
+	if err := policy.Forget(t.Context(), "rule_missing"); !errors.Is(err, ErrRuleStoreUnavailable) {
+		t.Fatalf("Forget error = %v, want ErrRuleStoreUnavailable", err)
+	}
+}
+
+func TestPolicyRejectsInvalidDefaultMode(t *testing.T) {
+	if _, err := NewRuntimePolicy(approval.Mode(255), nil, nil); !errors.Is(err, approval.ErrInvalidMode) {
+		t.Fatalf("New invalid mode error = %v, want ErrInvalidMode", err)
+	}
+	if _, err := NewRuntimePolicy(approval.ModePlan, nil, nil); !errors.Is(err, approval.ErrInvalidMode) {
+		t.Fatalf("New Plan default error = %v, want ErrInvalidMode", err)
+	}
+	policy := mustRuntimePolicy(t, approval.ModeSafe, nil)
+	if err := policy.SetDefaultMode(t.Context(), approval.Mode(255)); !errors.Is(err, approval.ErrInvalidMode) {
+		t.Fatalf("SetDefaultMode error = %v, want ErrInvalidMode", err)
+	}
+	if got, err := policy.Mode(t.Context(), ""); err != nil || got != approval.ModeSafe {
+		t.Fatalf("mode after rejected update = (%v, %v), want Safe", got, err)
+	}
+}
+
+type memoryModeStore struct {
+	states map[string]approval.SessionMode
+}
+
+func (store *memoryModeStore) LookupMode(_ context.Context, sessionID string) (approval.SessionMode, bool, error) {
+	state, found := store.states[sessionID]
+	return state, found, nil
+}
+
+func (store *memoryModeStore) PutMode(_ context.Context, sessionID string, state approval.SessionMode) error {
+	store.states[sessionID] = state
+	return nil
+}
+
+func TestPlanModeIsSessionScopedAndRestoresEntryMode(t *testing.T) {
+	modes := &memoryModeStore{states: make(map[string]approval.SessionMode)}
+	policy, err := NewRuntimePolicy(approval.ModeBalanced, nil, modes)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if changed, err := policy.EnterPlanMode(t.Context(), "session-a"); err != nil || !changed {
+		t.Fatalf("EnterPlanMode = %v, %v", changed, err)
+	}
+	if mode, _ := policy.Mode(t.Context(), "session-a"); mode != approval.ModePlan {
+		t.Fatalf("session-a mode = %v, want Plan", mode)
+	}
+	if mode, _ := policy.Mode(t.Context(), "session-b"); mode != approval.ModeBalanced {
+		t.Fatalf("session-b mode = %v, want Balanced", mode)
+	}
+	if err := policy.SetDefaultMode(t.Context(), approval.ModeYolo); err != nil {
+		t.Fatal(err)
+	}
+	if changed, err := policy.EnterPlanMode(t.Context(), "session-a"); err != nil || changed {
+		t.Fatalf("second EnterPlanMode = %v, %v, want unchanged", changed, err)
+	}
+	restored, changed, err := policy.ExitPlanMode(t.Context(), "session-a")
+	if err != nil || !changed || restored != approval.ModeBalanced {
+		t.Fatalf("ExitPlanMode = %v, %v, %v", restored, changed, err)
+	}
+	if mode, _ := policy.Mode(t.Context(), "session-a"); mode != approval.ModeBalanced {
+		t.Fatalf("restored session-a mode = %v, want Balanced", mode)
+	}
+	if mode, _ := policy.Mode(t.Context(), "session-b"); mode != approval.ModeYolo {
+		t.Fatalf("session-b mode = %v, want Yolo", mode)
+	}
+}
+
+func TestPlanModeRequiresDurableStore(t *testing.T) {
+	policy := mustRuntimePolicy(t, approval.ModeBalanced, nil)
+	if _, err := policy.EnterPlanMode(t.Context(), "session-a"); !errors.Is(err, ErrModeStoreUnavailable) {
+		t.Fatalf("EnterPlanMode error = %v, want ErrModeStoreUnavailable", err)
+	}
+	if _, _, err := policy.ExitPlanMode(t.Context(), "session-a"); !errors.Is(err, ErrModeStoreUnavailable) {
+		t.Fatalf("ExitPlanMode error = %v, want ErrModeStoreUnavailable", err)
+	}
+}
+
+func mustRuntimePolicy(t *testing.T, mode approval.Mode, store RuleStore) *RuntimePolicy {
+	t.Helper()
+	policy, err := NewRuntimePolicy(mode, store, nil)
+	if err != nil {
+		t.Fatalf("NewRuntimePolicy: %v", err)
+	}
+	return policy
+}

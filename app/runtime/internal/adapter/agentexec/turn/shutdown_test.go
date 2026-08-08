@@ -8,7 +8,7 @@ import (
 
 	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/execution"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 )
 
 // hangBound separates a hang from a slow machine, which is all these waits have
@@ -112,7 +112,7 @@ func (p *blockingCancelProcess) Discard(context.Context) error {
 }
 
 func testWaitingCheckpointValue() agentexec.WaitingCheckpoint {
-	return agentexec.WaitingCheckpoint{Checkpoint: execution.ExecutorCheckpoint{
+	return agentexec.WaitingCheckpoint{Checkpoint: runs.ExecutorCheckpoint{
 		RootProcessID: "process_root",
 		Payload:       []byte(`{"root":"process_root"}`),
 		BuildID:       "build",
