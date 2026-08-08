@@ -84,7 +84,7 @@ func resolveResumeResponses(pending Pending, responses []ResumeResponse) ([]Susp
 		}
 		answers[index] = SuspensionAnswer{
 			InterruptItemID: binding.InterruptItemID,
-			ProcessID:       binding.ProcessID,
+			MemberID:        binding.MemberID,
 			SuspensionID:    binding.SuspensionID,
 			Resolution:      resolution,
 		}

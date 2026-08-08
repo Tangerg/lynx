@@ -75,7 +75,7 @@ func TestExecutorCheckpointRemainsOpaqueOutsideExecutionAdapter(t *testing.T) {
 		t.Fatalf("parse executor checkpoint: %v", err)
 	}
 	checkpoint := structFields(checkpointFile, "ExecutorCheckpoint")
-	want := []string{"RootProcessID", "Payload", "BuildID", "Scope", "ModelSelection", "Limits", "Usage"}
+	want := []string{"RootMemberID", "Payload", "BuildID", "Scope", "ModelSelection", "Limits", "Usage"}
 	if strings.Join(checkpoint, ",") != strings.Join(want, ",") {
 		t.Fatalf("ExecutorCheckpoint fields = %v, want opaque application envelope %v", checkpoint, want)
 	}
@@ -153,7 +153,7 @@ func TestRunLimitsRemainTheSingleApplicationPolicy(t *testing.T) {
 		name string
 	}{
 		{path: filepath.Join("internal", "application", "runs", "commands.go"), name: "StartCommand"},
-		{path: filepath.Join("internal", "application", "runs", "ports.go"), name: "StartExecution"},
+		{path: filepath.Join("internal", "application", "runs", "ports.go"), name: "RootExecutionStart"},
 		{path: filepath.Join("internal", "adapter", "agentexec", "turnrun.go"), name: "TurnRequest"},
 	} {
 		path := filepath.Join(root, carrier.path)
@@ -289,6 +289,77 @@ func TestExecutionContextIsNeutralBetweenPeerAdapters(t *testing.T) {
 	}
 }
 
+// TestApplicationExecutionPortsUseApplicationVocabulary locks the P3
+// consumer-owned root seam. Later Agent2 vertical slices may deliberately
+// revise this candidate, but they may not restore the old implementation-shaped
+// facade or Framework Process vocabulary in Application.
+func TestApplicationExecutionPortsUseApplicationVocabulary(t *testing.T) {
+	root := moduleRoot(t)
+	portsPath := filepath.Join(root, "internal", "application", "runs", "ports.go")
+	portsFile, err := parser.ParseFile(token.NewFileSet(), portsPath, nil, 0)
+	if err != nil {
+		t.Fatalf("parse Run ports: %v", err)
+	}
+
+	wantMethods := map[string][]string{
+		"RootExecutionStarter": {"ValidateRootStart", "StageRoot", "BeginRoot"},
+		"ExecutionObserver":    {"Observe"},
+		"ExecutionReleaser":    {"Release"},
+	}
+	for interfaceName, want := range wantMethods {
+		got := interfaceMethods(portsFile, interfaceName)
+		if !slices.Equal(got, want) {
+			t.Errorf("%s methods = %v, want %v", interfaceName, got, want)
+		}
+	}
+
+	applicationRoot := filepath.Join(root, "internal", "application")
+	forbidden := []string{
+		"ExecutionControl", "SegmentExecutor", "SessionLifecycle", "ExecutionCleanup",
+		"PrepareStart", "ValidateStart",
+		"CancelExecution", "StartExecution", "ExecutorSource", "ProcessSuspension",
+		"RootProcessID", "ProcessID",
+	}
+	err = filepath.WalkDir(applicationRoot, func(path string, entry os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() || filepath.Ext(path) != ".go" || strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		source, readErr := os.ReadFile(path)
+		if readErr != nil {
+			return readErr
+		}
+		for _, term := range forbidden {
+			if strings.Contains(string(source), term) {
+				relative, _ := filepath.Rel(root, path)
+				t.Errorf("%s restores forbidden execution vocabulary %q", relative, term)
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("scan Application execution vocabulary: %v", err)
+	}
+
+	for _, relative := range []string{
+		filepath.Join("internal", "infra", "storage", "sqlite", "db.go"),
+		filepath.Join("internal", "infra", "storage", "sqlite", "executor_checkpoint.go"),
+		filepath.Join("internal", "infra", "storage", "sqlite", "interrupt.go"),
+	} {
+		source, readErr := os.ReadFile(filepath.Join(root, relative))
+		if readErr != nil {
+			t.Fatalf("read %s: %v", relative, readErr)
+		}
+		for _, term := range []string{"root_process_id", "rootProcessId", `json:"processId"`} {
+			if strings.Contains(string(source), term) {
+				t.Errorf("%s restores forbidden persisted executor vocabulary %q", relative, term)
+			}
+		}
+	}
+}
+
 // TestPendingStoresOnlyOpaqueExecutorBindings prevents the application continuation
 // from persisting a second copy of executor parent/spawn topology. Run lineage
 // is the durable product tree; live executor topology is validated only while
@@ -301,7 +372,7 @@ func TestPendingStoresOnlyOpaqueExecutorBindings(t *testing.T) {
 		t.Fatalf("parse interrupt domain: %v", err)
 	}
 	want := []string{
-		"RunID", "ProcessID", "Lineage", "ModelSelection", "DrainedTools",
+		"RunID", "MemberID", "Lineage", "ModelSelection", "DrainedTools",
 		"CommittedTools", "RunCreatedAt", "Metrics", "Limits",
 	}
 	if fields := structFields(interruptFile, "Continuation"); strings.Join(fields, ",") != strings.Join(want, ",") {

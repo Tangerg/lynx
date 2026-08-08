@@ -29,7 +29,7 @@ func TestStartTurnValidateDelegatesCoreOptions(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
-			err := (runs.StartExecution{
+			err := (runs.RootExecutionStart{
 				SessionID: "session",
 				Message:   "hello",
 				Options:   &test.options,

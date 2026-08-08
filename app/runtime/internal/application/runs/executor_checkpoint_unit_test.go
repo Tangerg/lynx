@@ -21,9 +21,9 @@ func checkpointSelection(t *testing.T, provider, model string) modelref.Selectio
 
 func TestExecutorCheckpointValidatesOnlyApplicationEnvelope(t *testing.T) {
 	valid := ExecutorCheckpoint{
-		RootProcessID: "root",
-		Payload:       []byte(`{"executorOwned":"opaque"}`),
-		BuildID:       "sha256:build",
+		RootMemberID: "root",
+		Payload:      []byte(`{"executorOwned":"opaque"}`),
+		BuildID:      "sha256:build",
 		Scope: ExecutionScope{
 			SessionID:   "session-1",
 			CWD:         "/workspace/project",
@@ -43,8 +43,8 @@ func TestExecutorCheckpointValidatesOnlyApplicationEnvelope(t *testing.T) {
 	}
 
 	for name, mutate := range map[string]func(*ExecutorCheckpoint){
-		"empty root":          func(checkpoint *ExecutorCheckpoint) { checkpoint.RootProcessID = "" },
-		"unstable root":       func(checkpoint *ExecutorCheckpoint) { checkpoint.RootProcessID = " root" },
+		"empty root":          func(checkpoint *ExecutorCheckpoint) { checkpoint.RootMemberID = "" },
+		"unstable root":       func(checkpoint *ExecutorCheckpoint) { checkpoint.RootMemberID = " root" },
 		"empty payload":       func(checkpoint *ExecutorCheckpoint) { checkpoint.Payload = nil },
 		"empty build":         func(checkpoint *ExecutorCheckpoint) { checkpoint.BuildID = "" },
 		"unstable session":    func(checkpoint *ExecutorCheckpoint) { checkpoint.Scope.SessionID = " session-1" },
@@ -67,10 +67,10 @@ func TestExecutorCheckpointValidatesOnlyApplicationEnvelope(t *testing.T) {
 
 func TestExecutorCheckpointCloneOwnsMutableData(t *testing.T) {
 	original := ExecutorCheckpoint{
-		RootProcessID: "root",
-		Payload:       []byte("payload"),
-		BuildID:       "build",
-		Usage:         accounting.Snapshot{Models: []accounting.ModelUsage{{Model: "model"}}},
+		RootMemberID: "root",
+		Payload:      []byte("payload"),
+		BuildID:      "build",
+		Usage:        accounting.Snapshot{Models: []accounting.ModelUsage{{Model: "model"}}},
 	}
 	clone := original.Clone()
 	clone.Payload[0] = 'P'
@@ -82,9 +82,9 @@ func TestExecutorCheckpointCloneOwnsMutableData(t *testing.T) {
 
 func TestExecutorCheckpointValidatesCrossAggregateOwnership(t *testing.T) {
 	checkpoint := ExecutorCheckpoint{
-		RootProcessID: "process-root",
-		Payload:       []byte("opaque"),
-		BuildID:       "build",
+		RootMemberID: "process-root",
+		Payload:      []byte("opaque"),
+		BuildID:      "build",
 		Scope: ExecutionScope{
 			SessionID:    "session-1",
 			CWD:          "/scratch/project",
@@ -93,7 +93,7 @@ func TestExecutorCheckpointValidatesCrossAggregateOwnership(t *testing.T) {
 		ModelSelection: checkpointSelection(t, "anthropic", "claude"),
 	}
 	expected := ExecutorCheckpointExpectation{
-		RootProcessID:  "process-root",
+		RootMemberID:   "process-root",
 		SessionID:      "session-1",
 		CWD:            "/scratch/project",
 		WorkspaceCWD:   "/workspace/project",
@@ -104,7 +104,7 @@ func TestExecutorCheckpointValidatesCrossAggregateOwnership(t *testing.T) {
 	}
 
 	for name, mutate := range map[string]func(*ExecutorCheckpointExpectation){
-		"root":       func(value *ExecutorCheckpointExpectation) { value.RootProcessID = "other-root" },
+		"root":       func(value *ExecutorCheckpointExpectation) { value.RootMemberID = "other-root" },
 		"session":    func(value *ExecutorCheckpointExpectation) { value.SessionID = "other-session" },
 		"cwd":        func(value *ExecutorCheckpointExpectation) { value.CWD = "/other/workspace" },
 		"workspace":  func(value *ExecutorCheckpointExpectation) { value.WorkspaceCWD = "/other/workspace" },

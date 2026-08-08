@@ -31,7 +31,7 @@ func TestStubEngineDrivesTurn(t *testing.T) {
 	stub := &stubEngine{runReply: "hello from stub"}
 
 	controller := mustTurn(turn.New(turnDeps(stub)))
-	handle, err := controller.StartTurn(context.Background(), runs.StartExecution{
+	handle, err := controller.StartTurn(context.Background(), runs.RootExecutionStart{
 		SessionID: "sess-1",
 		Message:   "hi",
 	})
@@ -75,7 +75,7 @@ func TestStartTurnPreservesHookResolutionFailure(t *testing.T) {
 	})))
 	t.Cleanup(func() { shutdownController(t, controller) })
 
-	if _, err := controller.StartTurn(t.Context(), runs.StartExecution{
+	if _, err := controller.StartTurn(t.Context(), runs.RootExecutionStart{
 		SessionID: "sess-hook-error",
 		Message:   "hi",
 		CWD:       t.TempDir(),
@@ -89,7 +89,7 @@ func TestStartTurnPreservesHookResolutionFailure(t *testing.T) {
 
 // TestPromptHookInjectedContextReachesTurn guards the prepare/activate seam: a
 // UserPromptSubmit hook that injects context must have it in the prompt the
-// engine actually runs. The request is snapshotted for Activate AFTER the prompt
+// engine actually runs. The request is snapshotted for activation AFTER the prompt
 // hooks rewrite the message; capturing it before would silently drop the
 // injection.
 func TestPromptHookInjectedContextReachesTurn(t *testing.T) {
@@ -103,7 +103,7 @@ func TestPromptHookInjectedContextReachesTurn(t *testing.T) {
 	})))
 	t.Cleanup(func() { shutdownController(t, controller) })
 
-	handle, err := controller.StartTurn(t.Context(), runs.StartExecution{
+	handle, err := controller.StartTurn(t.Context(), runs.RootExecutionStart{
 		SessionID: "s", Message: "do the thing", CWD: t.TempDir(),
 	})
 	if err != nil {
@@ -128,7 +128,7 @@ func TestPromptHookInjectedContextReachesTurn(t *testing.T) {
 func TestController_DiscardsProcessOnTerminal(t *testing.T) {
 	stub := &stubEngine{runReply: "done"}
 	controller := mustTurn(turn.New(turnDeps(stub)))
-	handle, err := controller.StartTurn(context.Background(), runs.StartExecution{SessionID: "s", Message: "hi"})
+	handle, err := controller.StartTurn(context.Background(), runs.RootExecutionStart{SessionID: "s", Message: "hi"})
 	if err != nil {
 		t.Fatalf("StartTurn: %v", err)
 	}
@@ -154,7 +154,7 @@ func TestControllerFailsClosedWhenWaitingCheckpointCommitFails(t *testing.T) {
 		completionErr:    wantErr,
 	}
 	controller := mustTurn(turn.New(turnDeps(stub)))
-	handle, err := controller.StartTurn(t.Context(), runs.StartExecution{
+	handle, err := controller.StartTurn(t.Context(), runs.RootExecutionStart{
 		SessionID: "s",
 		Message:   "hi",
 	})
@@ -198,7 +198,7 @@ func TestStubEngineBudgetStop(t *testing.T) {
 	stub := &stubEngine{runReply: "partial answer", stopReason: agent.InteractionStopBudget}
 	controller := mustTurn(turn.New(turnDeps(stub)))
 
-	handle, err := controller.StartTurn(context.Background(), runs.StartExecution{
+	handle, err := controller.StartTurn(context.Background(), runs.RootExecutionStart{
 		SessionID: "s",
 		Message:   "go",
 		Limits:    run.RunLimits{MaxTotalTokens: 1},
@@ -229,7 +229,7 @@ func TestStubEngineStepStop(t *testing.T) {
 	stub := &stubEngine{runReply: "partial answer", stopReason: agent.InteractionStopModelCalls}
 	controller := mustTurn(turn.New(turnDeps(stub)))
 
-	handle, err := controller.StartTurn(context.Background(), runs.StartExecution{
+	handle, err := controller.StartTurn(context.Background(), runs.RootExecutionStart{
 		SessionID: "s",
 		Message:   "go",
 	})
@@ -261,7 +261,7 @@ func TestStubEngineInvalidStopReasonBecomesEngineError(t *testing.T) {
 	}
 	controller := mustTurn(turn.New(turnDeps(stub)))
 
-	handle, err := controller.StartTurn(context.Background(), runs.StartExecution{
+	handle, err := controller.StartTurn(context.Background(), runs.RootExecutionStart{
 		SessionID: "s",
 		Message:   "go",
 	})
@@ -293,7 +293,7 @@ func TestStubEngineCancelsCleanly(t *testing.T) {
 	stub := &slowStubEngine{}
 	controller := mustTurn(turn.New(turnDeps(stub)))
 
-	handle, _ := controller.StartTurn(context.Background(), runs.StartExecution{
+	handle, _ := controller.StartTurn(context.Background(), runs.RootExecutionStart{
 		SessionID: "s",
 		Message:   "m",
 	})
@@ -333,7 +333,7 @@ func TestRehydrateResumesRestoredTurn(t *testing.T) {
 	handle, err := controller.Rehydrate(context.Background(), runs.RehydrateExecution{
 		SessionID:  "sess-restored",
 		ExecutorID: "turn-original",
-		ProcessID:  "process-42",
+		MemberID:   "process-42",
 		RootRunID:  "run-root",
 	})
 	if err != nil {
@@ -390,7 +390,7 @@ func TestRehydrate_ResumeError_ReturnsError(t *testing.T) {
 	handle, err := controller.Rehydrate(context.Background(), runs.RehydrateExecution{
 		SessionID:  "sess-restored",
 		ExecutorID: "turn-original",
-		ProcessID:  "process-99",
+		MemberID:   "process-99",
 		RootRunID:  "run-root",
 	})
 	if err != nil {
@@ -428,7 +428,7 @@ func TestRehydrateCanceledResumeAdmissionRemainsParked(t *testing.T) {
 	handle, err := controller.Rehydrate(t.Context(), runs.RehydrateExecution{
 		SessionID:  "sess-restored",
 		ExecutorID: "turn-original",
-		ProcessID:  "process-99",
+		MemberID:   "process-99",
 		RootRunID:  "run-root",
 	})
 	if err != nil {
@@ -463,7 +463,7 @@ func TestStartTurn_ResolvesPerRunClient(t *testing.T) {
 	resolver := &fakeChatResolver{client: sentinel}
 
 	controller := mustTurn(turn.New(turnDeps(stub, withChatResolver(resolver))))
-	handle, err := controller.StartTurn(context.Background(), runs.StartExecution{
+	handle, err := controller.StartTurn(context.Background(), runs.RootExecutionStart{
 		SessionID:      "s",
 		Message:        "hi",
 		ModelSelection: testModelSelection(t, "some-provider", "some-model"),
@@ -491,13 +491,13 @@ func TestStartTurn_ResolvesPerRunClient(t *testing.T) {
 func TestExplicitModelSelectionRequiresResolverBeforeAdmission(t *testing.T) {
 	controller := mustTurn(turn.New(turnDeps(&stubEngine{})))
 	selection := testModelSelection(t, "openai", "gpt-test")
-	if _, err := controller.PrepareTurn(t.Context(), runs.StartExecution{
+	if _, err := controller.PrepareTurn(t.Context(), runs.RootExecutionStart{
 		SessionID: "session", Message: "hello", ModelSelection: selection,
 	}); err == nil || !strings.Contains(err.Error(), "requires a chat resolver") {
 		t.Fatalf("PrepareTurn error = %v, want missing resolver", err)
 	}
 	if _, err := controller.Rehydrate(t.Context(), runs.RehydrateExecution{
-		SessionID: "session", ProcessID: "process", RootRunID: "run-root", ModelSelection: selection,
+		SessionID: "session", MemberID: "process", RootRunID: "run-root", ModelSelection: selection,
 	}); err == nil || !strings.Contains(err.Error(), "requires a chat resolver") {
 		t.Fatalf("Rehydrate error = %v, want missing resolver", err)
 	}
@@ -510,7 +510,7 @@ func TestStartTurn_PassesCWD(t *testing.T) {
 	stub := &stubEngine{runReply: "ok"}
 
 	controller := mustTurn(turn.New(turnDeps(stub)))
-	handle, err := controller.StartTurn(context.Background(), runs.StartExecution{
+	handle, err := controller.StartTurn(context.Background(), runs.RootExecutionStart{
 		SessionID: "s",
 		Message:   "hi",
 		CWD:       "/work/project-a",
@@ -537,7 +537,7 @@ func TestStartTurn_PassesOptions(t *testing.T) {
 	temp := 0.7
 
 	controller := mustTurn(turn.New(turnDeps(stub)))
-	handle, err := controller.StartTurn(context.Background(), runs.StartExecution{
+	handle, err := controller.StartTurn(context.Background(), runs.RootExecutionStart{
 		SessionID: "s",
 		Message:   "hi",
 		Options:   &corechat.Options{Temperature: &temp},
@@ -579,7 +579,7 @@ func TestStartTurnSnapshotsMutableRequestValues(t *testing.T) {
 	images := []*media.Media{image}
 	interruptKinds := []interrupt.Kind{interrupt.Approval}
 
-	handle, err := controller.StartTurn(context.Background(), runs.StartExecution{
+	handle, err := controller.StartTurn(context.Background(), runs.RootExecutionStart{
 		SessionID:      "session",
 		Message:        "hello",
 		Media:          images,
@@ -630,7 +630,7 @@ func TestStartTurnProcessCreationFailureRemainsDrainableAfterTerminal(t *testing
 	engine := &immediateStartFailureEngine{err: startErr}
 	controller := mustTurn(turn.New(turnDeps(engine)))
 
-	handle, err := controller.StartTurn(context.Background(), runs.StartExecution{
+	handle, err := controller.StartTurn(context.Background(), runs.RootExecutionStart{
 		SessionID: "session",
 		Message:   "hello",
 	})
@@ -651,7 +651,7 @@ func TestStartTurnCancelRacingProcessCreationFailureTerminatesAsCanceled(t *test
 	engine := newBlockedStartFailureEngine(startErr)
 	controller := mustTurn(turn.New(turnDeps(engine)))
 
-	handle, err := controller.StartTurn(context.Background(), runs.StartExecution{
+	handle, err := controller.StartTurn(context.Background(), runs.RootExecutionStart{
 		SessionID: "session",
 		Message:   "hello",
 	})

@@ -12,13 +12,13 @@ import (
 )
 
 // cancellationRun is one immutable member of a command-bound cancellation
-// plan. ProcessID is present only for a non-terminal Run whose executor member
+// plan. MemberID is present only for a non-terminal Run whose executor member
 // must remain addressable at this boundary; executor topology is not an
 // application cancellation fact.
 type cancellationRun struct {
-	run        transcript.Run
-	processID  string
-	hasProcess bool
+	run       transcript.Run
+	memberID  string
+	hasMember bool
 }
 
 // cancellationPlan is the complete, immutable fact set one cancellation command
@@ -77,15 +77,15 @@ func (c *Coordinator) cancellationPlanFor(
 			rootRunID,
 		)
 	}
-	pending, pendingFound, err := c.sessions.LookupOpenInterrupt(ctx, rootRunID)
+	pending, pendingFound, err := c.interrupts.LookupOpenInterrupt(ctx, rootRunID)
 	if err != nil {
 		return cancellationPlan{}, liveSegment{}, false, err
 	}
 	live, liveFound := c.registry.Get(rootRunID)
 
 	var (
-		executor  ExecutorRef
-		processes map[string]string
+		executor ExecutorRef
+		members  map[string]string
 	)
 	switch root.State {
 	case rundomain.Running:
@@ -126,7 +126,7 @@ func (c *Coordinator) cancellationPlanFor(
 			return cancellationPlan{}, liveSegment{}, false, err
 		}
 		executor = ExecutorRef{SessionID: live.record.SessionID, ExecutorID: live.record.ExecutorID}
-		processes = live.handle.executorProcessSnapshot()
+		members = live.handle.executorMemberSnapshot()
 	case rundomain.Waiting:
 		if !pendingFound {
 			return cancellationPlan{}, liveSegment{}, false, fmt.Errorf(
@@ -142,9 +142,9 @@ func (c *Coordinator) cancellationPlanFor(
 			)
 		}
 		executor = ExecutorRef{SessionID: pending.SessionID, ExecutorID: pending.ExecutorID}
-		processes = make(map[string]string, len(pending.Continuations))
+		members = make(map[string]string, len(pending.Continuations))
 		for _, continuation := range pending.Continuations {
-			processes[continuation.RunID] = continuation.ProcessID
+			members[continuation.RunID] = continuation.MemberID
 		}
 		if liveFound {
 			if live.handle == nil {
@@ -179,7 +179,7 @@ func (c *Coordinator) cancellationPlanFor(
 		pendingCopy := pending
 		pendingPlan = &pendingCopy
 	}
-	plan, err := newCancellationPlan(cmd.RunID, runs, executor, processes, pendingPlan)
+	plan, err := newCancellationPlan(cmd.RunID, runs, executor, members, pendingPlan)
 	if err != nil {
 		return cancellationPlan{}, liveSegment{}, false, err
 	}
@@ -384,7 +384,7 @@ func newCancellationPlan(
 	targetRunID string,
 	runs []transcript.Run,
 	executor ExecutorRef,
-	processes map[string]string,
+	members map[string]string,
 	pending *Pending,
 ) (cancellationPlan, error) {
 	target, found := runByID(runs, targetRunID)
@@ -411,7 +411,7 @@ func newCancellationPlan(
 	}
 
 	byRunID := make(map[string]transcript.Run, len(runs))
-	members := make([]rundomain.RunTreeMember, 0, len(runs))
+	treeMembers := make([]rundomain.RunTreeMember, 0, len(runs))
 	for index, run := range runs {
 		if err := run.Validate(); err != nil {
 			return cancellationPlan{}, fmt.Errorf(
@@ -439,9 +439,9 @@ func newCancellationPlan(
 			)
 		}
 		byRunID[run.ID] = run
-		members = append(members, rundomain.RunTreeMember{RunID: run.ID, Lineage: run.Lineage()})
+		treeMembers = append(treeMembers, rundomain.RunTreeMember{RunID: run.ID, Lineage: run.Lineage()})
 	}
-	tree, err := rundomain.NewRunTree(rootRunID, members)
+	tree, err := rundomain.NewRunTree(rootRunID, treeMembers)
 	if err != nil {
 		return cancellationPlan{}, fmt.Errorf("runs: build cancellation plan: %w", err)
 	}
@@ -471,7 +471,7 @@ func newCancellationPlan(
 		}
 	}
 
-	bindings, err := cancellationBindings(byRunID, processes)
+	bindings, err := cancellationBindings(byRunID, members)
 	if err != nil {
 		return cancellationPlan{}, err
 	}
@@ -483,7 +483,7 @@ func newCancellationPlan(
 		}
 		openRunIDs = append(openRunIDs, runID)
 		binding := bindings[runID]
-		if run.Lineage().IsChild() && !binding.hasProcess {
+		if run.Lineage().IsChild() && !binding.hasMember {
 			return cancellationPlan{}, fmt.Errorf(
 				"runs: build cancellation plan: non-terminal child Run %q has no executor binding",
 				runID,
@@ -533,14 +533,14 @@ func newCancellationPlan(
 
 func cancellationBindings(
 	runs map[string]transcript.Run,
-	processes map[string]string,
+	members map[string]string,
 ) (map[string]cancellationRun, error) {
 	bindings := make(map[string]cancellationRun, len(runs))
 	for runID, run := range runs {
 		bindings[runID] = cancellationRun{run: run}
 	}
-	processOwners := make(map[string]string, len(processes))
-	for runID, processID := range processes {
+	memberOwners := make(map[string]string, len(members))
+	for runID, memberID := range members {
 		member, exists := bindings[runID]
 		if !exists {
 			return nil, fmt.Errorf(
@@ -548,23 +548,23 @@ func cancellationBindings(
 				runID,
 			)
 		}
-		if processID == "" {
+		if memberID == "" {
 			return nil, fmt.Errorf(
-				"runs: build cancellation plan: Run %q executor binding has no process id",
+				"runs: build cancellation plan: Run %q executor binding has no member id",
 				runID,
 			)
 		}
-		if owner, duplicate := processOwners[processID]; duplicate {
+		if owner, duplicate := memberOwners[memberID]; duplicate {
 			return nil, fmt.Errorf(
-				"runs: build cancellation plan: process %q is bound to Runs %q and %q",
-				processID,
+				"runs: build cancellation plan: member %q is bound to Runs %q and %q",
+				memberID,
 				owner,
 				runID,
 			)
 		}
-		processOwners[processID] = runID
-		member.processID = processID
-		member.hasProcess = true
+		memberOwners[memberID] = runID
+		member.memberID = memberID
+		member.hasMember = true
 		bindings[runID] = member
 	}
 	return bindings, nil
@@ -582,11 +582,11 @@ func validateCancellationProcessTree(
 		if run.Lineage().IsRoot() {
 			continue
 		}
-		if !binding.hasProcess {
+		if !binding.hasMember {
 			continue
 		}
 		parent := bindings[run.ParentRunID]
-		if !parent.hasProcess {
+		if !parent.hasMember {
 			return fmt.Errorf(
 				"runs: build cancellation plan: child Run %q has no bound parent Run %q",
 				runID,
@@ -658,7 +658,7 @@ func validateCancellationPending(
 			)
 		}
 		binding := bindings[continuation.RunID]
-		if !binding.hasProcess || binding.processID != continuation.ProcessID {
+		if !binding.hasMember || binding.memberID != continuation.MemberID {
 			return fmt.Errorf(
 				"runs: build cancellation plan: continuation Run %q differs from its executor binding",
 				continuation.RunID,

@@ -45,12 +45,12 @@ func TestInterruptStore_OpenGetListDelete(t *testing.T) {
 		}},
 		Suspensions: []runs.SuspensionBinding{{
 			InterruptItemID: "item_question",
-			ProcessID:       "proc_1",
+			MemberID:        "member_1",
 			SuspensionID:    "suspension_1",
 		}},
 		Continuations: []runs.Continuation{{
 			RunID:          "run_1",
-			ProcessID:      "proc_1",
+			MemberID:       "member_1",
 			ModelSelection: testModelSelection(t, "anthropic", "claude-opus-4-8"),
 			RunCreatedAt:   time.Unix(1, 0).UTC(),
 		}},
@@ -136,11 +136,11 @@ func TestInterruptStore_ConsumeIsAtomic(t *testing.T) {
 		}},
 		Suspensions: []runs.SuspensionBinding{{
 			InterruptItemID: "item_approval",
-			ProcessID:       "proc_1",
+			MemberID:        "member_1",
 			SuspensionID:    "suspension_1",
 		}},
 		Continuations: []runs.Continuation{{
-			RunID: "run_1", ProcessID: "proc_1", RunCreatedAt: time.Unix(1, 0).UTC(),
+			RunID: "run_1", MemberID: "member_1", RunCreatedAt: time.Unix(1, 0).UTC(),
 		}},
 		CreatedAt: time.Unix(7, 0).UTC(),
 	}); err != nil {
@@ -153,7 +153,7 @@ func TestInterruptStore_ConsumeIsAtomic(t *testing.T) {
 		t.Fatalf("Consume: ok=%v err=%v", ok, err)
 	}
 	root, _ := got.RootContinuation()
-	if root.ProcessID != "proc_1" || len(got.Interrupts) != 1 || got.Interrupts[0].ItemID != "item_approval" ||
+	if root.MemberID != "member_1" || len(got.Interrupts) != 1 || got.Interrupts[0].ItemID != "item_approval" ||
 		got.Interrupts[0].Approval == nil || got.Interrupts[0].Approval.Risk != tool.RiskHigh ||
 		got.Interrupts[0].Approval.Tool.Name != "shell" ||
 		got.Interrupts[0].Approval.Tool.Arguments.Canonical() != arguments.Canonical() ||
@@ -180,10 +180,10 @@ func TestInterruptStoreRejectsForeignSessionMutation(t *testing.T) {
 			Question: &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Continue?"}}},
 		}},
 		Suspensions: []runs.SuspensionBinding{{
-			InterruptItemID: "item_question", ProcessID: "process_root", SuspensionID: "suspension_root",
+			InterruptItemID: "item_question", MemberID: "member_root", SuspensionID: "suspension_root",
 		}},
 		Continuations: []runs.Continuation{{
-			RunID: "run_1", ProcessID: "process_root", RunCreatedAt: time.Unix(1, 0).UTC(),
+			RunID: "run_1", MemberID: "member_root", RunCreatedAt: time.Unix(1, 0).UTC(),
 		}},
 		CreatedAt: time.Unix(2, 0).UTC(),
 	}
@@ -222,13 +222,13 @@ func TestInterruptStoreRoundTripsAppLineageWithoutExecutorTopology(t *testing.T)
 		}},
 		Suspensions: []runs.SuspensionBinding{{
 			InterruptItemID: "item_child",
-			ProcessID:       "process_child",
+			MemberID:        "member_child",
 			SuspensionID:    "suspension_child",
 		}},
 		Continuations: []runs.Continuation{
 			{
 				RunID:        "run_child",
-				ProcessID:    "process_child",
+				MemberID:     "member_child",
 				Lineage:      lineage,
 				RunCreatedAt: createdAt,
 				DrainedTools: []runs.DrainedTool{{
@@ -238,7 +238,7 @@ func TestInterruptStoreRoundTripsAppLineageWithoutExecutorTopology(t *testing.T)
 			},
 			{
 				RunID:        "run_root",
-				ProcessID:    "process_root",
+				MemberID:     "member_root",
 				RunCreatedAt: createdAt,
 				CommittedTools: []runs.CommittedTool{{
 					ItemID: "item_spawn_child", CallID: "call_child", Name: "delegate_task", Arguments: "{}",
@@ -260,7 +260,7 @@ func TestInterruptStoreRoundTripsAppLineageWithoutExecutorTopology(t *testing.T)
 		t.Fatalf("Get: found=%v err=%v", found, err)
 	}
 	child := got.Continuations[0]
-	if child.Lineage != lineage || child.ProcessID != "process_child" || len(child.DrainedTools) != 1 ||
+	if child.Lineage != lineage || child.MemberID != "member_child" || len(child.DrainedTools) != 1 ||
 		!child.DrainedTools[0].ItemOccurredAt.Equal(createdAt.Add(time.Second)) {
 		t.Fatalf("child continuation = %+v, want lineage %+v", child, lineage)
 	}
@@ -291,10 +291,10 @@ func TestInterruptStoreRejectsUnknownExecutorTopologyFields(t *testing.T) {
 			Question: &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Continue?"}}},
 		}},
 		Suspensions: []runs.SuspensionBinding{{
-			InterruptItemID: "item_question", ProcessID: "process_root", SuspensionID: "suspension_root",
+			InterruptItemID: "item_question", MemberID: "member_root", SuspensionID: "suspension_root",
 		}},
 		Continuations: []runs.Continuation{{
-			RunID: "run_root", ProcessID: "process_root", RunCreatedAt: time.Unix(1, 0).UTC(),
+			RunID: "run_root", MemberID: "member_root", RunCreatedAt: time.Unix(1, 0).UTC(),
 		}},
 		CreatedAt: time.Unix(2, 0).UTC(),
 	}
@@ -311,12 +311,12 @@ func TestInterruptStoreRejectsUnknownExecutorTopologyFields(t *testing.T) {
 	}
 	poisoned := strings.Replace(
 		encoded,
-		`"processId":"process_root"`,
-		`"processId":"process_root","parentProcessId":"legacy_parent"`,
+		`"memberId":"member_root"`,
+		`"memberId":"member_root","parentProcessId":"legacy_parent"`,
 		1,
 	)
 	if poisoned == encoded {
-		t.Fatalf("continuation JSON does not contain process identity: %s", encoded)
+		t.Fatalf("continuation JSON does not contain member identity: %s", encoded)
 	}
 	if _, err := database.ExecContext(
 		t.Context(),
@@ -346,11 +346,11 @@ func TestInterruptStoreExecutorRootHasOnePendingOwner(t *testing.T) {
 			}},
 			Suspensions: []runs.SuspensionBinding{{
 				InterruptItemID: "item_" + runID,
-				ProcessID:       "proc_shared",
+				MemberID:        "member_shared",
 				SuspensionID:    "suspension_" + runID,
 			}},
 			Continuations: []runs.Continuation{{
-				RunID: runID, ProcessID: "proc_shared", RunCreatedAt: time.Unix(1, 0).UTC(),
+				RunID: runID, MemberID: "member_shared", RunCreatedAt: time.Unix(1, 0).UTC(),
 			}},
 			CreatedAt: time.Unix(2, 0).UTC(),
 		})

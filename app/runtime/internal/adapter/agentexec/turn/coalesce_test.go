@@ -76,26 +76,26 @@ func TestCoalesceTextDeltas_ReasoningMergesByKind(t *testing.T) {
 }
 
 func TestCoalesceTextDeltas_SpillsAtProcessBoundary(t *testing.T) {
-	root := runs.ExecutorSource{ProcessID: "process_root"}
-	child := runs.ExecutorSource{
-		ProcessID:   "process_child",
-		ParentID:    root.ProcessID,
+	root := runs.ExecutorMember{MemberID: "process_root"}
+	child := runs.ExecutorMember{
+		MemberID:    "process_child",
+		ParentID:    root.MemberID,
 		SpawnCallID: "call_delegate",
 	}
 	ch := make(chan runs.ExecutorEvent, 2)
-	ch <- runs.ExecutorEvent{Source: child, Payload: runs.MessageDelta{Text: "child"}}
-	ch <- runs.ExecutorEvent{Source: root, Payload: runs.MessageDelta{Text: "after"}}
+	ch <- runs.ExecutorEvent{Member: child, Payload: runs.MessageDelta{Text: "child"}}
+	ch <- runs.ExecutorEvent{Member: root, Payload: runs.MessageDelta{Text: "after"}}
 
 	var spill *runs.ExecutorEvent
-	head := runs.ExecutorEvent{Source: root, Payload: runs.MessageDelta{Text: "before"}}
+	head := runs.ExecutorEvent{Member: root, Payload: runs.MessageDelta{Text: "before"}}
 	got := coalesceTextDeltas(head, ch, &spill)
 	if delta, ok := got.Payload.(runs.MessageDelta); !ok || delta.Text != "before" {
 		t.Fatalf("head = %#v, want unmerged root delta", got)
 	}
-	if got.Source != root {
-		t.Fatalf("head source = %+v, want %+v", got.Source, root)
+	if got.Member != root {
+		t.Fatalf("head source = %+v, want %+v", got.Member, root)
 	}
-	if spill == nil || spill.Source != child {
+	if spill == nil || spill.Member != child {
 		t.Fatalf("spill = %#v, want child event", spill)
 	}
 	if delta, ok := spill.Payload.(runs.MessageDelta); !ok || delta.Text != "child" {
@@ -141,7 +141,7 @@ func BenchmarkCoalesceTextDeltas(b *testing.B) {
 
 func rootExecutorEvent(payload runs.ExecutionFact) runs.ExecutorEvent {
 	return runs.ExecutorEvent{
-		Source:  runs.ExecutorSource{ProcessID: "process_root"},
+		Member:  runs.ExecutorMember{MemberID: "process_root"},
 		Payload: payload,
 	}
 }

@@ -39,7 +39,7 @@ func (f *executorFakeController) CancelSubtree(_ context.Context, h Handle, proc
 func (*executorFakeController) InjectSteering(context.Context, Handle, []transcript.ContentBlock) error {
 	return nil
 }
-func (*executorFakeController) PrepareTurn(context.Context, runs.StartExecution) (Handle, error) {
+func (*executorFakeController) PrepareTurn(context.Context, runs.RootExecutionStart) (Handle, error) {
 	return Handle{}, nil
 }
 func (*executorFakeController) ActivateTurn(context.Context, Handle) error { return nil }
@@ -60,7 +60,7 @@ func TestExecutorTranslatesReference(t *testing.T) {
 	disp := &executorFakeController{events: func(func(runs.ExecutorEvent) bool) {}}
 	exec := NewExecutor(disp)
 
-	seq, err := exec.Events(ctx, ref)
+	seq, err := exec.Observe(ctx, ref)
 	if err != nil {
 		t.Fatalf("Events: %v", err)
 	}
@@ -68,13 +68,13 @@ func TestExecutorTranslatesReference(t *testing.T) {
 		t.Fatalf("events handle=%+v seq nil=%v", disp.eventsHandle, seq == nil)
 	}
 
-	if err := exec.CancelExecution(ctx, ref); err != nil {
+	if err := exec.Release(ctx, ref); err != nil {
 		t.Fatalf("CancelTurn: %v", err)
 	}
 	if disp.cancelHandle != handle {
 		t.Fatalf("cancel handle=%+v", disp.cancelHandle)
 	}
-	if err := exec.CancelSubtree(ctx, ref, "process_child"); err != nil {
+	if err := exec.CancelRunningSubtree(ctx, ref, "process_child"); err != nil {
 		t.Fatalf("CancelSubtree: %v", err)
 	}
 	if disp.cancelHandle != handle || disp.subtreeID != "process_child" {
@@ -98,9 +98,9 @@ func TestExecutorMapsMissingTurnOnBothCancelPorts(t *testing.T) {
 		name   string
 		cancel func() error
 	}{
-		{name: "segment", cancel: func() error { return executor.CancelExecution(t.Context(), ref) }},
+		{name: "segment", cancel: func() error { return executor.Release(t.Context(), ref) }},
 		{name: "subtree", cancel: func() error {
-			return executor.CancelSubtree(t.Context(), ref, "process_child")
+			return executor.CancelRunningSubtree(t.Context(), ref, "process_child")
 		}},
 	}
 	for _, test := range tests {

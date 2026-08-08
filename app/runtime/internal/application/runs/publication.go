@@ -53,10 +53,10 @@ func (p treePublisher) publish(
 		// for replay. A failed commit aborts execution instead of publishing an
 		// event the stores do not yet support.
 		if reduced.Commit != nil {
-			if reduced.Commit.State == StateTerminalize && route.source.ParentID == "" {
-				reduced.Commit.ObsoleteCheckpointRootID = route.source.ProcessID
+			if reduced.Commit.State == StateTerminalize && route.member.ParentID == "" {
+				reduced.Commit.ObsoleteCheckpointRootID = route.member.MemberID
 			}
-			if err := p.coordinator.effects.CommitEvent(ctx, *reduced.Commit); err != nil {
+			if err := p.coordinator.events.CommitEvent(ctx, *reduced.Commit); err != nil {
 				return reductionPublication{}, fmt.Errorf("runs: commit %T: %w", reduced.Event, err)
 			}
 			if reduced.Commit.State == StateTerminalize {
@@ -99,23 +99,23 @@ func (p treePublisher) publishTreeBarrier(
 		return reductionPublication{}, errors.New("runs: publish tree barrier without a root executor route")
 	}
 	if err := barrier.validateFor(
-		routes.root.source.ProcessID,
+		routes.root.member.MemberID,
 		p.rootSpec.SessionID,
 		p.rootSpec.GoalLeaseID,
 		routes.root.modelSelection,
 	); err != nil {
 		return reductionPublication{}, err
 	}
-	byProcess := make(map[string][]ProcessSuspension, len(barrier.Suspensions))
+	byMember := make(map[string][]MemberInterruption, len(barrier.Suspensions))
 	for _, suspension := range barrier.Suspensions {
-		route := routes.byProcess[suspension.ProcessID]
+		route := routes.byMember[suspension.MemberID]
 		if route == nil || route.segmentFinished {
 			return reductionPublication{}, fmt.Errorf(
-				"runs: suspension source process %q has no active Run",
-				suspension.ProcessID,
+				"runs: suspension source member %q has no active Run",
+				suspension.MemberID,
 			)
 		}
-		byProcess[suspension.ProcessID] = append(byProcess[suspension.ProcessID], suspension)
+		byMember[suspension.MemberID] = append(byMember[suspension.MemberID], suspension)
 	}
 	ordered, err := routes.unfinishedInPostorder()
 	if err != nil {
@@ -133,7 +133,7 @@ func (p treePublisher) publishTreeBarrier(
 	reductions := make([]treeBarrierReduction, 0, len(ordered))
 	commits := make([]EventCommit, 0, len(ordered))
 	for _, route := range ordered {
-		direct := byProcess[route.source.ProcessID]
+		direct := byMember[route.member.MemberID]
 		var events []RunEvent
 		if len(direct) > 0 {
 			values := make([]Interrupt, len(direct))
@@ -184,13 +184,13 @@ func (p treePublisher) publishTreeBarrier(
 		for index, suspension := range direct {
 			pending.Suspensions = append(pending.Suspensions, SuspensionBinding{
 				InterruptItemID: run.Interrupts[index].ItemID,
-				ProcessID:       suspension.ProcessID,
+				MemberID:        suspension.MemberID,
 				SuspensionID:    suspension.SuspensionID,
 			})
 		}
 		pending.Continuations = append(pending.Continuations, Continuation{
 			RunID:          route.runID,
-			ProcessID:      route.source.ProcessID,
+			MemberID:       route.member.MemberID,
 			Lineage:        route.lineage,
 			ModelSelection: route.modelSelection,
 			DrainedTools:   slices.Clone(route.reducer.drained),
@@ -207,7 +207,7 @@ func (p treePublisher) publishTreeBarrier(
 	}
 
 	committed, err := p.live.commitInterrupt(ctx, func(interruptCtx context.Context) error {
-		if err := p.coordinator.effects.CommitTreeBarrier(interruptCtx, TreeBarrierCommit{
+		if err := p.coordinator.barriers.CommitTreeBarrier(interruptCtx, TreeBarrierCommit{
 			Pending:    pending,
 			Runs:       commits,
 			Checkpoint: barrier.Checkpoint,
@@ -237,7 +237,7 @@ func (p treePublisher) publishTreeBarrier(
 func (p treePublisher) append(route *executorRoute, reduced reduction) {
 	p.live.hub.Append(p.coordinator.event(route.runID, route.segmentID, reduced))
 	if reduced.Nudge != nil {
-		p.coordinator.effects.Nudge(reduced.Nudge.CWD, reduced.Nudge.Paths)
+		p.coordinator.workspace.Nudge(reduced.Nudge.CWD, reduced.Nudge.Paths)
 	}
 	if _, ok := reduced.Event.(StateSnapshot); ok {
 		p.coordinator.publishStateMoved(p.rootSpec.SessionID)

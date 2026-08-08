@@ -8,7 +8,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 )
 
-func (s *controller) StartTurn(ctx context.Context, request runs.StartExecution) (Handle, error) {
+func (s *controller) StartTurn(ctx context.Context, request runs.RootExecutionStart) (Handle, error) {
 	handle, err := s.PrepareTurn(ctx, request)
 	if err != nil {
 		return Handle{}, err
@@ -26,7 +26,7 @@ func (s *controller) StartTurn(ctx context.Context, request runs.StartExecution)
 // PrepareTurn establishes all reversible turn state but deliberately does not
 // launch the engine. The application can now durably admit its Run before
 // ActivateTurn crosses the model/tool side-effect boundary.
-func (s *controller) PrepareTurn(ctx context.Context, request runs.StartExecution) (Handle, error) {
+func (s *controller) PrepareTurn(ctx context.Context, request runs.RootExecutionStart) (Handle, error) {
 	if request.SessionID == "" {
 		return Handle{}, errors.New("turn: SessionID is required")
 	}
@@ -82,7 +82,7 @@ func (s *controller) PrepareTurn(ctx context.Context, request runs.StartExecutio
 		request.Message = msg
 	}
 	// Capture the request AFTER the prompt hooks so the (possibly context-injected)
-	// message is what Activate replays into the turn; completing preparation before the hooks
+	// message is what activation replays into the turn; completing preparation before the hooks
 	// would snapshot the pre-injection prompt and silently drop UserPromptSubmit /
 	// SessionStart InjectContext.
 	state.completePreparation(request)

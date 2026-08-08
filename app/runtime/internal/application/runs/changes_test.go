@@ -62,13 +62,14 @@ func TestStartAndTerminalPublishRunAndSessionChanges(t *testing.T) {
 	exec := &fakeExecutor{}
 	effects := &fakeEffects{}
 	sessions := &fakeRunSessions{sess: session.Session{ID: "ses_1", CWD: "/work"}}
-	control := &fakeExecutionControl{startRef: ExecutorRef{SessionID: "ses_1", ExecutorID: "turn_1"}}
+	control := &fakeExecutionPorts{startRef: ExecutorRef{SessionID: "ses_1", ExecutorID: "turn_1"}}
 	changes := &changeRecorder{}
 	c := NewCoordinator(Dependencies{
-		Segments:     exec,
-		Control:      control,
-		Sessions:     sessions,
-		Effects:      effects,
+		RootStarts:   control,
+		Observations: exec,
+		Releases:     control,
+		Session:      testSessionPorts(sessions),
+		Projection:   testProjectionPorts(effects),
 		Now:          func() time.Time { return time.Date(2026, 7, 29, 1, 2, 3, 0, time.UTC) },
 		NewRunID:     func() string { return "run_new" },
 		NewSegmentID: func() string { return "seg_new" },
@@ -119,11 +120,14 @@ func TestCommittedStateChangeReachesOtherWindows(t *testing.T) {
 		Revision: 2, UpdatedAt: time.Date(2026, 7, 29, 1, 2, 3, 0, time.UTC),
 	}}}}
 	changes := &changeRecorder{}
+	control := &fakeExecutionPorts{startRef: ExecutorRef{SessionID: "ses_1", ExecutorID: "turn_1"}}
+	sessions := &fakeRunSessions{sess: session.Session{ID: "ses_1", CWD: "/work"}}
 	c := NewCoordinator(Dependencies{
-		Segments:     exec,
-		Control:      &fakeExecutionControl{startRef: ExecutorRef{SessionID: "ses_1", ExecutorID: "turn_1"}},
-		Sessions:     &fakeRunSessions{sess: session.Session{ID: "ses_1", CWD: "/work"}},
-		Effects:      &fakeEffects{},
+		RootStarts:   control,
+		Observations: exec,
+		Releases:     control,
+		Session:      testSessionPorts(sessions),
+		Projection:   testProjectionPorts(&fakeEffects{}),
 		Now:          func() time.Time { return time.Date(2026, 7, 29, 1, 2, 3, 0, time.UTC) },
 		NewRunID:     func() string { return "run_new" },
 		NewSegmentID: func() string { return "seg_new" },

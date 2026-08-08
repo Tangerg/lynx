@@ -18,11 +18,11 @@ import (
 )
 
 // Pending is one complete Run-tree barrier awaiting human decisions. The set is
-// keyed by RootRunID and consumed all-or-nothing: individual source Runs do not
+// keyed by RootRunID and consumed all-or-nothing: individual member Runs do not
 // own separate resume claims. Interrupts is the published typed set;
 // Suspensions binds each item back to the executor boundary it answers;
 // Continuations is the durable state required to reopen every surviving Run
-// with a fresh Segment, including after process restart.
+// with a fresh Segment, including after host restart.
 type Pending struct {
 	RootRunID  string
 	SessionID  string
@@ -42,13 +42,13 @@ type Pending struct {
 	CreatedAt time.Time
 }
 
-// Continuation is the durable hand-off for one suspended Run. ProcessID is the
+// Continuation is the durable hand-off for one suspended Run. MemberID is the
 // opaque binding between that Run and its executor member; the
 // executor's parent/spawn topology remains inside its opaque checkpoint. Run
 // lineage is the product's independent tree fact.
 type Continuation struct {
 	RunID          string
-	ProcessID      string
+	MemberID       string
 	Lineage        run.RunLineage
 	ModelSelection modelref.Selection
 	DrainedTools   []DrainedTool
@@ -67,17 +67,17 @@ type Continuation struct {
 // interrupt item and the executor suspension that must receive its answer.
 type SuspensionBinding struct {
 	InterruptItemID string
-	ProcessID       string
+	MemberID        string
 	SuspensionID    string
 }
 
 // SuspensionAnswer is one validated decision bound to the exact executor
 // boundary that must consume it. InterruptItemID keeps the transcript item
-// identity attached until the execution-control boundary; ProcessID and
+// identity attached until the execution-control boundary; MemberID and
 // SuspensionID prevent execution from guessing which parked branch it answers.
 type SuspensionAnswer struct {
 	InterruptItemID string
-	ProcessID       string
+	MemberID        string
 	SuspensionID    string
 	Resolution      interrupt.Resolution
 }
@@ -166,7 +166,7 @@ func (p Pending) Validate() error {
 	}
 
 	runIDs := make(map[string]struct{}, len(p.Continuations))
-	processIDs := make(map[string]struct{}, len(p.Continuations))
+	memberIDs := make(map[string]struct{}, len(p.Continuations))
 	treeMembers := make([]run.RunTreeMember, 0, len(p.Continuations))
 	rootCount := 0
 	for index, continuation := range p.Continuations {
@@ -181,10 +181,10 @@ func (p Pending) Validate() error {
 			RunID:   continuation.RunID,
 			Lineage: continuation.Lineage,
 		})
-		if _, duplicate := processIDs[continuation.ProcessID]; duplicate {
-			return fmt.Errorf("interrupts: duplicate continuation process %q", continuation.ProcessID)
+		if _, duplicate := memberIDs[continuation.MemberID]; duplicate {
+			return fmt.Errorf("interrupts: duplicate continuation member %q", continuation.MemberID)
 		}
-		processIDs[continuation.ProcessID] = struct{}{}
+		memberIDs[continuation.MemberID] = struct{}{}
 		if continuation.RunID == p.RootRunID {
 			rootCount++
 			if !continuation.Lineage.IsRoot() {
@@ -250,7 +250,7 @@ func (p Pending) Validate() error {
 			value string
 		}{
 			{name: "interrupt item id", value: binding.InterruptItemID},
-			{name: "process id", value: binding.ProcessID},
+			{name: "member id", value: binding.MemberID},
 			{name: "suspension id", value: binding.SuspensionID},
 		} {
 			if err := validateRequiredIdentity(identity.name, identity.value); err != nil {
@@ -273,12 +273,12 @@ func (p Pending) Validate() error {
 				p.Interrupts[index].ItemID,
 			)
 		}
-		continuation, exists := continuationForProcess(p.Continuations, binding.ProcessID)
+		continuation, exists := continuationForProcess(p.Continuations, binding.MemberID)
 		if !exists {
 			return fmt.Errorf(
-				"interrupts: suspension binding[%d] names unknown process %q",
+				"interrupts: suspension binding[%d] names unknown member %q",
 				index,
-				binding.ProcessID,
+				binding.MemberID,
 			)
 		}
 		if continuation.RunID != interrupt.RunID {
@@ -293,11 +293,11 @@ func (p Pending) Validate() error {
 			return fmt.Errorf("interrupts: item %q is bound more than once", binding.InterruptItemID)
 		}
 		boundItems[binding.InterruptItemID] = struct{}{}
-		key := binding.ProcessID + "\x00" + binding.SuspensionID
+		key := binding.MemberID + "\x00" + binding.SuspensionID
 		if _, duplicate := boundSuspensions[key]; duplicate {
 			return fmt.Errorf(
-				"interrupts: process %q suspension %q is bound more than once",
-				binding.ProcessID,
+				"interrupts: member %q suspension %q is bound more than once",
+				binding.MemberID,
 				binding.SuspensionID,
 			)
 		}
@@ -306,13 +306,13 @@ func (p Pending) Validate() error {
 	return nil
 }
 
-// Validate checks one Run-to-process continuation and all of its transcript
+// Validate checks one Run-to-member continuation and all of its transcript
 // hand-off identities independently of the root-owned Pending aggregate.
 func (c Continuation) Validate() error {
 	if err := validateRequiredIdentity("run id", c.RunID); err != nil {
 		return err
 	}
-	if err := validateRequiredIdentity("process id", c.ProcessID); err != nil {
+	if err := validateRequiredIdentity("member id", c.MemberID); err != nil {
 		return err
 	}
 	if c.RunCreatedAt.IsZero() {
@@ -435,9 +435,9 @@ func validateRequiredIdentity(name, value string) error {
 	return nil
 }
 
-func continuationForProcess(continuations []Continuation, processID string) (Continuation, bool) {
+func continuationForProcess(continuations []Continuation, memberID string) (Continuation, bool) {
 	for _, continuation := range continuations {
-		if continuation.ProcessID == processID {
+		if continuation.MemberID == memberID {
 			return continuation, true
 		}
 	}

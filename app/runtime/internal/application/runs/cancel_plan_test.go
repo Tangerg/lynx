@@ -11,13 +11,13 @@ import (
 
 func TestCancellationPlanPartitionsCanonicalSubtree(t *testing.T) {
 	runs := cancellationTree(run.Running)
-	processes := cancellationProcesses()
+	members := cancellationMembers()
 
 	plan, err := newCancellationPlan(
 		"run_a",
 		runs,
 		ExecutorRef{SessionID: "ses_1", ExecutorID: "turn_1"},
-		processes,
+		members,
 		nil,
 	)
 	if err != nil {
@@ -35,8 +35,8 @@ func TestCancellationPlanPartitionsCanonicalSubtree(t *testing.T) {
 	if got, want := cancellationRunIDs(plan.survivingTree), []string{"run_b", "run_root"}; !sameStrings(got, want) {
 		t.Fatalf("surviving tree = %v, want %v", got, want)
 	}
-	if plan.target.processID != "process_a" || !plan.target.hasProcess {
-		t.Fatalf("target process = %q, bound=%t", plan.target.processID, plan.target.hasProcess)
+	if plan.target.memberID != "member_a" || !plan.target.hasMember {
+		t.Fatalf("target member = %q, bound=%t", plan.target.memberID, plan.target.hasMember)
 	}
 }
 
@@ -63,22 +63,22 @@ func TestCancellationPlanRejectsInconsistentTreeFacts(t *testing.T) {
 		},
 		{
 			name: "missing child process",
-			mutate: func(_ []transcript.Run, processes map[string]string) {
-				delete(processes, "run_a1")
+			mutate: func(_ []transcript.Run, members map[string]string) {
+				delete(members, "run_a1")
 			},
 			want: "has no executor binding",
 		},
 		{
 			name: "duplicate process binding",
-			mutate: func(_ []transcript.Run, processes map[string]string) {
-				processes["run_a1"] = processes["run_b"]
+			mutate: func(_ []transcript.Run, members map[string]string) {
+				members["run_a1"] = members["run_b"]
 			},
 			want: "is bound to Runs",
 		},
 		{
 			name: "unknown bound Run",
-			mutate: func(_ []transcript.Run, processes map[string]string) {
-				processes["run_unknown"] = "process_unknown"
+			mutate: func(_ []transcript.Run, members map[string]string) {
+				members["run_unknown"] = "process_unknown"
 			},
 			want: "names unknown Run",
 		},
@@ -86,13 +86,13 @@ func TestCancellationPlanRejectsInconsistentTreeFacts(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			runs := cancellationTree(run.Running)
-			processes := cancellationProcesses()
-			test.mutate(runs, processes)
+			members := cancellationMembers()
+			test.mutate(runs, members)
 			_, err := newCancellationPlan(
 				"run_a",
 				runs,
 				ExecutorRef{SessionID: "ses_1", ExecutorID: "turn_1"},
-				processes,
+				members,
 				nil,
 			)
 			if err == nil || !strings.Contains(err.Error(), test.want) {
@@ -159,13 +159,13 @@ func cancellationTree(state run.RunState) []transcript.Run {
 	}
 }
 
-func cancellationProcesses() map[string]string {
+func cancellationMembers() map[string]string {
 	return map[string]string{
-		"run_root": "process_root",
-		"run_a":    "process_a",
-		"run_a0":   "process_a0",
-		"run_a1":   "process_a1",
-		"run_b":    "process_b",
+		"run_root": "member_root",
+		"run_a":    "member_a",
+		"run_a0":   "member_a0",
+		"run_a1":   "member_a1",
+		"run_b":    "member_b",
 	}
 }
 

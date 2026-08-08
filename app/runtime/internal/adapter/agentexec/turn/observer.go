@@ -64,11 +64,11 @@ func (t *turnObserver) admitChild(ctx context.Context, child agentexec.ChildProc
 	if err != nil {
 		return fmt.Errorf("turn: admit child process %q: %w", child.ID, err)
 	}
-	if binding.ProcessID != child.ID {
+	if binding.MemberID != child.ID {
 		return fmt.Errorf(
 			"turn: admitted child process %q returned binding for process %q",
 			child.ID,
-			binding.ProcessID,
+			binding.MemberID,
 		)
 	}
 	return t.bindChildRun(binding)
@@ -93,11 +93,11 @@ func (t *turnObserver) bindChildRun(binding runs.ChildRunBinding) error {
 		t.childRuns = make(map[string]runs.ChildRunBinding)
 		t.childProcesses = make(map[string]string)
 	}
-	if existing, ok := t.childRuns[binding.ProcessID]; ok {
+	if existing, ok := t.childRuns[binding.MemberID]; ok {
 		if existing != binding {
 			return fmt.Errorf(
 				"turn: child process %q binding changed from Run %q to %q",
-				binding.ProcessID,
+				binding.MemberID,
 				existing.RunID,
 				binding.RunID,
 			)
@@ -111,8 +111,8 @@ func (t *turnObserver) bindChildRun(binding runs.ChildRunBinding) error {
 			processID,
 		)
 	}
-	t.childRuns[binding.ProcessID] = binding
-	t.childProcesses[binding.RunID] = binding.ProcessID
+	t.childRuns[binding.MemberID] = binding
+	t.childProcesses[binding.RunID] = binding.MemberID
 	return nil
 }
 

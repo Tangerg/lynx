@@ -96,7 +96,7 @@ func pendingForRun(
 		}
 		bindings[index] = runs.SuspensionBinding{
 			InterruptItemID: copied[index].ItemID,
-			ProcessID:       processID,
+			MemberID:        processID,
 			SuspensionID:    "suspension_" + copied[index].ItemID,
 		}
 	}
@@ -109,7 +109,7 @@ func pendingForRun(
 		Capabilities: capabilitiesForInterrupts(copied),
 		Continuations: []runs.Continuation{{
 			RunID:        runID,
-			ProcessID:    processID,
+			MemberID:     processID,
 			RunCreatedAt: runCreatedAt,
 		}},
 		CreatedAt: createdAt,
@@ -149,7 +149,7 @@ func TestParkCommitsInterruptAndSuspendAtomically(t *testing.T) {
 		if err := ints.Open(ctx, pendingForRun(
 			"run_1",
 			"ses_A",
-			"proc_1",
+			"member_1",
 			parkedRun("run_1", "ses_A").Interrupts,
 			time.Unix(2, 0).UTC(),
 		)); err != nil {
@@ -484,7 +484,7 @@ func TestPageRunsReturnsEveryLifecyclePosition(t *testing.T) {
 	if err := ints.Open(ctx, pendingForRun(
 		parked.ID,
 		parked.SessionID,
-		"proc_parked",
+		"member_parked",
 		parked.Interrupts,
 		time.Unix(0, 10).UTC(),
 	)); err != nil {
@@ -762,7 +762,7 @@ func TestRunCapabilitiesAreImmutable(t *testing.T) {
 	pending := pendingForRun(
 		"run_1",
 		"ses_A",
-		"proc_1",
+		"member_1",
 		parked.Interrupts,
 		time.Unix(5, 0).UTC(),
 	)

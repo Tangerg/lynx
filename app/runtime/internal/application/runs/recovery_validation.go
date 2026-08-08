@@ -106,7 +106,7 @@ func validateRecoveryParkedTree(
 		return false, nil
 	}
 	resumable, err := checkpoints.CanResumeCheckpoint(ctx, ExecutorCheckpointExpectation{
-		RootProcessID:  rootContinuation.ProcessID,
+		RootMemberID:   rootContinuation.MemberID,
 		SessionID:      pending.SessionID,
 		CWD:            sess.CWD,
 		WorkspaceCWD:   sess.CWD,
@@ -118,7 +118,7 @@ func validateRecoveryParkedTree(
 	if err != nil {
 		return false, fmt.Errorf(
 			"runs: validate executor checkpoint %q resumability: %w",
-			rootContinuation.ProcessID,
+			rootContinuation.MemberID,
 			err,
 		)
 	}

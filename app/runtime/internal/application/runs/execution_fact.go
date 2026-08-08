@@ -15,52 +15,52 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
-// ExecutorSource is the executor-owned identity of the process that produced an
-// event. It deliberately carries no Run or Segment identity: mapping execution
-// processes onto application Runs belongs to the Coordinator.
-type ExecutorSource struct {
-	ProcessID   string
+// ExecutorMember is the executor-owned identity of the member that produced an
+// event. It deliberately carries no Run or Segment identity: mapping executor
+// members onto application Runs belongs to the Coordinator.
+type ExecutorMember struct {
+	MemberID    string
 	ParentID    string
 	SpawnCallID string
 }
 
-// Child reports whether this source belongs to a delegated process.
-func (source ExecutorSource) Child() bool { return source.ParentID != "" }
+// Child reports whether this member was delegated by another member.
+func (member ExecutorMember) Child() bool { return member.ParentID != "" }
 
-// Validate rejects malformed or self-referential process identity. An entirely
-// empty source is reserved for a root execution that failed before the executor
-// created its process.
-func (source ExecutorSource) Validate() error {
-	if source.ProcessID != strings.TrimSpace(source.ProcessID) {
-		return errors.New("runs: executor source process id has surrounding whitespace")
+// Validate rejects malformed or self-referential member identity. An entirely
+// empty member is reserved for a root execution that failed before the executor
+// created its member.
+func (member ExecutorMember) Validate() error {
+	if member.MemberID != strings.TrimSpace(member.MemberID) {
+		return errors.New("runs: executor member id has surrounding whitespace")
 	}
-	if source.ParentID != strings.TrimSpace(source.ParentID) {
-		return errors.New("runs: executor source parent id has surrounding whitespace")
+	if member.ParentID != strings.TrimSpace(member.ParentID) {
+		return errors.New("runs: executor member parent id has surrounding whitespace")
 	}
-	if source.SpawnCallID != strings.TrimSpace(source.SpawnCallID) {
-		return errors.New("runs: executor source spawn call id has surrounding whitespace")
+	if member.SpawnCallID != strings.TrimSpace(member.SpawnCallID) {
+		return errors.New("runs: executor member spawn call id has surrounding whitespace")
 	}
-	if source.ProcessID == "" {
-		if source.ParentID != "" || source.SpawnCallID != "" {
-			return errors.New("runs: empty executor process id cannot carry parent or spawn-call identity")
+	if member.MemberID == "" {
+		if member.ParentID != "" || member.SpawnCallID != "" {
+			return errors.New("runs: empty executor member id cannot carry parent or spawn-call identity")
 		}
 		return nil
 	}
-	if source.ParentID == source.ProcessID {
-		return errors.New("runs: executor source cannot parent itself")
+	if member.ParentID == member.MemberID {
+		return errors.New("runs: executor member cannot parent itself")
 	}
-	if source.ParentID == "" && source.SpawnCallID != "" {
-		return errors.New("runs: root executor source cannot carry spawn-call identity")
+	if member.ParentID == "" && member.SpawnCallID != "" {
+		return errors.New("runs: root executor member cannot carry spawn-call identity")
 	}
 	return nil
 }
 
-// ExecutorEvent is the driven-executor port value. Source identifies the
-// concrete root/child process; Payload is the closed application-owned signal
+// ExecutorEvent is the driven-executor port value. Member identifies the
+// concrete root/child member; Payload is the closed application-owned signal
 // family. A root stream may therefore carry child signals without relabeling
 // their producer as the root.
 type ExecutorEvent struct {
-	Source  ExecutorSource
+	Member  ExecutorMember
 	Payload ExecutorPayload
 }
 
@@ -69,7 +69,7 @@ func (event ExecutorEvent) Validate() error {
 	if event.Payload == nil {
 		return errors.New("runs: executor event payload is required")
 	}
-	return event.Source.Validate()
+	return event.Member.Validate()
 }
 
 // ExecutorPayload is the closed family carried by the ordered executor stream.
@@ -85,7 +85,7 @@ type executorPayloadBase struct{}
 func (executorPayloadBase) executorPayload() {}
 
 // ExecutionFact is the closed application-owned execution fact family emitted at
-// the SegmentExecutor port. Control handshakes deliberately implement only
+// the ExecutionObserver port. Control handshakes deliberately implement only
 // [ExecutorPayload], so they cannot accidentally enter the reducer.
 type ExecutionFact interface {
 	ExecutorPayload
@@ -110,7 +110,7 @@ type ToolCallStarted struct {
 	executionFactBase
 	CallID string
 	// SourceCallID is the executor's parent-call identity. It exists solely to map
-	// a child Process causal edge to this
+	// a child member causal edge to this
 	// canonical Item without parsing CallID or relying on event timing.
 	SourceCallID string
 	ToolName     string
@@ -139,12 +139,12 @@ type CompactionBoundary struct {
 	MessagesAfter  int
 }
 
-// ProcessSuspension is one direct external-input boundary discovered in the
-// executor tree. ProcessID identifies the source process already admitted to an
+// MemberInterruption is one direct external-input boundary discovered in the
+// executor tree. MemberID identifies the member already admitted to an
 // application Run; SuspensionID is private continuation identity; Interrupt is
 // the application prompt projected from that suspension.
-type ProcessSuspension struct {
-	ProcessID    string
+type MemberInterruption struct {
+	MemberID     string
 	SuspensionID string
 	Interrupt    Interrupt
 }
@@ -159,7 +159,7 @@ type TreeInterrupted struct {
 	// boundary as Suspensions. The Coordinator never interprets it; it only
 	// places its write into the tree-barrier transaction.
 	Checkpoint  ExecutorCheckpoint
-	Suspensions []ProcessSuspension
+	Suspensions []MemberInterruption
 }
 
 func (barrier TreeInterrupted) validate() error {
@@ -171,8 +171,8 @@ func (barrier TreeInterrupted) validate() error {
 	}
 	seen := make(map[string]struct{}, len(barrier.Suspensions))
 	for index, suspension := range barrier.Suspensions {
-		if strings.TrimSpace(suspension.ProcessID) == "" {
-			return fmt.Errorf("runs: tree interrupt suspension[%d] has no process id", index)
+		if strings.TrimSpace(suspension.MemberID) == "" {
+			return fmt.Errorf("runs: tree interrupt suspension[%d] has no member id", index)
 		}
 		if strings.TrimSpace(suspension.SuspensionID) == "" {
 			return fmt.Errorf("runs: tree interrupt suspension[%d] has no suspension id", index)
@@ -180,11 +180,11 @@ func (barrier TreeInterrupted) validate() error {
 		if err := suspension.Interrupt.Validate(); err != nil {
 			return fmt.Errorf("runs: tree interrupt suspension[%d]: %w", index, err)
 		}
-		key := suspension.ProcessID + "\x00" + suspension.SuspensionID
+		key := suspension.MemberID + "\x00" + suspension.SuspensionID
 		if _, duplicate := seen[key]; duplicate {
 			return fmt.Errorf(
-				"runs: process %q repeated suspension %q",
-				suspension.ProcessID,
+				"runs: member %q repeated suspension %q",
+				suspension.MemberID,
 				suspension.SuspensionID,
 			)
 		}
@@ -194,7 +194,7 @@ func (barrier TreeInterrupted) validate() error {
 }
 
 func (barrier TreeInterrupted) validateFor(
-	rootProcessID string,
+	rootMemberID string,
 	sessionID string,
 	goalLeaseID string,
 	selection modelref.Selection,
@@ -202,7 +202,7 @@ func (barrier TreeInterrupted) validateFor(
 	if err := barrier.validate(); err != nil {
 		return err
 	}
-	if err := barrier.Checkpoint.ValidateOwnership(rootProcessID, sessionID); err != nil {
+	if err := barrier.Checkpoint.ValidateOwnership(rootMemberID, sessionID); err != nil {
 		return fmt.Errorf("runs: executor tree interrupt checkpoint ownership: %w", err)
 	}
 	if barrier.Checkpoint.Scope.GoalLeaseID != goalLeaseID {
@@ -226,7 +226,7 @@ func (barrier TreeInterrupted) validateFor(
 	return nil
 }
 
-// SegmentInterrupted is the source-Run reducer input derived from a
+// SegmentInterrupted is the member-Run reducer input derived from a
 // [TreeInterrupted] barrier. Executor sources never emit it directly.
 type SegmentInterrupted struct {
 	executionFactBase

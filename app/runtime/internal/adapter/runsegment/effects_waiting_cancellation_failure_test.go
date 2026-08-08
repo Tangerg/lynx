@@ -128,7 +128,7 @@ func TestCommitWaitingSubtreeCancellationRejectsStalePendingWithoutMutation(t *t
 
 func TestCommitWaitingSubtreeCancellationRejectsMismatchedCheckpointBindingWithoutMutation(t *testing.T) {
 	for name, mutate := range map[string]func(*runs.ExecutorCheckpoint){
-		"root":       func(checkpoint *runs.ExecutorCheckpoint) { checkpoint.RootProcessID = "other_root" },
+		"root":       func(checkpoint *runs.ExecutorCheckpoint) { checkpoint.RootMemberID = "other_root" },
 		"session":    func(checkpoint *runs.ExecutorCheckpoint) { checkpoint.Scope.SessionID = "other_session" },
 		"goal lease": func(checkpoint *runs.ExecutorCheckpoint) { checkpoint.Scope.GoalLeaseID = "other_goal" },
 		"limits":     func(checkpoint *runs.ExecutorCheckpoint) { checkpoint.Limits.MaxTotalTokens++ },

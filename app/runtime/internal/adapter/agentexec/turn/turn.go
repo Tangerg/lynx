@@ -19,7 +19,7 @@ import (
 // segment to a suspension point — a HITL interrupt (park) or a terminal
 // state. Later segments are driven by [controller.Resume] through the
 // shared [drive] loop. st.ctx (the turn's own lifetime) bounds the run.
-func (s *controller) runTurn(request runs.StartExecution, st *turnState) {
+func (s *controller) runTurn(request runs.RootExecutionStart, st *turnState) {
 	// Resolve a per-turn client when the Run picked a provider+model. Preparation
 	// has already rejected an explicit selection without a chat resolver.
 	var client *chatclient.Client
@@ -215,7 +215,7 @@ func (s *controller) emitInterrupt(
 	}
 	barrier := runs.TreeInterrupted{
 		Checkpoint:  checkpoint.Checkpoint,
-		Suspensions: make([]runs.ProcessSuspension, len(pending)),
+		Suspensions: make([]runs.MemberInterruption, len(pending)),
 	}
 	for index, suspension := range pending {
 		interrupt, ok := typedInterrupt(suspension.Prompt)
@@ -233,8 +233,8 @@ func (s *controller) emitInterrupt(
 			return
 		}
 		recordInterruptMetric(st.ctx, interrupt.Kind.String())
-		barrier.Suspensions[index] = runs.ProcessSuspension{
-			ProcessID:    suspension.ProcessID,
+		barrier.Suspensions[index] = runs.MemberInterruption{
+			MemberID:     suspension.ProcessID,
 			SuspensionID: suspension.SuspensionID,
 			Interrupt:    interrupt,
 		}

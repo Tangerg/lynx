@@ -25,9 +25,9 @@ func (store *ExecutorCheckpointStore) SaveCheckpoint(ctx context.Context, checkp
 		return err
 	}
 	err := store.storage.SaveCheckpoint(ctx, sqlite.ExecutorCheckpointRecord{
-		RootProcessID: checkpoint.RootProcessID,
-		Payload:       append([]byte(nil), checkpoint.Payload...),
-		BuildID:       checkpoint.BuildID,
+		RootMemberID: checkpoint.RootMemberID,
+		Payload:      append([]byte(nil), checkpoint.Payload...),
+		BuildID:      checkpoint.BuildID,
 		Scope: sqlite.ExecutorScopeRecord{
 			SessionID:    checkpoint.Scope.SessionID,
 			CWD:          checkpoint.Scope.CWD,
@@ -42,15 +42,15 @@ func (store *ExecutorCheckpointStore) SaveCheckpoint(ctx context.Context, checkp
 	return translateCheckpointStorageError(err)
 }
 
-func (store *ExecutorCheckpointStore) LoadCheckpoint(ctx context.Context, rootProcessID string) (runs.ExecutorCheckpoint, error) {
-	record, err := store.storage.LoadCheckpoint(ctx, rootProcessID)
+func (store *ExecutorCheckpointStore) LoadCheckpoint(ctx context.Context, rootMemberID string) (runs.ExecutorCheckpoint, error) {
+	record, err := store.storage.LoadCheckpoint(ctx, rootMemberID)
 	if err != nil {
 		return runs.ExecutorCheckpoint{}, translateCheckpointStorageError(err)
 	}
 	checkpoint := runs.ExecutorCheckpoint{
-		RootProcessID: record.RootProcessID,
-		Payload:       append([]byte(nil), record.Payload...),
-		BuildID:       record.BuildID,
+		RootMemberID: record.RootMemberID,
+		Payload:      append([]byte(nil), record.Payload...),
+		BuildID:      record.BuildID,
 		Scope: runs.ExecutionScope{
 			SessionID:    record.Scope.SessionID,
 			CWD:          record.Scope.CWD,

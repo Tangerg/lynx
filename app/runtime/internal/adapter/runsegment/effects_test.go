@@ -73,12 +73,12 @@ func singleRunPending(
 		}},
 		Suspensions: []runs.SuspensionBinding{{
 			InterruptItemID: itemID,
-			ProcessID:       processID,
+			MemberID:        processID,
 			SuspensionID:    suspensionID,
 		}},
 		Continuations: []runs.Continuation{{
 			RunID:          runID,
-			ProcessID:      processID,
+			MemberID:       processID,
 			ModelSelection: mustEffectSelection(t, "anthropic", "claude"),
 			RunCreatedAt:   runCreatedAt,
 		}},
@@ -328,7 +328,7 @@ func TestCommitTreeBarrierRecordsPendingSetAndSuspends(t *testing.T) {
 
 	got := stores.interrupts.pending
 	root, ok := got.RootContinuation()
-	if got.RootRunID != "run_1" || !ok || root.ProcessID != "proc_1" ||
+	if got.RootRunID != "run_1" || !ok || root.MemberID != "proc_1" ||
 		root.ModelSelection.Provider() != "anthropic" || root.ModelSelection.Model() != "claude" {
 		t.Fatalf("pending = %+v", got)
 	}
@@ -353,7 +353,7 @@ func TestCommitTreeBarrierRejectsIncompleteContinuation(t *testing.T) {
 	effects := testEffects(stores, Config{RunState: runState, Tx: tx.run})
 	createdAt := time.Unix(1, 0).UTC()
 	pending := singleRunPending(t, "run_1", "ses_1", "proc_1", "susp_1", "int_1", createdAt, createdAt.Add(time.Second))
-	pending.Continuations[0].ProcessID = ""
+	pending.Continuations[0].MemberID = ""
 
 	err := effects.CommitTreeBarrier(context.Background(), runs.TreeBarrierCommit{
 		Pending:    pending,
@@ -367,8 +367,8 @@ func TestCommitTreeBarrierRejectsIncompleteContinuation(t *testing.T) {
 			},
 		}},
 	})
-	if err == nil || !strings.Contains(err.Error(), "process id is required") {
-		t.Fatalf("CommitTreeBarrier error = %v, want missing process id", err)
+	if err == nil || !strings.Contains(err.Error(), "member id is required") {
+		t.Fatalf("CommitTreeBarrier error = %v, want missing member id", err)
 	}
 	if stores.interrupts.pending.RootRunID != "" {
 		t.Fatalf("invalid pending set was persisted: %+v", stores.interrupts.pending)
@@ -389,7 +389,7 @@ func TestCommitTreeBarrierRejectsMismatchedCheckpointBindingBeforeTransaction(t 
 		createdAt, createdAt.Add(time.Second),
 	)
 	for name, mutate := range map[string]func(*runs.ExecutorCheckpoint){
-		"root":       func(checkpoint *runs.ExecutorCheckpoint) { checkpoint.RootProcessID = "other_proc" },
+		"root":       func(checkpoint *runs.ExecutorCheckpoint) { checkpoint.RootMemberID = "other_proc" },
 		"session":    func(checkpoint *runs.ExecutorCheckpoint) { checkpoint.Scope.SessionID = "other_session" },
 		"goal lease": func(checkpoint *runs.ExecutorCheckpoint) { checkpoint.Scope.GoalLeaseID = "other_goal" },
 		"limits":     func(checkpoint *runs.ExecutorCheckpoint) { checkpoint.Limits.MaxTotalTokens++ },

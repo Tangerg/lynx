@@ -18,7 +18,7 @@ func TestResolveResumeResponsesValidatesExactTypedCoverage(t *testing.T) {
 			Tool: transcript.ToolInvocation{Name: "shell"}, Risk: "medium", Rememberable: true,
 		},
 	}}, Suspensions: []SuspensionBinding{{
-		InterruptItemID: "item_approval", ProcessID: "process_approval", SuspensionID: "suspension_approval",
+		InterruptItemID: "item_approval", MemberID: "member_approval", SuspensionID: "suspension_approval",
 	}}}
 	answers, err := resolveResumeResponses(approvalPending, []ResumeResponse{{
 		ItemID: "item_approval",
@@ -60,7 +60,7 @@ func TestResolveResumeResponsesValidatesExactTypedCoverage(t *testing.T) {
 			Options: []transcript.QuestionOption{{Label: "Go"}, {Label: "Stop"}},
 		}}},
 	}}, Suspensions: []SuspensionBinding{{
-		InterruptItemID: "item_question", ProcessID: "process_question", SuspensionID: "suspension_question",
+		InterruptItemID: "item_question", MemberID: "process_question", SuspensionID: "suspension_question",
 	}}}
 	answers, err = resolveResumeResponses(questionPending, []ResumeResponse{{
 		ItemID: "item_question",
@@ -104,7 +104,7 @@ func TestResolveResumeResponsesValidatesExactTypedCoverage(t *testing.T) {
 				Approval: &transcript.Approval{Tool: transcript.ToolInvocation{Name: "shell"}, Risk: "medium"},
 			}},
 			Suspensions: []SuspensionBinding{{
-				InterruptItemID: "item_one_off", ProcessID: "process_one_off", SuspensionID: "suspension_one_off",
+				InterruptItemID: "item_one_off", MemberID: "process_one_off", SuspensionID: "suspension_one_off",
 			}},
 		}, responses: []ResumeResponse{{
 			ItemID: "item_one_off", Kind: ApprovalResponseKind,
@@ -140,8 +140,8 @@ func TestResolveResumeResponsesPreservesCompleteBarrierInCanonicalOrder(t *testi
 			},
 		},
 		Suspensions: []SuspensionBinding{
-			{InterruptItemID: "item_a", ProcessID: "process_a", SuspensionID: "suspension_a"},
-			{InterruptItemID: "item_b", ProcessID: "process_b", SuspensionID: "suspension_b"},
+			{InterruptItemID: "item_a", MemberID: "member_a", SuspensionID: "suspension_a"},
+			{InterruptItemID: "item_b", MemberID: "member_b", SuspensionID: "suspension_b"},
 		},
 	}
 	answers, err := resolveResumeResponses(pending, []ResumeResponse{
@@ -163,13 +163,13 @@ func TestResolveResumeResponsesPreservesCompleteBarrierInCanonicalOrder(t *testi
 		t.Fatalf("answers = %#v", answers)
 	}
 	if answers[0].InterruptItemID != "item_a" ||
-		answers[0].ProcessID != "process_a" ||
+		answers[0].MemberID != "member_a" ||
 		answers[0].SuspensionID != "suspension_a" ||
 		!answers[0].Resolution.Approved {
 		t.Fatalf("answer[0] = %#v", answers[0])
 	}
 	if answers[1].InterruptItemID != "item_b" ||
-		answers[1].ProcessID != "process_b" ||
+		answers[1].MemberID != "member_b" ||
 		answers[1].SuspensionID != "suspension_b" ||
 		answers[1].Resolution.Approved ||
 		answers[1].Resolution.Reason != "skip b" {

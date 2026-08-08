@@ -35,7 +35,7 @@ type ApprovalPrompt struct {
 	Reason      string
 	// Rememberable distinguishes ordinary policy approvals from one-off
 	// confirmations such as the doom-loop brake. It must persist with the
-	// prompt so a resumed process cannot accidentally create a standing rule.
+	// prompt so a resumed execution cannot accidentally create a standing rule.
 	Rememberable bool
 }
 

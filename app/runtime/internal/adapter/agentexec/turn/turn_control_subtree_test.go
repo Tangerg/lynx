@@ -147,9 +147,9 @@ func TestPrepareWaitingCancellationProjectsTypedBoundaryAndReleasesClaimOnAbort(
 	if err != nil {
 		t.Fatalf("PrepareWaitingSubtreeCancellation: %v", err)
 	}
-	pending := prepared.PendingSuspensions
+	pending := prepared.PendingInterruptions
 	if len(pending) != 1 ||
-		pending[0].ProcessID != "process_sibling" ||
+		pending[0].MemberID != "process_sibling" ||
 		pending[0].SuspensionID != "suspension_sibling" ||
 		pending[0].Interrupt.Kind != interrupt.Question {
 		t.Fatalf("projected pending suspensions = %+v", pending)

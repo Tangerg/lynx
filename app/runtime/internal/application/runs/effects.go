@@ -8,18 +8,53 @@ type Nudge struct {
 	Paths []string
 }
 
-// Effects commits one segment's durable projections before publication and
-// owns Run-boundary maintenance after the live stream closes.
-type Effects interface {
+// OpeningCommitter persists one fresh admission or continuation before the
+// corresponding Run events are published.
+type OpeningCommitter interface {
 	CommitOpening(ctx context.Context, opening OpeningCommit) error
+}
+
+// EventCommitter persists one reduced executor fact before publication.
+type EventCommitter interface {
 	CommitEvent(ctx context.Context, commit EventCommit) error
+}
+
+// TreeBarrierCommitter atomically persists a complete waiting tree boundary.
+type TreeBarrierCommitter interface {
 	CommitTreeBarrier(ctx context.Context, barrier TreeBarrierCommit) error
+}
+
+// WaitingSubtreeCancellationCommitter owns the atomic application write-set for
+// canceling a child subtree while its root is waiting.
+type WaitingSubtreeCancellationCommitter interface {
 	CommitWaitingSubtreeCancellation(
 		ctx context.Context,
 		commit WaitingSubtreeCancellationCommit,
 	) (WaitingSubtreeCancellationResult, error)
+}
+
+// WorkspaceChangeNotifier emits a best-effort live workspace invalidation after
+// the durable transcript projection has committed.
+type WorkspaceChangeNotifier interface {
 	Nudge(cwd string, paths []string)
+}
+
+// SegmentFinalizer performs post-boundary maintenance after the live stream has
+// closed. It cannot change the already committed Run outcome.
+type SegmentFinalizer interface {
 	Finish(ctx context.Context, fin Finish) error
+}
+
+// ProjectionPorts groups the independently consumed Run projection ports for
+// composition. It is a value bundle, not a facade: Coordinator stores and uses
+// each capability separately, and implementations may provide them independently.
+type ProjectionPorts struct {
+	Openings     OpeningCommitter
+	Events       EventCommitter
+	Barriers     TreeBarrierCommitter
+	WaitingEdits WaitingSubtreeCancellationCommitter
+	Workspace    WorkspaceChangeNotifier
+	Finalizer    SegmentFinalizer
 }
 
 // Finish describes terminal Run-boundary maintenance after the live stream closes.

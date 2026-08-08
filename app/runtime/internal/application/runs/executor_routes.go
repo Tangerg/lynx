@@ -13,13 +13,13 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
-// executorRoute is the pump-local binding from one immutable executor process
+// executorRoute is the pump-local binding from one immutable executor member
 // identity to its application Run. A child route is installed only after its
 // opening transaction commits; every installed route owns one independent
 // Segment reducer.
 type executorRoute struct {
-	source           ExecutorSource
-	sourceBound      bool
+	member           ExecutorMember
+	memberBound      bool
 	runID            string
 	segmentID        string
 	rootRunID        string
@@ -35,7 +35,7 @@ type executorRoute struct {
 type executorRoutes struct {
 	rootBound      bool
 	root           *executorRoute
-	byProcess      map[string]*executorRoute
+	byMember       map[string]*executorRoute
 	byRunID        map[string]*executorRoute
 	admissionOrder []*executorRoute
 }
@@ -67,7 +67,7 @@ func (c *Coordinator) openingRoutes(
 	}
 	return &executorRoutes{
 		root:           root,
-		byProcess:      make(map[string]*executorRoute),
+		byMember:       make(map[string]*executorRoute),
 		byRunID:        map[string]*executorRoute{root.runID: root},
 		admissionOrder: []*executorRoute{root},
 	}, nil
@@ -98,13 +98,13 @@ func (c *Coordinator) resumedExecutorRoutes(
 	}
 	routes := &executorRoutes{
 		rootBound: true,
-		byProcess: make(map[string]*executorRoute, len(continuation.continuations)),
+		byMember:  make(map[string]*executorRoute, len(continuation.continuations)),
 		byRunID:   make(map[string]*executorRoute, len(continuation.continuations)),
 	}
 	segmentIDs := map[string]struct{}{spec.SegmentID: {}}
-	for _, member := range continuation.continuations {
+	for _, continuationState := range continuation.continuations {
 		segmentID := spec.SegmentID
-		if member.RunID != continuation.rootRunID {
+		if continuationState.RunID != continuation.rootRunID {
 			if c.newSegmentID == nil {
 				return nil, errors.New("runs: resumed child routes require a segment identity generator")
 			}
@@ -112,7 +112,7 @@ func (c *Coordinator) resumedExecutorRoutes(
 			if segmentID == "" {
 				return nil, fmt.Errorf(
 					"runs: resumed child Run %q generated an empty segment id",
-					member.RunID,
+					continuationState.RunID,
 				)
 			}
 			if _, duplicate := segmentIDs[segmentID]; duplicate {
@@ -120,25 +120,25 @@ func (c *Coordinator) resumedExecutorRoutes(
 			}
 			segmentIDs[segmentID] = struct{}{}
 		}
-		source := ExecutorSource{ProcessID: member.ProcessID}
-		if err := source.Validate(); err != nil {
-			return nil, fmt.Errorf("runs: resumed Run %q source: %w", member.RunID, err)
+		member := ExecutorMember{MemberID: continuationState.MemberID}
+		if err := member.Validate(); err != nil {
+			return nil, fmt.Errorf("runs: resumed Run %q member: %w", continuationState.RunID, err)
 		}
 		route := &executorRoute{
-			source:           source,
-			sourceBound:      member.Lineage.IsRoot(),
-			runID:            member.RunID,
+			member:           member,
+			memberBound:      continuationState.Lineage.IsRoot(),
+			runID:            continuationState.RunID,
 			segmentID:        segmentID,
 			rootRunID:        continuation.rootRunID,
-			lineage:          member.Lineage,
-			modelSelection:   member.ModelSelection,
-			limits:           member.Limits,
+			lineage:          continuationState.Lineage,
+			modelSelection:   continuationState.ModelSelection,
+			limits:           continuationState.Limits,
 			capabilities:     continuation.capabilities,
 			segmentStartedAt: time.Time{},
 		}
 		userInput := []transcript.ContentBlock(nil)
 		goalLeaseID := ""
-		if member.RunID == continuation.rootRunID {
+		if continuationState.RunID == continuation.rootRunID {
 			userInput = spec.Input
 			goalLeaseID = spec.GoalLeaseID
 		}
@@ -146,12 +146,12 @@ func (c *Coordinator) resumedExecutorRoutes(
 			RunID: route.runID, SegmentID: route.segmentID, SessionID: spec.SessionID,
 			Lineage: route.lineage, CWD: spec.CWD, ExecutorID: spec.ExecutorID,
 			GoalLeaseID: goalLeaseID, ModelSelection: route.modelSelection,
-			CreatedAt: member.RunCreatedAt, UserInput: userInput,
-			Metrics: member.Metrics, Limits: member.Limits,
+			CreatedAt: continuationState.RunCreatedAt, UserInput: userInput,
+			Metrics: continuationState.Metrics, Limits: continuationState.Limits,
 			Capabilities: continuation.capabilities, Continuation: continuation,
 			Now: c.now, CancelReason: cancellationReason(cancelReason, route.runID),
 		})
-		routes.byProcess[source.ProcessID] = route
+		routes.byMember[member.MemberID] = route
 		routes.byRunID[route.runID] = route
 		if route.runID == continuation.rootRunID {
 			routes.root = route
@@ -255,111 +255,111 @@ func (route *executorRoute) activeDuration(boundary time.Time) time.Duration {
 	return boundary.Sub(route.segmentStartedAt)
 }
 
-// resolve binds the first root source and then requires exact source stability.
+// resolve binds the first root member and then requires exact member stability.
 // Child sources are never inferred from lineage alone: they become routable only
 // after [Coordinator.openChildRun] commits and installs their exact identity.
-func (routes *executorRoutes) resolve(source ExecutorSource) (*executorRoute, error) {
-	if source.Child() {
-		if source.SpawnCallID == "" {
-			return nil, fmt.Errorf("runs: child executor source %q has no spawn-call identity", source.ProcessID)
+func (routes *executorRoutes) resolve(member ExecutorMember) (*executorRoute, error) {
+	if member.Child() {
+		if member.SpawnCallID == "" {
+			return nil, fmt.Errorf("runs: child executor member %q has no spawn-call identity", member.MemberID)
 		}
-		route := routes.byProcess[source.ProcessID]
+		route := routes.byMember[member.MemberID]
 		if route == nil {
-			return nil, fmt.Errorf("runs: child executor source %q has no admitted child run", source.ProcessID)
+			return nil, fmt.Errorf("runs: child executor member %q has no admitted child run", member.MemberID)
 		}
 		if !route.lineage.IsChild() {
-			return nil, fmt.Errorf("runs: root Run %q emitted a child executor source", route.runID)
+			return nil, fmt.Errorf("runs: root Run %q emitted a child executor member", route.runID)
 		}
-		if !route.sourceBound {
+		if !route.memberBound {
 			parent := routes.byRunID[route.lineage.ParentRunID]
-			if parent == nil || parent.source.ProcessID == "" {
+			if parent == nil || parent.member.MemberID == "" {
 				return nil, fmt.Errorf(
 					"runs: resumed child Run %q has no bound parent Run %q",
 					route.runID,
 					route.lineage.ParentRunID,
 				)
 			}
-			if source.ParentID != parent.source.ProcessID {
+			if member.ParentID != parent.member.MemberID {
 				return nil, fmt.Errorf(
-					"runs: resumed child executor source %q names parent %q, want Run %q process %q",
-					source.ProcessID,
-					source.ParentID,
+					"runs: resumed child executor member %q names parent %q, want Run %q member %q",
+					member.MemberID,
+					member.ParentID,
 					parent.runID,
-					parent.source.ProcessID,
+					parent.member.MemberID,
 				)
 			}
-			route.source = source
-			route.sourceBound = true
-		} else if route.source != source {
-			return nil, fmt.Errorf("runs: child executor source %q changed immutable lineage", source.ProcessID)
+			route.member = member
+			route.memberBound = true
+		} else if route.member != member {
+			return nil, fmt.Errorf("runs: child executor member %q changed immutable lineage", member.MemberID)
 		}
 		if route.segmentFinished {
-			return nil, fmt.Errorf("runs: child executor source %q published after its segment finished", source.ProcessID)
+			return nil, fmt.Errorf("runs: child executor member %q published after its segment finished", member.MemberID)
 		}
 		return route, nil
 	}
 
 	if !routes.rootBound {
 		routes.rootBound = true
-		routes.root.source = source
-		routes.root.sourceBound = true
-		if source.ProcessID != "" {
-			routes.byProcess[source.ProcessID] = routes.root
+		routes.root.member = member
+		routes.root.memberBound = true
+		if member.MemberID != "" {
+			routes.byMember[member.MemberID] = routes.root
 		}
 		return routes.root, nil
 	}
-	if routes.root.source != source {
+	if routes.root.member != member {
 		return nil, fmt.Errorf(
-			"runs: root executor source changed from %q to %q",
-			routes.root.source.ProcessID,
-			source.ProcessID,
+			"runs: root executor member changed from %q to %q",
+			routes.root.member.MemberID,
+			member.MemberID,
 		)
 	}
 	return routes.root, nil
 }
 
-func (routes *executorRoutes) parent(source ExecutorSource) (*executorRoute, error) {
-	if !source.Child() {
-		return nil, errors.New("runs: child opening request requires a child executor source")
+func (routes *executorRoutes) parent(member ExecutorMember) (*executorRoute, error) {
+	if !member.Child() {
+		return nil, errors.New("runs: child opening request requires a child executor member")
 	}
-	if source.SpawnCallID == "" {
-		return nil, fmt.Errorf("runs: child executor source %q has no spawn-call identity", source.ProcessID)
+	if member.SpawnCallID == "" {
+		return nil, fmt.Errorf("runs: child executor member %q has no spawn-call identity", member.MemberID)
 	}
-	if routes.byProcess[source.ProcessID] != nil {
-		return nil, fmt.Errorf("runs: child executor process %q opened more than once", source.ProcessID)
+	if routes.byMember[member.MemberID] != nil {
+		return nil, fmt.Errorf("runs: child executor member %q opened more than once", member.MemberID)
 	}
-	parent := routes.byProcess[source.ParentID]
+	parent := routes.byMember[member.ParentID]
 	if parent == nil {
 		return nil, fmt.Errorf(
-			"runs: child executor source %q references unknown parent process %q",
-			source.ProcessID,
-			source.ParentID,
+			"runs: child executor member %q references unknown parent member %q",
+			member.MemberID,
+			member.ParentID,
 		)
 	}
-	if parent.source.ProcessID != source.ParentID {
-		return nil, fmt.Errorf("runs: child executor source %q parent route is inconsistent", source.ProcessID)
+	if parent.member.MemberID != member.ParentID {
+		return nil, fmt.Errorf("runs: child executor member %q parent route is inconsistent", member.MemberID)
 	}
 	if parent.reducer == nil {
 		return nil, fmt.Errorf(
-			"runs: child executor source %q parent process %q has no active reducer",
-			source.ProcessID,
-			source.ParentID,
+			"runs: child executor member %q parent member %q has no active reducer",
+			member.MemberID,
+			member.ParentID,
 		)
 	}
 	if parent.segmentFinished {
 		return nil, fmt.Errorf(
-			"runs: child executor source %q parent process %q already finished",
-			source.ProcessID,
-			source.ParentID,
+			"runs: child executor member %q parent member %q already finished",
+			member.MemberID,
+			member.ParentID,
 		)
 	}
 	return parent, nil
 }
 
-func (routes *executorRoutes) installChild(source ExecutorSource, route *executorRoute) {
-	route.source = source
-	route.sourceBound = true
-	routes.byProcess[source.ProcessID] = route
+func (routes *executorRoutes) installChild(member ExecutorMember, route *executorRoute) {
+	route.member = member
+	route.memberBound = true
+	routes.byMember[member.MemberID] = route
 	routes.byRunID[route.runID] = route
 	routes.admissionOrder = append(routes.admissionOrder, route)
 }
@@ -512,28 +512,28 @@ func (c *Coordinator) openChildRun(
 	spec segmentSpec,
 	live *handle,
 	routes *executorRoutes,
-	source ExecutorSource,
+	member ExecutorMember,
 	request ChildOpeningRequest,
 ) (*executorRoute, reductionBatch, error) {
 	if err := request.validate(); err != nil {
 		return nil, reductionBatch{}, err
 	}
-	parent, err := routes.parent(source)
+	parent, err := routes.parent(member)
 	if err != nil {
 		return nil, reductionBatch{}, err
 	}
-	spawningItem, err := parent.reducer.spawningItem(source.SpawnCallID)
+	spawningItem, err := parent.reducer.spawningItem(member.SpawnCallID)
 	if err != nil {
 		return nil, reductionBatch{}, fmt.Errorf(
-			"runs: open child process %q from parent run %q: %w",
-			source.ProcessID,
+			"runs: open child member %q from parent run %q: %w",
+			member.MemberID,
 			parent.runID,
 			err,
 		)
 	}
 	spawningItem.SessionID = spec.SessionID
 	if err := spawningItem.Validate(); err != nil {
-		return nil, reductionBatch{}, fmt.Errorf("runs: open child process %q spawning item: %w", source.ProcessID, err)
+		return nil, reductionBatch{}, fmt.Errorf("runs: open child member %q spawning item: %w", member.MemberID, err)
 	}
 	if c.newRunID == nil || c.newSegmentID == nil {
 		return nil, reductionBatch{}, errors.New("runs: child opening requires run and segment identity generators")
@@ -552,7 +552,7 @@ func (c *Coordinator) openChildRun(
 		RootRunID:       parent.rootRunID,
 	}
 	if err := lineage.Validate(childRunID); err != nil {
-		return nil, reductionBatch{}, fmt.Errorf("runs: open child process %q lineage: %w", source.ProcessID, err)
+		return nil, reductionBatch{}, fmt.Errorf("runs: open child member %q lineage: %w", member.MemberID, err)
 	}
 	startedAt := request.StartedAt.UTC()
 	child := &executorRoute{
@@ -578,21 +578,21 @@ func (c *Coordinator) openChildRun(
 		Now:            c.now,
 		CancelReason:   cancellationReason(live.CancelReasonFor, child.runID),
 	})
-	if err := live.bindExecutorProcess(child.runID, source.ProcessID); err != nil {
+	if err := live.bindExecutorMember(child.runID, member.MemberID); err != nil {
 		return nil, reductionBatch{}, err
 	}
 	bindingCommitted := false
 	defer func() {
 		if !bindingCommitted {
-			live.unbindExecutorProcess(child.runID, source.ProcessID)
+			live.unbindExecutorMember(child.runID, member.MemberID)
 		}
 	}()
 	projected, err := child.reducer.open()
 	if err != nil {
-		return nil, reductionBatch{}, fmt.Errorf("runs: reduce child process %q opening: %w", source.ProcessID, err)
+		return nil, reductionBatch{}, fmt.Errorf("runs: reduce child member %q opening: %w", member.MemberID, err)
 	}
 	if len(projected.events) == 0 || projected.parkCommit != nil {
-		return nil, reductionBatch{}, fmt.Errorf("runs: child process %q produced an invalid opening batch", source.ProcessID)
+		return nil, reductionBatch{}, fmt.Errorf("runs: child member %q produced an invalid opening batch", member.MemberID)
 	}
 	opening := OpeningCommit{
 		Admit: &rundomain.RunDraft{
@@ -614,17 +614,17 @@ func (c *Coordinator) openChildRun(
 	}
 	for _, reduced := range projected.events {
 		if reduced.Event.Terminal() || reduced.Nudge != nil {
-			return nil, reductionBatch{}, fmt.Errorf("runs: child process %q produced an invalid opening event", source.ProcessID)
+			return nil, reductionBatch{}, fmt.Errorf("runs: child member %q produced an invalid opening event", member.MemberID)
 		}
 		if reduced.Commit != nil {
 			opening.Events = append(opening.Events, *reduced.Commit)
 		}
 	}
-	if err := c.effects.CommitOpening(ctx, opening); err != nil {
-		return nil, reductionBatch{}, fmt.Errorf("runs: commit child process %q opening: %w", source.ProcessID, err)
+	if err := c.openings.CommitOpening(ctx, opening); err != nil {
+		return nil, reductionBatch{}, fmt.Errorf("runs: commit child member %q opening: %w", member.MemberID, err)
 	}
 	child.segmentStartedAt = c.now().UTC()
-	routes.installChild(source, child)
+	routes.installChild(member, child)
 	bindingCommitted = true
 	c.publishRunMoved(spec.SessionID, child.runID)
 	return child, projected, nil

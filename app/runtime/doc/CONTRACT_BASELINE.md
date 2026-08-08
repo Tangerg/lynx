@@ -1,6 +1,6 @@
 # Lyra Runtime 合同基线
 
-> 状态：P1 Architecture Baseline 1
+> 状态：P3 Application Boundary Baseline 2
 >
 > 基线日期：2026-08-08
 >
@@ -53,7 +53,8 @@ TypeScript generated files 是派生制品，不单独定义语义。它们必�
 
 ### 3.1 SQLite
 
-- 当前 `schemaEpoch = 58`；
+- 当前 `schemaEpoch = 59`；
+- executor checkpoint 与 pending interrupt 的技术身份列为 `root_member_id`，continuation/suspension JSON 使用 `memberId`；
 - 一个 build 只接受一个精确 epoch；
 - 没有运行时 migration chain、dual schema read 或 compatibility column；
 - 重构产生 shape 变化时直接提升 epoch，并同步 fresh-schema tests、store codec、contract expectation 和本基线。
@@ -71,7 +72,7 @@ TypeScript generated files 是派生制品，不单独定义语义。它们必�
 - checkpoint replacement 只能推进 frozen identity/limits 和 monotonic usage；
 - terminalization 与 checkpoint deletion 由 Application write-set 原子决定。
 
-目标 checkpoint wire version 在 P6 真实纵切证明后冻结。P0 不提前发明 version、字段或 codec。
+目标 checkpoint wire version 在 P6 真实纵切证明后冻结；此前不提前发明 version、字段或 codec。
 
 ### 3.3 Artifact 与 Transcript
 
@@ -142,7 +143,9 @@ internal/adapter/toolset/** -> agent2/**
 
 Unknown Effect 的产品合同是 live/recovery 一致的 fail closed：Application/Delivery 不得到 Settlement payload 构造权；agentexec 只向 Application 投影 indeterminate executor fact/identity。RunLost write-set 提交前 Process 保持 unknown wait，提交后才 Kill/release。
 
-P3 只通过 fake-backed Application consumer 建立最小 root 候选；P4–P7 的真实 Agent2 consumers 可以按 consumer-discovered interface 原则直接修订并扩展它。P8 production cutover 前才冻结精确内部 port shape。在此之前，本节只冻结语义边界，不冻结当前 `ExecutionControl` 方法或候选新名称。
+P3 已通过 fake-backed Application consumers 建立当前最小 root candidate：`RootExecutionStarter` 负责 validate/stage/begin，`ExecutionObserver` 负责只读事实流，`ExecutionReleaser` 只负责 resource lifecycle。产品 Cancel 仍由 Application 先作出并提交终态决定。P4–P7 的真实 Agent2 consumers 可以按 consumer-discovered interface 原则直接修订并扩展这些候选；P8 production cutover 前才冻结精确内部 port shape。
+
+Application executor tree identity 统一为 `ExecutorMember`/`MemberID`。Framework `ProcessID` 只能由 execution adapter 在边界内映射，不能重新进入 Application field、port 参数、持久化 technical field 或 Runtime Protocol。P6/P7 之前为旧生产路径保留的 continuation/steer/subtree 小接口不属于冻结 baseline。
 
 ## 6. Clean Architecture 边界基线
 

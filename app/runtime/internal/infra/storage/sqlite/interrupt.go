@@ -42,7 +42,7 @@ type InterruptRecord struct {
 // ContinuationRecord is the stored continuation row for one Run.
 type ContinuationRecord struct {
 	RunID          string
-	ProcessID      string
+	MemberID       string
 	Lineage        run.RunLineage
 	ModelSelection modelref.Selection
 	DrainedTools   []DrainedToolRecord
@@ -55,7 +55,7 @@ type ContinuationRecord struct {
 // SuspensionBindingRecord is the stored item-to-suspension correspondence.
 type SuspensionBindingRecord struct {
 	InterruptItemID string
-	ProcessID       string
+	MemberID        string
 	SuspensionID    string
 }
 
@@ -106,8 +106,8 @@ func (record InterruptRecord) validateStorageShape() error {
 		return errors.New("suspension bindings do not match interrupts")
 	}
 	root, ok := record.rootContinuation()
-	if !ok || strings.TrimSpace(root.ProcessID) == "" {
-		return errors.New("root continuation and process ID are required")
+	if !ok || strings.TrimSpace(root.MemberID) == "" {
+		return errors.New("root continuation and member ID are required")
 	}
 	return nil
 }
@@ -146,7 +146,7 @@ type approvalPayload struct {
 
 type continuationRow struct {
 	RunID           string             `json:"runId"`
-	ProcessID       string             `json:"processId"`
+	MemberID        string             `json:"memberId"`
 	SpawnedByItemID string             `json:"spawnedByItemId,omitempty"`
 	ParentRunID     string             `json:"parentRunId,omitempty"`
 	RootRunID       string             `json:"rootRunId,omitempty"`
@@ -160,7 +160,7 @@ type continuationRow struct {
 
 type suspensionBindingRow struct {
 	InterruptItemID string `json:"interruptItemId"`
-	ProcessID       string `json:"processId"`
+	MemberID        string `json:"memberId"`
 	SuspensionID    string `json:"suspensionId"`
 }
 
@@ -203,13 +203,13 @@ func (s *InterruptStore) Open(ctx context.Context, p InterruptRecord) error {
 		return fmt.Errorf("sqlite: open interrupt: %w", err)
 	}
 	_, err = conn(ctx, s.db).ExecContext(ctx,
-		`INSERT INTO interrupts(root_run_id, session_id, executor_id, goal_lease_id, root_process_id, payload, continuations, suspension_bindings, capabilities, created_at)
+		`INSERT INTO interrupts(root_run_id, session_id, executor_id, goal_lease_id, root_member_id, payload, continuations, suspension_bindings, capabilities, created_at)
 		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		p.RootRunID,
 		p.SessionID,
 		p.ExecutorID,
 		p.GoalLeaseID,
-		root.ProcessID,
+		root.MemberID,
 		string(payload),
 		string(continuations),
 		string(suspensions),
@@ -221,7 +221,7 @@ func (s *InterruptStore) Open(ctx context.Context, p InterruptRecord) error {
 			"%w: Pending root Run %q or executor root %q is already claimed",
 			transcript.ErrIdentityConflict,
 			p.RootRunID,
-			root.ProcessID,
+			root.MemberID,
 		)
 	}
 	if err != nil {
@@ -230,7 +230,7 @@ func (s *InterruptStore) Open(ctx context.Context, p InterruptRecord) error {
 	return nil
 }
 
-const interruptColumns = `root_run_id, session_id, executor_id, goal_lease_id, root_process_id, payload, continuations, suspension_bindings, capabilities, created_at`
+const interruptColumns = `root_run_id, session_id, executor_id, goal_lease_id, root_member_id, payload, continuations, suspension_bindings, capabilities, created_at`
 
 func (s *InterruptStore) List(ctx context.Context, sessionID string) ([]InterruptRecord, error) {
 	return s.list(ctx, sessionID, "", 0, "", 0)
@@ -384,7 +384,7 @@ func scanPending(row scanRow) (InterruptRecord, error) {
 	var (
 		p             InterruptRecord
 		payload       string
-		rootProcessID string
+		rootMemberID  string
 		continuations string
 		suspensions   string
 		capabilities  string
@@ -395,7 +395,7 @@ func scanPending(row scanRow) (InterruptRecord, error) {
 		&p.SessionID,
 		&p.ExecutorID,
 		&p.GoalLeaseID,
-		&rootProcessID,
+		&rootMemberID,
 		&payload,
 		&continuations,
 		&suspensions,
@@ -431,12 +431,12 @@ func scanPending(row scanRow) (InterruptRecord, error) {
 		return InterruptRecord{}, fmt.Errorf("sqlite: decode interrupt %q: %w", p.RootRunID, err)
 	}
 	root, _ := p.rootContinuation()
-	if root.ProcessID != rootProcessID {
+	if root.MemberID != rootMemberID {
 		return InterruptRecord{}, fmt.Errorf(
 			"sqlite: decode interrupt %q: root process index %q does not match continuation %q",
 			p.RootRunID,
-			rootProcessID,
-			root.ProcessID,
+			rootMemberID,
+			root.MemberID,
 		)
 	}
 	return p, nil
@@ -539,7 +539,7 @@ func continuationRows(values []ContinuationRecord) ([]continuationRow, error) {
 		}
 		rows[index] = continuationRow{
 			RunID:           value.RunID,
-			ProcessID:       value.ProcessID,
+			MemberID:        value.MemberID,
 			SpawnedByItemID: value.Lineage.SpawnedByItemID,
 			ParentRunID:     value.Lineage.ParentRunID,
 			RootRunID:       value.Lineage.RootRunID,
@@ -570,8 +570,8 @@ func continuationsFromRows(rows []continuationRow) ([]ContinuationRecord, error)
 			return nil, fmt.Errorf("continuation[%d]: %w", index, err)
 		}
 		values[index] = ContinuationRecord{
-			RunID:     row.RunID,
-			ProcessID: row.ProcessID,
+			RunID:    row.RunID,
+			MemberID: row.MemberID,
 			Lineage: run.RunLineage{
 				SpawnedByItemID: row.SpawnedByItemID,
 				ParentRunID:     row.ParentRunID,
@@ -666,7 +666,7 @@ func suspensionBindingRows(values []SuspensionBindingRecord) []suspensionBinding
 	for index, value := range values {
 		rows[index] = suspensionBindingRow{
 			InterruptItemID: value.InterruptItemID,
-			ProcessID:       value.ProcessID,
+			MemberID:        value.MemberID,
 			SuspensionID:    value.SuspensionID,
 		}
 	}
@@ -678,7 +678,7 @@ func suspensionBindingsFromRows(rows []suspensionBindingRow) []SuspensionBinding
 	for index, row := range rows {
 		values[index] = SuspensionBindingRecord{
 			InterruptItemID: row.InterruptItemID,
-			ProcessID:       row.ProcessID,
+			MemberID:        row.MemberID,
 			SuspensionID:    row.SuspensionID,
 		}
 	}

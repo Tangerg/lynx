@@ -31,21 +31,21 @@ func decodeValidatedProcessTree(checkpoint runs.ExecutorCheckpoint) (core.Proces
 	if err := json.Unmarshal(checkpoint.Payload, &tree); err != nil {
 		return core.ProcessSnapshotTree{}, fmt.Errorf(
 			"agentexec: decode process tree %q: %w: %w",
-			checkpoint.RootProcessID,
+			checkpoint.RootMemberID,
 			core.ErrInvalidSnapshot,
 			err,
 		)
 	}
-	if tree.RootID != checkpoint.RootProcessID {
+	if tree.RootID != checkpoint.RootMemberID {
 		return core.ProcessSnapshotTree{}, fmt.Errorf(
 			"agentexec: decoded process tree root %q differs from checkpoint root %q: %w",
 			tree.RootID,
-			checkpoint.RootProcessID,
+			checkpoint.RootMemberID,
 			core.ErrInvalidSnapshot,
 		)
 	}
 	if err := tree.Validate(); err != nil {
-		return core.ProcessSnapshotTree{}, fmt.Errorf("agentexec: decode process tree %q: %w", checkpoint.RootProcessID, err)
+		return core.ProcessSnapshotTree{}, fmt.Errorf("agentexec: decode process tree %q: %w", checkpoint.RootMemberID, err)
 	}
 	return tree, nil
 }

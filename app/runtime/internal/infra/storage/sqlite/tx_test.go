@@ -74,7 +74,7 @@ func TestRunInTx_AtomicAcrossStores(t *testing.T) {
 		pendingSet := pendingForRun(
 			"run_1",
 			"s2",
-			"proc_1",
+			"member_1",
 			[]transcript.Interrupt{{
 				ItemID:   "item_1",
 				Kind:     interrupt.Question,

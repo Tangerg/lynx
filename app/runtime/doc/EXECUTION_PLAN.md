@@ -1,6 +1,6 @@
 # Lyra Runtime 重构实施计划
 
-> 状态：P2 Run 领域语言与 bounded contexts 已完成；下一阶段 P3
+> 状态：P3 Application root execution boundary 已完成；下一阶段 P4
 >
 > 工作方式：原模块内治本重构，按可验证纵切分批完成；不创建完整 `runtime2`
 
@@ -35,7 +35,7 @@
 | P0 | 文档、事实和边界基线 | 无 | 已完成 |
 | P1 | 目标依赖 DAG 与迁移守卫 | P0 | 已完成 |
 | P2 | Run 领域语言与 bounded contexts | P1 | 已完成 |
-| P3 | Application root use cases 与候选消费端口 | P2 | 未开始 |
+| P3 | Application root use cases 与候选消费端口 | P2 | 已完成 |
 | P4 | 原生 Interaction 的 root 纵切 | P3 | 未开始 |
 | P5 | 权威 model/tool observation 与 Tool 接线 | P4 | 未开始 |
 | P6 | waiting、checkpoint、restore、resume、steer | P5 | 未开始 |
@@ -148,6 +148,15 @@
 - cancel/resume/terminal 竞争只有一个合法结果；
 - Application 不读取 wire DTO、SQLite type 或 Framework state。
 - P3 不冻结完整 executor port；root 候选必须允许 P4 真实 consumer 修订，完整 shape 到 P8 production cutover 才冻结。
+
+### 完成事实
+
+- root seam 已拆为 `RootExecutionStarter`、`ExecutionObserver` 与 `ExecutionReleaser`；启动顺序固定为 validate → side-effect-free stage → attach observation → durable opening → register → begin；任何 admission 前失败只释放 executor resource，不伪造产品取消；
+- Run pump 保持唯一 application fact reducer；非 Waiting 的每个终止边界恰好 release 一次，Waiting tree 继续由 active owner 持有；
+- `SessionLifecycle` 与 `Effects` 胖接口分别拆为真实 use case 消费的 reader/committer ports；组合 struct 只服务 Bootstrap，Coordinator 不保存 facade；
+- Application 统一采用 `ExecutorMember`/`MemberID`，旧 Framework `ProcessID` 只留在待 P8 删除的 adapter 内部；SQLite technical record 同步采用 `root_member_id`/`memberId`，schema epoch 提升到 59，不保留旧列或 dual codec；
+- P6/P7 尚未纵切的 continuation、steer、subtree 能力只作为隔离的旧生产路径消费 seam 存在，不属于 P3 root baseline，也不约束后续 Agent2 consumer shape；
+- architecture tests 已锁定当前 root candidate、Application Framework vocabulary 禁区、opaque checkpoint 字段和 storage exact shape。
 
 ## 8. P4 — 原生 Interaction root 纵切
 
@@ -381,7 +390,8 @@
 | 2026-08-08 | P1 | 冻结目标六环 DAG；Delivery 开始禁止 concrete Adapter；Agent2 只允许从 `adapter/agentexec` 导入两个已批准 public package；旧 Agent import、Domain context I/O ports、`component` umbrella、旧 private snapshot decoder 和唯一旧 lifecycle owner 全部进入精确 Temporary 台账 | 错误 Delivery→Adapter fixture 被稳定拒绝；`go test ./...`、`go vet ./...`、`go build ./...` 通过 |
 | 2026-08-08 | P2 | 一次性删除 `domain/execution`：Run、Accounting、Conversation、Transcript、Interrupt 与 ToolResult 按 bounded context 提升；executor ref/checkpoint、pending continuation、workspace mutation 归还 Application；Approval、Agent Memory、Codebase、Hooks、Provider 的十个 context I/O port 全部移到真实 Application consumer，Domain 生产与测试均禁止向外依赖 | Domain context I/O port 从精确十项例外降为零；旧 path、alias、空目录为零；Run 状态/lineage/capabilities、Conversation seed/truncate、usage monotonicity 与 checkpoint expectation 行为测试通过 |
 | 2026-08-08 | P2 | SQLite executor checkpoint、pending interrupt 和 workspace mutation 改为 technical records，由 `adapter/persistence` 显式映射 Application values，清除 Infra→Application 反向依赖；终态统一为 Completed/Canceled/TimedOut/Failed/MaxBudget/MaxSteps/Lost，并同步服务端 protocol/schema/generated artifacts | architecture target DAG、Domain test isolation、strict storage codecs、outcome round-trip 与 compatibility differ 通过；`go test ./...`、`go vet ./...`、`go build ./...` 通过 |
+| 2026-08-08 | P3 | 删除 `ExecutionControl`、`SegmentExecutor`、`SessionLifecycle` 与 `Effects` 胖边界；建立 root stage/commit/begin、observe/release 的消费方端口；Run pump 在所有非 Waiting 边界统一释放；Application executor identity 统一为 Member；SQLite epoch 59 一次性采用 `root_member_id`/`memberId` | fake-backed ordering/race/release/waiting tests 与 architecture vocabulary/port-shape guards 通过；`go test ./...`、`go vet ./...`、`go build ./...` 及 runs/sessions/runsegment/SQLite targeted race 通过 |
 
 ## 18. 当前下一步
 
-P2 已完成。下一批进入 P3：从 root Start/Observe/Cancel 的真实 Application consumers 重新推导最小候选 executor port；waiting、steer、restore、child/subtree 的精确方法继续由 P6/P7 纵切发现，不在 P3 预设计。
+P3 已完成。下一批进入 P4：在现有 `adapter/agentexec` 内建立 Agent2 原生 Interaction root harness，以真实 consumer 验证并按需修订 P3 root candidate；新路径不接管生产 Run，旧生产 execution owner 留到 P8 原子切换时同批删除。

@@ -114,7 +114,7 @@ type turnState struct {
 	// turnPrepared linearizes ActivateTurn against Cancel: exactly one side
 	// claims the pre-execution state, so a rejected application admission can
 	// tear the turn down without ever entering the model/tool engine.
-	startRequest runs.StartExecution
+	startRequest runs.RootExecutionStart
 
 	// steering is the queue of validated mid-turn user messages injected via
 	// InjectSteering. Each entry retains both canonical transcript content and
@@ -177,7 +177,7 @@ const (
 	cancelComplete
 )
 
-func (st *turnState) completePreparation(request runs.StartExecution) {
+func (st *turnState) completePreparation(request runs.RootExecutionStart) {
 	st.mu.Lock()
 	defer st.mu.Unlock()
 	if st.phase != turnPreparing {
@@ -187,14 +187,14 @@ func (st *turnState) completePreparation(request runs.StartExecution) {
 	st.setPhaseLocked(turnPrepared)
 }
 
-func (st *turnState) claimStart() (runs.StartExecution, bool) {
+func (st *turnState) claimStart() (runs.RootExecutionStart, bool) {
 	st.mu.Lock()
 	defer st.mu.Unlock()
 	if st.phase != turnPrepared {
-		return runs.StartExecution{}, false
+		return runs.RootExecutionStart{}, false
 	}
 	request := st.startRequest
-	st.startRequest = runs.StartExecution{}
+	st.startRequest = runs.RootExecutionStart{}
 	st.setPhaseLocked(turnStarting)
 	return request, true
 }
@@ -204,7 +204,7 @@ func (st *turnState) requestCancellation() cancellationAction {
 	defer st.mu.Unlock()
 	switch st.phase {
 	case turnPrepared:
-		st.startRequest = runs.StartExecution{}
+		st.startRequest = runs.RootExecutionStart{}
 		st.setPhaseLocked(turnCancelIdle)
 		return cancelFinish
 	case turnRestoring:

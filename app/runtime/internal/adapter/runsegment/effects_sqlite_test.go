@@ -234,19 +234,19 @@ func TestCommitOpeningResumesRunTreeAtomically(t *testing.T) {
 				Interrupts: childRun.Interrupts,
 				Suspensions: []runs.SuspensionBinding{{
 					InterruptItemID: "item_child",
-					ProcessID:       "process_child",
+					MemberID:        "process_child",
 					SuspensionID:    "suspension_child",
 				}},
 				Continuations: []runs.Continuation{
 					{
 						RunID:        "run_child",
-						ProcessID:    "process_child",
+						MemberID:     "process_child",
 						Lineage:      lineage,
 						RunCreatedAt: createdAt,
 					},
 					{
 						RunID:        "run_root",
-						ProcessID:    "process_root",
+						MemberID:     "process_root",
 						RunCreatedAt: createdAt,
 					},
 				},
@@ -529,7 +529,7 @@ func TestCommitTreeBarrierProducesDurableTriplet(t *testing.T) {
 		t.Fatalf("park: %v", err)
 	}
 
-	if stored, err := checkpointStore.LoadCheckpoint(ctx, snapshot.ID); err != nil || stored.RootProcessID != snapshot.ID {
+	if stored, err := checkpointStore.LoadCheckpoint(ctx, snapshot.ID); err != nil || stored.RootMemberID != snapshot.ID {
 		t.Fatalf("stored executor checkpoint = (%+v, %v)", stored, err)
 	}
 	if err := state.Admit(ctx, run.RunDraft{RunID: "run_next", SessionID: "ses_1", SegmentID: "seg_open", CreatedAt: parkedAt}); !errors.Is(err, run.ErrSessionBusy) {
@@ -997,25 +997,25 @@ func newWaitingCancellationSQLiteFixtureAt(
 	pendingSuspensions := []runs.SuspensionBinding{
 		{
 			InterruptItemID: grandchildQuestion.ItemID,
-			ProcessID:       "process_grandchild",
+			MemberID:        "process_grandchild",
 			SuspensionID:    "suspension-process_grandchild",
 		},
 		{
 			InterruptItemID: childQuestion.ItemID,
-			ProcessID:       "process_child",
+			MemberID:        "process_child",
 			SuspensionID:    "suspension-process_child",
 		},
 	}
 	pendingContinuations := []runs.Continuation{
 		{
 			RunID:        grandchildRun.ID,
-			ProcessID:    "process_grandchild",
+			MemberID:     "process_grandchild",
 			Lineage:      grandchildLineage,
 			RunCreatedAt: createdAt,
 		},
 		{
 			RunID:        childRun.ID,
-			ProcessID:    "process_child",
+			MemberID:     "process_child",
 			Lineage:      childLineage,
 			RunCreatedAt: createdAt,
 		},
@@ -1025,19 +1025,19 @@ func newWaitingCancellationSQLiteFixtureAt(
 		pendingInterrupts = append(pendingInterrupts, siblingQuestion)
 		pendingSuspensions = append(pendingSuspensions, runs.SuspensionBinding{
 			InterruptItemID: siblingQuestion.ItemID,
-			ProcessID:       "process_sibling",
+			MemberID:        "process_sibling",
 			SuspensionID:    "suspension-process_sibling",
 		})
 		pendingContinuations = append(pendingContinuations, runs.Continuation{
 			RunID:        siblingRun.ID,
-			ProcessID:    "process_sibling",
+			MemberID:     "process_sibling",
 			Lineage:      siblingLineage,
 			RunCreatedAt: createdAt,
 		})
 	}
 	pendingContinuations = append(pendingContinuations, runs.Continuation{
 		RunID:        rootRun.ID,
-		ProcessID:    "process_root",
+		MemberID:     "process_root",
 		RunCreatedAt: createdAt,
 		DrainedTools: []runs.DrainedTool{{
 			ItemID: parentItem.ID, ItemOccurredAt: parentItem.OccurredAt,
@@ -1256,7 +1256,7 @@ func executorCheckpoint(
 	if err != nil {
 		t.Fatalf("encode executor process tree %q: %v", tree.RootID, err)
 	}
-	checkpoint.RootProcessID = tree.RootID
+	checkpoint.RootMemberID = tree.RootID
 	checkpoint.Payload = payload
 	if err := checkpoint.Validate(); err != nil {
 		t.Fatalf("executor checkpoint: %v", err)
@@ -1268,7 +1268,7 @@ func restoredProcessTree(t *testing.T, checkpoint runs.ExecutorCheckpoint) core.
 	t.Helper()
 	var tree core.ProcessSnapshotTree
 	if err := json.Unmarshal(checkpoint.Payload, &tree); err != nil {
-		t.Fatalf("decode executor process tree %q: %v", checkpoint.RootProcessID, err)
+		t.Fatalf("decode executor process tree %q: %v", checkpoint.RootMemberID, err)
 	}
 	if err := tree.Validate(); err != nil {
 		t.Fatalf("decode executor process tree: %v", err)

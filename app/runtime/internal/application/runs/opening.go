@@ -10,9 +10,9 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 )
 
-// Start validates and resolves the session, claims the session and working
-// tree, starts execution, mints Run identity, and hands the prepared
-// segment to the package's existing lifecycle supervisor.
+// Start validates and resolves the Session, claims the Session and working
+// tree, stages execution, commits the Run opening, and only then begins the
+// executor behind the package's lifecycle supervisor.
 func (c *Coordinator) Start(ctx context.Context, cmd StartCommand) (StartResult, error) {
 	if err := c.requireUseCaseDependencies(); err != nil {
 		return StartResult{}, err
@@ -24,7 +24,7 @@ func (c *Coordinator) Start(ctx context.Context, cmd StartCommand) (StartResult,
 	if err != nil {
 		return StartResult{}, err
 	}
-	draft := StartExecution{
+	draft := RootExecutionStart{
 		Message:                  message,
 		Media:                    media,
 		ModelSelection:           cmd.ModelSelection,
@@ -37,7 +37,7 @@ func (c *Coordinator) Start(ctx context.Context, cmd StartCommand) (StartResult,
 	if err := draft.Validate(); err != nil {
 		return StartResult{}, err
 	}
-	if err := c.control.ValidateStart(draft); err != nil {
+	if err := c.rootStarts.ValidateRootStart(draft); err != nil {
 		return StartResult{}, err
 	}
 
@@ -59,7 +59,7 @@ func (c *Coordinator) Start(ctx context.Context, cmd StartCommand) (StartResult,
 	draft.CWD = execCWD
 	draft.WorkspaceCWD = sess.CWD
 	draft.Isolated = isolated
-	ref, err := c.control.PrepareStart(ctx, draft)
+	ref, err := c.rootStarts.StageRoot(ctx, draft)
 	if err != nil {
 		return StartResult{}, err
 	}
@@ -94,8 +94,8 @@ func (c *Coordinator) Start(ctx context.Context, cmd StartCommand) (StartResult,
 		Limits:           cmd.Limits,
 		Capabilities:     cmd.Capabilities,
 		admission:        &runAdmission,
-		Activate: func(activateCtx context.Context) error {
-			return c.control.Activate(activateCtx, ref)
+		BeginExecution: func(beginCtx context.Context) error {
+			return c.rootStarts.BeginRoot(beginCtx, ref)
 		},
 	})
 	if err != nil {
@@ -119,17 +119,17 @@ func (c *Coordinator) Start(ctx context.Context, cmd StartCommand) (StartResult,
 
 func (c *Coordinator) resolveSession(ctx context.Context, id, newID, defaultWorkspacePath, title string) (session.Session, *session.Session, error) {
 	if newID != "" {
-		sess, err := c.sessions.PrepareScheduled(ctx, newID, title, defaultWorkspacePath)
+		sess, err := c.sessionCreator.PrepareScheduled(ctx, newID, title, defaultWorkspacePath)
 		if err != nil {
 			return session.Session{}, nil, err
 		}
 		return sess, &sess, nil
 	}
 	if id == "" {
-		sess, err := c.sessions.Create(ctx, title, defaultWorkspacePath)
+		sess, err := c.sessionCreator.Create(ctx, title, defaultWorkspacePath)
 		return sess, nil, err
 	}
-	sess, err := c.sessions.Get(ctx, id)
+	sess, err := c.sessionReader.Get(ctx, id)
 	return sess, nil, err
 }
 
@@ -161,7 +161,7 @@ func (c *Coordinator) claimFreshRun(ctx context.Context, sess session.Session) (
 // can see the Run before admission, and the durable unique index can reject the
 // INSERT after another process created one.
 func (c *Coordinator) activeRunConflict(ctx context.Context, sessionID string) (error, error) {
-	run, found, err := c.sessions.ActiveRun(ctx, sessionID)
+	run, found, err := c.activeRuns.ActiveRun(ctx, sessionID)
 	if err != nil || !found {
 		return nil, err
 	}
@@ -190,8 +190,8 @@ func (c *Coordinator) validatePreparedExecution(ctx context.Context, ref Executo
 	if err := ref.ValidateFor(sessionID); err != nil {
 		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), runCleanupTimeout)
 		defer cancel()
-		if cleanupErr := c.control.CancelExecution(cleanupCtx, ref); cleanupErr != nil {
-			return errors.Join(err, fmt.Errorf("runs: cancel invalid started executor: %w", cleanupErr))
+		if cleanupErr := c.releases.Release(cleanupCtx, ref); cleanupErr != nil {
+			return errors.Join(err, fmt.Errorf("runs: release invalid staged executor: %w", cleanupErr))
 		}
 		return err
 	}

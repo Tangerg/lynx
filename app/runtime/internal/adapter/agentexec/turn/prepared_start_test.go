@@ -15,7 +15,7 @@ func TestPreparedTurnDoesNotEnterEngineBeforeActivation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	handle, err := controller.PrepareTurn(t.Context(), runs.StartExecution{
+	handle, err := controller.PrepareTurn(t.Context(), runs.RootExecutionStart{
 		SessionID: "session", Message: "hello",
 	})
 	if err != nil {
@@ -45,7 +45,7 @@ func TestCancelPreparedTurnNeverEntersEngineAndTerminatesStream(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	handle, err := controller.PrepareTurn(t.Context(), runs.StartExecution{
+	handle, err := controller.PrepareTurn(t.Context(), runs.RootExecutionStart{
 		SessionID: "session", Message: "hello",
 	})
 	if err != nil {

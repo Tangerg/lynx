@@ -13,15 +13,15 @@ import (
 // has been replaced" is one answer with one spelling rather than two entry
 // points each guessing from the live registry.
 func (c *Coordinator) Steer(ctx context.Context, cmd SteerCommand) error {
-	if c.control == nil {
-		return errors.New("runs: execution control is required")
-	}
 	live, err := c.addressLiveSegment(ctx, cmd.RunID, cmd.ExpectedSegmentID)
 	if err != nil {
 		return err
 	}
+	if c.steering == nil {
+		return errors.New("runs: execution steerer is required")
+	}
 	rec := live.record
-	if err := c.control.Steer(ctx, ExecutorRef{SessionID: rec.SessionID, ExecutorID: rec.ExecutorID}, cmd.Input); err != nil {
+	if err := c.steering.Steer(ctx, ExecutorRef{SessionID: rec.SessionID, ExecutorID: rec.ExecutorID}, cmd.Input); err != nil {
 		if errors.Is(err, ErrExecutorNotLive) {
 			// Execution ended between resolving the record and delivering: the Run is
 			// finishing, which is the same thing the durable record would say a moment

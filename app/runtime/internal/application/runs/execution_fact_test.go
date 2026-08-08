@@ -2,23 +2,23 @@ package runs
 
 import "testing"
 
-func TestExecutorSourceValidate(t *testing.T) {
+func TestExecutorMemberValidate(t *testing.T) {
 	tests := []struct {
 		name    string
-		source  ExecutorSource
+		member  ExecutorMember
 		wantErr string
 	}{
 		{
 			name: "root process",
-			source: ExecutorSource{
-				ProcessID: "process_root",
+			member: ExecutorMember{
+				MemberID: "member_root",
 			},
 		},
 		{
 			name: "child process",
-			source: ExecutorSource{
-				ProcessID:   "process_child",
-				ParentID:    "process_root",
+			member: ExecutorMember{
+				MemberID:    "member_child",
+				ParentID:    "member_root",
 				SpawnCallID: "call_delegate",
 			},
 		},
@@ -27,61 +27,61 @@ func TestExecutorSourceValidate(t *testing.T) {
 		},
 		{
 			name:    "process whitespace",
-			source:  ExecutorSource{ProcessID: " process_root"},
-			wantErr: "runs: executor source process id has surrounding whitespace",
+			member:  ExecutorMember{MemberID: " member_root"},
+			wantErr: "runs: executor member id has surrounding whitespace",
 		},
 		{
 			name: "parent whitespace",
-			source: ExecutorSource{
-				ProcessID: "process_child",
-				ParentID:  "process_root ",
+			member: ExecutorMember{
+				MemberID: "member_child",
+				ParentID: "member_root ",
 			},
-			wantErr: "runs: executor source parent id has surrounding whitespace",
+			wantErr: "runs: executor member parent id has surrounding whitespace",
 		},
 		{
 			name: "spawn call whitespace",
-			source: ExecutorSource{
-				ProcessID:   "process_child",
-				ParentID:    "process_root",
+			member: ExecutorMember{
+				MemberID:    "member_child",
+				ParentID:    "member_root",
 				SpawnCallID: " call_delegate",
 			},
-			wantErr: "runs: executor source spawn call id has surrounding whitespace",
+			wantErr: "runs: executor member spawn call id has surrounding whitespace",
 		},
 		{
 			name: "empty process with parent",
-			source: ExecutorSource{
-				ParentID: "process_root",
+			member: ExecutorMember{
+				ParentID: "member_root",
 			},
-			wantErr: "runs: empty executor process id cannot carry parent or spawn-call identity",
+			wantErr: "runs: empty executor member id cannot carry parent or spawn-call identity",
 		},
 		{
 			name: "empty process with spawn call",
-			source: ExecutorSource{
+			member: ExecutorMember{
 				SpawnCallID: "call_delegate",
 			},
-			wantErr: "runs: empty executor process id cannot carry parent or spawn-call identity",
+			wantErr: "runs: empty executor member id cannot carry parent or spawn-call identity",
 		},
 		{
 			name: "self-parent",
-			source: ExecutorSource{
-				ProcessID: "process_1",
-				ParentID:  "process_1",
+			member: ExecutorMember{
+				MemberID: "process_1",
+				ParentID: "process_1",
 			},
-			wantErr: "runs: executor source cannot parent itself",
+			wantErr: "runs: executor member cannot parent itself",
 		},
 		{
 			name: "root with spawn call",
-			source: ExecutorSource{
-				ProcessID:   "process_root",
+			member: ExecutorMember{
+				MemberID:    "member_root",
 				SpawnCallID: "call_delegate",
 			},
-			wantErr: "runs: root executor source cannot carry spawn-call identity",
+			wantErr: "runs: root executor member cannot carry spawn-call identity",
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			err := test.source.Validate()
+			err := test.member.Validate()
 			switch {
 			case test.wantErr == "" && err != nil:
 				t.Fatalf("Validate() error = %v, want nil", err)
@@ -95,7 +95,7 @@ func TestExecutorSourceValidate(t *testing.T) {
 }
 
 func TestExecutorEventValidateRequiresPayload(t *testing.T) {
-	err := (ExecutorEvent{Source: ExecutorSource{ProcessID: "process_root"}}).Validate()
+	err := (ExecutorEvent{Member: ExecutorMember{MemberID: "member_root"}}).Validate()
 	if err == nil || err.Error() != "runs: executor event payload is required" {
 		t.Fatalf("Validate() error = %v, want missing-payload error", err)
 	}

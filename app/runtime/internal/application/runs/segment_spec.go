@@ -36,8 +36,8 @@ type segmentSpec struct {
 	// admission transfers the pre-commit reservation to the live Run only after
 	// its opening write-set commits.
 	admission *admission.RunAdmission
-	// Activate crosses the executor side-effect boundary after opening commits.
-	Activate func(context.Context) error
+	// BeginExecution crosses the executor side-effect boundary after opening commits.
+	BeginExecution func(context.Context) error
 	// CommitOpening is set only when a larger application transaction owns the
 	// opening, such as waiting-subtree cancellation.
 	CommitOpening func(context.Context, OpeningCommit) error

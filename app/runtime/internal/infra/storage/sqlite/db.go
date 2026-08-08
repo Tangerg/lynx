@@ -61,7 +61,7 @@ func Open(ctx context.Context, path string) (*sql.DB, error) {
 // schemaEpoch identifies the one storage shape this build understands. It is an
 // epoch rather than a version because nothing connects two values: a database
 // stamped with any other number is refused, never upgraded.
-const schemaEpoch = 58
+const schemaEpoch = 59
 
 func installCurrentSchema(ctx context.Context, db *sql.DB, path string) error {
 	var epoch int
@@ -102,7 +102,7 @@ func installCurrentSchema(ctx context.Context, db *sql.DB, path string) error {
 		`CREATE INDEX IF NOT EXISTS idx_sessions_parent
 			ON sessions(parent_id)`,
 		`CREATE TABLE IF NOT EXISTS executor_checkpoints (
-			root_process_id TEXT    PRIMARY KEY,
+			root_member_id TEXT    PRIMARY KEY,
 			session_id      TEXT    NOT NULL,
 			build_id        TEXT    NOT NULL,
 			payload         BLOB    NOT NULL,
@@ -196,7 +196,7 @@ func installCurrentSchema(ctx context.Context, db *sql.DB, path string) error {
 			-- exists as a relational key so two pending sets cannot claim the same
 			-- executor snapshot even though the complete hand-off stays one JSON
 			-- value for atomic consume.
-			root_process_id    TEXT    NOT NULL,
+			root_member_id    TEXT    NOT NULL,
 			payload            TEXT    NOT NULL,
 			continuations      TEXT    NOT NULL,
 			suspension_bindings TEXT   NOT NULL,
@@ -205,8 +205,8 @@ func installCurrentSchema(ctx context.Context, db *sql.DB, path string) error {
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_interrupts_session
 			ON interrupts(session_id)`,
-		`CREATE UNIQUE INDEX IF NOT EXISTS idx_interrupts_root_process
-			ON interrupts(root_process_id)`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_interrupts_root_member
+			ON interrupts(root_member_id)`,
 		// pending_workspace_mutations is the recoverable operation log for file
 		// rollbacks (§8.5). Git reset is non-atomic across paths; files+history also
 		// spans Git and SQLite. The intent is logged before the tree is touched and

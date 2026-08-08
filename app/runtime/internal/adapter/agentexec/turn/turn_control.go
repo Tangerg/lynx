@@ -135,7 +135,7 @@ func (s *controller) PrepareWaitingSubtreeCancellation(
 		)
 	}
 	suspensions := plan.PendingSuspensions()
-	projected := make([]runs.ProcessSuspension, len(suspensions))
+	projected := make([]runs.MemberInterruption, len(suspensions))
 	for index, boundary := range suspensions {
 		interrupt, ok := typedInterrupt(boundary.Prompt)
 		if !ok {
@@ -146,18 +146,18 @@ func (s *controller) PrepareWaitingSubtreeCancellation(
 				boundary.SuspensionID,
 			)
 		}
-		projected[index] = runs.ProcessSuspension{
-			ProcessID:    boundary.ProcessID,
+		projected[index] = runs.MemberInterruption{
+			MemberID:     boundary.ProcessID,
 			SuspensionID: boundary.SuspensionID,
 			Interrupt:    interrupt,
 		}
 	}
 	mutation := &preparedWaitingSubtreeCancellation{controller: s, state: state, plan: plan}
 	return runs.PreparedWaitingSubtreeCancellation{
-		CanceledProcessIDs: plan.CanceledProcessIDs(),
-		PendingSuspensions: projected,
-		Checkpoint:         plan.Checkpoint(),
-		Mutation:           mutation,
+		CanceledMemberIDs:    plan.CanceledProcessIDs(),
+		PendingInterruptions: projected,
+		Checkpoint:           plan.Checkpoint(),
+		Mutation:             mutation,
 	}, nil
 }
 

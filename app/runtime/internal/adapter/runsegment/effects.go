@@ -164,7 +164,14 @@ type Effects struct {
 	publish             FileChangePublisher
 }
 
-var _ runs.Effects = (*Effects)(nil)
+var (
+	_ runs.OpeningCommitter                    = (*Effects)(nil)
+	_ runs.EventCommitter                      = (*Effects)(nil)
+	_ runs.TreeBarrierCommitter                = (*Effects)(nil)
+	_ runs.WaitingSubtreeCancellationCommitter = (*Effects)(nil)
+	_ runs.WorkspaceChangeNotifier             = (*Effects)(nil)
+	_ runs.SegmentFinalizer                    = (*Effects)(nil)
+)
 
 const runsegmentTracerName = "lynx/lyra/runsegment"
 

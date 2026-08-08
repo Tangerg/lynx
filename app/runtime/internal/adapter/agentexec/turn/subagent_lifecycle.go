@@ -131,7 +131,7 @@ func (l *subagentLifecycle) projection(processID string) (agentexec.SubagentProj
 // producing an answer. The start hook passes the zero status.
 func (l *subagentLifecycle) subagentInput(binding runs.ChildRunBinding, status hooks.SubagentStatus) hooks.SubagentInput {
 	in := hooks.SubagentInput{RunID: binding.RunID, ParentRunID: binding.ParentRunID, Status: status}
-	if projection, ok := l.projection(binding.ProcessID); ok {
+	if projection, ok := l.projection(binding.MemberID); ok {
 		in.Description = projection.Summary
 		in.Prompt = summarizeHookText(projection.Instructions)
 		if status == hooks.SubagentCompleted {

@@ -62,11 +62,11 @@ func bootstrapCheckpoint(
 		panic(err)
 	}
 	return runsapp.ExecutorCheckpoint{
-		RootProcessID: tree.RootID,
-		Payload:       payload,
-		BuildID:       bootstrapCheckpointBuildID,
-		Scope:         runsapp.ExecutionScope{SessionID: sessionID},
-		Usage:         usage,
+		RootMemberID: tree.RootID,
+		Payload:      payload,
+		BuildID:      bootstrapCheckpointBuildID,
+		Scope:        runsapp.ExecutionScope{SessionID: sessionID},
+		Usage:        usage,
 	}
 }
 
@@ -90,12 +90,12 @@ func bootstrapPending(
 		}},
 		Suspensions: []runsapp.SuspensionBinding{{
 			InterruptItemID: itemID,
-			ProcessID:       processID,
+			MemberID:        processID,
 			SuspensionID:    "suspension-" + processID,
 		}},
 		Continuations: []runsapp.Continuation{{
 			RunID:        runID,
-			ProcessID:    processID,
+			MemberID:     processID,
 			RunCreatedAt: runCreatedAt,
 		}},
 		CreatedAt: barrierCreatedAt,

@@ -88,7 +88,7 @@ func coalesceTextDeltas(head runs.ExecutorEvent, ch <-chan runs.ExecutorEvent, s
 				return replaceTextDelta(head, kind, merged.String())
 			}
 			nextKind, text, isDelta := textDelta(ev.Payload)
-			if isDelta && nextKind == kind && ev.Source == head.Source {
+			if isDelta && nextKind == kind && ev.Member == head.Member {
 				if merged.Len() == 0 {
 					merged.Grow(len(initial) + len(text))
 					merged.WriteString(initial)

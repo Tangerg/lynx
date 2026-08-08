@@ -4,7 +4,7 @@
 >
 > 适用范围：`app/runtime` 及其为完成服务端重构必须调整的直接后端依赖
 >
-> 实施状态：尚未开始；当前代码事实和迁移差距见 [`CAPABILITY_LEDGER.md`](CAPABILITY_LEDGER.md)，阶段与进度见 [`EXECUTION_PLAN.md`](EXECUTION_PLAN.md)
+> 实施状态：P3 已完成，下一阶段 P4；当前代码事实和迁移差距见 [`CAPABILITY_LEDGER.md`](CAPABILITY_LEDGER.md)，阶段与进度见 [`EXECUTION_PLAN.md`](EXECUTION_PLAN.md)
 
 本文定义 Lyra Runtime 重构完成后的稳定架构、统一语言、所有权和依赖方向。它不记录逐批进度，不枚举完整协议字段，也不复制 Agent Framework 的内部设计。
 
@@ -421,7 +421,7 @@ Application port 只表达产品真正需要的执行能力，不能镜像 Agent
 - 规划并在应用事务后应用 waiting subtree cancellation；
 - 释放终态或失效的 executor tree。
 
-端口方法、参数名和返回值随 P4–P7 的真实纵切按 consumer-discovered interface 原则演进，不把当前 `ExecutionControl`、`PrepareStart`、`Activate`、`Prepare` 或 `TurnProcess` 当成兼容合同。P3 只建立最小 root start/observe/cancel 候选和应用值；wait/steer、restore、child、subtree 能力在对应消费者出现时加入。P8 生产切换前才冻结完整端口。最终命名必须以 Run 用例语义为准，不能用含糊的 `Prepare`、`Handle`、`Manager` 掩盖不同阶段。
+端口方法、参数名和返回值随 P4–P7 的真实纵切按 consumer-discovered interface 原则演进，不把旧 `ExecutionControl`、`PrepareStart`、`Activate`、`Prepare` 或 `TurnProcess` 当成兼容合同。P3 已建立最小 root candidate：`RootExecutionStarter` 用 validate/stage/begin 准确表达 admission 两侧，`ExecutionObserver` 只观察 Application facts，`ExecutionReleaser` 只释放资源且不决定产品 Cancel。当前生产旧路径需要的 continuation/steer/child/subtree 能力已被隔离为独立小接口，但它们不是目标合同；P6/P7 必须由真实 Agent2 consumers 重新推导。P8 生产切换前才冻结完整端口。最终命名必须以 Run 用例语义为准，不能用含糊的 `Prepare`、`Handle`、`Manager` 掩盖不同阶段。
 
 ## 9. 工具能力
 

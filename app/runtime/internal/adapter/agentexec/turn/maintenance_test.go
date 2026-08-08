@@ -47,7 +47,7 @@ func TestRunDelegatesMaintenanceAndPublishesCompaction(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	handle, err := controller.PrepareTurn(t.Context(), runs.StartExecution{
+	handle, err := controller.PrepareTurn(t.Context(), runs.RootExecutionStart{
 		SessionID: "session", Message: "hello", CWD: "/project", ModelSelection: testModelSelection(t, "openai", "gpt-test"),
 	})
 	if err != nil {

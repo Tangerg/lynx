@@ -10,7 +10,7 @@ import (
 )
 
 // ChildOpeningRequest asks the Coordinator to durably admit one child Run
-// before its executor process publishes ProcessCreated or starts executing.
+// before its executor member publishes member publication or starts executing.
 //
 // It is an internal control signal, not a reducible ExecutionFact or journal
 // value. The constructor returns the request and the matching
@@ -30,9 +30,9 @@ type ChildOpeningConfirmation struct {
 
 // ChildRunBinding is the application identity assigned to one opaque executor
 // child after its opening transaction commits. Product lifecycle observers use
-// Run identity; executor process identity remains an implementation detail.
+// Run identity; executor member identity remains an implementation detail.
 type ChildRunBinding struct {
-	ProcessID   string
+	MemberID    string
 	RunID       string
 	ParentRunID string
 }
@@ -41,10 +41,10 @@ type ChildRunBinding struct {
 // lifecycle observer.
 func (binding ChildRunBinding) Validate() error {
 	switch {
-	case binding.ProcessID == "":
-		return errors.New("runs: child Run binding has no executor process id")
-	case strings.TrimSpace(binding.ProcessID) != binding.ProcessID:
-		return fmt.Errorf("runs: child Run binding process id %q has surrounding whitespace", binding.ProcessID)
+	case binding.MemberID == "":
+		return errors.New("runs: child Run binding has no executor member id")
+	case strings.TrimSpace(binding.MemberID) != binding.MemberID:
+		return fmt.Errorf("runs: child Run binding member id %q has surrounding whitespace", binding.MemberID)
 	case binding.RunID == "":
 		return errors.New("runs: child Run binding has no Run id")
 	case strings.TrimSpace(binding.RunID) != binding.RunID:
@@ -68,7 +68,7 @@ func ValidateChildRunBindings(rootRunID string, bindings []ChildRunBinding) erro
 		return errors.New("runs: restored child Run bindings require a root Run id")
 	}
 	byRun := make(map[string]ChildRunBinding, len(bindings))
-	byProcess := make(map[string]string, len(bindings))
+	byMember := make(map[string]string, len(bindings))
 	for _, binding := range bindings {
 		if err := binding.Validate(); err != nil {
 			return err
@@ -79,16 +79,16 @@ func ValidateChildRunBindings(rootRunID string, bindings []ChildRunBinding) erro
 		if _, exists := byRun[binding.RunID]; exists {
 			return fmt.Errorf("runs: duplicate child Run binding %q", binding.RunID)
 		}
-		if runID, exists := byProcess[binding.ProcessID]; exists {
+		if runID, exists := byMember[binding.MemberID]; exists {
 			return fmt.Errorf(
-				"runs: executor process %q is bound to child Runs %q and %q",
-				binding.ProcessID,
+				"runs: executor member %q is bound to child Runs %q and %q",
+				binding.MemberID,
 				runID,
 				binding.RunID,
 			)
 		}
 		byRun[binding.RunID] = binding
-		byProcess[binding.ProcessID] = binding.RunID
+		byMember[binding.MemberID] = binding.RunID
 	}
 	for _, binding := range bindings {
 		seen := map[string]struct{}{binding.RunID: {}}
@@ -124,7 +124,7 @@ func (request ChildOpeningRequest) validate() error {
 		return errors.New("runs: child opening request has no confirmation")
 	}
 	if request.StartedAt.IsZero() {
-		return errors.New("runs: child opening request has no process start time")
+		return errors.New("runs: child opening request has no member start time")
 	}
 	return nil
 }

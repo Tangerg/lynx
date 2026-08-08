@@ -104,7 +104,7 @@ func runChildHITLScenario(t *testing.T, scenario childHITLScenario) (childHITLOu
 		childArguments: scenario.childArguments,
 	}, policy, staticHookResolver{bound: bound})
 
-	handle, err := controller.StartTurn(t.Context(), runs.StartExecution{
+	handle, err := controller.StartTurn(t.Context(), runs.RootExecutionStart{
 		SessionID:      "sess-b8-" + strings.ReplaceAll(scenario.name, " ", "-"),
 		Message:        "delegate this work",
 		CWD:            t.TempDir(),
@@ -193,7 +193,7 @@ func TestChildCanSuspendTwiceOnTheSameRun(t *testing.T) {
 		defaults: &chat.Options{Model: "b8-two-questions"},
 	}, policy, staticHookResolver{bound: bound})
 
-	handle, err := controller.StartTurn(t.Context(), runs.StartExecution{
+	handle, err := controller.StartTurn(t.Context(), runs.RootExecutionStart{
 		SessionID:      "sess-b8-two-questions",
 		Message:        "delegate this work",
 		CWD:            t.TempDir(),
@@ -255,7 +255,7 @@ func TestCompleteAnswerSetDrivesParallelChildSuspensionsWithoutSecondBarrier(t *
 		mustApprovalPolicy(t, approval.ModeBalanced, nil),
 		staticHookResolver{},
 	)
-	handle, err := controller.StartTurn(t.Context(), runs.StartExecution{
+	handle, err := controller.StartTurn(t.Context(), runs.RootExecutionStart{
 		SessionID:      "sess-b8-parallel-questions",
 		Message:        "delegate this work",
 		CWD:            t.TempDir(),
@@ -282,7 +282,7 @@ func TestCompleteAnswerSetDrivesParallelChildSuspensionsWithoutSecondBarrier(t *
 			answers := make([]agentexec.SuspensionAnswer, len(event.Suspensions))
 			for index, boundary := range event.Suspensions {
 				answers[index] = agentexec.SuspensionAnswer{
-					ProcessID:    boundary.ProcessID,
+					ProcessID:    boundary.MemberID,
 					SuspensionID: boundary.SuspensionID,
 					Resolution: interrupt.Resolution{
 						Approved: true,
@@ -341,7 +341,7 @@ func TestRestartResumesCompleteSiblingAnswerSetWithoutReplayingBarrier(t *testin
 		sqlite.NewMessageStore(firstDatabase),
 		buildID,
 	)
-	original, err := first.StartTurn(t.Context(), runs.StartExecution{
+	original, err := first.StartTurn(t.Context(), runs.RootExecutionStart{
 		SessionID:      sess.ID,
 		Message:        "delegate this work",
 		CWD:            cwd,
@@ -387,7 +387,7 @@ func TestRestartResumesCompleteSiblingAnswerSetWithoutReplayingBarrier(t *testin
 	restoredHandle, err := restored.Rehydrate(t.Context(), runs.RehydrateExecution{
 		SessionID:  original.SessionID,
 		ExecutorID: original.TurnID,
-		ProcessID:  processID,
+		MemberID:   processID,
 		RootRunID:  "run-root",
 		CWD:        cwd,
 	})
@@ -401,7 +401,7 @@ func TestRestartResumesCompleteSiblingAnswerSetWithoutReplayingBarrier(t *testin
 	answers := make([]agentexec.SuspensionAnswer, len(barrier.Suspensions))
 	for index, boundary := range barrier.Suspensions {
 		answers[index] = agentexec.SuspensionAnswer{
-			ProcessID:    boundary.ProcessID,
+			ProcessID:    boundary.MemberID,
 			SuspensionID: boundary.SuspensionID,
 			Resolution: interrupt.Resolution{
 				Approved: true,
@@ -455,7 +455,7 @@ func TestCompleteAnswerSetDoesNotPersistDuringLiveContinuation(t *testing.T) {
 		inmemory.New(),
 		buildID,
 	)
-	handle, err := controller.StartTurn(t.Context(), runs.StartExecution{
+	handle, err := controller.StartTurn(t.Context(), runs.RootExecutionStart{
 		SessionID:      "sess-b8-parallel-checkpoint-failure",
 		Message:        "delegate this work",
 		CWD:            t.TempDir(),
@@ -522,7 +522,7 @@ func TestCompleteAnswerSetEncodingFailurePrecedesAnyContinuationSideEffect(t *te
 		inmemory.New(),
 		buildID,
 	)
-	handle, err := controller.StartTurn(t.Context(), runs.StartExecution{
+	handle, err := controller.StartTurn(t.Context(), runs.RootExecutionStart{
 		SessionID:      "sess-b8-parallel-encoding-failure",
 		Message:        "delegate this work",
 		CWD:            t.TempDir(),
@@ -595,7 +595,7 @@ func TestRestartRestoresParkedChildWithoutReplayingPreHook(t *testing.T) {
 		}, apphooks.NewRunner(firstHooks, nil)),
 	}, store, historyStore, buildID)
 
-	original, err := first.StartTurn(t.Context(), runs.StartExecution{
+	original, err := first.StartTurn(t.Context(), runs.RootExecutionStart{
 		SessionID:      "sess-b8-restart",
 		Message:        "delegate this work",
 		CWD:            cwd,
@@ -644,10 +644,10 @@ func TestRestartRestoresParkedChildWithoutReplayingPreHook(t *testing.T) {
 	restoredHandle, err := restored.Rehydrate(t.Context(), runs.RehydrateExecution{
 		SessionID:  original.SessionID,
 		ExecutorID: original.TurnID,
-		ProcessID:  processID,
+		MemberID:   processID,
 		RootRunID:  "run-root",
 		ChildRuns: []runs.ChildRunBinding{{
-			ProcessID:   barrier.Suspensions[0].ProcessID,
+			MemberID:    barrier.Suspensions[0].MemberID,
 			RunID:       "run-child",
 			ParentRunID: "run-root",
 		}},
@@ -739,7 +739,7 @@ func TestCancelParkedChildCleansWholeProcessTree(t *testing.T) {
 	controller := buildB8PersistentController(
 		t, model, policy, staticHookResolver{}, store, inmemory.New(), buildID,
 	)
-	handle, err := controller.StartTurn(t.Context(), runs.StartExecution{
+	handle, err := controller.StartTurn(t.Context(), runs.RootExecutionStart{
 		SessionID:      "sess-b8-child-cancel",
 		Message:        "delegate this work",
 		CWD:            t.TempDir(),
@@ -808,7 +808,7 @@ func TestRehydrateRejectsCorruptCheckpointPayload(t *testing.T) {
 	first := buildB8PersistentController(
 		t, model, policy, staticHookResolver{}, store, historyStore, buildID,
 	)
-	handle, err := first.StartTurn(t.Context(), runs.StartExecution{
+	handle, err := first.StartTurn(t.Context(), runs.RootExecutionStart{
 		SessionID:      "sess-b8-child-missing",
 		Message:        "delegate this work",
 		CWD:            t.TempDir(),
@@ -846,7 +846,7 @@ func TestRehydrateRejectsCorruptCheckpointPayload(t *testing.T) {
 	_, err = restored.Rehydrate(t.Context(), runs.RehydrateExecution{
 		SessionID:  handle.SessionID,
 		ExecutorID: handle.TurnID,
-		ProcessID:  rootID,
+		MemberID:   rootID,
 		RootRunID:  "run-root",
 		CWD:        t.TempDir(),
 	})
@@ -865,7 +865,7 @@ func TestChildApproveCancelRaceHasOneTerminal(t *testing.T) {
 	controller := buildB8Controller(t, model, policy, staticHookResolver{})
 
 	for index := range 20 {
-		handle, err := controller.StartTurn(t.Context(), runs.StartExecution{
+		handle, err := controller.StartTurn(t.Context(), runs.RootExecutionStart{
 			SessionID:      "sess-b8-race-" + string(rune('a'+index)),
 			Message:        "delegate this work",
 			CWD:            t.TempDir(),
@@ -948,7 +948,7 @@ func TestCompleteSiblingAnswerSetCancelRaceHasOneTerminalAndNoSecondBarrier(t *t
 	)
 
 	for index := range 20 {
-		handle, err := controller.StartTurn(t.Context(), runs.StartExecution{
+		handle, err := controller.StartTurn(t.Context(), runs.RootExecutionStart{
 			SessionID:      fmt.Sprintf("sess-b8-parallel-race-%d", index),
 			Message:        "delegate this work",
 			CWD:            t.TempDir(),
@@ -1253,7 +1253,7 @@ func questionAnswersForBarrier(
 	answers := make([]agentexec.SuspensionAnswer, len(barrier.Suspensions))
 	for index, boundary := range barrier.Suspensions {
 		answers[index] = agentexec.SuspensionAnswer{
-			ProcessID:    boundary.ProcessID,
+			ProcessID:    boundary.MemberID,
 			SuspensionID: boundary.SuspensionID,
 			Resolution: interrupt.Resolution{
 				Approved: true,

@@ -74,7 +74,7 @@ func (c *Coordinator) Cancel(ctx context.Context, cmd CancelCommand) (CancelResu
 	}
 	// The pump owns every non-parked live teardown. requestCancel has stopped its
 	// stream context; joining the handle returns that single owner's complete
-	// cleanup boundary without racing a second CancelExecution from this goroutine.
+	// cleanup boundary without racing a second executor Release from this goroutine.
 	if err := entry.handle.wait(cleanupCtx); err != nil {
 		return CancelResult{}, err
 	}
@@ -108,16 +108,16 @@ func (c *Coordinator) cancelLiveChild(
 	}
 	cleanupCtx, cancel := live.cleanupContext(ctx)
 	defer cancel()
-	if err := c.control.CancelSubtree(
+	if err := c.runningTrees.CancelRunningSubtree(
 		cleanupCtx,
 		plan.executor,
-		plan.target.processID,
+		plan.target.memberID,
 	); err != nil {
 		live.abortChildCancellation(attempt, err)
 		return CancelResult{}, fmt.Errorf(
 			"runs: cancel child Run %q executor subtree %q: %w",
 			plan.target.run.ID,
-			plan.target.processID,
+			plan.target.memberID,
 			err,
 		)
 	}
@@ -162,13 +162,13 @@ func (c *Coordinator) cancelWaitingChild(
 	cmd CancelCommand,
 	initial cancellationPlan,
 ) (CancelResult, error) {
-	if c.effects == nil {
+	if c.waitingEdits == nil {
 		return CancelResult{}, errors.New("runs: effects are required for waiting child cancellation")
 	}
 	if c.newSegmentID == nil {
 		return CancelResult{}, errors.New("runs: segment id generator is required for waiting child cancellation")
 	}
-	sess, err := c.sessions.Get(ctx, initial.pending.SessionID)
+	sess, err := c.sessionReader.Get(ctx, initial.pending.SessionID)
 	if err != nil {
 		return CancelResult{}, err
 	}
@@ -229,7 +229,7 @@ func (c *Coordinator) cancelWaitingChild(
 	ref, err := c.prepareExecution(cleanupCtx, plan.pending, sess.CWD, sess.Isolated)
 	if err != nil {
 		if errors.Is(err, ErrExecutorStateLost) {
-			lostErr := c.sessions.ApplyRunLost(
+			lostErr := c.terminations.ApplyRunLost(
 				cleanupCtx,
 				plan.pending.SessionID,
 				plan.root.run.ID,
@@ -255,10 +255,10 @@ func (c *Coordinator) cancelWaitingChild(
 		)
 	}
 
-	prepared, err := c.control.PrepareWaitingSubtreeCancellation(
+	prepared, err := c.waitingTrees.PrepareWaitingSubtreeCancellation(
 		cleanupCtx,
 		ref,
-		plan.target.processID,
+		plan.target.memberID,
 	)
 	if err != nil {
 		return CancelResult{}, err
@@ -275,7 +275,7 @@ func (c *Coordinator) cancelWaitingChild(
 		return CancelResult{}, err
 	}
 	if transformation.remaining != nil {
-		result, err := c.effects.CommitWaitingSubtreeCancellation(
+		result, err := c.waitingEdits.CommitWaitingSubtreeCancellation(
 			cleanupCtx,
 			transformation.durableCommit(plan.pending),
 		)
@@ -330,16 +330,16 @@ func (c *Coordinator) cancelWaitingChild(
 			durable := transformation.durableCommit(plan.pending)
 			durable.Resume = opening.Resume
 			durable.OpeningEvents = opening.Events
-			result, commitErr := c.effects.CommitWaitingSubtreeCancellation(commitCtx, durable)
+			result, commitErr := c.waitingEdits.CommitWaitingSubtreeCancellation(commitCtx, durable)
 			if commitErr == nil {
 				committed = result
 			}
 			return commitErr
 		},
-		Activate: func(activateCtx context.Context) error {
-			if err := prepared.Mutation.Commit(activateCtx, WaitingSubtreeContinues); err != nil {
+		BeginExecution: func(beginCtx context.Context) error {
+			if err := prepared.Mutation.Commit(beginCtx, WaitingSubtreeContinues); err != nil {
 				return fmt.Errorf(
-					"runs: activate committed cancellation of waiting child Run %q in root Run %q: %w",
+					"runs: apply committed cancellation of waiting child Run %q in root Run %q: %w",
 					plan.target.run.ID,
 					plan.root.run.ID,
 					err,
@@ -367,7 +367,7 @@ func (c *Coordinator) recoverCommittedWaitingCancellation(
 ) error {
 	recoveryCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), runCleanupTimeout)
 	defer cancel()
-	if err := c.sessions.ApplyRunLost(
+	if err := c.terminations.ApplyRunLost(
 		recoveryCtx,
 		plan.pending.SessionID,
 		plan.root.run.ID,
@@ -379,7 +379,7 @@ func (c *Coordinator) recoverCommittedWaitingCancellation(
 			err,
 		)
 	}
-	if err := c.control.CancelExecution(recoveryCtx, plan.executor); err != nil {
+	if err := c.releases.Release(recoveryCtx, plan.executor); err != nil {
 		return fmt.Errorf(
 			"runs: release obsolete executor %q after root Run %q was recovered lost: %w",
 			plan.executor.ExecutorID,
@@ -454,7 +454,7 @@ func (c *Coordinator) publishWaitingChildCancellation(
 }
 
 // cancelWithoutLiveSegment resolves the small window in which a segment has
-// left the process registry after the first durable read. A second durable read
+// left the live registry after the first durable read. A second durable read
 // classifies a real terminal race; a still-running orphan is an invariant fault,
 // never run_not_found.
 func (c *Coordinator) cancelWithoutLiveSegment(ctx context.Context, cmd CancelCommand, run transcript.Run) (CancelResult, error) {
@@ -496,7 +496,7 @@ func (c *Coordinator) cancelParkedRun(ctx context.Context, cmd CancelCommand, ru
 	}
 	defer releaseSession()
 
-	pending, found, err := c.sessions.LookupOpenInterrupt(ctx, cmd.RunID)
+	pending, found, err := c.interrupts.LookupOpenInterrupt(ctx, cmd.RunID)
 	if err != nil {
 		return CancelResult{}, err
 	}
@@ -550,7 +550,7 @@ func (c *Coordinator) cancelKnownParkedRun(
 }
 
 func (c *Coordinator) cancelClaimedParkedRun(ctx context.Context, cmd CancelCommand, ref ExecutorRef) (CancelResult, error) {
-	terminal, err := c.sessions.ApplyRunCancel(ctx, ref.SessionID, cmd.RunID, cmd.Reason, c.now().UTC())
+	terminal, err := c.terminations.ApplyRunCancel(ctx, ref.SessionID, cmd.RunID, cmd.Reason, c.now().UTC())
 	if err != nil {
 		return CancelResult{}, err
 	}
@@ -558,7 +558,7 @@ func (c *Coordinator) cancelClaimedParkedRun(ctx context.Context, cmd CancelComm
 	// ends the run and drops the interrupt, and it is reached from here and from a
 	// resume that finds the park unresumable. Signaling here too would be a second
 	// author for one commit.
-	if err := c.control.CancelExecution(ctx, ref); err != nil && !errors.Is(err, ErrExecutorNotLive) {
+	if err := c.releases.Release(ctx, ref); err != nil && !errors.Is(err, ErrExecutorNotLive) {
 		return CancelResult{}, fmt.Errorf("runs: clean up canceled parked Run %q executor: %w", cmd.RunID, err)
 	}
 	return rootCancelResult(terminal)

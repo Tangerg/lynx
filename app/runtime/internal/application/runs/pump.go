@@ -98,7 +98,7 @@ func (p *segmentPump) handleChildOpening(event ExecutorEvent, request ChildOpeni
 		p.spec,
 		p.live,
 		p.routes,
-		event.Source,
+		event.Member,
 		request,
 	)
 	if err == nil {
@@ -106,15 +106,15 @@ func (p *segmentPump) handleChildOpening(event ExecutorEvent, request ChildOpeni
 		publication, err = p.publisher.publish(p.ownerCtx, child, opening)
 		if err == nil && (publication.finished || publication.parked) {
 			err = fmt.Errorf(
-				"runs: child process %q opening unexpectedly finished its segment",
-				event.Source.ProcessID,
+				"runs: child member %q opening unexpectedly finished its segment",
+				event.Member.MemberID,
 			)
 		}
 	}
 	binding := ChildRunBinding{}
 	if err == nil {
 		binding = ChildRunBinding{
-			ProcessID:   event.Source.ProcessID,
+			MemberID:    event.Member.MemberID,
 			RunID:       child.runID,
 			ParentRunID: child.lineage.ParentRunID,
 		}
@@ -130,13 +130,13 @@ func (p *segmentPump) handleChildOpening(event ExecutorEvent, request ChildOpeni
 }
 
 func (p *segmentPump) handleTreeBarrier(event ExecutorEvent, barrier TreeInterrupted) {
-	root, err := p.routes.resolve(event.Source)
+	root, err := p.routes.resolve(event.Member)
 	if err != nil {
 		p.fail(err)
 		return
 	}
 	if root != p.routes.root {
-		p.fail(errors.New("runs: tree interrupt must be emitted by the root executor source"))
+		p.fail(errors.New("runs: tree interrupt must be emitted by the root executor member"))
 		return
 	}
 	publication, err := p.publisher.publishTreeBarrier(
@@ -156,13 +156,13 @@ func (p *segmentPump) handleTreeBarrier(event ExecutorEvent, barrier TreeInterru
 }
 
 func (p *segmentPump) handleEngineEvent(event ExecutorEvent) bool {
-	route, err := p.routes.resolve(event.Source)
+	route, err := p.routes.resolve(event.Member)
 	if err != nil {
 		p.fail(err)
 		return false
 	}
-	if route.source.ProcessID != "" {
-		if err := p.live.bindExecutorProcess(route.runID, route.source.ProcessID); err != nil {
+	if route.member.MemberID != "" {
+		if err := p.live.bindExecutorMember(route.runID, route.member.MemberID); err != nil {
 			p.fail(err)
 			return false
 		}
@@ -232,7 +232,10 @@ func (p *segmentPump) finish() {
 	if !p.rootFinished {
 		p.synthesizeUnfinished()
 	}
-	if !p.rootParked && (p.ctx.Err() != nil || p.abortExecution) {
+	// Every non-waiting boundary releases the executor tree exactly once. The
+	// product outcome is already committed (or will be synthesized immediately
+	// above); Release is resource ownership, not a second cancellation decision.
+	if !p.rootParked {
 		p.tearDownExecutor()
 	}
 	p.finishBoundary()
@@ -288,7 +291,7 @@ func (p *segmentPump) synthesizeRoute(ctx context.Context, route *executorRoute)
 func (p *segmentPump) tearDownExecutor() {
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(p.ownerCtx), runCleanupTimeout)
 	defer cancel()
-	if err := p.coordinator.executor.CancelExecution(ctx, p.spec.executorRef()); err != nil && !errors.Is(err, ErrExecutorNotLive) {
+	if err := p.coordinator.releases.Release(ctx, p.spec.executorRef()); err != nil && !errors.Is(err, ErrExecutorNotLive) {
 		p.live.completionErr = fmt.Errorf("runs: tear down executor %q: %w", p.spec.ExecutorID, err)
 		recordRunCleanupError(ctx, p.live.completionErr)
 	}
@@ -302,7 +305,7 @@ func (p *segmentPump) finishBoundary() {
 	}
 	if p.rootFinished {
 		ctx, cancel := context.WithTimeout(context.WithoutCancel(p.ownerCtx), runCleanupTimeout)
-		if err := p.coordinator.effects.Finish(ctx, Finish{
+		if err := p.coordinator.finalizer.Finish(ctx, Finish{
 			SessionID:       p.spec.SessionID,
 			RunID:           p.spec.RunID,
 			CWD:             p.spec.CWD,

@@ -60,8 +60,8 @@ func runRecord(state run.RunState, activeSegmentID, spawnedBy string) transcript
 func liveCoordinator(t *testing.T, run transcript.Run) (*Coordinator, *Journal) {
 	t.Helper()
 	c := NewCoordinator(Dependencies{
-		Control: &fakeExecutionControl{},
-		Runs:    &fakeRunProjection{runs: map[string]transcript.Run{testRunID: run}},
+		Releases: &fakeExecutionPorts{},
+		Runs:     &fakeRunProjection{runs: map[string]transcript.Run{testRunID: run}},
 	})
 	hub := newJournal(streamScope{
 		Epoch: c.epoch, RunID: testRunID, SegmentID: testSegmentID,
@@ -199,7 +199,7 @@ func TestSubscribeRefusesACursorFromAnotherSegment(t *testing.T) {
 // cursor from the earlier one is unavailable, never silently rebound. The
 // durable projection remains readable afterward, which is the cold truth a
 // client combines with a new tail subscription.
-func TestSubscribeRefusesACursorFromAnotherProcess(t *testing.T) {
+func TestSubscribeRefusesACursorFromAnotherRuntimeInstance(t *testing.T) {
 	previous, previousHub := liveCoordinator(t, runRecord(run.Running, testSegmentID, ""))
 	previousHub.Append(ev(true))
 	before, err := previous.Subscribe(t.Context(), SubscribeRequest{RunID: testRunID, SegmentID: testSegmentID})

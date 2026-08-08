@@ -69,10 +69,10 @@ func TestRecoveryRepairsWholeDurableLifecycle(t *testing.T) {
 		t.Fatalf("AppendItem: %v", err)
 	}
 	checkpoint := runs.ExecutorCheckpoint{
-		RootProcessID: "orphan_checkpoint",
-		Payload:       []byte(`{"opaque":true}`),
-		BuildID:       "build",
-		Scope:         runs.ExecutionScope{SessionID: "session"},
+		RootMemberID: "orphan_checkpoint",
+		Payload:      []byte(`{"opaque":true}`),
+		BuildID:      "build",
+		Scope:        runs.ExecutionScope{SessionID: "session"},
 	}
 	if err := checkpointStore.SaveCheckpoint(ctx, checkpoint); err != nil {
 		t.Fatalf("SaveCheckpoint: %v", err)
@@ -113,7 +113,7 @@ func TestRecoveryRepairsWholeDurableLifecycle(t *testing.T) {
 	if err != nil || !found || storedItem.Status != transcript.ItemIncomplete {
 		t.Fatalf("recovered Item = found:%t value:%+v err:%v", found, storedItem, err)
 	}
-	if _, err := checkpointStore.LoadCheckpoint(ctx, checkpoint.RootProcessID); !errors.Is(err, runs.ErrExecutorCheckpointNotFound) {
+	if _, err := checkpointStore.LoadCheckpoint(ctx, checkpoint.RootMemberID); !errors.Is(err, runs.ErrExecutorCheckpointNotFound) {
 		t.Fatalf("orphan checkpoint after recovery = %v", err)
 	}
 	storedGoal, found, err := goalStore.Get(ctx, goalValue.SessionID)
@@ -172,10 +172,10 @@ func TestRecoveryRejectsPartialParkWithoutMutatingIt(t *testing.T) {
 		},
 		Interrupts: []transcript.Interrupt{pendingInterrupt},
 		Suspensions: []runs.SuspensionBinding{{
-			InterruptItemID: pendingInterrupt.ItemID, ProcessID: "process_root", SuspensionID: "suspension_root",
+			InterruptItemID: pendingInterrupt.ItemID, MemberID: "process_root", SuspensionID: "suspension_root",
 		}},
 		Continuations: []runs.Continuation{{
-			RunID: "run_partial", ProcessID: "process_root", RunCreatedAt: createdAt,
+			RunID: "run_partial", MemberID: "process_root", RunCreatedAt: createdAt,
 		}},
 		CreatedAt: createdAt.Add(time.Second),
 	}
@@ -183,7 +183,7 @@ func TestRecoveryRejectsPartialParkWithoutMutatingIt(t *testing.T) {
 		t.Fatalf("Open Pending: %v", err)
 	}
 	checkpoint := runs.ExecutorCheckpoint{
-		RootProcessID: "process_root", Payload: []byte(`{"opaque":true}`), BuildID: "build",
+		RootMemberID: "process_root", Payload: []byte(`{"opaque":true}`), BuildID: "build",
 		Scope: runs.ExecutionScope{SessionID: "session"},
 	}
 	if err := checkpointStore.SaveCheckpoint(ctx, checkpoint); err != nil {
@@ -214,7 +214,7 @@ func TestRecoveryRejectsPartialParkWithoutMutatingIt(t *testing.T) {
 	if err != nil || !found || stored.State != run.Waiting {
 		t.Fatalf("Run after rejection = found:%t value:%+v err:%v", found, stored, err)
 	}
-	if _, err := checkpointStore.LoadCheckpoint(ctx, checkpoint.RootProcessID); err != nil {
+	if _, err := checkpointStore.LoadCheckpoint(ctx, checkpoint.RootMemberID); err != nil {
 		t.Fatalf("checkpoint after rejection: %v", err)
 	}
 }

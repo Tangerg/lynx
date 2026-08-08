@@ -26,8 +26,8 @@ import (
 // Production consumers each use smaller ports; these integration tests exercise
 // the complete turn lifecycle.
 type turnDriver interface {
-	StartTurn(context.Context, runs.StartExecution) (turn.Handle, error)
-	PrepareTurn(context.Context, runs.StartExecution) (turn.Handle, error)
+	StartTurn(context.Context, runs.RootExecutionStart) (turn.Handle, error)
+	PrepareTurn(context.Context, runs.RootExecutionStart) (turn.Handle, error)
 	ActivateTurn(context.Context, turn.Handle) error
 	Events(context.Context, turn.Handle) (iter.Seq[runs.ExecutorEvent], error)
 	InjectSteering(context.Context, turn.Handle, []transcript.ContentBlock) error

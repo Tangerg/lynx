@@ -47,24 +47,24 @@ type fakeExecutor struct {
 	executorEvents []ExecutorEvent
 	block          bool
 	mu             sync.Mutex
-	canceled       int
+	released       int
 	startErr       error
-	cancelErr      error
-	cancelStarted  chan struct{}
-	releaseCancel  chan struct{}
+	releaseErr     error
+	releaseStarted chan struct{}
+	allowRelease   chan struct{}
 }
 
 type acknowledgedChildExecutor struct {
-	rootSource   ExecutorSource
-	childSource  ExecutorSource
+	rootMember   ExecutorMember
+	childMember  ExecutorMember
 	request      ChildOpeningRequest
 	confirmation ChildOpeningConfirmation
 	childStarted chan struct{}
 }
 
 type cancellableChildExecutor struct {
-	rootSource      ExecutorSource
-	childSource     ExecutorSource
+	rootMember      ExecutorMember
+	childMember     ExecutorMember
 	request         ChildOpeningRequest
 	confirmation    ChildOpeningConfirmation
 	childOpened     chan struct{}
@@ -72,23 +72,23 @@ type cancellableChildExecutor struct {
 	finishRoot      chan struct{}
 }
 
-func (e *cancellableChildExecutor) Events(
+func (e *cancellableChildExecutor) Observe(
 	ctx context.Context,
 	_ ExecutorRef,
 ) (iter.Seq[ExecutorEvent], error) {
 	return func(yield func(ExecutorEvent) bool) {
 		if !yield(ExecutorEvent{
-			Source: e.rootSource,
+			Member: e.rootMember,
 			Payload: ToolCallStarted{
 				CallID:       "canonical_child",
-				SourceCallID: e.childSource.SpawnCallID,
+				SourceCallID: e.childMember.SpawnCallID,
 				ToolName:     "delegate_task",
 				Arguments:    `{}`,
 			},
 		}) {
 			return
 		}
-		if !yield(ExecutorEvent{Source: e.childSource, Payload: e.request}) {
+		if !yield(ExecutorEvent{Member: e.childMember, Payload: e.request}) {
 			return
 		}
 		if _, err := e.confirmation.Await(ctx); err != nil {
@@ -101,13 +101,13 @@ func (e *cancellableChildExecutor) Events(
 			return
 		}
 		if !yield(ExecutorEvent{
-			Source:  e.childSource,
+			Member:  e.childMember,
 			Payload: SegmentEnded{Reason: run.OutcomeCanceled},
 		}) {
 			return
 		}
 		if !yield(ExecutorEvent{
-			Source: e.rootSource,
+			Member: e.rootMember,
 			Payload: ToolCallFinished{
 				CallID: "canonical_child",
 				Problem: &transcript.Problem{
@@ -125,30 +125,30 @@ func (e *cancellableChildExecutor) Events(
 			return
 		}
 		yield(ExecutorEvent{
-			Source:  e.rootSource,
+			Member:  e.rootMember,
 			Payload: SegmentEnded{Reason: run.OutcomeCompleted},
 		})
 	}, nil
 }
 
-func (*cancellableChildExecutor) CancelExecution(context.Context, ExecutorRef) error {
+func (*cancellableChildExecutor) Release(context.Context, ExecutorRef) error {
 	return nil
 }
 
-func (e *acknowledgedChildExecutor) Events(ctx context.Context, _ ExecutorRef) (iter.Seq[ExecutorEvent], error) {
+func (e *acknowledgedChildExecutor) Observe(ctx context.Context, _ ExecutorRef) (iter.Seq[ExecutorEvent], error) {
 	return func(yield func(ExecutorEvent) bool) {
 		if !yield(ExecutorEvent{
-			Source: e.rootSource,
+			Member: e.rootMember,
 			Payload: ToolCallStarted{
 				CallID:       "canonical_call_delegate",
-				SourceCallID: e.childSource.SpawnCallID,
+				SourceCallID: e.childMember.SpawnCallID,
 				ToolName:     "delegate_task",
 				Arguments:    `{}`,
 			},
 		}) {
 			return
 		}
-		if !yield(ExecutorEvent{Source: e.childSource, Payload: e.request}) {
+		if !yield(ExecutorEvent{Member: e.childMember, Payload: e.request}) {
 			return
 		}
 		if _, err := e.confirmation.Await(ctx); err != nil {
@@ -156,23 +156,23 @@ func (e *acknowledgedChildExecutor) Events(ctx context.Context, _ ExecutorRef) (
 		}
 		close(e.childStarted)
 		if !yield(ExecutorEvent{
-			Source:  e.childSource,
+			Member:  e.childMember,
 			Payload: SegmentEnded{Reason: run.OutcomeCompleted},
 		}) {
 			return
 		}
 		yield(ExecutorEvent{
-			Source:  e.rootSource,
+			Member:  e.rootMember,
 			Payload: SegmentEnded{Reason: run.OutcomeCompleted},
 		})
 	}, nil
 }
 
-func (*acknowledgedChildExecutor) CancelExecution(context.Context, ExecutorRef) error {
+func (*acknowledgedChildExecutor) Release(context.Context, ExecutorRef) error {
 	return nil
 }
 
-func (f *fakeExecutor) Events(ctx context.Context, _ ExecutorRef) (iter.Seq[ExecutorEvent], error) {
+func (f *fakeExecutor) Observe(ctx context.Context, _ ExecutorRef) (iter.Seq[ExecutorEvent], error) {
 	if f.startErr != nil {
 		return nil, f.startErr
 	}
@@ -186,7 +186,7 @@ func (f *fakeExecutor) Events(ctx context.Context, _ ExecutorRef) (iter.Seq[Exec
 			events = make([]ExecutorEvent, len(f.events))
 			for index, event := range f.events {
 				events[index] = ExecutorEvent{
-					Source:  ExecutorSource{ProcessID: "process_root"},
+					Member:  ExecutorMember{MemberID: "member_root"},
 					Payload: event,
 				}
 			}
@@ -199,23 +199,23 @@ func (f *fakeExecutor) Events(ctx context.Context, _ ExecutorRef) (iter.Seq[Exec
 	}, nil
 }
 
-func (f *fakeExecutor) CancelExecution(context.Context, ExecutorRef) error {
-	if f.cancelStarted != nil {
-		close(f.cancelStarted)
+func (f *fakeExecutor) Release(context.Context, ExecutorRef) error {
+	if f.releaseStarted != nil {
+		close(f.releaseStarted)
 	}
-	if f.releaseCancel != nil {
-		<-f.releaseCancel
+	if f.allowRelease != nil {
+		<-f.allowRelease
 	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	f.canceled++
-	return f.cancelErr
+	f.released++
+	return f.releaseErr
 }
 
-func (f *fakeExecutor) cancels() int {
+func (f *fakeExecutor) releases() int {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	return f.canceled
+	return f.released
 }
 
 type fakeEffects struct {
@@ -241,6 +241,26 @@ type fakeEffects struct {
 	terminalRelease <-chan struct{}
 	finishStarted   chan<- struct{}
 	finishRelease   <-chan struct{}
+}
+
+type completeTestProjectionPorts interface {
+	OpeningCommitter
+	EventCommitter
+	TreeBarrierCommitter
+	WaitingSubtreeCancellationCommitter
+	WorkspaceChangeNotifier
+	SegmentFinalizer
+}
+
+func testProjectionPorts(ports completeTestProjectionPorts) ProjectionPorts {
+	return ProjectionPorts{
+		Openings:     ports,
+		Events:       ports,
+		Barriers:     ports,
+		WaitingEdits: ports,
+		Workspace:    ports,
+		Finalizer:    ports,
+	}
 }
 
 type blockingChildOpeningEffects struct {
@@ -396,11 +416,15 @@ func (e *fakeEffects) finishCount() int {
 	return len(e.finishes)
 }
 
-func testCoordinator(executor SegmentExecutor, effects Effects) *Coordinator {
+func testCoordinator(executor interface {
+	ExecutionObserver
+	ExecutionReleaser
+}, effects completeTestProjectionPorts) *Coordinator {
 	return NewCoordinator(Dependencies{
-		Segments:   executor,
-		Effects:    effects,
-		Admissions: new(admission.Gate),
+		Observations: executor,
+		Releases:     executor,
+		Projection:   testProjectionPorts(effects),
+		Admissions:   new(admission.Gate),
 		Now: func() time.Time {
 			return time.Date(2026, 7, 13, 1, 2, 3, 0, time.UTC)
 		},
@@ -428,7 +452,7 @@ func runForSegment(spec segmentSpec) transcript.Run {
 
 func TestResumedExecutorRouteRetainsGoalLeaseForTerminalAccounting(t *testing.T) {
 	createdAt := time.Date(2026, 7, 30, 1, 2, 3, 0, time.UTC)
-	pending := testPendingInterrupt("item_1", "process_root", createdAt)
+	pending := testPendingInterrupt("item_1", "member_root", createdAt)
 	pending.GoalLeaseID = "goal-lease-1"
 	pending.Continuations[0].ModelSelection = mustSelection("openai", "model")
 	continuation := mustTreeContinuation(t, pending)
@@ -470,23 +494,23 @@ func TestResumedExecutorRoutesBindLiveTopologyWithoutPersistingIt(t *testing.T) 
 		t.Fatalf("resumedExecutorRoutes: %v", err)
 	}
 	child := routes.byRunID["run_a"]
-	if child == nil || child.sourceBound || child.source.ProcessID != "process_a" {
+	if child == nil || child.memberBound || child.member.MemberID != "member_a" {
 		t.Fatalf("restored child route = %+v, want opaque process binding without persisted topology", child)
 	}
 
-	source := ExecutorSource{ProcessID: "process_a", ParentID: "process_root", SpawnCallID: "spawn_a"}
-	resolved, err := routes.resolve(source)
-	if err != nil || resolved != child || !child.sourceBound || child.source != source {
-		t.Fatalf("resolve live child source = (%+v, %v), route=%+v", resolved, err, child)
+	member := ExecutorMember{MemberID: "member_a", ParentID: "member_root", SpawnCallID: "spawn_a"}
+	resolved, err := routes.resolve(member)
+	if err != nil || resolved != child || !child.memberBound || child.member != member {
+		t.Fatalf("resolve live child member = (%+v, %v), route=%+v", resolved, err, child)
 	}
-	if _, err := routes.resolve(ExecutorSource{
-		ProcessID: "process_a", ParentID: "process_root", SpawnCallID: "changed",
+	if _, err := routes.resolve(ExecutorMember{
+		MemberID: "member_a", ParentID: "member_root", SpawnCallID: "changed",
 	}); err == nil || !strings.Contains(err.Error(), "changed immutable lineage") {
 		t.Fatalf("changed live child topology error = %v", err)
 	}
 
-	if _, err := routes.resolve(ExecutorSource{
-		ProcessID: "process_b", ParentID: "process_a", SpawnCallID: "spawn_b",
+	if _, err := routes.resolve(ExecutorMember{
+		MemberID: "member_b", ParentID: "member_a", SpawnCallID: "spawn_b",
 	}); err == nil || !strings.Contains(err.Error(), "want Run") {
 		t.Fatalf("wrong live parent error = %v", err)
 	}
@@ -541,17 +565,17 @@ func TestCoordinatorRejectsUncommittedOpening(t *testing.T) {
 	if _, ok := coordinator.registry.Get("run_1"); events != nil || ok {
 		t.Fatal("an uncommitted opening became visible")
 	}
-	if executor.cancels() != 1 {
-		t.Fatalf("CancelTurn calls = %d, want 1", executor.cancels())
+	if executor.releases() != 1 {
+		t.Fatalf("Release calls = %d, want 1", executor.releases())
 	}
 	if effects.finishCount() != 0 {
 		t.Fatalf("Finish calls = %d, want none without a committed terminal", effects.finishCount())
 	}
 }
 
-func TestCoordinatorPreservesUnadmittedTurnCleanupFailure(t *testing.T) {
+func TestCoordinatorPreservesUnadmittedExecutorReleaseFailure(t *testing.T) {
 	cleanupErr := errors.New("executor cleanup failed")
-	executor := &fakeExecutor{cancelErr: cleanupErr}
+	executor := &fakeExecutor{releaseErr: cleanupErr}
 	openingErr := errors.New("opening commit failed")
 	coordinator := testCoordinator(executor, &fakeEffects{openingErr: openingErr})
 
@@ -559,8 +583,8 @@ func TestCoordinatorPreservesUnadmittedTurnCleanupFailure(t *testing.T) {
 	if !errors.Is(err, openingErr) || !errors.Is(err, cleanupErr) {
 		t.Fatalf("openSegment error = %v, want opening and cleanup failures", err)
 	}
-	if executor.cancels() != 1 {
-		t.Fatalf("CancelTurn calls = %d, want 1", executor.cancels())
+	if executor.releases() != 1 {
+		t.Fatalf("Release calls = %d, want 1", executor.releases())
 	}
 }
 
@@ -597,6 +621,9 @@ func TestCoordinatorCommitsCanonicalOpeningAndTerminal(t *testing.T) {
 	}
 	if !effects.terminalized("ses_1", "run_1") {
 		t.Fatal("terminal run and exact run-state transition were not committed")
+	}
+	if executor.releases() != 1 {
+		t.Fatalf("terminal executor releases = %d, want 1", executor.releases())
 	}
 	for index := 1; index < len(events); index++ {
 		if events[index-1].Sequence >= events[index].Sequence {
@@ -654,7 +681,7 @@ func hasActiveSession(c *Coordinator, sessionID string) bool {
 	return c.admission.ActiveSessions()[sessionID]
 }
 
-func TestCoordinatorCommitsProcessCreationFailureInCanonicalOrder(t *testing.T) {
+func TestCoordinatorCommitsExecutorStartFailureInCanonicalOrder(t *testing.T) {
 	executor := &fakeExecutor{events: []ExecutorPayload{
 		SegmentEnded{Reason: run.OutcomeFailed, Problem: &transcript.Problem{Kind: transcript.InternalProblem, Scope: transcript.RunProblem, Detail: "the run failed due to an internal error"}},
 	}}
@@ -686,7 +713,7 @@ func TestCoordinatorCommitsProcessCreationFailureInCanonicalOrder(t *testing.T) 
 		t.Fatalf("event order = %d then %d, want monotonic", events[0].Sequence, events[1].Sequence)
 	}
 	if !effects.terminalized("ses_1", "run_1") {
-		t.Fatal("process creation failure did not atomically terminalize the run")
+		t.Fatal("executor start failure did not atomically terminalize the run")
 	}
 }
 
@@ -696,10 +723,10 @@ func TestCoordinatorResumeCommitsBeforeActivation(t *testing.T) {
 	coordinator := testCoordinator(executor, effects)
 	spec := testSegment()
 	spec.SegmentID = "seg_2"
-	pending := testPendingInterrupt("item_1", "process_root", spec.CreatedAt)
+	pending := testPendingInterrupt("item_1", "member_root", spec.CreatedAt)
 	spec.Continuation = mustTreeContinuation(t, pending)
 	activatedAfterOpening := false
-	spec.Activate = func(context.Context) error {
+	spec.BeginExecution = func(context.Context) error {
 		activatedAfterOpening = effects.opening().Resume != nil
 		return nil
 	}
@@ -719,21 +746,21 @@ func TestCoordinatorResumeCommitsBeforeActivation(t *testing.T) {
 }
 
 func TestCoordinatorResumesCompleteRunTreeInOneCanonicalOpening(t *testing.T) {
-	rootSource := ExecutorSource{ProcessID: "process_root"}
-	childASource := ExecutorSource{
-		ProcessID: "process_a", ParentID: "process_root", SpawnCallID: "spawn_a",
+	rootMember := ExecutorMember{MemberID: "member_root"}
+	childASource := ExecutorMember{
+		MemberID: "member_a", ParentID: "member_root", SpawnCallID: "spawn_a",
 	}
-	grandchildSource := ExecutorSource{
-		ProcessID: "process_grandchild", ParentID: "process_a", SpawnCallID: "spawn_grandchild",
+	grandchildSource := ExecutorMember{
+		MemberID: "member_grandchild", ParentID: "member_a", SpawnCallID: "spawn_grandchild",
 	}
-	childBSource := ExecutorSource{
-		ProcessID: "process_b", ParentID: "process_root", SpawnCallID: "spawn_b",
+	childBSource := ExecutorMember{
+		MemberID: "member_b", ParentID: "member_root", SpawnCallID: "spawn_b",
 	}
 	executor := &fakeExecutor{executorEvents: []ExecutorEvent{
-		{Source: grandchildSource, Payload: SegmentEnded{Reason: run.OutcomeCompleted}},
-		{Source: childASource, Payload: SegmentEnded{Reason: run.OutcomeCompleted}},
-		{Source: childBSource, Payload: SegmentEnded{Reason: run.OutcomeCompleted}},
-		{Source: rootSource, Payload: SegmentEnded{Reason: run.OutcomeCompleted}},
+		{Member: grandchildSource, Payload: SegmentEnded{Reason: run.OutcomeCompleted}},
+		{Member: childASource, Payload: SegmentEnded{Reason: run.OutcomeCompleted}},
+		{Member: childBSource, Payload: SegmentEnded{Reason: run.OutcomeCompleted}},
+		{Member: rootMember, Payload: SegmentEnded{Reason: run.OutcomeCompleted}},
 	}}
 	effects := &fakeEffects{}
 	coordinator := testCoordinator(executor, effects)
@@ -797,7 +824,7 @@ func TestCoordinatorResumesCompleteRunTreeInOneCanonicalOpening(t *testing.T) {
 			checkpointDeletes = append(checkpointDeletes, commit.ObsoleteCheckpointRootID)
 		}
 	}
-	if !slices.Equal(checkpointDeletes, []string{rootSource.ProcessID}) {
+	if !slices.Equal(checkpointDeletes, []string{rootMember.MemberID}) {
 		t.Fatalf("terminal executor checkpoint deletes = %v, want root only", checkpointDeletes)
 	}
 }
@@ -827,13 +854,13 @@ func resumedTreePending(createdAt time.Time) Pending {
 			question("item_b", "run_b"),
 		},
 		Suspensions: []SuspensionBinding{
-			{InterruptItemID: "item_grandchild", ProcessID: "process_grandchild", SuspensionID: "suspension_grandchild"},
-			{InterruptItemID: "item_b", ProcessID: "process_b", SuspensionID: "suspension_b"},
+			{InterruptItemID: "item_grandchild", MemberID: "member_grandchild", SuspensionID: "suspension_grandchild"},
+			{InterruptItemID: "item_b", MemberID: "member_b", SuspensionID: "suspension_b"},
 		},
 		Continuations: []Continuation{
 			{
-				RunID:     "run_grandchild",
-				ProcessID: "process_grandchild",
+				RunID:    "run_grandchild",
+				MemberID: "member_grandchild",
 				Lineage: run.RunLineage{
 					SpawnedByItemID: "item_spawn_grandchild",
 					ParentRunID:     "run_a",
@@ -843,8 +870,8 @@ func resumedTreePending(createdAt time.Time) Pending {
 				RunCreatedAt:   createdAt,
 			},
 			{
-				RunID:     "run_a",
-				ProcessID: "process_a",
+				RunID:    "run_a",
+				MemberID: "member_a",
 				Lineage: run.RunLineage{
 					SpawnedByItemID: "item_spawn_a",
 					ParentRunID:     "run_1",
@@ -854,8 +881,8 @@ func resumedTreePending(createdAt time.Time) Pending {
 				RunCreatedAt:   createdAt,
 			},
 			{
-				RunID:     "run_b",
-				ProcessID: "process_b",
+				RunID:    "run_b",
+				MemberID: "member_b",
 				Lineage: run.RunLineage{
 					SpawnedByItemID: "item_spawn_b",
 					ParentRunID:     "run_1",
@@ -866,7 +893,7 @@ func resumedTreePending(createdAt time.Time) Pending {
 			},
 			{
 				RunID:          "run_1",
-				ProcessID:      "process_root",
+				MemberID:       "member_root",
 				ModelSelection: mustSelection("openai", "model"),
 				RunCreatedAt:   createdAt,
 			},
@@ -880,7 +907,7 @@ func TestCoordinatorActivationFailureBecomesErrorTerminal(t *testing.T) {
 	effects := &fakeEffects{}
 	coordinator := testCoordinator(executor, effects)
 	spec := testSegment()
-	spec.Activate = func(context.Context) error { return errors.New("resume failed") }
+	spec.BeginExecution = func(context.Context) error { return errors.New("resume failed") }
 
 	stream, err := coordinator.openSegment(context.Background(), spec)
 	if err != nil {
@@ -910,7 +937,7 @@ func TestCoordinatorTreeActivationFailureTerminalizesInCanonicalPostorder(t *tes
 	spec.SegmentID = "seg_root_resumed"
 	pending := resumedTreePending(spec.CreatedAt)
 	spec.Continuation = mustTreeContinuation(t, pending)
-	spec.Activate = func(context.Context) error { return errors.New("resume failed") }
+	spec.BeginExecution = func(context.Context) error { return errors.New("resume failed") }
 
 	stream, err := coordinator.openSegment(t.Context(), spec)
 	if err != nil {
@@ -952,8 +979,8 @@ func TestCoordinatorMalformedInterruptAbortsExecutorAndTerminalizes(t *testing.T
 	if !ok || finished.Run.Outcome == nil || *finished.Run.Outcome != run.OutcomeFailed {
 		t.Fatalf("last payload = %#v, want error terminal", events[len(events)-1].Payload)
 	}
-	if executor.cancels() != 1 {
-		t.Fatalf("CancelTurn calls = %d, want 1", executor.cancels())
+	if executor.releases() != 1 {
+		t.Fatalf("Release calls = %d, want 1", executor.releases())
 	}
 	if !effects.terminalized("ses_1", "run_1") {
 		t.Fatal("malformed interrupt did not terminalize the run")
@@ -990,8 +1017,8 @@ func TestCoordinatorProtocolViolationAbortsExecutorAndTerminalizes(t *testing.T)
 			if finished.Run.Error == nil || finished.Run.Error.Kind != transcript.InternalProblem {
 				t.Fatalf("run failure = %+v, want canonical internal problem", finished.Run.Error)
 			}
-			if executor.cancels() != 1 {
-				t.Fatalf("CancelTurn calls = %d, want 1", executor.cancels())
+			if executor.releases() != 1 {
+				t.Fatalf("Release calls = %d, want 1", executor.releases())
 			}
 			if !effects.terminalized("ses_1", "run_1") {
 				t.Fatal("executor protocol violation did not terminalize the run")
@@ -1002,9 +1029,9 @@ func TestCoordinatorProtocolViolationAbortsExecutorAndTerminalizes(t *testing.T)
 
 func TestCoordinatorRejectsUnadmittedChildSource(t *testing.T) {
 	executor := &fakeExecutor{executorEvents: []ExecutorEvent{{
-		Source: ExecutorSource{
-			ProcessID:   "process_child",
-			ParentID:    "process_root",
+		Member: ExecutorMember{
+			MemberID:    "member_child",
+			ParentID:    "member_root",
 			SpawnCallID: "call_delegate",
 		},
 		Payload: MessageDelta{Text: "must not reach the root reducer"},
@@ -1024,36 +1051,36 @@ func TestCoordinatorRejectsUnadmittedChildSource(t *testing.T) {
 	if !ok || finished.Run.Outcome == nil || *finished.Run.Outcome != run.OutcomeFailed {
 		t.Fatalf("last payload = %#v, want error terminal", events[1].Payload)
 	}
-	if executor.cancels() != 1 {
-		t.Fatalf("CancelTurn calls = %d, want 1", executor.cancels())
+	if executor.releases() != 1 {
+		t.Fatalf("Release calls = %d, want 1", executor.releases())
 	}
 	if !effects.terminalized("ses_1", "run_1") {
-		t.Fatal("unadmitted child source did not terminalize the root run")
+		t.Fatal("unadmitted child member did not terminalize the root run")
 	}
 }
 
 func TestCoordinatorAtomicallyAdmitsChildRunFromSpawningItem(t *testing.T) {
 	startedAt := time.Date(2026, 7, 13, 1, 2, 4, 0, time.FixedZone("test", 8*60*60))
 	request, confirmation := NewChildOpeningRequest(startedAt)
-	rootSource := ExecutorSource{ProcessID: "process_root"}
-	childSource := ExecutorSource{
-		ProcessID:   "process_child",
-		ParentID:    rootSource.ProcessID,
+	rootMember := ExecutorMember{MemberID: "member_root"}
+	childMember := ExecutorMember{
+		MemberID:    "member_child",
+		ParentID:    rootMember.MemberID,
 		SpawnCallID: "provider_call_delegate",
 	}
 	executor := &fakeExecutor{executorEvents: []ExecutorEvent{
 		{
-			Source: rootSource,
+			Member: rootMember,
 			Payload: ToolCallStarted{
 				CallID:       "canonical_call_delegate",
-				SourceCallID: childSource.SpawnCallID,
+				SourceCallID: childMember.SpawnCallID,
 				ToolName:     "delegate_task",
 				Arguments:    `{"description":"delegate"}`,
 			},
 		},
-		{Source: childSource, Payload: request},
-		{Source: childSource, Payload: SegmentEnded{Reason: run.OutcomeCompleted}},
-		{Source: rootSource, Payload: SegmentEnded{Reason: run.OutcomeCompleted}},
+		{Member: childMember, Payload: request},
+		{Member: childMember, Payload: SegmentEnded{Reason: run.OutcomeCompleted}},
+		{Member: rootMember, Payload: SegmentEnded{Reason: run.OutcomeCompleted}},
 	}}
 	effects := &fakeEffects{}
 	coordinator := testCoordinator(executor, effects)
@@ -1070,7 +1097,7 @@ func TestCoordinatorAtomicallyAdmitsChildRunFromSpawningItem(t *testing.T) {
 		t.Fatalf("child opening confirmation: %v", err)
 	}
 	wantBinding := ChildRunBinding{
-		ProcessID: childSource.ProcessID, RunID: "run_child", ParentRunID: testSegment().RunID,
+		MemberID: childMember.MemberID, RunID: "run_child", ParentRunID: testSegment().RunID,
 	}
 	if binding != wantBinding {
 		t.Fatalf("child opening binding = %+v, want %+v", binding, wantBinding)
@@ -1115,10 +1142,10 @@ func TestCoordinatorAtomicallyAdmitsChildRunFromSpawningItem(t *testing.T) {
 
 func TestCoordinatorPublishesChildSegmentOnItsOwnRunIdentity(t *testing.T) {
 	request, confirmation := NewChildOpeningRequest(time.Date(2026, 7, 13, 1, 2, 4, 0, time.UTC))
-	rootSource := ExecutorSource{ProcessID: "process_root"}
-	childSource := ExecutorSource{
-		ProcessID:   "process_child",
-		ParentID:    rootSource.ProcessID,
+	rootMember := ExecutorMember{MemberID: "member_root"}
+	childMember := ExecutorMember{
+		MemberID:    "member_child",
+		ParentID:    rootMember.MemberID,
 		SpawnCallID: "provider_call_delegate",
 	}
 	finalUsage := SegmentUsage{
@@ -1138,25 +1165,25 @@ func TestCoordinatorPublishesChildSegmentOnItsOwnRunIdentity(t *testing.T) {
 	}
 	executor := &fakeExecutor{executorEvents: []ExecutorEvent{
 		{
-			Source: rootSource,
+			Member: rootMember,
 			Payload: ToolCallStarted{
 				CallID:       "canonical_call_delegate",
-				SourceCallID: childSource.SpawnCallID,
+				SourceCallID: childMember.SpawnCallID,
 				ToolName:     "delegate_task",
 				Arguments:    `{"description":"delegate"}`,
 			},
 		},
-		{Source: childSource, Payload: request},
-		{Source: childSource, Payload: MessageDelta{Text: "child reply"}},
-		{Source: childSource, Payload: SegmentEnded{
+		{Member: childMember, Payload: request},
+		{Member: childMember, Payload: MessageDelta{Text: "child reply"}},
+		{Member: childMember, Payload: SegmentEnded{
 			Reason: run.OutcomeCompleted,
 			Usage:  &finalUsage,
 		}},
-		{Source: rootSource, Payload: ToolCallFinished{
+		{Member: rootMember, Payload: ToolCallFinished{
 			CallID:     "canonical_call_delegate",
 			OutputText: "child reply",
 		}},
-		{Source: rootSource, Payload: SegmentEnded{Reason: run.OutcomeCompleted}},
+		{Member: rootMember, Payload: SegmentEnded{Reason: run.OutcomeCompleted}},
 	}}
 	effects := &fakeEffects{}
 	coordinator := testCoordinator(executor, effects)
@@ -1260,15 +1287,15 @@ func TestCoordinatorPublishesChildSegmentOnItsOwnRunIdentity(t *testing.T) {
 func TestCoordinatorKeepsConcurrentSiblingSegmentsIsolated(t *testing.T) {
 	requestA, confirmationA := NewChildOpeningRequest(time.Now())
 	requestB, confirmationB := NewChildOpeningRequest(time.Now())
-	rootSource := ExecutorSource{ProcessID: "process_root"}
-	childA := ExecutorSource{
-		ProcessID:   "process_child_a",
-		ParentID:    rootSource.ProcessID,
+	rootMember := ExecutorMember{MemberID: "member_root"}
+	childA := ExecutorMember{
+		MemberID:    "member_child_a",
+		ParentID:    rootMember.MemberID,
 		SpawnCallID: "provider_call_a",
 	}
-	childB := ExecutorSource{
-		ProcessID:   "process_child_b",
-		ParentID:    rootSource.ProcessID,
+	childB := ExecutorMember{
+		MemberID:    "member_child_b",
+		ParentID:    rootMember.MemberID,
 		SpawnCallID: "provider_call_b",
 	}
 	childUsage := func(model string, prompt int64) *SegmentUsage {
@@ -1286,27 +1313,27 @@ func TestCoordinatorKeepsConcurrentSiblingSegmentsIsolated(t *testing.T) {
 		}
 	}
 	executor := &fakeExecutor{executorEvents: []ExecutorEvent{
-		{Source: rootSource, Payload: ToolCallStarted{
+		{Member: rootMember, Payload: ToolCallStarted{
 			CallID: "canonical_a", SourceCallID: childA.SpawnCallID, ToolName: "delegate_task", Arguments: `{}`,
 		}},
-		{Source: rootSource, Payload: ToolCallStarted{
+		{Member: rootMember, Payload: ToolCallStarted{
 			CallID: "canonical_b", SourceCallID: childB.SpawnCallID, ToolName: "delegate_task", Arguments: `{}`,
 		}},
-		{Source: childA, Payload: requestA},
-		{Source: childB, Payload: requestB},
-		{Source: childA, Payload: MessageDelta{Text: "alpha"}},
-		{Source: childB, Payload: MessageDelta{Text: "beta"}},
-		{Source: childB, Payload: SegmentEnded{
+		{Member: childA, Payload: requestA},
+		{Member: childB, Payload: requestB},
+		{Member: childA, Payload: MessageDelta{Text: "alpha"}},
+		{Member: childB, Payload: MessageDelta{Text: "beta"}},
+		{Member: childB, Payload: SegmentEnded{
 			Reason: run.OutcomeCompleted,
 			Usage:  childUsage("model-b", 7),
 		}},
-		{Source: childA, Payload: SegmentEnded{
+		{Member: childA, Payload: SegmentEnded{
 			Reason: run.OutcomeCompleted,
 			Usage:  childUsage("model-a", 5),
 		}},
-		{Source: rootSource, Payload: ToolCallFinished{CallID: "canonical_a", OutputText: "alpha"}},
-		{Source: rootSource, Payload: ToolCallFinished{CallID: "canonical_b", OutputText: "beta"}},
-		{Source: rootSource, Payload: SegmentEnded{Reason: run.OutcomeCompleted}},
+		{Member: rootMember, Payload: ToolCallFinished{CallID: "canonical_a", OutputText: "alpha"}},
+		{Member: rootMember, Payload: ToolCallFinished{CallID: "canonical_b", OutputText: "beta"}},
+		{Member: rootMember, Payload: SegmentEnded{Reason: run.OutcomeCompleted}},
 	}}
 	effects := &fakeEffects{}
 	coordinator := testCoordinator(executor, effects)
@@ -1388,15 +1415,15 @@ func TestCoordinatorKeepsConcurrentSiblingSegmentsIsolated(t *testing.T) {
 func TestCoordinatorProjectsNestedChildrenWithExactLineageAndPostorderTerminal(t *testing.T) {
 	childRequest, childConfirmation := NewChildOpeningRequest(time.Now())
 	grandchildRequest, grandchildConfirmation := NewChildOpeningRequest(time.Now())
-	rootSource := ExecutorSource{ProcessID: "process_root"}
-	childSource := ExecutorSource{
-		ProcessID:   "process_child",
-		ParentID:    rootSource.ProcessID,
+	rootMember := ExecutorMember{MemberID: "member_root"}
+	childMember := ExecutorMember{
+		MemberID:    "member_child",
+		ParentID:    rootMember.MemberID,
 		SpawnCallID: "provider_call_child",
 	}
-	grandchildSource := ExecutorSource{
-		ProcessID:   "process_grandchild",
-		ParentID:    childSource.ProcessID,
+	grandchildSource := ExecutorMember{
+		MemberID:    "member_grandchild",
+		ParentID:    childMember.MemberID,
 		SpawnCallID: "provider_call_grandchild",
 	}
 	usage := func(prompt int64, calls int) *SegmentUsage {
@@ -1414,31 +1441,31 @@ func TestCoordinatorProjectsNestedChildrenWithExactLineageAndPostorderTerminal(t
 		}
 	}
 	executor := &fakeExecutor{executorEvents: []ExecutorEvent{
-		{Source: rootSource, Payload: ToolCallStarted{
-			CallID: "canonical_child", SourceCallID: childSource.SpawnCallID, ToolName: "delegate_task", Arguments: `{}`,
+		{Member: rootMember, Payload: ToolCallStarted{
+			CallID: "canonical_child", SourceCallID: childMember.SpawnCallID, ToolName: "delegate_task", Arguments: `{}`,
 		}},
-		{Source: childSource, Payload: childRequest},
-		{Source: childSource, Payload: ToolCallStarted{
+		{Member: childMember, Payload: childRequest},
+		{Member: childMember, Payload: ToolCallStarted{
 			CallID: "canonical_grandchild", SourceCallID: grandchildSource.SpawnCallID, ToolName: "delegate_task", Arguments: `{}`,
 		}},
-		{Source: grandchildSource, Payload: grandchildRequest},
-		{Source: grandchildSource, Payload: MessageDelta{Text: "leaf"}},
-		{Source: grandchildSource, Payload: SegmentEnded{
+		{Member: grandchildSource, Payload: grandchildRequest},
+		{Member: grandchildSource, Payload: MessageDelta{Text: "leaf"}},
+		{Member: grandchildSource, Payload: SegmentEnded{
 			Reason: run.OutcomeCompleted,
 			Usage:  usage(3, 1),
 		}},
-		{Source: childSource, Payload: ToolCallFinished{
+		{Member: childMember, Payload: ToolCallFinished{
 			CallID: "canonical_grandchild", OutputText: "leaf",
 		}},
-		{Source: childSource, Payload: MessageDelta{Text: "branch"}},
-		{Source: childSource, Payload: SegmentEnded{
+		{Member: childMember, Payload: MessageDelta{Text: "branch"}},
+		{Member: childMember, Payload: SegmentEnded{
 			Reason: run.OutcomeCompleted,
 			Usage:  usage(9, 3),
 		}},
-		{Source: rootSource, Payload: ToolCallFinished{
+		{Member: rootMember, Payload: ToolCallFinished{
 			CallID: "canonical_child", OutputText: "branch",
 		}},
-		{Source: rootSource, Payload: SegmentEnded{Reason: run.OutcomeCompleted}},
+		{Member: rootMember, Payload: SegmentEnded{Reason: run.OutcomeCompleted}},
 	}}
 	effects := &fakeEffects{}
 	coordinator := testCoordinator(executor, effects)
@@ -1524,22 +1551,22 @@ func TestCoordinatorProjectsNestedChildrenWithExactLineageAndPostorderTerminal(t
 func TestCoordinatorDrainedStreamClosesNestedChildrenBeforeAncestors(t *testing.T) {
 	childRequest, childConfirmation := NewChildOpeningRequest(time.Now())
 	grandchildRequest, grandchildConfirmation := NewChildOpeningRequest(time.Now())
-	rootSource := ExecutorSource{ProcessID: "process_root"}
-	childSource := ExecutorSource{
-		ProcessID: "process_child", ParentID: rootSource.ProcessID, SpawnCallID: "spawn_child",
+	rootMember := ExecutorMember{MemberID: "member_root"}
+	childMember := ExecutorMember{
+		MemberID: "member_child", ParentID: rootMember.MemberID, SpawnCallID: "spawn_child",
 	}
-	grandchildSource := ExecutorSource{
-		ProcessID: "process_grandchild", ParentID: childSource.ProcessID, SpawnCallID: "spawn_grandchild",
+	grandchildSource := ExecutorMember{
+		MemberID: "member_grandchild", ParentID: childMember.MemberID, SpawnCallID: "spawn_grandchild",
 	}
 	executor := &fakeExecutor{executorEvents: []ExecutorEvent{
-		{Source: rootSource, Payload: ToolCallStarted{
-			CallID: "child_call", SourceCallID: childSource.SpawnCallID, ToolName: "delegate_task", Arguments: `{}`,
+		{Member: rootMember, Payload: ToolCallStarted{
+			CallID: "child_call", SourceCallID: childMember.SpawnCallID, ToolName: "delegate_task", Arguments: `{}`,
 		}},
-		{Source: childSource, Payload: childRequest},
-		{Source: childSource, Payload: ToolCallStarted{
+		{Member: childMember, Payload: childRequest},
+		{Member: childMember, Payload: ToolCallStarted{
 			CallID: "grandchild_call", SourceCallID: grandchildSource.SpawnCallID, ToolName: "delegate_task", Arguments: `{}`,
 		}},
-		{Source: grandchildSource, Payload: grandchildRequest},
+		{Member: grandchildSource, Payload: grandchildRequest},
 		// Deliberately drain with all three reducers active.
 	}}
 	effects := &fakeEffects{}
@@ -1590,27 +1617,27 @@ func TestCoordinatorDrainedStreamClosesNestedChildrenBeforeAncestors(t *testing.
 
 func TestCoordinatorClosesActiveChildrenBeforeRejectingRootTerminal(t *testing.T) {
 	request, confirmation := NewChildOpeningRequest(time.Now())
-	rootSource := ExecutorSource{ProcessID: "process_root"}
-	childSource := ExecutorSource{
-		ProcessID:   "process_child",
-		ParentID:    rootSource.ProcessID,
+	rootMember := ExecutorMember{MemberID: "member_root"}
+	childMember := ExecutorMember{
+		MemberID:    "member_child",
+		ParentID:    rootMember.MemberID,
 		SpawnCallID: "provider_call_delegate",
 	}
 	executor := &fakeExecutor{executorEvents: []ExecutorEvent{
 		{
-			Source: rootSource,
+			Member: rootMember,
 			Payload: ToolCallStarted{
 				CallID:       "canonical_call_delegate",
-				SourceCallID: childSource.SpawnCallID,
+				SourceCallID: childMember.SpawnCallID,
 				ToolName:     "delegate_task",
 				Arguments:    `{}`,
 			},
 		},
-		{Source: childSource, Payload: request},
+		{Member: childMember, Payload: request},
 		// A correct executor publishes the child's terminal boundary first.
 		// This deliberately violates that ordering to prove the application
 		// closes the durable tree instead of leaving an active child orphan.
-		{Source: rootSource, Payload: SegmentEnded{Reason: run.OutcomeCompleted}},
+		{Member: rootMember, Payload: SegmentEnded{Reason: run.OutcomeCompleted}},
 	}}
 	effects := &fakeEffects{}
 	coordinator := testCoordinator(executor, effects)
@@ -1649,26 +1676,26 @@ func TestCoordinatorClosesActiveChildrenBeforeRejectingRootTerminal(t *testing.T
 		!effects.terminalized("ses_1", "run_1") {
 		t.Fatal("root protocol violation left a non-terminal run in the durable tree")
 	}
-	if executor.cancels() != 1 {
-		t.Fatalf("CancelTurn calls = %d, want 1", executor.cancels())
+	if executor.releases() != 1 {
+		t.Fatalf("Release calls = %d, want 1", executor.releases())
 	}
 }
 
 func TestCoordinatorRecoversFromChildTerminalCommitFailureBeforeClosingRoot(t *testing.T) {
 	commitErr := errors.New("child terminal commit failed")
 	request, confirmation := NewChildOpeningRequest(time.Now())
-	rootSource := ExecutorSource{ProcessID: "process_root"}
-	childSource := ExecutorSource{
-		ProcessID:   "process_child",
-		ParentID:    rootSource.ProcessID,
+	rootMember := ExecutorMember{MemberID: "member_root"}
+	childMember := ExecutorMember{
+		MemberID:    "member_child",
+		ParentID:    rootMember.MemberID,
 		SpawnCallID: "provider_call_delegate",
 	}
 	executor := &fakeExecutor{executorEvents: []ExecutorEvent{
-		{Source: rootSource, Payload: ToolCallStarted{
-			CallID: "canonical_call_delegate", SourceCallID: childSource.SpawnCallID, ToolName: "delegate_task", Arguments: `{}`,
+		{Member: rootMember, Payload: ToolCallStarted{
+			CallID: "canonical_call_delegate", SourceCallID: childMember.SpawnCallID, ToolName: "delegate_task", Arguments: `{}`,
 		}},
-		{Source: childSource, Payload: request},
-		{Source: childSource, Payload: SegmentEnded{Reason: run.OutcomeCompleted}},
+		{Member: childMember, Payload: request},
+		{Member: childMember, Payload: SegmentEnded{Reason: run.OutcomeCompleted}},
 	}}
 	// Child segment.started is part of the atomic opening transaction, so the
 	// first CommitEvent attempt is the child's requested completed terminal.
@@ -1711,31 +1738,31 @@ func TestCoordinatorRecoversFromChildTerminalCommitFailureBeforeClosingRoot(t *t
 		!effects.terminalized("ses_1", "run_1") {
 		t.Fatal("terminal commit failure left a durable active run")
 	}
-	if executor.cancels() != 1 {
-		t.Fatalf("CancelTurn calls = %d, want 1", executor.cancels())
+	if executor.releases() != 1 {
+		t.Fatalf("Release calls = %d, want 1", executor.releases())
 	}
 }
 
 func TestCoordinatorRejectsChildWhenAtomicOpeningFails(t *testing.T) {
 	commitErr := errors.New("child opening transaction failed")
 	request, confirmation := NewChildOpeningRequest(time.Now())
-	rootSource := ExecutorSource{ProcessID: "process_root"}
-	childSource := ExecutorSource{
-		ProcessID:   "process_child",
-		ParentID:    rootSource.ProcessID,
+	rootMember := ExecutorMember{MemberID: "member_root"}
+	childMember := ExecutorMember{
+		MemberID:    "member_child",
+		ParentID:    rootMember.MemberID,
 		SpawnCallID: "provider_call_delegate",
 	}
 	executor := &fakeExecutor{executorEvents: []ExecutorEvent{
 		{
-			Source: rootSource,
+			Member: rootMember,
 			Payload: ToolCallStarted{
 				CallID:       "canonical_call_delegate",
-				SourceCallID: childSource.SpawnCallID,
+				SourceCallID: childMember.SpawnCallID,
 				ToolName:     "delegate_task",
 				Arguments:    `{}`,
 			},
 		},
-		{Source: childSource, Payload: request},
+		{Member: childMember, Payload: request},
 	}}
 	effects := &fakeEffects{openingErr: commitErr, openingErrAt: 2}
 	coordinator := testCoordinator(executor, effects)
@@ -1760,8 +1787,8 @@ func TestCoordinatorRejectsChildWhenAtomicOpeningFails(t *testing.T) {
 	if !effects.terminalized("ses_1", "run_1") {
 		t.Fatal("failed child opening did not terminalize the root")
 	}
-	if executor.cancels() != 1 {
-		t.Fatalf("CancelTurn calls = %d, want 1", executor.cancels())
+	if executor.releases() != 1 {
+		t.Fatalf("Release calls = %d, want 1", executor.releases())
 	}
 }
 
@@ -1769,22 +1796,22 @@ func TestCoordinatorClosesAdmittedSiblingWhenNextOpeningRollsBack(t *testing.T) 
 	commitErr := errors.New("second child opening failed")
 	requestA, confirmationA := NewChildOpeningRequest(time.Now())
 	requestB, confirmationB := NewChildOpeningRequest(time.Now())
-	rootSource := ExecutorSource{ProcessID: "process_root"}
-	childA := ExecutorSource{
-		ProcessID: "process_child_a", ParentID: rootSource.ProcessID, SpawnCallID: "spawn_a",
+	rootMember := ExecutorMember{MemberID: "member_root"}
+	childA := ExecutorMember{
+		MemberID: "member_child_a", ParentID: rootMember.MemberID, SpawnCallID: "spawn_a",
 	}
-	childB := ExecutorSource{
-		ProcessID: "process_child_b", ParentID: rootSource.ProcessID, SpawnCallID: "spawn_b",
+	childB := ExecutorMember{
+		MemberID: "member_child_b", ParentID: rootMember.MemberID, SpawnCallID: "spawn_b",
 	}
 	executor := &fakeExecutor{executorEvents: []ExecutorEvent{
-		{Source: rootSource, Payload: ToolCallStarted{
+		{Member: rootMember, Payload: ToolCallStarted{
 			CallID: "call_a", SourceCallID: childA.SpawnCallID, ToolName: "delegate_task", Arguments: `{}`,
 		}},
-		{Source: rootSource, Payload: ToolCallStarted{
+		{Member: rootMember, Payload: ToolCallStarted{
 			CallID: "call_b", SourceCallID: childB.SpawnCallID, ToolName: "delegate_task", Arguments: `{}`,
 		}},
-		{Source: childA, Payload: requestA},
-		{Source: childB, Payload: requestB},
+		{Member: childA, Payload: requestA},
+		{Member: childB, Payload: requestB},
 	}}
 	effects := &fakeEffects{openingErr: commitErr, openingErrAt: 3}
 	coordinator := testCoordinator(executor, effects)
@@ -1838,15 +1865,15 @@ func TestCoordinatorClosesAdmittedSiblingWhenNextOpeningRollsBack(t *testing.T) 
 
 func TestCoordinatorAcknowledgesChildOnlyAfterOpeningCommit(t *testing.T) {
 	request, confirmation := NewChildOpeningRequest(time.Now())
-	rootSource := ExecutorSource{ProcessID: "process_root"}
-	childSource := ExecutorSource{
-		ProcessID:   "process_child",
-		ParentID:    rootSource.ProcessID,
+	rootMember := ExecutorMember{MemberID: "member_root"}
+	childMember := ExecutorMember{
+		MemberID:    "member_child",
+		ParentID:    rootMember.MemberID,
 		SpawnCallID: "provider_call_delegate",
 	}
 	executor := &acknowledgedChildExecutor{
-		rootSource:   rootSource,
-		childSource:  childSource,
+		rootMember:   rootMember,
+		childMember:  childMember,
 		request:      request,
 		confirmation: confirmation,
 		childStarted: make(chan struct{}),
@@ -1904,38 +1931,38 @@ func TestCoordinatorCommitsCompleteTreeBarrierInDeterministicPostorder(t *testin
 	requestA, confirmationA := NewChildOpeningRequest(startedAt)
 	requestB, confirmationB := NewChildOpeningRequest(startedAt)
 	requestGrandchild, confirmationGrandchild := NewChildOpeningRequest(startedAt)
-	root := ExecutorSource{ProcessID: "process_root"}
-	childA := ExecutorSource{
-		ProcessID: "process_child_a", ParentID: root.ProcessID, SpawnCallID: "spawn_a",
+	root := ExecutorMember{MemberID: "member_root"}
+	childA := ExecutorMember{
+		MemberID: "member_child_a", ParentID: root.MemberID, SpawnCallID: "spawn_a",
 	}
-	childB := ExecutorSource{
-		ProcessID: "process_child_b", ParentID: root.ProcessID, SpawnCallID: "spawn_b",
+	childB := ExecutorMember{
+		MemberID: "member_child_b", ParentID: root.MemberID, SpawnCallID: "spawn_b",
 	}
-	grandchild := ExecutorSource{
-		ProcessID: "process_grandchild", ParentID: childA.ProcessID, SpawnCallID: "spawn_grandchild",
+	grandchild := ExecutorMember{
+		MemberID: "member_grandchild", ParentID: childA.MemberID, SpawnCallID: "spawn_grandchild",
 	}
 	executor := &fakeExecutor{executorEvents: []ExecutorEvent{
-		{Source: root, Payload: ToolCallStarted{
+		{Member: root, Payload: ToolCallStarted{
 			CallID: "call_a", SourceCallID: childA.SpawnCallID, ToolName: "delegate_task", Arguments: `{}`,
 		}},
-		{Source: root, Payload: ToolCallStarted{
+		{Member: root, Payload: ToolCallStarted{
 			CallID: "call_b", SourceCallID: childB.SpawnCallID, ToolName: "delegate_task", Arguments: `{}`,
 		}},
-		{Source: childA, Payload: requestA},
-		{Source: childB, Payload: requestB},
-		{Source: childA, Payload: ToolCallStarted{
+		{Member: childA, Payload: requestA},
+		{Member: childB, Payload: requestB},
+		{Member: childA, Payload: ToolCallStarted{
 			CallID: "call_grandchild", SourceCallID: grandchild.SpawnCallID, ToolName: "delegate_task", Arguments: `{}`,
 		}},
-		{Source: grandchild, Payload: requestGrandchild},
+		{Member: grandchild, Payload: requestGrandchild},
 		// Deliberately report sibling B before the deeper descendant. Durable
 		// and public ordering follows Run-tree postorder, not executor arrival.
-		{Source: root, Payload: TreeInterrupted{Checkpoint: testExecutorCheckpoint(), Suspensions: []ProcessSuspension{
+		{Member: root, Payload: TreeInterrupted{Checkpoint: testExecutorCheckpoint(), Suspensions: []MemberInterruption{
 			{
-				ProcessID: childB.ProcessID, SuspensionID: "suspension_b",
+				MemberID: childB.MemberID, SuspensionID: "suspension_b",
 				Interrupt: treeBarrierQuestion("Continue sibling B?"),
 			},
 			{
-				ProcessID: grandchild.ProcessID, SuspensionID: "suspension_grandchild",
+				MemberID: grandchild.MemberID, SuspensionID: "suspension_grandchild",
 				Interrupt: treeBarrierQuestion("Continue grandchild?"),
 			},
 		}}},
@@ -2025,8 +2052,8 @@ func TestCoordinatorCommitsCompleteTreeBarrierInDeterministicPostorder(t *testin
 		t.Fatalf("pending interrupt order = %v, want grandchild then child B", got)
 	}
 	if len(barrier.Pending.Suspensions) != 2 ||
-		barrier.Pending.Suspensions[0].ProcessID != grandchild.ProcessID ||
-		barrier.Pending.Suspensions[1].ProcessID != childB.ProcessID {
+		barrier.Pending.Suspensions[0].MemberID != grandchild.MemberID ||
+		barrier.Pending.Suspensions[1].MemberID != childB.MemberID {
 		t.Fatalf("pending suspension bindings = %+v", barrier.Pending.Suspensions)
 	}
 
@@ -2045,17 +2072,17 @@ func TestCoordinatorCommitsCompleteTreeBarrierInDeterministicPostorder(t *testin
 			t.Fatalf("published waiting order = %v, want %v", finishedOrder, wantOrder)
 		}
 	}
-	if executor.cancels() != 0 {
-		t.Fatalf("parked tree canceled executor %d times, want 0", executor.cancels())
+	if executor.releases() != 0 {
+		t.Fatalf("parked tree released executor %d times, want 0", executor.releases())
 	}
 }
 
 func TestCoordinatorTreeBarrierCommitFailurePublishesNoInterruptedFact(t *testing.T) {
-	root := ExecutorSource{ProcessID: "process_root"}
+	root := ExecutorMember{MemberID: "member_root"}
 	executor := &fakeExecutor{executorEvents: []ExecutorEvent{{
-		Source: root,
-		Payload: TreeInterrupted{Checkpoint: testExecutorCheckpoint(), Suspensions: []ProcessSuspension{{
-			ProcessID: root.ProcessID, SuspensionID: "suspension_root",
+		Member: root,
+		Payload: TreeInterrupted{Checkpoint: testExecutorCheckpoint(), Suspensions: []MemberInterruption{{
+			MemberID: root.MemberID, SuspensionID: "suspension_root",
 			Interrupt: treeBarrierQuestion("Continue root?"),
 		}}},
 	}}}
@@ -2085,16 +2112,16 @@ func TestCoordinatorTreeBarrierCommitFailurePublishesNoInterruptedFact(t *testin
 			}
 		}
 	}
-	if executor.cancels() != 1 {
-		t.Fatalf("tree barrier failure canceled executor %d times, want 1", executor.cancels())
+	if executor.releases() != 1 {
+		t.Fatalf("tree barrier failure released executor %d times, want 1", executor.releases())
 	}
 }
 
-func TestCoordinatorCommitsSyntheticTerminalBeforeCancelTurn(t *testing.T) {
+func TestCoordinatorCommitsSyntheticTerminalBeforeRelease(t *testing.T) {
 	executor := &fakeExecutor{
-		events:        []ExecutorPayload{SegmentInterrupted{Interrupts: []Interrupt{{Kind: interrupt.Kind(9)}}}},
-		cancelStarted: make(chan struct{}),
-		releaseCancel: make(chan struct{}),
+		events:         []ExecutorPayload{SegmentInterrupted{Interrupts: []Interrupt{{Kind: interrupt.Kind(9)}}}},
+		releaseStarted: make(chan struct{}),
+		allowRelease:   make(chan struct{}),
 	}
 	effects := &fakeEffects{}
 	coordinator := testCoordinator(executor, effects)
@@ -2104,14 +2131,14 @@ func TestCoordinatorCommitsSyntheticTerminalBeforeCancelTurn(t *testing.T) {
 	}
 
 	select {
-	case <-executor.cancelStarted:
+	case <-executor.releaseStarted:
 	case <-time.After(time.Second):
-		t.Fatal("CancelTurn did not start")
+		t.Fatal("Release did not start")
 	}
 	if !effects.terminalized("ses_1", "run_1") {
-		t.Fatal("CancelTurn started before the synthesized terminal committed")
+		t.Fatal("Release started before the synthesized terminal committed")
 	}
-	close(executor.releaseCancel)
+	close(executor.allowRelease)
 	collectEvents(stream)
 }
 
@@ -2133,8 +2160,8 @@ func TestCoordinatorCommitFailureNeverPublishesUnbackedFact(t *testing.T) {
 			t.Fatalf("uncommitted terminal was published: %#v", event.Payload)
 		}
 	}
-	if executor.cancels() != 1 {
-		t.Fatalf("CancelTurn calls = %d, want 1", executor.cancels())
+	if executor.releases() != 1 {
+		t.Fatalf("Release calls = %d, want 1", executor.releases())
 	}
 }
 
@@ -2146,7 +2173,7 @@ func TestCoordinatorStartExecutorError(t *testing.T) {
 	if err == nil {
 		t.Fatal("openSegment must surface the executor error")
 	}
-	if _, ok := coordinator.registry.Get("run_1"); executor.cancels() != 1 || ok {
+	if _, ok := coordinator.registry.Get("run_1"); executor.releases() != 1 || ok {
 		t.Fatal("failed executor start was not torn down")
 	}
 }
@@ -2154,7 +2181,7 @@ func TestCoordinatorStartExecutorError(t *testing.T) {
 func TestCoordinatorPreservesSubscriptionAndCleanupFailures(t *testing.T) {
 	startErr := errors.New("event subscription failed")
 	cleanupErr := errors.New("executor cleanup failed")
-	executor := &fakeExecutor{startErr: startErr, cancelErr: cleanupErr}
+	executor := &fakeExecutor{startErr: startErr, releaseErr: cleanupErr}
 	coordinator := testCoordinator(executor, &fakeEffects{})
 
 	_, err := coordinator.openSegment(t.Context(), testSegment())
@@ -2201,14 +2228,14 @@ func TestCoordinatorStartAfterClose(t *testing.T) {
 	if !errors.Is(err, ErrClosed) {
 		t.Fatalf("openSegment error = %v, want ErrClosed", err)
 	}
-	if executor.cancels() != 1 {
-		t.Fatalf("CancelTurn calls = %d, want 1", executor.cancels())
+	if executor.releases() != 1 {
+		t.Fatalf("Release calls = %d, want 1", executor.releases())
 	}
 }
 
 func TestCoordinatorStartAfterClosePreservesCleanupFailure(t *testing.T) {
 	cleanupErr := errors.New("executor cleanup failed")
-	executor := &fakeExecutor{cancelErr: cleanupErr}
+	executor := &fakeExecutor{releaseErr: cleanupErr}
 	coordinator := testCoordinator(executor, &fakeEffects{})
 	requireCoordinatorShutdown(t, coordinator)
 
@@ -2221,9 +2248,14 @@ func TestCoordinatorStartAfterClosePreservesCleanupFailure(t *testing.T) {
 func TestCoordinatorCancelContextSurvivesRequestContext(t *testing.T) {
 	executor := &fakeExecutor{block: true}
 	coordinator := testCoordinator(executor, &fakeEffects{})
-	control := &fakeExecutionControl{}
-	coordinator.control = control
-	coordinator.sessions = &fakeRunSessions{}
+	control := &fakeExecutionPorts{}
+	coordinator.waitingTrees = control
+	sessions := &fakeRunSessions{}
+	coordinator.sessionReader = sessions
+	coordinator.sessionCreator = sessions
+	coordinator.activeRuns = sessions
+	coordinator.interrupts = sessions
+	coordinator.terminations = sessions
 	coordinator.runs = &fakeRunProjection{runs: map[string]transcript.Run{
 		"run_1": runForSegment(testSegment()),
 	}}
@@ -2240,11 +2272,11 @@ func TestCoordinatorCancelContextSurvivesRequestContext(t *testing.T) {
 	if _, err := coordinator.Cancel(requestContext, CancelCommand{RunID: "run_1", Reason: "stop"}); err != nil {
 		t.Fatalf("Cancel with finished request context: %v", err)
 	}
-	if executor.cancels() != 1 {
-		t.Fatalf("pump executor cancellations = %d, want one", executor.cancels())
+	if executor.releases() != 1 {
+		t.Fatalf("pump executor releases = %d, want one", executor.releases())
 	}
-	if len(control.canceled) != 0 {
-		t.Fatalf("control-surface cancellations = %+v, want pump-only ownership", control.canceled)
+	if len(control.released) != 0 {
+		t.Fatalf("control-surface releases = %+v, want pump-only ownership", control.released)
 	}
 	requireCoordinatorShutdown(t, coordinator)
 	for _, ok := next(); ok; _, ok = next() { // drain whatever remains

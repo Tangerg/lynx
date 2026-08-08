@@ -13,7 +13,7 @@ func testExecutorCheckpoint(rootProcessID string) runs.ExecutorCheckpoint {
 		panic(err)
 	}
 	return runs.ExecutorCheckpoint{
-		RootProcessID:  rootProcessID,
+		RootMemberID:   rootProcessID,
 		Payload:        []byte(`{"root":"` + rootProcessID + `"}`),
 		BuildID:        "build",
 		Scope:          runs.ExecutionScope{SessionID: "ses_1"},

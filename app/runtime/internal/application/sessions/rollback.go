@@ -57,7 +57,7 @@ func (c *Coordinator) applyRollback(ctx context.Context, sessionID string, bound
 			c.publishAggregateMoved([]string{sessionID}, dropRunIDs)
 			var cleanupErrs []error
 			for _, r := range parked {
-				if err := c.cancelExecution(ctx, r); err != nil {
+				if err := c.releaseExecution(ctx, r); err != nil {
 					cleanupErrs = append(cleanupErrs, err)
 				}
 			}

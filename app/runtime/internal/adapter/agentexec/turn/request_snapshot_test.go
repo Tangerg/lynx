@@ -17,7 +17,7 @@ func TestSnapshotStartTurnOwnsProtocolValues(t *testing.T) {
 		t.Fatalf("media.NewBytes: %v", err)
 	}
 	temperature := 0.7
-	request := runs.StartExecution{
+	request := runs.RootExecutionStart{
 		SessionID:      "session",
 		Message:        "hello",
 		Media:          []*media.Media{image},

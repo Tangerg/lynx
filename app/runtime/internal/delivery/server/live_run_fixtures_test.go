@@ -44,20 +44,20 @@ func (*blockingRunRuntime) SessionByID(context.Context, string) (session.Session
 	return session.Session{ID: "ses_1", CWD: "/work"}, nil
 }
 
-func (*blockingRunRuntime) Events(ctx context.Context, _ runs.ExecutorRef) (iter.Seq[runs.ExecutorEvent], error) {
+func (*blockingRunRuntime) Observe(ctx context.Context, _ runs.ExecutorRef) (iter.Seq[runs.ExecutorEvent], error) {
 	return func(func(runs.ExecutorEvent) bool) { <-ctx.Done() }, nil
 }
 
-func (*blockingRunRuntime) CancelExecution(context.Context, runs.ExecutorRef) error { return nil }
-func (*blockingRunRuntime) CancelSubtree(context.Context, runs.ExecutorRef, string) error {
+func (*blockingRunRuntime) Release(context.Context, runs.ExecutorRef) error { return nil }
+func (*blockingRunRuntime) CancelRunningSubtree(context.Context, runs.ExecutorRef, string) error {
 	return nil
 }
 
-func (*blockingRunRuntime) PrepareStart(_ context.Context, req runs.StartExecution) (runs.ExecutorRef, error) {
+func (*blockingRunRuntime) StageRoot(_ context.Context, req runs.RootExecutionStart) (runs.ExecutorRef, error) {
 	return runs.ExecutorRef{SessionID: req.SessionID, ExecutorID: "exec_blocking"}, nil
 }
 
-func (*blockingRunRuntime) Activate(context.Context, runs.ExecutorRef) error { return nil }
+func (*blockingRunRuntime) BeginRoot(context.Context, runs.ExecutorRef) error { return nil }
 
 // RunSegmentEffects writes the Run to the real table. Item history is stubbed —
 // these tests are about the live stream — but the Run record cannot be: addressing

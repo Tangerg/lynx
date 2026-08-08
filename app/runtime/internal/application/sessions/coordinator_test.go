@@ -112,10 +112,10 @@ func TestApplyRunCancelProjectsTerminalTranscript(t *testing.T) {
 					RunID: "run_1", Kind: interrupt.Question, Question: question,
 				}},
 				Suspensions: []runs.SuspensionBinding{{
-					InterruptItemID: "item_1", ProcessID: "proc_1", SuspensionID: "suspension_1",
+					InterruptItemID: "item_1", MemberID: "member_1", SuspensionID: "suspension_1",
 				}},
 				Continuations: []runs.Continuation{{
-					RunID: "run_1", ProcessID: "proc_1", RunCreatedAt: createdAt,
+					RunID: "run_1", MemberID: "member_1", RunCreatedAt: createdAt,
 				}},
 				CreatedAt: createdAt.Add(time.Second),
 			},
@@ -162,8 +162,8 @@ func TestApplyRunCancelProjectsTerminalTranscript(t *testing.T) {
 	if len(applied.Items) != 1 || applied.Items[0].Status != transcript.ItemIncomplete {
 		t.Fatalf("interrupt items = %+v, want one incomplete item", applied.Items)
 	}
-	if applied.CheckpointRootID != "proc_1" {
-		t.Fatalf("checkpoint root = %q, want proc_1 in cancel write-set", applied.CheckpointRootID)
+	if applied.CheckpointRootID != "member_1" {
+		t.Fatalf("checkpoint root = %q, want member_1 in cancel write-set", applied.CheckpointRootID)
 	}
 }
 
@@ -185,10 +185,10 @@ func TestApplyRunLostProjectsTerminalTranscript(t *testing.T) {
 					RunID: "run_1", Kind: interrupt.Approval, Approval: approval,
 				}},
 				Suspensions: []runs.SuspensionBinding{{
-					InterruptItemID: "item_1", ProcessID: "proc_1", SuspensionID: "suspension_1",
+					InterruptItemID: "item_1", MemberID: "member_1", SuspensionID: "suspension_1",
 				}},
 				Continuations: []runs.Continuation{{
-					RunID: "run_1", ProcessID: "proc_1", RunCreatedAt: createdAt,
+					RunID: "run_1", MemberID: "member_1", RunCreatedAt: createdAt,
 					Metrics: transcript.RunMetrics{Steps: 4, Usage: &transcript.Usage{
 						ModelUsage: transcript.ModelUsage{CostUSD: &costUSD},
 					}},
@@ -244,7 +244,7 @@ func TestApplyRunLostProjectsTerminalTranscript(t *testing.T) {
 		applied.Items[0].Error.Detail != "tool call abandoned because its run could not be resumed" {
 		t.Fatalf("terminal items = %+v, want incomplete failed tool naming its cause", applied.Items)
 	}
-	if applied.CheckpointRootID != "proc_1" || !appliedRoot.FinishedAt.Equal(finishedAt) || appliedRoot.MessageMark != 1 {
+	if applied.CheckpointRootID != "member_1" || !appliedRoot.FinishedAt.Equal(finishedAt) || appliedRoot.MessageMark != 1 {
 		t.Fatalf("terminal plan = %+v", applied)
 	}
 	if applied.GoalRun == nil || applied.GoalRun.SessionID != "ses_1" ||
@@ -272,14 +272,14 @@ func TestApplyRunLostTerminalizesWholeParkedTreeInPostorder(t *testing.T) {
 			RunID: "run_child", Kind: interrupt.Question, Question: question,
 		}},
 		Suspensions: []runs.SuspensionBinding{{
-			InterruptItemID: "item_question", ProcessID: "proc_child", SuspensionID: "suspension_child",
+			InterruptItemID: "item_question", MemberID: "member_child", SuspensionID: "suspension_child",
 		}},
 		Continuations: []runs.Continuation{
 			{
-				RunID: "run_child", ProcessID: "proc_child",
+				RunID: "run_child", MemberID: "member_child",
 				Lineage: childLineage, RunCreatedAt: createdAt,
 			},
-			{RunID: "run_root", ProcessID: "proc_root", RunCreatedAt: createdAt},
+			{RunID: "run_root", MemberID: "member_root", RunCreatedAt: createdAt},
 		},
 		CreatedAt: createdAt.Add(time.Second),
 	}
@@ -365,11 +365,11 @@ func TestApplyRunLostRejectsContinuationFactDriftBeforeTerminalCommit(t *testing
 		Interrupts:   []transcript.Interrupt{pendingInterrupt},
 		Suspensions: []runs.SuspensionBinding{{
 			InterruptItemID: pendingInterrupt.ItemID,
-			ProcessID:       "process_root",
+			MemberID:        "member_root",
 			SuspensionID:    "suspension_root",
 		}},
 		Continuations: []runs.Continuation{{
-			RunID: "run_root", ProcessID: "process_root", RunCreatedAt: createdAt,
+			RunID: "run_root", MemberID: "member_root", RunCreatedAt: createdAt,
 			Metrics: transcript.RunMetrics{Steps: 2},
 		}},
 		CreatedAt: createdAt.Add(time.Second),

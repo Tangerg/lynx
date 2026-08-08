@@ -566,7 +566,7 @@ func (p *turnProcess) captureProcessTree(
 		return runs.ExecutorCheckpoint{}, fmt.Errorf("agentexec: capture process tree: %w", err)
 	}
 	checkpoint := runs.ExecutorCheckpoint{
-		RootProcessID:  tree.RootID,
+		RootMemberID:   tree.RootID,
 		Payload:        payload,
 		BuildID:        p.owner.buildID,
 		Scope:          p.scope,

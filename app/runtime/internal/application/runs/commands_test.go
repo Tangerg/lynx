@@ -30,7 +30,7 @@ func TestStartExecutionValidateDelegatesCoreOptions(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
-			err := (StartExecution{Message: "hello", Options: &test.options}).Validate()
+			err := (RootExecutionStart{Message: "hello", Options: &test.options}).Validate()
 			if !errors.Is(err, ErrInvalidRunOptions) {
 				t.Fatalf("Validate() error = %v, want ErrInvalidRunOptions", err)
 			}
@@ -44,7 +44,7 @@ func TestStartExecutionValidateDelegatesCoreOptions(t *testing.T) {
 func TestStartExecutionValidateKeepsModelSelectionOutsideOptions(t *testing.T) {
 	t.Parallel()
 
-	err := (StartExecution{
+	err := (RootExecutionStart{
 		Message: "hello",
 		Options: &corechat.Options{
 			Model: "model-inside-options",
@@ -58,7 +58,7 @@ func TestStartExecutionValidateKeepsModelSelectionOutsideOptions(t *testing.T) {
 func TestStartExecutionValidateRejectsNonCanonicalAdmissionPolicy(t *testing.T) {
 	t.Parallel()
 
-	for name, execution := range map[string]StartExecution{
+	for name, execution := range map[string]RootExecutionStart{
 		"negative token limit": {
 			Message: "hello", Limits: run.RunLimits{MaxTotalTokens: -1},
 		},

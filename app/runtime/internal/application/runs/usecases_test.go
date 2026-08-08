@@ -31,6 +31,24 @@ type fakeRunSessions struct {
 	operations    *[]string
 }
 
+type completeTestSessionPorts interface {
+	SessionReader
+	SessionCreator
+	ActiveRunReader
+	PendingInterruptReader
+	RunTerminationCommitter
+}
+
+func testSessionPorts(ports completeTestSessionPorts) SessionPorts {
+	return SessionPorts{
+		Reader:       ports,
+		Creator:      ports,
+		ActiveRuns:   ports,
+		Interrupts:   ports,
+		Terminations: ports,
+	}
+}
+
 func (f *fakeRunSessions) Get(context.Context, string) (session.Session, error) {
 	return f.sess, nil
 }
@@ -94,9 +112,9 @@ func (f *fakeRunSessions) ApplyRunLost(_ context.Context, _ string, runID string
 	return nil
 }
 
-type fakeExecutionControl struct {
-	validated      StartExecution
-	started        StartExecution
+type fakeExecutionPorts struct {
+	validated      RootExecutionStart
+	started        RootExecutionStart
 	startRef       ExecutorRef
 	prepared       ExecutorRef
 	prepareErr     error
@@ -107,11 +125,13 @@ type fakeExecutionControl struct {
 	activateCheck  func()
 	activated      bool
 	resumed        bool
-	canceled       []ExecutorRef
+	released       []ExecutorRef
+	canceledTrees  []ExecutorRef
 	steered        []ExecutorRef
 	steerInput     []transcript.ContentBlock
 	operations     *[]string
-	cancelErr      error
+	releaseErr     error
+	cancelTreeErr  error
 	cancelSubtree  func(ExecutorRef, string) error
 	prepareWaiting func(ExecutorRef, string) (PreparedWaitingSubtreeCancellation, error)
 }
@@ -135,17 +155,17 @@ func (e *blockingOpeningEffects) CommitOpening(
 	return e.fakeEffects.CommitOpening(ctx, opening)
 }
 
-func (f *fakeExecutionControl) ValidateStart(req StartExecution) error {
+func (f *fakeExecutionPorts) ValidateRootStart(req RootExecutionStart) error {
 	f.validated = req
 	return nil
 }
 
-func (f *fakeExecutionControl) PrepareStart(_ context.Context, req StartExecution) (ExecutorRef, error) {
+func (f *fakeExecutionPorts) StageRoot(_ context.Context, req RootExecutionStart) (ExecutorRef, error) {
 	f.started = req
 	return f.startRef, nil
 }
 
-func (f *fakeExecutionControl) Activate(context.Context, ExecutorRef) error {
+func (f *fakeExecutionPorts) BeginRoot(context.Context, ExecutorRef) error {
 	if f.activateCheck != nil {
 		f.activateCheck()
 	}
@@ -153,11 +173,11 @@ func (f *fakeExecutionControl) Activate(context.Context, ExecutorRef) error {
 	return nil
 }
 
-func (f *fakeExecutionControl) Prepare(context.Context, ExecutorRef) (ExecutorRef, error) {
+func (f *fakeExecutionPorts) ClaimWaiting(context.Context, ExecutorRef) (ExecutorRef, error) {
 	return f.prepared, f.prepareErr
 }
 
-func (f *fakeExecutionControl) Resume(context.Context, ExecutorRef, []SuspensionAnswer, []interrupt.Kind) error {
+func (f *fakeExecutionPorts) ResumeWaiting(context.Context, ExecutorRef, []SuspensionAnswer, []interrupt.Kind) error {
 	if f.resumeCheck != nil {
 		f.resumeCheck()
 	}
@@ -165,48 +185,48 @@ func (f *fakeExecutionControl) Resume(context.Context, ExecutorRef, []Suspension
 	return nil
 }
 
-func (f *fakeExecutionControl) Rehydrate(_ context.Context, request RehydrateExecution) (ExecutorRef, error) {
+func (f *fakeExecutionPorts) RestoreWaiting(_ context.Context, request RehydrateExecution) (ExecutorRef, error) {
 	f.rehydrateReq = request
 	return f.rehydrated, f.rehydrateErr
 }
 
-func (f *fakeExecutionControl) CancelExecution(_ context.Context, ref ExecutorRef) error {
+func (f *fakeExecutionPorts) Release(_ context.Context, ref ExecutorRef) error {
 	if f.operations != nil {
-		*f.operations = append(*f.operations, "run.cancel")
+		*f.operations = append(*f.operations, "executor.release")
 	}
-	f.canceled = append(f.canceled, ref)
-	return f.cancelErr
+	f.released = append(f.released, ref)
+	return f.releaseErr
 }
 
-func (f *fakeExecutionControl) CancelSubtree(_ context.Context, ref ExecutorRef, processID string) error {
+func (f *fakeExecutionPorts) CancelRunningSubtree(_ context.Context, ref ExecutorRef, memberID string) error {
 	if f.operations != nil {
-		*f.operations = append(*f.operations, "run.cancel_subtree:"+processID)
+		*f.operations = append(*f.operations, "run.cancel_subtree:"+memberID)
 	}
-	f.canceled = append(f.canceled, ref)
+	f.canceledTrees = append(f.canceledTrees, ref)
 	if f.cancelSubtree != nil {
-		return f.cancelSubtree(ref, processID)
+		return f.cancelSubtree(ref, memberID)
 	}
-	return f.cancelErr
+	return f.cancelTreeErr
 }
 
-func (f *fakeExecutionControl) PrepareWaitingSubtreeCancellation(
+func (f *fakeExecutionPorts) PrepareWaitingSubtreeCancellation(
 	_ context.Context,
 	ref ExecutorRef,
-	processID string,
+	memberID string,
 ) (PreparedWaitingSubtreeCancellation, error) {
 	if f.prepareWaiting == nil {
 		return PreparedWaitingSubtreeCancellation{}, errors.New("fake execution control: waiting subtree cancellation is not configured")
 	}
-	return f.prepareWaiting(ref, processID)
+	return f.prepareWaiting(ref, memberID)
 }
 
-func (f *fakeExecutionControl) Steer(_ context.Context, ref ExecutorRef, input []transcript.ContentBlock) error {
+func (f *fakeExecutionPorts) Steer(_ context.Context, ref ExecutorRef, input []transcript.ContentBlock) error {
 	f.steered = append(f.steered, ref)
 	f.steerInput = append([]transcript.ContentBlock(nil), input...)
 	return nil
 }
 
-func newUseCaseCoordinator(exec SegmentExecutor, control ExecutionControl, sessions SessionLifecycle, effects Effects) *Coordinator {
+func newUseCaseCoordinator(exec ExecutionObserver, control *fakeExecutionPorts, sessions completeTestSessionPorts, effects completeTestProjectionPorts) *Coordinator {
 	freshCreatedAt := time.Date(2026, 7, 13, 1, 2, 3, 0, time.UTC)
 	projection := &fakeRunProjection{runs: map[string]transcript.Run{
 		"run_1": runForSegment(testSegment()),
@@ -223,10 +243,15 @@ func newUseCaseCoordinator(exec SegmentExecutor, control ExecutionControl, sessi
 		}
 	}
 	deps := Dependencies{
-		Segments:     exec,
-		Control:      control,
-		Sessions:     sessions,
-		Effects:      effects,
+		RootStarts:   control,
+		Observations: exec,
+		Releases:     control,
+		Continuation: control,
+		Steering:     control,
+		RunningTrees: control,
+		WaitingTrees: control,
+		Session:      testSessionPorts(sessions),
+		Projection:   testProjectionPorts(effects),
 		Runs:         projection,
 		Now:          func() time.Time { return time.Date(2026, 7, 13, 1, 2, 3, 0, time.UTC) },
 		NewRunID:     func() string { return "run_new" },
@@ -246,7 +271,7 @@ func mustUseCaseSelection(provider, model string) modelref.Selection {
 
 func TestWaitSessionStartableResolvesWorkingTreeBoundary(t *testing.T) {
 	sessions := &fakeRunSessions{sess: session.Session{ID: "ses_1", CWD: "/work"}}
-	c := newUseCaseCoordinator(&fakeExecutor{}, &fakeExecutionControl{}, sessions, &fakeEffects{})
+	c := newUseCaseCoordinator(&fakeExecutor{}, &fakeExecutionPorts{}, sessions, &fakeEffects{})
 	release, ok := c.admission.AcquireWorkingTreeMutation("/work")
 	if !ok {
 		t.Fatal("acquire working-tree mutation")
@@ -274,7 +299,7 @@ func TestStartOwnsCompleteAdmissionSequence(t *testing.T) {
 	exec := &fakeExecutor{}
 	effects := &fakeEffects{}
 	sessions := &fakeRunSessions{sess: session.Session{ID: "ses_1", CWD: "/work"}}
-	control := &fakeExecutionControl{startRef: ExecutorRef{SessionID: "ses_1", ExecutorID: "turn_1"}}
+	control := &fakeExecutionPorts{startRef: ExecutorRef{SessionID: "ses_1", ExecutorID: "turn_1"}}
 	activatedAfterOpening := false
 	control.activateCheck = func() { activatedAfterOpening = effects.opening().Admit != nil }
 	c := newUseCaseCoordinator(exec, control, sessions, effects)
@@ -320,7 +345,7 @@ func TestStartSeparatesIsolatedExecutionDirFromPersistentWorkspace(t *testing.T)
 	exec := &fakeExecutor{}
 	effects := &fakeEffects{}
 	sessions := &fakeRunSessions{sess: session.Session{ID: "ses_1", CWD: "/work", Isolated: true}}
-	control := &fakeExecutionControl{startRef: ExecutorRef{SessionID: "ses_1", ExecutorID: "turn_1"}}
+	control := &fakeExecutionPorts{startRef: ExecutorRef{SessionID: "ses_1", ExecutorID: "turn_1"}}
 	c := newUseCaseCoordinator(exec, control, sessions, effects)
 	c.isolation = &stubIsolation{path: "/sandbox/copy"}
 
@@ -343,7 +368,7 @@ func TestStartDoesNotActivateRejectedAdmission(t *testing.T) {
 	openingErr := errors.New("opening commit failed")
 	effects := &fakeEffects{openingErr: openingErr}
 	sessions := &fakeRunSessions{sess: session.Session{ID: "ses_1", CWD: "/work"}}
-	control := &fakeExecutionControl{startRef: ExecutorRef{SessionID: "ses_1", ExecutorID: "turn_1"}}
+	control := &fakeExecutionPorts{startRef: ExecutorRef{SessionID: "ses_1", ExecutorID: "turn_1"}}
 	c := newUseCaseCoordinator(exec, control, sessions, effects)
 
 	_, err := c.Start(t.Context(), StartCommand{SessionID: "ses_1", Input: []transcript.ContentBlock{{Kind: transcript.TextContent, Text: "hello"}}})
@@ -353,8 +378,8 @@ func TestStartDoesNotActivateRejectedAdmission(t *testing.T) {
 	if control.activated {
 		t.Fatal("rejected admission activated the prepared execution")
 	}
-	if exec.cancels() != 1 {
-		t.Fatalf("prepared execution cancels = %d, want 1", exec.cancels())
+	if len(control.released) != 1 {
+		t.Fatalf("staged execution releases = %d, want 1", len(control.released))
 	}
 }
 
@@ -367,7 +392,7 @@ func TestStartRejectsPartialScheduledIdentityBeforeSideEffects(t *testing.T) {
 	} {
 		t.Run("partial", func(t *testing.T) {
 			exec := &fakeExecutor{}
-			control := &fakeExecutionControl{}
+			control := &fakeExecutionPorts{}
 			effects := &fakeEffects{}
 			sessions := &fakeRunSessions{sess: session.Session{ID: "ses_existing", CWD: "/work"}}
 			command.Input = []transcript.ContentBlock{{Kind: transcript.TextContent, Text: "hello"}}
@@ -391,7 +416,7 @@ func TestFastStartReleaseCannotCrossTerminalMaintenance(t *testing.T) {
 	effects := &fakeEffects{finishStarted: finishStarted, finishRelease: releaseFinish}
 	c := newUseCaseCoordinator(
 		&fakeExecutor{events: []ExecutorPayload{SegmentEnded{Reason: run.OutcomeCompleted}}},
-		&fakeExecutionControl{startRef: ExecutorRef{SessionID: "ses_1", ExecutorID: "turn_1"}},
+		&fakeExecutionPorts{startRef: ExecutorRef{SessionID: "ses_1", ExecutorID: "turn_1"}},
 		sessions,
 		effects,
 	)
@@ -432,19 +457,19 @@ func TestFastStartReleaseCannotCrossTerminalMaintenance(t *testing.T) {
 	}
 }
 
-func TestStartRejectsForeignTurnIdentityAndCleansItUp(t *testing.T) {
+func TestStartRejectsForeignExecutorIdentityAndReleasesIt(t *testing.T) {
 	exec := &fakeExecutor{}
 	effects := &fakeEffects{}
 	sessions := &fakeRunSessions{sess: session.Session{ID: "ses_1", CWD: "/work"}}
-	control := &fakeExecutionControl{startRef: ExecutorRef{SessionID: "ses_foreign", ExecutorID: "turn_1"}}
+	control := &fakeExecutionPorts{startRef: ExecutorRef{SessionID: "ses_foreign", ExecutorID: "turn_1"}}
 	c := newUseCaseCoordinator(exec, control, sessions, effects)
 
 	_, err := c.Start(context.Background(), StartCommand{SessionID: "ses_1", Input: []transcript.ContentBlock{{Kind: transcript.TextContent, Text: "hello"}}})
 	if !errors.Is(err, ErrInvalidExecutorRef) {
 		t.Fatalf("Start error = %v, want ErrInvalidExecutorRef", err)
 	}
-	if len(control.canceled) != 1 || control.canceled[0] != control.startRef {
-		t.Fatalf("canceled control = %+v, want invalid started execution", control.canceled)
+	if len(control.released) != 1 || control.released[0] != control.startRef {
+		t.Fatalf("canceled control = %+v, want invalid started execution", control.released)
 	}
 	if _, ok := c.registry.Get("run_new"); len(effects.openings) != 0 || ok {
 		t.Fatal("invalid execution identity reached Run admission")
@@ -457,10 +482,10 @@ func TestResumeCommitsOpeningBeforeActivation(t *testing.T) {
 	sessions := &fakeRunSessions{
 		sess: session.Session{ID: "ses_1", CWD: "/work"},
 		pending: map[string]Pending{
-			"run_1": testPendingInterrupt("item_1", "proc_1", createdAt),
+			"run_1": testPendingInterrupt("item_1", "member_1", createdAt),
 		},
 	}
-	control := &fakeExecutionControl{prepared: ExecutorRef{SessionID: "ses_1", ExecutorID: "turn_1"}}
+	control := &fakeExecutionPorts{prepared: ExecutorRef{SessionID: "ses_1", ExecutorID: "turn_1"}}
 	activatedAfterOpening := false
 	control.resumeCheck = func() { activatedAfterOpening = effects.opening().Resume != nil }
 	c := newUseCaseCoordinator(&fakeExecutor{}, control, sessions, effects)
@@ -493,14 +518,14 @@ func TestResumeCommitsOpeningBeforeActivation(t *testing.T) {
 // supply a different accounting snapshot before the executor is prepared.
 func TestResumeRejectsContinuationFactDriftBeforeExecutorPreparation(t *testing.T) {
 	createdAt := time.Date(2026, 7, 30, 11, 0, 0, 0, time.UTC)
-	pending := testPendingInterrupt("item_1", "process_root", createdAt)
+	pending := testPendingInterrupt("item_1", "member_root", createdAt)
 	sessions := &fakeRunSessions{
 		sess: session.Session{ID: pending.SessionID, CWD: "/work"},
 		pending: map[string]Pending{
 			pending.RootRunID: pending,
 		},
 	}
-	control := &fakeExecutionControl{prepared: ExecutorRef{
+	control := &fakeExecutionPorts{prepared: ExecutorRef{
 		SessionID:  pending.SessionID,
 		ExecutorID: pending.ExecutorID,
 	}}
@@ -523,7 +548,7 @@ func TestResumeRejectsContinuationFactDriftBeforeExecutorPreparation(t *testing.
 	if err == nil {
 		t.Fatal("Resume accepted cumulative metrics that differ from the durable Run")
 	}
-	if control.resumed || control.rehydrateReq.ProcessID != "" || len(effects.openings) != 0 {
+	if control.resumed || control.rehydrateReq.MemberID != "" || len(effects.openings) != 0 {
 		t.Fatalf("contradictory continuation reached executor/effects: control=%+v openings=%d", control, len(effects.openings))
 	}
 	if _, found := sessions.pending[pending.RootRunID]; !found {
@@ -533,14 +558,14 @@ func TestResumeRejectsContinuationFactDriftBeforeExecutorPreparation(t *testing.
 
 func TestResumeAndRootCancelShareOneApplicationAdmissionBoundary(t *testing.T) {
 	createdAt := time.Date(2026, 7, 30, 12, 0, 0, 0, time.UTC)
-	pending := testPendingInterrupt("item_1", "proc_1", createdAt)
+	pending := testPendingInterrupt("item_1", "member_1", createdAt)
 	sessions := &fakeRunSessions{
 		sess: session.Session{ID: "ses_1", CWD: "/work"},
 		pending: map[string]Pending{
 			"run_1": pending,
 		},
 	}
-	control := &fakeExecutionControl{
+	control := &fakeExecutionPorts{
 		prepared: ExecutorRef{SessionID: "ses_1", ExecutorID: "turn_1"},
 	}
 	openingStarted := make(chan struct{}, 1)
@@ -604,7 +629,7 @@ func TestResumeAndRootCancelShareOneApplicationAdmissionBoundary(t *testing.T) {
 	}
 }
 
-// TestResumeWithInputCommitsTheUserTurnWithTheContinuation is the atomic half of
+// TestResumeWithInputCommitsTheUserItemWithTheContinuation is the atomic half of
 // "approve, and also do this differently". Before resume could carry input, that was
 // two calls — resume then steer — with a window between them where the model could
 // finish the tool round before the instruction ever arrived.
@@ -612,17 +637,17 @@ func TestResumeAndRootCancelShareOneApplicationAdmissionBoundary(t *testing.T) {
 // The user Item rides the SAME opening write-set as the continuation, so either both
 // landed or neither did, and the response names the item only when there is one: that
 // iff is a cross-shape rule no schema keyword can state, so it is held here.
-func TestResumeWithInputCommitsTheUserTurnWithTheContinuation(t *testing.T) {
+func TestResumeWithInputCommitsTheUserItemWithTheContinuation(t *testing.T) {
 	createdAt := time.Date(2025, 1, 2, 3, 4, 5, 0, time.UTC)
 	newResumeCase := func() (*fakeEffects, *Coordinator) {
 		effects := &fakeEffects{}
 		sessions := &fakeRunSessions{
 			sess: session.Session{ID: "ses_1", CWD: "/work"},
 			pending: map[string]Pending{
-				"run_1": testPendingInterrupt("item_1", "proc_1", createdAt),
+				"run_1": testPendingInterrupt("item_1", "member_1", createdAt),
 			},
 		}
-		control := &fakeExecutionControl{prepared: ExecutorRef{SessionID: "ses_1", ExecutorID: "turn_1"}}
+		control := &fakeExecutionPorts{prepared: ExecutorRef{SessionID: "ses_1", ExecutorID: "turn_1"}}
 		return effects, newUseCaseCoordinator(&fakeExecutor{}, control, sessions, effects)
 	}
 	approve := []ResumeResponse{{
@@ -679,16 +704,16 @@ func TestResumeWithInputCommitsTheUserTurnWithTheContinuation(t *testing.T) {
 	}
 }
 
-func TestResumeRecoversLostProcessSnapshotBeforeReturning(t *testing.T) {
+func TestResumeRecoversLostExecutorStateBeforeReturning(t *testing.T) {
 	var operations []string
 	sessions := &fakeRunSessions{
 		sess: session.Session{ID: "ses_1", CWD: "/work"},
 		pending: map[string]Pending{
-			"run_1": testPendingInterrupt("item_1", "proc_1", time.Now().UTC()),
+			"run_1": testPendingInterrupt("item_1", "member_1", time.Now().UTC()),
 		},
 		operations: &operations,
 	}
-	control := &fakeExecutionControl{
+	control := &fakeExecutionPorts{
 		prepareErr:   ErrExecutorNotLive,
 		rehydrateErr: ErrExecutorStateLost,
 	}
@@ -740,7 +765,7 @@ func TestResumeRehydrateRestoresChildSourceProjection(t *testing.T) {
 			pending.RootRunID: pending,
 		},
 	}
-	control := &fakeExecutionControl{
+	control := &fakeExecutionPorts{
 		prepareErr: ErrExecutorNotLive,
 		rehydrated: ExecutorRef{
 			SessionID:  pending.SessionID,
@@ -776,24 +801,24 @@ func TestResumeRehydrateRestoresChildSourceProjection(t *testing.T) {
 	for range result.Events {
 	}
 	if !control.rehydrateReq.ChildRunAdmissionEnabled {
-		t.Fatalf("rehydrate request = %+v, want child source projection enabled", control.rehydrateReq)
+		t.Fatalf("rehydrate request = %+v, want child member projection enabled", control.rehydrateReq)
 	}
-	if control.rehydrateReq.ProcessID != "process_root" {
-		t.Fatalf("rehydrate process = %q, want process_root", control.rehydrateReq.ProcessID)
+	if control.rehydrateReq.MemberID != "member_root" {
+		t.Fatalf("rehydrate member = %q, want member_root", control.rehydrateReq.MemberID)
 	}
 	if control.rehydrateReq.GoalLeaseID != pending.GoalLeaseID {
 		t.Fatalf("rehydrate goal lease = %q, want %q", control.rehydrateReq.GoalLeaseID, pending.GoalLeaseID)
 	}
 	wantChildRuns := map[string]ChildRunBinding{
-		"process_grandchild": {ProcessID: "process_grandchild", RunID: "run_grandchild", ParentRunID: "run_a"},
-		"process_a":          {ProcessID: "process_a", RunID: "run_a", ParentRunID: "run_1"},
-		"process_b":          {ProcessID: "process_b", RunID: "run_b", ParentRunID: "run_1"},
+		"member_grandchild": {MemberID: "member_grandchild", RunID: "run_grandchild", ParentRunID: "run_a"},
+		"member_a":          {MemberID: "member_a", RunID: "run_a", ParentRunID: "run_1"},
+		"member_b":          {MemberID: "member_b", RunID: "run_b", ParentRunID: "run_1"},
 	}
 	if len(control.rehydrateReq.ChildRuns) != len(wantChildRuns) {
 		t.Fatalf("rehydrate child Runs = %+v, want %+v", control.rehydrateReq.ChildRuns, wantChildRuns)
 	}
 	for _, binding := range control.rehydrateReq.ChildRuns {
-		if want, ok := wantChildRuns[binding.ProcessID]; !ok || binding != want {
+		if want, ok := wantChildRuns[binding.MemberID]; !ok || binding != want {
 			t.Fatalf("rehydrate child Run binding = %+v, want one of %+v", binding, wantChildRuns)
 		}
 	}
@@ -801,7 +826,7 @@ func TestResumeRehydrateRestoresChildSourceProjection(t *testing.T) {
 
 func TestResumeRehydrateRestoresChildAdmissionBeforeAnyChildExists(t *testing.T) {
 	createdAt := time.Date(2026, 7, 30, 12, 0, 0, 0, time.UTC)
-	pending := testPendingInterrupt("item_1", "process_root", createdAt)
+	pending := testPendingInterrupt("item_1", "member_root", createdAt)
 	pending.Capabilities.ChildRuns = true
 	pending.Continuations[0].ModelSelection = mustUseCaseSelection("openai", "model")
 	sessions := &fakeRunSessions{
@@ -810,7 +835,7 @@ func TestResumeRehydrateRestoresChildAdmissionBeforeAnyChildExists(t *testing.T)
 			pending.RootRunID: pending,
 		},
 	}
-	control := &fakeExecutionControl{
+	control := &fakeExecutionPorts{
 		prepareErr: ErrExecutorNotLive,
 		rehydrated: ExecutorRef{
 			SessionID:  pending.SessionID,
@@ -843,18 +868,18 @@ func TestResumeRehydrateRestoresChildAdmissionBeforeAnyChildExists(t *testing.T)
 	}
 }
 
-func TestResumeRefusesIsolatedRunAfterSandboxProcessEnded(t *testing.T) {
+func TestResumeRefusesIsolatedRunAfterRuntimeRestart(t *testing.T) {
 	var operations []string
 	sessions := &fakeRunSessions{
 		sess: session.Session{ID: "ses_1", CWD: "/work", Isolated: true},
 		pending: map[string]Pending{
-			"run_1": testPendingInterrupt("item_1", "proc_1", time.Now().UTC()),
+			"run_1": testPendingInterrupt("item_1", "member_1", time.Now().UTC()),
 		},
 		operations: &operations,
 	}
 	// The process that owned the sandbox copy is gone (Prepare reports the execution as
 	// not live), so a rehydrate would run against the real project tree.
-	control := &fakeExecutionControl{prepareErr: ErrExecutorNotLive}
+	control := &fakeExecutionPorts{prepareErr: ErrExecutorNotLive}
 	c := newUseCaseCoordinator(&fakeExecutor{}, control, sessions, &fakeEffects{})
 
 	_, err := c.Resume(t.Context(), ResumeCommand{
@@ -870,7 +895,7 @@ func TestResumeRefusesIsolatedRunAfterSandboxProcessEnded(t *testing.T) {
 	if !errors.Is(err, ErrRunNotFound) || !errors.Is(err, ErrExecutorStateLost) {
 		t.Fatalf("Resume error = %v, want Run not found wrapping executor state lost", err)
 	}
-	if control.rehydrateReq.ProcessID != "" || len(control.rehydrateReq.ChildRuns) != 0 {
+	if control.rehydrateReq.MemberID != "" || len(control.rehydrateReq.ChildRuns) != 0 {
 		t.Fatalf("isolated run was rehydrated against %+v, want no rehydrate", control.rehydrateReq)
 	}
 	if sessions.lostRunID != "run_1" || len(operations) != 1 || operations[0] != "durable.lost" {
@@ -891,7 +916,7 @@ func approvalInterrupt(itemID string, occurredAt time.Time) []transcript.Interru
 	}}
 }
 
-func testPendingInterrupt(itemID, processID string, runCreatedAt time.Time) Pending {
+func testPendingInterrupt(itemID, memberID string, runCreatedAt time.Time) Pending {
 	interruptValues := approvalInterrupt(itemID, runCreatedAt)
 	return Pending{
 		RootRunID:  "run_1",
@@ -903,12 +928,12 @@ func testPendingInterrupt(itemID, processID string, runCreatedAt time.Time) Pend
 		},
 		Suspensions: []SuspensionBinding{{
 			InterruptItemID: itemID,
-			ProcessID:       processID,
+			MemberID:        memberID,
 			SuspensionID:    "suspension_1",
 		}},
 		Continuations: []Continuation{{
 			RunID:        "run_1",
-			ProcessID:    processID,
+			MemberID:     memberID,
 			RunCreatedAt: runCreatedAt,
 		}},
 		CreatedAt: runCreatedAt.Add(time.Second),
@@ -947,16 +972,16 @@ func runForContinuation(
 
 func TestCancelParkedRunUsesApplicationAdmission(t *testing.T) {
 	var operations []string
-	pending := testPendingInterrupt("item_1", "proc_1", time.Now().UTC())
+	pending := testPendingInterrupt("item_1", "member_1", time.Now().UTC())
 	sessions := &fakeRunSessions{
 		pending: map[string]Pending{
 			"run_1": pending,
 		},
 		operations: &operations,
 	}
-	control := &fakeExecutionControl{operations: &operations}
+	control := &fakeExecutionPorts{operations: &operations}
 	c := NewCoordinator(Dependencies{
-		Control: control, Sessions: sessions,
+		Releases: control, Session: testSessionPorts(sessions),
 		Runs: &fakeRunProjection{runs: map[string]transcript.Run{
 			"run_1": runForPending(pending),
 		}},
@@ -970,14 +995,14 @@ func TestCancelParkedRunUsesApplicationAdmission(t *testing.T) {
 	if result.Run.ID != "run_1" || result.Run.State != run.Canceled {
 		t.Fatalf("Cancel result = %+v, want canceled run_1", result)
 	}
-	if sessions.canceledRunID != "run_1" || len(control.canceled) != 1 {
-		t.Fatalf("durable cancel=%q execution cancels=%v", sessions.canceledRunID, control.canceled)
+	if sessions.canceledRunID != "run_1" || len(control.released) != 1 {
+		t.Fatalf("durable cancel=%q execution cancels=%v", sessions.canceledRunID, control.released)
 	}
 	if sessions.cancelReason != "user stopped" || sessions.canceledAt.IsZero() {
 		t.Fatalf("cancel reason/time = %q/%v, want user reason and terminal time", sessions.cancelReason, sessions.canceledAt)
 	}
-	if len(operations) != 2 || operations[0] != "durable.cancel" || operations[1] != "run.cancel" {
-		t.Fatalf("cancel operations = %v, want durable commit before process cleanup", operations)
+	if len(operations) != 2 || operations[0] != "durable.cancel" || operations[1] != "executor.release" {
+		t.Fatalf("cancel operations = %v, want durable commit before executor cleanup", operations)
 	}
 	if hasActiveSession(c, "ses_1") {
 		t.Fatal("parked cancel leaked the session admission claim")
@@ -987,8 +1012,8 @@ func TestCancelParkedRunUsesApplicationAdmission(t *testing.T) {
 func TestCancelFinishedRunReportsFinishedInsteadOfNotFound(t *testing.T) {
 	finished := runRecord(run.Completed, "", "")
 	c := NewCoordinator(Dependencies{
-		Control:    &fakeExecutionControl{},
-		Sessions:   &fakeRunSessions{},
+		Releases:   &fakeExecutionPorts{},
+		Session:    testSessionPorts(&fakeRunSessions{}),
 		Runs:       &fakeRunProjection{runs: map[string]transcript.Run{"run_1": finished}},
 		Admissions: new(admission.Gate),
 	})
@@ -1001,8 +1026,8 @@ func TestCancelFinishedRunReportsFinishedInsteadOfNotFound(t *testing.T) {
 
 func TestCancelUnknownRunReportsNotFound(t *testing.T) {
 	c := NewCoordinator(Dependencies{
-		Control:    &fakeExecutionControl{},
-		Sessions:   &fakeRunSessions{},
+		Releases:   &fakeExecutionPorts{},
+		Session:    testSessionPorts(&fakeRunSessions{}),
 		Runs:       &fakeRunProjection{},
 		Admissions: new(admission.Gate),
 	})
@@ -1016,8 +1041,8 @@ func TestCancelUnknownRunReportsNotFound(t *testing.T) {
 func TestCancelChildRunRequiresExplicitAuthority(t *testing.T) {
 	child := runRecord(run.Running, "seg_child", "item_parent")
 	c := NewCoordinator(Dependencies{
-		Control:    &fakeExecutionControl{},
-		Sessions:   &fakeRunSessions{},
+		Releases:   &fakeExecutionPorts{},
+		Session:    testSessionPorts(&fakeRunSessions{}),
 		Runs:       &fakeRunProjection{runs: map[string]transcript.Run{"run_1": child}},
 		Admissions: new(admission.Gate),
 	})
@@ -1030,27 +1055,27 @@ func TestCancelChildRunRequiresExplicitAuthority(t *testing.T) {
 
 func TestCancelRunningChildCommitsExactSubtreeBoundaryAndKeepsRootRunning(t *testing.T) {
 	childRequest, childConfirmation := NewChildOpeningRequest(time.Now().UTC())
-	rootSource := ExecutorSource{ProcessID: "process_root"}
-	childSource := ExecutorSource{
-		ProcessID:   "process_child",
-		ParentID:    rootSource.ProcessID,
+	rootMember := ExecutorMember{MemberID: "member_root"}
+	childMember := ExecutorMember{
+		MemberID:    "member_child",
+		ParentID:    rootMember.MemberID,
 		SpawnCallID: "provider_child",
 	}
 	executor := &cancellableChildExecutor{
-		rootSource:      rootSource,
-		childSource:     childSource,
+		rootMember:      rootMember,
+		childMember:     childMember,
 		request:         childRequest,
 		confirmation:    childConfirmation,
 		childOpened:     make(chan struct{}),
 		cancelRequested: make(chan struct{}),
 		finishRoot:      make(chan struct{}),
 	}
-	control := &fakeExecutionControl{}
-	control.cancelSubtree = func(ref ExecutorRef, processID string) error {
+	control := &fakeExecutionPorts{}
+	control.cancelSubtree = func(ref ExecutorRef, memberID string) error {
 		if ref != (ExecutorRef{SessionID: "ses_1", ExecutorID: "turn_1"}) {
 			return errors.New("subtree cancellation addressed the wrong execution")
 		}
-		if processID != childSource.ProcessID {
+		if memberID != childMember.MemberID {
 			return errors.New("subtree cancellation addressed the wrong process")
 		}
 		close(executor.cancelRequested)
@@ -1061,10 +1086,11 @@ func TestCancelRunningChildCommitsExactSubtreeBoundaryAndKeepsRootRunning(t *tes
 		"run_1": runForSegment(testSegment()),
 	}}
 	coordinator := NewCoordinator(Dependencies{
-		Segments:     executor,
-		Control:      control,
-		Sessions:     &fakeRunSessions{},
-		Effects:      effects,
+		Observations: executor,
+		Releases:     control,
+		RunningTrees: control,
+		Session:      testSessionPorts(&fakeRunSessions{}),
+		Projection:   testProjectionPorts(effects),
 		Runs:         projection,
 		Admissions:   new(admission.Gate),
 		Now:          func() time.Time { return time.Date(2026, 7, 30, 1, 2, 3, 0, time.UTC) },
@@ -1197,15 +1223,15 @@ func TestCancelRunningChildCommitsExactSubtreeBoundaryAndKeepsRootRunning(t *tes
 	}
 }
 
-func TestCancelParkedRunReportsTurnCleanupFailureAfterDurableCommit(t *testing.T) {
-	cleanupErr := errors.New("execution cleanup failed")
-	pending := testPendingInterrupt("item_1", "proc_1", time.Now().UTC())
+func TestCancelParkedRunReportsExecutorReleaseFailureAfterDurableCommit(t *testing.T) {
+	cleanupErr := errors.New("executor release failed")
+	pending := testPendingInterrupt("item_1", "member_1", time.Now().UTC())
 	sessions := &fakeRunSessions{pending: map[string]Pending{
 		"run_1": pending,
 	}}
-	control := &fakeExecutionControl{cancelErr: cleanupErr}
+	control := &fakeExecutionPorts{releaseErr: cleanupErr}
 	c := NewCoordinator(Dependencies{
-		Control: control, Sessions: sessions,
+		Releases: control, Session: testSessionPorts(sessions),
 		Runs: &fakeRunProjection{runs: map[string]transcript.Run{
 			"run_1": runForPending(pending),
 		}},
@@ -1217,17 +1243,17 @@ func TestCancelParkedRunReportsTurnCleanupFailureAfterDurableCommit(t *testing.T
 		t.Fatalf("Cancel error = %v, want cleanup failure", err)
 	}
 	if sessions.canceledRunID != "run_1" {
-		t.Fatal("execution cleanup failure prevented the durable cancel commit")
+		t.Fatal("executor release failure prevented the durable cancel commit")
 	}
 }
 
-func TestCancelLiveRunReportsTurnCleanupFailureAndStillTerminalizes(t *testing.T) {
-	cleanupErr := errors.New("execution cleanup failed")
-	executor := &fakeExecutor{block: true, cancelErr: cleanupErr}
+func TestCancelLiveRunReportsExecutorReleaseFailureAndStillTerminalizes(t *testing.T) {
+	cleanupErr := errors.New("executor release failed")
+	executor := &fakeExecutor{block: true, releaseErr: cleanupErr}
 	effects := &fakeEffects{}
-	control := &fakeExecutionControl{}
+	control := &fakeExecutionPorts{releaseErr: cleanupErr}
 	c := NewCoordinator(Dependencies{
-		Segments: executor, Control: control, Sessions: &fakeRunSessions{}, Effects: effects,
+		Observations: executor, Releases: control, Session: testSessionPorts(&fakeRunSessions{}), Projection: testProjectionPorts(effects),
 		Runs: &fakeRunProjection{runs: map[string]transcript.Run{
 			"run_1": runForSegment(testSegment()),
 		}},
@@ -1248,7 +1274,7 @@ func TestCancelLiveRunReportsTurnCleanupFailureAndStillTerminalizes(t *testing.T
 	for _, ok := next(); ok; _, ok = next() { // drain the terminal events
 	}
 	if !effects.terminalized("ses_1", "run_1") {
-		t.Fatal("execution cleanup failure prevented live Run terminalization")
+		t.Fatal("executor release failure prevented live Run terminalization")
 	}
 }
 
@@ -1257,7 +1283,7 @@ func TestCancelLiveRunJoinsTerminalMaintenance(t *testing.T) {
 	releaseFinish := make(chan struct{})
 	executor := &fakeExecutor{block: true}
 	effects := &fakeEffects{finishStarted: finishStarted, finishRelease: releaseFinish}
-	control := &fakeExecutionControl{startRef: ExecutorRef{SessionID: "ses_1", ExecutorID: "turn_1"}}
+	control := &fakeExecutionPorts{startRef: ExecutorRef{SessionID: "ses_1", ExecutorID: "turn_1"}}
 	sessions := &fakeRunSessions{sess: session.Session{ID: "ses_1", CWD: "/work"}}
 	c := newUseCaseCoordinator(executor, control, sessions, effects)
 	result, err := c.Start(t.Context(), StartCommand{
@@ -1314,8 +1340,9 @@ func TestCancelLosesToACommittedNaturalTerminal(t *testing.T) {
 		Reason: run.OutcomeCompleted,
 	}}}
 	effects := &fakeEffects{terminalStarted: terminalStarted, terminalRelease: releaseTerminal}
+	control := &fakeExecutionPorts{}
 	c := NewCoordinator(Dependencies{
-		Segments: executor, Control: &fakeExecutionControl{}, Sessions: &fakeRunSessions{}, Effects: effects,
+		Observations: executor, Releases: control, Session: testSessionPorts(&fakeRunSessions{}), Projection: testProjectionPorts(effects),
 		Runs: &fakeRunProjection{runs: map[string]transcript.Run{
 			"run_1": runForSegment(testSegment()),
 		}},
@@ -1370,8 +1397,8 @@ func TestCancelLetsCommittedInterruptOwnDurableFirstTeardown(t *testing.T) {
 			CallID: "call_1", ToolName: "shell", Arguments: `{"command":"pwd","description":"Print the working directory"}`,
 			SafetyClass: "write",
 		},
-		TreeInterrupted{Checkpoint: testExecutorCheckpoint(), Suspensions: []ProcessSuspension{{
-			ProcessID: "process_root", SuspensionID: "suspension_1",
+		TreeInterrupted{Checkpoint: testExecutorCheckpoint(), Suspensions: []MemberInterruption{{
+			MemberID: "member_root", SuspensionID: "suspension_1",
 			Interrupt: Interrupt{
 				Kind: interrupt.Approval,
 				Approval: &ApprovalPrompt{
@@ -1386,14 +1413,14 @@ func TestCancelLetsCommittedInterruptOwnDurableFirstTeardown(t *testing.T) {
 		suspendRelease: releaseSuspend,
 	}
 	var operations []string
-	control := &fakeExecutionControl{operations: &operations}
+	control := &fakeExecutionPorts{operations: &operations}
 	sessions := &fakeRunSessions{operations: &operations}
 	spec := testSegment()
 	spec.Capabilities = run.RunCapabilities{
 		InterruptKinds: []interrupt.Kind{interrupt.Approval},
 	}
 	c := NewCoordinator(Dependencies{
-		Segments: executor, Control: control, Sessions: sessions, Effects: effects,
+		Observations: executor, Releases: control, Session: testSessionPorts(sessions), Projection: testProjectionPorts(effects),
 		Runs: &fakeRunProjection{runs: map[string]transcript.Run{
 			"run_1": runForSegment(spec),
 		}},
@@ -1430,22 +1457,22 @@ func TestCancelLetsCommittedInterruptOwnDurableFirstTeardown(t *testing.T) {
 	}
 	<-streamDone
 
-	if executor.cancels() != 0 {
-		t.Fatalf("pump executor cancellations = %d, want parked owner to remain intact until durable cancel", executor.cancels())
+	if executor.releases() != 0 {
+		t.Fatalf("pump executor releases = %d, want parked owner to remain intact until durable cancel", executor.releases())
 	}
-	if len(operations) != 2 || operations[0] != "durable.cancel" || operations[1] != "run.cancel" {
-		t.Fatalf("cancel operations = %v, want durable cancel before parked execution cleanup", operations)
+	if len(operations) != 2 || operations[0] != "durable.cancel" || operations[1] != "executor.release" {
+		t.Fatalf("cancel operations = %v, want durable cancel before parked executor release", operations)
 	}
 }
 
-func TestCancelTreatsAlreadyGoneTurnAsIdempotentSuccess(t *testing.T) {
-	pending := testPendingInterrupt("item_1", "proc_1", time.Now().UTC())
+func TestCancelTreatsAlreadyReleasedExecutorAsIdempotentSuccess(t *testing.T) {
+	pending := testPendingInterrupt("item_1", "member_1", time.Now().UTC())
 	sessions := &fakeRunSessions{pending: map[string]Pending{
 		"run_1": pending,
 	}}
-	control := &fakeExecutionControl{cancelErr: ErrExecutorNotLive}
+	control := &fakeExecutionPorts{releaseErr: ErrExecutorNotLive}
 	c := NewCoordinator(Dependencies{
-		Control: control, Sessions: sessions,
+		Releases: control, Session: testSessionPorts(sessions),
 		Runs: &fakeRunProjection{runs: map[string]transcript.Run{
 			"run_1": runForPending(pending),
 		}},
@@ -1458,9 +1485,9 @@ func TestCancelTreatsAlreadyGoneTurnAsIdempotentSuccess(t *testing.T) {
 }
 
 func TestSteerHidesExecutorHandle(t *testing.T) {
-	control := &fakeExecutionControl{}
+	control := &fakeExecutionPorts{}
 	c, _ := liveCoordinator(t, runRecord(run.Running, testSegmentID, ""))
-	c.control = control
+	c.steering = control
 
 	if err := c.Steer(context.Background(), SteerCommand{
 		RunID:             testRunID,
@@ -1484,7 +1511,7 @@ func TestSteerHidesExecutorHandle(t *testing.T) {
 
 func TestStartRejectsInvalidInputBeforeSessionCreation(t *testing.T) {
 	sessions := &fakeRunSessions{}
-	c := newUseCaseCoordinator(&fakeExecutor{}, &fakeExecutionControl{}, sessions, &fakeEffects{})
+	c := newUseCaseCoordinator(&fakeExecutor{}, &fakeExecutionPorts{}, sessions, &fakeEffects{})
 
 	_, err := c.Start(context.Background(), StartCommand{})
 	if !errors.Is(err, ErrInputRequired) {
@@ -1517,7 +1544,7 @@ func TestStartRefusesASessionThatAlreadyHasARunAndNamesIt(t *testing.T) {
 				sess:   session.Session{ID: "ses_1", CWD: "/work"},
 				active: &transcript.Run{ID: "run_active", SessionID: "ses_1", State: tt.state},
 			}
-			c := newUseCaseCoordinator(&fakeExecutor{}, &fakeExecutionControl{}, sessions, effects)
+			c := newUseCaseCoordinator(&fakeExecutor{}, &fakeExecutionPorts{}, sessions, effects)
 
 			_, err := c.Start(context.Background(), StartCommand{
 				SessionID:      "ses_1",

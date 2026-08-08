@@ -113,9 +113,9 @@ func (p *blockingCancelProcess) Discard(context.Context) error {
 
 func testWaitingCheckpointValue() agentexec.WaitingCheckpoint {
 	return agentexec.WaitingCheckpoint{Checkpoint: runs.ExecutorCheckpoint{
-		RootProcessID: "process_root",
-		Payload:       []byte(`{"root":"process_root"}`),
-		BuildID:       "build",
+		RootMemberID: "process_root",
+		Payload:      []byte(`{"root":"process_root"}`),
+		BuildID:      "build",
 	}}
 }
 

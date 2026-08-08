@@ -141,9 +141,9 @@ func TestWaitingChildAndRootCancellationHaveOneApplicationOwner(t *testing.T) {
 			effects,
 			&fakeExecutor{},
 		)
-		baseSessions, ok := coordinator.sessions.(*fakeRunSessions)
+		baseSessions, ok := coordinator.sessionReader.(*fakeRunSessions)
 		if !ok {
-			t.Fatalf("sessions = %T, want *fakeRunSessions", coordinator.sessions)
+			t.Fatalf("session reader = %T, want *fakeRunSessions", coordinator.sessionReader)
 		}
 		started := make(chan struct{}, 1)
 		release := testReleaseBarrier(t)
@@ -152,7 +152,11 @@ func TestWaitingChildAndRootCancellationHaveOneApplicationOwner(t *testing.T) {
 			started:         started,
 			release:         release,
 		}
-		coordinator.sessions = sessions
+		coordinator.sessionReader = sessions
+		coordinator.sessionCreator = sessions
+		coordinator.activeRuns = sessions
+		coordinator.interrupts = sessions
+		coordinator.terminations = sessions
 
 		rootDone := make(chan cancelAttemptOutcome, 1)
 		go func() {
@@ -416,9 +420,9 @@ func runningChildCancellationPlan() cancellationPlan {
 			State:     run.Running,
 		}},
 		target: cancellationRun{
-			run:        child,
-			processID:  "process_child",
-			hasProcess: true,
+			run:       child,
+			memberID:  "member_child",
+			hasMember: true,
 		},
 		targetSubtree: []cancellationRun{{run: child}},
 		treeState:     run.Running,
@@ -427,9 +431,9 @@ func runningChildCancellationPlan() cancellationPlan {
 
 func waitingCancellationMutationWithSiblingBoundary() *fakePreparedWaitingCancellation {
 	return &fakePreparedWaitingCancellation{
-		canceled: []string{"process_a", "process_grandchild"},
-		suspensions: []ProcessSuspension{{
-			ProcessID:    "process_b",
+		canceled: []string{"member_a", "member_grandchild"},
+		suspensions: []MemberInterruption{{
+			MemberID:     "member_b",
 			SuspensionID: "suspension_b",
 			Interrupt:    waitingQuestionPrompt(),
 		}},

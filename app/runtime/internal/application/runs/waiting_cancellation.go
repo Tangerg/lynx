@@ -49,7 +49,7 @@ func prepareWaitingCancellationTransformation(
 	if !ok {
 		return waitingCancellationTransformation{}, errors.New("runs: waiting cancellation Pending has no root continuation")
 	}
-	if err := prepared.Checkpoint.ValidateOwnership(rootContinuation.ProcessID, plan.pending.SessionID); err != nil {
+	if err := prepared.Checkpoint.ValidateOwnership(rootContinuation.MemberID, plan.pending.SessionID); err != nil {
 		return waitingCancellationTransformation{}, fmt.Errorf("runs: invalid prepared waiting subtree checkpoint ownership: %w", err)
 	}
 	if prepared.Checkpoint.Scope.GoalLeaseID != plan.pending.GoalLeaseID {
@@ -79,21 +79,21 @@ func prepareWaitingCancellationTransformation(
 		)
 	}
 
-	canceledProcesses := prepared.CanceledProcessIDs
-	canceledProcessSet := make(map[string]struct{}, len(canceledProcesses))
-	for _, processID := range canceledProcesses {
-		if processID == "" {
+	canceledProcesses := prepared.CanceledMemberIDs
+	canceledMemberSet := make(map[string]struct{}, len(canceledProcesses))
+	for _, memberID := range canceledProcesses {
+		if memberID == "" {
 			return waitingCancellationTransformation{}, errors.New(
-				"runs: prepared waiting cancellation returned an empty process id",
+				"runs: prepared waiting cancellation returned an empty member id",
 			)
 		}
-		if _, duplicate := canceledProcessSet[processID]; duplicate {
+		if _, duplicate := canceledMemberSet[memberID]; duplicate {
 			return waitingCancellationTransformation{}, fmt.Errorf(
-				"runs: prepared waiting cancellation repeated process %q",
-				processID,
+				"runs: prepared waiting cancellation repeated member %q",
+				memberID,
 			)
 		}
-		canceledProcessSet[processID] = struct{}{}
+		canceledMemberSet[memberID] = struct{}{}
 	}
 
 	expectedProcesses := make(map[string]struct{})
@@ -103,28 +103,28 @@ func prepareWaitingCancellationTransformation(
 		if member.run.State.IsTerminal() {
 			continue
 		}
-		if !member.hasProcess {
+		if !member.hasMember {
 			return waitingCancellationTransformation{}, fmt.Errorf(
-				"runs: waiting cancellation target Run %q has no executor process",
+				"runs: waiting cancellation target Run %q has no executor member",
 				member.run.ID,
 			)
 		}
-		expectedProcesses[member.processID] = struct{}{}
+		expectedProcesses[member.memberID] = struct{}{}
 		terminalRuns = append(terminalRuns, canceledWaitingRun(member.run, reason, finishedAt))
 		canceledRunIDs = append(canceledRunIDs, member.run.ID)
 	}
-	if len(canceledProcessSet) != len(expectedProcesses) {
+	if len(canceledMemberSet) != len(expectedProcesses) {
 		return waitingCancellationTransformation{}, fmt.Errorf(
-			"runs: prepared waiting cancellation removed %d processes, Run subtree requires %d",
-			len(canceledProcessSet),
+			"runs: prepared waiting cancellation removed %d members, Run subtree requires %d",
+			len(canceledMemberSet),
 			len(expectedProcesses),
 		)
 	}
-	for processID := range expectedProcesses {
-		if _, canceled := canceledProcessSet[processID]; !canceled {
+	for memberID := range expectedProcesses {
+		if _, canceled := canceledMemberSet[memberID]; !canceled {
 			return waitingCancellationTransformation{}, fmt.Errorf(
-				"runs: prepared waiting cancellation did not remove process %q",
-				processID,
+				"runs: prepared waiting cancellation did not remove member %q",
+				memberID,
 			)
 		}
 	}
@@ -159,7 +159,7 @@ func prepareWaitingCancellationTransformation(
 	continuations := make([]Continuation, 0, len(plan.survivingTree))
 	parentToolMoved := false
 	for _, continuation := range plan.pending.Continuations {
-		if _, canceled := canceledProcessSet[continuation.ProcessID]; canceled {
+		if _, canceled := canceledMemberSet[continuation.MemberID]; canceled {
 			continue
 		}
 		clone := continuation
@@ -210,48 +210,48 @@ func prepareWaitingCancellationTransformation(
 
 	oldBindingByKey := make(map[string]int, len(plan.pending.Suspensions))
 	for index, binding := range plan.pending.Suspensions {
-		oldBindingByKey[suspensionIdentity(binding.ProcessID, binding.SuspensionID)] = index
+		oldBindingByKey[suspensionIdentity(binding.MemberID, binding.SuspensionID)] = index
 	}
 	survivingRunByProcess := make(map[string]string, len(continuations))
 	for _, continuation := range continuations {
-		survivingRunByProcess[continuation.ProcessID] = continuation.RunID
+		survivingRunByProcess[continuation.MemberID] = continuation.RunID
 	}
-	pendingSuspensions := prepared.PendingSuspensions
+	pendingSuspensions := prepared.PendingInterruptions
 	remainingInterrupts := make([]transcript.Interrupt, 0, len(pendingSuspensions))
 	remainingBindings := make([]SuspensionBinding, 0, len(pendingSuspensions))
 	keptBindings := make(map[int]struct{}, len(pendingSuspensions))
 	for _, boundary := range pendingSuspensions {
 		if err := boundary.Interrupt.Validate(); err != nil {
 			return waitingCancellationTransformation{}, fmt.Errorf(
-				"runs: prepared process %q suspension %q: %w",
-				boundary.ProcessID,
+				"runs: prepared member %q suspension %q: %w",
+				boundary.MemberID,
 				boundary.SuspensionID,
 				err,
 			)
 		}
-		index, exists := oldBindingByKey[suspensionIdentity(boundary.ProcessID, boundary.SuspensionID)]
+		index, exists := oldBindingByKey[suspensionIdentity(boundary.MemberID, boundary.SuspensionID)]
 		if !exists {
 			return waitingCancellationTransformation{}, fmt.Errorf(
-				"runs: prepared process %q suspension %q was absent from the durable pending set",
-				boundary.ProcessID,
+				"runs: prepared member %q suspension %q was absent from the durable pending set",
+				boundary.MemberID,
 				boundary.SuspensionID,
 			)
 		}
 		if _, duplicate := keptBindings[index]; duplicate {
 			return waitingCancellationTransformation{}, fmt.Errorf(
-				"runs: prepared process %q repeated suspension %q",
-				boundary.ProcessID,
+				"runs: prepared member %q repeated suspension %q",
+				boundary.MemberID,
 				boundary.SuspensionID,
 			)
 		}
 		binding := plan.pending.Suspensions[index]
 		interrupt := plan.pending.Interrupts[index]
-		runID, survives := survivingRunByProcess[binding.ProcessID]
+		runID, survives := survivingRunByProcess[binding.MemberID]
 		if !survives || interrupt.RunID != runID {
 			return waitingCancellationTransformation{}, fmt.Errorf(
-				"runs: prepared suspension %q belongs to removed process %q",
+				"runs: prepared suspension %q belongs to removed member %q",
 				binding.SuspensionID,
-				binding.ProcessID,
+				binding.MemberID,
 			)
 		}
 		if interrupt.Kind != boundary.Interrupt.Kind {
@@ -270,10 +270,10 @@ func prepareWaitingCancellationTransformation(
 		if _, kept := keptBindings[index]; kept {
 			continue
 		}
-		if _, canceled := canceledProcessSet[binding.ProcessID]; !canceled {
+		if _, canceled := canceledMemberSet[binding.MemberID]; !canceled {
 			return waitingCancellationTransformation{}, fmt.Errorf(
-				"runs: prepared cancellation dropped surviving process %q suspension %q",
-				binding.ProcessID,
+				"runs: prepared cancellation dropped surviving member %q suspension %q",
+				binding.MemberID,
 				binding.SuspensionID,
 			)
 		}
@@ -337,8 +337,8 @@ func canceledWaitingRun(run transcript.Run, reason string, finishedAt time.Time)
 	return run
 }
 
-func suspensionIdentity(processID, suspensionID string) string {
-	return processID + "\x00" + suspensionID
+func suspensionIdentity(memberID, suspensionID string) string {
+	return memberID + "\x00" + suspensionID
 }
 
 func (transformation waitingCancellationTransformation) durableCommit(

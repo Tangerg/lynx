@@ -213,7 +213,7 @@ func TestRecoveryPreservesOnlyCoherentInterruptedTree(t *testing.T) {
 		t.Fatalf("Reconcile: %v", err)
 	}
 	wantExpectation := ExecutorCheckpointExpectation{
-		RootProcessID:  "process_root",
+		RootMemberID:   "member_root",
 		SessionID:      run.SessionID,
 		CWD:            "/workspace",
 		WorkspaceCWD:   "/workspace",
@@ -224,7 +224,7 @@ func TestRecoveryPreservesOnlyCoherentInterruptedTree(t *testing.T) {
 	if recovered != 0 || validated != wantExpectation || len(store.commit.LostRuns) != 0 {
 		t.Fatalf("recovery = %d validated=%+v commit=%+v", recovered, validated, store.commit)
 	}
-	if !reflect.DeepEqual(store.commit.PreservedCheckpointRootIDs, []string{"process_root"}) ||
+	if !reflect.DeepEqual(store.commit.PreservedCheckpointRootIDs, []string{"member_root"}) ||
 		len(store.commit.DeletePending) != 0 {
 		t.Fatalf("ownership plan = %+v", store.commit)
 	}
@@ -415,7 +415,7 @@ func TestRecoveryRejectsChildProtocolDriftWithoutProbingCheckpoint(t *testing.T)
 	rootContinuation := pending.Continuations[0]
 	pending.Continuations = []Continuation{
 		{
-			RunID: "run_child", ProcessID: "process_child",
+			RunID: "run_child", MemberID: "member_child",
 			Lineage: lineage, ModelSelection: root.ModelSelection,
 			RunCreatedAt: root.CreatedAt,
 		},
@@ -471,11 +471,11 @@ func coherentRecoveryPark(t *testing.T) (transcript.Run, Pending, transcript.Ite
 		},
 		Suspensions: []SuspensionBinding{{
 			InterruptItemID: interrupt.ItemID,
-			ProcessID:       "process_root",
+			MemberID:        "member_root",
 			SuspensionID:    "suspension_root",
 		}},
 		Continuations: []Continuation{{
-			RunID: run.ID, ProcessID: "process_root", ModelSelection: selection, RunCreatedAt: createdAt,
+			RunID: run.ID, MemberID: "member_root", ModelSelection: selection, RunCreatedAt: createdAt,
 		}},
 		CreatedAt: createdAt.Add(time.Second),
 	}

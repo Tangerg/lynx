@@ -62,7 +62,7 @@ func (continuation *treeContinuation) validate() error {
 	}
 
 	runIDs := make(map[string]struct{}, len(continuation.continuations))
-	processOwners := make(map[string]string, len(continuation.continuations))
+	memberOwners := make(map[string]string, len(continuation.continuations))
 	members := make([]run.RunTreeMember, 0, len(continuation.continuations))
 	for index, member := range continuation.continuations {
 		if err := member.Validate(); err != nil {
@@ -71,16 +71,16 @@ func (continuation *treeContinuation) validate() error {
 		if _, duplicate := runIDs[member.RunID]; duplicate {
 			return fmt.Errorf("runs: tree continuation repeats Run %q", member.RunID)
 		}
-		if owner, duplicate := processOwners[member.ProcessID]; duplicate {
+		if owner, duplicate := memberOwners[member.MemberID]; duplicate {
 			return fmt.Errorf(
-				"runs: tree continuation process %q belongs to Runs %q and %q",
-				member.ProcessID,
+				"runs: tree continuation member %q belongs to Runs %q and %q",
+				member.MemberID,
 				owner,
 				member.RunID,
 			)
 		}
 		runIDs[member.RunID] = struct{}{}
-		processOwners[member.ProcessID] = member.RunID
+		memberOwners[member.MemberID] = member.RunID
 		members = append(members, run.RunTreeMember{
 			RunID:   member.RunID,
 			Lineage: member.Lineage,

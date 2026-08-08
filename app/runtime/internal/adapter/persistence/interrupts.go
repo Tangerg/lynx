@@ -111,7 +111,7 @@ func interruptRecord(pending runs.Pending) sqlite.InterruptRecord {
 			}
 		}
 		continuations[index] = sqlite.ContinuationRecord{
-			RunID: continuation.RunID, ProcessID: continuation.ProcessID,
+			RunID: continuation.RunID, MemberID: continuation.MemberID,
 			Lineage: continuation.Lineage, ModelSelection: continuation.ModelSelection,
 			DrainedTools: drained, CommittedTools: committed,
 			RunCreatedAt: continuation.RunCreatedAt,
@@ -122,7 +122,7 @@ func interruptRecord(pending runs.Pending) sqlite.InterruptRecord {
 	for index, binding := range pending.Suspensions {
 		suspensions[index] = sqlite.SuspensionBindingRecord{
 			InterruptItemID: binding.InterruptItemID,
-			ProcessID:       binding.ProcessID,
+			MemberID:        binding.MemberID,
 			SuspensionID:    binding.SuspensionID,
 		}
 	}
@@ -153,7 +153,7 @@ func pendingValue(record sqlite.InterruptRecord) runs.Pending {
 			}
 		}
 		continuations[index] = runs.Continuation{
-			RunID: continuation.RunID, ProcessID: continuation.ProcessID,
+			RunID: continuation.RunID, MemberID: continuation.MemberID,
 			Lineage: continuation.Lineage, ModelSelection: continuation.ModelSelection,
 			DrainedTools: drained, CommittedTools: committed,
 			RunCreatedAt: continuation.RunCreatedAt,
@@ -164,7 +164,7 @@ func pendingValue(record sqlite.InterruptRecord) runs.Pending {
 	for index, binding := range record.Suspensions {
 		suspensions[index] = runs.SuspensionBinding{
 			InterruptItemID: binding.InterruptItemID,
-			ProcessID:       binding.ProcessID,
+			MemberID:        binding.MemberID,
 			SuspensionID:    binding.SuspensionID,
 		}
 	}

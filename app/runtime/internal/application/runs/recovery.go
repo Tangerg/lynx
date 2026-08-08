@@ -96,15 +96,15 @@ func (r *Recovery) Reconcile(ctx context.Context) (int, error) {
 		if !ok {
 			return 0, fmt.Errorf("runs: recovery interrupt %q has no root continuation", open.RootRunID)
 		}
-		if owner, duplicate := checkpointOwners[root.ProcessID]; duplicate {
+		if owner, duplicate := checkpointOwners[root.MemberID]; duplicate {
 			return 0, fmt.Errorf(
 				"runs: recovery checkpoint %q is owned by interrupts %q and %q",
-				root.ProcessID,
+				root.MemberID,
 				owner,
 				open.RootRunID,
 			)
 		}
-		checkpointOwners[root.ProcessID] = open.RootRunID
+		checkpointOwners[root.MemberID] = open.RootRunID
 		pendingByRun[open.RootRunID] = open
 	}
 
@@ -201,7 +201,7 @@ func (r *Recovery) Reconcile(ctx context.Context) (int, error) {
 	for _, open := range pending {
 		if _, preserved := preservedRuns[open.RootRunID]; preserved {
 			root, _ := open.RootContinuation()
-			commit.PreservedCheckpointRootIDs = append(commit.PreservedCheckpointRootIDs, root.ProcessID)
+			commit.PreservedCheckpointRootIDs = append(commit.PreservedCheckpointRootIDs, root.MemberID)
 			continue
 		}
 		commit.DeletePending = append(commit.DeletePending, PendingDeletion{

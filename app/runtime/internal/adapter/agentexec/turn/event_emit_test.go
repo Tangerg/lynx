@@ -27,13 +27,13 @@ func TestEmitProcessEventPreservesExecutorIdentity(t *testing.T) {
 	}
 
 	event := <-state.events
-	wantSource := runs.ExecutorSource{
-		ProcessID:   process.ID,
+	wantSource := runs.ExecutorMember{
+		MemberID:    process.ID,
 		ParentID:    process.ParentID,
 		SpawnCallID: process.SpawnCallID,
 	}
-	if event.Source != wantSource {
-		t.Fatalf("event source = %+v, want %+v", event.Source, wantSource)
+	if event.Member != wantSource {
+		t.Fatalf("event source = %+v, want %+v", event.Member, wantSource)
 	}
 	if event.Payload != payload {
 		t.Fatalf("event payload = %#v, want %#v", event.Payload, payload)

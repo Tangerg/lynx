@@ -1,6 +1,6 @@
 # Lyra Runtime 能力迁移台账
 
-> 状态：P2 当前事实，随每个实施批次更新
+> 状态：P3 当前事实，随每个实施批次更新
 >
 > 基线日期：2026-08-08
 
@@ -29,13 +29,15 @@
 - Domain、Application 和 Delivery 生产代码目前对旧 Agent Framework 零 import；
 - P2 已删除 `domain/execution` 及全部 forwarding/alias path；Domain 生产代码与测试对 Application/Adapter/Infra/Delivery/Bootstrap 零 import，context-based I/O port 为零；
 - Run、Accounting、Conversation、Transcript、Interrupt、ToolResult 已成为准确顶层 bounded-context package；executor checkpoint/ref、pending continuation 与 workspace mutation 由 Application consumer 拥有；
+- P3 已删除 Application 的 `ExecutionControl`、`SegmentExecutor`、`SessionLifecycle` 与 `Effects` 胖接口；root start/observe/release、Session reads/termination 与 Run projection write-sets 均由真实 consumer-owned ports 表达；
+- P3 已把 Application executor tree identity 统一为 `ExecutorMember`/`MemberID`；旧 `ProcessID` 只存在于待替换的 old Agent adapter 内部，SQLite technical shape 已一次性改为 epoch 59 的 `root_member_id`/`memberId`；
 - 当前 Agent dependency 已经主要集中在执行防腐层，这是原位重构而非完整 runtime2 的关键依据。
 
 ### 2.2 当前架构基础
 
 | 能力 | 当前事实 | Verdict | 阶段 |
 |---|---|---|---|
-| Run lifecycle | `application/runs` 拥有 start、pump、waiting、cancel、terminal ordering | Retain + Refactor ports | P2–P3 |
+| Run lifecycle | `application/runs` 拥有 start、pump、waiting、cancel、terminal ordering；P3 root ports 已收窄 | Retain；P4 真实 consumer 验证 | P3 已完成；P4–P8 纵切 |
 | Session lifecycle | 独立 application/domain，拥有 workspace/admission 产品语义 | Retain | P2/P8 |
 | Domain framework isolation | P2 已删除十个 context-based Domain I/O port，生产与测试均由机器守卫禁止向外依赖 | Retain + strengthen | P2 已完成；例外为零 |
 | Agent anti-corruption | 已集中于 `adapter/agentexec`，但内部复制旧 Framework lifecycle | Rewrite | P4–P7 |
@@ -56,7 +58,7 @@
 | Run limits/capabilities | `domain/run` | 保持 | Retain | admission/restore 同值，不能重新谈判 |
 | Terminal outcome taxonomy | Completed/Canceled/TimedOut/Failed/MaxBudget/MaxSteps/Lost | P8 结合 Agent2 Termination 冻结完整映射 | Retain + complete mapping | P2 产品与 wire taxonomy 已精确；P8 完成新 Framework matrix |
 | ExecutorRef/checkpoint | `application/runs` opaque executor binding/checkpoint | P3/P6 按真实 consumer 演进 | Refactor port | Run entity 不保存执行端口细节，无 Agent2 concrete type/payload parsing |
-| ProcessID product exposure | execution/continuation/child binding | 准确的 executor member identity | Refactor | Application 不使用 Framework Process 语言 |
+| Executor member identity | Application `ExecutorMember`、continuation/child binding | 保持不透明 member identity | Retain | P3 Application `ProcessID` 归零；旧 adapter 显式映射 |
 | Step count | Run usage | 保留产品需要的计数，区分 Agent2 Step | Refactor | 不把两种 Step 当同一类型 |
 
 ### 3.2 Conversation、Transcript、Knowledge
@@ -109,17 +111,18 @@
 
 | 当前能力 | 当前形态 | Verdict | 目标证据 |
 |---|---|---|---|
-| Start admission | `ValidateStart` + `PrepareStart` + `Activate` | Refactor | 方法按真实事务阶段重命名/收敛 |
-| Event observation | `SegmentExecutor.Events` | Retain semantics, Refactor types | 只流应用 executor facts |
-| Cancel execution | durable ref + live control | Retain | 取消原因/终态矩阵明确 |
-| Resume/rehydrate | `Resume`、`Rehydrate`、`Prepare` | Rewrite port shape | snapshot/semantic answer 不泄露 Framework |
-| Steer | content blocks → execution control | Retain semantics, Rewrite bridge | Agent2 safe boundary behavior test |
-| Child subtree cancel | process string identity | Refactor identity | executor member ownership验证 |
+| Start admission | `ValidateRootStart` → `StageRoot` → durable opening → `BeginRoot` | Retain semantics；P4 validate candidate | stage 不外呼 model/tool；commit 前失败只 Release |
+| Event observation | `ExecutionObserver.Observe` | Retain semantics；P4 validate candidate | 只流 Application-owned executor facts |
+| Executor release | `ExecutionReleaser.Release` | Retain | 与产品 Cancel 分离；非 Waiting 终止恰好一次 |
+| Product Cancel | durable terminal decision → executor release | Retain | product outcome 先提交，resource lifecycle 后执行 |
+| Resume/rehydrate | 隔离的 provisional `ContinuationExecutor` | Rewrite port shape | P6 由 Agent2 snapshot/semantic answer consumer 重推 |
+| Steer | provisional `ExecutionSteerer` | Retain semantics, Rewrite bridge | P6 由 Agent2 safe-boundary consumer 重推 |
+| Child subtree cancel | `MemberID` + provisional subtree port | Refactor identity | P7 由 Agent2 prepared capability consumer 重推 |
 | Waiting subtree mutation | prepared data + live Mutation lease | Rewrite as precise one-shot prepared tree change | Application 不见 Agent2 plan；Apply/Discard 前 source frozen；transaction/crash tests |
 | Run pump | executor event reducer | Retain | 不推进 Agent2 internal state |
 | Run journal | committed RunEvent | Retain | persist-before-publish |
 
-现有 Application port 已经 framework-neutral，但不能作为兼容 API 冻结。尤其 `Prepare`、`Handle`、`ExecutionControl` 等名称必须依据 P3 的真实 use case 重新裁决。
+P3 root candidate 已经 framework-neutral 且由 fake-backed use cases 验证，但仍不是兼容 API；P4 可以依据真实 Agent2 consumer 修订。Continuation/steer/subtree ports 只隔离旧生产路径，其最终方法、参数和 error 由 P6/P7 真实纵切决定。
 
 ### 4.2 Cross-aggregate writes
 
@@ -192,7 +195,7 @@
 
 | 能力 | 当前事实 | Verdict | 验收 |
 |---|---|---|---|
-| SQLite schema | epoch 58，精确单 shape | Retain pattern | breaking 时提升 epoch，无 migration |
+| SQLite schema | epoch 59，`root_member_id`/`memberId` 精确单 shape | Retain pattern | 旧 epoch/列/codec 被拒绝，无 migration |
 | executor checkpoint | Host metadata + old Agent payload | Rewrite payload owner | opaque TreeSnapshot + exact expectation |
 | checkpoint transaction | runsegment/persistence 组合 | Retain semantics | waiting facts 同事务 |
 | BuildID | Host-owned | Retain | 不进入 Agent2 deployment/snapshot |
@@ -282,6 +285,6 @@
 
 - Runtime 产品领域、协议、持久化和工具能力大部分保留；
 - 执行 Framework integration 是主要 Rewrite 区；
-- Run/execution 术语、Application ports 和共享原语 ownership 是主要 Refactor 区；
+- P3 已完成 root Application port 与 executor member 术语收敛；P4–P8 继续以真实 Agent2 consumers 演进未冻结能力；
 - Agent2 已提供 P4–P6 所需的公共合同；P7 必须先补齐本台账已确认的两项中性 Framework 合同；
-- 当前阶段只完成文档基线，所有生产能力仍处于旧 Agent implementation 状态。
+- 当前生产执行仍由旧 Agent implementation 承担；P4 起的新 Agent2 路径只进入独立真实 harness，P8 能力齐备后才原子切换。

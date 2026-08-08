@@ -26,7 +26,7 @@ func (e *Engine) CanResumeCheckpoint(
 	if e.checkpoints == nil {
 		return false, errors.New("engine: checkpoint reader is required")
 	}
-	checkpoint, err := e.checkpoints.LoadCheckpoint(ctx, expected.RootProcessID)
+	checkpoint, err := e.checkpoints.LoadCheckpoint(ctx, expected.RootMemberID)
 	if err != nil {
 		if isExecutorCheckpointLoss(err) {
 			return false, nil

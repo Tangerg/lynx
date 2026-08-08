@@ -16,19 +16,66 @@ import (
 )
 
 // The ports this package consumes to run a Segment. They are defined here on the
-// consumer side and satisfied structurally by composition.
-//
-// The application drives execution through implementation-neutral
-// [SegmentExecutor] and [ExecutionControl] ports. It observes the
-// application-owned [ExecutionFact] family and addresses work through durable
-// [ExecutorRef] values.
+// consumer side and satisfied structurally by composition. No interface mirrors
+// an executor implementation: each one names the single application use case
+// that consumes it.
 
-// ExecutionCanceler tears down a live or parked execution by durable identity. It is a
-// shared capability both the pump ([SegmentExecutor]) and the control surface
-// ([ExecutionControl]) need; naming it once keeps an implementation from exposing the
-// same teardown under two method names.
-type ExecutionCanceler interface {
-	CancelExecution(ctx context.Context, ref ExecutorRef) error
+// RootExecutionStarter validates execution-specific input, stages a new root,
+// then begins it after the opening write-set is durable. ValidateRootStart runs
+// before Session resolution and may inspect only input and frozen policy fields.
+// StageRoot receives the resolved Session/workspace fields and must not cross
+// the model/tool side-effect boundary. BeginRoot runs only after admission commits.
+type RootExecutionStarter interface {
+	ValidateRootStart(start RootExecutionStart) error
+	StageRoot(ctx context.Context, start RootExecutionStart) (ExecutorRef, error)
+	BeginRoot(ctx context.Context, ref ExecutorRef) error
+}
+
+// ExecutionObserver attaches the application Run pump to one ordered stream of
+// application-owned executor facts. Observation does not advance executor state.
+type ExecutionObserver interface {
+	Observe(ctx context.Context, ref ExecutorRef) (iter.Seq[ExecutorEvent], error)
+}
+
+// ExecutionReleaser tears down an unadmitted, terminal, lost, or otherwise
+// invalid executor tree. It is deliberately not called Cancel: the application
+// Cancel use case decides and durably records the product outcome; this port only
+// releases executor-owned resources after that decision or after failed staging.
+type ExecutionReleaser interface {
+	Release(ctx context.Context, ref ExecutorRef) error
+}
+
+// ContinuationExecutor is the temporary old-executor boundary consumed by the
+// waiting use case. P6 replaces its exact shape from the real Agent2 consumer;
+// keeping it separate prevents those provisional operations from polluting the
+// P3 root contract.
+type ContinuationExecutor interface {
+	ClaimWaiting(ctx context.Context, ref ExecutorRef) (ExecutorRef, error)
+	ResumeWaiting(ctx context.Context, ref ExecutorRef, answers []SuspensionAnswer, interruptKinds []interrupt.Kind) error
+	RestoreWaiting(ctx context.Context, req RehydrateExecution) (ExecutorRef, error)
+}
+
+// ExecutionSteerer is the temporary semantic steer boundary. P6 will derive its
+// final shape and safe-boundary behavior from the Agent2 consumer.
+type ExecutionSteerer interface {
+	Steer(ctx context.Context, ref ExecutorRef, input []transcript.ContentBlock) error
+}
+
+// RunningSubtreeCanceler is consumed only by child Run cancellation. P7 owns its
+// Agent2 replacement.
+type RunningSubtreeCanceler interface {
+	CancelRunningSubtree(ctx context.Context, ref ExecutorRef, memberID string) error
+}
+
+// WaitingSubtreeCancellationPreparer is the provisional old-executor capability
+// consumed by waiting child cancellation. Its concrete contract is replaced in
+// P7 after the required Agent2 prepared-change capability exists.
+type WaitingSubtreeCancellationPreparer interface {
+	PrepareWaitingSubtreeCancellation(
+		ctx context.Context,
+		ref ExecutorRef,
+		memberID string,
+	) (PreparedWaitingSubtreeCancellation, error)
 }
 
 // WaitingSubtreeDisposition is the application decision applied after a
@@ -55,32 +102,52 @@ type WaitingSubtreeMutation interface {
 // the live executor lease that can apply it. No persistence behavior crosses the
 // application boundary.
 type PreparedWaitingSubtreeCancellation struct {
-	CanceledProcessIDs []string
-	PendingSuspensions []ProcessSuspension
-	Checkpoint         ExecutorCheckpoint
-	Mutation           WaitingSubtreeMutation
+	CanceledMemberIDs    []string
+	PendingInterruptions []MemberInterruption
+	Checkpoint           ExecutorCheckpoint
+	Mutation             WaitingSubtreeMutation
 }
 
-// SegmentExecutor is what the run pump needs to observe and cancel the
-// execution backing a Run Segment.
-type SegmentExecutor interface {
-	Events(ctx context.Context, ref ExecutorRef) (iter.Seq[ExecutorEvent], error)
-	ExecutionCanceler
-}
-
-// SessionLifecycle is the run use cases' narrow view of session persistence,
-// open interrupts, the atomic parked-run abandon write-set, and the in-process
-// working-tree admission gate. It is implemented by application/sessions; runs
-// owns the ordering in which these capabilities are used.
-type SessionLifecycle interface {
+// SessionReader resolves the product Session a Run belongs to.
+type SessionReader interface {
 	Get(ctx context.Context, id string) (session.Session, error)
+}
+
+// SessionCreator owns the two Session creation paths consumed by Run start.
+// PrepareScheduled returns the caller-identified Session value whose durable
+// creation belongs to the opening write-set.
+type SessionCreator interface {
 	Create(ctx context.Context, title, cwd string) (session.Session, error)
 	PrepareScheduled(ctx context.Context, id, title, cwd string) (session.Session, error)
+}
+
+// ActiveRunReader reports the Session's current non-terminal Run for admission.
+type ActiveRunReader interface {
 	ActiveRun(ctx context.Context, sessionID string) (transcript.Run, bool, error)
+}
+
+// PendingInterruptReader projects root-owned waiting boundaries by Session or
+// addressed Run without exposing checkpoint storage.
+type PendingInterruptReader interface {
 	ListOpenInterrupts(ctx context.Context, sessionID string) ([]Pending, error)
 	LookupOpenInterrupt(ctx context.Context, runID string) (Pending, bool, error)
+}
+
+// RunTerminationCommitter owns the atomic application write-sets for canceling
+// a parked Run or declaring its executor state unrecoverable.
+type RunTerminationCommitter interface {
 	ApplyRunCancel(ctx context.Context, sessionID, runID, reason string, finishedAt time.Time) (transcript.Run, error)
 	ApplyRunLost(ctx context.Context, sessionID, runID string, finishedAt time.Time) error
+}
+
+// SessionPorts groups independently consumed Session-side capabilities for
+// composition. Coordinator stores each capability separately.
+type SessionPorts struct {
+	Reader       SessionReader
+	Creator      SessionCreator
+	ActiveRuns   ActiveRunReader
+	Interrupts   PendingInterruptReader
+	Terminations RunTerminationCommitter
 }
 
 // RunProjection is the run use cases' durable Run read. Run answers point
@@ -101,9 +168,10 @@ type ItemProjection interface {
 	Item(ctx context.Context, itemID string) (transcript.Item, bool, error)
 }
 
-// StartExecution is the semantic command the run use case sends after resolving
-// the Session and its working directory.
-type StartExecution struct {
+// RootExecutionStart carries a fresh root's input, frozen policy, and resolved
+// execution scope. During pre-admission validation the scope fields are empty;
+// the Application fills them before passing the value to StageRoot.
+type RootExecutionStart struct {
 	SessionID string
 	Message   string
 	Media     []*media.Media
@@ -134,7 +202,7 @@ type StartExecution struct {
 type RehydrateExecution struct {
 	SessionID  string
 	ExecutorID string
-	ProcessID  string
+	MemberID   string
 	RootRunID  string
 	// ChildRuns restores the application identities of already-admitted child
 	// executor members so lifecycle hooks never need executor topology.
@@ -153,31 +221,4 @@ type RehydrateExecution struct {
 // use. nil means isolation is unavailable and an isolated start is refused.
 type IsolationProvider interface {
 	Workspace(ctx context.Context, sessionID, projectRoot string) (string, error)
-}
-
-// ExecutionControl is the run use cases' implementation-neutral control
-// surface. Validation happens before Session creation.
-type ExecutionControl interface {
-	ValidateStart(start StartExecution) error
-	PrepareStart(ctx context.Context, req StartExecution) (ExecutorRef, error)
-	Activate(ctx context.Context, ref ExecutorRef) error
-	Prepare(ctx context.Context, ref ExecutorRef) (ExecutorRef, error)
-	Resume(ctx context.Context, ref ExecutorRef, answers []SuspensionAnswer, interruptKinds []interrupt.Kind) error
-	Rehydrate(ctx context.Context, req RehydrateExecution) (ExecutorRef, error)
-	ExecutionCanceler
-	// CancelSubtree terminates exactly the addressed executor process and its
-	// descendants while the owning execution continues. processID is an opaque
-	// identity previously observed through ExecutorSource; the implementation must
-	// prove that it belongs to ref before crossing the executor side effect.
-	CancelSubtree(ctx context.Context, ref ExecutorRef, processID string) error
-	// PrepareWaitingSubtreeCancellation claims a parked execution and computes an
-	// executor transition plan without changing live execution or retaining an
-	// executor lock. The returned capability owns the application claim until Commit or
-	// Abort.
-	PrepareWaitingSubtreeCancellation(
-		ctx context.Context,
-		ref ExecutorRef,
-		processID string,
-	) (PreparedWaitingSubtreeCancellation, error)
-	Steer(ctx context.Context, ref ExecutorRef, input []transcript.ContentBlock) error
 }

@@ -29,14 +29,28 @@ var ErrClosed = errors.New("runs: coordinator closed")
 // Reading Start and the pump explains a Run end to end through canonical
 // application events.
 type Coordinator struct {
-	executor     SegmentExecutor
-	control      ExecutionControl
-	sessions     SessionLifecycle
-	effects      Effects
-	isolation    IsolationProvider // resolves an isolated session's sandbox copy; nil = isolation off
-	now          func() time.Time
-	newRunID     func() string
-	newSegmentID func() string
+	rootStarts     RootExecutionStarter
+	observations   ExecutionObserver
+	releases       ExecutionReleaser
+	continuation   ContinuationExecutor
+	steering       ExecutionSteerer
+	runningTrees   RunningSubtreeCanceler
+	waitingTrees   WaitingSubtreeCancellationPreparer
+	sessionReader  SessionReader
+	sessionCreator SessionCreator
+	activeRuns     ActiveRunReader
+	interrupts     PendingInterruptReader
+	terminations   RunTerminationCommitter
+	openings       OpeningCommitter
+	events         EventCommitter
+	barriers       TreeBarrierCommitter
+	waitingEdits   WaitingSubtreeCancellationCommitter
+	workspace      WorkspaceChangeNotifier
+	finalizer      SegmentFinalizer
+	isolation      IsolationProvider // resolves an isolated session's sandbox copy; nil = isolation off
+	now            func() time.Time
+	newRunID       func() string
+	newSegmentID   func() string
 	// runs reads the durable run record. A subscribe or a steer that cannot be
 	// served has to say WHY — waiting, finished, a child, or a segment that has
 	// been replaced — and only the durable projection knows: the live registry
@@ -65,15 +79,20 @@ type Coordinator struct {
 // Dependencies is the complete collaborator set for the user-visible run use
 // cases and the segment supervisor they own.
 type Dependencies struct {
-	Segments   SegmentExecutor
-	Control    ExecutionControl
-	Sessions   SessionLifecycle
-	Effects    Effects
-	Runs       RunProjection
-	Items      ItemProjection
-	Admissions *admission.Gate
-	Isolation  IsolationProvider // nil disables isolated sessions (their start is refused)
-	Now        func() time.Time
+	RootStarts   RootExecutionStarter
+	Observations ExecutionObserver
+	Releases     ExecutionReleaser
+	Continuation ContinuationExecutor
+	Steering     ExecutionSteerer
+	RunningTrees RunningSubtreeCanceler
+	WaitingTrees WaitingSubtreeCancellationPreparer
+	Session      SessionPorts
+	Projection   ProjectionPorts
+	Runs         RunProjection
+	Items        ItemProjection
+	Admissions   *admission.Gate
+	Isolation    IsolationProvider // nil disables isolated sessions (their start is refused)
+	Now          func() time.Time
 	// Retention bounds every segment's replay window. Zero takes
 	// [DefaultRetention], which is also what discovery advertises.
 	Retention    Retention
@@ -93,20 +112,34 @@ func NewCoordinator(deps Dependencies) *Coordinator {
 		deps.Retention = DefaultRetention()
 	}
 	return &Coordinator{
-		executor:     deps.Segments,
-		control:      deps.Control,
-		sessions:     deps.Sessions,
-		effects:      deps.Effects,
-		runs:         deps.Runs,
-		items:        deps.Items,
-		isolation:    deps.Isolation,
-		now:          deps.Now,
-		newRunID:     deps.NewRunID,
-		newSegmentID: deps.NewSegmentID,
-		epoch:        replaycursor.NewEpoch(),
-		retention:    deps.Retention,
-		admission:    deps.Admissions,
-		changed:      deps.Changed,
+		rootStarts:     deps.RootStarts,
+		observations:   deps.Observations,
+		releases:       deps.Releases,
+		continuation:   deps.Continuation,
+		steering:       deps.Steering,
+		runningTrees:   deps.RunningTrees,
+		waitingTrees:   deps.WaitingTrees,
+		sessionReader:  deps.Session.Reader,
+		sessionCreator: deps.Session.Creator,
+		activeRuns:     deps.Session.ActiveRuns,
+		interrupts:     deps.Session.Interrupts,
+		terminations:   deps.Session.Terminations,
+		openings:       deps.Projection.Openings,
+		events:         deps.Projection.Events,
+		barriers:       deps.Projection.Barriers,
+		waitingEdits:   deps.Projection.WaitingEdits,
+		workspace:      deps.Projection.Workspace,
+		finalizer:      deps.Projection.Finalizer,
+		runs:           deps.Runs,
+		items:          deps.Items,
+		isolation:      deps.Isolation,
+		now:            deps.Now,
+		newRunID:       deps.NewRunID,
+		newSegmentID:   deps.NewSegmentID,
+		epoch:          replaycursor.NewEpoch(),
+		retention:      deps.Retention,
+		admission:      deps.Admissions,
+		changed:        deps.Changed,
 	}
 }
 
@@ -120,27 +153,27 @@ func (c *Coordinator) ReplayRetention() Retention { return c.retention }
 // its own Start. It does not reserve either resource; Start remains the
 // authority that acquires them.
 func (c *Coordinator) WaitSessionStartable(ctx context.Context, sessionID string) error {
-	if c == nil || c.admission == nil || c.sessions == nil {
+	if c == nil || c.admission == nil || c.sessionReader == nil {
 		return errors.New("runs: admission gate is unavailable")
 	}
-	sess, err := c.sessions.Get(ctx, sessionID)
+	sess, err := c.sessionReader.Get(ctx, sessionID)
 	if err != nil {
 		return err
 	}
 	return c.admission.WaitRunStartable(ctx, sess.ID, sess.CWD)
 }
 
-// openSegment attaches an already-prepared executor stream, atomically commits
+// openSegment attaches an already-staged executor stream, atomically commits
 // admission/resume plus opening projections, registers the live owner, then
-// activates a continuation and spawns the pump. The run lifetime is detached
+// begins execution and spawns the pump. The Run lifetime is detached
 // from the request without losing its trace; request cancellation drops only
 // that subscriber.
 func (c *Coordinator) openSegment(reqCtx context.Context, spec segmentSpec) (iter.Seq[Event], error) {
-	if c.executor == nil {
+	if c.observations == nil {
 		return nil, errors.New("runs: executor is required")
 	}
-	if c.effects == nil {
-		return nil, errors.New("runs: effects are required")
+	if c.openings == nil || c.events == nil || c.barriers == nil || c.workspace == nil || c.finalizer == nil {
+		return nil, errors.New("runs: segment projection ports are required")
 	}
 	resume := spec.Continuation != nil
 	taskCtx, release, ok := c.tasks.Attach(reqCtx)
@@ -151,7 +184,7 @@ func (c *Coordinator) openSegment(reqCtx context.Context, spec segmentSpec) (ite
 		return nil, ErrClosed
 	}
 	runCtx, cancel := context.WithCancel(taskCtx)
-	inner, err := c.executor.Events(runCtx, spec.executorRef())
+	inner, err := c.observations.Observe(runCtx, spec.executorRef())
 	if err != nil {
 		cancel()
 		if !resume {
@@ -174,10 +207,10 @@ func (c *Coordinator) openSegment(reqCtx context.Context, spec segmentSpec) (ite
 		return nil, err
 	}
 	for _, route := range routes.admissionOrder {
-		if route.source.ProcessID == "" {
+		if route.member.MemberID == "" {
 			continue
 		}
-		if err := live.bindExecutorProcess(route.runID, route.source.ProcessID); err != nil {
+		if err := live.bindExecutorMember(route.runID, route.member.MemberID); err != nil {
 			cancel()
 			if !resume {
 				err = c.rejectUnadmittedExecution(taskCtx, spec.executorRef(), err)
@@ -225,9 +258,9 @@ func (c *Coordinator) openSegment(reqCtx context.Context, spec segmentSpec) (ite
 	for _, route := range routes.admissionOrder {
 		route.segmentStartedAt = segmentStartedAt
 	}
-	if spec.Activate != nil {
-		if err := spec.Activate(taskCtx); err != nil {
-			trace.SpanFromContext(taskCtx).RecordError(fmt.Errorf("runs: activate segment: %w", err))
+	if spec.BeginExecution != nil {
+		if err := spec.BeginExecution(taskCtx); err != nil {
+			trace.SpanFromContext(taskCtx).RecordError(fmt.Errorf("runs: begin execution: %w", err))
 			routes.abortUnfinished()
 			cancel()
 		}
@@ -306,7 +339,7 @@ func (c *Coordinator) commitOpening(ctx context.Context, spec segmentSpec, route
 	// An opening may carry no item commits at all — a resumed segment that only
 	// delivers an approval has nothing to append. Its durable projection is the
 	// admission or resume above, which is what makes the Run exist.
-	commitOpening := c.effects.CommitOpening
+	commitOpening := c.openings.CommitOpening
 	if spec.CommitOpening != nil {
 		commitOpening = spec.CommitOpening
 	}
@@ -335,8 +368,8 @@ func (c *Coordinator) event(runID, segmentID string, reduced reduction) Event {
 func (c *Coordinator) rejectUnadmittedExecution(ctx context.Context, ref ExecutorRef, cause error) error {
 	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), runCleanupTimeout)
 	defer cancel()
-	if err := c.executor.CancelExecution(cleanupCtx, ref); err != nil {
-		cleanupErr := fmt.Errorf("runs: cancel unadmitted executor %q: %w", ref.ExecutorID, err)
+	if err := c.releases.Release(cleanupCtx, ref); err != nil {
+		cleanupErr := fmt.Errorf("runs: release unadmitted executor %q: %w", ref.ExecutorID, err)
 		return errors.Join(cause, cleanupErr)
 	}
 	return cause

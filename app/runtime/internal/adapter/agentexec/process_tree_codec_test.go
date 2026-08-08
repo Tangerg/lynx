@@ -36,10 +36,10 @@ func TestProcessTreeCodecKeepsFrameworkTopologyInsideExecutionAdapter(t *testing
 		t.Fatalf("encodeProcessTree: %v", err)
 	}
 	checkpoint := runs.ExecutorCheckpoint{
-		RootProcessID: tree.RootID,
-		Payload:       payload,
-		BuildID:       "build",
-		Scope:         runs.ExecutionScope{SessionID: "session"},
+		RootMemberID: tree.RootID,
+		Payload:      payload,
+		BuildID:      "build",
+		Scope:        runs.ExecutionScope{SessionID: "session"},
 	}
 	if err := checkpoint.Validate(); err != nil {
 		t.Fatalf("validate checkpoint: %v", err)
@@ -59,7 +59,7 @@ func TestProcessTreeCodecKeepsFrameworkTopologyInsideExecutionAdapter(t *testing
 		}
 	}
 
-	checkpoint.RootProcessID = "another-root"
+	checkpoint.RootMemberID = "another-root"
 	if _, err := decodeValidatedProcessTree(checkpoint); !errors.Is(err, core.ErrInvalidSnapshot) {
 		t.Fatalf("decode mismatched root error = %v, want ErrInvalidSnapshot", err)
 	}

@@ -27,15 +27,15 @@ func newExecutorCheckpointStorage(t *testing.T) (*sql.DB, *persistence.ExecutorC
 	return db, persistence.NewExecutorCheckpointStore(sqlite.NewExecutorCheckpointStore(db))
 }
 
-func storedExecutorCheckpoint(rootProcessID, sessionID, payload string) runs.ExecutorCheckpoint {
+func storedExecutorCheckpoint(rootMemberID, sessionID, payload string) runs.ExecutorCheckpoint {
 	selection, err := modelref.New("anthropic", "claude")
 	if err != nil {
 		panic(err)
 	}
 	return runs.ExecutorCheckpoint{
-		RootProcessID: rootProcessID,
-		Payload:       []byte(payload),
-		BuildID:       "sha256:checkpoint-build",
+		RootMemberID: rootMemberID,
+		Payload:      []byte(payload),
+		BuildID:      "sha256:checkpoint-build",
 		Scope: runs.ExecutionScope{
 			SessionID:   sessionID,
 			CWD:         "/workspace/" + sessionID,
@@ -63,17 +63,17 @@ func storedExecutorCheckpoint(rootProcessID, sessionID, payload string) runs.Exe
 func TestExecutorCheckpointStoreReplacesOneRootOwnedAggregate(t *testing.T) {
 	db, store := newExecutorCheckpointStorage(t)
 	ctx := t.Context()
-	first := storedExecutorCheckpoint("process_root", "session-1", `{"tree":"first"}`)
+	first := storedExecutorCheckpoint("member_root", "session-1", `{"tree":"first"}`)
 	if err := store.SaveCheckpoint(ctx, first); err != nil {
 		t.Fatalf("SaveCheckpoint(first): %v", err)
 	}
-	replacement := storedExecutorCheckpoint("process_root", first.Scope.SessionID, `{"tree":"replacement","children":["opaque"]}`)
+	replacement := storedExecutorCheckpoint("member_root", first.Scope.SessionID, `{"tree":"replacement","children":["opaque"]}`)
 	replacement.Usage.Models[0].Calls = 2
 	if err := store.SaveCheckpoint(ctx, replacement); err != nil {
 		t.Fatalf("SaveCheckpoint(replacement): %v", err)
 	}
 
-	got, err := store.LoadCheckpoint(ctx, replacement.RootProcessID)
+	got, err := store.LoadCheckpoint(ctx, replacement.RootMemberID)
 	if err != nil {
 		t.Fatalf("LoadCheckpoint: %v", err)
 	}
@@ -88,7 +88,7 @@ func TestExecutorCheckpointStoreReplacesOneRootOwnedAggregate(t *testing.T) {
 
 func TestExecutorCheckpointStoreRejectsImmutablePolicyReplacement(t *testing.T) {
 	_, store := newExecutorCheckpointStorage(t)
-	first := storedExecutorCheckpoint("process_root", "session-1", `{"tree":"first"}`)
+	first := storedExecutorCheckpoint("member_root", "session-1", `{"tree":"first"}`)
 	if err := store.SaveCheckpoint(t.Context(), first); err != nil {
 		t.Fatalf("SaveCheckpoint(first): %v", err)
 	}
@@ -112,7 +112,7 @@ func TestExecutorCheckpointStoreRejectsImmutablePolicyReplacement(t *testing.T) 
 			if err := store.SaveCheckpoint(t.Context(), replacement); !errors.Is(err, runs.ErrInvalidExecutorCheckpoint) {
 				t.Fatalf("SaveCheckpoint error = %v, want ErrInvalidExecutorCheckpoint", err)
 			}
-			stored, err := store.LoadCheckpoint(t.Context(), first.RootProcessID)
+			stored, err := store.LoadCheckpoint(t.Context(), first.RootMemberID)
 			if err != nil {
 				t.Fatalf("LoadCheckpoint: %v", err)
 			}
@@ -125,7 +125,7 @@ func TestExecutorCheckpointStoreRejectsImmutablePolicyReplacement(t *testing.T) 
 
 func TestExecutorCheckpointStoreRejectsCumulativeUsageRegression(t *testing.T) {
 	_, store := newExecutorCheckpointStorage(t)
-	first := storedExecutorCheckpoint("process_root", "session-1", `{"tree":"first"}`)
+	first := storedExecutorCheckpoint("member_root", "session-1", `{"tree":"first"}`)
 	first.Usage.Models[0].Calls = 2
 	if err := store.SaveCheckpoint(t.Context(), first); err != nil {
 		t.Fatalf("SaveCheckpoint(first): %v", err)
@@ -136,7 +136,7 @@ func TestExecutorCheckpointStoreRejectsCumulativeUsageRegression(t *testing.T) {
 	if err := store.SaveCheckpoint(t.Context(), replacement); !errors.Is(err, runs.ErrInvalidExecutorCheckpoint) {
 		t.Fatalf("SaveCheckpoint(regression) error = %v, want ErrInvalidExecutorCheckpoint", err)
 	}
-	stored, err := store.LoadCheckpoint(t.Context(), first.RootProcessID)
+	stored, err := store.LoadCheckpoint(t.Context(), first.RootMemberID)
 	if err != nil {
 		t.Fatalf("LoadCheckpoint: %v", err)
 	}
@@ -147,15 +147,15 @@ func TestExecutorCheckpointStoreRejectsCumulativeUsageRegression(t *testing.T) {
 
 func TestExecutorCheckpointStoreRejectsOwnerReassignment(t *testing.T) {
 	_, store := newExecutorCheckpointStorage(t)
-	first := storedExecutorCheckpoint("process_root", "session-1", `{"tree":"first"}`)
+	first := storedExecutorCheckpoint("member_root", "session-1", `{"tree":"first"}`)
 	if err := store.SaveCheckpoint(t.Context(), first); err != nil {
 		t.Fatalf("SaveCheckpoint(first): %v", err)
 	}
-	replacement := storedExecutorCheckpoint(first.RootProcessID, "session-2", `{"tree":"replacement"}`)
+	replacement := storedExecutorCheckpoint(first.RootMemberID, "session-2", `{"tree":"replacement"}`)
 	if err := store.SaveCheckpoint(t.Context(), replacement); !errors.Is(err, runs.ErrInvalidExecutorCheckpoint) {
 		t.Fatalf("SaveCheckpoint(reassignment) error = %v, want ErrInvalidExecutorCheckpoint", err)
 	}
-	stored, err := store.LoadCheckpoint(t.Context(), first.RootProcessID)
+	stored, err := store.LoadCheckpoint(t.Context(), first.RootMemberID)
 	if err != nil {
 		t.Fatalf("LoadCheckpoint: %v", err)
 	}
@@ -166,11 +166,11 @@ func TestExecutorCheckpointStoreRejectsOwnerReassignment(t *testing.T) {
 
 func TestExecutorCheckpointStoreTreatsPayloadAsOpaqueBytes(t *testing.T) {
 	_, store := newExecutorCheckpointStorage(t)
-	checkpoint := storedExecutorCheckpoint("process_root", "session-1", "\x00not-json\xff")
+	checkpoint := storedExecutorCheckpoint("member_root", "session-1", "\x00not-json\xff")
 	if err := store.SaveCheckpoint(t.Context(), checkpoint); err != nil {
 		t.Fatalf("SaveCheckpoint: %v", err)
 	}
-	got, err := store.LoadCheckpoint(t.Context(), checkpoint.RootProcessID)
+	got, err := store.LoadCheckpoint(t.Context(), checkpoint.RootMemberID)
 	if err != nil {
 		t.Fatalf("LoadCheckpoint: %v", err)
 	}
@@ -181,15 +181,15 @@ func TestExecutorCheckpointStoreTreatsPayloadAsOpaqueBytes(t *testing.T) {
 
 func TestExecutorCheckpointStoreRoundTripsApplicationEnvelope(t *testing.T) {
 	_, store := newExecutorCheckpointStorage(t)
-	want := storedExecutorCheckpoint("process_root", "session-1", `{"opaque":true}`)
+	want := storedExecutorCheckpoint("member_root", "session-1", `{"opaque":true}`)
 	if err := store.SaveCheckpoint(t.Context(), want); err != nil {
 		t.Fatalf("SaveCheckpoint: %v", err)
 	}
-	got, err := store.LoadCheckpoint(t.Context(), want.RootProcessID)
+	got, err := store.LoadCheckpoint(t.Context(), want.RootMemberID)
 	if err != nil {
 		t.Fatalf("LoadCheckpoint: %v", err)
 	}
-	if got.RootProcessID != want.RootProcessID ||
+	if got.RootMemberID != want.RootMemberID ||
 		got.BuildID != want.BuildID ||
 		got.Scope != want.Scope ||
 		got.ModelSelection != want.ModelSelection ||
@@ -209,7 +209,7 @@ func TestExecutorCheckpointStoreMissingUsesDomainSentinel(t *testing.T) {
 
 func TestExecutorCheckpointStoreRejectsInvalidEnvelopeBeforeMutation(t *testing.T) {
 	db, store := newExecutorCheckpointStorage(t)
-	checkpoint := storedExecutorCheckpoint("process_root", "session-1", `{"opaque":true}`)
+	checkpoint := storedExecutorCheckpoint("member_root", "session-1", `{"opaque":true}`)
 	checkpoint.BuildID = ""
 	if err := store.SaveCheckpoint(t.Context(), checkpoint); !errors.Is(err, runs.ErrInvalidExecutorCheckpoint) {
 		t.Fatalf("SaveCheckpoint error = %v, want ErrInvalidExecutorCheckpoint", err)
@@ -229,7 +229,7 @@ func TestExecutorCheckpointStoreDeletesExactAggregates(t *testing.T) {
 		storedExecutorCheckpoint("root-c", "session-b", `{"root":"c"}`),
 	} {
 		if err := store.SaveCheckpoint(ctx, checkpoint); err != nil {
-			t.Fatalf("SaveCheckpoint(%s): %v", checkpoint.RootProcessID, err)
+			t.Fatalf("SaveCheckpoint(%s): %v", checkpoint.RootMemberID, err)
 		}
 	}
 	if err := store.DeleteCheckpoints(ctx, "session-a", []string{"root-b", "unknown"}); err != nil {
@@ -258,11 +258,11 @@ func TestExecutorCheckpointStoreRejectsForeignSessionDeletion(t *testing.T) {
 		t.Fatalf("SaveCheckpoint: %v", err)
 	}
 
-	err := store.DeleteCheckpoints(t.Context(), "session-b", []string{checkpoint.RootProcessID})
+	err := store.DeleteCheckpoints(t.Context(), "session-b", []string{checkpoint.RootMemberID})
 	if !errors.Is(err, runs.ErrInvalidExecutorCheckpoint) {
 		t.Fatalf("DeleteCheckpoints error = %v, want ErrInvalidExecutorCheckpoint", err)
 	}
-	if _, err := store.LoadCheckpoint(t.Context(), checkpoint.RootProcessID); err != nil {
+	if _, err := store.LoadCheckpoint(t.Context(), checkpoint.RootMemberID); err != nil {
 		t.Fatalf("foreign checkpoint was deleted: %v", err)
 	}
 }
@@ -276,7 +276,7 @@ func TestExecutorCheckpointStoreDeletesByApplicationOwnership(t *testing.T) {
 		storedExecutorCheckpoint("drop-unowned", "session-c", `{"root":"drop-unowned"}`),
 	} {
 		if err := store.SaveCheckpoint(ctx, checkpoint); err != nil {
-			t.Fatalf("SaveCheckpoint(%s): %v", checkpoint.RootProcessID, err)
+			t.Fatalf("SaveCheckpoint(%s): %v", checkpoint.RootMemberID, err)
 		}
 	}
 	if err := store.DeleteSessionCheckpoints(ctx, "session-b"); err != nil {
@@ -290,7 +290,7 @@ func TestExecutorCheckpointStoreDeletesByApplicationOwnership(t *testing.T) {
 			t.Fatalf("stale checkpoint %q = %v", rootID, err)
 		}
 	}
-	if got, err := store.LoadCheckpoint(ctx, "keep"); err != nil || got.RootProcessID != "keep" {
+	if got, err := store.LoadCheckpoint(ctx, "keep"); err != nil || got.RootMemberID != "keep" {
 		t.Fatalf("preserved checkpoint = (%+v, %v)", got, err)
 	}
 }

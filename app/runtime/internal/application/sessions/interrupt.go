@@ -228,7 +228,7 @@ func (c *Coordinator) terminalizeParkedRun(ctx context.Context, sessionID, runID
 	if !ok {
 		return transcript.Run{}, fmt.Errorf("sessions: terminalize parked Run tree %q: root continuation is missing", runID)
 	}
-	plan := TerminalPlan{Runs: terminalRuns, Items: items, CheckpointRootID: root.ProcessID}
+	plan := TerminalPlan{Runs: terminalRuns, Items: items, CheckpointRootID: root.MemberID}
 	if rootRun.GoalLeaseID != "" {
 		record := goal.RunRecord{
 			SessionID:   rootRun.SessionID,
@@ -290,20 +290,20 @@ func (c *Coordinator) parkedExecutions(ctx context.Context, runIDs []string) ([]
 			RunID:            pending.RootRunID,
 			SessionID:        pending.SessionID,
 			ExecutorID:       pending.ExecutorID,
-			CheckpointRootID: root.ProcessID,
+			CheckpointRootID: root.MemberID,
 		})
 	}
 	return out, nil
 }
 
-func (c *Coordinator) cancelExecution(ctx context.Context, r RunExecutionBinding) error {
-	if c.executionCleanup == nil {
+func (c *Coordinator) releaseExecution(ctx context.Context, r RunExecutionBinding) error {
+	if c.executionReleaser == nil {
 		return nil
 	}
 	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), turnCleanupTimeout)
 	defer cancel()
-	if err := c.executionCleanup.Cancel(cleanupCtx, r.executorRef()); err != nil {
-		return fmt.Errorf("sessions: cancel executor %q for Run %q: %w", r.ExecutorID, r.RunID, err)
+	if err := c.executionReleaser.Release(cleanupCtx, r.executorRef()); err != nil {
+		return fmt.Errorf("sessions: release executor %q for Run %q: %w", r.ExecutorID, r.RunID, err)
 	}
 	return nil
 }

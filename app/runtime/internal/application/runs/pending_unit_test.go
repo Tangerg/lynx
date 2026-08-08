@@ -31,9 +31,9 @@ func TestPendingValidateRequiresOneCanonicalConnectedTree(t *testing.T) {
 		{
 			name: "duplicate opaque process binding",
 			mutate: func(p *Pending) {
-				p.Continuations[0].ProcessID = p.Continuations[1].ProcessID
+				p.Continuations[0].MemberID = p.Continuations[1].MemberID
 			},
-			want: "duplicate continuation process",
+			want: "duplicate continuation member",
 		},
 		{
 			name: "disconnected Run",
@@ -60,9 +60,9 @@ func TestPendingValidateRequiresOneCanonicalConnectedTree(t *testing.T) {
 		{
 			name: "continuation identity is not canonical",
 			mutate: func(p *Pending) {
-				p.Continuations[0].ProcessID += " "
+				p.Continuations[0].MemberID += " "
 			},
-			want: "process id has surrounding whitespace",
+			want: "member id has surrounding whitespace",
 		},
 		{
 			name: "suspension identity is not canonical",
@@ -136,13 +136,13 @@ func validTreePending() Pending {
 			},
 		},
 		Suspensions: []SuspensionBinding{
-			{InterruptItemID: "item_grandchild", ProcessID: "process_grandchild", SuspensionID: "suspension_grandchild"},
-			{InterruptItemID: "item_b", ProcessID: "process_b", SuspensionID: "suspension_b"},
+			{InterruptItemID: "item_grandchild", MemberID: "member_grandchild", SuspensionID: "suspension_grandchild"},
+			{InterruptItemID: "item_b", MemberID: "member_b", SuspensionID: "suspension_b"},
 		},
 		Continuations: []Continuation{
 			{
-				RunID:     "run_grandchild",
-				ProcessID: "process_grandchild",
+				RunID:    "run_grandchild",
+				MemberID: "member_grandchild",
 				Lineage: run.RunLineage{
 					SpawnedByItemID: "item_spawn_grandchild",
 					ParentRunID:     "run_a",
@@ -151,8 +151,8 @@ func validTreePending() Pending {
 				RunCreatedAt: createdAt,
 			},
 			{
-				RunID:     "run_a",
-				ProcessID: "process_a",
+				RunID:    "run_a",
+				MemberID: "member_a",
 				Lineage: run.RunLineage{
 					SpawnedByItemID: "item_spawn_a",
 					ParentRunID:     "run_root",
@@ -161,8 +161,8 @@ func validTreePending() Pending {
 				RunCreatedAt: createdAt,
 			},
 			{
-				RunID:     "run_b",
-				ProcessID: "process_b",
+				RunID:    "run_b",
+				MemberID: "member_b",
 				Lineage: run.RunLineage{
 					SpawnedByItemID: "item_spawn_b",
 					ParentRunID:     "run_root",
@@ -172,7 +172,7 @@ func validTreePending() Pending {
 			},
 			{
 				RunID:        "run_root",
-				ProcessID:    "process_root",
+				MemberID:     "member_root",
 				RunCreatedAt: createdAt,
 			},
 		},

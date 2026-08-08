@@ -49,7 +49,7 @@ func TestClaimedChildOpeningWaitsForAuthoritativeResult(t *testing.T) {
 		if result := <-result; !errors.Is(result.err, commitErr) || result.binding != (ChildRunBinding{}) {
 			t.Fatalf("Await result = %+v, want commit error", result)
 		}
-		binding := ChildRunBinding{ProcessID: "process_child", RunID: "run_child", ParentRunID: "run_root"}
+		binding := ChildRunBinding{MemberID: "member_child", RunID: "run_child", ParentRunID: "run_root"}
 		if err := request.complete(binding, nil); err == nil {
 			t.Fatal("child opening request completed more than once")
 		}
@@ -71,10 +71,10 @@ func TestInvalidChildOpeningResultFailsCoordinatorAndWaiter(t *testing.T) {
 	if !request.claim() {
 		t.Fatal("claim child opening request")
 	}
-	if err := request.complete(ChildRunBinding{ProcessID: "process_child"}, nil); err == nil {
+	if err := request.complete(ChildRunBinding{MemberID: "member_child"}, nil); err == nil {
 		t.Fatal("invalid successful binding did not fail the completing Coordinator")
 	}
-	if binding, err := confirmation.Await(t.Context()); err == nil || binding != (ChildRunBinding{ProcessID: "process_child"}) {
+	if binding, err := confirmation.Await(t.Context()); err == nil || binding != (ChildRunBinding{MemberID: "member_child"}) {
 		t.Fatalf("confirmation result = (%+v, %v), want the same invalid binding and error", binding, err)
 	}
 
@@ -83,7 +83,7 @@ func TestInvalidChildOpeningResultFailsCoordinatorAndWaiter(t *testing.T) {
 		t.Fatal("claim failed child opening request")
 	}
 	commitErr := errors.New("commit failed")
-	unexpected := ChildRunBinding{ProcessID: "process_child", RunID: "run_child", ParentRunID: "run_root"}
+	unexpected := ChildRunBinding{MemberID: "member_child", RunID: "run_child", ParentRunID: "run_root"}
 	if err := request.complete(unexpected, commitErr); err == nil {
 		t.Fatal("failed opening accepted a non-empty binding")
 	}
@@ -94,8 +94,8 @@ func TestInvalidChildOpeningResultFailsCoordinatorAndWaiter(t *testing.T) {
 
 func TestValidateChildRunBindingsRequiresOneConnectedAppTree(t *testing.T) {
 	valid := []ChildRunBinding{
-		{ProcessID: "process_child", RunID: "run_child", ParentRunID: "run_root"},
-		{ProcessID: "process_grandchild", RunID: "run_grandchild", ParentRunID: "run_child"},
+		{MemberID: "member_child", RunID: "run_child", ParentRunID: "run_root"},
+		{MemberID: "member_grandchild", RunID: "run_grandchild", ParentRunID: "run_child"},
 	}
 	if err := ValidateChildRunBindings("run_root", valid); err != nil {
 		t.Fatalf("valid child Run bindings: %v", err)
@@ -103,22 +103,22 @@ func TestValidateChildRunBindingsRequiresOneConnectedAppTree(t *testing.T) {
 
 	tests := map[string][]ChildRunBinding{
 		"duplicate Run": {
-			{ProcessID: "process_a", RunID: "run_child", ParentRunID: "run_root"},
-			{ProcessID: "process_b", RunID: "run_child", ParentRunID: "run_root"},
+			{MemberID: "member_a", RunID: "run_child", ParentRunID: "run_root"},
+			{MemberID: "member_b", RunID: "run_child", ParentRunID: "run_root"},
 		},
-		"duplicate process": {
-			{ProcessID: "process_child", RunID: "run_a", ParentRunID: "run_root"},
-			{ProcessID: "process_child", RunID: "run_b", ParentRunID: "run_root"},
+		"duplicate member": {
+			{MemberID: "member_child", RunID: "run_a", ParentRunID: "run_root"},
+			{MemberID: "member_child", RunID: "run_b", ParentRunID: "run_root"},
 		},
 		"unknown parent": {
-			{ProcessID: "process_child", RunID: "run_child", ParentRunID: "run_missing"},
+			{MemberID: "member_child", RunID: "run_child", ParentRunID: "run_missing"},
 		},
 		"cycle": {
-			{ProcessID: "process_a", RunID: "run_a", ParentRunID: "run_b"},
-			{ProcessID: "process_b", RunID: "run_b", ParentRunID: "run_a"},
+			{MemberID: "member_a", RunID: "run_a", ParentRunID: "run_b"},
+			{MemberID: "member_b", RunID: "run_b", ParentRunID: "run_a"},
 		},
 		"root as child": {
-			{ProcessID: "process_root", RunID: "run_root", ParentRunID: "run_other"},
+			{MemberID: "member_root", RunID: "run_root", ParentRunID: "run_other"},
 		},
 	}
 	for name, bindings := range tests {

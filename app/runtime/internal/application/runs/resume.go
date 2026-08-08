@@ -8,14 +8,14 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 )
 
-// Resume claims the parked Run's Session, prepares or rehydrates its executor,
-// attaches and durably accepts a continuation segment, and only then activates
+// Resume claims the parked Run's Session, claims or restores its executor,
+// attaches and durably accepts a continuation Segment, and only then submits
 // the user's resolution.
 func (c *Coordinator) Resume(ctx context.Context, cmd ResumeCommand) (StartResult, error) {
-	if err := c.requireUseCaseDependencies(); err != nil {
+	if err := c.requireResumeDependencies(); err != nil {
 		return StartResult{}, err
 	}
-	pending, found, err := c.sessions.LookupOpenInterrupt(ctx, cmd.RunID)
+	pending, found, err := c.interrupts.LookupOpenInterrupt(ctx, cmd.RunID)
 	if err != nil {
 		return StartResult{}, err
 	}
@@ -32,7 +32,7 @@ func (c *Coordinator) Resume(ctx context.Context, cmd ResumeCommand) (StartResul
 	if err != nil {
 		return StartResult{}, err
 	}
-	sess, err := c.sessions.Get(ctx, pending.SessionID)
+	sess, err := c.sessionReader.Get(ctx, pending.SessionID)
 	if err != nil {
 		return StartResult{}, err
 	}
@@ -60,7 +60,7 @@ func (c *Coordinator) Resume(ctx context.Context, cmd ResumeCommand) (StartResul
 	if err != nil {
 		if errors.Is(err, ErrExecutorStateLost) {
 			cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), runCleanupTimeout)
-			cleanupErr := c.sessions.ApplyRunLost(cleanupCtx, pending.SessionID, cmd.RunID, c.now().UTC())
+			cleanupErr := c.terminations.ApplyRunLost(cleanupCtx, pending.SessionID, cmd.RunID, c.now().UTC())
 			cancel()
 			if cleanupErr != nil {
 				return StartResult{}, errors.Join(err, fmt.Errorf("runs: recover lost run %q: %w", cmd.RunID, cleanupErr))
@@ -92,11 +92,11 @@ func (c *Coordinator) Resume(ctx context.Context, cmd ResumeCommand) (StartResul
 		Input:          cmd.Input,
 		Continuation:   continuation,
 		admission:      &runAdmission,
-		Activate: func(activateCtx context.Context) error {
+		BeginExecution: func(beginCtx context.Context) error {
 			// The RUN's frozen kinds, not this request's: the caller has already been
 			// checked to cover them, and taking the declaration here would let each
 			// resume change what the next segment may park on.
-			return c.control.Resume(activateCtx, ref, answers, pending.Capabilities.InterruptKinds)
+			return c.continuation.ResumeWaiting(beginCtx, ref, answers, pending.Capabilities.InterruptKinds)
 		},
 	})
 	if err != nil {
@@ -122,7 +122,7 @@ func (c *Coordinator) Resume(ctx context.Context, cmd ResumeCommand) (StartResul
 }
 
 func (c *Coordinator) prepareExecution(ctx context.Context, pending Pending, cwd string, isolated bool) (ExecutorRef, error) {
-	ref, err := c.control.Prepare(ctx, ExecutorRef{SessionID: pending.SessionID, ExecutorID: pending.ExecutorID})
+	ref, err := c.continuation.ClaimWaiting(ctx, ExecutorRef{SessionID: pending.SessionID, ExecutorID: pending.ExecutorID})
 	if err == nil {
 		if err := ref.ValidateFor(pending.SessionID); err != nil {
 			return ExecutorRef{}, err
@@ -153,10 +153,10 @@ func (c *Coordinator) prepareExecution(ctx context.Context, pending Pending, cwd
 			errors.New("runs: interrupt has no root continuation"),
 		)
 	}
-	ref, err = c.control.Rehydrate(ctx, RehydrateExecution{
+	ref, err = c.continuation.RestoreWaiting(ctx, RehydrateExecution{
 		SessionID:                pending.SessionID,
 		ExecutorID:               pending.ExecutorID,
-		ProcessID:                root.ProcessID,
+		MemberID:                 root.MemberID,
 		RootRunID:                pending.RootRunID,
 		ChildRuns:                childRunBindingsFromPending(pending),
 		ModelSelection:           root.ModelSelection,
@@ -183,7 +183,7 @@ func childRunBindingsFromPending(pending Pending) []ChildRunBinding {
 			continue
 		}
 		bindings = append(bindings, ChildRunBinding{
-			ProcessID:   continuation.ProcessID,
+			MemberID:    continuation.MemberID,
 			RunID:       continuation.RunID,
 			ParentRunID: continuation.Lineage.ParentRunID,
 		})

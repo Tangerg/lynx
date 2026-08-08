@@ -71,12 +71,12 @@ func TestTurnObserverProjectsAdmittedChildOntoExactExecutorSource(t *testing.T) 
 	payloads := make([]runs.ExecutorPayload, 0, 6)
 	for range 6 {
 		event := <-state.events
-		if event.Source != (runs.ExecutorSource{
-			ProcessID:   child.ID,
+		if event.Member != (runs.ExecutorMember{
+			MemberID:    child.ID,
 			ParentID:    child.ParentID,
 			SpawnCallID: child.SpawnCallID,
 		}) {
-			t.Fatalf("event source = %+v, want child %+v", event.Source, child.ProcessRef)
+			t.Fatalf("event source = %+v, want child %+v", event.Member, child.ProcessRef)
 		}
 		payloads = append(payloads, event.Payload)
 	}

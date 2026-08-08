@@ -280,3 +280,11 @@
 - 背景：一个 durable pending hand-off 同时携带产品 Interrupt、Run tree continuation、opaque executor member binding 和恢复元数据。把完整 envelope 放进 Domain 会迫使 `interrupt` 认识 Application/executor；把 Interrupt 语义留在 Application 又会让领域语言失去 owner。
 - 决策：`domain/interrupt` 只拥有 Kind、Key、Resolution 和纯决策语义；`domain/transcript` 拥有可观察 question/approval Item projection；`application/runs.Pending` 是跨聚合、跨 executor 的 root-tree continuation envelope。SQLite 只持 technical record，`adapter/persistence` 负责 Application value 与 record 的双向映射。
 - 后果：Domain 不出现 Store、context 或 executor binding；Infra 不反向 import Application；P6 可以重写 waiting/restore port，而无需破坏 Interrupt 领域语言或伪造第二套 Framework snapshot。
+
+## ADR-RT-045：Root execution 使用 stage/commit/begin，Release 不承担产品 Cancel
+
+- 状态：已接受，P3 已实施；精确方法 shape 仍受 ADR-RT-038 约束，到 P8 才冻结。
+- 背景：旧 `ExecutionControl`、`SegmentExecutor`、`SessionLifecycle` 与 `Effects` 把启动、观察、产品取消、资源清理、读取和多个 write-set 混成实现镜像。`CancelExecution` 同时被用于产品取消和无产品事实的 cleanup，使调用顺序与 owner 不清晰；`ProcessID` 又把 Framework 术语带入 Application 和 technical storage。
+- 决策：root start 当前分为 `ValidateRootStart`、不跨 model/tool side-effect boundary 的 `StageRoot`、durable opening commit 和 commit 后 `BeginRoot`；Observation 必须在 opening 前成功 attach，失败或 opening reject 只调用 `Release`。Application 的 product Cancel 先决定并提交 Run outcome，随后才 Release executor resource；自然终态和失败终态同样 Release，Waiting boundary 不 Release。
+- 决策：Coordinator 只保存各 use case 实际消费的窄端口；`SessionPorts`/`ProjectionPorts` 仅是 Bootstrap 参数分组，不成为运行时 facade。executor tree 的 Application 语言统一为 `ExecutorMember`/`MemberID`，SQLite epoch 59 直接采用 `root_member_id`/`memberId`，不保留 `ProcessID` alias、旧列或 dual codec。
+- 后果：P4 真实 Agent2 root consumer 可以修订 root candidate，但不得重新合并 product Cancel 与 resource Release，也不得把 Framework `Process` 语言带回 Application。P6/P7 的 provisional legacy seams 必须在对应纵切中被真实 consumer shape 替换。

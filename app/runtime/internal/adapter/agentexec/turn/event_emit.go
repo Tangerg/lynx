@@ -25,8 +25,8 @@ func (s *controller) emitRootEvent(st *turnState, payload runs.ExecutionFact) bo
 // emitProcessEvent preserves the concrete executor process that produced payload.
 func (s *controller) emitProcessEvent(st *turnState, process agentexec.ProcessRef, payload runs.ExecutorPayload) bool {
 	event := runs.ExecutorEvent{
-		Source: runs.ExecutorSource{
-			ProcessID: process.ID, ParentID: process.ParentID, SpawnCallID: process.SpawnCallID,
+		Member: runs.ExecutorMember{
+			MemberID: process.ID, ParentID: process.ParentID, SpawnCallID: process.SpawnCallID,
 		},
 		Payload: payload,
 	}

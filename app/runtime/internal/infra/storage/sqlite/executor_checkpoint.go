@@ -35,7 +35,7 @@ type ExecutorScopeRecord struct {
 // Payload remains opaque. Product ownership and recovery policy stay in
 // application/runs and are validated again by the consuming adapter.
 type ExecutorCheckpointRecord struct {
-	RootProcessID  string
+	RootMemberID   string
 	Payload        []byte
 	BuildID        string
 	Scope          ExecutorScopeRecord
@@ -45,8 +45,8 @@ type ExecutorCheckpointRecord struct {
 }
 
 func (record ExecutorCheckpointRecord) validate() error {
-	if strings.TrimSpace(record.RootProcessID) == "" || record.RootProcessID != strings.TrimSpace(record.RootProcessID) {
-		return fmt.Errorf("%w: invalid root process ID", ErrInvalidExecutorCheckpointRecord)
+	if strings.TrimSpace(record.RootMemberID) == "" || record.RootMemberID != strings.TrimSpace(record.RootMemberID) {
+		return fmt.Errorf("%w: invalid root member ID", ErrInvalidExecutorCheckpointRecord)
 	}
 	if len(record.Payload) == 0 {
 		return fmt.Errorf("%w: payload is empty", ErrInvalidExecutorCheckpointRecord)
@@ -78,7 +78,7 @@ func (record ExecutorCheckpointRecord) validate() error {
 
 // ExecutorCheckpointStore persists one opaque checkpoint aggregate per
 // executor tree root.
-// Payload interpretation and all child-process topology belong exclusively to
+// Payload interpretation and all executor-member topology belong exclusively to
 // the execution adapter.
 type ExecutorCheckpointStore struct {
 	db *sql.DB
@@ -146,15 +146,15 @@ func (s *ExecutorCheckpointStore) SaveCheckpoint(ctx context.Context, checkpoint
 		err := conn(ctx, s.db).QueryRowContext(ctx,
 			`SELECT session_id, build_id, policy, usage
 			   FROM executor_checkpoints
-			  WHERE root_process_id = ?`,
-			checkpoint.RootProcessID,
+			  WHERE root_member_id = ?`,
+			checkpoint.RootMemberID,
 		).Scan(&owner, &buildID, &policy, &storedUsageData)
 		if errors.Is(err, sql.ErrNoRows) {
 			_, err = conn(ctx, s.db).ExecContext(ctx,
 				`INSERT INTO executor_checkpoints(
-					root_process_id, session_id, build_id, payload, policy, usage, committed_at
+					root_member_id, session_id, build_id, payload, policy, usage, committed_at
 				 ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-				checkpoint.RootProcessID,
+				checkpoint.RootMemberID,
 				checkpoint.Scope.SessionID,
 				checkpoint.BuildID,
 				checkpoint.Payload,
@@ -163,18 +163,18 @@ func (s *ExecutorCheckpointStore) SaveCheckpoint(ctx context.Context, checkpoint
 				time.Now().UTC().UnixNano(),
 			)
 			if err != nil {
-				return fmt.Errorf("sqlite: insert executor checkpoint %q: %w", checkpoint.RootProcessID, err)
+				return fmt.Errorf("sqlite: insert executor checkpoint %q: %w", checkpoint.RootMemberID, err)
 			}
 			return nil
 		}
 		if err != nil {
-			return fmt.Errorf("sqlite: inspect executor checkpoint %q before save: %w", checkpoint.RootProcessID, err)
+			return fmt.Errorf("sqlite: inspect executor checkpoint %q before save: %w", checkpoint.RootMemberID, err)
 		}
 		switch {
 		case owner != checkpoint.Scope.SessionID:
 			return fmt.Errorf(
 				"sqlite: executor checkpoint %q belongs to Session %q, not %q: %w",
-				checkpoint.RootProcessID,
+				checkpoint.RootMemberID,
 				owner,
 				checkpoint.Scope.SessionID,
 				ErrInvalidExecutorCheckpointRecord,
@@ -182,7 +182,7 @@ func (s *ExecutorCheckpointStore) SaveCheckpoint(ctx context.Context, checkpoint
 		case buildID != checkpoint.BuildID:
 			return fmt.Errorf(
 				"sqlite: executor checkpoint %q build is immutable: stored %q, replacement %q: %w",
-				checkpoint.RootProcessID,
+				checkpoint.RootMemberID,
 				buildID,
 				checkpoint.BuildID,
 				ErrInvalidExecutorCheckpointRecord,
@@ -190,7 +190,7 @@ func (s *ExecutorCheckpointStore) SaveCheckpoint(ctx context.Context, checkpoint
 		case policy != string(encodedPolicy):
 			return fmt.Errorf(
 				"sqlite: executor checkpoint %q policy is immutable: stored %s, replacement %s: %w",
-				checkpoint.RootProcessID,
+				checkpoint.RootMemberID,
 				policy,
 				encodedPolicy,
 				ErrInvalidExecutorCheckpointRecord,
@@ -200,7 +200,7 @@ func (s *ExecutorCheckpointStore) SaveCheckpoint(ctx context.Context, checkpoint
 		if err != nil {
 			return fmt.Errorf(
 				"sqlite: decode stored executor checkpoint %q usage: %w: %w",
-				checkpoint.RootProcessID,
+				checkpoint.RootMemberID,
 				ErrInvalidExecutorCheckpointRecord,
 				err,
 			)
@@ -208,7 +208,7 @@ func (s *ExecutorCheckpointStore) SaveCheckpoint(ctx context.Context, checkpoint
 		if err := checkpoint.Usage.ValidateAdvanceFrom(storedUsage); err != nil {
 			return fmt.Errorf(
 				"sqlite: executor checkpoint %q cumulative usage cannot advance: %w: %w",
-				checkpoint.RootProcessID,
+				checkpoint.RootMemberID,
 				ErrInvalidExecutorCheckpointRecord,
 				err,
 			)
@@ -216,54 +216,54 @@ func (s *ExecutorCheckpointStore) SaveCheckpoint(ctx context.Context, checkpoint
 		result, err := conn(ctx, s.db).ExecContext(ctx,
 			`UPDATE executor_checkpoints
 			    SET payload = ?, usage = ?, committed_at = ?
-			  WHERE root_process_id = ?`,
+			  WHERE root_member_id = ?`,
 			checkpoint.Payload,
 			string(encodedUsage),
 			time.Now().UTC().UnixNano(),
-			checkpoint.RootProcessID,
+			checkpoint.RootMemberID,
 		)
 		if err != nil {
-			return fmt.Errorf("sqlite: advance executor checkpoint %q: %w", checkpoint.RootProcessID, err)
+			return fmt.Errorf("sqlite: advance executor checkpoint %q: %w", checkpoint.RootMemberID, err)
 		}
 		written, err := result.RowsAffected()
 		if err != nil {
-			return fmt.Errorf("sqlite: inspect advanced executor checkpoint %q: %w", checkpoint.RootProcessID, err)
+			return fmt.Errorf("sqlite: inspect advanced executor checkpoint %q: %w", checkpoint.RootMemberID, err)
 		}
 		if written != 1 {
-			return fmt.Errorf("sqlite: advance executor checkpoint %q affected %d rows", checkpoint.RootProcessID, written)
+			return fmt.Errorf("sqlite: advance executor checkpoint %q affected %d rows", checkpoint.RootMemberID, written)
 		}
 		return nil
 	})
 }
 
 // LoadCheckpoint returns one complete opaque executor checkpoint.
-func (s *ExecutorCheckpointStore) LoadCheckpoint(ctx context.Context, rootProcessID string) (ExecutorCheckpointRecord, error) {
-	if strings.TrimSpace(rootProcessID) == "" || strings.TrimSpace(rootProcessID) != rootProcessID {
-		return ExecutorCheckpointRecord{}, errors.New("sqlite: load executor checkpoint: invalid root process ID")
+func (s *ExecutorCheckpointStore) LoadCheckpoint(ctx context.Context, rootMemberID string) (ExecutorCheckpointRecord, error) {
+	if strings.TrimSpace(rootMemberID) == "" || strings.TrimSpace(rootMemberID) != rootMemberID {
+		return ExecutorCheckpointRecord{}, errors.New("sqlite: load executor checkpoint: invalid root member ID")
 	}
 	var buildID, policyData, usageData string
 	var payload []byte
 	err := conn(ctx, s.db).QueryRowContext(ctx,
 		`SELECT build_id, payload, policy, usage
 		   FROM executor_checkpoints
-		  WHERE root_process_id = ?`,
-		rootProcessID,
+		  WHERE root_member_id = ?`,
+		rootMemberID,
 	).Scan(&buildID, &payload, &policyData, &usageData)
 	if errors.Is(err, sql.ErrNoRows) {
 		return ExecutorCheckpointRecord{}, fmt.Errorf(
 			"sqlite: load executor checkpoint %q: %w",
-			rootProcessID,
+			rootMemberID,
 			ErrExecutorCheckpointRecordNotFound,
 		)
 	}
 	if err != nil {
-		return ExecutorCheckpointRecord{}, fmt.Errorf("sqlite: load executor checkpoint %q: %w", rootProcessID, err)
+		return ExecutorCheckpointRecord{}, fmt.Errorf("sqlite: load executor checkpoint %q: %w", rootMemberID, err)
 	}
 	policy, err := decodeExecutorPolicy(policyData)
 	if err != nil {
 		return ExecutorCheckpointRecord{}, fmt.Errorf(
 			"sqlite: decode executor checkpoint %q policy: %w: %w",
-			rootProcessID,
+			rootMemberID,
 			ErrInvalidExecutorCheckpointRecord,
 			err,
 		)
@@ -272,18 +272,18 @@ func (s *ExecutorCheckpointStore) LoadCheckpoint(ctx context.Context, rootProces
 	if err != nil {
 		return ExecutorCheckpointRecord{}, fmt.Errorf(
 			"sqlite: decode executor checkpoint %q usage: %w: %w",
-			rootProcessID,
+			rootMemberID,
 			ErrInvalidExecutorCheckpointRecord,
 			err,
 		)
 	}
 	checkpoint := policy
-	checkpoint.RootProcessID = rootProcessID
+	checkpoint.RootMemberID = rootMemberID
 	checkpoint.Payload = append([]byte(nil), payload...)
 	checkpoint.BuildID = buildID
 	checkpoint.Usage = usage
 	if err := checkpoint.validate(); err != nil {
-		return ExecutorCheckpointRecord{}, fmt.Errorf("sqlite: load executor checkpoint %q: %w", rootProcessID, err)
+		return ExecutorCheckpointRecord{}, fmt.Errorf("sqlite: load executor checkpoint %q: %w", rootMemberID, err)
 	}
 	return checkpoint, nil
 }
@@ -447,7 +447,7 @@ func (s *ExecutorCheckpointStore) DeleteSessionCheckpoints(ctx context.Context, 
 	}
 	return RunInTx(ctx, s.db, func(ctx context.Context) error {
 		rootIDs, err := s.queryCheckpointRootIDs(ctx,
-			`SELECT root_process_id FROM executor_checkpoints WHERE session_id = ? ORDER BY root_process_id`,
+			`SELECT root_member_id FROM executor_checkpoints WHERE session_id = ? ORDER BY root_member_id`,
 			sessionID,
 		)
 		if err != nil {
@@ -479,7 +479,7 @@ func (s *ExecutorCheckpointStore) DeleteUnownedCheckpoints(ctx context.Context, 
 	}
 	return RunInTx(ctx, s.db, func(ctx context.Context) error {
 		rootIDs, err := s.queryCheckpointRootIDs(ctx,
-			`SELECT root_process_id FROM executor_checkpoints ORDER BY root_process_id`,
+			`SELECT root_member_id FROM executor_checkpoints ORDER BY root_member_id`,
 		)
 		if err != nil {
 			return fmt.Errorf("sqlite: list executor checkpoint roots: %w", err)
@@ -527,12 +527,12 @@ func (s *ExecutorCheckpointStore) queryCheckpointRootIDs(
 	return rootIDs, nil
 }
 
-func (s *ExecutorCheckpointStore) deleteCheckpoint(ctx context.Context, rootProcessID string) error {
+func (s *ExecutorCheckpointStore) deleteCheckpoint(ctx context.Context, rootMemberID string) error {
 	if _, err := conn(ctx, s.db).ExecContext(ctx,
-		`DELETE FROM executor_checkpoints WHERE root_process_id = ?`,
-		rootProcessID,
+		`DELETE FROM executor_checkpoints WHERE root_member_id = ?`,
+		rootMemberID,
 	); err != nil {
-		return fmt.Errorf("sqlite: delete executor checkpoint %q: %w", rootProcessID, err)
+		return fmt.Errorf("sqlite: delete executor checkpoint %q: %w", rootMemberID, err)
 	}
 	return nil
 }
@@ -540,37 +540,37 @@ func (s *ExecutorCheckpointStore) deleteCheckpoint(ctx context.Context, rootProc
 func (s *ExecutorCheckpointStore) deleteOwnedCheckpoint(
 	ctx context.Context,
 	sessionID string,
-	rootProcessID string,
+	rootMemberID string,
 ) error {
 	result, err := conn(ctx, s.db).ExecContext(ctx,
-		`DELETE FROM executor_checkpoints WHERE root_process_id = ? AND session_id = ?`,
-		rootProcessID,
+		`DELETE FROM executor_checkpoints WHERE root_member_id = ? AND session_id = ?`,
+		rootMemberID,
 		sessionID,
 	)
 	if err != nil {
-		return fmt.Errorf("sqlite: delete executor checkpoint %q for Session %q: %w", rootProcessID, sessionID, err)
+		return fmt.Errorf("sqlite: delete executor checkpoint %q for Session %q: %w", rootMemberID, sessionID, err)
 	}
 	deleted, err := result.RowsAffected()
 	if err != nil {
-		return fmt.Errorf("sqlite: inspect deleted executor checkpoint %q: %w", rootProcessID, err)
+		return fmt.Errorf("sqlite: inspect deleted executor checkpoint %q: %w", rootMemberID, err)
 	}
 	if deleted == 1 {
 		return nil
 	}
 	var owner string
 	err = conn(ctx, s.db).QueryRowContext(ctx,
-		`SELECT session_id FROM executor_checkpoints WHERE root_process_id = ?`,
-		rootProcessID,
+		`SELECT session_id FROM executor_checkpoints WHERE root_member_id = ?`,
+		rootMemberID,
 	).Scan(&owner)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil
 	}
 	if err != nil {
-		return fmt.Errorf("sqlite: inspect executor checkpoint %q owner: %w", rootProcessID, err)
+		return fmt.Errorf("sqlite: inspect executor checkpoint %q owner: %w", rootMemberID, err)
 	}
 	return fmt.Errorf(
 		"sqlite: executor checkpoint %q belongs to Session %q, not %q: %w",
-		rootProcessID,
+		rootMemberID,
 		owner,
 		sessionID,
 		ErrInvalidExecutorCheckpointRecord,

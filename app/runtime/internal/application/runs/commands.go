@@ -321,8 +321,8 @@ type StartResult struct {
 
 // Validate checks the semantic Run-opening invariants before any Session is
 // created or mutated. Executor-specific model modality checks are performed by
-// [ExecutionControl.ValidateStart] in the same pre-admission phase.
-func (r StartExecution) Validate() error {
+// [RootExecutionStarter.ValidateRootStart] in the same pre-admission phase.
+func (r RootExecutionStart) Validate() error {
 	if r.Message == "" && len(r.Media) == 0 {
 		return ErrInputRequired
 	}

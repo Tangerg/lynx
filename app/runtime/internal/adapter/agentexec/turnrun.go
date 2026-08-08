@@ -390,7 +390,7 @@ func (e *Engine) RestoreTurn(ctx context.Context, rootProcessID string, request 
 		return nil, fmt.Errorf("engine: load process tree: %w", err)
 	}
 	if err := checkpoint.ValidateFor(runs.ExecutorCheckpointExpectation{
-		RootProcessID:  rootProcessID,
+		RootMemberID:   rootProcessID,
 		SessionID:      request.SessionID,
 		CWD:            request.CWD,
 		WorkspaceCWD:   request.WorkspaceCWD,

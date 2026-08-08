@@ -33,8 +33,13 @@ import (
 // double stays on application-owned ports so handler fixtures do not depend on
 // Agent adapter handles.
 type testRuntime interface {
-	runs.SegmentExecutor
-	runs.ExecutionControl
+	runs.RootExecutionStarter
+	runs.ExecutionObserver
+	runs.ExecutionReleaser
+	runs.ContinuationExecutor
+	runs.ExecutionSteerer
+	runs.RunningSubtreeCanceler
+	runs.WaitingSubtreeCancellationPreparer
 	RunSegmentEffects(checkpoints runsegment.Checkpoints, publish runsegment.FileChangePublisher) *runsegment.Effects
 }
 
@@ -76,7 +81,7 @@ func serverPending(
 		capabilities.InterruptKinds = append(capabilities.InterruptKinds, interrupt.Kind)
 		bindings[index] = runs.SuspensionBinding{
 			InterruptItemID: interrupt.ItemID,
-			ProcessID:       processID,
+			MemberID:        processID,
 			SuspensionID:    fmt.Sprintf("suspension_%s_%d", processID, index),
 		}
 	}
@@ -89,7 +94,7 @@ func serverPending(
 		Capabilities: capabilities.Normalized(),
 		Continuations: []runs.Continuation{{
 			RunID:        runID,
-			ProcessID:    processID,
+			MemberID:     processID,
 			RunCreatedAt: createdAt,
 		}},
 		CreatedAt: createdAt,
@@ -100,8 +105,13 @@ func serverPending(
 // integration harness supplies. Production consumers still receive the two
 // narrower interfaces independently.
 type executionRuntime interface {
-	runs.SegmentExecutor
-	runs.ExecutionControl
+	runs.RootExecutionStarter
+	runs.ExecutionObserver
+	runs.ExecutionReleaser
+	runs.ContinuationExecutor
+	runs.ExecutionSteerer
+	runs.RunningSubtreeCanceler
+	runs.WaitingSubtreeCancellationPreparer
 }
 
 // stubRuntime is the delivery session/lifecycle test double: it provides the run
@@ -167,23 +177,43 @@ func (s stubRuntime) queriesCoordinator() *queries.Coordinator {
 func newTestServer(rt testRuntime) *Server {
 	s := &Server{}
 	admissions := &admission.Gate{}
-	var lifecycle runs.SessionLifecycle
+	var sessionPorts runs.SessionPorts
 	// Wire the session/run lifecycle coordinator over the fake's in-memory stores
 	// when the fake provides one, mirroring the composition root.
 	if p, ok := rt.(sessionsCoordinatorProvider); ok {
-		s.sessions = p.sessionsCoordinator(admissions)
-		lifecycle = s.sessions.(runs.SessionLifecycle)
+		sessionCoordinator := p.sessionsCoordinator(admissions)
+		s.sessions = sessionCoordinator
+		sessionPorts = runs.SessionPorts{
+			Reader:       sessionCoordinator,
+			Creator:      sessionCoordinator,
+			ActiveRuns:   sessionCoordinator,
+			Interrupts:   sessionCoordinator,
+			Terminations: sessionCoordinator,
+		}
 	}
 	var ids atomic.Uint64
 	var runProjection runs.RunProjection
 	if p, ok := rt.(runProjectionProvider); ok {
 		runProjection = p.runProjection()
 	}
+	projectionWriter := rt.RunSegmentEffects(nil, nil)
 	s.runs = runs.NewCoordinator(runs.Dependencies{
-		Segments:   rt,
-		Control:    rt,
-		Sessions:   lifecycle,
-		Effects:    rt.RunSegmentEffects(nil, nil),
+		RootStarts:   rt,
+		Observations: rt,
+		Releases:     rt,
+		Continuation: rt,
+		Steering:     rt,
+		RunningTrees: rt,
+		WaitingTrees: rt,
+		Session:      sessionPorts,
+		Projection: runs.ProjectionPorts{
+			Openings:     projectionWriter,
+			Events:       projectionWriter,
+			Barriers:     projectionWriter,
+			WaitingEdits: projectionWriter,
+			Workspace:    projectionWriter,
+			Finalizer:    projectionWriter,
+		},
 		Runs:       runProjection,
 		Admissions: admissions,
 		Now:        time.Now,
@@ -250,25 +280,25 @@ func (s stubRuntime) TruncateMessages(_ context.Context, id string, keepN int) e
 // accidental call deterministic instead of dispatching through a nil embed.
 type executionStub struct{}
 
-func (executionStub) Events(context.Context, runs.ExecutorRef) (iter.Seq[runs.ExecutorEvent], error) {
+func (executionStub) Observe(context.Context, runs.ExecutorRef) (iter.Seq[runs.ExecutorEvent], error) {
 	return func(func(runs.ExecutorEvent) bool) {}, nil
 }
-func (executionStub) ValidateStart(req runs.StartExecution) error { return req.Validate() }
-func (executionStub) PrepareStart(_ context.Context, req runs.StartExecution) (runs.ExecutorRef, error) {
+func (executionStub) ValidateRootStart(req runs.RootExecutionStart) error { return req.Validate() }
+func (executionStub) StageRoot(_ context.Context, req runs.RootExecutionStart) (runs.ExecutorRef, error) {
 	return runs.ExecutorRef{SessionID: req.SessionID, ExecutorID: "exec_test"}, nil
 }
-func (executionStub) Activate(context.Context, runs.ExecutorRef) error { return nil }
-func (executionStub) Prepare(_ context.Context, ref runs.ExecutorRef) (runs.ExecutorRef, error) {
+func (executionStub) BeginRoot(context.Context, runs.ExecutorRef) error { return nil }
+func (executionStub) ClaimWaiting(_ context.Context, ref runs.ExecutorRef) (runs.ExecutorRef, error) {
 	return ref, nil
 }
-func (executionStub) Resume(context.Context, runs.ExecutorRef, []runs.SuspensionAnswer, []interrupt.Kind) error {
+func (executionStub) ResumeWaiting(context.Context, runs.ExecutorRef, []runs.SuspensionAnswer, []interrupt.Kind) error {
 	return nil
 }
-func (executionStub) Rehydrate(_ context.Context, req runs.RehydrateExecution) (runs.ExecutorRef, error) {
+func (executionStub) RestoreWaiting(_ context.Context, req runs.RehydrateExecution) (runs.ExecutorRef, error) {
 	return runs.ExecutorRef{SessionID: req.SessionID, ExecutorID: req.ExecutorID}, nil
 }
-func (executionStub) CancelExecution(context.Context, runs.ExecutorRef) error { return nil }
-func (executionStub) CancelSubtree(context.Context, runs.ExecutorRef, string) error {
+func (executionStub) Release(context.Context, runs.ExecutorRef) error { return nil }
+func (executionStub) CancelRunningSubtree(context.Context, runs.ExecutorRef, string) error {
 	return nil
 }
 func (executionStub) PrepareWaitingSubtreeCancellation(
@@ -287,7 +317,7 @@ type recordingExecutions struct {
 	canceled []runs.ExecutorRef
 }
 
-func (r *recordingExecutions) CancelExecution(_ context.Context, ref runs.ExecutorRef) error {
+func (r *recordingExecutions) Release(_ context.Context, ref runs.ExecutorRef) error {
 	r.canceled = append(r.canceled, ref)
 	return nil
 }
@@ -299,44 +329,44 @@ func (s stubRuntime) executionController() executionRuntime {
 	return executionStub{}
 }
 
-func (s stubRuntime) Events(ctx context.Context, ref runs.ExecutorRef) (iter.Seq[runs.ExecutorEvent], error) {
-	return s.executionController().Events(ctx, ref)
+func (s stubRuntime) Observe(ctx context.Context, ref runs.ExecutorRef) (iter.Seq[runs.ExecutorEvent], error) {
+	return s.executionController().Observe(ctx, ref)
 }
 
-func (s stubRuntime) ValidateStart(req runs.StartExecution) error {
-	return s.executionController().ValidateStart(req)
+func (s stubRuntime) ValidateRootStart(req runs.RootExecutionStart) error {
+	return s.executionController().ValidateRootStart(req)
 }
 
-func (s stubRuntime) PrepareStart(ctx context.Context, req runs.StartExecution) (runs.ExecutorRef, error) {
-	return s.executionController().PrepareStart(ctx, req)
+func (s stubRuntime) StageRoot(ctx context.Context, req runs.RootExecutionStart) (runs.ExecutorRef, error) {
+	return s.executionController().StageRoot(ctx, req)
 }
 
-func (s stubRuntime) Activate(ctx context.Context, ref runs.ExecutorRef) error {
-	return s.executionController().Activate(ctx, ref)
+func (s stubRuntime) BeginRoot(ctx context.Context, ref runs.ExecutorRef) error {
+	return s.executionController().BeginRoot(ctx, ref)
 }
 
-func (s stubRuntime) Prepare(ctx context.Context, ref runs.ExecutorRef) (runs.ExecutorRef, error) {
-	return s.executionController().Prepare(ctx, ref)
+func (s stubRuntime) ClaimWaiting(ctx context.Context, ref runs.ExecutorRef) (runs.ExecutorRef, error) {
+	return s.executionController().ClaimWaiting(ctx, ref)
 }
 
-func (s stubRuntime) Resume(ctx context.Context, prepared runs.ExecutorRef, answers []runs.SuspensionAnswer, interruptKinds []interrupt.Kind) error {
-	return s.executionController().Resume(ctx, prepared, answers, interruptKinds)
+func (s stubRuntime) ResumeWaiting(ctx context.Context, prepared runs.ExecutorRef, answers []runs.SuspensionAnswer, interruptKinds []interrupt.Kind) error {
+	return s.executionController().ResumeWaiting(ctx, prepared, answers, interruptKinds)
 }
 
-func (s stubRuntime) Rehydrate(ctx context.Context, req runs.RehydrateExecution) (runs.ExecutorRef, error) {
-	return s.executionController().Rehydrate(ctx, req)
+func (s stubRuntime) RestoreWaiting(ctx context.Context, req runs.RehydrateExecution) (runs.ExecutorRef, error) {
+	return s.executionController().RestoreWaiting(ctx, req)
 }
 
 func (s stubRuntime) Cancel(ctx context.Context, ref runs.ExecutorRef) error {
-	return s.executionController().CancelExecution(ctx, ref)
+	return s.executionController().Release(ctx, ref)
 }
 
-func (s stubRuntime) CancelSubtree(
+func (s stubRuntime) CancelRunningSubtree(
 	ctx context.Context,
 	ref runs.ExecutorRef,
 	processID string,
 ) error {
-	return s.executionController().CancelSubtree(ctx, ref, processID)
+	return s.executionController().CancelRunningSubtree(ctx, ref, processID)
 }
 
 func (s stubRuntime) PrepareWaitingSubtreeCancellation(
@@ -355,16 +385,16 @@ func (s stubRuntime) Steer(ctx context.Context, ref runs.ExecutorRef, input []tr
 	return s.executionController().Steer(ctx, ref, input)
 }
 
-func (s stubRuntime) CancelExecution(ctx context.Context, ref runs.ExecutorRef) error {
-	return s.executionController().CancelExecution(ctx, ref)
+func (s stubRuntime) Release(ctx context.Context, ref runs.ExecutorRef) error {
+	return s.executionController().Release(ctx, ref)
 }
 
-type stubExecutionCleanup struct {
+type stubExecutionReleaser struct {
 	rt *stubRuntime
 }
 
-func (t stubExecutionCleanup) Cancel(ctx context.Context, ref runs.ExecutorRef) error {
-	return t.rt.CancelExecution(ctx, runs.ExecutorRef{SessionID: ref.SessionID, ExecutorID: ref.ExecutorID})
+func (t stubExecutionReleaser) Release(ctx context.Context, ref runs.ExecutorRef) error {
+	return t.rt.Release(ctx, runs.ExecutorRef{SessionID: ref.SessionID, ExecutorID: ref.ExecutorID})
 }
 
 type stubLifecycleStores struct {
@@ -584,7 +614,7 @@ type stubTitleGenerator struct{}
 func (stubTitleGenerator) Generate(context.Context, string) (string, error) { return "", nil }
 
 // sessionsCoordinator builds the real lifecycle coordinator over the stub's
-// in-memory stores and execution cleanup, so newTestServer can wire s.sessions the way the
+// in-memory stores and execution release, so newTestServer can wire s.sessions the way the
 // composition root does — delivery drives every lifecycle write-set through it.
 // File restore stays disabled (nil restorer); the checkpoint tests rebuild it
 // with a real restorer via [stubRuntime.sessionsCoordinatorWithRestorer].
@@ -604,18 +634,18 @@ func (s *stubRuntime) sessionsCoordinatorWithRestorer(checkpoints sessions.Works
 	}
 	stores := stubLifecycleStores{rt: s}
 	return sessions.New(sessions.Dependencies{
-		Sessions:         s.sess,
-		Interrupts:       s.interrupts,
-		Transcript:       s.hist,
-		Runs:             s.runs,
-		Snapshots:        stores,
-		Writes:           stores,
-		Forgetter:        s,
-		ExecutionCleanup: stubExecutionCleanup{rt: s},
-		Paths:            workspacepath.Resolver{},
-		Checkpoints:      checkpoints,
-		Mutations:        s.muts,
-		Admissions:       admissions,
+		Sessions:          s.sess,
+		Interrupts:        s.interrupts,
+		Transcript:        s.hist,
+		Runs:              s.runs,
+		Snapshots:         stores,
+		Writes:            stores,
+		Forgetter:         s,
+		ExecutionReleaser: stubExecutionReleaser{rt: s},
+		Paths:             workspacepath.Resolver{},
+		Checkpoints:       checkpoints,
+		Mutations:         s.muts,
+		Admissions:        admissions,
 	})
 }
 

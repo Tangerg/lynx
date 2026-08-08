@@ -46,7 +46,7 @@ func (c *Coordinator) DeleteSession(ctx context.Context, sessionID string) error
 			c.publishAggregateMoved([]string{sessionID}, nil)
 			var cleanupErrs []error
 			for _, item := range pending {
-				if err := c.cancelExecution(ctx, RunExecutionBinding{
+				if err := c.releaseExecution(ctx, RunExecutionBinding{
 					RunID:      item.RootRunID,
 					SessionID:  item.SessionID,
 					ExecutorID: item.ExecutorID,

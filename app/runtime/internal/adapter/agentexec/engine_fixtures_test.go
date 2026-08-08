@@ -140,7 +140,7 @@ func expectationForCheckpoint(
 	checkpoint runs.ExecutorCheckpoint,
 ) runs.ExecutorCheckpointExpectation {
 	return runs.ExecutorCheckpointExpectation{
-		RootProcessID:  checkpoint.RootProcessID,
+		RootMemberID:   checkpoint.RootMemberID,
 		SessionID:      checkpoint.Scope.SessionID,
 		CWD:            checkpoint.Scope.CWD,
 		WorkspaceCWD:   checkpoint.Scope.WorkspaceCWD,
@@ -348,12 +348,12 @@ func (s *memoryCheckpointStore) SaveCheckpoint(_ context.Context, checkpoint run
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if stored, exists := s.checkpoints[checkpoint.RootProcessID]; exists &&
+	if stored, exists := s.checkpoints[checkpoint.RootMemberID]; exists &&
 		(stored.Scope != checkpoint.Scope || stored.BuildID != checkpoint.BuildID ||
 			stored.ModelSelection != checkpoint.ModelSelection || stored.Limits != checkpoint.Limits) {
 		return runs.ErrInvalidExecutorCheckpoint
 	}
-	s.checkpoints[checkpoint.RootProcessID] = checkpoint.Clone()
+	s.checkpoints[checkpoint.RootMemberID] = checkpoint.Clone()
 	return nil
 }
 

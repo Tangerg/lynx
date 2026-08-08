@@ -6,14 +6,28 @@ import (
 
 func (c *Coordinator) requireUseCaseDependencies() error {
 	switch {
-	case c.executor == nil:
-		return errors.New("runs: segment executor is required")
-	case c.control == nil:
-		return errors.New("runs: execution control is required")
-	case c.sessions == nil:
-		return errors.New("runs: session lifecycle is required")
-	case c.effects == nil:
-		return errors.New("runs: effects are required")
+	case c.rootStarts == nil:
+		return errors.New("runs: root execution starter is required")
+	case c.observations == nil:
+		return errors.New("runs: execution observer is required")
+	case c.releases == nil:
+		return errors.New("runs: execution releaser is required")
+	case c.sessionReader == nil:
+		return errors.New("runs: session reader is required")
+	case c.sessionCreator == nil:
+		return errors.New("runs: session creator is required")
+	case c.activeRuns == nil:
+		return errors.New("runs: active run reader is required")
+	case c.openings == nil:
+		return errors.New("runs: opening committer is required")
+	case c.events == nil:
+		return errors.New("runs: event committer is required")
+	case c.barriers == nil:
+		return errors.New("runs: tree barrier committer is required")
+	case c.workspace == nil:
+		return errors.New("runs: workspace change notifier is required")
+	case c.finalizer == nil:
+		return errors.New("runs: segment finalizer is required")
 	case c.admission == nil:
 		return errors.New("runs: admission gate is required")
 	case c.now == nil:
@@ -28,11 +42,17 @@ func (c *Coordinator) requireUseCaseDependencies() error {
 }
 
 func (c *Coordinator) requireControlDependencies() error {
-	if c.control == nil {
-		return errors.New("runs: execution control is required")
+	if c.releases == nil {
+		return errors.New("runs: execution releaser is required")
 	}
-	if c.sessions == nil {
-		return errors.New("runs: session lifecycle is required")
+	if c.sessionReader == nil {
+		return errors.New("runs: session reader is required")
+	}
+	if c.interrupts == nil {
+		return errors.New("runs: pending interrupt reader is required")
+	}
+	if c.terminations == nil {
+		return errors.New("runs: run termination committer is required")
 	}
 	if c.admission == nil {
 		return errors.New("runs: admission gate is required")
@@ -41,4 +61,41 @@ func (c *Coordinator) requireControlDependencies() error {
 		return errors.New("runs: run projection is required")
 	}
 	return nil
+}
+
+func (c *Coordinator) requireResumeDependencies() error {
+	switch {
+	case c.observations == nil:
+		return errors.New("runs: execution observer is required")
+	case c.releases == nil:
+		return errors.New("runs: execution releaser is required")
+	case c.continuation == nil:
+		return errors.New("runs: continuation executor is required")
+	case c.sessionReader == nil:
+		return errors.New("runs: session reader is required")
+	case c.interrupts == nil:
+		return errors.New("runs: pending interrupt reader is required")
+	case c.terminations == nil:
+		return errors.New("runs: run termination committer is required")
+	case c.openings == nil:
+		return errors.New("runs: opening committer is required")
+	case c.events == nil:
+		return errors.New("runs: event committer is required")
+	case c.barriers == nil:
+		return errors.New("runs: tree barrier committer is required")
+	case c.workspace == nil:
+		return errors.New("runs: workspace change notifier is required")
+	case c.finalizer == nil:
+		return errors.New("runs: segment finalizer is required")
+	case c.admission == nil:
+		return errors.New("runs: admission gate is required")
+	case c.runs == nil:
+		return errors.New("runs: run projection is required")
+	case c.now == nil:
+		return errors.New("runs: clock is required")
+	case c.newSegmentID == nil:
+		return errors.New("runs: segment id generator is required")
+	default:
+		return nil
+	}
 }

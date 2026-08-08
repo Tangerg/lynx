@@ -236,7 +236,7 @@ func (c TreeBarrierCommit) Validate() error {
 	if !ok {
 		return errors.New("runs: tree barrier has no root continuation")
 	}
-	if err := c.Checkpoint.ValidateOwnership(rootContinuation.ProcessID, c.Pending.SessionID); err != nil {
+	if err := c.Checkpoint.ValidateOwnership(rootContinuation.MemberID, c.Pending.SessionID); err != nil {
 		return fmt.Errorf("runs: tree barrier checkpoint ownership: %w", err)
 	}
 	if c.Checkpoint.Scope.GoalLeaseID != c.Pending.GoalLeaseID {

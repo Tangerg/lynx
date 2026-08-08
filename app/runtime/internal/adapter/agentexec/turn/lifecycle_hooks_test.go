@@ -25,7 +25,7 @@ func TestSubagentLifecycleHooks(t *testing.T) {
 		cwd:       "/work",
 		hooks:     bound,
 		childRun: childRunLookup(runs.ChildRunBinding{
-			ProcessID: "child", RunID: "run-child", ParentRunID: "run-root",
+			MemberID: "child", RunID: "run-child", ParentRunID: "run-root",
 		}),
 		project: func(processID string) (agentexec.SubagentProjection, bool) {
 			if processID == "child" {
@@ -79,7 +79,7 @@ func TestSubagentLifecycleProjectsRestoredChildOnStop(t *testing.T) {
 		cwd:       "/work",
 		hooks:     bound,
 		childRun: childRunLookup(runs.ChildRunBinding{
-			ProcessID: "restored-child", RunID: "run-restored-child", ParentRunID: "run-restored-root",
+			MemberID: "restored-child", RunID: "run-restored-child", ParentRunID: "run-restored-root",
 		}),
 		project: func(processID string) (agentexec.SubagentProjection, bool) {
 			if processID != "restored-child" {
@@ -124,8 +124,8 @@ func TestSubagentLifecyclePreservesNestedParentage(t *testing.T) {
 		cwd:       "/work",
 		hooks:     bound,
 		childRun: childRunLookup(
-			runs.ChildRunBinding{ProcessID: "child", RunID: "run-child", ParentRunID: "run-root"},
-			runs.ChildRunBinding{ProcessID: "grandchild", RunID: "run-grandchild", ParentRunID: "run-child"},
+			runs.ChildRunBinding{MemberID: "child", RunID: "run-child", ParentRunID: "run-root"},
+			runs.ChildRunBinding{MemberID: "grandchild", RunID: "run-grandchild", ParentRunID: "run-child"},
 		),
 	}
 	listener := lifecycle.listener("nested-turn")
@@ -193,7 +193,7 @@ func TestSubagentLifecycleExistsOnlyForRelevantHooks(t *testing.T) {
 func childRunLookup(bindings ...runs.ChildRunBinding) func(string) (runs.ChildRunBinding, bool) {
 	byProcess := make(map[string]runs.ChildRunBinding, len(bindings))
 	for _, binding := range bindings {
-		byProcess[binding.ProcessID] = binding
+		byProcess[binding.MemberID] = binding
 	}
 	return func(processID string) (runs.ChildRunBinding, bool) {
 		binding, ok := byProcess[processID]

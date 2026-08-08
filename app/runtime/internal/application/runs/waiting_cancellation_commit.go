@@ -17,7 +17,7 @@ type waitingCancellationValidation struct {
 	commit              WaitingSubtreeCancellationCommit
 	continuationByRunID map[string]Continuation
 	canceledRunIDs      []string
-	canceledProcessIDs  map[string]struct{}
+	canceledMemberIDs   map[string]struct{}
 	survivingRunIDs     []string
 	terminalRunIDs      map[string]struct{}
 	finishedAtByRunID   map[string]time.Time
@@ -83,7 +83,7 @@ func newWaitingCancellationValidation(
 	if err := validateWaitingRunContinuation(c.RootRun, rootContinuation); err != nil {
 		return waitingCancellationValidation{}, fmt.Errorf("runs: waiting cancellation root Run: %w", err)
 	}
-	if err := c.Checkpoint.ValidateOwnership(rootContinuation.ProcessID, c.SessionID); err != nil {
+	if err := c.Checkpoint.ValidateOwnership(rootContinuation.MemberID, c.SessionID); err != nil {
 		return waitingCancellationValidation{}, fmt.Errorf("runs: waiting cancellation checkpoint ownership: %w", err)
 	}
 	if c.Checkpoint.Scope.GoalLeaseID != c.ExpectedPending.GoalLeaseID ||
@@ -131,10 +131,10 @@ func newWaitingCancellationValidation(
 		return waitingCancellationValidation{}, errors.New("runs: waiting cancellation target is not a child in the pending tree")
 	}
 	canceledRunSet := make(map[string]struct{}, len(canceledRunIDs))
-	canceledProcessIDs := make(map[string]struct{}, len(canceledRunIDs))
+	canceledMemberIDs := make(map[string]struct{}, len(canceledRunIDs))
 	for _, runID := range canceledRunIDs {
 		canceledRunSet[runID] = struct{}{}
-		canceledProcessIDs[continuationByRunID[runID].ProcessID] = struct{}{}
+		canceledMemberIDs[continuationByRunID[runID].MemberID] = struct{}{}
 	}
 	var survivingRunIDs []string
 	for _, runID := range tree.Postorder() {
@@ -146,7 +146,7 @@ func newWaitingCancellationValidation(
 		commit:              c,
 		continuationByRunID: continuationByRunID,
 		canceledRunIDs:      canceledRunIDs,
-		canceledProcessIDs:  canceledProcessIDs,
+		canceledMemberIDs:   canceledMemberIDs,
 		survivingRunIDs:     survivingRunIDs,
 		terminalRunIDs:      make(map[string]struct{}, len(c.TerminalRuns)),
 		finishedAtByRunID:   make(map[string]time.Time, len(c.TerminalRuns)),
@@ -266,7 +266,7 @@ func (v waitingCancellationValidation) validateDisposition() error {
 	if c.RemainingPending != nil {
 		var survivingSuspensionIndexes []int
 		for index, binding := range c.ExpectedPending.Suspensions {
-			if _, canceled := v.canceledProcessIDs[binding.ProcessID]; !canceled {
+			if _, canceled := v.canceledMemberIDs[binding.MemberID]; !canceled {
 				survivingSuspensionIndexes = append(survivingSuspensionIndexes, index)
 			}
 		}
@@ -290,7 +290,7 @@ func (v waitingCancellationValidation) validateDisposition() error {
 		}
 	} else {
 		for _, binding := range c.ExpectedPending.Suspensions {
-			if _, canceled := v.canceledProcessIDs[binding.ProcessID]; !canceled {
+			if _, canceled := v.canceledMemberIDs[binding.MemberID]; !canceled {
 				return fmt.Errorf("runs: waiting cancellation resumes while suspension %q survives", binding.SuspensionID)
 			}
 		}

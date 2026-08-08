@@ -29,7 +29,7 @@ func answersForBarrier(
 	answers := make([]agentexec.SuspensionAnswer, len(barrier.Suspensions))
 	for index, boundary := range barrier.Suspensions {
 		answers[index] = agentexec.SuspensionAnswer{
-			ProcessID:    boundary.ProcessID,
+			ProcessID:    boundary.MemberID,
 			SuspensionID: boundary.SuspensionID,
 			Resolution:   resolution,
 		}

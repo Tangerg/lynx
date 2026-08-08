@@ -18,7 +18,7 @@ import (
 // coordinator can first establish the event owner and atomically accept the
 // continuation; [Resume] delivers the decision only after those gates succeed.
 func (s *controller) Rehydrate(ctx context.Context, request runs.RehydrateExecution) (Handle, error) {
-	if request.ProcessID == "" || strings.TrimSpace(request.ProcessID) != request.ProcessID {
+	if request.MemberID == "" || strings.TrimSpace(request.MemberID) != request.MemberID {
 		return Handle{}, errors.New("turn: process id must be non-empty without surrounding whitespace")
 	}
 	if err := runs.ValidateChildRunBindings(request.RootRunID, request.ChildRuns); err != nil {
@@ -42,7 +42,7 @@ func (s *controller) Rehydrate(ctx context.Context, request runs.RehydrateExecut
 		state.hooks, err = s.hooks.For(state.ctx, request.CWD)
 		if err != nil {
 			state.cancel()
-			return Handle{}, fmt.Errorf("turn: resolve lifecycle hooks while restoring process %q: %w", request.ProcessID, err)
+			return Handle{}, fmt.Errorf("turn: resolve lifecycle hooks while restoring process %q: %w", request.MemberID, err)
 		}
 	}
 	// Re-resolve the parked run's per-run client from the persisted
@@ -97,7 +97,7 @@ func (s *controller) Rehydrate(ctx context.Context, request runs.RehydrateExecut
 		return Handle{}, ErrClosed
 	}
 
-	process, err := s.engine.RestoreTurn(state.ctx, request.ProcessID, agentexec.RestoreTurnRequest{
+	process, err := s.engine.RestoreTurn(state.ctx, request.MemberID, agentexec.RestoreTurnRequest{
 		SessionID:      request.SessionID,
 		ModelSelection: request.ModelSelection,
 		CWD:            request.CWD,

@@ -183,11 +183,11 @@ type WorkspaceMutations interface {
 	ListPending(ctx context.Context) ([]WorkspaceMutation, error)
 }
 
-// ExecutionCleanup is the engine-neutral process cleanup slice the session lifecycle
-// coordinator uses when delete/rollback abandons parked executions. User-visible
-// resume/cancel/steer orchestration belongs to application/runs.
-type ExecutionCleanup interface {
-	Cancel(ctx context.Context, ref runs.ExecutorRef) error
+// ExecutionReleaser is the engine-neutral resource lifecycle slice the Session
+// coordinator uses when delete or rollback abandons parked executions. Product
+// resume, cancel, and steer orchestration belongs to application/runs.
+type ExecutionReleaser interface {
+	Release(ctx context.Context, ref runs.ExecutorRef) error
 }
 
 // Coordinator executes session/run lifecycle write-sets across the domain
@@ -196,17 +196,17 @@ type ExecutionCleanup interface {
 // Stateless beyond its collaborators and the in-process admission gates;
 // safe to share.
 type Coordinator struct {
-	sessions         Store
-	interrupts       InterruptStore
-	transcript       TranscriptStore
-	runs             RunStore
-	boundaries       PlanBoundaries
-	snapshots        SnapshotReader
-	writes           WriteSets
-	forgetter        Forgetter
-	executionCleanup ExecutionCleanup
-	paths            CWDResolver
-	defaultModel     string
+	sessions          Store
+	interrupts        InterruptStore
+	transcript        TranscriptStore
+	runs              RunStore
+	boundaries        PlanBoundaries
+	snapshots         SnapshotReader
+	writes            WriteSets
+	forgetter         Forgetter
+	executionReleaser ExecutionReleaser
+	paths             CWDResolver
+	defaultModel      string
 	// checkpoints resets the working tree to a run-boundary checkpoint for a file
 	// rollback and drops a deleted session's snapshots; nil disables both (file
 	// restore is rejected as [ErrCheckpointUnavailable], drop no-ops).
@@ -234,22 +234,22 @@ type Coordinator struct {
 // mutations cross one cohesive WriteSets transaction; reads and process-local
 // cleanup are independent ports rather than accessor methods on a store bag.
 type Dependencies struct {
-	Sessions         Store
-	Interrupts       InterruptStore
-	Transcript       TranscriptStore
-	Runs             RunStore
-	Boundaries       PlanBoundaries
-	Snapshots        SnapshotReader
-	Writes           WriteSets
-	Forgetter        Forgetter
-	ExecutionCleanup ExecutionCleanup
-	Paths            CWDResolver
-	DefaultModel     string
-	Checkpoints      WorkspaceCheckpoints
-	Sandbox          SandboxDiscarder
-	Goals            GoalMutationGuard
-	Mutations        WorkspaceMutations
-	Admissions       Admissions
+	Sessions          Store
+	Interrupts        InterruptStore
+	Transcript        TranscriptStore
+	Runs              RunStore
+	Boundaries        PlanBoundaries
+	Snapshots         SnapshotReader
+	Writes            WriteSets
+	Forgetter         Forgetter
+	ExecutionReleaser ExecutionReleaser
+	Paths             CWDResolver
+	DefaultModel      string
+	Checkpoints       WorkspaceCheckpoints
+	Sandbox           SandboxDiscarder
+	Goals             GoalMutationGuard
+	Mutations         WorkspaceMutations
+	Admissions        Admissions
 	// Changed publishes post-commit invalidations for the session projections a
 	// mutation moved. nil disables them (no runtime change stream wired).
 	Changed change.Publish
@@ -261,23 +261,23 @@ var ErrSessionBusy = errors.New("sessions: session busy")
 // New returns a Coordinator over deps.
 func New(deps Dependencies) *Coordinator {
 	return &Coordinator{
-		sessions:         deps.Sessions,
-		interrupts:       deps.Interrupts,
-		transcript:       deps.Transcript,
-		runs:             deps.Runs,
-		boundaries:       deps.Boundaries,
-		snapshots:        deps.Snapshots,
-		writes:           deps.Writes,
-		forgetter:        deps.Forgetter,
-		executionCleanup: deps.ExecutionCleanup,
-		paths:            deps.Paths,
-		defaultModel:     deps.DefaultModel,
-		checkpoints:      deps.Checkpoints,
-		sandbox:          deps.Sandbox,
-		goals:            deps.Goals,
-		mutations:        deps.Mutations,
-		admissions:       deps.Admissions,
-		changed:          deps.Changed,
+		sessions:          deps.Sessions,
+		interrupts:        deps.Interrupts,
+		transcript:        deps.Transcript,
+		runs:              deps.Runs,
+		boundaries:        deps.Boundaries,
+		snapshots:         deps.Snapshots,
+		writes:            deps.Writes,
+		forgetter:         deps.Forgetter,
+		executionReleaser: deps.ExecutionReleaser,
+		paths:             deps.Paths,
+		defaultModel:      deps.DefaultModel,
+		checkpoints:       deps.Checkpoints,
+		sandbox:           deps.Sandbox,
+		goals:             deps.Goals,
+		mutations:         deps.Mutations,
+		admissions:        deps.Admissions,
+		changed:           deps.Changed,
 	}
 }
 

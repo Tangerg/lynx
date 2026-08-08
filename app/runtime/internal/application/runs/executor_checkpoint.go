@@ -11,7 +11,7 @@ import (
 )
 
 // ErrExecutorCheckpointNotFound reports that no durable executor checkpoint
-// exists for the requested root process identity.
+// exists for the requested root member identity.
 var ErrExecutorCheckpointNotFound = errors.New("executor checkpoint not found")
 
 // ErrInvalidExecutorCheckpoint reports malformed host-owned metadata around
@@ -56,7 +56,7 @@ func (s ExecutionScope) Validate() error {
 // implementation; the host owns only the aggregate identity and metadata needed
 // to decide whether and how the continuation may be restored.
 type ExecutorCheckpoint struct {
-	RootProcessID  string
+	RootMemberID   string
 	Payload        []byte
 	BuildID        string
 	Scope          ExecutionScope
@@ -70,7 +70,7 @@ type ExecutorCheckpoint struct {
 // restored. It contains no executor topology: every field is independently
 // known by the owning Run and Session.
 type ExecutorCheckpointExpectation struct {
-	RootProcessID  string
+	RootMemberID   string
 	SessionID      string
 	CWD            string
 	WorkspaceCWD   string
@@ -90,8 +90,8 @@ func (c ExecutorCheckpoint) Clone() ExecutorCheckpoint {
 // Validate verifies the host-owned metadata without interpreting the
 // executor payload.
 func (c ExecutorCheckpoint) Validate() error {
-	if strings.TrimSpace(c.RootProcessID) == "" || c.RootProcessID != strings.TrimSpace(c.RootProcessID) {
-		return fmt.Errorf("%w: root process ID must be non-empty without surrounding whitespace", ErrInvalidExecutorCheckpoint)
+	if strings.TrimSpace(c.RootMemberID) == "" || c.RootMemberID != strings.TrimSpace(c.RootMemberID) {
+		return fmt.Errorf("%w: root member ID must be non-empty without surrounding whitespace", ErrInvalidExecutorCheckpoint)
 	}
 	if len(c.Payload) == 0 {
 		return fmt.Errorf("%w: payload is empty", ErrInvalidExecutorCheckpoint)
@@ -115,25 +115,25 @@ func (c ExecutorCheckpoint) Validate() error {
 }
 
 // ValidateOwnership proves that the checkpoint and its owning Run aggregate
-// name the same root process and Session. Callers use this at every atomic
+// name the same root member and Session. Callers use this at every atomic
 // Pending/checkpoint write boundary so two separately valid values cannot be
 // committed as one mismatched continuation.
-func (c ExecutorCheckpoint) ValidateOwnership(rootProcessID, sessionID string) error {
+func (c ExecutorCheckpoint) ValidateOwnership(rootMemberID, sessionID string) error {
 	if err := c.Validate(); err != nil {
 		return err
 	}
-	if strings.TrimSpace(rootProcessID) == "" || rootProcessID != strings.TrimSpace(rootProcessID) {
-		return fmt.Errorf("%w: expected root process ID must be non-empty without surrounding whitespace", ErrInvalidExecutorCheckpoint)
+	if strings.TrimSpace(rootMemberID) == "" || rootMemberID != strings.TrimSpace(rootMemberID) {
+		return fmt.Errorf("%w: expected root member ID must be non-empty without surrounding whitespace", ErrInvalidExecutorCheckpoint)
 	}
 	if strings.TrimSpace(sessionID) == "" || sessionID != strings.TrimSpace(sessionID) {
 		return fmt.Errorf("%w: expected session ID must be non-empty without surrounding whitespace", ErrInvalidExecutorCheckpoint)
 	}
-	if c.RootProcessID != rootProcessID {
+	if c.RootMemberID != rootMemberID {
 		return fmt.Errorf(
-			"%w: root process ID %q does not match owner %q",
+			"%w: root member ID %q does not match owner %q",
 			ErrInvalidExecutorCheckpoint,
-			c.RootProcessID,
-			rootProcessID,
+			c.RootMemberID,
+			rootMemberID,
 		)
 	}
 	if c.Scope.SessionID != sessionID {
@@ -152,7 +152,7 @@ func (c ExecutorCheckpoint) ValidateOwnership(rootProcessID, sessionID string) e
 // the checkpoint workspace while hooks or delegated work use the Session's
 // current workspace.
 func (c ExecutorCheckpoint) ValidateFor(expected ExecutorCheckpointExpectation) error {
-	if err := c.ValidateOwnership(expected.RootProcessID, expected.SessionID); err != nil {
+	if err := c.ValidateOwnership(expected.RootMemberID, expected.SessionID); err != nil {
 		return err
 	}
 	if expected.CWD != strings.TrimSpace(expected.CWD) {

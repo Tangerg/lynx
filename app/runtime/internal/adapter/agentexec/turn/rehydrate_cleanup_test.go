@@ -65,7 +65,7 @@ func TestRehydrateCloseRaceReportsCleanupFailureAfterRelease(t *testing.T) {
 	_, err := controller.Rehydrate(t.Context(), runs.RehydrateExecution{
 		SessionID:  "ses_1",
 		ExecutorID: "turn_1",
-		ProcessID:  "proc_1",
+		MemberID:   "proc_1",
 		RootRunID:  "run_1",
 	})
 	if !errors.Is(err, ErrClosed) {
@@ -108,7 +108,7 @@ func TestShutdownReleasesLateRestoredProcessAfterCleanupFailure(t *testing.T) {
 		_, err := controller.Rehydrate(t.Context(), runs.RehydrateExecution{
 			SessionID:  "ses_1",
 			ExecutorID: "turn_1",
-			ProcessID:  "proc_1",
+			MemberID:   "proc_1",
 			RootRunID:  "run_1",
 		})
 		rehydrated <- err
