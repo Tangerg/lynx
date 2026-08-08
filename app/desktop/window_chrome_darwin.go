@@ -21,18 +21,9 @@ typedef struct {
 	int measured;
 } ChromeMetrics;
 
-// The window Wails created. Panels and sheets opened later carry their own
-// chrome and are not what the app's header has to line up with.
-static NSWindow *appWindow(void) {
-	for (NSWindow *window in [NSApp windows]) {
-		if ([window standardWindowButton:NSWindowCloseButton] != nil) return window;
-	}
-	return nil;
-}
-
-static ChromeMetrics measureOnMain(void) {
+static ChromeMetrics measureOnMain(void *windowHandle) {
 	ChromeMetrics metrics = {0, 0, 0};
-	NSWindow *window = appWindow();
+	NSWindow *window = (NSWindow *)windowHandle;
 	if (window == nil) return metrics;
 	NSButton *close = [window standardWindowButton:NSWindowCloseButton];
 	NSButton *zoom = [window standardWindowButton:NSWindowZoomButton];
@@ -55,15 +46,17 @@ static ChromeMetrics measureOnMain(void) {
 // AppKit may only be touched from the main thread. Wails runs a binding call on
 // its own goroutine, so the work hops across; dispatch_sync from the main thread
 // onto its own queue would deadlock, hence the check.
-static ChromeMetrics windowChromeMetrics(void) {
-	if ([NSThread isMainThread]) return measureOnMain();
+static ChromeMetrics windowChromeMetrics(void *windowHandle) {
+	if ([NSThread isMainThread]) return measureOnMain(windowHandle);
 	__block ChromeMetrics metrics;
-	dispatch_sync(dispatch_get_main_queue(), ^{ metrics = measureOnMain(); });
+	dispatch_sync(dispatch_get_main_queue(), ^{ metrics = measureOnMain(windowHandle); });
 	return metrics;
 }
 
 */
 import "C"
+
+import "unsafe"
 
 // nativeWindowChrome reports where the platform put the window's own controls, so
 // the header the app draws around them can be laid out against the real numbers
@@ -87,7 +80,14 @@ import "C"
 // Deliberately NOT the titlebar height, which would be the app's header height by
 // another name — that number belongs to the visual style, and handing the frame a
 // second claim on it would leave one value with two owners.
-func nativeWindowChrome() (controlsCentreY, controlsInlineEnd float64, measured bool) {
-	metrics := C.windowChromeMetrics()
+//
+// The window is passed IN, as the handle v3 hands out for it. This used to walk
+// `[NSApp windows]` and take the first one with a close button, which is a guess, and
+// v3 is explicitly a multi-window framework: a second window, a sheet or a file dialog
+// can all stand at the head of that list, and then the header lays itself out around
+// somebody else's frame. A nil handle is a real answer and means "no window yet" —
+// v3 returns one before the window exists and after it is destroyed.
+func nativeWindowChrome(window unsafe.Pointer) (controlsCentreY, controlsInlineEnd float64, measured bool) {
+	metrics := C.windowChromeMetrics(window)
 	return float64(metrics.controlsCentreY), float64(metrics.controlsInlineEnd), metrics.measured != 0
 }

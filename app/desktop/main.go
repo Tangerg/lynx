@@ -94,7 +94,10 @@ func main() {
 		log.Fatal(err)
 	}
 	app := application.New(desktopApplicationOptions(host))
-	app.Window.NewWithOptions(desktopWindowOptions())
+	// The service is registered before any window exists, so the window it measures is
+	// named here rather than found later. v3 is a multi-window framework: asking the
+	// platform for "the app's window" is a guess that a sheet or a second window wins.
+	host.useWindow(app.Window.NewWithOptions(desktopWindowOptions()))
 	if err := app.Run(); err != nil {
 		log.Fatal(err)
 	}

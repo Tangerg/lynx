@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"unsafe"
 )
 
 const localRuntimeEndpoint = "http://127.0.0.1:17171"
@@ -45,12 +46,28 @@ type WindowChrome struct {
 	Measured          bool    `json:"measured"`
 }
 
+// The window whose frame the header is laid out around — narrowed to the one thing
+// this file needs of it, so nothing here depends on the shape of a Wails window.
+// `*application.WebviewWindow` satisfies it.
+type nativeWindow interface {
+	NativeWindow() unsafe.Pointer
+}
+
 // DesktopHost is the Wails-owned boundary for capabilities that belong to the
-// packaged application rather than the Runtime Protocol. Every method on it is
-// reachable from the frontend over the Wails binding, and nothing else is.
+// packaged application rather than the Runtime Protocol.
+//
+// EVERY EXPORTED METHOD ON THIS TYPE IS AN IPC ENTRY POINT. v3 binds a service by
+// reflecting over its exported methods, so adding one here hands it to the frontend
+// whether or not that was the intent — which is why the window is attached through an
+// unexported setter rather than a method that reads like one. `TestDesktopHostBinds`
+// pins the set.
 type DesktopHost struct {
 	localTokenPath string
 	pluginRoot     string
+	// Nil until the window exists. The application is constructed with this service
+	// before it has any window, and `WindowChrome` is only reachable from a frontend
+	// that a window had to load — but nil is answered honestly rather than assumed away.
+	window nativeWindow
 }
 
 func newDesktopHost(home string) *DesktopHost {
@@ -59,6 +76,12 @@ func newDesktopHost(home string) *DesktopHost {
 		localTokenPath: filepath.Join(root, "local-token"),
 		pluginRoot:     filepath.Join(root, "plugins"),
 	}
+}
+
+// useWindow names the window whose chrome `WindowChrome` measures. Unexported on
+// purpose: see the note on DesktopHost.
+func (h *DesktopHost) useWindow(window nativeWindow) {
+	h.window = window
 }
 
 func defaultDesktopHost() (*DesktopHost, error) {
@@ -77,7 +100,10 @@ func defaultDesktopHost() (*DesktopHost, error) {
 // out of fullscreen, and the controls go away entirely while fullscreen, so the
 // answer has a shelf life of one layout.
 func (h *DesktopHost) WindowChrome() WindowChrome {
-	controlsCentreY, controlsInlineEnd, measured := nativeWindowChrome()
+	if h.window == nil {
+		return WindowChrome{}
+	}
+	controlsCentreY, controlsInlineEnd, measured := nativeWindowChrome(h.window.NativeWindow())
 	if !measured {
 		return WindowChrome{}
 	}
