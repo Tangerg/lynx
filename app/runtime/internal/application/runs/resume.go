@@ -4,13 +4,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 )
 
-// Resume claims the parked Run's Session, claims or restores its executor,
-// attaches and durably accepts a continuation Segment, and only then submits
-// the user's resolution.
+// Resume validates one complete response set, atomically consumes the waiting
+// hand-off and invalidates its checkpoint, stages the exact live/restored tree,
+// then opens the continuation Segment before submitting semantic answers.
 func (c *Coordinator) Resume(ctx context.Context, cmd ResumeCommand) (StartResult, error) {
 	if err := c.requireResumeDependencies(); err != nil {
 		return StartResult{}, err
@@ -52,33 +54,42 @@ func (c *Coordinator) Resume(ctx context.Context, cmd ResumeCommand) (StartResul
 		return StartResult{}, err
 	}
 
-	// Resume inherits the copy cwd and isolation from the parked execution scope,
-	// so no execution-cwd resolution is needed here. A rehydrate (process
-	// gone) of an isolated Run is refused as lost — see prepareExecution — because the
-	// sandbox copy died with the process.
-	ref, err := c.prepareExecution(ctx, pending, sess.CWD, sess.Isolated)
+	claimed, err := c.resumeClaims.ClaimResume(ctx, ResumeClaimCommit{
+		Expected: pending, Answers: answers, ClaimedAt: c.now().UTC(),
+	})
 	if err != nil {
-		if errors.Is(err, ErrExecutorStateLost) {
-			cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), runCleanupTimeout)
-			cleanupErr := c.terminations.ApplyRunLost(cleanupCtx, pending.SessionID, cmd.RunID, c.now().UTC())
-			cancel()
-			if cleanupErr != nil {
-				return StartResult{}, errors.Join(err, fmt.Errorf("runs: recover lost run %q: %w", cmd.RunID, cleanupErr))
-			}
-			return StartResult{}, fmt.Errorf("%w: %w", ErrRunNotFound, err)
-		}
 		return StartResult{}, err
+	}
+	if err := validateClaimedResume(claimed, pending, answers, sess); err != nil {
+		return StartResult{}, c.failClaimedResume(ctx, pending, nil, err)
 	}
 	rootContinuation, ok := pending.RootContinuation()
 	if !ok {
-		return StartResult{}, errors.New("runs: pending interrupt set has no root continuation")
+		return StartResult{}, c.failClaimedResume(
+			ctx, pending, nil, errors.New("runs: pending interrupt set has no root continuation"),
+		)
+	}
+	ref, err := c.continuation.StageContinuation(ctx, WaitingContinuation{
+		SessionID: pending.SessionID, ExecutorID: pending.ExecutorID,
+		RootRunID: pending.RootRunID, ChildRuns: childRunBindingsFromPending(pending),
+		Checkpoint:               claimed.Checkpoint,
+		Capabilities:             pending.Capabilities,
+		ChildRunAdmissionEnabled: pending.Capabilities.ChildRuns,
+	})
+	if err != nil {
+		return StartResult{}, c.failClaimedResume(ctx, pending, nil, err)
+	}
+	if err := ref.ValidateFor(pending.SessionID); err != nil {
+		return StartResult{}, c.failClaimedResume(ctx, pending, &ref, err)
 	}
 	segmentID := c.newSegmentID()
 	createdAt := rootContinuation.RunCreatedAt
 	pendingCopy := pending
 	continuation, err := treeContinuationFromPending(pendingCopy)
 	if err != nil {
-		return StartResult{}, fmt.Errorf("runs: prepare tree continuation: %w", err)
+		return StartResult{}, c.failClaimedResume(
+			ctx, pending, &ref, fmt.Errorf("runs: prepare tree continuation: %w", err),
+		)
 	}
 	events, err := c.openSegment(ctx, segmentSpec{
 		RunID:          cmd.RunID,
@@ -93,14 +104,13 @@ func (c *Coordinator) Resume(ctx context.Context, cmd ResumeCommand) (StartResul
 		Continuation:   continuation,
 		admission:      &runAdmission,
 		BeginExecution: func(beginCtx context.Context) error {
-			// The RUN's frozen kinds, not this request's: the caller has already been
-			// checked to cover them, and taking the declaration here would let each
-			// resume change what the next segment may park on.
-			return c.continuation.ResumeWaiting(beginCtx, ref, answers, pending.Capabilities.InterruptKinds)
+			return c.continuation.BeginContinuation(
+				beginCtx, ref, claimed.Answers, pending.Capabilities.InterruptKinds,
+			)
 		},
 	})
 	if err != nil {
-		return StartResult{}, err
+		return StartResult{}, c.failClaimedResume(ctx, pending, &ref, err)
 	}
 	// The continuation is durably accepted, which consumed the whole open set: the
 	// run is running again and nothing in this session is waiting on a person.
@@ -121,59 +131,63 @@ func (c *Coordinator) Resume(ctx context.Context, cmd ResumeCommand) (StartResul
 	return result, nil
 }
 
-func (c *Coordinator) prepareExecution(ctx context.Context, pending Pending, cwd string, isolated bool) (ExecutorRef, error) {
-	ref, err := c.continuation.ClaimWaiting(ctx, ExecutorRef{SessionID: pending.SessionID, ExecutorID: pending.ExecutorID})
-	if err == nil {
-		if err := ref.ValidateFor(pending.SessionID); err != nil {
-			return ExecutorRef{}, err
-		}
-		return ref, nil
+func validateClaimedResume(
+	claimed ClaimedResume,
+	expected Pending,
+	expectedAnswers []InterruptAnswer,
+	sess session.Session,
+) error {
+	if !reflect.DeepEqual(claimed.Pending, expected) {
+		return errors.New("runs: claimed waiting hand-off differs from the accepted Pending value")
 	}
-	if errors.Is(err, ErrExecutionClaimed) {
-		return ExecutorRef{}, ErrInterruptNotOpen
+	if !reflect.DeepEqual(claimed.Answers, expectedAnswers) {
+		return errors.New("runs: claimed answers differ from the accepted answer set")
 	}
-	if !errors.Is(err, ErrExecutorNotLive) {
-		return ExecutorRef{}, err
+	if err := claimed.Checkpoint.Validate(); err != nil {
+		return err
 	}
-	// The parked execution is not live in this process, so its executor died. For
-	// an isolated Run that means its sandbox copy, which is process-local, died
-	// with it. Rehydrating would rebuild execution against the
-	// project directory (the only cwd we still have), running the resumed model
-	// and its memory extraction on the REAL tree — the exact pollution isolation
-	// exists to prevent. Fail closed: the run's world is gone, so it is lost, not
-	// resumable. ErrExecutorStateLost routes it through the same durable
-	// lost-run cleanup as a missing executor checkpoint.
-	if isolated {
-		return ExecutorRef{}, fmt.Errorf("%w: an isolated run cannot resume after its sandbox process ended", ErrExecutorStateLost)
-	}
-	root, ok := pending.RootContinuation()
+	root, ok := expected.RootContinuation()
 	if !ok {
-		return ExecutorRef{}, errors.Join(
-			ErrRunNotFound,
-			errors.New("runs: interrupt has no root continuation"),
+		return errors.New("runs: claimed continuation has no root")
+	}
+	if err := claimed.Checkpoint.ValidateOwnership(root.MemberID, expected.SessionID); err != nil {
+		return err
+	}
+	if claimed.Checkpoint.Scope.WorkspaceCWD != sess.CWD || claimed.Checkpoint.Scope.Isolated != sess.Isolated {
+		return fmt.Errorf("%w: checkpoint workspace scope differs from Session", ErrExecutorStateLost)
+	}
+	return nil
+}
+
+func (c *Coordinator) failClaimedResume(
+	ctx context.Context,
+	pending Pending,
+	ref *ExecutorRef,
+	cause error,
+) error {
+	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), runCleanupTimeout)
+	defer cancel()
+	if cleanupErr := c.terminations.ApplyRunLost(
+		cleanupCtx,
+		pending.SessionID,
+		pending.RootRunID,
+		c.now().UTC(),
+	); cleanupErr != nil {
+		return errors.Join(
+			cause,
+			fmt.Errorf("runs: recover claimed resume %q as lost: %w", pending.RootRunID, cleanupErr),
 		)
 	}
-	ref, err = c.continuation.RestoreWaiting(ctx, RehydrateExecution{
-		SessionID:                pending.SessionID,
-		ExecutorID:               pending.ExecutorID,
-		MemberID:                 root.MemberID,
-		RootRunID:                pending.RootRunID,
-		ChildRuns:                childRunBindingsFromPending(pending),
-		ModelSelection:           root.ModelSelection,
-		CWD:                      cwd,
-		WorkspaceCWD:             cwd,
-		Isolated:                 isolated,
-		GoalLeaseID:              pending.GoalLeaseID,
-		Limits:                   root.Limits,
-		ChildRunAdmissionEnabled: pending.Capabilities.ChildRuns,
-	})
-	if err != nil {
-		return ExecutorRef{}, errors.Join(ErrRunNotFound, err)
+	result := fmt.Errorf("%w: %w", ErrRunNotFound, cause)
+	if ref != nil {
+		if releaseErr := c.releases.Release(cleanupCtx, *ref); releaseErr != nil {
+			result = errors.Join(
+				result,
+				fmt.Errorf("runs: release lost continuation %q: %w", ref.ExecutorID, releaseErr),
+			)
+		}
 	}
-	if err := ref.ValidateFor(pending.SessionID); err != nil {
-		return ExecutorRef{}, err
-	}
-	return ref, nil
+	return result
 }
 
 func childRunBindingsFromPending(pending Pending) []ChildRunBinding {

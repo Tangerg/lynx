@@ -124,10 +124,10 @@ func runChildHITLScenario(t *testing.T, scenario childHITLScenario) (childHITLOu
 		case runs.TreeInterrupted:
 			persistTreeBarrier(t, event)
 			outcome.interruptCount++
-			if len(event.Suspensions) != 1 {
-				t.Fatalf("suspensions = %#v", event.Suspensions)
+			if len(event.Interruptions) != 1 {
+				t.Fatalf("suspensions = %#v", event.Interruptions)
 			}
-			pending := event.Suspensions[0].Interrupt
+			pending := event.Interruptions[0].Interrupt
 			if scenario.wantInterrupt == nil || pending.Kind != *scenario.wantInterrupt {
 				t.Fatalf("interrupt kind = %q, want %q", pending.Kind, scenario.wantInterrupt)
 			}
@@ -214,9 +214,9 @@ func TestChildCanSuspendTwiceOnTheSameRun(t *testing.T) {
 		case runs.TreeInterrupted:
 			persistTreeBarrier(t, event)
 			interruptCount++
-			if len(event.Suspensions) != 1 ||
-				event.Suspensions[0].Interrupt.Kind != interrupt.Question {
-				t.Fatalf("interrupt %d = %#v", interruptCount, event.Suspensions)
+			if len(event.Interruptions) != 1 ||
+				event.Interruptions[0].Interrupt.Kind != interrupt.Question {
+				t.Fatalf("interrupt %d = %#v", interruptCount, event.Interruptions)
 			}
 			resolution := interrupt.Resolution{
 				Approved: true,
@@ -276,14 +276,14 @@ func TestCompleteAnswerSetDrivesParallelChildSuspensionsWithoutSecondBarrier(t *
 		case runs.TreeInterrupted:
 			persistTreeBarrier(t, event)
 			interruptCount++
-			if len(event.Suspensions) != 2 {
-				t.Fatalf("barrier suspensions = %#v, want two", event.Suspensions)
+			if len(event.Interruptions) != 2 {
+				t.Fatalf("barrier suspensions = %#v, want two", event.Interruptions)
 			}
-			answers := make([]agentexec.SuspensionAnswer, len(event.Suspensions))
-			for index, boundary := range event.Suspensions {
+			answers := make([]agentexec.SuspensionAnswer, len(event.Interruptions))
+			for index, boundary := range event.Interruptions {
 				answers[index] = agentexec.SuspensionAnswer{
 					ProcessID:    boundary.MemberID,
-					SuspensionID: boundary.SuspensionID,
+					SuspensionID: boundary.RequestID,
 					Resolution: interrupt.Resolution{
 						Approved: true,
 						Answers:  [][]string{{fmt.Sprintf("answer-%d", index+1)}},
@@ -362,8 +362,8 @@ func TestRestartResumesCompleteSiblingAnswerSetWithoutReplayingBarrier(t *testin
 			break
 		}
 	}
-	if len(barrier.Suspensions) != 2 {
-		t.Fatalf("original barrier = %#v, want two sibling suspensions", barrier.Suspensions)
+	if len(barrier.Interruptions) != 2 {
+		t.Fatalf("original barrier = %#v, want two sibling suspensions", barrier.Interruptions)
 	}
 	processID, err := first.ProcessID(t.Context(), original)
 	if err != nil {
@@ -398,11 +398,11 @@ func TestRestartResumesCompleteSiblingAnswerSetWithoutReplayingBarrier(t *testin
 	if err != nil {
 		t.Fatalf("restored Events: %v", err)
 	}
-	answers := make([]agentexec.SuspensionAnswer, len(barrier.Suspensions))
-	for index, boundary := range barrier.Suspensions {
+	answers := make([]agentexec.SuspensionAnswer, len(barrier.Interruptions))
+	for index, boundary := range barrier.Interruptions {
 		answers[index] = agentexec.SuspensionAnswer{
 			ProcessID:    boundary.MemberID,
-			SuspensionID: boundary.SuspensionID,
+			SuspensionID: boundary.RequestID,
 			Resolution: interrupt.Resolution{
 				Approved: true,
 				Answers:  [][]string{{fmt.Sprintf("restored-answer-%d", index+1)}},
@@ -476,8 +476,8 @@ func TestCompleteAnswerSetDoesNotPersistDuringLiveContinuation(t *testing.T) {
 		case runs.TreeInterrupted:
 			persistTreeBarrier(t, payload, store)
 			barrierCount++
-			if len(payload.Suspensions) != 2 {
-				t.Fatalf("barrier suspensions = %#v, want two", payload.Suspensions)
+			if len(payload.Interruptions) != 2 {
+				t.Fatalf("barrier suspensions = %#v, want two", payload.Interruptions)
 			}
 			if err := controller.Resume(
 				t.Context(),
@@ -613,13 +613,13 @@ func TestRestartRestoresParkedChildWithoutReplayingPreHook(t *testing.T) {
 		if interrupted, ok := event.Payload.(runs.TreeInterrupted); ok {
 			barrier = interrupted
 			persistTreeBarrier(t, barrier, store)
-			if len(interrupted.Suspensions) != 1 {
-				t.Fatalf("suspensions = %#v", interrupted.Suspensions)
+			if len(interrupted.Interruptions) != 1 {
+				t.Fatalf("suspensions = %#v", interrupted.Interruptions)
 			}
 			break
 		}
 	}
-	if len(barrier.Suspensions) == 0 {
+	if len(barrier.Interruptions) == 0 {
 		t.Fatal("original engine did not park on child approval")
 	}
 	processID, err := first.ProcessID(t.Context(), original)
@@ -647,7 +647,7 @@ func TestRestartRestoresParkedChildWithoutReplayingPreHook(t *testing.T) {
 		MemberID:   processID,
 		RootRunID:  "run-root",
 		ChildRuns: []runs.ChildRunBinding{{
-			MemberID:    barrier.Suspensions[0].MemberID,
+			MemberID:    barrier.Interruptions[0].MemberID,
 			RunID:       "run-child",
 			ParentRunID: "run-root",
 		}},
@@ -1250,11 +1250,11 @@ func questionAnswersForBarrier(
 	barrier runs.TreeInterrupted,
 	prefix string,
 ) []agentexec.SuspensionAnswer {
-	answers := make([]agentexec.SuspensionAnswer, len(barrier.Suspensions))
-	for index, boundary := range barrier.Suspensions {
+	answers := make([]agentexec.SuspensionAnswer, len(barrier.Interruptions))
+	for index, boundary := range barrier.Interruptions {
 		answers[index] = agentexec.SuspensionAnswer{
 			ProcessID:    boundary.MemberID,
-			SuspensionID: boundary.SuspensionID,
+			SuspensionID: boundary.RequestID,
 			Resolution: interrupt.Resolution{
 				Approved: true,
 				Answers:  [][]string{{fmt.Sprintf("%s-%d", prefix, index+1)}},

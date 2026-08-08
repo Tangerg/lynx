@@ -318,6 +318,10 @@ func (p perRunChatClient) Chat(core.ProcessView) core.ChatCapability {
 // RestoreTurnRequest carries the live collaborators to re-attach to a turn
 // rebuilt from a checkpoint. Durable host scope comes from that checkpoint.
 type RestoreTurnRequest struct {
+	// Checkpoint, when present, is the answer-claim transaction's owned copy of
+	// the now-invalidated durable checkpoint. The legacy P8 bridge uses it so no
+	// executor persistence read can race after claim.
+	Checkpoint *runs.ExecutorCheckpoint
 	// SessionID is the expected owner supplied by the application Run. It must
 	// exactly match the checkpoint's non-empty application Session, so a
 	// continuation can never cross product-session boundaries.
@@ -379,15 +383,21 @@ func (e *Engine) RestoreTurn(ctx context.Context, rootProcessID string, request 
 	if e.agentRuntime == nil {
 		return nil, errors.New("engine: restore chat: agent runtime is required")
 	}
-	if e.checkpoints == nil {
-		return nil, errors.New("engine: restore chat: checkpoint reader is required")
-	}
-	checkpoint, err := e.checkpoints.LoadCheckpoint(ctx, rootProcessID)
-	if err != nil {
-		if isExecutorCheckpointLoss(err) {
-			return nil, executorCheckpointLost("restore", err)
+	var checkpoint runs.ExecutorCheckpoint
+	if request.Checkpoint != nil {
+		checkpoint = request.Checkpoint.Clone()
+	} else {
+		if e.checkpoints == nil {
+			return nil, errors.New("engine: restore chat: checkpoint reader is required")
 		}
-		return nil, fmt.Errorf("engine: load process tree: %w", err)
+		loaded, err := e.checkpoints.LoadCheckpoint(ctx, rootProcessID)
+		if err != nil {
+			if isExecutorCheckpointLoss(err) {
+				return nil, executorCheckpointLost("restore", err)
+			}
+			return nil, fmt.Errorf("engine: load process tree: %w", err)
+		}
+		checkpoint = loaded
 	}
 	if err := checkpoint.ValidateFor(runs.ExecutorCheckpointExpectation{
 		RootMemberID:   rootProcessID,

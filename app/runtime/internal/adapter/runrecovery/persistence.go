@@ -147,9 +147,9 @@ func (p *Persistence) CommitRecovery(ctx context.Context, commit runs.RecoveryCo
 				return fmt.Errorf("runrecovery: record Goal Run for Run %q: %w", record.RunID, err)
 			}
 		}
-		for _, pending := range commit.DeletePending {
-			if err := p.interrupts.Delete(ctx, pending.SessionID, pending.RootRunID); err != nil {
-				return fmt.Errorf("runrecovery: delete Pending for root Run %q: %w", pending.RootRunID, err)
+		for _, owner := range commit.DeleteInterrupts {
+			if err := p.interrupts.Delete(ctx, owner.SessionID, owner.RootRunID); err != nil {
+				return fmt.Errorf("runrecovery: delete interrupt for root Run %q: %w", owner.RootRunID, err)
 			}
 		}
 		if err := p.executorCheckpoints.DeleteUnownedCheckpoints(ctx, commit.PreservedCheckpointRootIDs); err != nil {

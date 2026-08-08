@@ -809,6 +809,7 @@ func newObservedTestInteractionExecutor(
 	extra.DefaultClient = client
 	extra.ImplementationIdentity = "interaction-observation-test-build"
 	extra.ConfigurationIdentity = "interaction-observation-test-config"
+	extra.BuildID = interactionTestBuildID
 	extra.DefaultMaxModelCalls = 8
 	extra.UnknownEffectPollInterval = 5 * time.Millisecond
 	executor, err := NewInteractionExecutor(extra)

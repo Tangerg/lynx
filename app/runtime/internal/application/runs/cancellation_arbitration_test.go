@@ -432,10 +432,10 @@ func runningChildCancellationPlan() cancellationPlan {
 func waitingCancellationMutationWithSiblingBoundary() *fakePreparedWaitingCancellation {
 	return &fakePreparedWaitingCancellation{
 		canceled: []string{"member_a", "member_grandchild"},
-		suspensions: []MemberInterruption{{
-			MemberID:     "member_b",
-			SuspensionID: "suspension_b",
-			Interrupt:    waitingQuestionPrompt(),
+		interruptions: []MemberInterruption{{
+			MemberID:  "member_b",
+			RequestID: "request_b",
+			Interrupt: waitingQuestionPrompt(),
 		}},
 	}
 }

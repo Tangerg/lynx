@@ -72,7 +72,7 @@ func (c *Coordinator) requireResumeDependencies() error {
 	case c.releases == nil:
 		return errors.New("runs: execution releaser is required")
 	case c.continuation == nil:
-		return errors.New("runs: continuation executor is required")
+		return errors.New("runs: waiting execution continuer is required")
 	case c.sessionReader == nil:
 		return errors.New("runs: session reader is required")
 	case c.interrupts == nil:
@@ -81,6 +81,8 @@ func (c *Coordinator) requireResumeDependencies() error {
 		return errors.New("runs: run termination committer is required")
 	case c.openings == nil:
 		return errors.New("runs: opening committer is required")
+	case c.resumeClaims == nil:
+		return errors.New("runs: resume claim committer is required")
 	case c.events == nil:
 		return errors.New("runs: event committer is required")
 	case c.barriers == nil:

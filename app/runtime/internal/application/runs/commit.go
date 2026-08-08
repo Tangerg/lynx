@@ -50,6 +50,50 @@ type OpeningCommit struct {
 	Events           []EventCommit
 }
 
+// ResumeClaimCommit is the answer linearization write-set. Its transaction
+// consumes the exact waiting hand-off and deletes the old checkpoint before an
+// executor may be restored or signaled. A crash after this commit therefore
+// has no recoverable pre-answer snapshot and boot reconciliation must mark the
+// still-nonterminal tree lost.
+type ResumeClaimCommit struct {
+	Expected  Pending
+	Answers   []InterruptAnswer
+	ClaimedAt time.Time
+}
+
+// ClaimedResume is the immutable result of a successful answer claim. The
+// checkpoint is returned from the same transaction that made it nonrecoverable;
+// callers may hold it only long enough to stage the continuation in this use
+// case and never persist it again.
+type ClaimedResume struct {
+	Pending    Pending
+	Answers    []InterruptAnswer
+	Checkpoint ExecutorCheckpoint
+}
+
+func (claim ResumeClaimCommit) Validate() error {
+	if err := claim.Expected.Validate(); err != nil {
+		return fmt.Errorf("runs: resume claim Pending: %w", err)
+	}
+	if claim.ClaimedAt.IsZero() {
+		return errors.New("runs: resume claim time is required")
+	}
+	if len(claim.Answers) != len(claim.Expected.Bindings) {
+		return fmt.Errorf(
+			"runs: resume claim has %d answers for %d boundaries",
+			len(claim.Answers), len(claim.Expected.Bindings),
+		)
+	}
+	for index, answer := range claim.Answers {
+		binding := claim.Expected.Bindings[index]
+		if answer.InterruptItemID != binding.InterruptItemID || answer.MemberID != binding.MemberID ||
+			answer.RequestID != binding.RequestID {
+			return fmt.Errorf("runs: resume claim answer[%d] differs from its pending boundary", index)
+		}
+	}
+	return nil
+}
+
 // SessionModelUpdate is committed with the Run admission that established it.
 type SessionModelUpdate struct {
 	SessionID string
@@ -391,7 +435,7 @@ func (c OpeningCommit) Validate() error {
 }
 
 // TreeBarrierCommit is the one durable write-set produced when any executor
-// suspension stops a Run tree. Pending owns the complete continuation hand-off;
+// interruption stops a Run tree. Pending owns the complete continuation hand-off;
 // Runs contains one StateSuspend commit for every active Run in deterministic
 // postorder. No individual Run commit may write or consume the root-owned set.
 type TreeBarrierCommit struct {
@@ -400,7 +444,7 @@ type TreeBarrierCommit struct {
 	Checkpoint ExecutorCheckpoint
 }
 
-// Validate proves that the barrier is the complete suspension projection for
+// Validate proves that the barrier is the complete interruption projection for
 // the pending continuation tree and that its checkpoint belongs to the same
 // run. The Effects port only persists this already-defined write-set.
 func (c TreeBarrierCommit) Validate() error {

@@ -724,9 +724,10 @@ func TestExecutorCheckpointBindingIsValidatedAtEveryBoundary(t *testing.T) {
 }
 
 // TestPendingAndRecoveryMutationsCarryTheirOwners prevents root identities from
-// becoming ambient mutation authority. A Pending opens once, every destructive
-// operation names its Session owner, and recovery validates its complete
-// write-set before persistence begins.
+// becoming ambient mutation authority. An open barrier cannot be overwritten;
+// only its exact resuming owner may advance to the next quiescent barrier. Every
+// destructive operation names its Session owner, and recovery validates its
+// complete write-set before persistence begins.
 func TestPendingAndRecoveryMutationsCarryTheirOwners(t *testing.T) {
 	root := moduleRoot(t)
 	interruptPath := filepath.Join(root, "internal", "infra", "storage", "sqlite", "interrupt.go")
@@ -734,9 +735,15 @@ func TestPendingAndRecoveryMutationsCarryTheirOwners(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read interrupt store: %v", err)
 	}
-	for _, forbidden := range []string{"ON CONFLICT(root_run_id)"} {
-		if strings.Contains(string(interruptSource), forbidden) {
-			t.Errorf("interrupt store restores overwrite seam %q", forbidden)
+	for _, required := range []string{
+		"ON CONFLICT(root_run_id) DO UPDATE SET",
+		"WHERE interrupts.state = 'resuming'",
+		"AND interrupts.session_id = excluded.session_id",
+		"AND interrupts.executor_id = excluded.executor_id",
+		"AND interrupts.root_member_id = excluded.root_member_id",
+	} {
+		if !strings.Contains(string(interruptSource), required) {
+			t.Errorf("interrupt store no longer guards barrier advance with %q", required)
 		}
 	}
 	persistencePath := filepath.Join(root, "internal", "adapter", "persistence", "interrupts.go")
@@ -749,8 +756,10 @@ func TestPendingAndRecoveryMutationsCarryTheirOwners(t *testing.T) {
 	}
 	for _, required := range []string{
 		"Consume(ctx context.Context, sessionID, runID string)",
+		"RequireResumeClaim(ctx context.Context, sessionID, runID string)",
 		"Delete(ctx context.Context, sessionID, runID string)",
 		"WHERE session_id = ? AND root_run_id = ?",
+		"state != \"resuming\"",
 		"rejectForeignPendingOwner",
 	} {
 		if !strings.Contains(string(interruptSource), required) {
@@ -789,7 +798,7 @@ func TestPendingAndRecoveryMutationsCarryTheirOwners(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read recovery commit validator: %v", err)
 	}
-	for _, required := range []string{"func (commit RecoveryCommit) Validate() error", "validateRecoveryGoalRuns", "validatePendingDeletions"} {
+	for _, required := range []string{"func (commit RecoveryCommit) Validate() error", "validateRecoveryGoalRuns", "validateRecoveryInterruptDeletions"} {
 		if !strings.Contains(string(recoverySource), required) {
 			t.Errorf("recovery write-set no longer validates %q", required)
 		}

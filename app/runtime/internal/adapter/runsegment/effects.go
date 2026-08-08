@@ -48,12 +48,26 @@ type GoalRunRecorder interface {
 	RecordRun(ctx context.Context, record goal.RunRecord) error
 }
 
-// InterruptStore is the run-segment write side of the open-interrupt registry.
-// A stream segment only records newly-opened interrupts; claim/resume/delete
-// belongs to lifecycle.
+// InterruptStore is the run-segment lifecycle view of the interrupt registry.
+// It opens a new quiescent barrier and removes any prior answer claim when the
+// owning root terminalizes. Resume claiming remains a narrower, separate port.
 type InterruptStore interface {
 	Open(ctx context.Context, p runs.Pending) error
 	Consume(ctx context.Context, sessionID, rootRunID string) (runs.Pending, bool, error)
+	Delete(ctx context.Context, sessionID, rootRunID string) error
+}
+
+// ResumeClaimStore atomically changes one open hand-off into a durable,
+// nonrecoverable answer claim. It is separate from ordinary barrier mutation so
+// callers that never resume a Run do not acquire that lifecycle capability.
+type ResumeClaimStore interface {
+	ClaimResume(
+		ctx context.Context,
+		sessionID, rootRunID string,
+		answers []runs.InterruptAnswer,
+		claimedAt time.Time,
+	) (runs.Pending, bool, error)
+	RequireResumeClaim(ctx context.Context, sessionID, rootRunID string) error
 }
 
 // TranscriptStore is the run-segment append side of durable transcript
@@ -151,6 +165,7 @@ type RunMetricsWriter interface {
 // payload.
 type ExecutorCheckpointStore interface {
 	SaveCheckpoint(ctx context.Context, checkpoint runs.ExecutorCheckpoint) error
+	LoadCheckpoint(ctx context.Context, rootMemberID string) (runs.ExecutorCheckpoint, error)
 	DeleteCheckpoints(ctx context.Context, sessionID string, rootIDs []string) error
 }
 
@@ -189,6 +204,7 @@ type FileChangePublisher func(workspaceapp.FileChangeNotice)
 // Config bundles the Effects dependencies.
 type Config struct {
 	Interrupts          InterruptStore
+	ResumeClaims        ResumeClaimStore
 	Sessions            SessionStore
 	ScheduleFirings     ScheduleFiringStore
 	GoalRuns            GoalRunRecorder
@@ -212,6 +228,7 @@ type Config struct {
 // dependencies and safe to share.
 type Effects struct {
 	interrupts          InterruptStore
+	resumeClaims        ResumeClaimStore
 	sessions            SessionStore
 	scheduleFirings     ScheduleFiringStore
 	goalRuns            GoalRunRecorder
@@ -233,6 +250,7 @@ type Effects struct {
 
 var (
 	_ runs.OpeningCommitter                    = (*Effects)(nil)
+	_ runs.ResumeClaimCommitter                = (*Effects)(nil)
 	_ runs.EventCommitter                      = (*Effects)(nil)
 	_ runs.TreeBarrierCommitter                = (*Effects)(nil)
 	_ runs.WaitingSubtreeCancellationCommitter = (*Effects)(nil)
@@ -246,6 +264,7 @@ const runsegmentTracerName = "lynx/lyra/runsegment"
 func New(cfg Config) *Effects {
 	return &Effects{
 		interrupts:          cfg.Interrupts,
+		resumeClaims:        cfg.ResumeClaims,
 		sessions:            cfg.Sessions,
 		scheduleFirings:     cfg.ScheduleFirings,
 		goalRuns:            cfg.GoalRuns,

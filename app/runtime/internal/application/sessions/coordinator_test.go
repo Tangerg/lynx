@@ -111,8 +111,8 @@ func TestApplyRunCancelProjectsTerminalTranscript(t *testing.T) {
 					ItemID: "item_1", ItemOccurredAt: createdAt,
 					RunID: "run_1", Kind: interrupt.Question, Question: question,
 				}},
-				Suspensions: []runs.SuspensionBinding{{
-					InterruptItemID: "item_1", MemberID: "member_1", SuspensionID: "suspension_1",
+				Bindings: []runs.InterruptBinding{{
+					InterruptItemID: "item_1", MemberID: "member_1", RequestID: "request_1",
 				}},
 				Continuations: []runs.Continuation{{
 					RunID: "run_1", MemberID: "member_1", RunCreatedAt: createdAt,
@@ -184,8 +184,8 @@ func TestApplyRunLostProjectsTerminalTranscript(t *testing.T) {
 					ItemID: "item_1", ItemOccurredAt: createdAt,
 					RunID: "run_1", Kind: interrupt.Approval, Approval: approval,
 				}},
-				Suspensions: []runs.SuspensionBinding{{
-					InterruptItemID: "item_1", MemberID: "member_1", SuspensionID: "suspension_1",
+				Bindings: []runs.InterruptBinding{{
+					InterruptItemID: "item_1", MemberID: "member_1", RequestID: "request_1",
 				}},
 				Continuations: []runs.Continuation{{
 					RunID: "run_1", MemberID: "member_1", RunCreatedAt: createdAt,
@@ -271,8 +271,8 @@ func TestApplyRunLostTerminalizesWholeParkedTreeInPostorder(t *testing.T) {
 			ItemID: "item_question", ItemOccurredAt: createdAt,
 			RunID: "run_child", Kind: interrupt.Question, Question: question,
 		}},
-		Suspensions: []runs.SuspensionBinding{{
-			InterruptItemID: "item_question", MemberID: "member_child", SuspensionID: "suspension_child",
+		Bindings: []runs.InterruptBinding{{
+			InterruptItemID: "item_question", MemberID: "member_child", RequestID: "request_child",
 		}},
 		Continuations: []runs.Continuation{
 			{
@@ -363,10 +363,10 @@ func TestApplyRunLostRejectsContinuationFactDriftBeforeTerminalCommit(t *testing
 		RootRunID: "run_root", SessionID: "ses_1", ExecutorID: "turn_1",
 		Capabilities: capabilities,
 		Interrupts:   []transcript.Interrupt{pendingInterrupt},
-		Suspensions: []runs.SuspensionBinding{{
+		Bindings: []runs.InterruptBinding{{
 			InterruptItemID: pendingInterrupt.ItemID,
 			MemberID:        "member_root",
-			SuspensionID:    "suspension_root",
+			RequestID:       "request_root",
 		}},
 		Continuations: []runs.Continuation{{
 			RunID: "run_root", MemberID: "member_root", RunCreatedAt: createdAt,

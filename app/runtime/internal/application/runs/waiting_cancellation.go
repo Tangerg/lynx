@@ -208,56 +208,56 @@ func prepareWaitingCancellationTransformation(
 		)
 	}
 
-	oldBindingByKey := make(map[string]int, len(plan.pending.Suspensions))
-	for index, binding := range plan.pending.Suspensions {
-		oldBindingByKey[suspensionIdentity(binding.MemberID, binding.SuspensionID)] = index
+	oldBindingByKey := make(map[string]int, len(plan.pending.Bindings))
+	for index, binding := range plan.pending.Bindings {
+		oldBindingByKey[inputRequestIdentity(binding.MemberID, binding.RequestID)] = index
 	}
 	survivingRunByProcess := make(map[string]string, len(continuations))
 	for _, continuation := range continuations {
 		survivingRunByProcess[continuation.MemberID] = continuation.RunID
 	}
-	pendingSuspensions := prepared.PendingInterruptions
-	remainingInterrupts := make([]transcript.Interrupt, 0, len(pendingSuspensions))
-	remainingBindings := make([]SuspensionBinding, 0, len(pendingSuspensions))
-	keptBindings := make(map[int]struct{}, len(pendingSuspensions))
-	for _, boundary := range pendingSuspensions {
+	pendingInterruptions := prepared.PendingInterruptions
+	remainingInterrupts := make([]transcript.Interrupt, 0, len(pendingInterruptions))
+	remainingBindings := make([]InterruptBinding, 0, len(pendingInterruptions))
+	keptBindings := make(map[int]struct{}, len(pendingInterruptions))
+	for _, boundary := range pendingInterruptions {
 		if err := boundary.Interrupt.Validate(); err != nil {
 			return waitingCancellationTransformation{}, fmt.Errorf(
-				"runs: prepared member %q suspension %q: %w",
+				"runs: prepared member %q input request %q: %w",
 				boundary.MemberID,
-				boundary.SuspensionID,
+				boundary.RequestID,
 				err,
 			)
 		}
-		index, exists := oldBindingByKey[suspensionIdentity(boundary.MemberID, boundary.SuspensionID)]
+		index, exists := oldBindingByKey[inputRequestIdentity(boundary.MemberID, boundary.RequestID)]
 		if !exists {
 			return waitingCancellationTransformation{}, fmt.Errorf(
-				"runs: prepared member %q suspension %q was absent from the durable pending set",
+				"runs: prepared member %q input request %q was absent from the durable pending set",
 				boundary.MemberID,
-				boundary.SuspensionID,
+				boundary.RequestID,
 			)
 		}
 		if _, duplicate := keptBindings[index]; duplicate {
 			return waitingCancellationTransformation{}, fmt.Errorf(
-				"runs: prepared member %q repeated suspension %q",
+				"runs: prepared member %q repeated input request %q",
 				boundary.MemberID,
-				boundary.SuspensionID,
+				boundary.RequestID,
 			)
 		}
-		binding := plan.pending.Suspensions[index]
+		binding := plan.pending.Bindings[index]
 		interrupt := plan.pending.Interrupts[index]
 		runID, survives := survivingRunByProcess[binding.MemberID]
 		if !survives || interrupt.RunID != runID {
 			return waitingCancellationTransformation{}, fmt.Errorf(
-				"runs: prepared suspension %q belongs to removed member %q",
-				binding.SuspensionID,
+				"runs: prepared input request %q belongs to removed member %q",
+				binding.RequestID,
 				binding.MemberID,
 			)
 		}
 		if interrupt.Kind != boundary.Interrupt.Kind {
 			return waitingCancellationTransformation{}, fmt.Errorf(
-				"runs: prepared suspension %q changed interrupt kind from %s to %s",
-				binding.SuspensionID,
+				"runs: prepared input request %q changed interrupt kind from %s to %s",
+				binding.RequestID,
 				interrupt.Kind,
 				boundary.Interrupt.Kind,
 			)
@@ -266,15 +266,15 @@ func prepareWaitingCancellationTransformation(
 		remainingInterrupts = append(remainingInterrupts, interrupt)
 		remainingBindings = append(remainingBindings, binding)
 	}
-	for index, binding := range plan.pending.Suspensions {
+	for index, binding := range plan.pending.Bindings {
 		if _, kept := keptBindings[index]; kept {
 			continue
 		}
 		if _, canceled := canceledMemberSet[binding.MemberID]; !canceled {
 			return waitingCancellationTransformation{}, fmt.Errorf(
-				"runs: prepared cancellation dropped surviving member %q suspension %q",
+				"runs: prepared cancellation dropped surviving member %q input request %q",
 				binding.MemberID,
-				binding.SuspensionID,
+				binding.RequestID,
 			)
 		}
 	}
@@ -299,7 +299,7 @@ func prepareWaitingCancellationTransformation(
 	if len(remainingInterrupts) > 0 {
 		reduced := plan.pending
 		reduced.Interrupts = remainingInterrupts
-		reduced.Suspensions = remainingBindings
+		reduced.Bindings = remainingBindings
 		reduced.Continuations = continuations
 		if err := reduced.Validate(); err != nil {
 			return waitingCancellationTransformation{}, fmt.Errorf(
@@ -337,8 +337,8 @@ func canceledWaitingRun(run transcript.Run, reason string, finishedAt time.Time)
 	return run
 }
 
-func suspensionIdentity(memberID, suspensionID string) string {
-	return memberID + "\x00" + suspensionID
+func inputRequestIdentity(memberID, requestID string) string {
+	return memberID + "\x00" + requestID
 }
 
 func (transformation waitingCancellationTransformation) durableCommit(

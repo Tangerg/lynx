@@ -33,8 +33,9 @@ type Coordinator struct {
 	observations   ExecutionObserver
 	releases       ExecutionReleaser
 	conversation   ConversationReader
-	continuation   ContinuationExecutor
-	steering       ExecutionSteerer
+	continuation   WaitingExecutionContinuer
+	legacyWaiting  LegacyWaitingExecutor
+	steering       RunningExecutionSteerer
 	runningTrees   RunningSubtreeCanceler
 	waitingTrees   WaitingSubtreeCancellationPreparer
 	sessionReader  SessionReader
@@ -43,6 +44,7 @@ type Coordinator struct {
 	interrupts     PendingInterruptReader
 	terminations   RunTerminationCommitter
 	openings       OpeningCommitter
+	resumeClaims   ResumeClaimCommitter
 	events         EventCommitter
 	barriers       TreeBarrierCommitter
 	waitingEdits   WaitingSubtreeCancellationCommitter
@@ -80,21 +82,22 @@ type Coordinator struct {
 // Dependencies is the complete collaborator set for the user-visible run use
 // cases and the segment supervisor they own.
 type Dependencies struct {
-	RootStarts   RootExecutionStarter
-	Observations ExecutionObserver
-	Releases     ExecutionReleaser
-	Conversation ConversationReader
-	Continuation ContinuationExecutor
-	Steering     ExecutionSteerer
-	RunningTrees RunningSubtreeCanceler
-	WaitingTrees WaitingSubtreeCancellationPreparer
-	Session      SessionPorts
-	Projection   ProjectionPorts
-	Runs         RunProjection
-	Items        ItemProjection
-	Admissions   *admission.Gate
-	Isolation    IsolationProvider // nil disables isolated sessions (their start is refused)
-	Now          func() time.Time
+	RootStarts    RootExecutionStarter
+	Observations  ExecutionObserver
+	Releases      ExecutionReleaser
+	Conversation  ConversationReader
+	Continuation  WaitingExecutionContinuer
+	LegacyWaiting LegacyWaitingExecutor
+	Steering      RunningExecutionSteerer
+	RunningTrees  RunningSubtreeCanceler
+	WaitingTrees  WaitingSubtreeCancellationPreparer
+	Session       SessionPorts
+	Projection    ProjectionPorts
+	Runs          RunProjection
+	Items         ItemProjection
+	Admissions    *admission.Gate
+	Isolation     IsolationProvider // nil disables isolated sessions (their start is refused)
+	Now           func() time.Time
 	// Retention bounds every segment's replay window. Zero takes
 	// [DefaultRetention], which is also what discovery advertises.
 	Retention    Retention
@@ -119,6 +122,7 @@ func NewCoordinator(deps Dependencies) *Coordinator {
 		releases:       deps.Releases,
 		conversation:   deps.Conversation,
 		continuation:   deps.Continuation,
+		legacyWaiting:  deps.LegacyWaiting,
 		steering:       deps.Steering,
 		runningTrees:   deps.RunningTrees,
 		waitingTrees:   deps.WaitingTrees,
@@ -128,6 +132,7 @@ func NewCoordinator(deps Dependencies) *Coordinator {
 		interrupts:     deps.Session.Interrupts,
 		terminations:   deps.Session.Terminations,
 		openings:       deps.Projection.Openings,
+		resumeClaims:   deps.Projection.ResumeClaims,
 		events:         deps.Projection.Events,
 		barriers:       deps.Projection.Barriers,
 		waitingEdits:   deps.Projection.WaitingEdits,

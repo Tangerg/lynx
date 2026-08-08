@@ -61,7 +61,7 @@ func Open(ctx context.Context, path string) (*sql.DB, error) {
 // schemaEpoch identifies the one storage shape this build understands. It is an
 // epoch rather than a version because nothing connects two values: a database
 // stamped with any other number is refused, never upgraded.
-const schemaEpoch = 61
+const schemaEpoch = 62
 
 func installCurrentSchema(ctx context.Context, db *sql.DB, path string) error {
 	var epoch int
@@ -208,8 +208,8 @@ func installCurrentSchema(ctx context.Context, db *sql.DB, path string) error {
 		// lets concurrent calls start in scheduler order while history_items receives
 		// only final semantic Items in the model's declared order.
 		`CREATE TABLE IF NOT EXISTS tool_invocations (
-			call_id     TEXT    PRIMARY KEY,
-			item_id     TEXT    NOT NULL UNIQUE,
+			call_id     TEXT    NOT NULL,
+			item_id     TEXT    NOT NULL,
 			session_id  TEXT    NOT NULL,
 			run_id      TEXT    NOT NULL,
 			segment_id  TEXT    NOT NULL,
@@ -220,17 +220,20 @@ func installCurrentSchema(ctx context.Context, db *sql.DB, path string) error {
 			CHECK (
 				(state = 'started' AND finished_at = 0) OR
 				(state != 'started' AND finished_at >= started_at)
-			)
+			),
+			PRIMARY KEY (call_id, segment_id),
+			UNIQUE (item_id, segment_id)
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_tool_invocations_run
 			ON tool_invocations(run_id, segment_id)`,
 		`CREATE INDEX IF NOT EXISTS idx_tool_invocations_open
 			ON tool_invocations(state) WHERE state = 'started'`,
 		// One root-owned row per parked Run tree. payload is the client-facing
-		// interrupt set; suspension_bindings maps each item to the private executor
-		// boundary it answers; continuations carries every suspended Run's
-		// application/executor hand-off. All three are closed JSON values written
-		// and consumed with the tree's lifecycle transaction.
+		// interrupt set; interrupt_bindings maps each item to the private executor
+		// boundary it answers; continuations carries every waiting Run's
+		// application/executor hand-off. All three are closed JSON values. Answer
+		// claim changes the row to resuming; the next barrier replaces it and a
+		// terminal/recovery write-set deletes it.
 		`CREATE TABLE IF NOT EXISTS interrupts (
 			root_run_id        TEXT    PRIMARY KEY,
 			session_id         TEXT    NOT NULL,
@@ -243,12 +246,20 @@ func installCurrentSchema(ctx context.Context, db *sql.DB, path string) error {
 			root_member_id    TEXT    NOT NULL,
 			payload            TEXT    NOT NULL,
 			continuations      TEXT    NOT NULL,
-			suspension_bindings TEXT   NOT NULL,
+			interrupt_bindings TEXT   NOT NULL,
 			capabilities       TEXT    NOT NULL DEFAULT '',
-			created_at         INTEGER NOT NULL
+			created_at         INTEGER NOT NULL,
+			state              TEXT    NOT NULL DEFAULT 'open',
+			answers            TEXT    NOT NULL DEFAULT '',
+			claimed_at         INTEGER NOT NULL DEFAULT 0,
+			CHECK (state IN ('open', 'resuming')),
+			CHECK (
+				(state = 'open' AND answers = '' AND claimed_at = 0) OR
+				(state = 'resuming' AND answers != '' AND claimed_at > 0)
+			)
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_interrupts_session
-			ON interrupts(session_id)`,
+			ON interrupts(session_id, state)`,
 		`CREATE UNIQUE INDEX IF NOT EXISTS idx_interrupts_root_member
 			ON interrupts(root_member_id)`,
 		// pending_workspace_mutations is the recoverable operation log for file

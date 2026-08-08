@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
@@ -11,8 +12,71 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
+// ClaimResume is the waiting-answer linearization point. Loading the exact
+// checkpoint, consuming the exact Pending value, and deleting that checkpoint
+// share one storage transaction. No executor operation occurs in this method.
+func (e *Effects) ClaimResume(
+	ctx context.Context,
+	claim runs.ResumeClaimCommit,
+) (runs.ClaimedResume, error) {
+	if e.tx == nil {
+		return runs.ClaimedResume{}, errors.New("runsegment: transactor is unavailable")
+	}
+	if e.resumeClaims == nil || e.executorCheckpoints == nil {
+		return runs.ClaimedResume{}, errors.New("runsegment: resume-claim persistence is unavailable")
+	}
+	if err := claim.Validate(); err != nil {
+		return runs.ClaimedResume{}, fmt.Errorf("runsegment: invalid resume claim: %w", err)
+	}
+	root, ok := claim.Expected.RootContinuation()
+	if !ok {
+		return runs.ClaimedResume{}, errors.New("runsegment: resume claim has no root continuation")
+	}
+	var checkpoint runs.ExecutorCheckpoint
+	err := e.runInTx(ctx, func(ctx context.Context) error {
+		loaded, err := e.executorCheckpoints.LoadCheckpoint(ctx, root.MemberID)
+		if err != nil {
+			return fmt.Errorf("runsegment: load claimed executor checkpoint: %w", err)
+		}
+		if err := loaded.ValidateOwnership(root.MemberID, claim.Expected.SessionID); err != nil {
+			return err
+		}
+		if loaded.ModelSelection != root.ModelSelection || loaded.Limits != root.Limits ||
+			loaded.Scope.GoalLeaseID != claim.Expected.GoalLeaseID {
+			return fmt.Errorf("%w: claimed checkpoint policy differs from Pending", runs.ErrInvalidExecutorCheckpoint)
+		}
+		consumed, found, err := e.resumeClaims.ClaimResume(
+			ctx, claim.Expected.SessionID, claim.Expected.RootRunID, claim.Answers, claim.ClaimedAt,
+		)
+		if err != nil {
+			return fmt.Errorf("runsegment: consume resume Pending: %w", err)
+		}
+		if !found {
+			return runs.ErrInterruptNotOpen
+		}
+		if !reflect.DeepEqual(consumed, claim.Expected) {
+			return errors.New("runsegment: waiting hand-off changed before answer claim")
+		}
+		if err := e.executorCheckpoints.DeleteCheckpoints(
+			ctx, claim.Expected.SessionID, []string{root.MemberID},
+		); err != nil {
+			return fmt.Errorf("runsegment: invalidate claimed executor checkpoint: %w", err)
+		}
+		checkpoint = loaded.Clone()
+		return nil
+	})
+	if err != nil {
+		return runs.ClaimedResume{}, err
+	}
+	return runs.ClaimedResume{
+		Pending: claim.Expected, Answers: append([]runs.InterruptAnswer(nil), claim.Answers...),
+		Checkpoint: checkpoint,
+	}, nil
+}
+
 // CommitOpening accepts one segment atomically. A fresh segment admits its Run;
-// a continuation consumes the open interrupt and resumes the existing Run. The
+// a continuation resumes the existing Runs after a prior ResumeClaim consumed
+// the waiting hand-off and invalidated its checkpoint. The
 // opening transcript projections land in that same transaction, so Start cannot
 // acknowledge a segment whose durable opening is missing.
 func (e *Effects) CommitOpening(ctx context.Context, opening runs.OpeningCommit) error {
@@ -56,7 +120,7 @@ func (e *Effects) CommitOpening(ctx context.Context, opening runs.OpeningCommit)
 				}
 			}
 		case opening.Resume != nil:
-			if err := e.consumeResume(ctx, *opening.Resume); err != nil {
+			if err := e.resumeTree(ctx, *opening.Resume); err != nil {
 				return err
 			}
 		}
@@ -71,7 +135,7 @@ func (e *Effects) CommitOpening(ctx context.Context, opening runs.OpeningCommit)
 
 // CommitEvent applies one run event's durable parts atomically (§8.3/§8.4): the
 // transcript item/run projections and the run-state transition in one
-// transaction. Tree suspension is deliberately excluded: it must use
+// transaction. A tree interruption is deliberately excluded: it must use
 // CommitTreeBarrier so no individual Run can publish a partial barrier.
 func (e *Effects) CommitEvent(ctx context.Context, commit runs.EventCommit) error {
 	if e.tx == nil {
@@ -98,6 +162,12 @@ func (e *Effects) CommitEvent(ctx context.Context, commit runs.EventCommit) erro
 		}
 		if err := e.executorCheckpoints.DeleteCheckpoints(ctx, commit.SessionID, []string{commit.ObsoleteCheckpointRootID}); err != nil {
 			return fmt.Errorf("runsegment: delete terminal executor checkpoint %q: %w", commit.ObsoleteCheckpointRootID, err)
+		}
+		if e.interrupts == nil {
+			return errors.New("runsegment: interrupt persistence is unavailable")
+		}
+		if err := e.interrupts.Delete(ctx, commit.SessionID, commit.RunID); err != nil {
+			return fmt.Errorf("runsegment: delete terminal interrupt for root Run %q: %w", commit.RunID, err)
 		}
 		return nil
 	})
@@ -270,52 +340,18 @@ func (e *Effects) applyCommit(ctx context.Context, commit runs.EventCommit) erro
 	return nil
 }
 
-func (e *Effects) consumeResume(ctx context.Context, resume run.TreeResumeDraft) error {
+func (e *Effects) resumeTree(ctx context.Context, resume run.TreeResumeDraft) error {
 	if err := resume.Validate(); err != nil {
 		return fmt.Errorf("runsegment: invalid tree resume: %w", err)
 	}
-	if e.interrupts == nil {
-		return errors.New("runsegment: interrupt persistence is unavailable")
-	}
-	pending, ok, err := e.interrupts.Consume(ctx, resume.SessionID, resume.RootRunID)
-	if err != nil {
-		return fmt.Errorf("runsegment: consume resume interrupt: %w", err)
-	}
-	if !ok {
-		return errors.New("runsegment: resume interrupt is no longer open")
-	}
-	if pending.SessionID != resume.SessionID {
-		return fmt.Errorf("runsegment: resume interrupt session mismatch: got %q want %q", pending.SessionID, resume.SessionID)
-	}
-	if pending.RootRunID != resume.RootRunID {
-		return fmt.Errorf(
-			"runsegment: consumed interrupt root mismatch: got %q want %q",
-			pending.RootRunID,
-			resume.RootRunID,
-		)
-	}
-	if err := pending.Validate(); err != nil {
-		return fmt.Errorf("runsegment: consumed invalid interrupt set: %w", err)
-	}
-	if len(pending.Continuations) != len(resume.Runs) {
-		return fmt.Errorf(
-			"runsegment: tree resume has %d Runs for %d continuations",
-			len(resume.Runs),
-			len(pending.Continuations),
-		)
-	}
-	for index, continuation := range pending.Continuations {
-		if resume.Runs[index].RunID != continuation.RunID {
-			return fmt.Errorf(
-				"runsegment: tree resume Run[%d] is %q, pending postorder requires %q",
-				index,
-				resume.Runs[index].RunID,
-				continuation.RunID,
-			)
-		}
-	}
 	if e.runState == nil {
 		return errors.New("runsegment: run-state persistence is unavailable")
+	}
+	if e.resumeClaims == nil {
+		return errors.New("runsegment: resume-claim persistence is unavailable")
+	}
+	if err := e.resumeClaims.RequireResumeClaim(ctx, resume.SessionID, resume.RootRunID); err != nil {
+		return fmt.Errorf("runsegment: require accepted answer claim: %w", err)
 	}
 	for _, run := range resume.Runs {
 		if err := e.runState.Resume(ctx, resume.SessionID, run, resume.ResumedAt); err != nil {

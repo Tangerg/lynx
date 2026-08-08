@@ -5,6 +5,7 @@ import (
 	"errors"
 	"iter"
 	"runtime"
+	"slices"
 	"testing"
 	"time"
 
@@ -29,6 +30,7 @@ type fakeRunSessions struct {
 	canceledAt    time.Time
 	lostRunID     string
 	lostAt        time.Time
+	lostErr       error
 	operations    *[]string
 }
 
@@ -107,6 +109,9 @@ func (f *fakeRunSessions) ApplyRunLost(_ context.Context, _ string, runID string
 	if f.operations != nil {
 		*f.operations = append(*f.operations, "durable.lost")
 	}
+	if f.lostErr != nil {
+		return f.lostErr
+	}
 	f.lostRunID = runID
 	f.lostAt = finishedAt
 	delete(f.pending, runID)
@@ -174,11 +179,51 @@ func (f *fakeExecutionPorts) BeginRoot(context.Context, ExecutorRef) error {
 	return nil
 }
 
+func (f *fakeExecutionPorts) StageContinuation(_ context.Context, continuation WaitingContinuation) (ExecutorRef, error) {
+	f.rehydrateReq = RehydrateExecution{
+		SessionID: continuation.SessionID, ExecutorID: continuation.ExecutorID,
+		MemberID: continuation.Checkpoint.RootMemberID, RootRunID: continuation.RootRunID,
+		ChildRuns: continuation.ChildRuns, ModelSelection: continuation.Checkpoint.ModelSelection,
+		CWD: continuation.Checkpoint.Scope.CWD, WorkspaceCWD: continuation.Checkpoint.Scope.WorkspaceCWD,
+		Isolated:    continuation.Checkpoint.Scope.Isolated,
+		GoalLeaseID: continuation.Checkpoint.Scope.GoalLeaseID, Limits: continuation.Checkpoint.Limits,
+		ChildRunAdmissionEnabled: continuation.ChildRunAdmissionEnabled,
+	}
+	if f.prepareErr != nil {
+		if !errors.Is(f.prepareErr, ErrExecutorNotLive) {
+			return ExecutorRef{}, f.prepareErr
+		}
+	}
+	if f.rehydrateErr != nil {
+		return ExecutorRef{}, f.rehydrateErr
+	}
+	if f.prepared != (ExecutorRef{}) {
+		return f.prepared, nil
+	}
+	if f.rehydrated != (ExecutorRef{}) {
+		return f.rehydrated, nil
+	}
+	return ExecutorRef{SessionID: continuation.SessionID, ExecutorID: continuation.ExecutorID}, nil
+}
+
+func (f *fakeExecutionPorts) BeginContinuation(
+	context.Context,
+	ExecutorRef,
+	[]InterruptAnswer,
+	[]interrupt.Kind,
+) error {
+	if f.resumeCheck != nil {
+		f.resumeCheck()
+	}
+	f.resumed = true
+	return nil
+}
+
 func (f *fakeExecutionPorts) ClaimWaiting(context.Context, ExecutorRef) (ExecutorRef, error) {
 	return f.prepared, f.prepareErr
 }
 
-func (f *fakeExecutionPorts) ResumeWaiting(context.Context, ExecutorRef, []SuspensionAnswer, []interrupt.Kind) error {
+func (f *fakeExecutionPorts) ResumeWaiting(context.Context, ExecutorRef, []InterruptAnswer, []interrupt.Kind) error {
 	if f.resumeCheck != nil {
 		f.resumeCheck()
 	}
@@ -221,7 +266,7 @@ func (f *fakeExecutionPorts) PrepareWaitingSubtreeCancellation(
 	return f.prepareWaiting(ref, memberID)
 }
 
-func (f *fakeExecutionPorts) Steer(_ context.Context, ref ExecutorRef, input []transcript.ContentBlock) error {
+func (f *fakeExecutionPorts) SubmitSteer(_ context.Context, ref ExecutorRef, input []transcript.ContentBlock) error {
 	f.steered = append(f.steered, ref)
 	f.steerInput = append([]transcript.ContentBlock(nil), input...)
 	return nil
@@ -244,20 +289,21 @@ func newUseCaseCoordinator(exec ExecutionObserver, control *fakeExecutionPorts, 
 		}
 	}
 	deps := Dependencies{
-		RootStarts:   control,
-		Observations: exec,
-		Releases:     control,
-		Conversation: emptyConversationReader{},
-		Continuation: control,
-		Steering:     control,
-		RunningTrees: control,
-		WaitingTrees: control,
-		Session:      testSessionPorts(sessions),
-		Projection:   testProjectionPorts(effects),
-		Runs:         projection,
-		Now:          func() time.Time { return time.Date(2026, 7, 13, 1, 2, 3, 0, time.UTC) },
-		NewRunID:     func() string { return "run_new" },
-		NewSegmentID: func() string { return "seg_new" },
+		RootStarts:    control,
+		Observations:  exec,
+		Releases:      control,
+		Conversation:  emptyConversationReader{},
+		Continuation:  control,
+		LegacyWaiting: control,
+		Steering:      control,
+		RunningTrees:  control,
+		WaitingTrees:  control,
+		Session:       testSessionPorts(sessions),
+		Projection:    testProjectionPorts(effects),
+		Runs:          projection,
+		Now:           func() time.Time { return time.Date(2026, 7, 13, 1, 2, 3, 0, time.UTC) },
+		NewRunID:      func() string { return "run_new" },
+		NewSegmentID:  func() string { return "seg_new" },
 	}
 	deps.Admissions = new(admission.Gate)
 	return NewCoordinator(deps)
@@ -794,6 +840,202 @@ func TestResumeRecoversLostExecutorStateBeforeReturning(t *testing.T) {
 	}
 }
 
+func TestResumeOpeningFailureMarksClaimedRunLostBeforeReleasingTree(t *testing.T) {
+	var operations []string
+	openingErr := errors.New("opening commit failed")
+	sessions := &fakeRunSessions{
+		sess: session.Session{ID: "ses_1", CWD: "/work"},
+		pending: map[string]Pending{
+			"run_1": testPendingInterrupt("item_1", "member_1", time.Now().UTC()),
+		},
+		operations: &operations,
+	}
+	control := &fakeExecutionPorts{
+		prepared:   ExecutorRef{SessionID: "ses_1", ExecutorID: "turn_1"},
+		operations: &operations,
+	}
+	coordinator := newUseCaseCoordinator(
+		&fakeExecutor{},
+		control,
+		sessions,
+		&fakeEffects{openingErr: openingErr},
+	)
+
+	_, err := coordinator.Resume(t.Context(), ResumeCommand{
+		RunID: "run_1",
+		CallerCapabilities: run.RunCapabilities{
+			InterruptKinds: []interrupt.Kind{interrupt.Approval},
+		},
+		Responses: []ResumeResponse{{
+			ItemID: "item_1", Kind: ApprovalResponseKind,
+			Approval: &ApprovalResponse{Approved: true},
+		}},
+	})
+	if !errors.Is(err, ErrRunNotFound) || !errors.Is(err, openingErr) {
+		t.Fatalf("Resume error = %v, want Run not found wrapping opening failure", err)
+	}
+	if control.resumed {
+		t.Fatal("failed opening submitted the semantic answer")
+	}
+	if sessions.lostRunID != "run_1" || len(control.released) != 1 {
+		t.Fatalf("lost Run/released tree = %q/%+v, want run_1 and one release", sessions.lostRunID, control.released)
+	}
+	if !slices.Equal(operations, []string{"durable.lost", "executor.release"}) {
+		t.Fatalf("cleanup operations = %v, want durable.lost then executor.release", operations)
+	}
+}
+
+func TestResumeRejectsClaimResultDriftBeforeStagingAndMarksRunLost(t *testing.T) {
+	for _, test := range []struct {
+		name   string
+		mutate func(*ClaimedResume)
+	}{
+		{
+			name: "Pending",
+			mutate: func(claimed *ClaimedResume) {
+				claimed.Pending.ExecutorID = "exec_foreign"
+			},
+		},
+		{
+			name: "answer",
+			mutate: func(claimed *ClaimedResume) {
+				claimed.Answers[0].Resolution.Approved = false
+			},
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			var operations []string
+			sessions := &fakeRunSessions{
+				sess: session.Session{ID: "ses_1", CWD: "/work"},
+				pending: map[string]Pending{
+					"run_1": testPendingInterrupt("item_1", "member_1", time.Now().UTC()),
+				},
+				operations: &operations,
+			}
+			control := &fakeExecutionPorts{
+				prepared: ExecutorRef{SessionID: "ses_1", ExecutorID: "turn_1"},
+			}
+			coordinator := newUseCaseCoordinator(
+				&fakeExecutor{},
+				control,
+				sessions,
+				&fakeEffects{mutateClaim: test.mutate},
+			)
+
+			_, err := coordinator.Resume(t.Context(), ResumeCommand{
+				RunID: "run_1",
+				CallerCapabilities: run.RunCapabilities{
+					InterruptKinds: []interrupt.Kind{interrupt.Approval},
+				},
+				Responses: []ResumeResponse{{
+					ItemID: "item_1", Kind: ApprovalResponseKind,
+					Approval: &ApprovalResponse{Approved: true},
+				}},
+			})
+			if !errors.Is(err, ErrRunNotFound) {
+				t.Fatalf("Resume error = %v, want Run not found", err)
+			}
+			if control.rehydrateReq.ExecutorID != "" || control.resumed || len(control.released) != 0 {
+				t.Fatalf("claim drift reached executor: %+v", control)
+			}
+			if sessions.lostRunID != "run_1" || !slices.Equal(operations, []string{"durable.lost"}) {
+				t.Fatalf("lost recovery = %q operations=%v", sessions.lostRunID, operations)
+			}
+		})
+	}
+}
+
+func TestResumeOpeningFailureKeepsTreeWhenRunLostCommitFails(t *testing.T) {
+	var operations []string
+	openingErr := errors.New("opening commit failed")
+	lostErr := errors.New("RunLost commit failed")
+	sessions := &fakeRunSessions{
+		sess: session.Session{ID: "ses_1", CWD: "/work"},
+		pending: map[string]Pending{
+			"run_1": testPendingInterrupt("item_1", "member_1", time.Now().UTC()),
+		},
+		lostErr:    lostErr,
+		operations: &operations,
+	}
+	control := &fakeExecutionPorts{
+		prepared:   ExecutorRef{SessionID: "ses_1", ExecutorID: "turn_1"},
+		operations: &operations,
+	}
+	coordinator := newUseCaseCoordinator(
+		&fakeExecutor{},
+		control,
+		sessions,
+		&fakeEffects{openingErr: openingErr},
+	)
+
+	_, err := coordinator.Resume(t.Context(), ResumeCommand{
+		RunID: "run_1",
+		CallerCapabilities: run.RunCapabilities{
+			InterruptKinds: []interrupt.Kind{interrupt.Approval},
+		},
+		Responses: []ResumeResponse{{
+			ItemID: "item_1", Kind: ApprovalResponseKind,
+			Approval: &ApprovalResponse{Approved: true},
+		}},
+	})
+	if !errors.Is(err, openingErr) || !errors.Is(err, lostErr) {
+		t.Fatalf("Resume error = %v, want opening and RunLost failures", err)
+	}
+	if len(control.released) != 0 {
+		t.Fatalf("released tree = %+v before durable RunLost", control.released)
+	}
+	if !slices.Equal(operations, []string{"durable.lost"}) {
+		t.Fatalf("cleanup operations = %v, want only failed durable attempt", operations)
+	}
+	if _, found := sessions.pending["run_1"]; !found {
+		t.Fatal("failed RunLost commit removed the durable interrupt")
+	}
+}
+
+func TestResumeOpeningFailureReportsReleaseAfterDurableRunLost(t *testing.T) {
+	var operations []string
+	openingErr := errors.New("opening commit failed")
+	releaseErr := errors.New("tree release failed")
+	sessions := &fakeRunSessions{
+		sess: session.Session{ID: "ses_1", CWD: "/work"},
+		pending: map[string]Pending{
+			"run_1": testPendingInterrupt("item_1", "member_1", time.Now().UTC()),
+		},
+		operations: &operations,
+	}
+	control := &fakeExecutionPorts{
+		prepared:   ExecutorRef{SessionID: "ses_1", ExecutorID: "turn_1"},
+		operations: &operations,
+		releaseErr: releaseErr,
+	}
+	coordinator := newUseCaseCoordinator(
+		&fakeExecutor{},
+		control,
+		sessions,
+		&fakeEffects{openingErr: openingErr},
+	)
+
+	_, err := coordinator.Resume(t.Context(), ResumeCommand{
+		RunID: "run_1",
+		CallerCapabilities: run.RunCapabilities{
+			InterruptKinds: []interrupt.Kind{interrupt.Approval},
+		},
+		Responses: []ResumeResponse{{
+			ItemID: "item_1", Kind: ApprovalResponseKind,
+			Approval: &ApprovalResponse{Approved: true},
+		}},
+	})
+	if !errors.Is(err, ErrRunNotFound) || !errors.Is(err, openingErr) || !errors.Is(err, releaseErr) {
+		t.Fatalf("Resume error = %v, want lost opening plus release failure", err)
+	}
+	if sessions.lostRunID != "run_1" || len(control.released) != 1 {
+		t.Fatalf("lost Run/release attempts = %q/%+v, want run_1 and one attempt", sessions.lostRunID, control.released)
+	}
+	if !slices.Equal(operations, []string{"durable.lost", "executor.release"}) {
+		t.Fatalf("cleanup operations = %v, want durable.lost then executor.release", operations)
+	}
+}
+
 func TestResumeRehydrateRestoresChildSourceProjection(t *testing.T) {
 	createdAt := time.Date(2026, 7, 30, 12, 0, 0, 0, time.UTC)
 	pending := resumedTreePending(createdAt)
@@ -966,10 +1208,10 @@ func testPendingInterrupt(itemID, memberID string, runCreatedAt time.Time) Pendi
 		Capabilities: run.RunCapabilities{
 			InterruptKinds: []interrupt.Kind{interrupt.Approval},
 		},
-		Suspensions: []SuspensionBinding{{
+		Bindings: []InterruptBinding{{
 			InterruptItemID: itemID,
 			MemberID:        memberID,
-			SuspensionID:    "suspension_1",
+			RequestID:       "request_1",
 		}},
 		Continuations: []Continuation{{
 			RunID:        "run_1",
@@ -1437,8 +1679,8 @@ func TestCancelLetsCommittedInterruptOwnDurableFirstTeardown(t *testing.T) {
 			CallID: "call_1", ToolName: "shell", Arguments: `{"command":"pwd","description":"Print the working directory"}`,
 			SafetyClass: "write",
 		},
-		TreeInterrupted{Checkpoint: testExecutorCheckpoint(), Suspensions: []MemberInterruption{{
-			MemberID: "member_root", SuspensionID: "suspension_1",
+		TreeInterrupted{Checkpoint: testExecutorCheckpoint(), Interruptions: []MemberInterruption{{
+			MemberID: "member_root", RequestID: "request_1",
 			Interrupt: Interrupt{
 				Kind: interrupt.Approval,
 				Approval: &ApprovalPrompt{

@@ -88,10 +88,10 @@ func bootstrapPending(
 			Kind:     interrupt.Question,
 			Question: question,
 		}},
-		Suspensions: []runsapp.SuspensionBinding{{
+		Bindings: []runsapp.InterruptBinding{{
 			InterruptItemID: itemID,
 			MemberID:        processID,
-			SuspensionID:    "suspension-" + processID,
+			RequestID:       "suspension-" + processID,
 		}},
 		Continuations: []runsapp.Continuation{{
 			RunID:        runID,

@@ -185,7 +185,7 @@ func samePendingSnapshot(left, right runs.Pending) bool {
 
 func normalizePendingSnapshot(pending runs.Pending) runs.Pending {
 	pending.Interrupts = slices.Clone(pending.Interrupts)
-	pending.Suspensions = slices.Clone(pending.Suspensions)
+	pending.Bindings = slices.Clone(pending.Bindings)
 	pending.Continuations = slices.Clone(pending.Continuations)
 	pending.CreatedAt = timeFromUnixNano(pending.CreatedAt)
 	pending.Capabilities = normalizeCapabilities(pending.Capabilities)

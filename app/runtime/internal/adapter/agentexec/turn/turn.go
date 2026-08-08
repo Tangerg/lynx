@@ -214,8 +214,8 @@ func (s *controller) emitInterrupt(
 		return
 	}
 	barrier := runs.TreeInterrupted{
-		Checkpoint:  checkpoint.Checkpoint,
-		Suspensions: make([]runs.MemberInterruption, len(pending)),
+		Checkpoint:    checkpoint.Checkpoint,
+		Interruptions: make([]runs.MemberInterruption, len(pending)),
 	}
 	for index, suspension := range pending {
 		interrupt, ok := typedInterrupt(suspension.Prompt)
@@ -233,10 +233,10 @@ func (s *controller) emitInterrupt(
 			return
 		}
 		recordInterruptMetric(st.ctx, interrupt.Kind.String())
-		barrier.Suspensions[index] = runs.MemberInterruption{
-			MemberID:     suspension.ProcessID,
-			SuspensionID: suspension.SuspensionID,
-			Interrupt:    interrupt,
+		barrier.Interruptions[index] = runs.MemberInterruption{
+			MemberID:  suspension.ProcessID,
+			RequestID: suspension.SuspensionID,
+			Interrupt: interrupt,
 		}
 	}
 	if !s.emitProcessEvent(st, agentexec.ProcessRef{ID: process.ID()}, barrier) {

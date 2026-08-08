@@ -40,13 +40,14 @@ type RecoveryCommit struct {
 	LostRuns                   []transcript.Run
 	ItemReplacements           []ItemReplacement
 	GoalRuns                   []goal.RunRecord
-	DeletePending              []PendingDeletion
+	DeleteInterrupts           []InterruptOwner
 	PreservedCheckpointRootIDs []string
 }
 
-// PendingDeletion is the owner-bound identity of one stale barrier removed by
-// boot recovery. A root Run ID alone is not mutation authority.
-type PendingDeletion struct {
+// InterruptOwner is the complete mutation authority for one root-owned
+// interrupt record. Recovery names every lost root, including a record hidden
+// in the resuming state after an answer claim; storage deletion is idempotent.
+type InterruptOwner struct {
 	SessionID string
 	RootRunID string
 }
@@ -177,6 +178,10 @@ func (r *Recovery) Reconcile(ctx context.Context) (int, error) {
 		}
 		commit.LostRuns = append(commit.LostRuns, lostRuns...)
 		commit.ItemReplacements = append(commit.ItemReplacements, replacements...)
+		commit.DeleteInterrupts = append(commit.DeleteInterrupts, InterruptOwner{
+			SessionID: tree.root.SessionID,
+			RootRunID: tree.root.ID,
+		})
 		if tree.root.GoalLeaseID != "" {
 			lostRoot := lostRuns[len(lostRuns)-1]
 			if lostRoot.ID != tree.root.ID || lostRoot.Outcome == nil {
@@ -204,12 +209,8 @@ func (r *Recovery) Reconcile(ctx context.Context) (int, error) {
 			commit.PreservedCheckpointRootIDs = append(commit.PreservedCheckpointRootIDs, root.MemberID)
 			continue
 		}
-		commit.DeletePending = append(commit.DeletePending, PendingDeletion{
-			SessionID: open.SessionID,
-			RootRunID: open.RootRunID,
-		})
 	}
-	slices.SortFunc(commit.DeletePending, func(left, right PendingDeletion) int {
+	slices.SortFunc(commit.DeleteInterrupts, func(left, right InterruptOwner) int {
 		if bySession := strings.Compare(left.SessionID, right.SessionID); bySession != 0 {
 			return bySession
 		}

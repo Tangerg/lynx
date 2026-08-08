@@ -241,7 +241,7 @@
 
 ## ADR-RT-039：初版不启用单 Process prepared-step durability acknowledgment
 
-- 状态：已接受。
+- 状态：已接受，P6 已实施并验证。
 - 背景：Agent2 `PreparedStepAcknowledger` 只提供一个 Process `Snapshot`，而包含 child relation/child wait 的树只能从完整 `TreeSnapshot` 恢复。Runtime 无权拼接 Agent2 private tree wire。
 - 决策：初版 EngineConfig 不配置 acknowledger。Runtime 只承诺从 Application 已原子提交的 quiescent complete-tree checkpoint 恢复；active tree/step 在进程崩溃且没有该边界时以 `RunLost` 收口。
 - 后果：不宣称 Effect-level crash durability。未来只有 Agent2 先提供中性 tree-wide durability contract，且产品有真实 pre-dispatch crash recovery 需求时才启用；Framework 仍不取得 Runtime Store/transaction。
@@ -271,9 +271,10 @@
 
 ## ADR-RT-043：回答 waiting Interrupt 会原子作废旧恢复点
 
-- 状态：已接受。
-- 决策：Application 在同一事务中 claim answer、记录答案，并把旧 waiting checkpoint 标记为 `Resuming`/不可自动恢复；只有事务成功后才 RestoreTree 并提交 semantic Signal。从该线性化点到下一个 quiescent checkpoint 提交前，进程崩溃一律 `RunLost`，不能再次恢复旧 snapshot 重放 answer 或 Effect。
-- 后果：claim 前崩溃仍可使用 waiting checkpoint；claim 后、restore 后、Signal accepted 后的崩溃都不能回退。新 checkpoint 提交后恢复能力重新建立。P6 必须覆盖全部 crash points。
+- 状态：已接受，P6 已实施并验证。
+- 决策：Application 在同一事务中 claim exact answer set、把 interrupt row 变为普通读取不可见的 `resuming`，并删除旧 waiting checkpoint。事务成功后 agentexec 才 stage exact live tree 或 `RestoreTree`；Application 的 next-Segment opening transaction 必须再次证明该 root 存在 durable claim，commit 成功后才提交 WaitID-addressed semantic Signal。从 claim 线性化点到下一个 quiescent checkpoint 提交前，进程崩溃一律 `RunLost`，不能再次恢复旧 snapshot 重放 answer 或 Effect。
+- 决策：`resuming` row 保留答案审计和 crash diagnosis，下一 waiting barrier 只能由相同 Session/executor/root-member owner 原子替换，terminal/recovery 删除。claim 后、opening 前任一 validation/restore/observe/opening failure 先 durable `RunLost` 再 release live tree；若 terminal write 失败则保持 tree 与 hidden claim，不能先假装清理。
+- 后果：claim 前崩溃仍可使用 waiting checkpoint；claim 后、restore 后、Signal accepted 后的崩溃都不能回退。新 checkpoint 提交后恢复能力重新建立。P6 已覆盖 claim transaction rollback、hidden answer audit、boot loss、post-claim fail-before-release 与 next-barrier replacement。
 
 ## ADR-RT-044：Interrupt 纯语义与 pending continuation envelope 分层
 
@@ -304,3 +305,11 @@
 - 决策：SQLite model/tool invocation journal 只记录 operational attempt state，不复制 final assistant message、Tool result 或 Run accounting。Model final + cumulative usage/pricing + Run progress 在一个 Application write-set 中提交。Tool start 只进入 invocation journal；Tool final Item 按 `(modelCallSequence, toolCallIndex)` 排序，Run pump 暂存乱序 completion，只提交最长连续前缀并一起完成该前缀所有 receipt。
 - 决策：canonical Tool batch 任一写失败，speculative completion 全部丢弃，started journal 保留；outer Dispatcher 将整个 Effect 标为 unknown，Application 原子提交 incomplete Items 与 `RunLost`。稳定 Runtime call identity、provider source-call identity和模型位置分别保存，不能互相解析或替代。
 - 后果：Transcript insertion order 重新只表达产品语义；并发 Tool 不需要全局串行化。SQLite shape 直接提升到 epoch 61，无 migration、dual journal 或兼容列；P8 切生产前仍可按真实 consumer 修订内部 port 名称，但不能重新合并 operational 与 semantic truth。
+
+## ADR-RT-048：Native waiting 只经 Interaction pending-input ACL，不兼容解释旧 suspension
+
+- 状态：已接受，P6 已实施。
+- 背景：产品 ask-user、approval 和 plan-exit 共享 `runs.Interrupt` 语义，但旧生产 owner 使用 old Agent suspension。若 native Interaction 复用旧 package、双读 old private JSON，或让 Toolset import Agent2，就会把迁移兼容性变成新的永久边界。
+- 决策：framework-neutral `interruptcodec` 只编码产品 prompt/resolution；`interactioninput` 是唯一 Agent2 ACL，负责 capability freeze、Tool continuation state digest、public pending input 和 response Signal。旧 `suspension` adapter 只复用 product codec 并保留在 P8 精确删除台账，新 Interaction files 对旧 Agent import 为零；Toolset 通过 `runs.InterruptFunc` 注入 native capability，保持对两个 Framework 都零依赖。
+- 决策：Interactive approval 首次进入时冻结 effective arguments、policy prompt 与 logical call identity；restore 直接解析该 prompt 并 resolve，不能重跑 pre-hook/authorization plan。Interaction 自己的 deferred advertisement 留在 TreeSnapshot 内，Runtime 不建第二份 advertised-tool 状态。
+- 后果：真实 `ask_user`、approval restore、deferred advertisement、corrupt prompt/state 与 capability mismatch 可分别测试；P8 删除旧 owner 时只换 composition owner，不需要迁移产品 Interrupt 或 Tool schema。

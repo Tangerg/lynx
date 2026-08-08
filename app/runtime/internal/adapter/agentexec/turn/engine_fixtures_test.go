@@ -26,11 +26,11 @@ func answersForBarrier(
 	barrier runs.TreeInterrupted,
 	resolution interrupt.Resolution,
 ) []agentexec.SuspensionAnswer {
-	answers := make([]agentexec.SuspensionAnswer, len(barrier.Suspensions))
-	for index, boundary := range barrier.Suspensions {
+	answers := make([]agentexec.SuspensionAnswer, len(barrier.Interruptions))
+	for index, boundary := range barrier.Interruptions {
 		answers[index] = agentexec.SuspensionAnswer{
 			ProcessID:    boundary.MemberID,
-			SuspensionID: boundary.SuspensionID,
+			SuspensionID: boundary.RequestID,
 			Resolution:   resolution,
 		}
 	}

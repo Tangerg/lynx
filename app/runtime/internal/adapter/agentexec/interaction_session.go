@@ -1,6 +1,7 @@
 package agentexec
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"errors"
@@ -10,13 +11,17 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 
 	agent "github.com/Tangerg/lynx/agent2"
 	"github.com/Tangerg/lynx/agent2/interaction"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/interactioninput"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/executionctx"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/accounting"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
@@ -33,13 +38,19 @@ type interactionSession struct {
 	done        chan struct{}
 	releasing   chan struct{}
 	unknownWake chan struct{}
+	stateWake   chan struct{}
 
 	mu                  sync.Mutex
+	steerMu             sync.Mutex
+	pendingSteers       []pendingInteractionSteer
 	process             *agent.Process
 	admittedProcessID   agent.ProcessID
 	observerWasAttached bool
 	begun               bool
 	finished            bool
+	waitingPublished    bool
+	continuationStaged  bool
+	waitingCheckpoint   runs.ExecutorCheckpoint
 	releaseOnce         sync.Once
 	finishOnce          sync.Once
 	workers             sync.WaitGroup
@@ -48,10 +59,18 @@ type interactionSession struct {
 	fallbackModel       string
 	pricing             accounting.Pricing
 	unknownPollInterval time.Duration
+	statePollInterval   time.Duration
+	buildID             string
+	start               runs.RootExecutionStart
 	unknownReported     bool
 	toolOutcomeKey      string
 	toolOutcomeDigest   [sha256.Size]byte
 	toolOutcomeRepeats  int
+}
+
+type pendingInteractionSteer struct {
+	content  []transcript.ContentBlock
+	accepted bool
 }
 
 func (session *interactionSession) repeatedToolOutcome(toolName string, arguments tool.Arguments) int {
@@ -101,19 +120,30 @@ func newInteractionSession(
 		ref: ref, scope: rootExecutionScope(start), events: make(chan runs.ExecutorEvent, interactionEventBuffer),
 		done: make(chan struct{}), releasing: make(chan struct{}),
 		unknownWake: make(chan struct{}, 1), usageByModel: make(map[string]accounting.ModelUsage),
-		provider: provider, fallbackModel: start.ModelSelection.Model(), pricing: config.Pricing,
+		stateWake: make(chan struct{}, 1),
+		provider:  provider, fallbackModel: start.ModelSelection.Model(), pricing: config.Pricing,
 		unknownPollInterval: config.UnknownEffectPollInterval,
+		statePollInterval:   config.StatePollInterval, buildID: config.BuildID, start: start,
 	}
 }
 
 func (session *interactionSession) attachObserver() bool {
 	session.mu.Lock()
 	defer session.mu.Unlock()
-	if session.observerWasAttached || session.begun || session.finished {
+	if session.observerWasAttached || session.finished {
+		return false
+	}
+	if session.begun && !session.continuationStaged {
 		return false
 	}
 	session.observerWasAttached = true
 	return true
+}
+
+func (session *interactionSession) detachObserver() {
+	session.mu.Lock()
+	session.observerWasAttached = false
+	session.mu.Unlock()
 }
 
 func (session *interactionSession) observerAttached() bool {
@@ -138,8 +168,98 @@ func (session *interactionSession) setProcess(process *agent.Process) {
 	session.mu.Unlock()
 }
 
+func (session *interactionSession) initializeRestoredContinuation(
+	process *agent.Process,
+	checkpoint runs.ExecutorCheckpoint,
+) error {
+	if process == nil || process.Status() != agent.StatusWaiting {
+		return fmt.Errorf("%w: restored Interaction is not waiting", runs.ErrExecutorStateLost)
+	}
+	usageByModel := make(map[string]accounting.ModelUsage, len(checkpoint.Usage.Models))
+	for _, usage := range checkpoint.Usage.Models {
+		usageByModel[usage.Model] = usage
+	}
+	session.mu.Lock()
+	defer session.mu.Unlock()
+	if session.begun || session.finished || session.process != nil {
+		return runs.ErrExecutionClaimed
+	}
+	session.process = process
+	session.admittedProcessID = process.ID()
+	session.begun = true
+	session.waitingPublished = true
+	session.continuationStaged = true
+	session.waitingCheckpoint = checkpoint.Clone()
+	session.usageByModel = usageByModel
+	return nil
+}
+
+func (session *interactionSession) processHandle() *agent.Process {
+	session.mu.Lock()
+	defer session.mu.Unlock()
+	return session.process
+}
+
+func (session *interactionSession) submitSteer(
+	ctx context.Context,
+	message corechat.Message,
+	content []transcript.ContentBlock,
+) error {
+	process := session.processHandle()
+	if process == nil {
+		return runs.ErrExecutorNotLive
+	}
+	signalID, err := agent.ParseSignalID("steer:" + uuid.NewString())
+	if err != nil {
+		return fmt.Errorf("agentexec: construct Interaction steer identity: %w", err)
+	}
+	signal, err := interaction.NewSteerSignal(signalID, message)
+	if err != nil {
+		return fmt.Errorf("agentexec: construct Interaction steer Signal: %w", err)
+	}
+	session.steerMu.Lock()
+	session.pendingSteers = append(session.pendingSteers, pendingInteractionSteer{
+		content: transcript.CloneContent(content),
+	})
+	accepted, deliverErr := process.DeliverSignal(executionctx.WithScope(ctx, session.scope), signal)
+	if deliverErr != nil || !accepted {
+		session.pendingSteers = session.pendingSteers[:len(session.pendingSteers)-1]
+		session.steerMu.Unlock()
+		if deliverErr != nil {
+			return fmt.Errorf("agentexec: deliver Interaction steer Signal: %w", deliverErr)
+		}
+		return errors.New("agentexec: Interaction steer Signal was not accepted")
+	}
+	session.pendingSteers[len(session.pendingSteers)-1].accepted = true
+	session.steerMu.Unlock()
+	return nil
+}
+
+func (session *interactionSession) commitPendingSteers(
+	ctx context.Context,
+	member runs.ExecutorMember,
+) error {
+	session.steerMu.Lock()
+	count := 0
+	for count < len(session.pendingSteers) && session.pendingSteers[count].accepted {
+		count++
+	}
+	pending := append([]pendingInteractionSteer(nil), session.pendingSteers[:count]...)
+	session.pendingSteers = session.pendingSteers[count:]
+	session.steerMu.Unlock()
+	for index, steer := range pending {
+		if err := session.commitFact(ctx, member, runs.SteerMessage{Content: steer.content}); err != nil {
+			session.steerMu.Lock()
+			session.pendingSteers = append(pending[index:], session.pendingSteers...)
+			session.steerMu.Unlock()
+			return fmt.Errorf("agentexec: commit accepted Interaction steer: %w", err)
+		}
+	}
+	return nil
+}
+
 func (session *interactionSession) startWorkers() {
-	session.workers.Add(2)
+	session.workers.Add(3)
 	go func() {
 		defer session.workers.Done()
 		session.await()
@@ -147,6 +267,10 @@ func (session *interactionSession) startWorkers() {
 	go func() {
 		defer session.workers.Done()
 		session.reconcileUnknownEffects()
+	}()
+	go func() {
+		defer session.workers.Done()
+		session.reconcileExecutionState()
 	}()
 }
 
@@ -208,6 +332,25 @@ func (session *interactionSession) projectDelta(ctx context.Context, delta agent
 	}
 }
 
+func (session *interactionSession) observeFrameworkEvent(_ context.Context, event agent.Event) {
+	if event.Relation().RootID() != session.processRootID() {
+		return
+	}
+	select {
+	case session.stateWake <- struct{}{}:
+	default:
+	}
+}
+
+func (session *interactionSession) processRootID() agent.ProcessID {
+	session.mu.Lock()
+	defer session.mu.Unlock()
+	if session.process == nil {
+		return agent.ProcessID{}
+	}
+	return session.process.Relation().RootID()
+}
+
 func (session *interactionSession) offer(event runs.ExecutorEvent) bool {
 	select {
 	case session.events <- event:
@@ -260,6 +403,148 @@ func (session *interactionSession) reconcileUnknownEffects() {
 			return
 		}
 	}
+}
+
+func (session *interactionSession) reconcileExecutionState() {
+	ticker := time.NewTicker(session.statePollInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-session.stateWake:
+		case <-ticker.C:
+		case <-session.done:
+			return
+		case <-session.releasing:
+			return
+		}
+		if session.publishWaitingBoundary() {
+			continue
+		}
+	}
+}
+
+func (session *interactionSession) publishWaitingBoundary() bool {
+	session.mu.Lock()
+	process := session.process
+	if process == nil || session.finished || session.waitingPublished || session.continuationStaged {
+		session.mu.Unlock()
+		return false
+	}
+	session.mu.Unlock()
+	if process.Status() != agent.StatusWaiting {
+		return false
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), authoritativeProjectionTimeout)
+	defer cancel()
+	pending, found, err := interaction.PendingToolInputFromProcess(ctx, process)
+	if err != nil || !found {
+		if err != nil {
+			session.publishProjectionFailure(err)
+		}
+		return false
+	}
+	prompt, err := interactioninput.DecodePrompt(pending.Prompt())
+	if err != nil {
+		session.publishProjectionFailure(err)
+		return false
+	}
+	snapshot, err := session.engine.CaptureTree(ctx, process.Relation().RootID())
+	if err != nil {
+		session.publishProjectionFailure(err)
+		return false
+	}
+	checkpoint := runs.ExecutorCheckpoint{
+		RootMemberID: process.Relation().RootID().String(), Payload: snapshot.JSON(),
+		BuildID: session.buildID, Scope: session.scope,
+		ModelSelection: session.start.ModelSelection, Limits: session.start.Limits,
+		Usage: session.accountingSnapshot(),
+	}
+	if err := checkpoint.Validate(); err != nil {
+		session.publishProjectionFailure(err)
+		return false
+	}
+	session.mu.Lock()
+	if session.finished || session.waitingPublished || session.continuationStaged ||
+		session.process != process || process.Status() != agent.StatusWaiting {
+		session.mu.Unlock()
+		return false
+	}
+	session.waitingPublished = true
+	session.waitingCheckpoint = checkpoint.Clone()
+	session.mu.Unlock()
+	return session.send(runs.ExecutorEvent{
+		Member: runs.ExecutorMember{MemberID: process.ID().String()},
+		Payload: runs.TreeInterrupted{
+			Checkpoint: checkpoint,
+			Interruptions: []runs.MemberInterruption{{
+				MemberID: process.ID().String(), RequestID: pending.WaitID().String(), Interrupt: prompt,
+			}},
+		},
+	})
+}
+
+func (session *interactionSession) stageContinuation(checkpoint runs.ExecutorCheckpoint) error {
+	if err := checkpoint.Validate(); err != nil {
+		return err
+	}
+	session.mu.Lock()
+	defer session.mu.Unlock()
+	if session.finished || session.process == nil {
+		return runs.ErrExecutorNotLive
+	}
+	if !session.waitingPublished || session.continuationStaged || session.observerWasAttached ||
+		session.process.Status() != agent.StatusWaiting {
+		return runs.ErrExecutionClaimed
+	}
+	if !executorCheckpointsEqual(session.waitingCheckpoint, checkpoint) {
+		return fmt.Errorf("%w: live Interaction checkpoint differs from the claimed waiting boundary", runs.ErrInvalidExecutorCheckpoint)
+	}
+	session.continuationStaged = true
+	return nil
+}
+
+func (session *interactionSession) beginContinuation(allowedInterrupts []interrupt.Kind) error {
+	session.mu.Lock()
+	defer session.mu.Unlock()
+	if session.finished || session.process == nil {
+		return runs.ErrExecutorNotLive
+	}
+	if !session.continuationStaged || !session.observerWasAttached ||
+		session.process.Status() != agent.StatusWaiting {
+		return errors.New("agentexec: native Interaction continuation was not staged and observed")
+	}
+	if !slices.Equal(session.start.InterruptKinds, allowedInterrupts) {
+		return errors.New("agentexec: continuation capabilities differ from the staged Interaction")
+	}
+	return nil
+}
+
+func (session *interactionSession) continuationAccepted() {
+	session.mu.Lock()
+	session.continuationStaged = false
+	session.waitingPublished = false
+	session.waitingCheckpoint = runs.ExecutorCheckpoint{}
+	session.mu.Unlock()
+}
+
+func executorCheckpointsEqual(left, right runs.ExecutorCheckpoint) bool {
+	return left.RootMemberID == right.RootMemberID && left.BuildID == right.BuildID &&
+		left.Scope == right.Scope && left.ModelSelection == right.ModelSelection &&
+		left.Limits == right.Limits && slices.Equal(left.Usage.Models, right.Usage.Models) &&
+		bytes.Equal(left.Payload, right.Payload)
+}
+
+func (session *interactionSession) accountingSnapshot() accounting.Snapshot {
+	session.mu.Lock()
+	defer session.mu.Unlock()
+	models := make([]accounting.ModelUsage, 0, len(session.usageByModel))
+	for _, usage := range session.usageByModel {
+		models = append(models, usage)
+	}
+	slices.SortFunc(models, func(left, right accounting.ModelUsage) int {
+		return strings.Compare(left.Model, right.Model)
+	})
+	return accounting.Snapshot{Models: models}
 }
 
 func (session *interactionSession) reportUnknownEffects() bool {

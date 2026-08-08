@@ -125,6 +125,41 @@ func (e *Executor) BeginRoot(ctx context.Context, ref runs.ExecutorRef) error {
 	return mapControlError(e.controller.ActivateTurn(ctx, concreteHandle(ref)))
 }
 
+// StageContinuation adapts the answer-claim-owned checkpoint to the old
+// production executor without letting that executor reread persistence after
+// the claim invalidated the durable recovery point.
+func (e *Executor) StageContinuation(
+	ctx context.Context,
+	continuation runs.WaitingContinuation,
+) (runs.ExecutorRef, error) {
+	ref := runs.ExecutorRef{SessionID: continuation.SessionID, ExecutorID: continuation.ExecutorID}
+	if claimed, err := e.ClaimWaiting(ctx, ref); err == nil {
+		return claimed, nil
+	} else if !errors.Is(err, runs.ErrExecutorNotLive) {
+		return runs.ExecutorRef{}, err
+	}
+	checkpoint := continuation.Checkpoint.Clone()
+	return e.RestoreWaiting(ctx, runs.RehydrateExecution{
+		SessionID: continuation.SessionID, ExecutorID: continuation.ExecutorID,
+		MemberID: checkpoint.RootMemberID, RootRunID: continuation.RootRunID,
+		ChildRuns: continuation.ChildRuns, ModelSelection: checkpoint.ModelSelection,
+		CWD: checkpoint.Scope.CWD, WorkspaceCWD: checkpoint.Scope.WorkspaceCWD,
+		Isolated: checkpoint.Scope.Isolated, GoalLeaseID: checkpoint.Scope.GoalLeaseID,
+		Limits:                   checkpoint.Limits,
+		ChildRunAdmissionEnabled: continuation.ChildRunAdmissionEnabled,
+		Checkpoint:               &checkpoint,
+	})
+}
+
+func (e *Executor) BeginContinuation(
+	ctx context.Context,
+	ref runs.ExecutorRef,
+	answers []runs.InterruptAnswer,
+	allowedInterrupts []interrupt.Kind,
+) error {
+	return e.ResumeWaiting(ctx, ref, answers, allowedInterrupts)
+}
+
 // ClaimWaiting claims a process-local parked turn without delivering its decision.
 func (e *Executor) ClaimWaiting(ctx context.Context, ref runs.ExecutorRef) (runs.ExecutorRef, error) {
 	handle := concreteHandle(ref)
@@ -135,12 +170,12 @@ func (e *Executor) ClaimWaiting(ctx context.Context, ref runs.ExecutorRef) (runs
 }
 
 // ResumeWaiting activates an already-attached continuation.
-func (e *Executor) ResumeWaiting(ctx context.Context, ref runs.ExecutorRef, answers []runs.SuspensionAnswer, interruptKinds []interrupt.Kind) error {
+func (e *Executor) ResumeWaiting(ctx context.Context, ref runs.ExecutorRef, answers []runs.InterruptAnswer, interruptKinds []interrupt.Kind) error {
 	executorAnswers := make([]agentexec.SuspensionAnswer, len(answers))
 	for index, answer := range answers {
 		executorAnswers[index] = agentexec.SuspensionAnswer{
 			ProcessID:    answer.MemberID,
-			SuspensionID: answer.SuspensionID,
+			SuspensionID: answer.RequestID,
 			Resolution:   answer.Resolution,
 		}
 	}
@@ -158,7 +193,7 @@ func (e *Executor) RestoreWaiting(ctx context.Context, request runs.RehydrateExe
 
 // Steer injects structured user content into a live turn addressed by neutral
 // identity.
-func (e *Executor) Steer(ctx context.Context, ref runs.ExecutorRef, input []transcript.ContentBlock) error {
+func (e *Executor) SubmitSteer(ctx context.Context, ref runs.ExecutorRef, input []transcript.ContentBlock) error {
 	return mapControlError(e.controller.InjectSteering(ctx, concreteHandle(ref), input))
 }
 

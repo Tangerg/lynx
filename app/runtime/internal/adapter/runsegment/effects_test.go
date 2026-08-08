@@ -71,10 +71,10 @@ func singleRunPending(
 			Kind:     interrupt.Question,
 			Question: question,
 		}},
-		Suspensions: []runs.SuspensionBinding{{
+		Bindings: []runs.InterruptBinding{{
 			InterruptItemID: itemID,
 			MemberID:        processID,
-			SuspensionID:    suspensionID,
+			RequestID:       suspensionID,
 		}},
 		Continuations: []runs.Continuation{{
 			RunID:          runID,
@@ -244,11 +244,11 @@ func TestCommitOpeningAdmitsAndProjectsInOneTransaction(t *testing.T) {
 	}
 }
 
-func TestCommitOpeningConsumesInterruptAndResumes(t *testing.T) {
+func TestCommitOpeningResumesAfterSeparateAnswerClaim(t *testing.T) {
 	now := time.Now().UTC()
 	ints := &fakeInterrupts{pending: singleRunPending(
 		t, "run_1", "ses_1", "process_1", "suspension_1", "item_1", now, now,
-	)}
+	), resumeClaimed: true}
 	stores := &fakeStores{interrupts: ints, transcript: &fakeTranscript{}}
 	runState := &fakeRunState{}
 	tx := &fakeTx{}
@@ -273,7 +273,7 @@ func TestCommitOpeningConsumesInterruptAndResumes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CommitOpening: %v", err)
 	}
-	if tx.calls != 1 || ints.pending.RootRunID != "" || len(runState.resumed) != 1 || len(stores.transcript.items) != 1 {
+	if tx.calls != 1 || ints.pending.RootRunID == "" || len(runState.resumed) != 1 || len(stores.transcript.items) != 1 {
 		t.Fatalf("resume tx=%d pending=%+v resumed=%v items=%d", tx.calls, ints.pending, runState.resumed, len(stores.transcript.items))
 	}
 }
@@ -682,6 +682,7 @@ type fakeStores struct {
 
 func testEffects(stores *fakeStores, cfg Config) *Effects {
 	cfg.Interrupts = stores.interrupts
+	cfg.ResumeClaims = stores.interrupts
 	cfg.Sessions = stores.session
 	cfg.Transcript = stores.transcript
 	cfg.ToolResults = stores.toolResults
@@ -790,7 +791,8 @@ func (s *fakeTranscript) AppendItem(_ context.Context, it transcript.Item) error
 }
 
 type fakeInterrupts struct {
-	pending runs.Pending
+	pending       runs.Pending
+	resumeClaimed bool
 }
 
 func (s *fakeInterrupts) Open(_ context.Context, p runs.Pending) error {
@@ -808,6 +810,37 @@ func (s *fakeInterrupts) Consume(_ context.Context, sessionID, runID string) (ru
 	pending := s.pending
 	s.pending = runs.Pending{}
 	return pending, true, nil
+}
+
+func (s *fakeInterrupts) Delete(_ context.Context, sessionID, runID string) error {
+	if s.pending.RootRunID == "" {
+		return nil
+	}
+	if s.pending.SessionID != sessionID || s.pending.RootRunID != runID {
+		return transcript.ErrIdentityConflict
+	}
+	s.pending = runs.Pending{}
+	return nil
+}
+
+func (s *fakeInterrupts) ClaimResume(
+	_ context.Context,
+	sessionID, runID string,
+	_ []runs.InterruptAnswer,
+	_ time.Time,
+) (runs.Pending, bool, error) {
+	if s.pending.SessionID != sessionID || s.pending.RootRunID != runID || s.resumeClaimed {
+		return runs.Pending{}, false, nil
+	}
+	s.resumeClaimed = true
+	return s.pending, true, nil
+}
+
+func (s *fakeInterrupts) RequireResumeClaim(_ context.Context, sessionID, runID string) error {
+	if !s.resumeClaimed || s.pending.SessionID != sessionID || s.pending.RootRunID != runID {
+		return errors.New("fake: resume claim is unavailable")
+	}
+	return nil
 }
 
 type fakeSession struct {

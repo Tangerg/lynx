@@ -377,6 +377,7 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 	lifetime.effectsTasks = effectsTasks
 	runEffects := runsegment.New(runsegment.Config{
 		Interrupts:          cfg.InterruptStore,
+		ResumeClaims:        cfg.InterruptStore,
 		Sessions:            cfg.SessionStore,
 		ScheduleFirings:     cfg.ScheduleStore,
 		GoalRuns:            cfg.GoalStore,
@@ -454,14 +455,15 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 	}
 	sessionCoord := sessions.New(sessionDeps)
 	runDeps := runs.Dependencies{
-		RootStarts:   runExecutor,
-		Observations: runExecutor,
-		Releases:     runExecutor,
-		Conversation: messages.conversation,
-		Continuation: runExecutor,
-		Steering:     runExecutor,
-		RunningTrees: runExecutor,
-		WaitingTrees: runExecutor,
+		RootStarts:    runExecutor,
+		Observations:  runExecutor,
+		Releases:      runExecutor,
+		Conversation:  messages.conversation,
+		Continuation:  runExecutor,
+		LegacyWaiting: runExecutor,
+		Steering:      runExecutor,
+		RunningTrees:  runExecutor,
+		WaitingTrees:  runExecutor,
 		Session: runs.SessionPorts{
 			Reader:       sessionCoord,
 			Creator:      sessionCoord,
@@ -471,6 +473,7 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 		},
 		Projection: runs.ProjectionPorts{
 			Openings:     runEffects,
+			ResumeClaims: runEffects,
 			Events:       runEffects,
 			Barriers:     runEffects,
 			WaitingEdits: runEffects,

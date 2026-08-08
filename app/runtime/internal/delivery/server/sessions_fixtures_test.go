@@ -36,8 +36,9 @@ type testRuntime interface {
 	runs.RootExecutionStarter
 	runs.ExecutionObserver
 	runs.ExecutionReleaser
-	runs.ContinuationExecutor
-	runs.ExecutionSteerer
+	runs.WaitingExecutionContinuer
+	runs.LegacyWaitingExecutor
+	runs.RunningExecutionSteerer
 	runs.RunningSubtreeCanceler
 	runs.WaitingSubtreeCancellationPreparer
 	RunSegmentEffects(checkpoints runsegment.Checkpoints, publish runsegment.FileChangePublisher) *runsegment.Effects
@@ -75,14 +76,14 @@ func serverPending(
 			}
 		}
 	}
-	bindings := make([]runs.SuspensionBinding, len(open))
+	bindings := make([]runs.InterruptBinding, len(open))
 	capabilities := run.RunCapabilities{}
 	for index, interrupt := range open {
 		capabilities.InterruptKinds = append(capabilities.InterruptKinds, interrupt.Kind)
-		bindings[index] = runs.SuspensionBinding{
+		bindings[index] = runs.InterruptBinding{
 			InterruptItemID: interrupt.ItemID,
 			MemberID:        processID,
-			SuspensionID:    fmt.Sprintf("suspension_%s_%d", processID, index),
+			RequestID:       fmt.Sprintf("suspension_%s_%d", processID, index),
 		}
 	}
 	return runs.Pending{
@@ -90,7 +91,7 @@ func serverPending(
 		SessionID:    sessionID,
 		ExecutorID:   executorID,
 		Interrupts:   open,
-		Suspensions:  bindings,
+		Bindings:     bindings,
 		Capabilities: capabilities.Normalized(),
 		Continuations: []runs.Continuation{{
 			RunID:        runID,
@@ -108,8 +109,9 @@ type executionRuntime interface {
 	runs.RootExecutionStarter
 	runs.ExecutionObserver
 	runs.ExecutionReleaser
-	runs.ContinuationExecutor
-	runs.ExecutionSteerer
+	runs.WaitingExecutionContinuer
+	runs.LegacyWaitingExecutor
+	runs.RunningExecutionSteerer
 	runs.RunningSubtreeCanceler
 	runs.WaitingSubtreeCancellationPreparer
 }
@@ -222,17 +224,19 @@ func newTestServer(rt testRuntime) *Server {
 	}
 	projectionWriter := rt.RunSegmentEffects(nil, nil)
 	s.runs = runs.NewCoordinator(runs.Dependencies{
-		RootStarts:   rt,
-		Observations: rt,
-		Releases:     rt,
-		Conversation: conversation,
-		Continuation: rt,
-		Steering:     rt,
-		RunningTrees: rt,
-		WaitingTrees: rt,
-		Session:      sessionPorts,
+		RootStarts:    rt,
+		Observations:  rt,
+		Releases:      rt,
+		Conversation:  conversation,
+		Continuation:  rt,
+		LegacyWaiting: rt,
+		Steering:      rt,
+		RunningTrees:  rt,
+		WaitingTrees:  rt,
+		Session:       sessionPorts,
 		Projection: runs.ProjectionPorts{
 			Openings:     projectionWriter,
+			ResumeClaims: projectionWriter,
 			Events:       projectionWriter,
 			Barriers:     projectionWriter,
 			WaitingEdits: projectionWriter,
@@ -313,10 +317,16 @@ func (executionStub) StageRoot(_ context.Context, req runs.RootExecutionStart) (
 	return runs.ExecutorRef{SessionID: req.SessionID, ExecutorID: "exec_test"}, nil
 }
 func (executionStub) BeginRoot(context.Context, runs.ExecutorRef) error { return nil }
+func (executionStub) StageContinuation(_ context.Context, continuation runs.WaitingContinuation) (runs.ExecutorRef, error) {
+	return runs.ExecutorRef{SessionID: continuation.SessionID, ExecutorID: continuation.ExecutorID}, nil
+}
+func (executionStub) BeginContinuation(context.Context, runs.ExecutorRef, []runs.InterruptAnswer, []interrupt.Kind) error {
+	return nil
+}
 func (executionStub) ClaimWaiting(_ context.Context, ref runs.ExecutorRef) (runs.ExecutorRef, error) {
 	return ref, nil
 }
-func (executionStub) ResumeWaiting(context.Context, runs.ExecutorRef, []runs.SuspensionAnswer, []interrupt.Kind) error {
+func (executionStub) ResumeWaiting(context.Context, runs.ExecutorRef, []runs.InterruptAnswer, []interrupt.Kind) error {
 	return nil
 }
 func (executionStub) RestoreWaiting(_ context.Context, req runs.RehydrateExecution) (runs.ExecutorRef, error) {
@@ -333,7 +343,7 @@ func (executionStub) PrepareWaitingSubtreeCancellation(
 ) (runs.PreparedWaitingSubtreeCancellation, error) {
 	return runs.PreparedWaitingSubtreeCancellation{}, errors.New("test execution: waiting subtree cancellation is unavailable")
 }
-func (executionStub) Steer(context.Context, runs.ExecutorRef, []transcript.ContentBlock) error {
+func (executionStub) SubmitSteer(context.Context, runs.ExecutorRef, []transcript.ContentBlock) error {
 	return nil
 }
 
@@ -358,6 +368,19 @@ func (s stubRuntime) Observe(ctx context.Context, ref runs.ExecutorRef) (iter.Se
 	return s.executionController().Observe(ctx, ref)
 }
 
+func (s stubRuntime) StageContinuation(ctx context.Context, continuation runs.WaitingContinuation) (runs.ExecutorRef, error) {
+	return s.executionController().StageContinuation(ctx, continuation)
+}
+
+func (s stubRuntime) BeginContinuation(
+	ctx context.Context,
+	ref runs.ExecutorRef,
+	answers []runs.InterruptAnswer,
+	allowed []interrupt.Kind,
+) error {
+	return s.executionController().BeginContinuation(ctx, ref, answers, allowed)
+}
+
 func (s stubRuntime) ValidateRootStart(req runs.RootExecutionStart) error {
 	return s.executionController().ValidateRootStart(req)
 }
@@ -374,7 +397,7 @@ func (s stubRuntime) ClaimWaiting(ctx context.Context, ref runs.ExecutorRef) (ru
 	return s.executionController().ClaimWaiting(ctx, ref)
 }
 
-func (s stubRuntime) ResumeWaiting(ctx context.Context, prepared runs.ExecutorRef, answers []runs.SuspensionAnswer, interruptKinds []interrupt.Kind) error {
+func (s stubRuntime) ResumeWaiting(ctx context.Context, prepared runs.ExecutorRef, answers []runs.InterruptAnswer, interruptKinds []interrupt.Kind) error {
 	return s.executionController().ResumeWaiting(ctx, prepared, answers, interruptKinds)
 }
 
@@ -406,8 +429,8 @@ func (s stubRuntime) PrepareWaitingSubtreeCancellation(
 	)
 }
 
-func (s stubRuntime) Steer(ctx context.Context, ref runs.ExecutorRef, input []transcript.ContentBlock) error {
-	return s.executionController().Steer(ctx, ref, input)
+func (s stubRuntime) SubmitSteer(ctx context.Context, ref runs.ExecutorRef, input []transcript.ContentBlock) error {
+	return s.executionController().SubmitSteer(ctx, ref, input)
 }
 
 func (s stubRuntime) Release(ctx context.Context, ref runs.ExecutorRef) error {

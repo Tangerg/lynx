@@ -162,7 +162,11 @@ Entity 自己保护状态迁移和不变量。Application 不得通过一串 set
 - restore 必须重建 exact Deployment 集并验证 ref/digest；
 - snapshot 损坏、BuildID 不匹配或外部事实失效按明确产品 policy 失败，不猜测修复。
 - 初版不配置只接收单 Process Snapshot 的 `PreparedStepAcknowledger`；只有完整 quiescent TreeSnapshot 可以成为 durable recovery point；
-- answer claim 必须原子作废旧 waiting recovery point。进入 Resuming 后直到新 quiescent checkpoint 提交，任何 crash 都不能回退旧 snapshot。
+- native payload 直接使用 Agent2 public TreeSnapshot，不创建 Runtime private tree wire、拼装 Process Snapshot 或第二 payload version；
+- answer claim 必须原子记录 exact answer、隐藏 `resuming` row 并删除旧 waiting recovery point。next-Segment opening 必须在同一事务中证明 durable claim，commit 后才允许提交 semantic Signal；
+- 进入 `resuming` 后直到新 quiescent checkpoint 提交，任何 crash 都不能回退旧 snapshot。pre-opening failure 必须先 durable `RunLost` 再 release；若 terminal write 失败，tree/claim 保持供 recovery 收口；
+- 下一 barrier 只能由同一 Session/executor/root-member owner 替换 `resuming` row；terminal/recovery 负责删除，普通查询不得把 answer audit 当 open input；
+- native input ACL 不 import、探测或 fallback 到旧 suspension。Product prompt/resolution codec 可以复用，Framework continuation/Signal owner 不可复用。
 
 ### 4.4 Observation
 
@@ -177,7 +181,17 @@ Entity 自己保护状态迁移和不变量。Application 不得通过一串 set
 - outer Dispatcher 返回 indeterminate error 前必须先标记并唤醒 per-tree reconciliation；Run pump 还要用有界 tick 查询所有已知 Process 的 `UnknownEffectIDs`，不能依赖 EffectFinished Event 必达；
 - live unknown 的 durable RunLost/incomplete/cleanup-intent transaction 成功前不得 Kill。提交失败保持 Framework unknown wait 并重试；unknown 与未提交的 cancel/deadline 竞争时 Lost 优先。
 
-### 4.5 Child admission
+### 4.5 Waiting、resume 与 steer
+
+- waiting 事实必须从 Strategy public pending-input helper + quiescent complete-tree capture 联合证明；Event 只能唤醒，不能单独制造 Pending；
+- exact restore 依次校验 Host envelope、BuildID、scope、public TreeSnapshot、root/status、DeploymentRef 与 pending input；任一失败都返回不可恢复事实，不“尽量继续”；
+- WorkingContext 由 snapshot 自足恢复，waiting 期间 Conversation 变化不得进入已存在 Process；isolated workspace 在 executor loss 后 fail closed；
+- answer 只允许投递到当前 active WaitID，Signal identity 由 exact item/member/request/response 稳定导出；Application/Delivery 不暴露 arbitrary Signal API；
+- ask-user 与 interactive approval 都走同一个 product Interrupt/answer contract。approval plan/pre-hook 首次调用后冻结，恢复不得重复执行；
+- steer 只能接受 canonical user content，经 Strategy typed steer Signal 在下一安全 model boundary 生效；产品投影必须排在首个可见该 steer 的 model-call fact 之前；
+- `PreparedStepAcknowledger` 未启用时不得声称 active-step crash recovery；unknown Effect 也不能成为可提交的 quiescent checkpoint。
+
+### 4.6 Child admission
 
 - root/child prospective identity 在发布前完成 admission；
 - Application admission 允许有界 I/O，但不得重入 Engine/Process；
@@ -188,7 +202,7 @@ Entity 自己保护状态迁移和不变量。Application 不得通过一串 set
 - admission success 后的每一个 Framework 失败点都必须产生同一 prospective identity 的 aborted outcome，或由 Framework 保证批准后 publication 不再失败。没有该合同不得启用 durable child admission；
 - 不用 timeout、private identity derivation、Event 顺序或 parent Effect payload 推断 ghost child。
 
-### 4.6 Waiting subtree change
+### 4.7 Waiting subtree change
 
 - Application 不接触 `WaitingSubtreeCancellationPlan`、ProcessID、Engine lock 或 source digest；
 - agentexec concrete one-shot capability 唯一持有 prepared Framework change；Application 只看 member projections、opaque resulting checkpoint 和准确的 Apply/Discard capability；

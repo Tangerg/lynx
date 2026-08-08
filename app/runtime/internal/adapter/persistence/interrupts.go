@@ -2,6 +2,8 @@ package persistence
 
 import (
 	"context"
+	"encoding/json"
+	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
@@ -78,6 +80,55 @@ func (store *InterruptStore) Consume(ctx context.Context, sessionID, rootRunID s
 	return pending, true, nil
 }
 
+func (store *InterruptStore) ClaimResume(
+	ctx context.Context,
+	sessionID, rootRunID string,
+	answers []runs.InterruptAnswer,
+	claimedAt time.Time,
+) (runs.Pending, bool, error) {
+	rows := make([]resumeAnswerRow, len(answers))
+	for index, answer := range answers {
+		rows[index] = resumeAnswerRow{
+			InterruptItemID: answer.InterruptItemID,
+			MemberID:        answer.MemberID,
+			RequestID:       answer.RequestID,
+			Approved:        answer.Resolution.Approved,
+			Arguments:       answer.Resolution.Arguments,
+			Answers:         answer.Resolution.Answers,
+			Reason:          answer.Resolution.Reason,
+			RememberScope:   string(answer.Resolution.RememberScope),
+		}
+	}
+	encoded, err := json.Marshal(rows)
+	if err != nil {
+		return runs.Pending{}, false, err
+	}
+	record, found, err := store.storage.ClaimResume(ctx, sessionID, rootRunID, encoded, claimedAt)
+	if err != nil || !found {
+		return runs.Pending{}, found, err
+	}
+	pending := pendingValue(record)
+	if err := pending.Validate(); err != nil {
+		return runs.Pending{}, false, err
+	}
+	return pending, true, nil
+}
+
+func (store *InterruptStore) RequireResumeClaim(ctx context.Context, sessionID, rootRunID string) error {
+	return store.storage.RequireResumeClaim(ctx, sessionID, rootRunID)
+}
+
+type resumeAnswerRow struct {
+	InterruptItemID string     `json:"interruptItemId"`
+	MemberID        string     `json:"memberId"`
+	RequestID       string     `json:"requestId"`
+	Approved        bool       `json:"approved"`
+	Arguments       string     `json:"arguments,omitempty"`
+	Answers         [][]string `json:"answers,omitempty"`
+	Reason          string     `json:"reason,omitempty"`
+	RememberScope   string     `json:"rememberScope,omitempty"`
+}
+
 func (store *InterruptStore) Delete(ctx context.Context, sessionID, rootRunID string) error {
 	return store.storage.Delete(ctx, sessionID, rootRunID)
 }
@@ -118,18 +169,18 @@ func interruptRecord(pending runs.Pending) sqlite.InterruptRecord {
 			Metrics:      continuation.Metrics, Limits: continuation.Limits,
 		}
 	}
-	suspensions := make([]sqlite.SuspensionBindingRecord, len(pending.Suspensions))
-	for index, binding := range pending.Suspensions {
-		suspensions[index] = sqlite.SuspensionBindingRecord{
+	bindings := make([]sqlite.InterruptBindingRecord, len(pending.Bindings))
+	for index, binding := range pending.Bindings {
+		bindings[index] = sqlite.InterruptBindingRecord{
 			InterruptItemID: binding.InterruptItemID,
 			MemberID:        binding.MemberID,
-			SuspensionID:    binding.SuspensionID,
+			RequestID:       binding.RequestID,
 		}
 	}
 	return sqlite.InterruptRecord{
 		RootRunID: pending.RootRunID, SessionID: pending.SessionID,
 		ExecutorID: pending.ExecutorID, GoalLeaseID: pending.GoalLeaseID,
-		Interrupts: pending.Interrupts, Suspensions: suspensions,
+		Interrupts: pending.Interrupts, Bindings: bindings,
 		Continuations: continuations, Capabilities: pending.Capabilities,
 		CreatedAt: pending.CreatedAt,
 	}
@@ -138,14 +189,20 @@ func interruptRecord(pending runs.Pending) sqlite.InterruptRecord {
 func pendingValue(record sqlite.InterruptRecord) runs.Pending {
 	continuations := make([]runs.Continuation, len(record.Continuations))
 	for index, continuation := range record.Continuations {
-		drained := make([]runs.DrainedTool, len(continuation.DrainedTools))
+		var drained []runs.DrainedTool
+		if len(continuation.DrainedTools) > 0 {
+			drained = make([]runs.DrainedTool, len(continuation.DrainedTools))
+		}
 		for toolIndex, tool := range continuation.DrainedTools {
 			drained[toolIndex] = runs.DrainedTool{
 				ItemID: tool.ItemID, ItemOccurredAt: tool.ItemOccurredAt,
 				CallID: tool.CallID, Name: tool.Name, Arguments: tool.Arguments,
 			}
 		}
-		committed := make([]runs.CommittedTool, len(continuation.CommittedTools))
+		var committed []runs.CommittedTool
+		if len(continuation.CommittedTools) > 0 {
+			committed = make([]runs.CommittedTool, len(continuation.CommittedTools))
+		}
 		for toolIndex, tool := range continuation.CommittedTools {
 			committed[toolIndex] = runs.CommittedTool{
 				ItemID: tool.ItemID, CallID: tool.CallID, Name: tool.Name,
@@ -160,18 +217,18 @@ func pendingValue(record sqlite.InterruptRecord) runs.Pending {
 			Metrics:      continuation.Metrics, Limits: continuation.Limits,
 		}
 	}
-	suspensions := make([]runs.SuspensionBinding, len(record.Suspensions))
-	for index, binding := range record.Suspensions {
-		suspensions[index] = runs.SuspensionBinding{
+	bindings := make([]runs.InterruptBinding, len(record.Bindings))
+	for index, binding := range record.Bindings {
+		bindings[index] = runs.InterruptBinding{
 			InterruptItemID: binding.InterruptItemID,
 			MemberID:        binding.MemberID,
-			SuspensionID:    binding.SuspensionID,
+			RequestID:       binding.RequestID,
 		}
 	}
 	return runs.Pending{
 		RootRunID: record.RootRunID, SessionID: record.SessionID,
 		ExecutorID: record.ExecutorID, GoalLeaseID: record.GoalLeaseID,
-		Interrupts: record.Interrupts, Suspensions: suspensions,
+		Interrupts: record.Interrupts, Bindings: bindings,
 		Continuations: continuations, Capabilities: record.Capabilities,
 		CreatedAt: record.CreatedAt,
 	}

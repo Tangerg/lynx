@@ -1,6 +1,6 @@
 # Lyra Runtime 合同基线
 
-> 状态：P5 Authoritative Interaction Baseline 4
+> 状态：P6 Durable Interaction Continuation Baseline 5
 >
 > 基线日期：2026-08-09
 >
@@ -53,9 +53,11 @@ TypeScript generated files 是派生制品，不单独定义语义。它们必�
 
 ### 3.1 SQLite
 
-- 当前 `schemaEpoch = 61`；
-- executor checkpoint 与 pending interrupt 的技术身份列为 `root_member_id`，continuation/suspension JSON 使用 `memberId`；
+- 当前 `schemaEpoch = 62`；
+- executor checkpoint 与 pending interrupt 的技术身份列为 `root_member_id`，continuation/input-request binding JSON 使用 `memberId`/`requestId`；
 - `model_invocations` 与 `tool_invocations` 是 operational attempt journals，只保存 exact Run/Segment/call identity、state 与 started/finished time；semantic assistant final、Tool result 和 usage 仍只由 Transcript/Run owners 保存；
+- `interrupts.state` 只有 `open`/`resuming`：`open` 不得携带 answer/claimedAt，`resuming` 必须携带两者；普通列表/读取只返回 `open`，continuation opening 必须在事务内证明 exact root 的 `resuming` claim；
+- 下一 quiescent barrier 只能由相同 Session/executor/root-member owner 替换 `resuming` row；terminal 与 recovery write-set 删除该 row。不存在 open row overwrite、answer rollback、dual state codec 或兼容列；
 - Tool start 不占用 Transcript insertion order；同一 model Tool batch 的 completed Items 与 invocation terminals 按模型声明位置形成一个 canonical write-set；
 - 一个 build 只接受一个精确 epoch；
 - 没有运行时 migration chain、dual schema read 或 compatibility column；
@@ -63,7 +65,7 @@ TypeScript generated files 是派生制品，不单独定义语义。它们必�
 
 ### 3.2 Executor checkpoint
 
-当前 checkpoint 的产品语义已经是 Host envelope + executor payload，但 payload 仍属于旧 Agent Framework。
+当前 checkpoint 的产品语义是 Host envelope + opaque executor payload。生产 Bootstrap 在 P8 前仍保存旧 Agent payload；P6 native Interaction path 已只保存 Agent2 public TreeSnapshot v4 JSON，两者由各自 executor owner 解释，Application/Store 不分支解析。
 
 目标合同：
 
@@ -74,7 +76,7 @@ TypeScript generated files 是派生制品，不单独定义语义。它们必�
 - checkpoint replacement 只能推进 frozen identity/limits 和 monotonic usage；
 - terminalization 与 checkpoint deletion 由 Application write-set 原子决定。
 
-目标 checkpoint wire version 在 P6 真实纵切证明后冻结；此前不提前发明 version、字段或 codec。
+P6 冻结的 native payload baseline 是 Agent2 TreeSnapshot v4 本身，不再包一层 Runtime 自创 payload version。Agent2 public parser 校验 snapshot version/shape，exact DeploymentRef 校验策略实现与配置，Host BuildID 校验当前二进制/adapter expectation；任一不一致都 fail closed。Host envelope 的技术 codec 仍由 Runtime 当前唯一 SQLite epoch 拥有。
 
 ### 3.3 Artifact 与 Transcript
 
@@ -82,7 +84,7 @@ Artifact、Transcript Item 和 ToolCall timing 的当前机器 shape 仍由 Runt
 
 ## 4. Agent2 消费 Baseline
 
-Runtime 迁移使用 Agent2 [`API_BASELINE.md`](../../../agent2/doc/API_BASELINE.md) 的 Baseline 9。P4 已在 `adapter/agentexec` 内以真实 Engine + native Interaction harness 验证 root start/result 合同；生产 Bootstrap 仍保持旧 owner 到 P8：
+Runtime 迁移使用 Agent2 [`API_BASELINE.md`](../../../agent2/doc/API_BASELINE.md) 的 Baseline 9。P4–P6 已在 `adapter/agentexec` 内以真实 Engine + native Interaction harness 验证 root start/result、authoritative model/tool、waiting/restore/answer/steer 合同；生产 Bootstrap 仍保持旧 owner 到 P8：
 
 - root Kernel、Interaction、Planning、Planning/GOAP、Workflow、OTel、Platform 七个 public package 已冻结；
 - Process Snapshot v6、TreeSnapshot v4；
@@ -145,15 +147,19 @@ internal/adapter/toolset/** -> agent2/**
 
 Unknown Effect 的产品合同是 live/recovery 一致的 fail closed：Application/Delivery 不得到 Settlement payload 构造权；agentexec 只向 Application 投影 indeterminate executor fact/identity。RunLost write-set 提交前 Process 保持 unknown wait，提交后才 Kill/release。
 
-P4 已通过真实 Agent2 consumer 验证当前最小 root candidate：`RootExecutionStarter` 负责 validate/stage/begin，`ExecutionObserver` 负责只读事实流，`ExecutionReleaser` 只负责 resource lifecycle。Stage 组装 exact Deployment/Engine/Input 但不外呼；Application opening durable 后 Begin 才 Start Process。产品 Cancel 仍由 Application 先作出并提交终态决定。P6–P7 的真实 Agent2 consumers 可以按 consumer-discovered interface 原则继续修订并扩展这些候选；P8 production cutover 前才冻结精确内部 port shape。
+P4 已通过真实 Agent2 consumer 验证当前最小 root candidate：`RootExecutionStarter` 负责 validate/stage/begin，`ExecutionObserver` 负责只读事实流，`ExecutionReleaser` 只负责 resource lifecycle。Stage 组装 exact Deployment/Engine/Input 但不外呼；Application opening durable 后 Begin 才 Start Process。产品 Cancel 仍由 Application 先作出并提交终态决定。P6 已以 continuation/steer consumer 扩展该 candidate；P7 的 child/subtree consumer 仍可按 consumer-discovered interface 原则继续修订，P8 production cutover 前才冻结精确内部 port shape。
 
 P5 已验证 authoritative model/tool candidate：executor producer 只能通过同一有序 observation stream 提交 Application-owned closed fact 并等待 receipt；它不取得 Store、transaction 或 reducer。Application Run pump 在 speculative reducer 上计算 write-set，只有 persistence 全部成功才替换 live reducer 并完成 receipt。model/tool post-call receipt failure 必须返回 Agent2 Dispatcher 形成 unknown；pre-call failure禁止外呼。Toolset 的唯一 visibility value 是 framework-neutral `toolset.Manifest`，通用 Toolset 对 Agent2 零 import。
 
-P5 的 exact internal type/method names 仍不作为最终兼容 API；P6/P7 真实 consumer 可以继续治本演进，P8 production cutover 时统一冻结。但以下语义已经进入防腐基线：Application 单写者、operational journal 与 semantic Transcript 分离、final 独立于 Delta、并发 Tool canonical prefix 原子提交，以及 unknown 在 release 前 durable `RunLost` 收口。
+P6 已验证 continuation candidate：`WaitingExecutionContinuer.StageContinuation` 只 stage 一棵 exact live waiting tree，或按 opaque TreeSnapshot + exact Deployment/BuildID/Host scope 恢复；它不读取 Conversation，也不重算 WorkingContext。Application 先原子记录 exact answers、隐藏 interrupt row 并删除旧 checkpoint，再 stage/restore；next-Segment opening transaction 必须证明 durable `resuming` claim，成功后 `BeginContinuation` 才投递 WaitID-addressed semantic Signal。claim 后到下一 quiescent checkpoint 前没有 fallback recovery point，crash/boot recovery 一律 `RunLost`。
+
+Product Interrupt/prompt/answer 使用 framework-neutral strict codec；native `interactioninput` ACL 是唯一把它映射到 Agent2 pending-input/Signal 的 owner。旧 `suspension` package 只是 P8 删除台账中的生产 adapter，新路径对旧 Framework types/imports 为零。真实 Runtime `ask_user` 与 interactive approval、deferred advertisement restore 已通过 native harness；steer 使用 `RunningExecutionSteerer` 并只在下一 model boundary 投影产品事实。
+
+P6 的 exact internal type/method names 仍不作为最终兼容 API；P7 real child/subtree consumer 可以继续治本演进，P8 production cutover 时统一冻结。但以下语义已经进入防腐基线：Application 单写者、operational journal 与 semantic Transcript 分离、final 独立于 Delta、并发 Tool canonical prefix 原子提交、unknown 在 release 前 durable `RunLost` 收口，以及 answer claim → stage/restore → durable opening → semantic Signal 的唯一顺序。
 
 Fresh root input 的当前防腐合同是 Application 读取 Host Conversation 并追加当前 user message，形成完整 `WorkingContext` seed；adapter 不读取产品 Store。成功 assistant final 由 Agent2 Result 投影 `AssistantMessageCompleted`，不从 Delta 拼接。旧生产 adapter 所需的拆分 text/media request 只属于 P8 删除台账，不是 Agent2 consumer baseline。
 
-Application executor tree identity 统一为 `ExecutorMember`/`MemberID`。Framework `ProcessID` 只能由 execution adapter 在边界内映射，不能重新进入 Application field、port 参数、持久化 technical field 或 Runtime Protocol。P6/P7 之前为旧生产路径保留的 continuation/steer/subtree 小接口不属于冻结 baseline。
+Application executor tree identity 统一为 `ExecutorMember`/`MemberID`。Framework `ProcessID` 只能由 execution adapter 在边界内映射，不能重新进入 Application field、port 参数、持久化 technical field 或 Runtime Protocol。P7 之前为旧生产路径保留的 child/subtree 小接口不属于冻结 baseline。
 
 ## 6. Clean Architecture 边界基线
 
@@ -199,7 +205,7 @@ P2–P10 继续逐步建立：
 
 - protocol artifact digest/drift test；
 - SQLite schema epoch 和 prior-version rejection test；
-- checkpoint envelope strict codec、size、copy、round-trip 和 prior-version rejection；
+- checkpoint envelope strict codec、size、copy、round-trip 和 prior-version rejection（P6 已覆盖 native TreeSnapshot parser、copy、corrupt/wrong-build/deployment；P8 随 production owner 收口剩余 envelope guard）；
 - Agent2 type/name leakage AST guard；
 - no `component/common/core/utils` package guard；
 - no alias/dual codec/legacy path guard；
@@ -207,11 +213,11 @@ P2–P10 继续逐步建立：
 
 ## 8. 不在 Baseline 0 中
 
-- 尚未由 P4–P7 真实 consumers 证明、并由 P8 cutover 冻结的 executor port 方法和参数；
+- 尚未由 P7 child/subtree real consumer 证明、并由 P8 cutover 冻结的完整 executor port 方法和参数；
 - Runtime 对 Agent2 Platform 的接入；
 - 前端/TUI/CLI 新 consumer API；
 - Delivery `server`/`dispatch` 保持现名；未由真实职责变化证明时不做目录改名；
 - 未由使用图裁决的 `component` 最终位置；
-- 未来数据库 epoch、artifact version 或 checkpoint wire version。
+- 未来数据库 epoch、artifact version 或 Agent2 TreeSnapshot version。
 
 这些内容不能以 placeholder、预留字段或空接口提前进入代码；真实阶段完成后再冻结。

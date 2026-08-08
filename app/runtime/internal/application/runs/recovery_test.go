@@ -177,11 +177,11 @@ func TestRecoveryChargesLostGoalOwnedRootToItsAdmissionLease(t *testing.T) {
 		t.Fatal("RecoveryCommit.Validate accepted a Goal Run from another lease")
 	}
 	foreignDeletion := store.commit
-	foreignDeletion.DeletePending = append(
-		[]PendingDeletion(nil),
-		store.commit.DeletePending...,
+	foreignDeletion.DeleteInterrupts = append(
+		[]InterruptOwner(nil),
+		store.commit.DeleteInterrupts...,
 	)
-	foreignDeletion.DeletePending = append(foreignDeletion.DeletePending, PendingDeletion{
+	foreignDeletion.DeleteInterrupts = append(foreignDeletion.DeleteInterrupts, InterruptOwner{
 		SessionID: "other-session", RootRunID: "run_foreign",
 	})
 	if err := foreignDeletion.Validate(); err == nil {
@@ -225,7 +225,7 @@ func TestRecoveryPreservesOnlyCoherentInterruptedTree(t *testing.T) {
 		t.Fatalf("recovery = %d validated=%+v commit=%+v", recovered, validated, store.commit)
 	}
 	if !reflect.DeepEqual(store.commit.PreservedCheckpointRootIDs, []string{"member_root"}) ||
-		len(store.commit.DeletePending) != 0 {
+		len(store.commit.DeleteInterrupts) != 0 {
 		t.Fatalf("ownership plan = %+v", store.commit)
 	}
 }
@@ -278,7 +278,7 @@ func TestRecoveryTreatsUnavailableExecutorCheckpointAsResourceLoss(t *testing.T)
 		t.Fatalf("Reconcile: %v", err)
 	}
 	if recovered != 1 || len(store.commit.LostRuns) != 1 ||
-		!reflect.DeepEqual(store.commit.DeletePending, []PendingDeletion{{SessionID: run.SessionID, RootRunID: run.ID}}) ||
+		!reflect.DeepEqual(store.commit.DeleteInterrupts, []InterruptOwner{{SessionID: run.SessionID, RootRunID: run.ID}}) ||
 		len(store.commit.PreservedCheckpointRootIDs) != 0 {
 		t.Fatalf("resource-loss recovery = %d, commit %+v", recovered, store.commit)
 	}
@@ -469,10 +469,10 @@ func coherentRecoveryPark(t *testing.T) (transcript.Run, Pending, transcript.Ite
 		Capabilities: rundomain.RunCapabilities{
 			InterruptKinds: []interruptdomain.Kind{interruptdomain.Question},
 		},
-		Suspensions: []SuspensionBinding{{
+		Bindings: []InterruptBinding{{
 			InterruptItemID: interrupt.ItemID,
 			MemberID:        "member_root",
-			SuspensionID:    "suspension_root",
+			RequestID:       "request_root",
 		}},
 		Continuations: []Continuation{{
 			RunID: run.ID, MemberID: "member_root", ModelSelection: selection, RunCreatedAt: createdAt,

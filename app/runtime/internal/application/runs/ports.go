@@ -52,20 +52,36 @@ type ConversationReader interface {
 	Read(ctx context.Context, sessionID string) ([]corechat.Message, error)
 }
 
-// ContinuationExecutor is the temporary old-executor boundary consumed by the
-// waiting use case. P6 replaces its exact shape from the real Agent2 consumer;
-// keeping it separate prevents those provisional operations from polluting the
-// P3 root contract.
-type ContinuationExecutor interface {
+// WaitingExecutionContinuer stages an exact live or restored waiting tree
+// without advancing it, then submits its already-validated semantic answers
+// only after the continuation Segment is durable. The opaque checkpoint is
+// supplied by the Application; implementations must never reread Conversation
+// or privately query application persistence.
+type WaitingExecutionContinuer interface {
+	StageContinuation(ctx context.Context, continuation WaitingContinuation) (ExecutorRef, error)
+	BeginContinuation(
+		ctx context.Context,
+		ref ExecutorRef,
+		answers []InterruptAnswer,
+		allowedInterrupts []interrupt.Kind,
+	) error
+}
+
+// LegacyWaitingExecutor is consumed only by the P7 waiting-subtree production
+// bridge. It mirrors the old executor's mutation lease and is deleted with that
+// bridge at the P8 atomic cutover; ordinary answer/resume no longer depends on
+// it.
+type LegacyWaitingExecutor interface {
 	ClaimWaiting(ctx context.Context, ref ExecutorRef) (ExecutorRef, error)
-	ResumeWaiting(ctx context.Context, ref ExecutorRef, answers []SuspensionAnswer, interruptKinds []interrupt.Kind) error
+	ResumeWaiting(ctx context.Context, ref ExecutorRef, answers []InterruptAnswer, interruptKinds []interrupt.Kind) error
 	RestoreWaiting(ctx context.Context, req RehydrateExecution) (ExecutorRef, error)
 }
 
-// ExecutionSteerer is the temporary semantic steer boundary. P6 will derive its
-// final shape and safe-boundary behavior from the Agent2 consumer.
-type ExecutionSteerer interface {
-	Steer(ctx context.Context, ref ExecutorRef, input []transcript.ContentBlock) error
+// RunningExecutionSteerer submits user content to the addressed live execution.
+// The implementation must consume it only at its documented safe boundary and
+// reject an execution that is already waiting or terminal.
+type RunningExecutionSteerer interface {
+	SubmitSteer(ctx context.Context, ref ExecutorRef, input []transcript.ContentBlock) error
 }
 
 // RunningSubtreeCanceler is consumed only by child Run cancellation. P7 owns its
@@ -208,15 +224,30 @@ type RootExecutionStart struct {
 	GoalLeaseID string
 }
 
-// RehydrateExecution describes rebuilding a parked execution from its durable
-// checkpoint after executor-local state was lost.
-type RehydrateExecution struct {
+// WaitingContinuation is the complete Application-owned input for staging one
+// parked tree. Checkpoint payload interpretation remains executor-private;
+// RootRunID and ChildRuns are product identities used only by the legacy bridge
+// until the P7 child vertical replaces it.
+type WaitingContinuation struct {
 	SessionID  string
 	ExecutorID string
-	MemberID   string
 	RootRunID  string
 	// ChildRuns restores the application identities of already-admitted child
 	// executor members so lifecycle hooks never need executor topology.
+	ChildRuns                []ChildRunBinding
+	Checkpoint               ExecutorCheckpoint
+	Capabilities             run.RunCapabilities
+	ChildRunAdmissionEnabled bool
+}
+
+// RehydrateExecution is the old executor's private reconstruction input. It is
+// retained only inside the production bridge scheduled for atomic deletion in
+// P8; the Agent2 continuation port does not consume it.
+type RehydrateExecution struct {
+	SessionID                string
+	ExecutorID               string
+	MemberID                 string
+	RootRunID                string
 	ChildRuns                []ChildRunBinding
 	ModelSelection           modelref.Selection
 	CWD                      string
@@ -225,6 +256,7 @@ type RehydrateExecution struct {
 	GoalLeaseID              string
 	Limits                   run.RunLimits
 	ChildRunAdmissionEnabled bool
+	Checkpoint               *ExecutorCheckpoint
 }
 
 // IsolationProvider resolves the sandbox working-copy directory an isolated

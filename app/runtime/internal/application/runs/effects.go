@@ -14,6 +14,13 @@ type OpeningCommitter interface {
 	CommitOpening(ctx context.Context, opening OpeningCommit) error
 }
 
+// ResumeClaimCommitter atomically consumes one complete waiting hand-off and
+// invalidates its old executor checkpoint, returning the claimed snapshot only
+// to the active continuation use case.
+type ResumeClaimCommitter interface {
+	ClaimResume(ctx context.Context, claim ResumeClaimCommit) (ClaimedResume, error)
+}
+
 // EventCommitter persists one reduced executor fact before publication.
 type EventCommitter interface {
 	CommitEvent(ctx context.Context, commit EventCommit) error
@@ -50,6 +57,7 @@ type SegmentFinalizer interface {
 // each capability separately, and implementations may provide them independently.
 type ProjectionPorts struct {
 	Openings     OpeningCommitter
+	ResumeClaims ResumeClaimCommitter
 	Events       EventCommitter
 	Barriers     TreeBarrierCommitter
 	WaitingEdits WaitingSubtreeCancellationCommitter

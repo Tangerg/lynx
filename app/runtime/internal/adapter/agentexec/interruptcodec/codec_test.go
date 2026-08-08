@@ -1,4 +1,4 @@
-package suspension
+package interruptcodec
 
 import (
 	"encoding/json"

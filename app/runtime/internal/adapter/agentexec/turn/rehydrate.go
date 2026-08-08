@@ -98,6 +98,7 @@ func (s *controller) Rehydrate(ctx context.Context, request runs.RehydrateExecut
 	}
 
 	process, err := s.engine.RestoreTurn(state.ctx, request.MemberID, agentexec.RestoreTurnRequest{
+		Checkpoint:     request.Checkpoint,
 		SessionID:      request.SessionID,
 		ModelSelection: request.ModelSelection,
 		CWD:            request.CWD,

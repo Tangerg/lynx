@@ -1,6 +1,6 @@
 # Lyra Runtime 重构实施计划
 
-> 状态：P5 权威 model/tool observation 与 Tool 接线已完成；下一阶段 P6
+> 状态：P6 durable waiting/restore/resume/steer 已完成；下一阶段 P7
 >
 > 工作方式：原模块内治本重构，按可验证纵切分批完成；不创建完整 `runtime2`
 
@@ -38,7 +38,7 @@
 | P3 | Application root use cases 与候选消费端口 | P2 | 已完成 |
 | P4 | 原生 Interaction 的 root 纵切 | P3 | 已完成 |
 | P5 | 权威 model/tool observation 与 Tool 接线 | P4 | 已完成 |
-| P6 | waiting、checkpoint、restore、resume、steer | P5 | 未开始 |
+| P6 | waiting、checkpoint、restore、resume、steer | P5 | 已完成 |
 | P7 | Delegate child Run 与 waiting subtree | P6 + 两项 Agent2 中性合同 | 未开始 |
 | P8 | terminal、recovery 与跨聚合一致性收口 | P7 | 未开始 |
 | P9 | Adapter/Infra/共享原语/Delivery 结构收敛 | P8 | 未开始 |
@@ -250,7 +250,7 @@
 - 接入需要用户输入的 approval/ask-user HITL，并验证 deferred advertisement 在 wait/restore 前后保持 owner state；
 - 新路径不读取旧 suspension private JSON、ProcessSnapshot codec 或 Continue/Resume 猜测路径；仍服务生产旧路径的对应文件加入 P8 原子删除清单；
 - 初版明确不配置 Agent2 `PreparedStepAcknowledger`；只持久化 quiescent complete-tree checkpoint，不声明 active-step crash recovery；
-- 回答 Interrupt 时同一事务 claim answer 并将旧 checkpoint 标记为 Resuming/不可自动恢复；成功后才 RestoreTree + deliver semantic Signal；
+- 回答 Interrupt 时同一事务记录 exact answer claim、把 interrupt row 变为 `resuming`/普通读取不可见并删除旧 checkpoint；成功后才 stage live tree 或 RestoreTree，next-Segment opening transaction 证明 claim 后才 deliver semantic Signal；
 - 恢复探测 unresolved unknown Effect 时拒绝自动恢复并返回准确不可恢复事实，不调用任意 `ResolveEffect`。
 
 ### 行为验收
@@ -263,6 +263,17 @@
 - steer 只在 Strategy 安全边界消费且延迟可观察。
 - answer claim 前 crash 仍可恢复 waiting checkpoint；claim 后、RestoreTree 后、Signal accepted 后到下一 quiescent checkpoint 前 crash 均 RunLost，绝不重放旧 answer；
 - active step crash 不从单 Process Snapshot 猜测 tree recovery。
+
+### 完成事实
+
+- Native Interaction 只通过 public pending-input helper、`TreeSnapshot`/`RestoreTree`、typed response/steer Signal 实现 waiting/restore；`interactioninput` 与 framework-neutral `interruptcodec` 已从旧 suspension adapter 治本分离，新路径对 old Agent 零 import；
+- quiescent waiting reconciliation 从 public Process status + Strategy helper 捕获完整 tree，并将 opaque TreeSnapshot、Pending、Run/Items 作为 Application tree barrier 原子提交；Runtime 未配置 `PreparedStepAcknowledger`，unknown Effect 无法被捕获为 recovery point；
+- `ClaimResume` 在 SQLite epoch 62 内原子记录答案、`open -> resuming` 并删除旧 checkpoint。Continuation opening 必须在事务内 `RequireResumeClaim`；下一 barrier 只有 exact Session/executor/root-member owner 可以替换，terminal/boot recovery 删除 hidden claim；
+- continuation 使用 `StageContinuation`/`BeginContinuation`：live waiting tree 必须匹配已提交 checkpoint，cold restore 必须匹配 BuildID、Host scope、TreeSnapshot root/status、exact DeploymentRef 与 active WaitID；Application opening commit 早于 Signal；
+- post-claim pre-opening failure 先提交 root `RunLost` 再 release staged tree。RunLost write 失败保持 tree/claim；release 失败与原 cause 一起报告。boot 对任何无 checkpoint 的 claimed-resume tree 都确定收口为 Lost；
+- 真实 Runtime `ask_user`、interactive approval、approval argument/remember resolution、doom-loop HITL 与 deferred advertisement 均复用产品 Interrupt contract。Approval restore 不重跑 pre-hook 或 plan；
+- steer 使用 `RunningExecutionSteerer.SubmitSteer`，Agent2 在当前 model call 之后的下一 safe boundary 消费；产品 `SteerMessage` 在首个能看到它的 `ModelCallStarted` 前提交；
+- corrupt TreeSnapshot、wrong BuildID/DeploymentRef、missing/isolated workspace、capability mismatch、claim result drift、conversation change、unknown checkpoint prohibition 和 answer/release ordering 均有真实行为或 SQLite transaction test。
 
 ## 11. P7 — Delegate child Run 与 waiting subtree
 
@@ -414,7 +425,8 @@
 | 2026-08-08 | P3 | 删除 `ExecutionControl`、`SegmentExecutor`、`SessionLifecycle` 与 `Effects` 胖边界；建立 root stage/commit/begin、observe/release 的消费方端口；Run pump 在所有非 Waiting 边界统一释放；Application executor identity 统一为 Member；SQLite epoch 59 一次性采用 `root_member_id`/`memberId` | fake-backed ordering/race/release/waiting tests 与 architecture vocabulary/port-shape guards 通过；`go test ./...`、`go vet ./...`、`go build ./...` 及 runs/sessions/runsegment/SQLite targeted race 通过 |
 | 2026-08-08 | P4 | 在原 `agentexec` 内完成 Agent2 native Interaction root harness；每 root 独立 Engine + exact Deployment；Application 组装完整 Conversation seed；Result final 与 Delta 分离；集中映射 completion/model failure/cancel/deadline/panic；生产旧 owner 保留到 P8 | real Engine/Interaction integration、stage-zero-side-effect、complete WorkingContext、final-without-Delta、termination/panic/release tests 通过；architecture exact old-import ledger 未增长；`go test ./...` 通过 |
 | 2026-08-09 | P5 | 建立 per-Effect dispatch-attempt 与 authoritative commit receipt；model/tool invocation journal、Transcript final、usage/pricing 和 Run progress 原子提交；并发 Tool 乱序完成按模型顺序批量结算；接通唯一 Toolset Manifest、scope、deferred advertisement、approval/hooks/presentation/offload/doom-loop；live unknown 由 wake + polling 收口为 durable RunLost | pre/post-call failure、chunk drop、并发逆序与 batch rollback、lost wake、RunLost retry-before-release、scope propagation、best-effort projection/hook、SQLite transaction/order integration tests 通过；`go mod tidy` diff-free，`go test ./...`、`go vet ./...`、`go build ./...`、`staticcheck ./...` 与 agentexec/runs/runsegment/SQLite targeted race 全绿 |
+| 2026-08-09 | P6 | 以 Agent2 public pending input/TreeSnapshot/RestoreTree/typed Signal 完成 native waiting、exact restore、answer claim、resume、ask-user/interactive approval、deferred advertisement 与 safe-boundary steer；SQLite epoch 62 引入 hidden `resuming` answer audit，opening 强制证明 claim；旧 suspension 仅保留为 P8 production delete owner | live/cold resume、real ask_user、approval hook-once、advertisement restore、corrupt/build/deployment/workspace/capability failure、unknown no-checkpoint、conversation isolation、steer ordering、claim rollback/audit/replacement/terminal/boot cleanup、post-claim RunLost-before-release tests通过；`go mod tidy -diff`、`go test ./...`、`go vet ./...`、`go build ./...`、`staticcheck ./app/runtime/...` 与 Agent2/runs/runsegment/runrecovery/SQLite targeted race 全绿 |
 
 ## 18. 当前下一步
 
-P5 已完成。下一批进入 P6：只使用 Agent2 public pending-input、TreeSnapshot、RestoreTree 与 Interaction semantic Signal 建立 waiting/checkpoint/restore/resume/steer 纵切；初版仍不配置 `PreparedStepAcknowledger`，只承诺恢复 Application 已提交的 quiescent complete-tree checkpoint，并严格实现 answer claim 后旧 checkpoint 不可恢复的线性化合同。
+P6 已完成。下一批进入 P7：先用真实 Runtime consumer 证明并补齐 Agent2 的两项中性前置合同——admitted child 的 conclusive started/aborted outcome，以及 Apply/Discard 前冻结 source tree 的 one-shot prepared change；随后接通 Delegate child Run admission、stable causality binding 和 waiting subtree transaction。P7 不得在 Runtime 内用 timeout、private identity、补偿内核或旧 mutation lease 绕过这些 Framework 缺口。

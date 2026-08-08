@@ -261,10 +261,10 @@ func TestController_ApprovalGate_AllowOnce(t *testing.T) {
 		if e, ok := ev.Payload.(runs.TreeInterrupted); ok {
 			sawInterrupt = true
 			barrier = e
-			if len(e.Suspensions) != 1 ||
-				e.Suspensions[0].Interrupt.Kind != interrupt.Approval {
-				t.Errorf("suspensions = %+v, want one approval", e.Suspensions)
-			} else if p := e.Suspensions[0].Interrupt.Approval; p == nil || p.ToolName != "shell" {
+			if len(e.Interruptions) != 1 ||
+				e.Interruptions[0].Interrupt.Kind != interrupt.Approval {
+				t.Errorf("suspensions = %+v, want one approval", e.Interruptions)
+			} else if p := e.Interruptions[0].Interrupt.Approval; p == nil || p.ToolName != "shell" {
 				t.Errorf("approval payload = %+v, want shell ApprovalPrompt", p)
 			}
 			break

@@ -36,6 +36,18 @@ func (store *recordingExecutorCheckpointStore) SaveCheckpoint(
 	return store.saveErr
 }
 
+func (store *recordingExecutorCheckpointStore) LoadCheckpoint(
+	_ context.Context,
+	rootMemberID string,
+) (runs.ExecutorCheckpoint, error) {
+	for index := len(store.saved) - 1; index >= 0; index-- {
+		if store.saved[index].RootMemberID == rootMemberID {
+			return store.saved[index].Clone(), nil
+		}
+	}
+	return runs.ExecutorCheckpoint{}, runs.ErrExecutorCheckpointNotFound
+}
+
 func (store *recordingExecutorCheckpointStore) DeleteCheckpoints(
 	_ context.Context,
 	_ string,

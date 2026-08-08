@@ -7,6 +7,7 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 )
 
@@ -62,6 +63,23 @@ type AutomaticToolDecision struct {
 // concurrent calls from one Tool batch.
 type AutomaticToolAuthorizer interface {
 	AuthorizeTool(ctx context.Context, request AutomaticToolRequest) (AutomaticToolDecision, error)
+}
+
+// InteractiveToolAuthorizer owns the human-approval portion of standard Tool
+// policy. PlanToolApproval returns found=false when the already-automatic
+// decision needs no person; ResolveToolApproval applies the durable response,
+// including remembered-rule side effects, without rerunning the original plan.
+type InteractiveToolAuthorizer interface {
+	PlanToolApproval(
+		ctx context.Context,
+		request AutomaticToolRequest,
+	) (prompt runs.ApprovalPrompt, found bool, err error)
+	ResolveToolApproval(
+		ctx context.Context,
+		request AutomaticToolRequest,
+		prompt runs.ApprovalPrompt,
+		resolution interrupt.Resolution,
+	) (AutomaticToolDecision, error)
 }
 
 // InteractionToolHookInput identifies one ordinary Tool lifecycle callback.

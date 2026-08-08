@@ -33,7 +33,7 @@ type InterruptRecord struct {
 	ExecutorID    string
 	GoalLeaseID   string
 	Interrupts    []transcript.Interrupt
-	Suspensions   []SuspensionBindingRecord
+	Bindings      []InterruptBindingRecord
 	Continuations []ContinuationRecord
 	Capabilities  run.RunCapabilities
 	CreatedAt     time.Time
@@ -52,11 +52,11 @@ type ContinuationRecord struct {
 	Limits         run.RunLimits
 }
 
-// SuspensionBindingRecord is the stored item-to-suspension correspondence.
-type SuspensionBindingRecord struct {
+// InterruptBindingRecord is the stored item-to-input-request correspondence.
+type InterruptBindingRecord struct {
 	InterruptItemID string
 	MemberID        string
-	SuspensionID    string
+	RequestID       string
 }
 
 // DrainedToolRecord is the stored identity of an open tool invocation.
@@ -102,8 +102,8 @@ func (record InterruptRecord) validateStorageShape() error {
 		return errors.New("interrupt payload is required")
 	case len(record.Continuations) == 0:
 		return errors.New("continuation payload is required")
-	case len(record.Suspensions) != len(record.Interrupts):
-		return errors.New("suspension bindings do not match interrupts")
+	case len(record.Bindings) != len(record.Interrupts):
+		return errors.New("interrupt bindings do not match interrupts")
 	}
 	root, ok := record.rootContinuation()
 	if !ok || strings.TrimSpace(root.MemberID) == "" {
@@ -158,10 +158,10 @@ type continuationRow struct {
 	Accounting      runAccountingRow   `json:"accounting"`
 }
 
-type suspensionBindingRow struct {
+type interruptBindingRow struct {
 	InterruptItemID string `json:"interruptItemId"`
 	MemberID        string `json:"memberId"`
-	SuspensionID    string `json:"suspensionId"`
+	RequestID       string `json:"requestId"`
 }
 
 // NewInterruptStore binds the SQLite interrupt registry to a database opened via
@@ -194,17 +194,31 @@ func (s *InterruptStore) Open(ctx context.Context, p InterruptRecord) error {
 	if err != nil {
 		return fmt.Errorf("sqlite: encode interrupt continuations: %w", err)
 	}
-	suspensions, err := json.Marshal(suspensionBindingRows(p.Suspensions))
+	bindings, err := json.Marshal(interruptBindingRows(p.Bindings))
 	if err != nil {
-		return fmt.Errorf("sqlite: encode interrupt suspension bindings: %w", err)
+		return fmt.Errorf("sqlite: encode interrupt bindings: %w", err)
 	}
 	capabilities, err := encodeRunCapabilities(p.Capabilities)
 	if err != nil {
 		return fmt.Errorf("sqlite: open interrupt: %w", err)
 	}
-	_, err = conn(ctx, s.db).ExecContext(ctx,
-		`INSERT INTO interrupts(root_run_id, session_id, executor_id, goal_lease_id, root_member_id, payload, continuations, suspension_bindings, capabilities, created_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+	result, err := conn(ctx, s.db).ExecContext(ctx,
+		`INSERT INTO interrupts(root_run_id, session_id, executor_id, goal_lease_id, root_member_id, payload, continuations, interrupt_bindings, capabilities, created_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		 ON CONFLICT(root_run_id) DO UPDATE SET
+		   executor_id = excluded.executor_id,
+		   goal_lease_id = excluded.goal_lease_id,
+		   root_member_id = excluded.root_member_id,
+		   payload = excluded.payload,
+		   continuations = excluded.continuations,
+		   interrupt_bindings = excluded.interrupt_bindings,
+		   capabilities = excluded.capabilities,
+		   created_at = excluded.created_at,
+		   state = 'open', answers = '', claimed_at = 0
+		 WHERE interrupts.state = 'resuming'
+		   AND interrupts.session_id = excluded.session_id
+		   AND interrupts.executor_id = excluded.executor_id
+		   AND interrupts.root_member_id = excluded.root_member_id`,
 		p.RootRunID,
 		p.SessionID,
 		p.ExecutorID,
@@ -212,7 +226,7 @@ func (s *InterruptStore) Open(ctx context.Context, p InterruptRecord) error {
 		root.MemberID,
 		string(payload),
 		string(continuations),
-		string(suspensions),
+		string(bindings),
 		capabilities,
 		p.CreatedAt.UnixNano(),
 	)
@@ -227,10 +241,17 @@ func (s *InterruptStore) Open(ctx context.Context, p InterruptRecord) error {
 	if err != nil {
 		return fmt.Errorf("sqlite: open interrupt: %w", err)
 	}
+	changed, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("sqlite: inspect opened interrupt: %w", err)
+	}
+	if changed != 1 {
+		return fmt.Errorf("%w: Pending root Run %q is already open", transcript.ErrIdentityConflict, p.RootRunID)
+	}
 	return nil
 }
 
-const interruptColumns = `root_run_id, session_id, executor_id, goal_lease_id, root_member_id, payload, continuations, suspension_bindings, capabilities, created_at`
+const interruptColumns = `root_run_id, session_id, executor_id, goal_lease_id, root_member_id, payload, continuations, interrupt_bindings, capabilities, created_at`
 
 func (s *InterruptStore) List(ctx context.Context, sessionID string) ([]InterruptRecord, error) {
 	return s.list(ctx, sessionID, "", 0, "", 0)
@@ -246,7 +267,7 @@ func (s *InterruptStore) ListPage(ctx context.Context, sessionID, rootRunID stri
 func (s *InterruptStore) list(ctx context.Context, sessionID, rootRunID string, afterCreatedAt int64, afterRunID string, limit int) ([]InterruptRecord, error) {
 	query := `SELECT ` + interruptColumns + ` FROM interrupts`
 	args := []any{}
-	var conditions []string
+	conditions := []string{`state = 'open'`}
 	if sessionID != "" {
 		conditions = append(conditions, `session_id = ?`)
 		args = append(args, sessionID)
@@ -290,7 +311,7 @@ func (s *InterruptStore) list(ctx context.Context, sessionID, rootRunID string, 
 
 func (s *InterruptStore) Get(ctx context.Context, runID string) (InterruptRecord, bool, error) {
 	row := conn(ctx, s.db).QueryRowContext(ctx,
-		`SELECT `+interruptColumns+` FROM interrupts WHERE root_run_id = ?`, runID)
+		`SELECT `+interruptColumns+` FROM interrupts WHERE root_run_id = ? AND state = 'open'`, runID)
 	p, err := scanPending(row)
 	if errors.Is(err, sql.ErrNoRows) {
 		return InterruptRecord{}, false, nil
@@ -311,7 +332,7 @@ func (s *InterruptStore) Consume(ctx context.Context, sessionID, runID string) (
 		return InterruptRecord{}, false, fmt.Errorf("sqlite: consume interrupt: %w", err)
 	}
 	row := conn(ctx, s.db).QueryRowContext(ctx,
-		`DELETE FROM interrupts WHERE session_id = ? AND root_run_id = ?
+		`DELETE FROM interrupts WHERE session_id = ? AND root_run_id = ? AND state = 'open'
 		 RETURNING `+interruptColumns,
 		sessionID, runID)
 	p, err := scanPending(row)
@@ -325,6 +346,76 @@ func (s *InterruptStore) Consume(ctx context.Context, sessionID, runID string) (
 		return InterruptRecord{}, false, err
 	}
 	return p, true, nil
+}
+
+// ClaimResume atomically changes one exact open hand-off into a nonrecoverable
+// resuming record while retaining the validated answer for audit and crash
+// diagnosis. Open reads exclude the row until a new waiting boundary replaces
+// it or terminal cleanup deletes it.
+func (s *InterruptStore) ClaimResume(
+	ctx context.Context,
+	sessionID, runID string,
+	answers json.RawMessage,
+	claimedAt time.Time,
+) (InterruptRecord, bool, error) {
+	if err := validatePendingOwner(sessionID, runID); err != nil {
+		return InterruptRecord{}, false, fmt.Errorf("sqlite: claim resume: %w", err)
+	}
+	if len(answers) == 0 || !json.Valid(answers) {
+		return InterruptRecord{}, false, errors.New("sqlite: claim resume answers must be valid JSON")
+	}
+	if claimedAt.IsZero() {
+		return InterruptRecord{}, false, errors.New("sqlite: claim resume time is required")
+	}
+	row := conn(ctx, s.db).QueryRowContext(ctx,
+		`UPDATE interrupts
+		    SET state = 'resuming', answers = ?, claimed_at = ?
+		  WHERE session_id = ? AND root_run_id = ? AND state = 'open'
+		  RETURNING `+interruptColumns,
+		string(answers), claimedAt.UTC().UnixNano(), sessionID, runID,
+	)
+	record, err := scanPending(row)
+	if errors.Is(err, sql.ErrNoRows) {
+		if err := s.rejectForeignPendingOwner(ctx, sessionID, runID); err != nil {
+			return InterruptRecord{}, false, err
+		}
+		return InterruptRecord{}, false, nil
+	}
+	if err != nil {
+		return InterruptRecord{}, false, err
+	}
+	return record, true, nil
+}
+
+// RequireResumeClaim proves that the exact root hand-off crossed the answer
+// claim linearization point before its Run tree is reopened.
+func (s *InterruptStore) RequireResumeClaim(ctx context.Context, sessionID, runID string) error {
+	if err := validatePendingOwner(sessionID, runID); err != nil {
+		return fmt.Errorf("sqlite: require resume claim: %w", err)
+	}
+	var owner, state string
+	err := conn(ctx, s.db).QueryRowContext(ctx,
+		`SELECT session_id, state FROM interrupts WHERE root_run_id = ?`, runID,
+	).Scan(&owner, &state)
+	if errors.Is(err, sql.ErrNoRows) {
+		return errors.New("sqlite: resume claim does not exist")
+	}
+	if err != nil {
+		return fmt.Errorf("sqlite: inspect resume claim: %w", err)
+	}
+	if owner != sessionID {
+		return fmt.Errorf(
+			"%w: Pending root Run %q belongs to Session %q, not %q",
+			transcript.ErrIdentityConflict,
+			runID,
+			owner,
+			sessionID,
+		)
+	}
+	if state != "resuming" {
+		return fmt.Errorf("sqlite: interrupt for root Run %q is %q, not resuming", runID, state)
+	}
+	return nil
 }
 
 func (s *InterruptStore) Delete(ctx context.Context, sessionID, runID string) error {
@@ -382,13 +473,13 @@ func (s *InterruptStore) rejectForeignPendingOwner(ctx context.Context, sessionI
 // List.
 func scanPending(row scanRow) (InterruptRecord, error) {
 	var (
-		p             InterruptRecord
-		payload       string
-		rootMemberID  string
-		continuations string
-		suspensions   string
-		capabilities  string
-		createdNs     int64
+		p               InterruptRecord
+		payload         string
+		rootMemberID    string
+		continuations   string
+		encodedBindings string
+		capabilities    string
+		createdNs       int64
 	)
 	if err := row.Scan(
 		&p.RootRunID,
@@ -398,7 +489,7 @@ func scanPending(row scanRow) (InterruptRecord, error) {
 		&rootMemberID,
 		&payload,
 		&continuations,
-		&suspensions,
+		&encodedBindings,
 		&capabilities,
 		&createdNs,
 	); err != nil {
@@ -418,11 +509,11 @@ func scanPending(row scanRow) (InterruptRecord, error) {
 	if p.Continuations, err = continuationsFromRows(continuationValues); err != nil {
 		return InterruptRecord{}, fmt.Errorf("sqlite: decode interrupt continuations: %w", err)
 	}
-	var bindingValues []suspensionBindingRow
-	if err := decodeInterruptJSON(suspensions, &bindingValues); err != nil {
-		return InterruptRecord{}, fmt.Errorf("sqlite: decode interrupt suspension bindings: %w", err)
+	var bindingValues []interruptBindingRow
+	if err := decodeInterruptJSON(encodedBindings, &bindingValues); err != nil {
+		return InterruptRecord{}, fmt.Errorf("sqlite: decode input-request bindings: %w", err)
 	}
-	p.Suspensions = suspensionBindingsFromRows(bindingValues)
+	p.Bindings = interruptBindingsFromRows(bindingValues)
 	if p.Capabilities, err = decodeRunCapabilities(capabilities); err != nil {
 		return InterruptRecord{}, err
 	}
@@ -661,18 +752,18 @@ func interruptsFromPayloads(rows []interruptPayload) ([]transcript.Interrupt, er
 	return values, nil
 }
 
-func suspensionBindingRows(values []SuspensionBindingRecord) []suspensionBindingRow {
-	rows := make([]suspensionBindingRow, len(values))
+func interruptBindingRows(values []InterruptBindingRecord) []interruptBindingRow {
+	rows := make([]interruptBindingRow, len(values))
 	for index, value := range values {
-		rows[index] = suspensionBindingRow(value)
+		rows[index] = interruptBindingRow(value)
 	}
 	return rows
 }
 
-func suspensionBindingsFromRows(rows []suspensionBindingRow) []SuspensionBindingRecord {
-	values := make([]SuspensionBindingRecord, len(rows))
+func interruptBindingsFromRows(rows []interruptBindingRow) []InterruptBindingRecord {
+	values := make([]InterruptBindingRecord, len(rows))
 	for index, row := range rows {
-		values[index] = SuspensionBindingRecord(row)
+		values[index] = InterruptBindingRecord(row)
 	}
 	return values
 }

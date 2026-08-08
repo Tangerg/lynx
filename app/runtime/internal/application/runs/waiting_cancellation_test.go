@@ -34,10 +34,10 @@ func (projection *fakeItemProjection) Item(
 }
 
 type fakePreparedWaitingCancellation struct {
-	canceled    []string
-	suspensions []MemberInterruption
-	checkpoint  *ExecutorCheckpoint
-	commitErr   error
+	canceled      []string
+	interruptions []MemberInterruption
+	checkpoint    *ExecutorCheckpoint
+	commitErr     error
 	// settleOnCommitError models the executor's post-commit Continue
 	// failure: the planned runtime transition is already applied, so Abort must
 	// be a no-op while the opened segment error-terminalizes.
@@ -56,7 +56,7 @@ func (prepared *fakePreparedWaitingCancellation) value() PreparedWaitingSubtreeC
 	}
 	return PreparedWaitingSubtreeCancellation{
 		CanceledMemberIDs:    slices.Clone(prepared.canceled),
-		PendingInterruptions: slices.Clone(prepared.suspensions),
+		PendingInterruptions: slices.Clone(prepared.interruptions),
 		Checkpoint:           checkpoint,
 		Mutation:             prepared,
 	}
@@ -126,10 +126,10 @@ func TestPrepareWaitingCancellationKeepsSurvivingExternalBoundary(t *testing.T) 
 	plan := waitingCancellationPlan(t, "run_a", false)
 	prepared := &fakePreparedWaitingCancellation{
 		canceled: []string{"member_a", "member_grandchild"},
-		suspensions: []MemberInterruption{{
-			MemberID:     "member_b",
-			SuspensionID: "suspension_b",
-			Interrupt:    waitingQuestionPrompt(),
+		interruptions: []MemberInterruption{{
+			MemberID:  "member_b",
+			RequestID: "request_b",
+			Interrupt: waitingQuestionPrompt(),
 		}},
 	}
 	finishedAt := time.Date(2026, 7, 30, 2, 3, 4, 0, time.UTC)
@@ -210,15 +210,15 @@ func TestPublishWaitingChildCancellationInvalidatesExactReadSet(t *testing.T) {
 	tests := []struct {
 		name           string
 		finalBoundary  bool
-		suspensions    []MemberInterruption
+		interruptions  []MemberInterruption
 		affectedRunIDs []string
 	}{
 		{
 			name: "remaining waiting boundary",
-			suspensions: []MemberInterruption{{
-				MemberID:     "member_b",
-				SuspensionID: "suspension_b",
-				Interrupt:    waitingQuestionPrompt(),
+			interruptions: []MemberInterruption{{
+				MemberID:  "member_b",
+				RequestID: "request_b",
+				Interrupt: waitingQuestionPrompt(),
 			}},
 			affectedRunIDs: []string{"run_grandchild", "run_a", "run_1"},
 		},
@@ -233,8 +233,8 @@ func TestPublishWaitingChildCancellationInvalidatesExactReadSet(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			plan := waitingCancellationPlan(t, "run_a", test.finalBoundary)
 			prepared := &fakePreparedWaitingCancellation{
-				canceled:    []string{"member_a", "member_grandchild"},
-				suspensions: test.suspensions,
+				canceled:      []string{"member_a", "member_grandchild"},
+				interruptions: test.interruptions,
 			}
 			transformation, err := prepareWaitingCancellationTransformation(
 				plan,
@@ -266,10 +266,10 @@ func TestCancelWaitingChildCommitsReducedPendingBeforeRuntimeTransition(t *testi
 	plan := waitingCancellationPlan(t, "run_a", false)
 	prepared := &fakePreparedWaitingCancellation{
 		canceled: []string{"member_a", "member_grandchild"},
-		suspensions: []MemberInterruption{{
-			MemberID:     "member_b",
-			SuspensionID: "suspension_b",
-			Interrupt:    waitingQuestionPrompt(),
+		interruptions: []MemberInterruption{{
+			MemberID:  "member_b",
+			RequestID: "request_b",
+			Interrupt: waitingQuestionPrompt(),
 		}},
 	}
 	effects := &fakeEffects{
@@ -321,10 +321,10 @@ func TestCancelWaitingChildRecoversCommittedTreeWhenRuntimeApplyFails(t *testing
 	prepared := &fakePreparedWaitingCancellation{
 		canceled:  []string{"member_a", "member_grandchild"},
 		commitErr: applyErr,
-		suspensions: []MemberInterruption{{
-			MemberID:     "member_b",
-			SuspensionID: "suspension_b",
-			Interrupt:    waitingQuestionPrompt(),
+		interruptions: []MemberInterruption{{
+			MemberID:  "member_b",
+			RequestID: "request_b",
+			Interrupt: waitingQuestionPrompt(),
 		}},
 	}
 	effects := &fakeEffects{
@@ -373,10 +373,10 @@ func TestCancelWaitingChildRestoresParkedExecutorAfterRuntimeRestart(t *testing.
 	plan := waitingCancellationPlan(t, "run_a", false)
 	prepared := &fakePreparedWaitingCancellation{
 		canceled: []string{"member_a", "member_grandchild"},
-		suspensions: []MemberInterruption{{
-			MemberID:     "member_b",
-			SuspensionID: "suspension_b",
-			Interrupt:    waitingQuestionPrompt(),
+		interruptions: []MemberInterruption{{
+			MemberID:  "member_b",
+			RequestID: "request_b",
+			Interrupt: waitingQuestionPrompt(),
 		}},
 	}
 	effects := &fakeEffects{
@@ -598,10 +598,10 @@ func TestCancelWaitingChildAbortsPreparedOperationWhenDurableCommitFails(t *test
 	plan := waitingCancellationPlan(t, "run_a", false)
 	prepared := &fakePreparedWaitingCancellation{
 		canceled: []string{"member_a", "member_grandchild"},
-		suspensions: []MemberInterruption{{
-			MemberID:     "member_b",
-			SuspensionID: "suspension_b",
-			Interrupt:    waitingQuestionPrompt(),
+		interruptions: []MemberInterruption{{
+			MemberID:  "member_b",
+			RequestID: "request_b",
+			Interrupt: waitingQuestionPrompt(),
 		}},
 	}
 	commitErr := errors.New("durable transaction failed")
@@ -663,16 +663,17 @@ func waitingCancellationCoordinator(
 		},
 	}
 	coordinator := NewCoordinator(Dependencies{
-		Observations: executor,
-		Releases:     control,
-		Continuation: control,
-		RunningTrees: control,
-		WaitingTrees: control,
-		Session:      testSessionPorts(sessions),
-		Projection:   testProjectionPorts(effects),
-		Runs:         &fakeRunProjection{runs: runsByID},
-		Items:        &fakeItemProjection{items: waitingCancellationItems(plan)},
-		Admissions:   new(admission.Gate),
+		Observations:  executor,
+		Releases:      control,
+		Continuation:  control,
+		LegacyWaiting: control,
+		RunningTrees:  control,
+		WaitingTrees:  control,
+		Session:       testSessionPorts(sessions),
+		Projection:    testProjectionPorts(effects),
+		Runs:          &fakeRunProjection{runs: runsByID},
+		Items:         &fakeItemProjection{items: waitingCancellationItems(plan)},
+		Admissions:    new(admission.Gate),
 		Now: func() time.Time {
 			return time.Date(2026, 7, 30, 2, 3, 4, 0, time.UTC)
 		},
@@ -692,7 +693,7 @@ func waitingCancellationPlan(
 	pending := resumedTreePending(createdAt)
 	if finalBoundary {
 		pending.Interrupts = slices.Clone(pending.Interrupts[:1])
-		pending.Suspensions = slices.Clone(pending.Suspensions[:1])
+		pending.Bindings = slices.Clone(pending.Bindings[:1])
 	}
 
 	runsByID := make(map[string]transcript.Run, len(pending.Continuations))

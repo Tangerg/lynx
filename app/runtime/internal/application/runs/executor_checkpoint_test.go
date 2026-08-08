@@ -43,9 +43,9 @@ func TestTreeInterruptedRejectsCheckpointBoundToDifferentApplicationFacts(t *tes
 		t.Run(test.name, func(t *testing.T) {
 			barrier := TreeInterrupted{
 				Checkpoint: testExecutorCheckpoint(),
-				Suspensions: []MemberInterruption{{
-					MemberID:     "member_root",
-					SuspensionID: "suspension_root",
+				Interruptions: []MemberInterruption{{
+					MemberID:  "member_root",
+					RequestID: "request_root",
 					Interrupt: Interrupt{
 						Kind: interrupt.Question,
 						Question: &QuestionPrompt{

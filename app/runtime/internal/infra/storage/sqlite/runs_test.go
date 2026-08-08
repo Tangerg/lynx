@@ -88,16 +88,16 @@ func pendingForRun(
 	createdAt time.Time,
 ) runs.Pending {
 	copied := slices.Clone(values)
-	bindings := make([]runs.SuspensionBinding, len(copied))
+	bindings := make([]runs.InterruptBinding, len(copied))
 	for index := range copied {
 		copied[index].RunID = runID
 		if copied[index].ItemOccurredAt.IsZero() {
 			copied[index].ItemOccurredAt = createdAt
 		}
-		bindings[index] = runs.SuspensionBinding{
+		bindings[index] = runs.InterruptBinding{
 			InterruptItemID: copied[index].ItemID,
 			MemberID:        processID,
-			SuspensionID:    "suspension_" + copied[index].ItemID,
+			RequestID:       "request_" + copied[index].ItemID,
 		}
 	}
 	return runs.Pending{
@@ -105,7 +105,7 @@ func pendingForRun(
 		SessionID:    sessionID,
 		ExecutorID:   "turn_" + runID,
 		Interrupts:   copied,
-		Suspensions:  bindings,
+		Bindings:     bindings,
 		Capabilities: capabilitiesForInterrupts(copied),
 		Continuations: []runs.Continuation{{
 			RunID:        runID,

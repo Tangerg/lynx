@@ -63,7 +63,7 @@ type QuestionOptionSpec struct {
 	Description string
 }
 
-// Interrupt is the durable application plan for a runtime suspension. Exactly
+// Interrupt is the durable product request for external input. Exactly
 // one payload must be present and must match Kind. Executor continuation data is
 // deliberately absent.
 type Interrupt struct {

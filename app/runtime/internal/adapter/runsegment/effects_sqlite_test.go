@@ -5,7 +5,9 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"reflect"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -42,10 +44,33 @@ func waitingProcessSnapshot(id string, started, parked time.Time) core.ProcessSn
 	}
 }
 
-// TestCommitOpeningResumeRollsBackConsume proves the critical continuation
-// write-set uses one real database transaction: even though Consume executes
-// before validation fails, rollback leaves the interrupt open.
-func TestCommitOpeningResumeRollsBackConsume(t *testing.T) {
+func claimResumeForTest(
+	t *testing.T,
+	store *persistence.InterruptStore,
+	pending runs.Pending,
+) {
+	t.Helper()
+	answers := make([]runs.InterruptAnswer, len(pending.Bindings))
+	for index, binding := range pending.Bindings {
+		answers[index] = runs.InterruptAnswer{
+			InterruptItemID: binding.InterruptItemID,
+			MemberID:        binding.MemberID,
+			RequestID:       binding.RequestID,
+			Resolution:      interrupt.Resolution{Approved: true},
+		}
+	}
+	_, found, err := store.ClaimResume(
+		t.Context(), pending.SessionID, pending.RootRunID, answers, time.Now().UTC(),
+	)
+	if err != nil || !found {
+		t.Fatalf("claim resume for test: found=%t err=%v", found, err)
+	}
+}
+
+// TestCommitOpeningResumePreservesAnswerClaimOnRollback proves the continuation
+// opening leaves its already-claimed hand-off untouched when Run-state
+// validation fails.
+func TestCommitOpeningResumePreservesAnswerClaimOnRollback(t *testing.T) {
 	db, err := sqlite.Open(t.Context(), ":memory:")
 	if err != nil {
 		t.Fatalf("open: %v", err)
@@ -69,6 +94,7 @@ func TestCommitOpeningResumeRollsBackConsume(t *testing.T) {
 	if err := ints.Open(ctx, stalePending); err != nil {
 		t.Fatalf("seed interrupt: %v", err)
 	}
+	claimResumeForTest(t, ints, stalePending)
 	effects := sqliteEffects(sqliteOpeningStores{interrupts: ints, transcript: history}, Config{
 		RunState: state,
 		Tx:       func(ctx context.Context, fn func(context.Context) error) error { return sqlite.RunInTx(ctx, db, fn) },
@@ -83,8 +109,11 @@ func TestCommitOpeningResumeRollsBackConsume(t *testing.T) {
 	if err == nil {
 		t.Fatal("CommitOpening must reject an interrupt that does not own the active run")
 	}
-	if _, found, getErr := ints.Get(ctx, "run_stale"); getErr != nil || !found {
-		t.Fatalf("rolled-back interrupt found=%v err=%v, want still open", found, getErr)
+	if _, found, getErr := ints.Get(ctx, "run_stale"); getErr != nil || found {
+		t.Fatalf("rolled-back interrupt found=%v err=%v, want hidden claim", found, getErr)
+	}
+	if err := ints.RequireResumeClaim(ctx, "ses_1", "run_stale"); err != nil {
+		t.Fatalf("rolled-back resume claim: %v", err)
 	}
 }
 
@@ -113,6 +142,7 @@ func TestCommitOpeningResumeCommitsWholeWriteSet(t *testing.T) {
 	if err := ints.Open(ctx, pending); err != nil {
 		t.Fatalf("seed interrupt: %v", err)
 	}
+	claimResumeForTest(t, ints, pending)
 	effects := sqliteEffects(sqliteOpeningStores{interrupts: ints, transcript: history}, Config{
 		RunState: state,
 		Tx:       func(ctx context.Context, fn func(context.Context) error) error { return sqlite.RunInTx(ctx, db, fn) },
@@ -140,7 +170,10 @@ func TestCommitOpeningResumeCommitsWholeWriteSet(t *testing.T) {
 		t.Fatalf("CommitOpening: %v", err)
 	}
 	if _, found, getErr := ints.Get(ctx, "run_1"); getErr != nil || found {
-		t.Fatalf("interrupt found=%v err=%v, want consumed", found, getErr)
+		t.Fatalf("interrupt found=%v err=%v, accepted claim must remain hidden", found, getErr)
+	}
+	if err := ints.RequireResumeClaim(ctx, "ses_1", "run_1"); err != nil {
+		t.Fatalf("accepted resume claim: %v", err)
 	}
 	recorded, listErr := history.List(ctx, "ses_1")
 	if listErr != nil || len(recorded) != 1 {
@@ -152,7 +185,7 @@ func TestCommitOpeningResumeCommitsWholeWriteSet(t *testing.T) {
 	}
 
 	if err := effects.CommitOpening(ctx, opening); err == nil {
-		t.Fatal("duplicate CommitOpening succeeded after the interrupt was consumed")
+		t.Fatal("duplicate CommitOpening succeeded after the Run was already resumed")
 	}
 	recorded, listErr = history.List(ctx, "ses_1")
 	if listErr != nil || len(recorded) != 1 {
@@ -417,10 +450,10 @@ func TestCommitOpeningResumesRunTreeAtomically(t *testing.T) {
 					InterruptKinds: []interrupt.Kind{interrupt.Question},
 				},
 				Interrupts: childRun.Interrupts,
-				Suspensions: []runs.SuspensionBinding{{
+				Bindings: []runs.InterruptBinding{{
 					InterruptItemID: "item_child",
 					MemberID:        "process_child",
-					SuspensionID:    "suspension_child",
+					RequestID:       "suspension_child",
 				}},
 				Continuations: []runs.Continuation{
 					{
@@ -440,6 +473,7 @@ func TestCommitOpeningResumesRunTreeAtomically(t *testing.T) {
 			if err := ints.Open(ctx, pending); err != nil {
 				t.Fatalf("put pending: %v", err)
 			}
+			claimResumeForTest(t, ints, pending)
 			effects := sqliteEffects(sqliteOpeningStores{interrupts: ints}, Config{
 				RunState: state,
 				Tx: func(ctx context.Context, fn func(context.Context) error) error {
@@ -462,8 +496,11 @@ func TestCommitOpeningResumesRunTreeAtomically(t *testing.T) {
 				}
 				assertStoredRunState(t, db, "run_child", "waiting")
 				assertStoredRunState(t, db, "run_root", "running")
-				if _, found, getErr := ints.Get(ctx, "run_root"); getErr != nil || !found {
-					t.Fatalf("pending after rollback found=%v err=%v, want open", found, getErr)
+				if _, found, getErr := ints.Get(ctx, "run_root"); getErr != nil || found {
+					t.Fatalf("pending after rollback found=%v err=%v, want hidden claim", found, getErr)
+				}
+				if err := ints.RequireResumeClaim(ctx, "session_1", "run_root"); err != nil {
+					t.Fatalf("resume claim after rollback: %v", err)
 				}
 				return
 			}
@@ -473,7 +510,10 @@ func TestCommitOpeningResumesRunTreeAtomically(t *testing.T) {
 			assertStoredRunState(t, db, "run_child", "running")
 			assertStoredRunState(t, db, "run_root", "running")
 			if _, found, getErr := ints.Get(ctx, "run_root"); getErr != nil || found {
-				t.Fatalf("pending after commit found=%v err=%v, want consumed", found, getErr)
+				t.Fatalf("pending after commit found=%v err=%v, want hidden claim", found, getErr)
+			}
+			if err := ints.RequireResumeClaim(ctx, "session_1", "run_root"); err != nil {
+				t.Fatalf("resume claim after commit: %v", err)
 			}
 		})
 	}
@@ -778,6 +818,119 @@ func TestCommitTreeBarrierRollsBackCheckpointWhenRunSuspendFails(t *testing.T) {
 	}
 }
 
+func TestClaimResumeAtomicallyRecordsAnswerAndInvalidatesCheckpoint(t *testing.T) {
+	db, err := sqlite.Open(t.Context(), ":memory:")
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	ctx := t.Context()
+	createdAt := time.Unix(1, 0).UTC()
+	claimedAt := createdAt.Add(2 * time.Second)
+	interruptStore := persistence.NewInterruptStore(sqlite.NewInterruptStore(db))
+	checkpointStore := persistence.NewExecutorCheckpointStore(sqlite.NewExecutorCheckpointStore(db))
+	pending := singleRunPending(
+		t,
+		"run_claim", "session_claim", "member_claim", "request_claim", "item_claim",
+		createdAt, createdAt.Add(time.Second),
+	)
+	if err := interruptStore.Open(ctx, pending); err != nil {
+		t.Fatalf("open interrupt: %v", err)
+	}
+	root, _ := pending.RootContinuation()
+	checkpoint := runs.ExecutorCheckpoint{
+		RootMemberID:   root.MemberID,
+		Payload:        []byte(`{"opaque":"tree"}`),
+		BuildID:        checkpointBuildID,
+		Scope:          runs.ExecutionScope{SessionID: pending.SessionID},
+		ModelSelection: root.ModelSelection,
+		Limits:         root.Limits,
+	}
+	if err := checkpointStore.SaveCheckpoint(ctx, checkpoint); err != nil {
+		t.Fatalf("save checkpoint: %v", err)
+	}
+	effects := New(Config{
+		Interrupts:          interruptStore,
+		ResumeClaims:        interruptStore,
+		ExecutorCheckpoints: checkpointStore,
+		Tx: func(ctx context.Context, fn func(context.Context) error) error {
+			return sqlite.RunInTx(ctx, db, fn)
+		},
+	})
+	answers := []runs.InterruptAnswer{{
+		InterruptItemID: pending.Bindings[0].InterruptItemID,
+		MemberID:        pending.Bindings[0].MemberID,
+		RequestID:       pending.Bindings[0].RequestID,
+		Resolution:      interrupt.Resolution{Answers: [][]string{{"continue"}}},
+	}}
+
+	stale := pending
+	stale.ExecutorID = "turn_stale"
+	if _, err := effects.ClaimResume(ctx, runs.ResumeClaimCommit{
+		Expected: stale, Answers: answers, ClaimedAt: claimedAt,
+	}); err == nil {
+		t.Fatal("ClaimResume accepted a stale waiting hand-off")
+	}
+	if _, found, err := interruptStore.Get(ctx, pending.RootRunID); err != nil || !found {
+		t.Fatalf("interrupt after rolled-back claim = found:%t err:%v", found, err)
+	}
+	if _, err := checkpointStore.LoadCheckpoint(ctx, root.MemberID); err != nil {
+		t.Fatalf("checkpoint after rolled-back claim: %v", err)
+	}
+
+	claimed, err := effects.ClaimResume(ctx, runs.ResumeClaimCommit{
+		Expected: pending, Answers: answers, ClaimedAt: claimedAt,
+	})
+	if err != nil {
+		t.Fatalf("ClaimResume: %v", err)
+	}
+	if !reflect.DeepEqual(claimed.Pending, pending) || !reflect.DeepEqual(claimed.Answers, answers) ||
+		!reflect.DeepEqual(claimed.Checkpoint, checkpoint) {
+		t.Fatalf("claimed resume = %+v", claimed)
+	}
+	if _, found, err := interruptStore.Get(ctx, pending.RootRunID); err != nil || found {
+		t.Fatalf("open interrupt after claim = found:%t err:%v, want hidden", found, err)
+	}
+	if _, err := checkpointStore.LoadCheckpoint(ctx, root.MemberID); !errors.Is(err, runs.ErrExecutorCheckpointNotFound) {
+		t.Fatalf("checkpoint after claim = %v, want not found", err)
+	}
+	var state, encodedAnswers string
+	var storedClaimedAt int64
+	if err := db.QueryRowContext(ctx,
+		`SELECT state, answers, claimed_at FROM interrupts WHERE root_run_id = ?`,
+		pending.RootRunID,
+	).Scan(&state, &encodedAnswers, &storedClaimedAt); err != nil {
+		t.Fatalf("read answer claim: %v", err)
+	}
+	if state != "resuming" || storedClaimedAt != claimedAt.UnixNano() ||
+		!strings.Contains(encodedAnswers, `"requestId":"request_claim"`) ||
+		!strings.Contains(encodedAnswers, `"answers":[["continue"]]`) {
+		t.Fatalf("answer claim state=%q answers=%s claimedAt=%d", state, encodedAnswers, storedClaimedAt)
+	}
+
+	next := pending
+	next.Interrupts[0].ItemID = "item_next"
+	next.Interrupts[0].ItemOccurredAt = claimedAt.Add(time.Second)
+	next.Bindings[0].InterruptItemID = "item_next"
+	next.Bindings[0].RequestID = "request_next"
+	next.CreatedAt = claimedAt.Add(time.Second)
+	if err := interruptStore.Open(ctx, next); err != nil {
+		t.Fatalf("advance to next quiescent barrier: %v", err)
+	}
+	if got, found, err := interruptStore.Get(ctx, next.RootRunID); err != nil || !found || !reflect.DeepEqual(got, next) {
+		t.Fatalf("next interrupt = found:%t value:%+v err:%v", found, got, err)
+	}
+	if err := db.QueryRowContext(ctx,
+		`SELECT state, answers, claimed_at FROM interrupts WHERE root_run_id = ?`,
+		next.RootRunID,
+	).Scan(&state, &encodedAnswers, &storedClaimedAt); err != nil {
+		t.Fatalf("read advanced barrier: %v", err)
+	}
+	if state != "open" || encodedAnswers != "" || storedClaimedAt != 0 {
+		t.Fatalf("advanced barrier state=%q answers=%q claimedAt=%d", state, encodedAnswers, storedClaimedAt)
+	}
+}
+
 func TestCommitTerminalOwnsExecutorCheckpointDeletion(t *testing.T) {
 	for _, test := range []struct {
 		name       string
@@ -812,6 +965,23 @@ func TestCommitTerminalOwnsExecutorCheckpointDeletion(t *testing.T) {
 			})); err != nil {
 				t.Fatalf("seed checkpoint: %v", err)
 			}
+			interruptStore := persistence.NewInterruptStore(sqlite.NewInterruptStore(db))
+			pending := singleRunPending(
+				t,
+				"run_terminal", "ses_terminal", snapshot.ID, "request_terminal", "item_terminal",
+				createdAt, createdAt.Add(time.Second),
+			)
+			if err := interruptStore.Open(ctx, pending); err != nil {
+				t.Fatalf("seed interrupt: %v", err)
+			}
+			if _, found, err := interruptStore.ClaimResume(ctx, pending.SessionID, pending.RootRunID, []runs.InterruptAnswer{{
+				InterruptItemID: pending.Bindings[0].InterruptItemID,
+				MemberID:        pending.Bindings[0].MemberID,
+				RequestID:       pending.Bindings[0].RequestID,
+				Resolution:      interrupt.Resolution{Answers: [][]string{{"continue"}}},
+			}}, createdAt.Add(2*time.Second)); err != nil || !found {
+				t.Fatalf("seed answer claim: found=%t err=%v", found, err)
+			}
 
 			var checkpoints ExecutorCheckpointStore = checkpointStore
 			if test.deleteFail {
@@ -822,6 +992,7 @@ func TestCommitTerminalOwnsExecutorCheckpointDeletion(t *testing.T) {
 			}
 			effects := New(Config{
 				RunState:            runStore,
+				Interrupts:          interruptStore,
 				ExecutorCheckpoints: checkpoints,
 				Tx: func(ctx context.Context, fn func(context.Context) error) error {
 					return sqlite.RunInTx(ctx, db, fn)
@@ -844,6 +1015,12 @@ func TestCommitTerminalOwnsExecutorCheckpointDeletion(t *testing.T) {
 				if _, loadErr := checkpointStore.LoadCheckpoint(ctx, snapshot.ID); loadErr != nil {
 					t.Fatalf("checkpoint lost after terminal rollback: %v", loadErr)
 				}
+				var state string
+				if scanErr := db.QueryRowContext(ctx,
+					`SELECT state FROM interrupts WHERE root_run_id = ?`, pending.RootRunID,
+				).Scan(&state); scanErr != nil || state != "resuming" {
+					t.Fatalf("answer claim after rollback = state:%q err:%v", state, scanErr)
+				}
 				return
 			}
 			if err != nil {
@@ -851,6 +1028,12 @@ func TestCommitTerminalOwnsExecutorCheckpointDeletion(t *testing.T) {
 			}
 			if _, loadErr := checkpointStore.LoadCheckpoint(ctx, snapshot.ID); !errors.Is(loadErr, runs.ErrExecutorCheckpointNotFound) {
 				t.Fatalf("terminal checkpoint survived: %v", loadErr)
+			}
+			var remaining int
+			if scanErr := db.QueryRowContext(ctx,
+				`SELECT count(*) FROM interrupts WHERE root_run_id = ?`, pending.RootRunID,
+			).Scan(&remaining); scanErr != nil || remaining != 0 {
+				t.Fatalf("terminal answer claim cleanup = rows:%d err:%v", remaining, scanErr)
 			}
 		})
 	}
@@ -1179,16 +1362,16 @@ func newWaitingCancellationSQLiteFixtureAt(
 	}
 
 	pendingInterrupts := []transcript.Interrupt{grandchildQuestion, childQuestion}
-	pendingSuspensions := []runs.SuspensionBinding{
+	pendingSuspensions := []runs.InterruptBinding{
 		{
 			InterruptItemID: grandchildQuestion.ItemID,
 			MemberID:        "process_grandchild",
-			SuspensionID:    "suspension-process_grandchild",
+			RequestID:       "suspension-process_grandchild",
 		},
 		{
 			InterruptItemID: childQuestion.ItemID,
 			MemberID:        "process_child",
-			SuspensionID:    "suspension-process_child",
+			RequestID:       "suspension-process_child",
 		},
 	}
 	pendingContinuations := []runs.Continuation{
@@ -1208,10 +1391,10 @@ func newWaitingCancellationSQLiteFixtureAt(
 	if survivingBoundary {
 		siblingQuestion := siblingRun.Interrupts[0]
 		pendingInterrupts = append(pendingInterrupts, siblingQuestion)
-		pendingSuspensions = append(pendingSuspensions, runs.SuspensionBinding{
+		pendingSuspensions = append(pendingSuspensions, runs.InterruptBinding{
 			InterruptItemID: siblingQuestion.ItemID,
 			MemberID:        "process_sibling",
-			SuspensionID:    "suspension-process_sibling",
+			RequestID:       "suspension-process_sibling",
 		})
 		pendingContinuations = append(pendingContinuations, runs.Continuation{
 			RunID:        siblingRun.ID,
@@ -1235,7 +1418,7 @@ func newWaitingCancellationSQLiteFixtureAt(
 		ExecutorID:    "turn_1",
 		Capabilities:  capabilities,
 		Interrupts:    pendingInterrupts,
-		Suspensions:   pendingSuspensions,
+		Bindings:      pendingSuspensions,
 		Continuations: pendingContinuations,
 		CreatedAt:     finishedAt,
 	}
@@ -1335,7 +1518,7 @@ func newWaitingCancellationSQLiteFixtureAt(
 	if survivingBoundary {
 		reduced := pending
 		reduced.Interrupts = slices.Clone(pending.Interrupts[2:])
-		reduced.Suspensions = slices.Clone(pending.Suspensions[2:])
+		reduced.Bindings = slices.Clone(pending.Bindings[2:])
 		rootContinuation := pending.Continuations[len(pending.Continuations)-1]
 		rootContinuation.DrainedTools = nil
 		rootContinuation.CommittedTools = []runs.CommittedTool{{
@@ -1468,6 +1651,7 @@ type sqliteOpeningStores struct {
 
 func sqliteEffects(stores sqliteOpeningStores, cfg Config) *Effects {
 	cfg.Interrupts = stores.interrupts
+	cfg.ResumeClaims = stores.interrupts
 	cfg.Transcript = stores.transcript
 	return New(cfg)
 }

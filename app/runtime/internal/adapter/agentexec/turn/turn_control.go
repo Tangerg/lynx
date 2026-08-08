@@ -147,9 +147,9 @@ func (s *controller) PrepareWaitingSubtreeCancellation(
 			)
 		}
 		projected[index] = runs.MemberInterruption{
-			MemberID:     boundary.ProcessID,
-			SuspensionID: boundary.SuspensionID,
-			Interrupt:    interrupt,
+			MemberID:  boundary.ProcessID,
+			RequestID: boundary.SuspensionID,
+			Interrupt: interrupt,
 		}
 	}
 	mutation := &preparedWaitingSubtreeCancellation{controller: s, state: state, plan: plan}

@@ -243,10 +243,35 @@ type fakeEffects struct {
 	terminalRelease <-chan struct{}
 	finishStarted   chan<- struct{}
 	finishRelease   <-chan struct{}
+	mutateClaim     func(*ClaimedResume)
+}
+
+func (e *fakeEffects) ClaimResume(_ context.Context, claim ResumeClaimCommit) (ClaimedResume, error) {
+	if err := claim.Validate(); err != nil {
+		return ClaimedResume{}, err
+	}
+	checkpoint := testExecutorCheckpoint()
+	root, _ := claim.Expected.RootContinuation()
+	checkpoint.RootMemberID = root.MemberID
+	checkpoint.Scope.SessionID = claim.Expected.SessionID
+	checkpoint.Scope.CWD = "/work"
+	checkpoint.Scope.WorkspaceCWD = "/work"
+	checkpoint.Scope.GoalLeaseID = claim.Expected.GoalLeaseID
+	checkpoint.ModelSelection = root.ModelSelection
+	checkpoint.Limits = root.Limits
+	claimed := ClaimedResume{
+		Pending: claim.Expected, Answers: append([]InterruptAnswer(nil), claim.Answers...),
+		Checkpoint: checkpoint,
+	}
+	if e.mutateClaim != nil {
+		e.mutateClaim(&claimed)
+	}
+	return claimed, nil
 }
 
 type completeTestProjectionPorts interface {
 	OpeningCommitter
+	ResumeClaimCommitter
 	EventCommitter
 	TreeBarrierCommitter
 	WaitingSubtreeCancellationCommitter
@@ -257,6 +282,7 @@ type completeTestProjectionPorts interface {
 func testProjectionPorts(ports completeTestProjectionPorts) ProjectionPorts {
 	return ProjectionPorts{
 		Openings:     ports,
+		ResumeClaims: ports,
 		Events:       ports,
 		Barriers:     ports,
 		WaitingEdits: ports,
@@ -872,9 +898,9 @@ func resumedTreePending(createdAt time.Time) Pending {
 			question("item_grandchild", "run_grandchild"),
 			question("item_b", "run_b"),
 		},
-		Suspensions: []SuspensionBinding{
-			{InterruptItemID: "item_grandchild", MemberID: "member_grandchild", SuspensionID: "suspension_grandchild"},
-			{InterruptItemID: "item_b", MemberID: "member_b", SuspensionID: "suspension_b"},
+		Bindings: []InterruptBinding{
+			{InterruptItemID: "item_grandchild", MemberID: "member_grandchild", RequestID: "request_grandchild"},
+			{InterruptItemID: "item_b", MemberID: "member_b", RequestID: "request_b"},
 		},
 		Continuations: []Continuation{
 			{
@@ -1975,13 +2001,13 @@ func TestCoordinatorCommitsCompleteTreeBarrierInDeterministicPostorder(t *testin
 		{Member: grandchild, Payload: requestGrandchild},
 		// Deliberately report sibling B before the deeper descendant. Durable
 		// and public ordering follows Run-tree postorder, not executor arrival.
-		{Member: root, Payload: TreeInterrupted{Checkpoint: testExecutorCheckpoint(), Suspensions: []MemberInterruption{
+		{Member: root, Payload: TreeInterrupted{Checkpoint: testExecutorCheckpoint(), Interruptions: []MemberInterruption{
 			{
-				MemberID: childB.MemberID, SuspensionID: "suspension_b",
+				MemberID: childB.MemberID, RequestID: "request_b",
 				Interrupt: treeBarrierQuestion("Continue sibling B?"),
 			},
 			{
-				MemberID: grandchild.MemberID, SuspensionID: "suspension_grandchild",
+				MemberID: grandchild.MemberID, RequestID: "request_grandchild",
 				Interrupt: treeBarrierQuestion("Continue grandchild?"),
 			},
 		}}},
@@ -2070,10 +2096,10 @@ func TestCoordinatorCommitsCompleteTreeBarrierInDeterministicPostorder(t *testin
 	}; got[0] != "run_grandchild" || got[1] != "run_child_b" {
 		t.Fatalf("pending interrupt order = %v, want grandchild then child B", got)
 	}
-	if len(barrier.Pending.Suspensions) != 2 ||
-		barrier.Pending.Suspensions[0].MemberID != grandchild.MemberID ||
-		barrier.Pending.Suspensions[1].MemberID != childB.MemberID {
-		t.Fatalf("pending suspension bindings = %+v", barrier.Pending.Suspensions)
+	if len(barrier.Pending.Bindings) != 2 ||
+		barrier.Pending.Bindings[0].MemberID != grandchild.MemberID ||
+		barrier.Pending.Bindings[1].MemberID != childB.MemberID {
+		t.Fatalf("pending input-request bindings = %+v", barrier.Pending.Bindings)
 	}
 
 	var finishedOrder []string
@@ -2100,8 +2126,8 @@ func TestCoordinatorTreeBarrierCommitFailurePublishesNoInterruptedFact(t *testin
 	root := ExecutorMember{MemberID: "member_root"}
 	executor := &fakeExecutor{executorEvents: []ExecutorEvent{{
 		Member: root,
-		Payload: TreeInterrupted{Checkpoint: testExecutorCheckpoint(), Suspensions: []MemberInterruption{{
-			MemberID: root.MemberID, SuspensionID: "suspension_root",
+		Payload: TreeInterrupted{Checkpoint: testExecutorCheckpoint(), Interruptions: []MemberInterruption{{
+			MemberID: root.MemberID, RequestID: "request_root",
 			Interrupt: treeBarrierQuestion("Continue root?"),
 		}}},
 	}}}

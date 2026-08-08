@@ -43,10 +43,10 @@ func TestInterruptStore_OpenGetListDelete(t *testing.T) {
 			ItemID: "item_question", ItemOccurredAt: time.Unix(2, 0).UTC(), RunID: "run_1", Kind: interrupt.Question,
 			Question: &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Choose"}}},
 		}},
-		Suspensions: []runs.SuspensionBinding{{
+		Bindings: []runs.InterruptBinding{{
 			InterruptItemID: "item_question",
 			MemberID:        "member_1",
-			SuspensionID:    "suspension_1",
+			RequestID:       "request_1",
 		}},
 		Continuations: []runs.Continuation{{
 			RunID:          "run_1",
@@ -134,10 +134,10 @@ func TestInterruptStore_ConsumeIsAtomic(t *testing.T) {
 				Risk: tool.RiskHigh, Reason: "executes tests", Rememberable: true,
 			},
 		}},
-		Suspensions: []runs.SuspensionBinding{{
+		Bindings: []runs.InterruptBinding{{
 			InterruptItemID: "item_approval",
 			MemberID:        "member_1",
-			SuspensionID:    "suspension_1",
+			RequestID:       "request_1",
 		}},
 		Continuations: []runs.Continuation{{
 			RunID: "run_1", MemberID: "member_1", RunCreatedAt: time.Unix(1, 0).UTC(),
@@ -179,8 +179,8 @@ func TestInterruptStoreRejectsForeignSessionMutation(t *testing.T) {
 			ItemID: "item_question", ItemOccurredAt: time.Unix(2, 0).UTC(), RunID: "run_1", Kind: interrupt.Question,
 			Question: &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Continue?"}}},
 		}},
-		Suspensions: []runs.SuspensionBinding{{
-			InterruptItemID: "item_question", MemberID: "member_root", SuspensionID: "suspension_root",
+		Bindings: []runs.InterruptBinding{{
+			InterruptItemID: "item_question", MemberID: "member_root", RequestID: "request_root",
 		}},
 		Continuations: []runs.Continuation{{
 			RunID: "run_1", MemberID: "member_root", RunCreatedAt: time.Unix(1, 0).UTC(),
@@ -220,10 +220,10 @@ func TestInterruptStoreRoundTripsAppLineageWithoutExecutorTopology(t *testing.T)
 			ItemID: "item_child", ItemOccurredAt: time.Unix(2, 0).UTC(), RunID: "run_child", Kind: interrupt.Question,
 			Question: &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Continue?"}}},
 		}},
-		Suspensions: []runs.SuspensionBinding{{
+		Bindings: []runs.InterruptBinding{{
 			InterruptItemID: "item_child",
 			MemberID:        "member_child",
-			SuspensionID:    "suspension_child",
+			RequestID:       "request_child",
 		}},
 		Continuations: []runs.Continuation{
 			{
@@ -290,8 +290,8 @@ func TestInterruptStoreRejectsUnknownExecutorTopologyFields(t *testing.T) {
 			ItemID: "item_question", ItemOccurredAt: time.Unix(2, 0).UTC(), RunID: "run_root", Kind: interrupt.Question,
 			Question: &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Continue?"}}},
 		}},
-		Suspensions: []runs.SuspensionBinding{{
-			InterruptItemID: "item_question", MemberID: "member_root", SuspensionID: "suspension_root",
+		Bindings: []runs.InterruptBinding{{
+			InterruptItemID: "item_question", MemberID: "member_root", RequestID: "request_root",
 		}},
 		Continuations: []runs.Continuation{{
 			RunID: "run_root", MemberID: "member_root", RunCreatedAt: time.Unix(1, 0).UTC(),
@@ -344,10 +344,10 @@ func TestInterruptStoreExecutorRootHasOnePendingOwner(t *testing.T) {
 				ItemID: "item_" + runID, ItemOccurredAt: time.Unix(2, 0).UTC(), RunID: runID,
 				Kind: interrupt.Question, Question: &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "continue?"}}},
 			}},
-			Suspensions: []runs.SuspensionBinding{{
+			Bindings: []runs.InterruptBinding{{
 				InterruptItemID: "item_" + runID,
 				MemberID:        "member_shared",
-				SuspensionID:    "suspension_" + runID,
+				RequestID:       "request_" + runID,
 			}},
 			Continuations: []runs.Continuation{{
 				RunID: runID, MemberID: "member_shared", RunCreatedAt: time.Unix(1, 0).UTC(),

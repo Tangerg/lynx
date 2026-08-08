@@ -101,10 +101,10 @@ type RunResumeDraft struct {
 	SegmentID string
 }
 
-// TreeResumeDraft is the complete durable identity set reopened by one accepted
-// answer barrier. Runs is canonical postorder (descendants before ancestors,
-// siblings by Run ID, root last), matching the Pending continuation set it
-// consumes in the same transaction.
+// TreeResumeDraft is the complete durable identity set reopened after one
+// accepted answer claim. Runs is canonical postorder (descendants before
+// ancestors, siblings by Run ID, root last), matching the already-claimed
+// Pending continuation set.
 type TreeResumeDraft struct {
 	RootRunID string
 	SessionID string
@@ -116,8 +116,9 @@ type TreeResumeDraft struct {
 }
 
 // Validate checks the tree-resume identity frame. Topology and exact postorder
-// correspondence are checked against the consumed Pending set by the aggregate
-// transaction, which owns both values.
+// correspondence are checked while the owner creates the draft; persistence
+// additionally proves that its root has a durable answer claim before
+// reopening any Run.
 func (draft TreeResumeDraft) Validate() error {
 	switch {
 	case strings.TrimSpace(draft.RootRunID) == "":

@@ -76,7 +76,7 @@ func (commit RecoveryCommit) Validate() error {
 	if err := validateRecoveryGoalRuns(commit.GoalRuns, lostByID); err != nil {
 		return err
 	}
-	if err := validatePendingDeletions(commit.DeletePending, lostByID); err != nil {
+	if err := validateRecoveryInterruptDeletions(commit.DeleteInterrupts, lostByID); err != nil {
 		return err
 	}
 	if err := validateCanonicalIdentities("preserved checkpoint root", commit.PreservedCheckpointRootIDs); err != nil {
@@ -152,25 +152,31 @@ func validateRecoveryGoalRuns(records []goal.RunRecord, lostByID map[string]tran
 	return nil
 }
 
-func validatePendingDeletions(
-	values []PendingDeletion,
+func validateRecoveryInterruptDeletions(
+	values []InterruptOwner,
 	lostByID map[string]transcript.Run,
 ) error {
+	expected := make(map[string]transcript.Run)
+	for _, lost := range lostByID {
+		if lost.Lineage().IsRoot() {
+			expected[lost.ID] = lost
+		}
+	}
 	seen := make(map[string]struct{}, len(values))
 	for index, value := range values {
 		if strings.TrimSpace(value.SessionID) == "" || value.SessionID != strings.TrimSpace(value.SessionID) ||
 			strings.TrimSpace(value.RootRunID) == "" || value.RootRunID != strings.TrimSpace(value.RootRunID) {
-			return fmt.Errorf("runs: recovery commit Pending deletion[%d] has invalid identity", index)
+			return fmt.Errorf("runs: recovery commit interrupt deletion[%d] has invalid identity", index)
 		}
 		key := value.SessionID + "\x00" + value.RootRunID
 		if _, duplicate := seen[key]; duplicate {
-			return fmt.Errorf("runs: recovery commit repeats Pending deletion %q/%q", value.SessionID, value.RootRunID)
+			return fmt.Errorf("runs: recovery commit repeats interrupt deletion %q/%q", value.SessionID, value.RootRunID)
 		}
 		seen[key] = struct{}{}
-		owner, found := lostByID[value.RootRunID]
-		if !found || !owner.Lineage().IsRoot() || owner.SessionID != value.SessionID {
+		owner, found := expected[value.RootRunID]
+		if !found || owner.SessionID != value.SessionID {
 			return fmt.Errorf(
-				"runs: recovery commit Pending deletion %q/%q is not owned by a lost root Run",
+				"runs: recovery commit interrupt deletion %q/%q is not owned by a lost root Run",
 				value.SessionID,
 				value.RootRunID,
 			)
@@ -179,9 +185,12 @@ func validatePendingDeletions(
 			previous := values[index-1]
 			if previous.SessionID > value.SessionID ||
 				(previous.SessionID == value.SessionID && previous.RootRunID >= value.RootRunID) {
-				return errors.New("runs: recovery commit Pending deletions are not in canonical order")
+				return errors.New("runs: recovery commit interrupt deletions are not in canonical order")
 			}
 		}
+	}
+	if len(seen) != len(expected) {
+		return fmt.Errorf("runs: recovery commit has %d interrupt deletions, want %d lost roots", len(seen), len(expected))
 	}
 	return nil
 }

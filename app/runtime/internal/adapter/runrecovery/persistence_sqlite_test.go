@@ -26,6 +26,125 @@ func (alwaysResumable) CanResumeCheckpoint(
 	return true, nil
 }
 
+func TestRecoveryMarksClaimedResumeLostAndRemovesItsHiddenRecord(t *testing.T) {
+	db, err := sqlite.Open(t.Context(), ":memory:")
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	ctx := t.Context()
+	createdAt := time.Date(2026, 8, 1, 2, 0, 0, 0, time.UTC)
+	sessionStore := sqlite.NewSessionStore(db)
+	if err := sessionStore.Restore(ctx, session.Session{
+		ID: "session_claim", CWD: "/workspace", StartedAt: createdAt, UpdatedAt: createdAt,
+	}); err != nil {
+		t.Fatalf("seed Session: %v", err)
+	}
+	runStore := sqlite.NewRunStore(db)
+	capabilities := run.RunCapabilities{InterruptKinds: []interrupt.Kind{interrupt.Question}}
+	if err := runStore.Admit(ctx, run.RunDraft{
+		RunID: "run_claim", SessionID: "session_claim", SegmentID: "segment_claim",
+		Capabilities: capabilities, CreatedAt: createdAt,
+	}); err != nil {
+		t.Fatalf("Admit: %v", err)
+	}
+	request := transcript.Interrupt{
+		ItemID: "item_claim", ItemOccurredAt: createdAt.Add(time.Second),
+		RunID: "run_claim", Kind: interrupt.Question,
+		Question: &transcript.Question{Fields: []transcript.QuestionField{{Prompt: "Continue?"}}},
+	}
+	waiting := transcript.Run{
+		ID: "run_claim", SessionID: "session_claim", State: run.Waiting,
+		Capabilities: capabilities, Interrupts: []transcript.Interrupt{request},
+		CreatedAt: createdAt, UpdatedAt: createdAt.Add(time.Second),
+		MessageMark: transcript.UnknownMessageMark,
+	}
+	if err := runStore.Suspend(ctx, waiting); err != nil {
+		t.Fatalf("Suspend: %v", err)
+	}
+	pending := runs.Pending{
+		RootRunID: "run_claim", SessionID: "session_claim", ExecutorID: "execution_claim",
+		Capabilities: capabilities, Interrupts: []transcript.Interrupt{request},
+		Bindings: []runs.InterruptBinding{{
+			InterruptItemID: request.ItemID, MemberID: "member_claim", RequestID: "request_claim",
+		}},
+		Continuations: []runs.Continuation{{
+			RunID: "run_claim", MemberID: "member_claim", RunCreatedAt: createdAt,
+		}},
+		CreatedAt: createdAt.Add(time.Second),
+	}
+	interruptStore := persistence.NewInterruptStore(sqlite.NewInterruptStore(db))
+	if err := interruptStore.Open(ctx, pending); err != nil {
+		t.Fatalf("Open Pending: %v", err)
+	}
+	answers := []runs.InterruptAnswer{{
+		InterruptItemID: request.ItemID, MemberID: "member_claim", RequestID: "request_claim",
+		Resolution: interrupt.Resolution{Answers: [][]string{{"continue"}}},
+	}}
+	if _, found, err := interruptStore.ClaimResume(
+		ctx, pending.SessionID, pending.RootRunID, answers, createdAt.Add(2*time.Second),
+	); err != nil || !found {
+		t.Fatalf("ClaimResume: found=%t err=%v", found, err)
+	}
+	if _, found, err := interruptStore.Get(ctx, pending.RootRunID); err != nil || found {
+		t.Fatalf("open Pending after claim = found:%t err:%v", found, err)
+	}
+
+	checkpointStore := persistence.NewExecutorCheckpointStore(sqlite.NewExecutorCheckpointStore(db))
+	store, err := New(Config{
+		Sessions: sessionStore, Runs: runStore, Interrupts: interruptStore,
+		Transcript: sqlite.NewTranscriptStore(db), Messages: sqlite.NewMessageStore(db),
+		GoalRuns: sqlite.NewGoalStore(db), ExecutorCheckpoints: checkpointStore,
+		Tx: func(ctx context.Context, fn func(context.Context) error) error {
+			return sqlite.RunInTx(ctx, db, fn)
+		},
+	})
+	if err != nil {
+		t.Fatalf("New persistence: %v", err)
+	}
+	checkpointProbes := 0
+	recovery, err := runs.NewRecovery(store, checkpointResumabilityFunc(func(
+		context.Context,
+		runs.ExecutorCheckpointExpectation,
+	) (bool, error) {
+		checkpointProbes++
+		return true, nil
+	}))
+	if err != nil {
+		t.Fatalf("NewRecovery: %v", err)
+	}
+	recovered, err := recovery.Reconcile(ctx)
+	if err != nil {
+		t.Fatalf("Reconcile: %v", err)
+	}
+	if recovered != 1 || checkpointProbes != 0 {
+		t.Fatalf("recovered=%d checkpoint probes=%d, want 1/0", recovered, checkpointProbes)
+	}
+	stored, found, err := runStore.Run(ctx, pending.RootRunID)
+	if err != nil || !found || stored.State != run.Failed ||
+		stored.Error == nil || stored.Error.Kind != transcript.RunLostProblem {
+		t.Fatalf("recovered Run = found:%t value:%+v err:%v", found, stored, err)
+	}
+	var remaining int
+	if err := db.QueryRowContext(ctx,
+		`SELECT count(*) FROM interrupts WHERE root_run_id = ?`, pending.RootRunID,
+	).Scan(&remaining); err != nil {
+		t.Fatalf("count interrupt rows: %v", err)
+	}
+	if remaining != 0 {
+		t.Fatalf("hidden resuming rows = %d, want none", remaining)
+	}
+}
+
+type checkpointResumabilityFunc func(context.Context, runs.ExecutorCheckpointExpectation) (bool, error)
+
+func (probe checkpointResumabilityFunc) CanResumeCheckpoint(
+	ctx context.Context,
+	expected runs.ExecutorCheckpointExpectation,
+) (bool, error) {
+	return probe(ctx, expected)
+}
+
 // TestRecoveryRepairsWholeDurableLifecycle proves
 // terminal_run_explains_how_it_ended at the runs.recovery boundary.
 func TestRecoveryRepairsWholeDurableLifecycle(t *testing.T) {
@@ -171,8 +290,8 @@ func TestRecoveryRejectsPartialParkWithoutMutatingIt(t *testing.T) {
 			InterruptKinds: []interrupt.Kind{interrupt.Question},
 		},
 		Interrupts: []transcript.Interrupt{pendingInterrupt},
-		Suspensions: []runs.SuspensionBinding{{
-			InterruptItemID: pendingInterrupt.ItemID, MemberID: "process_root", SuspensionID: "suspension_root",
+		Bindings: []runs.InterruptBinding{{
+			InterruptItemID: pendingInterrupt.ItemID, MemberID: "process_root", RequestID: "suspension_root",
 		}},
 		Continuations: []runs.Continuation{{
 			RunID: "run_partial", MemberID: "process_root", RunCreatedAt: createdAt,

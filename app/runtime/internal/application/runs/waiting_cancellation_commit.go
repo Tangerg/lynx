@@ -264,19 +264,19 @@ func (v waitingCancellationValidation) validateDisposition() error {
 	c := v.commit
 	var dispositionRunIDs []string
 	if c.RemainingPending != nil {
-		var survivingSuspensionIndexes []int
-		for index, binding := range c.ExpectedPending.Suspensions {
+		var survivingRequestIndexes []int
+		for index, binding := range c.ExpectedPending.Bindings {
 			if _, canceled := v.canceledMemberIDs[binding.MemberID]; !canceled {
-				survivingSuspensionIndexes = append(survivingSuspensionIndexes, index)
+				survivingRequestIndexes = append(survivingRequestIndexes, index)
 			}
 		}
-		if len(c.RemainingPending.Suspensions) != len(survivingSuspensionIndexes) {
-			return errors.New("runs: waiting cancellation reduced Pending has the wrong suspension set")
+		if len(c.RemainingPending.Bindings) != len(survivingRequestIndexes) {
+			return errors.New("runs: waiting cancellation reduced Pending has the wrong input-request set")
 		}
-		for index, expectedIndex := range survivingSuspensionIndexes {
-			if c.RemainingPending.Suspensions[index] != c.ExpectedPending.Suspensions[expectedIndex] ||
+		for index, expectedIndex := range survivingRequestIndexes {
+			if c.RemainingPending.Bindings[index] != c.ExpectedPending.Bindings[expectedIndex] ||
 				!sameInterruptValue(c.RemainingPending.Interrupts[index], c.ExpectedPending.Interrupts[expectedIndex]) {
-				return fmt.Errorf("runs: waiting cancellation changed surviving suspension[%d]", index)
+				return fmt.Errorf("runs: waiting cancellation changed surviving input request[%d]", index)
 			}
 		}
 		for _, continuation := range c.RemainingPending.Continuations {
@@ -289,9 +289,9 @@ func (v waitingCancellationValidation) validateDisposition() error {
 			return errors.New("runs: waiting cancellation changed immutable Pending facts")
 		}
 	} else {
-		for _, binding := range c.ExpectedPending.Suspensions {
+		for _, binding := range c.ExpectedPending.Bindings {
 			if _, canceled := v.canceledMemberIDs[binding.MemberID]; !canceled {
-				return fmt.Errorf("runs: waiting cancellation resumes while suspension %q survives", binding.SuspensionID)
+				return fmt.Errorf("runs: waiting cancellation resumes while input request %q survives", binding.RequestID)
 			}
 		}
 		for _, draft := range c.Resume.Runs {

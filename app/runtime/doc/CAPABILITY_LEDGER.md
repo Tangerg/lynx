@@ -1,6 +1,6 @@
 # Lyra Runtime 能力迁移台账
 
-> 状态：P5 当前事实，随每个实施批次更新
+> 状态：P6 当前事实，随每个实施批次更新
 >
 > 基线日期：2026-08-09
 
@@ -20,34 +20,34 @@
 
 ### 2.1 规模与依赖
 
-- `app/runtime/internal` 当前有 974 个 Go 文件（含 architecture tests 与反例 fixture）；
-- `adapter/agentexec` 有 110 个 Go 文件，`adapter/toolset` 有 68 个；
-- 55 个 Runtime Go 文件存在旧 `github.com/Tangerg/lynx/agent` import declaration，共 90 条；逐文件和逐数量事实由 architecture AST guard 精确持有，文本扫描只用于辅助定位；
+- `app/runtime/internal` 当前有 979 个 Go 文件（含 architecture tests 与反例 fixture）；
+- `adapter/agentexec` 有 113 个 Go 文件，`adapter/toolset` 有 68 个；
+- 55 个 Runtime Go 文件存在旧 `github.com/Tangerg/lynx/agent` import declaration，共 93 条；逐文件和逐数量事实由 architecture AST guard 精确持有，文本扫描只用于辅助定位；
 - 其中 39 个位于 `adapter/agentexec`，9 个位于 `adapter/toolset`；
 - 剩余 direct imports 位于 runsegment tests 与 bootstrap tests；
-- `app/runtime/go.mod` 在 parallel harness 期间同时依赖旧 `agent` 与 `agent2`；Agent2 生产 import 精确收敛在 `adapter/agentexec` 四个 integration 文件，共七条，通用 Toolset 为零；
+- `app/runtime/go.mod` 在 parallel harness 期间同时依赖旧 `agent` 与 `agent2`；Agent2 生产 import 精确收敛在 `adapter/agentexec` 五个 integration 文件，共八条，通用 Toolset 为零；
 - Domain、Application 和 Delivery 生产代码目前对旧 Agent Framework 零 import；
 - P2 已删除 `domain/execution` 及全部 forwarding/alias path；Domain 生产代码与测试对 Application/Adapter/Infra/Delivery/Bootstrap 零 import，context-based I/O port 为零；
 - Run、Accounting、Conversation、Transcript、Interrupt、ToolResult 已成为准确顶层 bounded-context package；executor checkpoint/ref、pending continuation 与 workspace mutation 由 Application consumer 拥有；
 - P3 已删除 Application 的 `ExecutionControl`、`SegmentExecutor`、`SessionLifecycle` 与 `Effects` 胖接口；root start/observe/release、Session reads/termination 与 Run projection write-sets 均由真实 consumer-owned ports 表达；
 - P3 已把 Application executor tree identity 统一为 `ExecutorMember`/`MemberID`；旧 `ProcessID` 只存在于待替换的 old Agent adapter 内部，SQLite technical shape 已一次性改为 epoch 59 的 `root_member_id`/`memberId`；
-- P5 已在真实 Agent2 Engine + native Interaction root 上接通 authoritative model/tool projection、Runtime Toolset、usage/pricing、自动 approval、hooks、presentation/offload、并发 Tool batch 与 live unknown reconciliation；新路径尚未接管 Bootstrap；
-- SQLite 当前唯一 shape 为 epoch 61，model/tool invocation operational journal 与 Transcript semantic final 分离；Run pump 是唯一 reducer/persistence writer；
+- P6 已在同一 native Interaction root 上接通 public pending input、quiescent complete-tree checkpoint、exact restore、semantic answer/steer、真实 `ask_user`、interactive approval 与 deferred advertisement restore；新路径尚未接管 Bootstrap；
+- SQLite 当前唯一 shape 为 epoch 62：model/tool invocation operational journal 与 Transcript semantic final 分离，interrupt row 具有 `open`/`resuming` answer-claim 状态；Run pump 是唯一 reducer/persistence writer；
 - 当前 Agent dependency 已经主要集中在执行防腐层，这是原位重构而非完整 runtime2 的关键依据。
 
 ### 2.2 当前架构基础
 
 | 能力 | 当前事实 | Verdict | 阶段 |
 |---|---|---|---|
-| Run lifecycle | `application/runs` 拥有 start、pump、waiting、cancel、terminal ordering；P5 已验证 authoritative model/tool commit 与 live unknown terminal | Retain；P6–P8 扩展 | P3–P5 已完成；P6–P8 纵切 |
+| Run lifecycle | `application/runs` 拥有 start、pump、waiting、resume、cancel、terminal ordering；P6 已验证 durable answer claim 与 Agent2 continuation ordering | Retain；P7–P8 扩展 | P3–P6 已完成；P7–P8 纵切 |
 | Session lifecycle | 独立 application/domain，拥有 workspace/admission 产品语义 | Retain | P2/P8 |
 | Domain framework isolation | P2 已删除十个 context-based Domain I/O port，生产与测试均由机器守卫禁止向外依赖 | Retain + strengthen | P2 已完成；例外为零 |
-| Agent anti-corruption | Agent2 native root 与普通 model/tool Effect 已在 `adapter/agentexec` 建立；旧 Framework lifecycle 仍服务生产到 P8 | Rewrite | P4/P5 已完成；P6–P8 继续 |
+| Agent anti-corruption | Agent2 native root、普通 model/tool Effect、waiting/restore/steer 已在 `adapter/agentexec` 建立；旧 Framework lifecycle 仍服务生产到 P8 | Rewrite | P4–P6 已完成；P7–P8 继续 |
 | Delivery separation | P1 起 target DAG 禁止 Delivery import 任意 concrete Adapter；protocol/dispatch/server/transport 继续按现有职责迁移 | Retain + naming audit | P1 guard；P9–P10 收口 |
 | Adapter/Infra direction | 当前主要为 Adapter 使用 Infra，Infra 不反向 import Adapter | Retain + package audit | P9 |
 | Component primitives | 十个 direct package 已由 P1 exact ledger 锁定，不能新增；umbrella 名仍过宽 | Refactor ownership | P9 |
 | Contract generation | `contract/` 已生成 manifest/OpenRPC/schema/TypeScript | Retain | P10 |
-| SQLite exact epoch | epoch 61 单一 shape，无生产 migration chain | Retain | P5 已推进；P8/P10 继续 |
+| SQLite exact epoch | epoch 62 单一 shape，无生产 migration chain | Retain | P6 已推进；P8/P10 继续 |
 
 ## 3. 产品领域能力
 
@@ -78,10 +78,10 @@
 | 当前能力 | 当前 owner | 目标 | Verdict | 验收 |
 |---|---|---|---|---|
 | Interrupt semantics | `domain/interrupt` | 保持 | Retain | Kind/Key/Resolution 纯领域值，无 I/O/executor |
-| Pending continuation | `application/runs.Pending` + `adapter/persistence` mapping | P6 重写 bridge，保持 owner | Refactor port | 一个 root tree 一个 pending hand-off；Infra 只见 technical record |
+| Pending continuation | `application/runs.Pending` + `adapter/persistence` mapping | 已保持 owner 并接入 Agent2 public pending input | Retain | 一个 root tree 一个 pending hand-off；Infra 只见 technical record；claim 后普通读取不可见 |
 | Approval domain | `domain/approval` | 保持产品策略 | Retain + remove I/O ports | 不进入 Agent2 |
-| Ask-user/approval tool input | toolset + old HITL codec | agentexec public Interaction helper → product Interrupt | Rewrite bridge | 不解析 private suspension JSON |
-| Answer/resolution | runs + suspension adapter | semantic Application command → Signal | Rewrite bridge | 无任意 Signal API |
+| Ask-user/approval tool input | Toolset product Interrupt + `agentexec/interactioninput` | public Interaction helper → product Interrupt | P6 native bridge 已完成 | 新路径不解析 private suspension JSON；旧 adapter 仅待 P8 删除 |
+| Answer/resolution | runs + native interaction input adapter | semantic Application command → WaitID-addressed Signal | P6 native bridge 已完成 | 无任意 Signal API；answer claim/segment opening/Signal 顺序受测试 |
 
 ### 3.4 Accounting
 
@@ -117,21 +117,21 @@
 | Event observation | `ExecutionObserver.Observe` | P4 real consumer 已验证 | 只流 Application-owned executor facts；final 来自 Result |
 | Executor release | `ExecutionReleaser.Release` | Retain | 与产品 Cancel 分离；非 Waiting 终止恰好一次 |
 | Product Cancel | durable terminal decision → executor release | Retain | product outcome 先提交，resource lifecycle 后执行 |
-| Resume/rehydrate | 隔离的 provisional `ContinuationExecutor` | Rewrite port shape | P6 由 Agent2 snapshot/semantic answer consumer 重推 |
-| Steer | provisional `ExecutionSteerer` | Retain semantics, Rewrite bridge | P6 由 Agent2 safe-boundary consumer 重推 |
+| Resume/rehydrate | `WaitingExecutionContinuer.StageContinuation/BeginContinuation` | P6 real consumer 已重推，P8 前仍可命名审计 | exact BuildID/deployment/scope restore；opening commit 后才 Signal |
+| Steer | `RunningExecutionSteerer.SubmitSteer` | P6 real consumer 已重推，P8 前仍可命名审计 | semantic steer 只在下一 model safe boundary 投影 |
 | Child subtree cancel | `MemberID` + provisional subtree port | Refactor identity | P7 由 Agent2 prepared capability consumer 重推 |
 | Waiting subtree mutation | prepared data + live Mutation lease | Rewrite as precise one-shot prepared tree change | Application 不见 Agent2 plan；Apply/Discard 前 source frozen；transaction/crash tests |
 | Run pump | executor event reducer | Retain | 不推进 Agent2 internal state |
 | Run journal | committed RunEvent | Retain | persist-before-publish |
 
-P4 real Agent2 consumer 已验证 root candidate 的 stage/observe/begin/release 语义；P5 在同一 candidate 上验证了 authoritative commit receipt、Tool manifest/scope、unknown reconciliation 和 release ordering。它仍不是兼容 API，完整 port 到 P8 才冻结。Continuation/steer/subtree ports 只隔离旧生产路径，其最终方法、参数和 error 由 P6/P7 真实纵切决定。
+P4 real Agent2 consumer 已验证 root candidate 的 stage/observe/begin/release 语义；P5 验证 authoritative commit receipt、Tool manifest/scope、unknown reconciliation 和 release ordering；P6 验证 waiting/restore/answer/steer 的 stage/open/begin 顺序。它仍不是兼容 API，完整 port 到 P8 才冻结。Child/subtree ports 仍只隔离旧生产路径，其最终方法、参数和 error 由 P7 真实纵切决定。
 
 ### 4.2 Cross-aggregate writes
 
 | 写集合 | 当前事实 | Verdict | 阶段 |
 |---|---|---|---|
 | Run admission | Session + Run/Transcript | Retain/refactor types | P3 |
-| Waiting tree barrier | Run + Pending + checkpoint + Items | Retain semantics | P6 |
+| Waiting tree barrier | Run + Pending + checkpoint + Items | Retain semantics；P6 native 已验证 | P6 已完成 |
 | Waiting child cancellation | Run tree + Pending + checkpoint + Items | Rewrite Agent boundary, retain App transaction | P7 |
 | Terminal tree | Runs + Pending + checkpoint + transcript + Goal | Retain and converge | P8 |
 | Boot recovery | stored facts + opaque checkpoint probe | Retain and rewrite probe | P8 |
@@ -144,18 +144,18 @@ P4 real Agent2 consumer 已验证 root candidate 的 stage/observe/begin/release
 | 当前实现 | 作用 | Verdict | Agent2 replacement |
 |---|---|---|---|
 | `Engine` wrapping old runtime.Engine | Framework facade | Rewrite | per-Run Agent2 Engine assembly |
-| `InteractionExecutor` native root harness | 独立真实 root consumer，当前不进 Bootstrap | Retain and extend | P4 root + P5 model/tool/unknown 已完成；P6/P7 扩展，P8 接管生产 |
+| `InteractionExecutor` native root harness | 独立真实 root consumer，当前不进 Bootstrap | Retain and extend | P4 root + P5 model/tool/unknown + P6 waiting/restore/steer 已完成；P7 扩展，P8 接管生产 |
 | root GOAP Agent/Action | 包裹聊天 Interaction | Remove | native `interaction.Definition` |
 | `TurnProcess` | 二次包装 Process wait/resume/cancel/capture | Remove | Agent2 Process/Engine public lifecycle |
 | `turn` controller/pump | live turn registry、goroutine、terminal | Remove Framework duplicates | Application Run pump + Agent2 Engine |
-| process tree codec | 解释旧 snapshot tree | Remove | opaque Agent2 TreeSnapshot codec at boundary |
-| suspension codec | 解释 old HITL payload | Remove | Interaction public pending-input helpers |
+| process tree codec | 解释旧 snapshot tree | Remove | P6 native 只用 opaque public Agent2 TreeSnapshot；旧 codec P8 删除 |
+| suspension codec | 解释 old HITL payload | Remove | P6 已分离 framework-neutral product interrupt codec 与 native Interaction input ACL；旧 suspension adapter P8 删除 |
 | child execution/configuration | 传播 model/hooks/budget | Rewrite | exact child Deployments + ProcessAdmitter |
 | observer | model/tool/usage projection | Rewrite, retain product semantics | P5 native decorators 已完成；旧 observer P8 删除 |
-| tool decorator | approval/hooks/presentation | Retain semantics, Rewrite attribution | P5 ToolInvocation context 已完成；HITL 留 P6 |
+| tool decorator | approval/hooks/presentation | Retain semantics, Rewrite attribution | P5 ToolInvocation context + P6 interactive HITL 已完成 |
 | usage aggregator | subtree token/cost | Refactor | P5 root cumulative accounting/pricing 已完成；P7 tree roll-up继续 |
 | deferred manifest glue | old toolloop promotion | Rewrite | P5 唯一 `toolset.Manifest` + Interaction DeferredTools/AdvertiseTools 已完成 |
-| maintenance/restore checks | live registry + checkpoint probe | Refactor | exact deployment restore/probe |
+| maintenance/restore checks | live registry + checkpoint probe | Refactor | P6 exact Deployment/BuildID/scope restore 已完成；tree-wide boot owner P8 收口 |
 
 ### 5.2 Agent2 已提供的合同
 
@@ -183,11 +183,11 @@ P4 real Agent2 consumer 已验证 root candidate 的 stage/observe/begin/release
 |---|---|---|
 | built-in tool schemas/names/descriptions | Retain | 作为 frozen Tools/DeferredTools 输入 |
 | strict typed decode | Retain | P5 Dispatcher 调用同一 Tool contract，无第二 schema/decode |
-| approval/safety | Retain Runtime ownership | P5 自动 allow/deny/rewrite 使用 ToolInvocation 精确归因；HITL 留 P6 |
+| approval/safety | Retain Runtime ownership | P5 自动 allow/deny/rewrite + P6 interactive approval/remember resolution；restore 不重跑 plan/hook |
 | activity/presentation | Retain | P5 已接线，不进入 Agent2 Event/Delta |
 | `search_tools` | Retain | P5 使用注入的 precise advertiser 调用 `AdvertiseTools`；Toolset 对 Agent2 零 import |
 | delegation wrapper | Rewrite | Interaction `Delegate`，不再 old AgentTool |
-| ask_user | Rewrite bridge | pending tool input + product Interrupt |
+| ask_user | P6 native bridge completed | 真实 Runtime Tool 注入 Interaction pending input；旧生产构造留 P8 切换 |
 | Plan/Goal/Schedule/Skill tools | Retain | Application ports 更新 |
 | MCP/A2A dynamic tools | Retain | 本 Run deployment assembly 冻结 authority |
 | old agent/core/toolloop imports | Remove | Toolset 最终 Framework-neutral |
@@ -198,16 +198,16 @@ P4 real Agent2 consumer 已验证 root candidate 的 stage/observe/begin/release
 
 | 能力 | 当前事实 | Verdict | 验收 |
 |---|---|---|---|
-| SQLite schema | epoch 61；保留 `root_member_id`/`memberId`，新增 model/tool invocation journals | Retain pattern | 旧 epoch/列/codec 被拒绝，无 migration |
-| executor checkpoint | Host metadata + old Agent payload | Rewrite payload owner | opaque TreeSnapshot + exact expectation |
+| SQLite schema | epoch 62；保留 `root_member_id`/`memberId`，新增 open/resuming answer audit；tool invocation identity 按 Segment 隔离 | Retain pattern | 旧 epoch/列/codec 被拒绝，无 migration |
+| executor checkpoint | Host metadata + production old payload/native Agent2 TreeSnapshot 并存到 P8 | Rewrite payload owner | P6 native payload 为 public TreeSnapshot v4；Application/Store 完全 opaque |
 | checkpoint transaction | runsegment/persistence 组合 | Retain semantics | waiting facts 同事务 |
 | BuildID | Host-owned | Retain | 不进入 Agent2 deployment/snapshot |
-| boot recovery | Application policy + agentexec probe | Refactor | Agent2 exact restore validation |
+| boot recovery | Application policy + agentexec probe | Refactor | P6 native exact restore 已验证；P8 production recovery wiring 收口 |
 | unknown Effect live/recovery | P5 native live root 已实现，旧生产路径尚未切换 | Rewrite | live wake 丢失可由 public polling 收敛；RunLost 写失败重试且 release 不提前；recovery/tree-wide 留 P8 |
 | isolated recovery | fail closed | Retain | 不猜测重建 scratch world |
 | terminal deletion | root aggregate transaction | Retain/converge | terminal 与 delete 原子 |
 | waiting subtree persistence | Application plan + old live mutation | Rewrite boundary + Agent2 prerequisite | one-shot prepared change + opaque resulting TreeSnapshot |
-| active-step crash durability | 旧路径能力不作为新合同 | Defer | 初版无 claim；无 quiescent tree checkpoint 时 RunLost |
+| active-step crash durability | 旧路径能力不作为新合同 | Defer | 不启用 PreparedStepAcknowledger；无 committed quiescent TreeSnapshot 时 RunLost |
 
 ## 8. Delivery 与协议
 
@@ -288,6 +288,6 @@ P4 real Agent2 consumer 已验证 root candidate 的 stage/observe/begin/release
 
 - Runtime 产品领域、协议、持久化和工具能力大部分保留；
 - 执行 Framework integration 是主要 Rewrite 区；
-- P5 已完成 ordinary root Agent2 vertical：Application commit receipt、model/tool attribution、Toolset、accounting、并发 canonical batch、Delta/final 分层和 live unknown 已由真实 consumer 验证；P6–P8 继续演进未冻结能力；
+- P6 已完成 ordinary root Agent2 vertical 的 waiting/restore/resume/steer 延伸：public pending input、complete-tree checkpoint、answer claim、exact restore、真实 ask-user/approval、deferred advertisement 与 safe-boundary steer 已由真实 consumer 验证；P7–P8 继续演进未冻结能力；
 - Agent2 已提供 P4–P6 所需的公共合同；P7 必须先补齐本台账已确认的两项中性 Framework 合同；
-- 当前生产执行仍由旧 Agent implementation 承担；P4/P5 Agent2 路径只进入独立真实 harness，P8 能力齐备后才原子切换。
+- 当前生产执行仍由旧 Agent implementation 承担；P4–P6 Agent2 路径只进入独立真实 harness，P8 能力齐备后才原子切换。

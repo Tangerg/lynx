@@ -21,7 +21,7 @@ func (c *Coordinator) Steer(ctx context.Context, cmd SteerCommand) error {
 		return errors.New("runs: execution steerer is required")
 	}
 	rec := live.record
-	if err := c.steering.Steer(ctx, ExecutorRef{SessionID: rec.SessionID, ExecutorID: rec.ExecutorID}, cmd.Input); err != nil {
+	if err := c.steering.SubmitSteer(ctx, ExecutorRef{SessionID: rec.SessionID, ExecutorID: rec.ExecutorID}, cmd.Input); err != nil {
 		if errors.Is(err, ErrExecutorNotLive) {
 			// Execution ended between resolving the record and delivering: the Run is
 			// finishing, which is the same thing the durable record would say a moment

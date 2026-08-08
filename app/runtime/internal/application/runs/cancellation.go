@@ -226,7 +226,7 @@ func (c *Coordinator) cancelWaitingChild(
 		)
 	}
 
-	ref, err := c.prepareExecution(cleanupCtx, plan.pending, sess.CWD, sess.Isolated)
+	ref, err := c.prepareLegacyWaitingExecution(cleanupCtx, plan.pending, sess.CWD, sess.Isolated)
 	if err != nil {
 		if errors.Is(err, ErrExecutorStateLost) {
 			lostErr := c.terminations.ApplyRunLost(

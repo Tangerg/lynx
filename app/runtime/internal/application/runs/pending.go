@@ -20,7 +20,7 @@ import (
 // Pending is one complete Run-tree barrier awaiting human decisions. The set is
 // keyed by RootRunID and consumed all-or-nothing: individual member Runs do not
 // own separate resume claims. Interrupts is the published typed set;
-// Suspensions binds each item back to the executor boundary it answers;
+// Bindings connects each item to the executor request it answers;
 // Continuations is the durable state required to reopen every surviving Run
 // with a fresh Segment, including after host restart.
 type Pending struct {
@@ -32,13 +32,13 @@ type Pending struct {
 	// needs it to keep terminal budget accounting attached to the same Goal.
 	GoalLeaseID   string
 	Interrupts    []transcript.Interrupt
-	Suspensions   []SuspensionBinding
+	Bindings      []InterruptBinding
 	Continuations []Continuation
 	// Capabilities is the Run's frozen optional behavior. A continuation refuses
 	// callers that lack it and reuses its admitted interrupt kinds.
 	Capabilities run.RunCapabilities
 	// CreatedAt orders open sets. It is the barrier commit time, not any one
-	// suspension's creation time.
+	// input request's creation time.
 	CreatedAt time.Time
 }
 
@@ -63,22 +63,22 @@ type Continuation struct {
 	Limits         run.RunLimits
 }
 
-// SuspensionBinding is the private correspondence between one published
-// interrupt item and the executor suspension that must receive its answer.
-type SuspensionBinding struct {
+// InterruptBinding is the private correspondence between one published
+// interrupt Item and the executor input request that must receive its answer.
+type InterruptBinding struct {
 	InterruptItemID string
 	MemberID        string
-	SuspensionID    string
+	RequestID       string
 }
 
-// SuspensionAnswer is one validated decision bound to the exact executor
+// InterruptAnswer is one validated decision bound to the exact executor
 // boundary that must consume it. InterruptItemID keeps the transcript item
 // identity attached until the execution-control boundary; MemberID and
-// SuspensionID prevent execution from guessing which parked branch it answers.
-type SuspensionAnswer struct {
+// RequestID prevents execution from guessing which parked branch it answers.
+type InterruptAnswer struct {
 	InterruptItemID string
 	MemberID        string
-	SuspensionID    string
+	RequestID       string
 	Resolution      interrupt.Resolution
 }
 
@@ -130,7 +130,7 @@ func (p Pending) ContinuationFor(runID string) (Continuation, bool) {
 }
 
 // Validate checks the complete tree hand-off. It deliberately validates both
-// directions of the item/suspension relation so accepting a response never
+// directions of the item/input-request relation so accepting a response never
 // requires guessing which executor boundary it belongs to.
 func (p Pending) Validate() error {
 	switch {
@@ -154,10 +154,10 @@ func (p Pending) Validate() error {
 		return errors.New("interrupts: pending set has no interrupts")
 	case len(p.Continuations) == 0:
 		return errors.New("interrupts: pending set has no continuations")
-	case len(p.Suspensions) != len(p.Interrupts):
+	case len(p.Bindings) != len(p.Interrupts):
 		return fmt.Errorf(
-			"interrupts: %d suspension bindings do not match %d interrupts",
-			len(p.Suspensions),
+			"interrupts: %d input-request bindings do not match %d interrupts",
+			len(p.Bindings),
 			len(p.Interrupts),
 		)
 	}
@@ -242,32 +242,32 @@ func (p Pending) Validate() error {
 		interruptsByItem[interrupt.ItemID] = interrupt
 	}
 
-	boundItems := make(map[string]struct{}, len(p.Suspensions))
-	boundSuspensions := make(map[string]struct{}, len(p.Suspensions))
-	for index, binding := range p.Suspensions {
+	boundItems := make(map[string]struct{}, len(p.Bindings))
+	boundRequests := make(map[string]struct{}, len(p.Bindings))
+	for index, binding := range p.Bindings {
 		for _, identity := range []struct {
 			name  string
 			value string
 		}{
 			{name: "interrupt item id", value: binding.InterruptItemID},
 			{name: "member id", value: binding.MemberID},
-			{name: "suspension id", value: binding.SuspensionID},
+			{name: "input request id", value: binding.RequestID},
 		} {
 			if err := validateRequiredIdentity(identity.name, identity.value); err != nil {
-				return fmt.Errorf("interrupts: suspension binding[%d]: %w", index, err)
+				return fmt.Errorf("interrupts: input-request binding[%d]: %w", index, err)
 			}
 		}
 		interrupt, exists := interruptsByItem[binding.InterruptItemID]
 		if !exists {
 			return fmt.Errorf(
-				"interrupts: suspension binding[%d] names unknown item %q",
+				"interrupts: input-request binding[%d] names unknown item %q",
 				index,
 				binding.InterruptItemID,
 			)
 		}
 		if p.Interrupts[index].ItemID != binding.InterruptItemID {
 			return fmt.Errorf(
-				"interrupts: suspension binding[%d] names item %q, canonical interrupt order requires %q",
+				"interrupts: input-request binding[%d] names item %q, canonical interrupt order requires %q",
 				index,
 				binding.InterruptItemID,
 				p.Interrupts[index].ItemID,
@@ -276,14 +276,14 @@ func (p Pending) Validate() error {
 		continuation, exists := continuationForProcess(p.Continuations, binding.MemberID)
 		if !exists {
 			return fmt.Errorf(
-				"interrupts: suspension binding[%d] names unknown member %q",
+				"interrupts: input-request binding[%d] names unknown member %q",
 				index,
 				binding.MemberID,
 			)
 		}
 		if continuation.RunID != interrupt.RunID {
 			return fmt.Errorf(
-				"interrupts: item %q belongs to run %q but its suspension belongs to run %q",
+				"interrupts: item %q belongs to run %q but its input request belongs to run %q",
 				interrupt.ItemID,
 				interrupt.RunID,
 				continuation.RunID,
@@ -293,15 +293,15 @@ func (p Pending) Validate() error {
 			return fmt.Errorf("interrupts: item %q is bound more than once", binding.InterruptItemID)
 		}
 		boundItems[binding.InterruptItemID] = struct{}{}
-		key := binding.MemberID + "\x00" + binding.SuspensionID
-		if _, duplicate := boundSuspensions[key]; duplicate {
+		key := binding.MemberID + "\x00" + binding.RequestID
+		if _, duplicate := boundRequests[key]; duplicate {
 			return fmt.Errorf(
-				"interrupts: member %q suspension %q is bound more than once",
+				"interrupts: member %q input request %q is bound more than once",
 				binding.MemberID,
-				binding.SuspensionID,
+				binding.RequestID,
 			)
 		}
-		boundSuspensions[key] = struct{}{}
+		boundRequests[key] = struct{}{}
 	}
 	return nil
 }

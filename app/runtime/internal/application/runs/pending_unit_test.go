@@ -46,7 +46,7 @@ func TestPendingValidateRequiresOneCanonicalConnectedTree(t *testing.T) {
 		{
 			name: "binding order differs from interrupt order",
 			mutate: func(p *Pending) {
-				p.Suspensions[0], p.Suspensions[1] = p.Suspensions[1], p.Suspensions[0]
+				p.Bindings[0], p.Bindings[1] = p.Bindings[1], p.Bindings[0]
 			},
 			want: "canonical interrupt order",
 		},
@@ -65,11 +65,11 @@ func TestPendingValidateRequiresOneCanonicalConnectedTree(t *testing.T) {
 			want: "member id has surrounding whitespace",
 		},
 		{
-			name: "suspension identity is not canonical",
+			name: "input request identity is not canonical",
 			mutate: func(p *Pending) {
-				p.Suspensions[0].SuspensionID += " "
+				p.Bindings[0].RequestID += " "
 			},
-			want: "suspension id has surrounding whitespace",
+			want: "input request id has surrounding whitespace",
 		},
 		{
 			name: "interrupt identity is not canonical",
@@ -135,9 +135,9 @@ func validTreePending() Pending {
 				},
 			},
 		},
-		Suspensions: []SuspensionBinding{
-			{InterruptItemID: "item_grandchild", MemberID: "member_grandchild", SuspensionID: "suspension_grandchild"},
-			{InterruptItemID: "item_b", MemberID: "member_b", SuspensionID: "suspension_b"},
+		Bindings: []InterruptBinding{
+			{InterruptItemID: "item_grandchild", MemberID: "member_grandchild", RequestID: "request_grandchild"},
+			{InterruptItemID: "item_b", MemberID: "member_b", RequestID: "request_b"},
 		},
 		Continuations: []Continuation{
 			{

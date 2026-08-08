@@ -11,10 +11,10 @@ import (
 )
 
 // resolveResumeResponses validates exact item coverage and the kind-specific
-// answer schema, then binds every decision to its exact executor suspension.
+// answer schema, then binds every decision to its exact executor input request.
 // Output follows the pending barrier's canonical order, independent of request
 // ordering, so every downstream layer observes one representation of the set.
-func resolveResumeResponses(pending Pending, responses []ResumeResponse) ([]SuspensionAnswer, error) {
+func resolveResumeResponses(pending Pending, responses []ResumeResponse) ([]InterruptAnswer, error) {
 	open := make(map[string]transcript.Interrupt, len(pending.Interrupts))
 	for _, interrupt := range pending.Interrupts {
 		if interrupt.ItemID == "" {
@@ -64,28 +64,28 @@ func resolveResumeResponses(pending Pending, responses []ResumeResponse) ([]Susp
 			ErrInvalidInterruptResponse, len(seen), len(open),
 		)
 	}
-	if len(pending.Suspensions) != len(pending.Interrupts) {
+	if len(pending.Bindings) != len(pending.Interrupts) {
 		return nil, fmt.Errorf(
-			"%w: pending barrier has %d suspension bindings for %d items",
+			"%w: pending barrier has %d input-request bindings for %d items",
 			ErrInvalidInterruptResponse,
-			len(pending.Suspensions),
+			len(pending.Bindings),
 			len(pending.Interrupts),
 		)
 	}
-	answers := make([]SuspensionAnswer, len(pending.Suspensions))
-	for index, binding := range pending.Suspensions {
+	answers := make([]InterruptAnswer, len(pending.Bindings))
+	for index, binding := range pending.Bindings {
 		resolution, ok := resolutions[binding.InterruptItemID]
 		if !ok {
 			return nil, fmt.Errorf(
-				"%w: suspension binding names unanswered item %q",
+				"%w: input-request binding names unanswered item %q",
 				ErrInvalidInterruptResponse,
 				binding.InterruptItemID,
 			)
 		}
-		answers[index] = SuspensionAnswer{
+		answers[index] = InterruptAnswer{
 			InterruptItemID: binding.InterruptItemID,
 			MemberID:        binding.MemberID,
-			SuspensionID:    binding.SuspensionID,
+			RequestID:       binding.RequestID,
 			Resolution:      resolution,
 		}
 	}

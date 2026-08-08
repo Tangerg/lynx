@@ -150,7 +150,7 @@ func TestPrepareWaitingCancellationProjectsTypedBoundaryAndReleasesClaimOnAbort(
 	pending := prepared.PendingInterruptions
 	if len(pending) != 1 ||
 		pending[0].MemberID != "process_sibling" ||
-		pending[0].SuspensionID != "suspension_sibling" ||
+		pending[0].RequestID != "suspension_sibling" ||
 		pending[0].Interrupt.Kind != interrupt.Question {
 		t.Fatalf("projected pending suspensions = %+v", pending)
 	}

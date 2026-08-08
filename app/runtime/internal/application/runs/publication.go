@@ -252,16 +252,16 @@ func (p treePublisher) publishTreeBarrier(
 	); err != nil {
 		return reductionPublication{}, err
 	}
-	byMember := make(map[string][]MemberInterruption, len(barrier.Suspensions))
-	for _, suspension := range barrier.Suspensions {
-		route := routes.byMember[suspension.MemberID]
+	byMember := make(map[string][]MemberInterruption, len(barrier.Interruptions))
+	for _, request := range barrier.Interruptions {
+		route := routes.byMember[request.MemberID]
 		if route == nil || route.segmentFinished {
 			return reductionPublication{}, fmt.Errorf(
-				"runs: suspension source member %q has no active Run",
-				suspension.MemberID,
+				"runs: request source member %q has no active Run",
+				request.MemberID,
 			)
 		}
-		byMember[suspension.MemberID] = append(byMember[suspension.MemberID], suspension)
+		byMember[request.MemberID] = append(byMember[request.MemberID], request)
 	}
 	ordered, err := routes.unfinishedInPostorder()
 	if err != nil {
@@ -283,8 +283,8 @@ func (p treePublisher) publishTreeBarrier(
 		var events []RunEvent
 		if len(direct) > 0 {
 			values := make([]Interrupt, len(direct))
-			for index, suspension := range direct {
-				values[index] = suspension.Interrupt
+			for index, request := range direct {
+				values[index] = request.Interrupt
 			}
 			events, err = route.reducer.interrupt(SegmentInterrupted{
 				Interrupts: values,
@@ -320,18 +320,18 @@ func (p treePublisher) publishTreeBarrier(
 		run := *batch.parkCommit.Run
 		if len(run.Interrupts) != len(direct) {
 			return reductionPublication{}, fmt.Errorf(
-				"runs: run %q projected %d interrupts from %d suspensions",
+				"runs: run %q projected %d interrupts from %d input requests",
 				route.runID,
 				len(run.Interrupts),
 				len(direct),
 			)
 		}
 		pending.Interrupts = append(pending.Interrupts, run.Interrupts...)
-		for index, suspension := range direct {
-			pending.Suspensions = append(pending.Suspensions, SuspensionBinding{
+		for index, request := range direct {
+			pending.Bindings = append(pending.Bindings, InterruptBinding{
 				InterruptItemID: run.Interrupts[index].ItemID,
-				MemberID:        suspension.MemberID,
-				SuspensionID:    suspension.SuspensionID,
+				MemberID:        request.MemberID,
+				RequestID:       request.RequestID,
 			})
 		}
 		pending.Continuations = append(pending.Continuations, Continuation{

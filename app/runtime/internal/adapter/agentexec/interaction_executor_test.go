@@ -18,6 +18,8 @@ import (
 	"github.com/Tangerg/lynx/core/chat"
 )
 
+const interactionTestBuildID = "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+
 func TestInteractionExecutorRunsNativeRootFromCompleteWorkingContext(t *testing.T) {
 	var captured []chat.Message
 	model := chat.ModelFunc(func(_ context.Context, request *chat.Request) (*chat.Response, error) {
@@ -161,6 +163,7 @@ func newTestInteractionExecutor(t *testing.T, model chat.Model) *InteractionExec
 	executor, err := NewInteractionExecutor(InteractionExecutorConfig{
 		DefaultClient: client, ImplementationIdentity: "interaction-executor-test-build",
 		ConfigurationIdentity: "interaction-executor-test-config", DefaultMaxModelCalls: 4,
+		BuildID: interactionTestBuildID,
 	})
 	if err != nil {
 		t.Fatal(err)

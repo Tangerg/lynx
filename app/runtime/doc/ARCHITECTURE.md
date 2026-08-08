@@ -4,7 +4,7 @@
 >
 > 适用范围：`app/runtime` 及其为完成服务端重构必须调整的直接后端依赖
 >
-> 实施状态：P5 已完成，下一阶段 P6；当前代码事实和迁移差距见 [`CAPABILITY_LEDGER.md`](CAPABILITY_LEDGER.md)，阶段与进度见 [`EXECUTION_PLAN.md`](EXECUTION_PLAN.md)
+> 实施状态：P6 已完成，下一阶段 P7；当前代码事实和迁移差距见 [`CAPABILITY_LEDGER.md`](CAPABILITY_LEDGER.md)，阶段与进度见 [`EXECUTION_PLAN.md`](EXECUTION_PLAN.md)
 
 本文定义 Lyra Runtime 重构完成后的稳定架构、统一语言、所有权和依赖方向。它不记录逐批进度，不枚举完整协议字段，也不复制 Agent Framework 的内部设计。
 
@@ -335,7 +335,7 @@ Application StartRun
   -> Delivery projects protocol output
 ```
 
-P4 的独立 root harness 已验证上述 stage/observe/commit/begin 顺序。P5 已在同一真实 consumer 上接入 authoritative model/tool decorator、Runtime Toolset 和 live unknown reconciliation。Framework Event/Delta 仍只能作为 wake/best-effort observation；model/tool durable truth 来自同步 Application commit receipt，terminal truth 来自 `Process.Await` 或 Application 已先提交的产品终态。P8 才把这条路径切为生产 owner。
+P4 的独立 root harness 已验证上述 stage/observe/commit/begin 顺序；P5 在同一真实 consumer 上接入 authoritative model/tool decorator、Runtime Toolset 和 live unknown reconciliation；P6 又接入 public waiting/restore/answer/steer。Framework Event/Delta 仍只能作为 wake/best-effort observation；model/tool durable truth 来自同步 Application commit receipt，terminal truth 来自 `Process.Await` 或 Application 已先提交的产品终态。P8 才把这条路径切为生产 owner。
 
 普通 model/tool Effect 的提交协议是：
 
@@ -361,13 +361,18 @@ Agent2 pending input + quiescent tree
 Resume：
 
 ```text
-Application claims Pending
-  -> agentexec rebuilds exact deployments
-  -> Engine.RestoreTree
-  -> semantic answer becomes Interaction Signal
+Application transaction records the exact answer claim
+  + marks the interrupt row resuming/invisible
+  + invalidates the old checkpoint
+  -> agentexec stages the exact live waiting tree, or rebuilds exact Deployment and Engine.RestoreTree
+  -> Application transaction proves the durable claim and opens the next Segment
+  -> semantic answer becomes one WaitID-addressed Interaction Signal
   -> Process resumes
-  -> Application opens next Segment
 ```
+
+answer claim 是不可逆的恢复线性化点，不是普通“读取并删除”。claim 成功后，旧 checkpoint 已不存在，`resuming` row 只保留答案审计与 crash diagnosis，普通 waiting 查询看不到它；continuation opening 必须在同一事务中先证明该 claim 存在，再把 Run tree 改回 Running。下一次 quiescent barrier 只能由相同 Session/executor/root-member owner 原子替换该 row，terminal/recovery 则原子删除。claim 后任何校验、restore、observe 或 opening 失败都先提交根 Run `RunLost`，成功后才 release live tree；若 `RunLost` 自身无法持久化，tree 与 hidden claim 都保持，不伪造已清理状态。进程在 claim 后、RestoreTree 后或 Signal accepted 后到下一 checkpoint 前崩溃，boot recovery 一律 `RunLost`，绝不再次投递旧答案。
+
+P6 的 native Interaction 只通过 public pending-input helper 读取 prompt/WaitID，通过 public `TreeSnapshot`/`RestoreTree` 恢复，通过 typed answer/steer constructor 产生 Signal。产品 Interrupt 与 response 的 strict codec 位于独立防腐包；仍服务旧生产 owner 的 suspension adapter 只复用该产品 codec，不进入新路径，并在 P8 与旧 owner 同批删除。Ask-user 使用真实 Runtime Tool 注入 native pending-input capability；interactive approval 的 plan/hook 只在首次调用执行，restore 只解析持久 prompt 并应用答案。deferred advertisement 属于 Interaction snapshot，恢复后无需 Runtime 重建影子清单。
 
 ### 7.4 Child Process 与 child Run
 
@@ -435,7 +440,7 @@ Application port 只表达产品真正需要的执行能力，不能镜像 Agent
 - 规划并在应用事务后应用 waiting subtree cancellation；
 - 释放终态或失效的 executor tree。
 
-端口方法、参数名和返回值随 P4–P7 的真实纵切按 consumer-discovered interface 原则演进，不把旧 `ExecutionControl`、`PrepareStart`、`Activate`、`Prepare` 或 `TurnProcess` 当成兼容合同。P3 已建立最小 root candidate：`RootExecutionStarter` 用 validate/stage/begin 准确表达 admission 两侧，`ExecutionObserver` 只观察 Application facts，`ExecutionReleaser` 只释放资源且不决定产品 Cancel。当前生产旧路径需要的 continuation/steer/child/subtree 能力已被隔离为独立小接口，但它们不是目标合同；P6/P7 必须由真实 Agent2 consumers 重新推导。P8 生产切换前才冻结完整端口。最终命名必须以 Run 用例语义为准，不能用含糊的 `Prepare`、`Handle`、`Manager` 掩盖不同阶段。
+端口方法、参数名和返回值随 P4–P7 的真实纵切按 consumer-discovered interface 原则演进，不把旧 `ExecutionControl`、`PrepareStart`、`Activate`、`Prepare` 或 `TurnProcess` 当成兼容合同。P3 已建立最小 root candidate：`RootExecutionStarter` 用 validate/stage/begin 准确表达 admission 两侧，`ExecutionObserver` 只观察 Application facts，`ExecutionReleaser` 只释放资源且不决定产品 Cancel。P6 的真实 Agent2 consumer 已推导出 `WaitingExecutionContinuer` 的 stage/begin 两阶段和 `RunningExecutionSteerer` 的语义 steer 能力；旧生产路径仍需要的 legacy waiting/child/subtree seam 不属于目标合同。P7 继续由 child/subtree consumer 重推，P8 生产切换前才冻结完整端口。最终命名必须以 Run 用例语义为准，不能用含糊的 `Prepare`、`Handle`、`Manager` 掩盖不同阶段。
 
 ## 9. 工具能力
 
@@ -464,7 +469,8 @@ Runtime Toolset 负责产品工具清单、schema、执行 capability、安全�
 - BuildID、workspace revision 等外部事实由 Host 校验，不能污染 Agent2 snapshot；
 - 初版 Runtime 不配置 Agent2 `PreparedStepAcknowledger`。它当前只提供单 Process `Snapshot`，不能形成可恢复的完整 `TreeSnapshot`；Runtime 只承诺恢复最后一个已提交的 quiescent tree checkpoint，active tree 在进程崩溃且没有此边界时按 `RunLost` 收口；
 - 将来若要求 pre-dispatch crash durability，必须先由 Agent2 提供中性的 tree-wide durability contract，再由真实产品需求启用；Runtime 不拼装 private tree wire，也不把 Application Store 注入 Framework；
-- unknown external Effect 不自动重放、不猜测结算；当前产品将含 unresolved unknown Effect 的 checkpoint 判为不可恢复并 `RunLost`。
+- Agent2 payload baseline 是 public TreeSnapshot v4 JSON；Runtime 不再包一层自创 payload schema。Host envelope 由 exact BuildID、root member、scope、model、limits、usage 和 Agent2 DeploymentRef 校验共同冻结；旧/损坏 TreeSnapshot 由 public parser 严格拒绝；
+- unknown external Effect 不自动重放、不猜测结算。Framework unknown 状态无法通过 quiescent `CaptureTree` 形成 committed recovery point；restore 仍防御性查询 public `UnknownEffectIDs` 并拒绝异常 payload。
 
 ## 11. 并发和生命周期
 

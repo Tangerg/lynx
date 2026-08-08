@@ -211,12 +211,12 @@ type CompactionBoundary struct {
 
 // MemberInterruption is one direct external-input boundary discovered in the
 // executor tree. MemberID identifies the member already admitted to an
-// application Run; SuspensionID is private continuation identity; Interrupt is
-// the application prompt projected from that suspension.
+// application Run; RequestID is private continuation identity; Interrupt is
+// the application prompt projected from that request.
 type MemberInterruption struct {
-	MemberID     string
-	SuspensionID string
-	Interrupt    Interrupt
+	MemberID  string
+	RequestID string
+	Interrupt Interrupt
 }
 
 // TreeInterrupted is the executor's complete, stable view of one human-input
@@ -226,36 +226,36 @@ type MemberInterruption struct {
 type TreeInterrupted struct {
 	executorPayloadBase
 	// Checkpoint is the immutable executor state captured at the same waiting
-	// boundary as Suspensions. The Coordinator never interprets it; it only
+	// boundary as Interruptions. The Coordinator never interprets it; it only
 	// places its write into the tree-barrier transaction.
-	Checkpoint  ExecutorCheckpoint
-	Suspensions []MemberInterruption
+	Checkpoint    ExecutorCheckpoint
+	Interruptions []MemberInterruption
 }
 
 func (barrier TreeInterrupted) validate() error {
 	if err := barrier.Checkpoint.Validate(); err != nil {
 		return fmt.Errorf("runs: executor tree interrupt has an invalid checkpoint: %w", err)
 	}
-	if len(barrier.Suspensions) == 0 {
+	if len(barrier.Interruptions) == 0 {
 		return errors.New("runs: executor emitted an empty tree interrupt")
 	}
-	seen := make(map[string]struct{}, len(barrier.Suspensions))
-	for index, suspension := range barrier.Suspensions {
-		if strings.TrimSpace(suspension.MemberID) == "" {
-			return fmt.Errorf("runs: tree interrupt suspension[%d] has no member id", index)
+	seen := make(map[string]struct{}, len(barrier.Interruptions))
+	for index, request := range barrier.Interruptions {
+		if strings.TrimSpace(request.MemberID) == "" {
+			return fmt.Errorf("runs: tree interrupt request[%d] has no member id", index)
 		}
-		if strings.TrimSpace(suspension.SuspensionID) == "" {
-			return fmt.Errorf("runs: tree interrupt suspension[%d] has no suspension id", index)
+		if strings.TrimSpace(request.RequestID) == "" {
+			return fmt.Errorf("runs: tree interrupt request[%d] has no request id", index)
 		}
-		if err := suspension.Interrupt.Validate(); err != nil {
-			return fmt.Errorf("runs: tree interrupt suspension[%d]: %w", index, err)
+		if err := request.Interrupt.Validate(); err != nil {
+			return fmt.Errorf("runs: tree interrupt request[%d]: %w", index, err)
 		}
-		key := suspension.MemberID + "\x00" + suspension.SuspensionID
+		key := request.MemberID + "\x00" + request.RequestID
 		if _, duplicate := seen[key]; duplicate {
 			return fmt.Errorf(
-				"runs: member %q repeated suspension %q",
-				suspension.MemberID,
-				suspension.SuspensionID,
+				"runs: member %q repeated request %q",
+				request.MemberID,
+				request.RequestID,
 			)
 		}
 		seen[key] = struct{}{}
