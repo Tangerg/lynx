@@ -38,10 +38,10 @@ type processLoop struct {
 }
 
 type processQuiescence struct {
-	command         processCommand
-	deferred        []processCommand
-	deferredHostErr error
-	plannedState    *plannedProcessState
+	command             processCommand
+	deferred            []processCommand
+	deferredHostErr     error
+	preparedStateChange *preparedProcessStateChange
 }
 
 type preparedStep struct {
@@ -270,15 +270,15 @@ func (loop *processLoop) holdQuiescence(ctx context.Context, hostDone *<-chan st
 	quiescence := loop.quiescence
 	quiescence.command.reply(processResponse{accepted: true})
 	for {
-		var projectionApply <-chan struct{}
-		if quiescence.plannedState != nil {
-			projectionApply = quiescence.plannedState.applyGate
+		var applyGate <-chan struct{}
+		if quiescence.preparedStateChange != nil {
+			applyGate = quiescence.preparedStateChange.applyGate
 		}
 		select {
-		case <-projectionApply:
-			quiescence.plannedState.apply(ctx, loop)
-			close(quiescence.plannedState.applied)
-			quiescence.plannedState = nil
+		case <-applyGate:
+			quiescence.preparedStateChange.apply(ctx, loop)
+			close(quiescence.preparedStateChange.applied)
+			quiescence.preparedStateChange = nil
 		case <-quiescence.command.release:
 			loop.quiescence = nil
 			if quiescence.deferredHostErr != nil && !loop.status.Terminal() {
@@ -295,16 +295,16 @@ func (loop *processLoop) holdQuiescence(ctx context.Context, hostDone *<-chan st
 			switch command.kind {
 			case commandCapture, commandChildrenCompleted, commandParentTerminated:
 				loop.applyCommand(ctx, command)
-			case commandStagePlannedProcessState:
-				if quiescence.plannedState != nil || command.plannedState == nil {
-					command.reply(processResponse{err: ErrInvalidWaitingSubtreeCancellationPlan})
+			case commandStagePreparedProcessState:
+				if quiescence.preparedStateChange != nil || command.preparedStateChange == nil {
+					command.reply(processResponse{err: ErrInvalidPreparedWaitingSubtreeCancellation})
 					continue
 				}
-				if err := command.plannedState.validateSource(loop); err != nil {
+				if err := command.preparedStateChange.validateSource(loop); err != nil {
 					command.reply(processResponse{err: err})
 					continue
 				}
-				quiescence.plannedState = command.plannedState
+				quiescence.preparedStateChange = command.preparedStateChange
 				command.reply(processResponse{accepted: true})
 			default:
 				quiescence.deferred = append(quiescence.deferred, command)

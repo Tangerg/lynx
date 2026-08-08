@@ -88,7 +88,6 @@ type EngineConfig struct {
 // Signal delivery, Effect dispatch, and snapshot boundaries. It contains no
 // Deployment catalog or Host persistence abstraction.
 type Engine struct {
-	identity                 engineIdentity
 	acknowledger             PreparedStepAcknowledger
 	startOutcomeAcknowledger ProcessStartOutcomeAcknowledger
 	resolver                 DeploymentResolver
@@ -97,7 +96,8 @@ type Engine struct {
 	limits                   Limits
 	treeLimits               TreeLimits
 	capabilities             CapabilitySet
-	treeOperationMu          sync.Mutex
+	treeOperationsMu         sync.Mutex
+	treeOperations           map[ProcessID]*treeOperation
 
 	mu                     sync.RWMutex
 	processes              map[ProcessID]*processController
@@ -107,21 +107,6 @@ type Engine struct {
 	childWaits             map[WaitID]*childWaitRegistration
 	closed                 bool
 }
-
-// engineIdentity is an immutable, process-local capability token. It lets an
-// Engine recognize plans it created without making a plan retain the Engine,
-// one of its locks, or any caller-owned resource.
-type engineIdentity [16]byte
-
-func newEngineIdentity() (engineIdentity, error) {
-	var identity engineIdentity
-	if _, err := rand.Read(identity[:]); err != nil {
-		return engineIdentity{}, fmt.Errorf("agent: generate Engine identity: %w", err)
-	}
-	return identity, nil
-}
-
-func (identity engineIdentity) valid() bool { return identity != engineIdentity{} }
 
 // NewEngine validates execution infrastructure and returns an empty Engine.
 func NewEngine(config EngineConfig) (*Engine, error) {
@@ -165,12 +150,7 @@ func NewEngine(config EngineConfig) (*Engine, error) {
 	if !config.Capabilities.Valid() {
 		return nil, fmt.Errorf("%w: capabilities are invalid", ErrInvalidEngineConfig)
 	}
-	identity, err := newEngineIdentity()
-	if err != nil {
-		return nil, err
-	}
 	return &Engine{
-		identity:                 identity,
 		acknowledger:             config.PreparedStepAcknowledger,
 		startOutcomeAcknowledger: config.ProcessStartOutcomeAcknowledger,
 		resolver:                 config.DeploymentResolver,
@@ -179,6 +159,7 @@ func NewEngine(config EngineConfig) (*Engine, error) {
 		limits:                   limits,
 		treeLimits:               treeLimits,
 		capabilities:             config.Capabilities,
+		treeOperations:           make(map[ProcessID]*treeOperation),
 		processes:                make(map[ProcessID]*processController),
 		startReservations:        make(map[ProcessID]processStartReservation),
 		children:                 make(map[childIdentity]ProcessID),

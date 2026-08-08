@@ -82,8 +82,14 @@ func (projection *waitingSubtreeProjection) cancelActiveSubtree(reason string) e
 			intentOwner = cancellationOwnerHost
 			terminationReason = reason
 		}
-		intent, _ := newCancellationIntent(intentOwner, terminationReason)
-		termination, _ := resolveTermination(terminationFacts{cancellation: intent})
+		intent, err := newCancellationIntent(intentOwner, terminationReason)
+		if err != nil {
+			return err
+		}
+		termination, err := resolveTermination(terminationFacts{cancellation: intent})
+		if err != nil {
+			return err
+		}
 		if err := projection.cancelProcess(id, termination); err != nil {
 			return err
 		}
@@ -141,8 +147,11 @@ func (projection *waitingSubtreeProjection) deliverBoundaryCompletion(
 		return err
 	}
 	outcomes, ready, err := projection.childOutcomes(spec)
-	if err != nil || !ready {
+	if err != nil {
 		return err
+	}
+	if !ready {
+		return nil
 	}
 	signal, err := encodeChildrenCompletedAt(wait.WaitID, spec.Key, outcomes, projection.finishedAt)
 	if err != nil {
@@ -164,8 +173,11 @@ func (projection *waitingSubtreeProjection) deliverBoundaryCompletion(
 				"%w: %w", ErrWaitingSubtreeCancellationUnavailable, ErrResourceLimitExceeded,
 			)
 		}
-		accepted, enqueueErr := mailbox.enqueueChildCompletion(parent.Status, signal)
-		if enqueueErr != nil || !accepted || parent.ProcessEventSequence == ^uint64(0) {
+		accepted, err := mailbox.enqueueChildCompletion(parent.Status, signal)
+		if err != nil {
+			return err
+		}
+		if !accepted || parent.ProcessEventSequence == ^uint64(0) {
 			return ErrWaitingSubtreeCancellationUnavailable
 		}
 		parent.Usage.AcceptedSignals++

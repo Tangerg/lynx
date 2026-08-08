@@ -16,7 +16,7 @@ import (
 )
 
 const (
-	currentAPIBaseline         = 10
+	currentAPIBaseline         = 11
 	currentAPIBaselineFrozenOn = "2026-08-09"
 )
 
@@ -26,7 +26,7 @@ var exportedAPIBaselines = []struct {
 	directory string
 	want      string
 }{
-	{name: "kernel", label: "root kernel", directory: ".", want: "e89c19608d58d2969eadae28d14641dc28959b30821bd540cd2f840c22d18589"},
+	{name: "kernel", label: "root kernel", directory: ".", want: "8e38d92755c371149661fa8833aa1faf742c1302ed1c71d47840977673f29577"},
 	{name: "interaction", label: "interaction", directory: "interaction", want: "4d7c875e6eb422a82c010bb41553155c643d1be70b41970d6f8332ab12025bf5"},
 	{name: "planning", label: "planning", directory: "planning", want: "15c48c52b7d4765ba86da2e5fd11822669c163c01e98dd4cb3668f71f7c5f30a"},
 	{name: "goap", label: "planning/goap", directory: "planning/goap", want: "dd5a007a20ddbeac2112bbed10718f5256fe2449376fd7dcc1400e25578253ec"},

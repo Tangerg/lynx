@@ -5,40 +5,48 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"testing/synctest"
+	"time"
 )
 
-func TestWaitingSubtreeCancellationPlanAppliesExactTreeState(t *testing.T) {
+func TestPreparedWaitingSubtreeCancellationAppliesExactTreeState(t *testing.T) {
 	engine, root, target, descendant := startWaitingSubtree(t)
 
-	plan, err := engine.PlanWaitingSubtreeCancellation(
+	prepared, err := engine.PrepareWaitingSubtreeCancellation(
 		context.Background(), root.ID(), target.ID(), "caller discarded the waiting branch",
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !plan.Valid() {
-		t.Fatal("cancellation plan is invalid")
+	if prepared == nil || !prepared.ResultingSnapshot().Valid() {
+		t.Fatal("prepared cancellation is invalid")
 	}
 	if target.Status() != StatusWaiting || descendant.Status() != StatusWaiting || root.Status() != StatusWaiting {
-		t.Fatal("planning changed the live tree")
+		t.Fatal("preparing cancellation changed the live tree")
 	}
-	canceled := plan.CanceledProcessIDs()
+	canceled := prepared.CanceledProcessIDs()
 	if len(canceled) != 2 || canceled[0] != target.ID() || canceled[1] != descendant.ID() {
 		t.Fatalf("canceled Process IDs = %v", canceled)
 	}
-	paused := plan.PausedProcessIDs()
+	paused := prepared.PausedProcessIDs()
 	if len(paused) != 1 || paused[0] != root.ID() {
 		t.Fatalf("paused Process IDs = %v", paused)
 	}
 	canceled[0] = ProcessID{}
 	paused[0] = ProcessID{}
-	if plan.CanceledProcessIDs()[0] != target.ID() || plan.PausedProcessIDs()[0] != root.ID() {
-		t.Fatal("plan exposed mutable Process ID storage")
+	if prepared.CanceledProcessIDs()[0] != target.ID() || prepared.PausedProcessIDs()[0] != root.ID() {
+		t.Fatal("prepared exposed mutable Process ID storage")
 	}
 
-	assertPlannedWaitingSubtree(t, plan, root.ID(), target.ID(), descendant.ID())
-	if err := engine.ApplyWaitingSubtreeCancellation(context.Background(), plan); err != nil {
+	assertPreparedWaitingSubtree(t, prepared, root.ID(), target.ID(), descendant.ID())
+	if err := prepared.Apply(context.Background()); err != nil {
 		t.Fatal(err)
+	}
+	if err := prepared.Apply(context.Background()); !errors.Is(err, ErrPreparedWaitingSubtreeCancellationResolved) {
+		t.Fatalf("second Apply error = %v, want resolved", err)
+	}
+	if err := prepared.Discard(); !errors.Is(err, ErrPreparedWaitingSubtreeCancellationResolved) {
+		t.Fatalf("Discard after Apply error = %v, want resolved", err)
 	}
 	targetResult := mustAwait(t, target)
 	if targetResult.Status() != StatusCanceled ||
@@ -57,8 +65,8 @@ func TestWaitingSubtreeCancellationPlanAppliesExactTreeState(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !bytes.Equal(live.JSON(), plan.ResultingSnapshot().JSON()) {
-		t.Fatal("live tree does not equal the planned resulting snapshot")
+	if !bytes.Equal(live.JSON(), prepared.ResultingSnapshot().JSON()) {
+		t.Fatal("live tree does not equal the prepared resulting snapshot")
 	}
 	assertRootHasCanceledChildSignal(t, live, root.ID(), target.ID())
 
@@ -73,10 +81,75 @@ func TestWaitingSubtreeCancellationPlanAppliesExactTreeState(t *testing.T) {
 	}
 }
 
-func TestWaitingSubtreeCancellationRejectsStalePlanWithoutModification(t *testing.T) {
+func TestPreparedWaitingSubtreeCancellationRejectsNilAndZeroValues(t *testing.T) {
+	var nilPrepared *PreparedWaitingSubtreeCancellation
+	if err := nilPrepared.Apply(context.Background()); !errors.Is(err, ErrInvalidPreparedWaitingSubtreeCancellation) {
+		t.Fatalf("nil Apply error = %v", err)
+	}
+	if err := nilPrepared.Discard(); !errors.Is(err, ErrInvalidPreparedWaitingSubtreeCancellation) {
+		t.Fatalf("nil Discard error = %v", err)
+	}
+	zero := &PreparedWaitingSubtreeCancellation{}
+	if err := zero.Discard(); !errors.Is(err, ErrInvalidPreparedWaitingSubtreeCancellation) {
+		t.Fatalf("zero Discard error = %v", err)
+	}
+	if err := zero.Apply(context.Background()); !errors.Is(err, ErrPreparedWaitingSubtreeCancellationResolved) {
+		t.Fatalf("resolved zero Apply error = %v", err)
+	}
+}
+
+func TestPreparedWaitingSubtreeCancellationResolvesExactlyOnceConcurrently(t *testing.T) {
 	engine, root, target, descendant := startWaitingSubtree(t)
-	plan, err := engine.PlanWaitingSubtreeCancellation(
-		context.Background(), root.ID(), target.ID(), "discard stale branch",
+	prepared, err := engine.PrepareWaitingSubtreeCancellation(
+		context.Background(), root.ID(), target.ID(), "resolve concurrently",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	start := make(chan struct{})
+	results := make(chan error, 2)
+	go func() {
+		<-start
+		results <- prepared.Apply(context.Background())
+	}()
+	go func() {
+		<-start
+		results <- prepared.Discard()
+	}()
+	close(start)
+	first, second := <-results, <-results
+	if first != nil && second != nil {
+		t.Fatalf("both resolutions failed: %v; %v", first, second)
+	}
+	if first == nil && second == nil {
+		t.Fatal("Apply and Discard both resolved the same prepared cancellation")
+	}
+	resolvedErr := first
+	if resolvedErr == nil {
+		resolvedErr = second
+	}
+	if !errors.Is(resolvedErr, ErrPreparedWaitingSubtreeCancellationResolved) {
+		t.Fatalf("losing resolution error = %v, want resolved", resolvedErr)
+	}
+	if err := root.Kill(context.Background(), "test cleanup"); err != nil {
+		t.Fatal(err)
+	}
+	_ = mustAwait(t, root)
+	_ = mustAwait(t, target)
+	_ = mustAwait(t, descendant)
+	if err := engine.Close(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestPreparedWaitingSubtreeCancellationFreezesSourceUntilDiscard(t *testing.T) {
+	synctest.Test(t, testPreparedWaitingSubtreeCancellationFreezesSourceUntilDiscard)
+}
+
+func testPreparedWaitingSubtreeCancellationFreezesSourceUntilDiscard(t *testing.T) {
+	engine, root, target, descendant := startWaitingSubtree(t)
+	prepared, err := engine.PrepareWaitingSubtreeCancellation(
+		context.Background(), root.ID(), target.ID(), "discard frozen branch",
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -85,32 +158,44 @@ func TestWaitingSubtreeCancellationRejectsStalePlanWithoutModification(t *testin
 	if !waiting {
 		t.Fatal("descendant has no external WaitID")
 	}
-	signalID, _ := ParseSignalID("signal:complete-stale-wait")
+	signalID, _ := ParseSignalID("signal:complete-frozen-wait")
 	response, _ := NewSignalRequest(signalID, waitID, []byte(`{"answer":true}`))
-	if accepted, err := descendant.DeliverSignal(context.Background(), response); err != nil || !accepted {
-		t.Fatalf("DeliverSignal accepted = %t, error = %v", accepted, err)
+	type deliveryResult struct {
+		accepted bool
+		err      error
+	}
+	delivered := make(chan deliveryResult, 1)
+	go func() {
+		accepted, deliveryErr := descendant.DeliverSignal(context.Background(), response)
+		delivered <- deliveryResult{accepted: accepted, err: deliveryErr}
+	}()
+	synctest.Wait()
+	select {
+	case result := <-delivered:
+		t.Fatalf("DeliverSignal crossed the prepared boundary: %#v", result)
+	default:
+	}
+	if root.Status() != StatusWaiting || target.Status() != StatusWaiting ||
+		descendant.Status() != StatusWaiting {
+		t.Fatal("source tree changed while cancellation was prepared")
+	}
+	if err := prepared.Discard(); err != nil {
+		t.Fatal(err)
+	}
+	result := <-delivered
+	if result.err != nil || !result.accepted {
+		t.Fatalf("DeliverSignal accepted = %t, error = %v", result.accepted, result.err)
+	}
+	if err := prepared.Discard(); !errors.Is(err, ErrPreparedWaitingSubtreeCancellationResolved) {
+		t.Fatalf("second Discard error = %v, want resolved", err)
 	}
 	_ = mustAwait(t, root)
-	before, err := engine.CaptureTree(context.Background(), root.ID())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := engine.ApplyWaitingSubtreeCancellation(context.Background(), plan); !errors.Is(err, ErrWaitingSubtreeCancellationPlanStale) {
-		t.Fatalf("Apply error = %v, want stale plan", err)
-	}
-	after, err := engine.CaptureTree(context.Background(), root.ID())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !bytes.Equal(before.JSON(), after.JSON()) {
-		t.Fatal("stale apply modified the live tree")
-	}
 	if err := engine.Close(); err != nil {
 		t.Fatal(err)
 	}
 }
 
-func TestWaitingSubtreeCancellationPreservesUnsatisfiedChildWait(t *testing.T) {
+func TestPreparedWaitingSubtreeCancellationPreservesUnsatisfiedChildWait(t *testing.T) {
 	deployment := newChildTestDeployment(t)
 	engine, err := NewEngine(EngineConfig{})
 	if err != nil {
@@ -139,20 +224,20 @@ func TestWaitingSubtreeCancellationPreservesUnsatisfiedChildWait(t *testing.T) {
 	descendant, _ := engine.Process(descendantID)
 	waitForProcessStatus(t, descendant, StatusWaiting)
 
-	plan, err := engine.PlanWaitingSubtreeCancellation(
+	prepared, err := engine.PrepareWaitingSubtreeCancellation(
 		context.Background(), root.ID(), target.ID(), "discard one waiting branch",
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if paused := plan.PausedProcessIDs(); len(paused) != 0 {
+	if paused := prepared.PausedProcessIDs(); len(paused) != 0 {
 		t.Fatalf("paused Process IDs = %v, want none before wait-all is satisfied", paused)
 	}
-	plannedRoot := snapshotByID(plan.ResultingSnapshot().ProcessSnapshots(), root.ID())
-	if plannedRoot.Status() != StatusWaiting {
-		t.Fatalf("planned root status = %s, want waiting", plannedRoot.Status())
+	resultingRoot := snapshotByID(prepared.ResultingSnapshot().ProcessSnapshots(), root.ID())
+	if resultingRoot.Status() != StatusWaiting {
+		t.Fatalf("resulting root status = %s, want waiting", resultingRoot.Status())
 	}
-	if err := engine.ApplyWaitingSubtreeCancellation(context.Background(), plan); err != nil {
+	if err := prepared.Apply(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 	if root.Status() != StatusWaiting {
@@ -179,21 +264,21 @@ func TestWaitingSubtreeCancellationPreservesUnsatisfiedChildWait(t *testing.T) {
 	}
 }
 
-func TestWaitingSubtreeCancellationCanceledApplyDoesNotModifyTree(t *testing.T) {
-	engine, root, target, _ := startWaitingSubtree(t)
-	plan, err := engine.PlanWaitingSubtreeCancellation(
+func TestPreparedWaitingSubtreeCancellationCanceledApplyDoesNotModifyTree(t *testing.T) {
+	engine, root, target, descendant := startWaitingSubtree(t)
+	before, err := engine.CaptureTree(context.Background(), root.ID())
+	if err != nil {
+		t.Fatal(err)
+	}
+	prepared, err := engine.PrepareWaitingSubtreeCancellation(
 		context.Background(), root.ID(), target.ID(), "discard canceled apply",
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	before, err := engine.CaptureTree(context.Background(), root.ID())
-	if err != nil {
-		t.Fatal(err)
-	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if err := engine.ApplyWaitingSubtreeCancellation(ctx, plan); !errors.Is(err, context.Canceled) {
+	if err := prepared.Apply(ctx); !errors.Is(err, context.Canceled) {
 		t.Fatalf("canceled Apply error = %v, want context canceled", err)
 	}
 	after, err := engine.CaptureTree(context.Background(), root.ID())
@@ -204,55 +289,64 @@ func TestWaitingSubtreeCancellationCanceledApplyDoesNotModifyTree(t *testing.T) 
 		t.Fatal("Apply canceled before its gate modified the live tree")
 	}
 
-	if err := engine.ApplyWaitingSubtreeCancellation(context.Background(), plan); err != nil {
-		t.Fatal(err)
+	if err := prepared.Apply(context.Background()); !errors.Is(err, ErrPreparedWaitingSubtreeCancellationResolved) {
+		t.Fatalf("second Apply error = %v, want resolved", err)
+	}
+	if err := prepared.Discard(); !errors.Is(err, ErrPreparedWaitingSubtreeCancellationResolved) {
+		t.Fatalf("Discard after canceled Apply error = %v, want resolved", err)
 	}
 	if err := root.Kill(context.Background(), "test cleanup"); err != nil {
 		t.Fatal(err)
 	}
 	_ = mustAwait(t, root)
+	_ = mustAwait(t, target)
+	_ = mustAwait(t, descendant)
 	if err := engine.Close(); err != nil {
 		t.Fatal(err)
 	}
 }
 
-func TestWaitingSubtreeCancellationRejectsForeignEnginePlan(t *testing.T) {
-	engine, root, target, _ := startWaitingSubtree(t)
-	plan, err := engine.PlanWaitingSubtreeCancellation(
-		context.Background(), root.ID(), target.ID(), "discard foreign branch",
+func TestPreparedWaitingSubtreeCancellationDoesNotFreezeOtherRootTrees(t *testing.T) {
+	deployment := newChildTestDeployment(t)
+	engine, err := NewEngine(EngineConfig{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	root, target, descendant := startWaitingSubtreeInEngine(t, engine, deployment)
+	prepared, err := engine.PrepareWaitingSubtreeCancellation(
+		context.Background(), root.ID(), target.ID(), "freeze only one root",
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	foreign, err := NewEngine(EngineConfig{})
+	input, _ := EncodeInput(childTestInput{Mode: "leaf"})
+	otherRoot, err := engine.Start(context.Background(), deployment, input)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := foreign.ApplyWaitingSubtreeCancellation(context.Background(), plan); !errors.Is(err, ErrInvalidWaitingSubtreeCancellationPlan) {
-		t.Fatalf("foreign apply error = %v", err)
+	_ = mustAwait(t, otherRoot)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if _, err := engine.CaptureTree(ctx, otherRoot.ID()); err != nil {
+		t.Fatalf("capturing an independent root: %v", err)
 	}
-	if target.Status() != StatusWaiting {
-		t.Fatal("foreign apply changed the source Engine")
-	}
-
-	if err := engine.ApplyWaitingSubtreeCancellation(context.Background(), plan); err != nil {
+	if err := prepared.Discard(); err != nil {
 		t.Fatal(err)
 	}
 	if err := root.Kill(context.Background(), "test cleanup"); err != nil {
 		t.Fatal(err)
 	}
 	_ = mustAwait(t, root)
+	_ = mustAwait(t, target)
+	_ = mustAwait(t, descendant)
 	if err := engine.Close(); err != nil {
-		t.Fatal(err)
-	}
-	if err := foreign.Close(); err != nil {
 		t.Fatal(err)
 	}
 }
 
-func TestWaitingSubtreeCancellationResultRestoresWithoutPrivateStateMutation(t *testing.T) {
+func TestPreparedWaitingSubtreeCancellationResultRestoresWithoutPrivateStateMutation(t *testing.T) {
 	engine, root, target, descendant := startWaitingSubtree(t)
-	plan, err := engine.PlanWaitingSubtreeCancellation(
+	prepared, err := engine.PrepareWaitingSubtreeCancellation(
 		context.Background(), root.ID(), target.ID(), "restore canceled branch",
 	)
 	if err != nil {
@@ -265,7 +359,7 @@ func TestWaitingSubtreeCancellationResultRestoresWithoutPrivateStateMutation(t *
 		t.Fatal(err)
 	}
 	restoredRoot, err := restoredEngine.RestoreTree(
-		context.Background(), deployment, plan.ResultingSnapshot(),
+		context.Background(), deployment, prepared.ResultingSnapshot(),
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -291,7 +385,7 @@ func TestWaitingSubtreeCancellationResultRestoresWithoutPrivateStateMutation(t *
 		t.Fatal(err)
 	}
 
-	if err := engine.ApplyWaitingSubtreeCancellation(context.Background(), plan); err != nil {
+	if err := prepared.Apply(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 	if err := root.Kill(context.Background(), "test cleanup"); err != nil {
@@ -303,9 +397,9 @@ func TestWaitingSubtreeCancellationResultRestoresWithoutPrivateStateMutation(t *
 	}
 }
 
-func TestWaitingSubtreeCancellationRequiresNonRootWaitingTarget(t *testing.T) {
+func TestPreparedWaitingSubtreeCancellationRequiresNonRootWaitingTarget(t *testing.T) {
 	engine, root, target, _ := startWaitingSubtree(t)
-	if _, err := engine.PlanWaitingSubtreeCancellation(
+	if _, err := engine.PrepareWaitingSubtreeCancellation(
 		context.Background(), root.ID(), root.ID(), "root is not a valid target",
 	); !errors.Is(err, ErrWaitingSubtreeCancellationUnavailable) {
 		t.Fatalf("root target error = %v", err)
@@ -313,13 +407,13 @@ func TestWaitingSubtreeCancellationRequiresNonRootWaitingTarget(t *testing.T) {
 	if root.Status() != StatusWaiting || target.Status() != StatusWaiting {
 		t.Fatal("rejected root target changed the live tree")
 	}
-	plan, err := engine.PlanWaitingSubtreeCancellation(
+	prepared, err := engine.PrepareWaitingSubtreeCancellation(
 		context.Background(), root.ID(), target.ID(), "test cleanup",
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := engine.ApplyWaitingSubtreeCancellation(context.Background(), plan); err != nil {
+	if err := prepared.Apply(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 	if err := root.Kill(context.Background(), "test cleanup"); err != nil {
@@ -331,7 +425,7 @@ func TestWaitingSubtreeCancellationRequiresNonRootWaitingTarget(t *testing.T) {
 	}
 
 	pausedEngine, pausedRoot, pausedChild := startPausedChildTree(t)
-	if _, err := pausedEngine.PlanWaitingSubtreeCancellation(
+	if _, err := pausedEngine.PrepareWaitingSubtreeCancellation(
 		context.Background(), pausedRoot.ID(), pausedChild.ID(), "paused is not waiting",
 	); !errors.Is(err, ErrWaitingSubtreeCancellationUnavailable) {
 		t.Fatalf("paused target error = %v", err)
@@ -359,6 +453,16 @@ func startWaitingSubtree(t *testing.T) (*Engine, *Process, *Process, *Process) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	root, target, descendant := startWaitingSubtreeInEngine(t, engine, deployment)
+	return engine, root, target, descendant
+}
+
+func startWaitingSubtreeInEngine(
+	t *testing.T,
+	engine *Engine,
+	deployment Deployment,
+) (*Process, *Process, *Process) {
+	t.Helper()
 	input, _ := EncodeInput(childTestInput{Mode: "wait:subtree"})
 	root, err := engine.Start(context.Background(), deployment, input)
 	if err != nil {
@@ -379,7 +483,7 @@ func startWaitingSubtree(t *testing.T) (*Engine, *Process, *Process, *Process) {
 	descendantID, _ := ParseProcessID(descendants[0])
 	descendant, _ := engine.Process(descendantID)
 	waitForProcessStatus(t, descendant, StatusWaiting)
-	return engine, root, target, descendant
+	return root, target, descendant
 }
 
 func startPausedChildTree(t *testing.T) (*Engine, *Process, *Process) {
@@ -426,16 +530,16 @@ func processesByChildKey(t *testing.T, engine *Engine, parentID ProcessID) map[s
 	return processes
 }
 
-func assertPlannedWaitingSubtree(
+func assertPreparedWaitingSubtree(
 	t *testing.T,
-	plan WaitingSubtreeCancellationPlan,
+	prepared *PreparedWaitingSubtreeCancellation,
 	rootID ProcessID,
 	targetID ProcessID,
 	descendantID ProcessID,
 ) {
 	t.Helper()
 	statuses := make(map[ProcessID]Status)
-	for _, snapshot := range plan.ResultingSnapshot().ProcessSnapshots() {
+	for _, snapshot := range prepared.ResultingSnapshot().ProcessSnapshots() {
 		statuses[snapshot.ProcessID()] = snapshot.Status()
 		if snapshot.ProcessID() == descendantID {
 			wire, err := snapshot.wire()
@@ -451,7 +555,7 @@ func assertPlannedWaitingSubtree(
 	}
 	if statuses[rootID] != StatusPaused || statuses[targetID] != StatusCanceled ||
 		statuses[descendantID] != StatusCanceled {
-		t.Fatalf("planned statuses = %v", statuses)
+		t.Fatalf("prepared statuses = %v", statuses)
 	}
 }
 

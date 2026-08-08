@@ -283,8 +283,11 @@ func (engine *Engine) CaptureTree(ctx context.Context, rootID ProcessID) (TreeSn
 		return TreeSnapshot{}, ErrInvalidProcessRelation
 	}
 	ctx = contextOrBackground(ctx)
-	engine.treeOperationMu.Lock()
-	defer engine.treeOperationMu.Unlock()
+	operation, err := engine.acquireTreeOperation(ctx, rootID)
+	if err != nil {
+		return TreeSnapshot{}, err
+	}
+	defer operation.release()
 	quiescence, err := engine.quiesceTree(ctx, rootID)
 	if err != nil {
 		return TreeSnapshot{}, err
@@ -307,8 +310,8 @@ func (quiescence *treeQuiescence) release() {
 	quiescence.released = true
 }
 
-// quiesceTree requires treeOperationMu ownership. It returns every controller
-// in a complete tree after active loops have reached Strategy-safe boundaries.
+// quiesceTree requires ownership of the root's tree operation. It returns every
+// controller after active loops have reached Strategy-safe boundaries.
 func (engine *Engine) quiesceTree(
 	ctx context.Context,
 	rootID ProcessID,
@@ -366,8 +369,8 @@ func (engine *Engine) quiesceTree(
 	return &treeQuiescence{controllers: controllers, releaseGate: release}, nil
 }
 
-// captureQuiescedTree requires treeOperationMu ownership and a barrier returned
-// by quiesceTree that has not yet been released.
+// captureQuiescedTree requires ownership of the root's tree operation and a
+// barrier returned by quiesceTree that has not yet been released.
 func (engine *Engine) captureQuiescedTree(
 	ctx context.Context,
 	rootID ProcessID,
@@ -469,8 +472,11 @@ func (engine *Engine) RestoreTree(
 	if !rootSnapshot.Valid() || rootSnapshot.DeploymentRef() != rootDeployment.DeploymentRef() {
 		return nil, fmt.Errorf("%w: exact root Deployment does not match", ErrInvalidTreeSnapshot)
 	}
-	engine.treeOperationMu.Lock()
-	defer engine.treeOperationMu.Unlock()
+	operation, err := engine.acquireTreeOperation(ctx, wire.RootID)
+	if err != nil {
+		return nil, err
+	}
+	defer operation.release()
 	deployments := map[DeploymentRef]Deployment{rootDeployment.DeploymentRef(): rootDeployment}
 	restored := make([]restoredTreeProcess, 0, len(wire.ProcessSnapshots))
 	for _, processSnapshot := range wire.ProcessSnapshots {

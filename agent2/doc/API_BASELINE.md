@@ -1,6 +1,6 @@
 # Agent Framework 公共合同基线
 
-> 状态：Baseline 10 已冻结
+> 状态：Baseline 11 已冻结
 > 冻结日期：2026-08-09
 > 适用范围：`agent2` 根 package、`agent2/interaction`、`agent2/planning`、`agent2/planning/goap`、`agent2/workflow`、`agent2/otel`、`agent2/platform`、Process Snapshot v6、TreeSnapshot v4、child/framework-effect protocol v2、Interaction state/protocol v5/v3、Planning state/protocol v3/v1、Workflow state v2、Event/Delta observation wire
 
@@ -8,7 +8,7 @@
 
 ## 1. 基线的含义
 
-Baseline 10 不是兼容承诺或发布版本。仓库仍允许 breaking change，但任何公共名称、参数名、签名、GoDoc、sentinel error、Framework/Strategy recovery wire 或 observation wire 的变化都必须是显式设计决策：
+Baseline 11 不是兼容承诺或发布版本。仓库仍允许 breaking change，但任何公共名称、参数名、签名、GoDoc、sentinel error、Framework/Strategy recovery wire 或 observation wire 的变化都必须是显式设计决策：
 
 1. 先用真实 Strategy 或 consumer 证明变化必要；
 2. 更新或追加 ADR，不保留 alias、双读、双写或兼容 shim；
@@ -28,7 +28,7 @@ Baseline 10 不是兼容承诺或发布版本。仓库仍允许 breaking change�
 - Transition/Effect/EffectRequest/Settlement：Step 候选意图、边界外操作、dispatcher 请求与确定/未知结算。
 - Snapshot/TreeSnapshot：单独 root 与完整 Process tree 的 portable capture；不包含 Host persistence 抽象。
 - StartChild/WaitForChildren/ChildOutcome：跨 Strategy 组合的最小 Framework Effect/Signal 协议。
-- WaitingSubtreeCancellationPlan：等待非 root Process 活动子树的纯 prospective tree 变换，以及 same-source Engine apply 边界。
+- PreparedWaitingSubtreeCancellation：冻结等待非 root Process 的 source tree、暴露 exact prospective result，并以恰好一次 Apply/Discard 结束的 prepared tree 变换。
 - Budget/Limits/TreeLimits/CapabilitySet/Usage：本地工作上限、tree expansion、authority attenuation 与事实计数。
 - ProcessAdmission/ProcessAdmitter：根与子 Process 共用、只读、context-aware 且不能修改 Framework 资源的启动准入边界。
 - ProcessStartOutcome/ProcessStartOutcomeAcknowledger：每个 accepted admission 唯一的 started/aborted 初始化结论，以及 Process 发布前的同步中性 acknowledgment。
@@ -45,9 +45,9 @@ Baseline 10 不是兼容承诺或发布版本。仓库仍允许 breaking change�
 
 ## 3. 自动守卫
 
-`baseline_test.go` 对七个已冻结公共 package 的完整 `go doc -all` 输出做 SHA-256 校验，因此 exported identifier、参数名、字段、签名和 GoDoc 的任何漂移都会失败；AST 守卫还要求所有公开声明/字段有精确 GoDoc、公开 callable 的参数有语义名称，并禁止 error cause 通过 `%v` 丢失 `errors.Is/As` 链。Baseline 10 public digest：
+`baseline_test.go` 对七个已冻结公共 package 的完整 `go doc -all` 输出做 SHA-256 校验，因此 exported identifier、参数名、字段、签名和 GoDoc 的任何漂移都会失败；AST 守卫还要求所有公开声明/字段有精确 GoDoc、公开 callable 的参数有语义名称，并禁止 error cause 通过 `%v` 丢失 `errors.Is/As` 链。Baseline 11 public digest：
 
-- root kernel：`e89c19608d58d2969eadae28d14641dc28959b30821bd540cd2f840c22d18589`
+- root kernel：`8e38d92755c371149661fa8833aa1faf742c1302ed1c71d47840977673f29577`
 - interaction：`4d7c875e6eb422a82c010bb41553155c643d1be70b41970d6f8332ab12025bf5`
 - planning：`15c48c52b7d4765ba86da2e5fd11822669c163c01e98dd4cb3668f71f7c5f30a`
 - planning/goap：`dd5a007a20ddbeac2112bbed10718f5256fe2449376fd7dcc1400e25578253ec`
@@ -55,7 +55,7 @@ Baseline 10 不是兼容承诺或发布版本。仓库仍允许 breaking change�
 - otel：`0725fbef9fbd28ba9b6999ab8b427dd9a4376f83aef9839a9f15f60c16422016`
 - platform：`748f5ea1ef3b09c702a792ab6e16a3b4ae6be9776ef1a4ba51e856757abff078`
 
-Kernel 测试独立冻结其全部 production `*Wire`、Framework Event payload 与 schema version；每个 Strategy package 冻结自己的私有 ExecutionState 和 Effect/Signal/Delta protocol。覆盖守卫要求新增 production wire 或私有 JSON struct 必须进入所有者 baseline，Kernel 始终只保存 opaque `ExecutionState.Payload`，不会递归解释 Strategy shape。Baseline 10 wire digest：
+Kernel 测试独立冻结其全部 production `*Wire`、Framework Event payload 与 schema version；每个 Strategy package 冻结自己的私有 ExecutionState 和 Effect/Signal/Delta protocol。覆盖守卫要求新增 production wire 或私有 JSON struct 必须进入所有者 baseline，Kernel 始终只保存 opaque `ExecutionState.Payload`，不会递归解释 Strategy shape。Baseline 11 wire digest：
 
 - Kernel snapshot/protocol wire：`0e245506ccda1ef6c1697a782a67e3d5c01e8417bc8d7ff8686eca138b5a43c5`
 - Framework Event/Delta observation wire：`4006d3d24440922ba1e1ba9616bde3a88352fcc2625d918b839e1de283b631cb`
@@ -107,6 +107,8 @@ P10-03 第三纵切依据 ADR-A2-058/A2-059 形成 Baseline 9。Kernel 新增唯
 
 P10-04 依据 ADR-A2-060 形成 Baseline 10。Kernel 新增 immutable `ProcessStartOutcome`、`ProcessStartOutcomeStatus` 和唯一 `ProcessStartOutcomeAcknowledger`；每个 accepted root/child admission 在 initial Definition/Execution snapshot 自证后只闭合为 started，任一初始化失败只闭合为带稳定 Failure 的 aborted。Engine 私有 start reservation 保证 acknowledgment 前零发布、ack error/panic 零发布、Close/identity/tree-limit 并发一致；admission reject 与 restore 不产生 outcome。该合同不包含 Host identity、持久化、transaction、应用 disposition 或 callback capability。Process Snapshot v6、TreeSnapshot v4、Kernel/Strategy protocol、observation wire 与其余六个 public digest 不变。
 
+P10-05 依据 ADR-A2-061 形成 Baseline 11。Kernel 以一次性 `PreparedWaitingSubtreeCancellation` 取代 pure value plan 与后续 Engine apply：Prepare 在完整 quiescent cut 上冻结 source root tree，并返回 exact resulting TreeSnapshot 与 canceled/paused IDs；caller 必须恰好一次 Apply 或 Discard。Apply gate 前任何错误自动释放且 live tree 零修改，跨 gate 后独立于调用 context 完成；不同 root tree 的 operation 彼此独立。旧 plan/apply、Engine identity、source digest 和 stale/foreign errors 全部删除。capability 只拥有 Framework state，未加入 Runtime transaction/checkpoint/lease 等 Host 抽象。Process Snapshot v6、TreeSnapshot v4、Kernel/Strategy protocol、observation wire 与其余六个 public digest 不变。
+
 ## 4. 明确不在基线中的能力
 
-Baseline 10 尚未冻结应用 adapter 迁移或最终模块替换路径。`flow` 保持独立 in-process 库，不形成 Agent adapter API 或依赖；Workflow 吸收其显式拓扑、确定顺序和有界 fan-out 思想，但不强求复用或建立 adapter。未来编辑器图只能在更高层编译成已验证的 Workflow Definition，不能反向扩张 Kernel 或恢复 wire。
+Baseline 11 尚未冻结应用 adapter 迁移或最终模块替换路径。`flow` 保持独立 in-process 库，不形成 Agent adapter API 或依赖；Workflow 吸收其显式拓扑、确定顺序和有界 fan-out 思想，但不强求复用或建立 adapter。未来编辑器图只能在更高层编译成已验证的 Workflow Definition，不能反向扩张 Kernel 或恢复 wire。

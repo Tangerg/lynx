@@ -5,206 +5,291 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"sync"
 	"time"
 )
 
 const waitingSubtreeParentPauseReason = "child Process cancellation requires explicit continuation"
 
 var (
-	// ErrInvalidWaitingSubtreeCancellationPlan reports a zero, malformed, or
-	// foreign plan supplied to ApplyWaitingSubtreeCancellation.
-	ErrInvalidWaitingSubtreeCancellationPlan = errors.New("agent: invalid waiting subtree cancellation plan")
+	// ErrInvalidPreparedWaitingSubtreeCancellation reports a nil or internally
+	// invalid prepared cancellation capability.
+	ErrInvalidPreparedWaitingSubtreeCancellation = errors.New("agent: invalid prepared waiting subtree cancellation")
+
+	// ErrPreparedWaitingSubtreeCancellationResolved reports a second Apply or
+	// Discard call after the prepared cancellation was already resolved.
+	ErrPreparedWaitingSubtreeCancellationResolved = errors.New("agent: prepared waiting subtree cancellation is resolved")
 
 	// ErrWaitingSubtreeCancellationUnavailable reports a target that is not a
 	// non-root Waiting Process in the requested tree, or a tree state that cannot
 	// represent the cancellation without violating its existing resource bounds.
 	ErrWaitingSubtreeCancellationUnavailable = errors.New("agent: waiting subtree cancellation is unavailable")
-
-	// ErrWaitingSubtreeCancellationPlanStale reports that the complete source
-	// tree changed after its cancellation plan was produced. Apply makes no
-	// Framework state change when it returns this error.
-	ErrWaitingSubtreeCancellationPlanStale = errors.New("agent: waiting subtree cancellation plan is stale")
 )
 
-// WaitingSubtreeCancellationPlan is an immutable prospective transition for
-// one Waiting non-root Process and every active descendant. It contains no
-// live Engine lock or caller-owned resource.
-type WaitingSubtreeCancellationPlan struct {
-	engineIdentity     engineIdentity
-	sourceRootID       ProcessID
-	sourceDigest       Digest
-	resultingSnapshot  TreeSnapshot
-	canceledProcessIDs []ProcessID
-	pausedProcessIDs   []ProcessID
+// PreparedWaitingSubtreeCancellation owns one frozen, Strategy-safe source
+// tree and its exact prospective cancellation result. It must not be copied
+// after first use. The caller must resolve it exactly once with Apply or
+// Discard; until then that source tree remains frozen. Other root trees in the
+// Engine remain independent.
+type PreparedWaitingSubtreeCancellation struct {
+	engine                 *Engine
+	operation              *treeOperation
+	quiescence             *treeQuiescence
+	resultingSnapshot      TreeSnapshot
+	canceledProcessIDs     []ProcessID
+	pausedProcessIDs       []ProcessID
+	preparedStateChanges   []*preparedProcessStateChange
+	childWaitRegistrations []*childWaitRegistration
+	applyGate              chan struct{}
+
+	resolutionMu sync.Mutex
+	resolved     bool
 }
 
-// ResultingSnapshot returns the exact complete tree state produced by Apply.
-func (plan WaitingSubtreeCancellationPlan) ResultingSnapshot() TreeSnapshot {
-	return plan.resultingSnapshot
+// ResultingSnapshot returns the exact complete tree state that Apply will
+// install. The snapshot remains readable after Apply or Discard.
+func (prepared *PreparedWaitingSubtreeCancellation) ResultingSnapshot() TreeSnapshot {
+	if prepared == nil {
+		return TreeSnapshot{}
+	}
+	return prepared.resultingSnapshot
 }
 
-// CanceledProcessIDs returns Processes changed to Canceled, ordered from
+// CanceledProcessIDs returns Processes projected as Canceled, ordered from
 // parent to child and then by ProcessID within one depth.
-func (plan WaitingSubtreeCancellationPlan) CanceledProcessIDs() []ProcessID {
-	return slices.Clone(plan.canceledProcessIDs)
+func (prepared *PreparedWaitingSubtreeCancellation) CanceledProcessIDs() []ProcessID {
+	if prepared == nil {
+		return nil
+	}
+	return slices.Clone(prepared.canceledProcessIDs)
 }
 
-// PausedProcessIDs returns parents newly paused before they can consume a
-// child-completion Signal. A caller that elects to continue uses Process.Resume.
-func (plan WaitingSubtreeCancellationPlan) PausedProcessIDs() []ProcessID {
-	return slices.Clone(plan.pausedProcessIDs)
+// PausedProcessIDs returns parents projected as Paused before they can consume
+// a child-completion Signal. A caller that later continues uses Process.Resume.
+func (prepared *PreparedWaitingSubtreeCancellation) PausedProcessIDs() []ProcessID {
+	if prepared == nil {
+		return nil
+	}
+	return slices.Clone(prepared.pausedProcessIDs)
 }
 
-// Valid reports whether the plan contains one complete internally consistent
-// prospective tree transition.
-func (plan WaitingSubtreeCancellationPlan) Valid() bool {
-	if !plan.engineIdentity.valid() || !plan.sourceRootID.Valid() || !plan.sourceDigest.Valid() ||
-		!plan.resultingSnapshot.Valid() || plan.resultingSnapshot.RootID() != plan.sourceRootID ||
-		len(plan.canceledProcessIDs) == 0 {
-		return false
+// Apply commits the exact prepared Framework state and releases the frozen
+// source tree. An error before the apply boundary discards the prepared change
+// and leaves the tree unchanged; after the boundary, finalization is bounded
+// and completes independently of ctx.
+func (prepared *PreparedWaitingSubtreeCancellation) Apply(ctx context.Context) error {
+	if prepared == nil {
+		return ErrInvalidPreparedWaitingSubtreeCancellation
 	}
-	processes := make(map[ProcessID]Snapshot)
-	for _, snapshot := range plan.resultingSnapshot.ProcessSnapshots() {
-		processes[snapshot.ProcessID()] = snapshot
+	prepared.resolutionMu.Lock()
+	defer prepared.resolutionMu.Unlock()
+	if prepared.resolved {
+		return ErrPreparedWaitingSubtreeCancellationResolved
 	}
-	seen := make(map[ProcessID]struct{}, len(plan.canceledProcessIDs)+len(plan.pausedProcessIDs))
-	var previousDepth uint32
-	for index, id := range plan.canceledProcessIDs {
-		snapshot, exists := processes[id]
-		if !exists || snapshot.Status() != StatusCanceled {
-			return false
-		}
-		if _, duplicate := seen[id]; duplicate {
-			return false
-		}
-		depth := snapshot.Relation().Depth()
-		if index > 0 && depth < previousDepth {
-			return false
-		}
-		previousDepth = depth
-		seen[id] = struct{}{}
+	if !prepared.valid() {
+		prepared.resolveLocked()
+		return ErrInvalidPreparedWaitingSubtreeCancellation
 	}
-	for _, id := range plan.pausedProcessIDs {
-		snapshot, exists := processes[id]
-		if !exists || snapshot.Status() != StatusPaused {
-			return false
+	ctx = contextOrBackground(ctx)
+	for _, change := range prepared.preparedStateChanges {
+		controller := controllerByID(prepared.quiescence.controllers, change.processID)
+		if controller == nil {
+			prepared.resolveLocked()
+			return ErrEngineQuiescenceUnavailable
 		}
-		if _, duplicate := seen[id]; duplicate {
-			return false
+		response, err := (&Process{controller: controller}).request(ctx, processCommand{
+			kind: commandStagePreparedProcessState, preparedStateChange: change,
+		})
+		if err != nil {
+			prepared.resolveLocked()
+			return err
 		}
-		seen[id] = struct{}{}
+		if !response.accepted {
+			prepared.resolveLocked()
+			return ErrEngineQuiescenceUnavailable
+		}
 	}
-	return true
+	if err := ctx.Err(); err != nil {
+		prepared.resolveLocked()
+		return err
+	}
+	prepared.engine.replaceTreeChildWaits(
+		prepared.resultingSnapshot.RootID(), prepared.childWaitRegistrations,
+	)
+	close(prepared.applyGate)
+	for _, change := range prepared.preparedStateChanges {
+		<-change.applied
+	}
+	prepared.quiescence.release()
+	for _, processID := range prepared.canceledProcessIDs {
+		controller := controllerByID(prepared.quiescence.controllers, processID)
+		if controller != nil {
+			_ = waitTreeSettled(context.Background(), controller)
+		}
+	}
+	prepared.resolveLocked()
+	return nil
 }
 
-// PlanWaitingSubtreeCancellation computes an immutable result at one complete
-// Strategy-safe tree boundary without changing the live tree. targetID must
-// identify a non-root Waiting Process in the tree rooted at rootID.
-func (engine *Engine) PlanWaitingSubtreeCancellation(
+// Discard releases the frozen source tree without applying the prospective
+// cancellation. It returns an error when Apply or Discard already resolved it.
+func (prepared *PreparedWaitingSubtreeCancellation) Discard() error {
+	if prepared == nil {
+		return ErrInvalidPreparedWaitingSubtreeCancellation
+	}
+	prepared.resolutionMu.Lock()
+	defer prepared.resolutionMu.Unlock()
+	if prepared.resolved {
+		return ErrPreparedWaitingSubtreeCancellationResolved
+	}
+	if !prepared.valid() {
+		prepared.resolveLocked()
+		return ErrInvalidPreparedWaitingSubtreeCancellation
+	}
+	prepared.resolveLocked()
+	return nil
+}
+
+func (prepared *PreparedWaitingSubtreeCancellation) valid() bool {
+	return prepared.engine != nil && prepared.operation != nil &&
+		prepared.operation.engine == prepared.engine && prepared.quiescence != nil &&
+		prepared.operation.rootID == prepared.resultingSnapshot.RootID() &&
+		!prepared.quiescence.released && prepared.resultingSnapshot.Valid() &&
+		len(prepared.canceledProcessIDs) > 0 &&
+		len(prepared.preparedStateChanges) ==
+			len(prepared.canceledProcessIDs)+len(prepared.pausedProcessIDs) &&
+		prepared.applyGate != nil &&
+		validWaitingSubtreeCancellationProjection(
+			prepared.resultingSnapshot,
+			prepared.canceledProcessIDs,
+			prepared.pausedProcessIDs,
+		)
+}
+
+func (prepared *PreparedWaitingSubtreeCancellation) resolveLocked() {
+	prepared.quiescence.release()
+	prepared.operation.release()
+	prepared.engine = nil
+	prepared.operation = nil
+	prepared.quiescence = nil
+	prepared.preparedStateChanges = nil
+	prepared.childWaitRegistrations = nil
+	prepared.applyGate = nil
+	prepared.resolved = true
+}
+
+// PrepareWaitingSubtreeCancellation freezes one complete source tree and
+// computes its exact cancellation result. targetID must identify a non-root
+// Waiting Process in the tree rooted at rootID. The returned capability must be
+// resolved exactly once with Apply or Discard.
+func (engine *Engine) PrepareWaitingSubtreeCancellation(
 	ctx context.Context,
 	rootID ProcessID,
 	targetID ProcessID,
 	reason string,
-) (WaitingSubtreeCancellationPlan, error) {
+) (*PreparedWaitingSubtreeCancellation, error) {
 	if engine == nil || !rootID.Valid() || !targetID.Valid() {
-		return WaitingSubtreeCancellationPlan{}, ErrInvalidProcessRelation
+		return nil, ErrInvalidProcessRelation
 	}
 	if err := validateTerminationReason(reason); err != nil {
-		return WaitingSubtreeCancellationPlan{}, fmt.Errorf("%w: %w", ErrInvalidProcessControl, err)
+		return nil, fmt.Errorf("%w: %w", ErrInvalidProcessControl, err)
 	}
 	ctx = contextOrBackground(ctx)
-	engine.treeOperationMu.Lock()
-	defer engine.treeOperationMu.Unlock()
+	operation, err := engine.acquireTreeOperation(ctx, rootID)
+	if err != nil {
+		return nil, err
+	}
 	quiescence, err := engine.quiesceTree(ctx, rootID)
 	if err != nil {
-		return WaitingSubtreeCancellationPlan{}, err
+		operation.release()
+		return nil, err
 	}
-	defer quiescence.release()
+	release := true
+	defer func() {
+		if release {
+			quiescence.release()
+			operation.release()
+		}
+	}()
 	source, err := engine.captureQuiescedTree(ctx, rootID, quiescence.controllers)
 	if err != nil {
-		return WaitingSubtreeCancellationPlan{}, err
+		return nil, err
 	}
 	result, canceled, paused, err := projectWaitingSubtreeCancellation(
 		source, targetID, reason, time.Now().Round(0).UTC(),
 	)
 	if err != nil {
-		return WaitingSubtreeCancellationPlan{}, err
+		return nil, err
 	}
-	plan := WaitingSubtreeCancellationPlan{
-		engineIdentity: engine.identity, sourceRootID: rootID,
-		sourceDigest: digestBytes(source.JSON()), resultingSnapshot: result,
-		canceledProcessIDs: canceled, pausedProcessIDs: paused,
-	}
-	if !plan.Valid() {
-		return WaitingSubtreeCancellationPlan{}, ErrInvalidWaitingSubtreeCancellationPlan
-	}
-	return plan, nil
-}
-
-// ApplyWaitingSubtreeCancellation changes a live tree to the plan's exact
-// Framework state. It accepts only a plan made by this Engine from the current
-// complete tree. After the apply boundary is crossed, finalization completes
-// even if ctx is canceled.
-func (engine *Engine) ApplyWaitingSubtreeCancellation(
-	ctx context.Context,
-	plan WaitingSubtreeCancellationPlan,
-) error {
-	if engine == nil || !plan.Valid() || plan.engineIdentity != engine.identity {
-		return ErrInvalidWaitingSubtreeCancellationPlan
-	}
-	ctx = contextOrBackground(ctx)
-	engine.treeOperationMu.Lock()
-	defer engine.treeOperationMu.Unlock()
-	quiescence, err := engine.quiesceTree(ctx, plan.sourceRootID)
-	if err != nil {
-		return err
-	}
-	defer quiescence.release()
-	source, err := engine.captureQuiescedTree(ctx, plan.sourceRootID, quiescence.controllers)
-	if err != nil {
-		return err
-	}
-	if digestBytes(source.JSON()) != plan.sourceDigest {
-		return ErrWaitingSubtreeCancellationPlanStale
+	if !validWaitingSubtreeCancellationProjection(result, canceled, paused) {
+		return nil, ErrInvalidPreparedWaitingSubtreeCancellation
 	}
 	applyGate := make(chan struct{})
-	plannedStates, err := newPlannedProcessStates(source, plan, applyGate)
+	stateChanges, err := newPreparedProcessStateChanges(
+		source, result, canceled, paused, applyGate,
+	)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	registrations, err := childWaitRegistrationsFromSnapshot(plan.resultingSnapshot)
+	registrations, err := childWaitRegistrationsFromSnapshot(result)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	for _, plannedState := range plannedStates {
-		controller := controllerByID(quiescence.controllers, plannedState.processID)
-		if controller == nil {
-			return ErrWaitingSubtreeCancellationPlanStale
+	prepared := &PreparedWaitingSubtreeCancellation{
+		engine: engine, operation: operation, quiescence: quiescence,
+		resultingSnapshot: result, canceledProcessIDs: canceled, pausedProcessIDs: paused,
+		preparedStateChanges: stateChanges, childWaitRegistrations: registrations,
+		applyGate: applyGate,
+	}
+	if !prepared.valid() {
+		return nil, ErrInvalidPreparedWaitingSubtreeCancellation
+	}
+	release = false
+	return prepared, nil
+}
+
+func validWaitingSubtreeCancellationProjection(
+	result TreeSnapshot,
+	canceledProcessIDs []ProcessID,
+	pausedProcessIDs []ProcessID,
+) bool {
+	if !result.Valid() || len(canceledProcessIDs) == 0 {
+		return false
+	}
+	processes := make(map[ProcessID]Snapshot)
+	for _, snapshot := range result.ProcessSnapshots() {
+		processes[snapshot.ProcessID()] = snapshot
+	}
+	seen := make(map[ProcessID]struct{}, len(canceledProcessIDs)+len(pausedProcessIDs))
+	var previousDepth uint32
+	var previousProcessID string
+	for index, processID := range canceledProcessIDs {
+		snapshot, exists := processes[processID]
+		if !exists || snapshot.Status() != StatusCanceled {
+			return false
 		}
-		response, requestErr := (&Process{controller: controller}).request(ctx, processCommand{
-			kind: commandStagePlannedProcessState, plannedState: plannedState,
-		})
-		if requestErr != nil {
-			return requestErr
+		if _, duplicate := seen[processID]; duplicate {
+			return false
 		}
-		if !response.accepted {
-			return ErrEngineQuiescenceUnavailable
+		depth := snapshot.Relation().Depth()
+		if index > 0 {
+			if depth < previousDepth || depth == previousDepth && processID.String() <= previousProcessID {
+				return false
+			}
 		}
+		previousDepth = depth
+		previousProcessID = processID.String()
+		seen[processID] = struct{}{}
 	}
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-	engine.replaceTreeChildWaits(plan.sourceRootID, registrations)
-	close(applyGate)
-	for _, plannedState := range plannedStates {
-		<-plannedState.applied
-	}
-	quiescence.release()
-	for _, id := range plan.canceledProcessIDs {
-		controller := controllerByID(quiescence.controllers, id)
-		if controller != nil {
-			_ = waitTreeSettled(context.Background(), controller)
+	for _, processID := range pausedProcessIDs {
+		snapshot, exists := processes[processID]
+		if !exists || snapshot.Status() != StatusPaused {
+			return false
 		}
+		if _, duplicate := seen[processID]; duplicate {
+			return false
+		}
+		seen[processID] = struct{}{}
 	}
-	return nil
+	return true
 }

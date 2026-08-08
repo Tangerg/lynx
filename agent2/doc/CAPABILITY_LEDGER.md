@@ -525,10 +525,10 @@
 
 ### 14.7 Waiting subtree cancellation 实现证据
 
-- Kernel 现以唯一 `WaitingSubtreeCancellationPlan` 表达等待子树的 prospective Framework 变换。计划由完整 tree quiescent cut 产生，只携带纯 value Engine identity、source root/digest、确定 resulting TreeSnapshot 与 canceled/paused Process IDs；公开 slice 防御性复制，计划不保留 Engine pointer、live lock、Execution 或调用方资源。
+- Kernel 现以唯一 `PreparedWaitingSubtreeCancellation` 表达等待子树的 prospective Framework 变换。`PrepareWaitingSubtreeCancellation` 在完整 tree quiescent cut 上计算确定 resulting TreeSnapshot 与 canceled/paused Process IDs，并持续冻结该 source root tree，直到 caller 恰好一次选择 `Apply` 或 `Discard`；不存在释放 source 后再以 digest/stale check 补偿漂移的第二套术语或入口。
 - target 必须是同树非 root Waiting Process。结果保留 target 和所有既有 descendant：target 进入 host-canceled，活动 descendant 进入 parent-canceled，等待全部关闭，opaque ExecutionState 不变，永久 child budget allocation 不回收。满足边界 child wait 时，Kernel 使用稳定 WaitID 派生自己的 ChildrenCompleted Signal，直接父级在消费前进入 Paused，继续仍只走普通 `Process.Resume`。
-- Apply 在任何 live 修改前复验 same-Engine identity、完整 source digest 和每个受影响 Process source snapshot；所有 projection 先暂存在既有单写者 loop，共享 apply gate 之前的 stale/foreign/stage 失败均零修改。跨 gate 后保留原 controller/Process handle，终态继续复用既有 finish、event 与 parent/child bookkeeping；没有第二 scheduler、controller replacement、snapshot private mutation 或 Host transaction abstraction。
-- Process Snapshot v6、TreeSnapshot v4、Kernel child protocol 与 observation wire 足以表达结果，Baseline 9 只增加根 public API。owner tests 覆盖 planning 不改变 live tree、parent-before-child IDs/cause、外部 wait 关闭、child outcome、未满足 wait-all 条件时保留等待、parent pause/resume、apply gate 前取消零修改、exact result equality、stale/foreign rejection 和从 resulting TreeSnapshot 恢复继续。
+- Apply 在任何 live 修改前复验并把所有 projection 暂存在既有单写者 loop；共享 apply gate 前的取消、stage failure 或内部不一致自动 Discard且零修改。跨 gate 后保留原 controller/Process handle，并独立于调用 context 完成既有 finish、event 与 parent/child bookkeeping。Discard 只释放冻结边界。tree operation 仅串行同一 root，另一个 root 的 start/capture/restore 不被长期 capability 阻塞。
+- capability 的私有字段由 reflection gate 精确锁定为 Framework Engine/tree/snapshot/Process projection 和 resolution primitive，不含 Run、Store、transaction、checkpoint、lease、产品状态或应用 callback。Process Snapshot v6、TreeSnapshot v4、Kernel child protocol 与 observation wire 足以表达结果，Baseline 11 只改变根 public API。owner tests 覆盖 source freeze、parent-before-child IDs/cause、外部 wait 关闭、child outcome、未满足 wait-all 条件时保留等待、parent pause/resume、Apply/Discard 恰好一次、并发 resolution、gate 前取消零修改、其他 root 独立、exact result equality 和从 resulting TreeSnapshot 恢复继续。
 
 ### 14.8 Accepted admission start outcome 实现证据
 

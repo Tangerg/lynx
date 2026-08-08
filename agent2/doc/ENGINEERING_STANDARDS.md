@@ -378,6 +378,7 @@ Extension 只承载可选横切行为。忽略后会破坏所有实现正确性�
 - 时间字段语义准确：`StartedAt`、`FinishedAt` 来自对应生命周期边界，`Duration` 与二者一致。
 - 不把 transient 连接、闭包、context、mutex、goroutine 或 provider client 放入 snapshot。
 - 不把产品 metadata 塞入通用 `map[string]any` 绕过层次边界。
+- 持有 live Framework 边界的一次性 capability 必须按指针返回、禁止复制，并提供语义互斥的成功提交与无修改释放方法；调用方必须用 `defer` 保证释放，不能把资源所有权交给 GC 或遗忘约定。
 
 ### 4.10 并发与取消
 
@@ -386,6 +387,7 @@ Extension 只承载可选横切行为。忽略后会破坏所有实现正确性�
 - Signal 只在 Strategy 声明并经过 contract test 的安全边界消费；steer 的最早生效点是当前不可中断 Effect 结算后的下一安全 Step，公开 GoDoc 必须说明这一延迟合同。
 - 需要独立 Agent 生命周期的并发分支必须是有界 fan-out 的 child Process；每个分支拥有独立身份、snapshot 和预算，不在单一 Execution 或 `flow` goroutine 内伪造多个生命周期。普通 in-process 并发留在 `flow` 或有界 Effect batch，并准确说明它没有 child Process 语义。
 - 锁只能解决 data race，不能代替业务冲突语义。
+- 长生命周期 tree operation 只串行化同一 root tree；不同 root tree 不得被 Engine-wide 锁无故阻塞。prepared tree change 在 Apply/Discard 前必须持续持有同一安全边界，不能释放后用 digest、revision 或 stale check 补偿 source 漂移。
 - 并发度显式有界，取消和 deadline 沿 Process tree 传播。
 - event、tool result 和 branch output 的协议顺序不依赖调度完成顺序。
 - Delta listener 失败不得使 Step、Effect 或 Process 失败；缓冲必须有界，丢弃必须产生可观测事实，恢复后不补播历史 Delta。
@@ -417,6 +419,7 @@ Extension 只承载可选横切行为。忽略后会破坏所有实现正确性�
 - Delta contract 覆盖 listener 失败隔离、有界缓冲、显式丢弃、恢复不补播，以及 final Output 不依赖 Delta 重建。
 - child Process 覆盖递归、预算耗尽、取消、部分失败、祖先等待拒绝和恢复去重。
 - Process admission contract 覆盖 reject 前零 Definition.Start、accepted 后 started/aborted 唯一结论、ack 前零发布、ack failure/panic、root/child 同构身份、pending start 与 Close/tree limit 的并发边界，以及 restore 零 admission/outcome。
+- prepared tree change contract 覆盖 source 冻结、Apply/Discard 恰好一次、gate 前取消零修改、gate 后有界完成、并发 resolution 只有一个胜者、其他 root tree 独立、结果可跨 Engine restore，以及 capability 私有字段只拥有 Framework state。
 - 并行路径验证稳定结果顺序，并运行 race tests。
 - wire/snapshot codec 使用 golden 和 fuzz 验证严格性。
 - 错误测试使用 `errors.Is/As`，不比较脆弱完整字符串。

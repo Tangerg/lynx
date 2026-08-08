@@ -359,19 +359,19 @@ const (
 	commandChildrenCompleted
 	commandParentTerminated
 	commandQuiesce
-	commandStagePlannedProcessState
+	commandStagePreparedProcessState
 )
 
 type processCommand struct {
-	kind              commandKind
-	signalRequest     SignalRequest
-	settlement        Settlement
-	internalSignal    Signal
-	parentTermination Termination
-	plannedState      *plannedProcessState
-	release           <-chan struct{}
-	reason            string
-	response          chan processResponse
+	kind                commandKind
+	signalRequest       SignalRequest
+	settlement          Settlement
+	internalSignal      Signal
+	parentTermination   Termination
+	preparedStateChange *preparedProcessStateChange
+	release             <-chan struct{}
+	reason              string
+	response            chan processResponse
 }
 
 type processResponse struct {

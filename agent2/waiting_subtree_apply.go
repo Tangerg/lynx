@@ -7,55 +7,57 @@ import (
 	"time"
 )
 
-type plannedProcessEvent struct {
+type preparedProcessEvent struct {
 	name    string
 	payload json.RawMessage
 }
 
-type plannedProcessState struct {
+type preparedProcessStateChange struct {
 	processID ProcessID
 	source    Snapshot
 	result    processSnapshotWire
 	mailbox   signalMailbox
 	control   pendingControl
-	events    []plannedProcessEvent
+	events    []preparedProcessEvent
 	applyGate <-chan struct{}
 	applied   chan struct{}
 }
 
-func newPlannedProcessStates(
+func newPreparedProcessStateChanges(
 	source TreeSnapshot,
-	plan WaitingSubtreeCancellationPlan,
+	result TreeSnapshot,
+	canceledProcessIDs []ProcessID,
+	pausedProcessIDs []ProcessID,
 	applyGate <-chan struct{},
-) ([]*plannedProcessState, error) {
+) ([]*preparedProcessStateChange, error) {
 	sourceByID := make(map[ProcessID]Snapshot)
 	for _, snapshot := range source.ProcessSnapshots() {
 		sourceByID[snapshot.ProcessID()] = snapshot
 	}
 	resultByID := make(map[ProcessID]Snapshot)
-	for _, snapshot := range plan.resultingSnapshot.ProcessSnapshots() {
+	for _, snapshot := range result.ProcessSnapshots() {
 		resultByID[snapshot.ProcessID()] = snapshot
 	}
 	if len(sourceByID) != len(resultByID) {
-		return nil, ErrInvalidWaitingSubtreeCancellationPlan
+		return nil, ErrInvalidPreparedWaitingSubtreeCancellation
 	}
-	type plannedProcessChange struct {
+	type preparedProcessChange struct {
 		id       ProcessID
 		canceled bool
 	}
-	ordered := make([]plannedProcessChange, 0, len(plan.canceledProcessIDs)+len(plan.pausedProcessIDs))
-	for _, id := range plan.canceledProcessIDs {
-		ordered = append(ordered, plannedProcessChange{id: id, canceled: true})
+	ordered := make([]preparedProcessChange, 0, len(canceledProcessIDs)+len(pausedProcessIDs))
+	for _, id := range canceledProcessIDs {
+		ordered = append(ordered, preparedProcessChange{id: id, canceled: true})
 	}
-	for _, id := range plan.pausedProcessIDs {
-		ordered = append(ordered, plannedProcessChange{id: id})
+	for _, id := range pausedProcessIDs {
+		ordered = append(ordered, preparedProcessChange{id: id})
 	}
-	plannedStates := make([]*plannedProcessState, 0, len(ordered))
+	preparedChanges := make([]*preparedProcessStateChange, 0, len(ordered))
 	for _, change := range ordered {
 		sourceSnapshot := sourceByID[change.id]
 		resultSnapshot := resultByID[change.id]
 		if !sourceSnapshot.Valid() || !resultSnapshot.Valid() {
-			return nil, ErrInvalidWaitingSubtreeCancellationPlan
+			return nil, ErrInvalidPreparedWaitingSubtreeCancellation
 		}
 		sourceWire, err := sourceSnapshot.wire()
 		if err != nil {
@@ -73,68 +75,68 @@ func newPlannedProcessStates(
 		if err != nil {
 			return nil, err
 		}
-		plannedState := &plannedProcessState{
+		preparedChange := &preparedProcessStateChange{
 			processID: change.id, source: sourceSnapshot, result: resultWire,
 			mailbox: mailbox, control: control, applyGate: applyGate, applied: make(chan struct{}),
 		}
 		if change.canceled {
 			if resultWire.Status != StatusCanceled ||
 				resultWire.ProcessEventSequence != sourceWire.ProcessEventSequence+1 {
-				return nil, ErrInvalidWaitingSubtreeCancellationPlan
+				return nil, ErrInvalidPreparedWaitingSubtreeCancellation
 			}
 		} else {
 			if resultWire.Status != StatusPaused || len(resultWire.Mailbox.Signals) < len(sourceWire.Mailbox.Signals) {
-				return nil, ErrInvalidWaitingSubtreeCancellationPlan
+				return nil, ErrInvalidPreparedWaitingSubtreeCancellation
 			}
 			for _, record := range resultWire.Mailbox.Signals[len(sourceWire.Mailbox.Signals):] {
 				if _, err := ParseChildrenCompleted(record.Signal); err != nil {
-					return nil, ErrInvalidWaitingSubtreeCancellationPlan
+					return nil, ErrInvalidPreparedWaitingSubtreeCancellation
 				}
 				payload, _ := json.Marshal(signalAcceptedEventPayload{
 					SignalID: record.Signal.ID().String(), WaitID: commandSignalWaitID(record.Signal),
 				})
-				plannedState.events = append(plannedState.events, plannedProcessEvent{
+				preparedChange.events = append(preparedChange.events, preparedProcessEvent{
 					name: EventSignalAccepted, payload: payload,
 				})
 			}
-			plannedState.events = append(plannedState.events, plannedProcessEvent{
+			preparedChange.events = append(preparedChange.events, preparedProcessEvent{
 				name: EventProcessPaused, payload: emptyEventPayload(),
 			})
-			if resultWire.ProcessEventSequence != sourceWire.ProcessEventSequence+uint64(len(plannedState.events)) {
-				return nil, ErrInvalidWaitingSubtreeCancellationPlan
+			if resultWire.ProcessEventSequence != sourceWire.ProcessEventSequence+uint64(len(preparedChange.events)) {
+				return nil, ErrInvalidPreparedWaitingSubtreeCancellation
 			}
 		}
-		plannedStates = append(plannedStates, plannedState)
+		preparedChanges = append(preparedChanges, preparedChange)
 	}
-	return plannedStates, nil
+	return preparedChanges, nil
 }
 
-func (plannedState *plannedProcessState) validateSource(loop *processLoop) error {
-	if plannedState == nil || loop == nil || plannedState.processID != loop.controller.processID ||
+func (preparedChange *preparedProcessStateChange) validateSource(loop *processLoop) error {
+	if preparedChange == nil || loop == nil || preparedChange.processID != loop.controller.processID ||
 		loop.status.Terminal() {
-		return ErrWaitingSubtreeCancellationPlanStale
+		return ErrInvalidPreparedWaitingSubtreeCancellation
 	}
 	current, err := loop.capture()
-	if err != nil || !bytes.Equal(current.JSON(), plannedState.source.JSON()) {
-		return ErrWaitingSubtreeCancellationPlanStale
+	if err != nil || !bytes.Equal(current.JSON(), preparedChange.source.JSON()) {
+		return ErrInvalidPreparedWaitingSubtreeCancellation
 	}
 	return nil
 }
 
-func (plannedState *plannedProcessState) apply(ctx context.Context, loop *processLoop) {
-	result := plannedState.result
+func (preparedChange *preparedProcessStateChange) apply(ctx context.Context, loop *processLoop) {
+	result := preparedChange.result
 	loop.startedAt = result.StartedAt
 	loop.status = result.Status
 	loop.committedSteps = result.CommittedSteps
 	loop.lastStableState = result.LastStableState.clone()
-	loop.mailbox = plannedState.mailbox
+	loop.mailbox = preparedChange.mailbox
 	loop.prepared = nil
 	loop.currentWaitID = WaitID{}
 	if result.CurrentWaitID != nil {
 		loop.currentWaitID = *result.CurrentWaitID
 	}
 	loop.pauseReason = result.PauseReason
-	loop.pendingControl = plannedState.control
+	loop.pendingControl = preparedChange.control
 	loop.finalOutput = Output{}
 	if result.Output != nil {
 		loop.finalOutput = *result.Output
@@ -149,12 +151,12 @@ func (plannedState *plannedProcessState) apply(ctx context.Context, loop *proces
 	}
 	loop.reservedBudget = result.ReservedBudget
 	loop.usage = result.Usage
-	loop.processEventSequence = result.ProcessEventSequence - uint64(len(plannedState.events))
+	loop.processEventSequence = result.ProcessEventSequence - uint64(len(preparedChange.events))
 	if result.Status.Terminal() {
 		loop.processEventSequence--
 	}
 	loop.updateView()
-	for _, event := range plannedState.events {
+	for _, event := range preparedChange.events {
 		loop.publishEvent(ctx, event.name, EventPhaseCommitted, 0, EffectID{}, event.payload)
 	}
 }
