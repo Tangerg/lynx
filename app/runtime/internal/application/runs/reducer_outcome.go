@@ -11,7 +11,7 @@ import (
 )
 
 func (r *reducer) segmentEnd(e SegmentEnded) ([]RunEvent, error) {
-	if e.Reason != run.OutcomeFailed && e.Reason != run.OutcomeTimedOut && e.Problem != nil {
+	if e.Reason != run.OutcomeFailed && e.Reason != run.OutcomeTimedOut && e.Reason != run.OutcomeLost && e.Problem != nil {
 		return nil, errors.New("outcome does not allow a problem")
 	}
 	if e.Usage != nil {
@@ -23,7 +23,7 @@ func (r *reducer) segmentEnd(e SegmentEnded) ([]RunEvent, error) {
 	var failure *transcript.Problem
 	detail := ""
 	switch e.Reason {
-	case run.OutcomeFailed, run.OutcomeTimedOut:
+	case run.OutcomeFailed, run.OutcomeTimedOut, run.OutcomeLost:
 		if e.Problem == nil {
 			return nil, errors.New("failure outcome is missing a problem")
 		}

@@ -84,6 +84,152 @@ func (p treePublisher) publish(
 	return publication, nil
 }
 
+// publishAuthoritativeAtomically commits every durable projection derived from
+// one model/tool fact in a single transaction before publishing any live event.
+// The caller reduces against a speculative reducer and swaps that state in only
+// after this method succeeds, so a failed final/result/usage write leaves the
+// previously committed start boundary intact for unknown reconciliation.
+func (p treePublisher) publishAuthoritativeAtomically(
+	ctx context.Context,
+	route *executorRoute,
+	batch reductionBatch,
+) (reductionPublication, error) {
+	if route == nil {
+		return reductionPublication{}, errors.New("runs: publish authoritative fact without an executor route")
+	}
+	if err := validateReductionBatch(batch); err != nil {
+		return reductionPublication{}, err
+	}
+	if err := validateRouteReductionBatch(route, p.rootSpec.SessionID, batch); err != nil {
+		return reductionPublication{}, err
+	}
+	if batch.parkCommit != nil {
+		return reductionPublication{}, errors.New("runs: authoritative fact unexpectedly produced a park boundary")
+	}
+	combined := EventCommit{RunID: route.runID, SessionID: p.rootSpec.SessionID}
+	for index, reduced := range batch.events {
+		if reduced.Event.Terminal() {
+			return reductionPublication{}, fmt.Errorf(
+				"runs: authoritative fact unexpectedly produced terminal event[%d]",
+				index,
+			)
+		}
+		if reduced.Commit == nil {
+			continue
+		}
+		if reduced.Commit.State != StateUnchanged || reduced.Commit.Run != nil || reduced.Commit.GoalRun != nil {
+			return reductionPublication{}, fmt.Errorf(
+				"runs: authoritative fact event[%d] carries a lifecycle transition",
+				index,
+			)
+		}
+		combined.Items = append(combined.Items, reduced.Commit.Items...)
+		combined.ModelInvocations = append(
+			combined.ModelInvocations,
+			reduced.Commit.ModelInvocations...,
+		)
+		combined.ToolInvocations = append(
+			combined.ToolInvocations,
+			reduced.Commit.ToolInvocations...,
+		)
+		if reduced.Commit.Progress != nil {
+			if combined.Progress != nil {
+				return reductionPublication{}, errors.New("runs: authoritative fact repeats Run progress")
+			}
+			progress := *reduced.Commit.Progress
+			combined.Progress = &progress
+		}
+	}
+	if !combined.isEmpty() {
+		if err := combined.Validate(); err != nil {
+			return reductionPublication{}, fmt.Errorf("runs: validate authoritative fact: %w", err)
+		}
+		if err := p.coordinator.events.CommitEvent(ctx, combined); err != nil {
+			return reductionPublication{}, fmt.Errorf("runs: commit authoritative fact: %w", err)
+		}
+		for _, item := range combined.Items {
+			p.live.recordChildCancellationItem(route.runID, item)
+		}
+	}
+	for _, reduced := range batch.events {
+		p.append(route, reduced)
+	}
+	return reductionPublication{published: true}, nil
+}
+
+// publishTerminalAtomically commits every item closure and the terminal Run in
+// one EventCommit before publishing any event. Unknown external outcomes use
+// this path so a failed transaction leaves the live Process blocked and the
+// exact immutable batch can be retried without exposing a partial RunLost fact.
+func (p treePublisher) publishTerminalAtomically(
+	ctx context.Context,
+	route *executorRoute,
+	batch reductionBatch,
+) (reductionPublication, error) {
+	if route == nil {
+		return reductionPublication{}, errors.New("runs: publish atomic terminal without an executor route")
+	}
+	if err := validateReductionBatch(batch); err != nil {
+		return reductionPublication{}, err
+	}
+	if err := validateRouteReductionBatch(route, p.rootSpec.SessionID, batch); err != nil {
+		return reductionPublication{}, err
+	}
+	combined := EventCommit{RunID: route.runID, SessionID: p.rootSpec.SessionID}
+	terminalEvents := 0
+	for _, reduced := range batch.events {
+		if reduced.Commit != nil {
+			combined.Items = append(combined.Items, reduced.Commit.Items...)
+			combined.ModelInvocations = append(
+				combined.ModelInvocations,
+				reduced.Commit.ModelInvocations...,
+			)
+			combined.ToolInvocations = append(
+				combined.ToolInvocations,
+				reduced.Commit.ToolInvocations...,
+			)
+			if reduced.Commit.Progress != nil {
+				if combined.Progress != nil {
+					return reductionPublication{}, errors.New("runs: atomic terminal batch repeats Run progress")
+				}
+				progress := *reduced.Commit.Progress
+				combined.Progress = &progress
+			}
+			if reduced.Commit.State == StateTerminalize {
+				terminalEvents++
+				combined.State = reduced.Commit.State
+				combined.Outcome = reduced.Commit.Outcome
+				combined.Run = reduced.Commit.Run
+				combined.GoalRun = reduced.Commit.GoalRun
+			}
+		}
+	}
+	if terminalEvents != 1 || combined.Run == nil {
+		return reductionPublication{}, fmt.Errorf("runs: atomic terminal batch has %d terminal commits", terminalEvents)
+	}
+	if route.member.ParentID == "" {
+		combined.ObsoleteCheckpointRootID = route.member.MemberID
+	}
+	if err := combined.Validate(); err != nil {
+		return reductionPublication{}, fmt.Errorf("runs: validate atomic terminal: %w", err)
+	}
+	if err := p.coordinator.events.CommitEvent(ctx, combined); err != nil {
+		return reductionPublication{}, fmt.Errorf("runs: commit atomic terminal: %w", err)
+	}
+	p.live.recordTerminalRun(*combined.Run)
+	for _, item := range combined.Items {
+		p.live.recordChildCancellationItem(route.runID, item)
+	}
+	for _, reduced := range batch.events {
+		p.append(route, reduced)
+	}
+	p.coordinator.publishRunMoved(p.rootSpec.SessionID, route.runID)
+	if combined.GoalRun != nil {
+		p.coordinator.publishGoalMoved(p.rootSpec.SessionID)
+	}
+	return reductionPublication{published: true, finished: true}, nil
+}
+
 type treeBarrierReduction struct {
 	route *executorRoute
 	batch reductionBatch

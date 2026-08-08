@@ -174,6 +174,88 @@ func (e *Effects) applyCommit(ctx context.Context, commit runs.EventCommit) erro
 			return err
 		}
 	}
+	if len(commit.ModelInvocations) > 0 {
+		if e.modelInvocations == nil {
+			return errors.New("runsegment: model-invocation persistence is unavailable")
+		}
+		for _, invocation := range commit.ModelInvocations {
+			var err error
+			switch invocation.State {
+			case runs.ModelInvocationStarted:
+				err = e.modelInvocations.StartModelInvocation(
+					ctx, commit.SessionID, commit.RunID, invocation.SegmentID,
+					invocation.CallID, invocation.StartedAt,
+				)
+			case runs.ModelInvocationCompleted:
+				err = e.modelInvocations.CompleteModelInvocation(
+					ctx, commit.SessionID, commit.RunID, invocation.SegmentID,
+					invocation.CallID, invocation.StartedAt, invocation.FinishedAt,
+				)
+			case runs.ModelInvocationFailed:
+				err = e.modelInvocations.FailModelInvocation(
+					ctx, commit.SessionID, commit.RunID, invocation.SegmentID,
+					invocation.CallID, invocation.StartedAt, invocation.FinishedAt,
+				)
+			case runs.ModelInvocationUnknown:
+				err = e.modelInvocations.MarkModelInvocationUnknown(
+					ctx, commit.SessionID, commit.RunID, invocation.SegmentID,
+					invocation.CallID, invocation.StartedAt, invocation.FinishedAt,
+				)
+			default:
+				err = fmt.Errorf("unsupported state %d", invocation.State)
+			}
+			if err != nil {
+				return fmt.Errorf("runsegment: record model invocation %q: %w", invocation.CallID, err)
+			}
+		}
+	}
+	if len(commit.ToolInvocations) > 0 {
+		if e.toolInvocations == nil {
+			return errors.New("runsegment: Tool-invocation persistence is unavailable")
+		}
+		for _, invocation := range commit.ToolInvocations {
+			var err error
+			switch invocation.State {
+			case runs.ToolInvocationStarted:
+				err = e.toolInvocations.StartToolInvocation(
+					ctx, commit.SessionID, commit.RunID, invocation.SegmentID,
+					invocation.CallID, invocation.ItemID, invocation.StartedAt,
+				)
+			case runs.ToolInvocationCompleted:
+				err = e.toolInvocations.CompleteToolInvocation(
+					ctx, commit.SessionID, commit.RunID, invocation.SegmentID,
+					invocation.CallID, invocation.ItemID,
+					invocation.StartedAt, invocation.FinishedAt,
+				)
+			case runs.ToolInvocationIncomplete:
+				err = e.toolInvocations.MarkToolInvocationIncomplete(
+					ctx, commit.SessionID, commit.RunID, invocation.SegmentID,
+					invocation.CallID, invocation.ItemID,
+					invocation.StartedAt, invocation.FinishedAt,
+				)
+			default:
+				err = fmt.Errorf("unsupported state %d", invocation.State)
+			}
+			if err != nil {
+				return fmt.Errorf("runsegment: record Tool invocation %q: %w", invocation.CallID, err)
+			}
+		}
+	}
+	if commit.Progress != nil {
+		if e.runMetrics == nil {
+			return errors.New("runsegment: Run-metrics persistence is unavailable")
+		}
+		if err := e.runMetrics.UpdateMetrics(
+			ctx,
+			commit.SessionID,
+			commit.RunID,
+			commit.Progress.SegmentID,
+			commit.Progress.Metrics,
+			commit.Progress.UpdatedAt,
+		); err != nil {
+			return fmt.Errorf("runsegment: update Run metrics: %w", err)
+		}
+	}
 	if err := e.applyState(ctx, commit); err != nil {
 		return err
 	}

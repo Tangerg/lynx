@@ -3,6 +3,8 @@ package runs
 import (
 	"errors"
 	"fmt"
+	"maps"
+	"reflect"
 	"slices"
 	"strconv"
 	"strings"
@@ -13,6 +15,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
+	corechat "github.com/Tangerg/lynx/core/chat"
 )
 
 var (
@@ -35,8 +38,9 @@ type reduction struct {
 // visible; keeping that boundary on the batch avoids encoding it as a boolean
 // or a privileged first element in the event slice.
 type reductionBatch struct {
-	events     []reduction
-	parkCommit *EventCommit
+	events             []reduction
+	parkCommit         *EventCommit
+	settledToolCallIDs []string
 }
 
 type reducerConfig struct {
@@ -81,14 +85,18 @@ type reducer struct {
 	// usage is the latest authoritative cumulative Run accounting reported by
 	// the executor. Nil means this segment has not advanced the committed
 	// snapshot in cfg.Metrics.
-	usage           *transcript.Usage
-	segmentDuration time.Duration
-	userInput       []transcript.ContentBlock
-	text            *openText
-	reasoning       *openText
-	tools           openTools
-	drained         []DrainedTool
-	errProblem      *transcript.Problem
+	usage            *transcript.Usage
+	segmentDuration  time.Duration
+	userInput        []transcript.ContentBlock
+	text             *openText
+	reasoning        *openText
+	modelCalls       map[string]time.Time
+	lastModelMessage *corechat.Message
+	toolCallIDs      map[string]struct{}
+	toolPositions    map[toolPosition]string
+	tools            openTools
+	drained          []DrainedTool
+	errProblem       *transcript.Problem
 	// plan is the last state snapshot this segment published, kept so the segment
 	// can fence its final value before finishing. Nil means this segment never
 	// changed the projection, and a segment that changed nothing has nothing to
@@ -103,16 +111,24 @@ type openText struct {
 }
 
 type openTool struct {
-	callID       string
-	sourceCallID string
-	order        int
-	id           string
-	startedAt    time.Time
-	finishedAt   time.Time
-	name         string
-	arguments    tool.Arguments
-	safetyClass  tool.SafetyClass
-	end          *ToolCallFinished
+	callID            string
+	sourceCallID      string
+	legacyOrder       int
+	modelCallSequence uint32
+	toolCallIndex     uint32
+	id                string
+	occurredAt        time.Time
+	attemptStartedAt  time.Time
+	finishedAt        time.Time
+	name              string
+	arguments         tool.Arguments
+	safetyClass       tool.SafetyClass
+	end               *ToolCallFinished
+}
+
+type toolPosition struct {
+	modelCallSequence uint32
+	toolCallIndex     uint32
 }
 
 func newReducer(cfg reducerConfig) *reducer {
@@ -131,8 +147,103 @@ func newReducer(cfg reducerConfig) *reducer {
 	}
 	return &reducer{
 		cfg: cfg, resume: resume, userInput: transcript.CloneContent(cfg.UserInput), step: cfg.Metrics.Steps,
-		tools: make(openTools),
+		modelCalls: make(map[string]time.Time), toolCallIDs: make(map[string]struct{}),
+		toolPositions: make(map[toolPosition]string), tools: make(openTools),
 	}
+}
+
+// clone creates the speculative reducer used by an authoritative fact commit.
+// The Run pump swaps it in only after the complete persistence batch succeeds;
+// a rejected write therefore cannot consume model/tool state or mint identities
+// that the durable projection never observed.
+func (r *reducer) clone() *reducer {
+	if r == nil {
+		return nil
+	}
+	cloned := *r
+	cloned.cfg.UserInput = slices.Clone(r.cfg.UserInput)
+	cloned.userInput = transcript.CloneContent(r.userInput)
+	cloned.modelCalls = maps.Clone(r.modelCalls)
+	cloned.toolCallIDs = maps.Clone(r.toolCallIDs)
+	cloned.toolPositions = maps.Clone(r.toolPositions)
+	cloned.drained = slices.Clone(r.drained)
+	cloned.tools = make(openTools, len(r.tools))
+	for callID, current := range r.tools {
+		if current == nil {
+			cloned.tools[callID] = nil
+			continue
+		}
+		tool := *current
+		if current.end != nil {
+			end := *current.end
+			end.MutatedPaths = slices.Clone(current.end.MutatedPaths)
+			if current.end.Result != nil {
+				result := *current.end.Result
+				end.Result = &result
+			}
+			if current.end.Offload != nil {
+				offload := *current.end.Offload
+				end.Offload = &offload
+			}
+			if current.end.Problem != nil {
+				problem := *current.end.Problem
+				end.Problem = &problem
+			}
+			tool.end = &end
+		}
+		cloned.tools[callID] = &tool
+	}
+	cloned.text = cloneOpenText(r.text)
+	cloned.reasoning = cloneOpenText(r.reasoning)
+	cloned.resume = cloneResumeBinding(r.resume)
+	if r.plan != nil {
+		plan := *r.plan
+		plan.Plan = slices.Clone(r.plan.Plan)
+		cloned.plan = &plan
+	}
+	if r.errProblem != nil {
+		problem := *r.errProblem
+		cloned.errProblem = &problem
+	}
+	if r.lastModelMessage != nil {
+		message := r.lastModelMessage.Clone()
+		cloned.lastModelMessage = &message
+	}
+	return &cloned
+}
+
+func cloneOpenText(value *openText) *openText {
+	if value == nil {
+		return nil
+	}
+	cloned := &openText{id: value.id, createdAt: value.createdAt}
+	cloned.buf.WriteString(value.buf.String())
+	return cloned
+}
+
+func cloneResumeBinding(value *resumeBinding) *resumeBinding {
+	if value == nil {
+		return nil
+	}
+	cloned := *value
+	cloned.callItems = maps.Clone(value.callItems)
+	cloned.toolItems = maps.Clone(value.toolItems)
+	cloned.byName = maps.Clone(value.byName)
+	cloned.questions = slices.Clone(value.questions)
+	for index := range cloned.questions {
+		if cloned.questions[index].question != nil {
+			question := *cloned.questions[index].question
+			question.Fields = slices.Clone(question.Fields)
+			for fieldIndex := range question.Fields {
+				question.Fields[fieldIndex].Options = slices.Clone(question.Fields[fieldIndex].Options)
+			}
+			cloned.questions[index].question = &question
+		}
+	}
+	cloned.drained = slices.Clone(value.drained)
+	cloned.committed = maps.Clone(value.committed)
+	cloned.consumed = maps.Clone(value.consumed)
+	return &cloned
 }
 
 func (r *reducer) nextItemID() string {
@@ -163,6 +274,10 @@ func (r *reducer) open() (reductionBatch, error) {
 
 func (r *reducer) reduce(ev ExecutionFact) (reductionBatch, error) {
 	var out []RunEvent
+	var modelInvocations []ModelInvocationCommit
+	var toolInvocations []ToolInvocationCommit
+	var settledToolCallIDs []string
+	var progress *RunProgressCommit
 	switch e := ev.(type) {
 	case MessageDelta:
 		out = r.closeReasoning()
@@ -171,22 +286,109 @@ func (r *reducer) reduce(ev ExecutionFact) (reductionBatch, error) {
 		out = r.closeText()
 		out = append(out, r.appendReasoning(e.Text)...)
 	case AssistantMessageCompleted:
+		if r.lastModelMessage != nil {
+			if !reflect.DeepEqual(*r.lastModelMessage, e.Message) {
+				return reductionBatch{}, fmt.Errorf(
+					"%w: Process final assistant message differs from the last committed model response",
+					errExecutorContract,
+				)
+			}
+			r.lastModelMessage = nil
+			break
+		}
 		var err error
 		out, err = r.completeAssistantMessage(e.Message)
 		if err != nil {
 			return reductionBatch{}, fmt.Errorf("%w: assistant message completion: %w", errExecutorContract, err)
 		}
+	case ModelCallStarted:
+		if strings.TrimSpace(e.CallID) == "" || e.CallID != strings.TrimSpace(e.CallID) {
+			return reductionBatch{}, fmt.Errorf("%w: model call start has an invalid id", errExecutorContract)
+		}
+		if _, duplicate := r.modelCalls[e.CallID]; duplicate {
+			return reductionBatch{}, fmt.Errorf("%w: model call %q started more than once", errExecutorContract, e.CallID)
+		}
+		startedAt := r.now()
+		r.modelCalls[e.CallID] = startedAt
+		modelInvocations = []ModelInvocationCommit{{
+			CallID: e.CallID, SegmentID: r.cfg.SegmentID,
+			State: ModelInvocationStarted, StartedAt: startedAt,
+		}}
+		out = []RunEvent{SegmentProgressed{Progress: RunProgress{Activity: "Calling model"}}}
+	case ModelCallCompleted:
+		if strings.TrimSpace(e.CallID) == "" || e.CallID != strings.TrimSpace(e.CallID) {
+			return reductionBatch{}, fmt.Errorf("%w: model call completion has an invalid id", errExecutorContract)
+		}
+		startedAt, started := r.modelCalls[e.CallID]
+		if !started {
+			return reductionBatch{}, fmt.Errorf("%w: model call %q completed without a start", errExecutorContract, e.CallID)
+		}
+		finishedAt := r.now()
+		if finishedAt.Before(startedAt) {
+			return reductionBatch{}, fmt.Errorf("%w: model call %q completion precedes its start", errExecutorContract, e.CallID)
+		}
+		delete(r.modelCalls, e.CallID)
+		var err error
+		out, err = r.completeModelMessage(e.Message)
+		if err != nil {
+			return reductionBatch{}, fmt.Errorf("%w: model call completion: %w", errExecutorContract, err)
+		}
+		message := e.Message.Clone()
+		r.lastModelMessage = &message
+		progressEvents, err := r.usageProgress(UsageReported{
+			TokenUsage: e.TokenUsage, ByModel: e.ByModel, CostUSD: e.CostUSD,
+			Steps: e.Steps, ContextTokens: e.ContextTokens,
+		})
+		if err != nil {
+			return reductionBatch{}, fmt.Errorf("%w: model call usage: %w", errExecutorContract, err)
+		}
+		out = append(out, progressEvents...)
+		modelInvocations = []ModelInvocationCommit{{
+			CallID: e.CallID, SegmentID: r.cfg.SegmentID,
+			State: ModelInvocationCompleted, StartedAt: startedAt, FinishedAt: finishedAt,
+		}}
+		progress = &RunProgressCommit{
+			SegmentID: r.cfg.SegmentID, Metrics: r.metrics(), UpdatedAt: finishedAt,
+		}
+	case ModelCallFailed:
+		if strings.TrimSpace(e.CallID) == "" || e.CallID != strings.TrimSpace(e.CallID) {
+			return reductionBatch{}, fmt.Errorf("%w: model call failure has an invalid id", errExecutorContract)
+		}
+		startedAt, started := r.modelCalls[e.CallID]
+		if !started {
+			return reductionBatch{}, fmt.Errorf("%w: model call %q failed without a start", errExecutorContract, e.CallID)
+		}
+		finishedAt := r.now()
+		if finishedAt.Before(startedAt) {
+			return reductionBatch{}, fmt.Errorf("%w: model call %q failure precedes its start", errExecutorContract, e.CallID)
+		}
+		delete(r.modelCalls, e.CallID)
+		modelInvocations = []ModelInvocationCommit{{
+			CallID: e.CallID, SegmentID: r.cfg.SegmentID,
+			State: ModelInvocationFailed, StartedAt: startedAt, FinishedAt: finishedAt,
+		}}
+		out = []RunEvent{SegmentProgressed{Progress: RunProgress{Activity: "Model call failed"}}}
 	case ToolCallStarted:
 		var err error
 		out, err = r.toolStart(e)
 		if err != nil {
 			return reductionBatch{}, fmt.Errorf("%w: tool call start: %w", errExecutorContract, err)
 		}
+		if ref := r.tools[e.CallID]; ref != nil && ref.modelCallSequence > 0 {
+			toolInvocations = []ToolInvocationCommit{{
+				CallID: ref.callID, ItemID: ref.id, SegmentID: r.cfg.SegmentID,
+				State: ToolInvocationStarted, StartedAt: ref.attemptStartedAt,
+			}}
+		}
 	case ToolCallFinished:
 		var err error
-		out, err = r.toolEnd(e)
+		out, toolInvocations, err = r.toolEnd(e)
 		if err != nil {
 			return reductionBatch{}, fmt.Errorf("%w: tool call end: %w", errExecutorContract, err)
+		}
+		settledToolCallIDs = make([]string, len(toolInvocations))
+		for index, invocation := range toolInvocations {
+			settledToolCallIDs[index] = invocation.CallID
 		}
 	case UsageReported:
 		var err error
@@ -207,19 +409,100 @@ func (r *reducer) reduce(ev ExecutionFact) (reductionBatch, error) {
 			return reductionBatch{}, fmt.Errorf("%w: interrupt: %w", errExecutorContract, err)
 		}
 	case SegmentEnded:
+		if len(r.modelCalls) > 0 && e.Reason != run.OutcomeLost {
+			return reductionBatch{}, fmt.Errorf(
+				"%w: segment ended with %d unsettled model calls",
+				errExecutorContract,
+				len(r.modelCalls),
+			)
+		}
+		if e.Reason == run.OutcomeLost {
+			finishedAt := r.now()
+			callIDs := make([]string, 0, len(r.modelCalls))
+			for callID := range r.modelCalls {
+				callIDs = append(callIDs, callID)
+			}
+			slices.Sort(callIDs)
+			modelInvocations = make([]ModelInvocationCommit, 0, len(callIDs))
+			for _, callID := range callIDs {
+				startedAt := r.modelCalls[callID]
+				if finishedAt.Before(startedAt) {
+					return reductionBatch{}, fmt.Errorf("%w: model call %q loss precedes its start", errExecutorContract, callID)
+				}
+				modelInvocations = append(modelInvocations, ModelInvocationCommit{
+					CallID: callID, SegmentID: r.cfg.SegmentID,
+					State: ModelInvocationUnknown, StartedAt: startedAt, FinishedAt: finishedAt,
+				})
+			}
+			clear(r.modelCalls)
+		}
+		openTools := r.tools.ordered()
 		var err error
 		out, err = r.segmentEnd(e)
 		if err != nil {
 			return reductionBatch{}, fmt.Errorf("%w: segment end: %w", errExecutorContract, err)
 		}
+		toolInvocations = closedToolInvocationCommits(r.cfg.SegmentID, openTools)
 	default:
 		return reductionBatch{}, fmt.Errorf("%w: unhandled event %T", errExecutorContract, ev)
 	}
-	return r.project(out)
+	batch, err := r.project(out)
+	if err != nil {
+		return reductionBatch{}, err
+	}
+	batch.settledToolCallIDs = slices.Clone(settledToolCallIDs)
+	if err := r.attachDurableObservation(&batch, modelInvocations, toolInvocations, progress); err != nil {
+		return reductionBatch{}, err
+	}
+	return batch, nil
+}
+
+func (r *reducer) attachDurableObservation(
+	batch *reductionBatch,
+	modelInvocations []ModelInvocationCommit,
+	toolInvocations []ToolInvocationCommit,
+	progress *RunProgressCommit,
+) error {
+	if len(modelInvocations) == 0 && len(toolInvocations) == 0 && progress == nil {
+		return nil
+	}
+	if batch == nil || len(batch.events) == 0 || batch.parkCommit != nil {
+		return fmt.Errorf("%w: durable observation has no ordinary reduction", errReducerInvariant)
+	}
+	last := &batch.events[len(batch.events)-1]
+	if last.Commit == nil {
+		last.Commit = &EventCommit{RunID: r.cfg.RunID, SessionID: r.cfg.SessionID}
+	}
+	last.Commit.ModelInvocations = slices.Clone(modelInvocations)
+	last.Commit.ToolInvocations = slices.Clone(toolInvocations)
+	if progress != nil {
+		cloned := *progress
+		last.Commit.Progress = &cloned
+	}
+	return validateReductionBatch(*batch)
+}
+
+func closedToolInvocationCommits(segmentID string, tools []*openTool) []ToolInvocationCommit {
+	commits := make([]ToolInvocationCommit, 0, len(tools))
+	for _, ref := range tools {
+		if ref == nil || ref.modelCallSequence == 0 || ref.finishedAt.IsZero() {
+			continue
+		}
+		state := ToolInvocationIncomplete
+		if ref.end != nil {
+			state = ToolInvocationCompleted
+		}
+		commits = append(commits, ToolInvocationCommit{
+			CallID: ref.callID, ItemID: ref.id, SegmentID: segmentID,
+			State: state, StartedAt: ref.attemptStartedAt, FinishedAt: ref.finishedAt,
+		})
+	}
+	return commits
 }
 
 func (r *reducer) synthesizeTerminal() (reductionBatch, error) {
 	out := r.closeStreaming()
+	openTools := r.tools.ordered()
 	drained, err := r.drainTools()
 	if err != nil {
 		return reductionBatch{}, fmt.Errorf("%w: drain tools: %w", errReducerInvariant, err)
@@ -228,8 +511,29 @@ func (r *reducer) synthesizeTerminal() (reductionBatch, error) {
 	// No SegmentEnded arrived, so nothing fresh was reported: the Segment's accrual
 	// stands as last reported and is committed as-is.
 	var failure *transcript.Problem
+	var modelInvocations []ModelInvocationCommit
 	outcome := run.OutcomeCanceled
-	if r.errProblem != nil {
+	if len(r.modelCalls) > 0 {
+		outcome = run.OutcomeLost
+		failure = &transcript.Problem{
+			Kind: transcript.RunLostProblem, Scope: transcript.RunProblem,
+			Detail: "a model invocation ended without a provable durable result",
+		}
+		finishedAt := r.now()
+		callIDs := slices.Sorted(maps.Keys(r.modelCalls))
+		modelInvocations = make([]ModelInvocationCommit, 0, len(callIDs))
+		for _, callID := range callIDs {
+			startedAt := r.modelCalls[callID]
+			if finishedAt.Before(startedAt) {
+				return reductionBatch{}, fmt.Errorf("%w: model call %q loss precedes its start", errReducerInvariant, callID)
+			}
+			modelInvocations = append(modelInvocations, ModelInvocationCommit{
+				CallID: callID, SegmentID: r.cfg.SegmentID,
+				State: ModelInvocationUnknown, StartedAt: startedAt, FinishedAt: finishedAt,
+			})
+		}
+		clear(r.modelCalls)
+	} else if r.errProblem != nil {
 		outcome = run.OutcomeFailed
 		failure, err = runResultProblem(*r.errProblem)
 		if err != nil {
@@ -245,7 +549,19 @@ func (r *reducer) synthesizeTerminal() (reductionBatch, error) {
 		return reductionBatch{}, fmt.Errorf("%w: synthesize terminal: %w", errReducerInvariant, err)
 	}
 	out = append(out, terminal)
-	return r.project(out)
+	batch, err := r.project(out)
+	if err != nil {
+		return reductionBatch{}, err
+	}
+	if err := r.attachDurableObservation(
+		&batch,
+		modelInvocations,
+		closedToolInvocationCommits(r.cfg.SegmentID, openTools),
+		nil,
+	); err != nil {
+		return reductionBatch{}, err
+	}
+	return batch, nil
 }
 
 // abort marks the Segment as failed so terminal synthesis produces an error
@@ -385,12 +701,12 @@ func (r *reducer) projectOne(event RunEvent) (reduction, error) {
 			commit.Outcome = *e.Run.Outcome
 			commit.GoalRun = r.goalTurn(e.Run)
 		}
-	case SegmentStarted, SegmentProgressed, ItemStarted, ItemChanged, StateSnapshot:
+	case ItemStarted, SegmentStarted, SegmentProgressed, ItemChanged, StateSnapshot:
 		// These events have no standalone EventCommit. SegmentStarted carries a Run
 		// for the stream, but the Run's durable opening IS its admission (or its
 		// resume) — recording it a second time here would be a second writer of
-		// facts admission already owns. Interrupt ItemStarted projections are folded
-		// into the atomic park write-set by project.
+		// facts admission already owns. ItemStarted projections remain provisional;
+		// interrupt starts are folded into the atomic park write-set by project.
 	default:
 		return reduction{}, fmt.Errorf("%w: unhandled run event %T", errReducerInvariant, event)
 	}

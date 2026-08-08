@@ -664,11 +664,7 @@ func interruptsFromPayloads(rows []interruptPayload) ([]transcript.Interrupt, er
 func suspensionBindingRows(values []SuspensionBindingRecord) []suspensionBindingRow {
 	rows := make([]suspensionBindingRow, len(values))
 	for index, value := range values {
-		rows[index] = suspensionBindingRow{
-			InterruptItemID: value.InterruptItemID,
-			MemberID:        value.MemberID,
-			SuspensionID:    value.SuspensionID,
-		}
+		rows[index] = suspensionBindingRow(value)
 	}
 	return rows
 }
@@ -676,11 +672,7 @@ func suspensionBindingRows(values []SuspensionBindingRecord) []suspensionBinding
 func suspensionBindingsFromRows(rows []suspensionBindingRow) []SuspensionBindingRecord {
 	values := make([]SuspensionBindingRecord, len(rows))
 	for index, row := range rows {
-		values[index] = SuspensionBindingRecord{
-			InterruptItemID: row.InterruptItemID,
-			MemberID:        row.MemberID,
-			SuspensionID:    row.SuspensionID,
-		}
+		values[index] = SuspensionBindingRecord(row)
 	}
 	return values
 }

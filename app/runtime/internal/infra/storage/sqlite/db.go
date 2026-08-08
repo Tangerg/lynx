@@ -61,7 +61,7 @@ func Open(ctx context.Context, path string) (*sql.DB, error) {
 // schemaEpoch identifies the one storage shape this build understands. It is an
 // epoch rather than a version because nothing connects two values: a database
 // stamped with any other number is refused, never upgraded.
-const schemaEpoch = 59
+const schemaEpoch = 61
 
 func installCurrentSchema(ctx context.Context, db *sql.DB, path string) error {
 	var epoch int
@@ -182,6 +182,50 @@ func installCurrentSchema(ctx context.Context, db *sql.DB, path string) error {
 			ON runs(root_run_id) WHERE root_run_id != ''`,
 		`CREATE INDEX IF NOT EXISTS idx_runs_parent
 			ON runs(parent_run_id) WHERE parent_run_id != ''`,
+		// model_invocations is the provider-attempt journal. It deliberately stores
+		// neither semantic response content nor accounting: those facts belong to
+		// history_items and runs. A surviving started row proves only that the
+		// external boundary was crossed without a durable terminal observation.
+		`CREATE TABLE IF NOT EXISTS model_invocations (
+			call_id     TEXT    PRIMARY KEY,
+			session_id  TEXT    NOT NULL,
+			run_id      TEXT    NOT NULL,
+			segment_id  TEXT    NOT NULL,
+			state       TEXT    NOT NULL,
+			started_at  INTEGER NOT NULL,
+			finished_at INTEGER NOT NULL DEFAULT 0,
+			CHECK (state IN ('started', 'completed', 'failed', 'unknown')),
+			CHECK (
+				(state = 'started' AND finished_at = 0) OR
+				(state != 'started' AND finished_at >= started_at)
+			)
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_model_invocations_run
+			ON model_invocations(run_id, segment_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_model_invocations_open
+			ON model_invocations(state) WHERE state = 'started'`,
+		// tool_invocations is the operational pre-call journal. Its independent row
+		// lets concurrent calls start in scheduler order while history_items receives
+		// only final semantic Items in the model's declared order.
+		`CREATE TABLE IF NOT EXISTS tool_invocations (
+			call_id     TEXT    PRIMARY KEY,
+			item_id     TEXT    NOT NULL UNIQUE,
+			session_id  TEXT    NOT NULL,
+			run_id      TEXT    NOT NULL,
+			segment_id  TEXT    NOT NULL,
+			state       TEXT    NOT NULL,
+			started_at  INTEGER NOT NULL,
+			finished_at INTEGER NOT NULL DEFAULT 0,
+			CHECK (state IN ('started', 'completed', 'incomplete')),
+			CHECK (
+				(state = 'started' AND finished_at = 0) OR
+				(state != 'started' AND finished_at >= started_at)
+			)
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_tool_invocations_run
+			ON tool_invocations(run_id, segment_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_tool_invocations_open
+			ON tool_invocations(state) WHERE state = 'started'`,
 		// One root-owned row per parked Run tree. payload is the client-facing
 		// interrupt set; suspension_bindings maps each item to the private executor
 		// boundary it answers; continuations carries every suspended Run's

@@ -132,7 +132,7 @@ func (r *reducer) approvalItem(prompt ApprovalPrompt, ref *openTool) (transcript
 	var id string
 	var startedAt time.Time
 	if ref != nil {
-		id, startedAt = ref.id, ref.startedAt
+		id, startedAt = ref.id, ref.occurredAt
 	} else {
 		identity := r.reuseOrCreateToolItem(prompt.CallID, prompt.ToolName, arguments)
 		id, startedAt = identity.id, identity.occurredAt
@@ -196,7 +196,7 @@ func drainedToolRefs(open []*openTool, matched map[*openTool]int) []DrainedTool 
 		_, activeApproval := matched[ref]
 		if ref.end == nil && !activeApproval {
 			drained = append(drained, DrainedTool{
-				ItemID: ref.id, ItemOccurredAt: ref.startedAt,
+				ItemID: ref.id, ItemOccurredAt: ref.occurredAt,
 				CallID: ref.callID, Name: ref.name, Arguments: ref.arguments.Canonical(),
 			})
 		}
@@ -227,12 +227,13 @@ func (r *reducer) removeDrained(itemID string) {
 
 func (r *reducer) incompleteToolItem(ref *openTool) (ItemCompleted, error) {
 	finishedAt := r.now()
-	if finishedAt.Before(ref.startedAt) {
+	if finishedAt.Before(ref.attemptStartedAt) {
 		return ItemCompleted{}, fmt.Errorf("tool call %q finish time precedes start time", ref.callID)
 	}
+	ref.finishedAt = finishedAt
 	return ItemCompleted{Item: transcript.Item{
 		ID: ref.id, RunID: r.cfg.RunID, Status: transcript.ItemIncomplete,
-		Kind: transcript.ToolCall, OccurredAt: ref.startedAt, FinishedAt: finishedAt,
+		Kind: transcript.ToolCall, OccurredAt: ref.occurredAt, FinishedAt: finishedAt,
 		Tool:        newToolInvocation(ref.name, ref.arguments, nil),
 		SafetyClass: ref.safetyClass,
 	}}, nil
@@ -288,7 +289,23 @@ func (tools openTools) drain() []*openTool {
 
 func (tools openTools) ordered() []*openTool {
 	ordered := slices.Collect(maps.Values(tools))
-	slices.SortFunc(ordered, func(a, b *openTool) int { return cmp.Compare(a.order, b.order) })
+	slices.SortFunc(ordered, func(a, b *openTool) int {
+		aAttributed := a.modelCallSequence > 0
+		bAttributed := b.modelCallSequence > 0
+		if aAttributed != bAttributed {
+			if aAttributed {
+				return 1
+			}
+			return -1
+		}
+		if aAttributed {
+			if byModelCall := cmp.Compare(a.modelCallSequence, b.modelCallSequence); byModelCall != 0 {
+				return byModelCall
+			}
+			return cmp.Compare(a.toolCallIndex, b.toolCallIndex)
+		}
+		return cmp.Compare(a.legacyOrder, b.legacyOrder)
+	})
 	return ordered
 }
 

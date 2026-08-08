@@ -116,9 +116,69 @@ type AssistantMessageCompleted struct {
 	Message corechat.Message
 }
 
-type ToolCallStarted struct {
+// UnknownEffectsDetected is the executor's fail-closed control observation that
+// one or more externally attempted Effects have no provable settlement. IDs are
+// opaque diagnostics. The Run pump—not the executor—maps this condition to the
+// product's RunLost transaction before resource teardown.
+type UnknownEffectsDetected struct {
+	executorPayloadBase
+	IDs []string
+}
+
+func (unknown UnknownEffectsDetected) validate() error {
+	if len(unknown.IDs) == 0 {
+		return errors.New("runs: unknown Effect observation is empty")
+	}
+	previous := ""
+	for index, id := range unknown.IDs {
+		if strings.TrimSpace(id) == "" || id != strings.TrimSpace(id) {
+			return fmt.Errorf("runs: unknown Effect id[%d] is invalid", index)
+		}
+		if index > 0 && id <= previous {
+			return errors.New("runs: unknown Effect ids must be unique and sorted")
+		}
+		previous = id
+	}
+	return nil
+}
+
+// ModelCallStarted is the authoritative pre-provider boundary for one model
+// invocation. CallID is an opaque, stable executor identity; the Application
+// never parses framework Effect identity from it.
+type ModelCallStarted struct {
 	executionFactBase
 	CallID string
+}
+
+// ModelCallCompleted is the authoritative semantic and accounting projection
+// of one completed model invocation. Message may contain ToolCall parts; the
+// reducer projects only assistant content/reasoning here because each actual
+// Tool invocation has its own pre-call commit boundary.
+type ModelCallCompleted struct {
+	executionFactBase
+	CallID        string
+	Message       corechat.Message
+	TokenUsage    accounting.TokenUsage
+	ByModel       []accounting.ModelUsage
+	CostUSD       float64
+	Steps         int
+	ContextTokens int64
+}
+
+// ModelCallFailed closes a provider attempt whose failure is definite. It has
+// no semantic assistant output or usage. If this fact itself cannot be durably
+// committed after the provider was called, the dispatcher must instead leave
+// the invocation open and reconcile the Effect as unknown.
+type ModelCallFailed struct {
+	executionFactBase
+	CallID string
+}
+
+type ToolCallStarted struct {
+	executionFactBase
+	CallID            string
+	ModelCallSequence uint32
+	ToolCallIndex     uint32
 	// SourceCallID is the executor's parent-call identity. It exists solely to map
 	// a child member causal edge to this
 	// canonical Item without parsing CallID or relying on event timing.
@@ -262,9 +322,9 @@ func (e SegmentInterrupted) validate() error {
 type SegmentEnded struct {
 	executionFactBase
 	Reason run.Outcome
-	// Problem is present exactly when Reason is OutcomeFailed. It is already a
-	// stable, client-safe application problem; executor diagnostics never enter
-	// the event stream.
+	// Problem is present exactly when Reason is Failed, TimedOut, or Lost. It is
+	// already a stable, client-safe application problem; executor diagnostics
+	// never enter the event stream.
 	Problem *transcript.Problem
 	// Usage is the segment's final accounting, and is absent only when the
 	// executor cannot produce an authoritative report. Child executors retain

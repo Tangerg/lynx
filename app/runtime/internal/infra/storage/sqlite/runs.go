@@ -340,6 +340,115 @@ func (s *RunStore) Resume(
 	})
 }
 
+// UpdateMetrics records the cumulative accounting observed at one model-call
+// boundary while fencing the write to the exact active segment. It never moves
+// lifecycle state and rejects a stale or regressing snapshot.
+func (s *RunStore) UpdateMetrics(
+	ctx context.Context,
+	sessionID string,
+	runID string,
+	segmentID string,
+	metrics transcript.RunMetrics,
+	updatedAt time.Time,
+) error {
+	if sessionID == "" || runID == "" || segmentID == "" {
+		return errors.New("sqlite: update Run metrics requires session, Run, and segment identity")
+	}
+	if updatedAt.IsZero() {
+		return errors.New("sqlite: update Run metrics requires an update time")
+	}
+	if err := metrics.Validate(); err != nil {
+		return fmt.Errorf("sqlite: update Run metrics for %q: %w", runID, err)
+	}
+	encoded, err := runMetricsRow(metrics)
+	if err != nil {
+		return fmt.Errorf("sqlite: update Run metrics for %q: %w", runID, err)
+	}
+	return RunInTx(ctx, s.db, func(ctx context.Context) error {
+		current, found, err := s.Run(ctx, runID)
+		if err != nil {
+			return err
+		}
+		if !found || current.SessionID != sessionID {
+			return fmt.Errorf("sqlite: update Run metrics: running Run %q was not found in session %q", runID, sessionID)
+		}
+		if current.State != rundomain.Running || current.ActiveSegmentID != segmentID {
+			return fmt.Errorf(
+				"sqlite: update Run metrics: Run %q is %s in segment %q, want running segment %q",
+				runID,
+				current.State,
+				current.ActiveSegmentID,
+				segmentID,
+			)
+		}
+		if err := validateMetricsAdvance(current.Metrics, metrics); err != nil {
+			return fmt.Errorf("sqlite: update Run metrics for %q: %w", runID, err)
+		}
+		if updatedAt.Before(current.UpdatedAt) {
+			return fmt.Errorf("sqlite: update Run metrics for %q: update time regressed", runID)
+		}
+		result, err := conn(ctx, s.db).ExecContext(ctx,
+			`UPDATE runs SET steps = ?, active_duration_ns = ?, usage = ?, updated_at = ?
+			 WHERE session_id = ? AND run_id = ? AND state = ? AND active_segment_id = ?`,
+			encoded.steps,
+			encoded.durationNs,
+			encoded.usage,
+			updatedAt.UTC().UnixNano(),
+			sessionID,
+			runID,
+			runStateRunning,
+			segmentID,
+		)
+		if err != nil {
+			return fmt.Errorf("sqlite: update Run metrics for %q: %w", runID, err)
+		}
+		changed, err := result.RowsAffected()
+		if err != nil {
+			return fmt.Errorf("sqlite: inspect Run metrics update for %q: %w", runID, err)
+		}
+		if changed != 1 {
+			return fmt.Errorf("sqlite: update Run metrics for %q lost its active-segment fence", runID)
+		}
+		return nil
+	})
+}
+
+func validateMetricsAdvance(current, next transcript.RunMetrics) error {
+	if next.Steps < current.Steps || next.ActiveDuration < current.ActiveDuration {
+		return errors.New("Run metrics regressed")
+	}
+	if current.Usage == nil {
+		return nil
+	}
+	if next.Usage == nil {
+		return errors.New("Run usage disappeared")
+	}
+	if modelUsageRegressed(current.Usage.ModelUsage, next.Usage.ModelUsage) {
+		return errors.New("aggregate model usage regressed")
+	}
+	for model, prior := range current.Usage.ByModel {
+		currentModel, exists := next.Usage.ByModel[model]
+		if !exists || modelUsageRegressed(prior, currentModel) {
+			return fmt.Errorf("model %q usage regressed", model)
+		}
+	}
+	return nil
+}
+
+func modelUsageRegressed(current, next transcript.ModelUsage) bool {
+	if next.InputTokens < current.InputTokens ||
+		next.OutputTokens < current.OutputTokens ||
+		next.CacheReadTokens < current.CacheReadTokens ||
+		next.CacheWriteTokens < current.CacheWriteTokens ||
+		next.ReasoningTokens < current.ReasoningTokens {
+		return true
+	}
+	if current.CostUSD == nil {
+		return false
+	}
+	return next.CostUSD == nil || *next.CostUSD < *current.CostUSD
+}
+
 // Terminalize ends the exact non-terminal Run that run identifies, recording the
 // outcome the executor reached and the result that explains it.
 func (s *RunStore) Terminalize(ctx context.Context, run transcript.Run) error {

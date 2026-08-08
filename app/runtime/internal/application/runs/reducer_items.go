@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
@@ -117,6 +118,25 @@ func (r *reducer) completeAssistantMessage(message corechat.Message) ([]RunEvent
 	return out, nil
 }
 
+func (r *reducer) completeModelMessage(message corechat.Message) ([]RunEvent, error) {
+	if message.Role != corechat.RoleAssistant {
+		return nil, fmt.Errorf("completed model message role is %q, want %q", message.Role, corechat.RoleAssistant)
+	}
+	if err := message.Validate(); err != nil {
+		return nil, err
+	}
+	semantic := corechat.Message{Role: message.Role}
+	for _, part := range message.Parts {
+		if part.Kind != corechat.PartToolCall {
+			semantic.Parts = append(semantic.Parts, part.Clone())
+		}
+	}
+	if len(semantic.Parts) == 0 {
+		return r.closeStreaming(), nil
+	}
+	return r.completeAssistantMessage(semantic)
+}
+
 func assistantMediaBlock(value *media.Media) (transcript.ContentBlock, error) {
 	if value == nil {
 		return transcript.ContentBlock{}, errors.New("assistant media is nil")
@@ -187,14 +207,41 @@ func (r *reducer) completeMessageContent(content []transcript.ContentBlock) []Ru
 }
 
 func (r *reducer) toolStart(e ToolCallStarted) ([]RunEvent, error) {
-	if strings.TrimSpace(e.CallID) == "" {
+	if strings.TrimSpace(e.CallID) == "" || e.CallID != strings.TrimSpace(e.CallID) {
 		return nil, errors.New("tool call id is required")
 	}
-	if strings.TrimSpace(e.ToolName) == "" {
+	if strings.TrimSpace(e.ToolName) == "" || e.ToolName != strings.TrimSpace(e.ToolName) {
 		return nil, errors.New("tool name is required")
 	}
-	if _, duplicate := r.tools[e.CallID]; duplicate {
+	if e.SourceCallID != strings.TrimSpace(e.SourceCallID) {
+		return nil, errors.New("tool source call id has surrounding whitespace")
+	}
+	if e.Activity != strings.TrimSpace(e.Activity) {
+		return nil, errors.New("tool activity has surrounding whitespace")
+	}
+	if e.ModelCallSequence == 0 && e.ToolCallIndex != 0 {
+		return nil, errors.New("tool call index requires a model call sequence")
+	}
+	if e.ModelCallSequence > 0 && e.SourceCallID == "" {
+		return nil, errors.New("model-attributed tool call requires a source call id")
+	}
+	if _, duplicate := r.toolCallIDs[e.CallID]; duplicate {
 		return nil, fmt.Errorf("tool call %q started more than once", e.CallID)
+	}
+	if e.ModelCallSequence > 0 {
+		position := toolPosition{
+			modelCallSequence: e.ModelCallSequence,
+			toolCallIndex:     e.ToolCallIndex,
+		}
+		if existing, duplicate := r.toolPositions[position]; duplicate {
+			return nil, fmt.Errorf(
+				"tool call %q repeats model call %d ToolCall index %d already owned by %q",
+				e.CallID,
+				e.ModelCallSequence,
+				e.ToolCallIndex,
+				existing,
+			)
+		}
 	}
 	arguments, err := parseToolArguments(e.Arguments)
 	if err != nil {
@@ -214,9 +261,17 @@ func (r *reducer) toolStart(e ToolCallStarted) ([]RunEvent, error) {
 	}})
 	identity := r.reuseOrCreateToolItem(e.CallID, e.ToolName, arguments)
 	ref := &openTool{
-		callID: e.CallID, sourceCallID: e.SourceCallID, order: r.toolOrder,
-		id: identity.id, startedAt: identity.occurredAt,
+		callID: e.CallID, sourceCallID: e.SourceCallID, legacyOrder: r.toolOrder,
+		modelCallSequence: e.ModelCallSequence, toolCallIndex: e.ToolCallIndex,
+		id: identity.id, occurredAt: identity.occurredAt, attemptStartedAt: r.now(),
 		name: e.ToolName, arguments: arguments, safetyClass: e.SafetyClass,
+	}
+	r.toolCallIDs[e.CallID] = struct{}{}
+	if e.ModelCallSequence > 0 {
+		r.toolPositions[toolPosition{
+			modelCallSequence: e.ModelCallSequence,
+			toolCallIndex:     e.ToolCallIndex,
+		}] = e.CallID
 	}
 	r.tools.add(ref)
 	out = append(out, ItemStarted{Item: r.runningToolItem(ref)})
@@ -232,7 +287,7 @@ func (r *reducer) toolStart(e ToolCallStarted) ([]RunEvent, error) {
 func (r *reducer) runningToolItem(ref *openTool) transcript.Item {
 	return transcript.Item{
 		ID: ref.id, RunID: r.cfg.RunID, Status: transcript.ItemRunning,
-		Kind: transcript.ToolCall, OccurredAt: ref.startedAt,
+		Kind: transcript.ToolCall, OccurredAt: ref.occurredAt,
 		Tool:        newToolInvocation(ref.name, ref.arguments, nil),
 		SafetyClass: ref.safetyClass,
 	}
@@ -272,16 +327,16 @@ func (r *reducer) spawningItem(sourceCallID string) (transcript.Item, error) {
 	return r.runningToolItem(match), nil
 }
 
-func (r *reducer) toolEnd(e ToolCallFinished) ([]RunEvent, error) {
+func (r *reducer) toolEnd(e ToolCallFinished) ([]RunEvent, []ToolInvocationCommit, error) {
 	ref, ok := r.tools[e.CallID]
 	if !ok {
 		if consumed, err := r.resume.consumeCommittedTool(e); consumed {
-			return nil, err
+			return nil, nil, err
 		}
-		return nil, fmt.Errorf("tool call %q ended without an open start", e.CallID)
+		return nil, nil, fmt.Errorf("tool call %q ended without an open start", e.CallID)
 	}
 	if ref.end != nil {
-		return nil, fmt.Errorf("tool call %q ended more than once", e.CallID)
+		return nil, nil, fmt.Errorf("tool call %q ended more than once", e.CallID)
 	}
 	cloned := e
 	if e.Offload != nil {
@@ -294,8 +349,8 @@ func (r *reducer) toolEnd(e ToolCallFinished) ([]RunEvent, error) {
 	}
 	cloned.MutatedPaths = slices.Clone(e.MutatedPaths)
 	finishedAt := r.now()
-	if finishedAt.Before(ref.startedAt) {
-		return nil, fmt.Errorf("tool call %q finish time precedes start time", e.CallID)
+	if finishedAt.Before(ref.attemptStartedAt) {
+		return nil, nil, fmt.Errorf("tool call %q finish time precedes start time", e.CallID)
 	}
 	ref.finishedAt = finishedAt
 	ref.end = &cloned
@@ -305,9 +360,10 @@ func (r *reducer) toolEnd(e ToolCallFinished) ([]RunEvent, error) {
 // flushEndedTools commits only the longest completed prefix. Tools may finish
 // concurrently in any order, but transcript identity, mutation nudges, and
 // durable insertion order must follow the model's call order.
-func (r *reducer) flushEndedTools() ([]RunEvent, error) {
+func (r *reducer) flushEndedTools() ([]RunEvent, []ToolInvocationCommit, error) {
 	ordered := r.tools.ordered()
 	var out []RunEvent
+	var invocations []ToolInvocationCommit
 	for _, ref := range ordered {
 		if ref.end == nil {
 			break
@@ -315,11 +371,31 @@ func (r *reducer) flushEndedTools() ([]RunEvent, error) {
 		delete(r.tools, ref.callID)
 		completed, err := r.completeTool(ref, *ref.end)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		out = append(out, completed...)
+		if ref.modelCallSequence > 0 {
+			invocations = append(invocations, ToolInvocationCommit{
+				CallID: ref.callID, ItemID: ref.id, SegmentID: r.cfg.SegmentID,
+				State: ToolInvocationCompleted, StartedAt: ref.attemptStartedAt, FinishedAt: ref.finishedAt,
+			})
+		}
 	}
-	return out, nil
+	return out, invocations, nil
+}
+
+// forgetToolEnds removes speculative external results whose canonical batch
+// failed to commit. Their starts remain open so RunLost synthesis records
+// incomplete calls rather than publishing results that persistence rejected.
+func (r *reducer) forgetToolEnds(callIDs []string) {
+	for _, callID := range callIDs {
+		ref := r.tools[callID]
+		if ref == nil {
+			continue
+		}
+		ref.end = nil
+		ref.finishedAt = time.Time{}
+	}
 }
 
 func (r *reducer) completeTool(ref *openTool, e ToolCallFinished) ([]RunEvent, error) {
@@ -342,7 +418,7 @@ func (r *reducer) completeTool(ref *openTool, e ToolCallFinished) ([]RunEvent, e
 	invocation.Offload = e.Offload
 	item := transcript.Item{
 		ID: ref.id, RunID: r.cfg.RunID, Status: transcript.ItemCompleted,
-		Kind: transcript.ToolCall, OccurredAt: ref.startedAt, FinishedAt: ref.finishedAt,
+		Kind: transcript.ToolCall, OccurredAt: ref.occurredAt, FinishedAt: ref.finishedAt,
 		Tool:        invocation,
 		SafetyClass: ref.safetyClass,
 	}

@@ -5,8 +5,13 @@ import (
 	"errors"
 	"fmt"
 	"iter"
+	"slices"
+	"time"
 
 	"go.opentelemetry.io/otel/trace"
+
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 )
 
 // pump starts the single goroutine that owns every mutable route and reducer in
@@ -49,6 +54,19 @@ type segmentPump struct {
 	rootFinished   bool
 	rootParked     bool
 	abortExecution bool
+
+	pendingToolCommits map[toolCommitKey]ExecutionFactCommit
+}
+
+type toolCommitKey struct {
+	runID  string
+	callID string
+}
+
+type authoritativeFactResult struct {
+	runID              string
+	deferred           bool
+	settledToolCallIDs []string
 }
 
 func (p *segmentPump) run() {
@@ -69,11 +87,184 @@ func (p *segmentPump) handle(event ExecutorEvent) bool {
 		p.fail(err)
 		return false
 	}
+	if commit, authoritative := event.Payload.(ExecutionFactCommit); authoritative {
+		if err := commit.validate(); err != nil {
+			commit.Complete(err)
+			p.fail(err)
+			return false
+		}
+		result, err := p.handleAuthoritativeFact(event.Member, commit.Fact)
+		p.completeAuthoritativeFact(commit, result, err)
+		// A rejected authoritative write is reported synchronously to the
+		// dispatcher. The Process then produces either a definite failed result or
+		// an unknown settlement; stopping this pump here would race that decision
+		// and tear down the only source able to report it.
+		return true
+	}
+	if unknown, detected := event.Payload.(UnknownEffectsDetected); detected {
+		if err := p.handleUnknownEffects(event.Member, unknown); err != nil {
+			p.fail(err)
+		}
+		return false
+	}
 	if barrier, interrupted := event.Payload.(TreeInterrupted); interrupted {
 		p.handleTreeBarrier(event, barrier)
 		return false
 	}
-	return p.handleEngineEvent(event)
+	executionFact, ok := event.Payload.(ExecutionFact)
+	if !ok {
+		p.fail(fmt.Errorf("runs: unsupported executor payload %T", event.Payload))
+		return false
+	}
+	keep, err := p.handleExecutionFact(event.Member, executionFact)
+	if err != nil {
+		p.fail(err)
+		return false
+	}
+	return keep
+}
+
+func (p *segmentPump) handleAuthoritativeFact(
+	member ExecutorMember,
+	fact ExecutionFact,
+) (authoritativeFactResult, error) {
+	route, err := p.routes.resolve(member)
+	if err != nil {
+		return authoritativeFactResult{}, err
+	}
+	result := authoritativeFactResult{runID: route.runID}
+	if route.member.MemberID != "" {
+		if err := p.live.bindExecutorMember(route.runID, route.member.MemberID); err != nil {
+			return result, err
+		}
+	}
+	if route.reducer == nil {
+		return result, fmt.Errorf("runs: admitted child run %q has no segment reducer", route.runID)
+	}
+	speculative := route.reducer.clone()
+	if speculative == nil {
+		return result, fmt.Errorf("runs: admitted child run %q has no cloneable reducer", route.runID)
+	}
+	batch, err := speculative.reduce(fact)
+	if err != nil {
+		return result, err
+	}
+	result.settledToolCallIDs = slices.Clone(batch.settledToolCallIDs)
+	if toolEnd, endingTool := fact.(ToolCallFinished); endingTool && len(batch.settledToolCallIDs) == 0 {
+		// An out-of-order concurrent result is valid speculative reducer state but
+		// has no canonical durable prefix yet. Keep its receipt pending until an
+		// earlier result can commit the whole prefix atomically.
+		if ref := speculative.tools[toolEnd.CallID]; ref != nil && ref.end != nil {
+			route.reducer = speculative
+			result.deferred = true
+			return result, nil
+		}
+	}
+	publication, err := p.publisher.publishAuthoritativeAtomically(
+		p.ownerCtx,
+		route,
+		batch,
+	)
+	if err != nil {
+		// A failed canonical Tool batch must also discard any later results that
+		// were buffered speculatively in the live reducer. RunLost synthesis may
+		// then close their starts as incomplete, never as persisted successes.
+		route.reducer.forgetToolEnds(batch.settledToolCallIDs)
+		return result, err
+	}
+	if publication.finished || publication.parked {
+		return result, errors.New("runs: authoritative model/tool fact crossed a segment boundary")
+	}
+	route.reducer = speculative
+	return result, nil
+}
+
+func (p *segmentPump) completeAuthoritativeFact(
+	current ExecutionFactCommit,
+	result authoritativeFactResult,
+	err error,
+) {
+	toolEnd, endingTool := current.Fact.(ToolCallFinished)
+	if !endingTool {
+		current.Complete(err)
+		return
+	}
+	currentKey := toolCommitKey{runID: result.runID, callID: toolEnd.CallID}
+	if result.deferred && err == nil {
+		if p.pendingToolCommits == nil {
+			p.pendingToolCommits = make(map[toolCommitKey]ExecutionFactCommit)
+		}
+		if _, duplicate := p.pendingToolCommits[currentKey]; duplicate {
+			current.Complete(fmt.Errorf("runs: Tool call %q already has a pending authoritative commit", toolEnd.CallID))
+			return
+		}
+		p.pendingToolCommits[currentKey] = current
+		return
+	}
+
+	currentCompleted := false
+	for _, callID := range result.settledToolCallIDs {
+		key := toolCommitKey{runID: result.runID, callID: callID}
+		if pending, ok := p.pendingToolCommits[key]; ok {
+			delete(p.pendingToolCommits, key)
+			pending.Complete(err)
+			continue
+		}
+		if key == currentKey {
+			current.Complete(err)
+			currentCompleted = true
+		}
+	}
+	if !currentCompleted {
+		current.Complete(err)
+	}
+}
+
+func (p *segmentPump) handleUnknownEffects(
+	member ExecutorMember,
+	unknown UnknownEffectsDetected,
+) error {
+	if err := unknown.validate(); err != nil {
+		return err
+	}
+	route, err := p.routes.resolve(member)
+	if err != nil {
+		return err
+	}
+	if route != p.routes.root {
+		return errors.New("runs: root-only execution reported unknown Effects for a child member")
+	}
+	if activeChildren := p.routes.unfinishedCount() - 1; activeChildren > 0 {
+		return fmt.Errorf("runs: unknown Effects detected with %d active child Runs", activeChildren)
+	}
+	problem := transcript.Problem{
+		Kind: transcript.RunLostProblem, Scope: transcript.RunProblem,
+		Detail: "an external operation completed without a provable durable result",
+	}
+	batch, err := route.reducer.reduce(SegmentEnded{
+		Reason: run.OutcomeLost, Problem: &problem,
+		Duration: route.activeDuration(p.coordinator.now().UTC()),
+	})
+	if err != nil {
+		return fmt.Errorf("runs: reduce unknown Effect loss: %w", err)
+	}
+	retry := time.NewTicker(100 * time.Millisecond)
+	defer retry.Stop()
+	for {
+		publication, publishErr := p.publisher.publishTerminalAtomically(p.ownerCtx, route, batch)
+		if publishErr == nil {
+			route.segmentFinished = publication.finished
+			p.rootFinished = publication.finished
+			p.rootParked = false
+			return nil
+		}
+		trace.SpanFromContext(p.ctx).RecordError(fmt.Errorf("runs: retry unknown Effect loss: %w", publishErr))
+		select {
+		case <-retry.C:
+		case <-p.ownerCtx.Done():
+			return errors.Join(publishErr, p.ownerCtx.Err())
+		}
+	}
 }
 
 func (p *segmentPump) handleChildOpening(event ExecutorEvent, request ChildOpeningRequest) bool {
@@ -155,30 +346,21 @@ func (p *segmentPump) handleTreeBarrier(event ExecutorEvent, barrier TreeInterru
 	}
 }
 
-func (p *segmentPump) handleEngineEvent(event ExecutorEvent) bool {
-	route, err := p.routes.resolve(event.Member)
+func (p *segmentPump) handleExecutionFact(member ExecutorMember, executionFact ExecutionFact) (bool, error) {
+	route, err := p.routes.resolve(member)
 	if err != nil {
-		p.fail(err)
-		return false
+		return false, err
 	}
 	if route.member.MemberID != "" {
 		if err := p.live.bindExecutorMember(route.runID, route.member.MemberID); err != nil {
-			p.fail(err)
-			return false
+			return false, err
 		}
 	}
 	if route.reducer == nil {
-		p.fail(fmt.Errorf("runs: admitted child run %q has no segment reducer", route.runID))
-		return false
-	}
-	executionFact, ok := event.Payload.(ExecutionFact)
-	if !ok {
-		p.fail(fmt.Errorf("runs: unsupported executor payload %T", event.Payload))
-		return false
+		return false, fmt.Errorf("runs: admitted child run %q has no segment reducer", route.runID)
 	}
 	if _, interrupted := executionFact.(SegmentInterrupted); interrupted {
-		p.fail(errors.New("runs: executor emitted a per-Run interrupt instead of a tree barrier"))
-		return false
+		return false, errors.New("runs: executor emitted a per-Run interrupt instead of a tree barrier")
 	}
 	if toolEnd, endingTool := executionFact.(ToolCallFinished); endingTool {
 		if itemID, open := route.reducer.openToolItemID(toolEnd.CallID); open {
@@ -187,37 +369,34 @@ func (p *segmentPump) handleEngineEvent(event ExecutorEvent) bool {
 	}
 	if route == p.routes.root && engineEventEndsSegment(executionFact) {
 		if activeChildren := p.routes.unfinishedCount() - 1; activeChildren > 0 {
-			p.fail(fmt.Errorf(
+			return false, fmt.Errorf(
 				"runs: root run %q reached a segment boundary with %d active child runs",
 				route.runID,
 				activeChildren,
-			))
-			return false
+			)
 		}
 	}
 	reductions, err := route.reducer.reduce(executionFact)
 	if err != nil {
-		p.fail(err)
-		return false
+		return false, err
 	}
 	publication, err := p.publisher.publish(p.ownerCtx, route, reductions)
 	if err != nil {
-		p.fail(err)
-		return false
+		return false, err
 	}
 	if !publication.published {
-		return false
+		return false, nil
 	}
 	route.segmentFinished = publication.finished
 	if route != p.routes.root {
-		return true
+		return true, nil
 	}
 	p.rootFinished = p.rootFinished || publication.finished
 	p.rootParked = p.rootParked || publication.parked
 	// A committed root boundary is the last event this Segment can durably
 	// support. Leave a park alive for resume and never consume buffered events
 	// after a terminal transition.
-	return !p.rootParked && !p.rootFinished
+	return !p.rootParked && !p.rootFinished, nil
 }
 
 func (p *segmentPump) fail(err error) {
@@ -229,6 +408,7 @@ func (p *segmentPump) fail(err error) {
 }
 
 func (p *segmentPump) finish() {
+	p.failPendingToolCommits(errors.New("runs: execution ended before concurrent Tool results formed a durable prefix"))
 	if !p.rootFinished {
 		p.synthesizeUnfinished()
 	}
@@ -239,6 +419,23 @@ func (p *segmentPump) finish() {
 		p.tearDownExecutor()
 	}
 	p.finishBoundary()
+}
+
+func (p *segmentPump) failPendingToolCommits(err error) {
+	if len(p.pendingToolCommits) == 0 {
+		return
+	}
+	byRun := make(map[string][]string)
+	for key, commit := range p.pendingToolCommits {
+		byRun[key.runID] = append(byRun[key.runID], key.callID)
+		commit.Complete(err)
+		delete(p.pendingToolCommits, key)
+	}
+	for runID, callIDs := range byRun {
+		if route := p.routes.byRunID[runID]; route != nil && route.reducer != nil {
+			route.reducer.forgetToolEnds(callIDs)
+		}
+	}
 }
 
 // synthesizeUnfinished establishes durable terminal boundaries before executor

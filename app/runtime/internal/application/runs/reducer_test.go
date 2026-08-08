@@ -92,6 +92,49 @@ func TestReducerFinalAssistantMessageSupersedesPartialStreamingObservation(t *te
 	}
 }
 
+func TestReducerDoesNotDuplicateModelFinalWhenProcessConfirmsSameMessage(t *testing.T) {
+	reducer := newReducer(testReducerConfig())
+	message := corechat.NewAssistantMessage(corechat.NewTextPart("authoritative answer"))
+	mustReduce(t, reducer, ModelCallStarted{CallID: "model_call_1"})
+	modelBatch := mustReduce(t, reducer, ModelCallCompleted{
+		CallID: "model_call_1", Message: message, Steps: 1,
+	})
+	completed := 0
+	for _, reduction := range modelBatch {
+		if _, ok := reduction.Event.(ItemCompleted); ok {
+			completed++
+		}
+	}
+	if completed != 1 {
+		t.Fatalf("model completion Item count = %d, want 1", completed)
+	}
+	processBatch := mustReduce(t, reducer, AssistantMessageCompleted{Message: message})
+	if len(processBatch) != 0 {
+		t.Fatalf("Process confirmation duplicated model final: %#v", processBatch)
+	}
+}
+
+func TestReducerSynthesizesUnsettledModelCallAsAtomicRunLost(t *testing.T) {
+	reducer := newReducer(testReducerConfig())
+	mustReduce(t, reducer, ModelCallStarted{CallID: "model_call_1"})
+
+	batch, err := reducer.synthesizeTerminal()
+	if err != nil {
+		t.Fatal(err)
+	}
+	reductions := testReductions(batch)
+	finished, ok := reductions[len(reductions)-1].Event.(SegmentFinished)
+	if !ok || finished.Run.Outcome == nil || *finished.Run.Outcome != run.OutcomeLost ||
+		finished.Run.Error == nil || finished.Run.Error.Kind != transcript.RunLostProblem {
+		t.Fatalf("terminal = %#v, want RunLost", reductions[len(reductions)-1].Event)
+	}
+	commit := reductions[len(reductions)-1].Commit
+	if commit == nil || len(commit.ModelInvocations) != 1 ||
+		commit.ModelInvocations[0].State != ModelInvocationUnknown {
+		t.Fatalf("model invocation settlement = %#v, want one unknown", commit)
+	}
+}
+
 func TestReducerTreatsExecutorAccountingAsCumulativeAcrossResume(t *testing.T) {
 	config := testReducerConfig()
 	config.Metrics = transcript.RunMetrics{

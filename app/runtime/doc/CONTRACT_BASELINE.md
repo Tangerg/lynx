@@ -1,8 +1,8 @@
 # Lyra Runtime 合同基线
 
-> 状态：P4 Native Interaction Root Baseline 3
+> 状态：P5 Authoritative Interaction Baseline 4
 >
-> 基线日期：2026-08-08
+> 基线日期：2026-08-09
 >
 > 适用范围：Runtime Protocol 制品、持久化 shape、Agent2 消费边界和重构期间的内部防腐合同
 
@@ -53,8 +53,10 @@ TypeScript generated files 是派生制品，不单独定义语义。它们必�
 
 ### 3.1 SQLite
 
-- 当前 `schemaEpoch = 59`；
+- 当前 `schemaEpoch = 61`；
 - executor checkpoint 与 pending interrupt 的技术身份列为 `root_member_id`，continuation/suspension JSON 使用 `memberId`；
+- `model_invocations` 与 `tool_invocations` 是 operational attempt journals，只保存 exact Run/Segment/call identity、state 与 started/finished time；semantic assistant final、Tool result 和 usage 仍只由 Transcript/Run owners 保存；
+- Tool start 不占用 Transcript insertion order；同一 model Tool batch 的 completed Items 与 invocation terminals 按模型声明位置形成一个 canonical write-set；
 - 一个 build 只接受一个精确 epoch；
 - 没有运行时 migration chain、dual schema read 或 compatibility column；
 - 重构产生 shape 变化时直接提升 epoch，并同步 fresh-schema tests、store codec、contract expectation 和本基线。
@@ -143,7 +145,11 @@ internal/adapter/toolset/** -> agent2/**
 
 Unknown Effect 的产品合同是 live/recovery 一致的 fail closed：Application/Delivery 不得到 Settlement payload 构造权；agentexec 只向 Application 投影 indeterminate executor fact/identity。RunLost write-set 提交前 Process 保持 unknown wait，提交后才 Kill/release。
 
-P4 已通过真实 Agent2 consumer 验证当前最小 root candidate：`RootExecutionStarter` 负责 validate/stage/begin，`ExecutionObserver` 负责只读事实流，`ExecutionReleaser` 只负责 resource lifecycle。Stage 组装 exact Deployment/Engine/Input 但不外呼；Application opening durable 后 Begin 才 Start Process。产品 Cancel 仍由 Application 先作出并提交终态决定。P5–P7 的真实 Agent2 consumers 可以按 consumer-discovered interface 原则继续修订并扩展这些候选；P8 production cutover 前才冻结精确内部 port shape。
+P4 已通过真实 Agent2 consumer 验证当前最小 root candidate：`RootExecutionStarter` 负责 validate/stage/begin，`ExecutionObserver` 负责只读事实流，`ExecutionReleaser` 只负责 resource lifecycle。Stage 组装 exact Deployment/Engine/Input 但不外呼；Application opening durable 后 Begin 才 Start Process。产品 Cancel 仍由 Application 先作出并提交终态决定。P6–P7 的真实 Agent2 consumers 可以按 consumer-discovered interface 原则继续修订并扩展这些候选；P8 production cutover 前才冻结精确内部 port shape。
+
+P5 已验证 authoritative model/tool candidate：executor producer 只能通过同一有序 observation stream 提交 Application-owned closed fact 并等待 receipt；它不取得 Store、transaction 或 reducer。Application Run pump 在 speculative reducer 上计算 write-set，只有 persistence 全部成功才替换 live reducer 并完成 receipt。model/tool post-call receipt failure 必须返回 Agent2 Dispatcher 形成 unknown；pre-call failure禁止外呼。Toolset 的唯一 visibility value 是 framework-neutral `toolset.Manifest`，通用 Toolset 对 Agent2 零 import。
+
+P5 的 exact internal type/method names 仍不作为最终兼容 API；P6/P7 真实 consumer 可以继续治本演进，P8 production cutover 时统一冻结。但以下语义已经进入防腐基线：Application 单写者、operational journal 与 semantic Transcript 分离、final 独立于 Delta、并发 Tool canonical prefix 原子提交，以及 unknown 在 release 前 durable `RunLost` 收口。
 
 Fresh root input 的当前防腐合同是 Application 读取 Host Conversation 并追加当前 user message，形成完整 `WorkingContext` seed；adapter 不读取产品 Store。成功 assistant final 由 Agent2 Result 投影 `AssistantMessageCompleted`，不从 Delta 拼接。旧生产 adapter 所需的拆分 text/media request 只属于 P8 删除台账，不是 Agent2 consumer baseline。
 

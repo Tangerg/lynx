@@ -1,6 +1,28 @@
 package toolset
 
-import toolcontract "github.com/Tangerg/lynx/tool"
+import (
+	"slices"
+
+	toolcontract "github.com/Tangerg/lynx/tool"
+)
+
+// Manifest is one Run's frozen, framework-neutral model Tool surface. Visible
+// Tools enter the initial model manifest. Deferred Tools are already executable
+// authority but remain hidden until the discovery Tool advertises their exact
+// names. The slices never overlap.
+type Manifest struct {
+	Visible  []toolcontract.Tool
+	Deferred []toolcontract.Tool
+}
+
+// Clone returns an ownership-isolated manifest. Tool implementations are
+// immutable capabilities; only the containing slices require isolation.
+func (manifest Manifest) Clone() Manifest {
+	return Manifest{
+		Visible:  slices.Clone(manifest.Visible),
+		Deferred: slices.Clone(manifest.Deferred),
+	}
+}
 
 // resolution is the one real visibility decision made while assembling a
 // Run: direct tools enter the initial model manifest, while deferred tools stay
@@ -8,6 +30,7 @@ import toolcontract "github.com/Tangerg/lynx/tool"
 // never added; there is no synthetic visibility state for them.
 type resolution struct {
 	all      []toolcontract.Tool
+	visible  []toolcontract.Tool
 	deferred []toolcontract.Tool
 }
 
@@ -15,6 +38,7 @@ func (s *resolution) direct(tools ...toolcontract.Tool) {
 	for _, candidate := range tools {
 		if candidate != nil {
 			s.all = append(s.all, candidate)
+			s.visible = append(s.visible, candidate)
 		}
 	}
 }
@@ -25,5 +49,12 @@ func (s *resolution) deferTools(tools ...toolcontract.Tool) {
 			s.all = append(s.all, candidate)
 			s.deferred = append(s.deferred, candidate)
 		}
+	}
+}
+
+func (s resolution) manifest() Manifest {
+	return Manifest{
+		Visible:  slices.Clone(s.visible),
+		Deferred: slices.Clone(s.deferred),
 	}
 }

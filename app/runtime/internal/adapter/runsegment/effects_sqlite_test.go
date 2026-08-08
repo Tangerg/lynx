@@ -163,6 +163,191 @@ func TestCommitOpeningResumeCommitsWholeWriteSet(t *testing.T) {
 	}
 }
 
+func TestCommitEventAtomicallyRecordsModelFinalAndRunAccounting(t *testing.T) {
+	db, err := sqlite.Open(t.Context(), ":memory:")
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	ctx := t.Context()
+	startedAt := time.Date(2026, 8, 8, 1, 2, 3, 0, time.UTC)
+	finishedAt := startedAt.Add(time.Second)
+	runState := sqlite.NewRunStore(db)
+	if err := runState.Admit(ctx, run.RunDraft{
+		RunID: "run_model", SessionID: "ses_model", SegmentID: "seg_model", CreatedAt: startedAt,
+	}); err != nil {
+		t.Fatalf("admit: %v", err)
+	}
+	history := sqlite.NewTranscriptStore(db)
+	invocations := sqlite.NewModelInvocationStore(db)
+	effects := New(Config{
+		Transcript:       history,
+		ModelInvocations: invocations,
+		RunMetrics:       runState,
+		Tx: func(ctx context.Context, fn func(context.Context) error) error {
+			return sqlite.RunInTx(ctx, db, fn)
+		},
+	})
+	start := runs.ModelInvocationCommit{
+		CallID: "model_call_1", SegmentID: "seg_model",
+		State: runs.ModelInvocationStarted, StartedAt: startedAt,
+	}
+	if err := effects.CommitEvent(ctx, runs.EventCommit{
+		RunID: "run_model", SessionID: "ses_model", ModelInvocations: []runs.ModelInvocationCommit{start},
+	}); err != nil {
+		t.Fatalf("commit start: %v", err)
+	}
+
+	item := transcript.Item{
+		SessionID: "ses_model", RunID: "run_model", ID: "item_final",
+		OccurredAt: finishedAt, Status: transcript.ItemCompleted, Kind: transcript.AgentMessage,
+		Content: []transcript.ContentBlock{{Kind: transcript.TextContent, Text: "answer"}},
+	}
+	completion := runs.ModelInvocationCommit{
+		CallID: "model_call_1", SegmentID: "seg_model", State: runs.ModelInvocationCompleted,
+		StartedAt: startedAt, FinishedAt: finishedAt,
+	}
+	usage := &transcript.Usage{ModelUsage: transcript.ModelUsage{InputTokens: 2, OutputTokens: 1}}
+	wrongSegment := runs.RunProgressCommit{
+		SegmentID: "seg_wrong", Metrics: transcript.RunMetrics{Steps: 1, Usage: usage}, UpdatedAt: finishedAt,
+	}
+	err = effects.CommitEvent(ctx, runs.EventCommit{
+		RunID: "run_model", SessionID: "ses_model", Items: []transcript.Item{item},
+		ModelInvocations: []runs.ModelInvocationCommit{completion}, Progress: &wrongSegment,
+	})
+	if err == nil {
+		t.Fatal("commit with a stale segment fence succeeded")
+	}
+	var invocationState string
+	if err := db.QueryRowContext(ctx,
+		`SELECT state FROM model_invocations WHERE call_id = ?`, "model_call_1",
+	).Scan(&invocationState); err != nil || invocationState != "started" {
+		t.Fatalf("invocation after rollback = %q err=%v, want started", invocationState, err)
+	}
+	if items, err := history.List(ctx, "ses_model"); err != nil || len(items) != 0 {
+		t.Fatalf("history after rollback = %#v err=%v, want empty", items, err)
+	}
+
+	progress := wrongSegment
+	progress.SegmentID = "seg_model"
+	if err := effects.CommitEvent(ctx, runs.EventCommit{
+		RunID: "run_model", SessionID: "ses_model", Items: []transcript.Item{item},
+		ModelInvocations: []runs.ModelInvocationCommit{completion}, Progress: &progress,
+	}); err != nil {
+		t.Fatalf("commit final: %v", err)
+	}
+	if err := db.QueryRowContext(ctx,
+		`SELECT state FROM model_invocations WHERE call_id = ?`, "model_call_1",
+	).Scan(&invocationState); err != nil || invocationState != "completed" {
+		t.Fatalf("invocation after commit = %q err=%v, want completed", invocationState, err)
+	}
+	recorded, err := history.List(ctx, "ses_model")
+	if err != nil || len(recorded) != 1 || recorded[0].ID != item.ID {
+		t.Fatalf("history after commit = %#v err=%v", recorded, err)
+	}
+	persistedRun, found, err := runState.Run(ctx, "run_model")
+	if err != nil || !found || persistedRun.Metrics.Steps != 1 || persistedRun.Metrics.Usage == nil ||
+		persistedRun.Metrics.Usage.InputTokens != 2 || persistedRun.Metrics.Usage.OutputTokens != 1 {
+		t.Fatalf("Run accounting after commit = %#v found=%v err=%v", persistedRun.Metrics, found, err)
+	}
+}
+
+func TestCommitEventAtomicallyRecordsCanonicalToolBatch(t *testing.T) {
+	db, err := sqlite.Open(t.Context(), ":memory:")
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	ctx := t.Context()
+	startedAt := time.Date(2026, 8, 8, 4, 5, 6, 0, time.UTC)
+	finishedAt := startedAt.Add(time.Second)
+	runState := sqlite.NewRunStore(db)
+	if err := runState.Admit(ctx, run.RunDraft{
+		RunID: "run_tools", SessionID: "ses_tools", SegmentID: "seg_tools", CreatedAt: startedAt,
+	}); err != nil {
+		t.Fatalf("admit: %v", err)
+	}
+	history := sqlite.NewTranscriptStore(db)
+	invocations := sqlite.NewToolInvocationStore(db)
+	effects := New(Config{
+		Transcript: history, ToolInvocations: invocations, RunMetrics: runState,
+		Tx: func(ctx context.Context, fn func(context.Context) error) error {
+			return sqlite.RunInTx(ctx, db, fn)
+		},
+	})
+	starts := []runs.ToolInvocationCommit{
+		{CallID: "tool_first", ItemID: "item_first", SegmentID: "seg_tools", State: runs.ToolInvocationStarted, StartedAt: startedAt},
+		{CallID: "tool_second", ItemID: "item_second", SegmentID: "seg_tools", State: runs.ToolInvocationStarted, StartedAt: startedAt},
+	}
+	for _, start := range starts {
+		if err := effects.CommitEvent(ctx, runs.EventCommit{
+			RunID: "run_tools", SessionID: "ses_tools", ToolInvocations: []runs.ToolInvocationCommit{start},
+		}); err != nil {
+			t.Fatalf("commit Tool start %q: %v", start.CallID, err)
+		}
+	}
+
+	items := make([]transcript.Item, 0, 2)
+	terminals := make([]runs.ToolInvocationCommit, 0, 2)
+	for index, start := range starts {
+		name := []string{"first", "second"}[index]
+		result := tool.StringResult(name + "-result")
+		items = append(items, transcript.Item{
+			SessionID: "ses_tools", RunID: "run_tools", ID: start.ItemID,
+			OccurredAt: startedAt, FinishedAt: finishedAt,
+			Status: transcript.ItemCompleted, Kind: transcript.ToolCall,
+			Tool:        &transcript.ToolInvocation{Name: name, Arguments: tool.Arguments{}, Result: &result},
+			SafetyClass: tool.SafetyClassSafe,
+		})
+		terminals = append(terminals, runs.ToolInvocationCommit{
+			CallID: start.CallID, ItemID: start.ItemID, SegmentID: start.SegmentID,
+			State: runs.ToolInvocationCompleted, StartedAt: startedAt, FinishedAt: finishedAt,
+		})
+	}
+	wrongSegment := runs.RunProgressCommit{
+		SegmentID: "seg_wrong", Metrics: transcript.RunMetrics{}, UpdatedAt: finishedAt,
+	}
+	err = effects.CommitEvent(ctx, runs.EventCommit{
+		RunID: "run_tools", SessionID: "ses_tools", Items: items,
+		ToolInvocations: terminals, Progress: &wrongSegment,
+	})
+	if err == nil {
+		t.Fatal("canonical Tool batch with a stale segment fence succeeded")
+	}
+	if recorded, err := history.List(ctx, "ses_tools"); err != nil || len(recorded) != 0 {
+		t.Fatalf("history after rollback = %#v err=%v, want empty", recorded, err)
+	}
+	for _, callID := range []string{"tool_first", "tool_second"} {
+		var state string
+		if err := db.QueryRowContext(ctx,
+			`SELECT state FROM tool_invocations WHERE call_id = ?`, callID,
+		).Scan(&state); err != nil || state != "started" {
+			t.Fatalf("Tool invocation %q after rollback = %q err=%v, want started", callID, state, err)
+		}
+	}
+
+	progress := wrongSegment
+	progress.SegmentID = "seg_tools"
+	if err := effects.CommitEvent(ctx, runs.EventCommit{
+		RunID: "run_tools", SessionID: "ses_tools", Items: items,
+		ToolInvocations: terminals, Progress: &progress,
+	}); err != nil {
+		t.Fatalf("commit canonical Tool batch: %v", err)
+	}
+	recorded, err := history.List(ctx, "ses_tools")
+	if err != nil || len(recorded) != 2 || recorded[0].ID != "item_first" || recorded[1].ID != "item_second" {
+		t.Fatalf("canonical history = %#v err=%v", recorded, err)
+	}
+	for _, callID := range []string{"tool_first", "tool_second"} {
+		var state string
+		if err := db.QueryRowContext(ctx,
+			`SELECT state FROM tool_invocations WHERE call_id = ?`, callID,
+		).Scan(&state); err != nil || state != "completed" {
+			t.Fatalf("Tool invocation %q after commit = %q err=%v, want completed", callID, state, err)
+		}
+	}
+}
+
 func TestCommitOpeningResumesRunTreeAtomically(t *testing.T) {
 	for _, test := range []struct {
 		name        string

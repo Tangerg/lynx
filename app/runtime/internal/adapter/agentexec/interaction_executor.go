@@ -9,15 +9,21 @@ import (
 	"math"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
 
 	agent "github.com/Tangerg/lynx/agent2"
 	"github.com/Tangerg/lynx/agent2/interaction"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/executionctx"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/accounting"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
+	domaintool "github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/chatclient"
 	corechat "github.com/Tangerg/lynx/core/chat"
+	toolcontract "github.com/Tangerg/lynx/tool"
 )
 
 const (
@@ -27,6 +33,8 @@ const (
 	defaultInteractionModelCalls     = 64
 	interactionEventBuffer           = 64
 	interactionReleaseReason         = "runtime released execution resources"
+	defaultUnknownEffectPollInterval = time.Second
+	interactionDoomLoopThreshold     = 3
 )
 
 // InteractionChatResolver resolves the exact model client selected by a Run.
@@ -40,13 +48,25 @@ type InteractionChatResolver interface {
 // executable Interaction adapter or behavior-affecting dispatcher configuration
 // changes, so Agent2 Deployment references remain honest.
 type InteractionExecutorConfig struct {
-	DefaultClient          *chatclient.Client
-	ChatResolver           InteractionChatResolver
-	ImplementationIdentity string
-	ConfigurationIdentity  string
-	DefaultMaxModelCalls   uint32
-	StreamModelResponses   bool
-	DeltaBufferCapacity    int
+	DefaultClient             *chatclient.Client
+	ChatResolver              InteractionChatResolver
+	ImplementationIdentity    string
+	ConfigurationIdentity     string
+	DefaultMaxModelCalls      uint32
+	StreamModelResponses      bool
+	DeltaBufferCapacity       int
+	MaxConcurrentToolCalls    int
+	ToolResolver              InteractionToolResolver
+	ToolInterpreter           InteractionToolInterpreter
+	ToolPresenter             InteractionToolPresenter
+	ToolAuthorizer            AutomaticToolAuthorizer
+	ToolHooks                 InteractionToolHooks
+	ToolResultStore           toolResultOffloader
+	ToolResultThreshold       int
+	ToolResultReaderName      string
+	Pricing                   accounting.Pricing
+	Provider                  string
+	UnknownEffectPollInterval time.Duration
 }
 
 // InteractionExecutor is the native Agent2 root execution adapter. Each staged
@@ -63,8 +83,24 @@ type InteractionExecutor struct {
 // Engine, goroutine, model call, or tool call; those resources are per staged
 // root execution.
 func NewInteractionExecutor(config InteractionExecutorConfig) (*InteractionExecutor, error) {
-	if config.DefaultClient == nil && config.ChatResolver == nil {
+	if config.DefaultClient == nil && isNilInteractionCapability(config.ChatResolver) {
 		return nil, errors.New("agentexec: native Interaction requires a chat client or resolver")
+	}
+	for _, capability := range []struct {
+		name  string
+		value any
+	}{
+		{name: "chat resolver", value: config.ChatResolver},
+		{name: "Tool resolver", value: config.ToolResolver},
+		{name: "Tool interpreter", value: config.ToolInterpreter},
+		{name: "Tool presenter", value: config.ToolPresenter},
+		{name: "Tool authorizer", value: config.ToolAuthorizer},
+		{name: "Tool hooks", value: config.ToolHooks},
+		{name: "Tool-result store", value: config.ToolResultStore},
+	} {
+		if capability.value != nil && isNilInteractionCapability(capability.value) {
+			return nil, fmt.Errorf("agentexec: native Interaction %s is typed nil", capability.name)
+		}
 	}
 	if strings.TrimSpace(config.ImplementationIdentity) == "" ||
 		config.ImplementationIdentity != strings.TrimSpace(config.ImplementationIdentity) {
@@ -76,6 +112,27 @@ func NewInteractionExecutor(config InteractionExecutorConfig) (*InteractionExecu
 	}
 	if config.DeltaBufferCapacity < 0 {
 		return nil, errors.New("agentexec: native Interaction delta buffer capacity must not be negative")
+	}
+	if config.MaxConcurrentToolCalls < 0 {
+		return nil, errors.New("agentexec: native Interaction Tool concurrency must not be negative")
+	}
+	if config.ToolResultThreshold < 0 {
+		return nil, errors.New("agentexec: native Interaction Tool-result threshold must not be negative")
+	}
+	if !isNilInteractionCapability(config.ToolResultStore) && config.ToolResultThreshold > 0 {
+		if strings.TrimSpace(config.ToolResultReaderName) == "" ||
+			config.ToolResultReaderName != strings.TrimSpace(config.ToolResultReaderName) {
+			return nil, errors.New("agentexec: native Interaction Tool-result reader name is required without surrounding whitespace when offload is enabled")
+		}
+	}
+	if config.UnknownEffectPollInterval < 0 {
+		return nil, errors.New("agentexec: native Interaction unknown-Effect poll interval must not be negative")
+	}
+	if config.Provider != strings.TrimSpace(config.Provider) {
+		return nil, errors.New("agentexec: native Interaction provider has surrounding whitespace")
+	}
+	if config.UnknownEffectPollInterval == 0 {
+		config.UnknownEffectPollInterval = defaultUnknownEffectPollInterval
 	}
 	if config.DefaultMaxModelCalls == 0 {
 		config.DefaultMaxModelCalls = defaultInteractionModelCalls
@@ -125,28 +182,79 @@ func (executor *InteractionExecutor) StageRoot(
 	if err != nil {
 		return runs.ExecutorRef{}, fmt.Errorf("agentexec: build native Interaction definition: %w", err)
 	}
+	ref := runs.ExecutorRef{SessionID: start.SessionID, ExecutorID: "exec_" + uuid.NewString()}
+	session := newInteractionSession(ref, start, executor.config)
+	executionCtx := executionctx.WithScope(ctx, rootExecutionScope(start))
+	manifest := toolset.Manifest{}
+	if executor.config.ToolResolver != nil {
+		manifest, err = executor.config.ToolResolver.Manifest(executionCtx, domaintool.GroupRoot)
+		if err != nil {
+			return runs.ExecutorRef{}, fmt.Errorf("agentexec: resolve native Interaction Tools: %w", err)
+		}
+		manifest = manifest.Clone()
+	}
+	if err := validateToolManifest(manifest); err != nil {
+		return runs.ExecutorRef{}, err
+	}
+	if len(manifest.Visible)+len(manifest.Deferred) > 0 {
+		if executor.config.ToolInterpreter == nil {
+			return runs.ExecutorRef{}, errors.New("agentexec: native Interaction Tools require a Tool interpreter")
+		}
+		if executor.config.ToolAuthorizer == nil {
+			return runs.ExecutorRef{}, errors.New("agentexec: native Interaction Tools require an automatic authorizer")
+		}
+		for _, tools := range [][]toolcontract.Tool{manifest.Visible, manifest.Deferred} {
+			for _, executable := range tools {
+				name := executable.Definition().Name
+				if class := executor.config.ToolInterpreter.SafetyClass(name); !class.Valid() {
+					return runs.ExecutorRef{}, fmt.Errorf(
+						"agentexec: native Interaction Tool %q has invalid safety class %q",
+						name,
+						class,
+					)
+				}
+			}
+		}
+	}
+	observedClient, err := newObservedInteractionClient(client, session)
+	if err != nil {
+		return runs.ExecutorRef{}, fmt.Errorf("agentexec: observe native Interaction client: %w", err)
+	}
+	visibleTools, deferredTools := wrapInteractionTools(manifest, session, executor.config, start)
 	dispatcher, err := interaction.NewDispatcher(definition, interaction.DispatcherConfig{
-		Client: client, StreamModelResponses: executor.config.StreamModelResponses,
+		Client: observedClient, Tools: visibleTools, DeferredTools: deferredTools,
+		MaxConcurrentToolCalls: executor.config.MaxConcurrentToolCalls,
+		StreamModelResponses:   executor.config.StreamModelResponses,
 	})
 	if err != nil {
 		return runs.ExecutorRef{}, fmt.Errorf("agentexec: build native Interaction dispatcher: %w", err)
 	}
+	trackedDispatcher := &interactionDispatcher{inner: dispatcher, session: session}
 	configuration, err := json.Marshal(struct {
-		Identity      string `json:"identity"`
-		Provider      string `json:"provider"`
-		Model         string `json:"model"`
-		MaxModelCalls uint32 `json:"maxModelCalls"`
-		Streaming     bool   `json:"streaming"`
+		Identity               string                    `json:"identity"`
+		Provider               string                    `json:"provider"`
+		Model                  string                    `json:"model"`
+		MaxModelCalls          uint32                    `json:"maxModelCalls"`
+		Streaming              bool                      `json:"streaming"`
+		MaxConcurrentToolCalls int                       `json:"maxConcurrentToolCalls"`
+		ToolResultThreshold    int                       `json:"toolResultThreshold"`
+		ToolResultReaderName   string                    `json:"toolResultReaderName,omitempty"`
+		VisibleTools           []corechat.ToolDefinition `json:"visibleTools,omitempty"`
+		DeferredTools          []corechat.ToolDefinition `json:"deferredTools,omitempty"`
 	}{
 		Identity: executor.config.ConfigurationIdentity,
-		Provider: start.ModelSelection.Provider(), Model: start.ModelSelection.Model(),
+		Provider: session.provider, Model: start.ModelSelection.Model(),
 		MaxModelCalls: maxModelCalls, Streaming: executor.config.StreamModelResponses,
+		MaxConcurrentToolCalls: executor.config.MaxConcurrentToolCalls,
+		ToolResultThreshold:    executor.config.ToolResultThreshold,
+		ToolResultReaderName:   executor.config.ToolResultReaderName,
+		VisibleTools:           toolDefinitions(manifest.Visible), DeferredTools: toolDefinitions(manifest.Deferred),
 	})
 	if err != nil {
 		return runs.ExecutorRef{}, fmt.Errorf("agentexec: encode native Interaction configuration identity: %w", err)
 	}
 	deployment, err := agent.NewDeployment(agent.DeploymentConfig{
-		Definition: definition, Dispatcher: dispatcher,
+		Definition: definition, Dispatcher: trackedDispatcher,
 		ImplementationDigest: agent.ComputeDigest([]byte(executor.config.ImplementationIdentity)),
 		ConfigurationDigest:  agent.ComputeDigest(configuration),
 	})
@@ -160,8 +268,8 @@ func (executor *InteractionExecutor) StageRoot(
 		return runs.ExecutorRef{}, fmt.Errorf("agentexec: encode native Interaction input: %w", err)
 	}
 
-	ref := runs.ExecutorRef{SessionID: start.SessionID, ExecutorID: "exec_" + uuid.NewString()}
-	session := newInteractionSession(ref, deployment, input)
+	session.deployment = deployment
+	session.input = input
 	engine, err := agent.NewEngine(agent.EngineConfig{
 		DeploymentResolver:  exactDeploymentResolver{deployment: deployment},
 		ProcessAdmitter:     agent.ProcessAdmitterFunc(session.admitRoot),
@@ -185,6 +293,14 @@ func (executor *InteractionExecutor) StageRoot(
 	}
 	executor.sessions[ref.ExecutorID] = session
 	return ref, nil
+}
+
+func toolDefinitions(tools []toolcontract.Tool) []corechat.ToolDefinition {
+	definitions := make([]corechat.ToolDefinition, len(tools))
+	for index, executable := range tools {
+		definitions[index] = executable.Definition().Clone()
+	}
+	return definitions
 }
 
 // Observe attaches the single Application Run pump before Process start.
@@ -229,14 +345,25 @@ func (executor *InteractionExecutor) BeginRoot(ctx context.Context, ref runs.Exe
 		session.failStart()
 		return errors.New("agentexec: native Interaction execution must be observed before begin")
 	}
-	process, err := session.engine.Start(ctx, session.deployment, session.input)
+	process, err := session.engine.Start(
+		executionctx.WithScope(ctx, session.scope),
+		session.deployment,
+		session.input,
+	)
 	if err != nil {
 		session.failStart()
 		return fmt.Errorf("agentexec: start native Interaction: %w", err)
 	}
 	session.setProcess(process)
-	go session.await()
+	session.startWorkers()
 	return nil
+}
+
+func rootExecutionScope(start runs.RootExecutionStart) runs.ExecutionScope {
+	return runs.ExecutionScope{
+		SessionID: start.SessionID, CWD: start.CWD, WorkspaceCWD: start.WorkspaceCWD,
+		Isolated: start.Isolated, GoalLeaseID: start.GoalLeaseID,
+	}
 }
 
 // Release tears down one staged or terminal per-root Engine. It is idempotent

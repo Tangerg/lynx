@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/goal"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
@@ -63,14 +64,155 @@ const (
 	StateTerminalize
 )
 
+// ModelInvocationState records the durable application observation of one
+// provider call. It is deliberately smaller than a model response: semantic
+// output belongs to Transcript Items and accounting belongs to RunProgressCommit.
+// This record exists to distinguish an invocation that never crossed the
+// provider boundary from one whose final projection became indeterminate.
+type ModelInvocationState uint8
+
+const (
+	ModelInvocationStarted ModelInvocationState = iota + 1
+	ModelInvocationCompleted
+	ModelInvocationFailed
+	ModelInvocationUnknown
+)
+
+// ModelInvocationCommit is one monotonic transition in the durable invocation
+// journal. StartedAt is repeated on terminal transitions so persistence can
+// compare the exact attempt instead of updating whichever row happens to share
+// CallID.
+type ModelInvocationCommit struct {
+	CallID     string
+	SegmentID  string
+	State      ModelInvocationState
+	StartedAt  time.Time
+	FinishedAt time.Time
+}
+
+// ToolInvocationState records whether one model-requested Tool call has only
+// started, reached a definite result, or was closed without one at a Run
+// boundary. Final Tool content still has exactly one owner: the Transcript Item
+// committed beside the terminal transition.
+type ToolInvocationState uint8
+
+const (
+	ToolInvocationStarted ToolInvocationState = iota + 1
+	ToolInvocationCompleted
+	ToolInvocationIncomplete
+)
+
+// ToolInvocationCommit is the durable pre-call/terminal attempt transition for
+// one canonical Tool Item. ItemID connects the operational start boundary to
+// the eventual Transcript projection without copying arguments or result data.
+type ToolInvocationCommit struct {
+	CallID     string
+	ItemID     string
+	SegmentID  string
+	State      ToolInvocationState
+	StartedAt  time.Time
+	FinishedAt time.Time
+}
+
+func (commit ToolInvocationCommit) validate() error {
+	for _, identity := range []struct {
+		name  string
+		value string
+	}{
+		{name: "call", value: commit.CallID},
+		{name: "Item", value: commit.ItemID},
+		{name: "segment", value: commit.SegmentID},
+	} {
+		name, value := identity.name, identity.value
+		if strings.TrimSpace(value) == "" || value != strings.TrimSpace(value) {
+			return fmt.Errorf("runs: Tool invocation %s ID is required without surrounding whitespace", name)
+		}
+	}
+	if commit.StartedAt.IsZero() {
+		return errors.New("runs: Tool invocation start time is required")
+	}
+	switch commit.State {
+	case ToolInvocationStarted:
+		if !commit.FinishedAt.IsZero() {
+			return errors.New("runs: started Tool invocation carries a finish time")
+		}
+	case ToolInvocationCompleted, ToolInvocationIncomplete:
+		if commit.FinishedAt.IsZero() {
+			return errors.New("runs: terminal Tool invocation has no finish time")
+		}
+		if commit.FinishedAt.Before(commit.StartedAt) {
+			return errors.New("runs: Tool invocation finish time precedes start time")
+		}
+	default:
+		return fmt.Errorf("runs: Tool invocation has unknown state %d", commit.State)
+	}
+	return nil
+}
+
+func (commit ModelInvocationCommit) validate() error {
+	if strings.TrimSpace(commit.CallID) == "" || commit.CallID != strings.TrimSpace(commit.CallID) {
+		return errors.New("runs: model invocation call ID is required without surrounding whitespace")
+	}
+	if strings.TrimSpace(commit.SegmentID) == "" || commit.SegmentID != strings.TrimSpace(commit.SegmentID) {
+		return errors.New("runs: model invocation segment ID is required without surrounding whitespace")
+	}
+	if commit.StartedAt.IsZero() {
+		return errors.New("runs: model invocation start time is required")
+	}
+	switch commit.State {
+	case ModelInvocationStarted:
+		if !commit.FinishedAt.IsZero() {
+			return errors.New("runs: started model invocation carries a finish time")
+		}
+	case ModelInvocationCompleted, ModelInvocationFailed, ModelInvocationUnknown:
+		if commit.FinishedAt.IsZero() {
+			return errors.New("runs: terminal model invocation has no finish time")
+		}
+		if commit.FinishedAt.Before(commit.StartedAt) {
+			return errors.New("runs: model invocation finish time precedes start time")
+		}
+	default:
+		return fmt.Errorf("runs: model invocation has unknown state %d", commit.State)
+	}
+	return nil
+}
+
+// RunProgressCommit is the durable cumulative accounting snapshot produced at
+// a model-response boundary. SegmentID fences the update to the exact running
+// segment; a stale continuation cannot overwrite a newer Run.
+type RunProgressCommit struct {
+	SegmentID string
+	Metrics   transcript.RunMetrics
+	UpdatedAt time.Time
+}
+
+func (progress RunProgressCommit) validate() error {
+	if strings.TrimSpace(progress.SegmentID) == "" || progress.SegmentID != strings.TrimSpace(progress.SegmentID) {
+		return errors.New("runs: progress segment ID is required without surrounding whitespace")
+	}
+	if progress.UpdatedAt.IsZero() {
+		return errors.New("runs: progress update time is required")
+	}
+	if err := progress.Metrics.Validate(); err != nil {
+		return fmt.Errorf("runs: progress metrics: %w", err)
+	}
+	return nil
+}
+
 type EventCommit struct {
 	RunID     string
 	SessionID string
 	State     StateChange
 	Outcome   run.Outcome
 	Items     []transcript.Item
-	Run       *transcript.Run
-	GoalRun   *goal.RunRecord
+	// ModelInvocations and Progress are application observations committed in
+	// the same transaction as the semantic Transcript Items derived from one
+	// authoritative executor fact.
+	ModelInvocations []ModelInvocationCommit
+	ToolInvocations  []ToolInvocationCommit
+	Progress         *RunProgressCommit
+	Run              *transcript.Run
+	GoalRun          *goal.RunRecord
 	// ObsoleteCheckpointRootID identifies the executor checkpoint aggregate the
 	// root Run terminal makes obsolete. Child terminal commits leave it empty.
 	ObsoleteCheckpointRootID string
@@ -99,6 +241,36 @@ func (c EventCommit) Validate() error {
 		seenItems[item.ID] = struct{}{}
 		if err := item.Validate(); err != nil {
 			return fmt.Errorf("runs: event commit Item %q: %w", item.ID, err)
+		}
+	}
+	seenInvocations := make(map[string]struct{}, len(c.ModelInvocations))
+	for index, invocation := range c.ModelInvocations {
+		if err := invocation.validate(); err != nil {
+			return fmt.Errorf("runs: event commit model invocation[%d]: %w", index, err)
+		}
+		if _, duplicate := seenInvocations[invocation.CallID]; duplicate {
+			return fmt.Errorf("runs: event commit repeats model invocation %q", invocation.CallID)
+		}
+		seenInvocations[invocation.CallID] = struct{}{}
+	}
+	seenTools := make(map[string]struct{}, len(c.ToolInvocations))
+	seenToolItems := make(map[string]struct{}, len(c.ToolInvocations))
+	for index, invocation := range c.ToolInvocations {
+		if err := invocation.validate(); err != nil {
+			return fmt.Errorf("runs: event commit Tool invocation[%d]: %w", index, err)
+		}
+		if _, duplicate := seenTools[invocation.CallID]; duplicate {
+			return fmt.Errorf("runs: event commit repeats Tool invocation %q", invocation.CallID)
+		}
+		if _, duplicate := seenToolItems[invocation.ItemID]; duplicate {
+			return fmt.Errorf("runs: event commit repeats Tool invocation Item %q", invocation.ItemID)
+		}
+		seenTools[invocation.CallID] = struct{}{}
+		seenToolItems[invocation.ItemID] = struct{}{}
+	}
+	if c.Progress != nil {
+		if err := c.Progress.validate(); err != nil {
+			return err
 		}
 	}
 
@@ -172,6 +344,9 @@ func validateTerminalGoalRun(run transcript.Run, record *goal.RunRecord) error {
 
 func (c EventCommit) isEmpty() bool {
 	return len(c.Items) == 0 &&
+		len(c.ModelInvocations) == 0 &&
+		len(c.ToolInvocations) == 0 &&
+		c.Progress == nil &&
 		c.Run == nil &&
 		c.GoalRun == nil &&
 		c.ObsoleteCheckpointRootID == "" &&

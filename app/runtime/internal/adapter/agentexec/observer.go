@@ -397,27 +397,13 @@ func (o *toolObservation) resultRef(ref ProcessRef, round int, result chat.ToolR
 // would loop), or the offload fails (best-effort — degrade to the full body
 // rather than fail an otherwise-successful call).
 func (o *toolObservation) evict(ctx context.Context, toolName, output string) (string, *toolresult.Ref) {
-	if o.evictStore == nil || o.evictThreshold <= 0 || len(output) <= o.evictThreshold {
-		return output, nil
-	}
-	if toolName == o.readToolName {
-		return output, nil
-	}
-	sessionID := executionctx.SessionID(ctx)
-	if sessionID == "" {
-		return output, nil
-	}
-	id := toolresult.NewID()
-	preview := renderToolResultPreview(output, string(id), o.readToolName, min(toolResultPreviewBytes, o.evictThreshold))
-	if len(preview) >= len(output) {
-		// Very small configured thresholds can make the retrieval marker larger
-		// than the body. Keep the body inline without staging any durable state.
-		return output, nil
-	}
-	if err := o.evictStore.Stage(ctx, toolresult.Stage{
-		ID: id, SessionID: sessionID, ToolName: toolName, Body: output,
-	}); err != nil {
-		return output, nil
-	}
-	return preview, &toolresult.Ref{ID: id}
+	return evictToolResult(
+		ctx,
+		o.evictStore,
+		o.evictThreshold,
+		o.readToolName,
+		executionctx.SessionID(ctx),
+		toolName,
+		output,
+	)
 }

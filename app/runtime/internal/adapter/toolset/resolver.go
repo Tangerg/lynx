@@ -311,51 +311,74 @@ type toolGroup struct {
 }
 
 func (g *toolGroup) Tools(ctx context.Context) ([]toolcontract.Tool, error) {
-	cwd := g.resolver.cwdFor(ctx)
-	localTools := g.resolver.toolsForCWD(cwd)
+	resolved, err := g.resolver.resolve(ctx, g.role)
+	if err != nil {
+		return nil, err
+	}
+	return resolved.all, nil
+}
+
+// Manifest resolves one role's frozen, framework-neutral Tool visibility. It
+// is the integration surface for execution strategies that distinguish initial
+// visibility from deferred executable authority without importing this package
+// into their framework.
+func (r *Resolver) Manifest(ctx context.Context, role string) (Manifest, error) {
+	resolved, err := r.resolve(ctx, role)
+	if err != nil {
+		return Manifest{}, err
+	}
+	return resolved.manifest(), nil
+}
+
+func (r *Resolver) resolve(ctx context.Context, role string) (resolution, error) {
+	if role != domaintool.GroupRoot && role != domaintool.GroupDelegated {
+		return resolution{}, fmt.Errorf("toolset: unsupported tool role %q", role)
+	}
+	cwd := r.cwdFor(ctx)
+	localTools := r.toolsForCWD(cwd)
 	var tools resolution
 	tools.direct(localTools.readSearch...)
 	tools.direct(localTools.applyPatch)
-	tools.deferTools(g.resolver.online...)
-	mcpTools := g.resolver.mcpTools()
+	tools.deferTools(r.online...)
+	mcpTools := r.mcpTools()
 	tools.deferTools(mcpTools...)
-	tools.deferTools(g.resolver.a2a...)
-	tools.deferTools(g.resolver.lsp...)
-	tools.direct(g.resolver.shell...)
+	tools.deferTools(r.a2a...)
+	tools.deferTools(r.lsp...)
+	tools.direct(r.shell...)
 	// Skill tools are working-directory scoped (project skills live under the
 	// Run's cwd), so they are built per resolution like filesystem tools and are
 	// available to both root and delegated roles. No tools when no skills exist.
-	skillTools, err := skill.BuildReaders(cwd, g.resolver.skillsUserDir, g.resolver.skillUsage)
+	skillTools, err := skill.BuildReaders(cwd, r.skillsUserDir, r.skillUsage)
 	if err != nil {
-		return nil, fmt.Errorf("toolset: resolve skill tools: %w", err)
+		return resolution{}, fmt.Errorf("toolset: resolve skill tools: %w", err)
 	}
 	tools.deferTools(skillTools...)
 	// Built-once, session-keyed helpers (plan/result/memory/transcript search)
 	// are projected from the resolver's role and placement policy.
-	if err := g.resolver.appendStatic(ctx, &tools, afterSkill, g.role); err != nil {
-		return nil, err
+	if err := r.appendStatic(ctx, &tools, afterSkill, role); err != nil {
+		return resolution{}, err
 	}
 	// Both roles can ask the user; Plan-mode controls in this placement remain
 	// root-only. A child question parks through the same nested suspension tree
 	// as a child approval.
-	if err := g.resolver.appendStatic(ctx, &tools, afterCodebase, g.role); err != nil {
-		return nil, err
+	if err := r.appendStatic(ctx, &tools, afterCodebase, role); err != nil {
+		return resolution{}, err
 	}
-	if delegation := g.resolver.delegationTool(); delegation != nil {
+	if delegation := r.delegationTool(); delegation != nil {
 		tools.direct(delegation)
 	}
-	if g.role == domaintool.GroupRoot {
+	if role == domaintool.GroupRoot {
 		// Goal lifecycle entry is late-bound because its application Driver owns
 		// Runs, while the resolver itself was needed to build the Agent executor.
 		// Keep only the generic tool at this seam; no Driver or runtime state enters
 		// the Agent module.
-		if createGoal := g.resolver.createGoalTool(); createGoal != nil {
+		if createGoal := r.createGoalTool(); createGoal != nil {
 			tools.direct(createGoal)
 		}
 		// The remaining schedule and Goal state capabilities are
 		// product-root operations rather than generic child execution tools.
-		if err := g.resolver.appendStatic(ctx, &tools, rootTail, g.role); err != nil {
-			return nil, err
+		if err := r.appendStatic(ctx, &tools, rootTail, role); err != nil {
+			return resolution{}, err
 		}
 	}
 	// search_tools is the sole model-facing entry to every capability withheld
@@ -363,10 +386,10 @@ func (g *toolGroup) Tools(ctx context.Context) ([]toolcontract.Tool, error) {
 	// registry, so promotion changes visibility rather than execution authority.
 	search, err := discovery.New(tools.deferred)
 	if err != nil {
-		return nil, fmt.Errorf("toolset: resolve search_tools: %w", err)
+		return resolution{}, fmt.Errorf("toolset: resolve search_tools: %w", err)
 	}
 	if search != nil {
 		tools.direct(search)
 	}
-	return tools.all, nil
+	return tools, nil
 }

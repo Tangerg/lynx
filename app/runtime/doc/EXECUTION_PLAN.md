@@ -1,6 +1,6 @@
 # Lyra Runtime 重构实施计划
 
-> 状态：P4 原生 Interaction root 纵切已完成；下一阶段 P5
+> 状态：P5 权威 model/tool observation 与 Tool 接线已完成；下一阶段 P6
 >
 > 工作方式：原模块内治本重构，按可验证纵切分批完成；不创建完整 `runtime2`
 
@@ -37,7 +37,7 @@
 | P2 | Run 领域语言与 bounded contexts | P1 | 已完成 |
 | P3 | Application root use cases 与候选消费端口 | P2 | 已完成 |
 | P4 | 原生 Interaction 的 root 纵切 | P3 | 已完成 |
-| P5 | 权威 model/tool observation 与 Tool 接线 | P4 | 未开始 |
+| P5 | 权威 model/tool observation 与 Tool 接线 | P4 | 已完成 |
 | P6 | waiting、checkpoint、restore、resume、steer | P5 | 未开始 |
 | P7 | Delegate child Run 与 waiting subtree | P6 + 两项 Agent2 中性合同 | 未开始 |
 | P8 | terminal、recovery 与跨聚合一致性收口 | P7 | 未开始 |
@@ -221,6 +221,18 @@
 - live unknown 不永久挂起：listener 丢失仍被 reconciliation 发现；RunLost transaction 失败可重试且不会提前 Kill；unknown 与 cancel/deadline 竞争有唯一 Lost-first 映射；
 - Toolset production 对 Agent2 零 import。
 
+### 完成事实
+
+- outer Dispatcher 为每个 Agent2 Effect 建立 context-scoped、按 EffectID 校验且并发安全的 dispatch-attempt tracker；model/Tool started 必须先完成 Application receipt 才跨过外部调用边界，post-call final/result/usage commit 失败统一使整个 Effect 进入 unknown，pre-call 失败保证零外呼；
+- Application Run pump 仍是唯一 reducer/persistence writer。authoritative fact 使用同一 executor stream 的 commit/receipt handshake 和 speculative reducer，完整 Transcript、invocation journal、Run metrics 与 live publication 只有在一个 write-set 成功后才生效；
+- SQLite epoch 61 新增 model/tool invocation operational journals。它们只保存 attempt started/completed/failed/unknown/incomplete 边界，不复制语义 final/result；完整 model final + cumulative usage/pricing + Run progress 同事务提交，Tool final Items 与 invocation terminal 同事务提交；
+- 并发 Tool 的 start 不占用 Transcript 顺序；pump 暂存乱序完成结果，只在形成模型声明顺序的连续前缀时批量提交，并一起结算所有 receipt。批量失败会丢弃 speculative results，保留 started journal，随后以 incomplete Tool Items + `RunLost` 原子收口；
+- Toolset 使用唯一 framework-neutral `toolset.Manifest`；现有 `toolset.Resolver` 直接满足 native Interaction 的消费端口，Runtime execution scope 同时绑定到 manifest resolution 和实际 Tool context。`search_tools` 通过精确 callback 调用 `AdvertiseTools`，Toolset 对 Agent2 零 import；
+- 真实 Tool decorator 保留 safety、自动 allow/deny、argument rewrite、activity/presentation、hooks、result offload、mutation paths 与 doom-loop policy。canonical Tool result 是 settlement truth；可重新读取的 live projection 和 post-hook 失败只进入观测，不把已经确定的 Effect 改成 unknown；
+- model chunk 经过有界 best-effort 队列；Runtime 本地 drop 产生 OTel event，完整 final/usage 独立于 Delta 提交。慢消费反例证明 chunk 丢失不损坏 final 或 usage；
+- live unknown 使用 Dispatcher 直接 wake 与有界 public `UnknownEffectIDs` polling 双通道。Run pump 在 release 前原子提交 started/incomplete diagnostic 与 `RunLost`，终态写失败持续重试；丢 wake、写失败重试和最终 release 顺序均有行为测试；
+- P5 新路径仍只由真实 Agent2 harness 消费，Bootstrap 生产 owner 保持旧 Agent 路径，等待 P8 原子切换；旧 owner 没有扩散，P5 没有引入第二执行 loop 或兼容路径。
+
 ## 10. P6 — Waiting、Checkpoint、Restore、Resume 与 Steer
 
 ### 目标
@@ -401,7 +413,8 @@
 | 2026-08-08 | P2 | SQLite executor checkpoint、pending interrupt 和 workspace mutation 改为 technical records，由 `adapter/persistence` 显式映射 Application values，清除 Infra→Application 反向依赖；终态统一为 Completed/Canceled/TimedOut/Failed/MaxBudget/MaxSteps/Lost，并同步服务端 protocol/schema/generated artifacts | architecture target DAG、Domain test isolation、strict storage codecs、outcome round-trip 与 compatibility differ 通过；`go test ./...`、`go vet ./...`、`go build ./...` 通过 |
 | 2026-08-08 | P3 | 删除 `ExecutionControl`、`SegmentExecutor`、`SessionLifecycle` 与 `Effects` 胖边界；建立 root stage/commit/begin、observe/release 的消费方端口；Run pump 在所有非 Waiting 边界统一释放；Application executor identity 统一为 Member；SQLite epoch 59 一次性采用 `root_member_id`/`memberId` | fake-backed ordering/race/release/waiting tests 与 architecture vocabulary/port-shape guards 通过；`go test ./...`、`go vet ./...`、`go build ./...` 及 runs/sessions/runsegment/SQLite targeted race 通过 |
 | 2026-08-08 | P4 | 在原 `agentexec` 内完成 Agent2 native Interaction root harness；每 root 独立 Engine + exact Deployment；Application 组装完整 Conversation seed；Result final 与 Delta 分离；集中映射 completion/model failure/cancel/deadline/panic；生产旧 owner 保留到 P8 | real Engine/Interaction integration、stage-zero-side-effect、complete WorkingContext、final-without-Delta、termination/panic/release tests 通过；architecture exact old-import ledger 未增长；`go test ./...` 通过 |
+| 2026-08-09 | P5 | 建立 per-Effect dispatch-attempt 与 authoritative commit receipt；model/tool invocation journal、Transcript final、usage/pricing 和 Run progress 原子提交；并发 Tool 乱序完成按模型顺序批量结算；接通唯一 Toolset Manifest、scope、deferred advertisement、approval/hooks/presentation/offload/doom-loop；live unknown 由 wake + polling 收口为 durable RunLost | pre/post-call failure、chunk drop、并发逆序与 batch rollback、lost wake、RunLost retry-before-release、scope propagation、best-effort projection/hook、SQLite transaction/order integration tests 通过；`go mod tidy` diff-free，`go test ./...`、`go vet ./...`、`go build ./...`、`staticcheck ./...` 与 agentexec/runs/runsegment/SQLite targeted race 全绿 |
 
 ## 18. 当前下一步
 
-P4 已完成。下一批进入 P5：围绕真实 Interaction Dispatcher 建立 model/tool authoritative projection 与 dispatch-attempt tracker，接入 Runtime Toolset、usage/pricing/approval/hooks 和 live unknown reconciliation；新路径继续只由真实 harness 消费，直到 P8 能力齐备后原子接管生产 Run。
+P5 已完成。下一批进入 P6：只使用 Agent2 public pending-input、TreeSnapshot、RestoreTree 与 Interaction semantic Signal 建立 waiting/checkpoint/restore/resume/steer 纵切；初版仍不配置 `PreparedStepAcknowledger`，只承诺恢复 Application 已提交的 quiescent complete-tree checkpoint，并严格实现 answer claim 后旧 checkpoint 不可恢复的线性化合同。

@@ -71,6 +71,53 @@ type ToolResultStore interface {
 	Discard(ctx context.Context, sessionID string, ref toolresult.Ref) error
 }
 
+// ModelInvocationJournal applies provider-attempt transitions. It is an
+// operational journal, not a second copy of semantic Transcript output or Run
+// accounting. The consumer-owned methods keep application enums out of storage.
+type ModelInvocationJournal interface {
+	StartModelInvocation(
+		ctx context.Context,
+		sessionID, runID, segmentID, callID string,
+		startedAt time.Time,
+	) error
+	CompleteModelInvocation(
+		ctx context.Context,
+		sessionID, runID, segmentID, callID string,
+		startedAt, finishedAt time.Time,
+	) error
+	FailModelInvocation(
+		ctx context.Context,
+		sessionID, runID, segmentID, callID string,
+		startedAt, finishedAt time.Time,
+	) error
+	MarkModelInvocationUnknown(
+		ctx context.Context,
+		sessionID, runID, segmentID, callID string,
+		startedAt, finishedAt time.Time,
+	) error
+}
+
+// ToolInvocationJournal records pre-call and terminal attempt boundaries without
+// using Transcript insertion order as an operational lock. Final semantic Tool
+// Items are still committed through TranscriptStore in canonical model order.
+type ToolInvocationJournal interface {
+	StartToolInvocation(
+		ctx context.Context,
+		sessionID, runID, segmentID, callID, itemID string,
+		startedAt time.Time,
+	) error
+	CompleteToolInvocation(
+		ctx context.Context,
+		sessionID, runID, segmentID, callID, itemID string,
+		startedAt, finishedAt time.Time,
+	) error
+	MarkToolInvocationIncomplete(
+		ctx context.Context,
+		sessionID, runID, segmentID, callID, itemID string,
+		startedAt, finishedAt time.Time,
+	) error
+}
+
 // RunWriter applies the run's lifecycle transitions inside the event commit
 // (§8.3): an opening admits or resumes it, a park suspends it, and a terminal
 // ends it — each in the SAME transaction as the interrupt / item records it must
@@ -83,6 +130,20 @@ type RunWriter interface {
 	Resume(ctx context.Context, sessionID string, draft run.RunResumeDraft, resumedAt time.Time) error
 	Suspend(ctx context.Context, run transcript.Run) error
 	Terminalize(ctx context.Context, run transcript.Run) error
+}
+
+// RunMetricsWriter updates only cumulative consumption for one exact active
+// segment. Keeping it separate from lifecycle writing lets consumers depend on
+// the narrower behavior they actually exercise.
+type RunMetricsWriter interface {
+	UpdateMetrics(
+		ctx context.Context,
+		sessionID string,
+		runID string,
+		segmentID string,
+		metrics transcript.RunMetrics,
+		updatedAt time.Time,
+	) error
 }
 
 // ExecutorCheckpointStore persists and removes root-owned opaque executor
@@ -134,9 +195,12 @@ type Config struct {
 	Transcript          TranscriptStore
 	ItemReplacer        ItemReplacer
 	ToolResults         ToolResultStore
+	ModelInvocations    ModelInvocationJournal
+	ToolInvocations     ToolInvocationJournal
 	Messages            MessageCounter
 	Titles              TitleGenerator
 	RunState            RunWriter
+	RunMetrics          RunMetricsWriter
 	ExecutorCheckpoints ExecutorCheckpointStore
 	Tx                  Transactor
 	Checkpoints         Checkpoints
@@ -154,9 +218,12 @@ type Effects struct {
 	transcript          TranscriptStore
 	itemReplacer        ItemReplacer
 	toolResults         ToolResultStore
+	modelInvocations    ModelInvocationJournal
+	toolInvocations     ToolInvocationJournal
 	messages            MessageCounter
 	titles              TitleGenerator
 	runState            RunWriter
+	runMetrics          RunMetricsWriter
 	executorCheckpoints ExecutorCheckpointStore
 	tx                  Transactor
 	checkpoints         Checkpoints
@@ -185,9 +252,12 @@ func New(cfg Config) *Effects {
 		transcript:          cfg.Transcript,
 		itemReplacer:        cfg.ItemReplacer,
 		toolResults:         cfg.ToolResults,
+		modelInvocations:    cfg.ModelInvocations,
+		toolInvocations:     cfg.ToolInvocations,
 		messages:            cfg.Messages,
 		titles:              cfg.Titles,
 		runState:            cfg.RunState,
+		runMetrics:          cfg.RunMetrics,
 		executorCheckpoints: cfg.ExecutorCheckpoints,
 		tx:                  cfg.Tx,
 		checkpoints:         cfg.Checkpoints,

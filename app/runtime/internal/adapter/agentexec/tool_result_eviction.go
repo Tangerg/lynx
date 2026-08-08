@@ -18,3 +18,34 @@ type toolResultOffloader interface {
 // the retrieval marker. The observer rejects the candidate if that fixed marker
 // makes it no smaller than the original body.
 const toolResultPreviewBytes = 2000
+
+func evictToolResult(
+	ctx context.Context,
+	store toolResultOffloader,
+	threshold int,
+	readToolName string,
+	sessionID string,
+	toolName string,
+	output string,
+) (string, *toolresult.Ref) {
+	if store == nil || threshold <= 0 || len(output) <= threshold ||
+		toolName == readToolName || sessionID == "" {
+		return output, nil
+	}
+	id := toolresult.NewID()
+	preview := renderToolResultPreview(
+		output,
+		string(id),
+		readToolName,
+		min(toolResultPreviewBytes, threshold),
+	)
+	if len(preview) >= len(output) {
+		return output, nil
+	}
+	if err := store.Stage(ctx, toolresult.Stage{
+		ID: id, SessionID: sessionID, ToolName: toolName, Body: output,
+	}); err != nil {
+		return output, nil
+	}
+	return preview, &toolresult.Ref{ID: id}
+}

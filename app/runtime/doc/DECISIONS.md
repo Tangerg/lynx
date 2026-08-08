@@ -251,7 +251,8 @@
 - 状态：已接受。
 - 决策：agentexec outer Dispatcher 为每个 EffectRequest 创建独立、并发安全并按 EffectID 校验的 attempt tracker，通过 context 传给 model/tool decorators，不使用全局表。外部调用前必须 durable 写入 started fact；失败则不调用外部能力并返回 definite failure。外部调用已经开始后，最终响应/Tool result/usage 的 durable write 失败会把 attempt 标记为 indeterminate，outer Dispatcher 丢弃 inner definite settlement 并返回 error，使 Engine 记录 unknown。
 - 决策：模型 chunk/progress 是 best-effort 临时投影，drop 可观察但不改变 settlement；完整 final 必须独立持久化。Tool batch 中任一已执行调用的 post-call write 失败使整个 Effect unknown；后续未开始的串行调用停止，并行 in-flight 调用先结算再汇总。Transcript 保留 started/incomplete 事实，不伪造 final/result。
-- 后果：Event/Delta listener 不参与 authoritative transaction；recorder failure 不会被 Interaction 吞成普通 Tool error，也不会触发不安全自动重试。P5 必须覆盖每个崩溃/失败点。
+- 决策：canonical Tool result 提交后，可重新读取的 product state projection 与 post-Tool hook 只属于 observation；其失败进入 tracing，不得反向把已确定 settlement 改为 unknown。Runtime 自己的 bounded Delta queue drop 同样产生 OTel event，不能静默宣称流完整。
+- 后果：Event/Delta listener 不参与 authoritative transaction；recorder failure 不会被 Interaction 吞成普通 Tool error，也不会触发不安全自动重试。P5 已通过 pre/post-call、chunk drop、并发 partial commit、lost wake 与 terminal retry 反例验证该协议。
 
 ## ADR-RT-041：Durable Process admission 必须有 conclusive start outcome
 
@@ -295,3 +296,11 @@
 - 背景：旧 root request 只携带拆开的 prompt text/media，完整历史由旧 Agent middleware 隐式反查。这既会丢失多模态消息顺序，也把产品 Conversation 读取藏进 executor。另一方面，Agent2 Delta 是 best-effort observation，不能作为完整 assistant output 的真相源。
 - 决策：Application 在 fresh Run admission gate 内读取已验证 Host Conversation，追加当前 canonical user message，并把完整 provider-neutral `WorkingContext` seed 交给 `StageRoot`。agentexec 必须拥有该 seed 的副本；Process 开始或恢复后不再回读 mutable Conversation。成功终态由 `Process.Await` 的 `Result.Output` 投影一个 Application-owned `AssistantMessageCompleted`；text/reasoning Delta 只改善实时体验，Reducer 以 final message 覆盖 partial/missing streaming observation。
 - 后果：Conversation 仍是产品模型历史，WorkingContext 仍是 executor 私有运行/恢复状态，二者没有共享可变所有权。当前旧生产 owner 为 P8 parallel cutover 暂时继续消费 legacy text/media 字段，但 Agent2 路径只接受完整 WorkingContext；P8 删除旧 owner 时同批删除 legacy request 表达，不保留 dual API。
+
+## ADR-RT-047：Invocation journal 与 semantic Transcript 分离，并发 Tool final 按模型顺序成批提交
+
+- 状态：已接受，P5 已实施。
+- 背景：model/tool 外部调用需要 durable started/terminal 边界，但 Tool 并发完成顺序不是模型声明顺序。若 Tool start 预先插入 Transcript，就会用外部调度时序抢占用户可见 Item 顺序；若每个完成结果独立写入，则后完成的前序调用失败时会留下无法证明因果完整性的部分批次。
+- 决策：SQLite model/tool invocation journal 只记录 operational attempt state，不复制 final assistant message、Tool result 或 Run accounting。Model final + cumulative usage/pricing + Run progress 在一个 Application write-set 中提交。Tool start 只进入 invocation journal；Tool final Item 按 `(modelCallSequence, toolCallIndex)` 排序，Run pump 暂存乱序 completion，只提交最长连续前缀并一起完成该前缀所有 receipt。
+- 决策：canonical Tool batch 任一写失败，speculative completion 全部丢弃，started journal 保留；outer Dispatcher 将整个 Effect 标为 unknown，Application 原子提交 incomplete Items 与 `RunLost`。稳定 Runtime call identity、provider source-call identity和模型位置分别保存，不能互相解析或替代。
+- 后果：Transcript insertion order 重新只表达产品语义；并发 Tool 不需要全局串行化。SQLite shape 直接提升到 epoch 61，无 migration、dual journal 或兼容列；P8 切生产前仍可按真实 consumer 修订内部 port 名称，但不能重新合并 operational 与 semantic truth。

@@ -4,7 +4,7 @@
 >
 > 适用范围：`app/runtime` 及其为完成服务端重构必须调整的直接后端依赖
 >
-> 实施状态：P4 已完成，下一阶段 P5；当前代码事实和迁移差距见 [`CAPABILITY_LEDGER.md`](CAPABILITY_LEDGER.md)，阶段与进度见 [`EXECUTION_PLAN.md`](EXECUTION_PLAN.md)
+> 实施状态：P5 已完成，下一阶段 P6；当前代码事实和迁移差距见 [`CAPABILITY_LEDGER.md`](CAPABILITY_LEDGER.md)，阶段与进度见 [`EXECUTION_PLAN.md`](EXECUTION_PLAN.md)
 
 本文定义 Lyra Runtime 重构完成后的稳定架构、统一语言、所有权和依赖方向。它不记录逐批进度，不枚举完整协议字段，也不复制 Agent Framework 的内部设计。
 
@@ -335,7 +335,18 @@ Application StartRun
   -> Delivery projects protocol output
 ```
 
-P4 的独立 root harness 已验证上述 stage/observe/commit/begin 顺序。Framework Event 仍只能作为 wake/observation；terminal truth 来自 `Process.Await`。P5 接入 authoritative model/tool decorator，P8 才把这条路径切为生产 owner。
+P4 的独立 root harness 已验证上述 stage/observe/commit/begin 顺序。P5 已在同一真实 consumer 上接入 authoritative model/tool decorator、Runtime Toolset 和 live unknown reconciliation。Framework Event/Delta 仍只能作为 wake/best-effort observation；model/tool durable truth 来自同步 Application commit receipt，terminal truth 来自 `Process.Await` 或 Application 已先提交的产品终态。P8 才把这条路径切为生产 owner。
+
+普通 model/tool Effect 的提交协议是：
+
+1. agentexec outer Dispatcher 为一个 Effect 建立 context-scoped attempt tracker；model/tool decorator 通过 Agent2 invocation context 验证同一 Effect、Process、model-call sequence 与 Tool-call index；
+2. 外部调用前，decorator 把 started fact 送入该 Run 已有的 executor stream并等待 commit receipt；Application Run pump 使用 speculative reducer 计算完整 write-set，成功提交后才允许跨过外部边界；
+3. model final、usage、pricing 与 Run progress 同事务提交；Tool result、presentation、mutation fact 与 invocation terminal 同事务提交。任何 post-call authoritative commit 失败都会让整个 Effect unknown，不能降级为普通 provider/Tool error；
+4. model/tool invocation journal 只保存 operational attempt boundary，不复制 semantic final/result。Transcript 只保存用户可观察的完整 final 与 Tool Item；二者在同一个 Application write-set 中结算；
+5. 一个并发 Tool batch 可以乱序完成，但 start 不占 Transcript insertion order。Run pump 暂存完成结果，只提交模型声明顺序形成的最长连续前缀；一个前缀批次失败时所有 receipt 一起失败，speculative result 全部丢弃，started calls 最终成为 incomplete，不产生部分成功历史；
+6. Delta 有界且 best-effort，drop 通过 Framework usage/event 或 Runtime OTel event 可观察；完整 final/usage 从独立 authoritative path 导出。可重新读取的 product projection 与 post-hook 也是 observation，失败不能把已经确定的 Tool settlement 改成 unknown。
+
+发现 unresolved unknown Effect 后，Application 在 release 前原子提交 incomplete diagnostic 与 `RunLost`；事务失败保持 Process 阻塞并重试。Dispatcher wake 只是低延迟路径，per-Run reconciliation 仍周期查询 public `UnknownEffectIDs`，因此 listener/wake 丢失不能留下永久挂起。
 
 Waiting：
 
@@ -428,7 +439,7 @@ Application port 只表达产品真正需要的执行能力，不能镜像 Agent
 
 ## 9. 工具能力
 
-Runtime Toolset 负责产品工具清单、schema、执行 capability、安全分类、展示语义和应用端口装配；Agent2 Interaction 负责冻结当次 Process 可执行的 Tools/DeferredTools、模型 Tool loop、checkpoint 和 advertisement 状态。
+Runtime Toolset 负责产品工具清单、schema、执行 capability、安全分类、展示语义和应用端口装配；`toolset.Manifest` 是 visible/deferred authority 的唯一 Runtime 值，现有 `toolset.Resolver` 直接满足 agentexec 消费端口，不再复制 Interaction 专用 Manifest。Agent2 Interaction 负责冻结当次 Process 可执行的 Tools/DeferredTools、模型 Tool loop、checkpoint 和 advertisement 状态。agentexec 在 manifest resolution 与实际 Tool invocation 上绑定同一不可变 execution scope，Toolset 仍对 Agent2 零 import。
 
 边界规则：
 

@@ -233,6 +233,7 @@ type fakeEffects struct {
 	openingErrAt    int
 	commitErr       error
 	commitErrAt     int
+	commitErrCount  int
 	commitAttempts  int
 	rejectCanceled  bool
 	suspendStarted  chan<- struct{}
@@ -309,7 +310,7 @@ func (e *fakeEffects) CommitEvent(ctx context.Context, commit EventCommit) error
 	if e.rejectCanceled && ctx.Err() != nil {
 		return ctx.Err()
 	}
-	if e.commitErr != nil && (e.commitErrAt == 0 || e.commitErrAt == e.commitAttempts) {
+	if e.shouldFailCommitAttempt() {
 		return e.commitErr
 	}
 	e.commits = append(e.commits, commit)
@@ -333,12 +334,23 @@ func (e *fakeEffects) CommitTreeBarrier(ctx context.Context, barrier TreeBarrier
 	if e.rejectCanceled && ctx.Err() != nil {
 		return ctx.Err()
 	}
-	if e.commitErr != nil && (e.commitErrAt == 0 || e.commitErrAt == e.commitAttempts) {
+	if e.shouldFailCommitAttempt() {
 		return e.commitErr
 	}
 	e.barriers = append(e.barriers, barrier)
 	e.commits = append(e.commits, barrier.Runs...)
 	return nil
+}
+
+func (e *fakeEffects) shouldFailCommitAttempt() bool {
+	if e.commitErr == nil {
+		return false
+	}
+	if e.commitErrAt == 0 {
+		return true
+	}
+	count := max(e.commitErrCount, 1)
+	return e.commitAttempts >= e.commitErrAt && e.commitAttempts < e.commitErrAt+count
 }
 
 func (e *fakeEffects) CommitWaitingSubtreeCancellation(

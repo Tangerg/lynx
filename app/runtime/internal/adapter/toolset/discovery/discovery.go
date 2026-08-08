@@ -51,6 +51,22 @@ type mcpToolIdentity interface {
 	MCPToolIdentity() (sourceName, remoteName string)
 }
 
+type advertiserContextKey struct{}
+
+// Advertiser stages exact deferred Tool names for later model visibility. It
+// changes visibility only; the Resolver has already frozen executable authority.
+type Advertiser func(names ...string) error
+
+// WithAdvertiser binds the execution strategy's visibility callback to one
+// Tool invocation. Toolset remains framework-neutral: the callback decides how
+// a successful discovery result is committed by that strategy.
+func WithAdvertiser(ctx context.Context, advertiser Advertiser) context.Context {
+	if advertiser == nil {
+		return ctx
+	}
+	return context.WithValue(ctx, advertiserContextKey{}, advertiser)
+}
+
 // Search is the search_tools meta-tool over a fixed set of withheld tools. It is
 // built per Run from the resolver's complete deferred set, so its advertised
 // catalog and promotable definitions never drift.
@@ -177,9 +193,20 @@ func (t *Search) search(ctx context.Context, args searchArgs) (string, error) {
 	for i, m := range matches {
 		defs[i] = m.definition
 	}
-	// Advertise the matches for the rest of the Run. Outside a running loop this
-	// is a no-op; the listing is still returned so the call is never useless.
-	toolloop.PromoteTools(ctx, defs...)
+	// Advertise only names already frozen in this search Tool. Strategies that
+	// own explicit visibility state bind the precise callback; the context-based
+	// execution loop remains the fallback for callers that do not.
+	if advertise, ok := ctx.Value(advertiserContextKey{}).(Advertiser); ok && advertise != nil {
+		names := make([]string, len(matches))
+		for index, match := range matches {
+			names[index] = match.definition.Name
+		}
+		if err := advertise(names...); err != nil {
+			return "", fmt.Errorf("search_tools: advertise matches: %w", err)
+		}
+	} else {
+		toolloop.PromoteTools(ctx, defs...)
+	}
 	return t.renderMatches(matches), nil
 }
 

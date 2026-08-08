@@ -196,13 +196,25 @@ func runInteractionHarness(
 	if err != nil {
 		t.Fatal(err)
 	}
+	eventsReady := make(chan []runs.ExecutorEvent, 1)
+	go func() {
+		var events []runs.ExecutorEvent
+		for event := range sequence {
+			if commit, authoritative := event.Payload.(runs.ExecutionFactCommit); authoritative {
+				commit.Complete(nil)
+				event.Payload = commit.Fact
+			}
+			events = append(events, event)
+		}
+		eventsReady <- events
+	}()
 	if err := executor.BeginRoot(ctx, ref); err != nil {
 		t.Fatal(err)
 	}
 	if afterBegin != nil {
 		afterBegin()
 	}
-	return slices.Collect(sequence)
+	return <-eventsReady
 }
 
 func payloadsOf[T any](events []runs.ExecutorEvent) []T {
