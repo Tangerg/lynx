@@ -457,6 +457,7 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 		RootStarts:   runExecutor,
 		Observations: runExecutor,
 		Releases:     runExecutor,
+		Conversation: messages.conversation,
 		Continuation: runExecutor,
 		Steering:     runExecutor,
 		RunningTrees: runExecutor,

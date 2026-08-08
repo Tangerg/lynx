@@ -288,3 +288,10 @@
 - 决策：root start 当前分为 `ValidateRootStart`、不跨 model/tool side-effect boundary 的 `StageRoot`、durable opening commit 和 commit 后 `BeginRoot`；Observation 必须在 opening 前成功 attach，失败或 opening reject 只调用 `Release`。Application 的 product Cancel 先决定并提交 Run outcome，随后才 Release executor resource；自然终态和失败终态同样 Release，Waiting boundary 不 Release。
 - 决策：Coordinator 只保存各 use case 实际消费的窄端口；`SessionPorts`/`ProjectionPorts` 仅是 Bootstrap 参数分组，不成为运行时 facade。executor tree 的 Application 语言统一为 `ExecutorMember`/`MemberID`，SQLite epoch 59 直接采用 `root_member_id`/`memberId`，不保留 `ProcessID` alias、旧列或 dual codec。
 - 后果：P4 真实 Agent2 root consumer 可以修订 root candidate，但不得重新合并 product Cancel 与 resource Release，也不得把 Framework `Process` 语言带回 Application。P6/P7 的 provisional legacy seams 必须在对应纵切中被真实 consumer shape 替换。
+
+## ADR-RT-046：Fresh WorkingContext 由 Application 组装，final assistant message 来自 Result
+
+- 状态：已接受，P4 已实施。
+- 背景：旧 root request 只携带拆开的 prompt text/media，完整历史由旧 Agent middleware 隐式反查。这既会丢失多模态消息顺序，也把产品 Conversation 读取藏进 executor。另一方面，Agent2 Delta 是 best-effort observation，不能作为完整 assistant output 的真相源。
+- 决策：Application 在 fresh Run admission gate 内读取已验证 Host Conversation，追加当前 canonical user message，并把完整 provider-neutral `WorkingContext` seed 交给 `StageRoot`。agentexec 必须拥有该 seed 的副本；Process 开始或恢复后不再回读 mutable Conversation。成功终态由 `Process.Await` 的 `Result.Output` 投影一个 Application-owned `AssistantMessageCompleted`；text/reasoning Delta 只改善实时体验，Reducer 以 final message 覆盖 partial/missing streaming observation。
+- 后果：Conversation 仍是产品模型历史，WorkingContext 仍是 executor 私有运行/恢复状态，二者没有共享可变所有权。当前旧生产 owner 为 P8 parallel cutover 暂时继续消费 legacy text/media 字段，但 Agent2 路径只接受完整 WorkingContext；P8 删除旧 owner 时同批删除 legacy request 表达，不保留 dual API。

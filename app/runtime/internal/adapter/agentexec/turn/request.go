@@ -4,6 +4,7 @@ import (
 	"slices"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
+	corechat "github.com/Tangerg/lynx/core/chat"
 	"github.com/Tangerg/lynx/core/media"
 )
 
@@ -21,6 +22,12 @@ func snapshotStartTurn(r runs.RootExecutionStart) runs.RootExecutionStart {
 		snapshot.Media = make([]*media.Media, len(r.Media))
 		for index := range r.Media {
 			snapshot.Media[index] = r.Media[index].Clone()
+		}
+	}
+	if r.WorkingContext != nil {
+		snapshot.WorkingContext = make([]corechat.Message, len(r.WorkingContext))
+		for index := range r.WorkingContext {
+			snapshot.WorkingContext[index] = r.WorkingContext[index].Clone()
 		}
 	}
 	snapshot.InterruptKinds = slices.Clone(r.InterruptKinds)

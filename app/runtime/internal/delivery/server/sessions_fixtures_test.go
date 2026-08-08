@@ -154,11 +154,31 @@ type runProjectionProvider interface {
 	runProjection() runs.RunProjection
 }
 
+type conversationReaderProvider interface {
+	conversationReader() runs.ConversationReader
+}
+
+type emptyConversationReader struct{}
+
+func (emptyConversationReader) Read(context.Context, string) ([]chat.Message, error) {
+	return nil, nil
+}
+
 func (s stubRuntime) runProjection() runs.RunProjection {
 	if s.runs == nil {
 		return nil
 	}
 	return s.runs
+}
+
+func (s stubRuntime) conversationReader() runs.ConversationReader {
+	return stubConversationReader{runtime: s}
+}
+
+type stubConversationReader struct{ runtime stubRuntime }
+
+func (reader stubConversationReader) Read(ctx context.Context, id string) ([]chat.Message, error) {
+	return reader.runtime.ReadHistory(ctx, id)
 }
 
 func (s stubRuntime) queriesCoordinator() *queries.Coordinator {
@@ -196,11 +216,16 @@ func newTestServer(rt testRuntime) *Server {
 	if p, ok := rt.(runProjectionProvider); ok {
 		runProjection = p.runProjection()
 	}
+	conversation := runs.ConversationReader(emptyConversationReader{})
+	if p, ok := rt.(conversationReaderProvider); ok {
+		conversation = p.conversationReader()
+	}
 	projectionWriter := rt.RunSegmentEffects(nil, nil)
 	s.runs = runs.NewCoordinator(runs.Dependencies{
 		RootStarts:   rt,
 		Observations: rt,
 		Releases:     rt,
+		Conversation: conversation,
 		Continuation: rt,
 		Steering:     rt,
 		RunningTrees: rt,

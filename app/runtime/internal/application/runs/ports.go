@@ -45,6 +45,13 @@ type ExecutionReleaser interface {
 	Release(ctx context.Context, ref ExecutorRef) error
 }
 
+// ConversationReader supplies the validated Host conversation used only to
+// seed a fresh executor working context. Once execution starts, restoration is
+// self-contained in the executor checkpoint and never re-reads Conversation.
+type ConversationReader interface {
+	Read(ctx context.Context, sessionID string) ([]corechat.Message, error)
+}
+
 // ContinuationExecutor is the temporary old-executor boundary consumed by the
 // waiting use case. P6 replaces its exact shape from the real Agent2 consumer;
 // keeping it separate prevents those provisional operations from polluting the
@@ -187,6 +194,10 @@ type RootExecutionStart struct {
 	ModelSelection modelref.Selection
 	Limits         run.RunLimits
 	Options        *corechat.Options
+	// WorkingContext is the complete provider-neutral context for a fresh
+	// execution, including the current user message as its final entry. It is a
+	// seed, not a reference back to mutable Conversation state.
+	WorkingContext []corechat.Message
 	InterruptKinds []interrupt.Kind
 	// ChildRunAdmissionEnabled installs the executor-to-application admission
 	// handshake for AgentTool children. It is deliberately explicit and defaults

@@ -921,6 +921,51 @@ func structFields(file *ast.File, name string) []string {
 	return nil
 }
 
+// TestRuntimeDoesNotConfigureSingleProcessPreparedStepDurability freezes
+// ADR-RT-039: Runtime can recover only complete quiescent trees and therefore
+// must not imply tree durability by acknowledging one Process snapshot.
+func TestRuntimeDoesNotConfigureSingleProcessPreparedStepDurability(t *testing.T) {
+	root := filepath.Join(moduleRoot(t), "internal")
+	err := filepath.WalkDir(root, func(path string, entry os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() || filepath.Ext(path) != ".go" || strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		file, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
+		if err != nil {
+			return err
+		}
+		ast.Inspect(file, func(node ast.Node) bool {
+			literal, ok := node.(*ast.CompositeLit)
+			if !ok {
+				return true
+			}
+			selector, ok := literal.Type.(*ast.SelectorExpr)
+			if !ok || selector.Sel.Name != "EngineConfig" {
+				return true
+			}
+			for _, element := range literal.Elts {
+				field, ok := element.(*ast.KeyValueExpr)
+				if !ok {
+					continue
+				}
+				name, ok := field.Key.(*ast.Ident)
+				if ok && name.Name == "PreparedStepAcknowledger" {
+					relative, _ := filepath.Rel(moduleRoot(t), path)
+					t.Errorf("Runtime configured single-Process prepared-step durability in %s", relative)
+				}
+			}
+			return true
+		})
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("scan Agent2 Engine configuration: %v", err)
+	}
+}
+
 func methodBody(file *ast.File, receiver, name string) *ast.BlockStmt {
 	if file == nil {
 		return nil

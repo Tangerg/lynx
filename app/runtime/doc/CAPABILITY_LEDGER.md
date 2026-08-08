@@ -1,6 +1,6 @@
 # Lyra Runtime 能力迁移台账
 
-> 状态：P3 当前事实，随每个实施批次更新
+> 状态：P4 当前事实，随每个实施批次更新
 >
 > 基线日期：2026-08-08
 
@@ -20,27 +20,28 @@
 
 ### 2.1 规模与依赖
 
-- `app/runtime/internal` 当前有 963 个 Go 文件（含 architecture tests 与反例 fixture）；
-- `adapter/agentexec` 有 103 个 Go 文件，`adapter/toolset` 有 68 个；
+- `app/runtime/internal` 当前有 966 个 Go 文件（含 architecture tests 与反例 fixture）；
+- `adapter/agentexec` 有 106 个 Go 文件，`adapter/toolset` 有 68 个；
 - 53 个 Runtime Go 文件存在旧 `github.com/Tangerg/lynx/agent` import declaration，共 88 条；P0 的 54 文件文本命中包含了 architecture guard 自身的字符串，P1 已改用 AST 精确盘点；
 - 其中 39 个位于 `adapter/agentexec`，9 个位于 `adapter/toolset`；
 - 剩余 direct imports 位于 runsegment tests 与 bootstrap tests；
-- `app/runtime/go.mod` 仍依赖旧 `agent`，生产代码尚未 import `agent2`；
+- `app/runtime/go.mod` 在 parallel harness 期间同时依赖旧 `agent` 与 `agent2`；Agent2 生产 import 精确收敛在 `adapter/agentexec/interaction_executor.go` 与 `interaction_session.go` 两个文件，共四条；
 - Domain、Application 和 Delivery 生产代码目前对旧 Agent Framework 零 import；
 - P2 已删除 `domain/execution` 及全部 forwarding/alias path；Domain 生产代码与测试对 Application/Adapter/Infra/Delivery/Bootstrap 零 import，context-based I/O port 为零；
 - Run、Accounting、Conversation、Transcript、Interrupt、ToolResult 已成为准确顶层 bounded-context package；executor checkpoint/ref、pending continuation 与 workspace mutation 由 Application consumer 拥有；
 - P3 已删除 Application 的 `ExecutionControl`、`SegmentExecutor`、`SessionLifecycle` 与 `Effects` 胖接口；root start/observe/release、Session reads/termination 与 Run projection write-sets 均由真实 consumer-owned ports 表达；
 - P3 已把 Application executor tree identity 统一为 `ExecutorMember`/`MemberID`；旧 `ProcessID` 只存在于待替换的 old Agent adapter 内部，SQLite technical shape 已一次性改为 epoch 59 的 `root_member_id`/`memberId`；
+- P4 已用真实 Agent2 Engine + native Interaction 验证 root stage/observe/begin seam；Application 组装 complete WorkingContext seed，final message 从 Result 而非 Delta 投影，新路径尚未接管 Bootstrap；
 - 当前 Agent dependency 已经主要集中在执行防腐层，这是原位重构而非完整 runtime2 的关键依据。
 
 ### 2.2 当前架构基础
 
 | 能力 | 当前事实 | Verdict | 阶段 |
 |---|---|---|---|
-| Run lifecycle | `application/runs` 拥有 start、pump、waiting、cancel、terminal ordering；P3 root ports 已收窄 | Retain；P4 真实 consumer 验证 | P3 已完成；P4–P8 纵切 |
+| Run lifecycle | `application/runs` 拥有 start、pump、waiting、cancel、terminal ordering；P4 已用 native Interaction 验证 root ports | Retain；P5–P8 扩展 | P3/P4 已完成；P5–P8 纵切 |
 | Session lifecycle | 独立 application/domain，拥有 workspace/admission 产品语义 | Retain | P2/P8 |
 | Domain framework isolation | P2 已删除十个 context-based Domain I/O port，生产与测试均由机器守卫禁止向外依赖 | Retain + strengthen | P2 已完成；例外为零 |
-| Agent anti-corruption | 已集中于 `adapter/agentexec`，但内部复制旧 Framework lifecycle | Rewrite | P4–P7 |
+| Agent anti-corruption | Agent2 native root 已在 `adapter/agentexec` 建立；旧 Framework lifecycle 仍服务生产到 P8 | Rewrite | P4 root 已完成；P5–P8 继续 |
 | Delivery separation | P1 起 target DAG 禁止 Delivery import 任意 concrete Adapter；protocol/dispatch/server/transport 继续按现有职责迁移 | Retain + naming audit | P1 guard；P9–P10 收口 |
 | Adapter/Infra direction | 当前主要为 Adapter 使用 Infra，Infra 不反向 import Adapter | Retain + package audit | P9 |
 | Component primitives | 十个 direct package 已由 P1 exact ledger 锁定，不能新增；umbrella 名仍过宽 | Refactor ownership | P9 |
@@ -111,8 +112,8 @@
 
 | 当前能力 | 当前形态 | Verdict | 目标证据 |
 |---|---|---|---|
-| Start admission | `ValidateRootStart` → `StageRoot` → durable opening → `BeginRoot` | Retain semantics；P4 validate candidate | stage 不外呼 model/tool；commit 前失败只 Release |
-| Event observation | `ExecutionObserver.Observe` | Retain semantics；P4 validate candidate | 只流 Application-owned executor facts |
+| Start admission | `ValidateRootStart` → `StageRoot` → durable opening → `BeginRoot` | P4 real consumer 已验证 | stage 不外呼 model/tool；commit 前失败只 Release |
+| Event observation | `ExecutionObserver.Observe` | P4 real consumer 已验证 | 只流 Application-owned executor facts；final 来自 Result |
 | Executor release | `ExecutionReleaser.Release` | Retain | 与产品 Cancel 分离；非 Waiting 终止恰好一次 |
 | Product Cancel | durable terminal decision → executor release | Retain | product outcome 先提交，resource lifecycle 后执行 |
 | Resume/rehydrate | 隔离的 provisional `ContinuationExecutor` | Rewrite port shape | P6 由 Agent2 snapshot/semantic answer consumer 重推 |
@@ -122,7 +123,7 @@
 | Run pump | executor event reducer | Retain | 不推进 Agent2 internal state |
 | Run journal | committed RunEvent | Retain | persist-before-publish |
 
-P3 root candidate 已经 framework-neutral 且由 fake-backed use cases 验证，但仍不是兼容 API；P4 可以依据真实 Agent2 consumer 修订。Continuation/steer/subtree ports 只隔离旧生产路径，其最终方法、参数和 error 由 P6/P7 真实纵切决定。
+P4 real Agent2 consumer 已验证 root candidate 的 stage/observe/begin/release 语义。它仍不是兼容 API，完整 port 到 P8 才冻结。Continuation/steer/subtree ports 只隔离旧生产路径，其最终方法、参数和 error 由 P6/P7 真实纵切决定。
 
 ### 4.2 Cross-aggregate writes
 
@@ -142,6 +143,7 @@ P3 root candidate 已经 framework-neutral 且由 fake-backed use cases 验证�
 | 当前实现 | 作用 | Verdict | Agent2 replacement |
 |---|---|---|---|
 | `Engine` wrapping old runtime.Engine | Framework facade | Rewrite | per-Run Agent2 Engine assembly |
+| `InteractionExecutor` native root harness | 独立真实 root consumer，当前不进 Bootstrap | Retain and extend | P4 已完成；P5 增加 authoritative model/tool decorators，P8 接管生产 |
 | root GOAP Agent/Action | 包裹聊天 Interaction | Remove | native `interaction.Definition` |
 | `TurnProcess` | 二次包装 Process wait/resume/cancel/capture | Remove | Agent2 Process/Engine public lifecycle |
 | `turn` controller/pump | live turn registry、goroutine、terminal | Remove Framework duplicates | Application Run pump + Agent2 Engine |
@@ -285,6 +287,6 @@ P3 root candidate 已经 framework-neutral 且由 fake-backed use cases 验证�
 
 - Runtime 产品领域、协议、持久化和工具能力大部分保留；
 - 执行 Framework integration 是主要 Rewrite 区；
-- P3 已完成 root Application port 与 executor member 术语收敛；P4–P8 继续以真实 Agent2 consumers 演进未冻结能力；
+- P4 已完成 root Agent2 real vertical，并验证 Application port、完整 Conversation seed、Result/Delta 分层和 termination mapping；P5–P8 继续以真实 consumers 演进未冻结能力；
 - Agent2 已提供 P4–P6 所需的公共合同；P7 必须先补齐本台账已确认的两项中性 Framework 合同；
-- 当前生产执行仍由旧 Agent implementation 承担；P4 起的新 Agent2 路径只进入独立真实 harness，P8 能力齐备后才原子切换。
+- 当前生产执行仍由旧 Agent implementation 承担；P4 Agent2 路径只进入独立真实 harness，P8 能力齐备后才原子切换。

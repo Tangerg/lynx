@@ -1,6 +1,6 @@
 # Lyra Runtime 重构实施计划
 
-> 状态：P3 Application root execution boundary 已完成；下一阶段 P4
+> 状态：P4 原生 Interaction root 纵切已完成；下一阶段 P5
 >
 > 工作方式：原模块内治本重构，按可验证纵切分批完成；不创建完整 `runtime2`
 
@@ -36,7 +36,7 @@
 | P1 | 目标依赖 DAG 与迁移守卫 | P0 | 已完成 |
 | P2 | Run 领域语言与 bounded contexts | P1 | 已完成 |
 | P3 | Application root use cases 与候选消费端口 | P2 | 已完成 |
-| P4 | 原生 Interaction 的 root 纵切 | P3 | 未开始 |
+| P4 | 原生 Interaction 的 root 纵切 | P3 | 已完成 |
 | P5 | 权威 model/tool observation 与 Tool 接线 | P4 | 未开始 |
 | P6 | waiting、checkpoint、restore、resume、steer | P5 | 未开始 |
 | P7 | Delegate child Run 与 waiting subtree | P6 + 两项 Agent2 中性合同 | 未开始 |
@@ -182,6 +182,15 @@
 - final Output 不依赖 Delta 拼接；
 - 旧 Agent import 数量不增加，P8 原子切换后归零；
 - 不存在两个同时控制同一 Run 的 execution loop。
+
+### 完成事实
+
+- 在现有 `adapter/agentexec` 内新增 `InteractionExecutor`，每个 staged root 独占一个 Agent2 Engine、exact Deployment resolver、root admission guard、显式 Framework/Tree limits 和 bounded Delta listener；未创建 `agentexec2`、GOAP wrapper、`TurnProcess` 或第二执行 loop；
+- P3 root candidate 经真实 consumer 验证继续成立：Stage 只解析完整 WorkingContext、选择 client 并组装 Definition/Dispatcher/Deployment/Engine/Input，零模型/Tool 调用；Observe 单消费者先 attach，durable opening 后 Begin 才调用 `Engine.Start`；
+- Application 增加准确的 `ConversationReader`，在 admission gate 内读取 Host Conversation 并追加当前已校验 user message，形成 fresh `WorkingContext` seed；Agent adapter 不读取 Conversation store，Process 开始后也不回读可变 Host history；
+- 成功终态从 `Process.Await`/`Result.Output` 投影 `AssistantMessageCompleted`，Reducer 用完整 final message 覆盖 partial/missing Delta；Delta 只投影临时 text/reasoning increments；
+- Agent2 Termination 集中映射为 Completed/Canceled/TimedOut/Failed/MaxSteps，模型 external failure、Host cancel/deadline、Framework panic cause 和 dispatcher panic isolation 均有确定测试；
+- 初版 Engine 明确不配置 `PreparedStepAcknowledger`；P4 新路径仅由独立真实 harness 消费，Bootstrap 生产 wiring 仍使用旧 Agent owner，精确旧 import/delete ledger 未增长并保留到 P8 原子切换。
 
 ## 9. P5 — 权威 model/tool observation 与 Tool 接线
 
@@ -391,7 +400,8 @@
 | 2026-08-08 | P2 | 一次性删除 `domain/execution`：Run、Accounting、Conversation、Transcript、Interrupt 与 ToolResult 按 bounded context 提升；executor ref/checkpoint、pending continuation、workspace mutation 归还 Application；Approval、Agent Memory、Codebase、Hooks、Provider 的十个 context I/O port 全部移到真实 Application consumer，Domain 生产与测试均禁止向外依赖 | Domain context I/O port 从精确十项例外降为零；旧 path、alias、空目录为零；Run 状态/lineage/capabilities、Conversation seed/truncate、usage monotonicity 与 checkpoint expectation 行为测试通过 |
 | 2026-08-08 | P2 | SQLite executor checkpoint、pending interrupt 和 workspace mutation 改为 technical records，由 `adapter/persistence` 显式映射 Application values，清除 Infra→Application 反向依赖；终态统一为 Completed/Canceled/TimedOut/Failed/MaxBudget/MaxSteps/Lost，并同步服务端 protocol/schema/generated artifacts | architecture target DAG、Domain test isolation、strict storage codecs、outcome round-trip 与 compatibility differ 通过；`go test ./...`、`go vet ./...`、`go build ./...` 通过 |
 | 2026-08-08 | P3 | 删除 `ExecutionControl`、`SegmentExecutor`、`SessionLifecycle` 与 `Effects` 胖边界；建立 root stage/commit/begin、observe/release 的消费方端口；Run pump 在所有非 Waiting 边界统一释放；Application executor identity 统一为 Member；SQLite epoch 59 一次性采用 `root_member_id`/`memberId` | fake-backed ordering/race/release/waiting tests 与 architecture vocabulary/port-shape guards 通过；`go test ./...`、`go vet ./...`、`go build ./...` 及 runs/sessions/runsegment/SQLite targeted race 通过 |
+| 2026-08-08 | P4 | 在原 `agentexec` 内完成 Agent2 native Interaction root harness；每 root 独立 Engine + exact Deployment；Application 组装完整 Conversation seed；Result final 与 Delta 分离；集中映射 completion/model failure/cancel/deadline/panic；生产旧 owner 保留到 P8 | real Engine/Interaction integration、stage-zero-side-effect、complete WorkingContext、final-without-Delta、termination/panic/release tests 通过；architecture exact old-import ledger 未增长；`go test ./...` 通过 |
 
 ## 18. 当前下一步
 
-P3 已完成。下一批进入 P4：在现有 `adapter/agentexec` 内建立 Agent2 原生 Interaction root harness，以真实 consumer 验证并按需修订 P3 root candidate；新路径不接管生产 Run，旧生产 execution owner 留到 P8 原子切换时同批删除。
+P4 已完成。下一批进入 P5：围绕真实 Interaction Dispatcher 建立 model/tool authoritative projection 与 dispatch-attempt tracker，接入 Runtime Toolset、usage/pricing/approval/hooks 和 live unknown reconciliation；新路径继续只由真实 harness 消费，直到 P8 能力齐备后原子接管生产 Run。

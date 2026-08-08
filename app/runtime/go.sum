@@ -6,12 +6,14 @@ cloud.google.com/go/compute/metadata v0.9.0 h1:pDUj4QMoPejqq20dK0Pg2N4yG9zIkYGdB
 cloud.google.com/go/compute/metadata v0.9.0/go.mod h1:E0bWwX5wTnLPedCKqk3pJmVgCBSM6qQI1yTBdEb3C10=
 github.com/Masterminds/semver/v3 v3.5.0 h1:kQceYJfbupGfZOKZQg0kou0DgAKhzDg2NZPAwZ/2OOE=
 github.com/Masterminds/semver/v3 v3.5.0/go.mod h1:4V+yj/TJE1HU9XfppCwVMZq3I84lprf4nC11bSS5beM=
-github.com/Tangerg/lynx v0.0.0-20260803212311-1ef747bb37e7 h1:JnEFytJZDvKY9nqHVNrtjjmimZviTQCfQAicy+0CnHs=
-github.com/Tangerg/lynx v0.0.0-20260803212311-1ef747bb37e7/go.mod h1:+9o5hYEk9mbZ8778anUF1PjzUBfAd81Z/Bk1J4FK0Cc=
+github.com/Tangerg/lynx v0.0.0-20260805221614-8b3e8b860d00 h1:ty+eMto74GrSu4McjkmwufBqT1Cr4qC1XaHzyncJXaA=
+github.com/Tangerg/lynx v0.0.0-20260805221614-8b3e8b860d00/go.mod h1:+9o5hYEk9mbZ8778anUF1PjzUBfAd81Z/Bk1J4FK0Cc=
 github.com/Tangerg/lynx/a2a v0.0.0-20260803122848-6ade352dda10 h1:3/qCFIBln0tzmZyrnAPnlXpoogqrGG6YXpvOe3olMPo=
 github.com/Tangerg/lynx/a2a v0.0.0-20260803122848-6ade352dda10/go.mod h1:KYQPTw87c3ZEc1LJfSFyi2uyLUIhOnqScLUyqaGXVms=
 github.com/Tangerg/lynx/agent v0.0.0-20260805123519-9d5c18a99c39 h1:FLgi7t/hbKAZj5CtOX+3a2HY2u+yV0c15kv9h+uUTBA=
 github.com/Tangerg/lynx/agent v0.0.0-20260805123519-9d5c18a99c39/go.mod h1:GUC4jamzZUAARms+6eb4ZreEfNJER2j1AsLqo/j5fzA=
+github.com/Tangerg/lynx/agent2 v0.0.0-20260808143949-6e7a1e85dc68 h1:KaKo1WHRedKYOLt/e0hy9flwXkc1yH5CHDIMk9P4VzA=
+github.com/Tangerg/lynx/agent2 v0.0.0-20260808143949-6e7a1e85dc68/go.mod h1:q+z/qawlcNiSxHgws5PYYnxAHUwEaKO/UysY6Nvvvfs=
 github.com/Tangerg/lynx/mcp v0.0.0-20260803122848-6ade352dda10 h1:b8RK8gcHO3zmqONHfqyty5/AkGLjXE4bj1h5WbzDX40=
 github.com/Tangerg/lynx/mcp v0.0.0-20260803122848-6ade352dda10/go.mod h1:UkSHEf5n+4RZ3UvfN876PZJm6beUSRx5b8AwlGXYBmw=
 github.com/Tangerg/lynx/models v0.0.0-20260803122848-6ade352dda10 h1:W3ovV267J0dOiqdH7pOsJSXb4/Sji3iVnNjnCatvP0c=
@@ -48,6 +50,8 @@ github.com/cespare/xxhash/v2 v2.3.0 h1:UL815xU9SqsFlibzuggzjXhog7bL6oX9BbNZnL2UF
 github.com/cespare/xxhash/v2 v2.3.0/go.mod h1:VGX0DQ3Q6kWi7AoAeZDth3/j3BFtOZR5XLFGgcrjCOs=
 github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc h1:U9qPSI2PIWSS1VwoXQT9A3Wy9MM3WgvqSxFWenqJduM=
 github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
+github.com/dlclark/regexp2 v1.11.5 h1:Q/sSnsKerHeCkc/jSTNq1oCm7KiVgUMZRDUoRu0JQZQ=
+github.com/dlclark/regexp2 v1.11.5/go.mod h1:DHkYz0B9wPfa6wondMfaivmHpzrQ3v9q8cnmRbL6yW8=
 github.com/dnaeon/go-vcr v1.2.0 h1:zHCHvJYTMh1N7xnV7zf1m1GPBF9Ad0Jk/whtQ1663qI=
 github.com/dnaeon/go-vcr v1.2.0/go.mod h1:R4UdLID7HZT3taECzJs4YgbbH6PIGXB6W/sc5OLb6RQ=
 github.com/dustin/go-humanize v1.0.1 h1:GzkhY7T5VNhEkwH0PVJgjz+fX1rhBrR7pRT3mDkpeCY=
@@ -126,6 +130,8 @@ github.com/rogpeppe/go-internal v1.15.0 h1:D0RCU5rMAp+SpgkiNdrjfJ+LX4J1M32V2NeCY
 github.com/rogpeppe/go-internal v1.15.0/go.mod h1:DrUVZyrJU+txYW5/1kwtXQSMFio52ZOxX7yM1VHvnxs=
 github.com/sagikazarmark/locafero v0.12.0 h1:/NQhBAkUb4+fH1jivKHWusDYFjMOOKU88eegjfxfHb4=
 github.com/sagikazarmark/locafero v0.12.0/go.mod h1:sZh36u/YSZ918v0Io+U9ogLYQJ9tLLBmM4eneO6WwsI=
+github.com/santhosh-tekuri/jsonschema/v6 v6.0.2 h1:KRzFb2m7YtdldCEkzs6KqmJw4nqEVZGK7IN2kJkjTuQ=
+github.com/santhosh-tekuri/jsonschema/v6 v6.0.2/go.mod h1:JXeL+ps8p7/KNMjDQk3TCwPpBy0wYklyWTfbkIzdIFU=
 github.com/segmentio/asm v1.2.1 h1:DTNbBqs57ioxAD4PrArqftgypG4/qNpXoJx8TVXxPR0=
 github.com/segmentio/asm v1.2.1/go.mod h1:BqMnlJP91P8d+4ibuonYZw9mfnzI9HfxselHZr5aAcs=
 github.com/segmentio/encoding v0.5.4 h1:OW1VRern8Nw6ITAtwSZ7Idrl3MXCFwXHPgqESYfvNt0=

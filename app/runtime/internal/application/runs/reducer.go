@@ -170,6 +170,12 @@ func (r *reducer) reduce(ev ExecutionFact) (reductionBatch, error) {
 	case ReasoningDelta:
 		out = r.closeText()
 		out = append(out, r.appendReasoning(e.Text)...)
+	case AssistantMessageCompleted:
+		var err error
+		out, err = r.completeAssistantMessage(e.Message)
+		if err != nil {
+			return reductionBatch{}, fmt.Errorf("%w: assistant message completion: %w", errExecutorContract, err)
+		}
 	case ToolCallStarted:
 		var err error
 		out, err = r.toolStart(e)

@@ -5,6 +5,7 @@ go 1.26.5
 require (
 	github.com/Tangerg/lynx/a2a v0.0.0-20260803122848-6ade352dda10
 	github.com/Tangerg/lynx/agent v0.0.0-20260805123519-9d5c18a99c39
+	github.com/Tangerg/lynx/agent2 v0.0.0-20260808143949-6e7a1e85dc68
 	github.com/Tangerg/lynx/mcp v0.0.0-20260803122848-6ade352dda10
 	github.com/Tangerg/lynx/models v0.0.0-20260803122848-6ade352dda10
 	github.com/Tangerg/lynx/models/google v0.0.0-20260803122848-6ade352dda10
@@ -44,6 +45,7 @@ require (
 	github.com/invopop/jsonschema v0.14.0 // indirect
 	github.com/openai/openai-go/v3 v3.49.0 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
+	github.com/santhosh-tekuri/jsonschema/v6 v6.0.2 // indirect
 	google.golang.org/genai v1.66.0 // indirect
 )
 
@@ -52,7 +54,7 @@ require (
 	cloud.google.com/go/auth v0.22.0 // indirect
 	cloud.google.com/go/compute/metadata v0.9.0 // indirect
 	github.com/Masterminds/semver/v3 v3.5.0 // indirect
-	github.com/Tangerg/lynx v0.0.0-20260803212311-1ef747bb37e7
+	github.com/Tangerg/lynx v0.0.0-20260805221614-8b3e8b860d00
 	github.com/Tangerg/lynx/models/protocol/openai v0.0.0-20260803122848-6ade352dda10 // indirect
 	github.com/a2aproject/a2a-go/v2 v2.4.0 // indirect
 	github.com/bahlo/generic-list-go v0.2.0 // indirect

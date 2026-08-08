@@ -4,7 +4,7 @@
 >
 > 适用范围：`app/runtime` 及其为完成服务端重构必须调整的直接后端依赖
 >
-> 实施状态：P3 已完成，下一阶段 P4；当前代码事实和迁移差距见 [`CAPABILITY_LEDGER.md`](CAPABILITY_LEDGER.md)，阶段与进度见 [`EXECUTION_PLAN.md`](EXECUTION_PLAN.md)
+> 实施状态：P4 已完成，下一阶段 P5；当前代码事实和迁移差距见 [`CAPABILITY_LEDGER.md`](CAPABILITY_LEDGER.md)，阶段与进度见 [`EXECUTION_PLAN.md`](EXECUTION_PLAN.md)
 
 本文定义 Lyra Runtime 重构完成后的稳定架构、统一语言、所有权和依赖方向。它不记录逐批进度，不枚举完整协议字段，也不复制 Agent Framework 的内部设计。
 
@@ -322,17 +322,20 @@ Bootstrap 不提供业务 API，不成为 service locator，不让运行时对�
 
 ```text
 Application StartRun
+  -> Application reads Host Conversation and appends current user message
+  -> agentexec stages exact Interaction deployment + per-root Engine (no model/tool I/O)
+  -> Application attaches executor observation
   -> Application commits Run + initial Segment as Opening
-  -> agentexec assembles exact Interaction deployment
-  -> ProcessAdmitter durably binds prospective root member
-  -> Agent2 Engine.Start publishes root Process
-  -> agentexec uses ProcessStarted as wake-up, verifies the live Process, and emits an executor fact
-  -> Application commits Running
+  -> Agent2 Engine.Start invokes ProcessAdmitter after durable Opening
+  -> ProcessAdmitter binds prospective root member
+  -> Agent2 constructs, registers, and publishes root Process
   -> authoritative model/tool projection
-  -> agentexec translates framework lifecycle to application facts
+  -> agentexec awaits Result and translates final Output/Termination to application facts
   -> Application commits RunEvent
   -> Delivery projects protocol output
 ```
+
+P4 的独立 root harness 已验证上述 stage/observe/commit/begin 顺序。Framework Event 仍只能作为 wake/observation；terminal truth 来自 `Process.Await`。P5 接入 authoritative model/tool decorator，P8 才把这条路径切为生产 owner。
 
 Waiting：
 

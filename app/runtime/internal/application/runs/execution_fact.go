@@ -13,6 +13,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/toolresult"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
+	corechat "github.com/Tangerg/lynx/core/chat"
 )
 
 // ExecutorMember is the executor-owned identity of the member that produced an
@@ -104,6 +105,15 @@ type MessageDelta struct {
 type ReasoningDelta struct {
 	executionFactBase
 	Text string
+}
+
+// AssistantMessageCompleted is the authoritative semantic assistant message
+// produced by an executor. Unlike [MessageDelta] and [ReasoningDelta], it is a
+// complete final value and remains correct when streaming observation is
+// disabled or drops increments.
+type AssistantMessageCompleted struct {
+	executionFactBase
+	Message corechat.Message
 }
 
 type ToolCallStarted struct {

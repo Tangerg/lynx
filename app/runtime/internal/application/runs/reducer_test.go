@@ -16,6 +16,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
+	corechat "github.com/Tangerg/lynx/core/chat"
 )
 
 func testReducerConfig() reducerConfig {
@@ -61,6 +62,33 @@ func TestReducerStepsCountModelCallsRatherThanParallelTools(t *testing.T) {
 	run := finished[len(finished)-1].Event.(SegmentFinished).Run
 	if run.Metrics.Steps != 1 {
 		t.Fatalf("steps = %d, want one model call for two parallel tools", run.Metrics.Steps)
+	}
+}
+
+func TestReducerFinalAssistantMessageSupersedesPartialStreamingObservation(t *testing.T) {
+	reducer := newReducer(testReducerConfig())
+	mustReduce(t, reducer, MessageDelta{Text: "partial"})
+	message := corechat.NewAssistantMessage(
+		corechat.NewReasoningPart("authoritative reasoning", nil),
+		corechat.NewTextPart("authoritative answer"),
+	)
+	reduced := mustReduce(t, reducer, AssistantMessageCompleted{Message: message})
+
+	var completed []transcript.Item
+	for _, reduction := range reduced {
+		if event, ok := reduction.Event.(ItemCompleted); ok {
+			completed = append(completed, event.Item)
+		}
+	}
+	if len(completed) != 2 {
+		t.Fatalf("completed items = %#v", completed)
+	}
+	if completed[0].Kind != transcript.Reasoning || completed[0].Text != "authoritative reasoning" {
+		t.Fatalf("reasoning completion = %#v", completed[0])
+	}
+	if completed[1].Kind != transcript.AgentMessage || len(completed[1].Content) != 1 ||
+		completed[1].Content[0].Text != "authoritative answer" {
+		t.Fatalf("assistant completion = %#v", completed[1])
 	}
 }
 

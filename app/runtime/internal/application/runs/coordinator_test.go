@@ -17,6 +17,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
+	corechat "github.com/Tangerg/lynx/core/chat"
 )
 
 func mustTreeContinuation(t *testing.T, pending Pending) *treeContinuation {
@@ -429,6 +430,12 @@ func testCoordinator(executor interface {
 			return time.Date(2026, 7, 13, 1, 2, 3, 0, time.UTC)
 		},
 	})
+}
+
+type emptyConversationReader struct{}
+
+func (emptyConversationReader) Read(context.Context, string) ([]corechat.Message, error) {
+	return nil, nil
 }
 
 func testSegment() segmentSpec {

@@ -12,6 +12,8 @@ func (c *Coordinator) requireUseCaseDependencies() error {
 		return errors.New("runs: execution observer is required")
 	case c.releases == nil:
 		return errors.New("runs: execution releaser is required")
+	case c.conversation == nil:
+		return errors.New("runs: conversation reader is required")
 	case c.sessionReader == nil:
 		return errors.New("runs: session reader is required")
 	case c.sessionCreator == nil:

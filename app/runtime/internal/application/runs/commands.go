@@ -323,8 +323,16 @@ type StartResult struct {
 // created or mutated. Executor-specific model modality checks are performed by
 // [RootExecutionStarter.ValidateRootStart] in the same pre-admission phase.
 func (r RootExecutionStart) Validate() error {
-	if r.Message == "" && len(r.Media) == 0 {
+	if len(r.WorkingContext) == 0 && r.Message == "" && len(r.Media) == 0 {
 		return ErrInputRequired
+	}
+	for index, message := range r.WorkingContext {
+		if err := message.Validate(); err != nil {
+			return fmt.Errorf("runs: working context message[%d]: %w", index, err)
+		}
+	}
+	if len(r.WorkingContext) > 0 && r.WorkingContext[len(r.WorkingContext)-1].Role != corechat.RoleUser {
+		return errors.New("runs: fresh working context must end with the current user message")
 	}
 	if err := r.Limits.Validate(); err != nil {
 		return fmt.Errorf("%w: %w", ErrInvalidRunLimit, err)

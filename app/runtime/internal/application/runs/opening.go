@@ -8,6 +8,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/admission"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
+	corechat "github.com/Tangerg/lynx/core/chat"
 )
 
 // Start validates and resolves the Session, claims the Session and working
@@ -34,6 +35,11 @@ func (c *Coordinator) Start(ctx context.Context, cmd StartCommand) (StartResult,
 		ChildRunAdmissionEnabled: cmd.Capabilities.ChildRuns,
 		GoalLeaseID:              cmd.GoalLeaseID,
 	}
+	currentMessage, err := MaterializeUserMessage(cmd.Input)
+	if err != nil {
+		return StartResult{}, err
+	}
+	draft.WorkingContext = []corechat.Message{currentMessage}
 	if err := draft.Validate(); err != nil {
 		return StartResult{}, err
 	}
@@ -52,6 +58,11 @@ func (c *Coordinator) Start(ctx context.Context, cmd StartCommand) (StartResult,
 	defer runAdmission.Release()
 
 	draft.SessionID = sess.ID
+	workingContext, err := c.conversation.Read(ctx, sess.ID)
+	if err != nil {
+		return StartResult{}, fmt.Errorf("runs: read conversation for session %q: %w", sess.ID, err)
+	}
+	draft.WorkingContext = append(workingContext, currentMessage.Clone())
 	execCWD, isolated, err := c.executionCWD(ctx, sess)
 	if err != nil {
 		return StartResult{}, err

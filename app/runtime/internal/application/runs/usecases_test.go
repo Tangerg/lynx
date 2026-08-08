@@ -14,6 +14,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
+	corechat "github.com/Tangerg/lynx/core/chat"
 )
 
 type fakeRunSessions struct {
@@ -246,6 +247,7 @@ func newUseCaseCoordinator(exec ExecutionObserver, control *fakeExecutionPorts, 
 		RootStarts:   control,
 		Observations: exec,
 		Releases:     control,
+		Conversation: emptyConversationReader{},
 		Continuation: control,
 		Steering:     control,
 		RunningTrees: control,
@@ -339,6 +341,44 @@ func TestStartOwnsCompleteAdmissionSequence(t *testing.T) {
 	} else if opening.SessionModel == nil || opening.SessionModel.SessionID != "ses_1" || opening.SessionModel.Model != "model" {
 		t.Fatalf("opening session model = %+v, want ses_1/model", opening.SessionModel)
 	}
+}
+
+func TestStartSeedsExecutorFromConversationAndCurrentUserMessage(t *testing.T) {
+	exec := &fakeExecutor{}
+	effects := &fakeEffects{}
+	sessions := &fakeRunSessions{sess: session.Session{ID: "ses_1", CWD: "/work"}}
+	control := &fakeExecutionPorts{startRef: ExecutorRef{SessionID: "ses_1", ExecutorID: "turn_1"}}
+	c := newUseCaseCoordinator(exec, control, sessions, effects)
+	c.conversation = staticConversationReader{messages: []corechat.Message{
+		corechat.NewUserMessage(corechat.NewTextPart("earlier question")),
+		corechat.NewAssistantMessage(corechat.NewTextPart("earlier answer")),
+	}}
+
+	result, err := c.Start(t.Context(), StartCommand{
+		SessionID: "ses_1",
+		Input:     []transcript.ContentBlock{{Kind: transcript.TextContent, Text: "current question"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for range result.Events {
+	}
+	context := control.started.WorkingContext
+	if len(context) != 3 || context[0].Text() != "earlier question" ||
+		context[1].Text() != "earlier answer" || context[2].Text() != "current question" ||
+		context[2].Role != corechat.RoleUser {
+		t.Fatalf("working context = %#v", context)
+	}
+}
+
+type staticConversationReader struct{ messages []corechat.Message }
+
+func (reader staticConversationReader) Read(context.Context, string) ([]corechat.Message, error) {
+	messages := make([]corechat.Message, len(reader.messages))
+	for index := range reader.messages {
+		messages[index] = reader.messages[index].Clone()
+	}
+	return messages, nil
 }
 
 func TestStartSeparatesIsolatedExecutionDirFromPersistentWorkspace(t *testing.T) {

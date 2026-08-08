@@ -1,6 +1,6 @@
 # Lyra Runtime 合同基线
 
-> 状态：P3 Application Boundary Baseline 2
+> 状态：P4 Native Interaction Root Baseline 3
 >
 > 基线日期：2026-08-08
 >
@@ -80,7 +80,7 @@ Artifact、Transcript Item 和 ToolCall timing 的当前机器 shape 仍由 Runt
 
 ## 4. Agent2 消费 Baseline
 
-Runtime 迁移使用 Agent2 [`API_BASELINE.md`](../../../agent2/doc/API_BASELINE.md) 的 Baseline 9：
+Runtime 迁移使用 Agent2 [`API_BASELINE.md`](../../../agent2/doc/API_BASELINE.md) 的 Baseline 9。P4 已在 `adapter/agentexec` 内以真实 Engine + native Interaction harness 验证 root start/result 合同；生产 Bootstrap 仍保持旧 owner 到 P8：
 
 - root Kernel、Interaction、Planning、Planning/GOAP、Workflow、OTel、Platform 七个 public package 已冻结；
 - Process Snapshot v6、TreeSnapshot v4；
@@ -143,7 +143,9 @@ internal/adapter/toolset/** -> agent2/**
 
 Unknown Effect 的产品合同是 live/recovery 一致的 fail closed：Application/Delivery 不得到 Settlement payload 构造权；agentexec 只向 Application 投影 indeterminate executor fact/identity。RunLost write-set 提交前 Process 保持 unknown wait，提交后才 Kill/release。
 
-P3 已通过 fake-backed Application consumers 建立当前最小 root candidate：`RootExecutionStarter` 负责 validate/stage/begin，`ExecutionObserver` 负责只读事实流，`ExecutionReleaser` 只负责 resource lifecycle。产品 Cancel 仍由 Application 先作出并提交终态决定。P4–P7 的真实 Agent2 consumers 可以按 consumer-discovered interface 原则直接修订并扩展这些候选；P8 production cutover 前才冻结精确内部 port shape。
+P4 已通过真实 Agent2 consumer 验证当前最小 root candidate：`RootExecutionStarter` 负责 validate/stage/begin，`ExecutionObserver` 负责只读事实流，`ExecutionReleaser` 只负责 resource lifecycle。Stage 组装 exact Deployment/Engine/Input 但不外呼；Application opening durable 后 Begin 才 Start Process。产品 Cancel 仍由 Application 先作出并提交终态决定。P5–P7 的真实 Agent2 consumers 可以按 consumer-discovered interface 原则继续修订并扩展这些候选；P8 production cutover 前才冻结精确内部 port shape。
+
+Fresh root input 的当前防腐合同是 Application 读取 Host Conversation 并追加当前 user message，形成完整 `WorkingContext` seed；adapter 不读取产品 Store。成功 assistant final 由 Agent2 Result 投影 `AssistantMessageCompleted`，不从 Delta 拼接。旧生产 adapter 所需的拆分 text/media request 只属于 P8 删除台账，不是 Agent2 consumer baseline。
 
 Application executor tree identity 统一为 `ExecutorMember`/`MemberID`。Framework `ProcessID` 只能由 execution adapter 在边界内映射，不能重新进入 Application field、port 参数、持久化 technical field 或 Runtime Protocol。P6/P7 之前为旧生产路径保留的 continuation/steer/subtree 小接口不属于冻结 baseline。
 

@@ -9,6 +9,8 @@ import (
 
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/plan"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
+	corechat "github.com/Tangerg/lynx/core/chat"
+	"github.com/Tangerg/lynx/core/media"
 )
 
 func itemPair(build func(transcript.ItemStatus) transcript.Item) []RunEvent {
@@ -79,6 +81,109 @@ func (r *reducer) closeReasoning() []RunEvent {
 
 func (r *reducer) closeStreaming() []RunEvent {
 	return append(r.closeReasoning(), r.closeText()...)
+}
+
+func (r *reducer) completeAssistantMessage(message corechat.Message) ([]RunEvent, error) {
+	if message.Role != corechat.RoleAssistant {
+		return nil, fmt.Errorf("completed message role is %q, want %q", message.Role, corechat.RoleAssistant)
+	}
+	if err := message.Validate(); err != nil {
+		return nil, err
+	}
+
+	var reasoning strings.Builder
+	content := make([]transcript.ContentBlock, 0, len(message.Parts))
+	for index, part := range message.Parts {
+		switch part.Kind {
+		case corechat.PartText:
+			content = append(content, transcript.ContentBlock{Kind: transcript.TextContent, Text: part.Text})
+		case corechat.PartReasoning:
+			reasoning.WriteString(part.Text)
+		case corechat.PartMedia:
+			block, err := assistantMediaBlock(part.Media)
+			if err != nil {
+				return nil, fmt.Errorf("part[%d]: %w", index, err)
+			}
+			content = append(content, block)
+		case corechat.PartToolCall:
+			return nil, fmt.Errorf("part[%d]: completed assistant message still contains a tool call", index)
+		default:
+			return nil, fmt.Errorf("part[%d]: unsupported assistant part kind %q", index, part.Kind)
+		}
+	}
+
+	out := r.completeReasoning(reasoning.String())
+	out = append(out, r.completeMessageContent(content)...)
+	return out, nil
+}
+
+func assistantMediaBlock(value *media.Media) (transcript.ContentBlock, error) {
+	if value == nil {
+		return transcript.ContentBlock{}, errors.New("assistant media is nil")
+	}
+	if !strings.HasPrefix(value.MIME, "image/") {
+		return transcript.ContentBlock{}, fmt.Errorf("assistant media type %q is not supported by Transcript", value.MIME)
+	}
+	data, err := value.Bytes()
+	if err != nil {
+		return transcript.ContentBlock{}, fmt.Errorf("assistant image must use an inline byte source: %w", err)
+	}
+	return transcript.ContentBlock{Kind: transcript.ImageContent, MediaType: value.MIME, Bytes: data}, nil
+}
+
+func (r *reducer) completeReasoning(text string) []RunEvent {
+	if text == "" {
+		return r.closeReasoning()
+	}
+	createdAt := r.now()
+	id := r.nextItemID()
+	started := true
+	if r.reasoning != nil {
+		createdAt = r.reasoning.createdAt
+		id = r.reasoning.id
+		started = false
+	}
+	r.reasoning = nil
+	out := make([]RunEvent, 0, 2)
+	if started {
+		out = append(out, ItemStarted{Item: transcript.Item{
+			ID: id, RunID: r.cfg.RunID, Status: transcript.ItemRunning,
+			Kind: transcript.Reasoning, OccurredAt: createdAt,
+		}})
+	}
+	out = append(out, ItemCompleted{Item: transcript.Item{
+		ID: id, RunID: r.cfg.RunID, Status: transcript.ItemCompleted,
+		Kind: transcript.Reasoning, OccurredAt: createdAt, Text: text,
+	}})
+	return out
+}
+
+func (r *reducer) completeMessageContent(content []transcript.ContentBlock) []RunEvent {
+	if len(content) == 0 {
+		return r.closeText()
+	}
+	createdAt := r.now()
+	id := r.nextItemID()
+	started := true
+	if r.text != nil {
+		createdAt = r.text.createdAt
+		id = r.text.id
+		started = false
+	}
+	r.text = nil
+	out := make([]RunEvent, 0, 2)
+	if started {
+		out = append(out, ItemStarted{Item: transcript.Item{
+			ID: id, RunID: r.cfg.RunID, Status: transcript.ItemRunning,
+			Kind: transcript.AgentMessage, OccurredAt: createdAt,
+		}})
+	}
+	out = append(out, ItemCompleted{Item: transcript.Item{
+		ID: id, RunID: r.cfg.RunID, Status: transcript.ItemCompleted,
+		Kind: transcript.AgentMessage, OccurredAt: createdAt,
+		Content: transcript.CloneContent(content),
+	}})
+	return out
 }
 
 func (r *reducer) toolStart(e ToolCallStarted) ([]RunEvent, error) {
