@@ -785,6 +785,7 @@ declare module "@/plugins/sdk/types/contentBlock" {
 | -------------------------------- | ------------------------------------------------------------------------------------------- |
 | 决策透镜 / 工程约定 / 反向不变量 | 仓库根 `CLAUDE.md`                                                                          |
 | 视觉规范 / 颜色 / 排版           | `frontend/DESIGN.md`                                                                        |
+| 后端给什么数据 / 每个字段要表达什么（自包含，可给外部人看） | `frontend/CONTENT_RENDERING.md`                                     |
 | 协议 method 表 / envelope / 语义 | `docs/protocol/API.md` + `docs/protocol/AUX_API.md`                                         |
 | transport / handshake / 错误码   | `docs/protocol/TRANSPORT.md`                                                                |
 | Host 全部接口                    | `src/plugins/sdk/types/host.ts`                                                             |

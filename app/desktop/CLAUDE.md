@@ -1,7 +1,7 @@
 # CLAUDE.md — project context for Claude Code
 
 > **Lyra** — Wails 桌面应用（Go 壳 + React/TS 前端），由自研 **Lyra Runtime Protocol v2**（JSON-RPC，Session→Run→Item 流式）驱动的插件化 agent client。
-> 结构看 `frontend/ARCHITECTURE.md`，主 UI 心智模型看 `docs/FRONTEND_AGENT_WORKSPACE_MODEL.md`，视觉规范看 `frontend/DESIGN.md`，桌面质感防回归清单看 `frontend/DESKTOP_UI_POLISH.md`，协议看 `docs/protocol/`。
+> 结构看 `frontend/ARCHITECTURE.md`，主 UI 心智模型看 `docs/FRONTEND_AGENT_WORKSPACE_MODEL.md`，视觉规范看 `frontend/DESIGN.md`，桌面质感防回归清单看 `frontend/DESKTOP_UI_POLISH.md`，后端数据 ↔ 渲染意图的自包含规格看 `frontend/CONTENT_RENDERING.md`，协议看 `docs/protocol/`。
 >
 > 本文件只放**法则 —— 只宏观、不写具体**（具体文件名 / 符号 / 版本 / 行数 / 历史会随演化变动，活在代码 / git / ARCHITECTURE.md 里，不进本则）。读法：先「两条法则」（总透镜）→ §1 架构心智 → §2-§5 写代码的判断与硬约定 → §6 别走的方向 → §7 怎么干活。
 
