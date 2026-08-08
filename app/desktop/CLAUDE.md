@@ -129,6 +129,7 @@ perf 排查沉淀的硬规则 —— 几个"看似没事其实在累积"的坑�
 ## 7 · 工作流
 
 - **开发**：`wails3 dev`（在 `app/desktop/` 跑；自动起 vite + Go backend）。构建编排在 `Taskfile.yml` + `build/`（v3 取代 v2 的 `wails.json`），走 CLI 自带的 task runner —— `wails3 task build` / `run` / `package`，不需要单独装 `task`。CLI 自身：`go install github.com/wailsapp/wails/v3/cmd/wails3@<go.mod 里钉的版本>`。
+- **Wails 三处版本必须同时动，且都钉死不用范围**：`go.mod` 的 `wails/v3`、上面那个 CLI、以及 `frontend/package.json` 的 `@wailsio/runtime`。第三个不是跟着前两个的版本号走 —— 它跟着 **Go 模块 in-tree 带的那份 runtime**（v3 仓库里 `internal/runtime/desktop/@wailsio/runtime`），npm 上的发布节奏比 Go 慢，所以两个号本来就不相等、**看起来"落后"是正常的**。用 `^` 范围会让 `npm install` 装到另一个 beta，把同一个 runtime 的两半配错。**这条链断掉时两侧都不打日志**（实测：故意写错绑定方法名，前端 `console.error` 不进终端、Go 侧也不记 rejection），所以症状只会是功能静默失效 —— 不要靠日志找它，靠 `binding_names_test.go`。
 - **质量门禁**（在 `frontend/` 跑）：`npm run check` —— 类型 / lint / 格式 / 测试 / 死码 / 架构守卫 / 视觉与文案守卫 / 产物体积，全绿才往下走（单项可单跑，名字见 `package.json` 的 `check:*`）。**不在这里列举守卫清单** —— 它只会漂：曾列 8 项时实际已有 14 项。
 - **会漂的量（测试数 / 插件数 / 文件数）直接跑命令查，不在本文件维护硬编码数字。**
 - **沟通约定**：中文回复（用户偏好），代码 / 注释保持英文；破坏性或结构性改动前先算爆炸半径（grep 所有消费方）+ 给方案 + 权衡，等用户确认再动；改动后跑 `npm run check`，commit message 写清 _why_，commit 后默认推送；commit trailer 用 `Co-Authored-By: Claude <当前实际模型名> <noreply@anthropic.com>`（署名以实际生成该 commit 的模型为准，不硬编码型号）。

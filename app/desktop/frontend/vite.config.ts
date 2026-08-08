@@ -68,6 +68,14 @@ export default defineConfig({
           // feature, and a name already used by another group gets merged back
           // into whatever chunk Rolldown picks.
           if (id.includes("vite/preload-helper")) return "preload-helper";
+          // The Wails runtime, which has to stay OFF the startup path: importing it has
+          // side effects — it installs listeners and starts talking to a host — and this
+          // same bundle runs in a plain browser and in the visual fixtures, where there
+          // is no host. `desktopHost.ts` imports it dynamically for exactly that reason,
+          // and naming its chunk is what makes the split reliable instead of incidental:
+          // unnamed, it is a lone module Rolldown may fold into a big neighbour, which is
+          // how the entry acquired a monolith twice already.
+          if (id.includes("node_modules/@wailsio/runtime")) return "wails-runtime";
           // Stable vendor deps
           if (
             id.includes("node_modules/react/") ||
