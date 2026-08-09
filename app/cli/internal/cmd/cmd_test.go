@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -131,6 +133,70 @@ func TestRunReadsAPipedPromptAndCombinesItWithTheArgument(t *testing.T) {
 	}
 	if captured != "explain this\n\nfile contents" {
 		t.Fatalf("prompt = %q, want the argument then the piped text", captured)
+	}
+}
+
+func TestRunAttachesRepeatedFilesAndAllowsAttachmentOnlyPrompts(t *testing.T) {
+	workspace := t.TempDir()
+	first := filepath.Join(workspace, "notes.txt")
+	second := filepath.Join(workspace, "diagram.png")
+	if err := os.WriteFile(first, []byte("notes"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(second, append([]byte("\x89PNG\r\n\x1a\n"), make([]byte, 32)...), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	runtime := instant()
+	id := firstSession(t, runtime)
+	if _, _, err := exec(t, runtime, "", "-C", workspace, "run", "--approve-all", "-s", id, "-f", "notes.txt", "-f", "diagram.png"); err != nil {
+		t.Fatalf("attachment-only run: %v", err)
+	}
+	snapshot, err := runtime.GetSession(t.Context(), id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var prompt client.Block
+	for _, envelope := range snapshot.Events {
+		if event, ok := envelope.Event.(client.BlockCompleted); ok && event.Block.Kind == client.BlockUser {
+			prompt = event.Block
+		}
+	}
+	if prompt.Text != "" || len(prompt.Attachments) != 2 {
+		t.Fatalf("prompt block = %+v", prompt)
+	}
+	if prompt.Attachments[0].Kind != client.AttachmentText || prompt.Attachments[1].Kind != client.AttachmentImage {
+		t.Fatalf("attachment kinds = %+v", prompt.Attachments)
+	}
+}
+
+func TestRunRejectsInvalidAttachmentBeforeCreatingASession(t *testing.T) {
+	runtime := instant()
+	before, _ := runtime.ListSessions(t.Context(), client.SessionQuery{Limit: 100})
+	_, _, err := exec(t, runtime, "", "-C", t.TempDir(), "run", "-f", "missing.txt")
+	if err == nil || !strings.Contains(err.Error(), "missing.txt") {
+		t.Fatalf("error = %v", err)
+	}
+	after, _ := runtime.ListSessions(t.Context(), client.SessionQuery{Limit: 100})
+	if len(after.Items) != len(before.Items) {
+		t.Fatalf("invalid input created a session: %d -> %d", len(before.Items), len(after.Items))
+	}
+}
+
+func TestResolveAttachmentsDeduplicatesCanonicalPathsBeforeApplyingTheLimit(t *testing.T) {
+	workspace := t.TempDir()
+	if err := os.WriteFile(filepath.Join(workspace, "one.txt"), []byte("one"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	paths := make([]string, 20)
+	for i := range paths {
+		paths[i] = "one.txt"
+	}
+	got, err := resolveAttachments(t.Context(), workspace, paths)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("attachments = %+v, want one canonical file", got)
 	}
 }
 

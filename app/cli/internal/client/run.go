@@ -1,6 +1,12 @@
 package client
 
-import "time"
+import (
+	"errors"
+	"fmt"
+	"slices"
+	"strings"
+	"time"
+)
 
 // RunStatus is the durable state of a logical run.
 type RunStatus string
@@ -43,6 +49,32 @@ type Attachment struct {
 	Path     string
 	MimeType string
 	Size     int64
+}
+
+// Validate keeps malformed attachment projections from crossing an adapter
+// boundary. The bytes remain in the named local file; the value is the durable
+// metadata and identity a runtime receives.
+func (a Attachment) Validate() error {
+	var problems []error
+	if strings.TrimSpace(a.ID) == "" {
+		problems = append(problems, errors.New("id is empty"))
+	}
+	if !slices.Contains([]AttachmentKind{AttachmentFile, AttachmentImage, AttachmentText}, a.Kind) {
+		problems = append(problems, fmt.Errorf("kind %q is invalid", a.Kind))
+	}
+	if strings.TrimSpace(a.Name) == "" {
+		problems = append(problems, errors.New("name is empty"))
+	}
+	if strings.TrimSpace(a.Path) == "" {
+		problems = append(problems, errors.New("path is empty"))
+	}
+	if a.Size < 0 {
+		problems = append(problems, errors.New("size is negative"))
+	}
+	if err := errors.Join(problems...); err != nil {
+		return fmt.Errorf("attachment: %w", err)
+	}
+	return nil
 }
 
 // AgentMode changes how the agent approaches a turn, not what it may access.

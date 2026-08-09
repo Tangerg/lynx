@@ -223,6 +223,35 @@ func TestJSONCarriesTheToolProjection(t *testing.T) {
 	}
 }
 
+func TestRenderersCarryUserAttachments(t *testing.T) {
+	block := client.Block{
+		ID: "u", Kind: client.BlockUser, Text: "inspect",
+		Attachments: []client.Attachment{{
+			ID: "att_1", Kind: client.AttachmentText, Name: "notes.txt",
+			Path: "/tmp/notes.txt", MimeType: "text/plain", Size: 5,
+		}},
+	}
+	var textOut bytes.Buffer
+	if err := NewText(&textOut).Render(envelope(client.BlockCompleted{Block: block})); err != nil {
+		t.Fatal(err)
+	}
+	if got := textOut.String(); !strings.Contains(got, "@ notes.txt (text/plain, 5 bytes)") {
+		t.Fatalf("text attachment = %q", got)
+	}
+
+	var jsonOut bytes.Buffer
+	if err := NewJSON(&jsonOut).Render(envelope(client.BlockCompleted{Block: block})); err != nil {
+		t.Fatal(err)
+	}
+	var got frame
+	if err := json.Unmarshal(jsonOut.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Block == nil || len(got.Block.Attachments) != 1 || got.Block.Attachments[0].Path != "/tmp/notes.txt" {
+		t.Fatalf("json attachment = %+v", got.Block)
+	}
+}
+
 func TestJSONOmitsWhatDidNotHappen(t *testing.T) {
 	var buf bytes.Buffer
 	j := NewJSON(&buf)

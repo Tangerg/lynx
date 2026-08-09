@@ -1,6 +1,8 @@
 package session
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -47,15 +49,28 @@ func (a *app) runCommand(name, argument string) {
 }
 
 func (a *app) refreshCompletion() {
+	a.completionSeq++
+	sequence := a.completionSeq
+	if a.completionCancel != nil {
+		a.completionCancel()
+		a.completionCancel = nil
+	}
 	lines := strings.Split(a.composer.Text(), "\n")
 	line, column := a.composer.Editor().Cursor()
 	if line < 0 || line >= len(lines) {
 		a.completion.Dismiss()
 		return
 	}
-	token, ok := headless.TokenAt(lines[line], column, headless.Trigger{Prefix: "/", AtStart: true})
+	token, ok := headless.TokenAt(lines[line], column,
+		headless.Trigger{Prefix: "/", AtStart: true},
+		headless.Trigger{Prefix: "@"},
+	)
 	if !ok {
 		a.completion.Dismiss()
+		return
+	}
+	if token.Trigger.Prefix == "@" {
+		a.completeFiles(sequence, token)
 		return
 	}
 	found := a.commands.Find(token.Query)
@@ -69,15 +84,55 @@ func (a *app) refreshCompletion() {
 	a.completion.Offer(token, candidates)
 }
 
+func (a *app) completeFiles(sequence uint64, token headless.Token) {
+	if a.attachments == nil {
+		a.completion.Dismiss()
+		return
+	}
+	ctx, cancel := context.WithCancel(a.ctx)
+	a.completionCancel = cancel
+	dispatcher := a.loop.Dispatcher()
+	go func() {
+		matches, err := a.attachments.Complete(ctx, token.Query, 50)
+		if errors.Is(err, context.Canceled) {
+			return
+		}
+		candidates := make([]headless.Candidate, 0, len(matches))
+		for _, match := range matches {
+			candidates = append(candidates, headless.Candidate{
+				Text: match.Path, Label: match.Path, Detail: match.Detail, Matched: match.Matched,
+			})
+		}
+		dispatcher.Post(func() {
+			if a.completionSeq != sequence || a.closed {
+				return
+			}
+			a.completionCancel = nil
+			if err != nil {
+				a.completion.Dismiss()
+				a.message(err.Error())
+				return
+			}
+			a.completion.Offer(token, candidates)
+		})
+	}()
+}
+
 func (a *app) drawCompletion(frame headless.Frame) {
 	width, height := frame.Size()
 	rows := a.completion.Measure(width)
 	if width <= 2 || height <= 2 || rows <= 0 {
 		return
 	}
+	title := "commands"
+	footer := "enter complete"
+	if token, ok := a.completion.Token(); ok && token.Trigger.Prefix == "@" {
+		title = "workspace files"
+		footer = "enter attach"
+	}
 	box := kit.Box{
 		Theme: a.transcript.theme, Glyphs: a.transcript.glyphs,
-		Padding: layout.Symmetric(0, 1), Title: "commands", Footer: "enter complete",
+		Padding: layout.Symmetric(0, 1), Title: title, Footer: footer,
 		FooterAlign: layout.End,
 	}
 	popupWidth := min(max(a.completion.Width()+4, 32), width-2)
@@ -156,6 +211,12 @@ func (a *app) ShowHelp() {
 }
 
 func (a *app) SetStatus(message string) { a.message(message) }
+
+func (a *app) AttachFile(path string) error { return a.addAttachment(path) }
+
+func (a *app) DetachFile(value string) error { return a.removeAttachment(value) }
+
+func (a *app) ShowAttachments() { a.showAttachments() }
 
 func (a *app) ShowSessions() {
 	if a.state.Busy() || a.following {

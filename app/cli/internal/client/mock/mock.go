@@ -263,6 +263,15 @@ func (r *Runtime) StartRun(_ context.Context, in client.StartRun) (client.Run, e
 	if prompt == "" && len(in.Message.Attachments) == 0 {
 		return client.Run{}, errors.New("mock: prompt and attachments are empty")
 	}
+	if len(in.Message.Attachments) > 16 {
+		return client.Run{}, errors.New("mock: a message accepts at most 16 attachments")
+	}
+	for i, attachment := range in.Message.Attachments {
+		if err := attachment.Validate(); err != nil {
+			return client.Run{}, fmt.Errorf("mock: attachment %d: %w", i+1, err)
+		}
+	}
+	attachments := slices.Clone(in.Message.Attachments)
 	build := r.Script
 	if build == nil {
 		build = Conversation
@@ -287,7 +296,7 @@ func (r *Runtime) StartRun(_ context.Context, in client.StartRun) (client.Run, e
 	session.active = run.id
 	r.emitLocked(run, client.RunStarted{RunID: run.id, SessionID: run.sessionID, Options: in.Options})
 	r.emitLocked(run, client.BlockCompleted{Block: client.Block{
-		ID: run.id + "_prompt", Kind: client.BlockUser, Text: prompt,
+		ID: run.id + "_prompt", Kind: client.BlockUser, Text: prompt, Attachments: attachments,
 	}})
 	started := projectRun(run)
 	r.mu.Unlock()
@@ -652,6 +661,7 @@ func cloneEvent(event client.Event) client.Event {
 }
 
 func cloneBlock(block client.Block) client.Block {
+	block.Attachments = slices.Clone(block.Attachments)
 	if block.Tool != nil {
 		tool := *block.Tool
 		block.Tool = &tool

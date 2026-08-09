@@ -343,3 +343,40 @@ func TestRuntimeSupportsConcurrentCatalogReadsDuringStreaming(t *testing.T) {
 	})
 	wait.Wait()
 }
+
+func TestStartRunValidatesAndCopiesAttachments(t *testing.T) {
+	runtime := New()
+	runtime.Instant = true
+	session := newSession(t, runtime)
+	invalid := client.Attachment{Kind: client.AttachmentText, Name: "broken.txt", Path: "/tmp/broken.txt"}
+	if _, err := runtime.StartRun(t.Context(), client.StartRun{
+		SessionID: session.ID, Message: client.Message{Attachments: []client.Attachment{invalid}},
+	}); err == nil {
+		t.Fatal("invalid attachment was accepted")
+	}
+
+	attachments := []client.Attachment{{
+		ID: "att_1", Kind: client.AttachmentText, Name: "notes.txt",
+		Path: "/tmp/notes.txt", MimeType: "text/plain", Size: 5,
+	}}
+	run, err := runtime.StartRun(t.Context(), client.StartRun{
+		SessionID: session.ID, Message: client.Message{Text: "inspect", Attachments: attachments},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	attachments[0].Name = "mutated.txt"
+	snapshot, err := runtime.GetSession(t.Context(), session.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got client.Block
+	for _, envelope := range snapshot.Events {
+		if event, ok := envelope.Event.(client.BlockCompleted); ok && envelope.RunID == run.ID && event.Block.Kind == client.BlockUser {
+			got = event.Block
+		}
+	}
+	if len(got.Attachments) != 1 || got.Attachments[0].Name != "notes.txt" {
+		t.Fatalf("stored attachments = %+v", got.Attachments)
+	}
+}

@@ -119,7 +119,12 @@ func (t *Text) finish(b client.Block) {
 	switch b.Kind {
 	case client.BlockUser:
 		t.blank()
-		t.block("› ", text)
+		if text != "" {
+			t.block("› ", text)
+		}
+		for _, attachment := range b.Attachments {
+			t.line("  @ " + attachment.Name + " (" + attachment.MimeType + ", " + strconv.FormatInt(attachment.Size, 10) + " bytes)")
+		}
 	case client.BlockAssistant:
 		t.blank()
 		t.write(text)

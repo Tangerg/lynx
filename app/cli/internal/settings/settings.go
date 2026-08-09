@@ -13,14 +13,16 @@ import (
 )
 
 const (
-	ActionSend           = "send"
-	ActionCancelRun      = "cancel-run"
-	ActionQuit           = "quit"
-	ActionCommandPalette = "command-palette"
-	ActionSessions       = "sessions"
-	ActionSearch         = "search"
-	ActionCycleMode      = "cycle-mode"
-	ActionToggleDetails  = "toggle-details"
+	ActionSend            = "send"
+	ActionCancelRun       = "cancel-run"
+	ActionQuit            = "quit"
+	ActionCommandPalette  = "command-palette"
+	ActionSessions        = "sessions"
+	ActionSearch          = "search"
+	ActionCycleMode       = "cycle-mode"
+	ActionToggleDetails   = "toggle-details"
+	ActionHistoryPrevious = "history-previous"
+	ActionHistoryNext     = "history-next"
 )
 
 type Settings struct {
@@ -50,14 +52,16 @@ func Default() Settings {
 		Approval: Approval{Remember: client.RememberNone},
 		UI:       UI{Mouse: true, Notifications: true, TranscriptRetain: 24, ReconnectAttempts: 4},
 		Keys: map[string][]string{
-			ActionSend:           {"enter"},
-			ActionCancelRun:      {"ctrl+x"},
-			ActionQuit:           {"ctrl+c"},
-			ActionCommandPalette: {"ctrl+p"},
-			ActionSessions:       {"ctrl+r"},
-			ActionSearch:         {"ctrl+f"},
-			ActionCycleMode:      {"shift+tab"},
-			ActionToggleDetails:  {"ctrl+o"},
+			ActionSend:            {"enter"},
+			ActionCancelRun:       {"ctrl+x"},
+			ActionQuit:            {"ctrl+c"},
+			ActionCommandPalette:  {"ctrl+p"},
+			ActionSessions:        {"ctrl+r"},
+			ActionSearch:          {"ctrl+f"},
+			ActionCycleMode:       {"shift+tab"},
+			ActionToggleDetails:   {"ctrl+o"},
+			ActionHistoryPrevious: {"alt+up"},
+			ActionHistoryNext:     {"alt+down"},
 		},
 	}
 }

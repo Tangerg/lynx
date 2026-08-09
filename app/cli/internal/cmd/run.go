@@ -15,6 +15,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
+	"github.com/Tangerg/lynx/app/cli/internal/attachment"
 	"github.com/Tangerg/lynx/app/cli/internal/client"
 	"github.com/Tangerg/lynx/app/cli/internal/render"
 )
@@ -32,14 +33,15 @@ func newRunCommand(resolve backend, v *viper.Viper) *cobra.Command {
 		asJSON     bool
 		approveAll bool
 		sessionID  string
+		files      []string
 	)
 	cmd := &cobra.Command{
 		Use:   "run [prompt]",
 		Short: "Run one prompt to completion and exit",
 		Long: "run drives a single prompt without an interactive surface: it starts a run,\n" +
 			"writes what happens as it happens, and exits when the run ends.\n\n" +
-			"Anything piped in is appended to the prompt, so a file, a diff or a log can be\n" +
-			"handed over as context.\n\n" +
+			"Anything piped in is appended to the prompt. --file attaches a local file as\n" +
+			"typed context and can be repeated; attachment-only turns are valid.\n\n" +
 			"A run that needs approval stops and says so. --approve-all answers yes to every\n" +
 			"request instead, which is the only way an unattended run gets past one.",
 		Args:         cobra.ArbitraryArgs,
@@ -49,15 +51,19 @@ func newRunCommand(resolve backend, v *viper.Viper) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			rt, err := resolve(cmd)
-			if err != nil {
-				return err
-			}
-			prompt, err := prompt(cmd, args)
-			if err != nil {
-				return err
-			}
 			ws, err := workspace(cmd)
+			if err != nil {
+				return err
+			}
+			prompt, promptErr := prompt(cmd, args)
+			if promptErr != nil && (!errors.Is(promptErr, errNoPrompt) || len(files) == 0) {
+				return promptErr
+			}
+			attached, err := resolveAttachments(cmd.Context(), ws, files)
+			if err != nil {
+				return err
+			}
+			rt, err := resolve(cmd)
 			if err != nil {
 				return err
 			}
@@ -72,7 +78,7 @@ func newRunCommand(resolve backend, v *viper.Viper) *cobra.Command {
 			}
 			return follow(cmd.Context(), rt, out, client.StartRun{
 				SessionID: session.ID,
-				Message:   client.Message{Text: prompt},
+				Message:   client.Message{Text: prompt, Attachments: attached},
 				Options:   value.RunOptions(),
 			}, approveAll)
 		},
@@ -80,7 +86,54 @@ func newRunCommand(resolve backend, v *viper.Viper) *cobra.Command {
 	cmd.Flags().BoolVar(&asJSON, "json", false, "Write newline-delimited JSON instead of text")
 	cmd.Flags().BoolVar(&approveAll, "approve-all", false, "Approve every request the run makes")
 	cmd.Flags().StringVarP(&sessionID, "session", "s", "", "Run inside an existing session instead of a new one")
+	cmd.Flags().StringArrayVarP(&files, "file", "f", nil, "Attach a local file (repeatable)")
+	_ = cmd.RegisterFlagCompletionFunc("file", func(cmd *cobra.Command, args []string, value string) ([]string, cobra.ShellCompDirective) {
+		ws, err := workspace(cmd)
+		if err != nil {
+			return nil, cobra.ShellCompDirectiveError
+		}
+		resolver, err := attachment.New(ws)
+		if err != nil {
+			return nil, cobra.ShellCompDirectiveError
+		}
+		matches, err := resolver.Complete(cmd.Context(), value, attachment.DefaultLimit)
+		if err != nil {
+			return nil, cobra.ShellCompDirectiveError
+		}
+		out := make([]string, 0, len(matches))
+		for _, match := range matches {
+			out = append(out, match.Path+"\t"+match.Detail)
+		}
+		return out, cobra.ShellCompDirectiveNoFileComp
+	})
 	return cmd
+}
+
+func resolveAttachments(ctx context.Context, workspace string, paths []string) ([]client.Attachment, error) {
+	if len(paths) == 0 {
+		return nil, nil
+	}
+	resolver, err := attachment.New(workspace)
+	if err != nil {
+		return nil, err
+	}
+	seen := make(map[string]struct{}, len(paths))
+	out := make([]client.Attachment, 0, len(paths))
+	for _, path := range paths {
+		item, err := resolver.Resolve(ctx, path)
+		if err != nil {
+			return nil, err
+		}
+		if _, duplicate := seen[item.Path]; duplicate {
+			continue
+		}
+		if len(out) >= attachment.MaxAttachments {
+			return nil, fmt.Errorf("at most %d unique attachments are allowed", attachment.MaxAttachments)
+		}
+		seen[item.Path] = struct{}{}
+		out = append(out, item)
+	}
+	return out, nil
 }
 
 // follow drives a run to its end, answering each park and continuing on the

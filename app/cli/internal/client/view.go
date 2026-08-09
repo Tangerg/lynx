@@ -48,8 +48,9 @@ const (
 // Block is one renderable unit of a transcript, identified for the lifetime of
 // its run so deltas can find it.
 type Block struct {
-	ID   string
-	Kind BlockKind
+	ID          string
+	Kind        BlockKind
+	Attachments []Attachment
 	// Text is the block's body. Assistant and reasoning bodies are markdown and
 	// arrive in pieces (see [BlockDelta]); the rest arrive whole.
 	Text string

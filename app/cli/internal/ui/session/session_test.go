@@ -2,6 +2,8 @@ package session
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -22,13 +24,17 @@ func runUI(t *testing.T, plugins ...extensions.Plugin) (*programtest.Host, func(
 }
 
 func runUIWith(t *testing.T, backend runtime, plugins ...extensions.Plugin) (*programtest.Host, func()) {
+	return runUIWithWorkspace(t, backend, "/tmp/lyra-cli-test", plugins...)
+}
+
+func runUIWithWorkspace(t *testing.T, backend runtime, workspace string, plugins ...extensions.Plugin) (*programtest.Host, func()) {
 	t.Helper()
 	host := programtest.New(t, 96, 28)
 	ctx, cancel := context.WithCancel(t.Context())
 	done := make(chan error, 1)
 	go func() {
 		done <- Run(ctx, Config{
-			Runtime: backend, Workspace: "/tmp/lyra-cli-test", Plugins: plugins, Host: host,
+			Runtime: backend, Workspace: workspace, Plugins: plugins, Host: host,
 		})
 	}()
 
@@ -67,6 +73,14 @@ func (r *recordingRuntime) options() client.RunOptions {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return r.last.Options
+}
+
+func (r *recordingRuntime) startInput() client.StartRun {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	input := r.last
+	input.Message = cloneMessage(input.Message)
+	return input
 }
 
 func (r *delayedFirstRuntime) StartRun(ctx context.Context, input client.StartRun) (client.Run, error) {
@@ -324,6 +338,57 @@ func TestCommandPaletteSearchAndDetailShortcutsAreReachable(t *testing.T) {
 	host.Shows(t, "tool details expanded")
 	host.Send(input.Key{Code: input.Character, Rune: 'o', Mods: input.Ctrl})
 	host.Shows(t, "tool details collapsed")
+
+	host.Send(input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl})
+	stop()
+}
+
+func TestWorkspaceFileCompletionCreatesAtomicAttachments(t *testing.T) {
+	workspace := t.TempDir()
+	path := workspace + "/cache_test.go"
+	if err := os.WriteFile(path, []byte("package cache\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	backend := &recordingRuntime{Runtime: mock.New()}
+	backend.Instant = true
+	backend.Script = func(string) mock.Script {
+		return mock.Script{Prelude: []mock.Step{{Event: client.RunFinished{Outcome: client.Outcome{Status: client.OutcomeCompleted}}}}}
+	}
+	host, stop := runUIWithWorkspace(t, backend, workspace)
+	host.Shows(t, "Ask lyra")
+	host.Type("@cache")
+	host.Shows(t, "workspace files")
+	host.Press(input.Enter)
+	host.Shows(t, "attached cache_test.go")
+
+	// Commands operate on, but do not accidentally submit, staged attachments.
+	host.Type("/attachments")
+	host.Press(input.Enter)
+	host.Shows(t, "attachments")
+	host.Shows(t, "cache_test.go · text/")
+	host.Type("/detach all")
+	host.Press(input.Enter)
+	host.Shows(t, "removed all attachments")
+
+	host.Type("/attach cache_test.go")
+	host.Press(input.Enter)
+	host.Shows(t, "attached cache_test.go")
+	host.Type("inspect this file")
+	host.Press(input.Enter)
+	host.Shows(t, "complete")
+	started := backend.startInput()
+	if started.Message.Text != "inspect this file" || len(started.Message.Attachments) != 1 {
+		t.Fatalf("start message = %+v", started.Message)
+	}
+	canonical, _ := filepath.EvalSymlinks(path)
+	if got := started.Message.Attachments[0]; got.Path != canonical || got.Kind != client.AttachmentText {
+		t.Fatalf("attachment = %+v", got)
+	}
+
+	// Semantic prompt history restores the chip, not just its visible @label.
+	host.Send(input.Key{Code: input.Up, Mods: input.Alt})
+	host.Shows(t, "@cache_test.go")
+	host.Shows(t, "inspect this file")
 
 	host.Send(input.Key{Code: input.Character, Rune: 'c', Mods: input.Ctrl})
 	stop()

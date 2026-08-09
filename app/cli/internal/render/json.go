@@ -48,10 +48,20 @@ type frame struct {
 }
 
 type blockFrame struct {
-	ID   string     `json:"id"`
-	Kind string     `json:"kind"`
-	Text string     `json:"text,omitempty"`
-	Tool *toolFrame `json:"tool,omitempty"`
+	ID          string            `json:"id"`
+	Kind        string            `json:"kind"`
+	Text        string            `json:"text,omitempty"`
+	Attachments []attachmentFrame `json:"attachments,omitempty"`
+	Tool        *toolFrame        `json:"tool,omitempty"`
+}
+
+type attachmentFrame struct {
+	ID       string `json:"id"`
+	Kind     string `json:"kind"`
+	Name     string `json:"name"`
+	Path     string `json:"path"`
+	MimeType string `json:"mimeType,omitempty"`
+	Size     int64  `json:"size"`
 }
 
 type toolFrame struct {
@@ -170,6 +180,12 @@ func (j *JSON) Close() error { return j.err }
 
 func encodeBlock(b client.Block) *blockFrame {
 	out := &blockFrame{ID: b.ID, Kind: string(b.Kind), Text: b.Text}
+	for _, attachment := range b.Attachments {
+		out.Attachments = append(out.Attachments, attachmentFrame{
+			ID: attachment.ID, Kind: string(attachment.Kind), Name: attachment.Name,
+			Path: attachment.Path, MimeType: attachment.MimeType, Size: attachment.Size,
+		})
+	}
 	if b.Tool != nil {
 		out.Tool = &toolFrame{
 			Name:       b.Tool.Name,

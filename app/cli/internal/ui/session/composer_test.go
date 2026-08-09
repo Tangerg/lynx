@@ -1,0 +1,35 @@
+package session
+
+import (
+	"testing"
+
+	"github.com/Tangerg/lynx/app/cli/internal/client"
+)
+
+func TestPromptHistoryRestoresAttachmentsAndDraft(t *testing.T) {
+	file := client.Attachment{ID: "att_1", Kind: client.AttachmentText, Name: "main.go", Path: "/tmp/main.go", Size: 10}
+	var history promptHistory
+	history.Add(client.Message{Text: "inspect", Attachments: []client.Attachment{file}})
+	got, ok := history.Back(client.Message{Text: "draft"})
+	if !ok || got.Text != "inspect" || len(got.Attachments) != 1 || got.Attachments[0].ID != file.ID {
+		t.Fatalf("back = %+v, %v", got, ok)
+	}
+	got.Attachments[0].Name = "mutated"
+	draft, ok := history.Forward()
+	if !ok || draft.Text != "draft" {
+		t.Fatalf("forward = %+v, %v", draft, ok)
+	}
+	again, _ := history.Back(client.Message{})
+	if again.Attachments[0].Name != "main.go" {
+		t.Fatalf("history leaked caller mutation: %+v", again)
+	}
+}
+
+func TestPromptHistoryDropsConsecutiveDuplicates(t *testing.T) {
+	var history promptHistory
+	history.Add(client.Message{Text: "same"})
+	history.Add(client.Message{Text: "same"})
+	if len(history.entries) != 1 {
+		t.Fatalf("entries = %d, want 1", len(history.entries))
+	}
+}

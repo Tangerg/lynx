@@ -273,6 +273,7 @@ func (c *Conversation) put(block Block, completed bool) error {
 }
 
 func cloneBlock(block Block) Block {
+	block.Attachments = slices.Clone(block.Attachments)
 	if block.Tool != nil {
 		tool := *block.Tool
 		block.Tool = &tool

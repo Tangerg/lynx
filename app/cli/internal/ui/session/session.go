@@ -20,6 +20,7 @@ import (
 	"github.com/Tangerg/oolong/core/term"
 	"github.com/Tangerg/oolong/highlight"
 
+	"github.com/Tangerg/lynx/app/cli/internal/attachment"
 	"github.com/Tangerg/lynx/app/cli/internal/client"
 	"github.com/Tangerg/lynx/app/cli/internal/extensions"
 	"github.com/Tangerg/lynx/app/cli/internal/settings"
@@ -31,14 +32,16 @@ const (
 )
 
 const (
-	sendPrompt     keymap.Action = settings.ActionSend
-	cancelRun      keymap.Action = settings.ActionCancelRun
-	quitApp        keymap.Action = settings.ActionQuit
-	commandPalette keymap.Action = settings.ActionCommandPalette
-	showSessions   keymap.Action = settings.ActionSessions
-	searchHistory  keymap.Action = settings.ActionSearch
-	cycleMode      keymap.Action = settings.ActionCycleMode
-	toggleDetails  keymap.Action = settings.ActionToggleDetails
+	sendPrompt      keymap.Action = settings.ActionSend
+	cancelRun       keymap.Action = settings.ActionCancelRun
+	quitApp         keymap.Action = settings.ActionQuit
+	commandPalette  keymap.Action = settings.ActionCommandPalette
+	showSessions    keymap.Action = settings.ActionSessions
+	searchHistory   keymap.Action = settings.ActionSearch
+	cycleMode       keymap.Action = settings.ActionCycleMode
+	toggleDetails   keymap.Action = settings.ActionToggleDetails
+	historyPrevious keymap.Action = settings.ActionHistoryPrevious
+	historyNext     keymap.Action = settings.ActionHistoryNext
 )
 
 // runtime is the product capability this adapter consumes. A future real
@@ -158,26 +161,31 @@ type app struct {
 	body       *headless.Container
 	stack      headless.Stack
 
-	review           *client.Approval
-	reviewChoice     string
-	reviewForm       *headless.Form
-	reviewPane       reviewPane
-	reviewDialog     *kit.Dialog
-	sessionPicker    *picker[client.Session]
-	sessionDialog    *kit.Dialog
-	modelPicker      *picker[client.Model]
-	modelDialog      *kit.Dialog
-	permissionPicker *picker[client.PermissionMode]
-	permissionDialog *kit.Dialog
-	question         *client.Question
-	questionDialog   *kit.Dialog
-	questionText     map[string]*string
-	questionMulti    map[string]*[]string
-	questionBool     map[string]*bool
-	commandPicker    *picker[headless.Command]
-	commandDialog    *kit.Dialog
-	searchDialog     *kit.Dialog
-	searchQuery      string
+	review             *client.Approval
+	reviewChoice       string
+	reviewForm         *headless.Form
+	reviewPane         reviewPane
+	reviewDialog       *kit.Dialog
+	sessionPicker      *picker[client.Session]
+	sessionDialog      *kit.Dialog
+	modelPicker        *picker[client.Model]
+	modelDialog        *kit.Dialog
+	permissionPicker   *picker[client.PermissionMode]
+	permissionDialog   *kit.Dialog
+	question           *client.Question
+	questionDialog     *kit.Dialog
+	questionText       map[string]*string
+	questionMulti      map[string]*[]string
+	questionBool       map[string]*bool
+	commandPicker      *picker[headless.Command]
+	commandDialog      *kit.Dialog
+	searchDialog       *kit.Dialog
+	searchQuery        string
+	attachments        *attachment.Resolver
+	attachmentElements map[uint64]client.Attachment
+	history            promptHistory
+	completionSeq      uint64
+	completionCancel   context.CancelFunc
 
 	streamCancel context.CancelFunc
 	streamSeq    uint64
@@ -197,15 +205,18 @@ func newApp(ctx context.Context, loop *program.InlineRuntime, backend runtime, o
 	if !ground.BG.Default() && !ground.BG.RGB().Dark() {
 		syntax = "github"
 	}
+	attachmentResolver, _ := attachment.New(opened.Session.Workspace)
 	a := &app{
 		ctx: ctx, loop: loop, backend: backend, session: opened.Session, registry: registry,
-		state:      client.NewConversation(),
-		transcript: newConversationView(theme, glyphs, loop.Environment().Wheel(), syntax, configured.UI.TranscriptRetain),
-		workflow:   newWorkflowView(theme, glyphs),
-		status:     statusView{theme: theme, glyphs: glyphs, doing: "ready", options: configured.RunOptions()},
-		settings:   configured.Clone(),
-		options:    configured.RunOptions(),
-		syntax:     syntax,
+		state:              client.NewConversation(),
+		transcript:         newConversationView(theme, glyphs, loop.Environment().Wheel(), syntax, configured.UI.TranscriptRetain),
+		workflow:           newWorkflowView(theme, glyphs),
+		status:             statusView{theme: theme, glyphs: glyphs, doing: "ready", options: configured.RunOptions()},
+		settings:           configured.Clone(),
+		options:            configured.RunOptions(),
+		syntax:             syntax,
+		attachments:        attachmentResolver,
+		attachmentElements: make(map[uint64]client.Attachment),
 	}
 	a.composer = kit.Composer{
 		Theme: theme, Prompt: glyphs.Marker + " ",
@@ -223,6 +234,13 @@ func newApp(ctx context.Context, loop *program.InlineRuntime, backend runtime, o
 	a.completion = headless.Completion{
 		Look: theme.Look(glyphs), Keys: completionKeys,
 		Accept: func(candidate headless.Candidate, token headless.Token) {
+			if token.Trigger.Prefix == "@" {
+				a.composer.Editor().Replace(max(token.Start-1, 0), token.End, "")
+				if err := a.addAttachment(candidate.Text); err != nil {
+					a.message(err.Error())
+				}
+				return
+			}
 			a.composer.Editor().Replace(token.Start, token.End, candidate.Text)
 		},
 	}
@@ -344,6 +362,18 @@ func (a *app) Handle(event input.Event) bool {
 	if a.completion.Handle(event) {
 		return true
 	}
+	switch action {
+	case historyPrevious:
+		if !a.recallPrevious() {
+			a.composer.Editor().MoveUp()
+		}
+		return true
+	case historyNext:
+		if !a.recallNext() {
+			a.composer.Editor().MoveDown()
+		}
+		return true
+	}
 	if key, ok := event.(input.Key); ok && key.Down() && key.Code == input.Enter && key.Mods == 0 {
 		a.submit()
 		return true
@@ -361,6 +391,10 @@ func (a *app) Close() {
 	}
 	a.closed = true
 	a.dropStream()
+	if a.completionCancel != nil {
+		a.completionCancel()
+		a.completionCancel = nil
+	}
 	a.transcript.Close()
 	if a.stopClock != nil {
 		a.stopClock()
@@ -369,12 +403,19 @@ func (a *app) Close() {
 }
 
 func (a *app) submit() {
-	line := strings.TrimSpace(a.composer.Text())
-	if line == "" {
+	message, err := a.composerMessage()
+	if err != nil {
+		a.message(err.Error())
 		return
 	}
-	if name, arg, command := headless.Parse(line); command {
-		a.composer.Reset()
+	if message.Text == "" && len(message.Attachments) == 0 {
+		return
+	}
+	if name, arg, command := headless.Parse(message.Text); command {
+		// A command acts on the staged composer context. Clear its command text but
+		// put attachment elements back so /attachments and /detach can inspect or
+		// mutate them without accidentally sending a user turn.
+		a.restoreComposer(client.Message{Attachments: message.Attachments})
 		a.completion.Dismiss()
 		a.runCommand(name, arg)
 		return
@@ -383,19 +424,20 @@ func (a *app) submit() {
 		a.message("finish or cancel the current run first")
 		return
 	}
-	a.composer.Reset()
+	a.history.Add(message)
+	a.resetComposer()
 	a.completion.Dismiss()
-	a.start(line)
+	a.start(message)
 }
 
-func (a *app) start(prompt string) {
+func (a *app) start(message client.Message) {
 	a.state.Starting()
 	a.workflow.Reset()
 	a.status.active("starting mock runtime")
 	a.started = time.Now()
 	a.syncAnimation()
 	a.follow(func(ctx context.Context) (subscription, error) {
-		run, err := a.backend.StartRun(ctx, client.StartRun{SessionID: a.session.ID, Message: client.Message{Text: prompt}, Options: a.options})
+		run, err := a.backend.StartRun(ctx, client.StartRun{SessionID: a.session.ID, Message: cloneMessage(message), Options: a.options})
 		if err != nil {
 			return subscription{}, err
 		}

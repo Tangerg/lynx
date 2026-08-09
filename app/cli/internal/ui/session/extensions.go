@@ -32,6 +32,9 @@ type CommandHost interface {
 	SetEffort(string)
 	ShowRuntimeStatus()
 	ShowApprovalRules()
+	AttachFile(string) error
+	DetachFile(string) error
+	ShowAttachments()
 }
 
 // SlashCommand is a contributed composer command.
@@ -80,6 +83,9 @@ func builtinPlugin() extensions.Plugin {
 			{Name: "effort", Title: "set reasoning effort", Takes: true, Run: func(host CommandHost, value string) error { host.SetEffort(value); return nil }},
 			{Name: "status", Title: "show model, mode, permission, and effort", Run: func(host CommandHost, _ string) error { host.ShowRuntimeStatus(); return nil }},
 			{Name: "rules", Title: "show remembered approval rules", Run: func(host CommandHost, _ string) error { host.ShowApprovalRules(); return nil }},
+			{Name: "attach", Title: "attach a local file to the next prompt", Takes: true, Run: func(host CommandHost, path string) error { return host.AttachFile(path) }},
+			{Name: "detach", Title: "remove an attachment by name, number, or all", Takes: true, Run: func(host CommandHost, value string) error { return host.DetachFile(value) }},
+			{Name: "attachments", Title: "show files attached to the next prompt", Aliases: []string{"files"}, Run: func(host CommandHost, _ string) error { host.ShowAttachments(); return nil }},
 		}
 		for i, command := range commands {
 			if _, err := extensions.Contribute(scope, SlashCommands, command, extensions.Contribution{Order: i}); err != nil {
@@ -105,7 +111,18 @@ func builtinPlugin() extensions.Plugin {
 }
 
 func presentUser(p Presentation, block client.Block) []headless.Block {
-	return []headless.Block{kit.Message{Theme: p.Theme, Speaker: "you", Body: block.Text, Own: true}}
+	body := strings.TrimSpace(block.Text)
+	if len(block.Attachments) > 0 {
+		lines := make([]string, 0, len(block.Attachments))
+		for _, item := range block.Attachments {
+			lines = append(lines, "@"+item.Name+" · "+item.MimeType)
+		}
+		if body != "" {
+			body += "\n\n"
+		}
+		body += strings.Join(lines, "\n")
+	}
+	return []headless.Block{kit.Message{Theme: p.Theme, Speaker: "you", Body: body, Own: true}}
 }
 
 func presentMarkdown(speaker string) func(Presentation, client.Block) []headless.Block {
