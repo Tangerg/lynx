@@ -193,63 +193,111 @@ func (c *Coordinator) openSegment(reqCtx context.Context, spec segmentSpec) (ite
 	if c.openings == nil || c.events == nil || c.barriers == nil || c.workspace == nil || c.finalizer == nil {
 		return nil, errors.New("runs: segment projection ports are required")
 	}
-	resume := spec.Continuation != nil
-	taskCtx, release, ok := c.tasks.Attach(reqCtx)
-	if !ok {
-		if !resume {
-			return nil, c.rejectUnadmittedExecution(reqCtx, spec.executorRef(), ErrClosed)
+	startup, err := c.prepareSegmentStartup(reqCtx, spec)
+	if err != nil {
+		return nil, err
+	}
+	openings, err := c.commitOpening(reqCtx, spec, startup.routes)
+	if err != nil {
+		return nil, startup.abort(err)
+	}
+	return startup.activate(reqCtx, openings), nil
+}
+
+// segmentStartup owns the reversible process-local resources between executor
+// staging and durable Run opening. Once activate registers the tree owner and
+// launches the pump, that pump owns cleanup and task release instead.
+type segmentStartup struct {
+	coordinator    *Coordinator
+	spec           segmentSpec
+	taskContext    context.Context
+	runContext     context.Context
+	cancelRun      context.CancelFunc
+	releaseTask    func()
+	executorEvents iter.Seq[ExecutorEvent]
+	journal        *journal
+	treeOwner      *handle
+	routes         *executorRoutes
+}
+
+func (c *Coordinator) prepareSegmentStartup(
+	requestContext context.Context,
+	spec segmentSpec,
+) (*segmentStartup, error) {
+	taskContext, releaseTask, attached := c.tasks.Attach(requestContext)
+	if !attached {
+		if spec.Continuation == nil {
+			return nil, c.rejectUnadmittedExecution(requestContext, spec.executorRef(), ErrClosed)
 		}
 		return nil, ErrClosed
 	}
-	runCtx, cancel := context.WithCancel(taskCtx)
-	inner, err := c.observations.Observe(runCtx, spec.executorRef())
-	if err != nil {
-		cancel()
-		if !resume {
-			err = c.rejectUnadmittedExecution(taskCtx, spec.executorRef(), err)
-		}
-		release()
-		return nil, err
+	runContext, cancelRun := context.WithCancel(taskContext)
+	startup := &segmentStartup{
+		coordinator: c,
+		spec:        spec,
+		taskContext: taskContext,
+		runContext:  runContext,
+		cancelRun:   cancelRun,
+		releaseTask: releaseTask,
 	}
-	hub := newJournal(streamScope{
+	executorEvents, err := c.observations.Observe(runContext, spec.executorRef())
+	if err != nil {
+		return nil, startup.abort(err)
+	}
+	startup.executorEvents = executorEvents
+	startup.journal = newJournal(streamScope{
 		Epoch: c.epoch, RunID: spec.RunID, SegmentID: spec.SegmentID,
 	}, c.retention)
-	live := &handle{cancel: cancel, owner: taskCtx, hub: hub, done: make(chan struct{})}
-	routes, err := c.openingRoutes(spec, live.CancelReasonFor)
-	if err != nil {
-		cancel()
-		if !resume {
-			err = c.rejectUnadmittedExecution(taskCtx, spec.executorRef(), err)
-		}
-		release()
-		return nil, err
+	startup.treeOwner = &handle{
+		cancel: cancelRun,
+		owner:  taskContext,
+		hub:    startup.journal,
+		done:   make(chan struct{}),
 	}
-	for _, route := range routes.admissionOrder {
+	startup.routes, err = c.openingRoutes(spec, startup.treeOwner.CancelReasonFor)
+	if err != nil {
+		return nil, startup.abort(err)
+	}
+	if err := startup.bindExecutorMembers(); err != nil {
+		return nil, startup.abort(err)
+	}
+	return startup, nil
+}
+
+func (startup *segmentStartup) bindExecutorMembers() error {
+	for _, route := range startup.routes.admissionOrder {
 		if route.member.MemberID == "" {
 			continue
 		}
-		if err := live.bindExecutorMember(route.runID, route.member.MemberID); err != nil {
-			cancel()
-			if !resume {
-				err = c.rejectUnadmittedExecution(taskCtx, spec.executorRef(), err)
-			}
-			release()
-			return nil, err
+		if err := startup.treeOwner.bindExecutorMember(route.runID, route.member.MemberID); err != nil {
+			return err
 		}
 	}
-	openings, err := c.commitOpening(reqCtx, spec, routes)
-	if err != nil {
-		cancel()
-		if !resume {
-			err = c.rejectUnadmittedExecution(taskCtx, spec.executorRef(), err)
-		}
-		release()
-		return nil, err
+	return nil
+}
+
+func (startup *segmentStartup) abort(cause error) error {
+	startup.cancelRun()
+	if startup.spec.Continuation == nil {
+		cause = startup.coordinator.rejectUnadmittedExecution(
+			startup.taskContext,
+			startup.spec.executorRef(),
+			cause,
+		)
 	}
+	startup.releaseTask()
+	return cause
+}
+
+func (startup *segmentStartup) activate(
+	requestContext context.Context,
+	openings []routeOpening,
+) iter.Seq[Event] {
+	spec := startup.spec
 	if spec.admission != nil && !spec.admission.Admit(spec.RunID) {
 		panic("runs: committed opening without a pending admission")
 	}
-	c.registry.Open(Record{
+	startup.coordinator.registry.Open(Record{
 		ID:             spec.RunID,
 		SegmentID:      spec.SegmentID,
 		SessionID:      spec.SessionID,
@@ -258,36 +306,64 @@ func (c *Coordinator) openSegment(reqCtx context.Context, spec segmentSpec) (ite
 		ExecutorID:     spec.ExecutorID,
 		ModelSelection: spec.ModelSelection,
 		Capabilities:   spec.effectiveCapabilities(),
-	}, live)
+	}, startup.treeOwner)
+	stream := startup.openingStream(requestContext)
+	startup.publishOpenings(openings)
+	startup.markSegmentsStarted()
+	startup.beginExecution()
+	go func() {
+		defer startup.releaseTask()
+		startup.coordinator.pump(
+			startup.runContext,
+			startup.taskContext,
+			startup.spec,
+			startup.executorEvents,
+			startup.treeOwner,
+			startup.routes,
+		)
+	}()
+	return stream
+}
+
+func (startup *segmentStartup) openingStream(requestContext context.Context) iter.Seq[Event] {
 	// The opening subscription attaches before any event is appended, so tail-only
 	// and "from the beginning" are the same stream here — there is no beginning yet.
-	opened := hub.tail()
-	stopUnsubscribe := context.AfterFunc(reqCtx, opened.Cancel)
-	seq := func(yield func(Event) bool) {
+	subscription := startup.journal.tail()
+	stopUnsubscribe := context.AfterFunc(requestContext, subscription.Cancel)
+	return func(yield func(Event) bool) {
 		defer stopUnsubscribe()
-		opened.Events(yield)
+		subscription.Events(yield)
 	}
+}
+
+func (startup *segmentStartup) publishOpenings(openings []routeOpening) {
 	for _, opening := range openings {
 		for _, reduced := range opening.batch.events {
-			hub.append(c.event(opening.route.runID, opening.route.segmentID, reduced))
+			startup.journal.append(startup.coordinator.event(
+				opening.route.runID,
+				opening.route.segmentID,
+				reduced,
+			))
 		}
 	}
-	segmentStartedAt := c.now().UTC()
-	for _, route := range routes.admissionOrder {
+}
+
+func (startup *segmentStartup) markSegmentsStarted() {
+	segmentStartedAt := startup.coordinator.now().UTC()
+	for _, route := range startup.routes.admissionOrder {
 		route.segmentStartedAt = segmentStartedAt
 	}
-	if spec.BeginExecution != nil {
-		if err := spec.BeginExecution(taskCtx); err != nil {
-			trace.SpanFromContext(taskCtx).RecordError(fmt.Errorf("runs: begin execution: %w", err))
-			routes.abortUnfinished()
-			cancel()
-		}
+}
+
+func (startup *segmentStartup) beginExecution() {
+	if startup.spec.BeginExecution == nil {
+		return
 	}
-	go func() {
-		defer release()
-		c.pump(runCtx, taskCtx, spec, inner, live, routes)
-	}()
-	return seq, nil
+	if err := startup.spec.BeginExecution(startup.taskContext); err != nil {
+		trace.SpanFromContext(startup.taskContext).RecordError(fmt.Errorf("runs: begin execution: %w", err))
+		startup.routes.abortUnfinished()
+		startup.cancelRun()
+	}
 }
 
 type routeOpening struct {

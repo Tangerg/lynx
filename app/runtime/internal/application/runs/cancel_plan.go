@@ -45,13 +45,13 @@ type cancellationPlan struct {
 // together only inside this use case; neither representation is promoted to a
 // domain or executor contract.
 type cancellationPlanSource struct {
-	runs       []transcript.Run
-	pending    Pending
-	hasPending bool
-	live       liveSegment
-	hasLive    bool
-	executor   ExecutorRef
-	members    map[string]string
+	runs             []transcript.Run
+	pending          Pending
+	hasPending       bool
+	live             liveSegment
+	hasLive          bool
+	executor         ExecutorRef
+	memberIDsByRunID map[string]string
 }
 
 // cancellationPlanFor resolves either a root or child address to one complete
@@ -70,7 +70,13 @@ func (c *Coordinator) cancellationPlanFor(
 	if source.hasPending {
 		pending = &source.pending
 	}
-	plan, err := newCancellationPlan(cmd.RunID, source.runs, source.executor, source.members, pending)
+	plan, err := newCancellationPlan(
+		cmd.RunID,
+		source.runs,
+		source.executor,
+		source.memberIDsByRunID,
+		pending,
+	)
 	if err != nil {
 		return cancellationPlan{}, liveSegment{}, false, err
 	}
@@ -121,7 +127,7 @@ func (c *Coordinator) readCancellationPlanSource(
 		return cancellationPlanSource{}, err
 	}
 	live, liveFound := c.registry.Get(rootRunID)
-	executor, members, err := c.resolveCancellationOwner(
+	executor, memberIDsByRunID, err := c.resolveCancellationOwner(
 		ctx,
 		cmd.RunID,
 		root,
@@ -134,13 +140,13 @@ func (c *Coordinator) readCancellationPlanSource(
 		return cancellationPlanSource{}, err
 	}
 	return cancellationPlanSource{
-		runs:       runs,
-		pending:    pending,
-		hasPending: pendingFound,
-		live:       live,
-		hasLive:    liveFound,
-		executor:   executor,
-		members:    members,
+		runs:             runs,
+		pending:          pending,
+		hasPending:       pendingFound,
+		live:             live,
+		hasLive:          liveFound,
+		executor:         executor,
+		memberIDsByRunID: memberIDsByRunID,
 	}, nil
 }
 
@@ -447,12 +453,80 @@ func newCancellationPlan(
 	targetRunID string,
 	runs []transcript.Run,
 	executor ExecutorRef,
-	members map[string]string,
+	memberIDsByRunID map[string]string,
 	pending *Pending,
 ) (cancellationPlan, error) {
+	runTree, err := buildCancellationRunTree(targetRunID, runs, executor)
+	if err != nil {
+		return cancellationPlan{}, err
+	}
+	bindings, err := cancellationBindings(runTree.byRunID, memberIDsByRunID)
+	if err != nil {
+		return cancellationPlan{}, err
+	}
+	openRunIDs, err := runTree.openRunIDs(bindings)
+	if err != nil {
+		return cancellationPlan{}, err
+	}
+	if err := validateCancellationProcessTree(runTree.byRunID, bindings); err != nil {
+		return cancellationPlan{}, err
+	}
+	if err := validateCancellationPending(runTree.root, openRunIDs, bindings, pending); err != nil {
+		return cancellationPlan{}, err
+	}
+
+	targetRunIDs, exists := runTree.topology.SubtreePostorder(targetRunID)
+	if !exists {
+		return cancellationPlan{}, fmt.Errorf(
+			"runs: build cancellation plan: target Run %q is outside tree %q",
+			targetRunID,
+			runTree.root.ID,
+		)
+	}
+	targetRunIDSet := make(map[string]struct{}, len(targetRunIDs))
+	for _, runID := range targetRunIDs {
+		targetRunIDSet[runID] = struct{}{}
+	}
+	plan := cancellationPlan{
+		root:                 bindings[runTree.root.ID],
+		target:               bindings[targetRunID],
+		treeState:            runTree.root.State,
+		executor:             executor,
+		hasPending:           pending != nil,
+		completePostorderIDs: runTree.topology.Postorder(),
+	}
+	if pending != nil {
+		plan.pending = *pending
+	}
+	for _, runID := range plan.completePostorderIDs {
+		member := bindings[runID]
+		if _, targeted := targetRunIDSet[runID]; targeted {
+			plan.targetSubtree = append(plan.targetSubtree, member)
+		} else {
+			plan.survivingTree = append(plan.survivingTree, member)
+		}
+	}
+	return plan, nil
+}
+
+// cancellationRunTree is the validated durable Run snapshot on which one
+// cancellation decision is based. It owns product lifecycle and topology
+// facts only; process-local executor bindings remain outside this value.
+type cancellationRunTree struct {
+	root     transcript.Run
+	target   transcript.Run
+	topology rundomain.Tree
+	byRunID  map[string]transcript.Run
+}
+
+func buildCancellationRunTree(
+	targetRunID string,
+	runs []transcript.Run,
+	executor ExecutorRef,
+) (cancellationRunTree, error) {
 	target, found := runByID(runs, targetRunID)
 	if !found {
-		return cancellationPlan{}, fmt.Errorf(
+		return cancellationRunTree{}, fmt.Errorf(
 			"runs: build cancellation plan: target Run %q is missing",
 			targetRunID,
 		)
@@ -460,13 +534,13 @@ func newCancellationPlan(
 	rootRunID := target.Lineage().TreeRootID(target.ID)
 	root, found := runByID(runs, rootRunID)
 	if !found {
-		return cancellationPlan{}, fmt.Errorf(
+		return cancellationRunTree{}, fmt.Errorf(
 			"runs: build cancellation plan: root Run %q is missing",
 			rootRunID,
 		)
 	}
 	if err := executor.ValidateFor(root.SessionID); err != nil {
-		return cancellationPlan{}, fmt.Errorf(
+		return cancellationRunTree{}, fmt.Errorf(
 			"runs: build cancellation plan for tree %q: executor: %w",
 			rootRunID,
 			err,
@@ -477,7 +551,7 @@ func newCancellationPlan(
 	treeMembers := make([]rundomain.TreeMember, 0, len(runs))
 	for index, run := range runs {
 		if err := run.Validate(); err != nil {
-			return cancellationPlan{}, fmt.Errorf(
+			return cancellationRunTree{}, fmt.Errorf(
 				"runs: build cancellation plan for tree %q: Run[%d] %q: %w",
 				rootRunID,
 				index,
@@ -486,7 +560,7 @@ func newCancellationPlan(
 			)
 		}
 		if run.SessionID != root.SessionID {
-			return cancellationPlan{}, fmt.Errorf(
+			return cancellationRunTree{}, fmt.Errorf(
 				"runs: build cancellation plan for tree %q: Run %q belongs to session %q, want %q",
 				rootRunID,
 				run.ID,
@@ -495,7 +569,7 @@ func newCancellationPlan(
 			)
 		}
 		if _, duplicate := byRunID[run.ID]; duplicate {
-			return cancellationPlan{}, fmt.Errorf(
+			return cancellationRunTree{}, fmt.Errorf(
 				"runs: build cancellation plan for tree %q: duplicate Run %q",
 				rootRunID,
 				run.ID,
@@ -506,104 +580,81 @@ func newCancellationPlan(
 	}
 	tree, err := rundomain.NewTree(rootRunID, treeMembers)
 	if err != nil {
-		return cancellationPlan{}, fmt.Errorf("runs: build cancellation plan: %w", err)
+		return cancellationRunTree{}, fmt.Errorf("runs: build cancellation plan: %w", err)
 	}
+	runTree := cancellationRunTree{
+		root:     root,
+		target:   target,
+		topology: tree,
+		byRunID:  byRunID,
+	}
+	if err := runTree.validateLifecycle(); err != nil {
+		return cancellationRunTree{}, err
+	}
+	return runTree, nil
+}
+
+func (tree cancellationRunTree) validateLifecycle() error {
+	root := tree.root
 	if root.State != rundomain.Running && root.State != rundomain.Waiting {
-		return cancellationPlan{}, fmt.Errorf(
+		return fmt.Errorf(
 			"runs: build cancellation plan: root Run %q is %s",
-			rootRunID,
+			root.ID,
 			root.State,
 		)
 	}
-	if target.State.IsTerminal() {
-		return cancellationPlan{}, fmt.Errorf(
+	if tree.target.State.IsTerminal() {
+		return fmt.Errorf(
 			"runs: build cancellation plan: target Run %q is %s",
-			targetRunID,
-			target.State,
+			tree.target.ID,
+			tree.target.State,
 		)
 	}
-	for _, run := range runs {
+	for _, run := range tree.byRunID {
 		if !run.State.IsTerminal() && run.State != root.State {
-			return cancellationPlan{}, fmt.Errorf(
+			return fmt.Errorf(
 				"runs: build cancellation plan: non-terminal Run %q is %s while root %q is %s",
 				run.ID,
 				run.State,
-				rootRunID,
+				root.ID,
 				root.State,
 			)
 		}
 	}
+	return nil
+}
 
-	bindings, err := cancellationBindings(byRunID, members)
-	if err != nil {
-		return cancellationPlan{}, err
-	}
-	openRunIDs := make([]string, 0, len(runs))
-	for _, runID := range tree.Postorder() {
-		run := byRunID[runID]
+func (tree cancellationRunTree) openRunIDs(
+	bindings map[string]cancellationRun,
+) ([]string, error) {
+	openRunIDs := make([]string, 0, len(tree.byRunID))
+	for _, runID := range tree.topology.Postorder() {
+		run := tree.byRunID[runID]
 		if run.State.IsTerminal() {
 			continue
 		}
 		openRunIDs = append(openRunIDs, runID)
 		binding := bindings[runID]
 		if run.Lineage().IsChild() && !binding.hasMember {
-			return cancellationPlan{}, fmt.Errorf(
+			return nil, fmt.Errorf(
 				"runs: build cancellation plan: non-terminal child Run %q has no executor binding",
 				runID,
 			)
 		}
 	}
-	if err := validateCancellationProcessTree(byRunID, bindings); err != nil {
-		return cancellationPlan{}, err
-	}
-	if err := validateCancellationPending(root, openRunIDs, bindings, pending); err != nil {
-		return cancellationPlan{}, err
-	}
-
-	targetIDs, exists := tree.SubtreePostorder(targetRunID)
-	if !exists {
-		return cancellationPlan{}, fmt.Errorf(
-			"runs: build cancellation plan: target Run %q is outside tree %q",
-			targetRunID,
-			rootRunID,
-		)
-	}
-	targetSet := make(map[string]struct{}, len(targetIDs))
-	for _, runID := range targetIDs {
-		targetSet[runID] = struct{}{}
-	}
-	plan := cancellationPlan{
-		root:                 bindings[rootRunID],
-		target:               bindings[targetRunID],
-		treeState:            root.State,
-		executor:             executor,
-		hasPending:           pending != nil,
-		completePostorderIDs: tree.Postorder(),
-	}
-	if pending != nil {
-		plan.pending = *pending
-	}
-	for _, runID := range plan.completePostorderIDs {
-		member := bindings[runID]
-		if _, targeted := targetSet[runID]; targeted {
-			plan.targetSubtree = append(plan.targetSubtree, member)
-		} else {
-			plan.survivingTree = append(plan.survivingTree, member)
-		}
-	}
-	return plan, nil
+	return openRunIDs, nil
 }
 
 func cancellationBindings(
 	runs map[string]transcript.Run,
-	members map[string]string,
+	memberIDsByRunID map[string]string,
 ) (map[string]cancellationRun, error) {
 	bindings := make(map[string]cancellationRun, len(runs))
 	for runID, run := range runs {
 		bindings[runID] = cancellationRun{run: run}
 	}
-	memberOwners := make(map[string]string, len(members))
-	for runID, memberID := range members {
+	memberOwners := make(map[string]string, len(memberIDsByRunID))
+	for runID, memberID := range memberIDsByRunID {
 		member, exists := bindings[runID]
 		if !exists {
 			return nil, fmt.Errorf(

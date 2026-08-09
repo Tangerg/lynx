@@ -656,13 +656,13 @@ func runResultProblem(problem transcript.Problem) (*transcript.Problem, error) {
 
 func (r *reducer) project(events []RunEvent) (reductionBatch, error) {
 	events = r.fenceFinalState(events)
-	out := make([]reduction, 0, len(events))
+	reductions := make([]reduction, 0, len(events))
 	for _, event := range events {
 		reduced, err := r.projectOne(event)
 		if err != nil {
 			return reductionBatch{}, err
 		}
-		out = append(out, reduced)
+		reductions = append(reductions, reduced)
 	}
 
 	// A park is one persistence boundary: any drained/closed items, its running
@@ -670,49 +670,58 @@ func (r *reducer) project(events []RunEvent) (reductionBatch, error) {
 	// and admission transition must commit together before ANY event in this
 	// batch is published. Build an explicit batch-owned write-set instead of
 	// moving it onto a privileged event position.
-	parkAt := -1
-	for i := range out {
-		if out[i].Commit != nil && out[i].Commit.State == StateSuspend {
-			if parkAt >= 0 {
-				return reductionBatch{}, fmt.Errorf("%w: reduction batch has multiple park boundaries", errReducerInvariant)
-			}
-			parkAt = i
-		}
-		if itemStarted, ok := out[i].Event.(ItemStarted); ok {
-			itemStarted.Item.SessionID = r.cfg.SessionID
-			out[i].Event = itemStarted
-		}
+	parkBoundary, err := parkBoundaryIndex(reductions)
+	if err != nil {
+		return reductionBatch{}, err
 	}
-	if parkAt >= 0 {
-		commit := out[parkAt].Commit
-		if commit == nil {
-			return reductionBatch{}, fmt.Errorf("%w: park boundary has no projection commit", errReducerInvariant)
-		}
-		items := make([]transcript.Item, 0, len(out))
-		for i, reduced := range out {
-			if i != parkAt && reduced.Commit != nil {
-				if reduced.Commit.Run != nil || reduced.Commit.State != StateUnchanged {
-					return reductionBatch{}, fmt.Errorf("%w: park batch contains another lifecycle transition", errReducerInvariant)
-				}
-				items = append(items, reduced.Commit.Items...)
-			}
-			if itemStarted, ok := reduced.Event.(ItemStarted); ok {
-				items = append(items, itemStarted.Item)
-			}
-			out[i].Commit = nil
-		}
-		commit.Items = items
-		batch := reductionBatch{events: out, parkCommit: commit}
-		if err := validateReductionBatch(batch); err != nil {
+	batch := reductionBatch{events: reductions}
+	if parkBoundary >= 0 {
+		batch, err = parkReductionBatch(reductions, parkBoundary)
+		if err != nil {
 			return reductionBatch{}, err
 		}
-		return batch, nil
 	}
-	batch := reductionBatch{events: out}
 	if err := validateReductionBatch(batch); err != nil {
 		return reductionBatch{}, err
 	}
 	return batch, nil
+}
+
+func parkBoundaryIndex(reductions []reduction) (int, error) {
+	parkBoundary := -1
+	for index := range reductions {
+		commit := reductions[index].Commit
+		if commit == nil || commit.State != StateSuspend {
+			continue
+		}
+		if parkBoundary >= 0 {
+			return -1, fmt.Errorf("%w: reduction batch has multiple park boundaries", errReducerInvariant)
+		}
+		parkBoundary = index
+	}
+	return parkBoundary, nil
+}
+
+func parkReductionBatch(reductions []reduction, parkBoundary int) (reductionBatch, error) {
+	parkCommit := reductions[parkBoundary].Commit
+	if parkCommit == nil {
+		return reductionBatch{}, fmt.Errorf("%w: park boundary has no projection commit", errReducerInvariant)
+	}
+	items := make([]transcript.Item, 0, len(reductions))
+	for index, reduced := range reductions {
+		if index != parkBoundary && reduced.Commit != nil {
+			if reduced.Commit.Run != nil || reduced.Commit.State != StateUnchanged {
+				return reductionBatch{}, fmt.Errorf("%w: park batch contains another lifecycle transition", errReducerInvariant)
+			}
+			items = append(items, reduced.Commit.Items...)
+		}
+		if itemStarted, isItemStarted := reduced.Event.(ItemStarted); isItemStarted {
+			items = append(items, itemStarted.Item)
+		}
+		reductions[index].Commit = nil
+	}
+	parkCommit.Items = items
+	return reductionBatch{events: reductions, parkCommit: parkCommit}, nil
 }
 
 // fenceFinalState republishes the segment's last state snapshot immediately before
@@ -770,7 +779,10 @@ func (r *reducer) projectOne(event RunEvent) (reduction, error) {
 			commit.Outcome = *e.Run.Outcome
 			commit.GoalRun = r.goalTurn(e.Run)
 		}
-	case ItemStarted, SegmentStarted, SegmentProgressed, ItemChanged, StateSnapshot:
+	case ItemStarted:
+		e.Item.SessionID = r.cfg.SessionID
+		event = e
+	case SegmentStarted, SegmentProgressed, ItemChanged, StateSnapshot:
 		// These events have no standalone EventCommit. SegmentStarted carries a Run
 		// for the stream, but the Run's durable opening IS its admission (or its
 		// resume) — recording it a second time here would be a second writer of

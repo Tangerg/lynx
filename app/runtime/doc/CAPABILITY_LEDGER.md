@@ -112,12 +112,12 @@
 | Start admission | `ValidateRootStart` → `StageRoot` → durable opening → `BeginRoot` | P4 real consumer 已验证；P14 内部命名/依赖边界精修 | Start 与 Resume 各自验证 staging dependencies，共享准确的 segment-supervision dependency boundary；stage 不外呼 model/tool，commit 前失败只 Release |
 | Event observation | `ExecutionObserver.Observe` | P4 real consumer 已验证 | 只流 Application-owned executor facts；final 来自 Result |
 | Executor release | `ExecutionReleaser.Release` | Retain | 与产品 Cancel 分离；非 Waiting 终止恰好一次 |
-| Product Cancel | durable control intent → `RunningRootCancellationRequester` → continued observation → release | Retain | request cancel 不提前切断 pump；确定终态后才释放 |
+| Product Cancel | durable control intent → `RunningRootCancellationRequester` → continued observation → release | Retain；P14 内部职责精修 | durable cancellation Run tree 独占 topology/lifecycle 校验，process-local member binding 保持独立；request cancel 不提前切断 pump，确定终态后才释放 |
 | Resume | `WaitingExecutionContinuer.StageContinuation/BeginContinuation` | Retain | exact BuildID/deployment/scope/capabilities restore；waiting continuation 的 envelope/topology/order 与 resume binding 各有准确内部 owner；per-Run reducer、Segment identity 和 deterministic preorder 由私有 resumed-route builder 原子重建；opening commit 后才 Signal |
 | Steer | `RunningExecutionSteerer.SubmitSteer` | Retain | semantic steer 只在下一 model safe boundary 投影 |
 | Child subtree cancel | `MemberID` + `WaitingSubtreeCancellationPreparer` | P7 real consumer 已重推 | Application 只看 member projection、resulting checkpoint 与一次性 Apply/Discard capability |
 | Waiting subtree mutation | `WaitingSubtreeChange` 持有 execution ACL capability | P7 native bridge 已完成；P14 精修 commit invariant owner | Application 不见 Agent Framework plan；source 冻结跨过 transaction；contextless Apply 只安装状态，final-boundary Continue 独立激活，失败时 exact restore/terminal 收口；`WaitingSubtreeCancellationCommit` 内部按 boundary、disposition envelope、pending-tree topology 和 surviving continuation 分阶段证明同一原子 write-set，不产生第二 validator owner |
-| Run pump | executor event reducer | Retain | 不推进 Agent Framework internal state |
+| Run pump | executor event reducer | Retain；P14 内部职责精修 | `segmentStartup` 只拥有 durable opening 前可回滚资源，commit 后转交 pump；ItemStarted projection 与 park-boundary write-set 各有准确 owner；不推进 Agent Framework internal state |
 | Run journal | committed RunEvent | Retain | persist-before-publish |
 
 P8 production cutover 已用真实 Bootstrap consumer 冻结 root stage/observe/begin、cancel request/release、waiting restore/answer/steer、child reservation/start outcome 与 waiting-subtree prepare/commit/apply-or-restore 的准确端口集合。

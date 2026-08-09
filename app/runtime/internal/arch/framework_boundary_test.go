@@ -819,7 +819,7 @@ func TestExecutorCheckpointBindingIsValidatedAtEveryBoundary(t *testing.T) {
 			"ValidateOwnership", "Scope.GoalLeaseID", "Checkpoint.ModelSelection",
 		},
 		filepath.Join("internal", "application", "runs", "commit.go"): {
-			"ValidateOwnership", "Scope.GoalLeaseID", "Checkpoint.ModelSelection",
+			"ValidateOwnership", "Scope.GoalLeaseID", "checkpoint.ModelSelection",
 		},
 		filepath.Join("internal", "application", "runs", "waiting_cancellation_commit.go"): {
 			"ValidateOwnership", "Scope.GoalLeaseID", "Checkpoint.ModelSelection",
@@ -971,10 +971,10 @@ func TestParkedContinuationFactsAreCrossCheckedAtEveryLifecycleBoundary(t *testi
 			"slices.Contains(p.Capabilities.InterruptKinds, interrupt.Kind)",
 		},
 		filepath.Join("internal", "application", "runs", "commit.go"): {
-			"commit.Run.Metrics.Equal(continuation.Metrics)",
-			"commit.Run.Limits != continuation.Limits",
-			"commit.Run.Capabilities.Equal(c.Pending.Capabilities)",
-			"commit.Run.GoalLeaseID != c.Pending.GoalLeaseID",
+			"runCommit.Run.Metrics.Equal(continuation.Metrics)",
+			"runCommit.Run.Limits != continuation.Limits",
+			"runCommit.Run.Capabilities.Equal(pending.Capabilities)",
+			"runCommit.Run.GoalLeaseID != pending.GoalLeaseID",
 		},
 		filepath.Join("internal", "application", "runs", "waiting_cancellation_commit.go"): {
 			"run.Metrics.Equal(continuation.Metrics)",

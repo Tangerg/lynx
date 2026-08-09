@@ -475,74 +475,104 @@ func (c TreeBarrierCommit) Validate() error {
 	if err := c.Pending.Validate(); err != nil {
 		return fmt.Errorf("runs: tree barrier Pending: %w", err)
 	}
-	rootContinuation, ok := c.Pending.RootContinuation()
-	if !ok {
+	rootContinuation, found := c.Pending.RootContinuation()
+	if !found {
 		return errors.New("runs: tree barrier has no root continuation")
 	}
-	if err := c.Checkpoint.ValidateOwnership(rootContinuation.MemberID, c.Pending.SessionID); err != nil {
+	validator := treeBarrierValidator{
+		barrier:       c,
+		continuations: make(map[string]Continuation, len(c.Pending.Continuations)),
+		seenRunIDs:    make(map[string]struct{}, len(c.Runs)),
+	}
+	for _, continuation := range c.Pending.Continuations {
+		validator.continuations[continuation.RunID] = continuation
+	}
+	if err := validator.validateCheckpoint(rootContinuation); err != nil {
+		return err
+	}
+	return validator.validateRuns()
+}
+
+type treeBarrierValidator struct {
+	barrier       TreeBarrierCommit
+	continuations map[string]Continuation
+	seenRunIDs    map[string]struct{}
+}
+
+func (validator treeBarrierValidator) validateCheckpoint(rootContinuation Continuation) error {
+	checkpoint := validator.barrier.Checkpoint
+	pending := validator.barrier.Pending
+	if err := checkpoint.ValidateOwnership(rootContinuation.MemberID, pending.SessionID); err != nil {
 		return fmt.Errorf("runs: tree barrier checkpoint ownership: %w", err)
 	}
-	if c.Checkpoint.Scope.GoalLeaseID != c.Pending.GoalLeaseID {
+	if checkpoint.Scope.GoalLeaseID != pending.GoalLeaseID {
 		return fmt.Errorf(
 			"runs: tree barrier checkpoint goal lease %q does not match Pending %q: %w",
-			c.Checkpoint.Scope.GoalLeaseID,
-			c.Pending.GoalLeaseID,
+			checkpoint.Scope.GoalLeaseID,
+			pending.GoalLeaseID,
 			ErrInvalidExecutorCheckpoint,
 		)
 	}
-	if c.Checkpoint.ModelSelection != rootContinuation.ModelSelection {
+	if checkpoint.ModelSelection != rootContinuation.ModelSelection {
 		return fmt.Errorf("runs: tree barrier checkpoint model differs from root continuation: %w", ErrInvalidExecutorCheckpoint)
 	}
-	if c.Checkpoint.Limits != rootContinuation.Limits {
+	if checkpoint.Limits != rootContinuation.Limits {
 		return fmt.Errorf("runs: tree barrier checkpoint limits differ from root continuation: %w", ErrInvalidExecutorCheckpoint)
 	}
-	if len(c.Runs) != len(c.Pending.Continuations) {
+	return nil
+}
+
+func (validator treeBarrierValidator) validateRuns() error {
+	if len(validator.barrier.Runs) != len(validator.barrier.Pending.Continuations) {
 		return fmt.Errorf(
 			"runs: tree barrier has %d Run commits for %d continuations",
-			len(c.Runs),
-			len(c.Pending.Continuations),
+			len(validator.barrier.Runs),
+			len(validator.barrier.Pending.Continuations),
 		)
 	}
-	continuations := make(map[string]Continuation, len(c.Pending.Continuations))
-	for _, continuation := range c.Pending.Continuations {
-		continuations[continuation.RunID] = continuation
+	for index, runCommit := range validator.barrier.Runs {
+		if err := validator.validateRun(index, runCommit); err != nil {
+			return err
+		}
 	}
-	seen := make(map[string]struct{}, len(c.Runs))
-	for index, commit := range c.Runs {
-		if err := commit.Validate(); err != nil {
-			return fmt.Errorf("runs: tree barrier Run[%d]: %w", index, err)
-		}
-		if commit.State != StateSuspend || commit.Run == nil || commit.Run.State != run.Waiting {
-			return fmt.Errorf("runs: tree barrier Run[%d] is not an waiting Run projection", index)
-		}
-		if commit.SessionID != c.Pending.SessionID || commit.Run.SessionID != c.Pending.SessionID {
-			return fmt.Errorf("runs: tree barrier Run[%d] Session differs from Pending", index)
-		}
-		continuation, exists := continuations[commit.RunID]
-		if !exists {
-			return fmt.Errorf("runs: tree barrier Run[%d] has no continuation", index)
-		}
-		if commit.Run.Lineage() != continuation.Lineage ||
-			commit.Run.ModelSelection != continuation.ModelSelection ||
-			!commit.Run.CreatedAt.Equal(continuation.RunCreatedAt) ||
-			!commit.Run.Metrics.Equal(continuation.Metrics) ||
-			commit.Run.Limits != continuation.Limits {
-			return fmt.Errorf("runs: tree barrier Run[%d] differs from its continuation", index)
-		}
-		if !commit.Run.Capabilities.Equal(c.Pending.Capabilities) {
-			return fmt.Errorf("runs: tree barrier Run[%d] capabilities differ from Pending", index)
-		}
-		if commit.RunID == c.Pending.RootRunID {
-			if commit.Run.GoalLeaseID != c.Pending.GoalLeaseID {
-				return errors.New("runs: tree barrier root Run goal lease differs from Pending")
-			}
-		} else if commit.Run.GoalLeaseID != "" {
-			return fmt.Errorf("runs: tree barrier child Run[%d] carries a root Goal lease", index)
-		}
-		if _, duplicate := seen[commit.RunID]; duplicate {
-			return fmt.Errorf("runs: tree barrier repeats Run %q", commit.RunID)
-		}
-		seen[commit.RunID] = struct{}{}
+	return nil
+}
+
+func (validator treeBarrierValidator) validateRun(index int, runCommit EventCommit) error {
+	if err := runCommit.Validate(); err != nil {
+		return fmt.Errorf("runs: tree barrier Run[%d]: %w", index, err)
 	}
+	if runCommit.State != StateSuspend || runCommit.Run == nil || runCommit.Run.State != run.Waiting {
+		return fmt.Errorf("runs: tree barrier Run[%d] is not a waiting Run projection", index)
+	}
+	pending := validator.barrier.Pending
+	if runCommit.SessionID != pending.SessionID || runCommit.Run.SessionID != pending.SessionID {
+		return fmt.Errorf("runs: tree barrier Run[%d] Session differs from Pending", index)
+	}
+	continuation, exists := validator.continuations[runCommit.RunID]
+	if !exists {
+		return fmt.Errorf("runs: tree barrier Run[%d] has no continuation", index)
+	}
+	if runCommit.Run.Lineage() != continuation.Lineage ||
+		runCommit.Run.ModelSelection != continuation.ModelSelection ||
+		!runCommit.Run.CreatedAt.Equal(continuation.RunCreatedAt) ||
+		!runCommit.Run.Metrics.Equal(continuation.Metrics) ||
+		runCommit.Run.Limits != continuation.Limits {
+		return fmt.Errorf("runs: tree barrier Run[%d] differs from its continuation", index)
+	}
+	if !runCommit.Run.Capabilities.Equal(pending.Capabilities) {
+		return fmt.Errorf("runs: tree barrier Run[%d] capabilities differ from Pending", index)
+	}
+	if runCommit.RunID == pending.RootRunID {
+		if runCommit.Run.GoalLeaseID != pending.GoalLeaseID {
+			return errors.New("runs: tree barrier root Run goal lease differs from Pending")
+		}
+	} else if runCommit.Run.GoalLeaseID != "" {
+		return fmt.Errorf("runs: tree barrier child Run[%d] carries a root Goal lease", index)
+	}
+	if _, duplicate := validator.seenRunIDs[runCommit.RunID]; duplicate {
+		return fmt.Errorf("runs: tree barrier repeats Run %q", runCommit.RunID)
+	}
+	validator.seenRunIDs[runCommit.RunID] = struct{}{}
 	return nil
 }

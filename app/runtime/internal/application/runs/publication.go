@@ -235,132 +235,31 @@ type treeBarrierReduction struct {
 	batch reductionBatch
 }
 
+type treeBarrierProjection struct {
+	pending    Pending
+	reductions []treeBarrierReduction
+	commits    []EventCommit
+}
+
 func (p treePublisher) publishTreeBarrier(
 	ctx context.Context,
 	routes *executorRoutes,
 	barrier TreeInterrupted,
 	boundaryAt time.Time,
 ) (reductionPublication, error) {
-	if routes == nil || routes.root == nil {
-		return reductionPublication{}, errors.New("runs: publish tree barrier without a root executor route")
-	}
-	if err := barrier.validateFor(
-		routes.root.member.MemberID,
-		p.rootSpec.SessionID,
-		p.rootSpec.GoalLeaseID,
-		routes.root.modelSelection,
-	); err != nil {
-		return reductionPublication{}, err
-	}
-	byMember := make(map[string][]MemberInterruption, len(barrier.Interruptions))
-	for _, request := range barrier.Interruptions {
-		route := routes.byMember[request.MemberID]
-		if route == nil || route.segmentFinished {
-			return reductionPublication{}, fmt.Errorf(
-				"runs: request source member %q has no active Run",
-				request.MemberID,
-			)
-		}
-		byMember[request.MemberID] = append(byMember[request.MemberID], request)
-	}
-	ordered, err := routes.unfinishedInPostorder()
+	projection, err := p.reduceTreeBarrier(routes, barrier, boundaryAt)
 	if err != nil {
 		return reductionPublication{}, err
 	}
-
-	pending := Pending{
-		RootRunID:    routes.root.runID,
-		SessionID:    p.rootSpec.SessionID,
-		ExecutorID:   p.rootSpec.ExecutorID,
-		GoalLeaseID:  p.rootSpec.GoalLeaseID,
-		Capabilities: routes.root.capabilities,
-		CreatedAt:    boundaryAt,
-	}
-	reductions := make([]treeBarrierReduction, 0, len(ordered))
-	commits := make([]EventCommit, 0, len(ordered))
-	for _, route := range ordered {
-		direct := byMember[route.member.MemberID]
-		var events []RunEvent
-		if len(direct) > 0 {
-			values := make([]Interrupt, len(direct))
-			for index, request := range direct {
-				values[index] = request.Interrupt
-			}
-			events, err = route.reducer.interrupt(SegmentInterrupted{
-				Interrupts: values,
-				Duration:   route.activeDuration(boundaryAt),
-			})
-		} else {
-			events, err = route.reducer.suspend(route.activeDuration(boundaryAt))
-		}
-		if err != nil {
-			return reductionPublication{}, fmt.Errorf(
-				"runs: reduce tree barrier for run %q: %w",
-				route.runID,
-				err,
-			)
-		}
-		batch, err := route.reducer.project(events)
-		if err != nil {
-			return reductionPublication{}, fmt.Errorf(
-				"runs: project tree barrier for run %q: %w",
-				route.runID,
-				err,
-			)
-		}
-		if err := validateRouteReductionBatch(route, p.rootSpec.SessionID, batch); err != nil {
-			return reductionPublication{}, err
-		}
-		if batch.parkCommit == nil || batch.parkCommit.Run == nil {
-			return reductionPublication{}, fmt.Errorf(
-				"runs: tree barrier for run %q produced no suspend commit",
-				route.runID,
-			)
-		}
-		run := *batch.parkCommit.Run
-		if len(run.Interrupts) != len(direct) {
-			return reductionPublication{}, fmt.Errorf(
-				"runs: run %q projected %d interrupts from %d input requests",
-				route.runID,
-				len(run.Interrupts),
-				len(direct),
-			)
-		}
-		pending.Interrupts = append(pending.Interrupts, run.Interrupts...)
-		for index, request := range direct {
-			pending.Bindings = append(pending.Bindings, InterruptBinding{
-				InterruptItemID: run.Interrupts[index].ItemID,
-				MemberID:        request.MemberID,
-				RequestID:       request.RequestID,
-			})
-		}
-		pending.Continuations = append(pending.Continuations, Continuation{
-			RunID:          route.runID,
-			MemberID:       route.member.MemberID,
-			Lineage:        route.lineage,
-			ModelSelection: route.modelSelection,
-			DrainedTools:   slices.Clone(route.reducer.drained),
-			CommittedTools: route.reducer.resume.remainingCommittedTools(),
-			RunCreatedAt:   run.CreatedAt,
-			Metrics:        run.Metrics,
-			Limits:         run.Limits,
-		})
-		reductions = append(reductions, treeBarrierReduction{route: route, batch: batch})
-		commits = append(commits, *batch.parkCommit)
-	}
-	if err := pending.Validate(); err != nil {
-		return reductionPublication{}, fmt.Errorf("runs: build pending interrupt set: %w", err)
-	}
-
 	committed, err := p.live.commitInterrupt(ctx, func(interruptCtx context.Context) error {
 		if err := p.coordinator.barriers.CommitTreeBarrier(interruptCtx, TreeBarrierCommit{
-			Pending:    pending,
-			Runs:       commits,
+			Pending:    projection.pending,
+			Runs:       projection.commits,
 			Checkpoint: barrier.Checkpoint,
 		}); err != nil {
 			return err
 		}
-		for _, projected := range reductions {
+		for _, projected := range projection.reductions {
 			for _, reduced := range projected.batch.events {
 				p.append(projected.route, reduced)
 			}
@@ -373,11 +272,167 @@ func (p treePublisher) publishTreeBarrier(
 	if !committed {
 		return reductionPublication{}, nil
 	}
-	for _, projected := range reductions {
+	for _, projected := range projection.reductions {
 		projected.route.segmentFinished = true
 		p.coordinator.publishWaitingMoved(p.rootSpec.SessionID, projected.route.runID)
 	}
 	return reductionPublication{published: true, finished: true, parked: true}, nil
+}
+
+func (p treePublisher) reduceTreeBarrier(
+	routes *executorRoutes,
+	barrier TreeInterrupted,
+	boundaryAt time.Time,
+) (treeBarrierProjection, error) {
+	if routes == nil || routes.root == nil {
+		return treeBarrierProjection{}, errors.New("runs: publish tree barrier without a root executor route")
+	}
+	if err := barrier.validateFor(
+		routes.root.member.MemberID,
+		p.rootSpec.SessionID,
+		p.rootSpec.GoalLeaseID,
+		routes.root.modelSelection,
+	); err != nil {
+		return treeBarrierProjection{}, err
+	}
+	interruptionsByMemberID, err := activeInterruptionsByMemberID(routes, barrier.Interruptions)
+	if err != nil {
+		return treeBarrierProjection{}, err
+	}
+	activeRoutes, err := routes.unfinishedInPostorder()
+	if err != nil {
+		return treeBarrierProjection{}, err
+	}
+
+	projection := treeBarrierProjection{pending: Pending{
+		RootRunID:    routes.root.runID,
+		SessionID:    p.rootSpec.SessionID,
+		ExecutorID:   p.rootSpec.ExecutorID,
+		GoalLeaseID:  p.rootSpec.GoalLeaseID,
+		Capabilities: routes.root.capabilities,
+		CreatedAt:    boundaryAt,
+	},
+		reductions: make([]treeBarrierReduction, 0, len(activeRoutes)),
+		commits:    make([]EventCommit, 0, len(activeRoutes)),
+	}
+	for _, route := range activeRoutes {
+		directInterruptions := interruptionsByMemberID[route.member.MemberID]
+		reduction, bindings, continuation, err := p.reduceInterruptedRoute(
+			route,
+			directInterruptions,
+			boundaryAt,
+		)
+		if err != nil {
+			return treeBarrierProjection{}, err
+		}
+		projection.pending.Interrupts = append(
+			projection.pending.Interrupts,
+			reduction.batch.parkCommit.Run.Interrupts...,
+		)
+		projection.pending.Bindings = append(projection.pending.Bindings, bindings...)
+		projection.pending.Continuations = append(projection.pending.Continuations, continuation)
+		projection.reductions = append(projection.reductions, reduction)
+		projection.commits = append(projection.commits, *reduction.batch.parkCommit)
+	}
+	if err := projection.pending.Validate(); err != nil {
+		return treeBarrierProjection{}, fmt.Errorf("runs: build pending interrupt set: %w", err)
+	}
+	return projection, nil
+}
+
+func activeInterruptionsByMemberID(
+	routes *executorRoutes,
+	interruptions []MemberInterruption,
+) (map[string][]MemberInterruption, error) {
+	interruptionsByMemberID := make(map[string][]MemberInterruption, len(interruptions))
+	for _, interruption := range interruptions {
+		route := routes.byMember[interruption.MemberID]
+		if route == nil || route.segmentFinished {
+			return nil, fmt.Errorf(
+				"runs: request source member %q has no active Run",
+				interruption.MemberID,
+			)
+		}
+		interruptionsByMemberID[interruption.MemberID] = append(
+			interruptionsByMemberID[interruption.MemberID],
+			interruption,
+		)
+	}
+	return interruptionsByMemberID, nil
+}
+
+func (p treePublisher) reduceInterruptedRoute(
+	route *executorRoute,
+	directInterruptions []MemberInterruption,
+	boundaryAt time.Time,
+) (treeBarrierReduction, []InterruptBinding, Continuation, error) {
+	var events []RunEvent
+	var err error
+	if len(directInterruptions) > 0 {
+		interrupts := make([]Interrupt, len(directInterruptions))
+		for index, interruption := range directInterruptions {
+			interrupts[index] = interruption.Interrupt
+		}
+		events, err = route.reducer.interrupt(SegmentInterrupted{
+			Interrupts: interrupts,
+			Duration:   route.activeDuration(boundaryAt),
+		})
+	} else {
+		events, err = route.reducer.suspend(route.activeDuration(boundaryAt))
+	}
+	if err != nil {
+		return treeBarrierReduction{}, nil, Continuation{}, fmt.Errorf(
+			"runs: reduce tree barrier for run %q: %w",
+			route.runID,
+			err,
+		)
+	}
+	batch, err := route.reducer.project(events)
+	if err != nil {
+		return treeBarrierReduction{}, nil, Continuation{}, fmt.Errorf(
+			"runs: project tree barrier for run %q: %w",
+			route.runID,
+			err,
+		)
+	}
+	if err := validateRouteReductionBatch(route, p.rootSpec.SessionID, batch); err != nil {
+		return treeBarrierReduction{}, nil, Continuation{}, err
+	}
+	if batch.parkCommit == nil || batch.parkCommit.Run == nil {
+		return treeBarrierReduction{}, nil, Continuation{}, fmt.Errorf(
+			"runs: tree barrier for run %q produced no suspend commit",
+			route.runID,
+		)
+	}
+	waitingRun := *batch.parkCommit.Run
+	if len(waitingRun.Interrupts) != len(directInterruptions) {
+		return treeBarrierReduction{}, nil, Continuation{}, fmt.Errorf(
+			"runs: run %q projected %d interrupts from %d input requests",
+			route.runID,
+			len(waitingRun.Interrupts),
+			len(directInterruptions),
+		)
+	}
+	bindings := make([]InterruptBinding, len(directInterruptions))
+	for index, interruption := range directInterruptions {
+		bindings[index] = InterruptBinding{
+			InterruptItemID: waitingRun.Interrupts[index].ItemID,
+			MemberID:        interruption.MemberID,
+			RequestID:       interruption.RequestID,
+		}
+	}
+	continuation := Continuation{
+		RunID:          route.runID,
+		MemberID:       route.member.MemberID,
+		Lineage:        route.lineage,
+		ModelSelection: route.modelSelection,
+		DrainedTools:   slices.Clone(route.reducer.drained),
+		CommittedTools: route.reducer.resume.remainingCommittedTools(),
+		RunCreatedAt:   waitingRun.CreatedAt,
+		Metrics:        waitingRun.Metrics,
+		Limits:         waitingRun.Limits,
+	}
+	return treeBarrierReduction{route: route, batch: batch}, bindings, continuation, nil
 }
 
 func (p treePublisher) append(route *executorRoute, reduced reduction) {
