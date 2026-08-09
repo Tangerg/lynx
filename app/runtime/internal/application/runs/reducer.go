@@ -113,7 +113,7 @@ type openText struct {
 type openTool struct {
 	callID            string
 	sourceCallID      string
-	legacyOrder       int
+	arrivalOrder      int
 	modelCallSequence uint32
 	toolCallIndex     uint32
 	id                string

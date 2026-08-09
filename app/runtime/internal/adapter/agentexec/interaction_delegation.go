@@ -110,13 +110,15 @@ type delegatedTaskOutput struct {
 // stable delegate_task input/output contract instead of Interaction's Host chat
 // envelope. Snapshot interpretation remains exclusively Interaction-owned.
 type delegatedInteractionDefinition struct {
-	descriptor agent.Descriptor
-	inner      *interaction.Definition
+	descriptor   agent.Descriptor
+	inner        *interaction.Definition
+	instructions []corechat.Message
 }
 
 func newDelegatedInteractionDefinition(
 	name string,
 	inner *interaction.Definition,
+	instructions []corechat.Message,
 ) (*delegatedInteractionDefinition, error) {
 	if inner == nil {
 		return nil, errors.New("agentexec: delegated Interaction definition is nil")
@@ -136,7 +138,10 @@ func newDelegatedInteractionDefinition(
 	if err != nil {
 		return nil, fmt.Errorf("agentexec: delegated Interaction descriptor: %w", err)
 	}
-	return &delegatedInteractionDefinition{descriptor: descriptor, inner: inner}, nil
+	return &delegatedInteractionDefinition{
+		descriptor: descriptor, inner: inner,
+		instructions: cloneChatMessages(instructions),
+	}, nil
 }
 
 // runtimeContractSchema preserves Runtime's established jsonschema tag
@@ -168,9 +173,9 @@ func (definition *delegatedInteractionDefinition) Start(input agent.Input) (agen
 	if err := task.Validate(); err != nil {
 		return nil, fmt.Errorf("agentexec: invalid delegated task: %w", err)
 	}
-	adapted, err := agent.EncodeInput(interaction.Input{
-		Messages: []corechat.Message{corechat.NewUserMessage(corechat.NewTextPart(task.Instructions))},
-	})
+	messages := cloneChatMessages(definition.instructions)
+	messages = append(messages, corechat.NewUserMessage(corechat.NewTextPart(task.Instructions)))
+	adapted, err := agent.EncodeInput(interaction.Input{Messages: messages})
 	if err != nil {
 		return nil, fmt.Errorf("agentexec: encode delegated Interaction input: %w", err)
 	}

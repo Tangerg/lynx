@@ -119,29 +119,30 @@ func (f *fakeRunSessions) ApplyRunLost(_ context.Context, _ string, runID string
 }
 
 type fakeExecutionPorts struct {
-	validated      RootExecutionStart
-	started        RootExecutionStart
-	startRef       ExecutorRef
-	prepared       ExecutorRef
-	prepareErr     error
-	rehydrated     ExecutorRef
-	rehydrateReq   RehydrateExecution
-	rehydrateErr   error
-	resumeCheck    func()
-	activateCheck  func()
-	activated      bool
-	resumed        bool
-	released       []ExecutorRef
-	canceledTrees  []ExecutorRef
-	steered        []ExecutorRef
-	steerInput     []transcript.ContentBlock
-	operations     *[]string
-	releaseErr     error
-	cancelTreeErr  error
-	cancelSubtree  func(ExecutorRef, string, string) error
-	prepareWaiting func(WaitingSubtreeCancellationRequest) (PreparedWaitingSubtreeCancellation, error)
-	restoreWaiting []WaitingContinuation
-	restoreErr     error
+	validated         RootExecutionStart
+	started           RootExecutionStart
+	startRef          ExecutorRef
+	prepared          ExecutorRef
+	prepareErr        error
+	rehydrated        ExecutorRef
+	continuation      WaitingContinuation
+	rehydrateErr      error
+	resumeCheck       func()
+	activateCheck     func()
+	activated         bool
+	resumed           bool
+	released          []ExecutorRef
+	canceledTrees     []ExecutorRef
+	steered           []ExecutorRef
+	steerInput        []transcript.ContentBlock
+	operations        *[]string
+	releaseErr        error
+	requestRootCancel func()
+	cancelTreeErr     error
+	cancelSubtree     func(ExecutorRef, string, string) error
+	prepareWaiting    func(WaitingSubtreeCancellationRequest) (PreparedWaitingSubtreeCancellation, error)
+	restoreWaiting    []WaitingContinuation
+	restoreErr        error
 }
 
 type blockingOpeningEffects struct {
@@ -182,16 +183,7 @@ func (f *fakeExecutionPorts) BeginRoot(context.Context, ExecutorRef) error {
 }
 
 func (f *fakeExecutionPorts) StageContinuation(_ context.Context, continuation WaitingContinuation) (ExecutorRef, error) {
-	f.rehydrateReq = RehydrateExecution{
-		SessionID: continuation.SessionID, ExecutorID: continuation.ExecutorID,
-		MemberID: continuation.Checkpoint.RootMemberID, RootRunID: continuation.RootRunID,
-		ChildRuns:      testChildRunBindings(continuation.Members),
-		ModelSelection: continuation.Checkpoint.ModelSelection,
-		CWD:            continuation.Checkpoint.Scope.CWD, WorkspaceCWD: continuation.Checkpoint.Scope.WorkspaceCWD,
-		Isolated:    continuation.Checkpoint.Scope.Isolated,
-		GoalLeaseID: continuation.Checkpoint.Scope.GoalLeaseID, Limits: continuation.Checkpoint.Limits,
-		ChildRunAdmissionEnabled: continuation.ChildRunAdmissionEnabled,
-	}
+	f.continuation = continuation
 	if f.prepareErr != nil {
 		if !errors.Is(f.prepareErr, ErrExecutorNotLive) {
 			return ExecutorRef{}, f.prepareErr
@@ -257,6 +249,13 @@ func (f *fakeExecutionPorts) Release(_ context.Context, ref ExecutorRef) error {
 	return f.releaseErr
 }
 
+func (f *fakeExecutionPorts) RequestRootCancellation(context.Context, ExecutorRef, string) error {
+	if f.requestRootCancel != nil {
+		f.requestRootCancel()
+	}
+	return nil
+}
+
 func (f *fakeExecutionPorts) CancelRunningSubtree(
 	_ context.Context,
 	ref ExecutorRef,
@@ -290,6 +289,9 @@ func (f *fakeExecutionPorts) SubmitSteer(_ context.Context, ref ExecutorRef, inp
 }
 
 func newUseCaseCoordinator(exec ExecutionObserver, control *fakeExecutionPorts, sessions completeTestSessionPorts, effects completeTestProjectionPorts) *Coordinator {
+	if executor, ok := exec.(*fakeExecutor); ok && control.requestRootCancel == nil {
+		control.requestRootCancel = executor.requestRootCancellation
+	}
 	freshCreatedAt := time.Date(2026, 7, 13, 1, 2, 3, 0, time.UTC)
 	projection := &fakeRunProjection{runs: map[string]transcript.Run{
 		"run_1": runForSegment(testSegment()),
@@ -309,6 +311,7 @@ func newUseCaseCoordinator(exec ExecutionObserver, control *fakeExecutionPorts, 
 		RootStarts:                         control,
 		Observations:                       exec,
 		Releases:                           control,
+		RootCancellation:                   control,
 		Conversation:                       emptyConversationReader{},
 		Continuation:                       control,
 		WaitingRestorer:                    control,
@@ -651,7 +654,7 @@ func TestResumeRejectsContinuationFactDriftBeforeExecutorPreparation(t *testing.
 	if err == nil {
 		t.Fatal("Resume accepted cumulative metrics that differ from the durable Run")
 	}
-	if control.resumed || control.rehydrateReq.MemberID != "" || len(effects.openings) != 0 {
+	if control.resumed || control.continuation.Checkpoint.RootMemberID != "" || len(effects.openings) != 0 {
 		t.Fatalf("contradictory continuation reached executor/effects: control=%+v openings=%d", control, len(effects.openings))
 	}
 	if _, found := sessions.pending[pending.RootRunID]; !found {
@@ -841,8 +844,8 @@ func TestResumeRecoversLostExecutorStateBeforeReturning(t *testing.T) {
 	if len(operations) != 1 || operations[0] != "durable.lost" {
 		t.Fatalf("operations = %v, want one durable lost commit", operations)
 	}
-	if control.rehydrateReq.CWD != "/work" {
-		t.Fatalf("rehydrate cwd = %q, want /work", control.rehydrateReq.CWD)
+	if control.continuation.Checkpoint.Scope.CWD != "/work" {
+		t.Fatalf("continuation cwd = %q, want /work", control.continuation.Checkpoint.Scope.CWD)
 	}
 	if hasActiveSession(c, "ses_1") {
 		t.Fatal("failed resume leaked its run admission")
@@ -952,7 +955,7 @@ func TestResumeRejectsClaimResultDriftBeforeStagingAndMarksRunLost(t *testing.T)
 			if !errors.Is(err, ErrRunNotFound) {
 				t.Fatalf("Resume error = %v, want Run not found", err)
 			}
-			if control.rehydrateReq.ExecutorID != "" || control.resumed || len(control.released) != 0 {
+			if control.continuation.ExecutorID != "" || control.resumed || len(control.released) != 0 {
 				t.Fatalf("claim drift reached executor: %+v", control)
 			}
 			if sessions.lostRunID != "run_1" || !slices.Equal(operations, []string{"durable.lost"}) {
@@ -1099,26 +1102,27 @@ func TestResumeRehydrateRestoresChildSourceProjection(t *testing.T) {
 	}
 	for range result.Events {
 	}
-	if !control.rehydrateReq.ChildRunAdmissionEnabled {
-		t.Fatalf("rehydrate request = %+v, want child member projection enabled", control.rehydrateReq)
+	if !control.continuation.ChildRunAdmissionEnabled {
+		t.Fatalf("rehydrate request = %+v, want child member projection enabled", control.continuation)
 	}
-	if control.rehydrateReq.MemberID != "member_root" {
-		t.Fatalf("rehydrate member = %q, want member_root", control.rehydrateReq.MemberID)
+	if control.continuation.Checkpoint.RootMemberID != "member_root" {
+		t.Fatalf("continuation member = %q, want member_root", control.continuation.Checkpoint.RootMemberID)
 	}
-	if control.rehydrateReq.GoalLeaseID != pending.GoalLeaseID {
-		t.Fatalf("rehydrate goal lease = %q, want %q", control.rehydrateReq.GoalLeaseID, pending.GoalLeaseID)
+	if control.continuation.Checkpoint.Scope.GoalLeaseID != pending.GoalLeaseID {
+		t.Fatalf("continuation goal lease = %q, want %q", control.continuation.Checkpoint.Scope.GoalLeaseID, pending.GoalLeaseID)
 	}
 	wantChildRuns := map[string]ChildRunBinding{
 		"member_grandchild": {MemberID: "member_grandchild", RunID: "run_grandchild", ParentRunID: "run_a"},
 		"member_a":          {MemberID: "member_a", RunID: "run_a", ParentRunID: "run_1"},
 		"member_b":          {MemberID: "member_b", RunID: "run_b", ParentRunID: "run_1"},
 	}
-	if len(control.rehydrateReq.ChildRuns) != len(wantChildRuns) {
-		t.Fatalf("rehydrate child Runs = %+v, want %+v", control.rehydrateReq.ChildRuns, wantChildRuns)
+	childRuns := testChildRunBindings(control.continuation.Members)
+	if len(childRuns) != len(wantChildRuns) {
+		t.Fatalf("continuation child Runs = %+v, want %+v", childRuns, wantChildRuns)
 	}
-	for _, binding := range control.rehydrateReq.ChildRuns {
+	for _, binding := range childRuns {
 		if want, ok := wantChildRuns[binding.MemberID]; !ok || binding != want {
-			t.Fatalf("rehydrate child Run binding = %+v, want one of %+v", binding, wantChildRuns)
+			t.Fatalf("continuation child Run binding = %+v, want one of %+v", binding, wantChildRuns)
 		}
 	}
 }
@@ -1162,8 +1166,8 @@ func TestResumeRehydrateRestoresChildAdmissionBeforeAnyChildExists(t *testing.T)
 	if len(pending.Continuations) != 1 {
 		t.Fatalf("test fixture has %d continuations, want one root only", len(pending.Continuations))
 	}
-	if !control.rehydrateReq.ChildRunAdmissionEnabled {
-		t.Fatalf("rehydrate request = %+v, want frozen child policy restored", control.rehydrateReq)
+	if !control.continuation.ChildRunAdmissionEnabled {
+		t.Fatalf("rehydrate request = %+v, want frozen child policy restored", control.continuation)
 	}
 }
 
@@ -1194,8 +1198,8 @@ func TestResumeRefusesIsolatedRunAfterRuntimeRestart(t *testing.T) {
 	if !errors.Is(err, ErrRunNotFound) || !errors.Is(err, ErrExecutorStateLost) {
 		t.Fatalf("Resume error = %v, want Run not found wrapping executor state lost", err)
 	}
-	if control.rehydrateReq.MemberID != "" || len(control.rehydrateReq.ChildRuns) != 0 {
-		t.Fatalf("isolated run was rehydrated against %+v, want no rehydrate", control.rehydrateReq)
+	if control.continuation.Checkpoint.RootMemberID != "" || len(control.continuation.Members) != 0 {
+		t.Fatalf("isolated Run staged continuation %+v, want none", control.continuation)
 	}
 	if sessions.lostRunID != "run_1" || len(operations) != 1 || operations[0] != "durable.lost" {
 		t.Fatalf("lost recovery = %q ops=%v, want run_1 marked lost", sessions.lostRunID, operations)
@@ -1353,7 +1357,7 @@ func TestCancelChildRunRequiresExplicitAuthority(t *testing.T) {
 }
 
 func TestCancelRunningChildCommitsExactSubtreeBoundaryAndKeepsRootRunning(t *testing.T) {
-	childRequest, childConfirmation := NewChildOpeningRequest(time.Now().UTC())
+	childRequest, childConfirmation := newNativeChildStartFixture(time.Now().UTC())
 	rootMember := ExecutorMember{MemberID: "member_root"}
 	childMember := ExecutorMember{
 		MemberID:    "member_child",
@@ -1555,7 +1559,7 @@ func TestCancelLiveRunReportsExecutorReleaseFailureAndStillTerminalizes(t *testi
 	effects := &fakeEffects{}
 	control := &fakeExecutionPorts{releaseErr: cleanupErr}
 	c := NewCoordinator(Dependencies{
-		Observations: executor, Releases: control, Session: testSessionPorts(&fakeRunSessions{}), Projection: testProjectionPorts(effects),
+		Observations: executor, Releases: control, RootCancellation: executor, Session: testSessionPorts(&fakeRunSessions{}), Projection: testProjectionPorts(effects),
 		Runs: &fakeRunProjection{runs: map[string]transcript.Run{
 			"run_1": runForSegment(testSegment()),
 		}},
@@ -1644,7 +1648,7 @@ func TestCancelLosesToACommittedNaturalTerminal(t *testing.T) {
 	effects := &fakeEffects{terminalStarted: terminalStarted, terminalRelease: releaseTerminal}
 	control := &fakeExecutionPorts{}
 	c := NewCoordinator(Dependencies{
-		Observations: executor, Releases: control, Session: testSessionPorts(&fakeRunSessions{}), Projection: testProjectionPorts(effects),
+		Observations: executor, Releases: control, RootCancellation: executor, Session: testSessionPorts(&fakeRunSessions{}), Projection: testProjectionPorts(effects),
 		Runs: &fakeRunProjection{runs: map[string]transcript.Run{
 			"run_1": runForSegment(testSegment()),
 		}},
@@ -1722,7 +1726,7 @@ func TestCancelLetsCommittedInterruptOwnDurableFirstTeardown(t *testing.T) {
 		InterruptKinds: []interrupt.Kind{interrupt.Approval},
 	}
 	c := NewCoordinator(Dependencies{
-		Observations: executor, Releases: control, Session: testSessionPorts(sessions), Projection: testProjectionPorts(effects),
+		Observations: executor, Releases: control, RootCancellation: executor, Session: testSessionPorts(sessions), Projection: testProjectionPorts(effects),
 		Runs: &fakeRunProjection{runs: map[string]transcript.Run{
 			"run_1": runForSegment(spec),
 		}},

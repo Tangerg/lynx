@@ -32,7 +32,9 @@ type Coordinator struct {
 	rootStarts                         RootExecutionStarter
 	observations                       ExecutionObserver
 	releases                           ExecutionReleaser
+	rootCancellation                   RunningRootCancellationRequester
 	conversation                       ConversationReader
+	workingContexts                    WorkingContextComposer
 	continuation                       WaitingExecutionContinuer
 	waitingRestorer                    WaitingExecutionRestorer
 	steering                           RunningExecutionSteerer
@@ -87,7 +89,9 @@ type Dependencies struct {
 	RootStarts                         RootExecutionStarter
 	Observations                       ExecutionObserver
 	Releases                           ExecutionReleaser
+	RootCancellation                   RunningRootCancellationRequester
 	Conversation                       ConversationReader
+	WorkingContexts                    WorkingContextComposer
 	Continuation                       WaitingExecutionContinuer
 	WaitingRestorer                    WaitingExecutionRestorer
 	Steering                           RunningExecutionSteerer
@@ -122,7 +126,9 @@ func NewCoordinator(deps Dependencies) *Coordinator {
 		rootStarts:                         deps.RootStarts,
 		observations:                       deps.Observations,
 		releases:                           deps.Releases,
+		rootCancellation:                   deps.RootCancellation,
 		conversation:                       deps.Conversation,
+		workingContexts:                    deps.WorkingContexts,
 		continuation:                       deps.Continuation,
 		waitingRestorer:                    deps.WaitingRestorer,
 		steering:                           deps.Steering,

@@ -6,7 +6,6 @@ import (
 
 	toolcontract "github.com/Tangerg/lynx/tool"
 
-	"github.com/Tangerg/lynx/agent/toolloop"
 	"github.com/Tangerg/lynx/core/chat"
 )
 
@@ -100,6 +99,12 @@ type pathLocked struct {
 	cwd    string
 }
 
+// concurrentTool is the framework-neutral structural capability understood by
+// any execution strategy that supports keyed Tool overlap.
+type concurrentTool interface {
+	ConcurrencyKey(arguments string) (key string, concurrent bool)
+}
+
 func (t *pathLocked) Definition() chat.ToolDefinition { return t.inner.Definition() }
 
 // Unwrap exposes the locked tool so everything it declares — where its mutations
@@ -127,7 +132,7 @@ func (t *pathLocked) ConcurrencyKey(arguments string) (key string, concurrent bo
 	// Read the declaration through the wrapping chain: the tool underneath is
 	// itself decorated, and a one-level look would silently make every guarded
 	// file tool exclusive.
-	capability, ok, err := toolcontract.Capability[toolloop.ConcurrentTool](t.inner)
+	capability, ok, err := toolcontract.Capability[concurrentTool](t.inner)
 	if err != nil || !ok {
 		return "", false
 	}

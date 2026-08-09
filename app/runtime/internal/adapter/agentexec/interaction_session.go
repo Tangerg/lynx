@@ -66,12 +66,16 @@ type interactionSession struct {
 	pricing               accounting.Pricing
 	unknownPollInterval   time.Duration
 	statePollInterval     time.Duration
+	mcpToolAutoApproved   func(server, tool string) bool
+	maintenance           RunMaintenance
+	lifecycleHooks        InteractionLifecycleHooks
 	buildID               string
 	start                 runs.RootExecutionStart
 	unknownReported       bool
 	toolOutcomeKey        string
 	toolOutcomeDigest     [sha256.Size]byte
 	toolOutcomeRepeats    int
+	toolCalls             int
 	deployments           *interactionDeploymentSet
 	delegateCalls         map[delegateCallIdentity]*managedDelegateCall
 	delegateChildren      map[agent.ProcessID]*managedDelegateCall
@@ -151,8 +155,18 @@ func newInteractionSession(
 		stateWake:             make(chan struct{}, 1),
 		provider:              provider, fallbackModel: start.ModelSelection.Model(), pricing: config.Pricing,
 		unknownPollInterval: config.UnknownEffectPollInterval,
-		statePollInterval:   config.StatePollInterval, buildID: config.BuildID, start: start,
+		statePollInterval:   config.StatePollInterval,
+		mcpToolAutoApproved: config.MCPToolAutoApproved,
+		maintenance:         config.Maintenance,
+		lifecycleHooks:      config.LifecycleHooks,
+		buildID:             config.BuildID, start: start,
 	}
+}
+
+func (session *interactionSession) recordToolCall() {
+	session.mu.Lock()
+	session.toolCalls++
+	session.mu.Unlock()
 }
 
 // recordCommittedModelReply retains the exact assistant value accepted by the
@@ -505,12 +519,18 @@ func (session *interactionSession) publishWaitingBoundary() bool {
 	session.boundary = interactionBoundaryWaiting
 	session.waitingCheckpoint = checkpoint.Clone()
 	session.mu.Unlock()
-	return session.send(runs.ExecutorEvent{
+	published := session.send(runs.ExecutorEvent{
 		Member: session.executorMember(process.Relation()),
 		Payload: runs.TreeInterrupted{
 			Checkpoint: checkpoint, Interruptions: interruptions,
 		},
 	})
+	if published && session.lifecycleHooks != nil {
+		session.lifecycleHooks.NotifyWaiting(
+			session.lifecycle, session.start.SessionID, session.start.CWD,
+		)
+	}
+	return published
 }
 
 func (session *interactionSession) stageContinuation(checkpoint runs.ExecutorCheckpoint) error {
@@ -610,8 +630,12 @@ func (session *interactionSession) interactionCheckpointPayload(
 		usageByProcess[processID] = maps.Clone(byModel)
 	}
 	carried := maps.Clone(session.carriedUsage)
+	instructions, err := interactionInstructionContext(session.start.WorkingContext)
 	session.mu.Unlock()
-	return encodeInteractionCheckpointPayload(tree, usageByProcess, carried)
+	if err != nil {
+		return nil, err
+	}
+	return encodeInteractionCheckpointPayload(tree, usageByProcess, carried, instructions)
 }
 
 func (session *interactionSession) reportUnknownEffects() bool {
@@ -739,9 +763,15 @@ func (session *interactionSession) publishResult(result agent.Result) error {
 		}) {
 			return nil
 		}
+		session.maintainCompletedRoot()
 	}
 	end := session.segmentEnd(result)
 	session.send(runs.ExecutorEvent{Member: member, Payload: end})
+	if session.lifecycleHooks != nil {
+		session.lifecycleHooks.NotifyStopped(
+			session.lifecycle, session.start.SessionID, session.start.CWD, string(end.Reason),
+		)
+	}
 	return nil
 }
 
@@ -862,9 +892,14 @@ func segmentEndFromTermination(termination agent.Termination, duration time.Dura
 		end.Problem = &problem
 	case agent.TerminationCauseExternalFailure:
 		end.Reason = run.OutcomeFailed
+		failure, _ := termination.Failure()
+		detail := executorDiagnostic(errors.New(failure.Message()))
+		if detail == "" {
+			detail = "model provider failed"
+		}
 		problem := transcript.Problem{
 			Kind: transcript.ProviderUnavailableProblem, Scope: transcript.RunProblem,
-			Detail: "model provider failed",
+			Detail: detail,
 		}
 		end.Problem = &problem
 	case agent.TerminationCauseContractFailure, agent.TerminationCausePanic:

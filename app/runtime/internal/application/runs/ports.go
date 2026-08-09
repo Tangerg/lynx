@@ -45,11 +45,42 @@ type ExecutionReleaser interface {
 	Release(ctx context.Context, ref ExecutorRef) error
 }
 
+// RunningRootCancellationRequester records an accepted product cancellation
+// intent in the live executor before the Application stops observation. It
+// neither commits the product outcome nor releases resources; in-flight effects
+// may settle before the executor reaches its next safe boundary.
+type RunningRootCancellationRequester interface {
+	RequestRootCancellation(ctx context.Context, ref ExecutorRef, reason string) error
+}
+
 // ConversationReader supplies the validated Host conversation used only to
 // seed a fresh executor working context. Once execution starts, restoration is
 // self-contained in the executor checkpoint and never re-reads Conversation.
 type ConversationReader interface {
 	Read(ctx context.Context, sessionID string) ([]corechat.Message, error)
+}
+
+// WorkingContextComposer turns one Host conversation seed into the complete,
+// provider-neutral context for a fresh root execution. It owns prompt-layer
+// reads and lifecycle-hook preparation but neither reads Conversation nor
+// starts an executor. Implementations must return a self-contained snapshot;
+// the executor never calls back into this port while running or restoring.
+type WorkingContextComposer interface {
+	ComposeWorkingContext(
+		ctx context.Context,
+		input WorkingContextInput,
+	) ([]corechat.Message, error)
+}
+
+// WorkingContextInput is the exact fresh-root context composition input. Seed
+// contains the canonical Host conversation followed by CurrentUserMessage.
+// PromptText is the user-authored text supplied to prompt hooks and relevance
+// recall; it is kept distinct from media and from the historical seed.
+type WorkingContextInput struct {
+	SessionID  string
+	CWD        string
+	PromptText string
+	Seed       []corechat.Message
 }
 
 // WaitingExecutionContinuer stages an exact live or restored waiting tree
@@ -266,25 +297,6 @@ type WaitingContinuation struct {
 	Checkpoint               ExecutorCheckpoint
 	Capabilities             run.RunCapabilities
 	ChildRunAdmissionEnabled bool
-}
-
-// RehydrateExecution is the old executor's private reconstruction input. It is
-// retained only inside the production bridge scheduled for atomic deletion in
-// P8; the Agent2 continuation port does not consume it.
-type RehydrateExecution struct {
-	SessionID                string
-	ExecutorID               string
-	MemberID                 string
-	RootRunID                string
-	ChildRuns                []ChildRunBinding
-	ModelSelection           modelref.Selection
-	CWD                      string
-	WorkspaceCWD             string
-	Isolated                 bool
-	GoalLeaseID              string
-	Limits                   run.RunLimits
-	ChildRunAdmissionEnabled bool
-	Checkpoint               *ExecutorCheckpoint
 }
 
 // IsolationProvider resolves the sandbox working-copy directory an isolated

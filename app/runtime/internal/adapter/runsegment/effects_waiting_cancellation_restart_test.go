@@ -6,7 +6,6 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/persistence"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/queries"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
@@ -123,7 +122,7 @@ func TestWaitingSubtreeCancellationSurvivesSQLiteRestart(t *testing.T) {
 			if err != nil {
 				t.Fatalf("load restarted process tree: %v", err)
 			}
-			processTree := restoredProcessTree(t, checkpoint)
+			processTree := restoredExecutorTree(t, checkpoint)
 			assertReplacementCheckpoint(
 				t,
 				processTree,
@@ -131,7 +130,7 @@ func TestWaitingSubtreeCancellationSurvivesSQLiteRestart(t *testing.T) {
 				fixture,
 			)
 			for _, processID := range []string{"process_child", "process_grandchild"} {
-				if _, found := processSnapshotByID(processTree, processID); found {
+				if _, found := executorMemberByID(processTree, processID); found {
 					t.Fatalf("restarted process tree resurrected canceled process %q", processID)
 				}
 			}
@@ -214,14 +213,14 @@ func queryRun(
 
 func assertReplacementCheckpoint(
 	t *testing.T,
-	tree core.ProcessSnapshotTree,
+	tree executorTreeFixture,
 	checkpoint runs.ExecutorCheckpoint,
 	fixture waitingCancellationSQLiteFixture,
 ) {
 	t.Helper()
 	if !reflect.DeepEqual(
-		normalizedProcessTree(tree),
-		normalizedProcessTree(fixture.replacementTree),
+		normalizedExecutorTree(tree),
+		normalizedExecutorTree(fixture.replacementTree),
 	) {
 		t.Fatalf(
 			"restarted process tree differs from committed replacement:\ngot  %+v\nwant %+v",

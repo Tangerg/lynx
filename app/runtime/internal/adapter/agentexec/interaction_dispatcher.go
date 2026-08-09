@@ -250,8 +250,7 @@ type observedInteractionTool struct {
 	session     *interactionSession
 	interpreter InteractionToolInterpreter
 	presenter   InteractionToolPresenter
-	authorizer  AutomaticToolAuthorizer
-	interactive InteractiveToolAuthorizer
+	authorizer  InteractionToolAuthorizer
 	hooks       InteractionToolHooks
 	offloader   toolResultOffloader
 	offloadAt   int
@@ -299,6 +298,7 @@ func (observed *observedInteractionTool) Call(ctx context.Context, rawArguments 
 	if err := observed.session.commitFact(ctx, member, start); err != nil {
 		return "", fmt.Errorf("agentexec: commit Tool call start: %w", err)
 	}
+	observed.session.recordToolCall()
 	if denied {
 		if denialReason == "" {
 			denialReason = "tool call denied by policy"
@@ -313,7 +313,7 @@ func (observed *observedInteractionTool) Call(ctx context.Context, rawArguments 
 		observed.session.recordToolOutcome(call.Name, arguments, denialReason)
 		return denialReason, nil
 	}
-	ctx = discovery.WithAdvertiser(ctx, func(names ...string) error {
+	ctx = discovery.WithToolAdvertiser(ctx, func(names ...string) error {
 		return interaction.AdvertiseTools(ctx, names...)
 	})
 	if err := attempt.beginExternalCall(); err != nil {
@@ -395,6 +395,7 @@ func (observed *observedInteractionTool) prepare(
 	if resumed {
 		return observed.resumePreparedTool(ctx, callID, name, continued)
 	}
+	forceApproval := false
 	if observed.hooks != nil {
 		decision, err := observed.hooks.BeforeToolUse(ctx, InteractionToolHookInput{
 			SessionID: observed.start.SessionID, CWD: observed.start.CWD,
@@ -412,19 +413,23 @@ func (observed *observedInteractionTool) prepare(
 		if decision.Denied {
 			return arguments, true, decision.Reason, nil
 		}
+		forceApproval = decision.RequireApproval
 	}
 	if observed.authorizer == nil || !observed.interpreter.UsesStandardPolicy(name) {
+		if forceApproval {
+			return arguments, true, "a lifecycle hook requires approval, but approval is unavailable", nil
+		}
 		return observed.applyDoomLoopBrake(ctx, callID, name, arguments, false, "")
 	}
-	decision, err := observed.authorizer.AuthorizeTool(ctx, AutomaticToolRequest{
-		SessionID: observed.start.SessionID, CWD: observed.start.CWD,
-		CallID: callID, ToolName: name, Arguments: arguments,
-		SafetyClass: observed.interpreter.SafetyClass(name),
-	})
+	request, err := observed.authorizationRequest(callID, name, arguments, forceApproval)
+	if err != nil {
+		return tool.Arguments{}, false, "", err
+	}
+	decision, err := observed.authorizer.AuthorizeTool(ctx, request)
 	if err != nil {
 		return tool.Arguments{}, false, "", fmt.Errorf("agentexec: authorize Tool %q: %w", name, err)
 	}
-	if err := validateAutomaticDecision(decision); err != nil {
+	if err := validateToolAuthorizationDecision(decision); err != nil {
 		return tool.Arguments{}, false, "", err
 	}
 	if decision.EffectiveArguments != nil {
@@ -433,15 +438,8 @@ func (observed *observedInteractionTool) prepare(
 	if decision.Denied {
 		return arguments, true, decision.Reason, nil
 	}
-	if observed.interactive != nil {
-		request := observed.authorizationRequest(callID, name, arguments)
-		prompt, required, err := observed.interactive.PlanToolApproval(ctx, request)
-		if err != nil {
-			return tool.Arguments{}, false, "", fmt.Errorf("agentexec: plan Tool %q approval: %w", name, err)
-		}
-		if required {
-			return observed.requestToolApproval(ctx, request, prompt)
-		}
+	if decision.Approval != nil {
+		return observed.requestToolApproval(ctx, request, *decision.Approval)
 	}
 	return observed.applyDoomLoopBrake(ctx, callID, name, arguments, false, "")
 }
@@ -462,10 +460,13 @@ func (observed *observedInteractionTool) applyDoomLoopBrake(
 		"%q has been called with the same arguments and unchanged result %d times; approve to continue or deny so the agent changes approach",
 		name, interactionDoomLoopThreshold,
 	)
-	if observed.interactive == nil || !slices.Contains(observed.start.InterruptKinds, interrupt.Approval) {
+	if observed.authorizer == nil || !slices.Contains(observed.start.InterruptKinds, interrupt.Approval) {
 		return arguments, true, reason, nil
 	}
-	request := observed.authorizationRequest(callID, name, arguments)
+	request, err := observed.authorizationRequest(callID, name, arguments, true)
+	if err != nil {
+		return tool.Arguments{}, false, "", err
+	}
 	return observed.requestToolApproval(ctx, request, runs.ApprovalPrompt{
 		CallID: callID, ToolName: name, Arguments: arguments.Canonical(),
 		SafetyClass: request.SafetyClass, Risk: tool.RiskHigh, Reason: reason,
@@ -476,17 +477,34 @@ func (observed *observedInteractionTool) authorizationRequest(
 	callID string,
 	name string,
 	arguments tool.Arguments,
-) AutomaticToolRequest {
-	return AutomaticToolRequest{
+	requireApproval bool,
+) (ToolAuthorizationRequest, error) {
+	subject, err := observed.interpreter.ApprovalSubject(name, arguments)
+	if err != nil {
+		return ToolAuthorizationRequest{}, fmt.Errorf("agentexec: derive Tool %q approval subject: %w", name, err)
+	}
+	autoApproved := false
+	if observed.session != nil && observed.session.mcpToolAutoApproved != nil {
+		if identity, ok := observed.inner.(interactionMCPToolIdentity); ok {
+			server, remote := identity.MCPToolIdentity()
+			autoApproved = server != "" && remote != "" && observed.session.mcpToolAutoApproved(server, remote)
+		}
+	}
+	return ToolAuthorizationRequest{
 		SessionID: observed.start.SessionID, CWD: observed.start.CWD,
 		CallID: callID, ToolName: name, Arguments: arguments,
-		SafetyClass: observed.interpreter.SafetyClass(name),
-	}
+		SafetyClass:     observed.interpreter.SafetyClass(name),
+		ApprovalSubject: subject,
+		FileMutation:    fileMutationScope(observed.inner, arguments, observed.start.CWD),
+		ShellCommand:    observed.interpreter.ShellCommand(name, arguments.Canonical()),
+		AutoApproved:    autoApproved,
+		RequireApproval: requireApproval,
+	}, nil
 }
 
 func (observed *observedInteractionTool) requestToolApproval(
 	ctx context.Context,
-	request AutomaticToolRequest,
+	request ToolAuthorizationRequest,
 	prompt runs.ApprovalPrompt,
 ) (tool.Arguments, bool, string, error) {
 	if !slices.Contains(observed.start.InterruptKinds, interrupt.Approval) {
@@ -538,28 +556,27 @@ func (observed *observedInteractionTool) resumePreparedTool(
 	if prompt.CallID != callID {
 		return tool.Arguments{}, false, "", errors.New("agentexec: continued Tool approval call identity changed")
 	}
-	return observed.resolveToolApproval(
-		ctx,
-		observed.authorizationRequest(callID, name, arguments),
-		prompt,
-		continued.Resolution,
-	)
+	request, err := observed.authorizationRequest(callID, name, arguments, false)
+	if err != nil {
+		return tool.Arguments{}, false, "", err
+	}
+	return observed.resolveToolApproval(ctx, request, prompt, continued.Resolution)
 }
 
 func (observed *observedInteractionTool) resolveToolApproval(
 	ctx context.Context,
-	request AutomaticToolRequest,
+	request ToolAuthorizationRequest,
 	prompt runs.ApprovalPrompt,
 	resolution interrupt.Resolution,
 ) (tool.Arguments, bool, string, error) {
-	if observed.interactive == nil {
-		return tool.Arguments{}, false, "", errors.New("agentexec: continued Tool approval has no interactive authorizer")
+	if observed.authorizer == nil {
+		return tool.Arguments{}, false, "", errors.New("agentexec: continued Tool approval has no authorizer")
 	}
-	decision, err := observed.interactive.ResolveToolApproval(ctx, request, prompt, resolution)
+	decision, err := observed.authorizer.ResolveToolApproval(ctx, request, prompt, resolution)
 	if err != nil {
 		return tool.Arguments{}, false, "", fmt.Errorf("agentexec: resolve Tool %q approval: %w", request.ToolName, err)
 	}
-	if err := validateAutomaticDecision(decision); err != nil {
+	if err := validateToolAuthorizationDecision(decision); err != nil {
 		return tool.Arguments{}, false, "", err
 	}
 	arguments := request.Arguments
@@ -638,7 +655,7 @@ func (observed *observedInteractionTool) mutatedPaths(
 	if callErr != nil {
 		return nil
 	}
-	reporter, ok, err := toolcontract.Capability[fileMutationReporter](observed.inner)
+	reporter, ok, err := toolcontract.Capability[interactionFileMutationReporter](observed.inner)
 	if err != nil || !ok {
 		return nil
 	}
@@ -698,8 +715,7 @@ func wrapInteractionTools(
 			wrapped[index] = &observedInteractionTool{
 				inner: executable, session: session, interpreter: config.ToolInterpreter,
 				presenter: config.ToolPresenter, authorizer: config.ToolAuthorizer,
-				interactive: config.InteractiveToolAuthorizer,
-				hooks:       config.ToolHooks, offloader: config.ToolResultStore,
+				hooks: config.ToolHooks, offloader: config.ToolResultStore,
 				offloadAt: config.ToolResultThreshold, readTool: config.ToolResultReaderName,
 				start: start,
 			}
@@ -777,6 +793,23 @@ func modelUsage(
 		cost = pricing(provider, servedModel, &response.Usage)
 	}
 	return accounting.ModelUsage{
-		Model: servedModel, TokenUsage: tokenUsageOf(response.Usage), CostUSD: cost, Calls: 1,
+		Model: servedModel, TokenUsage: accountingTokenUsage(response.Usage), CostUSD: cost, Calls: 1,
 	}
+}
+
+func accountingTokenUsage(usage corechat.Usage) accounting.TokenUsage {
+	result := accounting.TokenUsage{
+		PromptTokens:     usage.InputTokens,
+		CompletionTokens: usage.OutputTokens,
+	}
+	if usage.ReasoningTokens != nil {
+		result.ReasoningTokens = *usage.ReasoningTokens
+	}
+	if usage.CacheReadInputTokens != nil {
+		result.CacheReadTokens = *usage.CacheReadInputTokens
+	}
+	if usage.CacheWriteInputTokens != nil {
+		result.CacheWriteTokens = *usage.CacheWriteInputTokens
+	}
+	return result
 }

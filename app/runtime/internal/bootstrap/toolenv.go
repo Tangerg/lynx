@@ -4,8 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/suspension"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/interactioninput"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/mcpconnection"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/skill"
@@ -28,7 +27,6 @@ type toolEnvironment struct {
 func buildToolEnvironment(
 	ctx context.Context,
 	cfg Config,
-	ecfg agentexec.Config,
 	approvalPolicy *approvals.RuntimePolicy,
 	mcpEnv mcpEnvironment,
 	agentMemorySearcher *agentmemory.Searcher,
@@ -47,15 +45,15 @@ func buildToolEnvironment(
 		closers: []ShutdownResource{mcpPool},
 	}
 	bc := toolset.BuildConfig{
-		DefaultCWD:      ecfg.DefaultCWD,
-		UserHome:        ecfg.UserHome,
+		DefaultCWD:      cfg.DefaultWorkspacePath,
+		UserHome:        cfg.UserHome,
 		SkillsUserDir:   cfg.SkillsUserDir,
 		Online:          cfg.Online,
 		LSPServers:      cfg.LSPServers,
 		MCPTools:        mcpTools,
 		A2AAgents:       cfg.A2AAgents,
 		Plan:            cfg.PlanStore,
-		Interrupt:       suspension.Interrupt,
+		Interrupt:       interactioninput.Require,
 		MCPToolDisabled: mcpEnv.policy.ToolDisabled,
 		// The authoring store records skill loads for the idle-lifecycle curator; a
 		// disabled store no-ops RecordUse.

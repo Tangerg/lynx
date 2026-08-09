@@ -5,7 +5,7 @@
 //     to decide whether a call runs, is denied, or must pause for
 //     approval. safe / balanced / yolo are runtime defaults; Plan mode is a
 //     persisted session overlay entered only through an explicit transition.
-//     The executor parks a suspension and the caller later supplies one typed
+//     The executor commits a durable wait and the caller later supplies one typed
 //     resolution through the durable continuation boundary.
 //   - Rules: persistent, fine-grained "remember this decision" rules. A rule
 //     gates a (tool, subject) pair under a scope (session / project / global),

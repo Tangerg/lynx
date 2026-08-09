@@ -15,6 +15,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/discovery"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	domaintool "github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
@@ -643,14 +644,22 @@ func (concurrentInteractionTool) ConcurrencyKey(string) (string, bool) { return 
 
 type allowInteractionTools struct{}
 
-func (allowInteractionTools) AuthorizeTool(context.Context, AutomaticToolRequest) (AutomaticToolDecision, error) {
-	return AutomaticToolDecision{}, nil
+func (allowInteractionTools) AuthorizeTool(context.Context, ToolAuthorizationRequest) (ToolAuthorizationDecision, error) {
+	return ToolAuthorizationDecision{}, nil
+}
+
+func (allowInteractionTools) ResolveToolApproval(context.Context, ToolAuthorizationRequest, runs.ApprovalPrompt, interrupt.Resolution) (ToolAuthorizationDecision, error) {
+	return ToolAuthorizationDecision{}, nil
 }
 
 type denyingInteractionTools struct{ reason string }
 
-func (authorizer denyingInteractionTools) AuthorizeTool(context.Context, AutomaticToolRequest) (AutomaticToolDecision, error) {
-	return AutomaticToolDecision{Denied: true, Reason: authorizer.reason}, nil
+func (authorizer denyingInteractionTools) AuthorizeTool(context.Context, ToolAuthorizationRequest) (ToolAuthorizationDecision, error) {
+	return ToolAuthorizationDecision{Denied: true, Reason: authorizer.reason}, nil
+}
+
+func (authorizer denyingInteractionTools) ResolveToolApproval(context.Context, ToolAuthorizationRequest, runs.ApprovalPrompt, interrupt.Resolution) (ToolAuthorizationDecision, error) {
+	return ToolAuthorizationDecision{Denied: true, Reason: authorizer.reason}, nil
 }
 
 type testInteractionToolInterpreter struct{}
@@ -660,6 +669,12 @@ func (testInteractionToolInterpreter) SafetyClass(string) domaintool.SafetyClass
 }
 
 func (testInteractionToolInterpreter) UsesStandardPolicy(string) bool { return true }
+
+func (testInteractionToolInterpreter) ApprovalSubject(string, domaintool.Arguments) (string, error) {
+	return "", nil
+}
+
+func (testInteractionToolInterpreter) ShellCommand(string, string) string { return "" }
 
 func (testInteractionToolInterpreter) ProjectOutcome(context.Context, string, string, bool) (runs.ExecutionFact, error) {
 	return nil, nil

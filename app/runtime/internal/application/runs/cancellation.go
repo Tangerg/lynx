@@ -54,7 +54,18 @@ func (c *Coordinator) Cancel(ctx context.Context, cmd CancelCommand) (CancelResu
 	}
 	cleanupCtx, cancel := entry.handle.cleanupContext(ctx)
 	defer cancel()
-	interruptCommitted, requestErr := entry.handle.requestCancel(cleanupCtx, cmd.Reason)
+	if c.rootCancellation == nil {
+		return CancelResult{}, errors.New("runs: root execution cancellation requester is required")
+	}
+	interruptCommitted, requestErr := entry.handle.requestCancel(
+		cleanupCtx,
+		cmd.Reason,
+		func(requestCtx context.Context) error {
+			return c.rootCancellation.RequestRootCancellation(
+				requestCtx, plan.executor, cmd.Reason,
+			)
+		},
+	)
 	if requestErr != nil {
 		if errors.Is(requestErr, ErrSessionBusy) {
 			return CancelResult{}, requestErr

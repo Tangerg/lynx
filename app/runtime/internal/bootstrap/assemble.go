@@ -12,7 +12,6 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
 	codebaseindexadapter "github.com/Tangerg/lynx/app/runtime/internal/adapter/codebaseindex"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/isolation"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/maintenance"
@@ -24,6 +23,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/runsegment"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/skillproposal"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/catalog"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/goal"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/skill"
 	checkpointstore "github.com/Tangerg/lynx/app/runtime/internal/adapter/workspace"
@@ -48,6 +48,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/component/shutdown"
 	"github.com/Tangerg/lynx/app/runtime/internal/component/signal"
 	"github.com/Tangerg/lynx/app/runtime/internal/component/taskgroup"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/mcpserver"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/skills"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/skillauthoring"
 )
@@ -104,7 +105,6 @@ type Stack struct {
 type toolEnvironmentBuilder func(
 	context.Context,
 	Config,
-	agentexec.Config,
 	*approvals.RuntimePolicy,
 	mcpEnvironment,
 	*agentmemoryapp.Searcher,
@@ -198,7 +198,7 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 		}
 	}
 
-	ecfg, messages, err := prepareEngineConfig(cfg)
+	messages, err := buildMessageEnvironment(cfg.ConversationStore)
 	if err != nil {
 		return nil, err
 	}
@@ -217,7 +217,7 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 		return nil, err
 	}
 	utilityRoleState := models.NewRoleState(utilityRole)
-	utilityClient := chatResolver.UtilityClient(cfg.Engine.ChatClient, utilityRoleState)
+	utilityClient := chatResolver.UtilityClient(cfg.ChatClient, utilityRoleState)
 	embeddingRole, err := loadEmbeddingRole(ctx, cfg.EmbeddingRoleStore)
 	if err != nil {
 		return nil, err
@@ -287,25 +287,55 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 		skillproposal.NewLibraries(skillStore),
 		skillChanges.Publish,
 	)
-	built, err := buildTools(ctx, cfg, ecfg, approvalPolicy, mcpEnv, agentMemorySearcher, scheduleCoord, goalReader, goalReporter, skillStore, workspaceSkills)
+	built, err := buildTools(ctx, cfg, approvalPolicy, mcpEnv, agentMemorySearcher, scheduleCoord, goalReader, goalReporter, skillStore, workspaceSkills)
 	lifetime.toolClosers = slices.Clone(built.closers)
 	if err != nil {
 		return nil, err
 	}
-	attachToolEnvironment(&ecfg, built.tools)
-	// Per-Run memory recall reuses the same searcher the search_memory tool does.
-	if agentMemorySearcher != nil {
-		ecfg.AgentMemorySearch = agentMemorySearcher
-	}
 
-	// Built after the tool environment so the compactor's live-state reminder can
-	// read the same background-shell set the shell tools run over (built.Shells);
-	// executionSupport is not consumed until the execution-controller config below.
-	executionSupport := buildExecutionSupport(cfg, messages, built.tools.Shells, skillStore, workspaceSkills, utilityClient, liveEmbedder.ResolveMemory)
-
-	eng, err := agentexec.New(ctx, ecfg)
+	workingContexts := agentexec.NewWorkingContextComposer(agentexec.WorkingContextConfig{
+		UserHome: cfg.UserHome, Knowledge: cfg.KnowledgeStore,
+		AgentMemory: cfg.AgentMemoryStore, AgentMemorySearch: agentMemorySearcher,
+		Plan: cfg.PlanStore, Hooks: cfg.HooksResolver,
+	})
+	toolAuthorizer, err := agentexec.NewToolAuthorizer(approvalPolicy)
 	if err != nil {
-		return nil, fmt.Errorf("runtime: engine: %w", err)
+		return nil, fmt.Errorf("runtime: Tool authorizer: %w", err)
+	}
+	runMaintenance := buildRunMaintenance(
+		cfg, messages, built.tools.Shells, skillStore, workspaceSkills,
+		utilityClient, liveEmbedder.ResolveMemory,
+	)
+	interactionConfig := agentexec.InteractionExecutorConfig{
+		BuildID: cfg.BuildID, DefaultClient: cfg.ChatClient, ChatResolver: chatResolver,
+		Checkpoints:            cfg.ExecutorCheckpoints,
+		ImplementationIdentity: cfg.BuildID,
+		ConfigurationIdentity:  "lyra.runtime.interaction.v1",
+		StreamModelResponses:   true,
+		MaxConcurrentToolCalls: 8,
+		ToolInterpreter:        toolset.NewInterpreter(cfg.PlanStore),
+		ToolPresenter:          toolset.Presenter{},
+		ToolAuthorizer:         toolAuthorizer,
+		ToolHooks:              workingContexts,
+		MCPToolAutoApproved: func(server, tool string) bool {
+			return mcpEnv.policy.ToolAutoApproved(mcpserver.ToolRef{Server: server, Tool: tool})
+		},
+		Maintenance:    runMaintenance,
+		LifecycleHooks: workingContexts,
+		Pricing:        cfg.Pricing,
+		Provider:       cfg.Provider,
+	}
+	if built.tools.Resolver != nil {
+		interactionConfig.ToolResolver = built.tools.Resolver
+	}
+	if cfg.ToolResultStore != nil {
+		interactionConfig.ToolResultStore = cfg.ToolResultStore
+		interactionConfig.ToolResultThreshold = cfg.ToolResultThreshold
+		interactionConfig.ToolResultReaderName = catalog.ReadToolResult
+	}
+	interactionExecutor, err := agentexec.NewInteractionExecutor(interactionConfig)
+	if err != nil {
+		return nil, fmt.Errorf("runtime: native Interaction executor: %w", err)
 	}
 	recoveryPersistence, err := runrecovery.New(runrecovery.Config{
 		Sessions:            cfg.SessionStore,
@@ -320,7 +350,7 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 	if err != nil {
 		return nil, fmt.Errorf("runtime: boot recovery persistence: %w", err)
 	}
-	bootRecovery, err := runs.NewRecovery(recoveryPersistence, eng)
+	bootRecovery, err := runs.NewRecovery(recoveryPersistence, interactionExecutor)
 	if err != nil {
 		return nil, fmt.Errorf("runtime: boot recovery: %w", err)
 	}
@@ -328,21 +358,7 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 		return nil, fmt.Errorf("runtime: reconcile abandoned Runs: %w", err)
 	}
 
-	executionController, err := turn.New(turn.Dependencies{
-		Engine:              eng,
-		Steering:            executionSupport.steering,
-		Maintenance:         executionSupport.maintenance,
-		Approval:            approvalPolicy,
-		ChatResolver:        chatResolver,
-		ToolPresenter:       toolset.Presenter{},
-		ToolInterpreter:     toolset.NewInterpreter(cfg.PlanStore),
-		MCPToolAutoApproved: mcpEnv.policy.ToolAutoApproved,
-		Hooks:               cfg.HooksResolver,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("runtime: execution controller: %w", err)
-	}
-	lifetime.execution = executionController
+	lifetime.execution = interactionExecutor
 	toolRegistry := toolset.NewDiagnosticRegistry()
 
 	// File checkpoints (shadow git) enable run-boundary snapshots + file
@@ -370,7 +386,7 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 	// workspace signal. Agent execution is driven through the same semantic
 	// execution-control adapter consumed by application/runs.
 	fileChanges := &signal.Signal[workspace.FileChangeNotice]{}
-	runExecutor := turn.NewExecutor(executionController)
+	runExecutor := interactionExecutor
 	// effectsTasks owns title generation after the synchronous checkpoint
 	// boundary; the Host joins accepted title tasks after the pumps.
 	effectsTasks := &taskgroup.Group{}
@@ -384,10 +400,14 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 		Transcript:          cfg.TranscriptStore,
 		ItemReplacer:        cfg.TranscriptStore,
 		ToolResults:         cfg.ToolResultStore,
+		ModelInvocations:    cfg.ModelInvocationStore,
+		ToolInvocations:     cfg.ToolInvocationStore,
 		Messages:            messages.conversation,
 		Titles:              maintenance.NewTitler(utilityClient),
 		RunState:            cfg.RunStore,
+		RunMetrics:          cfg.RunStore,
 		ExecutorCheckpoints: cfg.ExecutorCheckpoints,
+		ChildRunStarts:      cfg.ChildRunStartStore,
 		Tx:                  runsegment.Transactor(cfg.Transactor),
 		Checkpoints:         checkpoints,
 		Tasks:               effectsTasks,
@@ -431,8 +451,8 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 		Boundaries:        cfg.PlanStore,
 		Snapshots:         sessionStorage,
 		Writes:            sessionStorage,
-		Forgetter:         executionController,
-		ExecutionReleaser: turn.NewSessionExecutionReleaser(executionController),
+		Forgetter:         workingContexts,
+		ExecutionReleaser: interactionExecutor,
 		Paths:             workspacepath.Resolver{},
 		DefaultModel:      cfg.Model,
 		Checkpoints:       checkpointstore.NewSessionCheckpoints(checkpoints),
@@ -458,12 +478,14 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 		RootStarts:                         runExecutor,
 		Observations:                       runExecutor,
 		Releases:                           runExecutor,
+		RootCancellation:                   runExecutor,
 		Conversation:                       messages.conversation,
 		Continuation:                       runExecutor,
 		WaitingRestorer:                    runExecutor,
 		Steering:                           runExecutor,
 		RunningSubtreeCanceler:             runExecutor,
 		WaitingSubtreeCancellationPreparer: runExecutor,
+		WorkingContexts:                    workingContexts,
 		Session: runs.SessionPorts{
 			Reader:       sessionCoord,
 			Creator:      sessionCoord,
@@ -638,8 +660,14 @@ func validateAssemblyConfig(cfg Config) error {
 			return fmt.Errorf("runtime: SandboxReadOnlyPaths[%d] must be absolute when set", i)
 		}
 	}
-	if cfg.Engine.ChatClient == nil {
-		return errors.New("runtime: Engine.ChatClient is required")
+	if cfg.ChatClient == nil {
+		return errors.New("runtime: ChatClient is required")
+	}
+	if cfg.BuildID == "" {
+		return errors.New("runtime: BuildID is required")
+	}
+	if cfg.ConversationStore == nil {
+		return errors.New("runtime: ConversationStore is required")
 	}
 	if cfg.ProviderRegistry == nil {
 		return errors.New("runtime: ProviderRegistry is required")
@@ -667,6 +695,15 @@ func validateAssemblyConfig(cfg Config) error {
 	}
 	if cfg.ExecutorCheckpoints == nil {
 		return errors.New("runtime: ExecutorCheckpoints is required")
+	}
+	if cfg.ModelInvocationStore == nil {
+		return errors.New("runtime: ModelInvocationStore is required")
+	}
+	if cfg.ToolInvocationStore == nil {
+		return errors.New("runtime: ToolInvocationStore is required")
+	}
+	if cfg.ChildRunStartStore == nil {
+		return errors.New("runtime: ChildRunStartStore is required")
 	}
 	if cfg.Transactor == nil {
 		return errors.New("runtime: Transactor is required")

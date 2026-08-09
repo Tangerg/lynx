@@ -4,7 +4,7 @@
 >
 > 适用范围：`app/runtime` 及其为完成服务端重构必须调整的直接后端依赖
 >
-> 实施状态：P7 已完成，下一阶段 P8；当前代码事实和迁移差距见 [`CAPABILITY_LEDGER.md`](CAPABILITY_LEDGER.md)，阶段与进度见 [`EXECUTION_PLAN.md`](EXECUTION_PLAN.md)
+> 实施状态：P8 已完成，下一阶段 P9；当前代码事实见 [`CAPABILITY_LEDGER.md`](CAPABILITY_LEDGER.md)，阶段与进度见 [`EXECUTION_PLAN.md`](EXECUTION_PLAN.md)
 
 本文定义 Lyra Runtime 重构完成后的稳定架构、统一语言、所有权和依赖方向。它不记录逐批进度，不枚举完整协议字段，也不复制 Agent Framework 的内部设计。
 
@@ -335,7 +335,7 @@ Application StartRun
   -> Delivery projects protocol output
 ```
 
-P4 的独立 root harness 已验证上述 stage/observe/commit/begin 顺序；P5 在同一真实 consumer 上接入 authoritative model/tool decorator、Runtime Toolset 和 live unknown reconciliation；P6 又接入 public waiting/restore/answer/steer。Framework Event/Delta 仍只能作为 wake/best-effort observation；model/tool durable truth 来自同步 Application commit receipt，terminal truth 来自 `Process.Await` 或 Application 已先提交的产品终态。P8 才把这条路径切为生产 owner。
+P8 已把 P4–P7 验证的 stage/observe/commit/begin、authoritative model/tool、Runtime Toolset、live unknown 与 waiting/restore/answer/steer 路径切为生产唯一 owner。Framework Event/Delta 仍只能作为 wake/best-effort observation；model/tool durable truth 来自同步 Application commit receipt，terminal truth来自 `Process.Await` 或 Application 已先提交的产品终态。
 
 普通 model/tool Effect 的提交协议是：
 
@@ -372,7 +372,7 @@ Application transaction records the exact answer claim
 
 answer claim 是不可逆的恢复线性化点，不是普通“读取并删除”。claim 成功后，旧 checkpoint 已不存在，`resuming` row 只保留答案审计与 crash diagnosis，普通 waiting 查询看不到它；continuation opening 必须在同一事务中先证明该 claim 存在，再把 Run tree 改回 Running。下一次 quiescent barrier 只能由相同 Session/executor/root-member owner 原子替换该 row，terminal/recovery 则原子删除。claim 后任何校验、restore、observe 或 opening 失败都先提交根 Run `RunLost`，成功后才 release live tree；若 `RunLost` 自身无法持久化，tree 与 hidden claim 都保持，不伪造已清理状态。进程在 claim 后、RestoreTree 后或 Signal accepted 后到下一 checkpoint 前崩溃，boot recovery 一律 `RunLost`，绝不再次投递旧答案。
 
-P6 的 native Interaction 只通过 public pending-input helper 读取 prompt/WaitID，通过 public `TreeSnapshot`/`RestoreTree` 恢复，通过 typed answer/steer constructor 产生 Signal。产品 Interrupt 与 response 的 strict codec 位于独立防腐包；仍服务旧生产 owner 的 suspension adapter 只复用该产品 codec，不进入新路径，并在 P8 与旧 owner 同批删除。Ask-user 使用真实 Runtime Tool 注入 native pending-input capability；interactive approval 的 plan/hook 只在首次调用执行，restore 只解析持久 prompt 并应用答案。deferred advertisement 属于 Interaction snapshot，恢复后无需 Runtime 重建影子清单。
+Native Interaction 只通过 public pending-input helper 读取 prompt/WaitID，通过 public `TreeSnapshot`/`RestoreTree` 恢复，通过 typed answer/steer constructor 产生 Signal。产品 Interrupt 与 response 的 strict codec 位于独立防腐包；旧 private suspension adapter 已删除。Ask-user 使用真实 Runtime Tool 注入 native pending-input capability；interactive approval 的 plan/hook 只在首次调用执行，restore 只解析持久 prompt 并应用答案。deferred advertisement 属于 Interaction snapshot，恢复后无需 Runtime 重建影子清单。
 
 ### 7.4 Child Process 与 child Run
 
@@ -440,7 +440,7 @@ Application port 只表达产品真正需要的执行能力，不能镜像 Agent
 - 规划并在应用事务后应用 waiting subtree cancellation；
 - 释放终态或失效的 executor tree。
 
-端口方法、参数名和返回值随 P4–P7 的真实纵切按 consumer-discovered interface 原则演进，不把旧 `ExecutionControl`、`PrepareStart`、`Activate`、`Prepare` 或 `TurnProcess` 当成兼容合同。P3 已建立最小 root candidate：`RootExecutionStarter` 用 validate/stage/begin 准确表达 admission 两侧，`ExecutionObserver` 只观察 Application facts，`ExecutionReleaser` 只释放资源且不决定产品 Cancel。P6 的真实 Agent2 consumer 已推导出 `WaitingExecutionContinuer` 的 stage/begin 两阶段和 `RunningExecutionSteerer` 的语义 steer 能力；P7 又推导出 conclusive child start、prepared subtree change 与 exact waiting restore 能力。旧生产路径仍需要的 legacy waiting/child/subtree seam 不属于目标合同，P8 生产切换前才冻结完整端口。最终命名必须以 Run 用例语义为准，不能用含糊的 `Prepare`、`Handle`、`Manager` 掩盖不同阶段。
+P8 已按 consumer-discovered interface 原则冻结完整生产端口，不兼容旧 `ExecutionControl`、`PrepareStart`、`Activate`、`Prepare` 或 `TurnProcess`。`RootExecutionStarter` 用 validate/stage/begin 准确表达 admission 两侧，`ExecutionObserver` 只观察 Application facts，`RunningRootCancellationRequester` 只请求安全停止，`ExecutionReleaser` 只释放资源；`WaitingExecutionContinuer`、`WaitingExecutionRestorer`、`RunningExecutionSteerer` 与 waiting-subtree capability 分别表达 continuation、exact restore、semantic steer 和跨事务 one-shot tree change。命名以 Run 用例语义为准，不用含糊的 `Handle`、`Manager` 掩盖阶段。
 
 ## 9. 工具能力
 

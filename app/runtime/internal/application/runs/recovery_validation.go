@@ -114,6 +114,7 @@ func validateRecoveryParkedTree(
 		GoalLeaseID:    pending.GoalLeaseID,
 		ModelSelection: rootContinuation.ModelSelection,
 		Limits:         rootContinuation.Limits,
+		Capabilities:   pending.Capabilities,
 	})
 	if err != nil {
 		return false, fmt.Errorf(

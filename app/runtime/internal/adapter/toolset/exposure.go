@@ -29,7 +29,6 @@ func (manifest Manifest) Clone() Manifest {
 // executable but are loaded through search_tools. Unavailable tools are simply
 // never added; there is no synthetic visibility state for them.
 type resolution struct {
-	all      []toolcontract.Tool
 	visible  []toolcontract.Tool
 	deferred []toolcontract.Tool
 }
@@ -37,7 +36,6 @@ type resolution struct {
 func (s *resolution) direct(tools ...toolcontract.Tool) {
 	for _, candidate := range tools {
 		if candidate != nil {
-			s.all = append(s.all, candidate)
 			s.visible = append(s.visible, candidate)
 		}
 	}
@@ -46,7 +44,6 @@ func (s *resolution) direct(tools ...toolcontract.Tool) {
 func (s *resolution) deferTools(tools ...toolcontract.Tool) {
 	for _, candidate := range tools {
 		if candidate != nil {
-			s.all = append(s.all, candidate)
 			s.deferred = append(s.deferred, candidate)
 		}
 	}

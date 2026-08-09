@@ -54,13 +54,86 @@ type fakeExecutor struct {
 	releaseErr     error
 	releaseStarted chan struct{}
 	allowRelease   chan struct{}
+	cancelSignal   chan struct{}
+	cancelOnce     sync.Once
+}
+
+// nativeChildStartFixture is test scenario syntax. fake executors translate it
+// into the production reservation → conclusive-start protocol before the Run
+// pump sees any event.
+type nativeChildStartFixture struct {
+	executorPayloadBase
+	StartedAt time.Time
+	result    chan childStartFixtureResult
+}
+
+type nativeChildStartReceipt struct {
+	result <-chan childStartFixtureResult
+}
+
+type childStartFixtureResult struct {
+	binding ChildRunBinding
+	err     error
+}
+
+func newNativeChildStartFixture(startedAt time.Time) (nativeChildStartFixture, nativeChildStartReceipt) {
+	result := make(chan childStartFixtureResult, 1)
+	return nativeChildStartFixture{StartedAt: startedAt, result: result}, nativeChildStartReceipt{result: result}
+}
+
+func (fixture nativeChildStartFixture) complete(binding ChildRunBinding, err error) {
+	fixture.result <- childStartFixtureResult{binding: binding, err: err}
+}
+
+func (receipt nativeChildStartReceipt) Await(ctx context.Context) (ChildRunBinding, error) {
+	select {
+	case result := <-receipt.result:
+		return result.binding, result.err
+	case <-ctx.Done():
+		return ChildRunBinding{}, ctx.Err()
+	}
+}
+
+func yieldNativeChildStart(
+	ctx context.Context,
+	yield func(ExecutorEvent) bool,
+	member ExecutorMember,
+	fixture nativeChildStartFixture,
+) bool {
+	reservation, reservationReceipt := NewChildRunReservationRequest(fixture.StartedAt)
+	if !yield(ExecutorEvent{Member: member, Payload: reservation}) {
+		fixture.complete(ChildRunBinding{}, ctx.Err())
+		return false
+	}
+	binding, err := reservationReceipt.Await(ctx)
+	if err == nil {
+		outcome, outcomeReceipt := NewChildRunStartOutcomeRequest(binding, ChildRunStarted)
+		if !yield(ExecutorEvent{Member: member, Payload: outcome}) {
+			fixture.complete(ChildRunBinding{}, ctx.Err())
+			return false
+		}
+		err = outcomeReceipt.Await(ctx)
+	}
+	fixture.complete(binding, err)
+	if err == nil {
+		return true
+	}
+	problem := transcript.Problem{
+		Kind: transcript.InternalProblem, Scope: transcript.RunProblem,
+		Detail: "child Run start failed",
+	}
+	yield(ExecutorEvent{
+		Member:  ExecutorMember{MemberID: member.ParentID},
+		Payload: SegmentEnded{Reason: run.OutcomeFailed, Problem: &problem},
+	})
+	return false
 }
 
 type acknowledgedChildExecutor struct {
 	rootMember   ExecutorMember
 	childMember  ExecutorMember
-	request      ChildOpeningRequest
-	confirmation ChildOpeningConfirmation
+	request      nativeChildStartFixture
+	confirmation nativeChildStartReceipt
 	childStarted chan struct{}
 }
 
@@ -124,8 +197,8 @@ func (*acknowledgedNativeChildExecutor) Release(context.Context, ExecutorRef) er
 type cancellableChildExecutor struct {
 	rootMember      ExecutorMember
 	childMember     ExecutorMember
-	request         ChildOpeningRequest
-	confirmation    ChildOpeningConfirmation
+	request         nativeChildStartFixture
+	confirmation    nativeChildStartReceipt
 	childOpened     chan struct{}
 	cancelRequested chan struct{}
 	finishRoot      chan struct{}
@@ -147,10 +220,7 @@ func (e *cancellableChildExecutor) Observe(
 		}) {
 			return
 		}
-		if !yield(ExecutorEvent{Member: e.childMember, Payload: e.request}) {
-			return
-		}
-		if _, err := e.confirmation.Await(ctx); err != nil {
+		if !yieldNativeChildStart(ctx, yield, e.childMember, e.request) {
 			return
 		}
 		close(e.childOpened)
@@ -207,10 +277,7 @@ func (e *acknowledgedChildExecutor) Observe(ctx context.Context, _ ExecutorRef) 
 		}) {
 			return
 		}
-		if !yield(ExecutorEvent{Member: e.childMember, Payload: e.request}) {
-			return
-		}
-		if _, err := e.confirmation.Await(ctx); err != nil {
+		if !yieldNativeChildStart(ctx, yield, e.childMember, e.request) {
 			return
 		}
 		close(e.childStarted)
@@ -237,7 +304,14 @@ func (f *fakeExecutor) Observe(ctx context.Context, _ ExecutorRef) (iter.Seq[Exe
 	}
 	return func(yield func(ExecutorEvent) bool) {
 		if f.block {
-			<-ctx.Done()
+			select {
+			case <-f.rootCancellationSignal():
+				yield(ExecutorEvent{
+					Member:  ExecutorMember{MemberID: "member_root"},
+					Payload: SegmentEnded{Reason: run.OutcomeCanceled},
+				})
+			case <-ctx.Done():
+			}
 			return
 		}
 		events := f.executorEvents
@@ -251,11 +325,36 @@ func (f *fakeExecutor) Observe(ctx context.Context, _ ExecutorRef) (iter.Seq[Exe
 			}
 		}
 		for _, event := range events {
+			if fixture, ok := event.Payload.(nativeChildStartFixture); ok {
+				if !yieldNativeChildStart(ctx, yield, event.Member, fixture) {
+					return
+				}
+				continue
+			}
 			if ctx.Err() != nil || !yield(event) {
 				return
 			}
 		}
 	}, nil
+}
+
+func (f *fakeExecutor) rootCancellationSignal() chan struct{} {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.cancelSignal == nil {
+		f.cancelSignal = make(chan struct{})
+	}
+	return f.cancelSignal
+}
+
+func (f *fakeExecutor) requestRootCancellation() {
+	signal := f.rootCancellationSignal()
+	f.cancelOnce.Do(func() { close(signal) })
+}
+
+func (f *fakeExecutor) RequestRootCancellation(context.Context, ExecutorRef, string) error {
+	f.requestRootCancellation()
+	return nil
 }
 
 func (f *fakeExecutor) Release(context.Context, ExecutorRef) error {
@@ -337,6 +436,10 @@ func (e *fakeEffects) CommitStartedChildRun(
 ) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
+	attempt := len(e.openings) + 1
+	if e.openingErr != nil && (e.openingErrAt == 0 || e.openingErrAt == attempt) {
+		return e.openingErr
+	}
 	memberID := reservation.Member.MemberID
 	if e.childStarts[memberID] != reservation {
 		return errors.New("fake started child has no reservation")
@@ -439,16 +542,18 @@ type blockingChildOpeningEffects struct {
 	release <-chan struct{}
 }
 
-func (effects *blockingChildOpeningEffects) CommitOpening(ctx context.Context, opening OpeningCommit) error {
-	if opening.Admit != nil && opening.Admit.Lineage().IsChild() {
-		effects.started <- struct{}{}
-		select {
-		case <-effects.release:
-		case <-ctx.Done():
-			return ctx.Err()
-		}
+func (effects *blockingChildOpeningEffects) CommitStartedChildRun(
+	ctx context.Context,
+	reservation ChildRunStartReservation,
+	opening OpeningCommit,
+) error {
+	effects.started <- struct{}{}
+	select {
+	case <-effects.release:
+	case <-ctx.Done():
+		return ctx.Err()
 	}
-	return effects.fakeEffects.CommitOpening(ctx, opening)
+	return effects.fakeEffects.CommitStartedChildRun(ctx, reservation, opening)
 }
 
 func (e *fakeEffects) CommitOpening(_ context.Context, opening OpeningCommit) error {
@@ -1248,7 +1353,7 @@ func TestCoordinatorRejectsUnadmittedChildSource(t *testing.T) {
 
 func TestCoordinatorAtomicallyAdmitsChildRunFromSpawningItem(t *testing.T) {
 	startedAt := time.Date(2026, 7, 13, 1, 2, 4, 0, time.FixedZone("test", 8*60*60))
-	request, confirmation := NewChildOpeningRequest(startedAt)
+	request, confirmation := newNativeChildStartFixture(startedAt)
 	rootMember := ExecutorMember{MemberID: "member_root"}
 	childMember := ExecutorMember{
 		MemberID:    "member_child",
@@ -1372,7 +1477,7 @@ func TestCoordinatorPublishesNativeChildOnlyAfterConclusiveStart(t *testing.T) {
 }
 
 func TestCoordinatorPublishesChildSegmentOnItsOwnRunIdentity(t *testing.T) {
-	request, confirmation := NewChildOpeningRequest(time.Date(2026, 7, 13, 1, 2, 4, 0, time.UTC))
+	request, confirmation := newNativeChildStartFixture(time.Date(2026, 7, 13, 1, 2, 4, 0, time.UTC))
 	rootMember := ExecutorMember{MemberID: "member_root"}
 	childMember := ExecutorMember{
 		MemberID:    "member_child",
@@ -1516,8 +1621,8 @@ func TestCoordinatorPublishesChildSegmentOnItsOwnRunIdentity(t *testing.T) {
 }
 
 func TestCoordinatorKeepsConcurrentSiblingSegmentsIsolated(t *testing.T) {
-	requestA, confirmationA := NewChildOpeningRequest(time.Now())
-	requestB, confirmationB := NewChildOpeningRequest(time.Now())
+	requestA, confirmationA := newNativeChildStartFixture(time.Now())
+	requestB, confirmationB := newNativeChildStartFixture(time.Now())
 	rootMember := ExecutorMember{MemberID: "member_root"}
 	childA := ExecutorMember{
 		MemberID:    "member_child_a",
@@ -1644,8 +1749,8 @@ func TestCoordinatorKeepsConcurrentSiblingSegmentsIsolated(t *testing.T) {
 }
 
 func TestCoordinatorProjectsNestedChildrenWithExactLineageAndPostorderTerminal(t *testing.T) {
-	childRequest, childConfirmation := NewChildOpeningRequest(time.Now())
-	grandchildRequest, grandchildConfirmation := NewChildOpeningRequest(time.Now())
+	childRequest, childConfirmation := newNativeChildStartFixture(time.Now())
+	grandchildRequest, grandchildConfirmation := newNativeChildStartFixture(time.Now())
 	rootMember := ExecutorMember{MemberID: "member_root"}
 	childMember := ExecutorMember{
 		MemberID:    "member_child",
@@ -1780,8 +1885,8 @@ func TestCoordinatorProjectsNestedChildrenWithExactLineageAndPostorderTerminal(t
 }
 
 func TestCoordinatorDrainedStreamClosesNestedChildrenBeforeAncestors(t *testing.T) {
-	childRequest, childConfirmation := NewChildOpeningRequest(time.Now())
-	grandchildRequest, grandchildConfirmation := NewChildOpeningRequest(time.Now())
+	childRequest, childConfirmation := newNativeChildStartFixture(time.Now())
+	grandchildRequest, grandchildConfirmation := newNativeChildStartFixture(time.Now())
 	rootMember := ExecutorMember{MemberID: "member_root"}
 	childMember := ExecutorMember{
 		MemberID: "member_child", ParentID: rootMember.MemberID, SpawnCallID: "spawn_child",
@@ -1847,7 +1952,7 @@ func TestCoordinatorDrainedStreamClosesNestedChildrenBeforeAncestors(t *testing.
 }
 
 func TestCoordinatorClosesActiveChildrenBeforeRejectingRootTerminal(t *testing.T) {
-	request, confirmation := NewChildOpeningRequest(time.Now())
+	request, confirmation := newNativeChildStartFixture(time.Now())
 	rootMember := ExecutorMember{MemberID: "member_root"}
 	childMember := ExecutorMember{
 		MemberID:    "member_child",
@@ -1914,7 +2019,7 @@ func TestCoordinatorClosesActiveChildrenBeforeRejectingRootTerminal(t *testing.T
 
 func TestCoordinatorRecoversFromChildTerminalCommitFailureBeforeClosingRoot(t *testing.T) {
 	commitErr := errors.New("child terminal commit failed")
-	request, confirmation := NewChildOpeningRequest(time.Now())
+	request, confirmation := newNativeChildStartFixture(time.Now())
 	rootMember := ExecutorMember{MemberID: "member_root"}
 	childMember := ExecutorMember{
 		MemberID:    "member_child",
@@ -1976,7 +2081,7 @@ func TestCoordinatorRecoversFromChildTerminalCommitFailureBeforeClosingRoot(t *t
 
 func TestCoordinatorRejectsChildWhenAtomicOpeningFails(t *testing.T) {
 	commitErr := errors.New("child opening transaction failed")
-	request, confirmation := NewChildOpeningRequest(time.Now())
+	request, confirmation := newNativeChildStartFixture(time.Now())
 	rootMember := ExecutorMember{MemberID: "member_root"}
 	childMember := ExecutorMember{
 		MemberID:    "member_child",
@@ -2025,8 +2130,8 @@ func TestCoordinatorRejectsChildWhenAtomicOpeningFails(t *testing.T) {
 
 func TestCoordinatorClosesAdmittedSiblingWhenNextOpeningRollsBack(t *testing.T) {
 	commitErr := errors.New("second child opening failed")
-	requestA, confirmationA := NewChildOpeningRequest(time.Now())
-	requestB, confirmationB := NewChildOpeningRequest(time.Now())
+	requestA, confirmationA := newNativeChildStartFixture(time.Now())
+	requestB, confirmationB := newNativeChildStartFixture(time.Now())
 	rootMember := ExecutorMember{MemberID: "member_root"}
 	childA := ExecutorMember{
 		MemberID: "member_child_a", ParentID: rootMember.MemberID, SpawnCallID: "spawn_a",
@@ -2095,7 +2200,7 @@ func TestCoordinatorClosesAdmittedSiblingWhenNextOpeningRollsBack(t *testing.T) 
 }
 
 func TestCoordinatorAcknowledgesChildOnlyAfterOpeningCommit(t *testing.T) {
-	request, confirmation := NewChildOpeningRequest(time.Now())
+	request, confirmation := newNativeChildStartFixture(time.Now())
 	rootMember := ExecutorMember{MemberID: "member_root"}
 	childMember := ExecutorMember{
 		MemberID:    "member_child",
@@ -2159,9 +2264,9 @@ func TestCoordinatorAcknowledgesChildOnlyAfterOpeningCommit(t *testing.T) {
 
 func TestCoordinatorCommitsCompleteTreeBarrierInDeterministicPostorder(t *testing.T) {
 	startedAt := testSegment().CreatedAt
-	requestA, confirmationA := NewChildOpeningRequest(startedAt)
-	requestB, confirmationB := NewChildOpeningRequest(startedAt)
-	requestGrandchild, confirmationGrandchild := NewChildOpeningRequest(startedAt)
+	requestA, confirmationA := newNativeChildStartFixture(startedAt)
+	requestB, confirmationB := newNativeChildStartFixture(startedAt)
+	requestGrandchild, confirmationGrandchild := newNativeChildStartFixture(startedAt)
 	root := ExecutorMember{MemberID: "member_root"}
 	childA := ExecutorMember{
 		MemberID: "member_child_a", ParentID: root.MemberID, SpawnCallID: "spawn_a",
@@ -2223,7 +2328,7 @@ func TestCoordinatorCommitsCompleteTreeBarrierInDeterministicPostorder(t *testin
 		t.Fatalf("openSegment: %v", err)
 	}
 	events := collectEvents(stream)
-	for name, confirmation := range map[string]ChildOpeningConfirmation{
+	for name, confirmation := range map[string]nativeChildStartReceipt{
 		"child A": confirmationA, "child B": confirmationB, "grandchild": confirmationGrandchild,
 	} {
 		if _, err := confirmation.Await(t.Context()); err != nil {
@@ -2481,6 +2586,7 @@ func TestCoordinatorCancelContextSurvivesRequestContext(t *testing.T) {
 	coordinator := testCoordinator(executor, &fakeEffects{})
 	control := &fakeExecutionPorts{}
 	coordinator.waitingSubtreeCancellationPreparer = control
+	coordinator.rootCancellation = executor
 	sessions := &fakeRunSessions{}
 	coordinator.sessionReader = sessions
 	coordinator.sessionCreator = sessions

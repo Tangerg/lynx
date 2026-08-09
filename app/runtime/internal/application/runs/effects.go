@@ -15,7 +15,7 @@ type OpeningCommitter interface {
 }
 
 // ResumeClaimCommitter atomically consumes one complete waiting hand-off and
-// invalidates its old executor checkpoint, returning the claimed snapshot only
+// invalidates its prior executor checkpoint, returning the claimed snapshot only
 // to the active continuation use case.
 type ResumeClaimCommitter interface {
 	ClaimResume(ctx context.Context, claim ResumeClaimCommit) (ClaimedResume, error)

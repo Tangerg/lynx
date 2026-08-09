@@ -2,40 +2,47 @@ package bootstrap
 
 import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/codeintel"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/persistence"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/approvals"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/codebase"
+	"github.com/Tangerg/lynx/app/runtime/internal/application/conversations"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/goals"
 	mcpapp "github.com/Tangerg/lynx/app/runtime/internal/application/mcp"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/models"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/accounting"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/approval"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/mcp"
 	sqlitestore "github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
+	"github.com/Tangerg/lynx/chatclient"
 )
 
-// Config is the construction-time bundle for [Assemble]. Engine carries the
-// engine's own construction config verbatim; the remaining fields are
-// the runtime-layer services. Several are required and injected by the
-// composition root (the sqlite-backed stores marked "Required" below).
+// Config is the construction-time bundle for [Assemble]. It contains host
+// capabilities and application adapters only; Bootstrap derives the native
+// Agent2 executor configuration so no second source of Runtime facts exists.
 type Config struct {
-	// Engine is the Agent execution adapter's construction config. The runtime
-	// fills its Checkpoints, Provider, Plan, and ToolResolver.
-	Engine agentexec.Config
+	// BuildID identifies the running executable at durable executor boundaries.
+	BuildID string
+
+	// ChatClient is the default model client. Explicit per-Run selections resolve
+	// through ProviderRegistry; utility roles fall back to this client.
+	ChatClient *chatclient.Client
+
+	// ConversationStore is the authoritative model-context store.
+	ConversationStore conversations.Store
+
+	// Pricing computes model usage cost for Runtime projections.
+	Pricing accounting.Pricing
 
 	// SkillsUserDir is the user-scope Agent Skills directory. Tool resolution
 	// and workspace discovery consume it directly; it is not Agent execution
 	// state.
 	SkillsUserDir string
 
-	// Run-boundary collaborators. nil selects the in-house/default binding:
-	// conversation steering and the complete maintenance pipeline (skill mining,
-	// idle curation, compaction, then post-compaction knowledge extraction).
-	Steering    turn.SteeringSink
-	Maintenance turn.Maintenance
+	// Maintenance overrides the default post-Interaction housekeeping pipeline.
+	Maintenance agentexec.RunMaintenance
 
 	// AgentMemoryStore is the SQLite fact ledger and its curated memory items,
 	// used by the default Extractor and injected into the system prompt. nil
@@ -105,6 +112,12 @@ type Config struct {
 	// and what the boot reconcile sweeps. Required: an in-memory-only fallback
 	// would violate the restart-safe admission invariant.
 	RunStore *sqlitestore.RunStore
+
+	// Invocation journals and child-start reservations close the native
+	// executor's durable side-effect and admission boundaries. Required.
+	ModelInvocationStore *sqlitestore.ModelInvocationStore
+	ToolInvocationStore  *sqlitestore.ToolInvocationStore
+	ChildRunStartStore   *sqlitestore.ChildRunStartReservationStore
 
 	// ExecutorCheckpoints stores the opaque, root-owned executor continuation
 	// referenced by a parked interrupt. Required so lifecycle write-sets can save

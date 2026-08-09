@@ -24,9 +24,7 @@ func TestRecalledMemoriesSkipsPinnedAndInjectsRest(t *testing.T) {
 		{Content: "- pinned core", Pinned: true},
 		{Content: "- relevant fact", Pinned: false},
 	}}
-	e := &Engine{agentMemorySearch: search, defaultCWD: "/repo"}
-
-	msg, ok := e.recalledMemories(context.Background(), "what is the fact")
+	msg, ok := recalledMemories(context.Background(), search, "/repo", "what is the fact")
 	if !ok {
 		t.Fatal("expected a recall block")
 	}
@@ -43,17 +41,17 @@ func TestRecalledMemoriesSkipsPinnedAndInjectsRest(t *testing.T) {
 }
 
 func TestRecalledMemoriesEmptyCases(t *testing.T) {
-	if _, ok := (&Engine{}).recalledMemories(context.Background(), "q"); ok {
+	if _, ok := recalledMemories(context.Background(), nil, "/repo", "q"); ok {
 		t.Fatal("no searcher → no block")
 	}
-	if _, ok := (&Engine{agentMemorySearch: &fakeAgentMemorySearcher{}, defaultCWD: "/repo"}).recalledMemories(context.Background(), "q"); ok {
+	if _, ok := recalledMemories(context.Background(), &fakeAgentMemorySearcher{}, "/repo", "q"); ok {
 		t.Fatal("no items → no block")
 	}
-	allPinned := &Engine{agentMemorySearch: &fakeAgentMemorySearcher{items: []agentmemory.Item{{Content: "- x", Pinned: true}}}, defaultCWD: "/repo"}
-	if _, ok := allPinned.recalledMemories(context.Background(), "q"); ok {
+	allPinned := &fakeAgentMemorySearcher{items: []agentmemory.Item{{Content: "- x", Pinned: true}}}
+	if _, ok := recalledMemories(context.Background(), allPinned, "/repo", "q"); ok {
 		t.Fatal("all-pinned results → no block (already in the core)")
 	}
-	if _, ok := (&Engine{agentMemorySearch: &fakeAgentMemorySearcher{}, defaultCWD: "/repo"}).recalledMemories(context.Background(), "  "); ok {
+	if _, ok := recalledMemories(context.Background(), &fakeAgentMemorySearcher{}, "/repo", "  "); ok {
 		t.Fatal("blank query → no block")
 	}
 }

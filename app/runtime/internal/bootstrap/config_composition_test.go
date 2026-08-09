@@ -12,10 +12,10 @@ func TestComposeConfigInjectsDurableRuntimePolicy(t *testing.T) {
 	const buildID = "sha256:2222222222222222222222222222222222222222222222222222222222222222"
 	agentMemory := sqlitestore.NewAgentMemoryStore(nil)
 	got := ComposeConfig(config.Settings{}, &persistence.Bundle{DataDirectory: t.TempDir(), AgentMemory: agentMemory}, nil, nil, nil, buildID)
-	if got.Engine.BuildID != buildID {
-		t.Fatalf("Engine.BuildID = %q, want %q", got.Engine.BuildID, buildID)
+	if got.BuildID != buildID {
+		t.Fatalf("BuildID = %q, want %q", got.BuildID, buildID)
 	}
-	if got.AgentMemoryStore != agentMemory || got.Engine.AgentMemory != agentMemory {
+	if got.AgentMemoryStore != agentMemory {
 		t.Fatal("agent memory was not wired to extraction and prompt composition")
 	}
 }

@@ -2,6 +2,7 @@ package bootstrap
 
 import (
 	"context"
+	"encoding/json"
 	"iter"
 	"os"
 	"sync"
@@ -9,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/persistence"
 	"github.com/Tangerg/lynx/app/runtime/internal/component/idempotency"
 	"github.com/Tangerg/lynx/app/runtime/internal/config"
@@ -67,7 +68,15 @@ func TestProtocolLifecycleSurvivesColdRestart(t *testing.T) {
 		t.Fatalf("runs.start returned incomplete identity: %+v", started)
 	}
 	startEventsDone := collectRunEvents(startEvents)
-	waitForSignal(t, model.firstCallStarted, "first model call")
+	select {
+	case <-model.firstCallStarted:
+	case events := <-startEventsDone:
+		ended, _ := api.GetRun(ctx, protocol.GetRunRequest{RunID: started.RunID})
+		diagnostic, _ := json.Marshal(ended)
+		t.Fatalf("run ended before first model call: run=%s events=%+v", diagnostic, events)
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for first model call")
+	}
 
 	const steeringText = "Keep the resumed answer concise."
 	if err := api.SteerRun(ctx, protocol.SteerRunRequest{
@@ -126,9 +135,22 @@ func TestProtocolLifecycleSurvivesColdRestart(t *testing.T) {
 	resumeEventsDone := collectRunEvents(resumeEvents)
 	waitForSignal(t, model.resumedCallStarted, "resumed model call")
 
-	canceled, err := api.CancelRun(ctx, protocol.CancelRunRequest{
-		RunID: started.RunID, Reason: "conformance smoke complete",
-	})
+	type cancelResult struct {
+		response *protocol.CancelRunResponse
+		err      error
+	}
+	cancelDone := make(chan cancelResult, 1)
+	go func() {
+		response, cancelErr := api.CancelRun(ctx, protocol.CancelRunRequest{
+			RunID: started.RunID, Reason: "conformance smoke complete",
+		})
+		cancelDone <- cancelResult{response: response, err: cancelErr}
+	}()
+	settlementDelay := time.NewTimer(50 * time.Millisecond)
+	<-settlementDelay.C
+	close(model.releaseResumedCall)
+	cancelCall := <-cancelDone
+	canceled, err := cancelCall.response, cancelCall.err
 	if err != nil {
 		t.Fatalf("runs.cancel: %v", err)
 	}
@@ -140,7 +162,6 @@ func TestProtocolLifecycleSurvivesColdRestart(t *testing.T) {
 		t.Fatalf("runs.cancel result = %+v, want finished(canceled) root", canceled)
 	}
 	waitForRunEvents(t, resumeEventsDone, "canceled segment")
-
 	api.Close()
 	if err := host.Close(); err != nil {
 		t.Fatalf("close first runtime: %v", err)
@@ -187,6 +208,7 @@ type lifecycleModel struct {
 	firstCallStarted   chan struct{}
 	releaseFirstCall   chan struct{}
 	resumedCallStarted chan struct{}
+	releaseResumedCall chan struct{}
 	firstStartedOnce   sync.Once
 	resumedStartedOnce sync.Once
 }
@@ -196,6 +218,7 @@ func newLifecycleModel() *lifecycleModel {
 		firstCallStarted:   make(chan struct{}),
 		releaseFirstCall:   make(chan struct{}),
 		resumedCallStarted: make(chan struct{}),
+		releaseResumedCall: make(chan struct{}),
 	}
 }
 
@@ -218,8 +241,13 @@ func (m *lifecycleModel) Call(ctx context.Context, _ *chat.Request) (*chat.Respo
 		})
 	default:
 		m.resumedStartedOnce.Do(func() { close(m.resumedCallStarted) })
-		<-ctx.Done()
-		return nil, ctx.Err()
+		select {
+		case <-m.releaseResumedCall:
+			message := chat.NewAssistantMessage(chat.NewTextPart("settled before cancellation"))
+			return chat.NewResponse(chat.Choice{Index: 0, Message: &message})
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
 	}
 }
 
@@ -234,9 +262,9 @@ type noMaintenance struct{}
 
 func (noMaintenance) Maintain(
 	context.Context,
-	turn.MaintenanceInput,
-) turn.MaintenanceResult {
-	return turn.MaintenanceResult{}
+	agentexec.RunMaintenanceInput,
+) agentexec.RunMaintenanceResult {
+	return agentexec.RunMaintenanceResult{}
 }
 
 func openProtocolRuntime(t *testing.T, model chat.Model) (*Host, *runtimeserver.Server) {

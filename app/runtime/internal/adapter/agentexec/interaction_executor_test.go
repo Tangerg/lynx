@@ -127,16 +127,53 @@ func TestInteractionExecutorReportsDispatcherPanicAsUnknownEffect(t *testing.T) 
 	}
 }
 
-func TestInteractionTerminationMappingIncludesFrameworkPanic(t *testing.T) {
-	failure := `{"kind":"panic","code":"execution.panic","message":"execution panicked"}`
-	var termination agent.Termination
-	payload := `{"status":"failed","cause":"panic","reason":"execution panicked","failure":` + failure + `}`
-	if err := json.Unmarshal([]byte(payload), &termination); err != nil {
-		t.Fatal(err)
+func TestInteractionTerminationMappingIsComplete(t *testing.T) {
+	tests := []struct {
+		name, status, cause, reason string
+		failureKind, failureCode    string
+		wantOutcome                 run.Outcome
+		wantProblem                 transcript.ProblemKind
+		hasProblem                  bool
+	}{
+		{name: "completion", status: "completed", cause: "completion", wantOutcome: run.OutcomeCompleted},
+		{name: "process deadline", status: "timed_out", cause: "process_deadline", reason: "process deadline", wantOutcome: run.OutcomeTimedOut, wantProblem: transcript.TimeoutProblem, hasProblem: true},
+		{name: "parent deadline", status: "timed_out", cause: "parent_deadline", reason: "parent deadline", wantOutcome: run.OutcomeTimedOut, wantProblem: transcript.TimeoutProblem, hasProblem: true},
+		{name: "host deadline", status: "timed_out", cause: "host_deadline", reason: "host deadline", wantOutcome: run.OutcomeTimedOut, wantProblem: transcript.TimeoutProblem, hasProblem: true},
+		{name: "parent cancellation", status: "canceled", cause: "parent_cancellation", reason: "parent canceled", wantOutcome: run.OutcomeCanceled},
+		{name: "host cancellation", status: "canceled", cause: "host_cancellation", reason: "host canceled", wantOutcome: run.OutcomeCanceled},
+		{name: "model call limit", status: "failed", cause: "execution_failure", reason: "model call limit", failureKind: "execution", failureCode: "interaction.limit.model_calls", wantOutcome: run.OutcomeMaxSteps},
+		{name: "strategy failure", status: "failed", cause: "execution_failure", reason: "strategy failed", failureKind: "execution", failureCode: "execution.failed", wantOutcome: run.OutcomeFailed, wantProblem: transcript.AgentStuckProblem, hasProblem: true},
+		{name: "external failure", status: "failed", cause: "external_failure", reason: "provider unavailable", failureKind: "external", failureCode: "provider.failed", wantOutcome: run.OutcomeFailed, wantProblem: transcript.ProviderUnavailableProblem, hasProblem: true},
+		{name: "contract failure", status: "failed", cause: "contract_failure", reason: "contract failed", failureKind: "contract", failureCode: "contract.failed", wantOutcome: run.OutcomeFailed, wantProblem: transcript.InternalProblem, hasProblem: true},
+		{name: "panic", status: "failed", cause: "panic", reason: "execution panicked", failureKind: "panic", failureCode: "execution.panic", wantOutcome: run.OutcomeFailed, wantProblem: transcript.InternalProblem, hasProblem: true},
+		{name: "engine kill", status: "killed", cause: "engine_kill", reason: "engine shutdown", wantOutcome: run.OutcomeFailed, wantProblem: transcript.InternalProblem, hasProblem: true},
 	}
-	end := segmentEndFromTermination(termination, time.Second)
-	if end.Reason != run.OutcomeFailed || end.Problem == nil || end.Problem.Kind != transcript.InternalProblem {
-		t.Fatalf("panic mapping = %#v", end)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			wire := map[string]any{
+				"status": test.status, "cause": test.cause, "reason": test.reason,
+			}
+			if test.failureKind != "" {
+				wire["failure"] = map[string]string{
+					"kind": test.failureKind, "code": test.failureCode, "message": test.reason,
+				}
+			}
+			payload, err := json.Marshal(wire)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var termination agent.Termination
+			if err := json.Unmarshal(payload, &termination); err != nil {
+				t.Fatal(err)
+			}
+			end := segmentEndFromTermination(termination, time.Second)
+			if end.Reason != test.wantOutcome || (end.Problem != nil) != test.hasProblem {
+				t.Fatalf("mapping = %#v", end)
+			}
+			if test.hasProblem && end.Problem.Kind != test.wantProblem {
+				t.Fatalf("problem = %#v, want kind %v", end.Problem, test.wantProblem)
+			}
+		})
 	}
 }
 

@@ -31,15 +31,11 @@ const runAsMCPServerEnv = "LYRA_TEST_RUN_AS_MCP_SERVER"
 
 func resolvedRootTools(t *testing.T, resolver *toolset.Resolver) []toolcontract.Tool {
 	t.Helper()
-	group, ok, err := resolver.Resolve(t.Context(), domaintool.GroupRoot)
-	if err != nil || !ok {
-		t.Fatalf("Resolve(coding) = %v, %v", ok, err)
-	}
-	values, err := group.Tools(t.Context())
+	manifest, err := resolver.Manifest(t.Context(), domaintool.GroupRoot)
 	if err != nil {
-		t.Fatalf("root tools: %v", err)
+		t.Fatalf("root manifest: %v", err)
 	}
-	return values
+	return append(append([]toolcontract.Tool(nil), manifest.Visible...), manifest.Deferred...)
 }
 
 // TestMain is the standard fork-and-exec trick documented in the

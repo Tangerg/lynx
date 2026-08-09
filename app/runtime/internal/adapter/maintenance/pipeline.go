@@ -5,7 +5,7 @@ import (
 
 	"github.com/Tangerg/lynx/models/catalog"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 )
 
 // Pipeline is the in-house composition of Run-boundary maintenance. It keeps the
@@ -32,11 +32,11 @@ func NewPipeline(compactor *Compactor, extractor *Extractor, miner *SkillMiner, 
 // Maintain completes one best-effort maintenance sweep. Mining precedes
 // compaction so it can see the full transcript; extraction follows only a
 // summary compaction, matching its cost amortization policy.
-func (p *Pipeline) Maintain(ctx context.Context, input turn.MaintenanceInput) turn.MaintenanceResult {
+func (p *Pipeline) Maintain(ctx context.Context, input agentexec.RunMaintenanceInput) agentexec.RunMaintenanceResult {
 	if p == nil {
-		return turn.MaintenanceResult{}
+		return agentexec.RunMaintenanceResult{}
 	}
-	result := turn.MaintenanceResult{}
+	result := agentexec.RunMaintenanceResult{}
 	if p.miner != nil {
 		if err := p.miner.MaybeMine(ctx, input.SessionID, input.CWD, input.ToolCalls); err != nil {
 			result.Errors = append(result.Errors, err)

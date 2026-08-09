@@ -1,7 +1,6 @@
 package runs
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"slices"
@@ -257,7 +256,7 @@ func (route *executorRoute) activeDuration(boundary time.Time) time.Duration {
 
 // resolve binds the first root member and then requires exact member stability.
 // Child sources are never inferred from lineage alone: they become routable only
-// after [Coordinator.openChildRun] commits and installs their exact identity.
+// after a conclusive child-start commit installs their exact identity.
 func (routes *executorRoutes) resolve(member ExecutorMember) (*executorRoute, error) {
 	if member.Child() {
 		if member.SpawnCallID == "" {
@@ -517,39 +516,6 @@ func (prepared *preparedChildOpening) releaseBinding(live *handle) {
 		return
 	}
 	live.unbindExecutorMember(prepared.route.runID, prepared.member.MemberID)
-}
-
-// openChildRun is the legacy executor's immediate child-opening path. The
-// native Agent2 path uses the same preparation behavior but persists an
-// invisible reservation before committing this opening on a conclusive start
-// outcome.
-func (c *Coordinator) openChildRun(
-	ctx context.Context,
-	spec segmentSpec,
-	live *handle,
-	routes *executorRoutes,
-	member ExecutorMember,
-	request ChildOpeningRequest,
-) (*executorRoute, reductionBatch, error) {
-	if err := request.validate(); err != nil {
-		return nil, reductionBatch{}, err
-	}
-	prepared, err := c.prepareChildOpening(spec, live, routes, member, request.StartedAt)
-	if err != nil {
-		return nil, reductionBatch{}, err
-	}
-	committed := false
-	defer func() {
-		if !committed {
-			prepared.releaseBinding(live)
-		}
-	}()
-	if err := c.openings.CommitOpening(ctx, prepared.opening); err != nil {
-		return nil, reductionBatch{}, fmt.Errorf("runs: commit child member %q opening: %w", member.MemberID, err)
-	}
-	c.activatePreparedChild(spec, routes, prepared)
-	committed = true
-	return prepared.route, prepared.batch, nil
 }
 
 // prepareChildOpening freezes the complete application projection for one

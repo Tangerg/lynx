@@ -146,7 +146,7 @@ func TestNegotiationDeclinedFeatureIsNotARefusal(t *testing.T) {
 
 // TestNegotiationWithoutCapabilitiesIsTheMinimalProfile pins §8.3: a client that
 // declares nothing is a complete client, and the empty capability set means
-// "creates no child, publishes no suspension, never parks on a human" — not a
+// "creates no child, commits no external-input wait, never parks on a human" — not a
 // missing declaration to be filled in later.
 func TestNegotiationWithoutCapabilitiesIsTheMinimalProfile(t *testing.T) {
 	s, _ := rollbackHarness(t)

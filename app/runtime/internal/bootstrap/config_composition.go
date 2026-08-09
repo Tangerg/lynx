@@ -4,7 +4,6 @@ import (
 	"path/filepath"
 	"slices"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/codeintel"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/persistence"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/pricing"
@@ -19,15 +18,12 @@ import (
 // the construction input consumed by [NewAssembly].
 func ComposeConfig(cfg config.Settings, stores *persistence.Bundle, client *chatclient.Client, providers models.ProviderRegistry, hooks HookResolver, buildID string) Config {
 	return Config{
-		Resources:     []ShutdownResource{stores},
-		SkillsUserDir: filepath.Join(stores.DataDirectory, "skills"),
-		Engine: agentexec.Config{
-			BuildID:      buildID,
-			ChatClient:   client,
-			Pricing:      pricing.FromModelCatalog(),
-			HistoryStore: stores.ChatHistory,
-			AgentMemory:  stores.AgentMemory,
-		},
+		Resources:              []ShutdownResource{stores},
+		BuildID:                buildID,
+		ChatClient:             client,
+		ConversationStore:      stores.ChatHistory,
+		Pricing:                pricing.FromModelCatalog(),
+		SkillsUserDir:          filepath.Join(stores.DataDirectory, "skills"),
 		AgentMemoryStore:       stores.AgentMemory,
 		IdempotencyStore:       stores.Idempotency,
 		UtilityRoleStore:       stores.UtilityRole,
@@ -41,6 +37,9 @@ func ComposeConfig(cfg config.Settings, stores *persistence.Bundle, client *chat
 		SandboxDir:             filepath.Join(stores.DataDirectory, "sandbox"),
 		SessionStore:           stores.Sessions,
 		RunStore:               stores.Runs,
+		ModelInvocationStore:   stores.ModelInvocations,
+		ToolInvocationStore:    stores.ToolInvocations,
+		ChildRunStartStore:     stores.ChildRunStarts,
 		ExecutorCheckpoints:    stores.ExecutorCheckpoints,
 		WorkspaceMutationStore: stores.WorkspaceMutations,
 		InterruptStore:         stores.Interrupts,

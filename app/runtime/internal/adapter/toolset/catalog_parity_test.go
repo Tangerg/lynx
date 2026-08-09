@@ -147,15 +147,11 @@ func TestRootResolverIncludesConfiguredConditionalTools(t *testing.T) {
 	closeBuiltToolset(t, built)
 	wireCreateGoal(t, built.Resolver)
 
-	group, ok, err := built.Resolver.Resolve(t.Context(), tool.GroupRoot)
-	if err != nil || !ok {
-		t.Fatalf("Resolve(coding) = %v, %v", ok, err)
-	}
-	resolved, err := group.Tools(t.Context())
+	manifest, err := built.Resolver.Manifest(t.Context(), tool.GroupRoot)
 	if err != nil {
-		t.Fatalf("Tools: %v", err)
+		t.Fatalf("Manifest: %v", err)
 	}
-	names := definitionNames(resolved)
+	names := definitionNames(manifestTools(manifest))
 	for _, want := range []string{"enter_plan_mode", "exit_plan_mode", "create_goal", "get_goal", "report_goal_outcome"} {
 		if !names[want] {
 			t.Errorf("configured root tools missing %q: %v", want, names)
@@ -207,14 +203,11 @@ func TestDescriptorCatalogMatchesBuiltInTools(t *testing.T) {
 	closeBuiltToolset(t, built)
 	wireCreateGoal(t, built.Resolver)
 
-	group, ok, err := built.Resolver.Resolve(t.Context(), tool.GroupRoot)
-	if err != nil || !ok {
-		t.Fatalf("Resolve(coding) = %v, %v", ok, err)
-	}
-	resolved, err := group.Tools(t.Context())
+	manifest, err := built.Resolver.Manifest(t.Context(), tool.GroupRoot)
 	if err != nil {
-		t.Fatalf("Tools: %v", err)
+		t.Fatalf("Manifest: %v", err)
 	}
+	resolved := manifestTools(manifest)
 	existing := definitionNames(resolved)
 	checkedContracts := make(map[string]bool)
 	for _, candidate := range resolved {
@@ -225,7 +218,8 @@ func TestDescriptorCatalogMatchesBuiltInTools(t *testing.T) {
 		checkedContracts[name] = true
 		assertBuiltInToolContract(t, candidate)
 	}
-	// The engine injects delegate_task only after it deploys the child Agent.
+	// Agent2 advertises delegate_task from the Interaction Definition rather than
+	// the ordinary Tool manifest.
 	existing[catalog.DelegateTask] = true
 
 	declared := make(map[string]bool)

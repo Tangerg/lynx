@@ -1,6 +1,7 @@
-// Package interruptcodec owns the strict JSON representation shared by the
-// legacy and Agent2 execution adapters. Product and Domain values remain
-// transport-free; framework-specific control flow stays outside this package.
+// Package interruptcodec owns the strict JSON representation between Runtime
+// product interrupts and executor continuation payloads. Product and Domain
+// values remain transport-free; framework-specific control flow stays outside
+// this package.
 package interruptcodec
 
 import (
@@ -220,9 +221,9 @@ func questionOptionsFrom(options []questionOptionWire) []runs.QuestionOptionSpec
 	return result
 }
 
-// ResolutionPayload is the exact technical response shape shared by both
-// execution adapters while the legacy adapter remains. New code should use
-// [EncodeResolution] and [DecodeResolution].
+// ResolutionPayload is the exact technical response shape used by the executor
+// continuation codec. Callers should use [EncodeResolution] and
+// [DecodeResolution].
 type ResolutionPayload struct {
 	Approved      bool              `json:"approved"`
 	Arguments     string            `json:"arguments,omitempty"`

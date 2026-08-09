@@ -5,7 +5,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/executionctx"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/planpresentation"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/promptsource"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/agentmemory"
@@ -55,23 +54,14 @@ task is ambiguous, ask one focused question rather than guess.`
 // read-only cross-tool AGENTS.md convention.
 // Engines built without knowledge or agent memory simply yield the base prompt +
 // discovered files.
-func (e *Engine) systemPrompt(ctx context.Context) string {
-	prompt := composePrompt(ctx, e.knowledge, e.agentMemory, executionctx.CWD(ctx, e.defaultCWD), e.userHome)
-	return appendPlan(ctx, prompt, e.plan)
-}
-
 // appendPlan appends the turn's session Plan to the prompt when a Plan reader
 // is wired and the session has Steps. Best-effort: a missing session
 // id or a store error silently skips — the Plan is context for the
 // model, never a correctness input, so it must never derail prompt assembly.
 // Kept off composePrompt so that function stays focused on the knowledge /
 // AGENTS.md cascade (and its direct unit tests need no plan stub).
-func appendPlan(ctx context.Context, prompt string, plan PlanReader) string {
-	if plan == nil {
-		return prompt
-	}
-	sessionID := executionctx.SessionID(ctx)
-	if sessionID == "" {
+func appendPlanForSession(ctx context.Context, prompt string, plan PlanReader, sessionID string) string {
+	if plan == nil || sessionID == "" {
 		return prompt
 	}
 	steps, err := plan.List(ctx, sessionID)
@@ -81,9 +71,7 @@ func appendPlan(ctx context.Context, prompt string, plan PlanReader) string {
 	return prompt + "\n\n## Current Plan\n\n" + planpresentation.Render(steps)
 }
 
-// composePrompt is the pure form behind [Engine.systemPrompt],
-// exposed unexported so the unit tests (which build stub knowledge and memory readers without
-// a full Engine) can exercise the cascade directly.
+// composePrompt assembles the immutable instruction layers for a fresh root.
 func composePrompt(ctx context.Context, knowledgeReader KnowledgeReader, agentMemory AgentMemoryReader, cwd, userHome string) string {
 	var b strings.Builder
 	b.WriteString(basePrompt)

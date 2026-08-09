@@ -12,13 +12,16 @@ import (
 	agent "github.com/Tangerg/lynx/agent2"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/accounting"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
+	corechat "github.com/Tangerg/lynx/core/chat"
 )
 
-const interactionCheckpointSchemaVersion uint16 = 1
+const interactionCheckpointSchemaVersion uint16 = 2
 
 type interactionCheckpointPayloadWire struct {
 	SchemaVersion uint16                       `json:"schema_version"`
 	Tree          json.RawMessage              `json:"tree"`
+	Instructions  []corechat.Message           `json:"instructions,omitempty"`
 	Members       []interactionMemberCallsWire `json:"members,omitempty"`
 	Carried       []interactionModelCallsWire  `json:"carried,omitempty"`
 }
@@ -37,6 +40,7 @@ type interactionCheckpointState struct {
 	tree             agent.TreeSnapshot
 	callsByProcess   map[agent.ProcessID]map[string]int
 	carriedCallCount map[string]int
+	instructions     []corechat.Message
 }
 
 func (session *interactionSession) executorCheckpoint(
@@ -50,6 +54,10 @@ func (session *interactionSession) executorCheckpoint(
 		RootMemberID: tree.RootID().String(), Payload: payload,
 		BuildID: session.buildID, Scope: session.scope,
 		ModelSelection: session.start.ModelSelection, Limits: session.start.Limits,
+		Capabilities: run.RunCapabilities{
+			ChildRuns:      session.start.ChildRunAdmissionEnabled,
+			InterruptKinds: slices.Clone(session.start.InterruptKinds),
+		},
 		Usage: session.accountingSnapshot(),
 	}
 	if err := checkpoint.Validate(); err != nil {
@@ -62,6 +70,7 @@ func encodeInteractionCheckpointPayload(
 	tree agent.TreeSnapshot,
 	usageByProcess map[agent.ProcessID]map[string]accounting.ModelUsage,
 	carriedUsage map[string]accounting.ModelUsage,
+	instructions []corechat.Message,
 ) ([]byte, error) {
 	if !tree.Valid() {
 		return nil, errors.New("agentexec: encode invalid Interaction tree checkpoint")
@@ -69,6 +78,10 @@ func encodeInteractionCheckpointPayload(
 	wire := interactionCheckpointPayloadWire{
 		SchemaVersion: interactionCheckpointSchemaVersion,
 		Tree:          tree.JSON(),
+		Instructions:  cloneChatMessages(instructions),
+	}
+	if _, err := interactionInstructionContext(wire.Instructions); err != nil {
+		return nil, err
 	}
 	for processID, byModel := range usageByProcess {
 		models, err := interactionCallCounts(byModel)
@@ -149,6 +162,14 @@ func decodeInteractionCheckpointPayload(payload []byte) (interactionCheckpointSt
 	state := interactionCheckpointState{
 		tree: tree, callsByProcess: make(map[agent.ProcessID]map[string]int, len(wire.Members)),
 		carriedCallCount: make(map[string]int, len(wire.Carried)),
+		instructions:     cloneChatMessages(wire.Instructions),
+	}
+	canonicalInstructions, err := interactionInstructionContext(state.instructions)
+	if err != nil || len(canonicalInstructions) != len(state.instructions) {
+		if err == nil {
+			err = errors.New("instruction context contains a non-system message")
+		}
+		return interactionCheckpointState{}, fmt.Errorf("agentexec: Interaction checkpoint instructions: %w", err)
 	}
 	previousMember := ""
 	for index, member := range wire.Members {

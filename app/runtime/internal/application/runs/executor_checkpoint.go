@@ -63,6 +63,7 @@ type ExecutorCheckpoint struct {
 	Scope          ExecutionScope
 	ModelSelection modelref.Selection
 	Limits         run.RunLimits
+	Capabilities   run.RunCapabilities
 	Usage          accounting.Snapshot
 }
 
@@ -79,11 +80,13 @@ type ExecutorCheckpointExpectation struct {
 	GoalLeaseID    string
 	ModelSelection modelref.Selection
 	Limits         run.RunLimits
+	Capabilities   run.RunCapabilities
 }
 
 // Clone returns an ownership-independent checkpoint value.
 func (c ExecutorCheckpoint) Clone() ExecutorCheckpoint {
 	c.Payload = append([]byte(nil), c.Payload...)
+	c.Capabilities = c.Capabilities.Clone()
 	c.Usage.Models = append([]accounting.ModelUsage(nil), c.Usage.Models...)
 	return c
 }
@@ -108,6 +111,9 @@ func (c ExecutorCheckpoint) Validate() error {
 	}
 	if err := c.Limits.Validate(); err != nil {
 		return fmt.Errorf("%w: limits: %w", ErrInvalidExecutorCheckpoint, err)
+	}
+	if err := c.Capabilities.Validate(); err != nil {
+		return fmt.Errorf("%w: capabilities: %w", ErrInvalidExecutorCheckpoint, err)
 	}
 	if err := c.Usage.Validate(); err != nil {
 		return fmt.Errorf("%w: usage: %w", ErrInvalidExecutorCheckpoint, err)
@@ -168,6 +174,9 @@ func (c ExecutorCheckpoint) ValidateFor(expected ExecutorCheckpointExpectation) 
 	if err := expected.Limits.Validate(); err != nil {
 		return fmt.Errorf("%w: expected limits: %w", ErrInvalidExecutorCheckpoint, err)
 	}
+	if err := expected.Capabilities.Validate(); err != nil {
+		return fmt.Errorf("%w: expected capabilities: %w", ErrInvalidExecutorCheckpoint, err)
+	}
 	if expected.GoalLeaseID != strings.TrimSpace(expected.GoalLeaseID) {
 		return fmt.Errorf("%w: expected goal lease ID has surrounding whitespace", ErrInvalidExecutorCheckpoint)
 	}
@@ -219,6 +228,14 @@ func (c ExecutorCheckpoint) ValidateFor(expected ExecutorCheckpointExpectation) 
 			ErrInvalidExecutorCheckpoint,
 			c.Limits,
 			expected.Limits,
+		)
+	}
+	if !c.Capabilities.Equal(expected.Capabilities) {
+		return fmt.Errorf(
+			"%w: capabilities %+v do not match owner %+v",
+			ErrInvalidExecutorCheckpoint,
+			c.Capabilities,
+			expected.Capabilities,
 		)
 	}
 	return nil

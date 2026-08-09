@@ -42,14 +42,15 @@ type managedDelegateCall struct {
 	segmentProjected   bool
 }
 
-func (session *interactionSession) installDeployments(deployments *interactionDeploymentSet) {
+func (session *interactionSession) installDeployments(deployments *interactionDeploymentSet) error {
 	if deployments == nil || !deployments.root.Valid() {
-		panic("agentexec: install invalid native Interaction deployments")
+		return errors.New("agentexec: install invalid native Interaction deployments")
 	}
 	session.mu.Lock()
 	session.deployments = deployments
 	session.deployment = deployments.root
 	session.mu.Unlock()
+	return nil
 }
 
 // registerDelegateCalls records only model calls whose exact Deployment has a

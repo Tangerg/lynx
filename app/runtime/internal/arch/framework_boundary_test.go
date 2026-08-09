@@ -75,7 +75,7 @@ func TestExecutorCheckpointRemainsOpaqueOutsideExecutionAdapter(t *testing.T) {
 		t.Fatalf("parse executor checkpoint: %v", err)
 	}
 	checkpoint := structFields(checkpointFile, "ExecutorCheckpoint")
-	want := []string{"RootMemberID", "Payload", "BuildID", "Scope", "ModelSelection", "Limits", "Usage"}
+	want := []string{"RootMemberID", "Payload", "BuildID", "Scope", "ModelSelection", "Limits", "Capabilities", "Usage"}
 	if strings.Join(checkpoint, ",") != strings.Join(want, ",") {
 		t.Fatalf("ExecutorCheckpoint fields = %v, want opaque application envelope %v", checkpoint, want)
 	}
@@ -154,7 +154,6 @@ func TestRunLimitsRemainTheSingleApplicationPolicy(t *testing.T) {
 	}{
 		{path: filepath.Join("internal", "application", "runs", "commands.go"), name: "StartCommand"},
 		{path: filepath.Join("internal", "application", "runs", "ports.go"), name: "RootExecutionStart"},
-		{path: filepath.Join("internal", "adapter", "agentexec", "turnrun.go"), name: "TurnRequest"},
 	} {
 		path := filepath.Join(root, carrier.path)
 		file, parseErr := parser.ParseFile(token.NewFileSet(), path, nil, 0)
@@ -691,11 +690,8 @@ func TestExecutorCheckpointBindingIsValidatedAtEveryBoundary(t *testing.T) {
 		filepath.Join("internal", "application", "runs", "recovery_validation.go"): {
 			"ExecutorCheckpointExpectation", "GoalLeaseID", "sess.CWD", "sess.Isolated",
 		},
-		filepath.Join("internal", "adapter", "agentexec", "checkpoint_restore.go"): {
-			"ValidateFor",
-		},
-		filepath.Join("internal", "adapter", "agentexec", "turnrun.go"): {
-			"ValidateFor", "GoalLeaseID", "request.CWD", "request.Isolated",
+		filepath.Join("internal", "adapter", "agentexec", "interaction_recovery_probe.go"): {
+			"ValidateFor", "GoalLeaseID", "Capabilities",
 		},
 		filepath.Join("internal", "adapter", "persistence", "session_stores.go"): {
 			"DeleteCheckpoints(ctx, plan.SessionID",

@@ -2,7 +2,6 @@ package bootstrap
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"path/filepath"
 	"strings"
@@ -10,11 +9,6 @@ import (
 	"testing"
 	"time"
 
-	history "github.com/Tangerg/lynx/chathistory"
-
-	"github.com/Tangerg/lynx/agent"
-	"github.com/Tangerg/lynx/agent/core"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/persistence"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/skill"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/agentmemory"
@@ -105,23 +99,16 @@ func TestNewRequiresRuntimeDependencies(t *testing.T) {
 		{
 			name: "chat client",
 			edit: func(cfg *Config) {
-				cfg.Engine.ChatClient = nil
+				cfg.ChatClient = nil
 			},
-			want: "runtime: Engine.ChatClient is required",
+			want: "runtime: ChatClient is required",
 		},
 		{
-			name: "history store",
+			name: "conversation store",
 			edit: func(cfg *Config) {
-				cfg.Engine.HistoryStore = nil
+				cfg.ConversationStore = nil
 			},
-			want: "runtime: Engine.HistoryStore is required",
-		},
-		{
-			name: "atomic history store",
-			edit: func(cfg *Config) {
-				cfg.Engine.HistoryStore = basicHistoryStore{Store: cfg.Engine.HistoryStore}
-			},
-			want: "runtime: Engine.HistoryStore must support atomic replace and count",
+			want: "runtime: ConversationStore is required",
 		},
 		{
 			name: "provider registry",
@@ -203,10 +190,6 @@ func TestNewRequiresRuntimeDependencies(t *testing.T) {
 	}
 }
 
-// basicHistoryStore intentionally erases optional concrete capabilities so the
-// composition test proves atomic replacement and counting are required.
-type basicHistoryStore struct{ history.Store }
-
 func TestAssemblyCloseBeforeBuildReleasesResourcesAndConsumesBuilder(t *testing.T) {
 	var closed atomic.Int32
 	assembly := NewAssembly(Config{
@@ -231,7 +214,7 @@ func TestAssemblyFailureReclaimsToolsAndOwnedResources(t *testing.T) {
 	cfg := runtimeConfigWithRequiredDeps(t)
 	// Force engine construction to fail after the tool environment is built, so
 	// the reclamation path runs; an invalid BuildID is rejected inside New.
-	cfg.Engine.BuildID = "dev"
+	cfg.BuildID = "dev"
 	var (
 		toolClosed     atomic.Int32
 		resourceClosed atomic.Int32
@@ -244,7 +227,6 @@ func TestAssemblyFailureReclaimsToolsAndOwnedResources(t *testing.T) {
 	assembly := newAssembly(cfg, func(
 		ctx context.Context,
 		cfg Config,
-		ecfg agentexec.Config,
 		policy *approvals.RuntimePolicy,
 		mcpEnv mcpEnvironment,
 		searcher *agentmemory.Searcher,
@@ -254,7 +236,7 @@ func TestAssemblyFailureReclaimsToolsAndOwnedResources(t *testing.T) {
 		skillStore *skillauthoring.Store,
 		skillProposals skill.ProposalSubmitter,
 	) (toolEnvironment, error) {
-		built, err := buildToolEnvironment(ctx, cfg, ecfg, policy, mcpEnv, searcher, scheduleCoord, goalReader, goalReporter, skillStore, skillProposals)
+		built, err := buildToolEnvironment(ctx, cfg, policy, mcpEnv, searcher, scheduleCoord, goalReader, goalReporter, skillStore, skillProposals)
 		if err != nil {
 			return toolEnvironment{}, err
 		}
@@ -265,7 +247,7 @@ func TestAssemblyFailureReclaimsToolsAndOwnedResources(t *testing.T) {
 		return built, nil
 	})
 	host, err := BuildAssembly(t.Context(), assembly)
-	if err == nil || !strings.Contains(err.Error(), "BuildID") {
+	if err == nil || !strings.Contains(err.Error(), "build ID") {
 		t.Fatalf("Assembly.Build error = %v, want engine construction failure", err)
 	}
 	if host != nil {
@@ -287,7 +269,6 @@ func TestAssemblyBuilderFailureReclaimsReturnedAcquisitions(t *testing.T) {
 	assembly := newAssembly(cfg, func(
 		context.Context,
 		Config,
-		agentexec.Config,
 		*approvals.RuntimePolicy,
 		mcpEnvironment,
 		*agentmemory.Searcher,
@@ -321,7 +302,7 @@ func TestAssemblyFailureRetainsRetryableCleanupOwner(t *testing.T) {
 	// Fail after tools exist, then make the last tool closer fail once. The
 	// Assembly must retain the same shutdown.Step so a retry continues the
 	// dependency-ordered teardown instead of silently abandoning it.
-	cfg.Engine.BuildID = "dev"
+	cfg.BuildID = "dev"
 	closeErr := errors.New("tool close")
 	var attempts, resourceClosed atomic.Int32
 	cfg.Resources = []ShutdownResource{closerFunc(func() error {
@@ -332,7 +313,6 @@ func TestAssemblyFailureRetainsRetryableCleanupOwner(t *testing.T) {
 	assembly := newAssembly(cfg, func(
 		ctx context.Context,
 		cfg Config,
-		ecfg agentexec.Config,
 		policy *approvals.RuntimePolicy,
 		mcpEnv mcpEnvironment,
 		searcher *agentmemory.Searcher,
@@ -342,7 +322,7 @@ func TestAssemblyFailureRetainsRetryableCleanupOwner(t *testing.T) {
 		skillStore *skillauthoring.Store,
 		skillProposals skill.ProposalSubmitter,
 	) (toolEnvironment, error) {
-		built, err := buildToolEnvironment(ctx, cfg, ecfg, policy, mcpEnv, searcher, scheduleCoord, goalReader, goalReporter, skillStore, skillProposals)
+		built, err := buildToolEnvironment(ctx, cfg, policy, mcpEnv, searcher, scheduleCoord, goalReader, goalReporter, skillStore, skillProposals)
 		if err != nil {
 			return toolEnvironment{}, err
 		}
@@ -355,7 +335,7 @@ func TestAssemblyFailureRetainsRetryableCleanupOwner(t *testing.T) {
 		return built, nil
 	})
 	failedHost, err := BuildAssembly(t.Context(), assembly)
-	if err == nil || !strings.Contains(err.Error(), "BuildID") || !errors.Is(err, closeErr) {
+	if err == nil || !strings.Contains(err.Error(), "build ID") || !errors.Is(err, closeErr) {
 		t.Fatalf("assemble error = %v, want joined engine and tool-close errors", err)
 	}
 	if failedHost != nil {
@@ -388,7 +368,6 @@ func TestAssemblyDirectToolsDoNotDependOnAgentResolver(t *testing.T) {
 	assembly := newAssembly(cfg, func(
 		ctx context.Context,
 		cfg Config,
-		ecfg agentexec.Config,
 		policy *approvals.RuntimePolicy,
 		mcpEnv mcpEnvironment,
 		searcher *agentmemory.Searcher,
@@ -398,7 +377,7 @@ func TestAssemblyDirectToolsDoNotDependOnAgentResolver(t *testing.T) {
 		skillStore *skillauthoring.Store,
 		skillProposals skill.ProposalSubmitter,
 	) (toolEnvironment, error) {
-		built, err := buildToolEnvironment(ctx, cfg, ecfg, policy, mcpEnv, searcher, scheduleCoord, goalReader, goalReporter, skillStore, skillProposals)
+		built, err := buildToolEnvironment(ctx, cfg, policy, mcpEnv, searcher, scheduleCoord, goalReader, goalReporter, skillStore, skillProposals)
 		if err != nil {
 			return toolEnvironment{}, err
 		}
@@ -442,40 +421,24 @@ func runtimeConfigWithRequiredDeps(t *testing.T) Config {
 	return Config{
 		UserHome:             t.TempDir(),
 		DefaultWorkspacePath: t.TempDir(),
-		Engine: agentexec.Config{
-			ChatClient:   client,
-			BuildID:      "sha256:0000000000000000000000000000000000000000000000000000000000000000",
-			HistoryStore: sqlitestore.NewMessageStore(db),
-		},
-		ProviderRegistry:    sqlitestore.NewProviderStore(db),
-		MCPRegistry:         mcpServers,
-		MCPOAuthSessions:    mcpServers,
-		SessionStore:        sqlitestore.NewSessionStore(db),
-		InterruptStore:      persistence.NewInterruptStore(sqlitestore.NewInterruptStore(db)),
-		TranscriptStore:     sqlitestore.NewTranscriptStore(db),
-		FeedbackStore:       sqlitestore.NewFeedbackStore(db),
-		RunStore:            sqlitestore.NewRunStore(db),
-		ExecutorCheckpoints: checkpoints,
+		ChatClient:           client,
+		BuildID:              "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+		ConversationStore:    sqlitestore.NewMessageStore(db),
+		ProviderRegistry:     sqlitestore.NewProviderStore(db),
+		MCPRegistry:          mcpServers,
+		MCPOAuthSessions:     mcpServers,
+		SessionStore:         sqlitestore.NewSessionStore(db),
+		InterruptStore:       persistence.NewInterruptStore(sqlitestore.NewInterruptStore(db)),
+		TranscriptStore:      sqlitestore.NewTranscriptStore(db),
+		FeedbackStore:        sqlitestore.NewFeedbackStore(db),
+		RunStore:             sqlitestore.NewRunStore(db),
+		ModelInvocationStore: sqlitestore.NewModelInvocationStore(db),
+		ToolInvocationStore:  sqlitestore.NewToolInvocationStore(db),
+		ChildRunStartStore:   sqlitestore.NewChildRunStartReservationStore(db),
+		ExecutorCheckpoints:  checkpoints,
 		Transactor: func(ctx context.Context, fn func(context.Context) error) error {
 			return sqlitestore.RunInTx(ctx, db, fn)
 		},
-	}
-}
-
-func TestPrepareEngineConfigUsesCompositionRootPaths(t *testing.T) {
-	cfg := runtimeConfigWithRequiredDeps(t)
-	cfg.Engine.DefaultCWD = "/stale-engine-cwd"
-	cfg.Engine.UserHome = "/stale-engine-home"
-
-	engineConfig, _, err := prepareEngineConfig(cfg)
-	if err != nil {
-		t.Fatalf("prepareEngineConfig: %v", err)
-	}
-	if engineConfig.DefaultCWD != cfg.DefaultWorkspacePath {
-		t.Fatalf("Engine.DefaultCWD = %q, want composition default %q", engineConfig.DefaultCWD, cfg.DefaultWorkspacePath)
-	}
-	if engineConfig.UserHome != cfg.UserHome {
-		t.Fatalf("Engine.UserHome = %q, want composition home %q", engineConfig.UserHome, cfg.UserHome)
 	}
 }
 
@@ -533,20 +496,7 @@ func TestAssemblyRecoversParkedRunWithIncompatibleDeployment(t *testing.T) {
 	)); err != nil {
 		t.Fatalf("open interrupt: %v", err)
 	}
-	tree := bootstrapSnapshotTree(processID, core.ProcessSnapshot{
-		SchemaVersion: core.ProcessSnapshotSchemaVersion,
-		ID:            processID,
-		Deployment:    core.DeploymentRef{Name: "chat-agent", Digest: "different-build"},
-		StartedAt:     createdAt,
-		Status:        core.StatusWaiting,
-		Suspension: &agent.Suspension{
-			SchemaVersion:  agent.SuspensionSchemaVersion,
-			ID:             "suspension-park",
-			Prompt:         json.RawMessage(`"continue?"`),
-			ResponseSchema: json.RawMessage(`{"type":"boolean"}`),
-			CreatedAt:      parkedAt,
-		},
-	})
+	tree := bootstrapSnapshotTree(processID, bootstrapWaitingSnapshot(processID))
 	if err := cfg.ExecutorCheckpoints.SaveCheckpoint(ctx, bootstrapCheckpoint(tree, sessionID, accounting.Snapshot{})); err != nil {
 		t.Fatalf("save executor checkpoint: %v", err)
 	}

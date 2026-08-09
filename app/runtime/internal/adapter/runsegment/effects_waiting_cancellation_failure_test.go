@@ -10,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/modelref"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
@@ -410,10 +409,10 @@ func assertWaitingCancellationUnchanged(
 	if err != nil {
 		t.Fatalf("load process tree after rollback: %v", err)
 	}
-	tree := restoredProcessTree(t, checkpoint)
+	tree := restoredExecutorTree(t, checkpoint)
 	if !reflect.DeepEqual(
-		normalizedProcessTree(tree),
-		normalizedProcessTree(fixture.originalTree),
+		normalizedExecutorTree(tree),
+		normalizedExecutorTree(fixture.originalTree),
 	) {
 		t.Fatalf("process tree changed after rollback:\ngot  %+v\nwant %+v", tree, fixture.originalTree)
 	}
@@ -441,9 +440,9 @@ func assertWaitingCancellationUnchanged(
 	}
 }
 
-func normalizedProcessTree(tree core.ProcessSnapshotTree) core.ProcessSnapshotTree {
-	tree.Snapshots = slices.Clone(tree.Snapshots)
-	slices.SortFunc(tree.Snapshots, func(left, right core.ProcessSnapshot) int {
+func normalizedExecutorTree(tree executorTreeFixture) executorTreeFixture {
+	tree.Members = slices.Clone(tree.Members)
+	slices.SortFunc(tree.Members, func(left, right executorMemberFixture) int {
 		return cmp.Compare(left.ID, right.ID)
 	})
 	return tree

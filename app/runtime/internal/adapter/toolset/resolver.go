@@ -10,7 +10,6 @@ import (
 
 	toolcontract "github.com/Tangerg/lynx/tool"
 
-	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/codeintel"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/executionctx"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/discovery"
@@ -46,7 +45,6 @@ type Resolver struct {
 	readTracker   *readTracker                                // backs the read-before-patch and stale-read guards
 	pathLocker    *pathLocker                                 // serializes same-path fs calls across every concurrent Run resolution
 	shell         []toolcontract.Tool                         // shell tools (shell / read_shell_output / stop_shell) over the exec.Shells; cwd read per-call
-	delegation    toolcontract.Tool                           // bounded recursive delegation tool; nil until set
 	createGoal    toolcontract.Tool                           // root-only Goal entry tool; nil until the Goal Driver exists
 	staticSpecs   []staticSpec                                // built-once capabilities with one role/placement policy for Run manifests
 	goalActive    func(context.Context, string) (bool, error) // reports whether the session has an active Goal; nil → outcome reporting never offered
@@ -127,10 +125,10 @@ type mcpToolIdentity interface {
 	MCPToolIdentity() (sourceName, remoteName string)
 }
 
-// newResolver builds the engine-scoped tool resolver from its
-// working-directory-independent inputs. The delegation and create_goal
-// entry tools are injected through explicit seams after their cyclic runtime
-// owners exist; the MCP tool set is seeded + hot-swapped via [Resolver.SetMCPTools].
+// newResolver builds the Runtime-scoped Tool resolver from its
+// working-directory-independent inputs. The create_goal entry Tool is injected
+// through an explicit seam after its cyclic application owner exists; the MCP
+// Tool set is seeded and hot-swapped via [Resolver.SetMCPTools].
 func newResolver(d resolverDeps) (*Resolver, error) {
 	if d.CodeIntel == nil {
 		return nil, errors.New("toolset: resolver code intelligence is nil")
@@ -196,21 +194,6 @@ func (r *Resolver) appendStatic(ctx context.Context, into *resolution, at placem
 		}
 	}
 	return nil
-}
-
-// UseDelegationTool installs delegate_task for both execution roles. The
-// agent engine builds this tool after it exists because the tool starts child
-// processes through that engine.
-func (r *Resolver) UseDelegationTool(tool toolcontract.Tool) {
-	r.lateMu.Lock()
-	defer r.lateMu.Unlock()
-	r.delegation = tool
-}
-
-func (r *Resolver) delegationTool() toolcontract.Tool {
-	r.lateMu.RLock()
-	defer r.lateMu.RUnlock()
-	return r.delegation
 }
 
 // UseCreateGoalTool installs the root-only autonomous Goal entry tool after
@@ -280,17 +263,6 @@ func mcpToolRef(tool toolcontract.Tool) (mcpserver.ToolRef, bool) {
 	return mcpserver.ToolRef{Server: server, Tool: remote}, true
 }
 
-func (*Resolver) Name() string { return "agent-tools" }
-
-func (r *Resolver) Resolve(_ context.Context, role string) (core.ToolGroup, bool, error) {
-	switch role {
-	case domaintool.GroupRoot, domaintool.GroupDelegated:
-		return &toolGroup{resolver: r, role: role}, true, nil
-	default:
-		return nil, false, nil // unknown role — the runtime skips to the next resolver
-	}
-}
-
 // cwdFor reads the per-Run working directory, falling back to the
 // engine default.
 func (r *Resolver) cwdFor(ctx context.Context) string {
@@ -299,23 +271,6 @@ func (r *Resolver) cwdFor(ctx context.Context) string {
 
 func (r *Resolver) toolsForCWD(cwd string) cwdTools {
 	return buildCWDTools(cwd, r.codeIntel, r.readTracker, r.pathLocker)
-}
-
-// toolGroup resolves its tool slice lazily at Tools() time so it can read the
-// per-process working directory. Both execution roles receive task delegation;
-// Agent Runtime's tree-wide budget and max-child-depth remain the authorities
-// for bounded recursion. Root-only product tools stay on GroupRoot.
-type toolGroup struct {
-	resolver *Resolver
-	role     string
-}
-
-func (g *toolGroup) Tools(ctx context.Context) ([]toolcontract.Tool, error) {
-	resolved, err := g.resolver.resolve(ctx, g.role)
-	if err != nil {
-		return nil, err
-	}
-	return resolved.all, nil
 }
 
 // Manifest resolves one role's frozen, framework-neutral Tool visibility. It
@@ -359,13 +314,10 @@ func (r *Resolver) resolve(ctx context.Context, role string) (resolution, error)
 		return resolution{}, err
 	}
 	// Both roles can ask the user; Plan-mode controls in this placement remain
-	// root-only. A child question parks through the same nested suspension tree
-	// as a child approval.
+	// root-only. A child question waits at the same durable tree boundary as a
+	// child approval.
 	if err := r.appendStatic(ctx, &tools, afterCodebase, role); err != nil {
 		return resolution{}, err
-	}
-	if delegation := r.delegationTool(); delegation != nil {
-		tools.direct(delegation)
 	}
 	if role == domaintool.GroupRoot {
 		// Goal lifecycle entry is late-bound because its application Driver owns

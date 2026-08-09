@@ -304,7 +304,7 @@ func (tools openTools) ordered() []*openTool {
 			}
 			return cmp.Compare(a.toolCallIndex, b.toolCallIndex)
 		}
-		return cmp.Compare(a.legacyOrder, b.legacyOrder)
+		return cmp.Compare(a.arrivalOrder, b.arrivalOrder)
 	})
 	return ordered
 }

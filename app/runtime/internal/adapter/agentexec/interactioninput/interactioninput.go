@@ -99,7 +99,7 @@ func Restore(ctx context.Context) (Continuation, bool, error) {
 }
 
 // Require returns a restored decision at the original call site or requests a
-// new Agent2 Interaction input. It never selects the legacy execution path.
+// new Agent2 Interaction input.
 func Require(ctx context.Context, key string, prompt runs.Interrupt) (interrupt.Resolution, error) {
 	if err := prompt.Validate(); err != nil {
 		return interrupt.Resolution{}, err

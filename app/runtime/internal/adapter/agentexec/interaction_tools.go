@@ -3,6 +3,7 @@ package agentexec
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
@@ -25,6 +26,8 @@ type InteractionToolResolver interface {
 type InteractionToolInterpreter interface {
 	SafetyClass(name string) tool.SafetyClass
 	UsesStandardPolicy(name string) bool
+	ApprovalSubject(name string, arguments tool.Arguments) (string, error)
+	ShellCommand(name, arguments string) string
 	ProjectOutcome(ctx context.Context, sessionID, name string, succeeded bool) (runs.ExecutionFact, error)
 }
 
@@ -36,50 +39,45 @@ type InteractionToolPresenter interface {
 	Present(name string, arguments tool.Arguments, result tool.Result) (tool.Result, string)
 }
 
-// AutomaticToolRequest is the complete non-interactive approval input. An
-// automatic gate may only allow, rewrite, or deny this invocation; requesting
-// human input belongs to the separate waiting capability.
-type AutomaticToolRequest struct {
-	SessionID   string
-	CWD         string
-	CallID      string
-	ToolName    string
-	Arguments   tool.Arguments
-	SafetyClass tool.SafetyClass
+// ToolAuthorizationRequest is the complete pre-call policy input. The
+// authorizer may allow, rewrite, deny, or require durable human approval.
+type ToolAuthorizationRequest struct {
+	SessionID       string
+	CWD             string
+	CallID          string
+	ToolName        string
+	Arguments       tool.Arguments
+	SafetyClass     tool.SafetyClass
+	ApprovalSubject string
+	FileMutation    tool.FileMutationScope
+	ShellCommand    string
+	AutoApproved    bool
+	RequireApproval bool
 }
 
-// AutomaticToolDecision is one definite pre-call decision. Denied calls return
+// ToolAuthorizationDecision is one definite pre-call decision. Denied calls return
 // Reason to the model as a recoverable Tool result. EffectiveArguments is nil
 // to preserve the model arguments or non-nil to replace them atomically before
 // the ToolCallStarted fact is committed.
-type AutomaticToolDecision struct {
+type ToolAuthorizationDecision struct {
 	Denied             bool
 	Reason             string
 	EffectiveArguments *tool.Arguments
+	Approval           *runs.ApprovalPrompt
 }
 
-// AutomaticToolAuthorizer evaluates ordinary calls without user interaction.
-// It must return in bounded time, cannot suspend execution, and must be safe for
-// concurrent calls from one Tool batch.
-type AutomaticToolAuthorizer interface {
-	AuthorizeTool(ctx context.Context, request AutomaticToolRequest) (AutomaticToolDecision, error)
-}
-
-// InteractiveToolAuthorizer owns the human-approval portion of standard Tool
-// policy. PlanToolApproval returns found=false when the already-automatic
-// decision needs no person; ResolveToolApproval applies the durable response,
-// including remembered-rule side effects, without rerunning the original plan.
-type InteractiveToolAuthorizer interface {
-	PlanToolApproval(
-		ctx context.Context,
-		request AutomaticToolRequest,
-	) (prompt runs.ApprovalPrompt, found bool, err error)
+// InteractionToolAuthorizer evaluates Runtime Tool policy and resolves its
+// optional durable human response. It plans but never owns the wait lifecycle:
+// interactioninput remains the sole Agent2 ACL. Implementations must be safe
+// for concurrent calls from one Tool batch.
+type InteractionToolAuthorizer interface {
+	AuthorizeTool(ctx context.Context, request ToolAuthorizationRequest) (ToolAuthorizationDecision, error)
 	ResolveToolApproval(
 		ctx context.Context,
-		request AutomaticToolRequest,
+		request ToolAuthorizationRequest,
 		prompt runs.ApprovalPrompt,
 		resolution interrupt.Resolution,
-	) (AutomaticToolDecision, error)
+	) (ToolAuthorizationDecision, error)
 }
 
 // InteractionToolHookInput identifies one ordinary Tool lifecycle callback.
@@ -100,6 +98,7 @@ type InteractionToolHookDecision struct {
 	Denied             bool
 	Reason             string
 	EffectiveArguments *tool.Arguments
+	RequireApproval    bool
 }
 
 // InteractionToolHooks owns Runtime lifecycle extensions around ordinary Tool
@@ -111,30 +110,38 @@ type InteractionToolHooks interface {
 	AfterToolUse(ctx context.Context, input InteractionToolHookInput) error
 }
 
-func validateAutomaticDecision(decision AutomaticToolDecision) error {
-	if decision.Denied && decision.EffectiveArguments != nil {
-		return errors.New("agentexec: denied automatic Tool decision rewrites arguments")
+func validateToolAuthorizationDecision(decision ToolAuthorizationDecision) error {
+	if decision.Denied && (decision.EffectiveArguments != nil || decision.Approval != nil) {
+		return errors.New("agentexec: denied Tool authorization carries an argument rewrite or approval")
+	}
+	if decision.Approval != nil && decision.EffectiveArguments != nil {
+		return errors.New("agentexec: pending Tool approval rewrites arguments outside its prompt")
 	}
 	if decision.Reason != strings.TrimSpace(decision.Reason) {
-		return errors.New("agentexec: automatic Tool decision reason has surrounding whitespace")
+		return errors.New("agentexec: Tool authorization decision reason has surrounding whitespace")
 	}
 	if !decision.Denied && decision.Reason != "" {
-		return errors.New("agentexec: allowed automatic Tool decision carries a denial reason")
+		return errors.New("agentexec: allowed Tool authorization decision carries a denial reason")
 	}
 	if decision.Denied && decision.Reason == "" {
-		return errors.New("agentexec: denied automatic Tool decision requires a reason")
+		return errors.New("agentexec: denied Tool authorization decision requires a reason")
+	}
+	if decision.Approval != nil {
+		if err := (runs.Interrupt{Kind: interrupt.Approval, Approval: decision.Approval}).Validate(); err != nil {
+			return fmt.Errorf("agentexec: invalid Tool approval plan: %w", err)
+		}
 	}
 	return nil
 }
 
 func validateHookDecision(decision InteractionToolHookDecision) error {
-	if decision.Denied && decision.EffectiveArguments != nil {
-		return errors.New("agentexec: denied Tool hook decision rewrites arguments")
+	if decision.Denied && (decision.EffectiveArguments != nil || decision.RequireApproval) {
+		return errors.New("agentexec: denied Tool hook decision rewrites arguments or requests approval")
 	}
 	if decision.Reason != strings.TrimSpace(decision.Reason) {
 		return errors.New("agentexec: Tool hook decision reason has surrounding whitespace")
 	}
-	if !decision.Denied && decision.Reason != "" {
+	if !decision.Denied && !decision.RequireApproval && decision.Reason != "" {
 		return errors.New("agentexec: allowed Tool hook decision carries a denial reason")
 	}
 	if decision.Denied && decision.Reason == "" {

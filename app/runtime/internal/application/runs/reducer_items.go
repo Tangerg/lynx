@@ -261,7 +261,7 @@ func (r *reducer) toolStart(e ToolCallStarted) ([]RunEvent, error) {
 	}})
 	identity := r.reuseOrCreateToolItem(e.CallID, e.ToolName, arguments)
 	ref := &openTool{
-		callID: e.CallID, sourceCallID: e.SourceCallID, legacyOrder: r.toolOrder,
+		callID: e.CallID, sourceCallID: e.SourceCallID, arrivalOrder: r.toolOrder,
 		modelCallSequence: e.ModelCallSequence, toolCallIndex: e.ToolCallIndex,
 		id: identity.id, occurredAt: identity.occurredAt, attemptStartedAt: r.now(),
 		name: e.ToolName, arguments: arguments, safetyClass: e.SafetyClass,

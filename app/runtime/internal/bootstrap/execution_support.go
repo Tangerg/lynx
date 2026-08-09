@@ -7,7 +7,7 @@ import (
 	"github.com/Tangerg/lynx/models/catalog"
 	skillspec "github.com/Tangerg/lynx/skills"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/maintenance"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/agentmemory"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
@@ -15,21 +15,9 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/skillauthoring"
 )
 
-type executionSupport struct {
-	steering    turn.SteeringSink
-	maintenance turn.Maintenance
-}
-
-func buildExecutionSupport(cfg Config, messages messageEnvironment, shells *exec.Shells, skillStore *skillauthoring.Store, skillProposals *workspace.Skills, resolveUtility func(context.Context) *chatclient.Client, embedder func(context.Context) (agentmemory.Embedder, error)) executionSupport {
-	support := executionSupport{
-		steering:    cfg.Steering,
-		maintenance: cfg.Maintenance,
-	}
-	if support.steering == nil {
-		support.steering = messages.conversation
-	}
-	if support.maintenance != nil {
-		return support
+func buildRunMaintenance(cfg Config, messages messageEnvironment, shells *exec.Shells, skillStore *skillauthoring.Store, skillProposals *workspace.Skills, resolveUtility func(context.Context) *chatclient.Client, embedder func(context.Context) (agentmemory.Embedder, error)) agentexec.RunMaintenance {
+	if cfg.Maintenance != nil {
+		return cfg.Maintenance
 	}
 	window := 0
 	if info, ok := catalog.Lookup(cfg.Provider, cfg.Model); ok {
@@ -57,6 +45,5 @@ func buildExecutionSupport(cfg Config, messages messageEnvironment, shells *exec
 		)
 		curator = maintenance.NewSkillCurator(skillStore, maintenance.LifecycleConfig{})
 	}
-	support.maintenance = maintenance.NewPipeline(compactor, extractor, miner, curator)
-	return support
+	return maintenance.NewPipeline(compactor, extractor, miner, curator)
 }

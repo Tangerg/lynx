@@ -224,8 +224,7 @@ func TestInteractionExecutorRestoresInteractiveApprovalWithoutRepeatingPolicyOrH
 	approvals := &promptingInteractionAuthorizer{}
 	executor := newObservedTestInteractionExecutor(t, model, InteractionExecutorConfig{
 		ToolResolver:    staticInteractionTools{manifest: toolset.Manifest{Visible: []toolcontract.Tool{executable}}},
-		ToolInterpreter: testInteractionToolInterpreter{}, ToolAuthorizer: allowInteractionTools{},
-		InteractiveToolAuthorizer: approvals, ToolHooks: hooks,
+		ToolInterpreter: testInteractionToolInterpreter{}, ToolAuthorizer: approvals, ToolHooks: hooks,
 	})
 	start := interactionTestStart()
 	start.CWD, start.WorkspaceCWD = workspace, workspace
@@ -435,39 +434,40 @@ func interactionWaitingContinuation(
 	}
 }
 
-func (authorizer *promptingInteractionAuthorizer) PlanToolApproval(
+func (authorizer *promptingInteractionAuthorizer) AuthorizeTool(
 	_ context.Context,
-	request AutomaticToolRequest,
-) (runs.ApprovalPrompt, bool, error) {
+	request ToolAuthorizationRequest,
+) (ToolAuthorizationDecision, error) {
 	authorizer.planned++
-	return runs.ApprovalPrompt{
+	prompt := runs.ApprovalPrompt{
 		CallID: request.CallID, ToolName: request.ToolName, Arguments: request.Arguments.Canonical(),
 		SafetyClass: request.SafetyClass, Risk: domaintool.RiskHigh,
 		Reason: "This Tool changes external state.", Rememberable: true,
-	}, true, nil
+	}
+	return ToolAuthorizationDecision{Approval: &prompt}, nil
 }
 
 func (authorizer *promptingInteractionAuthorizer) ResolveToolApproval(
 	_ context.Context,
-	request AutomaticToolRequest,
+	request ToolAuthorizationRequest,
 	_ runs.ApprovalPrompt,
 	resolution interrupt.Resolution,
-) (AutomaticToolDecision, error) {
+) (ToolAuthorizationDecision, error) {
 	authorizer.resolved++
 	if !resolution.Approved {
-		return AutomaticToolDecision{Denied: true, Reason: "denied by user"}, nil
+		return ToolAuthorizationDecision{Denied: true, Reason: "denied by user"}, nil
 	}
 	if resolution.Arguments == "" {
-		return AutomaticToolDecision{}, nil
+		return ToolAuthorizationDecision{}, nil
 	}
 	arguments, err := domaintool.ParseArguments(resolution.Arguments)
 	if err != nil {
-		return AutomaticToolDecision{}, err
+		return ToolAuthorizationDecision{}, err
 	}
 	if request.ToolName == "" {
-		return AutomaticToolDecision{}, errors.New("missing Tool identity")
+		return ToolAuthorizationDecision{}, errors.New("missing Tool identity")
 	}
-	return AutomaticToolDecision{EffectiveArguments: &arguments}, nil
+	return ToolAuthorizationDecision{EffectiveArguments: &arguments}, nil
 }
 
 func TestInteractionExecutorRejectsInvalidWaitingRecoveryFacts(t *testing.T) {

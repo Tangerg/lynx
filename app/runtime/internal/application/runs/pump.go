@@ -92,9 +92,6 @@ func (p *segmentPump) handle(event ExecutorEvent) bool {
 	if request, concluding := event.Payload.(ChildRunStartOutcomeRequest); concluding {
 		return p.handleChildRunStartOutcome(event, request)
 	}
-	if request, opening := event.Payload.(ChildOpeningRequest); opening {
-		return p.handleChildOpening(event, request)
-	}
 	if err := event.Validate(); err != nil {
 		p.fail(err)
 		return false
@@ -432,59 +429,6 @@ func (p *segmentPump) handleUnknownEffects(
 			return errors.Join(publishErr, p.ownerCtx.Err())
 		}
 	}
-}
-
-func (p *segmentPump) handleChildOpening(event ExecutorEvent, request ChildOpeningRequest) bool {
-	if err := event.Validate(); err != nil {
-		if request.claim() {
-			_ = request.complete(ChildRunBinding{}, err)
-		}
-		p.fail(err)
-		return false
-	}
-	if err := request.validate(); err != nil {
-		p.fail(err)
-		return false
-	}
-	// Cancellation may win while the request is buffered. The executor then
-	// rejects its unpublished child, so there is no durable opening to perform.
-	if !request.claim() {
-		return true
-	}
-	child, opening, err := p.coordinator.openChildRun(
-		p.ownerCtx,
-		p.spec,
-		p.live,
-		p.routes,
-		event.Member,
-		request,
-	)
-	if err == nil {
-		var publication reductionPublication
-		publication, err = p.publisher.publish(p.ownerCtx, child, opening)
-		if err == nil && (publication.finished || publication.parked) {
-			err = fmt.Errorf(
-				"runs: child member %q opening unexpectedly finished its segment",
-				event.Member.MemberID,
-			)
-		}
-	}
-	binding := ChildRunBinding{}
-	if err == nil {
-		binding = ChildRunBinding{
-			MemberID:    event.Member.MemberID,
-			RunID:       child.runID,
-			ParentRunID: child.lineage.ParentRunID,
-		}
-	}
-	if confirmationErr := request.complete(binding, err); confirmationErr != nil {
-		err = errors.Join(err, confirmationErr)
-	}
-	if err != nil {
-		p.fail(err)
-		return false
-	}
-	return true
 }
 
 func (p *segmentPump) handleTreeBarrier(event ExecutorEvent, barrier TreeInterrupted) {

@@ -220,8 +220,9 @@ func TestRecoveryPreservesOnlyCoherentInterruptedTree(t *testing.T) {
 		GoalLeaseID:    pending.GoalLeaseID,
 		ModelSelection: run.ModelSelection,
 		Limits:         run.Limits,
+		Capabilities:   pending.Capabilities,
 	}
-	if recovered != 0 || validated != wantExpectation || len(store.commit.LostRuns) != 0 {
+	if recovered != 0 || !reflect.DeepEqual(validated, wantExpectation) || len(store.commit.LostRuns) != 0 {
 		t.Fatalf("recovery = %d validated=%+v commit=%+v", recovered, validated, store.commit)
 	}
 	if !reflect.DeepEqual(store.commit.PreservedCheckpointRootIDs, []string{"member_root"}) ||

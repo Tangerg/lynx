@@ -56,6 +56,12 @@ type RestoreScopeValidator interface {
 	ValidateRestoreScope(ctx context.Context, scope runs.ExecutionScope) error
 }
 
+// CheckpointReader is the executor's read-only durable continuation boundary.
+// Payload interpretation remains private to the concrete executor.
+type CheckpointReader interface {
+	LoadCheckpoint(ctx context.Context, rootProcessID string) (runs.ExecutorCheckpoint, error)
+}
+
 // InteractionExecutorConfig freezes the host-owned inputs shared by native
 // Interaction root executions. Identity strings must change whenever the
 // executable Interaction adapter or behavior-affecting dispatcher configuration
@@ -65,6 +71,7 @@ type InteractionExecutorConfig struct {
 	DefaultClient             *chatclient.Client
 	ChatResolver              InteractionChatResolver
 	RestoreScopeValidator     RestoreScopeValidator
+	Checkpoints               CheckpointReader
 	ImplementationIdentity    string
 	ConfigurationIdentity     string
 	DefaultMaxModelCalls      uint32
@@ -74,9 +81,11 @@ type InteractionExecutorConfig struct {
 	ToolResolver              InteractionToolResolver
 	ToolInterpreter           InteractionToolInterpreter
 	ToolPresenter             InteractionToolPresenter
-	ToolAuthorizer            AutomaticToolAuthorizer
-	InteractiveToolAuthorizer InteractiveToolAuthorizer
+	ToolAuthorizer            InteractionToolAuthorizer
 	ToolHooks                 InteractionToolHooks
+	MCPToolAutoApproved       func(server, tool string) bool
+	Maintenance               RunMaintenance
+	LifecycleHooks            InteractionLifecycleHooks
 	ToolResultStore           toolResultOffloader
 	ToolResultThreshold       int
 	ToolResultReaderName      string
@@ -95,6 +104,8 @@ type InteractionExecutor struct {
 
 	mu       sync.Mutex
 	sessions map[string]*interactionSession
+	closed   bool
+	shutdown []*interactionSession
 }
 
 // NewInteractionExecutor validates immutable host configuration. It creates no
@@ -110,12 +121,14 @@ func NewInteractionExecutor(config InteractionExecutorConfig) (*InteractionExecu
 	}{
 		{name: "chat resolver", value: config.ChatResolver},
 		{name: "restore-scope validator", value: config.RestoreScopeValidator},
+		{name: "checkpoint reader", value: config.Checkpoints},
 		{name: "Tool resolver", value: config.ToolResolver},
 		{name: "Tool interpreter", value: config.ToolInterpreter},
 		{name: "Tool presenter", value: config.ToolPresenter},
 		{name: "Tool authorizer", value: config.ToolAuthorizer},
-		{name: "interactive Tool authorizer", value: config.InteractiveToolAuthorizer},
 		{name: "Tool hooks", value: config.ToolHooks},
+		{name: "Run maintenance", value: config.Maintenance},
+		{name: "lifecycle hooks", value: config.LifecycleHooks},
 		{name: "Tool-result store", value: config.ToolResultStore},
 	} {
 		if capability.value != nil && isNilInteractionCapability(capability.value) {
@@ -243,7 +256,9 @@ func (executor *InteractionExecutor) assembleInteraction(
 	if err != nil {
 		return nil, err
 	}
-	session.installDeployments(deployments)
+	if err := session.installDeployments(deployments); err != nil {
+		return nil, err
+	}
 	engine, err := agent.NewEngine(agent.EngineConfig{
 		DeploymentResolver:              deployments,
 		ProcessAdmitter:                 agent.ProcessAdmitterFunc(session.admitProcess),
@@ -269,7 +284,7 @@ func (executor *InteractionExecutor) validateInteractionTools(manifest toolset.M
 		return errors.New("agentexec: native Interaction Tools require a Tool interpreter")
 	}
 	if executor.config.ToolAuthorizer == nil {
-		return errors.New("agentexec: native Interaction Tools require an automatic authorizer")
+		return errors.New("agentexec: native Interaction Tools require a Tool authorizer")
 	}
 	for _, tools := range [][]toolcontract.Tool{manifest.Visible, manifest.Deferred} {
 		for _, executable := range tools {
@@ -295,6 +310,7 @@ func (executor *InteractionExecutor) interactionConfiguration(
 	depth uint32,
 	delegate agent.DeploymentRef,
 	delegateBudget agent.Budget,
+	instructions []corechat.Message,
 ) ([]byte, error) {
 	configuration, err := json.Marshal(struct {
 		Identity               string                    `json:"identity"`
@@ -312,6 +328,7 @@ func (executor *InteractionExecutor) interactionConfiguration(
 		Depth                  uint32                    `json:"depth"`
 		Delegate               string                    `json:"delegate,omitempty"`
 		DelegateBudget         agent.Budget              `json:"delegateBudget,omitzero"`
+		Instructions           []corechat.Message        `json:"instructions,omitempty"`
 	}{
 		Identity: executor.config.ConfigurationIdentity,
 		Provider: session.provider, Model: start.ModelSelection.Model(),
@@ -319,9 +336,10 @@ func (executor *InteractionExecutor) interactionConfiguration(
 		MaxConcurrentToolCalls: executor.config.MaxConcurrentToolCalls,
 		ToolResultThreshold:    executor.config.ToolResultThreshold,
 		ToolResultReaderName:   executor.config.ToolResultReaderName,
-		InteractiveApproval:    executor.config.InteractiveToolAuthorizer != nil,
+		InteractiveApproval:    executor.config.ToolAuthorizer != nil,
 		VisibleTools:           toolDefinitions(manifest.Visible), DeferredTools: toolDefinitions(manifest.Deferred),
 		Role: role, Depth: depth, Delegate: delegate.String(), DelegateBudget: delegateBudget,
+		Instructions: cloneChatMessages(instructions),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("agentexec: encode native Interaction configuration identity: %w", err)
@@ -332,12 +350,74 @@ func (executor *InteractionExecutor) interactionConfiguration(
 func (executor *InteractionExecutor) registerSession(session *interactionSession) error {
 	executor.mu.Lock()
 	defer executor.mu.Unlock()
+	if executor.closed {
+		_ = session.engine.Close()
+		return errors.New("agentexec: native Interaction executor is shutting down")
+	}
 	if _, duplicate := executor.sessions[session.ref.ExecutorID]; duplicate {
 		_ = session.engine.Close()
 		return errors.New("agentexec: duplicate native Interaction executor identity")
 	}
 	executor.sessions[session.ref.ExecutorID] = session
 	return nil
+}
+
+// BeginShutdown atomically rejects future roots and freezes the complete live
+// execution set. Resource release is joined by AwaitShutdown under its caller's
+// deadline so an interrupted close remains retryable.
+func (executor *InteractionExecutor) BeginShutdown() {
+	if executor == nil {
+		return
+	}
+	executor.mu.Lock()
+	defer executor.mu.Unlock()
+	if executor.closed {
+		return
+	}
+	executor.closed = true
+	executor.shutdown = make([]*interactionSession, 0, len(executor.sessions))
+	for _, session := range executor.sessions {
+		executor.shutdown = append(executor.shutdown, session)
+	}
+	slices.SortFunc(executor.shutdown, func(left, right *interactionSession) int {
+		return strings.Compare(left.ref.ExecutorID, right.ref.ExecutorID)
+	})
+}
+
+// AwaitShutdown releases every root frozen by BeginShutdown. Successful
+// targets are removed immediately; failed or timed-out targets stay owned for a
+// later attempt.
+func (executor *InteractionExecutor) AwaitShutdown(ctx context.Context) error {
+	if ctx == nil {
+		return errors.New("agentexec: native Interaction shutdown context is required")
+	}
+	executor.BeginShutdown()
+	executor.mu.Lock()
+	targets := slices.Clone(executor.shutdown)
+	executor.mu.Unlock()
+	var failures []error
+	for _, session := range targets {
+		if err := session.release(ctx); err != nil {
+			failures = append(failures, fmt.Errorf(
+				"agentexec: release native Interaction %q: %w",
+				session.ref.ExecutorID,
+				err,
+			))
+			if ctx.Err() != nil {
+				break
+			}
+			continue
+		}
+		executor.mu.Lock()
+		if executor.sessions[session.ref.ExecutorID] == session {
+			delete(executor.sessions, session.ref.ExecutorID)
+		}
+		executor.shutdown = slices.DeleteFunc(executor.shutdown, func(candidate *interactionSession) bool {
+			return candidate == session
+		})
+		executor.mu.Unlock()
+	}
+	return errors.Join(failures...)
 }
 
 func validInteractionBuildID(value string) bool {
@@ -522,6 +602,7 @@ func (executor *InteractionExecutor) restoreWaitingTree(
 		ModelSelection: continuation.Checkpoint.ModelSelection, Limits: continuation.Checkpoint.Limits,
 		InterruptKinds:           continuation.Capabilities.InterruptKinds,
 		ChildRunAdmissionEnabled: continuation.ChildRunAdmissionEnabled,
+		WorkingContext:           cloneChatMessages(checkpoint.instructions),
 	}
 	session, err := executor.assembleInteraction(ctx, ref, start)
 	if err != nil {
@@ -765,9 +846,34 @@ func (executor *InteractionExecutor) Release(ctx context.Context, ref runs.Execu
 		if executor.sessions[ref.ExecutorID] == session {
 			delete(executor.sessions, ref.ExecutorID)
 		}
+		executor.shutdown = slices.DeleteFunc(executor.shutdown, func(candidate *interactionSession) bool {
+			return candidate == session
+		})
 		executor.mu.Unlock()
 	}
 	return err
+}
+
+// RequestRootCancellation records the Application's accepted cancellation in
+// Agent2 without deciding the product outcome or releasing the tree. Agent2
+// lets an in-flight Effect settle, then applies the intent at its safe boundary.
+func (executor *InteractionExecutor) RequestRootCancellation(
+	ctx context.Context,
+	ref runs.ExecutorRef,
+	reason string,
+) error {
+	session, err := executor.session(ref)
+	if err != nil {
+		return err
+	}
+	process := session.processHandle()
+	if process == nil {
+		return runs.ErrExecutorNotLive
+	}
+	if err := process.Cancel(ctx, reason); err != nil && !errors.Is(err, agent.ErrProcessFinished) {
+		return fmt.Errorf("agentexec: request native Interaction cancellation: %w", err)
+	}
+	return nil
 }
 
 func (executor *InteractionExecutor) resolveClient(
@@ -835,9 +941,10 @@ func clonedOptions(options *corechat.Options) corechat.Options {
 }
 
 var (
-	_ runs.RootExecutionStarter      = (*InteractionExecutor)(nil)
-	_ runs.ExecutionObserver         = (*InteractionExecutor)(nil)
-	_ runs.ExecutionReleaser         = (*InteractionExecutor)(nil)
-	_ runs.WaitingExecutionContinuer = (*InteractionExecutor)(nil)
-	_ runs.RunningExecutionSteerer   = (*InteractionExecutor)(nil)
+	_ runs.RootExecutionStarter             = (*InteractionExecutor)(nil)
+	_ runs.ExecutionObserver                = (*InteractionExecutor)(nil)
+	_ runs.ExecutionReleaser                = (*InteractionExecutor)(nil)
+	_ runs.RunningRootCancellationRequester = (*InteractionExecutor)(nil)
+	_ runs.WaitingExecutionContinuer        = (*InteractionExecutor)(nil)
+	_ runs.RunningExecutionSteerer          = (*InteractionExecutor)(nil)
 )

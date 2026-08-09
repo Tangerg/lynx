@@ -11,8 +11,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/agent"
-	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/persistence"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/accounting"
@@ -27,21 +25,22 @@ import (
 
 const checkpointBuildID = "test-build"
 
-func waitingProcessSnapshot(id string, started, parked time.Time) core.ProcessSnapshot {
-	return core.ProcessSnapshot{
-		SchemaVersion: core.ProcessSnapshotSchemaVersion,
-		ID:            id,
-		Deployment:    core.DeploymentRef{Name: "chat", Digest: "digest"},
-		StartedAt:     started,
-		Status:        core.StatusWaiting,
-		Suspension: &agent.Suspension{
-			SchemaVersion:  agent.SuspensionSchemaVersion,
-			ID:             "suspension-" + id,
-			Prompt:         json.RawMessage(`"continue?"`),
-			ResponseSchema: json.RawMessage(`{"type":"boolean"}`),
-			CreatedAt:      parked,
-		},
-	}
+// executorTreeFixture is deliberately local and opaque to Runtime production
+// code. Persistence tests need stable bytes and member identities, not an
+// execution framework's private snapshot model.
+type executorTreeFixture struct {
+	RootID  string                  `json:"root_id"`
+	Members []executorMemberFixture `json:"members"`
+}
+
+type executorMemberFixture struct {
+	ID         string `json:"id"`
+	ParentID   string `json:"parent_id,omitempty"`
+	WaitPrompt string `json:"wait_prompt,omitempty"`
+}
+
+func waitingExecutorMember(id, prompt string) executorMemberFixture {
+	return executorMemberFixture{ID: id, WaitPrompt: prompt}
 }
 
 func claimResumeForTest(
@@ -704,10 +703,10 @@ func TestCommitTreeBarrierProducesDurableTriplet(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("admit: %v", err)
 	}
-	snapshot := waitingProcessSnapshot("proc_1", createdAt, parkedAt)
-	tree := core.ProcessSnapshotTree{
-		RootID:    snapshot.ID,
-		Snapshots: []core.ProcessSnapshot{snapshot},
+	snapshot := waitingExecutorMember("proc_1", "continue?")
+	tree := executorTreeFixture{
+		RootID:  snapshot.ID,
+		Members: []executorMemberFixture{snapshot},
 	}
 	checkpointStore := persistence.NewExecutorCheckpointStore(sqlite.NewExecutorCheckpointStore(db))
 	checkpoint := executorCheckpoint(t, tree, runs.ExecutorCheckpoint{
@@ -730,7 +729,7 @@ func TestCommitTreeBarrierProducesDurableTriplet(t *testing.T) {
 	})
 	pending := singleRunPending(
 		t,
-		"run_1", "ses_1", "proc_1", "suspension-proc_1", "item_question",
+		"run_1", "ses_1", "proc_1", "request-proc_1", "item_question",
 		createdAt, parkedAt,
 	)
 	if err := effects.CommitTreeBarrier(ctx, runs.TreeBarrierCommit{
@@ -772,10 +771,10 @@ func TestCommitTreeBarrierRollsBackCheckpointWhenRunSuspendFails(t *testing.T) {
 	ctx := t.Context()
 	createdAt := time.Unix(1, 0).UTC()
 	parkedAt := time.Unix(2, 0).UTC()
-	snapshot := waitingProcessSnapshot("proc_rollback", createdAt, parkedAt)
+	snapshot := waitingExecutorMember("proc_rollback", "continue?")
 	checkpointStore := persistence.NewExecutorCheckpointStore(sqlite.NewExecutorCheckpointStore(db))
-	checkpoint := executorCheckpoint(t, core.ProcessSnapshotTree{
-		RootID: snapshot.ID, Snapshots: []core.ProcessSnapshot{snapshot},
+	checkpoint := executorCheckpoint(t, executorTreeFixture{
+		RootID: snapshot.ID, Members: []executorMemberFixture{snapshot},
 	}, runs.ExecutorCheckpoint{
 		BuildID:        checkpointBuildID,
 		Scope:          runs.ExecutionScope{SessionID: "ses_rollback"},
@@ -795,7 +794,7 @@ func TestCommitTreeBarrierRollsBackCheckpointWhenRunSuspendFails(t *testing.T) {
 	})
 	pending := singleRunPending(
 		t,
-		"run_missing", "ses_rollback", snapshot.ID, snapshot.Suspension.ID, "item_question",
+		"run_missing", "ses_rollback", snapshot.ID, "request-"+snapshot.ID, "item_question",
 		createdAt, parkedAt,
 	)
 	parkedRun := parkedRunRecord("run_missing", "ses_rollback", createdAt)
@@ -955,9 +954,9 @@ func TestCommitTerminalOwnsExecutorCheckpointDeletion(t *testing.T) {
 				t.Fatalf("admit: %v", err)
 			}
 			checkpointStore := persistence.NewExecutorCheckpointStore(sqlite.NewExecutorCheckpointStore(db))
-			snapshot := waitingProcessSnapshot("proc_terminal", createdAt, createdAt.Add(time.Second))
-			if err := checkpointStore.SaveCheckpoint(ctx, executorCheckpoint(t, core.ProcessSnapshotTree{
-				RootID: snapshot.ID, Snapshots: []core.ProcessSnapshot{snapshot},
+			snapshot := waitingExecutorMember("proc_terminal", "continue?")
+			if err := checkpointStore.SaveCheckpoint(ctx, executorCheckpoint(t, executorTreeFixture{
+				RootID: snapshot.ID, Members: []executorMemberFixture{snapshot},
 			}, runs.ExecutorCheckpoint{
 				BuildID: checkpointBuildID,
 				Scope:   runs.ExecutionScope{SessionID: "ses_terminal"},
@@ -1096,10 +1095,9 @@ func TestCommitWaitingSubtreeCancellationCommitsCompleteWriteSet(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load replacement process tree: %v", err)
 	}
-	tree := restoredProcessTree(t, checkpoint)
-	if len(tree.Snapshots) != 1 ||
-		tree.Snapshots[0].Suspension == nil ||
-		string(tree.Snapshots[0].Suspension.Prompt) != `"after-cancel"` ||
+	tree := restoredExecutorTree(t, checkpoint)
+	if len(tree.Members) != 1 ||
+		tree.Members[0].WaitPrompt != "after-cancel" ||
 		checkpoint.BuildID != "original-build" {
 		t.Fatalf("replacement process tree = %+v checkpoint=%+v", tree, checkpoint)
 	}
@@ -1129,12 +1127,11 @@ func TestCommitWaitingSubtreeCancellationRollsBackCheckpointAndApplicationFacts(
 	if err != nil {
 		t.Fatalf("load rolled-back process tree: %v", err)
 	}
-	tree := restoredProcessTree(t, checkpoint)
-	rootSnapshot, found := processSnapshotByID(tree, "process_root")
-	if len(tree.Snapshots) != 3 ||
+	tree := restoredExecutorTree(t, checkpoint)
+	rootSnapshot, found := executorMemberByID(tree, "process_root")
+	if len(tree.Members) != 3 ||
 		!found ||
-		rootSnapshot.Suspension == nil ||
-		string(rootSnapshot.Suspension.Prompt) != `"before-cancel"` ||
+		rootSnapshot.WaitPrompt != "before-cancel" ||
 		checkpoint.BuildID != "original-build" {
 		t.Fatalf("rolled-back process tree = %+v checkpoint=%+v", tree, checkpoint)
 	}
@@ -1153,9 +1150,9 @@ type waitingCancellationSQLiteFixture struct {
 	grandchildRun         transcript.Run
 	parentItem            transcript.Item
 	originalItems         []transcript.Item
-	originalTree          core.ProcessSnapshotTree
+	originalTree          executorTreeFixture
 	originalCheckpoint    runs.ExecutorCheckpoint
-	replacementTree       core.ProcessSnapshotTree
+	replacementTree       executorTreeFixture
 	replacementCheckpoint runs.ExecutorCheckpoint
 	commit                runs.WaitingSubtreeCancellationCommit
 }
@@ -1366,12 +1363,12 @@ func newWaitingCancellationSQLiteFixtureAt(
 		{
 			InterruptItemID: grandchildQuestion.ItemID,
 			MemberID:        "process_grandchild",
-			RequestID:       "suspension-process_grandchild",
+			RequestID:       "request-process_grandchild",
 		},
 		{
 			InterruptItemID: childQuestion.ItemID,
 			MemberID:        "process_child",
-			RequestID:       "suspension-process_child",
+			RequestID:       "request-process_child",
 		},
 	}
 	pendingContinuations := []runs.Continuation{
@@ -1394,7 +1391,7 @@ func newWaitingCancellationSQLiteFixtureAt(
 		pendingSuspensions = append(pendingSuspensions, runs.InterruptBinding{
 			InterruptItemID: siblingQuestion.ItemID,
 			MemberID:        "process_sibling",
-			RequestID:       "suspension-process_sibling",
+			RequestID:       "request-process_sibling",
 		})
 		pendingContinuations = append(pendingContinuations, runs.Continuation{
 			RunID:        siblingRun.ID,
@@ -1431,26 +1428,25 @@ func newWaitingCancellationSQLiteFixtureAt(
 	}
 
 	checkpointStore := persistence.NewExecutorCheckpointStore(sqlite.NewExecutorCheckpointStore(db))
-	originalRoot := waitingProcessSnapshot("process_root", createdAt, finishedAt)
-	originalRoot.Suspension.Prompt = json.RawMessage(`"before-cancel"`)
-	originalChild := waitingProcessSnapshot("process_child", createdAt, finishedAt)
+	originalRoot := waitingExecutorMember("process_root", "before-cancel")
+	originalChild := waitingExecutorMember("process_child", "continue?")
 	originalChild.ParentID = originalRoot.ID
-	originalGrandchild := waitingProcessSnapshot("process_grandchild", createdAt, finishedAt)
+	originalGrandchild := waitingExecutorMember("process_grandchild", "continue?")
 	originalGrandchild.ParentID = originalChild.ID
-	originalSnapshots := []core.ProcessSnapshot{
+	originalMembers := []executorMemberFixture{
 		originalRoot,
 		originalChild,
 		originalGrandchild,
 	}
-	var originalSibling core.ProcessSnapshot
+	var originalSibling executorMemberFixture
 	if survivingBoundary {
-		originalSibling = waitingProcessSnapshot("process_sibling", createdAt, finishedAt)
+		originalSibling = waitingExecutorMember("process_sibling", "continue?")
 		originalSibling.ParentID = originalRoot.ID
-		originalSnapshots = append(originalSnapshots, originalSibling)
+		originalMembers = append(originalMembers, originalSibling)
 	}
-	originalTree := core.ProcessSnapshotTree{
-		RootID:    originalRoot.ID,
-		Snapshots: originalSnapshots,
+	originalTree := executorTreeFixture{
+		RootID:  originalRoot.ID,
+		Members: originalMembers,
 	}
 	originalCheckpoint := executorCheckpoint(t, originalTree, runs.ExecutorCheckpoint{
 		BuildID: "original-build",
@@ -1466,16 +1462,14 @@ func newWaitingCancellationSQLiteFixtureAt(
 		t.Fatalf("seed process tree: %v", err)
 	}
 	replacementRoot := originalRoot
-	replacementSuspension := *originalRoot.Suspension
-	replacementSuspension.Prompt = json.RawMessage(`"after-cancel"`)
-	replacementRoot.Suspension = &replacementSuspension
-	replacementSnapshots := []core.ProcessSnapshot{replacementRoot}
+	replacementRoot.WaitPrompt = "after-cancel"
+	replacementMembers := []executorMemberFixture{replacementRoot}
 	if survivingBoundary {
-		replacementSnapshots = append(replacementSnapshots, originalSibling)
+		replacementMembers = append(replacementMembers, originalSibling)
 	}
-	replacementTree := core.ProcessSnapshotTree{
-		RootID:    replacementRoot.ID,
-		Snapshots: replacementSnapshots,
+	replacementTree := executorTreeFixture{
+		RootID:  replacementRoot.ID,
+		Members: replacementMembers,
 	}
 
 	outcome := run.OutcomeCanceled
@@ -1602,21 +1596,21 @@ func newWaitingCancellationSQLiteFixtureAt(
 	}
 }
 
-func processSnapshotByID(
-	tree core.ProcessSnapshotTree,
-	processID string,
-) (core.ProcessSnapshot, bool) {
-	for _, snapshot := range tree.Snapshots {
-		if snapshot.ID == processID {
-			return snapshot, true
+func executorMemberByID(
+	tree executorTreeFixture,
+	memberID string,
+) (executorMemberFixture, bool) {
+	for _, member := range tree.Members {
+		if member.ID == memberID {
+			return member, true
 		}
 	}
-	return core.ProcessSnapshot{}, false
+	return executorMemberFixture{}, false
 }
 
 func executorCheckpoint(
 	t *testing.T,
-	tree core.ProcessSnapshotTree,
+	tree executorTreeFixture,
 	checkpoint runs.ExecutorCheckpoint,
 ) runs.ExecutorCheckpoint {
 	t.Helper()
@@ -1632,14 +1626,27 @@ func executorCheckpoint(
 	return checkpoint
 }
 
-func restoredProcessTree(t *testing.T, checkpoint runs.ExecutorCheckpoint) core.ProcessSnapshotTree {
+func restoredExecutorTree(t *testing.T, checkpoint runs.ExecutorCheckpoint) executorTreeFixture {
 	t.Helper()
-	var tree core.ProcessSnapshotTree
+	var tree executorTreeFixture
 	if err := json.Unmarshal(checkpoint.Payload, &tree); err != nil {
-		t.Fatalf("decode executor process tree %q: %v", checkpoint.RootMemberID, err)
+		t.Fatalf("decode executor tree fixture %q: %v", checkpoint.RootMemberID, err)
 	}
-	if err := tree.Validate(); err != nil {
-		t.Fatalf("decode executor process tree: %v", err)
+	if tree.RootID == "" || len(tree.Members) == 0 {
+		t.Fatalf("decode executor tree fixture: invalid tree %+v", tree)
+	}
+	seen := make(map[string]struct{}, len(tree.Members))
+	for _, member := range tree.Members {
+		if member.ID == "" {
+			t.Fatalf("decode executor tree fixture: empty member in %+v", tree)
+		}
+		if _, duplicate := seen[member.ID]; duplicate {
+			t.Fatalf("decode executor tree fixture: duplicate member %q", member.ID)
+		}
+		seen[member.ID] = struct{}{}
+	}
+	if _, found := seen[tree.RootID]; !found {
+		t.Fatalf("decode executor tree fixture: root %q is absent", tree.RootID)
 	}
 	return tree
 }

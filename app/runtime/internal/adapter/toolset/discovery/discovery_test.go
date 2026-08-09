@@ -6,11 +6,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Tangerg/lynx/agent/toolloop"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/discovery"
 	"github.com/Tangerg/lynx/core/chat"
 	toolcontract "github.com/Tangerg/lynx/tool"
-	toolset "github.com/Tangerg/lynx/tools"
 )
 
 type mcpTool struct {
@@ -46,7 +44,8 @@ func catalog() []toolcontract.Tool {
 func call(t *testing.T, tool *discovery.Search, query string) string {
 	t.Helper()
 	args, _ := json.Marshal(map[string]any{"query": query})
-	out, err := tool.Call(context.Background(), string(args))
+	ctx := discovery.WithToolAdvertiser(context.Background(), func(...string) error { return nil })
+	out, err := tool.Call(ctx, string(args))
 	if err != nil {
 		t.Fatalf("Call(%q): %v", query, err)
 	}
@@ -127,7 +126,8 @@ func TestRoundRobinSpreadsAcrossServers(t *testing.T) {
 	}
 	tool := newSearch(t, many)
 	args, _ := json.Marshal(map[string]any{"query": "issue", "limit": 2})
-	out, err := tool.Call(context.Background(), string(args))
+	ctx := discovery.WithToolAdvertiser(context.Background(), func(...string) error { return nil })
+	out, err := tool.Call(ctx, string(args))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -183,95 +183,24 @@ func TestArgumentsAreStrictAndBounded(t *testing.T) {
 	}
 }
 
-// TestEndToEndPromotionMakesWithheldToolCallable runs search_tools through a real
-// tool loop: the withheld MCP tool is resolvable but unadvertised; after the
-// model searches, the promotion must advertise it so round 2 can call it.
-func TestEndToEndPromotionMakesWithheldToolCallable(t *testing.T) {
-	withheld := mcpTool{name: "linear_create_issue", desc: "Create a Linear issue", server: "linear", remote: "create_issue", result: "LIN-42 created"}
-	search := newSearch(t, []toolcontract.Tool{withheld})
-
-	registry, err := toolset.NewRegistry(search, withheld)
-	if err != nil {
-		t.Fatalf("NewRegistry: %v", err)
+func TestAdvertisementUsesExactFrozenToolNames(t *testing.T) {
+	search := newSearch(t, catalog())
+	var advertised []string
+	ctx := discovery.WithToolAdvertiser(context.Background(), func(names ...string) error {
+		advertised = append(advertised, names...)
+		return nil
+	})
+	if _, err := search.Call(ctx, `{"query":"select:github_open_pr,linear_list_issues"}`); err != nil {
+		t.Fatal(err)
 	}
-	// Manifest advertises ONLY search_tools; the withheld tool is resolvable but
-	// not advertised — exactly the resolver + turn projection.
-	request := &chat.Request{
-		Messages: []chat.Message{chat.NewUserMessage(chat.NewTextPart("file a linear issue"))},
-		Tools:    []chat.ToolDefinition{search.Definition()},
-	}
-
-	model := &scriptedModel{call: func(round int, req *chat.Request) (*chat.Response, error) {
-		switch round {
-		case 1:
-			args, _ := json.Marshal(map[string]any{"query": "create issue"})
-			return toolResponse(chat.ToolCall{ID: "c1", Name: "search_tools", Arguments: string(args)}), nil
-		case 2:
-			if !advertises(req.Tools, "linear_create_issue") {
-				t.Fatalf("round 2 manifest lacks promoted tool: %v", names(req.Tools))
-			}
-			return toolResponse(chat.ToolCall{ID: "c2", Name: "linear_create_issue", Arguments: `{}`}), nil
-		default:
-			return textResponse("done"), nil
-		}
-	}}
-
-	runner, err := toolloop.NewRunner(model, toolloop.Config{})
-	if err != nil {
-		t.Fatalf("NewRunner: %v", err)
-	}
-	var executed bool
-	for event, err := range runner.Run(context.Background(), request, registry) {
-		if err != nil {
-			t.Fatalf("run: %v", err)
-		}
-		if event.Kind == toolloop.EventToolResult && event.ToolResult != nil &&
-			event.ToolResult.Name == "linear_create_issue" && event.ToolResult.Result == "LIN-42 created" {
-			executed = true
-		}
-	}
-	if !executed {
-		t.Fatal("withheld tool was never executed after search+promotion")
+	if strings.Join(advertised, ",") != "github_open_pr,linear_list_issues" {
+		t.Fatalf("advertised = %v", advertised)
 	}
 }
 
-type scriptedModel struct {
-	calls int
-	call  func(int, *chat.Request) (*chat.Response, error)
-}
-
-func (m *scriptedModel) Call(_ context.Context, request *chat.Request) (*chat.Response, error) {
-	m.calls++
-	return m.call(m.calls, request)
-}
-
-func toolResponse(calls ...chat.ToolCall) *chat.Response {
-	parts := make([]chat.Part, len(calls))
-	for i := range calls {
-		parts[i] = chat.NewToolCallPart(calls[i])
+func TestAdvertisementFailsClosedWithoutExecutionBinding(t *testing.T) {
+	search := newSearch(t, catalog())
+	if _, err := search.Call(context.Background(), `{"query":"create issue"}`); err == nil {
+		t.Fatal("search_tools claimed a loaded Tool without an execution advertiser")
 	}
-	msg := chat.NewAssistantMessage(parts...)
-	return &chat.Response{Choices: []chat.Choice{{Index: 0, Message: &msg, FinishReason: chat.FinishReasonToolCalls}}}
-}
-
-func textResponse(text string) *chat.Response {
-	msg := chat.NewAssistantMessage(chat.NewTextPart(text))
-	return &chat.Response{Choices: []chat.Choice{{Index: 0, Message: &msg, FinishReason: chat.FinishReasonStop}}}
-}
-
-func advertises(defs []chat.ToolDefinition, name string) bool {
-	for _, d := range defs {
-		if d.Name == name {
-			return true
-		}
-	}
-	return false
-}
-
-func names(defs []chat.ToolDefinition) []string {
-	out := make([]string, len(defs))
-	for i, d := range defs {
-		out[i] = d.Name
-	}
-	return out
 }

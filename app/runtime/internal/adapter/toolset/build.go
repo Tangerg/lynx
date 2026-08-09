@@ -155,8 +155,8 @@ func Build(ctx context.Context, config BuildConfig) (_ Built, err error) {
 		interrupt = runs.InterruptUnavailable
 	}
 
-	// ask_user is a build-time tool shared by root and delegated roles. A child
-	// question parks through the same nested suspension tree as child approval.
+	// ask_user is a build-time Tool shared by root and delegated roles. A child
+	// question waits at the same durable tree boundary as child approval.
 	askUserTool, err := askuser.New(interrupt)
 	if err != nil {
 		return Built{}, fmt.Errorf("toolset: build ask_user: %w", err)

@@ -6,8 +6,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/executionctx"
-	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/toolresult"
 )
 
@@ -25,20 +23,18 @@ func (f *fakeOffloader) Stage(_ context.Context, stage toolresult.Stage) error {
 	return f.err
 }
 
-func sessionCtx(session string) context.Context {
-	return executionctx.WithScope(context.Background(), runs.ExecutionScope{SessionID: session})
-}
-
-func newObservationWith(store toolResultOffloader, threshold int) *toolObservation {
-	return newToolObservation(noopObserver{}, store, threshold, testToolResultReaderName)
+func evictForTest(store toolResultOffloader, threshold int, sessionID, toolName, body string) (string, *toolresult.Ref) {
+	return evictToolResult(
+		context.Background(), store, threshold, testToolResultReaderName,
+		sessionID, toolName, body,
+	)
 }
 
 func TestEvict_OversizedIsOffloadedWithRetrievablePreview(t *testing.T) {
 	store := new(fakeOffloader)
-	obs := newObservationWith(store, 100)
 	body := strings.Repeat("x", 500)
 
-	got, ref := obs.evict(sessionCtx("sess-1"), "shell", body)
+	got, ref := evictForTest(store, 100, "sess-1", "shell", body)
 	if store.calls != 1 {
 		t.Fatalf("Stage called %d times, want 1", store.calls)
 	}
@@ -61,18 +57,16 @@ func TestEvict_OversizedIsOffloadedWithRetrievablePreview(t *testing.T) {
 
 func TestEvict_SmallResultUntouched(t *testing.T) {
 	store := &fakeOffloader{}
-	obs := newObservationWith(store, 100)
-	if got, ref := obs.evict(sessionCtx("s"), "shell", "small"); got != "small" || ref != nil || store.calls != 0 {
+	if got, ref := evictForTest(store, 100, "s", "shell", "small"); got != "small" || ref != nil || store.calls != 0 {
 		t.Fatalf("small result: got %q, calls %d — want (small, 0)", got, store.calls)
 	}
 }
 
 func TestEvict_UnprofitablePreviewKeepsBodyWithoutStaging(t *testing.T) {
 	store := new(fakeOffloader)
-	obs := newObservationWith(store, 1)
 	body := "xx"
 
-	got, ref := obs.evict(sessionCtx("sess-1"), "shell", body)
+	got, ref := evictForTest(store, 1, "sess-1", "shell", body)
 	if got != body || ref != nil {
 		t.Fatalf("unprofitable eviction = (%q, %+v), want original body", got, ref)
 	}
@@ -83,39 +77,36 @@ func TestEvict_UnprofitablePreviewKeepsBodyWithoutStaging(t *testing.T) {
 
 func TestEvict_ReadBackToolExcluded(t *testing.T) {
 	store := new(fakeOffloader)
-	obs := newObservationWith(store, 10)
 	body := strings.Repeat("x", 500)
 	// Evicting the read-back tool's own output would loop.
-	if got, ref := obs.evict(sessionCtx("s"), testToolResultReaderName, body); got != body || ref != nil || store.calls != 0 {
+	if got, ref := evictForTest(store, 10, "s", testToolResultReaderName, body); got != body || ref != nil || store.calls != 0 {
 		t.Fatalf("read-back tool must not be offloaded (calls %d)", store.calls)
 	}
 }
 
 func TestEvict_NoSessionKeepsFullBody(t *testing.T) {
 	store := new(fakeOffloader)
-	obs := newObservationWith(store, 10)
 	body := strings.Repeat("x", 500)
 	// Bare ctx → no session → nothing to scope/retrieve the blob under.
-	if got, ref := obs.evict(context.Background(), "shell", body); got != body || ref != nil || store.calls != 0 {
+	if got, ref := evictForTest(store, 10, "", "shell", body); got != body || ref != nil || store.calls != 0 {
 		t.Fatalf("no session must keep the full body (calls %d)", store.calls)
 	}
 }
 
 func TestEvict_StageFailureDegradesToFullBody(t *testing.T) {
 	store := &fakeOffloader{err: errors.New("db down")}
-	obs := newObservationWith(store, 10)
 	body := strings.Repeat("x", 500)
-	if got, ref := obs.evict(sessionCtx("s"), "shell", body); got != body || ref != nil {
+	if got, ref := evictForTest(store, 10, "s", "shell", body); got != body || ref != nil {
 		t.Fatal("a failed offload must degrade to the full body, not a broken preview")
 	}
 }
 
 func TestEvict_DisabledWhenNoStoreOrThreshold(t *testing.T) {
 	body := strings.Repeat("x", 500)
-	if got, ref := newObservationWith(nil, 100).evict(sessionCtx("s"), "shell", body); got != body || ref != nil {
+	if got, ref := evictForTest(nil, 100, "s", "shell", body); got != body || ref != nil {
 		t.Error("nil store must disable eviction")
 	}
-	if got, ref := newObservationWith(&fakeOffloader{}, 0).evict(sessionCtx("s"), "shell", body); got != body || ref != nil {
+	if got, ref := evictForTest(&fakeOffloader{}, 0, "s", "shell", body); got != body || ref != nil {
 		t.Error("zero threshold must disable eviction")
 	}
 }

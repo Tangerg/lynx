@@ -268,7 +268,11 @@ type interruptCommit struct {
 // requestCancel linearizes cancellation with child cancellation and interrupt
 // publication. Once it returns successfully, no child cancellation or new
 // interrupt can own this tree.
-func (h *handle) requestCancel(ctx context.Context, reason string) (interruptCommitted bool, err error) {
+func (h *handle) requestCancel(
+	ctx context.Context,
+	reason string,
+	requestExecutor func(context.Context) error,
+) (interruptCommitted bool, err error) {
 	if h == nil {
 		return false, nil
 	}
@@ -284,11 +288,15 @@ func (h *handle) requestCancel(ctx context.Context, reason string) (interruptCom
 	}
 	h.cancelRequested = true
 	h.cancelReason = reason
-	cancelRun := h.cancel
 	inflight := h.interrupt.active
 	h.mu.Unlock()
-	if cancelRun != nil {
-		cancelRun()
+	if requestExecutor == nil {
+		h.abortRootCancellation(reason)
+		return false, errors.New("runs: root executor cancellation request is unavailable")
+	}
+	if err := requestExecutor(ctx); err != nil {
+		h.abortRootCancellation(reason)
+		return false, err
 	}
 	if inflight != nil {
 		inflight.cancel()
@@ -304,6 +312,15 @@ func (h *handle) requestCancel(ctx context.Context, reason string) (interruptCom
 	committed := h.interrupt.committed
 	h.mu.Unlock()
 	return committed, nil
+}
+
+func (h *handle) abortRootCancellation(reason string) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.cancelRequested && h.cancelReason == reason {
+		h.cancelRequested = false
+		h.cancelReason = ""
+	}
 }
 
 // commitInterrupt reserves the interrupt boundary, runs its context-bounded

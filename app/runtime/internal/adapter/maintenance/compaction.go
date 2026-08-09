@@ -6,7 +6,7 @@ import (
 
 	"github.com/Tangerg/lynx/core/chat"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/turn"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 )
 
 // compactionStore is the worker's narrow history view. Replace must be atomic:
@@ -103,7 +103,7 @@ func (c *Compactor) tokenTrigger(contextWindow int) int {
 // only if that leaves the footprint over budget is the older slice summarized by
 // the LLM and the store rewritten as [summary, recent...]. A trim that suffices
 // on its own rewrites history silently and reports no boundary (Compacted stays
-// false) — it drops no messages. The returned [turn.CompactionResult] reports
+// false) — it drops no messages. The returned [agentexec.CompactionResult] reports
 // whether the LLM summary fired and the before/after message counts so callers
 // can chain follow-on work (e.g. extraction) and surface an observable boundary
 // event.
@@ -115,33 +115,33 @@ func (c *Compactor) tokenTrigger(contextWindow int) int {
 // (no middleware), so it does NOT enter the chat history middleware
 // — otherwise the summarisation request itself would be appended
 // to the history and trigger another compaction round.
-func (c *Compactor) MaybeCompact(ctx context.Context, sessionID string, contextWindow int, preCompact func(context.Context) bool) (turn.CompactionResult, error) {
+func (c *Compactor) MaybeCompact(ctx context.Context, sessionID string, contextWindow int, preCompact func(context.Context) bool) (agentexec.CompactionResult, error) {
 	if c == nil || sessionID == "" {
-		return turn.CompactionResult{}, nil
+		return agentexec.CompactionResult{}, nil
 	}
 	maxTokens := c.tokenTrigger(contextWindow)
 	msgs, err := c.store.Read(ctx, sessionID)
 	if err != nil {
-		return turn.CompactionResult{}, fmt.Errorf("compactor: read: %w", err)
+		return agentexec.CompactionResult{}, fmt.Errorf("compactor: read: %w", err)
 	}
 	plan := c.planCompaction(msgs, maxTokens)
 	if plan.action == noCompaction {
-		return turn.CompactionResult{}, nil
+		return agentexec.CompactionResult{}, nil
 	}
 	if preCompact != nil && !preCompact(ctx) {
-		return turn.CompactionResult{}, nil
+		return agentexec.CompactionResult{}, nil
 	}
 
 	if plan.action == trimCompaction {
 		if err := c.store.Replace(ctx, sessionID, plan.trimmed...); err != nil {
-			return turn.CompactionResult{}, fmt.Errorf("compactor: replace trimmed: %w", err)
+			return agentexec.CompactionResult{}, fmt.Errorf("compactor: replace trimmed: %w", err)
 		}
-		return turn.CompactionResult{}, nil
+		return agentexec.CompactionResult{}, nil
 	}
 
 	summary, err := c.summarize(ctx, plan.older)
 	if err != nil {
-		return turn.CompactionResult{}, fmt.Errorf("compactor: summarize: %w", err)
+		return agentexec.CompactionResult{}, fmt.Errorf("compactor: summarize: %w", err)
 	}
 
 	rewritten := make([]chat.Message, 0, 2+len(plan.recent))
@@ -160,9 +160,9 @@ func (c *Compactor) MaybeCompact(ctx context.Context, sessionID string, contextW
 	// a failed rewrite, so a crash cannot
 	// leave the conversation cleared-but-not-rewritten (losing `recent` too).
 	if err := c.store.Replace(ctx, sessionID, rewritten...); err != nil {
-		return turn.CompactionResult{}, fmt.Errorf("compactor: replace: %w", err)
+		return agentexec.CompactionResult{}, fmt.Errorf("compactor: replace: %w", err)
 	}
-	return turn.CompactionResult{
+	return agentexec.CompactionResult{
 		Compacted:      true,
 		MessagesBefore: plan.messagesBefore,
 		MessagesAfter:  len(rewritten),

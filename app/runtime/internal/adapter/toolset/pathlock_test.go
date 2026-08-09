@@ -8,7 +8,6 @@ import (
 
 	toolcontract "github.com/Tangerg/lynx/tool"
 
-	"github.com/Tangerg/lynx/agent/toolloop"
 	"github.com/Tangerg/lynx/tools/fs"
 )
 
@@ -64,7 +63,7 @@ func TestPathLockUsesPhysicalIdentityForSymlinkAlias(t *testing.T) {
 func TestPathLockKeepsMultiFilePatchExclusive(t *testing.T) {
 	cwd := t.TempDir()
 	tool := withPathLock(fs.NewApplyPatchTool(fs.NewLocalExecutor(cwd)), newPathLocker(), cwd)
-	policy, ok, err := toolcontract.Capability[toolloop.ConcurrentTool](tool)
+	policy, ok, err := toolcontract.Capability[concurrentTool](tool)
 	if err != nil || !ok {
 		t.Fatal("path-locked apply_patch does not expose concurrency policy")
 	}

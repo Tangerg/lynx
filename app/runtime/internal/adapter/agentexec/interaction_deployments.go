@@ -13,6 +13,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
 	domaintool "github.com/Tangerg/lynx/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/lynx/chatclient"
+	corechat "github.com/Tangerg/lynx/core/chat"
 )
 
 type interactionDeploymentSet struct {
@@ -70,6 +71,10 @@ func (executor *InteractionExecutor) buildInteractionDeployments(
 	if start.ChildRunAdmissionEnabled {
 		maxDepth = delegationConfig.treeLimits.MaxDepth
 		set.treeLimits = delegationConfig.treeLimits
+	}
+	instructions, err := interactionInstructionContext(start.WorkingContext)
+	if err != nil {
+		return nil, err
 	}
 	rootManifest, err := executor.resolveInteractionManifest(ctx, domaintool.GroupRoot)
 	if err != nil {
@@ -134,7 +139,7 @@ func (executor *InteractionExecutor) buildInteractionDeployments(
 		var deploymentDefinition agent.Definition = definition
 		if depth > 0 {
 			deploymentDefinition, err = newDelegatedInteractionDefinition(
-				"lyra.runtime.delegated_task.depth"+strconv.Itoa(depth), definition,
+				"lyra.runtime.delegated_task.depth"+strconv.Itoa(depth), definition, instructions,
 			)
 			if err != nil {
 				return nil, err
@@ -146,6 +151,7 @@ func (executor *InteractionExecutor) buildInteractionDeployments(
 		}
 		configuration, err := executor.interactionConfiguration(
 			session, start, maxModelCalls, manifest, role, uint32(depth), delegateRef, delegateBudget,
+			instructions,
 		)
 		if err != nil {
 			return nil, err
@@ -193,4 +199,18 @@ func (executor *InteractionExecutor) resolveInteractionManifest(
 		return toolset.Manifest{}, err
 	}
 	return manifest, nil
+}
+
+func interactionInstructionContext(messages []corechat.Message) ([]corechat.Message, error) {
+	var instructions []corechat.Message
+	for index := range messages {
+		if messages[index].Role != corechat.RoleSystem {
+			break
+		}
+		if err := messages[index].Validate(); err != nil {
+			return nil, fmt.Errorf("agentexec: invalid Interaction instruction[%d]: %w", index, err)
+		}
+		instructions = append(instructions, messages[index].Clone())
+	}
+	return instructions, nil
 }

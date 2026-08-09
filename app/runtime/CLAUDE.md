@@ -22,14 +22,12 @@
 
 ## 当前状态
 
-目标设计已经建立，生产迁移尚未开始。当前代码仍消费旧 `agent`，迁移前实现细节可参考 [`doc/EXECUTION_CENTERED_ARCHITECTURE.md`](doc/EXECUTION_CENTERED_ARCHITECTURE.md)，但它不是新实现兼容规范。
-
-当前轮次若只授权文档，不得提前修改生产代码。实施必须由后续 goal 按 Execution Plan 逐批启动。
+P8 已完成生产执行纵切：Bootstrap 只装配 Agent2 原生 Interaction，Runtime 源码、测试与模块依赖中的旧 `agent` consumer 已归零。当前进入 P9 外环结构收敛；历史实现细节可参考 [`doc/EXECUTION_CENTERED_ARCHITECTURE.md`](doc/EXECUTION_CENTERED_ARCHITECTURE.md)，但它不是兼容规范。
 
 ## 工作纪律
 
 - 按 Execution Plan 当前授权阶段工作，不顺手扩大到前端、TUI、CLI 或无关模块；
-- 每批完成完整语义纵切，不提交 stub、TODO、compat path 或已知债；已经接管的旧 owner 同批删除，P4–P7 harness 仍被生产使用的旧执行 owner 按 ADR-RT-035 统一在 P8 原子切换时删除；
+- 每批完成完整语义纵切，不提交 stub、TODO、compat path 或已知债；已经接管的旧 owner 同批删除；
 - 旧 `agent` 和迁移前 Runtime 只作为行为证据，不作为新 API 兼容合同；
 - 不修改 Agent2 private state 或建立第二 execution lifecycle；发现真实 Framework 缺口先走 Agent2 ADR/baseline；
 - 改名和 breaking shape 同步代码、GoDoc、schema、fixtures、生成物和 owner 文档，不保留兼容层；

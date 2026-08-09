@@ -210,19 +210,14 @@ func TestTransparentAliasesStayAtTheTransportBoundary(t *testing.T) {
 
 // TestRemovedStutteringVocabularyDoesNotReturn records the package-qualified
 // names retired by the runtime vocabulary cleanup. Each replacement names the
-// role once (turn.Handle, dispatch.Router, sessions.Activity, config.Settings)
-// or corrects the concept (the turn Controller is not the JSON-RPC Router).
+// role once (dispatch.Router, sessions.Activity, config.Settings) or corrects
+// the underlying concept.
 // Exact names keep this guard semantic instead of applying a brittle generic
 // prefix rule to wire types such as protocol.ProtocolRange.
 func TestRemovedStutteringVocabularyDoesNotReturn(t *testing.T) {
 	root := moduleRoot(t)
 	reason := "use the package's canonical, non-stuttering vocabulary"
 	for path, names := range map[string][]string{
-		filepath.Join(root, "internal", "adapter", "agentexec", "turn"): {
-			"TurnHandle", "memoryDispatcher", "ErrDispatcherClosed", "engineDep",
-			"RunMaintenance", "RunMaintenanceInput", "RunMaintenanceResult", "ToolSemantics",
-			"clientResolver", "ResolveClient",
-		},
 		filepath.Join(root, "internal", "adapter", "agentexec"):     {"Workdir", "MemorySearcher"},
 		filepath.Join(root, "internal", "adapter", "modelclient"):   {"ClientResolver", "NewClientResolver", "ResolveClient"},
 		filepath.Join(root, "internal", "adapter", "pricing"):       {"Catalog"},
@@ -467,13 +462,13 @@ func TestApplicationStaysFrameworkFree(t *testing.T) {
 		}, frameworkImports...))
 }
 
-// TestApplicationDoesNotInterpretAgentContinuationState preserves the consumer
-// boundary: Application stores the Agent snapshot as an opaque value, while only the
-// Agent runtime may decode Suspension.FrameworkState.
-func TestApplicationDoesNotInterpretAgentContinuationState(t *testing.T) {
+// TestApplicationDoesNotInterpretExecutorContinuationState preserves the
+// consumer boundary: Application stores executor snapshots as opaque values;
+// only the execution adapter may decode framework state.
+func TestApplicationDoesNotInterpretExecutorContinuationState(t *testing.T) {
 	root := moduleRoot(t)
 	fset := token.NewFileSet()
-	walkErr := filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
+	walkErr := filepath.WalkDir(filepath.Join(root, "internal", "application"), func(path string, entry fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -493,11 +488,11 @@ func TestApplicationDoesNotInterpretAgentContinuationState(t *testing.T) {
 		}
 		ast.Inspect(file, func(node ast.Node) bool {
 			identifier, ok := node.(*ast.Ident)
-			if !ok || identifier.Name != "FrameworkState" {
+			if !ok || (identifier.Name != "FrameworkState" && identifier.Name != "TreeSnapshot") {
 				return true
 			}
 			relativePath, _ := filepath.Rel(root, path)
-			t.Errorf("application production code interprets Agent Suspension.FrameworkState: %s", relativePath)
+			t.Errorf("application production code interprets executor continuation state: %s", relativePath)
 			return true
 		})
 		return nil
@@ -1562,46 +1557,6 @@ func TestRunLifecycleStateStaysConcrete(t *testing.T) {
 		if !found {
 			t.Fatalf("%s: type %s not found", check.path, check.name)
 		}
-	}
-}
-
-// TestTurnControlHasNoProducerDispatcherPort keeps the removed fat dispatcher
-// interface from returning. The concrete turn implementation has consumers,
-// and each consumer defines only the slice it needs.
-func TestTurnControlHasNoProducerDispatcherPort(t *testing.T) {
-	root := moduleRoot(t)
-	dir := filepath.Join(root, "internal", "adapter", "agentexec", "turn")
-	walkErr := filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
-			return nil
-		}
-		f, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
-		if err != nil {
-			return err
-		}
-		for _, decl := range f.Decls {
-			general, ok := decl.(*ast.GenDecl)
-			if !ok || general.Tok != token.TYPE {
-				continue
-			}
-			for _, spec := range general.Specs {
-				named, ok := spec.(*ast.TypeSpec)
-				if !ok || named.Name.Name != "Dispatcher" {
-					continue
-				}
-				if _, interfaceType := named.Type.(*ast.InterfaceType); interfaceType {
-					rel, _ := filepath.Rel(root, path)
-					t.Errorf("%s: producer-owned turn.Dispatcher interface must not return", rel)
-				}
-			}
-		}
-		return nil
-	})
-	if walkErr != nil {
-		t.Fatalf("walk turn adapter: %v", walkErr)
 	}
 }
 

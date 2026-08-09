@@ -4,7 +4,6 @@ import (
 	"context"
 	"testing"
 
-	"github.com/Tangerg/lynx/agent/toolloop"
 	toolcontract "github.com/Tangerg/lynx/tool"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/codeintel"
@@ -18,15 +17,11 @@ func TestResolverRegistersExactlyOneMutationVocabulary(t *testing.T) {
 		t.Fatalf("Build: %v", err)
 	}
 	closeBuiltToolset(t, built)
-	group, ok, err := built.Resolver.Resolve(t.Context(), domaintool.GroupRoot)
-	if err != nil || !ok {
-		t.Fatalf("Resolve = (%v, %v)", ok, err)
-	}
-	resolved, err := group.Tools(t.Context())
+	manifest, err := built.Resolver.Manifest(t.Context(), domaintool.GroupRoot)
 	if err != nil {
-		t.Fatalf("Tools: %v", err)
+		t.Fatalf("Manifest: %v", err)
 	}
-	names := definitionNames(resolved)
+	names := definitionNames(manifestTools(manifest))
 	if !names[catalog.ApplyPatch] || names["edit"] || names["write"] {
 		t.Fatalf("mutation vocabulary = %v, want apply_patch only", names)
 	}
@@ -73,23 +68,12 @@ func TestResolverInitialManifestSeparatesDirectAndDeferredCapabilities(t *testin
 	resolver.SetMCPTools([]toolcontract.Tool{
 		mcpToolStub{name: "linear_create_issue", server: "linear", remote: "create_issue"},
 	})
-	group, ok, err := resolver.Resolve(t.Context(), domaintool.GroupRoot)
-	if err != nil || !ok {
-		t.Fatalf("Resolve = (%v, %v)", ok, err)
-	}
-	resolved, err := group.Tools(t.Context())
+	manifest, err := resolver.Manifest(t.Context(), domaintool.GroupRoot)
 	if err != nil {
-		t.Fatalf("Tools: %v", err)
+		t.Fatalf("Manifest: %v", err)
 	}
-	registered := definitionNames(resolved)
-	manifest, err := toolloop.InitialManifest(resolved)
-	if err != nil {
-		t.Fatalf("InitialManifest: %v", err)
-	}
-	advertised := make(map[string]bool, len(manifest))
-	for _, definition := range manifest {
-		advertised[definition.Name] = true
-	}
+	registered := definitionNames(manifestTools(manifest))
+	advertised := definitionNames(manifest.Visible)
 	for _, name := range []string{
 		catalog.Read, catalog.Glob, catalog.Grep, catalog.ApplyPatch, catalog.Shell, catalog.AskUser,
 		catalog.EnterPlanMode, catalog.ExitPlanMode, catalog.SetPlan, catalog.ReadToolResult,
@@ -111,6 +95,10 @@ func TestResolverInitialManifestSeparatesDirectAndDeferredCapabilities(t *testin
 			t.Errorf("deferred tool %q leaked into initial manifest: %v", name, advertised)
 		}
 	}
+}
+
+func manifestTools(manifest Manifest) []toolcontract.Tool {
+	return append(append([]toolcontract.Tool(nil), manifest.Visible...), manifest.Deferred...)
 }
 
 func TestBuildRequiresExplicitProcessPaths(t *testing.T) {

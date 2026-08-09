@@ -232,12 +232,12 @@
 - 决策：Application 先原子提交 incomplete 诊断、RunLost、checkpoint invalidation 和 cleanup intent，成功后才 Kill/release tree；事务失败则让 Process 保持 Framework 的 unknown wait 并重试。unknown 与尚未终结的 cancel/deadline 竞争时 RunLost 优先，控制意图保留为诊断；已提交 terminal 仍 first-wins。
 - 后果：当前无需泄露 `ResolveEffect`。未来人工裁决必须由 Strategy owner 的 typed resolution contract 和独立产品 ADR 驱动。
 
-## ADR-RT-038：Application executor port 由纵切消费者逐步发现，P8 才冻结
+## ADR-RT-038：Application executor port 由纵切消费者逐步发现，P8 冻结
 
-- 状态：已接受。
+- 状态：已接受，P8 已完成。
 - 背景：P3 尚未有 Agent2 真实消费者，若一次设计 Start/Wait/Steer/Subtree 全部方法，只会把现有宽接口换一套名字，违背 consumer-owned interface。
 - 决策：P3 只建立 root start/observe/cancel 所需的最小候选；P4 验证并修订 root shape，P6/P7 分别在 waiting/restore 与 child/subtree 消费者出现时增加准确能力。P8 原子生产切换前完成整体命名、参数、error 和 GoDoc 审计并冻结。
-- 后果：P4–P7 允许有意的 breaking 演进，但每个阶段的当期能力必须完整、受真实 harness 消费且无 placeholder。Contract Baseline 在 P8 前只冻结禁止泄露的语义边界，不冻结精确方法集。
+- 后果：P4–P7 允许的 breaking 演进已经结束。生产端口以 P8 真实 Bootstrap consumer 为准；后续只有新的独立用例和 superseding ADR 才能扩展，不能重新制造宽 Framework facade。
 
 ## ADR-RT-039：初版不启用单 Process prepared-step durability acknowledgment
 
@@ -304,12 +304,26 @@
 - 背景：model/tool 外部调用需要 durable started/terminal 边界，但 Tool 并发完成顺序不是模型声明顺序。若 Tool start 预先插入 Transcript，就会用外部调度时序抢占用户可见 Item 顺序；若每个完成结果独立写入，则后完成的前序调用失败时会留下无法证明因果完整性的部分批次。
 - 决策：SQLite model/tool invocation journal 只记录 operational attempt state，不复制 final assistant message、Tool result 或 Run accounting。Model final + cumulative usage/pricing + Run progress 在一个 Application write-set 中提交。Tool start 只进入 invocation journal；Tool final Item 按 `(modelCallSequence, toolCallIndex)` 排序，Run pump 暂存乱序 completion，只提交最长连续前缀并一起完成该前缀所有 receipt。
 - 决策：canonical Tool batch 任一写失败，speculative completion 全部丢弃，started journal 保留；outer Dispatcher 将整个 Effect 标为 unknown，Application 原子提交 incomplete Items 与 `RunLost`。稳定 Runtime call identity、provider source-call identity和模型位置分别保存，不能互相解析或替代。
-- 后果：Transcript insertion order 重新只表达产品语义；并发 Tool 不需要全局串行化。SQLite shape 直接提升到 epoch 61，无 migration、dual journal 或兼容列；P8 切生产前仍可按真实 consumer 修订内部 port 名称，但不能重新合并 operational 与 semantic truth。
+- 后果：Transcript insertion order 重新只表达产品语义；并发 Tool 不需要全局串行化。SQLite shape 直接提升到 epoch 61，无 migration、dual journal 或兼容列；P8 已冻结相关 consumer port，不能重新合并 operational 与 semantic truth。
 
 ## ADR-RT-048：Native waiting 只经 Interaction pending-input ACL，不兼容解释旧 suspension
 
 - 状态：已接受，P6 已实施。
 - 背景：产品 ask-user、approval 和 plan-exit 共享 `runs.Interrupt` 语义，但旧生产 owner 使用 old Agent suspension。若 native Interaction 复用旧 package、双读 old private JSON，或让 Toolset import Agent2，就会把迁移兼容性变成新的永久边界。
-- 决策：framework-neutral `interruptcodec` 只编码产品 prompt/resolution；`interactioninput` 是唯一 Agent2 ACL，负责 capability freeze、Tool continuation state digest、public pending input 和 response Signal。旧 `suspension` adapter 只复用 product codec 并保留在 P8 精确删除台账，新 Interaction files 对旧 Agent import 为零；Toolset 通过 `runs.InterruptFunc` 注入 native capability，保持对两个 Framework 都零依赖。
+- 决策：framework-neutral `interruptcodec` 只编码产品 prompt/resolution；`interactioninput` 是唯一 Agent2 ACL，负责 capability freeze、Tool continuation state digest、public pending input 和 response Signal。旧 private suspension adapter 已在 P8 删除；Toolset 通过 `runs.InterruptFunc` 注入 native capability，保持对 Framework 零依赖。
 - 决策：Interactive approval 首次进入时冻结 effective arguments、policy prompt 与 logical call identity；restore 直接解析该 prompt 并 resolve，不能重跑 pre-hook/authorization plan。Interaction 自己的 deferred advertisement 留在 TreeSnapshot 内，Runtime 不建第二份 advertised-tool 状态。
-- 后果：真实 `ask_user`、approval restore、deferred advertisement、corrupt prompt/state 与 capability mismatch 可分别测试；P8 删除旧 owner 时只换 composition owner，不需要迁移产品 Interrupt 或 Tool schema。
+- 后果：真实 `ask_user`、approval restore、deferred advertisement、corrupt prompt/state 与 capability mismatch 可分别测试；生产切换未迁移产品 Interrupt 或 Tool schema。
+
+## ADR-RT-049：取消是控制请求，观察与资源释放保持分离
+
+- 状态：已接受，P8 已实施。
+- 背景：若用户 cancel 直接取消 Run pump 的 observation context，Application 会在 Agent2 到达安全边界并给出确定 Termination 前失去唯一事实流，也会把请求方 context 生命周期误当成执行终态。
+- 决策：Application 先 durable 记录 cancel intent，再调用 `RunningRootCancellationRequester` 请求 Framework 停止；Run pump 保持附着，直到 terminal/unknown write-set 成功提交。`ExecutionReleaser` 只在确定终态后释放 tree，不决定产品 outcome。
+- 后果：cancel 生效延迟等于当前 Strategy safe step；取消、deadline、unknown 与 terminal 继续由 first-wins matrix 裁决，请求 context 超时只结束调用等待，不静默杀死产品 Run。
+
+## ADR-RT-050：Tool 可见性保持 Framework-neutral，广告能力在执行边界注入
+
+- 状态：已接受，P8 已实施。
+- 背景：让通用 Toolset 返回 Agent2 ToolGroup、持有 delegate Tool，或 fallback 到某个 ToolLoop，会把执行策略和 private lifecycle 扩散进产品工具目录，并形成第二份 visible/deferred authority。
+- 决策：`toolset.Resolver` 只返回 framework-neutral `Manifest{Visible, Deferred}`；需要动态广告的 Tool 只依赖最小 `ToolAdvertiser` capability。agentexec 在真实 Interaction invocation context 中绑定 `AdvertiseTools`，无绑定时 fail closed，不保留 legacy fallback。
+- 后果：Tool schema、authorization 与 visibility 仍由 Runtime 单一 owner 管理；Agent2 只在冻结的 Deployment 内执行/广告工具，Toolset 对 Agent2 零 import。

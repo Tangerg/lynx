@@ -4,8 +4,7 @@ go 1.26.5
 
 require (
 	github.com/Tangerg/lynx/a2a v0.0.0-20260803122848-6ade352dda10
-	github.com/Tangerg/lynx/agent v0.0.0-20260805123519-9d5c18a99c39
-	github.com/Tangerg/lynx/agent2 v0.0.0-20260808143949-6e7a1e85dc68
+	github.com/Tangerg/lynx/agent2 v0.0.0-20260809020332-1225c9752d4f
 	github.com/Tangerg/lynx/mcp v0.0.0-20260803122848-6ade352dda10
 	github.com/Tangerg/lynx/models v0.0.0-20260803122848-6ade352dda10
 	github.com/Tangerg/lynx/models/google v0.0.0-20260803122848-6ade352dda10

@@ -3,23 +3,21 @@
 // the initial manifest. The withheld
 // tools stay resolvable in the Run's registry but are not advertised, so the
 // prompt does not carry every deferred JSON schema every round. The model
-// calls search_tools to find the ones it needs; each match is promoted into the
-// advertised toolset for the rest of the Run (via [toolloop.PromoteTools]) so it
-// becomes directly callable on the next round.
-//
-// The generic mid-loop promotion mechanism lives in agent/toolloop.
+// calls search_tools to find the ones it needs; each match is staged through a
+// strategy-supplied [ToolAdvertiser] and becomes callable on the next safe model
+// boundary.
 package discovery
 
 import (
 	"cmp"
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
 
 	toolcontract "github.com/Tangerg/lynx/tool"
 
-	"github.com/Tangerg/lynx/agent/toolloop"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/catalog"
 	"github.com/Tangerg/lynx/core/chat"
 )
@@ -51,20 +49,20 @@ type mcpToolIdentity interface {
 	MCPToolIdentity() (sourceName, remoteName string)
 }
 
-type advertiserContextKey struct{}
+type toolAdvertiserContextKey struct{}
 
-// Advertiser stages exact deferred Tool names for later model visibility. It
+// ToolAdvertiser stages exact deferred Tool names for later model visibility. It
 // changes visibility only; the Resolver has already frozen executable authority.
-type Advertiser func(names ...string) error
+type ToolAdvertiser func(names ...string) error
 
-// WithAdvertiser binds the execution strategy's visibility callback to one
+// WithToolAdvertiser binds the execution strategy's visibility callback to one
 // Tool invocation. Toolset remains framework-neutral: the callback decides how
 // a successful discovery result is committed by that strategy.
-func WithAdvertiser(ctx context.Context, advertiser Advertiser) context.Context {
+func WithToolAdvertiser(ctx context.Context, advertiser ToolAdvertiser) context.Context {
 	if advertiser == nil {
 		return ctx
 	}
-	return context.WithValue(ctx, advertiserContextKey{}, advertiser)
+	return context.WithValue(ctx, toolAdvertiserContextKey{}, advertiser)
 }
 
 // Search is the search_tools meta-tool over a fixed set of withheld tools. It is
@@ -124,11 +122,8 @@ func New(withheld []toolcontract.Tool) (*Search, error) {
 	return t, nil
 }
 
-// DeferredToolNames implements [toolloop.ToolDeferrer]: the framework's manifest
-// projection excludes these from the initial advertised toolset while keeping
-// them resolvable, so this tool can promote the ones the model picked.
-var _ toolloop.ToolDeferrer = (*Search)(nil)
-
+// DeferredToolNames exposes the exact executable names represented by this
+// search surface. The Resolver remains the authority for visible/deferred sets.
 func (t *Search) DeferredToolNames() []string {
 	if t == nil {
 		return nil
@@ -189,23 +184,16 @@ func (t *Search) search(ctx context.Context, args searchArgs) (string, error) {
 		return t.renderNoMatch(query), nil
 	}
 
-	defs := make([]chat.ToolDefinition, len(matches))
-	for i, m := range matches {
-		defs[i] = m.definition
+	advertise, ok := ctx.Value(toolAdvertiserContextKey{}).(ToolAdvertiser)
+	if !ok || advertise == nil {
+		return "", errors.New("search_tools: Tool advertisement is unavailable")
 	}
-	// Advertise only names already frozen in this search Tool. Strategies that
-	// own explicit visibility state bind the precise callback; the context-based
-	// execution loop remains the fallback for callers that do not.
-	if advertise, ok := ctx.Value(advertiserContextKey{}).(Advertiser); ok && advertise != nil {
-		names := make([]string, len(matches))
-		for index, match := range matches {
-			names[index] = match.definition.Name
-		}
-		if err := advertise(names...); err != nil {
-			return "", fmt.Errorf("search_tools: advertise matches: %w", err)
-		}
-	} else {
-		toolloop.PromoteTools(ctx, defs...)
+	names := make([]string, len(matches))
+	for index, match := range matches {
+		names[index] = match.definition.Name
+	}
+	if err := advertise(names...); err != nil {
+		return "", fmt.Errorf("search_tools: advertise matches: %w", err)
 	}
 	return t.renderMatches(matches), nil
 }

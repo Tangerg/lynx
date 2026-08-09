@@ -8,8 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/agent"
-	"github.com/Tangerg/lynx/agent/core"
 	"github.com/Tangerg/lynx/core/chat"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/persistence"
@@ -30,30 +28,26 @@ import (
 
 const bootstrapCheckpointBuildID = "test-build"
 
-func bootstrapWaitingSnapshot(id string) core.ProcessSnapshot {
-	started := time.Date(2026, time.July, 16, 8, 0, 0, 0, time.UTC)
-	return core.ProcessSnapshot{
-		SchemaVersion: core.ProcessSnapshotSchemaVersion,
-		ID:            id,
-		Deployment:    core.DeploymentRef{Name: "chat", Digest: "digest"},
-		StartedAt:     started,
-		Status:        core.StatusWaiting,
-		Suspension: &agent.Suspension{
-			SchemaVersion:  agent.SuspensionSchemaVersion,
-			ID:             "suspension-" + id,
-			Prompt:         json.RawMessage(`"continue?"`),
-			ResponseSchema: json.RawMessage(`{"type":"boolean"}`),
-			CreatedAt:      started,
-		},
-	}
+type bootstrapProcessSnapshot struct {
+	ID       string `json:"id"`
+	ParentID string `json:"parent_id,omitempty"`
 }
 
-func bootstrapSnapshotTree(rootID string, snapshots ...core.ProcessSnapshot) core.ProcessSnapshotTree {
-	return core.ProcessSnapshotTree{RootID: rootID, Snapshots: snapshots}
+type bootstrapProcessSnapshotTree struct {
+	RootID    string                     `json:"root_id"`
+	Snapshots []bootstrapProcessSnapshot `json:"snapshots"`
+}
+
+func bootstrapWaitingSnapshot(id string) bootstrapProcessSnapshot {
+	return bootstrapProcessSnapshot{ID: id}
+}
+
+func bootstrapSnapshotTree(rootID string, snapshots ...bootstrapProcessSnapshot) bootstrapProcessSnapshotTree {
+	return bootstrapProcessSnapshotTree{RootID: rootID, Snapshots: snapshots}
 }
 
 func bootstrapCheckpoint(
-	tree core.ProcessSnapshotTree,
+	tree bootstrapProcessSnapshotTree,
 	sessionID string,
 	usage accounting.Snapshot,
 ) runsapp.ExecutorCheckpoint {
@@ -91,7 +85,7 @@ func bootstrapPending(
 		Bindings: []runsapp.InterruptBinding{{
 			InterruptItemID: itemID,
 			MemberID:        processID,
-			RequestID:       "suspension-" + processID,
+			RequestID:       "request-" + processID,
 		}},
 		Continuations: []runsapp.Continuation{{
 			RunID:        runID,

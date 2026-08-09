@@ -12,8 +12,6 @@ import (
 	"path/filepath"
 	"sync"
 
-	history "github.com/Tangerg/lynx/chathistory"
-
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/storage"
 	sqlitestore "github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 )
@@ -41,7 +39,10 @@ type Bundle struct {
 	Feedback            *sqlitestore.FeedbackStore
 	Providers           *sqlitestore.ProviderStore
 	MCPServers          *sqlitestore.MCPServerStore
-	ChatHistory         history.Store
+	ChatHistory         *sqlitestore.MessageStore
+	ModelInvocations    *sqlitestore.ModelInvocationStore
+	ToolInvocations     *sqlitestore.ToolInvocationStore
+	ChildRunStarts      *sqlitestore.ChildRunStartReservationStore
 	Plan                *sqlitestore.PlanStore
 	PermissionModes     *sqlitestore.PermissionModeStore
 	Goals               *sqlitestore.GoalStore
@@ -106,6 +107,9 @@ func Open(ctx context.Context, config Config) (*Bundle, error) {
 		Providers:           sqlitestore.NewProviderStore(db),
 		MCPServers:          sqlitestore.NewMCPServerStore(db),
 		ChatHistory:         sqlitestore.NewMessageStore(db),
+		ModelInvocations:    sqlitestore.NewModelInvocationStore(db),
+		ToolInvocations:     sqlitestore.NewToolInvocationStore(db),
+		ChildRunStarts:      sqlitestore.NewChildRunStartReservationStore(db),
 		Plan:                sqlitestore.NewPlanStore(db),
 		PermissionModes:     sqlitestore.NewPermissionModeStore(db),
 		Goals:               sqlitestore.NewGoalStore(db),
