@@ -8,13 +8,13 @@ import (
 	"github.com/Tangerg/lynx/core/chat"
 )
 
-// decorate replaces Call while preserving the inner capability declarations
+// decorateCall replaces Call while preserving the inner capability declarations
 // — the shared spine of read/mutation guards and post-mutation diagnostics.
-func decorate(inner toolcontract.Tool, call func(ctx context.Context, arguments string) (string, error)) toolcontract.Tool {
+func decorateCall(inner toolcontract.Tool, call func(ctx context.Context, arguments string) (string, error)) toolcontract.Tool {
 	return &callDecorator{inner: inner, call: call}
 }
 
-// callDecorator is the backing type for [decorate]: it overrides Call while
+// callDecorator is the backing type for [decorateCall]: it overrides Call while
 // delegating Definition plus optional tool-loop declarations to the wrapped
 // tool, so a decorator stack preserves the inner tool's full contract.
 type callDecorator struct {

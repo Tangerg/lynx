@@ -1,6 +1,6 @@
 # Lyra Runtime 重构实施计划
 
-> 状态：P1–P13 已完成；P14 Runtime 内部精修进行中，消费者接线仍留给独立专项
+> 状态：P1–P14 已完成；消费者接线仍留给独立专项
 >
 > 工作方式：原模块内治本重构，按可验证纵切分批完成；不创建完整 `runtime2`
 
@@ -46,7 +46,7 @@
 | P11 | 原框架实现删除与唯一模块名替换 | P10 | 已完成 |
 | P12 | 全量质量验收与消费者接线移交 | P11 | 已完成 |
 | P13 | 重写后精修与双向边界复审 | P12 | 已完成 |
-| P14 | Runtime 内部职责与全层级命名精修 | P13 | 进行中 |
+| P14 | Runtime 内部职责与全层级命名精修 | P13 | 已完成 |
 
 ## 4. P0 — 文档、事实和边界基线
 
@@ -462,7 +462,7 @@
 - [x] P14-01 复审 Domain/Application 聚合行为、use-case 依赖边界和内部命名；
 - [x] P14-02 复审 Adapter/Infra 的 package owner、技术机制、转换职责和内部命名；
 - [x] P14-03 复审 Delivery/Bootstrap 的组合与协议职责、文件布局和内部命名；
-- [ ] P14-04 执行全量 standalone、race、fuzz、生成物、跨环依赖、重复/死代码、目录/文件/标识符命名与空残留复扫。
+- [x] P14-04 执行全量 standalone、race、fuzz、生成物、跨环依赖、重复/死代码、目录/文件/标识符命名与空残留复扫。
 
 ### 验收
 
@@ -476,6 +476,7 @@
 
 | 日期 | 阶段 | 完成事实 | 验证 |
 |---|---|---|---|
+| 2026-08-10 | P14-04i（Final naming and hygiene freeze） | 最终命名反证将 Tool `Call` 替换能力统一为 `decorateCall`/`callDecorator` 并以 `call_decorator.go` 承载；HTTP 请求 tracing、response metrics 与 panic containment 统一为 `instrumentRequests` 和 `request_instrumentation.go`，清除名词式方法、含混局部缩写及误称 logging 的注释。JSON-RPC `Router` 的传输消费面统一为 `messageDispatcher.Dispatch`/`DispatchResult`，注册项内部行为命名为 `pipeline`，不再与 `net/http.Handler` 混用 `Handle` 语言。架构守卫按精确 package 封锁 P14 淘汰的 owner/error/dispatch 名称和失真文件路径，不建立全局禁词或误伤 Go 惯用短名 | Runtime standalone tidy-diff、build、vet、staticcheck、完整 lint、精选 naming/duplication/complexity lint、`deadcode -test`、禁用缓存全量 test/race 全绿；contract generator 零漂移，三个 strict continuation codec fuzz owner 各运行 10 秒无失败；当前文档本地链接、跨环/Framework import、旧名称、tracked 空文件、空目录和生产 TODO/FIXME/HACK 复扫零违规。P14 完成，未修改协议、持久化 shape、Agent Framework 或消费者 |
 | 2026-08-10 | P14-04h（Lifecycle, error, and identifier semantics） | Run Application 将含混的 process-local `handle` 治本改为唯一 `runTreeOwner`，文件、registry 字段、publisher/pump 依赖、cancellation arbiter、executor member binding 与测试名称同步使用同一所有权语言；Goal session mutation 的 `driver` 查询改为准确的 `activeLoop`，局部 `handle` 归一为 `loop`。所有具体错误结构统一以 `Error` 结尾，`shutdown.Attempt.Result` 按 Go 惯例返回 `completed, err`。Toolset/Adapter/Infra 的私有 owner 进一步收敛为 `manifestBuilder`、`callDecorator`、`managementTools`、`commandTools`、`searchableTool`/`rankedTool`、`hooksFile`、`cachedCorpus`、`activeDial`、`mutationScope`、`toolListTarget`、`usageAccumulator` 与 `attemptState`；测试 helper 删除从未变化的参数并以固定场景命名，不再伪造未验证的可配置能力 | Runtime `go test ./internal/...` 通过；完整 `golangci-lint`、精选 naming/style/duplication lint、生产/测试 `gocognit`/`gocyclo` 与 `deadcode -test` 均为零问题。未新增端口、wire、持久化 shape、消费者改动或 Agent Framework concrete type；最终 standalone/race/fuzz/generator/边界复扫仍由 P14-04 收口 |
 | 2026-08-10 | P14-04g（Architecture guard ownership and naming） | 架构守卫把 source walk、AST declaration collection、receiver naming、mutable catalog detection、constraint emitter expectation、comment boundary、cursor namespace 和 retired vocabulary 扫描分别收敛到准确 helper；大型测试只陈述不变量与场景，不再同时承担遍历、解析、分类和断言。Value constraint 的 schema keyword/Go helper 映射成为显式 `compiledConstraintExpectation`，不再靠一个 89 分支过程维护三类生成物；共享生产 Go source walker 只提供扫描机制，不承载具体架构策略 | `internal/arch` 禁用缓存测试通过；Runtime 全模块生产与测试 `gocognit`/`gocyclo` 零问题；所有既有 boundary/contract/naming guard 仍通过，未改变任何生产代码、协议、持久化或消费者合同 |
 | 2026-08-10 | P14-04f（Run-tree cancellation and segment publication） | Cancellation plan 将 durable `cancellationRunTree` 的 topology/lifecycle 与 process-local member binding 分离，变量与字段统一使用 `memberIDsByRunID`/`targetRunIDSet` 等真实映射语义；tree barrier 的 checkpoint、Pending continuation 和完整 Run write-set 由单一私有 validator 证明。Segment startup 以 `segmentStartup` 明确管理 durable opening 前可回滚资源，commit 后才转交 pump；tree-barrier reduction 将 interruption source indexing、per-Run suspension projection、atomic commit/publication 分阶段收敛。Reducer 把 ItemStarted 的 Session 归属放回单事件投影，并由 park-boundary owner 组装唯一 suspend write-set | `application/runs` 普通测试及完整 lint 全绿；该包生产 `gocognit`/`gocyclo` 热点归零；fresh/resumed opening、cancellation、tree barrier 与 reducer 既有行为矩阵通过；没有新增端口、协议、持久化 shape、消费者改动或 Agent Framework concrete type |
@@ -514,4 +515,4 @@
 
 ## 20. 当前下一步
 
-P1–P13 服务端重构、分环精修和 Runtime/Agent Framework 双向边界冻结已经完成。P14 正在对 Runtime 内部职责和全层级命名做额外反证精修；前端、TUI、CLI 继续按独立 consumer handoff 专项接线，不属于本 goal。
+P1–P14 服务端重构、分环精修、全层级命名和 Runtime/Agent Framework 双向边界冻结已经完成。Runtime 与 Agent Framework 的内部精修没有已知残留；前端、TUI、CLI 继续按独立 consumer handoff 专项接线，不属于本 goal。

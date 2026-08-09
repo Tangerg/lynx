@@ -208,17 +208,18 @@ func TestTransparentAliasesStayAtTheTransportBoundary(t *testing.T) {
 	}
 }
 
-// TestRemovedStutteringVocabularyDoesNotReturn records the package-qualified
+// TestRetiredRuntimeVocabularyDoesNotReturn records the package-qualified
 // names retired by the runtime vocabulary cleanup. Each replacement names the
 // role once (dispatch.Router, sessions.Activity, config.Settings) or corrects
 // the underlying concept.
 // Exact names keep this guard semantic instead of applying a brittle generic
-// prefix rule to wire types such as protocol.ProtocolRange.
-func TestRemovedStutteringVocabularyDoesNotReturn(t *testing.T) {
+// rule to wire types such as protocol.ProtocolRange or locally accurate verbs.
+func TestRetiredRuntimeVocabularyDoesNotReturn(t *testing.T) {
 	root := moduleRoot(t)
-	reason := "use the package's canonical, non-stuttering vocabulary"
+	reason := "use the package's canonical ownership vocabulary"
 	for path, names := range map[string][]string{
 		filepath.Join(root, "internal", "adapter", "agentexec"):      {"Workdir", "MemorySearcher"},
+		filepath.Join(root, "internal", "adapter", "hooks"):          {"config", "readConfig"},
 		filepath.Join(root, "internal", "adapter", "modelclient"):    {"ClientResolver", "NewClientResolver", "ResolveClient"},
 		filepath.Join(root, "internal", "adapter", "pricing"):        {"Catalog"},
 		filepath.Join(root, "internal", "adapter", "runmaintenance"): {"Suite", "NewSuite", "SubmitSkillProposal"},
@@ -236,25 +237,29 @@ func TestRemovedStutteringVocabularyDoesNotReturn(t *testing.T) {
 			"SubmitSkillProposal", "ListSkillProposals", "ApproveSkillProposal", "RejectSkillProposal",
 			"InspectHooks", "SetProjectHookTrust", "HasFileWatch", "WatchGitState",
 		},
-		filepath.Join(root, "internal", "application", "goals"): {"State", "NewState", "PromptInput", "PromptBuilder"},
+		filepath.Join(root, "internal", "application", "codebase"): {"loaded"},
+		filepath.Join(root, "internal", "application", "goals"):    {"State", "NewState", "PromptInput", "PromptBuilder", "driver"},
 		filepath.Join(root, "internal", "application", "invariant"): {
 			"SystemInvariantSpec", "TransactionBoundary",
 		},
 		filepath.Join(root, "internal", "application", "mcp"): {
 			"MCPServer", "MCPConnection", "MCPServerState", "MCPTestResult",
 			"MCPAuthorizationAttempt", "MCPPolicy", "ConnectionCommands", "RegistryCommands",
+			"dial", "mutation",
 		},
 		filepath.Join(root, "internal", "application", "runs"): {
-			"EngineEvent", "ToolCallStart", "ToolCallEnd", "CompactBoundary",
+			"EngineEvent", "ToolCallStart", "ToolCallEnd", "CompactBoundary", "handle", "ActiveRunConflict",
 		},
+		filepath.Join(root, "internal", "application", "usage"): {"accumulator"},
 		filepath.Join(root, "internal", "config"): {
 			"Config", "ServerConfig", "OnlineConfig", "MCPServerConfig", "LSPServerConfig", "A2AAgentConfig",
 		},
-		filepath.Join(root, "internal", "delivery", "dispatch"): {"Dispatcher", "registerIntegrationValues"},
+		filepath.Join(root, "internal", "delivery", "dispatch"): {"Dispatcher", "registerIntegrationValues", "Handle", "HandleResult"},
 		filepath.Join(root, "internal", "delivery", "protocol"): {
 			"Memory", "MemoryScope", "MemoryScopeCwd", "MemoryScopeProjectRoot", "MemoryScopeHome",
 			"MemoryEntry", "GetMemoryRequest", "UpdateMemoryRequest", "FeatureMemory",
 			"ListMemory", "GetMemory", "UpdateMemory",
+			"CapabilityGap", "NewCapabilityGap", "ActiveRunConflict",
 		},
 		filepath.Join(root, "internal", "delivery", "server"): {
 			"ListMemory", "GetMemory", "UpdateMemory", "presentMemoryScope", "memoryScopeFromWire", "memoryTargetFromWire",
@@ -262,13 +267,22 @@ func TestRemovedStutteringVocabularyDoesNotReturn(t *testing.T) {
 		filepath.Join(root, "internal", "adapter", "toolset"): {
 			"resolvedToolset", "staticToolSpec", "toolAudience", "toolPlacement",
 			"toolActivity", "toolPresentation", "Workdir", "DefaultWorkdir",
-			"workdirSet", "buildWorkdir", "Semantics", "NewSemantics",
+			"workdirSet", "buildWorkdir", "Semantics", "NewSemantics", "decorate", "decorated", "resolution",
 		},
-		filepath.Join(root, "internal", "adapter", "toolset", "lsp"):   {"newLSPTool"},
-		filepath.Join(root, "internal", "adapter", "toolset", "goal"):  {"Prompt"},
-		filepath.Join(root, "internal", "adapter", "toolset", "shell"): {"toolSet"},
-		filepath.Join(root, "internal", "adapter", "toolset", "skill"): {"SubmitSkillProposal"},
-		filepath.Join(root, "internal", "adapter", "workspace"):        {"Reads", "WatchGitState"},
+		filepath.Join(root, "internal", "adapter", "toolset", "discovery"): {"entry", "scored"},
+		filepath.Join(root, "internal", "adapter", "toolset", "lsp"):       {"newLSPTool"},
+		filepath.Join(root, "internal", "adapter", "toolset", "goal"):      {"Prompt"},
+		filepath.Join(root, "internal", "adapter", "toolset", "schedule"):  {"family"},
+		filepath.Join(root, "internal", "adapter", "toolset", "shell"):     {"toolSet", "family"},
+		filepath.Join(root, "internal", "adapter", "toolset", "skill"):     {"SubmitSkillProposal"},
+		filepath.Join(root, "internal", "adapter", "workspace"):            {"Reads", "WatchGitState"},
+		filepath.Join(root, "internal", "domain", "run"):                   {"InsufficientCapabilities", "Failure"},
+		filepath.Join(root, "internal", "infra", "mcp"): {
+			"target", "dialFailure", "dialFailureKind", "dialFailureNeedsAuth",
+		},
+		filepath.Join(root, "internal", "delivery", "transport", "http"):      {"observability", "messageHandler"},
+		filepath.Join(root, "internal", "delivery", "transport", "inprocess"): {"messageHandler"},
+		filepath.Join(root, "internal", "shutdown"):                           {"attempt"},
 	} {
 		banned := make(map[string]string, len(names))
 		for _, name := range names {
@@ -383,6 +397,8 @@ func TestRuntimeResponsibilityFilesStayFocused(t *testing.T) {
 		filepath.Join("internal", "adapter", "toolset", "memorysearch"):                "agent-memory search belongs to toolset/agentmemorysearch",
 		filepath.Join("internal", "adapter", "toolset", "sessionsearch"):               "conversation search belongs to toolset/conversationsearch",
 		filepath.Join("internal", "adapter", "toolset", "goal", "prompt.go"):           "Goal Run wording belongs to run_instructions.go",
+		filepath.Join("internal", "adapter", "toolset", "decorated.go"):                "Call decoration belongs to call_decorator.go",
+		filepath.Join("internal", "delivery", "transport", "http", "middleware.go"):    "request tracing and panic containment belong to request_instrumentation.go",
 	} {
 		path := filepath.Join(root, relative)
 		if _, err := os.Stat(path); err == nil {

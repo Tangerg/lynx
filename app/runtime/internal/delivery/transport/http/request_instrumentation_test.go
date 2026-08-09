@@ -13,11 +13,11 @@ import (
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 )
 
-func TestObservabilityRecordsContainedPanicResponse(t *testing.T) {
+func TestRequestInstrumentationRecordsContainedPanicResponse(t *testing.T) {
 	exporter := captureHTTPSpans(t)
 
 	cause := errors.New("handler sentinel")
-	handler := (&Server{}).observability(nethttp.HandlerFunc(func(nethttp.ResponseWriter, *nethttp.Request) {
+	handler := (&Server{}).instrumentRequests(nethttp.HandlerFunc(func(nethttp.ResponseWriter, *nethttp.Request) {
 		panic(cause)
 	}))
 	response := httptest.NewRecorder()
@@ -76,9 +76,9 @@ func TestObservabilityRecordsContainedPanicResponse(t *testing.T) {
 	}
 }
 
-func TestObservabilityDoesNotCorruptCommittedPanicResponse(t *testing.T) {
+func TestRequestInstrumentationDoesNotCorruptCommittedPanicResponse(t *testing.T) {
 	exporter := captureHTTPSpans(t)
-	handler := (&Server{}).observability(nethttp.HandlerFunc(func(w nethttp.ResponseWriter, _ *nethttp.Request) {
+	handler := (&Server{}).instrumentRequests(nethttp.HandlerFunc(func(w nethttp.ResponseWriter, _ *nethttp.Request) {
 		w.WriteHeader(nethttp.StatusAccepted)
 		_, _ = w.Write([]byte("partial"))
 		panic("after commit")

@@ -133,7 +133,7 @@ func (r *capabilityRuntime) RollbackSession(context.Context, protocol.RollbackSe
 func call(t *testing.T, features map[string]bool, method, params string) *transport.Response {
 	t.Helper()
 	d := New(&capabilityRuntime{features: features}, Config{})
-	res := d.Handle(t.Context(), &transport.Request{
+	res := d.Dispatch(t.Context(), &transport.Request{
 		ID: transport.StringID("1"), Method: method, Params: json.RawMessage(params),
 	})
 	if res.Response == nil {

@@ -33,7 +33,7 @@ func idempotencyOf(method string) IdempotencyPolicy {
 	return registered.Meta.Idempotency
 }
 
-func (r *Router) dispatchReplayProtected(ctx context.Context, request *transport.Request) HandleResult {
+func (r *Router) dispatchReplayProtected(ctx context.Context, request *transport.Request) DispatchResult {
 	key := transport.IdempotencyKeyFrom(ctx)
 	policy := idempotencyOf(request.Method)
 	if key == "" || !policy.Replays() {
@@ -171,7 +171,7 @@ func requestFingerprint(request *transport.Request) (string, error) {
 	return hex.EncodeToString(hash.Sum(nil)), nil
 }
 
-func (r *Router) replay(ctx context.Context, request *transport.Request, payload []byte) HandleResult {
+func (r *Router) replay(ctx context.Context, request *transport.Request, payload []byte) DispatchResult {
 	message, err := transport.DecodeMessage(payload)
 	if err != nil {
 		return responseError(request.ID, errorToRPC(fmt.Errorf("idempotency: decode stored response: %w", err)))
@@ -185,7 +185,7 @@ func (r *Router) replay(ctx context.Context, request *transport.Request, payload
 	// here. A run-opening method is not: its ack names a run the caller still has
 	// no stream for, so the retry re-attaches to the run rather than starting one.
 	if response.Error != nil || idempotencyOf(request.Method) != IdempotencyReplayRunStream {
-		return HandleResult{Response: response}
+		return DispatchResult{Response: response}
 	}
 	var opening struct {
 		RunID     string `json:"runId"`
@@ -203,7 +203,7 @@ func (r *Router) replay(ctx context.Context, request *transport.Request, payload
 		// between its first response and this retry. Preserve the cached success and
 		// open an already-ended stream; the client then runs its normal stream-ended
 		// recovery.
-		return HandleResult{Response: response, EventStream: emptyStream}
+		return DispatchResult{Response: response, EventStream: emptyStream}
 	case err != nil:
 		return responseError(request.ID, errorToRPC(err))
 	}
@@ -211,7 +211,7 @@ func (r *Router) replay(ctx context.Context, request *transport.Request, payload
 	// return the same result, and a subscribe ack is a different shape that could
 	// not carry the userItemId the original response named. The re-attached stream's
 	// own events carry the positions a reconnect would need.
-	return HandleResult{Response: response, EventStream: adaptStream(events, runEventToFrameFor(ctx))}
+	return DispatchResult{Response: response, EventStream: adaptStream(events, runEventToFrameFor(ctx))}
 }
 
 // unattachable reports the refusals that mean "the segment this ack named is no

@@ -22,7 +22,7 @@
 
 ## 当前状态
 
-P1–P12 服务端重构已经完成。Protocol `2026-08-09`、Artifact v14、SQLite epoch 64、唯一 `runtimeInstanceRootSegment` replay scope、全部生成物/严格 sample gate 与 Agent Framework Baseline 15 已通过最终门禁；原框架、临时 module、迁移文档和兼容路径均已删除。前端、TUI、CLI 只按 [`doc/CONSUMER_HANDOFF.md`](doc/CONSUMER_HANDOFF.md) 在独立专项接线，Runtime 不为它们恢复旧合同。
+P1–P14 服务端重构与内部精修已经完成。Protocol `2026-08-09`、Artifact v14、SQLite epoch 64、唯一 `runtimeInstanceRootSegment` replay scope、全部生成物/严格 sample gate 与 Agent Framework Baseline 15 已通过最终门禁；原框架、临时 module、迁移文档和兼容路径均已删除。前端、TUI、CLI 只按 [`doc/CONSUMER_HANDOFF.md`](doc/CONSUMER_HANDOFF.md) 在独立专项接线，Runtime 不为它们恢复旧合同。
 
 ## 工作纪律
 

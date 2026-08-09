@@ -24,7 +24,7 @@ func withReadTracking(inner toolcontract.Tool, tr *readTracker, cwd string) tool
 	if tr == nil {
 		return inner
 	}
-	return decorate(inner, func(ctx context.Context, arguments string) (string, error) {
+	return decorateCall(inner, func(ctx context.Context, arguments string) (string, error) {
 		out, err := inner.Call(ctx, arguments)
 		if err != nil {
 			return out, err
@@ -52,7 +52,7 @@ func withMutationGuard(inner toolcontract.Tool, tr *readTracker, cwd string) too
 	if tr == nil {
 		return inner
 	}
-	return decorate(inner, func(ctx context.Context, arguments string) (string, error) {
+	return decorateCall(inner, func(ctx context.Context, arguments string) (string, error) {
 		paths, err := mutationPaths(inner, arguments)
 		if err != nil {
 			return "", fmt.Errorf("inspect mutation paths before applying patch: %w", err)
@@ -123,7 +123,7 @@ func withMutationDiagnostics(inner toolcontract.Tool, ci *codeintel.Analyzer, ro
 	if ci == nil {
 		return inner
 	}
-	return decorate(inner, func(ctx context.Context, arguments string) (string, error) {
+	return decorateCall(inner, func(ctx context.Context, arguments string) (string, error) {
 		paths, err := mutationPaths(inner, arguments)
 		if err != nil {
 			return "", fmt.Errorf("inspect mutation paths before diagnostics: %w", err)

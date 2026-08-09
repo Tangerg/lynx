@@ -35,25 +35,25 @@ type Registry struct {
 type Method struct {
 	Meta MethodMeta
 
-	// handle runs the whole request: decode + constraints, capability gate, the
+	// pipeline runs the whole request: decode + constraints, capability gate, the
 	// typed call, and the reply. Built by the query, command, and subscription
-	// registration factories so no
-	// registration can assemble the steps in the wrong order or skip one.
-	handle func(*Router, context.Context, *transport.Request) HandleResult
+	// registration factories so no registration can assemble the steps in the
+	// wrong order or skip one.
+	pipeline func(*Router, context.Context, *transport.Request) DispatchResult
 }
 
 func newRegistry() *Registry {
 	return &Registry{byName: make(map[string]*Method)}
 }
 
-func (r *Registry) add(meta MethodMeta, handle func(*Router, context.Context, *transport.Request) HandleResult) {
+func (r *Registry) add(meta MethodMeta, pipeline func(*Router, context.Context, *transport.Request) DispatchResult) {
 	if err := meta.validate(); err != nil {
 		panic("dispatch: invalid method registration: " + err.Error())
 	}
 	if _, exists := r.byName[meta.Name]; exists {
 		panic(fmt.Sprintf("dispatch: method %q is registered twice", meta.Name))
 	}
-	r.byName[meta.Name] = &Method{Meta: cloneMethodMeta(meta), handle: handle}
+	r.byName[meta.Name] = &Method{Meta: cloneMethodMeta(meta), pipeline: pipeline}
 	r.names = append(r.names, meta.Name)
 }
 
@@ -142,7 +142,7 @@ func registerUnary[Params, Result any](
 		panic(fmt.Sprintf("dispatch: %s has invalid pagination shapes: %v", meta.Name, err))
 	}
 	meta.Pagination = pagination
-	registry.add(meta, func(router *Router, ctx context.Context, request *transport.Request) HandleResult {
+	registry.add(meta, func(router *Router, ctx context.Context, request *transport.Request) DispatchResult {
 		parameters, validationError := decode[Params](request)
 		if validationError != nil {
 			return responseError(request.ID, validationError)
@@ -219,7 +219,7 @@ func CommandAck[Params any](
 	meta.Operation = OperationCommand
 	meta.Idempotency = IdempotencyReplayResponse
 	meta.Params = reflect.TypeFor[Params]()
-	registry.add(meta, func(router *Router, ctx context.Context, request *transport.Request) HandleResult {
+	registry.add(meta, func(router *Router, ctx context.Context, request *transport.Request) DispatchResult {
 		parameters, validationError := decode[Params](request)
 		if validationError != nil {
 			return responseError(request.ID, validationError)
@@ -274,7 +274,7 @@ func registerStream[Params, Ack, Event any](
 	meta.Params = reflect.TypeFor[Params]()
 	meta.Result = reflect.TypeFor[Ack]()
 	meta.Event = reflect.TypeFor[Event]()
-	registry.add(meta, func(router *Router, ctx context.Context, request *transport.Request) HandleResult {
+	registry.add(meta, func(router *Router, ctx context.Context, request *transport.Request) DispatchResult {
 		parameters, validationError := decode[Params](request)
 		if validationError != nil {
 			return responseError(request.ID, validationError)
@@ -303,12 +303,12 @@ func runtimeEventFramer(context.Context) func(protocol.RuntimeEvent) (StreamFram
 }
 
 // dispatchRequest routes the request to its registered method.
-func (r *Router) dispatchRequest(ctx context.Context, request *transport.Request) HandleResult {
+func (r *Router) dispatchRequest(ctx context.Context, request *transport.Request) DispatchResult {
 	method, ok := contract.lookup(request.Method)
 	if !ok {
 		return responseError(request.ID, methodNotFound(request.Method))
 	}
-	return method.handle(r, ctx, request)
+	return method.pipeline(r, ctx, request)
 }
 
 // Contract exposes the registered method surface to build-time tooling. The

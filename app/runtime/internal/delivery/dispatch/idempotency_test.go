@@ -140,10 +140,10 @@ func TestReplayClaimSerializesConcurrentMutation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("build second request: %v", err)
 	}
-	results := make(chan HandleResult, 2)
-	go func() { results <- router.Handle(ctx, first) }()
+	results := make(chan DispatchResult, 2)
+	go func() { results <- router.Dispatch(ctx, first) }()
 	<-runtime.started
-	go func() { results <- router.Handle(ctx, second) }()
+	go func() { results <- router.Dispatch(ctx, second) }()
 	close(runtime.release)
 
 	var replayedResults []string
@@ -183,7 +183,7 @@ func TestCompletionFailureRetriesPersistenceWithoutRepeatingMutation(t *testing.
 		return req
 	}
 
-	first := router.Handle(ctx, request("first", "run_1"))
+	first := router.Dispatch(ctx, request("first", "run_1"))
 	var firstErr *transport.Error
 	if first.Response != nil {
 		firstErr, _ = errors.AsType[*transport.Error](first.Response.Error)
@@ -192,11 +192,11 @@ func TestCompletionFailureRetriesPersistenceWithoutRepeatingMutation(t *testing.
 		firstErr.Code != protocol.CodeIdempotencyInProgress {
 		t.Fatalf("first response = %+v, want idempotency_in_progress", first.Response)
 	}
-	second := router.Handle(ctx, request("second", "run_1"))
+	second := router.Dispatch(ctx, request("second", "run_1"))
 	if second.Response == nil || second.Response.Error != nil {
 		t.Fatalf("second response = %+v, want recovered success", second.Response)
 	}
-	third := router.Handle(ctx, request("third", "run_1"))
+	third := router.Dispatch(ctx, request("third", "run_1"))
 	if third.Response == nil || third.Response.Error != nil {
 		t.Fatalf("third response = %+v, want durable replay", third.Response)
 	}
@@ -211,9 +211,9 @@ func TestPendingCompletionStillRejectsKeyReuse(t *testing.T) {
 	router := New(&countingCancelRuntime{}, Config{IdempotencyStore: store})
 	ctx := transport.WithIdempotencyKey(t.Context(), "bound-key")
 	first, _ := transport.NewCall("first", "runs.cancel", protocol.CancelRunRequest{RunID: "run_1"})
-	router.Handle(ctx, first)
+	router.Dispatch(ctx, first)
 	conflict, _ := transport.NewCall("second", "runs.cancel", protocol.CancelRunRequest{RunID: "run_2"})
-	result := router.Handle(ctx, conflict)
+	result := router.Dispatch(ctx, conflict)
 	var conflictErr *transport.Error
 	if result.Response != nil {
 		conflictErr, _ = errors.AsType[*transport.Error](result.Response.Error)

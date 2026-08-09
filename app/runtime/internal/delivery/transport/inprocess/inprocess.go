@@ -30,18 +30,18 @@ import (
 
 var errTransportClosed = errors.New("inprocess: transport closed")
 
-// messageHandler is the dispatch surface this transport needs: route
+// messageDispatcher is the dispatch surface this transport needs: route
 // one inbound message, return the synchronous reply plus any stream.
 // Defined here (consumer side) so the transport depends on the single
 // method it calls rather than the concrete *dispatch.Router.
-type messageHandler interface {
-	Handle(ctx context.Context, msg transport.Message) dispatch.HandleResult
+type messageDispatcher interface {
+	Dispatch(ctx context.Context, message transport.Message) dispatch.DispatchResult
 }
 
 // Transport routes in-process JSON-RPC messages through a dispatch.Router;
 // responses and notifications come back via the Recv channel.
 type Transport struct {
-	router messageHandler
+	router messageDispatcher
 
 	in   chan transport.Message // outbound from Runtime's POV -> inbound to client
 	once sync.Once
@@ -115,7 +115,7 @@ func (t *Transport) Send(ctx context.Context, message transport.Message) error {
 			release()
 		}
 	}()
-	result := t.router.Handle(callCtx, message)
+	result := t.router.Dispatch(callCtx, message)
 	if result.Response != nil {
 		if !t.reserve() {
 			return errTransportClosed

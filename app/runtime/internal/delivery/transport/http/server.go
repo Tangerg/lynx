@@ -34,14 +34,14 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/idempotency"
 )
 
-// messageHandler is the dispatch surface this transport needs: route
+// messageDispatcher is the dispatch surface this transport needs: route
 // one inbound message, return the synchronous reply plus any stream.
 // Defined here (consumer side) so the transport depends on the single
 // method it calls rather than the concrete *dispatch.Router — the
 // router's per-conn state stays its own concern, and tests can
 // inject a fake without standing up a Runtime.
-type messageHandler interface {
-	Handle(ctx context.Context, msg transport.Message) dispatch.HandleResult
+type messageDispatcher interface {
+	Dispatch(ctx context.Context, message transport.Message) dispatch.DispatchResult
 }
 
 // Server is the HTTP transport. One instance per process — a thin
@@ -57,7 +57,7 @@ type Server struct {
 	corsOrigins  []string
 	healthProbes []*healthProbeRunner
 
-	router messageHandler
+	router messageDispatcher
 
 	httpServer   *http.Server
 	handlerCtx   context.Context
@@ -161,16 +161,16 @@ func NewServer(cfg Config) (*Server, error) {
 //
 // Middleware order (outer → inner):
 //
-//	server lifecycle → observability → cors → authGate → mux
+//	server lifecycle → request instrumentation → cors → authGate → mux
 //
-// The lifecycle wrapper owns transport cancellation. Observability remains
+// The lifecycle wrapper owns transport cancellation. Request instrumentation remains
 // outside the protocol middleware so every request (including CORS preflight
-// and 401) is logged; cors precedes authGate so OPTIONS preflights resolve
+// and 401) is observed; cors precedes authGate so OPTIONS preflights resolve
 // without a token; authGate precedes the mux so unauthenticated requests never
 // touch handlers.
 func (s *Server) Handler() http.Handler {
 	r := chi.NewRouter()
-	r.Use(s.observability, corsMiddleware(s.corsOrigins), s.authGate)
+	r.Use(s.instrumentRequests, corsMiddleware(s.corsOrigins), s.authGate)
 
 	// Sidecars — flat JSON, must NOT go through the JSON-RPC envelope.
 	r.Get(infoPath, s.handleInfo)

@@ -29,7 +29,7 @@ type Config struct {
 }
 
 // New builds a Router bound to the given Runtime. The returned
-// Router is safe for parallel Handle calls.
+// Router is safe for parallel Dispatch calls.
 func New(api protocol.Runtime, config Config) *Router {
 	store := config.IdempotencyStore
 	if store == nil {
@@ -41,9 +41,9 @@ func New(api protocol.Runtime, config Config) *Router {
 	return router
 }
 
-// HandleResult holds what the router returns after processing one
+// DispatchResult holds what the router returns after dispatching one
 // inbound message.
-type HandleResult struct {
+type DispatchResult struct {
 	// Response is the synchronous JSON-RPC reply. nil when the input
 	// was a notification (no id, no response on the wire).
 	Response *transport.Response
@@ -59,8 +59,8 @@ type HandleResult struct {
 	EventStream iter.Seq[StreamFrame]
 }
 
-// Handle is the entry point — every inbound transport.Message goes through here.
-func (r *Router) Handle(ctx context.Context, message transport.Message) HandleResult {
+// Dispatch routes one inbound transport message through the registered method pipeline.
+func (r *Router) Dispatch(ctx context.Context, message transport.Message) DispatchResult {
 	request, ok := message.(*transport.Request)
 	if !ok || request == nil {
 		return responseError(transport.ID{}, badEnvelope("expected a JSON-RPC request"))
@@ -84,7 +84,7 @@ func (r *Router) Handle(ctx context.Context, message transport.Message) HandleRe
 	ctx, metaErr = bindRequestMeta(ctx, request)
 	if metaErr != nil {
 		if !request.IsCall() {
-			return HandleResult{}
+			return DispatchResult{}
 		}
 		return responseError(request.ID, metaErr)
 	}
@@ -93,7 +93,7 @@ func (r *Router) Handle(ctx context.Context, message transport.Message) HandleRe
 	// notifications take effect.
 	if !request.IsCall() {
 		r.handleNotification(ctx, request)
-		return HandleResult{}
+		return DispatchResult{}
 	}
 
 	return r.dispatchReplayProtected(ctx, request)

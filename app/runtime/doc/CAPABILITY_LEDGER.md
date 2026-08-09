@@ -254,6 +254,7 @@ P8 production cutover 已用真实 Bootstrap consumer 冻结 root stage/observe/
 - Bootstrap 仍是唯一 composition root；conversation、model、MCP、tool 的 composition-time environment 和 post-Run maintenance 各由 focused builder 组装，`Stack` 只暴露 Application entrypoints/notification sources，`Host` 单独拥有 shutdown graph；
 - `hostLifetime` 以 `goalDriver`、`mcpCoordinator`、`codebaseCoordinator`、`runCoordinator`、`executor`、`runEffectTasks`、`toolResources`、`hostResources` 表达真实关闭职责；旧 `goals`/`mcp`/`execution`/`effectsTasks`/`resources` 一类含混字段已删除；
 - `engine_wiring.go`、`embedding_env.go`、`utility_role.go`、`execution_support.go`、`toolenv.go`、`mcp_env.go`、`notification.go`、`reply.go`、`presenter.go`、`sessionio.go`、`builders.go` 等旧职责失真路径由 architecture guard 永久禁止回流。
+- Tool `Call` 装饰只由 `call_decorator.go` 的 `decorateCall`/`callDecorator` 表达；HTTP transport 的请求级 tracing、response metrics 与 panic containment 只由 `request_instrumentation.go` 的 `instrumentRequests` 表达。JSON-RPC 路由消费面统一使用 `messageDispatcher.Dispatch`/`DispatchResult`，注册项的完整解码—调用—编码行为统一称为 `pipeline`；这些名称分别对应 Tool capability、HTTP instrumentation 与 RPC dispatch，不再共享含混的 `decorate`、`observability`、`messageHandler` 或 `HandleResult`。
 
 ## 10. 删除清单
 
@@ -300,3 +301,4 @@ P8 production cutover 已用真实 Bootstrap consumer 冻结 root stage/observe/
 - P11 删除迁移期 execution/port 快照文档；P12 继续删除已完成的架构清洗台账。当前架构、端口与工具接线分别只有 `ARCHITECTURE.md`、真实 consumer code/GoDoc 和 `TOOL_SYSTEM.md` 一个 owner，历史实施事实归 Git，不保留第二套错误现状；
 - P12 全量静态审计捕获的格式漂移与嵌入字段冗余已在各自源码 owner 治本清除；Runtime 与 Agent Framework 的 tracked production TODO/FIXME/HACK、旧 Framework 路径、旧 replay scope、空文件、空目录和内部死代码均为零。
 - P12 最终行为矩阵证明 Runtime root/child Interaction、authoritative model/tool、waiting、restore、resume、steer、unknown、recovery、rollback 与全部外环能力仍自洽；SQLite epoch 64 现由 baseline consistency test 永久守卫。`interactioninput` 是 pending continuation/prompt/resolution 的唯一 ACL 与 codec owner，原单消费者子包和第二 decoder 已删除；三个 Runtime strict-codec fuzz owner与 Agent Framework 十三个 wire/state fuzz owner均全绿。
+- P14 完成 Runtime 内部职责与全层级命名精修：package、目录、文件、类型、方法、函数、常量、字段和局部变量按 owner/行为逐层反证；淘汰词汇与失真文件路径由精确 package guard 防回流。最终 standalone、race、生成物、文档链接、死代码、空残留、复杂度与完整 lint 门禁全绿，未改变 Runtime/Agent Framework 边界、协议或持久化合同。

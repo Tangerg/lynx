@@ -15,7 +15,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-// observability wraps the mux with the entry-point tracing layer — the
+// instrumentRequests wraps the mux with the entry-point tracing layer — the
 // root of full-link tracing:
 //
 //   - extract any W3C traceparent the client sent, then open one server span per
@@ -28,7 +28,7 @@ import (
 //
 // All observability flows through OTel; the process composition root installs
 // the global TracerProvider and propagator.
-func (s *Server) observability(next http.Handler) http.Handler {
+func (s *Server) instrumentRequests(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 		w.Header().Set("Request-Id", newRequestID())
@@ -46,31 +46,31 @@ func (s *Server) observability(next http.Handler) http.Handler {
 		)
 		r = r.WithContext(ctx)
 
-		rec := &recordingResponseWriter{ResponseWriter: w, status: http.StatusOK}
+		response := &recordingResponseWriter{ResponseWriter: w, status: http.StatusOK}
 		defer func() {
 			span.SetAttributes(
-				attribute.Int("http.response.status_code", rec.status),
+				attribute.Int("http.response.status_code", response.status),
 				attribute.Int64("duration_ms", time.Since(start).Milliseconds()),
-				attribute.Int("http.response.body.size", rec.bytes),
+				attribute.Int("http.response.body.size", response.bytes),
 			)
-			if rec.status >= 500 {
-				span.SetStatus(codes.Error, http.StatusText(rec.status))
+			if response.status >= 500 {
+				span.SetStatus(codes.Error, http.StatusText(response.status))
 			}
 			span.End()
 		}()
 
 		defer func() {
-			if rcv := recover(); rcv != nil {
-				err := handlerPanicError(rcv)
+			if recovered := recover(); recovered != nil {
+				err := handlerPanicError(recovered)
 				span.RecordError(err)
 				span.SetStatus(codes.Error, err.Error())
-				if !rec.wroteHeader {
-					writeProblem(rec, http.StatusInternalServerError, "internal_error", "the transport failed to process the request", false)
+				if !response.wroteHeader {
+					writeProblem(response, http.StatusInternalServerError, "internal_error", "the transport failed to process the request", false)
 				}
 			}
 		}()
 
-		next.ServeHTTP(rec, r)
+		next.ServeHTTP(response, r)
 	})
 }
 

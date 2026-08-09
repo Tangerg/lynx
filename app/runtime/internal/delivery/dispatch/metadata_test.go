@@ -133,16 +133,16 @@ func TestBindRequestMetaRejectsUnsupportedProtocolVersion(t *testing.T) {
 	}
 }
 
-func TestHandleDoesNotMutateCallerRequestWhenStrippingMeta(t *testing.T) {
+func TestDispatchDoesNotMutateCallerRequestWhenStrippingMeta(t *testing.T) {
 	req := &transport.Request{
 		ID:     transport.StringID("1"),
 		Method: "unknown.method",
 		Params: json.RawMessage(fmt.Sprintf(`{"_meta":{"protocolVersion":%q},"value":1}`, protocol.ProtocolVersion)),
 	}
 	original := string(req.Params)
-	New(nil, Config{}).Handle(context.Background(), req)
+	New(nil, Config{}).Dispatch(context.Background(), req)
 	if got := string(req.Params); got != original {
-		t.Fatalf("Handle mutated caller params: got %s, want %s", got, original)
+		t.Fatalf("Dispatch mutated caller params: got %s, want %s", got, original)
 	}
 }
 

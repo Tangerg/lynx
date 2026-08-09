@@ -21,14 +21,14 @@ func TestEncodeRuntimeEventRejectsAnInvalidOutputShape(t *testing.T) {
 	}
 }
 
-func TestHandleNotificationSuppressesMetadataErrors(t *testing.T) {
-	d := &Router{}
-	msg := &transport.Request{
+func TestDispatchNotificationSuppressesMetadataErrors(t *testing.T) {
+	router := &Router{}
+	message := &transport.Request{
 		Method: "client.unknown",
 		Params: json.RawMessage(`{"_meta":null}`),
 	}
 
-	if got := d.Handle(context.Background(), msg); got.Response != nil {
+	if got := router.Dispatch(context.Background(), message); got.Response != nil {
 		t.Fatalf("notification returned a response: %+v", got.Response)
 	}
 }

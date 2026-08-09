@@ -183,7 +183,7 @@ func TestReadStampAndSamePathMutationAreAtomic(t *testing.T) {
 	readStarted := make(chan struct{})
 	releaseRead := make(chan struct{})
 	baseRead := fs.NewReadTool(executor)
-	blockingRead := decorate(baseRead, func(ctx context.Context, arguments string) (string, error) {
+	blockingRead := decorateCall(baseRead, func(ctx context.Context, arguments string) (string, error) {
 		out, err := baseRead.Call(ctx, arguments)
 		close(readStarted)
 		<-releaseRead
