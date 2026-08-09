@@ -4,7 +4,7 @@ go 1.26.5
 
 require (
 	github.com/Tangerg/lynx/a2a v0.0.0-20260803122848-6ade352dda10
-	github.com/Tangerg/lynx/agent v0.0.0-20260809020332-1225c9752d4f
+	github.com/Tangerg/lynx/agent v0.0.0-20260809043847-2590dbc81a1f
 	github.com/Tangerg/lynx/mcp v0.0.0-20260803122848-6ade352dda10
 	github.com/Tangerg/lynx/models v0.0.0-20260803122848-6ade352dda10
 	github.com/Tangerg/lynx/models/google v0.0.0-20260803122848-6ade352dda10
@@ -40,12 +40,15 @@ require (
 
 require (
 	github.com/anthropics/anthropic-sdk-go v1.61.0 // indirect
+	github.com/dlclark/regexp2 v1.12.0 // indirect
 	github.com/go-resty/resty/v2 v2.17.2 // indirect
 	github.com/invopop/jsonschema v0.14.0 // indirect
 	github.com/openai/openai-go/v3 v3.49.0 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.2 // indirect
+	golang.org/x/tools v0.48.0 // indirect
 	google.golang.org/genai v1.66.0 // indirect
+	google.golang.org/genproto/googleapis/api v0.0.0-20260729162451-8efbd57d26e0 // indirect
 )
 
 require (

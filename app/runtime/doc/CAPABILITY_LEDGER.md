@@ -283,6 +283,6 @@ P8 production cutover 已用真实 Bootstrap consumer 冻结 root stage/observe/
 - Runtime 产品领域、协议、持久化和工具能力大部分保留；
 - 执行 Framework integration 是主要 Rewrite 区；
 - P8 已将 Agent Framework vertical 原子切为唯一生产 owner；root、managed Delegate child、waiting subtree、termination、unknown 与 recovery 均由真实 Bootstrap consumer 验证；
-- Agent Framework Baseline 15 已提供 P4–P7 所需的全部公共合同并完成 canonical module 身份替换，且没有引入任何 Runtime 产品、持久化或 transaction 抽象；
+- Agent Framework Baseline 15 已提供 P4–P7 所需的全部公共合同并完成 canonical module 身份替换；Runtime standalone 精确绑定 `v0.0.0-20260809043847-2590dbc81a1f`，且 Framework 没有引入任何 Runtime 产品、持久化或 transaction 抽象；
 - Runtime 对原框架 source/test/module dependency 与临时 module path 已归零；唯一 `agent` Framework 仍只拥有中性合同，产品 Run、Store、transaction、WorkingContext composition 与 recovery policy 均留在 Runtime；
 - P11 删除迁移期 execution/port 快照文档，当前架构、端口与工具接线分别只有 `ARCHITECTURE.md`、真实 consumer code/GoDoc 和 `TOOL_SYSTEM_VNEXT.md` 一个 owner，不保留第二套错误现状。

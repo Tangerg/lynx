@@ -1,6 +1,6 @@
 # Lyra Runtime 重构实施计划
 
-> 状态：P11 4/5 完成；正在执行唯一 Agent Framework module 的最终门禁
+> 状态：P11 已完成；正在执行 P12 全量质量验收与消费者移交
 >
 > 工作方式：原模块内治本重构，按可验证纵切分批完成；不创建完整 `runtime2`
 
@@ -43,8 +43,8 @@
 | P8 | terminal、recovery 与跨聚合一致性收口 | P7 | 已完成 |
 | P9 | Adapter/Infra/共享原语/Delivery 结构收敛 | P8 | 已完成 |
 | P10 | 协议、生成物与服务端 API 收口 | P9 | 已完成 |
-| P11 | 原框架实现删除与唯一模块名替换 | P10 | 进行中 |
-| P12 | 全量质量验收与消费者接线移交 | P11 | 未开始 |
+| P11 | 原框架实现删除与唯一模块名替换 | P10 | 已完成 |
+| P12 | 全量质量验收与消费者接线移交 | P11 | 进行中 |
 
 ## 4. P0 — 文档、事实和边界基线
 
@@ -408,7 +408,7 @@
 - [x] 删除原框架实现；
 - [x] 将重写实现原子安装为唯一 `agent` directory/module path；
 - [x] 更新 Runtime import、workspace metadata、文档、baseline 和 architecture guards；
-- [ ] 完成 Agent Framework standalone、Runtime standalone 与 workspace 最终门禁；
+- [x] 完成 Agent Framework standalone、Runtime standalone 与 workspace 最终门禁；
 - [x] 不保留 alias module、replace compatibility 或双 framework path。
 
 ### 验收
@@ -440,6 +440,7 @@
 
 | 日期 | 阶段 | 完成事实 | 验证 |
 |---|---|---|---|
+| 2026-08-09 | P11（publication completion） | canonical source commit 发布后，Runtime standalone 依赖绑定真实 `github.com/Tangerg/lynx/agent v0.0.0-20260809043847-2590dbc81a1f`；关闭 workspace 与本地 workspace 均消费同一 Baseline 15 源码，未建立 `replace`、alias module、临时 path 或双 Framework 路径 | Runtime `GOWORK=off` tidy-diff/build/vet/staticcheck/test/race 全绿；Agent Framework standalone 与 Runtime workspace 门禁全绿，P11 完成 |
 | 2026-08-09 | P11（canonical source publication） | 删除原框架 module，把绿色重写实现安装为唯一 `agent` module；Runtime imports、workspace metadata、architecture guards、Baseline 15 和直接受影响文档同步。删除已完成迁移后仍描述 `agent/runtime`、`agentexec/turn` 的 execution/port 快照，不保留第二套现状 | Agent Framework standalone tidy-diff/build/vet/staticcheck/test/race 全绿；Runtime workspace 全量 test 通过。Runtime standalone 依赖将在 canonical source commit 推送后立即绑定其真实 pseudo-version，故 P11 当前为 4/5 |
 | 2026-08-08 | P0 | 只读盘点 Runtime 当前 package、旧 Agent import、Agent Framework Baseline 9、协议制品与 SQLite schema epoch；确认选择原模块内局部绿色重写，不创建 runtime2 | 生产代码未修改；事实写入 Capability Ledger 与 Contract Baseline |
 | 2026-08-08 | P0 | 建立并交叉收口六份核心文档，冻结 DDD/Clean Architecture 边界、Agent Framework 防腐合同、P1–P12 依赖、parallel harness/P8 cutover、恢复与副作用失败语义；识别并裁决 P7 两项 Agent Framework 中性前置合同 | 独立 Go spec review 结论 Approved/Ready；本 goal 未修改生产代码；本地链接检查与 `git diff --check` 通过 |
@@ -458,4 +459,4 @@
 
 ## 18. 当前下一步
 
-P11 已删除原框架实现，并把绿色重写实现安装为唯一 `agent` module；正在完成 module publication、standalone/workspace 门禁和文档事实收口。仍不修改前端、TUI 或 CLI，也不保留 alias module、replace compatibility 或双 framework path。
+P11 已完成：原框架实现和临时 module 均已删除，绿色重写实现是唯一 `agent` module，Runtime standalone 已绑定真实发布版本。当前进入 P12，只做服务端与 Framework 的全量质量验收、坏味道清零和消费者 breaking-surface 精确移交；仍不修改前端、TUI 或 CLI。

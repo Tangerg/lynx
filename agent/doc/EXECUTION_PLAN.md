@@ -3,8 +3,8 @@
 > 状态：持续实施
 > 建立日期：2026-08-06
 > 最后更新：2026-08-09
-> 当前阶段：P1–P10 完成；P11 4/5 完成，正在执行最终门禁
-> 当前实施范围：唯一 `agent` module 的原子替换；Runtime 消费迁移事实由 `app/runtime` 专项文档拥有
+> 当前阶段：P1–P11 完成；唯一 `agent` module 已完成发布与最终门禁
+> 当前实施范围：Framework 重写、消费迁移与 canonical module 替换均已完成；Runtime 最终验收由 `app/runtime` 专项文档拥有
 > 模块路径：`github.com/Tangerg/lynx/agent`
 
 本文只记录实施范围、阶段任务、当前进度、风险、验证结果和执行日志。目标架构见 [`ARCHITECTURE.md`](ARCHITECTURE.md)，长期决策见 [`DECISIONS.md`](DECISIONS.md)，能力裁决与消费者证据见 [`CAPABILITY_LEDGER.md`](CAPABILITY_LEDGER.md)，强制工程标准见 [`ENGINEERING_STANDARDS.md`](ENGINEERING_STANDARDS.md)。
@@ -77,8 +77,8 @@ go test ./...
 | P7 组合模式与能力覆盖 | 完成 | 7/7 | 动态 worker 组合、typed artifacts、evaluator/optimizer、示例 |
 | P8 Platform 与治理 | 完成 | 7/7 | resolver、deployment catalog、版本、路由、递归治理和观测 |
 | P9 独立完整性验收 | 完成 | 6/6 | API/wire/arch/race/fuzz/examples/standalone 全绿 |
-| P10 消费迁移 | 进行中 | 5/8 | Framework 合同已完成；代码迁移由 App 深度重写专项实施 |
-| P11 原模块替换 | 进行中 | 4/5 | 原实现和临时路径已删除，正在完成 publication 与最终门禁 |
+| P10 消费迁移 | 完成 | 8/8 | Runtime 已完成生产纵切并删除应用侧旧 Framework owner |
+| P11 原模块替换 | 完成 | 5/5 | 原实现和临时路径已删除，唯一 canonical module 已发布并通过最终门禁 |
 
 ---
 
@@ -211,7 +211,7 @@ go test ./...
 - [x] P11-02 删除原框架实现，不保留兼容层。
 - [x] P11-03 将重写实现原子安装为唯一 `agent` 目录和 module path。
 - [x] P11-04 清理 workspace、文档、依赖和旧术语。
-- [ ] P11-05 执行全 workspace 最终门禁并记录替换提交。
+- [x] P11-05 执行全 workspace 最终门禁并记录替换提交。
 
 ---
 
@@ -258,6 +258,7 @@ go test ./...
 
 | 日期 | 阶段 | 实际事实 | 验证与结果 |
 |---|---|---|---|
+| 2026-08-09 | P11（publication completion） | canonical source commit 发布后，Runtime standalone 依赖绑定真实 `github.com/Tangerg/lynx/agent v0.0.0-20260809043847-2590dbc81a1f`；本地 workspace 与关闭 workspace 的依赖解析均指向同一 Baseline 15 源码，不保留 `replace`、alias module 或临时 module path | Runtime `GOWORK=off` tidy-diff/build/vet/staticcheck/test/race 全绿；Agent Framework standalone 与 Runtime workspace 门禁全绿，P11 5/5 完成 |
 | 2026-08-09 | P11（canonical source publication） | 生产 Runtime 已无原框架 consumer 或独有能力；整体删除原实现，并把绿色重写实现安装为唯一 `github.com/Tangerg/lynx/agent` module。同步 Runtime imports、workspace、根文档、examples、GoDoc、architecture guards 与 Baseline 15；删除迁移期第二真相源和所有 alias/replace/转发路径。模块路径切换导致 GoDoc 与反射型 wire digest 按 canonical package identity 重新冻结，但 schema version、JSON tag、API 语义和行为合同未改变 | Agent Framework `GOWORK=off` tidy-diff/build/vet/staticcheck/test/race 全绿，八个 commands 与全部 owner baseline 通过；Runtime workspace 全量 test 通过；临时 module path 只保留在永久 absence guard。Runtime standalone dependency 必须在本 source commit 推送后绑定其真实 pseudo-version，因此 P11 保持 4/5，下一提交立即完成 publication dependency 与最终门禁，不引入兼容路径 |
 | 2026-08-09 | P10-06（Framework 支撑） | Runtime durable prepared-change consumer 证明 `Apply(ctx)` 的 gate 前请求取消与已经提交的 Host decision 矛盾。Kernel 将全部可失败/可取消的 Process projection staging 保留在 Prepare 内，并把 returned capability 的提交入口治本收敛为 contextless `Apply()`；没有加入 transaction、checkpoint、Run、application disposition 或 callback | 形成 Baseline 14：root public digest `f78b014a…00a4`；Process Snapshot v6、TreeSnapshot v4、全部 Strategy/observation wire与其余六个 public digest不变。prepared owner tests 与 Runtime waiting-subtree recovery tests通过；完整阶段验证随 Runtime P7 批次统一记录 |
 | 2026-08-09 | P10-06（Framework 支撑） | Runtime 的真实 waiting Delegate tree 反证发现，`PendingToolInputFromSnapshot` 把共同 `Waiting` 错当成唯一 Tool-input 原因。Interaction owner 现按 private phase 区分等待语义：合法 Delegate wait 经自身状态与 outer/committed WaitID 复验后返回 `found=false`；Tool input 继续返回原 typed view；不相容状态仍明确失败。没有新增通用 wait union、Kernel 状态、Host DTO 或应用 callback | 形成 Baseline 13：七个 public digest、Process Snapshot v6、TreeSnapshot v4、Interaction state/protocol v5/v3、全部 owner/observation wire不变。Agent Framework owner test 与 Runtime 完整 Delegate cold-restore 测试共同证明 child 不重启、Tool inspector 不误报；standalone build/vet/staticcheck、完整 lint（0 issues）、禁用缓存且 shuffle 的 15 package 普通测试/race、八个 command consumer、module tidy/diff/hygiene 全绿；Interaction state fuzz 3 秒执行 183,167 次且无失败 |
@@ -338,6 +339,6 @@ go test ./...
 
 ## 9. 当前下一步
 
-P1–P10 与真实 Runtime consumer 证明的全部 Framework 合同已经完成，Baseline 15 是当前唯一 `agent` 基线。P11 已删除原框架实现并完成 canonical module 源码替换，当前只剩发布后的 standalone dependency 与全 workspace 最终门禁；除非真实消费再次证明中性 Framework 缺口，否则不修改公共合同。
+P1–P11 与真实 Runtime consumer 证明的全部 Framework 合同已经完成，Baseline 15 是当前唯一 `agent` 基线。原框架实现、临时孵化 module 和迁移兼容路径均已清零；Runtime standalone 已绑定 canonical source commit 的真实 pseudo-version。除非真实消费再次证明中性 Framework 缺口，否则不修改公共合同。
 
-当前专项只处理 canonical module 替换及其直接后端爆炸半径，不修改无关前端、TUI 或 CLI，也不引入任何迁移兼容路径。
+Framework 专项已完成。下一步仅由 Runtime P12 执行服务端最终质量验收与消费者 breaking-surface 移交；不修改前端、TUI 或 CLI，也不引入任何迁移兼容路径。

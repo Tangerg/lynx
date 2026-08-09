@@ -22,7 +22,7 @@
 
 ## 当前状态
 
-P10 已完成服务端 Protocol 收口：Protocol `2026-08-09`、Artifact v14、唯一 `runtimeInstanceRootSegment` replay scope 及全部生成物/严格 sample gate 已同步。P11 已删除原框架实现并把绿色重写实现安装为唯一 `agent` module，当前正在执行 standalone/workspace 最终门禁；历史实现只存在于仓库历史和能力台账，不是兼容规范。
+P10 已完成服务端 Protocol 收口：Protocol `2026-08-09`、Artifact v14、唯一 `runtimeInstanceRootSegment` replay scope 及全部生成物/严格 sample gate 已同步。P11 已删除原框架实现并把绿色重写实现安装为唯一 `agent` module，Runtime standalone 精确绑定 Baseline 15 的已发布 pseudo-version；历史实现只存在于仓库历史和能力台账，不是兼容规范。当前阶段是 P12 服务端全量质量验收与消费者 breaking-surface 移交。
 
 ## 工作纪律
 
