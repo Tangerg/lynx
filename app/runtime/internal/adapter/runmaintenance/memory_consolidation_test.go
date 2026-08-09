@@ -1,4 +1,4 @@
-package maintenance
+package runmaintenance
 
 import (
 	"context"
@@ -44,7 +44,7 @@ func (m *scriptedModel) Call(_ context.Context, request *chat.Request) (*chat.Re
 	return chat.NewResponse(chat.Choice{Index: 0, Message: &message, FinishReason: chat.FinishReasonStop})
 }
 
-func extractionFixture(t *testing.T, replies ...scriptedReply) (*Extractor, *sqlite.AgentMemoryStore, *scriptedModel) {
+func memoryConsolidationFixture(t *testing.T, replies ...scriptedReply) (*MemoryConsolidator, *sqlite.AgentMemoryStore, *scriptedModel) {
 	t.Helper()
 	db, err := sqlite.Open(t.Context(), filepath.Join(t.TempDir(), "lyra.db"))
 	if err != nil {
@@ -66,17 +66,17 @@ func extractionFixture(t *testing.T, replies ...scriptedReply) (*Extractor, *sql
 	if err != nil {
 		t.Fatal(err)
 	}
-	extractor := NewExtractor(messages, memory, func(context.Context) *chatclient.Client { return client }, nil, CurationConfig{MinPendingFacts: 1})
-	extractor.now = func() time.Time { return time.Date(2026, 7, 19, 9, 30, 0, 0, time.FixedZone("CST", 8*60*60)) }
-	return extractor, memory, model
+	consolidator := NewMemoryConsolidator(messages, memory, func(context.Context) *chatclient.Client { return client }, nil, MemoryCurationConfig{MinPendingFacts: 1})
+	consolidator.now = func() time.Time { return time.Date(2026, 7, 19, 9, 30, 0, 0, time.FixedZone("CST", 8*60*60)) }
+	return consolidator, memory, model
 }
 
-func TestExtractorAppendsDailyLedgerAndCuratesItems(t *testing.T) {
-	extractor, memory, model := extractionFixture(t,
+func TestMemoryConsolidatorAppendsDailyLedgerAndCuratesItems(t *testing.T) {
+	consolidator, memory, model := memoryConsolidationFixture(t,
 		scriptedReply{text: "- use make test\n- prefer concise errors"},
 		scriptedReply{text: "- Run `make test`.\n- Prefer concise errors."},
 	)
-	if err := extractor.MaybeExtract(t.Context(), "ses_1", "/repo"); err != nil {
+	if err := consolidator.Consolidate(t.Context(), "ses_1", "/repo"); err != nil {
 		t.Fatal(err)
 	}
 	state, err := memory.State(t.Context(), "/repo")
@@ -113,14 +113,14 @@ func TestExtractorAppendsDailyLedgerAndCuratesItems(t *testing.T) {
 	}
 }
 
-func TestExtractorLeavesWatermarkOnCurationFailureThenRecovers(t *testing.T) {
+func TestMemoryConsolidatorLeavesWatermarkOnCurationFailureThenRecovers(t *testing.T) {
 	providerFailure := errors.New("provider unavailable")
-	extractor, memory, _ := extractionFixture(t,
+	consolidator, memory, _ := memoryConsolidationFixture(t,
 		scriptedReply{text: "- durable fact"},
 		scriptedReply{err: providerFailure},
 		scriptedReply{text: "- durable fact"},
 	)
-	if err := extractor.MaybeExtract(t.Context(), "ses_1", "/repo"); !errors.Is(err, providerFailure) {
+	if err := consolidator.Consolidate(t.Context(), "ses_1", "/repo"); !errors.Is(err, providerFailure) {
 		t.Fatalf("first extraction error = %v", err)
 	}
 	state, err := memory.State(t.Context(), "/repo")
@@ -137,8 +137,8 @@ func TestExtractorLeavesWatermarkOnCurationFailureThenRecovers(t *testing.T) {
 
 	// Extraction is no longer eligible, but curation must still recover the
 	// durable backlog instead of waiting for another long conversation.
-	extractor.minMsgs = 100
-	if err := extractor.MaybeExtract(t.Context(), "ses_1", "/repo"); err != nil {
+	consolidator.minMsgs = 100
+	if err := consolidator.Consolidate(t.Context(), "ses_1", "/repo"); err != nil {
 		t.Fatal(err)
 	}
 	state, _ = memory.State(t.Context(), "/repo")
@@ -149,19 +149,19 @@ func TestExtractorLeavesWatermarkOnCurationFailureThenRecovers(t *testing.T) {
 }
 
 func TestCurationGateAndTokenEstimate(t *testing.T) {
-	extractor := &Extractor{config: CurationConfig{MinPendingFacts: 3, MaxAge: time.Hour}}
+	consolidator := &MemoryConsolidator{config: MemoryCurationConfig{MinPendingFacts: 3, MaxAge: time.Hour}}
 	now := time.Date(2026, 7, 19, 10, 0, 0, 0, time.UTC)
 	state := agentmemory.State{Watermark: 1, UpdatedAt: now}
-	if extractor.curationDue(state, 2, now) {
+	if consolidator.curationDue(state, 2, now) {
 		t.Fatal("small fresh backlog should not curate")
 	}
-	if !extractor.curationDue(state, 3, now) {
+	if !consolidator.curationDue(state, 3, now) {
 		t.Fatal("fact threshold should curate")
 	}
-	if !extractor.curationDue(state, 1, now.Add(time.Hour)) {
+	if !consolidator.curationDue(state, 1, now.Add(time.Hour)) {
 		t.Fatal("age threshold should curate")
 	}
-	if !extractor.curationDue(agentmemory.State{}, 1, now) {
+	if !consolidator.curationDue(agentmemory.State{}, 1, now) {
 		t.Fatal("first generation should curate immediately")
 	}
 
@@ -170,13 +170,13 @@ func TestCurationGateAndTokenEstimate(t *testing.T) {
 	}
 }
 
-func TestExtractorDoesNotAdvanceWatermarkForOversizedCuration(t *testing.T) {
-	extractor, memory, _ := extractionFixture(t,
+func TestMemoryConsolidatorDoesNotAdvanceWatermarkForOversizedCuration(t *testing.T) {
+	consolidator, memory, _ := memoryConsolidationFixture(t,
 		scriptedReply{text: "- durable fact"},
 		scriptedReply{text: strings.Repeat("界", 20)},
 	)
-	extractor.config.MaxTokens = 10
-	if err := extractor.MaybeExtract(t.Context(), "ses_1", "/repo"); err == nil || !strings.Contains(err.Error(), "limit is 10") {
+	consolidator.config.MaxTokens = 10
+	if err := consolidator.Consolidate(t.Context(), "ses_1", "/repo"); err == nil || !strings.Contains(err.Error(), "limit is 10") {
 		t.Fatalf("oversized curation error = %v", err)
 	}
 	state, err := memory.State(t.Context(), "/repo")

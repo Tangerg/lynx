@@ -8,7 +8,7 @@ import (
 	skillspec "github.com/Tangerg/lynx/skills"
 
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/maintenance"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/runmaintenance"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/agentmemory"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/workspace"
 	"github.com/Tangerg/lynx/app/runtime/internal/infra/exec"
@@ -23,27 +23,27 @@ func buildRunMaintenance(cfg Config, messages messageEnvironment, shells *exec.S
 	if info, ok := catalog.Lookup(cfg.Provider, cfg.Model); ok {
 		window = int(info.Limits.ContextWindow)
 	}
-	compactor := maintenance.NewCompactor(
+	compactor := runmaintenance.NewCompactor(
 		messages.store,
 		resolveUtility,
-		maintenance.NewLiveState(shells, cfg.PlanStore),
-		maintenance.CompactionConfig{ContextWindow: window},
+		runmaintenance.NewLiveStateSnapshotter(shells, cfg.PlanStore),
+		runmaintenance.CompactionConfig{ContextWindow: window},
 	)
-	var extractor *maintenance.Extractor
+	var consolidator *runmaintenance.MemoryConsolidator
 	if cfg.AgentMemoryStore != nil {
-		extractor = maintenance.NewExtractor(messages.store, cfg.AgentMemoryStore, resolveUtility, embedder, maintenance.CurationConfig{})
+		consolidator = runmaintenance.NewMemoryConsolidator(messages.store, cfg.AgentMemoryStore, resolveUtility, embedder, runmaintenance.MemoryCurationConfig{})
 	}
-	var miner *maintenance.SkillMiner
-	var curator *maintenance.SkillCurator
+	var skillMiner *runmaintenance.SkillProposalMiner
+	var skillArchiver *runmaintenance.IdleSkillArchiver
 	if skillStore.Enabled() {
-		miner = maintenance.NewSkillMiner(
+		skillMiner = runmaintenance.NewSkillProposalMiner(
 			messages.store,
 			skillProposals,
 			skillspec.Dir(cfg.SkillsUserDir),
 			resolveUtility,
-			maintenance.MinerConfig{},
+			runmaintenance.SkillMiningConfig{},
 		)
-		curator = maintenance.NewSkillCurator(skillStore, maintenance.LifecycleConfig{})
+		skillArchiver = runmaintenance.NewIdleSkillArchiver(skillStore, runmaintenance.SkillArchiveConfig{})
 	}
-	return maintenance.NewPipeline(compactor, extractor, miner, curator)
+	return runmaintenance.NewPipeline(compactor, consolidator, skillMiner, skillArchiver)
 }

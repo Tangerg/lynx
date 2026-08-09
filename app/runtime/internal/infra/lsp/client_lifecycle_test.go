@@ -57,7 +57,7 @@ func TestKillAndJoinProcessReapsWaiter(t *testing.T) {
 	}
 }
 
-func TestLSPProcessHelper(t *testing.T) {
+func TestLSPProcessHelper(_ *testing.T) {
 	if os.Getenv("LYNX_LSP_PROCESS_HELPER") != "1" {
 		return
 	}

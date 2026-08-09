@@ -1,4 +1,4 @@
-package maintenance
+package runmaintenance
 
 import (
 	"context"
@@ -6,7 +6,7 @@ import (
 
 	"github.com/Tangerg/lynx/core/chat"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/utilitymodel"
 )
 
 // compactionStore is the worker's narrow history view. Replace must be atomic:
@@ -17,13 +17,12 @@ type compactionStore interface {
 	Replace(ctx context.Context, sessionID string, messages ...chat.Message) error
 }
 
-// Compactor is the auto-compaction worker. Constructed by the kernel
-// unless compaction is disabled (negative MaxMessages); a nil
-// Compactor makes [Compactor.MaybeCompact] a silent no-op.
+// Compactor is the automatic conversation-history compaction worker. A nil
+// Compactor makes [Compactor.CompactIfNeeded] a silent no-op.
 type Compactor struct {
 	store             compactionStore
-	client            ClientFunc
-	liveState         LiveStateFunc // nil = no post-compaction live-state reminder
+	client            utilitymodel.Resolver
+	liveState         LiveStateSnapshotter // nil = no post-compaction live-state reminder
 	maxMessages       int
 	explicitMaxTokens int // cfg.MaxTokens override; 0 = derive from the run's model window
 	fallbackWindow    int // default model's context window; used when the run's window is unknown
@@ -46,12 +45,21 @@ type compactionPlan struct {
 	recent         []chat.Message
 }
 
+// CompactionResult describes an LLM summary rewrite. A trim-only rewrite keeps
+// every message and therefore returns the zero value: callers publish a
+// compaction boundary only when older messages were replaced by a summary.
+type CompactionResult struct {
+	Compacted      bool
+	MessagesBefore int
+	MessagesAfter  int
+}
+
 // NewCompactor builds a Compactor over the chat history store and a
 // per-call chat-client resolver. liveState (nil to disable) snapshots a
 // session's still-active execution state so an LLM summary rung can remind the
 // model of running shells / in-progress tasks the summary would otherwise drop.
 // Zero / out-of-range config fields fall back to the package defaults.
-func NewCompactor(store compactionStore, client ClientFunc, liveState LiveStateFunc, cfg CompactionConfig) *Compactor {
+func NewCompactor(store compactionStore, client utilitymodel.Resolver, liveState LiveStateSnapshotter, cfg CompactionConfig) *Compactor {
 	maxMessages := cfg.MaxMessages
 	if maxMessages <= 0 {
 		maxMessages = defaultCompactMaxMessages
@@ -96,14 +104,14 @@ func (c *Compactor) tokenTrigger(contextWindow int) int {
 	return defaultCompactMaxTokens
 }
 
-// MaybeCompact inspects sessionID's history. When either trigger
+// CompactIfNeeded inspects sessionID's history. When either trigger
 // (message count or estimated token footprint, see [shouldCompact]) is
 // breached it runs a ladder, cheapest rung first: a non-LLM trim of oversized
 // tool-call arguments and old tool-result bodies (see [Compactor.trimForBudget]);
 // only if that leaves the footprint over budget is the older slice summarized by
 // the LLM and the store rewritten as [summary, recent...]. A trim that suffices
 // on its own rewrites history silently and reports no boundary (Compacted stays
-// false) — it drops no messages. The returned [agentexec.CompactionResult] reports
+// false) — it drops no messages. The returned [CompactionResult] reports
 // whether the LLM summary fired and the before/after message counts so callers
 // can chain follow-on work (e.g. extraction) and surface an observable boundary
 // event.
@@ -115,33 +123,33 @@ func (c *Compactor) tokenTrigger(contextWindow int) int {
 // (no middleware), so it does NOT enter the chat history middleware
 // — otherwise the summarisation request itself would be appended
 // to the history and trigger another compaction round.
-func (c *Compactor) MaybeCompact(ctx context.Context, sessionID string, contextWindow int, preCompact func(context.Context) bool) (agentexec.CompactionResult, error) {
+func (c *Compactor) CompactIfNeeded(ctx context.Context, sessionID string, contextWindow int, preCompact func(context.Context) bool) (CompactionResult, error) {
 	if c == nil || sessionID == "" {
-		return agentexec.CompactionResult{}, nil
+		return CompactionResult{}, nil
 	}
 	maxTokens := c.tokenTrigger(contextWindow)
 	msgs, err := c.store.Read(ctx, sessionID)
 	if err != nil {
-		return agentexec.CompactionResult{}, fmt.Errorf("compactor: read: %w", err)
+		return CompactionResult{}, fmt.Errorf("compactor: read: %w", err)
 	}
 	plan := c.planCompaction(msgs, maxTokens)
 	if plan.action == noCompaction {
-		return agentexec.CompactionResult{}, nil
+		return CompactionResult{}, nil
 	}
 	if preCompact != nil && !preCompact(ctx) {
-		return agentexec.CompactionResult{}, nil
+		return CompactionResult{}, nil
 	}
 
 	if plan.action == trimCompaction {
 		if err := c.store.Replace(ctx, sessionID, plan.trimmed...); err != nil {
-			return agentexec.CompactionResult{}, fmt.Errorf("compactor: replace trimmed: %w", err)
+			return CompactionResult{}, fmt.Errorf("compactor: replace trimmed: %w", err)
 		}
-		return agentexec.CompactionResult{}, nil
+		return CompactionResult{}, nil
 	}
 
 	summary, err := c.summarize(ctx, plan.older)
 	if err != nil {
-		return agentexec.CompactionResult{}, fmt.Errorf("compactor: summarize: %w", err)
+		return CompactionResult{}, fmt.Errorf("compactor: summarize: %w", err)
 	}
 
 	rewritten := make([]chat.Message, 0, 2+len(plan.recent))
@@ -160,9 +168,9 @@ func (c *Compactor) MaybeCompact(ctx context.Context, sessionID string, contextW
 	// a failed rewrite, so a crash cannot
 	// leave the conversation cleared-but-not-rewritten (losing `recent` too).
 	if err := c.store.Replace(ctx, sessionID, rewritten...); err != nil {
-		return agentexec.CompactionResult{}, fmt.Errorf("compactor: replace: %w", err)
+		return CompactionResult{}, fmt.Errorf("compactor: replace: %w", err)
 	}
-	return agentexec.CompactionResult{
+	return CompactionResult{
 		Compacted:      true,
 		MessagesBefore: plan.messagesBefore,
 		MessagesAfter:  len(rewritten),

@@ -1,4 +1,4 @@
-package maintenance
+package runmaintenance
 
 // compactionDefaults govern the auto-compact trigger. Tunable via
 // [CompactionConfig]. Two independent triggers, OR-composed: a raw

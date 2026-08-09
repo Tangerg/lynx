@@ -1,4 +1,4 @@
-package maintenance
+package runmaintenance
 
 import (
 	"context"
@@ -11,12 +11,14 @@ import (
 	"github.com/Tangerg/lynx/chatclient"
 	"github.com/Tangerg/lynx/chathistory/inmemory"
 	"github.com/Tangerg/lynx/core/chat"
+
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/utilitymodel"
 )
 
-// constClient adapts a fixed client to the per-call [ClientFunc] the
+// constClient adapts a fixed client to the per-call [utilitymodel.Resolver] the
 // maintenance services take — these tests don't exercise the runtime's
 // utility-role swap, just a stable stub model.
-func constClient(c *chatclient.Client) ClientFunc {
+func constClient(c *chatclient.Client) utilitymodel.Resolver {
 	return func(context.Context) *chatclient.Client { return c }
 }
 
@@ -31,7 +33,7 @@ func TestCompactor_NopBelowThreshold(t *testing.T) {
 		chat.NewAssistantMessage(chat.NewTextPart("b")),
 	)
 	c := NewCompactor(store, nil /* never called */, nil, CompactionConfig{MaxMessages: 10})
-	res, err := c.MaybeCompact(context.Background(), sessID, 0, nil)
+	res, err := c.CompactIfNeeded(context.Background(), sessID, 0, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -56,7 +58,7 @@ func TestCompactor_Compacts(t *testing.T) {
 	client, _ := chatclient.New(newTextStubModel("BULLETS"), chatclient.Config{})
 
 	c := NewCompactor(store, constClient(client), nil, CompactionConfig{MaxMessages: total, KeepRecent: 4})
-	res, err := c.MaybeCompact(context.Background(), sessID, 0, nil)
+	res, err := c.CompactIfNeeded(context.Background(), sessID, 0, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -119,7 +121,7 @@ func TestCompactor_CutBoundary(t *testing.T) {
 
 	client, _ := chatclient.New(newTextStubModel("BULLETS"), chatclient.Config{})
 	c := NewCompactor(store, constClient(client), nil, CompactionConfig{MaxMessages: 6, KeepRecent: 4})
-	res, err := c.MaybeCompact(context.Background(), sessID, 0, nil)
+	res, err := c.CompactIfNeeded(context.Background(), sessID, 0, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -188,7 +190,7 @@ func TestCompactor_PreservesToolPairsAcrossCutoffs(t *testing.T) {
 			// MaxMessages == len forces the count trigger every run so the cutoff
 			// logic actually executes for each keepRecent.
 			c := NewCompactor(store, constClient(client), nil, CompactionConfig{MaxMessages: len(template), KeepRecent: keepRecent})
-			if _, err := c.MaybeCompact(t.Context(), sessID, 0, nil); err != nil {
+			if _, err := c.CompactIfNeeded(t.Context(), sessID, 0, nil); err != nil {
 				t.Fatal(err)
 			}
 			after, _ := store.Read(t.Context(), sessID)
@@ -252,7 +254,7 @@ func TestCompactor_TokenTrigger(t *testing.T) {
 	// Message bound far out of reach; token bound below the tool result —
 	// so only the token trigger can fire.
 	c := NewCompactor(store, constClient(client), nil, CompactionConfig{MaxMessages: 1000, MaxTokens: 10_000, KeepRecent: 2})
-	res, err := c.MaybeCompact(context.Background(), sessID, 0, nil)
+	res, err := c.CompactIfNeeded(context.Background(), sessID, 0, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -264,7 +266,7 @@ func TestCompactor_TokenTrigger(t *testing.T) {
 // TestCompactor_TokenTriggerShortHistory is the regression for the negative-cutoff
 // panic: the token trigger fires on a conversation with FEWER messages than
 // keepRecent (a couple of huge tool results). cutoff = len-keepRecent would be
-// negative; MaybeCompact must skip cleanly (nothing older to summarize), not
+// negative; CompactIfNeeded must skip cleanly (nothing older to summarize), not
 // panic with an out-of-range index.
 func TestCompactor_TokenTriggerShortHistory(t *testing.T) {
 	store := inmemory.New()
@@ -281,7 +283,7 @@ func TestCompactor_TokenTriggerShortHistory(t *testing.T) {
 
 	client, _ := chatclient.New(newTextStubModel("BULLETS"), chatclient.Config{})
 	c := NewCompactor(store, constClient(client), nil, CompactionConfig{MaxMessages: 1000, MaxTokens: 10_000, KeepRecent: 6})
-	res, err := c.MaybeCompact(context.Background(), sessID, 0, nil) // must not panic
+	res, err := c.CompactIfNeeded(context.Background(), sessID, 0, nil) // must not panic
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -304,7 +306,7 @@ func TestCompactor_PreCompactVeto(t *testing.T) {
 	c := NewCompactor(store, constClient(client), nil, CompactionConfig{MaxMessages: total, KeepRecent: 4})
 
 	called := false
-	res, err := c.MaybeCompact(context.Background(), sessID, 0, func(context.Context) bool {
+	res, err := c.CompactIfNeeded(context.Background(), sessID, 0, func(context.Context) bool {
 		called = true
 		return false // veto
 	})
@@ -331,7 +333,7 @@ func TestCompactor_PreCompactSkipsUnexecutablePlan(t *testing.T) {
 	c := NewCompactor(store, nil, nil, CompactionConfig{MaxMessages: 6, KeepRecent: 2})
 
 	called := false
-	if _, err := c.MaybeCompact(t.Context(), sessID, 0, func(context.Context) bool {
+	if _, err := c.CompactIfNeeded(t.Context(), sessID, 0, func(context.Context) bool {
 		called = true
 		return true
 	}); err != nil {
@@ -366,7 +368,7 @@ func TestCompactor_LadderTrimsUnderBudgetSkippingLLM(t *testing.T) {
 	// only the token trigger fires, and the deterministic trim can clear it.
 	c := NewCompactor(store, constClient(client), nil, CompactionConfig{MaxMessages: 1000, MaxTokens: 4000, KeepRecent: 2})
 
-	res, err := c.MaybeCompact(t.Context(), sessID, 0, nil)
+	res, err := c.CompactIfNeeded(t.Context(), sessID, 0, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -415,7 +417,7 @@ func TestCompactor_LadderStillOverGoesToLLM(t *testing.T) {
 	// Count trigger at the message count → a body trim can't clear it.
 	c := NewCompactor(store, constClient(client), nil, CompactionConfig{MaxMessages: 6, KeepRecent: 2})
 
-	res, err := c.MaybeCompact(t.Context(), sessID, 0, nil)
+	res, err := c.CompactIfNeeded(t.Context(), sessID, 0, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

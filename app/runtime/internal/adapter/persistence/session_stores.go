@@ -12,6 +12,7 @@ import (
 	rundomain "github.com/Tangerg/lynx/app/runtime/internal/domain/run"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/toolresult"
+	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
 	sqlitestore "github.com/Tangerg/lynx/app/runtime/internal/infra/storage/sqlite"
 )
 
@@ -94,7 +95,7 @@ var _ sessions.WriteSets = (*SessionStores)(nil)
 
 func (s *SessionStores) ReadSnapshot(ctx context.Context, sessionID string) (sessions.Snapshot, error) {
 	var snapshot sessions.Snapshot
-	err := s.runInTx(ctx, func(ctx context.Context) error {
+	err := s.tx(ctx, func(ctx context.Context) error {
 		ses, err := s.sessions.Get(ctx, sessionID)
 		if err != nil {
 			return err
@@ -118,51 +119,47 @@ func (s *SessionStores) ReadSnapshot(ctx context.Context, sessionID string) (ses
 				return err
 			}
 		}
-		var plan []plan.Step
+		var steps []plan.Step
 		if s.plan != nil {
-			plan, err = s.plan.List(ctx, sessionID)
+			steps, err = s.plan.List(ctx, sessionID)
 			if err != nil {
 				return err
 			}
 		}
 		snapshot = sessions.Snapshot{
 			Session: ses, Messages: messages, Items: items, Runs: runs,
-			ToolResults: toolResults, Plan: plan,
+			ToolResults: toolResults, Plan: steps,
 		}
 		return nil
 	})
 	return snapshot, err
 }
 
-func (s *SessionStores) runInTx(ctx context.Context, fn func(context.Context) error) error {
-	return s.tx(ctx, fn)
-}
-
 // ApplyFork branches a child session, seeds its history prefix, and applies its
 // title in one transaction.
-func (s *SessionStores) ApplyFork(ctx context.Context, plan sessions.ForkPlan) (session.Session, error) {
+func (s *SessionStores) ApplyFork(ctx context.Context, fork sessions.ForkPlan) (session.Session, error) {
 	var child session.Session
-	err := s.runInTx(ctx, func(ctx context.Context) error {
-		ch, err := s.sessions.Fork(ctx, plan.ParentID)
+	err := s.tx(ctx, func(ctx context.Context) error {
+		ch, err := s.sessions.Fork(ctx, fork.ParentID)
 		if err != nil {
 			return err
 		}
-		if err := s.history.Seed(ctx, ch.ID, plan.Messages); err != nil {
+		if err := s.history.Seed(ctx, ch.ID, fork.Messages); err != nil {
 			return err
 		}
 		// A branch that copies the conversation copies the plan it was following. Only
 		// a non-empty list is written: a fresh child with no row already reads as a
 		// session with no list, and writing one would publish an empty list as news.
-		if s.plan != nil && len(plan.Plan) > 0 {
-			if err := s.plan.Replace(ctx, ch.ID, plan.Plan); err != nil {
+		if s.plan != nil && len(fork.Plan) > 0 {
+			if err := s.plan.Replace(ctx, ch.ID, fork.Plan); err != nil {
 				return err
 			}
 		}
-		if plan.Title != "" {
-			if err := s.sessions.Rename(ctx, ch.ID, plan.Title); err != nil {
+		if fork.Title != "" {
+			if err := s.sessions.Rename(ctx, ch.ID, fork.Title); err != nil {
 				return err
 			}
-			ch.Title = plan.Title
+			ch.Title = fork.Title
 		}
 		child = ch
 		return nil
@@ -174,103 +171,128 @@ func (s *SessionStores) ApplyFork(ctx context.Context, plan sessions.ForkPlan) (
 }
 
 // ApplyRollback persists one resolved rollback plan atomically.
-func (s *SessionStores) ApplyRollback(ctx context.Context, plan sessions.RollbackPlan) error {
-	return s.runInTx(ctx, func(ctx context.Context) error {
-		// The boundary's list is REPUBLISHED, not cleared: a rollback is a new state
-		// commit, so its value has to arrive under a higher revision than whatever the
-		// session already published, and deleting the row would restart that space at
-		// one. An unrecorded boundary is left alone — see sessions.PlanBoundary.
-		if s.plan != nil && plan.Plan.Recorded {
-			if err := s.plan.Replace(ctx, plan.SessionID, plan.Plan.Steps); err != nil {
-				return err
-			}
+func (s *SessionStores) ApplyRollback(ctx context.Context, rollback sessions.RollbackPlan) error {
+	return s.tx(ctx, func(ctx context.Context) error {
+		if err := s.republishRollbackState(ctx, rollback); err != nil {
+			return err
 		}
-		if s.goals != nil {
-			if err := s.goals.Clear(ctx, plan.SessionID); err != nil {
-				return err
-			}
+		if err := s.deleteRolledBackRuns(ctx, rollback.SessionID, rollback.DropRunIDs); err != nil {
+			return err
 		}
-		if plan.KeepMark >= 0 {
-			if err := s.history.Truncate(ctx, plan.SessionID, plan.KeepMark); err != nil {
-				return err
-			}
-		}
-		for _, runID := range plan.DropRunIDs {
-			if err := s.transcript.DeleteRun(ctx, plan.SessionID, runID); err != nil {
-				return err
-			}
-			// A dropped Run ceases to exist, which is also how it releases the
-			// session's admission slot — there is no state left to terminalize.
-			if err := s.runs.Delete(ctx, plan.SessionID, runID); err != nil {
-				return err
-			}
-			if err := s.interrupts.Delete(ctx, plan.SessionID, runID); err != nil {
-				return err
-			}
-		}
-		if len(plan.CheckpointRootIDs) > 0 {
-			if err := s.executorCheckpoints.DeleteCheckpoints(ctx, plan.SessionID, plan.CheckpointRootIDs); err != nil {
+		if len(rollback.CheckpointRootIDs) > 0 {
+			if err := s.executorCheckpoints.DeleteCheckpoints(ctx, rollback.SessionID, rollback.CheckpointRootIDs); err != nil {
 				return err
 			}
 		}
 		return nil
 	})
+}
+
+func (s *SessionStores) republishRollbackState(ctx context.Context, rollback sessions.RollbackPlan) error {
+	// The boundary's list is republished, not cleared: rollback is a new state
+	// commit, so its value must arrive under a higher revision than the session's
+	// prior value. Deleting the row would restart that revision space at one. An
+	// unrecorded boundary is left alone; see sessions.PlanBoundary.
+	if s.plan != nil && rollback.Plan.Recorded {
+		if err := s.plan.Replace(ctx, rollback.SessionID, rollback.Plan.Steps); err != nil {
+			return err
+		}
+	}
+	if s.goals != nil {
+		if err := s.goals.Clear(ctx, rollback.SessionID); err != nil {
+			return err
+		}
+	}
+	if rollback.KeepMark >= 0 {
+		return s.history.Truncate(ctx, rollback.SessionID, rollback.KeepMark)
+	}
+	return nil
+}
+
+func (s *SessionStores) deleteRolledBackRuns(ctx context.Context, sessionID string, runIDs []string) error {
+	for _, runID := range runIDs {
+		if err := s.transcript.DeleteRun(ctx, sessionID, runID); err != nil {
+			return err
+		}
+		// A rolled-back Run ceases to exist and therefore releases the Session's
+		// admission slot; no state remains to terminalize.
+		if err := s.runs.Delete(ctx, sessionID, runID); err != nil {
+			return err
+		}
+		if err := s.interrupts.Delete(ctx, sessionID, runID); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // ApplyRestore replaces every durable projection for a restored session in one
 // transaction.
-func (s *SessionStores) ApplyRestore(ctx context.Context, plan sessions.RestorePlan) error {
-	id := plan.Session.ID
-	if s.toolResults == nil && len(plan.ToolResults) > 0 {
+func (s *SessionStores) ApplyRestore(ctx context.Context, restore sessions.RestorePlan) error {
+	if s.toolResults == nil && len(restore.ToolResults) > 0 {
 		return errors.New("persistence: cannot restore tool results without blob persistence")
 	}
-	return s.runInTx(ctx, func(ctx context.Context) error {
-		if err := s.sessions.Restore(ctx, plan.Session); err != nil {
+	return s.tx(ctx, func(ctx context.Context) error {
+		sessionID := restore.Session.ID
+		if err := s.sessions.Restore(ctx, restore.Session); err != nil {
 			return err
 		}
-		if err := s.clearSessionOwnedState(ctx, id); err != nil {
+		if err := s.clearSessionOwnedState(ctx, sessionID); err != nil {
 			return err
 		}
-		// REPLACED after the clear, not restored by it: Replace bumps the projection's
-		// revision past whatever this session already published, while the clear left
-		// it with no row — and a fresh row starts at one, which a client holding a
-		// higher revision would ignore as stale.
-		if s.plan != nil {
-			if err := s.plan.Replace(ctx, id, plan.Plan); err != nil {
-				return err
-			}
-		}
-		if err := s.history.Seed(ctx, id, plan.Messages); err != nil {
+		if err := s.restorePlanAndHistory(ctx, sessionID, restore); err != nil {
 			return err
 		}
-		for _, run := range plan.Runs {
-			if err := s.runs.Restore(ctx, run); err != nil {
-				return err
-			}
+		if err := s.restoreRuns(ctx, restore.Runs); err != nil {
+			return err
 		}
-		for _, item := range plan.Items {
-			if err := s.transcript.AppendItem(ctx, item); err != nil {
-				return err
-			}
+		if err := s.appendTranscriptItems(ctx, restore.Items); err != nil {
+			return err
 		}
-		if s.toolResults != nil {
-			for _, blob := range plan.ToolResults {
-				if err := s.toolResults.Restore(ctx, blob); err != nil {
-					return err
-				}
-			}
-		}
-		return nil
+		return s.restoreToolResults(ctx, restore.ToolResults)
 	})
 }
 
+func (s *SessionStores) restorePlanAndHistory(ctx context.Context, sessionID string, restore sessions.RestorePlan) error {
+	// Replace after the clear so the Plan revision advances past the value that
+	// clients may already hold. Recreating a deleted row at revision one would be
+	// ignored as stale.
+	if s.plan != nil {
+		if err := s.plan.Replace(ctx, sessionID, restore.Plan); err != nil {
+			return err
+		}
+	}
+	return s.history.Seed(ctx, sessionID, restore.Messages)
+}
+
+func (s *SessionStores) restoreRuns(ctx context.Context, restored []transcript.Run) error {
+	for _, run := range restored {
+		if err := s.runs.Restore(ctx, run); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *SessionStores) restoreToolResults(ctx context.Context, blobs []toolresult.Blob) error {
+	if s.toolResults == nil {
+		return nil
+	}
+	for _, blob := range blobs {
+		if err := s.toolResults.Restore(ctx, blob); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // ApplyDelete removes all durable state for the addressed session.
-func (s *SessionStores) ApplyDelete(ctx context.Context, plan sessions.DeletePlan) error {
-	if plan.SessionID == "" {
+func (s *SessionStores) ApplyDelete(ctx context.Context, deletion sessions.DeletePlan) error {
+	if deletion.SessionID == "" {
 		return errors.New("persistence: delete plan has no session")
 	}
-	return s.runInTx(ctx, func(ctx context.Context) error {
-		return s.deleteSession(ctx, plan.SessionID)
+	return s.tx(ctx, func(ctx context.Context) error {
+		return s.deleteSession(ctx, deletion.SessionID)
 	})
 }
 
@@ -324,54 +346,77 @@ func (s *SessionStores) clearSessionOwnedState(ctx context.Context, sessionID st
 
 // ApplyTerminal persists the terminal record for an abandoned parked run and
 // clears its executor checkpoint atomically.
-func (s *SessionStores) ApplyTerminal(ctx context.Context, plan sessions.TerminalPlan) error {
-	if err := plan.Validate(); err != nil {
+func (s *SessionStores) ApplyTerminal(ctx context.Context, terminal sessions.TerminalPlan) error {
+	if err := terminal.Validate(); err != nil {
 		return fmt.Errorf("persistence: invalid terminal plan: %w", err)
 	}
-	root, _ := plan.RootRun()
-	return s.runInTx(ctx, func(ctx context.Context) error {
-		for _, item := range plan.Items {
-			if err := s.transcript.AppendItem(ctx, item); err != nil {
-				return err
-			}
-		}
-		if plan.CheckpointRootID != "" {
-			if err := s.executorCheckpoints.DeleteCheckpoints(ctx, root.SessionID, []string{plan.CheckpointRootID}); err != nil {
-				return err
-			}
-		}
-		// The interrupt goes before the terminal write: while it is open, the Run is
-		// parked ON it, and a Run cannot be both finished and waiting.
-		if err := s.interrupts.Delete(ctx, root.SessionID, root.ID); err != nil {
+	root, _ := terminal.RootRun()
+	return s.tx(ctx, func(ctx context.Context) error {
+		if err := s.appendTranscriptItems(ctx, terminal.Items); err != nil {
 			return err
 		}
-		for _, run := range plan.Runs {
-			if run.Outcome == nil {
-				return fmt.Errorf("persistence: terminal Run %q outcome is required", run.ID)
-			}
-			switch *run.Outcome {
-			case rundomain.OutcomeCanceled:
-				if err := s.runs.Terminalize(ctx, run); err != nil {
-					return err
-				}
-			case rundomain.OutcomeLost:
-				if err := s.runs.RecoverLost(ctx, run); err != nil {
-					return err
-				}
-			default:
-				return fmt.Errorf("persistence: unsupported parked terminal outcome %s", *run.Outcome)
-			}
+		if err := s.clearParkedRunState(ctx, root, terminal.CheckpointRootID); err != nil {
+			return err
 		}
-		if plan.GoalRun != nil {
-			if s.goals == nil {
-				return errors.New("persistence: Goal Run store is unavailable for a Goal-owned terminal Run")
-			}
-			if err := s.goals.RecordRun(ctx, *plan.GoalRun); err != nil {
-				return fmt.Errorf("persistence: record Goal Run for Run %q: %w", root.ID, err)
-			}
+		if err := s.terminalizeParkedRuns(ctx, terminal.Runs); err != nil {
+			return err
 		}
-		return nil
+		return s.recordGoalTerminalRun(ctx, root.ID, terminal.GoalRun)
 	})
+}
+
+func (s *SessionStores) appendTranscriptItems(ctx context.Context, items []transcript.Item) error {
+	for _, item := range items {
+		if err := s.transcript.AppendItem(ctx, item); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *SessionStores) clearParkedRunState(ctx context.Context, root transcript.Run, checkpointRootID string) error {
+	if checkpointRootID != "" {
+		if err := s.executorCheckpoints.DeleteCheckpoints(ctx, root.SessionID, []string{checkpointRootID}); err != nil {
+			return err
+		}
+	}
+	// Delete the interrupt before the terminal write: while it exists the Run is
+	// parked on it, and a Run cannot be both finished and waiting.
+	return s.interrupts.Delete(ctx, root.SessionID, root.ID)
+}
+
+func (s *SessionStores) terminalizeParkedRuns(ctx context.Context, runs []transcript.Run) error {
+	for _, run := range runs {
+		if run.Outcome == nil {
+			return fmt.Errorf("persistence: terminal Run %q outcome is required", run.ID)
+		}
+		switch *run.Outcome {
+		case rundomain.OutcomeCanceled:
+			if err := s.runs.Terminalize(ctx, run); err != nil {
+				return err
+			}
+		case rundomain.OutcomeLost:
+			if err := s.runs.RecoverLost(ctx, run); err != nil {
+				return err
+			}
+		default:
+			return fmt.Errorf("persistence: unsupported parked terminal outcome %s", *run.Outcome)
+		}
+	}
+	return nil
+}
+
+func (s *SessionStores) recordGoalTerminalRun(ctx context.Context, rootRunID string, record *goal.RunRecord) error {
+	if record == nil {
+		return nil
+	}
+	if s.goals == nil {
+		return errors.New("persistence: Goal Run store is unavailable for a Goal-owned terminal Run")
+	}
+	if err := s.goals.RecordRun(ctx, *record); err != nil {
+		return fmt.Errorf("persistence: record Goal Run for Run %q: %w", rootRunID, err)
+	}
+	return nil
 }
 
 func (s *SessionStores) deleteInterrupts(ctx context.Context, sessionID string) error {

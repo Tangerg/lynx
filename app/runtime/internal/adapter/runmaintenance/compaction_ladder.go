@@ -1,4 +1,4 @@
-package maintenance
+package runmaintenance
 
 import (
 	"fmt"
@@ -11,7 +11,7 @@ import (
 // replace the two cheap, deterministic sources of bloat in the OLD portion of a
 // conversation — oversized tool-call arguments and oversized tool-result bodies
 // — with previews. If that alone brings the footprint under budget the summary
-// is skipped entirely (see [Compactor.MaybeCompact]).
+// is skipped entirely (see [Compactor.CompactIfNeeded]).
 //
 // This trim is LOSSY and NOT retrievable, unlike the fresh-result offload
 // (agentexec tool-result eviction, which keeps a read_tool_result handle): these

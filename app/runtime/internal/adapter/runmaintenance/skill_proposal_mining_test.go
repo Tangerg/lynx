@@ -1,4 +1,4 @@
-package maintenance
+package runmaintenance
 
 import (
 	"context"
@@ -43,7 +43,7 @@ func (s *fakeProposalSubmitter) SubmitProposal(_ context.Context, cwd string, pr
 	return skills.NewProposalRef(proposal.Scope, proposal.Name, []byte(proposal.Instructions)), nil
 }
 
-func minerFixture(t *testing.T, reply string, config MinerConfig) (*SkillMiner, *fakeProposalSubmitter, *textStubModel) {
+func skillProposalMinerFixture(t *testing.T, reply string, config SkillMiningConfig) (*SkillProposalMiner, *fakeProposalSubmitter, *textStubModel) {
 	t.Helper()
 	messages := inmemory.New()
 	if err := messages.Write(t.Context(), "ses_1",
@@ -60,14 +60,14 @@ func minerFixture(t *testing.T, reply string, config MinerConfig) (*SkillMiner, 
 		t.Fatal(err)
 	}
 	proposals := &fakeProposalSubmitter{}
-	miner := NewSkillMiner(messages, proposals, nil, constClient(client), config)
-	return miner, proposals, model
+	skillMiner := NewSkillProposalMiner(messages, proposals, nil, constClient(client), config)
+	return skillMiner, proposals, model
 }
 
-// minerRevisionFixture drives the 2-phase refinement path: a scripted model
+// skillRevisionMinerFixture drives the 2-phase refinement path: a scripted model
 // returns phase-one then (optionally) phase-two replies, and source supplies the
 // real current skill bodies for the read-before-write guard.
-func minerRevisionFixture(t *testing.T, source skillSource, replies ...scriptedReply) (*SkillMiner, *fakeProposalSubmitter) {
+func skillRevisionMinerFixture(t *testing.T, source skillSource, replies ...scriptedReply) (*SkillProposalMiner, *fakeProposalSubmitter) {
 	t.Helper()
 	messages := inmemory.New()
 	if err := messages.Write(t.Context(), "ses_1",
@@ -83,13 +83,13 @@ func minerRevisionFixture(t *testing.T, source skillSource, replies ...scriptedR
 		t.Fatal(err)
 	}
 	proposals := &fakeProposalSubmitter{}
-	miner := NewSkillMiner(messages, proposals, source, constClient(client), MinerConfig{ComplexityThreshold: 1, Cadence: 1})
-	return miner, proposals
+	skillMiner := NewSkillProposalMiner(messages, proposals, source, constClient(client), SkillMiningConfig{ComplexityThreshold: 1, Cadence: 1})
+	return skillMiner, proposals
 }
 
 func TestSkillMinerBelowComplexityThresholdDoesNotMine(t *testing.T) {
-	miner, proposals, model := minerFixture(t, sampleSkillMD, MinerConfig{ComplexityThreshold: 5, Cadence: 1})
-	if err := miner.MaybeMine(t.Context(), "ses_1", "/repo", 4); err != nil {
+	skillMiner, proposals, model := skillProposalMinerFixture(t, sampleSkillMD, SkillMiningConfig{ComplexityThreshold: 5, Cadence: 1})
+	if err := skillMiner.MineIfDue(t.Context(), "ses_1", "/repo", 4); err != nil {
 		t.Fatal(err)
 	}
 	if model.calls != 0 {
@@ -101,20 +101,20 @@ func TestSkillMinerBelowComplexityThresholdDoesNotMine(t *testing.T) {
 }
 
 func TestSkillMinerCadenceGatesMining(t *testing.T) {
-	miner, proposals, model := minerFixture(t, sampleSkillMD, MinerConfig{ComplexityThreshold: 2, Cadence: 2})
+	skillMiner, proposals, model := skillProposalMinerFixture(t, sampleSkillMD, SkillMiningConfig{ComplexityThreshold: 2, Cadence: 2})
 	// A routine Run must not advance the cadence counter.
-	if err := miner.MaybeMine(t.Context(), "ses_1", "/repo", 1); err != nil {
+	if err := skillMiner.MineIfDue(t.Context(), "ses_1", "/repo", 1); err != nil {
 		t.Fatal(err)
 	}
 	// First complex Run: due counter reaches 1 of 2 — no mine yet.
-	if err := miner.MaybeMine(t.Context(), "ses_1", "/repo", 5); err != nil {
+	if err := skillMiner.MineIfDue(t.Context(), "ses_1", "/repo", 5); err != nil {
 		t.Fatal(err)
 	}
 	if len(proposals.proposals) != 0 {
 		t.Fatalf("mined before the cadence was due: %d proposals", len(proposals.proposals))
 	}
 	// Second complex Run: cadence is due — mine once.
-	if err := miner.MaybeMine(t.Context(), "ses_1", "/repo", 5); err != nil {
+	if err := skillMiner.MineIfDue(t.Context(), "ses_1", "/repo", 5); err != nil {
 		t.Fatal(err)
 	}
 	if model.calls != 1 {
@@ -126,8 +126,8 @@ func TestSkillMinerCadenceGatesMining(t *testing.T) {
 }
 
 func TestSkillMinerSubmitsUserProposalWithMinedProvenance(t *testing.T) {
-	miner, proposals, _ := minerFixture(t, sampleSkillMD, MinerConfig{ComplexityThreshold: 1, Cadence: 1})
-	if err := miner.MaybeMine(t.Context(), "ses_1", "/repo", 3); err != nil {
+	skillMiner, proposals, _ := skillProposalMinerFixture(t, sampleSkillMD, SkillMiningConfig{ComplexityThreshold: 1, Cadence: 1})
+	if err := skillMiner.MineIfDue(t.Context(), "ses_1", "/repo", 3); err != nil {
 		t.Fatal(err)
 	}
 	if len(proposals.proposals) != 1 {
@@ -155,8 +155,8 @@ func TestSkillMinerSubmitsUserProposalWithMinedProvenance(t *testing.T) {
 }
 
 func TestSkillMinerNoSkillProducesNoProposal(t *testing.T) {
-	miner, proposals, model := minerFixture(t, "NO_SKILL", MinerConfig{ComplexityThreshold: 1, Cadence: 1})
-	if err := miner.MaybeMine(t.Context(), "ses_1", "/repo", 3); err != nil {
+	skillMiner, proposals, model := skillProposalMinerFixture(t, "NO_SKILL", SkillMiningConfig{ComplexityThreshold: 1, Cadence: 1})
+	if err := skillMiner.MineIfDue(t.Context(), "ses_1", "/repo", 3); err != nil {
 		t.Fatal(err)
 	}
 	if model.calls != 1 {
@@ -168,8 +168,8 @@ func TestSkillMinerNoSkillProducesNoProposal(t *testing.T) {
 }
 
 func TestSkillMinerUnparseableReplyIsDroppedNotErrored(t *testing.T) {
-	miner, proposals, _ := minerFixture(t, "here is a skill but no frontmatter block", MinerConfig{ComplexityThreshold: 1, Cadence: 1})
-	if err := miner.MaybeMine(t.Context(), "ses_1", "/repo", 3); err != nil {
+	skillMiner, proposals, _ := skillProposalMinerFixture(t, "here is a skill but no frontmatter block", SkillMiningConfig{ComplexityThreshold: 1, Cadence: 1})
+	if err := skillMiner.MineIfDue(t.Context(), "ses_1", "/repo", 3); err != nil {
 		t.Fatalf("unparseable reply surfaced an error: %v", err)
 	}
 	if len(proposals.proposals) != 0 {
@@ -179,8 +179,8 @@ func TestSkillMinerUnparseableReplyIsDroppedNotErrored(t *testing.T) {
 
 func TestSkillMinerFencedReplyStillParses(t *testing.T) {
 	fenced := "```markdown\n" + sampleSkillMD + "\n```"
-	miner, proposals, _ := minerFixture(t, fenced, MinerConfig{ComplexityThreshold: 1, Cadence: 1})
-	if err := miner.MaybeMine(t.Context(), "ses_1", "/repo", 3); err != nil {
+	skillMiner, proposals, _ := skillProposalMinerFixture(t, fenced, SkillMiningConfig{ComplexityThreshold: 1, Cadence: 1})
+	if err := skillMiner.MineIfDue(t.Context(), "ses_1", "/repo", 3); err != nil {
 		t.Fatal(err)
 	}
 	if len(proposals.proposals) != 1 {
@@ -199,11 +199,11 @@ func TestSkillMinerRevisionLoadsRealBodyAndMarksRevises(t *testing.T) {
 		},
 	}}
 	corrected := "---\nname: run-tests\ndescription: Run the suite. Use when asked to run tests.\n---\nUse `go test ./...`."
-	miner, proposals := minerRevisionFixture(t, source,
+	skillMiner, proposals := skillRevisionMinerFixture(t, source,
 		scriptedReply{text: "REVISE: run-tests"},
 		scriptedReply{text: corrected},
 	)
-	if err := miner.MaybeMine(t.Context(), "ses_1", "/repo", 3); err != nil {
+	if err := skillMiner.MineIfDue(t.Context(), "ses_1", "/repo", 3); err != nil {
 		t.Fatal(err)
 	}
 	if len(proposals.proposals) != 1 {
@@ -225,10 +225,10 @@ func TestSkillMinerRevisionLoadsRealBodyAndMarksRevises(t *testing.T) {
 }
 
 func TestSkillMinerRevisionUnknownSkillSkipsWithoutPhaseTwo(t *testing.T) {
-	// Only a phase-one reply is scripted: if the miner tried a phase-two call for
+	// Only a phase-one reply is scripted: if the skillMiner tried a phase-two call for
 	// an unloadable skill, the scripted model would be exhausted and error.
-	miner, proposals := minerRevisionFixture(t, fakeSkillSource{}, scriptedReply{text: "REVISE: ghost"})
-	if err := miner.MaybeMine(t.Context(), "ses_1", "/repo", 3); err != nil {
+	skillMiner, proposals := skillRevisionMinerFixture(t, fakeSkillSource{}, scriptedReply{text: "REVISE: ghost"})
+	if err := skillMiner.MineIfDue(t.Context(), "ses_1", "/repo", 3); err != nil {
 		t.Fatalf("unknown revision target should skip, got %v", err)
 	}
 	if len(proposals.proposals) != 0 {
@@ -237,9 +237,9 @@ func TestSkillMinerRevisionUnknownSkillSkipsWithoutPhaseTwo(t *testing.T) {
 }
 
 func TestSkillMinerWithoutProposalSubmitterNoOps(t *testing.T) {
-	miner, proposals, model := minerFixture(t, sampleSkillMD, MinerConfig{ComplexityThreshold: 1, Cadence: 1})
-	miner.proposals = nil
-	if err := miner.MaybeMine(t.Context(), "ses_1", "/repo", 9); err != nil {
+	skillMiner, proposals, model := skillProposalMinerFixture(t, sampleSkillMD, SkillMiningConfig{ComplexityThreshold: 1, Cadence: 1})
+	skillMiner.proposals = nil
+	if err := skillMiner.MineIfDue(t.Context(), "ses_1", "/repo", 9); err != nil {
 		t.Fatal(err)
 	}
 	if model.calls != 0 || len(proposals.proposals) != 0 {

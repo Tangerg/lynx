@@ -451,10 +451,32 @@
 - [x] P13-03 精修 Adapter/Infra/Delivery 的转换、技术机制与协议边界；
 - [x] P13-04 执行 Runtime/Agent Framework 双向抽象泄露复审、全量 race/fuzz/contract/standalone 门禁并冻结事实。
 
-## 18. 进度记录
+## 18. P14 — Runtime 内部职责与全层级命名精修
+
+### 目标
+
+在 Agent Framework/Runtime 边界已经冻结的前提下，只反证 Runtime 内部实现：清除职责混杂、伪共享 package、重复判断、过程式聚合行为和含混命名，同时保持协议与消费者范围不变。
+
+### 工作项
+
+- [x] P14-01 复审 Domain/Application 聚合行为、use-case 依赖边界和内部命名；
+- [x] P14-02 复审 Adapter/Infra 的 package owner、技术机制、转换职责和内部命名；
+- [ ] P14-03 复审 Delivery/Bootstrap 的组合与协议职责、文件布局和内部命名；
+- [ ] P14-04 执行全量 standalone、race、fuzz、生成物、跨环依赖、重复/死代码、目录/文件/标识符命名与空残留复扫。
+
+### 验收
+
+- 不以复杂度或文件大小本身驱动拆分，只处理可证明的多 owner、重复事实或语义失真；
+- package、目录、文件、类型、方法、函数、常量和变量均准确表达其 owner 与行为；
+- 不新增 Runtime → Agent Framework 抽象泄露，也不让产品策略进入 Framework；
+- 不修改前端、TUI、CLI，不引入兼容层；
+- 每个可独立验收批次更新事实、提交并推送。
+
+## 19. 进度记录
 
 | 日期 | 阶段 | 完成事实 | 验证 |
 |---|---|---|---|
+| 2026-08-10 | P14-02（Adapter/Infra ownership and naming） | 将混合历史压缩、记忆、Skill 与会话标题的 `adapter/maintenance` 治本拆为 `runmaintenance`、`sessiontitle` 与共享的 `utilitymodel`；类型与文件按真实行为统一为 `MemoryConsolidator`、`SkillProposalMiner`、`IdleSkillArchiver`、`LiveStateSnapshotter`、`Generator` 及 memory/skill/transcript 责任文件，删除 `Maybe*`、`Extractor`、`Titler` 等含混或过时词汇；`agentexec` 将 deployment assembly 收敛到私有 builder、restore delegate call 收敛到准确行为，interaction input codec 按 JSON object/field/array 验证分责；sandbox archive 将写入与提取分别交给有状态 owner，SQLite Transcript item append 将 offload identity、record write 与错误解释分责；Session write-set 删除无行为的 transaction 转发层，并将 rollback、restore、parked terminal 的各个原子子行为收敛为准确私有方法 | Adapter/Infra/Bootstrap/architecture 受影响包禁用缓存测试通过；Adapter/Infra 生产 `gocognit` 热点归零（Bootstrap composition root 留 P14-03）；`revive` 全绿，旧 package/文件/标识符由架构守卫禁止回流；未修改协议、消费者或 Agent Framework 边界 |
 | 2026-08-10 | P14-01（Application/Domain invariants and naming） | Run 协调器将含混的通用依赖检查改为准确的 Start/Resume staging 检查与共享 segment-supervision 边界，删除 Resume 的重复 Run projection 检查；`run.Tree` 将成员索引校验与 canonical topology traversal 收敛到私有 builder 行为；`Pending` 与 `EventCommit` 仍由聚合拥有验证，但 envelope、continuation/interrupt/binding 及 item/invocation/lifecycle 不变量各归准确的内部行为；Domain Run API 清除 `run.RunState` 一类 package stutter，统一为 `run.State`、`run.Status`、`run.Draft`、`run.Limits`、`run.Capabilities`、`run.Lineage`、`run.Tree`/`run.NewTree`，文件按 lifecycle/limits/resume/admission 的真实内容分责；Run journal 删除没有消费者的导出面；Session mutation callback 改为使用真实传入的 transaction context | `domain/run`、`application/runs`、`application/sessions` 及直接爆炸半径禁用缓存测试全绿；revive 复扫中 Domain Run package stutter 与 unexported-return 归零，未新增端口、外环依赖、wire 变化或兼容面 |
 | 2026-08-09 | P13-04（final boundary freeze） | 完成 Runtime/Agent Framework 双向抽象泄露反证：Framework 生产代码不含产品、持久化或 Runtime 类型；Runtime 的 Framework import 仍唯一收敛于 `adapter/agentexec`，Domain/Application/Infra/Delivery 不持有 Framework 状态，不解析 private strategy payload。剩余高分支生产行为逐项复核为聚合不变量、递归 wire 校验、原子写集、组合根或安全状态机，没有为复杂度分数制造第二 owner。前端、TUI、CLI 和用户并行修改保持未触碰 | Runtime standalone tidy-diff/build/vet/staticcheck/完整 lint/deadcode/test/race 全绿；3 个 strict ACL codec fuzz 本轮约 42.5 万次执行无失败；contract generator 重跑后 manifest/schema/OpenRPC/Go validator/TypeScript 零漂移；Agent Framework standalone 同级门禁、13 个 fuzz owner、8 个实跑 examples 与 root workspace build/vet/test 全绿；跨环 import、旧术语、tracked 空文件/空目录、生产 TODO/FIXME/HACK 扫描零违规，P13 完成 |
 | 2026-08-09 | P13-03（Adapter/Infra/Delivery） | Agent Framework ACL 将 continuation answer 的全量翻译校验置于 Signal 投递前，并统一 streaming 失败的权威投影结算；Run persistence 将 opening admission、model/tool invocation、progress 与 waiting-subtree 原子写集收敛到准确的私有 owner，`Pending` 的持久值相等行为归还 Application，Adapter 不再理解 SQLite 表示差异；Delivery contract validation 按 identity/problem/operation/shape/capability 和 union validation state 分责，清除稳定注释中的阶段、具体存储与具体消费者词汇；archive extraction 以平台无关规则拒绝反斜杠和 Windows drive path；skill lifecycle move 保留同一 capability root 内的精确 `os.Root.Rename`，只分离 replay/outcome reconciliation，避免通用 move 的冲突改名语义破坏稳定 destination identity | 受影响 Application/Adapter/Infra/Delivery packages 的 test/race 全绿；Runtime 全量 test 除精确 owner 门禁随重构迁移后通过，vet/staticcheck/完整 lint/deadcode 零问题；架构 DAG、checkpoint transaction owner、空目录、坏味道标记和外环词汇扫描零违规 |
@@ -480,27 +502,6 @@
 | 2026-08-09 | P9.1 | 依据真实 import graph 清零 `component` umbrella：path identity、secret masking、notification relay 分别归 Infra/Application/Adapter；pagination/replay cursor、completion/HTTP origin/idempotency/shutdown/taskgroup 以准确 capability 存在；Bootstrap 中长期同步行为移出 composition root；并发 Tool attribution test 改为按稳定 model-call/index 断言而非 goroutine 到达序 | component path/empty dir/temporary ledger 为零；shared capability purity、content-codec boundary、Bootstrap no-business-method、inner-ring comment gates 全绿；`go mod tidy -diff`、全量 test/vet/build/staticcheck、`deadcode -test`、相关 owner/ring race 通过，并发 attribution 100 次重复稳定 |
 | 2026-08-09 | P9.2 | 完成 Adapter/Infra/Application/Delivery 逐包职责审计；workspace physical path identity 收敛到唯一 Infra mechanism；删除空的 temporary architecture 台账并把旧 Agent 禁止与 Domain no-context-I/O 变为永久 framework boundary guard；确认 agentexec 按真实变化原因组织且没有第二 lifecycle owner或虚构子包 | Adapter→Infra 单向图与目标六环 DAG 全绿；Delivery concrete Adapter/Infra import、Infra 反向 import、Application outward import、纯转发 wrapper、package/type 口吃、空目录和 temporary exception 均为零；workspacepath/pathidentity/arch targeted tests 与全量质量门禁通过 |
 | 2026-08-09 | P10 | Runtime Protocol 一次性提升到 `2026-08-09`、Session Artifact 到 v14；删除 wire 中实现泄露的 `processRootSegment`，只保留准确的 `runtimeInstanceRootSegment`；Go registry、validator、manifest、OpenRPC、JSON Schema、TypeScript binding、canonical samples 与人读 API/Transport/Aux 文档同步；新增精确 consumer handoff | canonical artifact samples 中漏存的 v12 与旧 `outcome.error` 被 strict sample gate 暴露并治本修正；生成器零漂移、旧 wire token/版本归零、strict validator/round-trip、HTTP/in-process、全量质量门禁通过；Desktop backlog 已记录但未改消费者 |
-
-## 19. P14 — Runtime 内部职责与全层级命名精修
-
-### 目标
-
-在 Agent Framework/Runtime 边界已经冻结的前提下，只反证 Runtime 内部实现：清除职责混杂、伪共享 package、重复判断、过程式聚合行为和含混命名，同时保持协议与消费者范围不变。
-
-### 工作项
-
-- [x] P14-01 复审 Domain/Application 聚合行为、use-case 依赖边界和内部命名；
-- [ ] P14-02 复审 Adapter/Infra 的 package owner、技术机制、转换职责和内部命名；
-- [ ] P14-03 复审 Delivery/Bootstrap 的组合与协议职责、文件布局和内部命名；
-- [ ] P14-04 执行全量 standalone、race、fuzz、生成物、跨环依赖、重复/死代码、目录/文件/标识符命名与空残留复扫。
-
-### 验收
-
-- 不以复杂度或文件大小本身驱动拆分，只处理可证明的多 owner、重复事实或语义失真；
-- package、目录、文件、类型、方法、函数、常量和变量均准确表达其 owner 与行为；
-- 不新增 Runtime → Agent Framework 抽象泄露，也不让产品策略进入 Framework；
-- 不修改前端、TUI、CLI，不引入兼容层；
-- 每个可独立验收批次更新事实、提交并推送。
 
 ## 20. 当前下一步
 

@@ -50,7 +50,7 @@ func TestInteractionExecutorProjectsAuthoritativeModelToolLifecycleAndAccounting
 		Pricing: func(_, _ string, _ *chat.Usage) float64 { return 0.25 }, Provider: "test",
 	})
 
-	events := runInteractionHarness(t, executor, context.Background(), interactionTestStart(), nil)
+	events := runInteractionHarness(context.Background(), t, executor, interactionTestStart(), nil)
 	if toolCalls != 1 {
 		t.Fatalf("Tool calls = %d, want 1", toolCalls)
 	}
@@ -107,7 +107,7 @@ func TestInteractionExecutorBindsResolvedRunScopeToManifestAndToolCalls(t *testi
 		ToolResolver: resolver, ToolInterpreter: testInteractionToolInterpreter{},
 		ToolAuthorizer: allowInteractionTools{},
 	})
-	runInteractionHarness(t, executor, context.Background(), start, nil)
+	runInteractionHarness(context.Background(), t, executor, start, nil)
 	if !resolver.ok || resolver.scope != want {
 		t.Fatalf("manifest scope = (%+v, %t), want %+v", resolver.scope, resolver.ok, want)
 	}
@@ -190,7 +190,7 @@ func TestInteractionExecutorCommitsDeferredAdvertisementThroughAgentFramework(t 
 		ToolInterpreter: testInteractionToolInterpreter{},
 		ToolAuthorizer:  allowInteractionTools{},
 	})
-	events := runInteractionHarness(t, executor, context.Background(), interactionTestStart(), nil)
+	events := runInteractionHarness(context.Background(), t, executor, interactionTestStart(), nil)
 	if want := [][]string{{"search_tools"}, {"search_tools", "hidden_lookup"}, {"search_tools", "hidden_lookup"}}; !slices.EqualFunc(model.manifests, want, slices.Equal[[]string]) {
 		t.Fatalf("model manifests = %v, want %v", model.manifests, want)
 	}
@@ -220,7 +220,7 @@ func TestInteractionExecutorKeepsRefetchableProjectionAndPostHookObservational(t
 		ToolAuthorizer:  allowInteractionTools{},
 		ToolHooks:       hooks,
 	})
-	events := runInteractionHarness(t, executor, context.Background(), interactionTestStart(), nil)
+	events := runInteractionHarness(context.Background(), t, executor, interactionTestStart(), nil)
 	if hooks.after != 1 {
 		t.Fatalf("post-Tool hooks = %d, want 1", hooks.after)
 	}
@@ -551,7 +551,7 @@ func TestInteractionExecutorCommitsAutomaticDenialWithoutCallingTool(t *testing.
 		ToolInterpreter: testInteractionToolInterpreter{},
 		ToolAuthorizer:  denyingInteractionTools{reason: "blocked by automatic policy"},
 	})
-	events := runInteractionHarness(t, executor, context.Background(), interactionTestStart(), nil)
+	events := runInteractionHarness(context.Background(), t, executor, interactionTestStart(), nil)
 	if toolCalls != 0 {
 		t.Fatalf("Tool calls = %d, want 0", toolCalls)
 	}
@@ -579,7 +579,7 @@ func TestInteractionExecutorPreservesNoProgressDoomLoopBrake(t *testing.T) {
 		ToolInterpreter: testInteractionToolInterpreter{},
 		ToolAuthorizer:  allowInteractionTools{},
 	})
-	events := runInteractionHarness(t, executor, context.Background(), interactionTestStart(), nil)
+	events := runInteractionHarness(context.Background(), t, executor, interactionTestStart(), nil)
 	if toolCalls != interactionDoomLoopThreshold {
 		t.Fatalf("Tool calls = %d, want %d before brake", toolCalls, interactionDoomLoopThreshold)
 	}
@@ -611,7 +611,7 @@ func TestInteractionExecutorPreservesToolResultOffload(t *testing.T) {
 		ToolResultThreshold:  100,
 		ToolResultReaderName: testToolResultReaderName,
 	})
-	events := runInteractionHarness(t, executor, context.Background(), interactionTestStart(), nil)
+	events := runInteractionHarness(context.Background(), t, executor, interactionTestStart(), nil)
 	finished := payloadsOf[runs.ToolCallFinished](events)
 	if store.calls != 1 || len(finished) != 1 || finished[0].Offload == nil ||
 		finished[0].Offload.ID != store.lastStage.ID || store.lastStage.SessionID != interactionTestStart().SessionID {

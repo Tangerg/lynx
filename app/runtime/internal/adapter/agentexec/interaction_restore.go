@@ -130,48 +130,16 @@ func (session *interactionSession) restoreDelegateCalls(
 			continue
 		}
 		for _, child := range active {
-			childSnapshot, exists := snapshots[child.ProcessID()]
-			if !exists {
-				return nil, nil, fmt.Errorf("delegate child %s is absent from the tree", child.ProcessID())
-			}
-			relation := childSnapshot.Relation()
-			relationParent, hasParent := relation.ParentID()
-			relationKey, hasKey := relation.ChildKey()
-			if !hasParent || !hasKey || relationParent != parentID || relationKey != child.ChildKey() {
-				return nil, nil, fmt.Errorf("delegate child %s relation differs from interaction state", child.ProcessID())
-			}
-			member, survives := members[child.ProcessID()]
-			if !survives {
-				if !childSnapshot.Status().Terminal() {
-					return nil, nil, fmt.Errorf("delegate child %s has no surviving run binding", child.ProcessID())
-				}
-				continue
-			}
-			target, managed := deployments.delegateTarget(parentSnapshot.DeploymentRef(), child.ToolCall().Name)
-			if !managed || target != childSnapshot.DeploymentRef() {
-				return nil, nil, fmt.Errorf("delegate child %s changed exact deployment", child.ProcessID())
-			}
-			input, arguments, err := decodeDelegateCall(child.ToolCall())
+			managedCall, survives, err := restoreManagedDelegateCall(
+				deployments, snapshots, members, parentID, parentSnapshot, child,
+			)
 			if err != nil {
-				return nil, nil, fmt.Errorf("decode Delegate child %s input: %w", child.ProcessID(), err)
-			}
-			identity := delegateCallIdentity{parentID: parentID, childKey: child.ChildKey()}
-			binding := runs.ChildRunBinding{
-				MemberID: child.ProcessID().String(), RunID: member.RunID, ParentRunID: member.ParentRunID,
-			}
-			if err := binding.Validate(); err != nil {
 				return nil, nil, err
 			}
-			managedCall := &managedDelegateCall{
-				identity: identity, parentRelation: parentSnapshot.Relation(), target: target,
-				call: child.ToolCall(), input: input, arguments: arguments,
-				modelCallSequence: child.ModelCallSequence(), toolCallIndex: child.ToolCallIndex(),
-				callID: delegatedToolCallID(
-					parentSnapshot.Relation(), child.ModelCallSequence(), child.ToolCallIndex(), child.ToolCall(),
-				),
-				binding: binding, childProcessID: child.ProcessID(), toolStarted: true,
+			if !survives {
+				continue
 			}
-			calls[identity] = managedCall
+			calls[managedCall.identity] = managedCall
 			children[child.ProcessID()] = managedCall
 		}
 	}
@@ -184,6 +152,61 @@ func (session *interactionSession) restoreDelegateCalls(
 		}
 	}
 	return calls, children, nil
+}
+
+func restoreManagedDelegateCall(
+	deployments *interactionDeploymentSet,
+	snapshots map[agent.ProcessID]agent.Snapshot,
+	members map[agent.ProcessID]runs.WaitingMember,
+	parentID agent.ProcessID,
+	parentSnapshot agent.Snapshot,
+	child interaction.ActiveDelegateChild,
+) (*managedDelegateCall, bool, error) {
+	childSnapshot, exists := snapshots[child.ProcessID()]
+	if !exists {
+		return nil, false, fmt.Errorf("delegate child %s is absent from the tree", child.ProcessID())
+	}
+	relation := childSnapshot.Relation()
+	relationParent, hasParent := relation.ParentID()
+	relationKey, hasKey := relation.ChildKey()
+	if !hasParent || !hasKey || relationParent != parentID || relationKey != child.ChildKey() {
+		return nil, false, fmt.Errorf("delegate child %s relation differs from interaction state", child.ProcessID())
+	}
+	member, survives := members[child.ProcessID()]
+	if !survives {
+		if !childSnapshot.Status().Terminal() {
+			return nil, false, fmt.Errorf("delegate child %s has no surviving run binding", child.ProcessID())
+		}
+		return nil, false, nil
+	}
+	target, managed := deployments.delegateTarget(parentSnapshot.DeploymentRef(), child.ToolCall().Name)
+	if !managed || target != childSnapshot.DeploymentRef() {
+		return nil, false, fmt.Errorf("delegate child %s changed exact deployment", child.ProcessID())
+	}
+	input, arguments, err := decodeDelegateCall(child.ToolCall())
+	if err != nil {
+		return nil, false, fmt.Errorf("decode Delegate child %s input: %w", child.ProcessID(), err)
+	}
+	binding := runs.ChildRunBinding{
+		MemberID: child.ProcessID().String(), RunID: member.RunID, ParentRunID: member.ParentRunID,
+	}
+	if err := binding.Validate(); err != nil {
+		return nil, false, err
+	}
+	return &managedDelegateCall{
+		identity:          delegateCallIdentity{parentID: parentID, childKey: child.ChildKey()},
+		parentRelation:    parentSnapshot.Relation(),
+		target:            target,
+		call:              child.ToolCall(),
+		input:             input,
+		arguments:         arguments,
+		modelCallSequence: child.ModelCallSequence(),
+		toolCallIndex:     child.ToolCallIndex(),
+		callID: delegatedToolCallID(
+			parentSnapshot.Relation(), child.ModelCallSequence(), child.ToolCallIndex(), child.ToolCall(),
+		),
+		binding: binding, childProcessID: child.ProcessID(), toolStarted: true,
+	}, true, nil
 }
 
 func restoreInteractionAccounting(

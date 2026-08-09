@@ -1,4 +1,4 @@
-package maintenance
+package runmaintenance
 
 import (
 	"context"
@@ -28,10 +28,10 @@ func (s LiveStateSnapshot) empty() bool {
 	return len(s.Shells) == 0 && len(s.Plan) == 0
 }
 
-// LiveStateFunc snapshots a session's active execution state at the moment a
+// LiveStateSnapshotter snapshots a session's active execution state at the moment a
 // compaction rewrites its history. It is deterministic (no model call). A nil
-// LiveStateFunc disables the reminder.
-type LiveStateFunc func(ctx context.Context, sessionID string) LiveStateSnapshot
+// LiveStateSnapshotter disables the reminder.
+type LiveStateSnapshotter func(ctx context.Context, sessionID string) LiveStateSnapshot
 
 // liveStateReminder renders snap as a system-reminder message to append after a
 // compaction summary, or reports false when there is nothing active to carry

@@ -149,51 +149,71 @@ func validateUniqueJSONNames(decoder *json.Decoder, path string) error {
 }
 
 func validateJSONFieldNames(value any, targetType reflect.Type, path string) error {
-	for targetType.Kind() == reflect.Pointer {
-		targetType = targetType.Elem()
-	}
+	targetType = dereferenceJSONType(targetType)
 	if value == nil || targetType == reflect.TypeFor[json.RawMessage]() {
 		return nil
 	}
 	switch targetType.Kind() {
 	case reflect.Struct:
-		object, ok := value.(map[string]any)
-		if !ok {
-			return nil
-		}
-		fields := make(map[string]reflect.Type, targetType.NumField())
-		for index := range targetType.NumField() {
-			field := targetType.Field(index)
-			if !field.IsExported() {
-				continue
-			}
-			name, _, _ := strings.Cut(field.Tag.Get("json"), ",")
-			if name == "-" {
-				continue
-			}
-			if name == "" {
-				name = field.Name
-			}
-			fields[name] = field.Type
-		}
-		for name, child := range object {
-			fieldType, found := fields[name]
-			if !found {
-				return fmt.Errorf("field %q at %s does not match the exact JSON contract", name, path)
-			}
-			if err := validateJSONFieldNames(child, fieldType, path+"."+name); err != nil {
-				return err
-			}
-		}
+		return validateJSONObjectFields(value, targetType, path)
 	case reflect.Slice, reflect.Array:
-		values, ok := value.([]any)
-		if !ok {
-			return nil
+		return validateJSONArrayElements(value, targetType.Elem(), path)
+	}
+	return nil
+}
+
+func dereferenceJSONType(targetType reflect.Type) reflect.Type {
+	for targetType.Kind() == reflect.Pointer {
+		targetType = targetType.Elem()
+	}
+	return targetType
+}
+
+func validateJSONObjectFields(value any, targetType reflect.Type, path string) error {
+	object, ok := value.(map[string]any)
+	if !ok {
+		return nil
+	}
+	fields := jsonFieldTypes(targetType)
+	for name, child := range object {
+		fieldType, found := fields[name]
+		if !found {
+			return fmt.Errorf("field %q at %s does not match the exact JSON contract", name, path)
 		}
-		for index, child := range values {
-			if err := validateJSONFieldNames(child, targetType.Elem(), fmt.Sprintf("%s[%d]", path, index)); err != nil {
-				return err
-			}
+		if err := validateJSONFieldNames(child, fieldType, path+"."+name); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func jsonFieldTypes(structType reflect.Type) map[string]reflect.Type {
+	fields := make(map[string]reflect.Type, structType.NumField())
+	for index := range structType.NumField() {
+		field := structType.Field(index)
+		if !field.IsExported() {
+			continue
+		}
+		name, _, _ := strings.Cut(field.Tag.Get("json"), ",")
+		if name == "-" {
+			continue
+		}
+		if name == "" {
+			name = field.Name
+		}
+		fields[name] = field.Type
+	}
+	return fields
+}
+
+func validateJSONArrayElements(value any, elementType reflect.Type, path string) error {
+	values, ok := value.([]any)
+	if !ok {
+		return nil
+	}
+	for index, child := range values {
+		if err := validateJSONFieldNames(child, elementType, fmt.Sprintf("%s[%d]", path, index)); err != nil {
+			return err
 		}
 	}
 	return nil

@@ -1,4 +1,4 @@
-package maintenance
+package runmaintenance
 
 import (
 	"context"
@@ -12,30 +12,31 @@ import (
 	"github.com/Tangerg/lynx/core/chat"
 	skillspec "github.com/Tangerg/lynx/skills"
 
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/utilitymodel"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/skills"
 )
 
 const (
-	// defaultMinerComplexityThreshold is the minimum completed tool-call count
+	// defaultSkillMiningComplexityThreshold is the minimum completed tool-call count
 	// for a Run to count as "complex" enough to consider distilling. Below it a
 	// Run is routine and never triggers a mining attempt.
-	defaultMinerComplexityThreshold = 8
-	// defaultMinerCadence mines at most once per this many complex Runs per
+	defaultSkillMiningComplexityThreshold = 8
+	// defaultSkillMiningCadence mines at most once per this many complex Runs per
 	// session, bounding the extra LLM call and avoiding proposal spam.
-	defaultMinerCadence = 3
-	// minerMinMessages skips mining a conversation too short to hold a reusable
+	defaultSkillMiningCadence = 3
+	// skillMiningMinMessages skips mining a conversation too short to hold a reusable
 	// procedure.
-	minerMinMessages = 4
+	skillMiningMinMessages = 4
 
-	// minedNew / minedRevise are the mined proposal kinds, carried as the skill.kind
+	// skillProposalNew / skillProposalRevision are the mined proposal kinds, carried as the skill.kind
 	// metric label; consts so a typo can't silently ship a wrong dimension.
-	minedNew    = "new"
-	minedRevise = "revise"
+	skillProposalNew      = "new"
+	skillProposalRevision = "revise"
 )
 
-// MinerConfig tunes when the [SkillMiner] attempts a distillation. Zero values
+// SkillMiningConfig tunes when the [SkillProposalMiner] attempts a distillation. Zero values
 // select package defaults.
-type MinerConfig struct {
+type SkillMiningConfig struct {
 	// ComplexityThreshold is the minimum completed tool-call count for a Run to
 	// count as complex. Only complex Runs advance the cadence counter.
 	ComplexityThreshold int
@@ -44,23 +45,23 @@ type MinerConfig struct {
 	Cadence int
 }
 
-func (c MinerConfig) normalized() MinerConfig {
+func (c SkillMiningConfig) normalized() SkillMiningConfig {
 	if c.ComplexityThreshold <= 0 {
-		c.ComplexityThreshold = defaultMinerComplexityThreshold
+		c.ComplexityThreshold = defaultSkillMiningComplexityThreshold
 	}
 	if c.Cadence <= 0 {
-		c.Cadence = defaultMinerCadence
+		c.Cadence = defaultSkillMiningCadence
 	}
 	return c
 }
 
-// proposalSubmitter is the miner's narrow application boundary. The miner can
+// proposalSubmitter is the skillMiner's narrow application boundary. The skillMiner can
 // submit immutable content for review but cannot activate or reject it.
 type proposalSubmitter interface {
 	SubmitProposal(ctx context.Context, cwd string, proposal skills.Proposal) (skills.ProposalRef, error)
 }
 
-// skillSource loads the current on-disk body of an active skill. The miner uses
+// skillSource loads the current on-disk body of an active skill. The skillMiner uses
 // it for the read-before-write guard on the feedback-refinement path: a revision
 // is generated against the skill's REAL current content, never against a body
 // merely inferred from the transcript. Load returns an fs.ErrNotExist-wrapped
@@ -69,19 +70,19 @@ type skillSource interface {
 	Load(ctx context.Context, name string) (*skillspec.Skill, error)
 }
 
-// SkillMiner distills a complex Run's trajectory into a Skill proposal.
+// SkillProposalMiner distills a complex Run's trajectory into a Skill proposal.
 // It runs at the Run boundary — after a clean finish, before compaction — and
 // takes the Hermes learning-loop's "mine automatically" idea but grounds it in
 // the governed authoring path: every proposal stays behind the mandatory human
 // approval gate and carries mined provenance. The Agent
 // never publishes a skill on its own. Mining is a direct, middleware-free LLM
-// call (like [Extractor]), never a forked agent.
-type SkillMiner struct {
+// call (like [MemoryConsolidator]), never a forked agent.
+type SkillProposalMiner struct {
 	history   messageReader
 	proposals proposalSubmitter
 	source    skillSource
-	client    ClientFunc
-	config    MinerConfig
+	client    utilitymodel.Resolver
+	config    SkillMiningConfig
 	minMsgs   int
 
 	// mu guards complexRuns, the per-session count of complex Runs since the
@@ -91,27 +92,27 @@ type SkillMiner struct {
 	complexRuns map[string]int
 }
 
-// NewSkillMiner builds the Run-boundary skill miner over the conversation
+// NewSkillProposalMiner builds the Run-boundary skill skillMiner over the conversation
 // history reader, the proposal use case, the active-Skill source (for the
 // read-before-write refinement guard), and the utility-model client resolver.
-func NewSkillMiner(history messageReader, proposals proposalSubmitter, source skillSource, client ClientFunc, config MinerConfig) *SkillMiner {
-	return &SkillMiner{
+func NewSkillProposalMiner(history messageReader, proposals proposalSubmitter, source skillSource, client utilitymodel.Resolver, config SkillMiningConfig) *SkillProposalMiner {
+	return &SkillProposalMiner{
 		history:     history,
 		proposals:   proposals,
 		source:      source,
 		client:      client,
 		config:      config.normalized(),
-		minMsgs:     minerMinMessages,
+		minMsgs:     skillMiningMinMessages,
 		complexRuns: map[string]int{},
 	}
 }
 
-// MaybeMine distills the session's recent trajectory into a Skill proposal
+// MineIfDue distills the session's recent trajectory into a Skill proposal
 // when the just-finished Run was complex enough and the per-session
 // cadence is due. A distillation that yields no reusable skill, an unparseable
 // or invalid document, or an obviously-dangerous one is dropped silently
 // (return nil) — only a real read/save/LLM failure surfaces as an error.
-func (m *SkillMiner) MaybeMine(ctx context.Context, sessionID, cwd string, toolCalls int) error {
+func (m *SkillProposalMiner) MineIfDue(ctx context.Context, sessionID, cwd string, toolCalls int) error {
 	if m == nil || m.proposals == nil || sessionID == "" || cwd == "" {
 		return nil
 	}
@@ -142,7 +143,7 @@ func (m *SkillMiner) MaybeMine(ctx context.Context, sessionID, cwd string, toolC
 }
 
 // mineNew submits a freshly distilled Skill as a non-revising proposal.
-func (m *SkillMiner) mineNew(ctx context.Context, document, sessionID, cwd string) error {
+func (m *SkillProposalMiner) mineNew(ctx context.Context, document, sessionID, cwd string) error {
 	front, body, err := skillspec.Parse([]byte(unfence(document)))
 	if err != nil {
 		return nil
@@ -154,7 +155,7 @@ func (m *SkillMiner) mineNew(ctx context.Context, document, sessionID, cwd strin
 		Instructions:  body,
 		Origin:        skills.ProposalOriginMined,
 		SourceSession: sessionID,
-	}, minedNew)
+	}, skillProposalNew)
 }
 
 // mineRevision refines an existing skill from the conversation's corrections.
@@ -163,7 +164,7 @@ func (m *SkillMiner) mineNew(ctx context.Context, document, sessionID, cwd strin
 // inferred from the transcript. A skill that can't be loaded (absent/invalid) is
 // skipped. The proposal keeps the target name and is marked as a revision so
 // approval replaces the active Skill.
-func (m *SkillMiner) mineRevision(ctx context.Context, name string, messages []chat.Message, sessionID, cwd string) error {
+func (m *SkillProposalMiner) mineRevision(ctx context.Context, name string, messages []chat.Message, sessionID, cwd string) error {
 	if m.source == nil {
 		return nil
 	}
@@ -193,12 +194,12 @@ func (m *SkillMiner) mineRevision(ctx context.Context, name string, messages []c
 		Origin:        skills.ProposalOriginMined,
 		SourceSession: sessionID,
 		Revises:       true,
-	}, minedRevise)
+	}, skillProposalRevision)
 }
 
 // submitProposal validates and scans mined content before crossing the shared
 // application boundary. The authoring store repeats these checks defensively.
-func (m *SkillMiner) submitProposal(ctx context.Context, cwd string, proposal skills.Proposal, kind string) error {
+func (m *SkillProposalMiner) submitProposal(ctx context.Context, cwd string, proposal skills.Proposal, kind string) error {
 	if err := proposal.Validate(); err != nil {
 		return nil
 	}
@@ -208,7 +209,7 @@ func (m *SkillMiner) submitProposal(ctx context.Context, cwd string, proposal sk
 	if _, err := m.proposals.SubmitProposal(ctx, cwd, proposal); err != nil {
 		return fmt.Errorf("skill mining: submit proposal %q: %w", proposal.Name, err)
 	}
-	recordMinedSkill(ctx, kind)
+	recordMinedSkillProposal(ctx, kind)
 	return nil
 }
 
@@ -231,7 +232,7 @@ func reviseTarget(text string) (string, bool) {
 // reset DELETES the key (a missing key reads back as 0), so a session self-evicts
 // from the map when it fires — bounding the map instead of retaining every
 // session for the process lifetime.
-func (m *SkillMiner) due(sessionID string) bool {
+func (m *SkillProposalMiner) due(sessionID string) bool {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.complexRuns[sessionID]++
@@ -271,9 +272,9 @@ description: <what the skill does and WHEN to use it, one or two sentences>
 // askForSkill runs the phase-one distillation directly on the utility model,
 // outside conversation middleware. It returns "" for NO_SKILL, a "REVISE: <name>"
 // directive, or a new-skill SKILL.md; the caller interprets which.
-func (m *SkillMiner) askForSkill(ctx context.Context, messages []chat.Message) (string, error) {
+func (m *SkillProposalMiner) askForSkill(ctx context.Context, messages []chat.Message) (string, error) {
 	transcript := renderTranscript(messages, uncappedToolResults)
-	text, err := askDirect(ctx, m.resolveClient(ctx), skillMinerPrompt, transcript)
+	text, err := utilitymodel.Complete(ctx, m.resolveClient(ctx), skillMinerPrompt, transcript)
 	if err != nil {
 		return "", err
 	}
@@ -301,7 +302,7 @@ description: <what it does and WHEN to use it>
 <the corrected body>`
 
 // askForRevision runs phase two against the loaded skill's real content.
-func (m *SkillMiner) askForRevision(ctx context.Context, current *skillspec.Skill, messages []chat.Message) (string, error) {
+func (m *SkillProposalMiner) askForRevision(ctx context.Context, current *skillspec.Skill, messages []chat.Message) (string, error) {
 	var input strings.Builder
 	input.WriteString("CURRENT SKILL.md\n---\n")
 	input.WriteString("name: ")
@@ -312,7 +313,7 @@ func (m *SkillMiner) askForRevision(ctx context.Context, current *skillspec.Skil
 	input.WriteString(current.Body)
 	input.WriteString("\n\nCONVERSATION\n---\n")
 	input.WriteString(renderTranscript(messages, uncappedToolResults))
-	text, err := askDirect(ctx, m.resolveClient(ctx), skillRevisePrompt, input.String())
+	text, err := utilitymodel.Complete(ctx, m.resolveClient(ctx), skillRevisePrompt, input.String())
 	if err != nil {
 		return "", err
 	}
@@ -323,7 +324,7 @@ func (m *SkillMiner) askForRevision(ctx context.Context, current *skillspec.Skil
 	return trimmed, nil
 }
 
-func (m *SkillMiner) resolveClient(ctx context.Context) *chatclient.Client {
+func (m *SkillProposalMiner) resolveClient(ctx context.Context) *chatclient.Client {
 	if m.client == nil {
 		return nil
 	}

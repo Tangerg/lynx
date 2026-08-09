@@ -1,4 +1,4 @@
-package maintenance
+package runmaintenance
 
 import (
 	"context"
@@ -12,10 +12,10 @@ type PlanReader interface {
 	List(ctx context.Context, sessionID string) ([]plan.Step, error)
 }
 
-// NewLiveState adapts live shells and persisted plan to the compactor's
+// NewLiveStateSnapshotter adapts live shells and persisted plan to the compactor's
 // reminder source. A plan-read failure omits plan rather than failing the
 // compaction it decorates.
-func NewLiveState(shells *exec.Shells, plans PlanReader) LiveStateFunc {
+func NewLiveStateSnapshotter(shells *exec.Shells, plans PlanReader) LiveStateSnapshotter {
 	if shells == nil && plans == nil {
 		return nil
 	}

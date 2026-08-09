@@ -33,7 +33,7 @@ func TestInteractionExecutorRunsNativeRootFromCompleteWorkingContext(t *testing.
 		chat.NewUserMessage(chat.NewTextPart("current question")),
 	}
 
-	events := runInteractionHarness(t, executor, context.Background(), start, nil)
+	events := runInteractionHarness(context.Background(), t, executor, start, nil)
 	if len(captured) != 3 || captured[0].Text() != "earlier question" || captured[2].Text() != "current question" {
 		t.Fatalf("model working context = %#v", captured)
 	}
@@ -78,7 +78,7 @@ func TestInteractionExecutorMapsModelFailure(t *testing.T) {
 		return nil, errors.New("provider unavailable")
 	})
 	executor := newTestInteractionExecutor(t, model)
-	events := runInteractionHarness(t, executor, context.Background(), interactionTestStart(), nil)
+	events := runInteractionHarness(context.Background(), t, executor, interactionTestStart(), nil)
 	ended := payloadsOf[runs.SegmentEnded](events)
 	if len(ended) != 1 || ended[0].Reason != run.OutcomeFailed || ended[0].Problem == nil ||
 		ended[0].Problem.Kind != transcript.ProviderUnavailableProblem {
@@ -96,7 +96,7 @@ func TestInteractionExecutorDoesNotBindRunLifetimeToCallerContext(t *testing.T) 
 	})
 	executor := newTestInteractionExecutor(t, model)
 	caller, cancelCaller := context.WithCancel(context.Background())
-	events := runInteractionHarness(t, executor, caller, interactionTestStart(), func() {
+	events := runInteractionHarness(caller, t, executor, interactionTestStart(), func() {
 		runContext := <-modelContext
 		cancelCaller()
 		if err := runContext.Err(); err != nil {
@@ -202,9 +202,9 @@ func interactionTestStart() runs.RootExecutionStart {
 }
 
 func runInteractionHarness(
+	ctx context.Context,
 	t *testing.T,
 	executor *InteractionExecutor,
-	ctx context.Context,
 	start runs.RootExecutionStart,
 	afterBegin func(),
 ) []runs.ExecutorEvent {

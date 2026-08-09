@@ -37,8 +37,8 @@ func TestProviderStoreUpdatePreservesOmittedFieldsAndClearsExplicitly(t *testing
 		t.Fatalf("key-only update = %+v, want endpoint preserved", got)
 	}
 
-	clear := ""
-	got, err = store.Update(t.Context(), "openai", provider.Patch{BaseURL: &clear})
+	emptyBaseURL := ""
+	got, err = store.Update(t.Context(), "openai", provider.Patch{BaseURL: &emptyBaseURL})
 	if err != nil {
 		t.Fatal(err)
 	}

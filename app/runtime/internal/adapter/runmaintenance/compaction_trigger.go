@@ -1,4 +1,4 @@
-package maintenance
+package runmaintenance
 
 import "github.com/Tangerg/lynx/core/chat"
 

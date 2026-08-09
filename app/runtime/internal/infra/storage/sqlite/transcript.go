@@ -31,18 +31,9 @@ func (s *TranscriptStore) AppendItem(ctx context.Context, item transcript.Item) 
 	if err := item.Validate(); err != nil {
 		return fmt.Errorf("sqlite: history item %q: %w", item.ID, err)
 	}
-	var offloadID toolresult.ID
-	if item.Tool != nil && item.Tool.Offload != nil {
-		if err := item.Tool.Offload.Validate(); err != nil {
-			return fmt.Errorf("sqlite: history item offload: %w", err)
-		}
-		if item.Tool.Result == nil {
-			return errors.New("sqlite: offloaded history item result is absent")
-		}
-		if _, ok := item.Tool.Result.String(); !ok {
-			return errors.New("sqlite: offloaded history item result must be a preview string")
-		}
-		offloadID = item.Tool.Offload.ID
+	offloadID, err := transcriptOffloadID(item)
+	if err != nil {
+		return err
 	}
 	payload, err := encodeTranscriptItem(item)
 	if err != nil {
@@ -53,44 +44,84 @@ func (s *TranscriptStore) AppendItem(ctx context.Context, item transcript.Item) 
 	// write-set (RunInTx joins any outer cross-store transaction), so the search
 	// index never drifts from the transcript it mirrors.
 	return RunInTx(ctx, s.db, func(ctx context.Context) error {
-		q := conn(ctx, s.db)
-		res, err := q.ExecContext(ctx,
-			`INSERT INTO history_items(session_id, run_id, item_id, occurred_at, payload, offload_id)
-			 VALUES (?, ?, ?, ?, ?, ?)
-			 ON CONFLICT(item_id) DO UPDATE SET
-			   payload = excluded.payload,
-			   offload_id = excluded.offload_id
-			 WHERE history_items.session_id = excluded.session_id
-			   AND history_items.run_id = excluded.run_id
-			   AND history_items.occurred_at = excluded.occurred_at
-			   AND (history_items.offload_id = '' OR history_items.offload_id = excluded.offload_id)`,
-			item.SessionID, item.RunID, item.ID, item.OccurredAt.UnixNano(), string(payload), offloadID,
-		)
-		if err != nil {
-			if offloadID != "" {
-				var ownerItem string
-				ownerErr := q.QueryRowContext(ctx,
-					`SELECT item_id FROM history_items WHERE offload_id = ?`, offloadID,
-				).Scan(&ownerItem)
-				if ownerErr == nil && ownerItem != item.ID {
-					return fmt.Errorf("%w: offload %q already belongs to item %q", transcript.ErrIdentityConflict, offloadID, ownerItem)
-				}
-				if ownerErr != nil && !errors.Is(ownerErr, sql.ErrNoRows) {
-					return fmt.Errorf("sqlite: inspect history item offload conflict: %w", errors.Join(err, ownerErr))
-				}
-			}
-			return fmt.Errorf("sqlite: append history item: %w", err)
-		}
-		if changed, err := res.RowsAffected(); err != nil {
-			return fmt.Errorf("sqlite: inspect history item write: %w", err)
-		} else if changed != 1 {
-			return fmt.Errorf("%w: item %q already belongs to another session, run, occurrence, or offload identity", transcript.ErrIdentityConflict, item.ID)
+		if err := s.appendItemRecord(ctx, item, payload, offloadID); err != nil {
+			return err
 		}
 		if searchable {
 			return s.indexForSearch(ctx, item, searchText)
 		}
 		return nil
 	})
+}
+
+func transcriptOffloadID(item transcript.Item) (toolresult.ID, error) {
+	if item.Tool == nil || item.Tool.Offload == nil {
+		return "", nil
+	}
+	if err := item.Tool.Offload.Validate(); err != nil {
+		return "", fmt.Errorf("sqlite: history item offload: %w", err)
+	}
+	if item.Tool.Result == nil {
+		return "", errors.New("sqlite: offloaded history item result is absent")
+	}
+	if _, ok := item.Tool.Result.String(); !ok {
+		return "", errors.New("sqlite: offloaded history item result must be a preview string")
+	}
+	return item.Tool.Offload.ID, nil
+}
+
+func (s *TranscriptStore) appendItemRecord(
+	ctx context.Context,
+	item transcript.Item,
+	payload []byte,
+	offloadID toolresult.ID,
+) error {
+	q := conn(ctx, s.db)
+	result, err := q.ExecContext(ctx,
+		`INSERT INTO history_items(session_id, run_id, item_id, occurred_at, payload, offload_id)
+		 VALUES (?, ?, ?, ?, ?, ?)
+		 ON CONFLICT(item_id) DO UPDATE SET
+		   payload = excluded.payload,
+		   offload_id = excluded.offload_id
+		 WHERE history_items.session_id = excluded.session_id
+		   AND history_items.run_id = excluded.run_id
+		   AND history_items.occurred_at = excluded.occurred_at
+		   AND (history_items.offload_id = '' OR history_items.offload_id = excluded.offload_id)`,
+		item.SessionID, item.RunID, item.ID, item.OccurredAt.UnixNano(), string(payload), offloadID,
+	)
+	if err != nil {
+		return s.explainItemAppendError(ctx, item.ID, offloadID, err)
+	}
+	changed, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("sqlite: inspect history item write: %w", err)
+	}
+	if changed != 1 {
+		return fmt.Errorf("%w: item %q already belongs to another session, run, occurrence, or offload identity", transcript.ErrIdentityConflict, item.ID)
+	}
+	return nil
+}
+
+func (s *TranscriptStore) explainItemAppendError(
+	ctx context.Context,
+	itemID string,
+	offloadID toolresult.ID,
+	appendErr error,
+) error {
+	if offloadID == "" {
+		return fmt.Errorf("sqlite: append history item: %w", appendErr)
+	}
+	var ownerItemID string
+	ownerErr := conn(ctx, s.db).QueryRowContext(ctx,
+		`SELECT item_id FROM history_items WHERE offload_id = ?`, offloadID,
+	).Scan(&ownerItemID)
+	if ownerErr == nil && ownerItemID != itemID {
+		return fmt.Errorf("%w: offload %q already belongs to item %q", transcript.ErrIdentityConflict, offloadID, ownerItemID)
+	}
+	if ownerErr != nil && !errors.Is(ownerErr, sql.ErrNoRows) {
+		return fmt.Errorf("sqlite: inspect history item offload conflict: %w", errors.Join(appendErr, ownerErr))
+	}
+	return fmt.Errorf("sqlite: append history item: %w", appendErr)
 }
 
 // Item resolves one durable transcript Item by its globally unique identity.

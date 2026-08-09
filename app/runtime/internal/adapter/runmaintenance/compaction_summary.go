@@ -1,4 +1,4 @@
-package maintenance
+package runmaintenance
 
 import (
 	"context"
@@ -6,6 +6,8 @@ import (
 
 	"github.com/Tangerg/lynx/chatclient"
 	"github.com/Tangerg/lynx/core/chat"
+
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/utilitymodel"
 )
 
 const compactionPrompt = `You are compacting the earlier portion of a long coding-agent
@@ -47,7 +49,7 @@ func (c *Compactor) summarize(ctx context.Context, msgs []chat.Message) (chat.Me
 	if c.client != nil {
 		client = c.client(ctx)
 	}
-	text, err := askDirect(ctx, client, compactionPrompt, transcript)
+	text, err := utilitymodel.Complete(ctx, client, compactionPrompt, transcript)
 	if err != nil {
 		return chat.Message{}, err
 	}

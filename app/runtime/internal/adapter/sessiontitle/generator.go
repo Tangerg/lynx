@@ -1,12 +1,14 @@
-package maintenance
+package sessiontitle
 
 import (
 	"context"
 	"strings"
+
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/utilitymodel"
 )
 
 // titleMaxInputChars caps the slice of the opening user message fed to the
-// titler — a title needs the gist, not a whole pasted file, and a shorter
+// generator. A title needs the gist, not a whole pasted file, and a shorter
 // prompt keeps the (cheap-model) call fast.
 const titleMaxInputChars = 4000
 
@@ -14,18 +16,17 @@ const titleMaxInputChars = 4000
 // truncated rather than rejected (a usable title beats none).
 const titleMaxRunes = 80
 
-// Titler generates a short, human-readable session title from a conversation's
-// opening user message — the auto-name a client shows in its session list
-// instead of an empty entry. Like the [Compactor]'s summary it is a one-shot,
-// middleware-free LLM call ([askDirect]) on the (typically cheaper) utility
-// model. A nil Titler / resolver makes [Titler.Generate] a no-op.
-type Titler struct {
-	client ClientFunc
+// Generator produces a short, human-readable Session title from the opening
+// user message. It uses one middleware-free call to the typically cheaper
+// utility model. A nil Generator or Resolver makes [Generator.Generate] a
+// no-op.
+type Generator struct {
+	client utilitymodel.Resolver
 }
 
-// NewTitler builds a Titler over a per-call chat-client resolver.
-func NewTitler(client ClientFunc) *Titler {
-	return &Titler{client: client}
+// NewGenerator builds a Generator over a per-call chat-client resolver.
+func NewGenerator(client utilitymodel.Resolver) *Generator {
+	return &Generator{client: client}
 }
 
 const titlePrompt = `Write a concise title for a conversation that opens with the user message below.
@@ -39,7 +40,7 @@ Rules:
 // when titling isn't possible — a nil receiver/client, an empty message, or a
 // model reply that sanitizes to nothing. Best-effort by contract: callers
 // leave the session untitled on "" rather than surfacing a failure.
-func (t *Titler) Generate(ctx context.Context, firstMessage string) (string, error) {
+func (t *Generator) Generate(ctx context.Context, firstMessage string) (string, error) {
 	if t == nil || t.client == nil {
 		return "", nil
 	}
@@ -54,7 +55,7 @@ func (t *Titler) Generate(ctx context.Context, firstMessage string) (string, err
 	if client == nil {
 		return "", nil
 	}
-	text, err := askDirect(ctx, client, titlePrompt, msg)
+	text, err := utilitymodel.Complete(ctx, client, titlePrompt, msg)
 	if err != nil {
 		return "", err
 	}

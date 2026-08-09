@@ -14,7 +14,6 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec"
 	codebaseindexadapter "github.com/Tangerg/lynx/app/runtime/internal/adapter/codebaseindex"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/isolation"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/maintenance"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/modelcatalog"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/modelclient"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/notification"
@@ -22,6 +21,7 @@ import (
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/promptsource"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/runrecovery"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/runsegment"
+	"github.com/Tangerg/lynx/app/runtime/internal/adapter/sessiontitle"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/skillproposal"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
 	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset/catalog"
@@ -230,7 +230,7 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 		index := codebase.NewIndex(cfg.CodebaseStore, liveEmbedder.Resolve, codebaseindexadapter.Source{})
 		codebaseUseCases = index
 	}
-	// Agent-memory search (search_memory + the extractor's vector backfill) embeds
+	// Agent-memory search (search_memory + the consolidator's vector backfill) embeds
 	// through the same live embedding role as @codebase. The searcher is nil when
 	// no memory store is wired; keyword search works without an embedder.
 	var agentMemorySearcher *agentmemoryapp.Searcher
@@ -403,7 +403,7 @@ func buildAssembly(ctx context.Context, a *Assembly) (*Host, error) {
 		ModelInvocations:    cfg.ModelInvocationStore,
 		ToolInvocations:     cfg.ToolInvocationStore,
 		Messages:            messages.conversation,
-		Titles:              maintenance.NewTitler(utilityClient),
+		Titles:              sessiontitle.NewGenerator(utilityClient),
 		State:               cfg.RunStore,
 		RunMetrics:          cfg.RunStore,
 		ExecutorCheckpoints: cfg.ExecutorCheckpoints,

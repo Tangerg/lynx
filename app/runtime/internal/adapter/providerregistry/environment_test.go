@@ -102,8 +102,8 @@ func TestWithEnvKeys_UpdateNeverPersistsEnvironmentKey(t *testing.T) {
 		t.Fatalf("base URL update changed key: effective=%+v stored=%+v", got, inner.stored["deepseek"])
 	}
 
-	clear := ""
-	got, err = svc.Update(t.Context(), "deepseek", provider.Patch{APIKey: &clear})
+	emptyKey := ""
+	got, err = svc.Update(t.Context(), "deepseek", provider.Patch{APIKey: &emptyKey})
 	if err != nil {
 		t.Fatal(err)
 	}

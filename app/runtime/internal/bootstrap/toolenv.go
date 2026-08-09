@@ -55,7 +55,7 @@ func buildToolEnvironment(
 		Plan:            cfg.PlanStore,
 		Interrupt:       interactioninput.Require,
 		MCPToolDisabled: mcpEnv.policy.ToolDisabled,
-		// The authoring store records skill loads for the idle-lifecycle curator; a
+		// The authoring store records Skill loads for idle-Skill archival; a
 		// disabled store no-ops RecordUse.
 		SkillUsage:     skillStore,
 		SkillProposals: skillProposals,

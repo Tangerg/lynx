@@ -218,12 +218,12 @@ func TestRemovedStutteringVocabularyDoesNotReturn(t *testing.T) {
 	root := moduleRoot(t)
 	reason := "use the package's canonical, non-stuttering vocabulary"
 	for path, names := range map[string][]string{
-		filepath.Join(root, "internal", "adapter", "agentexec"):     {"Workdir", "MemorySearcher"},
-		filepath.Join(root, "internal", "adapter", "modelclient"):   {"ClientResolver", "NewClientResolver", "ResolveClient"},
-		filepath.Join(root, "internal", "adapter", "pricing"):       {"Catalog"},
-		filepath.Join(root, "internal", "adapter", "maintenance"):   {"Suite", "NewSuite", "SubmitSkillProposal"},
-		filepath.Join(root, "internal", "adapter", "mcpconnection"): {"Connections"},
-		filepath.Join(root, "internal", "application", "models"):    {"ModelDetails"},
+		filepath.Join(root, "internal", "adapter", "agentexec"):      {"Workdir", "MemorySearcher"},
+		filepath.Join(root, "internal", "adapter", "modelclient"):    {"ClientResolver", "NewClientResolver", "ResolveClient"},
+		filepath.Join(root, "internal", "adapter", "pricing"):        {"Catalog"},
+		filepath.Join(root, "internal", "adapter", "runmaintenance"): {"Suite", "NewSuite", "SubmitSkillProposal"},
+		filepath.Join(root, "internal", "adapter", "mcpconnection"):  {"Connections"},
+		filepath.Join(root, "internal", "application", "models"):     {"ModelDetails"},
 		filepath.Join(root, "internal", "application", "sessions"): {
 			"SessionStore", "SessionForgetter", "SessionAdmissions", "SessionAdmission",
 			"SessionState", "SessionView",
@@ -339,7 +339,13 @@ func TestRuntimeResponsibilityFilesStayFocused(t *testing.T) {
 		filepath.Join("internal", "application", "runs", "engine_event.go"):            "execution facts belong to execution_fact.go",
 		filepath.Join("internal", "application", "workspace", "coordinator.go"):        "workspace use cases belong to responsibility-specific files",
 		filepath.Join("internal", "adapter", "agentexec", "turn", "engine.go"):         "Agent execution, maintenance, and presentation dependencies belong to focused files",
-		filepath.Join("internal", "adapter", "maintenance", "suite.go"):                "Run maintenance composition is the Pipeline",
+		filepath.Join("internal", "adapter", "maintenance"):                            "post-Run work belongs to runmaintenance; Session titles and utility-model calls have focused adapter packages",
+		filepath.Join("internal", "adapter", "runmaintenance", "suite.go"):             "Run maintenance composition is the Pipeline",
+		filepath.Join("internal", "adapter", "runmaintenance", "llm.go"):               "transcript rendering belongs to transcript.go; generic utility-model calls belong to adapter/utilitymodel",
+		filepath.Join("internal", "adapter", "runmaintenance", "extraction.go"):        "memory extraction and curation form the memory-consolidation capability",
+		filepath.Join("internal", "adapter", "runmaintenance", "skillmine.go"):         "Skill proposal mining belongs to skill_proposal_mining.go",
+		filepath.Join("internal", "adapter", "runmaintenance", "skillcurate.go"):       "idle-Skill archival belongs to skill_archiving.go",
+		filepath.Join("internal", "adapter", "sessiontitle", "title.go"):               "Session title generation belongs to generator.go",
 		filepath.Join("internal", "application", "integrations"):                       "MCP application ownership belongs to application/mcp",
 		filepath.Join("internal", "application", "contract"):                           "cross-resource invariants belong to application/invariant",
 		filepath.Join("internal", "adapter", "toolset", "workdir.go"):                  "CWD-bound tool composition belongs to cwd_tools.go",
@@ -413,7 +419,7 @@ func TestDomainDoesNotRenderAgentOrToolPresentation(t *testing.T) {
 		filepath.Join(root, "internal", "domain", "agentmemory"): {
 			"Render":         "memory prompt rendering belongs to adapter/agentexec",
 			"EstimateTokens": "model token approximation belongs to adapter/agentexec",
-			"NormalizeFacts": "LLM Markdown extraction belongs to adapter/maintenance",
+			"NormalizeFacts": "LLM Markdown extraction belongs to adapter/runmaintenance",
 		},
 		filepath.Join(root, "internal", "domain", "plan"): {
 			"Render": "plan prompt/tool formatting belongs to adapter/planpresentation",
@@ -850,7 +856,7 @@ func TestBootstrapDoesNotOwnLiveRuntimeState(t *testing.T) {
 	forbidTopLevelNames(t, dir, map[string]string{
 		"buildUtilityEnvironment":   "utility role resolution belongs to modelclient",
 		"buildEmbeddingEnvironment": "embedding role resolution belongs to modelclient",
-		"liveStateSnapshot":         "maintenance live-state projection belongs to the maintenance adapter",
+		"liveStateSnapshot":         "Run maintenance live-state projection belongs to adapter/runmaintenance",
 	})
 }
 

@@ -470,9 +470,11 @@ func (executor *InteractionExecutor) Observe(
 	}, nil
 }
 
-// BeginRoot starts the staged Process exactly once. Agent Framework owns every execution
-// step; this adapter only awaits the immutable terminal result and translates it.
-func (executor *InteractionExecutor) BeginRoot(ctx context.Context, ref runs.ExecutorRef) error {
+// BeginRoot starts the staged Process exactly once. The accepted Run uses the
+// staged session lifecycle rather than the caller's request context, so a client
+// disconnect cannot cancel durable execution. Agent Framework owns every step;
+// this adapter only awaits and translates the immutable terminal result.
+func (executor *InteractionExecutor) BeginRoot(_ context.Context, ref runs.ExecutorRef) error {
 	session, err := executor.session(ref)
 	if err != nil {
 		return err

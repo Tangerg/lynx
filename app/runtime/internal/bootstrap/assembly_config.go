@@ -45,7 +45,7 @@ type Config struct {
 	Maintenance agentexec.RunMaintenance
 
 	// AgentMemoryStore is the SQLite fact ledger and its curated memory items,
-	// used by the default Extractor and injected into the system prompt. nil
+	// used by the default MemoryConsolidator and injected into the system prompt. nil
 	// disables agent-maintained memory without affecting user-editable LYRA.md.
 	AgentMemoryStore *sqlitestore.AgentMemoryStore
 
@@ -101,7 +101,7 @@ type Config struct {
 	// SessionStore persists Lyra sessions. Required; the composition root injects
 	// the sqlite-backed store (tests use a sqlite :memory: DB) and threads it to
 	// the consumers that each hold their own narrow session port — the sessions
-	// coordinator, the run-segment titler, and the sub-agent spawn adapter. The
+	// coordinator, the Session title generator, and the sub-agent spawn adapter. The
 	// concrete type is named here because persistence is single-backend and this
 	// is the composition ring (see doc/ARCHITECTURE.md).
 	SessionStore *sqlitestore.SessionStore

@@ -235,10 +235,12 @@ P8 production cutover 已用真实 Bootstrap consumer 冻结 root stage/observe/
 
 ### 9.2 Adapter/Infra
 
+- 原混合 `adapter/maintenance` 已按真实 owner 物理拆分：`runmaintenance` 只拥有 clean-Run 边界的 history compaction、memory consolidation、Skill proposal mining 与 idle-Skill archival；`sessiontitle` 只生成 Session title；`utilitymodel` 只提供辅助能力共享的 middleware-free 单次模型调用。旧目录、`llm.go`、`extraction.go`、`skillmine.go`、`skillcurate.go` 与 `title.go` 均由架构守卫禁止回流；
 - `codebaseindex`、`codeintel`、`executionctx`、`hooks`、`isolation`、`mcpconnection`、`modelcatalog`、`modelclient`、`persistence`、`providerregistry`、`runrecovery`、`runsegment`、`skillproposal`、`toolset`、`workspace` 与 `workspacepath` 已逐个按调用图审计：均拥有应用值映射、外部错误翻译、跨机制组合、安全策略或 transaction write-set，不是同名 Infra 方法的包装；
 - SQLite、Git、exec、sandbox、LSP、MCP/A2A client、checkpoint、storage 与 path identity 只提供可复用 technical mechanism，保留 Infra；Infra 对 Application/Adapter/Delivery/Bootstrap 反向 import 为零；
 - `workspacepath` 原有第二份 symlink/containment 判定已删除，统一消费 `infra/pathidentity` 的 physical identity；Adapter 只保留 Application path-policy 错误与相对路径投影；
 - `agentexec` 已按 root execution、effect attribution、waiting/restore、Delegate admission/projection、tree mutation 分离变化原因；没有第二 controller、scheduler、mailbox、private wire owner 或为了文件拆分制造的子 package；
+- `persistence.SessionStores` 仍是 Session aggregate 原子 write-set 的单一 Adapter，但 rollback republish/drop、restore projection rebuild、parked terminal cleanup/terminalize/Goal record 已各归准确私有行为；不存在只转发 `Transactor` 的伪抽象；
 - Application consumer-owned ports 均按用例拆分；`Coordinator` 只用于确实协调多个 use-case collaborators 的 package aggregate，不存在 package-name + exported-type 口吃或跨用例胖 executor interface；
 - Delivery `server` 只做 wire validation/projection，`dispatch` 只做 JSON-RPC registry/routing/idempotency，二者对 concrete Adapter/Infra/Bootstrap/Agent Framework import 为零，现名准确且不合包；
 - `internal/component`、temporary exception、空目录、历史 fixture 与一层纯转发 wrapper 均为零；最终 DAG、命名和 shared-capability purity 由永久 architecture tests 守卫。

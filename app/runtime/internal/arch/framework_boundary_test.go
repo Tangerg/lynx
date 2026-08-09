@@ -834,7 +834,7 @@ func TestExecutorCheckpointBindingIsValidatedAtEveryBoundary(t *testing.T) {
 			"ValidateFor", "GoalLeaseID", "Capabilities",
 		},
 		filepath.Join("internal", "adapter", "persistence", "session_stores.go"): {
-			"DeleteCheckpoints(ctx, plan.SessionID",
+			"DeleteCheckpoints(ctx, rollback.SessionID",
 			"DeleteCheckpoints(ctx, root.SessionID",
 		},
 		filepath.Join("internal", "infra", "storage", "sqlite", "executor_checkpoint.go"): {
