@@ -53,7 +53,9 @@ function MessageBlockInner({
     );
   }
 
-  const blockCtx: BlockCtx = messageBlocksRenderInstant(msg.role) ? { ...ctx, instant: true } : ctx;
+  const blockCtx: BlockCtx = messageBlocksRenderInstant(msg.role)
+    ? { ...ctx, textReveal: "instant" }
+    : ctx;
 
   const content = renderMessageBlocks(row, blockCtx);
 

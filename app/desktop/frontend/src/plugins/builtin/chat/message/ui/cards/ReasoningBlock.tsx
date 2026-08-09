@@ -222,7 +222,7 @@ export function ReasoningBlock({ text, status, superseded = false }: Props) {
           ref={contentRef}
           className="whitespace-pre-wrap text-ui-sm leading-prose text-fg-muted"
         >
-          <MarkdownMessage text={text} streaming={streaming} />
+          <MarkdownMessage text={text} streaming={streaming} reveal="smooth" />
           {status === "incomplete" && (
             <div className="mt-1 font-mono text-ui-sm text-fg-faint">
               <Icon name="x" size="xs" /> {t("reasoning.interrupted")}

@@ -18,13 +18,13 @@ import { MarkdownMessage } from "./MarkdownMessage";
 
 describe("markdownMessage", () => {
   it("renders an empty string without throwing", () => {
-    const { container } = render(<MarkdownMessage text="" />);
+    const { container } = render(<MarkdownMessage text="" reveal="smooth" />);
     // react-markdown adds a wrapper div; the body is just empty.
     expect(container.querySelector(".md")).toBeTruthy();
   });
 
   it("wraps plain words in .fade-in spans", () => {
-    const { container } = render(<MarkdownMessage text="Hello world" />);
+    const { container } = render(<MarkdownMessage text="Hello world" reveal="smooth" />);
     const spans = container.querySelectorAll("span.fade-in");
     expect(spans.length).toBeGreaterThanOrEqual(2);
     const text = Array.from(spans)
@@ -35,7 +35,7 @@ describe("markdownMessage", () => {
   });
 
   it("auto-closes an unmatched inline backtick so it renders as code", () => {
-    const { container } = render(<MarkdownMessage text="use `code" />);
+    const { container } = render(<MarkdownMessage text="use `code" reveal="smooth" />);
     // closeOpenMarkers appends the missing backtick → react-markdown
     // emits an inline <code> element.
     expect(container.querySelector("code")).toBeTruthy();
@@ -43,14 +43,14 @@ describe("markdownMessage", () => {
   });
 
   it("auto-closes an unmatched `**` so it renders as strong", () => {
-    const { container } = render(<MarkdownMessage text="that **really" />);
+    const { container } = render(<MarkdownMessage text="that **really" reveal="smooth" />);
     expect(container.querySelector("strong")).toBeTruthy();
     expect(container.textContent ?? "").toContain("really");
   });
 
   it("renders a complete fenced code block as a Shiki block", () => {
     const src = "before\n```js\nconst x = 1;\n```\nafter";
-    const { container } = render(<MarkdownMessage text={src} />);
+    const { container } = render(<MarkdownMessage text={src} reveal="smooth" />);
     expect(container.querySelector(".shiki-block")).toBeTruthy();
     expect(container.textContent ?? "").toContain("const x = 1;");
   });
@@ -59,28 +59,34 @@ describe("markdownMessage", () => {
     // closeOpenMarkers should synthesise the closing fence so this
     // already shows up as a code block.
     const src = "```js\nconst x";
-    const { container } = render(<MarkdownMessage text={src} />);
+    const { container } = render(<MarkdownMessage text={src} reveal="smooth" />);
     expect(container.querySelector(".shiki-block")).toBeTruthy();
     expect(container.textContent ?? "").toContain("const x");
   });
 
   it("renders GFM tables via remark-gfm", () => {
     const src = "| a | b |\n|---|---|\n| 1 | 2 |";
-    const { container } = render(<MarkdownMessage text={src} />);
+    const { container } = render(<MarkdownMessage text={src} reveal="smooth" />);
     expect(container.querySelector("table")).toBeTruthy();
     expect(container.querySelectorAll("td").length).toBe(2);
   });
 
   it("renders markdown lists", () => {
     const src = "- one\n- two\n- three";
-    const { container } = render(<MarkdownMessage text={src} />);
+    const { container } = render(<MarkdownMessage text={src} reveal="smooth" />);
     expect(container.querySelector("ul")).toBeTruthy();
     expect(container.querySelectorAll("li").length).toBe(3);
   });
 
-  it("drops fade-in wrappers when `instant` is true", () => {
-    const { container } = render(<MarkdownMessage text="Hello world" instant />);
+  it("drops fade-in wrappers for the instant reveal mode", () => {
+    const { container } = render(<MarkdownMessage text="Hello world" reveal="instant" />);
     expect(container.querySelectorAll("span.fade-in").length).toBe(0);
+    expect(container.textContent ?? "").toContain("Hello world");
+  });
+
+  it("uses the typewriter pipeline without layering word fades over it", () => {
+    const { container } = render(<MarkdownMessage text="Hello world" reveal="typewriter" />);
+    expect(container.querySelectorAll("span.fade-in")).toHaveLength(0);
     expect(container.textContent ?? "").toContain("Hello world");
   });
 });

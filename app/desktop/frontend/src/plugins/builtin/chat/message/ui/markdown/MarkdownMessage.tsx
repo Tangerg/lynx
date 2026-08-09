@@ -26,15 +26,27 @@ import "remark-github-blockquote-alert/alert.css";
 // tokens at one parse per window instead of one per animation frame.
 const PARSE_COMMIT_MS = 33;
 
-interface Props {
+export type MarkdownReveal = "instant" | "smooth" | "typewriter";
+
+type Props = {
   text: string;
-  streaming?: boolean;
-  /** Skip smoothing + fade-in. User-typed messages set this — the
-   *  author already saw what they typed; animating it back is noise. */
-  instant?: boolean;
-  /** Reveal char-by-char (typewriter) instead of word + per-word fade.
-   *  Drops the fade-in so each character appears crisp. */
-  typewriter?: boolean;
+} & (
+  | {
+      /** User-authored text: render immediately without replaying it to its author. */
+      reveal: "instant";
+      streaming?: false;
+    }
+  | {
+      /** Assistant text: reveal whole words with fades, or characters with a caret. */
+      reveal: Exclude<MarkdownReveal, "instant">;
+      streaming?: boolean;
+    }
+);
+
+interface MarkdownBlockProps {
+  text: string;
+  streaming: boolean;
+  reveal: MarkdownReveal;
 }
 
 // Module-level plugin lists keep react-markdown from treating each
@@ -56,8 +68,11 @@ const allowElement = (el: { tagName: string }) => !DENIED_HTML_TAGS.has(el.tagNa
 // "strong">` design system that bypasses `.md` CSS. Each block is its
 // own memoised <MarkdownBlock>; only the tail block re-parses on each
 // stream-reveal tick.
-export function MarkdownMessage({ text, streaming, instant, typewriter }: Props) {
-  const revealed = useStreamReveal(text, !instant && !!streaming, typewriter);
+export function MarkdownMessage(props: Props) {
+  const { text, reveal } = props;
+  const streaming = reveal === "instant" ? false : !!props.streaming;
+  const instant = reveal === "instant";
+  const revealed = useStreamReveal(text, streaming, reveal === "typewriter");
   const display = instant ? text : revealed;
 
   // Cap the re-parse frequency during streaming (the reveal ticks ~60×/s but
@@ -103,9 +118,8 @@ export function MarkdownMessage({ text, streaming, instant, typewriter }: Props)
         <MarkdownBlock
           key={i}
           text={block}
-          streaming={!!streaming && i === lastIdx}
-          instant={instant}
-          typewriter={typewriter}
+          streaming={streaming && i === lastIdx}
+          reveal={reveal}
         />
       ))}
     </div>
@@ -116,7 +130,7 @@ export function MarkdownMessage({ text, streaming, instant, typewriter }: Props)
 // on its content + flags. In smooth mode the per-word fade-in conveys
 // "currently generating"; in typewriter mode `streaming` (true only for
 // the tail block) gates the blinking accent caret instead.
-const MarkdownBlock = memo(function MarkdownBlock({ text, instant, streaming, typewriter }: Props) {
+const MarkdownBlock = memo(function MarkdownBlock({ text, streaming, reveal }: MarkdownBlockProps) {
   // Pull in the KaTeX stylesheet (~30KB) the first time a math-bearing
   // block mounts. Probe is just `$` — false positives (USD prices)
   // preload the CSS earlier than strictly needed, which is harmless;
@@ -140,8 +154,10 @@ const MarkdownBlock = memo(function MarkdownBlock({ text, instant, streaming, ty
   // so it sees whole text nodes, not per-word spans. Instant (user-typed)
   // blocks are settled by definition, so they always linkify.
   const rehypePlugins = useMemo(() => {
-    if (instant) return [rehypeRaw, rehypeCitations, rehypeFileRefs, rehypeKatex];
-    if (typewriter) {
+    if (reveal === "instant") {
+      return [rehypeRaw, rehypeCitations, rehypeFileRefs, rehypeKatex];
+    }
+    if (reveal === "typewriter") {
       return streaming
         ? [rehypeRaw, rehypeCitations, rehypeKatex, rehypeStreamCaret]
         : [rehypeRaw, rehypeCitations, rehypeFileRefs, rehypeKatex];
@@ -149,7 +165,7 @@ const MarkdownBlock = memo(function MarkdownBlock({ text, instant, streaming, ty
     return streaming
       ? [rehypeRaw, rehypeCitations, rehypeFadeIn, rehypeKatex]
       : [rehypeRaw, rehypeCitations, rehypeFileRefs, rehypeFadeIn, rehypeKatex];
-  }, [instant, typewriter, streaming]);
+  }, [reveal, streaming]);
 
   return (
     <ReactMarkdown

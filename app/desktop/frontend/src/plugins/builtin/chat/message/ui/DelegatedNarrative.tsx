@@ -81,7 +81,9 @@ function DelegatedMessage({
     () => messageCitations(message.blocks, sources),
     [message.blocks, sources],
   );
-  const blockCtx = messageBlocksRenderInstant(message.role) ? { ...ctx, instant: true } : ctx;
+  const blockCtx: BlockCtx = messageBlocksRenderInstant(message.role)
+    ? { ...ctx, textReveal: "instant" }
+    : ctx;
 
   return (
     <MessageContext.Provider value={message}>

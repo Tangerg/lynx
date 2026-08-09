@@ -11,6 +11,7 @@ const CTX: BlockCtx = {
   onSelectTool: vi.fn(),
   expandedIds: new Set(),
   onToggleExpand: vi.fn(),
+  textReveal: "smooth",
 };
 
 const agentRunCommands = vi.hoisted(() => ({ cancel: vi.fn() }));

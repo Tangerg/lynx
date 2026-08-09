@@ -68,7 +68,7 @@ export function ChatStream({ onSend }: Props) {
   // Global streaming-reveal preference. Read once here (stable string) and
   // threaded through ctx so MarkdownMessage stays prop-driven — no per-block
   // store subscription on the hot streaming path.
-  const typewriter = useUiStore((s) => s.streamReveal) === "typewriter";
+  const textReveal = useUiStore((state) => state.streamReveal);
 
   // Auto-select (but don't expand) the latest tool the first time it
   // streams in — so the inspector pane has something to show without
@@ -94,9 +94,9 @@ export function ChatStream({ onSend }: Props) {
       onSelectTool: selectTool,
       expandedIds: expandedToolIds,
       onToggleExpand: toggleExpandedTool,
-      typewriter,
+      textReveal,
     }),
-    [selectTool, expandedToolIds, toggleExpandedTool, typewriter],
+    [selectTool, expandedToolIds, toggleExpandedTool, textReveal],
   );
 
   const composer = <ComposerSurface onSend={onSend} />;

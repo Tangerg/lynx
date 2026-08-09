@@ -45,12 +45,15 @@ export function renderBlock(
       // silently split the outer one).
       return (
         <div key={key}>
-          <MarkdownMessage
-            text={block.text}
-            streaming={block.status === "running"}
-            instant={ctx.instant}
-            typewriter={ctx.typewriter}
-          />
+          {ctx.textReveal === "instant" ? (
+            <MarkdownMessage text={block.text} reveal="instant" />
+          ) : (
+            <MarkdownMessage
+              text={block.text}
+              streaming={block.status === "running"}
+              reveal={ctx.textReveal}
+            />
+          )}
         </div>
       );
 
