@@ -12,10 +12,29 @@ import { setChatSearchOpener } from "../application/openChatSearch";
 import { findMessageRanges } from "../adapters/messageRanges";
 
 export function ChatSearchOverlay() {
+  const activeSessionId = useActiveSessionId();
+
+  // A Range belongs to the DOM tree that created it. Remounting at the session
+  // boundary makes that lifetime structural: no search state can survive into
+  // a different transcript, even when both sessions render similar content.
+  return <SessionChatSearchOverlay key={activeSessionId || "no-session"} />;
+}
+
+type SearchState = {
+  query: string;
+  matches: Range[];
+  activeIndex: number;
+};
+
+const EMPTY_SEARCH: SearchState = {
+  query: "",
+  matches: [],
+  activeIndex: 0,
+};
+
+function SessionChatSearchOverlay() {
   const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState("");
-  const [matches, setMatches] = useState<Range[]>([]);
-  const [active, setActive] = useState(0);
+  const [search, setSearch] = useState<SearchState>(EMPTY_SEARCH);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -23,52 +42,51 @@ export function ChatSearchOverlay() {
     return () => setChatSearchOpener(null);
   }, []);
 
-  useEffect(installChatSearchHighlightStyles, []);
-
-  const activeSessionId = useActiveSessionId();
   useEffect(() => {
-    // Ranges point into the previous session's message DOM after a switch.
-    setOpen(false);
-  }, [activeSessionId]);
-
-  useEffect(() => {
-    if (open) {
-      inputRef.current?.focus();
-      inputRef.current?.select();
-    } else {
+    const uninstallStyles = installChatSearchHighlightStyles();
+    return () => {
       clearChatSearchHighlights();
-      setQuery("");
-      setMatches([]);
-      setActive(0);
-    }
-  }, [open]);
+      uninstallStyles();
+    };
+  }, []);
 
   useEffect(() => {
     if (!open) return;
+    inputRef.current?.focus();
+    inputRef.current?.select();
+  }, [open]);
 
+  const close = () => {
+    clearChatSearchHighlights();
+    setSearch(EMPTY_SEARCH);
+    setOpen(false);
+  };
+
+  const changeQuery = (query: string) => {
     const found = findMessageRanges(query);
-    setMatches(found);
-    setActive(0);
+    setSearch({ query, matches: found, activeIndex: 0 });
     paintChatSearchHighlights(found, 0);
     scrollRangeIntoView(found[0]);
-  }, [query, open]);
+  };
 
-  useEffect(() => {
-    paintChatSearchHighlights(matches, active);
-    scrollRangeIntoView(matches[active]);
-  }, [active, matches]);
-
-  useEffect(() => clearChatSearchHighlights, []);
+  const move = (delta: number) => {
+    const { matches, activeIndex } = search;
+    if (matches.length === 0) return;
+    const nextIndex = (activeIndex + delta + matches.length) % matches.length;
+    setSearch({ ...search, activeIndex: nextIndex });
+    paintChatSearchHighlights(matches, nextIndex);
+    scrollRangeIntoView(matches[nextIndex]);
+  };
 
   const t = useT();
   if (!open) return null;
 
+  const { query, matches, activeIndex } = search;
   const total = matches.length;
-  const next = () => total > 0 && setActive((index) => (index + 1) % total);
-  const prev = () => total > 0 && setActive((index) => (index - 1 + total) % total);
 
   return (
-    <search
+    <div
+      role="search"
       className={cn(
         "fixed top-3 right-4 z-[var(--layer-floating)] inline-flex items-center gap-1 rounded-lg bg-card px-2 py-1.5 shadow-[var(--shadow-overlay)]",
         "[-webkit-app-region:no-drag] [--wails-draggable:no-drag]",
@@ -81,23 +99,22 @@ export function ChatSearchOverlay() {
         size="lg"
         aria-label={t("chatSearch.label")}
         value={query}
-        onChange={(event) => setQuery(event.target.value)}
+        onChange={(event) => changeQuery(event.target.value)}
         placeholder={t("chatSearch.placeholder")}
         className="h-7 w-56 px-2"
         onKeyDown={(event) => {
           if (event.nativeEvent.isComposing) return;
           if (event.key === "Escape") {
             event.preventDefault();
-            setOpen(false);
+            close();
           } else if (event.key === "Enter") {
             event.preventDefault();
-            if (event.shiftKey) prev();
-            else next();
+            move(event.shiftKey ? -1 : 1);
           }
         }}
       />
       <span className="px-1.5 font-mono text-ui-sm text-fg-faint">
-        {total > 0 ? `${active + 1} / ${total}` : query ? "0 / 0" : ""}
+        {total > 0 ? `${activeIndex + 1} / ${total}` : query ? "0 / 0" : ""}
       </span>
       <IconButton
         icon="chevron-up"
@@ -105,7 +122,7 @@ export function ChatSearchOverlay() {
         title={`${t("chatSearch.prev")} (⇧⏎)`}
         aria-label={t("chatSearch.prev")}
         disabled={total === 0}
-        onClick={prev}
+        onClick={() => move(-1)}
       />
       <IconButton
         icon="chevron-down"
@@ -113,16 +130,16 @@ export function ChatSearchOverlay() {
         title={`${t("chatSearch.next")} (⏎)`}
         aria-label={t("chatSearch.next")}
         disabled={total === 0}
-        onClick={next}
+        onClick={() => move(1)}
       />
       <IconButton
         icon="x"
         size="xs"
         title={`${t("common.close")} (Esc)`}
         aria-label={t("common.close")}
-        onClick={() => setOpen(false)}
+        onClick={close}
       />
-    </search>
+    </div>
   );
 }
 
