@@ -257,15 +257,7 @@ func TestInteractionExecutorCancelsRunningDelegateAndKeepsRootRunning(t *testing
 	case <-time.After(3 * time.Second):
 		t.Fatal("running Delegate cancellation did not settle")
 	}
-	if canceledResult.Run.ID != "run_child" || canceledResult.Run.State != run.Canceled ||
-		canceledResult.Run.Outcome == nil || *canceledResult.Run.Outcome != run.OutcomeCanceled ||
-		canceledResult.Run.Detail != "caller canceled delegated work" {
-		t.Fatalf("canceled child = %+v", canceledResult.Run)
-	}
-	if canceledResult.RootRun == nil || canceledResult.RootRun.ID != "run_root" ||
-		canceledResult.RootRun.State != run.Running {
-		t.Fatalf("root after child cancellation = %+v, want running", canceledResult.RootRun)
-	}
+	assertRunningDelegateCancellationResult(t, canceledResult)
 	select {
 	case <-model.rootContinuationStarted:
 	case <-time.After(3 * time.Second):
@@ -278,6 +270,27 @@ func TestInteractionExecutorCancelsRunningDelegateAndKeepsRootRunning(t *testing
 	case <-time.After(3 * time.Second):
 		t.Fatal("root did not finish after child cancellation")
 	}
+	assertRunningDelegateCancellationEvents(t, events)
+	coordinator.BeginShutdown()
+	if err := coordinator.AwaitShutdown(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func assertRunningDelegateCancellationResult(t *testing.T, result runs.CancelResult) {
+	t.Helper()
+	if result.Run.ID != "run_child" || result.Run.State != run.Canceled ||
+		result.Run.Outcome == nil || *result.Run.Outcome != run.OutcomeCanceled ||
+		result.Run.Detail != "caller canceled delegated work" {
+		t.Fatalf("canceled child = %+v", result.Run)
+	}
+	if result.RootRun == nil || result.RootRun.ID != "run_root" || result.RootRun.State != run.Running {
+		t.Fatalf("root after child cancellation = %+v, want running", result.RootRun)
+	}
+}
+
+func assertRunningDelegateCancellationEvents(t *testing.T, events []runs.Event) {
+	t.Helper()
 	childFinished, rootFinished := false, false
 	for _, event := range events {
 		finished, ok := event.Payload.(runs.SegmentFinished)
@@ -294,10 +307,6 @@ func TestInteractionExecutorCancelsRunningDelegateAndKeepsRootRunning(t *testing
 	}
 	if !childFinished || !rootFinished {
 		t.Fatalf("terminal projection child=%t root=%t events=%#v", childFinished, rootFinished, events)
-	}
-	coordinator.BeginShutdown()
-	if err := coordinator.AwaitShutdown(t.Context()); err != nil {
-		t.Fatal(err)
 	}
 }
 

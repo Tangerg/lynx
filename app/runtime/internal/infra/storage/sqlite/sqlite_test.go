@@ -502,53 +502,61 @@ func TestTranscriptStoreKeepsOffloadRelationshipsImmutableAndOneToOne(t *testing
 func TestOpenRefusesEveryMismatchedSchemaWithoutTouchingIt(t *testing.T) {
 	for _, staleEpoch := range []int{0, 1, 3, 4, 5, 6, 7, 8, 9, 25} {
 		t.Run(fmt.Sprintf("epoch_%d", staleEpoch), func(t *testing.T) {
-			path := filepath.Join(t.TempDir(), "stale.db")
-			stale, err := sql.Open("sqlite", path)
-			if err != nil {
-				t.Fatalf("open stale database: %v", err)
-			}
-			_, seedErr := stale.Exec(fmt.Sprintf(
-				`CREATE TABLE stale_runs (id TEXT PRIMARY KEY); INSERT INTO stale_runs(id) VALUES ('old'); PRAGMA user_version = %d`,
-				staleEpoch,
-			))
-			if seedErr != nil {
-				_ = stale.Close()
-				t.Fatalf("seed stale schema: %v", seedErr)
-			}
-			if err := stale.Close(); err != nil {
-				t.Fatalf("close stale database: %v", err)
-			}
-
-			db, err := sqlite.Open(t.Context(), path)
-			if !errors.Is(err, sqlite.ErrSchemaEpochMismatch) {
-				if err == nil {
-					_ = db.Close()
-				}
-				t.Fatalf("open stale epoch %d error = %v, want ErrSchemaEpochMismatch", staleEpoch, err)
-			}
-			// The refusal names the file, because "delete it to rebuild" is only
-			// actionable if the user knows which file.
-			if !strings.Contains(err.Error(), path) {
-				t.Fatalf("refusal %q does not name %q", err, path)
-			}
-
-			// Nothing was dropped and no schema was installed alongside the old one.
-			reopened, err := sql.Open("sqlite", path)
-			if err != nil {
-				t.Fatalf("reopen refused database: %v", err)
-			}
-			defer reopened.Close()
-			var rows int
-			if err := reopened.QueryRow(`SELECT count(*) FROM stale_runs`).Scan(&rows); err != nil || rows != 1 {
-				t.Fatalf("stale rows = %d, err=%v, want the untouched seed", rows, err)
-			}
-			var installed int
-			if err := reopened.QueryRow(
-				`SELECT count(*) FROM sqlite_master WHERE type='table' AND name='sessions'`,
-			).Scan(&installed); err != nil || installed != 0 {
-				t.Fatalf("current-schema tables = %d, err=%v, want none installed", installed, err)
-			}
+			assertMismatchedSchemaRefused(t, staleEpoch)
 		})
+	}
+}
+
+func assertMismatchedSchemaRefused(t *testing.T, staleEpoch int) {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "stale.db")
+	staleDatabase, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatalf("open stale database: %v", err)
+	}
+	_, seedError := staleDatabase.Exec(fmt.Sprintf(
+		`CREATE TABLE stale_runs (id TEXT PRIMARY KEY); INSERT INTO stale_runs(id) VALUES ('old'); PRAGMA user_version = %d`,
+		staleEpoch,
+	))
+	if seedError != nil {
+		_ = staleDatabase.Close()
+		t.Fatalf("seed stale schema: %v", seedError)
+	}
+	if err := staleDatabase.Close(); err != nil {
+		t.Fatalf("close stale database: %v", err)
+	}
+
+	database, openError := sqlite.Open(t.Context(), path)
+	if !errors.Is(openError, sqlite.ErrSchemaEpochMismatch) {
+		if openError == nil {
+			_ = database.Close()
+		}
+		t.Fatalf(
+			"open stale epoch %d error = %v, want ErrSchemaEpochMismatch",
+			staleEpoch, openError,
+		)
+	}
+	// The refusal names the file, because "delete it to rebuild" is only
+	// actionable if the user knows which file.
+	if !strings.Contains(openError.Error(), path) {
+		t.Fatalf("refusal %q does not name %q", openError, path)
+	}
+
+	// Nothing was dropped and no schema was installed alongside the old one.
+	reopened, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatalf("reopen refused database: %v", err)
+	}
+	defer reopened.Close()
+	var rows int
+	if err := reopened.QueryRow(`SELECT count(*) FROM stale_runs`).Scan(&rows); err != nil || rows != 1 {
+		t.Fatalf("stale rows = %d, err=%v, want the untouched seed", rows, err)
+	}
+	var installed int
+	if err := reopened.QueryRow(
+		`SELECT count(*) FROM sqlite_master WHERE type='table' AND name='sessions'`,
+	).Scan(&installed); err != nil || installed != 0 {
+		t.Fatalf("current-schema tables = %d, err=%v, want none installed", installed, err)
 	}
 }
 

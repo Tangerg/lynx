@@ -6,94 +6,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/agentexec/interactioninput"
-	"github.com/Tangerg/lynx/app/runtime/internal/adapter/toolset"
-	"github.com/Tangerg/lynx/app/runtime/internal/application/admission"
 	"github.com/Tangerg/lynx/app/runtime/internal/application/runs"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/interrupt"
 	"github.com/Tangerg/lynx/app/runtime/internal/domain/run"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/session"
-	"github.com/Tangerg/lynx/app/runtime/internal/domain/transcript"
-	"github.com/Tangerg/lynx/chatclient"
-	toolcontract "github.com/Tangerg/lynx/tool"
 )
 
 func TestInteractionExecutorAppliesColdWaitingDelegateCancellationWithoutDuplicateProjection(
 	t *testing.T,
 ) {
-	model := newWaitingDelegateModel()
-	client, err := chatclient.New(model, chatclient.Config{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	question, err := toolcontract.NewFunc(toolcontract.FuncConfig{
-		Name: "ask", Description: "Ask the user for the value required by delegated work.",
-	}, func(ctx context.Context, _ struct{}) (string, error) {
-		resolution, requireErr := interactioninput.Require(ctx, "delegate.required-value", runs.Interrupt{
-			Kind: interrupt.Question,
-			Question: &runs.QuestionPrompt{
-				ToolName: "ask", Arguments: `{}`,
-				Fields: []runs.QuestionFieldSpec{{Prompt: "Which value should the delegate use?"}},
-			},
-		})
-		if requireErr != nil {
-			return "", requireErr
-		}
-		return resolution.Answers[0][0], nil
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	executor, err := NewInteractionExecutor(InteractionExecutorConfig{
-		DefaultClient: client, ImplementationIdentity: "native-waiting-cancellation-test-build",
-		ConfigurationIdentity: "native-waiting-cancellation-test-config", DefaultMaxModelCalls: 4,
-		BuildID: interactionTestBuildID,
-		ToolResolver: staticInteractionTools{manifest: toolset.Manifest{
-			Visible: []toolcontract.Tool{question},
-		}},
-		ToolInterpreter: testInteractionToolInterpreter{}, ToolAuthorizer: allowInteractionTools{},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	workspace := t.TempDir()
-	sessions := &nativeDelegateSessionStore{value: session.Session{
-		ID: "session_1", Title: "waiting cancellation", CWD: workspace,
-		StartedAt: time.Unix(1, 0).UTC(), UpdatedAt: time.Unix(1, 0).UTC(), Revision: 1,
-	}}
-	projection := newNativeDelegateProjection()
-	runIDs := []string{"run_root", "run_child"}
-	segmentIDs := []string{"segment_root", "segment_child"}
-	coordinator := runs.NewCoordinator(runs.Dependencies{
-		RootStarts: executor, Observations: executor, Releases: executor,
-		Conversation: nativeDelegateConversation{},
-		Session:      runs.SessionPorts{Reader: sessions, Creator: sessions, ActiveRuns: sessions},
-		Projection: runs.ProjectionPorts{
-			Openings: projection, ChildStarts: projection, Events: projection,
-			Barriers: projection, Checkpoints: projection, Workspace: projection, Finalizer: projection,
-		},
-		Admissions: new(admission.Gate), Now: time.Now,
-		NewRunID: func() string {
-			id := runIDs[0]
-			runIDs = runIDs[1:]
-			return id
-		},
-		NewSegmentID: func() string {
-			id := segmentIDs[0]
-			segmentIDs = segmentIDs[1:]
-			return id
-		},
-	})
-	started, err := coordinator.Start(t.Context(), runs.StartCommand{
-		SessionID: "session_1",
-		Capabilities: run.Capabilities{
-			ChildRuns: true, InterruptKinds: []interrupt.Kind{interrupt.Question},
-		},
-		Input: []transcript.ContentBlock{{Kind: transcript.TextContent, Text: "delegate waiting work"}},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	fixture := newWaitingDelegateFixture(t, "native-waiting-cancellation-test")
+	started := fixture.start(t)
 	initialEventsReady := make(chan []runs.Event, 1)
 	go func() { initialEventsReady <- slices.Collect(started.Events) }()
 	select {
@@ -104,16 +25,12 @@ func TestInteractionExecutorAppliesColdWaitingDelegateCancellationWithoutDuplica
 	case <-time.After(3 * time.Second):
 		t.Fatal("waiting Delegate did not park")
 	}
-	projection.mu.Lock()
-	barriers := slices.Clone(projection.barriers)
-	projection.mu.Unlock()
-	if len(barriers) != 1 || len(barriers[0].Pending.Interrupts) != 1 ||
-		len(barriers[0].Pending.Continuations) != 2 {
-		t.Fatalf("waiting Delegate boundary = %#v", barriers)
+	barrier := fixture.waitForBarrier(t, time.Second)
+	if len(barrier.Pending.Interrupts) != 1 || len(barrier.Pending.Continuations) != 2 {
+		t.Fatalf("waiting Delegate boundary = %#v", barrier)
 	}
-	barrier := barriers[0]
 	ref := runs.ExecutorRef{SessionID: barrier.Pending.SessionID, ExecutorID: barrier.Pending.ExecutorID}
-	if err := executor.Release(t.Context(), ref); err != nil {
+	if err := fixture.executor.Release(t.Context(), ref); err != nil {
 		t.Fatal(err)
 	}
 	target := barrier.Pending.Interrupts[0]
@@ -123,7 +40,7 @@ func TestInteractionExecutorAppliesColdWaitingDelegateCancellationWithoutDuplica
 		Reason:         "caller canceled the waiting delegate",
 	}
 	prepareCtx, cancelPrepare := context.WithTimeout(t.Context(), 2*time.Second)
-	prepared, err := executor.PrepareWaitingSubtreeCancellation(prepareCtx, request)
+	prepared, err := fixture.executor.PrepareWaitingSubtreeCancellation(prepareCtx, request)
 	if err != nil {
 		cancelPrepare()
 		t.Fatal(err)
@@ -136,7 +53,7 @@ func TestInteractionExecutorAppliesColdWaitingDelegateCancellationWithoutDuplica
 	if err := prepared.Change.Discard(); err != nil {
 		t.Fatal(err)
 	}
-	liveSession, err := executor.session(ref)
+	liveSession, err := fixture.executor.session(ref)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -145,36 +62,22 @@ func TestInteractionExecutorAppliesColdWaitingDelegateCancellationWithoutDuplica
 	observerAfterDiscard := liveSession.observerWasAttached
 	statusAfterDiscard := liveSession.process.Status()
 	liveSession.mu.Unlock()
-	if boundaryAfterDiscard != interactionBoundaryWaiting || observerAfterDiscard ||
-		!isInteractionWaitingBoundary(statusAfterDiscard) {
-		t.Fatalf(
-			"discarded subtree boundary=%d observer=%t status=%s",
-			boundaryAfterDiscard,
-			observerAfterDiscard,
-			statusAfterDiscard,
-		)
-	}
+	assertDiscardedWaitingCancellationState(
+		t,
+		boundaryAfterDiscard,
+		observerAfterDiscard,
+		isInteractionWaitingBoundary(statusAfterDiscard),
+		statusAfterDiscard.String(),
+	)
 
 	prepareCtx, cancelPrepare = context.WithTimeout(t.Context(), 2*time.Second)
-	prepared, err = executor.PrepareWaitingSubtreeCancellation(prepareCtx, request)
+	prepared, err = fixture.executor.PrepareWaitingSubtreeCancellation(prepareCtx, request)
 	if err != nil {
 		cancelPrepare()
 		t.Fatal(err)
 	}
-	if len(prepared.CanceledMemberIDs) != 1 ||
-		prepared.CanceledMemberIDs[0] != request.TargetMemberID ||
-		len(prepared.PausedMemberIDs) != 1 ||
-		prepared.PausedMemberIDs[0] != prepared.Checkpoint.RootMemberID ||
-		len(prepared.PendingInterruptions) != 0 {
-		cancelPrepare()
-		t.Fatalf(
-			"prepared waiting cancellation canceled=%v paused=%v interruptions=%d",
-			prepared.CanceledMemberIDs,
-			prepared.PausedMemberIDs,
-			len(prepared.PendingInterruptions),
-		)
-	}
-	sequence, err := executor.Observe(context.Background(), ref)
+	assertPreparedWaitingCancellation(t, prepared, request.TargetMemberID, cancelPrepare)
+	sequence, err := fixture.executor.Observe(context.Background(), ref)
 	if err != nil {
 		cancelPrepare()
 		t.Fatal(err)
@@ -184,7 +87,7 @@ func TestInteractionExecutorAppliesColdWaitingDelegateCancellationWithoutDuplica
 		cancelPrepare()
 		t.Fatal(err)
 	}
-	if calls := model.Calls(); calls != 2 {
+	if calls := fixture.model.Calls(); calls != 2 {
 		cancelPrepare()
 		t.Fatalf("provider calls after state apply = %d, want 2 before continuation activation", calls)
 	}
@@ -199,24 +102,69 @@ func TestInteractionExecutorAppliesColdWaitingDelegateCancellationWithoutDuplica
 	case <-time.After(3 * time.Second):
 		t.Fatal("root did not finish after waiting Delegate cancellation")
 	}
-	for _, event := range observed {
-		if event.Member.MemberID == request.TargetMemberID {
+	assertCanceledDelegateIsNotReprojected(t, observed, request.TargetMemberID)
+	if fixture.model.Calls() != 3 {
+		t.Fatalf("provider calls = %d, want 3 without canceled-child replay", fixture.model.Calls())
+	}
+	if err := fixture.executor.Release(t.Context(), ref); err != nil {
+		t.Fatal(err)
+	}
+	fixture.shutdown(t)
+}
+
+func assertDiscardedWaitingCancellationState(
+	t *testing.T,
+	boundary interactionBoundary,
+	observerAttached bool,
+	waitingStatus bool,
+	statusDescription string,
+) {
+	t.Helper()
+	if boundary != interactionBoundaryWaiting || observerAttached || !waitingStatus {
+		t.Fatalf(
+			"discarded subtree boundary=%d observer=%t status=%s",
+			boundary, observerAttached, statusDescription,
+		)
+	}
+}
+
+func assertPreparedWaitingCancellation(
+	t *testing.T,
+	prepared runs.PreparedWaitingSubtreeCancellation,
+	targetMemberID string,
+	cancelPrepare context.CancelFunc,
+) {
+	t.Helper()
+	if len(prepared.CanceledMemberIDs) == 1 &&
+		prepared.CanceledMemberIDs[0] == targetMemberID &&
+		len(prepared.PausedMemberIDs) == 1 &&
+		prepared.PausedMemberIDs[0] == prepared.Checkpoint.RootMemberID &&
+		len(prepared.PendingInterruptions) == 0 {
+		return
+	}
+	cancelPrepare()
+	t.Fatalf(
+		"prepared waiting cancellation canceled=%v paused=%v interruptions=%d",
+		prepared.CanceledMemberIDs,
+		prepared.PausedMemberIDs,
+		len(prepared.PendingInterruptions),
+	)
+}
+
+func assertCanceledDelegateIsNotReprojected(
+	t *testing.T,
+	events []runs.ExecutorEvent,
+	canceledMemberID string,
+) {
+	t.Helper()
+	for _, event := range events {
+		if event.Member.MemberID == canceledMemberID {
 			t.Fatalf("canceled Delegate leaked a duplicate executor projection: %#v", event)
 		}
 	}
-	ended := payloadsOf[runs.SegmentEnded](observed)
+	ended := payloadsOf[runs.SegmentEnded](events)
 	if len(ended) != 1 || ended[0].Reason != run.OutcomeCompleted {
 		t.Fatalf("terminal events = %#v, want one completed root", ended)
-	}
-	if model.Calls() != 3 {
-		t.Fatalf("provider calls = %d, want 3 without canceled-child replay", model.Calls())
-	}
-	if err := executor.Release(t.Context(), ref); err != nil {
-		t.Fatal(err)
-	}
-	coordinator.BeginShutdown()
-	if err := coordinator.AwaitShutdown(t.Context()); err != nil {
-		t.Fatal(err)
 	}
 }
 

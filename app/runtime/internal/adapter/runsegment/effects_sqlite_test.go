@@ -390,131 +390,131 @@ func TestCommitOpeningResumesRunTreeAtomically(t *testing.T) {
 		{name: "rollback after descendant resumed", wantError: true},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			db, err := sqlite.Open(t.Context(), ":memory:")
-			if err != nil {
-				t.Fatalf("open: %v", err)
-			}
-			t.Cleanup(func() { _ = db.Close() })
-			ctx := t.Context()
-			state := sqlite.NewRunStore(db)
-			ints := persistence.NewInterruptStore(sqlite.NewInterruptStore(db))
-			createdAt := time.Now().UTC()
-			if err := state.Admit(ctx, run.Draft{
-				RunID: "run_root", SessionID: "session_1", SegmentID: "segment_root", CreatedAt: createdAt,
-			}); err != nil {
-				t.Fatalf("admit root: %v", err)
-			}
-			lineage := run.Lineage{
-				SpawnedByItemID: "item_spawn_child",
-				ParentRunID:     "run_root",
-				RootRunID:       "run_root",
-			}
-			if err := state.Admit(ctx, run.Draft{
-				RunID: "run_child", SessionID: "session_1", SegmentID: "segment_child",
-				SpawnedByItemID: lineage.SpawnedByItemID,
-				ParentRunID:     lineage.ParentRunID,
-				RootRunID:       lineage.RootRunID,
-				CreatedAt:       createdAt,
-			}); err != nil {
-				t.Fatalf("admit child: %v", err)
-			}
-			childRun := waitingTreeRun(
-				"run_child",
-				"session_1",
-				lineage,
-				createdAt,
-				[]transcript.Interrupt{treeQuestion("item_child", "run_child")},
+			fixture := newOpeningResumeFixture(t, test.suspendRoot)
+			err := fixture.effects.CommitOpening(
+				fixture.ctx,
+				runs.OpeningCommit{Resume: &fixture.resume},
 			)
-			if err := state.Suspend(ctx, childRun); err != nil {
-				t.Fatalf("suspend child: %v", err)
-			}
-			if test.suspendRoot {
-				rootRun := waitingTreeRun(
-					"run_root",
-					"session_1",
-					run.Lineage{},
-					createdAt,
-					nil,
-				)
-				if err := state.Suspend(ctx, rootRun); err != nil {
-					t.Fatalf("suspend root: %v", err)
-				}
-			}
-			pending := runs.Pending{
-				RootRunID:  "run_root",
-				SessionID:  "session_1",
-				ExecutorID: "turn_1",
-				Capabilities: run.Capabilities{
-					ChildRuns:      true,
-					InterruptKinds: []interrupt.Kind{interrupt.Question},
-				},
-				Interrupts: childRun.Interrupts,
-				Bindings: []runs.InterruptBinding{{
-					InterruptItemID: "item_child",
-					MemberID:        "process_child",
-					RequestID:       "suspension_child",
-				}},
-				Continuations: []runs.Continuation{
-					{
-						RunID:        "run_child",
-						MemberID:     "process_child",
-						Lineage:      lineage,
-						RunCreatedAt: createdAt,
-					},
-					{
-						RunID:        "run_root",
-						MemberID:     "process_root",
-						RunCreatedAt: createdAt,
-					},
-				},
-				CreatedAt: createdAt.Add(time.Second),
-			}
-			if err := ints.Open(ctx, pending); err != nil {
-				t.Fatalf("put pending: %v", err)
-			}
-			claimResumeForTest(t, ints, pending)
-			effects := sqliteEffects(sqliteOpeningStores{interrupts: ints}, Config{
-				State: state,
-				Tx: func(ctx context.Context, fn func(context.Context) error) error {
-					return sqlite.RunInTx(ctx, db, fn)
-				},
-			})
-			resume := run.TreeResumeDraft{
-				RootRunID: "run_root",
-				SessionID: "session_1",
-				ResumedAt: time.Now().UTC(),
-				Runs: []run.ResumeDraft{
-					{RunID: "run_child", SegmentID: "segment_child_resumed"},
-					{RunID: "run_root", SegmentID: "segment_root_resumed"},
-				},
-			}
-			err = effects.CommitOpening(ctx, runs.OpeningCommit{Resume: &resume})
 			if test.wantError {
-				if err == nil {
-					t.Fatal("CommitOpening succeeded with a root Run that was not waiting")
-				}
-				assertStoredRunState(t, db, "run_child", "waiting")
-				assertStoredRunState(t, db, "run_root", "running")
-				if _, found, getErr := ints.Get(ctx, "run_root"); getErr != nil || found {
-					t.Fatalf("pending after rollback found=%v err=%v, want hidden claim", found, getErr)
-				}
-				if err := ints.RequireResumeClaim(ctx, "session_1", "run_root"); err != nil {
-					t.Fatalf("resume claim after rollback: %v", err)
-				}
+				assertOpeningResumeRollback(t, fixture, err)
 				return
 			}
-			if err != nil {
-				t.Fatalf("CommitOpening: %v", err)
-			}
-			assertStoredRunState(t, db, "run_child", "running")
-			assertStoredRunState(t, db, "run_root", "running")
-			if _, found, getErr := ints.Get(ctx, "run_root"); getErr != nil || found {
-				t.Fatalf("pending after commit found=%v err=%v, want hidden claim", found, getErr)
-			}
-			if err := ints.RequireResumeClaim(ctx, "session_1", "run_root"); err != nil {
-				t.Fatalf("resume claim after commit: %v", err)
-			}
+			assertOpeningResumeCommit(t, fixture, err)
 		})
+	}
+}
+
+type openingResumeFixture struct {
+	ctx        context.Context
+	database   *sql.DB
+	interrupts *persistence.InterruptStore
+	effects    *Effects
+	resume     run.TreeResumeDraft
+}
+
+func newOpeningResumeFixture(t *testing.T, suspendRoot bool) openingResumeFixture {
+	t.Helper()
+	database, err := sqlite.Open(t.Context(), ":memory:")
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	t.Cleanup(func() { _ = database.Close() })
+	ctx := t.Context()
+	runStore := sqlite.NewRunStore(database)
+	interruptStore := persistence.NewInterruptStore(sqlite.NewInterruptStore(database))
+	createdAt := time.Now().UTC()
+	if err := runStore.Admit(ctx, run.Draft{
+		RunID: "run_root", SessionID: "session_1", SegmentID: "segment_root", CreatedAt: createdAt,
+	}); err != nil {
+		t.Fatalf("admit root: %v", err)
+	}
+	lineage := run.Lineage{
+		SpawnedByItemID: "item_spawn_child", ParentRunID: "run_root", RootRunID: "run_root",
+	}
+	if err := runStore.Admit(ctx, run.Draft{
+		RunID: "run_child", SessionID: "session_1", SegmentID: "segment_child",
+		SpawnedByItemID: lineage.SpawnedByItemID, ParentRunID: lineage.ParentRunID,
+		RootRunID: lineage.RootRunID, CreatedAt: createdAt,
+	}); err != nil {
+		t.Fatalf("admit child: %v", err)
+	}
+	childRun := waitingTreeRun(
+		"run_child", "session_1", lineage, createdAt,
+		[]transcript.Interrupt{treeQuestion("item_child", "run_child")},
+	)
+	if err := runStore.Suspend(ctx, childRun); err != nil {
+		t.Fatalf("suspend child: %v", err)
+	}
+	if suspendRoot {
+		rootRun := waitingTreeRun("run_root", "session_1", run.Lineage{}, createdAt, nil)
+		if err := runStore.Suspend(ctx, rootRun); err != nil {
+			t.Fatalf("suspend root: %v", err)
+		}
+	}
+	pending := runs.Pending{
+		RootRunID: "run_root", SessionID: "session_1", ExecutorID: "turn_1",
+		Capabilities: run.Capabilities{
+			ChildRuns: true, InterruptKinds: []interrupt.Kind{interrupt.Question},
+		},
+		Interrupts: childRun.Interrupts,
+		Bindings: []runs.InterruptBinding{{
+			InterruptItemID: "item_child", MemberID: "process_child", RequestID: "suspension_child",
+		}},
+		Continuations: []runs.Continuation{
+			{RunID: "run_child", MemberID: "process_child", Lineage: lineage, RunCreatedAt: createdAt},
+			{RunID: "run_root", MemberID: "process_root", RunCreatedAt: createdAt},
+		},
+		CreatedAt: createdAt.Add(time.Second),
+	}
+	if err := interruptStore.Open(ctx, pending); err != nil {
+		t.Fatalf("put pending: %v", err)
+	}
+	claimResumeForTest(t, interruptStore, pending)
+	effects := sqliteEffects(sqliteOpeningStores{interrupts: interruptStore}, Config{
+		State: runStore,
+		Tx: func(ctx context.Context, fn func(context.Context) error) error {
+			return sqlite.RunInTx(ctx, database, fn)
+		},
+	})
+	return openingResumeFixture{
+		ctx: ctx, database: database, interrupts: interruptStore, effects: effects,
+		resume: run.TreeResumeDraft{
+			RootRunID: "run_root", SessionID: "session_1", ResumedAt: time.Now().UTC(),
+			Runs: []run.ResumeDraft{
+				{RunID: "run_child", SegmentID: "segment_child_resumed"},
+				{RunID: "run_root", SegmentID: "segment_root_resumed"},
+			},
+		},
+	}
+}
+
+func assertOpeningResumeRollback(t *testing.T, fixture openingResumeFixture, commitError error) {
+	t.Helper()
+	if commitError == nil {
+		t.Fatal("CommitOpening succeeded with a root Run that was not waiting")
+	}
+	assertStoredRunState(t, fixture.database, "run_child", "waiting")
+	assertStoredRunState(t, fixture.database, "run_root", "running")
+	assertResumeClaimRemainsHidden(t, fixture)
+}
+
+func assertOpeningResumeCommit(t *testing.T, fixture openingResumeFixture, commitError error) {
+	t.Helper()
+	if commitError != nil {
+		t.Fatalf("CommitOpening: %v", commitError)
+	}
+	assertStoredRunState(t, fixture.database, "run_child", "running")
+	assertStoredRunState(t, fixture.database, "run_root", "running")
+	assertResumeClaimRemainsHidden(t, fixture)
+}
+
+func assertResumeClaimRemainsHidden(t *testing.T, fixture openingResumeFixture) {
+	t.Helper()
+	if _, found, err := fixture.interrupts.Get(fixture.ctx, "run_root"); err != nil || found {
+		t.Fatalf("pending after opening found=%v err=%v, want hidden claim", found, err)
+	}
+	if err := fixture.interrupts.RequireResumeClaim(fixture.ctx, "session_1", "run_root"); err != nil {
+		t.Fatalf("resume claim after opening: %v", err)
 	}
 }
 
@@ -939,102 +939,139 @@ func TestCommitTerminalOwnsExecutorCheckpointDeletion(t *testing.T) {
 		{name: "rollback when checkpoint delete fails", deleteFail: true},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			db, err := sqlite.Open(t.Context(), ":memory:")
-			if err != nil {
-				t.Fatalf("open: %v", err)
-			}
-			t.Cleanup(func() { _ = db.Close() })
-			ctx := t.Context()
-			createdAt := time.Unix(1, 0).UTC()
-			runStore := sqlite.NewRunStore(db)
-			if err := runStore.Admit(ctx, run.Draft{
-				RunID: "run_terminal", SessionID: "ses_terminal", SegmentID: "seg_terminal",
-				CreatedAt: createdAt,
-			}); err != nil {
-				t.Fatalf("admit: %v", err)
-			}
-			checkpointStore := persistence.NewExecutorCheckpointStore(sqlite.NewExecutorCheckpointStore(db))
-			snapshot := waitingExecutorMember("proc_terminal", "continue?")
-			if err := checkpointStore.SaveCheckpoint(ctx, executorCheckpoint(t, executorTreeFixture{
-				RootID: snapshot.ID, Members: []executorMemberFixture{snapshot},
-			}, runs.ExecutorCheckpoint{
-				BuildID: checkpointBuildID,
-				Scope:   runs.ExecutionScope{SessionID: "ses_terminal"},
-				Usage:   accounting.Snapshot{},
-			})); err != nil {
-				t.Fatalf("seed checkpoint: %v", err)
-			}
-			interruptStore := persistence.NewInterruptStore(sqlite.NewInterruptStore(db))
-			pending := singleRunPending(
-				t,
-				"run_terminal", "ses_terminal", snapshot.ID, "request_terminal", "item_terminal",
-				createdAt, createdAt.Add(time.Second),
-			)
-			if err := interruptStore.Open(ctx, pending); err != nil {
-				t.Fatalf("seed interrupt: %v", err)
-			}
-			if _, found, err := interruptStore.ClaimResume(ctx, pending.SessionID, pending.RootRunID, []runs.InterruptAnswer{{
-				InterruptItemID: pending.Bindings[0].InterruptItemID,
-				MemberID:        pending.Bindings[0].MemberID,
-				RequestID:       pending.Bindings[0].RequestID,
-				Resolution:      interrupt.Resolution{Answers: [][]string{{"continue"}}},
-			}}, createdAt.Add(2*time.Second)); err != nil || !found {
-				t.Fatalf("seed answer claim: found=%t err=%v", found, err)
-			}
-
-			var checkpoints ExecutorCheckpointStore = checkpointStore
-			if test.deleteFail {
-				checkpoints = failingExecutorCheckpointStore{
-					ExecutorCheckpointStore: checkpointStore,
-					err:                     errors.New("delete unavailable"),
-				}
-			}
-			effects := New(Config{
-				State:               runStore,
-				Interrupts:          interruptStore,
-				ExecutorCheckpoints: checkpoints,
-				Tx: func(ctx context.Context, fn func(context.Context) error) error {
-					return sqlite.RunInTx(ctx, db, fn)
-				},
-			})
+			fixture := newTerminalCheckpointFixture(t, test.deleteFail)
 			finished := finishedRunRecord("run_terminal", "ses_terminal", run.OutcomeCompleted)
 			finished.MessageMark = 0
-			err = effects.CommitEvent(ctx, runs.EventCommit{
+			err := fixture.effects.CommitEvent(fixture.ctx, runs.EventCommit{
 				RunID: "run_terminal", SessionID: "ses_terminal", State: runs.StateTerminalize,
-				Outcome: run.OutcomeCompleted, Run: finished, ObsoleteCheckpointRootID: snapshot.ID,
+				Outcome: run.OutcomeCompleted, Run: finished,
+				ObsoleteCheckpointRootID: fixture.snapshot.ID,
 			})
 			if test.deleteFail {
-				if err == nil {
-					t.Fatal("terminal commit succeeded after checkpoint deletion failed")
-				}
-				runsAfter, listErr := runStore.ListRuns(ctx, "ses_terminal")
-				if listErr != nil || len(runsAfter) != 1 || runsAfter[0].State != run.Running {
-					t.Fatalf("Run after rollback = %+v, %v; want running", runsAfter, listErr)
-				}
-				if _, loadErr := checkpointStore.LoadCheckpoint(ctx, snapshot.ID); loadErr != nil {
-					t.Fatalf("checkpoint lost after terminal rollback: %v", loadErr)
-				}
-				var state string
-				if scanErr := db.QueryRowContext(ctx,
-					`SELECT state FROM interrupts WHERE root_run_id = ?`, pending.RootRunID,
-				).Scan(&state); scanErr != nil || state != "resuming" {
-					t.Fatalf("answer claim after rollback = state:%q err:%v", state, scanErr)
-				}
+				assertTerminalCheckpointRollback(t, fixture, err)
 				return
 			}
-			if err != nil {
-				t.Fatalf("CommitEvent: %v", err)
-			}
-			if _, loadErr := checkpointStore.LoadCheckpoint(ctx, snapshot.ID); !errors.Is(loadErr, runs.ErrExecutorCheckpointNotFound) {
-				t.Fatalf("terminal checkpoint survived: %v", loadErr)
-			}
-			var remaining int
-			if scanErr := db.QueryRowContext(ctx,
-				`SELECT count(*) FROM interrupts WHERE root_run_id = ?`, pending.RootRunID,
-			).Scan(&remaining); scanErr != nil || remaining != 0 {
-				t.Fatalf("terminal answer claim cleanup = rows:%d err:%v", remaining, scanErr)
-			}
+			assertTerminalCheckpointCommit(t, fixture, err)
 		})
+	}
+}
+
+type terminalCheckpointFixture struct {
+	ctx         context.Context
+	database    *sql.DB
+	runStore    *sqlite.RunStore
+	checkpoints *persistence.ExecutorCheckpointStore
+	pending     runs.Pending
+	snapshot    executorMemberFixture
+	effects     *Effects
+}
+
+func newTerminalCheckpointFixture(t *testing.T, failCheckpointDeletion bool) terminalCheckpointFixture {
+	t.Helper()
+	database, err := sqlite.Open(t.Context(), ":memory:")
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	t.Cleanup(func() { _ = database.Close() })
+	ctx := t.Context()
+	createdAt := time.Unix(1, 0).UTC()
+	runStore := sqlite.NewRunStore(database)
+	if err := runStore.Admit(ctx, run.Draft{
+		RunID: "run_terminal", SessionID: "ses_terminal", SegmentID: "seg_terminal",
+		CreatedAt: createdAt,
+	}); err != nil {
+		t.Fatalf("admit: %v", err)
+	}
+	checkpointStore := persistence.NewExecutorCheckpointStore(sqlite.NewExecutorCheckpointStore(database))
+	snapshot := waitingExecutorMember("proc_terminal", "continue?")
+	if err := checkpointStore.SaveCheckpoint(ctx, executorCheckpoint(t, executorTreeFixture{
+		RootID: snapshot.ID, Members: []executorMemberFixture{snapshot},
+	}, runs.ExecutorCheckpoint{
+		BuildID: checkpointBuildID,
+		Scope:   runs.ExecutionScope{SessionID: "ses_terminal"},
+		Usage:   accounting.Snapshot{},
+	})); err != nil {
+		t.Fatalf("seed checkpoint: %v", err)
+	}
+	interruptStore := persistence.NewInterruptStore(sqlite.NewInterruptStore(database))
+	pending := singleRunPending(
+		t,
+		"run_terminal", "ses_terminal", snapshot.ID, "request_terminal", "item_terminal",
+		createdAt, createdAt.Add(time.Second),
+	)
+	if err := interruptStore.Open(ctx, pending); err != nil {
+		t.Fatalf("seed interrupt: %v", err)
+	}
+	if _, found, err := interruptStore.ClaimResume(
+		ctx,
+		pending.SessionID,
+		pending.RootRunID,
+		[]runs.InterruptAnswer{{
+			InterruptItemID: pending.Bindings[0].InterruptItemID,
+			MemberID:        pending.Bindings[0].MemberID,
+			RequestID:       pending.Bindings[0].RequestID,
+			Resolution:      interrupt.Resolution{Answers: [][]string{{"continue"}}},
+		}},
+		createdAt.Add(2*time.Second),
+	); err != nil || !found {
+		t.Fatalf("seed answer claim: found=%t err=%v", found, err)
+	}
+	var checkpointDeleter ExecutorCheckpointStore = checkpointStore
+	if failCheckpointDeletion {
+		checkpointDeleter = failingExecutorCheckpointStore{
+			ExecutorCheckpointStore: checkpointStore,
+			err:                     errors.New("delete unavailable"),
+		}
+	}
+	effects := New(Config{
+		State: runStore, Interrupts: interruptStore, ExecutorCheckpoints: checkpointDeleter,
+		Tx: func(ctx context.Context, fn func(context.Context) error) error {
+			return sqlite.RunInTx(ctx, database, fn)
+		},
+	})
+	return terminalCheckpointFixture{
+		ctx: ctx, database: database, runStore: runStore, checkpoints: checkpointStore,
+		pending: pending, snapshot: snapshot, effects: effects,
+	}
+}
+
+func assertTerminalCheckpointRollback(t *testing.T, fixture terminalCheckpointFixture, commitError error) {
+	t.Helper()
+	if commitError == nil {
+		t.Fatal("terminal commit succeeded after checkpoint deletion failed")
+	}
+	runsAfter, err := fixture.runStore.ListRuns(fixture.ctx, "ses_terminal")
+	if err != nil || len(runsAfter) != 1 || runsAfter[0].State != run.Running {
+		t.Fatalf("Run after rollback = %+v, %v; want running", runsAfter, err)
+	}
+	if _, err := fixture.checkpoints.LoadCheckpoint(fixture.ctx, fixture.snapshot.ID); err != nil {
+		t.Fatalf("checkpoint lost after terminal rollback: %v", err)
+	}
+	var state string
+	if err := fixture.database.QueryRowContext(
+		fixture.ctx,
+		`SELECT state FROM interrupts WHERE root_run_id = ?`,
+		fixture.pending.RootRunID,
+	).Scan(&state); err != nil || state != "resuming" {
+		t.Fatalf("answer claim after rollback = state:%q err:%v", state, err)
+	}
+}
+
+func assertTerminalCheckpointCommit(t *testing.T, fixture terminalCheckpointFixture, commitError error) {
+	t.Helper()
+	if commitError != nil {
+		t.Fatalf("CommitEvent: %v", commitError)
+	}
+	if _, err := fixture.checkpoints.LoadCheckpoint(fixture.ctx, fixture.snapshot.ID); !errors.Is(err, runs.ErrExecutorCheckpointNotFound) {
+		t.Fatalf("terminal checkpoint survived: %v", err)
+	}
+	var remaining int
+	if err := fixture.database.QueryRowContext(
+		fixture.ctx,
+		`SELECT count(*) FROM interrupts WHERE root_run_id = ?`,
+		fixture.pending.RootRunID,
+	).Scan(&remaining); err != nil || remaining != 0 {
+		t.Fatalf("terminal answer claim cleanup = rows:%d err:%v", remaining, err)
 	}
 }
 

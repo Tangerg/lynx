@@ -55,123 +55,146 @@ func TestWaitingSubtreeCancellationSurvivesSQLiteRestart(t *testing.T) {
 				t.Fatalf("close first runtime database: %v", err)
 			}
 
-			db, err := sqlite.Open(t.Context(), path)
-			if err != nil {
-				t.Fatalf("reopen runtime database: %v", err)
-			}
-			t.Cleanup(func() { _ = db.Close() })
-			runStore := sqlite.NewRunStore(db)
-			interruptStore := persistence.NewInterruptStore(sqlite.NewInterruptStore(db))
-			transcriptStore := sqlite.NewTranscriptStore(db)
-			checkpointStore := persistence.NewExecutorCheckpointStore(sqlite.NewExecutorCheckpointStore(db))
-			query := queries.New(queries.Dependencies{Runs: runStore})
-
-			target := queryRun(t, query, fixture.childRun.ID)
-			if !sameRunSnapshot(target, result.TargetRun) {
-				t.Fatalf(
-					"restarted target Run differs from command result:\ngot  %+v\nwant %+v",
-					target,
-					result.TargetRun,
-				)
-			}
-			root := queryRun(t, query, fixture.rootRun.ID)
-			if !sameRunSnapshot(root, result.RootRun) {
-				t.Fatalf(
-					"restarted root Run differs from command result:\ngot  %+v\nwant %+v",
-					root,
-					result.RootRun,
-				)
-			}
-
-			treeRuns, err := runStore.Tree(fixture.ctx, fixture.childRun.ID)
-			if err != nil {
-				t.Fatalf("read tree through canceled child ID: %v", err)
-			}
-			members := make([]run.TreeMember, 0, len(treeRuns))
-			runsByID := make(map[string]transcript.Run, len(treeRuns))
-			for _, record := range treeRuns {
-				members = append(members, run.TreeMember{
-					RunID:   record.ID,
-					Lineage: record.Lineage(),
-				})
-				runsByID[record.ID] = record
-			}
-			topology, err := run.NewTree(fixture.rootRun.ID, members)
-			if err != nil {
-				t.Fatalf("assemble restarted Run tree: %v", err)
-			}
-			if got := topology.Postorder(); !slices.Equal(got, test.wantPostorder) {
-				t.Fatalf("restarted Run tree postorder = %v, want %v", got, test.wantPostorder)
-			}
-			for _, runID := range []string{
-				fixture.grandchildRun.ID,
-				fixture.childRun.ID,
-			} {
-				record := runsByID[runID]
-				if record.State != run.Canceled ||
-					record.Outcome == nil ||
-					*record.Outcome != run.OutcomeCanceled {
-					t.Fatalf("canceled subtree Run %q = %+v", runID, record)
-				}
-			}
-
-			checkpoint, err := checkpointStore.LoadCheckpoint(
-				fixture.ctx,
-				fixture.replacementTree.RootID,
-			)
-			if err != nil {
-				t.Fatalf("load restarted process tree: %v", err)
-			}
-			processTree := restoredExecutorTree(t, checkpoint)
-			assertReplacementCheckpoint(
-				t,
-				processTree,
-				checkpoint,
-				fixture,
-			)
-			for _, processID := range []string{"process_child", "process_grandchild"} {
-				if _, found := executorMemberByID(processTree, processID); found {
-					t.Fatalf("restarted process tree resurrected canceled process %q", processID)
-				}
-			}
-
-			for _, replacement := range fixture.commit.TerminalItems {
-				item, found, err := transcriptStore.Item(
-					fixture.ctx,
-					replacement.Expected.ID,
-				)
-				if err != nil ||
-					!found ||
-					!sameItemSnapshot(item, replacement.Replacement) {
-					t.Fatalf(
-						"restarted terminal Item %q = found:%t value:%+v err:%v, want %+v",
-						replacement.Expected.ID,
-						found,
-						item,
-						err,
-						replacement.Replacement,
-					)
-				}
-			}
+			stores := reopenWaitingCancellationStores(t, path)
+			assertRestartedCancellationResult(t, fixture, stores.query, result)
+			assertRestartedRunTopology(t, fixture, stores.runs, test.wantPostorder)
+			assertRestartedProcessTree(t, fixture, stores.checkpoints)
+			assertRestartedTerminalItems(t, fixture, stores.transcript)
 
 			if test.survivingBoundary {
 				assertRestartedWaitingBoundary(
 					t,
 					fixture,
-					runStore,
-					interruptStore,
-					transcriptStore,
-					checkpointStore,
+					stores.runs,
+					stores.interrupts,
+					stores.transcript,
+					stores.checkpoints,
 				)
 				return
 			}
 			assertRestartedRunningBoundary(
 				t,
 				fixture,
-				runStore,
-				interruptStore,
+				stores.runs,
+				stores.interrupts,
 			)
 		})
+	}
+}
+
+type restartedWaitingCancellationStores struct {
+	runs        *sqlite.RunStore
+	interrupts  *persistence.InterruptStore
+	transcript  *sqlite.TranscriptStore
+	checkpoints *persistence.ExecutorCheckpointStore
+	query       *queries.Coordinator
+}
+
+func reopenWaitingCancellationStores(t *testing.T, path string) restartedWaitingCancellationStores {
+	t.Helper()
+	database, err := sqlite.Open(t.Context(), path)
+	if err != nil {
+		t.Fatalf("reopen runtime database: %v", err)
+	}
+	t.Cleanup(func() { _ = database.Close() })
+	runStore := sqlite.NewRunStore(database)
+	return restartedWaitingCancellationStores{
+		runs:        runStore,
+		interrupts:  persistence.NewInterruptStore(sqlite.NewInterruptStore(database)),
+		transcript:  sqlite.NewTranscriptStore(database),
+		checkpoints: persistence.NewExecutorCheckpointStore(sqlite.NewExecutorCheckpointStore(database)),
+		query:       queries.New(queries.Dependencies{Runs: runStore}),
+	}
+}
+
+func assertRestartedCancellationResult(
+	t *testing.T,
+	fixture waitingCancellationSQLiteFixture,
+	query *queries.Coordinator,
+	result runs.WaitingSubtreeCancellationResult,
+) {
+	t.Helper()
+	target := queryRun(t, query, fixture.childRun.ID)
+	if !sameRunSnapshot(target, result.TargetRun) {
+		t.Fatalf(
+			"restarted target Run differs from command result:\ngot  %+v\nwant %+v",
+			target, result.TargetRun,
+		)
+	}
+	root := queryRun(t, query, fixture.rootRun.ID)
+	if !sameRunSnapshot(root, result.RootRun) {
+		t.Fatalf(
+			"restarted root Run differs from command result:\ngot  %+v\nwant %+v",
+			root, result.RootRun,
+		)
+	}
+}
+
+func assertRestartedRunTopology(
+	t *testing.T,
+	fixture waitingCancellationSQLiteFixture,
+	runStore *sqlite.RunStore,
+	wantPostorder []string,
+) {
+	t.Helper()
+	treeRuns, err := runStore.Tree(fixture.ctx, fixture.childRun.ID)
+	if err != nil {
+		t.Fatalf("read tree through canceled child ID: %v", err)
+	}
+	members := make([]run.TreeMember, 0, len(treeRuns))
+	runsByID := make(map[string]transcript.Run, len(treeRuns))
+	for _, record := range treeRuns {
+		members = append(members, run.TreeMember{RunID: record.ID, Lineage: record.Lineage()})
+		runsByID[record.ID] = record
+	}
+	topology, err := run.NewTree(fixture.rootRun.ID, members)
+	if err != nil {
+		t.Fatalf("assemble restarted Run tree: %v", err)
+	}
+	if postorder := topology.Postorder(); !slices.Equal(postorder, wantPostorder) {
+		t.Fatalf("restarted Run tree postorder = %v, want %v", postorder, wantPostorder)
+	}
+	for _, runID := range []string{fixture.grandchildRun.ID, fixture.childRun.ID} {
+		record := runsByID[runID]
+		if record.State != run.Canceled || record.Outcome == nil || *record.Outcome != run.OutcomeCanceled {
+			t.Fatalf("canceled subtree Run %q = %+v", runID, record)
+		}
+	}
+}
+
+func assertRestartedProcessTree(
+	t *testing.T,
+	fixture waitingCancellationSQLiteFixture,
+	checkpointStore *persistence.ExecutorCheckpointStore,
+) {
+	t.Helper()
+	checkpoint, err := checkpointStore.LoadCheckpoint(fixture.ctx, fixture.replacementTree.RootID)
+	if err != nil {
+		t.Fatalf("load restarted process tree: %v", err)
+	}
+	processTree := restoredExecutorTree(t, checkpoint)
+	assertReplacementCheckpoint(t, processTree, checkpoint, fixture)
+	for _, processID := range []string{"process_child", "process_grandchild"} {
+		if _, found := executorMemberByID(processTree, processID); found {
+			t.Fatalf("restarted process tree resurrected canceled process %q", processID)
+		}
+	}
+}
+
+func assertRestartedTerminalItems(
+	t *testing.T,
+	fixture waitingCancellationSQLiteFixture,
+	transcriptStore *sqlite.TranscriptStore,
+) {
+	t.Helper()
+	for _, replacement := range fixture.commit.TerminalItems {
+		item, found, err := transcriptStore.Item(fixture.ctx, replacement.Expected.ID)
+		if err != nil || !found || !sameItemSnapshot(item, replacement.Replacement) {
+			t.Fatalf(
+				"restarted terminal Item %q = found:%t value:%+v err:%v, want %+v",
+				replacement.Expected.ID, found, item, err, replacement.Replacement,
+			)
+		}
 	}
 }
 
