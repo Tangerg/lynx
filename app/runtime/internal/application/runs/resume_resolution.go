@@ -153,57 +153,66 @@ func resolveQuestionResponse(request transcript.Interrupt, response ResumeRespon
 func validateQuestionAnswer(field transcript.QuestionField, values []string) error {
 	switch field.Kind {
 	case transcript.QuestionText:
-		if len(values) != 1 || strings.TrimSpace(values[0]) == "" {
-			return errors.New("one non-empty text value is required")
-		}
+		return validateTextAnswer(values)
 	case transcript.QuestionChoice:
-		if len(values) == 0 {
-			return errors.New("at least one choice is required")
-		}
-		if !field.Multiple && len(values) != 1 {
-			return errors.New("exactly one choice is required")
-		}
-		allowed := make(map[string]struct{}, len(field.Options))
-		for _, option := range field.Options {
-			allowed[option.Label] = struct{}{}
-		}
-		seen := make(map[string]struct{}, len(values))
-		customValues := 0
-		for _, value := range values {
-			trimmed := strings.TrimSpace(value)
-			if trimmed == "" {
-				return errors.New("choice values must not be empty")
-			}
-			if trimmed != value {
-				return errors.New("choice values must not have surrounding whitespace")
-			}
-			if _, ok := allowed[value]; !ok {
-				if !field.AllowCustom {
-					return fmt.Errorf("unknown choice %q", value)
-				}
-				customValues++
-				if customValues > 1 {
-					return errors.New("at most one custom choice is allowed")
-				}
-			}
-			if _, duplicate := seen[value]; duplicate {
-				return errors.New("duplicate choices are not allowed")
-			}
-			seen[value] = struct{}{}
-		}
+		return validateChoiceAnswer(field, values)
 	default:
 		return fmt.Errorf("unknown question field kind %d", field.Kind)
+	}
+}
+
+func validateTextAnswer(values []string) error {
+	if len(values) != 1 || strings.TrimSpace(values[0]) == "" {
+		return errors.New("one non-empty text value is required")
 	}
 	return nil
 }
 
-func cloneAnswers(in [][]string) [][]string {
-	if in == nil {
+func validateChoiceAnswer(field transcript.QuestionField, values []string) error {
+	if len(values) == 0 {
+		return errors.New("at least one choice is required")
+	}
+	if !field.Multiple && len(values) != 1 {
+		return errors.New("exactly one choice is required")
+	}
+	allowedLabels := make(map[string]struct{}, len(field.Options))
+	for _, option := range field.Options {
+		allowedLabels[option.Label] = struct{}{}
+	}
+	seenLabels := make(map[string]struct{}, len(values))
+	customValueCount := 0
+	for _, value := range values {
+		trimmed := strings.TrimSpace(value)
+		if trimmed == "" {
+			return errors.New("choice values must not be empty")
+		}
+		if trimmed != value {
+			return errors.New("choice values must not have surrounding whitespace")
+		}
+		if _, allowed := allowedLabels[value]; !allowed {
+			if !field.AllowCustom {
+				return fmt.Errorf("unknown choice %q", value)
+			}
+			customValueCount++
+			if customValueCount > 1 {
+				return errors.New("at most one custom choice is allowed")
+			}
+		}
+		if _, duplicate := seenLabels[value]; duplicate {
+			return errors.New("duplicate choices are not allowed")
+		}
+		seenLabels[value] = struct{}{}
+	}
+	return nil
+}
+
+func cloneAnswers(answers [][]string) [][]string {
+	if answers == nil {
 		return nil
 	}
-	out := make([][]string, len(in))
-	for index, values := range in {
-		out[index] = slices.Clone(values)
+	cloned := make([][]string, len(answers))
+	for index, values := range answers {
+		cloned[index] = slices.Clone(values)
 	}
-	return out
+	return cloned
 }

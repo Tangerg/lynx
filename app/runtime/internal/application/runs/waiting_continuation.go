@@ -105,6 +105,23 @@ func (member WaitingMember) Validate() error {
 // Validate verifies the complete Application side of one executor continuation.
 // The opaque checkpoint payload remains the executor implementation's responsibility.
 func (continuation WaitingContinuation) Validate() error {
+	if err := validateWaitingContinuationEnvelope(continuation); err != nil {
+		return err
+	}
+	topology, err := buildWaitingContinuationTopology(continuation)
+	if err != nil {
+		return err
+	}
+	if err := validateWaitingContinuationOrder(continuation.Members, topology.tree.Postorder()); err != nil {
+		return err
+	}
+	if len(continuation.Members) > 1 && !continuation.Capabilities.ChildRuns {
+		return errors.New("runs: waiting continuation has child members without child-Run capability")
+	}
+	return continuation.Checkpoint.ValidateOwnership(topology.rootMemberID, continuation.SessionID)
+}
+
+func validateWaitingContinuationEnvelope(continuation WaitingContinuation) error {
 	for name, value := range map[string]string{
 		"Session ID":  continuation.SessionID,
 		"executor ID": continuation.ExecutorID,
@@ -123,26 +140,37 @@ func (continuation WaitingContinuation) Validate() error {
 	if continuation.ChildRunAdmissionEnabled != continuation.Capabilities.ChildRuns {
 		return errors.New("runs: waiting continuation child admission differs from frozen capabilities")
 	}
-	runIDs := make(map[string]struct{}, len(continuation.Members))
-	memberIDs := make(map[string]struct{}, len(continuation.Members))
+	return nil
+}
+
+type waitingContinuationTopology struct {
+	rootMemberID string
+	tree         run.Tree
+}
+
+func buildWaitingContinuationTopology(
+	continuation WaitingContinuation,
+) (waitingContinuationTopology, error) {
+	seenRunIDs := make(map[string]struct{}, len(continuation.Members))
+	seenMemberIDs := make(map[string]struct{}, len(continuation.Members))
 	treeMembers := make([]run.TreeMember, 0, len(continuation.Members))
 	rootMemberID := ""
 	for index, member := range continuation.Members {
 		if err := member.Validate(); err != nil {
-			return fmt.Errorf("runs: waiting continuation member[%d]: %w", index, err)
+			return waitingContinuationTopology{}, fmt.Errorf("runs: waiting continuation member[%d]: %w", index, err)
 		}
-		if _, duplicate := runIDs[member.RunID]; duplicate {
-			return fmt.Errorf("runs: waiting continuation repeats Run %q", member.RunID)
+		if _, duplicate := seenRunIDs[member.RunID]; duplicate {
+			return waitingContinuationTopology{}, fmt.Errorf("runs: waiting continuation repeats Run %q", member.RunID)
 		}
-		if _, duplicate := memberIDs[member.MemberID]; duplicate {
-			return fmt.Errorf("runs: waiting continuation repeats member %q", member.MemberID)
+		if _, duplicate := seenMemberIDs[member.MemberID]; duplicate {
+			return waitingContinuationTopology{}, fmt.Errorf("runs: waiting continuation repeats member %q", member.MemberID)
 		}
-		runIDs[member.RunID] = struct{}{}
-		memberIDs[member.MemberID] = struct{}{}
+		seenRunIDs[member.RunID] = struct{}{}
+		seenMemberIDs[member.MemberID] = struct{}{}
 		lineage := run.Lineage{}
 		if member.RunID != continuation.RootRunID {
 			if member.ParentRunID == "" {
-				return fmt.Errorf("runs: waiting child Run %q has no parent", member.RunID)
+				return waitingContinuationTopology{}, fmt.Errorf("runs: waiting child Run %q has no parent", member.RunID)
 			}
 			lineage = run.Lineage{
 				SpawnedByItemID: member.SpawnedByItemID,
@@ -150,33 +178,30 @@ func (continuation WaitingContinuation) Validate() error {
 			}
 		} else {
 			if member.ParentRunID != "" || rootMemberID != "" {
-				return errors.New("runs: waiting continuation has an invalid root member")
+				return waitingContinuationTopology{}, errors.New("runs: waiting continuation has an invalid root member")
 			}
 			rootMemberID = member.MemberID
 		}
 		treeMembers = append(treeMembers, run.TreeMember{RunID: member.RunID, Lineage: lineage})
 	}
 	if rootMemberID == "" {
-		return errors.New("runs: waiting continuation has no root member")
+		return waitingContinuationTopology{}, errors.New("runs: waiting continuation has no root member")
 	}
 	tree, err := run.NewTree(continuation.RootRunID, treeMembers)
 	if err != nil {
-		return fmt.Errorf("runs: waiting continuation product tree: %w", err)
+		return waitingContinuationTopology{}, fmt.Errorf("runs: waiting continuation product tree: %w", err)
 	}
-	postorder := tree.Postorder()
-	for index, member := range continuation.Members {
-		if member.RunID != postorder[index] {
+	return waitingContinuationTopology{rootMemberID: rootMemberID, tree: tree}, nil
+}
+
+func validateWaitingContinuationOrder(members []WaitingMember, canonicalRunIDs []string) error {
+	for index, member := range members {
+		if member.RunID != canonicalRunIDs[index] {
 			return fmt.Errorf(
 				"runs: waiting continuation member[%d] is Run %q, canonical postorder requires %q",
-				index, member.RunID, postorder[index],
+				index, member.RunID, canonicalRunIDs[index],
 			)
 		}
-	}
-	if len(continuation.Members) > 1 && !continuation.Capabilities.ChildRuns {
-		return errors.New("runs: waiting continuation has child members without child-Run capability")
-	}
-	if err := continuation.Checkpoint.ValidateOwnership(rootMemberID, continuation.SessionID); err != nil {
-		return err
 	}
 	return nil
 }

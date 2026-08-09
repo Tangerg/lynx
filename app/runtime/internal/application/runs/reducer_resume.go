@@ -35,67 +35,109 @@ type resumableItem struct {
 }
 
 func resumeBindingFrom(continuation treeContinuation, runID string) *resumeBinding {
-	calls := map[string]resumableItem{}
-	items := map[string]resumableItem{}
-	byName := map[string]resumableItem{}
-	addItem := func(callID, name, arguments, itemID string, occurredAt time.Time) {
-		identity := resumableItem{id: itemID, occurredAt: occurredAt}
-		if callID != "" {
-			calls[callID] = identity
-		}
-		items[resumeKey(name, arguments)] = identity
-		if _, duplicate := byName[name]; duplicate {
-			byName[name] = resumableItem{}
-		} else {
-			byName[name] = identity
+	builder := newResumeBindingBuilder()
+	builder.addInterrupts(continuation.interrupts, runID)
+	if member, found := continuation.forRun(runID); found {
+		if err := builder.addTools(member); err != nil {
+			return &resumeBinding{err: err}
 		}
 	}
+	return builder.build()
+}
 
-	var questions []resumedQuestion
-	for _, in := range continuation.interrupts {
-		if in.RunID != runID || in.ItemID == "" {
+type resumeBindingBuilder struct {
+	binding resumeBinding
+}
+
+func newResumeBindingBuilder() *resumeBindingBuilder {
+	return &resumeBindingBuilder{binding: resumeBinding{
+		callItems: make(map[string]resumableItem),
+		toolItems: make(map[string]resumableItem),
+		byName:    make(map[string]resumableItem),
+		committed: make(map[string]CommittedTool),
+		consumed:  make(map[string]struct{}),
+	}}
+}
+
+func (builder *resumeBindingBuilder) addItem(
+	callID string,
+	name string,
+	arguments string,
+	itemID string,
+	occurredAt time.Time,
+) {
+	identity := resumableItem{id: itemID, occurredAt: occurredAt}
+	if callID != "" {
+		builder.binding.callItems[callID] = identity
+	}
+	builder.binding.toolItems[resumeKey(name, arguments)] = identity
+	if _, duplicate := builder.binding.byName[name]; duplicate {
+		builder.binding.byName[name] = resumableItem{}
+	} else {
+		builder.binding.byName[name] = identity
+	}
+}
+
+func (builder *resumeBindingBuilder) addInterrupts(interrupts []transcript.Interrupt, runID string) {
+	for _, pending := range interrupts {
+		if pending.RunID != runID || pending.ItemID == "" {
 			continue
 		}
-		switch in.Kind {
+		switch pending.Kind {
 		case interrupt.Approval:
-			if in.Approval != nil && in.Approval.Tool.Name != "" {
-				addItem("", in.Approval.Tool.Name, argumentIdentity(in.Approval.Tool.Arguments), in.ItemID, in.ItemOccurredAt)
+			if pending.Approval != nil && pending.Approval.Tool.Name != "" {
+				builder.addItem(
+					"",
+					pending.Approval.Tool.Name,
+					argumentIdentity(pending.Approval.Tool.Arguments),
+					pending.ItemID,
+					pending.ItemOccurredAt,
+				)
 			}
 		case interrupt.Question:
-			questions = append(questions, resumedQuestion{
-				itemID: in.ItemID, occurredAt: in.ItemOccurredAt, question: in.Question,
+			builder.binding.questions = append(builder.binding.questions, resumedQuestion{
+				itemID: pending.ItemID, occurredAt: pending.ItemOccurredAt, question: pending.Question,
 			})
 		}
 	}
-	var drained []DrainedTool
-	committed := make(map[string]CommittedTool)
-	if member, ok := continuation.forRun(runID); ok {
-		drained = member.DrainedTools
-		for _, tool := range drained {
-			if tool.Name != "" && tool.ItemID != "" {
-				arguments, err := parseToolArguments(tool.Arguments)
-				if err != nil {
-					return &resumeBinding{err: fmt.Errorf("resume drained tool %q arguments: %w", tool.Name, err)}
-				}
-				addItem(tool.CallID, tool.Name, argumentIdentity(arguments), tool.ItemID, tool.ItemOccurredAt)
-			}
+}
+
+func (builder *resumeBindingBuilder) addTools(member Continuation) error {
+	builder.binding.drained = slices.Clone(member.DrainedTools)
+	for _, drained := range member.DrainedTools {
+		if drained.Name == "" || drained.ItemID == "" {
+			continue
 		}
-		for _, tool := range member.CommittedTools {
-			arguments, err := parseToolArguments(tool.Arguments)
-			if err != nil {
-				return &resumeBinding{err: fmt.Errorf("resume committed tool %q arguments: %w", tool.Name, err)}
-			}
-			tool.Arguments = argumentIdentity(arguments)
-			committed[tool.CallID] = tool
+		arguments, err := parseToolArguments(drained.Arguments)
+		if err != nil {
+			return fmt.Errorf("resume drained tool %q arguments: %w", drained.Name, err)
 		}
+		builder.addItem(
+			drained.CallID,
+			drained.Name,
+			argumentIdentity(arguments),
+			drained.ItemID,
+			drained.ItemOccurredAt,
+		)
 	}
-	if len(calls) == 0 && len(items) == 0 && len(questions) == 0 && len(committed) == 0 {
+	for _, committed := range member.CommittedTools {
+		arguments, err := parseToolArguments(committed.Arguments)
+		if err != nil {
+			return fmt.Errorf("resume committed tool %q arguments: %w", committed.Name, err)
+		}
+		committed.Arguments = argumentIdentity(arguments)
+		builder.binding.committed[committed.CallID] = committed
+	}
+	return nil
+}
+
+func (builder *resumeBindingBuilder) build() *resumeBinding {
+	binding := &builder.binding
+	if len(binding.callItems) == 0 && len(binding.toolItems) == 0 &&
+		len(binding.questions) == 0 && len(binding.committed) == 0 {
 		return nil
 	}
-	return &resumeBinding{
-		callItems: calls, toolItems: items, byName: byName, questions: questions,
-		drained: slices.Clone(drained), committed: committed, consumed: make(map[string]struct{}),
-	}
+	return binding
 }
 
 func resumeKey(toolName, arguments string) string { return toolName + "\x00" + arguments }

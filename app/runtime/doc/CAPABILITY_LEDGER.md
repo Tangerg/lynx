@@ -64,7 +64,7 @@
 | 当前能力 | 当前 owner | 目标 | Verdict | 验收 |
 |---|---|---|---|---|
 | Conversation message log | `domain/conversation` + `application/conversations` I/O | 保持 | Retain | Count/Truncate/Seed 不依赖 Run executor |
-| Transcript Items/Runs | `domain/transcript` | 保持 | Retain | rollback/fork/item timing 保持权威 |
+| Transcript Items/Runs | `domain/transcript` | 保持 | Retain | rollback/fork/item timing 保持权威；`Item` 聚合内的 envelope、kind payload、tool-call payload 与 disallowed payload 各有准确的私有 invariant owner |
 | Offloaded transcript content | `domain/toolresult` | 保持准确独立 capability | Retain | 无泛化 blob service |
 | Knowledge/LYRA.md | `domain/knowledge` | 保持独立 | Retain | 用户编辑与 Agent state 无关 |
 | WorkingContext | Application composer + Agent Framework Interaction private state | 保持 Host composition 与 executor state 分离 | Retain | fresh root 读取产品事实；restore 只用 opaque checkpoint，不从 Conversation 重算 |
@@ -77,7 +77,7 @@
 | Pending continuation | `application/runs.Pending` + `adapter/persistence` mapping | 已保持 owner 并接入 Agent Framework public pending input | Retain | 一个 root tree 一个 pending hand-off；Infra 只见 technical record；claim 后普通读取不可见 |
 | Approval domain | `domain/approval` | 保持产品策略 | Retain + remove I/O ports | 不进入 Agent Framework |
 | Ask-user/approval tool input | Toolset product Interrupt + `agentexec/interactioninput` | public Interaction helper → product Interrupt | Retain | 不解析 private Framework payload；旧 adapter 已删除 |
-| Answer/resolution | runs + native interaction input adapter | semantic Application command → WaitID-addressed Signal | P6 native bridge 已完成 | 无任意 Signal API；answer claim/segment opening/Signal 顺序受测试 |
+| Answer/resolution | runs + native interaction input adapter | semantic Application command → WaitID-addressed Signal | P6 native bridge 已完成；P14 内部职责精修 | 无任意 Signal API；text/choice answer 各自验证其语义，answer claim/segment opening/Signal 顺序受测试 |
 
 ### 3.4 Accounting
 
@@ -113,7 +113,7 @@
 | Event observation | `ExecutionObserver.Observe` | P4 real consumer 已验证 | 只流 Application-owned executor facts；final 来自 Result |
 | Executor release | `ExecutionReleaser.Release` | Retain | 与产品 Cancel 分离；非 Waiting 终止恰好一次 |
 | Product Cancel | durable control intent → `RunningRootCancellationRequester` → continued observation → release | Retain | request cancel 不提前切断 pump；确定终态后才释放 |
-| Resume | `WaitingExecutionContinuer.StageContinuation/BeginContinuation` | Retain | exact BuildID/deployment/scope/capabilities restore；opening commit 后才 Signal |
+| Resume | `WaitingExecutionContinuer.StageContinuation/BeginContinuation` | Retain | exact BuildID/deployment/scope/capabilities restore；waiting continuation 的 envelope/topology/order 与 resume binding 各有准确内部 owner；per-Run reducer、Segment identity 和 deterministic preorder 由私有 resumed-route builder 原子重建；opening commit 后才 Signal |
 | Steer | `RunningExecutionSteerer.SubmitSteer` | Retain | semantic steer 只在下一 model safe boundary 投影 |
 | Child subtree cancel | `MemberID` + `WaitingSubtreeCancellationPreparer` | P7 real consumer 已重推 | Application 只看 member projection、resulting checkpoint 与一次性 Apply/Discard capability |
 | Waiting subtree mutation | `WaitingSubtreeChange` 持有 execution ACL capability | P7 native bridge 已完成；P14 精修 commit invariant owner | Application 不见 Agent Framework plan；source 冻结跨过 transaction；contextless Apply 只安装状态，final-boundary Continue 独立激活，失败时 exact restore/terminal 收口；`WaitingSubtreeCancellationCommit` 内部按 boundary、disposition envelope、pending-tree topology 和 surviving continuation 分阶段证明同一原子 write-set，不产生第二 validator owner |

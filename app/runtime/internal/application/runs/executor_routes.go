@@ -77,14 +77,34 @@ func (c *Coordinator) resumedExecutorRoutes(
 	cancelReason func(string) string,
 ) (*executorRoutes, error) {
 	continuation := spec.Continuation
+	if err := validateResumedRouteRequest(spec, continuation); err != nil {
+		return nil, err
+	}
+	builder := resumedRouteBuilder{
+		spec:         spec,
+		continuation: continuation,
+		cancelReason: cancelReason,
+		newSegmentID: c.newSegmentID,
+		now:          c.now,
+		routes: &executorRoutes{
+			rootBound: true,
+			byMember:  make(map[string]*executorRoute, len(continuation.continuations)),
+			byRunID:   make(map[string]*executorRoute, len(continuation.continuations)),
+		},
+		segmentIDs: map[string]struct{}{spec.SegmentID: {}},
+	}
+	return builder.build()
+}
+
+func validateResumedRouteRequest(spec segmentSpec, continuation *treeContinuation) error {
 	if continuation == nil {
-		return nil, errors.New("runs: resumed routes require a tree continuation")
+		return errors.New("runs: resumed routes require a tree continuation")
 	}
 	if err := continuation.validate(); err != nil {
-		return nil, fmt.Errorf("runs: build resumed routes: %w", err)
+		return fmt.Errorf("runs: build resumed routes: %w", err)
 	}
 	if continuation.rootRunID != spec.RunID || continuation.sessionID != spec.SessionID {
-		return nil, fmt.Errorf(
+		return fmt.Errorf(
 			"runs: resumed route scope %q/%q does not match continuation %q/%q",
 			spec.SessionID,
 			spec.RunID,
@@ -93,96 +113,130 @@ func (c *Coordinator) resumedExecutorRoutes(
 		)
 	}
 	if spec.SegmentID == "" {
-		return nil, errors.New("runs: resumed root segment id is required")
+		return errors.New("runs: resumed root segment id is required")
 	}
-	routes := &executorRoutes{
-		rootBound: true,
-		byMember:  make(map[string]*executorRoute, len(continuation.continuations)),
-		byRunID:   make(map[string]*executorRoute, len(continuation.continuations)),
-	}
-	segmentIDs := map[string]struct{}{spec.SegmentID: {}}
-	for _, continuationState := range continuation.continuations {
-		segmentID := spec.SegmentID
-		if continuationState.RunID != continuation.rootRunID {
-			if c.newSegmentID == nil {
-				return nil, errors.New("runs: resumed child routes require a segment identity generator")
-			}
-			segmentID = c.newSegmentID()
-			if segmentID == "" {
-				return nil, fmt.Errorf(
-					"runs: resumed child Run %q generated an empty segment id",
-					continuationState.RunID,
-				)
-			}
-			if _, duplicate := segmentIDs[segmentID]; duplicate {
-				return nil, fmt.Errorf("runs: resumed tree generated duplicate segment %q", segmentID)
-			}
-			segmentIDs[segmentID] = struct{}{}
+	return nil
+}
+
+// resumedRouteBuilder reconstructs every per-Run reducer from one validated
+// continuation and derives their deterministic admission order. Keeping the
+// segment identity set with the construction state makes duplicate detection
+// structural rather than a convention shared by unrelated helpers.
+type resumedRouteBuilder struct {
+	spec         segmentSpec
+	continuation *treeContinuation
+	cancelReason func(string) string
+	newSegmentID func() string
+	now          func() time.Time
+	routes       *executorRoutes
+	segmentIDs   map[string]struct{}
+}
+
+func (builder *resumedRouteBuilder) build() (*executorRoutes, error) {
+	for _, continuationState := range builder.continuation.continuations {
+		route, err := builder.newRoute(continuationState)
+		if err != nil {
+			return nil, err
 		}
-		member := ExecutorMember{MemberID: continuationState.MemberID}
-		if err := member.Validate(); err != nil {
-			return nil, fmt.Errorf("runs: resumed Run %q member: %w", continuationState.RunID, err)
-		}
-		route := &executorRoute{
-			member:           member,
-			memberBound:      continuationState.Lineage.IsRoot(),
-			runID:            continuationState.RunID,
-			segmentID:        segmentID,
-			rootRunID:        continuation.rootRunID,
-			lineage:          continuationState.Lineage,
-			modelSelection:   continuationState.ModelSelection,
-			limits:           continuationState.Limits,
-			capabilities:     continuation.capabilities,
-			segmentStartedAt: time.Time{},
-		}
-		userInput := []transcript.ContentBlock(nil)
-		goalLeaseID := ""
-		if continuationState.RunID == continuation.rootRunID {
-			userInput = spec.Input
-			goalLeaseID = spec.GoalLeaseID
-		}
-		route.reducer = newReducer(reducerConfig{
-			RunID: route.runID, SegmentID: route.segmentID, SessionID: spec.SessionID,
-			Lineage: route.lineage, CWD: spec.CWD, ExecutorID: spec.ExecutorID,
-			GoalLeaseID: goalLeaseID, ModelSelection: route.modelSelection,
-			CreatedAt: continuationState.RunCreatedAt, UserInput: userInput,
-			Metrics: continuationState.Metrics, Limits: continuationState.Limits,
-			Capabilities: continuation.capabilities, Continuation: continuation,
-			Now: c.now, CancelReason: cancellationReason(cancelReason, route.runID),
-		})
-		routes.byMember[member.MemberID] = route
-		routes.byRunID[route.runID] = route
-		if route.runID == continuation.rootRunID {
-			routes.root = route
+		builder.routes.byMember[route.member.MemberID] = route
+		builder.routes.byRunID[route.runID] = route
+		if route.runID == builder.continuation.rootRunID {
+			builder.routes.root = route
 		}
 	}
-	if routes.root == nil {
+	if builder.routes.root == nil {
 		return nil, errors.New("runs: resumed tree has no root route")
 	}
-	children := make(map[string][]*executorRoute, len(routes.byRunID))
-	for _, route := range routes.byRunID {
-		if route == routes.root {
-			continue
-		}
-		children[route.lineage.ParentRunID] = append(children[route.lineage.ParentRunID], route)
+	if err := builder.orderRoutesPreorder(); err != nil {
+		return nil, err
 	}
-	for parentRunID := range children {
-		slices.SortFunc(children[parentRunID], func(left, right *executorRoute) int {
+	return builder.routes, nil
+}
+
+func (builder *resumedRouteBuilder) newRoute(continuationState Continuation) (*executorRoute, error) {
+	segmentID, err := builder.segmentIDFor(continuationState.RunID)
+	if err != nil {
+		return nil, err
+	}
+	member := ExecutorMember{MemberID: continuationState.MemberID}
+	if err := member.Validate(); err != nil {
+		return nil, fmt.Errorf("runs: resumed Run %q member: %w", continuationState.RunID, err)
+	}
+	route := &executorRoute{
+		member:         member,
+		memberBound:    continuationState.Lineage.IsRoot(),
+		runID:          continuationState.RunID,
+		segmentID:      segmentID,
+		rootRunID:      builder.continuation.rootRunID,
+		lineage:        continuationState.Lineage,
+		modelSelection: continuationState.ModelSelection,
+		limits:         continuationState.Limits,
+		capabilities:   builder.continuation.capabilities,
+	}
+	userInput := []transcript.ContentBlock(nil)
+	goalLeaseID := ""
+	if continuationState.RunID == builder.continuation.rootRunID {
+		userInput = builder.spec.Input
+		goalLeaseID = builder.spec.GoalLeaseID
+	}
+	route.reducer = newReducer(reducerConfig{
+		RunID: route.runID, SegmentID: route.segmentID, SessionID: builder.spec.SessionID,
+		Lineage: route.lineage, CWD: builder.spec.CWD, ExecutorID: builder.spec.ExecutorID,
+		GoalLeaseID: goalLeaseID, ModelSelection: route.modelSelection,
+		CreatedAt: continuationState.RunCreatedAt, UserInput: userInput,
+		Metrics: continuationState.Metrics, Limits: continuationState.Limits,
+		Capabilities: builder.continuation.capabilities, Continuation: builder.continuation,
+		Now:          builder.now,
+		CancelReason: cancellationReason(builder.cancelReason, route.runID),
+	})
+	return route, nil
+}
+
+func (builder *resumedRouteBuilder) segmentIDFor(runID string) (string, error) {
+	if runID == builder.continuation.rootRunID {
+		return builder.spec.SegmentID, nil
+	}
+	if builder.newSegmentID == nil {
+		return "", errors.New("runs: resumed child routes require a segment identity generator")
+	}
+	segmentID := builder.newSegmentID()
+	if segmentID == "" {
+		return "", fmt.Errorf("runs: resumed child Run %q generated an empty segment id", runID)
+	}
+	if _, duplicate := builder.segmentIDs[segmentID]; duplicate {
+		return "", fmt.Errorf("runs: resumed tree generated duplicate segment %q", segmentID)
+	}
+	builder.segmentIDs[segmentID] = struct{}{}
+	return segmentID, nil
+}
+
+func (builder *resumedRouteBuilder) orderRoutesPreorder() error {
+	childrenByParentRunID := make(map[string][]*executorRoute, len(builder.routes.byRunID))
+	for _, route := range builder.routes.byRunID {
+		if route != builder.routes.root {
+			childrenByParentRunID[route.lineage.ParentRunID] = append(
+				childrenByParentRunID[route.lineage.ParentRunID],
+				route,
+			)
+		}
+	}
+	for parentRunID := range childrenByParentRunID {
+		slices.SortFunc(childrenByParentRunID[parentRunID], func(left, right *executorRoute) int {
 			return strings.Compare(left.runID, right.runID)
 		})
 	}
 	var appendPreorder func(*executorRoute)
 	appendPreorder = func(route *executorRoute) {
-		routes.admissionOrder = append(routes.admissionOrder, route)
-		for _, child := range children[route.runID] {
+		builder.routes.admissionOrder = append(builder.routes.admissionOrder, route)
+		for _, child := range childrenByParentRunID[route.runID] {
 			appendPreorder(child)
 		}
 	}
-	appendPreorder(routes.root)
-	if len(routes.admissionOrder) != len(continuation.continuations) {
-		return nil, errors.New("runs: resumed route tree is disconnected")
+	appendPreorder(builder.routes.root)
+	if len(builder.routes.admissionOrder) != len(builder.continuation.continuations) {
+		return errors.New("runs: resumed route tree is disconnected")
 	}
-	return routes, nil
+	return nil
 }
 
 // unfinishedInPostorder returns the active tree in contract publication order:
@@ -387,76 +441,75 @@ func validateRouteReductionBatch(
 	if err := route.lineage.Validate(route.runID); err != nil {
 		return fmt.Errorf("%w: executor route %q lineage: %w", errReducerInvariant, route.runID, err)
 	}
-	validateCommit := func(commit *EventCommit) error {
-		if commit == nil {
-			return nil
-		}
-		if commit.RunID != route.runID || commit.SessionID != sessionID {
-			return fmt.Errorf(
-				"%w: route %q commit targets run %q in session %q",
-				errReducerInvariant,
-				route.runID,
-				commit.RunID,
-				commit.SessionID,
-			)
-		}
-		for _, item := range commit.Items {
-			if err := validateRouteItem(route, sessionID, item); err != nil {
-				return err
-			}
-		}
-		if commit.Run != nil {
-			if err := validateRouteRun(route, sessionID, *commit.Run); err != nil {
-				return err
-			}
-		}
-		if commit.GoalRun != nil &&
-			(commit.GoalRun.RunID != route.runID || commit.GoalRun.SessionID != sessionID) {
-			return fmt.Errorf(
-				"%w: route %q carries a Goal Run for run %q in session %q",
-				errReducerInvariant,
-				route.runID,
-				commit.GoalRun.RunID,
-				commit.GoalRun.SessionID,
-			)
-		}
-		return nil
-	}
-
-	if err := validateCommit(batch.parkCommit); err != nil {
+	if err := validateRouteCommit(route, sessionID, batch.parkCommit); err != nil {
 		return err
 	}
 	for _, reduced := range batch.events {
-		if err := validateCommit(reduced.Commit); err != nil {
+		if err := validateRouteCommit(route, sessionID, reduced.Commit); err != nil {
 			return err
 		}
-		switch event := reduced.Event.(type) {
-		case SegmentStarted:
-			if err := validateRouteRun(route, sessionID, event.Run); err != nil {
-				return err
-			}
-		case SegmentFinished:
-			if err := validateRouteRun(route, sessionID, event.Run); err != nil {
-				return err
-			}
-		case ItemStarted:
-			if err := validateRouteItem(route, sessionID, event.Item); err != nil {
-				return err
-			}
-		case ItemCompleted:
-			if err := validateRouteItem(route, sessionID, event.Item); err != nil {
-				return err
-			}
-		case StateSnapshot:
-			if event.SessionID != sessionID {
-				return fmt.Errorf(
-					"%w: route %q carries state for session %q, want %q",
-					errReducerInvariant,
-					route.runID,
-					event.SessionID,
-					sessionID,
-				)
-			}
+		if err := validateRoutedEvent(route, sessionID, reduced.Event); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validateRouteCommit(route *executorRoute, sessionID string, commit *EventCommit) error {
+	if commit == nil {
+		return nil
+	}
+	if commit.RunID != route.runID || commit.SessionID != sessionID {
+		return fmt.Errorf(
+			"%w: route %q commit targets run %q in session %q",
+			errReducerInvariant,
+			route.runID,
+			commit.RunID,
+			commit.SessionID,
+		)
+	}
+	for _, item := range commit.Items {
+		if err := validateRouteItem(route, sessionID, item); err != nil {
+			return err
+		}
+	}
+	if commit.Run != nil {
+		if err := validateRouteRun(route, sessionID, *commit.Run); err != nil {
+			return err
+		}
+	}
+	if commit.GoalRun != nil &&
+		(commit.GoalRun.RunID != route.runID || commit.GoalRun.SessionID != sessionID) {
+		return fmt.Errorf(
+			"%w: route %q carries a Goal Run for run %q in session %q",
+			errReducerInvariant,
+			route.runID,
+			commit.GoalRun.RunID,
+			commit.GoalRun.SessionID,
+		)
+	}
+	return nil
+}
+
+func validateRoutedEvent(route *executorRoute, sessionID string, routed RunEvent) error {
+	switch event := routed.(type) {
+	case SegmentStarted:
+		return validateRouteRun(route, sessionID, event.Run)
+	case SegmentFinished:
+		return validateRouteRun(route, sessionID, event.Run)
+	case ItemStarted:
+		return validateRouteItem(route, sessionID, event.Item)
+	case ItemCompleted:
+		return validateRouteItem(route, sessionID, event.Item)
+	case StateSnapshot:
+		if event.SessionID != sessionID {
+			return fmt.Errorf(
+				"%w: route %q carries state for session %q, want %q",
+				errReducerInvariant,
+				route.runID,
+				event.SessionID,
+				sessionID,
+			)
 		}
 	}
 	return nil

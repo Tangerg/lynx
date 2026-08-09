@@ -106,96 +106,112 @@ func validatorChecks(
 	union dispatch.UnionSpec,
 	rules []dispatch.PresenceRule,
 ) []string {
-	var checks []string
+	checks := make([]string, 0, len(constraints))
 	for _, constraint := range constraints {
-		selector, leaf, ok := protocol.GoPath(shape, constraint.Field)
-		if !ok {
-			panic(fmt.Sprintf("contractgen: %s has no field %q", shape.Name(), constraint.Field))
-		}
-		field := strconv.Quote(constraint.Field)
-		switch constraint.Kind {
-		case dispatch.ConstraintNonEmpty:
-			validatorName := "requiredText"
-			if leaf.Optional && leaf.Type.Kind() == reflect.Pointer {
-				validatorName = "optionalText"
-			}
-			checks = append(checks, fmt.Sprintf("%s(%s, %s)", validatorName, field, stringExpr(selector, leaf.Type)))
-		case dispatch.ConstraintPositive:
-			validatorName := "positiveNumber"
-			if leaf.Type.Kind() == reflect.Pointer {
-				validatorName = "optionalPositiveNumber"
-			} else if leaf.Optional {
-				validatorName = "optionalPositiveScalarNumber"
-			}
-			checks = append(checks, fmt.Sprintf("%s(%s, value.%s)", validatorName, field, selector))
-		case dispatch.ConstraintNonNegative:
-			validatorName := "nonNegativeNumber"
-			if leaf.Type.Kind() == reflect.Pointer {
-				validatorName = "optionalNonNegativeNumber"
-			}
-			checks = append(checks, fmt.Sprintf("%s(%s, value.%s)", validatorName, field, selector))
-		case dispatch.ConstraintNonEmptyItems:
-			validatorName := "requiredItems"
-			if leaf.Optional {
-				validatorName = "nonEmptyItems"
-			}
-			checks = append(checks, fmt.Sprintf("%s(%s, value.%s)", validatorName, field, selector))
-		case dispatch.ConstraintNonEmptyProperties:
-			checks = append(checks, fmt.Sprintf("nonEmptyProperties(%s, value.%s)", field, selector))
-		case dispatch.ConstraintUniqueItems:
-			validatorName := "uniqueItems"
-			if leaf.Type.Kind() == reflect.Pointer {
-				validatorName = "optionalUniqueItems"
-			}
-			checks = append(checks, fmt.Sprintf("%s(%s, value.%s)", validatorName, field, selector))
-		case dispatch.ConstraintMinItems:
-			validatorName := "requiredMinItems"
-			if leaf.Optional {
-				validatorName = "optionalMinItems"
-			}
-			checks = append(checks, fmt.Sprintf("%s(%s, value.%s, %d)", validatorName, field, selector, constraint.Limit))
-		case dispatch.ConstraintMaxLength:
-			validatorName := "maxLength"
-			if leaf.Type.Kind() == reflect.Pointer {
-				validatorName = "optionalMaxLength"
-			}
-			checks = append(checks, fmt.Sprintf("%s(%s, %s, %d)", validatorName, field, stringExpr(selector, leaf.Type), constraint.Limit))
-		case dispatch.ConstraintMinimum:
-			validatorName := "minimumNumber"
-			if leaf.Type.Kind() == reflect.Pointer {
-				validatorName = "optionalMinimumNumber"
-			}
-			checks = append(checks, fmt.Sprintf("%s(%s, value.%s, %d)", validatorName, field, selector, constraint.Limit))
-		case dispatch.ConstraintMaximum:
-			validatorName := "maximumNumber"
-			if leaf.Type.Kind() == reflect.Pointer {
-				validatorName = "optionalMaximumNumber"
-			}
-			checks = append(checks, fmt.Sprintf("%s(%s, value.%s, %d)", validatorName, field, selector, constraint.Limit))
-		default:
-			panic(fmt.Sprintf(
-				"contractgen: %s.%s uses unsupported constraint %s",
-				shape.Name(),
-				constraint.Field,
-				constraint.Kind,
-			))
-		}
+		checks = append(checks, constraintCheck(shape, constraint))
 	}
+	checks = append(checks, enumChecks(shape)...)
+	checks = append(checks, unionChecks(union)...)
+	checks = append(checks, objectChecks(rules)...)
+	return checks
+}
+
+func constraintCheck(shape reflect.Type, constraint dispatch.FieldConstraint) string {
+	selector, leaf, found := protocol.GoPath(shape, constraint.Field)
+	if !found {
+		panic(fmt.Sprintf("contractgen: %s has no field %q", shape.Name(), constraint.Field))
+	}
+	field := strconv.Quote(constraint.Field)
+	switch constraint.Kind {
+	case dispatch.ConstraintNonEmpty:
+		validatorName := "requiredText"
+		if leaf.Optional && leaf.Type.Kind() == reflect.Pointer {
+			validatorName = "optionalText"
+		}
+		return fmt.Sprintf("%s(%s, %s)", validatorName, field, stringExpr(selector, leaf.Type))
+	case dispatch.ConstraintPositive:
+		validatorName := "positiveNumber"
+		if leaf.Type.Kind() == reflect.Pointer {
+			validatorName = "optionalPositiveNumber"
+		} else if leaf.Optional {
+			validatorName = "optionalPositiveScalarNumber"
+		}
+		return fmt.Sprintf("%s(%s, value.%s)", validatorName, field, selector)
+	case dispatch.ConstraintNonNegative:
+		validatorName := "nonNegativeNumber"
+		if leaf.Type.Kind() == reflect.Pointer {
+			validatorName = "optionalNonNegativeNumber"
+		}
+		return fmt.Sprintf("%s(%s, value.%s)", validatorName, field, selector)
+	case dispatch.ConstraintNonEmptyItems:
+		validatorName := "requiredItems"
+		if leaf.Optional {
+			validatorName = "nonEmptyItems"
+		}
+		return fmt.Sprintf("%s(%s, value.%s)", validatorName, field, selector)
+	case dispatch.ConstraintNonEmptyProperties:
+		return fmt.Sprintf("nonEmptyProperties(%s, value.%s)", field, selector)
+	case dispatch.ConstraintUniqueItems:
+		validatorName := "uniqueItems"
+		if leaf.Type.Kind() == reflect.Pointer {
+			validatorName = "optionalUniqueItems"
+		}
+		return fmt.Sprintf("%s(%s, value.%s)", validatorName, field, selector)
+	case dispatch.ConstraintMinItems:
+		validatorName := "requiredMinItems"
+		if leaf.Optional {
+			validatorName = "optionalMinItems"
+		}
+		return fmt.Sprintf("%s(%s, value.%s, %d)", validatorName, field, selector, constraint.Limit)
+	case dispatch.ConstraintMaxLength:
+		validatorName := "maxLength"
+		if leaf.Type.Kind() == reflect.Pointer {
+			validatorName = "optionalMaxLength"
+		}
+		return fmt.Sprintf(
+			"%s(%s, %s, %d)",
+			validatorName,
+			field,
+			stringExpr(selector, leaf.Type),
+			constraint.Limit,
+		)
+	case dispatch.ConstraintMinimum:
+		validatorName := "minimumNumber"
+		if leaf.Type.Kind() == reflect.Pointer {
+			validatorName = "optionalMinimumNumber"
+		}
+		return fmt.Sprintf("%s(%s, value.%s, %d)", validatorName, field, selector, constraint.Limit)
+	case dispatch.ConstraintMaximum:
+		validatorName := "maximumNumber"
+		if leaf.Type.Kind() == reflect.Pointer {
+			validatorName = "optionalMaximumNumber"
+		}
+		return fmt.Sprintf("%s(%s, value.%s, %d)", validatorName, field, selector, constraint.Limit)
+	default:
+		panic(fmt.Sprintf(
+			"contractgen: %s.%s uses unsupported constraint %s",
+			shape.Name(),
+			constraint.Field,
+			constraint.Kind,
+		))
+	}
+}
+
+func enumChecks(shape reflect.Type) []string {
+	var checks []string
 	for _, field := range protocol.WireFields(shape) {
-		if values, ok := protocol.WireEnum(field.Type); ok {
+		if values, found := protocol.WireEnum(field.Type); found {
 			checks = append(checks, fmt.Sprintf("closedEnum(%s, string(value.%s), %s, %t)",
 				strconv.Quote(field.Name), field.GoName, valueList(values), field.Optional))
 			continue
 		}
 		if field.Type.Kind() == reflect.Slice {
-			if values, ok := protocol.WireEnum(field.Type.Elem()); ok {
+			if values, found := protocol.WireEnum(field.Type.Elem()); found {
 				checks = append(checks, fmt.Sprintf("closedEnumItems(%s, value.%s, %s)",
 					strconv.Quote(field.Name), field.GoName, valueList(values)))
 			}
 		}
 	}
-	checks = append(checks, unionChecks(union)...)
-	checks = append(checks, objectChecks(rules)...)
 	return checks
 }
 

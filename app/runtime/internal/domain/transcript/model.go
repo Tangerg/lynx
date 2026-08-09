@@ -708,6 +708,13 @@ func (question Question) Validate() error {
 
 // Validate reports whether the item has exactly the payload allowed by its kind.
 func (item Item) Validate() error {
+	if err := item.validateEnvelope(); err != nil {
+		return err
+	}
+	return item.validateKindPayload()
+}
+
+func (item Item) validateEnvelope() error {
 	switch item.Status {
 	case ItemRunning, ItemCompleted, ItemIncomplete:
 	default:
@@ -738,78 +745,85 @@ func (item Item) Validate() error {
 	if item.Kind != ToolCall && !item.FinishedAt.IsZero() {
 		return errors.New("finished at is only valid for tool calls")
 	}
+	return nil
+}
 
+func (item Item) validateKindPayload() error {
 	switch item.Kind {
 	case UserMessage, AgentMessage:
-		return item.rejectPayload(
-			payloadField{"text", item.Text != ""}, payloadField{"redacted", item.Redacted},
-			payloadField{"question", item.Question != nil},
-			payloadField{"tool", item.Tool != nil}, payloadField{"safetyClass", item.SafetyClass != ""},
-			payloadField{"error", item.Error != nil}, payloadField{"summary", item.Summary != ""},
-			payloadField{"droppedMessages", item.DroppedMessages != 0},
+		return item.rejectDisallowedPayload(
+			itemPayloadField{"text", item.Text != ""}, itemPayloadField{"redacted", item.Redacted},
+			itemPayloadField{"question", item.Question != nil},
+			itemPayloadField{"tool", item.Tool != nil}, itemPayloadField{"safetyClass", item.SafetyClass != ""},
+			itemPayloadField{"error", item.Error != nil}, itemPayloadField{"summary", item.Summary != ""},
+			itemPayloadField{"droppedMessages", item.DroppedMessages != 0},
 		)
 	case Reasoning:
-		return item.rejectPayload(
-			payloadField{"content", len(item.Content) != 0},
-			payloadField{"question", item.Question != nil}, payloadField{"tool", item.Tool != nil},
-			payloadField{"safetyClass", item.SafetyClass != ""}, payloadField{"error", item.Error != nil},
-			payloadField{"summary", item.Summary != ""}, payloadField{"droppedMessages", item.DroppedMessages != 0},
+		return item.rejectDisallowedPayload(
+			itemPayloadField{"content", len(item.Content) != 0},
+			itemPayloadField{"question", item.Question != nil}, itemPayloadField{"tool", item.Tool != nil},
+			itemPayloadField{"safetyClass", item.SafetyClass != ""}, itemPayloadField{"error", item.Error != nil},
+			itemPayloadField{"summary", item.Summary != ""}, itemPayloadField{"droppedMessages", item.DroppedMessages != 0},
 		)
 	case QuestionItem:
 		if item.Question == nil {
 			return errors.New("question is required")
 		}
-		return item.rejectPayload(
-			payloadField{"content", len(item.Content) != 0}, payloadField{"text", item.Text != ""},
-			payloadField{"redacted", item.Redacted},
-			payloadField{"tool", item.Tool != nil}, payloadField{"safetyClass", item.SafetyClass != ""},
-			payloadField{"error", item.Error != nil}, payloadField{"summary", item.Summary != ""},
-			payloadField{"droppedMessages", item.DroppedMessages != 0},
+		return item.rejectDisallowedPayload(
+			itemPayloadField{"content", len(item.Content) != 0}, itemPayloadField{"text", item.Text != ""},
+			itemPayloadField{"redacted", item.Redacted},
+			itemPayloadField{"tool", item.Tool != nil}, itemPayloadField{"safetyClass", item.SafetyClass != ""},
+			itemPayloadField{"error", item.Error != nil}, itemPayloadField{"summary", item.Summary != ""},
+			itemPayloadField{"droppedMessages", item.DroppedMessages != 0},
 		)
 	case ToolCall:
-		if item.Tool == nil {
-			return errors.New("tool invocation is required")
-		}
-		switch item.Status {
-		case ItemRunning:
-			if !item.FinishedAt.IsZero() {
-				return errors.New("running tool call must not have a finish time")
-			}
-		case ItemCompleted, ItemIncomplete:
-			if item.FinishedAt.IsZero() {
-				return errors.New("terminal tool call finish time is required")
-			}
-			if item.FinishedAt.Before(item.OccurredAt) {
-				return errors.New("tool call finish time precedes start time")
-			}
-		}
-		if item.SafetyClass != "" && !item.SafetyClass.Valid() {
-			return fmt.Errorf("unknown safety class %q", item.SafetyClass)
-		}
-		return item.rejectPayload(
-			payloadField{"content", len(item.Content) != 0}, payloadField{"text", item.Text != ""},
-			payloadField{"redacted", item.Redacted},
-			payloadField{"question", item.Question != nil}, payloadField{"summary", item.Summary != ""},
-			payloadField{"droppedMessages", item.DroppedMessages != 0},
-		)
+		return item.validateToolCallPayload()
 	case Compaction:
-		return item.rejectPayload(
-			payloadField{"content", len(item.Content) != 0}, payloadField{"text", item.Text != ""},
-			payloadField{"redacted", item.Redacted},
-			payloadField{"question", item.Question != nil}, payloadField{"tool", item.Tool != nil},
-			payloadField{"safetyClass", item.SafetyClass != ""}, payloadField{"error", item.Error != nil},
+		return item.rejectDisallowedPayload(
+			itemPayloadField{"content", len(item.Content) != 0}, itemPayloadField{"text", item.Text != ""},
+			itemPayloadField{"redacted", item.Redacted},
+			itemPayloadField{"question", item.Question != nil}, itemPayloadField{"tool", item.Tool != nil},
+			itemPayloadField{"safetyClass", item.SafetyClass != ""}, itemPayloadField{"error", item.Error != nil},
 		)
 	default:
 		return fmt.Errorf("unknown kind %d", item.Kind)
 	}
 }
 
-type payloadField struct {
+func (item Item) validateToolCallPayload() error {
+	if item.Tool == nil {
+		return errors.New("tool invocation is required")
+	}
+	switch item.Status {
+	case ItemRunning:
+		if !item.FinishedAt.IsZero() {
+			return errors.New("running tool call must not have a finish time")
+		}
+	case ItemCompleted, ItemIncomplete:
+		if item.FinishedAt.IsZero() {
+			return errors.New("terminal tool call finish time is required")
+		}
+		if item.FinishedAt.Before(item.OccurredAt) {
+			return errors.New("tool call finish time precedes start time")
+		}
+	}
+	if item.SafetyClass != "" && !item.SafetyClass.Valid() {
+		return fmt.Errorf("unknown safety class %q", item.SafetyClass)
+	}
+	return item.rejectDisallowedPayload(
+		itemPayloadField{"content", len(item.Content) != 0}, itemPayloadField{"text", item.Text != ""},
+		itemPayloadField{"redacted", item.Redacted},
+		itemPayloadField{"question", item.Question != nil}, itemPayloadField{"summary", item.Summary != ""},
+		itemPayloadField{"droppedMessages", item.DroppedMessages != 0},
+	)
+}
+
+type itemPayloadField struct {
 	name    string
 	present bool
 }
 
-func (item Item) rejectPayload(fields ...payloadField) error {
+func (item Item) rejectDisallowedPayload(fields ...itemPayloadField) error {
 	for _, field := range fields {
 		if field.present {
 			return fmt.Errorf("%s is not valid for item kind %d", field.name, item.Kind)
